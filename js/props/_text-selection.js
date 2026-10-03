@@ -31,6 +31,8 @@
  */
 
 export const TEXT_SEL_HIGHLIGHT = 'goditor-text-sel';
+/** 어두운 바탕용(흰 글자). 고르는 자 = js/canvas-contrast.js 의 textToneAt(«host 의 바탕» — 글자색 아님). 새 계산 없음. */
+export const TEXT_SEL_HIGHLIGHT_DARK = 'goditor-text-sel-dark';
 
 /** 패널 표면 — 여기를 누르는 것은 «캔버스 편집을 떠나는 것»이 아니다. */
 /* ★패널 판정 선택자 «한 곳» — 「여기를 누르는 것은 캔버스 편집을 떠나는 것이 아니다」의 정본.
@@ -51,6 +53,10 @@ export const FOCUS_TAKING_EXCEPTIONS = Object.freeze([
   { sel: '.prop-input',               why: '패널 글자칸 타이핑' },
   { sel: '.font-picker-search',       why: '글꼴 검색어 타이핑' },
   { sel: 'input[type=text]',          why: '그 밖의 글자칸 타이핑' },
+  /* ★텍스트형 input «전부»(적대QA 2026-10-03): type 속성이 «없는» <input> 은 input[type=text] 에 안 걸린다
+     (#var-name-input·#var-value-input·.var-item-value 가 그 꼴 — 막히면 타이핑이 안 된다). */
+  { sel: 'input:not([type])',         why: 'type 없는 input = 글자칸(브라우저 기본 text) 타이핑' },
+  { sel: 'input[type=search], input[type=email], input[type=url], input[type=tel], input[type=password]', why: '텍스트형 input 타이핑' },
   { sel: 'textarea',                  why: '여러 줄 글자칸 타이핑(위와 같은 이유)' },
   { sel: '[contenteditable="true"]',  why: '패널 안 글자 편집칸(위와 같은 이유)' },
   { sel: 'select',                    why: 'mousedown 을 막으면 네이티브 목록이 안 열린다' },
@@ -67,6 +73,11 @@ const EXC_SEL = FOCUS_TAKING_EXCEPTIONS.map(e => e.sel).join(', ');
  *    (그리드 — parkEditing + flush, block-drag.js) 예전대로 커밋한다(모달 — 다시 그린 뒤 저장 선택을 글자 오프셋으로 옮겨 단다).
  *  ⛔줄을 더하기 전에: 그 블럭의 패널 적용이 글자칸을 다시 그리지 않는가? */
 export const KEEP_FOCUS_HOST_SEL = '.text-block [contenteditable="true"], .table-block [contenteditable="true"]';
+/** 「패널로 가는 blur」 뒤에도 저장 선택을 «들고 있는» 글자칸 — 패널 값이 그 글자에 다시 쓰이는 표면.
+ *  KEEP_FOCUS 칸(텍스트블럭·표 칸) + 그리드 줄(세워 둠) + 모달 슬롯(다시 그린 뒤 옮겨 단다 — T7).
+ *  ⛔여기 없는 표면(채팅·배너2·카드 …)은 blur 가 곧 «진짜 편집 종료»라 저장 선택·하이라이트를 버린다(적대QA ⑥). */
+/*  ⚠️contenteditable 로 거르지 않고 «블럭 꼴»로 가른다 — 표 칸은 blur 핸들러가 focusout «보다 먼저» contenteditable 을 끈다. */
+export const RETAIN_ON_PANEL_BLUR_SEL = '.text-block, .table-block, .grid-block, .modal-block';
 const _el = (n) => (n && n.nodeType === 1 ? n : n && n.parentElement) || null;
 export function isInPanelSurface(node) {
   const e = _el(node);
@@ -111,7 +122,12 @@ function _rangeFromOffsets(host, start, end) {
   r.setStart(sN, sO); r.setEnd(eN, eO);
   return r.collapsed ? null : r;
 }
-/* host 를 «id 를 가진 가장 가까운 조상 + 자식 순번 경로»로 적는다 — 다시 그려진 뒤 같은 자리를 찾는 열쇠. */
+/* host 를 «id 를 가진 가장 가까운 조상 + 자식 순번 경로»로 적는다 — 다시 그려진 뒤 같은 자리를 찾는 열쇠.
+ * ★경로는 «정체»가 아니다(적대QA B1, 2026-10-03): 줄 하나를 지우면 다음 줄이 같은 경로·같은 글자로 당겨와
+ *   남의 줄에 붙었다. 그래서 되살림은 «조상 블럭의 글자 전체(지문)가 저장 때와 같을 때만» 한다 —
+ *   줄·칸을 더하거나 빼면 지문이 바뀌어 «버린다». 스타일만 바뀐 다시 그리기(크기 40·52)는 지문이 같아 되살린다.
+ *   정체 칸(고유 id)이 «있는» 표면: 텍스트블럭(블럭 id · 글자칸 1개) · 모달(블럭 id + data-mdl-slot 이름).
+ *   «없는» 표면: 그리드 줄(data-r·c·line = 순번) · 표 칸(행·열 순번) — 이 둘은 위 지문이 같을 때만 되살리고 아니면 버린다. */
 function _locate(host) {
   let anchor = host.parentElement;
   while (anchor && !anchor.id) anchor = anchor.parentElement;
@@ -131,7 +147,9 @@ function _resolve(anchorId, path) {
 function _record(range, host) {
   const { start, end } = _offsetsOf(range, host);
   const { anchorId, path } = _locate(host);
-  _saved = { range: range.cloneRange(), host, text: host.textContent, start, end, anchorId, path };
+  const anchor = anchorId ? document.getElementById(anchorId) : null;
+  _saved = { range: range.cloneRange(), host, text: host.textContent, start, end, anchorId, path,
+             print: anchor ? anchor.textContent : null };
 }
 
 /** 살아 있는 저장 선택 { range, host } — 없거나 죽었으면 null.
@@ -141,7 +159,9 @@ function _alive() {
   let { range, host } = _saved;
   if (!host.isConnected) {
     const nh = _resolve(_saved.anchorId, _saved.path);
-    const nr = nh && nh.textContent === _saved.text ? _rangeFromOffsets(nh, _saved.start, _saved.end) : null;
+    const anchor = _saved.anchorId ? document.getElementById(_saved.anchorId) : null;
+    const sameStructure = !!anchor && anchor.textContent === _saved.print;   // ★지문 — 줄·칸이 늘거나 줄면 버린다
+    const nr = nh && sameStructure && nh.textContent === _saved.text ? _rangeFromOffsets(nh, _saved.start, _saved.end) : null;
     if (!nr) { _saved = null; return null; }
     _saved.host = host = nh; _saved.range = range = nr;
   }
@@ -204,6 +224,14 @@ export function replaceSavedTextSelection(node) {
 
 export function clearTextSelection() {
   _saved = null;
+  _schedulePaint();
+}
+/** ★저장 선택을 «버리는» 한 자리(지디 판정 B2·⑥, 2026-10-03) — 하이라이트도 여기서 같이 지운다.
+ *  부르는 때: ⌘Z/⌘⇧Z(history.js restoreSnapshot) · 편집의 «진짜» 종료(park 아님) · 편집 밖에서 그 블럭을 누름.
+ *  「편집 밖에서 바꾼 값은 블럭 전체」(핀·피그마와 같음). */
+export function discardTextSelection() {
+  _saved = null;
+  _paint();          // 바로 지운다(다음 틱까지 잔상을 남기지 않는다)
   _schedulePaint();
 }
 
@@ -274,6 +302,12 @@ export function applyStyleToRange(range, host, prop, value) {
 /* ── 「패널로 가는 blur」 한 곳 ─────────────────────────────────────── */
 /** blur/focusout 이 패널 표면으로 가는가 — relatedTarget 또는 «지금 눌리고 있는» 대상이 패널 표면 안. */
 export function isBlurIntoPanel(ev) {
+  /* ★blur 난 노드가 이미 문서에서 떨어졌으면 «사용자가 패널로 간 blur»가 아니라 «다시 그리기로 노드가 떨어져 난 blur»다
+     ⇒ 세우지 말고 커밋해야 한다(Evaluator 2026-10-03: 그리드 줄 색 스펙트럼 → 글자가 자리표시로, .editing 1→2→3).
+     _alive() 와 같은 자(isConnected)로 가른다.
+     ⚠️실측(2026-10-03 probe): 크로미움은 «떼어 내는 도중»에 blur 를 쏘아 그 순간엔 아직 isConnected=true 다.
+       그래서 여기만으로는 못 가른다 — parkEditing 이 «바로 다음 마이크로태스크»에 한 번 더 재서, 떨어졌으면 커밋한다. */
+  if (ev && ev.target && ev.target.nodeType === 1 && !ev.target.isConnected) return false;
   if (ev && ev.relatedTarget && isInPanelSurface(ev.relatedTarget)) return true;
   return !!(_downTarget && isInPanelSurface(_downTarget));
 }
@@ -283,17 +317,31 @@ export function isBlurIntoPanel(ev) {
  *  블럭을 통째로 다시 그려(그리드) 아직 데이터에 안 들어간 글자를 잃기 때문이다(flush = 패널은 다시 안 그리는 커밋). */
 export function parkEditing(host, end, { flush = null } = {}) {
   if (_parked && _parked.host !== host) _endParked();
-  _parked = { host, end, flush };
+  const rec = { host, end, flush };
+  _parked = rec;
+  // ★떼어 내는 도중의 blur 였으면(위 isBlurIntoPanel 주석) 이 시점엔 떨어져 있다 → 세우지 않고 커밋한다.
+  queueMicrotask(() => { if (_parked === rec && !host.isConnected) _commitDetached(); });
+}
+/* 세워 둔 칸이 다시 그리기로 «떨어졌다» = 사용자가 떠난 게 아니다 → 그 칸이 들고 있던 글자를 커밋한다
+   (조용히 버리면 글자가 사라지고 .editing 이 남는다 — Evaluator 2026-10-03 그리드 줄 색). flush 가 있으면 그것(패널 안 다시 그림). */
+function _commitDetached() {
+  const p = _parked;
+  _parked = null;
+  if (!p) return;
+  const f = typeof p.flush === 'function' ? p.flush : p.end;
+  try { f && f(); } catch (e) { console.error('[text-selection] detached commit', e); }
 }
 function _parkedAlive() {
   if (!_parked) return null;
-  if (!_parked.host.isConnected || _parked.host.getAttribute('contenteditable') !== 'true') { _parked = null; return null; }
+  if (!_parked.host.isConnected) { _commitDetached(); return null; }
+  if (_parked.host.getAttribute('contenteditable') !== 'true') { _parked = null; return null; }
   return _parked;
 }
 function _endParked() {
   const p = _parked;
   _parked = null;
   if (p && typeof p.end === 'function') { try { p.end(); } catch (e) { console.error('[text-selection] parked end', e); } }
+  if (p) discardTextSelection();   // 세움의 «진짜» 끝 = 편집 종료 → 저장 선택도 버린다
 }
 /** 세워 둔 편집이 있으면 지금 끝낸다(root 를 주면 그 안의 것만). */
 export function flushParkedEdit(root) {
@@ -324,8 +372,13 @@ function _paint() {
   const s = _alive();
   const a = document.activeElement;
   // 포커스가 그 글자칸에 있으면 브라우저 선택이 이미 보인다 — 두 겹으로 칠하지 않는다.
-  if (!s || (a && (a === s.host || s.host.contains(a)))) { reg.delete(TEXT_SEL_HIGHLIGHT); return; }
-  reg.set(TEXT_SEL_HIGHLIGHT, new Highlight(s.range.cloneRange()));
+  if (!s || (a && (a === s.host || s.host.contains(a)))) { reg.delete(TEXT_SEL_HIGHLIGHT); reg.delete(TEXT_SEL_HIGHLIGHT_DARK); return; }
+  // 'light' = 바탕이 어두워 밝은 글자가 낫다 → 어두운 판. 못 재면(null) 밝은 판(지금 것) 그대로.
+  let tone = null;
+  try { tone = window.__gdTextTone?.textToneAt?.(s.host) ?? null; } catch (_) {}
+  const use = tone === 'light' ? TEXT_SEL_HIGHLIGHT_DARK : TEXT_SEL_HIGHLIGHT;
+  reg.delete(use === TEXT_SEL_HIGHLIGHT ? TEXT_SEL_HIGHLIGHT_DARK : TEXT_SEL_HIGHLIGHT);
+  reg.set(use, new Highlight(s.range.cloneRange()));
 }
 
 /* ── 배선(한 번) ─────────────────────────────────────────────────── */
@@ -358,8 +411,9 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window.
     const t = _el(e.target);
     if (p && t && (p === t || p.contains(t))) { _parked = null; return; }   // 같은 칸으로 돌아온다 → 세움만 푼다
     if (_parked) _endParked();
-    if (s && t && (s === t || s.contains(t))) return;
-    if (_saved) clearTextSelection();
+    // 그 글자칸 «안»을 누르되 편집 중일 때만 저장 선택을 이어 간다 — 편집 밖(선택만)에서 누르면 버린다(B2)
+    if (s && t && (s === t || s.contains(t)) && s.getAttribute('contenteditable') === 'true') return;
+    if (_saved) discardTextSelection();
   };
   document.addEventListener('pointerdown', onDown, true);
 
@@ -393,9 +447,13 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window.
     }
     _schedulePaint();
   }, true);
-  /* ⚠️blur(Esc 등)만으로는 저장 선택을 지우지 «않는다» — 옛 판(_lastSelRange)도 blur 뒤 선택을 들고 있었고
-     화면에도 그 선택이 남아 보인다. 지우는 것은 «바깥을 누를 때»(위 onDown)와 «글자칸 안에서 접힐 때»(selectionchange)다. */
-  document.addEventListener('focusout', () => _schedulePaint(), true);
+  /* ★편집의 «진짜» 종료(패널로 가는 blur 가 아니거나, 그 표면이 RETAIN 밖이라 blur 가 곧 종료) → 버린다(B2·⑥).
+     패널로 가는 blur 이면서 RETAIN 칸이면 그대로 든다(세움·다시 그린 뒤 옮겨 달기). */
+  document.addEventListener('focusout', (e) => {
+    const s = _saved;
+    if (s && e.target === s.host && !(isBlurIntoPanel(e) && s.host.closest(RETAIN_ON_PANEL_BLUR_SEL))) discardTextSelection();
+    _schedulePaint();
+  }, true);
 
   // 그리드처럼 «적용 = 다시 그리기»인 표면: 패널 값·버튼이 핸들러에 닿기 «직전»에 세워 둔 편집의 글자를 먼저 데이터로 보낸다.
   const onPanelAct = (e) => {
@@ -416,6 +474,6 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window.
   document.addEventListener('change', () => _schedulePaint(), false);
   document.addEventListener('click', () => _schedulePaint(), false);
 
-  window.__textSelection = { getSavedTextSelection, saveTextSelection, restoreTextSelection, clearTextSelection,
+  window.__textSelection = { getSavedTextSelection, saveTextSelection, restoreTextSelection, clearTextSelection, discardTextSelection,
     isBlurIntoPanel, isEditingParked, flushParkedEdit, FOCUS_TAKING_EXCEPTIONS };
 }

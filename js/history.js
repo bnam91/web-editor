@@ -498,6 +498,10 @@ function undo() {
     restoreSnapshotScoped(leavingSnap, targetSnap, leavingSnap);
   } else {
     _collabScopedUndoStats.fullCalls++;
+    /* ★⌘Z 는 캔버스 글자의 «저장 선택»(js/props/_text-selection.js)을 버린다 — 지디 판정 B2(2026-10-03): 되살아난 저장 선택 때문에
+       편집 밖의 크기 변경이 부분에만 들어갔다(핀·피그마 = 블럭 전체). ⚠️이 파일의 _captureSelection/_restoreSelection(블럭 선택)과는 별개.
+       (이 자리 — restoreSnapshot «안»이 아니라 여기 — 인 까닭: tests/unit/autosave-overlap N7 이 그 함수의 줄 번호를 명부로 잰다.) */
+    try { window.__textSelection?.discardTextSelection?.(); } catch (_) {}
     restoreSnapshot(targetSnap);
     _restampRestored();   // ★R1(2026-10-03) — 위 _restampRestored 주석
   }
@@ -547,6 +551,7 @@ function redo() {
     return;
   }
   _collabScopedUndoStats.fullCalls++;
+  try { window.__textSelection?.discardTextSelection?.(); } catch (_) {}   // ⌘⇧Z — 위 undo 의 B2 주석과 같은 까닭
   restoreSnapshot(newSnap);
   _restampRestored();   // ★R1(2026-10-03) — undo 와 같은 까닭
   try { newSnap?.sideEffects?.onRedo?.(); } catch (e) { console.warn('[history] onRedo err:', e); }

@@ -3795,3 +3795,10 @@ html.tgs-selecting .tgs:focus-within {
 ::highlight(goditor-text-sel) {
   background-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
 }
+/* 어두운 바탕(글자 톤 판정 = js/canvas-contrast.js textToneAt — «host 의 바탕»을 섹션까지 합성해 본다)에선 같은 바탕에 흰 글자.
+   측정(scratchpad/tx1/hl/num.json): #111 위 #555 글자 + 35% 블렌드 = 대비 1.33 · 흰 글자면 9.91.
+   ⚠️#fff 는 지디 지시 값 그대로 — --ui-* 에 흰색 토큰이 없다(있는 #fff 토큰은 --preset-* 블럭 기본값뿐). */
+::highlight(goditor-text-sel-dark) {
+  background-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
+  color: #fff;
+}
