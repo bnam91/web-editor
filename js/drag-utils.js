@@ -248,6 +248,11 @@ function settleRowInFreeFrame(frame, row, mode = 'stack') {
   if (frame.dataset?.freeLayout !== 'true' || row.parentElement !== frame) return false;
   // 받는 것 = .row 또는 정본 표(panel-dispatch hasPanelForBlock)의 블럭. 글자 래퍼·도형 래퍼는 제 갈래가 따로 세운다.
   if (!(row.classList?.contains('row') || window.hasPanelForBlock?.(row))) return false;
+  /* ★F3(2026-10-03) — 폭 100% 그리드는 «안의 내용»도 프레임 폭이라 아래 w 가 곧 프레임 폭이 됐다 → T-088 클램프 x 범위 [0,0]
+     (49c74728 의 시험은 픽스처가 400px 라 못 잡았다). 재기 «전»에 그리드 폭 모델로 프레임보다 작은 폭을 준다.
+     규칙·까닭은 grid-block.js fitGridWidthToFreeFrame 머리말 한 곳. ⛔여기서 style.width 를 따로 박지 않는다. */
+  const _units = row.classList.contains('row') ? [...row.children] : [row];
+  _units.forEach(u => window.fitGridWidthToFreeFrame?.(u, frame));
   const fr = frame.getBoundingClientRect();
   const k = frame.offsetWidth ? (fr.width / frame.offsetWidth) || 1 : 1;   // 캔버스 줌
   /* ★폭·x 는 row 상자가 아니라 «안의 내용» 기준. row 는 블록 요소라 프레임 폭을 다 먹는다 —
@@ -270,7 +275,13 @@ function settleRowInFreeFrame(frame, row, mode = 'stack') {
   row.style.position = 'absolute';
   row.style.left = left + 'px';
   row.style.top  = top + 'px';
-  if (w && (!row.style.width || row.style.width === '100%')) row.style.width = w + 'px';
+  /* ★D1(2026-10-03) — 폭 모델을 가진 그리드의 row 에는 폭을 «안» 적는다. 적으면 그 px 가 «두 번째 명부»가 되어
+     키를 지우거나 다른 프레임에 맞춰도 row 가 옛 폭을 쥔다(실측: 섹션에 나와도 611 · frB 에서 그리드 320 / row 611 → 다시 수직만).
+     ⚠️폭을 비우면 안 된다 — CSS `.row{width:100%}`(editor-layout.css) 라 프레임 폭이 된다(실측 400). 그래서 «값이 아닌» fit-content 로
+     안의 px 그리드 폭을 따라가게 한다. 규칙은 grid-block.js _gridRowFollows 한 곳. */
+  const _modelSized = _units.some(u => u.classList?.contains('grid-block') && window.getGridWidth?.(u) != null);
+  if (_modelSized) row.style.width = 'fit-content';
+  else if (w && (!row.style.width || row.style.width === '100%')) row.style.width = w + 'px';
   row.setAttribute('draggable', 'false');
   return true;
 }

@@ -351,7 +351,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
         return found;
       };
       const insertIntoSec = (domEl) => {
-        if (!indicator) { sectionInner.appendChild(domEl); return; }
+        if (!indicator) { sectionInner.appendChild(domEl); window.syncAutoGridWidth?.(domEl); return; }   // ⛔이 return 이 아래 sync 를 건너뛰었다(D2)
         const nextEl = indicator.nextElementSibling;
         const nextTarget = nextEl?._dragTarget || null;
         /* ★기준 노드의 «실제 부모»에 넣는다.
@@ -369,6 +369,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
             bottomGap.parentElement.insertBefore(domEl, bottomGap);
           } else sectionInner.appendChild(domEl);
         }
+        window.syncAutoGridWidth?.(domEl);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
       };
 
       // Cross-boundary: overlay-tb → section
@@ -433,6 +434,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
         sorted.forEach(target => {
           if (refNode && sectionInner.contains(refNode)) sectionInner.insertBefore(target, refNode);
           else sectionInner.appendChild(target);
+          window.syncAutoGridWidth?.(target);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
         });
         clearLayerIndicators();
         buildLayerPanel();

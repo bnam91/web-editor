@@ -830,6 +830,7 @@ function bindBlock(block) {
           const row = toFlowUnit(dragEl);
           bindPlacementDrag(row, dragEl);
         }
+        window.syncAutoGridWidth?.(dragEl);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — ⛔pushHistory «앞»(끝 표본에 담기게)
 
         window.buildLayerPanel?.();
         window.pushHistory?.();   // ★끝 상태(추출 완료) — 시작 상태는 onMove 첫 틱이 찍었다
@@ -2634,6 +2635,10 @@ function bindFrameDropZone(ss) {
       // 블록을 absolute로 전환하는 헬퍼
       const makeAbsolute = (block, left, top) => {
         const _mp = framePadding(inner);   // F5: 안쪽 여백
+        /* ★F3(2026-10-03) — 그리드는 폭을 «모델»로 받는다. 아래 style.width px 는 다음 renderGridBlock 이 100% 로 되돌려
+           프레임 폭(764)이 되거나, 섹션 폭(860)이 그대로 들어와 프레임보다 넓었다 → T-088 클램프 x 범위 [0,0].
+           규칙은 grid-block.js fitGridWidthToFreeFrame 한 곳. 모델이 폭을 주면 style.width 가 px 라 아래 줄은 안 탄다. */
+        window.fitGridWidthToFreeFrame?.(block, inner);
         const w = block.offsetWidth || Math.round(SS_W * 0.5);
         block.style.position = 'absolute';
         block.style.left = (left + _mp.l) + 'px';
@@ -2761,6 +2766,7 @@ function bindFrameDropZone(ss) {
       growFrameToFitChildren(inner);
     }
 
+    window.syncAutoGridWidth?.(inner);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — 흐름 프레임으로 들어오면 100%, 자유 프레임이면 이 프레임 기준
     // dragging 클래스 고착 방지
     dragState.dragSrc?.classList.remove('dragging', 'section-dragging', 'layer-dragging');
     clearDropIndicators();

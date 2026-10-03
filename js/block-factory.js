@@ -1784,6 +1784,10 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
       block.dataset.offsetY = stackY;
     }
     ss.appendChild(block);
+    /* ★F3(2026-10-03) — 그리드는 위 '100%' 기본을 그대로 두면 폭 = 프레임 폭 → T-088 클램프 x 범위 [0,0](수직만 움직임).
+       폭은 그리드 폭 모델로 준다(opts.width 가 있으면 그 값을 키로). 규칙은 grid-block.js fitGridWidthToFreeFrame 한 곳.
+       append «뒤»라 프레임 폭을 잰다 · 아래 중앙 놓기가 줄어든 폭으로 가운데를 잡는다. */
+    if (block.classList.contains('grid-block')) window.fitGridWidthToFreeFrame?.(block, ss, opts.width);
     // #3 «블록을 프레임 중앙에 놓기» — 좌표 미지정 삽입의 기본값을 프레임 중앙으로.
     // append «뒤»에 불러야 offsetWidth/Height 가 실측된다. hasAbsCoords(MCP·명시좌표)면 유지.
     if (!hasAbsCoords) _placeAtFrameCenter(block, ss);
