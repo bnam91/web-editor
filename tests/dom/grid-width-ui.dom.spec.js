@@ -119,6 +119,29 @@ test('P3 「100%(자동)」 → 키·자동 표시를 지우고 100% 로', async
   expect(errs).toEqual([]);
 });
 
+/* P4 — 슬라이더: 끄는 동안 매 틱 쓰고(applyGridOwnWidth) 양쪽 끝 표본을 찍는다. 이웃(push-after)과 ⌘Z 가 갈라지나. */
+test('P4 슬라이더 → 폭(끄는 동안 반영) · 뒤에 push-after 동작 → ⌘Z 한 번은 그 동작만 · 두 번째가 슬라이더', async ({ page }) => {
+  const errs = await setup(page);
+  await select(page);
+  const va0 = await page.evaluate(() => document.getElementById('gG').dataset.valign ?? null);
+  await page.evaluate(() => {
+    const sl = document.getElementById('grd-width-slider');
+    for (const v of [600, 560, 520]) { sl.value = String(v); sl.dispatchEvent(new Event('input', { bubbles: true })); }
+    sl.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForTimeout(200);
+  expect(await st(page)).toMatchObject({ w: 520, css: '520px', key: '520' });
+  expect(await page.inputValue('#grd-width-number'), '패널 칸도 520').toBe('520');
+  await page.evaluate(() => { const g = document.getElementById('gG'); g.dataset.valign = 'center'; window.renderGridBlock(g); window.pushHistory('세로 정렬'); });
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z'); await page.waitForTimeout(300);
+  const u1 = await page.evaluate(() => ({ w: document.getElementById('gG').offsetWidth, va: document.getElementById('gG').dataset.valign ?? null }));
+  expect(u1, '⌘Z 한 번 = 정렬만').toEqual({ w: 520, va: va0 });
+  await page.keyboard.press('Meta+z'); await page.waitForTimeout(300);
+  expect(await st(page), '⌘Z 두 번 = 슬라이더 전(자동)').toMatchObject({ css: '100%', key: null });
+  expect(errs).toEqual([]);
+});
+
 test('H1 손잡이 — 떠 있을 때만 4개 · 화면 7×7(줌 40/100) · ew-resize · 안 떠 있으면 0(대조)', async ({ page }) => {
   const errs = await setup(page);
   for (const z of [40, 100]) {
@@ -232,6 +255,28 @@ test('U1 ⌘Z 한 걸음 — 손잡이 끌기 한 번 · 패널 입력 한 번',
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('Meta+z'); await page.waitForTimeout(300);
   expect(await st(page), '⌘Z 한 번 = 입력 전').toMatchObject({ css: '100%', key: null });
+  expect(errs).toEqual([]);
+});
+
+/* U2 — 끝 표본(onUp pushHistory)을 «이웃»으로 잰다. U1 만으로는 못 본다: ⌘Z 하나만 누르면 끝 표본이 없어도 되돌아간다(M8 변이 실측 초록).
+   drag-history.js ⑴: 끌기 «뒤»에 push-after 동작이 오면, 끝 표본이 없을 때 ⌘Z 한 번이 둘을 같이 먹는다. */
+test('U2 손잡이 끌기 → (push-after 동작) → ⌘Z 한 번은 그 동작만 · 두 번째가 끌기', async ({ page }) => {
+  const errs = await setup(page);
+  await select(page); await toggleFloat(page);
+  const s0 = await st(page);
+  const va0 = await page.evaluate(() => document.getElementById('gG').dataset.valign ?? null);
+  expect(va0, '전제 — 바꿀 정렬과 다르다').not.toBe('center');
+  await dragHandle(page, 'se', 80);
+  const s1 = await st(page);
+  expect(s1.w, '전제 — 넓어졌다').toBeGreaterThan(s0.w);
+  /* push-after 이웃 — 우측패널 대다수의 꼴(바꾸고 «뒤»에 찍는다) */
+  await page.evaluate(() => { const g = document.getElementById('gG'); g.dataset.valign = 'center'; window.renderGridBlock(g); window.pushHistory('세로 정렬'); });
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z'); await page.waitForTimeout(300);
+  const u1 = await page.evaluate(() => ({ w: document.getElementById('gG').offsetWidth, va: document.getElementById('gG').dataset.valign ?? null }));
+  expect(u1, '⌘Z 한 번 = 정렬만 되돌림 · 폭은 끌린 그대로').toEqual({ w: s1.w, va: va0 });
+  await page.keyboard.press('Meta+z'); await page.waitForTimeout(300);
+  expect((await st(page)).w, '⌘Z 두 번 = 끌기 전').toBe(s0.w);
   expect(errs).toEqual([]);
 });
 
