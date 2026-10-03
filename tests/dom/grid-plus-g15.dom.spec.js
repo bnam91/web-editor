@@ -388,3 +388,84 @@ for (const z of [100]) {
     expect(errs).toEqual([]);
   });
 }
+
+/* ══ K — G19 자식(그리드 밑에 쌓인 블럭)이 있는 그리드 + ＋ (5015a2ab 위로 옮긴 뒤, 팀리드 2026-10-04) ══════════
+ * 그릇 .grd-children 은 그리드의 직계, ＋ 도 직계다. 렌더(replaceShellKeepChildren)는 그릇 «말고» 직계를 다 지우고
+ * 껍데기를 그릇 «앞»에 넣는다 → 그 뒤 _syncGridAddBtns 가 ＋ 를 «끝에» 다시 단다.
+ * 재는 것: 직계 순서 · ＋ 개수(중복 없음) · 아래 ＋ 자리(블럭 전체 아래 = 자식 아래) · 자식과 겹침 0 · 클릭 = 행 +1 · 자식 그대로. */
+async function withKids(page, id) {
+  await page.evaluate((id) => {
+    const g = document.getElementById(id);
+    const box = window.ensureGridKidsBox(g);
+    for (const k of ['kA', 'kB']) box.insertAdjacentHTML('beforeend', `<div class="row" id="r${k}"><div class="text-block" data-type="heading" id="${k}"><div class="tb-h2">자식 ${k}</div></div></div>`);
+    window.rebindAll?.(); window.renderGridBlock(g);
+  }, id);
+  await page.waitForTimeout(150);
+}
+const kidState = (page, id) => page.evaluate((id) => {
+  const g = document.getElementById(id), R = (e) => { const r = e.getBoundingClientRect(); return { t: +r.top.toFixed(1), b: +r.bottom.toFixed(1), l: +r.left.toFixed(1), r: +r.right.toFixed(1) }; };
+  const box = g.querySelector(':scope > .grd-children');
+  const btn = (a) => g.querySelector(`:scope > .grd-add-btn[data-grd-add="${a}"]`);
+  return {
+    order: [...g.children].map(c => c.classList.contains('grd-add-btn') ? `btn:${c.dataset.grdAdd}` : c.className.split(' ')[0]),
+    kids: box ? [...box.querySelectorAll('.text-block')].map(k => k.id) : [],
+    block: R(g), inner: R(g.querySelector(':scope > .grd-inner')), kidsBox: box ? R(box) : null,
+    col: btn('col') ? R(btn('col')) : null, row: btn('row') ? R(btn('row')) : null,
+    nRows: g.dataset.rows ? JSON.parse(g.dataset.rows).length : 1,
+  };
+}, id);
+const overlap = (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
+
+test('K1 ★자식 있는 그리드 — 렌더 뒤 직계 순서·＋ 둘(중복 없음) · 아래 ＋ = 블럭 전체(자식 포함) 바로 아래 · 자식과 겹침 0', async ({ page }) => {
+  const { errs, a } = await setup(page);
+  await withKids(page, a);
+  await force(page, a);
+  const s0 = await kidState(page, a);
+  expect(s0.kids, '전제 — 자식 둘').toEqual(['kA', 'kB']);
+  expect(s0.kidsBox.t, '전제 — 그릇은 껍데기 아래').toBeGreaterThanOrEqual(s0.inner.b - 1);
+  // 재렌더 한 번 더(＋ 가 붙은 채로) — 순서·개수가 그대로인가
+  await page.evaluate((id) => window.renderGridBlock(document.getElementById(id)), a);
+  await page.waitForTimeout(80);
+  const s = await kidState(page, a);
+  const msg = JSON.stringify(s);
+  expect(s.order, `★직계 순서 ${msg}`).toEqual(['grd-inner', 'grd-children', 'btn:col', 'btn:row']);
+  expect(s.kids, '★자식 그대로').toEqual(['kA', 'kB']);
+  expect(Math.abs(s.row.t - s.block.b), `★아래 ＋ = 블럭 전체(자식 포함) 바로 아래 ${msg}`).toBeLessThanOrEqual(1);
+  expect(overlap(s.row, s.kidsBox), `★아래 ＋ 와 자식 그릇 겹침 0 ${msg}`).toBe(0);
+  console.log('K1-geo', msg);
+  expect(errs).toEqual([]);
+});
+
+test('K2 ★자식 있는 그리드 — 아래 ＋ 진짜 클릭 = 행 +1 · 자식 그대로(순서·개수) · undo 한 번 = 처음', async ({ page }) => {
+  const { errs, a } = await setup(page);
+  await withKids(page, a);
+  await force(page, a);
+  const s0 = await kidState(page, a);
+  const m0 = await model(page, a);
+  expect(s0.row.b, `전제 — 아래 ＋ 가 화면 안 ${JSON.stringify(s0)}`).toBeLessThan(1400);
+  const bx = await btnBox(page, a, 'row');
+  expect(bx && bx.hitIsBtn, `전제 — 아래 ＋ 가 눌린다 ${JSON.stringify(bx)}`).toBe(true);
+  await page.mouse.click(bx.cx, bx.cy); await page.waitForTimeout(200);
+  const s1 = await kidState(page, a);
+  expect(s1.nRows, '★행 +1').toBe(s0.nRows + 1);
+  expect(s1.kids, '★자식 그대로').toEqual(['kA', 'kB']);
+  expect(s1.order.slice(0, 2), '★껍데기·그릇 순서 그대로').toEqual(['grd-inner', 'grd-children']);
+  expect(s1.kidsBox.t, '★그릇은 여전히 (늘어난) 껍데기 아래').toBeGreaterThanOrEqual(s1.inner.b - 1);
+  await page.evaluate(() => window.undo()); await page.waitForTimeout(200);
+  const mu = await model(page, a);
+  expect({ cols: mu.cols, rows: mu.rows, cells: mu.cells }, '★undo 한 번 = 처음').toEqual({ cols: m0.cols, rows: m0.rows, cells: m0.cells });
+  const ku = await page.evaluate((id) => [...document.querySelectorAll(`#${id} > .grd-children .text-block`)].map(k => k.id), a);
+  expect(ku, '★undo 뒤 자식 그대로').toEqual(['kA', 'kB']);
+  expect(errs).toEqual([]);
+});
+
+test('K3 자식 있는 그리드 — 자식 위에 마우스 = 그리드 호버로 ＋ 뜬다 · 오른쪽 ＋ 세로 자리 기록', async ({ page }) => {
+  const { errs, a } = await setup(page);
+  await withKids(page, a);
+  const k = await page.evaluate(() => { const r = document.getElementById('kB').getBoundingClientRect(); return [r.left + r.width * 0.25, r.top + r.height / 2]; });
+  await page.mouse.move(k[0], k[1], { steps: 4 }); await page.waitForTimeout(100);
+  const s = await kidState(page, a);
+  expect(s.col && s.row, `★자식 위 호버 → ＋ 둘 ${JSON.stringify(s)}`).toBeTruthy();
+  console.log('K3-geo', JSON.stringify({ colMidY: (s.col.t + s.col.b) / 2, inner: s.inner, kidsBox: s.kidsBox, block: s.block }));
+  expect(errs).toEqual([]);
+});
