@@ -1845,7 +1845,8 @@ function _childGapRowHtml(block) {
 
 /* ── G19 「＋ 블럭 넣기 ▾」 — 그리드 «밑»에 블럭을 쌓는다(블럭 선택 + T/G/K 는 지금처럼 «뒤 형제»: insert-anchor G3).
  * ★꼴은 같은 패널의 「＋ 줄 추가 ▾」(_grdAddKindSelectHtml)와 같다 — prop-select 하나, 머리 옵션은 값 없음.
- * ★«블럭 단위 선택»(칸/줄을 아직 안 고른 상태 — 첫 클릭)에서만 뜬다. 칸/줄을 고른 상태의 패널은 «그 칸» 손잡이 자리다.
+ * ★«블럭 단위 선택»(칸/줄을 아직 안 고른 상태 — 첫 클릭 · _anyHit 없음)에서만 뜬다. 칸/줄을 고른 상태의 패널은 «그 칸» 손잡이 자리다.
+ *   ⛔조건에 _nestHit 을 섞지 마라 — grid-nested-line-select A3-양성2 가 「줄 없음 vs 중첩 줄」 손잡이 차이를 재는데, 섞으면 이 select 하나가 그 차이(−1)로 샌다(실측).
  *   ⚠️이건 판단이다 — 측정 근거: 그 상태(4×4 줄 선택)의 패널 순증이 기준선에서 이미 +60(합격선 60, G2 ⑴)이라
  *     한 줄(+35px)이 들어갈 자리가 0 이다. 펴 둔 채로 넣으려면 G2 골든 «재촬영»(별도 커밋) 판단이 먼저다.
  *   ⇒ 숨긴 자리(줄 선택 상태)는 G2 가 재고, 뜨는 자리(블럭 선택 상태)는 tests/dom/grid-children.dom.spec.js K13 이
@@ -2718,7 +2719,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
     </div>
     ${_grdNestHintHtml(_nestHit)}
     ${_grdLineBarHtml(_anyHit, block)}
-    ${(_anyHit || _nestHit) ? '' : _grdKidsAddSectionHtml()}
+    ${_anyHit ? '' : _grdKidsAddSectionHtml()}
     ${_borderSectionHtml(_cellBorder)}
     ${_grdRuleSectionHtml(block)}
     ${_grdPadExcludeSectionHtml(block)}
