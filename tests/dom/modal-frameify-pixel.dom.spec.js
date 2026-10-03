@@ -4,6 +4,7 @@
  *   + 수치: 그릇 rect · 글자 칸마다 Range.getClientRects() 줄 상자 · 아이콘 rect — 0.01px 단위로 같아야.
  * 행렬 = 형태 4 × 설정 14 × 자리 3(섹션 / 스택 프레임 안 / 그리드 밑) × 배율 2(100% · 40%) — 테스트 하나 = (형태·자리·배율), 안에서 설정 14 를 돈다.
  * ★비교기 자체의 양성대조 V1 = 맨 끝 시험(픽셀 하나 바꾼 PNG 를 «1» 로 세는가).
+ * (PNG 내보내기 E2 는 이 파일에 없다 — 하네스에서 못 잰다(electronAPI 가짜 → captureSectionCdp null) · 실앱에서 쟀다: $S/reports/M1-BUILD.md)
  * ⛔앱 무접촉 — bootApp. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -148,46 +149,4 @@ test('V1 비교기 양성대조 — 같은 PNG 에서 픽셀 하나를 바꾸면
   const b = await page.screenshot({ clip });
   expect((await diffPng(page, a, b)).n).toBe(1);
   expect((await diffPng(page, a, a)).n).toBe(0);
-});
-
-/* ── E2 PNG 내보내기 — 섹션 PNG(exportSection returnDataUrl) 전/후 ─────────────────────────────── */
-const SEC_E = `<div class="section-block" id="sF" data-section="1" data-name="F"><div class="section-hitzone"></div><div class="section-inner" id="innerF" style="padding-left: 32px; padding-right: 32px;">
-<div class="gap-block" data-type="gap" id="gTop" style="height:120px"></div>
-<div class="gap-block" data-type="gap" id="gEnd" style="height:200px"></div></div></div>`;
-async function setup(page) {
-  await page.setViewportSize({ width: 1500, height: 1400 });
-  const errs = await bootApp(page);
-  await page.evaluate((h) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
-    c.insertAdjacentHTML('beforeend', h); window.rebindAll?.(); window.deselectAll?.(); }, SEC_E);
-  await page.waitForTimeout(300);
-  return errs;
-}
-const putModal = (page, opts) => page.evaluate((o) => { const { row, block } = window.makeModalBlock(o); block.id = 'mdlT';
-  document.getElementById('gTop').after(row); window.renderModalBlock(block); window.bindBlock?.(block); window.clearHistory?.(); return block.id; }, opts);
-/* ⛔E2 는 이 하네스에서 못 잰다(실측 2026-10-04): exportSection 이 «프레임화 전»(모달 그대로 = pin 경로)부터
-     <img src="data:image/png;base64,null"> 로드 실패(Event)로 던진다 — electronAPI 가짜가 null 을 돌려주는 자리로 «본다»(원천 미확정).
-   ⇒ 실앱(격리 9378 · 현빈 프로젝트 사본)에서 쟀다: plain(현빈 실모달)·titled·icon-stack(형광펜+그림자)·dashed·폭고정 등 10칸 0px
-     (첫 판 dashed 폭고정 가운데 268px 1회 — 같은 조건 재측정 3회 모두 0, 재현 안 됨). 결과는 M1-BUILD 보고에. 이 시험은 «자리»로 남긴다. */
-test('E2 PNG 내보내기 — 프레임화 전/후 섹션 PNG 가 픽셀 단위로 같다', async ({ page }) => {
-  test.skip(true, '하네스에서 exportSection 이 pin 경로부터 실패(data:…null 이미지) — 실앱에서 잼(M1-BUILD)');
-  await setup(page);
-  await putModal(page, { variant: 'titled', title: '배송 안내', text: '오후 2시 이전 주문은 당일 출고됩니다.\n주말은 다음 영업일.', borderW: 2, radius: 12, bg: '#fff6e8' });
-  const shot = () => page.evaluate(async () => { window.deselectAll?.();
-    try { return await window.exportSection(document.getElementById('sF'), 'png', 860, { returnDataUrl: true }); }
-    catch (e) { return { err: String(e?.message || e), type: e?.type, src: e?.target?.src || e?.target?.href || null, tag: e?.target?.tagName || null }; } });
-  const a = await shot();
-  console.log('[E2 a]', typeof a === 'string' ? a.slice(0, 30) + '…' + a.length : JSON.stringify(a));
-  expect(typeof a, '★pin 쪽(모달 그대로)부터 내보내기가 안 된다 — 하네스 한계면 실앱에서 잰다').toBe('string');
-  await page.evaluate(() => window.frameifyModal('mdlT'));
-  const b = await shot();
-  console.log('[E2 kinds]', typeof a, String(a).slice(0, 30), String(a).length, typeof b, String(b).slice(0, 30), String(b).length);
-  const d = await page.evaluate(async ([a, b]) => {
-    const load = async (s) => { const img = new Image(); img.src = s; await img.decode(); const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d'); x.drawImage(img, 0, 0); return x.getImageData(0, 0, c.width, c.height); };
-    const A = await load(a), B = await load(b);
-    if (A.width !== B.width || A.height !== B.height) return { size: [A.width, A.height, B.width, B.height], n: -1 };
-    let n = 0; for (let i = 0; i < A.data.length; i += 4) if (A.data[i] !== B.data[i] || A.data[i + 1] !== B.data[i + 1] || A.data[i + 2] !== B.data[i + 2] || A.data[i + 3] !== B.data[i + 3]) n++;
-    return { n, w: A.width, h: A.height };
-  }, [a, b]);
-  console.log('[E2]', JSON.stringify(d));
-  expect(d.n).toBe(0);
 });
