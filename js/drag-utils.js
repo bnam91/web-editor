@@ -248,6 +248,11 @@ function settleRowInFreeFrame(frame, row, mode = 'stack') {
   if (frame.dataset?.freeLayout !== 'true' || row.parentElement !== frame) return false;
   // 받는 것 = .row 또는 정본 표(panel-dispatch hasPanelForBlock)의 블럭. 글자 래퍼·도형 래퍼는 제 갈래가 따로 세운다.
   if (!(row.classList?.contains('row') || window.hasPanelForBlock?.(row))) return false;
+  /* ★F3(2026-10-03) — 폭 100% 그리드는 «안의 내용»도 프레임 폭이라 아래 w 가 곧 프레임 폭이 됐다 → T-088 클램프 x 범위 [0,0]
+     (49c74728 의 시험은 픽스처가 400px 라 못 잡았다). 재기 «전»에 그리드 폭 모델로 프레임보다 작은 폭을 준다.
+     규칙·까닭은 grid-block.js fitGridWidthToFreeFrame 머리말 한 곳. ⛔여기서 style.width 를 따로 박지 않는다. */
+  const _units = row.classList.contains('row') ? [...row.children] : [row];
+  _units.forEach(u => window.fitGridWidthToFreeFrame?.(u, frame));
   const fr = frame.getBoundingClientRect();
   const k = frame.offsetWidth ? (fr.width / frame.offsetWidth) || 1 : 1;   // 캔버스 줌
   /* ★폭·x 는 row 상자가 아니라 «안의 내용» 기준. row 는 블록 요소라 프레임 폭을 다 먹는다 —
@@ -270,9 +275,52 @@ function settleRowInFreeFrame(frame, row, mode = 'stack') {
   row.style.position = 'absolute';
   row.style.left = left + 'px';
   row.style.top  = top + 'px';
-  if (w && (!row.style.width || row.style.width === '100%')) row.style.width = w + 'px';
+  /* ★D1(2026-10-03) — 폭 모델을 가진 그리드의 row 에는 폭을 «안» 적는다. 적으면 그 px 가 «두 번째 명부»가 되어
+     키를 지우거나 다른 프레임에 맞춰도 row 가 옛 폭을 쥔다(실측: 섹션에 나와도 611 · frB 에서 그리드 320 / row 611 → 다시 수직만).
+     ⚠️폭을 비우면 안 된다 — CSS `.row{width:100%}`(editor-layout.css) 라 프레임 폭이 된다(실측 400). 그래서 «값이 아닌» fit-content 로
+     안의 px 그리드 폭을 따라가게 한다. 규칙은 grid-block.js _gridRowFollows 한 곳. */
+  const _modelSized = _units.some(u => u.classList?.contains('grid-block') && window.getGridWidth?.(u) != null);
+  if (_modelSized) row.style.width = 'fit-content';
+  else if (w && (!row.style.width || row.style.width === '100%')) row.style.width = w + 'px';
   row.setAttribute('draggable', 'false');
   return true;
+}
+
+/* ★F1 (2026-10-03, 지디 결정) — 「프레임 «자체»가 오브젝트로 골라져 있나」.
+ *   키보드 입구(⌘V·g·⌘D)가 이 판정으로 «다음 형제»를 가른다. 패널 삽입은 이걸 안 부른다(09-23 「안에 넣는다」 그대로 —
+ *   frame-accepts-component-blocks F1 이 잠근다). ⛔t(addTextBlock)는 이 규칙에 넣지 않는다.
+ *   조건 셋 = 프레임에 .selected · 그 안에 «흐름 앵커»(선택된 자식 블럭)가 없다 · 그 안에 도형 선택이 없다.
+ *   돌려주는 것 = 그 프레임(가장 안쪽의 골라진 것) 또는 null. 도형 래퍼·글자 래퍼·배너 외곽은 «프레임»이 아니라 null 쪽이다. */
+function frameSelectedAsObject(section) {
+  const ok = (f) => f && f.classList?.contains('frame-block') && f.classList.contains('selected')
+    && !isShapeFrame(f) && !f.dataset?.textFrame && !f.dataset?.bannerPreset
+    && f.dataset?.group !== 'true'                                  // 그룹(⌘G)은 F1 범위 밖 — 예전대로 «안»
+    && (!section || f.closest('.section-block') === section);
+  const act = window._activeFrame;
+  const cands = [...document.querySelectorAll('.frame-block.selected')].filter(ok);
+  const frame = (act && cands.includes(act)) ? act : cands[cands.length - 1];
+  if (!frame) return null;
+  /* 자식을 골라 둔 것 = 안쪽. ★흐름 앵커(isFlowAnchorBlock)로 세지 않는다 — 그건 절대배치를 제외해서, 자유 프레임의 절대배치 자식(그리드·에셋)을
+   *   골라도 «프레임을 골랐다»로 읽혔다(적대QA). 프레임에 .selected 가 남은 채 «자손이 하나라도» 골라져 있으면 오브젝트 선택이 아니다. */
+  if (frame.querySelector('.selected')) return null;
+  return frame;
+}
+
+/* 고른 프레임의 «다음 형제» 자리에 el 을 놓는다. 부모가 자유 프레임이면 좌표를 세운다(settleRowInFreeFrame 은 부르기만 한다). */
+function _placeAfterFrameAsSibling(frame, el) {
+  const unit = frame.parentElement?.classList.contains('row') ? frame.parentElement : frame;
+  unit.after(el);
+  const parent = unit.parentElement;
+  if (parent?.dataset?.freeLayout === 'true') window.settleRowInFreeFrame?.(parent, el, 'stack');
+}
+
+/* 키보드 입구용 삽입 — 프레임을 «오브젝트로» 골라 둔 상태면 안이 아니라 «다음 형제»로, 아니면 insertAfterSelected 그대로.
+ *   ⛔insertAfterSelected 자체는 건드리지 않는다(패널 삽입 31곳이 쓰고, 「안에 넣는다」를 frame-accepts F1 이 잠근다 —
+ *     본문 구간을 읽는 단위 시험 3종도 그 머리말에 걸려 있다). 키보드 입구는 {asSibling} 대신 이 한 문을 부른다. */
+function insertAfterSelectedAsSibling(section, el) {
+  const picked = frameSelectedAsObject(section);
+  if (picked) { _placeAfterFrameAsSibling(picked, el); return; }
+  insertAfterSelected(section, el);
 }
 
 function insertAfterSelected(section, el) {
@@ -832,6 +880,8 @@ export {
   makeLabelItem,
   insertBeforeBottomGap,
   insertAfterSelected,
+  insertAfterSelectedAsSibling,
+  frameSelectedAsObject,
   settleRowInFreeFrame,
   effectiveSectionPadX,
   applyBlockFullBleed,
@@ -860,6 +910,8 @@ window.clearLayerSectionIndicators= clearLayerSectionIndicators;
 window.makeLabelItem              = makeLabelItem;
 window.insertBeforeBottomGap      = insertBeforeBottomGap;
 window.insertAfterSelected        = insertAfterSelected;
+window.frameSelectedAsObject      = frameSelectedAsObject;
+window.insertAfterSelectedAsSibling = insertAfterSelectedAsSibling;
 window.settleRowInFreeFrame       = settleRowInFreeFrame;
 window.effectiveSectionPadX       = effectiveSectionPadX;
 window.applyBlockFullBleed        = applyBlockFullBleed;

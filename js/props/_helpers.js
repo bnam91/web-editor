@@ -425,3 +425,13 @@ ${icon}
 
 /* ★window 로도 낸다 — prop-grid.js(그리드 오버레이)가 정적 import 없이 부른다(unit 하네스 대역에 이 이름이 없다). */
 if (typeof window !== 'undefined') window.overlayToggleBtnHTML = overlayToggleBtnHTML;   // Node unit 시험엔 window 가 없다
+
+/* 라벨 + 슬라이더 + 숫자 한 줄(.prop-row) — 「좌우 패딩」 줄이 섹션·프레임 두 패널에 있다(F5, 2026-10-03).
+   마크업 사본을 두 벌 두지 않으려고 뺐다. 결과 HTML 은 prop-section 에 있던 줄과 «글자 그대로» 같다. */
+export function sliderRowHTML(label, sliderId, numberId, { min, max, step, value }) {
+  return `<div class="prop-row">
+        <span class="prop-label">${label}</span>
+        <input type="range" class="prop-slider" id="${sliderId}" min="${min}" max="${max}" step="${step}" value="${value}">
+        <input type="number" class="prop-number" id="${numberId}" min="${min}" max="${max}" value="${value}">
+      </div>`;
+}

@@ -144,6 +144,7 @@ function ungroupBlock(groupEl) {
         c.style.transformOrigin = 'center center';
       }
       groupEl.before(c);
+      window.syncAutoGridWidth?.(c);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
       /* ★오버레이 그룹을 풀면 자식은 «다시 섹션 직속 오버레이»가 된다 (현빈 2026-09-30).
        * 부모가 섹션 «자신»이라는 것이 곧 그 뜻이다 — 흐름 블록은 .section-inner 안에 산다.
        * ⛔표식을 안 되살리면 좌표(left/top)는 맞는데 «떠 있다는 사실»만 사라져,
@@ -339,6 +340,7 @@ function bindSectionDropZone(sec) {
     const indicator = inner.querySelector('.drop-indicator');
     if (indicator && indicator.parentElement) indicator.parentElement.insertBefore(dragState.dragSrc, indicator);
     else inner.appendChild(dragState.dragSrc);
+    window.syncAutoGridWidth?.(dragState.dragSrc);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
     clearDropIndicators();
     window.buildLayerPanel();
     dragState.dragSrc = null;

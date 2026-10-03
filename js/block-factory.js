@@ -4,6 +4,8 @@ import {
   showNoSelectionHint,
   showToast,
   insertAfterSelected,
+  insertAfterSelectedAsSibling,
+  frameSelectedAsObject,
   getSectionAlign,
   makeLabelItem,
   renderGraph,
@@ -19,7 +21,7 @@ import {
   bindSectionDropZone,
 } from './drag-drop.js';
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
-         newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame,
+         newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame, framePadding, innerFullWidth,
          growFrameToFitChildren } from './frame-geometry.js';
 import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
@@ -453,6 +455,10 @@ function addTextBlock(type, opts = {}) {
   // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
   const activeSS = resolveInsertFrame(window._activeFrame);
   if (activeSS && !activeSS.dataset.bannerPreset) {
+    /* ★아무것도 안 넣는 «지원하지 않는 프레임 타입»(자유배치도 fullWidth 도 아님)은 pushHistory «전»에 빠진다 —
+       옛 판은 찍고 나서 return 해, 라이브 변경이 찍히지 않은 채였다면 화면이 안 바뀌는 ⌘Z 한 칸(먹통)이 남았다.
+       아래 분기 조건과 «같은 식» — 두 벌로 갈리면 이 가드가 거짓이 된다. */
+    if (activeSS.dataset.freeLayout !== 'true' && activeSS.dataset.fullWidth !== 'true') return;
     window.pushHistory();
     const { block } = makeTextBlock(type);
     const tf = _makeTextFrame();
@@ -474,7 +480,7 @@ function addTextBlock(type, opts = {}) {
       // opts에 x/y/width가 있으면 절대좌표 고정, 없으면 자동 스택
       const hasAbsCoords = _hasAbsCoords;   // ★위에서 «한 번» 센 것 — 두 벌 금지
       const stackY = hasAbsCoords ? (opts.y ?? 0) : _calcFreeLayoutStackY(activeSS);
-      const leftPx = hasAbsCoords ? (opts.x ?? 0) : 0;
+      const leftPx = hasAbsCoords ? (opts.x ?? 0) : framePadding(activeSS).l;   // F5: 안쪽 여백만큼 들여 시작
       tf.style.position = 'absolute';
       tf.style.left     = leftPx + 'px';
       tf.style.top      = stackY + 'px';
@@ -575,6 +581,10 @@ function addBlankTextBlock(type = 'body', opts = {}) {
   // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
   const activeSS = resolveInsertFrame(window._activeFrame);
   if (activeSS && !activeSS.dataset.bannerPreset) {
+    /* ★아무것도 안 넣는 «지원하지 않는 프레임 타입»(자유배치도 fullWidth 도 아님)은 pushHistory «전»에 빠진다 —
+       옛 판은 찍고 나서 return 해, 라이브 변경이 찍히지 않은 채였다면 화면이 안 바뀌는 ⌘Z 한 칸(먹통)이 남았다.
+       아래 분기 조건과 «같은 식» — 두 벌로 갈리면 이 가드가 거짓이 된다. */
+    if (activeSS.dataset.freeLayout !== 'true' && activeSS.dataset.fullWidth !== 'true') return null;
     window.pushHistory();
     const { block } = makeTextBlock(type, { blank: true });
     const tf = _makeTextFrame();
@@ -591,12 +601,12 @@ function addBlankTextBlock(type = 'body', opts = {}) {
     if (activeSS.dataset.freeLayout === 'true') {
       const stackY = _calcFreeLayoutStackY(activeSS);
       tf.style.position = 'absolute';
-      tf.style.left     = '0px';
+      tf.style.left     = framePadding(activeSS).l + 'px';   // F5
       tf.style.top      = stackY + 'px';
       activeSS.appendChild(tf);
       // 의도적 빈 줄(data-blank)은 콘텐츠 폭이 ~0이라 클램프 시 너무 좁아짐
       // → _clampTextFrameWidth가 측정 실패(<=1px)로 안전 원복하므로 100% 기본 명시
-      tf.style.width = '100%';
+      tf.style.width = innerFullWidth(activeSS);
       tf.dataset.width = '100%';
       _clampTextFrameWidth(tf, activeSS);
       // #2 와 동일 — 빈 줄도 프레임 중앙에서 시작한다(폭 100% 라 좌우는 0, 세로가 실제로 움직인다).
@@ -914,7 +924,9 @@ function addAssetBlock(preset, opts = {}) {
   window.selectSection(sec);
 }
 
-function addGapBlock(height) {
+/* opts.asSibling — 키보드 입구(g)만 켠다. 패널 갭 단추는 인자 없이 불러 09-23 「안에 넣는다」 그대로다.
+ *   켜면: 프레임을 «오브젝트로» 골라 둔 상태(frameSelectedAsObject)일 때 프레임 안 분기를 건너뛰고 «다음 형제»로 간다(F1). */
+function addGapBlock(height, opts = {}) {
   // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
   const overlay = getSelectedOverlay();
   if (overlay) {
@@ -926,19 +938,20 @@ function addGapBlock(height) {
     window.buildLayerPanel();
     return;
   }
+  const pickedFrame = opts.asSibling ? frameSelectedAsObject(null) : null;
   // fullWidth 플로우 프레임에만 추가 — 자유배치(freeLayout) 프레임은 스킵 후 섹션 레벨로
-  if (resolveInsertFrame(window._activeFrame)?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
+  if (!pickedFrame && resolveInsertFrame(window._activeFrame)?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
     const gb = makeGapBlock();
     if (height) gb.style.height = height + 'px';
     gb.dataset.h = height || 40;
     return gb;
   })) return;
-  const sec = window.getSelectedSection();
+  const sec = pickedFrame ? pickedFrame.closest('.section-block') : window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const gb = makeGapBlock();
   if (height) gb.style.height = height + 'px';
-  insertAfterSelected(sec, gb);
+  (opts.asSibling ? insertAfterSelectedAsSibling : insertAfterSelected)(sec, gb);
   bindBlock(gb);
   window.buildLayerPanel();
   window.selectSection(sec);
@@ -1669,12 +1682,13 @@ function _clampTextFrameWidth(tf, frameEl) {
     || tf.style.textAlign
     || 'left';
   if (align === 'center' || align === 'right' || align === 'justify') {
-    tf.style.width = '100%';
+    tf.style.width = innerFullWidth(frameEl);   // F5: 여백이 있으면 안쪽 상자 폭(dataset 은 '100%' 의미 그대로)
     tf.dataset.width = '100%';
-    return '100%';
+    return tf.style.width;
   }
   // 프레임 가용 폭(클램프 상한)
-  const frameW = (frameEl && frameEl.clientWidth) || 860;
+  const _fp = framePadding(frameEl);   // F5: 안쪽 여백 안에서만 자란다
+  const frameW = ((frameEl && frameEl.clientWidth) || 860) - _fp.l - _fp.r;
   // 콘텐츠 실측: 측정 동안 width를 fit-content로 잠시 풀어 자연 폭 산출
   const prevWidth = tf.style.width;
   tf.style.width = 'fit-content';
@@ -1683,7 +1697,7 @@ function _clampTextFrameWidth(tf, frameEl) {
   // box-sizing:border-box이므로 패딩 포함 offsetWidth가 곧 프레임 폭
   if (!contentW || contentW <= 1) {
     // 측정 실패 시 안전하게 원복
-    tf.style.width = prevWidth || '100%';
+    tf.style.width = prevWidth || innerFullWidth(frameEl);
     return tf.style.width;
   }
   const w = Math.min(Math.round(contentW), frameW);
@@ -1702,13 +1716,15 @@ function _placeAtFrameCenter(el, frame) {
   if (!el || !frame) return null;
   // (c) 「중앙」의 기준 = 프레임의 «보여지는» 폭/높이 — 축 선택 근거는 frameVisibleSize 주석 참조.
   const fv = frameVisibleSize(frame);
+  const _pad = framePadding(frame);   // F5: 자유 프레임 «안쪽 여백» 안의 중앙
   const off = frameAlignOffset(fv.w, fv.h,
-                               el.offsetWidth, el.offsetHeight, 'center', 'center');
+                               el.offsetWidth, el.offsetHeight, 'center', 'center', _pad);
   // ★삽입 경로에서만 «음수 클램프» — 공유 술어(frameAlignOffset)는 클램프하지 않는다.
   //   실측(2026-09-05): 에셋 프리셋은 780px 인데 기본 프레임은 520px 이라 순수 중앙은
   //   top:-130px 이 되고, 프레임 overflow:hidden 이 «방금 넣은 이미지의 윗부분»을 잘랐다.
   //   정렬 «버튼»(prop-frame _setAlign)은 사용자가 의도적으로 누른 것이라 음수를 허용하지만,
   //   «삽입 기본값»이 블록을 프레임 밖으로 밀어내면 안 된다 → 여기서만 0으로 막는다.
+  off.left = Math.max(off.left, _pad.l); off.top = Math.max(off.top, _pad.t);   // 안쪽 여백이 바닥(F5) — 여백 0 이면 옛 식 그대로
   const baseL = Math.max(0, off.left);
   const baseT = Math.max(0, off.top);
   const occupied = [...frame.children]
@@ -1721,7 +1737,7 @@ function _placeAtFrameCenter(el, frame) {
      글자 중앙정렬을 기본으로 켜면(폭 100%) 이 자리를 «모든» 텍스트가 지나간다.
      X 로 비킬 자리가 없으면(가득 찬 폭) X 는 0 으로 되돌리고 Y 캐스케이드만 남긴다
      — 두 형제의 top 이 20px 다르므로 «완전히 겹치는» 일은 그대로 막힌다. */
-  const left = clampLeftIntoFrame(pos.left, fv.w, el.offsetWidth);
+  const left = Math.max(_pad.l, clampLeftIntoFrame(pos.left, fv.w - _pad.r, el.offsetWidth));
   el.style.left = left + 'px';
   el.style.top  = pos.top  + 'px';
   return { left, top: pos.top };
@@ -1730,7 +1746,7 @@ function _placeAtFrameCenter(el, frame) {
 /* freeLayout inner 안에서 absolute 블록들을 아래로 쌓을 Y 좌표 계산 */
 function _calcFreeLayoutStackY(inner) {
   const absEls = [...inner.querySelectorAll(':scope > *')].filter(el => el.style.position === 'absolute');
-  if (!absEls.length) return 20;
+  if (!absEls.length) return Math.max(20, framePadding(inner).t);   // F5: 위 여백 아래에서 시작
   const last = absEls[absEls.length - 1];
   return Math.round(parseInt(last.style.top || '0') + (last.offsetHeight || 60) + 16);
 }
@@ -1755,9 +1771,9 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
     // opts에 x/y/width가 있으면 절대좌표 고정, 없으면 자동 스택
     const hasAbsCoords = (opts.x !== undefined || opts.y !== undefined || opts.width !== undefined);
     const stackY = hasAbsCoords ? (opts.y ?? 0) : _calcFreeLayoutStackY(ss);
-    const leftPx = hasAbsCoords ? (opts.x ?? 0) : 0;
+    const leftPx = hasAbsCoords ? (opts.x ?? 0) : framePadding(ss).l;   // F5
     // opts.width 없으면 preset이 설정한 width 유지 (logo 등 고정 너비 preset 보호)
-    const widthVal = opts.width ? opts.width + 'px' : (block.style.width || '100%');
+    const widthVal = opts.width ? opts.width + 'px' : ((block.style.width && block.style.width !== '100%') ? block.style.width : innerFullWidth(ss));   // F5: 100% 는 안쪽 상자 폭
     block.style.position = 'absolute';
     block.style.left     = leftPx + 'px';
     block.style.top      = stackY + 'px';
@@ -1768,6 +1784,10 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
       block.dataset.offsetY = stackY;
     }
     ss.appendChild(block);
+    /* ★F3(2026-10-03) — 그리드는 위 '100%' 기본을 그대로 두면 폭 = 프레임 폭 → T-088 클램프 x 범위 [0,0](수직만 움직임).
+       폭은 그리드 폭 모델로 준다(opts.width 가 있으면 그 값을 키로). 규칙은 grid-block.js fitGridWidthToFreeFrame 한 곳.
+       append «뒤»라 프레임 폭을 잰다 · 아래 중앙 놓기가 줄어든 폭으로 가운데를 잡는다. */
+    if (block.classList.contains('grid-block')) window.fitGridWidthToFreeFrame?.(block, ss, opts.width);
     // #3 «블록을 프레임 중앙에 놓기» — 좌표 미지정 삽입의 기본값을 프레임 중앙으로.
     // append «뒤»에 불러야 offsetWidth/Height 가 실측된다. hasAbsCoords(MCP·명시좌표)면 유지.
     if (!hasAbsCoords) _placeAtFrameCenter(block, ss);

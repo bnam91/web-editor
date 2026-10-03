@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, escHtml } from './_helpers.js';
+import { blockHeaderHTML, escHtml, sliderRowHTML } from './_helpers.js';
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
@@ -37,13 +37,17 @@ function _showPadXHint(inner, v) {
   _padHintTimer = setTimeout(() => {
     document.body.classList.remove('gdt-pad-on');
     /* 섹션을 빠르게 갈아타며 만졌을 수 있다 — 남은 변수를 «전부» 거둔다. */
-    document.querySelectorAll('.section-inner').forEach(el => {
+    document.querySelectorAll('.section-inner, .frame-block').forEach(el => {
       el.style.removeProperty('--gdt-pad-l');
       el.style.removeProperty('--gdt-pad-r');
     });
   }, 400);
 }
 
+
+/* ★프레임 패널의 「좌우 패딩」도 «같은 띠»를 쓴다(F5) — 사본 없이 이 함수를 그대로 부른다.
+   (inner 자리에 프레임을 넘긴다. 그리는 쪽 규칙은 css/editor-canvas.css 에 프레임용 선택자 한 줄이 붙었다.) */
+window._showPadXHint = _showPadXHint;
 
 /**
  * 섹션 배경 적용 헬퍼 — 이미지와 색을 동시에 합성한다.
@@ -305,11 +309,7 @@ ${blockHeaderHTML({
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Padding</div>
-      <div class="prop-row">
-        <span class="prop-label">좌우 패딩</span>
-        <input type="range" class="prop-slider" id="sec-padx-slider" min="0" max="100" step="2" value="${secPadX}">
-        <input type="number" class="prop-number" id="sec-padx-number" min="0" max="100" value="${secPadX}">
-      </div>
+      ${sliderRowHTML('좌우 패딩', 'sec-padx-slider', 'sec-padx-number', { min: 0, max: 100, step: 2, value: secPadX })}
       <div class="prop-row">
         <span class="prop-label">아래 패딩</span>
         <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">

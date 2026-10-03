@@ -16,7 +16,7 @@ import {
   selectAllEditableContents,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
-import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame } from './frame-geometry.js';
+import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth } from './frame-geometry.js';
 import {
   dragState,
   _suppressDragSave,
@@ -746,7 +746,7 @@ function bindBlock(block) {
       if (_clampParent) {
         const _c = clampChildIntoFrame(
           newLeft, newTop, dragEl.offsetWidth, dragEl.offsetHeight,
-          _clampParent.offsetWidth, _clampParent.offsetHeight);
+          _clampParent.offsetWidth, _clampParent.offsetHeight, framePadding(_clampParent));
         newLeft = _c.left;
         newTop  = _c.top;
       }
@@ -830,6 +830,7 @@ function bindBlock(block) {
           const row = toFlowUnit(dragEl);
           bindPlacementDrag(row, dragEl);
         }
+        window.syncAutoGridWidth?.(dragEl);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — ⛔pushHistory «앞»(끝 표본에 담기게)
 
         window.buildLayerPanel?.();
         window.pushHistory?.();   // ★끝 상태(추출 완료) — 시작 상태는 onMove 첫 틱이 찍었다
@@ -2633,12 +2634,17 @@ function bindFrameDropZone(ss) {
       // ── 고정 크기 프레임(shape frame 아닌 것): 기존 absolute 방식 ──
       // 블록을 absolute로 전환하는 헬퍼
       const makeAbsolute = (block, left, top) => {
+        const _mp = framePadding(inner);   // F5: 안쪽 여백
+        /* ★F3(2026-10-03) — 그리드는 폭을 «모델»로 받는다. 아래 style.width px 는 다음 renderGridBlock 이 100% 로 되돌려
+           프레임 폭(764)이 되거나, 섹션 폭(860)이 그대로 들어와 프레임보다 넓었다 → T-088 클램프 x 범위 [0,0].
+           규칙은 grid-block.js fitGridWidthToFreeFrame 한 곳. 모델이 폭을 주면 style.width 가 px 라 아래 줄은 안 탄다. */
+        window.fitGridWidthToFreeFrame?.(block, inner);
         const w = block.offsetWidth || Math.round(SS_W * 0.5);
         block.style.position = 'absolute';
-        block.style.left = left + 'px';
+        block.style.left = (left + _mp.l) + 'px';
         block.style.top  = top  + 'px';
         if (!block.style.width || block.style.width === '100%') {
-          block.style.width = Math.min(w, SS_W) + 'px';
+          block.style.width = Math.min(w, SS_W - _mp.l - _mp.r) + 'px';
         }
         block.setAttribute('draggable', 'false');
       };
@@ -2654,7 +2660,7 @@ function bindFrameDropZone(ss) {
             return Math.max(maxY, by);
           }, 0);
           dragState.dragSrc.style.position = 'absolute';
-          dragState.dragSrc.style.left     = '0px';
+          dragState.dragSrc.style.left     = framePadding(inner).l + 'px';   // F5
           dragState.dragSrc.style.top      = (nextY > 0 ? nextY + 16 : 0) + 'px';
           // absolute 전환 후 HTML5 drag 비활성화 — 이후 커스텀 mousemove drag 사용
           // (섹션에서 드롭 시 draggable="true"가 잔류하면 다음 드래그에서 회색이 됨)
@@ -2668,7 +2674,7 @@ function bindFrameDropZone(ss) {
               window._clampTextFrameWidth(dragState.dragSrc, inner);
             }
           } else if (!dragState.dragSrc.style.width || dragState.dragSrc.style.width === '') {
-            dragState.dragSrc.style.width = '100%';
+            dragState.dragSrc.style.width = innerFullWidth(inner);
           }
           // text-block rebind — bindBlock이 absolute 상태를 다시 평가하도록
           const _tb = dragState.dragSrc.querySelector('.text-block');
@@ -2737,13 +2743,14 @@ function bindFrameDropZone(ss) {
          ⚠️dataset.offsetX 는 여기서 갱신하지 않는다 — 이 루프는 원래부터 안 했고(figma export가
            읽는 값이라 이미 낡아 있다), 이번 변경의 축을 «left 값 하나»로 묶어두기 위해서다. */
       const _fv = frameVisibleSize(inner);
-      let _stackY = 0;
+      const _fpad = framePadding(inner);   // F5
+      let _stackY = _fpad.t;
       [...inner.children].forEach(b => {
         if (b.classList.contains('drop-indicator')) return;
         if (b.style.position === 'absolute') {
           b.style.top  = _stackY + 'px';
-          const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null);
-          b.style.left = Math.max(0, _off.left) + 'px';
+          const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null, _fpad);
+          b.style.left = Math.max(_fpad.l, _off.left) + 'px';
         }
         _stackY += (b.offsetHeight || 60) + 16;
       });
@@ -2759,6 +2766,7 @@ function bindFrameDropZone(ss) {
       growFrameToFitChildren(inner);
     }
 
+    window.syncAutoGridWidth?.(inner);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — 흐름 프레임으로 들어오면 100%, 자유 프레임이면 이 프레임 기준
     // dragging 클래스 고착 방지
     dragState.dragSrc?.classList.remove('dragging', 'section-dragging', 'layer-dragging');
     clearDropIndicators();
