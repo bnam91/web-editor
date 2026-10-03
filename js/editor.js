@@ -3399,8 +3399,16 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
            빈 텍스트래퍼뿐이면 SECTION_BLOCK_TYPE_SEL 이 아무것도 못 찾아 줄째 사라진다.
          ⚠️`.row` 는 «그 줄에 남은 알맹이가 없을 때만» 단위로 쓴다 — 한 줄에 다른 블록이
            같이 있으면 그 줄을 지우는 것이 곧 «조용한 소실»이다. */
+      /* ★2026-10-03 현빈 결정 「프레임 안 블럭을 다 지우면 빈 프레임이 되어야지 — 나중에 다른 걸 다시
+           넣을 수도 있으니」 ⇒ 사용자 «프레임»은 비어도 남긴다. 걷는 것은 사용자가 «프레임으로 본 적 없는»
+           껍데기뿐이다: 글자 래퍼(data-text-frame — deleteBlock 이 이미 같은 규칙으로 걷는다) · 그룹(data-group —
+           알맹이 없는 그룹은 묶을 것이 없다). T-099 의 원래 까닭(⌘A→Delete 뒤 «보이는 빈 Frame»)은
+           «지저분하다»였고 저장·내보내기·⌘Z 사고가 아니었다(eddff69c 본문). */
       _emptiedFrameCands.forEach(f => {
         if (!f.isConnected) return;
+        if (f.dataset.textFrame !== 'true' && f.dataset.group !== 'true') return;
+        // 그룹 안에 «남긴» 사용자 프레임이 있으면 그 그룹은 비지 않았다(.frame-block 은 SECTION_BLOCK_TYPE_SEL 밖이다)
+        if (f.querySelector('.frame-block:not([data-text-frame])')) return;
         if (f.querySelector(SECTION_BLOCK_TYPE_SEL)) return;
         const row = f.closest('.row');
         ((row && !row.querySelector(SECTION_BLOCK_TYPE_SEL)) ? row : f).remove();

@@ -152,6 +152,16 @@
 .frame-block.ss-drag-over {
   outline: 2px dashed var(--sel-color);
 }
+/* ★빈 프레임 «자리» 표시 — 편집 화면 전용 (2026-10-03 현빈 결정: 자식을 다 지워도 프레임은 남는다).
+   흰 프레임이 흰 섹션 위에 비면 높이(자유 520·흐름 60)는 있는데 «경계»가 안 보였다(실측: outline none · 배경 둘 다 #fff).
+   꼴은 새로 짓지 않는다 — 빈 줄 표시(.bn2-line-empty: 1px dashed --ui-border-mid)에 배율 보정(.marquee-hit 의 --inv-zoom)만 얹었다.
+   ★#canvas-scaler 아래로만 건다: PNG 클론은 body 로 나가 이 조상이 없고, HTML 내보내기의 CSS 수확은
+     '#canvas-scaler' 를 편집 전용으로 걸러낸다(export-css-collect.js EDITOR_ONLY_SEL) ⇒ 배송본엔 안 실린다.
+   글자 래퍼·그룹은 사용자가 보는 «프레임»이 아니다 — 뺀다. */
+#canvas-scaler .frame-block:not([data-text-frame]):not([data-group]):not(.selected):not(:has(> *)) {
+  outline: calc(1px * var(--inv-zoom, 1)) dashed var(--ui-border-mid);
+  outline-offset: calc(-1px * var(--inv-zoom, 1));
+}
 
 /* ── 배경 투명도(bgOpacity) — 점진 적용안 (I2) ──
    has-bg-opacity 클래스가 있을 때만 활성. 기존 프레임은 무변경.
