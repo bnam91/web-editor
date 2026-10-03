@@ -1,19 +1,58 @@
 /* _graph-gr-harness — GR 묶음 DOM 시험 공용 부품(graph-gr1-gradient · graph-gr-overlay). 기준판 30984c67 부팅(git show)·판 세우기·배율·기하 계측. */
 const { expect } = require('@playwright/test');
 const path = require('path');
-const { execFileSync } = require('child_process');
 const { bootApp, ORIGIN } = require('./_root-harness.js');
 
 const BASE = '30984c67';
 const REPO = path.join(__dirname, '..', '..');
 const MIME = { '.js': 'application/javascript', '.mjs': 'application/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png' };
+/* 기준판 파일 공급 — ★요청마다 execFileSync('git show') 를 띄우지 않는다(GRW0: 255요청에 동기 3383ms, 부하 속 30s 예산을 먹어 goto 시간초과).
+ *   ★git cat-file --batch 상주 프로세스 하나(워커당)에 «비동기»로 물어 Map 에 담는다 — 응답 바이트는 git show 와 같다(GRW0 시험이 바이트 대조).
+ *   요청은 한 줄씩 직렬화(파이프 한 개) — 이벤트 루프는 막지 않는다. */
+const { spawn } = require('child_process');
 const _baseCache = new Map();
+const baseStats = { n: 0, ms: 0 };
+let _cf = null, _q = Promise.resolve();
+function _catFile() {
+  if (_cf && !_cf.killed && _cf.exitCode === null) return _cf;
+  const proc = spawn('git', ['cat-file', '--batch'], { cwd: REPO, stdio: ['pipe', 'pipe', 'ignore'] });
+  proc.buf = Buffer.alloc(0); proc.waiter = null;
+  proc.stdout.on('data', (d) => { proc.buf = Buffer.concat([proc.buf, d]); if (proc.waiter) proc.waiter(); });
+  proc.on('exit', () => { if (proc.waiter) proc.waiter(); });
+  proc.unref(); proc.stdin.unref && proc.stdin.unref(); proc.stdout.unref && proc.stdout.unref();
+  process.once('exit', () => { try { proc.kill(); } catch (_) {} });
+  _cf = proc; return proc;
+}
+function _readOne(proc) {   // 헤더 «<oid> blob <size>\n<내용>\n» 또는 «<이름> missing\n» 하나를 읽는다
+  return new Promise((resolve) => {
+    const tryParse = () => {
+      const nl = proc.buf.indexOf(10);
+      if (nl < 0) return proc.exitCode !== null ? resolve(null) : false;
+      const head = proc.buf.slice(0, nl).toString();
+      const m = /^.+ (\w+) (\d+)$/.exec(head);
+      if (!m) { proc.buf = proc.buf.slice(nl + 1); return resolve(null); }   // missing / ambiguous
+      const size = Number(m[2]), end = nl + 1 + size;
+      if (proc.buf.length < end + 1) return proc.exitCode !== null ? resolve(null) : false;
+      const body = Buffer.from(proc.buf.slice(nl + 1, end)); proc.buf = proc.buf.slice(end + 1);
+      return resolve(m[1] === 'blob' ? body : null);
+    };
+    const step = () => { if (tryParse() !== false) proc.waiter = null; };
+    proc.waiter = step; step();
+  });
+}
 function baseFile(rel) {
-  if (_baseCache.has(rel)) return _baseCache.get(rel);
-  let buf = null;
-  try { buf = execFileSync('git', ['show', `${BASE}:${rel}`], { cwd: REPO, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }); } catch (_) { buf = null; }
-  _baseCache.set(rel, buf);
-  return buf;
+  if (_baseCache.has(rel)) return Promise.resolve(_baseCache.get(rel));
+  const job = _q.then(async () => {
+    if (_baseCache.has(rel)) return _baseCache.get(rel);
+    const t = Date.now(); const proc = _catFile();
+    proc.stdin.write(`${BASE}:${rel}\n`);
+    const buf = await _readOne(proc);
+    baseStats.n++; baseStats.ms += Date.now() - t;
+    _baseCache.set(rel, buf);
+    return buf;
+  });
+  _q = job.catch(() => {});
+  return job;
 }
 async function bootBase(page) {
   const errs = [];
@@ -22,7 +61,7 @@ async function bootBase(page) {
   await page.addInitScript(() => { window.prompt = () => { throw new Error('prompt() is not supported.'); }; });
   await page.route(`${ORIGIN}/**`, async (r) => {
     const rel = decodeURIComponent(new URL(r.request().url()).pathname).replace(/^\/+/, '');
-    const buf = baseFile(rel);
+    const buf = await baseFile(rel);
     if (!buf) return r.fulfill({ status: 404, body: '' });
     return r.fulfill({ contentType: MIME[path.extname(rel)] || 'application/octet-stream', body: buf });
   });
@@ -82,4 +121,4 @@ const MEASURE = (root) => {
 const meas = (page, sel = '#grG') => page.evaluate(MEASURE, sel);
 const ALL_ON = { showAxis: '1', showGrid: '1', showLine: '1' };
 
-module.exports = { BASE, bootBase, G_RB, ITEMS, setup, setZoom, openPanel, itemsOf, setDs, MEASURE, meas, ALL_ON };
+module.exports = { baseFile, baseStats, BASE, bootBase, G_RB, ITEMS, setup, setZoom, openPanel, itemsOf, setDs, MEASURE, meas, ALL_ON };
