@@ -15,7 +15,16 @@
  * 양성대조: GD1001_ROOT=<604602cd 체크아웃> 로 돌리면 고치기 전 판을 잰다(_root-harness).
  */
 const { test, expect } = require('@playwright/test');
-const { boot, bootApp } = require('./_root-harness.js');
+const { boot, bootApp, src } = require('./_root-harness.js');
+
+/* ★G5 표 값은 «출처에서» 읽는다 — js/blocks/grid-block.js 의 _GRID_ROLE_COLOR_ON_DARK(모듈 밖에 안 나간다 ⇒ 소스 파싱).
+   GD1001_ROOT 를 주면 «그 판»의 소스를 읽는다(_root-harness src). 못 찾으면 FAIL(「찾기는 했나」 전제). */
+function g5Table() {
+  const m = /const _GRID_ROLE_COLOR_ON_DARK = \{([^}]*)\}/.exec(src('js/blocks/grid-block.js'));
+  if (!m) return null;
+  const out = {}; for (const [, k, v] of m[1].matchAll(/(\w+):\s*'(#[0-9a-fA-F]{6})'/g)) out[k] = v.toLowerCase();
+  return out;
+}
 
 const lin = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
 const L = ([r, g, b]) => 0.2126 * lin(r / 255) + 0.7152 * lin(g / 255) + 0.0722 * lin(b / 255);
@@ -37,7 +46,8 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <script src="/js/io/section-serialize.js"></script>
 <script type="module">
   import '/js/globals.js';
-  import '/js/canvas-contrast.js';
+  import { TABLE_HEADER_FG_LIGHT } from '/js/canvas-contrast.js';
+  window.__G6FG = TABLE_HEADER_FG_LIGHT;
   import { makeGridBlock, renderGridBlock } from '/js/blocks/grid-block.js';
   const ex = await import('/js/io/export-image.js');
   const css = await import('/js/io/export-css-collect.js');
@@ -92,6 +102,14 @@ for (const bg of ['#000000', '#1a1a1a', '#333333', '#555555']) {
     expect(lines.length).toBe(6);
     const bad = lines.map(l => ({ ...l, cr: +cr(rgb(l.color), hex(bg)).toFixed(2), need: isLarge(l) ? 3 : 4.5 })).filter(l => l.cr < l.need);
     expect(bad, JSON.stringify(bad)).toEqual([]);
+    /* ★G5 표 값 단언(지디 2026-10-03) — ⒜ 화면 = 표 ⒝ 표 = «기존 값»(G6 헤더 TABLE_HEADER_FG_LIGHT, 새 값 금지 결정) */
+    const T = g5Table();
+    expect(T && T.body && T.label, '전제 — grid-block.js 에서 _GRID_ROLE_COLOR_ON_DARK 의 label·body 를 찾았다').toBeTruthy();
+    const g6 = await page.evaluate(() => window.__G6FG);
+    for (const k of ['body', 'label']) {
+      expect(rgb(lines.find(l => l.text === 'R' + k).color), `${k} 화면 = G5 표`).toEqual(hex(T[k]));
+      expect(T[k], `${k} G5 표 = G6 헤더 값(새 값 금지)`).toBe(String(g6).toLowerCase());
+    }
   });
 }
 
