@@ -13,12 +13,35 @@ export function wireLabelSection({ ctx }) {
   const labelBgPicker = document.getElementById('label-bg-color');
   const labelBgHex    = document.getElementById('label-bg-hex');
   const labelBgNone   = document.getElementById('label-bg-none');
+  /* ★배경을 바꿀 때 padding 을 «통째로 비우지 않는다»(B3 적대QA: 좌우 60 → 배경색 input → 36 으로 되돌아감, 알약 높이도 같은 길로 지워지던 옛 결함).
+     「배경 없음」은 padding 을 0 으로 만들고(글자만 남는 꼴), 끌 때 «켜기 전 값»으로 되돌린다.
+     켜기 전 인라인 값(상·우·하·좌)을 data-pad-before-none 에 담아 두고, 없음 «동안»의 패딩 조작(setPadX·setPillH)도 거기에 따라 적는다 —
+     안 그러면 끌 때 옛 값이 새 값을 덮는다. 색만 바꾸는 입력은 padding 을 안 건드린다. */
+  const _KEY = 'padBeforeNone';
+  const _padForBg = (isNone) => {
+    const el = ctx.contentEl, st = el.style;
+    if (isNone) {
+      if (el.dataset[_KEY] === undefined) el.dataset[_KEY] = JSON.stringify([st.paddingTop, st.paddingRight, st.paddingBottom, st.paddingLeft]);
+      st.padding = '0';
+    } else if (el.dataset[_KEY] !== undefined) {
+      const [t, r, b, l] = JSON.parse(el.dataset[_KEY]);
+      delete el.dataset[_KEY];
+      st.padding = '';
+      if (t) st.paddingTop = t; if (r) st.paddingRight = r; if (b) st.paddingBottom = b; if (l) st.paddingLeft = l;
+    }
+  };
+  const _stashPad = (axis, v) => {   // 없음 동안 바꾼 값을 «끌 때 돌려줄 값»에도 적는다
+    const raw = ctx.contentEl.dataset[_KEY]; if (raw === undefined) return;
+    const a = JSON.parse(raw);
+    if (axis === 'x') { a[1] = v + 'px'; a[3] = v + 'px'; } else { a[0] = v + 'px'; a[2] = v + 'px'; }
+    ctx.contentEl.dataset[_KEY] = JSON.stringify(a);
+  };
   if (labelBgPicker) {
     const labelBgSwatch = labelBgPicker.closest('.prop-color-swatch');
     const setLabelBg = (val) => {
       const isNone = val === 'transparent';
       ctx.contentEl.style.backgroundColor = val;
-      ctx.contentEl.style.padding = isNone ? '0' : '';
+      _padForBg(isNone);
       ctx.contentEl.style.borderRadius = isNone ? '0' : (ctx.contentEl.style.borderRadius || '');
       labelBgSwatch.style.background = isNone ? 'transparent' : val;
       labelBgSwatch.classList.toggle('swatch-none', isNone);
@@ -47,7 +70,6 @@ export function wireLabelSection({ ctx }) {
     labelBgNone.addEventListener('change', () => {
       if (labelBgNone.checked) { setLabelBg('transparent'); labelBgHex.value = ''; }
       else {
-        ctx.contentEl.style.padding = '';
         const v = labelBgPicker.value || '#111111';
         setLabelBg(v); labelBgHex.value = formatHex6(v);
       }
@@ -88,6 +110,7 @@ export function wireLabelSection({ ctx }) {
     const half = Math.round(v/2);
     ctx.contentEl.style.paddingTop = half+'px';
     ctx.contentEl.style.paddingBottom = half+'px';
+    _stashPad('y', half);
   };
   const syncPillH = v => {
     if (pillHSlider) pillHSlider.value = v;
@@ -131,6 +154,7 @@ export function wireLabelSection({ ctx }) {
     const setPadX = v => {
       ctx.contentEl.style.paddingLeft  = v + 'px';
       ctx.contentEl.style.paddingRight = v + 'px';
+      _stashPad('x', v);
     };
     pxSlider.addEventListener('input', () => { const v = parseInt(pxSlider.value) || 0; setPadX(v); pxNumber.value = v; });
     pxNumber.addEventListener('input', () => {
@@ -153,6 +177,7 @@ export function wireLabelSection({ ctx }) {
     ctx.contentEl.style.border = '';
     ctx.contentEl.style.width  = '';
     ctx.contentEl.style.height = '';
+    delete ctx.contentEl.dataset[_KEY];   // 형태 버튼은 padding 을 새로 쓴다 — 옛 «없음 전» 값은 버린다
     ctx.contentEl.style.padding = '';   // circle→타shape 전환 시 padding:0 잔류 방지
     ctx.contentEl.style.display = '';
     ctx.contentEl.style.alignItems = '';

@@ -118,3 +118,33 @@ test('L5 기존 라벨은 «열기만 해서는» 그대로다(DOM 한 글자도
   await open(page, 'tb4');
   await expect(page.locator('#txt-label-padx-wrap')).toBeHidden();
 });
+
+test('L6 ★배경색을 바꿔도 좌우·상하 패딩이 안 지워진다(적대QA 재현: 60 → 배경색 input → 36 / 폭 194→146)', async ({ page }) => {
+  await boot(page, HARNESS);
+  await open(page, 'tb1');
+  await page.locator('#txt-label-padx-number').fill('60');
+  await page.locator('#txt-label-h-number').fill('40');         // 상하 20+20 (옛 결함 계열: 높이도 같은 길로 지워졌다)
+  const b = await measure(page, 'tb1');
+  expect([b.padL, b.padT, b.pillW]).toEqual([60, 20, 194]);   // 전제
+  await page.locator('#label-bg-color').evaluate((e) => { e.value = '#cc2244'; e.dispatchEvent(new Event('input', { bubbles: true })); });
+  const a = await measure(page, 'tb1');
+  expect([a.padL, a.padR, a.padT, a.pillW]).toEqual([60, 60, 20, 194]);
+  expect(await page.locator('#txt-label-padx-number').inputValue()).toBe('60');
+});
+
+test('L7 ★「배경 없음」: 켜면 0, 그 동안 바꾼 30 은 끌 때 살아 있다(30 → 36 유실 재현) · 줄은 계속 보인다(값이 실제로 먹는다)', async ({ page }) => {
+  await boot(page, HARNESS);
+  await open(page, 'tb1');
+  await page.locator('#label-bg-none').evaluate((e) => e.click());
+  expect((await measure(page, 'tb1')).padL).toBe(0);
+  await expect(page.locator('#txt-label-padx-wrap')).toBeVisible();
+  await page.locator('#txt-label-padx-number').fill('30');
+  expect((await measure(page, 'tb1')).padL).toBe(30);            // 투명 라벨에도 그대로 먹는다
+  await page.locator('#label-bg-none').evaluate((e) => e.click());
+  const a = await measure(page, 'tb1');
+  expect([a.padL, a.padR, a.padT]).toEqual([30, 30, 11]);        // 30 유지, 건드리지 않은 상하는 CSS 기본 11
+  await open(page, 'tb2');                                        // 안 건드린 인라인 20/8 라벨: 없음 → 끔 이 원래대로
+  await page.locator('#label-bg-none').evaluate((e) => e.click());
+  await page.locator('#label-bg-none').evaluate((e) => e.click());
+  expect(await measure(page, 'tb2')).toMatchObject({ padL: 20, padT: 8 });
+});
