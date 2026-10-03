@@ -4,6 +4,8 @@ import {
   showNoSelectionHint,
   showToast,
   insertAfterSelected,
+  insertAfterSelectedAsSibling,
+  frameSelectedAsObject,
   getSectionAlign,
   makeLabelItem,
   renderGraph,
@@ -914,7 +916,9 @@ function addAssetBlock(preset, opts = {}) {
   window.selectSection(sec);
 }
 
-function addGapBlock(height) {
+/* opts.asSibling — 키보드 입구(g)만 켠다. 패널 갭 단추는 인자 없이 불러 09-23 「안에 넣는다」 그대로다.
+ *   켜면: 프레임을 «오브젝트로» 골라 둔 상태(frameSelectedAsObject)일 때 프레임 안 분기를 건너뛰고 «다음 형제»로 간다(F1). */
+function addGapBlock(height, opts = {}) {
   // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
   const overlay = getSelectedOverlay();
   if (overlay) {
@@ -926,19 +930,20 @@ function addGapBlock(height) {
     window.buildLayerPanel();
     return;
   }
+  const pickedFrame = opts.asSibling ? frameSelectedAsObject(null) : null;
   // fullWidth 플로우 프레임에만 추가 — 자유배치(freeLayout) 프레임은 스킵 후 섹션 레벨로
-  if (resolveInsertFrame(window._activeFrame)?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
+  if (!pickedFrame && resolveInsertFrame(window._activeFrame)?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
     const gb = makeGapBlock();
     if (height) gb.style.height = height + 'px';
     gb.dataset.h = height || 40;
     return gb;
   })) return;
-  const sec = window.getSelectedSection();
+  const sec = pickedFrame ? pickedFrame.closest('.section-block') : window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const gb = makeGapBlock();
   if (height) gb.style.height = height + 'px';
-  insertAfterSelected(sec, gb);
+  (opts.asSibling ? insertAfterSelectedAsSibling : insertAfterSelected)(sec, gb);
   bindBlock(gb);
   window.buildLayerPanel();
   window.selectSection(sec);

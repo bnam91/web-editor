@@ -1915,7 +1915,7 @@ function pasteClipboard() {
         const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
         const savedActiveSS = window._activeFrame;
         if (pasteHasSS) window._activeFrame = null;
-        if (anchor) anchor.after(el); else insertAfterSelected(sec, el);
+        if (anchor) anchor.after(el); else insertAfterSelectedAsSibling(sec, el);   // F1 — 키보드 입구: 프레임을 골라 뒀으면 «다음 형제»
         if (pasteHasSS) window._activeFrame = savedActiveSS;
       }
       _bindPastedEl(el);
@@ -2059,7 +2059,7 @@ function pasteClipboard() {
       const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
       const savedActiveSS = window._activeFrame;
       if (pasteHasSS) window._activeFrame = null;
-      insertAfterSelected(sec, el);
+      insertAfterSelectedAsSibling(sec, el);   // F1 — 키보드 입구
       if (pasteHasSS) window._activeFrame = savedActiveSS;
       _bindPastedEl(el);
       _normalizePastedAbsolute(el);
@@ -2790,7 +2790,7 @@ document.addEventListener('keydown', e => {
     if (_isAddGap && !e.isComposing) {
       e.preventDefault();
       if (window.grdAddLineToSelectedCell?.('gap')) return;
-      window.addGapBlock?.(); return;
+      window.addGapBlock?.(undefined, { asSibling: true }); return;   // F1 — 키보드 입구
     }
     if (_isAddText && !e.isComposing) {
       e.preventDefault();

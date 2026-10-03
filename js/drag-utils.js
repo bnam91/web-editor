@@ -275,6 +275,41 @@ function settleRowInFreeFrame(frame, row, mode = 'stack') {
   return true;
 }
 
+/* ★F1 (2026-10-03, 지디 결정) — 「프레임 «자체»가 오브젝트로 골라져 있나」.
+ *   키보드 입구(⌘V·g·⌘D)가 이 판정으로 «다음 형제»를 가른다. 패널 삽입은 이걸 안 부른다(09-23 「안에 넣는다」 그대로 —
+ *   frame-accepts-component-blocks F1 이 잠근다). ⛔t(addTextBlock)는 이 규칙에 넣지 않는다.
+ *   조건 셋 = 프레임에 .selected · 그 안에 «흐름 앵커»(선택된 자식 블럭)가 없다 · 그 안에 도형 선택이 없다.
+ *   돌려주는 것 = 그 프레임(가장 안쪽의 골라진 것) 또는 null. 도형 래퍼·글자 래퍼·배너 외곽은 «프레임»이 아니라 null 쪽이다. */
+function frameSelectedAsObject(section) {
+  const ok = (f) => f && f.classList?.contains('frame-block') && f.classList.contains('selected')
+    && !isShapeFrame(f) && !f.dataset?.textFrame && !f.dataset?.bannerPreset
+    && (!section || f.closest('.section-block') === section);
+  const act = window._activeFrame;
+  const cands = [...document.querySelectorAll('.frame-block.selected')].filter(ok);
+  const frame = (act && cands.includes(act)) ? act : cands[cands.length - 1];
+  if (!frame) return null;
+  if (findFlowAnchorSelected(frame, false)) return null;                                   // 자식을 골라 둔 것 = 안쪽
+  if (frame.querySelector('.shape-block.selected') || [...frame.querySelectorAll('.frame-block.selected')].some(isShapeFrame)) return null;
+  return frame;
+}
+
+/* 고른 프레임의 «다음 형제» 자리에 el 을 놓는다. 부모가 자유 프레임이면 좌표를 세운다(settleRowInFreeFrame 은 부르기만 한다). */
+function _placeAfterFrameAsSibling(frame, el) {
+  const unit = frame.parentElement?.classList.contains('row') ? frame.parentElement : frame;
+  unit.after(el);
+  const parent = unit.parentElement;
+  if (parent?.dataset?.freeLayout === 'true') window.settleRowInFreeFrame?.(parent, el, 'stack');
+}
+
+/* 키보드 입구용 삽입 — 프레임을 «오브젝트로» 골라 둔 상태면 안이 아니라 «다음 형제»로, 아니면 insertAfterSelected 그대로.
+ *   ⛔insertAfterSelected 자체는 건드리지 않는다(패널 삽입 31곳이 쓰고, 「안에 넣는다」를 frame-accepts F1 이 잠근다 —
+ *     본문 구간을 읽는 단위 시험 3종도 그 머리말에 걸려 있다). 키보드 입구는 {asSibling} 대신 이 한 문을 부른다. */
+function insertAfterSelectedAsSibling(section, el) {
+  const picked = frameSelectedAsObject(section);
+  if (picked) { _placeAfterFrameAsSibling(picked, el); return; }
+  insertAfterSelected(section, el);
+}
+
 function insertAfterSelected(section, el) {
   // 활성 서브섹션이 있으면 그 안에 삽입 (selected 여부 관계없이)
   // ★도형 래퍼는 그냥 도형 — 활성이어도 그 «안»은 삽입 대상이 아니다(0918 A안, shape-frame.js SSOT).
@@ -832,6 +867,8 @@ export {
   makeLabelItem,
   insertBeforeBottomGap,
   insertAfterSelected,
+  insertAfterSelectedAsSibling,
+  frameSelectedAsObject,
   settleRowInFreeFrame,
   effectiveSectionPadX,
   applyBlockFullBleed,
@@ -860,6 +897,8 @@ window.clearLayerSectionIndicators= clearLayerSectionIndicators;
 window.makeLabelItem              = makeLabelItem;
 window.insertBeforeBottomGap      = insertBeforeBottomGap;
 window.insertAfterSelected        = insertAfterSelected;
+window.frameSelectedAsObject      = frameSelectedAsObject;
+window.insertAfterSelectedAsSibling = insertAfterSelectedAsSibling;
 window.settleRowInFreeFrame       = settleRowInFreeFrame;
 window.effectiveSectionPadX       = effectiveSectionPadX;
 window.applyBlockFullBleed        = applyBlockFullBleed;
