@@ -361,3 +361,30 @@ for (const z of [100, 40]) {
     expect(errs).toEqual([]);
   });
 }
+
+/* R6 — 낮은 1행 그리드(＋ 40 보다 낮다): 위쪽 가까이, ＋ 상자 안이지만 «원 밖» 점 첫 클릭 = 선택 (측정표 Q2 의 짝)
+ * ⚠️배율 100 만 돈다. 40% 에선 1행 그리드가 화면 14px 라 ＋ 상자 안의 그리드 점이 «전부 원 안»이다
+ *   (실측 2026-10-04: 그리드 t=715·b=729, ＋ 중심 y=722 · 반지름 20 → 원 밖인 그리드 점 0) — 잴 점이 없다. */
+for (const z of [100]) {
+  test(`R6 낮은 그리드 · 배율 ${z} — 위쪽 가까이 ＋ 원 밖 점 첫 클릭 = 선택 · 열 그대로`, async ({ page }) => {
+    test.setTimeout(120000);
+    const { errs, a } = await setup(page, z);
+    expect(await page.evaluate(() => window.currentZoom), `전제 — 배율 ${z}`).toBe(z);
+    await force(page, a);
+    const bx = await boxOf(page, a, 'col');
+    const gh = bx.g.b - bx.g.t;
+    expect(gh, `전제 — 그리드(${gh.toFixed(1)}px)가 ＋(40) 보다 낮다`).toBeLessThan(40);
+    // 그리드 안 · ＋ 상자 안 · 원 밖인 점을 위쪽에서 찾는다(그리드 위 끝 +3px, ＋ 상자 왼쪽에서 오른쪽으로 훑음)
+    const y = bx.g.t + 3, R = bx.w / 2;
+    let x = null;
+    for (let px = bx.l + 1; px < bx.r - 1; px += 1) {
+      const d = Math.hypot(px - bx.cx, y - bx.cy);
+      if (d > R + 1.5 && px >= bx.g.l && px <= bx.g.r - 1) { x = px; break; }
+    }
+    expect(x, `전제 — 그리드 안·＋ 상자 안·원 밖인 위쪽 점이 있다 ${JSON.stringify(bx)}`).not.toBeNull();
+    const r = await clickAt(page, a, x, y);
+    expect(r, `★R6 원 밖 위쪽 점 = 선택 · 열 그대로 ${JSON.stringify({ x, y, ...r })}`).toMatchObject({ selected: true, dCols: 0, dRows: 0 });
+    expect(r.under.includes('grd-add-btn'), `★R6 ＋ 가 안 잡힌다 ${r.under}`).toBe(false);
+    expect(errs).toEqual([]);
+  });
+}
