@@ -2598,6 +2598,8 @@ function bindFrameDropZone(ss) {
     ss.classList.remove('ss-drag-over');
     if (!dragState.dragSrc) return;
     if (isShapeFrame()) return; // shape frame drop 차단
+    /* G9 — 글자 블럭을 «그리드 칸» 위에 놓았으면 칸의 한 줄로 받는다(prop-grid.js grdDropTextBlockOnCell — 거짓이면 종전 그대로). */
+    if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc)) { clearDropIndicators(); dragState.dragSrc = null; return; }
     window.pushHistory();
 
     // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로

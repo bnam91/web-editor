@@ -1546,8 +1546,8 @@ function _internalClipboardTextOf() {
   const txt = tops.map(el => (el.innerText || '').trim()).filter(Boolean).join('\n\n').slice(0, 5000);
   return txt || `고디터 블럭 ${Math.max(1, tops.length)}개`;
 }
-function _writeInternalClipboardToOS() {
-  const text = _internalClipboardTextOf();
+function _writeInternalClipboardToOS(textOverride) {
+  const text = textOverride || _internalClipboardTextOf();
   window._internalClipboardText = text;
   window._internalClipboardOnOS = false;
   Promise.resolve(window.electronAPI?.clipboardWriteText?.(text))
@@ -1565,6 +1565,15 @@ function clipboardPrefersInternal(e) {
   return internalT > (window._scratchClipboardTime || 0); // OS 에 못 썼으면 옛 규칙
 }
 window.clipboardPrefersInternal = clipboardPrefersInternal;
+
+/** 블럭 «밖» 고디터 복사(그리드 줄 ⌘C 등)도 «내 복사가 최신»임을 선언한다 — G10(2026-10-03).
+ *  ⌘C 가 이걸 안 하면 OS 클립보드엔 «그 전에 바깥에서 복사한 이미지»가 그대로 남아, ⌘V 한 번에
+ *  줄(keydown)과 스크래치 이미지(paste 이벤트)가 «동시에» 붙는다. copySelected 와 «같은 두 줄»이다. */
+function claimInternalClipboard(text) {
+  window._internalClipboardTime = Date.now();
+  _writeInternalClipboardToOS(text);
+}
+window.claimInternalClipboard = claimInternalClipboard;
 
 function copySelected() {
   // 내부 클립보드(섹션/블록) 복사 timestamp — OS 클립보드에 못 썼을 때의 옛 규칙(시각 비교)용

@@ -394,6 +394,12 @@ export function grdCopySelectedLines() {
   const picks = [...new Set(sel.map(a => a.li))].filter(i => i >= 0 && i < lines.length).sort((a, b) => a - b);
   if (!picks.length) return false;
   try { _grdLineClip = picks.map(i => JSON.parse(JSON.stringify(lines[i]))); } catch (_) { return false; }
+  /* ★G10 — 내 복사가 «최신»이라고 OS 클립보드에도 알린다(editor.js claimInternalClipboard). 안 하면 바깥에서 복사해 둔
+     이미지가 OS 에 남아 ⌘V 한 번에 줄과 스크래치 이미지가 «동시에» 붙는다. */
+  try {
+    const txt = picks.map(i => String(lines[i]?.text ?? '')).filter(Boolean).join('\n');
+    window.claimInternalClipboard?.(txt || `고디터 그리드 줄 ${picks.length}개`);
+  } catch (_) {}
   window.showToast?.(`줄 ${picks.length}개 복사됨 — 붙일 줄을 고르고 ⌘V`);
   return true;
 }
@@ -668,6 +674,78 @@ export function grdImageFileOk(file) {
 }
 if (typeof window !== 'undefined') window.grdImageFileOk = grdImageFileOk;
 if (typeof window !== 'undefined') window.grdAddLine = grdAddLine;
+
+/* ══ 캔버스 «텍스트 블럭»을 끌어 그리드 «칸»에 놓는다 — 칸의 한 줄이 된다 (G9, 현빈 2026-10-03) ═══════
+ * ★증상(측정): 흐름 텍스트 블럭을 그리드 칸 위에 놓으면 «칸 안으로» 들어가지 않고 섹션 안 행 순서만 바뀐다
+ *   (칸의 줄 수 그대로 · 블럭은 .section-inner 의 형제로 남음). 칸이 «받는» 길이 아예 없었다.
+ * ★받는 «한 벌» — 섹션/프레임 드롭 처리기(section-drag.js · block-drag.js bindFrameDropZone)가 이걸 «먼저» 부른다.
+ *   참을 돌려주면 «내가 먹었다»(처리기는 행 이동을 건너뛴다). 거짓이면 종전 그대로 — 다른 드롭은 영향 0.
+ * ★받는 조건을 «좁게» 둔다: 놓은 자리가 ★바깥 그리드의 .grd-cell ★ 놓은 것이 «글자 블럭 하나뿐인» 행/블럭
+ *   (표·불릿·여러 블럭 행은 그대로 행 이동). 놓는 블럭이 그리드 «안»이면 받지 않는다.
+ * ★줄로 옮기는 값: type(tb-h1/h2/h3/body/caption/label) · 글자(innerText) · 블럭이 «직접 박은» 색·크기·굵기·정렬.
+ *   ⚠️글자 안 부분 서식(굵게·색 span)은 줄이 못 담아 평문이 된다 — 그리드 줄 모델의 한계.
+ * ★쓰는 길은 grdAddLine(상한·활성줄·거절 시 원복 한 벌). 넣기가 «성공했을 때만» 원본 블럭을 지운다 —
+ *   실패하면 블럭이 제자리로 돌아온다(데이터가 어디에도 없는 상태 금지). 이력은 한 칸(아래 «한 동기 구간») — ⌘Z 한 번이 원위치.
+ * @returns {boolean} 먹었으면 true */
+export function grdDropTextBlockOnCell(e, src) {
+  if (!src || !e) return false;
+  let tb = null;
+  if (src.classList?.contains('text-block')) tb = src;
+  else if (src.classList?.contains('row')) {
+    const kids = [...src.children].filter(k => !k.classList.contains('drop-indicator'));
+    if (kids.length === 1 && kids[0].classList.contains('text-block')) tb = kids[0];
+  }
+  if (!tb) return false;
+  /* ★받는 블럭을 «평문 글자 블럭 종류 허용 목록»으로 좁힌다(적대QA: 말풍선 유실). 조건 셋이 «전부» 서야 한다:
+     ⑴ 말풍선 등 «다른 종류» 클래스가 text-block 에 없다 ⑵ 직계 자식이 정확히 하나이고 그게 tb-h1/h2/h3/body/caption/label 이다
+     (숨은 .tb-sender-name·.tb-bubble 따위가 형제로 있으면 거절) ⑶ 아래 «글자 일치» — 줄로 옮긴 글자가 원본의 보이는 글자와 같다.
+     ⛔`[class^="tb-"]` 로 «처음 집히는 것»을 쓰지 마라 — 숨은 .tb-sender-name 을 먼저 집어 본문이 사라졌다. */
+  if ([...tb.classList].some(k => k !== 'text-block' && k !== 'selected' && k !== 'dragging')) return false;
+  const kids = [...tb.children].filter(k => !k.classList.contains('tb-rotate-zone'));   // 선택 때 붙는 회전 영역은 UI
+  const inner = kids.length === 1 ? kids[0] : null;
+  const m = inner && /^tb-(h1|h2|h3|body|caption|label)$/.exec(inner.className.replace(/\s+/g, ' ').trim().split(' ')[0] || '');
+  if (!inner || !m || inner.querySelector('ul,ol,img,svg,input,table')) return false;
+  const at = document.elementFromPoint(e.clientX, e.clientY);
+  const cellEl = at && at.closest ? at.closest('.grd-cell[data-r][data-c]') : null;
+  const block = cellEl && cellEl.closest('.grid-block');
+  if (!block || block.contains(tb) || tb.contains(block)) return false;
+  const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
+  if (!Number.isInteger(r) || !Number.isInteger(c)) return false;
+  const norm = (t) => String(t == null ? '' : t).replace(/\r\n?/g, '\n').replace(/\u200b/g, '').replace(/\n+$/, '');
+  const spec = { type: m[1], text: '' };
+  const isPh = tb.dataset.isPlaceholder === 'true' || inner.dataset.isPlaceholder === 'true';
+  if (!isPh) spec.text = norm(inner.innerText);
+  /* ★글자 일치 — 원본 블럭이 «보이는 글자 전부»(innerText)가 줄의 글자와 같을 때만 원본을 지운다. 아니면 넣지도 지우지도 않는다(종전 동작). */
+  if (!isPh && norm(tb.innerText).trim() !== spec.text.trim()) return false;
+  const st = inner ? inner.style : null;
+  if (st) {
+    if (st.color && GRID_COLOR_RE.test(st.color)) spec.color = st.color;
+    const fs = parseFloat(st.fontSize); if (fs > 0) spec.fontSize = Math.round(fs);
+    const fw = parseInt(st.fontWeight, 10); if (fw > 0) spec.weight = fw;
+    if (st.textAlign === 'left' || st.textAlign === 'center' || st.textAlign === 'right') spec.align = st.textAlign;
+  }
+  /* 놓은 높이 → 칸 안 «몇 번째 줄 앞»인가 — 줄 중간선보다 위에 있는 첫 줄 앞. 다 지나면 끝. */
+  const cellLines = [...cellEl.children].filter(k => k.hasAttribute('data-line'));
+  let insertAt = cellLines.length;
+  for (let i = 0; i < cellLines.length; i++) {
+    const b = cellLines[i].getBoundingClientRect();
+    if (e.clientY < b.top + b.height / 2) { insertAt = i; break; }
+  }
+  /* ★한 «동기 구간»·이력 한 칸(push-before): ①지금(블럭이 있는 상태)을 찍고 ②원본을 떼고 ③noHistory 로 넣는다 —
+     updateGridBlock 래퍼(model-update-history.js)가 «돌아온 직후» 끝 표본(블럭 없음 + 줄 있음)을 찍는다.
+     예전엔 넣기 «뒤»에 지워서 그 차이를 rAF 두 번 뒤의 되쓰기가 메웠다 — 그 틈에 ⌘Z 를 누르면 줄 + 블럭이 «둘 다» 남았다. */
+  const row = tb.closest('.row');
+  const unit = (row && row.children.length === 1) ? row : tb;
+  const parent = unit.parentNode, next = unit.nextSibling;
+  if (!parent) return true;
+  window.pushHistory?.();
+  unit.remove();
+  const res = grdAddLine(block, { r, c }, insertAt - 1, spec, { noHistory: true });
+  if (res && res.ok) window.buildLayerPanel?.();
+  else parent.insertBefore(unit, next && next.parentNode === parent ? next : null);   // 실패 — 블럭을 제자리로(데이터가 어디에도 없는 상태 금지)
+  return true;
+}
+if (typeof window !== 'undefined') window.grdDropTextBlockOnCell = grdDropTextBlockOnCell;
 
 /* SVG 마크업 → data URI. 아이콘 새 줄은 기존 image 라인 타입을 그대로 쓴다(현빈 확정:
  * 재착색 불필요 → 새 icon 타입·새 새니타이저 불필요, GRID_LINE_FIELDS 변경 없음). */
