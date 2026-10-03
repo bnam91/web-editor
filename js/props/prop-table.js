@@ -1,6 +1,7 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { parseRatio, blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
+import { withTextSelection, spanExactlyCovering } from './_text-selection.js';
 
 function _tblTok(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
@@ -938,50 +939,22 @@ ${blockHeaderHTML({
   /* 글자색 — 셀 편집 중 부분 선택이 있으면 그 선택만 <span style="color">,
      아니면 테이블 전체 기본 글자색(--tbl-text-color). (Figma "b" 정책 = 부분/전체 분기)
      ★셀 부분 색은 전역 window.applyColorToSelection 헬퍼 재사용(text-block과 동일 primitive). */
-  let _cellSel = null;        // { cell, range } — 색 피커 mousedown 시점 스냅샷(셀 blur 전)
-  let _cellColorSpan = null;  // 연속 input(피커 드래그) 중복 wrap 방지용 span
-  const _snapshotCellSel = () => {
-    // ★셀이 '지금 편집 중'(contenteditable=true)일 때의 마지막 유효 셀 선택만 채택 → 스테일 방지.
-    //  mousedown 리스너는 포커스 이동(blur)보다 먼저 실행되므로 이 시점 ce 는 아직 'true'.
-    const cs = window.__lastCellSel;
-    if (cs && cs.cell && block.contains(cs.cell) &&
-        cs.cell.getAttribute('contenteditable') === 'true' &&
-        cs.range && !cs.range.collapsed &&
-        cs.cell.contains(cs.range.startContainer) && cs.cell.contains(cs.range.endContainer)) {
-      _cellSel = { cell: cs.cell, range: cs.range.cloneRange() };
-    } else {
-      _cellSel = null;
-    }
-  };
-  // 색 피커 UI 요소(스와치/hex/alpha)에 mousedown·pointerdown → 셀 blur 전에 선택 스냅샷
-  ['tbl-text-color', 'tbl-text-hex', 'tbl-text-alpha'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.addEventListener('mousedown', _snapshotCellSel);
-    el.addEventListener('pointerdown', _snapshotCellSel);
-  });
-  const _txtSwatch = document.getElementById('tbl-text-color')?.closest('.prop-color-swatch');
-  _txtSwatch?.addEventListener('mousedown', _snapshotCellSel);
-  _txtSwatch?.addEventListener('pointerdown', _snapshotCellSel);
-
+  /* ★선택 저장은 js/props/_text-selection.js 한 벌(TX1 · 2026-10-03). 옛 _cellSel 은 onCommit 에서 null 로
+     «버려서» 두 번째 색 조작이 표 기본색으로 빠졌다(TX1 측정 표 칸 2회). 적용한 span 으로 저장 범위를 «바꾼다». */
   wireColorField('tbl-text', {
     initialAlpha: curTextAlpha,
     onApply: (c) => {
-      // 연속 input: 이미 만든 셀 span 색만 갱신(재-wrap 금지)
-      if (_cellColorSpan && _cellColorSpan.isConnected) { _cellColorSpan.style.color = c; return; }
-      // 셀 부분 선택 활성 → 그 선택만 색
-      if (_cellSel && _cellSel.cell.isConnected && _cellSel.range && !_cellSel.range.collapsed) {
-        const res = window.applyColorToSelection?.(c, _cellSel.cell, _cellSel.range, null);
-        if (res) { _cellColorSpan = res.span; if (res.range) _cellSel.range = res.range; }
-        return;
-      }
+      // 셀 부분 선택 활성 → 그 선택만 색(범위가 이미 span 하나 전체면 그 span 을 다시 쓴다 — 겹 span 금지)
+      const span = withTextSelection((range, host) => {
+        if (!range || !host.matches('td, th')) return null;
+        return window.applyColorToSelection?.(c, host, range, spanExactlyCovering(range))?.span || null;
+      }, { within: block });
+      if (span) return;
       // 무선택 → 테이블 전체 기본 글자색
       block.dataset.textColor = c;
       block.style.setProperty('--tbl-text-color', c);
     },
     onCommit: () => {
-      _cellSel = null;
-      _cellColorSpan = null;
       window.pushHistory?.();
       window.scheduleAutoSave?.();
     },

@@ -16,6 +16,7 @@ import {
   selectAllEditableContents,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
+import { isBlurIntoPanel, parkEditing } from './props/_text-selection.js';
 import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth } from './frame-geometry.js';
 import {
   dragState,
@@ -183,7 +184,7 @@ function _gridReadText(host) {
      (타이핑마다 쌓이지 않는다 = 세션당 정확히 1개.)
    ★빈 문자열 정책 = «빈 줄 유지»(플레이스홀더 복귀 아님). 옛 우측패널 입력(.duo-line-input)이
      input 을 비우면 text:'' 를 그대로 저장했다 — 그 동작을 그대로 잇는다. 되돌리기는 ⌘Z. */
-function _gridEndEdit(block, host, addr) {
+function _gridEndEdit(block, host, addr, opts = {}) {
   if (host.getAttribute('contenteditable') !== 'true') return;
   host.setAttribute('contenteditable', 'false');
   host.removeAttribute('draggable');
@@ -202,11 +203,13 @@ function _gridEndEdit(block, host, addr) {
   /* ★중첩 «안» 줄이면 `np` 를 같이 보낸다 — T-220 ① 이 낸 쓰기 길(patchCell{lineIndex, np}).
      ⛔`np` 를 «항상» 싣지 마라: 바깥 줄 커밋의 뜻이 바뀌고, 모델 입구가 「np 는 lineIndex 와
        같이 와야 한다」를 다른 자리에서 다시 재게 된다. 있을 때만 싣는다. */
+  /* ★opts.keepPanel — 패널 조작 «직전»의 flush(아래 _gridBeginEdit 의 parkEditing)에서만 켠다.
+     그 순간 패널을 다시 그리면 지금 눌린 칸이 DOM 에서 떨어져 그 조작이 «먹힌다»(TX1 측정: 그리드 크기 칸 첫 클릭). */
   const res = window.updateGridBlock?.(block.id, {
     patchCell: addr.np
       ? { r: addr.r, c: addr.c, lineIndex: addr.li, np: addr.np, text }
       : { r: addr.r, c: addr.c, lineIndex: addr.li, text },
-  });
+  }, opts.keepPanel ? { keepPanel: true } : undefined);
   // 실패(좌표가 범위 밖 등)면 화면은 이미 «편집 전»이라 화면·데이터가 갈라진 채 남지 않는다.
   if (res && res.ok === false) window.showToast?.(`줄 수정 실패: ${res.message || res.code}`);
 }
@@ -292,7 +295,17 @@ function _gridBeginEdit(hit, e) {
   // 라인 요소는 렌더마다 새로 만들어진다 → 이 요소에 처음 한 번만 붙이면 된다(누수 없음).
   if (!host._gridEditBound) {
     host._gridEditBound = true;
-    host.addEventListener('blur', () => _gridEndEdit(block, host, addr));
+    /* ★「패널로 가는 blur」면 편집을 끝내지 «않고» 세운다(판정은 _text-selection.js isBlurIntoPanel 한 곳 —
+       텍스트블럭 blur 와 같은 술어). 끝내면 updateGridBlock → showGridProperties 가 패널을 통째로 다시 그려
+       방금 누른 패널 칸이 떨어져 나가 «첫 클릭이 먹혔다»(TX1 측정). 패널 값이 들어오기 직전에는 flush 로
+       글자를 먼저 데이터로 보낸다(패널은 다시 안 그린다) — 그리드 적용은 블럭을 통째로 다시 그리기 때문이다. */
+    host.addEventListener('blur', (ev) => {
+      if (isBlurIntoPanel(ev)) {
+        parkEditing(host, () => _gridEndEdit(block, host, addr), { flush: () => _gridEndEdit(block, host, addr, { keepPanel: true }) });
+        return;
+      }
+      _gridEndEdit(block, host, addr);
+    });
     host.addEventListener('keydown', ev => {
       if (ev.key === 'Escape') {
         ev.preventDefault();
@@ -980,7 +993,13 @@ function bindBlock(block) {
       }
     });
     // blur → 편집 종료 (외부 클릭, 포커스 이탈 시)
-    el.addEventListener('blur', () => {
+    /* ★「패널로 가는 blur」(숫자·색코드·select 처럼 포커스를 가져가는 패널 칸)면 편집을 끝내지 «않고» 세운다 —
+       판정은 _text-selection.js isBlurIntoPanel 한 곳(그리드 줄 blur 와 같은 술어). 바깥을 누르면 그때 끝난다. */
+    el.addEventListener('blur', (ev) => {
+      if (isBlurIntoPanel(ev)) { parkEditing(el, _endTextEdit); return; }
+      _endTextEdit();
+    });
+    function _endTextEdit() {
       block.classList.remove('editing');
       el.setAttribute('contenteditable', 'false');
       // 빈 텍스트면 placeholder 복원 — 단 의도적 빈 줄(data-blank)이면 복원 skip
@@ -1011,7 +1030,7 @@ function bindBlock(block) {
         // placeholder 문구와 동일하면(더블클릭 전체선택 후 무입력 blur 등) isPlaceholder 유지 — 안내문구가 본문으로 굳는 지뢰 방지
         delete el.dataset.isPlaceholder;
       }
-    });
+    }
     // (EMPTY) Enter(또는 시각적 빈 줄을 만드는 입력) 감지 → 의도적 빈 줄 신호.
     // 이 신호가 켜진 채 blur 시 br/빈요소만 남으면 data-blank로 승격(보존).
     // 신호 없이(=텍스트 다 지운 결과로 br만 남음) blur하면 placeholder 복원.

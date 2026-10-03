@@ -7,6 +7,7 @@
 
 import { fontChain } from './prop-text-utils.js';
 import { wireFontPicker } from './_font-picker.js';
+import { withTextSelection, applyStyleToRange } from './_text-selection.js';
 
 // design-system.js는 classic script라 import를 못 쓴다 → 같은 체인 규칙을 전역으로 공유(중복 정의 금지).
 // 호출은 사용자 인터랙션 시점이라 모듈 로드 순서와 무관하다.
@@ -27,31 +28,16 @@ export function wireFontSection({ propPanel, ctx }) {
     },
   });
 
-  /* 폰트 굵기 — selection 있으면 그 부분만 <span>, 없으면 전체 적용 */
-  let _savedFwSel = null;
+  /* 폰트 굵기 — selection 있으면 그 부분만 <span>, 없으면 전체 적용.
+     ★선택 저장은 js/props/_text-selection.js 한 벌이다(옛 _savedFwSel 은 적용 뒤 null 로 «버려서»
+       연달아 두 번째가 BBB 밖으로 갔다 — TX1 측정). 적용한 span 으로 저장 범위를 «바꾼다». */
   const fwSel = document.getElementById('txt-font-weight');
-  const saveFwSel = () => {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
-      _savedFwSel = sel.getRangeAt(0).cloneRange();
-    } else _savedFwSel = null;
-  };
-  fwSel.addEventListener('mousedown', saveFwSel);
-  fwSel.addEventListener('focus', saveFwSel);
   fwSel.addEventListener('change', e => {
     const v = e.target.value;
-    if (_savedFwSel) {
-      // 부분 적용 — selection을 <span style="font-weight:V">로 wrap
-      const r = _savedFwSel.cloneRange();
-      const frag = r.extractContents();
-      const span = document.createElement('span');
-      span.style.fontWeight = v;
-      span.appendChild(frag);
-      r.insertNode(span);
-      _savedFwSel = null;
-    } else {
-      ctx.contentEl.style.fontWeight = v;
-    }
+    withTextSelection((range, host) => {
+      if (!range) { ctx.contentEl.style.fontWeight = v; return null; }
+      return applyStyleToRange(range, host, 'fontWeight', v);
+    }, { within: ctx.contentEl });
     window.pushHistory();
   });
 }

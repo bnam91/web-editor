@@ -2683,7 +2683,9 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     try { renderGridBlock(block); } catch (_) {}
     return { ok: false, code: 'RENDER_ERROR', message: e.message };
   }
-  if (block.classList.contains('selected')) {
+  /* ★opts.keepPanel — 패널 조작 «직전»에 세워 둔 줄 편집을 커밋할 때(block-drag.js _gridBeginEdit 의 flush)만 켠다.
+     그 순간 패널을 다시 그리면 지금 눌린 패널 칸이 DOM 에서 떨어져 그 조작이 먹힌다(TX1 · 2026-10-03). */
+  if (block.classList.contains('selected') && !(opts && opts.keepPanel === true)) {
     try { window.showGridProperties?.(block); } catch (_) {}
   }
   try { window.buildLayerPanel?.(); } catch (_) {}
