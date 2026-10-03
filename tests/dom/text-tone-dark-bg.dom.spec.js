@@ -102,7 +102,8 @@ for (const bg of ['#000000', '#1a1a1a', '#333333', '#555555']) {
     expect(lines.length).toBe(6);
     const bad = lines.map(l => ({ ...l, cr: +cr(rgb(l.color), hex(bg)).toFixed(2), need: isLarge(l) ? 3 : 4.5 })).filter(l => l.cr < l.need);
     expect(bad, JSON.stringify(bad)).toEqual([]);
-    /* ★G5 표 값 단언(지디 2026-10-03) — ⒜ 화면 = 표 ⒝ 표 = «기존 값»(G6 헤더 TABLE_HEADER_FG_LIGHT, 새 값 금지 결정) */
+    /* ★G5 표 값 단언(지디 2026-10-03) — ⒜ 화면 = 표 ⒝ 표 = «기존 값»(G6 헤더 TABLE_HEADER_FG_LIGHT, 새 값 금지 결정)
+       ⒜는 «값»을 잠그지 않는다 — 기대값을 같은 소스에서 파싱하므로 표 값을 바꾸는 변이는 통과한다. ⒜가 잡는 것 = 표를 «안 거치고» 칠하는 경로. ⒝는 두 출처가 «어긋나는» 것만 잡고, 둘이 «같이» 바뀌면 통과한다 — 색값은 디자인 결정이라 일부러 잠그지 않았다(2026-10-03 지디). */
     const T = g5Table();
     expect(T && T.body && T.label, '전제 — grid-block.js 에서 _GRID_ROLE_COLOR_ON_DARK 의 label·body 를 찾았다').toBeTruthy();
     const g6 = await page.evaluate(() => window.__G6FG);
