@@ -126,3 +126,29 @@ test('G4 ★⌘Z 한 걸음 — 칸 이미지가 되돌아오고 스크래치 �
   expect(m[0][0][0].imgSrc).toBe(PX);
   expect(s1.scratch).toBe(s0.scratch);
 });
+
+const svgN = (n) => 'data:image/svg+xml;base64,' + Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120"><rect width="200" height="120" fill="#${(n * 1234567 % 0xffffff).toString(16).padStart(6, '0')}"/><text x="10" y="60">img${n}</text></svg>`).toString('base64');
+
+test('G5 ★서로 다른 그림 10장을 같은 칸에 10번 — 매번 먹고(간헐 0), ⌘Z 10번이 한 걸음씩 거꾸로 간다', async ({ page }) => {
+  await setup(page);
+  const cell0 = async () => (await model(page))[0][0][0].imgSrc;
+  const seq = [PX];
+  for (let n = 1; n <= 10; n++) {
+    const u = svgN(n);
+    await page.evaluate((u) => window._scratchAddAndSaveFx(u, 20, 20, 200), u);
+    await page.waitForTimeout(300);
+    // 방금 넣은 항목이 «마지막» — 이전 항목은 이미 소비됐다
+    const before = await state(page);
+    await dragScratchTo(page, '#sG .grid-block .grd-img-frame[data-c="0"]');
+    const after = await state(page);
+    expect(await cell0(), `넣기 ${n}번째 — 칸 이미지가 그 그림이어야`).toBe(u);
+    expect(after.scratch, `넣기 ${n}번째 — 스크래치 소비`).toBe(before.scratch - 1);
+    seq.push(u);
+  }
+  for (let k = 9; k >= 0; k--) {
+    await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); });
+    await page.keyboard.press('Meta+z');
+    await page.waitForTimeout(350);
+    expect(await cell0(), `⌘Z ${10 - k}번째 — 한 걸음 거꾸로`).toBe(seq[k]);
+  }
+});
