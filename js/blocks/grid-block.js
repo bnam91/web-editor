@@ -448,10 +448,11 @@ const _GRID_ROLES = {
 /* ★G5(현빈 2026-10-03 「어두운 배경을 가진 섹션에 그리드 블럭 추가하면 안 보임, 텍스트 동적으로 되면 좋겠음」)
  *   — 칸의 실제 배경이 «어두우면»(canvas-contrast.js textToneOver = 'light') 역할색 대신 이 표를 쓴다.
  *   ★역할색은 고정값이지 사용자 지정이 아니다 ⇒ 자동 대상. line.color 가 있는 줄은 «안» 바뀐다.
- *   값의 근거(WCAG, 어두운 섹션 4종 중 가장 밝은 #555 기준): h1·h2·h3 #fff 7.46 · label·body #e6e6e6 5.97 · caption #ccc 4.64
+ *   값의 근거(WCAG, 어두운 섹션 4종 중 가장 밝은 #555 기준): h1·h2·h3 #fff 7.46 · label·body #f2f2f2 6.66 · caption #ccc 4.64
+ *   ★label·body 는 «새 값을 안 만든다»(지디 2026-10-03) — infocard-block.js 의 어두운 배경 글자색·G6 헤더와 같은 #f2f2f2.
  *   — 셋 다 작은 글자 4.5 를 넘는다. 흰/검 경계(L≈0.18) 근처에선 caption 이 4.5 아래로 갈 수 있다(흰 배경 caption #999 2.85 와 같은 관례). */
 const _GRID_ROLE_COLOR_ON_DARK = {
-  label: '#e6e6e6', h1: '#ffffff', h2: '#ffffff', h3: '#ffffff', body: '#e6e6e6', caption: '#cccccc',
+  label: '#f2f2f2', h1: '#ffffff', h2: '#ffffff', h3: '#ffffff', body: '#f2f2f2', caption: '#cccccc',
 };
 const _GRID_VALIGN = { top: 'flex-start', middle: 'center', bottom: 'flex-end' };
 /* ★칸/줄의 «가로 정렬» 명부 — 지금까지 이 파일엔 «표가 없었다».

@@ -159,6 +159,8 @@ export function backdropRgbAt(el, ownBg) {
     for (let e = el; e; e = e.parentElement) {
       const cs = _cs(e);
       if (!cs) return null;                         // 떼어진 노드 = 못 쟀다
+      /* ⚠️한계(적대QA 2026-10-03, 고치지 않음 — 지디 판정 E4 별건): ::before 로 그리는 반투명 배경(.frame-block.has-bg-opacity)은 못 본다 —
+         본체가 transparent 라 위로 지나쳐 섹션 색으로 판정한다(흰 섹션 위 #000·0.9 프레임 → 그리드 글자 #555, 대비 2.33). 현빈 계정 52개에선 0건. */
       if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
       const c = _parseWithAlpha(cs.backgroundColor);
       if (c && c.a > 0) { layers.push(c); if (c.a >= 1) { reached = true; break; } }

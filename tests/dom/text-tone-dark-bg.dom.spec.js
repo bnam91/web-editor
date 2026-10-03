@@ -144,7 +144,7 @@ test('T4 G6 수지맥 표 — 어두운 헤더 + 기본 글자색 → 밝게 · 
   r = await th(); expect(rgb(r.color)).toEqual(hex('#222222'));
 });
 
-test('T5 내보내기 PNG — 캡처 클론 픽셀에 밝은 글자가 있다(그리드 #e6e6e6 · 헤더 #f2f2f2)', async ({ page }) => {
+test('T5 내보내기 PNG — 캡처 클론 픽셀에 밝은 글자가 있다(그리드·헤더 둘 다 #f2f2f2 — 위·아래 자리로 가른다)', async ({ page }) => {
   await boot(page, HARNESS);
   await page.setViewportSize({ width: 1000, height: 900 });
   await page.evaluate(([tbl]) => {
@@ -157,15 +157,19 @@ test('T5 내보내기 PNG — 캡처 클론 픽셀에 밝은 글자가 있다(�
   await page.waitForTimeout(80);
   await page.evaluate(async () => {
     const clone = await window.__prepare(document.getElementById('sec1'), 860, true);
-    window.__renderInClone(clone); clone.id = '__clone'; clone.style.top = '0px'; clone.style.left = '0px'; clone.getBoundingClientRect();
+    window.__renderInClone(clone); clone.id = '__clone'; clone.style.top = '0px'; clone.style.left = '0px';
+    const base = clone.getBoundingClientRect(); const th = clone.querySelector('thead th').getBoundingClientRect();
+    window.__split = Math.round(th.top - base.top);            // 이 y 위 = 그리드, 아래 = 표
   });
+  const split = await page.evaluate(() => window.__split);
   const shot = await page.locator('#__clone').screenshot({ type: 'png' });
-  const n = await page.evaluate(async (b64) => {
+  const n = await page.evaluate(async ([b64, split]) => {
     const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
     const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height; const x = cv.getContext('2d'); x.drawImage(img, 0, 0);
     const d = x.getImageData(0, 0, cv.width, cv.height).data; const near = (i, c) => Math.abs(d[i] - c) <= 3 && Math.abs(d[i + 1] - c) <= 3 && Math.abs(d[i + 2] - c) <= 3;
-    let g = 0, h = 0; for (let i = 0; i < d.length; i += 4) { if (near(i, 0xe6)) g++; if (near(i, 0xf2)) h++; } return { g, h };
-  }, shot.toString('base64'));
+    let g = 0, h = 0; for (let i = 0; i < d.length; i += 4) { if (near(i, 0xf2)) { if ((i / 4 / cv.width) < split) g++; else h++; } } return { g, h };
+  }, [shot.toString('base64'), split]);
+  expect(split, '전제 — 표가 그리드 아래에 있다').toBeGreaterThan(20);
   expect(n.g, '그리드 밝은 글자 픽셀').toBeGreaterThan(200);
   expect(n.h, '헤더 밝은 글자 픽셀').toBeGreaterThan(50);
 });
@@ -203,7 +207,7 @@ test('T7 저장 왕복 — 자동 값은 dataset 에 안 굳고, 다시 연 뒤 
     const b = document.getElementById(id); window.__render(b);       // save-load 가 하는 재렌더
     const reopened = getComputedStyle(b.querySelector('.grd-line')).color;
     const sec = document.getElementById('sec1'); sec.style.backgroundColor = '#ffffff';
-    return { colsHasAuto: /e6e6e6|ffffff/i.test(cols.replace(/&quot;/g, '"')), tc: document.getElementById('tblS').dataset.textColor, reopened };
+    return { colsHasAuto: /f2f2f2|ffffff/i.test(cols.replace(/&quot;/g, '"')), tc: document.getElementById('tblS').dataset.textColor, reopened };
   }, g.id);
   await page.waitForTimeout(50);
   const after = await readGrid(page, g.id);
