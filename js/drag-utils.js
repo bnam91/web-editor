@@ -283,13 +283,15 @@ function settleRowInFreeFrame(frame, row, mode = 'stack') {
 function frameSelectedAsObject(section) {
   const ok = (f) => f && f.classList?.contains('frame-block') && f.classList.contains('selected')
     && !isShapeFrame(f) && !f.dataset?.textFrame && !f.dataset?.bannerPreset
+    && f.dataset?.group !== 'true'                                  // 그룹(⌘G)은 F1 범위 밖 — 예전대로 «안»
     && (!section || f.closest('.section-block') === section);
   const act = window._activeFrame;
   const cands = [...document.querySelectorAll('.frame-block.selected')].filter(ok);
   const frame = (act && cands.includes(act)) ? act : cands[cands.length - 1];
   if (!frame) return null;
-  if (findFlowAnchorSelected(frame, false)) return null;                                   // 자식을 골라 둔 것 = 안쪽
-  if (frame.querySelector('.shape-block.selected') || [...frame.querySelectorAll('.frame-block.selected')].some(isShapeFrame)) return null;
+  /* 자식을 골라 둔 것 = 안쪽. ★흐름 앵커(isFlowAnchorBlock)로 세지 않는다 — 그건 절대배치를 제외해서, 자유 프레임의 절대배치 자식(그리드·에셋)을
+   *   골라도 «프레임을 골랐다»로 읽혔다(적대QA). 프레임에 .selected 가 남은 채 «자손이 하나라도» 골라져 있으면 오브젝트 선택이 아니다. */
+  if (frame.querySelector('.selected')) return null;
   return frame;
 }
 

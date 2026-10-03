@@ -168,3 +168,41 @@ test('S5 중첩 — 바깥 자유 프레임 안의 안쪽 프레임을 골라 g 
   expect(a.inFR).toBe(true);
   expect(a.abs, '자유 프레임 직계인데 좌표(absolute)가 없다').toBe(true);
 });
+
+/* ★S7·S8 — 적대QA(2026-10-03)가 31e97078 에서 깬 것. 양성대조 판 = 31e97078 (빨강: S7 4건·S8 2건).
+ * S7: 자유 프레임의 «절대배치» 자식(그리드·에셋)을 골라도 프레임에 .selected 가 남는다. isFlowAnchorBlock 은 absolute 를 빼서
+ *     「프레임을 오브젝트로 골랐다」로 읽혔다 ⇒ g·⌘V 가 프레임 «밖»으로 샜다. 자식을 골랐으면 «안쪽»이다(bf9161d0 과 같다).
+ * S8: 그룹(data-group)은 F1 범위 밖 — 그룹을 골라 g·⌘V 는 예전대로 그룹 «안». */
+const ABS = {
+  grid: '<div class="grid-block" id="kidX" data-type="grid" style="position:absolute;left:300px;top:20px;width:200px;height:60px;"></div>',
+  asset: '<div class="asset-block" id="kidX" style="position:absolute;left:300px;top:20px;width:100px;height:80px;"></div>',
+};
+for (const kind of ['grid', 'asset']) for (const how of ['g', 'paste']) {
+  test(`S7-${kind}-${how} ★절대배치 ${kind} 자식을 고른 채 ${how === 'g' ? 'g' : '갭 ⌘V'} → 프레임 «안»(밖 다음 형제 아님)`, async ({ page }) => {
+    const errs = await setup(page, 'free', ABS[kind]);
+    if (how === 'paste') { const [gx, gy] = await rectOf(page, 'gBefore', 0.5, 0.5); await page.mouse.click(gx, gy); await press(page, 'Meta+c'); }
+    await pickFrame(page);
+    const [kx, ky] = await rectOf(page, 'kidX', 0.5, 0.5);
+    await page.mouse.click(kx, ky);
+    expect(await page.evaluate(() => document.getElementById('kidX').classList.contains('selected')), '전제 — 자식이 골라졌다').toBe(true);
+    const before = await snap(page);
+    await press(page, how === 'g' ? 'g' : 'Meta+v');
+    const a = await snap(page);
+    expect(errs).toEqual([]);
+    expect(a.frameKids, '프레임 «밖»으로 샜다').toBe(before.frameKids + 1);
+    expect(a.gaps).toBe(before.gaps + 1);
+  });
+}
+for (const how of ['g', 'paste']) {
+  test(`S8-${how} 그룹(data-group)을 고른 채 ${how === 'g' ? 'g' : '갭 ⌘V'} → 예전대로 그룹 «안»`, async ({ page }) => {
+    const errs = await setup(page, 'free');
+    await page.evaluate(() => { document.getElementById('FR').dataset.group = 'true'; });
+    if (how === 'paste') { const [gx, gy] = await rectOf(page, 'gBefore', 0.5, 0.5); await page.mouse.click(gx, gy); await press(page, 'Meta+c'); }
+    await pickFrame(page);
+    const before = await snap(page);
+    await press(page, how === 'g' ? 'g' : 'Meta+v');
+    const a = await snap(page);
+    expect(errs).toEqual([]);
+    expect(a.frameKids, '그룹 «밖»으로 나갔다').toBe(before.frameKids + 1);
+  });
+}
