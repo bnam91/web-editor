@@ -5,6 +5,9 @@
 ══════════════════════════════════════ */
 
 import { isGoyaAssetUrl, parseGoyaAssetUrl, makeElectronAssetReader } from './io/goya-asset-inline.js';
+/* ★텍스트 블록의 «글자 자리»는 ai-text-slots.js 한 곳에서 정한다 — 읽기(collect)·쓰기(apply)가 같은 정본을 쓴다.
+   (2026-10-03 AI 묶음 A: 두 벌이던 셀렉터 명부가 어긋나 말풍선·불릿·라이너 구조가 래퍼째 지워졌다.) */
+import { findTextSlot, readTextSlot, writeTextSlot, writeFilledText as _writeFilledText } from './ai-text-slots.js';
 
 /* ── 스크래치 토큰(#sp_xxxxxx) 첨부 시 goya-asset:// → base64 data URL 재인라인 ──
  * 왜 필요한가 — 「저장 전엔 되고 저장 후엔 안 됐다」:
@@ -52,10 +55,11 @@ function collectSectionTextBlocks(sec) {
   );
   all.forEach(el => {
     if (el.classList.contains('text-block')) {
-      // .tb-bubble은 speech-bubble-block의 본문, 나머지는 일반 텍스트 블록
-      const tbInner = el.querySelector('.tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label, .tb-bubble') || el;
-      const styleClass = (tbInner.classList && Array.from(tbInner.classList).find(c => c.startsWith('tb-'))) || 'tb-body';
-      items.push({ id: el.id, style: styleClass, current: (tbInner.textContent || '').trim() });
+      // 글자 자리(일반·불릿·말풍선·라이너)는 정본 findTextSlot 이 정한다 — 쓰기(applyAIReplacements)와 같은 것.
+      // ⛔자리를 못 찾은 블록은 «보내지 않는다» — 보내면 돌아온 글자를 쓸 곳이 래퍼뿐이다.
+      const slot = findTextSlot(el);
+      if (!slot) return;
+      items.push({ id: el.id, style: slot.style, current: readTextSlot(slot).trim() });
       return;
     }
     if (el.classList.contains('canvas-block') && el.dataset.cardMode === 'simple') {
@@ -141,33 +145,18 @@ function collectSectionTextBlocks(sec) {
   return items;
 }
 
-/* ★글자를 쓰면 «안내문구 표식»을 뗀다 (2026-09-22 · T-039).
- *   이 파일은 DOM 에 textContent 를 직접 쓰는 자리가 여섯이다(text-block 2 · 표 th/td 2 ·
- *   라벨 · 아이콘텍스트). 그런데 `data-is-placeholder="true"` 를 떼는 코드가 «한 줄도» 없었다.
- *   편집 경로(block-drag.js·editor.js·block-factory.js)는 전부 떼는데 이 경로만 안 뗀다.
- *   ⇒ 화면엔 AI 가 채운 본문이 보이지만(안내문구 CSS 로 흐릿할 뿐) 캡처 클론은
- *     js/io/capture-safety.js hidePlaceholderTextForCapture 가 그 본문을 visibility:hidden 으로
- *     가린다 ⇒ PNG·단독 HTML·썸네일이 «내용 없는 흰 페이지»가 된다(실측 재현: 글자만 있는
- *     섹션 860×824 에서 흰색 아닌 픽셀 0).
- *   ⛔빈 글자를 써 넣을 땐 «떼지 않는다» — 그건 도로 안내문구 상태다
- *     (block-drag.js:903 「안내문구가 본문으로 굳는 지뢰 방지」와 같은 결론).
- *   ★읽는 쪽(capture-safety.js)도 같은 패치에서 글자를 보게 고쳤다 — 여기만 고치면
- *     다음 writer 가 생기는 날 같은 흰 페이지가 조용히 돌아온다. */
-function _writeFilledText(el, text) {
-  if (!el) return;
-  el.textContent = text;
-  const t = String(text ?? '').trim();
-  if (t === '') return;
-  const ph = (el.dataset?.placeholder || '').trim();
-  if (t !== ph) delete el.dataset.isPlaceholder;
-}
+/* ★글자를 쓰면 «안내문구 표식»을 뗀다 (2026-09-22 · T-039) — 그 함수(_writeFilledText)는 js/ai-text-slots.js 의
+ *   writeFilledText 로 옮겼다(텍스트 블록 쓰기와 표·라벨·아이콘텍스트 쓰기가 같은 문을 탄다). 까닭은 그쪽 주석. */
 
 /** Gemini 결과를 섹션에 적용 — ID prefix로 라우팅
  *  additions: [{ style, text }, ...]   — autoExpand 시 부족한 만큼 새 text-block 생성
  */
-function applyAIReplacements(sec, replacements, additions) {
+function applyAIReplacements(sec, replacements, additions, stats) {
   if (!sec || !Array.isArray(replacements)) return 0;
   let applied = 0;
+  /* ★건너뛴 text-block 응답(id) — 글자 자리를 못 찾았거나(래퍼에 쓰지 않는다) 받을 블록이 남지 않았을 때.
+     부르는 쪽이 stats 를 주면 거기 담는다(토스트가 «실제로 쓴 수»와 건너뛴 수를 따로 말하게). */
+  const skippedTextIds = [];
   // 동일 컴포넌트(canvas/step/chat/table/label/graph) 변경분 묶어서 한 번만 re-render
   const dirty = new Set();
   const cardMutations  = new Map();  // cvb_id -> Map(idx -> {title?, desc?})
@@ -274,32 +263,33 @@ function applyAIReplacements(sec, replacements, additions) {
 
   // text-block 적용: Gemini가 같은 ID로 중복 응답하거나 hallucinated ID를 줘도
   // DOM 순서대로 흘려보내 모든 응답이 실제 블록에 들어가도록 한다.
-  const tbList = Array.from(sec.querySelectorAll('.text-block'));
+  // ★쓰는 자리는 정본 findTextSlot/writeTextSlot(js/ai-text-slots.js) — 읽기와 같다. ⛔래퍼(.text-block)엔 안 쓴다.
+  //   applied 는 «실제로 쓴» 뒤에만 센다(자리 없음·받을 블록 없음 = skippedTextIds).
+  const tbList = Array.from(sec.querySelectorAll('.text-block')).filter(tb => findTextSlot(tb));
   const filledTbIds = new Set();
   const unmatched = [];
   // pass 1: ID 매칭
   pendingTextReps.forEach(rep => {
     const tb = sec.querySelector(`#${CSS.escape(rep.id)}`);
     if (tb && tb.classList.contains('text-block') && !filledTbIds.has(tb.id)) {
-      const inner = tb.querySelector('.tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label') || tb;
-      _writeFilledText(inner, rep.text);
       filledTbIds.add(tb.id);
-      applied += 1;
+      if (writeTextSlot(findTextSlot(tb), rep.text)) applied += 1;
+      else skippedTextIds.push(rep.id);   // id 는 맞는데 글자 자리가 없다 — 남의 블록으로 흘리지도 않는다
     } else {
       unmatched.push(rep);
     }
   });
-  // pass 2: DOM 순서 fallback (중복ID·hallucinated ID 구제)
+  // pass 2: DOM 순서 fallback (중복ID·hallucinated ID 구제) — 글자 자리가 있는 블록만 받는다
   let cursor = 0;
   unmatched.forEach(rep => {
     while (cursor < tbList.length && filledTbIds.has(tbList[cursor].id)) cursor++;
-    if (cursor >= tbList.length) return;
+    if (cursor >= tbList.length) { skippedTextIds.push(rep.id); return; }
     const tb = tbList[cursor++];
-    const inner = tb.querySelector('.tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label') || tb;
-    _writeFilledText(inner, rep.text);
     filledTbIds.add(tb.id);
-    applied += 1;
+    if (writeTextSlot(findTextSlot(tb), rep.text)) applied += 1;
+    else skippedTextIds.push(rep.id);
   });
+  if (stats && typeof stats === 'object') stats.skipped = skippedTextIds;
 
   // canvas-block 적용
   cardMutations.forEach((slotMap, cvbId) => {
@@ -817,7 +807,9 @@ function _ensureAIFillPanel() {
     if (!res?.ok) { window.showToast?.(`❌ ${res?.error || '오류'}`); return; }
     window.pushHistory?.();
     const additions = Array.isArray(res.additions) ? res.additions : [];
-    const n = applyAIReplacements(sec, res.replacements || [], additions);
+    const fillStats = {};
+    const n = applyAIReplacements(sec, res.replacements || [], additions, fillStats);
+    const skipNote = fillStats.skipped?.length ? ` · ${fillStats.skipped.length}개 건너뜀` : '';
     // 컴포넌트 슬롯 자동 확장(extensions) 적용
     const extApplied = applyAIExtensions(sec, res.extensions);
     const preview = panel.querySelector('#ai-fill-panel-preview');
@@ -838,7 +830,7 @@ function _ensureAIFillPanel() {
     const extNote = extApplied > 0 ? ` (컴포넌트 ${extApplied}개 구조 변경)` : '';
     preview.innerHTML = `<div class="ai-fill-panel-preview-title">적용됨 (Cmd+Z 되돌리기)${expandedNote}${extNote}</div>${repRows}${addRows}`;
     preview.classList.remove('hidden');
-    window.showToast?.(`✅ ${n}개 블록 적용됨${expandedNote}${extNote}`);
+    window.showToast?.(`✅ ${n}개 블록 적용됨${skipNote}${expandedNote}${extNote}`);
   });
 
   return panel;
@@ -915,8 +907,10 @@ async function runAIFill(secEl, { prompt, tone, mode, imagePath, fidelity }) {
     return res;
   }
   window.pushHistory?.();
-  const n = applyAIReplacements(secEl, res.replacements || []);
-  window.showToast?.(`✅ ${n}개 블록 적용됨`);
+  const fillStats = {};
+  const n = applyAIReplacements(secEl, res.replacements || [], undefined, fillStats);
+  const skipNote = fillStats.skipped?.length ? ` · ${fillStats.skipped.length}개 건너뜀` : '';
+  window.showToast?.(`✅ ${n}개 블록 적용됨${skipNote}`);
   return res;
 }
 
