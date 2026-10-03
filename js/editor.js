@@ -3406,6 +3406,8 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
            «지저분하다»였고 저장·내보내기·⌘Z 사고가 아니었다(eddff69c 본문). */
       _emptiedFrameCands.forEach(f => {
         if (!f.isConnected) return;
+        // ★프레임과 그룹은 «다르게» 동작한다(2026-10-03 결정): 프레임=비면 남긴다(그릇이라 다시 채울 수 있다)
+        //   / 그룹=비면 같이 지운다(묶음이라 빌 수 없다). 둘을 같게 만들지 마라 — 일부러 가른 것이다.
         if (f.dataset.textFrame !== 'true' && f.dataset.group !== 'true') return;
         // 그룹 안에 «남긴» 사용자 프레임이 있으면 그 그룹은 비지 않았다(.frame-block 은 SECTION_BLOCK_TYPE_SEL 밖이다)
         if (f.querySelector('.frame-block:not([data-text-frame])')) return;
