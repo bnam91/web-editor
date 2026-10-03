@@ -26,6 +26,7 @@ import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          growFrameToFitChildren } from './frame-geometry.js';
 import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
+import { GRID_CIRCLE_ICON_INNER } from './blocks/grid-circle-icon.js';
 import { isImageMemoHost, getImageMemo, setImageMemo, openImageMemoEditor } from './image-memo.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, topLevelBlocksOf, isEmptyShell } from './shape-frame.js';
 
@@ -5449,6 +5450,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
 
   /* ★「원형 이미지 추가」(현빈 2026-10-01) — 늘 «새 줄»: 누른 줄 뒤(줄 위에서 눌렀으면 그 뒤, 빈 칸이면 «이미지 추가»와 같은 자리).
      빈 원 슬롯으로 넣는다(「이미지 추가」의 새 줄 갈래와 같다 — 파일창은 패널 「이미지 선택…」/교체에서). */
+  { const _ic = document.getElementById('bcm-grid-img-circle-icon'); if (_ic) _ic.innerHTML = GRID_CIRCLE_ICON_INNER; }   // 메뉴 그림도 같은 상수
   document.getElementById('bcm-grid-img-circle')?.addEventListener('click', e => {
     e.stopPropagation();
     const block = _targetBlock;

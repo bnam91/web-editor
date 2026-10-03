@@ -1,5 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function showIconCircleProperties(block) {
@@ -25,10 +26,7 @@ export function showIconCircleProperties(block) {
   propPanel.innerHTML = `
     <div class="prop-section">
 ${blockHeaderHTML({
-      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
-            <circle cx="6" cy="6" r="5"/>
-            <text x="3.5" y="9" font-size="6" fill="#888" stroke="none">★</text>
-          </svg>`,
+      icon: gridCircleIconSvg({ size: 12, stroke: '#888' }),   // 그리드 칸 원형 이미지 svg 와 «같은 상수»(S2 2026-10-04)
       name: block.dataset.layerName,
       defaultName: 'Asset-Circle',
       crumb: window.getBlockBreadcrumb(block),
