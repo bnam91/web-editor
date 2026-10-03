@@ -131,7 +131,7 @@ if (target) {
     ctrl = { id: target.id, clickedAt: [p.x, p.y], selectedAfterClick: selNow, goneAfterDelete: gone };
   } catch (e) { ctrl = { id: target.id, error: e.message }; }
 }
-add('T-099/control-direct-delete', '대조 — 남은 프레임을 «그냥 클릭+Delete» 하면 지워지나 (지워져야 «⌘A 경로»의 결함이다)',
+add('T-099/control-direct-delete', '대조 — 남은 프레임을 «그냥 클릭+Delete» 하면 지워지나 (지워져야 남은 빈 프레임을 손으로 치울 길이 있다)',
   ctrl, ctrl.goneAfterDelete === true || !!ctrl.skipped,
   ctrl.skipped || (ctrl.goneAfterDelete ? '지워진다 ⇒ 남은 빈 프레임을 «손으로는» 치울 수 있다(설계대로)' : '안 지워진다 ⇒ ★결함 — 남은 프레임을 치울 길이 없다'));
 
