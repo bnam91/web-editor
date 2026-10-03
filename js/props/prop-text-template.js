@@ -185,7 +185,7 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="txt-label-h-number" min="0" max="120" value="${labelPillH}">
       </div>
       <div id="txt-label-padx-wrap" style="display:${isLabel && !labelIsCircle ? 'block' : 'none'}">
-      ${sliderRowHTML('좌우 패딩', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 120, step: 2, value: labelPadX })}
+      ${sliderRowHTML('좌우 패딩', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 100, step: 2, value: labelPadX })}
       </div>
       <div class="prop-row">
         <span class="prop-label">상하</span>

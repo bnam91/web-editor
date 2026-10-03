@@ -50,6 +50,12 @@ const measure = (page, id) => page.evaluate((i) => {
     pillW: Math.round(pr.width), textX: Math.round(rg.getBoundingClientRect().x - pr.x),
     tbPadL: parseFloat(ct.paddingLeft), tbStyle: tb.getAttribute('style'), pillStyle: p.getAttribute('style') };
 }, id);
+// ★「패널 표시값 == 실제 computed padding」 — 이 결함의 얼굴은 「패널 60, 실제 36」이다
+const panelEqualsReal = async (page, id) => {
+  const shown = Number(await page.locator('#txt-label-padx-number').inputValue());
+  expect(shown).toBe((await measure(page, id)).padL);
+  expect(Number(await page.locator('#txt-label-padx-slider').inputValue())).toBe(shown);
+};
 const row = (page) => page.locator('.prop-row', { has: page.locator('#txt-label-padx-slider') });
 
 test('L1 패널에 「좌우 패딩」 줄이 있다(섹션과 같은 말·같은 꼴)', async ({ page }) => {
@@ -57,6 +63,7 @@ test('L1 패널에 「좌우 패딩」 줄이 있다(섹션과 같은 말·같�
   await open(page, 'tb1');
   await expect(row(page).locator('.prop-label')).toHaveText('좌우 패딩');
   expect(await row(page).locator('input[type=range]').getAttribute('step')).toBe('2');
+  expect(await page.locator('#txt-label-padx-number').getAttribute('max')).toBe('100');   // 섹션·프레임과 같은 0~100
   expect(await page.locator('#txt-label-padx-number').inputValue()).toBe('36');   // 기본값 = 지금 그려진 36px
   expect(errs).toEqual([]);
 });
@@ -130,6 +137,7 @@ test('L6 ★배경색을 바꿔도 좌우·상하 패딩이 안 지워진다(적
   const a = await measure(page, 'tb1');
   expect([a.padL, a.padR, a.padT, a.pillW]).toEqual([60, 60, 20, 194]);
   expect(await page.locator('#txt-label-padx-number').inputValue()).toBe('60');
+  await panelEqualsReal(page, 'tb1');
 });
 
 test('L7 ★「배경 없음」: 켜면 0, 그 동안 바꾼 30 은 끌 때 살아 있다(30 → 36 유실 재현) · 줄은 계속 보인다(값이 실제로 먹는다)', async ({ page }) => {
@@ -140,8 +148,10 @@ test('L7 ★「배경 없음」: 켜면 0, 그 동안 바꾼 30 은 끌 때 살�
   await expect(page.locator('#txt-label-padx-wrap')).toBeVisible();
   await page.locator('#txt-label-padx-number').fill('30');
   expect((await measure(page, 'tb1')).padL).toBe(30);            // 투명 라벨에도 그대로 먹는다
+  await panelEqualsReal(page, 'tb1');
   await page.locator('#label-bg-none').evaluate((e) => e.click());
   const a = await measure(page, 'tb1');
+  await panelEqualsReal(page, 'tb1');
   expect([a.padL, a.padR, a.padT]).toEqual([30, 30, 11]);        // 30 유지, 건드리지 않은 상하는 CSS 기본 11
   await open(page, 'tb2');                                        // 안 건드린 인라인 20/8 라벨: 없음 → 끔 이 원래대로
   await page.locator('#label-bg-none').evaluate((e) => e.click());

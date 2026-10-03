@@ -158,7 +158,7 @@ export function wireLabelSection({ ctx }) {
     };
     pxSlider.addEventListener('input', () => { const v = parseInt(pxSlider.value) || 0; setPadX(v); pxNumber.value = v; });
     pxNumber.addEventListener('input', () => {
-      const v = Math.min(120, Math.max(0, parseInt(pxNumber.value) || 0));
+      const v = Math.min(100, Math.max(0, parseInt(pxNumber.value) || 0));
       setPadX(v); pxSlider.value = v;
     });
     const commitPadX = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
