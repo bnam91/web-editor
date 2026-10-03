@@ -394,6 +394,12 @@ export function grdCopySelectedLines() {
   const picks = [...new Set(sel.map(a => a.li))].filter(i => i >= 0 && i < lines.length).sort((a, b) => a - b);
   if (!picks.length) return false;
   try { _grdLineClip = picks.map(i => JSON.parse(JSON.stringify(lines[i]))); } catch (_) { return false; }
+  /* ★G10 — 내 복사가 «최신»이라고 OS 클립보드에도 알린다(editor.js claimInternalClipboard). 안 하면 바깥에서 복사해 둔
+     이미지가 OS 에 남아 ⌘V 한 번에 줄과 스크래치 이미지가 «동시에» 붙는다. */
+  try {
+    const txt = picks.map(i => String(lines[i]?.text ?? '')).filter(Boolean).join('\n');
+    window.claimInternalClipboard?.(txt || `고디터 그리드 줄 ${picks.length}개`);
+  } catch (_) {}
   window.showToast?.(`줄 ${picks.length}개 복사됨 — 붙일 줄을 고르고 ⌘V`);
   return true;
 }
