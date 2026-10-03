@@ -431,6 +431,20 @@ const GRAPH_DEFAULT_ITEMS = [
   { label: '항목 5', value: 65 },
 ];
 
+// B7: bar-v·bar-pair 의 Bar Settings(항목 간격·두께·좌우 패딩·숫자 크기) — dataset 키가 «있을 때만» inline 으로 낸다.
+// 키가 없으면 전부 '' → 기존 innerHTML 과 바이트까지 같다(저장본 겉모습 불변).
+function _barVSettings(block) {
+  const d = block.dataset;
+  const has = k => d[k] !== undefined && d[k] !== '' && !isNaN(parseInt(d[k]));
+  const n = k => parseInt(d[k]);
+  const gap = has('itemGap') ? `gap:${n('itemGap')}px;` : '';
+  const pad = has('padX') ? `padding:0 ${n('padX')}px;` : '';
+  return {
+    barsStyle: (gap + pad) ? ';' + gap + pad : '',
+    fillW: has('barThickness') ? `width:${n('barThickness')}px;margin:0 auto;` : '',
+    pctSize: has('pctSize') ? n('pctSize') : null,
+  };
+}
 function renderGraph(block) {
   const items      = JSON.parse(block.dataset.items || '[]');
   const chartType  = block.dataset.chartType  || 'bar-v';
@@ -445,18 +459,21 @@ function renderGraph(block) {
     const _lc = block.dataset.labelColor || '';
     const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((block.dataset.vlabelColor || _lc) ? `color:${block.dataset.vlabelColor || _lc};` : '');
     const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((block.dataset.xlabelColor || _lc) ? `color:${block.dataset.xlabelColor || _lc};` : '');
+    const _bs = _barVSettings(block);
+    const _vSize = _bs.pctSize ?? valSize;
+    const _blockBar = _safeGraphColor(block.dataset.barColor);
     block.innerHTML = `
-      <div class="grb-bars-v" style="height:${chartH}px">
+      <div class="grb-bars-v" style="height:${chartH}px${_bs.barsStyle}">
         ${items.map(item => {
           const pct = item.value === 0 ? 0 : Math.max(1, Math.round((item.value / maxVal) * 100));
           const fillStyle = pct === 0 ? 'height:4px;opacity:0.25;border-style:dashed;' : `height:${pct}%;`;
           // 바 개별색 — item.color 있으면 인라인 background로 CSS 프리셋(colorful nth-child 포함) 우선
-          const _bc = _safeGraphColor(item.color); const colorStyle = _bc ? `background:${_bc};` : '';
+          const _bc = _safeGraphColor(item.color) || _blockBar; const colorStyle = _bc ? `background:${_bc};` : '';
           return `
             <div class="grb-bar-col">
-              <div class="grb-bar-val-label" style="font-size:${valSize}px;${_vCss}">${_escGraphHtml(item.value)}</div>
+              <div class="grb-bar-val-label" style="font-size:${_vSize}px;${_vCss}">${_escGraphHtml(item.value)}</div>
               <div class="grb-bar-fill-wrap">
-                <div class="grb-bar-fill" style="${fillStyle}${colorStyle}"></div>
+                <div class="grb-bar-fill" style="${fillStyle}${_bs.fillW}${colorStyle}"></div>
               </div>
               <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}">${_escGraphHtml(item.label)}</div>
             </div>`;
@@ -598,17 +615,19 @@ function renderGraph(block) {
         ${sA ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot"${barColor ? ` style="background:${barColor}"` : ''}></span>${sA}</span>` : ''}
         ${sB ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot" style="background:${barColor2}"></span>${sB}</span>` : ''}
       </div>` : '';
+    const _bs = _barVSettings(block);
+    const _vSize = _bs.pctSize ?? valSize;
     const bar = (v, color, extraClass) => {
       const pct = !v ? 0 : Math.max(1, Math.round((v / maxVal) * 100));
       const fillStyle = pct === 0 ? 'height:4px;opacity:0.25;border-style:dashed;' : `height:${pct}%;`;
       return `
         <div class="grb-pair-series">
-          <div class="grb-bar-val-label" style="font-size:${valSize}px;${_vCss}">${v ?? 0}</div>
-          <div class="grb-bar-fill${extraClass}" style="${fillStyle}${color ? `background:${color};` : ''}"></div>
+          <div class="grb-bar-val-label" style="font-size:${_vSize}px;${_vCss}">${v ?? 0}</div>
+          <div class="grb-bar-fill${extraClass}" style="${fillStyle}${_bs.fillW}${color ? `background:${color};` : ''}"></div>
         </div>`;
     };
     block.innerHTML = `${legend}
-      <div class="grb-bars-v" style="height:${chartH}px">
+      <div class="grb-bars-v" style="height:${chartH}px${_bs.barsStyle}">
         ${items.map(item => `
           <div class="grb-bar-col">
             <div class="grb-bar-fill-wrap grb-pair-wrap">
