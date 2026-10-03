@@ -8,8 +8,8 @@
  *   체커가 사는 editor-layout.css 가 그 하네스엔 «없어서» 거기선 늘 색이 보였다(한 환경에서만 참).
  *   ⇒ 이 시험은 앱 통째(bootApp = index.html 의 CSS 전부)로 «화면 픽셀»을 잰다.
  *
- * ★양성대조 판 = 37ab1c65 (GD1001_ROOT). 실측 명부는 커밋 메시지(빨강: AB1 AB2 AB3 · 초록: AB0 AB4 AB5).
- *   AB3 은 «초기화» 의 현재 규약(B4: dataset=#a0a0a0)을 «화면까지» 적은 것 — 핀에선 체커가 덮어 회색이 안 보여 빨강.
+ * ★양성대조 판 = 37ab1c65 (GD1001_ROOT). 실측 명부는 커밋 메시지.
+ *   AB3 = 「초기화 = 체커」(2026-10-03 지디 판정으로 바뀐 규약) — 핀에선 dataset 에 #a0a0a0 이 남아 빨강.
  * ⚠️못 재는 것: 실앱 Electron 의 색 관리(실앱 스샷은 #00ff00 → #71fb48 로 찍힌다) — 여기선 헤드리스 sRGB 로 잰다.
  */
 const { test, expect } = require('@playwright/test');
@@ -123,12 +123,9 @@ test('AB2 ★색 팝업의 스펙트럼을 «진짜 클릭»해 고른 색이 �
   expect(near(px, want), `중앙 픽셀 = 고른 ${picked} — 찍힌 ${px}`).toBe(true);
 });
 
-test('AB3 「초기화」의 현재 규약을 «화면까지» 적는다 — dataset=#a0a0a0(B4 규약) ⇒ 이제 회색 판이 보인다(체커 아님 · ❓결정 대기)', async ({ page }) => {
-  /* ❓지디/현빈 결정 대기 (2026-10-03 A1): 「초기화」는 setHex('#a0a0a0') 로 기본 회색을 «다시 쓴다» —
-     asset-bg-api-reset B4 가 「현재 규약 고정」으로 잠근 약속이다(그 하네스엔 editor-layout.css 가 없어 회색이 «보인다»고 믿었다).
-     핀에선 체커가 그 회색을 덮어 사용자 눈엔 «체커로 돌아왔다». 이 수정(색이 있으면 체커를 걷는다) 뒤엔 회색 판이 보인다.
-     ⛔여기서 체커를 기대하도록 바꾸지 마라 — 그건 B4 규약을 뒤집는 결정이라 이 레인 소관이 아니다.
-     규약이 「초기화 = 빈 값(체커)」로 바뀌면 이 시험의 기대(#a0a0a0 · 회색)를 체커로 뒤집고 B4 도 같이 고친다. */
+test('AB3 ★「초기화」= «배경 없음» — 체커가 화면에 돌아온다(회색 #a0a0a0 판이 아니다)', async ({ page }) => {
+  /* 규약 변경(2026-10-03 지디 판정): 예전엔 초기화가 기본 회색 #a0a0a0 을 다시 썼다(asset-bg-api-reset 옛 B4).
+     그 약속은 «체커가 가린 상태»를 고정한 것이었다. ⇒ 지금은 dataset 을 지우고 체커로 돌아간다. */
   await setup(page);
   const { f } = await selectAndFindField(page);
   await typeHex(page, f, '00AA00');
@@ -136,11 +133,13 @@ test('AB3 「초기화」의 현재 규약을 «화면까지» 적는다 — dat
   await page.mouse.click(c[0], c[1]);
   await page.waitForTimeout(200);
   const b = await bgOf(page);
-  expect(b.ds, '전제 — 초기화가 고른 색을 걷었다(B4 규약 = 기본 회색)').toBe('#a0a0a0');
+  expect(b.ds, '초기화 = dataset.bgColor 없음').toBeNull();
+  expect(b.bgc, '인라인 색도 없다').toBe('rgba(0, 0, 0, 0)');
+  expect(b.bgi).toContain('repeating-conic-gradient');
   await park(page);
   const [x, y] = await centre(page);
   const px = await pixelAt(page, x, y);
-  expect(near(px, [0xa0, 0xa0, 0xa0]), `현재 규약의 화면 = 회색 #a0a0a0 — 찍힌 ${px}`).toBe(true);
+  expect(near(px, [0xd8, 0xd8, 0xd8]) || near(px, [0xf0, 0xf0, 0xf0]), `체커 회색이어야 — 찍힌 ${px}`).toBe(true);
 });
 
 test('AB4 불투명도 0(보이는 색 없음)이면 체커를 그대로 둔다 — 빈 칸이 «투명하게 사라지지» 않는다', async ({ page }) => {
@@ -169,3 +168,4 @@ test('AB5 이미지가 있으면 배경색은 그림의 투명한 곳으로 비�
   expect(near(left, [0, 0, 255], 20), `왼쪽 = 그림(파랑) — 찍힌 ${left}`).toBe(true);
   expect(near(right, [0, 255, 0]), `오른쪽 = 비친 배경색 — 찍힌 ${right}`).toBe(true);
 });
+

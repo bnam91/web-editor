@@ -419,15 +419,13 @@ test.describe('T-011 이미지 넣은 에셋 블럭 ↔ 배경 그라데이션�
     expect(mid.computedImage, '칠해진 것이 내가 고른 색이다').toContain(USER_RGB);
 
     // ③ 초기화 → 되돌아온다.
-    /* ★실측(2026-09-22): 초기화는 data-bgColor 를 «빈 값»으로 두지 않는다.
-       prop-asset.js:601~ 이 delete 한 «직후» bgField.setHex('#a0a0a0') 가 onApply 를 태워
-       기본 솔리드를 다시 쓴다. ⇒ 기대값은 «빈 값»이 아니라 «그라데이션이 아닌 기본 솔리드».
-       ⛔여기에 '' 를 박으면 이 회귀 대조가 «지금 dev 에서도» 빨강이 되어 아무것도 못 지킨다. */
+    /* ★규약 변경(2026-10-03 지디 판정): 초기화 = «배경 없음»(data-bgColor 빈 값 · 체커).
+       옛 기대(기본 솔리드 #a0a0a0)는 «체커가 가린 상태»를 고정한 것이었다 — asset-bg-api-reset B4 와 같이 뒤집음. */
     await page.evaluate(() => document.getElementById('asset-bg-clear').click());
     await page.waitForTimeout(120);
     const after = await bgState(page);
     expect(after.dataBg, `초기화 후에도 그라데이션이 data-bgColor 에 남았다 — 실제 «${after.dataBg}»`).not.toMatch(/gradient\s*\(/i);
-    expect(['', '#a0a0a0'], `초기화가 기본 솔리드(#a0a0a0)로 안 돌아갔다 — 실제 «${after.dataBg}»`).toContain(after.dataBg);
+    expect(after.dataBg, `초기화가 «배경 없음»으로 안 돌아갔다 — 실제 «${after.dataBg}»`).toBe('');
     expect(after.computedImage, '초기화 후에도 그라데이션이 칠해져 있다').not.toMatch(/gradient/i);
 
     expect(pageErrs).toEqual([]);
