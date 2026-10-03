@@ -218,3 +218,26 @@ test('P2 ★PNG: 자유 프레임 우측 정렬 + 좌우 패딩 60 — 오른쪽
   expect(isc(pad, [255, 0, 0]), `여백 자리 ${pad}`).toBe(true);
   expect(isc(inside, [0, 0, 255]), `에셋 자리 ${inside}`).toBe(true);
 });
+
+/* ── 적대QA(opus) 후속 — 폭 100% 로 «들어가는» 자식은 안쪽 상자 폭을 쓴다 ──
+ * fb3bce51 은 left 만 패딩만큼 들이고 폭은 100% 로 둬서, 패딩 40 이면 오른쪽 끝이 900(프레임 860 밖 40px),
+ * 폭 200·패딩 100 이면 100~300 으로 100px 가 밖이었다. 가운데 정렬 글은 안쪽 가운데보다 40px 오른쪽에 섰다. */
+for (const [fw, pad] of [[860, 40], [200, 100]]) {
+  test(`N1 ★자유 프레임 폭 ${fw}·좌우 패딩 ${pad} 에 글 상자 — 오른쪽 끝 ≤ 폭−패딩, 가운데는 안쪽 상자 가운데`, async ({ page }) => {
+    await setup(page, { free: true, kid: '' });
+    await page.evaluate(({ fw, pad }) => { const ss = document.getElementById(window.__ss);
+      ss.style.width = fw + 'px'; ss.dataset.width = String(fw); ss.style.paddingLeft = ss.style.paddingRight = pad + 'px'; ss.dataset.padX = String(pad);
+      window._activeFrame = ss; window.addTextBlock?.('body'); }, { fw, pad });
+    await page.waitForTimeout(250);
+    const r = await page.evaluate(() => {
+      const ss = document.getElementById(window.__ss); const kid = [...ss.children].find(c => c.style.position === 'absolute');
+      if (!kid) return null;
+      const fr = ss.getBoundingClientRect(), kr = kid.getBoundingClientRect(), sc = fr.width / ss.offsetWidth || 1;
+      return { left: (kr.left - fr.left) / sc - ss.clientLeft, right: (kr.right - fr.left) / sc - ss.clientLeft, cw: ss.clientWidth, w: kid.offsetWidth };
+    });
+    expect(r, '전제: 글 상자가 들어갔다').not.toBeNull();
+    expect(r.right, `오른쪽 끝 ${r.right} 이 안쪽 상자 끝 ${r.cw - pad} 을 넘었다`).toBeLessThanOrEqual(r.cw - pad + 1);
+    expect(r.left).toBeGreaterThanOrEqual(pad - 1);
+    expect(Math.abs((r.left + r.right) / 2 - r.cw / 2), '가운데 정렬 글이 안쪽 상자 가운데').toBeLessThanOrEqual(1);
+  });
+}

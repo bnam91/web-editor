@@ -16,7 +16,7 @@ import {
   selectAllEditableContents,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
-import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding } from './frame-geometry.js';
+import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth } from './frame-geometry.js';
 import {
   dragState,
   _suppressDragSave,
@@ -2633,12 +2633,13 @@ function bindFrameDropZone(ss) {
       // ── 고정 크기 프레임(shape frame 아닌 것): 기존 absolute 방식 ──
       // 블록을 absolute로 전환하는 헬퍼
       const makeAbsolute = (block, left, top) => {
+        const _mp = framePadding(inner);   // F5: 안쪽 여백
         const w = block.offsetWidth || Math.round(SS_W * 0.5);
         block.style.position = 'absolute';
-        block.style.left = left + 'px';
+        block.style.left = (left + _mp.l) + 'px';
         block.style.top  = top  + 'px';
         if (!block.style.width || block.style.width === '100%') {
-          block.style.width = Math.min(w, SS_W) + 'px';
+          block.style.width = Math.min(w, SS_W - _mp.l - _mp.r) + 'px';
         }
         block.setAttribute('draggable', 'false');
       };
@@ -2654,7 +2655,7 @@ function bindFrameDropZone(ss) {
             return Math.max(maxY, by);
           }, 0);
           dragState.dragSrc.style.position = 'absolute';
-          dragState.dragSrc.style.left     = '0px';
+          dragState.dragSrc.style.left     = framePadding(inner).l + 'px';   // F5
           dragState.dragSrc.style.top      = (nextY > 0 ? nextY + 16 : 0) + 'px';
           // absolute 전환 후 HTML5 drag 비활성화 — 이후 커스텀 mousemove drag 사용
           // (섹션에서 드롭 시 draggable="true"가 잔류하면 다음 드래그에서 회색이 됨)
@@ -2668,7 +2669,7 @@ function bindFrameDropZone(ss) {
               window._clampTextFrameWidth(dragState.dragSrc, inner);
             }
           } else if (!dragState.dragSrc.style.width || dragState.dragSrc.style.width === '') {
-            dragState.dragSrc.style.width = '100%';
+            dragState.dragSrc.style.width = innerFullWidth(inner);
           }
           // text-block rebind — bindBlock이 absolute 상태를 다시 평가하도록
           const _tb = dragState.dragSrc.querySelector('.text-block');

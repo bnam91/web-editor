@@ -85,6 +85,14 @@ export function frameAlignOffset(frameW, frameH, elW, elH, alignX, alignY, pad) 
   };
 }
 
+/* 폭 100% 로 «들어가는» 자유 프레임 자식의 width — 안쪽 상자 폭(프레임 − 좌우 패딩).
+   left 를 여백만큼 들였는데 폭이 100% 면 그만큼 오른쪽으로 «프레임 밖»에 나온다(F5 적대QA).
+   여백 0 이면 '100%' 그대로(옛 계약). */
+export function innerFullWidth(frameEl) {
+  const p = framePadding(frameEl), n = p.l + p.r;
+  return n > 0 ? `calc(100% - ${n}px)` : '100%';
+}
+
 /* 프레임 «안쪽 여백»(px) — 자유 프레임 자식 좌표 계산이 쓴다. 스택 프레임엔 필요 없다(CSS 가 먹는다). */
 export function framePadding(frameEl) {
   if (!frameEl || typeof getComputedStyle !== 'function') return { l: 0, r: 0, t: 0, b: 0 };

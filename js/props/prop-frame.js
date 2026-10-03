@@ -507,6 +507,7 @@ function _renderAutoPanel(ss) {
            ① 직계 비-row 자식(text-frame·직계 에셋 — _convertFreeLayoutToStack 이 alignSelf 를 남긴다) → 같은 값
            ② row[stack] 은 폭 100% 라 row 자신이 움직여도 무변화 → «row 안 직계 자식»(에셋 등 고정폭)을 같은 값
            ③ row[flex]·레이아웃 미지정(가로로 나란히 놓인 것들) → justify-content 로 묶음 전체를 옮긴다
+             (사용자가 준 space-between/around/evenly 는 «분배»라 정렬 단추가 덮지 않는다)
            ④ row[grid] 는 칸이 폭을 채우므로 손대지 않는다. 그리드 «칸 안» 글자 정렬은 칸 정렬 몫(이 단추 밖).
          asset-block 은 dataset.align 도 맞춘다 — 안 맞추면 폭을 바꿀 때 prop-asset 이 옛 정렬로 되돌린다. */
       const selfOf   = { 'flex-start': 'flex-start', 'center': 'center', 'flex-end': 'flex-end' };
@@ -524,7 +525,7 @@ function _renderAutoPanel(ss) {
           c.style.margin    = marginOf[alignItems] || '0';
           const lay = c.dataset.layout;
           if (lay === 'stack') [...c.children].forEach(_setSelf);
-          else if (lay !== 'grid') c.style.justifyContent = alignItems === 'center' ? 'center' : (alignItems === 'flex-end' ? 'flex-end' : '');
+          else if (lay !== 'grid' && !/^space-/.test(c.style.justifyContent)) c.style.justifyContent = alignItems === 'center' ? 'center' : (alignItems === 'flex-end' ? 'flex-end' : '');
         } else {
           _setSelf(c);
         }

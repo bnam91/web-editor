@@ -19,7 +19,7 @@ import {
   bindSectionDropZone,
 } from './drag-drop.js';
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
-         newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame, framePadding,
+         newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame, framePadding, innerFullWidth,
          growFrameToFitChildren } from './frame-geometry.js';
 import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
@@ -591,12 +591,12 @@ function addBlankTextBlock(type = 'body', opts = {}) {
     if (activeSS.dataset.freeLayout === 'true') {
       const stackY = _calcFreeLayoutStackY(activeSS);
       tf.style.position = 'absolute';
-      tf.style.left     = '0px';
+      tf.style.left     = framePadding(activeSS).l + 'px';   // F5
       tf.style.top      = stackY + 'px';
       activeSS.appendChild(tf);
       // 의도적 빈 줄(data-blank)은 콘텐츠 폭이 ~0이라 클램프 시 너무 좁아짐
       // → _clampTextFrameWidth가 측정 실패(<=1px)로 안전 원복하므로 100% 기본 명시
-      tf.style.width = '100%';
+      tf.style.width = innerFullWidth(activeSS);
       tf.dataset.width = '100%';
       _clampTextFrameWidth(tf, activeSS);
       // #2 와 동일 — 빈 줄도 프레임 중앙에서 시작한다(폭 100% 라 좌우는 0, 세로가 실제로 움직인다).
@@ -1669,9 +1669,9 @@ function _clampTextFrameWidth(tf, frameEl) {
     || tf.style.textAlign
     || 'left';
   if (align === 'center' || align === 'right' || align === 'justify') {
-    tf.style.width = '100%';
+    tf.style.width = innerFullWidth(frameEl);   // F5: 여백이 있으면 안쪽 상자 폭(dataset 은 '100%' 의미 그대로)
     tf.dataset.width = '100%';
-    return '100%';
+    return tf.style.width;
   }
   // 프레임 가용 폭(클램프 상한)
   const _fp = framePadding(frameEl);   // F5: 안쪽 여백 안에서만 자란다
@@ -1684,7 +1684,7 @@ function _clampTextFrameWidth(tf, frameEl) {
   // box-sizing:border-box이므로 패딩 포함 offsetWidth가 곧 프레임 폭
   if (!contentW || contentW <= 1) {
     // 측정 실패 시 안전하게 원복
-    tf.style.width = prevWidth || '100%';
+    tf.style.width = prevWidth || innerFullWidth(frameEl);
     return tf.style.width;
   }
   const w = Math.min(Math.round(contentW), frameW);
@@ -1760,7 +1760,7 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
     const stackY = hasAbsCoords ? (opts.y ?? 0) : _calcFreeLayoutStackY(ss);
     const leftPx = hasAbsCoords ? (opts.x ?? 0) : framePadding(ss).l;   // F5
     // opts.width 없으면 preset이 설정한 width 유지 (logo 등 고정 너비 preset 보호)
-    const widthVal = opts.width ? opts.width + 'px' : (block.style.width || '100%');
+    const widthVal = opts.width ? opts.width + 'px' : ((block.style.width && block.style.width !== '100%') ? block.style.width : innerFullWidth(ss));   // F5: 100% 는 안쪽 상자 폭
     block.style.position = 'absolute';
     block.style.left     = leftPx + 'px';
     block.style.top      = stackY + 'px';

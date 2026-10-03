@@ -92,3 +92,11 @@ test('R1 폭에 «여유 없는» 자식(row>꽉 찬 에셋)은 정렬해도 안
   const b = await pos(page);
   expect(b.w).toBeCloseTo(a.w, 0); expect(Math.abs(b.centerDiff)).toBeLessThanOrEqual(1);
 });
+
+test('R2 가로 row 에 사용자가 준 space-between 은 정렬 단추가 덮지 않는다 (적대QA ②)', async ({ page }) => {
+  await setup(page, `<div class="row" id="r2" style="justify-content:space-between"><div class="asset-block" id="k" style="width:200px;height:60px;background:#ccc"></div><div class="asset-block" style="width:100px;height:60px;background:#999"></div></div>`);
+  await press(page, 'ss-align-hcenter');
+  expect(await page.evaluate(() => document.getElementById('r2').style.justifyContent)).toBe('space-between');
+  await press(page, 'ss-align-right');
+  expect(await page.evaluate(() => document.getElementById('r2').style.justifyContent)).toBe('space-between');
+});
