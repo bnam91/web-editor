@@ -53,7 +53,7 @@ function makeFakeDom() {
       tagName: tag,
       dataset: {},
       style: {},
-      innerHTML: '',
+      innerHTML: '', children: [],   // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 이 가짜는 자식을 안 붙이므로 늘 빈 목록
       get id() { return _id; },
       set id(v) {
         if (_id) registry.delete(_id);
