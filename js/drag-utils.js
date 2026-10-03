@@ -1,8 +1,21 @@
 
 // [v0.8 #4 보안] 그래프 바 color/라벨은 innerHTML 주입 → 화이트리스트·이스케이프(저장형 XSS 차단·고디터QA BUG-P2-1 S2)
+// GR1(2026-10-03): 항목 막대 «그라데이션» — linear-gradient 만 넓혀 받는다. 판정은 브라우저 파서(_isCssBg)에 맡기고,
+//   style="…" 속성 안에 그대로 박히므로 따옴표·세미콜론·꺾쇠·url( 은 막는다(속성 탈출·외부 자원 로드 차단). 그 밖의 꼴은 예전 그대로.
+//   ⚠️판정 함수는 js/props/color-picker.js isCssBackgroundValue 와 «같은 식»의 사본이다 — import 하지 않는 까닭: drag-utils 를 «홀로»
+//   서빙하는 DOM 하네스가 6개(frame-accepts-component-blocks·free-frame-flow-drag·grid-line-drag·no-selection-hint·
+//   qa0920b-asset-width-set·shape-frame-isolation)라 import 한 줄이 404 → 모듈 통째 죽음이 된다(실측 2026-10-03 F0 30s 시간초과).
+let _gradProbe = null;
+function _isCssBg(v) {
+  if (!_gradProbe) _gradProbe = document.createElement('div');
+  _gradProbe.style.background = '';
+  try { _gradProbe.style.background = v; } catch (_) { return false; }
+  return _gradProbe.style.background !== '';
+}
 function _safeGraphColor(c) {
   if (typeof c !== 'string') return '';
   const s = c.trim();
+  if (/^linear-gradient\(/i.test(s)) return (!/url\(|[;"'<>\\]/i.test(s) && _isCssBg(s)) ? s : '';
   return (/^#[0-9a-fA-F]{3,8}$/.test(s) || /^rgba?\(\s*[\d.,\s%]+\)$/i.test(s) || /^hsla?\(\s*[\d.,\s%]+\)$/i.test(s) || /^[a-zA-Z]+$/.test(s)) ? s : '';
 }
 function _escGraphHtml(v) {
