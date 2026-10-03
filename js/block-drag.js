@@ -1130,6 +1130,55 @@ function bindBlock(block) {
          안 나왔다. showHandlesFor 가 오버레이 여부를 스스로 가른다 ⇒ 흐름 텍스트는 no-op. */
       window.showHandlesFor?.(block);
     });
+    /* ★BT1(2026-10-04) 말풍선 «발신자 이름»은 캔버스에서 바로 고친다 — 패널 입력칸(#bubble-sender-name-input)은 없앴다.
+       ⛔이름표(.tb-sender-name)에 contenteditable 을 «평소에» 붙이지 마라 — 이름표가 본문(.tb-bubble)보다 «앞» 형제라
+         `tb.querySelector('[contenteditable]')` 를 쓰는 13곳(prop-text.js:20 · text-block-color.js · editor.js 등)이
+         본문 대신 이름표를 집는다(overlay-handles.js _tfoFontSnapshot 머리말의 같은 함정). 그래서 편집하는 «동안만» 붙이고
+         끝나면 속성째 뗀다(chat-block.js .chb-btext 와 같은 꼴). 아래 일반 dblclick(=[contenteditable] 전부 켜기)보다
+         «먼저» 잡도록 capture 로 건다 — 블럭에 위임하므로 불러오기·되돌리기로 안쪽이 새로 그려져도 산다.
+       빈 이름 = 기본 이름('Your name')으로 되돌린다 — 만들 때 기본값(block-factory.js makeSpeechBubbleBlock)과 같고,
+         캔버스 글자와 dataset.senderName 이 «같은 값»이 된다(숨기려면 패널 토글을 끈다). */
+    if (block.classList.contains('speech-bubble-block')) {
+      const SENDER_DEFAULT = 'Your name';
+      block.addEventListener('dblclick', e => {
+        const nameEl = e.target.closest?.('.tb-sender-name');
+        if (!nameEl || !block.contains(nameEl)) return;
+        e.stopPropagation();
+        e.preventDefault();
+        if (nameEl.getAttribute('contenteditable') === 'true') return;
+        window.pushHistory?.();
+        block.classList.add('editing');
+        nameEl.setAttribute('contenteditable', 'true');
+        nameEl.focus();
+        const sel = window.getSelection();
+        try { sel.selectAllChildren(nameEl); if (nameEl.textContent !== SENDER_DEFAULT) sel.collapseToEnd(); } catch (_) {}
+        const onInput = () => { block.dataset.senderName = nameEl.textContent; window.scheduleAutoSave?.(); };
+        const onKey = (ev) => {
+          if (ev.key === 'Enter' || ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); nameEl.blur(); }
+        };
+        const onPaste = (ev) => {
+          ev.preventDefault();
+          const t = (ev.clipboardData?.getData('text/plain') || '').replace(/\s+/g, ' ');
+          if (t) document.execCommand('insertText', false, t);
+        };
+        const finish = () => {
+          nameEl.removeEventListener('input', onInput);
+          nameEl.removeEventListener('keydown', onKey);
+          nameEl.removeEventListener('paste', onPaste);
+          nameEl.removeEventListener('blur', finish);
+          nameEl.removeAttribute('contenteditable');
+          block.classList.remove('editing');
+          const name = (nameEl.textContent || '').replace(/\s+/g, ' ').trim() || SENDER_DEFAULT;
+          nameEl.textContent = name;
+          block.dataset.senderName = name;
+          window.scheduleAutoSave?.();
+        };
+        nameEl.addEventListener('input', onInput);
+        nameEl.addEventListener('keydown', onKey);
+        nameEl.addEventListener('paste', onPaste);
+        nameEl.addEventListener('blur', finish);
+      }, true);
+    }
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
       window.pushHistory?.(); // 편집 시작 전 상태 저장 → Cmd+Z로 복원 가능

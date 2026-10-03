@@ -2681,6 +2681,43 @@ function getBubbleTailSVG(tail) {
 }
 window.getBubbleTailSVG = getBubbleTailSVG;
 
+/* ★BT3(2026-10-04) 말풍선 «스타일» = 배경·글자색 프리셋. 패널 드롭다운(prop-text-wireup-bubble.js)과
+   MCP(updateSpeechBubbleBlock bubbleStyle)가 «이 한 곳»을 부른다.
+   뿌리: 904c5027(「Apple은 추후 정의」) 이래 드롭다운은 .tb-bubble 에 data-bubble-style 만 붙였고 그 속성을 읽는 CSS 가
+     레포 어디에도 없었다 ⇒ 세 옵션 모두 같은 모습(07d8178b 실측: 셋 다 rgb(229,229,234)).
+   ★CSS 속성선택자가 아니라 «인라인 값»으로 쓰는 이유 — ⑴배경색 칸이 이미 인라인(--bubble-bg·backgroundColor)이라
+     CSS 규칙으로는 한 번이라도 배경을 만진 블럭에서 다시 「적용 안 됨」이 된다 ⑵내보내기(export-html.js)는 자기 CSS 를
+     따로 들고 있어 새 규칙을 못 본다 — 인라인은 그대로 실린다 ⑶옛 문서에 남은 bubbleStyle 값이 «열 때» 모습을 바꾸지 않는다.
+   스타일은 «출발점»이다 — 고른 뒤 배경색 칸으로 바꾸면 그 색이 이긴다. 'default' = 인라인을 지워 CSS 기본으로.
+   apple 의 모습은 원 커밋이 정의하지 않았다 — 레인이 고른 초록 #34c759 · 흰 글자를 2026-10-04 현빈이 「애플 메시지 녹색」으로 확정. */
+const _sbToken = (name, fb) => {
+  try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb; } catch (_) { return fb; }
+};
+const SPEECH_BUBBLE_STYLES = {
+  default:  () => null,
+  imessage: () => ({ bg: _sbToken('--preset-chat-bg-right', '#1888fe'), color: _sbToken('--preset-chat-text-right', '#ffffff') }),
+  // 2026-10-04 현빈 확정 「애플 메시지 녹색」 — 904c5027 「Apple은 추후 정의」의 빈칸을 채움(RG1 닫힘)
+  apple:    () => ({ bg: '#34c759', color: '#ffffff' }),
+};
+function applySpeechBubbleStyle(block, style) {
+  const bubbleEl = block?.querySelector('.tb-bubble');
+  if (!bubbleEl || !SPEECH_BUBBLE_STYLES[style]) return false;
+  block.dataset.bubbleStyle = style;
+  delete bubbleEl.dataset.bubbleStyle;   // 옛 판의 표식(읽는 CSS 없음) — 남기지 않는다
+  const p = SPEECH_BUBBLE_STYLES[style]();
+  if (!p) {
+    block.style.removeProperty('--bubble-bg');
+    bubbleEl.style.backgroundColor = '';
+    bubbleEl.style.color = '';
+  } else {
+    block.style.setProperty('--bubble-bg', p.bg);
+    bubbleEl.style.backgroundColor = p.bg;
+    bubbleEl.style.color = p.color;
+  }
+  return true;
+}
+window.applySpeechBubbleStyle = applySpeechBubbleStyle;
+
 function makeSpeechBubbleBlock(tail) {
   tail = tail || 'left';
   const block = document.createElement('div');
@@ -4368,12 +4405,7 @@ function updateSpeechBubbleBlock(blockId, partial = {}) {
       return { ok: false, code: 'INVALID', message: `invalid bubbleStyle: ${partial.bubbleStyle}. allowed: default|apple|imessage` };
     }
     const style = partial.bubbleStyle;
-    block.dataset.bubbleStyle = style;
-    if (style === 'apple') {
-      bubbleEl.dataset.bubbleStyle = 'apple';
-    } else {
-      delete bubbleEl.dataset.bubbleStyle;
-    }
+    applySpeechBubbleStyle(block, style);   // BT3 — 패널 드롭다운과 같은 한 곳
     applied.bubbleStyle = style;
   }
 
