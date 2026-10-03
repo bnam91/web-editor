@@ -293,3 +293,44 @@ test('G4 ★3겹 중첩 그룹 GO[A, GM[B, GI[C]]] 전부 삭제 → 그룹 0개
   expect(after.groups, '★빈 그룹이 남았다').toBe(0);
   expect(after.users, '사용자 프레임 수가 바뀌었다').toBe(before.users);
 });
+
+/* ── G5·G6 — ab1f7c20 의 처방 밖 두 수정(ⓑ 블록 삭제의 줄 경계 · ⓐ 빈 그룹 걷기의 줄 경계)이 «잰 빨강»인지 가르는 자 ──
+ *   ★혼선 제거: 604602cd 는 «이 삭제가 비운 프레임»을 지우는 판이다. 그래서 UF 가 비면 「줄째 삭제」와 「빈 프레임 삭제」를
+ *     못 가른다 ⇒ 두 시험 다 지운 «뒤에도» UF 에 다른 자식이 남는 꼴로 짠다.
+ *   G5(ⓑ): row > UF(자유) > [에셋A(절대배치·자기 줄 없음), 에셋B] 에서 A 만 지운다 → UF·B 남음.
+ *     ⓑ 없는 판은 A 의 closest('.row') 가 «UF 를 감싼 줄»이라 줄째(UF·B 째) 지운다. B 가 남으니 UF 는 비지 않는다 — 빈 프레임 삭제와 안 섞인다.
+ *     ⇒ 핀 604602cd · baa6a65d · 842be230 모두에서 빨강이어야 한다.
+ *   G6(ⓐ): row > UF(자유) > [그룹G[줄>에셋A], 사용자 프레임 UFk(빈 것)] 에서 A 만 지운다 → G 걷힘 · UF·UFk 남음.
+ *     A 는 그룹 «안의 줄»에 있어 ⓑ 갈래를 안 탄다(그 줄만 지워진다). 그 뒤 빈 G 를 걷을 때 G.closest('.row') 가 UF 의 줄이고
+ *     그 줄엔 «블록»이 없다(UFk 는 블록이 아니다) ⇒ ⓐ 없는 판은 G 대신 줄째(UF·UFk 째) 지운다.
+ *     ⚠️604602cd 에서는 UF 자체가 «비운 프레임 후보»이고 안에 블록이 없어 빈 프레임 삭제로도 지워진다 — 거기선 못 가른다.
+ *     ⇒ G6 의 가르는 핀은 baa6a65d · 842be230(사용자 프레임을 남기는 판, ⓐ 없음)이다. */
+test('G5 ★(ⓑ) row>UF>[에셋A, 에셋B] 에서 A 만 지우면 UF·B 는 남는다(줄째 안 지운다)', async ({ page }) => {
+  const html = withBody(`<div class="row" id="rowUF5" data-layout="stack"><div class="frame-block" id="UF5" data-free-layout="true" data-width="600" data-height="300" style="position:relative;width:600px;height:300px;">`
+    + ABS('g5A', 10, 10) + ABS('g5B', 300, 10) + `</div></div>`);
+  const errs = await deleteByKeys(page, html, ['g5A']);
+  const s = await page.evaluate(() => ({ A: !!document.getElementById('g5A'), B: !!document.getElementById('g5B'),
+    UF: !!document.getElementById('UF5'), row: !!document.getElementById('rowUF5') }));
+  expect(errs).toEqual([]);
+  expect(s.A, '전제 — 고른 에셋이 지워졌다').toBe(false);
+  expect(s.B, '★안 고른 에셋 B 까지 사라졌다(줄째 삭제)').toBe(true);
+  expect(s.UF, '★사용자 프레임이 사라졌다(줄째 삭제)').toBe(true);
+  expect(s.row).toBe(true);
+});
+
+test('G6 ★(ⓐ) row>UF>[그룹G[줄>에셋A], 빈 UFk] 에서 A 를 지우면 G 만 걷히고 UF·UFk 는 남는다', async ({ page }) => {
+  const html = withBody(`<div class="row" id="rowUF6" data-layout="stack"><div class="frame-block" id="UF6" data-free-layout="true" data-width="600" data-height="300" style="position:relative;width:600px;height:300px;">`
+    + `<div class="frame-block" id="G6" data-group="true" data-free-layout="true" style="position:absolute;left:10px;top:10px;width:250px;height:150px;">`
+    + `<div class="row" id="rowA6" data-layout="stack"><div class="asset-block" id="g6A" style="height:100px;"><div class="asset-overlay"></div></div></div></div>`
+    + `<div class="frame-block" id="UFk6" data-free-layout="true" style="position:absolute;left:300px;top:10px;width:200px;height:120px;"></div>`
+    + `</div></div>`);
+  const errs = await deleteByKeys(page, html, ['g6A']);
+  const s = await page.evaluate(() => ({ A: !!document.getElementById('g6A'), G: !!document.getElementById('G6'),
+    UF: !!document.getElementById('UF6'), UFk: !!document.getElementById('UFk6'), row: !!document.getElementById('rowUF6') }));
+  expect(errs).toEqual([]);
+  expect(s.A, '전제 — 고른 에셋이 지워졌다').toBe(false);
+  expect(s.G, '빈 그룹이 남았다').toBe(false);
+  expect(s.UF, '★사용자 프레임이 사라졌다(빈 그룹을 걷다가 줄째 삭제)').toBe(true);
+  expect(s.UFk, '★안의 빈 사용자 프레임까지 사라졌다').toBe(true);
+  expect(s.row).toBe(true);
+});
