@@ -1,4 +1,16 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net: electronNet, screen: electronScreen } = require('electron');
+// ▼QA_HIDDEN (2026-10-02 현빈 승인) — GODITOR_QA_HIDDEN=1 일 때만: 창을 숨기고(show:false) 렌더러가 서지 않게 플래그 셋.
+//   ★목적 = QA 창이 «현빈 화면 포커스를 안 뺏는다»(2026-10-02 격리앱을 open -g 로 띄워도 뺏은 사고).
+//   ⛔이 환경변수가 없으면 이 파일은 dev(22d94bf0)판과 «한 바이트도» 다르지 않아야 한다 — ▼▲ 표식 안만 다르다
+//     tests/unit/main-qa-hidden.test.mjs 가 «구조»로 잠근다: 숨김 관련 줄은 전부 ▼▲ 블록 안 · 블록 안 코드는 전부 _QA_HIDDEN 조건 아래.
+//     ⚠️행위가 아니라 소스 대조다(Electron 을 띄워 재지 않음). git 판 대조는 넣은 커밋에서 한 번만 했다(시험이 main.js 를 얼리지 않게).
+const _QA_HIDDEN = process.env.GODITOR_QA_HIDDEN === '1';
+if (_QA_HIDDEN) {
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+  app.commandLine.appendSwitch('disable-renderer-backgrounding');
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+}
+// ▲QA_HIDDEN
 
 // ── 캔버스 이미지 외부화: 커스텀 프로토콜 goya-asset://<projectId>/<filename> ──
 // 캔버스 HTML에 박히던 인라인 base64를 proj_<id>/assets/<contenthash>.<ext>로 분리하고,
@@ -357,7 +369,13 @@ function createWindow() {
   const isMac = process.platform === 'darwin';
   const gitBranch = getGitBranch();
   const windowTitle = gitBranch ? `GODITOR [${gitBranch}]` : 'GODITOR';
+  // ▼QA_HIDDEN — 맥: 독 아이콘 없는 «부속 앱» = 스스로 앞에 나오지 않는다(show:false 만으론 실행 직후 활성화가 남을 수 있다). 지키는지는 «재서» 판정.
+  if (_QA_HIDDEN && isMac && typeof app.setActivationPolicy === 'function') app.setActivationPolicy('accessory');
+  // ▲QA_HIDDEN
   mainWindow = new BrowserWindow({
+    // ▼QA_HIDDEN
+    ...(_QA_HIDDEN ? { show: false } : {}),
+    // ▲QA_HIDDEN
     width: 1440,
     height: 900,
     minWidth: 1024,
@@ -2520,6 +2538,33 @@ ipcMain.handle('projects:save', (event, project) => _saveProjectImpl(project));
 // BUG-44: 새로고침/탭 닫기 시 동기 저장 — beforeunload는 async를 await할 수 없어
 // 1.5초 debounce가 끝나기 전 새로고침 시 이미지·텍스트 변경분이 파일에 누락되던 문제 해결
 // 페이지/섹션 감소 차단 가드는 제거 (정당한 삭제도 막혔던 부작용) — 백업만 유지
+/* ★S1(2026-10-03, 현빈 승인 → 지디 «저장 대기 중에만»으로 좁힘) — 자동저장이 기다리는 동안에만 그 창의 백그라운드 억제를 푼다.
+   까닭: 오래 가려진 창은 타이머가 분 단위로 묶여 자동저장이 10~30분+ 밀렸다(실측). 상시로 끄면(4ba5c791) 숨겨 둔 앱이
+     %CPU 평균 12.2(켬 0.06)를 상시 먹고 visibilitychange 의존 2곳이 죽었다(실측) ⇒ 저장 대기 구간만.
+   ⛔되돌림 보증 셋: ⑴렌더러가 저장의 모든 끝에서 off ⑵on 마다 상한 타이머(SAVE_PENDING_MAX_MS) — 렌더러가 off 를 못 보내도 되돌림
+     ⑶창(webContents) 파괴 때 타이머 정리. ⇒ «풀린 채 남는» 꼴이 생기면 그건 12% 상시 세금이다.
+   ⚠️이 구간 «안»에서는 숨은 창 타이머 억제를 못 잰다 — S1 재발 판정은 저장 대기 밖에서. */
+const SAVE_PENDING_MAX_MS = 120000;
+const _savePendingTimers = new Map();   // webContents.id → timeout
+function _setSavePending(wc, on) {
+  if (!wc || wc.isDestroyed()) return;
+  const id = wc.id;
+  clearTimeout(_savePendingTimers.get(id));
+  _savePendingTimers.delete(id);
+  try { wc.setBackgroundThrottling(!on); } catch (_) {}
+  if (on) {
+    _savePendingTimers.set(id, setTimeout(() => {
+      _savePendingTimers.delete(id);
+      try { if (!wc.isDestroyed()) wc.setBackgroundThrottling(true); } catch (_) {}
+    }, SAVE_PENDING_MAX_MS));
+    if (!wc._gdSavePendingHooked) {
+      wc._gdSavePendingHooked = true;
+      wc.once('destroyed', () => { clearTimeout(_savePendingTimers.get(id)); _savePendingTimers.delete(id); });
+    }
+  }
+}
+ipcMain.on('app:save-pending', (event, on) => _setSavePending(event.sender, !!on));
+
 ipcMain.on('projects:save-sync', (event, project) => {
   try {
     if (!project || !project.id) { event.returnValue = { ok: false, reason: 'invalid' }; return; }
