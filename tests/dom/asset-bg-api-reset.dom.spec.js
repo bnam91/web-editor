@@ -214,15 +214,17 @@ test.describe('T-011 곁가지 — 도구(update_asset_block)의 bgColor "" rese
     expect(pageErrs).toEqual([]);
   });
 
-  test('B4 ★UI 축과 갈리지 않는다 — 패널의 「초기화」는 여전히 «기본 솔리드»로 돌아간다(현재 규약 고정)', async ({ page }) => {
-    /* ⛔API 의 reset(값을 지운다)과 패널의 「초기화」(setHex('#a0a0a0')로 기본 회색을 다시 쓴다)는
-       «다른 약속»이다. API 를 고치면서 UI 를 따라가게 만들면 T-100/T-059 규약이 조용히 바뀐다.
-       이 검사는 그 둘이 갈린 채로 있어야 함을 못박는다. */
+  test('B4 ★패널의 「초기화」= «배경 없음»(체커) — API reset 과 같은 결과', async ({ page }) => {
+    /* ★규약 변경(2026-10-03 지디 판정): 예전 B4 는 「초기화는 setHex('#a0a0a0') 로 기본 회색을 다시 쓴다」를 «현재 규약 고정»으로 잠갔다.
+       그 약속은 «체커가 가린 상태»를 고정한 것이었다 — 이 하네스엔 체커가 사는 editor-layout.css 가 없어 회색이 «보인다»고 믿었지만,
+       실앱에선 체커가 회색을 덮어 사용자 눈엔 늘 «체커로 돌아왔다». 색이 있으면 체커를 걷게 되면서(A1) 회색 판이 드러나므로
+       「초기화 = 체커로」로 바꿨다. 화면 쪽 시험 = asset-bg-visible-on-canvas AB3. */
     await seedGradient(page);
     await page.evaluate(() => document.getElementById('asset-bg-clear').click());
     await page.waitForTimeout(150);
     const p = await paint(page);
     expect(p.computedImage, 'UI 초기화도 그라데이션은 지운다').toBe('none');
-    expect(p.dataBg, 'UI 초기화는 «빈 값»이 아니라 기본 솔리드로 돌아간다(현재 규약)').toBe('#a0a0a0');
+    expect(p.dataBg, 'UI 초기화는 «배경 없음» — dataset.bgColor 가 사라진다').toBe('(undefined)');
+    expect(p.inlineBgColor, 'UI 초기화 뒤 인라인 배경색도 비워진다').toBe('');
   });
 });

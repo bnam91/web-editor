@@ -511,6 +511,15 @@
   outline: 2px solid transparent;
   transition: background 0.15s;
 }
+/* ★배경색을 고르면 체커를 걷는다 (현빈 2026-10-03 「색을 골라도 안 바뀐다」).
+   패널은 색을 «인라인 background-color» 로 박는데, 위 체커는 background-image 라 그 «위»에 그대로 남아
+   화면은 회색 체커 그대로였다(실앱 실측: 인라인 rgb(255,0,0) · 중앙 픽셀 #d8d8d8).
+   ⇒ 체커는 «이미지도 색도 없을 때»만. 색이 «보이지 않는» 값(transparent · 알파 0 = rgba(…,0))이면 빈 칸 표시로 체커를 둔다.
+   ★그라데이션은 패널이 인라인 background 단축으로 쓰므로 원래 체커를 이긴다 — 이 규칙과 무관.
+   ★내보내기엔 영향 없음: 단독 HTML 은 이 CSS 를 안 싣고(export-html.js), PNG 는 capture-safety 가 체커를 이미 걷는다. */
+.asset-block[data-bg-color]:not([data-bg-color=""]):not([data-bg-color="transparent"]):not([data-bg-color$=",0)"]):not([data-bg-color$=", 0)"]) {
+  background-image: none;
+}
 .asset-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .asset-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
 .asset-block .asset-label { display: none; }
