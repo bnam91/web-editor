@@ -132,6 +132,120 @@ export function applyCanvasBackground(css) {
   updateEdgeContrast(css);
 }
 
+/* ══ 글자 톤 — «배경 → 밝은/어두운 글자» 단 한 벌 (G5 그리드 · G6 테이블 헤더, 2026-10-03) ══
+ * 현빈 G5 「어두운 배경 섹션에 그리드 블럭 추가하면 안 보임」· G6 「테이블 헤더가 어두워지면 텍스트도 자동으로 밝아지게」.
+ * ★규칙 = 위 edgeColorFor 의 흰/검 스냅과 «같은 식»: cr(흰,배경) > cr(검,배경) 이면 'light'.
+ *   임계값을 따로 두지 않는다 — 두 대비가 같아지는 점(L≈0.1791, 양쪽 4.58:1)이 곧 경계다.
+ *   그보다 어두우면 흰 글자가 «언제나» 더 읽힌다.
+ * ★배경은 «computed» 로 조상을 따라 올라가며 합성한다(칸 → 블럭 → 프레임 → 섹션). 섹션까지 보고 멈춘다.
+ * ⛔못 재면 null — 그라데이션·이미지·떼어진 노드·이름색. null 은 «어둡지 않다»가 아니라 «모른다»다:
+ *   부르는 쪽은 «기존 색 그대로»로 받는다(지금보다 나빠지지 않는 쪽). */
+function _cs(el) {
+  try { return (typeof getComputedStyle === 'function' && el && el.isConnected) ? getComputedStyle(el) : null; } catch (_) { return null; }
+}
+/** el(자신 포함)부터 섹션까지의 «불투명 배경» RGB. 못 재면 null. ownBg 는 el 자신의 배경 «문자열»(아직 DOM 에 없을 때). */
+export function backdropRgbAt(el, ownBg) {
+  const layers = [];
+  if (ownBg !== undefined && ownBg !== null && ownBg !== '') {
+    const t = String(ownBg).trim();
+    if (t !== 'transparent') {
+      const c = _parseWithAlpha(t);
+      if (!c) return null;                          // var()·그라데이션 칸 배경 = 못 쟀다
+      if (c.a > 0) layers.push(c);
+    }
+  }
+  if (!layers.length || layers[layers.length - 1].a < 1) {
+    let reached = false;
+    for (let e = el; e; e = e.parentElement) {
+      const cs = _cs(e);
+      if (!cs) return null;                         // 떼어진 노드 = 못 쟀다
+      if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
+      const c = _parseWithAlpha(cs.backgroundColor);
+      if (c && c.a > 0) { layers.push(c); if (c.a >= 1) { reached = true; break; } }
+      if (e.classList && e.classList.contains('section-block')) break;
+    }
+    if (!reached) return null;                      // 섹션까지 불투명 배경이 없다 = 못 쟀다
+  }
+  let out = layers[layers.length - 1].rgb;
+  for (let i = layers.length - 2; i >= 0; i--) out = _over(layers[i].rgb, out, layers[i].a);
+  return out;
+}
+/** RGB 배경 → 'light'(밝은 글자가 낫다) | 'dark'. */
+export function textToneOver(rgb) {
+  if (!rgb) return null;
+  return _cr([255, 255, 255], rgb) > _cr([0, 0, 0], rgb) ? 'light' : 'dark';
+}
+/** el 의 실제 배경 위 글자 톤. 못 재면 null. */
+export function textToneAt(el, ownBg) { return textToneOver(backdropRgbAt(el, ownBg)); }
+
+/* ── 테이블 헤더(G6) ─────────────────────────────────────────
+ * 사용자 글자색 자리: dataset.textColor(표 전체) · 칸 안 <span style=color> · highlightFg(인라인).
+ * ★«미지정» = textColor 가 비었거나 makeTableBlock 이 구워 넣는 기본값 #222222 그대로(이 레포 선례:
+ *   infocard·_applyTableThemeDefaults 의 «정확히 기본값 = 미지정»). 칸 부분색·강조색은 인라인이라 자동을 이긴다.
+ * ★자동 값은 «블럭 인라인 CSS 변수 --tbl-header-fg» 에만 산다 — dataset 을 안 건드린다(저장본에 사용자 값처럼 굳지 않는다). */
+export const TABLE_HEADER_FG_LIGHT = '#f2f2f2';
+const _TBL_DEFAULT_TEXT = '#222222';
+export function syncTableHeaderTone(block) {
+  if (!block || !block.style) return null;
+  const tc = String(block.dataset.textColor || '').trim().toLowerCase();
+  const th = block.querySelector('thead th');
+  const want = (!tc || tc === _TBL_DEFAULT_TEXT) && th && textToneAt(th) === 'light' ? TABLE_HEADER_FG_LIGHT : '';
+  const cur = block.style.getPropertyValue('--tbl-header-fg').trim();
+  if (cur !== want) {                               // ★멱등 — 같으면 안 쓴다(관찰자 고리 방지)
+    if (want) block.style.setProperty('--tbl-header-fg', want);
+    else block.style.removeProperty('--tbl-header-fg');
+  }
+  return want || null;
+}
+
+/* ── 한 깔때기 관찰자 ─────────────────────────────────────────
+ * 배경을 쓰는 자리가 20곳이 넘는다(prop-section·editor·block-factory·badge-transform·gradient-model…).
+ * 자리마다 호출을 달면 하나를 빠뜨린 날 «화면만 어둡고 글자는 그대로»가 된다 ⇒ #canvas 하나를 본다.
+ * ★배경 서명(인라인 bg·data-bg)이 «바뀐» 요소만 따라 내려간다 — 끌기 중 transform 같은 style 쓰기는 서명이 같아 건너뛴다.
+ * ★다시 그리는 것은 «톤 표식이 달라진» 그리드뿐(멱등) — ⌘Z 로 되돌린 DOM 은 표식이 맞으니 아무것도 안 한다. */
+const _bgSig = new WeakMap();
+const _sigOf = (e) => (e.style ? e.style.backgroundColor + '|' + e.style.backgroundImage + '|' + e.style.background : '') + '|' + (e.dataset ? (e.dataset.bg || '') + '|' + (e.dataset.headerBg || '') + '|' + (e.dataset.textColor || '') : '');
+let _toneObs = null;
+export function installTextToneObserver(root, { onGrid } = {}) {
+  if (_toneObs || !root || typeof MutationObserver !== 'function') return _toneObs;
+  const visit = (el, out) => {
+    if (!el || el.nodeType !== 1) return;
+    if (el.classList.contains('grid-block')) out.add(el);
+    else if (el.classList.contains('table-block')) out.add(el);
+    else el.querySelectorAll?.('.grid-block, .table-block').forEach(b => out.add(b));
+  };
+  _toneObs = new MutationObserver((muts) => {
+    const hit = new Set();
+    for (const m of muts) {
+      if (m.type === 'attributes') {
+        const t = m.target;
+        if (t.nodeType !== 1) continue;
+        const s = _sigOf(t);
+        if (_bgSig.get(t) === s) continue;
+        _bgSig.set(t, s);
+        if (t.closest('.grid-block') && !t.classList.contains('grid-block')) continue;   // 그리드 «안»의 쓰기(자기 렌더)
+        const tb = t.closest('.table-block');
+        if (tb) { hit.add(tb); continue; }
+        visit(t, hit);
+      } else {
+        m.addedNodes.forEach(n => {
+          if (n.nodeType !== 1) return;
+          const tb = n.closest?.('.table-block'); if (tb) { hit.add(tb); return; }
+          if (n.closest?.('.grid-block') && !n.classList.contains('grid-block')) return;
+          visit(n, hit);
+        });
+      }
+    }
+    hit.forEach(b => {
+      if (!b.isConnected) return;
+      if (b.classList.contains('table-block')) syncTableHeaderTone(b);
+      else if (onGrid && (textToneAt(b) === 'light' ? 'light' : '') !== (b.dataset.textTone || '')) onGrid(b);
+    });
+  });
+  _toneObs.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'data-bg', 'data-header-bg', 'data-text-color'] });
+  return _toneObs;
+}
+
 /* ★위생검사(A0)·회귀검사가 «같은 물건»을 잡을 수 있게 내보낸다.
    ⛔사본을 새로 만들어 내보내지 마라 — 사본을 내보내면 본체의 변이가 검사를 비껴간다.
    ⛔그리고 DOM 스펙(tests/dom)은 이걸 «import 하지 않는다» — 같은 걸 쓰면
@@ -143,6 +257,14 @@ if (typeof window !== 'undefined') {
   window.__updateEdgeContrast = () => updateEdgeContrast(
     (typeof document !== 'undefined' && document.getElementById('canvas-wrap')?.style.background) || ''
   );
+  /* ★G5·G6 글자 톤 — grid-block.js 는 import 대신 이 전역으로 받는다(그 파일 renderGridBlock 의 주석 참조). */
+  window.__gdTextTone = { backdropRgbAt, textToneOver, textToneAt, syncTableHeaderTone };
+  /* ★한 깔때기 관찰자 — #canvas 가 생긴 뒤 한 번. 그리드는 window.renderGridBlock 으로 다시 그린다. */
+  const _goTone = () => { const cv = document.getElementById('canvas');
+    if (cv) installTextToneObserver(cv, { onGrid: (b) => window.renderGridBlock?.(b) }); };
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _goTone, { once: true }); else _goTone();
+  }
   /* ⛔applyCanvasBackground 는 window 에 «안» 내놓는다 — 부르는 쪽이 전부 ESM 이라 쓸 사람이 없다.
      안 쓰는 전역은 B1 깔때기 밖에 «두 번째 입구»를 만들어 둘 뿐이다. */
 }
