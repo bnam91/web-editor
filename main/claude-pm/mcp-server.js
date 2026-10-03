@@ -3600,6 +3600,7 @@ function _registerDefaultTools() {
         sectionId: args.sectionId, cols: args.cols, rows: args.rows,
         cells: args.cells, gap: args.gap, rowGap: args.rowGap, colGap: args.colGap, valign: args.valign,
         cellBorderWidth: args.cellBorderWidth, cellBorderColor: args.cellBorderColor, cellBorderStyle: args.cellBorderStyle,
+        blockBg: args.blockBg,   // ★G12 블럭 배경 — 검증은 앱(grid-block.js _gridIntakeBlockBg)이 정본
       });
     },
     {
@@ -3651,6 +3652,10 @@ function _registerDefaultTools() {
           cellBorderWidth: { type: 'number', description: '★T-172 cell border width (px, 0~20). 0 = no border. Draws a line around EVERY cell — this is what makes a spec/compare table look like a table.' },
           cellBorderColor: { type: 'string', description: "cell border color, e.g. '#d0d0d0' (default #d0d0d0)" },
           cellBorderStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted'], description: 'cell border style (default solid)' },
+          blockBg: { type: ['object', 'null'], description: '★G12 block background — painted behind the WHOLE grid and extended OUTSIDE the block by padY/padX '
+            + '(「배경 여백」: neighbours are not pushed, cells are not shrunk). {on:boolean, color:"#hex"|rgba(), image:"data:image/…"|"goya-asset://…"|null, '
+            + 'pos:"<left|center|right> <top|center|bottom>", opacity:0~100, padY:0~200, padX:0~100}. Each field optional; a field set to null resets to its default. '
+            + 'on:false hides it but keeps the values; blockBg:null removes everything. Unknown fields are REJECTED.' },
           expectedProject: { type: 'string', description: 'proj_xxx — refuse if a different project is open' },
         },
         additionalProperties: false,
@@ -3668,7 +3673,7 @@ function _registerDefaultTools() {
       }
       if (!Object.keys(partial).length) {
         return { ok: false, code: 'NOTHING_TO_DO',
-          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / rowGap / colGap / valign / cellBorderWidth / cellBorderColor / cellBorderStyle' };
+          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / rowGap / colGap / valign / cellBorderWidth / cellBorderColor / cellBorderStyle / blockBg' };
       }
       return await _rendererInvoker.updateGridBlock({ blockId, partial });
     },
@@ -3742,6 +3747,10 @@ function _registerDefaultTools() {
           cellBorderWidth: { type: 'number', description: 'cell border width (px, 0~20). 0 = no border' },
           cellBorderColor: { type: 'string', description: "cell border color, e.g. '#d0d0d0'" },
           cellBorderStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted'] },
+          blockBg: { type: ['object', 'null'], description: '★G12 block background — painted behind the WHOLE grid and extended OUTSIDE the block by padY/padX '
+            + '(「배경 여백」: neighbours are not pushed, cells are not shrunk). {on:boolean, color:"#hex"|rgba(), image:"data:image/…"|"goya-asset://…"|null, '
+            + 'pos:"<left|center|right> <top|center|bottom>", opacity:0~100, padY:0~200, padX:0~100}. Each field optional; a field set to null resets to its default. '
+            + 'on:false hides it but keeps the values; blockBg:null removes everything. Unknown fields are REJECTED.' },
           expectedProject: { type: 'string' },
         },
         required: ['blockId'],

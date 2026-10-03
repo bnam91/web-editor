@@ -6826,7 +6826,7 @@ async function _invokeRendererUpdateCanvasBlock({ blockId, partial } = {}) {
    ⇒ 앱이 이미 검증(cols 1~4·rows·cells·gap·valign)을 하므로 여기선 «넘겨주고 결과를 읽어» 돌려준다.
    ⛔`applied` 를 인자에서 만들지 않는다 — 오늘 그 병으로 네 자리가 거짓 성공했다. */
 async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, rowGap, colGap, valign,
-  cellBorderWidth, cellBorderColor, cellBorderStyle } = {}) {
+  cellBorderWidth, cellBorderColor, cellBorderStyle, blockBg } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
   const opts = {};
@@ -6841,6 +6841,8 @@ async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, 
   if (cellBorderWidth != null) opts.cellBorderWidth = Number(cellBorderWidth);
   if (cellBorderColor != null) opts.cellBorderColor = String(cellBorderColor);
   if (cellBorderStyle != null) opts.cellBorderStyle = String(cellBorderStyle);
+  /* ★G12 블럭 배경 — 객체 그대로 넘긴다(검증·거절은 앱 _gridIntakeBlockBg 가 정본 · 만드는 문은 «말하고 버린다»). */
+  if (blockBg !== undefined) opts.blockBg = blockBg;
   const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
   const safeOpts = JSON.stringify(opts);
   const atomicJs = `(() => {
