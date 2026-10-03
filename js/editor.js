@@ -2643,7 +2643,7 @@ document.addEventListener('keydown', e => {
     : (e.code === 'KeyS' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey);
   if (_isAddSection) {
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
     e.preventDefault();
     window.addSection?.();
     return;

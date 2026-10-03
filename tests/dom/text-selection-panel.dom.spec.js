@@ -398,3 +398,17 @@ test('F1 폴백 — CSS.highlights 가 없어도 크기 두 번째가 같은 BBB
   expect(r.out).toEqual(base.out);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+test('S1 select 에 포커스가 있을 때 S 키는 섹션을 추가하지 않는다', async ({ page }) => {
+  const errs = await setup(page);
+  const id = await insert(page, 'text');
+  const { b } = await center(page, `#${id}`);
+  await page.mouse.click(b.x + 20, b.y + b.height / 2); await page.waitForTimeout(300);
+  await page.locator('#txt-font-weight').focus();                       // 준비 — 재는 것은 아래 «진짜 키»
+  expect(await act(page), '전제: select 에 포커스').toBe('txt-font-weight');
+  const n0 = await page.evaluate(() => document.querySelectorAll('#canvas .section-block').length);
+  await page.keyboard.press('s'); await page.waitForTimeout(250);
+  const n1 = await page.evaluate(() => document.querySelectorAll('#canvas .section-block').length);
+  expect(n1, 'S 가 섹션을 추가했다(SELECT 가드 누락)').toBe(n0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
