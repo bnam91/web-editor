@@ -463,13 +463,38 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         const _ds = el.dataset.bgColor;
         bgColor = (_ds && _ds !== '#e8e8e8') ? _ds : null;
       }
-      return {
+      const _circleOut = {
         type:    'circle',
         id:      el.id || ('icb_' + Math.random().toString(36).slice(2, 8)),
         size,
         bgColor,
         src:     imgSrc,
       };
+      /* ★G14 — «원 안» 자식(.icb-circle > .icb-children)이 있으면 원 + 자식을 «자유 프레임» 하나로 싸서 낸다.
+         렌더러(figma-renderer) 무변경 — frame(free) 분기는 이미 있다(좁으면 가운데 · 자식은 x,y 절대). 원은 그 프레임의 (0,0)·폭 size.
+         자식 좌표는 «살아 있는 문서»에서 잰다(G19 _gridKidBlocks 와 같은 수법 · 배율은 화면폭/레이아웃폭으로 나눈다).
+         ⛔자식 0개면 옛 출력 그대로(type:'circle' 하나 — tests/dom/icb-children K12b).
+         ⚠️배경색 형식(computed rgb() 문자열 → 렌더러 hexToRgb)은 손대지 않는다 — E49, 범위 밖(지디 2026-10-04).
+         ⚠️피그마 프레임은 «네모»로 자른다 — 원 밖·네모 안으로 넘친 글자는 피그마에선 보인다(캔버스는 원으로 자른다). 미측정. */
+      const _kbox = el.querySelector(':scope > .icb-circle > .icb-children');
+      const _kidEls = _kbox ? [..._kbox.children].filter(k => !k.classList.contains('drop-indicator')) : [];
+      if (_kidEls.length) {
+        const children = [{ x: 0, y: 0, w: size, block: _circleOut }];
+        const cr = _circ ? _circ.getBoundingClientRect() : null;
+        const z = (_circ && _circ.offsetWidth) ? ((cr.width / _circ.offsetWidth) || 1) : 1;
+        _kidEls.forEach(kid => {
+          const blocks = _flowKidBlocks(kid, ps);
+          if (!blocks.length) return;
+          const lk = kid.id ? document.getElementById(kid.id) : null;
+          const kr = lk ? lk.getBoundingClientRect() : null;
+          const x = (cr && kr) ? Math.round((kr.left - cr.left) / z) : 0;
+          const y = (cr && kr) ? Math.round((kr.top - cr.top) / z) : 0;
+          const w = lk ? (lk.offsetWidth || size) : size;
+          blocks.forEach(b => children.push({ x, y, w, block: b }));
+        });
+        return { type: 'frame', id: (el.id || _circleOut.id) + '__kids', width: size, height: size, bg: '', radius: 0, free: true, children };
+      }
+      return _circleOut;
     }
     if (el.classList.contains('table-block')) {
       const table   = el.querySelector('.tb-table');
