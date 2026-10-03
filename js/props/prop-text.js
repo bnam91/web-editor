@@ -48,12 +48,12 @@ export function showTextProperties(tb) {
   const currentRadius = parseInt(contentEl.style.borderRadius) || 4;
   const isLabel = currentClass === 'tb-label';
   const currentTail = tb.dataset.tail || 'left';
-  const currentBubbleStyle = tb.dataset.bubbleStyle || 'imessage';
+  /* BT3 — dataset 이 없으면 «기본»(템플릿의 selected 판정·makeSpeechBubbleBlock 기본값과 같은 값). 옛 'imessage' 폴백은 드롭다운엔 iMessage 를 띄우고 모습은 기본이라 어긋났다. */
+  const currentBubbleStyle = tb.dataset.bubbleStyle || 'default';
   const _blockBubbleVar = isSpeechBubble ? tb.style.getPropertyValue('--bubble-bg').trim() : '';
   const bubbleBg = isSpeechBubble ? (_blockBubbleVar || contentEl.style.backgroundColor || '#e5e5ea') : '#e5e5ea';
   const bubbleBgHex = isSpeechBubble ? (_blockBubbleVar || rgbToHex(window.getComputedStyle(contentEl).backgroundColor) || '#e5e5ea') : '#e5e5ea';
   const showSender = isSpeechBubble && tb.dataset.showSender === 'true';
-  const senderName = isSpeechBubble ? (tb.dataset.senderName || 'Your name') : 'Your name';
   const labelPillPadT = parseInt(contentEl.style.paddingTop)    || 4;
   const labelPillPadB = parseInt(contentEl.style.paddingBottom) || 4;
   // ★원형(Circle)의 «크기»는 패딩이 아니라 지름(인라인 width)이다 — 패딩으로 읽으면
@@ -166,7 +166,7 @@ export function showTextProperties(tb) {
     currentPadT, currentPadL, currentPadR, phLinked,
     isLabel, currentBgColor, currentRadius, labelPillH, labelPadX, labelIsCircle: _isCircleLabel,
     isSpeechBubble, currentBubbleStyle, currentTail,
-    bubbleBgHex, showSender, senderName,
+    bubbleBgHex, showSender,
     isIconText, currentItbGap,
     mix,
     shadow,
@@ -184,7 +184,7 @@ export function showTextProperties(tb) {
   // 각 wireup 핸들러는 ctx.contentEl을 동적 참조해 type 토글 후 새 노드를 본다
   const ctx = { contentEl };
 
-  if (isSpeechBubble) wireBubbleSection({ tb, ctx, currentBubbleStyle });
+  if (isSpeechBubble) wireBubbleSection({ tb, ctx });
   wireFontSection({ propPanel, ctx });
   // 라이너 블록은 Type 토글 숨김 — 클릭 시 contentEl.className 교체로 .tb-liner가 깨지는 회귀 방지 (M2)
   if (!isLiner) wireTypeSection({ tb, propPanel, ctx });

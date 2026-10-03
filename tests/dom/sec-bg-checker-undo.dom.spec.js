@@ -30,7 +30,8 @@ async function boot(page, body) {
 
 test('S1 ★체크 배경 — 색이 있어 인라인 background-image:none 이 박힌 섹션에서도 무늬가 깔린다', async ({ page }) => {
   await boot(page, `<!doctype html><html><head><meta charset="utf-8">
-    <link rel="stylesheet" href="/css/editor-blocks.css"></head><body>
+    <link rel="stylesheet" href="/css/editor-base.css"><link rel="stylesheet" href="/css/editor-blocks.css"></head><body>
+    <!-- 체커 색은 editor-base.css :root 의 --goya-checker-* 토큰이다(S1 선행, 2026-10-04) — 토큰 파일 없이 blocks 만 얹으면 var() 가 비어 무늬가 사라진다(이 시험이 그걸 잡았다). -->
     <div class="section-block sec-bg-empty" id="s1" data-bg="rgba(255,255,255,0)" data-bg-img-empty="1"
          style="height:200px;background-image:none;background-color:rgba(255,255,255,0)"></div>
     <div class="section-block" id="s0" style="height:200px;background-image:none"></div>

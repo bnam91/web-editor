@@ -6,6 +6,7 @@ import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제는 «켠 쪽»이 닫는다
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 import { applyFrameTransform } from '../frame-geometry.js';
+import { checkerBg } from '../checker-tokens.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
 import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture } from './capture-safety.js';
 import { prepareGoyaAssetsForClone } from './goya-asset-inline.js';   /* 썸네일 클론에서 goya-asset 을 data: 로 (T-149) */
@@ -1562,7 +1563,7 @@ function rebindAll(opts = {}) {
     if (imgSrc) {
       const screen = block.querySelector('.mkp-screen');
       if (screen) {
-        screen.style.background = `url('${imgSrc}') top center / cover no-repeat, repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px`;
+        screen.style.background = `url('${imgSrc}') top center / cover no-repeat, ${checkerBg('big')}`;
         screen.innerHTML = '';
       }
     }

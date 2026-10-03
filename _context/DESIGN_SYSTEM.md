@@ -149,6 +149,25 @@ body (#1a1a1a) → 패널 (#1e1e1e) → topbar (#242424) → 팝업 (#252525) �
 
 ---
 
+### 1-D. 체커(투명 표시) 토큰 (`editor-base.css :root`, 2026-10-04 S1 선행)
+
+캔버스의 «빈 칸/투명» 표시 무늬 — 편집 전용(배송본·PNG 에는 안 나간다). 값·크기의 정본은 `editor-base.css :root` **한 곳**.
+
+| 자리(가족) | 토큰 | 값(변수화 시점) | 쓰는 곳 |
+|---|---|---|---|
+| ① 큰 쌍 | `--goya-checker-big-a/-b/-size` | #d8d8d8 / #f0f0f0 / 72px | 섹션 체크배경 · 에셋 · 아이콘원 · 캔버스카드 · 목업 화면 · 확대블럭 · 주석 라벨(칸만 16px) · 도형 스와치(칸만 10px) |
+| ② 작은 쌍 | `--goya-checker-small-a/-b/-size` | #e3e3e3 / #efefef / 16px | 배너 빈 이미지칸 · 그리드 빈 슬롯 |
+| ③ 투명 쌍 | `--goya-checker-clear-a/-b` | #e0e0e0 / transparent (칸=small-size) | 표 «이미지 row» 빈 칸 |
+| ④ SVG 패턴 | `--goya-checker-svg-a/-b` | = big-a/-b (alias — 따로 바꿀 수 있는 자리) | 도형 빈 면 `#goya-shape-checker` |
+
+- ⛔한 변수로 합치지 않는다 — 큰 쌍(차 24)·작은 쌍(차 12)의 «작은 격자를 연하게»는 의도다.
+- CSS 는 `var()` 로 읽는다. **JS 인라인**(저장 HTML 에 박히는 자리)은 `js/checker-tokens.js` 가 computed 값을 «읽어» 구체 값으로 박는다 — shorthand 안 `var()` 는 CSSOM longhand 가 비어 떼어낸 클론의 체커 서명(`/repeating-conic-gradient/`) 판정이 빗나가기 때문. SVG 패턴은 `style="fill:var(--goya-checker-svg-*)"`.
+- 이 토큰 없이 `editor-blocks.css`/`editor-layout.css` 만 단독 로드하면 체커가 «사라진다»(var 비어 있음) — 시험 하네스는 `editor-base.css` 도 같이 얹는다.
+- 센서스: `tests/unit/checker-tokens-census.test.mjs`(체커 무늬에 raw hex 재유입 금지) · 픽셀 잠금: `tests/dom/checker-pixel-identity.dom.spec.js`(골든 = 07d8178b).
+- 제외(다른 가족): 우측 패널 스와치의 어두운 체커(`prop-simple-card.js` #888/#555 · `prop-gradient.js` #666/#888).
+
+---
+
 ## 2. 블록 선택/호버 상태 (설계 레퍼런스)
 
 > 변경 금지 규칙은 `CLAUDE.md`가 출처. 이 섹션은 패턴 참고용.

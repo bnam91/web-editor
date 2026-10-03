@@ -172,7 +172,43 @@ function renderChatBlock(block) {
       }
     };
 
+    /* ★BT1 짝(2026-10-04) — 캔버스의 이름(.chb-profile-name)도 더블클릭으로 바로 고친다(말풍선 «발신자 이름»과 같은 길).
+       이름 칸은 «한 줄»: Enter·Esc = 끝. 빈 이름 = 그 메시지의 이름을 뺀다(profileName '' → 렌더가 이름 칸을 안 그린다).
+       ⚠️패널 «프로필 이름» 칸(prop-chat.js)은 남긴다 — 이름이 «없는» 메시지는 캔버스에 칸이 없어서 처음 넣는 길은 거기뿐이다.
+       ⛔이름은 innerHTML 이 아니라 textContent 로만 다룬다(T-049 — 렌더도 textContent 로 채운다). */
+    const finishNameEdit = (nameEl) => {
+      if (nameEl.getAttribute('contenteditable') !== 'true') return;
+      nameEl.removeAttribute('contenteditable');
+      nameEl.style.cursor = '';
+      nameEl.style.userSelect = '';
+      const idx = parseInt(nameEl.dataset.nameIdx);
+      const msgs = JSON.parse(block.dataset.messages || '[]');
+      if (!msgs[idx]) return;
+      const newName = (nameEl.textContent || '').replace(/\s+/g, ' ').trim();
+      if ((msgs[idx].profileName || '') !== newName) {
+        msgs[idx].profileName = newName;
+        block.dataset.messages = JSON.stringify(msgs);
+        window.scheduleAutoSave?.();
+      }
+      renderChatBlock(block);
+      if (block.classList.contains('selected')) window.showChatProperties?.(block);
+    };
+
     block.addEventListener('dblclick', (e) => {
+      const nameEl = e.target.closest?.('.chb-profile-name[data-name-idx]');
+      if (nameEl && block.contains(nameEl)) {
+        e.stopPropagation();
+        e.preventDefault();
+        if (nameEl.getAttribute('contenteditable') === 'true') return;
+        window.pushHistory?.('채팅 이름 편집');
+        nameEl.setAttribute('contenteditable', 'true');
+        nameEl.style.cursor = 'text';
+        nameEl.style.userSelect = 'text';
+        nameEl.focus();
+        const sel = window.getSelection();
+        try { sel.selectAllChildren(nameEl); sel.collapseToEnd(); } catch(_) {}
+        return;
+      }
       const bubble = e.target.closest('.chb-btext');
       if (!bubble || !block.contains(bubble)) return;
       e.stopPropagation();
@@ -189,11 +225,20 @@ function renderChatBlock(block) {
 
     // blur 위임: focusout 이벤트로 btext 단위 종료 감지
     block.addEventListener('focusout', (e) => {
+      const nameEl = e.target.closest?.('.chb-profile-name[data-name-idx]');
+      if (nameEl && block.contains(nameEl)) { finishNameEdit(nameEl); return; }
       const bubble = e.target.closest?.('.chb-btext');
       if (bubble && block.contains(bubble)) finishEdit(bubble);
     });
 
     block.addEventListener('keydown', (e) => {
+      const nameEl = e.target.closest?.('.chb-profile-name[contenteditable="true"]');
+      if (nameEl && (e.key === 'Enter' || e.key === 'Escape')) {
+        e.preventDefault();
+        e.stopPropagation();
+        nameEl.blur();
+        return;
+      }
       const bubble = e.target.closest?.('.chb-btext');
       if (!bubble || bubble.getAttribute('contenteditable') !== 'true') return;
       if (e.key === 'Escape') {
@@ -267,7 +312,7 @@ function updateChatBlock(blockId, partial = {}) {
     return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
   }
   // 사용자가 인라인 편집(dblclick contenteditable) 중이면 USER_BUSY
-  if (block.querySelector('.chb-btext[contenteditable="true"]')) {
+  if (block.querySelector('.chb-btext[contenteditable="true"], .chb-profile-name[contenteditable="true"]')) {
     return { ok: false, code: 'USER_BUSY', message: 'user is editing a bubble — try again later', retryAfter: 2000 };
   }
 

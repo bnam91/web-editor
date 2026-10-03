@@ -991,7 +991,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   align-self: center;            /* 부모 flex stretch로 height가 늘어나는 경우 대비 */
   border-radius: 50%;
   background:
-    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+    repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) 0 0 / var(--goya-checker-big-size) var(--goya-checker-big-size);
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
   flex-shrink: 0;
@@ -2203,7 +2203,7 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
    ⚠️PNG 내보내기는 이 이동만으론 안 고쳐진다 — 캡처 클론은 body 에 붙어 앱 CSS 를 그대로
      받는다. 그 몫은 js/io/capture-safety.js neutralizeEmptyImageCheckerForCapture 가 진다. */
 .banner02-block .bn2-img-empty {
-  background: repeating-conic-gradient(#e3e3e3 0% 25%, #efefef 0% 50%) 0 0 / 16px 16px;
+  background: repeating-conic-gradient(var(--goya-checker-small-a) 0% 25%, var(--goya-checker-small-b) 0% 50%) 0 0 / var(--goya-checker-small-size) var(--goya-checker-small-size);
 }
 /* ★표 «이미지 row» 빈 칸 체커 — 위 .bn2-img-empty 와 같은 결함군이었다(EVAL low, 2026-09-21).
    js/props/prop-table.js _makeImgCellPlaceholder 가 style.cssText 로 «인라인» 체커를 박고 있었다.
@@ -2213,8 +2213,8 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
    ★이미지를 넣으면 prop-table.js 가 인라인 background-image:url(...) 로 덮는다 — 인라인이
      클래스를 이기므로 순서 다툼이 없다(.asset-block/.has-image 와 같은 모양). */
 .table-block .tbl-img-cell {
-  background-image: repeating-conic-gradient(#e0e0e0 0% 25%, transparent 0% 50%);
-  background-size: 16px 16px;
+  background-image: repeating-conic-gradient(var(--goya-checker-clear-a) 0% 25%, var(--goya-checker-clear-b) 0% 50%);
+  background-size: var(--goya-checker-small-size) var(--goya-checker-small-size);
 }
 /* ★그리드 «빈 이미지 슬롯» 체커 — 현빈 2026-09-25 「빈 슬롯이 들어갈 수 있어야지 …
    처음에 체크패턴으로 둘 수 있을 것 같은데」.
@@ -2231,7 +2231,7 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
      그 몫은 js/io/capture-safety.js neutralizeEmptyImageCheckerForCapture 가 진다
      (.bn2-img-empty 주석과 같은 분업). 단독 HTML 은 js/io/export-css-collect.js 가 진다. */
 .grid-block .grd-img-empty {
-  background: repeating-conic-gradient(#e3e3e3 0% 25%, #efefef 0% 50%) 0 0 / 16px 16px;
+  background: repeating-conic-gradient(var(--goya-checker-small-a) 0% 25%, var(--goya-checker-small-b) 0% 50%) 0 0 / var(--goya-checker-small-size) var(--goya-checker-small-size);
 }
 /* ★섹션 «체크 배경»(2026-09-28 기능, 2026-09-30 현빈 「눌렀는데 체크배경으로 안 된다」).
    JS(prop-section.js _applySectionBg · save-load.js 복원)는 .sec-bg-empty 를 켜 왔는데 ★이 규칙이
@@ -2242,8 +2242,8 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
    ⚠️그래서 캡처 클론의 «인라인으로 지우기»(neutralizeEmptyImageCheckerForCapture)는 이걸 못 이긴다 —
      클론에서 «클래스를 뗀다»(capture-safety.js stripEditorOnlyForCapture · export-html.js 는 원래 뗀다). */
 .section-block.sec-bg-empty {
-  background-image: repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) !important;
-  background-size: 72px 72px !important;
+  background-image: repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) !important;
+  background-size: var(--goya-checker-big-size) var(--goya-checker-big-size) !important;
   background-position: 0 0 !important;
   background-repeat: repeat !important;
 }
@@ -2365,7 +2365,7 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
      (CSS 가 안 실리므로 그것만으로 이미 충분하지만, «의도»를 코드에 남겨 다음 사람이
       인라인으로 되돌리지 않게 한다.) */
 .canvas-block .cvb-img-empty {
-  background: repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+  background: repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) 0 0 / var(--goya-checker-big-size) var(--goya-checker-big-size);
   display: flex; align-items: center; justify-content: center;
 }
 .canvas-block .cvb-img-empty::before {
@@ -2376,7 +2376,7 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 }
 /* 절대배치 레이어의 빈 이미지 — 체커«만». '+' 안내문은 클릭 배선이 없어 안 붙인다. */
 .canvas-block .cvb-img-empty-plain {
-  background: repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+  background: repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) 0 0 / var(--goya-checker-big-size) var(--goya-checker-big-size);
 }
 /* 카드 제목/설명은 클릭 가능해야 더블클릭 인라인 편집(_bindCvbDblEdit)이 동작한다.
    cvb-inner의 pointer-events:none를 텍스트에서만 되살림 (나머지는 카드 본체로 통과).
@@ -2693,7 +2693,7 @@ textarea.cvb-card-input {
        `.zoom-block.has-image .zoom-bg { background-image: none; }` 를 여기에 더해라. */
 .zoom-block .zoom-bg {
   background:
-    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+    repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) 0 0 / var(--goya-checker-big-size) var(--goya-checker-big-size);
   /* ★이미지를 «도형 모양»으로 자르는 자리 — 블록이 아니라 «여기»가 자른다.
      블록은 그림자가 나가야 해서 안 자른다(자르면 그림자까지 잘린다). */
   overflow: hidden;

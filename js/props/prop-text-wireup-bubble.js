@@ -3,7 +3,7 @@
  */
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 
-export function wireBubbleSection({ tb, ctx, currentBubbleStyle }) {
+export function wireBubbleSection({ tb, ctx }) {
   // 말꼬리 방향 — contentEl은 ctx 통해 동적 조회 (R1: type 토글 후 교체 대비)
   const _applyBubbleBg = (hex) => {
     ctx.contentEl.style.backgroundColor = hex;
@@ -12,25 +12,15 @@ export function wireBubbleSection({ tb, ctx, currentBubbleStyle }) {
     window.triggerAutoSave?.();
   };
 
-  // 말풍선 스타일 드롭다운
+  /* 말풍선 스타일 드롭다운 — BT3: 모습(배경·글자색)은 block-factory.js applySpeechBubbleStyle 한 곳이 쓴다(MCP 와 같은 길).
+     ⛔패널을 «열 때» 적용하지 않는다 — 옛 판은 열 때마다 다시 칠했는데, 이제 칠하면 손으로 바꾼 배경색이 지워진다.
+     바꾼 뒤엔 패널을 다시 그린다 — 배경색 칸·글자색 칸이 «새 값»을 보이게. */
   document.getElementById('bubble-style-select')?.addEventListener('change', e => {
     window.pushHistory?.();
-    const style = e.target.value;
-    tb.dataset.bubbleStyle = style;
-    _applyBubbleStyle(style);
+    window.applySpeechBubbleStyle?.(tb, e.target.value);
     window.triggerAutoSave?.();
+    window.showTextProperties?.(tb);
   });
-
-  const _applyBubbleStyle = (style) => {
-    const bubbleEl = tb.querySelector('.tb-bubble');
-    if (!bubbleEl) return;
-    if (style === 'apple') {
-      bubbleEl.dataset.bubbleStyle = 'apple';
-    } else {
-      delete bubbleEl.dataset.bubbleStyle;
-    }
-  };
-  _applyBubbleStyle(currentBubbleStyle);
 
   // 말꼬리 방향
   const _setTail = (dir) => {
@@ -79,18 +69,7 @@ export function wireBubbleSection({ tb, ctx, currentBubbleStyle }) {
     tb.dataset.showSender = show ? 'true' : 'false';
     const senderEl = tb.querySelector('.tb-sender-name');
     if (senderEl) senderEl.style.display = show ? '' : 'none';
-    const nameRow = document.getElementById('bubble-sender-name-row');
-    if (nameRow) nameRow.style.display = show ? 'flex' : 'none';
     window.triggerAutoSave?.();
   });
-
-  // 발신자 이름 텍스트 입력
-  document.getElementById('bubble-sender-name-input')?.addEventListener('input', e => {
-    const name = e.target.value;
-    tb.dataset.senderName = name;
-    const senderEl = tb.querySelector('.tb-sender-name');
-    if (senderEl) senderEl.textContent = name || 'Your name';
-    window.triggerAutoSave?.();
-  });
-  document.getElementById('bubble-sender-name-input')?.addEventListener('change', () => window.pushHistory?.());
+  /* BT1 — 발신자 «이름 입력칸»은 패널에서 뺐다. 이름은 캔버스 이름표를 더블클릭해 고친다(js/block-drag.js bindBlock 말풍선 갈래). */
 }
