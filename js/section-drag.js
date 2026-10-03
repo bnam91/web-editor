@@ -312,11 +312,13 @@ function bindSectionDropZone(sec) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     if (_innerDragRafId) return;
-    const clientY = e.clientY;
+    const clientY = e.clientY, clientX = e.clientX;
     _innerDragRafId = requestAnimationFrame(() => {
       _innerDragRafId = null;
       if (!dragState.dragSrc) return;
       clearDropIndicators();
+      /* G19 — 그리드 «밑» 자리(사각형 판정)면 표시선을 그 그릇 안에 그렸다(js/grid-children.js). */
+      if (window.gridChildDragOver?.(inner, clientX, clientY, dragState.dragSrc)) return;
       const after = getDragAfterElement(inner, clientY);
       const indicator = document.createElement('div');
       indicator.className = 'drop-indicator';
@@ -336,6 +338,8 @@ function bindSectionDropZone(sec) {
     e.preventDefault();
     if (_innerDragRafId) { cancelAnimationFrame(_innerDragRafId); _innerDragRafId = null; }
     if (!dragState.dragSrc) return;
+    /* G19 — 그리드 «밑» 자리면 그 그리드의 자식으로 넣는다. 아니면 임시 띠만 걷고 종전 그대로(js/grid-children.js). */
+    if (window.gridChildDrop?.(e, inner, dragState.dragSrc)) { dragState.dragSrc = null; return; }
     /* G9 — 글자 블럭을 «그리드 칸» 위에 놓았으면 칸의 한 줄로 받는다(prop-grid.js grdDropTextBlockOnCell — 거짓이면 종전 그대로). */
     if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc)) {
       clearDropIndicators();
@@ -343,9 +347,11 @@ function bindSectionDropZone(sec) {
       return;
     }
     window.pushHistory();
+    const _fromKids = dragState.dragSrc.parentElement;   // G19 — 그리드 밑 그릇에서 끌어냈으면 비었을 때 걷는다
     const indicator = inner.querySelector('.drop-indicator');
     if (indicator && indicator.parentElement) indicator.parentElement.insertBefore(dragState.dragSrc, indicator);
     else inner.appendChild(dragState.dragSrc);
+    window.pruneGridKidsBox?.(_fromKids);
     window.syncAutoGridWidth?.(dragState.dragSrc);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
     clearDropIndicators();
     window.buildLayerPanel();

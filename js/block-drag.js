@@ -383,6 +383,13 @@ function bindPlacementDrag(unitEl, block) {
     // 복수선택 의도(Cmd/Shift/Ctrl + 클릭) 중에는 네이티브 HTML5 드래그를 억제 → 클릭 기반 다중선택이 이기게 한다.
     // (bare draggable 플로우 블록 — 예: 복사된 버블처럼 본체에 draggable=true가 붙은 경우 — 미세이동만으로
     //  dragstart가 발화해 modifier+클릭 선택을 가로채던 버그. 모든 블록/프레임 타입에 균일 적용.)
+    /* ★G19 — 그리드 «밑» 자식 행(.grd-children 안 .row)은 그리드 행 «안»에 있다. dragstart 가 버블돼 바깥(그리드 행)
+       처리기가 dragSrc 를 덮어쓰면 자식이 아니라 그리드 통째가 끌린다(실측: 자식 끌기 → dragSrc=그리드 행).
+       ⇒ 끌기를 «시작한 단위»가 나보다 안쪽의 다른 단위면 그 단위의 것이다 — 손대지 않는다. */
+    if (e.target !== unitEl && e.target?.closest) {
+      const _own = e.target.closest('[draggable="true"]');
+      if (_own && _own !== unitEl && unitEl.contains(_own) && _own._html5DragBound) return;
+    }
     if (e.metaKey || e.shiftKey || e.ctrlKey) { e.preventDefault(); return; }
     if (block.style.position === 'absolute' || unitEl.style.position === 'absolute') { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용 (flow→absolute 전환 후 예외 처리)
     if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
@@ -2076,6 +2083,12 @@ function bindBlock(block) {
     if (!flag) continue;
     block.addEventListener('click', e => {
       e.stopPropagation();
+      /* ★G19 — 그리드 «밑» 자식 블럭(.grd-children 안)을 누른 클릭은 «그 블럭의 것»이다. 자식 처리기가 이미 골랐다 —
+         여기서 그리드를 다시 고르면 방금 고른 자식이 풀린다. 그릇 자체(자식 사이 빈 곳)를 누른 것만 그리드 클릭이다. */
+      if (showFn === 'showGridProperties') {
+        const _kb = e.target && e.target.closest ? e.target.closest('.grd-children') : null;
+        if (_kb && _kb.parentElement === block && e.target !== _kb) return;
+      }
       /* 인라인 편집 중이면 선택/패널 재생성을 하지 않는다 — 캐럿 이동·글자 선택이 우선
          (텍스트/아이콘텍스트 블록과 같은 규약. .editing 은 grid 만 붙으므로 infocard/innercard 무영향)
          ★단 «클래스만» 보고 믿지 않는다 — 포커스된 요소가 DOM 에서 제거되면 Chromium 은 blur 를
@@ -2588,12 +2601,14 @@ function bindFrameDropZone(ss) {
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
     if (_rafId) return;
-    const clientY = e.clientY;
+    const clientY = e.clientY, clientX = e.clientX;
     _rafId = requestAnimationFrame(() => {
       _rafId = null;
       if (!dragState.dragSrc) return;
       clearDropIndicators();
       ss.classList.add('ss-drag-over');
+      /* G19 — 그리드 «밑» 자리(사각형 판정)면 표시선을 그 그릇 안에 그렸다(js/grid-children.js). */
+      if (window.gridChildDragOver?.(inner, clientX, clientY, dragState.dragSrc)) return;
       const after = getDragAfterElement(inner, clientY);
       const indicator = document.createElement('div');
       indicator.className = 'drop-indicator';
@@ -2617,9 +2632,12 @@ function bindFrameDropZone(ss) {
     ss.classList.remove('ss-drag-over');
     if (!dragState.dragSrc) return;
     if (isShapeFrame()) return; // shape frame drop 차단
+    /* G19 — 그리드 «밑» 자리면 그 그리드의 자식으로 넣는다. 아니면 임시 띠만 걷고 종전 그대로(js/grid-children.js). */
+    if (window.gridChildDrop?.(e, inner, dragState.dragSrc)) { dragState.dragSrc = null; return; }
     /* G9 — 글자 블럭을 «그리드 칸» 위에 놓았으면 칸의 한 줄로 받는다(prop-grid.js grdDropTextBlockOnCell — 거짓이면 종전 그대로). */
     if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc)) { clearDropIndicators(); dragState.dragSrc = null; return; }
     window.pushHistory();
+    const _fromKids = dragState.dragSrc.parentElement;   // G19 — 그리드 밑 그릇에서 끌어냈으면 비었을 때 걷는다(아래 끝에서)
 
     // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
     const isFreeLayout = ss.dataset.freeLayout === 'true';
@@ -2788,6 +2806,7 @@ function bindFrameDropZone(ss) {
     }
 
     window.syncAutoGridWidth?.(inner);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — 흐름 프레임으로 들어오면 100%, 자유 프레임이면 이 프레임 기준
+    window.pruneGridKidsBox?.(_fromKids);   // G19 — 비었을 때만 걷는다
     // dragging 클래스 고착 방지
     dragState.dragSrc?.classList.remove('dragging', 'section-dragging', 'layer-dragging');
     clearDropIndicators();

@@ -687,8 +687,10 @@ if (typeof window !== 'undefined') window.grdAddLine = grdAddLine;
  * ★쓰는 길은 grdAddLine(상한·활성줄·거절 시 원복 한 벌). 넣기가 «성공했을 때만» 원본 블럭을 지운다 —
  *   실패하면 블럭이 제자리로 돌아온다(데이터가 어디에도 없는 상태 금지). 이력은 한 칸(아래 «한 동기 구간») — ⌘Z 한 번이 원위치.
  * @returns {boolean} 먹었으면 true */
-export function grdDropTextBlockOnCell(e, src) {
-  if (!src || !e) return false;
+/** G9 이 «받는» 글자 블럭인가 — 받으면 { tb, inner, m }, 아니면 null. 놓기(drop)와 끄는 중 표시(dragover — js/grid-children.js)가
+ *  «같은 판정 한 벌»을 쓴다(두 벌이면 «표시는 칸인데 놓으면 행 이동»이 다시 생긴다 — C5 이전의 표시선 거짓말이 그 꼴이었다). */
+export function grdTextDropSource(src) {
+  if (!src) return null;
   let tb = null;
   if (src.classList?.contains('text-block')) tb = src;
   else if (src.classList?.contains('row')) {
@@ -704,11 +706,39 @@ export function grdDropTextBlockOnCell(e, src) {
   const kids = [...tb.children].filter(k => !k.classList.contains('tb-rotate-zone'));   // 선택 때 붙는 회전 영역은 UI
   const inner = kids.length === 1 ? kids[0] : null;
   const m = inner && /^tb-(h1|h2|h3|body|caption|label)$/.exec(inner.className.replace(/\s+/g, ' ').trim().split(' ')[0] || '');
-  if (!inner || !m || inner.querySelector('ul,ol,img,svg,input,table')) return false;
-  const at = document.elementFromPoint(e.clientX, e.clientY);
-  const cellEl = at && at.closest ? at.closest('.grd-cell[data-r][data-c]') : null;
+  if (!inner || !m || inner.querySelector('ul,ol,img,svg,input,table')) return null;
+  return { tb, inner, m };
+}
+if (typeof window !== 'undefined') window.grdTextDropSource = grdTextDropSource;
+
+/** 포인터 아래 «칸» — 사각형으로 가른다(js/grid-children.js gridDropZoneAt 의 «격자 자리» + 칸 사각형 안).
+ *  ⛔elementFromPoint 금지: 선택 안 된 프레임 안에서는 `.frame-block:not(.selected) *{pointer-events:none}` 때문에
+ *    프레임 자신이 잡혀 G9 가 죽었다(측정 M3 E 3/3). 칸 «사이»(열 간격)는 칸이 아니다 — 종전과 같다(행 이동).
+ *  @param container 드롭 처리기의 그릇(e.currentTarget — .section-inner 또는 프레임) */
+export function grdCellAtPoint(container, x, y, src) {
+  const hit = window.gridDropZoneAt?.(container, x, y, src);
+  if (!hit || hit.zone !== 'inner') return null;
+  const gi = hit.grid.querySelector(':scope > .grd-inner');
+  if (!gi) return null;
+  for (const c of gi.querySelectorAll(':scope > .grd-cell[data-r][data-c]')) {
+    const r = c.getBoundingClientRect();
+    if (r.width && r.height && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return c;
+  }
+  return null;
+}
+if (typeof window !== 'undefined') window.grdCellAtPoint = grdCellAtPoint;
+
+export function grdDropTextBlockOnCell(e, src) {
+  if (!src || !e) return false;
+  const _acc = grdTextDropSource(src);
+  if (!_acc) return false;
+  const { tb, inner, m } = _acc;
+  /* ★C5 — 칸 판정을 사각형으로(위 grdCellAtPoint). 그릇은 이 처리기가 걸린 요소(e.currentTarget). */
+  const cellEl = grdCellAtPoint(e.currentTarget, e.clientX, e.clientY, src);
   const block = cellEl && cellEl.closest('.grid-block');
-  if (!block || block.contains(tb) || tb.contains(block)) return false;
+  /* ★G19 — «격자 안»(:scope > .grd-inner)에 든 글자만 막는다. 그리드 «밑» 자식(.grd-children) 글자는 같은 그리드 칸에 넣을 수 있다. */
+  const _gInner = block && block.querySelector(':scope > .grd-inner');
+  if (!block || (_gInner && _gInner.contains(tb)) || tb.contains(block)) return false;
   const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
   if (!Number.isInteger(r) || !Number.isInteger(c)) return false;
   const norm = (t) => String(t == null ? '' : t).replace(/\r\n?/g, '\n').replace(/\u200b/g, '').replace(/\n+$/, '');
@@ -1794,6 +1824,48 @@ function _gapRowHtml(cols, rows, colGap, rowGap) {
   return html + `<div class="prop-hint">행/열 사이 간격(px)</div>`;
 }
 
+/* ── G19 「블럭 간격」 — 그리드 «밑» 자식 블럭이 하나라도 있을 때만 (죽은 조절칸은 숨긴다 — 위 _gapRowHtml 과 같은 술어) ──
+ * 값 하나가 «격자↔첫 자식»과 «자식↔자식»을 같이 정한다(.grd-inner 를 스택의 0번 항목으로 본다).
+ * ★키 = data-child-gap · 기본·범위는 js/grid-children.js 한 곳(window 로 읽는다 — 이 파일은 그 모듈을 import 하지 않는다:
+ *   Node 시험이 이 파일을 tmp 로 복사해 import 줄을 바꿔 끼우므로 새 import 한 줄이 그 시험들을 깨뜨린다).
+ * ⛔rowGap 재사용 금지(1행 기본이라 숨어 있고 −50 까지라 자식이 칸과 겹친다 — 측정 M3 ④). */
+function _childGapRowHtml(block) {
+  const kids = window.gridKids?.(block) || [];
+  if (!kids.length) return '';
+  const v = window.gridChildGap?.(block) ?? 24;
+  const lo = window.GRID_CHILD_GAP_MIN ?? 0, hi = window.GRID_CHILD_GAP_MAX ?? 80, st = window.GRID_CHILD_GAP_STEP ?? 2;
+  return `
+      <div class="prop-row">
+        <span class="prop-label">블럭 간격</span>
+        <input type="range" class="prop-slider" id="grd-child-gap-slider" min="${lo}" max="${hi}" step="${st}" value="${v}">
+        <input type="number" class="prop-number" id="grd-child-gap-number" min="${lo}" max="${hi}" step="${st}" value="${v}">
+      </div>
+      <div class="prop-hint">격자와 아래 블럭 사이·블럭끼리 간격(px)</div>`;
+}
+
+/* ── G19 「＋ 블럭 넣기 ▾」 — 그리드 «밑»에 블럭을 쌓는다(블럭 선택 + T/G/K 는 지금처럼 «뒤 형제»: insert-anchor G3).
+ * ★꼴은 같은 패널의 「＋ 줄 추가 ▾」(_grdAddKindSelectHtml)와 같다 — prop-select 하나, 머리 옵션은 값 없음.
+ * ★«블럭 단위 선택»(칸/줄을 아직 안 고른 상태 — 첫 클릭 · _anyHit 없음)에서만 뜬다. 칸/줄을 고른 상태의 패널은 «그 칸» 손잡이 자리다.
+ *   ⛔조건에 _nestHit 을 섞지 마라 — grid-nested-line-select A3-양성2 가 「줄 없음 vs 중첩 줄」 손잡이 차이를 재는데, 섞으면 이 select 하나가 그 차이(−1)로 샌다(실측).
+ *   ⚠️이건 판단이다 — 측정 근거: 그 상태(4×4 줄 선택)의 패널 순증이 기준선에서 이미 +60(합격선 60, G2 ⑴)이라
+ *     한 줄(+35px)이 들어갈 자리가 0 이다. 펴 둔 채로 넣으려면 G2 골든 «재촬영»(별도 커밋) 판단이 먼저다.
+ *   ⇒ 숨긴 자리(줄 선택 상태)는 G2 가 재고, 뜨는 자리(블럭 선택 상태)는 tests/dom/grid-children.dom.spec.js K13 이
+ *     «같은 패치에서» 따로 잰다(가로 넘침 0 · 한 줄).
+ * ⛔줄바 «위»(Layout)에 두지 않는다 — tests/dom/grid-cell-panel-handles G2 ⑵(줄바가 더 밀리면 안 된다). */
+const _GRD_KID_KINDS = [['body', '텍스트'], ['h2', '제목'], ['image', '이미지'], ['gap', '여백']];
+function _grdKidsAddSectionHtml() {
+  return `
+    <div class="prop-section" id="grd-kids-section" style="padding-bottom:4px;">
+      <div class="prop-row" style="align-items:center;gap:6px;">
+        <select class="prop-select" id="grd-kid-add-kind" style="flex:1 1 0;min-width:0;width:auto;"
+                title="그리드 «밑»에 블럭을 넣는다 — 그리드가 그만큼 늘어난다">
+          <option value="">＋ 블럭 넣기 (그리드 밑)…</option>
+          ${_GRD_KID_KINDS.map(([k, ko]) => `<option value="${k}">+ ${ko}</option>`).join('')}
+        </select>
+      </div>
+    </div>`;
+}
+
 /* ── 칸 «테두리» UI — T-172 ────────────────────────────────────────────────
  * ★★왜 「칸 꾸미기」 절이 아니라 여기(Layout)인가.
  *   「칸 꾸미기」 절은 자기 입으로 «이 칸에만 적용된다»고 말한다(그 절의 힌트 원문).
@@ -2671,6 +2743,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
       ${_ratioRowHtml(cols)}
       ${_rowHeightHtml(rows)}
       ${_gapRowHtml(cols, rows, _colGap, _rowGap)}
+      ${_childGapRowHtml(block)}
       <div class="prop-row">
         <span class="prop-label">가로 정렬</span>
         <div class="prop-align-group" id="grd-halign-group">
@@ -2692,6 +2765,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
     </div>
     ${_grdNestHintHtml(_nestHit)}
     ${_grdLineBarHtml(_anyHit, block)}
+    ${_anyHit ? '' : _grdKidsAddSectionHtml()}
     ${_borderSectionHtml(_cellBorder)}
     ${_grdOutlineSectionHtml(block)}
     ${_grdRuleSectionHtml(block)}
@@ -2881,6 +2955,23 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
       window._grdSyncLineMark?.(block, grdGetActiveLine(block));
     }, { min: GRID_ROW_GAP_MIN, max: GRID_GAP_MAX });   // ★행만 음수(겹치기) — GRID_ROW_GAP_MIN 주석(grid-block.js)
   }
+  /* G19 「블럭 간격」 — 그릇 겉모습만 바꾼다(그리드 재렌더 불필요). 이력은 bindSlider 규약 그대로. */
+  const kidGapSlider = document.getElementById('grd-child-gap-slider');
+  const kidGapNumber = document.getElementById('grd-child-gap-number');
+  if (kidGapSlider && kidGapNumber) {
+    bindSlider(kidGapSlider, kidGapNumber, (v) => {
+      block.dataset.childGap = String(v);
+      window.applyGridChildGap?.(block);
+    }, { min: window.GRID_CHILD_GAP_MIN ?? 0, max: window.GRID_CHILD_GAP_MAX ?? 80 });
+  }
+  /* G19 「＋ 블럭 넣기 ▾」 — 고르면 바로 넣고 머리로 되돌린다(「＋ 줄 추가 ▾」와 같은 꼴). */
+  const kidAdd = document.getElementById('grd-kid-add-kind');
+  kidAdd?.addEventListener('change', () => {
+    const kind = kidAdd.value;
+    kidAdd.value = '';
+    if (!kind) return;
+    window.addGridChild?.(block, kind);
+  });
 
   /* ── 칸 테두리 «셋» — T-172 ─────────────────────────────────────────────
    * ★굵기는 갭 슬라이더와 «같은 길»이다: dataset 직접 쓰기 + renderGridBlock.

@@ -1754,6 +1754,16 @@ function _calcFreeLayoutStackY(inner) {
 
 /* sub-section이 활성화된 경우 블록 삽입 — freeLayout(B모드) / fullWidth(플로우) 분기 */
 function _insertToFlowFrame(makeBlockFn, opts = {}) {
+  /* ★G19 — opts.into: 넣을 «그릇»을 부르는 쪽이 직접 준다(그리드 밑 .grd-children). 함수로 받는다 —
+     그릇은 «넣기 직전»(pushHistory 뒤)에 만들어야 시작 표본에 빈 그릇이 안 찍힌다. 그릇은 흐름이라 A 모드만 탄다.
+     ⛔새 길을 만들지 않는다 — 아래 A 모드(선택된 자식 뒤 / 끝에 붙이기 · bindBlock · 레이어) 그대로다. */
+  const _into = typeof opts.into === 'function' ? opts.into : null;
+  if (_into) {
+    window.pushHistory();
+    const result = makeBlockFn();
+    if (!result) { window.buildLayerPanel(); return true; }
+    return _appendFlowChild(_into(), result);
+  }
   // ★도형 래퍼가 활성이어도 그 «안»에 넣지 않는다 — 한 단계 위 실제 프레임(없으면 섹션 레벨 폴백)
   const ss = resolveInsertFrame(window._activeFrame);
   if (!ss) return false;
@@ -1803,6 +1813,11 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
   window.pushHistory();
   const result = makeBlockFn();
   if (!result) { window.buildLayerPanel(); return true; }
+  return _appendFlowChild(ss, result);
+}
+
+/* 흐름 그릇(fullWidth 프레임 · G19 그리드 .grd-children)에 makeBlockFn 의 결과를 붙인다 — A 모드 «한 벌». */
+function _appendFlowChild(ss, result) {
   // makeBlockFn이 { row, block } 또는 block(gap) 반환
   const newEl = result.row || result;
   const innerBlock = result.block || result;
@@ -1822,6 +1837,41 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
   window.buildLayerPanel();
   return true;
 }
+
+/* ═══ G19 「＋ 블럭 넣기 ▾」 — 그리드 «밑»(.grd-children)에 블럭 하나를 넣는다 ═══════════════
+ * ★넣는 길은 _insertToFlowFrame 그대로(opts.into 만 준다 — 새 길 금지). 그릇은 «넣기 직전»에 만든다.
+ * ★삽입 래퍼 둘(js/insert-history.js 끝 표본 · js/insert-select.js 새 블럭 선택)이 감싼다 — 로스터 EXTRA 한 줄
+ *   (이름이 …Block 이 아닌 까닭은 그 EXTRA 줄 주석). ⛔입구 안에서 끝 표본·선택을 따로 하지 않는다(js/CLAUDE.md).
+ * ★블럭 선택 + T/G/K 는 여전히 «그리드 뒤 형제»다(insert-anchor G3 계약 무변경) — 자식은 이 입구로만 넣는다.
+ * @param {string|Element} grid  그리드 블럭(또는 id)
+ * @param {'body'|'h2'|'image'|'gap'} kind */
+export const GRID_CHILD_KINDS = ['body', 'h2', 'image', 'gap'];
+function addGridChild(grid, kind = 'body') {
+  const g = typeof grid === 'string' ? document.getElementById(grid) : grid;
+  if (!g || !g.classList?.contains('grid-block') || !GRID_CHILD_KINDS.includes(kind)) return null;
+  let made = null;
+  _insertToFlowFrame(() => {
+    if (kind === 'gap') {
+      const gb = makeGapBlock();
+      gb.style.height = '40px'; gb.dataset.h = 40;
+      made = gb;
+      return gb;
+    }
+    if (kind === 'image') {
+      const r = makeAssetBlock();
+      made = r.block;
+      return r;
+    }
+    const { block } = makeTextBlock(kind);
+    const tf = _makeTextFrame();
+    applyTextOpts(block, tf, {}, kind);
+    tf.appendChild(block);
+    made = block;
+    return { row: tf, block };
+  }, { into: () => window.ensureGridKidsBox(g) });
+  return made ? { block: made } : null;
+}
+window.addGridChild = addGridChild;
 
 function addFrameBlock(opts = {}) {
   const sec = window.getSelectedSection();
