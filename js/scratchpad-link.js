@@ -27,6 +27,9 @@
 //     js/io/export-figma-json.js  0건 (⚠️dataset 을 «필드별»로 골라 읽어 안 실을 «수도» 있다 — 안 쟀다)
 //     .gdt (main/gdt/export.js)   0건 (project.json 을 그대로 담는다 ⇒ pages[].canvas 에 실린다)
 //     템플릿 저장(js/panels/template-system.js) 0건
+//       ↳ [SP1 2026-10-03] 템플릿은 이제 «삽입 때»·«등록 클론에서» SPLink.stripTokens 로 토큰을 벗긴다 — 현빈 확정
+//         「템플릿에서 새로 들어오는 건 스크래치 없이」. 리터럴 removeAttribute 가 아니라 이 파일의 ATTR 로 벗기므로
+//         아래 R1 명부(리터럴 strip 채널)는 그대로다. 라이브 섹션엔 안 부른다(원본 링크 보존).
 //       ↳ serializeCleanRoot 는 선택 마커·contenteditable 은 «다» 벗기지만 refLinks 는 «안» 벗긴다(실측).
 //   ⇒ 「템플릿·.gdt 가 배송인가 저장인가」는 «판단»이 필요해 안 고쳤다.
 //     티켓 = _context/BACKLOG-reflinks-strip-channels.md · 집행 = tests/unit/reflinks-strip-channels.test.js
@@ -923,7 +926,21 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(_boot, 200));
   else setTimeout(_boot, 200);
 
+  /* [SP1 템플릿 무링크] «분리된» 트리(템플릿 클론·삽입 직전 요소)에서 링크 토큰을 전부 벗긴다.
+     ⛔라이브 요소에 쓰지 마라 — 링크를 «지우는» 함수다(removeLink 와 달리 history·스크래치·sideEffects 무접촉).
+     ★속성 이름을 «여기서만» 안다(ATTR) — 호출자(template-system.js)는 문자열을 적지 않는다.
+     루트 자신 + 모든 자손(섹션 루트가 아니라 블록·프레임 템플릿도 토큰을 실을 수 있다). 지운 개수를 돌려준다. */
+  const _ATTR_KEBAB = 'data-' + ATTR.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase());
+  function stripTokens(root) {
+    if (!root || !root.querySelectorAll) return 0;
+    let n = 0;
+    if (root.dataset && root.dataset[ATTR] !== undefined) { delete root.dataset[ATTR]; n++; }
+    root.querySelectorAll('[' + _ATTR_KEBAB + ']').forEach((el) => { delete el.dataset[ATTR]; n++; });
+    return n;
+  }
+
   window.SPLink = {
+    stripTokens,
     linksForSection, sectionIdOf, isLinked, linkedScratchIds, allLinks,
     addLink, removeLink, setCollapsed, setCollapsedAll, setShowEdges,
     startLinkMode, endLinkMode,
