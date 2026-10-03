@@ -2638,14 +2638,14 @@ window.getBubbleTailSVG = getBubbleTailSVG;
      CSS 규칙으로는 한 번이라도 배경을 만진 블럭에서 다시 「적용 안 됨」이 된다 ⑵내보내기(export-html.js)는 자기 CSS 를
      따로 들고 있어 새 규칙을 못 본다 — 인라인은 그대로 실린다 ⑶옛 문서에 남은 bubbleStyle 값이 «열 때» 모습을 바꾸지 않는다.
    스타일은 «출발점»이다 — 고른 뒤 배경색 칸으로 바꾸면 그 색이 이긴다. 'default' = 인라인을 지워 CSS 기본으로.
-   ⚠️apple 의 모습은 원 커밋이 정의하지 않았다 — 지금 값(초록 #34c759 · 흰 글자)은 이 레인의 «임시 결정»이다. */
+   apple 의 모습은 원 커밋이 정의하지 않았다 — 레인이 고른 초록 #34c759 · 흰 글자를 2026-10-04 현빈이 「애플 메시지 녹색」으로 확정. */
 const _sbToken = (name, fb) => {
   try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb; } catch (_) { return fb; }
 };
 const SPEECH_BUBBLE_STYLES = {
   default:  () => null,
   imessage: () => ({ bg: _sbToken('--preset-chat-bg-right', '#1888fe'), color: _sbToken('--preset-chat-text-right', '#ffffff') }),
-  // ⚠️임시 — 2026-10-04 레인 선택. ⛔현빈 미확인. 904c5027 「Apple은 추후 정의」의 빈칸 — 0.9.6 릴리스 게이트 「Apple 색 현빈 확인」
+  // 2026-10-04 현빈 확정 「애플 메시지 녹색」 — 904c5027 「Apple은 추후 정의」의 빈칸을 채움(RG1 닫힘)
   apple:    () => ({ bg: '#34c759', color: '#ffffff' }),
 };
 function applySpeechBubbleStyle(block, style) {
