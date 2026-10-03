@@ -1606,11 +1606,8 @@
   </div>
   <!-- ★원형 이미지 줄 (현빈 2026-10-01) — 「이미지 추가」와 같은 판정(_targetGridAddr)으로 보인다. 늘 «새 줄»을 넣는다. -->
   <div class="bcm-item" id="bcm-grid-img-circle" style="display:none;">
-    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="7" cy="7" r="5.5"/>
-      <circle cx="5.5" cy="5.5" r="0.9"/>
-      <path d="M11.8 9.2L9.5 7.2 4.6 11.4"/>
-    </svg>
+    <!-- 그림은 js/blocks/grid-circle-icon.js 한 벌 — block-factory.js 가 부팅 때 이 svg 안을 채운다(사본 없음) -->
+    <svg id="bcm-grid-img-circle-icon" width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></svg>
     <span id="bcm-grid-img-circle-label">원형 이미지 추가</span>
   </div>
   <div class="bcm-item" id="bcm-grid-img-del" style="display:none;">
