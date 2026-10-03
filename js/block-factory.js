@@ -4,6 +4,8 @@ import {
   showNoSelectionHint,
   showToast,
   insertAfterSelected,
+  insertAfterSelectedAsSibling,
+  frameSelectedAsObject,
   getSectionAlign,
   makeLabelItem,
   renderGraph,
@@ -453,6 +455,10 @@ function addTextBlock(type, opts = {}) {
   // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
   const activeSS = resolveInsertFrame(window._activeFrame);
   if (activeSS && !activeSS.dataset.bannerPreset) {
+    /* ★아무것도 안 넣는 «지원하지 않는 프레임 타입»(자유배치도 fullWidth 도 아님)은 pushHistory «전»에 빠진다 —
+       옛 판은 찍고 나서 return 해, 라이브 변경이 찍히지 않은 채였다면 화면이 안 바뀌는 ⌘Z 한 칸(먹통)이 남았다.
+       아래 분기 조건과 «같은 식» — 두 벌로 갈리면 이 가드가 거짓이 된다. */
+    if (activeSS.dataset.freeLayout !== 'true' && activeSS.dataset.fullWidth !== 'true') return;
     window.pushHistory();
     const { block } = makeTextBlock(type);
     const tf = _makeTextFrame();
@@ -575,6 +581,10 @@ function addBlankTextBlock(type = 'body', opts = {}) {
   // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
   const activeSS = resolveInsertFrame(window._activeFrame);
   if (activeSS && !activeSS.dataset.bannerPreset) {
+    /* ★아무것도 안 넣는 «지원하지 않는 프레임 타입»(자유배치도 fullWidth 도 아님)은 pushHistory «전»에 빠진다 —
+       옛 판은 찍고 나서 return 해, 라이브 변경이 찍히지 않은 채였다면 화면이 안 바뀌는 ⌘Z 한 칸(먹통)이 남았다.
+       아래 분기 조건과 «같은 식» — 두 벌로 갈리면 이 가드가 거짓이 된다. */
+    if (activeSS.dataset.freeLayout !== 'true' && activeSS.dataset.fullWidth !== 'true') return null;
     window.pushHistory();
     const { block } = makeTextBlock(type, { blank: true });
     const tf = _makeTextFrame();
@@ -914,7 +924,9 @@ function addAssetBlock(preset, opts = {}) {
   window.selectSection(sec);
 }
 
-function addGapBlock(height) {
+/* opts.asSibling — 키보드 입구(g)만 켠다. 패널 갭 단추는 인자 없이 불러 09-23 「안에 넣는다」 그대로다.
+ *   켜면: 프레임을 «오브젝트로» 골라 둔 상태(frameSelectedAsObject)일 때 프레임 안 분기를 건너뛰고 «다음 형제»로 간다(F1). */
+function addGapBlock(height, opts = {}) {
   // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
   const overlay = getSelectedOverlay();
   if (overlay) {
@@ -926,19 +938,20 @@ function addGapBlock(height) {
     window.buildLayerPanel();
     return;
   }
+  const pickedFrame = opts.asSibling ? frameSelectedAsObject(null) : null;
   // fullWidth 플로우 프레임에만 추가 — 자유배치(freeLayout) 프레임은 스킵 후 섹션 레벨로
-  if (resolveInsertFrame(window._activeFrame)?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
+  if (!pickedFrame && resolveInsertFrame(window._activeFrame)?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
     const gb = makeGapBlock();
     if (height) gb.style.height = height + 'px';
     gb.dataset.h = height || 40;
     return gb;
   })) return;
-  const sec = window.getSelectedSection();
+  const sec = pickedFrame ? pickedFrame.closest('.section-block') : window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const gb = makeGapBlock();
   if (height) gb.style.height = height + 'px';
-  insertAfterSelected(sec, gb);
+  (opts.asSibling ? insertAfterSelectedAsSibling : insertAfterSelected)(sec, gb);
   bindBlock(gb);
   window.buildLayerPanel();
   window.selectSection(sec);
