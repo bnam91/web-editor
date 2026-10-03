@@ -72,3 +72,17 @@ test('M3 tools/list — 두 도구의 barThickness 설명이 «8~60»', async ()
   for (const t of tools) assert.match(t.inputSchema.properties.barThickness.description, new RegExp(`${LIM.BAR_THICKNESS_MIN}~${LIM.BAR_THICKNESS_MAX}`));
   assert.match(tools[0].inputSchema.properties.barThickness.description, /~60/);
 });
+
+/* 배포판 안전 — main 이 require 하는 js/graph-limits.js 가 패키지(build.files)에서 빠지면 MCP 기동에서 죽는다.
+ * electron-builder files 는 «패턴 목록»: '**\/*' 로 넣고 '!pattern' 으로 뺀다. 이 파일이 «뺀 패턴»에 걸리지 않아야 한다. */
+test('M4 패키징 — build.files 가 js/graph-limits.js 를 «포함»하고 어떤 제외 패턴에도 안 걸린다', () => {
+  const files = require('../../package.json').build.files;
+  assert.ok(files.includes('**/*'), '전부 포함 패턴이 사라졌다 — 아래 제외 판정이 의미를 잃는다');
+  const rel = 'js/graph-limits.js';
+  const hit = files.filter(f => f.startsWith('!')).map(f => f.slice(1)).filter(g => {
+    const base = g.replace(/^\*\*\//, '').replace(/\/\*\*$/, '').replace(/\/$/, '');
+    return rel === base || rel.startsWith(base + '/') || (g.startsWith('*') && rel.endsWith(g.replace(/^\*+/, '')));
+  });
+  assert.deepEqual(hit, [], '제외 패턴에 걸린다: ' + hit.join(','));
+  assert.ok(require('fs').existsSync(require('path').join(__dirname, '..', '..', rel)));
+});

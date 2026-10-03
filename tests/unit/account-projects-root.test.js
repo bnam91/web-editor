@@ -296,6 +296,9 @@ function loadMcpServerInTmpRepo(env = {}) {
   const dst = path.join(repo, 'main', 'claude-pm');
   fs.mkdirSync(path.dirname(dst), { recursive: true });
   fs.cpSync(path.join(__dirname, '..', '..', 'main', 'claude-pm'), dst, { recursive: true });
+  /* mcp-server.js 는 '../../js/graph-limits.js'(막대 두께 한계, 렌더러와 공유)를 require 한다 — 복사본 옆에도 «같은 상대 자리»에 둔다 */
+  fs.mkdirSync(path.join(repo, 'js'), { recursive: true });
+  fs.copyFileSync(path.join(__dirname, '..', '..', 'js', 'graph-limits.js'), path.join(repo, 'js', 'graph-limits.js'));
   const p = path.join(dst, 'mcp-server.js');
   delete require.cache[p];
   const saved = {};
