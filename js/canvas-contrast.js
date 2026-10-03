@@ -143,6 +143,22 @@ export function applyCanvasBackground(css) {
 function _cs(el) {
   try { return (typeof getComputedStyle === 'function' && el && el.isConnected) ? getComputedStyle(el) : null; } catch (_) { return null; }
 }
+/** 그리드 블럭 배경 층(.grd-bg, 직계) — 없으면 null · 이미지면 false(못 잼) · 있으면 {rgb, a}(색 알파 × 층 불투명도).
+ *  ⛔dataset 을 읽지 않는다 — 렌더된 층의 «계산된» 값을 본다(이 파일의 원칙: computed 로 합성). */
+function _gridBgLayer(e) {
+  if (!e.classList || !e.classList.contains('grid-block')) return null;
+  let layer = null;
+  for (const ch of e.children) if (ch.classList && ch.classList.contains('grd-bg')) { layer = ch; break; }
+  if (!layer) return null;
+  const cs = _cs(layer);
+  if (!cs) return null;
+  if (cs.backgroundImage && cs.backgroundImage !== 'none') return false;
+  const c = _parseWithAlpha(cs.backgroundColor);
+  if (!c) return false;
+  const op = parseFloat(cs.opacity);
+  const a = c.a * (Number.isFinite(op) ? op : 1);
+  return a > 0 ? { rgb: c.rgb, a } : null;
+}
 /** el(자신 포함)부터 섹션까지의 «불투명 배경» RGB. 못 재면 null. ownBg 는 el 자신의 배경 «문자열»(아직 DOM 에 없을 때). */
 export function backdropRgbAt(el, ownBg) {
   const layers = [];
@@ -161,6 +177,11 @@ export function backdropRgbAt(el, ownBg) {
       if (!cs) return null;                         // 떼어진 노드 = 못 쟀다
       /* ⚠️한계(적대QA 2026-10-03, 고치지 않음 — 지디 판정 E4 별건): ::before 로 그리는 반투명 배경(.frame-block.has-bg-opacity)은 못 본다 —
          본체가 transparent 라 위로 지나쳐 섹션 색으로 판정한다(흰 섹션 위 #000·0.9 프레임 → 그리드 글자 #555, 대비 2.33). 현빈 계정 52개에선 0건. */
+      /* ★G12 그리드 «블럭 배경» — 그리드 상자 «자기» 배경은 투명이고 배경은 직계 층(.grd-bg)이 그린다(그 층은 내용 밑·상자 배경 위).
+         ⇒ 칸 글자(그리드 렌더)·G19 자식(이 걸음이 .grd-children → 그리드로 올라온다) 둘 다 여기서 한 번에 본다(지디 GO: C5 필수). */
+      const g = _gridBgLayer(e);
+      if (g === false) return null;                 // 층에 이미지 = 못 쟀다(이미지 규약과 같다)
+      if (g) { layers.push(g); if (g.a >= 1) { reached = true; break; } }
       if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
       const c = _parseWithAlpha(cs.backgroundColor);
       if (c && c.a > 0) { layers.push(c); if (c.a >= 1) { reached = true; break; } }
