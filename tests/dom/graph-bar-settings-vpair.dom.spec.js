@@ -57,8 +57,8 @@ const read = (page) => page.evaluate(() => {
   const bars = b.querySelector('.grb-bars-v'); const cs = getComputedStyle(bars);
   const fills = [...b.querySelectorAll('.grb-bar-fill')];
   return {
-    ds: { itemGap: b.dataset.itemGap, barThickness: b.dataset.barThickness, padX: b.dataset.padX, pctSize: b.dataset.pctSize },
-    gap: cs.columnGap, padL: cs.paddingLeft, padR: cs.paddingRight,
+    ds: { vItemGap: b.dataset.vItemGap, vBarThickness: b.dataset.vBarThickness, vPadX: b.dataset.vPadX, vPctSize: b.dataset.vPctSize },
+    gap: (() => { const c = bars.querySelectorAll('.grb-bar-col'); return (c[1].offsetLeft - c[0].offsetLeft - c[0].offsetWidth) + 'px'; })(), padL: cs.paddingLeft, padR: cs.paddingRight,
     fillW: fills.map(f => f.offsetWidth),   // offsetWidth = 배율 전 px(캔버스 줌이 getBoundingClientRect 를 줄인다)
     valPx: [...b.querySelectorAll('.grb-bar-val-label')].map(l => getComputedStyle(l).fontSize),
   };
@@ -102,7 +102,7 @@ for (const type of TYPES) {
     await openPanel(page);
     await setNum(page, IDS.gap, 40); await setNum(page, IDS.padx, 12); await setNum(page, IDS.thick, 20); await setNum(page, IDS.pct, 30);
     const r = await read(page);
-    expect(r.ds, '키가 dataset 에 안 들어갔다 — 아래 숫자는 전부 헛것').toEqual({ itemGap: '40', barThickness: '20', padX: '12', pctSize: '30' });
+    expect(r.ds, '키가 dataset 에 안 들어갔다 — 아래 숫자는 전부 헛것').toEqual({ vItemGap: '40', vBarThickness: '20', vPadX: '12', vPctSize: '30' });
     expect(r.gap).toBe('40px');
     expect([r.padL, r.padR]).toEqual(['12px', '12px']);
     expect(r.fillW.every(w => w === 20), `바 폭 ${JSON.stringify(r.fillW)}`).toBe(true);
@@ -111,7 +111,7 @@ for (const type of TYPES) {
   });
 
   test(`B7-3 [${type}] 저장 왕복 — 직렬화→복원 뒤에도 같다`, async ({ page }) => {
-    const errs = await setup(page, type, { itemGap: '36', barThickness: '18', padX: '8', pctSize: '26' });
+    const errs = await setup(page, type, { vItemGap: '36', vBarThickness: '18', vPadX: '8', vPctSize: '26' });
     const before = await read(page);
     expect(before.gap).toBe('36px');
     await page.evaluate(() => { const a = window.getSerializedCanvas(); window.restoreSnapshot({ canvas: a, settings: {}, selection: null }); });
@@ -122,7 +122,7 @@ for (const type of TYPES) {
   });
 
   test(`B7-4 [${type}] PNG 픽셀 — 바 두께 20→40 이면 바 색 화소가 늘어난다(제품 캡처 파이프라인)`, async ({ page }) => {
-    const errs = await setup(page, type, { barColor: '#00aa00', barColor2: '#0000ff', itemGap: '24' }, [
+    const errs = await setup(page, type, { barColor: '#00aa00', barColor2: '#0000ff', vItemGap: '24' }, [
       { label: '가', value: 80, value2: 80, color: '#00aa00' }, { label: '나', value: 80, value2: 80, color: '#00aa00' }]);
     await openPanel(page);
     const count = async (w) => {
@@ -161,13 +161,13 @@ for (const type of TYPES) {
   });
 
   test(`B7-5 [${type}] HTML 내보내기 경로 — canvas clone 에 inline 이 실린다`, async ({ page }) => {
-    const errs = await setup(page, type, { itemGap: '36', barThickness: '18', padX: '8', pctSize: '26' });
+    const errs = await setup(page, type, { vItemGap: '36', vBarThickness: '18', vPadX: '8', vPctSize: '26' });
     const r = await page.evaluate(() => {
       const clone = document.getElementById('canvas').cloneNode(true);
       const g = clone.querySelector('#b7g');
       return { bars: g.querySelector('.grb-bars-v').getAttribute('style'), fill: g.querySelector('.grb-bar-fill').getAttribute('style'), val: g.querySelector('.grb-bar-val-label').getAttribute('style') };
     });
-    expect(r.bars).toContain('gap:36px'); expect(r.bars).toContain('padding:0 8px');
+    expect(r.bars).toContain('gap:min(36px'); expect(r.bars).toContain('padding:0 8px');
     expect(r.fill).toContain('width:18px');
     expect(r.val).toContain('font-size:26px');
     expect(errs, errs.join('\n')).toEqual([]);
@@ -178,16 +178,90 @@ for (const type of TYPES) {
     await openPanel(page);
     await setNum(page, IDS.gap, 40);
     await setNum(page, IDS.thick, 20);
-    expect((await read(page)).ds).toMatchObject({ itemGap: '40', barThickness: '20' });
+    expect((await read(page)).ds).toMatchObject({ vItemGap: '40', vBarThickness: '20' });
     await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); });
     await page.keyboard.press('Meta+z');
     await page.waitForTimeout(250);
     const one = await read(page);
-    expect(one.ds.barThickness, '⌘Z 한 번 — 마지막(두께)만 사라져야 한다').toBeUndefined();
-    expect(one.ds.itemGap, '⌘Z 한 번 — 앞 걸음(간격 40)은 남아야 한다').toBe('40');
+    expect(one.ds.vBarThickness, '⌘Z 한 번 — 마지막(두께)만 사라져야 한다').toBeUndefined();
+    expect(one.ds.vItemGap, '⌘Z 한 번 — 앞 걸음(간격 40)은 남아야 한다').toBe('40');
     await page.keyboard.press('Meta+z');
     await page.waitForTimeout(250);
-    expect((await read(page)).ds.itemGap, '⌘Z 두 번 — 간격도 사라진다').toBeUndefined();
+    expect((await read(page)).ds.vItemGap, '⌘Z 두 번 — 간격도 사라진다').toBeUndefined();
     expect(errs, errs.join('\n')).toEqual([]);
   });
 }
+
+/* ══ B7r — 현빈 결정 ㉯: 세로·비교는 «새로 정하는 값(vXxx)»만 받는다. 옛 bar-h 키는 안 먹는다. ══ */
+const HYUNBIN = { 'data-type': 'graph', 'data-chart-type': 'bar-pair', 'data-preset': 'default',
+  'data-chart-height': '376', 'data-label-size': '24', 'data-show-v-label': '0', 'data-show-x-label': '1',
+  'data-bar-thickness': '30', 'data-pad-x': '12', 'data-item-gap': '44', 'data-pct-size': '44' };
+test('B7-7 ★옛 bar-h 키를 가진 bar-pair(현빈 grb_ts0he_to1ptwe 속성 꼴·글만 바꿈)를 다시 그려도 innerHTML 이 핀(36cbe872)과 같다', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const html = await page.evaluate((attrs) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
+    c.insertAdjacentHTML('beforeend', '<div class="section-block" id="b7S" data-section="1"><div class="section-hitzone"></div><div class="section-inner" style="padding-left: 32px; padding-right: 32px;"></div></div>');
+    const g = document.createElement('div'); g.className = 'graph-block'; g.id = 'b7g';
+    for (const [k, v] of Object.entries(attrs)) g.setAttribute(k, v);
+    g.dataset.items = JSON.stringify([{ label: '글A', value: 75 }, { label: '글B', value: 90 }]);
+    document.querySelector('#b7S .section-inner').appendChild(g);
+    window.renderGraph(g);
+    return g.innerHTML;
+  }, HYUNBIN);
+  expect(html).toBe(GOLDEN.hyunbin);
+  expect(html, '옛 키가 새 겉모습을 만들면 안 된다').not.toMatch(/gap:|padding:0 |width:30px/);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('B7-8 ★타입을 오가도 겉모습은 «새로 정한 값»만 따른다(h→v→pair→line→v, 옛 키는 그대로 남는다)', async ({ page }) => {
+  const errs = await setup(page, 'bar-h', { itemGap: '60', padX: '40', pctSize: '100', barThickness: '30', barColor: '#ff00ff', labelSize: '20' });
+  await openPanel(page);
+  const look = () => page.evaluate(() => {
+    const b = document.getElementById('b7g'); const bars = b.querySelector('.grb-bars-v'); const cs = bars && getComputedStyle(bars);
+    const f = b.querySelector('.grb-bar-fill:not([style*="dashed"])');
+    return { type: b.dataset.chartType, gap: cs && cs.columnGap, pad: cs && cs.paddingLeft, val: getComputedStyle(b.querySelector('.grb-bar-val-label')).fontSize,
+      fillW: f && f.offsetWidth, colW: f && f.parentElement.offsetWidth, bg: f && getComputedStyle(f).backgroundColor };
+  });
+  const click = async (id) => { await page.evaluate((id) => document.getElementById(id).click(), id); await page.waitForTimeout(100); };
+  for (const [btn, t] of [['grb-type-v', 'bar-v'], ['grb-type-pair', 'bar-pair']]) {
+    await click(btn);
+    const r = await look();
+    expect(r.type).toBe(t);
+    expect(r.gap, `${t}: 옛 항목 간격 60 이 따라왔다`).toBe('10px');
+    expect(r.pad, `${t}: 옛 좌우 패딩 40 이 따라왔다`).toBe('0px');
+    expect(r.val, `${t}: 옛 숫자 크기 100 이 따라왔다`).toBe('21px');
+    expect(r.fillW, `${t}: 옛 두께 30 이 따라왔다(기본은 칸 폭 100%)`).toBe(r.colW);
+    if (t === 'bar-v') expect(r.bg, `${t}: 옛 barColor #ff00ff 가 따라왔다`).not.toBe('rgb(255, 0, 255)');   // pair 의 barColor 는 원래 «색상 A»(핀도 칠한다)
+  }
+  // 비교 막대 «색상 A» 는 barColor(원래부터 pair 의 것) — 세로로 가도 막대색이 되면 안 된다
+  await page.evaluate(() => { document.getElementById('b7g').dataset.barColor = '#0000ff'; });
+  await click('grb-type-v');
+  expect((await look()).bg, 'pair 색상 A 가 세로 막대색이 됐다').not.toBe('rgb(0, 0, 255)');
+  // line 의 좌우 패딩(padX 키 공유) 이 세로로 새지 않는다
+  await page.evaluate(() => { const b = document.getElementById('b7g'); b.dataset.chartType = 'line'; b.dataset.padX = '40'; window.renderGraph(b); });
+  await click('grb-type-v');
+  expect((await look()).pad, 'line 좌우 패딩이 세로로 샜다').toBe('0px');
+  // 세로에서 새로 정한 값은 세로·비교에서 먹고, 가로로 가도 가로 값은 그대로(옛 키 보존)
+  await openPanel(page);
+  await setNum(page, IDS.pct, 10);
+  await click('grb-type-h');
+  const h = await page.evaluate(() => { const b = document.getElementById('b7g'); return { ig: b.dataset.itemGap, ps: b.dataset.pctSize, px: getComputedStyle(b.querySelector('.grb-bar-h-pct')).fontSize, gap: getComputedStyle(b.querySelector('.grb-bars-h')).rowGap }; });
+  expect(h).toEqual({ ig: '60', ps: '100', px: '100px', gap: '60px' });
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+for (const type of TYPES) test(`B7-9 [${type}] ★넘침 없음 — 비교 12항목·두께 48·간격 80 이어도 가로로 안 넘친다(간격은 폭/항목수로 클램프, 막대는 칸 100% 상한)`, async ({ page }) => {
+  const many = Array.from({ length: 12 }, (_, i) => ({ label: `항목${i + 1}`, value: 10 + i * 7, value2: 90 - i * 5 }));
+  {
+    const errs = await setup(page, type, {}, many);
+    await openPanel(page);
+    await setNum(page, IDS.thick, 48); await setNum(page, IDS.gap, 80); await setNum(page, IDS.padx, 80);
+    const r = await page.evaluate(() => { const b = document.getElementById('b7g'); const bars = b.querySelector('.grb-bars-v');
+      return { sw: bars.scrollWidth, cw: bars.clientWidth, bsw: b.scrollWidth, bcw: b.clientWidth, ds: b.dataset.vBarThickness }; });
+    expect(r.ds, '키가 안 들어갔다').toBe('48');
+    expect(r.sw, `바 줄이 넘친다 ${JSON.stringify(r)}`).toBeLessThanOrEqual(r.cw);
+    expect(r.bsw, `블럭이 넘친다 ${JSON.stringify(r)}`).toBeLessThanOrEqual(r.bcw);
+    expect(errs, errs.join('\n')).toEqual([]);
+  }
+});

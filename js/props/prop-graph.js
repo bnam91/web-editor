@@ -38,22 +38,27 @@ function barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize, pctM
 }
 
 export function showGraphProperties(block) {
+  const _vKey = (hKey, vKey) => (block.dataset.chartType === 'bar-v' || block.dataset.chartType === 'bar-pair') ? vKey : hKey;
   const chartType    = block.dataset.chartType    || 'bar-v';
   const preset       = block.dataset.preset       || 'default';
   const items        = JSON.parse(block.dataset.items || '[]');
   const chartH       = parseInt(block.dataset.chartHeight)  || 240;
   const labelSize    = parseInt(block.dataset.labelSize)    || 13;
-  const barThickness = parseInt(block.dataset.barThickness) || 24;
-  const padX         = parseInt(block.dataset.padX)         || 0;
+  // B7r: bar-v·bar-pair 는 «자기 키»(vXxx)만 읽고 쓴다 — bar-h 키(itemGap·barThickness·padX·pctSize·barColor)와 겹치면
+  //      타입 전환 때 단위가 다른 값이 딸려 온다(가로 숫자 크기 60 ↔ 세로 값 글자 21 …).
+  const _vOnly = chartType === 'bar-v' || chartType === 'bar-pair';
+  const barThickness = parseInt(block.dataset[_vOnly ? 'vBarThickness' : 'barThickness']) || 24;
+  const padX         = parseInt(block.dataset[_vOnly ? 'vPadX' : 'padX'])         || 0;
   const barColor     = block.dataset.barColor || '#222222';
   const barAlpha     = parseAlphaFromColor(barColor);
-  const itemGap      = parseInt(block.dataset.itemGap)      || 24;
+  const itemGap      = _vOnly ? (parseInt(block.dataset.vItemGap) || 10) : (parseInt(block.dataset.itemGap) || 24);
   const pctSize      = parseInt(block.dataset.pctSize)      || 60;
   // 숫자 크기 — bar-h 는 기존 기본 60·최소 20, bar-v·pair 는 렌더가 쓰는 값 라벨 크기(valSize)·8~120
   const _isBarH      = chartType === 'bar-h';
   const barPctMin    = _isBarH ? 20 : 8;
   const barPctSize   = _isBarH ? pctSize
-    : (parseInt(block.dataset.pctSize) || Math.round((parseInt(block.dataset.labelSize) || 20) * 1.07));
+    : (parseInt(block.dataset.vPctSize) || Math.round((parseInt(block.dataset.labelSize) || 20) * 1.07));
+  const _barSetColor = chartType === 'bar-v' ? (block.dataset.vBarColor || '#4dabf7') : barColor;
   const strokeWidth  = parseInt(block.dataset.strokeWidth)  || 3;
   const pointRadius  = parseInt(block.dataset.pointRadius)  || 5;
   const fillArea     = block.dataset.fillArea === '1';
@@ -200,7 +205,7 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="grb-fillalpha-number" min="0" max="100" value="${fillAlpha}">
       </div>
     </div>` : ''}
-    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor, barAlpha }) : ''}
+    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor) }) : ''}
     <div class="prop-section">
       <div class="prop-section-title">Preset</div>
       <div class="prop-preset-group">
@@ -367,7 +372,7 @@ ${blockHeaderHTML({
   if (igSlider) {
     const applyItemGap = v => {
       v = Math.min(80, Math.max(8, v));
-      block.dataset.itemGap = v;
+      block.dataset[_vKey('itemGap','vItemGap')] = v;
       window.renderGraph(block);
       igSlider.value = v; igNumber.value = v;
     };
@@ -382,7 +387,7 @@ ${blockHeaderHTML({
   if (psSlider) {
     const applyPctSize = v => {
       v = Math.min(120, Math.max((block.dataset.chartType === 'bar-h' ? 20 : 8), v));
-      block.dataset.pctSize = v;
+      block.dataset[_vKey('pctSize','vPctSize')] = v;
       window.renderGraph(block);
       psSlider.value = v; psNumber.value = v;
     };
@@ -397,7 +402,7 @@ ${blockHeaderHTML({
   if (btSlider) {
     const applyBarThickness = v => {
       v = Math.min(48, Math.max(8, v));
-      block.dataset.barThickness = v;
+      block.dataset[_vKey('barThickness','vBarThickness')] = v;
       window.renderGraph(block);
       btSlider.value = v; btNumber.value = v;
     };
@@ -412,7 +417,7 @@ ${blockHeaderHTML({
   if (pxSlider) {
     const applyPadX = v => {
       v = Math.min(80, Math.max(0, v));
-      block.dataset.padX = v;
+      block.dataset[_vKey('padX','vPadX')] = v;
       window.renderGraph(block);
       pxSlider.value = v; pxNumber.value = v;
     };
@@ -424,9 +429,10 @@ ${blockHeaderHTML({
   // 색상 — line 차트는 선 색상(lineColor)에, bar 차트는 막대 색상(barColor)에 적용
   if (document.getElementById('grb-bar-color')) {
     wireColorField('grb-bar', {
-      initialAlpha: barAlpha,
+      initialAlpha: chartType === 'bar-v' ? parseAlphaFromColor(_barSetColor) : barAlpha,
       onApply: (c) => {
         if (block.dataset.chartType === 'line') block.dataset.lineColor = c;
+        else if (block.dataset.chartType === 'bar-v') block.dataset.vBarColor = c;
         else block.dataset.barColor = c;
         window.renderGraph(block);
       },
