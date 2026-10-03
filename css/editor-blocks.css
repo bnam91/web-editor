@@ -1037,6 +1037,27 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .icb-circle[data-border="solid"]  { border: 3px solid var(--ui-border); }
 .icb-circle[data-border="dashed"] { border: 3px dashed var(--ui-border); }
 
+/* ── G14 자식 그릇 — 「원형이 그릇이 된다」(js/icb-children.js) ─────────────────────────
+   원 «위»에 얹히는 흐름 상자: 가운데 · 세로 쌓기 · 간격 8px · 폭 = 지름 × 1/√2(내접 정사각형).
+   넘친 것은 원(overflow:hidden · radius 50%)이 원 모양으로 자른다 — 원이 자식 따라 커지지 않는다.
+   ⛔`inset` 단축 속성 금지 — html2canvas(PNG 내보내기)가 못 읽는다(export-image.js 주석).
+   새 토큰 0. */
+.icb-children {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 70.71%;
+  box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px;
+  z-index: 1;
+}
+.icb-children:empty { display: none; }
+/* 그림 위치 조절 중엔 원이 overflow:visible 이 된다 — 그동안 자식은 숨겨 그림만 보이게 */
+.icon-circle-block.img-editing .icb-children { visibility: hidden; }
+/* 자식이 있으면 빈 원 자리표시는 숨긴다 */
+.icb-circle:has(> .icb-children:not(:empty)) > .icb-placeholder { display: none; }
+
 /* ═══════════════════════════════════
    TABLE BLOCK
 ═══════════════════════════════════ */

@@ -482,9 +482,12 @@ test('D14 ⛔전수 래칫 — editor.js 의 `.remove()` 문 수 + 섹션 제거
      지우는 대상은 document.createComment 로 방금 만든 «주석 노드»다.
      ⇒ 섹션은커녕 요소도 아니다 — 링크 처분과 무관하고, SECT 의 얼굴·순서와
        D9·D10·D11 의 기대 수(3)도 그대로다. */
+  /* 23 → 24 (2026-10-04, G14 서클 «원 안» 자식): deleteSelectedFromCanvas 일반 블록 갈래에 `unit.remove()` 하나 —
+     서클 그릇(.icb-children) 안 자식은 «그릇의 직계 자식»만 지운다(closest('.row') 가 서클째 지우던 길을 막는다,
+     tests/dom/icb-children K9). 대상은 글자 래퍼/맨몸 블록 — 섹션이 아니다 ⇒ SECT 얼굴·순서, D9·D10·D11 기대 수(3) 그대로. */
   const ALL = [...SRC.editor.matchAll(/\.remove\(\)/g)];
-  assert.strictEqual(ALL.length, 23,
-    `★editor.js 의 .remove() 가 ${ALL.length}개다(박아 둔 값 23) — 삭제 문이 늘거나 줄었다. `
+  assert.strictEqual(ALL.length, 24,
+    `★editor.js 의 .remove() 가 ${ALL.length}개다(박아 둔 값 24) — 삭제 문이 늘거나 줄었다. `
     + '새 문이 «섹션»을 지운다면 링크 처분을 먼저 지나게 하고, D9·D10·D11 의 기대 수(3)도 같이 갱신해라.');
   const SECT = [...SRC.editor.matchAll(/(selSection\.remove\(\)|sec\.remove\(\)|toDelete\.forEach\(s => s\.remove\(\)\))/g)]
     .map((m) => m[1]);

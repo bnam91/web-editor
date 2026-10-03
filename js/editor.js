@@ -3408,6 +3408,15 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
             if (sec) { sec.style.display = ''; sec.dataset.mockupHidden = ''; }
           }
         }
+        /* ★G14 — 서클 «원 안» 자식은 «그릇의 직계 자식»(글자 래퍼 또는 맨몸 블록)이 지우는 단위다.
+           ⛔closest('.row') 로 가면 «서클을 품은 줄»이 잡혀 서클째 지워진다(실측 icb-children K9: 자식 하나 ⌫ → 서클 사라짐). */
+        const _icbBox = block.closest('.icb-children');
+        if (_icbBox) {
+          let unit = block;
+          while (unit.parentElement && unit.parentElement !== _icbBox) unit = unit.parentElement;
+          unit.remove();
+          return;
+        }
         if (block.classList.contains('gap-block')) {
           block.remove();
         } else {
