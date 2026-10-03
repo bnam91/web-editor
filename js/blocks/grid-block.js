@@ -2066,10 +2066,34 @@ function renderGridBlock(block) {
     }
   }
 
-  block.innerHTML = `<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${Math.max(0, rowGapPx)}px;column-gap:${colGapPx}px;width:100%;">
+  /* ★G19 — «격자 껍데기(.grd-inner)»만 다시 그리고, 그리드 밑에 쌓인 자식 블럭 그릇(.grd-children)은 남긴다.
+     옛 줄은 `block.innerHTML = …` 통째 교체라 재렌더(칸 편집·폭·로드·rebindAll)마다 자식이 지워졌다(측정 M1·M2).
+     ⛔html 문자열은 «옛 줄 그대로»다 — 자식이 없으면 replaceShellKeepChildren 이 옛 줄과 «같은 대입»을 한다
+       ⇒ 기존 그리드 렌더 바이트 동일(지키는 시험: grid-block-width-model W0 · grid-children-shell-bytes). */
+  replaceShellKeepChildren(block, `<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${Math.max(0, rowGapPx)}px;column-gap:${colGapPx}px;width:100%;">
     ${cellsHtml.join('')}
-  </div>`;
+  </div>`, GRID_CHILDREN_CLASS);
 }
+
+/* ═══ ★G19 공용 — «껍데기만» 갈아끼우고 «자식 그릇»은 남긴다 (지디 2026-10-03 설계 확정) ══════════════
+ *  block 의 직계 자식 중 `:scope > .{keepClass}` «하나»를 뺀 나머지만 지우고, html 을 그 «앞»에 넣는다.
+ *  ★그릇이 없거나 «비어» 있으면(요소 자식 0개) = 옛 줄 그대로 `block.innerHTML = html` — 한 바이트도 안 바뀐다.
+ *    빈 그릇은 이때 같이 걷힌다(자식을 다 빼낸 그리드는 다음 렌더에서 옛 모양으로 돌아온다).
+ *  ★그리드가 첫 손님이다(GRID_CHILDREN_CLASS). 모달(modal-block.js:505 `block.innerHTML = html`)도 같은 병인데
+ *    그쪽은 M1 레인 몫이라 여기서 바꾸지 «않는다» — 같은 함수를 window 로도 내 둔다.
+ *  ⚠️자리가 grid-block.js 인 까닭: Node 단위시험 15개가 이 파일을 tmp 로 복사해 import 줄을 «글자로» 바꿔 끼운다.
+ *    새 모듈을 import 하면 그 15개가 tmp 에서 상대경로를 못 찾는다(코드 읽기 — 각 시험의 src.replace 닻 참조).
+ *  @returns {Element|null} 남긴 그릇(없으면 null) */
+export const GRID_CHILDREN_CLASS = 'grd-children';
+export function replaceShellKeepChildren(block, html, keepClass) {
+  let keep = null;
+  for (const ch of block.children) { if (ch.classList.contains(keepClass)) { keep = ch; break; } }
+  if (!keep || keep.childElementCount === 0) { block.innerHTML = html; return null; }
+  for (const n of [...block.childNodes]) if (n !== keep) n.remove();
+  keep.insertAdjacentHTML('beforebegin', html);
+  return keep;
+}
+if (typeof window !== 'undefined') window.replaceShellKeepChildren = replaceShellKeepChildren;
 
 /* ── 옛 셸 정체성 승격 (2026-09-05 개명) ───────────────────────────────
    선례 = js/io/save-load.js migrateColsFromDOM 의 `.sub-section-block → .frame-block`.
