@@ -132,6 +132,15 @@ test('U1 ★프레임화 → ⌘Z 한 번 = 앞 직렬화와 글자 단위로 �
   expect(post.ser === pre.ser, '★⌘Z 결과가 프레임화 «앞»과 다르다').toBe(true);
   expect(post.sel).toBe(true);
 });
+test('U1b 히스토리 꼭대기 이름 = 「프레임화 하기」 — «뒤» 표본(pushHistory)이 실제로 찍혔다', async ({ page }) => {
+  await setup(page);
+  await putModal(page, { variant: 'plain', text: '이름' });
+  await frameifyByPanel(page);
+  /* ⚠️undo() 첫머리 구제(ensureHistoryCheckpoint '현재 상태')가 빠진 끝 표본을 «메워» ⌘Z 자체는 한 걸음으로 돈다(V6 실측 — U1·U2 초록).
+     그래서 끝 표본의 흔적 = 꼭대기 칸의 이름(getHistoryTip().action — 되돌리기 단추·⌘Z 안내가 읽는 그 칸)으로 잰다.
+     (이 판 index.html 엔 #undo-btn 이 없다 — 첫 판이 그걸 읽어 "" 로 빨갰다.) */
+  expect(await page.evaluate(() => window.getHistoryTip()?.action || '')).toBe('프레임화 하기');
+});
 test('U2 ⌘Z → ⌘⇧Z = 프레임·자식 id 그대로 돌아온다', async ({ page }) => {
   await setup(page);
   await putModal(page, { variant: 'icon-stack', text: '본문' });
@@ -169,6 +178,17 @@ test('U4 ★삽입(push-before) «바로 뒤» 프레임화 → ⌘Z 한 번은 
   expect(r, '★⌘Z 한 번이 삽입까지 먹었다(이음매 ⑴)').toEqual({ modal: true, gap: true });
   await keyN(page, 'Meta+z');
   expect(await page.evaluate((g) => !!document.getElementById(g), gapId), '⌘Z 2 = 삽입').toBe(false);
+});
+test('U4b ★날 push-before(찍고 나서 바꿈 · 끝 표본 없음) «바로 뒤» 프레임화 → ⌘Z 한 번은 프레임화만', async ({ page }) => {
+  /* U4 의 addGapBlock 은 삽입 입구 래퍼(js/insert-history.js)가 «끝 표본»을 찍어 줘서 앞 표본(ensureHistoryCheckpoint)이 없어도 초록이었다(V5 실측).
+     래퍼 밖의 날 push-before — R1-d 의 꼴 — 에서만 앞 표본이 «빠진 칸»을 메운다. */
+  await setup(page);
+  await putModal(page, { variant: 'plain', text: '이음매' });
+  await page.evaluate(() => { window.pushHistory('B'); document.getElementById('gEnd').style.height = '333px'; });
+  await page.evaluate(() => window.frameifyModal('mdlT'));
+  await keyN(page, 'Meta+z');
+  const r = await page.evaluate(() => ({ modal: !!document.getElementById('mdlT'), h: document.getElementById('gEnd').style.height }));
+  expect(r, '★⌘Z 한 번이 날 편집까지 먹었다(앞 표본 없음)').toEqual({ modal: true, h: '333px' });
 });
 test('U5 프레임화 → 프레임에 줄 하나 → ⌘Z = 줄만 · ⌘Z = 모달', async ({ page }) => {
   await setup(page);
