@@ -86,3 +86,37 @@ test('X3 ✕ 는 한 걸음 — ⌘Z 한 번에 이미지가 돌아오고, ✕ �
   await page.keyboard.press('Meta+z'); await page.waitForTimeout(200);
   expect(await page.evaluate(() => document.getElementById('abX')?.classList.contains('has-image'))).toBe(true);
 });
+
+/* ★R2-b — 둥글기 손잡이(ne)가 ✕ 를 덮지 않는다. 실측(고치기 전): 40% 골라진 상태에서 ✕ 원 안 113점 중 55점(가운데 포함)이 손잡이 ·
+ *   40% 안 골라짐 0 · 100%·200% 는 asset-img 가장자리 2점뿐. ⇒ 낮은 배율 + 골라진 상태에서만. 처방 = 겹칠 때만 ne 손잡이를 ✕ 아래로.
+ *   양성대조 36cbe872 = X4[40%] 빨강 예상. 손잡이를 «치우기만» 하고 기능을 죽이면 안 되니 X5 가 끌기로 반경이 바뀌는지 같이 잰다. */
+const coverage = (page) => page.evaluate(() => {
+  const b = document.querySelector('#abX .asset-overlay-clear'); const r = b.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2, R = r.width / 2; let n = 0, mine = 0, handle = 0;
+  for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) { if (dx * dx + dy * dy > R * R) continue; n++;
+    const e = document.elementFromPoint(cx + dx, cy + dy); if (e === b) mine++; else if (e && e.classList.contains('asset-radius-handle')) handle++; }
+  return { n, mine, handle, center: document.elementFromPoint(cx, cy) === b };
+});
+for (const zoom of [40, 100, 200]) test(`X4 [${zoom}%] ★골라진 상태에서 둥글기 손잡이가 ✕ 를 덮지 않는다(가운데 포함)`, async ({ page }) => {
+  await setup(page, zoom);
+  await page.evaluate(() => document.querySelector('#abX .asset-overlay-clear').scrollIntoView({ block: 'center', inline: 'center' }));
+  { const q = await page.evaluate(() => { const b = document.querySelector('#abX .asset-overlay-clear').getBoundingClientRect(); return [b.left - 60, b.bottom + 60]; });
+    await page.mouse.click(q[0], q[1]); await page.waitForTimeout(250); }   // 진짜 클릭으로 고른다(손잡이는 클릭 경로가 붙인다)
+  expect(await page.evaluate(() => document.querySelectorAll('.asset-radius-handle').length), '전제 — 둥글기 손잡이가 떠 있다').toBe(4);
+  const c = await coverage(page);
+  expect(c.handle, `★✕ 원 안 ${c.n}점 중 ${c.handle}점을 둥글기 손잡이가 덮는다`).toBe(0);
+  expect(c.center, '★✕ 가운데를 누르면 ✕ 가 아니다').toBe(true);
+});
+test('X5 지키는 시험 [40%] — 옮겨진 ne 손잡이를 끌면 모서리 반경이 실제로 바뀐다', async ({ page }) => {
+  await setup(page, 40);
+  await page.evaluate(() => document.querySelector('#abX .asset-overlay-clear').scrollIntoView({ block: 'center', inline: 'center' }));
+  { const q = await page.evaluate(() => { const b = document.querySelector('#abX .asset-overlay-clear').getBoundingClientRect(); return [b.left - 60, b.bottom + 60]; });
+    await page.mouse.click(q[0], q[1]); await page.waitForTimeout(250); }   // 진짜 클릭으로 고른다(손잡이는 클릭 경로가 붙인다)
+  const h = await page.evaluate(() => { const r = document.querySelector('.asset-radius-handle.ne').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  const r0 = await page.evaluate(() => parseInt(document.getElementById('abX').style.borderRadius) || 0);
+  await page.mouse.move(h[0], h[1]); await page.mouse.down();
+  for (let i = 1; i <= 8; i++) await page.mouse.move(h[0] - i * 4, h[1] + i * 4);
+  await page.mouse.up(); await page.waitForTimeout(150);
+  const r1 = await page.evaluate(() => parseInt(document.getElementById('abX').style.borderRadius) || 0);
+  expect(r1, `반경 ${r0} → ${r1}`).toBeGreaterThan(r0);
+});

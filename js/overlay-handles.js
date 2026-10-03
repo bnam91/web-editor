@@ -704,8 +704,18 @@ function _updateAssetRadiusHandlePositions() {
   if (!overlay || !_assetRadiusBlock) return;
   const INSET = 10;
   const HALF  = 3.5; // 7px 핸들 중앙 정렬
+  /* ★R2-b(2026-10-03) — 「이미지 지우기 ✕」를 덮지 않는다. ✕ 는 블럭 오른쪽 위(모델 10px·30px)라 배율 따라 작아지고
+     이 손잡이는 화면 크기 고정(INSET 10)이라, «낮은 배율 + 골라진 상태»에서 ne 손잡이가 ✕ 한가운데에 앉았다
+     (실측 40%: ✕ 원 안 113점 중 55점·가운데 포함이 손잡이 — 가운데를 누르면 이미지가 안 지워지고 모서리가 움직였다).
+     ⇒ 겹칠 때만 ne 손잡이를 ✕ 바로 아래로 내린다(겹치지 않는 배율에선 자리 그대로). 회전된 블럭은 그대로 둔다(✕ 도 같이 돈다). */
+  const _clear = _assetRadiusBlock.classList.contains('has-image') ? _assetRadiusBlock.querySelector(':scope > .asset-overlay-clear') : null;
+  const _cr = _clear && !_blockRotationDeg(_assetRadiusBlock) ? _clear.getBoundingClientRect() : null;
   overlay.querySelectorAll('.asset-radius-handle').forEach(h => {
     const c = _cornerScreen(_assetRadiusBlock, h.dataset.assetRadiusDir, INSET);
+    if (_cr && _cr.width && h.dataset.assetRadiusDir === 'ne'
+        && c.x + HALF > _cr.left - 1 && c.x - HALF < _cr.right + 1 && c.y + HALF > _cr.top - 1 && c.y - HALF < _cr.bottom + 1) {
+      c.y = _cr.bottom + 3 + HALF;   // ✕ 아래 3px
+    }
     h.style.top  = (c.y - HALF) + 'px';
     h.style.left = (c.x - HALF) + 'px';
     syncHandleSelVariant(h, _assetRadiusBlock);   // 오버레이면 보라 — 테두리와 한 색
