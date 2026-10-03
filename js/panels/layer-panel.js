@@ -351,7 +351,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
         return found;
       };
       const insertIntoSec = (domEl) => {
-        if (!indicator) { sectionInner.appendChild(domEl); return; }
+        if (!indicator) { sectionInner.appendChild(domEl); window.syncAutoGridWidth?.(domEl); return; }   // ⛔이 return 이 아래 sync 를 건너뛰었다(D2)
         const nextEl = indicator.nextElementSibling;
         const nextTarget = nextEl?._dragTarget || null;
         /* ★기준 노드의 «실제 부모»에 넣는다.

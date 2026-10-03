@@ -275,7 +275,13 @@ function settleRowInFreeFrame(frame, row, mode = 'stack') {
   row.style.position = 'absolute';
   row.style.left = left + 'px';
   row.style.top  = top + 'px';
-  if (w && (!row.style.width || row.style.width === '100%')) row.style.width = w + 'px';
+  /* ★D1(2026-10-03) — 폭 모델을 가진 그리드의 row 에는 폭을 «안» 적는다. 적으면 그 px 가 «두 번째 명부»가 되어
+     키를 지우거나 다른 프레임에 맞춰도 row 가 옛 폭을 쥔다(실측: 섹션에 나와도 611 · frB 에서 그리드 320 / row 611 → 다시 수직만).
+     ⚠️폭을 비우면 안 된다 — CSS `.row{width:100%}`(editor-layout.css) 라 프레임 폭이 된다(실측 400). 그래서 «값이 아닌» fit-content 로
+     안의 px 그리드 폭을 따라가게 한다. 규칙은 grid-block.js _gridRowFollows 한 곳. */
+  const _modelSized = _units.some(u => u.classList?.contains('grid-block') && window.getGridWidth?.(u) != null);
+  if (_modelSized) row.style.width = 'fit-content';
+  else if (w && (!row.style.width || row.style.width === '100%')) row.style.width = w + 'px';
   row.setAttribute('draggable', 'false');
   return true;
 }

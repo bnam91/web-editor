@@ -379,6 +379,20 @@ function _gridHomeFreeFrame(block) {
   return p;
 }
 
+/** 그리드만 담은 row 의 폭을 «따라가게» 한다(D1) — 폭 값은 키 하나, row 는 값을 안 갖는다.
+ *  inFree=true(자유 프레임 직계 단위) → 'fit-content'(CSS `.row{width:100%}` 를 이겨 안의 px 그리드 폭이 된다)
+ *  inFree=false(흐름) → ''(CSS 100%). 옛 판(c2d57466~1e04a50a)이 적어 둔 px 도 여기서 풀린다.
+ *  ⛔다른 블럭이 같이 든 row 는 안 건드린다. */
+function _gridRowFollows(g, inFree) {
+  const row = g.parentElement;
+  if (!row || !row.classList || !row.classList.contains('row')) return;
+  const kids = [...row.children].filter(c => !c.classList.contains('drop-indicator'));
+  if (kids.length !== 1 || kids[0] !== g) return;
+  const cur = row.style.width || '';
+  if (inFree) { if (/px$/.test(cur) || cur === '' || cur === '100%') row.style.width = 'fit-content'; }
+  else if (/px$/.test(cur) || cur === 'fit-content') row.style.width = '';
+}
+
 /** ★자리를 옮긴 «뒤» 부른다 — root(옮긴 단위) 안의 자동 폭 그리드를 새 자리에 맞춘다.
  *  자유 프레임 안 = 그 프레임 기준으로 다시 맞춤 · 밖 = 키·표시를 지우고 100%. 사용자 폭·떠 있는 블럭은 무접촉.
  *  ⛔로드·undo·rebind 에서는 부르지 않는다(저장된 판을 그대로 그린다 — 열 때 다시 맞추는 건 미결정).
@@ -392,6 +406,7 @@ function syncAutoGridWidth(root) {
     if (g.dataset.overlayBlock === 'true') continue;
     const home = _gridHomeFreeFrame(g);
     if (home === 'group') continue;
+    _gridRowFollows(g, !!home);
     if (home) { if (fitGridWidthToFreeFrame(g, home)) n++; continue; }
     delete g.dataset.gridWidth;
     delete g.dataset.gridWidthAuto;
