@@ -89,6 +89,7 @@ function _syncPanelXY(posEl) {
   const pick = suf => document.getElementById('txt-' + suf)
                    || document.getElementById('shape-' + suf)
                    || document.getElementById('asset-' + suf)
+                   || document.getElementById('icn-' + suf)
                    || document.getElementById('lg-' + suf);
   const xN = pick('x-number'), yN = pick('y-number');
   if (xN && xN !== document.activeElement) xN.value = posEl.dataset.offsetX;
@@ -351,8 +352,16 @@ export function enterFloat(posEl) {
   const zoom = _zoom();
   const secRect = sec.getBoundingClientRect();
   const elRect  = posEl.getBoundingClientRect();
-  const x = Math.round((elRect.left - secRect.left) / zoom);
-  const y = Math.round((elRect.top  - secRect.top)  / zoom);
+  let x = (elRect.left - secRect.left) / zoom;
+  let y = (elRect.top  - secRect.top)  / zoom;
+  /* ★posEl «자신»이 회전(transform)을 쥔 타입(아이콘 B1)은 rect 가 회전된 «외접 사각형»이라 left/top(회전 전 상자 기준)보다
+     (외접−원래)/2 만큼 바깥이다 — 그대로 굳히면 띄우는 순간 그만큼 점프한다(45° 80px 아이콘 실측 34px). 회전은 중심축이라 반만큼 되돌린다.
+     래퍼가 회전하지 않는 텍스트·도형은 transform 이 'none' 이라 이 두 줄이 0 을 더한다(동작 불변). */
+  if (typeof getComputedStyle === 'function' && getComputedStyle(posEl).transform !== 'none') {
+    x += (elRect.width  / zoom - posEl.offsetWidth)  / 2;
+    y += (elRect.height / zoom - posEl.offsetHeight) / 2;
+  }
+  x = Math.round(x); y = Math.round(y);
   /* ⛔마진은 «좌표를 «재고 난 뒤»» 걷어낸다 — 지금 눈에 보이는 자리(=마진이 이미 반영된 rect)가
      우리가 유지해야 할 자리다. 먼저 걷어내고 재면 마진만큼 어긋난 자리를 «정답»으로 굳힌다. */
   _freezeMargins(posEl);
