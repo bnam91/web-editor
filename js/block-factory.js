@@ -21,7 +21,7 @@ import {
   bindSectionDropZone,
 } from './drag-drop.js';
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
-         newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame,
+         newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame, framePadding, innerFullWidth,
          growFrameToFitChildren } from './frame-geometry.js';
 import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
@@ -480,7 +480,7 @@ function addTextBlock(type, opts = {}) {
       // opts에 x/y/width가 있으면 절대좌표 고정, 없으면 자동 스택
       const hasAbsCoords = _hasAbsCoords;   // ★위에서 «한 번» 센 것 — 두 벌 금지
       const stackY = hasAbsCoords ? (opts.y ?? 0) : _calcFreeLayoutStackY(activeSS);
-      const leftPx = hasAbsCoords ? (opts.x ?? 0) : 0;
+      const leftPx = hasAbsCoords ? (opts.x ?? 0) : framePadding(activeSS).l;   // F5: 안쪽 여백만큼 들여 시작
       tf.style.position = 'absolute';
       tf.style.left     = leftPx + 'px';
       tf.style.top      = stackY + 'px';
@@ -601,12 +601,12 @@ function addBlankTextBlock(type = 'body', opts = {}) {
     if (activeSS.dataset.freeLayout === 'true') {
       const stackY = _calcFreeLayoutStackY(activeSS);
       tf.style.position = 'absolute';
-      tf.style.left     = '0px';
+      tf.style.left     = framePadding(activeSS).l + 'px';   // F5
       tf.style.top      = stackY + 'px';
       activeSS.appendChild(tf);
       // 의도적 빈 줄(data-blank)은 콘텐츠 폭이 ~0이라 클램프 시 너무 좁아짐
       // → _clampTextFrameWidth가 측정 실패(<=1px)로 안전 원복하므로 100% 기본 명시
-      tf.style.width = '100%';
+      tf.style.width = innerFullWidth(activeSS);
       tf.dataset.width = '100%';
       _clampTextFrameWidth(tf, activeSS);
       // #2 와 동일 — 빈 줄도 프레임 중앙에서 시작한다(폭 100% 라 좌우는 0, 세로가 실제로 움직인다).
@@ -1682,12 +1682,13 @@ function _clampTextFrameWidth(tf, frameEl) {
     || tf.style.textAlign
     || 'left';
   if (align === 'center' || align === 'right' || align === 'justify') {
-    tf.style.width = '100%';
+    tf.style.width = innerFullWidth(frameEl);   // F5: 여백이 있으면 안쪽 상자 폭(dataset 은 '100%' 의미 그대로)
     tf.dataset.width = '100%';
-    return '100%';
+    return tf.style.width;
   }
   // 프레임 가용 폭(클램프 상한)
-  const frameW = (frameEl && frameEl.clientWidth) || 860;
+  const _fp = framePadding(frameEl);   // F5: 안쪽 여백 안에서만 자란다
+  const frameW = ((frameEl && frameEl.clientWidth) || 860) - _fp.l - _fp.r;
   // 콘텐츠 실측: 측정 동안 width를 fit-content로 잠시 풀어 자연 폭 산출
   const prevWidth = tf.style.width;
   tf.style.width = 'fit-content';
@@ -1696,7 +1697,7 @@ function _clampTextFrameWidth(tf, frameEl) {
   // box-sizing:border-box이므로 패딩 포함 offsetWidth가 곧 프레임 폭
   if (!contentW || contentW <= 1) {
     // 측정 실패 시 안전하게 원복
-    tf.style.width = prevWidth || '100%';
+    tf.style.width = prevWidth || innerFullWidth(frameEl);
     return tf.style.width;
   }
   const w = Math.min(Math.round(contentW), frameW);
@@ -1715,13 +1716,15 @@ function _placeAtFrameCenter(el, frame) {
   if (!el || !frame) return null;
   // (c) 「중앙」의 기준 = 프레임의 «보여지는» 폭/높이 — 축 선택 근거는 frameVisibleSize 주석 참조.
   const fv = frameVisibleSize(frame);
+  const _pad = framePadding(frame);   // F5: 자유 프레임 «안쪽 여백» 안의 중앙
   const off = frameAlignOffset(fv.w, fv.h,
-                               el.offsetWidth, el.offsetHeight, 'center', 'center');
+                               el.offsetWidth, el.offsetHeight, 'center', 'center', _pad);
   // ★삽입 경로에서만 «음수 클램프» — 공유 술어(frameAlignOffset)는 클램프하지 않는다.
   //   실측(2026-09-05): 에셋 프리셋은 780px 인데 기본 프레임은 520px 이라 순수 중앙은
   //   top:-130px 이 되고, 프레임 overflow:hidden 이 «방금 넣은 이미지의 윗부분»을 잘랐다.
   //   정렬 «버튼»(prop-frame _setAlign)은 사용자가 의도적으로 누른 것이라 음수를 허용하지만,
   //   «삽입 기본값»이 블록을 프레임 밖으로 밀어내면 안 된다 → 여기서만 0으로 막는다.
+  off.left = Math.max(off.left, _pad.l); off.top = Math.max(off.top, _pad.t);   // 안쪽 여백이 바닥(F5) — 여백 0 이면 옛 식 그대로
   const baseL = Math.max(0, off.left);
   const baseT = Math.max(0, off.top);
   const occupied = [...frame.children]
@@ -1734,7 +1737,7 @@ function _placeAtFrameCenter(el, frame) {
      글자 중앙정렬을 기본으로 켜면(폭 100%) 이 자리를 «모든» 텍스트가 지나간다.
      X 로 비킬 자리가 없으면(가득 찬 폭) X 는 0 으로 되돌리고 Y 캐스케이드만 남긴다
      — 두 형제의 top 이 20px 다르므로 «완전히 겹치는» 일은 그대로 막힌다. */
-  const left = clampLeftIntoFrame(pos.left, fv.w, el.offsetWidth);
+  const left = Math.max(_pad.l, clampLeftIntoFrame(pos.left, fv.w - _pad.r, el.offsetWidth));
   el.style.left = left + 'px';
   el.style.top  = pos.top  + 'px';
   return { left, top: pos.top };
@@ -1743,7 +1746,7 @@ function _placeAtFrameCenter(el, frame) {
 /* freeLayout inner 안에서 absolute 블록들을 아래로 쌓을 Y 좌표 계산 */
 function _calcFreeLayoutStackY(inner) {
   const absEls = [...inner.querySelectorAll(':scope > *')].filter(el => el.style.position === 'absolute');
-  if (!absEls.length) return 20;
+  if (!absEls.length) return Math.max(20, framePadding(inner).t);   // F5: 위 여백 아래에서 시작
   const last = absEls[absEls.length - 1];
   return Math.round(parseInt(last.style.top || '0') + (last.offsetHeight || 60) + 16);
 }
@@ -1768,9 +1771,9 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
     // opts에 x/y/width가 있으면 절대좌표 고정, 없으면 자동 스택
     const hasAbsCoords = (opts.x !== undefined || opts.y !== undefined || opts.width !== undefined);
     const stackY = hasAbsCoords ? (opts.y ?? 0) : _calcFreeLayoutStackY(ss);
-    const leftPx = hasAbsCoords ? (opts.x ?? 0) : 0;
+    const leftPx = hasAbsCoords ? (opts.x ?? 0) : framePadding(ss).l;   // F5
     // opts.width 없으면 preset이 설정한 width 유지 (logo 등 고정 너비 preset 보호)
-    const widthVal = opts.width ? opts.width + 'px' : (block.style.width || '100%');
+    const widthVal = opts.width ? opts.width + 'px' : ((block.style.width && block.style.width !== '100%') ? block.style.width : innerFullWidth(ss));   // F5: 100% 는 안쪽 상자 폭
     block.style.position = 'absolute';
     block.style.left     = leftPx + 'px';
     block.style.top      = stackY + 'px';

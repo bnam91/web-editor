@@ -68,17 +68,37 @@ export function rotationMarginY(w, h, deg) {
    alignY: 'flex-start' | 'center' | 'flex-end' | null
    반환: { left, top } — 계산하지 않은 축은 null.
    ★클램프하지 않는다: 자식이 프레임보다 크면 음수가 나온다(기존 `_setAlign` 과 동일 계약). */
-export function frameAlignOffset(frameW, frameH, elW, elH, alignX, alignY) {
+export function frameAlignOffset(frameW, frameH, elW, elH, alignX, alignY, pad) {
   const fw = Number(frameW) || 0, fh = Number(frameH) || 0;
   const ew = Number(elW) || 0,    eh = Number(elH) || 0;
-  const pick = (span, size, align) =>
-    align === 'center'   ? Math.round((span - size) / 2)
-  : align === 'flex-end' ? Math.round(span - size)
-  : 0;
+  const P = Object.assign({ l: 0, r: 0, t: 0, b: 0 }, pad || {});
+  /* ★안쪽 여백(F5) — 자유 프레임의 자식은 절대배치라 CSS padding 이 «안 먹는다».
+     left/top 의 원점은 패딩 상자 모서리이므로 여백만큼 «우리가» 안쪽으로 들인다.
+     pad 를 안 주면 옛 계산 그대로(여백 0). */
+  const pick = (span, size, align, lo, hi) =>
+    align === 'center'   ? lo + Math.round((span - lo - hi - size) / 2)
+  : align === 'flex-end' ? Math.round(span - hi - size)
+  : lo;
   return {
-    left: alignX == null ? null : pick(fw, ew, alignX),
-    top:  alignY == null ? null : pick(fh, eh, alignY),
+    left: alignX == null ? null : pick(fw, ew, alignX, P.l, P.r),
+    top:  alignY == null ? null : pick(fh, eh, alignY, P.t, P.b),
   };
+}
+
+/* 폭 100% 로 «들어가는» 자유 프레임 자식의 width — 안쪽 상자 폭(프레임 − 좌우 패딩).
+   left 를 여백만큼 들였는데 폭이 100% 면 그만큼 오른쪽으로 «프레임 밖»에 나온다(F5 적대QA).
+   여백 0 이면 '100%' 그대로(옛 계약). */
+export function innerFullWidth(frameEl) {
+  const p = framePadding(frameEl), n = p.l + p.r;
+  return n > 0 ? `calc(100% - ${n}px)` : '100%';
+}
+
+/* 프레임 «안쪽 여백»(px) — 자유 프레임 자식 좌표 계산이 쓴다. 스택 프레임엔 필요 없다(CSS 가 먹는다). */
+export function framePadding(frameEl) {
+  if (!frameEl || typeof getComputedStyle !== 'function') return { l: 0, r: 0, t: 0, b: 0 };
+  const cs = getComputedStyle(frameEl);
+  return { l: parseFloat(cs.paddingLeft) || 0, r: parseFloat(cs.paddingRight) || 0,
+           t: parseFloat(cs.paddingTop) || 0,  b: parseFloat(cs.paddingBottom) || 0 };
 }
 
 /* 같은 자리에 이미 형제가 있으면 대각선으로 비켜 놓을 좌표(붙여넣기 관례와 동일한 +20px).
@@ -160,12 +180,13 @@ export function clampLeftIntoFrame(left, frameW, elW) {
    ⚠️위아래 «둘 다» 죈다 — 0 아래로도 못 간다(위로 밀어 넣어도 똑같이 잘린다).
    ⚠️자식이 프레임보다 «크면» max 가 음수가 된다 — 그땐 0(왼쪽·위 맞춤)이다.
      그래야 적어도 머리는 보인다. 음수를 그대로 쓰면 반대쪽으로 잘린다. */
-export function clampChildIntoFrame(left, top, elW, elH, frameW, frameH) {
-  const one = (v, extent, size) => {
-    const max = Math.max(0, (Number(extent) || 0) - (Number(size) || 0));
-    return Math.max(0, Math.min(max, Number(v) || 0));
+export function clampChildIntoFrame(left, top, elW, elH, frameW, frameH, pad) {
+  const P = Object.assign({ l: 0, r: 0, t: 0, b: 0 }, pad || {});
+  const one = (v, extent, size, lo, hi) => {
+    const max = Math.max(0, (Number(extent) || 0) - hi - (Number(size) || 0));
+    return Math.max(0, lo, Math.min(max, Number(v) || 0));   // 여백(lo)이 바닥 — 자식이 더 커도 머리는 여백 자리
   };
-  return { left: one(left, frameW, elW), top: one(top, frameH, elH) };
+  return { left: one(left, frameW, elW, P.l, P.r), top: one(top, frameH, elH, P.t, P.b) };
 }
 
 /* ══ ④ 프레임이 «자식을 잘라 먹지» 않는 최소 높이 (T-088, 2026-09-21) ══
