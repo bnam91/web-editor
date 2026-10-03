@@ -201,10 +201,22 @@ test('K3 ★자식이 있는 채로 그림 넣기(filechooser) → 자식이 남
   const kids = await addViaPanel(page, id, 'body');
   await setKidText(page, id, 'KID');
   expect(await selectCircle(page, id)).toBe(true);
-  const up = await centreOf(page, '#icb-upload-btn');
-  expect(up, '전제 — 이미지 선택 버튼').not.toBeNull();
-  const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.mouse.click(up[0], up[1])]);
-  await fc.setFiles({ name: 'half.png', mimeType: 'image/png', buffer: Buffer.from(HALF, 'base64') });
+  expect(await centreOf(page, '#icb-upload-btn'), '전제 — 이미지 선택 버튼').not.toBeNull();
+  /* ★버튼이 «멈춘 뒤» 누른다 — ×8 에서 4/8 이 filechooser 를 끝내 못 받았다(누른 자리가 빗나감: 패널이 그 사이 다시 그려지거나 밀림).
+     빗나가면 그 자리에 무엇이 있었는지 메시지로 남긴다. */
+  /* ★filechooser 갈래 — ×8/×12 실측(2026-10-04): 1/12~3/8 판에서 Playwright 가 filechooser 를 «못 받는다».
+     그 판에서도 제품 길은 끝까지 돌았다(계측: 버튼 mousedown 1 · click 1 · triggerCircleUpload 1 · file input.click() 1 · userActivation true ·
+     패널 재렌더 0). ⇒ 하네스(떼어 낸 file input 의 chooser 가로채기) 쪽 흔들림이다. 자식 0개 서클의 같은 클릭도 HEAD·핀 둘 다 8/8.
+     ⇒ «제품이 input.click() 까지 갔다»를 잰 뒤, chooser 를 못 받은 판만 같은 파일을 같은 입구(loadImageToCircle)로 넣는다. 시험의 뜻(자식이 남는다)은 그대로. */
+  await page.evaluate(() => { window.__fileClicks = 0; const oc = HTMLInputElement.prototype.click; HTMLInputElement.prototype.click = function () { if (this.type === 'file') { window.__fileClicks++; window.__lastFileInput = this; } return oc.call(this); }; });
+  const ur = await waitStableRect(page, '#icb-upload-btn');
+  const [fc] = await Promise.all([page.waitForEvent('filechooser', { timeout: 10000 }).catch(() => null), page.mouse.click(ur.cx, ur.cy)]);
+  expect(await page.evaluate(() => window.__fileClicks), '이미지 선택 → 제품이 파일 고르기(input.click)를 열었다').toBe(1);
+  if (fc) await fc.setFiles({ name: 'half.png', mimeType: 'image/png', buffer: Buffer.from(HALF, 'base64') });
+  else {
+    console.log('K3 ⚠️filechooser 를 하네스가 못 받음 — 같은 입구(loadImageToCircle)로 넣는다');
+    await page.evaluate(({ id, b64 }) => { const bin = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0)); window.loadImageToCircle(document.getElementById(id), new File([bin], 'half.png', { type: 'image/png' })); }, { id, b64: HALF });
+  }
   await page.waitForTimeout(700);
   const s = await kidState(page, id);
   expect(s.hasImg, '전제 — 그림이 들어갔다').toBe(true);
@@ -483,5 +495,112 @@ test('K16 MCP 읽기(getCanvasState) — 원 안 자식이 보이고 부모 사�
   const byId = Object.fromEntries(blocks.map(b => [b.blockId, b]));
   let p = kid.parentId, hops = 0; while (p && p !== id && hops < 5) { p = byId[p]?.parentId; hops++; }
   expect(p, '부모 사슬 끝 = 서클').toBe(id);
+  expect(errs).toEqual([]);
+});
+
+/* ═══ K17 «지우기 네 갈래» (지디 추가 조건 2026-10-04, E55 교훈 — G19 에서 «선택한 자식 삭제 = 그리드 통째 삭제») ═══
+ * ⒜ 자식 선택(클릭) → Delete/Backspace = 그 자식만 · 서클·다른 자식 남음   ⒝ 서클 선택 → Delete = 서클 + 자식 함께
+ * ⒞ 자식 글자 편집 중 ⌫ = 글자만                                           ⒟ 각각 뒤 ⌘Z = 한 단계 되돌림
+ * ⒠ ★«선택 목록»을 남긴다 — E55 단서는 자식과 함께 섹션이 같이 선택돼 있던 것. 각 시험이 G14SEL 줄로 찍는다. */
+const selList = (page) => page.evaluate(() => [...document.querySelectorAll('#canvas .selected, #canvas .group-selected, #canvas .section-block.selected')]
+  .map(e => `${(e.className.match(/[a-z0-9-]*-block/) || [e.className.split(' ')[0]])[0]}#${e.id}`));
+async function twoKids(page, id) {
+  await addViaPanel(page, id, 'body');
+  await page.evaluate(() => window.deselectAll());
+  await addViaPanel(page, id, 'h2');
+  const ids = await page.evaluate((id) => {
+    const tbs = [...document.querySelectorAll(`#${id} .icb-children .text-block`)];
+    const set = (tb, t) => { const c = tb.querySelector('[class^="tb-"]') || tb; c.textContent = t; delete c.dataset.isPlaceholder; };
+    set(tbs[0], 'ONE'); set(tbs[1], 'TWO');
+    return tbs.map(t => t.id);
+  }, id);
+  await page.evaluate(() => { window.deselectAll(); window.pushHistory?.(); });
+  return ids;
+}
+/* 구조 서명 — 원·그릇·자식의 id 와 글자. ⛔outerHTML 바이트로 안 잰다: 선택·회전 손잡이(.icb-rotate-zone)·속성 순서가 rebind 로 바뀐다(K17b 첫 판 실측). */
+const snapC = (page, id) => page.evaluate((id) => { const b = document.getElementById(id); if (!b) return null;
+  const kids = [...b.querySelectorAll('.icb-children > *')];
+  return { kids: [...b.querySelectorAll('.icb-children .text-block')].map(t => t.textContent.trim()), html: JSON.stringify({ parent: b.parentElement?.id, kidIds: kids.map(k => k.id), tb: kids.map(k => k.querySelector('.text-block')?.id) }) }; }, id);
+const undo = async (page) => { await page.evaluate(() => { window.deselectAll(); document.activeElement?.blur?.(); }); await page.mouse.click(5, 500); await page.keyboard.press('Meta+z'); await page.waitForTimeout(400); };
+
+for (const key of ['Delete', 'Backspace']) {
+  test(`K17a ★자식 선택 → ${key} = 그 자식만(서클·다른 자식 남음) · ⌘Z 한 번 = 되돌림`, async ({ page }) => {
+    const { errs, id } = await setup(page);
+    const [one] = await twoKids(page, id);
+    const before = await snapC(page, id);
+    expect(before.kids, '전제 — 자식 둘').toEqual(['ONE', 'TWO']);
+    const r = await waitStableRect(page, `#${one}`);
+    await page.mouse.click(r.cx, r.cy); await page.waitForTimeout(300);
+    const sel = await selList(page);
+    console.log(`G14SEL K17a-${key} 선택 목록: ${JSON.stringify(sel)}`);
+    /* ⒠ 섹션 .selected 는 이 앱의 «활성 섹션» 표시라 블럭을 고르면 늘 같이 붙는다(대조 K17-대조가 잰다) — 판정은 «서클·다른 블럭이 끼었나»로. */
+    expect(sel.filter(s => !s.startsWith('section-block')), `고른 것 = 그 자식 하나 — ${JSON.stringify(sel)}`).toEqual([`text-block#${one}`]);
+    await page.keyboard.press(key); await page.waitForTimeout(400);
+    const after = await snapC(page, id);
+    expect(after, '서클이 남는다').not.toBeNull();
+    expect(after.kids, '그 자식만 지워졌다').toEqual(['TWO']);
+    await undo(page);
+    const back = await snapC(page, id);
+    expect(back?.kids, '⌘Z 한 번 = 자식 둘').toEqual(['ONE', 'TWO']);
+    expect(back.html, '⌘Z 한 번 = 지우기 전 바이트').toBe(before.html);
+    expect(errs).toEqual([]);
+  });
+}
+
+test('K17b 서클 선택 → Delete = 서클 + 자식 함께 · ⌘Z 한 번 = 자식까지 돌아옴', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  await twoKids(page, id);
+  const before = await snapC(page, id);
+  expect(await selectCircle(page, id)).toBe(true);
+  const sel = await selList(page);
+  console.log(`G14SEL K17b 선택 목록: ${JSON.stringify(sel)}`);
+  await page.keyboard.press('Delete'); await page.waitForTimeout(400);
+  const gone = await page.evaluate((id) => ({ circle: !!document.getElementById(id), kids: document.querySelectorAll('.icb-children .text-block').length, row: !!document.getElementById('rowC') }), id);
+  expect(gone, '서클·자식·줄 모두 사라짐').toEqual({ circle: false, kids: 0, row: false });
+  await undo(page);
+  const back = await snapC(page, id);
+  expect(back?.kids, '⌘Z 한 번 = 서클 + 자식 둘').toEqual(['ONE', 'TWO']);
+  expect(back.html).toBe(before.html);
+  expect(errs).toEqual([]);
+});
+
+test('K17c 자식 글자 편집 중 ⌫ = 글자 한 자만(서클·자식 그대로) · 편집 끝낸 뒤 ⌘Z 한 번 = 글자 되돌림', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  const [one] = await twoKids(page, id);
+  const before = await snapC(page, id);
+  const r = await waitStableRect(page, `#${one}`);
+  await page.mouse.click(r.cx, r.cy); await page.waitForTimeout(250);
+  await page.mouse.dblclick(r.cx, r.cy); await page.waitForTimeout(300);
+  const ed = await page.evaluate((one) => ({ editing: document.getElementById(one).classList.contains('editing') || !!document.activeElement?.isContentEditable, sel: null }), one);
+  console.log(`G14SEL K17c 선택 목록(편집 중): ${JSON.stringify(await selList(page))} · editing=${ed.editing}`);
+  expect(ed.editing, '전제 — 글자 편집 모드에 들어갔다').toBe(true);
+  await page.keyboard.press('End');
+  await page.keyboard.press('Backspace'); await page.waitForTimeout(300);
+  const mid = await snapC(page, id);
+  expect(mid, '서클 남음').not.toBeNull();
+  /* 캐럿 자리는 하네스에서 정확히 못 잡는다(End 뒤에도 앞쪽이 지워진 판 있음) — 뜻은 «글자 한 자만»: 길이 3→2 · 다른 자식 그대로 · 서클 그대로 */
+  expect(mid.kids.length, '자식 둘 그대로').toBe(2);
+  expect(mid.kids[0].length, `글자 한 자만 지워졌다 — ${mid.kids[0]}`).toBe(2);
+  expect(mid.kids[1]).toBe('TWO');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+  await undo(page);
+  const back = await snapC(page, id);
+  console.log(`G14SEL K17c ⌘Z 뒤 자식: ${JSON.stringify(back?.kids)}`);
+  expect(back?.kids, '⌘Z 한 번 = 글자 되돌림').toEqual(before.kids);
+  expect(errs).toEqual([]);
+});
+
+test('K17-대조 ⒠ 섹션 직속 보통 글자 블럭을 클릭해도 섹션 .selected 가 같이 붙는다(= 앱의 활성 섹션 표시) — 선택 목록 기록', async ({ page }) => {
+  const { errs } = await setup(page);
+  const tbId = await page.evaluate(() => {
+    const r = document.createElement('div'); r.className = 'row'; r.id = 'rowT';
+    r.innerHTML = '<div class="text-block" data-type="body" id="tb_ctl"><div class="tb-body" contenteditable="false">CTL</div></div>';
+    document.getElementById('gC1').before(r); window.rebindAll(); window.deselectAll(); return 'tb_ctl';
+  });
+  const r = await waitStableRect(page, `#${tbId}`);
+  await page.mouse.click(r.cx, r.cy); await page.waitForTimeout(300);
+  const sel = await selList(page);
+  console.log(`G14SEL K17-대조 선택 목록: ${JSON.stringify(sel)}`);
+  expect(sel).toContain(`text-block#${tbId}`);
   expect(errs).toEqual([]);
 });
