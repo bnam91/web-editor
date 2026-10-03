@@ -153,8 +153,8 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
 });
 
 // ─────────── T5r BT2 가 만들 위험 — editMessage 가 lines 를 지운다(지금 모양) ───────────
-test('T5r editMessage{align} 가 메시지의 lines 를 «보존한다» — 핀에서는 빨강이 정상(유실 모양 증명)', async ({ page }) => {
-  if (!process.env.BT2_T5_RAW) test.fail(true, 'BT2 C5 전: _normMsg 가 아는 필드로만 다시 만들어 lines 를 버린다 — 고치면 이 줄을 걷는다');
+test('T5r editMessage{align} 가 메시지의 lines 를 «보존한다» (핀 d5fe9bb8 에선 빨강 = 유실 모양 증명 · C5 부터 초록)', async ({ page }) => {
+  /* ★C5(BT2) 에서 test.fail 을 걷었다 — _normMsg·editMessage 가 lines 를 통과·병합한다. 이제 빨강 = 유실 재발. */
   await freshCanvas(page);
   const after = await page.evaluate(() => {
     window.addChatBlock({ messages: [{ text: 'a', align: 'left' }] });
