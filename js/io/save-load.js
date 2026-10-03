@@ -603,6 +603,49 @@ function serializeProject() {
   });
 }
 
+/* ★B6 ㉡ 열 때 정리 (현빈 「좌측정렬인데 왼쪽으로 튀어나감」, 2026-10-03; 정렬 단추 쪽은 prop-asset.js applyAlign)
+ *  ㉡ = px 폭(전폭 calc 아님) 에셋이 «그 블럭이 든 섹션의 안쪽 좌우 패딩»보다 더 큰 음수 margin 을 갖는 것
+ *       — 풀블리드가 심은 음수마진이 «반쪽 세트»로 남아 섹션 가장자리보다 밖으로 나간 꼴.
+ *  판정식: |음수 margin| > 그 섹션 section-inner 의 padding(computed). ⛔60·72 같은 고정값을 박지 않는다.
+ *  ⛔㉠(|margin| == 패딩, 가장자리에 딱 붙음)은 손대지 않는다 — 사람이 일부러 둔 것일 수 있다.
+ *  ⛔㉢ 가운데 정렬도 안 건드린다(양쪽 마진이 상쇄돼 화면이 안 밀린다). 좌·우 정렬만 대상.
+ *  실측 ㉡ 8건: proj_1781053673152 · proj_1781053545182 · proj_1781451947664 · proj_1782274786302 ·
+ *    proj_1786077501267 의 ab_lns8z1r(sec_brhc463, -72 · 패딩 60) / proj_1783422689095 의 ab_38vkd83(sec_9y6vryg, -72 · 60) /
+ *    proj_1791003000001 · proj_1791003000002 의 ab_lns8z1r(태양 실측 사본). 모두 좌정렬.
+ *  ★히스토리 밖이다(⌘Z 불가): applyProjectData 의 자동저장 억제 구간 안이라 «저장본을 곧바로 바꾸지 않는다» —
+ *    화면(DOM)만 고치고, 사용자가 다음에 저장(편집 → 자동저장)할 때 그 DOM 이 저장본에 반영된다. 고치기만 하고 안 저장하면 파일은 옛 값.
+ *  폭·마진 «세트»는 window.applyAssetWidth 가 정본(prop-page.js). */
+function healAssetsBeyondSectionEdge(root) {
+  try {
+    root.querySelectorAll('.section-inner .asset-block').forEach(ab => {
+      const align = ab.dataset.align;
+      if (align !== 'left' && align !== 'right') return;
+      /* ★적대QA(0e) — 「실제로 든 상자」를 따라간다: 에셋 부모부터 .section-block 까지 «모든 조상»의 좌우 패딩을 합한다
+           (행 패딩·합친 섹션 상자(.section-merged-part)·섹션 개별 패딩/페이지 padX 가 다 들어간다).
+           합이 클수록 정리를 «덜» 한다(보수적) — ㉠(딱 붙음)·행 패딩 안의 음수마진을 ㉡ 로 오인하지 않는다.
+         ⛔띄운 에셋(오버레이·자유 프레임 안 absolute)은 left/top 이 기준이라 margin 이 뜻이 다르다 — 대상에서 뺀다. */
+      if (ab.dataset.overlay === 'true' || ab.parentElement?.closest('[data-free-layout]')) return;
+      const acs = getComputedStyle(ab);
+      if (acs.position === 'absolute' || acs.position === 'fixed') return;
+      const w = ab.style.width;
+      if (!/^\d+(\.\d+)?px$/.test(w)) return;
+      const sec = ab.closest('.section-block');
+      let padL = 0, padR = 0, contentW = 0;
+      for (let el = ab.parentElement; el && el !== sec; el = el.parentElement) {
+        const c = getComputedStyle(el);
+        padL += parseFloat(c.paddingLeft) || 0; padR += parseFloat(c.paddingRight) || 0;
+      }
+      const par = ab.parentElement;
+      contentW = par ? par.clientWidth - (parseFloat(getComputedStyle(par).paddingLeft) || 0) - (parseFloat(getComputedStyle(par).paddingRight) || 0) : 0;
+      if (contentW > 0 && parseFloat(w) > contentW + 0.5) return;   // 콘텐츠 폭을 넘는 폭은 건드리지 않는다
+      const negL = -(parseFloat(ab.style.marginLeft) || 0), negR = -(parseFloat(ab.style.marginRight) || 0);
+      if (!(negL > padL + 0.5 || negR > padR + 0.5)) return;        // ㉠(딱 붙음)·안쪽은 그대로
+      if (window.applyAssetWidth) window.applyAssetWidth(ab, parseFloat(w));
+      else { ab.style.marginLeft = ''; ab.style.marginRight = ''; }
+    });
+  } catch (_) {}
+}
+
 function applyProjectData(data) {
   /* ★[H6] 여기는 «일부러» 직접 대입으로 둔다(허용목록 — tests/unit/autosave-suppress.test.js).
    *   AutoSaveSuppress 로 바꾸면 이 창이 «부르는 쪽»(탭전환·브랜치전환·커밋복원)의 창에 중첩돼
@@ -645,6 +688,7 @@ function applyProjectData(data) {
     initLazySections();       // 멱등 — 최초 1회만 IntersectionObserver 생성
     refreshLazyObservation(); // innerHTML 교체 후 새 section-block 관찰 등록
     applyPageSettings();
+    healAssetsBeyondSectionEdge(canvasEl);   // B6 ㉡ — «페이지 padX 가 적용된 뒤»(computed 를 읽으므로) 열 때 정리
     window.deselectAll?.(); // DBG-10: 브랜치 전환 시 이전 선택 상태 클리어
     window._ckItems    = Array.isArray(data.checklistItems)    ? data.checklistItems    : [];
     window._ckSections = Array.isArray(data.checklistSections) ? data.checklistSections : [];
