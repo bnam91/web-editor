@@ -4149,7 +4149,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.updateChatBlock({ blockId, partial });
     },
     {
-      description: 'Edit an EXISTING chat block (chb_xxx) — partial update. messages는 가변 배열: messages(전체 교체) / addMessage({...msg, atIndex?}) / removeMessage(number|{index}) / editMessage({index, ...partial}). 스타일: gap/fontSize/bgLeft/bgRight/colorLeft/colorRight/radius/padding. 프로필: showProfile/showName (0|1 또는 boolean), profileSize(null이면 reset)/profileOffsetY/profileGap. 꼬리/레이아웃: tailScale(꼬리 크기 % 0~400), fullBleed(패딩 제외 0|1|boolean). layerName도 갱신 가능. 한 콜에 여러 partial 조합 가능. Returns USER_BUSY if user is editing a bubble (contenteditable=true). Get blockId from get_canvas_state or returned from add_chat_block.',
+      description: 'Edit an EXISTING chat block (chb_xxx) — partial update. messages는 가변 배열: messages(전체 교체) / addMessage({...msg, atIndex?}) / removeMessage(number|{index}) / editMessage({index, ...partial}). 메시지 «줄»: 각 메시지에 lines(그리드 줄 배열, 있으면 본문 대신 줄을 그림) — editMessage{index, lines} 로 고치고 lines:null 로 끈다(줄이 있는 메시지의 text 만 고치면 거절). 스타일: gap/fontSize/bgLeft/bgRight/colorLeft/colorRight/radius/padding. 프로필: showProfile/showName (0|1 또는 boolean), profileSize(null이면 reset)/profileOffsetY/profileGap. 꼬리/레이아웃: tailScale(꼬리 크기 % 0~400), fullBleed(패딩 제외 0|1|boolean). layerName도 갱신 가능. 한 콜에 여러 partial 조합 가능. Returns USER_BUSY if user is editing a bubble (contenteditable=true). Get blockId from get_canvas_state or returned from add_chat_block.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -4165,7 +4165,8 @@ function _registerDefaultTools() {
                 hideProfile: { type: 'boolean' },
                 profileImg:  { type: 'string', description: 'data:image/* | http(s) | assets/ (≤200000, no quote/newline)' },
                 profileName: { type: 'string', maxLength: 200 },
-                stars:       { type: ['integer','null'], minimum: 0, maximum: 5, description: '말풍선 상단 별점 0~5. null/생략이면 별점 없음' }
+                stars:       { type: ['integer','null'], minimum: 0, maximum: 5, description: '말풍선 상단 별점 0~5. null/생략이면 별점 없음' },
+                lines:       { type: ['array','null'], maxItems: 20, items: { type: 'object' }, description: 'BT2 «줄»(그리드 줄과 같은 모양) — [{type:label|h1|h2|h3|body|caption|gap, text?, align?, fontSize?, weight?, color?, …}]. 있으면 본문(text) 대신 줄을 그린다(text 는 줄 글자의 거울). null/[] = 줄 끄기. 줄이 있는 동안 text 만 고치면 거절된다.' }
               }
             }
           },
@@ -4179,6 +4180,7 @@ function _registerDefaultTools() {
               profileImg:  { type: 'string' },
               profileName: { type: 'string', maxLength: 200 },
               stars:       { type: ['integer','null'], minimum: 0, maximum: 5 },
+              lines:       { type: ['array','null'], maxItems: 20, items: { type: 'object' }, description: 'BT2 «줄»(그리드 줄과 같은 모양) — [{type:label|h1|h2|h3|body|caption|gap, text?, align?, fontSize?, weight?, color?, …}]. 있으면 본문(text) 대신 줄을 그린다(text 는 줄 글자의 거울). null/[] = 줄 끄기. 줄이 있는 동안 text 만 고치면 거절된다.' },
               atIndex:     { type: 'integer', minimum: 0 }
             }
           },
@@ -4199,7 +4201,8 @@ function _registerDefaultTools() {
               hideProfile: { type: 'boolean' },
               profileImg:  { type: 'string' },
               profileName: { type: 'string', maxLength: 200 },
-              stars:       { type: ['integer','null'], minimum: 0, maximum: 5 }
+              stars:       { type: ['integer','null'], minimum: 0, maximum: 5 },
+              lines:       { type: ['array','null'], maxItems: 20, items: { type: 'object' }, description: 'BT2 «줄»(그리드 줄과 같은 모양) — [{type:label|h1|h2|h3|body|caption|gap, text?, align?, fontSize?, weight?, color?, …}]. 있으면 본문(text) 대신 줄을 그린다(text 는 줄 글자의 거울). null/[] = 줄 끄기. 줄이 있는 동안 text 만 고치면 거절된다.' }
             },
             required: ['index']
           },
@@ -4990,7 +4993,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.updateSpeechBubbleBlock({ blockId, partial });
     },
     {
-      description: 'Edit an EXISTING speech-bubble block (sb_xxx) — partial update. 필드: tail (left|center|right, SVG 말꼬리 교체), bubbleStyle (default|apple|imessage, .tb-bubble dataset 동기화), showSender (true|false 문자열), senderName (≤100), bubbleBg (#hex|rgb|hsl|transparent — SVG 말꼬리도 var(--bubble-bg)로 동기화), text (≤2000, 빈문자열이면 placeholder 복귀). 적어도 1개 필드 필수. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state or returned from add_speech_bubble_block.',
+      description: 'Edit an EXISTING speech-bubble block (sb_xxx) — partial update. lines(그리드 줄 배열 — 있으면 본문 대신 줄을 그림, null 이면 끔; 줄이 있는 동안 text 는 거절). 필드: tail (left|center|right, SVG 말꼬리 교체), bubbleStyle (default|apple|imessage, .tb-bubble dataset 동기화), showSender (true|false 문자열), senderName (≤100), bubbleBg (#hex|rgb|hsl|transparent — SVG 말꼬리도 var(--bubble-bg)로 동기화), text (≤2000, 빈문자열이면 placeholder 복귀). 적어도 1개 필드 필수. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state or returned from add_speech_bubble_block.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -5000,7 +5003,8 @@ function _registerDefaultTools() {
           showSender:  { type: 'string', enum: ['true', 'false'] },
           senderName:  { type: 'string', description: '발신자 이름 (≤100)' },
           bubbleBg:    { type: 'string', description: '#hex | rgb(a)/hsl(a)() | transparent' },
-          text:        { type: 'string', description: '본문 텍스트 (≤2000). "" → placeholder 모드' }
+          text:        { type: 'string', description: '본문 텍스트 (≤2000). "" → placeholder 모드. 줄(lines)이 있으면 거절 — lines 를 고치거나 lines:null 로 먼저 끈다' },
+          lines:       { type: ['array','null'], maxItems: 20, items: { type: 'object' }, description: 'BT2 «줄»(그리드 줄과 같은 모양) — [{type:label|h1|h2|h3|body|caption|gap, text?, align?, fontSize?, weight?, color?, …}]. 있으면 본문(text) 대신 줄을 그린다(text 는 줄 글자의 거울). null/[] = 줄 끄기. 줄이 있는 동안 text 만 고치면 거절된다.' }
         },
         required: ['blockId']
       }
@@ -6434,6 +6438,16 @@ function _validateCanvasOpts(args, { mode } = {}) {
 // mode='add'    → sectionId 허용, 모든 필드 optional (block-factory가 기본값 채움)
 // mode='update' → sectionId 무시, blockId는 caller에서 처리. 빈 객체도 허용 (caller가 별도 체크).
 // banner02 _validateBanner02Opts 패턴 미러: _int/_str/_color/_enum + sub-validator (messages).
+/* ★BT2(2026-10-04) 말풍선·챗 «줄»의 모양 검사(main 쪽) — 배열|null · 상한 20(그리드 MAX_CELL_LINES 와 같은 값) · 원소는 객체.
+   ⛔깊은 검사(줄 필드 명부·색·종류)는 여기서 «다시 적지 않는다» — 렌더러 lnValidateLines 가 그리드 잣대 한 벌로 잰다. */
+function _validateLinesShape(v, ctx) {
+  if (v === null) return null;
+  if (!Array.isArray(v)) throw new Error(`${ctx} must be an array of line objects or null`);
+  if (v.length > 20) throw new Error(`${ctx} too many (>20)`);
+  v.forEach((ln, i) => { if (!ln || typeof ln !== 'object' || Array.isArray(ln)) throw new Error(`${ctx}[${i}] must be an object like {type:'h2', text:'…'}`); });
+  return v;
+}
+
 function _validateChatOpts(args, { mode } = {}) {
   if (!args || typeof args !== 'object') throw new Error('args must be object');
   const out = {};
@@ -6483,6 +6497,7 @@ function _validateChatOpts(args, { mode } = {}) {
     if (/["\r\n]/.test(val)) throw new Error(`${ctx} contains quote/newline (escape unsafe)`);
     return val;
   };
+  const _lines = (v, ctx) => _validateLinesShape(v, ctx);
   // 단일 메시지 객체 검증
   const _validateMessage = (m, ctx) => {
     if (!m || typeof m !== 'object') throw new Error(`${ctx} must be object`);
@@ -6514,6 +6529,9 @@ function _validateChatOpts(args, { mode } = {}) {
       if ([...m.profileName].length > 200) throw new Error(`${ctx}.profileName too long (>200)`);
       o.profileName = m.profileName;
     }
+    /* ★BT2(2026-10-04) «줄» — 예전엔 이 함수가 아는 필드만 다시 만들어 lines 를 조용히 버렸다(tests/unit/bt2-mcp-lines M1·M2).
+       여기서는 «모양»만 본다(배열|null, 상한 20, 원소=객체). 줄 명부·값·종류는 렌더러 lnValidateLines(그리드와 같은 잣대) 한 곳. */
+    if (m.lines !== undefined) o.lines = _lines(m.lines, `${ctx}.lines`);
     return o;
   };
 
@@ -7969,6 +7987,7 @@ function _validateSpeechBubbleOpts(args, { mode } = {}) {
   _str('senderName', 100);
   _color('bubbleBg');
   _str('text', 2000);
+  if (args.lines !== undefined) out.lines = _validateLinesShape(args.lines, 'lines');   // ★BT2 «줄»
 
   return out;
 }

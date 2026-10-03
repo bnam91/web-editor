@@ -10,7 +10,8 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const { startHarness } = require('./_mcp-harness');
 
-const TODO = process.env.BT2_MCP_TODO === '0' ? false : 'BT2 C6 전: main 검증기가 lines 를 버린다(유실 모양 증명) — 고치면 todo 를 걷는다';
+/* ★C6(BT2) 에서 todo 를 걷었다 — main 검증기가 lines 를 통과시킨다(모양만, 깊은 검사는 렌더러). 핀 d5fe9bb8 에선 셋 다 빨강이었다. */
+const TODO = false;
 let H = null;
 before(async () => { H = await startHarness({ activeProject: 'proj_1' }); });
 after(async () => { if (H) await H.stop(); });
