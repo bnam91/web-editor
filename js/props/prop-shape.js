@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { svgStopRemap } from './gradient-model.js';
 import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
@@ -554,7 +555,7 @@ ${blockHeaderHTML({
       else _enterShapeChecker(block);
       shapeColorInput.dataset.cpFill = 'image';
       const sw = shapeColorInput.closest('.prop-color-swatch');
-      if (sw) sw.style.background = d.src ? `center / cover no-repeat url("${d.src}")` : CHECKER_SWATCH_BG;
+      if (sw) sw.style.background = d.src ? `center / cover no-repeat url("${d.src}")` : _checkerSwatchBg();
       window.scheduleAutoSave?.();
       if (d.commit) window.pushHistory?.();
     });
@@ -564,7 +565,7 @@ ${blockHeaderHTML({
     const sw = document.getElementById('shape-color-color')?.closest('.prop-color-swatch');
     const img = block.querySelector(':scope > .shape-img-fill');
     const src = img ? (img.style.backgroundImage || '') : '';
-    if (sw) sw.style.background = src ? `center / cover no-repeat ${src}` : CHECKER_SWATCH_BG;
+    if (sw) sw.style.background = src ? `center / cover no-repeat ${src}` : _checkerSwatchBg();
   }
 
   // 선택 시 채우기가 그라데이션이면 캔버스 위 그라데이션 라인 표시 (아니면 overlay가 no-op)
@@ -872,7 +873,7 @@ window._clearShapeGradient = _clearShapeGradient;
  *   (SVG <pattern><image> 는 도형 svg 가 preserveAspectRatio="none" 이라 사진이 늘어나 버려서 쓰지 않는다.)
  * ★svg.style.color(마지막 단색)는 건드리지 않는다 → 외곽선(currentColor)은 그대로, 솔리드 복귀 = 그 색. */
 const SHAPE_FACE_TYPES = { rectangle: true, ellipse: true, polygon: true, star: true };
-const CHECKER_SWATCH_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 10px 10px';
+const _checkerSwatchBg = () => checkerBgBigColors('10px');   // 패널 스와치 — 색은 큰 쌍(CSS 토큰), 칸만 10px
 // SHAPE_DEFS(block-factory.js) 좌표를 %로 옮긴 것 — polygon: viewBox 200×180, star: 200×190.
 const SHAPE_IMG_CLIP = {
   rectangle: '',
@@ -904,11 +905,12 @@ function _ensureShapeCheckerDefs() {
   holder.setAttribute('height', '0');
   holder.setAttribute('aria-hidden', 'true');
   holder.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;';
-  // 8×8 칸 바둑판 — objectBoundingBox 라 도형 크기와 무관하게 칸 수가 같다. 색 = 앱 체커 토큰(#d8d8d8/#f0f0f0).
+  // 8×8 칸 바둑판 — objectBoundingBox 라 도형 크기와 무관하게 칸 수가 같다. 색 = 앱 체커 토큰(--goya-checker-svg-a/b).
+  const { a, b } = checkerSvgFills();   // 색 = CSS --goya-checker-svg-a/b (var 참조 — style fill 이라 살아 있다)
   holder.innerHTML = `<defs><pattern id="goya-shape-checker" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width="0.25" height="0.25">
-    <rect x="0" y="0" width="0.25" height="0.25" fill="#f0f0f0"/>
-    <rect x="0" y="0" width="0.125" height="0.125" fill="#d8d8d8"/>
-    <rect x="0.125" y="0.125" width="0.125" height="0.125" fill="#d8d8d8"/>
+    <rect x="0" y="0" width="0.25" height="0.25" style="fill:${b}"/>
+    <rect x="0" y="0" width="0.125" height="0.125" style="fill:${a}"/>
+    <rect x="0.125" y="0.125" width="0.125" height="0.125" style="fill:${a}"/>
   </pattern></defs>`;
   (document.body || document.documentElement).appendChild(holder);
 }

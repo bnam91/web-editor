@@ -9,6 +9,7 @@
 
 import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
+import { checkerBg } from '../checker-tokens.js';
 
 // ── 가로 중앙정렬 (대칭 블리드) ─────────────────────────────────────────────
 // 버그: `margin:0 auto`는 블럭 width가 부모(콘텐츠칸) 폭보다 넓으면 가운데정렬을
@@ -260,7 +261,7 @@ function addDeviceMockupBlock(deviceKey, width) {
 
 // ── MCP-friendly helpers (PM-C) ─────────────────────────────────────────────
 // asset-block과 동일한 체커보드 패턴 (prop-mockup.js와 일치)
-const _MKP_CHECKER_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
+const _mkpCheckerBg = () => checkerBg('big');   // 값은 CSS --goya-checker-big-* 에서 «읽는다»(js/checker-tokens.js)
 
 // 화면 이미지를 mkp-screen에 적용 (placeholder innerHTML 비움 + background로 설정).
 // prop-mockup.js _applyScreenImage와 동작 일치.
@@ -284,7 +285,7 @@ function applyMockupScreenImage(block, src) {
   screen.style.backgroundSize     = 'cover';
   screen.style.backgroundPosition = 'top center';
   screen.style.backgroundRepeat   = 'no-repeat';
-  screen.style.background         = `url('${safe}') top center / cover no-repeat, ${_MKP_CHECKER_BG}`;
+  screen.style.background         = `url('${safe}') top center / cover no-repeat, ${_mkpCheckerBg()}`;
   screen.innerHTML = '';
 }
 

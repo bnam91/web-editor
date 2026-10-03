@@ -2,6 +2,25 @@
 @import './design-tokens.css';
 
 :root {
+  /* ── 투명 표시 «체커» 토큰 — 네 자리(2026-10-04 S1 선행, 값은 이전과 «같다»·어둡게 하는 일은 다음 단계) ──
+     체커 색·칸 크기의 «정본»은 여기 «한 곳»이다. CSS 규칙은 var() 로 읽고, JS 가 인라인으로 박는 자리와
+     SVG 패턴은 js/checker-tokens.js 가 이 값을 «읽어서» 쓴다 — 값을 다른 데 베끼지 마라
+     (tests/unit/checker-tokens-census.test.mjs 가 hex 쌍이 다시 흩어지면 빨갛게 한다).
+     ⛔한 변수로 합치지 않는다 — 큰 쌍(차 24)과 작은 쌍(차 12)은 «작은 격자를 연하게» 한 의도다. */
+  /* ① 큰 쌍 — 섹션·에셋·아이콘원·캔버스카드·목업·확대블럭 (72px 격자) */
+  --goya-checker-big-a:     #d8d8d8;
+  --goya-checker-big-b:     #f0f0f0;
+  --goya-checker-big-size:  72px;
+  /* ② 작은 쌍 — 배너 이미지칸·그리드 빈 슬롯 (16px 격자) */
+  --goya-checker-small-a:    #e3e3e3;
+  --goya-checker-small-b:    #efefef;
+  --goya-checker-small-size: 16px;
+  /* ③ 투명 쌍 — 표 이미지 row 빈 칸 (한 칸이 «비침») · 격자는 작은 쌍 크기를 쓴다 */
+  --goya-checker-clear-a:   #e0e0e0;
+  --goya-checker-clear-b:   transparent;
+  /* ④ SVG 패턴 — 도형 빈 면(#goya-shape-checker) · 지금은 큰 쌍을 따라가되 «따로 바꿀 수 있는 자리» */
+  --goya-checker-svg-a:     var(--goya-checker-big-a);
+  --goya-checker-svg-b:     var(--goya-checker-big-b);
   --sel-color:            var(--color-selection);
   --sel-color-hover:      var(--color-selection-hover);
   --sel-color-fill:       var(--color-selection-fill);

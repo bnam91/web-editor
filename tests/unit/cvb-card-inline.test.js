@@ -81,8 +81,9 @@ before(async () => {
   const cvbUrl = stubCopy(
     'js/blocks/canvas-block.js',
     [[
-      "import { genId, showNoSelectionHint, insertAfterSelected, colorLuminance } from '../drag-utils.js';\nimport { bindBlock } from '../drag-drop.js';",
-      "const genId = (p) => `${p}_` + Math.random().toString(36).slice(2, 9);\n"
+      "import { genId, showNoSelectionHint, insertAfterSelected, colorLuminance } from '../drag-utils.js';\nimport { bindBlock } from '../drag-drop.js';\nimport { checkerBg } from '../checker-tokens.js';",
+      "const checkerBg = () => '';   // S1 선행(2026-10-04): canvas-block 이 체커 토큰 읽기를 import 한다 — 이 시험은 카드 인라인 편집만 본다\n"
+      + "const genId = (p) => `${p}_` + Math.random().toString(36).slice(2, 9);\n"
       + "const showNoSelectionHint = () => {};\nconst insertAfterSelected = () => {};\n"
       + "const colorLuminance = () => null;\nconst bindBlock = () => {};",
     ]],

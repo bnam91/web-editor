@@ -3,6 +3,8 @@
 // 분리 사유: block-factory.js(4400+줄) 책임 분해 — 어노테이션 생성/렌더 SVG 헬퍼는 자기완결 단위.
 // 외부 의존: window.genId 하나(전역). window.* 노출은 기존과 동일 유지(annotation-tool.js / prop-annotation.js 호환).
 
+import { checkerBgBigColors } from '../checker-tokens.js';
+
 // ★«부를 때» 찾는다 — 모듈 로드 시점에 잡아두면 drag-utils 가 아직 window.genId 를
 //   안 심었을 때 폴백에 고정돼, 여기서 만든 블록만 actorId 조각이 빠진다(협업에서 출처 불명).
 const genId = (p) => (typeof window.genId === 'function'
@@ -225,7 +227,7 @@ function _renderAnnotLabelInner(mode, { text, labelImageSrc, labelImageSize, lab
     const rCss  = rPct + '%';
     if (!labelImageSrc) {
       // 다른 asset/icon-circle 블록과 동일한 체커보드 placeholder
-      return `<div class="annot-label-img-placeholder" style="width:${size}px;height:${size}px;border-radius:${rCss};background:repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 16px 16px;display:flex;align-items:center;justify-content:center;color:#888;font-size:11px;"></div>`;
+      return `<div class="annot-label-img-placeholder" style="width:${size}px;height:${size}px;border-radius:${rCss};background:${checkerBgBigColors('16px')};display:flex;align-items:center;justify-content:center;color:#888;font-size:11px;"></div>`;
     }
     return `<img class="annot-label-img" src="${labelImageSrc}" style="width:${size}px;height:${size}px;border-radius:${rCss};display:block;object-fit:cover;" draggable="false">`;
   }
