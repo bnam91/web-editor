@@ -225,6 +225,9 @@ export function showTextProperties(tb) {
 
   // 라이너(곡선 텍스트): 프리셋 select + 곡률 슬라이더 증강
   if (isLiner) window.enhanceLinerPropPanel?.(tb);
+
+  // ★BT2 — 말풍선 «줄»: 줄바(＋ 줄 추가)·줄 꾸미기·줄 Typography. 줄 모드면 블럭 단위 글자 절을 숨긴다(D6). js/blocks/line-host.js
+  if (isSpeechBubble) window.lnAugmentBubblePanel?.(tb);
 }
 
 // Backward compat: classic scripts call these via window.*

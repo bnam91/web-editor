@@ -4395,6 +4395,20 @@ function updateSpeechBubbleBlock(blockId, partial = {}) {
     return { ok: false, code: 'RENDER_ERROR', message: '.tb-bubble missing — block malformed' };
   }
 
+  /* ★BT2(2026-10-04) «줄» — 그리드 줄 데이터(dataset.lines). 검사·D4 는 pushHistory «앞»(빈 이력 칸 금지).
+     lines:[] 또는 null = 줄을 끈다(본문 = 줄 글자 평문으로 돌아간다). */
+  const _lnNow = window.lnBubbleLines?.(block) || null;
+  if (partial.lines !== undefined && partial.lines !== null) {
+    const lr = window.lnValidateLines?.(partial.lines, 'lines');
+    if (lr) return lr;
+  }
+  const _lnAfter = partial.lines === undefined ? _lnNow : (window.lnHasLines?.(partial.lines) ? partial.lines : null);
+  if (partial.text !== undefined && partial.text !== null && _lnAfter) {
+    return { ok: false, code: 'INVALID',
+      message: 'text: this bubble has lines — its body is drawn from those lines and text would not change the screen. '
+        + 'Edit lines instead (lines:[{type,text,…}]), or pass lines:null first to turn the lines off.' };
+  }
+
   const before = {
     tail:        block.dataset.tail,
     bubbleStyle: block.dataset.bubbleStyle,
@@ -4402,6 +4416,7 @@ function updateSpeechBubbleBlock(blockId, partial = {}) {
     senderName:  block.dataset.senderName,
     bubbleBg:    block.style.getPropertyValue('--bubble-bg').trim() || bubbleEl.style.backgroundColor || '',
     text:        (() => { const t = (bubbleEl.innerText || ''); const ph = bubbleEl.dataset.placeholder || ''; return (bubbleEl.dataset.isPlaceholder === 'true' && (t.trim() === '' || t.trim() === ph.trim())) ? '' : t; })(),
+    lines:       _lnNow,
   };
 
   window.pushHistory?.();
@@ -4482,6 +4497,21 @@ function updateSpeechBubbleBlock(blockId, partial = {}) {
     bubbleEl.style.backgroundColor = v;
     block.style.setProperty('--bubble-bg', v);
     applied.bubbleBg = v;
+  }
+
+  if (partial.lines !== undefined) {
+    if (window.lnHasLines?.(partial.lines)) {
+      block.dataset.lines = JSON.stringify(partial.lines);
+      window.lnRenderBubble?.(block);
+      applied.lines = partial.lines;
+    } else if (block.dataset.lines !== undefined) {
+      /* 줄을 끈다 — 본문은 «줄 글자 평문»으로 돌아온다(내용을 잃지 않는다). 비면 placeholder. */
+      const plain = window.lnPlainText?.(_lnNow) || '';
+      delete block.dataset.lines;
+      if (plain) { delete bubbleEl.dataset.isPlaceholder; bubbleEl.innerText = plain; }
+      else { bubbleEl.dataset.isPlaceholder = 'true'; bubbleEl.innerText = bubbleEl.dataset.placeholder || '말풍선 텍스트를 입력하세요'; }
+      applied.lines = null;
+    }
   }
 
   if (partial.text !== undefined && partial.text !== null) {

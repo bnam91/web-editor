@@ -2727,6 +2727,7 @@ document.addEventListener('keydown', e => {
       window.showGridProperties?.(_gridSelEsc, null);
       return;
     }
+    if (window.lnEscLine?.()) return;   // ★BT2 D10 — 말풍선·챗도 «줄 선택만» 먼저 푼다(그리드와 같은 규칙)
     deselectAll();
   }
 
@@ -2835,11 +2836,13 @@ document.addEventListener('keydown', e => {
     if (_isAddGap && !e.isComposing) {
       e.preventDefault();
       if (window.grdAddLineToSelectedCell?.('gap')) return;
+      if (window.lnAddLineToSelected?.('gap')) return;   // ★BT2 D10 — 말풍선·챗의 고른 줄 다음에 여백 줄
       window.addGapBlock?.(undefined, { asSibling: true }); return;   // F1 — 키보드 입구
     }
     if (_isAddText && !e.isComposing) {
       e.preventDefault();
       if (window.grdAddLineToSelectedCell?.('body')) return;
+      if (window.lnAddLineToSelected?.('body')) return;  // ★BT2 D10 — 말풍선·챗의 고른 줄 다음에 본문 줄
       window.addTextBlock?.('body'); return;
     }
     if (_isAddAsset) { e.preventDefault(); window.toggleFpDropdown?.('fp-asset-dropdown'); return; }
@@ -3194,6 +3197,9 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
        그 함수들을 그대로 부른다.
        ※2026-09-25 — 여기 같이 적혀 있던 `grd-img-remove-btn`(Image 절의 「이미지 제거」)은
          현빈 지시로 없앴다. 줄바의 「줄 삭제」가 «한 글자도 안 다른» 같은 코드였다. */
+    /* ★BT2 D10 — 말풍선·챗의 «줄»이 골라져 있으면 ⌫/⌘X 는 그 줄 하나만 지운다(아래 그리드 갈래와 같은 뜻).
+       게이트(단독 선택·주소 유효)는 js/blocks/line-host.js lnDeleteActiveLine 한 곳. */
+    if (window.lnDeleteActiveLine?.()) { consumed = true; return consumed; }
     const gridSel = document.querySelector('.grid-block.selected');
     let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
     /* ★0918r2 T-058 — 줄 삭제는 «그 그리드 하나만» 선택됐을 때만. ⌘클릭 다중선택·붙여넣기 뒤
@@ -3780,6 +3786,7 @@ function clearSelectionMarks(root) {
   // ★0918 grid: 마커만 지우고 «모델»(활성줄 WeakMap)을 두면, 블럭으로 다시 골랐을 때 옛 줄이 살아나
   //   Backspace 가 줄 삭제 분기로 새서 블럭이 안 지워졌다. 블럭을 떠나면 줄 선택도 해제한다.
   window.grdClearAllActiveLines?.(canvas);
+  window.lnClearAllActive?.(canvas);   // ★BT2 — 말풍선·챗 «줄 선택»도 같은 자리에서(마커 + 활성줄)
   // 스텝 «지금 보는 스텝» 마커도 같은 자리에서 (prop-step.js 의 _stbSyncMark 와 짝 · 옛 이름 포함)
   canvas.querySelectorAll('.stb-line-selected, .stb-step-selected').forEach(el => el.classList.remove('stb-line-selected', 'stb-step-selected'));
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));

@@ -1399,6 +1399,9 @@ function rebindAll(opts = {}) {
     if (b.classList.contains('modal-block')) window.renderModalBlock?.(b);
     // chat-block: 저장본 innerHTML은 정적이라 dblclick 편집 핸들러가 없음 → 재렌더로 위임 바인딩
     if (b.classList.contains('chat-block')) window.renderChatBlock?.(b);
+    /* ★BT2 말풍선 «줄» — dataset.lines 가 진실(grid/innercard 와 같은 규약). ⛔속성이 «있을 때만» 부른다:
+       옛 말풍선(줄 없음)은 이 줄을 «안 지난다» = 저장된 DOM 그대로(tests/dom/bt2-safety T1b, 설계 조건 ㈎). */
+    if (b.classList.contains('speech-bubble-block') && b.dataset.lines !== undefined) window.lnRenderBubble?.(b);
     // banner02/comparison: scale-to-fit ResizeObserver + dblclick 편집 핸들러 재바인딩
     if (b.classList.contains('banner02-block')) window.renderBanner02?.(b);
     if (b.classList.contains('comparison-block')) window.renderComparison?.(b);
