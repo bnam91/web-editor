@@ -433,11 +433,15 @@ function _gridValidateGap(v, min = 0) {
  *   캡션이 갈린다. 올리려면 전 블록 동시 = 별건 발주(계획서 §8-8).
  * ★이 표는 «데이터»다. 렌더러가 이걸 실제로 쓰는 것은 §7-ⓐ 커밋(B) 한 줄이다 — 그 한 줄을
  *   되돌리면 기존 저장 프로젝트의 렌더가 오늘과 «바이트 동일»로 돌아온다. */
+/* ★굵기 = 텍스트 블럭 체계와 같게(G7, 지디 결정 2026-10-03 — 현빈 「레귤러, 세미볼드로 해야 맞음」):
+ *   css/editor-layout.css .tb-h1 700 · .tb-h2 600 · .tb-h3 600 · .tb-body 400(normal). 전엔 h1 800 · h2 700 · h3 700 이라
+ *   같은 「제목」이 그리드에선 한 단 굵었다. label 600 · body 400 은 그대로. 줄의 weight 필드가 있으면 그게 이긴다.
+ *   지키는 시험: tests/dom/grid-role-weight.dom.spec.js (computed 를 .tb-h* 와 대조). */
 const _GRID_ROLES = {
   label:   { size: 16, weight: 600, lh: 1.4, ls: '0.04em',  color: '#555555' },
-  h1:      { size: 64, weight: 800, lh: 1.1, ls: '-0.02em', color: '#111111' },
-  h2:      { size: 40, weight: 700, lh: 1.2, ls: '-0.01em', color: '#1a1a1a' },
-  h3:      { size: 28, weight: 700, lh: 1.3, ls: '0',       color: '#333333' },
+  h1:      { size: 64, weight: 700, lh: 1.1, ls: '-0.02em', color: '#111111' },
+  h2:      { size: 40, weight: 600, lh: 1.2, ls: '-0.01em', color: '#1a1a1a' },
+  h3:      { size: 28, weight: 600, lh: 1.3, ls: '0',       color: '#333333' },
   body:    { size: 22, weight: 400, lh: 1.6, ls: '0',       color: '#555555' },
   caption: { size: 14, weight: 400, lh: 1.5, ls: '0',       color: '#999999' },
 };

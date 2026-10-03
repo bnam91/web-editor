@@ -395,7 +395,8 @@ test('gridLineHtml(named export, innercard 경로) — addr 를 안 주면 data-
   // innercard-block.js 는 gridLineHtml(l, align) 2개 인자로만 부른다 — depth/addr 는 기본값(0/null).
   const html = gridLineHtml({ type: 'h2', text: '제목' }, 'center');
   assert.doesNotMatch(html, /data-r=|data-c=|data-line=/);
-  assert.equal(html, '<div class="grd-line grd-h2" style="font-size:40px;font-weight:700;line-height:1.2;letter-spacing:-0.01em;text-align:center;white-space:pre-wrap;word-break:keep-all;">제목</div>');
+  // 2026-10-03 (나) 결정: 그리드 역할표를 텍스트 체계(700·600·600)로. innercard 경로도 같이 간다(소비자 둘)
+  assert.equal(html, '<div class="grd-line grd-h2" style="font-size:40px;font-weight:600;line-height:1.2;letter-spacing:-0.01em;text-align:center;white-space:pre-wrap;word-break:keep-all;">제목</div>');
 });
 
 /* ═══ ④ makeGridBlock — 생성 경로 ═══ */
