@@ -15,6 +15,7 @@
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 import { forgetLabelAutoColor } from './label-auto-color.js';
+import { detectMix } from './prop-text-mix-detect.js';
 import {
   withTextSelection, getSavedTextSelection, clearTextSelection, spanExactlyCovering, applyStyleToRange,
 } from './_text-selection.js';
@@ -193,6 +194,24 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     applySizeToSel(v);
   });
   sizeNumber.addEventListener('change', () => { window.pushHistory?.(); });
+
+  /* ★편집으로 «돌아올 때» 크기 칸의 Mixed 를 다시 잰다(Evaluator 2026-10-03 x3: 36/60 이 섞였는데 ⌘A·Esc 뒤 「60」).
+     옛 판은 패널 칸을 누르면 편집이 끝나 블럭을 다시 누를 때 패널이 통째로 다시 그려졌다(→ Mix). 지금은 편집이
+     «세워져» 있다가 그대로 이어지므로(다시 편집·Q 입력이 되는 까닭) 패널이 안 다시 그려진다 ⇒ 같은 판정만 여기서 한다.
+     (㉠ 「돌아올 때 세움을 끝내고 다시 그리기」는 R2 를 고치지만 «한 번 클릭으로 편집 이어가기»를 죽였다 — R7 빨강, 2026-10-03 실측.)
+     판정·칸 꼴은 패널을 처음 그릴 때와 «같은» 것(detectMix · _typo-section 의 Mix 칸: value "" · placeholder "Mix" · data-empty="invalid"). */
+  //   ⚠️패널은 블럭마다 여러 번 다시 그려진다 — 글자칸에 «한 벌»만 걸고 칸은 id 로 그때 찾는다(리스너 누적 금지).
+  if (!ctx.contentEl._mixRefreshBound) {
+    ctx.contentEl._mixRefreshBound = true;
+    const el = ctx.contentEl;
+    el.addEventListener('focusin', () => {
+      const f = document.getElementById('txt-size-number');
+      if (!f || document.activeElement === f) return;
+      const m = detectMix(el).fontSize;
+      if (m.mixed) { f.value = ''; f.placeholder = 'Mix'; f.dataset.empty = 'invalid'; }
+      else if (f.placeholder === 'Mix') { f.placeholder = ''; delete f.dataset.empty; if (m.value) f.value = String(m.value); }
+    });
+  }
 
   /* ── 색상 ── (Figma b: selection 없으면 효과 X) */
   const colorPicker = document.getElementById('txt-color');
