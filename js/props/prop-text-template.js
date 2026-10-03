@@ -1,6 +1,6 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
-import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
+import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
 
 export function buildTextPropsHtml(state) {
   const {
@@ -8,7 +8,7 @@ export function buildTextPropsHtml(state) {
     currentX, currentY, currentRotation = 0, currentW, currentFont, currentWeight, currentSize,
     currentLH, currentLS, currentColor, currentColorAlpha,
     currentPadT, currentPadL, currentPadR, phLinked,
-    isLabel, currentBgColor, currentRadius, labelPillH,
+    isLabel, currentBgColor, currentRadius, labelPillH, labelPadX = 0, labelIsCircle = false,
     isSpeechBubble, currentBubbleStyle, currentTail,
     bubbleBgHex, showSender, senderName,
     isIconText, currentItbGap,
@@ -183,6 +183,9 @@ ${blockHeaderHTML({
         <span class="prop-label">박스 높이</span>
         <input type="range" class="prop-slider" id="txt-label-h-slider" min="0" max="120" step="2" value="${labelPillH}">
         <input type="number" class="prop-number" id="txt-label-h-number" min="0" max="120" value="${labelPillH}">
+      </div>
+      <div id="txt-label-padx-wrap" style="display:${isLabel && !labelIsCircle ? 'block' : 'none'}">
+      ${sliderRowHTML('좌우 패딩', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 100, step: 2, value: labelPadX })}
       </div>
       <div class="prop-row">
         <span class="prop-label">상하</span>
