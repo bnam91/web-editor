@@ -1597,9 +1597,13 @@ function loadImageToCircle(icb, file) {
     delete icb.dataset.imgY;
     delete icb.dataset.imgPosition;
     circle.style.position = 'relative';
+    /* G14 — 원 안 자식 그릇(.icb-children)은 «그림 자리»가 아니다: 그림을 갈아 끼워도 남긴다.
+       그릇이 없으면 옛 대입 그대로(바이트 동일 — tests/dom/icb-children K0). */
+    const _kids = circle.querySelector(':scope > .icb-children');
     circle.innerHTML = `
       <img class="icb-img" src="${src}" style="width:100%;height:100%;object-fit:cover;display:block;" draggable="false">
       <button class="icb-clear-btn" title="이미지 제거">✕</button>`;
+    if (_kids) circle.appendChild(_kids);
     circle.querySelector('.icb-clear-btn').addEventListener('click', e => {
       e.stopPropagation();
       clearCircleImage(icb);
@@ -1921,7 +1925,9 @@ function clearCircleImage(icb) {
   delete icb.dataset.imgY;
   delete icb.dataset.imgScale;
   const circle = icb.querySelector('.icb-circle');
+  const _kids = circle.querySelector(':scope > .icb-children');   // G14 — 그림을 빼도 원 안 자식은 남긴다(위 loadImageToCircle 과 같은 규칙)
   circle.innerHTML = `<span class="icb-placeholder"></span>`;
+  if (_kids) circle.appendChild(_kids);
   showIconCircleProperties(icb);
 }
 
