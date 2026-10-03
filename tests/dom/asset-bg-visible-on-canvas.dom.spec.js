@@ -10,6 +10,7 @@
  *
  * ★양성대조 판 = 37ab1c65 (GD1001_ROOT). 실측 명부는 커밋 메시지.
  *   AB3 = 「초기화 = 체커」(2026-10-03 지디 판정으로 바뀐 규약) — 핀에선 dataset 에 #a0a0a0 이 남아 빨강.
+ * ★서클블럭(icon-circle) 빈 원도 같은 병·같은 규칙 — IC0~IC3 (색은 안쪽 .icb-circle 에 실린다).
  * ⚠️못 재는 것: 실앱 Electron 의 색 관리(실앱 스샷은 #00ff00 → #71fb48 로 찍힌다) — 여기선 헤드리스 sRGB 로 잰다.
  */
 const { test, expect } = require('@playwright/test');
@@ -169,3 +170,78 @@ test('AB5 이미지가 있으면 배경색은 그림의 투명한 곳으로 비�
   expect(near(right, [0, 255, 0]), `오른쪽 = 비친 배경색 — 찍힌 ${right}`).toBe(true);
 });
 
+/* ═══ 서클블럭(icon-circle) — 같은 병: 색은 .icb-circle 인라인, 체커는 .icb-circle 의 background-image ═══ */
+const CIRCLE = `<div class="icon-circle-block" data-type="icon-circle" id="icA" data-size="240" data-bg-color="#e8e8e8" data-border="none">
+  <div class="icb-circle" style="width:240px;height:240px;"><span class="icb-placeholder"></span></div></div>`;
+async function selectCircleField(page) {
+  const r = await waitStableRect(page, '#icA .icb-circle');
+  await page.mouse.click(r.cx, r.cy);
+  await page.waitForTimeout(300);
+  const f = await page.evaluate(() => { const h = document.getElementById('icb-bg-hex'); const sw = document.getElementById('icb-bg-color')?.closest('.prop-color-swatch');
+    if (!h || !sw) return null; h.scrollIntoView({ block: 'center' }); const a = h.getBoundingClientRect(), b = sw.getBoundingClientRect();
+    return { hex: [a.left + a.width / 2, a.top + a.height / 2, a.width], sw: [b.left + b.width / 2, b.top + b.height / 2, b.width] }; });
+  expect(f, '전제 — 우측 패널에 서클 배경색 칸(icb-bg)이 있다').not.toBeNull();
+  expect(f.hex[2], '전제 — hex 칸이 보인다').toBeGreaterThan(0);
+  return f;
+}
+const circleBg = (page) => page.evaluate(() => { const b = document.getElementById('icA'); const c = b.querySelector('.icb-circle'); const cs = getComputedStyle(c); return { ds: b.dataset.bgColor ?? null, bgc: cs.backgroundColor, bgi: cs.backgroundImage }; });
+const circleCentre = async (page) => { const r = await waitStableRect(page, '#icA .icb-circle'); return [r.cx, r.cy]; };
+
+test('IC0 전제·계측기 — 색 안 고른 빈 원(placeholder dataset #e8e8e8)은 체커가 보인다', async ({ page }) => {
+  await setup(page, CIRCLE);
+  const b = await circleBg(page);
+  expect(b.ds, '전제 — 생성 때 박히는 placeholder').toBe('#e8e8e8');
+  expect(b.bgi).toContain('repeating-conic-gradient');
+  await park(page);
+  const [x, y] = await circleCentre(page);
+  const px = await pixelAt(page, x, y);
+  expect(near(px, [0xd8, 0xd8, 0xd8]) || near(px, [0xf0, 0xf0, 0xf0]), `체커 회색 — 찍힌 ${px}`).toBe(true);
+});
+
+test('IC1 ★hex 로 고른 색이 빈 원 «화면»에 칠해진다', async ({ page }) => {
+  await setup(page, CIRCLE);
+  const f = await selectCircleField(page);
+  await typeHex(page, f, 'FF0000');
+  const b = await circleBg(page);
+  expect(b.ds, '전제 — 패널이 색을 받았다').toBe('#ff0000');
+  expect(b.bgc).toBe('rgb(255, 0, 0)');
+  expect(b.bgi).toBe('none');
+  await park(page);
+  const [x, y] = await circleCentre(page);
+  const px = await pixelAt(page, x, y);
+  expect(near(px, [255, 0, 0]), `중앙 픽셀 = 고른 색 — 찍힌 ${px}`).toBe(true);
+});
+
+test('IC2 ★스펙트럼 «진짜 클릭»으로 고른 색이 빈 원에 칠해진다', async ({ page }) => {
+  await setup(page, CIRCLE);
+  const f = await selectCircleField(page);
+  await page.mouse.click(f.sw[0], f.sw[1]);
+  await page.waitForTimeout(300);
+  const sp = await page.evaluate(() => { const s = document.querySelector('.goya-cp-popover .goya-cp-spectrum'); if (!s) return null; const r = s.getBoundingClientRect(); return [r.right - 4, r.top + 4, r.width]; });
+  expect(sp, '전제 — 스펙트럼이 떴다').not.toBeNull();
+  await page.mouse.click(sp[0], sp[1]);
+  await page.waitForTimeout(250);
+  const picked = await page.evaluate(() => document.getElementById('icb-bg-color').value);
+  expect(picked, '전제 — 스펙트럼이 색을 냈다').not.toBe('#e8e8e8');
+  await page.evaluate(() => document.querySelector('.goya-cp-popover [data-action=close]')?.click());
+  const want = [1, 3, 5].map(i => parseInt(picked.slice(i, i + 2), 16));
+  await park(page);
+  const [x, y] = await circleCentre(page);
+  const px = await pixelAt(page, x, y);
+  expect(near(px, want), `중앙 픽셀 = 고른 ${picked} — 찍힌 ${px}`).toBe(true);
+});
+
+test('IC3 불투명도 0 이면 빈 원의 체커를 그대로 둔다', async ({ page }) => {
+  await setup(page, CIRCLE);
+  const f = await selectCircleField(page);
+  await typeHex(page, f, 'FF0000');
+  const a = await page.evaluate(() => { const e = document.getElementById('icb-bg-alpha'); const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.mouse.click(a[0], a[1]);
+  await page.keyboard.press('Meta+a');
+  await page.keyboard.type('0');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(200);
+  const b = await circleBg(page);
+  expect(b.ds, '전제 — 알파 0 이 실렸다').toMatch(/,0\)$/);
+  expect(b.bgi).toContain('repeating-conic-gradient');
+});
