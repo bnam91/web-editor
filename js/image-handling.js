@@ -682,7 +682,7 @@ function setAssetVideoFromSrc(ab, src) {
   restoreAssetGrain(ab, prevGrainSnap);
   ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
     e.stopPropagation();
-    clearAssetImage(ab);
+    clearAssetImageFromButton(ab);
   });
   ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
   const video = ab.querySelector('.asset-video');
@@ -742,7 +742,7 @@ function setAssetImageFromSrc(ab, src, motionSrc) {
   restoreAssetGrain(ab, prevGrainSnap);
   ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
     e.stopPropagation();
-    clearAssetImage(ab);
+    clearAssetImageFromButton(ab);
   });
   ab.querySelector('.asset-gif-toggle')?.addEventListener('click', e => {
     e.stopPropagation();
@@ -773,6 +773,21 @@ function toggleAssetGifPlayback(ab) {
     btn.classList.add('active');
   }
 }
+
+/* ★R2(2026-10-03, 현빈 「x 로 이미지 지운 뒤 백스페이스를 하면 에셋블럭이 안 지워진다 — 간헐적으로」) —
+   블럭 안 ✕(이미지 지우기)를 «누르면 그 블럭을 고른다». 실측(하네스, 현빈 proj_1790933370176/ab_y0hthua, 매 회 새 페이지):
+     고르고 ✕ → ⌫ = 120회 다 지워짐 / 안 고르고(마우스만 올려 ✕ 가 :hover 로 보임) ✕ → ⌫ = 40/40 안 지워짐 /
+     ★다른 블럭을 골라 둔 채 ✕ → ⌫ = 10/10 «골라 둔 다른 블럭이 대신 지워짐».
+   까닭: ✕ 처리기가 stopPropagation 이라 블럭 선택 경로를 안 타고, ⌫ 는 «그때 골라져 있는 것»을 지운다.
+   ⇒ 사용자가 방금 만진 블럭이 곧 ⌫ 의 대상이어야 한다. ⛔clearAssetImage «본체»엔 안 넣는다 — 패널·MCP·편집모드 등
+     프로그램 호출(prop-asset 「이미지 제거」는 이미 그 블럭이 골라진 상태)까지 선택을 바꾸면 안 된다. ✕ 단추 입구 셋만 이 함수를 탄다. */
+function clearAssetImageFromButton(ab) {
+  clearAssetImage(ab);
+  if (ab && ab.id && ab.isConnected && typeof window.selectBlock === 'function') {
+    try { window.deselectAll?.(); window.selectBlock(ab.id); } catch (e) { console.warn('[asset ✕] 선택 실패:', e); }
+  }
+}
+window.clearAssetImageFromButton = clearAssetImageFromButton;
 
 function clearAssetImage(ab) {
   exitImageEditMode(ab);

@@ -1224,7 +1224,7 @@ function bindBlock(block) {
       const overlayBtn = block.querySelector('.asset-overlay-clear');
       if (overlayBtn) overlayBtn.addEventListener('click', e => {
         e.stopPropagation();
-        window.clearAssetImage(block);
+        (window.clearAssetImageFromButton || window.clearAssetImage)(block);   // ★R2 — 누르면 그 블럭을 고른다(image-handling.js 주석)
       });
       if (block.dataset.assetType === 'video-pending') {
         window.attachAssetVideoTrimLoop?.(block);
