@@ -132,6 +132,20 @@ function _classifyDrop(clientX, clientY) {
     }
   }
 
+  /* 케이스 A3: 그리드 칸 «안 이미지 줄» (그림이 든 프레임 · 빈 슬롯) → 그 줄 이미지로 (현빈 2026-10-03 G8 「그리드에 넣은 에셋블럭에
+     스크래치를 놓아도 안 들어간다」). 그리드 칸의 이미지는 asset-block 이 아니라 «그리드 줄»(div.grd-img-frame[data-r][data-c][data-line])이라
+     위 케이스 A 가 못 봤고, 아래 rowLike 도 못 걸려(.grid-block 은 row 가 아니다) «섹션 배경으로» 떨어졌다(실측).
+     ⛔중첩(duo) 안 이미지 줄은 data-line 이 없다(data-nroot/npath 주소) — 이 판정은 «칸 직속 줄»만 집는다(updateGridBlock patchCell 이 그 주소만 받는다). */
+  const gFrame = hit.closest('.grd-img-frame[data-line]');
+  if (gFrame) {
+    const gblock = gFrame.closest('.grid-block');
+    const r = Number(gFrame.dataset.r), c = Number(gFrame.dataset.c), li = Number(gFrame.dataset.line);
+    if (gblock && gblock.closest('#canvas-scaler') && gblock.id
+        && Number.isInteger(r) && Number.isInteger(c) && Number.isInteger(li)) {
+      return { kind: 'gridimg', block: gblock, frame: gFrame, r, c, li };
+    }
+  }
+
   // 섹션 안에 있는가
   const sec = hit.closest('.section-block');
   if (!sec || !sec.closest('#canvas-scaler')) {
@@ -194,6 +208,14 @@ function _renderGuide(decision) {
     _activeReplaceAb = decision.cell;
     return;
   }
+  if (decision.kind === 'gridimg') {
+    if (_activeReplaceAb === decision.frame) return;
+    _clearGuides();
+    decision.frame.classList.add('sp2c-replace-target');
+    _addBadge(decision.frame, '칸 이미지로', false);
+    _activeReplaceAb = decision.frame;
+    return;
+  }
   if (decision.kind === 'insert') {
     _clearGuides();
     const ind = document.createElement('div');
@@ -232,6 +254,7 @@ function _renderGuide(decision) {
 function _decisionTarget(decision) {
   if (decision.kind === 'replace') return decision.ab;
   if (decision.kind === 'cvbcard') return decision.cell;
+  if (decision.kind === 'gridimg') return decision.frame;
   if (decision.kind === 'insert' || decision.kind === 'sectionbg') return decision.sec;
   if (decision.kind === 'newsection') return document.getElementById('canvas-scaler');
   return null;
@@ -438,6 +461,21 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
     } catch (_) {
       return false;
     }
+  } else if (decision.kind === 'gridimg') {
+    /* 그리드 칸 이미지는 dataset «모델»이 정본이다 — DOM 만 바꾸면 다음 renderGridBlock 에 날아간다.
+       ⇒ 에디터의 다른 이미지 입구(우클릭·패널·더블클릭 파일창)와 «같은 문» updateGridBlock{patchCell:{lineIndex,imgSrc}}.
+       trusted = 사람이 끌어 놓은 자기 스크래치 항목(파일창 입구와 같은 신뢰). noHistory = 호출자(scratch-pad onUp)가
+       「스크래치→섹션 변환」 한 걸음을 직접 쌓는다 — 여기서도 쌓으면 ⌘Z 가 두 걸음이 된다. */
+    /* ★window.updateGridBlock 이 아니라 «Raw» — 앞엣것은 model-update-history 래퍼가 호출마다 «끝 표본»을 한 칸 더 쌓는다.
+       호출자(scratch-pad onUp)가 sideEffects 가 실린 칸을 따로 쌓으므로 둘이 되면 ⌘Z 첫 걸음이 먹통이다(실측). */
+    if (typeof window.updateGridBlockRaw !== 'function') {
+      console.warn('[canvas-scratch-drop] updateGridBlockRaw 누락 — 변환 스킵');
+      return false;
+    }
+    const res = window.updateGridBlockRaw(decision.block.id,
+      { patchCell: { r: decision.r, c: decision.c, lineIndex: decision.li, imgSrc: src } },
+      { trusted: true, noHistory: true });
+    if (!res || !res.ok) { window.grdToastImgFail?.(res); return false; }
   } else if (decision.kind === 'insert') {
     if (typeof window.makeAssetBlock !== 'function') {
       console.warn('[canvas-scratch-drop] makeAssetBlock 누락');
