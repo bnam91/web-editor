@@ -1283,6 +1283,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
       그리드 밑에 빈 띠를 만들지 않게. ⛔끄는 동안의 임시 띠(.grd-child-strip)는 비어 있어도 «자리가 곧 기능»이라 뺀다.
    ⑵ 임시 띠 겉모습 — 새 토큰 0(선택색·선택 채움 그대로) · #canvas 한정(내보내기 클론엔 안 간다). */
 .grd-children:not(.grd-child-strip):empty { display: none; }
+/* ★C5 — 끄는 동안 G9 가 «받을 칸» 표시(섹션 표시선 대신). 줄 선택 표시와 같은 기법(inset box-shadow · 줌 불변) · 새 토큰 0. */
+#canvas .grid-block .grd-cell.grd-cell-drop-target { box-shadow: inset 0 0 0 calc(2px * var(--inv-zoom, 1)) var(--sel-color); }
 #canvas .grd-child-strip {
   outline: var(--sel-outline-w) dashed var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));

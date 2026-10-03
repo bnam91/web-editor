@@ -687,8 +687,10 @@ if (typeof window !== 'undefined') window.grdAddLine = grdAddLine;
  * ★쓰는 길은 grdAddLine(상한·활성줄·거절 시 원복 한 벌). 넣기가 «성공했을 때만» 원본 블럭을 지운다 —
  *   실패하면 블럭이 제자리로 돌아온다(데이터가 어디에도 없는 상태 금지). 이력은 한 칸(아래 «한 동기 구간») — ⌘Z 한 번이 원위치.
  * @returns {boolean} 먹었으면 true */
-export function grdDropTextBlockOnCell(e, src) {
-  if (!src || !e) return false;
+/** G9 이 «받는» 글자 블럭인가 — 받으면 { tb, inner, m }, 아니면 null. 놓기(drop)와 끄는 중 표시(dragover — js/grid-children.js)가
+ *  «같은 판정 한 벌»을 쓴다(두 벌이면 «표시는 칸인데 놓으면 행 이동»이 다시 생긴다 — C5 이전의 표시선 거짓말이 그 꼴이었다). */
+export function grdTextDropSource(src) {
+  if (!src) return null;
   let tb = null;
   if (src.classList?.contains('text-block')) tb = src;
   else if (src.classList?.contains('row')) {
@@ -704,9 +706,35 @@ export function grdDropTextBlockOnCell(e, src) {
   const kids = [...tb.children].filter(k => !k.classList.contains('tb-rotate-zone'));   // 선택 때 붙는 회전 영역은 UI
   const inner = kids.length === 1 ? kids[0] : null;
   const m = inner && /^tb-(h1|h2|h3|body|caption|label)$/.exec(inner.className.replace(/\s+/g, ' ').trim().split(' ')[0] || '');
-  if (!inner || !m || inner.querySelector('ul,ol,img,svg,input,table')) return false;
-  const at = document.elementFromPoint(e.clientX, e.clientY);
-  const cellEl = at && at.closest ? at.closest('.grd-cell[data-r][data-c]') : null;
+  if (!inner || !m || inner.querySelector('ul,ol,img,svg,input,table')) return null;
+  return { tb, inner, m };
+}
+if (typeof window !== 'undefined') window.grdTextDropSource = grdTextDropSource;
+
+/** 포인터 아래 «칸» — 사각형으로 가른다(js/grid-children.js gridDropZoneAt 의 «격자 자리» + 칸 사각형 안).
+ *  ⛔elementFromPoint 금지: 선택 안 된 프레임 안에서는 `.frame-block:not(.selected) *{pointer-events:none}` 때문에
+ *    프레임 자신이 잡혀 G9 가 죽었다(측정 M3 E 3/3). 칸 «사이»(열 간격)는 칸이 아니다 — 종전과 같다(행 이동).
+ *  @param container 드롭 처리기의 그릇(e.currentTarget — .section-inner 또는 프레임) */
+export function grdCellAtPoint(container, x, y, src) {
+  const hit = window.gridDropZoneAt?.(container, x, y, src);
+  if (!hit || hit.zone !== 'inner') return null;
+  const gi = hit.grid.querySelector(':scope > .grd-inner');
+  if (!gi) return null;
+  for (const c of gi.querySelectorAll(':scope > .grd-cell[data-r][data-c]')) {
+    const r = c.getBoundingClientRect();
+    if (r.width && r.height && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return c;
+  }
+  return null;
+}
+if (typeof window !== 'undefined') window.grdCellAtPoint = grdCellAtPoint;
+
+export function grdDropTextBlockOnCell(e, src) {
+  if (!src || !e) return false;
+  const _acc = grdTextDropSource(src);
+  if (!_acc) return false;
+  const { tb, inner, m } = _acc;
+  /* ★C5 — 칸 판정을 사각형으로(위 grdCellAtPoint). 그릇은 이 처리기가 걸린 요소(e.currentTarget). */
+  const cellEl = grdCellAtPoint(e.currentTarget, e.clientX, e.clientY, src);
   const block = cellEl && cellEl.closest('.grid-block');
   /* ★G19 — «격자 안»(:scope > .grd-inner)에 든 글자만 막는다. 그리드 «밑» 자식(.grd-children) 글자는 같은 그리드 칸에 넣을 수 있다. */
   const _gInner = block && block.querySelector(':scope > .grd-inner');

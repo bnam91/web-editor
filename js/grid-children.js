@@ -76,6 +76,13 @@ export function pruneGridKidsBox(box) {
   return true;
 }
 
+/* ── C5 칸 표시(끄는 동안 G9 가 받을 칸) — 클래스 하나, CSS 는 editor-blocks.css(새 토큰 0). ── */
+const CELL_DROP = 'grd-cell-drop-target';
+let _cellMark = null;
+function _clearCellDropMark() {
+  if (_cellMark) { _cellMark.classList.remove(CELL_DROP); _cellMark = null; }
+}
+
 /* ── 임시 띠 ─────────────────────────────────────────────────────────── */
 let _strip = null;   // { grid, el }
 function _zoom() { return (Number(window.currentZoom) || 40) / 100; }
@@ -152,9 +159,23 @@ export function gridDropZoneAt(container, x, y, src) {
  * 빈 그리드 위면 임시 띠를 세운다(그 틱은 띠 안이 아니면 false — 처리기가 종전 표시선을 그린다).
  */
 export function gridChildDragOver(container, x, y, src) {
+  _clearCellDropMark();
   const hit = gridDropZoneAt(container, x, y, src);
   if (_strip && (!hit || hit.grid !== _strip.grid)) removeGridChildStrip();
   if (!hit) return false;
+  /* ★C5 — 격자 자리에 G9 가 받는 글자를 끌고 있으면 «칸»을 표시하고 섹션 표시선을 안 그린다(true).
+     예전엔 칸 위를 지나는 동안 표시선이 그리드 앞/뒤에 그려졌는데 놓으면 칸으로 들어갔다(측정 M3 D2·D3 — 표시가 거짓말).
+     판정은 놓기와 «같은» 두 함수(grdTextDropSource · grdCellAtPoint)다. */
+  if (hit.zone === 'inner' && window.grdTextDropSource?.(src)) {
+    const cell = window.grdCellAtPoint?.(container, x, y, src);
+    if (cell) {
+      cell.classList.add(CELL_DROP);
+      _cellMark = cell;
+      let box0 = gridKidsBox(hit.grid);
+      if (!box0 || box0.childElementCount === 0) _showStrip(hit.grid);
+      return true;
+    }
+  }
   let box = gridKidsBox(hit.grid);
   if (!box || box.childElementCount === 0) box = _showStrip(hit.grid);
   if (hit.zone !== 'kids') return false;
@@ -171,6 +192,7 @@ export function gridChildDragOver(container, x, y, src) {
  * 아니면 임시 띠를 걷고 false — 처리기가 종전대로 한다.
  */
 export function gridChildDrop(e, container, src) {
+  _clearCellDropMark();
   if (!e || !src) { removeGridChildStrip(); return false; }
   const hit = gridDropZoneAt(container, e.clientX, e.clientY, src);
   if (!hit || hit.zone !== 'kids') { removeGridChildStrip(); return false; }
@@ -201,11 +223,11 @@ export function gridChildDrop(e, container, src) {
 
 /* ── 띠가 «끝까지 남는» 길 막기 — dragend(Esc 취소·창 밖 놓기 포함) · 창 밖으로 나감 · 그리드 밖 dragover ── */
 if (typeof document !== 'undefined') {
-  document.addEventListener('dragend', () => removeGridChildStrip(), true);
+  document.addEventListener('dragend', () => { removeGridChildStrip(); _clearCellDropMark(); }, true);
   document.addEventListener('dragover', (e) => {
     if (!_strip) return;
     if (!_strip.el.isConnected) { _strip = null; return; }
-    if (!_inRect(_gridHitRect(_strip.grid), e.clientX, e.clientY)) removeGridChildStrip();
+    if (!_inRect(_gridHitRect(_strip.grid), e.clientX, e.clientY)) { removeGridChildStrip(); _clearCellDropMark(); }
   }, true);
   /* 창 밖으로 나감 — ⛔relatedTarget 으로 재지 마라: Chromium 의 dragleave 는 요소 경계마다 relatedTarget=null 이라
      (실측: 그 판정으로는 띠가 세워지자마자 걷혔다) «창 안 경계»와 «창 밖»을 못 가른다. 좌표가 창 가장자리 밖이면 나간 것이다. */
