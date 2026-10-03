@@ -3123,11 +3123,28 @@ window.updateGridBlockRaw = updateGridBlock;
  * ⛔태그블럭 ＋ 의 --inv-zoom 미보정(E28)은 여기서 안 고친다(범위 밖). */
 const GRID_ADD_BTN_CLS = 'grd-add-btn';
 
-/* ⏸ 현빈 답 대기: 호버 vs 선택(태그블럭 선례=선택)
- * ＋ 가 «뜨는 조건»은 이 함수 «하나»에만 둔다. 답이 오기 전엔 제품 조건을 짓지 않는다 —
- * 지금은 시험 전용 표지(data-grd-plus-test="1")가 있을 때만 뜬다(제품 화면에선 안 뜬다). */
+/* ★뜨는 조건 = «호버» — 그리드 블럭 «전체» 위에 마우스가 있으면 두 ＋ 가 붙는다(선택 불필요).
+ * .label-group-block.selected 의 ＋ 는 선택 때만 보인다(opacity 0 + pointer-events none). 그리드 ＋ 는 «호버»로 간다 — 선례와 다른 것이 의도다, 2026-10-04 현빈 결정
+ * ★호버 영역은 ＋ 가 아니라 «블럭 전체»다 — ＋ 만 반응하면 ＋ 는 영영 안 나타난다.
+ *   ＋ 는 블럭의 «자식»이라(아래 ＋ 가 반쯤 밖으로 나가 있어도) 그 위로 가도 블럭 :hover 가 유지된다.
+ * ★조건은 이 함수 «하나»에만 둔다. 붙이고 떼는 계기는 _bindGridPlusHover(mouseenter/leave) + 렌더 끝(_syncGridAddBtns). */
 function _gridPlusShown(block) {
-  return block?.dataset?.grdPlusTest === '1';
+  /* 깃발(들어옴~나감) «또는» :hover. ⛔:hover 만 보면 ＋ 를 누른 직후 다시 그릴 때 꺼진다 —
+     눌린 ＋ 가 innerHTML 갈이로 DOM 에서 빠지면 크로미움은 다음 마우스 이동 전까지 :hover 를 풀어 둔다
+     (실측 2026-10-04: 같은 자리 연속 클릭 둘째에 ＋ 가 없어 칸을 눌렀다). 깃발은 그 사이에도 산다.
+     :hover 는 «마우스가 이미 위에 있는데 블럭이 새로 생긴» 경우(⌘Z 뒤 블럭 교체 등)를 받는다. */
+  return _gridPlusHovered.has(block) || !!block?.matches?.(':hover');
+}
+
+/* 블럭마다 한 번 — 들어오면 붙이고 나가면 뗀다. ⛔붙였다 뗐다는 «편집이 아니다»
+   (save-load NON_CONTENT_UI_SELECTOR 에 .grd-add-btn 이 있어 자동저장을 안 깨운다). */
+const _gridPlusBound = new WeakSet();
+const _gridPlusHovered = new WeakSet();   // mouseenter~mouseleave 사이(_gridPlusShown 이 읽는다)
+function _bindGridPlusHover(block) {
+  if (!block?.addEventListener || _gridPlusBound.has(block)) return;
+  _gridPlusBound.add(block);
+  block.addEventListener('mouseenter', () => { _gridPlusHovered.add(block); _syncGridAddBtns(block); });
+  block.addEventListener('mouseleave', () => { _gridPlusHovered.delete(block); _syncGridAddBtns(block); });
 }
 
 /* 피커·＋ 공용 — 칸 수를 (nCols, nRows) 로 바꾼다. 바뀌었으면 true.
@@ -3200,29 +3217,40 @@ function gridAddAtEnd(block, axis) {
 
 function _syncGridAddBtns(block) {
   if (!block?.querySelectorAll) return;
-  block.querySelectorAll(`:scope > .${GRID_ADD_BTN_CLS}`).forEach(b => b.remove());
-  if (!_gridPlusShown(block)) return;
+  _bindGridPlusHover(block);
+  const have = block.querySelectorAll(`:scope > .${GRID_ADD_BTN_CLS}`);
+  if (!_gridPlusShown(block)) { have.forEach(b => b.remove()); return; }
   const full = { col: _gridCols(block).length >= MAX_COLS, row: _gridRows(block).length >= MAX_ROWS };
-  for (const axis of ['col', 'row']) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = GRID_ADD_BTN_CLS;
-    btn.dataset.grdAdd = axis;
-    btn.setAttribute('contenteditable', 'false');
-    btn.textContent = '+';
-    btn.title = axis === 'col' ? '열 추가' : '행 추가';
-    /* 상한(4)에서는 흐리게 + 눌러도 아무 일 없음.
-       캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 쪽 참고 선례: layer-panel.js:559 addBtn.disabled) */
-    if (full[axis]) btn.disabled = true;
-    // ⛔블럭 드래그·선택·인라인 편집으로 새지 않게 — mousedown/click 을 여기서 멈춘다
-    btn.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
-    btn.addEventListener('click', e => {
-      e.stopPropagation(); e.preventDefault();
-      if (btn.disabled) return;
-      gridAddAtEnd(block, axis);
-    });
-    block.appendChild(btn);
+  /* ⛔이미 붙어 있으면 «갈아끼우지 않는다» — 흐림 상태만 맞춘다.
+     갈아끼우면 마우스 밑 노드가 빠져 크로미움이 조상들에 mouseenter 를 다시 쏘고, 그게 또 갈아끼워
+     «끝없는 고리»가 된다(실측 2026-10-04: ＋ 클릭 뒤 mouseenter 사슬이 수십 번 돌고 둘째 클릭이 아예 안 들어갔다). */
+  if (have.length !== 2) {
+    have.forEach(b => b.remove());
+    for (const axis of ['col', 'row']) block.appendChild(_makeGridAddBtn(block, axis));
   }
+  /* 상한(4)에서는 흐리게 + 눌러도 아무 일 없음. ★흐림을 정하는 곳은 «여기 한 줄»(새로 붙일 때도 이미 있을 때도).
+     캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 쪽 참고 선례: layer-panel.js:559 addBtn.disabled) */
+  block.querySelectorAll(`:scope > .${GRID_ADD_BTN_CLS}`).forEach(b => { b.disabled = !!full[b.dataset.grdAdd]; });
+}
+
+function _makeGridAddBtn(block, axis) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = GRID_ADD_BTN_CLS;
+  btn.dataset.grdAdd = axis;
+  btn.setAttribute('contenteditable', 'false');
+  btn.textContent = '+';
+  btn.title = axis === 'col' ? '열 추가' : '행 추가';
+  // ⛔블럭 드래그·선택·인라인 편집으로 새지 않게 — mousedown/click 을 여기서 멈춘다
+  btn.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
+  /* 연타(같은 자리 두 번 = dblclick)가 블럭의 더블클릭(편집 진입)으로 새지 않게 — 예방(이것 때문에 깨진 실측은 없다) */
+  btn.addEventListener('dblclick', e => { e.stopPropagation(); e.preventDefault(); });
+  btn.addEventListener('click', e => {
+    e.stopPropagation(); e.preventDefault();
+    if (btn.disabled) return;
+    gridAddAtEnd(block, axis);
+  });
+  return btn;
 }
 window.gridAddAtEnd = gridAddAtEnd;
 

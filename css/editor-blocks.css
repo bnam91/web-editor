@@ -1315,8 +1315,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * ★자리
  *   · 오른쪽(열) = 블럭 «안쪽» 오른쪽 끝(태그블럭 ＋ 도 안쪽 오른쪽 끝). 밖으로 반을 내면 전폭 그리드에서 섹션 끝에 잘린다
  *     — 실측 2026-10-04: 중심이 섹션 오른쪽 끝(x=1230)과 겹쳐 elementFromPoint 가 #canvas-wrap 을 잡았다(클릭 안 먹음).
- *   · 아래(행) = 아래 모서리선 위에 중심(반은 밖). 안쪽에 두면 1행 그리드(높이 ≈40)에서 가운데 칸 글자를 덮었다(실측 스크린샷).
- * ⏸ 뜨는 조건은 여기 «없다» — js/blocks/grid-block.js _gridPlusShown 하나에만 있다(답 대기). 붙어 있으면 보인다. */
+ *   · 아래(행) = 블럭 «바로 아래 바깥»(top:100% · 틈 0). 호버로 뜨므로 블럭을 덮으면 «블럭을 고르려는 첫 클릭»을 ＋ 가 먹는다
+ *     — 실측 2026-10-04: 높이 34px 그리드(프레임 안)에서 모서리 걸침 ＋ 가 블럭 가운데를 덮어 클릭이 행 추가가 됐다
+ *       (tests/dom/frame-paste-grid-real P0 · grid-first-click-block T-058-14 빨강). 틈을 두면 ＋ 로 가는 길에 mouseleave 로 꺼진다.
+ *   ⚠️오른쪽 ＋ 는 안쪽이라 블럭 오른쪽 끝 40px 의 첫 클릭은 여전히 ＋ 가 먹는다(전폭 그리드라 밖으로 못 낸다) — 보고서 미결.
+ * ★뜨는 조건(블럭 «호버», 2026-10-04 현빈 결정)은 여기 «없다» — js/blocks/grid-block.js _gridPlusShown 하나에만 있다. 붙어 있으면 보인다. */
 #canvas .grid-block > .grd-add-btn {
   position: absolute;
   z-index: 5;
@@ -1333,7 +1336,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   cursor: pointer;
 }
 #canvas .grid-block > .grd-add-btn[data-grd-add="col"] { top: 50%;  right: 0;  transform: translateY(-50%); }
-#canvas .grid-block > .grd-add-btn[data-grd-add="row"] { top: 100%; left: 50%; transform: translate(-50%, -50%); }
+#canvas .grid-block > .grd-add-btn[data-grd-add="row"] { top: 100%; left: 50%; transform: translateX(-50%); }
 #canvas .grid-block > .grd-add-btn:not(:disabled):hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
 /* 상한(4×4)에서는 흐리게 — 캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 참고 선례: layer-panel.js:559 disabled) */
 #canvas .grid-block > .grd-add-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }

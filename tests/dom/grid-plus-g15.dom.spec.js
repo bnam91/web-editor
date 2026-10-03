@@ -2,9 +2,9 @@
  *   오른쪽 끝 ＋ = 열 하나를 «끝에» · 아래 끝 ＋ = 행 하나를 «끝에». 4×4 상한에선 흐리고 눌러도 무변화.
  *   히트 영역 = calc(40px * var(--inv-zoom)) — 화면에서 늘 ≈40px.
  *
- * ⏸ ＋ 가 «뜨는 조건»(호버 vs 선택)은 현빈 답 대기라 제품에 없다. 시험은 «시험 전용 표지»로 띄운다:
- *     block.dataset.grdPlusTest = '1'  (= data-grd-plus-test="1")  → js/blocks/grid-block.js _gridPlusShown
- *   ⇒ 이 시험은 「뜬 뒤의 동작·크기」만 잰다. 「언제 뜨나」는 재지 않는다(지을 것이 없다).
+ * ★뜨는 조건 = 그리드 블럭 «전체» 호버(2026-10-04 현빈 결정 — 태그블럭 ＋ 의 «선택» 선례와 다른 것이 의도).
+ *   시험 전용 표지는 없다 — 진짜 마우스를 그리드 위에 올려서 띄운다(V1~V3 이 뜨고·지는 것을 잰다).
+ *   보임 = computed opacity·visibility + elementFromPoint(눌리는가).
  *
  * 양성대조 핀 07d8178b(origin/dev, 이 기능 전): GD1001_ROOT=<핀 체크아웃> 으로 같은 시험을 돌린다.
  * 하네스 = bootApp(앱 통째 · 진짜 마우스). 배율 전제(100 · 40)는 «재기 전에» 단언한다.
@@ -46,11 +46,39 @@ async function setup(page, zoom = 100) {
   return { errs, a: ids[0], b: ids[1] };
 }
 
-/* 시험 전용 표지를 달고 다시 그린다 — ＋ 가 붙는 유일한 문(_gridPlusShown) */
-const force = (page, id) => page.evaluate((id) => {
-  const g = document.getElementById(id); g.dataset.grdPlusTest = '1'; window.renderGridBlock(g);
-  g.scrollIntoView({ block: 'center' });
+/* 그리드 «안쪽» 한 점 — 왼쪽 1/4 · 세로 가운데(＋ 두 개 어느 쪽과도 안 겹치는 자리) */
+const gridPoint = (page, id) => page.evaluate((id) => {
+  const g = document.getElementById(id); g.scrollIntoView({ block: 'center' });
+  const r = g.getBoundingClientRect(); return [r.left + r.width * 0.25, r.top + r.height / 2];
 }, id);
+/* 그리드 «밖» 한 점 — 블럭 위 30px(위 gap 블럭) */
+const outsidePoint = (page, id) => page.evaluate((id) => {
+  const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width * 0.25, r.top - 30];
+}, id);
+/* 진짜 마우스로 그리드 위에 올린다 — ＋ 가 붙는 유일한 길(호버) */
+async function force(page, id) {
+  const [x, y] = await gridPoint(page, id);
+  await page.mouse.move(x, y, { steps: 4 });
+  await page.waitForTimeout(80);
+}
+/* ＋ 가 «보이고 눌리는가» — 없으면 그 자리에 무엇이 잡히는지도 본다 */
+const vis = (page, id) => page.evaluate((id) => {
+  const g = document.getElementById(id), gr = g.getBoundingClientRect();
+  const out = {};
+  for (const axis of ['col', 'row']) {
+    const b = g.querySelector(`:scope > .grd-add-btn[data-grd-add="${axis}"]`);
+    /* 없을 때 잴 자리 = 있을 때 중심(오른쪽 안쪽 끝 · 아래 모서리선 가운데) */
+    const at = b ? (() => { const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()
+                 : (axis === 'col' ? [gr.right - 20, gr.top + gr.height / 2] : [gr.left + gr.width / 2, gr.bottom + 20]);
+    const hit = document.elementFromPoint(at[0], at[1]);
+    const cs = b ? getComputedStyle(b) : null;
+    out[axis] = { present: !!b, opacity: cs ? +cs.opacity : 0, visibility: cs ? cs.visibility : 'none',
+                  clickable: !!hit && !!hit.closest?.('.grd-add-btn') };
+  }
+  return out;
+}, id);
+const SHOWN = { present: true, opacity: 1, visibility: 'visible', clickable: true };
+const HIDDEN = { present: false, opacity: 0, visibility: 'none', clickable: false };
 
 const model = (page, id) => page.evaluate((id) => {
   const g = document.getElementById(id);
@@ -86,11 +114,31 @@ async function pickViaPanel(page, id, c, r) {
   }, [id, c, r]);
 }
 
-test('P0 표지 없으면 ＋ 가 «없다»(뜨는 조건 미구현 — ⏸) · 표지 달면 둘(col·row)', async ({ page }) => {
+test('V1 ★그리드 밖 → ＋ 안 보임(opacity·visibility·elementFromPoint)', async ({ page }) => {
   const { errs, a } = await setup(page);
-  expect(await page.evaluate((id) => document.querySelectorAll(`#${id} > .grd-add-btn`).length, a)).toBe(0);
+  await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center' }), a);
+  const [ox, oy] = await outsidePoint(page, a);
+  await page.mouse.move(ox, oy, { steps: 4 }); await page.waitForTimeout(80);
+  expect(await page.evaluate((id) => document.getElementById(id).matches(':hover'), a), '전제 — 그리드 위가 아니다').toBe(false);
+  expect(await vis(page, a), '★밖이면 둘 다 없다·안 눌린다').toEqual({ col: HIDDEN, row: HIDDEN });
+  expect(errs).toEqual([]);
+});
+
+test('V2 ★그리드 위(블럭 아무 데나) → 두 ＋ 보이고 눌린다 · 선택 불필요', async ({ page }) => {
+  const { errs, a } = await setup(page);
   await force(page, a);
-  expect(await page.evaluate((id) => [...document.querySelectorAll(`#${id} > .grd-add-btn`)].map(b => b.dataset.grdAdd), a)).toEqual(['col', 'row']);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), a), '전제 — 선택 안 됨(호버만)').toBe(false);
+  expect(await vis(page, a), '★호버 → 둘 다 보이고 눌린다').toEqual({ col: SHOWN, row: SHOWN });
+  expect(errs).toEqual([]);
+});
+
+test('V3 ★그리드에서 벗어나면 → 다시 안 보임', async ({ page }) => {
+  const { errs, a } = await setup(page);
+  await force(page, a);
+  expect(await vis(page, a), '전제 — 호버 중엔 보인다').toEqual({ col: SHOWN, row: SHOWN });
+  const [ox, oy] = await outsidePoint(page, a);
+  await page.mouse.move(ox, oy, { steps: 4 }); await page.waitForTimeout(80);
+  expect(await vis(page, a), '★벗어나면 둘 다 사라진다').toEqual({ col: HIDDEN, row: HIDDEN });
   expect(errs).toEqual([]);
 });
 
@@ -152,6 +200,7 @@ test('P3 ★4×4 상한 — ＋ 흐림(disabled · --ui-disabled-opacity) · 눌
   for (let i = 0; i < 2; i++) {
     const bx = await btnBox(page, a, 'col');
     expect(bx.disabled, `전제 — ${2 + i}열에선 살아 있다`).toBe(false);
+    expect(bx.hitIsBtn, `전제 — ${2 + i}열 ＋ 가운데가 눌린다 ${JSON.stringify(bx)}`).toBe(true);
     await page.mouse.click(bx.cx, bx.cy); await page.waitForTimeout(120);
   }
   let m = await model(page, a);
@@ -223,3 +272,19 @@ test('P5 저장·내보내기에 ＋ 가 안 샌다(편집 전용)', async ({ pa
   if (r.ser !== null) expect(r.ser, '★직렬화본엔 0').toBe(0);
   expect(errs).toEqual([]);
 });
+
+test('P6 ★호버 ＋ 가 «블럭 고르기» 첫 클릭을 안 먹는다 — 1행 그리드 가운데 클릭 = 선택 · 행·열 그대로', async ({ page }) => {
+  const { errs, a } = await setup(page);
+  const m0 = await model(page, a);
+  const [x, y] = await page.evaluate((id) => { const g = document.getElementById(id); g.scrollIntoView({ block: 'center' });
+    const r = g.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, a);
+  expect(await page.evaluate((id) => document.getElementById(id).getBoundingClientRect().height, a), '전제 — 1행 그리드는 ＋(40) 보다 낮다').toBeLessThan(80);
+  await page.mouse.move(x, y, { steps: 4 }); await page.waitForTimeout(80);
+  expect((await vis(page, a)).row.present, '전제 — 호버로 ＋ 가 떴다').toBe(true);
+  await page.mouse.click(x, y); await page.waitForTimeout(200);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), a), '★가운데 클릭 = 블럭 선택').toBe(true);
+  const m1 = await model(page, a);
+  expect({ cols: m1.cols, rows: m1.rows, cells: m1.cells }, '★행·열 무변화').toEqual({ cols: m0.cols, rows: m0.rows, cells: m0.cells });
+  expect(errs).toEqual([]);
+});
+
