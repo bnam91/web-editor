@@ -3,11 +3,24 @@ import { blockHeaderHTML } from './_helpers.js';
 import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
+/* G14 「＋ 블럭 넣기 ▾」 종류 — 정본 목록은 js/icb-children.js ICB_CHILD_KINDS(이름표만 여기). */
+const _ICB_KID_KINDS = [['body', '텍스트'], ['h2', '제목'], ['icon', '아이콘']];
+
 export function showIconCircleProperties(block) {
   const circle   = block.querySelector('.icb-circle');
   const size     = parseInt(block.dataset.size)    || 80;
   const bgColor  = block.dataset.bgColor           || '#e8e8e8';
-  const bgAlpha  = parseAlphaFromColor(bgColor);
+  /* ★G14 E48 — 「채움」은 원에 «인라인 색이 실렸나»로 읽는다(⛔dataset.bgColor 로 읽지 않는다).
+     생성기(makeIconCircleBlock)가 빈 원에도 placeholder '#e8e8e8' 을 박는데 원에는 안 칠한다 — 체커가 보인다.
+     예전 패널은 그 placeholder 를 «칠해진 색»으로 보여 줬다(실측 G14-MEASURE: 패널 E8E8E8 100% · 캔버스 체커 = 패널이 거짓말).
+     ⇒ 읽는 쪽만 고친다 — 데이터는 그대로(Figma 폴백 export-figma-json 이 '#e8e8e8' 을 «빈 원» 신호로 쓴다).
+     ★끔 = 기존 값 'transparent'(새 값 아님 — MCP _isColor 가 받고 CSS 는 체커를 남기고 Figma 는 투명으로 낸다).
+     ★투명도(색칸의 %)는 «배경만» 흐리게 한다 — 안 ㉠(지디 확정 2026-10-04). 현빈 원문 「이미지가 아닌 프레임이 «채워지는» 거겠지?
+       투명도도 조절되고」의 «채워지는» = 채움(배경) ⇒ 그 채움의 투명도. 원 안 자식·그림은 안 흐려진다.
+       「원 전체」 투명도(㉡)는 현빈이 원하면 그때 얹는다(새 키 data-opacity — 지금은 없다). */
+  const _fillOn  = !!circle && !!circle.style.backgroundColor && bgColor !== 'transparent';
+  let   _lastFill = (bgColor && bgColor !== 'transparent') ? bgColor : '#e8e8e8';   // 끈 뒤 다시 켤 색(패널 지역 — 데이터 키 아님)
+  const bgAlpha  = parseAlphaFromColor(_lastFill);
   const borderV  = block.dataset.border            || 'none';
   const radius   = parseInt(block.dataset.radius)  || 0;
   const padX     = parseInt(block.dataset.padX)    || 0;
@@ -68,9 +81,25 @@ ${blockHeaderHTML({
     </div>`}
     <div class="prop-section">
       <div class="prop-section-title">Color</div>
-      <div class="prop-color-row">
+      <div class="prop-row">
+        <span class="prop-label">채움</span>
+        <label class="prop-toggle" title="끄면 원 바탕이 비어 있다(편집 화면에선 체크무늬 · 내보내기에선 투명)">
+          <input type="checkbox" id="icb-fill-toggle" ${_fillOn ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div class="prop-color-row" id="icb-bg-row" style="${_fillOn ? '' : 'opacity:0.4;'}">
         <span class="prop-label">배경</span>
-        ${colorFieldHTML({ idPrefix: 'icb-bg', hex: bgColor, alpha: bgAlpha })}
+        ${colorFieldHTML({ idPrefix: 'icb-bg', hex: _lastFill, alpha: bgAlpha })}
+      </div>
+    </div>
+    <div class="prop-section" id="icb-kids-section" style="padding-bottom:4px;">
+      <div class="prop-row" style="align-items:center;gap:6px;">
+        <select class="prop-select" id="icb-kid-add-kind" style="flex:1 1 0;min-width:0;width:auto;"
+                title="원 «안»에 블럭을 넣는다 — 글자는 원 안에서 고친다">
+          <option value="">＋ 블럭 넣기 (원 안)…</option>
+          ${_ICB_KID_KINDS.map(([k, ko]) => `<option value="${k}">+ ${ko}</option>`).join('')}
+        </select>
       </div>
     </div>
     <div class="prop-section">
@@ -132,13 +161,34 @@ ${blockHeaderHTML({
   propPanel.querySelector('#icb-rot-slider').addEventListener('change', () => window.pushHistory());
   propPanel.querySelector('#icb-rot-number').addEventListener('change', () => window.pushHistory());
 
+  const _fillToggle = propPanel.querySelector('#icb-fill-toggle');
+  const _bgRow = propPanel.querySelector('#icb-bg-row');
+  const _paint = (c) => { block.dataset.bgColor = c; circle.style.backgroundColor = c; };
   wireColorField('icb-bg', {
     initialAlpha: bgAlpha,
     onApply: (c) => {
-      block.dataset.bgColor = c;
-      circle.style.backgroundColor = c;
+      _paint(c);
+      _lastFill = c;
+      // 색을 고르면 «채움 켬»이다 — 토글·흐림을 같이 맞춘다
+      if (_fillToggle) _fillToggle.checked = true;
+      if (_bgRow) _bgRow.style.opacity = '';
     },
     onCommit: () => window.pushHistory(),
+  });
+  /* G14 채움 켬/끔 — 끔 = 'transparent'(기존 값) · 켬 = 마지막 색(없으면 #e8e8e8). 히스토리는 «양쪽 끝»(js/CLAUDE.md). */
+  _fillToggle?.addEventListener('change', () => {
+    window.pushHistory();
+    if (_fillToggle.checked) { _paint(_lastFill); if (_bgRow) _bgRow.style.opacity = ''; }
+    else { _paint('transparent'); if (_bgRow) _bgRow.style.opacity = '0.4'; }
+    window.pushHistory();
+  });
+  /* G14 「＋ 블럭 넣기 ▾」 — 고르면 바로 넣고 머리로 되돌린다(G19 그리드 「＋ 블럭 넣기 ▾」와 같은 꼴). */
+  const _kidAdd = propPanel.querySelector('#icb-kid-add-kind');
+  _kidAdd?.addEventListener('change', () => {
+    const kind = _kidAdd.value;
+    _kidAdd.value = '';
+    if (!kind) return;
+    window.addCircleChild?.(block, kind);
   });
 
   propPanel.querySelector('#icb-border-select').addEventListener('change', e => {
