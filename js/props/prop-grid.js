@@ -1214,10 +1214,15 @@ function _grdWireImageSection(block, addr) {
  *     매 조작마다 죽는다(이 파일 머리글이 같은 말을 적어 뒀다).
  */
 const _grdOpenSections = new WeakMap();
-const _grdSecOpen = (block, key) => (_grdOpenSections.get(block) || {})[key] === true;
-function _grdSecToggle(block, key) {
+/* ★dflt — 사람이 «아직 안 건드렸을 때»의 기본(미지정 = 접힘). 한 번 눌러 상태가 생기면 그 값이 이긴다.
+ *   (G3 현빈 「갭 줄 높이 조절이 안 된다」 — 갭 줄의 «높이» 칸이 접힌 「줄 꾸미기」 안에 숨어 있었다.) */
+const _grdSecOpen = (block, key, dflt = false) => {
+  const v = (_grdOpenSections.get(block) || {})[key];
+  return v === undefined ? dflt === true : v === true;
+};
+function _grdSecToggle(block, key, dflt = false) {
   const cur = _grdOpenSections.get(block) || {};
-  const next = { ...cur, [key]: !cur[key] };
+  const next = { ...cur, [key]: !_grdSecOpen(block, key, dflt) };
   _grdOpenSections.set(block, next);
   return next[key];
 }
@@ -1270,12 +1275,12 @@ const _grdDisclosureHtml = (id, title, open) => `
       </div>`;
 
 /** 접이식 절의 배선 — 패널을 다시 그리지 않는다(재렌더는 곧 포커스 상실이다). */
-function _grdWireDisclosure(block, key, headId, bodyId) {
+function _grdWireDisclosure(block, key, headId, bodyId, dflt = false) {
   const head = document.getElementById(headId);
   const body = document.getElementById(bodyId);
   const arrow = head?.querySelector('svg');
   head?.addEventListener('click', () => {
-    const open = _grdSecToggle(block, key);
+    const open = _grdSecToggle(block, key, dflt);
     if (body) body.style.display = open ? 'block' : 'none';
     /* ⛔각도 식은 _grdDisclosureHtml 과 «같은 값»이어야 한다 — 갈리면 첫 클릭에 그림이 튄다.
        접힘 = −90°(오른쪽) · 펼침 = 0°(아래). 쉐브론이 «아래» 그림이라 부호가 옛 것과 반대다. */
@@ -2212,6 +2217,7 @@ function _grdWireTypo(block, addr) {
  *   ⛔절을 하나 더 «펼친 채로» 내면 순증 예산(Δ≤+60)을 그 자리에서 넘긴다(실측으로 확인). */
 const _GRD_LINE_ALIGN_KINDS = new Set([..._GRD_ROLE_KINDS, 'image']);
 
+const _GRD_LINE_OPEN_KINDS = new Set(['gap', 'divider']);
 function _grdLineSectionHtml(anyHit, block) {
   if (!anyHit || anyHit.li === null || !anyHit.line) return '';
   const { r, c, li, line } = anyHit;
@@ -2222,7 +2228,8 @@ function _grdLineSectionHtml(anyHit, block) {
   const imgFull = (line.type === 'image') && !(Number(line.widthPct) < 100);
   const isText = gridLineHasText(line);
   /* ⛔여기서 일찍 빠지지 마라 — 갭 줄에도 «종류 바꾸기»는 있어야 한다(되돌아갈 길). */
-  const open = _grdSecOpen(block, 'line');
+  /* ★갭·구분선 줄은 «손잡이가 높이/굵기뿐»이라 처음부터 펼친다(G3) — 접어 두면 그 한 칸을 찾아 펼쳐야 한다. */
+  const open = _grdSecOpen(block, 'line', _GRD_LINE_OPEN_KINDS.has(line.type || 'body'));
   const raw = (typeof line.bg === 'string' && GRID_COLOR_RE.test(String(line.bg).trim()))
     ? String(line.bg).trim() : '';
   const hex = raw ? swatchHex(raw, '#eeeeee') : '#eeeeee';
@@ -2280,7 +2287,7 @@ function _grdWireLineSection(block, addr) {
   const hit = _grdResolveAnyAddr(block, addr);
   if (!hit || hit.li === null || !hit.line) return;
   const { r, c, li } = hit;
-  _grdWireDisclosure(block, 'line', 'grd-line-toggle', 'grd-line-body');
+  _grdWireDisclosure(block, 'line', 'grd-line-toggle', 'grd-line-body', _GRD_LINE_OPEN_KINDS.has(hit.line.type || 'body'));
 
   /* ── 줄 정렬 — «이 줄»에만. ⛔updateGridBlock 을 쓰지 않는다: 이미지 줄에 align 을 주면
        렌더러 민감도 검사(_gridUnreadLineFields)가 「아무것도 안 읽힌다」로 «거절»한다.
