@@ -2645,6 +2645,7 @@ const _sbToken = (name, fb) => {
 const SPEECH_BUBBLE_STYLES = {
   default:  () => null,
   imessage: () => ({ bg: _sbToken('--preset-chat-bg-right', '#1888fe'), color: _sbToken('--preset-chat-text-right', '#ffffff') }),
+  // ⚠️임시 — 2026-10-04 레인 선택. ⛔현빈 미확인. 904c5027 「Apple은 추후 정의」의 빈칸 — 0.9.6 릴리스 게이트 「Apple 색 현빈 확인」
   apple:    () => ({ bg: '#34c759', color: '#ffffff' }),
 };
 function applySpeechBubbleStyle(block, style) {
