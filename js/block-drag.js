@@ -211,6 +211,40 @@ function _gridEndEdit(block, host, addr) {
   if (res && res.ok === false) window.showToast?.(`줄 수정 실패: ${res.message || res.code}`);
 }
 
+/* modal 슬롯 «글자 읽기» — contenteditable 의 div/br 를 «보이는 줄» 그대로의 \n 으로 바꾼다.
+   ★innerText 를 쓰지 마라: Enter 두 번이 만드는 `가<div><br></div><div>나</div>` 를 "가\n\n\n나"(줄바꿈 «하나 더»)로 읽고,
+     슬롯이 white-space:pre-wrap 인 지금은 그대로 그려져 편집 중 3줄이 blur 뒤 4줄이 된다(2026-10-03 적대QA).
+   규칙: 블록(div/p)은 줄을 «시작»하고 끝나면 줄바꿈이 «대기»한다(뒤에 뭔가 올 때만 실제 줄바꿈).
+         블록 안 «마지막» <br> 는 빈 줄의 자리표시일 뿐이라 줄을 더하지 않는다. 그 밖의 <br> 는 줄바꿈.
+         끝의 줄바꿈은 떼어 낸다 — pre-wrap 은 끝 «\n 하나»를 줄로 안 그려 편집 중 줄 수와 갈린다. */
+function _mdlReadText(host) {
+  const BLOCK = /^(DIV|P|LI|H[1-6])$/;
+  let out = '', pending = false;
+  const atLineStart = () => out === '' || out.endsWith('\n');
+  const walk = (n) => {
+    for (const c of n.childNodes) {
+      if (c.nodeType === 3) {
+        const t = c.nodeValue.replace(/\r\n?/g, '\n').replace(/\u200b/g, '');
+        if (t === '') continue;
+        if (pending) { out += '\n'; pending = false; }
+        out += t;
+      } else if (c.nodeType === 1) {
+        if (c.tagName === 'BR') {
+          const ph = BLOCK.test(n.tagName || '') && n !== host && !c.nextSibling;   // 블록 안 마지막 br = 자리표시
+          if (!ph) { pending = false; out += '\n'; }
+        } else if (BLOCK.test(c.tagName)) {
+          if (pending || (!atLineStart())) { out += '\n'; }
+          pending = false;
+          walk(c);
+          pending = true;
+        } else walk(c);
+      }
+    }
+  };
+  walk(host);
+  return out.replace(/\n+$/, '');
+}
+
 /* modal 슬롯 편집 종료 — dataset 에 커밋하고 재렌더.
    ★placeholder 지뢰 방지: 안내문구 그대로 두고 나가면(더블클릭 후 무입력) «아무것도 쓰지 않는다».
      그러면 dataset 은 빈 채로 남고 render 가 다시 안내문구를 흐리게 그린다.
@@ -223,12 +257,13 @@ function _modalEndEdit(block, host) {
   const before = host._mdlBefore;
   const slot = host.dataset.mdlSlot;
   const ph = host.dataset.placeholder || '';
-  const text = host.innerText;
+  const text = _mdlReadText(host);
   if (before == null || !slot) return;
   const isPh = text.trim() === '' || text.trim() === ph.trim();
   const next = isPh ? '' : text;
   // 값이 그대로면 아무것도 하지 않는다 — 재렌더도 히스토리도 없다
-  if ((block.dataset[{ title: 'titleText', text: 'textText', cell1: 'cell1', cell2: 'cell2' }[slot]] || '') === next) {
+  // ★편집 «전» 읽은 값과 같아도 안 쓴다 — 저장된 \n 블록을 dblclick→blur 만 해도 데이터가 덮이던 것(옛 판)을 막는다
+  if (next === before || (block.dataset[{ title: 'titleText', text: 'textText', cell1: 'cell1', cell2: 'cell2' }[slot]] || '') === next) {
     if (isPh) window.renderModalBlock?.(block);   // 안내문구 복원(흐린 상태)만 다시 그린다
     return;
   }
@@ -2205,7 +2240,7 @@ function bindBlock(block) {
       host.setAttribute('contenteditable', 'true');
       // 부모 row 가 draggable 이라 안 끄면 «글자 드래그 선택»이 블록 드래그가 된다
       host.setAttribute('draggable', 'false');
-      host._mdlBefore = host.innerText;
+      host._mdlBefore = _mdlReadText(host);
       host._mdlWasPh  = host.dataset.isPlaceholder === 'true';
       if (!host._mdlEditBound) {
         host._mdlEditBound = true;

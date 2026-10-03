@@ -79,3 +79,55 @@ test('K2 PNG 내보내기 경로: 수집된 CSS 만으로 그린 클론도 두 �
   expect(r.collected).toBe(true);                     // 전제: 수집기가 그 규칙을 실제로 집어 갔다
   expect(r.lines).toBe(2); expect(r.ws).toBe('pre-wrap');
 });
+
+/* ══ 적대QA 보강(2026-10-03) — innerText 가 빈 줄(Enter×2)을 «하나 더» 읽던 것 · 편집 중 줄 수 = blur 뒤 줄 수 ══
+ *   측정(96988fd6): 가→Enter→Enter→나 : 편집 중 3줄(102px) → blur 뒤 4줄(136px), dataset "가\n\n\n나".
+ *   처방 = 읽는 자리(_mdlReadText)가 div/br 를 «보이는 줄» 로. pre-wrap 은 유지(공백·탭도 편집 중 보이는 그대로 — pre-line 은
+ *   "  가  나" 를 blur 뒤 6px 좁혀 편집 중과 갈린다, 실측). */
+const typeSeq = async (page, seq) => { for (const s of seq) { if (s === 'E') await page.keyboard.press('Enter'); else await page.keyboard.type(s); } };
+async function editFlow(page, seq) {
+  await setup(page, 'plain');
+  await page.evaluate(() => { const b = document.getElementById('mdlT'); b.dataset.textText = ''; window.renderModalBlock(b); });
+  await page.locator('#mdlT .tb-mdl-text').dblclick();
+  expect(await page.evaluate(() => document.activeElement?.dataset?.mdlSlot)).toBe('text');
+  await typeSeq(page, seq);
+  const during = await lines(page, '#mdlT .tb-mdl-text');
+  await page.mouse.click(5, 5); await page.waitForTimeout(300);
+  const after = await lines(page, '#mdlT .tb-mdl-text');
+  const ds = await page.evaluate(() => document.getElementById('mdlT').dataset.textText);
+  return { during, after, ds };
+}
+for (const [name, seq, expLines, expData] of [
+  ['N1 Enter×2(빈 줄 하나)', ['가', 'E', 'E', '나'], 3, '가\n\n나'],
+  ['N2 Enter×3', ['가', 'E', 'E', 'E', '나'], 4, '가\n\n\n나'],
+  ['N3 맨 앞 Enter', ['E', '가'], 2, '\n가'],
+  ['N4 Enter 한 번', ['가', 'E', '나'], 2, '가\n나'],
+]) {
+  test(`${name}: 편집 중 줄 수 = blur 뒤 줄 수`, async ({ page }) => {
+    const r = await editFlow(page, seq);
+    expect(r.during.lines).toBe(expLines);            // 전제: 편집 중 줄 수
+    expect(r.ds).toBe(expData);
+    expect(r.after.lines).toBe(expLines);
+  });
+}
+test('N5 끝 Enter×2 — 끝의 빈 줄은 떼어 낸다(높이가 한 줄 늘지 않는다)', async ({ page }) => {
+  const r = await editFlow(page, ['가', 'E', 'E']);
+  expect(r.ds).toBe('가');
+  expect(r.after.lines).toBe(1);
+});
+test('N6 공백·탭 꼴 — 앞뒤·연속 공백이 편집 중 입력한 그대로 저장·표시', async ({ page }) => {
+  const r = await editFlow(page, ['  가  나', 'E', '다   ']);
+  expect(r.ds).toBe('  가  나\n다   ');
+  expect(r.after.ws).toBe('pre-wrap');
+  expect(r.after.lines).toBe(2);
+});
+for (const stored of ['가나다\n라마바', '가나다\n\n라마바', '가\n\n']) {
+  test(`P1 dblclick→blur 만으로 데이터 안 덮인다(${JSON.stringify(stored)})`, async ({ page }) => {
+    await setup(page, 'plain');
+    await page.evaluate((t) => { const b = document.getElementById('mdlT'); b.dataset.textText = t; window.renderModalBlock(b); window.__h = 0; const ph = window.pushHistory; window.pushHistory = (...a) => { window.__h++; return ph?.(...a); }; }, stored);
+    await page.locator('#mdlT .tb-mdl-text').dblclick();
+    await page.mouse.click(5, 5); await page.waitForTimeout(300);
+    const r = await page.evaluate(() => ({ ds: document.getElementById('mdlT').dataset.textText, h: window.__h }));
+    expect(r.ds).toBe(stored); expect(r.h).toBe(0);
+  });
+}
