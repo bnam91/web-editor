@@ -2633,6 +2633,10 @@ function bindFrameDropZone(ss) {
       // ── 고정 크기 프레임(shape frame 아닌 것): 기존 absolute 방식 ──
       // 블록을 absolute로 전환하는 헬퍼
       const makeAbsolute = (block, left, top) => {
+        /* ★F3(2026-10-03) — 그리드는 폭을 «모델»로 받는다. 아래 style.width px 는 다음 renderGridBlock 이 100% 로 되돌려
+           프레임 폭(764)이 되거나, 섹션 폭(860)이 그대로 들어와 프레임보다 넓었다 → T-088 클램프 x 범위 [0,0].
+           규칙은 grid-block.js fitGridWidthToFreeFrame 한 곳. 모델이 폭을 주면 style.width 가 px 라 아래 줄은 안 탄다. */
+        window.fitGridWidthToFreeFrame?.(block, inner);
         const w = block.offsetWidth || Math.round(SS_W * 0.5);
         block.style.position = 'absolute';
         block.style.left = left + 'px';

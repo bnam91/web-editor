@@ -323,6 +323,40 @@ function getGridWidth(block) {
   return _gridValidateWidth(block && block.dataset ? block.dataset.gridWidth : undefined);
 }
 
+/* ══ ★F3 — 자유배치 프레임에 «들어올 때» 그리드 폭을 프레임보다 작게 준다 (2026-10-03, 현빈 「프레임 안 그리드가 수직만」) ══
+ *  원인(Evaluator 36cbe872 실측): T-088 클램프가 x 를 [0, 프레임폭−블럭폭] 으로 죈다. 폭 = 프레임폭 이면 [0,0] → 좌우가 죽는다.
+ *    ⛔클램프는 안 건드린다(「화면에서 사라진다」를 막는 살아 있는 울타리). 대신 «입구»에서 폭이 프레임폭과 같아지지 않게 한다.
+ *  ★폭 규칙: 프레임 «보이는 폭»(clientWidth — 드롭 경로의 가로 중앙 계산 frameVisibleSize 와 같은 자) × GRID_FREE_FRAME_FILL(0.8).
+ *    까닭 — 그리드 내용엔 «최소폭»이 없다(칸이 min-width:0 이라 글자가 접힌다) ⇒ 내용에서 하한을 못 뽑는다.
+ *    그래서 «움직일 여지»를 프레임에 비례로 남긴다: 어떤 프레임 폭에서도 좌우 이동 범위 = 프레임의 20%
+ *    (764 프레임 → 611px · 여지 153px, 끌기 +100 이 다 먹는다). 고정 여백(예: −80px)은 작은 프레임에서 음수가 된다.
+ *  ★언제 쓰나 — 키가 «없거나», 이미 있는 키가 프레임 폭 «이상»일 때만. 프레임보다 작은 명시 폭은 사용자 값이라 둔다.
+ *    want(명시 요청 px, 예: MCP opts.width)가 오면 그 값을 그대로 키에 쓴다(규칙은 «기본값»에만).
+ *  ⛔폭은 모델 키(data-grid-width) «하나»로만 준다 — style.width 를 따로 박지 않는다(다음 렌더가 지운다).
+ *  부르는 입구 셋: drag-utils settleRowInFreeFrame · block-drag 드롭 makeAbsolute · block-factory _insertToFlowFrame. */
+export const GRID_FREE_FRAME_FILL = 0.8;
+function fitGridWidthToFreeFrame(block, frame, want) {
+  if (!block || !block.classList || !block.classList.contains('grid-block')) return false;
+  if (!frame || !frame.dataset || frame.dataset.freeLayout !== 'true') return false;
+  if (block.dataset.overlayBlock === 'true') return false;          // 떠 있는 것은 굳힌 폭이 정본
+  const wantPx = _gridValidateWidth(want);
+  if (wantPx !== null) {
+    if (getGridWidth(block) === wantPx) return false;
+    block.dataset.gridWidth = String(wantPx);
+    renderGridBlock(block);
+    return true;
+  }
+  const fw = frame.clientWidth || 0;
+  if (!fw) return false;                                             // 아직 레이아웃 전 — 잴 수 없으면 안 건드린다
+  const cur = getGridWidth(block);
+  if (cur !== null && cur < fw) return false;
+  const w = Math.round(fw * GRID_FREE_FRAME_FILL);
+  if (_gridValidateWidth(w) === null || w >= fw) return false;      // 아주 작은 프레임(<50px) — 줄일 수 없다
+  block.dataset.gridWidth = String(w);
+  renderGridBlock(block);
+  return true;
+}
+
 /** gap/rowGap/colGap 공용 검증 — min~GRID_GAP_MAX(min 기본 0, rowGap 만 GRID_ROW_GAP_MIN). 통과면 정수, 아니면 null. */
 function _gridValidateGap(v, min = 0) {
   const n = Number(v);
@@ -2690,6 +2724,7 @@ window.migrateGridIdentity = migrateGridIdentity;
 //   그대로 window.updateGridBlock/renderGridBlock 과 같은 다리를 쓴다).
 window.getGridModel = getGridModel;
 window.getGridWidth = getGridWidth;   // G2-a — 다른 파일이 폭을 «읽을» 때도 이 문 하나
+window.fitGridWidthToFreeFrame = fitGridWidthToFreeFrame;   // F3 — 자유배치 프레임 입구 셋이 부른다(drag-utils·block-drag 는 이 파일을 import 안 함)
 
 // ★deprecated 별칭 — 2026-09-05 개명 이전 이름. scripts/goditor_runner.js 와 외부 스킬 md·
 //   다른 맥의 CDP 스크립트가 아직 이 이름을 부른다. 제거는 P1(러너·스킬 md 갱신 «후»).
@@ -2706,7 +2741,7 @@ export {
   _gridLineHtml as gridLineHtml, _GRID_ROLES as GRID_ROLES,
   _GRID_COLOR_RE as GRID_COLOR_RE, _GRID_FONT_RE as GRID_FONT_RE,
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
-  getGridWidth, _gridValidateWidth as gridValidateWidth,
+  getGridWidth, _gridValidateWidth as gridValidateWidth, fitGridWidthToFreeFrame,
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, MAX_CELL_LINES,
   _gridGaps as gridGaps, _gridCellsToDataset as gridCellsToDataset,
   _gridCellBorder as gridCellBorder,   /* ★T-172 — 패널이 «같은 읽는 문»을 쓴다(두 벌 금지) */
