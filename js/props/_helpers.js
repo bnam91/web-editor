@@ -173,6 +173,7 @@ export function buildGridPicker(picker, label, onPick, opts = {}) {
  *     9bfffe0f(객체정렬 27곳 채움화)에서 이미 이 헬퍼로 옮겨졌다 — prop-grid.js 안 정렬 SVG 리터럴 0건.
  *     ⇒ G18 은 «옮길 것이 없었다». 대신 조립부를 _iconBtnHtml 로 뽑은 뒤 그 여섯이 핀과 «픽셀 0 차이»임을
  *       tests/dom/grid-block-outline.dom.spec.js G18-1·G18-2 가 지킨다.
+ *     이 상태는 tests/unit/align-btn-ssot.test.mjs T1 이 지킨다 — 경로로 찾아라.
  *
  * ★왜 노드가 아니라 «HTML 문자열»인가
  *   레포의 정렬 버튼 146/146 이 전부 propPanel.innerHTML 템플릿 리터럴 «안»에 있다.

@@ -115,6 +115,7 @@ for (const zoom of [100, 40]) {
       const r = await rectOf(page, sel);
       expect(Math.abs(r.w - r.h), '전제: 정원').toBeLessThanOrEqual(1);
       const inset = 6;
+      /* D4b: 회귀 방지용(핀 초록) — 증상을 재는 자 아님, 본체는 D4c */
       const bottom = await edgeRun(page, r, 'bottom', r.left + inset, r.right - inset, -1);
       const right = await edgeRun(page, r, 'right', r.top + inset, r.bottom - inset, -1);
       expect.soft(bottom, 'D4b 그림 상자 아랫변이 «한 칸도 안 끊기고» 선 색').toMatchObject({ gaps: 0 });
