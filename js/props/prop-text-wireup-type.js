@@ -46,6 +46,13 @@ export function wireTypeSection({ tb, propPanel, ctx }) {
 
       const labelSection = document.getElementById('label-style-section');
       if (labelSection) labelSection.style.display = cls === 'tb-label' ? 'block' : 'none';
+      const _pxWrap = document.getElementById('txt-label-padx-wrap');   // 알약 안쪽 좌우 패딩 줄 — 라벨일 때만
+      if (_pxWrap) _pxWrap.style.display = cls === 'tb-label' && contentEl.dataset.shape !== 'circle' ? 'block' : 'none';
+      if (_pxWrap && cls === 'tb-label') {
+        const _pxv = Math.round(parseFloat(getComputedStyle(contentEl).paddingLeft) || 0);
+        document.getElementById('txt-label-padx-slider').value = _pxv;
+        document.getElementById('txt-label-padx-number').value = _pxv;
+      }
 
       // label로 전환 시 기본 스타일 적용, 다른 타입으로 전환 시 초기화
       if (cls === 'tb-label') {

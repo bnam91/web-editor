@@ -114,6 +114,32 @@ export function wireLabelSection({ ctx }) {
     lhNumber.addEventListener('change', () => window.pushHistory?.());
   }
 
+  /* 알약 «안쪽» 좌우 패딩 — 글자 양옆 여백 = 알약 폭. (바깥 «왼쪽/오른쪽 패딩» 은 알약을 통째로 안쪽으로 민다)
+   * 원형은 CSS 가드가 padding:0 !important 라 줄 자체를 숨긴다. 형태 버튼이 패딩을 다시 쓰므로 누른 뒤 값을 맞춘다. */
+  const pxWrap   = document.getElementById('txt-label-padx-wrap');
+  const pxSlider = document.getElementById('txt-label-padx-slider');
+  const pxNumber = document.getElementById('txt-label-padx-number');
+  const syncPadX = () => {
+    if (!pxSlider) return;
+    if (pxWrap) pxWrap.style.display = _isCircle() ? 'none' : 'block';
+    const v = Math.round(parseFloat(getComputedStyle(ctx.contentEl).paddingLeft) || 0);
+    pxSlider.value = v; pxNumber.value = v;
+  };
+  if (pxSlider) {
+    const setPadX = v => {
+      ctx.contentEl.style.paddingLeft  = v + 'px';
+      ctx.contentEl.style.paddingRight = v + 'px';
+    };
+    pxSlider.addEventListener('input', () => { const v = parseInt(pxSlider.value) || 0; setPadX(v); pxNumber.value = v; });
+    pxNumber.addEventListener('input', () => {
+      const v = Math.min(120, Math.max(0, parseInt(pxNumber.value) || 0));
+      setPadX(v); pxSlider.value = v;
+    });
+    const commitPadX = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
+    pxSlider.addEventListener('change', commitPadX);
+    pxNumber.addEventListener('change', commitPadX);
+  }
+
   /* 태그 형태 프리셋 */
   // 모든 프리셋은 디폴트 .tb-label(padding:11px 36px, font:26px/700, radius:8px) 기준 + 서로 토글 시 안전 복원
   // 공통 reset 헬퍼 — 인라인 background/color/border/size 제거 → CSS 디폴트 복귀
@@ -199,4 +225,9 @@ export function wireLabelSection({ ctx }) {
     if (rSlider2) { rSlider2.value = 0; rNumber2.value = 0; }
     window.scheduleAutoSave?.();
   });
+
+  /* 「좌우 패딩」 줄 동기화 — ★위 형태 버튼 핸들러들 «뒤에» 등록한다(같은 요소의 리스너는 등록 순서대로 돈다.
+     앞에 두면 버튼이 padding 을 쓰기 «전»에 값을 읽어 옛 값에 머문다). */
+  document.querySelectorAll('[id^="label-shape-"]').forEach(b => b.addEventListener('click', syncPadX));
+  document.getElementById('label-bg-none')?.addEventListener('change', syncPadX);
 }
