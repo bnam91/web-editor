@@ -2304,21 +2304,20 @@ function _grdWireWidth(block) {
       if (raw === '') {   // 비우면 = 자동(떠 있을 땐 자동이 없으니 지금 값으로 되살린다)
         if (block.dataset.overlayBlock === 'true') { number.value = _grdWidthNow(block).val ?? ''; return; }
         if (window.getGridWidth?.(block) == null) return;
-        window.updateGridBlock?.(block.id, { width: null });
+        _grdToastCellFail(window.updateGridBlock?.(block.id, { width: null }));
         return;
       }
       const n = Number(raw);
       if (!Number.isFinite(n)) { number.value = _grdWidthNow(block).val ?? ''; return; }
       const v = clamp(n);
-      const res = window.updateGridBlock?.(block.id, { width: v });
-      if (res && res.ok === false) number.value = _grdWidthNow(block).val ?? '';
+      if (_grdToastCellFail(window.updateGridBlock?.(block.id, { width: v }))) number.value = _grdWidthNow(block).val ?? '';
     });
   }
   if (autoBtn) {
     autoBtn.addEventListener('click', () => {
       if (autoBtn.disabled || block.dataset.overlayBlock === 'true') return;
       if (window.getGridWidth?.(block) == null && block.dataset.gridWidthAuto === undefined) return;   // 이미 자동
-      window.updateGridBlock?.(block.id, { width: null });
+      _grdToastCellFail(window.updateGridBlock?.(block.id, { width: null }));
     });
   }
 }
