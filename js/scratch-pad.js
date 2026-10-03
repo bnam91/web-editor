@@ -2292,7 +2292,7 @@ function _scratchShowSendMenu(item, x, y) {
 //   그리고 capture 로 다 가로채서 섹션에 놓아도 스크래치로 갔다(섹션에 넣는 길에 안 닿았다).
 // ⛔판정은 «이 함수 한 곳» — 네이티브 끌기(아래 _drop)와 자산 패널 mousedown 끌기(assets-panel.js onUp) 둘 다 이것만 부른다.
 // ════════════════════════════════════════════════════════════════════════
-const _SECTION_DROP_KINDS = new Set(['insert', 'replace', 'sectionbg', 'cvbcard']);   // commitScratchDropAt 의 «섹션 쪽» 판정
+const _SECTION_DROP_KINDS = new Set(['insert', 'replace', 'sectionbg', 'cvbcard', 'gridimg']);   // commitScratchDropAt 의 «섹션 쪽» 판정
 function _imgNatSize(src) {
   return new Promise(res => { const im = new Image(); im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight }); im.onerror = () => res({ w: 0, h: 0 }); im.src = src; });
 }

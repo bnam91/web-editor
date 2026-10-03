@@ -2778,6 +2778,12 @@ window.GRID_CELL_DEFAULT_TEXT = GRID_CELL_DEFAULT_TEXT;
 window.makeGridBlock = makeGridBlock;
 window.addGridBlock = addGridBlock;
 window.updateGridBlock = updateGridBlock;
+/* ★«끝 표본» 래퍼(js/model-update-history.js — window.update*Block 전부를 감싸 호출마다 pushHistory 를 한 칸 더 쌓는다)를
+   «안 타는» 원본. 이름이 /^update[A-Z]\w*Block$/ 에 안 걸리게 Raw 로 끝낸다.
+   ⛔일반 호출부는 window.updateGridBlock 을 쓴다. 이건 «자기 히스토리 칸을 직접 쌓는» 호출자 전용이다 —
+     스크래치→그리드 칸 드롭(canvas-scratch-drop.js gridimg): scratch-pad onUp 이 sideEffects(스크래치 되살리기)가 실린
+     「스크래치→섹션 변환」 칸을 쌓는데, 래퍼가 «같은 캔버스»의 칸을 하나 더 쌓으면 ⌘Z 첫 걸음이 화면이 안 바뀌는 먹통이 된다(실측 G4). */
+window.updateGridBlockRaw = updateGridBlock;
 window.renderGridBlock = renderGridBlock;
 window.migrateGridIdentity = migrateGridIdentity;
 // ★getGridModel(T-A, 2026-09-16) — block-drag.js 의 _gridAddrAt 이 「진짜 빈 셀」인지(lines.length===0)
