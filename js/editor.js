@@ -2,6 +2,7 @@ import { canvasEl, propPanel, state, BLOCK_DELEGATE_SEL } from './globals.js';
 import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './history.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
 import { fitScale } from './fit-scale.js';
+import { clampChildIntoFrame } from './frame-geometry.js';   /* F2 — 붙여넣기 자리를 프레임 안으로(드래그 클램프와 «같은 함수») */
 import { setTextTypeClass, afterTextTypeChange } from './props/text-type-class.js';
 import { warnPendingVideoLossIf } from './io/pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원(「한 번만」 래치 포함) */
 
@@ -1800,21 +1801,36 @@ function _viewportCenterInContainerLocal(containerEl) {
    ⇒ ⑴섹션 상자 안으로 클램프하고 ⑵이미 같은 자리에 오버레이가 있으면 계단식으로 비킨다.
    ⛔드래그의 «탄성 클램프»(overlay-float.js)와 섞지 마라 — 저건 손맛이고 이건 «사본을
      사용자가 찾을 수 있는 자리에 둔다»는 다른 규칙이다. 붙인 뒤에 얼마든지 밖으로 끌 수 있다. */
-function _placePastedOverlay(sec, el, nx, ny) {
+function _placePastedOverlay(box, el, nx, ny, posOf) {
   const w = el.offsetWidth || 0, h = el.offsetHeight || 0;
-  const maxX = Math.max(0, (sec.clientWidth  || 0) - w);
-  const maxY = Math.max(0, (sec.clientHeight || 0) - h);
-  let x = Math.min(Math.max(0, Math.round(nx) || 0), maxX);
-  let y = Math.min(Math.max(0, Math.round(ny) || 0), maxY);
+  const maxX = Math.max(0, (box.clientWidth  || 0) - w);
+  const maxY = Math.max(0, (box.clientHeight || 0) - h);
+  const x0 = Math.min(Math.max(0, Math.round(nx) || 0), maxX);
+  const y0 = Math.min(Math.max(0, Math.round(ny) || 0), maxY);
+  let x = x0, y = y0;
   const STEP = 20;
-  const taken = (cx, cy) => [...sec.children].some(c =>
-    c !== el && c.nodeType === 1 && c.dataset && c.dataset.overlayBlock === 'true'
-    && Math.abs((parseInt(c.dataset.offsetX) || 0) - cx) < 2
-    && Math.abs((parseInt(c.dataset.offsetY) || 0) - cy) < 2);
+  /* ★2026-10-03 F2 — «컨테이너를 받는 꼴»로 일반화했다(섹션 오버레이 · 자유 프레임 직계 붙여넣기가 이 «한 벌»을 쓴다 — 사본 금지).
+   *   posOf(c) = 그 자식이 «자리를 차지하는 것»이면 {x,y}, 아니면 null. 기본 = 오버레이(섹션 직속, data-overlay-block).
+   *   프레임 쪽은 «절대배치 자식»의 left/top 을 읽는 판정을 넘긴다. */
+  const at = posOf || ((c) => (c.dataset && c.dataset.overlayBlock === 'true')
+    ? { x: parseInt(c.dataset.offsetX) || 0, y: parseInt(c.dataset.offsetY) || 0 } : null);
+  const taken = (cx, cy) => [...box.children].some(c => {
+    if (c === el || c.nodeType !== 1) return false;
+    const p = at(c);
+    return !!p && Math.abs(p.x - cx) < 2 && Math.abs(p.y - cy) < 2;
+  });
   for (let i = 0; i < 20 && taken(x, y); i++) {
-    if (x >= maxX && y >= maxY) break;   // 더 비킬 곳이 없다 — 겹쳐도 어쩔 수 없다
+    if (x >= maxX && y >= maxY) break;   // 더 «내려갈» 곳이 없다
     x = Math.min(x + STEP, maxX);
     y = Math.min(y + STEP, maxY);
+  }
+  /* 끝까지 내려갔는데도 같은 자리면 «위쪽으로» 비킨다 — 아래 끝에 클램프된 사본(프레임이 화면 위쪽일 때)이 두 번째에 못 비키던 것 */
+  if (taken(x, y)) {
+    for (let i = 1; i <= 20; i++) {
+      const cx = Math.max(0, x0 - i * STEP), cy = Math.max(0, y0 - i * STEP);
+      if (!taken(cx, cy)) { x = cx; y = cy; break; }
+      if (cx <= 0 && cy <= 0) break;     // 더 비킬 곳이 없다 — 겹쳐도 어쩔 수 없다
+    }
   }
   return { x, y };
 }
@@ -1987,10 +2003,8 @@ function pasteClipboard() {
       const ox = parseInt(el.style.left || '0'), oy = parseInt(el.style.top || '0');
       // 프레임이 지금 화면에 보이면 뷰포트 중앙(frame-local)에, 안 보이면 기존처럼 원본 위치 +20px.
       const vp = _viewportCenterInContainerLocal(frame);
-      const nx = vp ? Math.round(vp.x) : ox + 20;
-      const ny = vp ? Math.round(vp.y) : oy + 20;
-      el.style.left = nx + 'px'; el.style.top = ny + 'px';
-      el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
+      // ★자리는 «붙인 뒤» — 사본의 실제 크기를 재야 (중앙 − 크기/2)를 구하고 프레임 안으로 넣을 수 있다(F2). 여기는 임시 자리.
+      el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
       frame.appendChild(el);
       const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block';
       el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
@@ -1999,6 +2013,14 @@ function pasteClipboard() {
       // fix(frame-p0#4): el이 실제로는 프레임이 아닌 맨몸 블록(예: asset-block)일 수 있다 —
       // bindFrameDropZone은 함수 내부에서도 게이트하지만 호출부도 명시적으로 가드한다.
       if (el.classList.contains('frame-block')) window.bindFrameDropZone?.(el);
+      /* ★F2 (현빈 proj_1790917712926 · 그리드 ⌘C⌘V) — 옛 판은 «화면 가운데»를 사본의 왼쪽 위 모서리로 썼다(크기 절반을 안 빼고 · 클램프 없음)
+       *   ⇒ 764 폭 그리드가 프레임 밖 +382 로 넘쳤다. 이제 (중앙 − 크기/2) → clampChildIntoFrame(드래그 클램프와 같은 함수) → 같은 자리면 20px 계단. */
+      const _fw = el.offsetWidth || 0, _fh = el.offsetHeight || 0;
+      const _c = clampChildIntoFrame(vp ? vp.x - _fw / 2 : ox + 20, vp ? vp.y - _fh / 2 : oy + 20, _fw, _fh, frame.clientWidth, frame.clientHeight);
+      const _absPos = (c) => (c.style && c.style.position === 'absolute') ? { x: parseInt(c.style.left) || 0, y: parseInt(c.style.top) || 0 } : null;
+      const { x: nx, y: ny } = _placePastedOverlay(frame, el, _c.left, _c.top, _absPos);
+      el.style.left = nx + 'px'; el.style.top = ny + 'px';
+      el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
       deselectAll();
       const cb = el.querySelector('.text-block, .shape-block, .asset-block') || el;
       cb.classList.add('selected');
