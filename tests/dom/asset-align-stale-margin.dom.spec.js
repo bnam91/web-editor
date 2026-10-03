@@ -70,3 +70,13 @@ for (const zoom of [100, 40]) {
     expect(await page.evaluate(() => document.getElementById('ab').style.marginLeft)).toBe('-60px');
   });
 }
+
+/* ── 적대QA(0e) ① 폭 741~859px(콘텐츠 폭 740 초과) + 음수마진은 정렬 단추가 «건드리지 않는다» — 걷으면 오른쪽이 섹션 밖으로 잘린다 ── */
+for (const zoom of [100, 40]) {
+  test(`경계 — 폭 859px · margin -60 · 좌정렬 → 마진 그대로(오른쪽이 더 잘리지 않는다) (배율 ${zoom}%)`, async ({ page }) => {
+    await setup(page, SEC(AB('ab', 'center', '859px', -60)), zoom);
+    await pressAlign(page, 'left');
+    const m = await page.evaluate(() => { const a = document.getElementById('ab'); return [a.style.marginLeft, a.style.marginRight, a.style.width]; });
+    expect(m).toEqual(['-60px', '-60px', '859px']);
+  });
+}

@@ -526,7 +526,12 @@ ${blockHeaderHTML({
        오른쪽 정렬이 반대로 밀린다(가운데만 상쇄). 「폭과 마진은 세트」(prop-page.js applyAssetWidth)를
        정렬을 «정하는 자리»에서도 지킨다. ⛔풀블리드(폭이 calc/100%)는 의도된 바깥 뻗음이라 안 건드린다. */
     const _w = ab.style.width;
+    /* ★적대QA(0e): 상한은 고정 860 이 아니라 «이 에셋이 든 상자의 콘텐츠 폭»이다 — 741~859px 에셋의 음수마진을 걷으면
+       (마진이 폭을 보태 주던 자리가 사라져) 좌정렬 때 오른쪽이 섹션 밖으로 잘린다. 콘텐츠 폭을 넘는 폭은 건드리지 않는다. */
+    const _par = ab.parentElement, _pcs = _par ? getComputedStyle(_par) : null;
+    const _contentW = _par ? _par.clientWidth - (parseFloat(_pcs.paddingLeft) || 0) - (parseFloat(_pcs.paddingRight) || 0) : 0;
     if (/^\d+(\.\d+)?px$/.test(_w) && parseFloat(_w) < 860
+        && !(_contentW > 0 && parseFloat(_w) > _contentW + 0.5)
         && (parseFloat(ab.style.marginLeft) < 0 || parseFloat(ab.style.marginRight) < 0)) {
       if (window.applyAssetWidth) window.applyAssetWidth(ab, parseFloat(_w));
       else { ab.style.marginLeft = ''; ab.style.marginRight = ''; }
