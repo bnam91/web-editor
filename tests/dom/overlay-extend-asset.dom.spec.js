@@ -36,6 +36,8 @@ const BLOCKS_CSS = fs.readFileSync(path.join(REPO, 'css/editor-blocks.css'), 'ut
    applyAssetFullBleed 가 SSOT). 그 파일이 import 하는 globals.js · canvas-contrast.js 만
    최소 stub 으로 대신한다 — 이 검사가 보는 것은 폭 계산이지 패널 렌더가 아니다. */
 const PROP_PAGE_JS = fs.readFileSync(path.join(REPO, 'js/props/prop-page.js'), 'utf8');
+/* S1(2026-10-04): prop-page.js 가 ../checker-tokens.js 를 import 한다(체커 어둡게 단추) — 진짜 파일을 그대로 준다(부작용 = html 속성 하나, localStorage 비면 끔). */
+const CHECKER_TOKENS_JS = fs.readFileSync(path.join(REPO, 'js/checker-tokens.js'), 'utf8');
 const GLOBALS_STUB = `
   export const propPanel = document.createElement('div');
   export const canvasEl  = document.createElement('div');
@@ -130,6 +132,7 @@ async function boot(page, opts = {}) {
     if (url.pathname === '/globals.js') return route.fulfill({ contentType: 'application/javascript', body: GLOBALS_STUB });
     if (url.pathname === '/canvas-contrast.js') return route.fulfill({ contentType: 'application/javascript', body: CANVAS_CONTRAST_STUB });
     if (url.pathname === '/props/color-picker.js') return route.fulfill({ contentType: 'application/javascript', body: COLOR_PICKER_STUB });
+    if (url.pathname === '/checker-tokens.js') return route.fulfill({ contentType: 'application/javascript', body: CHECKER_TOKENS_JS });
     return route.fulfill({ status: 404, body: '' });
   });
   await page.goto(`${ORIGIN}/__harness.html`);
