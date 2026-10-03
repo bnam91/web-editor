@@ -103,3 +103,27 @@ test('S5 그라데이션·색 유지 — 꼭짓점을 바꿔도 칠이 안 바�
   expect(await nPairs(page)).toBe(16);
   expect(await snap()).toEqual(a);
 });
+
+test('S6 ★별 7 + 이미지 채우기 → updateShapeBlock polygon → star 로 돌아와도 SVG points·dataset·이미지 clip 이 «셋 다 같다»(적대QA ce28b28f)', async ({ page }) => {
+  await setup(page);
+  await setStar(page, 7);
+  await page.evaluate((id) => {
+    const b = document.getElementById(id);
+    const img = document.createElement('div'); img.className = 'shape-img-fill'; b.insertBefore(img, b.firstChild);
+    b.dataset.shapeFill = 'image'; b.dataset.shapeImage = '1';
+    window._syncShapeImageClip(b);
+  }, ID);
+  const state = () => page.evaluate((id) => { const b = document.getElementById(id);
+    return { pairs: b.querySelector('svg polygon').getAttribute('points').trim().split(/\s+/).length,
+      ds: b.dataset.starPoints ?? null, clip: b.querySelector(':scope > .shape-img-fill').style.clipPath.split(',').length }; }, ID);
+  expect(await state()).toEqual({ pairs: 14, ds: '7', clip: 14 });
+  const r1 = await page.evaluate((id) => window.updateShapeBlock(id, { shapeType: 'polygon' }), ID);
+  expect(r1.ok, JSON.stringify(r1)).toBe(true);
+  const r2 = await page.evaluate((id) => window.updateShapeBlock(id, { shapeType: 'star' }), ID);
+  expect(r2.ok, JSON.stringify(r2)).toBe(true);
+  const s = await state();
+  expect(s.pairs, 'SVG 와 이미지 clip 이 어긋났다').toBe(s.clip);
+  expect(s.ds === null ? 5 : Number(s.ds), 'dataset 이 SVG 와 어긋났다').toBe(s.pairs / 2);
+  await page.evaluate((id) => window.selectBlock(id), ID);
+  await expect(page.locator('#shape-star-num')).toHaveValue(String(s.pairs / 2));
+});
