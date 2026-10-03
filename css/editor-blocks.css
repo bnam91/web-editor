@@ -1507,6 +1507,37 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
 }
 
+/* ★원형 이미지 줄(.grd-img-circle)의 선택 표시 = «서클 에셋과 같은 두 줄» (현빈 2026-10-03
+ *   「그리드 칸의 원형 이미지 아웃라인이 이상하다 — 서클 에셋블럭의 그것과 달라」, G24).
+ * ★무엇이 이상했나(실측) — 위 «왼쪽 막대» inset box-shadow 가 인라인 border-radius:50% 를 따라 «초승달 호»로 휘어
+ *   링처럼 안 읽혔고, 줄 상자엔 «모서리 핸들 네 개»뿐 변이 없었다. 상자 변(선택 오버레이 #ss-handles-overlay 의
+ *   SVG path — js/selection-overlay.js _render)은 «블럭» 전체의 것이지 이 줄의 것이 아니다.
+ * ★그래서 서클 에셋(.icon-circle-block.selected::before, 위 :976)과 «같은 두 줄»을 이 줄에 그린다:
+ *     ::before = 원형 링(보이는 모양)  ·  ::after = 네모 선(핸들이 앉은 «선택 범위»).
+ *   둘 다 z-index:3 으로 <img> 위 — outline 은 자손 아래에 깔려 접점이 «지워진다»(서클 에셋이 먼저 물린 그 증상).
+ * ★네모 선이 «프레임 안»에서 안 잘리게 하려면 프레임의 overflow:hidden(인라인)이 «선택 중엔» 풀려야 한다 —
+ *   그러면 <img> 자신이 반경 50%로 잘라 «그림 픽셀은 그대로»다(아래 두 번째 규칙). 선택이 풀리면 인라인이 도로 이긴다.
+ * ⛔이 규칙은 .grd-img-circle «뿐»이다 — 사각 이미지 줄(.grd-line-selected 의 왼쪽 막대)은 한 픽셀도 안 바뀐다
+ *   (tests/dom/grid-img-frame-noop · grid-img-circle-outline D5).
+ * ⛔굵기는 --sel-outline-w(=1px×--inv-zoom) — 줌 40%에서도 화면상 같은 굵기. 새 토큰 없음. */
+#canvas .grid-block .grd-img-circle { position: relative; }
+#canvas .grid-block .grd-img-circle > .grd-img { border-radius: 50%; }
+#canvas .grid-block .grd-img-circle.grd-line-selected {
+  box-shadow: none;          /* 휜 «왼쪽 막대» 대신 아래 링 */
+  overflow: visible !important;   /* 인라인 overflow:hidden 을 선택 중에만 푼다 — 네모 선이 안 잘리게(그림은 <img> 반경이 자른다) */
+}
+#canvas .grid-block .grd-img-circle.grd-line-selected::before,
+#canvas .grid-block .grd-img-circle.grd-line-selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border: var(--sel-outline-w) solid var(--sel-color);
+  pointer-events: none;      /* 클릭은 줄이 그대로 받는다 */
+  z-index: 3;                /* <img>(z auto) 보다 위 — 「가림」을 푸는 자리 */
+}
+#canvas .grid-block .grd-img-circle.grd-line-selected::before { border-radius: 50%; }
+
 /* ★구분선 줄에 «손이 닿게» 한다 (현빈 2026-09-30 — grd_owr55_gql6n0n
  *   「구분선을 추가했는데 구분선 줄이 선택이 안 돼서 너비 수정을 할 수가 없다」).
  * ★고장난 것은 «선택 규칙»이 아니었다 — 줄 주소(data-r/data-c/data-line)는 구분선에도
