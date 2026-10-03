@@ -10,7 +10,7 @@ export function buildTextPropsHtml(state) {
     currentPadT, currentPadL, currentPadR, phLinked,
     isLabel, currentBgColor, currentRadius, labelPillH, labelPadX = 0, labelIsCircle = false,
     isSpeechBubble, currentBubbleStyle, currentTail,
-    bubbleBgHex, showSender, senderName,
+    bubbleBgHex, showSender,
     isIconText, currentItbGap,
     mix,
     shadow,
@@ -273,13 +273,10 @@ ${blockHeaderHTML({
         </div>
         <div class="prop-row">
           <span class="prop-label">발신자 이름</span>
-          <label class="prop-toggle" title="발신자 이름 표시">
+          <label class="prop-toggle" title="발신자 이름 표시 — 이름은 캔버스에서 더블클릭해 고친다">
             <input type="checkbox" id="bubble-show-sender" ${showSender ? 'checked' : ''}>
             <span class="prop-toggle-track"></span>
           </label>
-        </div>
-        <div class="prop-row" id="bubble-sender-name-row" style="display:${showSender?'flex':'none'}">
-          <input type="text" class="prop-color-hex" id="bubble-sender-name-input" value="${senderName.replace(/"/g,'&quot;')}" placeholder="Your name" style="flex:1;max-width:none">
         </div>
       </div>
     </div>
