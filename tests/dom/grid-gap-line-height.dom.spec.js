@@ -118,7 +118,10 @@ test('G3-6 ★렌더러가 아는 모든 줄 종류가 「펼침 Set」 또는 �
   const FOLD = new Set([...roles, ...FOLD_NONROLE]);
   const bad = known.filter(k => OPEN.includes(k) === FOLD.has(k));
   expect(bad, '펼침/접힘 «어느 쪽인지» 안 정해졌거나 양쪽에 있는 종류 — 정하라(prop-grid.js _GRD_LINE_OPEN_KINDS 머리 주석 참고)').toEqual([]);
-  expect(OPEN.filter(k => !known.includes(k)), 'Set 에 있는데 렌더러가 모르는 종류').toEqual([]);
+  expect(OPEN.filter(k => !known.includes(k)), 'Set 에 있는데 렌더러·패널이 모르는 종류').toEqual([]);
+  /* 양쪽 대조 — 「렌더러 종류 ∪ 패널 종류 == 펼침 Set ∪ 접힘 목록」: 접힘 목록에만 있고 코드가 모르는(지워진) 종류도 잡는다. */
+  expect([...FOLD].filter(k => !known.includes(k)), '접힘 목록에 있는데 렌더러·패널이 모르는 종류').toEqual([]);
+  expect([...known].sort(), '합집합이 같다').toEqual([...new Set([...OPEN, ...FOLD])].sort());
 });
 
 test('G3-7 ★글자 줄에서 「줄 꾸미기」를 열었다 닫아도 같은 그리드의 갭 줄은 접히지 않는다(접힘 기억은 종류별)', async ({ page }) => {
