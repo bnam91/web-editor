@@ -299,6 +299,30 @@ function _gridGaps(block) {
   return { row, col };
 }
 
+/* ══ ★그리드 블럭 «자체 너비» 모델 (G2-a, 2026-10-03 · TASK-20261003-goditor-32 G2) ══════════
+ *  ★키 하나: `data-grid-width`(dataset.gridWidth) — 단위 «px 정수», 블럭 상자의 바깥 폭(box-sizing:border-box).
+ *  ★키가 «없으면» = 옛 뜻 그대로 «담는 그릇 폭을 다 쓴다(100%)». 그 경로는 한 바이트도 안 바뀐다
+ *    (지키는 시험: tests/dom/grid-block-width-model.dom.spec.js W0 — bf9161d0 과 style·innerHTML 바이트 동일).
+ *  ★범위 밖·숫자 아님 = «없는 것»으로 읽는다(렌더는 100%). 고치는 문(updateGridBlock width)은 그런 값을 «거절»한다.
+ *  ⛔폭을 담는 자리는 이 키 «하나»다. style.width 에 따로 px 를 박지 마라 — renderGridBlock 이 다시 그릴 때
+ *    지워져(100% 로 되돌아가) «두 명부»가 어긋난다(F3 의 드롭 입구가 바로 그 꼴이었다: makeAbsolute 가 860px 를
+ *    style 에만 적고, 다음 렌더가 100% 로 폈다).
+ *  ⚠️이 커밋은 «모델»뿐이다 — 우측패널 입력·오버레이 모서리 핸들은 G2-b 몫. */
+export const GRID_WIDTH_MIN = 40;
+export const GRID_WIDTH_MAX = 3000;   // 캔버스 기준 860 의 3배여유. ⛔4000 은 ROW_H_MAX 리터럴 검사(grid-callsite-ssot)에 걸린다 — 뜻이 다른 수라 일부러 피했다
+/** 너비 값 검증 — GRID_WIDTH_MIN~MAX 이면 정수 px, 아니면 null. */
+function _gridValidateWidth(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  const r = Math.round(n);
+  return (r < GRID_WIDTH_MIN || r > GRID_WIDTH_MAX) ? null : r;
+}
+/** 블럭의 자체 너비(px) — 키가 없거나 무효면 null(= 100%). ⛔읽는 문은 이것 하나. */
+function getGridWidth(block) {
+  return _gridValidateWidth(block && block.dataset ? block.dataset.gridWidth : undefined);
+}
+
 /** gap/rowGap/colGap 공용 검증 — min~GRID_GAP_MAX(min 기본 0, rowGap 만 GRID_ROW_GAP_MIN). 통과면 정수, 아니면 null. */
 function _gridValidateGap(v, min = 0) {
   const n = Number(v);
@@ -1809,13 +1833,21 @@ function renderGridBlock(block) {
      그리고 떠 있는 동안엔 「좌우 패딩 제외」를 안 건다 — 띄울 때 음수 마진을 걷어 두는데(_freezeMargins) 다시 걸면
      자리가 패딩만큼 밀린다. ⇒ 이 줄의 조건은 «둘»이다(떠 있음 · 패딩 제외). 둘 다 참일 때 = 떠 있음이 이긴다. */
   const floating = block.dataset.overlayBlock === 'true';
-  if (!floating) block.style.width = '100%';
+  /* ★G2-a 자체 너비 — 우선순위: 떠 있음(굳힌 폭) > data-grid-width > 100%.
+     키가 있으면 「좌우 패딩 제외」(calc(100%+2·pad))와 «같이 설 수 없다» — 명시 폭이 이긴다.
+     그래서 패딩제외의 흔적(음수 마진·calc 폭)을 걷고 그 함수는 «안» 부른다. ⛔dataset.fullBleed 는 안 지운다
+     (켬/끔 상태는 사용자 것이다 — 키를 지우면 다시 패딩제외로 돌아간다). */
+  const ownW = floating ? null : getGridWidth(block);
+  if (ownW !== null) {
+    if (block.dataset.fullBleed === 'true') window.clearBlockFullBleed?.(block);
+    block.style.width = ownW + 'px';
+  } else if (!floating) block.style.width = '100%';
   else if (block.dataset.overlayFrozenWidth) block.style.width = block.dataset.overlayFrozenWidth;
   block.style.boxSizing = 'border-box';
   /* ★「좌우 패딩 제외」가 켜져 있으면 폭을 다시 건다 — 위 한 줄이 폭만 100% 로 되돌리고 음수 마진은 남겨서
      다시 그릴 때마다(열 간격 끌기 등) «왼쪽은 붙고 오른쪽만 패딩»이 됐다(현빈 2026-10-01, grd_ts0he_lvy913j).
      꺼져 있으면 이 함수는 아무것도 안 만진다(drag-utils 규약). */
-  if (!floating) window.applyBlockFullBleed?.(block);
+  if (!floating && ownW === null) window.applyBlockFullBleed?.(block);
 
   const colTemplate = cols.map(c => `${Number(c.width) > 0 ? Number(c.width) : 1}fr`).join(' ');
   /* 칸 사이 괘선 — 루프 «밖»에서 한 번 읽는다(칸마다 dataset 을 다시 파싱하지 않는다). */
@@ -2437,6 +2469,17 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
       applied[kS] = partial[kS];
     }
   }
+  /* ★G2-a 자체 너비 — 숫자(px)면 쓰고, `null` 이면 키를 «지워» 100%(옛 뜻)로 돌린다. 범위 밖은 거절. */
+  let widthUnset = false;
+  if (partial.width !== undefined) {
+    if (partial.width === null) { widthUnset = true; applied.width = null; }
+    else {
+      const v = _gridValidateWidth(partial.width);
+      if (v === null) return { ok: false, code: 'INVALID', message: `width must be ${GRID_WIDTH_MIN}~${GRID_WIDTH_MAX} (px) or null (= fill 100%)` };
+      next.gridWidth = String(v);
+      applied.width = v;
+    }
+  }
   if (partial.valign !== undefined) {
     /* ★명부는 _GRID_VALIGN «하나»에서 온다 — 전엔 여기와 makeGridBlock 이 각자 리터럴을
        들고 있었다(MIN_COLS/MAX_COLS 사고와 같은 유형, T-175). 칸 축도 같은 명부를 본다. */
@@ -2446,8 +2489,8 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     next.valign = partial.valign;
     applied.valign = partial.valign;
   }
-  if (Object.keys(next).length === 0) {
-    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/cellBorderWidth/cellBorderColor/cellBorderStyle/{col,row}Rule{On,Width,Color,Inset,Span}' };
+  if (Object.keys(next).length === 0 && !widthUnset) {
+    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/width/cellBorderWidth/cellBorderColor/cellBorderStyle/{col,row}Rule{On,Width,Color,Inset,Span}' };
   }
 
   /* ⛔되돌림 명부에 «새 키»를 같이 넣어라 — 빠지면 RENDER_ERROR 롤백이 테두리만 남겨
@@ -2471,6 +2514,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     rowRuleColor: block.dataset.rowRuleColor,
     rowRuleInset: block.dataset.rowRuleInset,
     rowRuleSpan: block.dataset.rowRuleSpan,
+    gridWidth: block.dataset.gridWidth,   // G2-a
   };
   /* ★★★2026-09-30 — 되돌림 명부를 «스냅샷에서 뽑는다». 손으로 적지 않는다.
    *   ⛔무엇이 났나: 바로 위 ⛔주석이 「새 키를 같이 넣어라」라고 경고하는데, 나는 `before` 에는
@@ -2499,6 +2543,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
      ★낱말은 이 저장소에 이미 있는 것을 쓴다(js/spacing-normalize.js `plan.noHistory`). */
   if (opts.noHistory !== true) window.pushHistory?.();
   Object.assign(block.dataset, next);
+  if (widthUnset) delete block.dataset.gridWidth;
   try {
     renderGridBlock(block);
   } catch (e) {
@@ -2644,6 +2689,7 @@ window.migrateGridIdentity = migrateGridIdentity;
 //   판정하려고 window 경유로 부른다(block-drag.js 는 이 파일을 import 하지 않는다 — 기존 관례
 //   그대로 window.updateGridBlock/renderGridBlock 과 같은 다리를 쓴다).
 window.getGridModel = getGridModel;
+window.getGridWidth = getGridWidth;   // G2-a — 다른 파일이 폭을 «읽을» 때도 이 문 하나
 
 // ★deprecated 별칭 — 2026-09-05 개명 이전 이름. scripts/goditor_runner.js 와 외부 스킬 md·
 //   다른 맥의 CDP 스크립트가 아직 이 이름을 부른다. 제거는 P1(러너·스킬 md 갱신 «후»).
@@ -2660,6 +2706,7 @@ export {
   _gridLineHtml as gridLineHtml, _GRID_ROLES as GRID_ROLES,
   _GRID_COLOR_RE as GRID_COLOR_RE, _GRID_FONT_RE as GRID_FONT_RE,
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
+  getGridWidth, _gridValidateWidth as gridValidateWidth,
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, MAX_CELL_LINES,
   _gridGaps as gridGaps, _gridCellsToDataset as gridCellsToDataset,
   _gridCellBorder as gridCellBorder,   /* ★T-172 — 패널이 «같은 읽는 문»을 쓴다(두 벌 금지) */
