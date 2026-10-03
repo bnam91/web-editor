@@ -628,10 +628,15 @@ ${blockHeaderHTML({
     onCommit: () => window.pushHistory?.(),
   });
   document.getElementById('asset-bg-clear').addEventListener('click', () => {
+    /* ★초기화 = «배경 없음»(체커) — 2026-10-03 지디 판정으로 규약을 바꿈(예전: 기본 회색 #a0a0a0 을 다시 씀).
+       예전 약속은 «체커가 그 회색을 가린 상태»를 고정한 것이었다 — 색이 있으면 체커를 걷게 되면서(editor-layout.css
+       .asset-block[data-bg-color]) 회색 판이 드러났다.
+       ⇒ 칸 표시(setHex)를 «먼저», 지우기를 «뒤에». setHex 는 apply()→onApply 를 불러 dataset·인라인을 다시 박으므로
+         지운 뒤에 부르면 초기화가 회색 칠하기가 된다. */
+    bgField?.setHex('#a0a0a0');
     delete ab.dataset.bgColor;
     ab.style.backgroundColor = '';
     ab.style.background = '';
-    bgField?.setHex('#a0a0a0');
     window.pushHistory?.();
   });
 

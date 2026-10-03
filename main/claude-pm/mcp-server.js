@@ -745,6 +745,7 @@ function _serializeCall(fn) {
  * ⛔환경변수는 «검사용 구멍»이다: GODITOR_SPACING_DEBOUNCE_MS=0 이면 즉시, 음수면 «끈다».
  * ───────────────────────────────────────────────────────────────────────── */
 const _spacing = require('./services/spacing');
+const GRAPH_LIMITS = require('../../js/graph-limits.js');   // 막대 두께 한계의 한 자리(렌더러와 공유)
 /* ★12초 — ⛔«도구 호출 사이 간격»을 직접 잰 값이 «아니다». 그건 못 쟀다.
  *   원장(live-progress·*result*.jsonl)에 턴 «안»의 «도구 호출 시각»이 안 남는다. 남는 건
  *   턴 소요(elapsed)와 도구 «수»뿐이라, 여기서 얻을 수 있는 건 «턴당 평균 간격의 상한»이다.
@@ -4831,7 +4832,7 @@ function _registerDefaultTools() {
           },
           chartHeight:  { type: 'integer', description: '차트 높이 px (80~2000). default 240' },
           labelSize:    { type: 'integer', description: '라벨 글자 크기 px (8~28). default 13' },
-          barThickness: { type: 'integer', description: 'bar-h 막대 두께 px (8~48). default 24' },
+          barThickness: { type: 'integer', description: `bar-h 막대 두께 px (${GRAPH_LIMITS.BAR_THICKNESS_MIN}~${GRAPH_LIMITS.BAR_THICKNESS_MAX}). default 24` },
           padX:         { type: 'integer', description: 'bar-h/line 좌우 패딩 px (0~80). default 0' },
           barColor:     { type: 'string',  description: 'bar-h/line 색상 (#hex | rgb(a)/hsl(a)() | transparent). default #222222' },
           itemGap:      { type: 'integer', description: 'bar-h 항목 간 간격 px (8~80). default 24' },
@@ -4886,7 +4887,7 @@ function _registerDefaultTools() {
           },
           chartHeight:  { type: 'integer', description: '80~2000' },
           labelSize:    { type: 'integer', description: '8~28' },
-          barThickness: { type: 'integer', description: 'bar-h 8~48' },
+          barThickness: { type: 'integer', description: `bar-h ${GRAPH_LIMITS.BAR_THICKNESS_MIN}~${GRAPH_LIMITS.BAR_THICKNESS_MAX}` },
           padX:         { type: 'integer', description: 'bar-h/line 0~80' },
           barColor:     { type: 'string',  description: '#hex | rgb(a)/hsl(a)() | transparent' },
           itemGap:      { type: 'integer', description: 'bar-h 8~80' },
@@ -7857,7 +7858,7 @@ function _validateGraphOpts(args, { mode } = {}) {
 
   _int('chartHeight',  80,  2000);
   _int('labelSize',    8,   28);
-  _int('barThickness', 8,   48);
+  _int('barThickness', GRAPH_LIMITS.BAR_THICKNESS_MIN, GRAPH_LIMITS.BAR_THICKNESS_MAX);
   _int('padX',         0,   80);
   _int('itemGap',      8,   80);
   _int('pctSize',      20,  120);

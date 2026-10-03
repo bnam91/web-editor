@@ -1000,6 +1000,12 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 /* 이미지가 들어오면 체크무늬(투명 표시용 placeholder) 제거 — 투명 SVG의 투명부로 체크가 비쳐
    Export PNG에까지 박히던 버그(현빈). 배경색(inline bgColor)이 있으면 그게, 없으면 섹션 배경이 비침. */
 .icon-circle-block.has-image .icb-circle { background-image: none; }
+/* ★배경색을 고르면 빈 원의 체커도 걷는다 (2026-10-03 A1 · .asset-block[data-bg-color] 와 같은 규칙 — editor-layout.css).
+   패널은 색을 .icb-circle «인라인 background-color» 로 박는데 위 체커(background-image)가 그 위에 남아 안 보였다
+   (실앱 실측: 인라인 rgb(251,4,4) · 픽셀 체커 그대로).
+   ⚠️블럭 dataset.bgColor 로 가르지 않는다 — 빈 원도 생성 때 placeholder '#e8e8e8' 이 박혀 있다(block-factory makeIconCircleBlock ·
+     export-figma-json 같은 이유). 원에 «인라인 색이 실렸나»가 신호다. 보이지 않는 값(transparent · 알파 0)은 체커 유지. */
+.icon-circle-block:not([data-bg-color="transparent"]):not([data-bg-color$=",0)"]):not([data-bg-color$=", 0)"]) .icb-circle[style*="background-color"] { background-image: none; }
 .icb-placeholder {
   font-size: 28px;
   color: var(--ui-text-sub);
@@ -3785,4 +3791,20 @@ html.tgs-selecting .tgs:focus-within {
 }
 [style*="background-clip: text"] span[style*="background-color"] {
   -webkit-text-fill-color: currentColor;
+}
+
+/* ── 패널에 포커스가 간 동안의 «보이는 글자 선택» (TX1 · 2026-10-03) ──
+   숫자·색코드·select 처럼 포커스를 가져가는 패널 칸을 누르면 DOM 선택이 그 칸으로 가서 캔버스 글자 선택이 안 보인다.
+   저장된 범위(js/props/_text-selection.js)를 CSS Custom Highlight 로 칠한다 — 새 색 없이 기존 --ui-accent 를 35% 로 비친
+   반투명(글자가 가려지지 않게, 브라우저 선택색에 가깝게 — 2026-10-03 지디 판정).
+   CSS.highlights 가 없으면 이 규칙은 아무것도 안 칠할 뿐, 저장·적용 동작은 같다. */
+::highlight(goditor-text-sel) {
+  background-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
+}
+/* 어두운 바탕(글자 톤 판정 = js/canvas-contrast.js textToneAt — «host 의 바탕»을 섹션까지 합성해 본다)에선 같은 바탕에 흰 글자.
+   측정(scratchpad/tx1/hl/num.json): #111 위 #555 글자 + 35% 블렌드 = 대비 1.33 · 흰 글자면 9.91.
+   ⚠️#fff 는 지디 지시 값 그대로 — --ui-* 에 흰색 토큰이 없다(있는 #fff 토큰은 --preset-* 블럭 기본값뿐). */
+::highlight(goditor-text-sel-dark) {
+  background-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
+  color: #fff;
 }

@@ -110,9 +110,20 @@ function coalesceSizeHistory(targetEl, label) {
 }
 
 const _AUTO_SELECT_SEL = '.prop-number, .prop-color-hex, .prop-color-alpha-input, .goya-cp-hex, .goya-cp-alpha-input';
+/* ★패널 칸 «값 전체 선택»(피그마와 같음 — TX1 지디 판정 D, 2026-10-03)
+ *   ⑴ 포커스를 «얻는» 첫 클릭 = 값 전체 선택(기존).
+ *   ⑵ ★이미 포커스가 든 «숫자칸»을 커밋 «뒤»(타이핑 중이 아닐 때) 다시 누름 = 값 전체 선택(새로).
+ *      Enter 커밋 뒤 커밋 가드(prop-number-commit-guard.js)가 포커스를 칸에 되돌리므로, 연달아 두 번째 값을 넣으려고
+ *      칸을 다시 누르면 옛 판은 캐럿만 꽂혀 「40」 뒤에 「52」가 이어붙었다(TX1 측정 x5: 다시 누르면 docSel="").
+ *      ⚠️타이핑 중(_pnTyping)이면 손대지 않는다 — 캐럿을 옮겨 고치는 손짓이다. 스피너(오른쪽 18px)도 손대지 않는다.
+ *   ⛔예외 = Mixed 칸(value="" · placeholder="Mix") — 피그마도 Mixed 칸은 전체 선택을 안 한다(지디 실측). */
+const _isMixedField = (el) => el.value === '' && String(el.placeholder || '').trim() === 'Mix';
+const _reclickSelectAll = (el, e) => el.type === 'number' && document.activeElement === el && !el._pnTyping
+  && !_isMixedField(el) && (el.clientWidth - (e.offsetX ?? 0)) > 18;
 document.addEventListener('focusin', (e) => {
   const el = e.target;
   if (!el.matches?.(_AUTO_SELECT_SEL)) return;
+  if (_isMixedField(el)) return;
   // mousedown 이후에 select() 호출되도록 한 틱 지연
   // ⚠️`<select class="prop-number">` 처럼 select() 가 «없는» 요소도 이 셀렉터에 걸린다
   //   (prop-banner02 줄 kind · prop-iconify). 가드 없으면 클릭할 때마다 uncaught TypeError.
@@ -121,16 +132,18 @@ document.addEventListener('focusin', (e) => {
 document.addEventListener('mouseup', (e) => {
   const el = e.target;
   if (!el.matches?.(_AUTO_SELECT_SEL)) return;
-  // 포커스 얻는 첫 클릭에서만 기본 caret 배치 막기
+  // 포커스 얻는 첫 클릭(또는 ⑵ 커밋 뒤 다시 누름)에서만 기본 caret 배치 막기
   if (el.dataset._selJustFocused === '1') {
     e.preventDefault();
     delete el.dataset._selJustFocused;
+    if (el._selReclick) { el._selReclick = false; if (typeof el.select === 'function') el.select(); }
   }
 }, true);
 document.addEventListener('mousedown', (e) => {
   const el = e.target;
   if (!el.matches?.(_AUTO_SELECT_SEL)) return;
   if (document.activeElement !== el) el.dataset._selJustFocused = '1';
+  else if (_reclickSelectAll(el, e)) { el.dataset._selJustFocused = '1'; el._selReclick = true; }
 }, true);
 
 /* ═══════════════════════════════════
@@ -2630,7 +2643,7 @@ document.addEventListener('keydown', e => {
     : (e.code === 'KeyS' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey);
   if (_isAddSection) {
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
     e.preventDefault();
     window.addSection?.();
     return;

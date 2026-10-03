@@ -1,17 +1,38 @@
+import '../graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
-function barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize, pctMin, barColor, barAlpha }) {
+/* GR2·GR3 — bar-v 전용 토글 셋(현빈 「눈금과 가로 격자선은 따로」 + 꺾은선 별도). 묶지 않는다.
+ * 켜면 dataset 키 '1', 끄면 키를 «지운다» — 셋 다 꺼진 블럭은 한 번도 안 건드린 블럭과 같은 꼴(렌더 바이트 동일 · GR-W0). */
+const GR_OVERLAY_TOGGLES = [
+  { key: 'showAxis', id: 'grb-show-axis', label: '축 보이기',     title: '왼쪽 눈금(0~깔끔한 상한, 1·2·5 간격)' },
+  { key: 'showGrid', id: 'grb-show-grid', label: '격자선 보이기', title: '눈금 높이마다 옅은 가로선' },
+  { key: 'showLine', id: 'grb-show-line', label: '꺾은선 얹기',   title: '막대 꼭대기를 잇는 선·점(막대와 같은 값)' },
+];
+function overlayTogglesHTML(block) {
+  return GR_OVERLAY_TOGGLES.map(t => `
+      <div class="prop-row" title="${t.title}">
+        <span class="prop-label">${t.label}</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="${t.id}" ${block.dataset[t.key] === '1' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>`).join('');
+}
+
+function barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize, pctMin, barColor, barAlpha, overlayToggles = '' }) {
   return `
     <div class="prop-section">
       <div class="prop-section-title">Bar Settings</div>
       <div class="prop-row">
         <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="grb-bar-thickness-slider" min="8" max="48" step="2" value="${barThickness}">
-        <input type="number" class="prop-number" id="grb-bar-thickness-number" min="8" max="48" value="${barThickness}">
+        <input type="range" class="prop-slider" id="grb-bar-thickness-slider" min="${BAR_THICKNESS_MIN}" max="${BAR_THICKNESS_MAX}" step="2" value="${barThickness}">
+        <input type="number" class="prop-number" id="grb-bar-thickness-number" min="${BAR_THICKNESS_MIN}" max="${BAR_THICKNESS_MAX}" value="${barThickness}">
       </div>
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
@@ -33,8 +54,22 @@ function barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize, pctM
         <span class="prop-label">바 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
       </div>
-      `}
+      `}${overlayToggles}
     </div>`;
+}
+
+const _isGrad = (c) => typeof c === 'string' && /gradient\(/i.test(c);
+/* GR1 — 항목(막대)마다 색 칸 = colorFieldHTML(단색·그라데이션). 「미지정 = 프리셋 색」은 예전 스와치처럼 체커(.swatch-none)
+ * + hex 칸 비움(placeholder 「프리셋」)으로 보인다 — 모델(item.color 없음)은 손대지 않는다. 고르는 순간에만 item.color 가 생긴다. */
+function itemColorFieldHTML(item, i) {
+  const c = item.color || '';
+  return `<div class="grb-data-color" title="바 색상 (미지정 시 프리셋 색 · 그라데이션은 막대마다 따로)">${colorFieldHTML({
+    idPrefix: 'grb-data-color-' + i,
+    hex: c && !_isGrad(c) ? c : '#4dabf7',
+    alpha: c && !_isGrad(c) ? parseAlphaFromColor(c) : 100,
+    placeholder: c ? '' : '프리셋',
+    gradientCss: _isGrad(c) ? c : '',
+  })}</div>`;
 }
 
 export function showGraphProperties(block) {
@@ -205,7 +240,7 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="grb-fillalpha-number" min="0" max="100" value="${fillAlpha}">
       </div>
     </div>` : ''}
-    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor) }) : ''}
+    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '' }) : ''}
     <div class="prop-section">
       <div class="prop-section-title">Preset</div>
       <div class="prop-preset-group">
@@ -223,8 +258,8 @@ ${blockHeaderHTML({
             <input type="text" class="grb-data-label-input" value="${item.label}" placeholder="라벨">
             <input type="number" class="grb-data-val-input" value="${item.value}" min="0" max="9999">
             ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${item.value2 ?? 0}" min="0" max="9999" title="시리즈 B 값">` : ''}
-            ${(chartType === 'bar-v' || chartType === 'bar-h') ? `<div class="prop-color-swatch grb-data-color${item.color ? '' : ' swatch-none'}" title="바 색상 (미지정 시 프리셋 색)"${item.color ? ` style="background:${item.color}"` : ''}><input type="color" value="${item.color || '#4dabf7'}"></div>` : ''}
             <button class="grb-data-del-btn" data-index="${i}">✕</button>
+            ${(chartType === 'bar-v' || chartType === 'bar-h') ? itemColorFieldHTML(item, i) : ''}
           </div>`).join('')}
       </div>
       <button class="prop-btn-full" id="grb-add-item">+ 항목 추가</button>
@@ -302,13 +337,10 @@ ${blockHeaderHTML({
       const v2El = row.querySelector('.grb-data-val2-input');
       if (v2El) it.value2 = parseFloat(v2El.value) || 0;
       else if (prevItems[i] && prevItems[i].value2 !== undefined) it.value2 = prevItems[i].value2;
-      // 바 개별색 — swatch가 지정 상태(.swatch-none 아님)면 반영, 스와치 없거나(타입 line/pair) 미지정이면 기존 color 보존
-      const sw = row.querySelector('.grb-data-color');
-      if (sw && !sw.classList.contains('swatch-none')) {
-        it.color = sw.querySelector('input[type="color"]').value;
-      } else if (prevItems[i] && prevItems[i].color) {
-        it.color = prevItems[i].color;
-      }
+      // 바 개별색 — ★GR1: 색은 «모델에서만» 보존한다. 예전엔 목록의 아무 입력(라벨·값)에나 모든 항목 색을 picker.value(hex)에서
+      //   다시 읽어, 그라데이션 항목이 라벨 한 글자에 #000000 이 됐다(GR-DESIGN 실측). 색을 바꾸는 길은 wireColorField 의
+      //   onApply/onGradient «하나»(아래 _wireItemColor)다.
+      if (prevItems[i] && prevItems[i].color) it.color = prevItems[i].color;
       return it;
     });
     block.dataset.items = JSON.stringify(newItems);
@@ -316,23 +348,31 @@ ${blockHeaderHTML({
   }
 
   const dataList = document.getElementById('grb-data-list');
-  // 바 개별색 스와치 — 사용자가 색을 고르면 .swatch-none 해제(→ syncItems가 반영) + 미리보기.
-  // capture 단계라 버블단계 syncItems보다 먼저 실행돼, syncItems가 갱신된 상태를 읽는다.
-  dataList.addEventListener('input', (e) => {
-    const inp = e.target;
-    if (!(inp instanceof HTMLInputElement) || inp.type !== 'color') return;
-    const sw = inp.closest('.grb-data-color');
-    if (!sw) return;
-    sw.classList.remove('swatch-none');
-    sw.style.background = inp.value;
-  }, true);
-  // 색 확정(피커 커밋) 시 히스토리 적재
-  dataList.addEventListener('change', (e) => {
-    const inp = e.target;
-    if (inp instanceof HTMLInputElement && inp.type === 'color' && inp.closest('.grb-data-color')) {
-      window.pushHistory();
-    }
-  });
+  // GR1 — 항목 색 칸 배선. 쓰는 길은 여기 «하나»: 단색 onApply · 그라데이션 onGradient → items[i].color → 렌더.
+  //   미지정(체커) 표시는 처음 고를 때 걷는다(.swatch-none 의 !important 배경이 고른 색을 가리므로).
+  const _wireItemColor = (i) => {
+    const pre = 'grb-data-color-' + i;
+    const cur = (JSON.parse(block.dataset.items || '[]')[i] || {}).color || '';
+    const swatch = document.getElementById(pre + '-color')?.closest('.prop-color-swatch');
+    const hexEl = document.getElementById(pre + '-hex');
+    if (!cur) { swatch?.classList.add('swatch-none'); if (hexEl) hexEl.value = ''; }
+    const setColor = (c) => {
+      const its = JSON.parse(block.dataset.items || '[]');
+      if (!its[i]) return;
+      its[i].color = c;
+      block.dataset.items = JSON.stringify(its);
+      swatch?.classList.remove('swatch-none');
+      window.renderGraph(block);
+    };
+    wireColorField(pre, {
+      initialAlpha: cur && !_isGrad(cur) ? parseAlphaFromColor(cur) : 100,
+      onApply: (c) => setColor(c),
+      onGradient: (css, commit) => { setColor(css); if (commit) window.pushHistory(); },
+      gradientValue: _isGrad(cur) ? cur : '',
+      onCommit: () => window.pushHistory(),
+    });
+  };
+  if (chartType === 'bar-v' || chartType === 'bar-h') items.forEach((_, i) => _wireItemColor(i));
   dataList.addEventListener('input', syncItems);
   dataList.addEventListener('click', e => {
     const btn = e.target.closest('.grb-data-del-btn');
@@ -401,7 +441,7 @@ ${blockHeaderHTML({
   const btNumber = document.getElementById('grb-bar-thickness-number');
   if (btSlider) {
     const applyBarThickness = v => {
-      v = Math.min(48, Math.max(8, v));
+      v = Math.min(BAR_THICKNESS_MAX, Math.max(BAR_THICKNESS_MIN, v));
       block.dataset[_vKey('barThickness','vBarThickness')] = v;
       window.renderGraph(block);
       btSlider.value = v; btNumber.value = v;
@@ -551,6 +591,16 @@ ${blockHeaderHTML({
       window.pushHistory();
     });
   }
+  // GR2·GR3 — 축·격자선·꺾은선 토글(bar-v). 켜면 '1', 끄면 키 삭제.
+  GR_OVERLAY_TOGGLES.forEach(t => {
+    const el = document.getElementById(t.id);
+    if (!el) return;
+    el.addEventListener('change', () => {
+      if (el.checked) block.dataset[t.key] = '1'; else delete block.dataset[t.key];
+      window.renderGraph(block);
+      window.pushHistory();
+    });
+  });
   // 카테고리 라벨 표시 toggle
   const showXL = document.getElementById('grb-show-xlabel');
   if (showXL) {

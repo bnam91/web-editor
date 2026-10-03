@@ -1,3 +1,4 @@
+import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
 import { state } from './globals.js';
 import {
   genId,
@@ -4023,6 +4024,7 @@ function updateIconCircleBlock(blockId, partial = {}) {
   return { ok: true, blockId, before, applied };
 }
 
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 // ── updateGraphBlock (graph-block) ─────────────────────────────────────
 function updateGraphBlock(blockId, partial = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
@@ -4143,7 +4145,7 @@ function updateGraphBlock(blockId, partial = {}) {
   try {
     _intField('chartHeight',  'chartHeight',  80, 2000);
     _intField('labelSize',    'labelSize',    8,  28);
-    _intField('barThickness', 'barThickness', 8,  48);
+    _intField('barThickness', 'barThickness', BAR_THICKNESS_MIN, BAR_THICKNESS_MAX);
     _intField('padX',         'padX',         0,  80);
     _intField('itemGap',      'itemGap',      8,  80);
     _intField('pctSize',      'pctSize',      20, 120);

@@ -102,6 +102,22 @@ function _tplStripPath(root) {
   return n;
 }
 
+/* ★템플릿은 «스크래치 링크 없이» 들어오고 «없이» 저장된다 (현빈 2026-10-03 확정 —
+   「템플릿에서 캔버스로 새로 추가되는건 스크래치패드 없이 들어와야해」).
+   링크 토큰(data-ref-links)은 «scratchId 참조»일 뿐 이미지를 안 싣는다 — 그대로 들어오면
+   ⑴같은 프로젝트: 원본과 한 이미지를 두 섹션이 쥔다(링크체인 2개) ⑵다른 프로젝트: 死참조.
+   ⛔속성 이름을 여기 적지 마라 — 이름은 SPLink(js/scratchpad-link.js)만 안다.
+   ⛔«분리된» 클론/요소에만 부른다. 라이브 섹션에 부르면 원본 링크가 날아간다.
+   삽입 시점 호출이 «방벽»이다(이미 등록된 템플릿도 토큰을 품고 있다) — 등록 시점 호출은 새 것을 깨끗이 두는 용. */
+function _tplStripLinks(root) {
+  const sp = window.SPLink;
+  if (!sp || typeof sp.stripTokens !== 'function') {
+    console.warn('[template] SPLink.stripTokens 없음 — 스크래치 링크 토큰이 템플릿으로/에서 샌다');
+    return 0;
+  }
+  return sp.stripTokens(root);
+}
+
 // 앱 시작 시 1회 호출
 async function initTemplates() {
   if (window.electronAPI?.loadTemplateIndex) {
@@ -321,6 +337,7 @@ async function saveAsTemplate(el, name, folder, category, tags, type = 'section'
      (삽입 시 strip 하지만, 캔버스를 거쳐 온 것에 옛 값이 남아 있을 수 있다) */
   _tplStripPath(clone);
   _tplStampPath(clone);
+  _tplStripLinks(clone);   // ★클론에만 — 캔버스의 원본 섹션은 링크를 그대로 쥔다
 
   const id  = 'tpl_' + Date.now();
   const html = clone.outerHTML;
@@ -383,6 +400,7 @@ async function insertTemplate(tpl) {
       return;
     }
     _tplStripPath(blockEl);   // ★템플릿 안에서만 쓰는 이름표 — 캔버스로 들고 들어가지 않는다
+    _tplStripLinks(blockEl);  // ★스크래치 링크 토큰도 — DOM 에 붙이기 «전»
 
     // row로 감싸서 insertAfterSelected로 삽입 (섹션 패딩/레이아웃 정상 적용)
     const row = document.createElement('div');
@@ -435,6 +453,7 @@ async function insertTemplate(tpl) {
     }
 
     _tplStripPath(ss);        // ★템플릿 전용 이름표 제거(형제 셋 공통)
+    _tplStripLinks(ss);       // ★스크래치 링크 토큰 제거 — DOM 에 붙이기 «전»
     // ID 재생성 (중복 방지)
     ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
     ss._subSecBound = false;
@@ -499,6 +518,7 @@ async function insertTemplate(tpl) {
     ? window.genId(prefix)
     : prefix + '_' + Math.random().toString(36).slice(2, 9));
   _tplStripPath(sec);         // ★템플릿 전용 이름표 제거(형제 셋 공통)
+  _tplStripLinks(sec);        // ★스크래치 링크 토큰 제거 — anchorSec.after/appendChild «전»(이미 등록된 템플릿의 토큰도 여기서 막힌다)
   sec.id = genId('sec');
   sec.querySelectorAll('[id]').forEach(el => {
     const prefix = el.id.split('_')[0] || 'el';
@@ -1012,6 +1032,7 @@ export async function saveBlockAsTemplate(block, name, folder = '블록', tagsSt
   /* 블록 저장도 «같은 형제»다 — 현빈 지시가 「섹션이나 블럭들도 모두」였다. 순서는 위와 같다. */
   _tplStripPath(clone);
   _tplStampPath(clone);
+  _tplStripLinks(clone);   // ★클론에만 — 캔버스의 원본 블록(과 그 섹션)은 링크를 그대로 쥔다
   const html = clone.outerHTML;
 
   const id = 'btpl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);

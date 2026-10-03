@@ -669,6 +669,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         items,
         width: Math.round((el.id && document.getElementById(el.id)?.offsetWidth) || el.offsetWidth || 0),
         height: parseInt(el.dataset.chartHeight) || parseFloat(el.style.height) || 300,
+        // GR2·GR3 — 축·격자·꺾은선 토글은 «켜진 것만» 싣는다(꺼진 그래프의 JSON 은 예전과 같다). ⚠️렌더러(sangpe_to_figma)는 아직 안 읽는다(E11).
+        ...(['showAxis', 'showGrid', 'showLine'].some(k => el.dataset[k] === '1')
+          ? { showAxis: el.dataset.showAxis === '1', showGrid: el.dataset.showGrid === '1', showLine: el.dataset.showLine === '1' } : {}),
       };
     }
     // ── SHAPE (shape-block) : 도형(선/사각/원) ──
@@ -862,11 +865,26 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
             x: parseFloat(t.style.left) || 0, y: parseFloat(t.style.top) || 0 }); }
       });
       const ds = el.dataset || {};
-      return {
+      const out = {
         type: 'generic', id: el.id || '', kind: ds.type || '',
         width: w, height: h || 0, bg: ds.bg || '', radius: parseInt(ds.radius) || 0,
         svg: el.querySelector('svg')?.outerHTML || '', texts,
       };
+      /* ★G17 그리드 «블럭 외곽선» — 키(data-block-outline)가 있을 때만 `border` 를 싣는다(없으면 JSON 바이트 그대로).
+       *   값은 렌더러가 블럭 style 에 «이미 그은» 변을 그대로 읽는다(모델 해석을 여기서 다시 하지 않는다 — 두 벌 금지).
+       *   ⚠️figma-renderer/sangpe_to_figma.mjs 의 generic 분기는 아직 `border` 를 «안 읽는다»(플러그인에 면별 stroke 명령 0).
+       *     ⇒ 피그마 화면에 선이 나오는 것은 «미구현·미측정»이다. 여기서는 «실어 보낸다»까지만. */
+      if (ds.blockOutline && el.classList.contains('grid-block') && el.style) {
+        const border = {};
+        for (const sd of ['top', 'right', 'bottom', 'left']) {
+          const st = el.style.getPropertyValue('border-' + sd + '-style');
+          border[sd] = st && st !== 'none'
+            ? { width: parseFloat(el.style.getPropertyValue('border-' + sd + '-width')) || 0, style: st, color: el.style.getPropertyValue('border-' + sd + '-color') }
+            : null;
+        }
+        out.border = border;
+      }
+      return out;
     }
     return null;
   }

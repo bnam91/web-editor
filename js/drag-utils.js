@@ -1,8 +1,21 @@
 
 // [v0.8 #4 보안] 그래프 바 color/라벨은 innerHTML 주입 → 화이트리스트·이스케이프(저장형 XSS 차단·고디터QA BUG-P2-1 S2)
+// GR1(2026-10-03): 항목 막대 «그라데이션» — linear-gradient 만 넓혀 받는다. 판정은 브라우저 파서(_isCssBg)에 맡기고,
+//   style="…" 속성 안에 그대로 박히므로 따옴표·세미콜론·꺾쇠·url( 은 막는다(속성 탈출·외부 자원 로드 차단). 그 밖의 꼴은 예전 그대로.
+//   ⚠️판정 함수는 js/props/color-picker.js isCssBackgroundValue 와 «같은 식»의 사본이다 — import 하지 않는 까닭: drag-utils 를 «홀로»
+//   서빙하는 DOM 하네스가 6개(frame-accepts-component-blocks·free-frame-flow-drag·grid-line-drag·no-selection-hint·
+//   qa0920b-asset-width-set·shape-frame-isolation)라 import 한 줄이 404 → 모듈 통째 죽음이 된다(실측 2026-10-03 F0 30s 시간초과).
+let _gradProbe = null;
+function _isCssBg(v) {
+  if (!_gradProbe) _gradProbe = document.createElement('div');
+  _gradProbe.style.background = '';
+  try { _gradProbe.style.background = v; } catch (_) { return false; }
+  return _gradProbe.style.background !== '';
+}
 function _safeGraphColor(c) {
   if (typeof c !== 'string') return '';
   const s = c.trim();
+  if (/^linear-gradient\(/i.test(s)) return (!/url\(|[;"'<>\\]/i.test(s) && _isCssBg(s)) ? s : '';
   return (/^#[0-9a-fA-F]{3,8}$/.test(s) || /^rgba?\(\s*[\d.,\s%]+\)$/i.test(s) || /^hsla?\(\s*[\d.,\s%]+\)$/i.test(s) || /^[a-zA-Z]+$/.test(s)) ? s : '';
 }
 function _escGraphHtml(v) {
@@ -494,7 +507,90 @@ function _barVSettings(block, nItems) {
     fillW: has('vBarThickness') ? `width:${n('vBarThickness')}px;max-width:100%;margin:0 auto;` : '',
     colMin: (has('vBarThickness') || has('vItemGap') || has('vPadX')) ? 'min-width:0;' : '',
     pctSize: has('vPctSize') ? n('vPctSize') : null,
+    // GR2·GR3 오버레이가 «같은 칸 수식»을 쓰게 내보내는 원값(렌더 문자열에는 안 쓰인다 — 위 세 줄이 바이트를 정한다)
+    padX: has('vPadX') ? n('vPadX') : 0,
+    gapPx: has('vItemGap') ? n('vItemGap') : null,
+    gapPct: (100 / Math.max(1, nItems)).toFixed(2),
   };
+}
+
+/* GR2 축 눈금 — 「깔끔한 상한」(지디 판정 2026-10-03 후속, 이전 규칙 «M/step≤6 최소 step + max(ceil,5)칸» 폐기).
+ *   후보 step ∈ {1,2,5}×10^k, step ≥ 1(하한 1) · 상단 = ceil(M/step)×step · 칸수 = 상단/step ∈ [3,7] 인 것만.
+ *   그중 «상단/M» 이 1 에 가장 가깝게. 동률이면 ★칸수 «많은» 쪽(= 작은 step) — 지디 기대값 표 55→60·step 10·6칸 을 따른 것.
+ *     동률 처리는 표를 참값으로 — 2026-10-03 지디 판정(옛 규칙 문장 「칸수 적은 쪽」은 하한 3 의 취지와 어긋나 폐기).
+ *   기대값: 13→14(2·7칸) · 11→12(2·6칸) · 4.6→5(1·5칸) · 55→60(10·6칸) · 3.5→4(1·4칸) · 100→100(20·5칸).
+ *   후보가 없으면(M<3 같은 작은 값: step 1 이어도 칸이 3 미만) step 1 · 상단 ceil(M)(최소 1) — 예) 1→0~1 · 2→0~2. */
+function _niceScale(M) {
+  M = (Number.isFinite(M) && M > 0) ? M : 1;
+  let best = null;
+  for (let k = 0; Math.pow(10, k) <= M; k++) {
+    for (const m of [1, 2, 5]) {
+      const step = m * Math.pow(10, k);
+      const top = Math.ceil(M / step - 1e-9) * step;
+      const cnt = Math.round(top / step);
+      if (cnt < 3 || cnt > 7) continue;
+      const r = top / M;
+      if (!best || r < best.r - 1e-12 || (Math.abs(r - best.r) <= 1e-12 && cnt > best.cnt)) best = { step, top, cnt, r };
+    }
+  }
+  if (!best) { const top = Math.max(1, Math.ceil(M - 1e-9)); best = { step: 1, top, cnt: top }; }
+  const ticks = []; for (let i = 0; i <= best.cnt; i++) ticks.push(i * best.step);
+  return { max: best.top, step: best.step, ticks };
+}
+
+/* ★GR2·GR3 — bar-v 플롯 기하 «한 곳». 막대 높이(pct)와 오버레이(축·격자·꺾은선) 좌표가 이 함수 하나에서 나온다.
+ *   좌표는 «렌더 때 DOM 을 재서 박는» 게 아니라 모델 수식 + CSS 앵커다(폭이 바뀌어도 맞는다 — GR-DESIGN 대조: px 박기 270px·비율 1.6px 오차).
+ *   · 가로: 오버레이 상자 left/right = calc(P − gap/2) ⇒ i번째 막대 가운데 = 상자의 (i+0.5)/n.
+ *       gap 은 .grb-bars-v 의 실제 gap 과 같은 식 — 키 없으면 CSS 기본 10px(css/editor-graph.css .grb-bars-v), 있으면
+ *       min(Npx, X%)(X% 는 flex 내용폭 기준) ⇒ 오버레이(패딩 상자 기준)에서는 (100% − 2P)×X/100.
+ *   · 세로: top = 값 라벨 높이(vSize×1.2 + margin 4) · bottom = 항목 라벨 높이(labelSize×1.2 + margin 6).
+ *       라벨 높이를 수식으로 알려고 «오버레이가 켜졌을 때만» 두 라벨에 line-height:1.2;height:1.2em 을 건다(겉모습 ≈1px 변화).
+ *   · 셋 다 꺼짐(on=false) ⇒ pct 는 예전 식 그대로·나머지 조각은 전부 '' ⇒ innerHTML 이 30984c67 과 바이트 동일(GR-W0).
+ *   · 축 또는 격자가 켜지면 막대도 «깔끔한 상한»으로 다시 비율을 잡는다(격자선과 값이 맞게). 꺾은선만 켜면 예전 상한.
+ *   ⚠️값 0·아주 작은 값: 막대는 min-height 4px(.grb-bar-fill)라 꼭대기가 바닥+4px 인데, polyline 꼭짓점은 수식(pct%)이라
+ *     바닥에 붙는다 ⇒ 선 꼭짓점이 막대 꼭대기와 최대 ~6px 어긋난다(점 div 는 bottom 이 막대와 같은 식이라 맞는다). 시험 허용치 6.5px. */
+function _barVPlotGeom(block, items, { maxVal, labelSize, vSize, bs }) {
+  const d = block.dataset;
+  const axis = d.showAxis === '1', grid = d.showGrid === '1', line = d.showLine === '1';
+  const on = axis || grid || line;
+  if (!on) {
+    return { on, pct: (v) => (v === 0 ? 0 : Math.max(1, Math.round((v / maxVal) * 100))), barsExtra: '', lhCss: '', overlayHTML: () => '' };
+  }
+  const nice = (axis || grid) ? _niceScale(maxVal) : null;
+  const scaleMax = nice ? nice.max : maxVal;
+  const pct = (v) => (!v ? 0 : Math.max(1, +((v / scaleMax) * 100).toFixed(2)));
+  const LH = 1.2;
+  const top = d.showVLabel !== '0' ? vSize * LH + 4 : 0;      // .grb-bar-val-label margin-bottom:4px
+  const bot = d.showXLabel !== '0' ? labelSize * LH + 6 : 0;  // .grb-bar-label margin-top:6px
+  const P = bs.padX;
+  const gap = bs.gapPx == null ? '10px' : `min(${bs.gapPx}px, calc((100% - ${2 * P}px) * ${bs.gapPct} / 100))`;
+  const inset = `calc(${P}px - ${gap} / 2)`;
+  const n = Math.max(1, items.length);
+  const xPct = (i) => ((i + 0.5) / n) * 100;
+  const tickFont = Math.max(10, Math.round(labelSize * 0.75));
+  const fmt = (t) => String(t);
+  const tickChars = nice ? Math.max(...nice.ticks.map(t => fmt(t).length)) : 0;
+  // 눈금 글자 자리 — 오버레이 상자 왼쪽 밖(right:100% + 6px)에 그리므로, 그만큼 막대 띠를 오른쪽으로 민다(「11」이 잘리던 시제품 꼴 방지).
+  const axisMargin = axis ? Math.ceil(tickChars * tickFont * 0.65 + 8) : 0;
+  const barsExtra = 'position:relative;' + (axisMargin ? `margin-left:${axisMargin}px;` : '');
+  const lhCss = `line-height:${LH};height:${LH}em;`;
+  const ink = _safeGraphColor(d.labelColor);   // 선·점·격자·눈금 색 = 라벨 색(지정 시) 아니면 블럭 글자색(프리셋 color) — 새 색 없음
+  const overlayHTML = () => {
+    const yOf = (p) => (1000 - p * 10).toFixed(1);
+    const ticks = nice ? nice.ticks : [];
+    const gridEl = grid ? ticks.map(t => `<line class="grb-ov-grid" x1="0" x2="1000" y1="${yOf((t / scaleMax) * 100)}" y2="${yOf((t / scaleMax) * 100)}" stroke="currentColor" stroke-opacity="0.2" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('') : '';
+    const axisEl = axis ? `<line class="grb-ov-axis" x1="0" x2="0" y1="0" y2="1000" stroke="currentColor" stroke-opacity="0.6" stroke-width="1" vector-effect="non-scaling-stroke"/>` : '';
+    const pts = items.map((it, i) => ({ x: (xPct(i) * 10).toFixed(1), p: pct(it.value) }));
+    const lineEl = line ? `<polyline class="grb-ov-line" points="${pts.map(q => `${q.x},${yOf(q.p)}`).join(' ')}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>` : '';
+    // 점 높이 = 막대 꼭대기와 같은 식: 값 0 막대는 height:4px + border-style:dashed(기본 medium 3px ×2, border-box) = 6px,
+    //   그 밖은 min-height 4px ⇒ max(pct%, 4px).
+    const dots = line ? pts.map((q, i) => `<div class="grb-ov-dot" style="position:absolute;left:${xPct(i).toFixed(4)}%;bottom:${q.p === 0 ? '6px' : `max(${q.p}%, 4px)`};width:10px;height:10px;transform:translate(-50%,50%);border-radius:50%;background:currentColor"></div>`).join('') : '';
+    const tickEls = axis ? ticks.map(t => `<div class="grb-ov-tick" style="position:absolute;right:100%;margin-right:6px;bottom:${((t / scaleMax) * 100).toFixed(4)}%;transform:translateY(50%);font-size:${tickFont}px;line-height:1;opacity:0.75;white-space:nowrap">${_escGraphHtml(fmt(t))}</div>`).join('') : '';
+    return `<div class="grb-ov" style="position:absolute;left:${inset};right:${inset};top:${top}px;bottom:${bot}px;pointer-events:none;z-index:1;${ink ? `color:${ink};` : ''}">`
+      + `<svg class="grb-ov-svg" viewBox="0 0 1000 1000" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">${gridEl}${axisEl}${lineEl}</svg>`
+      + dots + tickEls + `</div>`;
+  };
+  return { on, axis, grid, line, scaleMax, ticks: nice ? nice.ticks : null, pct, top, bot, inset, barsExtra, lhCss, overlayHTML };
 }
 function renderGraph(block) {
   const items      = JSON.parse(block.dataset.items || '[]');
@@ -513,22 +609,24 @@ function renderGraph(block) {
     const _bs = _barVSettings(block, items.length);
     const _vSize = _bs.pctSize ?? valSize;
     const _blockBar = _safeGraphColor(block.dataset.vBarColor);
+    const _g = _barVPlotGeom(block, items, { maxVal, labelSize, vSize: _vSize, bs: _bs });   // GR2·GR3 — 꺼져 있으면 아래 조각 전부 ''
+    const _barsStyle = _g.on ? (_bs.barsStyle || ';') + _g.barsExtra : _bs.barsStyle;
     block.innerHTML = `
-      <div class="grb-bars-v" style="height:${chartH}px${_bs.barsStyle}">
+      <div class="grb-bars-v" style="height:${chartH}px${_barsStyle}">
         ${items.map(item => {
-          const pct = item.value === 0 ? 0 : Math.max(1, Math.round((item.value / maxVal) * 100));
+          const pct = _g.pct(item.value);
           const fillStyle = pct === 0 ? 'height:4px;opacity:0.25;border-style:dashed;' : `height:${pct}%;`;
           // 바 개별색 — item.color 있으면 인라인 background로 CSS 프리셋(colorful nth-child 포함) 우선
           const _bc = _safeGraphColor(item.color) || _blockBar; const colorStyle = _bc ? `background:${_bc};` : '';
           return `
             <div class="grb-bar-col"${_bs.colMin ? ` style="${_bs.colMin}"` : ''}>
-              <div class="grb-bar-val-label" style="font-size:${_vSize}px;${_vCss}">${_escGraphHtml(item.value)}</div>
+              <div class="grb-bar-val-label" style="font-size:${_vSize}px;${_vCss}${_g.lhCss}">${_escGraphHtml(item.value)}</div>
               <div class="grb-bar-fill-wrap">
                 <div class="grb-bar-fill" style="${fillStyle}${_bs.fillW}${colorStyle}"></div>
               </div>
-              <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}">${_escGraphHtml(item.label)}</div>
+              <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}${_g.lhCss}">${_escGraphHtml(item.label)}</div>
             </div>`;
-        }).join('')}
+        }).join('')}${_g.overlayHTML()}
       </div>`;
   } else if (chartType === 'line') {
     // ── 꺾은선 (line) — SVG polyline + circle data points
