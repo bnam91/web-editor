@@ -168,6 +168,11 @@ export function buildGridPicker(picker, label, onPick, opts = {}) {
  * 정렬 버튼 SSOT — 그림 사전(ALIGN_ICONS) + 문자열 조립기(alignBtn)
  * 2026-09-08 신규(A단계). ★이 단계는 «추가만» 한다 — 위쪽 코드는 한 줄도 안 바꿨고,
  *   호출부도 A단계에선 0 개다. 그래서 A단계만으로는 «렌더가 못 바뀐다».
+ *   ★[G18 실측 2026-10-03 · 핀 37ab1c65] 위 「호출부 0개」·아래 「146/146 이 innerHTML 안」은 «A단계 그날»의 사실이다.
+ *     지금은 alignBtn 호출 46곳·7파일(align-btn-ssot.test.mjs RATCHET). prop-grid.js 의 그리드 정렬 여섯도
+ *     9bfffe0f(객체정렬 27곳 채움화)에서 이미 이 헬퍼로 옮겨졌다 — prop-grid.js 안 정렬 SVG 리터럴 0건.
+ *     ⇒ G18 은 «옮길 것이 없었다». 대신 조립부를 _iconBtnHtml 로 뽑은 뒤 그 여섯이 핀과 «픽셀 0 차이»임을
+ *       tests/dom/grid-block-outline.dom.spec.js G18-1·G18-2 가 지킨다.
  *
  * ★왜 노드가 아니라 «HTML 문자열»인가
  *   레포의 정렬 버튼 146/146 이 전부 propPanel.innerHTML 템플릿 리터럴 «안»에 있다.
@@ -246,6 +251,25 @@ export const ALIGN_ICONS = {
 };
 
 /**
+ * ★블럭 외곽선(G17, 2026-10-03) 버튼 «그림»의 유일한 출처 — 위 ALIGN_ICONS 와 «같은 꼴»(계열 없는 한 단 사전).
+ *   엑셀·워드의 테두리 고르기 꼴: 옅은 점선 상자 = «아직 안 그은 변», 칠한 막대 = «긋는 변».
+ * ⛔ALIGN_ICONS «안»에 계열로 넣지 않았다 — 그 사전은 「정렬 버튼」 인구조사(align-btn-ssot.test.mjs
+ *   T0 래칫·T2 지문)의 모수다. 외곽선은 정렬이 아니므로 거기 섞이면 「정렬 버튼 수」가 거짓이 된다.
+ * ★크기·viewBox 는 object-* 와 같다(14 · 0 0 16 16) — 바로 위 Layout 절 정렬 단추와 잉크 크기를 맞춘다.
+ * ★키 = 변 이름(top·right·bottom·left) + 일괄 둘(all=「사방」 · none=「없음」).
+ *   ⛔키는 «그림 선택자»다. 모델 값(dataset.blockOutline)과 잇는 것은 호출부(prop-grid.js)다.
+ */
+const _BORDER_BOX = '<rect x="2.5" y="2.5" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1 1.5" opacity=".5"/>';
+export const BORDER_ICONS = {
+  top:    `<svg width="14" height="14" viewBox="0 0 16 16" fill="none">${_BORDER_BOX}<path fill="currentColor" d="M2 2h12v1.5H2z"/></svg>`,
+  right:  `<svg width="14" height="14" viewBox="0 0 16 16" fill="none">${_BORDER_BOX}<path fill="currentColor" d="M12.5 2H14v12h-1.5z"/></svg>`,
+  bottom: `<svg width="14" height="14" viewBox="0 0 16 16" fill="none">${_BORDER_BOX}<path fill="currentColor" d="M2 12.5h12V14H2z"/></svg>`,
+  left:   `<svg width="14" height="14" viewBox="0 0 16 16" fill="none">${_BORDER_BOX}<path fill="currentColor" d="M2 2h1.5v12H2z"/></svg>`,
+  all:    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M2 2h12v12H2zm1.5 1.5v9h9v-9z"/></svg>',
+  none:   `<svg width="14" height="14" viewBox="0 0 16 16" fill="none">${_BORDER_BOX}</svg>`,
+};
+
+/**
  * 정렬 버튼 «하나»의 HTML 문자열을 만든다. ★반환값은 노드가 아니라 문자열이다.
  *
  * @param {string} family  ALIGN_ICONS 의 계열 키
@@ -294,6 +318,12 @@ export function alignBtn(family, key, o = {}) {
    *   `←` 만 든 버튼이 있고, 스크린리더가 그걸 「왼쪽 화살표」라고 읽는다. 옵셔널로 두면
    *   급한 호출부가 빠뜨리고, 그 순간 이 작업의 값이 0 이 된다. 그래서 throw 다. */
   if (!o.label) throw new Error(`alignBtn(${family}, ${key}): label 은 필수다 — aria-label 이 없으면 스크린리더가 그림/문자를 그대로 읽는다`);
+  return _iconBtnHtml(icon, o);
+}
+
+/* ★문자열 조립은 «한 벌» — alignBtn 과 borderBtn 이 같이 쓴다(G17 에서 뽑아냄, 산출 바이트 불변).
+ *   ⛔두 헬퍼에 조립을 따로 적지 마라 — 위 「하지 않는 것」 넷이 한쪽에서만 지켜지게 된다. */
+function _iconBtnHtml(icon, o) {
   const { label, title, active, cls, attrs, style, base = 'prop-align-btn' } = o;
   let out = `<button class="${base}${cls ? ' ' + cls : ''}${active ? ' active' : ''}"`;
   // ★attrs 는 «해석하지 않고» 원문 그대로 통과시킨다 — 위 1번.
@@ -301,6 +331,20 @@ export function alignBtn(family, key, o = {}) {
   if (style) out += ` style="${style}"`;
   if (title) out += ` title="${title}"`;
   return out + ` aria-label="${label}">${icon}</button>`;
+}
+
+/**
+ * 블럭 외곽선 버튼 «하나»의 HTML 문자열 — alignBtn 과 같은 계약(label 필수 · attrs 무해석 · 문자열 반환).
+ * ★기반 클래스는 같은 prop-align-btn 이다 — 바로 위 정렬 줄과 굵기·색·간격이 «같은 부품»으로 맞는다.
+ *   ⛔data-align 을 붙이지 마라(prop-text-wireup-align.js 가 .prop-align-btn 중 data-align 있는 것을 «정렬»로 잡는다).
+ * @param {string} key  BORDER_ICONS 의 키 — top|right|bottom|left|all|none
+ * @param {object} o    alignBtn 과 같다
+ */
+export function borderBtn(key, o = {}) {
+  const icon = BORDER_ICONS[key];
+  if (icon === undefined) throw new Error(`borderBtn: "${key}" 그림이 없다 — 쓸 수 있는 키는 ${Object.keys(BORDER_ICONS).join(', ')}`);
+  if (!o.label) throw new Error(`borderBtn(${key}): label 은 필수다 — aria-label 이 없으면 스크린리더가 그림을 못 읽는다`);
+  return _iconBtnHtml(icon, o);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
