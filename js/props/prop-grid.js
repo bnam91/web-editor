@@ -2217,6 +2217,17 @@ function _grdWireTypo(block, addr) {
  *   ⛔절을 하나 더 «펼친 채로» 내면 순증 예산(Δ≤+60)을 그 자리에서 넘긴다(실측으로 확인). */
 const _GRD_LINE_ALIGN_KINDS = new Set([..._GRD_ROLE_KINDS, 'image']);
 
+/* ★「줄 꾸미기」를 처음부터 펼치는 줄 종류 — «손으로 적은 명부»다(도출·시험 둘 다 불가, 아래 까닭).
+ *   왜 이 둘인가: 갭 = 높이(px) · 구분선 = 굵기(px)·색 — 그 줄 «전용» 손잡이가 줄 꾸미기 절 «안»에만 있다.
+ *   접어 두면 손댈 데가 없어 「조절이 안 된다」로 보인다(현빈 G3). 글자 줄·그림 줄은 타이포·Image 절이
+ *   밖에 따로 있어 접어도 손잡이가 남는다.
+ *   ★새 줄 종류를 만들면 여기를 보라 — 그 종류의 전용 손잡이가 줄 꾸미기 안에만 있으면 이 명부에 넣는다.
+ *   ⛔도출 불가 까닭: 패널에 「줄 전용 영역」 경계가 없다(줄바·줄 꾸미기·Image·Typography 가 칸·블록 절과 같은
+ *     깊이의 형제 .prop-section 이고 표식이 없다) ⇒ 「줄 꾸미기 밖 줄 전용 입력 0개」를 DOM 으로 못 센다.
+ *     (실측: 줄 꾸미기 밖 입력이 갭 18 · 구분선 18 · 그림 21 · 글자 26 — 칸·블록 입력이 깔려 있어 0 이 없다.
+ *      「최솟값인 종류」로 재면 Set 에 맞춰 버리는 우연한 시험이라 쓰지 않았다.)
+ *   ★대신 명시 분류 시험 — tests/dom/grid-gap-line-height.dom.spec.js G3-6 이 렌더러가 아는 모든 줄 종류가
+ *     이 Set(펼침) 또는 그 시험의 접힘 목록 «한쪽에만» 있는지 단언한다. 새 줄 종류를 만들면 거기서 빨개진다. */
 const _GRD_LINE_OPEN_KINDS = new Set(['gap', 'divider']);
 function _grdLineSectionHtml(anyHit, block) {
   if (!anyHit || anyHit.li === null || !anyHit.line) return '';
