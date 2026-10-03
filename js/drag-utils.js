@@ -514,20 +514,29 @@ function _barVSettings(block, nItems) {
   };
 }
 
-/* GR2 축 눈금 — 데이터 최댓값에서 «깔끔한 상한»을 1·2·5 간격으로 고른다(지디 2026-10-03: 3.5→0~5, 4.6→0~5).
- *   간격 step = 1·2·5×10^k 중 «M/step ≤ 6» 인 가장 작은 것, 구간 수 = max(ceil(M/step), 5) ⇒ 눈금 6~7개.
- *   예) 3.5→5(1) · 4.6→5(1) · 6→6(1) · 11→12(2) · 55→60(10) · 75→100(20) · 100→100(20) · 1→1(0.2)
- *   ⚠️13→25(5) 처럼 «M/2 가 6 을 살짝 넘는» 값은 위가 많이 빈다 — 규칙의 알려진 꼴(시험 GR2-ticks 에 같이 적음). */
+/* GR2 축 눈금 — 「깔끔한 상한」(지디 판정 2026-10-03 후속, 이전 규칙 «M/step≤6 최소 step + max(ceil,5)칸» 폐기).
+ *   후보 step ∈ {1,2,5}×10^k, step ≥ 1(하한 1) · 상단 = ceil(M/step)×step · 칸수 = 상단/step ∈ [3,7] 인 것만.
+ *   그중 «상단/M» 이 1 에 가장 가깝게. 동률이면 ★칸수 «많은» 쪽(= 작은 step) — 지디 기대값 표 55→60·step 10·6칸 을 따른 것.
+ *     ⚠️지디 문장은 「동률이면 칸수 적은 쪽」인데 55 에서 step 10(6칸)·step 20(3칸)이 상단 60 으로 정확히 동률이라
+ *       문장대로면 20·3칸이 된다 — 표와 문장이 갈린다. 표를 따랐다(보고에 적음).
+ *   기대값: 13→14(2·7칸) · 11→12(2·6칸) · 4.6→5(1·5칸) · 55→60(10·6칸) · 3.5→4(1·4칸) · 100→100(20·5칸).
+ *   후보가 없으면(M<3 같은 작은 값: step 1 이어도 칸이 3 미만) step 1 · 상단 ceil(M)(최소 1) — 예) 1→0~1 · 2→0~2. */
 function _niceScale(M) {
   M = (Number.isFinite(M) && M > 0) ? M : 1;
-  const p10 = (k) => +Math.pow(10, k).toPrecision(12);
-  let step = null;
-  for (let k = Math.floor(Math.log10(M / 6)) - 1; step == null; k++) {
-    for (const m of [1, 2, 5]) { const s = +(m * p10(k)).toPrecision(12); if (M / s <= 6 + 1e-9) { step = s; break; } }
+  let best = null;
+  for (let k = 0; Math.pow(10, k) <= M; k++) {
+    for (const m of [1, 2, 5]) {
+      const step = m * Math.pow(10, k);
+      const top = Math.ceil(M / step - 1e-9) * step;
+      const cnt = Math.round(top / step);
+      if (cnt < 3 || cnt > 7) continue;
+      const r = top / M;
+      if (!best || r < best.r - 1e-12 || (Math.abs(r - best.r) <= 1e-12 && cnt > best.cnt)) best = { step, top, cnt, r };
+    }
   }
-  const cnt = Math.max(Math.ceil(M / step - 1e-9), 5);
-  const ticks = []; for (let i = 0; i <= cnt; i++) ticks.push(+(i * step).toPrecision(12));
-  return { max: ticks[cnt], step, ticks };
+  if (!best) { const top = Math.max(1, Math.ceil(M - 1e-9)); best = { step: 1, top, cnt: top }; }
+  const ticks = []; for (let i = 0; i <= best.cnt; i++) ticks.push(i * best.step);
+  return { max: best.top, step: best.step, ticks };
 }
 
 /* ★GR2·GR3 — bar-v 플롯 기하 «한 곳». 막대 높이(pct)와 오버레이(축·격자·꺾은선) 좌표가 이 함수 하나에서 나온다.

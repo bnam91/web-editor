@@ -3,7 +3,8 @@
  * 설계 근거: scratchpad reports/GR-DESIGN.md(시제품 gr.spec.js) — 좌표 = «모델 수식 + CSS 앵커» 한 곳(js/drag-utils.js _barVPlotGeom).
  * 시험 이름 ↔ 잰 것
  *   GR2-tog  토글 셋은 따로 — 패널 체크박스를 «클릭»해 축·격자·꺾은선 각각 켜고 끄기, 끄면 dataset 키가 지워지고 오버레이가 없다
- *   GR2-ticks 눈금 — 표본 최댓값별 깔끔한 상한(3.5→5 · 4.6→5 · 11→12 · 55→60 · 100→100 · 13→25(알려진 꼴))
+ *   GR2-ticks 눈금 — 지디 기대값 표(상단·step·칸수 «셋 다» + 상단/M 단언): 13→14·2·7 · 11→12·2·6 · 4.6→5·1·5 · 55→60·10·6 · 3.5→4·1·4
+ *            (+ 100→100·20·5 · 후보 없음 꼴 1→1·1·1)
  *   GR2-agree 축·격자가 켜지면 막대가 깔끔한 상한으로 다시 비율 — 값 4 막대 꼭대기 = 눈금 4 격자선(≤0.5px)
  *   GR2-clip 눈금 글자(두 자리 「12」)가 그래프 블럭 왼쪽 밖으로 안 나간다
  *   GR3-zoom 배율 40·100·200 — 점·선 꼭짓점 vs 막대 꼭대기 오차 ≤0.5 화면px (전제: currentZoom === z 를 먼저 단언)
@@ -62,18 +63,24 @@ test('GR2-tog 토글 셋은 따로 — 클릭으로 축·격자·꺾은선 각�
 });
 
 const tickTexts = (page) => page.evaluate(() => [...document.querySelectorAll('#grG .grb-ov-tick')].map(t => t.textContent));
-for (const [mx, want] of [
-  [3.5, ['0', '1', '2', '3', '4', '5']],
-  [4.6, ['0', '1', '2', '3', '4', '5']],
-  [11, ['0', '2', '4', '6', '8', '10', '12']],
-  [55, ['0', '10', '20', '30', '40', '50', '60']],
-  [100, ['0', '20', '40', '60', '80', '100']],
-  [1, ['0', '0.2', '0.4', '0.6', '0.8', '1']],
-  [13, ['0', '5', '10', '15', '20', '25']],   // 알려진 꼴 — 위가 많이 빈다(_niceScale 주석)
+/* [최댓값 M, 상단, step, 칸수] — 지디 판정 표 그대로(앞 다섯). 상단/M 은 시험이 계산해 «기대 상단/M» 과 같은지 따로 단언한다. */
+for (const [mx, top, step, cnt] of [
+  [13, 14, 2, 7], [11, 12, 2, 6], [4.6, 5, 1, 5], [55, 60, 10, 6], [3.5, 4, 1, 4],
+  [100, 100, 20, 5], [1, 1, 1, 1],
 ]) {
-  test(`GR2-ticks 최댓값 ${mx} → 눈금 ${want[0]}~${want[want.length - 1]}`, async ({ page }) => {
+  test(`GR2-ticks 최댓값 ${mx} → 상단 ${top} · step ${step} · ${cnt}칸`, async ({ page }) => {
     await setup(page, { items: [{ label: 'a', value: mx / 2 }, { label: 'b', value: mx }], extra: { showAxis: '1' } });
-    expect(await tickTexts(page)).toEqual(want);
+    const t = (await tickTexts(page)).map(Number);
+    expect(t.length, '전제: 눈금이 그려졌다').toBeGreaterThanOrEqual(2);
+    expect(t[0], '0 에서 시작').toBe(0);
+    expect(t[t.length - 1], '상단').toBe(top);
+    expect(t.length - 1, '칸수').toBe(cnt);
+    expect(t[1] - t[0], 'step').toBe(step);
+    expect(t.every((v, i) => v === i * step), `등간격 ${t}`).toBe(true);
+    expect(+(t[t.length - 1] / mx).toFixed(4), '상단/M').toBe(+(top / mx).toFixed(4));
+    // 막대도 같은 상단으로 — 최댓값 막대 높이 = M/상단
+    const h = await page.evaluate(() => document.querySelectorAll('#grG .grb-bar-fill')[1].style.height);
+    expect(h, '최댓값 막대 높이 = M/상단').toBe(+((mx / top) * 100).toFixed(2) + '%');
   });
 }
 
