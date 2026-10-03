@@ -3273,7 +3273,8 @@ function _syncGridAddBtns(block) {
  * ★자식이 «없으면» 인라인 top 을 안 건다 — CSS(top:50% / top:100%) 그대로라 지금과 «픽셀 동일»
  *   (자식이 없으면 블럭 = 껍데기 하나).
  * ★자식이 있으면 top 을 px 로 건다 — offsetTop/offsetHeight 는 배율 전(캔버스) 값이라 줌과 무관하다.
- * ⚠️아래 ＋ 가 자식 그릇과 겹칠 수 있다(G19 그릇 margin-top = 블럭 간격 < ＋ 높이일 때) — 보고서 측정. */
+ * ⚠️G19 자식 있을 때 아래 ＋ 가 첫 자식 위를 100% 15.8px · 40% 30.3px 덮는다 — 원 안만 히트라 의도대로(지디 2026-10-04 ㉠), 호버 중에만
+ *   (지키는 시험: tests/dom/grid-plus-g15 K5 — 겹친 띠에서 원 안 = 행 +1 · 원 밖 1px = 그리드 선택). */
 function _placeGridAddBtns(block) {
   const btns = block.querySelectorAll(`:scope > .${GRID_ADD_BTN_CLS}`);
   if (!btns.length) return;

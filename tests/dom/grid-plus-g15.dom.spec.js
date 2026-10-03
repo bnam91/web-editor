@@ -306,7 +306,8 @@ async function clickAt(page, id, x, y) {
   await page.mouse.click(x, y); await page.waitForTimeout(200);
   const m1 = await model(page, id);
   const selected = await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), id);
-  return { under, selected, dCols: m1.nCols - m0.nCols, dRows: m1.nRows - m0.nRows };
+  const sel = await page.evaluate(() => [...document.querySelectorAll('#canvas .selected')].map(e => e.id || e.className.split(' ')[0]));
+  return { under, selected, sel, dCols: m1.nCols - m0.nCols, dRows: m1.nRows - m0.nRows };
 }
 const boxOf = (page, id, axis) => page.evaluate(([id, axis]) => {
   const g = document.getElementById(id), r = g.querySelector(`:scope > .grd-add-btn[data-grd-add="${axis}"]`).getBoundingClientRect(), gr = g.getBoundingClientRect();
@@ -515,7 +516,8 @@ for (const z of [100, 40]) test(`K4 [측정] 배율 ${z} — 아래 ＋ × 첫 �
     if (ovY > 0) {
       const cx = (s.row.l + s.row.r) / 2, cy = (s.row.t + s.row.b) / 2, R = (s.row.r - s.row.l) / 2;
       const yIn = Math.min(s.row.b - 2, k.t + ovY / 2);          // 겹친 띠 가운데
-      const pts = { inCircle: [cx, yIn], outCircleInBox: [s.row.l + 2, yIn], besideBtn: [s.row.l - 6, yIn] };
+      /* ⚠️원 안 클릭은 행을 더해 자리를 바꾸므로 «맨 끝»에 잰다(첫 판은 맨 앞이라 뒤 두 점이 자식이 아니라 늘어난 껍데기 위였다). */
+      const pts = { outCircleInBox: [s.row.l + 2, yIn], besideBtn: [s.row.l - 6, yIn], inCircle: [cx, yIn] };
       out.clicks = {};
       for (const [nm, [x, y]] of Object.entries(pts)) {
         await page.evaluate(() => window.deselectAll?.()); await force(page, a);
@@ -531,3 +533,54 @@ for (const z of [100, 40]) test(`K4 [측정] 배율 ${z} — 아래 ＋ × 첫 �
     expect(s.kids, '전제 — 자식 둘').toEqual(['kA', 'kB']);
   }
 });
+
+/* K5 ★겹친 띠(아래 ＋ × 첫 자식) — 원 안 = 행 +1 · 원 밖 1px 옆 = 그리드 선택 (현빈 「정확히 +버튼을 눌러야지만」 · 지디 ㉠)
+ *   점은 «거리»로 먼저 단언한다(지난 판 40% 에서 「원 밖」으로 고른 점이 18.6 < 20 으로 원 안이었다). */
+for (const z of [100, 40]) {
+  test(`K5 ★배율 ${z} — 겹친 띠: 원 안 클릭 = 행 +1 · 원 밖 1px 옆 클릭 = ＋ 아님(행 그대로 · 밑의 자식으로 통과)`, async ({ page }) => {
+    test.setTimeout(120000);
+    const { errs, a } = await setup(page, z);
+    expect(await page.evaluate(() => window.currentZoom), `전제 — 배율 ${z}`).toBe(z);
+    await withKids(page, a);
+    await force(page, a);
+    const s = await kidState(page, a);
+    const k = await page.evaluate(() => { const r = document.getElementById('kA').getBoundingClientRect(); return { t: r.top, b: r.bottom, l: r.left, r: r.right }; });
+    const bandT = Math.max(s.row.t, k.t), bandB = Math.min(s.row.b, k.b);
+    expect(bandB - bandT, `전제 — 아래 ＋ 와 첫 자식이 겹친다 ${JSON.stringify({ row: s.row, kid: k })}`).toBeGreaterThan(4);
+    const cx = (s.row.l + s.row.r) / 2, cy = (s.row.t + s.row.b) / 2, R = (s.row.r - s.row.l) / 2;
+    /* ★점은 «정수 픽셀»로 잡는다 — 마우스 이벤트는 정수 좌표로 온다. 실측(2026-10-04 probe): 경계 바깥 소수점 점
+       (100%: dist 20.81 · 40%: 20.49)은 mousedown 이 ＋ 로 갔고, 21.2 이상은 언제나 자식으로 갔다.
+       ⇒ 「1px 옆」 = 그 높이에서 원 경계(R)보다 1px 넘게 바깥인 «가장 가까운» 정수 픽셀 · 거리 > R + 1 을 먼저 단언한다. */
+    const y = Math.round((bandT + bandB) / 2);                            // 겹친 띠 가운데(정수)
+    const dy = Math.abs(y - cy);
+    expect(dy, '전제 — 띠 가운데가 원의 세로 범위 안').toBeLessThan(R - 1);
+    // ⑴ 원 안 — 중심 x
+    const pin = [Math.round(cx), y];
+    expect(Math.hypot(pin[0] - cx, pin[1] - cy), '전제 — 원 안 점: dist < R').toBeLessThan(R - 1);
+    // ⑵ 원 밖 1px 옆 — 그 높이에서 원 왼쪽 경계가 걸친 픽셀의 바로 옆 픽셀
+    const pout = [Math.floor(cx - Math.sqrt((R + 1) * (R + 1) - dy * dy)) - (Number.isInteger(cx - Math.sqrt((R + 1) * (R + 1) - dy * dy)) ? 1 : 0), y];
+    const dOut = Math.hypot(pout[0] - cx, pout[1] - cy);
+    expect(dOut, `전제 — 원 밖 점: dist ${dOut.toFixed(2)} > R+1 (${R + 1})`).toBeGreaterThan(R + 1);
+    expect(pout[0] >= k.l && pout[1] >= k.t && pout[1] <= k.b, '전제 — 원 밖 점이 첫 자식 위(겹친 띠)').toBe(true);
+
+    /* ★«첫 클릭»은 아무것도 안 골라진 상태에서 잰다(deselectAll). 실측: 섹션이 골라진 채로 누르면 그 자리 클릭은
+       자식(kA)을 바로 고른다 — 이것도 ＋ 는 안 먹은 것(행 그대로)이지만 «그리드 선택»이 아니다(G19 선택 규칙 몫). */
+    await page.evaluate(() => window.deselectAll?.()); await force(page, a);
+    const rOut = await clickAt(page, a, pout[0], pout[1]);
+    /* ★현빈 요구 = 「＋ 원 밖은 ＋ 가 아니다」 — 행·열 그대로 · ＋ 안 잡힘 · 클릭은 «그 자리 밑»(첫 자식 kA)으로 간다.
+       ⚠️실측: 밑이 첫 자식이라 고르는 것은 «그리드»가 아니라 «자식 kA» 다(아무것도 안 골라진 첫 클릭에서도).
+         팀리드 지시문의 「= 그리드 선택」과 다르다 — 그대로 단언하지 않고 «밑으로 통과»를 단언한다(보고서). */
+    const msgOut = JSON.stringify({ pout, dOut, R, ...rOut });
+    expect({ dRows: rOut.dRows, dCols: rOut.dCols }, `★원 밖 1px 옆 = 행·열 그대로 ${msgOut}`).toEqual({ dRows: 0, dCols: 0 });
+    expect(rOut.under.includes('grd-add-btn'), `★원 밖 점에서 ＋ 가 안 잡힌다 ${msgOut}`).toBe(false);
+    expect(rOut.sel.includes('kA'), `★클릭이 밑(첫 자식 kA)으로 통과했다 ${msgOut}`).toBe(true);
+
+    await page.evaluate(() => window.deselectAll?.()); await force(page, a);
+    const s2 = await kidState(page, a);
+    const rIn = await clickAt(page, a, Math.round((s2.row.l + s2.row.r) / 2), y);
+    expect(rIn, `★원 안 = 행 +1 ${JSON.stringify(rIn)}`).toMatchObject({ dRows: 1, dCols: 0 });
+    const kids = await page.evaluate((id) => [...document.querySelectorAll(`#${id} > .grd-children .text-block`)].map(e => e.id), a);
+    expect(kids, '★자식 그대로').toEqual(['kA', 'kB']);
+    expect(errs).toEqual([]);
+  });
+}
