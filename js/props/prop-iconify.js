@@ -8,6 +8,10 @@ export function showIconifyProperties(block) {
   const rotation = parseInt(block.dataset.rotation) || 0;
   const color    = block.dataset.iconColor || '#000000';
   const colorAlpha = parseAlphaFromColor(color);
+  /* ★오버레이(플로팅) — 공용 js/overlay-float.js(아이콘은 posElOf 가 «자기 자신»). 선례: prop-grid.js(그리드 오버레이).
+     ⛔정적 import 하지 않는다 — unit 하네스 여럿이 이 파일을 축소 복사로 불러서 import 를 늘리면 모듈 로드가 통째로 실패한다
+       (그리드 d9c3525e 가 실측한 함정). window 로 부른다. */
+  const floating = block.dataset.overlayBlock === 'true';
   const isRaster = block.dataset.raster === '1'; // PNG/JPG(<img>) — currentColor 착색 불가 → 색 UI 비활성
 
   propPanel.innerHTML = `
@@ -38,13 +42,16 @@ ${blockHeaderHTML({
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">Size</div>
+      <div class="prop-section-title prop-ph-header">
+        <span>Size</span>
+        ${window.overlayToggleBtnHTML?.({ id: 'icn-float-toggle', active: floating }) || ''}
+      </div>
       <div class="prop-row">
         <span class="prop-label">Size</span>
         <input type="range"  class="prop-slider" id="icn-size-slider" min="16" max="512" step="8"  value="${size}">
         <input type="number" class="prop-number" id="icn-size-number" min="16" max="512" value="${size}">
       </div>
-      <div class="prop-row">
+      <div class="prop-row"${floating ? ' style="display:none"' : ''}>
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="icn-align-group">
           <button class="prop-align-btn${(block.dataset.align || 'center') === 'left'   ? ' active' : ''}" data-align="left"   title="좌측 정렬">
@@ -58,6 +65,7 @@ ${blockHeaderHTML({
           </button>
         </div>
       </div>
+      ${window.floatPositionRowHTML?.({ prefix: 'icn', posEl: block }) || ''}
     </div>
 
     <div class="prop-section">
@@ -464,8 +472,12 @@ ${blockHeaderHTML({
       window.scheduleAutoSave?.();
     });
   });
-  // 초기 정렬 복원
-  if (block.dataset.align) applyAlign(block.dataset.align);
+  // 초기 정렬 복원 — ⛔떠 있으면 건너뛴다: applyAlign 이 margin 을 auto 로 덮어 오버레이 자리(left/top)와 싸운다
+  if (block.dataset.align && block.dataset.overlayBlock !== 'true') applyAlign(block.dataset.align);
+
+  /* 오버레이 토글·X/Y — 공용 배선(도형·에셋 패널과 같은 함수). 토글 뒤엔 패널을 다시 그린다(정렬 줄 숨김/보임). */
+  window.wireFloatToggle?.({ block, buttonId: 'icn-float-toggle', rerender: () => showIconifyProperties(block) });
+  window.wireFloatPosition?.({ block, xId: 'icn-x-number', yId: 'icn-y-number' });
 }
 
 window.showIconifyProperties = showIconifyProperties;

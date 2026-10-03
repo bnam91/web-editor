@@ -113,6 +113,8 @@ async function mount(page, kind) {
     if (kind === 'icon-text') {
       pos.className = 'icon-text-block'; pos.id = 'itb1';
       pos.innerHTML = '<div class="itb-icon"></div><div class="itb-text" contenteditable="false">본문</div>';
+    } else if (kind === 'icon') {
+      pos.className = 'icon-block'; pos.id = 'ib1'; pos.dataset.type = 'icon';   // 아이콘은 자기 자신이 posEl(B1)
     } else if (kind === 'asset') {
       pos.className = 'asset-block'; pos.id = 'ab1';
     } else if (kind === 'text') {
@@ -157,7 +159,7 @@ const posOf = (page) => page.evaluate(() => ({
   pushes: window.__pushes.slice(),
 }));
 
-const KINDS = ['icon-text', 'text', 'shape', 'asset'];
+const KINDS = ['icon-text', 'text', 'shape', 'asset', 'icon'];
 
 test('전제 — block-drag.js 가 콘솔 오류 없이 얹힌다', async ({ page }) => {
   const errs = await boot(page);

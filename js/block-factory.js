@@ -4720,6 +4720,9 @@ function updateShapeBlock(blockId, partial = {}) {
       return { ok: false, code: 'API_MISSING', message: 'SHAPE_DEFS/makeShapeBlock 미노출 — shapeType 변경 불가' };
     }
     block.dataset.shapeType = partial.shapeType;
+    // ★위 swap 이 기하를 «기본(별=5각)»으로 새로 쓴다 ⇒ 별 꼭짓점 수(B2)도 기본으로 — 안 지우면 SVG 5각·dataset 7·이미지 clip 14 로 어긋난다.
+    //   편집 경로에서만 지운다(복원·로드는 이 함수를 안 지나므로 재생성 없음).
+    delete block.dataset.starPoints;
     applied.shapeType = partial.shapeType;
     // 이미지(에셋) 채우기 모드(0918 picker) — 면 없는 타입(선·화살표)이면 해제, 면 있으면 모양 clip 을 새 타입으로
     if (block.dataset.shapeFill) {

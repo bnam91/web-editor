@@ -2,18 +2,63 @@ import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
+/* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
+ * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
+function barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize, pctMin, barColor, barAlpha }) {
+  return `
+    <div class="prop-section">
+      <div class="prop-section-title">Bar Settings</div>
+      <div class="prop-row">
+        <span class="prop-label">두께</span>
+        <input type="range" class="prop-slider" id="grb-bar-thickness-slider" min="8" max="48" step="2" value="${barThickness}">
+        <input type="number" class="prop-number" id="grb-bar-thickness-number" min="8" max="48" value="${barThickness}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">좌우 패딩</span>
+        <input type="range" class="prop-slider" id="grb-padx-slider" min="0" max="80" step="4" value="${padX}">
+        <input type="number" class="prop-number" id="grb-padx-number" min="0" max="80" value="${padX}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">항목 간격</span>
+        <input type="range" class="prop-slider" id="grb-item-gap-slider" min="8" max="80" step="4" value="${itemGap}">
+        <input type="number" class="prop-number" id="grb-item-gap-number" min="8" max="80" value="${itemGap}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">숫자 크기</span>
+        <input type="range" class="prop-slider" id="grb-pct-size-slider" min="${pctMin}" max="120" step="2" value="${pctSize}">
+        <input type="number" class="prop-number" id="grb-pct-size-number" min="${pctMin}" max="120" value="${pctSize}">
+      </div>
+      ${chartType === 'bar-pair' ? '' : `
+      <div class="prop-row">
+        <span class="prop-label">바 색상</span>
+        ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
+      </div>
+      `}
+    </div>`;
+}
+
 export function showGraphProperties(block) {
+  const _vKey = (hKey, vKey) => (block.dataset.chartType === 'bar-v' || block.dataset.chartType === 'bar-pair') ? vKey : hKey;
   const chartType    = block.dataset.chartType    || 'bar-v';
   const preset       = block.dataset.preset       || 'default';
   const items        = JSON.parse(block.dataset.items || '[]');
   const chartH       = parseInt(block.dataset.chartHeight)  || 240;
   const labelSize    = parseInt(block.dataset.labelSize)    || 13;
-  const barThickness = parseInt(block.dataset.barThickness) || 24;
-  const padX         = parseInt(block.dataset.padX)         || 0;
+  // B7r: bar-v·bar-pair 는 «자기 키»(vXxx)만 읽고 쓴다 — bar-h 키(itemGap·barThickness·padX·pctSize·barColor)와 겹치면
+  //      타입 전환 때 단위가 다른 값이 딸려 온다(가로 숫자 크기 60 ↔ 세로 값 글자 21 …).
+  const _vOnly = chartType === 'bar-v' || chartType === 'bar-pair';
+  const barThickness = parseInt(block.dataset[_vOnly ? 'vBarThickness' : 'barThickness']) || 24;
+  const padX         = parseInt(block.dataset[_vOnly ? 'vPadX' : 'padX'])         || 0;
   const barColor     = block.dataset.barColor || '#222222';
   const barAlpha     = parseAlphaFromColor(barColor);
-  const itemGap      = parseInt(block.dataset.itemGap)      || 24;
+  const itemGap      = _vOnly ? (parseInt(block.dataset.vItemGap) || 10) : (parseInt(block.dataset.itemGap) || 24);
   const pctSize      = parseInt(block.dataset.pctSize)      || 60;
+  // 숫자 크기 — bar-h 는 기존 기본 60·최소 20, bar-v·pair 는 렌더가 쓰는 값 라벨 크기(valSize)·8~120
+  const _isBarH      = chartType === 'bar-h';
+  const barPctMin    = _isBarH ? 20 : 8;
+  const barPctSize   = _isBarH ? pctSize
+    : (parseInt(block.dataset.vPctSize) || Math.round((parseInt(block.dataset.labelSize) || 20) * 1.07));
+  const _barSetColor = chartType === 'bar-v' ? (block.dataset.vBarColor || '#4dabf7') : barColor;
   const strokeWidth  = parseInt(block.dataset.strokeWidth)  || 3;
   const pointRadius  = parseInt(block.dataset.pointRadius)  || 5;
   const fillArea     = block.dataset.fillArea === '1';
@@ -160,34 +205,7 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="grb-fillalpha-number" min="0" max="100" value="${fillAlpha}">
       </div>
     </div>` : ''}
-    ${chartType === 'bar-h' ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Bar Settings</div>
-      <div class="prop-row">
-        <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="grb-bar-thickness-slider" min="8" max="48" step="2" value="${barThickness}">
-        <input type="number" class="prop-number" id="grb-bar-thickness-number" min="8" max="48" value="${barThickness}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">좌우 패딩</span>
-        <input type="range" class="prop-slider" id="grb-padx-slider" min="0" max="80" step="4" value="${padX}">
-        <input type="number" class="prop-number" id="grb-padx-number" min="0" max="80" value="${padX}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">항목 간격</span>
-        <input type="range" class="prop-slider" id="grb-item-gap-slider" min="8" max="80" step="4" value="${itemGap}">
-        <input type="number" class="prop-number" id="grb-item-gap-number" min="8" max="80" value="${itemGap}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">숫자 크기</span>
-        <input type="range" class="prop-slider" id="grb-pct-size-slider" min="20" max="120" step="2" value="${pctSize}">
-        <input type="number" class="prop-number" id="grb-pct-size-number" min="20" max="120" value="${pctSize}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">바 색상</span>
-        ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
-      </div>
-    </div>` : ''}
+    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor) }) : ''}
     <div class="prop-section">
       <div class="prop-section-title">Preset</div>
       <div class="prop-preset-group">
@@ -348,13 +366,13 @@ ${blockHeaderHTML({
   hNumber.addEventListener('change', () => { applyChartH(parseInt(hNumber.value)); window.pushHistory(); });
   hSlider.addEventListener('change', () => window.pushHistory());
 
-  // 항목 간격 (bar-h 전용)
+  // 항목 간격 (bar-h·bar-v·bar-pair)
   const igSlider = document.getElementById('grb-item-gap-slider');
   const igNumber = document.getElementById('grb-item-gap-number');
   if (igSlider) {
     const applyItemGap = v => {
       v = Math.min(80, Math.max(8, v));
-      block.dataset.itemGap = v;
+      block.dataset[_vKey('itemGap','vItemGap')] = v;
       window.renderGraph(block);
       igSlider.value = v; igNumber.value = v;
     };
@@ -363,13 +381,13 @@ ${blockHeaderHTML({
     igSlider.addEventListener('change', () => window.pushHistory());
   }
 
-  // 숫자 크기 (bar-h 전용)
+  // 숫자 크기 (bar-h·bar-v·bar-pair)
   const psSlider = document.getElementById('grb-pct-size-slider');
   const psNumber = document.getElementById('grb-pct-size-number');
   if (psSlider) {
     const applyPctSize = v => {
-      v = Math.min(120, Math.max(20, v));
-      block.dataset.pctSize = v;
+      v = Math.min(120, Math.max((block.dataset.chartType === 'bar-h' ? 20 : 8), v));
+      block.dataset[_vKey('pctSize','vPctSize')] = v;
       window.renderGraph(block);
       psSlider.value = v; psNumber.value = v;
     };
@@ -378,13 +396,13 @@ ${blockHeaderHTML({
     psSlider.addEventListener('change', () => window.pushHistory());
   }
 
-  // 바 두께 (bar-h 전용)
+  // 바 두께 (bar-h·bar-v·bar-pair)
   const btSlider = document.getElementById('grb-bar-thickness-slider');
   const btNumber = document.getElementById('grb-bar-thickness-number');
   if (btSlider) {
     const applyBarThickness = v => {
       v = Math.min(48, Math.max(8, v));
-      block.dataset.barThickness = v;
+      block.dataset[_vKey('barThickness','vBarThickness')] = v;
       window.renderGraph(block);
       btSlider.value = v; btNumber.value = v;
     };
@@ -393,13 +411,13 @@ ${blockHeaderHTML({
     btSlider.addEventListener('change', () => window.pushHistory());
   }
 
-  // 좌우 패딩 (bar-h 전용)
+  // 좌우 패딩 (bar-h·bar-v·bar-pair)
   const pxSlider = document.getElementById('grb-padx-slider');
   const pxNumber = document.getElementById('grb-padx-number');
   if (pxSlider) {
     const applyPadX = v => {
       v = Math.min(80, Math.max(0, v));
-      block.dataset.padX = v;
+      block.dataset[_vKey('padX','vPadX')] = v;
       window.renderGraph(block);
       pxSlider.value = v; pxNumber.value = v;
     };
@@ -411,9 +429,10 @@ ${blockHeaderHTML({
   // 색상 — line 차트는 선 색상(lineColor)에, bar 차트는 막대 색상(barColor)에 적용
   if (document.getElementById('grb-bar-color')) {
     wireColorField('grb-bar', {
-      initialAlpha: barAlpha,
+      initialAlpha: chartType === 'bar-v' ? parseAlphaFromColor(_barSetColor) : barAlpha,
       onApply: (c) => {
         if (block.dataset.chartType === 'line') block.dataset.lineColor = c;
+        else if (block.dataset.chartType === 'bar-v') block.dataset.vBarColor = c;
         else block.dataset.barColor = c;
         window.renderGraph(block);
       },
