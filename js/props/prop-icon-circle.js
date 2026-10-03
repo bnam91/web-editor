@@ -47,7 +47,10 @@ ${blockHeaderHTML({
     })}
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">Size</div>
+      <div class="prop-section-title prop-ph-header">
+        <span>Size</span>
+        ${window.overlayToggleBtnHTML?.({ id: 'icb-float-toggle', active: block.dataset.overlayBlock === 'true' }) || ''}
+      </div>
       <div class="prop-row">
         <span class="prop-label">지름</span>
         <input type="range" class="prop-slider" id="icb-size-slider" min="40" max="860" step="4" value="${size}">
@@ -115,6 +118,9 @@ ${blockHeaderHTML({
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
+  /* B1 — 오버레이(플로팅) 토글: prop-iconify.js 와 «같은» 공용 길(js/overlay-float.js · posElOf = 서클 «자기 자신»).
+     ⛔정적 import 안 한다(같은 까닭 — unit 하네스 축소 복사). 원 안 자식(G14)은 블럭 안이라 통째로 뜬다. */
+  window.wireFloatToggle?.({ block, buttonId: 'icb-float-toggle', rerender: () => showIconCircleProperties(block) });
 
   if (hasImage) {
     propPanel.querySelector('#icb-pos-btn').addEventListener('click', () => window.enterCircleImageEditMode(block));
