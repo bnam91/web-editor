@@ -173,7 +173,11 @@ export function frameifyModalDom(block) {
   }
   const bStyle = _textStyle(block, root, block.querySelector('.tb-mdl-text'), { pad: v === 'titled' ? { t: padY, x: padX } : null });
   const b = _makeTextRow('body', ds.textText, MODAL_PH.text, bStyle);
-  if (v === 'icon-stack') b.tf.style.alignSelf = 'center';
+  if (v === 'icon-stack') {
+    // ★모달 icon-stack 의 글자 칸은 align-items:center 의 flex 아이템 = «내용 폭»으로 준다(shrink-to-fit).
+    //   텍스트프레임 기본 폭 100% 로 두면 형광펜 칠이 줄 전체로 번진다(골든 1차 실측: 꾸밈 칸 ~13k px). 내용 폭 + 가운데로.
+    b.tf.style.alignSelf = 'center'; b.tf.style.width = 'auto';
+  }
   frame.appendChild(b.tf); blocks.push(b.block);
   // ★R6 — 본문 꼴을 프레임에 심는다(새 본문 줄이 같은 함수로 같은 꼴을 받는다)
   frame.dataset.rowTextStyle = JSON.stringify(bStyle);
