@@ -685,7 +685,7 @@ if (typeof window !== 'undefined') window.grdAddLine = grdAddLine;
  * ★줄로 옮기는 값: type(tb-h1/h2/h3/body/caption/label) · 글자(innerText) · 블럭이 «직접 박은» 색·크기·굵기·정렬.
  *   ⚠️글자 안 부분 서식(굵게·색 span)은 줄이 못 담아 평문이 된다 — 그리드 줄 모델의 한계.
  * ★쓰는 길은 grdAddLine(상한·활성줄·거절 시 원복 한 벌). 넣기가 «성공했을 때만» 원본 블럭을 지운다 —
- *   실패하면 블럭이 그대로 남는다(데이터가 어디에도 없는 상태 금지). 지우기는 넣기 «뒤»라 ⌘Z 한 번이 원위치다.
+ *   실패하면 블럭이 제자리로 돌아온다(데이터가 어디에도 없는 상태 금지). 이력은 한 칸(아래 «한 동기 구간») — ⌘Z 한 번이 원위치.
  * @returns {boolean} 먹었으면 true */
 export function grdDropTextBlockOnCell(e, src) {
   if (!src || !e) return false;
@@ -695,19 +695,28 @@ export function grdDropTextBlockOnCell(e, src) {
     const kids = [...src.children].filter(k => !k.classList.contains('drop-indicator'));
     if (kids.length === 1 && kids[0].classList.contains('text-block')) tb = kids[0];
   }
-  if (!tb || tb.querySelector('ul.tb-bullet')) return false;
+  if (!tb) return false;
+  /* ★받는 블럭을 «평문 글자 블럭 종류 허용 목록»으로 좁힌다(적대QA: 말풍선 유실). 조건 셋이 «전부» 서야 한다:
+     ⑴ 말풍선 등 «다른 종류» 클래스가 text-block 에 없다 ⑵ 직계 자식이 정확히 하나이고 그게 tb-h1/h2/h3/body/caption/label 이다
+     (숨은 .tb-sender-name·.tb-bubble 따위가 형제로 있으면 거절) ⑶ 아래 «글자 일치» — 줄로 옮긴 글자가 원본의 보이는 글자와 같다.
+     ⛔`[class^="tb-"]` 로 «처음 집히는 것»을 쓰지 마라 — 숨은 .tb-sender-name 을 먼저 집어 본문이 사라졌다. */
+  if ([...tb.classList].some(k => k !== 'text-block' && k !== 'selected' && k !== 'dragging')) return false;
+  const kids = [...tb.children].filter(k => !k.classList.contains('tb-rotate-zone'));   // 선택 때 붙는 회전 영역은 UI
+  const inner = kids.length === 1 ? kids[0] : null;
+  const m = inner && /^tb-(h1|h2|h3|body|caption|label)$/.exec(inner.className.replace(/\s+/g, ' ').trim().split(' ')[0] || '');
+  if (!inner || !m || inner.querySelector('ul,ol,img,svg,input,table')) return false;
   const at = document.elementFromPoint(e.clientX, e.clientY);
   const cellEl = at && at.closest ? at.closest('.grd-cell[data-r][data-c]') : null;
   const block = cellEl && cellEl.closest('.grid-block');
   if (!block || block.contains(tb) || tb.contains(block)) return false;
   const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
   if (!Number.isInteger(r) || !Number.isInteger(c)) return false;
-  const inner = tb.querySelector('[class^="tb-"]');
-  const m = inner && /\btb-(h1|h2|h3|body|caption|label)\b/.exec(inner.className);
-  const spec = { type: m ? m[1] : 'body', text: '' };
-  if (inner && tb.dataset.isPlaceholder !== 'true' && inner.dataset.isPlaceholder !== 'true') {
-    spec.text = String(inner.innerText == null ? '' : inner.innerText).replace(/\r\n?/g, '\n').replace(/\n+$/, '');
-  }
+  const norm = (t) => String(t == null ? '' : t).replace(/\r\n?/g, '\n').replace(/\u200b/g, '').replace(/\n+$/, '');
+  const spec = { type: m[1], text: '' };
+  const isPh = tb.dataset.isPlaceholder === 'true' || inner.dataset.isPlaceholder === 'true';
+  if (!isPh) spec.text = norm(inner.innerText);
+  /* ★글자 일치 — 원본 블럭이 «보이는 글자 전부»(innerText)가 줄의 글자와 같을 때만 원본을 지운다. 아니면 넣지도 지우지도 않는다(종전 동작). */
+  if (!isPh && norm(tb.innerText).trim() !== spec.text.trim()) return false;
   const st = inner ? inner.style : null;
   if (st) {
     if (st.color && GRID_COLOR_RE.test(st.color)) spec.color = st.color;
@@ -716,18 +725,24 @@ export function grdDropTextBlockOnCell(e, src) {
     if (st.textAlign === 'left' || st.textAlign === 'center' || st.textAlign === 'right') spec.align = st.textAlign;
   }
   /* 놓은 높이 → 칸 안 «몇 번째 줄 앞»인가 — 줄 중간선보다 위에 있는 첫 줄 앞. 다 지나면 끝. */
-  const kids = [...cellEl.children].filter(k => k.hasAttribute('data-line'));
-  let insertAt = kids.length;
-  for (let i = 0; i < kids.length; i++) {
-    const b = kids[i].getBoundingClientRect();
+  const cellLines = [...cellEl.children].filter(k => k.hasAttribute('data-line'));
+  let insertAt = cellLines.length;
+  for (let i = 0; i < cellLines.length; i++) {
+    const b = cellLines[i].getBoundingClientRect();
     if (e.clientY < b.top + b.height / 2) { insertAt = i; break; }
   }
-  const res = grdAddLine(block, { r, c }, insertAt - 1, spec);
-  if (res && res.ok) {
-    const row = tb.closest('.row');
-    (row && row.children.length === 1 ? row : tb).remove();
-    window.buildLayerPanel?.();
-  }
+  /* ★한 «동기 구간»·이력 한 칸(push-before): ①지금(블럭이 있는 상태)을 찍고 ②원본을 떼고 ③noHistory 로 넣는다 —
+     updateGridBlock 래퍼(model-update-history.js)가 «돌아온 직후» 끝 표본(블럭 없음 + 줄 있음)을 찍는다.
+     예전엔 넣기 «뒤»에 지워서 그 차이를 rAF 두 번 뒤의 되쓰기가 메웠다 — 그 틈에 ⌘Z 를 누르면 줄 + 블럭이 «둘 다» 남았다. */
+  const row = tb.closest('.row');
+  const unit = (row && row.children.length === 1) ? row : tb;
+  const parent = unit.parentNode, next = unit.nextSibling;
+  if (!parent) return true;
+  window.pushHistory?.();
+  unit.remove();
+  const res = grdAddLine(block, { r, c }, insertAt - 1, spec, { noHistory: true });
+  if (res && res.ok) window.buildLayerPanel?.();
+  else parent.insertBefore(unit, next && next.parentNode === parent ? next : null);   // 실패 — 블럭을 제자리로(데이터가 어디에도 없는 상태 금지)
   return true;
 }
 if (typeof window !== 'undefined') window.grdDropTextBlockOnCell = grdDropTextBlockOnCell;

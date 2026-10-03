@@ -80,3 +80,44 @@ test('T6 지키는 시험 — 에셋 블럭 행은 칸 위에 놓아도 칸이 �
   expect(await cellTexts(page, 1)).toEqual(['다', '라']);
   expect(await gone(page, 'aA')).toBe(false);
 });
+
+/* ── 적대QA 보강(63d653b0 에서 빨강이던 것) ── */
+test('T7 ★말풍선 블럭은 칸이 받지 않는다 — 본문이 캔버스에서 사라지지 않는다(63d653b0: «Your name» 한 줄만 남고 본문 0건)', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => {
+    document.getElementById('rT').insertAdjacentHTML('afterend',
+      '<div class="row" id="rB"><div class="text-block speech-bubble-block" id="tB"><div class="tb-sender-name" style="display:none">Your name</div><div class="tb-bubble">말풍선 본문</div></div></div>');
+    window.rebindAll?.();
+  });
+  await page.waitForTimeout(300);
+  const first = await rect(page, '#gG [data-r="0"][data-c="1"][data-line="0"]');
+  await drag(page, '#tB', first.x, first.top + first.h * 0.3);
+  expect(await cellTexts(page, 1)).toEqual(['다', '라']);
+  expect(await page.evaluate(() => document.getElementById('canvas').innerText.includes('말풍선 본문'))).toBe(true);
+});
+test('T8 ★놓자마자 «바로» ⌘Z — 줄과 블럭이 둘 다 남지 않는다(줄 3 + 블럭 1 이 되던 것)', async ({ page }) => {
+  await setup(page);
+  const first = await rect(page, '#gG [data-r="0"][data-c="1"][data-line="0"]');
+  const s = await rect(page, '#tT');
+  await page.mouse.move(s.x, s.y); await page.mouse.down();
+  await page.mouse.move(s.x + 10, s.y + 10, { steps: 3 });
+  await page.mouse.move(first.x, first.top + first.h * 0.3, { steps: 12 });
+  await page.mouse.up();
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');                       // 기다리지 않는다
+  const count = () => page.evaluate(() => ({ cell: document.querySelectorAll('#gG [data-r="0"][data-c="1"][data-line]').length, tb: document.querySelectorAll('#canvas .text-block').length }));
+  const now = await count();
+  await page.waitForTimeout(800);
+  expect(now).toEqual({ cell: 2, tb: 1 });
+  expect(await count()).toEqual({ cell: 2, tb: 1 });
+});
+test('T9 ★되돌린 뒤 ⌘⇧Z 로 다시 하면 줄 +1 · 블럭 0 (이력이 «한 칸»)', async ({ page }) => {
+  await setup(page);
+  const first = await rect(page, '#gG [data-r="0"][data-c="1"][data-line="0"]');
+  await drag(page, '#tT', first.x, first.top + first.h * 0.3);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z'); await page.waitForTimeout(600);
+  await page.keyboard.press('Meta+Shift+z'); await page.waitForTimeout(600);
+  expect(await cellTexts(page, 1)).toEqual(['끌 글', '다', '라']);
+  expect(await page.evaluate(() => document.querySelectorAll('#canvas .text-block').length)).toBe(0);
+});
