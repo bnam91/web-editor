@@ -2229,6 +2229,7 @@ const _GRD_LINE_ALIGN_KINDS = new Set([..._GRD_ROLE_KINDS, 'image']);
  *   ★대신 명시 분류 시험 — tests/dom/grid-gap-line-height.dom.spec.js G3-6 이 렌더러가 아는 모든 줄 종류가
  *     이 Set(펼침) 또는 그 시험의 접힘 목록 «한쪽에만» 있는지 단언한다. 새 줄 종류를 만들면 거기서 빨개진다. */
 const _GRD_LINE_OPEN_KINDS = new Set(['gap', 'divider']);
+const _grdLineSecKey = (line) => 'line:' + ((line && line.type) || 'body');
 function _grdLineSectionHtml(anyHit, block) {
   if (!anyHit || anyHit.li === null || !anyHit.line) return '';
   const { r, c, li, line } = anyHit;
@@ -2240,7 +2241,9 @@ function _grdLineSectionHtml(anyHit, block) {
   const isText = gridLineHasText(line);
   /* ⛔여기서 일찍 빠지지 마라 — 갭 줄에도 «종류 바꾸기»는 있어야 한다(되돌아갈 길). */
   /* ★갭·구분선 줄은 «손잡이가 높이/굵기뿐»이라 처음부터 펼친다(G3) — 접어 두면 그 한 칸을 찾아 펼쳐야 한다. */
-  const open = _grdSecOpen(block, 'line', _GRD_LINE_OPEN_KINDS.has(line.type || 'body'));
+  /* ★접힘 기억은 «줄 종류별»이다(키 `line:<종류>`) — 키 하나(`line`)면 글자 줄에서 열었다 닫은 것이 같은 그리드의
+   *   갭 줄로 새어, 한 번도 안 접은 갭 줄의 높이 칸이 접혀 G3 증상이 되살아난다(적대QA). 그 종류에서 접은 것만 그 종류에 이긴다. */
+  const open = _grdSecOpen(block, _grdLineSecKey(line), _GRD_LINE_OPEN_KINDS.has(line.type || 'body'));
   const raw = (typeof line.bg === 'string' && GRID_COLOR_RE.test(String(line.bg).trim()))
     ? String(line.bg).trim() : '';
   const hex = raw ? swatchHex(raw, '#eeeeee') : '#eeeeee';
@@ -2298,7 +2301,7 @@ function _grdWireLineSection(block, addr) {
   const hit = _grdResolveAnyAddr(block, addr);
   if (!hit || hit.li === null || !hit.line) return;
   const { r, c, li } = hit;
-  _grdWireDisclosure(block, 'line', 'grd-line-toggle', 'grd-line-body', _GRD_LINE_OPEN_KINDS.has(hit.line.type || 'body'));
+  _grdWireDisclosure(block, _grdLineSecKey(hit.line), 'grd-line-toggle', 'grd-line-body', _GRD_LINE_OPEN_KINDS.has(hit.line.type || 'body'));
 
   /* ── 줄 정렬 — «이 줄»에만. ⛔updateGridBlock 을 쓰지 않는다: 이미지 줄에 align 을 주면
        렌더러 민감도 검사(_gridUnreadLineFields)가 「아무것도 안 읽힌다」로 «거절»한다.

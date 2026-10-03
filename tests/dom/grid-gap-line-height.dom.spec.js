@@ -2,7 +2,7 @@
  * 칸 안 «여백 줄(type:gap)» 의 높이 — 패널 「높이(px)」 칸(grd-line-gap-h) → 렌더 높이 · dataset · ⌘Z · 저장 왕복.
  * 앱 통째(bootApp) · 줄 고르기·입력은 진짜 마우스·키. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, ROOT } = require('./_root-harness.js');
 
 async function setup(page, lines) {
   await page.setViewportSize({ width: 1500, height: 1000 });
@@ -95,8 +95,8 @@ test('G3-5 대조 — 글자 줄은 여전히 접힘 기본(펼침 기본은 갭
  *   (손으로 8개를 박지 않는다 — 코드가 말하는 종류 수는 이 시험이 센다.) */
 test('G3-6 ★렌더러가 아는 모든 줄 종류가 「펼침 Set」 또는 「접힘 목록」 한쪽에 있다(둘 다·둘 다 아님 금지)', async ({ page }) => {
   const fs = require('fs'), path = require('path');
-  const gb = fs.readFileSync(path.join(__dirname, '..', '..', 'js/blocks/grid-block.js'), 'utf8');
-  const pg = fs.readFileSync(path.join(__dirname, '..', '..', 'js/props/prop-grid.js'), 'utf8');
+  const gb = fs.readFileSync(path.join(ROOT, 'js/blocks/grid-block.js'), 'utf8');   // ROOT = GD1001_ROOT(변이 사본) 또는 이 레포
+  const pg = fs.readFileSync(path.join(ROOT, 'js/props/prop-grid.js'), 'utf8');
   const m = /_GRD_LINE_OPEN_KINDS\s*=\s*new Set\(\[([^\]]*)\]\)/.exec(pg);
   expect(m, 'Set 선언을 찾았다').not.toBeNull();
   const OPEN = [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]);
@@ -107,11 +107,30 @@ test('G3-6 ★렌더러가 아는 모든 줄 종류가 「펼침 Set」 또는 �
     const mod = await import('/js/blocks/grid-block.js');
     return { roles: Object.keys(mod.GRID_ROLES), nested: mod.GRID_NESTED_LINE_TYPE };
   });
-  const literals = [...gb.matchAll(/line\.type\s*===\s*'([a-z]+)'/g)].map(x => x[1]);
-  const known = [...new Set([...roles, nested, ...literals])].sort();
+  /* 출처를 «글자»가 아니라 «뜻»으로 넓혔다(적대QA — `ln.type === 'quote'` 와 패널 _GRD_KINDS 에만 넣은 종류가 빠져 나갔다):
+   *   ① 렌더러의 `<아무 변수>.type === '…'`  ② 패널 종류 명부 _GRD_KINDS 의 문자열 리터럴  ③ GRID_ROLES 키  ④ GRID_NESTED_LINE_TYPE */
+  const literals = [...gb.matchAll(/\.type\s*===\s*'([a-z][a-z0-9_-]*)'/g)].map(x => x[1]);
+  const km = /_GRD_KINDS\s*=\s*\[([^\]]*)\]/.exec(pg);
+  expect(km, '_GRD_KINDS 선언을 찾았다').not.toBeNull();
+  const panelKinds = [...km[1].matchAll(/'([^']+)'/g)].map(x => x[1]);
+  const known = [...new Set([...roles, nested, ...literals, ...panelKinds])].sort();
   expect(known.length, '종류를 읽어 왔다: ' + known.join(',')).toBeGreaterThan(8);
   const FOLD = new Set([...roles, ...FOLD_NONROLE]);
   const bad = known.filter(k => OPEN.includes(k) === FOLD.has(k));
   expect(bad, '펼침/접힘 «어느 쪽인지» 안 정해졌거나 양쪽에 있는 종류 — 정하라(prop-grid.js _GRD_LINE_OPEN_KINDS 머리 주석 참고)').toEqual([]);
   expect(OPEN.filter(k => !known.includes(k)), 'Set 에 있는데 렌더러가 모르는 종류').toEqual([]);
+});
+
+test('G3-7 ★글자 줄에서 「줄 꾸미기」를 열었다 닫아도 같은 그리드의 갭 줄은 접히지 않는다(접힘 기억은 종류별)', async ({ page }) => {
+  await setup(page, LINES);
+  const [x, y] = await page.evaluate(() => { const r = document.querySelector('#gG .grd-cell[data-r="0"][data-c="0"] .grd-line').getBoundingClientRect(); return [r.left + 10, r.top + r.height / 2]; });
+  await page.mouse.click(x, y); await page.waitForTimeout(200);
+  await page.mouse.click(x, y); await page.waitForTimeout(300);
+  const tg = () => page.evaluate(() => { const e = document.getElementById('grd-line-toggle').getBoundingClientRect(); return [e.left + e.width / 2, e.top + e.height / 2]; });
+  let t = await tg(); await page.mouse.click(t[0], t[1]); await page.waitForTimeout(200);   // 글자 줄: 열기
+  t = await tg(); await page.mouse.click(t[0], t[1]); await page.waitForTimeout(200);       // 글자 줄: 닫기
+  expect(await page.evaluate(() => document.getElementById('grd-line-body').style.display), '글자 줄은 닫혔다(전제)').toBe('none');
+  await selectGap(page);
+  expect(await page.evaluate(() => document.getElementById('grd-line-body').style.display), '갭 줄은 안 접었으니 펼침').toBe('block');
+  expect(await page.evaluate(() => document.getElementById('grd-line-gap-h').getBoundingClientRect().width), '높이 칸 폭 > 0').toBeGreaterThan(0);
 });
