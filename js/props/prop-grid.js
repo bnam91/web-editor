@@ -11,7 +11,7 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES, gridBlockOutline, GRID_OUTLINE_SIDES,
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
-         GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE,
+         GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE, GRID_WIDTH_MIN, GRID_WIDTH_MAX,
          gridBlockBg, GRID_BLOCK_BG_PAD_Y_MAX, GRID_BLOCK_BG_PAD_X_MAX } from '../blocks/grid-block.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
@@ -2222,6 +2222,7 @@ function _grdPadExcludeSectionHtml(block) {
   const floating = block.dataset.overlayBlock === 'true';
   return `
     <div class="prop-section">
+      ${_grdWidthRowHtml(block)}
       <div class="prop-row" style="align-items:center;gap:6px;">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;${floating ? 'display:none;' : ''}">
           <input type="checkbox" id="grd-use-padx"${on ? ' checked' : ''}>
@@ -2236,11 +2237,100 @@ function _grdPadExcludeSectionHtml(block) {
     </div>`;
 }
 
+/* ══ ★G2-b 너비 줄 — 「그리드 블럭 자체 너비」 우측패널 입력 (지디 2026-10-04 결정 A) ══
+ *  ★모델 그대로: 안 떠 있음 = 키(data-grid-width) · 떠 있음 = 굳힌 폭(렌더가 키를 안 본다, grid-block.js renderGridBlock).
+ *    칸에 보이는 값도 그 정본을 따른다 — 떠 있으면 «지금 그려진 px», 아니면 «키» (키가 없으면 빈 칸 + 「자동」).
+ *  ★쓰는 문 — 숫자칸·「100%」 = updateGridBlock{width}(한 번에 끝나는 입력: 히스토리·재렌더·패널 재표시가 그 안에 있다).
+ *            슬라이더 = applyGridOwnWidth(끄는 동안 매 틱) + 양쪽 끝 표본(drag-history 규약).
+ *  ★「100% (자동)」 = 키와 자동 표시를 «지운다»(updateGridBlock width:null). 키가 없을 때 이 단추가 «켜져» 보인다(지금 상태 표시).
+ *    ⛔떠 있는 동안엔 막는다 — 떠 있으면 렌더가 키를 안 보므로 눌러도 화면이 안 변한다(「눌리는데 아무 일도 안 난다」 = 이 파일 머리말 규약).
+ *  ★빈 칸의 뜻(prop-number-commit-guard.js 셋째 축) — 안 떠 있으면 placeholder「자동」= 비우고 Enter 가 «자동»으로 커밋된다.
+ *    떠 있으면 placeholder 를 «안» 단다 = 빈 칸은 「지우는 중」이라 가드가 되돌린다(떠 있을 땐 자동이 없다).
+ *  ⛔새 클래스 0 — .prop-row/.prop-label/.prop-slider/.prop-number/.prop-btn-sm 재사용(굵기 줄 _borderRowHtml 과 같은 꼴).
+ *  ⛔자리는 줄바(#grd-line-summary) «아래» 이 절 — 위(Layout)에 두면 줄바가 밀려 grid-cell-panel-handles G2 ⑵가 빨개진다. */
+function _grdWidthNow(block) {
+  if (block.dataset.overlayBlock === 'true') {
+    const px = Math.round(parseFloat(block.style.width));
+    return { val: Number.isFinite(px) && px > 0 ? px : Math.round(block.offsetWidth), floating: true, auto: false };
+  }
+  const key = window.getGridWidth?.(block) ?? null;
+  return { val: key, floating: false, auto: key === null };
+}
+function _grdWidthRowHtml(block) {
+  const w = _grdWidthNow(block);
+  const sliderVal = w.val ?? Math.min(GRID_WIDTH_MAX, Math.max(GRID_WIDTH_MIN, Math.round(block.offsetWidth) || GRID_WIDTH_MIN));
+  const autoTitle = w.floating
+    ? '떠 있는 동안은 굳힌 폭이 정본이라 «자동»으로 못 돌린다 — 오버레이를 풀고 누르세요'
+    : (w.auto ? '지금 자동 — 담는 그릇 폭을 다 쓴다' : '정한 폭을 지우고 담는 그릇 폭을 다 쓰게(100%) 되돌린다');
+  return `
+      <div class="prop-row">
+        <span class="prop-label" title="그리드 블럭 자체의 너비(px, ${GRID_WIDTH_MIN}~${GRID_WIDTH_MAX}). 비우면 자동(100%)">너비</span>
+        <input type="range" class="prop-slider" id="grd-width-slider" min="${GRID_WIDTH_MIN}" max="${GRID_WIDTH_MAX}" step="1" value="${sliderVal}">
+        <input type="number" class="prop-number" id="grd-width-number" min="${GRID_WIDTH_MIN}" max="${GRID_WIDTH_MAX}" value="${w.val ?? ''}"${w.floating ? '' : ' placeholder="자동"'}>
+        <button type="button" class="prop-btn-sm${w.auto ? ' active' : ''}" id="grd-width-auto" title="${autoTitle}"${w.floating ? ' disabled' : ''}>100%</button>
+      </div>`;
+}
+function _grdWireWidth(block) {
+  const slider = document.getElementById('grd-width-slider');
+  const number = document.getElementById('grd-width-number');
+  const autoBtn = document.getElementById('grd-width-auto');
+  const clamp = (v) => Math.min(GRID_WIDTH_MAX, Math.max(GRID_WIDTH_MIN, Math.round(v)));
+  if (slider) {
+    let armed = false;
+    /* ★양쪽 끝 표본 — 시작 = 첫 input 직전(pushHistoryStartSample), 끝 = change. mousedown 에 걸면
+       키보드(화살표)로 미는 길이 시작 표본을 못 찍는다. */
+    slider.addEventListener('input', () => {
+      if (!armed) {
+        armed = true;
+        if (typeof window.pushHistoryStartSample === 'function') window.pushHistoryStartSample('그리드 너비');
+        else window.pushHistory?.('그리드 너비');
+      }
+      const v = window.applyGridOwnWidth?.(block, clamp(Number(slider.value)));
+      if (v != null && number) number.value = v;
+      autoBtn?.classList.remove('active');
+    });
+    slider.addEventListener('change', () => {
+      if (!armed) return;
+      armed = false;
+      window.pushHistory?.('그리드 너비');   // ★끝 표본
+      window.scheduleAutoSave?.();
+      showGridProperties(block);
+    });
+  }
+  if (number) {
+    /* ⛔입력 «도중»(input)엔 안 쓴다 — 「500」을 치는 길에 「5」가 40 으로 죄여 그려진다. 확정(change = Enter·포커스 이탈) 때 한 번. */
+    number.addEventListener('change', () => {
+      const raw = String(number.value).trim();
+      if (raw === '') {   // 비우면 = 자동(떠 있을 땐 자동이 없으니 지금 값으로 되살린다)
+        if (block.dataset.overlayBlock === 'true') { number.value = _grdWidthNow(block).val ?? ''; return; }
+        if (window.getGridWidth?.(block) == null) return;
+        window.updateGridBlock?.(block.id, { width: null });
+        return;
+      }
+      const n = Number(raw);
+      if (!Number.isFinite(n)) { number.value = _grdWidthNow(block).val ?? ''; return; }
+      const v = clamp(n);
+      const res = window.updateGridBlock?.(block.id, { width: v });
+      if (res && res.ok === false) number.value = _grdWidthNow(block).val ?? '';
+    });
+  }
+  if (autoBtn) {
+    autoBtn.addEventListener('click', () => {
+      if (autoBtn.disabled || block.dataset.overlayBlock === 'true') return;
+      if (window.getGridWidth?.(block) == null && block.dataset.gridWidthAuto === undefined) return;   // 이미 자동
+      window.updateGridBlock?.(block.id, { width: null });
+    });
+  }
+}
+
 /** 배선 — 체크하면 «그 자리에서» 반영된다(저장만 하고 화면이 안 변하면 안 눌린 것처럼 보인다). */
 function _grdWirePadExclude(block) {
   /* 오버레이 토글·X/Y — 공용 배선(에셋 패널과 같은 함수). 토글 뒤엔 패널을 다시 그린다(패딩 제외 줄 숨김/보임). */
-  window.wireFloatToggle?.({ block, buttonId: 'grd-float-toggle', rerender: () => showGridProperties(block) });
+  /* ★토글 뒤 «손잡이»도 다시 가른다(G2-b) — 켜면 폭 손잡이가 바로 뜨고, 끄면 showHandlesFor 의 그리드 갈래가 걷는다.
+     안 부르면 켠 직전엔 손잡이가 없다가 «한 번 더 눌러야» 뜬다(선택 클릭만 showHandlesFor 를 부른다). */
+  window.wireFloatToggle?.({ block, buttonId: 'grd-float-toggle', rerender: () => { showGridProperties(block); window.showHandlesFor?.(block); } });
   window.wireFloatPosition?.({ block, xId: 'grd-x-number', yId: 'grd-y-number' });
+  _grdWireWidth(block);   // ★G2-b 너비 줄 — 같은 절 안이다
   const cb = document.getElementById('grd-use-padx');
   if (!cb) return;
   cb.addEventListener('change', () => {

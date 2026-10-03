@@ -509,6 +509,12 @@ export function exitFloat(posEl) {
        남긴다 — 0920b QA 보고서에 수치와 함께 올린다. */
   }
   window.syncAutoGridWidth?.(posEl);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
+  /* ★G2-b — 「떠 있는 동안 바꾼 폭이 해제 뒤에도 남는다」(지디 2026-10-04 추가 조건).
+     떠 있는 동안 패널·손잡이는 굳힌 폭과 «키»에 같이 쓴다(grid-block.js applyGridOwnWidth). 키는 떠 있는 동안 렌더에서 잠잔다.
+     그런데 위 _unfreezeWidth 는 굳힌 폭이 «우리가 넣은 그대로»면 진입 전 값('100%')으로 되돌리고 끝난다 — 그리드는 여기서
+     다시 그려지지 않아 키가 안 깨어나고, 화면은 100% · 키는 px 인 «두 명부»가 된다(다음 렌더 때 갑자기 폭이 튄다).
+     ⇒ 키가 있는 그리드만 한 번 다시 그린다. 키가 없으면(한 번도 폭을 안 정했다) 아무것도 안 한다 = 옛 동작 그대로. */
+  if (posEl.classList?.contains('grid-block') && window.getGridWidth?.(posEl) != null) window.renderGridBlock?.(posEl);
   return true;
 }
 

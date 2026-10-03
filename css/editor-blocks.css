@@ -374,8 +374,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * ⛔`.asset-overlay-handle` 을 빌리지 않는다 — hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다. */
 /* ★`.tfo-overlay-handle`(오버레이 텍스트, 0920b)도 같은 규칙에 얹는다 — 다섯 번째다.
  * ⛔`.asset-overlay-handle` 을 빌리지 않는다 — hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다. */
+/* ★`.grd-overlay-handle`(떠 있는 그리드의 «폭» 손잡이, G2-b 2026-10-04)도 같은 규칙에 얹는다 — 여섯 번째다.
+ * ⛔`.grd-img-overlay-handle`(칸 안 이미지 크기)과 이름이 비슷하지만 «다른 손잡이»다 — 그건 줄 하나, 이건 블럭 폭. */
 .tfo-overlay-handle,
-.grd-img-overlay-handle {
+.grd-img-overlay-handle,
+.grd-overlay-handle {
   position: absolute;
   width:  7px;
   height: 7px;
@@ -443,6 +446,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne, .mdl-overlay-handle.ne, .grd-img-overlay-handle.ne, .tfo-overlay-handle.ne { cursor: ne-resize; }
 .asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw, .grd-img-overlay-handle.sw, .tfo-overlay-handle.sw { cursor: sw-resize; }
 .asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se, .grd-img-overlay-handle.se, .tfo-overlay-handle.se { cursor: se-resize; }
+/* ★그리드 폭 손잡이는 네 모서리 «모두» 좌우 화살표 — 폭만 바뀌고 높이는 내용이 정한다(대각 커서는 거짓말이 된다). */
+.grd-overlay-handle { cursor: ew-resize; }
 
 /* ── Canvas Block overlay resize handles ── */
 .canvas-overlay-handle {

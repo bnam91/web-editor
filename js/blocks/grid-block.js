@@ -552,6 +552,34 @@ function getGridWidth(block) {
   return _gridValidateWidth(block && block.dataset ? block.dataset.gridWidth : undefined);
 }
 
+/* ══ ★G2-b 쓰는 문 — 패널(슬라이더)·오버레이 손잡이가 «끄는 동안» 매 틱 부르는 폭 쓰기 (2026-10-04) ══
+ *  ★모델은 그대로다(지디 결정 2026-10-04 ㉠ 「떠 있는 것은 굳힌 폭이 정본」).
+ *    · 안 떠 있음 = 키(data-grid-width)에 쓰고 renderGridBlock 이 그 키로 그린다(G2-a 그대로).
+ *    · 떠 있음   = «굳힌 폭»(style.width + dataset.overlayFrozenWidth)에 쓴다 — 렌더는 떠 있는 동안 키를 «안» 본다(ownW=null).
+ *      ★그리고 키에도 «같이» 쓴다 — 떠 있는 동안 키는 렌더에서 잠자고, 오버레이를 «풀 때» 깨어난다
+ *        (overlay-float.js exitFloat 이 키가 있으면 다시 그린다). 이게 「해제해도 사용자가 정한 폭이 남는다」의 길이다.
+ *        ⛔굳힌 폭만 바꾸면 해제 때 _unfreezeWidth 가 진입 전 값('100%')으로 되돌려 폭이 «조용히» 사라진다(실측 — G2B 보고서).
+ *  ★overlayFrozenWidth 는 «있을 때만» 갱신한다 — 키가 있던 그리드는 띄울 때 이미 px 라 _freezeWidth 가 그 표식을 안 남긴다
+ *    (그때 렌더는 style.width 를 안 건드리므로 style 만 쓰면 산다). ⛔없는 표식을 새로 심지 않는다(해제 때 치울 주인이 없다).
+ *  ⛔히스토리·패널 재표시·자동저장은 «안» 한다 — 부르는 쪽(드래그 끝·슬라이더 change)이 한 번 한다.
+ *    한 번에 끝나는 입력(패널 숫자칸·「100%」)은 이 문이 아니라 updateGridBlock{width} 를 쓴다(같은 규칙을 그 안에서 탄다).
+ *  @returns 쓴 px(범위로 «죈» 정수) · 숫자가 아니면 null(아무것도 안 씀) */
+function _gridSetFrozenWidth(block, v) {
+  block.style.width = v + 'px';
+  if (block.dataset.overlayFrozenWidth) block.dataset.overlayFrozenWidth = v + 'px';
+}
+function applyGridOwnWidth(block, px) {
+  if (!block || !block.classList || !block.classList.contains('grid-block')) return null;
+  const n = Number(px);
+  if (!Number.isFinite(n)) return null;
+  const v = Math.min(GRID_WIDTH_MAX, Math.max(GRID_WIDTH_MIN, Math.round(n)));
+  block.dataset.gridWidth = String(v);
+  delete block.dataset.gridWidthAuto;                      // 사람이 정한 폭 — 자동 출처 표시를 뗀다(updateGridBlock 과 같은 규칙)
+  if (block.dataset.overlayBlock === 'true') _gridSetFrozenWidth(block, v);
+  renderGridBlock(block);
+  return v;
+}
+
 /* ══ ★F3 — 자유배치 프레임에 «들어올 때» 그리드 폭을 프레임보다 작게 준다 (2026-10-03, 현빈 「프레임 안 그리드가 수직만」) ══
  *  원인(Evaluator 36cbe872 실측): T-088 클램프가 x 를 [0, 프레임폭−블럭폭] 으로 죈다. 폭 = 프레임폭 이면 [0,0] → 좌우가 죽는다.
  *    ⛔클램프는 안 건드린다(「화면에서 사라진다」를 막는 살아 있는 울타리). 대신 «입구»에서 폭이 프레임폭과 같아지지 않게 한다.
@@ -2960,7 +2988,13 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
        되돌림을 주지 않는다(prop-grid.js grdMoveLineToCell 이 그 되돌림을 들고 있다).
      ★낱말은 이 저장소에 이미 있는 것을 쓴다(js/spacing-normalize.js `plan.noHistory`). */
   if (opts.noHistory !== true) window.pushHistory?.();
+  /* ★G2-b — 떠 있는 그리드는 «굳힌 폭»이 정본이라 키만 쓰면 화면이 안 바뀐다(렌더가 키를 안 본다).
+     applyGridOwnWidth 와 «같은 규칙»: 굳힌 폭도 같이 쓴다. 되돌림용으로 style·표식을 따로 쥔다
+     (⛔`before` 에 넣지 않는다 — 그건 MCP 응답으로 나가는 «모델 키» 명부다). */
+  const _floatW = (partial.width !== undefined && !widthUnset && block.dataset.overlayBlock === 'true')
+    ? { style: block.style.width, frozen: block.dataset.overlayFrozenWidth } : null;
   Object.assign(block.dataset, next);
+  if (_floatW) _gridSetFrozenWidth(block, Number(next.gridWidth));
   if (widthUnset) delete block.dataset.gridWidth;
   if (outlineUnset) delete block.dataset.blockOutline;
   bgDel.forEach(k => { delete block.dataset[k]; });
@@ -2969,6 +3003,10 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     renderGridBlock(block);
   } catch (e) {
     restore(before); // rollback
+    if (_floatW) {
+      block.style.width = _floatW.style;
+      if (_floatW.frozen === undefined) delete block.dataset.overlayFrozenWidth; else block.dataset.overlayFrozenWidth = _floatW.frozen;
+    }
     try { renderGridBlock(block); } catch (_) {}
     return { ok: false, code: 'RENDER_ERROR', message: e.message };
   }
@@ -3120,6 +3158,7 @@ window.migrateGridIdentity = migrateGridIdentity;
 //   그대로 window.updateGridBlock/renderGridBlock 과 같은 다리를 쓴다).
 window.getGridModel = getGridModel;
 window.getGridWidth = getGridWidth;   // G2-a — 다른 파일이 폭을 «읽을» 때도 이 문 하나
+window.applyGridOwnWidth = applyGridOwnWidth;   // G2-b — 끄는 동안(손잡이·슬라이더) 매 틱 쓰는 문. 떠 있으면 굳힌 폭+키, 아니면 키
 window.syncAutoGridWidth = syncAutoGridWidth;   // F3 후속 — 옮긴 뒤 자동 폭을 새 자리에 맞춘다(떠나면 100%)
 window.fitGridWidthToFreeFrame = fitGridWidthToFreeFrame;   // F3 — 자유배치 프레임 입구 셋이 부른다(drag-utils·block-drag 는 이 파일을 import 안 함)
 
@@ -3138,7 +3177,7 @@ export {
   _gridLineHtml as gridLineHtml, _GRID_ROLES as GRID_ROLES,
   _GRID_COLOR_RE as GRID_COLOR_RE, _GRID_FONT_RE as GRID_FONT_RE,
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
-  getGridWidth, _gridValidateWidth as gridValidateWidth, fitGridWidthToFreeFrame, syncAutoGridWidth,
+  getGridWidth, _gridValidateWidth as gridValidateWidth, fitGridWidthToFreeFrame, syncAutoGridWidth, applyGridOwnWidth,
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, MAX_CELL_LINES,
   _gridGaps as gridGaps, _gridCellsToDataset as gridCellsToDataset,
   _gridBlockOutline as gridBlockOutline,   /* ★G17 — 패널이 «같은 읽는 문»을 쓴다 */
