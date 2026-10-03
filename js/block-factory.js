@@ -455,6 +455,10 @@ function addTextBlock(type, opts = {}) {
   // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
   const activeSS = resolveInsertFrame(window._activeFrame);
   if (activeSS && !activeSS.dataset.bannerPreset) {
+    /* ★아무것도 안 넣는 «지원하지 않는 프레임 타입»(자유배치도 fullWidth 도 아님)은 pushHistory «전»에 빠진다 —
+       옛 판은 찍고 나서 return 해, 라이브 변경이 찍히지 않은 채였다면 화면이 안 바뀌는 ⌘Z 한 칸(먹통)이 남았다.
+       아래 분기 조건과 «같은 식» — 두 벌로 갈리면 이 가드가 거짓이 된다. */
+    if (activeSS.dataset.freeLayout !== 'true' && activeSS.dataset.fullWidth !== 'true') return;
     window.pushHistory();
     const { block } = makeTextBlock(type);
     const tf = _makeTextFrame();
@@ -577,6 +581,10 @@ function addBlankTextBlock(type = 'body', opts = {}) {
   // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
   const activeSS = resolveInsertFrame(window._activeFrame);
   if (activeSS && !activeSS.dataset.bannerPreset) {
+    /* ★아무것도 안 넣는 «지원하지 않는 프레임 타입»(자유배치도 fullWidth 도 아님)은 pushHistory «전»에 빠진다 —
+       옛 판은 찍고 나서 return 해, 라이브 변경이 찍히지 않은 채였다면 화면이 안 바뀌는 ⌘Z 한 칸(먹통)이 남았다.
+       아래 분기 조건과 «같은 식» — 두 벌로 갈리면 이 가드가 거짓이 된다. */
+    if (activeSS.dataset.freeLayout !== 'true' && activeSS.dataset.fullWidth !== 'true') return null;
     window.pushHistory();
     const { block } = makeTextBlock(type, { blank: true });
     const tf = _makeTextFrame();
