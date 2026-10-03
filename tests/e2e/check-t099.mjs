@@ -1,4 +1,14 @@
 /* T-099 ⑤ — 「⌘A 전체선택 뒤 Delete 하면 빈 프레임이 남는다 (두 갈래)」
+ * ★★2026-10-03 — 현빈이 ㈁ 의 «뜻을 뒤집었다».
+ *   「프레임 블럭안에 블럭을 지니니? 빈프레임이 되어야지? 나중에 다른걸 다시 넣을수도 있으니?」
+ *   ⇒ ㈁ 빈 «사용자» Frame 은 «남는 것이 사양»이다(0 이 아니라 Delete 전과 «같은 수»).
+ *   ⇒ ㈀ 빈 «글자 래퍼»(data-text-frame)는 그대로 «같이 걷는다» — 0 이어야 한다. 둘을 섞지 마라.
+ *
+ * ⛔★이 파일은 CI 에서 «안 돈다»(2026-10-03 지디 실측):
+ *   CI 가 부르는 것 = npm test + npm run test:dom 뿐. 이 파일은 test:cdp:small5 에만 걸려 있다.
+ *   ⇒ 여기 빨강은 CI 를 멈추지 않는다. 손으로 불러야 보인다.
+ *   ★사양을 «CI 안에서» 잠그는 자는 tests/dom/frame-keep-empty.dom.spec.js 다(test:dom).
+ *     이 파일은 실앱(CDP)에서 «같은 것을 한 번 더» 재는 자리다 — 둘 다 있어야 한다.
  *
  * ★재는 «양» = Delete «뒤»에 남은 «블럭이 하나도 없는 프레임»의 수. 두 갈래를 «둘 다» 센다:
  *   ㈀ 글자 래퍼 프레임(.frame-block[data-text-frame])  — 높이 0 이라 눈엔 안 보인다
@@ -63,6 +73,7 @@ function __emptyFrames() {
 
 const before = await s.eval(`${EMPTY_FRAME_FN}
   return { frames: document.querySelectorAll('.frame-block').length,
+           userFrames: document.querySelectorAll('.frame-block:not([data-text-frame]):not([data-group="true"])').length,
            blocks: document.querySelectorAll('.text-block').length,
            emptyFrames: __emptyFrames().length };`);
 
@@ -82,6 +93,7 @@ await s.del();
 await s.sleep(900);
 const after = await s.eval(`${EMPTY_FRAME_FN}
   return { frames: document.querySelectorAll('.frame-block').length,
+           userFrames: document.querySelectorAll('.frame-block:not([data-text-frame]):not([data-group="true"])').length,
            blocks: document.querySelectorAll('.text-block').length,
            empty: __emptyFrames() };`);
 
@@ -92,9 +104,19 @@ add('T-099/leftover-text-wrapper', '㈀ Delete 뒤 남은 «빈 글자 래퍼 �
   { count: wrappers.length, frames: wrappers }, wrappers.length === 0,
   `빈 래퍼 ${wrappers.length}개 (높이: ${wrappers.map(f => f.h).join(',') || '-'})`);
 
-add('T-099/leftover-user-frame', '㈁ Delete 뒤 남은 «빈 사용자 Frame 블럭» 수 (0 이어야 한다)',
-  { count: userFrames.length, frames: userFrames, blocksLeft: after.blocks }, userFrames.length === 0,
-  `빈 Frame ${userFrames.length}개 (크기: ${userFrames.map(f => f.w + 'x' + f.h).join(',') || '-'}) · 남은 글자블럭 ${after.blocks}`);
+/* ★전제 단언 — 이 시험이 성립하려면 Delete «전»에 사용자 프레임이 하나는 있어야 한다.
+   없으면 「남았다」도 「안 남았다」도 잴 수 없다(거짓 초록). */
+add('T-099/precondition-user-frame-exists', '전제 — Delete 전 사용자 Frame 이 1개 이상 있다',
+  { beforeUserFrames: before.userFrames }, before.userFrames >= 1,
+  `Delete 전 사용자 Frame ${before.userFrames}개`);
+
+const afterUserFrameCount = after.userFrames;
+add('T-099/empty-user-frame-kept',
+  '㈁ Delete 뒤 «빈 사용자 Frame 이 그대로 남는다» — 수가 Delete 전과 같아야 한다 (현빈 결정 2026-10-03)',
+  { before: before.userFrames, after: afterUserFrameCount, empty: userFrames, blocksLeft: after.blocks },
+  afterUserFrameCount === before.userFrames,
+  `사용자 Frame ${before.userFrames}개 → ${afterUserFrameCount}개 · 그중 빈 것 ${userFrames.length}개`
+  + ` (크기: ${userFrames.map(f => f.w + 'x' + f.h).join(',') || '-'}) · 남은 글자블럭 ${after.blocks}`);
 
 /* ── 빨강의 «이유» 확인 — 남은 프레임을 그냥 클릭 + Delete 하면 지워지나 ── */
 let ctrl = { skipped: '남은 프레임이 없어 대조 불필요' };
@@ -109,9 +131,9 @@ if (target) {
     ctrl = { id: target.id, clickedAt: [p.x, p.y], selectedAfterClick: selNow, goneAfterDelete: gone };
   } catch (e) { ctrl = { id: target.id, error: e.message }; }
 }
-add('T-099/control-direct-delete', '대조 — 남은 프레임을 «그냥 클릭+Delete» 하면 지워지나 (지워져야 «⌘A 경로»의 결함이다)',
+add('T-099/control-direct-delete', '대조 — 남은 프레임을 «그냥 클릭+Delete» 하면 지워지나 (지워져야 남은 빈 프레임을 손으로 치울 길이 있다)',
   ctrl, ctrl.goneAfterDelete === true || !!ctrl.skipped,
-  ctrl.skipped || (ctrl.goneAfterDelete ? '지워진다 ⇒ 못 지우는 것은 ⌘A→Delete 경로다' : '안 지워진다 ⇒ 결함의 자리가 다르다(다시 봐야 한다)'));
+  ctrl.skipped || (ctrl.goneAfterDelete ? '지워진다 ⇒ 남은 빈 프레임을 «손으로는» 치울 수 있다(설계대로)' : '안 지워진다 ⇒ ★결함 — 남은 프레임을 치울 길이 없다'));
 
 R.board = { before, after: { frames: after.frames, blocks: after.blocks } };
 console.log(JSON.stringify(R, null, 2));

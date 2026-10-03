@@ -152,6 +152,16 @@
 .frame-block.ss-drag-over {
   outline: 2px dashed var(--sel-color);
 }
+/* ★빈 프레임 «자리» 표시 — 편집 화면 전용 (2026-10-03 현빈 결정: 자식을 다 지워도 프레임은 남는다).
+   흰 프레임이 흰 섹션 위에 비면 높이(자유 520·흐름 60)는 있는데 «경계»가 안 보였다(실측: outline none · 배경 둘 다 #fff).
+   꼴은 새로 짓지 않는다 — 빈 줄 표시(.bn2-line-empty: 1px dashed --ui-border-mid)에 배율 보정(.marquee-hit 의 --inv-zoom)만 얹었다.
+   ★#canvas-scaler 아래로만 건다: PNG 클론은 body 로 나가 이 조상이 없고, HTML 내보내기의 CSS 수확은
+     '#canvas-scaler' 를 편집 전용으로 걸러낸다(export-css-collect.js EDITOR_ONLY_SEL) ⇒ 배송본엔 안 실린다.
+   글자 래퍼·그룹은 사용자가 보는 «프레임»이 아니다 — 뺀다. */
+#canvas-scaler .frame-block:not([data-text-frame]):not([data-group="true"]):not(.selected):not(:has(> *)) {
+  outline: calc(1px * var(--inv-zoom, 1)) dashed var(--ui-border-mid);
+  outline-offset: calc(-1px * var(--inv-zoom, 1));
+}
 
 /* ── 배경 투명도(bgOpacity) — 점진 적용안 (I2) ──
    has-bg-opacity 클래스가 있을 때만 활성. 기존 프레임은 무변경.
@@ -1057,6 +1067,10 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   color: #222;
 }
 .tb-table thead th { font-weight: 600; font-size: var(--tbl-header-size, inherit); }
+/* ★G6(현빈 2026-10-03 「테이블 헤더가 어두워지면 텍스트도 자동으로 밝아지게」) — --tbl-header-fg 는
+   js/canvas-contrast.js syncTableHeaderTone 만 쓴다(헤더 배경이 어둡고 글자색이 «미지정»일 때 #f2f2f2, 아니면 걷음).
+   없으면 지금과 같은 --tbl-text-color. stripe·borderless 의 thead 규칙도 같은 변수를 먼저 본다. */
+.table-block .tb-table thead th { color: var(--tbl-header-fg, var(--tbl-text-color, inherit)); }
 
 /* 기본 스타일 (first-col-bold 프리셋은 기본 룩 + 첫 칼럼만 볼드 — 기본 셀룰 그대로 재사용) */
 .table-block[data-style="default"] .tb-table th,
@@ -1124,7 +1138,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   text-align: center;
   vertical-align: middle;
 }
-.table-block[data-style="stripe"] .tb-table thead th { background: var(--tbl-header-bg, var(--ui-border)); color: var(--tbl-text-color, #fff); font-weight: 600; }
+.table-block[data-style="stripe"] .tb-table thead th { background: var(--tbl-header-bg, var(--ui-border)); color: var(--tbl-header-fg, var(--tbl-text-color, #fff)); font-weight: 600; }
 .table-block[data-style="stripe"] .tb-table tbody tr:nth-child(even) td { background: #f7f7f7; }
 
 /* 보더리스 스타일 */
@@ -1136,7 +1150,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   text-align: center;
   vertical-align: middle;
 }
-.table-block[data-style="borderless"] .tb-table thead th { background: var(--tbl-header-bg, transparent); font-weight: 600; color: var(--tbl-text-color, var(--ui-text-dim)); }
+.table-block[data-style="borderless"] .tb-table thead th { background: var(--tbl-header-bg, transparent); font-weight: 600; color: var(--tbl-header-fg, var(--tbl-text-color, var(--ui-text-dim))); }
 
 /* ──────────────────────────────────────────────
    라인 표시/숨김 옵션 (모든 테마 공통)

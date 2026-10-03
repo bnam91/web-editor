@@ -62,7 +62,9 @@ export function showTextProperties(tb) {
   const labelPillH    = _isCircleLabel
     ? (parseInt(contentEl.style.width) || Math.round(contentEl.getBoundingClientRect().width) || 64)
     : labelPillPadT + labelPillPadB;
-  const _jcToAlign   = { 'flex-start': 'left', 'center': 'center', 'flex-end': 'right' };
+  // 알약 «안쪽» 좌우 패딩 — 인라인이든 CSS 기본(36px)이든 «지금 그려진 값»을 읽는다(읽기만, 쓰지 않는다)
+  const labelPadX = isLabel && !_isCircleLabel ? Math.round(parseFloat(computed.paddingLeft) || 0) : 0;
+  const _jcToAlign  = { 'flex-start': 'left', 'center': 'center', 'flex-end': 'right' };
   // U10 후속 — «거짓 active» 제거.
   //   커스텀 폭(width≠100%) 블록의 «박스 가로 위치»를 지배하는 건 textAlign 이 아니라
   //   레이아웃 요소(text-frame 래퍼)의 align-self 다(prop-text-wireup-align.js 참고).
@@ -162,7 +164,7 @@ export function showTextProperties(tb) {
     currentX, currentY, currentRotation, currentW, currentFont, currentWeight, currentSize,
     currentLH, currentLS, currentColor, currentColorAlpha,
     currentPadT, currentPadL, currentPadR, phLinked,
-    isLabel, currentBgColor, currentRadius, labelPillH,
+    isLabel, currentBgColor, currentRadius, labelPillH, labelPadX, labelIsCircle: _isCircleLabel,
     isSpeechBubble, currentBubbleStyle, currentTail,
     bubbleBgHex, showSender, senderName,
     isIconText, currentItbGap,

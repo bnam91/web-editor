@@ -1546,8 +1546,8 @@ function _internalClipboardTextOf() {
   const txt = tops.map(el => (el.innerText || '').trim()).filter(Boolean).join('\n\n').slice(0, 5000);
   return txt || `고디터 블럭 ${Math.max(1, tops.length)}개`;
 }
-function _writeInternalClipboardToOS() {
-  const text = _internalClipboardTextOf();
+function _writeInternalClipboardToOS(textOverride) {
+  const text = textOverride || _internalClipboardTextOf();
   window._internalClipboardText = text;
   window._internalClipboardOnOS = false;
   Promise.resolve(window.electronAPI?.clipboardWriteText?.(text))
@@ -1565,6 +1565,15 @@ function clipboardPrefersInternal(e) {
   return internalT > (window._scratchClipboardTime || 0); // OS 에 못 썼으면 옛 규칙
 }
 window.clipboardPrefersInternal = clipboardPrefersInternal;
+
+/** 블럭 «밖» 고디터 복사(그리드 줄 ⌘C 등)도 «내 복사가 최신»임을 선언한다 — G10(2026-10-03).
+ *  ⌘C 가 이걸 안 하면 OS 클립보드엔 «그 전에 바깥에서 복사한 이미지»가 그대로 남아, ⌘V 한 번에
+ *  줄(keydown)과 스크래치 이미지(paste 이벤트)가 «동시에» 붙는다. copySelected 와 «같은 두 줄»이다. */
+function claimInternalClipboard(text) {
+  window._internalClipboardTime = Date.now();
+  _writeInternalClipboardToOS(text);
+}
+window.claimInternalClipboard = claimInternalClipboard;
 
 function copySelected() {
   // 내부 클립보드(섹션/블록) 복사 timestamp — OS 클립보드에 못 썼을 때의 옛 규칙(시각 비교)용
@@ -3389,8 +3398,12 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
         if (block.classList.contains('gap-block')) {
           block.remove();
         } else {
+          /* ★줄(.row)은 «블록과 그 줄 사이에 프레임이 없을 때만» 단위로 쓴다. 자유배치 프레임의 절대배치 자식은
+             자기 줄이 없어 closest('.row') 가 «프레임을 감싼 줄»까지 올라가 프레임째 지웠다
+             (2026-10-03 G3 실측: row>UF>그룹>에셋 에서 에셋 하나 지우자 UF 가 사라졌다 — 핀 604602cd 에도 있던 길). */
           const row = block.closest('.row');
-          if (row) rowsToRemove.add(row); else block.remove();
+          const _frameBetween = row && block.parentElement?.closest('.frame-block:not([data-text-frame])');   // 글자 래퍼는 «블록의 일부»라 경계가 아니다
+          if (row && !(_frameBetween && row.contains(_frameBetween))) rowsToRemove.add(row); else block.remove();
         }
       });
       rowsToRemove.forEach(r => r.remove());
@@ -3399,12 +3412,40 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
            빈 텍스트래퍼뿐이면 SECTION_BLOCK_TYPE_SEL 이 아무것도 못 찾아 줄째 사라진다.
          ⚠️`.row` 는 «그 줄에 남은 알맹이가 없을 때만» 단위로 쓴다 — 한 줄에 다른 블록이
            같이 있으면 그 줄을 지우는 것이 곧 «조용한 소실»이다. */
-      _emptiedFrameCands.forEach(f => {
-        if (!f.isConnected) return;
-        if (f.querySelector(SECTION_BLOCK_TYPE_SEL)) return;
-        const row = f.closest('.row');
-        ((row && !row.querySelector(SECTION_BLOCK_TYPE_SEL)) ? row : f).remove();
-      });
+      /* ★2026-10-03 현빈 결정 「프레임 안 블럭을 다 지우면 빈 프레임이 되어야지 — 나중에 다른 걸 다시
+           넣을 수도 있으니」 ⇒ 사용자 «프레임»은 비어도 남긴다. 걷는 것은 사용자가 «프레임으로 본 적 없는»
+           껍데기뿐이다: 글자 래퍼(data-text-frame — deleteBlock 이 이미 같은 규칙으로 걷는다) · 그룹(data-group —
+           알맹이 없는 그룹은 묶을 것이 없다). T-099 의 원래 까닭(⌘A→Delete 뒤 «보이는 빈 Frame»)은
+           «지저분하다»였고 저장·내보내기·⌘Z 사고가 아니었다(eddff69c 본문). */
+      /* ★«안쪽부터» 보고(깊은 것 먼저), «더 걷을 것이 없을 때까지» 되풀이한다(고정점 — 지디 권고 ㉡).
+         후보는 «선택 → 조상» 순으로 들어가 바깥 그룹이 안쪽 그룹보다 먼저 검사될 수 있다. 그러면 바깥이
+         「안 빈 그룹이 들어 있다」로 남고 그 뒤 안쪽만 걷혀 «보이지 않는 빈 그룹»이 남았다
+         (적대QA 2026-10-03: GO[A, GI[B]] 에서 A·B 삭제 → GO 300px 잔존). 깊이순이면 한 바퀴에 닫히지만,
+         순서 가정에 기대지 않게 «한 바퀴에 하나도 안 걷으면 멈춤»으로 잠근다.
+         ★되풀이 상한 = 후보 수 + 1 — 한 바퀴에 최소 하나는 걷어야 다음 바퀴로 가므로 그 이상은 돌 수 없다(무한루프 방지). */
+      const _depth = (el) => { let d = 0; for (let p = el; p; p = p.parentElement) d++; return d; };
+      const _USER_FRAME_SEL = '.frame-block:not([data-text-frame]):not([data-group="true"])';
+      const _sweepOrder = [..._emptiedFrameCands].sort((a, b) => _depth(b) - _depth(a));
+      for (let _pass = 0, _swept = true; _swept && _pass <= _sweepOrder.length; _pass++) {
+        _swept = false;
+        _sweepOrder.forEach(f => {
+          if (!f.isConnected) return;
+          // ★프레임과 그룹은 «다르게» 동작한다(2026-10-03 결정): 프레임=비면 남긴다(그릇이라 다시 채울 수 있다)
+          //   / 그룹=비면 같이 지운다(묶음이라 빌 수 없다). 둘을 같게 만들지 마라 — 일부러 가른 것이다.
+          if (f.dataset.textFrame !== 'true' && f.dataset.group !== 'true') return;
+          // 그룹 안에 «남긴» 사용자 프레임이 있으면 그 그룹은 비지 않았다(.frame-block 은 SECTION_BLOCK_TYPE_SEL 밖이다)
+          //   ⚠️그룹(.frame-block[data-group="true"])은 «남길 프레임»이 아니다 — 세면 빈 그룹 사슬이 서로를 붙잡는다.
+          if (f.querySelector(_USER_FRAME_SEL)) return;
+          if (f.querySelector(SECTION_BLOCK_TYPE_SEL)) return;
+          /* `.row` 단위는 «f 와 그 줄 사이에 남길 사용자 프레임이 없을 때만» — 사용자 프레임 UF 의 줄 안에 든
+             빈 그룹을 걷다가 closest('.row') 가 UF 의 줄을 잡아 UF 째 지웠다(2026-10-03 G3 실측). */
+          const row = f.closest('.row');
+          const keeper = f.parentElement?.closest(_USER_FRAME_SEL);
+          const rowOk = row && !row.querySelector(SECTION_BLOCK_TYPE_SEL) && !(keeper && row.contains(keeper));
+          (rowOk ? row : f).remove();
+          _swept = true;
+        });
+      }
       window._activeFrame = null;
       deselectAll();
       window.buildLayerPanel();

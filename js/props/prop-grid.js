@@ -394,6 +394,12 @@ export function grdCopySelectedLines() {
   const picks = [...new Set(sel.map(a => a.li))].filter(i => i >= 0 && i < lines.length).sort((a, b) => a - b);
   if (!picks.length) return false;
   try { _grdLineClip = picks.map(i => JSON.parse(JSON.stringify(lines[i]))); } catch (_) { return false; }
+  /* ★G10 — 내 복사가 «최신»이라고 OS 클립보드에도 알린다(editor.js claimInternalClipboard). 안 하면 바깥에서 복사해 둔
+     이미지가 OS 에 남아 ⌘V 한 번에 줄과 스크래치 이미지가 «동시에» 붙는다. */
+  try {
+    const txt = picks.map(i => String(lines[i]?.text ?? '')).filter(Boolean).join('\n');
+    window.claimInternalClipboard?.(txt || `고디터 그리드 줄 ${picks.length}개`);
+  } catch (_) {}
   window.showToast?.(`줄 ${picks.length}개 복사됨 — 붙일 줄을 고르고 ⌘V`);
   return true;
 }
@@ -668,6 +674,78 @@ export function grdImageFileOk(file) {
 }
 if (typeof window !== 'undefined') window.grdImageFileOk = grdImageFileOk;
 if (typeof window !== 'undefined') window.grdAddLine = grdAddLine;
+
+/* ══ 캔버스 «텍스트 블럭»을 끌어 그리드 «칸»에 놓는다 — 칸의 한 줄이 된다 (G9, 현빈 2026-10-03) ═══════
+ * ★증상(측정): 흐름 텍스트 블럭을 그리드 칸 위에 놓으면 «칸 안으로» 들어가지 않고 섹션 안 행 순서만 바뀐다
+ *   (칸의 줄 수 그대로 · 블럭은 .section-inner 의 형제로 남음). 칸이 «받는» 길이 아예 없었다.
+ * ★받는 «한 벌» — 섹션/프레임 드롭 처리기(section-drag.js · block-drag.js bindFrameDropZone)가 이걸 «먼저» 부른다.
+ *   참을 돌려주면 «내가 먹었다»(처리기는 행 이동을 건너뛴다). 거짓이면 종전 그대로 — 다른 드롭은 영향 0.
+ * ★받는 조건을 «좁게» 둔다: 놓은 자리가 ★바깥 그리드의 .grd-cell ★ 놓은 것이 «글자 블럭 하나뿐인» 행/블럭
+ *   (표·불릿·여러 블럭 행은 그대로 행 이동). 놓는 블럭이 그리드 «안»이면 받지 않는다.
+ * ★줄로 옮기는 값: type(tb-h1/h2/h3/body/caption/label) · 글자(innerText) · 블럭이 «직접 박은» 색·크기·굵기·정렬.
+ *   ⚠️글자 안 부분 서식(굵게·색 span)은 줄이 못 담아 평문이 된다 — 그리드 줄 모델의 한계.
+ * ★쓰는 길은 grdAddLine(상한·활성줄·거절 시 원복 한 벌). 넣기가 «성공했을 때만» 원본 블럭을 지운다 —
+ *   실패하면 블럭이 제자리로 돌아온다(데이터가 어디에도 없는 상태 금지). 이력은 한 칸(아래 «한 동기 구간») — ⌘Z 한 번이 원위치.
+ * @returns {boolean} 먹었으면 true */
+export function grdDropTextBlockOnCell(e, src) {
+  if (!src || !e) return false;
+  let tb = null;
+  if (src.classList?.contains('text-block')) tb = src;
+  else if (src.classList?.contains('row')) {
+    const kids = [...src.children].filter(k => !k.classList.contains('drop-indicator'));
+    if (kids.length === 1 && kids[0].classList.contains('text-block')) tb = kids[0];
+  }
+  if (!tb) return false;
+  /* ★받는 블럭을 «평문 글자 블럭 종류 허용 목록»으로 좁힌다(적대QA: 말풍선 유실). 조건 셋이 «전부» 서야 한다:
+     ⑴ 말풍선 등 «다른 종류» 클래스가 text-block 에 없다 ⑵ 직계 자식이 정확히 하나이고 그게 tb-h1/h2/h3/body/caption/label 이다
+     (숨은 .tb-sender-name·.tb-bubble 따위가 형제로 있으면 거절) ⑶ 아래 «글자 일치» — 줄로 옮긴 글자가 원본의 보이는 글자와 같다.
+     ⛔`[class^="tb-"]` 로 «처음 집히는 것»을 쓰지 마라 — 숨은 .tb-sender-name 을 먼저 집어 본문이 사라졌다. */
+  if ([...tb.classList].some(k => k !== 'text-block' && k !== 'selected' && k !== 'dragging')) return false;
+  const kids = [...tb.children].filter(k => !k.classList.contains('tb-rotate-zone'));   // 선택 때 붙는 회전 영역은 UI
+  const inner = kids.length === 1 ? kids[0] : null;
+  const m = inner && /^tb-(h1|h2|h3|body|caption|label)$/.exec(inner.className.replace(/\s+/g, ' ').trim().split(' ')[0] || '');
+  if (!inner || !m || inner.querySelector('ul,ol,img,svg,input,table')) return false;
+  const at = document.elementFromPoint(e.clientX, e.clientY);
+  const cellEl = at && at.closest ? at.closest('.grd-cell[data-r][data-c]') : null;
+  const block = cellEl && cellEl.closest('.grid-block');
+  if (!block || block.contains(tb) || tb.contains(block)) return false;
+  const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
+  if (!Number.isInteger(r) || !Number.isInteger(c)) return false;
+  const norm = (t) => String(t == null ? '' : t).replace(/\r\n?/g, '\n').replace(/\u200b/g, '').replace(/\n+$/, '');
+  const spec = { type: m[1], text: '' };
+  const isPh = tb.dataset.isPlaceholder === 'true' || inner.dataset.isPlaceholder === 'true';
+  if (!isPh) spec.text = norm(inner.innerText);
+  /* ★글자 일치 — 원본 블럭이 «보이는 글자 전부»(innerText)가 줄의 글자와 같을 때만 원본을 지운다. 아니면 넣지도 지우지도 않는다(종전 동작). */
+  if (!isPh && norm(tb.innerText).trim() !== spec.text.trim()) return false;
+  const st = inner ? inner.style : null;
+  if (st) {
+    if (st.color && GRID_COLOR_RE.test(st.color)) spec.color = st.color;
+    const fs = parseFloat(st.fontSize); if (fs > 0) spec.fontSize = Math.round(fs);
+    const fw = parseInt(st.fontWeight, 10); if (fw > 0) spec.weight = fw;
+    if (st.textAlign === 'left' || st.textAlign === 'center' || st.textAlign === 'right') spec.align = st.textAlign;
+  }
+  /* 놓은 높이 → 칸 안 «몇 번째 줄 앞»인가 — 줄 중간선보다 위에 있는 첫 줄 앞. 다 지나면 끝. */
+  const cellLines = [...cellEl.children].filter(k => k.hasAttribute('data-line'));
+  let insertAt = cellLines.length;
+  for (let i = 0; i < cellLines.length; i++) {
+    const b = cellLines[i].getBoundingClientRect();
+    if (e.clientY < b.top + b.height / 2) { insertAt = i; break; }
+  }
+  /* ★한 «동기 구간»·이력 한 칸(push-before): ①지금(블럭이 있는 상태)을 찍고 ②원본을 떼고 ③noHistory 로 넣는다 —
+     updateGridBlock 래퍼(model-update-history.js)가 «돌아온 직후» 끝 표본(블럭 없음 + 줄 있음)을 찍는다.
+     예전엔 넣기 «뒤»에 지워서 그 차이를 rAF 두 번 뒤의 되쓰기가 메웠다 — 그 틈에 ⌘Z 를 누르면 줄 + 블럭이 «둘 다» 남았다. */
+  const row = tb.closest('.row');
+  const unit = (row && row.children.length === 1) ? row : tb;
+  const parent = unit.parentNode, next = unit.nextSibling;
+  if (!parent) return true;
+  window.pushHistory?.();
+  unit.remove();
+  const res = grdAddLine(block, { r, c }, insertAt - 1, spec, { noHistory: true });
+  if (res && res.ok) window.buildLayerPanel?.();
+  else parent.insertBefore(unit, next && next.parentNode === parent ? next : null);   // 실패 — 블럭을 제자리로(데이터가 어디에도 없는 상태 금지)
+  return true;
+}
+if (typeof window !== 'undefined') window.grdDropTextBlockOnCell = grdDropTextBlockOnCell;
 
 /* SVG 마크업 → data URI. 아이콘 새 줄은 기존 image 라인 타입을 그대로 쓴다(현빈 확정:
  * 재착색 불필요 → 새 icon 타입·새 새니타이저 불필요, GRID_LINE_FIELDS 변경 없음). */
@@ -1214,10 +1292,15 @@ function _grdWireImageSection(block, addr) {
  *     매 조작마다 죽는다(이 파일 머리글이 같은 말을 적어 뒀다).
  */
 const _grdOpenSections = new WeakMap();
-const _grdSecOpen = (block, key) => (_grdOpenSections.get(block) || {})[key] === true;
-function _grdSecToggle(block, key) {
+/* ★dflt — 사람이 «아직 안 건드렸을 때»의 기본(미지정 = 접힘). 한 번 눌러 상태가 생기면 그 값이 이긴다.
+ *   (G3 현빈 「갭 줄 높이 조절이 안 된다」 — 갭 줄의 «높이» 칸이 접힌 「줄 꾸미기」 안에 숨어 있었다.) */
+const _grdSecOpen = (block, key, dflt = false) => {
+  const v = (_grdOpenSections.get(block) || {})[key];
+  return v === undefined ? dflt === true : v === true;
+};
+function _grdSecToggle(block, key, dflt = false) {
   const cur = _grdOpenSections.get(block) || {};
-  const next = { ...cur, [key]: !cur[key] };
+  const next = { ...cur, [key]: !_grdSecOpen(block, key, dflt) };
   _grdOpenSections.set(block, next);
   return next[key];
 }
@@ -1270,12 +1353,12 @@ const _grdDisclosureHtml = (id, title, open) => `
       </div>`;
 
 /** 접이식 절의 배선 — 패널을 다시 그리지 않는다(재렌더는 곧 포커스 상실이다). */
-function _grdWireDisclosure(block, key, headId, bodyId) {
+function _grdWireDisclosure(block, key, headId, bodyId, dflt = false) {
   const head = document.getElementById(headId);
   const body = document.getElementById(bodyId);
   const arrow = head?.querySelector('svg');
   head?.addEventListener('click', () => {
-    const open = _grdSecToggle(block, key);
+    const open = _grdSecToggle(block, key, dflt);
     if (body) body.style.display = open ? 'block' : 'none';
     /* ⛔각도 식은 _grdDisclosureHtml 과 «같은 값»이어야 한다 — 갈리면 첫 클릭에 그림이 튄다.
        접힘 = −90°(오른쪽) · 펼침 = 0°(아래). 쉐브론이 «아래» 그림이라 부호가 옛 것과 반대다. */
@@ -2212,6 +2295,19 @@ function _grdWireTypo(block, addr) {
  *   ⛔절을 하나 더 «펼친 채로» 내면 순증 예산(Δ≤+60)을 그 자리에서 넘긴다(실측으로 확인). */
 const _GRD_LINE_ALIGN_KINDS = new Set([..._GRD_ROLE_KINDS, 'image']);
 
+/* ★「줄 꾸미기」를 처음부터 펼치는 줄 종류 — «손으로 적은 명부»다(도출·시험 둘 다 불가, 아래 까닭).
+ *   왜 이 둘인가: 갭 = 높이(px) · 구분선 = 굵기(px)·색 — 그 줄 «전용» 손잡이가 줄 꾸미기 절 «안»에만 있다.
+ *   접어 두면 손댈 데가 없어 「조절이 안 된다」로 보인다(현빈 G3). 글자 줄·그림 줄은 타이포·Image 절이
+ *   밖에 따로 있어 접어도 손잡이가 남는다.
+ *   ★새 줄 종류를 만들면 여기를 보라 — 그 종류의 전용 손잡이가 줄 꾸미기 안에만 있으면 이 명부에 넣는다.
+ *   ⛔도출 불가 까닭: 패널에 「줄 전용 영역」 경계가 없다(줄바·줄 꾸미기·Image·Typography 가 칸·블록 절과 같은
+ *     깊이의 형제 .prop-section 이고 표식이 없다) ⇒ 「줄 꾸미기 밖 줄 전용 입력 0개」를 DOM 으로 못 센다.
+ *     (실측: 줄 꾸미기 밖 입력이 갭 18 · 구분선 18 · 그림 21 · 글자 26 — 칸·블록 입력이 깔려 있어 0 이 없다.
+ *      「최솟값인 종류」로 재면 Set 에 맞춰 버리는 우연한 시험이라 쓰지 않았다.)
+ *   ★대신 명시 분류 시험 — tests/dom/grid-gap-line-height.dom.spec.js G3-6 이 렌더러가 아는 모든 줄 종류가
+ *     이 Set(펼침) 또는 그 시험의 접힘 목록 «한쪽에만» 있는지 단언한다. 새 줄 종류를 만들면 거기서 빨개진다. */
+const _GRD_LINE_OPEN_KINDS = new Set(['gap', 'divider']);
+const _grdLineSecKey = (line) => 'line:' + ((line && line.type) || 'body');
 function _grdLineSectionHtml(anyHit, block) {
   if (!anyHit || anyHit.li === null || !anyHit.line) return '';
   const { r, c, li, line } = anyHit;
@@ -2222,7 +2318,10 @@ function _grdLineSectionHtml(anyHit, block) {
   const imgFull = (line.type === 'image') && !(Number(line.widthPct) < 100);
   const isText = gridLineHasText(line);
   /* ⛔여기서 일찍 빠지지 마라 — 갭 줄에도 «종류 바꾸기»는 있어야 한다(되돌아갈 길). */
-  const open = _grdSecOpen(block, 'line');
+  /* ★갭·구분선 줄은 «손잡이가 높이/굵기뿐»이라 처음부터 펼친다(G3) — 접어 두면 그 한 칸을 찾아 펼쳐야 한다. */
+  /* ★접힘 기억은 «줄 종류별»이다(키 `line:<종류>`) — 키 하나(`line`)면 글자 줄에서 열었다 닫은 것이 같은 그리드의
+   *   갭 줄로 새어, 한 번도 안 접은 갭 줄의 높이 칸이 접혀 G3 증상이 되살아난다(적대QA). 그 종류에서 접은 것만 그 종류에 이긴다. */
+  const open = _grdSecOpen(block, _grdLineSecKey(line), _GRD_LINE_OPEN_KINDS.has(line.type || 'body'));
   const raw = (typeof line.bg === 'string' && GRID_COLOR_RE.test(String(line.bg).trim()))
     ? String(line.bg).trim() : '';
   const hex = raw ? swatchHex(raw, '#eeeeee') : '#eeeeee';
@@ -2280,7 +2379,7 @@ function _grdWireLineSection(block, addr) {
   const hit = _grdResolveAnyAddr(block, addr);
   if (!hit || hit.li === null || !hit.line) return;
   const { r, c, li } = hit;
-  _grdWireDisclosure(block, 'line', 'grd-line-toggle', 'grd-line-body');
+  _grdWireDisclosure(block, _grdLineSecKey(hit.line), 'grd-line-toggle', 'grd-line-body', _GRD_LINE_OPEN_KINDS.has(hit.line.type || 'body'));
 
   /* ── 줄 정렬 — «이 줄»에만. ⛔updateGridBlock 을 쓰지 않는다: 이미지 줄에 align 을 주면
        렌더러 민감도 검사(_gridUnreadLineFields)가 「아무것도 안 읽힌다」로 «거절»한다.

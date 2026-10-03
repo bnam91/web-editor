@@ -336,6 +336,12 @@ function bindSectionDropZone(sec) {
     e.preventDefault();
     if (_innerDragRafId) { cancelAnimationFrame(_innerDragRafId); _innerDragRafId = null; }
     if (!dragState.dragSrc) return;
+    /* G9 — 글자 블럭을 «그리드 칸» 위에 놓았으면 칸의 한 줄로 받는다(prop-grid.js grdDropTextBlockOnCell — 거짓이면 종전 그대로). */
+    if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc)) {
+      clearDropIndicators();
+      dragState.dragSrc = null;
+      return;
+    }
     window.pushHistory();
     const indicator = inner.querySelector('.drop-indicator');
     if (indicator && indicator.parentElement) indicator.parentElement.insertBefore(dragState.dragSrc, indicator);
