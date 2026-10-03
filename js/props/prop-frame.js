@@ -338,7 +338,7 @@ function _renderAutoPanel(ss) {
         <input type="number" class="prop-number" id="ss-height-num" min="100" max="1200" value="${height}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">상/하 여백</span>
+        <span class="prop-label">상하 패딩</span>   <!-- 2026-10-03 지디: 섹션·디바이더·비교 패널과 같은 말(「상하 패딩」·「좌우 패딩」) — 옛 「상/하 여백」 -->
         <input type="range" class="prop-slider" id="ss-pady-slider" min="0" max="200" step="4" value="${padY}">
         <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
       </div>

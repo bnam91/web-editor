@@ -40,7 +40,7 @@ const box = (page) => page.evaluate(() => {
 });
 const press = async (page, id) => { await page.click(`#${id}`); await page.waitForTimeout(150); };
 
-test('A1 ★패널에 「좌우 패딩」 줄이 있고 섹션 줄과 같은 꼴(.prop-row·라벨·슬라이더·숫자) — 기존 「상/하 여백」은 그대로', async ({ page }) => {
+test('A1 ★패널에 「좌우 패딩」 줄이 있고 섹션 줄과 같은 꼴(.prop-row·라벨·슬라이더·숫자) — 위아래 줄은 「상하 패딩」(2026-10-03 지디: 다른 패널과 같은 말)', async ({ page }) => {
   await setup(page, { free: false, kid: STACK_ASSET });
   const r = await page.evaluate(() => {
     const row = document.getElementById('ss-padx-slider')?.closest('.prop-row');
@@ -50,7 +50,7 @@ test('A1 ★패널에 「좌우 패딩」 줄이 있고 섹션 줄과 같은 꼴
   });
   expect(r.label).toBe('좌우 패딩');
   expect(r.kids).toEqual(['prop-label', 'prop-slider', 'prop-number']);
-  expect(r.yLabel).toBe('상/하 여백');
+  expect(r.yLabel).toBe('상하 패딩');
   expect(Math.round(r.rowH)).toBe(24);
 });
 
