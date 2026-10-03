@@ -103,6 +103,9 @@ export const TEXT_SLOT_SELECTOR = TEXT_SLOT_KINDS.map(k => k.selector).join(', '
 /** text-block 래퍼 → { kind, el, style, block } | null. null 이면 «쓸 자리가 없다» = 건너뛴다. */
 export function findTextSlot(tb) {
   if (!tb || typeof tb.querySelector !== 'function') return null;
+  /* ★BT2 D4 — 줄 모드 말풍선(data-lines)은 «쓸 자리가 아니다»: .tb-bubble 글자를 덮으면 줄 DOM 이 지워지고
+     dataset.lines 는 남아 화면과 데이터가 갈린다. 건너뛴다(= AI 글자 쓰기 거절). */
+  if (tb.classList && tb.classList.contains('speech-bubble-block') && tb.dataset && tb.dataset.lines !== undefined) return null;
   const el = tb.querySelector(TEXT_SLOT_SELECTOR);
   if (!el) return null;
   const k = TEXT_SLOT_KINDS.find(x => el.matches(x.selector));

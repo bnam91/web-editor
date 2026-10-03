@@ -614,7 +614,8 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       return {
         type:       'chat',
         id:         el.id || ('chb_' + Math.random().toString(36).slice(2, 8)),
-        messages:   messages.map((m, mi) => ({ text: m.text || '', align: m.align === 'right' ? 'right' : 'left', w: _bubbles[mi] ? Math.round(_bubbles[mi].offsetWidth) : 0, h: _bubbles[mi] ? Math.round(_bubbles[mi].offsetHeight) : 0 })),
+        /* ★BT2 — 줄 있는 메시지는 «줄 글자 평문»(msg.text 는 이스케이프된 거울이라 &lt; 가 그대로 찍힌다). 줄별 크기·굵기는 E40 과 같은 별건. */
+        messages:   messages.map((m, mi) => ({ text: (Array.isArray(m.lines) && m.lines.length && window.lnPlainText) ? window.lnPlainText(m.lines) : (m.text || ''), align: m.align === 'right' ? 'right' : 'left', w: _bubbles[mi] ? Math.round(_bubbles[mi].offsetWidth) : 0, h: _bubbles[mi] ? Math.round(_bubbles[mi].offsetHeight) : 0 })),
         fontSize:   parseInt(el.dataset.fontSize) || 32,
         bgLeft:     _bg(_lb, el.dataset.bgLeft    || '#e5e5ea'),
         bgRight:    _bg(_rb, el.dataset.bgRight   || '#1888fe'),
