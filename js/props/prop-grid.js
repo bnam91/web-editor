@@ -1,14 +1,14 @@
 /* ── Grid(다단) 블록 프로퍼티 패널 ──
    구조(컬럼/라인 추가·삭제)는 CDP/updateGridBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
 import { propPanel } from '../globals.js';
-import { parseRatio, buildGridPicker, alignBtn, bindSlider, blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
+import { parseRatio, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
 /* ★상·하한은 한 곳에서만 온다 — IMG_MIN_PCT 는 캔버스 코너 드래그(resizeGridImage)가 쓰는
    «그» 하한이다. 패널의 폭(%) 칸이 같은 수를 쓰게 import 한다(손으로 5 를 적지 않는다). */
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
          gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_MAX_BYTES, gridCellsToDataset,
-         gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES,
+         gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES, gridBlockOutline, GRID_OUTLINE_SIDES,
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
          GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE } from '../blocks/grid-block.js';
@@ -1833,6 +1833,52 @@ ${_borderRowHtml(bd)}
     </div>`;
 }
 
+/* ══ 블럭 외곽선 (G17 · 2026-10-03) — 네 변 각각 + 「사방」·「없음」 ══════════════════════
+ * ★모델·읽는 문은 grid-block.js(gridBlockOutline · dataset.blockOutline) 하나다 — 여기선 목록을 만들어 «한 문»으로 보낸다.
+ * ★이름 「블럭 외곽선」 — 바로 위 「모든 칸 테두리」(칸의 네 변)·「칸 사이 줄」(간격 가운데)과 «다른 축»임을 이름이 말한다.
+ * ★단추 여섯을 «한 줄»에 둔다(지디 사전 결정: 빡빡하면 두 줄로 가르지 말고 줄여라). 라벨 칸 없이 절 제목이 이름을 맡아
+ *   한 줄 폭(≈211px)을 단추가 다 쓴다 — 여섯 × 최소 28 + 간격 4×5 = 188 이라 기본 28px 그대로 들어간다(줄일 필요 없음, 실측은 시험이 잰다).
+ * ★굵기·색·꼴은 위 「모든 칸 테두리」 값을 따른다(새 손잡이 0) — 그 사실을 title 로 말한다. */
+const _GRD_OUTLINE_LABEL = { top: '위 외곽선', right: '오른쪽 외곽선', bottom: '아래 외곽선', left: '왼쪽 외곽선' };
+function _grdOutlineSectionHtml(block) {
+  const o = gridBlockOutline(block);
+  const nOn = GRID_OUTLINE_SIDES.filter(sd => o.on[sd]).length;
+  const tip = `굵기·색·꼴은 「모든 칸 테두리」 값을 따릅니다(지금 ${o.width}px ${o.style})`;
+  const side = (sd) => borderBtn(sd, { label: _GRD_OUTLINE_LABEL[sd], title: `${_GRD_OUTLINE_LABEL[sd]} 켜기/끄기 — ${tip}`, active: o.on[sd],
+    attrs: { 'data-outline-side': sd, 'aria-pressed': o.on[sd] ? 'true' : 'false' } });
+  return `
+    <div class="prop-section">
+      <div class="prop-section-title" title="블럭 «바깥» 네 변 — 칸 테두리·칸 사이 줄과 따로 켭니다">블럭 외곽선</div>
+      <div class="prop-row">
+        <div class="prop-align-group" id="grd-outline-group" role="group" aria-label="블럭 외곽선">
+          ${side('top')}
+          ${side('bottom')}
+          ${side('left')}
+          ${side('right')}
+          ${borderBtn('all', { label: '사방', title: `사방 — 네 변 모두 켜기 (${tip})`, active: nOn === 4, attrs: { 'data-outline-all': '1' } })}
+          ${borderBtn('none', { label: '없음', title: '없음 — 네 변 모두 끄기', active: nOn === 0, attrs: { 'data-outline-all': '0' } })}
+        </div>
+      </div>
+    </div>`;
+}
+
+/** 배선 — 목록을 만들어 updateGridBlock «한 문»으로 보낸다(⌘Z: 그 문이 앞 표본, 끝 표본 래퍼가 뒤 표본을 찍는다). */
+function _grdWireOutlineSection(block) {
+  const grp = document.getElementById('grd-outline-group');
+  if (!grp) return;
+  const commit = (list) => _grdToastCellFail(window.updateGridBlock?.(block.id, { blockOutline: list.join(',') }));
+  grp.querySelectorAll('[data-outline-side]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cur = gridBlockOutline(block).on;
+      const sd = btn.dataset.outlineSide;
+      commit(GRID_OUTLINE_SIDES.filter(k => (k === sd ? !cur[k] : cur[k])));
+    });
+  });
+  grp.querySelectorAll('[data-outline-all]').forEach(btn => {
+    btn.addEventListener('click', () => { commit(btn.dataset.outlineAll === '1' ? GRID_OUTLINE_SIDES.slice() : []); });
+  });
+}
+
 /* ══ 칸 «사이» 괘선 — 현빈 2026-09-30 ══════════════════════════════════════
  * 원문: 「각 칼럼 중간에 줄」＋「로우 간격에도 가로줄」＋「일괄도, 특정 경계만 넣거나 빼기도」
  *   ＋「굵기 그대로 넘치게 둬」.
@@ -2647,6 +2693,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
     ${_grdNestHintHtml(_nestHit)}
     ${_grdLineBarHtml(_anyHit, block)}
     ${_borderSectionHtml(_cellBorder)}
+    ${_grdOutlineSectionHtml(block)}
     ${_grdRuleSectionHtml(block)}
     ${_grdPadExcludeSectionHtml(block)}
     ${_grdAllCellsSectionHtml(_anyHit, block)}
@@ -2966,6 +3013,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
   _grdWireLineBar(block, _curAddr);
   _grdWireAllCellsSection(block, _anyHit);   // ★⑦ 일괄 — 블럭만 고른 상태에서만 배선된다
   _grdWireRuleSection(block);
+  _grdWireOutlineSection(block);
   _grdWirePadExclude(block);                 // ★⑥ 좌우 패딩 제외(전폭) — 섹션 직속일 때만 절이 그려진다
   _grdWireCellSection(block, _curAddr);
   _grdWireImageSection(block, _curAddr);

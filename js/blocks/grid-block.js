@@ -269,6 +269,63 @@ function _gridCellBorderCss(bd, r, c, rowGapPx, colGapPx) {
   return `border-top:${top};border-left:${left};border-right:${line};border-bottom:${line};`;
 }
 
+/* ══ ★블럭 외곽선 (G17 · 2026-10-03, 지디 2차 발주) ═══════════════════════════════
+ * 뜻: 그리드 «블럭 상자»의 네 변을 «변마다» 켜고 끈다(엑셀·워드 테두리 고르기 꼴) + 「사방」·「없음」.
+ * ⛔칸 테두리(cellBorder*)·칸 사이 줄(rowRule/colRule)과 «다른 축»이다 — 그 둘은 칸에 붙고 이건 블럭 상자에 붙는다.
+ * ★정본 = dataset «한 키» `blockOutline`(data-block-outline) — 켠 변 이름을 콤마로, 순서는 언제나 top,right,bottom,left.
+ *   키가 «없으면» = 외곽선 없음 ⇒ 옛 저장본은 style·innerHTML «한 바이트도» 안 바뀐다(아래 렌더 가드).
+ *   ⛔전체 스위치를 따로 두지 않는다 — 「사방」·「없음」은 이 목록을 한 번에 채우는 «단추»일 뿐이다(괘선 선례와 같은 까닭).
+ * ★굵기·색·꼴은 «새로 만들지 않는다» — 같은 블럭의 칸 테두리 설정(_gridCellBorder)을 그대로 쓴다.
+ *   굵기만 예외: 칸 테두리가 0(=꺼짐)이면 1px 로 긋는다(0 이면 켠 변이 «안 보이는» 거짓 켬이 된다).
+ *   ⚠️그래서 «칸 테두리 없이 굵은 외곽선»은 지금 못 만든다 — 손잡이를 늘리지 않은 대가(보고서 미완 명부).
+ * ★그리는 자리 = 블럭 «자기» style 의 border-top/right/bottom/left. ⛔outline 을 쓰지 마라 —
+ *   .grid-block 의 outline 은 선택 표시다(css/editor-blocks.css .grid-block / .grid-block.selected).
+ *   블럭은 이미 box-sizing:border-box 라 폭은 그대로고 안쪽이 굵기만큼 준다(인라인이라 PNG·HTML 내보내기에 그대로 실린다). */
+export const GRID_OUTLINE_SIDES = ['top', 'right', 'bottom', 'left'];
+
+/** 들어온 값을 «정본 꼴»로 — 'top,left' · ['top','left'] · 'all' · 'none' · '' 를 받는다.
+ *  돌려주는 것: 정본 문자열('' = 하나도 안 켬) · 모르는 변 이름이 섞이면 null(거절). */
+function _gridNormOutline(v) {
+  if (v === null || v === undefined) return '';
+  let parts;
+  if (Array.isArray(v)) parts = v.map(x => String(x).trim());
+  else {
+    const raw = String(v).trim();
+    if (raw === '' || raw === 'none') return '';
+    if (raw === 'all') return GRID_OUTLINE_SIDES.join(',');
+    parts = raw.split(',').map(x => x.trim()).filter(Boolean);
+  }
+  if (parts.some(x => !GRID_OUTLINE_SIDES.includes(x))) return null;
+  return GRID_OUTLINE_SIDES.filter(sd => parts.includes(sd)).join(',');
+}
+
+/** 블럭 외곽선 — {on:{top,right,bottom,left}, width, color, style}. ★패널과 렌더러가 «같은 이 함수»를 본다.
+ *  ⛔저장값이 꼴이 틀리면(손으로 고친 파일) «하나도 안 켠 것»으로 읽는다 — 모르는 변을 짐작해 켜지 않는다. */
+function _gridBlockOutline(block) {
+  const ds = (block && block.dataset) || {};
+  const norm = _gridNormOutline(ds.blockOutline);
+  const list = norm ? norm.split(',') : [];
+  const on = {};
+  for (const sd of GRID_OUTLINE_SIDES) on[sd] = list.includes(sd);
+  const bd = _gridCellBorder(block);
+  return { on, width: bd.width > 0 ? bd.width : 1, color: bd.color, style: bd.style };
+}
+
+/** 블럭 style 에 외곽선을 건다. ★켠 변이 없고 블럭에 border-* 흔적도 없으면 «아무것도 안 만진다»
+ *  — 옛 저장본(W0: style 바이트 동일)의 길을 그대로 둔다. 끈 뒤에는 남은 border-* 를 걷는다. */
+function _gridApplyBlockOutline(block) {
+  const o = _gridBlockOutline(block);
+  const st = block.style;
+  const any = GRID_OUTLINE_SIDES.some(sd => o.on[sd]);
+  /* ⛔getPropertyValue/setProperty 를 쓰지 않는다 — unit 하네스 여럿이 style 을 «평범한 객체»로 대역한다
+     (실측: t174-cell-bg-value 등이 그 함수 없음으로 터졌다). 낙타 이름 읽기/쓰기는 둘 다에서 돈다. '' 대입 = 선언 제거. */
+  const cap = (sd) => 'border' + sd[0].toUpperCase() + sd.slice(1);
+  const trace = GRID_OUTLINE_SIDES.some(sd => st[cap(sd) + 'Style']);
+  if (!any && !trace) return;
+  const line = `${o.width}px ${o.style} ${o.color}`;
+  for (const sd of GRID_OUTLINE_SIDES) st[cap(sd)] = o.on[sd] ? line : '';
+}
+
 /** 경계 목록을 «경계 수»에 맞춘다 — 넘치면 자르고 모자라면 0 으로 채운다.
  *  경계가 없으면(1열·1행) 빈 문자열 = 켠 것이 하나도 없다.
  *  ⛔새 잣대를 만들지 않는다 — 읽는 자(_gridAxisRule)와 «같은 꼴»('1'/'0' 콤마)을 낸다. */
@@ -1954,6 +2011,7 @@ function renderGridBlock(block) {
   } else if (!floating) block.style.width = '100%';
   else if (block.dataset.overlayFrozenWidth) block.style.width = block.dataset.overlayFrozenWidth;
   block.style.boxSizing = 'border-box';
+  _gridApplyBlockOutline(block);   // ★G17 블럭 외곽선 — 키 없으면 아무것도 안 만진다(옛 저장본 바이트 동일)
   /* ★「좌우 패딩 제외」가 켜져 있으면 폭을 다시 건다 — 위 한 줄이 폭만 100% 로 되돌리고 음수 마진은 남겨서
      다시 그릴 때마다(열 간격 끌기 등) «왼쪽은 붙고 오른쪽만 패딩»이 됐다(현빈 2026-10-01, grd_ts0he_lvy913j).
      꺼져 있으면 이 함수는 아무것도 안 만진다(drag-utils 규약). */
@@ -2619,8 +2677,16 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     next.valign = partial.valign;
     applied.valign = partial.valign;
   }
-  if (Object.keys(next).length === 0 && !widthUnset) {
-    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/width/cellBorderWidth/cellBorderColor/cellBorderStyle/{col,row}Rule{On,Width,Color,Inset,Span}' };
+  /* ★G17 블럭 외곽선 — 켠 변 목록. 비우면(''·'none'·[]) 키를 «지워» 옛 뜻(없음)으로 돌린다. 모르는 변은 거절. */
+  let outlineUnset = false;
+  if (partial.blockOutline !== undefined) {
+    const v = _gridNormOutline(partial.blockOutline);
+    if (v === null) return { ok: false, code: 'INVALID', message: `blockOutline must list sides from ${GRID_OUTLINE_SIDES.join('|')} (comma string or array), or 'all' / 'none' / ''` };
+    if (v === '') outlineUnset = true; else next.blockOutline = v;
+    applied.blockOutline = v;
+  }
+  if (Object.keys(next).length === 0 && !widthUnset && !outlineUnset) {
+    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/width/cellBorderWidth/cellBorderColor/cellBorderStyle/{col,row}Rule{On,Width,Color,Inset,Span}/blockOutline' };
   }
 
   /* ⛔되돌림 명부에 «새 키»를 같이 넣어라 — 빠지면 RENDER_ERROR 롤백이 테두리만 남겨
@@ -2646,6 +2712,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     rowRuleSpan: block.dataset.rowRuleSpan,
     gridWidth: block.dataset.gridWidth,   // G2-a
     gridWidthAuto: block.dataset.gridWidthAuto,   // F3 후속 — 출처 표시도 같이 되돌린다
+    blockOutline: block.dataset.blockOutline,     // G17 — 블럭 외곽선
   };
   /* ★★★2026-09-30 — 되돌림 명부를 «스냅샷에서 뽑는다». 손으로 적지 않는다.
    *   ⛔무엇이 났나: 바로 위 ⛔주석이 「새 키를 같이 넣어라」라고 경고하는데, 나는 `before` 에는
@@ -2675,6 +2742,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   if (opts.noHistory !== true) window.pushHistory?.();
   Object.assign(block.dataset, next);
   if (widthUnset) delete block.dataset.gridWidth;
+  if (outlineUnset) delete block.dataset.blockOutline;
   if (partial.width !== undefined) delete block.dataset.gridWidthAuto;   // 사람이 정한 폭 — 자동 출처 표시를 뗀다
   try {
     renderGridBlock(block);
@@ -2851,6 +2919,7 @@ export {
   getGridWidth, _gridValidateWidth as gridValidateWidth, fitGridWidthToFreeFrame, syncAutoGridWidth,
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, MAX_CELL_LINES,
   _gridGaps as gridGaps, _gridCellsToDataset as gridCellsToDataset,
+  _gridBlockOutline as gridBlockOutline,   /* ★G17 — 패널이 «같은 읽는 문»을 쓴다 */
   _gridCellBorder as gridCellBorder,   /* ★T-172 — 패널이 «같은 읽는 문»을 쓴다(두 벌 금지) */
   /* ★GRID_CELL_FIELDS — 칸 필드의 «정본 명부». 패널(prop-grid.js)이 「이 열에 기본값이
      걸려 있나」를 물을 때 이걸 쓴다. ⛔패널 쪽에 이름을 베끼면 두 벌이 되어 따로 늙는다
