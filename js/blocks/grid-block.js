@@ -433,13 +433,26 @@ function _gridValidateGap(v, min = 0) {
  *   캡션이 갈린다. 올리려면 전 블록 동시 = 별건 발주(계획서 §8-8).
  * ★이 표는 «데이터»다. 렌더러가 이걸 실제로 쓰는 것은 §7-ⓐ 커밋(B) 한 줄이다 — 그 한 줄을
  *   되돌리면 기존 저장 프로젝트의 렌더가 오늘과 «바이트 동일»로 돌아온다. */
+/* ★굵기 = 텍스트 블럭 체계와 같게(G7, 지디 결정 2026-10-03 — 현빈 「레귤러, 세미볼드로 해야 맞음」):
+ *   css/editor-layout.css .tb-h1 700 · .tb-h2 600 · .tb-h3 600 · .tb-body 400(normal). 전엔 h1 800 · h2 700 · h3 700 이라
+ *   같은 「제목」이 그리드에선 한 단 굵었다. label 600 · body 400 은 그대로. 줄의 weight 필드가 있으면 그게 이긴다.
+ *   지키는 시험: tests/dom/grid-role-weight.dom.spec.js (computed 를 .tb-h* 와 대조). */
 const _GRID_ROLES = {
   label:   { size: 16, weight: 600, lh: 1.4, ls: '0.04em',  color: '#555555' },
-  h1:      { size: 64, weight: 800, lh: 1.1, ls: '-0.02em', color: '#111111' },
-  h2:      { size: 40, weight: 700, lh: 1.2, ls: '-0.01em', color: '#1a1a1a' },
-  h3:      { size: 28, weight: 700, lh: 1.3, ls: '0',       color: '#333333' },
+  h1:      { size: 64, weight: 700, lh: 1.1, ls: '-0.02em', color: '#111111' },
+  h2:      { size: 40, weight: 600, lh: 1.2, ls: '-0.01em', color: '#1a1a1a' },
+  h3:      { size: 28, weight: 600, lh: 1.3, ls: '0',       color: '#333333' },
   body:    { size: 22, weight: 400, lh: 1.6, ls: '0',       color: '#555555' },
   caption: { size: 14, weight: 400, lh: 1.5, ls: '0',       color: '#999999' },
+};
+/* ★G5(현빈 2026-10-03 「어두운 배경을 가진 섹션에 그리드 블럭 추가하면 안 보임, 텍스트 동적으로 되면 좋겠음」)
+ *   — 칸의 실제 배경이 «어두우면»(canvas-contrast.js textToneOver = 'light') 역할색 대신 이 표를 쓴다.
+ *   ★역할색은 고정값이지 사용자 지정이 아니다 ⇒ 자동 대상. line.color 가 있는 줄은 «안» 바뀐다.
+ *   값의 근거(WCAG, 어두운 섹션 4종 중 가장 밝은 #555 기준): h1·h2·h3 #fff 7.46 · label·body #f2f2f2 6.66 · caption #ccc 4.64
+ *   ★label·body 는 «새 값을 안 만든다»(지디 2026-10-03) — infocard-block.js 의 어두운 배경 글자색·G6 헤더와 같은 #f2f2f2.
+ *   — 셋 다 작은 글자 4.5 를 넘는다. 흰/검 경계(L≈0.18) 근처에선 caption 이 4.5 아래로 갈 수 있다(흰 배경 caption #999 2.85 와 같은 관례). */
+const _GRID_ROLE_COLOR_ON_DARK = {
+  label: '#f2f2f2', h1: '#ffffff', h2: '#ffffff', h3: '#ffffff', body: '#f2f2f2', caption: '#cccccc',
 };
 const _GRID_VALIGN = { top: 'flex-start', middle: 'center', bottom: 'flex-end' };
 /* ★칸/줄의 «가로 정렬» 명부 — 지금까지 이 파일엔 «표가 없었다».
@@ -1881,7 +1894,11 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
    *   경계 둘: ⑴ line.color 를 «명시한» 줄은 안 바뀐다(U2-b) ⑵ innercard 는 안 바뀐다(U2-c).
    */
   const strikeCss = line.strike === '1' ? 'text-decoration:line-through;' : '';
-  const effColor = color || (useRoleColor ? role.color : '');
+  /* ★G5 — useRoleColor 가 'light' 면 «어두운 배경 위» 역할색(_GRID_ROLE_COLOR_ON_DARK). 값을 늘리지 않고 이 인자에 싣는 까닭:
+   *   중첩(duo) 재귀가 useRoleColor 를 «그대로» 물려주므로 중첩 줄도 같은 톤을 받는다. true/false 산출은 «바이트 동일». */
+  const effColor = color || (useRoleColor
+    ? (useRoleColor === 'light' ? (_GRID_ROLE_COLOR_ON_DARK[line.type] || _GRID_ROLE_COLOR_ON_DARK.body) : role.color)
+    : '');
   // 뱃지/필: line.bg 지정 시 inline-block 필로 렌더 — 지정 bg가 조용히 탈락해
   // 카드 위 무배경 텍스트(색 반전처럼 보임)로 뭉개지던 케이스 방지 (2026-07-04 제니 발주)
   const bg = (typeof line.bg === 'string' && _GRID_COLOR_RE.test(line.bg.trim())) ? line.bg.trim() : '';
@@ -1948,6 +1965,26 @@ function renderGridBlock(block) {
   // ★행 높이는 «가중치»가 아니라 px 최소높이(minmax) — 3-A U5a 의미론. 'auto' 행은 내용 높이 그대로.
   const rowTemplate = rows.map(r => r.height === 'auto' ? 'auto' : `minmax(${r.height}px, auto)`).join(' ');
 
+  /* ★G5 글자 톤 — 블럭 자리의 실제 배경(섹션/프레임, computed)을 한 번 재고, 칸 배경이 있으면 그 위에 합성해 칸마다 가른다.
+     못 재면(떼어진 노드·그라데이션·이미지) null → 역할색 그대로(지금과 같음).
+     ★자동 색은 «렌더 결과(인라인 color)»에만 산다 — data-cols 는 안 바뀐다. data-text-tone 은 관찰자가 「다시 그릴까」를 가르는 파생 표식. */
+  /* ⛔import 하지 않고 전역으로 받는다 — 이 파일을 tmpdir 로 베껴 도는 단위시험 18개가 import 줄을 «글자로» 갈아 끼운다.
+     새 import 를 늘리면 그 사본이 전부 못 뜬다. canvas-contrast.js 는 앱 부팅에 늘 실린다(prop-page·save-load 가 import).
+     없으면(단위시험) 톤 = null → 역할색 그대로 = 오늘과 바이트 동일. 앱에 실렸는지는 DOM 시험 T0 이 «전제»로 단언한다. */
+  const _tt = globalThis.__gdTextTone;
+  const backdropRgbAt = _tt ? _tt.backdropRgbAt : () => null;
+  const textToneOver = _tt ? _tt.textToneOver : () => null;
+  const _under = backdropRgbAt(block);
+  const _blockTone = textToneOver(_under);
+  if (block.dataset) {
+    if (_blockTone === 'light') block.dataset.textTone = 'light';
+    else delete block.dataset.textTone;
+  }
+  const _cellTone = (bg) => {
+    if (!bg) return _blockTone === 'light' ? 'light' : true;
+    const rgb = backdropRgbAt(block, bg);
+    return textToneOver(rgb) === 'light' ? 'light' : true;
+  };
   const cellsHtml = [];
   for (let r = 0; r < rows.length; r++) {
     for (let c = 0; c < cols.length; c++) {
@@ -2024,7 +2061,7 @@ function renderGridBlock(block) {
       const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), colGapPx);
       const pullUp = rowGapPx < 0 && r > 0 ? `margin-top:${rowGapPx}px;` : '';   // 음수 행 간격 = 위 줄로 당긴다(GRID_ROW_GAP_MIN 주석)
       cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}">
-        ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, true)).join('')}
+        ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, _cellTone(bg))).join('')}
       </div>`);
     }
   }
