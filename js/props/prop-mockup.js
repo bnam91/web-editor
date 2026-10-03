@@ -2,6 +2,7 @@
 
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { checkerBg } from '../checker-tokens.js';
 import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C } from '../io/capture-safety.js';
 
 export function showMockupProperties(block) {
@@ -284,7 +285,7 @@ async function _captureAndApply(block, sec) {
 }
 
 // asset-block과 동일한 체커보드 패턴
-const _CHECKER_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
+const _checkerBg = () => checkerBg('big');   // 값은 CSS --goya-checker-big-* 에서 «읽는다»(js/checker-tokens.js)
 
 // backgroundSize 'cover'(디자인 규약 — asset/section/banner 등 전 블록 공용 기본값)로 화면을 꽉 채운다.
 // 예전 '100% auto'는 원본 섹션이 폰 화면(세로로 긴 화면)보다 넓고 낮은 게 보통이라
@@ -296,7 +297,7 @@ function _applyScreenImage(block, src) {
   screen.style.backgroundSize     = 'cover';
   screen.style.backgroundPosition = 'top center';
   screen.style.backgroundRepeat   = 'no-repeat';
-  screen.style.background         = `url('${src}') top center / cover no-repeat, ${_CHECKER_BG}`;
+  screen.style.background         = `url('${src}') top center / cover no-repeat, ${_checkerBg()}`;
   screen.innerHTML = '';
 }
 

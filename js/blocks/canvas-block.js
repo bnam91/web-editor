@@ -9,6 +9,7 @@
 
 import { genId, showNoSelectionHint, insertAfterSelected, colorLuminance } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
+import { checkerBg } from '../checker-tokens.js';
 
 // slot: null | 'top' | 'bottom' — labelPos='both'일 때 상/하단 라벨이 서로 다른 내용·색을 갖도록 분리.
 //   - slot==='top'    → card.titleTop/descTop (없으면 card.title/desc fallback), 색은 titleColorTop/descColorTop (없으면 블록색)
@@ -173,7 +174,7 @@ function _fillCardIcon(div, card, areaSize, opts) {
  *   ⚠️상수를 지우지 않고 남긴 이유: 위 「6벌 흩어짐」 기록이 이 주석에 달려 있고,
  *     그 리팩터(export-figma-json 판정기 포함)는 아직 안 했다. 값이 아니라 «기록»이 자산이다. */
 // eslint-disable-next-line no-unused-vars
-const _CVB_CHECKER_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
+const _CVB_CHECKER_BG = () => checkerBg('big');   // 값은 CSS --goya-checker-big-* 에서 «읽는다»(js/checker-tokens.js)
 
 const _CVB_EDIT_SEL = '.cvb-card-title, .cvb-card-desc, .cvb-card-ph';
 // patchCards 로 보낼 수 있는 필드만. 렌더러(_appendCardTexts)가 찍는 값과 «같은 목록»이어야 한다.
