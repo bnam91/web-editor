@@ -76,7 +76,7 @@ test('CP 체커 자리 전부 — 변수화 전(골든)과 «0 픽셀» 다르�
     const r = await diffPng(page, fs.readFileSync(gp).toString('base64'), shot);
     expect(r.colors, `${s.id} 전제 — 그림에 색이 둘 이상(빈 그림끼리 같다는 거짓 초록 방지)`).toBeGreaterThanOrEqual(2);
     report.push(`${s.id}: ${r.size.join('x')} diff=${r.diff} colors=${r.colors}`);
-    expect(r.diff, `${s.id} 다른 픽셀 수`).toBe(0);
+    expect.soft(r.diff, `${s.id} 다른 픽셀 수`).toBe(0);   // soft — 한 자리가 틀려도 «어느 자리들이» 틀렸는지 전부 보인다
   }
   console.log('[checker-pixel]\n' + report.join('\n'));
   expect(errs, '페이지 오류 0').toEqual([]);
