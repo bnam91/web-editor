@@ -322,8 +322,180 @@ function _gridApplyBlockOutline(block) {
   const cap = (sd) => 'border' + sd[0].toUpperCase() + sd.slice(1);
   const trace = GRID_OUTLINE_SIDES.some(sd => st[cap(sd) + 'Style']);
   if (!any && !trace) return;
-  const line = `${o.width}px ${o.style} ${o.color}`;
+  /* ★G12 안 A(지디 GO 2026-10-04) — 블럭 배경을 켜면 선은 «배경 바깥 가장자리»가 긋는다(.grd-edge · _gridBlockBgHtml).
+     블럭 자기 테두리는 «색만» 투명으로 — 두께는 남겨 칸 자리가 1px 도 안 움직이게(배경 층이 그 자리를 덮어 어차피 안 보인다: 설계 실측 M3). */
+  const color = _gridBlockBg(block).on ? 'transparent' : o.color;
+  const line = `${o.width}px ${o.style} ${color}`;
   for (const sd of GRID_OUTLINE_SIDES) st[cap(sd)] = o.on[sd] ? line : '';
+}
+
+/* ══ ★블럭 배경 (G12 · 2026-10-04, 현빈 안 ㄴ 「배경 여백만큼 바깥까지」) ═══════════════════════════
+ * 뜻: 그리드 «블럭 전체» 뒤에 배경(색·이미지·위치·투명도)을 깔고, 그 배경을 블럭 상자 «바깥»으로
+ *   상하·좌우 「배경 여백」만큼 넓힌다. ⛔이웃을 밀지 않고(마진 아님) 칸을 줄이지 않는다(패딩 아님) —
+ *   레이아웃·폭 모델(data-grid-width)·드롭 판정 사각형은 한 픽셀도 안 바뀐다(설계 실측 M2).
+ * ★그리는 자리 = 셸의 «맨 앞» 절대배치 층 `.grd-bg`(z-index:-1 · pointer-events:none) ＋ 블럭에 isolation:isolate.
+ *   ⛔z-index:-1 «만»으로는 안 된다 — 색 있는 «프레임 안»의 그리드면 −1 층이 섹션 맥락으로 빠져 프레임 배경
+ *     «밑»에 깔린다(설계 실측 M1 S1: 띠 자리 픽셀 = 프레임색 #ffeeaa ⇒ 켰는데 안 보이는 «거짓 켬»).
+ *   ⚠️★알고 넣는 대가(지디 GO 2026-10-04): isolation 을 건 그리드는 위치지정 이웃과 «트리 순서»로 겹친다 —
+ *     배경 여백이 이웃 간격보다 크면 «배경을 켜면 바로 위 프레임을 가릴 수 있다»(실측 M1 S3: 위 빨강 프레임 → 배경색).
+ *     텍스트블럭은 z-index:2 라 늘 위다(실측). 릴리스 노트 후보.
+ *   ⚠️★같은 줄기의 대가 둘째(지디 GO B6n): «배경 여백이 아래 블럭과 겹치면 그 블럭이 바깥 선(G17 안 A)을 덮는다» —
+ *     아래 텍스트블럭(z 2)이 띠·선 위로 칠해진다(grid-block-bg B6n 이 픽셀로 잰다). 릴리스 노트 후보.
+ *   ★z-index 가 아니라 isolation 인 까닭: 떠 있는 그리드는 `.section-block > [data-overlay-block]{z-index:80 !important}` 가 z 를 쥔다.
+ * ★섹션 밖은 잘린다 — `.section-inner{overflow-x:clip}`. 「좌우 패딩 제외」(fullBleed)로 펴면 띠가 섹션 가장자리에서 끊긴다 = 맞는 동작.
+ * ★정본 = dataset 키 일곱(`blockBg*`). ⛔프레임의 bg/bgImg 이름을 «안» 쓴다 — 내보내기 GENERIC 폴백
+ *   (export-figma-json.js `bg: ds.bg`)이 그 이름을 «상자 크기 그대로» 칠한다(띠·끔·투명도를 모른다).
+ *   `blockBgOn` 이 «없으면» = 꺼짐 ⇒ 옛 저장본은 style·innerHTML «한 바이트도» 안 바뀐다(렌더 가드).
+ *   끄면 `blockBgOn` 만 지운다 — 색·여백은 남아 다시 켜면 돌아온다. 전부 지우는 문은 `blockBg:null` 하나.
+ * ⛔`background` 축약·`inset` 축약을 쓰지 마라 — HTML 내보내기는 `[style*="background-image"]` 만 asset 을 풀고
+ *   (export-html.js inlineGoyaAssets), PNG html2canvas 길은 inset 을 못 읽는다(export-image.js). */
+export const GRID_BLOCK_BG_KEYS = ['blockBgOn', 'blockBgColor', 'blockBgImg', 'blockBgPos', 'blockBgOpacity', 'blockBgPadY', 'blockBgPadX'];
+export const GRID_BLOCK_BG_DEFAULTS = { color: '#f5f5f5', pos: 'center center', opacity: 100, padY: 16, padX: 16 };
+export const GRID_BLOCK_BG_PAD_Y_MAX = 200;   // 프레임 「상하 패딩」과 같은 범위(prop-frame.js ss-pady 0~200)
+export const GRID_BLOCK_BG_PAD_X_MAX = 100;   // 프레임 「좌우 패딩」과 같은 범위(prop-frame.js ss-padx 0~100)
+export const GRID_BLOCK_BG_POS_X = ['left', 'center', 'right'];
+export const GRID_BLOCK_BG_POS_Y = ['top', 'center', 'bottom'];
+/* 이미지 — data:image 또는 goya-asset:// 만. ★따옴표·괄호·공백·꺾쇠가 «없어야» url('…') 안에 안전하게 선다. */
+const _GRID_BG_IMG_RE = /^(data:image\/[a-zA-Z0-9.+-]+[;,]|goya-asset:\/\/)[^"'()<>\s\\]*$/;
+/* 색 — 칸 배경과 «같은» _GRID_COLOR_RE ＋ style 속성 안에 서므로 따옴표·꺾쇠는 거절. */
+const _gridBgColorOk = (v) => typeof v === 'string' && _GRID_COLOR_RE.test(v.trim()) && !/["'<>]/.test(v);
+
+/** 'x y' 정본 꼴로 — 'left top' · 'center' · 'right bottom' … · 모르는 낱말이면 null. */
+function _gridNormBgPos(v) {
+  if (typeof v !== 'string') return null;
+  const p = v.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (p.length === 1 && p[0] === 'center') return 'center center';
+  if (p.length !== 2) return null;
+  let [x, y] = p;
+  if (GRID_BLOCK_BG_POS_Y.includes(x) && GRID_BLOCK_BG_POS_X.includes(y) && !(GRID_BLOCK_BG_POS_X.includes(x) && GRID_BLOCK_BG_POS_Y.includes(y))) [x, y] = [y, x];
+  return (GRID_BLOCK_BG_POS_X.includes(x) && GRID_BLOCK_BG_POS_Y.includes(y)) ? `${x} ${y}` : null;
+}
+/** 정수 0~max 이면 그 값, 아니면 null(거절). */
+function _gridBgInt(v, max) {
+  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
+  if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+  const r = Math.round(n);
+  return r >= 0 && r <= max ? r : null;
+}
+
+/** 블럭 배경 — {on, color, img, pos, opacity, padY, padX}. ★패널·렌더러·내보내기가 «같은 이 함수»를 본다.
+ *  ⛔저장값이 꼴이 틀리면(손으로 고친 파일) 그 칸만 «기본값»으로 읽는다 — 짐작해 고치지 않는다. */
+function _gridBlockBg(block) {
+  const ds = (block && block.dataset) || {};
+  const D = GRID_BLOCK_BG_DEFAULTS;
+  const pick = (raw, max, d) => { const v = _gridBgInt(raw, max); return v === null ? d : v; };
+  return {
+    on: ds.blockBgOn === '1',
+    color: _gridBgColorOk(ds.blockBgColor) ? ds.blockBgColor.trim() : D.color,
+    img: typeof ds.blockBgImg === 'string' && _GRID_BG_IMG_RE.test(ds.blockBgImg) ? ds.blockBgImg : '',
+    pos: _gridNormBgPos(ds.blockBgPos) || D.pos,
+    opacity: pick(ds.blockBgOpacity, 100, D.opacity),
+    padY: pick(ds.blockBgPadY, GRID_BLOCK_BG_PAD_Y_MAX, D.padY),
+    padX: pick(ds.blockBgPadX, GRID_BLOCK_BG_PAD_X_MAX, D.padX),
+  };
+}
+
+/** 블럭 외곽선의 «변마다 굵기»(px) — 켠 변만 o.width, 아니면 0. ★계산된 스타일을 «안» 읽는다(단위 하네스 대역 style 에서도 돈다).
+ *  절대배치 기준은 «패딩 상자»라 띠를 바깥 상자에서 재려면 이 굵기를 더해야 한다(설계 실측: 안 더하면 40 → 38px). */
+function _gridOutlineWidths(block) {
+  const o = _gridBlockOutline(block);
+  const w = {};
+  for (const sd of GRID_OUTLINE_SIDES) w[sd] = o.on[sd] ? o.width : 0;
+  return { o, w };
+}
+
+/** `.grd-bg` 한 덩이의 HTML — 꺼져 있으면 ''(⇒ 셸 문자열이 옛 줄과 바이트 동일). */
+function _gridBlockBgHtml(block) {
+  const bg = _gridBlockBg(block);
+  if (!bg.on) return '';
+  const { w } = _gridOutlineWidths(block);
+  const t = bg.padY + w.top, b = bg.padY + w.bottom, l = bg.padX + w.left, r = bg.padX + w.right;
+  let st = `position:absolute;top:${-t}px;right:${-r}px;bottom:${-b}px;left:${-l}px;z-index:-1;pointer-events:none;background-color:${bg.color};`;
+  if (bg.img) st += `background-image:url('${bg.img}');background-size:cover;background-repeat:no-repeat;background-position:${bg.pos};`;
+  if (bg.opacity < 100) st += `opacity:${bg.opacity / 100};`;
+  /* ★G17 겹침 — 안 A: 외곽선은 «배경 바깥 가장자리»에(띠가 곧 블럭의 보이는 크기). 같은 사각형 · 배경 «뒤» 형제라 그 위에 칠해진다.
+     ⛔배경 층 안에 넣지 않는다 — 불투명도가 선까지 옅게 만든다. 켠 변이 없으면 이 덩이도 없다. */
+  const { o } = _gridOutlineWidths(block);
+  let edge = '';
+  if (GRID_OUTLINE_SIDES.some(sd => o.on[sd])) {
+    const line = `${o.width}px ${o.style} ${o.color}`;
+    const sides = GRID_OUTLINE_SIDES.map(sd => `border-${sd}:${o.on[sd] ? line : '0'};`).join('');
+    edge = `<div class="grd-edge" aria-hidden="true" style="position:absolute;top:${-t}px;right:${-r}px;bottom:${-b}px;left:${-l}px;z-index:-1;pointer-events:none;box-sizing:border-box;${sides}"></div>`;
+  }
+  return `<div class="grd-bg" aria-hidden="true" style="${st}"></div>${edge}`;
+}
+
+/** 직계 배경 층(.grd-bg·.grd-edge)을 html 로 맞춘다 — 같으면 안 만진다. */
+function _gridSyncBgLayer(block, html) {
+  const old = block.children ? [...block.children].filter(ch => ch.classList && (ch.classList.contains('grd-bg') || ch.classList.contains('grd-edge'))) : [];   // 단위 하네스 대역 block 엔 children 이 없을 수 있다
+  if (!html && !old.length) return;
+  if (old.map(n => n.outerHTML).join('') === html) return;
+  old.forEach(n => n.remove());
+  if (html) block.insertAdjacentHTML('afterbegin', html);
+}
+
+/** 블럭 style 의 쌓임 — 켰을 때만 isolation. ★켠 적이 없고 흔적도 없으면 «아무것도 안 만진다»(옛 저장본 style 바이트 동일). */
+function _gridApplyBlockBgStacking(block) {
+  const on = _gridBlockBg(block).on;
+  const st = block.style;
+  if (on) st.isolation = 'isolate';
+  else if (st.isolation) st.isolation = '';
+}
+
+/** ★슬라이더가 끄는 동안 — 재렌더 없이 `.grd-bg` «한 노드»만 같은 HTML 로 갈아끼운다(두 벌 금지: 렌더와 같은 _gridBlockBgHtml).
+ *  층이 없거나 켬/끔이 바뀌면 통째 렌더로 넘긴다. @returns {boolean} 그 노드만으로 끝났나 */
+export function applyGridBlockBg(block) {
+  if (!block || !block.classList || !block.classList.contains('grid-block')) return false;
+  const cur = block.querySelector(':scope > .grd-bg');
+  const html = _gridBlockBgHtml(block);
+  if (!cur || !html) { renderGridBlock(block); return false; }
+  const old = [cur, ...block.querySelectorAll(':scope > .grd-edge')];   // 옛 배경·옛 선을 «먼저» 쥐고
+  cur.insertAdjacentHTML('beforebegin', html);                           // 새 것을 그 앞에 넣은 뒤
+  old.forEach(n => n.remove());                                          // 옛 것만 걷는다
+  /* ★G12·C5 — 색·투명도를 끄는 동안 글자 톤이 뒤집히면(밝은 배경 ↔ 어두운 배경) 그때만 통째로 다시 그린다.
+     ⛔관찰자가 이걸 못 잡는다 — 그리드 «안»의 노드 교체는 «자기 렌더»로 보고 건너뛴다(canvas-contrast installTextToneObserver). */
+  const _tt = globalThis.__gdTextTone;
+  if (_tt && ((_tt.textToneAt(block) === 'light' ? 'light' : '') !== (block.dataset.textTone || ''))) renderGridBlock(block);
+  return true;
+}
+if (typeof window !== 'undefined') { window.applyGridBlockBg = applyGridBlockBg; window.gridBlockBg = _gridBlockBg; }   // gridBlockBg: 내보내기(분리 문서·import 안 함)가 «같은 읽는 문»을 쓴다
+
+/** 입구 하나(만드는 문·고치는 문) — `blockBg` 값을 dataset 쓰기 계획으로. 
+ *  @returns {{error:string}|{set:Object, del:string[]}}
+ *  · null → 일곱 키 전부 지움 · 하위 키 null → 그 키만 지움(= 기본값) · 모르는 하위 키 → 거절 */
+const _GRID_BG_SUBKEYS = { on: 'blockBgOn', color: 'blockBgColor', image: 'blockBgImg', pos: 'blockBgPos', opacity: 'blockBgOpacity', padY: 'blockBgPadY', padX: 'blockBgPadX' };
+function _gridIntakeBlockBg(v, trusted) {
+  if (v === null) return { set: {}, del: GRID_BLOCK_BG_KEYS.slice() };
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return { error: 'blockBg must be an object {on,color,image,pos,opacity,padY,padX} or null (= remove all)' };
+  const unknown = Object.keys(v).filter(k => !(k in _GRID_BG_SUBKEYS));
+  if (unknown.length) return { error: `blockBg: unknown field(s) ${unknown.join(', ')} — expected ${Object.keys(_GRID_BG_SUBKEYS).join('/')}` };
+  const set = {}, del = [];
+  for (const [k, raw] of Object.entries(v)) {
+    const key = _GRID_BG_SUBKEYS[k];
+    if (raw === null || raw === undefined) { del.push(key); continue; }
+    if (k === 'on') {
+      if (typeof raw !== 'boolean') return { error: 'blockBg.on must be true/false' };
+      if (raw) set[key] = '1'; else del.push(key);
+    } else if (k === 'color') {
+      if (!_gridBgColorOk(raw)) return { error: `blockBg.color ${JSON.stringify(raw)} is not a color (#hex · rgb()/rgba() · var(--x))` };
+      set[key] = raw.trim();
+    } else if (k === 'image') {
+      if (raw === '') { del.push(key); continue; }
+      if (typeof raw !== 'string' || !_GRID_BG_IMG_RE.test(raw)) return { error: 'blockBg.image must be a data:image/… or goya-asset:// URL (no quotes/spaces), or "" / null to remove' };
+      if (!trusted && raw.length > GRID_IMG_MAX_CHARS) return { error: `blockBg.image is ${raw.length} chars — over ${GRID_IMG_MAX_CHARS}` };
+      set[key] = raw;
+    } else if (k === 'pos') {
+      const p = _gridNormBgPos(raw);
+      if (!p) return { error: `blockBg.pos must be "<${GRID_BLOCK_BG_POS_X.join('|')}> <${GRID_BLOCK_BG_POS_Y.join('|')}>"` };
+      set[key] = p;
+    } else {
+      const max = k === 'opacity' ? 100 : (k === 'padY' ? GRID_BLOCK_BG_PAD_Y_MAX : GRID_BLOCK_BG_PAD_X_MAX);
+      const n = _gridBgInt(raw, max);
+      if (n === null) return { error: `blockBg.${k} must be 0~${max}` };
+      set[key] = String(n);
+    }
+  }
+  return { set, del };
 }
 
 /** 경계 목록을 «경계 수»에 맞춘다 — 넘치면 자르고 모자라면 0 으로 채운다.
@@ -2012,6 +2184,7 @@ function renderGridBlock(block) {
   else if (block.dataset.overlayFrozenWidth) block.style.width = block.dataset.overlayFrozenWidth;
   block.style.boxSizing = 'border-box';
   _gridApplyBlockOutline(block);   // ★G17 블럭 외곽선 — 키 없으면 아무것도 안 만진다(옛 저장본 바이트 동일)
+  _gridApplyBlockBgStacking(block);   // ★G12 블럭 배경 — 켰을 때만 isolation(끄면 흔적만 걷는다)
   /* ★「좌우 패딩 제외」가 켜져 있으면 폭을 다시 건다 — 위 한 줄이 폭만 100% 로 되돌리고 음수 마진은 남겨서
      다시 그릴 때마다(열 간격 끌기 등) «왼쪽은 붙고 오른쪽만 패딩»이 됐다(현빈 2026-10-01, grd_ts0he_lvy913j).
      꺼져 있으면 이 함수는 아무것도 안 만진다(drag-utils 규약). */
@@ -2032,6 +2205,10 @@ function renderGridBlock(block) {
   const _tt = globalThis.__gdTextTone;
   const backdropRgbAt = _tt ? _tt.backdropRgbAt : () => null;
   const textToneOver = _tt ? _tt.textToneOver : () => null;
+  /* ★G12 — 톤을 재기 «전»에 배경 층을 이번 모델로 맞춰 둔다(켤 때 첫 렌더엔 층이 아직 없고, 끌 때는 옛 층이 남아 있다).
+     판정은 canvas-contrast 의 backdropRgbAt 이 «층의 계산된 값»으로 한다 — 관찰자(textToneAt)와 «같은 자»라 서로 안 다툰다.
+     ⛔꺼져 있고 층도 없으면 DOM 을 안 만진다(옛 저장본 바이트 동일). */
+  _gridSyncBgLayer(block, _gridBlockBgHtml(block));
   const _under = backdropRgbAt(block);
   const _blockTone = textToneOver(_under);
   if (block.dataset) {
@@ -2128,7 +2305,8 @@ function renderGridBlock(block) {
      옛 줄은 `block.innerHTML = …` 통째 교체라 재렌더(칸 편집·폭·로드·rebindAll)마다 자식이 지워졌다(측정 M1·M2).
      ⛔html 문자열은 «옛 줄 그대로»다 — 자식이 없으면 replaceShellKeepChildren 이 옛 줄과 «같은 대입»을 한다
        ⇒ 기존 그리드 렌더 바이트 동일(지키는 시험: grid-block-width-model W0 · grid-children-shell-bytes). */
-  replaceShellKeepChildren(block, `<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${Math.max(0, rowGapPx)}px;column-gap:${colGapPx}px;width:100%;">
+  /* ★G12 — 배경 층은 셸 «맨 앞»(꺼지면 '' ⇒ 옛 줄과 바이트 동일). 셸이라 매 렌더 «데이터에서» 다시 선다. */
+  replaceShellKeepChildren(block, `${_gridBlockBgHtml(block)}<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${Math.max(0, rowGapPx)}px;column-gap:${colGapPx}px;width:100%;">
     ${cellsHtml.join('')}
   </div>`, GRID_CHILDREN_CLASS);
 }
@@ -2252,6 +2430,12 @@ function makeGridBlock(opts = {}, drops = []) {
   if (opts.cellBorderWidth !== undefined) { const v = _gridValidateBorderWidth(opts.cellBorderWidth); if (v !== null) block.dataset.cellBorderWidth = String(v); }
   if (typeof opts.cellBorderColor === 'string' && _GRID_COLOR_RE.test(opts.cellBorderColor.trim())) block.dataset.cellBorderColor = opts.cellBorderColor.trim();
   if (GRID_BORDER_STYLES.includes(opts.cellBorderStyle)) block.dataset.cellBorderStyle = opts.cellBorderStyle;
+  /* ★G12 블럭 배경 — 고치는 문과 «같은» 입구. 만드는 문은 거절 대신 «말하고 버린다»(이 함수의 drops 규약). */
+  if (opts.blockBg !== undefined && opts.blockBg !== null) {
+    const plan = _gridIntakeBlockBg(opts.blockBg, false);   // ⛔opts 는 MCP JSON 일 수 있다 — trusted 를 여기서 안 읽는다
+    if (plan.error) drops.push({ path: 'blockBg', why: `${plan.error} — the block was made without a background` });
+    else Object.assign(block.dataset, plan.set);
+  }
   if (opts.valign !== undefined && !GRID_VALIGN_VALUES.includes(opts.valign)) {
     drops.push({ path: 'valign', why: `${JSON.stringify(opts.valign)} is not one of ${GRID_VALIGN_VALUES.join('|')} — `
       + `the block fell back to '${GRID_DEFAULTS.valign}' without a word (update_grid_block REFUSES the same value)` });
@@ -2709,8 +2893,16 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     if (v === '') outlineUnset = true; else next.blockOutline = v;
     applied.blockOutline = v;
   }
-  if (Object.keys(next).length === 0 && !widthUnset && !outlineUnset) {
-    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/width/cellBorderWidth/cellBorderColor/cellBorderStyle/{col,row}Rule{On,Width,Color,Inset,Span}/blockOutline' };
+  /* ★G12 블럭 배경 — 하위 키 일곱을 «한 값»으로 받는다. null = 전부 지움 · 하위 null = 그 키만(기본값). 모르는 하위 키는 거절. */
+  let bgDel = [];
+  if (partial.blockBg !== undefined) {
+    const plan = _gridIntakeBlockBg(partial.blockBg, !!(opts && opts.trusted === true));
+    if (plan.error) return { ok: false, code: 'INVALID', message: plan.error };
+    Object.assign(next, plan.set);
+    bgDel = plan.del.filter(k => !(k in plan.set));
+  }
+  if (Object.keys(next).length === 0 && !widthUnset && !outlineUnset && !bgDel.length) {
+    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/width/cellBorderWidth/cellBorderColor/cellBorderStyle/{col,row}Rule{On,Width,Color,Inset,Span}/blockOutline/blockBg' };
   }
 
   /* ⛔되돌림 명부에 «새 키»를 같이 넣어라 — 빠지면 RENDER_ERROR 롤백이 테두리만 남겨
@@ -2737,6 +2929,10 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     gridWidth: block.dataset.gridWidth,   // G2-a
     gridWidthAuto: block.dataset.gridWidthAuto,   // F3 후속 — 출처 표시도 같이 되돌린다
     blockOutline: block.dataset.blockOutline,     // G17 — 블럭 외곽선
+    /* G12 — 블럭 배경 일곱 키(GRID_BLOCK_BG_KEYS 와 같은 줄) */
+    blockBgOn: block.dataset.blockBgOn, blockBgColor: block.dataset.blockBgColor, blockBgImg: block.dataset.blockBgImg,
+    blockBgPos: block.dataset.blockBgPos, blockBgOpacity: block.dataset.blockBgOpacity,
+    blockBgPadY: block.dataset.blockBgPadY, blockBgPadX: block.dataset.blockBgPadX,
   };
   /* ★★★2026-09-30 — 되돌림 명부를 «스냅샷에서 뽑는다». 손으로 적지 않는다.
    *   ⛔무엇이 났나: 바로 위 ⛔주석이 「새 키를 같이 넣어라」라고 경고하는데, 나는 `before` 에는
@@ -2767,6 +2963,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   Object.assign(block.dataset, next);
   if (widthUnset) delete block.dataset.gridWidth;
   if (outlineUnset) delete block.dataset.blockOutline;
+  bgDel.forEach(k => { delete block.dataset[k]; });
   if (partial.width !== undefined) delete block.dataset.gridWidthAuto;   // 사람이 정한 폭 — 자동 출처 표시를 뗀다
   try {
     renderGridBlock(block);
@@ -2786,6 +2983,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
      것이 곧 렌더러가 읽는 것이라, 이 값은 «화면과 같은 말»이 된다(메아리는 그렇지 않았다). */
   if (appliedCellsPending) applied.cells = _gridRenderedCells(getGridModel(block).cells);
   if (appliedColsPending) applied.cols = _gridRenderedCols(getGridModel(block).cols);
+  if (partial.blockBg !== undefined) applied.blockBg = _gridBlockBg(block);   // ★G12 — «커밋 뒤» 읽은 값(메아리 아님)
   const res = _gridAttachNotApplied({ ok: true, blockId, before, applied }, drops);
   /* ★T-176 — 「안 된 것」(ignoredProps/hint)과 «다른 칸»에 담는다. 잘림은 «된 것»이다 — 일부러
      그렇게 정해진 동작이라 「적용 안 됨」으로 세면 거짓말이 된다. 말은 하되 뜻은 안 섞는다. */
@@ -2944,6 +3142,7 @@ export {
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, MAX_CELL_LINES,
   _gridGaps as gridGaps, _gridCellsToDataset as gridCellsToDataset,
   _gridBlockOutline as gridBlockOutline,   /* ★G17 — 패널이 «같은 읽는 문»을 쓴다 */
+  _gridBlockBg as gridBlockBg,   /* ★G12 — 패널·내보내기가 «같은 읽는 문»을 쓴다 */
   _gridCellBorder as gridCellBorder,   /* ★T-172 — 패널이 «같은 읽는 문»을 쓴다(두 벌 금지) */
   /* ★GRID_CELL_FIELDS — 칸 필드의 «정본 명부». 패널(prop-grid.js)이 「이 열에 기본값이
      걸려 있나」를 물을 때 이걸 쓴다. ⛔패널 쪽에 이름을 베끼면 두 벌이 되어 따로 늙는다
