@@ -55,8 +55,14 @@ async function select(page) {
   await page.mouse.click(x, y); await page.waitForTimeout(250);
 }
 async function toggleFloat(page) { await page.click('#grd-float-toggle'); await page.waitForTimeout(300); }
+/* ⚠️칸을 누른 «뒤» 한 틱을 기다린다 — js/editor.js 의 focusin 이 값 전체 선택을 setTimeout(0) 으로 미룬다.
+   기계 타이핑(키 사이 <1ms)이 그 타이머보다 앞서면, 첫 글자를 친 «뒤»에 select() 가 끼어 나머지 글자가 그걸 덮는다
+   (「500」 → 「00」 = 0 → 하한 40). ×8 에서 P1·P2 가 1/8~1/12 로 그렇게 빨개졌고, 강제 재현(첫 글자 뒤 select())이 key=40 을 냈다.
+   같은 0ms 타이머는 넣은 순서대로 돈다 ⇒ 우리 타이머 하나를 돌리면 그 select 가 «이미» 끝나 있다.
+   (사람 손은 키 사이 수십~수백 ms 라 이 경주에 안 걸린다 — 제품 동작은 손대지 않았다.) */
 async function typeWidth(page, v) {
   await page.click('#grd-width-number', { clickCount: 3 });
+  await page.evaluate(() => new Promise(r => setTimeout(r, 0)));
   await page.keyboard.type(String(v)); await page.keyboard.press('Enter'); await page.waitForTimeout(250);
 }
 const handles = (page) => page.evaluate(() => [...document.querySelectorAll('#ss-handles-overlay .grd-overlay-handle')]
