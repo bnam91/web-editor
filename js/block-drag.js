@@ -16,7 +16,7 @@ import {
   selectAllEditableContents,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
-import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame } from './frame-geometry.js';
+import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding } from './frame-geometry.js';
 import {
   dragState,
   _suppressDragSave,
@@ -746,7 +746,7 @@ function bindBlock(block) {
       if (_clampParent) {
         const _c = clampChildIntoFrame(
           newLeft, newTop, dragEl.offsetWidth, dragEl.offsetHeight,
-          _clampParent.offsetWidth, _clampParent.offsetHeight);
+          _clampParent.offsetWidth, _clampParent.offsetHeight, framePadding(_clampParent));
         newLeft = _c.left;
         newTop  = _c.top;
       }
@@ -2737,13 +2737,14 @@ function bindFrameDropZone(ss) {
          ⚠️dataset.offsetX 는 여기서 갱신하지 않는다 — 이 루프는 원래부터 안 했고(figma export가
            읽는 값이라 이미 낡아 있다), 이번 변경의 축을 «left 값 하나»로 묶어두기 위해서다. */
       const _fv = frameVisibleSize(inner);
-      let _stackY = 0;
+      const _fpad = framePadding(inner);   // F5
+      let _stackY = _fpad.t;
       [...inner.children].forEach(b => {
         if (b.classList.contains('drop-indicator')) return;
         if (b.style.position === 'absolute') {
           b.style.top  = _stackY + 'px';
-          const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null);
-          b.style.left = Math.max(0, _off.left) + 'px';
+          const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null, _fpad);
+          b.style.left = Math.max(_fpad.l, _off.left) + 'px';
         }
         _stackY += (b.offsetHeight || 60) + 16;
       });

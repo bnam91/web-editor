@@ -255,6 +255,10 @@
       inner.style.removeProperty('--gdt-pad-l');
       inner.style.removeProperty('--gdt-pad-r');
     });
+    root.querySelectorAll('.frame-block').forEach(fb => {   // 프레임 좌우 패딩(F5)도 같은 띠 — 위 줄(정규식 검사가 지킨다)은 그대로 둔다
+      fb.style.removeProperty('--gdt-pad-l');
+      fb.style.removeProperty('--gdt-pad-r');
+    });
     // 섹션 임시 스타일 제거 — 미리보기/썸네일용 scale transform 이 저장에 포함되지 않도록
     root.querySelectorAll('.section-block').forEach(sec => {
       sec.style.transform       = '';

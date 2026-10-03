@@ -433,7 +433,8 @@ body.gdt-grid-on .section-inner {
    ⛔내보내기 전에는 반드시 꺼야 한다(js/io/export-image.js 의 exportSection 가드).
    ═══════════════════════════════════════════════════════════ */
 body.gdt-pad-on .section-inner { position: relative; }
-body.gdt-pad-on .section-inner::before {
+body.gdt-pad-on .section-inner::before,
+body.gdt-pad-on .frame-block:not(.has-bg-opacity)[style*="--gdt-pad-l"]::before {
   content: '';
   position: absolute;
   inset: 0;

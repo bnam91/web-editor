@@ -3,8 +3,8 @@
 ══════════════════════════════════════ */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { bindSlider, alignBtn, blockHeaderHTML } from './_helpers.js';
-import { applyFrameTransform, frameAlignOffset } from '../frame-geometry.js';
+import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
+import { applyFrameTransform, frameAlignOffset, framePadding } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed } from '../drag-utils.js';
@@ -209,6 +209,7 @@ function _renderAutoPanel(ss) {
   const hexBg  = bgGradCss ? '#ffffff' : rgbToHex(rawBg);   // 그라데이션이면 wireColorField 가 첫 스탑 색으로 덮는다
   const bgAlpha = bgGradCss ? 100 : parseAlphaFromColor(rawBg);
   const padY   = parseInt(ss.dataset.padY)   || 0;
+  const padX   = parseInt(ss.dataset.padX) || parseInt(ss.style.paddingLeft) || 0;   // F5: 좌우 패딩(데이터 칸이 없던 옛 프레임은 인라인 padding 을 읽는다)
   const width  = parseInt(ss.dataset.width)  || (isShapeFrame ? 100 : 780);
   const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
   const minWidth = isShapeFrame ? Math.min(width, 20) : 200;
@@ -341,6 +342,7 @@ function _renderAutoPanel(ss) {
         <input type="range" class="prop-slider" id="ss-pady-slider" min="0" max="200" step="4" value="${padY}">
         <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
       </div>
+      ${sliderRowHTML('좌우 패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}
       ${canFullBleed ? `
       <div class="prop-row">
         <span class="prop-label">패딩 제외</span>
@@ -482,12 +484,13 @@ function _renderAutoPanel(ss) {
     // 부모 프레임 크기 기준으로 각 자식의 left/top을 직접 재계산
     if (ss.dataset.freeLayout === 'true') {
       const ssW = ss.clientWidth, ssH = ss.clientHeight;
+      const _pad = framePadding(ss);   // F5: 절대배치 자식엔 CSS padding 이 안 먹는다 → 안쪽 여백을 좌표에 반영
       const kids = [...ss.children].filter(c =>
         !c.classList.contains('frame-resize-handle') &&
         getComputedStyle(c).position === 'absolute');
       kids.forEach(c => {
         // ★«프레임 안 어디»의 정의는 frameAlignOffset 하나다 — 삽입 경로(block-factory)도 같은 걸 쓴다.
-        const off = frameAlignOffset(ssW, ssH, c.offsetWidth, c.offsetHeight, alignItems, justifyContent);
+        const off = frameAlignOffset(ssW, ssH, c.offsetWidth, c.offsetHeight, alignItems, justifyContent, _pad);
         if (off.left !== null) { c.style.left = off.left + 'px'; c.dataset.offsetX = off.left; }
         if (off.top  !== null) { c.style.top  = off.top  + 'px'; c.dataset.offsetY = off.top; }
       });
@@ -876,6 +879,10 @@ function _renderAutoPanel(ss) {
   const padYNum    = document.getElementById('ss-pady-num');
   const applyPadY  = (v) => { ss.dataset.padY = v; ss.style.paddingTop = v + 'px'; ss.style.paddingBottom = v + 'px'; };
   bindSlider(padYSlider, padYNum, applyPadY, { min: 0, max: 200 });
+  /* 좌우 패딩(F5) — 섹션 «좌우 패딩» 줄과 같은 마크업(sliderRowHTML)·같은 띠 힌트(_showPadXHint)를 쓴다.
+     자유 프레임은 자식이 절대배치라 CSS padding 이 안 먹는다 — 정렬·삽입·끌기 죔이 framePadding 으로 이 값을 읽는다. */
+  const applyPadX = (v) => { ss.dataset.padX = v; ss.style.paddingLeft = v + 'px'; ss.style.paddingRight = v + 'px'; window._showPadXHint?.(ss, v); };
+  bindSlider(document.getElementById('ss-padx-slider'), document.getElementById('ss-padx-num'), applyPadX, { min: 0, max: 100 });
 
   // 컴포넌트 저장
   const ssTplFolderSel = document.getElementById('ss-tpl-folder');
