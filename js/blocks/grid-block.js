@@ -2309,6 +2309,7 @@ function renderGridBlock(block) {
   replaceShellKeepChildren(block, `${_gridBlockBgHtml(block)}<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${Math.max(0, rowGapPx)}px;column-gap:${colGapPx}px;width:100%;">
     ${cellsHtml.join('')}
   </div>`, GRID_CHILDREN_CLASS);
+  _syncGridAddBtns(block);   // ★G15 — 껍데기가 갈렸으니 ＋ 를 다시 단다(안 보일 땐 아무것도 안 붙인다 ⇒ 렌더 바이트 불변)
 }
 
 /* ═══ ★G19 공용 — «껍데기만» 갈아끼우고 «자식 그릇»은 남긴다 (지디 2026-10-03 설계 확정) ══════════════
@@ -3113,6 +3114,118 @@ window.updateGridBlock = updateGridBlock;
      스크래치→그리드 칸 드롭(canvas-scratch-drop.js gridimg): scratch-pad onUp 이 sideEffects(스크래치 되살리기)가 실린
      「스크래치→섹션 변환」 칸을 쌓는데, 래퍼가 «같은 캔버스»의 칸을 하나 더 쌓으면 ⌘Z 첫 걸음이 화면이 안 바뀌는 먹통이 된다(실측 G4). */
 window.updateGridBlockRaw = updateGridBlock;
+/* ══ G15 캔버스 ＋ — 열·행을 «끝에» 하나 더한다 (2026-10-04 현빈·지디, 안 ㉠) ══════════════
+ * ★자리 둘: 오른쪽 끝(열 +1) · 아래 끝(행 +1). 안 고른 안 ㉡(네 끝·앞에) ㉢(칸 사이)는 만들지 않는다.
+ * ★동작은 우측 패널 4×4 피커와 «같은 함수»(gridResizeTo)를 지난다 — 새 칸 크기·내용·히스토리가
+ *   피커 결과와 같아야 한다(측정 G15-MEASURE ⑷: 새 열 width:1 · 새 행 height:'auto' · 새 칸 기본 줄).
+ * ★히트 영역 = calc(40px * var(--inv-zoom)) — 화면에서 늘 40px(선례 css/editor-blocks.css:578-579).
+ * ★편집 전용 UI — 저장(save-load · section-serialize)·내보내기(export-html · css 수집)에서 걷는다.
+ * ⛔태그블럭 ＋ 의 --inv-zoom 미보정(E28)은 여기서 안 고친다(범위 밖). */
+const GRID_ADD_BTN_CLS = 'grd-add-btn';
+
+/* ⏸ 현빈 답 대기: 호버 vs 선택(태그블럭 선례=선택)
+ * ＋ 가 «뜨는 조건»은 이 함수 «하나»에만 둔다. 답이 오기 전엔 제품 조건을 짓지 않는다 —
+ * 지금은 시험 전용 표지(data-grd-plus-test="1")가 있을 때만 뜬다(제품 화면에선 안 뜬다). */
+function _gridPlusShown(block) {
+  return block?.dataset?.grdPlusTest === '1';
+}
+
+/* 피커·＋ 공용 — 칸 수를 (nCols, nRows) 로 바꾼다. 바뀌었으면 true.
+ * (원래 prop-grid.js 피커 콜백 몸통이었다 — ＋ 가 «같은 길»을 지나게 여기로 옮겼다. 내용은 그대로.) */
+function gridResizeTo(block, nCols, nRows) {
+  if (!block) return false;
+  if (!(nCols >= MIN_COLS && nCols <= MAX_COLS && nRows >= MIN_ROWS && nRows <= MAX_ROWS)) return false;
+  const curCols = JSON.parse(block.dataset.cols || '[]');
+  const curRows = _gridRows(block);
+  if (nCols === curCols.length && nRows === curRows.length) return false;
+  window.pushHistory?.();                     // ★변경 «전»에
+
+  const nextCols = [];
+  for (let i = 0; i < nCols; i++) {
+    /* ★[M41] 열을 늘릴 때의 기본값도 «정본 한 줄»을 쓴다 — 여긴 h2:'제목' 을 얹고 있어서
+     * 블록 생성(grid-block.js)·열 추가(여기)·행 추가(아래)가 서로 «다른» 기본값이었다. */
+    nextCols.push(curCols[i] || { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] });
+  }
+  // ⛔줄일 때 잘린 칸의 내용은 «버려진다» — undo 로 되돌아온다(pushHistory 를 먼저 부른 이유).
+  block.dataset.cols = JSON.stringify(nextCols);
+
+  if (nRows <= 1) {
+    // 1행으로 돌아가면 행 축 신설 이전 저장본과 «완전히 같은» 모양으로 되돌린다(dataset.rows/cells 제거).
+    delete block.dataset.rows;
+    /* ★T-178 — 다만 «행 0 칸 꾸밈»은 행이 하나가 돼도 살아 있어야 한다(1행 그리드의 칸도 칸이다).
+       꾸밈이 하나도 없을 때만 dataset.cells 를 지워 그 옛 모양을 그대로 돌려준다. */
+    let row0 = [];
+    try { const cur = JSON.parse(block.dataset.cells || '[]'); row0 = Array.isArray(cur[0]) ? cur[0] : []; } catch (_) { row0 = []; }
+    const keep = [];
+    for (let c = 0; c < nCols; c++) {
+      const cell = row0[c];
+      keep.push((cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell : {});
+    }
+    if (keep.some(cell => Object.keys(cell).length)) block.dataset.cells = _gridCellsToDataset([keep]);
+    else delete block.dataset.cells;
+  } else {
+    const nextRows = [];
+    for (let i = 0; i < nRows; i++) nextRows.push(curRows[i] || { height: 'auto' });
+    block.dataset.rows = JSON.stringify(nextRows);
+    /* ★새로 생긴 행에 «기본 내용»을 넣는다(안 넣으면 높이 0 — 무슨 일이 났는지 안 보인다).
+     * ⚠️옛 내용을 보존하지 않는다 — 잘린 행/열의 내용은 사라지고 undo 로만 돌아온다.
+     * ★T-178 — 행 0 에는 기본 줄을 «안» 넣는다: 행 0 의 줄은 cols[].lines 가 갖는다. */
+    let curCells = [];
+    try { curCells = JSON.parse(block.dataset.cells || '[]'); } catch (_) { curCells = []; }
+    const nextCells = [];
+    for (let r = 0; r < nRows; r++) {
+      const row = Array.isArray(curCells[r]) ? curCells[r] : [];
+      const outRow = [];
+      for (let c = 0; c < nCols; c++) {
+        outRow.push(row[c] || (r === 0 ? {} : { lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] }));
+      }
+      nextCells.push(outRow);
+    }
+    if (nextCells.length) block.dataset.cells = _gridCellsToDataset(nextCells);
+    else delete block.dataset.cells;
+  }
+  renderGridBlock(block);
+  window.scheduleAutoSave?.();
+  return true;
+}
+
+/* ＋ 한 번 = 끝에 열(axis 'col') 또는 행(axis 'row') 하나. 상한이면 아무것도 안 한다. */
+function gridAddAtEnd(block, axis) {
+  const nC = _gridCols(block).length, nR = _gridRows(block).length;
+  const ok = axis === 'col' ? gridResizeTo(block, nC + 1, nR)
+           : axis === 'row' ? gridResizeTo(block, nC, nR + 1) : false;
+  if (ok) window._grdAfterResize?.(block);   // 패널·거터가 이 블럭을 보고 있으면 다시 세운다(prop-grid.js)
+  return ok;
+}
+
+function _syncGridAddBtns(block) {
+  if (!block?.querySelectorAll) return;
+  block.querySelectorAll(`:scope > .${GRID_ADD_BTN_CLS}`).forEach(b => b.remove());
+  if (!_gridPlusShown(block)) return;
+  const full = { col: _gridCols(block).length >= MAX_COLS, row: _gridRows(block).length >= MAX_ROWS };
+  for (const axis of ['col', 'row']) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = GRID_ADD_BTN_CLS;
+    btn.dataset.grdAdd = axis;
+    btn.setAttribute('contenteditable', 'false');
+    btn.textContent = '+';
+    btn.title = axis === 'col' ? '열 추가' : '행 추가';
+    /* 상한(4)에서는 흐리게 + 눌러도 아무 일 없음.
+       캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 쪽 참고 선례: layer-panel.js:559 addBtn.disabled) */
+    if (full[axis]) btn.disabled = true;
+    // ⛔블럭 드래그·선택·인라인 편집으로 새지 않게 — mousedown/click 을 여기서 멈춘다
+    btn.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
+    btn.addEventListener('click', e => {
+      e.stopPropagation(); e.preventDefault();
+      if (btn.disabled) return;
+      gridAddAtEnd(block, axis);
+    });
+    block.appendChild(btn);
+  }
+}
+window.gridAddAtEnd = gridAddAtEnd;
+
 window.renderGridBlock = renderGridBlock;
 window.migrateGridIdentity = migrateGridIdentity;
 // ★getGridModel(T-A, 2026-09-16) — block-drag.js 의 _gridAddrAt 이 「진짜 빈 셀」인지(lines.length===0)
@@ -3155,4 +3268,5 @@ export {
      ★실제로 grid-rename-residue.test.mjs S1 이 「코드에 옛 이름을 손으로 적었나」를 재는데,
        이 주석의 첫 판이 «그 이름을 예시로 적는» 바람에 그 그물에 걸렸다. 적지 않는다. */
   GRID_NESTED_LINE_TYPE,
+  gridResizeTo, gridAddAtEnd,   /* ★G15 — 피커·캔버스 ＋ 가 «같은 길» */
 };

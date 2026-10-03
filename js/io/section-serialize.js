@@ -214,7 +214,7 @@
     });
     // ghost 섹션은 저장에서 제외
     root.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
-    root.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy').forEach(el => el.remove());
+    root.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy, .grd-add-btn').forEach(el => el.remove());
     /* ★UI 상태 클래스 전면 제거 — «성질»로 센다. 손 열거가 아니다.
        selected 잔존이 독립렌더/export 에 파란 아웃라인을 유출하고, 줄 선택 마커
        (bn2/grd/앞으로 생길 것)는 템플릿에 박혀 «유령 선택바»가 된다.

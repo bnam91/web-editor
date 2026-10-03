@@ -1,0 +1,225 @@
+/* grid-plus-g15.dom.spec.js — G15 그리드 캔버스 ＋ (2026-10-04 현빈·지디, 안 ㉠)
+ *   오른쪽 끝 ＋ = 열 하나를 «끝에» · 아래 끝 ＋ = 행 하나를 «끝에». 4×4 상한에선 흐리고 눌러도 무변화.
+ *   히트 영역 = calc(40px * var(--inv-zoom)) — 화면에서 늘 ≈40px.
+ *
+ * ⏸ ＋ 가 «뜨는 조건»(호버 vs 선택)은 현빈 답 대기라 제품에 없다. 시험은 «시험 전용 표지»로 띄운다:
+ *     block.dataset.grdPlusTest = '1'  (= data-grd-plus-test="1")  → js/blocks/grid-block.js _gridPlusShown
+ *   ⇒ 이 시험은 「뜬 뒤의 동작·크기」만 잰다. 「언제 뜨나」는 재지 않는다(지을 것이 없다).
+ *
+ * 양성대조 핀 07d8178b(origin/dev, 이 기능 전): GD1001_ROOT=<핀 체크아웃> 으로 같은 시험을 돌린다.
+ * 하네스 = bootApp(앱 통째 · 진짜 마우스). 배율 전제(100 · 40)는 «재기 전에» 단언한다.
+ *
+ * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js grid-plus-g15
+ */
+const { test, expect } = require('@playwright/test');
+const { bootApp } = require('./_root-harness.js');
+
+const SEC = `<div class="section-block" id="sG" data-section="1" data-name="sG"><div class="section-hitzone"></div><div class="section-inner" id="innerG">
+  <div class="gap-block" data-type="gap" style="height:60px"></div>
+  <div id="slotA"></div>
+  <div class="gap-block" data-type="gap" style="height:80px"></div>
+  <div id="slotB"></div>
+  <div class="gap-block" data-type="gap" style="height:200px"></div></div></div>`;
+
+async function setup(page, zoom = 100) {
+  await page.setViewportSize({ width: 1600, height: 1400 });
+  const errs = await bootApp(page);
+  await page.evaluate((html) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
+    c.insertAdjacentHTML('beforeend', html); window.rebindAll?.(); window.deselectAll?.();
+    window.applyZoom?.(100);
+  }, SEC);
+  await page.waitForTimeout(300);
+  const ids = await page.evaluate(() => {
+    const out = [];
+    for (const slot of ['slotA', 'slotB']) {
+      const { row, block } = window.makeGridBlock({});
+      document.getElementById(slot).replaceWith(row); window.bindBlock(block);
+      out.push(block.id);
+    }
+    window.rebindAll?.();
+    return out;
+  });
+  if (zoom !== 100) await page.evaluate((z) => window.applyZoom?.(z), zoom);
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => window.currentZoom), `전제 — 배율 ${zoom}%`).toBe(zoom);
+  return { errs, a: ids[0], b: ids[1] };
+}
+
+/* 시험 전용 표지를 달고 다시 그린다 — ＋ 가 붙는 유일한 문(_gridPlusShown) */
+const force = (page, id) => page.evaluate((id) => {
+  const g = document.getElementById(id); g.dataset.grdPlusTest = '1'; window.renderGridBlock(g);
+  g.scrollIntoView({ block: 'center' });
+}, id);
+
+const model = (page, id) => page.evaluate((id) => {
+  const g = document.getElementById(id);
+  return { cols: g.dataset.cols, rows: g.dataset.rows ?? null, cells: g.dataset.cells ?? null,
+           nCols: JSON.parse(g.dataset.cols || '[]').length, nRows: g.dataset.rows ? JSON.parse(g.dataset.rows).length : 1,
+           domCells: g.querySelectorAll(':scope > .grd-inner > .grd-cell').length,
+           lastColCells: [...g.querySelectorAll(':scope > .grd-inner > .grd-cell')].filter(c => +c.dataset.c === JSON.parse(g.dataset.cols).length - 1).length,
+           lastRowCells: [...g.querySelectorAll(':scope > .grd-inner > .grd-cell')].filter(c => +c.dataset.r === (g.dataset.rows ? JSON.parse(g.dataset.rows).length : 1) - 1).length };
+}, id);
+
+const btnBox = (page, id, axis) => page.evaluate(([id, axis]) => {
+  const b = document.querySelector(`#${id} > .grd-add-btn[data-grd-add="${axis}"]`);
+  if (!b) return null;
+  const r = b.getBoundingClientRect(), cs = getComputedStyle(b);
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const hit = document.elementFromPoint(cx, cy);
+  const desc = (el) => el ? `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${[...el.classList].join('.')}` : 'null';
+  const sec = b.closest('.section-block')?.getBoundingClientRect();
+  return { w: r.width, h: r.height, cx, cy, disabled: b.disabled, opacity: +cs.opacity, hitIsBtn: hit === b, hit: desc(hit),
+           box: [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)], sec: sec && [Math.round(sec.left), Math.round(sec.right)],
+           tokenOpacity: +getComputedStyle(document.documentElement).getPropertyValue('--ui-disabled-opacity') };
+}, [id, axis]);
+
+/* 피커(우측 패널)로 같은 칸 수를 고른다 — ＋ 결과와 «같은 데이터»여야 한다 */
+async function pickViaPanel(page, id, c, r) {
+  return page.evaluate(([id, c, r]) => {
+    const g = document.getElementById(id);
+    window.deselectAll?.(); g.classList.add('selected'); window.showGridProperties(g);
+    const cell = document.querySelector(`#grd-grid-picker .grid-picker-cell[data-r="${r}"][data-c="${c}"]`);
+    if (!cell) return false;
+    cell.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    return true;
+  }, [id, c, r]);
+}
+
+test('P0 표지 없으면 ＋ 가 «없다»(뜨는 조건 미구현 — ⏸) · 표지 달면 둘(col·row)', async ({ page }) => {
+  const { errs, a } = await setup(page);
+  expect(await page.evaluate((id) => document.querySelectorAll(`#${id} > .grd-add-btn`).length, a)).toBe(0);
+  await force(page, a);
+  expect(await page.evaluate((id) => [...document.querySelectorAll(`#${id} > .grd-add-btn`)].map(b => b.dataset.grdAdd), a)).toEqual(['col', 'row']);
+  expect(errs).toEqual([]);
+});
+
+test('P1 ★오른쪽 ＋ 진짜 클릭 → 열이 «끝에» 하나 · 데이터·DOM · 피커 결과와 같다 · undo 한 번', async ({ page }) => {
+  const { errs, a, b } = await setup(page);
+  await force(page, a);
+  const m0 = await model(page, a);
+  expect(m0, '전제 — 기본 2×1').toMatchObject({ nCols: 2, nRows: 1, domCells: 2 });
+  const bx = await btnBox(page, a, 'col');
+  expect(bx && bx.hitIsBtn, `전제 — 버튼 가운데를 누르면 버튼이 잡힌다 ${JSON.stringify(bx)}`).toBe(true);
+  await page.mouse.click(bx.cx, bx.cy);
+  await page.waitForTimeout(150);
+  const m1 = await model(page, a);
+  expect(m1.nCols, '★열 +1').toBe(3);
+  expect(m1.nRows).toBe(1);
+  expect(m1.domCells, '★DOM 칸 3').toBe(3);
+  const cols = JSON.parse(m1.cols);
+  expect(JSON.stringify(cols.slice(0, 2)), '★기존 두 열은 그대로(앞에 안 끼었다)').toBe(JSON.stringify(JSON.parse(m0.cols)));
+  expect(cols[2], '★새 열은 «끝»에 · 피커 기본값').toEqual({ width: 1, lines: [{ type: 'body', text: '내용을 입력하세요.' }] });
+  // 피커 결과와 같다
+  expect(await pickViaPanel(page, b, 3, 1)).toBe(true);
+  const mb = await model(page, b);
+  expect({ cols: mb.cols, rows: mb.rows, cells: mb.cells }, '★패널 피커 결과 == ＋ 결과').toEqual({ cols: m1.cols, rows: m1.rows, cells: m1.cells });
+  // undo 한 번 = 이전(＋ 한 번 = 한 걸음). b 의 피커 한 걸음부터 되돌린 뒤 a 를 본다.
+  await page.evaluate(() => { window.undo(); window.undo(); });
+  await page.waitForTimeout(150);
+  const mu = await model(page, a);
+  expect({ cols: mu.cols, rows: mu.rows, cells: mu.cells }, '★undo 2번(피커·＋) 뒤 a 는 처음').toEqual({ cols: m0.cols, rows: m0.rows, cells: m0.cells });
+  expect(errs).toEqual([]);
+});
+
+test('P2 ★아래 ＋ 진짜 클릭 → 행이 «끝에» 하나 · 데이터·DOM · 피커 결과와 같다', async ({ page }) => {
+  const { errs, a, b } = await setup(page);
+  await force(page, a);
+  const m0 = await model(page, a);
+  const bx = await btnBox(page, a, 'row');
+  expect(bx && bx.hitIsBtn, `전제 — 버튼이 잡힌다 ${JSON.stringify(bx)}`).toBe(true);
+  await page.mouse.click(bx.cx, bx.cy);
+  await page.waitForTimeout(150);
+  const m1 = await model(page, a);
+  expect(m1.nRows, '★행 +1').toBe(2);
+  expect(m1.nCols).toBe(2);
+  expect(m1.domCells, '★DOM 칸 4').toBe(4);
+  expect(m1.lastRowCells, '★마지막 행(r=1)에 칸 2').toBe(2);
+  expect(m1.cols, '★행 0(cols)은 그대로').toBe(m0.cols);
+  const cells = JSON.parse(m1.cells);
+  expect(cells[1], '★새 행은 «끝»(r=1) · 기본 줄').toEqual([
+    { lines: [{ type: 'body', text: '내용을 입력하세요.' }] }, { lines: [{ type: 'body', text: '내용을 입력하세요.' }] }]);
+  expect(await pickViaPanel(page, b, 2, 2)).toBe(true);
+  const mb = await model(page, b);
+  expect({ cols: mb.cols, rows: mb.rows, cells: mb.cells }, '★패널 피커 결과 == ＋ 결과').toEqual({ cols: m1.cols, rows: m1.rows, cells: m1.cells });
+  expect(errs).toEqual([]);
+});
+
+test('P3 ★4×4 상한 — ＋ 흐림(disabled · --ui-disabled-opacity) · 눌러도 데이터 무변화', async ({ page }) => {
+  const { errs, a } = await setup(page);
+  await force(page, a);
+  // 열 4 까지 ＋ 로 (2→4) — 그 사이 col 은 살아 있다
+  for (let i = 0; i < 2; i++) {
+    const bx = await btnBox(page, a, 'col');
+    expect(bx.disabled, `전제 — ${2 + i}열에선 살아 있다`).toBe(false);
+    await page.mouse.click(bx.cx, bx.cy); await page.waitForTimeout(120);
+  }
+  let m = await model(page, a);
+  expect(m.nCols, '전제 — 4열').toBe(4);
+  let col = await btnBox(page, a, 'col'), row = await btnBox(page, a, 'row');
+  expect(col.disabled, '★4열 → 열 ＋ 비활성').toBe(true);
+  expect(col.opacity, '★흐림 = --ui-disabled-opacity').toBeCloseTo(col.tokenOpacity, 3);
+  expect(col.opacity).toBeLessThan(1);
+  expect(row.disabled, '★행은 아직 1 → 행 ＋ 살아 있다(축별 판정)').toBe(false);
+  expect(row.opacity).toBe(1);
+  const before = await model(page, a);
+  await page.mouse.click(col.cx, col.cy); await page.waitForTimeout(150);
+  expect(await model(page, a), '★흐린 열 ＋ 클릭 = 무변화').toEqual(before);
+  // 행도 4 까지
+  for (let i = 0; i < 3; i++) {
+    const bx = await btnBox(page, a, 'row');
+    await page.mouse.click(bx.cx, bx.cy); await page.waitForTimeout(120);
+  }
+  m = await model(page, a);
+  expect({ c: m.nCols, r: m.nRows, dom: m.domCells }, '전제 — 4×4').toEqual({ c: 4, r: 4, dom: 16 });
+  col = await btnBox(page, a, 'col'); row = await btnBox(page, a, 'row');
+  expect([col.disabled, row.disabled], '★4×4 → 둘 다 비활성').toEqual([true, true]);
+  await page.evaluate(() => { const o = window.pushHistory; window.__ph = 0; window.pushHistory = (...x) => { window.__ph++; return o(...x); }; });
+  const b4 = await model(page, a);
+  await page.mouse.click(col.cx, col.cy); await page.waitForTimeout(120);
+  await page.mouse.click(row.cx, row.cy); await page.waitForTimeout(120);
+  expect(await model(page, a), '★4×4 에서 두 ＋ 클릭 = 무변화').toEqual(b4);
+  expect(await page.evaluate(() => window.__ph), '★pushHistory 0회(히스토리도 안 쌓였다)').toBe(0);
+  expect(errs).toEqual([]);
+});
+
+for (const z of [40, 100]) {
+  test(`P4 ★배율 ${z}% — 히트 영역이 화면에서 ≈40px · 진짜 클릭이 먹는다`, async ({ page }) => {
+    const { errs, a } = await setup(page, z);
+    expect(await page.evaluate(() => window.currentZoom), `★재기 전 — 배율이 정말 ${z}`).toBe(z);
+    await force(page, a);
+    for (const axis of ['col', 'row']) {
+      const bx = await btnBox(page, a, axis);
+      expect(bx, `${axis} ＋ 가 있다`).not.toBeNull();
+      expect(Math.abs(bx.w - 40), `★${axis} 폭 ${bx.w}px ≈ 40`).toBeLessThanOrEqual(1);
+      expect(Math.abs(bx.h - 40), `★${axis} 높이 ${bx.h}px ≈ 40`).toBeLessThanOrEqual(1);
+      expect(bx.hitIsBtn, `★${axis} 가운데 elementFromPoint = 버튼 ${JSON.stringify(bx)}`).toBe(true);
+    }
+    // 가장자리 안쪽 4px 도 버튼이 잡는다(히트 = 보이는 원 상자 전체)
+    const edge = await page.evaluate((id) => {
+      const b = document.querySelector(`#${id} > .grd-add-btn[data-grd-add="col"]`); const r = b.getBoundingClientRect();
+      return document.elementFromPoint(r.left + r.width / 2, r.top + 4) === b;
+    }, a);
+    expect(edge, '★위 가장자리 4px 안쪽도 버튼').toBe(true);
+    const bx = await btnBox(page, a, 'col');
+    await page.mouse.click(bx.cx, bx.cy); await page.waitForTimeout(150);
+    expect((await model(page, a)).nCols, `★${z}% 진짜 클릭 → 열 +1`).toBe(3);
+    expect(errs).toEqual([]);
+  });
+}
+
+test('P5 저장·내보내기에 ＋ 가 안 샌다(편집 전용)', async ({ page }) => {
+  const { errs, a } = await setup(page);
+  await force(page, a);
+  const r = await page.evaluate((id) => {
+    const g = document.getElementById(id);
+    const sec = g.closest('.section-block');
+    const live = g.querySelectorAll('.grd-add-btn').length;
+    const ser = window.serializeCleanRoot ? window.serializeCleanRoot(sec.cloneNode(true)) : null;
+    const serHtml = ser == null ? null : (typeof ser === 'string' ? ser : ser.outerHTML);
+    return { live, ser: serHtml == null ? null : (serHtml.match(/grd-add-btn/g) || []).length };
+  }, a);
+  expect(r.live, '전제 — 라이브에는 둘').toBe(2);
+  if (r.ser !== null) expect(r.ser, '★직렬화본엔 0').toBe(0);
+  expect(errs).toEqual([]);
+});
