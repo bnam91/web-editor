@@ -1,3 +1,4 @@
+import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
 import { state } from './globals.js';
 import {
   genId,
