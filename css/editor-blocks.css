@@ -1277,6 +1277,17 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .infocard-block.selected,
 .modal-block.selected,
 .innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+/* ★G19 그리드 «밑» 자식 블럭 그릇(.grd-children) — 간격(margin-top·flex gap)은 js/grid-children.js 가 «인라인»으로 건다
+   (그래야 PNG·HTML 내보내기가 에디터 CSS 없이도 같은 자리를 낸다). 여기는 두 가지만:
+   ⑴ 빈 그릇은 자리를 안 먹는다 — 자식을 지우거나 끌어낸 직후 «다음 렌더 전»까지 남는 빈 그릇(인라인 margin-top)이
+      그리드 밑에 빈 띠를 만들지 않게. ⛔끄는 동안의 임시 띠(.grd-child-strip)는 비어 있어도 «자리가 곧 기능»이라 뺀다.
+   ⑵ 임시 띠 겉모습 — 새 토큰 0(선택색·선택 채움 그대로) · #canvas 한정(내보내기 클론엔 안 간다). */
+.grd-children:not(.grd-child-strip):empty { display: none; }
+#canvas .grd-child-strip {
+  outline: var(--sel-outline-w) dashed var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+  background: var(--sel-color-fill);
+}
 
 /* ═══════════════════════════════════
    QA BLOCK — admin 전용 체크리스트 (2026-09-16)

@@ -2,7 +2,7 @@
    LAYER PANEL
    makeLayer* 렌더러는 layer-panel-items.js로 분리 (2025-03-31)
 ═══════════════════════════════════ */
-import { makeIndents, layerIcons, addLayerRename, makeLayerBlockItem, makeLayerGroupItem,
+import { makeIndents, layerIcons, addLayerRename, makeLayerBlockItem, makeLayerGroupItem, makeLayerGridItem,
          makeLayerFrameItem, makeLayerAssetItem } from './layer-panel-items.js';
 
 // LP-COLLAPSE-DEFAULT (2026-05): 신규 row-group은 collapsed로 시작.
@@ -231,6 +231,9 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
           container.appendChild(ssItem);
         } else if (block.classList.contains('asset-block')) {
           container.appendChild(makeLayerAssetItem(block, child, sec));
+        } else if (block.classList.contains('grid-block')) {
+          // G19 — 그리드 «밑» 자식이 있으면 펼친다(0개면 makeLayerBlockItem 과 같은 말단 줄)
+          container.appendChild(makeLayerGridItem(block, child, sec, depth, appendRowToLayer));
         } else {
           container.appendChild(makeLayerBlockItem(block, child, sec, depth));
         }
@@ -275,7 +278,9 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
               || child.classList.contains('shape-block')
               || child.classList.contains('qa-block')) {
         // section-inner 직접 자식 블록 (frame-block으로 감싸지지 않은 케이스) — 안전망
-        children.appendChild(makeLayerBlockItem(child, child, sec, 1));
+        children.appendChild(child.classList.contains('grid-block')
+          ? makeLayerGridItem(child, child, sec, 1, appendRowToLayer)
+          : makeLayerBlockItem(child, child, sec, 1));
       }
     }
     [...(sectionInner ? sectionInner.children : [])].forEach(walkInnerChild);
@@ -302,6 +307,8 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
           children.appendChild(makeLayerGroupItem(fc, sec, appendRowToLayer));
         } else if (fc.classList.contains('asset-block')) {
           children.appendChild(makeLayerAssetItem(fc, fc, sec));
+        } else if (fc.classList.contains('grid-block')) {
+          children.appendChild(makeLayerGridItem(fc, fc, sec, 1, appendRowToLayer));   // G19 — 떠 있는 그리드도 자식을 펼친다
         } else {
           children.appendChild(makeLayerBlockItem(fc, fc, sec, 1));
         }
