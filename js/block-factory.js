@@ -117,6 +117,33 @@ function _makeTextFrame() {
   return ss;
 }
 
+/* ═══ ★M1 R6 — 「줄 글자 꼴」 (2026-10-04, 지디 조건: 프레임화 «뒤» 더한 줄이 모달 본문과 다르면 안 된다) ═══════
+ *  프레임 `data-row-text-style` = JSON {ce:{contentEl style}, tb:{text-block style}} — 지금은 모달 프레임화(js/blocks/modal-frameify.js)만 심는다.
+ *  ★CSS 상속으로는 안 된다: `.text-block .tb-body{font-size:36px;line-height:1.6;color:var(--preset-body-color)}` 클래스 규칙이
+ *    부모에서 물려받은 값을 이기고, makeTextBlock 은 font-family 를 인라인으로 박는다 ⇒ 새 줄에 «직접» 칠해야 한다.
+ *  ★본문 줄(프레임화가 만든 것)과 새 줄이 «같은 함수»로 칠해진다 ⇒ 둘의 꼴이 구성상 같다(두 벌 금지).
+ *  ⚠️키는 «허용 목록»만 — 저장본(손으로 고친 JSON)이 아무 속성이나 밀어 넣지 못하게. 값은 style API 로만 쓴다.
+ *  ⚠️본문(body) 줄에만 — 제목(h1~h3)·캡션·라벨을 넣으면 그건 «다른 줄»을 고른 것이라 본문 꼴을 덮지 않는다. */
+const _ROW_TEXT_CE_KEYS = ['fontSize', 'lineHeight', 'color', 'fontFamily', 'fontWeight', 'letterSpacing', 'fontStyle',
+  'textDecoration', 'textAlign', 'whiteSpace', 'wordBreak', 'overflowWrap'];
+const _ROW_TEXT_TB_KEYS = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'backgroundColor'];
+function applyRowTextStyle(block, style) {
+  if (!block || !style || typeof style !== 'object') return false;
+  const ce = block.querySelector('[class^="tb-"]');
+  if (!ce) return false;
+  for (const k of _ROW_TEXT_CE_KEYS) { const v = style.ce?.[k]; if (typeof v === 'string' && v.length <= 200) ce.style[k] = v; }
+  if (typeof style.ce?.fontFamily === 'string' && style.ce.fontFamily) ce.dataset.rawFont = style.ce.fontFamily;   // 텍스트 패널이 «현재 글꼴»로 읽는 칸
+  for (const k of _ROW_TEXT_TB_KEYS) { const v = style.tb?.[k]; if (typeof v === 'string' && v.length <= 64) block.style[k] = v; }
+  return true;
+}
+/** 흐름 프레임에 새 «본문» 줄을 넣을 때 — 프레임에 심긴 줄 꼴이 있으면 칠한다. 칠했으면 true. */
+function applyFrameRowTextStyle(frame, block, type) {
+  if ((type || 'body') !== 'body' || !frame?.dataset?.rowTextStyle) return false;
+  let s;
+  try { s = JSON.parse(frame.dataset.rowTextStyle); } catch (_) { return false; }
+  return applyRowTextStyle(block, s);
+}
+
 function makeAssetBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
@@ -474,6 +501,7 @@ function addTextBlock(type, opts = {}) {
     const _hasAbsCoords = (opts.x !== undefined || opts.y !== undefined || opts.width !== undefined);
     const _newAlign = newTextAlignInFrame(activeSS, opts.align, _hasAbsCoords);
     const _opts = _newAlign ? { ...opts, align: _newAlign } : opts;
+    applyFrameRowTextStyle(activeSS, block, type);   // ★M1 R6 — 프레임에 심긴 줄 꼴(있을 때만). «앞»에 둔다: 명시 opts(MCP 등)가 이긴다
     applyTextOpts(block, tf, _opts, type);
     tf.appendChild(block);
 
@@ -590,6 +618,7 @@ function addBlankTextBlock(type = 'body', opts = {}) {
     window.pushHistory();
     const { block } = makeTextBlock(type, { blank: true });
     const tf = _makeTextFrame();
+    applyFrameRowTextStyle(activeSS, block, type);   // ★M1 R6 — addTextBlock 프레임 갈래와 같은 자리·같은 함수
     // ★(a) 신규 추가 — addTextBlock 과 «같은 술어»로 기본 정렬을 정한다(두 벌 금지).
     // addBlankTextBlock 은 좌표 옵션 자체가 없다(항상 스택) → hasExplicitCoords=false.
     const _blankAlign = o.align || newTextAlignInFrame(activeSS, o.align, false);
@@ -5148,6 +5177,8 @@ window.deactivateFrame = deactivateFrame;
 window._insertToFlowFrame = _insertToFlowFrame;
 window._makeTextFrame     = _makeTextFrame;
 window.applyTextOpts      = applyTextOpts;
+window.applyRowTextStyle      = applyRowTextStyle;        // M1 R6 — 줄 글자 꼴(modal-frameify.js 가 본문 줄을 같은 함수로 칠한다)
+window.applyFrameRowTextStyle = applyFrameRowTextStyle;
 window.makeJokerBlock       = makeJokerBlock;
 window.addJokerBlock        = addJokerBlock;
 window.makeShapeBlock       = makeShapeBlock;
