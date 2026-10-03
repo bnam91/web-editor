@@ -33,8 +33,12 @@
 export const TEXT_SEL_HIGHLIGHT = 'goditor-text-sel';
 
 /** 패널 표면 — 여기를 누르는 것은 «캔버스 편집을 떠나는 것»이 아니다. */
-/* ⚠️색 피커 팝업의 실제 뿌리 클래스는 «.goya-cp-popover» 다(color-picker.js _ensurePopover — body 에 붙는다). 발주서의 「.goya-cp」는 그 이름의 줄임. */
-export const PANEL_SURFACE_SEL = '#panel-right, .goya-cp-popover, .font-picker-dropdown';
+/* ★패널 판정 선택자 «한 곳» — 「여기를 누르는 것은 캔버스 편집을 떠나는 것이 아니다」의 정본.
+ *   실측한 이름(2026-10-03 — .goya-cp 는 틀린 이름이었다: 스펙트럼 클릭이 패널 밖으로 잡혀 2회째가 전체로 갔다, T3 이 잡음).
+ *   색 피커 팝업의 실제 뿌리 클래스는 «.goya-cp-popover»(color-picker.js _ensurePopover — body 에 붙는다).
+ *   ⛔이 셋을 다른 파일에 다시 적지 마라 — 패널 판정이 필요하면 PANEL_SURFACES / PANEL_SURFACE_SEL 를 가져다 써라. */
+export const PANEL_SURFACES = Object.freeze(['#panel-right', '.goya-cp-popover', '.font-picker-dropdown']);
+export const PANEL_SURFACE_SEL = PANEL_SURFACES.join(', ');
 
 /** 예외 명부 — 포커스가 «가야» 일을 하는 칸. 여기 걸리면 mousedown 을 막지 않는다(선택은 먼저 저장된다).
  *  ⛔줄을 더하기 전에: 그 칸이 «포커스 없이»는 정말 못 하는가? (버튼·체크박스·스와치는 포커스 없이 된다) */

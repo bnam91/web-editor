@@ -3789,8 +3789,9 @@ html.tgs-selecting .tgs:focus-within {
 
 /* ── 패널에 포커스가 간 동안의 «보이는 글자 선택» (TX1 · 2026-10-03) ──
    숫자·색코드·select 처럼 포커스를 가져가는 패널 칸을 누르면 DOM 선택이 그 칸으로 가서 캔버스 글자 선택이 안 보인다.
-   저장된 범위(js/props/_text-selection.js)를 CSS Custom Highlight 로 칠한다 — 새 색 없이 기존 --ui-accent(브라우저 선택색에 가까운 파랑).
+   저장된 범위(js/props/_text-selection.js)를 CSS Custom Highlight 로 칠한다 — 새 색 없이 기존 --ui-accent 를 35% 로 비친
+   반투명(글자가 가려지지 않게, 브라우저 선택색에 가깝게 — 2026-10-03 지디 판정).
    CSS.highlights 가 없으면 이 규칙은 아무것도 안 칠할 뿐, 저장·적용 동작은 같다. */
 ::highlight(goditor-text-sel) {
-  background-color: var(--ui-accent);
+  background-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
 }

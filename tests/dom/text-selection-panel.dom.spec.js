@@ -412,3 +412,24 @@ test('S1 select 에 포커스가 있을 때 S 키는 섹션을 추가하지 않�
   expect(n1, 'S 가 섹션을 추가했다(SELECT 가드 누락)').toBe(n0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+test('H1 보이는 선택 색 = --ui-accent 35% 반투명 — 크로미움이 color-mix 를 «실제로» 받아들였다(규칙이 살아 있고 계산값이 반투명)', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(() => {
+    let decl = null;
+    for (const sh of document.styleSheets) { let rules; try { rules = sh.cssRules; } catch (_) { continue; }
+      for (const ru of rules) if (ru.selectorText && ru.selectorText.includes('::highlight(goditor-text-sel)')) decl = ru.style.backgroundColor; }
+    const d = document.createElement('div'); d.style.backgroundColor = decl || ''; document.body.appendChild(d);
+    const computed = getComputedStyle(d).backgroundColor;
+    // 기준값은 «지금 이 앱의» --ui-accent 에서 끌어온다(테마가 덮어쓸 수 있다 — 손으로 박지 않는다)
+    d.style.backgroundColor = 'var(--ui-accent)'; document.body.appendChild(d);
+    const accent = getComputedStyle(d).backgroundColor; d.remove();
+    return { decl, computed, accent };
+  });
+  expect(r.decl, '규칙의 background-color 가 버려졌다(color-mix 미지원이면 빈 값)').toContain('color-mix');
+  const m = r.computed.match(/^color\(srgb ([\d.]+) ([\d.]+) ([\d.]+) \/ 0\.35\)$/);
+  expect(m, `계산값이 35% 반투명이 아니다: ${r.computed}`).not.toBeNull();
+  const a = r.accent.match(/\d+/g).slice(0, 3).map(Number);
+  expect(m.slice(1, 4).map(x => Math.round(Number(x) * 255)), `색이 --ui-accent(${r.accent}) 와 다르다`).toEqual(a);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
