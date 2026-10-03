@@ -499,12 +499,32 @@ function _renderAutoPanel(ss) {
     if (alignItems !== null) {
       ss.style.alignItems = alignItems;
       ss.dataset.alignItems = alignItems;
-      // 자식 row의 align-self / margin이 align-items를 덮어쓰는 문제 수정
-      const alignSelfMap = { 'flex-start': 'flex-start', 'center': 'center', 'flex-end': 'flex-end' };
-      const marginMap    = { 'flex-start': '0',          'center': '0 auto',  'flex-end': '0' };
-      ss.querySelectorAll(':scope > .row').forEach(row => {
-        row.style.alignSelf = alignSelfMap[alignItems] || '';
-        row.style.margin    = marginMap[alignItems]    || '0';
+      /* ★자식이 «자기 align-self» 를 들고 있으면 부모 align-items 는 «무시된다».
+         그래서 정렬 단추가 «내용»까지 닿으려면 자식 쪽을 같이 맞춰야 한다(F4, 2026-10-03 실측):
+           ① 직계 비-row 자식(text-frame·직계 에셋 — _convertFreeLayoutToStack 이 alignSelf 를 남긴다) → 같은 값
+           ② row[stack] 은 폭 100% 라 row 자신이 움직여도 무변화 → «row 안 직계 자식»(에셋 등 고정폭)을 같은 값
+           ③ row[flex]·레이아웃 미지정(가로로 나란히 놓인 것들) → justify-content 로 묶음 전체를 옮긴다
+           ④ row[grid] 는 칸이 폭을 채우므로 손대지 않는다. 그리드 «칸 안» 글자 정렬은 칸 정렬 몫(이 단추 밖).
+         asset-block 은 dataset.align 도 맞춘다 — 안 맞추면 폭을 바꿀 때 prop-asset 이 옛 정렬로 되돌린다. */
+      const selfOf   = { 'flex-start': 'flex-start', 'center': 'center', 'flex-end': 'flex-end' };
+      const marginOf = { 'flex-start': '0',          'center': '0 auto',  'flex-end': '0' };
+      const alignKey = { 'flex-start': 'left',       'center': 'center',   'flex-end': 'right' };
+      const _setSelf = (el) => {
+        if (el.classList.contains('gap-block') || el.classList.contains('frame-resize-handle')) return;
+        if (getComputedStyle(el).position === 'absolute') return;
+        el.style.alignSelf = selfOf[alignItems] || '';
+        if (el.classList.contains('asset-block') && el.dataset.align) el.dataset.align = alignKey[alignItems] || el.dataset.align;
+      };
+      [...ss.children].forEach(c => {
+        if (c.classList.contains('row')) {
+          c.style.alignSelf = selfOf[alignItems] || '';
+          c.style.margin    = marginOf[alignItems] || '0';
+          const lay = c.dataset.layout;
+          if (lay === 'stack') [...c.children].forEach(_setSelf);
+          else if (lay !== 'grid') c.style.justifyContent = alignItems === 'center' ? 'center' : (alignItems === 'flex-end' ? 'flex-end' : '');
+        } else {
+          _setSelf(c);
+        }
       });
     }
     if (justifyContent !== null) { ss.style.justifyContent = justifyContent; ss.dataset.justifyContent = justifyContent; }
