@@ -508,6 +508,7 @@ export function exitFloat(posEl) {
        (702 → 600 으로 조용히 줄어 D7 이 빨강). 두 결정이 부딪히는 자리라 «현빈 판단»으로
        남긴다 — 0920b QA 보고서에 수치와 함께 올린다. */
   }
+  window.syncAutoGridWidth?.(posEl);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
   return true;
 }
 

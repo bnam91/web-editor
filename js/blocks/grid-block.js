@@ -335,26 +335,70 @@ function getGridWidth(block) {
  *  ⛔폭은 모델 키(data-grid-width) «하나»로만 준다 — style.width 를 따로 박지 않는다(다음 렌더가 지운다).
  *  부르는 입구 셋: drag-utils settleRowInFreeFrame · block-drag 드롭 makeAbsolute · block-factory _insertToFlowFrame. */
 export const GRID_FREE_FRAME_FILL = 0.8;
+/* ★출처 표시(F3 후속, 2026-10-03 적대QA) — `data-grid-width-auto="1"` = 「지금 키 값은 입구가 «자동으로» 넣었다」.
+ *  ⛔폭 값은 여전히 data-grid-width «하나»다. 이 표시는 값을 안 담는다(출처만).
+ *  무엇이 났나: 자동 폭이 키에 «남아» 프레임을 떠나도 좁은 채였고, 더 작은 프레임을 거치면 더 줄고 다시 안 커졌다
+ *    (섹션→764→섹션→400→섹션→764→섹션 = 611·611·320·320·320·320, 기준판은 섹션에서 매번 780).
+ *  규약: 자동이면 ⑴ 다른 자유 프레임에 들어갈 때 그 프레임 기준으로 «다시» 맞추고 ⑵ 자유 프레임을 떠나면 키·표시를 지워 100%.
+ *        사용자가 정한 폭(updateGridBlock width · want)은 표시가 없으니 안 건드린다. */
 function fitGridWidthToFreeFrame(block, frame, want) {
   if (!block || !block.classList || !block.classList.contains('grid-block')) return false;
   if (!frame || !frame.dataset || frame.dataset.freeLayout !== 'true') return false;
   if (block.dataset.overlayBlock === 'true') return false;          // 떠 있는 것은 굳힌 폭이 정본
   const wantPx = _gridValidateWidth(want);
   if (wantPx !== null) {
-    if (getGridWidth(block) === wantPx) return false;
+    const had = block.dataset.gridWidthAuto !== undefined;
+    delete block.dataset.gridWidthAuto;                              // 명시 요청 = 사용자 폭
+    if (getGridWidth(block) === wantPx) return had;
     block.dataset.gridWidth = String(wantPx);
     renderGridBlock(block);
     return true;
   }
   const fw = frame.clientWidth || 0;
   if (!fw) return false;                                             // 아직 레이아웃 전 — 잴 수 없으면 안 건드린다
+  const auto = block.dataset.gridWidthAuto === '1';
   const cur = getGridWidth(block);
-  if (cur !== null && cur < fw) return false;
   const w = Math.round(fw * GRID_FREE_FRAME_FILL);
   if (_gridValidateWidth(w) === null || w >= fw) return false;      // 아주 작은 프레임(<50px) — 줄일 수 없다
+  if (!auto && cur !== null) return false;                           // ⛔사용자 폭(프레임 이상)도 덮지 않는다 — 출처가 사람이다
+  if (auto && cur === w) return false;                               // 이미 이 프레임 기준 — 다시 그리지 않는다
   block.dataset.gridWidth = String(w);
+  block.dataset.gridWidthAuto = '1';
   renderGridBlock(block);
   return true;
+}
+
+/** 그리드가 지금 «자유 프레임의 직계 단위»로 사는가 — 그 프레임(없으면 null).
+ *  단위 = 블럭 자신 또는 감싼 .row. 그룹(data-group)도 자유 프레임이지만 «그룹 상자는 자식 폭에 맞춰진다»라
+ *  거기 맞추면 서로 줄어든다 ⇒ 그룹 안은 'group' 으로 따로 돌려준다(손대지 않음). */
+function _gridHomeFreeFrame(block) {
+  let unit = block, p = block.parentElement;
+  if (p && p.classList && p.classList.contains('row')) { unit = p; p = p.parentElement; }
+  if (!p || !p.classList || !p.classList.contains('frame-block') || p.dataset.freeLayout !== 'true') return null;
+  if (p.dataset.group === 'true') return 'group';
+  return p;
+}
+
+/** ★자리를 옮긴 «뒤» 부른다 — root(옮긴 단위) 안의 자동 폭 그리드를 새 자리에 맞춘다.
+ *  자유 프레임 안 = 그 프레임 기준으로 다시 맞춤 · 밖 = 키·표시를 지우고 100%. 사용자 폭·떠 있는 블럭은 무접촉.
+ *  ⛔로드·undo·rebind 에서는 부르지 않는다(저장된 판을 그대로 그린다 — 열 때 다시 맞추는 건 미결정).
+ *  부르는 «떠나는/옮기는» 입구 전수는 커밋 메시지에 명부로 적었다. @returns 바꾼 개수 */
+function syncAutoGridWidth(root) {
+  if (!root || root.nodeType !== 1) return 0;
+  const grids = [...root.querySelectorAll('.grid-block[data-grid-width-auto]')];
+  if (root.classList.contains('grid-block') && root.dataset.gridWidthAuto !== undefined) grids.unshift(root);
+  let n = 0;
+  for (const g of grids) {
+    if (g.dataset.overlayBlock === 'true') continue;
+    const home = _gridHomeFreeFrame(g);
+    if (home === 'group') continue;
+    if (home) { if (fitGridWidthToFreeFrame(g, home)) n++; continue; }
+    delete g.dataset.gridWidth;
+    delete g.dataset.gridWidthAuto;
+    renderGridBlock(g);
+    n++;
+  }
+  return n;
 }
 
 /** gap/rowGap/colGap 공용 검증 — min~GRID_GAP_MAX(min 기본 0, rowGap 만 GRID_ROW_GAP_MIN). 통과면 정수, 아니면 null. */
@@ -2549,6 +2593,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     rowRuleInset: block.dataset.rowRuleInset,
     rowRuleSpan: block.dataset.rowRuleSpan,
     gridWidth: block.dataset.gridWidth,   // G2-a
+    gridWidthAuto: block.dataset.gridWidthAuto,   // F3 후속 — 출처 표시도 같이 되돌린다
   };
   /* ★★★2026-09-30 — 되돌림 명부를 «스냅샷에서 뽑는다». 손으로 적지 않는다.
    *   ⛔무엇이 났나: 바로 위 ⛔주석이 「새 키를 같이 넣어라」라고 경고하는데, 나는 `before` 에는
@@ -2578,6 +2623,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   if (opts.noHistory !== true) window.pushHistory?.();
   Object.assign(block.dataset, next);
   if (widthUnset) delete block.dataset.gridWidth;
+  if (partial.width !== undefined) delete block.dataset.gridWidthAuto;   // 사람이 정한 폭 — 자동 출처 표시를 뗀다
   try {
     renderGridBlock(block);
   } catch (e) {
@@ -2724,6 +2770,7 @@ window.migrateGridIdentity = migrateGridIdentity;
 //   그대로 window.updateGridBlock/renderGridBlock 과 같은 다리를 쓴다).
 window.getGridModel = getGridModel;
 window.getGridWidth = getGridWidth;   // G2-a — 다른 파일이 폭을 «읽을» 때도 이 문 하나
+window.syncAutoGridWidth = syncAutoGridWidth;   // F3 후속 — 옮긴 뒤 자동 폭을 새 자리에 맞춘다(떠나면 100%)
 window.fitGridWidthToFreeFrame = fitGridWidthToFreeFrame;   // F3 — 자유배치 프레임 입구 셋이 부른다(drag-utils·block-drag 는 이 파일을 import 안 함)
 
 // ★deprecated 별칭 — 2026-09-05 개명 이전 이름. scripts/goditor_runner.js 와 외부 스킬 md·
@@ -2741,7 +2788,7 @@ export {
   _gridLineHtml as gridLineHtml, _GRID_ROLES as GRID_ROLES,
   _GRID_COLOR_RE as GRID_COLOR_RE, _GRID_FONT_RE as GRID_FONT_RE,
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
-  getGridWidth, _gridValidateWidth as gridValidateWidth, fitGridWidthToFreeFrame,
+  getGridWidth, _gridValidateWidth as gridValidateWidth, fitGridWidthToFreeFrame, syncAutoGridWidth,
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, MAX_CELL_LINES,
   _gridGaps as gridGaps, _gridCellsToDataset as gridCellsToDataset,
   _gridCellBorder as gridCellBorder,   /* ★T-172 — 패널이 «같은 읽는 문»을 쓴다(두 벌 금지) */

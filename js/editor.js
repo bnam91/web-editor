@@ -1718,6 +1718,7 @@ function _bindPastedEl(el) {
     // qa-block: 위에서 id 를 재발급했다 — 풋터 ID칩(.qa-id-chip)이 옛 id 를 그대로 보여주지 않게 재렌더.
     if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
   });
+  window.syncAutoGridWidth?.(el);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — 붙여넣기·복제가 이 문을 지난다(넣은 «뒤»에 불린다)
 }
 
 // 붙여넣은 최상위 요소가 freeLayout이 아닌 부모로 들어가면 absolute 좌표는
@@ -4210,6 +4211,7 @@ function moveBlock(blockId, { beforeId, afterId } = {}) {
   //   복제하지 않는다 — 검증을 모두 끝낸 뒤, mutate «전»에 pushHistory.
   pushHistory('블록 이동 전');
   if (mode === 'before') refUnit.before(unit); else refUnit.after(unit);
+  window.syncAutoGridWidth?.(unit);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
   window.buildLayerPanel?.();
   window.triggerAutoSave?.();
   return { movedUnitId: unit.id || null, refUnitId: refUnit.id || null };

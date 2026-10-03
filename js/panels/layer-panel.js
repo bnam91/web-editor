@@ -369,6 +369,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
             bottomGap.parentElement.insertBefore(domEl, bottomGap);
           } else sectionInner.appendChild(domEl);
         }
+        window.syncAutoGridWidth?.(domEl);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
       };
 
       // Cross-boundary: overlay-tb → section
@@ -433,6 +434,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
         sorted.forEach(target => {
           if (refNode && sectionInner.contains(refNode)) sectionInner.insertBefore(target, refNode);
           else sectionInner.appendChild(target);
+          window.syncAutoGridWidth?.(target);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
         });
         clearLayerIndicators();
         buildLayerPanel();
