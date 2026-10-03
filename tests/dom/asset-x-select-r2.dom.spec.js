@@ -17,11 +17,16 @@ const SEC = `<div class="section-block" id="sX" data-section="1"><div class="sec
     <button class="asset-overlay-clear" title="이미지 제거">✕</button><div class="asset-overlay"></div></div></div>
   <div class="gap-block" data-type="gap" id="gX1" style="height:200px;"></div></div></div>`;
 
-async function setup(page, zoom) {
+async function setup(page, zoom, abStyle = null) {
   await page.setViewportSize({ width: 1600, height: 1100 });
   await bootApp(page);
   await page.evaluate((h) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
-    c.insertAdjacentHTML('beforeend', h); window.rebindAll?.(); window.deselectAll?.(); }, SEC);
+    c.insertAdjacentHTML('beforeend', h); window.rebindAll?.(); window.deselectAll?.(); }, abStyle ? SEC.replace('style="height:260px;"', `style="${abStyle}"`) : SEC);
+  if (abStyle) {
+    const deg = (abStyle.match(/rotate\((\d+)deg\)/) || [])[1];
+    if (deg) await page.evaluate((d) => { document.getElementById('abX').dataset.rotation = d; }, deg);   // 앱의 회전 블럭 꼴(data-rotation + transform)
+    expect(await page.evaluate(() => document.getElementById('abX').getAttribute('style')), '전제 — 변형 픽스처가 실렸다').toBe(abStyle);
+  }
   await page.evaluate((z) => window.applyZoom(z), zoom);
   await page.waitForTimeout(300);
   expect(await page.evaluate(() => window.currentZoom), `★전제 — 배율 ${zoom}%`).toBe(zoom);
@@ -107,16 +112,31 @@ for (const zoom of [40, 100, 200]) test(`X4 [${zoom}%] ★골라진 상태에서
   expect(c.handle, `★✕ 원 안 ${c.n}점 중 ${c.handle}점을 둥글기 손잡이가 덮는다`).toBe(0);
   expect(c.center, '★✕ 가운데를 누르면 ✕ 가 아니다').toBe(true);
 });
-test('X5 지키는 시험 [40%] — 옮겨진 ne 손잡이를 끌면 모서리 반경이 실제로 바뀐다', async ({ page }) => {
+test('X5 지키는 시험 [40%] — ✕ 와 겹친 손잡이를 숨겨도 남은 손잡이(nw)로 모서리 반경이 실제로 바뀐다', async ({ page }) => {
   await setup(page, 40);
   await page.evaluate(() => document.querySelector('#abX .asset-overlay-clear').scrollIntoView({ block: 'center', inline: 'center' }));
   { const q = await page.evaluate(() => { const b = document.querySelector('#abX .asset-overlay-clear').getBoundingClientRect(); return [b.left - 60, b.bottom + 60]; });
     await page.mouse.click(q[0], q[1]); await page.waitForTimeout(250); }   // 진짜 클릭으로 고른다(손잡이는 클릭 경로가 붙인다)
-  const h = await page.evaluate(() => { const r = document.querySelector('.asset-radius-handle.ne').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('.asset-radius-handle.ne')).display), '전제 — 40% 에선 ne 가 ✕ 와 겹쳐 숨는다').toBe('none');
+  const h = await page.evaluate(() => { const r = document.querySelector('.asset-radius-handle.nw').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
   const r0 = await page.evaluate(() => parseInt(document.getElementById('abX').style.borderRadius) || 0);
   await page.mouse.move(h[0], h[1]); await page.mouse.down();
-  for (let i = 1; i <= 8; i++) await page.mouse.move(h[0] - i * 4, h[1] + i * 4);
+  for (let i = 1; i <= 8; i++) await page.mouse.move(h[0] + i * 4, h[1] + i * 4);
   await page.mouse.up(); await page.waitForTimeout(150);
   const r1 = await page.evaluate(() => parseInt(document.getElementById('abX').style.borderRadius) || 0);
   expect(r1, `반경 ${r0} → ${r1}`).toBeGreaterThan(r0);
 });
+
+/* ★X6 — 적대QA(2026-10-03)가 첫 처방(ne 를 ✕ 아래로 옮김)을 깬 두 조건: 회전 15°·90° · 높이 40px(se 가 ✕ 를 덮고 ne 가 블럭 밖으로).
+ *   처방을 «겹치는 손잡이는 숨김»으로 바꿨다 — 어느 조건에서도 ✕ 원 안 손잡이 점 0, 그리고 손잡이가 «하나 이상» 남는다(기능 생존). */
+for (const [name, st] of [['회전15', 'height:260px;transform:rotate(15deg);'], ['회전90', 'height:260px;transform:rotate(90deg);'], ['높이40', 'height:40px;'], ['높이60', 'height:60px;']])
+  test(`X6 [40%·${name}] ★✕ 를 덮는 손잡이 0 · 보이는 둥글기 손잡이 ≥1`, async ({ page }) => {
+    await setup(page, 40, st);
+    await page.evaluate(() => document.querySelector('#abX .asset-overlay-clear').scrollIntoView({ block: 'center', inline: 'center' }));
+    const q = await page.evaluate(() => { const a = document.getElementById('abX').getBoundingClientRect(); return [a.left + a.width * 0.3, a.top + a.height * 0.6]; });
+    await page.mouse.click(q[0], q[1]); await page.waitForTimeout(250);
+    expect(await page.evaluate(() => document.getElementById('abX').classList.contains('selected')), '전제 — 골라졌다').toBe(true);
+    const c = await coverage(page);
+    expect(c.handle, `★✕ 원 안 ${c.n}점 중 ${c.handle}점을 둥글기 손잡이가 덮는다`).toBe(0);
+    expect(await page.evaluate(() => [...document.querySelectorAll('.asset-radius-handle')].filter(h => getComputedStyle(h).display !== 'none').length), '★손잡이가 다 숨었다 — 반경을 못 바꾼다').toBeGreaterThan(0);
+  });
