@@ -129,7 +129,7 @@ for (const kind of ['free', 'flow']) {
     expect((await frameState(page)).exists, '전제 — 지운 뒤 프레임이 남아 있다').toBe(true);
     await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); });
     await page.keyboard.press('Meta+z'); await page.waitForTimeout(400);
-    const a = await page.evaluate(() => ({ frames: document.querySelectorAll('#sF1 .frame-block:not([data-text-frame])').length,
+    const a = await page.evaluate(() => ({ frames: document.querySelectorAll('#sF1 .frame-block:not([data-text-frame]):not([data-group="true"])').length,
       kidInFR: !!document.querySelector('#FR #kid'), tip: window.getHistoryTip?.() }));
     expect(errs).toEqual([]);
     expect(a.kidInFR, '한 번의 ⌘Z 로 자식이 프레임 안으로 안 돌아왔다').toBe(true);
@@ -163,7 +163,7 @@ for (const kind of ['free', 'flow']) {
       const clone = await ex.prepareCloneForCapture(document.getElementById('sF1'), 860, true);
       ex.renderComponentsInClone(clone);
       clone.id = '__clone'; clone.style.position = 'fixed'; clone.style.zIndex = '2147483647'; clone.style.top = '0px'; clone.style.left = '0px'; clone.style.background = '#ffffff';
-      const F = clone.querySelector('.frame-block:not([data-text-frame])');
+      const F = clone.querySelector('.frame-block:not([data-text-frame]):not([data-group="true"])');
       const r = F.getBoundingClientRect(); const cr = clone.getBoundingClientRect();
       return { outline: getComputedStyle(F).outlineStyle, h: Math.round(r.height), x: Math.round(r.left - cr.left), y: Math.round(r.top - cr.top), w: Math.round(r.width) };
     });
@@ -221,4 +221,75 @@ test('G ★그룹은 «비면» 같이 걷힌다(그룹 안 마지막 블록 삭
   expect(errs).toEqual([]);
   expect(s.gk).toBe(false);
   expect(s.GR, '빈 그룹이 남았다').toBe(false);
+});
+
+/* ── 적대QA(2026-10-03) — 중첩 그룹 사슬 · 사용자 프레임 안 그룹 ──
+ *   G2: GO[에셋 A, GI[에셋 B]] 에서 A·B 를 지우면 GI·GO 둘 다 걷힌다. (baa6a65d…842be230 판: GO 가 300px «안 보이는 빈 상자»로 남았다 —
+ *       후보가 «선택→조상» 순이라 GO 가 GI 보다 먼저 검사돼 「안 빈 그룹(GI)이 들어 있다」로 남았다.)
+ *   G3: 사용자 프레임 UF[그룹 G[에셋 C]] 에서 C 를 지우면 G 는 걷히고 UF 는 남는다(사용자 프레임은 비어도 산다). */
+const ABS = (id, l, t) => `<div class="asset-block" id="${id}" style="position:absolute;left:${l}px;top:${t}px;width:150px;height:100px;"><div class="asset-overlay"></div></div>`;
+async function deleteByKeys(page, html, ids) {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(([h, ids]) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
+    c.insertAdjacentHTML('beforeend', h);
+    window.rebindAll?.(); window.deselectAll?.();
+    document.getElementById('sF1').classList.add('selected');
+    ids.forEach(id => document.getElementById(id).classList.add('selected'));
+    document.activeElement?.blur?.();
+  }, [html, ids]);
+  await page.keyboard.press('Delete'); await page.waitForTimeout(300);
+  return errs;
+}
+const withBody = (body) => SEC0.replace('<div class="gap-block" id="gAfter"', body + '<div class="gap-block" id="gAfter"');
+
+test('G2 ★중첩 그룹 GO[A, GI[B]] — A·B 를 지우면 GI·GO 둘 다 걷힌다(보이지 않는 빈 그룹이 안 남는다)', async ({ page }) => {
+  const html = withBody(`<div class="frame-block" id="GO" data-group="true" data-free-layout="true" data-width="600" data-height="300" style="position:relative;width:600px;height:300px;">${ABS('gA', 10, 10)}`
+    + `<div class="frame-block" id="GI" data-group="true" data-free-layout="true" style="position:absolute;left:200px;top:120px;width:300px;height:150px;">${ABS('gB', 10, 10)}</div></div>`);
+  const errs = await deleteByKeys(page, html, ['gA', 'gB']);
+  const s = await page.evaluate(() => ({ A: !!document.getElementById('gA'), B: !!document.getElementById('gB'), GI: !!document.getElementById('GI'), GO: !!document.getElementById('GO') }));
+  expect(errs).toEqual([]);
+  expect({ A: s.A, B: s.B }, '전제 — 고른 두 에셋이 지워졌다').toEqual({ A: false, B: false });
+  expect(s.GI, '안쪽 빈 그룹이 남았다').toBe(false);
+  expect(s.GO, '★바깥 빈 그룹이 남았다(안쪽부터 안 봤다 / 그룹을 «남길 프레임»으로 셌다)').toBe(false);
+});
+
+test('G3 ★사용자 프레임 UF[그룹 G[에셋 C]] — C 를 지우면 그룹은 걷히고 사용자 프레임은 남는다', async ({ page }) => {
+  const html = withBody(`<div class="row" id="rowUF" data-layout="stack"><div class="frame-block" id="UF" data-free-layout="true" data-width="600" data-height="300" style="position:relative;width:600px;height:300px;">`
+    + `<div class="frame-block" id="G" data-group="true" data-free-layout="true" style="position:absolute;left:20px;top:20px;width:300px;height:150px;">${ABS('gC', 10, 10)}</div></div></div>`);
+  const errs = await deleteByKeys(page, html, ['gC']);
+  const s = await page.evaluate(() => ({ C: !!document.getElementById('gC'), G: !!document.getElementById('G'), UF: !!document.getElementById('UF'), ufKids: document.getElementById('UF')?.children.length }));
+  expect(errs).toEqual([]);
+  expect(s.C, '전제 — 에셋이 지워졌다').toBe(false);
+  expect(s.G, '빈 그룹이 남았다').toBe(false);
+  expect(s.UF, '★사용자 프레임까지 걷혔다').toBe(true);
+  expect(s.ufKids).toBe(0);
+});
+
+/* G4 — 적대QA 꼴 그대로 + 3겹: 사용자 프레임 UFx 옆에 GO[A, GM[B, GI[C]]] 를 두고 A·B·C 를 지운다
+ *   ⇒ 그룹 0개 · 사용자 프레임 수 그대로(1). 바깥이 먼저 검사되든 안쪽이 먼저든(깊이순 + 고정점) 사슬 전체가 걷혀야 한다. */
+test('G4 ★3겹 중첩 그룹 GO[A, GM[B, GI[C]]] 전부 삭제 → 그룹 0개 · 사용자 프레임 수 그대로', async ({ page }) => {
+  const GRP = (id, l, t, w, h, inner) => `<div class="frame-block" id="${id}" data-group="true" data-free-layout="true" style="position:${id === 'GO' ? 'relative' : 'absolute'};left:${l}px;top:${t}px;width:${w}px;height:${h}px;">${inner}</div>`;
+  const html = withBody(`<div class="row" id="rowUFx" data-layout="stack"><div class="frame-block" id="UFx" data-free-layout="true" style="position:relative;width:600px;height:120px;"></div></div>`
+    + GRP('GO', 0, 0, 700, 400, ABS('gA', 10, 10) + GRP('GM', 180, 20, 500, 360, ABS('gB', 10, 10) + GRP('GI', 180, 130, 300, 200, ABS('gC', 10, 10)))));
+  const USER = '.frame-block:not([data-text-frame]):not([data-group="true"])';
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const before = await page.evaluate(([h, U]) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
+    c.insertAdjacentHTML('beforeend', h); window.rebindAll?.(); window.deselectAll?.();
+    document.getElementById('sF1').classList.add('selected');
+    ['gA', 'gB', 'gC'].forEach(id => document.getElementById(id).classList.add('selected'));
+    document.activeElement?.blur?.();
+    return { groups: document.querySelectorAll('#sF1 .frame-block[data-group="true"]').length, users: document.querySelectorAll('#sF1 ' + U).length };
+  }, [html, USER]);
+  expect(before, '전제 — 그룹 셋 · 사용자 프레임 하나').toEqual({ groups: 3, users: 1 });
+  await page.keyboard.press('Delete'); await page.waitForTimeout(300);
+  const after = await page.evaluate((U) => ({ assets: document.querySelectorAll('#sF1 .asset-block').length,
+    groups: document.querySelectorAll('#sF1 .frame-block[data-group="true"]').length, users: document.querySelectorAll('#sF1 ' + U).length }), USER);
+  expect(errs).toEqual([]);
+  expect(after.assets, '전제 — 고른 세 에셋이 지워졌다').toBe(0);
+  expect(after.groups, '★빈 그룹이 남았다').toBe(0);
+  expect(after.users, '사용자 프레임 수가 바뀌었다').toBe(before.users);
 });

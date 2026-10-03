@@ -73,7 +73,7 @@ function __emptyFrames() {
 
 const before = await s.eval(`${EMPTY_FRAME_FN}
   return { frames: document.querySelectorAll('.frame-block').length,
-           userFrames: document.querySelectorAll('.frame-block:not([data-text-frame])').length,
+           userFrames: document.querySelectorAll('.frame-block:not([data-text-frame]):not([data-group="true"])').length,
            blocks: document.querySelectorAll('.text-block').length,
            emptyFrames: __emptyFrames().length };`);
 
@@ -93,7 +93,7 @@ await s.del();
 await s.sleep(900);
 const after = await s.eval(`${EMPTY_FRAME_FN}
   return { frames: document.querySelectorAll('.frame-block').length,
-           userFrames: document.querySelectorAll('.frame-block:not([data-text-frame])').length,
+           userFrames: document.querySelectorAll('.frame-block:not([data-text-frame]):not([data-group="true"])').length,
            blocks: document.querySelectorAll('.text-block').length,
            empty: __emptyFrames() };`);
 
