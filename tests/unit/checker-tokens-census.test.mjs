@@ -88,16 +88,73 @@ test('C2 센서스 — 체커 무늬 안에 raw hex·transparent 가 «0건» (�
   assert.equal(r.hits.length, 0, `raw 체커 값 ${r.hits.length}곳:\n` + r.hits.map(h => `  ${h.rel} [${h.kind}] ${h.text}`).join('\n'));
 });
 
-test('C3 정의 — 토큰 열 개가 정본(editor-base.css)에 «한 번씩만» 있고, 다른 CSS 엔 정의가 없다', () => {
-  const base = stripCss(fs.readFileSync(path.join(ROOT, TOKEN_HOME), 'utf8'));
-  for (const n of FAMILIES) {
-    const defs = [...base.matchAll(new RegExp(`--goya-checker-${n}\\s*:`, 'g'))].length;
-    assert.equal(defs, 1, `--goya-checker-${n} 정의 ${defs}회`);
+/* ★C3 넓힘(S1 체커 어둡게, 2026-10-04) — 토글의 값은 «같은 정본 파일»의 «이름 붙은 톤 선택자 하나» 안에서만 다시 정의된다.
+ *   허용: `:root{…}` 에 정확히 1번(기본값) + `:root[data-goya-checker-tone="dark"]{…}` 에 0~1번(색 다섯만).
+ *   ⛔그 밖의 선택자(섹션·블록 등)에서 토큰을 재정의하면 빨강 — 섹션 단위 덮기는 «안 하기로» 했다(지디 2026-10-04: 전역).
+ *   ⛔톤 규칙이 크기·svg·clear-b 를 덮으면 빨강 — 톤은 «색만» 바꾼다(svg 는 big 을 var 로 따라가고, clear-b 는 «비침»이다). */
+export const TONE_SEL = ':root[data-goya-checker-tone="dark"]';
+export const TONE_FAMILIES = ['big-a', 'big-b', 'small-a', 'small-b', 'clear-a'];
+/** 정본 CSS 를 규칙 단위로 잘라 «선택자 → 그 안의 체커 토큰 정의 목록». 주석은 먼저 걷는다. */
+export function tokenDefsBySelector(cssText) {
+  const out = [];
+  for (const m of stripCss(cssText).matchAll(/([^{};]+)\{([^{}]*)\}/g)) {
+    const sel = m[1].trim().replace(/\s+/g, ' ');
+    const defs = [...m[2].matchAll(/--goya-checker-([a-z]+(?:-[a-z]+)*)\s*:\s*([^;]+)/g)].map(d => ({ name: d[1], value: d[2].trim() }));
+    if (defs.length) out.push({ sel, defs });
   }
+  return out;
+}
+export function checkTokenDefs(cssText) {
+  const errs = [];
+  const blocks = tokenDefsBySelector(cssText);
+  for (const b of blocks) {
+    if (b.sel === ':root' || b.sel === TONE_SEL) continue;
+    errs.push(`선택자 «${b.sel}» 가 토큰을 재정의한다: ${b.defs.map(d => d.name).join(',')}`);
+  }
+  const count = (sel, n) => blocks.filter(b => b.sel === sel).flatMap(b => b.defs).filter(d => d.name === n).length;
+  for (const n of FAMILIES) {
+    const base = count(':root', n);
+    if (base !== 1) errs.push(`--goya-checker-${n} 기본 정의 ${base}회(1회여야)`);
+    const tone = count(TONE_SEL, n);
+    if (tone > 1) errs.push(`--goya-checker-${n} 톤 정의 ${tone}회`);
+    if (tone && !TONE_FAMILIES.includes(n)) errs.push(`톤 규칙이 «색 다섯» 밖의 --goya-checker-${n} 을 덮는다`);
+  }
+  for (const b of blocks.filter(b => b.sel === TONE_SEL)) {
+    for (const d of b.defs) if (!/^#[0-9a-f]{6}$/i.test(d.value)) errs.push(`톤 값 --goya-checker-${d.name}: ${d.value} 은 #rrggbb 가 아니다`);
+  }
+  return errs;
+}
+
+test('C3 정의 — 기본 1번(:root) + 톤 규칙 안 «색 다섯»만 다시 정의, 그 밖의 선택자·다른 CSS 엔 정의가 없다', () => {
+  const errs = checkTokenDefs(fs.readFileSync(path.join(ROOT, TOKEN_HOME), 'utf8'));
+  assert.deepEqual(errs, []);
   for (const f of walk(path.join(ROOT, 'css'), ['.css'])) {
     if (path.relative(ROOT, f) === TOKEN_HOME) continue;
     assert.ok(!/--goya-checker-[a-z-]+\s*:/.test(stripCss(fs.readFileSync(f, 'utf8'))), `${path.relative(ROOT, f)} 가 토큰을 다시 «정의»한다`);
   }
+});
+
+test('C3+ 양성대조(합성) — 넓힌 C3 이 «못 보는» 게 아니라 «0건»을 말한다', () => {
+  const real = fs.readFileSync(path.join(ROOT, TOKEN_HOME), 'utf8');
+  const tone = tokenDefsBySelector(real).filter(b => b.sel === TONE_SEL);
+  assert.equal(tone.length, 1, `톤 규칙 ${tone.length}개 — 토글이 칠할 값이 없다`);
+  assert.deepEqual(tone[0].defs.map(d => d.name).sort(), [...TONE_FAMILIES].sort(), '톤 규칙은 «색 다섯»을 전부 덮는다');
+  // ⑴ 섹션 선택자 재정의 — 잡는다
+  assert.ok(checkTokenDefs(real + '\n.section-block{--goya-checker-big-a:#000000}').some(e => /section-block/.test(e)));
+  // ⑵ 톤 규칙이 크기를 덮음 — 잡는다
+  assert.ok(checkTokenDefs(real + `\n${TONE_SEL}{--goya-checker-big-size:10px}`).some(e => /big-size/.test(e)));
+  // ⑶ 기본 정의가 둘 — 잡는다
+  assert.ok(checkTokenDefs(real + '\n:root{--goya-checker-small-a:#000000}').some(e => /small-a 기본 정의 2/.test(e)));
+  // ⑷ 주석 속 정의는 정의가 아니다 — 안 잡는다
+  assert.deepEqual(checkTokenDefs(real + '\n/* .x{--goya-checker-big-a:#000} */'), []);
+});
+
+test('C4b 톤 속성 이름 — CSS 선택자와 JS 가 거는 속성이 «같은 글자»다(오타면 단추가 조용히 아무것도 안 한다)', () => {
+  const js = fs.readFileSync(path.join(ROOT, 'js', 'checker-tokens.js'), 'utf8');
+  const m = js.match(/CHECKER_TONE_ATTR\s*=\s*'([^']+)'/);
+  assert.ok(m, 'js/checker-tokens.js 에 CHECKER_TONE_ATTR 이 없다');
+  assert.equal(`:root[${m[1]}="dark"]`, TONE_SEL);
+  assert.ok(stripCss(fs.readFileSync(path.join(ROOT, TOKEN_HOME), 'utf8')).includes(TONE_SEL), '정본 CSS 에 톤 선택자가 없다');
 });
 
 test('C4 사용 — CSS·JS 가 읽는 --goya-checker-* 는 전부 정의돼 있다(오타 변수 방지)', () => {

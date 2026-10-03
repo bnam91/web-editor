@@ -180,6 +180,29 @@
      preset-h*-weight는 --preset-* 캔버스 네임스페이스라 UI 크롬 토큰 범위 밖(제외). */
 }
 
+/* ── S1 «체커 어둡게» — 켜고 끄는 단추(2026-10-04 현빈 「켜고 끄는 단추를 두기」 · 지디 결정: 전역·기본 끔·값 A) ──
+   흰 글자 뒤에서 체커가 안 보이던 문제. 켜면 «편집 화면의 투명 표시»만 어두워진다(에디터 다크모드가 아니다).
+   켜는 문 = js/checker-tokens.js setCheckerDarkOn → <html data-goya-checker-tone="dark"> · 단추 = 페이지 패널 Grid 절.
+   ⛔프로젝트에 저장하지 않는다(사용자 «보기» 설정 — localStorage gdt.checkerDark). 끄면 위 :root 값 그대로(픽셀 동일).
+   값(WCAG 대비, 두 칸 중 낮은 쪽 — $S/reports/S1-DESIGN.md 표):
+     big   #7c7c7c/#949494 — 흰 글자 3.03 · #111 4.52 (지금 1.14 · 13.25)
+     small #868686/#929292 — 흰 3.11 · #111 5.19 · «작은 쌍이 더 연하다»(중간값 140>136)·차 12 그대로
+     clear #838383/transparent — 흰 3.79 · #111 4.98. b 는 «비침»이라 그대로 둔다(흰 글자는 b 칸에서 여전히 ≈1.0 — 넣는 줄 알고 넣는다).
+       ⛔#828282 가 아닌 까닭: 페이지 바탕 기본값(js/globals.js pageSettings.bg)과 «같은 글자»라 배송본 누출 센서스가 가짜 1건을 셌다(실측).
+     svg   = big 을 따라간다(위 :root 의 var(--goya-checker-big-*) 가 «이 요소에서» 다시 풀린다 — 따로 적지 않는다)
+   넣는 줄 알고 넣는 부작용: 같은 hex 차라 무늬 대비 a↔b 가 1.25→1.38 로 커진다(무늬가 조금 «시끄럽다») ·
+     카드 빈칸 '+'(rgba(0,0,0,.35)) 대비가 낮아진다 · 켠 «동안» 새로 만든 목업·주석 라벨의 인라인 체커는 그때 색으로 굳는다
+     (js/checker-tokens.js 머리말 — 이미 저장된 인라인이 안 바뀌는 것과 같은 결).
+   ⛔크기 토큰은 덮지 않는다(색만). 내보내기는 «서명»(repeating-conic-gradient)으로 걷으므로 값과 무관하고,
+     이 규칙은 선택자가 캔버스 안에 안 맞아 단독 HTML CSS 수확(export-css-collect.js)에 실리지 않는다. */
+:root[data-goya-checker-tone="dark"] {
+  --goya-checker-big-a:   #7c7c7c;
+  --goya-checker-big-b:   #949494;
+  --goya-checker-small-a: #868686;
+  --goya-checker-small-b: #929292;
+  --goya-checker-clear-a: #838383;
+}
+
 /* 프리셋 스타일은 JS에서 inline CSS variables로 적용 (presets/*.json 기반)
    → applyPreset() 참고 */
 
