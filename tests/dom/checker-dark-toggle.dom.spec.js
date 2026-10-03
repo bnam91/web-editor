@@ -7,7 +7,8 @@
  *   D4 ★단독 HTML 배송본 — 켠 채 내보내도 체커 서명·토큰·톤 속성·켬 hex 가 «0건».
  *      음성대조: 같은 순간 라이브 화면엔 켬 체커가 실제로 그려져 있다(지울 것이 있었다) · 배송본에 앱 CSS 는 실렸다.
  *   D5 ★PNG — 켠 채 exportSection 한 그림에 켬 hex 픽셀이 «0»(native=실앱 CDP 길 · 웹 폴백 html2canvas 둘 다).
- *      음성대조: 같은 CDP 명령으로 «걷기 없이» 라이브 섹션을 찍으면 켬 hex 픽셀이 > 0 (잣대가 산다).
+ *      음성대조: 같은 CDP 명령으로 «걷기 없이» 켬 체커 상자를 찍으면 켬 hex 픽셀이 > 50,000/60,000 (잣대가 산다).
+ *      ⚠️웹 폴백(html2canvas)은 conic-gradient 를 못 그린다 — 걷기를 꺼도(변이 M2) 0 이었다(실측). 그 길의 0 은 «증거가 아니다», 기록만 한다.
  *   D6 카드 빈칸 '+' 대비 실측 — 끔·켬(A)·B(조상 덮기) 셋을 «그려서» 잰다(설계 표 1.51 은 계산값이었다).
  *
  * ⛔이 하네스로 «못 재는» 축: Electron 실앱의 localStorage 영속(앱 재기동)·네이티브 메뉴. 새로고침 영속까지만 잰다.
@@ -36,6 +37,7 @@ async function buildFixture(page) {
     cv.innerHTML = `
       <div class="section-block sec-bg-empty" id="ckS" data-section="1" data-name="CK" data-bg-img-empty="1" style="background-color:#ffffff">
         <div class="section-inner">
+          <div id="ckMark" style="width:100px;height:40px;background:#ff00aa"></div>
           <div class="asset-block" id="ckAsset" style="height:300px"></div>
           <div class="table-block" id="ckTb"><table class="tb-table"><tbody><tr data-row-img="true">
             <td><div class="tbl-img-cell" id="ckTic" style="height:60px;width:100%;position:relative;"></div></td>
@@ -177,7 +179,7 @@ async function installCdpCapture(page) {
   });
 }
 
-test('D5 ★PNG(native = 실앱 길) — 켠 채 exportSection 한 그림에 켬 hex 픽셀 0 (음성대조: 같은 CDP 로 라이브 섹션을 찍으면 > 0)', async ({ page }) => {
+test('D5 ★PNG(native = 실앱 길) — 켠 채 exportSection 한 그림에 켬 hex 픽셀 0 (음성대조: 같은 CDP 로 켬 체커 상자를 찍으면 > 50,000/60,000)', async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 900 });
   const errs = await bootApp(page);
   await installCdpCapture(page);
@@ -188,15 +190,23 @@ test('D5 ★PNG(native = 실앱 길) — 켠 채 exportSection 한 그림에 켬
       const i = new Image(); i.src = url; await i.decode();
       const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const g = c.getContext('2d'); g.drawImage(i, 0, 0);
       const d = g.getImageData(0, 0, c.width, c.height).data; let n = 0;
-      for (let k = 0; k < d.length; k += 4) if (DARK.some(([a, b, cc]) => d[k] === a && d[k + 1] === b && d[k + 2] === cc)) n++;
-      return { n, w: c.width, h: c.height };
+      let mark = 0;
+      for (let k = 0; k < d.length; k += 4) { if (DARK.some(([a, b, cc]) => d[k] === a && d[k + 1] === b && d[k + 2] === cc)) n++; if (d[k] === 255 && d[k + 1] === 0 && d[k + 2] === 170) mark++; }
+      return { n, mark, w: c.width, h: c.height };
     };
     const sec = document.getElementById('ckS');
-    sec.scrollIntoView();
-    const rc = sec.getBoundingClientRect();
-    let live = null;   // 음성대조 — 걷기 «없이» 같은 CDP 명령으로 라이브 섹션
-    try { live = await countDark('data:image/png;base64,' + await window.__cdpShot({ x: rc.left + scrollX, y: rc.top + scrollY, width: Math.min(rc.width, 860), height: rc.height })); }
+    /* 음성대조 — 같은 CDP 명령으로 «걷기 없이» 켬 체커를 찍으면 센다(잣대가 산다).
+       ⚠️라이브 «섹션»을 찍으면 흔들렸다(실측: 37,126 / 17,874 / 34점 — 캔버스 배율·부팅 때 뜨는 덮개에 따라 자리가 달라진다).
+       ⇒ 캔버스와 무관한 «맨 위 고정 상자»(같은 .asset-block 규칙 = 켬 체커)를 찍는다. 300×200 = 60,000점. */
+    const probe = document.createElement('div');
+    probe.className = 'asset-block';
+    probe.style.cssText = 'position:fixed;left:0;top:0;width:300px;height:200px;z-index:2147483647;outline:none';
+    document.body.appendChild(probe);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    let live = null;
+    try { live = await countDark('data:image/png;base64,' + await window.__cdpShot({ x: scrollX, y: scrollY, width: 300, height: 200 })); }
     catch (e) { live = { err: String(e && e.message || e).slice(0, 160) }; }
+    probe.remove();
     const run = async (opts) => {
       try { const url = await window.exportSection(sec, 'png', 860, { returnDataUrl: true, ...opts }); return typeof url === 'string' && url.startsWith('data:image/png') ? await countDark(url) : { err: 'not png' }; }
       catch (e) { return { err: String(e && (e.message || e.type) || e).slice(0, 200) }; }
@@ -206,12 +216,13 @@ test('D5 ★PNG(native = 실앱 길) — 켠 채 exportSection 한 그림에 켬
     return { live, native, h2c, attrAfter: document.documentElement.getAttribute('data-goya-checker-tone') };
   }, DARK_RGB);
   console.log('  D5:', JSON.stringify(r));
-  expect(r.live?.n, '★잣대 — 걷기 없이 CDP 로 찍은 라이브 섹션에 켬 체커 픽셀이 없다(잣대가 죽었다)').toBeGreaterThan(1000);
+  expect(r.live?.n, '★잣대 — 걷기 없이 CDP 로 찍은 켬 체커 상자(60,000점)에서 켬 픽셀이 거의 없다(잣대가 죽었다)').toBeGreaterThan(50000);
   expect(r.native.err, 'native 내보내기가 죽었다').toBeUndefined();
   expect(r.native.w).toBeGreaterThan(100);
+  expect(r.native.mark, '★내보낸 PNG 에 섹션 표식(#ff00aa 100×40)이 없다 — 엉뚱한 곳을 찍었으면 0 은 증거가 아니다').toBeGreaterThan(3000);
   expect(r.native.n, '★켠 채 내보낸 PNG(native)에 켬 체커 픽셀').toBe(0);
   expect(r.h2c.err, '웹 폴백 내보내기가 죽었다').toBeUndefined();
-  expect(r.h2c.n, '켠 채 내보낸 PNG(웹 폴백)에 켬 체커 픽셀').toBe(0);
+  expect(r.h2c.n, '켠 채 내보낸 PNG(웹 폴백)에 켬 체커 픽셀 — ⚠️html2canvas 가 conic 을 못 그려 늘 0(변이 M2 실측), 회귀 기록용').toBe(0);
   expect(r.attrAfter, '내보내기가 사용자 토글을 바꿨다').toBe('dark');
   expect(errs).toEqual([]);
 });
