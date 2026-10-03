@@ -394,12 +394,6 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      /* ★S1(2026-10-03, 현빈 승인) — 창이 가려진 채 오래 있으면 자동저장이 «분 단위»로 밀리던 것.
-         실측(9334 사본 proj_1791003000001): 숨긴 지 10·20·30분 지점마다 편집+자동저장 → 180초 안에 디스크 반영 0회(「저장 중...」 고착).
-         같은 숨은 창에서 setTimeout(1500) 이 119초 뒤에 발화 · rAF 0 — 숨은 창의 타이머 억제(이름은 추정, 수는 잰 것).
-         ⇒ 이 창은 백그라운드 억제를 끈다. ⚠️대가(전력·CPU)는 명부에 수로 · ⚠️이 설정 «뒤로는» 숨은 창 타이머 억제를
-           이 앱에서 못 잰다 — S1 재발 판정은 이 줄을 끈 판에서만 가능하다. */
-      backgroundThrottling: false,
     },
   });
 
@@ -2544,6 +2538,33 @@ ipcMain.handle('projects:save', (event, project) => _saveProjectImpl(project));
 // BUG-44: 새로고침/탭 닫기 시 동기 저장 — beforeunload는 async를 await할 수 없어
 // 1.5초 debounce가 끝나기 전 새로고침 시 이미지·텍스트 변경분이 파일에 누락되던 문제 해결
 // 페이지/섹션 감소 차단 가드는 제거 (정당한 삭제도 막혔던 부작용) — 백업만 유지
+/* ★S1(2026-10-03, 현빈 승인 → 지디 «저장 대기 중에만»으로 좁힘) — 자동저장이 기다리는 동안에만 그 창의 백그라운드 억제를 푼다.
+   까닭: 오래 가려진 창은 타이머가 분 단위로 묶여 자동저장이 10~30분+ 밀렸다(실측). 상시로 끄면(4ba5c791) 숨겨 둔 앱이
+     %CPU 평균 12.2(켬 0.06)를 상시 먹고 visibilitychange 의존 2곳이 죽었다(실측) ⇒ 저장 대기 구간만.
+   ⛔되돌림 보증 셋: ⑴렌더러가 저장의 모든 끝에서 off ⑵on 마다 상한 타이머(SAVE_PENDING_MAX_MS) — 렌더러가 off 를 못 보내도 되돌림
+     ⑶창(webContents) 파괴 때 타이머 정리. ⇒ «풀린 채 남는» 꼴이 생기면 그건 12% 상시 세금이다.
+   ⚠️이 구간 «안»에서는 숨은 창 타이머 억제를 못 잰다 — S1 재발 판정은 저장 대기 밖에서. */
+const SAVE_PENDING_MAX_MS = 120000;
+const _savePendingTimers = new Map();   // webContents.id → timeout
+function _setSavePending(wc, on) {
+  if (!wc || wc.isDestroyed()) return;
+  const id = wc.id;
+  clearTimeout(_savePendingTimers.get(id));
+  _savePendingTimers.delete(id);
+  try { wc.setBackgroundThrottling(!on); } catch (_) {}
+  if (on) {
+    _savePendingTimers.set(id, setTimeout(() => {
+      _savePendingTimers.delete(id);
+      try { if (!wc.isDestroyed()) wc.setBackgroundThrottling(true); } catch (_) {}
+    }, SAVE_PENDING_MAX_MS));
+    if (!wc._gdSavePendingHooked) {
+      wc._gdSavePendingHooked = true;
+      wc.once('destroyed', () => { clearTimeout(_savePendingTimers.get(id)); _savePendingTimers.delete(id); });
+    }
+  }
+}
+ipcMain.on('app:save-pending', (event, on) => _setSavePending(event.sender, !!on));
+
 ipcMain.on('projects:save-sync', (event, project) => {
   try {
     if (!project || !project.id) { event.returnValue = { ok: false, reason: 'invalid' }; return; }

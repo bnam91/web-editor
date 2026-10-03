@@ -1686,6 +1686,19 @@ window.__autoSaveDeferState = () => ({ deferred: _autoSaveDeferred, pending: _au
 // ⑵창 포커스를 잃으면(다른 앱으로 전환 등) 제스처가 끝난 것으로 본다 — 고착 방지.
 window.addEventListener('blur', () => resumeAutoSave());
 
+/* ★S1(2026-10-03, 현빈 승인 · 지디 «저장 대기 중에만»으로 좁힘) — 창이 오래 가려지면 Chromium 이 타이머를 분 단위로 묶어
+   자동저장이 10~30분+ 밀렸다(실측: 숨긴 지 10·20·30분 지점 모두 180초 안 저장 0회 · setTimeout(1500) 이 119초 뒤 발화).
+   처음엔 창 억제를 «상시» 껐다(4ba5c791) — 숨겨 둔 앱이 %CPU 평균 12.2(켬 0.06)를 상시 먹고, visibilityState 가 visible 로 남아
+   visibilitychange 의존 2곳(초대 배지·Option 키 초기화)이 죽었다. ⇒ «저장 대기 중에만» 메인에 억제를 풀어 달라고 한다.
+   ⛔되돌림은 반드시 — 이 렌더러 쪽은 모든 끝(성공·실패·건너뜀·예외)에서 false, 메인은 상한 타이머·창 파괴로 한 번 더 되돌린다. */
+let _bgHold = false;
+function _holdBackground(on) {
+  if (_bgHold === on) return;
+  _bgHold = on;
+  try { window.electronAPI?.setSavePending?.(on); } catch (_) {}
+}
+window._holdBackgroundForTest = () => _bgHold;   // 시험 전용 읽기(쓰기 없음)
+
 function scheduleAutoSave() {
   if (state._suppressAutoSave) return;
   // [P-A2] 제스처 중이면 «미룬다» — 버리지 않고 기억해 뒀다가 놓을 때 다시 건다.
@@ -1694,11 +1707,14 @@ function scheduleAutoSave() {
   if (!activeProjectId) { console.warn('[save-load] scheduleAutoSave: activeProjectId 없음, 저장 건너뜀'); return; }
   _dirtySinceSave = true;
   clearTimeout(autoSaveTimer);
+  _holdBackground(true);   // ★S1 — 타이머를 걸기 «전에» 푼다(숨은 창에서 이 1.5초가 분 단위로 밀리지 않게)
   _setAutosaveIndicator('saving');
   scheduleIdleThumbnail();   // ★편집이 멈춘 뒤 썸네일 — 홈 나갈 때 찍지 않으려면 여기서 찍어둬야 한다
   // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
   const _saveTargetId = activeProjectId; // H1: 발화 시점에 탭이 바뀌었는지 비교할 대상 캡처
   autoSaveTimer = setTimeout(() => {
+    let _handed = false;   // ★S1 — 저장 약속에 넘겼으면 되돌림은 그 finally 몫, 아니면 아래 finally 몫
+    try {
     autoSaveTimer = null; // 발화 후 stale id 잔존 방지 — hasUnsavedChanges 판정에 쓰임
     // H1: 타이머 set 이후 탭이 전환됐으면 이 저장은 다른 프로젝트를 오염시킨다 — 건너뛴다.
     // (전환된 탭은 자기 편집 시 자체 타이머를 갖고, 이전 탭은 flushCurrentPage/beforeunload로 보존됨)
@@ -1723,6 +1739,7 @@ function scheduleAutoSave() {
     // ok:false(EACCES·디스크풀·잠금 등) → '저장 실패'(빨강), 성공/큐잉 → '저장됨'.
     // BL-CDD-08: 파일 저장 대상을 발화 시점 검증된 id로 명시 고정 — saveProjectToFile 내부의
     // "저장 시점 activeProjectId 재읽기"에 의존하지 않는다(비동기 큐잉 중 전환 대비).
+    _handed = true;
     Promise.resolve(saveProjectToFile(snap, { skipThumbnail: true, projectId: _saveTargetId })) // 자동저장은 썸네일 캡처 생략
       .then(r => {
         // ★보호성 스킵(빈 캔버스)은 «실패»가 아니다 — 새 프로젝트에서 매번 빨강이 되면 신호가 죽는다.
@@ -1736,7 +1753,11 @@ function scheduleAutoSave() {
           try { window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { projectId: _saveTargetId, snap } })); } catch (_) {}
         }
       })
-      .catch(() => _setAutosaveIndicator('error'));
+      .catch(() => _setAutosaveIndicator('error'))
+      .finally(() => { if (!autoSaveTimer) _holdBackground(false); });   // ★S1 — 새 저장이 그새 걸렸으면 그쪽이 되돌린다
+    } finally {
+      if (!_handed && !autoSaveTimer) _holdBackground(false);   // ★S1 — 건너뜀(탭 전환·빈 캔버스)·예외도 되돌린다
+    }
   }, 1500);
 }
 
