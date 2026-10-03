@@ -32,7 +32,7 @@ const constants = (page) => page.evaluate(async () => {
   const m = await import('/js/blocks/grid-circle-icon.js');
   /* DOM 이 직렬화한 꼴(`<circle …></circle>`)로 맞춘다 — 같은 상수를 svg 에 넣었다 읽은 것(글자 사본 아님) */
   const t = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); t.innerHTML = m.GRID_CIRCLE_ICON_INNER;
-  return { inner: t.innerHTML, vb: m.GRID_CIRCLE_ICON_VIEWBOX, raw: m.GRID_CIRCLE_ICON_INNER };
+  return { inner: t.innerHTML, vb: m.GRID_CIRCLE_ICON_VIEWBOX, sw: m.GRID_CIRCLE_ICON_STROKE_WIDTH, raw: m.GRID_CIRCLE_ICON_INNER };
 });
 const rowByName = (page, name) => page.locator('#layer-panel-body .layer-item', { has: page.locator(`.layer-item-name:text-is("${name}")`) }).first();
 
@@ -46,6 +46,7 @@ test('S2-1 서클블럭: 레이어 행 아이콘이 그리드 칸 원형 svg 상
   const icb = await row.locator('svg.layer-item-icon').evaluate(s => ({ inner: s.innerHTML, vb: s.getAttribute('viewBox') }));
   expect(icb.inner).toBe(k.inner);
   expect(icb.vb).toBe(k.vb);
+  expect(await row.locator('svg.layer-item-icon').getAttribute('stroke-width'), '선 굵기도 상수').toBe(k.sw);
   expect(await row.locator('svg.layer-item-icon text').count(), '옛 ★ 글리프가 없다').toBe(0);
   expect(errs).toEqual([]);
 });
@@ -66,8 +67,9 @@ test('S2-2 서클블럭: 행을 눌러 고르면 우측 헤더 아이콘이 같�
 test('S2-3 칸 우클릭 메뉴 「원형 이미지 추가」 svg 도 같은 상수에서 파생(사본 없음)', async ({ page }) => {
   await setup(page);
   const k = await constants(page);
-  const menu = await page.evaluate(() => document.getElementById('bcm-grid-img-circle-icon').innerHTML);
-  expect(menu).toBe(k.inner);
+  const menu = await page.evaluate(() => { const e = document.getElementById('bcm-grid-img-circle-icon'); return { inner: e.innerHTML, sw: e.getAttribute('stroke-width') }; });
+  expect(menu.inner).toBe(k.inner);
+  expect(menu.sw).toBe(k.sw);
 });
 
 test('S2-4 다른 블록 아이콘은 안 바뀐다 (asset 행·우측 헤더는 상수가 아니다)', async ({ page }) => {
