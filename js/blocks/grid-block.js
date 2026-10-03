@@ -3146,6 +3146,8 @@ const _gridPlusHovered = new WeakSet();   // mouseenter~mouseleave 사이(_gridP
 function _bindGridPlusHover(block) {
   if (!block?.addEventListener || _gridPlusBound.has(block)) return;
   _gridPlusBound.add(block);
+  /* 껍데기 높이가 렌더 없이 바뀌어도(칸 글 입력 등) ＋ 자리를 따라가게 — 블럭 크기 변화 때 다시 잰다(＋ 가 있을 때만 일함). */
+  if (typeof ResizeObserver === 'function') new ResizeObserver(() => _placeGridAddBtns(block)).observe(block);
   block.addEventListener('mouseenter', () => { _gridPlusHovered.add(block); _syncGridAddBtns(block); });
   block.addEventListener('mouseleave', (e) => {
     /* ★호버 영역 = 블럭과 두 ＋ 상자를 «다 덮는 네모»(클릭은 둥근 ＋ «원»만 받는다 — _gridPlusShown 주석).
@@ -3263,6 +3265,27 @@ function _syncGridAddBtns(block) {
   /* 상한(4)에서는 흐리게 + 눌러도 아무 일 없음. ★흐림을 정하는 곳은 «여기 한 줄»(새로 붙일 때도 이미 있을 때도).
      캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 쪽 참고 선례: layer-panel.js:559 addBtn.disabled) */
   block.querySelectorAll(`:scope > .${GRID_ADD_BTN_CLS}`).forEach(b => { b.disabled = !!full[b.dataset.grdAdd]; });
+  _placeGridAddBtns(block);
+}
+
+/* ★＋ 의 기준 = «격자 껍데기(.grd-inner)» — 블럭 전체(껍데기 + G19 자식 그릇)가 아니다 (태양 2026-10-04).
+ *   ＋ 는 격자의 «열·행»을 더하는 손잡이라서다. 오른쪽 ＋ = 껍데기 세로 가운데 · 아래 ＋ = 껍데기 바로 아래.
+ * ★자식이 «없으면» 인라인 top 을 안 건다 — CSS(top:50% / top:100%) 그대로라 지금과 «픽셀 동일»
+ *   (자식이 없으면 블럭 = 껍데기 하나).
+ * ★자식이 있으면 top 을 px 로 건다 — offsetTop/offsetHeight 는 배율 전(캔버스) 값이라 줌과 무관하다.
+ * ⚠️아래 ＋ 가 자식 그릇과 겹칠 수 있다(G19 그릇 margin-top = 블럭 간격 < ＋ 높이일 때) — 보고서 측정. */
+function _placeGridAddBtns(block) {
+  const btns = block.querySelectorAll(`:scope > .${GRID_ADD_BTN_CLS}`);
+  if (!btns.length) return;
+  const inner = block.querySelector(':scope > .grd-inner');
+  let kids = null;
+  for (const ch of block.children) if (ch.classList.contains(GRID_CHILDREN_CLASS)) { kids = ch; break; }
+  const hasKids = !!kids && kids.childElementCount > 0;
+  for (const b of btns) {
+    if (!hasKids || !inner) { b.style.removeProperty('top'); continue; }
+    const y = b.dataset.grdAdd === 'col' ? inner.offsetTop + inner.offsetHeight / 2 : inner.offsetTop + inner.offsetHeight;
+    b.style.top = y + 'px';
+  }
 }
 
 function _makeGridAddBtn(block, axis) {

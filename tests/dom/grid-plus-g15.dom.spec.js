@@ -416,7 +416,7 @@ const kidState = (page, id) => page.evaluate((id) => {
 }, id);
 const overlap = (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
 
-test('K1 ★자식 있는 그리드 — 렌더 뒤 직계 순서·＋ 둘(중복 없음) · 아래 ＋ = 블럭 전체(자식 포함) 바로 아래 · 자식과 겹침 0', async ({ page }) => {
+test('K1 ★자식 있는 그리드 — 렌더 뒤 직계 순서·＋ 둘(중복 없음) · 오른쪽 ＋ = 껍데기 세로 가운데 · 아래 ＋ = 껍데기 바로 아래', async ({ page }) => {
   const { errs, a } = await setup(page);
   await withKids(page, a);
   await force(page, a);
@@ -430,9 +430,12 @@ test('K1 ★자식 있는 그리드 — 렌더 뒤 직계 순서·＋ 둘(중복
   const msg = JSON.stringify(s);
   expect(s.order, `★직계 순서 ${msg}`).toEqual(['grd-inner', 'grd-children', 'btn:col', 'btn:row']);
   expect(s.kids, '★자식 그대로').toEqual(['kA', 'kB']);
-  expect(Math.abs(s.row.t - s.block.b), `★아래 ＋ = 블럭 전체(자식 포함) 바로 아래 ${msg}`).toBeLessThanOrEqual(1);
-  expect(overlap(s.row, s.kidsBox), `★아래 ＋ 와 자식 그릇 겹침 0 ${msg}`).toBe(0);
-  console.log('K1-geo', msg);
+  // ★기준 = 격자 껍데기(.grd-inner) — 태양 2026-10-04
+  const colMid = (s.col.t + s.col.b) / 2;
+  expect(colMid >= s.inner.t - 0.5 && colMid <= s.inner.b + 0.5, `★오른쪽 ＋ 가운데 ∈ 껍데기 세로 범위 ${msg}`).toBe(true);
+  expect(Math.abs(colMid - (s.inner.t + s.inner.b) / 2), `★오른쪽 ＋ = 껍데기 세로 가운데 ${msg}`).toBeLessThanOrEqual(1);
+  expect(Math.abs(s.row.t - s.inner.b), `★아래 ＋ 위 끝 = 껍데기 아래 끝 ${msg}`).toBeLessThanOrEqual(1);
+  console.log('K1-geo', msg, 'rowXkids_overlap_px2', overlap(s.row, s.kidsBox), 'rowXkids_dy', +(s.row.b - s.kidsBox.t).toFixed(1));
   expect(errs).toEqual([]);
 });
 
@@ -468,4 +471,63 @@ test('K3 자식 있는 그리드 — 자식 위에 마우스 = 그리드 호버�
   expect(s.col && s.row, `★자식 위 호버 → ＋ 둘 ${JSON.stringify(s)}`).toBeTruthy();
   console.log('K3-geo', JSON.stringify({ colMidY: (s.col.t + s.col.b) / 2, inner: s.inner, kidsBox: s.kidsBox, block: s.block }));
   expect(errs).toEqual([]);
+});
+
+test('K0 자식 «없는» 그리드 — ＋ 에 인라인 top 이 없다(CSS 그대로 = 기준 이동 전과 같은 자리)', async ({ page }) => {
+  const { errs, a } = await setup(page);
+  await force(page, a);
+  const r = await page.evaluate((id) => [...document.querySelectorAll(`#${id} > .grd-add-btn`)].map(b => [b.dataset.grdAdd, b.style.top]), a);
+  expect(r, '★인라인 top 없음').toEqual([['col', ''], ['row', '']]);
+  const s = await kidState(page, a);
+  expect(Math.abs((s.col.t + s.col.b) / 2 - (s.block.t + s.block.b) / 2), '★오른쪽 ＋ = 블럭(=껍데기) 세로 가운데').toBeLessThanOrEqual(1);
+  expect(Math.abs(s.row.t - s.block.b), '★아래 ＋ = 블럭 바로 아래').toBeLessThanOrEqual(1);
+  expect(errs).toEqual([]);
+});
+
+test('K2b ★자식 있는 그리드 — 오른쪽 ＋ 진짜 클릭 = 열 +1 · 자식 그대로 · ＋ 는 여전히 껍데기 가운데', async ({ page }) => {
+  const { errs, a } = await setup(page);
+  await withKids(page, a);
+  await force(page, a);
+  const s0 = await kidState(page, a);
+  const bx = await btnBox(page, a, 'col');
+  expect(bx && bx.hitIsBtn, `전제 — 오른쪽 ＋ 가 눌린다 ${JSON.stringify(bx)}`).toBe(true);
+  await page.mouse.click(bx.cx, bx.cy); await page.waitForTimeout(200);
+  const m1 = await model(page, a);
+  expect(m1.nCols, '★열 +1').toBe(3);
+  const s1 = await kidState(page, a);
+  expect(s1.kids, '★자식 그대로').toEqual(['kA', 'kB']);
+  const colMid = (s1.col.t + s1.col.b) / 2;
+  expect(Math.abs(colMid - (s1.inner.t + s1.inner.b) / 2), `★재렌더 뒤에도 껍데기 가운데 ${JSON.stringify(s1)}`).toBeLessThanOrEqual(1);
+  expect(errs).toEqual([]);
+});
+
+/* K4 측정 기록 — 아래 ＋ 와 첫 자식이 겹치는가(겹친 px) · 그 자리 클릭은 무엇이 받나. ⛔판정하지 않는다(현빈·지디 몫) — 전제만 단언하고 수를 남긴다. */
+for (const z of [100, 40]) test(`K4 [측정] 배율 ${z} — 아래 ＋ × 첫 자식 겹침 px · 겹친 자리 클릭 결과`, async ({ page }) => {
+  test.setTimeout(120000);
+  {
+    const { a } = await setup(page, z);
+    await withKids(page, a);
+    await force(page, a);
+    const s = await kidState(page, a);
+    const k = await page.evaluate(() => { const r = document.getElementById('kA').getBoundingClientRect(); return { t: r.top, b: r.bottom, l: r.left, r: r.right }; });
+    const ovY = +(Math.max(0, Math.min(s.row.b, k.b) - Math.max(s.row.t, k.t))).toFixed(1);
+    const out = { zoom: z, rowBtn: s.row, inner: s.inner, kidsBox: s.kidsBox, firstKid: k, overlapY_px: ovY };
+    if (ovY > 0) {
+      const cx = (s.row.l + s.row.r) / 2, cy = (s.row.t + s.row.b) / 2, R = (s.row.r - s.row.l) / 2;
+      const yIn = Math.min(s.row.b - 2, k.t + ovY / 2);          // 겹친 띠 가운데
+      const pts = { inCircle: [cx, yIn], outCircleInBox: [s.row.l + 2, yIn], besideBtn: [s.row.l - 6, yIn] };
+      out.clicks = {};
+      for (const [nm, [x, y]] of Object.entries(pts)) {
+        await page.evaluate(() => window.deselectAll?.()); await force(page, a);
+        await page.mouse.move(x, y, { steps: 3 }); await page.waitForTimeout(80);
+        const under = await page.evaluate(([x, y]) => { const h = document.elementFromPoint(x, y); return h ? `${h.tagName.toLowerCase()}${h.id ? '#' + h.id : ''}.${[...h.classList].join('.')}` : 'null'; }, [x, y]);
+        const r0 = (await model(page, a)).nRows;
+        await page.mouse.click(x, y); await page.waitForTimeout(200);
+        const after = await page.evaluate((id) => ({ kidSelected: document.getElementById('kA').classList.contains('selected'), gridSelected: document.getElementById(id).classList.contains('selected') }), a);
+        out.clicks[nm] = { x: +x.toFixed(1), y: +y.toFixed(1), dist: +Math.hypot(x - cx, y - cy).toFixed(1), R, under, dRows: (await model(page, a)).nRows - r0, ...after };
+      }
+    }
+    console.log('K4', JSON.stringify(out));
+    expect(s.kids, '전제 — 자식 둘').toEqual(['kA', 'kB']);
+  }
 });
