@@ -2,6 +2,8 @@ import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
 function barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize, pctMin, barColor, barAlpha }) {
@@ -10,8 +12,8 @@ function barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize, pctM
       <div class="prop-section-title">Bar Settings</div>
       <div class="prop-row">
         <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="grb-bar-thickness-slider" min="8" max="48" step="2" value="${barThickness}">
-        <input type="number" class="prop-number" id="grb-bar-thickness-number" min="8" max="48" value="${barThickness}">
+        <input type="range" class="prop-slider" id="grb-bar-thickness-slider" min="${BAR_THICKNESS_MIN}" max="${BAR_THICKNESS_MAX}" step="2" value="${barThickness}">
+        <input type="number" class="prop-number" id="grb-bar-thickness-number" min="${BAR_THICKNESS_MIN}" max="${BAR_THICKNESS_MAX}" value="${barThickness}">
       </div>
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
@@ -401,7 +403,7 @@ ${blockHeaderHTML({
   const btNumber = document.getElementById('grb-bar-thickness-number');
   if (btSlider) {
     const applyBarThickness = v => {
-      v = Math.min(48, Math.max(8, v));
+      v = Math.min(BAR_THICKNESS_MAX, Math.max(BAR_THICKNESS_MIN, v));
       block.dataset[_vKey('barThickness','vBarThickness')] = v;
       window.renderGraph(block);
       btSlider.value = v; btNumber.value = v;
