@@ -1292,10 +1292,15 @@ function _grdWireImageSection(block, addr) {
  *     매 조작마다 죽는다(이 파일 머리글이 같은 말을 적어 뒀다).
  */
 const _grdOpenSections = new WeakMap();
-const _grdSecOpen = (block, key) => (_grdOpenSections.get(block) || {})[key] === true;
-function _grdSecToggle(block, key) {
+/* ★dflt — 사람이 «아직 안 건드렸을 때»의 기본(미지정 = 접힘). 한 번 눌러 상태가 생기면 그 값이 이긴다.
+ *   (G3 현빈 「갭 줄 높이 조절이 안 된다」 — 갭 줄의 «높이» 칸이 접힌 「줄 꾸미기」 안에 숨어 있었다.) */
+const _grdSecOpen = (block, key, dflt = false) => {
+  const v = (_grdOpenSections.get(block) || {})[key];
+  return v === undefined ? dflt === true : v === true;
+};
+function _grdSecToggle(block, key, dflt = false) {
   const cur = _grdOpenSections.get(block) || {};
-  const next = { ...cur, [key]: !cur[key] };
+  const next = { ...cur, [key]: !_grdSecOpen(block, key, dflt) };
   _grdOpenSections.set(block, next);
   return next[key];
 }
@@ -1348,12 +1353,12 @@ const _grdDisclosureHtml = (id, title, open) => `
       </div>`;
 
 /** 접이식 절의 배선 — 패널을 다시 그리지 않는다(재렌더는 곧 포커스 상실이다). */
-function _grdWireDisclosure(block, key, headId, bodyId) {
+function _grdWireDisclosure(block, key, headId, bodyId, dflt = false) {
   const head = document.getElementById(headId);
   const body = document.getElementById(bodyId);
   const arrow = head?.querySelector('svg');
   head?.addEventListener('click', () => {
-    const open = _grdSecToggle(block, key);
+    const open = _grdSecToggle(block, key, dflt);
     if (body) body.style.display = open ? 'block' : 'none';
     /* ⛔각도 식은 _grdDisclosureHtml 과 «같은 값»이어야 한다 — 갈리면 첫 클릭에 그림이 튄다.
        접힘 = −90°(오른쪽) · 펼침 = 0°(아래). 쉐브론이 «아래» 그림이라 부호가 옛 것과 반대다. */
@@ -2290,6 +2295,19 @@ function _grdWireTypo(block, addr) {
  *   ⛔절을 하나 더 «펼친 채로» 내면 순증 예산(Δ≤+60)을 그 자리에서 넘긴다(실측으로 확인). */
 const _GRD_LINE_ALIGN_KINDS = new Set([..._GRD_ROLE_KINDS, 'image']);
 
+/* ★「줄 꾸미기」를 처음부터 펼치는 줄 종류 — «손으로 적은 명부»다(도출·시험 둘 다 불가, 아래 까닭).
+ *   왜 이 둘인가: 갭 = 높이(px) · 구분선 = 굵기(px)·색 — 그 줄 «전용» 손잡이가 줄 꾸미기 절 «안»에만 있다.
+ *   접어 두면 손댈 데가 없어 「조절이 안 된다」로 보인다(현빈 G3). 글자 줄·그림 줄은 타이포·Image 절이
+ *   밖에 따로 있어 접어도 손잡이가 남는다.
+ *   ★새 줄 종류를 만들면 여기를 보라 — 그 종류의 전용 손잡이가 줄 꾸미기 안에만 있으면 이 명부에 넣는다.
+ *   ⛔도출 불가 까닭: 패널에 「줄 전용 영역」 경계가 없다(줄바·줄 꾸미기·Image·Typography 가 칸·블록 절과 같은
+ *     깊이의 형제 .prop-section 이고 표식이 없다) ⇒ 「줄 꾸미기 밖 줄 전용 입력 0개」를 DOM 으로 못 센다.
+ *     (실측: 줄 꾸미기 밖 입력이 갭 18 · 구분선 18 · 그림 21 · 글자 26 — 칸·블록 입력이 깔려 있어 0 이 없다.
+ *      「최솟값인 종류」로 재면 Set 에 맞춰 버리는 우연한 시험이라 쓰지 않았다.)
+ *   ★대신 명시 분류 시험 — tests/dom/grid-gap-line-height.dom.spec.js G3-6 이 렌더러가 아는 모든 줄 종류가
+ *     이 Set(펼침) 또는 그 시험의 접힘 목록 «한쪽에만» 있는지 단언한다. 새 줄 종류를 만들면 거기서 빨개진다. */
+const _GRD_LINE_OPEN_KINDS = new Set(['gap', 'divider']);
+const _grdLineSecKey = (line) => 'line:' + ((line && line.type) || 'body');
 function _grdLineSectionHtml(anyHit, block) {
   if (!anyHit || anyHit.li === null || !anyHit.line) return '';
   const { r, c, li, line } = anyHit;
@@ -2300,7 +2318,10 @@ function _grdLineSectionHtml(anyHit, block) {
   const imgFull = (line.type === 'image') && !(Number(line.widthPct) < 100);
   const isText = gridLineHasText(line);
   /* ⛔여기서 일찍 빠지지 마라 — 갭 줄에도 «종류 바꾸기»는 있어야 한다(되돌아갈 길). */
-  const open = _grdSecOpen(block, 'line');
+  /* ★갭·구분선 줄은 «손잡이가 높이/굵기뿐»이라 처음부터 펼친다(G3) — 접어 두면 그 한 칸을 찾아 펼쳐야 한다. */
+  /* ★접힘 기억은 «줄 종류별»이다(키 `line:<종류>`) — 키 하나(`line`)면 글자 줄에서 열었다 닫은 것이 같은 그리드의
+   *   갭 줄로 새어, 한 번도 안 접은 갭 줄의 높이 칸이 접혀 G3 증상이 되살아난다(적대QA). 그 종류에서 접은 것만 그 종류에 이긴다. */
+  const open = _grdSecOpen(block, _grdLineSecKey(line), _GRD_LINE_OPEN_KINDS.has(line.type || 'body'));
   const raw = (typeof line.bg === 'string' && GRID_COLOR_RE.test(String(line.bg).trim()))
     ? String(line.bg).trim() : '';
   const hex = raw ? swatchHex(raw, '#eeeeee') : '#eeeeee';
@@ -2358,7 +2379,7 @@ function _grdWireLineSection(block, addr) {
   const hit = _grdResolveAnyAddr(block, addr);
   if (!hit || hit.li === null || !hit.line) return;
   const { r, c, li } = hit;
-  _grdWireDisclosure(block, 'line', 'grd-line-toggle', 'grd-line-body');
+  _grdWireDisclosure(block, _grdLineSecKey(hit.line), 'grd-line-toggle', 'grd-line-body', _GRD_LINE_OPEN_KINDS.has(hit.line.type || 'body'));
 
   /* ── 줄 정렬 — «이 줄»에만. ⛔updateGridBlock 을 쓰지 않는다: 이미지 줄에 align 을 주면
        렌더러 민감도 검사(_gridUnreadLineFields)가 「아무것도 안 읽힌다」로 «거절»한다.
