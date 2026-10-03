@@ -128,7 +128,12 @@ const copyThenPaste = (page, id, target) => page.evaluate(([id, target]) => {
   window.deselectAll?.(); window.selectBlock?.(id); window.copySelected();
   window.deselectAll?.();
   const sec = document.getElementById('sX'); sec.classList.add('selected');
-  if (target === 'frB') { const fr = document.getElementById('frB'); fr.classList.add('selected'); window._activeFrame = fr; }
+  /* ★F1(2026-10-03 지디 결정)과 맞춘다 — 프레임을 «오브젝트로» 고른 채 ⌘V 는 이제 프레임의 «다음 형제»로 간다.
+     그래서 «frB 안으로» 붙이는 길은 frB 안의 자식을 고른 상태다(레인 통합 때 이 시험이 섹션으로 간 것을 보고 고침). */
+  if (target === 'frB') { const fr = document.getElementById('frB'); fr.classList.add('selected'); window._activeFrame = fr;
+    let kid = document.getElementById('frBkid');
+    if (!kid) { fr.insertAdjacentHTML('beforeend', '<div class="gap-block" data-type="gap" id="frBkid" style="position:absolute;left:0;top:0;width:60px;height:20px"></div>'); kid = document.getElementById('frBkid'); }
+    kid.classList.add('selected'); }
   else { window._activeFrame = null; document.getElementById('tFlow').classList.add('selected'); }
   window.pasteClipboard();
   const nu = [...document.querySelectorAll('.grid-block')].map(g => g.id).filter(x => !before.has(x));
@@ -142,7 +147,7 @@ test('③a 붙여넣기 — frA 의 자동 폭 그리드를 섹션에 붙이면 
   expect((await st(page, id)).key, '원본은 frA 그대로').toBe('611');
   expect(errs).toEqual([]);
 });
-test('③b 붙여넣기 — frB 를 고른 채 붙이면 사본은 frB × 0.8', async ({ page }) => {
+test('③b 붙여넣기 — frB 안 자식을 고른 채 붙이면 사본은 frB × 0.8', async ({ page }) => {
   const errs = await setup(page); const id = await mkGrid(page); await premise(page, id);
   const nu = await copyThenPaste(page, id, 'frB');
   expect(nu.length).toBe(1);
