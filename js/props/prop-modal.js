@@ -83,6 +83,12 @@ export function showModalProperties(block) {
   const isGrid = (v === 'grid-2');
   const isRaster = block.dataset.raster === '1';
 
+  /* ★M1 「프레임화 하기」(2026-10-04) — 「형태」 드롭다운 안에, optgroup 「구조」로 가른다(설계 M1-DESIGN §3).
+       · optgroup 머리는 고를 수 없는 줄 ⇒ 「점선 테두리」에서 미끄러져도 «동작»에 바로 닿지 않는다
+       · 확인창 없음 — ⌘Z 한 번으로 돌아온다(js/blocks/modal-frameify.js 「양쪽 끝」). 토스트가 ⌘Z 를 알려 준다
+       · 가로 형태(icon·grid-2)는 흐리게 + «까닭» 툴팁(option·select 둘 다 — 맥 네이티브 팝업은 option 툴팁을 안 띄울 수 있다) */
+  const _fz = window.canFrameifyModal?.(block) || { ok: false, reason: '' };
+  const _fzTip = String(_fz.reason || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   propPanel.innerHTML = `
     <div class="prop-section">
 ${blockHeaderHTML({
@@ -100,9 +106,14 @@ ${blockHeaderHTML({
       <div class="prop-section-title">Variant</div>
       <div class="prop-row">
         <span class="prop-label">형태</span>
-        <select class="prop-select" id="mdl-variant">
+        <select class="prop-select" id="mdl-variant"${_fz.ok ? '' : ` title="${_fzTip}"`}>
+          <optgroup label="형태">
           ${Object.entries(_MDL_VARIANT_LABELS).map(([k, l]) =>
             `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join('')}
+          </optgroup>
+          <optgroup label="구조">
+            <option value="__frameify"${_fz.ok ? '' : ` disabled title="${_fzTip}"`}>프레임화 하기</option>
+          </optgroup>
         </select>
       </div>
       ${isGrid ? `
@@ -416,6 +427,13 @@ ${blockHeaderHTML({
   // ── 변형 ──
   const sel = document.getElementById('mdl-variant');
   sel?.addEventListener('change', () => {
+    // ★M1 — 「프레임화 하기」는 «변형»이 아니다. applyModalVariant·commit(push-after) «앞»에서 빠져나간다
+    //   (뒤에 두면 「변형 바꿈」이라는 가짜 히스토리 칸이 하나 더 생긴다 — tests/unit/modal-frameify-gates G5).
+    if (sel.value === '__frameify') {
+      sel.value = v;                       // 모달이 남는 갈래(거절)에서도 select 가 «구조»를 가리킨 채로 남지 않게
+      window.frameifyModal?.(block);
+      return;
+    }
     // ★순서 고정 — applyModalVariant 가 «채우기 먼저, dataset.variant 갱신 나중»을 한 번에 한다.
     //   (dataset.variant 를 먼저 쓰면 「이전 변형의 기본값」 판정이 무너진다.)
     //   변형의 정체(테두리/배경)는 여기서 dataset 에 «박혀야» 한다 —
