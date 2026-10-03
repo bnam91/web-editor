@@ -669,6 +669,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         items,
         width: Math.round((el.id && document.getElementById(el.id)?.offsetWidth) || el.offsetWidth || 0),
         height: parseInt(el.dataset.chartHeight) || parseFloat(el.style.height) || 300,
+        // GR2·GR3 — 축·격자·꺾은선 토글은 «켜진 것만» 싣는다(꺼진 그래프의 JSON 은 예전과 같다). ⚠️렌더러(sangpe_to_figma)는 아직 안 읽는다(E11).
+        ...(['showAxis', 'showGrid', 'showLine'].some(k => el.dataset[k] === '1')
+          ? { showAxis: el.dataset.showAxis === '1', showGrid: el.dataset.showGrid === '1', showLine: el.dataset.showLine === '1' } : {}),
       };
     }
     // ── SHAPE (shape-block) : 도형(선/사각/원) ──

@@ -6,7 +6,25 @@ const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX } = window.GRAPH_LIMITS;   // js/gr
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
-function barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize, pctMin, barColor, barAlpha }) {
+/* GR2·GR3 — bar-v 전용 토글 셋(현빈 「눈금과 가로 격자선은 따로」 + 꺾은선 별도). 묶지 않는다.
+ * 켜면 dataset 키 '1', 끄면 키를 «지운다» — 셋 다 꺼진 블럭은 한 번도 안 건드린 블럭과 같은 꼴(렌더 바이트 동일 · GR-W0). */
+const GR_OVERLAY_TOGGLES = [
+  { key: 'showAxis', id: 'grb-show-axis', label: '축 보이기',     title: '왼쪽 눈금(0~깔끔한 상한, 1·2·5 간격)' },
+  { key: 'showGrid', id: 'grb-show-grid', label: '격자선 보이기', title: '눈금 높이마다 옅은 가로선' },
+  { key: 'showLine', id: 'grb-show-line', label: '꺾은선 얹기',   title: '막대 꼭대기를 잇는 선·점(막대와 같은 값)' },
+];
+function overlayTogglesHTML(block) {
+  return GR_OVERLAY_TOGGLES.map(t => `
+      <div class="prop-row" title="${t.title}">
+        <span class="prop-label">${t.label}</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="${t.id}" ${block.dataset[t.key] === '1' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>`).join('');
+}
+
+function barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize, pctMin, barColor, barAlpha, overlayToggles = '' }) {
   return `
     <div class="prop-section">
       <div class="prop-section-title">Bar Settings</div>
@@ -35,7 +53,7 @@ function barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize, pctM
         <span class="prop-label">바 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
       </div>
-      `}
+      `}${overlayToggles}
     </div>`;
 }
 
@@ -221,7 +239,7 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="grb-fillalpha-number" min="0" max="100" value="${fillAlpha}">
       </div>
     </div>` : ''}
-    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor) }) : ''}
+    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '' }) : ''}
     <div class="prop-section">
       <div class="prop-section-title">Preset</div>
       <div class="prop-preset-group">
@@ -572,6 +590,16 @@ ${blockHeaderHTML({
       window.pushHistory();
     });
   }
+  // GR2·GR3 — 축·격자선·꺾은선 토글(bar-v). 켜면 '1', 끄면 키 삭제.
+  GR_OVERLAY_TOGGLES.forEach(t => {
+    const el = document.getElementById(t.id);
+    if (!el) return;
+    el.addEventListener('change', () => {
+      if (el.checked) block.dataset[t.key] = '1'; else delete block.dataset[t.key];
+      window.renderGraph(block);
+      window.pushHistory();
+    });
+  });
   // 카테고리 라벨 표시 toggle
   const showXL = document.getElementById('grb-show-xlabel');
   if (showXL) {
