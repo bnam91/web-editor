@@ -1289,6 +1289,17 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
       그리드 밑에 빈 띠를 만들지 않게. ⛔끄는 동안의 임시 띠(.grd-child-strip)는 비어 있어도 «자리가 곧 기능»이라 뺀다.
    ⑵ 임시 띠 겉모습 — 새 토큰 0(선택색·선택 채움 그대로) · #canvas 한정(내보내기 클론엔 안 간다). */
 .grd-children:not(.grd-child-strip):empty { display: none; }
+/* ★G12·C5 — 블럭 배경을 켠 그리드의 바탕이 «어두우면»(톤 표식 light — js/canvas-contrast.js 가 배경 층까지 합성해 판정),
+   그 밑 G19 자식 글자의 «기본색»을 칸 글자와 같은 밝은 역할색으로 바꾼다(grid-block.js _GRID_ROLE_COLOR_ON_DARK 와 같은 값).
+   ★변수만 덮는다 — 사용자가 글자에 직접 준 색(인라인)은 그대로 이긴다. 라벨은 자기 바탕이 있어 안 건드린다.
+   ★저장 데이터에 새로 쓰는 것이 없다 — 표식(그리드의 톤·배경 켬)은 렌더가 매번 다시 정한다. 배경을 안 켠 문서는 이 규칙에 안 걸린다. */
+.grid-block[data-block-bg-on="1"][data-text-tone="light"] > .grd-children {
+  --preset-h1-color: #ffffff;
+  --preset-h2-color: #ffffff;
+  --preset-h3-color: #ffffff;
+  --preset-body-color: #f2f2f2;
+  --preset-caption-color: #cccccc;
+}
 /* ★C5 — 끄는 동안 G9 가 «받을 칸» 표시(섹션 표시선 대신). 줄 선택 표시와 같은 기법(inset box-shadow · 줌 불변) · 새 토큰 0. */
 #canvas .grid-block .grd-cell.grd-cell-drop-target { box-shadow: inset 0 0 0 calc(2px * var(--inv-zoom, 1)) var(--sel-color); }
 #canvas .grd-child-strip {

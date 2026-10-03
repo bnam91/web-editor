@@ -884,15 +884,29 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
        *   값은 렌더러가 블럭 style 에 «이미 그은» 변을 그대로 읽는다(모델 해석을 여기서 다시 하지 않는다 — 두 벌 금지).
        *   ⚠️figma-renderer/sangpe_to_figma.mjs 의 generic 분기는 아직 `border` 를 «안 읽는다»(플러그인에 면별 stroke 명령 0).
        *     ⇒ 피그마 화면에 선이 나오는 것은 «미구현·미측정»이다. 여기서는 «실어 보낸다»까지만. */
+      /* ★G12 블럭 배경 — 켰을 때 선은 «배경 바깥 가장자리»의 .grd-edge 가 긋고 블럭 자기 테두리는 색이 투명이다(안 A).
+       *   ⇒ 선 값은 .grd-edge 에서 읽는다(렌더러가 «이미 그은» 것을 읽는 원칙 그대로 · 모델 해석 두 벌 금지). */
+      const _bbg = el.classList.contains('grid-block') ? window.gridBlockBg?.(el) : null;
+      const _edge = _bbg && _bbg.on ? el.querySelector(':scope > .grd-edge') : null;
       if (ds.blockOutline && el.classList.contains('grid-block') && el.style) {
         const border = {};
+        const src = _edge || el;
         for (const sd of ['top', 'right', 'bottom', 'left']) {
-          const st = el.style.getPropertyValue('border-' + sd + '-style');
+          const st = src.style.getPropertyValue('border-' + sd + '-style');
           border[sd] = st && st !== 'none'
-            ? { width: parseFloat(el.style.getPropertyValue('border-' + sd + '-width')) || 0, style: st, color: el.style.getPropertyValue('border-' + sd + '-color') }
+            ? { width: parseFloat(src.style.getPropertyValue('border-' + sd + '-width')) || 0, style: st, color: src.style.getPropertyValue('border-' + sd + '-color') }
             : null;
         }
         out.border = border;
+        if (_edge) out.borderAt = 'bg-edge';   // 선이 블럭 상자가 아니라 배경 바깥 가장자리에 있다
+      }
+      /* ★G12 블럭 배경 — 켰을 때만 `blockBg` 를 싣는다(끄면 JSON 바이트 그대로). 읽는 문 = grid-block.js gridBlockBg(window) «하나».
+       *   height = 살아 있는 그리드 상자 높이(G19 자식 포함 — 위 껍데기 높이 h 와 다르다: 배경은 자식까지 덮는다).
+       *   ⚠️figma-renderer/sangpe_to_figma.mjs generic 은 아직 이것을 «안 그린다»(G17 border 와 같은 처지 · 미구현·미측정). */
+      if (_bbg && _bbg.on) {
+        const _live = el.id ? document.getElementById(el.id) : null;
+        out.blockBg = { color: _bbg.color, opacity: _bbg.opacity, padX: _bbg.padX, padY: _bbg.padY, pos: _bbg.pos, hasImage: !!_bbg.img,
+          height: Math.round((_live && _live.offsetHeight) || h || 0) };
       }
       return out;
     }
