@@ -5,7 +5,9 @@
  *   (el.style.backgroundImage === ''). 떼어낸 클론(단독 HTML)에서 capture-safety.js 의
  *   neutralizeEmptyImageCheckerForCapture 가 그 값으로 체커 서명(/repeating-conic-gradient/)을 판정하므로
  *   var() 가 박히면 «체커가 안 걷힌다». ⇒ 읽어서 «구체 값»으로 박는다(이전 문자열과 «글자까지» 같다).
- * 토큰을 못 읽는 곳(CSS 없는 문서)에선 var() 참조 문자열로 떨어진다 — hex 사본을 두지 않는다. */
+ * 토큰을 못 읽는 곳(CSS 없는 문서)에선 var() 참조 문자열로 떨어진다 — hex 사본을 두지 않는다.
+ * ⚠️이미 «저장된» 문서의 인라인 체커(목업·주석 라벨)는 그때 박힌 옛 hex 그대로다 — 토큰을 바꿔도 안 바뀐다.
+ *   2026-10-04 현빈 결정 「새로 만드는 것만」 ⇒ 마이그레이션 없음(의도). 릴리스 노트에도 적는다. */
 
 function _tok(name) {
   if (typeof document === 'undefined' || !document.documentElement || typeof getComputedStyle !== 'function') return `var(${name})`;
