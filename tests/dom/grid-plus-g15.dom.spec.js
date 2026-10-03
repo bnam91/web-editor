@@ -288,3 +288,76 @@ test('P6 ★호버 ＋ 가 «블럭 고르기» 첫 클릭을 안 먹는다 — 
   expect(errs).toEqual([]);
 });
 
+
+/* ══ R — 「정확히 ＋ 버튼을 눌러야지만 추가」(현빈 2026-10-04) ══════════════════════════════
+ * ＋ 자리는 그대로(오른쪽 = 안쪽 끝 · 아래 = 바로 아래 바깥). ＋ «원» 밖은 클릭이 그리드로 간다.
+ * ★핵심 R5: 둥근 ＋ 의 «네모 상자 모서리»(원 밖) — 네모 히트였다면 ＋ 가 먹었을 자리 — 를 누르면 선택.
+ * 전제: 그리드를 3행으로 키워 오른쪽 ＋ 상자(화면 40px)가 세로로 그리드 «안»에 다 들어오게 한다.
+ *   (1행 그리드는 ＋ 보다 낮아 ＋ 상자 모서리가 그리드 밖이 된다 — 그러면 「선택」을 잴 수 없다.) */
+async function tall(page, id) {
+  await page.evaluate((id) => { const g = document.getElementById(id); window.gridAddAtEnd(g, 'row'); window.gridAddAtEnd(g, 'row'); window.deselectAll?.(); }, id);
+  await page.waitForTimeout(100);
+}
+/* 한 점을 진짜 마우스로 누르고, 그 전에 무엇이 잡혔는지·뒤에 무엇이 바뀌었는지 */
+async function clickAt(page, id, x, y) {
+  await page.mouse.move(x, y, { steps: 3 }); await page.waitForTimeout(80);
+  const under = await page.evaluate(([x, y]) => { const h = document.elementFromPoint(x, y); return h ? `${h.tagName.toLowerCase()}.${[...h.classList].join('.')}` : 'null'; }, [x, y]);
+  const m0 = await model(page, id);
+  await page.mouse.click(x, y); await page.waitForTimeout(200);
+  const m1 = await model(page, id);
+  const selected = await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), id);
+  return { under, selected, dCols: m1.nCols - m0.nCols, dRows: m1.nRows - m0.nRows };
+}
+const boxOf = (page, id, axis) => page.evaluate(([id, axis]) => {
+  const g = document.getElementById(id), r = g.querySelector(`:scope > .grd-add-btn[data-grd-add="${axis}"]`).getBoundingClientRect(), gr = g.getBoundingClientRect();
+  return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height, cx: r.left + r.width / 2, cy: r.top + r.height / 2, g: { l: gr.left, t: gr.top, r: gr.right, b: gr.bottom } };
+}, [id, axis]);
+
+for (const z of [100, 40]) {
+  test(`R1·R2·R5 오른쪽 ＋ · 배율 ${z} — 1px 옆 = 선택 · 정중앙 = 열 추가 · 원 밖 네모 모서리 = 선택`, async ({ page }) => {
+    test.setTimeout(120000);
+    const { errs, a } = await setup(page, z);
+    expect(await page.evaluate(() => window.currentZoom), `전제 — 배율 ${z}`).toBe(z);
+    await tall(page, a);
+    await force(page, a);
+    let bx = await boxOf(page, a, 'col');
+    expect(bx.w, '전제 — ＋ 상자 40px').toBeCloseTo(40, 0);
+    expect(bx.t >= bx.g.t + 1 && bx.b <= bx.g.b - 1, `전제 — ＋ 상자가 세로로 그리드 안 ${JSON.stringify(bx)}`).toBe(true);
+    // R1 ＋ 상자 1px 옆(왼쪽 — 오른쪽은 블럭 밖이다) · 세로 가운데
+    const r1 = await clickAt(page, a, bx.l - 1, bx.cy);
+    expect(r1, `★R1 1px 옆 = 선택 · 열 그대로 ${JSON.stringify(r1)}`).toMatchObject({ selected: true, dCols: 0, dRows: 0 });
+    // R5 원 밖 네모 모서리(왼쪽 위 · 왼쪽 아래 · 오른쪽 위 — 상자 안 3px, 중심까지 ≈24px > 반지름 20)
+    for (const [nm, x, y] of [['좌상', bx.l + 3, bx.t + 3], ['좌하', bx.l + 3, bx.b - 3], ['우상', bx.r - 3, bx.t + 3]]) {
+      await page.evaluate(() => window.deselectAll?.()); await force(page, a);
+      bx = await boxOf(page, a, 'col');
+      const r5 = await clickAt(page, a, nm === '우상' ? bx.r - 3 : bx.l + 3, nm === '좌하' ? bx.b - 3 : bx.t + 3);
+      expect(r5, `★R5 ${nm} 모서리(원 밖) = 선택 · 열 그대로 ${JSON.stringify(r5)}`).toMatchObject({ selected: true, dCols: 0 });
+      expect(r5.under.includes('grd-add-btn'), `★R5 ${nm} 모서리에서 ＋ 가 잡히지 않는다 ${r5.under}`).toBe(false);
+    }
+    // R2 정중앙 = 열 추가
+    await page.evaluate(() => window.deselectAll?.()); await force(page, a);
+    bx = await boxOf(page, a, 'col');
+    const r2 = await clickAt(page, a, bx.cx, bx.cy);
+    expect(r2, `★R2 정중앙 = 열 +1 ${JSON.stringify(r2)}`).toMatchObject({ dCols: 1, dRows: 0 });
+    expect(errs).toEqual([]);
+  });
+
+  test(`R4 아래 ＋ · 배율 ${z} — 정중앙 = 행 추가 · 원 밖 네모 모서리 = ＋ 아님(행 그대로)`, async ({ page }) => {
+    test.setTimeout(120000);
+    const { errs, a } = await setup(page, z);
+    expect(await page.evaluate(() => window.currentZoom), `전제 — 배율 ${z}`).toBe(z);
+    await force(page, a);
+    let bx = await boxOf(page, a, 'row');
+    expect(Math.abs(bx.t - bx.g.b), '전제 — 아래 ＋ 는 그리드 바로 아래').toBeLessThanOrEqual(1);
+    for (const [nm, x, y] of [['좌하', bx.l + 3, bx.b - 3], ['우하', bx.r - 3, bx.b - 3]]) {
+      const r = await clickAt(page, a, x, y);
+      expect(r.under.includes('grd-add-btn'), `★아래 ＋ ${nm} 모서리(원 밖)에서 ＋ 가 잡히지 않는다 ${JSON.stringify(r)}`).toBe(false);
+      expect(r.dRows, `★아래 ＋ ${nm} 모서리 = 행 그대로 ${JSON.stringify(r)}`).toBe(0);
+      await force(page, a);
+    }
+    bx = await boxOf(page, a, 'row');
+    const r2 = await clickAt(page, a, bx.cx, bx.cy);
+    expect(r2, `★아래 ＋ 정중앙 = 행 +1 ${JSON.stringify(r2)}`).toMatchObject({ dRows: 1, dCols: 0 });
+    expect(errs).toEqual([]);
+  });
+}

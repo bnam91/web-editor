@@ -3126,6 +3126,9 @@ const GRID_ADD_BTN_CLS = 'grd-add-btn';
 /* ★뜨는 조건 = «호버» — 그리드 블럭 «전체» 위에 마우스가 있으면 두 ＋ 가 붙는다(선택 불필요).
  * .label-group-block.selected 의 ＋ 는 선택 때만 보인다(opacity 0 + pointer-events none). 그리드 ＋ 는 «호버»로 간다 — 선례와 다른 것이 의도다, 2026-10-04 현빈 결정
  * ★호버 영역은 ＋ 가 아니라 «블럭 전체»다 — ＋ 만 반응하면 ＋ 는 영영 안 나타난다.
+ * ★클릭은 «＋ 버튼 그 자체»(둥근 원)만 받는다 — 「정확히 +버튼을 눌러야지만 칼럼추가」(현빈 2026-10-04).
+ *   ＋ 를 감싸는 띠·상자 요소는 없다. 원 밖 네모 모서리는 크로미움의 둥근 모서리 히트 판정(border-radius:50%)으로
+ *   밑의 그리드에 간다 → 선택. (tests/dom/grid-plus-g15 R5 가 잰다.)
  *   ＋ 는 블럭의 «자식»이라(아래 ＋ 가 반쯤 밖으로 나가 있어도) 그 위로 가도 블럭 :hover 가 유지된다.
  * ★조건은 이 함수 «하나»에만 둔다. 붙이고 떼는 계기는 _bindGridPlusHover(mouseenter/leave) + 렌더 끝(_syncGridAddBtns). */
 function _gridPlusShown(block) {
@@ -3144,7 +3147,36 @@ function _bindGridPlusHover(block) {
   if (!block?.addEventListener || _gridPlusBound.has(block)) return;
   _gridPlusBound.add(block);
   block.addEventListener('mouseenter', () => { _gridPlusHovered.add(block); _syncGridAddBtns(block); });
-  block.addEventListener('mouseleave', () => { _gridPlusHovered.delete(block); _syncGridAddBtns(block); });
+  block.addEventListener('mouseleave', (e) => {
+    /* ★호버 영역 = 블럭과 두 ＋ 상자를 «다 덮는 네모»(클릭은 둥근 ＋ «원»만 받는다 — _gridPlusShown 주석).
+       아래 ＋ 는 블럭 «밖»이라, 그리드 안에서 비스듬히 내려가면 ＋ 에 닿기 전에 블럭을 벗어나 mouseleave 로 ＋ 가 사라졌다
+       (실측 2026-10-04, 진짜 마우스 3걸음: 아래 ＋ 정중앙으로 가던 클릭이 gap-block 에 떨어짐 — ＋ 상자만 이어 줘도 그대로였다).
+       ⇒ 나가는 점이 그 네모 안이면 안 끈다 — 네모를 벗어날 때 끈다(문서 mousemove 를 걸고 스스로 뗀다).
+       ⛔이 네모는 «호버»만이다. 클릭은 그 자리의 원래 요소(그리드·gap 등)가 받는다. */
+    if (_inGridPlusZone(block, e.clientX, e.clientY)) { _trackGridPlusZone(block); return; }
+    _gridPlusHovered.delete(block); _syncGridAddBtns(block);
+  });
+}
+function _inGridPlusZone(block, x, y) {
+  const btns = block.querySelectorAll(`:scope > .${GRID_ADD_BTN_CLS}`);
+  if (!btns.length) return false;
+  let { left, top, right, bottom } = block.getBoundingClientRect();
+  for (const b of btns) {
+    const r = b.getBoundingClientRect();
+    left = Math.min(left, r.left); top = Math.min(top, r.top); right = Math.max(right, r.right); bottom = Math.max(bottom, r.bottom);
+  }
+  return x >= left && x <= right && y >= top && y <= bottom;
+}
+function _trackGridPlusZone(block) {
+  if (block._grdPlusZoneTrack) return;
+  const onMove = (e) => {
+    if (_inGridPlusZone(block, e.clientX, e.clientY)) return;
+    document.removeEventListener('mousemove', onMove, true); block._grdPlusZoneTrack = null;
+    if (block.matches(':hover')) return;   // 블럭 안으로 돌아와 있으면 그대로(mouseenter 가 이미 깃발을 세웠다)
+    _gridPlusHovered.delete(block); _syncGridAddBtns(block);
+  };
+  block._grdPlusZoneTrack = onMove;
+  document.addEventListener('mousemove', onMove, true);
 }
 
 /* 피커·＋ 공용 — 칸 수를 (nCols, nRows) 로 바꾼다. 바뀌었으면 true.
