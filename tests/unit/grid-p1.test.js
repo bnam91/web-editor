@@ -157,7 +157,7 @@ test('승격① — dataset.rows/cells 가 아예 없으면 1행 그리드로 �
      ★「그래도 화면엔 왼쪽 정렬로 나오나」를 대신 잰다 — 기능이 사라진 게 아님을 그쪽이 지킨다. */
   assert.equal(cells[0][0].align, undefined,
     '열 기본값은 «모델의 칸»에 안 섞인다 — 칸 자기 값이 없으면 undefined 다(합성은 렌더러 pick)');
-  const painted = { dataset: block.dataset, style: {} };
+  const painted = { dataset: block.dataset, style: {}, children: [] };  // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 글자 그대로의 가짜 블럭이라 자식은 늘 없다
   renderGridBlock(painted);
   assert.match(painted.innerHTML, /data-r="0" data-c="0"[\s\S]*?text-align:left;[\s\S]*?>왼쪽</,
     '★열 기본값(align)이 화면에는 «여전히» 걸린다 — 모델에서 안 섞는 것이 기능 상실이면 안 된다');
@@ -259,7 +259,7 @@ test('renderGridBlock — grid-template-columns 는 fr, grid-template-rows 는 m
       rows: JSON.stringify([{ height: 'auto' }, { height: 120 }]),
       gap: '24',
     },
-    style: {},
+    style: {}, children: [],  // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 글자 그대로의 가짜 블럭이라 자식은 늘 없다
   };
   renderGridBlock(block);
   assert.match(block.innerHTML, /display:grid/);
@@ -270,7 +270,7 @@ test('renderGridBlock — grid-template-columns 는 fr, grid-template-rows 는 m
 });
 
 test('renderGridBlock — 옛 1행 파일도 grid 로 렌더되지만 셀 수는 열 수와 같다(회귀: flex 시절과 시각적 동치)', () => {
-  const block = { dataset: { cols: JSON.stringify([{ width: 1, lines: [] }, { width: 1, lines: [] }, { width: 2, lines: [] }]) }, style: {} };
+  const block = { dataset: { cols: JSON.stringify([{ width: 1, lines: [] }, { width: 1, lines: [] }, { width: 2, lines: [] }]) }, style: {}, children: [] };  // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 글자 그대로의 가짜 블럭이라 자식은 늘 없다
   renderGridBlock(block);
   assert.match(block.innerHTML, /grid-template-columns:1fr 1fr 2fr/);
   // ★모든 칸이 lines:[] 라 grd-cell-empty(T-A, 2026-09-16)도 같이 찍힌다.
@@ -311,7 +311,7 @@ test('renderGridBlock — row-gap/column-gap 이 longhand 로 각각 찍힌다(s
       cols: JSON.stringify([{ width: 1, lines: [] }, { width: 1, lines: [] }]),
       rowGap: '8', colGap: '32',
     },
-    style: {},
+    style: {}, children: [],  // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 글자 그대로의 가짜 블럭이라 자식은 늘 없다
   };
   renderGridBlock(block);
   assert.match(block.innerHTML, /row-gap:8px/);
@@ -380,7 +380,7 @@ test('renderGridBlock — 각 라인에 data-r/data-c/data-line 좌표가 심긴
       // ★T-178 — dataset.cells 는 «행 0 포함 전체». 행 0 칸은 꾸밈만(여기선 빈 객체).
       cells: JSON.stringify([[{}, {}], [{ lines: [{ type: 'body', text: 'D' }] }, { lines: [] }]]),
     },
-    style: {},
+    style: {}, children: [],  // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 글자 그대로의 가짜 블럭이라 자식은 늘 없다
   };
   renderGridBlock(block);
   // 행0 셀0 의 2번째 줄(li=1) = "B"
