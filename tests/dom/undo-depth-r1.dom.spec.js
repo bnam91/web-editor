@@ -106,3 +106,29 @@ test('R1-d ★지키는 시험 — ⌘Z «직후» push-before 편집 뒤 ⌘Z �
   await page.keyboard.press('Meta+Shift+z'); await page.waitForTimeout(150);
   expect(await h('rg1'), '★⌘⇧Z 로 B 가 안 돌아온다 — 편집 결과가 스택에 안 찍혔다').toBe('200px');
 });
+
+/* ★R1-e — 복원 «직후» 같은 틱·몇 프레임 안의 편집이 복원된 칸에 섞이지 않는다 (2026-10-03 적대QA 가 9b5e5f31 에서 깬 것).
+ *   첫 처방은 복원한 칸을 «두 프레임 뒤에 한 번 더» 찍었다. push-before 편집은 «꼭대기와 같다»에 걸려 칸을 안 만드니
+ *   pos·len·seq 가드를 통과하고, 늦은 찍기가 그 편집을 복원된 칸에 구웠다 ⇒ 다음 ⌘Z 가 두 걸음(T-009⑨ 꼴 재발) +
+ *   ⌘⇧Z 가 잘렸어야 할 꼬리를 되살렸다. 위험한 실제 자리 = 창이 숨거나 가려져 rAF 가 멈춘 동안 MCP 가 편집할 때.
+ *   ⇒ 늦은 찍기를 뺐다(동기 찍기만). 이 시험은 그 «틈»을 rAF 를 붙잡아 일부러 넓혀 잰다. */
+for (const hold of [0, 300]) test(`R1-e ★⌘Z 직후 ${hold ? 'rAF 300ms 정지 중' : '같은 틱'}의 push-before 편집(deleteBlock) 뒤 ⌘Z 는 한 걸음`, async ({ page }) => {
+  await setup(page, FIX_PLAIN);
+  const h = (id) => page.evaluate((id) => document.getElementById(id)?.style.height ?? null, id);
+  await page.evaluate(() => { document.getElementById('rg0').style.height = '100px'; window.pushHistory('A0'); });
+  await page.evaluate(() => { document.getElementById('rg2').style.height = '150px'; window.pushHistory('A1'); });
+  await page.evaluate((hold) => {
+    if (hold) { const r = window.requestAnimationFrame; window.requestAnimationFrame = (cb) => setTimeout(() => r(cb), hold); setTimeout(() => { window.requestAnimationFrame = r; }, hold + 50); }
+    window.undo(); window.deleteBlock('rg3');
+  }, hold);
+  await page.waitForTimeout(hold + 400);
+  expect(await h('rg3'), '전제 — rg3 가 지워졌다').toBe(null);
+  await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); });
+  await page.keyboard.press('Meta+z'); await page.waitForTimeout(200);
+  expect(await h('rg3'), '★⌘Z 가 지우기를 안 풀었다').toBe('33px');
+  expect([await h('rg0'), await h('rg2')], '★⌘Z 한 번이 «두 걸음» — 지우기가 복원된 칸에 구워졌다').toEqual(['100px', '32px']);
+  await page.keyboard.press('Meta+Shift+z'); await page.waitForTimeout(200);
+  expect(await h('rg3'), '★⌘⇧Z 로 지우기가 안 돌아온다').toBe(null);
+  await page.keyboard.press('Meta+Shift+z'); await page.waitForTimeout(200);
+  expect([await h('rg3'), await h('rg2')], '★잘렸어야 할 redo 꼬리(A1)가 살아 돌아왔다 — 사용자 편집 유실').toEqual([null, '32px']);
+});
