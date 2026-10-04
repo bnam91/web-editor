@@ -1052,6 +1052,13 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
       let committed = false;
       // Undo 복원용 — 변환 전에 캡쳐 (id 포함 — 복원 시 원본 id 유지해야 이동 undo 체인 안 끊김)
       const restoreInfo = _pickScratch(item, ['g', 'linkDy']);   // 옛 동작대로 g·linkDy 는 빼고, fx 는 담는다(되살리면 효과도)
+      /* ★E95(U11) — 되살릴 «자리»는 끌기 «시작» 자리다. 위 item.x/y 는 onMove 가 이미 «끌린 자리»로 바꿔 놓아
+         (`t.x = t._dragOrigX + finalDx`), 그대로 쓰면 ⌘Z 가 카드를 «놓은 자리»(페이지 위)로 되살려 다음 드롭 대상을 덮었다
+         (2026-10-05 실측 · 772ccadc). 평소 이동 갈래와 같은 원본 geomBefore(onMove 가 바꾸기 «전» 캡처)에서 뜬다.
+         ⚠️geomBefore 에 그 id 가 없으면(일어나선 안 됨) 지금 값으로 떨어지되 «조용히» 넘기지 않는다 — 경고를 남기고 시험이 이 경고 0 을 단언한다. */
+      const _geo0 = geomBefore.find(g => g.id === item.id);
+      if (_geo0) { restoreInfo.x = _geo0.x; restoreInfo.y = _geo0.y; }
+      else console.warn('[scratch] E95 restore fallback — geomBefore 에 id 없음, 지금 자리로 되살림:', item.id);
       // 이미지 자연 비율 (insert/append 케이스용)
       const imgEl = item.el.querySelector('img');
       const natW = imgEl?.naturalWidth || 0;
