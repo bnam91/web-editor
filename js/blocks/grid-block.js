@@ -786,7 +786,8 @@ const GRID_LINE_FIELDS = new Set([
 
 /** `renderGridBlock` 이 셀에서 읽는 것(`cell.lines` + `pick(...)`) — patchCell 로 줄 수 있는 필드.
  *  ⚠️`width` 는 «열» 속성이라 여기 없다 — 셀로 주면 조용히 버려진다. 거절 메시지가 patchCol 로 보낸다. */
-const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', 'radius']);
+/* ★G4(2026-10-04) — 칸 배경 이미지 셋(bgImg·bgFit·bgPos). 렌더러가 pick('…') 으로 읽으므로 P7 파싱과 이 명부가 같이 는다. */
+const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', 'radius', 'bgImg', 'bgFit', 'bgPos']);
 
 /** `cols[c]` 가 받는 것 — 칸 필드 «전부» ＋ `width`(열 전용). ⛔손으로 베끼지 않는다.
  *  renderGridBlock 이 `pick(k)` 로 칸 값이 없을 때 `col[k]` 를 읽으므로, 열이 받는 꾸밈은
@@ -795,7 +796,9 @@ const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', '
 const GRID_COL_FIELDS = new Set(['width', ...GRID_CELL_FIELDS]);
 
 /** 꾸밈 필드 중 «값이 명부로 묶인» 것 — 칸이든 열이든 같다. ⛔이름 말고 «표»로 묶는다. */
-const GRID_ENUM_FIELDS = { align: GRID_ALIGN_VALUES, valign: GRID_VALIGN_VALUES };
+/* ★G4 칸 배경 이미지 맞춤 — 에셋 블럭 fit 명부(block-factory.js _enum('fit',['cover','contain']))와 «같은 두 값». */
+export const GRID_BG_FIT_VALUES = ['cover', 'contain'];
+const GRID_ENUM_FIELDS = { align: GRID_ALIGN_VALUES, valign: GRID_VALIGN_VALUES, bgFit: GRID_BG_FIT_VALUES };
 
 /* ★★값이 «명부»가 아니라 «잣대»로 묶인 것 (2026-09-24 T-175 ⑵).
  *  ⛔새 잣대를 만들지 않았다 — 렌더러가 «이미 쓰고 있는 바로 그 정규식»을 입구가 같이 본다.
@@ -844,6 +847,9 @@ const GRID_VALUE_TESTS = {
   bg: (v) => _GRID_COLOR_RE.test(String(v).trim()),
   color: (v) => _GRID_COLOR_RE.test(String(v).trim()),
   fontFamily: (v) => _GRID_FONT_RE.test(String(v).trim()),
+  /* ★G4 — 칸 배경 이미지·위치는 G12 블럭 배경과 «같은 잣대»(_GRID_BG_IMG_RE · _gridNormBgPos — 두 벌 금지). */
+  bgImg: (v) => _GRID_BG_IMG_RE.test(String(v)),
+  bgPos: (v) => _gridNormBgPos(String(v)) !== null,
 };
 
 /** 오타를 «되돌려» 준다 — 거절이 「틀렸다」로 끝나면 부르는 쪽은 다음에 뭘 할지 모른다. */
@@ -1226,7 +1232,11 @@ function _gridValueViolations(node, where) {
       why: `${JSON.stringify(v)} is not a value the renderer accepts for '${k}' — `
         + (k === 'fontFamily'
           ? 'a font family name (no ; : { })'
-          : 'a CSS color the grid accepts: #hex, rgb()/rgba()/hsl()/hsla(), transparent, or var(--token[, fallback])')
+          : k === 'bgImg'
+            ? 'a data:image/… or goya-asset:// URL (no quotes, brackets or spaces)'
+            : k === 'bgPos'
+              ? `"<${GRID_BLOCK_BG_POS_X.join('|')}> <${GRID_BLOCK_BG_POS_Y.join('|')}>"`
+              : 'a CSS color the grid accepts: #hex, rgb()/rgba()/hsl()/hsla(), transparent, or var(--token[, fallback])')
         + '. It would have been stored and then DROPPED at render time, '
         + `wiping whatever '${k}' the cell had before.`,
     });
@@ -1329,6 +1339,7 @@ function _gridIntake(partial, ctx, drops) {
   /** 칸 또는 열 한 덩이 — 값 명부 ＋ 그 안의 줄들. */
   const scanNode = (node, where, addr) => {
     if (!node || typeof node !== 'object' || Array.isArray(node)) return;
+    takeImg(node.bgImg, `${where}.bgImg`, addr);   // ★G4 — 칸·열 배경 이미지도 줄 imgSrc 와 «같은 자»로 잰다
     violations.push(..._gridValueViolations(node, where));
     scanLines(node.lines, where, addr);
   };
@@ -2284,6 +2295,16 @@ function renderGridBlock(block) {
       const bg = (typeof bgRaw === 'string' && _GRID_COLOR_RE.test(bgRaw.trim())) ? bgRaw.trim() : '';
       const pad = Number(pick('padding')) || 0;
       const rad = Number(pick('radius')) || 0;
+      /* ★G4 칸 배경 이미지 — 롱핸드로, 배경색 축약(background:) «뒤»에 붙인다(앞이면 축약이 이미지를 지운다).
+         ⛔background 축약 금지 — HTML 내보내기는 [style*="background-image"] 만 goya-asset 을 푼다(G12 B4 와 같은 함정).
+         값 잣대는 G12 블럭 배경과 같다(_GRID_BG_IMG_RE · _gridNormBgPos) · 맞춤 명부는 에셋 fit 과 같다(GRID_BG_FIT_VALUES).
+         ⛔z-index·isolation 을 «안» 만든다 — 칸 style 에 배경 속성만(RG5 꼴 없음). */
+      const imgRaw = pick('bgImg');
+      const cellImg = (typeof imgRaw === 'string' && _GRID_BG_IMG_RE.test(imgRaw)) ? imgRaw : '';
+      const fitRaw = pick('bgFit');
+      const cellFit = GRID_BG_FIT_VALUES.includes(fitRaw) ? fitRaw : 'cover';
+      const cellPos = _gridNormBgPos(pick('bgPos')) || 'center center';
+      const imgCss = cellImg ? `background-image:url('${cellImg}');background-size:${cellFit};background-position:${cellPos};background-repeat:no-repeat;` : '';
       // ★각 라인에도 좌표를 심는다(data-r/data-c/data-line) — 현빈 2026-09-04 지시.
       //   ★2026-09-05 P1.5 부터 «실제로 읽는 소비자»가 있다: js/block-drag.js 의 캔버스 인라인 편집이
       //   blur 때 「어느 셀 몇 번째 줄인가」를 DOM 순서 추측 없이 여기서 바로 읽어 patchCell 로 커밋한다.
@@ -2323,8 +2344,8 @@ function renderGridBlock(block) {
            먼저 그려져 내용 뒤에 깔린다(내용이 줄 위로 온다). */
       const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), colGapPx);
       const pullUp = rowGapPx < 0 && r > 0 ? `margin-top:${rowGapPx}px;` : '';   // 음수 행 간격 = 위 줄로 당긴다(GRID_ROW_GAP_MIN 주석)
-      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}">
-        ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, _cellTone(bg))).join('')}
+      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}">
+        ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, cellImg ? true : _cellTone(bg))).join('')}
       </div>`);
     }
   }
