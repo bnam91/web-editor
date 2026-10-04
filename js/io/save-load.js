@@ -125,7 +125,19 @@ async function captureThumbnail() {
     } catch (e) { console.warn('[thumb] goya-asset 클론 준비 실패:', e); }
 
     const bgColor = firstSec.style.background || firstSec.style.backgroundColor || '#ffffff';
-    const canvas = await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false });
+    /* ★L1(2026-10-04) — 편집 보조(그리드 가이드·패딩 비주얼)는 «캡처 동안» 끈다 — js/io/export-image.js exportSection 과 같은 가드.
+       html2canvas 는 문서(body 클래스 포함)를 복제해 그린다. 지금 안 새는 것은 html2canvas 가 repeating-linear-gradient 를
+       «못 그려서일 뿐»이다(실측: 같은 가이드를 linear 로 바꾸면 썸네일 칼럼 자리가 [255,127,127] 로 찍혔다 — tests/dom/l1-guide-align). */
+    const _gOn = document.body.classList.contains('gdt-grid-on');
+    const _pOn = document.body.classList.contains('gdt-pad-on');
+    if (_gOn) document.body.classList.remove('gdt-grid-on');
+    if (_pOn) document.body.classList.remove('gdt-pad-on');
+    let canvas;
+    try { canvas = await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false }); }
+    finally {
+      if (_gOn) document.body.classList.add('gdt-grid-on');
+      if (_pOn) document.body.classList.add('gdt-pad-on');
+    }
     document.body.removeChild(clone);
 
     /* 200px 너비로 축소 — ★«빈 그림»이면 null 이다. 그럴듯한 6자를 돌려주지 않는다 (T-87).

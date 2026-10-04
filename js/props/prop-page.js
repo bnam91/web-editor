@@ -469,22 +469,15 @@ export function showPageProperties() {
          꺼 놓고 패널을 다시 열면 가이드가 되살아났다. */
     saveGridPref({ on, n, g });
     if (!on) return;
-    /* 콘텐츠 폭 — «화면에서» 잰다. 섹션마다 패딩이 다를 수 있어 첫 섹션을 기준으로 삼는다.
-       ⚠️섹션별로 패딩을 따로 준 곳은 그 섹션에서 어긋난다 — 가이드지 자[尺]가 아니다. */
-    const inner = document.querySelector('#canvas .section-inner');
-    let contentW;
-    if (inner) {
-      const cs = getComputedStyle(inner);
-      contentW = inner.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
-    } else {
-      contentW = 860 - (parseInt(state.pageSettings.padX) || 0) * 2;
-    }
-    const col = Math.max(1, (contentW - g * (n - 1)) / n);
+    /* ★L1(2026-10-04) — 칼럼 «폭»은 여기서 재지 않는다. CSS 가 섹션마다 자기 내용 상자에서 «%»로 푼다(css/editor-canvas.css).
+       옛 길: 첫 섹션 하나의 내용 폭을 재 --gdt-grid-col 에 박았다 ⇒ 섹션별 패딩이면 그 섹션이 +96px 어긋났고,
+       섹션 패널 패딩 조작은 이 함수를 안 불러 첫 섹션도 어긋났다(측정 L1-DESIGN.md). 이제 문서 변수는 «수»만 든다. */
     const root = document.documentElement.style;
-    root.setProperty('--gdt-grid-col', col.toFixed(2) + 'px');
+    root.setProperty('--gdt-grid-n', String(n));
     root.setProperty('--gdt-grid-gut', g + 'px');
+    root.removeProperty('--gdt-grid-col');   // 옛 변수 — 남겨 두면 읽는 쪽이 있는 줄 안다
   }
-  /* 패딩이 바뀌면 그리드도 따라와야 한다 — 이 자리를 빠뜨리면 «켜 두고 패딩만 바꿨을 때» 어긋난다 */
+  /* 페이지 패딩 핸들러가 부른다(applyPadX). ★L1 뒤로는 폭을 CSS 가 풀어 «패딩 때문에» 부를 필요는 없다 — 남은 일은 수·거터 다시 쓰기뿐이라 무해하다. */
   window.__gdtRefreshGrid = refreshGrid;
 
   if (gridOn) {
