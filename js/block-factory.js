@@ -1903,6 +1903,34 @@ function addGridChild(grid, kind = 'body') {
 }
 window.addGridChild = addGridChild;
 
+/* ═══ G14 「＋ 블럭 넣기 ▾」 — 서클 에셋블럭의 «원 안»(.icb-circle > .icb-children)에 블럭 하나를 넣는다 ═══════════════
+ * ★길은 addGridChild 와 같다 — _insertToFlowFrame(opts.into) · 그릇은 «넣기 직전»(pushHistory 뒤)에 만든다(js/icb-children.js).
+ * ★삽입 래퍼 둘(insert-history 끝 표본 · insert-select 새 블럭 선택)이 감싼다 — 로스터 EXTRA 한 줄(이름이 …Block 이 아닌 까닭도 같다).
+ * ★글자는 가운데 정렬로 넣는다(원 한가운데라서) — 글자 블럭 «자기» 속성이라 사람이 바꿀 수 있다.
+ * ★아이콘은 row 없이 맨몸으로 넣는다 — 그릇이 가운데 정렬 flex 라 row(폭 100%) 안에 두면 왼쪽에 붙는다. 고르기는 아이콘 패널 「교체」.
+ * @param {string|Element} circle  서클 블럭(또는 id)
+ * @param {'body'|'h2'|'icon'} kind */
+function addCircleChild(circle, kind = 'body') {
+  const c = typeof circle === 'string' ? document.getElementById(circle) : circle;
+  if (!c || !c.classList?.contains('icon-circle-block') || !(window.ICB_CHILD_KINDS || []).includes(kind)) return null;
+  let made = null;
+  _insertToFlowFrame(() => {
+    if (kind === 'icon') {
+      const { block } = window.makeIconifyBlock('', '', 64);
+      made = block;
+      return block;
+    }
+    const { block } = makeTextBlock(kind);
+    const tf = _makeTextFrame();
+    applyTextOpts(block, tf, { align: 'center' }, kind);
+    tf.appendChild(block);
+    made = block;
+    return { row: tf, block };
+  }, { into: () => window.ensureIcbKidsBox(c) });
+  return made ? { block: made } : null;
+}
+window.addCircleChild = addCircleChild;
+
 function addFrameBlock(opts = {}) {
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }

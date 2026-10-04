@@ -73,7 +73,8 @@
   /* .row 는 블록 여럿을 «나란히» 담는 래퍼다. 그 줄의 성격은 자식이 정한다
      (이미지가 하나라도 있으면 그 줄은 덩어리) ⇒ 자식 타입을 같이 실어 보낸다. */
   function _childTypes(el) {
-    var kids = [].slice.call(el.querySelectorAll(BLOCKISH));
+    /* G14 — 서클 «원 안» 자식(.icb-children)은 그 줄의 성격이 아니다(원 위에 얹힌 글자) — 세지 않는다. */
+    var kids = [].slice.call(el.querySelectorAll(BLOCKISH)).filter(function (k) { return !(k.closest && k.closest('.icb-children')); });
     if (!kids.length) return null;
     var out = [], seen = {};
     for (var i = 0; i < kids.length && out.length < 8; i++) {

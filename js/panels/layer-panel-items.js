@@ -679,7 +679,7 @@ function appendFlowChildrenToLayer(containerEl, out, sec, appendRowFn, depth) {
       }
     } else if (child.classList.contains('row')) {
       appendRowFn(child, out, depth);
-    } else if (child.classList.contains('grid-block')) {
+    } else if (child.classList.contains('grid-block') || child.classList.contains('icon-circle-block')) {   // G14 서클도 자식을 펼친다
       out.appendChild(makeLayerGridItem(child, child, sec, depth, appendRowFn));
     } else if (window.hasPanelForBlock?.(child)) {
       /* ★「이 자식이 블럭인가」는 정본 표(js/panel-dispatch.js _PANEL_BY_CLASS) 한 곳이 답한다.
@@ -697,7 +697,9 @@ function appendFlowChildrenToLayer(containerEl, out, sec, appendRowFn, depth) {
      꼴은 makeLayerRowGroup 의 머리(.layer-row-header > .layer-item, editor-panels.css 의 그 규칙)와 같다. */
 function makeLayerGridItem(block, dragTarget, sec, depth = 1, appendRowFn) {
   const item = makeLayerBlockItem(block, dragTarget, sec, depth);
-  const box = window.gridKidsBox?.(block);
+  /* ★G14 — 서클 에셋블럭의 «원 안» 그릇(.icb-children)도 같은 꼴로 펼친다(그릇 해석만 다르다 — js/icb-children.js). */
+  const _isCircle = block.classList.contains('icon-circle-block');
+  const box = _isCircle ? window.icbKidsBox?.(block) : window.gridKidsBox?.(block);
   if (!box || !appendRowFn) return item;
   const kidsOut = document.createElement('div');
   kidsOut.className = 'layer-row-children';
@@ -705,7 +707,7 @@ function makeLayerGridItem(block, dragTarget, sec, depth = 1, appendRowFn) {
   if (!kidsOut.children.length) return item;
   const group = document.createElement('div');
   group.className = 'layer-row-group';
-  group.dataset.type = 'grid';
+  group.dataset.type = _isCircle ? 'icon-circle' : 'grid';
   group._dragTarget = dragTarget;
   const header = document.createElement('div');
   header.className = 'layer-row-header';
