@@ -8,7 +8,7 @@ export function buildTextPropsHtml(state) {
     currentX, currentY, currentRotation = 0, currentW, currentFont, currentWeight, currentSize,
     currentLH, currentLS, currentColor, currentColorAlpha,
     currentPadT, currentPadL, currentPadR, phLinked,
-    isLabel, currentBgColor, currentRadius, labelPillH, labelPadX = 0, labelIsCircle = false,
+    isLabel, currentBgColor, currentRadius, labelPillH, labelPadX = 0, labelIsCircle = false, labelShape = null,
     isSpeechBubble, currentBubbleStyle, currentTail,
     bubbleBgHex, showSender,
     isIconText, currentItbGap, itbVertical,
@@ -214,11 +214,11 @@ ${blockHeaderHTML({
       <div class="prop-section">
         <div class="prop-section-title">Tag Style</div>
         <div class="prop-row" style="gap:4px">
-          <button class="prop-btn-full" id="label-shape-pill">Pill</button>
-          <button class="prop-btn-full" id="label-shape-box">Box</button>
-          <button class="prop-btn-full" id="label-shape-outline">Outline</button>
-          <button class="prop-btn-full" id="label-shape-circle">Circle</button>
-          <button class="prop-btn-full" id="label-shape-text">Text</button>
+          <button class="prop-btn-full${labelShape==='pill'?' active':''}" id="label-shape-pill">Pill</button>
+          <button class="prop-btn-full${labelShape==='box'?' active':''}" id="label-shape-box">Box</button>
+          <button class="prop-btn-full${labelShape==='outline'?' active':''}" id="label-shape-outline">Outline</button>
+          <button class="prop-btn-full${labelShape==='circle'?' active':''}" id="label-shape-circle">Circle</button>
+          <button class="prop-btn-full${labelShape==='text'?' active':''}" id="label-shape-text">Text</button>
         </div>
         <div class="prop-color-row">
           <span class="prop-label">배경색</span>

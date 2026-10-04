@@ -7,6 +7,7 @@
  */
 import { markLabelAutoColor, forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
+import { labelShapeFromRendered } from './_panel-rendered.js';
 
 export function wireLabelSection({ ctx }) {
   /* 태그 배경색 */
@@ -239,6 +240,15 @@ export function wireLabelSection({ ctx }) {
     if (rSlider2) { rSlider2.value = 0; rNumber2.value = 0; }
     window.scheduleAutoSave?.();
   });
+
+  /* ★U7(E121 · 2026-10-05): Tag Style 켜짐 표시 — 형태 단추가 인라인을 쓴 «뒤» 그려진 모양으로 다시 판정한다
+     (위 핸들러들 뒤에 등록 = 같은 요소의 리스너는 등록 순서대로 돈다). 판정 한 자리 = _panel-rendered.js. */
+  const _SHAPES = ['pill', 'box', 'outline', 'circle', 'text'];
+  const _markShape = () => {
+    const cur = labelShapeFromRendered(ctx.contentEl);
+    _SHAPES.forEach(k => document.getElementById('label-shape-' + k)?.classList.toggle('active', k === cur));
+  };
+  _SHAPES.forEach(k => document.getElementById('label-shape-' + k)?.addEventListener('click', _markShape));
 
   /* 「좌우 패딩」 줄 동기화 — ★위 형태 버튼 핸들러들 «뒤에» 등록한다(같은 요소의 리스너는 등록 순서대로 돈다.
      앞에 두면 버튼이 padding 을 쓰기 «전»에 값을 읽어 옛 값에 머문다). */
