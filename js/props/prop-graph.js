@@ -146,8 +146,9 @@ ${blockHeaderHTML({
         <span class="prop-label">값 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-vlabel', hex: block.dataset.vlabelColor || labelColor, alpha: parseAlphaFromColor(block.dataset.vlabelColor || labelColor) })}
       </div>
+      <!-- ★E103 U27(2026-10-05): 「카테고리 색상」·「카테고리 표시」는 56px 고정 라벨에서 잘렸다(sw60/cw56 실측) — 기존 변형 .prop-label--auto(css/editor-props.css, 「그리드 가이드」 선례)를 쓴다. 전역 56px 은 안 건드린다. -->
       <div class="prop-row" title="카테고리 라벨(7차 입고 등)만 별도 색상">
-        <span class="prop-label">카테고리 색상</span>
+        <span class="prop-label prop-label--auto">카테고리 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-xlabel', hex: block.dataset.xlabelColor || labelColor, alpha: parseAlphaFromColor(block.dataset.xlabelColor || labelColor) })}
       </div>
       <div class="prop-row">
@@ -158,7 +159,7 @@ ${blockHeaderHTML({
         </label>
       </div>
       <div class="prop-row">
-        <span class="prop-label">카테고리 표시</span>
+        <span class="prop-label prop-label--auto">카테고리 표시</span>
         <label class="prop-toggle">
           <input type="checkbox" id="grb-show-xlabel" ${showXLabel ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
