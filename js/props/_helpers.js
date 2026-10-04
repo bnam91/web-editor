@@ -268,6 +268,14 @@ const _BORDER_BOX = '<rect x="2.5" y="2.5" width="11" height="11" fill="none" st
  *     tmp 로 복사해 import 줄을 글자로 갈아 끼운다(grid-block.js replaceShellKeepChildren 머리말). 그래서 window 로 건넨다. */
 export const PLUS_ICON_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M8 3v10M3 8h10"/></svg>';
 if (typeof window !== 'undefined') window.PLUS_ICON_SVG = PLUS_ICON_SVG;
+/* ★눈(보임/숨김) 아이콘 (E1 Effects 2026-10-04) — 레이어 패널 섹션 눈(js/panels/layer-panel.js 의 두 svg)과 «같은 그림»을 이름으로 둔다.
+ *   ⛔레이어 패널 쪽은 이번에 안 옮겼다(그 자리를 바꾸는 시험 위험) — 다음에 옮길 때 여기서 가져간다(두 벌 → 한 벌).
+ *   effects-reflect.js 는 import 없이 window 다리로 받는다(PLUS_ICON_SVG 와 같은 까닭). */
+export const EYE_ICONS = {
+  shown:  '<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true" focusable="false"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="7" cy="7" r="1.8"/></svg>',
+  hidden: '<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true" focusable="false"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><line x1="2" y1="2" x2="12" y2="12"/></svg>',
+};
+if (typeof window !== 'undefined') window.EYE_ICONS = EYE_ICONS;
 
 export const BORDER_ICONS = {
   top:    `<svg width="14" height="14" viewBox="0 0 16 16" fill="none">${_BORDER_BOX}<path fill="currentColor" d="M2 2h12v1.5H2z"/></svg>`,

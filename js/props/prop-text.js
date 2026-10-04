@@ -193,6 +193,7 @@ export function showTextProperties(tb) {
   wireTextEditSection({ tb, ctx, currentColorAlpha });   // tb: 0920b textgrad-bar — 캔버스 그라데이션 바 대상 블럭
   wireSpacingSection({ ctx, isLiner }); // M6b: 라이너는 자간 바인딩 스킵(우리 슬라이더 단일소스)
   wireShadowSection({ ctx, initial: shadow });
+  window.wireFxReflectSection?.(tb, 'txt', () => showTextProperties(tb));   // ★E1 Effects — 절이 없으면 아무것도 안 한다
   if (!isOverlayTb) wirePositionSection({ tb });
   if (!isOverlayTb) wirePaddingSection({ tb, phLinked });
   if (!isOverlayTb) wireOverlaySection({ tb });
