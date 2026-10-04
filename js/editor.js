@@ -124,10 +124,19 @@ document.addEventListener('focusin', (e) => {
   const el = e.target;
   if (!el.matches?.(_AUTO_SELECT_SEL)) return;
   if (_isMixedField(el)) return;
-  // mousedown 이후에 select() 호출되도록 한 틱 지연
+  /* ★E66(2026-10-04) — select() 를 «바로» 부른다. 옛 판은 setTimeout(…,0) 으로 한 틱 미뤘다.
+   *   ⛔무엇이 났나: Chromium 은 입력 이벤트를 타이머보다 먼저 돌린다 ⇒ 클릭 «직후» 친 첫 키가 그 0ms 타이머보다
+   *     앞에 처리되고, 늦게 온 select() 가 첫 글자를 감싸 다음 글자가 덮었다(「12AB34」→「2AB34」 · 「64」→「4」 ·
+   *     기계 타이핑 실측 dcc8361c 원본 5/15 빨강, 0틱 판 15/15 초록 — $S/reports/E66-MEASURE.md).
+   *   ★한 틱 미룬 까닭(5f6be93e, 2026-04-22 「mousedown 이후에 select() 호출되도록 한 틱 지연」) = 포커스 클릭의
+   *     기본 캐럿 배치가 select 를 지운다 — 그런데 «같은 커밋»이 아래 mouseup 캡처 preventDefault(_selJustFocused)로
+   *     그 캐럿 배치를 이미 막는다. 실측: 바로 select = 첫 클릭 전체선택 30/30(세 칸×10), 대조 select 없음 = 0/30.
+   *   ⛔그래서 아래 mouseup preventDefault · _selJustFocused · ⑵ 다시 누름 · Mixed/`<select>` 가드는 «그대로» 둬야 한다 —
+   *     mouseup preventDefault 가 빠지면 이 0틱 select 를 캐럿 배치가 지운다(한 틱이 필요 없는 까닭이 바로 그것이다).
+   *   다섯 클래스(_AUTO_SELECT_SEL) 전부 이 한 자리를 탄다. */
   // ⚠️`<select class="prop-number">` 처럼 select() 가 «없는» 요소도 이 셀렉터에 걸린다
   //   (prop-banner02 줄 kind · prop-iconify). 가드 없으면 클릭할 때마다 uncaught TypeError.
-  setTimeout(() => { if (document.activeElement === el && typeof el.select === 'function') el.select(); }, 0);
+  if (document.activeElement === el && typeof el.select === 'function') el.select();
 });
 document.addEventListener('mouseup', (e) => {
   const el = e.target;
