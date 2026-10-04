@@ -1789,6 +1789,12 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 }
 .itb-text:empty::before { content: '본문 내용을 입력하세요.'; color: #ccc; pointer-events: none; }
 .itb-text[contenteditable="true"] { outline: none; }
+/* ★S3V(2026-10-04) 세로 — 아이콘 위 · 글 아래. 키 = data-itb-dir="v"(없으면 가로 = 옛 모양 그대로 — 기존 문서 바이트 동일).
+   ⛔Icon Text 는 렌더러가 없다 — 저장된 DOM 이 정본. 세로 «모양»은 이 두 줄이 전부다(전환 = js/block-factory.js setIconTextDirection).
+   ★세로 기본 정렬 = 가운데 — 지디 시안 ㉮ — 2026-10-04(세로 쌓기 · align-items:center). 정렬 단추는 인라인 alignItems·textAlign 으로 이긴다.
+   간격은 같은 gap 키(세로에선 위아래 사이). 시안 gap 14 ≠ 지금 기본 16 — «안 바꿨다». */
+.icon-text-block[data-itb-dir="v"] { flex-direction: column; align-items: center; }
+.icon-text-block[data-itb-dir="v"] > .itb-text { flex: 0 1 auto; max-width: 100%; text-align: center; }
 
 /* ── 블록 컨텍스트 메뉴 ── */
 .bcm-item {

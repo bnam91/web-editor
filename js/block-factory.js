@@ -5095,6 +5095,58 @@ function updateShapeBlock(blockId, partial = {}) {
   return { ok: true, blockId, before, applied };
 }
 
+/* ══ S3V(2026-10-04) Icon Text «방향» — 한 곳 ═══════════════════════════════════
+ * ⛔Icon Text 는 렌더러가 없다 — 저장된 DOM 이 정본. 방향 = 블럭 속성 data-itb-dir="v" 하나(없으면 가로 = 옛 모양).
+ * 패널 「방향」 단추(prop-text-wireup-align.js)와 MCP update_icon_text_block{direction} 이 «이것»을 부른다(두 벌 금지).
+ * ★정렬을 «옮겨 적는다»(겉보기 유지): 가로 정렬 키 = justifyContent(+ .itb-text flex) · 세로 = alignItems(+ .itb-text textAlign).
+ *   옛 키는 지운다 — 남기면 다시 돌아올 때 옛 값이 되살아난다(지디 시험 ⒦).
+ *   정렬을 손댄 적 없으면(인라인 없음) 옮길 것도 없다: 세로 기본 = 가운데(지디 시안 ㉮ — 2026-10-04, CSS) · 가로 기본 = 왼쪽(CSS). */
+const _ITB_FLEX = { left: 'flex-start', center: 'center', right: 'flex-end' };
+const _ITB_ALIGN_OF = { 'flex-start': 'left', 'center': 'center', 'flex-end': 'right', 'start': 'left', 'end': 'right', 'left': 'left', 'right': 'right' };
+/** 지금 «손으로 준» 정렬(left|center|right) — 인라인이 없으면 null(=방향별 CSS 기본). */
+function iconTextAlignOf(block) {
+  if (!block) return null;
+  return _ITB_ALIGN_OF[block.dataset.itbDir === 'v' ? block.style.alignItems : block.style.justifyContent] || null;
+}
+/** 정렬 하나를 지금 방향의 키로 쓴다. ★가로 갈래는 옛 정렬 단추(prop-text-wireup-align.js)와 «같은 값»을 쓴다(바이트 동일 — S1). */
+function applyIconTextAlign(block, align) {
+  if (!block || !_ITB_FLEX[align]) return false;
+  const t = block.querySelector(':scope > .itb-text');
+  if (block.dataset.itbDir === 'v') {
+    block.style.alignItems = _ITB_FLEX[align];
+    if (t) t.style.textAlign = align;
+  } else {
+    block.style.justifyContent = _ITB_FLEX[align];
+    if (t) t.style.flex = align === 'left' ? '1' : '0 1 auto';
+  }
+  return true;
+}
+/** @param {'horizontal'|'vertical'} dir  @returns {boolean} 바뀌었으면 true(같은 방향이면 false — 이력 칸을 안 만든다) */
+function setIconTextDirection(block, dir) {
+  if (!block || !block.classList.contains('icon-text-block')) return false;
+  if (dir !== 'horizontal' && dir !== 'vertical') return false;
+  const toV = dir === 'vertical';
+  if (toV === (block.dataset.itbDir === 'v')) return false;
+  const cur = iconTextAlignOf(block);
+  const t = block.querySelector(':scope > .itb-text');
+  if (toV) {
+    block.style.removeProperty('justify-content');
+    t?.style.removeProperty('flex');
+    block.dataset.itbDir = 'v';
+  } else {
+    block.style.removeProperty('align-items');
+    t?.style.removeProperty('text-align');
+    delete block.dataset.itbDir;
+  }
+  if (cur) applyIconTextAlign(block, cur);
+  if (block.getAttribute('style') === '') block.removeAttribute('style');
+  if (t && t.getAttribute('style') === '') t.removeAttribute('style');
+  return true;
+}
+window.iconTextAlignOf = iconTextAlignOf;
+window.applyIconTextAlign = applyIconTextAlign;
+window.setIconTextDirection = setIconTextDirection;
+
 // ── 수정: icon-text 블록 partial update ──────────────────────────────────
 function updateIconTextBlock(blockId, partial = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
