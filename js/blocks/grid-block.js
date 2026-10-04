@@ -2309,7 +2309,7 @@ function renderGridBlock(block) {
   replaceShellKeepChildren(block, `${_gridBlockBgHtml(block)}<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${Math.max(0, rowGapPx)}px;column-gap:${colGapPx}px;width:100%;">
     ${cellsHtml.join('')}
   </div>`, GRID_CHILDREN_CLASS);
-  _syncGridAddBtns(block);   // ★G15 — 껍데기가 갈렸으니 ＋ 를 다시 단다(안 보일 땐 아무것도 안 붙인다 ⇒ 렌더 바이트 불변)
+  _syncGridAddBtns(block);   // ★G15 — ＋ 흐림·자리 맞추기(＋ 는 블럭 밖 층 — 블럭 DOM 은 안 건드린다 ⇒ 렌더 바이트 불변)
 }
 
 /* ═══ ★G19 공용 — «껍데기만» 갈아끼우고 «자식 그릇»은 남긴다 (지디 2026-10-03 설계 확정) ══════════════
@@ -3309,7 +3309,9 @@ function _startGridPlusRaf() {
 /* ★＋ 의 기준 = «격자 껍데기(.grd-inner)» — 블럭 전체(껍데기 + G19 자식 그릇)가 아니다 (태양 2026-10-04).
  *   ＋ 는 격자의 «열·행»을 더하는 손잡이라서다. 오른쪽 ＋ = 껍데기 세로 가운데(블럭 오른쪽 끝 안쪽) · 아래 ＋ = 껍데기 바로 아래(블럭 가로 가운데).
  *   자식이 없으면 기준 = 블럭(= 껍데기 하나) — 블럭 안에 붙던 때와 같은 자리다(K0 이 잰다).
- * ★좌표 = 스케일러 «로컬» = (화면 rect − 스케일러 rect) ÷ 배율. 배율은 rect 폭 ÷ offsetWidth(전환 애니메이션 중에도 맞다).
+ * ★좌표 = 스케일러 «로컬» — #todo-pin-overlay 의 변환을 «그대로» 빌린다(js/checklist-panel.js _onCanvasClickForPin:
+ *     `scale = (window.currentZoom || 40) / 100 · x = (clientX − scalerRect.left) / scale`). 층이 스케일러 «안»이라
+ *     스크롤·배율(스케일러 transform)엔 저절로 따라가고, 블럭 쪽 변화(재렌더·크기·자식·이동·삭제)는 아래 rAF 가 다시 잰다.
  * ⚠️G19 자식 있을 때 아래 ＋ 가 첫 자식 위를 100% 15.8px · 40% 30.3px 덮는다 — 원 안만 히트라 의도대로(지디 2026-10-04 ㉠), 호버 중에만
  *   (지키는 시험: tests/dom/grid-plus-g15 K5 — 겹친 띠에서 원 안 = 행 +1 · 원 밖 1px = 행·열 그대로). */
 function _placeGridAddBtns(block) {
@@ -3317,26 +3319,25 @@ function _placeGridAddBtns(block) {
   const scaler = p && p.col.parentElement && p.col.parentElement.parentElement;
   if (!p || !scaler) return;
   const sr = scaler.getBoundingClientRect();
-  const k = scaler.offsetWidth ? sr.width / scaler.offsetWidth : 1;
+  const scale = (window.currentZoom || 40) / 100;   // ← checklist-panel.js _onCanvasClickForPin 와 같은 식
   const br = block.getBoundingClientRect();
   const inner = block.querySelector(':scope > .grd-inner');
   let kids = null;
   for (const ch of block.children) if (ch.classList.contains(GRID_CHILDREN_CLASS)) { kids = ch; break; }
   const ar = (inner && kids && kids.childElementCount > 0) ? inner.getBoundingClientRect() : br;
-  const put = (b, x, y) => { const l = (x - sr.left) / k + 'px', t = (y - sr.top) / k + 'px'; if (b.style.left !== l) b.style.left = l; if (b.style.top !== t) b.style.top = t; };
+  const put = (b, x, y) => { const l = (x - sr.left) / scale + 'px', t = (y - sr.top) / scale + 'px'; if (b.style.left !== l) b.style.left = l; if (b.style.top !== t) b.style.top = t; };
   put(p.col, br.right, (ar.top + ar.bottom) / 2);
   put(p.row, (br.left + br.right) / 2, ar.bottom);
 }
 
-/* ＋ 글리프 — 글자 '+' 가 아니라 svg(aria-hidden) — textContent 0 글자(E65). 레포에 «더하기» 아이콘 정본이 없어 한 벌을 여기 둔다. */
-const _GRID_PLUS_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M8 3v10M3 8h10"/></svg>';
+/* ＋ 글리프 = 아이콘 정본 PLUS_ICON_SVG(js/props/_helpers.js — window 다리, 까닭은 그 머리말). 글자 '+' 가 아니다(E65). */
 function _makeGridAddBtn(block, axis) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = GRID_ADD_BTN_CLS;
   btn.dataset.grdAdd = axis;
   if (block.id) btn.dataset.grdFor = block.id;
-  btn.innerHTML = _GRID_PLUS_SVG;
+  btn.innerHTML = window.PLUS_ICON_SVG || '';   // 정본이 아직 안 실렸으면 빈 원(누르기는 된다)
   const label = axis === 'col' ? '열 추가' : '행 추가';
   btn.title = label;
   btn.setAttribute('aria-label', label);

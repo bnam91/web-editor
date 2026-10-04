@@ -261,6 +261,14 @@ export const ALIGN_ICONS = {
  *   ⛔키는 «그림 선택자»다. 모델 값(dataset.blockOutline)과 잇는 것은 호출부(prop-grid.js)다.
  */
 const _BORDER_BOX = '<rect x="2.5" y="2.5" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1 1.5" opacity=".5"/>';
+/* ★«더하기(＋)» 아이콘 정본 (G15 2026-10-04) — 다음 ＋ 는 여기서 가져간다(⛔손으로 svg 를 또 적지 않는다).
+ *   글자 '+' 가 아니라 svg(aria-hidden) — 글자면 블럭 textContent·검색·MCP 읽기에 샌다(E65 실측).
+ *   크기는 쓰는 쪽 CSS 가 정한다(width/height 없음 · stroke=currentColor).
+ *   ★window.PLUS_ICON_SVG 다리: grid-block.js 는 이 파일을 import 하지 «못한다» — 단위시험 15개가 grid-block.js 를
+ *     tmp 로 복사해 import 줄을 글자로 갈아 끼운다(grid-block.js replaceShellKeepChildren 머리말). 그래서 window 로 건넨다. */
+export const PLUS_ICON_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M8 3v10M3 8h10"/></svg>';
+if (typeof window !== 'undefined') window.PLUS_ICON_SVG = PLUS_ICON_SVG;
+
 export const BORDER_ICONS = {
   top:    `<svg width="14" height="14" viewBox="0 0 16 16" fill="none">${_BORDER_BOX}<path fill="currentColor" d="M2 2h12v1.5H2z"/></svg>`,
   right:  `<svg width="14" height="14" viewBox="0 0 16 16" fill="none">${_BORDER_BOX}<path fill="currentColor" d="M12.5 2H14v12h-1.5z"/></svg>`,
