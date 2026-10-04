@@ -8,7 +8,9 @@
  * ⛔E128(copySelected 가 프레임을 벗기는 것)은 여기서 안 다룬다 — 순서: E126 먼저 → E128 나중(지디).
  * 끌기: 진짜 마우스(page.mouse — Playwright 가 Chromium 에서 Input.setInterceptDrags/dispatchDragEvent 로 HTML5 끌기를 낸다, E126 측정과 같은 기제).
  *   누르기 전 «시작 점 맨 위 요소 ∈ 그 글자 프레임» · «놓는 점 맨 위 요소 ∈ 그 칸» 단언(_click-at 규율) · 좌표는 «두 번 연속 같음» · 고정 대기 0(drop 관측 + 두 프레임).
- * 양성대조: dev a4aaf436(고치기 전) 나무 안에서 → A1 A2 A3 G3 빨강 · N1 N2 G1 G2 초록 (predict: $S/g9/predict.md).
+ * ★A4: 실앱(9376) 1차 판에서 «고른 뒤 끌기»가 7/7 거절 — 고르면 회전 영역 넷이 «글자 프레임»에 붙어 자식이 5 가 됐다(prop-grid.js _grdUnitKids).
+ *   A1~A3 은 안 고르고 끌어 그 꼴을 못 봤다. 이 파일의 첫 판(71dfa2bc)이 그 구멍을 가졌다 — 「진짜 꼴」은 «진짜 흐름»까지여야 한다.
+ * 양성대조: dev a4aaf436(고치기 전) 나무 안에서 → A1 A2 A3 A4 G3 빨강 · A4-premise N1 N2 G1 G2 초록 (predict: $S/g9/predict.md).
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/grid-drop-textframe-cell.dom.spec.js */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -68,7 +70,7 @@ const facts = (page, id) => page.evaluate((id) => ({
 }), id);
 
 /** 진짜 끌기 — 시작·놓기 점 맨 위 요소 단언 → press → 걸음 이동 → release → drop 관측 + 두 프레임 */
-async function dragToCellBottom(page, id) {
+async function dragToCellBottom(page, id, { pick = false } = {}) {
   const s = await stablePoint(page, (id) => { const u = document.getElementById(id); const t = [...u.querySelectorAll('[class^="tb-"]')].find(e => e.getBoundingClientRect().height > 0) || u; t.scrollIntoView({ block: 'nearest' }); const q = t.getBoundingClientRect(); return { x: Math.round(q.left + Math.min(30, q.width / 2)), y: Math.round(q.top + q.height / 2) }; }, id);
   const d = await stablePoint(page, () => { const l = document.querySelector('#gG [data-r="0"][data-c="1"][data-line="1"]'); const q = l.getBoundingClientRect(); return { x: Math.round(q.left + q.width / 2), y: Math.round(q.bottom - 2) }; });
   const hits = await page.evaluate(([s, d, id]) => {
@@ -77,6 +79,13 @@ async function dragToCellBottom(page, id) {
   }, [s, d, id]);
   expect(hits.start, `시작 점 맨 위 요소 «${hits.startHit}» 가 끌 단위 #${id} 안이 아니다`).toBe(true);
   expect(hits.drop, `놓는 점 맨 위 요소 «${hits.dropHit}» 가 칸(r0,c1) 안이 아니다`).toBe(true);
+  if (pick) {   // 실앱 흐름 «클릭 1 + 끌기»(UserLens) — 시작 점을 한 번 눌러 고른 뒤 같은 점에서 끈다
+    await page.mouse.click(s.x, s.y);
+    await page.waitForFunction((id) => !!document.getElementById(id)?.querySelector('.text-block.selected'), id, { timeout: 3000 });
+    await raf2(page);
+    const again = await page.evaluate(([s, id]) => { const a = document.elementFromPoint(s.x, s.y); return { ok: !!a && !!a.closest(`[id="${id}"]`), hit: a && (a.id || a.className) }; }, [s, id]);
+    expect(again.ok, `고른 뒤 시작 점 맨 위 요소 «${again.hit}» 가 #${id} 안이 아니다`).toBe(true);
+  }
   const n0 = await page.evaluate(() => window.__drops);
   await page.mouse.move(s.x, s.y); await page.mouse.down();
   await page.mouse.move(s.x + 10, s.y + 10, { steps: 3 });
@@ -99,6 +108,25 @@ for (const [kind, label, text] of [['h2', 'T▾ Heading', '끌 제목'], ['body'
     expect(errs).toEqual([]);
   });
 }
+
+test('A4 ★«먼저 눌러 고른» T▾ 블럭(실앱 흐름)도 받는다 — 고르면 글자 프레임에 회전 영역 넷이 붙는다(전제 단언) · 빈 프레임 0', async ({ page }) => {
+  const { id, errs } = await setup(page, 'h2');
+  await dragToCellBottom(page, id, { pick: true });
+  /* 회전 영역은 고른 «동안»만 있다 — 놓은 뒤엔 단위째 사라지므로 전제는 고른 직후 따로 잰다(아래 A4-premise). */
+  expect(await cellTexts(page)).toEqual(['다', '라', '끌 제목']);
+  expect(await facts(page, id)).toMatchObject({ unit: false, emptyRows: 0, emptyTextFrames: 0 });
+  expect(errs).toEqual([]);
+});
+test('A4-premise 고른 T▾ 블럭의 글자 프레임 자식 = [text-block, tb-rotate-zone ×4] (실앱 9376 에서 본 꼴 — 이 꼴이 «하나뿐» 판정을 깼다)', async ({ page }) => {
+  const { id } = await setup(page, 'h2');
+  const p = await stablePoint(page, (id) => { const t = document.getElementById(id).querySelector('[class^="tb-"]'); const q = t.getBoundingClientRect(); return { x: Math.round(q.left + Math.min(30, q.width / 2)), y: Math.round(q.top + q.height / 2) }; }, id);
+  const h = await page.evaluate(([p, id]) => { const a = document.elementFromPoint(p.x, p.y); return !!a && !!a.closest(`[id="${id}"]`); }, [p, id]);
+  expect(h, '누를 점이 글자 프레임 안').toBe(true);
+  await page.mouse.click(p.x, p.y);
+  await page.waitForFunction((id) => !!document.getElementById(id)?.querySelector('.text-block.selected'), id, { timeout: 3000 });
+  expect(await page.evaluate((id) => [...document.getElementById(id).children].map(k => k.classList.contains('text-block') ? 'text-block' : k.classList.contains('tb-rotate-zone') ? 'tb-rotate-zone' : k.className), id))
+    .toEqual(['text-block', 'tb-rotate-zone', 'tb-rotate-zone', 'tb-rotate-zone', 'tb-rotate-zone']);
+});
 
 test('A3 ★⌘Z 한 번 = 놓기 전으로 — 칸 줄 원래대로 · 글자 프레임(과 안의 블럭)이 제자리로', async ({ page }) => {
   const { id } = await setup(page, 'h2');
