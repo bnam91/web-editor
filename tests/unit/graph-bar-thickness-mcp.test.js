@@ -73,6 +73,24 @@ test('M3 tools/list — 두 도구의 barThickness 설명이 «8~60»', async ()
   assert.match(tools[0].inputSchema.properties.barThickness.description, /~60/);
 });
 
+/* M5 E99 U26 ⒜ — 사람이 읽는 MCP 설명도 «두께 기본» 소비처다(태양 2026-10-05).
+ *   M5a 설명에 «default 24» 글자 — ⒜ 값을 글자로 박는다: 상수를 바꾸면(양성대조) 상수를 읽는 설명이면 빨강, 24 를 손으로 적은 설명이면 초록.
+ *   (재는 설명 = add_graph_block 하나 — update_graph_block 설명은 기본값을 안 말한다.)
+ *   M5b 설명 = 상수값 — 평소의 표류 지킴(손으로 적은 숫자가 상수와 어긋나면 빨강). 둘을 함께 보면 «읽나 / 적었나»가 갈린다. */
+test('M5a tools/list — barThickness 설명에 «default 24»(⒜ 값)', async () => {
+  const r = await rpc('tools/list', { includeHidden: true });
+  const tools = r.result.tools.filter(t => t.name === 'add_graph_block');   // 기본을 말하는 설명은 add 하나(mcp-server.js:4847) — update(4902)는 «바꿀 값»이라 기본을 안 적는다
+  assert.equal(tools.length, 1, '전제: add_graph_block 하나');
+  for (const t of tools) assert.match(t.inputSchema.properties.barThickness.description, /default 24(?!\d)/, t.name);
+});
+test('M5b tools/list — barThickness 설명의 default = GRAPH_LIMITS.BAR_THICKNESS_DEFAULT', async () => {
+  assert.equal(typeof LIM.BAR_THICKNESS_DEFAULT, 'number', '전제: 상수가 있다');
+  const r = await rpc('tools/list', { includeHidden: true });
+  const tools = r.result.tools.filter(t => t.name === 'add_graph_block');   // 기본을 말하는 설명은 add 하나(mcp-server.js:4847) — update(4902)는 «바꿀 값»이라 기본을 안 적는다
+  assert.equal(tools.length, 1, '전제: add_graph_block 하나');
+  for (const t of tools) assert.match(t.inputSchema.properties.barThickness.description, new RegExp(`default ${LIM.BAR_THICKNESS_DEFAULT}(?!\\d)`), t.name);
+});
+
 /* 배포판 안전 — main 이 require 하는 js/graph-limits.js 가 패키지(build.files)에서 빠지면 MCP 기동에서 죽는다.
  * electron-builder files 는 «패턴 목록»: '**\/*' 로 넣고 '!pattern' 으로 뺀다. 이 파일이 «뺀 패턴»에 걸리지 않아야 한다. */
 test('M4 패키징 — build.files 가 js/graph-limits.js 를 «포함»하고 어떤 제외 패턴에도 안 걸린다', () => {

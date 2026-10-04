@@ -5,6 +5,8 @@
  *   · renderGraph 는 dataset 키(itemGap·barThickness·padX·pctSize·bar-v barColor)가 «있을 때만» inline 으로 낸다 ⇒ 키 없으면 바이트 동일(B7-0).
  * 시험 이름 ↔ 잰 것
  *   B7-0 키 없으면 «고치기 전 판(36cbe872)이 낸 innerHTML» 과 바이트까지 같다 — 골든 fixtures/graph-vpair-pin-golden.json(핀에서 뽑음)
+ *        ★E99 U26 ⒜(2026-10-05 지디): 두께 키가 없어도 막대 24px — 골든을 새 판에서 다시 뽑았다. 옛 골든과의 차이는 «추가뿐»
+ *        (막대 `width:24px;max-width:100%;margin:0 auto;` · 칸 ` style="min-width:0;"`) — 판정기 tests/dom/_u26-delta.js 로 단언(손눈 대조 아님).
  *   B7-1 절·줄: «Bar Settings» 절 하나 · 줄 4(두께·좌우 패딩·항목 간격·숫자 크기) · 바 색상은 bar-v 에만 / pair 는 #grb-bar-color «하나»(Pair Settings 것)
  *   B7-2 computed — gap·padding·fill 폭·값 글자 크기가 입력대로 (세로·비교 둘)
  *   B7-3 저장 왕복 — 직렬화→복원 뒤에도 dataset·computed 유지
@@ -231,7 +233,7 @@ test('B7-8 ★타입을 오가도 겉모습은 «새로 정한 값»만 따른�
     expect(r.gap, `${t}: 옛 항목 간격 60 이 따라왔다`).toBe('10px');
     expect(r.pad, `${t}: 옛 좌우 패딩 40 이 따라왔다`).toBe('0px');
     expect(r.val, `${t}: 옛 숫자 크기 100 이 따라왔다`).toBe('21px');
-    expect(r.fillW, `${t}: 옛 두께 30 이 따라왔다(기본은 칸 폭 100%)`).toBe(r.colW);
+    expect(r.fillW, `${t}: 옛 두께 30 이 따라왔다(기본 = 24, E99 U26 ⒜ — 전엔 칸 폭 100%)`).toBe(24);
     if (t === 'bar-v') expect(r.bg, `${t}: 옛 barColor #ff00ff 가 따라왔다`).not.toBe('rgb(255, 0, 255)');   // pair 의 barColor 는 원래 «색상 A»(핀도 칠한다)
   }
   // 비교 막대 «색상 A» 는 barColor(원래부터 pair 의 것) — 세로로 가도 막대색이 되면 안 된다

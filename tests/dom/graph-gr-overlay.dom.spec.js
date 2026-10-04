@@ -15,8 +15,11 @@
  *   GR-W0a   ★셋 다 꺼짐(안 켬) ⇒ innerHTML·style 이 기준판 30984c67 과 바이트 동일(기준판은 git show 로 같은 앱을 한 번 더 띄운다 — G19 W0 꼴)
  *            + 계측기 대조: 같은 판에서 꺾은선만 켜면 «다르다»가 나와야 한다(같다고만 나오는 자가 아님을 같은 시험 안에서)
  *   GR-W0b   패널로 셋 다 켰다가 끈 뒤(키 삭제) ⇒ 기준판과 바이트 동일
+ *   ★E99 U26 ⒜(2026-10-05): 두께 키 없는 판은 기준판 + «허용 추가 둘»만(막대 width:24px… · 칸 min-width:0) — u26Delta 로 지워진 토큰 0 · 추가 덩어리 수 = 막대 수/칸 수.
+ *            두께 키가 있는 판(«B7 키 전부»)은 그대로 바이트 동일(덩어리 0). style 속성은 늘 바이트 동일.
  * ⛔못 재는 축: 실앱(Electron) · 피그마 렌더러(sangpe_to_figma, E11) · captureCloneToCanvas(CDP) · 회전한 띄운 그래프. */
 const { test, expect } = require('@playwright/test');
+const { u26Delta } = require('./_u26-delta.js');   // E99 U26 ⒜ — 두께 키 없는 막대 24px 의 «추가뿐» 차이 판정기(골든 갱신 스크립트와 같은 것)
 const { BASE, bootBase, G_RB, ITEMS, setup, setZoom, openPanel, itemsOf, setDs, MEASURE, meas, ALL_ON } = require('./_graph-gr-harness.js');
 /* ────────────────────────── GR2 ────────────────────────── */
 const ovState = (page) => page.evaluate(() => {
@@ -259,7 +262,14 @@ test('GR-W0a ★셋 다 꺼짐(안 켬) ⇒ 기준판 30984c67 과 innerHTML·st
   const cur = await pCur.evaluate(SNAP);
   expect(Object.keys(base).length, '전제: 기준판에서 세 판을 떴다').toBe(3);
   expect(base['기본'].html, '전제: 기준판 bar-v 를 정말 그렸다').toContain('grb-bars-v');
-  for (const k of Object.keys(base)) expect(cur[k], `«${k}» 이 기준판과 다르다`).toEqual(base[k]);
+  for (const [k, extra, items] of W0_CASES) {
+    expect(cur[k].style, `«${k}» style 이 기준판과 다르다`).toBe(base[k].style);
+    const d = u26Delta(base[k].html, cur[k].html), want = extra.vBarThickness ? 0 : items.length;   // bar-v: 항목마다 막대 하나·칸 하나
+    test.info().annotations.push({ type: 'u26-delta', description: JSON.stringify({ test: 'GR-W0a', case: k, removed: d.removed.length, bad: d.bad.map(r => r.text), count: d.count, where: d.runs.map(r => r.ctx) }) });
+    expect(d.removed, `«${k}» 지워진 토큰`).toEqual([]);
+    expect(d.bad.map(r => r.text), `«${k}» 허용 밖 추가`).toEqual([]);
+    expect(d.count, `«${k}» 추가 덩어리 수(막대/칸)`).toEqual({ fill: want, col: want });
+  }
   // 계측기 대조 — 같은 SNAP 이 «다름»을 보는가(오버레이 기능이 있는 판에서만 뜻이 있다: 핀엔 키를 읽는 코드가 없어 같게 나온다)
   const onHtml = await pCur.evaluate(() => { const b = document.getElementById('grG'); b.dataset.showLine = '1'; window.renderGraph(b); const h = b.innerHTML; delete b.dataset.showLine; window.renderGraph(b); return h; });
   const lastK = W0_CASES[W0_CASES.length - 1][0];
@@ -281,7 +291,13 @@ test('GR-W0b ★패널로 셋 다 켰다가 끈 뒤 ⇒ 기준판과 바이트 �
   expect(await pCur.evaluate(() => document.querySelectorAll('#grG .grb-ov').length), '전제: 켜졌다').toBe(1);
   for (const id of ['grb-show-axis', 'grb-show-grid', 'grb-show-line']) { await clickToggle(pCur, id); }
   const after = await pCur.evaluate(() => ({ html: document.getElementById('grG').innerHTML, style: document.getElementById('grG').getAttribute('style') }));
-  expect(after, '켰다 끈 뒤도 기준판과 바이트 동일').toEqual(base[last[0][0]]);
+  const [lk, lextra, litems] = last[0], want = lextra.vBarThickness ? 0 : litems.length;
+  expect(after.style, '켰다 끈 뒤 style 이 기준판과 바이트 동일').toBe(base[lk].style);
+  const d = u26Delta(base[lk].html, after.html);
+  test.info().annotations.push({ type: 'u26-delta', description: JSON.stringify({ test: 'GR-W0b', case: lk, removed: d.removed.length, bad: d.bad.map(r => r.text), count: d.count, where: d.runs.map(r => r.ctx) }) });
+  expect(d.removed, '켰다 끈 뒤 지워진 토큰').toEqual([]);
+  expect(d.bad.map(r => r.text), '켰다 끈 뒤 허용 밖 추가').toEqual([]);
+  expect(d.count, '켰다 끈 뒤 추가 덩어리 수(막대/칸)').toEqual({ fill: want, col: want });
   expect(e1).toEqual([]); expect(e2).toEqual([]);
   await pCur.close(); await pBase.close();
 });
