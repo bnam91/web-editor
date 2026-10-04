@@ -1,7 +1,7 @@
 /* ── Grid(다단) 블록 프로퍼티 패널 ──
    구조(컬럼/라인 추가·삭제)는 CDP/updateGridBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
 import { propPanel } from '../globals.js';
-import { parseRatio, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
+import { parseRatio, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHeaderHTML, disclosureChevronHtml, sliderRowHTML } from './_helpers.js';
 /* ★상·하한은 한 곳에서만 온다 — IMG_MIN_PCT 는 캔버스 코너 드래그(resizeGridImage)가 쓰는
    «그» 하한이다. 패널의 폭(%) 칸이 같은 수를 쓰게 import 한다(손으로 5 를 적지 않는다). */
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
@@ -11,7 +11,8 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES, gridBlockOutline, GRID_OUTLINE_SIDES,
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
-         GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE } from '../blocks/grid-block.js';
+         GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE,
+         gridBlockBg, GRID_BLOCK_BG_PAD_Y_MAX, GRID_BLOCK_BG_PAD_X_MAX } from '../blocks/grid-block.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
@@ -1951,6 +1952,109 @@ function _grdWireOutlineSection(block) {
   });
 }
 
+/* ══ 블럭 배경 (G12 · 2026-10-04) — 토글 + 켜면 «동적으로 생기는» 줄들 ══════════════════════════════
+ * ★모델·읽는 문은 grid-block.js(gridBlockBg · dataset.blockBg*) 하나다. 단추·토글·이미지는 updateGridBlock «한 문»(⌘Z 한 걸음),
+ *   슬라이더·색은 끄는 동안 applyGridBlockBg(층 «한 노드»만 같은 HTML 로) — 이력은 bindSlider·wireColorField 규약 그대로.
+ * ★자리 = 「블럭 외곽선」 바로 아래, «블럭만 고른 상태»에서만(_anyHit 거짓) — G19 「＋ 블럭 넣기」와 같은 규칙.
+ *   까닭: grid-cell-panel-handles G2 합격선(+60)의 남은 여유가 1px 이고, 그 골든 장면은 «칸 줄 선택»이다.
+ * ⛔colorFieldHTML·wireColorField 는 window 로 부른다 — unit 하네스(grid-line-add 등)가 color-picker.js 를 «필요한 이름만» 대역으로
+ *   불러서, import 이름을 늘리면 모듈 로드가 통째로 실패한다(실측 2026-10-04: 그 대역에 colorFieldHTML 없음 → 20여 건 빨강).
+ * ★새 클래스 0 — prop-toggle · colorFieldHTML · prop-action-btn · alignBtn(object-h/object-v = ALIGN_ICONS SSOT) · sliderRowHTML · prop-sublabel.
+ * ⛔위치 단추에 data-align 을 붙이지 마라 — prop-text-wireup-align.js 가 .prop-align-btn[data-align] 을 전부 잡아 블럭을 정렬한다.
+ * ★라벨 「배경 여백」(현빈 확정) — 패딩(안쪽)도 마진(밀어냄)도 아니다. */
+/* 위치 단추 여섯 — 이름은 객체정렬 «정본 6개» 그대로(align-btn-ssot C3: 「이름이 정확히 그 6개」). 세로 가운데 그림 키는 'middle', CSS 값은 'center'. */
+function _grdBlockBgSectionHtml(block) {
+  const bg = gridBlockBg(block);
+  const toggle = `<label class="prop-toggle" title="그리드 블럭 전체 뒤에 배경을 깝니다 — 「배경 여백」만큼 블럭 바깥까지">
+          <input type="checkbox" id="grd-bbg-toggle"${bg.on ? ' checked' : ''} aria-label="블럭 배경">
+          <span class="prop-toggle-track"></span>
+        </label>`;
+  if (!bg.on) {
+    return `
+    <div class="prop-section" id="grd-bbg-section">
+      <div class="prop-section-title" style="display:flex;align-items:center;justify-content:space-between;">블럭 배경 ${toggle}</div>
+    </div>`;
+  }
+  const [px, py] = bg.pos.split(' ');
+  const posRow = bg.img ? `
+      <div class="prop-row">
+        <span class="prop-label">위치</span>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;">
+          <div class="prop-align-group" id="grd-bbg-pos-x" role="group" aria-label="배경 가로 위치">
+            ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: px === 'left', attrs: { 'data-bbg-x': 'left' } })}
+            ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: px === 'center', attrs: { 'data-bbg-x': 'center' } })}
+            ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: px === 'right', attrs: { 'data-bbg-x': 'right' } })}
+          </div>
+          <div class="prop-align-group" id="grd-bbg-pos-y" role="group" aria-label="배경 세로 위치">
+            ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', active: py === 'top', attrs: { 'data-bbg-y': 'top' } })}
+            ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', active: py === 'center', attrs: { 'data-bbg-y': 'center' } })}
+            ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: py === 'bottom', attrs: { 'data-bbg-y': 'bottom' } })}
+          </div>
+        </div>
+      </div>` : '';
+  const sub = (lbl, id, max, step, value) => `
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="prop-sublabel" style="width:24px;font-size:11px;color:#888;flex-shrink:0;">${lbl}</span>
+            <input type="range" class="prop-slider" id="${id}-slider" min="0" max="${max}" step="${step}" value="${value}">
+            <input type="number" class="prop-number" id="${id}-num" min="0" max="${max}" value="${value}">
+          </div>`;
+  return `
+    <div class="prop-section" id="grd-bbg-section">
+      <div class="prop-section-title" style="display:flex;align-items:center;justify-content:space-between;">블럭 배경 ${toggle}</div>
+      <div class="prop-color-row">
+        <span class="prop-label">배경색</span>
+        ${window.colorFieldHTML({ idPrefix: 'grd-bbg', hex: swatchHex(bg.color, '#f5f5f5'), alpha: parseAlphaFromColor(bg.color) })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">이미지</span>
+        <div style="display:flex;gap:4px;flex:1;min-width:0;">
+          <button class="prop-action-btn secondary" id="grd-bbg-img-btn">${bg.img ? '이미지 바꾸기' : '이미지 선택'}</button>
+          ${bg.img ? '<button class="prop-action-btn danger" id="grd-bbg-img-clear">이미지 제거</button>' : ''}
+        </div>
+        <input type="file" id="grd-bbg-img-input" accept="image/*" style="display:none">
+      </div>${posRow}
+      ${sliderRowHTML('투명도', 'grd-bbg-op-slider', 'grd-bbg-op-num', { min: 0, max: 100, step: 1, value: bg.opacity })}
+      <div class="prop-row" style="align-items:flex-start;">
+        <span class="prop-label" style="padding-top:4px;" title="배경을 블럭 «바깥»으로 얼마나 넓힐지 — 이웃을 밀지도, 칸을 줄이지도 않습니다">배경 여백</span>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;">${sub('상하', 'grd-bbg-pady', GRID_BLOCK_BG_PAD_Y_MAX, 4, bg.padY)}${sub('좌우', 'grd-bbg-padx', GRID_BLOCK_BG_PAD_X_MAX, 2, bg.padX)}
+        </div>
+      </div>
+    </div>`;
+}
+
+/** 배선 — 단추·토글·이미지는 updateGridBlock «한 문», 슬라이더·색은 층 «한 노드»만(applyGridBlockBg). */
+function _grdWireBlockBgSection(block) {
+  const tg = document.getElementById('grd-bbg-toggle');
+  if (!tg) return;
+  const commit = (patch, opts) => _grdToastCellFail(window.updateGridBlock?.(block.id, { blockBg: patch }, opts));
+  tg.addEventListener('change', () => commit({ on: tg.checked }));
+  if (!tg.checked) return;
+  window.wireColorField?.('grd-bbg', {
+    initialAlpha: parseAlphaFromColor(gridBlockBg(block).color),
+    onApply: (c) => { block.dataset.blockBgColor = c; window.applyGridBlockBg?.(block); window.scheduleAutoSave?.(); },
+    onCommit: () => window.pushHistory?.(),
+  });
+  const imgBtn = document.getElementById('grd-bbg-img-btn');
+  const imgIn = document.getElementById('grd-bbg-img-input');
+  imgBtn?.addEventListener('click', () => imgIn?.click());
+  imgIn?.addEventListener('change', () => {
+    const f = imgIn.files && imgIn.files[0];
+    imgIn.value = '';
+    if (!grdImageFileOk(f)) return;   // ★파일 입구 = 바이트 게이트 + trusted «같이»(grid-callsite-ssot 가 센다)
+    const rd = new FileReader();
+    rd.onload = (e) => commit({ image: String(e.target.result || '') }, { trusted: true });   // 사람이 고른 그림 = 캡 면제(그리드 이미지 줄과 같은 규약)
+    rd.readAsDataURL(f);
+  });
+  document.getElementById('grd-bbg-img-clear')?.addEventListener('click', () => commit({ image: null }));
+  const cur = () => gridBlockBg(block).pos.split(' ');
+  document.querySelectorAll('#grd-bbg-pos-x [data-bbg-x]').forEach(b => b.addEventListener('click', () => commit({ pos: `${b.dataset.bbgX} ${cur()[1]}` })));
+  document.querySelectorAll('#grd-bbg-pos-y [data-bbg-y]').forEach(b => b.addEventListener('click', () => commit({ pos: `${cur()[0]} ${b.dataset.bbgY}` })));
+  const live = (key) => (v) => { block.dataset[key] = String(v); window.applyGridBlockBg?.(block); };
+  bindSlider(document.getElementById('grd-bbg-op-slider'), document.getElementById('grd-bbg-op-num'), live('blockBgOpacity'), { min: 0, max: 100 });
+  bindSlider(document.getElementById('grd-bbg-pady-slider'), document.getElementById('grd-bbg-pady-num'), live('blockBgPadY'), { min: 0, max: GRID_BLOCK_BG_PAD_Y_MAX });
+  bindSlider(document.getElementById('grd-bbg-padx-slider'), document.getElementById('grd-bbg-padx-num'), live('blockBgPadX'), { min: 0, max: GRID_BLOCK_BG_PAD_X_MAX });
+}
+
 /* ══ 칸 «사이» 괘선 — 현빈 2026-09-30 ══════════════════════════════════════
  * 원문: 「각 칼럼 중간에 줄」＋「로우 간격에도 가로줄」＋「일괄도, 특정 경계만 넣거나 빼기도」
  *   ＋「굵기 그대로 넘치게 둬」.
@@ -2768,6 +2872,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
     ${_anyHit ? '' : _grdKidsAddSectionHtml()}
     ${_borderSectionHtml(_cellBorder)}
     ${_grdOutlineSectionHtml(block)}
+    ${_anyHit ? '' : _grdBlockBgSectionHtml(block)}
     ${_grdRuleSectionHtml(block)}
     ${_grdPadExcludeSectionHtml(block)}
     ${_grdAllCellsSectionHtml(_anyHit, block)}
@@ -3105,6 +3210,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
   _grdWireAllCellsSection(block, _anyHit);   // ★⑦ 일괄 — 블럭만 고른 상태에서만 배선된다
   _grdWireRuleSection(block);
   _grdWireOutlineSection(block);
+  _grdWireBlockBgSection(block);             // ★G12 — 블럭만 고른 상태에서만 절이 그려진다(없으면 아무것도 안 한다)
   _grdWirePadExclude(block);                 // ★⑥ 좌우 패딩 제외(전폭) — 섹션 직속일 때만 절이 그려진다
   _grdWireCellSection(block, _curAddr);
   _grdWireImageSection(block, _curAddr);

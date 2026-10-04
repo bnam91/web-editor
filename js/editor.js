@@ -3416,7 +3416,24 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
              (2026-10-03 G3 실측: row>UF>그룹>에셋 에서 에셋 하나 지우자 UF 가 사라졌다 — 핀 604602cd 에도 있던 길). */
           const row = block.closest('.row');
           const _frameBetween = row && block.parentElement?.closest('.frame-block:not([data-text-frame])');   // 글자 래퍼는 «블록의 일부»라 경계가 아니다
-          if (row && !(_frameBetween && row.contains(_frameBetween))) rowsToRemove.add(row); else block.remove();
+          /* ★E55(2026-10-04) — 「블럭 밑 자식 그릇」(G19 그리드 .grd-children · G14 서클 .icb-children)도 경계다.
+             그릇의 글자 자식은 «자기 줄 없이» 맨몸 글자래퍼(.frame-block[data-text-frame])로 그릇 바로 밑에 산다 —
+             closest('.row') 가 그릇을 넘어 «그리드(서클)를 품은 줄»까지 올라가 자식 하나 지우자 그리드째 사라졌다
+             (실측 dev 5015a2ab: grd-children 글자 자식 클릭 → Delete = rG 통째 삭제). 위 _frameBetween 은
+             «글자래퍼 아닌 프레임»만 보므로 그리드에서 안 선다.
+             ⇒ 줄이 그릇 «밖»일 때만(=줄이 그릇을 품을 때만) 단위를 «그릇의 직계 자식»으로 바꾼다.
+               그릇 안에 자기 줄이 있는 자식(에셋 = .row>.asset-block)은 closest('.row') 가 그 줄이라 이 갈래를 안 탄다(종전 그대로).
+               그릇과 블럭 사이에 사용자 프레임이 끼면 종전 규칙대로 블럭만.
+             ⛔그릇 밖 블럭은 _kidsBox 가 null 이라 한 바이트도 안 바뀐다. 그리드 «자체»를 고른 삭제는 그리드가 그릇 안에 없어 그대로 줄째. */
+          /* 그릇 셀렉터는 «이 함수 안»에 둔다 — 시험 몇(grid-first-click-block 등)이 이 함수 «소스만» 떼어 돌린다(모듈 상수는 거기서 undefined).
+             새 그릇이 생기면 여기 한 줄. (.icb-children = G14 설계 — 아직 없는 클래스면 아무것도 안 잡는다.) */
+          const _kidsBox = row && block.parentElement?.closest('.grd-children, .icb-children');
+          if (_kidsBox && row.contains(_kidsBox)) {
+            const _fb = block.parentElement.closest('.frame-block:not([data-text-frame])');
+            let _unit = block;
+            if (!(_fb && _kidsBox.contains(_fb))) { while (_unit.parentElement && _unit.parentElement !== _kidsBox) _unit = _unit.parentElement; }
+            rowsToRemove.add(_unit);   // 줄과 같은 «지울 단위» 묶음으로 — 새 삭제문을 안 늘린다(scratch-section-delete D14 래칫)
+          } else if (row && !(_frameBetween && row.contains(_frameBetween))) rowsToRemove.add(row); else block.remove();
         }
       });
       rowsToRemove.forEach(r => r.remove());

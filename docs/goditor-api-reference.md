@@ -1460,3 +1460,15 @@ window.addAssetBlock('standard', { sectionId: 'sec_wd3nixu' })
 | 2026-05-24 | v2.1 | **Phase 4 편집/조회 API**: `editTextBlock(blockId, opts)`(텍스트 블록 수정 — content/color/fontSize/fontWeight/align), `getBlockById(id)`, `selectBlock(id)`, `getCanvasState(sectionId?)` 추가. |
 | 2026-06-15 | v2.3 | **신규 블록 add/update API 섹션 추가**: addCanvasBlock/addLinerBlock/addVectorBlock/addStickerBlock/addComparisonBlock/addMockupBlock/addLaurelBlock/addStepBlock/addBanner02Block/addGradientBlock/addChatBlock/addSpeechBubbleBlock/addIconifyBlock + 각 `update*Block`. **정정**: `addCardBlock` → DEPRECATED(`addCanvasBlock({cardMode:'simple'})`로 대체). `addNewGridBlock` → SEALED(2026-06-08, `null` 반환) 경고 추가. `activateCol` 잔존 참조 정리. |
 | 2026-05-25 | v2.2 | **`addPresetRow(type)` 문서화** — img1/img2/img3/text-img 다중 이미지 레이아웃 (MCP `add_asset_block`/`build_basic_section`이 호출하는 실제 함수). **정정**: v2.1의 "`addAssetBlock` opts에 sectionId 추가"는 부정확 — sectionId는 **MCP `add_asset_block` 도구 레이어**에 추가된 것으로, main.js 브리지가 대상 섹션을 `selectSection`한 뒤 `addPresetRow`를 호출하는 방식. `window.addAssetBlock` 시그니처 자체는 불변. |
+
+---
+
+## 모달 「프레임화 하기」 (M1 · 2026-10-04)
+
+| 함수 | 하는 일 |
+|------|---------|
+| `window.canFrameifyModal(el)` | `{ ok, reason }` — 1차는 세로 형태 넷(plain·titled·dashed·icon-stack)만 `ok`. 가로 형태(icon·grid-2)의 `reason` = 「가로로 늘어선 모달은 프레임이 세로로만 쌓여서 아직 그대로 옮길 수 없습니다」 |
+| `window.frameifyModal(elOrId)` | 모달 → 스택(fullWidth) 프레임 + 텍스트블럭(제목·본문)(+아이콘블럭). 화면은 같게(골든 `tests/dom/modal-frameify-pixel`). 히스토리 «양쪽 끝» — ⌘Z 한 번이면 모달로 돌아온다. 새 프레임을 돌려주고 고른다. 거절이면 `null` + 토스트 |
+
+- 바뀐 프레임에는 `data-row-text-style`(본문 글자 꼴 JSON)이 심긴다. 그 프레임을 고른 채 `addTextBlock('body')` / `addBlankTextBlock('body')` 를 부르면 새 줄도 같은 꼴로 들어간다(명시 opts 가 이긴다).
+- 사용자 손짓 = 모달 우측 패널 「형태」 드롭다운 › 「구조」 › 「프레임화 하기」.

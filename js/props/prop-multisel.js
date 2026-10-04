@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
 import { alignBtn } from './_helpers.js';
+import { detectMix } from './prop-text-mix-detect.js';
 
 /* ═══════════════════════════════════
    FREELAYOUT MULTI-SELECT PANEL
@@ -551,15 +552,38 @@ function _applyFlowDistribute(blocks) {
   showFlowMultiSelPanel();
 }
 
+// 텍스트 블럭의 «글자 몸»(contenteditable 또는 tb-* 본체). 칸 판독(_flowFontSizeMix)과 적용(_applyFlowFontSize)이 «같은» 것을 본다.
+function _flowTextContentEl(b) {
+  if (!b.classList.contains('text-block')) return null;
+  return b.querySelector('[contenteditable]') ||
+    b.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner');
+}
+
+/* ★TX2(현빈 2026-10-03 「폰트크기가 다른 텍스트 블럭 2개를 선택하면 … 피그마처럼」) — 여러 블럭의 크기 판독.
+ *   한 블럭 «안»의 섞임은 detectMix(단일 패널과 같은 자)로, 블럭 «사이»의 다름은 값 모음으로 본다.
+ *   하나라도 섞였거나 값이 둘 이상 ⇒ { mixed:true, value:null } · 모두 같으면 그 값(px, 반올림 — detectMix 와 같은 단위).
+ *   칸 꼴은 단일 패널 Mix 칸과 같다(value "" · placeholder "Mix" · data-empty="invalid", _typo-section.js). */
+function _flowFontSizeMix(blocks) {
+  const vals = new Set();
+  for (const b of blocks) {
+    const el = _flowTextContentEl(b);
+    if (!el) continue;
+    const m = detectMix(el).fontSize;
+    if (m.mixed) return { mixed: true, value: null };
+    if (m.value != null) vals.add(m.value);
+  }
+  if (vals.size > 1) return { mixed: true, value: null };
+  return { mixed: false, value: vals.size === 1 ? [...vals][0] : null };
+}
+
 // 선택된 텍스트 블록들에 폰트 크기 일괄 적용 (단일 블록 '무선택 전체 적용' 경로와 동일 시맨틱).
+//   ★되돌리기 «한 칸»: 모든 블럭을 고친 뒤 pushHistory 를 «한 번»만 부른다(TX2 ⑵ — 섞인 상태에서 넣어도 같다).
 function _applyFlowFontSize(blocks, size) {
   const v = Math.max(1, Math.min(800, parseInt(size, 10) || 0));
-  if (!v) return;
+  if (!v) return 0;
   let applied = 0;
   blocks.forEach(b => {
-    if (!b.classList.contains('text-block')) return;
-    const contentEl = b.querySelector('[contenteditable]') ||
-      b.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner');
+    const contentEl = _flowTextContentEl(b);
     if (!contentEl) return;
     // mix 상태의 부분 font-size span 정리 후 블록 전체 사이즈 적용 (prop-text-wireup-text-edit applySizeToSel 무선택 경로 미러)
     contentEl.querySelectorAll('span[style*="font-size"]').forEach(s => {
@@ -578,6 +602,7 @@ function _applyFlowFontSize(blocks, size) {
     window.pushHistory?.('일괄 폰트 크기');
     window.scheduleAutoSave?.();
   }
+  return applied;
 }
 
 export function showFlowMultiSelPanel() {
@@ -587,6 +612,11 @@ export function showFlowMultiSelPanel() {
   const gaps = _collectInterGaps(blocks);
   const canDistribute = gaps.length >= 2;
   const textCount = blocks.filter(b => b.classList.contains('text-block')).length;
+  const fsMix = _flowFontSizeMix(blocks);
+  /* 섞임 ⇒ 비운 칸 + 'Mix' 안내(⛔value 에 'Mix' 를 넣지 않는다 — 넣으면 클릭 뒤 타이핑이 「Mix32」로 이어붙는다, TX2 ⑶).
+     같음 ⇒ 그 값. 판독 불가(글자 0) ⇒ 옛 꼴 그대로(빈 칸 + 'px'). */
+  const fsVal = fsMix.mixed || fsMix.value == null ? '' : String(fsMix.value);
+  const fsPh = fsMix.mixed ? 'Mix' : 'px';
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -610,7 +640,7 @@ export function showFlowMultiSelPanel() {
     <div class="prop-section" style="${textCount > 0 ? '' : 'display:none;'}">
       <div class="prop-section-title">폰트 크기 (텍스트 ${textCount}개)</div>
       <div class="prop-row" style="gap:3px;">
-        <input type="number" class="prop-number msp-fontsize-input" id="msp-font-size" min="1" max="800" placeholder="px" data-empty="invalid" style="flex:1;">
+        <input type="number" class="prop-number msp-fontsize-input" id="msp-font-size" min="1" max="800" value="${fsVal}" placeholder="${fsPh}" data-empty="invalid" style="flex:1;">
         <button class="prop-btn-sm msp-fontsize-btn" id="msp-font-size-apply" title="선택한 텍스트 블록에 일괄 적용">적용</button>
       </div>
     </div>
@@ -629,7 +659,11 @@ export function showFlowMultiSelPanel() {
   });
   const fsInput = propPanel.querySelector('#msp-font-size');
   const fsApply = propPanel.querySelector('#msp-font-size-apply');
-  const doFontSize = () => { if (fsInput && fsInput.value) _applyFlowFontSize(blocks, fsInput.value); };
+  const doFontSize = () => {
+    if (!fsInput || !fsInput.value) return;
+    // 넣은 값이 «모두에» 들어갔다 ⇒ 더는 섞이지 않았다. 칸을 비우면 'Mix' 가 다시 보이는 일을 막는다.
+    if (_applyFlowFontSize(blocks, fsInput.value)) fsInput.placeholder = 'px';
+  };
   fsApply?.addEventListener('click', doFontSize);
   fsInput?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doFontSize(); } });
 }
