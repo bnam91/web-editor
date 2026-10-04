@@ -72,6 +72,12 @@ const CELL_WITNESS = {
   radius:      { css: ['css.borderTopLeftRadius'],            ko: '칸 모서리' },
   align:       { css: ['css.lineTextAlign'],                  ko: '칸 가로정렬' },
   valign:      { css: ['css.justifyContent'],                 ko: '칸 세로정렬' },
+  /* ★G4 칸 배경 이미지(2026-10-04) — 증인 «없음»(null)으로 명부에 올린다(lines 와 같은 대우: E4 루프가 건너뛴다).
+     까닭: 손잡이가 «파일 고르기»라 이 파일의 범용 구동기(값을 넣고 change)가 못 누른다 · Fit·위치 단추는 이미지가 있을 때만 뜬다.
+     ⇒ 그 손잡이 셋은 tests/dom/grid-cell-bg-image.dom.spec.js C3 가 «진짜 마우스·setInputFiles» 로 잰다(자산 길 URL · Fit · 위치). */
+  bgImg: null,
+  bgFit: null,
+  bgPos: null,
   /* ~~[2026-09-23 예정 · 안 그렇게 됐다] 「테두리를 «칸 필드» borderWidth/borderColor 로 낸다」~~
      ★T-172 는 2026-09-24 에 «블록 축»으로 났다 — dataset.cellBorderWidth/Color/Style 셋이고,
        GRID_CELL_FIELDS 에는 «안» 들어간다(그래서 E4 의 루프는 이 칸을 영영 안 돈다).
