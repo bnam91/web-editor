@@ -228,6 +228,7 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="asset-grain-number" min="0" max="100" value="${grainIntensity}">
       </div>
     </div>` : ''}
+    ${window.fxReflectSectionHtml?.(ab, 'asset') || ''}<!-- ★E1 Effects — 그레인 아래(지디 승인) -->
     <div class="prop-section">
       <div class="prop-section-title">Text Overlay</div>
       <!-- ★2026-09-20 픽스라운드(low④) — 같은 패널에 「오버레이」가 두 뜻으로 보인다:
@@ -674,6 +675,8 @@ ${blockHeaderHTML({
       window.pushHistory();
     });
   });
+
+  window.wireFxReflectSection?.(ab, 'asset', () => showAssetProperties(ab));   // ★E1 Effects
 
   // ── 그레인 이벤트 바인딩 ──
   if (hasImage) {

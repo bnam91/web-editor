@@ -166,7 +166,8 @@ ${blockHeaderHTML({
           </div>
         </div>
       </div>
-    </div>
+    </div>${/* ★E1 Effects(바닥 반사) — Shadow 바로 아래(지디 승인) · 말풍선·라벨·아이콘텍스트는 대상 밖. ⛔줄바꿈을 더하지 마라 — 절이 없을 때 산출이 추출 전 골든과 같아야 한다(typo-section-ssot T1). */
+      (!isSpeechBubble && !isLabel && !isIconText) ? (window.fxReflectSectionHtml?.(tb, 'txt') || '') : ''}
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
       <div class="prop-section-title">Size</div>

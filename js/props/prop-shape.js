@@ -217,7 +217,9 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="shape-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.shapeRotation || '0')}">
         <input type="number" class="prop-number" id="shape-rot-num" min="-180" max="180" value="${parseInt(block.dataset.shapeRotation || '0')}">
       </div>
-    </div>`;
+    </div>
+    ${window.fxReflectSectionHtml?.(block, 'shape') || ''}`;   /* ★E1 Effects — Rotation 아래(맨 끝 · 지디 승인) */
+  window.wireFxReflectSection?.(block, 'shape', () => showShapeProperties(block));
 
   if (window.setRpIdBadge) window.setRpIdBadge(id || null);
 
