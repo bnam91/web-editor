@@ -174,6 +174,26 @@ test('⒧ 방향 바꾸기·세로 정렬 — 각각 ⌘Z 한 번에 한 걸음,
   }
 });
 
+/* ⒧b ★잇단 두 동작 — undo() 첫머리가 «라이브»를 늘 체크포인트로 찍어서(history.js ensureHistoryCheckpoint · DEF-01)
+ *   «한 동작 뒤 ⌘Z»는 pushHistory 가 빠져도 초록이다(돌연변이 m3 실측 2026-10-04: ⒧ 14/14 초록).
+ *   빠진 칸은 «다음 동작이 쌓일 때» 드러난다 — 세로로(칸 없음) → 오른쪽(칸) → ⌘Z 가 «세로 전»까지 두 걸음 간다. */
+test('⒧b 세로로 → 오른쪽 → ⌘Z 한 번 = «세로·오른쪽 전»(두 걸음 안 감) · 한 번 더 = 가로', async ({ page }) => {
+  if (FEATURE) test.fail(true, 'C0: 세로 기능 없음');
+  await fresh(page);
+  const id = await addItb(page, '잇단 두 동작');
+  const st = () => page.evaluate((id) => { const b = document.getElementById(id); return { dir: b.dataset.itbDir || null, ai: b.style.alignItems || '' }; }, id);
+  await selectItb(page, id);
+  await dirBtn(page, 'vertical');
+  const sV = await st();
+  expect(sV, '전제: 세로').toEqual({ dir: 'v', ai: '' });
+  await alignBtn(page, 'right');
+  expect(await st(), '전제: 오른쪽').toEqual({ dir: 'v', ai: 'flex-end' });
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z'); await page.waitForTimeout(250);
+  expect(await st(), '⌘Z 한 번 = 세로(오른쪽 전)').toEqual(sV);
+  await page.keyboard.press('Meta+z'); await page.waitForTimeout(250);
+  expect(await st(), '⌘Z 두 번 = 가로').toEqual({ dir: null, ai: '' });
+});
+
 // ─────────── S5 간격 ───────────
 test('S5 세로 간격 = 아이콘 아래–글 위 사이 = gap px (기본 16 · 32 로 바꾸면 32)', async ({ page }) => {
   if (FEATURE) test.fail(true, 'C0: 세로 기능 없음');
