@@ -25,6 +25,7 @@ function _escGraphHtml(v) {
 /* ═══════════════════════════════════
    DRAG UTILITIES — pure helpers, no drag state
 ═══════════════════════════════════ */
+import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS(막대 두께 기본·한계의 한 자리)를 «이 모듈보다 먼저»
 import { state } from './globals.js';
 import { isShapeFrame, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
 
@@ -492,8 +493,9 @@ const GRAPH_DEFAULT_ITEMS = [
   { label: '항목 5', value: 65 },
 ];
 
-// B7: bar-v·bar-pair 의 Bar Settings(항목 간격·두께·좌우 패딩·숫자 크기) — dataset 키가 «있을 때만» inline 으로 낸다.
-// 키가 없으면 전부 '' → 기존 innerHTML 과 바이트까지 같다(저장본 겉모습 불변).
+// B7: bar-v·bar-pair 의 Bar Settings(항목 간격·두께·좌우 패딩·숫자 크기) — 간격·패딩·숫자 크기는 dataset 키가 «있을 때만» inline 으로 낸다.
+// ★E99 U26(2026-10-05): 두께는 «늘» 낸다 — 키가 없으면 GRAPH_LIMITS.BAR_THICKNESS_DEFAULT(가로 막대와 같은 기본, 패널이 보이는 값).
+//   전엔 키가 없으면 막대가 칸 전폭(127px 실측)인데 패널은 24 를 보였다. ⚠️두께 키 없는 옛 세로·비교 그래프는 «열면 24px 막대»로 바뀐다(⒜⒝⒞ 현빈 판단 사항).
 function _barVSettings(block, nItems) {
   const d = block.dataset;
   const has = k => d[k] !== undefined && d[k] !== '' && !isNaN(parseInt(d[k]));
@@ -504,8 +506,8 @@ function _barVSettings(block, nItems) {
   return {
     barsStyle: (gap + pad) ? ';' + gap + pad : '',
     // 막대 폭은 칸(%)을 넘지 않게 max-width:100%, 칸은 min-width:0 이라 줄어들 수 있다
-    fillW: has('vBarThickness') ? `width:${n('vBarThickness')}px;max-width:100%;margin:0 auto;` : '',
-    colMin: (has('vBarThickness') || has('vItemGap') || has('vPadX')) ? 'min-width:0;' : '',
+    fillW: `width:${has('vBarThickness') ? n('vBarThickness') : window.GRAPH_LIMITS.BAR_THICKNESS_DEFAULT}px;max-width:100%;margin:0 auto;`,
+    colMin: 'min-width:0;',   // 막대 폭이 늘 정해지므로 칸이 줄 수 있게(전엔 두께 키가 있을 때만 — 위와 같은 꼴)
     pctSize: has('vPctSize') ? n('vPctSize') : null,
     // GR2·GR3 오버레이가 «같은 칸 수식»을 쓰게 내보내는 원값(렌더 문자열에는 안 쓰인다 — 위 세 줄이 바이트를 정한다)
     padX: has('vPadX') ? n('vPadX') : 0,
@@ -792,7 +794,7 @@ function renderGraph(block) {
     const barColor     = block.dataset.barColor || '';
     const itemGap      = parseInt(block.dataset.itemGap)      || 24;
     const pctSize      = parseInt(block.dataset.pctSize)      || Math.round(labelSize * 3);
-    const trackH       = barThickness || 24;
+    const trackH       = barThickness || window.GRAPH_LIMITS.BAR_THICKNESS_DEFAULT;   // E99 — 패널·세로·비교와 같은 기본 한 자리
     const trackR       = Math.round(trackH / 2);
     const trackStyle   = `height:${trackH}px;border-radius:${trackR}px;`;
     const fillStyle    = `width:__PCT__;border-radius:${trackR}px;${barColor ? `background:${barColor};` : ''}`;
