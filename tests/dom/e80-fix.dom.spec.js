@@ -14,7 +14,10 @@ const { clickAt } = require('./_click-at.js');
 const { stripNonEdit } = require('./_history-step.js');
 const { structCmp } = require('./_struct-cmp.js');
 
-const FIX = process.env.E80_FIX;                       // '1' 고친 판 기대 · '0' 고치기 전 판 기대 · 없으면 기록만
+/* ★기본값 = 고친 판 기대(integ13 · 2026-10-04 팀리드 판정): env 가 없으면 ⒜⒝ 를 «고친 판(남음 · 아래 칸 편집 있음)»으로 단언한다.
+   — 그 전엔 env 없으면 판정을 건너뛰어 고치기 전 코드에서도 초록이었다(«회귀를 잡는다»고 믿는 빈 시험).
+   E80_FIX=0 은 «고치기 전 판을 일부러 잴 때»만(GD1001_ROOT 로 옛 판을 실을 때). */
+const FIX = process.env.E80_FIX ?? '1';
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 12);
 const fd = (a, b) => { if (a === b) return null; let i = 0; while (i < a.length && a[i] === b[i]) i++; return { at: i, a: a.slice(Math.max(0, i - 40), i + 40), b: b.slice(Math.max(0, i - 40), i + 40) }; };
 const tip = (page) => page.evaluate(() => { const t = window.getHistoryTip?.(); return t ? `${t.action}@${t.pos}/${t.len}` : null; });
@@ -188,7 +191,8 @@ test('F-S1 에셋 → 스크래치 이동', async ({ page }) => {
   const cMove = fxLog.find(e => e.via === 'capture'), cRedo = fxLog.find(e => e.via === 'redo');
   console.log(`[FIX] F-S1 | 에셋→스크래치 | E80_FIX=${FIX ?? '-'} | ⌘Z 직전 ${JSON.stringify(p)} | 이동=${JSON.stringify(moved)} | ⌘Z=${JSON.stringify(u1)} | ⌘⇧Z=${JSON.stringify(r1)} | ⌘Z=${JSON.stringify(u2)} | ⌘Z=${JSON.stringify(u3)} | ⒞ fx(데이터)=${JSON.stringify(fxLog)} 양성=${process.env.E80_S1_FXPOS === '1'}`);
   expect(cMove, '⒞ 전제 — 이동이 captureAssetFx 를 불렀다').toBeTruthy();
-  const wantFx = process.env.E80_S1_FXPOS !== '1';
+  /* ⒞ 양성대조(지디 · «빨강이 나야» 꼴): E80_S1_FXPOS=1 은 떠 낸 fx 에서 overlay 를 비운다 — 기대는 «있음» 그대로라 그 판은 빨강이어야 한다. */
+  const wantFx = true;
   expect(cMove.hasEDIT, `⒞ 이동 직후 항목 fx.overlay 에 편집 ${wantFx ? '있음' : '없음(양성대조)'}`).toBe(wantFx);
   if (cRedo) expect(cRedo.hasEDIT, `⒞ ⌘⇧Z 가 다시 만든 항목 fx.overlay 에 편집 ${wantFx ? '있음' : '없음(양성대조)'}`).toBe(wantFx);
   if (FIX) {

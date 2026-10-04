@@ -10,7 +10,12 @@ const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const { expectOneUndoStep } = require('./_history-step.js');
 
-const EXPECT = Object.fromEntries((process.env.E80_SWEEP_EXPECT || '').split(',').filter(Boolean).map(kv => kv.split('=')));
+/* ★기본값 = 고친 판 기대(integ13 · 팀리드 판정 — 이 파일은 dev 회귀): env 가 없으면 K1~K9 모두 «남음»을 단언한다.
+   측정용 덮어쓰기: E80_SWEEP_EXPECT='K2=사라짐,…'(옛 판) · E80_SWEEP_EXPECT=none(결과 단언 끔 — 기록만).
+   E90 점검: 이 파일이 단언하는 갈래 이름(K1~K9)에 범용 라벨 「작업」은 없다 — 블록 삭제 · 서브섹션 삭제 · 프레임 삭제 · 섹션 삭제 · 행 삭제 · 열 삭제 · 그리드 수정 · 블럭 수정. */
+const _EXP_DEFAULT = 'K1=남음,K2=남음,K3=남음,K4=남음,K5=남음,K6=남음,K7=남음,K8=남음,K9=남음';
+const _EXP_SRC = process.env.E80_SWEEP_EXPECT === 'none' ? '' : (process.env.E80_SWEEP_EXPECT || _EXP_DEFAULT);
+const EXPECT = Object.fromEntries(_EXP_SRC.split(',').filter(Boolean).map(kv => kv.split('=')));
 
 async function scene(page, build) {
   await page.setViewportSize({ width: 1500, height: 1400 });
