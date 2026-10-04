@@ -245,6 +245,27 @@ test('S7b 디자인 JSON — 세로로 바꿔도 내보낸 JSON 이 가로와 �
   expect(noIds(await designJson(page))).toEqual(h);
 });
 
+// ─────────── S9 MCP 렌더러 길 · 읽기(canvas-state) ───────────
+test('S9 updateIconTextBlock{direction} = 패널과 같은 한 곳 · 잘못된 값 거절 · getCanvasState 요약에 세로만 direction', async ({ page }) => {
+  await fresh(page);
+  const id = await addItb(page, 'MCP 세로');
+  const r = await page.evaluate((id) => {
+    const sum = () => { let hit = null; const walk = (x) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === 'object') { if (x.blockId === id) hit = x; Object.values(x).forEach(walk); } }; walk(window.getCanvasState()); return hit && hit.summary; };
+    const h = sum();
+    const bad = window.updateIconTextBlock(id, { direction: 'diagonal' });
+    const badDir = document.getElementById(id).dataset.itbDir || null;
+    const ok = window.updateIconTextBlock(id, { direction: 'vertical' });
+    return { h, bad, badDir, ok, dir: document.getElementById(id).dataset.itbDir || null, v: sum() };
+  }, id);
+  expect(r.h && 'direction' in r.h, `가로 요약엔 direction 키가 없다(옛 답 그대로) — ${JSON.stringify(r.h)}`).toBe(false);
+  expect(r.bad.ok, `잘못된 값 거절 — ${JSON.stringify(r.bad)}`).toBe(false);
+  expect(r.badDir, '거절 뒤 그대로 가로').toBeNull();
+  expect(r.ok.ok && r.ok.applied.direction, JSON.stringify(r.ok)).toBe('vertical');
+  expect(r.ok.before.direction).toBe('horizontal');
+  expect(r.dir).toBe('v');
+  expect(r.v && r.v.direction, `세로 요약 — ${JSON.stringify(r.v)}`).toBe('vertical');
+});
+
 // ─────────── S8 E57 지우기 ───────────
 for (const dir of ['horizontal', 'vertical']) {
   test(`S8 E57 ${dir} — ⒜ 블럭 고름 Delete = 블럭만(섹션·옆 블럭 남음) ⒝ 편집 중 ⌫ = 글자만 ⒞ 아이콘 칸 클릭 뒤 Delete ⒟ ⌘Z 한 걸음 ⒠ 선택 로그`, async ({ page }) => {
