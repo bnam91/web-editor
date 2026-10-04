@@ -3284,6 +3284,9 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
     // 다중 선택 삭제: col 다중
     if (multiSel.cols.size > 1) {
       consumed = true;
+      /* ★E80 — 이 갈래는 «끝 표본만» 찍었다. 끝 표본 없이 끝난 편집(Esc · 캔버스 밖 클릭 · 안 끝냄) 뒤 지우면 ⌘Z 가 그 편집까지 되돌렸다(v0.9.5 부터 · 2026-10-04 실측).
+           공용 블록 삭제(:3396)와 같은 꼴로 «삭제 전»을 먼저 찍는다 — 라이브가 꼭대기와 같으면 칸을 안 만든다(⌘Z 횟수 그대로). */
+      window.ensureHistoryCheckpoint?.('삭제 전');
       multiSel.cols.forEach(col => {
         const row = col.closest('.row');
         col.remove();
@@ -3360,6 +3363,9 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
         .some(el => el !== selSS && !selSS.contains(el));
       if (!ssHasSelectedChild && !_selOutsideSS) {
         consumed = true;
+        /* ★E80 — 이 갈래는 «끝 표본만» 찍었다. 끝 표본 없이 끝난 편집(Esc · 캔버스 밖 클릭 · 안 끝냄) 뒤 지우면 ⌘Z 가 그 편집까지 되돌렸다(v0.9.5 부터 · 2026-10-04 실측).
+             공용 블록 삭제(:3396)와 같은 꼴로 «삭제 전»을 먼저 찍는다 — 라이브가 꼭대기와 같으면 칸을 안 만든다(⌘Z 횟수 그대로). */
+        window.ensureHistoryCheckpoint?.('삭제 전');
         const ssRow = selSS.closest('.row') || selSS;
         ssRow.remove();
         window._activeFrame = null;
@@ -3505,6 +3511,9 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
       const selRow = document.querySelector('.row.row-active');
       if (selRow) {
         consumed = true;
+        /* ★E80 — 이 갈래는 «끝 표본만» 찍었다. 끝 표본 없이 끝난 편집(Esc · 캔버스 밖 클릭 · 안 끝냄) 뒤 지우면 ⌘Z 가 그 편집까지 되돌렸다(v0.9.5 부터 · 2026-10-04 실측).
+             공용 블록 삭제(:3396)와 같은 꼴로 «삭제 전»을 먼저 찍는다 — 라이브가 꼭대기와 같으면 칸을 안 만든다(⌘Z 횟수 그대로). */
+        window.ensureHistoryCheckpoint?.('삭제 전');
         selRow.remove();
         deselectAll();
         window.buildLayerPanel();
