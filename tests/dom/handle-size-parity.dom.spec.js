@@ -34,7 +34,7 @@ const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'tex
      tests/unit/handle-token-parity.test.mjs 가 모양으로 잡는다(거긴 이름을 안 적는다). */
 const OVERLAY_HANDLES = [
   'asset-overlay-handle', 'icb-overlay-handle', 'zm-overlay-handle', 'mdl-overlay-handle',
-  'tfo-overlay-handle', 'grd-img-overlay-handle', 'canvas-overlay-handle', 'vector-overlay-handle',
+  'tfo-overlay-handle', 'grd-img-overlay-handle', 'grd-overlay-handle', 'canvas-overlay-handle', 'vector-overlay-handle',
   'ss-resize-handle', 'img-corner-handle',
 ];
 /* 경계 부품 — 통일 대상이 «아니다». 같이 재서 「안 변했다」를 증명한다. */

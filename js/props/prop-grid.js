@@ -11,7 +11,7 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES, gridBlockOutline, GRID_OUTLINE_SIDES,
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
-         GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE,
+         GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE, GRID_WIDTH_MIN, GRID_WIDTH_MAX, gridResizeTo,
          gridBlockBg, GRID_BLOCK_BG_PAD_Y_MAX, GRID_BLOCK_BG_PAD_X_MAX } from '../blocks/grid-block.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
@@ -331,6 +331,36 @@ function _grdRoleLsPx(role, size) {
 const _GRD_TYPO_FIELDS = ['fontSize', 'weight', 'color', 'lineHeight', 'letterSpacing', 'fontFamily', 'italic', 'strike'];
 const _grdHas = (line, k) => line[k] !== undefined && line[k] !== null && line[k] !== '';
 
+/* ══ 줄의 «주인»(host) — BT2 C2(2026-10-04) ═══════════════════════════════════════════
+ * ★왜 — 줄바·줄 꾸미기·Typography 를 버블·챗이 «그대로» 쓴다(BT2 설계 D8: 복제 금지 — 두 벌이면 따로 늙는다).
+ *   그 함수들이 «그리드 모델»을 직접 불렀던 자리(getGridModel·updateGridBlock·gridPreviewLine·showGridProperties·
+ *   _grdSyncLineMark·_grdLine — 55줄)를 «주인» 하나로 모았다. 그리드는 아래 기본 주인을 쓴다 = 옛 호출 «그대로».
+ * ⛔이 커밋은 그리드 동작을 한 바이트도 안 바꾼다 — tests/dom/bt2-safety.dom.spec.js T6(패널 HTML 바이트 스냅샷)이 증인.
+ * ★주인이 갖출 것(버블·챗은 js/blocks/line-host.js 가 만든다):
+ *   kinds · maxLines · limitLabel · noHitHint · head(r,c,li|null) ·
+ *   getLines(r,c) · commitLines(r,c,lines,opts) · patchLine(r,c,li,fields) · previewLine(r,c,li,fields,np) ·
+ *   show(addr) · mark(addr) · refreshSummary(addr) · line(addr) · resolveAny(addr)
+ * ⛔이 파일은 새 모듈을 import 하지 않는다 — tests/unit/grid-line-add.test.mjs 가 이 파일을 «실물 import 그래프»로 싣는다(머리말 ⚠️). */
+function _grdGridHost(block) {
+  return {
+    kind: 'grid',
+    kinds: _GRD_KINDS,
+    maxLines: MAX_CELL_LINES,
+    limitLabel: '셀당',
+    noHitHint: '칸을 한 번 더 누르면 줄 편집 · 두 번 누르면 글자 편집',
+    head: (r, c, li) => (li === null ? `${r + 1}행 ${c + 1}열 · 빈 칸` : `${r + 1}행 ${c + 1}열 · ${li + 1}번째 줄`),
+    getLines: (r, c) => { try { return getGridModel(block).cells?.[r]?.[c]?.lines || []; } catch (_) { return []; } },
+    commitLines: (r, c, lines, opts) => window.updateGridBlock?.(block.id, { patchCell: { r, c, lines } }, opts),
+    patchLine: (r, c, li, fields) => window.updateGridBlock?.(block.id, { patchCell: { r, c, lineIndex: li, ...fields } }),
+    previewLine: (r, c, li, fields, np) => gridPreviewLine(block, r, c, li, fields, np),
+    show: (addr) => showGridProperties(block, addr),
+    mark: (addr) => _grdSyncLineMark(block, addr),
+    refreshSummary: (addr) => _grdRefreshSummary(block, addr),
+    line: (addr) => _grdLine(block, addr),
+    resolveAny: (addr) => _grdResolveAnyAddr(block, addr),
+  };
+}
+
 /* ══ 셀에 «줄 추가» — 공용 함수 ══════════════════════════════════════════════
  * ★T-A(빈 셀 선택+단축키)·T-B(이미지 새 줄) 둘 다 이 함수 하나로 모인다 — 우클릭 이미지
  *   추가(block-factory.js)·패널 [+ 줄 추가]·빈 셀 3버튼·T/G/K 단축키가 전부 이걸 부른다.
@@ -341,14 +371,15 @@ const _grdHas = (line, k) => line[k] !== undefined && line[k] !== null && line[k
  * @param {number|null} afterLi  null → 셀 끝에 append(빈 셀 채우기 포함) · 정수 → 그 줄 다음에 삽입
  * @param {object} lineSpec      새로 넣을 줄 데이터(예: {type:'body',text:''})
  * @returns {{ok:true, li:number}|{ok:false, code:'LIMIT'}} */
-export function grdAddLine(block, pos, afterLi, lineSpec = { type: 'body', text: '' }, opts = {}) {
+export function grdAddLine(block, pos, afterLi, lineSpec = { type: 'body', text: '' }, opts = {}, host = null) {
   const { r, c } = pos;
+  const H = host || _grdGridHost(block);   // ★BT2 C2 — 줄의 «주인». 안 주면 그리드(옛 동작 그대로)
   let curLines;
-  try { curLines = getGridModel(block).cells?.[r]?.[c]?.lines || []; } catch (_) { curLines = []; }
+  try { curLines = H.getLines(r, c) || []; } catch (_) { curLines = []; }
   // ★상한을 먼저 확인한다 — 실패가 확실한 호출 앞에서 grdSetActiveLine 을 먼저 부르면
   //   존재하지 않는 li 를 가리키게 된다(prop-grid.js 옛 주석의 순서 규약, 그대로 계승).
-  if (curLines.length >= MAX_CELL_LINES) {
-    window.showToast?.(`⚠️ 줄 추가 실패: 셀당 최대 ${MAX_CELL_LINES}줄`);
+  if (curLines.length >= H.maxLines) {
+    window.showToast?.(`⚠️ 줄 추가 실패: ${H.limitLabel} 최대 ${H.maxLines}줄`);
     return { ok: false, code: 'LIMIT' };
   }
   const insertAt = (afterLi === null || afterLi === undefined) ? curLines.length : afterLi + 1;
@@ -360,7 +391,7 @@ export function grdAddLine(block, pos, afterLi, lineSpec = { type: 'body', text:
   const prevActive = grdGetActiveLine(block);
   grdSetActiveLine(block, { r, c, li: insertAt });
   // updateGridBlock 이 pushHistory + 재렌더 + 패널 재표시를 스스로 한다(줄 삭제·비율 입력과 같은 원칙).
-  const res = window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } }, opts);
+  const res = H.commitLines(r, c, newLines, opts);
   /* ★반환을 «받는다». 예전엔 안 받고 무조건 {ok:true} 를 돌려줬다 — 호출부(우클릭 이미지 추가 등)는
    *   실패를 알 길이 없어 토스트도 못 띄웠다. 현빈이 본 「그리드 우클릭 이미지 삽입이 안 된다」가
    *   바로 이 거짓 성공이다(2026-09-20, 0920b-grid-image). */
@@ -445,10 +476,11 @@ if (typeof window !== 'undefined') {
  * ⛔사본은 «깊게» 뜬다 — 얕게 넘기면 원본과 같은 객체를 둘이 가리켜, 한쪽 글자를 고치면
  *   다른 쪽까지 같이 바뀐다(이미지 줄의 crop·layers 처럼 중첩된 값이 특히 그렇다).
  * @returns {{ok:true, li:number}|{ok:false, code:'INVALID'|'LIMIT'|string}} */
-export function grdDuplicateLine(block, pos, li) {
+export function grdDuplicateLine(block, pos, li, host = null) {
   const { r, c } = pos || {};
+  const H = host || _grdGridHost(block);
   let curLines;
-  try { curLines = getGridModel(block).cells?.[r]?.[c]?.lines; } catch (_) { curLines = null; }
+  try { curLines = H.getLines(r, c); } catch (_) { curLines = null; }
   /* ⛔null 을 Number 로 받지 않는다 — grdMoveLineWithin 이 같은 함정을 같은 말로 막는다
      (빈 칸 표식 null 이 0 으로 통과하면 «첫 줄»이 조용히 복사된다). */
   const i = li === null || li === undefined ? NaN : Number(li);
@@ -457,7 +489,7 @@ export function grdDuplicateLine(block, pos, li) {
   }
   let copy;
   try { copy = JSON.parse(JSON.stringify(curLines[i])); } catch (_) { return { ok: false, code: 'INVALID' }; }
-  return grdAddLine(block, { r, c }, i, copy);   // ★그 줄 «바로 다음»에 — 눈이 따라가기 쉽다
+  return grdAddLine(block, { r, c }, i, copy, {}, H);   // ★그 줄 «바로 다음»에 — 눈이 따라가기 쉽다
 }
 if (typeof window !== 'undefined') window.grdDuplicateLine = grdDuplicateLine;
 
@@ -857,11 +889,11 @@ const _grdKindOptsHtml = (kinds, cur, prefix = '') => kinds
  *         문다」라고 «미리» 적어 두었고, 실제로 그 패치에서 물었다.
  *   ⇒ ★그래서 손잡이를 «우클릭 메뉴»로 냈다(index.html `#bcm-grid-nested` ＋ block-factory.js).
  *     지키는 그물: tests/dom/grid-nested-create.dom.spec.js */
-const _grdAddKindSelectHtml = () => `
+const _grdAddKindSelectHtml = (kinds = _GRD_KINDS) => `
         <select class="prop-select" id="grd-line-add-kind" style="flex:1 1 96px;min-width:0;width:auto;"
                 title="고른 종류로 새 줄을 만든다 (단축키 T=텍스트 · G=여백 · K=아이콘)">
           <option value="">+ 줄 추가…</option>
-          ${_grdKindOptsHtml(_GRD_KINDS, null, '+ ')}
+          ${_grdKindOptsHtml(kinds, null, '+ ')}
         </select>`;
 
 /** ②종류 바꾸기 — 이미 있는 줄의 종류를 바꾼다(지우고 다시 만들 필요 없이).
@@ -889,9 +921,9 @@ const _grdAddKindSelectHtml = () => `
  *   ★선례 — 머리에 값 없는 옵션을 세우는 꼴은 이 파일이 이미 쓴다(_grdAddKindSelectHtml 의
  *     `<option value="">+ 줄 추가…</option>`). 새 꼴을 만들지 않았다.
  * 지키는 그물: tests/dom/grid-panel-icon-spec.dom.spec.js (A8) */
-const _grdKindSelectHtml = (line) => {
+const _grdKindSelectHtml = (line, kinds = _GRD_KINDS) => {
   const cur = line.type || 'body';
-  const known = _GRD_KINDS.includes(cur);
+  const known = kinds.includes(cur);
   const head = known ? '' :
     `<option value="" disabled selected>${_grdKindKo(cur)} — 패널에서 못 만듦</option>`;
   const title = known
@@ -900,7 +932,7 @@ const _grdKindSelectHtml = (line) => {
       + '다른 종류를 고르면 바뀌지만, 그때 이 줄의 내용은 사라진다(⌘Z 로 복원).';
   return `
         <select class="prop-select" id="grd-line-kind" title="${title}">
-          ${head}${_grdKindOptsHtml(_GRD_KINDS, known ? cur : null)}
+          ${head}${_grdKindOptsHtml(kinds, known ? cur : null)}
         </select>`;
 };
 
@@ -918,7 +950,8 @@ const _GRD_KIND_SHED = { imgSrc: undefined, height: undefined, widthPct: undefin
 
 /** 두 select 의 배선 — 추가는 «고르면 바로», 바꾸기는 «지금 줄»에만.
  *  @param {number|null} afterLi  null → 칸 끝에 붙인다(빈 칸) · 정수 → 그 줄 다음 */
-function _grdWireKindSelects(block, r, c, afterLi) {
+function _grdWireKindSelects(block, r, c, afterLi, host = null) {
+  const H = host || _grdGridHost(block);
   const addSel = document.getElementById('grd-line-add-kind');
   addSel?.addEventListener('change', () => {
     const kind = addSel.value;
@@ -928,7 +961,7 @@ function _grdWireKindSelects(block, r, c, afterLi) {
       // 아이콘은 피커가 비동기다 — 「+ 아이콘 (K)」 단추와 «같은 길»로 보낸다(두 벌 금지).
       window.openIconifyModal?.((picked) => {
         grdToastImgFail(grdAddLine(block, { r, c }, afterLi,
-          { type: 'image', imgSrc: _grdSvgToDataUri(picked.svg), height: picked.size || 64 }));
+          { type: 'image', imgSrc: _grdSvgToDataUri(picked.svg), height: picked.size || 64 }, {}, H));
       });
       return;
     }
@@ -937,7 +970,7 @@ function _grdWireKindSelects(block, r, c, afterLi) {
     const _spec = kind === 'gap'     ? { type: 'gap', height: 16 }
                 : kind === 'divider' ? { type: 'divider', height: 1 }
                 : { type: kind, text: '' };
-    grdToastImgFail(grdAddLine(block, { r, c }, afterLi, _spec));
+    grdToastImgFail(grdAddLine(block, { r, c }, afterLi, _spec, {}, H));
   });
 
   if (afterLi === null) return;              // 빈 칸엔 «바꿀 줄»이 아직 없다
@@ -948,10 +981,10 @@ function _grdWireKindSelects(block, r, c, afterLi) {
        `if (!kind) return;` 과 «같은 가드»다(두 벌로 갈라 두지 않는다). */
     if (!kindSel.value) return;
     let cur = '';
-    try { cur = (getGridModel(block).cells?.[r]?.[c]?.lines || [])[afterLi]?.type || 'body'; } catch (_) {}
+    try { cur = (H.getLines(r, c) || [])[afterLi]?.type || 'body'; } catch (_) {}
     if (kindSel.value === cur) return;       // 같은 값 = 화면이 안 변한다(updateGridBlock 이 거절한다)
-    const change = (extra) => _grdToastCellFail(window.updateGridBlock?.(block.id,
-      { patchCell: { r, c, lineIndex: afterLi, type: kindSel.value, ..._GRD_KIND_SHED, ...extra } }));
+    const change = (extra) => _grdToastCellFail(H.patchLine(r, c, afterLi,
+      { type: kindSel.value, ..._GRD_KIND_SHED, ...extra }));
     if (kindSel.value === 'image') {
       // 아이콘은 피커가 «먼저» 온다 — 취소하면 아무것도 안 바꾼다(빈 이미지 자리를 안 남긴다).
       window.openIconifyModal?.((picked) => {
@@ -971,8 +1004,8 @@ function _grdWireKindSelects(block, r, c, afterLi) {
  *  ★2026-09-25 R4 — 이미지·갭 줄에서도 「직접 지정 0 · 역할 기본 8」이라 «타이포 수»를 셌다.
  *    그 줄엔 타이포 필드가 뜻이 없다 — 옆 [↺ 기본] 단추가 그래서 disabled 다. 판정은
  *    이미 있던 gridLineHasText 하나로 가른다(새 판정을 만들지 않는다). */
-function _grdSummaryText(r, c, li, line) {
-  const head = `${r + 1}행 ${c + 1}열 · ${li + 1}번째 줄`;
+function _grdSummaryText(r, c, li, line, host = null) {
+  const head = host ? host.head(r, c, li) : `${r + 1}행 ${c + 1}열 · ${li + 1}번째 줄`;
   if (!gridLineHasText(line)) {
     const kind = line.type === 'image' ? '그림 줄' : line.type === 'gap' ? '여백 줄' : `${line.type || 'body'} 줄`;
     return `${head} — ${kind} · 타이포 없음`;
@@ -1023,11 +1056,12 @@ function _grdNestHintHtml(nestHit) {
 }
 const _grdEsc = (v) => String(v).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
-function _grdLineBarHtml(anyHit, block) {
+function _grdLineBarHtml(anyHit, block, host = null) {
+  const H = host || _grdGridHost(block);
   if (!anyHit) {
     return `
     <div class="prop-section">
-      <div class="prop-hint">칸을 한 번 더 누르면 줄 편집 · 두 번 누르면 글자 편집</div>
+      <div class="prop-hint">${H.noHitHint}</div>
     </div>`;
   }
   const { r, c, li, line } = anyHit;
@@ -1040,15 +1074,15 @@ function _grdLineBarHtml(anyHit, block) {
     return `
     <div class="prop-section" style="padding-bottom:4px;">
       <div class="prop-row" style="align-items:center;gap:6px;">
-        <span class="prop-hint" style="flex:1;min-width:0;">${r + 1}행 ${c + 1}열 · 빈 칸</span>
+        <span class="prop-hint" style="flex:1;min-width:0;">${H.head(r, c, null)}</span>
       </div>
       <div class="prop-row" style="gap:6px;flex-wrap:wrap;">
-${_grdAddKindSelectHtml()}
-        <button id="grd-cell-add-icon-btn" class="prop-btn-sm" title="아이콘 줄 추가 (단축키 K)">+ 아이콘 (K)</button>
+${_grdAddKindSelectHtml(H.kinds)}${H.kinds.includes('image') ? `
+        <button id="grd-cell-add-icon-btn" class="prop-btn-sm" title="아이콘 줄 추가 (단축키 K)">+ 아이콘 (K)</button>` : ''}
       </div>
     </div>`;
   }
-  const summary = _grdSummaryText(r, c, li, line);
+  const summary = _grdSummaryText(r, c, li, line, H);
   /* ★★★2026-09-26 «[줄 삭제] 는 이제 «언제나» 활성이다» — 현빈 지시.
        「여전히 빈칸으로 두고 싶은데 마지막 남은 줄은 삭제할 수 없다고 하네?」
      ~~[폐기 · 2026-09-26] `cellLineCount`(칸의 줄 수)를 세어 `canDeleteLine = cellLineCount > 1`
@@ -1086,7 +1120,7 @@ ${_grdAddKindSelectHtml()}
               style="flex:1 1 0;min-width:0;padding:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${summary}</span>
       </div>
       <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">
-${_grdAddKindSelectHtml()}
+${_grdAddKindSelectHtml(H.kinds)}
         <button id="grd-line-dup-btn" class="prop-btn-sm"
                 title="이 줄을 그대로 한 벌 더 만들어 «바로 아래»에 넣습니다 (⌘Z 로 복원)">줄 복사</button>
         <button id="grd-line-del-btn" class="prop-btn-sm"
@@ -1096,23 +1130,24 @@ ${_grdAddKindSelectHtml()}
 }
 
 /* 줄바 배선 — [+ 줄 추가]/[줄 삭제]/[↺ 기본값으로] + 빈 셀 3버튼(T/G/K). */
-function _grdWireLineBar(block, addr) {
-  const hit = _grdResolveAnyAddr(block, addr);
+function _grdWireLineBar(block, addr, host = null) {
+  const H = host || _grdGridHost(block);
+  const hit = H.resolveAny(addr);
   if (!hit) return;
   const { r, c, li, line } = hit;
 
   if (li === null) {
-    _grdWireKindSelects(block, r, c, null);
+    _grdWireKindSelects(block, r, c, null, H);
     document.getElementById('grd-cell-add-icon-btn')?.addEventListener('click', () => {
       window.openIconifyModal?.((picked) => {
         const imgSrc = _grdSvgToDataUri(picked.svg);
-        grdToastImgFail(grdAddLine(block, { r, c }, null, { type: 'image', imgSrc, height: picked.size || 64 }));
+        grdToastImgFail(grdAddLine(block, { r, c }, null, { type: 'image', imgSrc, height: picked.size || 64 }, {}, H));
       });
     });
     return;
   }
 
-  _grdWireKindSelects(block, r, c, li);
+  _grdWireKindSelects(block, r, c, li, H);
   document.getElementById('grd-line-dup-btn')?.addEventListener('click', (e) => {
     if (e.currentTarget.disabled) return;
     /* ★복수선택(티켓 ⑤)이면 «고른 줄 전부»를 한 벌씩 더 만든다.
@@ -1122,17 +1157,17 @@ function _grdWireLineBar(block, addr) {
     const _sel = (window.grdGetLineSel?.(block) || [])
       .filter(a => a && a.r === r && a.c === c && !a.np && Number.isInteger(a.li));
     if (_sel.length <= 1) {
-      const res = grdDuplicateLine(block, { r, c }, li);
-      if (res && res.ok) showGridProperties(block, { r, c, li: res.li });
+      const res = grdDuplicateLine(block, { r, c }, li, H);
+      if (res && res.ok) H.show({ r, c, li: res.li });
       return;
     }
     let curLines;
-    try { curLines = getGridModel(block).cells?.[r]?.[c]?.lines; } catch (_) { curLines = null; }
+    try { curLines = H.getLines(r, c); } catch (_) { curLines = null; }
     if (!Array.isArray(curLines)) return;
     const picks = [...new Set(_sel.map(a => a.li))].filter(i => i >= 0 && i < curLines.length).sort((a, b) => a - b);
     if (!picks.length) return;
-    if (curLines.length + picks.length > MAX_CELL_LINES) {
-      window.showToast?.(`⚠️ 줄 복사 실패: 셀당 최대 ${MAX_CELL_LINES}줄`);
+    if (curLines.length + picks.length > H.maxLines) {
+      window.showToast?.(`⚠️ 줄 복사 실패: ${H.limitLabel} 최대 ${H.maxLines}줄`);
       return;
     }
     let copies;
@@ -1141,16 +1176,16 @@ function _grdWireLineBar(block, addr) {
     const newLines = [...curLines.slice(0, insertAt), ...copies, ...curLines.slice(insertAt)];
     const prevActive = grdGetActiveLine(block);
     grdSetActiveLine(block, { r, c, li: insertAt });
-    const res = window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } });
+    const res = H.commitLines(r, c, newLines);
     if (res && res.ok === false) { grdSetActiveLine(block, prevActive); _grdToastCellFail(res); return; }
     // 새로 생긴 줄들을 «선택 상태»로 이어 준다 — 연달아 또 복사하기 쉽게
     window.grdSetLineSel?.(block, copies.map((_, n) => ({ r, c, li: insertAt + n })));
-    showGridProperties(block, { r, c, li: insertAt });
+    H.show({ r, c, li: insertAt });
   });
   document.getElementById('grd-line-del-btn')?.addEventListener('click', (e) => {
     if (e.currentTarget.disabled) return;
     let curLines;
-    try { curLines = getGridModel(block).cells?.[r]?.[c]?.lines || []; } catch (_) { curLines = []; }
+    try { curLines = H.getLines(r, c) || []; } catch (_) { curLines = []; }
     /* ~~[폐기 · 2026-09-26] `if (curLines.length <= 1) return;` — 마지막 한 줄은 지우지 않았다.~~
        ★이 «둘째» 가드가 버튼 disabled 와 «따로» 앉아 있었다 — 즉 이 기능의 문은 둘이었다.
          버튼만 열고 여기를 남기면 「눌리는데 아무 일도 안 난다」가 된다(이 레포의 고질). */
@@ -1164,7 +1199,7 @@ function _grdWireLineBar(block, addr) {
          「거절인데 활성줄만 움직였다」가 이 레포의 고질이라 방어를 걷지 않는다. */
     const prevActive = grdGetActiveLine(block);
     grdSetActiveLine(block, newLines.length ? { r, c, li: newLi } : null);
-    const res = window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } });
+    const res = H.commitLines(r, c, newLines);
     if (res && res.ok === false) grdSetActiveLine(block, prevActive);
     grdToastImgFail(res);
   });
@@ -2222,6 +2257,7 @@ function _grdPadExcludeSectionHtml(block) {
   const floating = block.dataset.overlayBlock === 'true';
   return `
     <div class="prop-section">
+      ${_grdWidthRowHtml(block)}
       <div class="prop-row" style="align-items:center;gap:6px;">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;${floating ? 'display:none;' : ''}">
           <input type="checkbox" id="grd-use-padx"${on ? ' checked' : ''}>
@@ -2236,11 +2272,99 @@ function _grdPadExcludeSectionHtml(block) {
     </div>`;
 }
 
+/* ══ ★G2-b 너비 줄 — 「그리드 블럭 자체 너비」 우측패널 입력 (지디 2026-10-04 결정 A) ══
+ *  ★모델 그대로: 안 떠 있음 = 키(data-grid-width) · 떠 있음 = 굳힌 폭(렌더가 키를 안 본다, grid-block.js renderGridBlock).
+ *    칸에 보이는 값도 그 정본을 따른다 — 떠 있으면 «지금 그려진 px», 아니면 «키» (키가 없으면 빈 칸 + 「자동」).
+ *  ★쓰는 문 — 숫자칸·「100%」 = updateGridBlock{width}(한 번에 끝나는 입력: 히스토리·재렌더·패널 재표시가 그 안에 있다).
+ *            슬라이더 = applyGridOwnWidth(끄는 동안 매 틱) + 양쪽 끝 표본(drag-history 규약).
+ *  ★「100% (자동)」 = 키와 자동 표시를 «지운다»(updateGridBlock width:null). 키가 없을 때 이 단추가 «켜져» 보인다(지금 상태 표시).
+ *    ⛔떠 있는 동안엔 막는다 — 떠 있으면 렌더가 키를 안 보므로 눌러도 화면이 안 변한다(「눌리는데 아무 일도 안 난다」 = 이 파일 머리말 규약).
+ *  ★빈 칸의 뜻(prop-number-commit-guard.js 셋째 축) — 안 떠 있으면 placeholder「자동」= 비우고 Enter 가 «자동»으로 커밋된다.
+ *    떠 있으면 placeholder 를 «안» 단다 = 빈 칸은 「지우는 중」이라 가드가 되돌린다(떠 있을 땐 자동이 없다).
+ *  ⛔새 클래스 0 — .prop-row/.prop-label/.prop-slider/.prop-number/.prop-btn-sm 재사용(굵기 줄 _borderRowHtml 과 같은 꼴).
+ *  ⛔자리는 줄바(#grd-line-summary) «아래» 이 절 — 위(Layout)에 두면 줄바가 밀려 grid-cell-panel-handles G2 ⑵가 빨개진다. */
+function _grdWidthNow(block) {
+  if (block.dataset.overlayBlock === 'true') {
+    const px = Math.round(parseFloat(block.style.width));
+    return { val: Number.isFinite(px) && px > 0 ? px : Math.round(block.offsetWidth), floating: true, auto: false };
+  }
+  const key = window.getGridWidth?.(block) ?? null;
+  return { val: key, floating: false, auto: key === null };
+}
+function _grdWidthRowHtml(block) {
+  const w = _grdWidthNow(block);
+  const sliderVal = w.val ?? Math.min(GRID_WIDTH_MAX, Math.max(GRID_WIDTH_MIN, Math.round(block.offsetWidth) || GRID_WIDTH_MIN));
+  const autoTitle = w.floating
+    ? '떠 있는 동안은 굳힌 폭이 정본이라 «자동»으로 못 돌린다 — 오버레이를 풀고 누르세요'
+    : (w.auto ? '지금 자동 — 담는 그릇 폭을 다 쓴다' : '정한 폭을 지우고 담는 그릇 폭을 다 쓰게(100%) 되돌린다');
+  return `
+      <div class="prop-row">
+        <span class="prop-label" title="그리드 블럭 자체의 너비(px, ${GRID_WIDTH_MIN}~${GRID_WIDTH_MAX}). 비우면 자동(100%)">너비</span>
+        <input type="range" class="prop-slider" id="grd-width-slider" min="${GRID_WIDTH_MIN}" max="${GRID_WIDTH_MAX}" step="1" value="${sliderVal}">
+        <input type="number" class="prop-number" id="grd-width-number" min="${GRID_WIDTH_MIN}" max="${GRID_WIDTH_MAX}" value="${w.val ?? ''}"${w.floating ? '' : ' placeholder="자동"'}>
+        <button type="button" class="prop-btn-sm${w.auto ? ' active' : ''}" id="grd-width-auto" title="${autoTitle}"${w.floating ? ' disabled' : ''}>100%</button>
+      </div>`;
+}
+function _grdWireWidth(block) {
+  const slider = document.getElementById('grd-width-slider');
+  const number = document.getElementById('grd-width-number');
+  const autoBtn = document.getElementById('grd-width-auto');
+  const clamp = (v) => Math.min(GRID_WIDTH_MAX, Math.max(GRID_WIDTH_MIN, Math.round(v)));
+  if (slider) {
+    let armed = false;
+    /* ★양쪽 끝 표본 — 시작 = 첫 input 직전(pushHistoryStartSample), 끝 = change. mousedown 에 걸면
+       키보드(화살표)로 미는 길이 시작 표본을 못 찍는다. */
+    slider.addEventListener('input', () => {
+      if (!armed) {
+        armed = true;
+        if (typeof window.pushHistoryStartSample === 'function') window.pushHistoryStartSample('그리드 너비');
+        else window.pushHistory?.('그리드 너비');
+      }
+      const v = window.applyGridOwnWidth?.(block, clamp(Number(slider.value)));
+      if (v != null && number) number.value = v;
+      autoBtn?.classList.remove('active');
+    });
+    slider.addEventListener('change', () => {
+      if (!armed) return;
+      armed = false;
+      window.pushHistory?.('그리드 너비');   // ★끝 표본
+      window.scheduleAutoSave?.();
+      showGridProperties(block);
+    });
+  }
+  if (number) {
+    /* ⛔입력 «도중»(input)엔 안 쓴다 — 「500」을 치는 길에 「5」가 40 으로 죄여 그려진다. 확정(change = Enter·포커스 이탈) 때 한 번. */
+    number.addEventListener('change', () => {
+      const raw = String(number.value).trim();
+      if (raw === '') {   // 비우면 = 자동(떠 있을 땐 자동이 없으니 지금 값으로 되살린다)
+        if (block.dataset.overlayBlock === 'true') { number.value = _grdWidthNow(block).val ?? ''; return; }
+        if (window.getGridWidth?.(block) == null) return;
+        _grdToastCellFail(window.updateGridBlock?.(block.id, { width: null }));
+        return;
+      }
+      const n = Number(raw);
+      if (!Number.isFinite(n)) { number.value = _grdWidthNow(block).val ?? ''; return; }
+      const v = clamp(n);
+      if (_grdToastCellFail(window.updateGridBlock?.(block.id, { width: v }))) number.value = _grdWidthNow(block).val ?? '';
+    });
+  }
+  if (autoBtn) {
+    autoBtn.addEventListener('click', () => {
+      if (autoBtn.disabled || block.dataset.overlayBlock === 'true') return;
+      if (window.getGridWidth?.(block) == null && block.dataset.gridWidthAuto === undefined) return;   // 이미 자동
+      _grdToastCellFail(window.updateGridBlock?.(block.id, { width: null }));
+    });
+  }
+}
+
 /** 배선 — 체크하면 «그 자리에서» 반영된다(저장만 하고 화면이 안 변하면 안 눌린 것처럼 보인다). */
 function _grdWirePadExclude(block) {
   /* 오버레이 토글·X/Y — 공용 배선(에셋 패널과 같은 함수). 토글 뒤엔 패널을 다시 그린다(패딩 제외 줄 숨김/보임). */
-  window.wireFloatToggle?.({ block, buttonId: 'grd-float-toggle', rerender: () => showGridProperties(block) });
+  /* ★토글 뒤 «손잡이»도 다시 가른다(G2-b) — 켜면 폭 손잡이가 바로 뜨고, 끄면 showHandlesFor 의 그리드 갈래가 걷는다.
+     안 부르면 켠 직전엔 손잡이가 없다가 «한 번 더 눌러야» 뜬다(선택 클릭만 showHandlesFor 를 부른다). */
+  window.wireFloatToggle?.({ block, buttonId: 'grd-float-toggle', rerender: () => { showGridProperties(block); window.showHandlesFor?.(block); } });
   window.wireFloatPosition?.({ block, xId: 'grd-x-number', yId: 'grd-y-number' });
+  _grdWireWidth(block);   // ★G2-b 너비 줄 — 같은 절 안이다
   const cb = document.getElementById('grd-use-padx');
   if (!cb) return;
   cb.addEventListener('change', () => {
@@ -2355,7 +2479,8 @@ function _grdTypoSectionsHtml(hit, block) {
  *     이 레포엔 moveSection 에 그 버그가 실재한다. ⇒ 제스처의 «첫 적용 전»에 1회.
  * ★진실은 dataset 이다(모달 계보). ⛔DOM 인라인 스타일에 쓰지 마라 — renderGridBlock 이
  *   innerHTML 을 통째로 새로 만들어 «첫 측정을 통과하고 조용히 죽는다»(D1-c 가 2차 측정을 한다). */
-function _grdWireTypo(block, addr) {
+function _grdWireTypo(block, addr, host = null) {
+  const H = host || _grdGridHost(block);
   let _gesture = false;
   const begin = () => { if (_gesture) return; _gesture = true; window.pushHistory?.(); };   // ★적용 «전»
   const end   = () => { _gesture = false; window.scheduleAutoSave?.(); };
@@ -2365,22 +2490,22 @@ function _grdWireTypo(block, addr) {
      ⛔updateGridBlock 을 직접 부르지 않는 이유: 그건 스스로 pushHistory 를 쌓고 패널을 통째로
        다시 그린다 — 색 피커를 드래그하는 동안 그러면 히스토리가 폭주하고 포커스가 끊긴다. */
   const setLine = (fields) => {
-    gridPreviewLine(block, addr.r, addr.c, addr.li, fields, addr.np);
-    _grdSyncLineMark(block, addr);       // 재렌더가 마커를 지웠다 — 다시 붙인다
-    _grdRefreshSummary(block, addr);
+    H.previewLine(addr.r, addr.c, addr.li, fields, addr.np);
+    H.mark(addr);       // 재렌더가 마커를 지웠다 — 다시 붙인다
+    H.refreshSummary(addr);
   };
   const commit = (fields) => { begin(); setLine(fields); end(); };
 
   // ── 폰트 — 위젯은 «한 벌»(_font-picker.js). 우리는 «적용»만 준다(prop-modal :264 선례).
   wireFontPicker({
     root: propPanel, p: 'grd-typo',
-    getCurrent: () => _grdLine(block, addr)?.fontFamily || '',
+    getCurrent: () => H.line(addr)?.fontFamily || '',
     onPick: (rawVal) => commit({ fontFamily: rawVal || undefined }),
   });
 
   // ── 굵기 select — 명시값이 없으면 «역할 기본값» option 이 선택돼 있다(select 엔 placeholder 가 없다).
   const wSel = document.getElementById('grd-typo-font-weight');
-  if (wSel && !_grdHas(_grdLine(block, addr) || {}, 'weight')) wSel.title = '역할 기본값';
+  if (wSel && !_grdHas(H.line(addr) || {}, 'weight')) wSel.title = '역할 기본값';
   wSel?.addEventListener('change', () => commit({ weight: wSel.value }));
 
   /* ── 숫자 칸 — change(blur·Enter)에서만 커밋한다(비율·행높이 입력과 동일 원칙).
@@ -2403,7 +2528,7 @@ function _grdWireTypo(block, addr) {
        B 는 별개다: 그리드 줄엔 bold 플래그가 없고 weight 가 진실이다 ⇒ 700 ↔ 400 토글. */
   const boldBtn = document.getElementById('grd-typo-bold-btn');
   boldBtn?.addEventListener('click', () => {
-    const line = _grdLine(block, addr) || {};
+    const line = H.line(addr) || {};
     const next = Number(line.weight ?? _grdRoleOf(line).weight) >= 700 ? 400 : 700;
     boldBtn.classList.toggle('active', next >= 700);
     if (wSel) wSel.value = String(next);
@@ -2412,7 +2537,7 @@ function _grdWireTypo(block, addr) {
   for (const [id, key] of [['grd-typo-italic-btn', 'italic'], ['grd-typo-strike-btn', 'strike']]) {
     const btn = document.getElementById(id);
     btn?.addEventListener('click', () => {
-      const on = (_grdLine(block, addr) || {})[key] === '1';
+      const on = (H.line(addr) || {})[key] === '1';
       btn.classList.toggle('active', !on);
       commit({ [key]: on ? undefined : '1' });
     });
@@ -2425,7 +2550,7 @@ function _grdWireTypo(block, addr) {
   const cHex    = document.getElementById('grd-typo-color-hex');
   const cAlpha  = document.getElementById('grd-typo-color-alpha');
   const cSwatch = cPick?.closest('.prop-color-swatch');
-  const raw0 = String((_grdLine(block, addr) || {}).color || '');
+  const raw0 = String((H.line(addr) || {}).color || '');
   // 스와치 «배경»만은 raw 로 — var() 바인딩이면 변수의 실제 색이 보여야 한다.
   if (cSwatch && raw0) cSwatch.style.background = raw0;
   let _alpha = raw0 ? parseAlphaFromColor(raw0) : 100;
@@ -2480,7 +2605,7 @@ function _grdWireTypo(block, addr) {
   if (chipBox) {
     wireColorVarChips({
       container: chipBox,
-      getActiveName: () => parseColorVarName((_grdLine(block, addr) || {}).color || ''),
+      getActiveName: () => parseColorVarName((H.line(addr) || {}).color || ''),
       getFallbackHex: (name, hex) => hex,
       onPick: (cssRef) => {
         commit({ color: cssRef });
@@ -2530,7 +2655,8 @@ const _GRD_LINE_ALIGN_KINDS = new Set([..._GRD_ROLE_KINDS, 'image']);
  *     이 Set(펼침) 또는 그 시험의 접힘 목록 «한쪽에만» 있는지 단언한다. 새 줄 종류를 만들면 거기서 빨개진다. */
 const _GRD_LINE_OPEN_KINDS = new Set(['gap', 'divider']);
 const _grdLineSecKey = (line) => 'line:' + ((line && line.type) || 'body');
-function _grdLineSectionHtml(anyHit, block) {
+function _grdLineSectionHtml(anyHit, block, host = null) {
+  const H = host || _grdGridHost(block);
   if (!anyHit || anyHit.li === null || !anyHit.line) return '';
   const { r, c, li, line } = anyHit;
   const canAlign = _GRD_LINE_ALIGN_KINDS.has(line.type || 'body');
@@ -2561,7 +2687,7 @@ ${_grdDisclosureHtml('grd-line-toggle', `줄 꾸미기 · ${li + 1}번째 줄`, 
       <div id="grd-line-body" style="display:${open ? 'block' : 'none'};">
         <div class="prop-row">
           <span class="prop-label" title="이 줄의 종류를 바꾼다(글자 역할 · 아이콘 · 여백)">줄 종류</span>
-${_grdKindSelectHtml(line)}
+${_grdKindSelectHtml(line, H.kinds)}
         </div>
         ${(line.type || 'body') === 'gap' ? `<div class="prop-row">
           <span class="prop-label" title="이 여백 줄의 높이(px). 비우면 기본 16">높이(px)</span>
@@ -2597,8 +2723,9 @@ ${_grdKindSelectHtml(line)}
     </div>`;
 }
 
-function _grdWireLineSection(block, addr) {
-  const hit = _grdResolveAnyAddr(block, addr);
+function _grdWireLineSection(block, addr, host = null) {
+  const H = host || _grdGridHost(block);
+  const hit = H.resolveAny(addr);
   if (!hit || hit.li === null || !hit.line) return;
   const { r, c, li } = hit;
   _grdWireDisclosure(block, _grdLineSecKey(hit.line), 'grd-line-toggle', 'grd-line-body', _GRD_LINE_OPEN_KINDS.has(hit.line.type || 'body'));
@@ -2609,8 +2736,8 @@ function _grdWireLineSection(block, addr) {
   const alignSel = document.getElementById('grd-line-align');
   alignSel?.addEventListener('change', () => {
     window.pushHistory?.();                    // ★적용 «전»에 한 번(제스처 1회 = 히스토리 1회)
-    gridPreviewLine(block, r, c, li, { align: alignSel.value || undefined }, addr.np);
-    _grdSyncLineMark(block, addr);     // 재렌더가 마커를 지웠다 — 다시 붙인다
+    H.previewLine(r, c, li, { align: alignSel.value || undefined }, addr.np);
+    H.mark(addr);     // 재렌더가 마커를 지웠다 — 다시 붙인다
     window.scheduleAutoSave?.();
   });
 
@@ -2627,8 +2754,8 @@ function _grdWireLineSection(block, addr) {
     const v = raw === '' ? undefined
       : Math.max(GAP_MIN, Math.min(GAP_MAX, parseInt(raw, 10) || 0));
     window.pushHistory?.();
-    gridPreviewLine(block, r, c, li, { height: v }, addr.np);
-    _grdSyncLineMark(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
+    H.previewLine(r, c, li, { height: v }, addr.np);
+    H.mark(addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
     window.scheduleAutoSave?.();
   });
 
@@ -2643,8 +2770,8 @@ function _grdWireLineSection(block, addr) {
     const v = rawV === '' ? undefined
       : Math.max(GRID_DIVIDER_H_MIN, Math.min(GRID_DIVIDER_H_MAX, parseInt(rawV, 10) || GRID_DIVIDER_H_MIN));
     window.pushHistory?.();
-    gridPreviewLine(block, r, c, li, { height: v }, addr.np);
-    _grdSyncLineMark(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
+    H.previewLine(r, c, li, { height: v }, addr.np);
+    H.mark(addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
     window.scheduleAutoSave?.();
   });
 
@@ -2661,8 +2788,8 @@ function _grdWireLineSection(block, addr) {
     let _dvGesture = false;
     const dvCommit = (color) => {
       if (!_dvGesture) { _dvGesture = true; window.pushHistory?.(); }   // ★적용 «전»에 한 번
-      gridPreviewLine(block, r, c, li, { color }, addr.np);
-      _grdSyncLineMark(block, addr);
+      H.previewLine(r, c, li, { color }, addr.np);
+      H.mark(addr);
     };
     const dvEnd = () => { _dvGesture = false; window.scheduleAutoSave?.(); };
     dvPick?.addEventListener('input', () => {
@@ -2675,7 +2802,7 @@ function _grdWireLineSection(block, addr) {
       parse: (rawV) => (String(rawV ?? '').trim() === '' ? '' : parseHex6(rawV)),
       format: (v) => (v ? formatHex6(v) : ''),
       getCurrent: () => {
-        const cur = _grdLine(block, { r, c, li }) || {};
+        const cur = H.line({ r, c, li }) || {};
         return (typeof cur.color === 'string' && GRID_COLOR_RE.test(cur.color.trim()))
           ? swatchHex(cur.color.trim(), '') : '';
       },
@@ -2694,9 +2821,9 @@ function _grdWireLineSection(block, addr) {
     const cleared = {};
     _GRD_TYPO_FIELDS.forEach(k => { cleared[k] = undefined; });
     window.pushHistory?.();
-    gridPreviewLine(block, r, c, li, cleared, addr.np);   // ★np — 중첩 안 줄도 같은 길로(T-220)
+    H.previewLine(r, c, li, cleared, addr.np);   // ★np — 중첩 안 줄도 같은 길로(T-220)
     window.scheduleAutoSave?.();
-    showGridProperties(block, { r, c, li });
+    H.show({ r, c, li });
   });
 
   const pick = document.getElementById('grd-badge-color');
@@ -2712,8 +2839,8 @@ function _grdWireLineSection(block, addr) {
   let _gesture = false;
   const commit = (bg) => {
     if (!_gesture) { _gesture = true; window.pushHistory?.(); }   // ★적용 «전»에 한 번
-    gridPreviewLine(block, r, c, li, { bg }, addr.np);
-    _grdSyncLineMark(block, addr);     // 재렌더가 마커를 지웠다 — 다시 붙인다
+    H.previewLine(r, c, li, { bg }, addr.np);
+    H.mark(addr);     // 재렌더가 마커를 지웠다 — 다시 붙인다
   };
   const end = () => { _gesture = false; window.scheduleAutoSave?.(); };
 
@@ -2727,7 +2854,7 @@ function _grdWireLineSection(block, addr) {
     parse: (raw) => (String(raw ?? '').trim() === '' ? '' : parseHex6(raw)),
     format: (v) => (v ? formatHex6(v) : ''),
     getCurrent: () => {
-      const cur = _grdLine(block, { r, c, li }) || {};
+      const cur = H.line({ r, c, li }) || {};
       return (typeof cur.bg === 'string' && GRID_COLOR_RE.test(cur.bg.trim())) ? swatchHex(cur.bg.trim(), '') : '';
     },
     onApply: (v) => { paint(v || ''); if (v && pick) pick.value = v; },
@@ -2738,11 +2865,12 @@ function _grdWireLineSection(block, addr) {
 
 /** 요약 한 줄의 «직접 지정 N» 만 제자리에서 고친다 — 패널을 다시 그리지 않는다(포커스 보존).
  *  ⛔문구를 여기 «다시 적지» 마라 — _grdSummaryText 한 곳에서만 온다(R4). */
-function _grdRefreshSummary(block, addr) {
+function _grdRefreshSummary(block, addr, host = null) {
+  const H = host || _grdGridHost(block);
   const el = document.getElementById('grd-line-summary');
-  const line = _grdLine(block, addr);
+  const line = H.line(addr);
   if (!el || !line) return;
-  const s = _grdSummaryText(addr.r, addr.c, addr.li, line);
+  const s = _grdSummaryText(addr.r, addr.c, addr.li, line, H);
   el.textContent = s;
   el.title = s;
 }
@@ -2929,69 +3057,9 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
     document.getElementById('grd-grid-picker'),
     document.getElementById('grd-grid-picker-label'),
     (nCols, nRows) => {
-      const curCols = JSON.parse(block.dataset.cols || '[]');
-      const curRows = gridRows(block);
-      if (nCols === curCols.length && nRows === curRows.length) return;
-      window.pushHistory?.();                     // ★변경 «전»에
-
-      const nextCols = [];
-      for (let i = 0; i < nCols; i++) {
-        /* ★[M41] 열을 늘릴 때의 기본값도 «정본 한 줄»을 쓴다 — 여긴 h2:'제목' 을 얹고 있어서
-         * 블록 생성(grid-block.js)·열 추가(여기)·행 추가(아래)가 서로 «다른» 기본값이었다. */
-        nextCols.push(curCols[i] || { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] });
-      }
-      // ⛔줄일 때 잘린 칸의 내용은 «버려진다» — undo 로 되돌아온다(pushHistory 를 먼저 부른 이유).
-      block.dataset.cols = JSON.stringify(nextCols);
-
-      if (nRows <= 1) {
-        // 1행으로 돌아가면 옛 duo 파일과 «완전히 같은» 모양으로 되돌린다(dataset.rows/cells 제거).
-        delete block.dataset.rows;
-        /* ★T-178 — 다만 «행 0 칸 꾸밈»은 행이 하나가 돼도 살아 있어야 한다(1행 그리드의 칸도 칸이다).
-           꾸밈이 하나도 없을 때만 dataset.cells 를 지워 옛 duo 모양을 그대로 돌려준다. */
-        let row0 = [];
-        try { const cur = JSON.parse(block.dataset.cells || '[]'); row0 = Array.isArray(cur[0]) ? cur[0] : []; } catch (_) { row0 = []; }
-        const keep = [];
-        for (let c = 0; c < nCols; c++) {
-          const cell = row0[c];
-          keep.push((cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell : {});
-        }
-        if (keep.some(cell => Object.keys(cell).length)) block.dataset.cells = gridCellsToDataset([keep]);
-        else delete block.dataset.cells;
-      } else {
-        const nextRows = [];
-        for (let i = 0; i < nRows; i++) nextRows.push(curRows[i] || { height: 'auto' });
-        block.dataset.rows = JSON.stringify(nextRows);
-
-        /* ★새로 생긴 행에 «기본 내용»을 넣는다.
-         * 안 넣으면 셀이 빈 채로 높이 0 이 되어, 2x2 를 눌러도 «아무 일도 안 일어난 것»처럼 보인다
-         * (실측: rows=2 이고 grd-cell 4개가 생겼는데 2행 두 칸 높이가 0px).
-         * 1행이 기본 텍스트를 갖는 것과 «같은 대우»여야 사용자가 무엇이 생겼는지 안다.
-         * ⚠️정정(적대검수 지적, 2026-09-04): 이 코드는 «옛 내용을 보존하지 않는다».
-         *   nextCells 를 새로 만들어 덮으므로 «잘린 행/열의 내용은 사라진다».
-         *   내가 앞서 커밋 메시지에 「줄였다 늘려도 옛 내용이 살아 있다」고 썼는데 «거짓»이었다 —
-         *   P1 의 「cells 를 그대로 둔다」 설계를 병합에서 모르고 뒤집었다.
-         *   복원은 undo 로만 된다(그래서 pushHistory 를 변경 전에 부른다). */
-        /* ★T-178 — dataset.cells 가 «행 0 포함 전체»가 되면서 이 루프의 인덱스가 «한 칸» 움직였다.
-           ⛔읽는 문(_gridCellRows)과 이 자리를 따로 옮기면 행이 한 칸 밀려 «화면은 멀쩡해 보이는
-             데이터 손상»이 난다 — 그래서 같은 커밋에 있다.
-           ★행 0 에는 기본 줄을 «안» 넣는다: 행 0 의 줄은 cols[].lines 가 갖는다(위 nextCols 가 채운다).
-             행 0 칸은 «꾸밈만» 담으므로 없으면 빈 객체다. */
-        let curCells = [];
-        try { curCells = JSON.parse(block.dataset.cells || '[]'); } catch (_) { curCells = []; }
-        const nextCells = [];
-        for (let r = 0; r < nRows; r++) {
-          const row = Array.isArray(curCells[r]) ? curCells[r] : [];
-          const outRow = [];
-          for (let c = 0; c < nCols; c++) {
-            outRow.push(row[c] || (r === 0 ? {} : { lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] }));
-          }
-          nextCells.push(outRow);
-        }
-        if (nextCells.length) block.dataset.cells = gridCellsToDataset(nextCells);
-        else delete block.dataset.cells;
-      }
-      window.renderGridBlock?.(block);
-      window.scheduleAutoSave?.();
+      /* ★G15(2026-10-04) — 몸통(데이터 바꾸기·렌더·자동저장·pushHistory)은 grid-block.js gridResizeTo 로 옮겼다.
+         캔버스 ＋ 가 «같은 함수»를 지나게 하려고다(⛔두 벌이 되면 피커 결과 ≠ ＋ 결과로 따로 늙는다). */
+      if (!gridResizeTo(block, nCols, nRows)) return;
       /* ★거터를 «명시적으로» 걷고 다시 세운다.
        * showGridProperties 끝에도 showGridGutters 가 있지만 피커 경로에서는 그것만으로 안 따라온다 —
        * 실측: 2x1 → 3x3 으로 바꿔도 거터가 col 1개 그대로였다(2초 뒤에도).
@@ -3232,6 +3300,25 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
 }
 
 window.showGridProperties = showGridProperties;
+/* ★G15 — 캔버스 ＋ 로 칸 수가 바뀐 «뒤» 패널·거터를 다시 세운다(피커 콜백 꼬리와 같은 순서).
+   패널이 «이 블럭»을 보고 있을 때(선택됨)만 — 다른 블럭 패널을 덮어쓰지 않는다. */
+window._grdAfterResize = (block) => {
+  if (!block?.classList?.contains('selected')) return;
+  hideGridGutters();
+  showGridProperties(block, grdGetActiveLine(block));
+  showGridGutters(block);
+};
 // ★deprecated 별칭 — 2026-09-05 개명 이전 이름(tools/duo-align-probe·외부 CDP 스크립트 호환).
 //   제거는 P1. grid-block.js 의 window.*Duo* 별칭 4개와 동반한다.
 window.showDuoProperties = showGridProperties;
+
+/* ★BT2 C2 — 줄바·줄 꾸미기·Typography 를 «주인»과 함께 빌려 주는 문(버블·챗 = js/blocks/line-host.js).
+ *   ⛔그리드 자신은 이 문을 안 쓴다(위에서 직접 부른다). 함수는 «같은 것»이다 — 복사본이 아니다. */
+export const grdLineUi = {
+  gridHost: _grdGridHost,
+  lineBarHtml: _grdLineBarHtml, wireLineBar: _grdWireLineBar,
+  lineSectionHtml: _grdLineSectionHtml, wireLineSection: _grdWireLineSection,
+  typoSectionsHtml: _grdTypoSectionsHtml, wireTypo: _grdWireTypo,
+  addKindSelectHtml: _grdAddKindSelectHtml, summaryText: _grdSummaryText,
+};
+if (typeof window !== 'undefined') window.grdLineUi = grdLineUi;

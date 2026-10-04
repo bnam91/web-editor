@@ -374,8 +374,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * ⛔`.asset-overlay-handle` 을 빌리지 않는다 — hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다. */
 /* ★`.tfo-overlay-handle`(오버레이 텍스트, 0920b)도 같은 규칙에 얹는다 — 다섯 번째다.
  * ⛔`.asset-overlay-handle` 을 빌리지 않는다 — hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다. */
+/* ★`.grd-overlay-handle`(떠 있는 그리드의 «폭» 손잡이, G2-b 2026-10-04)도 같은 규칙에 얹는다 — 여섯 번째다.
+ * ⛔`.grd-img-overlay-handle`(칸 안 이미지 크기)과 이름이 비슷하지만 «다른 손잡이»다 — 그건 줄 하나, 이건 블럭 폭. */
 .tfo-overlay-handle,
-.grd-img-overlay-handle {
+.grd-img-overlay-handle,
+.grd-overlay-handle {
   position: absolute;
   width:  7px;
   height: 7px;
@@ -443,6 +446,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne, .mdl-overlay-handle.ne, .grd-img-overlay-handle.ne, .tfo-overlay-handle.ne { cursor: ne-resize; }
 .asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw, .grd-img-overlay-handle.sw, .tfo-overlay-handle.sw { cursor: sw-resize; }
 .asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se, .grd-img-overlay-handle.se, .tfo-overlay-handle.se { cursor: se-resize; }
+/* ★그리드 폭 손잡이는 네 모서리 «모두» 좌우 화살표 — 폭만 바뀌고 높이는 내용이 정한다(대각 커서는 거짓말이 된다). */
+.grd-overlay-handle { cursor: ew-resize; }
 
 /* ── Canvas Block overlay resize handles ── */
 .canvas-overlay-handle {
@@ -1037,6 +1042,27 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .icb-circle[data-border="solid"]  { border: 3px solid var(--ui-border); }
 .icb-circle[data-border="dashed"] { border: 3px dashed var(--ui-border); }
 
+/* ── G14 자식 그릇 — 「원형이 그릇이 된다」(js/icb-children.js) ─────────────────────────
+   원 «위»에 얹히는 흐름 상자: 가운데 · 세로 쌓기 · 간격 8px · 폭 = 지름 × 1/√2(내접 정사각형).
+   넘친 것은 원(overflow:hidden · radius 50%)이 원 모양으로 자른다 — 원이 자식 따라 커지지 않는다.
+   ⛔`inset` 단축 속성 금지 — html2canvas(PNG 내보내기)가 못 읽는다(export-image.js 주석).
+   새 토큰 0. */
+.icb-children {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 70.71%;
+  box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px;
+  z-index: 1;
+}
+.icb-children:empty { display: none; }
+/* 그림 위치 조절 중엔 원이 overflow:visible 이 된다 — 그동안 자식은 숨겨 그림만 보이게 */
+.icon-circle-block.img-editing .icb-children { visibility: hidden; }
+/* 자식이 있으면 빈 원 자리표시는 숨긴다 */
+.icb-circle:has(> .icb-children:not(:empty)) > .icb-placeholder { display: none; }
+
 /* ═══════════════════════════════════
    TABLE BLOCK
 ═══════════════════════════════════ */
@@ -1308,6 +1334,43 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   background: var(--sel-color-fill);
 }
 
+/* ── G15 그리드 캔버스 ＋ (2026-10-04 현빈·지디 안 ㉠) — 오른쪽 끝 = 열 +1 · 아래 끝 = 행 +1
+ * ★꼴은 태그블럭 ＋(.label-group-add-btn, editor-layout.css)를 빌린다: 점선 원 · --ui-divider · --ui-text-muted · hover 시 --ui-accent-primary.
+ * ★히트 영역 = 화면 고정 40px — calc(40px * var(--inv-zoom)) (선례 editor-blocks.css «.icon-circle-block .img-corner-handle» 줄).
+ *   굵기·글자도 같은 축에 태운다(크기만 태우면 40% 에서 테두리가 굵어 보인다).
+ * ★자리
+ *   · 오른쪽(열) = 블럭 «안쪽» 오른쪽 끝(태그블럭 ＋ 도 안쪽 오른쪽 끝). 밖으로 반을 내면 전폭 그리드에서 섹션 끝에 잘린다
+ *     — 실측 2026-10-04: 중심이 섹션 오른쪽 끝(x=1230)과 겹쳐 elementFromPoint 가 #canvas-wrap 을 잡았다(클릭 안 먹음).
+ *   · 아래(행) = 블럭 «바로 아래 바깥»(top:100% · 틈 0). 호버로 뜨므로 블럭을 덮으면 «블럭을 고르려는 첫 클릭»을 ＋ 가 먹는다
+ *     — 실측 2026-10-04: 높이 34px 그리드(프레임 안)에서 모서리 걸침 ＋ 가 블럭 가운데를 덮어 클릭이 행 추가가 됐다
+ *       (tests/dom/frame-paste-grid-real P0 · grid-first-click-block T-058-14 빨강). 틈을 두면 ＋ 로 가는 길에 mouseleave 로 꺼진다.
+ *   ⚠️오른쪽 ＋ 는 안쪽이라 블럭 오른쪽 끝 40px 의 첫 클릭은 여전히 ＋ 가 먹는다(전폭 그리드라 밖으로 못 낸다) — 보고서 미결.
+ * ★뜨는 조건(블럭 «호버», 2026-10-04 현빈 결정)은 여기 «없다» — js/blocks/grid-block.js _gridPlusShown 하나에만 있다. 붙어 있으면 보인다.
+ * ★＋ 는 블럭 «밖» 층 #grd-plus-layer(#canvas-scaler 안, #canvas 의 형제 — 선례 #todo-pin-overlay z 50)에 산다(E65·RG5 — grid-block.js 머리말).
+ *   층은 손이 안 닿고(pointer-events:none) ＋ 만 받는다. 자리는 JS 가 스케일러 로컬 px 로 건다(left/top = 기준점) — 아래 transform 이 끝을 맞춘다. */
+#grd-plus-layer { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 60; }
+#grd-plus-layer > .grd-add-btn {
+  position: absolute;
+  pointer-events: auto;
+  display: flex; align-items: center; justify-content: center;
+  width:  calc(40px * var(--inv-zoom, 1));
+  height: calc(40px * var(--inv-zoom, 1));
+  padding: 0; margin: 0; box-sizing: border-box;
+  border-radius: 50%;
+  border: calc(1.5px * var(--inv-zoom, 1)) dashed var(--ui-divider);
+  background: var(--ui-bg-elevated);
+  color: var(--ui-text-muted);
+  line-height: 0;
+  cursor: pointer;
+}
+#grd-plus-layer > .grd-add-btn > svg { width: calc(14px * var(--inv-zoom, 1)); height: calc(14px * var(--inv-zoom, 1)); display: block; pointer-events: none; }
+/* 기준점: 오른쪽 ＋ = (블럭 오른쪽 끝, 껍데기 세로 가운데) → 왼쪽으로 한 칸·위로 반 칸 / 아래 ＋ = (블럭 가로 가운데, 껍데기 아래 끝) → 왼쪽으로 반 칸 */
+#grd-plus-layer > .grd-add-btn[data-grd-add="col"] { transform: translate(-100%, -50%); }
+#grd-plus-layer > .grd-add-btn[data-grd-add="row"] { transform: translateX(-50%); }
+#grd-plus-layer > .grd-add-btn:not(:disabled):hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
+/* 상한(4×4)에서는 흐리게 — 캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 참고 선례: layer-panel.js:559 disabled) */
+#grd-plus-layer > .grd-add-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+
 /* ═══════════════════════════════════
    QA BLOCK — admin 전용 체크리스트 (2026-09-16)
    ★캔버스 콘텐츠 톤(흰 배경·어두운 글자)을 쓴다 — 앱 다크 크롬(--ui-*) 이 아니다.
@@ -1517,6 +1580,14 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 #canvas .grid-block .grd-line-selected {
   box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
 }
+/* ★BT2(2026-10-04) 말풍선·챗 «줄» 선택 표시 — 그리드 줄과 «같은 그림·같은 토큰»(--sel-color · --inv-zoom).
+   감싸개(.ln-row)에 붙인다. 클래스가 `-line-selected` 로 끝나 저장 직렬화가 벗긴다(section-serialize RUNTIME_MARKER_RE). */
+#canvas .speech-bubble-block .ln-row.ln-line-selected,
+#canvas .chat-block .ln-row.ln-line-selected {
+  box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
+}
+/* 빈 글자 줄이 «손에 닿게» — 그리드 빈 줄 안내문(아래 .grd-line:empty)과 같은 관용구. #canvas 스코프라 내보내기엔 안 샌다. */
+#canvas .ln-row > .grd-line:empty::before { color: #ccc; pointer-events: none; content: '글자를 입력하세요'; }
 
 /* ★원형 이미지 줄(.grd-img-circle)의 선택 표시 = «서클 에셋과 같은 두 줄» (현빈 2026-10-03
  *   「그리드 칸의 원형 이미지 아웃라인이 이상하다 — 서클 에셋블럭의 그것과 달라」, G24).

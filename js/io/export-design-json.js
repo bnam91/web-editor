@@ -171,13 +171,21 @@ function exportDesignJSON() {
 
     if (el.classList.contains('icon-circle-block')) {
       const circle = el.querySelector('.icb-circle');
-      return {
+      const out = {
         id:     uid('icb'),
         type:   'icon-circle',
         src:    el.dataset.imgSrc || null,
         size:   parseFloat(circle?.style.width) || 80,
         shape:  el.dataset.shape || 'circle',
       };
+      /* G14 — «원 안» 자식(.icb-children): 글자 래퍼는 안의 text-block 으로, 나머지는 그대로 serializeBlock.
+         자식 0개면 키를 안 싣는다(옛 출력 그대로). */
+      const kbox = circle?.querySelector(':scope > .icb-children');
+      if (kbox && kbox.children.length) {
+        const kids = [...kbox.children].map(k => serializeBlock((k.classList.contains('frame-block') && k.dataset.textFrame === 'true') ? (k.querySelector(':scope > .text-block') || k) : k)).filter(Boolean);
+        if (kids.length) out.children = kids;
+      }
+      return out;
     }
 
     return null;

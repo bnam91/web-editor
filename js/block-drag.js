@@ -1102,6 +1102,11 @@ function bindBlock(block) {
       e.stopPropagation();
       // 편집 모드 중 클릭은 무시 (커서 이동/텍스트 선택 기본 동작 유지)
       if (block.classList.contains('editing')) return;
+      /* ★BT2 — 말풍선 «줄» 2단 선택(그리드와 같은 규칙): 이미 «이것 하나»가 선택돼 있을 때 줄을 누르면 그 줄.
+         ⛔deselectAll «전»에 잰다 — deselectAll 이 선택·활성줄을 지운다. */
+      const _lnAt = block.classList.contains('speech-bubble-block')
+        ? window.lnClickAddr?.(block, e.target, block.classList.contains('selected') && !!window.grdIsSoleSelected?.(block))
+        : null;
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
@@ -1124,6 +1129,7 @@ function bindBlock(block) {
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
+      if (_lnAt) window.grdSetActiveLine?.(block, _lnAt);   // ★BT2 — 줄 선택(없으면 deselectAll 이 이미 풀었다)
       window.showTextProperties(block);
       /* ★모서리 리사이즈 핸들 — 이 경로엔 호출이 «아예 없었다»(zoom 은 1551행, modal 은
          1912행에 같은 입구가 있다). 그래서 오버레이를 켜도 테두리만 보이고 «모서리 점»이
@@ -1138,6 +1144,9 @@ function bindBlock(block) {
          «먼저» 잡도록 capture 로 건다 — 블럭에 위임하므로 불러오기·되돌리기로 안쪽이 새로 그려져도 산다.
        빈 이름 = 기본 이름('Your name')으로 되돌린다 — 만들 때 기본값(block-factory.js makeSpeechBubbleBlock)과 같고,
          캔버스 글자와 dataset.senderName 이 «같은 값»이 된다(숨기려면 패널 토글을 끈다). */
+    /* ★BT2 — 말풍선 «줄»의 글자 편집(더블클릭). 이름표 갈래와 같은 capture 꼴 — 아래 일반 dblclick 보다 먼저 잡는다.
+       줄 모드가 아니면 아무것도 안 한다(옛 말풍선 = 지금 그대로). js/blocks/line-host.js lnBindLineEdit */
+    if (block.classList.contains('speech-bubble-block')) window.lnBindLineEdit?.(block);
     if (block.classList.contains('speech-bubble-block')) {
       const SENDER_DEFAULT = 'Your name';
       block.addEventListener('dblclick', e => {
@@ -1217,6 +1226,8 @@ function bindBlock(block) {
     // ── Enter 키로 편집 모드 진입 (선택 상태에서) ──
     block._enterTextEditMode = function() {
       if (block.classList.contains('editing')) return;
+      /* ★BT2 — 줄 모드 말풍선은 «통째 편집»에 들어가지 않는다(줄 경계가 깨진다). 고른 줄(없으면 첫 글자 줄)을 연다. */
+      if (block.classList.contains('speech-bubble-block') && window.lnEnterEdit?.(block)) return;
       window.pushHistory?.();
       block.classList.add('editing');
       const editEls = block.querySelectorAll('[contenteditable]');
@@ -1747,8 +1758,11 @@ function bindBlock(block) {
   }
 
   if (isChat) {
+    window.lnBindLineEdit?.(block);   // ★BT2 — 메시지 «줄»의 글자 편집(더블클릭, capture). 줄 없는 메시지는 기존 .chb-btext 편집 그대로
     block.addEventListener('click', e => {
       e.stopPropagation();
+      /* ★BT2 — 이미 «이것 하나»가 선택돼 있으면 메시지/줄을 고른다(그리드 2단 선택과 같은 규칙). deselectAll «전»에 잰다. */
+      const _lnAt = window.lnClickAddr?.(block, e.target, block.classList.contains('selected') && !!window.grdIsSoleSelected?.(block));
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
@@ -1770,6 +1784,7 @@ function bindBlock(block) {
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
+      if (_lnAt) window.grdSetActiveLine?.(block, _lnAt);   // ★BT2
       window.showChatProperties?.(block);
     });
   }

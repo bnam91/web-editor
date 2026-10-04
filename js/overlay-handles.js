@@ -3171,6 +3171,130 @@ window.showTextOverlayResizeHandles = showTextOverlayResizeHandles;
 window.hideTextOverlayResizeHandles = hideTextOverlayResizeHandles;
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   오버레이(떠 있는) 그리드 — 모서리 «폭» 손잡이 (.grd-overlay-handle) · G2-b (지디 2026-10-04)
+   ───────────────────────────────────────────────────────────────────────────
+   ★증상(G2-b 측정 2026-10-04, 실앱 줌 40/100): 떠 있는 그리드를 골라도 모서리 손잡이가 0개 —
+     showHandlesFor 에 그리드 갈래가 «없었다». 칸 경계(.grd-gutter)·줄 손잡이만 떴다.
+   ★뜻 = «폭만». 높이는 칸 내용이 정한다(텍스트 갈래 주석 ⓐ와 같은 이유) — 쓰지 않고 잰다.
+   ⛔텍스트 손잡이(showTextOverlayResizeHandles)를 «그대로» 쓰지 않는다 — 그건 폭 + 글자 비례확대가 뜻이라
+     (_tfoFontSnapshot · .tb-/.itb- 칸 가정) 그리드에 걸면 글자가 같이 커진다. 빌린 부품은 넷뿐이다:
+     CORNER_DIRS · _cornerScreen · 고정층(#ss-handles-overlay) · 크기 규칙(css 의 공유 손잡이 규칙 = 7px·--ui-handle-border-w).
+   ★쓰는 문은 grid-block.js applyGridOwnWidth «하나»다(떠 있으면 굳힌 폭 + 키). 여기서 style/dataset 을 직접 만지지 않는다.
+   ★맞은편 모서리 고정 — w 쪽을 끌면 오른쪽 끝이, n 쪽을 끌면 아래 끝이 제자리다(확대블럭 ④·텍스트와 같은 식, 회전 0).
+   ★히트 영역은 «화면»에 고정 — 고정층은 #canvas-scaler 밖이라 7px 가 줌과 무관하게 7 화면px 다.
+   ⛔클래스 이름은 `-overlay-handle` 로 끝난다 — tests/unit/overlay-handle-cursor.test.mjs 전수 그물에 자동으로 걸린다.
+   ⛔`.asset-overlay-handle` 을 빌리지 않는다 — hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다(세 번 밟은 함정). */
+let _grdResizeBlock = null;
+let _grdResizeRafId = null;
+
+/** 그리드가 «편집 중»(칸 글자 인라인 편집)인가 — 그때는 숨기기만 한다(텍스트 갈래와 같은 술어 꼴). */
+function _grdEditing(block) {
+  return !!(block.classList.contains('editing') || block.querySelector('[contenteditable="true"]'));
+}
+
+function showGridOverlayResizeHandles(block) {
+  const overlay = _getOverlay();
+  /* 빗장은 «지워진 상태»도 본다 — 확대블럭 주석(같은 파일)과 같은 이유. */
+  if (_grdResizeBlock === block && overlay && overlay.querySelector('[data-grd-resize-dir]')) return;
+  hideGridOverlayResizeHandles();
+  _grdResizeBlock = block;
+  if (!overlay) return;
+  CORNER_DIRS.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `grd-overlay-handle ${dir}`;
+    h.dataset.grdResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onGridOverlayResizeMouseDown(e, block, dir));
+  });
+  _updateGridOverlayHandlePositions();
+  _startGridOverlayResizeRaf();
+}
+
+function hideGridOverlayResizeHandles() {
+  if (_grdResizeRafId) { cancelAnimationFrame(_grdResizeRafId); _grdResizeRafId = null; }
+  _grdResizeBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('[data-grd-resize-dir]').forEach(h => h.remove());
+}
+
+function _updateGridOverlayHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_grdResizeBlock) return;
+  const HALF = 3.5;
+  overlay.querySelectorAll('[data-grd-resize-dir]').forEach(h => {
+    const c = _cornerScreen(_grdResizeBlock, h.dataset.grdResizeDir);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+    syncHandleSelVariant(h, _grdResizeBlock);   // 떠 있으면 보라 — 테두리와 «한 색»
+  });
+}
+
+function _startGridOverlayResizeRaf() {
+  function loop() {
+    const block = _grdResizeBlock;
+    if (!block) return;
+    /* ★오버레이를 «끄면» dataset.overlayBlock 이 사라진다 ⇒ 여기서 스스로 걷힌다(텍스트 갈래와 같은 규약). */
+    if (!block.isConnected || block.dataset.overlayBlock !== 'true' || !block.classList.contains('selected')) {
+      hideGridOverlayResizeHandles();
+      return;
+    }
+    const editing = _grdEditing(block);
+    const overlay = _getOverlay();
+    if (overlay) overlay.querySelectorAll('[data-grd-resize-dir]').forEach(h => { h.style.display = editing ? 'none' : ''; });
+    if (!editing) _updateGridOverlayHandlePositions();
+    _grdResizeRafId = requestAnimationFrame(loop);
+  }
+  _grdResizeRafId = requestAnimationFrame(loop);
+}
+
+function _onGridOverlayResizeMouseDown(e, block, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startW = Math.max(1, Math.round(block.offsetWidth));
+  const startH = Math.max(1, Math.round(block.offsetHeight));
+  const startX = e.clientX, startY = e.clientY;
+  const sx = dir.includes('e') ? 1 : -1;
+  const sy = dir.includes('s') ? 1 : -1;
+  /* 위치 SSOT = dataset.offsetX/offsetY (overlay-float.js _applyOverlayPos). */
+  const startPosX = Number(block.dataset.offsetX ?? parseFloat(block.style.left)) || 0;
+  const startPosY = Number(block.dataset.offsetY ?? parseFloat(block.style.top))  || 0;
+  let moved = false;
+  /* ★드래그는 «양쪽 끝»을 찍는다 — js/drag-history.js 규약(시작 = 첫 실제 이동의 arm, 끝 = onUp pushHistory). */
+  const _hist = window.beginDragHistory?.('그리드 폭');
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale, dy = (ev.clientY - startY) / scale;   // 캔버스 좌표
+    const dw = sx * dx;
+    if (!moved && Math.abs(dw) < 1) return;
+    moved = true;
+    _hist?.arm(dx, dy);          // ⛔반환값으로 쓰기를 막지 않는다(drag-history.js 규약 ⑵)
+    const newW = window.applyGridOwnWidth?.(block, startW + dw);
+    if (newW == null) return;
+    /* 높이는 «내용이 정한다» — 쓴 뒤 잰다. 맞은편 모서리 고정도 그 실측 높이로. */
+    const newH = Math.max(1, block.offsetHeight);
+    const nx = sx > 0 ? startPosX : startPosX - (newW - startW);
+    const ny = sy > 0 ? startPosY : startPosY - (newH - startH);
+    _applyOverlayPos(block, nx, ny);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (moved) {
+      window.pushHistory?.('그리드 폭');   // ★끝 표본 — 시작(_hist.arm)과 짝
+      if (block.classList.contains('selected')) window.showGridProperties?.(block);   // 패널 너비칸이 손잡이 값을 알게
+      window.triggerAutoSave?.();
+    }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+window.showGridOverlayResizeHandles = showGridOverlayResizeHandles;
+window.hideGridOverlayResizeHandles = hideGridOverlayResizeHandles;
+
+/* ═══════════════════════════════════════════════════════════════════════════
    손잡이 «탈출층» — 블럭의 자식으로 남은 손잡이를 고정층으로 옮긴다 (2026-09-21)
    ───────────────────────────────────────────────────────────────────────────
    ★증상(현빈): 도형의 «아래쪽» 모서리 손잡이가 «보이는데 안 눌린다».
@@ -3347,6 +3471,10 @@ function showHandlesFor(block) {
     const posEl = _posElOf(block);
     if (posEl.dataset.overlayBlock === 'true') showTextOverlayResizeHandles(posEl);
     else hideTextOverlayResizeHandles();
+  } else if (block.classList.contains('grid-block')) {
+    /* ★G2-b — 떠 있는 그리드에만 «폭» 손잡이. 흐름 그리드는 폭을 패널(너비 줄)로 정한다(손잡이 없음 = 옛 동작 그대로). */
+    if (block.dataset.overlayBlock === 'true') showGridOverlayResizeHandles(block);
+    else hideGridOverlayResizeHandles();
   }
 }
 window.showHandlesFor = showHandlesFor;
@@ -3382,6 +3510,8 @@ export {
   hideGridLineGrip,
   showTextOverlayResizeHandles,
   hideTextOverlayResizeHandles,
+  showGridOverlayResizeHandles,
+  hideGridOverlayResizeHandles,
 
   showHandlesFor,
 };
