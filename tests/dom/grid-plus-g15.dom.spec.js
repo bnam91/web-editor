@@ -66,7 +66,7 @@ const vis = (page, id) => page.evaluate((id) => {
   const g = document.getElementById(id), gr = g.getBoundingClientRect();
   const out = {};
   for (const axis of ['col', 'row']) {
-    const b = g.querySelector(`:scope > .grd-add-btn[data-grd-add="${axis}"]`);
+    const b = document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-for="${g.id}"][data-grd-add="${axis}"]`);
     /* 없을 때 잴 자리 = 있을 때 중심(오른쪽 안쪽 끝 · 아래 모서리선 가운데) */
     const at = b ? (() => { const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()
                  : (axis === 'col' ? [gr.right - 20, gr.top + gr.height / 2] : [gr.left + gr.width / 2, gr.bottom + 20]);
@@ -90,7 +90,7 @@ const model = (page, id) => page.evaluate((id) => {
 }, id);
 
 const btnBox = (page, id, axis) => page.evaluate(([id, axis]) => {
-  const b = document.querySelector(`#${id} > .grd-add-btn[data-grd-add="${axis}"]`);
+  const b = document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"][data-grd-add="${axis}"]`);
   if (!b) return null;
   const r = b.getBoundingClientRect(), cs = getComputedStyle(b);
   const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -246,7 +246,7 @@ for (const z of [40, 100]) {
     }
     // 가장자리 안쪽 4px 도 버튼이 잡는다(히트 = 보이는 원 상자 전체)
     const edge = await page.evaluate((id) => {
-      const b = document.querySelector(`#${id} > .grd-add-btn[data-grd-add="col"]`); const r = b.getBoundingClientRect();
+      const b = document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"][data-grd-add="col"]`); const r = b.getBoundingClientRect();
       return document.elementFromPoint(r.left + r.width / 2, r.top + 4) === b;
     }, a);
     expect(edge, '★위 가장자리 4px 안쪽도 버튼').toBe(true);
@@ -263,12 +263,14 @@ test('P5 저장·내보내기에 ＋ 가 안 샌다(편집 전용)', async ({ pa
   const r = await page.evaluate((id) => {
     const g = document.getElementById(id);
     const sec = g.closest('.section-block');
-    const live = g.querySelectorAll('.grd-add-btn').length;
+    const live = document.querySelectorAll(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"]`).length;
+    const inBlock = g.querySelectorAll('.grd-add-btn').length;
     const ser = window.serializeCleanRoot ? window.serializeCleanRoot(sec.cloneNode(true)) : null;
     const serHtml = ser == null ? null : (typeof ser === 'string' ? ser : ser.outerHTML);
-    return { live, ser: serHtml == null ? null : (serHtml.match(/grd-add-btn/g) || []).length };
+    return { live, inBlock, ser: serHtml == null ? null : (serHtml.match(/grd-add-btn/g) || []).length };
   }, a);
-  expect(r.live, '전제 — 라이브에는 둘').toBe(2);
+  expect(r.live, '전제 — 라이브(＋ 층)에는 둘').toBe(2);
+  expect(r.inBlock, '★＋ 는 블럭 DOM «안»에 없다(E65)').toBe(0);
   if (r.ser !== null) expect(r.ser, '★직렬화본엔 0').toBe(0);
   expect(errs).toEqual([]);
 });
@@ -310,7 +312,7 @@ async function clickAt(page, id, x, y) {
   return { under, selected, sel, dCols: m1.nCols - m0.nCols, dRows: m1.nRows - m0.nRows };
 }
 const boxOf = (page, id, axis) => page.evaluate(([id, axis]) => {
-  const g = document.getElementById(id), r = g.querySelector(`:scope > .grd-add-btn[data-grd-add="${axis}"]`).getBoundingClientRect(), gr = g.getBoundingClientRect();
+  const g = document.getElementById(id), r = document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-for="${g.id}"][data-grd-add="${axis}"]`).getBoundingClientRect(), gr = g.getBoundingClientRect();
   return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height, cx: r.left + r.width / 2, cy: r.top + r.height / 2, g: { l: gr.left, t: gr.top, r: gr.right, b: gr.bottom } };
 }, [id, axis]);
 
@@ -406,7 +408,7 @@ async function withKids(page, id) {
 const kidState = (page, id) => page.evaluate((id) => {
   const g = document.getElementById(id), R = (e) => { const r = e.getBoundingClientRect(); return { t: +r.top.toFixed(1), b: +r.bottom.toFixed(1), l: +r.left.toFixed(1), r: +r.right.toFixed(1) }; };
   const box = g.querySelector(':scope > .grd-children');
-  const btn = (a) => g.querySelector(`:scope > .grd-add-btn[data-grd-add="${a}"]`);
+  const btn = (a) => document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"][data-grd-add="${a}"]`);
   return {
     order: [...g.children].map(c => c.classList.contains('grd-add-btn') ? `btn:${c.dataset.grdAdd}` : c.className.split(' ')[0]),
     kids: box ? [...box.querySelectorAll('.text-block')].map(k => k.id) : [],
@@ -429,7 +431,8 @@ test('K1 ★자식 있는 그리드 — 렌더 뒤 직계 순서·＋ 둘(중복
   await page.waitForTimeout(80);
   const s = await kidState(page, a);
   const msg = JSON.stringify(s);
-  expect(s.order, `★직계 순서 ${msg}`).toEqual(['grd-inner', 'grd-children', 'btn:col', 'btn:row']);
+  expect(s.order, `★직계 순서(＋ 는 블럭 밖 층 — 블럭 직계에 없다) ${msg}`).toEqual(['grd-inner', 'grd-children']);
+  expect(!!(s.col && s.row), `★＋ 둘이 층에 있다 ${msg}`).toBe(true);
   expect(s.kids, '★자식 그대로').toEqual(['kA', 'kB']);
   // ★기준 = 격자 껍데기(.grd-inner) — 태양 2026-10-04
   const colMid = (s.col.t + s.col.b) / 2;
@@ -453,7 +456,7 @@ test('K2 ★자식 있는 그리드 — 아래 ＋ 진짜 클릭 = 행 +1 · 자
   const s1 = await kidState(page, a);
   expect(s1.nRows, '★행 +1').toBe(s0.nRows + 1);
   expect(s1.kids, '★자식 그대로').toEqual(['kA', 'kB']);
-  expect(s1.order.slice(0, 2), '★껍데기·그릇 순서 그대로').toEqual(['grd-inner', 'grd-children']);
+  expect(s1.order, '★껍데기·그릇 순서 그대로(＋ 는 블럭 밖)').toEqual(['grd-inner', 'grd-children']);
   expect(s1.kidsBox.t, '★그릇은 여전히 (늘어난) 껍데기 아래').toBeGreaterThanOrEqual(s1.inner.b - 1);
   await page.evaluate(() => window.undo()); await page.waitForTimeout(200);
   const mu = await model(page, a);
@@ -474,11 +477,11 @@ test('K3 자식 있는 그리드 — 자식 위에 마우스 = 그리드 호버�
   expect(errs).toEqual([]);
 });
 
-test('K0 자식 «없는» 그리드 — ＋ 에 인라인 top 이 없다(CSS 그대로 = 기준 이동 전과 같은 자리)', async ({ page }) => {
+test('K0 자식 «없는» 그리드 — ＋ 는 블럭 밖 층 · 오른쪽 ＋ = 블럭 세로 가운데 · 아래 ＋ = 블럭 바로 아래(층으로 옮기기 전과 같은 자리)', async ({ page }) => {
   const { errs, a } = await setup(page);
   await force(page, a);
-  const r = await page.evaluate((id) => [...document.querySelectorAll(`#${id} > .grd-add-btn`)].map(b => [b.dataset.grdAdd, b.style.top]), a);
-  expect(r, '★인라인 top 없음').toEqual([['col', ''], ['row', '']]);
+  const r = await page.evaluate((id) => ({ inBlock: document.getElementById(id).querySelectorAll('.grd-add-btn').length, layer: [...document.querySelectorAll(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"]`)].map(b => b.dataset.grdAdd) }), a);
+  expect(r, '★＋ 는 블럭 밖 층에 둘 · 블럭 안 0').toEqual({ inBlock: 0, layer: ['col', 'row'] });
   const s = await kidState(page, a);
   expect(Math.abs((s.col.t + s.col.b) / 2 - (s.block.t + s.block.b) / 2), '★오른쪽 ＋ = 블럭(=껍데기) 세로 가운데').toBeLessThanOrEqual(1);
   expect(Math.abs(s.row.t - s.block.b), '★아래 ＋ = 블럭 바로 아래').toBeLessThanOrEqual(1);

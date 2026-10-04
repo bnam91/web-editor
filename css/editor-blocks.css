@@ -1319,10 +1319,13 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  *     — 실측 2026-10-04: 높이 34px 그리드(프레임 안)에서 모서리 걸침 ＋ 가 블럭 가운데를 덮어 클릭이 행 추가가 됐다
  *       (tests/dom/frame-paste-grid-real P0 · grid-first-click-block T-058-14 빨강). 틈을 두면 ＋ 로 가는 길에 mouseleave 로 꺼진다.
  *   ⚠️오른쪽 ＋ 는 안쪽이라 블럭 오른쪽 끝 40px 의 첫 클릭은 여전히 ＋ 가 먹는다(전폭 그리드라 밖으로 못 낸다) — 보고서 미결.
- * ★뜨는 조건(블럭 «호버», 2026-10-04 현빈 결정)은 여기 «없다» — js/blocks/grid-block.js _gridPlusShown 하나에만 있다. 붙어 있으면 보인다. */
-#canvas .grid-block > .grd-add-btn {
+ * ★뜨는 조건(블럭 «호버», 2026-10-04 현빈 결정)은 여기 «없다» — js/blocks/grid-block.js _gridPlusShown 하나에만 있다. 붙어 있으면 보인다.
+ * ★＋ 는 블럭 «밖» 층 #grd-plus-layer(#canvas-scaler 안, #canvas 의 형제 — 선례 #todo-pin-overlay z 50)에 산다(E65·RG5 — grid-block.js 머리말).
+ *   층은 손이 안 닿고(pointer-events:none) ＋ 만 받는다. 자리는 JS 가 스케일러 로컬 px 로 건다(left/top = 기준점) — 아래 transform 이 끝을 맞춘다. */
+#grd-plus-layer { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 60; }
+#grd-plus-layer > .grd-add-btn {
   position: absolute;
-  z-index: 5;
+  pointer-events: auto;
   display: flex; align-items: center; justify-content: center;
   width:  calc(40px * var(--inv-zoom, 1));
   height: calc(40px * var(--inv-zoom, 1));
@@ -1331,15 +1334,16 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   border: calc(1.5px * var(--inv-zoom, 1)) dashed var(--ui-divider);
   background: var(--ui-bg-elevated);
   color: var(--ui-text-muted);
-  font-size: calc(20px * var(--inv-zoom, 1));
-  line-height: 1;
+  line-height: 0;
   cursor: pointer;
 }
-#canvas .grid-block > .grd-add-btn[data-grd-add="col"] { top: 50%;  right: 0;  transform: translateY(-50%); }
-#canvas .grid-block > .grd-add-btn[data-grd-add="row"] { top: 100%; left: 50%; transform: translateX(-50%); }
-#canvas .grid-block > .grd-add-btn:not(:disabled):hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
+#grd-plus-layer > .grd-add-btn > svg { width: calc(14px * var(--inv-zoom, 1)); height: calc(14px * var(--inv-zoom, 1)); display: block; pointer-events: none; }
+/* 기준점: 오른쪽 ＋ = (블럭 오른쪽 끝, 껍데기 세로 가운데) → 왼쪽으로 한 칸·위로 반 칸 / 아래 ＋ = (블럭 가로 가운데, 껍데기 아래 끝) → 왼쪽으로 반 칸 */
+#grd-plus-layer > .grd-add-btn[data-grd-add="col"] { transform: translate(-100%, -50%); }
+#grd-plus-layer > .grd-add-btn[data-grd-add="row"] { transform: translateX(-50%); }
+#grd-plus-layer > .grd-add-btn:not(:disabled):hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
 /* 상한(4×4)에서는 흐리게 — 캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 참고 선례: layer-panel.js:559 disabled) */
-#canvas .grid-block > .grd-add-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+#grd-plus-layer > .grd-add-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
 
 /* ═══════════════════════════════════
    QA BLOCK — admin 전용 체크리스트 (2026-09-16)

@@ -3119,9 +3119,27 @@ window.updateGridBlockRaw = updateGridBlock;
  * ★동작은 우측 패널 4×4 피커와 «같은 함수»(gridResizeTo)를 지난다 — 새 칸 크기·내용·히스토리가
  *   피커 결과와 같아야 한다(측정 G15-MEASURE ⑷: 새 열 width:1 · 새 행 height:'auto' · 새 칸 기본 줄).
  * ★히트 영역 = calc(40px * var(--inv-zoom)) — 화면에서 늘 40px(선례 css/editor-blocks.css:578-579).
- * ★편집 전용 UI — 저장(save-load · section-serialize)·내보내기(export-html · css 수집)에서 걷는다.
+ * ★＋ 는 그리드 블럭 «밖»의 층에 그린다 — #canvas-scaler 안 `#grd-plus-layer`(#canvas 의 형제 · 선례 #todo-pin-overlay).
+ *   까닭(2026-10-04 실측) ⑴ E65: 블럭 안 <button>+</button> 이면 호버 중 '+' 가 PNG 클론·MCP get_canvas_state·검색(innerText)으로 샜다
+ *     (tests/dom/grid-plus-g15-leak) ⑵ RG5: G12 배경이 블럭에 isolation 을 걸면 블럭 밖 아래 ＋ 가 뒤 형제 밑에 깔려 안 눌렸다
+ *     ⑶ integ7 전수: 블럭 DOM·textContent·손잡이 수를 재는 다른 레인 시험 8곳이 깨졌다.
+ *   ⇒ 블럭 DOM·textContent·저장·내보내기·읽기 길 어디에도 ＋ 가 없다. 글리프도 글자 '+' 가 아니라 svg(aria-hidden).
+ *   (저장·내보내기 명부의 .grd-add-btn 줄은 «혹시 섞이면» 걷는 방어로 남긴다.)
  * ⛔태그블럭 ＋ 의 --inv-zoom 미보정(E28)은 여기서 안 고친다(범위 밖). */
 const GRID_ADD_BTN_CLS = 'grd-add-btn';
+const GRID_PLUS_LAYER_ID = 'grd-plus-layer';
+const _gridPlusBtns = new Map();   // block → { col, row } — ＋ 가 떠 있는 블럭만(뜨면 넣고 지면 뺀다)
+/* ＋ 층 — 없으면 #canvas-scaler 끝에 만든다. 스케일러가 없는 하네스(단위 시험 대역)에선 null ⇒ ＋ 없음. */
+function _gridPlusLayer() {
+  let L = document.getElementById(GRID_PLUS_LAYER_ID);
+  if (L) return L;
+  const scaler = document.getElementById('canvas-scaler');
+  if (!scaler) return null;
+  L = document.createElement('div');
+  L.id = GRID_PLUS_LAYER_ID;
+  scaler.appendChild(L);
+  return L;
+}
 
 /* ★뜨는 조건 = «호버» — 그리드 블럭 «전체» 위에 마우스가 있으면 두 ＋ 가 붙는다(선택 불필요).
  * .label-group-block.selected 의 ＋ 는 선택 때만 보인다(opacity 0 + pointer-events none). 그리드 ＋ 는 «호버»로 간다 — 선례와 다른 것이 의도다, 2026-10-04 현빈 결정
@@ -3129,25 +3147,21 @@ const GRID_ADD_BTN_CLS = 'grd-add-btn';
  * ★클릭은 «＋ 버튼 그 자체»(둥근 원)만 받는다 — 「정확히 +버튼을 눌러야지만 칼럼추가」(현빈 2026-10-04).
  *   ＋ 를 감싸는 띠·상자 요소는 없다. 원 밖 네모 모서리는 크로미움의 둥근 모서리 히트 판정(border-radius:50%)으로
  *   밑의 그리드에 간다 → 선택. (tests/dom/grid-plus-g15 R5 가 잰다.)
- *   ＋ 는 블럭의 «자식»이라(아래 ＋ 가 반쯤 밖으로 나가 있어도) 그 위로 가도 블럭 :hover 가 유지된다.
+ *   ＋ 는 블럭 «밖»(층)이라 ＋ 위로 가면 블럭 mouseleave 가 난다 — 그래서 호버 영역 = 블럭 ∪ ＋ 상자 네모(아래 _inGridPlusZone).
  * ★조건은 이 함수 «하나»에만 둔다. 붙이고 떼는 계기는 _bindGridPlusHover(mouseenter/leave) + 렌더 끝(_syncGridAddBtns). */
 function _gridPlusShown(block) {
   /* 깃발(들어옴~나감) «또는» :hover. ⛔:hover 만 보면 ＋ 를 누른 직후 다시 그릴 때 꺼진다 —
-     눌린 ＋ 가 innerHTML 갈이로 DOM 에서 빠지면 크로미움은 다음 마우스 이동 전까지 :hover 를 풀어 둔다
-     (실측 2026-10-04: 같은 자리 연속 클릭 둘째에 ＋ 가 없어 칸을 눌렀다). 깃발은 그 사이에도 산다.
+     ＋ 위(층)에 있을 땐 블럭 :hover 가 아니다 — 깃발은 그 사이에도 산다(호버 네모를 벗어날 때 내린다).
      :hover 는 «마우스가 이미 위에 있는데 블럭이 새로 생긴» 경우(⌘Z 뒤 블럭 교체 등)를 받는다. */
   return _gridPlusHovered.has(block) || !!block?.matches?.(':hover');
 }
 
-/* 블럭마다 한 번 — 들어오면 붙이고 나가면 뗀다. ⛔붙였다 뗐다는 «편집이 아니다»
-   (save-load NON_CONTENT_UI_SELECTOR 에 .grd-add-btn 이 있어 자동저장을 안 깨운다). */
+/* 블럭마다 한 번 — 들어오면 붙이고 나가면 뗀다. ＋ 는 #canvas 밖 층이라 붙였다 떼도 자동저장 감시(#canvas)에 안 걸린다. */
 const _gridPlusBound = new WeakSet();
 const _gridPlusHovered = new WeakSet();   // mouseenter~mouseleave 사이(_gridPlusShown 이 읽는다)
 function _bindGridPlusHover(block) {
   if (!block?.addEventListener || _gridPlusBound.has(block)) return;
   _gridPlusBound.add(block);
-  /* 껍데기 높이가 렌더 없이 바뀌어도(칸 글 입력 등) ＋ 자리를 따라가게 — 블럭 크기 변화 때 다시 잰다(＋ 가 있을 때만 일함). */
-  if (typeof ResizeObserver === 'function') new ResizeObserver(() => _placeGridAddBtns(block)).observe(block);
   block.addEventListener('mouseenter', () => { _gridPlusHovered.add(block); _syncGridAddBtns(block); });
   block.addEventListener('mouseleave', (e) => {
     /* ★호버 영역 = 블럭과 두 ＋ 상자를 «다 덮는 네모»(클릭은 둥근 ＋ «원»만 받는다 — _gridPlusShown 주석).
@@ -3160,8 +3174,9 @@ function _bindGridPlusHover(block) {
   });
 }
 function _inGridPlusZone(block, x, y) {
-  const btns = block.querySelectorAll(`:scope > .${GRID_ADD_BTN_CLS}`);
-  if (!btns.length) return false;
+  const p = _gridPlusBtns.get(block);
+  if (!p) return false;
+  const btns = [p.col, p.row];
   let { left, top, right, bottom } = block.getBoundingClientRect();
   for (const b of btns) {
     const r = b.getBoundingClientRect();
@@ -3250,54 +3265,82 @@ function gridAddAtEnd(block, axis) {
 }
 
 function _syncGridAddBtns(block) {
-  if (!block?.querySelectorAll) return;
+  if (!block?.addEventListener) return;
   _bindGridPlusHover(block);
-  const have = block.querySelectorAll(`:scope > .${GRID_ADD_BTN_CLS}`);
-  if (!_gridPlusShown(block)) { have.forEach(b => b.remove()); return; }
-  const full = { col: _gridCols(block).length >= MAX_COLS, row: _gridRows(block).length >= MAX_ROWS };
-  /* ⛔이미 붙어 있으면 «갈아끼우지 않는다» — 흐림 상태만 맞춘다.
-     갈아끼우면 마우스 밑 노드가 빠져 크로미움이 조상들에 mouseenter 를 다시 쏘고, 그게 또 갈아끼워
-     «끝없는 고리»가 된다(실측 2026-10-04: ＋ 클릭 뒤 mouseenter 사슬이 수십 번 돌고 둘째 클릭이 아예 안 들어갔다). */
-  if (have.length !== 2) {
-    have.forEach(b => b.remove());
-    for (const axis of ['col', 'row']) block.appendChild(_makeGridAddBtn(block, axis));
+  let p = _gridPlusBtns.get(block);
+  if (!_gridPlusShown(block) || !block.isConnected) { _dropGridPlus(block); return; }
+  const L = _gridPlusLayer();
+  if (!L) return;
+  /* ⛔이미 떠 있으면 «갈아끼우지 않는다» — 흐림·자리만 맞춘다(마우스 밑 노드를 빼면 mouseenter 고리가 돈다 — 2026-10-04 실측). */
+  if (!p || !p.col.isConnected || !p.row.isConnected) {
+    _dropGridPlus(block);
+    p = { col: _makeGridAddBtn(block, 'col'), row: _makeGridAddBtn(block, 'row') };
+    L.append(p.col, p.row);
+    _gridPlusBtns.set(block, p);
   }
+  const full = { col: _gridCols(block).length >= MAX_COLS, row: _gridRows(block).length >= MAX_ROWS };
   /* 상한(4)에서는 흐리게 + 눌러도 아무 일 없음. ★흐림을 정하는 곳은 «여기 한 줄»(새로 붙일 때도 이미 있을 때도).
      캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 쪽 참고 선례: layer-panel.js:559 addBtn.disabled) */
-  block.querySelectorAll(`:scope > .${GRID_ADD_BTN_CLS}`).forEach(b => { b.disabled = !!full[b.dataset.grdAdd]; });
+  for (const b of [p.col, p.row]) b.disabled = !!full[b.dataset.grdAdd];
   _placeGridAddBtns(block);
+  _startGridPlusRaf();
+}
+function _dropGridPlus(block) {
+  const p = _gridPlusBtns.get(block);
+  if (p) { p.col.remove(); p.row.remove(); }
+  _gridPlusBtns.delete(block);
+}
+/* 떠 있는 동안만 도는 rAF — 칸 글 입력·이웃 높이 변화·배율 전환 애니메이션을 따라간다(손잡이 층 선례 overlay-handles.js rAF).
+   블럭이 문서에서 빠지면(삭제·⌘Z 교체) ＋ 도 걷는다. */
+let _gridPlusRaf = 0;
+function _startGridPlusRaf() {
+  if (_gridPlusRaf || typeof requestAnimationFrame !== 'function') return;
+  const loop = () => {
+    _gridPlusRaf = 0;
+    for (const blk of [..._gridPlusBtns.keys()]) {
+      if (!blk.isConnected) { _dropGridPlus(blk); _gridPlusHovered.delete(blk); continue; }
+      _placeGridAddBtns(blk);
+    }
+    if (_gridPlusBtns.size) _gridPlusRaf = requestAnimationFrame(loop);
+  };
+  _gridPlusRaf = requestAnimationFrame(loop);
 }
 
 /* ★＋ 의 기준 = «격자 껍데기(.grd-inner)» — 블럭 전체(껍데기 + G19 자식 그릇)가 아니다 (태양 2026-10-04).
- *   ＋ 는 격자의 «열·행»을 더하는 손잡이라서다. 오른쪽 ＋ = 껍데기 세로 가운데 · 아래 ＋ = 껍데기 바로 아래.
- * ★자식이 «없으면» 인라인 top 을 안 건다 — CSS(top:50% / top:100%) 그대로라 지금과 «픽셀 동일»
- *   (자식이 없으면 블럭 = 껍데기 하나).
- * ★자식이 있으면 top 을 px 로 건다 — offsetTop/offsetHeight 는 배율 전(캔버스) 값이라 줌과 무관하다.
+ *   ＋ 는 격자의 «열·행»을 더하는 손잡이라서다. 오른쪽 ＋ = 껍데기 세로 가운데(블럭 오른쪽 끝 안쪽) · 아래 ＋ = 껍데기 바로 아래(블럭 가로 가운데).
+ *   자식이 없으면 기준 = 블럭(= 껍데기 하나) — 블럭 안에 붙던 때와 같은 자리다(K0 이 잰다).
+ * ★좌표 = 스케일러 «로컬» = (화면 rect − 스케일러 rect) ÷ 배율. 배율은 rect 폭 ÷ offsetWidth(전환 애니메이션 중에도 맞다).
  * ⚠️G19 자식 있을 때 아래 ＋ 가 첫 자식 위를 100% 15.8px · 40% 30.3px 덮는다 — 원 안만 히트라 의도대로(지디 2026-10-04 ㉠), 호버 중에만
- *   (지키는 시험: tests/dom/grid-plus-g15 K5 — 겹친 띠에서 원 안 = 행 +1 · 원 밖 1px = 그리드 선택). */
+ *   (지키는 시험: tests/dom/grid-plus-g15 K5 — 겹친 띠에서 원 안 = 행 +1 · 원 밖 1px = 행·열 그대로). */
 function _placeGridAddBtns(block) {
-  const btns = block.querySelectorAll(`:scope > .${GRID_ADD_BTN_CLS}`);
-  if (!btns.length) return;
+  const p = _gridPlusBtns.get(block);
+  const scaler = p && p.col.parentElement && p.col.parentElement.parentElement;
+  if (!p || !scaler) return;
+  const sr = scaler.getBoundingClientRect();
+  const k = scaler.offsetWidth ? sr.width / scaler.offsetWidth : 1;
+  const br = block.getBoundingClientRect();
   const inner = block.querySelector(':scope > .grd-inner');
   let kids = null;
   for (const ch of block.children) if (ch.classList.contains(GRID_CHILDREN_CLASS)) { kids = ch; break; }
-  const hasKids = !!kids && kids.childElementCount > 0;
-  for (const b of btns) {
-    if (!hasKids || !inner) { b.style.removeProperty('top'); continue; }
-    const y = b.dataset.grdAdd === 'col' ? inner.offsetTop + inner.offsetHeight / 2 : inner.offsetTop + inner.offsetHeight;
-    b.style.top = y + 'px';
-  }
+  const ar = (inner && kids && kids.childElementCount > 0) ? inner.getBoundingClientRect() : br;
+  const put = (b, x, y) => { const l = (x - sr.left) / k + 'px', t = (y - sr.top) / k + 'px'; if (b.style.left !== l) b.style.left = l; if (b.style.top !== t) b.style.top = t; };
+  put(p.col, br.right, (ar.top + ar.bottom) / 2);
+  put(p.row, (br.left + br.right) / 2, ar.bottom);
 }
 
+/* ＋ 글리프 — 글자 '+' 가 아니라 svg(aria-hidden) — textContent 0 글자(E65). 레포에 «더하기» 아이콘 정본이 없어 한 벌을 여기 둔다. */
+const _GRID_PLUS_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M8 3v10M3 8h10"/></svg>';
 function _makeGridAddBtn(block, axis) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = GRID_ADD_BTN_CLS;
   btn.dataset.grdAdd = axis;
-  btn.setAttribute('contenteditable', 'false');
-  btn.textContent = '+';
-  btn.title = axis === 'col' ? '열 추가' : '행 추가';
-  // ⛔블럭 드래그·선택·인라인 편집으로 새지 않게 — mousedown/click 을 여기서 멈춘다
+  if (block.id) btn.dataset.grdFor = block.id;
+  btn.innerHTML = _GRID_PLUS_SVG;
+  const label = axis === 'col' ? '열 추가' : '행 추가';
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  // ⛔캔버스 쪽 손(마키·팬·선택 해제)으로 새지 않게 — mousedown/click 을 여기서 멈춘다
   btn.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
   /* 연타(같은 자리 두 번 = dblclick)가 블럭의 더블클릭(편집 진입)으로 새지 않게 — 예방(이것 때문에 깨진 실측은 없다) */
   btn.addEventListener('dblclick', e => { e.stopPropagation(); e.preventDefault(); });
