@@ -12,7 +12,7 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
          GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE, GRID_WIDTH_MIN, GRID_WIDTH_MAX, gridResizeTo,
-         gridBlockBg, GRID_BLOCK_BG_PAD_Y_MAX, GRID_BLOCK_BG_PAD_X_MAX } from '../blocks/grid-block.js';
+         gridBlockBg, GRID_BLOCK_BG_PAD_Y_MAX, GRID_BLOCK_BG_PAD_X_MAX, GRID_BG_FIT_VALUES } from '../blocks/grid-block.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
@@ -1620,6 +1620,10 @@ function _grdCellSectionHtml(anyHit, block) {
   const bgHex = bgRaw ? swatchHex(bgRaw, '#ffffff') : '#ffffff';
   const pad = Number(cell.padding) || '';
   const rad = Number(cell.radius) || '';
+  /* ★G4 칸 배경 이미지 — 읽는 잣대는 렌더러와 같다(그리드 블럭이 받는 URL 꼴 · 맞춤 명부 · 9자리 위치). */
+  const cImg = typeof cell.bgImg === 'string' && /^(data:image\/|goya-asset:\/\/)/.test(cell.bgImg) ? cell.bgImg : '';
+  const cFit = GRID_BG_FIT_VALUES.includes(cell.bgFit) ? cell.bgFit : 'cover';
+  const [cPx, cPy] = (typeof cell.bgPos === 'string' && /^(left|center|right) (top|center|bottom)$/.test(cell.bgPos) ? cell.bgPos : 'center center').split(' ');
   /* ~~[폐기 · T-178 2026-09-23] 「★0행 = «열 그 자체» — 제목이 먼저 말한다」 + `const wide = r === 0`~~
      까닭 — 행 0 칸도 이제 «그냥 칸»이다(cells[0][c] 에 따로 저장된다). 제목이 「1열 전체」라고
        말하면 «거짓»이 된다. 모든 행에서 같은 말을 한다.
@@ -1650,6 +1654,39 @@ ${_grdDisclosureHtml('grd-cell-toggle', title, open)}
           </div>
           <input type="text" class="prop-color-hex" id="grd-cell-bg-hex" maxlength="7" placeholder="없음" aria-label="칸 배경색" value="${bgRaw ? bgHex.replace('#', '').toUpperCase() : ''}">
         </div>
+        <!-- ★G4 칸 배경 이미지(2026-10-04 지디 승인) — 새 클래스 0: 이미지 단추 = prop-action-btn(프레임·G12 꼴) ·
+             Fit = 에셋 블럭 #asset-fit-group 과 같은 글자 단추 두 개(cover/contain) · 위치 = G12 위치 단추 여섯(객체정렬 정본 이름). -->
+        <div class="prop-row">
+          <span class="prop-label">이미지</span>
+          <div style="display:flex;gap:4px;flex:1;min-width:0;">
+            <button class="prop-action-btn secondary" id="grd-cell-img-btn">${cImg ? '이미지 바꾸기' : '이미지 선택'}</button>
+            ${cImg ? '<button class="prop-action-btn danger" id="grd-cell-img-clear">이미지 제거</button>' : ''}
+          </div>
+          <input type="file" id="grd-cell-img-input" accept="image/*" style="display:none">
+        </div>
+        ${cImg ? `
+        <div class="prop-row">
+          <span class="prop-label">Fit</span>
+          <div class="prop-align-group" id="grd-cell-fit-group">
+            <button class="prop-align-btn${cFit === 'cover' ? ' active' : ''}" data-cell-fit="cover" title="꽉 채우기">꽉 채우기</button>
+            <button class="prop-align-btn${cFit === 'contain' ? ' active' : ''}" data-cell-fit="contain" title="원본 비율">원본 비율</button>
+          </div>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">위치</span>
+          <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;">
+            <div class="prop-align-group" id="grd-cell-pos-x" role="group" aria-label="칸 배경 가로 위치">
+              ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: cPx === 'left', attrs: { 'data-cpos-x': 'left' } })}
+              ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: cPx === 'center', attrs: { 'data-cpos-x': 'center' } })}
+              ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: cPx === 'right', attrs: { 'data-cpos-x': 'right' } })}
+            </div>
+            <div class="prop-align-group" id="grd-cell-pos-y" role="group" aria-label="칸 배경 세로 위치">
+              ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', active: cPy === 'top', attrs: { 'data-cpos-y': 'top' } })}
+              ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', active: cPy === 'center', attrs: { 'data-cpos-y': 'center' } })}
+              ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: cPy === 'bottom', attrs: { 'data-cpos-y': 'bottom' } })}
+            </div>
+          </div>
+        </div>` : ''}
         <div class="prop-row">
           <span class="prop-label">안쪽 여백</span>
           <input type="number" class="prop-number" id="grd-cell-padding" min="0" max="200" placeholder="0" value="${pad}">
@@ -1716,6 +1753,37 @@ function _grdWireCellSection(block, addr) {
   };
   numWire('grd-cell-padding', 'padding');
   numWire('grd-cell-radius', 'radius');
+
+  /* ── ★G4 칸 배경 이미지 — 파일은 «자산 경로»가 정본(prop-iconify.js 래스터와 같은 길: assetsSaveCanvasImage → goya-asset:// URL 만 칸에).
+       까닭: data URL 이면 저장 전 히스토리 표본마다 base64 가 칸 JSON·칸 style 두 벌로 실린다(897MB 사고와 같은 줄기).
+       폴백(electronAPI·프로젝트 없음 = 웹·헤드리스): data URL + trusted — 저장 때 asset-externalize 가 거둔다.
+       ⛔파일 입구 = 바이트 게이트 + trusted «같이»(grid-callsite-ssot 가 센다). */
+  const imgBtn = document.getElementById('grd-cell-img-btn');
+  const imgIn = document.getElementById('grd-cell-img-input');
+  imgBtn?.addEventListener('click', () => imgIn?.click());
+  imgIn?.addEventListener('change', async () => {
+    const f = imgIn.files && imgIn.files[0];
+    imgIn.value = '';
+    if (!grdImageFileOk(f)) return;
+    let dataUrl;
+    try {
+      dataUrl = await new Promise((res, rej) => { const rd = new FileReader(); rd.onload = () => res(String(rd.result || '')); rd.onerror = () => rej(rd.error); rd.readAsDataURL(f); });
+    } catch (_) { window.showToast?.('⚠️ 이미지 읽기 실패'); return; }
+    const projectId = window.activeProjectId || new URLSearchParams(window.location.search).get('project') || null;
+    const api = window.electronAPI;
+    if (api && typeof api.assetsSaveCanvasImage === 'function' && projectId) {
+      const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
+      let saved = null;
+      try { saved = m ? await api.assetsSaveCanvasImage({ projectId, b64: m[2], mime: m[1] }) : null; } catch (_) { saved = null; }
+      if (saved && saved.ok && typeof saved.url === 'string') { _grdPatchCell(block, r, c, { bgImg: saved.url }); return; }
+    }
+    _grdToastCellFail(window.updateGridBlock?.(block.id, { patchCell: { r, c, bgImg: dataUrl } }, { trusted: true }));
+  });
+  document.getElementById('grd-cell-img-clear')?.addEventListener('click', () => _grdPatchCell(block, r, c, { bgImg: _grdUnset() }));
+  document.querySelectorAll('#grd-cell-fit-group [data-cell-fit]').forEach(b => b.addEventListener('click', () => _grdPatchCell(block, r, c, { bgFit: b.dataset.cellFit })));
+  const curPos = () => { let cur = {}; try { cur = (getGridModel(block).cells?.[r] || [])[c] || {}; } catch (_) {} return (typeof cur.bgPos === 'string' && cur.bgPos.includes(' ') ? cur.bgPos : 'center center').split(' '); };
+  document.querySelectorAll('#grd-cell-pos-x [data-cpos-x]').forEach(b => b.addEventListener('click', () => _grdPatchCell(block, r, c, { bgPos: `${b.dataset.cposX} ${curPos()[1]}` })));
+  document.querySelectorAll('#grd-cell-pos-y [data-cpos-y]').forEach(b => b.addEventListener('click', () => _grdPatchCell(block, r, c, { bgPos: `${curPos()[0]} ${b.dataset.cposY}` })));
 
   /* ── 칸 단위 정렬 — «이 칸만». 블록/열 통째 단추(아래 Layout 절)와 축이 다르다. */
   for (const [id, field] of [['grd-cell-align', 'align'], ['grd-cell-valign', 'valign']]) {

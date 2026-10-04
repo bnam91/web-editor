@@ -3685,7 +3685,7 @@ function _registerDefaultTools() {
            한 번 실패해야 안다(거절 메시지가 알려주긴 하지만, 그건 «두 번째» 기회다). */
         + 'patchCell has TWO modes: with lineIndex → patches ONE line (text, type, fontSize, color, '
         + 'weight, align, bg, fontFamily, italic, strike, marginTop, ...); without lineIndex → patches '
-        + 'the CELL (lines, align, valign, bg, padding, radius). Column width goes through patchCol. '
+        + 'the CELL (lines, align, valign, bg, padding, radius, ★bgImg = cell background image "goya-asset://…"|"data:image/…" (≤200000 chars), bgFit = cover|contain, bgPos = "<left|center|right> <top|center|bottom>"). Column width goes through patchCol. '
         /* ★T-178(2026-09-23) — patchCell{r:0} 과 patchCol 의 갈림. 지금까지 «어디에도» 안 적혀 있었고,
            예전엔 둘이 같은 자리에 썼다(행 0 칸에 준 색이 열 기본값이 되어 아래 행까지 칠했다).
            ⛔이 문단을 지우지 마라 — 없으면 고쳐진 동작이 「MCP 회귀」로 읽힌다. */
