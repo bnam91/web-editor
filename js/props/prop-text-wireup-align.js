@@ -11,6 +11,9 @@ export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
       // label(inline-block)은 부모 tb에 text-align 적용해야 블록 자체가 정렬됨
       if (ctx.contentEl.classList.contains('tb-label')) {
         tb.style.textAlign = btn.dataset.align;
+      } else if (isIconText && tb.dataset.itbDir === 'v') {
+        /* ★S3V — 세로에서 justifyContent 는 «위아래 분배»라 안 먹는다(눌리는데 안 변함). 가로 위치 = alignItems + 글 textAlign. */
+        window.applyIconTextAlign?.(tb, btn.dataset.align);
       } else if (isIconText) {
         // 아이콘+텍스트 전체를 함께 정렬 — justifyContent로 icon-text-block 내부 정렬
         const jcMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
@@ -46,6 +49,20 @@ export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
       propPanel.querySelectorAll('.prop-align-btn[data-align]').forEach(b => b.classList.toggle('active', b===btn));
     });
   });
+
+  /* ★S3V — 「방향」 가로/세로. 쓰기 = js/block-factory.js setIconTextDirection «한 곳»(MCP 와 같은 길).
+     ★적용 «먼저» → pushHistory(이 파일 정렬 단추와 같은 순서 — tests/unit/prop-push-after PA-1). 같은 방향이면 false = 이력 칸 0.
+     패널을 다시 그린다 — 정렬 단추 active 는 방향마다 읽는 키가 다르다(prop-text.js currentAlign). */
+  if (isIconText) {
+    propPanel.querySelectorAll('#itb-dir-group .prop-align-btn[data-dir]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (!window.setIconTextDirection?.(tb, btn.dataset.dir)) return;
+        window.pushHistory?.('Icon Text 방향');
+        window.scheduleAutoSave?.();
+        window.showTextProperties?.(tb);
+      });
+    });
+  }
 
   /* 아이콘-텍스트 간격 */
   if (isIconText) {

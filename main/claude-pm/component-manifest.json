@@ -360,7 +360,8 @@
       "useCases": [
         "아이콘 + 한 줄 텍스트 (체크리스트, 특징 bullet)",
         "✓ 무료배송 / ✓ 당일출고 / ✓ 정품보장 같은 trust badge 행",
-        "FAQ 항목 헤더"
+        "FAQ 항목 헤더",
+        "아이콘 위 · 글 아래 세로 카드(특장점 아이콘 + 한 줄) — direction:'vertical'"
       ],
       "notRecommendedFor": [
         "아이콘만 (iconify 사용)",

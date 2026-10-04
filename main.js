@@ -8702,7 +8702,7 @@ async function _invokeRendererAddIconTextBlock(opts = {}) {
   }
   const safeSectionId = opts.sectionId ? JSON.stringify(String(opts.sectionId)) : 'null';
   // text/imgSrc는 post-add update 단계에서 적용 (addIconTextBlock 기존 시그니처가 opts 미수용).
-  const dataOpts = { text: opts.text, imgSrc: opts.imgSrc };
+  const dataOpts = { text: opts.text, imgSrc: opts.imgSrc, direction: opts.direction };   // ★S3V direction
   const safeData = JSON.stringify(dataOpts);
   const atomicJs = `(() => {
     try {
@@ -8740,10 +8740,11 @@ async function _invokeRendererAddIconTextBlock(opts = {}) {
       // text/imgSrc는 post-add update로 적용 (기존 addIconTextBlock이 opts 미수용)
       const data = ${safeData};
       if (typeof window.updateIconTextBlock === 'function'
-          && (data.text !== undefined || data.imgSrc !== undefined)) {
+          && (data.text !== undefined || data.imgSrc !== undefined || data.direction !== undefined)) {
         const partial = {};
         if (data.text   !== undefined && data.text   !== null) partial.text   = data.text;
         if (data.imgSrc !== undefined && data.imgSrc !== null) partial.imgSrc = data.imgSrc;
+        if (data.direction !== undefined && data.direction !== null) partial.direction = data.direction;
         try { window.updateIconTextBlock(newBlock.id, partial); } catch (_) {}
       }
       return {
