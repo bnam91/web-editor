@@ -2872,7 +2872,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}Ã—${rows.length}) â
     ${_anyHit ? '' : _grdKidsAddSectionHtml()}
     ${_borderSectionHtml(_cellBorder)}
     ${_grdOutlineSectionHtml(block)}
-    ${(_anyHit || _nestHit) ? '' : _grdBlockBgSectionHtml(block)}
+    ${_anyHit ? '' : _grdBlockBgSectionHtml(block)}
     ${_grdRuleSectionHtml(block)}
     ${_grdPadExcludeSectionHtml(block)}
     ${_grdAllCellsSectionHtml(_anyHit, block)}
