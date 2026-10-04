@@ -4988,7 +4988,7 @@ function _registerDefaultTools() {
       }
       const partial = _validateSpeechBubbleOpts(rest, { mode: 'update' });
       if (Object.keys(partial).length === 0) {
-        throw new Error('no fields to update — provide at least one speech-bubble field (tail|bubbleStyle|showSender|senderName|bubbleBg|text)');
+        throw new Error('no fields to update — provide at least one speech-bubble field (tail|bubbleStyle|showSender|senderName|bubbleBg|text|lines)');
       }
       return await _rendererInvoker.updateSpeechBubbleBlock({ blockId, partial });
     },

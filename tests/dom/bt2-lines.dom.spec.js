@@ -65,6 +65,7 @@ test('T2-b 버블 — 「+ 줄 추가▾ 제목2」 하면 본문이 첫 줄로 
   expect(dom.t0).toBe('안녕하세요');
   expect(dom.ce, '본체는 contenteditable 속성을 그대로 갖는다(12곳의 [contenteditable] 가 본체를 집는다)').toBe('false');
   // 저장 → 불러오기
+  expect(await page.evaluate((id) => document.querySelectorAll(`#${id} .ln-line-selected`).length, id), '전제: 저장 직전 줄 선택 표시가 «있다»(≥1) — 아래 「저장본에 0」이 벗김을 재는 것이 되게').toBeGreaterThanOrEqual(1);
   const after = await page.evaluate((id) => {
     const html = window.getSerializedCanvas();
     const c = document.getElementById('canvas'); c.innerHTML = window.sanitizeCanvasHtml(html); window.rebindAll();
@@ -385,3 +386,32 @@ for (const key of ['Backspace', 'Delete']) {
     expect(await snapC(page, id), '⒟').toEqual(m0);
   });
 }
+
+// ─────────── T11 «안 먹는» 블럭 단위 손잡이 — 줄 모드 말풍선에 «조용히 쓰이지» 않는다(D4 와 같은 결) ───────────
+/* 실측(f989638e·핀): 다중선택 글자 크기 → .tb-bubble font-size 저장·화면 그대로 / 숫자키 1 → .tb-bubble 에 tb-h1 저장·화면 그대로 /
+   (페이지 일괄 정렬은 앱에서 비활성 — 아래 ⑶ 주석). ⇒ 거절(건너뜀 + 토스트). 핀의 «평문» 말풍선에선 둘 다 «먹는다»(그건 그대로).
+   양성대조: 고치기 전 판(f989638e)에서 이 시험은 빨강이어야 한다. */
+test('T11 줄 모드 말풍선 — 다중선택 글자 크기·숫자키 종류가 본체에 «조용히 쓰이지» 않고 알린다', async ({ page }) => {
+  await fresh(page);
+  const id = await addBubble(page);
+  await page.evaluate((id) => window.updateSpeechBubbleBlock(id, { lines: [{ type: 'h2', text: 'AAA' }, { type: 'body', text: 'BBB' }] }), id);
+  await page.evaluate(() => { window.selectSection(document.getElementById('sL')); window.addTextBlock('body'); });
+  const look = () => page.evaluate((id) => { const tb = document.querySelector(`#${id} .tb-bubble`); return { cls: tb.className, style: tb.getAttribute('style') || '', lines: document.getElementById(id).dataset.lines }; }, id);
+  const toasts = () => page.evaluate(() => (window.__bt2Toasts || []).slice());
+  await page.evaluate(() => { const o = window.showToast; window.__bt2Toasts = []; window.showToast = (m, ...a) => { window.__bt2Toasts.push(String(m)); return o?.(m, ...a); }; });
+  const l0 = await look();
+  // ⑴ 다중선택 글자 크기
+  await page.evaluate((id) => { window.deselectAll(); document.getElementById(id).classList.add('selected'); document.querySelector('#sL .text-block:not(.speech-bubble-block)').classList.add('selected'); window.showFlowMultiSelPanel(); }, id);
+  await page.locator('#msp-font-size').fill('50'); await page.locator('#msp-font-size-apply').click(); await page.waitForTimeout(150);
+  expect(await look(), '⑴ 본체 무변(크기 안 씀)').toEqual(l0);
+  expect((await toasts()).some(t => t.includes('줄이 있는 말풍선')), '⑴ 알림').toBe(true);
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('#sL .text-block:not(.speech-bubble-block) [contenteditable]')).fontSize), '⑴ 옆 텍스트 블럭은 그대로 먹는다').toBe('50px');
+  // ⑵ 숫자키 1
+  await page.evaluate(() => { window.__bt2Toasts = []; window.deselectAll(); });
+  await selectBlock(page, id, '.tb-bubble');
+  await page.keyboard.press('Digit1'); await page.waitForTimeout(150);
+  expect(await look(), '⑵ 본체 무변(클래스 안 바뀜)').toEqual(l0);
+  expect((await toasts()).some(t => t.includes('줄이 있는 말풍선')), '⑵ 알림').toBe(true);
+  /* ⑶ 페이지 «일괄 정렬»은 시험하지 않는다 — 앱에서 «비활성»이다(js/props/prop-page.js 「Bulk Align (비활성)」: 단추 disabled · pointer-events:none).
+     사용자가 닿을 수 없는 길이라 거기 막는 코드도 안 넣었다(닿지 않는 방어 = 시험할 수 없는 코드). 다시 켜면 그때 이 시험에 ⑶ 을 넣어라. */
+});

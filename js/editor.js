@@ -2893,6 +2893,12 @@ document.addEventListener('keydown', e => {
       if (!tb) return;
       // 0920r4 texttype: 라이너는 타입이 없다(패널도 Type 토글 숨김, prop-text.js M2) — 미러 .tb-liner 를 건드리지 않는다
       if (tb.classList.contains('liner-block')) return;
+      /* ★BT2 — 줄 모드 말풍선: 본체 클래스를 바꾸면 줄마다 인라인 크기라 «값만 남고 화면은 그대로»(실측: tb-h1 저장·보이는 줄 무변). 거절하고 알린다. */
+      if (tb.classList.contains('speech-bubble-block') && tb.dataset.lines !== undefined) {
+        e.preventDefault();
+        window.showToast?.('⚠️ 줄이 있는 말풍선은 숫자 키로 종류를 못 바꿉니다 — 줄을 골라 「줄 종류」에서 바꾸세요');
+        return;
+      }
       e.preventDefault();
       const typeMap = { 'Digit1': ['tb-h1','heading'], 'Digit2': ['tb-h2','heading'], 'Digit3': ['tb-h3','heading'], 'Digit4': ['tb-body','body'] };
       const phMap = { 'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요', 'tb-body':'본문 내용을 입력하세요.' };

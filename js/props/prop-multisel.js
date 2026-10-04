@@ -581,8 +581,11 @@ function _flowFontSizeMix(blocks) {
 function _applyFlowFontSize(blocks, size) {
   const v = Math.max(1, Math.min(800, parseInt(size, 10) || 0));
   if (!v) return 0;
-  let applied = 0;
+  let applied = 0, skippedLines = 0;
   blocks.forEach(b => {
+    /* ★BT2 — 줄 모드 말풍선은 «건너뛴다»(D4 와 같은 결): 본체(.tb-bubble)에 크기를 쓰면 줄마다 인라인 크기라
+       화면은 그대로인데 값만 저장본에 남는다(실측: font-size 50px 저장 · 보이는 줄 40/22px 그대로). 알리고 안 쓴다. */
+    if (b.classList.contains('speech-bubble-block') && b.dataset.lines !== undefined) { skippedLines++; return; }
     const contentEl = _flowTextContentEl(b);
     if (!contentEl) return;
     // mix 상태의 부분 font-size span 정리 후 블록 전체 사이즈 적용 (prop-text-wireup-text-edit applySizeToSel 무선택 경로 미러)
@@ -602,6 +605,7 @@ function _applyFlowFontSize(blocks, size) {
     window.pushHistory?.('일괄 폰트 크기');
     window.scheduleAutoSave?.();
   }
+  if (skippedLines) window.showToast?.(`⚠️ 줄이 있는 말풍선 ${skippedLines}개는 건너뛰었습니다 — 줄을 골라 그 줄의 글자 크기로 바꾸세요`);
   return applied;
 }
 
