@@ -2525,14 +2525,29 @@ function _grdWireTypo(block, addr, host = null) {
   numWire('grd-typo-ls-number', 'letterSpacing', -10, 40, v => parseFloat(v) || 0);
 
   /* ── B / I / S — H 는 «없다»(showHighlight:false, 위 주석 참조).
-       B 는 별개다: 그리드 줄엔 bold 플래그가 없고 weight 가 진실이다 ⇒ 700 ↔ 400 토글. */
+       B 는 별개다: 그리드 줄엔 bold 플래그가 없고 weight 가 진실이다.
+       ⚠️옛 전제(「700 ↔ 400 토글」)는 «역할 기본이 700 또는 400» 이던 때의 말이다 — 지금 역할표엔 600 이 있다
+         (GRID_ROLES label·h2·h3 = 600). 그 위에서 700↔400 을 돌리면 600→700→400→700… 으로 «600 에 영영 못 돌아오고»,
+         게다가 400 이 «데이터에 박혀» 나중에 역할을 바꿔도 굵기가 새 역할 기본을 안 따라간다(조용한 훼손 — G13).
+     ★G13(지디 처방 2026-10-04): ⌘B ON = weight 700 · OFF = weight 키를 «지운다»(= 역할 기본을 따른다). ⛔400 을 쓰지 않는다.
+     ★예외 — 역할 기본이 ≥700 인 줄(지금 표에선 h1): 키를 지워도 700 이라 OFF 가 «아무 일도 안 한다».
+       그래서 그 줄만 옛 동작(OFF = 400)을 그대로 둔다(지디 조건 ③ 「h1·body·caption 무변화」). 판정은 역할표 값으로 — 역할 이름을 박지 않는다.
+     ⚠️이미 문서에 박힌 굵기(옛 ⌘B 가 쓴 400 등)는 «옮기지 않는다» — 새로 누를 때부터만(현빈 「새로 만드는 것만」). */
   const boldBtn = document.getElementById('grd-typo-bold-btn');
   boldBtn?.addEventListener('click', () => {
     const line = H.line(addr) || {};
-    const next = Number(line.weight ?? _grdRoleOf(line).weight) >= 700 ? 400 : 700;
-    boldBtn.classList.toggle('active', next >= 700);
-    if (wSel) wSel.value = String(next);
-    commit({ weight: next });
+    const roleW = Number(_grdRoleOf(line).weight);
+    const on = Number(line.weight ?? roleW) >= 700;
+    let fields, eff;
+    if (!on) { fields = { weight: 700 }; eff = 700; }                       // ON
+    else if (roleW >= 700) { fields = { weight: 400 }; eff = 400; }         // OFF · 역할 기본 ≥700 예외(옛 동작)
+    else { fields = { weight: undefined }; eff = roleW; }                   // OFF = 역할 기본으로(키 삭제)
+    boldBtn.classList.toggle('active', eff >= 700);
+    if (wSel) {
+      wSel.value = String(eff);                                             // 실효 굵기
+      if (fields.weight === undefined) wSel.title = '역할 기본값'; else wSel.removeAttribute('title');
+    }
+    commit(fields);
   });
   for (const [id, key] of [['grd-typo-italic-btn', 'italic'], ['grd-typo-strike-btn', 'strike']]) {
     const btn = document.getElementById(id);
