@@ -3,6 +3,7 @@
  * 단언:
  *   전제 — 끌기 시작 맞힌 요소 = scratch-item · 놓는 곳 맞힌 요소 = grd-line · 놓은 뒤 카드 사라짐 · 캔버스 에셋 +1
  *   ★본 단언 — ⌘Z 뒤 카드 자리 = 원래 자리(left −320px · top 40px) — 값으로
+ *   본 단언은 끌기 «전» 실측 c0 과 견준다 — 박은 수가 아니다(장면이 −320/40 인지는 :31 전제가 따로 단언).
  *   덮음 — ⌘Z 뒤 놓은 점의 맨 위 요소 ≠ 카드
  *   지킴 — ⌘⇧Z 뒤 카드가 다시 사라진다 · 「E95 restore fallback」 경고 0
  * 양성대조: GD1001_ROOT=<git archive 772ccadc 사본> → 본 단언만 빨강. */
@@ -51,7 +52,7 @@ test('E95 스크래치 카드 → 그리드 칸 놓기 → ⌘Z = 카드가 끌�
   await page.waitForFunction((id) => !!document.querySelector(`.scratch-item[data-scratch-id="${id}"]`), CARD, { timeout: 5000 });
   await page.waitForTimeout(200);
   const back = await card(page);
-  expect([back.left, back.top], `★⌘Z 뒤 카드 자리 = 끌기 시작 자리(−320, 40) — 잰 값 left=${back.left} top=${back.top}`).toEqual(['-320px', '40px']);
+  expect([back.left, back.top], `★⌘Z 뒤 카드 자리 = 끌기 전에 잰 자리 left=${c0.left} top=${c0.top} · ⌘Z 뒤 잰 자리 left=${back.left} top=${back.top}`).toEqual([c0.left, c0.top]);
   const topAtDrop = await page.evaluate(([x, y, id]) => { const e = document.elementFromPoint(x, y); return { isCard: !!(e && e.closest(`.scratch-item[data-scratch-id="${id}"]`)), cls: e ? (e.className || e.tagName).toString().slice(0, 40) : null }; }, [drop[0], drop[1], CARD]);
   expect(topAtDrop.isCard, `⌘Z 뒤 놓은 점의 맨 위 요소가 카드가 아니다 (${topAtDrop.cls})`).toBe(false);
   // ⌘⇧Z
