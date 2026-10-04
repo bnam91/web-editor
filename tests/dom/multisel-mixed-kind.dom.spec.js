@@ -16,6 +16,8 @@
  *      둘 다 골라져도 n=1 ⇒ 멀티선택 패널이 안 뜨고 직전 deselectAll 이 띄운 «Page» 가 남았다.
  *
  * ⛔앱을 «안» 띄운다 — 진짜 소스에서 «그 핸들러/함수»를 떠내 실행한다(선례: qa0920b-multi-delete).
+ * ★가짜 이벤트는 실제 좌클릭 꼴(button 0)이어야 한다 — 없으면 button 가드가 먼저 막아 P1 이 엉뚱한 까닭으로 초록
+ *   (2026-10-05 integ17 실측: button 없는 가짜 이벤트에 P2 5/5 빨강 · P1 은 보조키 가드에 닿지도 않고 초록). P3 = 그 button 가드(U16①) 잠금.
  * 실행: npm run test:dom -- multisel-mixed-kind
  */
 const { test, expect } = require('@playwright/test');
@@ -106,6 +108,7 @@ async function runPointerDown(page, body, mods) {
     window.showFrameProperties = () => {};
     const e = {
       target: ss, shiftKey: !!m.shift, metaKey: !!m.meta, ctrlKey: !!m.ctrl,
+      button: m.button ?? 0,   // ★실제 좌클릭 꼴 — 빠지면 U16① button 가드(e.button !== 0)가 먼저 막는다
     };
     new Function('ss', 'e', src)(ss, e);
     return { deselects, frameSelected: ss.classList.contains('selected') };
@@ -127,6 +130,14 @@ test('P2 대조 — 보조키 «없이» 빈 영역을 누르면 종전대로 �
   const r = await runPointerDown(page, PD_BODY, {});
   expect(r.deselects, '평범한 클릭인데 선택 정리가 안 일어났다 — 가드가 너무 넓다').toBe(1);
   expect(r.frameSelected, '평범한 클릭인데 프레임이 안 골라졌다').toBe(true);
+});
+
+test('P3 ★오른쪽 단추 pointerdown 은 선택을 «건드리지 않는다» (U16① — 고르기는 프레임 contextmenu 리스너 몫)', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await runPointerDown(page, PD_BODY, { button: 2 });
+  expect(r.deselects, '오른쪽 단추인데 deselectAll 이 불렸다 — :149 가 먼저 서서 우클릭이 안의 글자로 간다').toBe(0);
+  expect(r.frameSelected, '오른쪽 단추 pointerdown 이 프레임을 골랐다').toBe(false);
+  expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
 });
 
 /** 정본 목록 + 정본 거르개로 «단위 수»를 센다(_countFlowMultiSel 과 같은 식).
