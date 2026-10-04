@@ -127,7 +127,8 @@ async function captureThumbnail() {
     const bgColor = firstSec.style.background || firstSec.style.backgroundColor || '#ffffff';
     /* ★L1(2026-10-04) — 편집 보조(그리드 가이드·패딩 비주얼)는 «캡처 동안» 끈다 — PNG(exportSection)와 «같은 함수» withGuideOff(capture-safety.js).
        지금까지 썸네일에 안 샌 것은 html2canvas 가 반복 그라데이션을 못 그려서일 뿐이었다(tests/dom/l1-guide-align L1-X). */
-    /* ⚠️`await html2canvas(clone` 꼴을 지킨다 — tests/dom/thumb-goya-asset H4 가 이 글자를 «찍는 자리» 닻으로 쓴다(goya 풀기가 그 앞인지 본다). */
+    /* ⚠️`await html2canvas(clone` 꼴을 지킨다 — tests/dom/thumb-goya-asset H4 가 이 글자를 «찍는 자리» 닻으로 쓴다(goya 풀기가 그 앞인지 본다).
+       ★꼴을 바꾸면 그 시험이 깨진다 — 어색해 보여도 고치지 마라. 0.9.7 에 H4 를 «행동»으로 바꿀 것(명부 E75 · 2026-10-04 지디). */
     const canvas = await withGuideOff(async () => await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false }));
     document.body.removeChild(clone);
 
