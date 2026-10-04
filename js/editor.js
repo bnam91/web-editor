@@ -3836,6 +3836,7 @@ function deselectAll() {
      «해제된 블록»을 계속 가리킨 채 남아, 같은 블록을 다시 클릭하면 동일블록 가드에 걸려
      no-op 이 된다(아이콘원형이 실제로 밟은 사고 — 바로 위 주석 참고). */
   window.hideTextOverlayResizeHandles?.();
+  window.hideGridOverlayResizeHandles?.(); // ★G2-b 떠 있는 그리드 «폭» 손잡이 — 빠지면 같은 블럭 재클릭이 동일블럭 빗장에 걸린다(위와 같은 사고)
   window._deselectAllGradients?.(); // gradient 블록 선택 해제 + 4모서리 핸들 제거 (deselectAll 셀렉터에 없어 누락됐던 정리)
   window.hideGradientLine?.(); // banner02/comparison 배경 그라데이션 온캔버스 라인 숨김
   // (.frame-block 의 .selected 는 clearSelectionMarks 의 일괄 제거가 이미 벗긴다)
