@@ -8,7 +8,7 @@ export function buildTextPropsHtml(state) {
     currentX, currentY, currentRotation = 0, currentW, currentFont, currentWeight, currentSize,
     currentLH, currentLS, currentColor, currentColorAlpha,
     currentPadT, currentPadL, currentPadR, phLinked,
-    isLabel, currentBgColor, currentRadius, labelPillH, labelPadX = 0, labelIsCircle = false,
+    isLabel, currentBgColor, currentRadius, labelPillH, labelPadX = 0, labelIsCircle = false, labelShape = null,
     isSpeechBubble, currentBubbleStyle, currentTail,
     bubbleBgHex, showSender,
     isIconText, currentItbGap, itbVertical,
@@ -180,11 +180,6 @@ ${blockHeaderHTML({
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
       <div class="prop-section-title">Padding</div>
-      <div class="prop-row" id="txt-label-h-row" style="display:${isLabel?'flex':'none'}">
-        <span class="prop-label">박스 높이</span>
-        <input type="range" class="prop-slider" id="txt-label-h-slider" min="0" max="120" step="2" value="${labelPillH}">
-        <input type="number" class="prop-number" id="txt-label-h-number" min="0" max="120" value="${labelPillH}">
-      </div>
       <div id="txt-label-padx-wrap" style="display:${isLabel && !labelIsCircle ? 'block' : 'none'}">
       ${sliderRowHTML('좌우 패딩', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 100, step: 2, value: labelPadX })}
       </div>
@@ -219,11 +214,11 @@ ${blockHeaderHTML({
       <div class="prop-section">
         <div class="prop-section-title">Tag Style</div>
         <div class="prop-row" style="gap:4px">
-          <button class="prop-btn-full" id="label-shape-pill">Pill</button>
-          <button class="prop-btn-full" id="label-shape-box">Box</button>
-          <button class="prop-btn-full" id="label-shape-outline">Outline</button>
-          <button class="prop-btn-full" id="label-shape-circle">Circle</button>
-          <button class="prop-btn-full" id="label-shape-text">Text</button>
+          <button class="prop-btn-full${labelShape==='pill'?' active':''}" id="label-shape-pill">Pill</button>
+          <button class="prop-btn-full${labelShape==='box'?' active':''}" id="label-shape-box">Box</button>
+          <button class="prop-btn-full${labelShape==='outline'?' active':''}" id="label-shape-outline">Outline</button>
+          <button class="prop-btn-full${labelShape==='circle'?' active':''}" id="label-shape-circle">Circle</button>
+          <button class="prop-btn-full${labelShape==='text'?' active':''}" id="label-shape-text">Text</button>
         </div>
         <div class="prop-color-row">
           <span class="prop-label">배경색</span>

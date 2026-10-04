@@ -955,7 +955,7 @@ function addAssetBlock(preset, opts = {}) {
   window.selectSection(sec);
 }
 
-/* opts.asSibling — 키보드 입구(g)만 켠다. 패널 갭 단추는 인자 없이 불러 09-23 「안에 넣는다」 그대로다.
+/* opts.asSibling — 키보드 입구(g)와 하단 툴바 Component ▸ Gap(2026-10-05 U17)이 켠다. 툴바도 «g 와 같은 동작»(툴팁이 「단축키 G」라 같아야 한다). 그리드 칸·말풍선 줄 우선 처리(g 키 쪽)는 툴바엔 없다.
  *   켜면: 프레임을 «오브젝트로» 골라 둔 상태(frameSelectedAsObject)일 때 프레임 안 분기를 건너뛰고 «다음 형제»로 간다(F1). */
 function addGapBlock(height, opts = {}) {
   // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
@@ -5421,6 +5421,24 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       folderSel.innerHTML = folders.map(f => `<option value="${f}">${f}</option>`).join('') + '<option value="__new__">새 폴더...</option>';
     }
 
+    /* ★U16①(2026-10-05) — 프레임에선 「블록 템플릿으로 저장」을 «안» 보인다.
+       실측(2026-10-05 · 772ccadc+e9c49d2f, 진단 판): 프레임 저장 → insertTemplate 왕복에서 넣은 프레임이
+       bindFrameDropZone 을 못 받아(_subSecBound false) 클릭해도 선택이 안 됐다(+ 원본과 id 가 겹침 —
+       이건 글자 블록 왕복도 같다, 프레임만의 병 아님). 지디 조건 「깨지면 프레임에는 그 항목을 보이지 마라」.
+       ⛔고치려면 insertTemplate 의 block 갈래(template-system.js)에 bindFrameDropZone·새 id 를 먼저 넣고 이 줄을 걷어라. */
+    const _isFrameTarget = block.classList.contains('frame-block') && block.dataset.textFrame !== 'true';
+    const saveTplItem = document.getElementById('bcm-save-template');
+    if (saveTplItem) saveTplItem.style.display = _isFrameTarget ? 'none' : '';
+
+    /* ★U17② 「바로 아래에 여백 넣기 (G)」 — 블럭·프레임 모두. 자리 = _gapAnchorOf(누른 그것).
+       ⛔자유배치 프레임 «안»에선 안 보인다 — 거기 흐름 갭은 좌표 자식들과 겹쳐 y=0 에 선다.
+         G 키도 자유배치 프레임 안엔 갭을 안 넣는다(block-factory.js addGapBlock 의 freeLayout 스킵). */
+    const gapItem = document.getElementById('bcm-insert-gap');
+    if (gapItem) {
+      const unit = _gapAnchorOf(block);
+      gapItem.style.display = (unit && unit.parentElement?.dataset?.freeLayout !== 'true') ? 'flex' : 'none';
+    }
+
     // 에셋 블록일 때만 "스크래치로 보내기" 노출
     const sendItem = document.getElementById('bcm-send-to-scratch');
     if (sendItem) {
@@ -5509,12 +5527,39 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       if (lbl) lbl.textContent = ln?.type === 'image' ? (ln.imgShape === 'circle' ? '사각으로 바꾸기' : '원형으로 바꾸기') : '원형 이미지 추가';
     }
 
+    // 보일 항목이 하나도 없으면 빈 상자를 띄우지 않는다(자유배치 프레임 안 프레임 = 저장·갭 둘 다 숨김)
+    if (![...menu.querySelectorAll(':scope > .bcm-item')].some(it => it.style.display !== 'none')) { closeMenu(); return; }
+
     const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
     const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
     menu.style.left    = x + 'px';
     menu.style.top     = y + 'px';
     menu.style.display = 'block';
   }
+
+  /* 갭이 설 «단위» — G 키의 자리 잡기(drag-utils.js insertAfterSelected 의 ref)와 같은 꼴:
+       갭이면 그 자신 · 글자면 글자 프레임 · .row 안이면 그 row · 아니면 그 블럭.
+     ⛔.row/글자 프레임은 «누른 것의 그릇(가장 가까운 프레임/섹션 안)» 안의 것만 — 프레임 안 블럭이
+       프레임 바깥 row 를 집어 갭이 프레임 밖으로 튀지 않게. */
+  function _gapAnchorOf(block) {
+    if (!block || block.classList.contains('section-block')) return null;
+    if (block.classList.contains('gap-block')) return block;
+    const host = block.parentElement?.closest('.frame-block:not([data-text-frame]), .section-inner');
+    if (!host) return null;
+    const unit = block.closest('.frame-block[data-text-frame]') || block.closest('.row');
+    return (unit && unit !== host && host.contains(unit)) ? unit : block;
+  }
+
+  document.getElementById('bcm-insert-gap')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const unit = _gapAnchorOf(_targetBlock);
+    closeMenu();
+    if (!unit || !unit.isConnected) return;
+    /* ★insertGapAfterBlock 은 push-after(넣고 나서 찍기)다. 꼭대기가 라이브와 다르면(push-before 동작 직후)
+       ⌘Z 한 번이 «갭 + 그 앞 동작»을 같이 되돌린다 → 넣기 «전» 라이브를 먼저 찍는다(삭제 길 「삭제 전」과 같은 관용구). */
+    window.ensureHistoryCheckpoint?.('여백 넣기 전');
+    window.insertGapAfterBlock?.(unit);
+  });
 
   // 저장 버튼 → 인라인 이름 입력 표시
   const nameRow     = document.getElementById('bcm-name-row');

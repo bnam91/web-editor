@@ -3,7 +3,7 @@ import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
-const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
@@ -82,7 +82,7 @@ export function showGraphProperties(block) {
   // B7r: bar-v·bar-pair 는 «자기 키»(vXxx)만 읽고 쓴다 — bar-h 키(itemGap·barThickness·padX·pctSize·barColor)와 겹치면
   //      타입 전환 때 단위가 다른 값이 딸려 온다(가로 숫자 크기 60 ↔ 세로 값 글자 21 …).
   const _vOnly = chartType === 'bar-v' || chartType === 'bar-pair';
-  const barThickness = parseInt(block.dataset[_vOnly ? 'vBarThickness' : 'barThickness']) || 24;
+  const barThickness = parseInt(block.dataset[_vOnly ? 'vBarThickness' : 'barThickness']) || BAR_THICKNESS_DEFAULT;   // 렌더(drag-utils.js)와 «같은 값»
   const padX         = parseInt(block.dataset[_vOnly ? 'vPadX' : 'padX'])         || 0;
   const barColor     = block.dataset.barColor || '#222222';
   const barAlpha     = parseAlphaFromColor(barColor);
@@ -146,8 +146,9 @@ ${blockHeaderHTML({
         <span class="prop-label">값 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-vlabel', hex: block.dataset.vlabelColor || labelColor, alpha: parseAlphaFromColor(block.dataset.vlabelColor || labelColor) })}
       </div>
+      <!-- ★E103 U27(2026-10-05): 「카테고리 색상」·「카테고리 표시」는 56px 고정 라벨에서 잘렸다(sw60/cw56 실측) — 기존 변형 .prop-label--auto(css/editor-props.css, 「그리드 가이드」 선례)를 쓴다. 전역 56px 은 안 건드린다. -->
       <div class="prop-row" title="카테고리 라벨(7차 입고 등)만 별도 색상">
-        <span class="prop-label">카테고리 색상</span>
+        <span class="prop-label prop-label--auto">카테고리 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-xlabel', hex: block.dataset.xlabelColor || labelColor, alpha: parseAlphaFromColor(block.dataset.xlabelColor || labelColor) })}
       </div>
       <div class="prop-row">
@@ -158,7 +159,7 @@ ${blockHeaderHTML({
         </label>
       </div>
       <div class="prop-row">
-        <span class="prop-label">카테고리 표시</span>
+        <span class="prop-label prop-label--auto">카테고리 표시</span>
         <label class="prop-toggle">
           <input type="checkbox" id="grb-show-xlabel" ${showXLabel ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>

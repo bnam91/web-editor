@@ -4844,7 +4844,7 @@ function _registerDefaultTools() {
           },
           chartHeight:  { type: 'integer', description: '차트 높이 px (80~2000). default 240' },
           labelSize:    { type: 'integer', description: '라벨 글자 크기 px (8~28). default 13' },
-          barThickness: { type: 'integer', description: `bar-h 막대 두께 px (${GRAPH_LIMITS.BAR_THICKNESS_MIN}~${GRAPH_LIMITS.BAR_THICKNESS_MAX}). default 24` },
+          barThickness: { type: 'integer', description: `bar-h 막대 두께 px (${GRAPH_LIMITS.BAR_THICKNESS_MIN}~${GRAPH_LIMITS.BAR_THICKNESS_MAX}). default ${GRAPH_LIMITS.BAR_THICKNESS_DEFAULT}` },
           padX:         { type: 'integer', description: 'bar-h/line 좌우 패딩 px (0~80). default 0' },
           barColor:     { type: 'string',  description: 'bar-h/line 색상 (#hex | rgb(a)/hsl(a)() | transparent). default #222222' },
           itemGap:      { type: 'integer', description: 'bar-h 항목 간 간격 px (8~80). default 24' },

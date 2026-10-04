@@ -2499,6 +2499,30 @@ function bindFrameDropZone(ss) {
     if (!isShapeFrame()) showFrameHandles(ss);
   });
 
+  /* ── 우클릭 → 블록 컨텍스트 메뉴 (U16①, 2026-10-05 지디) ──
+     ★«같은 규칙의 두 얼굴» — 선택 안 된 프레임 위에선 클릭도 우클릭도 «프레임»을 집는다(골라지고, 메뉴도 프레임 것).
+       자식이 클릭을 못 받는 까닭(css/editor-blocks.css:145 pointer-events:none)이 그대로 우클릭에도 걸려
+       e.target 이 프레임 자신이 된다. 고른 프레임 안 자식 위 우클릭은 자식의 bindBlock 리스너가 먼저 받아
+       openMenu 가 stopPropagation 하므로 여기까지 안 온다(중첩 프레임도 안쪽이 먼저 받는다).
+     ⛔글자 프레임(data-text-frame)은 위에서 이미 return — 글자 블럭 쪽 메뉴가 그 자리다.
+     시험: tests/dom/frame-drill-in.dom.spec.js ⑤⑥. */
+  ss.addEventListener('contextmenu', e => {
+    if (e.target.closest?.('.frame-block:not([data-text-frame])') !== ss) return;
+    // «집는다» = 클릭과 같은 단일 선택(위 click 의 일반 갈래와 같은 줄들) — 메뉴가 무엇을 향하는지 화면에 보이게
+    if (!ss.classList.contains('selected')) {
+      window.deselectAll?.();
+      const parentSec = ss.closest('.section-block');
+      if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+      ss.classList.add('selected');
+      window._activeFrame = ss;
+      window.highlightBlock?.(ss, ss._layerItem);
+      window.setBlockAnchor?.(ss);
+      window.showFrameProperties?.(ss);
+      if (!isShapeFrame()) showFrameHandles(ss);
+    }
+    if (window._openBlockContextMenu) window._openBlockContextMenu(e, ss);
+  });
+
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
   if (ss.style.position === 'absolute') {
     ss.setAttribute('draggable', 'false');
@@ -2899,6 +2923,10 @@ function bindFrameDropZone(ss) {
        ⚠️자리는 «자식 블록» 갈래 «뒤»다 — 자식 위 ⇧드래그에서 프레임 draggable 을 끄는 일은
          종전대로 해야 한다(그건 선택과 무관한 드래그 억제다). */
     if (e.shiftKey || e.metaKey || e.ctrlKey) return;
+    /* ★U16①(2026-10-05) — 오른쪽 단추는 여기서 고르지 않는다. 여기서 고르면 :149(.frame-block.selected *{pointer-events:auto})가
+       «같은 누름»의 contextmenu 보다 먼저 서서, 그 contextmenu 가 «안의 글자»를 맞혔다(실측: 글자 메뉴가 뜸 + 프레임만 selected).
+       고르기는 아래 contextmenu 리스너가 한다(클릭과 같은 단일 선택). */
+    if (e.button !== 0) return;
     // 빈 영역 pointerdown → dragstart 전에 selected 상태 즉시 적용
     if (!ss.classList.contains('selected')) {
       window.deselectAll?.();

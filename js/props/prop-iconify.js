@@ -213,7 +213,13 @@ ${blockHeaderHTML({
     /* ★카테고리 이름도 틀에 안 넣는다 (T-049) — option 을 노드로 만들고 value·글자는 프로퍼티로. */
     presetCatSelect.innerHTML = '';
     if (!_presetCategories.length) {
-      presetCatSelect.innerHTML = '<option value="">(폴더 비어있음 — Application Support/GODITOR/svg-presets/ 에 폴더+SVG 추가)</option>';
+      /* U21(2026-10-05) — 안내 전문을 <option> 에 넣으면 칸 폭에서 잘린다(「(폴더 비어있음 — Application S…」).
+         칸엔 짧은 상태만, 안내는 그 아래 그리드 자리에 줄바꿈되는 힌트로.
+         ⛔폴더 경로를 글로 적지 않는다 — 실제 자리는 app.getPath('userData')/svg-presets(main.js:1714 · 이름은 :33 app.name)라
+           맥만 「Application Support/GODITOR」이고 윈도우는 %APPDATA%\GODITOR 다(옛 문구는 윈도우에서 틀린 길이었다).
+           앱 «안»의 길(+ · 라이브러리에 저장)만 가리킨다. */
+      presetCatSelect.innerHTML = '<option value="">(비어 있음)</option>';
+      presetGrid.innerHTML = '<div class="prop-hint" style="grid-column:1/-1;overflow-wrap:anywhere;">카테고리가 없습니다. + 로 만든 뒤 「라이브러리에 저장」으로 SVG 를 넣으세요.</div>';
     } else {
       for (const c of _presetCategories) {
         const o = document.createElement('option');
