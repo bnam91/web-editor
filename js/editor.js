@@ -4345,7 +4345,8 @@ window.moveBlock = moveBlock;
 
 /* ── 특정 블록 뒤에 갭 삽입 (기존 섹션 중간 갭) ── */
 function insertGapAfterBlock(blockId, height) {
-  const block = document.getElementById(blockId);
+  /* U17②(2026-10-05) — 요소도 받는다: 우클릭 메뉴는 «id 없는 .row» 뒤에도 넣어야 한다. id 문자열 길(MCP)은 그대로. */
+  const block = (blockId && blockId.nodeType === 1) ? blockId : document.getElementById(blockId);
   if (!block) return null;
   const gb = window.makeGapBlock?.() || (() => { const d = document.createElement('div'); d.className = 'gap-block'; d.dataset.type = 'gap'; d.id = 'gb_' + Math.random().toString(36).slice(2,8); return d; })();
   if (height) gb.style.height = height + 'px';
