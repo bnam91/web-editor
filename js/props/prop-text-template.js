@@ -11,7 +11,7 @@ export function buildTextPropsHtml(state) {
     isLabel, currentBgColor, currentRadius, labelPillH, labelPadX = 0, labelIsCircle = false,
     isSpeechBubble, currentBubbleStyle, currentTail,
     bubbleBgHex, showSender,
-    isIconText, currentItbGap,
+    isIconText, currentItbGap, itbVertical,
     mix,
     shadow,
     isLiner,
@@ -166,7 +166,8 @@ ${blockHeaderHTML({
           </div>
         </div>
       </div>
-    </div>
+    </div>${/* ★E1 Effects(바닥 반사) — Shadow 바로 아래(지디 승인) · 말풍선·라벨·아이콘텍스트는 대상 밖. ⛔줄바꿈을 더하지 마라 — 절이 없을 때 산출이 추출 전 골든과 같아야 한다(typo-section-ssot T1). */
+      (!isSpeechBubble && !isLabel && !isIconText) ? (window.fxReflectSectionHtml?.(tb, 'txt') || '') : ''}
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
       <div class="prop-section-title">Size</div>
@@ -283,7 +284,21 @@ ${blockHeaderHTML({
 
     <div id="icon-text-style-section" style="display:${isIconText?'block':'none'}">
       <div class="prop-section">
-        <div class="prop-section-title">Icon Text</div>
+        <div class="prop-section-title">Icon Text</div>${isIconText ? /* ★S3V(2026-10-04) 방향 — 구분선 패널(prop-divider.js #dvd-dir-group)과 «같은 꼴·같은 그림»(지디 ⓑ).
+             data-align 이 없어 정렬 배선은 건너뛴다. Icon Text 일 때만 «빈 문자열 밖»으로 나온다 — 다른 블럭 텍스트 패널 HTML 은 한 글자도 안 바뀐다(typo-section-ssot T1 골든). */ `
+        <div class="prop-row">
+          <span class="prop-label">방향</span>
+          <div class="prop-align-group" id="itb-dir-group">
+            <button class="prop-align-btn${!itbVertical?' active':''}" data-dir="horizontal" title="가로 — 아이콘 왼쪽 · 글 오른쪽">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="1" y1="7" x2="13" y2="7"/></svg>
+              가로
+            </button>
+            <button class="prop-align-btn${itbVertical?' active':''}" data-dir="vertical" title="세로 — 아이콘 위 · 글 아래">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="7" y1="1" x2="7" y2="13"/></svg>
+              세로
+            </button>
+          </div>
+        </div>` : ''}
         <div class="prop-row">
           <span class="prop-label">아이콘-텍스트 간격</span>
           <input type="range" class="prop-slider" id="itb-gap-slider" min="0" max="80" step="4" value="${currentItbGap}">

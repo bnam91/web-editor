@@ -234,13 +234,17 @@ export function applyFrameRotationMargin(ss, sizeHint) {
   const w = sizeHint ? (Number(sizeHint.w) || 0) : ss.offsetWidth;
   const h = sizeHint ? (Number(sizeHint.h) || 0) : ss.offsetHeight;
   const m = isAbs ? 0 : rotationMarginY(w, h, deg);
+  /* ★E1 Effects(2026-10-04) — 도형 래퍼의 margin-bottom 은 «반사 여백»(dataset.rfMarginY · js/effects-reflect.js)과 같은 자리다.
+     둘을 «더해서» 쓴다 — 회전만 걷을 때 반사 여백까지 지우지 않게(반사 쪽 _setHostMargin 도 같은 합을 쓴다). */
+  const fx = (ss.dataset && Number(ss.dataset.rfMarginY)) || 0;
   if (m > 0) {
     ss.style.marginTop    = m + 'px';
-    ss.style.marginBottom = m + 'px';
+    ss.style.marginBottom = (m + fx) + 'px';
     ss.dataset.rotMarginY = String(m);
   } else if (ss.dataset && ss.dataset.rotMarginY != null) {
     ss.style.removeProperty('margin-top');
-    ss.style.removeProperty('margin-bottom');
+    if (fx > 0) ss.style.marginBottom = fx + 'px';
+    else ss.style.removeProperty('margin-bottom');
     delete ss.dataset.rotMarginY;
   }
   return m;

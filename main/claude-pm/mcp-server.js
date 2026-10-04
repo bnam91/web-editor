@@ -3685,7 +3685,7 @@ function _registerDefaultTools() {
            한 번 실패해야 안다(거절 메시지가 알려주긴 하지만, 그건 «두 번째» 기회다). */
         + 'patchCell has TWO modes: with lineIndex → patches ONE line (text, type, fontSize, color, '
         + 'weight, align, bg, fontFamily, italic, strike, marginTop, ...); without lineIndex → patches '
-        + 'the CELL (lines, align, valign, bg, padding, radius). Column width goes through patchCol. '
+        + 'the CELL (lines, align, valign, bg, padding, radius, ★bgImg = cell background image "goya-asset://…"|"data:image/…" (≤200000 chars), bgFit = cover|contain, bgPos = "<left|center|right> <top|center|bottom>"). Column width goes through patchCol. '
         /* ★T-178(2026-09-23) — patchCell{r:0} 과 patchCol 의 갈림. 지금까지 «어디에도» 안 적혀 있었고,
            예전엔 둘이 같은 자리에 썼다(행 0 칸에 준 색이 열 기본값이 되어 아래 행까지 칠했다).
            ⛔이 문단을 지우지 마라 — 없으면 고쳐진 동작이 「MCP 회귀」로 읽힌다. */
@@ -5157,8 +5157,11 @@ function _registerDefaultTools() {
   // 텍스트/이미지는 add 직후 update_icon_text_block으로도 갱신 가능.
   registerTool(
     'add_icon_text_block',
-    async ({ sectionId, text, imgSrc } = {}) => {
+    async ({ sectionId, text, imgSrc, direction } = {}) => {
       if (!_rendererInvoker?.addIconTextBlock) throw new Error('renderer bridge not ready');
+      if (direction !== undefined && direction !== null && direction !== 'horizontal' && direction !== 'vertical') {
+        throw new Error(`invalid direction: ${direction}. allowed: horizontal|vertical`);   // ★S3V
+      }
       // sectionId 검증
       if (sectionId !== undefined && sectionId !== null) {
         if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) {
@@ -5185,7 +5188,7 @@ function _registerDefaultTools() {
           if (!okProto) throw new Error('imgSrc protocol not allowed (use data:image/*, http(s)://, blob:, or assets/)');
         }
       }
-      return await _rendererInvoker.addIconTextBlock({ sectionId, text, imgSrc });
+      return await _rendererInvoker.addIconTextBlock({ sectionId, text, imgSrc, direction });
     },
     {
       description: 'Add an icon-text block (small icon + single body text). 좌측 .itb-icon(이미지 박스) + 우측 .itb-text(본문) 구조. text 생략시 기본 placeholder. imgSrc 생략시 dashed SVG placeholder. blockId는 itb_xxx. 이후 update_icon_text_block(blockId, partial)으로 수정.',
@@ -5194,7 +5197,8 @@ function _registerDefaultTools() {
         properties: {
           sectionId: { type: 'string', description: 'sec_xxx — omit to use currently selected section' },
           text:      { type: 'string', description: '본문 텍스트 (≤2000 code points). default "본문 내용을 입력하세요."' },
-          imgSrc:    { type: 'string', description: '아이콘 이미지. data:image/*, http(s)://, blob:, assets/ 만 허용. ≤200000. " 와 개행 금지. 빈 문자열은 미설정과 동일.' }
+          imgSrc:    { type: 'string', description: '아이콘 이미지. data:image/*, http(s)://, blob:, assets/ 만 허용. ≤200000. " 와 개행 금지. 빈 문자열은 미설정과 동일.' },
+          direction: { type: 'string', enum: ['horizontal', 'vertical'], description: '배치 방향. horizontal(기본) = 아이콘 왼쪽·글 오른쪽 · vertical = 아이콘 위·글 아래(가운데 정렬)' }
         },
         required: []
       }
@@ -5213,7 +5217,7 @@ function _registerDefaultTools() {
       }
       const partial = _validateIconTextOpts(rest, { mode: 'update' });
       if (Object.keys(partial).length === 0) {
-        throw new Error('no fields to update — provide at least one of text/imgSrc');
+        throw new Error('no fields to update — provide at least one of text/imgSrc/direction');
       }
       return await _rendererInvoker.updateIconTextBlock({ blockId, partial });
     },
@@ -5224,7 +5228,8 @@ function _registerDefaultTools() {
         properties: {
           blockId: { type: 'string', description: 'itb_xxx (icon-text block id)' },
           text:    { type: 'string', description: '본문 텍스트 갱신 (≤2000 code points). textContent로만 set (HTML 주입 X).' },
-          imgSrc:  { type: 'string', description: '아이콘 이미지 갱신. data:image/*, http(s)://, blob:, assets/ 허용. ≤200000. " / 개행 금지. 빈 문자열 → 이미지 제거 + dashed placeholder 복원.' }
+          imgSrc:  { type: 'string', description: '아이콘 이미지 갱신. data:image/*, http(s)://, blob:, assets/ 허용. ≤200000. " / 개행 금지. 빈 문자열 → 이미지 제거 + dashed placeholder 복원.' },
+          direction: { type: 'string', enum: ['horizontal', 'vertical'], description: '배치 방향 바꾸기. vertical = 아이콘 위·글 아래. 지금 정렬(왼/가운데/오른)은 그대로 옮겨진다' }
         },
         required: ['blockId']
       }
@@ -8153,6 +8158,11 @@ function _validateIconTextOpts(args, { mode } = {}) {
   }
 
   _str('text', 2000);
+  // ★S3V — 방향(세로 = 아이콘 위 · 글 아래). 렌더러 updateIconTextBlock → setIconTextDirection «한 곳».
+  if (args.direction !== undefined && args.direction !== null) {
+    if (args.direction !== 'horizontal' && args.direction !== 'vertical') throw new Error(`invalid direction: ${args.direction}. allowed: horizontal|vertical`);
+    out.direction = args.direction;
+  }
 
   // imgSrc: length + 개행/따옴표 + 프로토콜 화이트리스트
   if (args.imgSrc !== undefined && args.imgSrc !== null) {
