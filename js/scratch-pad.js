@@ -1741,6 +1741,9 @@ function _moveAssetToScratch(ab, clientX, clientY) {
   // 캔버스에서 뺀다 — 그 블럭만 든 row 면 row 째(빈 row 를 남기지 않는다)
   const row = ab.closest('.row');
   const unit = (row && [...row.querySelectorAll('*')].filter(el => window.hasPanelForBlock?.(el)).length === 1) ? row : ab;
+  /* ★E80 — 이 갈래는 «끝 표본만» 찍었다(아래 pushHistory). 에셋 위 오버레이 글자 편집은 끝 표본을 안 쌓아, 그 편집 뒤 이리 옮기고 ⌘Z 하면
+     에셋은 돌아오되 편집은 사라졌다(⌘⇧Z 로도 못 되찾음 · 2026-10-04 실측). 블록 삭제(editor.js)와 같은 꼴로 «삭제 전»을 먼저 찍는다. */
+  window.ensureHistoryCheckpoint?.('삭제 전');
   unit.remove();
   _saveScratch();
   window.buildLayerPanel?.();
