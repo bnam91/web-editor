@@ -57,6 +57,10 @@ for (const ct of ['bar-v', 'bar-pair', 'bar-h']) {
     const m = await measure(page, id);
     expect(m.keys, `[전제] 두께 키 없음(손대기 전) ${JSON.stringify(m)}`).toEqual({ barThickness: null, vBarThickness: null });
     expect(m.actual, `[전제] 막대를 찾았다 ${JSON.stringify(m)}`).not.toBeNull();
+    // ⒜ 값(지디 2026-10-05 «전부 24») — 24 를 «글자로» 박는다: 상수 GRAPH_LIMITS.BAR_THICKNESS_DEFAULT 를 바꾸면(양성대조) 상수를 읽는 소비처가 여기서 빨강.
+    //   soft = 패널·실제 «둘 다» 이름으로 찍히게(첫 실패에서 멈추지 않게) — 소비처별 빨강 명부용.
+    expect.soft(m.panel, `[⒜ 값 · 소비처=패널] 패널 = 24 (${ct})`).toBe(24);
+    expect.soft(m.actual, `[⒜ 값 · 소비처=렌더 ${ct}] 실제 = 24 (${ct})`).toBe(24);
     expect(Math.abs(m.actual - m.panel), `★패널 ${m.panel} vs 실제 ${m.actual}px (${ct})`).toBeLessThanOrEqual(1);
     expect(errs).toEqual([]);
   });
