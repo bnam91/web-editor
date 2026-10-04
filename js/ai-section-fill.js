@@ -88,6 +88,7 @@ function collectSectionTextBlocks(sec) {
       let msgs = [];
       try { msgs = JSON.parse(el.dataset.messages || '[]'); } catch (_) {}
       msgs.forEach((m, i) => {
+        if (Array.isArray(m && m.lines) && m.lines.length) return;   // ★BT2 D4 — 줄 있는 메시지는 AI 가 안 쓴다(text 는 줄의 거울)
         items.push({ id: `ch:${el.id}:${i}:text`, style: 'chat-msg', current: (m.text || '').trim() });
       });
       return;
@@ -322,6 +323,7 @@ function applyAIReplacements(sec, replacements, additions, stats) {
     let msgs = [];
     try { msgs = JSON.parse(chb.dataset.messages || '[]'); } catch (_) {}
     idxMap.forEach((text, idx) => {
+      if (Array.isArray(msgs[idx] && msgs[idx].lines) && msgs[idx].lines.length) return;   // ★BT2 D4 — 거절(위 읽기와 짝)
       msgs[idx] = { ...(msgs[idx] || { align: 'left' }), text };
     });
     chb.dataset.messages = JSON.stringify(msgs);

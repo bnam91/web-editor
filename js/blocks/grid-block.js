@@ -3040,6 +3040,34 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
  *     (tests/unit/grid-rename-residue.test.mjs S1 이 그것을 지킨다 — 실제로 잡혔다).
  * ★클래스 두 개는 block-drag.js 의 _gridEditable 이 «이미» 보는 것과 같다(hostOf 술어) —
  *   그쪽이 DOM 에서, 여기가 모델에서 «같은» 질문에 답한다. */
+/* ══ BT2(2026-10-04) — «줄 배열 하나»를 그리드 입구와 «같은 잣대»로 재는 얇은 문 ══════════════
+ * ★왜 — 버블·챗이 «그리드 줄 데이터»를 그대로 쓴다(BT2 설계 D1·D8). 그 줄을 MCP·패널로 받을 때
+ *   «무엇이 맞는 줄인가»를 그리드와 다른 자로 재면 두 벌이 되어 따로 늙는다.
+ * ⛔새 규칙이 «하나도» 없다 — 이 파일의 기존 검사를 차례로 부를 뿐이다:
+ *   _gridRejectLinesLength(상한 MAX_CELL_LINES) · _gridRejectUnknownCellFields(줄 명부 GRID_LINE_FIELDS) ·
+ *   _gridValueViolations(색·글꼴·정렬 값).
+ * ⚠️그리드의 `patchCell{lines}`(통째) 문은 모르는 줄 필드를 «거절하지 않고 말한다»(drops). 여기는 «거절»이다 —
+ *   버블·챗 줄은 새로 생기는 데이터라 «왕복 사정»(옛 저장본에 남은 쓰레기)이 없다.
+ * @returns {null|{ok:false, code:string, message:string}}  null = 통과 */
+export function gridValidateLines(lines, where = 'lines') {
+  if (!Array.isArray(lines)) {
+    return { ok: false, code: 'LINES_NOT_ARRAY', message: `${where} must be an array (got ${lines === null ? 'null' : typeof lines})` };
+  }
+  const lenReject = _gridRejectLinesLength(lines);
+  if (lenReject) return { ...lenReject, message: lenReject.message.replace('patchCell.lines', where) };
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    if (!ln || typeof ln !== 'object' || Array.isArray(ln)) {
+      return { ok: false, code: 'INVALID', message: `${where}[${i}] must be an object` };
+    }
+    const nameReject = _gridRejectUnknownCellFields(ln, true);
+    if (nameReject) return { ...nameReject, message: `${where}[${i}]: ` + nameReject.message };
+    const v = _gridValueViolations(ln, `${where}[${i}]`);
+    if (v.length) return { ok: false, code: 'INVALID', message: v.map(x => `${x.path}: ${x.why}`).join('; ') };
+  }
+  return null;
+}
+
 export function gridLineHasText(line) {
   if (!line || typeof line !== 'object') return false;
   const html = _gridLineHtml(line, 'left', 0, null);
@@ -3175,6 +3203,8 @@ window.renderDuoBlock = renderGridBlock;
 export {
   makeGridBlock, addGridBlock, updateGridBlock, renderGridBlock, GRID_DEFAULTS,
   _gridLineHtml as gridLineHtml, _GRID_ROLES as GRID_ROLES,
+  /* ★BT2(2026-10-04) — 버블·챗 줄이 «같은 명부·같은 병합»을 쓴다(두 벌 금지). 선언 줄은 안 건드렸다(P7 파싱 무관). */
+  GRID_LINE_FIELDS, _gridMergeLine as gridMergeLine,
   _GRID_COLOR_RE as GRID_COLOR_RE, _GRID_FONT_RE as GRID_FONT_RE,
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
   getGridWidth, _gridValidateWidth as gridValidateWidth, fitGridWidthToFreeFrame, syncAutoGridWidth, applyGridOwnWidth,

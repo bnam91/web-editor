@@ -265,7 +265,12 @@ test('BT3-C 챗블럭 — 스타일 드롭다운에 해당하는 칸이 «없다
   const r = await waitStableRect(page, `#${id} .chb-bubble`);
   await page.mouse.click(r.cx, r.cy);
   await expect(page.locator('#chb-add-msg'), '전제: 챗 패널이 열렸다').toBeVisible();
-  const selects = await page.evaluate(() => [...document.querySelectorAll('#panel-right select, .panel-right select')].filter(s => s.offsetParent !== null).map(s => s.id || s.className));
+  const all = await page.evaluate(() => [...document.querySelectorAll('#panel-right select, .panel-right select')].filter(s => s.offsetParent !== null)
+    .map(s => ({ id: s.id || s.className, inLinePanel: !!s.closest('#ln-line-panel') })));
+  test.info().annotations.push({ type: 'selects', description: JSON.stringify(all) });
+  /* ★BT2(2026-10-04) — 챗에 «줄바»(#ln-line-panel: 「+ 줄 추가▾」·줄 종류·줄 정렬)가 생겼다. 그건 «스타일 드롭다운»이 아니다.
+     ⛔수를 느슨하게(≤N) 하지 않는다 — 줄바 그릇 «밖»의 셀렉트가 0 이어야 한다(이 시험의 뜻 = 챗에 BT3 스타일 칸 없음). */
+  const selects = all.filter(s => !s.inLinePanel).map(s => s.id);
   expect(selects).toEqual([]);
 });
 

@@ -1543,6 +1543,14 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 #canvas .grid-block .grd-line-selected {
   box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
 }
+/* ★BT2(2026-10-04) 말풍선·챗 «줄» 선택 표시 — 그리드 줄과 «같은 그림·같은 토큰»(--sel-color · --inv-zoom).
+   감싸개(.ln-row)에 붙인다. 클래스가 `-line-selected` 로 끝나 저장 직렬화가 벗긴다(section-serialize RUNTIME_MARKER_RE). */
+#canvas .speech-bubble-block .ln-row.ln-line-selected,
+#canvas .chat-block .ln-row.ln-line-selected {
+  box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
+}
+/* 빈 글자 줄이 «손에 닿게» — 그리드 빈 줄 안내문(아래 .grd-line:empty)과 같은 관용구. #canvas 스코프라 내보내기엔 안 샌다. */
+#canvas .ln-row > .grd-line:empty::before { color: #ccc; pointer-events: none; content: '글자를 입력하세요'; }
 
 /* ★원형 이미지 줄(.grd-img-circle)의 선택 표시 = «서클 에셋과 같은 두 줄» (현빈 2026-10-03
  *   「그리드 칸의 원형 이미지 아웃라인이 이상하다 — 서클 에셋블럭의 그것과 달라」, G24).
