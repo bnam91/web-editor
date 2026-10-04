@@ -1,6 +1,8 @@
 /* frame-drill-in.dom.spec.js — E93 «보통 프레임 드릴인» 잠금: 첫 클릭 = 프레임 · 두 번째 클릭 = 안의 글자 (태양 lane-e93-drill 2026-10-05)
  *
- * ★같은 집(규칙 하나)의 형제: tests/dom/grid-first-click-block.dom.spec.js(T-058 — 그리드 «첫 클릭 = 블럭 · 두 번째 = 줄»).
+ * ★형제: tests/dom/grid-first-click-block.dom.spec.js(T-058 — 그리드 «첫 클릭 = 블럭 · 두 번째 = 줄»).
+ *   같은 사용자 규칙(첫 클릭 = 그릇)의 두 구현 — 프레임 = CSS :145 · 그리드 = JS 걸쇠(block-drag · grdWasCanvasDrilled).
+ *   양성대조로 갈림 확인(:145 뺌 → 이 spec 5/5 빨강 · grid-first-click-block 15/15 초록).
  *   이 파일은 그 규칙의 «프레임» 쪽을 잠근다(지금까지 프레임 드릴인을 잠근 시험 0).
  * ★규칙의 자리:
  *   css/editor-blocks.css:145 `.frame-block:not(.selected):not([data-text-frame]):not(:has(.selected)) *:not(.shape-block):not(.shape-handle){pointer-events:none}`
