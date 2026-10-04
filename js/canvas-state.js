@@ -232,7 +232,9 @@
         }
       }
       blocks.push({ blockId: id, type: type, parentId: parentId, depth: depth,
-                    summary: _summarize(el, type, full) });
+                    summary: (type === 'icon_text' && el.dataset && el.dataset.itbDir === 'v')
+                      ? Object.assign({}, _summarize(el, type, full), { direction: 'vertical' })   // ★S3V — 세로만 싣는다(가로 답은 옛 그대로)
+                      : _summarize(el, type, full) });
     });
     /* ★★A/B 베리에이션을 «말한다» (2026-09-08 현빈 지시).
          A안·B안은 «같은 자리의 두 시안»인데, 이걸 안 실어 보내면 밖에서는 «그냥 섹션 두 개»로 보인다.

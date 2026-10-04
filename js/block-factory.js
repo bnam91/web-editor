@@ -5165,7 +5165,12 @@ function updateIconTextBlock(blockId, partial = {}) {
   const before = {
     text:   _textEl0 ? _textEl0.textContent : '',
     imgSrc: block.dataset.imgSrc || '',
+    direction: block.dataset.itbDir === 'v' ? 'vertical' : 'horizontal',   // ★S3V
   };
+  if (partial.direction !== undefined && partial.direction !== null
+      && partial.direction !== 'horizontal' && partial.direction !== 'vertical') {
+    return { ok: false, code: 'INVALID', message: `direction must be 'horizontal' | 'vertical' (got ${JSON.stringify(partial.direction)})` };
+  }
 
   if (partial.text !== undefined && partial.text !== null) {
     if (typeof partial.text !== 'string') {
@@ -5234,6 +5239,12 @@ function updateIconTextBlock(blockId, partial = {}) {
       }
     }
     applied.imgSrc = newSrc;
+  }
+
+  /* ★S3V — 방향. 패널 「방향」 단추와 «같은 한 곳»(setIconTextDirection — 정렬을 옮겨 적고 옛 키를 지운다). */
+  if (partial.direction !== undefined && partial.direction !== null) {
+    setIconTextDirection(block, partial.direction);
+    applied.direction = partial.direction;
   }
 
   try { window.buildLayerPanel?.(); } catch (_) {}
