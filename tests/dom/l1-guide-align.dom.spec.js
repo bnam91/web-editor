@@ -210,3 +210,29 @@ test('L1-X 누출 — 썸네일 · PNG(h2c·네이티브) 칼럼 자리 = 흰색
   expect(r.classAfter, 'PNG 뒤 가이드 클래스 복원').toBe(true);
   expect(errs).toEqual([]);
 });
+
+/* ── L1-S 행동 시험(G5 가 대리하던 뜻) — 가이드를 켠 채 «저장»하면 저장 문자열에 gdt-grid 가 0번이다 ──
+ *   재는 것: ⑴ serializeProject() 문자열 ⑵ 진짜 saveProjectToFile 이 electronAPI 로 넘기는 인자(가로채기) 안의 'gdt-grid' 개수.
+ *   양성대조: 가이드 클래스를 «캔버스 안»(.section-inner)에도 붙이는 변이 판(GD1001_ROOT)에서 빨개진다. */
+test('L1-S 가이드 켠 채 저장 — 저장 문자열의 gdt-grid 0번', async ({ page }) => {
+  const errs = await setup(page, 100);
+  await setSecPadX(page, 'sB', 80);   // 섹션 패널을 거쳐 가이드 상태에서 편집이 있었던 판
+  const r = await page.evaluate(async () => {
+    const count = (str) => (String(str).match(/gdt-grid/g) || []).length;
+    const out = { bodyOn: document.body.classList.contains('gdt-grid-on') };
+    out.serialize = count(window.serializeProject());
+    const real = window.electronAPI; const args = [];
+    window.electronAPI = new Proxy({}, { get: (t, k) => (...a) => { for (const x of a) { try { args.push(typeof x === 'string' ? x : JSON.stringify(x)); } catch (_) {} } return Promise.resolve(null); } });
+    try { const m = await import('/js/io/save-load.js'); await m.saveProjectToFile(undefined, { projectId: 'p_l1_save' }); } catch (e) { out.err = String(e); }
+    window.electronAPI = real;
+    out.saveCalls = args.length; out.saveArgsChars = args.reduce((a, s) => a + (s ? s.length : 0), 0);
+    out.saveArgs = args.reduce((a, s) => a + count(s), 0);
+    return out;
+  });
+  console.log('L1S', JSON.stringify(r));
+  expect(r.bodyOn, '전제 — 가이드가 켜져 있다').toBe(true);
+  expect(r.saveCalls, `전제 — 저장이 실제로 electronAPI 로 나갔다 ${JSON.stringify(r)}`).toBeGreaterThan(0);
+  expect(r.serialize, `★serializeProject 의 gdt-grid ${r.serialize}번`).toBe(0);
+  expect(r.saveArgs, `★저장 인자의 gdt-grid ${r.saveArgs}번`).toBe(0);
+  expect(errs).toEqual([]);
+});
