@@ -18,7 +18,7 @@ const GOLD = path.join(__dirname, 'fixtures', 's3v-icon-text-golden.json');
 const UPDATE = process.env.S3V_GOLDEN === 'update';
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAAABJRU5ErkJggg==';
 /* ★C0 에는 기능이 없다 — 기능을 재는 시험은 «빨강이 정상»(test.fail). 기능 커밋에서 이 줄을 false 로 바꾼다(걷지 않으면 «예상 밖 통과»로 빨강). */
-const FEATURE = true;
+const FEATURE = false;
 
 async function fresh(page) {
   await page.setViewportSize({ width: 1700, height: 1100 });

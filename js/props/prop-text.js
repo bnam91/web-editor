@@ -105,9 +105,11 @@ export function showTextProperties(tb) {
   const currentAlign = isLabel
     ? (tb.style.textAlign || 'left')
     : isIconText
-      ? (_jcToAlign[tb.style.justifyContent] || 'left')
+      /* ★S3V — 세로(data-itb-dir="v")면 정렬 키가 alignItems(기본 = 가운데, 지디 시안 ㉮). 가로는 옛 그대로. */
+      ? (tb.dataset.itbDir === 'v' ? (window.iconTextAlignOf?.(tb) || 'center') : (_jcToAlign[tb.style.justifyContent] || 'left'))
       : _alignDisplayFor(contentEl.style.textAlign || 'left');
   const currentItbGap = isIconText ? (parseInt(tb.style.gap) || 16) : 16;
+  const itbVertical = isIconText && tb.dataset.itbDir === 'v';   // ★S3V 「방향」 단추 active
   // 자식 span/div에 inline font-size가 있으면 그 값을 우선 사용 (복사 블록 대응)
   const _firstSizedChild = contentEl.querySelector('[style*="font-size"]');
   const currentSize  = _firstSizedChild
@@ -167,7 +169,7 @@ export function showTextProperties(tb) {
     isLabel, currentBgColor, currentRadius, labelPillH, labelPadX, labelIsCircle: _isCircleLabel,
     isSpeechBubble, currentBubbleStyle, currentTail,
     bubbleBgHex, showSender,
-    isIconText, currentItbGap,
+    isIconText, currentItbGap, itbVertical,
     mix,
     shadow,
     isLiner,
