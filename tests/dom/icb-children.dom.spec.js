@@ -71,6 +71,20 @@ async function waitCirclePaint(page, id, bgc, { checker = false } = {}) {
   }
   await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
+/** ★패널 칸에 «확실히» 쳐 넣는다 — ×8 전수에서 K15b 1/208: 고른 hex 가 칸에 안 닿았다(ds 그대로 #e8e8e8 · px 체커 240).
+ *  따로 ×40 은 40/40(포커스·값 정상) — 부하 판에서만 난다. 고정 대기·재시도 대신 «상태»를 단언한다:
+ *  칸 자리가 멈춘 뒤 누르고 → 포커스가 그 칸인지 → 친 값이 그 칸에 있는지 → 그 다음에 확정 키. 빗나가면 «어디로 갔나»가 메시지에 남는다. */
+async function focusAndType(page, sel, text, commit = 'Enter') {
+  await page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: 'center' }), sel);
+  const r = await waitStableRect(page, sel);
+  await page.mouse.click(r.cx, r.cy);
+  const ae = await page.evaluate(() => { const a = document.activeElement; return a ? (a.id || a.className || a.tagName) : null; });
+  expect(ae, `포커스가 ${sel} 에 갔다 — 실제 ${ae}`).toBe(sel.replace(/^#/, ''));
+  await page.keyboard.press('Meta+a'); await page.keyboard.type(text);
+  const v = await page.evaluate((sel) => document.querySelector(sel)?.value, sel);
+  expect(v, `${sel} 에 친 값`).toBe(text);
+  await page.keyboard.press(commit);
+}
 
 /** 서클 «원»을 진짜 클릭으로 고른다(원 윗쪽 12% 지점 — 가운데 자식 그릇을 피한다). 패널이 서클 패널이어야 한다. */
 async function selectCircle(page, id) {
@@ -382,8 +396,8 @@ test('K11 ★빈 원 패널 = 「채움 끔」(E48 — 지금은 E8E8E8 100% 로
 test('K11b 색을 고른 원은 «채움 켬»으로 보이고, 끈 뒤 다시 켜면 그 색으로 돌아온다(데이터 키 추가 없음)', async ({ page }) => {
   const { errs, id } = await setup(page);
   expect(await selectCircle(page, id)).toBe(true);
-  const hx = await centreOf(page, '#icb-bg-hex');
-  await page.mouse.click(hx[0], hx[1]); await page.keyboard.press('Meta+a'); await page.keyboard.type('3366FF'); await page.keyboard.press('Enter'); await page.waitForTimeout(200);
+  await focusAndType(page, '#icb-bg-hex', '3366FF');
+  await waitCirclePaint(page, id, 'rgb(51, 102, 255)');
   await page.evaluate(() => window.deselectAll());
   expect(await selectCircle(page, id)).toBe(true);
   expect(await page.evaluate(() => document.getElementById('icb-fill-toggle')?.checked), '색 있는 원 = 켬').toBe(true);
@@ -467,7 +481,7 @@ test('K15 ★자식이 있어도 패널 손잡이가 먹는다 — 지름(그릇
   await addViaPanel(page, id, 'body');
   await setKidText(page, id, 'K');
   expect(await selectCircle(page, id)).toBe(true);
-  const typeInto = async (sel, v, commit = 'Tab') => { const c = await centreOf(page, sel); await page.mouse.click(c[0], c[1]); await page.keyboard.press('Meta+a'); await page.keyboard.type(v); await page.keyboard.press(commit); await page.waitForTimeout(250); };
+  const typeInto = (sel, v, commit = 'Tab') => focusAndType(page, sel, v, commit);
   await typeInto('#icb-size-number', '320');
   let s = await kidState(page, id);
   expect(Math.abs(s.kbox.w - s.circ.w / Math.SQRT2), '그릇이 지름 따라 준다').toBeLessThanOrEqual(2);
@@ -493,8 +507,7 @@ test('K15 ★자식이 있어도 패널 손잡이가 먹는다 — 지름(그릇
 test('K15b 지키기 — 자식 없는 원: 배경 hex 가 칠해진다(측정표 13가지 중 대표 · A1 수정 유지)', async ({ page }) => {
   const { errs, id } = await setup(page);
   expect(await selectCircle(page, id)).toBe(true);
-  const hx = await centreOf(page, '#icb-bg-hex');
-  await page.mouse.click(hx[0], hx[1]); await page.keyboard.press('Meta+a'); await page.keyboard.type('00AA00'); await page.keyboard.press('Enter');
+  await focusAndType(page, '#icb-bg-hex', '00AA00');
   await page.evaluate(() => window.deselectAll()); await park(page);
   const s = await kidState(page, id);
   await waitCirclePaint(page, id, 'rgb(0, 170, 0)');   // ★상태 조건 대기(옛 판: Enter 뒤 고정 250ms — integ8 c8beb642 1회 빨강)
