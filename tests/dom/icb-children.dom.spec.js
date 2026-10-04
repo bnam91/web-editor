@@ -55,6 +55,36 @@ async function pixelAt(page, x, y) {
 }
 const near = (a, b, tol = 8) => a.every((v, i) => Math.abs(v - b[i]) <= tol);
 const isChecker = (px) => near(px, [0xd8, 0xd8, 0xd8]) || near(px, [0xf0, 0xf0, 0xf0]);
+/** ★픽셀 읽기 «전» 상태 조건 대기(E35 꼴 ⑵ — 고정 대기 금지, integ8 K15b 1회 빨강 2026-10-04).
+ *  색이 실제로 칠해지는 요소 = 안쪽 원 .icb-circle(패널 _paint 가 인라인 background-color 를 쓰고, CSS 는 그 인라인이 실리면 체커를 걷는다 — editor-blocks.css ICON CIRCLE).
+ *  computed backgroundColor 가 기대값(그리고 bgImage 조건)이 될 때까지 기다린 뒤 rAF 두 번 — 그 다음에 화면을 읽는다. 못 닿으면 «지금 값»을 메시지로 던진다. */
+async function waitCirclePaint(page, id, bgc, { checker = false } = {}) {
+  try {
+    await page.waitForFunction(({ id, bgc, checker }) => { const c = document.querySelector(`#${id} .icb-circle`); if (!c) return false; const cs = getComputedStyle(c);
+      return cs.backgroundColor === bgc && (checker ? /repeating-conic-gradient/.test(cs.backgroundImage) : cs.backgroundImage === 'none'); }, { id, bgc, checker }, { timeout: 5000 });
+  } catch (e) {
+    const now = await page.evaluate((id) => { const c = document.querySelector(`#${id} .icb-circle`); const cs = c && getComputedStyle(c); return cs ? `bgc=${cs.backgroundColor} bgi=${cs.backgroundImage.slice(0, 30)} ds=${document.getElementById(id).dataset.bgColor}` : 'no circle'; }, id);
+    await park(page);
+    const r = await page.evaluate((id) => { const c = document.querySelector(`#${id} .icb-circle`).getBoundingClientRect(); return [c.left + c.width / 2, c.top + c.height / 2]; }, id);
+    const px = await pixelAt(page, r[0], r[1]);
+    throw new Error(`원 칠함 상태 대기 실패 — 기대 ${bgc}${checker ? ' + 체커' : ' + 체커 없음'} · 지금 ${now} · 원 가운데 px=${px}`);
+  }
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+}
+/** ★패널 칸에 «확실히» 쳐 넣는다 — ×8 전수에서 K15b 1/208: 고른 hex 가 칸에 안 닿았다(ds 그대로 #e8e8e8 · px 체커 240).
+ *  따로 ×40 은 40/40(포커스·값 정상) — 부하 판에서만 난다. 고정 대기·재시도 대신 «상태»를 단언한다:
+ *  칸 자리가 멈춘 뒤 누르고 → 포커스가 그 칸인지 → 친 값이 그 칸에 있는지 → 그 다음에 확정 키. 빗나가면 «어디로 갔나»가 메시지에 남는다. */
+async function focusAndType(page, sel, text, commit = 'Enter') {
+  await page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: 'center' }), sel);
+  const r = await waitStableRect(page, sel);
+  await page.mouse.click(r.cx, r.cy);
+  const ae = await page.evaluate(() => { const a = document.activeElement; return a ? (a.id || a.className || a.tagName) : null; });
+  expect(ae, `포커스가 ${sel} 에 갔다 — 실제 ${ae}`).toBe(sel.replace(/^#/, ''));
+  await page.keyboard.press('Meta+a'); await page.keyboard.type(text);
+  const v = await page.evaluate((sel) => document.querySelector(sel)?.value, sel);
+  expect(v, `${sel} 에 친 값`).toBe(text);
+  await page.keyboard.press(commit);
+}
 
 /** 서클 «원»을 진짜 클릭으로 고른다(원 윗쪽 12% 지점 — 가운데 자식 그릇을 피한다). 패널이 서클 패널이어야 한다. */
 async function selectCircle(page, id) {
@@ -89,7 +119,7 @@ const kidState = (page, id) => page.evaluate((id) => {
 }, id);
 
 /* ═══ 기준판(5015a2ab) git 객체로 같은 앱을 띄운다 — grid-children-shell-bytes 의 수법 그대로 ═══ */
-const BASE = '5015a2ab';
+const BASE = process.env.G14_K0_BASE || '5015a2ab';   // 기준판 덮어쓰기(예: 통합판 바이트 대조 — G14_K0_BASE=4079317a)
 const REPO = path.join(__dirname, '..', '..');
 const MIME = { '.js': 'application/javascript', '.mjs': 'application/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const _baseCache = new Map();
@@ -192,7 +222,7 @@ test('K2 ★넘친 글자는 원 모양으로 잘린다 · 그릇 폭 = 지름 �
   await park(page);
   /* 원의 바깥 «모서리» 지점(사각 상자 안 · 원 밖) = 섹션 흰색 — 넘친 글자가 원 밖으로 안 새어 나온다 */
   const corner = await pixelAt(page, s.circ.left + s.circ.w * 0.06, s.circ.top + s.circ.h * 0.06);
-  expect(near(corner, [255, 255, 255], 4), `원 밖 모서리 = 흰색 — 찍힌 ${corner}`).toBe(true);
+  expect(near(corner, [255, 255, 255], 4), `원 밖 모서리 = 흰색 — px=${corner}`).toBe(true);
   expect(errs).toEqual([]);
 });
 
@@ -349,24 +379,25 @@ test('K11 ★빈 원 패널 = 「채움 끔」(E48 — 지금은 E8E8E8 100% 로
   expect(t0, '패널에 채움 토글(#icb-fill-toggle)').not.toBeNull();
   expect(t0.checked, '빈 원 = 채움 끔').toBe(false);
   const tg = await page.evaluate(() => { const l = document.getElementById('icb-fill-toggle').closest('label'); l.scrollIntoView({ block: 'center' }); const r = l.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
-  await page.mouse.click(tg[0], tg[1]); await page.waitForTimeout(250);
-  const on = await page.evaluate((id) => ({ ds: document.getElementById(id).dataset.bgColor, bgc: getComputedStyle(document.querySelector(`#${id} .icb-circle`)).backgroundColor }), id);
-  expect(on.bgc, '켜면 색이 칠해진다').toBe('rgb(232, 232, 232)');
-  await page.mouse.click(tg[0], tg[1]); await page.waitForTimeout(250);
+  await page.mouse.click(tg[0], tg[1]);
+  await waitCirclePaint(page, id, 'rgb(232, 232, 232)');   // 켜면 색이 칠해진다(상태 조건 — 고정 대기 아님)
+  await page.mouse.click(tg[0], tg[1]);
+  await waitCirclePaint(page, id, 'rgba(0, 0, 0, 0)', { checker: true });
   const off = await page.evaluate((id) => document.getElementById(id).dataset.bgColor, id);
   expect(off, '끔 = 기존 값 transparent').toBe('transparent');
   await page.evaluate(() => window.deselectAll()); await park(page);
   const s = await kidState(page, id);
+  await waitCirclePaint(page, id, 'rgba(0, 0, 0, 0)', { checker: true });
   const px = await pixelAt(page, s.circ.cx, s.circ.cy);
-  expect(isChecker(px), `끔 = 체커 — 찍힌 ${px}`).toBe(true);
+  expect(isChecker(px), `끔 = 체커 — px=${px}`).toBe(true);
   expect(errs).toEqual([]);
 });
 
 test('K11b 색을 고른 원은 «채움 켬»으로 보이고, 끈 뒤 다시 켜면 그 색으로 돌아온다(데이터 키 추가 없음)', async ({ page }) => {
   const { errs, id } = await setup(page);
   expect(await selectCircle(page, id)).toBe(true);
-  const hx = await centreOf(page, '#icb-bg-hex');
-  await page.mouse.click(hx[0], hx[1]); await page.keyboard.press('Meta+a'); await page.keyboard.type('3366FF'); await page.keyboard.press('Enter'); await page.waitForTimeout(200);
+  await focusAndType(page, '#icb-bg-hex', '3366FF');
+  await waitCirclePaint(page, id, 'rgb(51, 102, 255)');
   await page.evaluate(() => window.deselectAll());
   expect(await selectCircle(page, id)).toBe(true);
   expect(await page.evaluate(() => document.getElementById('icb-fill-toggle')?.checked), '색 있는 원 = 켬').toBe(true);
@@ -450,7 +481,7 @@ test('K15 ★자식이 있어도 패널 손잡이가 먹는다 — 지름(그릇
   await addViaPanel(page, id, 'body');
   await setKidText(page, id, 'K');
   expect(await selectCircle(page, id)).toBe(true);
-  const typeInto = async (sel, v, commit = 'Tab') => { const c = await centreOf(page, sel); await page.mouse.click(c[0], c[1]); await page.keyboard.press('Meta+a'); await page.keyboard.type(v); await page.keyboard.press(commit); await page.waitForTimeout(250); };
+  const typeInto = (sel, v, commit = 'Tab') => focusAndType(page, sel, v, commit);
   await typeInto('#icb-size-number', '320');
   let s = await kidState(page, id);
   expect(Math.abs(s.kbox.w - s.circ.w / Math.SQRT2), '그릇이 지름 따라 준다').toBeLessThanOrEqual(2);
@@ -463,8 +494,9 @@ test('K15 ★자식이 있어도 패널 손잡이가 먹는다 — 지름(그릇
   await typeInto('#icb-bg-alpha', '50', 'Enter');
   await page.evaluate(() => window.deselectAll()); await park(page);
   s = await kidState(page, id);
+  await waitCirclePaint(page, id, 'rgba(255, 0, 0, 0.5)');
   const px = await pixelAt(page, s.circ.cx, s.circ.top + s.circ.h * 0.12);
-  expect(near(px, [255, 127, 127]), `자식 밖 원 = 반투명 빨강 — 찍힌 ${px}`).toBe(true);
+  expect(near(px, [255, 127, 127]), `자식 밖 원 = 반투명 빨강 — px=${px}`).toBe(true);
   const colAfter = await page.evaluate((id) => getComputedStyle(document.querySelector(`#${id} .icb-children .text-block [class^="tb-"]`) || document.querySelector(`#${id} .icb-children .text-block`)).color, id);
   expect(colAfter, '투명도 ㉠ = 배경만 — 자식 글자색 그대로').toBe(colBefore);
   const op = await page.evaluate((id) => ({ blk: getComputedStyle(document.getElementById(id)).opacity, box: getComputedStyle(document.querySelector(`#${id} .icb-children`)).opacity }), id);
@@ -475,11 +507,12 @@ test('K15 ★자식이 있어도 패널 손잡이가 먹는다 — 지름(그릇
 test('K15b 지키기 — 자식 없는 원: 배경 hex 가 칠해진다(측정표 13가지 중 대표 · A1 수정 유지)', async ({ page }) => {
   const { errs, id } = await setup(page);
   expect(await selectCircle(page, id)).toBe(true);
-  const hx = await centreOf(page, '#icb-bg-hex');
-  await page.mouse.click(hx[0], hx[1]); await page.keyboard.press('Meta+a'); await page.keyboard.type('00AA00'); await page.keyboard.press('Enter'); await page.waitForTimeout(250);
+  await focusAndType(page, '#icb-bg-hex', '00AA00');
   await page.evaluate(() => window.deselectAll()); await park(page);
   const s = await kidState(page, id);
-  expect(near(await pixelAt(page, s.circ.cx, s.circ.cy), [0, 170, 0])).toBe(true);
+  await waitCirclePaint(page, id, 'rgb(0, 170, 0)');   // ★상태 조건 대기(옛 판: Enter 뒤 고정 250ms — integ8 c8beb642 1회 빨강)
+  const px = await pixelAt(page, s.circ.cx, s.circ.cy);
+  expect(near(px, [0, 170, 0]), `원 가운데 = 고른 색 — px=${px}`).toBe(true);
   expect(errs).toEqual([]);
 });
 
