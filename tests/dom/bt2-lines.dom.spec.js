@@ -202,6 +202,12 @@ test('T7 G19 — 그리드 «밑» 자식 버블의 줄을 더블클릭해 고�
     return { g: g.id, sb: sb.id, gl: g.dataset.cols, inside: g.contains(sb) };
   });
   expect(r.inside, '전제: 버블이 그리드 «안»(.grd-children)에 있다').toBe(true);
+  /* ★충돌의 «뿌리»를 직접 잰다 — 그리드 주소를 읽는 자 아홉(grid-block.js _gridNestAddr 머리말)은 전부 «그리드 블럭 안»에서
+     [data-r][data-c][data-line] 을 찾는다. 버블 줄이 그 이름을 찍으면 그리드의 주소 공간에 «남의 줄»이 섞인다.
+     ⇒ 그리드 안 주소 요소 수 == 그리드 자기 줄 수(여기선 1). 더블클릭 단언만으로는 이것을 못 잰다 —
+       버블의 capture 핸들러가 stopPropagation 해서 그리드 더블클릭 손잡이까지 이벤트가 «안 간다»(변이 판으로 확인). */
+  const addrs = await page.evaluate(({ g }) => { const grid = document.getElementById(g); return { all: grid.querySelectorAll('[data-r][data-c][data-line]').length, own: grid.querySelectorAll(':scope > .grd-inner [data-r][data-c][data-line]').length }; }, r);
+  expect(addrs.all, '그리드 주소 공간 = 그리드 자기 줄뿐(버블 줄이 섞이지 않는다)').toBe(addrs.own);
   await page.evaluate(() => window.deselectAll?.());
   const rr = await waitStableRect(page, `#${r.sb} .ln-row[data-ln="0"]`);
   await page.mouse.dblclick(rr.cx, rr.cy); await page.keyboard.type('X'); await page.evaluate(() => document.activeElement?.blur?.()); await page.waitForTimeout(150);
