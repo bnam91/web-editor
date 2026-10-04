@@ -17,6 +17,9 @@ const PAGE = readSrc(ROOT, 'js', 'props', 'prop-page.js');
 const CSS  = readSrc(ROOT, 'css', 'editor-canvas.css');
 const EXP  = readSrc(ROOT, 'js', 'io', 'export-image.js');
 const SAVE = readSrc(ROOT, 'js', 'io', 'save-load.js');
+/* ★L1(2026-10-04) — 캡처 가드 몸은 capture-safety.js withGuideOff «한 벌»로 옮겼다(PNG·썸네일이 같이 부른다). G4/G6/M2 의 닻은 그 함수다. */
+const CAP  = readSrc(ROOT, 'js', 'io', 'capture-safety.js');
+const guardSeg = (src) => { const i = src.indexOf('export async function withGuideOff('); return i < 0 ? '' : src.slice(i, i + 700); };
 /* ★주석 거르개는 «공용 부품»을 쓴다 — 직접 만들지 마라(tests/unit/strip-comments-shared.test.js S-6).
    예전에 이 파일에도 자기 codeOnly 가 있었고, 그건 이 레포에서 9벌이 같은 형태로 부서져 있던
    `src.replace(/\/\*[\s\S]*?\*\//g,'')` 그대로였다 — `accept="image/*"` 의 `/*` 를 주석 시작으로 읽고
@@ -64,14 +67,19 @@ test('G3 CSS 는 «패딩 안쪽»에만 그린다 — 패딩을 바꾸면 자�
   assert.match(CSS, /background-clip:\s*content-box/);
 });
 
-test('G4 ★내보내기 «직전»에 끈다 — 가장 안쪽 함수에서', () => {
-  const src = codeOnly(EXP);
-  const i = src.indexOf('async function exportSection(');
-  assert.ok(i > 0, 'exportSection 이 없다');
-  const seg = src.slice(i, i + 700);
+test('G4 ★내보내기 «직전»에 끈다 — 가장 안쪽 함수에서(가드 몸 = capture-safety.js withGuideOff · PNG·썸네일 둘 다 그걸 부른다)', () => {
+  const seg = guardSeg(codeOnly(CAP));
+  assert.ok(seg, 'withGuideOff 가 없다');
   assert.match(seg, /classList\.remove\('gdt-grid-on'\)/,
-    '내보내기 전에 그리드를 안 끈다 — html2canvas 는 body 클래스를 복제해 캡처한다');
+    '캡처 전에 그리드를 안 끈다 — html2canvas 는 body 클래스를 복제해 캡처한다');
   assert.match(seg, /finally\s*\{/, '되돌리기가 finally 에 없으면 실패 시 가이드가 영영 꺼진다');
+  /* ★부르는 쪽 둘이 «그 함수»를 지나야 가드가 산다 — 가장 안쪽 exportSection · 썸네일 captureThumbnail */
+  const exp = codeOnly(EXP), i = exp.indexOf('async function exportSection(');
+  assert.ok(i > 0, 'exportSection 이 없다');
+  assert.match(exp.slice(i, i + 400), /withGuideOff\(/, 'exportSection 이 가드(withGuideOff)를 안 부른다');
+  const sv = codeOnly(SAVE), j = sv.indexOf('async function captureThumbnail(');
+  assert.ok(j > 0, 'captureThumbnail 이 없다');
+  assert.match(sv.slice(j, j + 6000), /withGuideOff\(/, 'captureThumbnail 이 가드(withGuideOff)를 안 부른다');
 });
 
 test('G5 저장 경로에는 그리드 «흔적 자체»가 없다', () => {
@@ -79,17 +87,12 @@ test('G5 저장 경로에는 그리드 «흔적 자체»가 없다', () => {
     '저장 코드가 그리드를 알고 있다면, 그건 이미 문서에 섞였다는 뜻이다');
 });
 
-test('G6 ★변이대조 — 내보내기 가드를 빼면 G4 가 빨개진다', () => {
-  const src = codeOnly(EXP);
+test('G6 ★변이대조 — 가드 함수의 끄기 줄을 빼면 G4 가 빨개진다', () => {
+  const src = codeOnly(CAP);
   const mutated = src.replace(/classList\.remove\('gdt-grid-on'\)/, 'void 0');
-  /* ★«주입이 먹었나»를 먼저 잰다.
-     ⛔이 줄이 없으면 G6 은 공회전한다 — 대상 문자열이 사라지면 replace 가 아무것도 안 바꾸고
-       아래 doesNotMatch 가 «그냥» 통과한다. 실제로 중앙선을 걷어낼 때 옛 문자열
-       ('gdt-grid-on', 'gdt-grid-mid')이 안 맞아 G6 이 빨개지지 «않고» 조용히 통과했다. */
+  /* ★«주입이 먹었나»를 먼저 잰다 — 대상 문자열이 사라지면 replace 가 아무것도 안 바꾸고 아래가 «그냥» 통과한다. */
   assert.notStrictEqual(mutated, src, '★변이가 주입되지 않았다 — G6 이 공회전 중이다');
-  const i = mutated.indexOf('async function exportSection(');
-  const seg = mutated.slice(i, i + 700);
-  assert.doesNotMatch(seg, /classList\.remove\('gdt-grid-on'\)/,
+  assert.doesNotMatch(guardSeg(mutated), /classList\.remove\('gdt-grid-on'\)/,
     '변이가 안 먹었다 = G4 는 이 배선을 «안» 본다');
 });
 
@@ -145,23 +148,20 @@ test('M1 ★중앙선이 «되살아나지» 않는다 — js/·css/ 코드에 g
     '중앙선이 되살아났다 — 이 기능은 2026-09-08 현빈 지시로 걷어냈다:\n  ' + midHits.join('\n  '));
 });
 
-test('M2 ★내보내기 그물은 «여전히 산다» — 중앙선을 빼면서 같이 약해지지 않았다', () => {
-  const src = codeOnly(EXP);
-  const i = src.indexOf('async function exportSection(');
-  assert.ok(i > 0, 'exportSection 이 없다');
-  const seg = src.slice(i, i + 700);
+test('M2 ★내보내기 그물은 «여전히 산다» — 중앙선을 빼면서 같이 약해지지 않았다(가드 몸 = withGuideOff)', () => {
+  const seg = guardSeg(codeOnly(CAP));
+  assert.ok(seg, 'withGuideOff 가 없다');
   assert.match(seg, /classList\.remove\('gdt-grid-on'\)/,
-    '★내보내기 직전에 그리드를 끄는 코드가 없다 — 가이드가 내보낸 이미지에 찍힌다');
+    '★캡처 직전에 그리드를 끄는 코드가 없다 — 가이드가 내보낸 이미지에 찍힌다');
   assert.match(seg, /finally\s*\{[\s\S]*classList\.add\('gdt-grid-on'\)/,
     '되돌리기가 finally 에 없다 — 내보내기가 실패하면 가이드가 영영 꺼진 채로 남는다');
 });
 
 test('M2-변이 ★끄기를 없애면 M2 가 빨개진다', () => {
-  const src = codeOnly(EXP);
+  const src = codeOnly(CAP);
   const mutated = src.replace(/classList\.remove\('gdt-grid-on'\)/, 'void 0');
   assert.notStrictEqual(mutated, src, '★변이가 주입되지 않았다 — M2-변이가 공회전 중이다');
-  const seg = mutated.slice(mutated.indexOf('async function exportSection('), undefined).slice(0, 700);
-  assert.doesNotMatch(seg, /classList\.remove\('gdt-grid-on'\)/,
+  assert.doesNotMatch(guardSeg(mutated), /classList\.remove\('gdt-grid-on'\)/,
     '변이가 안 먹었다 = M2 는 이 배선을 «안» 본다');
 });
 
