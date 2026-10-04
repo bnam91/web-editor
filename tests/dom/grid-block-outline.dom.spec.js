@@ -15,7 +15,7 @@ const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { bootApp, ROOT, ORIGIN } = require('./_root-harness.js');
+const { bootApp, ROOT, ORIGIN, waitStableRect } = require('./_root-harness.js');
 
 const SIDES = ['Top', 'Right', 'Bottom', 'Left'];
 
@@ -29,24 +29,32 @@ async function setup(page, boot = bootApp) {
     const { block: g } = window.makeGridBlock({ cols: [{ width: 1, lines: [{ type: 'body', text: 'A' }] }, { width: 1, lines: [{ type: 'body', text: 'B' }] }], rows: [{ height: 'auto' }] });
     g.id = 'gG'; document.getElementById('gR').appendChild(g); window.rebindAll?.(); window.renderGridBlock(g); window.deselectAll?.();
   });
-  await page.waitForTimeout(200);
+  await waitStableRect(page, '#gG');   // 고정 200ms 대신 — 그려 넣은 그리드의 자리가 멈출 때까지
   return errs;
 }
 /** 블럭을 진짜 마우스로 한 번 눌러 고른다(첫 클릭 = 블럭 선택 → 우측 패널). */
 async function selectGrid(page) {
   const [x, y] = await page.evaluate(() => { const r = document.getElementById('gG').getBoundingClientRect(); return [r.left + 8, r.top + 8]; });
-  await page.mouse.click(x, y); await page.waitForTimeout(300);
-  expect(await page.evaluate(() => document.getElementById('gG').classList.contains('selected')), '전제 — 그리드가 골라졌다').toBe(true);
+  const ready = () => page.evaluate(() => document.getElementById('gG').classList.contains('selected') && !!document.querySelector('[id^="grd-"]'));
+  // 고정 300ms 대신 — 골라졌고 우측 패널(grd-*)이 선 «상태»를 기다린다(안 섰으면 다시 누른다)
+  await expect.poll(async () => { if (await ready()) return true; await page.mouse.click(x, y); return ready(); }, { message: '전제 — 그리드가 골라졌고 패널이 섰다', timeout: 10000 }).toBe(true);
 }
+/** 「눌렀더니 바뀌었다」의 «바뀜» 서명 — 블럭 dataset·style·패널 단추 줄(active 클래스 포함). 고정 대기 대신 이 서명이 변하길 기다린다. */
+const sig = (page) => page.evaluate(() => { const g = document.getElementById('gG');
+  return JSON.stringify([Object.entries(g.dataset), g.getAttribute('style'), ['grd-outline-group', 'grd-halign-group', 'grd-valign-group'].map(i => document.getElementById(i)?.outerHTML ?? null)]); });
+const changedFrom = (page, before, what) => expect.poll(async () => (await sig(page)) !== before, { message: `${what} 뒤 블럭·패널 상태가 바뀌었다`, timeout: 10000 }).toBe(true);
 async function clickBtn(page, sel) {
   const p = await page.evaluate((s) => { const e = document.querySelector(s); if (!e) return null; e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, sel);
   expect(p, `패널에 ${sel} 가 있다`).not.toBeNull();
-  await page.mouse.click(p[0], p[1]); await page.waitForTimeout(250);
+  const before = await sig(page);
+  await page.mouse.click(p[0], p[1]);
+  await changedFrom(page, before, `단추 ${sel} 클릭`);
 }
 const borders = (page) => page.evaluate((S) => { const cs = getComputedStyle(document.getElementById('gG'));
   return Object.fromEntries(S.map(s => [s, `${cs['border' + s + 'Width']} ${cs['border' + s + 'Style']}`])); }, SIDES);
 const ds = (page) => page.evaluate(() => document.getElementById('gG').dataset.blockOutline ?? null);
 const OFF = '0px none';
+async function pressChanged(page, key) { const before = await sig(page); await page.keyboard.press(key); await changedFrom(page, before, key); }
 
 test('O0 전제 — 새 그리드엔 외곽선이 없다(네 변 0px · 키 없음) · 패널에 「블럭 외곽선」 단추 여섯이 «한 줄»에 잘림 없이 뜬다', async ({ page }) => {
   const errs = await setup(page);
@@ -122,14 +130,14 @@ test('O4 ★⌘Z 한 번이 마지막 한 번만 되돌린다 · ⇧⌘Z 로 다
   await clickBtn(page, '#grd-outline-group [data-outline-side="right"]');
   expect(await ds(page)).toBe('top,right');
   await page.evaluate(() => document.activeElement?.blur?.());
-  await page.keyboard.press('Meta+z'); await page.waitForTimeout(300);
+  await pressChanged(page, 'Meta+z');
   expect(await ds(page), '⌘Z 1번 = 오른쪽만 꺼진다').toBe('top');
   expect((await borders(page)).Right).toBe(OFF);
   expect((await borders(page)).Top).toBe('1px solid');
-  await page.keyboard.press('Meta+z'); await page.waitForTimeout(300);
+  await pressChanged(page, 'Meta+z');
   expect(await ds(page), '⌘Z 2번 = 처음(없음)').toBeNull();
   expect(await borders(page)).toEqual({ Top: OFF, Right: OFF, Bottom: OFF, Left: OFF });
-  await page.keyboard.press('Meta+Shift+z'); await page.waitForTimeout(300);
+  await pressChanged(page, 'Meta+Shift+z');
   expect(await ds(page)).toBe('top');
   expect((await borders(page)).Top).toBe('1px solid');
 });
@@ -142,7 +150,7 @@ test('O5 ★저장 왕복 — serializeProject → 새로 띄운 앱에 applyPro
   const snap = await page.evaluate(() => window.serializeProject());
   await bootApp(page);
   await page.evaluate((d) => window.applyProjectData(d), JSON.parse(snap));
-  await page.waitForTimeout(400);
+  await expect.poll(() => ds(page), { message: '불러온 앱에 저장한 변이 올라왔다', timeout: 10000 }).toBe('top,left');
   expect(await ds(page)).toBe('top,left');
   expect(await borders(page)).toEqual(before);
   await page.evaluate(() => { const g = document.getElementById('gG'); g.dataset.gap = '40'; window.renderGridBlock(g); });
@@ -252,7 +260,8 @@ const ALIGN_SEL = ['#grd-halign-group [data-ha]', '#grd-valign-group [data-va]']
 async function alignShot(page) {
   await selectGrid(page);
   await page.evaluate(() => document.getElementById('grd-halign-group').scrollIntoView({ block: 'center' }));
-  await page.mouse.move(5, 5); await page.waitForTimeout(150);
+  await page.mouse.move(5, 5);
+  await expect.poll(() => page.evaluate(() => !document.querySelector('#grd-halign-group :hover, #grd-valign-group :hover')), { message: '마우스가 단추 밖으로 나가 hover 가 걷혔다', timeout: 10000 }).toBe(true);
   const rows = ['#grd-halign-group', '#grd-valign-group'];
   const shots = [];
   for (const s of rows) shots.push(await (await page.locator(s).evaluateHandle(e => e.closest('.prop-row'))).asElement().screenshot({ type: 'png' }));
