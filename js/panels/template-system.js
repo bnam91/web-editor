@@ -378,6 +378,22 @@ async function deleteTemplate(id) {
   renderTemplatePanel();
 }
 
+/* ★E81(integ14 · 2026-10-04 · 지디 ㉯) — 블럭·서브섹션 템플릿을 넣은 «그 섹션 하나»에 페이지 padX 를 다시 건다.
+   까닭: 템플릿은 «뜬 문서»의 padX 로 박힌 전폭 인라인 값(margin −48 · width calc(100%+96px))을 그대로 들고 들어온다.
+     섹션 갈래는 아래 :603 applyPageSettings() 가 «문서 전체»를 다시 걸지만, 블럭·서브섹션 갈래는 안 걸고 return 했다
+     → 낡은 값이 그 pushHistory 표본·저장 파일에 남았다(실측: $S/reports/E81-MEASURE.md · 등급 «저장에 남는 꼴 어긋남»).
+   ★«넣은 섹션만» — 사용자 행동이 «이 섹션에 넣기»라 범위를 최소로(문서 전체 :603 꼴이 아니다).
+   ★부품은 «이미 있는 것»만 부른다 — 새 벌 0: applyPadXToSection(prop-page.js · applyPagePadX 가 섹션마다 부르는 그것) ·
+     실효 padX = window.effectiveSectionPadX(inner)(drag-utils.js — section override ?? 페이지 padX). section-inner 를 넘기면
+     parent 가 .section-block 이라 프레임·행 갈래를 안 타고 그 inner 의 값을 돌려준다(override 섹션 시험 T4 가 잠근다).
+   ⛔applyPadXToSection 은 section-inner «직속» 에셋만 덮는다 — 행 안 에셋은 안 덮인다 → E92(별건 · integ16).
+   ⛔pushHistory «앞»에서 부른다 — 뒤에 부르면 표본·저장에 낡은 값이 남는다(시험 T5 · T13). */
+function _tplReapplyPagePad(sec) {
+  const inner = sec && (sec.querySelector('.section-inner') || null);
+  if (!inner || typeof window.applyPadXToSection !== 'function' || typeof window.effectiveSectionPadX !== 'function') return;
+  window.applyPadXToSection(inner, window.effectiveSectionPadX(inner));
+}
+
 async function insertTemplate(tpl) {
   const canvas = await _loadCanvas(tpl.id);
   if (!canvas) {
@@ -419,6 +435,7 @@ async function insertTemplate(tpl) {
     if (blockEl.classList.contains('grid-block')) window.renderGridBlock?.(blockEl);
     if (blockEl.classList.contains('qa-block')) window.renderQABlock?.(blockEl);
     window.buildLayerPanel?.();
+    _tplReapplyPagePad(sec);   // ★E81 — push «앞»
     window.pushHistory?.();
     window.scheduleAutoSave?.();
     window.showToast?.('블록 템플릿 삽입됨');
@@ -493,6 +510,7 @@ async function insertTemplate(tpl) {
     const bw = parseInt(ss.dataset.borderWidth) || 0;
     if (bw > 0) ss.style.border = `${bw}px ${ss.dataset.borderStyle || 'solid'} ${ss.dataset.borderColor || '#888'}`;
 
+    _tplReapplyPagePad(targetSec);   // ★E81 — push «앞»
     window.pushHistory?.();
     window.buildLayerPanel?.();
     window.scheduleAutoSave?.();
