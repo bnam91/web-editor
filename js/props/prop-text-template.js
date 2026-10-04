@@ -180,11 +180,6 @@ ${blockHeaderHTML({
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
       <div class="prop-section-title">Padding</div>
-      <div class="prop-row" id="txt-label-h-row" style="display:${isLabel?'flex':'none'}">
-        <span class="prop-label">박스 높이</span>
-        <input type="range" class="prop-slider" id="txt-label-h-slider" min="0" max="120" step="2" value="${labelPillH}">
-        <input type="number" class="prop-number" id="txt-label-h-number" min="0" max="120" value="${labelPillH}">
-      </div>
       <div id="txt-label-padx-wrap" style="display:${isLabel && !labelIsCircle ? 'block' : 'none'}">
       ${sliderRowHTML('좌우 패딩', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 100, step: 2, value: labelPadX })}
       </div>

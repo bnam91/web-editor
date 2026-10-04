@@ -88,15 +88,13 @@ export function wireLabelSection({ ctx }) {
     rNumber.addEventListener('change', () => window.pushHistory?.());
   }
 
-  /* 태그 pill 높이 (상하 패딩으로 조절)
-   * - label-style-section의 label-pill-height-slider (Tag Style 안)
-   * - Padding 섹션의 txt-label-h-slider (isLabel일 때만 노출)
-   * 두 슬라이더는 같은 값을 가리키므로 양방향 동기화한다.
+  /* 태그 pill 높이 (상하 패딩으로 조절) — label-style-section 의 label-pill-height-slider (Tag Style 안) «한 곳».
+   * ★U22(2026-10-05 · 지디 ①): Padding 절에 같은 값을 쥔 「박스 높이」(txt-label-h-*)가 하나 더 있었고
+   *   양방향 동기화로 묶여 있었다(c97f4541). 값의 정체가 «태그 모양»(높이)이라 Tag Style 쪽만 남겼다.
+   *   ⛔Padding 절의 «상하»(txt-pv-*)는 이번에 안 건드렸다 — U7(E101) 을 잰 뒤 처방한다.
    */
   const pillHSlider = document.getElementById('label-pill-height-slider');
   const pillHNumber = document.getElementById('label-pill-height-number');
-  const lhSlider    = document.getElementById('txt-label-h-slider');
-  const lhNumber    = document.getElementById('txt-label-h-number');
   // ★원형(Circle)은 «패딩으로 커지지 않는다» — CSS 가드가 padding:0 !important 로 못박고
   //   크기를 인라인 width/height 로 잡기 때문이다. 그래서 원형에선 지름을 직접 바꾼다.
   //   (안 그러면 슬라이더를 끝까지 밀어도 25.6px 그대로 — 2026-09-03 현빈 신고 실측.)
@@ -115,8 +113,6 @@ export function wireLabelSection({ ctx }) {
   const syncPillH = v => {
     if (pillHSlider) pillHSlider.value = v;
     if (pillHNumber) pillHNumber.value = v;
-    if (lhSlider)    lhSlider.value    = v;
-    if (lhNumber)    lhNumber.value    = v;
   };
   if (pillHSlider) {
     pillHSlider.addEventListener('input', () => { const v=parseInt(pillHSlider.value); setPillH(v); syncPillH(v); });
@@ -126,15 +122,6 @@ export function wireLabelSection({ ctx }) {
       setPillH(v); syncPillH(v);
     });
     pillHNumber.addEventListener('change', () => window.pushHistory?.());
-  }
-  if (lhSlider) {
-    lhSlider.addEventListener('input', () => { const v=parseInt(lhSlider.value); setPillH(v); syncPillH(v); });
-    lhSlider.addEventListener('change', () => window.pushHistory?.());
-    lhNumber.addEventListener('input', () => {
-      const v = Math.min(120, Math.max(0, parseInt(lhNumber.value)||0));
-      setPillH(v); syncPillH(v);
-    });
-    lhNumber.addEventListener('change', () => window.pushHistory?.());
   }
 
   /* 알약 «안쪽» 좌우 패딩 — 글자 양옆 여백 = 알약 폭. (바깥 «왼쪽/오른쪽 패딩» 은 알약을 통째로 안쪽으로 민다)

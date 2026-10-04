@@ -694,7 +694,7 @@
     </div>
   </div>
   <div class="fp-dropdown" id="fp-component-dropdown">
-    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-component-dropdown')" title="컴포넌트 블록 추가 (Table / Card / Graph / Divider / Step / Chat / Banner)">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-component-dropdown')" title="컴포넌트 블록 추가 (Table / Card / Graph / Divider / Gap / Step / Chat / Banner)">
       <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
         <rect x="1" y="1" width="4" height="4" rx="0.5"/>
         <rect x="6" y="1" width="4" height="4" rx="0.5"/>
@@ -708,6 +708,7 @@
       <button class="fp-menu-item" onclick="addCanvasBlock();toggleFpDropdown('fp-component-dropdown')">Card</button>
 <button class="fp-menu-item" onclick="addGraphBlock();toggleFpDropdown('fp-component-dropdown')">Graph</button>
       <button class="fp-menu-item" onclick="addDividerBlock();toggleFpDropdown('fp-component-dropdown')">Divider</button>
+      <button class="fp-menu-item" onclick="addGapBlock(undefined,{asSibling:true});toggleFpDropdown('fp-component-dropdown')" title="여백(갭) 추가 — 단축키 G">Gap</button>
       <button class="fp-menu-item" onclick="addStepBlock();toggleFpDropdown('fp-component-dropdown')">Step</button>
       <button class="fp-menu-item" onclick="addChatBlock();toggleFpDropdown('fp-component-dropdown')">Chat</button>
       <button class="fp-menu-item" onclick="addGridBlock();toggleFpDropdown('fp-component-dropdown')">Grid</button>

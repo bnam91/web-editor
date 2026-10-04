@@ -213,7 +213,10 @@ ${blockHeaderHTML({
     /* ★카테고리 이름도 틀에 안 넣는다 (T-049) — option 을 노드로 만들고 value·글자는 프로퍼티로. */
     presetCatSelect.innerHTML = '';
     if (!_presetCategories.length) {
-      presetCatSelect.innerHTML = '<option value="">(폴더 비어있음 — Application Support/GODITOR/svg-presets/ 에 폴더+SVG 추가)</option>';
+      /* U21(2026-10-05) — 안내 전문을 <option> 에 넣으면 칸 폭에서 잘린다(「(폴더 비어있음 — Application S…」).
+         칸엔 짧은 상태만, 안내 전문은 그 아래 그리드 자리에 줄바꿈되는 힌트로. */
+      presetCatSelect.innerHTML = '<option value="">(비어 있음)</option>';
+      presetGrid.innerHTML = '<div class="prop-hint" style="grid-column:1/-1;overflow-wrap:anywhere;">카테고리가 없습니다. + 로 새로 만들거나 Application Support/GODITOR/svg-presets/ 에 폴더와 SVG 를 넣으세요.</div>';
     } else {
       for (const c of _presetCategories) {
         const o = document.createElement('option');
