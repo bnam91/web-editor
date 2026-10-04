@@ -3,6 +3,7 @@
  *   칸이 블럭을 «받는» 길이 아예 없었다(원인=기능 부재, 칸 판정 오류 아님).
  * 고침: prop-grid.js grdDropTextBlockOnCell — 섹션/프레임 드롭 처리기가 먼저 부른다. 글자 블럭 하나뿐인 행/블럭 + 놓은 자리가 바깥 그리드 칸일 때만 받는다.
  * ★양성대조: GD1001_ROOT=<604602cd 체크아웃> → T1~T4 빨강 / T5·T6 초록(지키는 시험).
+ * ★이 꼴(.row > .text-block)은 지금 앱에서 T▾ 로는 안 생긴다(복사·옛 문서만) — E126 · 실제 꼴 시험 = tests/dom/grid-drop-textframe-cell.dom.spec.js
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js --workers=2 grid-drop-textblock-cell */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');

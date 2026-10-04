@@ -720,14 +720,28 @@ if (typeof window !== 'undefined') window.grdAddLine = grdAddLine;
  * ★쓰는 길은 grdAddLine(상한·활성줄·거절 시 원복 한 벌). 넣기가 «성공했을 때만» 원본 블럭을 지운다 —
  *   실패하면 블럭이 제자리로 돌아온다(데이터가 어디에도 없는 상태 금지). 이력은 한 칸(아래 «한 동기 구간») — ⌘Z 한 번이 원위치.
  * @returns {boolean} 먹었으면 true */
+/** 글자 프레임(T▾ 블럭의 겉 — frame-block[data-text-frame])인가 · E126 */
+function _grdIsTextFrame(el) {
+  return !!el?.classList?.contains('frame-block') && el.dataset?.textFrame === 'true';
+}
+/** 끌 단위의 «내용» 자식 — 표시선은 늘 빼고, 글자 프레임이면 선택 때 «프레임에» 붙는 회전 영역(.tb-rotate-zone ×4, UI · 직렬화가 걷는 것)도 뺀다.
+ *  ★실앱 실측(2026-10-05, 9376): 「클릭으로 고른 뒤 끌기」면 프레임 자식이 [text-block, tb-rotate-zone×4] = 5 라 «하나뿐» 판정에 걸려 거절됐다
+ *    (DOM 시험은 안 고르고 끌어 못 봤다 — A4 가 지킨다). 행(.row)은 종전 그대로(표시선만). */
+function _grdUnitKids(el) {
+  const tf = _grdIsTextFrame(el);
+  return [...el.children].filter(k => !k.classList.contains('drop-indicator') && !(tf && k.classList.contains('tb-rotate-zone')));
+}
 /** G9 이 «받는» 글자 블럭인가 — 받으면 { tb, inner, m }, 아니면 null. 놓기(drop)와 끄는 중 표시(dragover — js/grid-children.js)가
  *  «같은 판정 한 벌»을 쓴다(두 벌이면 «표시는 칸인데 놓으면 행 이동»이 다시 생긴다 — C5 이전의 표시선 거짓말이 그 꼴이었다). */
 export function grdTextDropSource(src) {
   if (!src) return null;
   let tb = null;
   if (src.classList?.contains('text-block')) tb = src;
-  else if (src.classList?.contains('row')) {
-    const kids = [...src.children].filter(k => !k.classList.contains('drop-indicator'));
+  else if (src.classList?.contains('row') || _grdIsTextFrame(src)) {
+    /* ★E126(2026-10-05) — 글자 프레임(frame-block[data-text-frame])도 «글자 블럭 하나뿐»이면 받는다.
+       T▾ 로 만든 새 글자 블럭은 그 프레임째 끌린다(block-drag.js 끌기 단위 = 글자 프레임) — 예전엔 행/맨 블럭만 받아
+       실앱에서 3/3 거절됐다($S/reports/E126). 아래 허용 목록(평문 종류만)은 그대로 — 프레임 안 말풍선 등은 여전히 거절. */
+    const kids = _grdUnitKids(src);
     if (kids.length === 1 && kids[0].classList.contains('text-block')) tb = kids[0];
   }
   if (!tb) return false;
@@ -797,8 +811,16 @@ export function grdDropTextBlockOnCell(e, src) {
   /* ★한 «동기 구간»·이력 한 칸(push-before): ①지금(블럭이 있는 상태)을 찍고 ②원본을 떼고 ③noHistory 로 넣는다 —
      updateGridBlock 래퍼(model-update-history.js)가 «돌아온 직후» 끝 표본(블럭 없음 + 줄 있음)을 찍는다.
      예전엔 넣기 «뒤»에 지워서 그 차이를 rAF 두 번 뒤의 되쓰기가 메웠다 — 그 틈에 ⌘Z 를 누르면 줄 + 블럭이 «둘 다» 남았다. */
+  /* ★E126 — 글자 프레임 안의 블럭이면 «프레임째» 뗀다(블럭만 떼면 빈 글자 프레임이 캔버스에 남는다). 행 판정보다 먼저 —
+     tb.closest('.row') 가 프레임 «바깥» 행을 집으면 남의 것까지 뗀다. */
+  const _tf = tb.parentElement;
+  const _alone = (el) => _grdUnitKids(el).length === 1;
   const row = tb.closest('.row');
-  const unit = (row && row.children.length === 1) ? row : tb;
+  let unit = (_grdIsTextFrame(_tf) && _alone(_tf)) ? _tf
+    : (row && row.children.length === 1) ? row : tb;
+  /* 가드 — 글자 프레임이 «혼자» 든 .row 면 그 행째 뗀다(빈 행 금지). 코드독해(2026-10-05): 지금 앱에 이 꼴을 짓는 자리는 못 찾았다
+     (마이그레이션은 프레임을 행 «앞»에 세운다 · T▾ 는 프레임을 바로 넣는다). 시험 G3 가 지킨다. */
+  if (unit === _tf && _tf.parentElement?.classList.contains('row') && _alone(_tf.parentElement)) unit = _tf.parentElement;
   const parent = unit.parentNode, next = unit.nextSibling;
   if (!parent) return true;
   window.pushHistory?.();
