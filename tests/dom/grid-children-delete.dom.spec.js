@@ -49,6 +49,10 @@ async function setup(page) {
   return errs;
 }
 const rect = (page, q) => page.evaluate((q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, top: r.top, h: r.height }; }, q);
+/* ★E56 겹침(G15 ＋ 와 함께 든 묶음, 2026-10-04 태양): 그리드에 마우스가 올라가면 아래 ＋(지름 화면 40px)가 «블럭 가로 가운데 · 껍데기 바로 아래»에 떠서
+   첫 자식 위를 덮는다(100% 15.8px · 40% 30.3px — 지디 ㉠ 「원 안만 히트」로 의도). 첫 자식 «가로 가운데»를 누르면 ＋ 원 안이라 행이 더해진다.
+   ⇒ 이 시험이 재는 것(자식 고르기·지우기)은 ＋ 와 무관하므로, 첫 자식은 «왼쪽 1/5 지점»을 누른다(＋ 원 밖). 시험의 뜻은 그대로다. */
+const rectOffPlus = (page, q) => page.evaluate((q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.left + r.width * 0.2, y: r.top + r.height / 2, top: r.top, h: r.height }; }, q);
 /* 구조 지문 — id 순서 + 글자. 선택 클래스·편집 속성은 안 본다(⌘Z 비교용). */
 const sig = (page) => page.evaluate(() => { const c = document.getElementById('canvas'); return [...c.querySelectorAll('[id]')].map(e => e.id).join(',') + '|' + c.textContent.replace(/\s+/g, ' '); });
 const kids = (page) => page.evaluate(() => [...(document.querySelector('#gG > .grd-children')?.children || [])].map(k => k.id));
@@ -67,7 +71,7 @@ for (const key of ['Delete', 'Backspace']) {
   test(`A-text-${key} ⒜ 글자 자식 클릭 → ${key} = 그 자식만 · 그리드·다른 자식 남음 · ⒟ ⌘Z 한 번 = 제자리`, async ({ page }) => {
     const errs = await setup(page);
     const s0 = await sig(page);
-    const t = await rect(page, '#tK1');
+    const t = await rectOffPlus(page, '#tK1');   // E56 — 위 rectOffPlus 주석
     await page.mouse.click(t.x, t.y); await page.waitForTimeout(300);
     const sel = await logSel(page, `A-text-${key} 키 직전`);
     expect(sel.some(s => s.startsWith('tK1.') && s.includes('selected')), '전제 — 클릭이 글자 자식을 골랐다').toBe(true);
@@ -117,7 +121,7 @@ test('B ⒝ 그리드 고름 → Delete = 그리드+자식 통째(줄 rG째) · 
 test('C ⒞ 글자 자식 편집 중 ⌫ = 글자만(블럭·그리드 그대로) · ⒟ 편집 끝낸 뒤 ⌘Z 한 번 = 글자 복원', async ({ page }) => {
   const errs = await setup(page);
   const s0 = await sig(page);
-  const t = await rect(page, '#tK1');
+  const t = await rectOffPlus(page, '#tK1');   // E56 — 위 rectOffPlus 주석
   await page.mouse.dblclick(t.x, t.y); await page.waitForTimeout(300);
   const sel = await logSel(page, 'C 키 직전');
   expect(sel.some(s => s.includes('[edit]')), '전제 — 글자 편집 상태다').toBe(true);

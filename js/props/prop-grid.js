@@ -11,7 +11,7 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES, gridBlockOutline, GRID_OUTLINE_SIDES,
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
-         GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE, GRID_WIDTH_MIN, GRID_WIDTH_MAX,
+         GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE, GRID_WIDTH_MIN, GRID_WIDTH_MAX, gridResizeTo,
          gridBlockBg, GRID_BLOCK_BG_PAD_Y_MAX, GRID_BLOCK_BG_PAD_X_MAX } from '../blocks/grid-block.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
@@ -3057,69 +3057,9 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
     document.getElementById('grd-grid-picker'),
     document.getElementById('grd-grid-picker-label'),
     (nCols, nRows) => {
-      const curCols = JSON.parse(block.dataset.cols || '[]');
-      const curRows = gridRows(block);
-      if (nCols === curCols.length && nRows === curRows.length) return;
-      window.pushHistory?.();                     // ★변경 «전»에
-
-      const nextCols = [];
-      for (let i = 0; i < nCols; i++) {
-        /* ★[M41] 열을 늘릴 때의 기본값도 «정본 한 줄»을 쓴다 — 여긴 h2:'제목' 을 얹고 있어서
-         * 블록 생성(grid-block.js)·열 추가(여기)·행 추가(아래)가 서로 «다른» 기본값이었다. */
-        nextCols.push(curCols[i] || { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] });
-      }
-      // ⛔줄일 때 잘린 칸의 내용은 «버려진다» — undo 로 되돌아온다(pushHistory 를 먼저 부른 이유).
-      block.dataset.cols = JSON.stringify(nextCols);
-
-      if (nRows <= 1) {
-        // 1행으로 돌아가면 옛 duo 파일과 «완전히 같은» 모양으로 되돌린다(dataset.rows/cells 제거).
-        delete block.dataset.rows;
-        /* ★T-178 — 다만 «행 0 칸 꾸밈»은 행이 하나가 돼도 살아 있어야 한다(1행 그리드의 칸도 칸이다).
-           꾸밈이 하나도 없을 때만 dataset.cells 를 지워 옛 duo 모양을 그대로 돌려준다. */
-        let row0 = [];
-        try { const cur = JSON.parse(block.dataset.cells || '[]'); row0 = Array.isArray(cur[0]) ? cur[0] : []; } catch (_) { row0 = []; }
-        const keep = [];
-        for (let c = 0; c < nCols; c++) {
-          const cell = row0[c];
-          keep.push((cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell : {});
-        }
-        if (keep.some(cell => Object.keys(cell).length)) block.dataset.cells = gridCellsToDataset([keep]);
-        else delete block.dataset.cells;
-      } else {
-        const nextRows = [];
-        for (let i = 0; i < nRows; i++) nextRows.push(curRows[i] || { height: 'auto' });
-        block.dataset.rows = JSON.stringify(nextRows);
-
-        /* ★새로 생긴 행에 «기본 내용»을 넣는다.
-         * 안 넣으면 셀이 빈 채로 높이 0 이 되어, 2x2 를 눌러도 «아무 일도 안 일어난 것»처럼 보인다
-         * (실측: rows=2 이고 grd-cell 4개가 생겼는데 2행 두 칸 높이가 0px).
-         * 1행이 기본 텍스트를 갖는 것과 «같은 대우»여야 사용자가 무엇이 생겼는지 안다.
-         * ⚠️정정(적대검수 지적, 2026-09-04): 이 코드는 «옛 내용을 보존하지 않는다».
-         *   nextCells 를 새로 만들어 덮으므로 «잘린 행/열의 내용은 사라진다».
-         *   내가 앞서 커밋 메시지에 「줄였다 늘려도 옛 내용이 살아 있다」고 썼는데 «거짓»이었다 —
-         *   P1 의 「cells 를 그대로 둔다」 설계를 병합에서 모르고 뒤집었다.
-         *   복원은 undo 로만 된다(그래서 pushHistory 를 변경 전에 부른다). */
-        /* ★T-178 — dataset.cells 가 «행 0 포함 전체»가 되면서 이 루프의 인덱스가 «한 칸» 움직였다.
-           ⛔읽는 문(_gridCellRows)과 이 자리를 따로 옮기면 행이 한 칸 밀려 «화면은 멀쩡해 보이는
-             데이터 손상»이 난다 — 그래서 같은 커밋에 있다.
-           ★행 0 에는 기본 줄을 «안» 넣는다: 행 0 의 줄은 cols[].lines 가 갖는다(위 nextCols 가 채운다).
-             행 0 칸은 «꾸밈만» 담으므로 없으면 빈 객체다. */
-        let curCells = [];
-        try { curCells = JSON.parse(block.dataset.cells || '[]'); } catch (_) { curCells = []; }
-        const nextCells = [];
-        for (let r = 0; r < nRows; r++) {
-          const row = Array.isArray(curCells[r]) ? curCells[r] : [];
-          const outRow = [];
-          for (let c = 0; c < nCols; c++) {
-            outRow.push(row[c] || (r === 0 ? {} : { lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] }));
-          }
-          nextCells.push(outRow);
-        }
-        if (nextCells.length) block.dataset.cells = gridCellsToDataset(nextCells);
-        else delete block.dataset.cells;
-      }
-      window.renderGridBlock?.(block);
-      window.scheduleAutoSave?.();
+      /* ★G15(2026-10-04) — 몸통(데이터 바꾸기·렌더·자동저장·pushHistory)은 grid-block.js gridResizeTo 로 옮겼다.
+         캔버스 ＋ 가 «같은 함수»를 지나게 하려고다(⛔두 벌이 되면 피커 결과 ≠ ＋ 결과로 따로 늙는다). */
+      if (!gridResizeTo(block, nCols, nRows)) return;
       /* ★거터를 «명시적으로» 걷고 다시 세운다.
        * showGridProperties 끝에도 showGridGutters 가 있지만 피커 경로에서는 그것만으로 안 따라온다 —
        * 실측: 2x1 → 3x3 으로 바꿔도 거터가 col 1개 그대로였다(2초 뒤에도).
@@ -3360,6 +3300,14 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
 }
 
 window.showGridProperties = showGridProperties;
+/* ★G15 — 캔버스 ＋ 로 칸 수가 바뀐 «뒤» 패널·거터를 다시 세운다(피커 콜백 꼬리와 같은 순서).
+   패널이 «이 블럭»을 보고 있을 때(선택됨)만 — 다른 블럭 패널을 덮어쓰지 않는다. */
+window._grdAfterResize = (block) => {
+  if (!block?.classList?.contains('selected')) return;
+  hideGridGutters();
+  showGridProperties(block, grdGetActiveLine(block));
+  showGridGutters(block);
+};
 // ★deprecated 별칭 — 2026-09-05 개명 이전 이름(tools/duo-align-probe·외부 CDP 스크립트 호환).
 //   제거는 P1. grid-block.js 의 window.*Duo* 별칭 4개와 동반한다.
 window.showDuoProperties = showGridProperties;

@@ -37,7 +37,7 @@ const EDITOR_ONLY_SEL = new RegExp([
   '\\.section-label', '\\.section-toolbar', '\\.section-hitzone', '\\.variation-badge',
   '\\.annotation', '\\.annot-', '\\.qa-block', '\\.todo-pin', '\\.pen-',
   '\\.col-placeholder', '\\.col-add', '\\.row-col-add', '\\.row-drop-indicator', '\\.layer-',
-  'placeholder', '-handle\\b', '\\.cvb-img-empty', '\\.bn2-line-empty', '\\.grd-line-selected',
+  'placeholder', '-handle\\b', '\\.cvb-img-empty', '\\.bn2-line-empty', '\\.grd-line-selected', '\\.grd-add-btn',
   '\\.st-btn', '#preview-overlay', '#canvas-scaler', '#canvas-wrap', '#canvas-area',
   ':hover', ':focus', ':active', ':focus-visible', ':focus-within', '::selection', '::-webkit-',
 ].join('|'), 'i');
