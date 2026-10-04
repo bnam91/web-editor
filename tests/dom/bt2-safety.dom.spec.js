@@ -20,7 +20,8 @@ const { bootApp } = require('./_root-harness.js');
 
 const SEC = `<div class="section-block" data-section="1" id="sBT2"><div class="section-hitzone"></div>
   <div class="section-inner" style="padding-left: 60px; padding-right: 60px;" data-padding-x="60"></div></div>`;
-const GOLD = (n) => path.join(__dirname, 'fixtures', `bt2-${n}-golden.json`);
+/* BT2_GOLDEN_DIR — 시험용 덮어쓰기(양성대조 판이 «진짜» 골든을 안 건드리게 사본 폴더로). 평소엔 비워라. */
+const GOLD = (n) => path.join(process.env.BT2_GOLDEN_DIR || path.join(__dirname, 'fixtures'), `bt2-${n}-golden.json`);
 const UPDATE = process.env.BT2_GOLDEN === 'update';
 
 async function freshCanvas(page) {
@@ -33,8 +34,60 @@ async function freshCanvas(page) {
   }, SEC);
 }
 
-function golden(name, got) {
+/* ★갱신 가드(지디 2026-10-04 · integ12) — 옛 골든 대 새 값을 상태마다 «조각 diff»(태그 경계로 자른 토막 · Myers)로 재서
+ *   «지워진 토막»이 하나라도 있으면 쓰기를 «거절»하고 실패한다. 더해진 토막의 id 를 메시지에 찍는다.
+ *   까닭: 이 골든은 «변경 감지기»라 갱신이 정상 절차인데, 사람 눈으로 「지워진 줄 0 · 더해진 id 가 그 묶음 것뿐」을
+ *   확인하다 두 번 놓쳤다(integ8 G2-b · integ11 G4). ⇒ 손이 아니라 단언으로.
+ *   ⚠️속성 하나만 바뀐 토막도 «지움+더함»으로 센다 — 그것도 사람이 봐야 하는 변화라 거절이 맞다. */
+const _tok = (s) => String(s).split(/(?<=>)/);
+function _diffTokens(a, b) {           // Myers O(ND) — 같은 토막이 대부분이라 싸다
+  const N = a.length, M = b.length, max = N + M, v = new Map([[1, 0]]), trace = [];
+  for (let d = 0; d <= max; d++) {
+    trace.push(new Map(v));
+    for (let k = -d; k <= d; k += 2) {
+      let x = (k === -d || (k !== d && (v.get(k - 1) ?? -1) < (v.get(k + 1) ?? -1))) ? (v.get(k + 1) ?? 0) : (v.get(k - 1) ?? 0) + 1;
+      let y = x - k;
+      while (x < N && y < M && a[x] === b[y]) { x++; y++; }
+      v.set(k, x);
+      if (x >= N && y >= M) {
+        const del = [], add = [];
+        let cx = N, cy = M;
+        for (let dd = d; dd > 0; dd--) {
+          const pv = trace[dd]; const kk = cx - cy;
+          const prevK = (kk === -dd || (kk !== dd && (pv.get(kk - 1) ?? -1) < (pv.get(kk + 1) ?? -1))) ? kk + 1 : kk - 1;
+          const px = pv.get(prevK) ?? 0, py = px - prevK;
+          while (cx > px && cy > py) { cx--; cy--; }
+          if (cx === px) add.push(b[py]); else del.push(a[px]);
+          cx = px; cy = py;
+        }
+        return { del, add };
+      }
+    }
+  }
+  return { del: a.slice(), add: b.slice() };
+}
+function _guardNoDeletes(name, oldObj, got) {
+  const report = [];
+  for (const k of new Set([...Object.keys(oldObj || {}), ...Object.keys(got)])) {
+    if (!(k in got)) { report.push({ state: k, del: ['(상태 통째로 사라짐)'], add: [] }); continue; }
+    if (!(k in (oldObj || {}))) continue;
+    const { del, add } = _diffTokens(_tok(oldObj[k]), _tok(got[k]));
+    if (del.length || add.length) report.push({ state: k, del, add });
+  }
+  const dels = report.filter(r => r.del.length);
+  const addedIds = [...new Set(report.flatMap(r => r.add.join('').match(/id="[^"]+"/g) || []))];
+  return { dels, addedIds, report };
+}
+
+function golden(name, got, { guardDeletes = false } = {}) {
   const f = GOLD(name);
+  if (UPDATE && guardDeletes && fs.existsSync(f)) {
+    const { dels, addedIds } = _guardNoDeletes(name, JSON.parse(fs.readFileSync(f, 'utf8')), got);
+    expect(dels.map(r => `${r.state}: −${r.del.length} (${r.del.slice(0, 3).join(' | ').slice(0, 300)})`),
+      `★갱신 거절 — 옛 골든에서 «지워지는» 토막이 있다(지워진 줄 0 이어야 한다). 더해진 id: ${addedIds.join(', ') || '없음'}`).toEqual([]);
+    test.info().annotations.push({ type: 'golden-added-ids', description: addedIds.join(', ') || '(없음)' });
+    console.log(`[GOLDEN-GUARD] ${name}: 지워진 토막 0 · 더해진 id = ${addedIds.join(', ') || '없음'}`);
+  }
   if (UPDATE) {
     fs.mkdirSync(path.dirname(f), { recursive: true });
     fs.writeFileSync(f, JSON.stringify(got, null, 2) + '\n');
@@ -128,6 +181,11 @@ test('T1b 옛 버블(data-lines 없음) — 실제 저장→불러오기 뒤 out
 });
 
 // ─────────── T6 그리드 패널 HTML 바이트 스냅샷 ───────────
+/* ★이 시험은 «변경 감지기»다 — 그리드 패널에 UI 를 더하면 «반드시» 빨개진다 · 골든 갱신(BT2_GOLDEN=update)이 정상 절차다.
+ *   ⛔단 갱신 «전»에 「지워진 줄 0」과 「더해진 id 가 그 묶음 것뿐」을 먼저 확인하라 — 사람 눈으로 두 번 놓쳤다(integ8 G2-b · integ11 G4).
+ *   ⇒ 그 확인을 손이 아니라 «단언»으로 걸었다: 갱신 모드에서 지워지는 토막이 있으면 쓰기를 거절하고 실패한다(golden guardDeletes ·
+ *     더해진 id 목록은 콘솔 [GOLDEN-GUARD] 줄과 annotation 에 찍힌다 — 그 목록이 «이 묶음 것뿐»인지는 갱신하는 사람이 본다).
+ *   양성대조 주입(시험용 · 평소 무관): BT2_T6_MUT=del → 패널 «첫 prop-row 하나를 뺀» 값 → 갱신 거절 빨강 / BT2_T6_MUT=add → 줄 하나 «더함» → 갱신 통과. */
 test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 바이트 같다(C2 host 리팩터 무변 증인)', async ({ page }) => {
   await freshCanvas(page);
   const got = await page.evaluate((png) => {
@@ -147,9 +205,12 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
     }
     return out;
   }, PNG);
+  const MUT = process.env.BT2_T6_MUT;
+  if (MUT === 'del') got.block = got.block.replace(/<div class="prop-row"[\s\S]*?<\/div>/, '');   // 시험용 — 줄 하나 «뺌»
+  if (MUT === 'add') got.block = got.block + '<div class="prop-row" id="zz-t6-added"></div>';      // 시험용 — 줄 하나 «더함»
   expect(Object.keys(got).length, '전제: 상태 8개').toBe(8);
   expect(got.h2.includes('grd-line-summary'), '전제: 줄을 고르면 줄바 요약이 뜬다').toBe(true);
-  golden('grid-panel', got);
+  golden('grid-panel', got, { guardDeletes: true });
 });
 
 // ─────────── T5r BT2 가 만들 위험 — editMessage 가 lines 를 지운다(지금 모양) ───────────
