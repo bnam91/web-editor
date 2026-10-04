@@ -14,6 +14,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js overlay-extend-asset
  */
 const { test, expect } = require('@playwright/test');
+const { dragUtilsDep } = require('./_drag-utils-deps.js');   // E99 후속 — drag-utils 의 side-effect import(graph-limits.js)를 진짜로
 const fs = require('fs');
 const path = require('path');
 
@@ -127,6 +128,7 @@ async function boot(page, opts = {}) {
     if (url.pathname === '/overlay-float.js') return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_FLOAT_JS });
     if (url.pathname === '/frame-geometry.js') return route.fulfill({ contentType: 'application/javascript', body: FRAME_GEOMETRY_JS });
     if (url.pathname === '/shape-frame.js') return route.fulfill({ contentType: 'application/javascript', body: SHAPE_FRAME_JS });
+    { const d = dragUtilsDep(url.pathname, '/'); if (d) return route.fulfill(d); }
     if (url.pathname === '/drag-utils.js') return route.fulfill({ contentType: 'application/javascript', body: DRAG_UTILS_JS });
     if (url.pathname === '/props/prop-page.js') return route.fulfill({ contentType: 'application/javascript', body: PROP_PAGE_JS });
     if (url.pathname === '/globals.js') return route.fulfill({ contentType: 'application/javascript', body: GLOBALS_STUB });
