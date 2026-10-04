@@ -90,7 +90,8 @@ const model = (page, id) => page.evaluate((id) => {
 }, id);
 
 const btnBox = (page, id, axis) => page.evaluate(([id, axis]) => {
-  const b = document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"][data-grd-add="${axis}"]`);
+  /* 층(#grd-plus-layer)을 먼저 본다. 없으면 옛 구조(블럭 안 ＋)도 찾는다 — 양성대조(옛 구조 핀)가 «＋ 없음»이 아니라 «덮였다»로 빨개지게. */
+  const b = document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"][data-grd-add="${axis}"]`) || document.querySelector(`#${id} > .grd-add-btn[data-grd-add="${axis}"]`);
   if (!b) return null;
   const r = b.getBoundingClientRect(), cs = getComputedStyle(b);
   const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -585,6 +586,102 @@ for (const z of [100, 40]) {
     expect(rIn, `★원 안 = 행 +1 ${JSON.stringify(rIn)}`).toMatchObject({ dRows: 1, dCols: 0 });
     const kids = await page.evaluate((id) => [...document.querySelectorAll(`#${id} > .grd-children .text-block`)].map(e => e.id), a);
     expect(kids, '★자식 그대로').toEqual(['kA', 'kB']);
+    expect(errs).toEqual([]);
+  });
+}
+
+/* ══ T — ＋ 층(#grd-plus-layer)이 그리드를 «따라가나» (팀리드 조건 2026-10-04) ══════════════════════════
+ * 스크롤·배율(스케일러 transform)·재렌더·크기·자식 넣고 빼기·그리드 이동·삭제(고아 0). 매번 «기준점»을 다시 잰다:
+ *   오른쪽 ＋ 오른쪽 끝 = 블럭 오른쪽 끝 · 세로 가운데 = 기준(자식 없으면 블럭 · 있으면 껍데기) 세로 가운데
+ *   아래 ＋ 위 끝 = 기준 아래 끝 · 가로 가운데 = 블럭 가로 가운데 (모두 ±1px) */
+const anchorCheck = (page, id) => page.evaluate((id) => {
+  const g = document.getElementById(id);
+  const q = (a) => document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"][data-grd-add="${a}"]`);
+  const c = q('col'), r = q('row');
+  if (!g || !c || !r) return { missing: true };
+  const br = g.getBoundingClientRect(), inner = g.querySelector(':scope > .grd-inner'), kids = g.querySelector(':scope > .grd-children');
+  const ar = (kids && kids.childElementCount) ? inner.getBoundingClientRect() : br;
+  const cr = c.getBoundingClientRect(), rr = r.getBoundingClientRect();
+  const d = { colRight: cr.right - br.right, colMidY: (cr.top + cr.bottom) / 2 - (ar.top + ar.bottom) / 2,
+              rowTop: rr.top - ar.bottom, rowMidX: (rr.left + rr.right) / 2 - (br.left + br.right) / 2, colW: cr.width };
+  for (const k of Object.keys(d)) d[k] = +d[k].toFixed(2);
+  d.ok = Math.abs(d.colRight) <= 1 && Math.abs(d.colMidY) <= 1 && Math.abs(d.rowTop) <= 1 && Math.abs(d.rowMidX) <= 1;
+  return d;
+}, id);
+/* 바뀐 뒤 마우스를 «그 자리의 그리드 위로» 다시 올린다(스크롤 없이) — 스크롤·이동으로 그리드가 마우스 밑에서 빠지면
+   브라우저가 mouseleave 를 내 ＋ 가 정상적으로 진다. 여기서 재는 것은 «뜬 ＋ 가 기준점에 붙나»다. */
+async function settle(page, id) {
+  await page.waitForTimeout(350);   // 스케일러 transition 0.15s + rAF
+  const p = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width * 0.25, r.top + Math.min(r.height / 2, 12)]; }, id);
+  await page.mouse.move(p[0], p[1], { steps: 3 }); await page.waitForTimeout(120);
+}
+
+test('T1~T6 ★＋ 가 따라간다 — 스크롤 · 배율 100→40 · 재렌더 · 폭 · 자식 넣기/빼기 · 그리드 이동', async ({ page }) => {
+  test.setTimeout(120000);
+  const { errs, a } = await setup(page);
+  await force(page, a);
+  const steps = {};
+  steps.start = await anchorCheck(page, a);
+  // T1 스크롤
+  await page.evaluate(() => { document.getElementById('canvas-wrap').scrollTop += 120; }); await settle(page, a);
+  steps.scroll = await anchorCheck(page, a);
+  // T2 배율(＋ 가 떠 있는 채로)
+  await page.evaluate(() => window.applyZoom(40)); await settle(page, a);
+  expect(await page.evaluate(() => window.currentZoom), '전제 — 배율 40').toBe(40);
+  steps.zoom40 = await anchorCheck(page, a);
+  await page.evaluate(() => window.applyZoom(100)); await settle(page, a);
+  steps.zoom100 = await anchorCheck(page, a);
+  // T3 재렌더(칸 간격)
+  await page.evaluate((id) => window.updateGridBlock(id, { gap: 60 }), a); await settle(page, a);
+  steps.rerender = await anchorCheck(page, a);
+  // T4 폭
+  await page.evaluate((id) => window.updateGridBlock(id, { width: 360 }), a); await settle(page, a);
+  steps.width = await anchorCheck(page, a);
+  // T5 자식 넣기 → 기준 = 껍데기 / 빼기 → 기준 = 블럭
+  await page.evaluate((id) => { const g = document.getElementById(id); const box = window.ensureGridKidsBox(g);
+    box.insertAdjacentHTML('beforeend', '<div class="row" id="rkT"><div class="text-block" data-type="heading" id="kT"><div class="tb-h2">자식</div></div></div>'); window.rebindAll?.(); }, a); await settle(page, a);
+  steps.kidsIn = await anchorCheck(page, a);
+  await page.evaluate((id) => { const g = document.getElementById(id); document.getElementById('rkT').remove(); window.pruneGridKidsBox(g.querySelector(':scope > .grd-children')); }, a); await settle(page, a);
+  steps.kidsOut = await anchorCheck(page, a);
+  // T6 그리드 이동 — 위에 200px 블럭을 끼워 넣어 아래로 민다
+  await page.evaluate((id) => { const row = document.getElementById(id).closest('.row'); row.insertAdjacentHTML('beforebegin', '<div class="gap-block" data-type="gap" id="pushGap" style="height:200px"></div>'); }, a); await settle(page, a);
+  steps.moved = await anchorCheck(page, a);
+  const msg = JSON.stringify(steps);
+  for (const [k, v] of Object.entries(steps)) expect(v.ok, `★${k} 에서 ＋ 가 기준점에 붙어 있다 ${msg}`).toBe(true);
+  expect(Math.abs(steps.zoom40.colW - 40), `★배율 40 에서도 ＋ 화면 40px ${msg}`).toBeLessThanOrEqual(1);
+  expect(errs).toEqual([]);
+});
+
+test('T7 ★그리드 삭제 → 층에 ＋ 고아 0', async ({ page }) => {
+  const { errs, a } = await setup(page);
+  await force(page, a);
+  expect(await page.evaluate((id) => document.querySelectorAll(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"]`).length, a), '전제 — ＋ 둘이 떠 있다').toBe(2);
+  await page.evaluate((id) => document.getElementById(id).closest('.row').remove(), a);
+  await page.waitForTimeout(200);
+  const left = await page.evaluate(() => document.querySelectorAll('#grd-plus-layer > .grd-add-btn').length);
+  expect(left, '★삭제 뒤 층에 남은 ＋ = 0').toBe(0);
+  expect(errs).toEqual([]);
+});
+
+/* ══ RG5 — G12 블럭 배경을 켠 채로 아래 ＋ 가 눌린다 (배경 끔/켬 × 배율 100/40) ══════════════════════════
+ * 옛 구조(＋ 가 블럭 안)에선 배경이 블럭에 isolation 을 걸어 블럭 밖 아래 ＋ 가 뒤 형제 밑에 깔렸다(integ7 fec76b81 실측). */
+for (const z of [100, 40]) for (const bg of [null, { on: true, color: '#ff0000' }, { on: true, color: '#ff0000', padY: 200, padX: 100 }]) {
+  test(`RG5 배율 ${z} · 배경 ${bg ? (bg.padY ? '켬(여백 200/100)' : '켬(기본 여백)') : '끔'} — 아래 ＋ 가 맨 위 · 진짜 클릭 = 행 +1`, async ({ page }) => {
+    test.setTimeout(120000);
+    const { errs, a } = await setup(page, z);
+    expect(await page.evaluate(() => window.currentZoom), `전제 — 배율 ${z}`).toBe(z);
+    if (bg) {
+      const res = await page.evaluate(([id, bg]) => window.updateGridBlock(id, { blockBg: bg }), [a, bg]);
+      expect(res && res.ok, `전제 — 배경이 켜졌다 ${JSON.stringify(res).slice(0, 200)}`).toBe(true);
+      expect(await page.evaluate((id) => !!document.querySelector(`#${id} > .grd-bg`) && getComputedStyle(document.getElementById(id)).isolation, a), '전제 — 배경 층 · isolation').toBe('isolate');
+    }
+    await force(page, a);
+    const bx = await btnBox(page, a, 'row');
+    const stack = await page.evaluate(([x, y]) => document.elementsFromPoint(x, y).slice(0, 4).map(h => `${h.tagName.toLowerCase()}${h.id ? '#' + h.id : ''}.${[...h.classList].join('.')}`), [bx.cx, bx.cy]);
+    expect(bx.hitIsBtn, `★아래 ＋ 가 맨 위(elementsFromPoint ${JSON.stringify(stack)})`).toBe(true);
+    const r0 = (await model(page, a)).nRows;
+    await page.mouse.click(bx.cx, bx.cy); await page.waitForTimeout(200);
+    expect((await model(page, a)).nRows, `★진짜 클릭 = 행 +1 (${JSON.stringify(stack)})`).toBe(r0 + 1);
     expect(errs).toEqual([]);
   });
 }

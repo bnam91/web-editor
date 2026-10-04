@@ -73,7 +73,9 @@ test('L1~L8 ★＋ 가 떠 있는 동안 제품의 읽기·내보내기 길 어�
     out.L5 = { markup: /grd-add-btn/.test(fj), plusInJson: /"\+"|\+"/.test(fj) };
     // L6 AI 채우기 읽기면
     const items = window.collectSectionTextBlocks(sec) || [];
-    out.L6 = { n: items.length, plus: items.some(it => /\+/.test(JSON.stringify(it))) };
+    out.L6 = { n: items.length, plus: items.some(it => /\+/.test(JSON.stringify(it))),
+               /* AI 목록엔 지금 .grid-block 이 없다(n 0) — 그래서 «그 함수가 읽을 글자»(블럭 textContent)도 따로 잰다 */
+               blockText: g.textContent };
     // L7 MCP get_canvas_state / read_section
     const cs = window.getCanvasState(sec.id);
     const csStr = JSON.stringify(cs);
@@ -95,6 +97,7 @@ test('L1~L8 ★＋ 가 떠 있는 동안 제품의 읽기·내보내기 길 어�
   expect(r.L4.markup || /\+/.test(r.L4.gridText), `★L4 PNG 클론 ${msg}`).toBe(false);
   expect(r.L5.markup || r.L5.plusInJson, `★L5 피그마 JSON ${msg}`).toBe(false);
   expect(r.L6.plus, `★L6 AI 채우기 읽기면 ${msg}`).toBe(false);
+  expect(/\+/.test(r.L6.blockText), `★L6b 호버 중에도 그리드 textContent(수집 함수가 읽을 글자)에 '+' 0 ${msg}`).toBe(false);
   expect(r.L7.markup || r.L7.plus, `★L7 MCP get_canvas_state ${msg}`).toBe(false);
   expect(/\+/.test(r.L8.innerText), `★L8 검색(블럭 innerText) ${msg}`).toBe(false);
   expect(errs).toEqual([]);
