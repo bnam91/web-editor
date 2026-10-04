@@ -479,3 +479,23 @@ export function stripEditorOnlyForCapture(clone) {
     }
   });
 }
+
+/* ══ 편집 보조(그리드 가이드·패딩 비주얼)를 «캡처 동안» 끈다 — 한 벌 (L1, 2026-10-04) ══════════════════
+   html2canvas 는 문서(body 클래스 포함)를 복제해 그린다 · 네이티브 캡처는 화면을 그대로 찍는다 ⇒ 캡처 동안만 body 클래스를 뗐다 붙인다.
+   ★부르는 곳 둘: js/io/export-image.js exportSection(PNG) · js/io/save-load.js captureThumbnail(썸네일).
+   ⛔부르는 쪽에 같은 규칙을 다시 적지 마라 — 두 벌이면 한쪽이 늙는다(L1 전엔 썸네일 쪽에 가드가 «없었다»:
+     지금까지 안 샌 것은 html2canvas 가 repeating 그라데이션을 못 그려서였다 — tests/dom/l1-guide-align L1-X).
+   ★save-load.js 는 이 이름 «하나»만 안다 — 가이드 클래스 이름을 모른다(tests/unit/grid-guide.test.js G5 의 뜻). */
+export async function withGuideOff(fn) {
+  const b = document.body;
+  const g = b.classList.contains('gdt-grid-on');
+  const p = b.classList.contains('gdt-pad-on');
+  if (g) b.classList.remove('gdt-grid-on');
+  if (p) b.classList.remove('gdt-pad-on');
+  try {
+    return await fn();
+  } finally {
+    if (g) b.classList.add('gdt-grid-on');
+    if (p) b.classList.add('gdt-pad-on');
+  }
+}

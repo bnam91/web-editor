@@ -8,7 +8,7 @@ import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../dat
 import { applyFrameTransform } from '../frame-geometry.js';
 import { checkerBg } from '../checker-tokens.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, withGuideOff } from './capture-safety.js';
 import { prepareGoyaAssetsForClone } from './goya-asset-inline.js';   /* 썸네일 클론에서 goya-asset 을 data: 로 (T-149) */
 import { ejectShapeFrameIntruders } from '../shape-frame.js';
 import { warnPendingVideoLossIf } from './pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원 */
@@ -125,19 +125,10 @@ async function captureThumbnail() {
     } catch (e) { console.warn('[thumb] goya-asset 클론 준비 실패:', e); }
 
     const bgColor = firstSec.style.background || firstSec.style.backgroundColor || '#ffffff';
-    /* ★L1(2026-10-04) — 편집 보조(그리드 가이드·패딩 비주얼)는 «캡처 동안» 끈다 — js/io/export-image.js exportSection 과 같은 가드.
-       html2canvas 는 문서(body 클래스 포함)를 복제해 그린다. 지금 안 새는 것은 html2canvas 가 repeating-linear-gradient 를
-       «못 그려서일 뿐»이다(실측: 같은 가이드를 linear 로 바꾸면 썸네일 칼럼 자리가 [255,127,127] 로 찍혔다 — tests/dom/l1-guide-align). */
-    const _gOn = document.body.classList.contains('gdt-grid-on');
-    const _pOn = document.body.classList.contains('gdt-pad-on');
-    if (_gOn) document.body.classList.remove('gdt-grid-on');
-    if (_pOn) document.body.classList.remove('gdt-pad-on');
-    let canvas;
-    try { canvas = await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false }); }
-    finally {
-      if (_gOn) document.body.classList.add('gdt-grid-on');
-      if (_pOn) document.body.classList.add('gdt-pad-on');
-    }
+    /* ★L1(2026-10-04) — 편집 보조(그리드 가이드·패딩 비주얼)는 «캡처 동안» 끈다 — PNG(exportSection)와 «같은 함수» withGuideOff(capture-safety.js).
+       지금까지 썸네일에 안 샌 것은 html2canvas 가 반복 그라데이션을 못 그려서일 뿐이었다(tests/dom/l1-guide-align L1-X). */
+    /* ⚠️`await html2canvas(clone` 꼴을 지킨다 — tests/dom/thumb-goya-asset H4 가 이 글자를 «찍는 자리» 닻으로 쓴다(goya 풀기가 그 앞인지 본다). */
+    const canvas = await withGuideOff(async () => await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false }));
     document.body.removeChild(clone);
 
     /* 200px 너비로 축소 — ★«빈 그림»이면 null 이다. 그럴듯한 6자를 돌려주지 않는다 (T-87).

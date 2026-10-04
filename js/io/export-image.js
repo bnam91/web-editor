@@ -1,7 +1,7 @@
 import { canvasEl, state } from '../globals.js';
 import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture, warnIfCaptureTextVanished } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture, warnIfCaptureTextVanished, withGuideOff } from './capture-safety.js';
 
 const CANVAS_W = 860;
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
@@ -512,16 +512,8 @@ export function sectionBgColor(sec) {
    ⛔가장 안쪽인 이 함수에 둔다. 전체 내보내기(exportAllSections)도 여길 지나므로
      경로가 늘어도 새지 않는다 — 바깥에 두면 새 경로가 생길 때마다 빠뜨린다. */
 async function exportSection(sec, format, width, opts) {
-  const _gOn = document.body.classList.contains('gdt-grid-on');
-  if (_gOn) document.body.classList.remove('gdt-grid-on');
-  const _pOn = document.body.classList.contains('gdt-pad-on');
-  if (_pOn) document.body.classList.remove('gdt-pad-on');
-  try {
-    return await _exportSectionNoGuide(sec, format, width, opts);
-  } finally {
-    if (_gOn) document.body.classList.add('gdt-grid-on');
-    if (_pOn) document.body.classList.add('gdt-pad-on');
-  }
+  /* ★가드 몸은 «한 벌» — capture-safety.js withGuideOff(썸네일도 같은 함수를 부른다, L1). */
+  return withGuideOff(() => _exportSectionNoGuide(sec, format, width, opts));
 }
 
 async function _exportSectionNoGuide(sec, format, width, opts) {
