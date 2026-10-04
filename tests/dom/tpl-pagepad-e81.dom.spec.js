@@ -16,7 +16,7 @@ const path = require('path');
 const { bootApp } = require('./_root-harness.js');
 
 /* ★시험 커밋에는 고침이 없다 — 고침을 재는 시험은 «빨강이 정상»(test.fail). 고침 커밋에서 false. */
-const FIX = true;
+const FIX = false;
 const GOLD = path.join(__dirname, 'fixtures', 'tpl-pagepad-e81-golden.json');
 const UPDATE = process.env.E81_GOLDEN === 'update';
 /* ★gradient 는 T1 에서 «뺀다»: 섹션 길에선 gradient-block 이 .section-block «직속»(section-inner 밖)에 서고, 블럭 길에선 row 안에 선다
