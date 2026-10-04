@@ -1,7 +1,9 @@
 /* icon-preset-empty-hint.dom.spec.js — U21 (UserLens 0.9.6 ⑷10 · 2026-10-05): Icon 패널 「내 SVG 프리셋」 안내문이 칸에서 잘렸다.
  *   옛: 폴더가 비면 <select> 의 <option> 하나에 안내 전문(「(폴더 비어있음 — Application Support/GODITOR/svg-presets/ 에 폴더+SVG 추가)」)
  *       → 칸 폭(flex:1)에서 「(폴더 비어있음 — Application S…」로 잘림.
- *   새: 칸엔 짧은 상태 「(비어 있음)」만 · 안내 전문은 그 아래 그리드 자리(#icn-preset-grid)에 줄바꿈되는 .prop-hint 로.
+ *   새: 칸엔 짧은 상태 「(비어 있음)」만 · 안내는 그 아래 그리드 자리(#icn-preset-grid)에 줄바꿈되는 .prop-hint 로.
+ *   ⛔안내에 폴더 경로를 안 적는다 — 옛 「Application Support/GODITOR/…」는 맥 전용 길이었다(윈도우 = %APPDATA%\GODITOR · main.js:1714).
+ * 시험 이름표: P0 = 전제(빈 폴더 답이 들어갔다) · P1·P2 = ★새 것(고치기 전 판 빨강) · P3 = 회귀 지킴(카테고리 있으면 안내 없음 — 고치기 전에도 초록).
  * ★양성대조: 고치기 전 판(origin/dev 772ccadc)에서 P1(칸 글자가 칸 폭 안)·P2(안내가 다 보임)가 빨강, P0(전제)은 초록이어야 한다.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/icon-preset-empty-hint.dom.spec.js */
 const { test, expect } = require('@playwright/test');
@@ -47,15 +49,21 @@ test('P1 ★칸 글자가 칸 폭 안에 든다(잘리지 않는다)', async ({ 
     const inner = e.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 16;   // 16 = 펼침 화살표 몫
     return { text, textW: Math.ceil(cv.measureText(text).width), inner: Math.floor(inner) };
   });
+  test.info().annotations.push({ type: 'measured', description: JSON.stringify(m) });
   expect(m.textW, `칸 글자 «${m.text}» 폭 ${m.textW}px > 칸 안쪽 ${m.inner}px — 잘린다`).toBeLessThanOrEqual(m.inner);
 });
 
-test('P2 ★안내 전문(경로 포함)이 그리드 자리에 «다» 보인다 — 넘치지 않는다', async ({ page }) => {
+test('P2 ★안내가 그리드 자리에 «다» 보인다 — 넘치지 않고, 앱 안의 길(+ · 라이브러리에 저장)을 가리킨다', async ({ page }) => {
   await openIconPanel(page, { ok: true, categories: [] });
   const hint = page.locator('#icn-preset-grid .prop-hint');
   await expect(hint).toBeVisible();
-  await expect(hint).toContainText('Application Support/GODITOR/svg-presets/');
-  const r = await hint.evaluate(e => ({ sw: e.scrollWidth, cw: e.clientWidth, gw: e.parentElement.clientWidth, w: e.getBoundingClientRect().width }));
+  await expect(hint).toContainText('+ 로 만든 뒤');
+  await expect(hint).toContainText('라이브러리에 저장');
+  /* 안내가 가리키는 «라이브러리에 저장» 단추가 같은 패널에 실제로 있다(헛걸음 방지). */
+  await expect(page.locator('#icn-preset-save-btn')).toContainText('라이브러리에 저장');
+  await expect(page.locator('#icn-preset-new-cat-btn')).toHaveText('+');
+  const r = await hint.evaluate(e => ({ sw: e.scrollWidth, cw: e.clientWidth, gw: e.parentElement.clientWidth, w: e.getBoundingClientRect().width, h: e.getBoundingClientRect().height }));
+  test.info().annotations.push({ type: 'measured', description: JSON.stringify(r) });
   expect(r.sw, `안내가 가로로 넘친다 scrollWidth=${r.sw} clientWidth=${r.cw}`).toBeLessThanOrEqual(r.cw);
   expect(r.w, `안내가 그리드 한 칸(1/3)에 갇혔다 w=${r.w} grid=${r.gw}`).toBeGreaterThan(r.gw * 0.9);
 });

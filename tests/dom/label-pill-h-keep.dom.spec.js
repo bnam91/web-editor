@@ -47,7 +47,8 @@ test('H1 ★박스 높이 40 → 배경색 input → 상하 padding·알약 높�
 });
 
 /* ★U22 (UserLens 0.9.6 ⑷11 · 지디 ① 2026-10-05): 같은 값(알약 높이)에 묶인 손잡이 둘 → Tag Style 「높이」 하나.
- *   양성대조: origin/dev 772ccadc 에선 H0 이 빨강(#txt-label-h-number 1개 · 「박스 높이」 글자 1개). */
+ *   양성대조: origin/dev 772ccadc 에선 H0 이 빨강(#txt-label-h-number 1개 · 「박스 높이」 글자 1개).
+ *   시험 이름표: H0 = ★새 것(U22) · H1 = 회귀 지킴(배경색에 알약 높이가 안 지워짐 — 남은 손잡이로 옮겼을 뿐 772ccadc 에서도 초록이 정상). */
 test('H0 ★알약 높이 손잡이는 Tag Style 「높이」 «하나» — Padding 절에 「박스 높이」가 없다', async ({ page }) => {
   await boot(page, HARNESS);
   await page.evaluate(() => window.__text(document.getElementById('tb1')));
