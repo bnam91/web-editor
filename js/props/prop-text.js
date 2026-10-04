@@ -1,5 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { rgbToHex } from './prop-text-utils.js';
+import { panelRenderedPx, labelShapeFromRendered } from './_panel-rendered.js';
 import { buildTextPropsHtml } from './prop-text-template.js';
 import { detectMix } from './prop-text-mix-detect.js';
 import { wireBubbleSection }   from './prop-text-wireup-bubble.js';
@@ -54,8 +55,10 @@ export function showTextProperties(tb) {
   const bubbleBg = isSpeechBubble ? (_blockBubbleVar || contentEl.style.backgroundColor || '#e5e5ea') : '#e5e5ea';
   const bubbleBgHex = isSpeechBubble ? (_blockBubbleVar || rgbToHex(window.getComputedStyle(contentEl).backgroundColor) || '#e5e5ea') : '#e5e5ea';
   const showSender = isSpeechBubble && tb.dataset.showSender === 'true';
-  const labelPillPadT = parseInt(contentEl.style.paddingTop)    || 4;
-  const labelPillPadB = parseInt(contentEl.style.paddingBottom) || 4;
+  /* ★#9(E121 · 2026-10-05): 옛 `parseInt(contentEl.style.paddingTop) || 4` 는 인라인이 비면 4+4=8 을 그렸다 — 실제는 CSS .tb-label 11+11=22.
+     «그려진 값»을 읽는다(_panel-rendered.js). U22① 로 남긴 「높이」 손잡이가 이 값을 쓴다 — U22① 의 전제 조건(지디). */
+  const labelPillPadT = Math.round(panelRenderedPx(contentEl, 'paddingTop'));
+  const labelPillPadB = Math.round(panelRenderedPx(contentEl, 'paddingBottom'));
   // ★원형(Circle)의 «크기»는 패딩이 아니라 지름(인라인 width)이다 — 패딩으로 읽으면
   //   실제 지름 100 짜리에 슬라이더가 8 을 가리켜 다시 잡을 때 크기가 툭 튄다.
   const _isCircleLabel = contentEl.dataset.shape === 'circle';
@@ -63,7 +66,8 @@ export function showTextProperties(tb) {
     ? (parseInt(contentEl.style.width) || Math.round(contentEl.getBoundingClientRect().width) || 64)
     : labelPillPadT + labelPillPadB;
   // 알약 «안쪽» 좌우 패딩 — 인라인이든 CSS 기본(36px)이든 «지금 그려진 값»을 읽는다(읽기만, 쓰지 않는다)
-  const labelPadX = isLabel && !_isCircleLabel ? Math.round(parseFloat(computed.paddingLeft) || 0) : 0;
+  const labelPadX = isLabel && !_isCircleLabel ? Math.round(panelRenderedPx(contentEl, 'paddingLeft')) : 0;
+  const labelShape = isLabel ? labelShapeFromRendered(contentEl) : null;   // ★U7(E121): Tag Style 켜짐 — 그려진 모양에서
   const _jcToAlign  = { 'flex-start': 'left', 'center': 'center', 'flex-end': 'right' };
   // U10 후속 — «거짓 active» 제거.
   //   커스텀 폭(width≠100%) 블록의 «박스 가로 위치»를 지배하는 건 textAlign 이 아니라
@@ -166,7 +170,7 @@ export function showTextProperties(tb) {
     currentX, currentY, currentRotation, currentW, currentFont, currentWeight, currentSize,
     currentLH, currentLS, currentColor, currentColorAlpha,
     currentPadT, currentPadL, currentPadR, phLinked,
-    isLabel, currentBgColor, currentRadius, labelPillH, labelPadX, labelIsCircle: _isCircleLabel,
+    isLabel, currentBgColor, currentRadius, labelPillH, labelPadX, labelIsCircle: _isCircleLabel, labelShape,
     isSpeechBubble, currentBubbleStyle, currentTail,
     bubbleBgHex, showSender,
     isIconText, currentItbGap, itbVertical,

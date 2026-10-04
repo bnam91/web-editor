@@ -130,7 +130,7 @@ test('L6 ★배경색을 바꿔도 좌우·상하 패딩이 안 지워진다(적
   await boot(page, HARNESS);
   await open(page, 'tb1');
   await page.locator('#txt-label-padx-number').fill('60');
-  await page.locator('#txt-label-h-number').fill('40');         // 상하 20+20 (옛 결함 계열: 높이도 같은 길로 지워졌다)
+  await page.locator('#label-pill-height-number').fill('40');   // 상하 20+20 · U22(2026-10-05) Padding 「박스 높이」 제거 → Tag Style 「높이」로 옮김 (옛 결함 계열: 높이도 같은 길로 지워졌다)
   const b = await measure(page, 'tb1');
   expect([b.padL, b.padT, b.pillW]).toEqual([60, 20, 194]);   // 전제
   await page.locator('#label-bg-color').evaluate((e) => { e.value = '#cc2244'; e.dispatchEvent(new Event('input', { bubbles: true })); });

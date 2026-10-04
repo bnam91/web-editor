@@ -955,7 +955,7 @@ function addAssetBlock(preset, opts = {}) {
   window.selectSection(sec);
 }
 
-/* opts.asSibling — 키보드 입구(g)만 켠다. 패널 갭 단추는 인자 없이 불러 09-23 「안에 넣는다」 그대로다.
+/* opts.asSibling — 키보드 입구(g)와 하단 툴바 Component ▸ Gap(2026-10-05 U17)이 켠다. 툴바도 «g 와 같은 동작»(툴팁이 「단축키 G」라 같아야 한다). 그리드 칸·말풍선 줄 우선 처리(g 키 쪽)는 툴바엔 없다.
  *   켜면: 프레임을 «오브젝트로» 골라 둔 상태(frameSelectedAsObject)일 때 프레임 안 분기를 건너뛰고 «다음 형제»로 간다(F1). */
 function addGapBlock(height, opts = {}) {
   // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가

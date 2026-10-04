@@ -550,7 +550,38 @@ function _renderAutoPanel(ss) {
   const vGroup = ['ss-align-top','ss-align-vcenter','ss-align-bottom'];
   const hMap = { 'flex-start':'ss-align-left', 'center':'ss-align-hcenter', 'flex-end':'ss-align-right' };
   const vMap = { 'flex-start':'ss-align-top',  'center':'ss-align-vcenter',  'flex-end':'ss-align-bottom' };
-  _markAlignActive(hMap[curAlignItems]    || 'ss-align-left', hGroup);
+  /* ★U6(E121 · 2026-10-05): 스택(흐름) 프레임의 가로 정렬 켜짐은 «내용이 실제로 놓인 자리»로 판정한다.
+     까닭(실측 772ccadc): 자유배치→스택 변환(_convertFreeLayoutToStack)이 자식마다 align-self:center 를 남기고 프레임 align-items 는
+     비워 둔다 ⇒ 옛 판정(`ss.style.alignItems || dataset || 'flex-start'`)이 «왼쪽»을 켜는데 내용은 가운데(L=258/R=258).
+     스택 정렬의 수단은 자식별(align-self · row margin · row justify-content)이라 프레임 속성 하나로는 못 읽는다 —
+     텍스트 패널 _alignDisplayFor(prop-text.js) 와 같은 꼴: 그려진 위치로 보고, 섞이면 «아무것도 안 켠다».
+     ⛔자유배치 프레임은 이 판정 밖(자식 절대좌표 · 저장된 childAlignX 가 따로 있다). */
+  const _renderedHAlign = () => {
+    if (!ss || ss.dataset.freeLayout === 'true') return undefined;   // undefined = 옛 판정 그대로
+    const fr = ss.getBoundingClientRect();
+    const sc = (ss.offsetWidth && fr.width / ss.offsetWidth) || 1;
+    const pad = framePadding(ss);
+    const inL = fr.left + pad.l * sc, inR = fr.right - pad.r * sc;
+    const items = [];
+    const take = (el) => {
+      if (!el || el.classList.contains('gap-block') || el.classList.contains('frame-resize-handle')) return;
+      if (getComputedStyle(el).position === 'absolute') return;
+      const r = el.getBoundingClientRect();
+      if (!r.width) return;
+      const l = (r.left - inL) / sc, rr = (inR - r.right) / sc;
+      if (l <= 1 && rr <= 1) return;                                   // 폭을 다 채움 — 정렬을 말하지 않는다
+      items.push(Math.abs(l - rr) <= 1 ? 'center' : l <= 1 ? 'flex-start' : rr <= 1 ? 'flex-end' : 'mixed');
+    };
+    [...ss.children].forEach(c => {
+      if (c.classList.contains('row') && (c.dataset.layout === 'stack')) [...c.children].forEach(take);
+      else take(c);
+    });
+    if (!items.length) return undefined;                                 // 말해 주는 내용이 없음 — 옛 판정
+    return items.every(v => v === items[0]) && items[0] !== 'mixed' ? items[0] : null;   // null = 섞임 → 아무것도 안 켠다
+  };
+  const _hNow = _renderedHAlign();
+  if (_hNow === null) hGroup.forEach(i => document.getElementById(i)?.classList.remove('active'));
+  else _markAlignActive(hMap[_hNow !== undefined ? _hNow : curAlignItems] || 'ss-align-left', hGroup);
   _markAlignActive(vMap[curJustifyContent] || 'ss-align-top',  vGroup);
 
   document.getElementById('ss-align-left')?.addEventListener('click',    () => { _setAlign('flex-start', null); _markAlignActive('ss-align-left',    hGroup); window.pushHistory?.(); });
