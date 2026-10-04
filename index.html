@@ -1563,6 +1563,16 @@
     </svg>
     블록 템플릿으로 저장
   </div>
+  <!-- ★U17②(2026-10-05 지디) — 누른 블럭·프레임 «바로 아래»에 여백. G 키와 같은 일을 «우클릭한 그것» 기준으로 한다(선택과 무관).
+       길은 editor.js insertGapAfterBlock 한 벌(MCP insert_gap_after_block 과 같은 함수). 보이는 조건 = block-factory.js openMenu. -->
+  <div class="bcm-item" id="bcm-insert-gap" style="display:none;">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+      <rect x="1.5" y="1" width="9" height="4" rx="1"/>
+      <path d="M2 8h8" stroke-dasharray="1.5 1.5"/>
+      <path d="M6 6.5v4M4.5 9l1.5 1.5L7.5 9"/>
+    </svg>
+    바로 아래에 여백 넣기 (G)
+  </div>
   <div class="bcm-item" id="bcm-send-to-scratch" style="display:none;">
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
       <rect x="1.5" y="2" width="9" height="8" rx="1"/>

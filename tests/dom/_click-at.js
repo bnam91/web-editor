@@ -14,7 +14,7 @@ async function hitAt(page, x, y) {
   }, [x, y]);
 }
 
-async function clickAt(page, x, y, expectSpec, { label = '', dbl = false } = {}) {
+async function clickAt(page, x, y, expectSpec, { label = '', dbl = false, button = 'left' } = {}) {   // button:'right' = 우클릭(E93 ⑤)
   const ok = await page.evaluate(([x, y, spec]) => {
     const e = document.elementFromPoint(x, y);
     if (!e) return { ok: false, hit: null };
@@ -28,7 +28,7 @@ async function clickAt(page, x, y, expectSpec, { label = '', dbl = false } = {})
     return { ok: good, hit: desc };
   }, [x, y, expectSpec || null]);
   expect(ok.ok, `clickAt${label ? ' ' + label : ''}: (${Math.round(x)},${Math.round(y)}) 맞힌 요소 «${ok.hit}» 가 기대 ${JSON.stringify(expectSpec)} 와 다르다`).toBe(true);
-  if (dbl) await page.mouse.dblclick(x, y); else await page.mouse.click(x, y);
+  if (dbl) await page.mouse.dblclick(x, y, { button }); else await page.mouse.click(x, y, { button });
   return { hit: ok.hit, x, y };
 }
 
