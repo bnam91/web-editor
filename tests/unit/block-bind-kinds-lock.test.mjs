@@ -9,6 +9,7 @@
  *   covered = 다른 클래스로 이미 걸림(잰 것: speech-bubble-block 은 text-block 을 같이 단다 — block-factory.js makeSpeechBubbleBlock)
  *   debt    = 걸려야 하는데 빠짐(실측 또는 코드독해로 증상 있음)
  *   unconfirmed = 그 길로 그 종류가 다시 태어나는지 아직 안 쟀다
+ * (gradient-block 은 정본에서 뺐다 — bindBlock 이 아니라 bindGradientSelect 로 묶인다. 그래서 손 명부에 없어도 «빠짐»이 아니다.)
  * 자리는 «줄 번호»가 아니라 그 명부 글자를 찾아 읽는다(줄이 밀려도 같은 명부를 읽게).
  */
 import { test } from 'node:test';
@@ -38,16 +39,16 @@ const C = 'covered', D = 'debt', U = 'unconfirmed';
 const FROZEN = {
   'editor.js _bindPastedEl BLOCK_SEL': { file: 'js/editor.js', anchor: "const BLOCK_SEL = '.text-block", gaps: {} },
   'editor.js 붙여넣기 _ALL': { file: 'js/editor.js', anchor: "const _ALL = '.text-block", gaps: { 'joker-block': U } },
-  'save-load.js rebindAll': { file: 'js/io/save-load.js', anchor: "canvasEl.querySelectorAll('.text-block, .asset-block", gaps: { 'gradient-block': U, 'speech-bubble-block': C } },
-  'editor.js 초기 바인딩': { file: 'js/editor.js', anchor: "document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block", gaps: { 'gradient-block': U, 'joker-block': U, 'shape-block': U, 'speech-bubble-block': C } },
-  'block-factory.js 섹션 바인딩': { file: 'js/block-factory.js', anchor: "sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block", gaps: { 'banner02-block': U, 'canvas-block': U, 'comparison-block': U, 'gradient-block': U, 'icon-block': U, 'joker-block': U, 'mockup-block': U, 'modal-block': U, 'speech-bubble-block': C } },
-  'template-system.js subsection 갈래': { file: 'js/panels/template-system.js', anchor: "ss.querySelectorAll('.text-block, .asset-block", gaps: { 'banner02-block': U, 'canvas-block': U, 'chat-block': U, 'comparison-block': U, 'gradient-block': U, 'laurel-block': U, 'mockup-block': U, 'speech-bubble-block': C, 'step-block': U, 'vector-block': U, 'zoom-block': U } },
-  'section-variation.js createVariation': { file: 'js/section-variation.js', anchor: "clone.querySelectorAll('.text-block, .asset-block", occurrence: 0, gaps: Object.fromEntries(['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'gradient-block', 'joker-block', 'laurel-block', 'mockup-block', 'modal-block', 'qa-block', 'shape-block', 'step-block', 'vector-block', 'zoom-block'].map(k => [k, D]).concat([['speech-bubble-block', C]])) },
-  'section-variation.js addVariation': { file: 'js/section-variation.js', anchor: "clone.querySelectorAll('.text-block, .asset-block", occurrence: 1, gaps: Object.fromEntries(['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'gradient-block', 'joker-block', 'laurel-block', 'mockup-block', 'modal-block', 'qa-block', 'shape-block', 'step-block', 'vector-block', 'zoom-block'].map(k => [k, D]).concat([['speech-bubble-block', C]])) },
+  'save-load.js rebindAll': { file: 'js/io/save-load.js', anchor: "canvasEl.querySelectorAll('.text-block, .asset-block", gaps: { 'speech-bubble-block': C } },
+  'editor.js 초기 바인딩': { file: 'js/editor.js', anchor: "document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block", gaps: { 'joker-block': U, 'shape-block': U, 'speech-bubble-block': C } },
+  'block-factory.js 섹션 바인딩': { file: 'js/block-factory.js', anchor: "sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block", gaps: { 'banner02-block': U, 'canvas-block': U, 'comparison-block': U, 'icon-block': U, 'joker-block': U, 'mockup-block': U, 'modal-block': U, 'speech-bubble-block': C } },
+  'template-system.js subsection 갈래': { file: 'js/panels/template-system.js', anchor: "ss.querySelectorAll('.text-block, .asset-block", gaps: { 'banner02-block': U, 'canvas-block': U, 'chat-block': U, 'comparison-block': U, 'laurel-block': U, 'mockup-block': U, 'speech-bubble-block': C, 'step-block': U, 'vector-block': U, 'zoom-block': U } },
+  'section-variation.js createVariation': { file: 'js/section-variation.js', anchor: "clone.querySelectorAll('.text-block, .asset-block", occurrence: 0, gaps: Object.fromEntries(['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'joker-block', 'laurel-block', 'mockup-block', 'modal-block', 'qa-block', 'shape-block', 'step-block', 'vector-block', 'zoom-block'].map(k => [k, D]).concat([['speech-bubble-block', C]])) },
+  'section-variation.js addVariation': { file: 'js/section-variation.js', anchor: "clone.querySelectorAll('.text-block, .asset-block", occurrence: 1, gaps: Object.fromEntries(['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'joker-block', 'laurel-block', 'mockup-block', 'modal-block', 'qa-block', 'shape-block', 'step-block', 'vector-block', 'zoom-block'].map(k => [k, D]).concat([['speech-bubble-block', C]])) },
 };
 
-test('정본 명부가 서 있다(29 종 · 만드는 자리가 있는 종류)', () => {
-  assert.equal(ROSTER.size, 29, `정본 ${ROSTER.size} 종`);
+test('정본 명부가 서 있다(28 종 · 만드는 자리가 있고 bindBlock 으로 묶이는 종류)', () => {
+  assert.equal(ROSTER.size, 28, `정본 ${ROSTER.size} 종`);
 });
 
 test('★섹션 템플릿 넣기(section 갈래)는 손 명부가 아니라 정본에서 끌어온다', () => {
