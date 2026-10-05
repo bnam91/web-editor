@@ -1808,6 +1808,9 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   user-select: none;
 }
 .bcm-item:hover { background: #2a2a2a; color: #fff; }
+/* ★E29(2026-10-06) — 메뉴 아이콘 선 두께를 한 값으로: viewBox 14 를 12px 로 그린 셋(이미지 메모 · 그리드 이미지 · 원형 이미지)은 1.3×12/14 = 1.114 로 얇았다.
+   선 굵기를 «화면 px» 로 고정한다(viewBox 12 = 배율 1 이라 무변 · 별 아이콘 1.0 은 일부러 — 그대로). 메뉴 안만 · 공용 그림 상수(grid-circle-icon.js) 무변. */
+#block-context-menu .bcm-item svg * { vector-effect: non-scaling-stroke; }
 
 /* ── 이미지 업로드 로딩 오버레이 ── */
 .asset-loading-overlay {
