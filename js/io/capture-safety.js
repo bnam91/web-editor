@@ -499,3 +499,65 @@ export async function withGuideOff(fn) {
     if (p) b.classList.add('gdt-pad-on');
   }
 }
+
+/* ── captureSectionImage(sec) — 섹션 하나를 그림(data URL)으로 «찍기»만 하는 공용 자리 (G11 ① · 2026-10-05) ──
+   prop-mockup.js _captureAndApply 에서 «찍기» 몫을 그대로 옮겨 왔다(동작 무변 리팩터) — 붙이기(pushHistory·dataset·숨김·토스트)는
+   부르는 쪽 몫이라 여기 «안» 넣는다.
+   반환: { ok:true, dataUrl } | { ok:false, reason:'no-h2c' | 'degenerate' } · 그 밖 오류는 «던진다»(부르는 쪽 catch 문구 그대로).
+   ⚠️옮기며 생긴 차이 하나: 클론 치우기가 «붙이기 뒤» → «붙이기 앞»(이 함수 finally). 클론은 body 의 화면 밖 노드라
+     캔버스 직렬본·pushHistory 표본에 안 든다(코드독해 — G11 ① 증명 ⑷가 바이트로 잰다). */
+export async function captureSectionImage(sec) {
+  if (typeof html2canvas === 'undefined') return { ok: false, reason: 'no-h2c' };
+  let clone = null;
+  try {
+    // 클론 후 오프스크린에 배치 (ignoreElements 없이 깔끔하게 찍기)
+    clone = sec.cloneNode(true);
+    clone.querySelector?.('.section-hitzone')?.remove();
+    clone.querySelector?.('.section-toolbar')?.remove();
+    clone.classList.remove('selected');
+    // 선택 아웃라인 제거
+    clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+    /* ★display:block 을 «같이» 건다 — 이 줄이 이 고침의 절반이다(2026-09-22).
+       한 번 캡처한 섹션은 아래에서 sec.style.display='none' 으로 숨는다. 그 섹션을 «다시»
+       캡처하면 cloneNode 가 그 display:none 까지 베껴 와, html2canvas 가 크기 0 짜리를 그리고
+       canvas 가 0×0 이 된다. ⛔그때 toDataURL 은 «던지지 않고» 문자열 "data:," 를 «돌려준다»
+       — 아래 try/catch 는 예외만 보므로 그대로 통과해 멀쩡한 PNG 를 6자로 덮고
+       「캡처 완료!」라고 말했다(2026-09-21 실측: 928,378자 → 6자).
+       ⛔원본 sec 의 display 를 건드리지 않는다 — 클론만 편다. 원본을 폈다 접으면 화면이
+         깜빡이고, 도중에 실패하면 숨김 상태가 어긋난 채 남는다.
+       ★cssText 뒤에 붙이므로 앞서 베껴 온 display:none 을 이긴다(뒤가 이긴다). */
+    clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;box-shadow:none;display:block;';
+    document.body.appendChild(clone);
+    neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
+    neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
+    await neutralizeObjectFitForH2C(clone); // html2canvas는 object-fit 미지원 → 상자에 «늘려» 그린다. 상자 크기대로 미리 잘라 끼운다(썸네일이 화면과 다른 그림이 되던 자리)
+    if (window.finalizeMosaicForClone) { try { await window.finalizeMosaicForClone(sec, clone); } catch (_) {} }
+
+    const bgColor = sec.style.backgroundColor || sec.style.background || '#ffffff';
+    const canvas = await html2canvas(clone, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: bgColor || '#ffffff',
+      logging: false,
+    });
+    const dataUrl = canvas.toDataURL('image/png');
+
+    /* ★짝 검사 — «입구»만 막지 말고 «결과»를 재라(2026-09-22).
+       위 display:block 은 «지금 아는 한 가지 원인»만 덮는다. 캔버스가 0 이 되는 길은 그것
+       하나라는 보장이 없다(섹션이 0 높이·부모가 접힘·html2canvas 자체 실패 등).
+       ⛔그리고 이 자리의 병은 «캔버스가 0 이 되는 것»이 아니라 «0 인 줄 모르고 덮는 것»이다.
+       toDataURL 은 0×0 에서 예외를 «안» 던지고 "data:," 를 돌려주므로 try/catch 로는 못 잡는다.
+       ⇒ 덮기 «전»에 결과를 재고, 빈 그림이면 가진 것을 지키고 «사실대로» 말한다. */
+    /* ★판정은 js/io/image-data-url.js «한 곳»에서 한다 (T-148).
+       여기 128 을 다시 적지 마라 — 2026-09-22 에 이 사본과 썸네일 사본이 «둘»로 갈렸고,
+       그날 안에 모았다. tests/unit/one-empty-image-judge.test.mjs 가 셋째를 막는다.
+       ⛔판정기가 없으면 «빈 그림으로 친다» — 배선이 깨졌을 때 «가진 그림을 지키는» 쪽이 안전하다.
+         (조용히 덮는 것보다 「캡처 실패」라고 말하고 멈추는 것이 낫다.) */
+    const _judge = window.isUsableImageDataUrl;
+    const _degenerate = !canvas.width || !canvas.height || typeof _judge !== 'function' || !_judge(dataUrl);
+    if (_degenerate) return { ok: false, reason: 'degenerate' };   // 문구·«가진 그림 지킴»은 부르는 쪽 몫
+    return { ok: true, dataUrl };
+  } finally {
+    clone?.remove();
+  }
+}
