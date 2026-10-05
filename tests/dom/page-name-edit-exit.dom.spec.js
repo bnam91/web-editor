@@ -4,7 +4,9 @@
  * 고침 꼴(문 하나): onKey 떼기 = commit(blur) 안 · Enter/Escape 는 blur 만 부른다 · 편집 중 다시 더블클릭은 무시.
  * ㉢ 은 둘로 잰다 — (ⅰ) 끝난 뒤 Escape → 이름 그대로 (ⅱ) 끝난 뒤 이름 칸 keydown 처리기 수 = 0 (CDP DOMDebugger.getEventListeners).
  *   (ⅰ)만으론 «남은 onKey» 를 못 본다(되돌릴 이름 = 방금 커밋한 이름) — 그래서 (ⅱ).
- * RG-N5b(측정만 · 고치지 않음): 편집 중 키가 항목(.file-page-item) keydown 으로 버블 → Space/Enter 에 switchPage. */
+ * RG-N5b(태양·지디 10-06 합침): 편집 중 키가 항목(.file-page-item :110-112) keydown 으로 버블 → Space 는 preventDefault(공백 안 들어감) + switchPage.
+ *   고침 = 편집 중(isContentEditable) onKey 가 stopPropagation. ㉤ 가 잰다.
+ *   ㉤ ⒝ «페이지 안 바뀜»: 이 장면은 지금 페이지의 이름이라 옛 판에서도 switchPage(같은 id) = no-op → ⒝ 는 옛 판에서도 초록 예측 · 빨강은 ⒜(공백)·⒞(불린 수). */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 test.describe.configure({ timeout: 60000 });
@@ -87,18 +89,21 @@ test('RG-N5 ㉣ [새 것] 편집 중 더블클릭 ×3 → 바로 Enter → 끝 �
   expect({ editing: s.editing, ce: s.ce, listeners: await keydownCount(page, name), commits }).toEqual({ editing: false, ce: 'false', listeners: 0, commits: 1 });
 });
 
-test('RG-N5b [측정만 · 고치지 않음] 편집 중 Space/Enter 가 항목으로 버블 → switchPage 불림 · 공백이 들어가나', async ({ page }) => {
+test('RG-N5 ㉤ [새 것 · RG-N5b 합침] 편집 중 Space(첫 키) → ⒜ 이름에 공백이 들어간다 ⒝ 페이지 안 바뀜 ⒞ 항목 keydown(switchPage) 안 불림', async ({ page }) => {
   const { name } = await setup(page);
-  const orig = (await st(name)).pageName;
-  await startEdit(page, name);
+  // 둘째 페이지를 둔다 — «페이지가 바뀌나»를 볼 자리(지금 페이지 = 첫 장)
+  await page.evaluate(() => { const p = window.state.pages[0]; window.state.pages.push({ ...JSON.parse(JSON.stringify(p)), id: 'page_rgn5_2', name: '둘째' }); window.buildFilePageSection(); });
+  const name1 = await page.evaluateHandle(() => document.querySelector('.file-page-name'));
+  const cur0 = await page.evaluate(() => window.state.currentPageId);
+  await startEdit(page, name1);
+  expect((await st(name1)).editing, '[전제] 편집 중').toBe(true);
+  const orig = (await st(name1)).text;
   await page.keyboard.press('End');
   const w0 = await page.evaluate(() => window.__switches);
-  await page.keyboard.type('a b'); await page.waitForTimeout(150);
-  const afterSpace = await st(name);
-  const wSpace = await page.evaluate(() => window.__switches) - w0;
-  await page.keyboard.press('Enter'); await page.waitForTimeout(200);
-  const wEnter = await page.evaluate(() => window.__switches) - w0 - wSpace;
-  const rec = { orig, typed: 'a b', textWhileEditing: afterSpace.text, spaceKept: afterSpace.text.endsWith('a b'), switchPageOnSpace: wSpace, switchPageOnEnter: wEnter, connected: (await st(name)).connected };
-  test.info().annotations.push({ type: 'RG-N5b', description: JSON.stringify(rec) });
-  console.log('[RG-N5b]', JSON.stringify(rec));
+  // ★Space 를 «첫 키»로 — 변이 ⒜(:67 되살림)는 첫 키 뒤에 onKey 를 떼므로 첫 키는 ⒜ 와 무관 → ⒜·⒞ 가 다른 시험을 빨갛게
+  await page.keyboard.press(' '); await page.keyboard.type('b'); await page.waitForTimeout(150);
+  const s = await st(name1);
+  const rec = { orig, text: s.text, switchPageCalls: (await page.evaluate(() => window.__switches)) - w0, cur: await page.evaluate(() => window.state.currentPageId), cur0 };
+  console.log('[RG-N5 ㉤]', JSON.stringify(rec));
+  expect({ spaceLanded: s.text === orig + ' b', samePage: rec.cur === cur0, switchPageCalls: rec.switchPageCalls }, JSON.stringify(rec)).toEqual({ spaceLanded: true, samePage: true, switchPageCalls: 0 });
 });
