@@ -40,7 +40,8 @@ test('Y0 [회귀 지킴] 키 없는 그리드 여섯 꼴 = 기준 판(0f572e2a) 
       cellsPad: { cols: [{ width: 1, lines: [{ type: 'body', text: 'a' }] }, { width: 1, lines: [{ type: 'body', text: 'b' }] }], rows: [{ height: 'auto' }, { height: 120 }], cells: [[{ padding: 20 }, {}], [{}, { padding: 8, radius: 6 }]] },
       border: { cellBorderWidth: 2, cellBorderColor: '#333333', gap: 0 },
       bg: { blockBg: { on: true, color: '#eeeeee' } },
-      image: { cols: [{ width: 1, lines: [{ type: 'image', imgSrc: IMG, height: 120 }] }, { width: 1, lines: [{ type: 'image', imgSrc: IMG }] }] },
+      /* 그림 줄은 «높이 키 없는» 꼴만 — 높이 키 있는 그림 줄은 E157 이 산출을 바꾼다(키 있음 = 이 잠금 밖 · e157-grid-ratio E1 이 잰다) */
+      image: { cols: [{ width: 1, lines: [{ type: 'image', imgSrc: IMG }] }, { width: 1, lines: [{ type: 'image', imgSrc: IMG, widthPct: 60, align: 'center' }] }] },
     };
     const c = document.getElementById('canvas'); const out = {};
     for (const [k, o] of Object.entries(CONF)) {
