@@ -591,6 +591,8 @@ function getSerializedCanvas() {
 export const NON_CONTENT_UI_SELECTOR =
   '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy, .grd-add-btn';
 
+if (typeof window !== 'undefined') window.NON_CONTENT_UI_SELECTOR = NON_CONTENT_UI_SELECTOR;   // ★E148 — ⌘C 글자 뽑기(editor.js)가 «같은 목록»으로 UI 를 걷는다
+
 /** 이 mutation 이 «UI 장식»만 건드렸나 — 그렇다면 편집이 아니다. */
 function _isNonContentUiMutation(m) {
   if (m.type !== 'childList') return false;
