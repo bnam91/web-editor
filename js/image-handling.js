@@ -1424,12 +1424,28 @@ function enterGridImageEditMode(block, addr) {
                계속 «자르는 그릇»(overflow:hidden)이다.
              ★여기서 지우면 화면도 곧바로 따라온다 — updateGridBlock 이 다시 그리고, 이 함수는
                이미 임시 DOM(프록시)을 걷어낸 뒤라 «진짜 그림»이 cover 로 보인다. */
-          window.updateGridBlock?.(block.id, {
-            patchCell: {
-              r: addr.r, c: addr.c, lineIndex: addr.li,
-              imgSizePct: undefined, imgPosX: undefined, imgPosY: undefined,
-            },
-          });
+          /* ★reset-drops-height(2026-10-06 · APPROVED_BY: 지디 reset-drops-height) — height 도 지운다.
+             크롭 없는 줄은 E157 뒤 height 를 안 읽는다 — 남겨 두면 «씨앗»이 되어, MCP 가 크롭 세 값만 줄 때(편집기 커밋을 안 거침)
+             그 묵은 값이 틀 높이로 살아나 튀었다(실측 B2: 645 → 200). 다시 UI 로 크롭하면 커밋이 height:Hc 를 새로 쓴다(⒜).
+             ⛔patchCell{lineIndex, 네 키: undefined} 로는 못 지운다 — 지운 뒤 줄(크롭·높이 없음)에선 넷 다 «안 읽힘»이라 T-122 가드가
+               INVALID 로 통째 거절한다(실측 unit: 세 키만 = ok · 넷 = INVALID · null = 키에 null 이 «저장»됨).
+             ⇒ 그 칸의 줄 배열을 «그 줄만 네 키 뺀 것»으로 갈아 끼운다(patchCell{lines} — 같은 문 · 히스토리 한 칸 · 옆 줄 무변 실측).
+             중첩(np) 줄은 이 길이 없다 → 옛 세 키 지움으로 떨어진다(height 는 남음 — 이름만, 이번 판 범위 밖). */
+          const curLines = (() => { try { return window.getGridModel?.(block)?.cells?.[addr.r]?.[addr.c]?.lines; } catch (_) { return null; } })();
+          if (!addr.np && Array.isArray(curLines) && curLines[addr.li]) {
+            const nextLines = curLines.map((ln, i) => {
+              if (i !== addr.li) return ln;
+              const o = { ...ln }; delete o.imgSizePct; delete o.imgPosX; delete o.imgPosY; delete o.height; return o;
+            });
+            window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lines: nextLines } });
+          } else {
+            window.updateGridBlock?.(block.id, {
+              patchCell: {
+                r: addr.r, c: addr.c, lineIndex: addr.li,
+                imgSizePct: undefined, imgPosX: undefined, imgPosY: undefined,
+              },
+            });
+          }
           return;
         }
         /* ★px → ％ 통역. 가로는 프레임 폭, 세로는 프레임 높이가 기준이다
