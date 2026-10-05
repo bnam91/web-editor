@@ -28,6 +28,10 @@ const TPL_SECTION = '<div class="section-block" id="sec_tpl" data-section="1">' 
   'data-offset-x="100" data-offset-y="60" style="position:absolute;left:100px;top:60px;width:150px;height:150px;padding:0;background:transparent">' +
   '<div class="icon-circle-block" id="icb_1" style="position:absolute;left:0;top:0;width:120px;height:120px;background:#c99"></div></div>' +
   '</div>';
+/* R7b — 같은 섹션 템플릿에 «section 갈래 손 명부가 빠뜨린» 종류 둘(도형 래퍼 안 도형 · 스텝)을 넣은 꼴. 정본 명부(block-bind-kinds.js)로 걸면 bindBlock 이 붙는다. */
+const TPL_SECTION_KINDS = TPL_SECTION.replace('</div></div>' + '<div class="frame-block" id="ss_grp"',
+  '</div><div class="frame-block" id="ss_shpw" data-free-layout="true" style="width:100px;height:100px;padding:0"><div class="shape-block" id="shp_k" data-type="shape" style="position:absolute;left:0;top:0"></div></div>' +
+  '<div class="row" id="row_st" data-layout="stack"><div class="step-block" id="stp_k" data-type="step"></div></div></div>' + '<div class="frame-block" id="ss_grp"');
 
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8"><style>
   * { box-sizing: border-box; } body { margin:0; }
@@ -51,7 +55,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"><style>
   window.bindSectionDelete = () => {}; window.bindSectionOrder = () => {};
   window.bindSectionDrag = () => {}; window.bindSectionDropZone = () => {};
   window.bindGroupDrag = () => {}; window.showToast = (m) => { window.__toast = m; };
-  window.electronAPI = { loadTemplateCanvas: async () => ${JSON.stringify(TPL_SECTION)} };
+  window.electronAPI = { loadTemplateCanvas: async () => (window.__tplHtml || ${JSON.stringify(TPL_SECTION)}) };
 </script>
 <script type="module">
   import '/js/block-drag.js';                 // window.bindBlock · window.bindFrameDropZone
@@ -110,4 +114,17 @@ test('R7b ★넣은 섹션의 오버레이 그룹을 끌면 움직인다', async
   const p = await page.evaluate((id) => { const g = document.getElementById(id); return { L: parseFloat(g.style.left), T: parseFloat(g.style.top), pushes: window.__pushes.slice() }; }, r.grpId);
   expect({ L: p.L, T: p.T }, `그룹 자리=${JSON.stringify(p)} (고치기 전 = 100,60 그대로)`).toEqual({ L: 140, T: 80 });
   expect(p.pushes, `push 라벨=${JSON.stringify(p.pushes)}`).toContain('오버레이 이동');
+});
+
+test('R7c ★섹션 템플릿으로 넣은 도형 · 스텝에도 bindBlock 이 걸린다(정본 명부 · R7b)', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async (html) => {
+    window.__tplHtml = html;
+    await window.insertTemplate({ id: 'tpl_r7b', name: 'R7b', type: 'section', tags: [] });
+    const sec = document.querySelector('#canvas > .section-block');
+    const shp = sec.querySelector('.shape-block'), stp = sec.querySelector('.step-block');
+    return { shape: !!shp?._blockBound, step: !!stp?._blockBound, toast: window.__toast || null };
+  }, TPL_SECTION_KINDS);
+  expect(r.toast, '넣기 실패').toBeNull();
+  expect(r, `bindBlock 걸림=${JSON.stringify(r)} (손 명부 15 종엔 shape·step 이 없다)`).toMatchObject({ shape: true, step: true });
 });
