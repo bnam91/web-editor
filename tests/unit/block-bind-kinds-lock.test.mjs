@@ -56,10 +56,14 @@ test('★A/B 변형 사본(section-variation.js createVariation·addVariation)�
   assert.equal((src.match(/^\s*_bindVariantClone\(clone\);/gm) || []).length, 2, 'createVariation·addVariation 두 자리 모두 사본을 묶어야 한다');
 });
 
-test('★섹션 템플릿 넣기(section 갈래)는 손 명부가 아니라 정본에서 끌어온다', () => {
+test('★템플릿 넣기(section · block 갈래)는 손 명부가 아니라 정본에서 끌어온다(_bindInsertedTree)', () => {
   const src = read('js/panels/template-system.js');
   assert.ok(/import\s*\{[^}]*BLOCK_BIND_SEL[^}]*\}\s*from\s*'\.\.\/block-bind-kinds\.js'/.test(src), 'template-system.js 가 block-bind-kinds.js 를 안 읽는다');
-  assert.ok(/sec\.querySelectorAll\(BLOCK_BIND_SEL\)\.forEach/.test(src), 'section 갈래가 BLOCK_BIND_SEL 로 bindBlock 을 안 건다');
+  /* (2026-10-06) section · block 갈래가 «한 도우미» _bindInsertedTree 를 같이 쓴다 — 도우미가 정본 셀렉터로 bindBlock 하고, 두 갈래가 다 부른다. */
+  const helper = src.slice(src.indexOf('function _bindInsertedTree(root)'), src.indexOf('async function insertTemplate('));
+  assert.ok(/each\(BLOCK_BIND_SEL\)/.test(helper), '_bindInsertedTree 가 정본 셀렉터로 bindBlock 을 안 건다');
+  assert.ok(/_bindInsertedTree\(sec\)/.test(src), 'section 갈래가 _bindInsertedTree 를 안 부른다');
+  assert.ok(/_bindInsertedTree\(blockEl\)/.test(src), 'block 갈래가 _bindInsertedTree 를 안 부른다');
 });
 
 for (const [name, site] of Object.entries(FROZEN)) {
