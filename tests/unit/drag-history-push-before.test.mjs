@@ -50,7 +50,8 @@ const ROSTER = {
     '오버레이 텍스트 크기',
     /* 2026-10-04 G2-b — 떠 있는 그리드의 «폭» 손잡이(.grd-overlay-handle). 처음부터 양쪽 끝 규약
        (arm + onUp pushHistory) — 끝 표본은 tests/dom/grid-width-ui.dom.spec.js U2 가 이웃으로 잰다. */
-    '그리드 폭',
+    /* 2026-10-05 제4안 — 같은 손잡이가 높이(칸 위아래 여백)도 끌게 되어 라벨 '그리드 폭' → '그리드 크기'. */
+    '그리드 크기',
   ],
   'js/sticker-select.js': ['형광펜 선 끝점 이동', '스티커 회전', '스티커 크기 조절', '선 형광펜 이동', '스티커 이동'],
   'js/asset-rotate.js': ['이미지 블록 회전', '쉐이프 회전', "(cfg.historyLabel || '회전')"],

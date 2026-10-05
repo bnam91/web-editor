@@ -3656,6 +3656,7 @@ function _registerDefaultTools() {
             + '(「배경 여백」: neighbours are not pushed, cells are not shrunk). {on:boolean, color:"#hex"|rgba(), image:"data:image/…"|"goya-asset://…"|null, '
             + 'pos:"<left|center|right> <top|center|bottom>", opacity:0~100, padY:0~200, padX:0~100}. Each field optional; a field set to null resets to its default. '
             + 'on:false hides it but keeps the values; blockBg:null removes everything. Unknown fields are REJECTED.' },
+          cellPadY: { type: ['number', 'null'], description: '★grid «height» (제4안 2026-10-05) — px added to EVERY cell\'s top AND bottom padding (0~70). Text size and image ratio are never changed; the grid gets taller by 2 × cellPadY × rows. 0 or null = none (old documents unchanged).' },
           expectedProject: { type: 'string', description: 'proj_xxx — refuse if a different project is open' },
         },
         additionalProperties: false,
@@ -3673,7 +3674,7 @@ function _registerDefaultTools() {
       }
       if (!Object.keys(partial).length) {
         return { ok: false, code: 'NOTHING_TO_DO',
-          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / rowGap / colGap / valign / cellBorderWidth / cellBorderColor / cellBorderStyle / blockBg' };
+          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / rowGap / colGap / valign / cellBorderWidth / cellBorderColor / cellBorderStyle / blockBg / cellPadY' };
       }
       return await _rendererInvoker.updateGridBlock({ blockId, partial });
     },
@@ -3751,6 +3752,7 @@ function _registerDefaultTools() {
             + '(「배경 여백」: neighbours are not pushed, cells are not shrunk). {on:boolean, color:"#hex"|rgba(), image:"data:image/…"|"goya-asset://…"|null, '
             + 'pos:"<left|center|right> <top|center|bottom>", opacity:0~100, padY:0~200, padX:0~100}. Each field optional; a field set to null resets to its default. '
             + 'on:false hides it but keeps the values; blockBg:null removes everything. Unknown fields are REJECTED.' },
+          cellPadY: { type: ['number', 'null'], description: '★grid «height» (제4안 2026-10-05) — px added to EVERY cell\'s top AND bottom padding (0~70). Text size and image ratio are never changed; the grid gets taller by 2 × cellPadY × rows. 0 or null = none (old documents unchanged).' },
           expectedProject: { type: 'string' },
         },
         required: ['blockId'],

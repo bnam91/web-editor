@@ -3198,6 +3198,15 @@ function _grdEditing(block) {
   return !!(block.classList.contains('editing') || block.querySelector('[contenteditable="true"]'));
 }
 
+const GRID_HANDLE_DIRS = [...CORNER_DIRS, 'n', 's', 'e', 'w'];
+/* 변 가운데 = 두 모서리의 가운데(보이는 상자 — 그리드는 회전 길이 없어 평균이 곧 가운데) */
+function _grdHandlePoint(box, dir) {
+  if (dir.length === 2) return _cornerScreen(box, dir);
+  const pair = { n: ['nw', 'ne'], s: ['sw', 'se'], e: ['ne', 'se'], w: ['nw', 'sw'] }[dir];
+  const a = _cornerScreen(box, pair[0]), b = _cornerScreen(box, pair[1]);
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
 function showGridOverlayResizeHandles(block) {
   const overlay = _getOverlay();
   /* 빗장은 «지워진 상태»도 본다 — 확대블럭 주석(같은 파일)과 같은 이유. */
@@ -3205,7 +3214,9 @@ function showGridOverlayResizeHandles(block) {
   hideGridOverlayResizeHandles();
   _grdResizeBlock = block;
   if (!overlay) return;
-  CORNER_DIRS.forEach(dir => {
+  /* ★제4안(2026-10-05 현빈 확정 · lane-grid-height) — 손잡이 여덟: 모서리 넷 = 폭+높이(두 방향) · 변 가운데 넷 = 한 방향(e/w 폭 · n/s 높이).
+     «높이» = 칸 위아래 여백(cellPadY · grid-block.js) — 글자·그림은 안 건드린다. */
+  GRID_HANDLE_DIRS.forEach(dir => {
     const h = document.createElement('div');
     h.className = `grd-overlay-handle ${dir}`;
     h.dataset.grdResizeDir = dir;
@@ -3230,7 +3241,7 @@ function _updateGridOverlayHandlePositions() {
   overlay.querySelectorAll('[data-grd-resize-dir]').forEach(h => {
     /* ★K3 ⒜ — 손잡이도 «보이는 상자»(grid-block.js gridVisualBox — 배경 켬 = .grd-bg) 모서리에. 선택 선(K2)과 같은 한 자리. */
     const box = typeof window.gridVisualBox === 'function' ? window.gridVisualBox(_grdResizeBlock) : _grdResizeBlock;
-    const c = _cornerScreen(box, h.dataset.grdResizeDir);
+    const c = _grdHandlePoint(box, h.dataset.grdResizeDir);
     h.style.top  = (c.y - HALF) + 'px';
     h.style.left = (c.x - HALF) + 'px';
     /* ★P4 ⒜(2026-10-05 태양 · lane-f-grid) — 같은 그리드의 ＋(G15 · #grd-plus-layer)와 겹치는 손잡이는 «숨긴다».
@@ -3270,30 +3281,33 @@ function _onGridOverlayResizeMouseDown(e, block, dir) {
   const startW = Math.max(1, Math.round(block.offsetWidth));
   const startH = Math.max(1, Math.round(block.offsetHeight));
   const startX = e.clientX, startY = e.clientY;
-  const sx = dir.includes('e') ? 1 : -1;
-  const sy = dir.includes('s') ? 1 : -1;
+  /* ★제4안 — 축마다 따로: e/w 가 든 손잡이만 폭(sx ≠ 0) · n/s 가 든 손잡이만 높이(sy ≠ 0 · 칸 위아래 여백 1:1 — 시안). */
+  const sx = dir.includes('e') ? 1 : dir.includes('w') ? -1 : 0;
+  const sy = dir.includes('s') ? 1 : dir.includes('n') ? -1 : 0;
+  const startPad = typeof window.getGridCellPadY === 'function' ? window.getGridCellPadY(block) : 0;
   /* 위치 SSOT = dataset.offsetX/offsetY (overlay-float.js _applyOverlayPos). */
   const startPosX = Number(block.dataset.offsetX ?? parseFloat(block.style.left)) || 0;
   const startPosY = Number(block.dataset.offsetY ?? parseFloat(block.style.top))  || 0;
   let moved = false;
   /* ★드래그는 «양쪽 끝»을 찍는다 — js/drag-history.js 규약(시작 = 첫 실제 이동의 arm, 끝 = onUp pushHistory). */
-  const _hist = window.beginDragHistory?.('그리드 폭');
+  const _hist = window.beginDragHistory?.('그리드 크기');
 
   function onMove(ev) {
     const scale = _canvasScaleNow();
     const dx = (ev.clientX - startX) / scale, dy = (ev.clientY - startY) / scale;   // 캔버스 좌표
-    const dw = sx * dx;
-    if (!moved && Math.abs(dw) < 1) return;
+    const dw = sx * dx, dp = sy * dy;
+    if (!moved && Math.abs(dw) < 1 && Math.abs(dp) < 1) return;
     moved = true;
     _hist?.arm(dx, dy);          // ⛔반환값으로 쓰기를 막지 않는다(drag-history.js 규약 ⑵)
-    const newW = window.applyGridOwnWidth?.(block, startW + dw);
-    if (newW == null) return;
+    let newW = startW;
+    if (sx !== 0) { newW = window.applyGridOwnWidth?.(block, startW + dw); if (newW == null) return; }
+    if (sy !== 0) window.applyGridCellPadY?.(block, startPad + dp);   // 제4안 — 바닥 0 · 상한 70 은 쓰는 문이 죈다
     /* 높이는 «내용이 정한다» — 쓴 뒤 잰다. 맞은편 모서리 고정도 그 실측 높이로. */
     const newH = Math.max(1, block.offsetHeight);
     /* ★K3 ⒜ — 맞은편 모서리 고정은 «떠 있을 때만»(좌표가 있는 그리드). 흐름 그리드는 자리를 흐름이 정한다 — 폭만 쓴다. */
     if (block.dataset.overlayBlock === 'true') {
-      const nx = sx > 0 ? startPosX : startPosX - (newW - startW);
-      const ny = sy > 0 ? startPosY : startPosY - (newH - startH);
+      const nx = sx >= 0 ? startPosX : startPosX - (newW - startW);
+      const ny = sy >= 0 ? startPosY : startPosY - (newH - startH);
       _applyOverlayPos(block, nx, ny);
     }
     window.scheduleAutoSave?.();
@@ -3302,7 +3316,7 @@ function _onGridOverlayResizeMouseDown(e, block, dir) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     if (moved) {
-      window.pushHistory?.('그리드 폭');   // ★끝 표본 — 시작(_hist.arm)과 짝
+      window.pushHistory?.('그리드 크기');   // ★끝 표본 — 시작(_hist.arm)과 짝
       if (block.classList.contains('selected')) window.showGridProperties?.(block);   // 패널 너비칸이 손잡이 값을 알게
       window.triggerAutoSave?.();
     }
