@@ -18,6 +18,7 @@ function _safeGraphColor(c) {
   if (/^linear-gradient\(/i.test(s)) return (!/url\(|[;"'<>\\]/i.test(s) && _isCssBg(s)) ? s : '';
   return (/^#[0-9a-fA-F]{3,8}$/.test(s) || /^rgba?\(\s*[\d.,\s%]+\)$/i.test(s) || /^hsla?\(\s*[\d.,\s%]+\)$/i.test(s) || /^[a-zA-Z]+$/.test(s)) ? s : '';
 }
+/* ★E152(2026-10-06) — 사용자 글자는 이 한 자리로: 카테고리 라벨 셋(E150 포함) · 값 라벨(세로 · 꺾은선 · 비교) · 비교 범례 A/B · 가로 % (innerHTML 에 날것 0). */
 function _escGraphHtml(v) {
   return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -846,7 +847,7 @@ function _renderGraphBody(block) {
     const vlabelDisp = showVLabel ? '' : 'display:none;';
     const xlabelDisp = showXLabel ? '' : 'display:none;';
     const labelsHTML = overlayItems.map(o =>
-      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${vlabelColorCss}${vlabelDisp}">${o.p.v}</div>
+      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${vlabelColorCss}${vlabelDisp}">${_escGraphHtml(o.p.v)}</div>
        <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${xlabelColorCss}${xlabelDisp}">${_escGraphHtml(o.p.label)}</div>`   /* E150 — 사용자 글자는 이스케이프(막대 셋과 같은 _escGraphHtml). 옛: `<b>` 가 태그로 읽혔다 */
     ).join('');
 
@@ -870,8 +871,8 @@ function _renderGraphBody(block) {
     const sB = block.dataset.seriesB || '';
     const legend = (sA || sB) ? `
       <div class="grb-pair-legend" style="font-size:${labelSize}px;${_xCss}">
-        ${sA ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot"${barColor ? ` style="background:${barColor}"` : ''}></span>${sA}</span>` : ''}
-        ${sB ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot" style="background:${barColor2}"></span>${sB}</span>` : ''}
+        ${sA ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot"${barColor ? ` style="background:${barColor}"` : ''}></span>${_escGraphHtml(sA)}</span>` : ''}
+        ${sB ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot" style="background:${barColor2}"></span>${_escGraphHtml(sB)}</span>` : ''}
       </div>` : '';
     const _bs = _barVSettings(block, items.length);
     const _vSize = _bs.pctSize ?? valSize;
@@ -880,7 +881,7 @@ function _renderGraphBody(block) {
       const fillStyle = pct === 0 ? 'height:4px;opacity:0.25;border-style:dashed;' : `height:${pct}%;`;
       return `
         <div class="grb-pair-series">
-          <div class="grb-bar-val-label" style="font-size:${_vSize}px;${_vCss}">${v ?? 0}</div>
+          <div class="grb-bar-val-label" style="font-size:${_vSize}px;${_vCss}">${_escGraphHtml(v ?? 0)}</div>
           <div class="grb-bar-fill${extraClass}" style="${fillStyle}${_bs.fillW}${color ? `background:${color};` : ''}"></div>
         </div>`;
     };
@@ -925,7 +926,7 @@ function _renderGraphBody(block) {
           const _bc = _safeGraphColor(item.color); const colorStyle = _bc ? `background:${_bc};` : '';
           return `
             <div class="grb-bar-row">
-              <div class="grb-bar-h-pct" style="font-size:${pctSize}px;${_vCss}">${displayVal}</div>
+              <div class="grb-bar-h-pct" style="font-size:${pctSize}px;${_vCss}">${_escGraphHtml(displayVal)}</div>
               <div class="grb-bar-h-desc" style="font-size:${Math.round(labelSize * 1.4)}px;${_xCss}">${_escGraphHtml(item.label)}</div>
               <div class="grb-bar-h-track" style="${trackStyle}">
                 <div class="grb-bar-h-fill" style="${fillStyle.replace('__PCT__', pct + '%')}${hFillExtra}${colorStyle}"></div>
