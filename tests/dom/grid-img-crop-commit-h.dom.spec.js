@@ -105,3 +105,22 @@ test('A5 [회귀 지킴] 이미 크롭된 줄(h200 · 180%)은 끌어 닫아도 
   expect(Number((await lineOf(page)).height)).toBe(200);
   expect(errs).toEqual([]);
 });
+
+test('A6 [음성대조·묵은 H] 끌어 맞춘 «뒤» 그릇(섹션 여백)을 좁히고 닫기 — 틀 = 닫기 직전 보이던 높이(열 때 높이 아님)', async ({ page }) => {
+  /* A4(줌)는 «묵은 H» 를 못 가른다 — 레이아웃 px 는 줌에 안 바뀐다(변이 Mc 실측: 전부 초록). 이 시험은 «보이는 틀 높이»가
+     편집 중에 «정말» 바뀌는 장면을 만든다: 끌어서 크롭을 정한 뒤(그래야 커밋이 산다) 그릇을 좁혀 칸 폭 → 비율 높이를 바꾼다.
+     ⛔applyGridOwnWidth 는 그리드를 다시 그려 편집을 닫는다(1판 무효) · 좁힌 «뒤» 끌면 프록시를 못 잡는다(2판 무효). */
+  const errs = await scene(page, { type: 'image', height: 200 });
+  const h0 = await frameH(page);
+  expect(await open(page), '[전제] 열림').toBe(true);
+  await drag(page);
+  await page.evaluate(() => { const s = document.getElementById('sC-in'); s.style.paddingLeft = '300px'; s.style.paddingRight = '300px'; }); await page.waitForTimeout(300);
+  expect(await page.evaluate(() => document.querySelectorAll('.grd-img-edit-proxy').length), '[전제] 그릇을 좁혀도 편집이 열려 있다(닫혔으면 무효)').toBe(1);
+  const hMid = await frameH(page);
+  expect(Math.abs(hMid - h0), `[전제] 그릇을 좁혔는데 보이는 틀 높이가 그대로다 ${h0} → ${hMid}`).toBeGreaterThan(20);
+  await close(page);
+  const ln = await lineOf(page);
+  expect(Number.isFinite(Number(ln.imgSizePct)), `[전제] 크롭이 커밋됐다(안 됐으면 «아무것도 안 씀» 길이라 H 를 못 잰다 — 무효) ${JSON.stringify({ ...ln, imgSrc: undefined })}`).toBe(true);
+  expect(Math.abs((await frameH(page)) - hMid), `★커밋한 틀이 «닫기 직전 보이던 높이»(${hMid})가 아니다 → ${await frameH(page)} (열 때 ${h0})`).toBeLessThanOrEqual(1);
+  expect(errs).toEqual([]);
+});
