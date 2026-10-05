@@ -1341,7 +1341,7 @@ ${blockHeaderHTML({
           setCards(arr);
           showSimpleCardProperties(block);
         }
-      });
+      }, { hideSize: true });   // ★E134 — 카드 아이콘 크기는 블럭 «아이콘 크기»(%)가 정한다 · 창의 px 칸은 안 쓰이므로 안 보인다
       return;
     }
     if (iconClear) {

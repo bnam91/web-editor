@@ -100,6 +100,9 @@ function openIconifyModal(onPick, options = {}) {
   }
   _onPick = typeof onPick === 'function' ? onPick : null;
   _favEnabled = options?.favorites === true;
+  /* ★E134 — 고른 크기를 «안 쓰는» 길(심플카드 아이콘: 크기는 블럭 «아이콘 크기» %)엔 크기 칸을 안 보인다. 열 때마다 다시 정한다(다음 길에 안 남게). */
+  { const _sz = document.getElementById('iconify-size-input');
+    [_sz?.previousElementSibling, _sz, _sz?.nextElementSibling].forEach(el => { if (el) el.style.display = options?.hideSize ? 'none' : ''; }); }
   const favTab = _modal.querySelector('.iconify-subtab[data-subtab="favorite"]');
   if (favTab) favTab.style.display = _favEnabled ? '' : 'none';
   _selectedIcon = null;
