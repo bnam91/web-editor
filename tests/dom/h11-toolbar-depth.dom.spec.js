@@ -5,6 +5,7 @@
  *   ⒤ 프레임을 «한 번 클릭»(오브젝트 선택 — 자손 선택 0) → 툴바 넣기는 프레임 «다음 형제»(밖).
  *   ⒥ «들어간 상태»(프레임 클릭 → 자식 클릭 = 자식이 골라짐) → 툴바 넣기는 프레임 «안»(09-23 의 요구가 drill-in 으로 산다 — 안전망).
  * 실측(H11-F1/README · h11b-base.json, d1f642ff 실앱): ⒤ 툴바 넷(Graph·T▾ Heading·이미지 Standard·도형 Rectangle) «안» ✗ · ⒥ 넷 «안» ✓.
+ * ⒜(10-05 지디 승인) 정의: «drill-in 할 대상이 없는 프레임(자식 요소 0)은 그 자체가 안쪽 상태다 ⇒ 안에 넣는다» — 아래 E-* 경계 행(I-* 장면은 자식이 있어 그대로 밖).
  * 하네스 = bootApp(앱 통째) · 고르기·메뉴 = clickAt(누르기 직전 맞힌 요소 단언) · 상태 대기. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -88,6 +89,63 @@ for (const kind of ['free', 'flow']) for (const p of PATHS) {
     const r = await newOne(page, p.cls, before);
     expect(r.n, `[전제] 새 ${p.cls} 하나 ${JSON.stringify(r)}`).toBe(1);
     expect(r.inside, `★들어간 상태인데 프레임 «밖»으로 ${JSON.stringify(r)}`).toBe(true);
+    expect(errs).toEqual([]);
+  });
+}
+
+/* ══ H11 ⒜(2026-10-05 지디 승인) — 정의: 삽입은 «선택 깊이»를 따른다. drill-in 할 대상이 없는 프레임(자식 요소 0)은 그 자체가 안쪽 상태다 ⇒ 안에 넣는다.
+ * 경계 행(예측 먼저 — H11-F1/E-rows-predict.md): «자식 요소» = 요소 노드만 · .drop-indicator 제외 · 갭·빈 글자 프레임은 센다.
+ * 머리표: [새 것] cfd307ff 에서 빨강 · [경계 고정] 정의의 «센다» 쪽을 잠근다(cfd307ff 에서도 초록). */
+const INNER = {
+  empty: { tag: '[새 것]', want: true, html: () => '' },
+  ws: { tag: '[새 것]', want: true, html: () => '\n   <!-- 주석 -->\n   ' },
+  gap: { tag: '[경계 고정]', want: false, html: (kind) => `<div class="gap-block" id="eGap" data-type="gap" style="height:40px;${kind === 'free' ? 'position:absolute;left:20px;top:20px;width:200px;' : ''}"></div>` },
+  tf: { tag: '[경계 고정]', want: false, html: (kind) => `<div class="frame-block" id="eTF" data-text-frame="true" data-bg="transparent" style="background:transparent;${kind === 'free' ? 'position:absolute;left:20px;top:20px;width:200px;' : 'width:100%;'}box-sizing:border-box;"></div>` },
+  real: { tag: '[경계 고정]', want: false, html: (kind) => CHILD[kind] },
+};
+const secWith = (kind, inner) => sec(kind).replace(CHILD[kind], inner);
+const E_PATHS = PATHS.filter(p => p.name === 'Heading' || p.name === 'Graph');
+for (const kind of ['free', 'flow']) for (const [row, def] of Object.entries(INNER)) for (const p of E_PATHS) {
+  test(`E-${row}-${kind}-${p.name} ${def.tag} 자식 요소 ${row === 'empty' || row === 'ws' ? '0' : '1'}(${row}) 프레임 한 번 클릭 → 툴바 「${p.item}」 = ${def.want ? '«안»' : '«밖»(다음 형제)'}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1200 });
+    const errs = await bootApp(page);
+    await page.evaluate((h) => {
+      const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
+      c.insertAdjacentHTML('beforeend', h); window.rebindAll?.(); window.deselectAll?.(); window.applyZoom?.(100);
+      document.getElementById('FR').scrollIntoView({ block: 'center' });
+    }, secWith(kind, def.html(kind)));
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => document.getElementById('FR').children.length), `[전제] 자식 요소 수(${row})`).toBe(row === 'empty' || row === 'ws' ? 0 : 1);
+    const before = await ids(page, p.cls);
+    await clickFrame(page);
+    await toolbar(page, p);
+    const r = await newOne(page, p.cls, before);
+    expect(r.n, `[전제] 새 ${p.cls} 하나 ${JSON.stringify(r)}`).toBe(1);
+    expect(r.inside, `★${row} — ${def.want ? '안' : '밖'} 이어야 ${JSON.stringify(r)}`).toBe(def.want);
+    if (!def.want) expect(r.prevOfUnit, `밖 = 행(rowF) 바로 뒤 ${JSON.stringify(r)}`).toBe('rowF');
+    expect(errs).toEqual([]);
+  });
+}
+/* E-made — 툴바 「Frame 추가」(진짜 클릭) 직후 바로 툴바 넣기 = 새 프레임 «안»(09-23 의 그 자리) */
+for (const p of E_PATHS) {
+  test(`E-made-${p.name} [새 것] 「Frame 추가」 직후(새 프레임이 골라진 채) → 툴바 「${p.item}」 = 새 프레임 «안»`, async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1200 });
+    const errs = await bootApp(page);
+    await page.evaluate(() => {
+      const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
+      c.insertAdjacentHTML('beforeend', '<div class="section-block" id="sH" data-section="1"><div class="section-hitzone"></div><div class="section-inner" id="inH"><div class="gap-block" data-type="gap" style="height:60px"></div></div></div>');
+      window.rebindAll?.(); window.applyZoom?.(100); window.deselectAll?.(); window.selectSection?.(document.getElementById('sH'));   // [전제] 섹션 고름(판 세우기)
+      window.__f0 = new Set([...document.querySelectorAll('.frame-block')].map(f => f.id));
+    });
+    const fb = await page.evaluate(() => { const e = [...document.querySelectorAll('button[title]')].find(x => x.title.includes('Frame 추가') && x.getBoundingClientRect().width > 0); const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+    await clickAt(page, fb[0], fb[1], { sel: 'button[title]' }, { label: 'Frame 추가' }); await page.waitForTimeout(400);
+    const fid = await page.evaluate(() => [...document.querySelectorAll('#sH .frame-block:not([data-text-frame])')].find(f => !window.__f0.has(f.id))?.id);
+    expect(fid, '[전제] 새 프레임').toBeTruthy();
+    expect(await page.evaluate((id) => { const f = document.getElementById(id); return { sel: f.classList.contains('selected'), kids: f.children.length }; }, fid), '[전제] 새 프레임 = 골라짐 · 자식 0').toEqual({ sel: true, kids: 0 });
+    const before = await ids(page, p.cls);
+    await toolbar(page, p);
+    const r = await page.evaluate(([cls, before, fid]) => { const n = [...document.querySelectorAll(`#canvas ${cls}`)].filter(e => !before.includes(e.id)); return { n: n.length, inside: n.length === 1 && !!n[0].closest(`[id="${fid}"]`) }; }, [p.cls, before, fid]);
+    expect(r, `★새 프레임 안 ${JSON.stringify(r)}`).toEqual({ n: 1, inside: true });
     expect(errs).toEqual([]);
   });
 }
