@@ -2513,6 +2513,27 @@ function _guardProjectName(incomingProject, prevPath) {
 
 // 저장 코어 — ipcMain.handle('projects:save')(렌더러)와 MCP create_project(main)가 공용.
 // (_duplicateProjectImpl과 같은 패턴 — 핸들러 본문을 함수로 추출했을 뿐 로직 무변경.)
+/* ★E169(2026-10-06 lane-drag · 태양 승인) 롤링 백업 «한 곳» — save(_saveProjectImpl) · save-sync 가 같이 부른다.
+   직전 proj.json 이 «프로젝트로 읽히지 않으면» 백업을 건드리지 않는다(불렀고 거절 → copied:false + 까닭).
+   까닭(실앱 실측 · 디스크가 꽉 찼을 때 대역 = 폴더 쓰기 막힘): 깨진 proj.json + 성한 백업으로 열면 projects:load 가 백업에서
+     열고 자가치유(proj.json 재기록)를 시도하는데, 그 쓰기가 실패하면 catch 가 warn 만 남긴다(= 말없게 만든 자리).
+     그 뒤 저장 한 번에 옛 코드는 깨진 proj.json 을 «검사 없이» 백업으로 복사 → 디스크에 성한 판 0.
+   ⛔다세대 백업 아님(다음 판). 저장 자체는 막지 않는다. 시험: tests/unit/rolling-backup-e169.test.js */
+function _rollBackup(prevPath, backupPath) {
+  let prev;
+  try { prev = JSON.parse(fs.readFileSync(prevPath, 'utf8')); }
+  catch (e) {
+    console.warn(`[rolling-backup] 직전 proj.json 이 읽히지 않아 백업을 그대로 둔다: ${e.message}`);
+    return { called: true, copied: false, reason: 'unparsable' };
+  }
+  if (!_SS().isProjectShaped(prev)) {
+    console.warn('[rolling-backup] 직전 proj.json 이 «프로젝트 형태»가 아니라 백업을 그대로 둔다');
+    return { called: true, copied: false, reason: 'not_project' };
+  }
+  try { fs.copyFileSync(prevPath, backupPath); } catch (e) { return { called: true, copied: false, reason: 'copy_failed:' + (e && e.code) }; }
+  return { called: true, copied: true };
+}
+
 async function _saveProjectImpl(project) {
   // write는 항상 신 위치. read(백업 직전 상태)는 dual fallback.
   const paths = _ensureNewLayoutPaths(project.id);
@@ -2525,7 +2546,7 @@ async function _saveProjectImpl(project) {
   if (prevPath && fs.existsSync(prevPath)) {
     try {
       // 롤링 백업: 정상 저장 전 직전 버전 보존 — 신 위치에만 작성
-      try { fs.copyFileSync(prevPath, paths.backup); } catch (_) {}
+      _rollBackup(prevPath, paths.backup);   // ★E169 — 깨진 직전 판은 백업으로 안 옮긴다
 
       // (버전 스냅샷은 proj.json 을 «쓴 뒤» 아래에서 만든다 — 재료가 파일이 아니라 메모리의 객체다)
     } catch {}
@@ -2586,7 +2607,7 @@ ipcMain.on('projects:save-sync', (event, project) => {
     project = _guardProjectName(project, prevPath);
     if (prevPath && fs.existsSync(prevPath)) {
       // 롤링 백업 (다중 백업 슬롯은 sync 경로에서 생략 — 새로고침 빈도가 높아 슬롯 폭주 우려)
-      try { fs.copyFileSync(prevPath, paths.backup); } catch {}
+      _rollBackup(prevPath, paths.backup);   // ★E169 — save 와 같은 한 곳
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
     _refreshListMeta(project.id, project); // [b8] 목록 메타 캐시 동기 갱신 (mtime 불변식 유지)
