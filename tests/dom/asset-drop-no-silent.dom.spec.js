@@ -46,6 +46,8 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"><style>
   import '/js/section-drag.js';
   import '/js/canvas-scratch-drop.js';
   import '/js/scratch-pad.js';
+  /* ⚠️drag-utils.js 가 얹히면서 window.showToast 를 «제 것»으로 덮는다 — 기록기는 모듈 «뒤»에 감싼다(첫 판이 이것 때문에 무효였다). */
+  { const _orig = window.showToast; window.showToast = (m, ...a) => { window.__toasts.push(String(m)); try { return _orig?.(m, ...a); } catch (_) {} }; }
   window.__ready = true;
 </script></body></html>`;
 
