@@ -60,6 +60,17 @@ async function pickImageLine(page) {
   expect(await page.evaluate(() => !!document.getElementById('grd-img-pick-btn')), '[전제] 이미지 줄을 골랐다(패널에 「이미지 교체…」)').toBe(true);
   return [lx, ly];
 }
+/** [전제·JS] 이미지 줄을 «고른 상태» — 진짜 클릭 고르기가 하네스에서 흔들려(10-06 run: P1·P4 전제 실패 · 8a8de086 판에선 섰다) 이 시험의 대상(파일창 → 자산 URL)과 무관한 단계만 JS 로 세운다.
+ *  같은 문 = 캔버스 클릭이 부르는 selectBlock + grdSetActiveLine + showGridProperties. 파일창은 그대로 진짜(filechooser). */
+async function selectImageLineJS(page) {
+  await page.evaluate(() => { const g = document.getElementById('gG'); g.scrollIntoView({ block: 'center' }); window.deselectAll?.(); window.selectBlock(g); window.grdSetActiveLine(g, { r: 0, c: 0, li: 0 }); window.showGridProperties(g); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => !!document.getElementById('grd-img-pick-btn')), '[전제·JS] 이미지 줄 패널(「이미지 교체…」)').toBe(true);
+}
+async function selectBlockJS(page) {
+  await page.evaluate(() => { const g = document.getElementById('gG'); g.scrollIntoView({ block: 'center' }); window.deselectAll?.(); window.selectBlock(g); window.grdSetActiveLine(g, null); window.showGridProperties(g); });
+  await page.waitForTimeout(300);
+}
 async function expectAsset(page, before, tag) {
   await expect(async () => {
     const h = await gridHtml(page); const n = await serLen(page);
@@ -72,7 +83,7 @@ async function expectAsset(page, before, tag) {
 test('P1 [새 것] 패널 「이미지 교체…」 파일창 → 자산 URL · 직렬화 증가 < 2,000', async ({ page }) => {
   const errs = await setup(page); const { f, bytes } = await noisePng(page);
   expect(bytes, '[전제] 그림이 상한(200,000자)보다 크다').toBeGreaterThan(300000);
-  await pickImageLine(page);
+  await selectImageLineJS(page);
   const before = await serLen(page);
   const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#grd-img-pick-btn')]);
   await fc.setFiles(f);
@@ -96,8 +107,7 @@ test('P2 [새 것] 오른클릭 「이미지」 메뉴 → 교체 파일창 → 
 test('P3 [새 것] 그리드 블럭 배경 이미지 → 자산 URL', async ({ page }) => {
   const errs = await setup(page); const { f } = await noisePng(page);
   await page.evaluate(() => window.updateGridBlock('gG', { blockBg: { on: true } }));   // [전제·JS] 블럭 배경 켬(패널 토글과 같은 문)
-  const [x, y] = await page.evaluate(() => { const g = document.getElementById('gG'); g.scrollIntoView({ block: 'center' }); const q = g.getBoundingClientRect(); return [q.right - 8, q.top + 8]; });
-  await page.evaluate(() => window.deselectAll?.()); await page.mouse.click(x, y); await page.waitForTimeout(350);
+  await selectBlockJS(page);   // [전제·JS] 블럭 단계 패널(10-06 run: 진짜 클릭이 줄 단계로 떨어져 입구가 안 보인 판 있음)
   expect(await page.evaluate(() => !!document.getElementById('grd-bbg-img-input')), '[전제] 블럭 배경 이미지 입구').toBe(true);
   const before = await serLen(page);
   await page.setInputFiles('#grd-bbg-img-input', f);
@@ -107,7 +117,7 @@ test('P3 [새 것] 그리드 블럭 배경 이미지 → 자산 URL', async ({ p
 
 test('P0 [지킴] 칸 배경(G4) 파일창 = 자산 URL 그대로', async ({ page }) => {
   const errs = await setup(page); const { f } = await noisePng(page);
-  await pickImageLine(page);
+  await selectImageLineJS(page);
   const open = await page.evaluate(() => { const b = document.getElementById('grd-cell-body'); return b && getComputedStyle(b).display !== 'none'; });
   if (!open) { await page.click('#grd-cell-toggle'); await page.waitForTimeout(200); }
   const before = await serLen(page);
@@ -118,7 +128,7 @@ test('P0 [지킴] 칸 배경(G4) 파일창 = 자산 URL 그대로', async ({ pag
 
 test('P4 [지킴] 자산 IPC 가 없으면(웹·헤드리스) 패널 파일창 그림은 data URL 로 «들어간다»(거절 0)', async ({ page }) => {
   const errs = await setup(page, { ipc: false }); const { f } = await noisePng(page);
-  await pickImageLine(page);
+  await selectImageLineJS(page);
   const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#grd-img-pick-btn')]);
   await fc.setFiles(f);
   await expect(async () => { const src = await page.evaluate(() => document.querySelector('#gG .grd-cell[data-r="0"][data-c="0"] img')?.getAttribute('src') || '');
