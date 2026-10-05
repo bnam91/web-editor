@@ -25,9 +25,14 @@ const fs = require('fs');
 const path = require('path');
 
 const REPO = path.join(__dirname, '..', '..');
-const SRC = fs.readFileSync(path.join(REPO, 'js', 'props', 'prop-mockup.js'), 'utf8');
+/* 10-05 G11 ① 로 옮김 · 옛 자리 = js/props/prop-mockup.js 통째 — «찍기»(㉠·㉡)가 capture-safety.js captureSectionImage 로 갔다.
+   CODE = 그 함수 본문(찍기) · MK = 목업 파일(붙이기). ㉡은 이제 «두 파일에 걸친 짝»이라 G3 가 둘 다 잰다. */
+const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+const SAFETY = fs.readFileSync(path.join(REPO, 'js', 'io', 'capture-safety.js'), 'utf8');
+const _ci = SAFETY.indexOf('export async function captureSectionImage');
 /* 주석을 걷고 «코드만» 잰다 — 이 고침의 설명 주석이 스스로 빨강을 내지 않게. */
-const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+const CODE = _ci < 0 ? '' : strip(SAFETY.slice(_ci, SAFETY.indexOf('\n}\n', _ci) + 3));
+const MK = strip(fs.readFileSync(path.join(REPO, 'js', 'props', 'prop-mockup.js'), 'utf8'));
 
 test('G1 ★전제 — 0×0 캔버스의 toDataURL 은 «던지지 않고» "data:," 를 돌려준다', async ({ page }) => {
   await page.goto('about:blank');
@@ -55,19 +60,31 @@ test('G2 ㉠ 클론에 display:block 을 «건다» (그리고 베껴 온 displa
      순서만 보면 된다(원본의 display:none 은 이 문자열보다 앞에 있다). */
   expect(CODE, '★원본 sec 의 display 를 건드리고 있다 — 클론만 펴야 한다(깜빡임·상태 어긋남)')
     .not.toMatch(/sec\.style\.display\s*=\s*''/);
+  expect(MK, '★목업 쪽에서 원본 sec 의 display 를 펴고 있다 — 클론만 펴야 한다')
+    .not.toMatch(/sec\.style\.display\s*=\s*''/);
 });
 
 test('G3 ㉡ 덮기 «전»에 결과를 재고, 빈 그림이면 dataset 을 «안» 건드린다', () => {
+  /* 10-05 G11 ① 로 나눔 · 옛 단언 = prop-mockup.js 한 파일에서 toDataURL → (크기 검사 + return;) → dataset 쓰기 */
+  // ⑴ 찍기(capture-safety): toDataURL 과 «성공 반환» 사이에 크기 검사 + 실패 반환
   const i = CODE.indexOf("const dataUrl = canvas.toDataURL('image/png')");
   expect(i, '★toDataURL 자리를 못 찾았다 — 검사가 안 돈 것이다').toBeGreaterThan(0);
-  const j = CODE.indexOf('block.dataset.imgSrc = dataUrl', i);
-  expect(j, '★dataset 쓰기 자리를 못 찾았다').toBeGreaterThan(i);
+  const j = CODE.indexOf('return { ok: true', i);
+  expect(j, '★성공 반환 자리를 못 찾았다').toBeGreaterThan(i);
   const between = CODE.slice(i, j);
   expect(between,
-    '★toDataURL 과 dataset 쓰기 «사이»에 캔버스 크기 검사가 없다 — 0×0 이어도 그대로 덮는다')
+    '★toDataURL 과 성공 반환 «사이»에 캔버스 크기 검사가 없다 — 0×0 이어도 그대로 넘긴다')
     .toMatch(/canvas\.width|canvas\.height/);
-  expect(between, '★빈 그림일 때 «되돌아가지» 않는다 — 검사만 있고 막지 않으면 아무 일도 안 한다')
-    .toMatch(/return;/);
+  expect(between, '★빈 그림일 때 «실패로» 돌려주지 않는다 — 검사만 있고 막지 않으면 아무 일도 안 한다')
+    .toMatch(/return \{ ok: false/);
+  // ⑵ 붙이기(목업): 공용 찍기 결과가 ok 가 아니면 dataset 쓰기 «전»에 되돌아간다
+  const k = MK.indexOf('await captureSectionImage(sec)');
+  expect(k, '★목업이 공용 찍기를 안 부른다 — 이 검사가 «안 돈» 것이다').toBeGreaterThan(0);
+  const l = MK.indexOf('block.dataset.imgSrc = dataUrl', k);
+  expect(l, '★dataset 쓰기 자리를 못 찾았다').toBeGreaterThan(k);
+  const mk = MK.slice(k, l);
+  expect(mk, '★목업이 실패 결과를 안 본다 — 빈 그림으로 덮는다').toMatch(/if \(!shot\.ok\)/);
+  expect(mk, '★실패일 때 «되돌아가지» 않는다').toMatch(/return;/);
 });
 
 test('G4 ★음성대조 — 판정식이 «진짜» 빈 그림을 잡고 «멀쩡한 그림»은 안 잡는다', async ({ page }) => {
@@ -106,9 +123,11 @@ test('G4 ★음성대조 — 판정식이 «진짜» 빈 그림을 잡고 «멀�
 });
 
 test('G5 ★「완료」를 말하는 자리가 덮기 «뒤»에만 있다', () => {
-  const okI = CODE.indexOf('캡처 완료');
+  /* 10-05 G11 ① 로 옮김 · 옛 자리 = prop-mockup.js 통째(CODE) — 말하기·덮기는 목업(MK)에 남았다 */
+  expect(CODE, '★공용 찍기가 «완료»를 말한다 — 덮기 전에 완료라고 할 수 있다').not.toContain('캡처 완료');
+  const okI = MK.indexOf('캡처 완료');
   expect(okI, '★완료 토스트를 못 찾았다 — 검사가 안 돈 것이다').toBeGreaterThan(0);
-  const setI = CODE.indexOf('block.dataset.imgSrc = dataUrl');
+  const setI = MK.indexOf('block.dataset.imgSrc = dataUrl');
   expect(setI).toBeGreaterThan(0);
   expect(okI,
     '★「캡처 완료」가 dataset 쓰기보다 «앞»에 있다 — 안 덮고도 완료라고 말할 수 있다')

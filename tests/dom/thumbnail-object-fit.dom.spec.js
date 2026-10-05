@@ -188,7 +188,8 @@ test('T3 ★양성대조 — 상자 비율 = 그림 비율이면 «두 경우 �
 test('T4 ★SSOT — html2canvas 를 쓰는 3경로가 전부 object-fit 중화를 부른다', () => {
   const need = [
     ['js/io/save-load.js', '프로젝트 목록 썸네일(captureThumbnail)'],
-    ['js/props/prop-mockup.js', '목업 캡처(_captureAndApply)'],
+    /* 10-05 G11 ① 로 옮김 · 옛 자리 = js/props/prop-mockup.js(목업 캡처 _captureAndApply) */
+    ['js/io/capture-safety.js', '목업 캡처(captureSectionImage — _captureAndApply 가 부름)'],
     ['js/io/export-image.js', 'PNG 내보내기의 html2canvas 폴백(웹 빌드)'],
   ];
   for (const [f, why] of need) {
@@ -196,6 +197,9 @@ test('T4 ★SSOT — html2canvas 를 쓰는 3경로가 전부 object-fit 중화�
     expect(src, `★${why} 가 object-fit 중화를 안 부른다 — 그 경로만 «다른 그림»이 된다`)
       .toMatch(/await\s+neutralizeObjectFitForH2C\s*\(\s*clone\s*\)/);
   }
+  expect(fs.readFileSync(path.join(REPO, 'js/props/prop-mockup.js'), 'utf8'),
+    '★목업 캡처가 captureSectionImage 를 안 부른다 — 중화 없는 «둘째 찍기»가 생겼을 수 있다')
+    .toMatch(/await\s+captureSectionImage\s*\(\s*sec\s*\)/);
   /* ⛔네이티브(CDP) 경로에는 «없어야» 한다 — 브라우저가 object-fit 을 제대로 그리므로
      거기서 미리 자르면 두 번 잘린다. export-image.js 의 호출은 html2canvas 폴백 «뒤»에 있다. */
   const ei = fs.readFileSync(path.join(REPO, 'js/io/export-image.js'), 'utf8');
