@@ -672,7 +672,10 @@ function bindBlock(block) {
     }
 
     // 드래그아웃 감지용 — freeLayout 프레임 밖으로 이동 시 섹션 레벨로 추출
-    const _dragOutParentFrame   = dragEl.closest('.frame-block[data-free-layout]');
+    /* ★D5(2026-10-05 lane-drag) — 기준 부모는 «부모부터» 찾는다(아래 클램프 :765 · T-088 과 같은 까닭).
+       dragEl 이 도형 래퍼면 그 자신이 free-layout(makeFrameBlock 기본)이라 closest 가 «자기»를 잡고, 끌어내기 판정이
+       래퍼 크기(100×100)+60 으로 서서 옛 꼴 도형을 조금만 끌어도 프레임 밖으로 빠졌다(실앱 실측: (100,75) 끌기 → section-inner). */
+    const _dragOutParentFrame   = dragEl.parentElement?.closest('.frame-block[data-free-layout]') || null;
     const _dragOutParentSection = dragEl.closest('.section-block');
 
     let moved = false;
@@ -732,7 +735,7 @@ function bindBlock(block) {
       }
 
       // 스마트 가이드 스냅 (단일 선택일 때만 — 다중선택 시 스냅 생략)
-      const parentFrame = dragEl.closest('.frame-block[data-free-layout]');
+      const parentFrame = dragEl.parentElement?.closest('.frame-block[data-free-layout]') || null;   // ★D5 — 스냅·가이드도 «실제 부모 프레임» 기준(위 끌어내기와 같은 까닭)
       let newLeft = rawLeft, newTop = rawTop;
       if (parentFrame && multiPeers.length === 0) {
         const snapped = snapPosition(rawLeft, rawTop, dragEl, parentFrame, scale);
