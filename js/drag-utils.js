@@ -644,6 +644,62 @@ function _barVPlotGeom(block, items, { maxVal, labelSize, vSize, bs }) {
 function renderGraph(block) {
   _renderGraphBody(block);
   window.__gdTextTone?.syncGraphTone?.(block);
+  _bindGraphLabelEdit(block);
+}
+/* K8⒤ — 카테고리 라벨 캔버스 직접 편집(더블클릭). 저장 자리 = dataset.items[i].label 한 곳(패널 .grb-data-label-input 과 같은 키).
+ *   라벨은 렌더마다 새로 만들어진다 ⇒ 블럭에 «위임» 한 번만 건다(요소 속성이라 복제·로드된 블럭은 첫 렌더에서 새로 건다).
+ *   ⌘Z 한 번: 들어갈 때 ensureHistoryCheckpoint · 확정 뒤 pushHistory. Esc · 빈 글자 · 같은 글자 = 무변(다시 그려 원래 글자로).
+ *   편집 중엔 block.editing — 공통 mousedown 드래그·삭제키 가드가 본다(그리드 줄 편집과 같은 꼴). */
+/* 카테고리 라벨 «셋»(막대·비교 .grb-bar-label · 가로 .grb-bar-h-desc · 꺾은선 .grb-line-xlabel) — 항목마다 정확히 하나(숨김이어도 display:none 으로 있다)
+   ⇒ 블럭 안 순서 = items 순서. 색인을 DOM 속성으로 안 박는다 — 렌더 바이트가 핀(graph-vpair 골든 · GR-W0 기준판)과 같게(회귀 실측: data-grb-idx 가 5 빨강). */
+const GRB_CAT_LABEL_SEL = '.grb-bar-label, .grb-bar-h-desc, .grb-line-xlabel';
+function _bindGraphLabelEdit(block) {
+  if (block._grbLabelEditBound) return;
+  block._grbLabelEditBound = true;
+  block.addEventListener('dblclick', e => {
+    const el = e.target?.closest?.(GRB_CAT_LABEL_SEL);
+    if (!el || !block.contains(el) || el.isContentEditable) return;
+    e.stopPropagation(); e.preventDefault();
+    _graphLabelBeginEdit(block, el, [...block.querySelectorAll(GRB_CAT_LABEL_SEL)].indexOf(el));
+  });
+}
+function _graphLabelBeginEdit(block, el, idx) {
+  window.ensureHistoryCheckpoint?.('그래프 라벨 편집 전');
+  block.classList.add('editing');
+  el.setAttribute('contenteditable', 'true');   // ⒥⒝ — 세움(parkEditing)은 'true' 만 «살아 있는 편집»으로 본다(_text-selection _parkedAlive). 확정은 textContent 라 서식이 안 남는다
+  el.setAttribute('draggable', 'false');
+  el.focus();
+  const rg = document.createRange(); rg.selectNodeContents(el);
+  const sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg);
+  window.__grbLabelEdit?.reveal?.(block);   // ⒥⒝ — 패널의 «라벨(크기)»·«카테고리 색상» 줄로 스크롤 + 강조(새 절·새 키 0 · prop-graph.js)
+  let done = false;
+  const finish = (commit, { keepPanel = false } = {}) => {
+    if (done) return; done = true;
+    el.removeEventListener('keydown', onKey); el.removeEventListener('blur', onBlur);
+    block.classList.remove('editing');
+    const val = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    const items = JSON.parse(block.dataset.items || '[]');
+    const changed = commit && val && items[idx] && val !== items[idx].label;
+    if (changed) { items[idx].label = val; block.dataset.items = JSON.stringify(items); }
+    renderGraph(block);   // 확정이든 취소든 라벨을 dataset 에서 다시 그린다(편집 흔적 0)
+    if (changed) {
+      window.pushHistory?.('그래프 라벨'); window.scheduleAutoSave?.();
+      if (!keepPanel && block.classList.contains('selected')) window.showGraphProperties?.(block);
+    }
+  };
+  const onKey = (ev) => {
+    if (ev.isComposing || ev.keyCode === 229) return;   // 한글 조합 중 Enter 는 조합 확정이다
+    if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); finish(true); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(false); }
+  };
+  /* ⒥⒝ — 패널로 가는 blur 는 끝내지 «않고» 세운다(그리드 줄·텍스트블럭과 같은 술어 isBlurIntoPanel · prop-graph.js 가 _text-selection 을 잇는다).
+     끝내면 showGraphProperties 가 패널을 다시 그려 방금 누른 크기·색 칸이 떨어져 나간다(TX1 병). 패널 값이 들어오기 직전엔 flush = 패널을 안 다시 그리는 확정. */
+  const onBlur = (ev) => {
+    if (window.__grbLabelEdit?.park?.(ev, el, () => finish(true), () => finish(true, { keepPanel: true }))) return;
+    finish(true);
+  };
+  el.addEventListener('keydown', onKey);
+  el.addEventListener('blur', onBlur);
 }
 function _renderGraphBody(block) {
   const items      = JSON.parse(block.dataset.items || '[]');
@@ -791,7 +847,7 @@ function _renderGraphBody(block) {
     const xlabelDisp = showXLabel ? '' : 'display:none;';
     const labelsHTML = overlayItems.map(o =>
       `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${vlabelColorCss}${vlabelDisp}">${o.p.v}</div>
-       <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${xlabelColorCss}${xlabelDisp}">${o.p.label}</div>`
+       <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${xlabelColorCss}${xlabelDisp}">${_escGraphHtml(o.p.label)}</div>`   /* E150 — 사용자 글자는 이스케이프(막대 셋과 같은 _escGraphHtml). 옛: `<b>` 가 태그로 읽혔다 */
     ).join('');
 
     block.innerHTML = `

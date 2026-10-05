@@ -2,6 +2,7 @@ import '../graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 
 const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
@@ -230,6 +231,13 @@ ${blockHeaderHTML({
         <span class="prop-label">점 크기</span>
         <input type="range" class="prop-slider" id="grb-point-slider" min="0" max="16" step="1" value="${pointRadius}">
         <input type="number" class="prop-number" id="grb-point-number" min="0" max="16" value="${pointRadius}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">점 모양</span>
+        <select class="prop-select" id="grb-pointstyle-select">
+          <option value="" ${block.dataset.pointStyle !== 'hollow' ? 'selected' : ''}>채움</option>
+          <option value="hollow" ${block.dataset.pointStyle === 'hollow' ? 'selected' : ''}>속빈</option>
+        </select>
       </div>
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
@@ -534,6 +542,17 @@ ${blockHeaderHTML({
     ptSlider.addEventListener('change', () => window.pushHistory());
   }
 
+  // K6: 점 모양 (line 전용) — 채움 = 키 없음(종전 바이트 그대로) · 속빈 = dataset.pointStyle 'hollow' (구멍 색은 canvas-contrast syncGraphTone)
+  const ptStyleSel = document.getElementById('grb-pointstyle-select');
+  if (ptStyleSel) {
+    ptStyleSel.addEventListener('change', () => {
+      if (ptStyleSel.value === 'hollow') block.dataset.pointStyle = 'hollow';
+      else delete block.dataset.pointStyle;
+      window.renderGraph(block);
+      window.pushHistory();
+    });
+  }
+
   // T10: 면 채우기 토글 + 색상 + 알파 (line 전용)
   const fillToggle  = document.getElementById('grb-fillarea-toggle');
   const fillRow     = document.getElementById('grb-fillalpha-row');
@@ -646,3 +665,18 @@ ${blockHeaderHTML({
 
 
 window.showGraphProperties = showGraphProperties;
+
+/* ⒥⒝(지디 2026-10-05) — 카테고리 라벨 편집(K8⒤ 더블클릭)에 들어가면 패널의 «기존» 두 줄(라벨 크기 · 카테고리 색상)로 데려간다.
+ *   새 절 0 · 새 키 0 · 옮김 0. 강조 = 섹션 검색 «깜빡임»(ss-flash-pulse 0.7s ×3)과 같은 박자 · 선택 채움 토큰 --sel-color-fill.
+ *   park = 패널로 가는 blur 면 편집을 세운다(drag-utils 는 _text-selection 을 직접 import 하지 않는다 — 모듈 하네스가 drag-utils 의 named import 를 404 로 준다). */
+function _revealGraphLabelRows() {
+  const rows = ['grb-label-slider', 'grb-xlabel-color'].map(id => document.getElementById(id)?.closest('.prop-row')).filter(Boolean);
+  if (!rows.length) return;
+  rows[0].scrollIntoView({ block: 'nearest' });
+  const fill = getComputedStyle(document.documentElement).getPropertyValue('--sel-color-fill').trim() || 'rgba(74, 158, 255, 0.12)';
+  rows.forEach(r => r.animate?.([{ backgroundColor: 'transparent' }, { backgroundColor: fill, offset: 0.4 }, { backgroundColor: fill, offset: 0.7 }, { backgroundColor: 'transparent' }], { duration: 700, iterations: 3, easing: 'ease-in-out' }));
+}
+window.__grbLabelEdit = {
+  reveal: _revealGraphLabelRows,
+  park(ev, host, end, flush) { if (!isBlurIntoPanel(ev)) return false; parkEditing(host, end, { flush }); return true; },
+};
