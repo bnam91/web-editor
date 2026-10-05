@@ -16,7 +16,18 @@ const { bootApp } = require('./_root-harness.js');
 test.describe.configure({ timeout: 60000 });
 
 const URL_ASSET = 'goya-asset://proj_e91test/pick.png';
-async function setup(page, { ipc = true } = {}) {
+/** 자산 IPC 흉내(Proxy) — 따로 떼어 «언제» 거는지 시험이 고른다.
+ *  ★P2(진짜 클릭 줄 고르기)는 고른 «뒤»에 건다: 10-06 잼 — Proxy 를 먼저 걸면 진짜 클릭 고르기 2/10 (안 걸면 30/30) ·
+ *   실패 판에서 elementFromPoint = 클래스 없는 DIV 가 그리드를 덮음(무엇이 만드는지 ㉡ 안 잼). 시험 대상(파일창 → 자산 URL)과 무관한 하네스 탓. */
+async function installIpc(page, ipc = true) {
+  await page.evaluate(([ipc, url]) => {
+    window.__saved = []; window.activeProjectId = 'proj_e91test';
+    window.electronAPI = ipc
+      ? new Proxy({ assetsSaveCanvasImage: async (a) => { window.__saved.push({ mime: a.mime, n: (a.b64 || '').length }); return { ok: true, url }; } }, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) })
+      : new Proxy({}, { get: () => (() => Promise.resolve(null)) });
+  }, [ipc, URL_ASSET]);
+}
+async function setup(page, { ipc = true, ipcLater = false } = {}) {
   await page.setViewportSize({ width: 1500, height: 1200 });
   const errs = await bootApp(page);
   await page.evaluate(([ipc, url]) => {
@@ -32,11 +43,8 @@ async function setup(page, { ipc = true } = {}) {
     });
     g.id = 'gG'; document.getElementById('gR').appendChild(g); window.rebindAll?.(); window.renderGridBlock(g); window.deselectAll?.();
     window.applyZoom?.(100);
-    window.__saved = []; window.activeProjectId = 'proj_e91test';
-    window.electronAPI = ipc
-      ? new Proxy({ assetsSaveCanvasImage: async (a) => { window.__saved.push({ mime: a.mime, n: (a.b64 || '').length }); return { ok: true, url }; } }, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) })
-      : new Proxy({}, { get: () => (() => Promise.resolve(null)) });
   }, [ipc, URL_ASSET]);
+  if (!ipcLater) await installIpc(page, ipc);
   await page.waitForTimeout(250);
   return errs;
 }
@@ -92,8 +100,9 @@ test('P1 [새 것] 패널 「이미지 교체…」 파일창 → 자산 URL · 
 });
 
 test('P2 [새 것] 오른클릭 「이미지」 메뉴 → 교체 파일창 → 자산 URL', async ({ page }) => {
-  const errs = await setup(page); const { f } = await noisePng(page);
+  const errs = await setup(page, { ipcLater: true }); const { f } = await noisePng(page);
   const [lx, ly] = await pickImageLine(page);
+  await installIpc(page, true);   // ★고른 뒤에 건다(위 installIpc 주석)
   const before = await serLen(page);
   await page.mouse.click(lx, ly, { button: 'right' }); await page.waitForTimeout(300);
   const shown = await page.evaluate(() => { const e = document.getElementById('bcm-grid-img'); return e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().height > 0; });
