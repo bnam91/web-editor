@@ -75,6 +75,30 @@ function _isInsideUnselectedFrame(block) {
   return !(ss.classList.contains('selected') && window._activeFrame === ss);
 }
 
+/* D3 — 폭 100% 글자 프레임을 «내용 폭 px» 로 바꾸고 left 를 정렬만큼 옮긴다(보이는 글자 자리 불변). 옮긴 px 를 돌려준다.
+   측정은 _clampTextFrameWidth(block-factory.js) 와 같은 길(fit-content 로 잠깐 풀어 offsetWidth) · 저장 꼴도 같다(dataset.width = 'NNN').
+   못 재거나(≤1px) 줄일 게 없으면(내용이 이미 꽉 참) 아무것도 안 바꾸고 0. */
+function _fitFullWidthTextFrame(tf) {
+  const oldW = tf.offsetWidth;
+  const prevW = tf.style.width;
+  tf.style.width = 'fit-content';
+  const fitW = Math.round(tf.offsetWidth);
+  tf.style.width = prevW;
+  if (!(fitW > 1) || fitW >= oldW) return 0;
+  const contentEl = tf.querySelector('[class^="tb-"]');
+  const tb = tf.querySelector('.text-block');
+  const align = (contentEl && (contentEl.style.textAlign || getComputedStyle(contentEl).textAlign))
+    || (tb && tb.style.textAlign) || 'left';
+  const shift = align === 'center' ? Math.round((oldW - fitW) / 2)
+              : (align === 'right' || align === 'end') ? (oldW - fitW) : 0;
+  const L = (parseInt(tf.style.left || '0') || 0) + shift;
+  tf.style.width = fitW + 'px';
+  tf.dataset.width = String(fitW);
+  tf.style.left = L + 'px';
+  tf.dataset.offsetX = String(L);
+  return shift;
+}
+
 // 프레임(frame-block) 내 자식 블록 드래그 후 프레임 높이를 자동 확장
 function _resizeFrameToFitChildren(_block) {
   // freeLayout 프레임은 자식 절대좌표 이동에 따라 부모 height를 자동 확장하지 않음.
@@ -645,8 +669,13 @@ function bindBlock(block) {
 
     e.stopPropagation();
     const startX = e.clientX, startY = e.clientY;
-    const startLeft = parseInt(dragEl.style.left || '0');
+    let   startLeft = parseInt(dragEl.style.left || '0');   // D3 — 폭 100% 글자를 가로로 끌기 시작할 때 한 번 옮긴다
     const startTop  = parseInt(dragEl.style.top  || '0');
+    /* ★D3(2026-10-05 현빈 «자유 이동이 되어야지?» · 지디 ⒜) — 자유 프레임 안 «폭 100%» 글자 프레임(가운데/오른쪽 정렬의 설계 꼴,
+       block-factory.js _clampTextFrameWidth)은 아래 클램프가 가로 여유 0 을 줘서 좌우로 0px 움직였다(실앱 실측 · 세로만 됨).
+       ⇒ «가로 성분이 처음 생기는 틱»에만 폭을 내용 폭 px 로 바꾸고, 보이는 글자 자리가 그대로이게 left 를 정렬만큼 옮긴다
+         (가운데 = (옛폭−새폭)/2 · 오른쪽 = 옛폭−새폭 · 왼쪽 = 0). 세로만 끌면 아무것도 안 바꾼다(끈 글자만 · 한 번만). */
+    let _fullWidthTf = (isText && dragEl.dataset?.textFrame === 'true' && dragEl.dataset.width === '100%') ? dragEl : null;
 
     // freeLayout 다중선택 피어 수집 — shift+클릭으로 선택된 형제 absolute 요소들
     const _parentFrameForMulti = dragEl.closest('.frame-block[data-free-layout]');
@@ -701,6 +730,7 @@ function bindBlock(block) {
       const cdx = (ev.shiftKey && _shiftAxis === 'v') ? 0 : dx;
       const cdy = (ev.shiftKey && _shiftAxis === 'h') ? 0 : dy;
 
+      if (_fullWidthTf && cdx !== 0) { startLeft += _fitFullWidthTextFrame(_fullWidthTf); _fullWidthTf = null; }   // D3
       const rawLeft = Math.round(startLeft + cdx / scale);
       const rawTop  = Math.round(startTop  + cdy / scale);
 
