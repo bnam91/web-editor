@@ -458,7 +458,16 @@ export function applyGridBlockBg(block) {
   if (_tt && ((_tt.textToneAt(block) === 'light' ? 'light' : '') !== (block.dataset.textTone || ''))) renderGridBlock(block);
   return true;
 }
-if (typeof window !== 'undefined') { window.applyGridBlockBg = applyGridBlockBg; window.gridBlockBg = _gridBlockBg; }   // gridBlockBg: 내보내기(분리 문서·import 안 함)가 «같은 읽는 문»을 쓴다
+/* ★K2(2026-10-05 · 현빈 「같이 아웃라인이나 그런것도 늘어나야되지 않겠니?」 · 지디/태양 승인 lane-f-grid) — 그리드의 «보이는 상자» 한 자리.
+ *  배경(G12)을 켜면 배경 층 .grd-bg 의 상자(블럭 밖으로 배경 여백 + 선폭 — _gridBlockBgHtml 이 그 inset 을 정한다) · 끄면 블럭 자신.
+ *  그리드가 아니면 받은 요소 그대로 — 부르는 쪽(선택 선 selection-overlay _geomOf)이 블럭 종류를 따로 묻지 않게.
+ *  ⛔다른 자리에서 같은 판정(.grd-bg 가 있나 / blockBgOn)을 다시 짓지 마라. G12 배경·저장 데이터는 그대로다. */
+export function gridVisualBox(el) {
+  if (!el || !el.classList || !el.classList.contains('grid-block')) return el;
+  const bg = el.querySelector(':scope > .grd-bg');
+  return (bg && _gridBlockBg(el).on) ? bg : el;
+}
+if (typeof window !== 'undefined') { window.applyGridBlockBg = applyGridBlockBg; window.gridBlockBg = _gridBlockBg; window.gridVisualBox = gridVisualBox; }   // gridBlockBg: 내보내기(분리 문서·import 안 함)가 «같은 읽는 문»을 쓴다
 
 /** 입구 하나(만드는 문·고치는 문) — `blockBg` 값을 dataset 쓰기 계획으로. 
  *  @returns {{error:string}|{set:Object, del:string[]}}
