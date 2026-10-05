@@ -1270,6 +1270,8 @@ function _grdImageSectionHtml(anyHit, block) {
   const { r, c, line } = anyHit;
   const h = Number(line.height) || '';
   const rad = Number(line.radius) || '';
+  /* ★panel-height-disable — «크롭 없음» = 렌더러(grid-block.js _gridLineHtml 의 `cropped`)와 같은 판정: 세 값 중 하나라도 수면 크롭. 원은 따로(지름). */
+  const hLocked = line.imgShape !== 'circle' && ![line.imgSizePct, line.imgPosX, line.imgPosY].some(v => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v)));
   /* ★2026-09-25 R6 — `widthPct` 는 «모델·렌더러가 이미 읽는» 이름인데 패널엔 그 값을 주는
    *   손잡이가 «0개»였다. 명부(grid-block.js GRID_LINE_FIELDS)에 있고, `_gridLineHtml` 이
    *   `Number(line.widthPct)` 를 읽고, 바로 아래 줄 꾸미기 절의 `imgFull` 판정도 그 값을 읽는다.
@@ -1316,8 +1318,12 @@ function _grdImageSectionHtml(anyHit, block) {
       </div>
       <div class="prop-row">
         <span class="prop-label">${circle ? '지름(px)' : '높이(px)'}</span>
-        <input type="number" class="prop-number" id="grd-img-height" min="0" placeholder="${circle ? GRID_IMG_CIRCLE_D : 'auto'}" value="${h}">
-      </div>
+        <input type="number" class="prop-number" id="grd-img-height" min="0" placeholder="${circle ? GRID_IMG_CIRCLE_D : 'auto'}" value="${h}"${hLocked ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
+      </div>${/* ★panel-height-disable(2026-10-06 · APPROVED_BY: 지디 panel-height-disable) — E157 뒤 크롭 없는 그림 줄은 height 를 «그릴 때 무시»한다.
+            칸이 열려 있으면 넣은 값이 «저장만» 되고 화면은 안 바뀐다(실측 B1: 645→645 · height:300 저장). ⇒ 막고 까닭을 보인다(말풍선 상하 여백 칸 선례 —
+            prop-text-template.js txt-pv-bubble-hint). ⛔크롭 길로 커밋하는 ⒥ 는 새 동작 — 다음 판. 원(지름)·크롭된 줄은 그대로 읽으니 안 막는다.
+            ⛔까닭 줄은 «막을 때만» 넣는다 — 다른 상태의 패널 바이트는 한 글자도 안 바뀐다. */
+         hLocked ? '\n      <div class="prop-hint" id="grd-img-height-hint">자르기 전에는 높이를 정할 수 없습니다 — 그림 비율로 그려집니다</div>' : ''}
       <div class="prop-row"${circle ? ' style="display:none"' : ''}>
         <span class="prop-label">모서리 반경(px)</span>
         <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="0" value="${rad}">

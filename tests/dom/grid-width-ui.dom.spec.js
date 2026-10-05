@@ -154,20 +154,22 @@ test('P4 슬라이더 → 폭(끄는 동안 반영) · 뒤에 push-after 동작 
 });
 
 /* 10-05 K3 ⒜ 로 뒤집음 · 옛 단언 = 「떠 있을 때만 4개 · 안 떠 있으면 0(대조) · 오버레이를 끄면 걷힌다(0)」 — 흐름 그리드에도 «폭» 손잡이 */
-test('H1 손잡이 — 떠 있음/안 떠 있음 둘 다 4개(K3 10-05) · 화면 7×7(줌 40/100) · ew-resize', async ({ page }) => {
+const CURSOR = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize' };   // ★⑵ 제4안 ⒝ — editor-blocks.css 방향별 커서(옛: 넷 다 ew-resize · 폭만)
+const SEL6 = ['n', 'ne', 'nw', 'se', 'sw', 'w'];   // ★⑵ 제4안 ⒝ — 여덟 중 ＋ 자리(e·s) 숨음(grid-cellpady Y2)
+test('H1 손잡이 — 떠 있음/안 떠 있음 둘 다 «보이는 여섯»(제4안 여덟 − ＋ 자리 e·s · 10-06) · 화면 7×7(줌 40/100) · 방향별 커서', async ({ page }) => {
   const errs = await setup(page);
   for (const z of [40, 100]) {
     await setZoom(page, z);
     await select(page);
-    expect((await handles(page)).map(h => h.dir).sort(), `줌 ${z} 안 떠 있음 = 네 모서리(K3)`).toEqual(['ne', 'nw', 'se', 'sw']);
+    expect((await handles(page)).map(h => h.dir).sort(), `줌 ${z} 안 떠 있음 = 보이는 여섯(제4안)`).toEqual(SEL6);
   }
   await toggleFloat(page);
   for (const z of [40, 100]) {
     await setZoom(page, z);
     await select(page);
     const hs = await handles(page);
-    expect(hs.map(h => h.dir).sort(), `줌 ${z} 네 모서리`).toEqual(['ne', 'nw', 'se', 'sw']);
-    for (const h of hs) expect({ w: h.w, h: h.h, cursor: h.cursor }, `줌 ${z} ${h.dir} 화면 크기 고정`).toEqual({ w: 7, h: 7, cursor: 'ew-resize' });
+    expect(hs.map(h => h.dir).sort(), `줌 ${z} 보이는 여섯`).toEqual(SEL6);
+    for (const h of hs) expect({ w: h.w, h: h.h, cursor: h.cursor }, `줌 ${z} ${h.dir} 화면 크기 고정 · 방향별 커서`).toEqual({ w: 7, h: 7, cursor: CURSOR[h.dir] });
     /* 자리 — se 손잡이 중심 = 블럭 오른쪽 아래 꼭지점 */
     const r = await page.evaluate(() => { const b = document.getElementById('gG').getBoundingClientRect(); return { r: b.right, b: b.bottom }; });
     const se = hs.find(h => h.dir === 'se');
@@ -175,7 +177,7 @@ test('H1 손잡이 — 떠 있음/안 떠 있음 둘 다 4개(K3 10-05) · 화�
   }
   await toggleFloat(page);
   await page.waitForTimeout(100);
-  expect((await handles(page)).length, '오버레이를 꺼도 흐름 그리드 손잡이 4개(K3)').toBe(4);
+  expect((await handles(page)).length, '오버레이를 꺼도 흐름 그리드 보이는 손잡이 여섯(제4안)').toBe(6);
   expect(errs).toEqual([]);
 });
 

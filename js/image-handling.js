@@ -1339,20 +1339,10 @@ function enterGridImageEditMode(block, addr) {
   let line = _grdImgLine(block, addr);
   if (!line || line.type !== 'image' || !line.imgSrc) return;
 
-  /* ★프레임이 없으면 «지금 보이는 높이»로 만들어 준다 — 그래야 잘릴 것이 생긴다.
-     ⛔몰래 하지 않는다: 이 한 번의 patch 는 되돌리기 한 칸을 차지하고 토스트로 알린다. */
-  if (!(Number(line.height) > 0)) {
-    const el0 = _grdImgFrameEl(block, addr);
-    if (!el0) return;
-    const scale = (window.currentZoom || 100) / 100;
-    const h0 = Math.max(24, Math.round(el0.getBoundingClientRect().height / (scale || 1)));
-    window.pushHistory?.('그리드 이미지 프레임 높이');
-    const res = window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, height: h0 } });
-    if (!res || res.ok !== true) return;
-    window.showToast?.(`프레임 높이를 ${h0}px 로 고정했습니다 · 이제 그림을 끌어 맞추세요`);
-    line = _grdImgLine(block, addr);
-  }
-
+  /* ★E2E3-crop-a(2026-10-06 · APPROVED_BY: 지디 E2E3-crop-a ⒜) — 여는 길은 문서를 «안» 건드린다.
+     옛: 높이 키가 없으면 «지금 보이는 높이»를 {height} 혼자 patch 로 먼저 못박았다. E157(크롭 없는 그림 줄은 height 를
+     그릴 때 무시) 뒤 그 patch 는 T-122 가드에 INVALID 가 되어 편집기가 «말없이 안 열렸다»(0ff05430 ok ↔ a8f60da1 INVALID).
+     ⇒ 높이는 «커밋 때» 크롭 세 값과 «한 patch» 로 쓴다(아래 beforeCommit · H = 커밋 직전에 잰 보이는 틀 높이). */
   const frame = _grdImgFrameEl(block, addr);
   if (!frame) return;
   const realImg = frame.querySelector('img.grd-img');
@@ -1405,6 +1395,7 @@ function enterGridImageEditMode(block, addr) {
     proxy.dataset.imgW = dw;
     proxy.dataset.imgX = x0;
     proxy.dataset.imgY = y0;
+    const startGeo = { w: dw, x: x0, y: y0 };   // ★E2E3 ⒜ — 안 움직였으면 커밋 때 «아무것도 안 쓴다»(열고 닫기 = 문서 그대로)
 
     /* ★「원래대로」가 눌렸나 — 아래 beforeCommit 이 «쓸 것인가 지울 것인가»를 가르는 깃발.
      * ⛔단추에서 모델을 직접 고치고 끝낼 수 «없다» — exitImageEditMode 는 «언제나»
@@ -1422,6 +1413,9 @@ function enterGridImageEditMode(block, addr) {
         const w = parseFloat(img.style.width) || parseFloat(proxy.dataset.imgW) || dw;
         const x = parseFloat(proxy.dataset.imgX) || 0;
         const y = parseFloat(proxy.dataset.imgY) || 0;
+        /* ★E2E3 ⒜ — H(와 W)는 «커밋 직전»에 다시 잰다(열 때 쥔 값 금지 — 그 사이 무엇이 틀을 바꿨어도 «보이는 틀» 그대로 못박는다).
+           offsetWidth/Height = 레이아웃 px(줌 전환의 transform 과 무관 — 섞인 자 병 금지). */
+        const Wc = frame.offsetWidth || W, Hc = frame.offsetHeight || H;
         _teardownGridImgEdit(block);          // ★patch/pushHistory «전»에 임시 DOM 을 0 으로
         if (cropResetWanted) {
           /* ★「원래대로」 — 세 값을 «지운다»(cover 로 복귀). `undefined` 가 「이 필드를 없앤다」는
@@ -1430,24 +1424,47 @@ function enterGridImageEditMode(block, addr) {
                계속 «자르는 그릇»(overflow:hidden)이다.
              ★여기서 지우면 화면도 곧바로 따라온다 — updateGridBlock 이 다시 그리고, 이 함수는
                이미 임시 DOM(프록시)을 걷어낸 뒤라 «진짜 그림»이 cover 로 보인다. */
-          window.updateGridBlock?.(block.id, {
-            patchCell: {
-              r: addr.r, c: addr.c, lineIndex: addr.li,
-              imgSizePct: undefined, imgPosX: undefined, imgPosY: undefined,
-            },
-          });
+          /* ★reset-drops-height(2026-10-06 · APPROVED_BY: 지디 reset-drops-height) — height 도 지운다.
+             크롭 없는 줄은 E157 뒤 height 를 안 읽는다 — 남겨 두면 «씨앗»이 되어, MCP 가 크롭 세 값만 줄 때(편집기 커밋을 안 거침)
+             그 묵은 값이 틀 높이로 살아나 튀었다(실측 B2: 645 → 200). 다시 UI 로 크롭하면 커밋이 height:Hc 를 새로 쓴다(⒜).
+             ⛔patchCell{lineIndex, 네 키: undefined} 로는 못 지운다 — 지운 뒤 줄(크롭·높이 없음)에선 넷 다 «안 읽힘»이라 T-122 가드가
+               INVALID 로 통째 거절한다(실측 unit: 세 키만 = ok · 넷 = INVALID · null = 키에 null 이 «저장»됨).
+             ⇒ 그 칸의 줄 배열을 «그 줄만 네 키 뺀 것»으로 갈아 끼운다(patchCell{lines} — 같은 문 · 히스토리 한 칸 · 옆 줄 무변 실측).
+             중첩(np) 줄은 이 길이 없다 → 옛 세 키 지움으로 떨어진다(height 는 남음 — 이름만, 이번 판 범위 밖). */
+          const curLines = (() => { try { return window.getGridModel?.(block)?.cells?.[addr.r]?.[addr.c]?.lines; } catch (_) { return null; } })();
+          if (!addr.np && Array.isArray(curLines) && curLines[addr.li]) {
+            const nextLines = curLines.map((ln, i) => {
+              if (i !== addr.li) return ln;
+              const o = { ...ln }; delete o.imgSizePct; delete o.imgPosX; delete o.imgPosY; delete o.height; return o;
+            });
+            window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lines: nextLines } });
+          } else {
+            window.updateGridBlock?.(block.id, {
+              patchCell: {
+                r: addr.r, c: addr.c, lineIndex: addr.li,
+                imgSizePct: undefined, imgPosX: undefined, imgPosY: undefined,
+              },
+            });
+          }
           return;
         }
         /* ★px → ％ 통역. 가로는 프레임 폭, 세로는 프레임 높이가 기준이다
            (렌더러가 left:…% / top:…% 를 그렇게 푼다 — CSS 의 기준과 같다). */
-        window.updateGridBlock?.(block.id, {
+        /* ★E2E3 ⒜ — 안 움직였으면(크기·자리 0.5px 안) 문서를 안 건드린다: 열고 닫기만 하면 바이트 그대로.
+           ★height:Hc 를 «같은 patch» 에 — 크롭 줄은 height 를 «틀 높이»로 읽으니(E157) 가드를 지나고, 보이던 틀 높이
+             그대로라 커밋하는 순간 틀이 안 튄다(옛: 남아 있던 height 200 으로 튐 — E2). */
+        if (Math.abs(w - startGeo.w) < 0.5 && Math.abs(x - startGeo.x) < 0.5 && Math.abs(y - startGeo.y) < 0.5) return;
+        const pinned = Number(line.height) !== Hc;
+        const res = window.updateGridBlock?.(block.id, {
           patchCell: {
             r: addr.r, c: addr.c, lineIndex: addr.li,
-            imgSizePct: _r1g(w / W * 100),
-            imgPosX:    _r1g(x / W * 100),
-            imgPosY:    _r1g(y / H * 100),
+            imgSizePct: _r1g(w / Wc * 100),
+            imgPosX:    _r1g(x / Wc * 100),
+            imgPosY:    _r1g(y / Hc * 100),
+            height: Hc,
           },
         });
+        if (pinned && res && res.ok) window.showToast?.(`프레임 높이를 ${Hc}px 로 고정했습니다`);
       },
       afterExit: () => {
         _teardownGridImgEdit(block);          // 멱등 — beforeCommit 이 실패해도 잔여 0

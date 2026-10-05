@@ -1085,6 +1085,33 @@ function _gridUnreadLineFields(line, keys) {
 }
 const _gridLineTypeOf = (line) => (line && line.type) ? String(line.type) : 'text';
 
+/* ★종류가 «읽을 수 있는» 키 — 렌더러에서 «파생»한 종류→키 표 (E14 · 2026-10-06 · APPROVED_BY: 지디 E14-E157 · 모양 B = 태양)
+ *   왜: _gridMergeLine 의 청소는 «옛 줄이 읽던 키»만 턴다. 그런데 «읽나»를 그 «인스턴스»로 재면, 렌더러가 그 줄에서
+ *     조건부로 안 읽는 키(E157: 크롭 없는 그림 줄은 height 를 그릴 때 무시)를 「옛 종류도 안 읽었다」로 오판해 남긴다
+ *     → image(h160) → body → gap 이 160px 여백으로 되살아났다(실측 10-06).
+ *   무엇: 「종류 T 의 줄이 키 k 를 읽을 수 있나」 = 맨 줄 {type:T} 에서 _gridLineFieldIsRead(위 민감도 · 탐침 _GRID_FIELD_PROBES).
+ *     ⛔손으로 적은 종류별 필드표가 아니다(:1046 T-122 규칙 그대로) — 표는 렌더러를 돌려 «뜬다».
+ *   ★표 키 = 종류 이름(_gridLineTypeOf) 하나 · 렌더러 판(版)은 키에 없다 — 아래 수명이 그걸 대신한다.
+ *   ★수명 = 이 모듈 인스턴스 한 번(메모리 Map). 다시 불러오면 새로 뜬다. ⛔디스크 캐시·얼린 모듈 상수 금지 —
+ *     그러면 렌더러와 «따로 늙는» 표가 된다(T-122 가 막은 것).
+ *   ★본 것(10-06 실측 · 맨 줄 모드): image = height·imgSrc·marginTop·radius·widthPct(height 는 «빈 틀» grd-img-empty 높이로 읽힘)
+ *     · gap = height·marginTop · divider = color·height·marginTop · 글자 역할 = content·fontFamily·fontSize·letterSpacing·lineHeight·marginTop·text·weight.
+ *   ★못 본 것(맨 줄 탐침이 안 만드는 모드): 크롭(imgSrc ∧ imgSizePct/PosX/PosY — 두 키가 같이 있어야 함) · 원(imgShape:'circle')
+ *     · 탐침값이 유효값이 아닌 키(색 hex·정렬 낱말 등 — color/align/bg 는 글자 역할 표에 안 뜬다). ⇒ 표는 «하한»이다.
+ *     (10-06 실측: 맨 줄 + «한 키 더» 모드 전수(33 키 × 탐침 7)도 더 찾은 것 0 · 234ms — 그래서 안 쓴다.
+ *      옛 줄 «이웃» 모드는 크롭으로 height 를 찾지만 인스턴스마다 달라 표가 아니다 — 안 쓴다(태양 · 모양 B 유지).)
+ *   ★image height 는 «빈 틀» 모드가 나른다 — 그 모드가 height 를 안 읽게 되면 grid-kind-shed K1·K2 가 빨개진다(지킴).
+ *   그래서 청소는 «표 ∪ 인스턴스»로 판정한다(인스턴스 판정 = 옛 규칙 그대로) — 지우는 집합은 옛것보다 «넓어지기만» 한다. */
+const _gridTypeReadMemo = new Map();
+function _gridTypeCanRead(type, key) {
+  let set = _gridTypeReadMemo.get(type);
+  if (!set) {
+    set = new Set([...GRID_LINE_FIELDS].filter(k => k !== 'type' && _gridLineFieldIsRead({ type }, k)));
+    _gridTypeReadMemo.set(type, set);
+  }
+  return set.has(key);
+}
+
 /** 한 셀의 `lines` 를 훑어 «안 그려질 것»을 모은다. `where` 는 보고용 경로 앞머리. */
 function _gridInspectLines(lines, where, drops) {
   if (!Array.isArray(lines)) return;
@@ -1770,9 +1797,12 @@ function _gridMergeLine(curLines, li, fields) {
     const keys = Object.keys(merged);
     const unreadNow = new Set(_gridUnreadLineFields(merged, keys));
     const unreadBefore = new Set(_gridUnreadLineFields(prev, keys));
+    const prevType = _gridLineTypeOf(prev);
     for (const k of keys) {
       if (fields[k] !== undefined) continue;
-      if (unreadNow.has(k) && !unreadBefore.has(k)) delete merged[k];
+      /* ★E14 — «옛 종류가 읽을 수 있었나» = 인스턴스(옛 규칙) ∪ 종류 표(위 _gridTypeCanRead). */
+      const couldReadBefore = !unreadBefore.has(k) || _gridTypeCanRead(prevType, k);
+      if (unreadNow.has(k) && couldReadBefore) delete merged[k];
     }
   }
   next[i] = merged;
@@ -2301,11 +2331,34 @@ function _gridRatioOf(src, block) {
       .catch(() => { _gridRatio.set(src, null); })
       .then(() => {
         const bs = _gridRatioWaiters.get(src); _gridRatioWaiters.delete(src); _gridRatioLoads.delete(src);
-        if (bs) bs.forEach(b => { if (b.isConnected) { try { renderGridBlock(b); } catch (_) {} } });
+        let drew = false;
+        if (bs) bs.forEach(b => { if (b.isConnected) { try { renderGridBlock(b); drew = true; } catch (_) {} } });
+        if (drew) _gridRestampAfterSettle();
       });
     _gridRatioLoads.set(src, p);
   }
   return undefined;
+}
+/* ★C4-settle-restamp(2026-10-06 · APPROVED_BY: 지디 C4-settle-restamp ⒜) — 디코드가 «늦게» 끝나 정착(gridTemplateRows)이 쓰이면
+ *   ⌘Z 기록의 꼭대기(push-after 끝 표본)를 그 값으로 «다시 찍는다»(새 칸 0 — restampHistoryTop 은 칸을 안 만든다).
+ *   왜: 꼭대기 ≠ 라이브면 ⌘Z 의 ensureHistoryCheckpoint 가 새 칸을 쌓고 «그림 있는» 끝 표본으로 되돌린다 —
+ *     느린 디코드(500ms)에서 ⌘Z 한 번이 아무것도 안 했다(5/5 · 0ff05430 0/5). model-update-history 의 2 rAF 뒤 restamp 는 그보다 이르다.
+ *   ⛔이 자리는 «디코드 끝» 갈래뿐이다 — _gridSettleBgTracks(동기 렌더) 안에서 부르면 updateGridBlock 의 push-before 표본(S0)을
+ *     «그림 있는» 값으로 덮어 ⌘Z 가 통째로 깨진다.
+ *   ⛔누른 포인터가 있으면(드래그 제스처 중) 안 한다 — 그 꼭대기는 제스처의 «시작 표본»일 수 있다(덮으면 그 드래그를 못 되돌린다).
+ *     남는 틈(㉢): 키보드 제스처(슬라이더 화살표 첫 input ~ change 사이)에 디코드가 끝나면 그 시작 표본을 덮을 수 있다. */
+let _gridPointerDown = 0;
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('pointerdown', () => { _gridPointerDown++; }, true);
+  const up = () => { _gridPointerDown = 0; };
+  document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
+}
+function _gridRestampAfterSettle() {
+  if (_gridPointerDown > 0 || typeof window === 'undefined') return;
+  try {
+    const tip = window.getHistoryTip?.();
+    if (tip && !tip.empty && tip.seq != null) window.restampHistoryTop?.(tip.seq);
+  } catch (_) {}
 }
 /* 렌더 «뒤»(레이아웃이 선 뒤) 배경 행만 트랙을 다시 세운다 — 칸 폭은 그려져야 안다. 배경 행이 없으면 아무것도 안 한다. */
 function _gridSettleBgTracks(block, bgRows, rows, padY) {

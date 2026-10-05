@@ -8,6 +8,9 @@
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+/* ★⑵(10-06 · E157 ⒜) — 2×1 그림. E157 뒤 크롭 없는 사각 줄은 «높이 = 폭 × 그림 비율»이라 1×1(PX)이면 정사각이 되어
+   «원이 아닌 사각» 을 «폭≠높이» 로 가를 수 없다(실측 7b017a98 C0: 418×120 → 418×418). 그래서 사각 쪽 장면만 2:1 로 바꾼다. */
+const PX2 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGNQSjujlHYGAAf/AqmCyMKsAAAAAElFTkSuQmCC';
 
 async function setup(page, { colW = [1, 1], lines = [{ type: 'body', text: 'A' }] } = {}) {
   await page.setViewportSize({ width: 1500, height: 1000 });
@@ -37,10 +40,15 @@ async function rclickCellItem(page, itemId) {
 }
 
 test('C0 대조 — imgShape 없는 이미지 줄(height 120)은 사각: 폭≠높이 · 반경 0', async ({ page }) => {
-  await setup(page, { lines: [{ type: 'image', imgSrc: PX, height: 120 }] });
+  /* ★⑵ 장면 바꿈(10-06 · E157 ⒜) — 옛 장면이 잠근 것(한 줄): «imgShape 없는 줄은 원으로 안 바뀐다(정원 강제 없음 · 반경 0)».
+     옛 장면(1×1 · height 120)은 E157 전 cover 로 418×120 이었고, 지금은 비율로 418×418 이라 «폭≠높이» 가 못 선다.
+     새 장면(2×1)이 같은 것을 잠그는지: 폭≠높이 · 반경 0 · 높이 = 폭 × ½(그림 비율 — 원이면 폭=높이로 강제됐을 것). 옛 단언 «h = 120» 은 E157 규칙이 이긴다(지운 단언 1 · 이름: f.h toBe 120). */
+  await setup(page, { lines: [{ type: 'image', imgSrc: PX2, height: 120 }] });
+  /* [전제] 장면의 그림이 정말 2:1 이다(픽스처가 1:1 로 돌아가면 «폭≠높이»가 아무것도 못 잰다 — 지디 ③) */
+  expect(await page.evaluate(() => { const i = document.querySelector('#gG .grd-img-frame img'); return i ? [i.naturalWidth, i.naturalHeight] : null; }), '[전제] 2:1 그림').toEqual([2, 1]);
   const f = await frame(page);
-  expect(f.h).toBe(120);
   expect(f.w).toBeGreaterThan(f.h);
+  expect(Math.abs(f.h - f.w / 2), `높이 = 폭 × ½(E157 비율) ${JSON.stringify(f)}`).toBeLessThanOrEqual(1);
   expect(f.radius).toBe('0px');
 });
 test('C1 ★칸 우클릭 「원형 이미지 추가」 → 빈 원 슬롯(지름 120 · 정원 · 반경 50%)', async ({ page }) => {
@@ -62,7 +70,9 @@ test('C3 ★칸이 지름보다 좁아도 «정원» — 칸 폭으로 줄되 �
   expect(Math.abs(f.w - f.h)).toBeLessThanOrEqual(1);
 });
 test('C4 ★이미지 줄 위 우클릭 «사각으로 바꾸기» → 사각 · ⌘Z 로 원 · 다시 우클릭 «원형으로 바꾸기» · 원일 땐 패널 폭(%)·반경 칸이 숨고 높이는 «지름»', async ({ page }) => {
-  await setup(page, { lines: [{ type: 'image', imgSrc: PX, imgShape: 'circle', height: 100 }] });
+  /* ★⑵ 장면 바꿈(10-06 · E157 ⒜) — 옛 장면이 잠근 것: «사각으로 바꾸면 원이 풀린다(반경 0 · 폭>높이)». 1×1 이면 E157 뒤 사각이 정사각(폭=높이)이라 못 가른다 → 2×1. 원 쪽 단언(100×100 · 50%)은 그대로. */
+  await setup(page, { lines: [{ type: 'image', imgSrc: PX2, imgShape: 'circle', height: 100 }] });
+  expect(await page.evaluate(() => { const i = document.querySelector('#gG .grd-img-frame img'); return i ? [i.naturalWidth, i.naturalHeight] : null; }), '[전제] 2:1 그림(C4c)').toEqual([2, 1]);
   const [x, y] = await page.evaluate(() => { const r = document.querySelector('#gG .grd-img-frame').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
   /* 패널 — 캔버스에서 그 줄을 고른다(첫 클릭 = 블럭, 두 번째 = 그 칸의 줄). ⛔패널엔 모양 단추가 «없다»(grid-img-crop P1 · 현빈 2026-09-25) */
   await page.mouse.click(x, y); await page.waitForTimeout(200);

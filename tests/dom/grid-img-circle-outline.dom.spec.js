@@ -110,6 +110,9 @@ for (const zoom of [100, 40]) {
       expect.soft(Number(info.az), 'D3 네모 선도 <img> 위').toBeGreaterThan(imgZ);
       expect.soft(info.bp, '클릭은 줄이 받는다').toBe('none');
       /* D4 ⑷ 픽셀 */
+      /* ★⑵(10-06 · 제4안 ⒝ — 손잡이 여덟) — 고르면 블럭 왼변 가운데 «w» 손잡이(7×7)가 왼변 선 위에 앉는다 → D4a 왼변이 그 몸통을 «끊김»으로 읽었다(실측 7b017a98).
+         잠그는 것은 «선이 안 끊긴다»지 손잡이가 아니다 ⇒ 찍는 동안 손잡이를 숨긴다(D5 의 해시 선례 그대로 · 제품 손 안 댐). 확인: 숨기면 D1~D4 ×4 초록(07:22:46). */
+      await page.evaluate(() => document.querySelectorAll('[data-grd-resize-dir]').forEach(h => { h.style.visibility = 'hidden'; }));
       await shot(page);
       if (process.env.G24_SHOTS) await page.screenshot({ path: `${process.env.G24_SHOTS}/${process.env.GD1001_ROOT ? 'before' : 'after'}-z${zoom}-${empty ? 'empty' : 'img'}.png` });
       const r = await rectOf(page, sel);
