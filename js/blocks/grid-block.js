@@ -2238,7 +2238,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
   /* ★G5 — useRoleColor 가 'light' 면 «어두운 배경 위» 역할색(_GRID_ROLE_COLOR_ON_DARK). 값을 늘리지 않고 이 인자에 싣는 까닭:
    *   중첩(duo) 재귀가 useRoleColor 를 «그대로» 물려주므로 중첩 줄도 같은 톤을 받는다. true/false 산출은 «바이트 동일». */
   const effColor = color || (useRoleColor
-    ? (useRoleColor === 'light' ? (_GRID_ROLE_COLOR_ON_DARK[line.type] || _GRID_ROLE_COLOR_ON_DARK.body) : _gridRoleColorCss(line.type, role.color))
+    ? (useRoleColor === 'light' ? (_GRID_ROLE_COLOR_ON_DARK[line.type] || _GRID_ROLE_COLOR_ON_DARK.body) : useRoleColor === 'hex' ? role.color : _gridRoleColorCss(line.type, role.color))
     : '');
   // 뱃지/필: line.bg 지정 시 inline-block 필로 렌더 — 지정 bg가 조용히 탈락해
   // 카드 위 무배경 텍스트(색 반전처럼 보임)로 뭉개지던 케이스 방지 (2026-07-04 제니 발주)
@@ -2416,7 +2416,10 @@ function renderGridBlock(block) {
   const _cellTone = (bg) => {
     if (!bg) return _blockTone === 'light' ? 'light' : true;
     const rgb = backdropRgbAt(block, bg);
-    return textToneOver(rgb) === 'light' ? 'light' : true;
+    /* ★E127 ⒜(지디 10-06 · ⑴) — 칸이 «자기 배경을 칠하면» 프리셋 변수를 쓰지 않는다: 'hex' = 그 배경에 맞는 옛 hex(role.color).
+     *   프리셋은 «섹션 배경»에 맞춰 고른 색이라, 칸이 제 배경을 칠한 줄엔 맞지 않는다(어두운 섹션 프리셋 + 흰 칸 → 흰 위 흰 · 옅은 회색).
+     *   조건은 «설정됐나» 하나 — 어두운 칸은 원래도 on-dark 표('light')라 «밝을 때만»과 같은 결과(㉢ 잼). */
+    return textToneOver(rgb) === 'light' ? 'light' : 'hex';
   };
   const cellsHtml = [];
   for (let r = 0; r < rows.length; r++) {
