@@ -33,6 +33,13 @@ const TPL_SECTION_KINDS = TPL_SECTION.replace('</div></div>' + '<div class="fram
   '</div><div class="frame-block" id="ss_shpw" data-free-layout="true" style="width:100px;height:100px;padding:0"><div class="shape-block" id="shp_k" data-type="shape" style="position:absolute;left:0;top:0"></div></div>' +
   '<div class="row" id="row_st" data-layout="stack"><div class="step-block" id="stp_k" data-type="step"></div></div></div>' + '<div class="frame-block" id="ss_grp"');
 
+/* ② — 제 바인더를 쓰는 셋(그라데이션 · 스티커 · 어노테이션)이 든 섹션 템플릿. bindBlock 명부 밖이라 «제 바인더»를 따로 불러야 한다(rebindAll 과 같은 꼴). */
+const TPL_SECTION_OWN = TPL_SECTION.replace('<div class="frame-block" id="ss_grp"',
+  '<div class="gradient-block" id="grad_k" style="position:absolute;left:0;top:300px;width:200px;height:80px"></div>' +
+  '<div class="sticker-block" id="stk_k" style="position:absolute;left:300px;top:300px;width:60px;height:60px"></div>' +
+  '<div class="annotation-block" id="ant_k" style="position:absolute;left:0;top:0;width:100%;height:100%"></div>' +
+  '<div class="frame-block" id="ss_grp"');
+
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8"><style>
   * { box-sizing: border-box; } body { margin:0; }
   #canvas-wrap { position:relative; width:1000px; height:900px; background:#555; }
@@ -55,6 +62,10 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"><style>
   window.bindSectionDelete = () => {}; window.bindSectionOrder = () => {};
   window.bindSectionDrag = () => {}; window.bindSectionDropZone = () => {};
   window.bindGroupDrag = () => {}; window.showToast = (m) => { window.__toast = m; };
+  window.__own = [];
+  window.bindGradientSelect = (b) => window.__own.push('gradient:' + b.className);
+  window.bindStickerSelect = (b) => window.__own.push('sticker:' + b.className);
+  window.bindAnnotationSelect = (b) => window.__own.push('annotation:' + b.className);
   window.electronAPI = { loadTemplateCanvas: async () => (window.__tplHtml || ${JSON.stringify(TPL_SECTION)}) };
 </script>
 <script type="module">
@@ -127,4 +138,15 @@ test('R7c ★섹션 템플릿으로 넣은 도형 · 스텝에도 bindBlock 이 
   }, TPL_SECTION_KINDS);
   expect(r.toast, '넣기 실패').toBeNull();
   expect(r, `bindBlock 걸림=${JSON.stringify(r)} (손 명부 15 종엔 shape·step 이 없다)`).toMatchObject({ shape: true, step: true });
+});
+
+test('R7d ★섹션 템플릿으로 넣은 그라데이션 · 스티커 · 어노테이션은 «제 바인더»로 묶인다(②)', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async (html) => {
+    window.__tplHtml = html; window.__own = [];
+    await window.insertTemplate({ id: 'tpl_own', name: 'own', type: 'section', tags: [] });
+    return { own: window.__own.slice().sort(), toast: window.__toast || null };
+  }, TPL_SECTION_OWN);
+  expect(r.toast, '넣기 실패').toBeNull();
+  expect(r.own, `제 바인더 부름=${JSON.stringify(r.own)} (고치기 전 실앱: 셋 다 안 묶여 클릭해도 안 골라짐)`).toEqual(['annotation:annotation-block', 'gradient:gradient-block', 'sticker:sticker-block']);
 });
