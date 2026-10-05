@@ -23,6 +23,7 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
+const { readSrc } = require('../unit/_srcread.js');
 
 const REPO = path.join(__dirname, '..', '..');
 /* 10-05 G11 ① 로 옮김 · 옛 자리 = js/props/prop-mockup.js 통째 — «찍기»(㉠·㉡)가 capture-safety.js captureSectionImage 로 갔다.
@@ -30,11 +31,11 @@ const REPO = path.join(__dirname, '..', '..');
 const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 /* 읽는 파일 = 전제 문구에 찍히는 이름(한 상수) — 엉뚱한 파일을 읽으면 문구도 그 이름을 댄다 */
 const CS = 'js/io/capture-safety.js', PM = 'js/props/prop-mockup.js', FN = 'export async function captureSectionImage';
-const SAFETY = fs.readFileSync(path.join(REPO, CS), 'utf8');
+const SAFETY = readSrc(REPO, CS);   // ★LF 정규화 문(tests/unit/_srcread.js) — 날 것 읽기를 자르면 CRLF 체크아웃에서 던진다(win-portability ①-3 · 10-06)
 const _ci = SAFETY.indexOf('export async function captureSectionImage');
 /* 주석을 걷고 «코드만» 잰다 — 이 고침의 설명 주석이 스스로 빨강을 내지 않게. */
 const CODE = _ci < 0 ? '' : strip(SAFETY.slice(_ci, SAFETY.indexOf('\n}\n', _ci) + 3));
-const MK = strip(fs.readFileSync(path.join(REPO, PM), 'utf8'));
+const MK = strip(readSrc(REPO, PM));
 /* [전제] 읽는 자리가 대상을 «찾았다»(≥1) — 0 건이면 «못 잰 것»이지 초록이 아니다(10-05 지디 · G11 ① 이동 때 빨강이 «운으로» 났다).
    ⛔이 줄을 각 검사 «맨 앞»에 둔다 — 대상을 잃은 읽기가 조용히 초록이 되지 않게. */
 const premise = (src, file, needle) => {
