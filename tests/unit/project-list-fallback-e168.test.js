@@ -125,4 +125,6 @@ test('P1 ★양성대조 — 공용 함수를 꺾으면 목록(L1) «과» 로�
 test('W2 ★카드 표시 — 목록 카드가 recoveredFrom 이면 «기존 배지 꼴»(.folder-badge)로 «백업에서 읽음» + title 에 저장 시각', () => {
   const html = readSrc(REPO, 'pages/projects.html');
   assert.match(html, /proj\.recoveredFrom[\s\S]{0,400}class="folder-badge[^"]*"[^>]*title="[^"]*저장분/, '★폴백 카드 배지가 없다(말없는 복구)');
+  // ★E170 ㉢ — 알림 둘과 같은 꼴: «…에서 읽었습니다 (MM-DD HH:mm 저장분)»
+  assert.match(html, /에서 읽었습니다\$\{_recAt \? ` \(/, '★배지 title 의 시각 꼴이 알림과 다르다');
 });
