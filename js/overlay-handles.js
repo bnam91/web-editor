@@ -1255,6 +1255,7 @@ function showIconCircleResizeHandle(block) {
       const { sx, sy } = cornerSign(h.dataset.icbResize);
       h.style.left = (cx + off * sx - 3.5) + 'px';
       h.style.top  = (cy + off * sy - 3.5) + 'px';
+      syncHandleSelVariant(h, block);   // 띄우면 보라 — 테두리와 «한 색»(현빈 icb_k7kbb_msmevtj · 에셋 :826 과 같은 꼴)
     });
   }
   function _loop() {
