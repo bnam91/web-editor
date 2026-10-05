@@ -541,6 +541,7 @@ function addTextBlock(type, opts = {}) {
       }
       if (refChild) activeSS.insertBefore(tf, refChild.nextSibling);
       else activeSS.appendChild(tf);
+      _followFrameHAlign(activeSS, tf);   // ★E135 — T▾ fullWidth 갈래도 프레임 정렬(E122 한 벌)
     } else {
       return; // 지원하지 않는 프레임 타입
     }
@@ -652,6 +653,7 @@ function addBlankTextBlock(type = 'body', opts = {}) {
       }
       if (refChild) activeSS.insertBefore(tf, refChild.nextSibling);
       else activeSS.appendChild(tf);
+      _followFrameHAlign(activeSS, tf);   // ★E135 — API 문(자동화): 앱 안 호출자 0 — 문서화된 window 문만 · 자동화로 넣어도 프레임 정렬
     } else {
       return null; // 지원하지 않는 프레임 타입
     }
@@ -5804,17 +5806,17 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
          ⛔그 캡을 그대로 두면 스크린샷·사진은 거의 전부 거절된다 — 현빈이 본
            「그리드 우클릭 이미지 삽입이 안 된다」의 실제 원인이다(2026-09-20 실측). */
       if (!grdImageFileOk(file)) return;
-      const reader = new FileReader();
-      reader.onload = ev => {
+      /* ★E91 — 값은 prop-grid.js grdPickedImageSrc 한 벌(자산 URL · 없으면 data URL). ⛔import 줄은 안 바꾼다 — window 로. */
+      window.grdPickedImageSrc(file).then(got => {
+        if (!got) return;
         /* ★기존 이미지 줄 «교체»는 patchCell{lineIndex} — 이 길만 파일창을 지난다.
            ⛔여기 있던 「새 줄 추가(grdAddLine)」 가지는 위쪽 `addr.li == null` 로 «올라갔다»
              (2026-09-26). 파일창을 열기 «전»에 갈려야 파일창이 안 뜨기 때문이다.
            ★반환을 «받는다» — 예전엔 안 받아서 실패가 토스트 0건·콘솔 0건으로 사라졌다. */
         grdToastImgFail(window.updateGridBlock?.(block.id,
-          { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc: ev.target.result } },
+          { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc: got.src } },
           { trusted: true }));
-      };
-      reader.readAsDataURL(file);
+      });
     };
     input.click();
   });

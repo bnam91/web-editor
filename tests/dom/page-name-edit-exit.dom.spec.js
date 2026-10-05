@@ -1,0 +1,129 @@
+/* page-name-edit-exit.dom.spec.js — RG-N5: 파일 패널 페이지 이름 편집이 «나가는 문»마다 끝나는가 (2026-10-06 lane-esweep · 태양 승인 «개정 2»)
+ * 증상(잼 ×8): 이름을 더블클릭해 글자를 하나라도 치면 Enter/Escape 가 안 먹는다 — .editing·contentEditable 남음 · 다음 손짓 글자가 이름에 섞임.
+ * 자리: js/file-page-section.js dblclick → blur commit + keydown onKey. onKey 가 «첫 키 하나» 뒤 스스로 떨어진다(:67).
+ * 고침 꼴(문 하나): onKey 떼기 = commit(blur) 안 · Enter/Escape 는 blur 만 부른다 · 편집 중 다시 더블클릭은 무시.
+ * ㉢ 은 둘로 잰다 — (ⅰ) 끝난 뒤 Escape → 이름 그대로 (ⅱ) 끝난 뒤 이름 칸 keydown 처리기 수 = 0 (CDP DOMDebugger.getEventListeners).
+ *   (ⅰ)만으론 «남은 onKey» 를 못 본다(되돌릴 이름 = 방금 커밋한 이름) — 그래서 (ⅱ).
+ * RG-N5b(태양·지디 10-06 합침): 편집 중 키가 항목(.file-page-item :110-112) keydown 으로 버블 → Space 는 preventDefault(공백 안 들어감) + switchPage.
+ *   고침 = 편집 중(isContentEditable) onKey 가 stopPropagation. ㉤ 가 잰다.
+ *   ㉤ ⒝ «페이지 안 바뀜»: 이 장면은 지금 페이지의 이름이라 옛 판에서도 switchPage(같은 id) = no-op → ⒝ 는 옛 판에서도 초록 예측 · 빨강은 ⒜(공백)·⒞(불린 수). */
+const { test, expect } = require('@playwright/test');
+const { bootApp } = require('./_root-harness.js');
+test.describe.configure({ timeout: 60000 });
+
+async function setup(page) {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  /* 둘째 계기(JS) — keydown 붙이기/떼기를 요소별 Set 으로 센다(CDP 계기와 독립). 10-06 base 판에서 CDP 수가 예측(1)과 달리 0 → 계기부터 의심 */
+  await page.addInitScript(() => {
+    const M = new WeakMap(); const A = EventTarget.prototype.addEventListener, D = EventTarget.prototype.removeEventListener;
+    EventTarget.prototype.addEventListener = function (t, fn, o) { if (t === 'keydown' && fn) { let s = M.get(this); if (!s) M.set(this, s = new Set()); s.add(fn); } return A.call(this, t, fn, o); };
+    EventTarget.prototype.removeEventListener = function (t, fn, o) { if (t === 'keydown') M.get(this)?.delete(fn); return D.call(this, t, fn, o); };
+    window.__kdCount = (el) => M.get(el)?.size || 0;
+  });
+  const errs = await bootApp(page);
+  await page.evaluate(() => {
+    window.switchToTab?.('file');
+    window.__saves = 0; const s = window.scheduleAutoSave; window.scheduleAutoSave = (...a) => { window.__saves++; return s?.(...a); };
+    window.__switches = 0; const w = window.switchPage; window.switchPage = (...a) => { window.__switches++; return w?.(...a); };
+  });
+  const name = await page.evaluateHandle(() => document.querySelector('.file-page-name'));
+  expect(await name.evaluate(n => !!n), '[전제] 페이지 이름 칸').toBe(true);
+  return { errs, name };
+}
+const nameXY = (name) => name.evaluate(n => { n.scrollIntoView({ block: 'center' }); const r = n.getBoundingClientRect(); return [r.left + 10, r.top + r.height / 2]; });
+async function startEdit(page, name, times = 1) {
+  const [x, y] = await nameXY(name);
+  for (let i = 0; i < times; i++) { await page.mouse.dblclick(x, y); await page.waitForTimeout(150); }
+}
+const st = (name) => name.evaluate(n => ({ editing: n.classList.contains('editing'), ce: n.contentEditable, text: n.textContent, pageName: window.state.pages[0].name, connected: n.isConnected, focused: document.activeElement === n }));
+/** 바깥 클릭 — 이름 칸·항목이 아닌 빈 자리(캔버스 감싸개 왼쪽 아래 모서리) */
+async function clickAway(page) {
+  const [x, y] = await page.evaluate(() => { const w = document.getElementById('canvas-wrap') || document.body; const r = w.getBoundingClientRect(); return [r.left + 6, r.bottom - 6]; });
+  await page.mouse.click(x, y); await page.waitForTimeout(200);
+}
+async function keydownCount(page, name) {
+  const cdp = await page.context().newCDPSession(page);
+  await name.evaluate(n => { window.__rgN5Name = n; });
+  const { result } = await cdp.send('Runtime.evaluate', { expression: 'window.__rgN5Name' });
+  const { listeners } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId, depth: 0 });
+  await cdp.detach();
+  return listeners.filter(l => l.type === 'keydown').length;
+}
+/** 두 계기 — { cdp, js } */
+async function kd(page, name) { return { cdp: await keydownCount(page, name), js: await name.evaluate(n => window.__kdCount(n)) }; }
+
+test('RG-N5 ㉠ [전제] 더블클릭 → 편집 중(.editing · contentEditable · 포커스)', async ({ page }) => {
+  const { name } = await setup(page);
+  await startEdit(page, name);
+  const s = await st(name);
+  expect({ editing: s.editing, ce: s.ce, focused: s.focused }).toEqual({ editing: true, ce: 'true', focused: true });
+});
+
+for (const exit of ['Enter', 'Escape', 'click-away']) {
+  test(`RG-N5 ㉡ [새 것] 글자 «xy» 친 뒤 나가는 문 = ${exit} → 편집 끝 · 다음 손짓 g 가 안 섞임`, async ({ page }) => {
+    const { name } = await setup(page);
+    const orig = (await st(name)).pageName;
+    await startEdit(page, name);
+    await page.keyboard.press('End'); await page.keyboard.type('xy'); await page.waitForTimeout(100);
+    if (exit === 'click-away') await clickAway(page); else { await page.keyboard.press(exit); await page.waitForTimeout(200); }
+    const s = await st(name);
+    const want = exit === 'Escape' ? orig : orig + 'xy';
+    expect({ editing: s.editing, ce: s.ce, text: s.text, pageName: s.pageName }, `나간 뒤 · 원래 이름 «${orig}»`).toEqual({ editing: false, ce: 'false', text: want, pageName: want });
+    await page.keyboard.press('g'); await page.waitForTimeout(150);
+    expect((await st(name)).text, '다음 손짓이 이름에 안 섞임').toBe(want);
+  });
+}
+
+test('RG-N5 ㉢ [새 것] 끝난 뒤(키 없이 바깥 클릭) — (ⅱ) 이름 칸 keydown 처리기 0 · (ⅰ) Escape 보내도 이름 그대로 · (ⅲ) 다음 편집 곧장 Enter → 커밋 1', async ({ page }) => {
+  const { name } = await setup(page);
+  // 키 없이 바깥 클릭으로 끝낸다(옛 꼴이면 onKey 가 남는 길 — 첫 키에만 떨어지므로)
+  await startEdit(page, name);
+  // ★양성대조 — 편집 중엔 두 계기 모두 keydown 처리기 1 을 봐야 한다(못 보면 (ⅱ)의 0 은 «안 본» 0) — 10-06 잼: {1,1} 섬
+  expect(await kd(page, name), '[양성대조] 편집 중 keydown 처리기 — CDP · JS 계기').toEqual({ cdp: 1, js: 1 });
+  await clickAway(page);
+  const before = await st(name);
+  expect(before.editing, '[전제] 편집이 끝났다').toBe(false);
+  // ★(ⅱ) 를 (ⅰ) 보다 «먼저» 센다 — 10-06 판: Escape 를 먼저 보내면 옛 onKey 가 그 키를 받고 스스로 떨어져 0 으로 읽혔다(시험 순서 탓 · 계기 탓 아님)
+  expect.soft(await kd(page, name), '(ⅱ) 끝난 뒤 이름 칸 keydown 처리기 수 — CDP · JS').toEqual({ cdp: 0, js: 0 });
+  await name.evaluate(n => n.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  await page.waitForTimeout(150);
+  const after = await st(name);
+  expect.soft({ text: after.text, pageName: after.pageName }, '(ⅰ) 끝난 뒤 Escape → 이름 그대로').toEqual({ text: before.text, pageName: before.pageName });
+  // (ⅲ) 행위 축(태양·지디): 남은 onKey 가 «다음 편집»에서 다르게 구나 — 예측(코드 읽기): 같다(남은 onKey 의 blur 도 commit 은 한 번)
+  //   ★글자 없이 곧장 Enter — 글자를 치면 변이 ⒜(:67 되살림)도 여기서 빨개져 ⒝ 와 겹친다(㉣ 와 같은 까닭)
+  const c0 = await page.evaluate(() => window.__saves);
+  await startEdit(page, name);
+  await page.keyboard.press('Enter'); await page.waitForTimeout(250);
+  const s2 = await st(name);
+  expect.soft({ editing: s2.editing, pageName: s2.pageName, commits: await page.evaluate((c0) => window.__saves - c0, c0) }, '(ⅲ) 다음 편집 곧장 Enter').toEqual({ editing: false, pageName: before.pageName, commits: 1 });
+});
+
+test('RG-N5 ㉣ [새 것] 편집 중 더블클릭 ×3 → 바로 Enter → 끝 · 처리기 0 · 커밋 1 번', async ({ page }) => {
+  const { name } = await setup(page);
+  await startEdit(page, name, 3);
+  const s0 = await page.evaluate(() => window.__saves);
+  await page.keyboard.press('Enter'); await page.waitForTimeout(250);
+  const s = await st(name);
+  const commits = await page.evaluate((s0) => window.__saves - s0, s0);
+  expect({ editing: s.editing, ce: s.ce, listeners: await kd(page, name), commits }).toEqual({ editing: false, ce: 'false', listeners: { cdp: 0, js: 0 }, commits: 1 });
+});
+
+test('RG-N5 ㉤ [새 것 · RG-N5b 합침] 편집 중 Space(첫 키) → ⒜ 이름에 공백이 들어간다 ⒝ 페이지 안 바뀜 ⒞ 항목 keydown(switchPage) 안 불림', async ({ page }) => {
+  const { name } = await setup(page);
+  // 둘째 페이지를 둔다 — «페이지가 바뀌나»를 볼 자리(지금 페이지 = 첫 장)
+  await page.evaluate(() => { const p = window.state.pages[0]; window.state.pages.push({ ...JSON.parse(JSON.stringify(p)), id: 'page_rgn5_2', name: '둘째' }); window.buildFilePageSection(); });
+  const name1 = await page.evaluateHandle(() => document.querySelector('.file-page-name'));
+  const cur0 = await page.evaluate(() => window.state.currentPageId);
+  await startEdit(page, name1);
+  expect((await st(name1)).editing, '[전제] 편집 중').toBe(true);
+  const orig = (await st(name1)).text;
+  // ★캐럿을 끝으로 — 키가 아니라 JS 로(End 를 누르면 그게 «첫 키»가 되어 변이 ⒜ 가 ㉤ 도 빨갛게 했다 · 10-06 fix4-mA)
+  await name1.evaluate(n => { const r = document.createRange(); r.selectNodeContents(n); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); });
+  const w0 = await page.evaluate(() => window.__switches);
+  // ★Space 를 «첫 키»로 — 변이 ⒜(:67 되살림)는 첫 키 뒤에 onKey 를 떼므로 첫 키는 ⒜ 와 무관 → ⒜·⒞ 가 다른 시험을 빨갛게
+  await page.keyboard.press(' '); await page.keyboard.type('b'); await page.waitForTimeout(150);
+  const s = await st(name1);
+  const rec = { orig, text: s.text, switchPageCalls: (await page.evaluate(() => window.__switches)) - w0, cur: await page.evaluate(() => window.state.currentPageId), cur0 };
+  console.log('[RG-N5 ㉤]', JSON.stringify(rec));
+  expect({ spaceLanded: s.text === orig + ' b', samePage: rec.cur === cur0, switchPageCalls: rec.switchPageCalls }, JSON.stringify(rec)).toEqual({ spaceLanded: true, samePage: true, switchPageCalls: 0 });
+});

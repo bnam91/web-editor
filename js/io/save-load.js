@@ -591,6 +591,8 @@ function getSerializedCanvas() {
 export const NON_CONTENT_UI_SELECTOR =
   '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy, .grd-add-btn';
 
+if (typeof window !== 'undefined') window.NON_CONTENT_UI_SELECTOR = NON_CONTENT_UI_SELECTOR;   // ★E148 — ⌘C 글자 뽑기(editor.js)가 «같은 목록»으로 UI 를 걷는다
+
 /** 이 mutation 이 «UI 장식»만 건드렸나 — 그렇다면 편집이 아니다. */
 function _isNonContentUiMutation(m) {
   if (m.type !== 'childList') return false;
@@ -1756,8 +1758,49 @@ function _holdBackground(on) {
 }
 window._holdBackgroundForTest = () => _bgHold;   // 시험 전용 읽기(쓰기 없음)
 
+/* ⒡ 끌기 저장 (2026-10-05 lane-esweep · 데이터 손실 · 지디 승인 21:59)
+   증상(실앱 실측): 섹션 안 블럭을 끌어 옮기면 화면은 바뀌는데 파일은 그대로 — 4초·20초 뒤에도 무변,
+     창을 닫거나 다시 읽으면 옮김이 사라진다. 「상관없는 편집 하나를 하면 그때 같이 저장된다」. E132 도 같은 뿌리.
+   뿌리: dragstart 가 억제 창을 연다(section-drag.js _suppressDragSave · layer-panel-items.js 'layer-drag').
+     놓기의 DOM 변화는 창 «안»이라 아래 scheduleAutoSave 가 «기억 없이» 버렸고, dragend 는 창만 닫는다(AutoSaveSuppress.end 는 예약 안 함).
+     b828e3fa(2026-03-28)부터 · v0.5.0~v0.9.5. 옮긴 뒤 다시 저장을 거는 길은 셋뿐이었다(프레임 dragend · 섹션 drop · ⌘S).
+   고침: 억제 «중» 버려지는 편집이 «끌기 창만» 열려 있을 때 생긴 것이면 ⑴ 미저장 표시(_dirtySinceSave)를 세우고
+     ⑵ 창이 닫히는 대로 저장을 한 번 건다. ⑴ 덕에 창을 바로 닫아도 beforeunload 동기 저장이 돈다.
+   ⛔끌기 아닌 억제(열기·탭/페이지 전환·되돌리기 복원 — 이유 'page-switch' 등, 혹은 이유 없는 날 대입)는 «건드리지 않는다»:
+     그 창의 변화는 편집이 아니라 불러오기다(DEF-03 — 무편집 방문이 파일을 다시 쓰지 않게).
+   분모 = 끌기 억제 이유 둘 ↔ 여는 길 6(block-drag.js 블럭 단위·프레임 · section-drag.js 라벨·그룹·빈 row → 'section-drag' / 레이어 → 'layer-drag').
+   시험: tests/dom/drag-move-autosave.dom.spec.js (깃발을 빼면 D1·D5·D6 빨강). */
+const _DRAG_SUPPRESS_REASONS = new Set(['section-drag', 'layer-drag']);
+let _dragEditPending = false;
+let _dragEditTimer = null;
+let _dragEditTicks = 0;   // 한 에피소드(창 열림 → 닫힘 → 저장)의 폴 횟수 — 시험이 «한정»을 단언한다(S7)
+/* ⚠️조건 «다른 파일이면 멈추고 와라» ↔ 실제: 묻지 않고 더 좁은 길(폴링)로 갔다 · 결과는 승인, 판단을 혼자 한 것은 이탈(태양·지디 10-05 23:11).
+   ☐0.9.7: AutoSaveSuppress.end() 이벤트(js/autosave-suppress.js — 마지막 창이 닫히는 그 자리)로 옮기고 이 폴링을 걷는다. */
+function _noteEditDuringDrag() {
+  const AS = (typeof window !== 'undefined') ? window.AutoSaveSuppress : null;
+  const holders = (AS && typeof AS.inspect === 'function') ? (AS.inspect().holders || []) : [];
+  if (!holders.length || !holders.every(h => _DRAG_SUPPRESS_REASONS.has(h.reason))) return;
+  _dirtySinceSave = true;
+  _dragEditPending = true;
+  if (_dragEditTimer) return;
+  _dragEditTicks = 0;
+  const tick = () => {
+    _dragEditTicks++;
+    if (state._suppressAutoSave) { _dragEditTimer = setTimeout(tick, 100); return; }
+    _dragEditTimer = null;
+    if (!_dragEditPending) return;
+    _dragEditPending = false;
+    scheduleAutoSave();
+  };
+  _dragEditTimer = setTimeout(tick, 100);
+}
+/** 시험용 읽기(쓰기 없음) — S7 이 «폴링이 멎는가 · 틱 수 한정»을 단언한다. */
+if (typeof window !== 'undefined') window.__dragEditStateForTest = () => ({ armed: !!_dragEditTimer, pending: _dragEditPending, ticks: _dragEditTicks });
+
 function scheduleAutoSave() {
-  if (state._suppressAutoSave) return;
+  /* ⒡ 끌기 창 안에서 버려지던 편집 — 위 머리말. ⛔꼴을 «if (state._X) return …» 로 둔다: tests/unit/autosave-overlap.test.js N6 이
+     이 꼴로 억제 플래그를 «도출»한다(블록 { … return } 로 바꾸면 도출이 0 이 돼 N7 전수가 거짓 초록이 된다 — 10-05 실측). */
+  if (state._suppressAutoSave) return _noteEditDuringDrag();
   // [P-A2] 제스처 중이면 «미룬다» — 버리지 않고 기억해 뒀다가 놓을 때 다시 건다.
   if (_autoSaveDeferred) { _dirtySinceSave = true; _autoSavePending = true; return; }
   // BUG-12: activeProjectId가 없으면 'web-editor-autosave__undefined' 키로 저장되는 버그 방지
@@ -2007,6 +2050,7 @@ function initApp() {
     if (!nameEl) return;
     const tab = nameEl.closest('.proj-tab');
     if (!tab || tab.dataset.id !== activeProjectId) return;
+    if (nameEl.isContentEditable) return;   // ★RG-N5c — 편집 중 다시 더블클릭해도 처리기가 겹쳐 붙지 않게(RG-N5 와 같은 꼴)
     const current = nameEl.textContent;
     nameEl.contentEditable = 'true';
     nameEl.focus();
@@ -2017,12 +2061,15 @@ function initApp() {
       nameEl.textContent = newName;
       setProjectName(newName);
       nameEl.removeEventListener('blur', commit);
+      // ★RG-N5c — 나가는 문은 이것 하나(blur): 떼기를 여기서(선례 line-host.js lnBeginEdit finish · drag-utils.js _graphLabelBeginEdit finish).
+      //   예전엔 onKey 가 «첫 키 하나» 뒤 스스로 떨어져, 글자를 친 뒤의 Enter/Escape 가 안 먹었다.
+      nameEl.removeEventListener('keydown', onKey);
     }, { once: true });
-    nameEl.addEventListener('keydown', function onKey(e) {
+    function onKey(e) {
       if (e.key === 'Enter') { e.preventDefault(); nameEl.blur(); }
       if (e.key === 'Escape') { nameEl.textContent = current; nameEl.blur(); }
-      nameEl.removeEventListener('keydown', onKey);
-    });
+    }
+    nameEl.addEventListener('keydown', onKey);
   });
 
   // + 드롭다운 — 바깥 클릭 닫기

@@ -1565,7 +1565,19 @@ function _isRowFullySelected(row, allTypesSel) {
 function _internalClipboardTextOf() {
   const sel = [...document.querySelectorAll('#canvas .selected')];
   const tops = sel.filter(el => !sel.some(o => o !== el && o.contains(el)));
-  const txt = tops.map(el => (el.innerText || '').trim()).filter(Boolean).join('\n\n').slice(0, 5000);
+  /* ★E148(2026-10-06) — 편집 UI 글자가 OS 클립보드로 새던 것(실측 기록: 섹션이 골라진 채 ⌘C → 「✕ 드래그: 위치 · 모서리: 크기 · Esc: 완료」).
+     사본에서 UI 를 걷고 읽는다 — 목록은 저장이 쓰는 그것(save-load.js NON_CONTENT_UI_SELECTOR) + 섹션 껍데기(라벨·툴바·히트존 = export-css-collect.js:37 과 같은 셋).
+     사본은 #canvas «밖» 화면 밖 그릇에 잠깐 붙여 읽는다(innerText 의 줄바꿈은 배치가 있어야 산다 · ⛔visibility:hidden 이면 innerText 가 비므로 투명도로 숨김 ·
+     #canvas 밖이라 자동저장 관찰자 무관). */
+  const _strip = [window.NON_CONTENT_UI_SELECTOR, '.section-label', '.section-toolbar', '.section-hitzone'].filter(Boolean).join(', ');
+  const _box = document.createElement('div');
+  _box.style.cssText = 'position:fixed;left:-100000px;top:0;width:1200px;opacity:0;pointer-events:none;';
+  document.body.appendChild(_box);
+  let txt;
+  try {
+    txt = tops.map(el => { const c = el.cloneNode(true); c.querySelectorAll(_strip).forEach(n => n.remove()); _box.appendChild(c); const t = (c.innerText || '').trim(); c.remove(); return t; })
+      .filter(Boolean).join('\n\n').slice(0, 5000);
+  } finally { _box.remove(); }
   return txt || `고디터 블럭 ${Math.max(1, tops.length)}개`;
 }
 function _writeInternalClipboardToOS(textOverride) {
@@ -1974,6 +1986,7 @@ function pasteClipboard() {
         if (anchor) anchor.after(el); else insertAfterSelectedAsSibling(sec, el);   // F1 — 키보드 입구: 프레임을 골라 뒀으면 «다음 형제»
         if (pasteHasSS) window._activeFrame = savedActiveSS;
       }
+      window.followHostFrameHAlign?.(el);   // ★E135 — 정렬을 준 스택 프레임 안에 붙었으면 그 정렬(frame-geometry.js ⑤)
       _bindPastedEl(el);
       _normalizePastedAbsolute(el);
       lastEl = el;
@@ -2123,6 +2136,7 @@ function pasteClipboard() {
       if (pasteHasSS) window._activeFrame = null;
       insertAfterSelectedAsSibling(sec, el);   // F1 — 키보드 입구
       if (pasteHasSS) window._activeFrame = savedActiveSS;
+      window.followHostFrameHAlign?.(el);   // ★E135
       _bindPastedEl(el);
       _normalizePastedAbsolute(el);
       _keepOnlyPastedSelected([el]);

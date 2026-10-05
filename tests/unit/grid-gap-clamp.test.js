@@ -221,7 +221,10 @@ test('G2 ★★렌더러 무접촉 — 큰 gap 이 «있는» 저장본의 산�
   for (const gap of [999, 201, 1e6, 0, 24]) {
     const now = storedGrid(G, gap).innerHTML;
     const was = storedGrid(BASE, gap).innerHTML;
-    assert.equal(now, was,
+    /* ★E127(2026-10-06 · 지디 ⓒ) — 역할색이 프리셋 변수 꼴(var(--preset-<역할>-color, <hex>))로 바뀐 것은 «의도한 단 하나의 차이»다.
+       그 꼴만 옛 hex 로 되돌려 대조한다 — 그 밖(gap·칸·줄 꼴)은 여전히 «바이트 동일»을 잰다. */
+    const _e127 = (h) => h.replace(/color:var\(--preset-(?:h1|h2|h3|body|caption)-color, (#[0-9a-f]{6})\);/g, 'color:$1;');
+    assert.equal(_e127(now), was,
       `★gap=${gap} 인 저장본의 «그려진 것»이 기준판(${BASE_REV})과 달라졌다.\n`
       + '  ⇒ 입구만 좁히기로 한 약속이 깨졌다 — 남의 프로젝트가 «열자마자» 달라 보인다(T-170 함정).\n'
       + `  지금: ${now.slice(0, 160)}\n  기준: ${was.slice(0, 160)}`);

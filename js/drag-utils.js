@@ -386,6 +386,7 @@ function insertAfterSelected(section, el) {
     if (sel) {
       const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
       ref.after(el);
+      window.followHostFrameHAlign?.(el);   // ★E135 — 템플릿 넣기 등 이 문으로 프레임 안에 든 것도 정렬을 따른다
       window.settleRowInFreeFrame?.(ssInner, el, 'stack');   // B2 — 자유배치 프레임이면 좌표 단위로
     } else {
       /* ★2026-09-23 — 「프레임 «자체»가 오브젝트로 선택된 상태」도 프레임 «안»이다.
@@ -407,6 +408,7 @@ function insertAfterSelected(section, el) {
        *   지키는 검사: tests/dom/frame-accepts-component-blocks.dom.spec.js F1(안에 들어간다)
        *                ＋ F2·shape-frame-isolation I1~I3(도형 래퍼는 여전히 뒤 — 짝 검사) */
       ssInner.appendChild(el);
+      window.followHostFrameHAlign?.(el);   // ★E135
       window.settleRowInFreeFrame?.(ssInner, el, 'stack');   // B2
     }
     return;

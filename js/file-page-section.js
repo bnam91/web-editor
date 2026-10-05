@@ -48,6 +48,7 @@ function buildFilePageSection() {
     name.title = '더블클릭으로 이름 변경';
     name.addEventListener('dblclick', e => {
       e.stopPropagation();
+      if (name.isContentEditable) return;   // ★RG-N5 ㉣ — 편집 중 다시 더블클릭해도 처리기가 겹쳐 붙지 않게
       name.contentEditable = 'true';
       name.classList.add('editing');
       name.focus();
@@ -60,12 +61,17 @@ function buildFilePageSection() {
         page.name = newName;
         window.scheduleAutoSave();
         name.removeEventListener('blur', commit);
+        // ★RG-N5 — 나가는 문은 이것 하나(blur): Enter·Escape·바깥 클릭 모두 여기를 지난다.
+        //   예전엔 onKey 가 «첫 키 하나» 뒤 스스로 떨어져, 글자를 친 뒤의 Enter/Escape 가 안 먹었다(.editing 남음).
+        name.removeEventListener('keydown', onKey);
       }, { once: true });
-      name.addEventListener('keydown', function onKey(e2) {
+      function onKey(e2) {
+        // ★RG-N5b — 이름 칸은 항목(.file-page-item) 안: 편집 중 키가 항목 keydown(Enter/Space → switchPage · preventDefault)으로 새지 않게
+        if (name.isContentEditable) e2.stopPropagation();
         if (e2.key === 'Enter') { e2.preventDefault(); name.blur(); }
         if (e2.key === 'Escape') { name.textContent = page.name; name.blur(); }
-        name.removeEventListener('keydown', onKey);
-      });
+      }
+      name.addEventListener('keydown', onKey);
     });
 
     info.appendChild(name);

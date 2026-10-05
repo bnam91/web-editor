@@ -331,7 +331,7 @@ test('U2-b ★명시색 줄은 «그대로», 안 정한 줄은 «역할 기본�
   assert.match(html, /color:#ff0000;[^>]*>EXPLICIT</,
     `★사용자가 «명시한» 색이 사라졌다 — 역할색이 명시값을 덮고 있다:\n${html}`);
   // 짝(양성대조) — «같은 타입»인데 색을 안 준 줄은 «바뀐다». 안 바뀌면 위 단언은 자기통과다.
-  assert.match(html, /color:#555555;[^>]*>IMPLICIT</,
+  assert.match(html, /color:var\(--preset-body-color, #555555\);[^>]*>IMPLICIT</,   // ★E127(10-06): 역할색 = 프리셋 변수(대체값 = 같은 hex)
     `★색을 안 준 body 줄에 역할 기본색이 «안» 들어갔다 — §7-ⓐ 가 안 걸렸다:\n${html}`);
 });
 
@@ -341,7 +341,8 @@ test('U2-b-표 ★역할 6종의 기본색이 계획서 표와 «같다» (전�
   const html = renderLines(Object.keys(WANT).map(type => ({ type, text: `T-${type}` })));
   for (const [type, hex] of Object.entries(WANT)) {
     assert.equal(GRID_ROLES[type].color, hex, `역할 ${type} 의 기본색이 ${GRID_ROLES[type].color} 다 (표는 ${hex})`);
-    assert.ok(html.includes(`color:${hex};text-align:left;`) || new RegExp(`color:${hex};[^>]*>T-${type}<`).test(html),
+    const _want = type === 'label' ? hex : `var(--preset-${type}-color, ${hex})`;   // ★E127(10-06): label 만 hex 그대로 · 다섯은 프리셋 변수(대체값 = 표의 hex)
+    assert.ok(html.includes(`color:${_want};text-align:left;`) || html.includes(`color:${_want};`) && new RegExp(`>T-${type}<`).test(html),
       `${type} 산출에 ${hex} 가 안 찍힌다:\n${html}`);
   }
   /* ⚠️label 은 --preset-label-color(#ffffff)를 «안» 베꼈다 — 그건 「어두운 알약 위 흰 글자」
