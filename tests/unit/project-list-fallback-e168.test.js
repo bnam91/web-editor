@@ -36,7 +36,7 @@ function loadHandlerSrc() {
 }
 // ★새 함수(readProjectWithFallback)는 «있으면» 같이 싣는다 — base 에선 없다(그래서 L1 이 «동작으로» 빨갛다).
 const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveMetaJsonPath', '_resolveBackupJsonPath',
-  '_ensureNewLayoutPaths', '_refreshListMeta', '_listItemFor', '_isListableProjectId', '_listProjectsImpl', '_SS', '_mtimeOr', 'readProjectWithFallback'];
+  '_ensureNewLayoutPaths', '_refreshListMeta', '_listItemFor', '_isListableProjectId', '_listProjectsImpl', '_SS', '_mtimeOr', 'readProjectWithFallback', '_savedAtLabel'].filter(n => [`function ${n}(`, `const ${n} = `].some(p => MAIN_SRC.includes(p)));
 
 function load(projectsDir, { breakShared = false } = {}) {
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);
@@ -80,6 +80,7 @@ test('L1 ★깨진 proj.json + 성한 백업 → 목록에 카드가 «있다»(
   assert.ok(it, '★카드가 목록에서 사라졌다(실앱 dev 0f572e2a 실측과 같음)');
   assert.equal(it.recoveredFrom, 'backup', '폴백으로 세운 카드는 표시를 단다(말없는 복구 금지)');
   assert.equal(typeof it.recoveredAt, 'number', '배지 title 에 백업 저장 시각');
+  assert.match(String(it.recoveredAtLabel), /^\d{2}-\d{2} \d{2}:\d{2}$/, '★배지 시각 글자는 main 이 만든다(한 helper)');
 });
 
 test('L2 ★목록은 «읽기만» — 두 번 그려도 proj.json · meta 그대로(자가치유는 열 때만 · 두 번째도 표시 유지)', () => {

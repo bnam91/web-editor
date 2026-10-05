@@ -105,9 +105,17 @@ test('W1 배선 — 로드 토스트가 _recoveryToastText 를 부르고 · 새 
 });
 
 test('T5 ★E168·E170 ㉢ — 백업 저장 시각을 «동사 뒤 (MM-DD HH:mm 저장분)»으로 싣는다 (성공·실패 두 글 다 · 시각 없으면 괄호만 빠짐)', () => {
-  const at = new Date(2026, 9, 6, 2, 55).getTime();
-  // ★E170 ㉢ — 시각은 «동사 뒤 괄호»(두 알림·카드 배지가 같은 꼴). 시각 = 그 후보 파일 mtime(main readProjectWithFallback savedAt).
-  assert.equal(toastText({ _recovered: 'backup', _healed: true, _recoveredAt: at }), '⚠️ 프로젝트 파일이 손상되어 백업에서 복구했습니다 (10-06 02:55 저장분) — 그 뒤 작업은 없을 수 있습니다');
-  assert.equal(toastText({ _recovered: 'backup', _healed: false, _healError: 'ENOSPC', _recoveredAt: at }), '⚠️ 프로젝트 파일이 손상되어 백업에서 열었습니다 (10-06 02:55 저장분). 디스크의 파일은 아직 고치지 못했습니다(공간 부족) — 이대로는 저장이 안 될 수 있습니다.');
+  // ★태양(한 helper): 시각 글자는 main 이 «한 번» 만든다(_recoveredAtLabel) — 렌더러는 그대로 싣기만.
+  assert.equal(toastText({ _recovered: 'backup', _healed: true, _recoveredAtLabel: '10-06 02:55' }), '⚠️ 프로젝트 파일이 손상되어 백업에서 복구했습니다 (10-06 02:55 저장분) — 그 뒤 작업은 없을 수 있습니다');
+  assert.equal(toastText({ _recovered: 'backup', _healed: false, _healError: 'ENOSPC', _recoveredAtLabel: '10-06 02:55' }), '⚠️ 프로젝트 파일이 손상되어 백업에서 열었습니다 (10-06 02:55 저장분). 디스크의 파일은 아직 고치지 못했습니다(공간 부족) — 이대로는 저장이 안 될 수 있습니다.');
   assert.equal(toastText({ _recovered: 'backup', _healed: true }), '⚠️ 프로젝트 파일이 손상되어 백업에서 복구했습니다 — 그 뒤 작업은 없을 수 있습니다');
+});
+
+test('T6 ★시각 꼴은 «한 곳»(main _savedAtLabel) — 토스트 함수·카드 배지에 날짜 조립(getMonth) 0 · main 에 _savedAtLabel 하나', () => {
+  const fn = fnSrc(SL_SRC, '_recoveryToastText');
+  assert.doesNotMatch(fn, /getMonth|getHours/, '★토스트 함수가 시각을 따로 만든다(두 벌)');
+  const html = readSrc(REPO, 'pages/projects.html');
+  const k = html.indexOf('recoveredBadgeHtml'); assert.ok(k >= 0);
+  assert.doesNotMatch(html.slice(k, k + 900), /getMonth|getHours/, '★카드 배지가 시각을 따로 만든다(두 벌)');
+  assert.equal((MAIN_SRC.match(/function _savedAtLabel\(/g) || []).length, 1, 'main 의 시각 helper 는 하나');
 });

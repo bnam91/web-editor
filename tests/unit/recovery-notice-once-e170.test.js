@@ -30,7 +30,8 @@ function loadHandlerSrc() {
   for (; i < MAIN_SRC.length; i++) { const c = MAIN_SRC[i]; if (c === '{') d++; else if (c === '}' && --d === 0) break; }
   return MAIN_SRC.slice(k, MAIN_SRC.indexOf(')', i) + 1) + ';';
 }
-const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveBackupJsonPath', '_ensureNewLayoutPaths', '_SS', '_mtimeOr', 'readProjectWithFallback'];
+const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveBackupJsonPath', '_ensureNewLayoutPaths', '_SS', '_mtimeOr', 'readProjectWithFallback', '_savedAtLabel']
+  .filter(n => [`function ${n}(`, `const ${n} = `].some(p => MAIN_SRC.includes(p)));
 /** main 쪽 상태(표지)는 «한 앱 실행» 동안 산다 — 한 loader = 한 실행 */
 function app(projectsDir) {
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);
@@ -60,7 +61,7 @@ test('R1 ★디스크 성함 · 부팅 호출(열기 아님)이 먼저 폴백을
   const first = A.load(ID);                // 경합에서 이긴 부팅 호출(열기 아님) — 폴백 · 자가치유 성공
   assert.equal(first._recovered, 'backup', '전제: 첫 로드가 폴백');
   const opened = A.load(ID, OPEN);         // 에디터 본 열기 — proj.json 은 이미 고쳐짐
-  assert.deepEqual({ rec: opened._recovered, at: opened._recoveredAt, healed: opened._healed }, { rec: 'backup', at: s.backupAt, healed: true },
+  assert.deepEqual({ rec: opened._recovered, at: opened._recoveredAt, label: opened._recoveredAtLabel, healed: opened._healed }, { rec: 'backup', at: s.backupAt, label: String(new Date(s.backupAt).getMonth() + 1).padStart(2, '0') + '-' + String(new Date(s.backupAt).getDate()).padStart(2, '0') + ' ' + String(new Date(s.backupAt).getHours()).padStart(2, '0') + ':' + String(new Date(s.backupAt).getMinutes()).padStart(2, '0'), healed: true },
     '★열기 로드가 복구를 모른다(실앱 rw 판: 토스트 0)');
 });
 
