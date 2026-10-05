@@ -230,6 +230,9 @@ export function syncTableHeaderTone(block) {
  *   읽는 자 = css/editor-graph.css 끝 네 줄 · 저장에선 io/section-serialize.js 의 «파생 변수» 목록이 걷는다(굳지 않음 · E144 와 한 목록).
  * ★계산은 «변수 없는 그려진 값»을 바탕으로 한다 — 그래서 먼저 걷고 읽는다(자기 값을 다시 밝히는 고리 방지). */
 const GRAPH_AUTO_VARS = ['--grb-auto-grid', '--grb-auto-line', '--grb-auto-ink'];
+/* ★저장에서 걷을 «파생 변수»의 정본 = 이 파일이 «쓰는» 이름들(쓰는 자가 목록을 낸다 · 두 번째 목록 금지).
+   io/section-serialize.js 가 이것을 그대로 읽는다 — 여기 새 자동 변수를 보태면 저장에서도 저절로 걷힌다. */
+export const DERIVED_AUTO_VARS = ['--tbl-header-fg', ...GRAPH_AUTO_VARS];
 const _rgbOfCss = (v) => { const c = _parseWithAlpha(String(v || '')); return c && c.a > 0 ? c.rgb : null; };
 const _mixRgb = (a, b, t) => a.map((x, i) => x * (1 - t) + b[i] * t);
 const _rgbCss = (c) => `rgb(${c.map(x => Math.min(255, Math.ceil(x - 1e-9))).join(', ')})`;   // 흰 쪽으로 «올림» — 반올림이면 4.49 로 목표 밑에 앉는다(실측 graph-h6 D1)
@@ -259,7 +262,8 @@ export function syncGraphTone(block) {
   const bg = backdropRgbAt(block);
   const want = ['', '', ''];
   if (bg && textToneOver(bg) === 'light') {
-    if (!d.gridColor && !d.labelColor) want[0] = `rgba(255, 255, 255, ${_whiteAlphaTo(bg, GRAPH_GRID_TARGET)})`;
+    /* 격자 변수는 «격자가 켜졌을 때만» — 꺼진 그래프에 읽는 자 없는 변수를 쓰지 않는다(GR-W0: 셋 다 꺼짐 = 기준판과 바이트 동일, 회귀 실측). */
+    if (d.showGrid === '1' && !d.gridColor && !d.labelColor) want[0] = `rgba(255, 255, 255, ${_whiteAlphaTo(bg, GRAPH_GRID_TARGET)})`;
     const path = block.querySelector('.grb-line-path');
     const lineBase = path && !d.lineColor && !d.barColor ? _rgbOfCss(_cs(path)?.stroke) : null;
     if (lineBase) want[1] = _rgbCss(_lightenTo(lineBase, bg, GRAPH_LINE_TARGET));
@@ -333,7 +337,7 @@ if (typeof window !== 'undefined') {
     (typeof document !== 'undefined' && document.getElementById('canvas-wrap')?.style.background) || ''
   );
   /* ★G5·G6 글자 톤 — grid-block.js 는 import 대신 이 전역으로 받는다(그 파일 renderGridBlock 의 주석 참조). */
-  window.__gdTextTone = { backdropRgbAt, textToneOver, textToneAt, syncTableHeaderTone, syncGraphTone };
+  window.__gdTextTone = { backdropRgbAt, textToneOver, textToneAt, syncTableHeaderTone, syncGraphTone, DERIVED_AUTO_VARS };
   /* ★한 깔때기 관찰자 — #canvas 가 생긴 뒤 한 번. 그리드는 window.renderGridBlock 으로 다시 그린다. */
   const _goTone = () => { const cv = document.getElementById('canvas');
     if (cv) installTextToneObserver(cv, { onGrid: (b) => window.renderGridBlock?.(b) }); };
