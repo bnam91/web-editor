@@ -194,6 +194,8 @@ test('T4 ★SSOT — html2canvas 를 쓰는 3경로가 전부 object-fit 중화�
   ];
   for (const [f, why] of need) {
     const src = fs.readFileSync(path.join(REPO, f), 'utf8');
+    /* [전제] 그 파일이 정말 html2canvas 를 쓰는 자리다(≥1) — 엉뚱한 파일을 읽으면 아래 단언이 «운으로»만 빨개진다(10-05 지디) */
+    expect(src.split('html2canvas(').length - 1, `[전제] ${f} 에서 «html2canvas(» 를 찾았다(≥1) — 0 이면 이 검사는 «안 돈» 것이다`).toBeGreaterThanOrEqual(1);
     expect(src, `★${why} 가 object-fit 중화를 안 부른다 — 그 경로만 «다른 그림»이 된다`)
       .toMatch(/await\s+neutralizeObjectFitForH2C\s*\(\s*clone\s*\)/);
   }

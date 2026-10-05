@@ -28,11 +28,19 @@ const REPO = path.join(__dirname, '..', '..');
 /* 10-05 G11 ① 로 옮김 · 옛 자리 = js/props/prop-mockup.js 통째 — «찍기»(㉠·㉡)가 capture-safety.js captureSectionImage 로 갔다.
    CODE = 그 함수 본문(찍기) · MK = 목업 파일(붙이기). ㉡은 이제 «두 파일에 걸친 짝»이라 G3 가 둘 다 잰다. */
 const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-const SAFETY = fs.readFileSync(path.join(REPO, 'js', 'io', 'capture-safety.js'), 'utf8');
+/* 읽는 파일 = 전제 문구에 찍히는 이름(한 상수) — 엉뚱한 파일을 읽으면 문구도 그 이름을 댄다 */
+const CS = 'js/io/capture-safety.js', PM = 'js/props/prop-mockup.js', FN = 'export async function captureSectionImage';
+const SAFETY = fs.readFileSync(path.join(REPO, CS), 'utf8');
 const _ci = SAFETY.indexOf('export async function captureSectionImage');
 /* 주석을 걷고 «코드만» 잰다 — 이 고침의 설명 주석이 스스로 빨강을 내지 않게. */
 const CODE = _ci < 0 ? '' : strip(SAFETY.slice(_ci, SAFETY.indexOf('\n}\n', _ci) + 3));
-const MK = strip(fs.readFileSync(path.join(REPO, 'js', 'props', 'prop-mockup.js'), 'utf8'));
+const MK = strip(fs.readFileSync(path.join(REPO, PM), 'utf8'));
+/* [전제] 읽는 자리가 대상을 «찾았다»(≥1) — 0 건이면 «못 잰 것»이지 초록이 아니다(10-05 지디 · G11 ① 이동 때 빨강이 «운으로» 났다).
+   ⛔이 줄을 각 검사 «맨 앞»에 둔다 — 대상을 잃은 읽기가 조용히 초록이 되지 않게. */
+const premise = (src, file, needle) => {
+  const n = src.split(needle).length - 1;
+  expect(n, `[전제] ${file} 에서 «${needle}» 를 찾았다(≥1) — 0 이면 이 검사는 «안 돈» 것이다`).toBeGreaterThanOrEqual(1);
+};
 
 test('G1 ★전제 — 0×0 캔버스의 toDataURL 은 «던지지 않고» "data:," 를 돌려준다', async ({ page }) => {
   await page.goto('about:blank');
@@ -51,6 +59,7 @@ test('G1 ★전제 — 0×0 캔버스의 toDataURL 은 «던지지 않고» "dat
 });
 
 test('G2 ㉠ 클론에 display:block 을 «건다» (그리고 베껴 온 display:none 뒤에 온다)', () => {
+  premise(SAFETY, CS, FN); premise(CODE, CS, 'clone.style.cssText +=');
   const m = CODE.match(/clone\.style\.cssText \+= '([^']+)'/);
   expect(m, '★클론 cssText 대입을 못 찾았다 — 이 검사가 «안 돈» 것이지 통과가 아니다').toBeTruthy();
   expect(m[1],
@@ -65,6 +74,7 @@ test('G2 ㉠ 클론에 display:block 을 «건다» (그리고 베껴 온 displa
 });
 
 test('G3 ㉡ 덮기 «전»에 결과를 재고, 빈 그림이면 dataset 을 «안» 건드린다', () => {
+  premise(SAFETY, CS, FN); premise(CODE, CS, 'canvas.toDataURL'); premise(MK, PM, 'await captureSectionImage(sec)');
   /* 10-05 G11 ① 로 나눔 · 옛 단언 = prop-mockup.js 한 파일에서 toDataURL → (크기 검사 + return;) → dataset 쓰기 */
   // ⑴ 찍기(capture-safety): toDataURL 과 «성공 반환» 사이에 크기 검사 + 실패 반환
   const i = CODE.indexOf("const dataUrl = canvas.toDataURL('image/png')");
@@ -88,6 +98,7 @@ test('G3 ㉡ 덮기 «전»에 결과를 재고, 빈 그림이면 dataset 을 «
 });
 
 test('G4 ★음성대조 — 판정식이 «진짜» 빈 그림을 잡고 «멀쩡한 그림»은 안 잡는다', async ({ page }) => {
+  premise(SAFETY, CS, FN); premise(CODE, CS, 'const _degenerate =');
   /* 소스에서 판정식을 그대로 꺼내 쓴다 — 베껴 적으면 늙는다. */
   const m = CODE.match(/const _degenerate = ([^;]+);/);
   expect(m, '★판정식(_degenerate)을 못 찾았다 — 이 검사가 «안 돈» 것이지 통과가 아니다').toBeTruthy();
