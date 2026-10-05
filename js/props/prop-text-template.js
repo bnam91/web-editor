@@ -187,10 +187,10 @@ ${blockHeaderHTML({
         <span class="prop-label">상하</span>
         <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
-      </div>
-      ${/* ★⑷㉣ 현빈 sb_ts0he_4lus8he 「상하패딩 → 말꼬리 분리 → 상하패딩 비활성화」 — 꼬리는 블럭 기준 absolute 라 상하 여백을 주면 몸통에서 떨어진다(실측 −10 → +14px).
-            칸은 «숨기지 않고» 막고 까닭을 보이게 적는다(호버만으론 안 보인다). 이미 상하 여백이 있는 말풍선은 그대로 둔다(문서 무변). */
-         isSpeechBubble ? '<div class="prop-hint" id="txt-pv-bubble-hint">말풍선은 꼬리 때문에 상하 여백을 쓸 수 없습니다</div>' : ''}
+      </div>${/* ★⑷㉣ 현빈 sb_ts0he_4lus8he 「상하패딩 → 말꼬리 분리 → 상하패딩 비활성화」 — 꼬리는 블럭 기준 absolute 라 상하 여백을 주면 몸통에서 떨어진다(실측 −10 → +14px).
+            칸은 «숨기지 않고» 막고 까닭을 보이게 적는다(호버만으론 안 보인다). 이미 상하 여백이 있는 말풍선은 그대로 둔다(문서 무변).
+            ⛔줄바꿈은 «말풍선 문자열 안»에만 — 밖에 두면 보통 텍스트 패널 산출이 7자 늘어 골든(typo-section-ssot T1)이 깨진다(10-06 실측 17994 → 18001). */
+         isSpeechBubble ? '\n      <div class="prop-hint" id="txt-pv-bubble-hint">말풍선은 꼬리 때문에 상하 여백을 쓸 수 없습니다</div>' : ''}
       <div class="prop-ph-header">
         <span class="prop-section-title" style="margin-bottom:0">L/R</span>
         <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 연동">
