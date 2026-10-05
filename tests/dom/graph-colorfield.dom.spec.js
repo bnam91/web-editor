@@ -128,3 +128,19 @@ test('C4 패널 열기 = 히스토리 0 · 블럭 DOM 변경 0(자동저장을 �
   expect(r).toEqual({ push: 0, recs: 0, h6: true });
   expect(errs).toEqual([]);
 });
+
+test('C5 ★tone 계산 전에 패널을 열어도(강제 · delete _grbToneBase) → 칸 빈 + «—» + 투명도만 = 무기록 · ⛔옛 기본값(222222) 아님', async ({ page }) => {
+  /* 실앱 «아직 없음» 장면 0/4(⌘D·복사붙여넣기·⌘Z/⌘⇧Z·다시 열기 — 모두 고르기 전에 syncGraphTone 이 돌았다 · $S/e149/real/run3.out).
+     그래도 순서가 바뀐 날의 꼴을 못박는다: 파생 전 선 색은 변수를 걷지 않고는 못 읽는다 ⇒ 정직한 빈칸(팀장 ⒜). */
+  await page.setViewportSize({ width: 1500, height: 1200 });
+  const errs = await bootApp(page);
+  const id = await make(page, { bg: '#111111', type: 'line' });
+  const r = await page.evaluate((id) => { const g = document.getElementById(id); delete g._grbToneBase; window.showGraphProperties(g); return { h6: g.style.getPropertyValue('--grb-auto-line').trim() !== '', field: document.getElementById('grb-bar-hex').value, ph: document.getElementById('grb-bar-hex').placeholder }; }, id);
+  expect(r).toEqual({ h6: true, field: '', ph: '—' });
+  const a = await page.evaluate(() => { const e = document.getElementById('grb-bar-alpha'); e.scrollIntoView({ block: 'center' }); const b = e.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; });
+  await clickAt(page, a[0], a[1], { sel: '#grb-bar-alpha' }, { label: '선 색상 투명도(빈칸)' });
+  await page.keyboard.press('Meta+a'); await page.keyboard.type('50'); await page.keyboard.press('Enter');
+  await page.waitForTimeout(200);
+  expect(await page.evaluate((id) => { const g = document.getElementById(id); return { line: g.dataset.lineColor ?? null, bar: g.dataset.barColor ?? null, h6: g.style.getPropertyValue('--grb-auto-line').trim() !== '' }; }, id)).toEqual({ line: null, bar: null, h6: true });
+  expect(errs).toEqual([]);
+});
