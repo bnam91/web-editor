@@ -2418,7 +2418,8 @@ function renderGridBlock(block) {
     const rgb = backdropRgbAt(block, bg);
     /* ★E127 ⒜(지디 10-06 · ⑴) — 칸이 «자기 배경을 칠하면» 프리셋 변수를 쓰지 않는다: 'hex' = 그 배경에 맞는 옛 hex(role.color).
      *   프리셋은 «섹션 배경»에 맞춰 고른 색이라, 칸이 제 배경을 칠한 줄엔 맞지 않는다(어두운 섹션 프리셋 + 흰 칸 → 흰 위 흰 · 옅은 회색).
-     *   조건은 «설정됐나» 하나 — 어두운 칸은 원래도 on-dark 표('light')라 «밝을 때만»과 같은 결과(㉢ 잼). */
+     *   조건은 «설정됐나» 하나 — 어두운 칸은 원래도 on-dark 표('light')라 «밝을 때만»과 같은 결과(㉢ 잼).
+     *   칸 «배경 이미지»(cellImg)도 같은 조건(지디 10-06) — 부르는 자리에서 'hex'. ⛔이미지 위 결과를 «맞는 색»이라 하지 않는다: dev 와 같은 값일 뿐. */
     return textToneOver(rgb) === 'light' ? 'light' : 'hex';
   };
   const cellsHtml = [];
@@ -2508,7 +2509,7 @@ function renderGridBlock(block) {
       const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), colGapPx);
       const pullUp = rowGapPx < 0 && r > 0 ? `margin-top:${rowGapPx}px;` : '';   // 음수 행 간격 = 위 줄로 당긴다(GRID_ROW_GAP_MIN 주석)
       cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${cellPadY > 0 ? `padding:${pad + cellPadY}px ${pad}px;` : (pad > 0 ? `padding:${pad}px;` : '')}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}">
-        ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, cellImg ? true : _cellTone(bg))).join('')}
+        ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, cellImg ? 'hex' : _cellTone(bg))).join('')}
       </div>`);
     }
   }
