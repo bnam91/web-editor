@@ -335,6 +335,18 @@ export function applyFrameHAlignToChild(child, alignItems) {
     if (getComputedStyle(el).position === 'absolute') return;
     el.style.alignSelf = selfOf[alignItems] || '';
     if (el.classList.contains('asset-block') && el.dataset.align) el.dataset.align = alignKey[alignItems] || el.dataset.align;
+    /* ★E133 — 자기 CSS 가 `margin: 0 auto` 인 블럭(아이콘 .icon-block · 심플카드 .canvas-block 등)은 auto 마진이 align-self 를 이긴다
+       (실측: 왼/오 눌러도 Icon 326/326 · Card 178/178). ⇒ «인라인 마진이 없고 계산 좌우가 같고 > 0» 이면 정렬을 인라인 마진으로 싣는다.
+       이미 이 갈래가 쓴 짝(0/auto · auto/0)이면 다시 눌러도 바꾼다 · 가운데 = 비움(CSS auto 로 돌아감). 그 밖(풀블리드 음수 마진 등)은 안 건드린다. */
+    const _ml = el.style.marginLeft, _mr = el.style.marginRight;
+    const _ours = (_ml === '0px' && _mr === 'auto') || (_ml === 'auto' && _mr === '0px');
+    let _autoCentered = false;
+    if (!_ml && !_mr) { const cs = getComputedStyle(el); const l = parseFloat(cs.marginLeft) || 0, r = parseFloat(cs.marginRight) || 0; _autoCentered = l > 0 && Math.abs(l - r) < 0.5; }
+    if (_ours || _autoCentered) {
+      if (alignItems === 'flex-start') { el.style.marginLeft = '0px'; el.style.marginRight = 'auto'; }
+      else if (alignItems === 'flex-end') { el.style.marginLeft = 'auto'; el.style.marginRight = '0px'; }
+      else { el.style.marginLeft = ''; el.style.marginRight = ''; }
+    }
   };
   if (child.classList.contains('row')) {
     child.style.alignSelf = selfOf[alignItems] || '';
