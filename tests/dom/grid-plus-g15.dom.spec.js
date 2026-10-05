@@ -712,3 +712,44 @@ for (const z of [100, 40]) for (const bg of [null, { on: true, color: '#ff0000' 
     expect(errs).toEqual([]);
   });
 }
+
+/* ══ H-E28 (2026-10-06 · 지디 판정 «G15 > E28 · 보이는 것 = 잡히는 것» · APPROVED_BY: 지디 E28-hit-G15) ══════════════
+ * E28(862e929b)이 ＋ 의 잡는 자리를 «화면 최소 24px»로 넓혀, 배율 40% 에서 보이는 원(16px) 밖 4px 까지 ＋ 가 잡혔다.
+ * 처방 ⒤ = 잡는 자리 inset 0(보이는 원 그대로). 이 묶음은 그 «결과»(행·열 그대로)와 «원인»(그 점의 맨 위가 ＋ 가 아님)을 같이 잰다.
+ * 점 = 원 중심에서 «수평 왼쪽»으로 R+k+0.5 화면px(k = 1 · 3 · 4 — 픽셀 중심이 확실히 원 밖) · R = 보이는 반지름(상자 폭/2).
+ * 음성대조 = 중심 클릭은 여전히 +1(기능이 안 죽었다). @100 도 같이 돈다(고치기 전에도 초록 — 전후 같음).
+ * ⛔상자 값은 줌 전환(#canvas-scaler transform 0.15s)이 끝난 뒤 두 번 연속 같을 때만 쓴다(섞인 자 병 — E157 B1/E4 선례). */
+async function stableBox(page, id, axis) {
+  let prev = null;
+  for (let i = 0; i < 30; i++) {
+    const b = await boxOf(page, id, axis);
+    if (prev && Math.abs(b.cx - prev.cx) < 0.01 && Math.abs(b.cy - prev.cy) < 0.01 && Math.abs(b.w - prev.w) < 0.01) return b;
+    prev = b; await page.waitForTimeout(60);
+  }
+  throw new Error('[전제] ＋ 상자가 안 멈춘다');
+}
+for (const z of [40, 100]) {
+  for (const axis of ['col', 'row']) {
+    test(`H-E28 ★배율 ${z} · ${axis === 'col' ? '오른쪽' : '아래'} ＋ — 원 밖 1px·4px = ＋ 아님(결과·원인) · 중심 = +1`, async ({ page }) => {
+      test.setTimeout(120000);
+      const { errs, a } = await setup(page, z);
+      expect(await page.evaluate(() => window.currentZoom), `[전제] 배율 ${z}`).toBe(z);
+      if (axis === 'col') await tall(page, a);
+      for (const k of [1, 3, 4]) {   // 1·3 = E28(히트 12)과 가르는 점 · 4 = 지시 점(12.5 — E28 밖이라 못 가름 · predict-E28-hit 덧붙임)
+        await page.evaluate(() => window.deselectAll?.()); await force(page, a);
+        const bx = await stableBox(page, a, axis);
+        expect(bx.w, `[전제] ＋ 상자 ${40 * z / 100}px(모델 40)`).toBeCloseTo(40 * z / 100, 0);
+        const R = bx.w / 2, x = bx.cx - R - k - 0.5, y = bx.cy;
+        const r = await clickAt(page, a, x, y);
+        expect(r.under.includes('grd-add-btn'), `★원인 — 원 밖 ${k}px 점의 맨 위가 ＋ 다 ${JSON.stringify({ k, R, x, y, ...r })}`).toBe(false);
+        expect([r.dRows, r.dCols], `★결과 — 원 밖 ${k}px 클릭이 행·열을 바꿨다 ${JSON.stringify({ k, R, ...r })}`).toEqual([0, 0]);
+      }
+      await page.evaluate(() => window.deselectAll?.()); await force(page, a);
+      const bx = await stableBox(page, a, axis);
+      const c = await clickAt(page, a, bx.cx, bx.cy);
+      expect(c, `[음성대조] 중심 클릭 = ${axis === 'col' ? '열' : '행'} +1 ${JSON.stringify(c)}`)
+        .toMatchObject(axis === 'col' ? { dCols: 1, dRows: 0 } : { dRows: 1, dCols: 0 });
+      expect(errs).toEqual([]);
+    });
+  }
+}
