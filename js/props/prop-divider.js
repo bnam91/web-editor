@@ -1,13 +1,14 @@
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { panelRenderedPx } from './_panel-rendered.js';
 
 export function showDividerProperties(block) {
   const lineColor  = block.dataset.lineColor  || '#cccccc';
   const lineAlpha  = parseAlphaFromColor(lineColor);
   const lineStyle  = block.dataset.lineStyle  || 'solid';
   const lineWeight = parseInt(block.dataset.lineWeight) || 1;
-  const padV       = parseInt(block.dataset.padV)       || 12;
+  const padV       = Math.round(panelRenderedPx(block, 'paddingTop'));   // 묶음 B E111 — 그려진 위아래 여백(렌더 applyDividerStyle: padV || 30 · '0' 은 0). 옛 `|| 12` 는 빈 값·0 둘 다 12 로 그렸다
   const padH       = parseInt(block.dataset.padH)       || 0;
   const lineDir    = block.dataset.lineDir    || 'horizontal';
   const lineLength = parseInt(block.dataset.lineLength) || 80;

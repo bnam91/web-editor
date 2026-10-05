@@ -8,6 +8,7 @@ import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignTo
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed } from '../drag-utils.js';
+import { panelRenderedPx } from './_panel-rendered.js';
 
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#ffffff';
@@ -208,13 +209,13 @@ function _renderAutoPanel(ss) {
   const bgGradCss = [ss.dataset.bg, ss.style.backgroundImage].find(v => /gradient\s*\(/i.test(v || '')) || '';
   const hexBg  = bgGradCss ? '#ffffff' : rgbToHex(rawBg);   // 그라데이션이면 wireColorField 가 첫 스탑 색으로 덮는다
   const bgAlpha = bgGradCss ? 100 : parseAlphaFromColor(rawBg);
-  const padY   = parseInt(ss.dataset.padY)   || 0;
+  const padY   = Math.round(panelRenderedPx(ss, 'paddingTop'));   // 묶음 B E115 — 그려진 위 여백(_frameDecorCss 는 dataset.padding+인라인 padding 으로 그린다 · 옛 표시는 dataset.padY 만 → 0)
   const padX   = parseInt(ss.dataset.padX) || parseInt(ss.style.paddingLeft) || 0;   // F5: 좌우 패딩(데이터 칸이 없던 옛 프레임은 인라인 padding 을 읽는다)
   const width  = parseInt(ss.dataset.width)  || (isShapeFrame ? 100 : 780);
   const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
   const minWidth = isShapeFrame ? Math.min(width, 20) : 200;
   const hasBgImg = ss.style.backgroundImage && ss.style.backgroundImage !== 'none';
-  const borderWidth = parseInt(ss.dataset.borderWidth) || 0;
+  const borderWidth = Math.round(panelRenderedPx(ss, 'borderTopWidth'));   // 묶음 B E114 — 그려진 테두리(쓰기 키는 dataset.borderW · 옛 표시는 dataset.borderWidth 를 읽어 늘 0)
   const borderStyle = ss.dataset.borderStyle || 'solid';
   const rawBorderColor = ss.style.borderColor || ss.dataset.borderColor || '#888888';
   const hexBorderColor = rgbToHex(rawBorderColor);

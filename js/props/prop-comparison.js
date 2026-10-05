@@ -3,6 +3,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, CMP_PLACEHOLDER_TITLE, CMP_PLACEHOLDER_ROW } from '../blocks/comparison-block.js';
+import { panelRenderedColor } from './_panel-rendered.js';
 
 /* ★옛 사본은 «닫는 꺾쇠»와 홑따옴표를 안 덮었다 — 이 파일이 쓰는 세 자리에서는 무력한
    글자들이라 새지는 않았지만, 다음 사람이 이 사본을 홑따옴표 속성 자리에 쓰면 그때 뚫린다.
@@ -52,7 +53,10 @@ export function showComparisonProperties(block) {
           <div class="prop-row" style="gap:4px;margin-top:4px;">${body}</div>
         </div>`;
     }).join('');
-    const bgVal = col.bg || '#ffffff';
+    /* 묶음 B #18 — 칸 색이 비면 «그려진» 색(렌더: 강조 칸 #fff/#1a1a1a · 나머지 #e9ebef/#9aa0a8). 옛 표시는 늘 #fff/#1a1a1a. */
+    const _colEl = block.querySelector(`.cmp-col[data-col-idx="${idx}"]`);
+    const bgVal = col.bg || panelRenderedColor(_colEl, 'backgroundColor') || '#ffffff';
+    const textVal = col.text || panelRenderedColor(block.querySelector(`.cmp-row[data-col-idx="${idx}"]`), 'color') || '#1a1a1a';
     const bgIsGrad = /gradient/i.test(bgVal);
     const canDelete = N > 2;
     return `
@@ -63,7 +67,7 @@ export function showComparisonProperties(block) {
         </div>
         <textarea class="prop-textarea cmp-col-title" data-col="${idx}" rows="1" style="width:100%;box-sizing:border-box;">${_esc(col.title)}</textarea>
         <div class="prop-color-row"><span class="prop-label">배경</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Bg', hex: bgIsGrad ? '#ffffff' : bgVal, gradientCss: bgIsGrad ? bgVal : '' })}</div>
-        <div class="prop-color-row"><span class="prop-label">텍스트</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Text', hex: col.text || '#1a1a1a' })}</div>
+        <div class="prop-color-row"><span class="prop-label">텍스트</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Text', hex: textVal })}</div>
         <div style="margin-top:6px;">${rowInputs}</div>
         <button class="prop-btn cmp-row-add" data-col="${idx}" style="width:100%;margin-top:6px;">+ 행 추가</button>
       </div>`;
