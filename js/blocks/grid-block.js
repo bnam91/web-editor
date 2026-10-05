@@ -3507,7 +3507,7 @@ function _syncGridAddBtns(block) {
     _gridPlusBtns.set(block, p);
   }
   const full = { col: _gridCols(block).length >= MAX_COLS, row: _gridRows(block).length >= MAX_ROWS };
-  /* 상한(4)에서는 흐리게 + 눌러도 아무 일 없음. ★흐림을 정하는 곳은 «여기 한 줄»(새로 붙일 때도 이미 있을 때도).
+  /* 상한(8 — MAX_COLS·MAX_ROWS :82–83)에서는 흐리게 + 눌러도 아무 일 없음. ★흐림을 정하는 곳은 «여기 한 줄»(새로 붙일 때도 이미 있을 때도).
      캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 쪽 참고 선례: layer-panel.js:559 addBtn.disabled) */
   for (const b of [p.col, p.row]) b.disabled = !!full[b.dataset.grdAdd];
   _placeGridAddBtns(block);
