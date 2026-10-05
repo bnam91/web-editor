@@ -618,18 +618,20 @@ function renderGraph(block) {
  *   라벨은 렌더마다 새로 만들어진다 ⇒ 블럭에 «위임» 한 번만 건다(요소 속성이라 복제·로드된 블럭은 첫 렌더에서 새로 건다).
  *   ⌘Z 한 번: 들어갈 때 ensureHistoryCheckpoint · 확정 뒤 pushHistory. Esc · 빈 글자 · 같은 글자 = 무변(다시 그려 원래 글자로).
  *   편집 중엔 block.editing — 공통 mousedown 드래그·삭제키 가드가 본다(그리드 줄 편집과 같은 꼴). */
+/* 카테고리 라벨 «셋»(막대·비교 .grb-bar-label · 가로 .grb-bar-h-desc · 꺾은선 .grb-line-xlabel) — 항목마다 정확히 하나(숨김이어도 display:none 으로 있다)
+   ⇒ 블럭 안 순서 = items 순서. 색인을 DOM 속성으로 안 박는다 — 렌더 바이트가 핀(graph-vpair 골든 · GR-W0 기준판)과 같게(회귀 실측: data-grb-idx 가 5 빨강). */
+const GRB_CAT_LABEL_SEL = '.grb-bar-label, .grb-bar-h-desc, .grb-line-xlabel';
 function _bindGraphLabelEdit(block) {
   if (block._grbLabelEditBound) return;
   block._grbLabelEditBound = true;
   block.addEventListener('dblclick', e => {
-    const el = e.target?.closest?.('[data-grb-idx]');
+    const el = e.target?.closest?.(GRB_CAT_LABEL_SEL);
     if (!el || !block.contains(el) || el.isContentEditable) return;
     e.stopPropagation(); e.preventDefault();
-    _graphLabelBeginEdit(block, el);
+    _graphLabelBeginEdit(block, el, [...block.querySelectorAll(GRB_CAT_LABEL_SEL)].indexOf(el));
   });
 }
-function _graphLabelBeginEdit(block, el) {
-  const idx = parseInt(el.dataset.grbIdx, 10);
+function _graphLabelBeginEdit(block, el, idx) {
   window.ensureHistoryCheckpoint?.('그래프 라벨 편집 전');
   block.classList.add('editing');
   el.setAttribute('contenteditable', 'plaintext-only');
@@ -682,7 +684,7 @@ function _renderGraphBody(block) {
     const _barsStyle = _g.on ? (_bs.barsStyle || ';') + _g.barsExtra : _bs.barsStyle;
     block.innerHTML = `
       <div class="grb-bars-v" style="height:${chartH}px${_barsStyle}">
-        ${items.map((item, _i) => {
+        ${items.map(item => {
           const pct = _g.pct(item.value);
           const fillStyle = pct === 0 ? 'height:4px;opacity:0.25;border-style:dashed;' : `height:${pct}%;`;
           // 바 개별색 — item.color 있으면 인라인 background로 CSS 프리셋(colorful nth-child 포함) 우선
@@ -693,7 +695,7 @@ function _renderGraphBody(block) {
               <div class="grb-bar-fill-wrap">
                 <div class="grb-bar-fill" style="${fillStyle}${_bs.fillW}${colorStyle}"></div>
               </div>
-              <div class="grb-bar-label" data-grb-idx="${_i}" style="font-size:${labelSize}px;${_xCss}${_g.lhCss}">${_escGraphHtml(item.label)}</div>
+              <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}${_g.lhCss}">${_escGraphHtml(item.label)}</div>
             </div>`;
         }).join('')}${_g.gridLayerHTML()}${_g.overlayHTML()}
       </div>`;
@@ -805,9 +807,9 @@ function _renderGraphBody(block) {
     const xlabelColorCss = xlabelColor ? `color:${xlabelColor};` : '';
     const vlabelDisp = showVLabel ? '' : 'display:none;';
     const xlabelDisp = showXLabel ? '' : 'display:none;';
-    const labelsHTML = overlayItems.map((o, _i) =>
+    const labelsHTML = overlayItems.map(o =>
       `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${vlabelColorCss}${vlabelDisp}">${o.p.v}</div>
-       <div class="grb-line-xlabel" data-grb-idx="${_i}" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${xlabelColorCss}${xlabelDisp}">${o.p.label}</div>`
+       <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${xlabelColorCss}${xlabelDisp}">${o.p.label}</div>`
     ).join('');
 
     block.innerHTML = `
@@ -846,13 +848,13 @@ function _renderGraphBody(block) {
     };
     block.innerHTML = `${legend}
       <div class="grb-bars-v" style="height:${chartH}px${_bs.barsStyle}">
-        ${items.map((item, _i) => `
+        ${items.map(item => `
           <div class="grb-bar-col"${_bs.colMin ? ` style="${_bs.colMin}"` : ''}>
             <div class="grb-bar-fill-wrap grb-pair-wrap">
               ${bar(item.value, barColor, '')}
               ${bar(item.value2, barColor2, ' grb-bar-fill-b')}
             </div>
-            <div class="grb-bar-label" data-grb-idx="${_i}" style="font-size:${labelSize}px;${_xCss}">${_escGraphHtml(item.label)}</div>
+            <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}">${_escGraphHtml(item.label)}</div>
           </div>`).join('')}
       </div>`;
   } else {
@@ -877,7 +879,7 @@ function _renderGraphBody(block) {
 
     block.innerHTML = `
       <div class="grb-bars-h" style="padding:0 ${padX}px;gap:${itemGap}px">
-        ${items.map((item, _i) => {
+        ${items.map(item => {
           const pct = item.value === 0 ? 0 : Math.max(1, Math.min(100, Math.round(item.value)));
           const displayVal = Number.isInteger(item.value) ? item.value + '%' : item.value;
           const hFillExtra = pct === 0 ? 'width:4px;opacity:0.25;border-style:dashed;' : '';
@@ -886,7 +888,7 @@ function _renderGraphBody(block) {
           return `
             <div class="grb-bar-row">
               <div class="grb-bar-h-pct" style="font-size:${pctSize}px;${_vCss}">${displayVal}</div>
-              <div class="grb-bar-h-desc" data-grb-idx="${_i}" style="font-size:${Math.round(labelSize * 1.4)}px;${_xCss}">${_escGraphHtml(item.label)}</div>
+              <div class="grb-bar-h-desc" style="font-size:${Math.round(labelSize * 1.4)}px;${_xCss}">${_escGraphHtml(item.label)}</div>
               <div class="grb-bar-h-track" style="${trackStyle}">
                 <div class="grb-bar-h-fill" style="${fillStyle.replace('__PCT__', pct + '%')}${hFillExtra}${colorStyle}"></div>
               </div>
