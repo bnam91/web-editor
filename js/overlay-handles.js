@@ -3232,6 +3232,13 @@ function _updateGridOverlayHandlePositions() {
     const c = _cornerScreen(box, h.dataset.grdResizeDir);
     h.style.top  = (c.y - HALF) + 'px';
     h.style.left = (c.x - HALF) + 'px';
+    /* ★P4 ⒜(2026-10-05 태양 · lane-f-grid) — 같은 그리드의 ＋(G15 · #grd-plus-layer)와 겹치는 손잡이는 «숨긴다».
+       ＋ 가 먼저 있던 기능이라 자리를 양보한다(그리드가 ＋ 보다 낮으면 오른쪽 ne/se 가 열 ＋ 위에 얹혔다 — P4 실측).
+       ⛔pointer-events:none 이 아니라 숨김 — 보이는데 안 잡히는 손잡이는 거짓이다. 매 rAF 위 루프가 display 를 먼저 되돌리므로 겹침이 풀리면 다시 선다. */
+    const hb = { l: c.x - HALF, t: c.y - HALF, r: c.x + HALF, b: c.y + HALF };
+    const overPlus = [...document.querySelectorAll(`#grd-plus-layer > .grd-add-btn[data-grd-for="${_grdResizeBlock.id}"]`)].some(p => {
+      const q = p.getBoundingClientRect(); return q.width > 0 && hb.r > q.left && hb.l < q.right && hb.b > q.top && hb.t < q.bottom; });
+    if (overPlus) h.style.display = 'none';
     syncHandleSelVariant(h, _grdResizeBlock);   // 떠 있으면 보라 — 테두리와 «한 색»
   });
 }
