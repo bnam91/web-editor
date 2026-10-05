@@ -447,7 +447,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw, .grd-img-overlay-handle.sw, .tfo-overlay-handle.sw { cursor: sw-resize; }
 .asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se, .grd-img-overlay-handle.se, .tfo-overlay-handle.se { cursor: se-resize; }
 /* ★그리드 폭 손잡이는 네 모서리 «모두» 좌우 화살표 — 폭만 바뀌고 높이는 내용이 정한다(대각 커서는 거짓말이 된다). */
+/* 10-05 제4안으로 높이도 바뀌어 방향별로 — 모서리 = 폭+높이(대각) · e/w = 폭(좌우) · n/s = 높이(칸 위아래 여백 · 위아래). */
 .grd-overlay-handle { cursor: ew-resize; }
+.grd-overlay-handle.nw, .grd-overlay-handle.se { cursor: nwse-resize; }
+.grd-overlay-handle.ne, .grd-overlay-handle.sw { cursor: nesw-resize; }
+.grd-overlay-handle.n, .grd-overlay-handle.s { cursor: ns-resize; }
 
 /* ── Canvas Block overlay resize handles ── */
 .canvas-overlay-handle {
