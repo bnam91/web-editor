@@ -1691,11 +1691,9 @@ function _recoveryToastText(proj) {
   const base = proj._recovered === 'history' ? '히스토리'
              : proj._recovered === 'pre-externalize' ? '변환 전 원본(오래된 상태일 수 있음)'
              : '백업';
-  // ★E168 ㉢ — 무엇이 남았는지 말한다: 그 판의 저장 시각(그 파일 mtime). 없으면 옛 글 그대로.
-  const at = typeof proj._recoveredAt === 'number' ? new Date(proj._recoveredAt) : null;
-  const p2 = (n) => String(n).padStart(2, '0');
-  // ★E170 ㉢ 꼴(지디): 시각은 «동사 뒤 괄호» — 카드 배지(pages/projects.html)와 같은 꼴. 시각 = 그 후보 파일 mtime.
-  const when = at ? ` (${p2(at.getMonth() + 1)}-${p2(at.getDate())} ${p2(at.getHours())}:${p2(at.getMinutes())} 저장분)` : '';
+  // ★E168·E170 ㉢ — 무엇이 남았는지 말한다: 그 판의 저장 시각(그 파일 mtime). 글자는 main _savedAtLabel 이 «한 곳»에서 만든다 — 여기는 싣기만.
+  //   꼴: «동사 뒤 괄호» — 카드 배지(pages/projects.html)와 같은 꼴. 없으면 괄호만 빠진다.
+  const when = proj._recoveredAtLabel ? ` (${proj._recoveredAtLabel} 저장분)` : '';
   if (proj._healed !== false) return `⚠️ 프로젝트 파일이 손상되어 ${base}에서 복구했습니다${when} — 그 뒤 작업은 없을 수 있습니다`;
   const code = proj._healError;
   const why = code === 'ENOSPC' ? '공간 부족' : (code === 'EACCES' || code === 'EPERM' || code === 'EROFS') ? '권한' : (code || '알 수 없음');
@@ -2144,7 +2142,7 @@ function initApp() {
           // GAP-004: proj.json 손상으로 백업/히스토리에서 복구된 경우 사용자에게 정직하게 통지.
           if (proj._recovered) {
             window.showToast?.(_recoveryToastText(proj));   // ★E169 — 글은 자가치유 «성패»로 고른다
-            delete proj._recovered; delete proj._healed; delete proj._healError; delete proj._recoveredAt; // 마커는 메모리/저장에 남기지 않음
+            delete proj._recovered; delete proj._healed; delete proj._healError; delete proj._recoveredAt; delete proj._recoveredAtLabel; // 마커는 메모리/저장에 남기지 않음
           }
           // 마이그레이션: proj.json에 branches/commits가 남아있으면 meta로 이전
           if (!meta && (proj.branches || proj.commits)) {

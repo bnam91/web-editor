@@ -1980,7 +1980,7 @@ function _listItemFor(id, projPath, metaFast) {
   if (metaFast && !_fromFallback) { try { _refreshListMeta(data.id, data); } catch (_) {} }
   return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt,
            updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, collabRef, favorite, folderId,
-           ...(_fromFallback ? { recoveredFrom: _rd.from, recoveredAt: _rd.savedAt } : {}) };
+           ...(_fromFallback ? { recoveredFrom: _rd.from, recoveredAt: _rd.savedAt, recoveredAtLabel: _savedAtLabel(_rd.savedAt) } : {}) };
 }
 
 /* ── IPC: AI Image Gen ──
@@ -2336,6 +2336,12 @@ function _externalizeOnOpen(event, id) {
    (실앱 dev 0f572e2a 실측 · 백업은 성함). 반환: { proj, from:'proj'|'backup'|'history'|'pre-externalize', path, savedAt(그 파일 mtime), healed, healError } | null.
    heal:true(로드)만 자가치유 재기록 — 목록은 «읽기만». 소비자 명부: docs/proj-json-consumers.md · 시험: tests/unit/project-list-fallback-e168.test.js */
 function _mtimeOr(p) { try { return fs.statSync(p).mtimeMs; } catch (_) { return null; } }
+/* ★E170(태양 «한 helper») 복구 알림·카드 배지가 같은 꼴로 말하는 시각 글자 «MM-DD HH:mm» — 여기 «한 곳»에서만 만든다(렌더러 두 곳은 싣기만). */
+function _savedAtLabel(ms) {
+  if (typeof ms !== 'number' || !isFinite(ms)) return null;
+  const d = new Date(ms); const p2 = (n) => String(n).padStart(2, '0');
+  return `${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
 function readProjectWithFallback(id, { heal = false } = {}) {
   const filePath = _resolveProjectJsonPath(id);
   // 1) 정상 경로: proj.json
@@ -2410,7 +2416,7 @@ ipcMain.handle('projects:load', (event, id, opts) => {
     return r.proj;
   }
   // _recovered · _recoveredAt · _healed · _healError: 렌더러 통지용(serialize엔 미포함 — js/io/proj-merge.js PROJ_RUNTIME_KEYS)
-  const mark = { _recovered: r.from, _recoveredAt: r.savedAt, _healed: r.healed };
+  const mark = { _recovered: r.from, _recoveredAt: r.savedAt, _recoveredAtLabel: _savedAtLabel(r.savedAt), _healed: r.healed };
   if (!r.healed) mark._healError = r.healError;
   if (isOpen) _recentRecovery.delete(key);          // 이 열기가 스스로 알린다
   else if (r.healed) _recentRecovery.set(key, mark); // 고쳐 버려서 다음 열기는 폴백을 못 본다 → 그 열기에 한 번

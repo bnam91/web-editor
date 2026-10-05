@@ -1526,10 +1526,9 @@ function _renderGridFromCache() {
       ? `<div class="folder-badge">📁 ${_escHtml(_folderNameById(proj.folderId))}</div>` : '';
     // 배지는 «셋 다» 붙을 수 있다(기획+공동작업+검색중 폴더매치) — 하나로 뭉치지 않는다.
     /* ★E168(2026-10-06 lane-drag) proj.json 이 깨져 목록이 백업·히스토리에서 읽은 카드 — 말없는 복구 금지. 꼴은 .folder-badge(중립 정보 배지) 재사용 · 새 룩 신설 안 함. */
-    const _recAt = proj.recoveredAt ? new Date(proj.recoveredAt) : null;
-    const _p2 = (n) => String(n).padStart(2, '0');
+    // 시각 글자는 main _savedAtLabel 이 «한 곳»에서 만든다(토스트와 같은 꼴) — 여기는 싣기만.
     const recoveredBadgeHtml = proj.recoveredFrom
-      ? `<div class="folder-badge" title="proj.json 이 손상돼 ${proj.recoveredFrom === 'history' ? '히스토리' : '백업'}에서 읽었습니다${_recAt ? ` (${_p2(_recAt.getMonth() + 1)}-${_p2(_recAt.getDate())} ${_p2(_recAt.getHours())}:${_p2(_recAt.getMinutes())} 저장분)` : ''} — 열면 복구합니다">⚠️ 백업에서 읽음</div>` : '';
+      ? `<div class="folder-badge" title="proj.json 이 손상돼 ${proj.recoveredFrom === 'history' ? '히스토리' : '백업'}에서 읽었습니다${proj.recoveredAtLabel ? ` (${_escHtml(proj.recoveredAtLabel)} 저장분)` : ''} — 열면 복구합니다">⚠️ 백업에서 읽음</div>` : '';
     const badgeHtml = (isPlanning ? `<div class="planning-badge">📋 기획</div>` : '')
       + (isCollab ? `<div class="collab-badge" title="${proj.collabRef.role === 'owner' ? '내가 올린 공동작업본' : '초대받아 참여 중'}">👥 공동작업</div>` : '')
       + folderBadgeHtml + recoveredBadgeHtml;
