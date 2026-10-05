@@ -2908,7 +2908,15 @@ function bindFrameDropZone(ss) {
   ss.addEventListener('pointerdown', e => {
     // I4-F1: .icon-block 누락 → free-layout 아이콘이 pointerdown drag-disable에서 빠져 이동 막힘. drop/multi 셀렉터(BLOCK_SEL)와 정합.
     const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block');
-    if (isInnerBlock) {
+    /* ★D1(2026-10-05 현빈 · lane-drag) — «흐름에 놓인 도형 래퍼»(섹션에 바로 넣은 도형 = addShapeBlock 섹션 레벨 꼴)는
+       래퍼 «자신»이 흐름 단위다. 여기서 draggable 을 끄면 그 «자식 드래그»(bindBlock isShape 갈래)가 래퍼가 absolute 가
+       아니라 return 하므로 두 길이 서로 미루고 아무도 안 끈다(실앱 실측: 두 순서 다 Δ0 · dragstart 0).
+       ⇒ 래퍼 직속 도형을 누르면 «빈 영역»처럼 래퍼를 고르고 draggable 을 둔다 = 다른 흐름 단위처럼 «순서 바꾸기».
+       ⛔absolute 래퍼(자유 프레임 안 옛 꼴)는 무변 — 그쪽은 bindBlock 이 래퍼를 좌표로 끈다.
+       판정은 매 누름 live(래퍼가 끌어내기·붙여넣기로 흐름↔absolute 를 오갈 수 있다). */
+    const _flowShapeWrapper = isInnerBlock?.classList.contains('shape-block') && isInnerBlock.parentElement === ss
+      && isShapeFrame() && ss.style.position !== 'absolute';
+    if (isInnerBlock && !_flowShapeWrapper) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');
       document.addEventListener('pointerup', () => ss.setAttribute('draggable', 'true'), { once: true });
