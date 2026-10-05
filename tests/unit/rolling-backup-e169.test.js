@@ -50,7 +50,7 @@ function load(projectsDir, { naive = false } = {}) {
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);
   const handlers = {};
   const ipcMain = { on: (ch, fn) => { handlers[ch] = fn; } };
-  const calls = [];
+  const calls = []; const warns = [];
   let body = FNS.filter(n => n !== '_rollBackup' || has('_rollBackup')).map(fnSrc).join('\n\n');
   if (naive) body += `\nfunction _rollBackup(prevPath, backupPath) { fs.copyFileSync(prevPath, backupPath); return { called: true, copied: true }; }`;
   // 부른 기록(⒝ — «불렸고 거절»을 «안 불림»과 가른다). 함수 선언은 다시 묶을 수 있는 이름이다.
@@ -58,9 +58,9 @@ function load(projectsDir, { naive = false } = {}) {
   const factory = new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console', 'ipcMain', '__calls',
     `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst syncClaudePmTitle = async () => {};\n` + body + '\n' + saveSyncSrc() +
     `\n; return { _saveProjectImpl };`);
-  const R = factory(fs, path, projectsDir, req, { log() {}, warn() {}, error() {} }, ipcMain, calls);
+  const R = factory(fs, path, projectsDir, req, { log() {}, warn: (...a) => warns.push(a.join(' ')), error() {} }, ipcMain, calls);
   return {
-    calls,
+    calls, warns,
     save: (p) => R._saveProjectImpl(p),
     saveSync: (p) => { const ev = {}; handlers['projects:save-sync'](ev, p); return ev.returnValue; },
   };
@@ -119,10 +119,20 @@ test('양성대조 — _rollBackup 을 «검사 없이 복사»로 꺾으면 두
   assert.deepEqual(red, ['save', 'save-sync']);
 });
 
-test('배선 — 두 저장 길 몸통에 날 copyFileSync(→ backup) 0 · _rollBackup 호출 각 1', () => {
+test('배선 ⑤ — 구르는 복사 2 자리 중 2 가 _rollBackup 경유 · 날 copyFileSync→backup 0 (main.js 전체)', () => {
   const bodies = { save: fnSrc('_saveProjectImpl'), 'save-sync': saveSyncSrc() };
-  for (const [k, b] of Object.entries(bodies)) {
-    assert.doesNotMatch(b, /copyFileSync\([^)]*backup/, `★${k} 에 검사 없는 롤링 복사가 남았다`);
-    assert.equal((b.match(/_rollBackup\(/g) || []).length, 1, `${k} 의 _rollBackup 호출 수`);
-  }
+  const via = Object.entries(bodies).filter(([, b]) => (b.match(/_rollBackup\(/g) || []).length === 1).map(([k]) => k);
+  const raw = (MAIN_SRC.match(/copyFileSync\([^)]*\bbackup\b[^)]*\)/g) || []).filter(m => !/backupPath/.test(m));
+  assert.deepEqual({ via: `${via.length}/2`, raw: raw.length }, { via: '2/2', raw: 0 }, `날 복사: ${JSON.stringify(raw)}`);
 });
+
+for (const [name, run] of [['save', (R, d) => R.save(d)], ['save-sync', (R, d) => R.saveSync(d)]]) {
+  test(`④ ★${name} — 깨진 상태 + 저장 «3 번» → 백업 sha 그대로 · 거절 3 · 거절이 로그에 남는다(⒞)`, async () => {
+    const s = scene(); const before = sha(s.backup); const R = load(s.dir);
+    // 본체 쓰기가 성공하면 다음 저장의 «직전 판»은 성해진다 — 실앱(디스크 꽉 참)처럼 본체 쓰기도 실패하는 장면은 매번 깨진 판을 다시 깐다.
+    for (let i = 0; i < 3; i++) { fs.writeFileSync(s.proj, fs.readFileSync(s.backup, 'utf8').slice(0, 100)); await run(R, doc(20, '새' + i)); }
+    assert.equal(sha(s.backup), before);
+    assert.deepEqual(R.calls.map(c => c.copied), [false, false, false]);
+    assert.equal(R.warns.filter(w => w.includes('[rolling-backup]')).length, 3, `warn=${JSON.stringify(R.warns)}`);
+  });
+}
