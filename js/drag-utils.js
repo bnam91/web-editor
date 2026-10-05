@@ -580,7 +580,11 @@ function _barVPlotGeom(block, items, { maxVal, labelSize, vSize, bs }) {
   const overlayHTML = () => {
     const yOf = (p) => (1000 - p * 10).toFixed(1);
     const ticks = nice ? nice.ticks : [];
-    const gridEl = grid ? ticks.map(t => `<line class="grb-ov-grid" x1="0" x2="1000" y1="${yOf((t / scaleMax) * 100)}" y2="${yOf((t / scaleMax) * 100)}" stroke="currentColor" stroke-opacity="0.2" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('') : '';
+    /* H7(현빈 2026-10-05) — 격자선 색 지정. 키(dataset.gridColor)가 «없으면» 옛 그대로 currentColor × 0.2(바이트 동일 — 옛 그래프 무변).
+       있으면 그 색(투명도는 색 안의 알파)으로 · 단색만(그라데이션은 SVG stroke 가 못 받는다 → 무시 = 옛 꼴). */
+    const _gc = _safeGraphColor(d.gridColor);
+    const _gridStroke = (_gc && !/gradient\(/i.test(_gc)) ? `stroke="${_gc}" stroke-opacity="1"` : `stroke="currentColor" stroke-opacity="0.2"`;
+    const gridEl = grid ? ticks.map(t => `<line class="grb-ov-grid" x1="0" x2="1000" y1="${yOf((t / scaleMax) * 100)}" y2="${yOf((t / scaleMax) * 100)}" ${_gridStroke} stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('') : '';
     const axisEl = axis ? `<line class="grb-ov-axis" x1="0" x2="0" y1="0" y2="1000" stroke="currentColor" stroke-opacity="0.6" stroke-width="1" vector-effect="non-scaling-stroke"/>` : '';
     const pts = items.map((it, i) => ({ x: (xPct(i) * 10).toFixed(1), p: pct(it.value) }));
     const lineEl = line ? `<polyline class="grb-ov-line" points="${pts.map(q => `${q.x},${yOf(q.p)}`).join(' ')}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>` : '';

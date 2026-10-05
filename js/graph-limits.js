@@ -9,7 +9,11 @@
   /* ★BAR_THICKNESS_DEFAULT(E99 U26 · 2026-10-05) — 두께를 «안 정한» 막대의 두께. 패널(prop-graph.js)과 렌더 셋(가로·세로·비교, drag-utils.js)이
        «이 한 값»을 읽는다. 전엔 패널·가로는 24 를 각자 적고, 세로·비교는 키가 없으면 칸 전폭으로 그려 «패널 24 ↔ 막대 127px» 가 났다. */
   /* 같은 병(패널 ||기본값 ↔ 렌더러 기본값) 6 — 명부 E105~E110 · 0.9.7 ($S/unmeasured-tx1.md) */
-  var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24 });
+  /* ★BAR_THICKNESS_V_MAX(H1 · 현빈 2026-10-05 「세로 그래프 두께 60 → 더 늘리게」) = 'column' — 세로·비교 막대 두께의 위 끝은 «그 막대가 선 칸의 폭»이다(수 없음).
+       실측(실앱 d1f642ff · 5항목 860 블럭 · 칸 127): 두께 120 → 막대 120 · 200 → 127 · 1000 → 127 — 렌더가 이미 max-width:100% 로 칸에서 자른다
+       (drag-utils.js _barVSettings fillW). 넘침·이웃 겹침·블럭 밖 0. ⇒ 칸보다 큰 수는 «아무 일도 안 하는» 칸이라 상한 = 칸 폭(⒤).
+       ⒥ 고정 큰 값(200)·⒦ 무제한은 그 «헛칸»만 늘린다(측정 $S/e1/real/h1.json). 가로 막대(BAR_THICKNESS_MAX 60)는 그대로. */
+  var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column' });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_LIMITS;
   if (root) root.GRAPH_LIMITS = GRAPH_LIMITS;
 })(typeof window !== 'undefined' ? window : null);
