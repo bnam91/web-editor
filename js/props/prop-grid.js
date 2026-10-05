@@ -827,6 +827,15 @@ export function grdDropTextBlockOnCell(e, src) {
   unit.remove();
   const res = grdAddLine(block, { r, c }, insertAt - 1, spec, { noHistory: true });
   if (res && res.ok) window.buildLayerPanel?.();
+  /* ★U29 ㉡ C(2026-10-05) — 넣은 줄이 스크래치 카드에 «정말» 가렸으면 알린다(조건·알림은 js/scratch-pad.js 한 곳).
+     다음 프레임에 잰다 — 칸이 자란 «뒤»의 자리여야 한다(놓기 전엔 안 겹쳤다가 자라서 가리는 꼴이 있다). */
+  if (res && res.ok) requestAnimationFrame(() => {
+    try {
+      const cell = block.querySelector(`.grd-cell[data-r="${r}"][data-c="${c}"]`);
+      const ln = cell ? [...cell.children].filter(k => k.hasAttribute('data-line'))[res.li] : null;
+      if (ln && (window.scratchCardsCovering?.(ln) || []).length) window.showScratchCoverNotice?.();
+    } catch (_) {}
+  });
   else parent.insertBefore(unit, next && next.parentNode === parent ? next : null);   // 실패 — 블럭을 제자리로(데이터가 어디에도 없는 상태 금지)
   return true;
 }
