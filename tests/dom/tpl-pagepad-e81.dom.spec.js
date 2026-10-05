@@ -90,7 +90,10 @@ const ins = (page, id, secId = 'eS2') => page.evaluate(async ([id, secId]) => {
 const screen = (page, k, scope = '#canvas') => page.evaluate(([k, scope]) => {
   const el = document.querySelector(`${scope} [data-e81="${k}"]`); if (!el) return null;
   const inner = el.closest('.section-inner') || el.closest('.section-block'); const q = el.getBoundingClientRect(); const iq = inner.getBoundingClientRect();
-  return { ml: el.style.marginLeft, w: el.style.width, cml: getComputedStyle(el).marginLeft, cw: Math.round(q.width), left: Math.round(q.left - iq.left) };
+  /* ★KR6(2026-10-06 lane-drag · 태양 승인 ⒜): 폭·left 는 «레이아웃 px» — 화면 px(getBoundingClientRect)는 배율 전환(#canvas-scaler transition) 중에 재면
+     860×0.4006 → 345 처럼 1px 흔들린다(TERMS: reports/lane-drag/t1-split/TERMS.md). 배율 s 는 같은 프레임의 inner 로 구한다(목표 배율 currentZoom 아님). */
+  const s = iq.width / inner.offsetWidth;
+  return { ml: el.style.marginLeft, w: el.style.width, cml: getComputedStyle(el).marginLeft, cw: el.offsetWidth, left: Math.round((q.left - iq.left) / s) };
 }, [k, scope]);
 /** HTML 문자열 속 그 블럭의 인라인 style — DOMParser 로(정규식 아님) */
 const parsed = (page, html, k) => page.evaluate(([html, k]) => {
@@ -106,7 +109,8 @@ async function sectionRef(page, ids, kinds) {
     const secs = [...document.querySelectorAll('#canvas .section-block')].filter(s => !['eS2', 'eS3', 'eSR'].includes(s.id));
     const el = secs.map(s => s.querySelector(`[data-e81="${k}"]`)).find(Boolean); if (!el) return null;
     const inner = el.closest('.section-inner') || el.closest('.section-block'); const q = el.getBoundingClientRect(); const iq = inner.getBoundingClientRect();
-    return { ml: el.style.marginLeft, w: el.style.width, cml: getComputedStyle(el).marginLeft, cw: Math.round(q.width), left: Math.round(q.left - iq.left) };
+    const s = iq.width / inner.offsetWidth;   // ★KR6 — screen() 과 같은 자(레이아웃 px)
+    return { ml: el.style.marginLeft, w: el.style.width, cml: getComputedStyle(el).marginLeft, cw: el.offsetWidth, left: Math.round((q.left - iq.left) / s) };
   }, k);
   return ref;
 }
@@ -239,4 +243,21 @@ test('T13 넣고 ⌘Z «없이» 바로 저장 → 저장 데이터(serializePro
   expect(html.length, '전제: 저장 데이터에 canvas').toBeGreaterThan(100);
   const v = await parsed(page, html, 'bridge');
   expect(v, `저장 데이터 ${JSON.stringify(v)}`).toEqual({ ml: '-20px', w: 'calc(100% + 40px)' });
+});
+
+// ─────────── T14 블럭 길 전폭 3종 — 배율 무관 둘째 가드(2026-10-06 lane-drag · 태양 승인 ②) ───────────
+/* T1 은 화면 꼴(계산 ml·폭·left)을 «섹션 길과 견줘» 잰다(KR6 — 흔들림 이력). T5·T13 은 bridge «하나만» 인라인 값으로 지킨다.
+   ⇒ cardFB·frameFB·chatFB 의 블럭 길 폭은 T1 말고 지키는 시험이 없었다. 여기서 T5 꼴(인라인 값 · DOMParser · 배율 무관)으로 지킨다.
+   예측(TERMS 탐침 ebe16949 실측과 같음): 셋 다 화면·표본 모두 ml −20px · w calc(100% + 40px). 핀(4df20f78)에선 −48 → 빨강. */
+test('T14 ★블럭 길 전폭 3종(cardFB·frameFB·chatFB) — 넣은 직후 화면 인라인 값과 표본 값 = −20 · calc(100% + 40px)', async ({ page }) => {
+  if (FIX) test.fail(true, '핀: 블럭 길은 다시 걸기 없음 — −48');
+  const { ids } = await setup(page);
+  const got = {};
+  for (const k of ['cardFB', 'frameFB', 'chatFB']) {
+    await ins(page, ids[k]);
+    const v = await screen(page, k, '#eS2');
+    got[k] = { screen: v && { ml: v.ml, w: v.w }, sample: await parsed(page, await serial(page), k) };
+  }
+  const want = { ml: '-20px', w: 'calc(100% + 40px)' };
+  expect(got, JSON.stringify(got)).toEqual({ cardFB: { screen: want, sample: want }, frameFB: { screen: want, sample: want }, chatFB: { screen: want, sample: want } });
 });

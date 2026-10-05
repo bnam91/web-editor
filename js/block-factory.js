@@ -5443,14 +5443,12 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       folderSel.innerHTML = folders.map(f => `<option value="${f}">${f}</option>`).join('') + '<option value="__new__">새 폴더...</option>';
     }
 
-    /* ★U16①(2026-10-05) — 프레임에선 「블록 템플릿으로 저장」을 «안» 보인다.
-       실측(2026-10-05 · 772ccadc+e9c49d2f, 진단 판): 프레임 저장 → insertTemplate 왕복에서 넣은 프레임이
-       bindFrameDropZone 을 못 받아(_subSecBound false) 클릭해도 선택이 안 됐다(+ 원본과 id 가 겹침 —
-       이건 글자 블록 왕복도 같다, 프레임만의 병 아님). 지디 조건 「깨지면 프레임에는 그 항목을 보이지 마라」.
-       ⛔고치려면 insertTemplate 의 block 갈래(template-system.js)에 bindFrameDropZone·새 id 를 먼저 넣고 이 줄을 걷어라. */
-    const _isFrameTarget = block.classList.contains('frame-block') && block.dataset.textFrame !== 'true';
+    /* ★U16①(2026-10-05 숨김 → 2026-10-06 풀림 · lane-drag) — 「블록 템플릿으로 저장」을 프레임에서도 보인다.
+       숨겼던 까닭: 프레임 저장 → insertTemplate 왕복에서 넣은 프레임이 bindFrameDropZone 을 못 받아 클릭해도 안 골라지고 id 가 원본과 겹쳤다.
+       고침 — 증거 커밋 3f832141: block 갈래가 넣는 블록과 안의 [id] 를 새로 주고 section 갈래와 같은 묶기 도우미(_bindInsertedTree)를 탄다.
+       (실앱 왕복 = 프레임 저장 → 넣기 → 클릭·끌기: reports/lane-drag 실앱 표.) */
     const saveTplItem = document.getElementById('bcm-save-template');
-    if (saveTplItem) saveTplItem.style.display = _isFrameTarget ? 'none' : '';
+    if (saveTplItem) saveTplItem.style.display = '';
 
     /* ★U17② 「바로 아래에 여백 넣기 (G)」 — 블럭·프레임 모두. 자리 = _gapAnchorOf(누른 그것).
        ⛔자유배치 프레임 «안»에선 안 보인다 — 거기 흐름 갭은 좌표 자식들과 겹쳐 y=0 에 선다.

@@ -75,6 +75,30 @@ function _isInsideUnselectedFrame(block) {
   return !(ss.classList.contains('selected') && window._activeFrame === ss);
 }
 
+/* D3 — 폭 100% 글자 프레임을 «내용 폭 px» 로 바꾸고 left 를 정렬만큼 옮긴다(보이는 글자 자리 불변). 옮긴 px 를 돌려준다.
+   측정은 _clampTextFrameWidth(block-factory.js) 와 같은 길(fit-content 로 잠깐 풀어 offsetWidth) · 저장 꼴도 같다(dataset.width = 'NNN').
+   못 재거나(≤1px) 줄일 게 없으면(내용이 이미 꽉 참) 아무것도 안 바꾸고 0. */
+function _fitFullWidthTextFrame(tf) {
+  const oldW = tf.offsetWidth;
+  const prevW = tf.style.width;
+  tf.style.width = 'fit-content';
+  const fitW = Math.round(tf.offsetWidth);
+  tf.style.width = prevW;
+  if (!(fitW > 1) || fitW >= oldW) return 0;
+  const contentEl = tf.querySelector('[class^="tb-"]');
+  const tb = tf.querySelector('.text-block');
+  const align = (contentEl && (contentEl.style.textAlign || getComputedStyle(contentEl).textAlign))
+    || (tb && tb.style.textAlign) || 'left';
+  const shift = align === 'center' ? Math.round((oldW - fitW) / 2)
+              : (align === 'right' || align === 'end') ? (oldW - fitW) : 0;
+  const L = (parseInt(tf.style.left || '0') || 0) + shift;
+  tf.style.width = fitW + 'px';
+  tf.dataset.width = String(fitW);
+  tf.style.left = L + 'px';
+  tf.dataset.offsetX = String(L);
+  return shift;
+}
+
 // 프레임(frame-block) 내 자식 블록 드래그 후 프레임 높이를 자동 확장
 function _resizeFrameToFitChildren(_block) {
   // freeLayout 프레임은 자식 절대좌표 이동에 따라 부모 height를 자동 확장하지 않음.
@@ -645,11 +669,16 @@ function bindBlock(block) {
 
     e.stopPropagation();
     const startX = e.clientX, startY = e.clientY;
-    const startLeft = parseInt(dragEl.style.left || '0');
+    let   startLeft = parseInt(dragEl.style.left || '0');   // D3 — 폭 100% 글자를 가로로 끌기 시작할 때 한 번 옮긴다
     const startTop  = parseInt(dragEl.style.top  || '0');
+    /* ★D3(2026-10-05 현빈 «자유 이동이 되어야지?» · 지디 ⒜) — 자유 프레임 안 «폭 100%» 글자 프레임(가운데/오른쪽 정렬의 설계 꼴,
+       block-factory.js _clampTextFrameWidth)은 아래 클램프가 가로 여유 0 을 줘서 좌우로 0px 움직였다(실앱 실측 · 세로만 됨).
+       ⇒ «가로 성분이 처음 생기는 틱»에만 폭을 내용 폭 px 로 바꾸고, 보이는 글자 자리가 그대로이게 left 를 정렬만큼 옮긴다
+         (가운데 = (옛폭−새폭)/2 · 오른쪽 = 옛폭−새폭 · 왼쪽 = 0). 세로만 끌면 아무것도 안 바꾼다(끈 글자만 · 한 번만). */
+    let _fullWidthTf = (isText && dragEl.dataset?.textFrame === 'true' && dragEl.dataset.width === '100%') ? dragEl : null;
 
     // freeLayout 다중선택 피어 수집 — shift+클릭으로 선택된 형제 absolute 요소들
-    const _parentFrameForMulti = dragEl.closest('.frame-block[data-free-layout]');
+    const _parentFrameForMulti = dragEl.parentElement?.closest('.frame-block[data-free-layout]') || null;   // ★D5c(:652) — 부모부터(도형 래퍼는 자신이 free-layout 이라 closest 가 «자기»를 잡아 피어 0 이었다)
     const multiPeers = [];
     if (_parentFrameForMulti) {
       [..._parentFrameForMulti.children].forEach(ch => {
@@ -672,7 +701,10 @@ function bindBlock(block) {
     }
 
     // 드래그아웃 감지용 — freeLayout 프레임 밖으로 이동 시 섹션 레벨로 추출
-    const _dragOutParentFrame   = dragEl.closest('.frame-block[data-free-layout]');
+    /* ★D5(2026-10-05 lane-drag) — 기준 부모는 «부모부터» 찾는다(아래 클램프 :765 · T-088 과 같은 까닭).
+       dragEl 이 도형 래퍼면 그 자신이 free-layout(makeFrameBlock 기본)이라 closest 가 «자기»를 잡고, 끌어내기 판정이
+       래퍼 크기(100×100)+60 으로 서서 옛 꼴 도형을 조금만 끌어도 프레임 밖으로 빠졌다(실앱 실측: (100,75) 끌기 → section-inner). */
+    const _dragOutParentFrame   = dragEl.parentElement?.closest('.frame-block[data-free-layout]') || null;
     const _dragOutParentSection = dragEl.closest('.section-block');
 
     let moved = false;
@@ -698,6 +730,7 @@ function bindBlock(block) {
       const cdx = (ev.shiftKey && _shiftAxis === 'v') ? 0 : dx;
       const cdy = (ev.shiftKey && _shiftAxis === 'h') ? 0 : dy;
 
+      if (_fullWidthTf && cdx !== 0) { startLeft += _fitFullWidthTextFrame(_fullWidthTf); _fullWidthTf = null; }   // D3
       const rawLeft = Math.round(startLeft + cdx / scale);
       const rawTop  = Math.round(startTop  + cdy / scale);
 
@@ -732,7 +765,7 @@ function bindBlock(block) {
       }
 
       // 스마트 가이드 스냅 (단일 선택일 때만 — 다중선택 시 스냅 생략)
-      const parentFrame = dragEl.closest('.frame-block[data-free-layout]');
+      const parentFrame = dragEl.parentElement?.closest('.frame-block[data-free-layout]') || null;   // ★D5 — 스냅·가이드도 «실제 부모 프레임» 기준(위 끌어내기와 같은 까닭)
       let newLeft = rawLeft, newTop = rawTop;
       if (parentFrame && multiPeers.length === 0) {
         const snapped = snapPosition(rawLeft, rawTop, dragEl, parentFrame, scale);
@@ -2526,6 +2559,13 @@ function bindFrameDropZone(ss) {
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
   if (ss.style.position === 'absolute') {
     ss.setAttribute('draggable', 'false');
+    /* ★D2(2026-10-05 현빈 · lane-drag) — 오버레이 «프레임»(스티커 그룹 · 도형 래퍼)의 전용 이동 드래그는 이 자리에서도 «건다».
+       프레임은 bindBlock 을 안 탄다 ⇒ 표식을 «쓰는» 세 자리(enterFloat · 오버레이 묶기 · 그룹 풀기)는 그 자리에서 걸지만,
+       HTML 에서 «다시 태어난» 오버레이 프레임(로드 · ⌘Z/⌘⇧Z · 붙여넣기 · 템플릿 …)은 여기만 지나서 받아줄 드래그가 없었다
+       (실앱 실측: 다시 연 뒤 _overlayMoveBound false · 끌기 Δ0).
+       ⛔«걸기만» 한다 — 둘 다 돌지 않는 근거는 둘 다 «매 누름 live» 판정이다: 전용 쪽은 오버레이가 아니면 return,
+         아래 absolute 셀 드래그는 오버레이면 return. 같은 posEl 에 두 번 안 걸린다(_overlayMoveBound). */
+    _bindFloatMoveDrag(ss);
 
     // 자식 블록 셀렉터 — 이 영역 클릭은 bindBlock에게 위임
     // text-frame 제거: B가 selected 상태에서 TF에 pointer-events:auto가 생겨도
@@ -2908,7 +2948,15 @@ function bindFrameDropZone(ss) {
   ss.addEventListener('pointerdown', e => {
     // I4-F1: .icon-block 누락 → free-layout 아이콘이 pointerdown drag-disable에서 빠져 이동 막힘. drop/multi 셀렉터(BLOCK_SEL)와 정합.
     const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block');
-    if (isInnerBlock) {
+    /* ★D1(2026-10-05 현빈 · lane-drag) — «흐름에 놓인 도형 래퍼»(섹션에 바로 넣은 도형 = addShapeBlock 섹션 레벨 꼴)는
+       래퍼 «자신»이 흐름 단위다. 여기서 draggable 을 끄면 그 «자식 드래그»(bindBlock isShape 갈래)가 래퍼가 absolute 가
+       아니라 return 하므로 두 길이 서로 미루고 아무도 안 끈다(실앱 실측: 두 순서 다 Δ0 · dragstart 0).
+       ⇒ 래퍼 직속 도형을 누르면 «빈 영역»처럼 래퍼를 고르고 draggable 을 둔다 = 다른 흐름 단위처럼 «순서 바꾸기».
+       ⛔absolute 래퍼(자유 프레임 안 옛 꼴)는 무변 — 그쪽은 bindBlock 이 래퍼를 좌표로 끈다.
+       판정은 매 누름 live(래퍼가 끌어내기·붙여넣기로 흐름↔absolute 를 오갈 수 있다). */
+    const _flowShapeWrapper = isInnerBlock?.classList.contains('shape-block') && isInnerBlock.parentElement === ss
+      && isShapeFrame() && ss.style.position !== 'absolute';
+    if (isInnerBlock && !_flowShapeWrapper) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');
       document.addEventListener('pointerup', () => ss.setAttribute('draggable', 'true'), { once: true });

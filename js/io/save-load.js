@@ -1686,6 +1686,34 @@ function safeLocalStorageSet(key, value) {
   return false;
 }
 
+/* ★E169(2026-10-06 lane-drag · 지디) 손상 복구 알림 글 — «백업이 있었나»가 아니라 «디스크 파일을 고쳤나»(_healed)로 고른다.
+   옛 글 하나(«…복구했습니다»)는 자가치유가 실패해 디스크에 성한 판이 없을 때도 떠서 사용자를 안심시켰다(실앱 ro 판).
+   ⛔«무엇을 하라» 조언은 안 붙인다(디스크 비우기가 유일한 길이라는 증거 없음). 시험: tests/unit/recovery-heal-toast-e169.test.js */
+function _recoveryToastText(proj) {
+  const base = proj._recovered === 'history' ? '히스토리'
+             : proj._recovered === 'pre-externalize' ? '변환 전 원본(오래된 상태일 수 있음)'
+             : '백업';
+  // ★E168·E170 ㉢ — 무엇이 남았는지 말한다: 그 판의 저장 시각(그 파일 mtime). 글자는 main _savedAtLabel 이 «한 곳»에서 만든다 — 여기는 싣기만.
+  //   꼴: «동사 뒤 괄호» — 카드 배지(pages/projects.html)와 같은 꼴. 없으면 괄호만 빠진다.
+  const when = proj._recoveredAtLabel ? ` (${proj._recoveredAtLabel} 저장분)` : '';
+  if (proj._healed !== false) return `⚠️ 프로젝트 파일이 손상되어 ${base}에서 복구했습니다${when} — 그 뒤 작업은 없을 수 있습니다`;
+  const code = proj._healError;
+  const why = code === 'ENOSPC' ? '공간 부족' : (code === 'EACCES' || code === 'EPERM' || code === 'EROFS') ? '권한' : (code || '알 수 없음');
+  return `⚠️ 프로젝트 파일이 손상되어 ${base}에서 열었습니다${when}. 디스크의 파일은 아직 고치지 못했습니다(${why}) — 이대로는 저장이 안 될 수 있습니다.`;
+}
+
+/* ★E170(2026-10-06 lane-drag · 태양/지디 «한 곳») 프로젝트 «열기» 로드의 한 자리 — 부팅 로드 · 탭 첫 로드가 같이 부른다.
+   열기 입구 10 곳(카드 · 홈 최근 탭 · 설정 · 협업 수락 · MCP open_project · 탭 바 · 탭 닫기 뒤 · 「+」 최근 · 새 프로젝트)이 이 두 자리로 모인다.
+   옛 판: 부팅 로드만 복구 토스트 · 탭 첫 로드는 없음(말없는 복구). ⇒ 토스트(같은 글)와 표식 걷기를 여기 «한 번»만.
+   ⛔렌더러에서 electronAPI.loadProject 에 open:true 를 넘기는 «날» 호출을 새로 쓰지 마라 — tests/unit/open-load-notice-e170.test.js 가 «하나»로 잠근다. */
+async function loadProjectForOpen(id) {
+  const proj = await window.electronAPI.loadProject(id, { open: true });
+  if (proj && proj._recovered) window.showToast?.(_recoveryToastText(proj));
+  if (proj) { delete proj._recovered; delete proj._healed; delete proj._healError; delete proj._recoveredAt; delete proj._recoveredAtLabel; } // 마커는 메모리/저장에 남기지 않음
+  return proj;
+}
+window.loadProjectForOpen = loadProjectForOpen;
+
 let _autoSaveHideTimer = null;
 function _setAutosaveIndicator(state) {
   const el = document.getElementById('autosave-indicator');
@@ -2162,7 +2190,7 @@ function initApp() {
         } catch (_) {}
         // proj + meta 병렬 로드 — meta 실패해도 proj는 사용해야 하므로 독립 처리
         let proj = null;
-        try { proj = await window.electronAPI.loadProject(activeProjectId, { open: true }); } catch(e) { // {open:true}: 열 때 외부화 정책 대상
+        try { proj = await loadProjectForOpen(activeProjectId); } catch(e) { // {open:true}: 열 때 외부화 정책 대상 · ★E170 복구 알림도 그 안
           console.error('[initLoad] loadProject 실패:', e);
         }
         const meta = await window.electronAPI.loadProjectMeta(activeProjectId).catch(() => null);
@@ -2170,14 +2198,7 @@ function initApp() {
         window.DesignSystem?.restoreColorVarsFromMeta?.(activeProjectId);
         window.DesignSystem?.restoreColorHistoryFromMeta?.(activeProjectId);   // 최근 쓴 색 — 프로젝트별(meta 에 없으면 빈 목록)
         if (proj) {
-          // GAP-004: proj.json 손상으로 백업/히스토리에서 복구된 경우 사용자에게 정직하게 통지.
-          if (proj._recovered) {
-            const _recLbl = proj._recovered === 'history' ? '히스토리'
-                          : proj._recovered === 'pre-externalize' ? '변환 전 원본(오래된 상태일 수 있음)'
-                          : '백업';
-            window.showToast?.(`⚠️ 프로젝트 파일이 손상되어 ${_recLbl}에서 복구했습니다.`);
-            delete proj._recovered; // 마커는 메모리/저장에 남기지 않음
-          }
+          // GAP-004: proj.json 손상 복구 통지는 loadProjectForOpen 이 «한 곳»에서 한다(★E170 — 탭 열기 길도 같은 글).
           // 마이그레이션: proj.json에 branches/commits가 남아있으면 meta로 이전
           if (!meta && (proj.branches || proj.commits)) {
             const migratedMeta = {

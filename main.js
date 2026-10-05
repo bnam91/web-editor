@@ -1955,7 +1955,11 @@ function _listItemFor(id, projPath, metaFast) {
     } catch (_) { /* stat/parse 실패 → 풀파싱 폴백 */ }
   }
   // 폴백: proj.json 풀파싱(현행 동작) + (신 레이아웃이면) 목록 메타 캐시 갱신
-  const data = JSON.parse(fs.readFileSync(projPath, 'utf8'));
+  // ★E168: 깨진 proj.json 이면 로드와 «같은 한 곳»으로 백업·히스토리에서 읽는다(읽기만 · 자가치유는 열 때) — 옛 판은 던져서 카드가 사라졌다.
+  const _rd = readProjectWithFallback(id, { heal: false });
+  if (!_rd) return null;
+  const data = _rd.proj;
+  const _fromFallback = _rd.from !== 'proj';
   if (!data.id || data.id === 'undefined') return null;
   let thumbnail = data.thumbnail || null;
   // ★collabRef 는 proj.json 이 아니라 meta 에만 산다(원격 연결은 «문서»가 아니라 «이 설치»의 상태다).
@@ -1972,9 +1976,11 @@ function _listItemFor(id, projPath, metaFast) {
       folderId = meta.folderId || null;
     } catch {}
   }
-  if (metaFast) { try { _refreshListMeta(data.id, data); } catch (_) {} }
+  // ★E168: 폴백으로 읽은 카드는 meta 를 «안» 고친다 — 고치면 다음 목록이 빠른 길로 «표시 없는» 카드를 세운다(말없는 복구).
+  if (metaFast && !_fromFallback) { try { _refreshListMeta(data.id, data); } catch (_) {} }
   return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt,
-           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, collabRef, favorite, folderId };
+           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, collabRef, favorite, folderId,
+           ...(_fromFallback ? { recoveredFrom: _rd.from, recoveredAt: _rd.savedAt, recoveredAtLabel: _savedAtLabel(_rd.savedAt) } : {}) };
 }
 
 /* ── IPC: AI Image Gen ──
@@ -2325,8 +2331,18 @@ function _externalizeOnOpen(event, id) {
   if (scan.bytes >= EXTERNALIZE_HINT_MIN_BYTES) send('projects:externalize-hint', { projectId: safeId, reason: 'legacy', bytes: scan.bytes, base64Refs: scan.base64Refs });
 }
 
-ipcMain.handle('projects:load', (event, id, opts) => {
-  if (opts && opts.open === true) { try { _externalizeOnOpen(event, id); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
+/* ★E168(2026-10-06 lane-drag · 지디 ⒜ · 태양 v2) proj.json 을 «폴백까지» 읽는 «한 곳» — 로드(projects:load)와 목록(_listItemFor)이 같이 부른다(⛔사본 루프).
+   옛 판: 폴백 체인이 로드 핸들러 안에만 있어, 목록은 깨진 proj.json 을 던지고 _listProjectsImpl 의 catch 가 말없이 건너뜀 → 카드가 사라졌다
+   (실앱 dev 0f572e2a 실측 · 백업은 성함). 반환: { proj, from:'proj'|'backup'|'history'|'pre-externalize', path, savedAt(그 파일 mtime), healed, healError } | null.
+   heal:true(로드)만 자가치유 재기록 — 목록은 «읽기만». 소비자 명부: docs/proj-json-consumers.md · 시험: tests/unit/project-list-fallback-e168.test.js */
+function _mtimeOr(p) { try { return fs.statSync(p).mtimeMs; } catch (_) { return null; } }
+/* ★E170(태양 «한 helper») 복구 알림·카드 배지가 같은 꼴로 말하는 시각 글자 «MM-DD HH:mm» — 여기 «한 곳»에서만 만든다(렌더러 두 곳은 싣기만). */
+function _savedAtLabel(ms) {
+  if (typeof ms !== 'number' || !isFinite(ms)) return null;
+  const d = new Date(ms); const p2 = (n) => String(n).padStart(2, '0');
+  return `${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+function readProjectWithFallback(id, { heal = false } = {}) {
   const filePath = _resolveProjectJsonPath(id);
   // 1) 정상 경로: proj.json
   if (filePath) {
@@ -2341,7 +2357,7 @@ ipcMain.handle('projects:load', (event, id, opts) => {
            `{ ...existingWithoutMeta, … }`)이 그 문자열을 «0,1,2…» 로 펼쳐 저장했다.
          ⛔거절이 아니라 «폴백으로 내려보낸다» — 백업·히스토리에 성한 판이 있으면 그것이 답이다
            (손상 JSON 일 때 하는 것과 «같은 처분»으로 둔다. 새 뜻을 만들지 않는다). */
-      if (_SS().isProjectShaped(parsed)) return parsed;
+      if (_SS().isProjectShaped(parsed)) return { proj: parsed, from: 'proj', path: filePath, savedAt: _mtimeOr(filePath), healed: true };
       console.warn(`[projects:load] proj.json 이 «프로젝트 형태»가 아니다(${id}, ${typeof parsed}) — 백업 폴백 시도`);
     }
     catch (e) { console.warn(`[projects:load] proj.json 손상(${id}): ${e.message} — 백업 폴백 시도`); }
@@ -2366,15 +2382,45 @@ ipcMain.handle('projects:load', (event, id, opts) => {
       console.warn(`[projects:load] 후보가 프로젝트 형태가 아님 — 건너뜀: ${path.basename(c.path)}`);
       continue;
     }
-    console.warn(`[projects:load] ${id} 손상 → ${c.from}(${path.basename(c.path)})에서 복구`);
-    try { // 자가치유: 복구본을 proj.json으로 재기록 (다음 로드부터 정상)
-      const paths = _ensureNewLayoutPaths(id);
-      _atomicWriteFileSync(paths.proj, JSON.stringify(proj, null, 2));
-    } catch (e) { console.warn('[projects:load] 자가치유 재기록 실패:', e.message); }
-    return { ...proj, _recovered: c.from }; // _recovered: 렌더러 통지용(serialize엔 미포함)
+    console.warn(`[projects:load] ${id} 손상 → ${c.from}(${path.basename(c.path)})에서 ${heal ? '복구' : '읽음(목록)'}`);
+    /* ★E169(2026-10-06 lane-drag · 지디 «우리 몫») 자가치유 «성패»를 렌더러에 싣는다 — 옛 판은 실패를 warn 만 남기고 삼켜서
+       토스트가 «백업에서 복구했습니다»(디스크에 성한 판 0 인데 안심)였다. 실앱 ro 판(디스크가 꽉 찼을 때 대역) 실측. */
+    let healed = true, healError;
+    if (heal) {   // ★E168: 목록(heal:false)은 «읽기만» — 자가치유는 열 때만
+      try { // 자가치유: 복구본을 proj.json으로 재기록 (다음 로드부터 정상)
+        const paths = _ensureNewLayoutPaths(id);
+        _atomicWriteFileSync(paths.proj, JSON.stringify(proj, null, 2));
+      } catch (e) { healed = false; healError = (e && e.code) || 'unknown'; console.warn('[projects:load] 자가치유 재기록 실패:', e.message); }
+    }
+    return { proj, from: c.from, path: c.path, savedAt: _mtimeOr(c.path), healed, healError };
   }
   // 3) proj.json·백업·히스토리 모두 부재/손상 → 복구 불가
   return null;
+}
+
+/* ★E170(2026-10-06 lane-drag · 지디 ⑴ · 태양 «E170») 「최근 복구됨」 표지 — 프로젝트 id 별 · 이 앱 실행 동안만(메모리).
+   까닭(실앱 rw 판 실측): 디스크가 성하면 부팅 때 loadProject 를 부르는 여럿 중 «먼저 온» 호출이 폴백·자가치유를 먹고,
+   에디터 본 열기(open:true · 토스트 자리)는 이미 고쳐진 proj.json 을 읽어 복구를 모른다 → 알림 0(말없는 복구).
+   ⇒ 열기 아닌 로드가 «고쳐서» 폴백을 먹으면 표지를 남기고, 다음 «열기» 로드에 한 번 싣고 지운다 — 누가 경합에서 이기든 성립.
+   ⛔열기 아닌 로드에 주지 않는다(토스트 안 띄우는 호출이 또 먹는다). 못 고친 경우는 매 로드가 폴백이라 표지가 필요 없다(매번 사실대로).
+   «부팅 때 누가 폴백을 먹나» = 경합 · 미측정 · 다음 판(scope). 시험: tests/unit/recovery-notice-once-e170.test.js */
+const _recentRecovery = new Map();
+ipcMain.handle('projects:load', (event, id, opts) => {
+  const isOpen = !!(opts && opts.open === true);
+  if (isOpen) { try { _externalizeOnOpen(event, id); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
+  const key = _safeSeg(String(id || ''));
+  const r = readProjectWithFallback(id, { heal: true });   // ★E168 — 목록과 같은 한 곳
+  if (!r) return null;
+  if (r.from === 'proj') {
+    if (isOpen && _recentRecovery.has(key)) { const m = _recentRecovery.get(key); _recentRecovery.delete(key); return { ...r.proj, ...m }; }
+    return r.proj;
+  }
+  // _recovered · _recoveredAt · _healed · _healError: 렌더러 통지용(serialize엔 미포함 — js/io/proj-merge.js PROJ_RUNTIME_KEYS)
+  const mark = { _recovered: r.from, _recoveredAt: r.savedAt, _recoveredAtLabel: _savedAtLabel(r.savedAt), _healed: r.healed };
+  if (!r.healed) mark._healError = r.healError;
+  if (isOpen) _recentRecovery.delete(key);          // 이 열기가 스스로 알린다
+  else if (r.healed) _recentRecovery.set(key, mark); // 고쳐 버려서 다음 열기는 폴백을 못 본다 → 그 열기에 한 번
+  return { ...r.proj, ...mark };
 });
 
 /* ── [externalize] 수동 변환 · 되돌리기 · 상태 조회 (설정>성능) ── */
@@ -2513,6 +2559,27 @@ function _guardProjectName(incomingProject, prevPath) {
 
 // 저장 코어 — ipcMain.handle('projects:save')(렌더러)와 MCP create_project(main)가 공용.
 // (_duplicateProjectImpl과 같은 패턴 — 핸들러 본문을 함수로 추출했을 뿐 로직 무변경.)
+/* ★E169(2026-10-06 lane-drag · 태양 승인) 롤링 백업 «한 곳» — save(_saveProjectImpl) · save-sync 가 같이 부른다.
+   직전 proj.json 이 «프로젝트로 읽히지 않으면» 백업을 건드리지 않는다(불렀고 거절 → copied:false + 까닭).
+   까닭(실앱 실측 · 디스크가 꽉 찼을 때 대역 = 폴더 쓰기 막힘): 깨진 proj.json + 성한 백업으로 열면 projects:load 가 백업에서
+     열고 자가치유(proj.json 재기록)를 시도하는데, 그 쓰기가 실패하면 catch 가 warn 만 남긴다(= 말없게 만든 자리).
+     그 뒤 저장 한 번에 옛 코드는 깨진 proj.json 을 «검사 없이» 백업으로 복사 → 디스크에 성한 판 0.
+   ⛔다세대 백업 아님(다음 판). 저장 자체는 막지 않는다. 시험: tests/unit/rolling-backup-e169.test.js */
+function _rollBackup(prevPath, backupPath) {
+  let prev;
+  try { prev = JSON.parse(fs.readFileSync(prevPath, 'utf8')); }
+  catch (e) {
+    console.warn(`[rolling-backup] 직전 proj.json 이 읽히지 않아 백업을 그대로 둔다: ${e.message}`);
+    return { called: true, copied: false, reason: 'unparsable' };
+  }
+  if (!_SS().isProjectShaped(prev)) {
+    console.warn('[rolling-backup] 직전 proj.json 이 «프로젝트 형태»가 아니라 백업을 그대로 둔다');
+    return { called: true, copied: false, reason: 'not_project' };
+  }
+  try { fs.copyFileSync(prevPath, backupPath); } catch (e) { return { called: true, copied: false, reason: 'copy_failed:' + (e && e.code) }; }
+  return { called: true, copied: true };
+}
+
 async function _saveProjectImpl(project) {
   // write는 항상 신 위치. read(백업 직전 상태)는 dual fallback.
   const paths = _ensureNewLayoutPaths(project.id);
@@ -2525,13 +2592,14 @@ async function _saveProjectImpl(project) {
   if (prevPath && fs.existsSync(prevPath)) {
     try {
       // 롤링 백업: 정상 저장 전 직전 버전 보존 — 신 위치에만 작성
-      try { fs.copyFileSync(prevPath, paths.backup); } catch (_) {}
+      _rollBackup(prevPath, paths.backup);   // ★E169 — 깨진 직전 판은 백업으로 안 옮긴다
 
       // (버전 스냅샷은 proj.json 을 «쓴 뒤» 아래에서 만든다 — 재료가 파일이 아니라 메모리의 객체다)
     } catch {}
   }
 
   _atomicWriteFileSync(filePath, JSON.stringify(project, null, 2));
+  _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — 성한 저장 뒤엔 «그 뒤 작업은 없을 수 있습니다»가 거짓
   // [b8] 목록 메타 캐시 갱신 — proj.json 직후 기록해 meta.mtime >= proj.mtime 불변식 유지(목록 풀파싱 회피)
   _refreshListMeta(project.id, project);
   // [version-history] 버전 스냅샷 — «지금 저장되는 객체»를 정규형(goya-asset)으로 기록 + 계층 프룬.
@@ -2586,9 +2654,10 @@ ipcMain.on('projects:save-sync', (event, project) => {
     project = _guardProjectName(project, prevPath);
     if (prevPath && fs.existsSync(prevPath)) {
       // 롤링 백업 (다중 백업 슬롯은 sync 경로에서 생략 — 새로고침 빈도가 높아 슬롯 폭주 우려)
-      try { fs.copyFileSync(prevPath, paths.backup); } catch {}
+      _rollBackup(prevPath, paths.backup);   // ★E169 — save 와 같은 한 곳
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
+    _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — save 와 같은 규칙
     _refreshListMeta(project.id, project); // [b8] 목록 메타 캐시 동기 갱신 (mtime 불변식 유지)
     // [version-history/Q4] ★새로고침·탭닫기 순간에도 버전을 남긴다 — 사고가 제일 잦은 순간인데
     //   여태 이 경로엔 슬롯이 «전혀» 안 생겼다(롤링 백업만). 같은 10분 간격 게이트를 타므로

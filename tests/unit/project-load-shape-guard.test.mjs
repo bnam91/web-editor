@@ -89,8 +89,19 @@ function loadHandler(src) {
 
 const MAIN = read('main.js');
 
+/* ★E168(2026-10-06 lane-drag): 읽기·가드·폴백 체인은 핸들러에서 공용 readProjectWithFallback 으로 «옮겨졌다»(목록도 같이 부른다).
+   핸들러는 그것을 부르기만 한다 → 자리를 그 함수 몸통으로 옮겨 «같은 것»을 잰다. 핸들러가 그 함수를 부르는지도 본다. */
+function readerBody(src) {
+  const A = 'function readProjectWithFallback(';
+  assert.equal(src.split(A).length - 1, 1, 'readProjectWithFallback 은 하나여야 한다');
+  const k = src.indexOf(A); let d = 0, i = src.indexOf('{', src.indexOf(')', k));
+  for (; i < src.length; i++) { if (src[i] === '{') d++; else if (src[i] === '}') { d--; if (d === 0) { i++; break; } } }
+  return src.slice(k, i);
+}
+
 test('W1 ★정상 경로가 「프로젝트 형태인가」를 거친다 — 그리고 «폴백으로 내려보낸다»', () => {
-  const fn = stripComments(loadHandler(MAIN));
+  assert.match(stripComments(loadHandler(MAIN)), /readProjectWithFallback\(/, '★로드 핸들러가 공용 읽기를 안 부른다');
+  const fn = stripComments(readerBody(MAIN));
   const iParse = fn.indexOf('JSON.parse(fs.readFileSync(filePath');
   const iGuard = fn.indexOf('isProjectShaped(parsed)');
   const iFall = fn.indexOf('loadFallbackCandidates');
@@ -100,7 +111,7 @@ test('W1 ★정상 경로가 「프로젝트 형태인가」를 거친다 — �
   assert.ok(iParse < iGuard, '★가드를 읽기보다 앞에 뒀다 — 파싱 결과를 못 잰다');
   assert.ok(iGuard < iFall, '★가드가 폴백 체인 «뒤»다 — 정상 경로가 이미 반환해 버린다');
   /* ⛔거절(throw/ok:false)이 아니라 «폴백으로 흐르는» 것이어야 한다 — 손상 JSON 과 «같은 처분». */
-  assert.match(fn.slice(iGuard, iGuard + 220), /return parsed;/,
+  assert.match(fn.slice(iGuard, iGuard + 220), /return \{ proj: parsed,/,
     '★통과할 때 parsed 를 안 돌려준다');
   assert.ok(!/throw new Error/.test(fn.slice(iGuard, iGuard + 220)),
     '★모양이 아니면 «던진다» — 백업에 성한 판이 있어도 프로젝트가 안 열린다(새 뜻을 만들지 마라)');
@@ -122,10 +133,10 @@ test('W3 ★모르면 «통과»다 — 판정 모듈이 없을 때 로드를 �
 /* ═══ N1 — 음성대조 ═══════════════════════════════════════════════════════ */
 
 test('N1 ★음성대조 — 가드 줄을 떼면 W1 이 빨개진다(자리를 재고 있음을 증명)', () => {
-  const ANCHOR = 'if (_SS().isProjectShaped(parsed)) return parsed;';
+  const ANCHOR = "if (_SS().isProjectShaped(parsed)) return { proj: parsed, from: 'proj',";
   assert.ok(MAIN.includes(ANCHOR), '★변이 닻을 못 찾았다 — 이 음성대조는 «안 재고» 있다');
-  const mutated = MAIN.replace(ANCHOR, 'return parsed;');
-  const fn = stripComments(loadHandler(mutated));
+  const mutated = MAIN.replace(ANCHOR, "return { proj: parsed, from: 'proj',");
+  const fn = stripComments(readerBody(mutated));
   assert.equal(fn.indexOf('isProjectShaped(parsed)'), -1,
     '★가드를 떼었는데도 남아 있다 — 이 음성대조는 «안 재고» 있다');
 });

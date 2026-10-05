@@ -104,13 +104,22 @@ const menuOpen = () => document.getElementById('block-context-menu').style.displ
 
 for (const kind of ['flow', 'free']) {
   const name = kind === 'flow' ? 'flow 프레임' : 'freeLayout 프레임';
-  test(`⑤ ${name} — 선택 안 된 프레임 안 글자 위 «우클릭» = 맞힌 요소 프레임 · 메뉴가 뜬다 · 대상 = 프레임(저장 항목 숨김 · 여백 항목 보임)`, async ({ page }) => {
+  test(`⑤ ${name} — 선택 안 된 프레임 안 글자 위 «우클릭» = 맞힌 요소 프레임 · 메뉴가 뜬다 · 대상 = 프레임(여백 넣기가 프레임 row 뒤에 선다 · 저장 항목 보임)`, async ({ page }) => {
     const errs = await scene(page, kind);
     expect(await menuState(page), '전제 — 메뉴 닫힘').toMatchObject({ open: false });
     expect(await page.evaluate(() => document.getElementById('F').classList.contains('selected')), '전제 — 프레임 안 골라짐').toBe(false);
     await press(page, { sel: '#F' }, menuOpen, `${kind} 우클릭`, { button: 'right' });
-    /* 대상 판별: 「블록 템플릿으로 저장」은 대상이 «글자 아닌 프레임»일 때만 숨는다 — 대상이 글자(T)였다면 보였다. */
-    expect(await menuState(page)).toEqual({ open: true, save: false, gap: true, gapText: '바로 아래에 여백 넣기 (G)' });
+    /* 대상 판별(2026-10-06 바꿈 · lane-drag): 옛 판은 「블록 템플릿으로 저장」이 프레임에서만 숨는 것으로 갈랐다 — 이제 프레임도 보인다
+       (insertTemplate block 갈래가 새 id + 묶기를 받아 U16① 숨김을 걷었다 · 3f832141). 그래서 «여백 넣기»를 «실제로» 눌러 가른다:
+       대상이 프레임이면 갭이 프레임의 row(S1R) «바로 뒤»에 선다. 대상이 글자(T)였다면 flow 에선 프레임 «안»에 서고, free 에선 그 항목이 안 보였다. */
+    expect(await menuState(page)).toEqual({ open: true, save: true, gap: true, gapText: '바로 아래에 여백 넣기 (G)' });
+    const gapAt = await page.evaluate(() => {
+      const before = new Set(document.querySelectorAll('.gap-block'));
+      document.getElementById('bcm-insert-gap').click();
+      const g = [...document.querySelectorAll('.gap-block')].find(x => !before.has(x));
+      return g ? { prev: g.previousElementSibling?.id || null, inFrame: !!g.closest('#F') } : null;
+    });
+    expect(gapAt, `여백 자리=${JSON.stringify(gapAt)} — 대상이 프레임이면 S1R 바로 뒤 · 프레임 밖`).toEqual({ prev: 'S1R', inFrame: false });
     expect(await sel(page), '우클릭 = 클릭과 같은 «집기»: 프레임(과 섹션)만 골라짐 · 글자 아님').toEqual(['S1', 'F']);
     expect(errs).toEqual([]);
   });
