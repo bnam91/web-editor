@@ -51,7 +51,7 @@ ${blockHeaderHTML({
     })}
     </div>
 
-    <div class="prop-section" id="type-section" style="display:${isLiner?'none':'block'}">
+    <div class="prop-section" id="type-section" style="display:${(isLiner || isIconText)?'none':'block'}">
       <div class="prop-section-title">Type</div>
       <div class="prop-type-group">
         <button class="prop-type-btn ${currentClass==='tb-h1'?'active':''}"      data-cls="tb-h1">H1</button>
