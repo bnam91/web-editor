@@ -152,8 +152,12 @@ test('D5 지키는 시험 — 사각 이미지 줄: 고르면 왼쪽 막대·가
   expect(cs).toEqual({ bs: 'rgb(45, 111, 232) 2px 0px 0px 0px inset', pos: 'static', ov: 'visible', bc: 'none', ac: 'none', radius: '0px', imgRadius: '0px' });
   /* 사진 해시 — 사각 줄 상자 영역(글자 없음)의 픽셀. 값은 핀 37ab1c65 에서 잰 것(같은 크로미움) */
   const r = await rectOf(page, sel);
+  /* 10-05 K3 ⒜ — 흐름 그리드에도 모서리 «폭» 손잡이가 서서(오버레이 고정층) 해시 범위(그림 ±4px)에 nw 손잡이가 들어온다(탐침 F-GRID probe-d5).
+     요구 = «그림이 안 바뀐다» 그대로 ⇒ 해시 찍는 동안만 장면에서 손잡이를 숨긴다(제품 손 안 댐) · 찍은 뒤 되돌림. */
+  await page.evaluate(() => document.querySelectorAll('[data-grd-resize-dir]').forEach(h => { h.dataset.d5Vis = h.style.visibility; h.style.visibility = 'hidden'; }));
   const hash = await (async () => { const b = (await page.screenshot({ clip: { x: Math.floor(r.left) - 4, y: Math.floor(r.top) - 4, width: Math.ceil(r.w) + 8, height: Math.ceil(r.h) + 8 } })).toString('base64');
     return page.evaluate(async (b) => { const i = new Image(); i.src = 'data:image/png;base64,' + b; await i.decode(); const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const k = c.getContext('2d'); k.drawImage(i, 0, 0);
       const d = k.getImageData(0, 0, i.width, i.height).data; let h = 2166136261; for (let t = 0; t < d.length; t++) { h ^= d[t]; h = Math.imul(h, 16777619) >>> 0; } return h + ':' + i.width + 'x' + i.height; }, b); })();
+  await page.evaluate(() => document.querySelectorAll('[data-grd-resize-dir]').forEach(h => { h.style.visibility = h.dataset.d5Vis || ''; delete h.dataset.d5Vis; }));
   expect(hash, '사각 줄 사진 해시 = 핀 37ab1c65 에서 잰 값').toBe('2383551274:217x128');
 });

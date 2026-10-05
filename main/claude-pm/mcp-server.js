@@ -3590,7 +3590,7 @@ function _registerDefaultTools() {
   /* ─── grid-block ★2026-09-07 신설 ───────────────────────────────────────
      앱엔 `window.addGridBlock`/`updateGridBlock` 이 검증까지 갖춰 있는데 MCP 도구가 «없었다».
      ⇒ 사용자가 「그리드에 글 넣어줘」 하면 클로드가 «그런 기능 없습니다»라고 답했다(실측).
-     ⛔여기서 다시 검증하지 «않는다» — 앱이 정본이다(cols 1~4·rows·cells·gap·valign).
+     ⛔여기서 다시 검증하지 «않는다» — 앱이 정본이다(cols 1~8·rows 1~8·cells·gap·valign — K5 10-05 4→8).
        두 곳에서 검증하면 둘이 어긋나는 날이 온다. 여기선 «넘기고, 결과를 읽어» 돌려준다. */
   registerTool(
     'add_grid_block',
@@ -3604,8 +3604,8 @@ function _registerDefaultTools() {
       });
     },
     {
-      description: 'Add a grid block (grd_xxx) — a column grid (1~4 columns × rows) where each cell holds text. '
-        + 'cols = column widths (array, 1~4). rows = row heights ([{height:"auto"|number}]). '
+      description: 'Add a grid block (grd_xxx) — a column grid (1~8 columns × 1~8 rows) where each cell holds text. '
+        + 'cols = column widths (array, 1~8). rows = row heights, 1~8 entries ([{height:"auto"|number}]). '
         + 'cells = cell contents, row-major. gap = px between cells (both axes). rowGap/colGap = per-axis '
         + 'override (0~200px, optional — omit to use gap for both). valign = top|middle|bottom. '
         + '★To make a TABLE (spec/compare/price): set cellBorderWidth (px) — every cell gets a line. '
@@ -3631,7 +3631,7 @@ function _registerDefaultTools() {
         properties: {
           sectionId: { type: 'string', description: 'sec_xxx to insert into (else uses selected section)' },
           cols: { type: 'array',
-            description: 'columns — 1~4 entries, each {width:number, lines:[{type:"body"|"h1".., text:"..."}]}. '
+            description: 'columns — 1~8 entries, each {width:number, lines:[{type:"body"|"h1".., text:"..."}]}. '
               /* ★T-178(2026-09-23) — 「cols 가 곧 행 0」이 아니게 됐다. 갈림을 여기 적는다:
                  안 적으면 예전 동작(행 0 칸에 준 꾸밈이 열 전체를 칠하던 것)이 MCP 회귀로 읽힌다. */
               + '★cols[c].lines = «행 0 의 줄 내용»(단일 진실원 — 행 0 줄은 여기 하나뿐이다). '

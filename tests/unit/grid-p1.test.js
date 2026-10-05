@@ -107,9 +107,10 @@ before(async () => {
  *   ⛔이 단언 하나만 고치고 끝내면 «값만» 맞고 «동작»은 안 열릴 수 있다 —
  *     그래서 아래에 「1열이 폴백에 안 먹힌다」「1x4 가 실제로 만들어진다」를 같이 세웠다.
  *   ⛔되돌리려면 코드가 아니라 현빈에게 물어라. */
-test('한도 상수 — 열 1~4, 행 1~4 (M40: 1열 허용 · 2026-09-05 정책 변경)', () => {
-  assert.equal(MIN_COLS, 1); assert.equal(MAX_COLS, 4);
-  assert.equal(MIN_ROWS, 1); assert.equal(MAX_ROWS, 4);
+test('한도 상수 — 열 1~8, 행 1~8 (M40: 1열 허용 · 2026-09-05 정책 변경 · K5 ⒜ 10-05 4→8)', () => {
+  /* K5 ⒜(2026-10-05 지디 · lane-f-grid): 상한 4 → 8. 옛 단언(4 · 5개 거부 · 6개→4)은 이 줄로 기록 — 정책이 바뀐 것이지 결함 아님. */
+  assert.equal(MIN_COLS, 1); assert.equal(MAX_COLS, 8);
+  assert.equal(MIN_ROWS, 1); assert.equal(MAX_ROWS, 8);
 });
 
 test('★M40 — 1열 그리드가 «폴백에 먹히지 않고» 1열 그대로 읽힌다', () => {
@@ -230,16 +231,18 @@ test('승격④ — dataset.cells(행 0 포함 전체)가 있으면 실제로 �
 });
 
 /* ═══ ② 클램프/폴백 — 열 2~4, 행 1~4 (플랜 P1 회귀위험: 「1열 폴백이 데이터를 지운다」) ═══ */
-test('gridCols — 6개짜리 cols 는 4개로 잘린다(초과 클램프)', () => {
-  const cols = Array.from({ length: 6 }, (_, i) => ({ width: 1, lines: [{ type: 'body', text: String(i) }] }));
+test('gridCols — 10개짜리 cols 는 8개로 잘린다(초과 클램프 · K5 ⒜ 4→8)', () => {
+  /* K5 ⒜(2026-10-05 지디 · lane-f-grid): 상한 4 → 8. 옛 단언(4 · 5개 거부 · 6개→4)은 이 줄로 기록 — 정책이 바뀐 것이지 결함 아님. */
+  const cols = Array.from({ length: 10 }, (_, i) => ({ width: 1, lines: [{ type: 'body', text: String(i) }] }));
   const block = { dataset: { cols: JSON.stringify(cols) } };
-  assert.equal(gridCols(block).length, 4);
+  assert.equal(gridCols(block).length, 8);
 });
 
-test('gridRows — 6개짜리 rows 는 4개로 잘린다(초과 클램프)', () => {
-  const rows = Array.from({ length: 6 }, (_, i) => ({ height: i * 10 }));
+test('gridRows — 10개짜리 rows 는 8개로 잘린다(초과 클램프 · K5 ⒜ 4→8)', () => {
+  /* K5 ⒜(2026-10-05 지디 · lane-f-grid): 상한 4 → 8. 옛 단언(4 · 5개 거부 · 6개→4)은 이 줄로 기록 — 정책이 바뀐 것이지 결함 아님. */
+  const rows = Array.from({ length: 10 }, (_, i) => ({ height: i * 10 }));
   const block = { dataset: { rows: JSON.stringify(rows) } };
-  assert.equal(gridRows(block).length, 4);
+  assert.equal(gridRows(block).length, 8);
 });
 
 test('gridRows — height 가 이상해도(음수/문자/undefined) auto 로 떨어진다(크래시 없음)', () => {
@@ -532,17 +535,22 @@ test('updateGridBlock — cells(행0 포함 전체)로 한 번에 그리드 콘�
 /* ★2026-09-05(M40 · 정책 변경): 하한 2 → 1(현빈 지시 「1*4로도 할수 있어야」). 상한 4 는 그대로다.
    ~~[폐기] 「cols 1개/5개는 거부된다(하한 2 유지 — PLAN §3-A "1열 허용 여부" 에 대한 보수적 답)」~~
    ⇒ 「거부되는가」의 표본을 0개·5개로 옮기고, 1개는 «통과해야 한다»를 같은 테스트에서 못 박는다. */
-test('updateGridBlock — cols 0개/5개는 거부되고 1개는 통과한다(하한 1 · 상한 4 — M40)', () => {
+test('updateGridBlock — cols 0개/9개는 거부되고 1개는 통과한다(하한 1 · 상한 8 — M40 · K5 ⒜ 4→8)', () => {
+  /* K5 ⒜(2026-10-05 지디 · lane-f-grid): 상한 4 → 8. 옛 단언(4 · 5개 거부 · 6개→4)은 이 줄로 기록 — 정책이 바뀐 것이지 결함 아님. */
+
   const block = freshBlock({ cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }] });
   assert.equal(updateGridBlock(block.id, { cols: [] }).ok, false);
-  assert.equal(updateGridBlock(block.id, { cols: Array.from({ length: 5 }, () => ({ width: 1 })) }).ok, false);
+  assert.equal(updateGridBlock(block.id, { cols: Array.from({ length: 9 }, () => ({ width: 1 })) }).ok, false);
+  assert.equal(updateGridBlock(block.id, { cols: Array.from({ length: 8 }, () => ({ width: 1 })) }).ok, true, '8열 = 상한 안');
   assert.equal(updateGridBlock(block.id, { cols: [{ width: 1 }] }).ok, true, '1열은 이제 허용된다');
 });
 
-test('updateGridBlock — rows 0개/5개는 거부된다(1~4)', () => {
+test('updateGridBlock — rows 0개/9개는 거부된다(1~8 · K5 ⒜ 4→8)', () => {
+  /* K5 ⒜(2026-10-05 지디 · lane-f-grid): 상한 4 → 8. 옛 단언(4 · 5개 거부 · 6개→4)은 이 줄로 기록 — 정책이 바뀐 것이지 결함 아님. */
+
   const block = freshBlock({ cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }] });
   assert.equal(updateGridBlock(block.id, { rows: [] }).ok, false);
-  assert.equal(updateGridBlock(block.id, { rows: Array.from({ length: 5 }, () => ({ height: 'auto' })) }).ok, false);
+  assert.equal(updateGridBlock(block.id, { rows: Array.from({ length: 9 }, () => ({ height: 'auto' })) }).ok, false);
 });
 
 test('updateGridBlock — 구조 필드(cols/patchCol/cells/patchCell)는 한 번에 하나만 허용된다', () => {

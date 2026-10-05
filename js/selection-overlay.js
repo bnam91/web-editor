@@ -257,7 +257,10 @@ function _geomOf(el, variant, scale, outset = false) {
      함수 «안»의 지역 이름에 붙이면 하네스가 없는 최상위 선언을 찾다가 거짓 빨강이 난다. */
   const sw = _strokeOf(variant), h = sw / 2;
   // inset 0 = «상자 자신»의 네 꼭지점. 맞닿음 판정도 이 생값으로 한다.
-  const [nw, ne, sw_, se] = CORNER_DIRS.map(d => _cornerScreen(el, d, 0));
+  /* ★K2(10-05) — «기하»에 쓰는 상자만 «보이는 상자»로(그리드 + 배경 켬 = 배경 층 · 그 밖은 el 그대로 — 판정은 grid-block.js gridVisualBox 한 자리).
+     ⛔호스트(el)는 안 바꾼다 — 색(_variantOf 의 dataset.selVariant)·중복 걸러내기(seen)·회전 판정은 블럭 자신을 본다. */
+  const box = (typeof window !== 'undefined' && typeof window.gridVisualBox === 'function') ? window.gridVisualBox(el) : el;
+  const [nw, ne, sw_, se] = CORNER_DIRS.map(d => _cornerScreen(box, d, 0));
   const axis = Math.abs(nw.y - ne.y) < 0.02 && Math.abs(sw_.y - se.y) < 0.02
             && Math.abs(nw.x - sw_.x) < 0.02 && Math.abs(ne.x - se.x) < 0.02;
   /* ★2026-09-15 현빈: 선택 테두리는 «모든 블럭에서 네모»다 — 반경을 따라 둥글게 그리지 않는다.

@@ -20,7 +20,10 @@ async function setup(page) {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', `<div class="section-block" id="gS" data-section="1"><div class="section-hitzone"></div><div class="section-inner" data-padding-x="40" style="padding-left:40px;padding-right:40px">
       <div class="gap-block" data-type="gap" style="height:80px"></div><div class="row" id="gR" data-layout="stack"></div><div class="gap-block" data-type="gap" style="height:500px"></div></div></div>`);
-    const { block: g } = window.makeGridBlock({ cols: [{ width: 1, lines: [{ type: 'body', text: '왼칸 글자' }] }, { width: 1, lines: [{ type: 'body', text: '오른칸 글자' }] }], rows: [{ height: 'auto' }] });
+    /* ★10-05 P4 ⒜ — 짧은 그리드는 선택 시 ＋(G15)가 오른쪽 모서리를 덮어 ne/se 손잡이가 숨는다(＋ 가 먼저 있던 기능). 이 spec 의 요구는 손잡이 «끌기·자리» ⇒
+       장면을 키 큰 그리드(칸마다 본문 네 줄)로 — 줌 40 에서도 ＋(16px)보다 높다. 옛 장면 = 칸마다 한 줄. */
+    const L4 = (t) => [1, 2, 3, 4].map(i => ({ type: 'body', text: t + ' ' + i }));
+    const { block: g } = window.makeGridBlock({ cols: [{ width: 1, lines: L4('왼칸 글자') }, { width: 1, lines: L4('오른칸 글자') }], rows: [{ height: 'auto' }] });
     g.id = 'gG'; document.getElementById('gR').appendChild(g); window.rebindAll?.(); window.renderGridBlock(g);
     window.deselectAll?.(); document.getElementById('gS').scrollIntoView({ block: 'start' });
   });
@@ -78,7 +81,7 @@ async function dragHandle(page, dir, dxScreen) {
 
 test.setTimeout(120000);
 
-test('P1 패널 너비(안 떠 있음) → 키·그려진 폭 · 다시 그려도 산다 · 범위 밖은 칸이 죈다', async ({ page }) => {
+test('P1 패널 너비(안 떠 있음) → 키·그려진 폭 · 다시 그려도 산다 · 범위 밖은 칸이 죈다(상한 = 그릇 폭 · K1 10-05)', async ({ page }) => {
   const errs = await setup(page);
   await select(page);
   expect(await page.isVisible('#grd-width-number'), '그리드 패널에 너비 칸').toBe(true);
@@ -90,7 +93,9 @@ test('P1 패널 너비(안 떠 있음) → 키·그려진 폭 · 다시 그려�
   expect((await st(page)).w, '재렌더 뒤에도').toBe(420);
   expect(await page.getAttribute('#grd-width-auto', 'class')).not.toContain('active');
   await typeWidth(page, 9999);
-  expect((await st(page)).key, '상한 3000 으로 죈다').toBe('3000');
+  /* 10-05 K1 로 뒤집음 · 옛 단언 = 「상한 3000 으로 죈다」 — 패널 상한 = 담는 그릇(가장 가까운 사용자 프레임/섹션 안쪽) 내용 폭(prop-grid.js _grdWidthMax) */
+  const box = await page.evaluate(() => { const b = document.getElementById('gG').parentElement.closest('.frame-block:not([data-text-frame]), .section-inner'); const cs = getComputedStyle(b); return String(Math.floor(b.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight))); });
+  expect((await st(page)).key, `상한 = 그릇 내용 폭(${box})으로 죈다`).toBe(box);
   await typeWidth(page, 5);
   expect((await st(page)).key, '하한 40 으로 죈다').toBe('40');
   expect(errs).toEqual([]);
@@ -148,12 +153,13 @@ test('P4 슬라이더 → 폭(끄는 동안 반영) · 뒤에 push-after 동작 
   expect(errs).toEqual([]);
 });
 
-test('H1 손잡이 — 떠 있을 때만 4개 · 화면 7×7(줌 40/100) · ew-resize · 안 떠 있으면 0(대조)', async ({ page }) => {
+/* 10-05 K3 ⒜ 로 뒤집음 · 옛 단언 = 「떠 있을 때만 4개 · 안 떠 있으면 0(대조) · 오버레이를 끄면 걷힌다(0)」 — 흐름 그리드에도 «폭» 손잡이 */
+test('H1 손잡이 — 떠 있음/안 떠 있음 둘 다 4개(K3 10-05) · 화면 7×7(줌 40/100) · ew-resize', async ({ page }) => {
   const errs = await setup(page);
   for (const z of [40, 100]) {
     await setZoom(page, z);
     await select(page);
-    expect((await handles(page)).length, `줌 ${z} 안 떠 있음 = 0`).toBe(0);
+    expect((await handles(page)).map(h => h.dir).sort(), `줌 ${z} 안 떠 있음 = 네 모서리(K3)`).toEqual(['ne', 'nw', 'se', 'sw']);
   }
   await toggleFloat(page);
   for (const z of [40, 100]) {
@@ -169,7 +175,7 @@ test('H1 손잡이 — 떠 있을 때만 4개 · 화면 7×7(줌 40/100) · ew-r
   }
   await toggleFloat(page);
   await page.waitForTimeout(100);
-  expect((await handles(page)).length, '오버레이를 끄면 걷힌다').toBe(0);
+  expect((await handles(page)).length, '오버레이를 꺼도 흐름 그리드 손잡이 4개(K3)').toBe(4);
   expect(errs).toEqual([]);
 });
 

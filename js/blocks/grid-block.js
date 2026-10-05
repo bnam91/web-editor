@@ -77,8 +77,10 @@ const ROW_DEFAULT = { height: 'auto' };
  *     _helpers.js 옛 주석이 경고한 「눌러도 dataset 만 1 이 되고 캔버스는 2칸으로 남는다」가 그것이고,
  *     MIN_COLS=1 이면 그 «폴백 조건 자체»가 사라진다.
  * ═══════════════════════════════════════════════════════════════════════════════ */
-const MIN_COLS = 1, MAX_COLS = 4;
-const MIN_ROWS = 1, MAX_ROWS = 4;   // 1행 = 옛 duo 파일과 동일(행 축 신설 이전 기본값).
+/* ★K5 ⒜(2026-10-05 지디 · lane-f-grid) — 상한 4×4 → 8×8(현빈 「8×8」). 피커(_helpers.js buildGridPicker)·캔버스 ＋(gridResizeTo)·정리 slice·검증이
+   전부 이 두 상수를 읽는다 ⇒ 여기 한 자리. 옛 값 4(2026-09-04 4×4 피커). */
+const MIN_COLS = 1, MAX_COLS = 8;
+const MIN_ROWS = 1, MAX_ROWS = 8;   // 1행 = 옛 duo 파일과 동일(행 축 신설 이전 기본값).
 /* ★셀당 줄 개수 상한 — SSOT(2026-09-16). 이전엔 이 파일(:205)과 prop-grid.js(:367)가 각자
  *   리터럴 20을 들고 있었다(하드코딩 2건 반복 — MIN_COLS/MAX_COLS 사고와 같은 유형).
  *   grdAddLine(prop-grid.js)이 이 값을 import 해서 사전 확인한다. */
@@ -458,7 +460,16 @@ export function applyGridBlockBg(block) {
   if (_tt && ((_tt.textToneAt(block) === 'light' ? 'light' : '') !== (block.dataset.textTone || ''))) renderGridBlock(block);
   return true;
 }
-if (typeof window !== 'undefined') { window.applyGridBlockBg = applyGridBlockBg; window.gridBlockBg = _gridBlockBg; }   // gridBlockBg: 내보내기(분리 문서·import 안 함)가 «같은 읽는 문»을 쓴다
+/* ★K2(2026-10-05 · 현빈 「같이 아웃라인이나 그런것도 늘어나야되지 않겠니?」 · 지디/태양 승인 lane-f-grid) — 그리드의 «보이는 상자» 한 자리.
+ *  배경(G12)을 켜면 배경 층 .grd-bg 의 상자(블럭 밖으로 배경 여백 + 선폭 — _gridBlockBgHtml 이 그 inset 을 정한다) · 끄면 블럭 자신.
+ *  그리드가 아니면 받은 요소 그대로 — 부르는 쪽(선택 선 selection-overlay _geomOf)이 블럭 종류를 따로 묻지 않게.
+ *  ⛔다른 자리에서 같은 판정(.grd-bg 가 있나 / blockBgOn)을 다시 짓지 마라. G12 배경·저장 데이터는 그대로다. */
+export function gridVisualBox(el) {
+  if (!el || !el.classList || !el.classList.contains('grid-block')) return el;
+  const bg = el.querySelector(':scope > .grd-bg');
+  return (bg && _gridBlockBg(el).on) ? bg : el;
+}
+if (typeof window !== 'undefined') { window.applyGridBlockBg = applyGridBlockBg; window.gridBlockBg = _gridBlockBg; window.gridVisualBox = gridVisualBox; }   // gridBlockBg: 내보내기(분리 문서·import 안 함)가 «같은 읽는 문»을 쓴다
 
 /** 입구 하나(만드는 문·고치는 문) — `blockBg` 값을 dataset 쓰기 계획으로. 
  *  @returns {{error:string}|{set:Object, del:string[]}}
@@ -2244,6 +2255,11 @@ function renderGridBlock(block) {
     block.style.width = ownW + 'px';
   } else if (!floating) block.style.width = '100%';
   else if (block.dataset.overlayFrozenWidth) block.style.width = block.dataset.overlayFrozenWidth;
+  /* ★K1 ⒝(2026-10-05 지디 · lane-f-grid) — 그려지는 폭 = min(키, 부모 내용 폭). «그릴 때» 한 자리에서만 죈다 — 키는 안 죈다
+     (부모가 넓어지면 따라 커지고 · 저장·다시 열기에 키 3000 이 그대로 남는다). 패널·손잡이·MCP·읽는 문 넷 다 키에 쓰고 이 렌더로 그려진다.
+     키가 없거나(100%) 떠 있으면 «안» 건다 — 옛 저장본 style 바이트 동일(값이 없던 자리에 '' 대입 = 선언 없음 그대로). */
+  if (ownW !== null) block.style.maxWidth = '100%';
+  else if (block.style.maxWidth) block.style.maxWidth = '';
   block.style.boxSizing = 'border-box';
   _gridApplyBlockOutline(block);   // ★G17 블럭 외곽선 — 키 없으면 아무것도 안 만진다(옛 저장본 바이트 동일)
   _gridApplyBlockBgStacking(block);   // ★G12 블럭 배경 — 켰을 때만 isolation(끄면 흔적만 걷는다)
