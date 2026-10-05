@@ -100,3 +100,10 @@ test('W1 배선 — 로드 토스트가 _recoveryToastText 를 부르고 · 새 
   const PM = readSrc(REPO, 'js/io/proj-merge.js');
   for (const k of ['_recovered', '_healed', '_healError']) assert.match(PM, new RegExp(`PROJ_RUNTIME_KEYS = \\[[^\\]]*'${k}'`), `${k} 가 런타임 키 명부에 없다 — 저장 파일에 샌다`);
 });
+
+test('T5 ★E168 ㉢ — 백업 저장 시각을 글에 싣는다 «백업(MM-DD HH:mm 저장분)» (성공·실패 두 글 다 · 시각 없으면 옛 글 그대로)', () => {
+  const at = new Date(2026, 9, 6, 2, 55).getTime();
+  assert.equal(toastText({ _recovered: 'backup', _healed: true, _recoveredAt: at }), '⚠️ 프로젝트 파일이 손상되어 백업(10-06 02:55 저장분)에서 복구했습니다.');
+  assert.match(toastText({ _recovered: 'backup', _healed: false, _healError: 'ENOSPC', _recoveredAt: at }), /^⚠️ 프로젝트 파일이 손상되어 백업\(10-06 02:55 저장분\)에서 열었습니다\. 디스크의 파일은 아직 고치지 못했습니다\(공간 부족\)/);
+  assert.equal(toastText({ _recovered: 'backup', _healed: true }), '⚠️ 프로젝트 파일이 손상되어 백업에서 복구했습니다.');
+});
