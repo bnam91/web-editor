@@ -235,6 +235,9 @@ const PROBE = async (page, addr) => page.evaluate(async ({ addr, fields }) => {
     }
     out['ds.valign'] = B.dataset.valign || '';
     out['ds.colsN'] = String((() => { try { return JSON.parse(B.dataset.cols || '[]').length; } catch (_) { return -1; } })());
+    /* ★E0-f(10-06 · APPROVED_BY 지디 E0-f-cellpady) — 그리드 «한 값» 위아래 여백(cellPadY)은 칸 패딩과 «다른 손잡이»다.
+         그 손잡이도 칸의 css.paddingTop 을 움직이므로(칸 위 여백 = pad + cellPadY) 제 축을 따로 세운다. */
+    out['ds.cellPadY'] = B.dataset.cellPadY || '';
     /* ★음성대조 열 — 어떤 조작에도 절대 안 변한다. 여기가 변했다고 나오면 비교기가 고장난 것이다. */
     out['__never'] = 'CONSTANT';
     return out;
@@ -302,6 +305,8 @@ const PROBE = async (page, addr) => page.evaluate(async ({ addr, fields }) => {
       label: (el.textContent || '').trim().slice(0, 28),
       disabled: !!el.disabled,
       act, changed,
+      /* ★E0-f ⑵(10-06) — 빨개졌을 때 «무엇이 무엇으로» 움직였나를 보이게(이름만으론 어느 손잡이가 새는지 못 읽는다) */
+      delta: Object.fromEntries(changed.map(k => [k, [before[k], after[k]]])),
     });
   }
   return { n, results, iconifyCalls: window.__iconifyCalls };
@@ -536,9 +541,23 @@ test('E0-f ★★양성대조 — 패딩 «손잡이를 없앤» 변형본에서
   expect(movers(probe, ['cell.bg', 'css.backgroundColor']).length,
     '★변이가 패널을 통째로 부쉈다 — 배경색 손잡이까지 사라졌다면 이 양성대조는 아무것도 안 가른다')
     .toBeGreaterThan(0);
-  expect(movers(probe, ['cell.padding', 'css.paddingTop', 'css.paddingLeft']),
-    '★패딩 배선을 «지웠는데도» 누군가 패딩을 주고 있다 — E1~E3·E4 의 패딩 판정은 헛것이다')
+  /* ★이 대조가 증명하는 것(한 줄): 칸 패딩 손잡이를 지우면 «칸 패딩을 움직이는 손잡이는 0» — 그래야 E1~E4 의 패딩 판정이 거짓일 수 있다.
+     10-06(제4안 cellPadY 합류) — 위아래 여백 손잡이는 «칸 패딩 손잡이가 아니면서» css.paddingTop 을 정당하게 움직인다.
+     ⇒ 기댓값을 고치지 않고 축을 나눈다: ⑴ 칸 패딩 축(cell.padding · css.paddingLeft — cellPadY 는 좌우를 안 건드린다) = 0
+       ⑵ css.paddingTop 을 움직인 후보는 «전부» cellPadY 축(ds.cellPadY)도 움직인 것이어야 한다(설명 안 되는 위 여백 = 0)
+       ⑶ cellPadY 축은 «살아 있다»(> 0) — 아니면 ⑵ 의 빼기가 헛것이다. 짝: 위아래 여백 배선까지 지우면 ⑶ 이 빨강(대조의 대조). */
+  expect(movers(probe, ['cell.padding', 'css.paddingLeft']),
+    '★패딩 배선을 «지웠는데도» 누군가 칸 패딩을 주고 있다 — E1~E3·E4 의 패딩 판정은 헛것이다')
     .toEqual([]);
+  const padY = new Set(movers(probe, ['ds.cellPadY']));
+  const leak = probe.results.filter(r => !r.gone && r.changed.includes('css.paddingTop'))
+    .map(r => ({ who: `${r.id || r.cls || r.tag}(${r.label})`, delta: r.delta }))
+    .filter(x => !padY.has(x.who));
+  expect(leak.map(x => x.who),
+    '★칸 위 여백을 움직인 손잡이 중 cellPadY 축이 «아닌» 것이 있다 — 칸 패딩이 다른 길로 새고 있다:\n' +
+    leak.map(x => `  ${x.who} ${JSON.stringify(x.delta)}`).join('\n'))
+    .toEqual([]);
+  expect(padY.size, '★위아래 여백(cellPadY) 축이 죽었다 — 위 ⑵ 의 빼기가 아무것도 안 가른다').toBeGreaterThan(0);
 });
 
 /* ══════════════════════════════════════════════════════════════════════════

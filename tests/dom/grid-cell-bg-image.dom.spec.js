@@ -93,17 +93,23 @@ test('C1 ★patchCell bgImg/bgFit/bgPos → 칸 계산 배경 · 칸 색 유지(
 });
 
 test('C2 ★쌓임 픽셀 — contain 1:1 그림 = 가운데 정사각 초록 · 나머지 칸 색 · 글자 위 · 칸 테두리 위 · G12 띠 위(칸이 위)', async ({ page }) => {
+  /* ★⑵ 장면 바꿈(10-06 · E157 ⒜) — 옛 장면이 잠근 것(한 줄): «쌓임 순서 — 그림은 칸 색 위 · 칸 테두리는 그림·색 위 · 블럭 띠는 칸 아래 · 그림 밖엔 칸 색».
+     옛 장면(정한 높이 160 행 + contain 1:1)은 E157 뒤 행이 «칸 폭 × 비율»(160 → 358 · 실측)로 커져 contain 이 칸을 다 채운다 — «그림 밖»이 없다(P[1] 초록).
+     E157 아래선 그림 비율이 무엇이든 행이 그 비율로 서므로, «그림 밖»은 «내용이 행을 더 키울 때»만 생긴다 ⇒ 새 장면 = 가로 4:1 그림(행 바닥 = 칸 폭 × ¼) + 그 칸 줄 다섯(내용이 행을 키움).
+     네 점·네 단언은 그대로(같은 쌓임을 잠근다). 지운 단언 0 · 바꾼 것 = 그림(1:1 → 4:1)과 그 칸 줄 수. */
   await setup(page);
-  const img = await IMG(page);
+  const img = await page.evaluate(() => { const cv = document.createElement('canvas'); cv.width = 4; cv.height = 1; const x = cv.getContext('2d'); x.fillStyle = '#00ff00'; x.fillRect(0, 0, 4, 1); return cv.toDataURL('image/png'); });
   await upd(page, 'gG', { blockBg: { on: true, color: BG12, padY: 30, padX: 30 } });
   await upd(page, 'gG', { cellBorderWidth: 3, cellBorderColor: BLUE });
+  await upd(page, 'gG', { patchCell: { r: 1, c: 0, lines: ['C', 'C', 'C', 'C', 'C'].map(t => ({ type: 'body', text: t })) } });
   await upd(page, 'gG', { patchCell: { r: 1, c: 0, bg: RED, bgImg: img, bgFit: 'contain' } });
+  await page.evaluate(() => window.whenGridRatiosSettled?.());
   const q = await cellRect(page, 1, 0);
   const cx = (q.l + q.r) / 2, cy = (q.t + q.b) / 2;
   const glyph = await page.evaluate(() => { const l = document.querySelector('#gG .grd-cell[data-r="1"][data-c="0"] .grd-line'); const r = l.getBoundingClientRect(); return { l: r.left, t: r.top, w: r.width, h: r.height }; });
   const P = await px(page, [[cx, cy], [q.l + 6, q.t + 8], [q.l + 1, cy], [q.l - 15, cy]]);
   console.log(`[C2] cell=${JSON.stringify(q)} px=${P.join(',')}`);
-  expect(P[0], '가운데 = 그림(contain 1:1 → 칸 높이만한 정사각)').toBe(GREEN);
+  expect(P[0], '가운데 = 그림(contain 4:1 → 칸 폭만한 가로 띠 · 세로 가운데)').toBe(GREEN);
   expect(P[1], '그림 밖 칸 = 칸 배경색(그림 «아래»)').toBe(RED);
   expect(P[2], '칸 테두리(왼쪽 3px)가 그림·색 «위»').toBe(BLUE);
   expect(P[3], '칸 사이/블럭 밖 띠 = G12 블럭 배경(칸 아래 층)').toBe(BG12);

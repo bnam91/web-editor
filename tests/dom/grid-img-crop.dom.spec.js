@@ -147,14 +147,20 @@ const diffPng = (page, a, b) => page.evaluate(async ([x, y]) => {
 
 const PLAIN = { type: 'image', imgSrc: IMG, height: 200 };
 const CROPPED = { type: 'image', imgSrc: IMG, height: 200, imgSizePct: 180, imgPosX: -40, imgPosY: -25 };
+/* ★⑵(10-06 · E157 ⒜) — «크롭 중립» 줄: 같은 틀 높이 200 · 그림 100% · 자리 0. E157 뒤 크롭 없는 줄(PLAIN)은 비율로 그려(796×498) CROPPED(796×200)와 틀이 달라졌다.
+   D0 만 이 줄과 견준다(다른 시험의 PLAIN 은 그대로). */
+const NEUTRAL = { type: 'image', imgSrc: IMG, height: 200, imgSizePct: 100, imgPosX: 0, imgPosY: 0 };
 
 /* ══════════════════════════════════════════════════════════════════════
  * D0 — 계측기. ⛔이게 빨갛다면 아래 「같다」는 전부 빈 것끼리 견주기다.
  * ════════════════════════════════════════════════════════════════════ */
 
 test('D0 ★계측기 — 크롭이 «실제로 다른 그림»을 만든다', async ({ page }) => {
+  /* ★⑵ 장면 바꿈(10-06 · E157 ⒜) — 옛 장면이 잠근 것(한 줄): «크롭은 같은 틀 안의 그림만 바꾼다(틀 크기 그대로 · 그림은 다름)».
+     옛 장면(PLAIN = 크롭 없는 h200)은 E157 뒤 비율 틀(796×498)이라 CROPPED(796×200)와 틀부터 달라 «크기» 단언이 못 선다(실측 7b017a98 [796, 498, 796, 200]).
+     새 장면 = NEUTRAL(크롭 중립 · 같은 틀 200) vs CROPPED — 같은 것을 잠근다: 크기 같음 · 그림 다름(max > 64). */
   const errs = await boot(page);
-  await plant(page, PLAIN); await settle(page);
+  await plant(page, NEUTRAL); await settle(page);
   const a = await shotFrame(page);
   await plant(page, CROPPED); await settle(page);
   const b = await shotFrame(page);
@@ -697,12 +703,15 @@ test('P2 ★편집기의 「원래대로」가 크롭을 «지운다» — 모�
   expect(errs).toEqual([]);
   expect(after.keys, `★「원래대로」를 눌렀는데 모델에 크롭이 남았다: ${after.keys.join(', ')} — ` +
     '나가는 길의 beforeCommit 이 세 값을 «다시 썼을» 수 있다(깃발을 안 읽었나)').toEqual([]);
-  expect(after.inline, '★cover 로 안 돌아갔다 — 모델은 지워졌는데 화면이 안 따라왔다').toContain('object-fit:cover');
+  /* ★⑵(10-06 · E157 ⒜) — 「원래대로」 = 크롭 없는 줄 ⇒ E157 규칙이 «네이티브 비율(height:auto)»을 요구한다(옛: cover — 틀 높이 고정 + 잘림).
+     지운 단언 1(이름: toContain('object-fit:cover')). 잠그는 것은 그대로: «크롭을 지우면 화면이 크롭 없는 꼴로 돌아온다». */
+  expect(after.inline, '★크롭 없는 꼴(E157: 비율 · height:auto)로 안 돌아갔다 — 모델은 지워졌는데 화면이 안 따라왔다').toBe('display:block;width:100%;height:auto;');
   expect(after.frame, '★크롭이 없는데 프레임이 계속 «자르는 그릇»이다').not.toContain('overflow:hidden');
   expect(after.proxies, '★편집기 임시 DOM 이 남았다').toBe(0);
   // ★«화면»이 정말 달라졌나 — 모델만 보면 「지웠다」가 그림과 무관할 수 있다.
   const d = await diffPng(page, before, await shotFrame(page));
-  expect(d.max, '★초기화했는데 «그림»은 크롭 그대로다').toBeGreaterThan(64);
+  /* ★⑵(10-06 · E157 ⒜) — 크롭 없는 꼴은 비율 틀이라 크기부터 달라질 수 있다(diffPng 가 size 를 준다) — 크기가 다르면 그것도 «달라졌다». */
+  expect(d.size !== undefined || d.max > 64, `★초기화했는데 «그림»은 크롭 그대로다 ${JSON.stringify(d)}`).toBe(true);
 });
 
 test('P1-b ★양성대조 — 「맞추기」를 잃어도 «기능»은 산다: 더블클릭이 여전히 같은 편집기를 연다', async ({ page }) => {

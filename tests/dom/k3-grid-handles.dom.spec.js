@@ -44,18 +44,25 @@ const handles = (page) => page.evaluate(async () => {
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   const g = document.getElementById('kG'); const bg = g.querySelector(':scope > .grd-bg'); const B = (bg && g.dataset.blockBgOn === '1' ? bg : g).getBoundingClientRect(); const K = g.getBoundingClientRect();
   return [...document.querySelectorAll('[data-grd-resize-dir]')].filter(h => h.getBoundingClientRect().width > 0 && getComputedStyle(h).display !== 'none').map(h => { const q = h.getBoundingClientRect(); const cx = q.left + q.width / 2, cy = q.top + q.height / 2; const d = h.dataset.grdResizeDir;
-    const tx = d.includes('w') ? B.left : B.right, ty = d.includes('n') ? B.top : B.bottom; const bx = d.includes('w') ? K.left : K.right, by = d.includes('n') ? K.top : K.bottom;
+    /* ★⑵(10-06 · 제4안 ⒝ — 손잡이 여덟: 모서리 넷 + 변 가운데 넷) — 기대 자리는 «방향마다»: w/e 면 왼/오른 끝 · 둘 다 아니면 가로 가운데(n/s) · n/s 도 같은 식.
+       옛 식은 w 아니면 오른쪽 · n 아니면 아래로 «모서리만» 셌다 — 변 가운데 손잡이를 모서리에 견주어 −370 으로 읽었다(실측 7b017a98). */
+    const mid = (a, b) => (a + b) / 2;
+    const tx = d.includes('w') ? B.left : d.includes('e') ? B.right : mid(B.left, B.right), ty = d.includes('n') ? B.top : d.includes('s') ? B.bottom : mid(B.top, B.bottom);
+    const bx = d.includes('w') ? K.left : d.includes('e') ? K.right : mid(K.left, K.right), by = d.includes('n') ? K.top : d.includes('s') ? K.bottom : mid(K.top, K.bottom);
     return { dir: d, toVisual: [Math.round((cx - tx) * 10) / 10, Math.round((cy - ty) * 10) / 10], toBlock: [Math.round((cx - bx) * 10) / 10, Math.round((cy - by) * 10) / 10], x: cx, y: cy }; }); });
-const atVisual = (hs) => hs.length === 4 && hs.every(h => Math.abs(h.toVisual[0]) <= 1.5 && Math.abs(h.toVisual[1]) <= 1.5);
+/* ★⑵(10-06 · 제4안 ⒝) — 고른 그리드에 «보이는» 손잡이 = 여덟 중 ＋ 자리(e·s)를 뺀 여섯(제4안 grid-cellpady Y2 «s·e 는 숨음(＋ 자리)»).
+   옛: «4개 · 모서리만»(K3 10-05 «폭만»). 지운 단언 = 그 4 하나(이름: hs.length === 4). */
+const SEL6 = ['n', 'ne', 'nw', 'se', 'sw', 'w'];
+const atVisual = (hs, want = SEL6) => JSON.stringify(hs.map(h => h.dir).sort()) === JSON.stringify(want) && hs.every(h => Math.abs(h.toVisual[0]) <= 1.5 && Math.abs(h.toVisual[1]) <= 1.5);
 
-test('H1 [새 것] 흐름(안 떠 있는) 그리드를 고르면 «폭» 손잡이 4개 — 블럭 모서리(배경 끔)', async ({ page }) => {
+test('H1 [새 것] 흐름(안 떠 있는) 그리드를 고르면 손잡이 보이는 6(여덟 중 ＋ 자리 e·s 숨음) — 모서리·변 가운데가 블럭 상자에(배경 끔)', async ({ page }) => {
   const errs = await setup(page, 100); await pick(page);
   const hs = await handles(page);
   expect(atVisual(hs), `★손잡이 ${JSON.stringify(hs)}`).toBe(true);
   expect(errs).toEqual([]);
 });
 for (const zoom of [100, 50]) {
-  test(`H2-${zoom} [새 것] 흐름 그리드 + 배경 켬 · 줌 ${zoom} — 손잡이 4개가 배경 모서리(선택 선과 같은 상자)`, async ({ page }) => {
+  test(`H2-${zoom} [새 것] 흐름 그리드 + 배경 켬 · 줌 ${zoom} — 손잡이 보이는 6 이 배경 상자(선택 선과 같은 상자)의 모서리·변 가운데`, async ({ page }) => {
     const errs = await setup(page, zoom); await bgOn(page); await pick(page);
     const hs = await handles(page);
     expect(atVisual(hs), `★손잡이 vs 배경 ${JSON.stringify(hs)}`).toBe(true);
@@ -94,11 +101,12 @@ test('H6 [회귀 지킴] 떠 있는 그리드 nw 손잡이 끌기 = 오른쪽 �
   expect(errs).toEqual([]);
 });
 
-test('P4b [새 것] 짧은 그리드(＋ 가 오른쪽 모서리를 덮음) — ne·se 는 숨고 nw·sw 만 선다 · sw 로 폭이 바뀐다(흐름 그리드: 왼쪽을 끌어도 오른쪽으로 자람 = K3 «폭만» 한계)', async ({ page }) => {
+test('P4b [새 것] 짧은 그리드(＋ 가 오른쪽 모서리를 덮음) — ne·se·e·s 는 숨고 nw·sw·n·w 가 선다 · sw 로 폭이 바뀐다(흐름 그리드: 왼쪽을 끌어도 오른쪽으로 자람 = K3 «폭만» 한계)', async ({ page }) => {
   const errs = await setup(page, 100, true); await pick(page);
   await page.waitForFunction(() => document.querySelectorAll('#grd-plus-layer > .grd-add-btn[data-grd-for="kG"]').length === 2, null, { timeout: 3000 });
   const hs = await handles(page);
-  expect(hs.map(h => h.dir).sort(), `★보이는 손잡이 ${JSON.stringify(hs)}`).toEqual(['nw', 'sw']);
+  /* ★⑵(10-06 · 제4안 ⒝) — 짧은 그리드: ＋ 가 오른쪽 모서리(ne·se)와 e·s 자리를 덮는다 ⇒ 보이는 것 = nw·sw + 변 가운데 n·w. 옛: ['nw','sw']. */
+  expect(hs.map(h => h.dir).sort(), `★보이는 손잡이 ${JSON.stringify(hs)}`).toEqual(['n', 'nw', 'sw', 'w']);
   const w0 = await page.evaluate(() => document.getElementById('kG').offsetWidth);
   const sw = hs.find(h => h.dir === 'sw');
   await page.mouse.move(sw.x, sw.y); await page.mouse.down(); await page.mouse.move(sw.x + 100, sw.y, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(250);
