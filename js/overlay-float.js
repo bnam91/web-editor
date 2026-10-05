@@ -444,6 +444,14 @@ export function exitFloat(posEl) {
      넣는다(=fallback, 사라진 부모 케이스와 같은 경로). */
   const returnParentSameSection = parent && parent.isConnected && parent.closest('.section-block') === currentSec;
   const target = returnParentSameSection ? parent : fallback;
+  /* ★E130(2026-10-05) — 띄운 채 «다른 섹션»으로 옮겼다 끄면 원래 섹션에 «빈 행»이 남았다(아이콘 블럭·서클 실측: 원래 행 자식 0).
+   *   posElOf 가 블럭 «자신»인 것(아이콘·서클·에셋)은 띄울 때 행이 부모로 남는다 — 같은 섹션이면 그 행으로 돌아가니 문제없지만,
+   *   다른 섹션 갈래는 지금 섹션에 넣고 옛 행을 안 치웠다. ⇒ 그 갈래에서만, 옛 부모가 .row 이고 «요소 자식이 하나도 없으면» 지운다.
+   *   ⛔다른 블럭이 같이 든 행·행이 아닌 부모(프레임·섹션 본문)는 안 건드린다. */
+  if (!returnParentSameSection && parent && parent.isConnected && parent.classList?.contains('row')
+      && ![...parent.children].some(k => !k.classList.contains('drop-indicator'))) {
+    parent.remove();
+  }
 
   /* ⛔«자리를 옮기기 전»에 잰다 — 흐름으로 되돌린 뒤엔 절대배치가 풀려 rect 가 이미 새 자리다. */
   const _r = posEl.getBoundingClientRect?.();

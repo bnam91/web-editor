@@ -1679,8 +1679,16 @@ function copySelected() {
      * 「행이 통째로 선택됐을 때만 행을 담는다」는 판정은 멀티 분기와 «같은 헬퍼»를 쓴다 —
      * 두 분기가 다른 기준을 쓰면 개수에 따라 동작이 갈린다(그게 이 버그였다). */
     const _row1 = selNormal.closest('.row');
+    /* ★E128(2026-10-05) — 흐름 «글자 프레임» 직속 글자 블럭은 «프레임째» 담는다(위 오버레이 갈래와 같은 꼴).
+     *   글자 프레임은 .row 가 아니라 _row1 이 잡지 못해 «블럭만» 담겼다 → 사본이 맨 text-block 이 돼
+     *   프레임이 쥐던 폭(dataset.width)·회전(dataset.rotation)·바깥 패딩(dataset.paddingX)을 잃었다(실측 400→716 · 15°→없음 · 24→없음).
+     *   붙여넣기(_bindPastedEl)는 프레임 바인딩·안쪽 id 재발급을 이미 한다 — 여기선 «무엇을 담나»만 바꾼다.
+     *   자유 프레임 안 글자는 위 _flWrapper 갈래가 이미 래퍼째 담는다(무접촉). ⌘D(흐름) = copySelected + pasteClipboard 라 같이 고쳐진다. */
+    const _flowTf = (!isOverlayFloating && !isGapSel && !isFloating && selNormal.classList.contains('text-block')
+      && selNormal.parentElement?.matches?.('.frame-block[data-text-frame="true"]')) ? selNormal.parentElement : null;
     const target = isOverlayFloating ? _overlayWrapper
       : (isGapSel || isFloating) ? selNormal
+      : _flowTf ? _flowTf
       : ((_row1 && _isRowFullySelected(_row1, ALL_TYPES_SEL)) ? _row1 : selNormal);
     const banner = target.closest?.('.frame-block[data-banner-preset]');
     clipboard = { type: 'block', html: target.outerHTML, sourceBannerId: banner?.id || null };
