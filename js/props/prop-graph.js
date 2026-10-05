@@ -232,6 +232,13 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="grb-point-number" min="0" max="16" value="${pointRadius}">
       </div>
       <div class="prop-row">
+        <span class="prop-label">점 모양</span>
+        <select class="prop-select" id="grb-pointstyle-select">
+          <option value="" ${block.dataset.pointStyle !== 'hollow' ? 'selected' : ''}>채움</option>
+          <option value="hollow" ${block.dataset.pointStyle === 'hollow' ? 'selected' : ''}>속빈</option>
+        </select>
+      </div>
+      <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="grb-padx-slider" min="0" max="80" step="4" value="${padX}">
         <input type="number" class="prop-number" id="grb-padx-number" min="0" max="80" value="${padX}">
@@ -532,6 +539,17 @@ ${blockHeaderHTML({
     ptSlider.addEventListener('input',  () => applyPoint(parseInt(ptSlider.value)));
     ptNumber.addEventListener('change', () => { applyPoint(parseInt(ptNumber.value)); window.pushHistory(); });
     ptSlider.addEventListener('change', () => window.pushHistory());
+  }
+
+  // K6: 점 모양 (line 전용) — 채움 = 키 없음(종전 바이트 그대로) · 속빈 = dataset.pointStyle 'hollow' (구멍 색은 canvas-contrast syncGraphTone)
+  const ptStyleSel = document.getElementById('grb-pointstyle-select');
+  if (ptStyleSel) {
+    ptStyleSel.addEventListener('change', () => {
+      if (ptStyleSel.value === 'hollow') block.dataset.pointStyle = 'hollow';
+      else delete block.dataset.pointStyle;
+      window.renderGraph(block);
+      window.pushHistory();
+    });
   }
 
   // T10: 면 채우기 토글 + 색상 + 알파 (line 전용)

@@ -269,3 +269,6 @@
 .graph-block[style*="--grb-auto-ink"] .grb-ov { color: var(--grb-auto-ink); }
 /* K8⒤ — 꺾은선 카테고리 라벨만 클릭을 받는다(라벨층 .grb-line-overlay 는 pointer-events:none 이라 더블클릭이 SVG 로 새던 것). 값 라벨·점·층은 그대로 none. */
 .grb-line-overlay .grb-line-xlabel { pointer-events: auto; }
+/* K6 — 속빈 점: 고리 = 점 자신의 배경(= 선 색 · 프리셋/명시 lineColor/H6 --grb-auto-line 어느 길이든) · 구멍 = 바탕색(--grb-dot-hole · canvas-contrast syncGraphTone).
+   투명 구멍은 꺾은선이 점 가운데를 지나가 보여 안 쓴다. */
+.graph-block[data-point-style="hollow"] .grb-line-point-dot::after { content: ''; position: absolute; inset: 22%; border-radius: 50%; background: var(--grb-dot-hole, #ffffff); }

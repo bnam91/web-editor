@@ -229,7 +229,7 @@ export function syncTableHeaderTone(block) {
  * ★자동 값은 «블럭 인라인 CSS 변수» 셋(--grb-auto-grid · --grb-auto-line · --grb-auto-ink)에만 산다(--tbl-header-fg 꼴).
  *   읽는 자 = css/editor-graph.css 끝 네 줄 · 저장에선 io/section-serialize.js 의 «파생 변수» 목록이 걷는다(굳지 않음 · E144 와 한 목록).
  * ★계산은 «변수 없는 그려진 값»을 바탕으로 한다 — 그래서 먼저 걷고 읽는다(자기 값을 다시 밝히는 고리 방지). */
-const GRAPH_AUTO_VARS = ['--grb-auto-grid', '--grb-auto-line', '--grb-auto-ink'];
+const GRAPH_AUTO_VARS = ['--grb-auto-grid', '--grb-auto-line', '--grb-auto-ink', '--grb-dot-hole'];   // K6 — 속빈 점 구멍 = 바탕색(파생 · 저장에서 걷힘)
 /* ★저장에서 걷을 «파생 변수»의 정본 = 이 파일이 «쓰는» 이름들(쓰는 자가 목록을 낸다 · 두 번째 목록 금지).
    io/section-serialize.js 가 이것을 그대로 읽는다 — 여기 새 자동 변수를 보태면 저장에서도 저절로 걷힌다. */
 export const DERIVED_AUTO_VARS = ['--tbl-header-fg', ...GRAPH_AUTO_VARS];
@@ -260,7 +260,7 @@ export function syncGraphTone(block) {
   const prev = GRAPH_AUTO_VARS.map(v => block.style.getPropertyValue(v).trim());
   GRAPH_AUTO_VARS.forEach(v => block.style.removeProperty(v));          // «변수 없는 그려진 값»을 읽기 위해 먼저 걷는다
   const bg = backdropRgbAt(block);
-  const want = ['', '', ''];
+  const want = ['', '', '', ''];
   if (bg && textToneOver(bg) === 'light') {
     /* 격자 변수는 «격자가 켜졌을 때만» — 꺼진 그래프에 읽는 자 없는 변수를 쓰지 않는다(GR-W0: 셋 다 꺼짐 = 기준판과 바이트 동일, 회귀 실측). */
     if (d.showGrid === '1' && !d.gridColor && !d.labelColor) want[0] = `rgba(255, 255, 255, ${_whiteAlphaTo(bg, GRAPH_GRID_TARGET)})`;
@@ -271,6 +271,9 @@ export function syncGraphTone(block) {
     const inkBase = ov && !d.labelColor ? _rgbOfCss(_cs(ov)?.color) : null;
     if (inkBase) want[2] = _rgbCss(_lightenTo(inkBase, bg, GRAPH_LINE_TARGET));
   }
+  /* K6 — 속빈 점의 구멍 = 그 자리 바탕(단색). 톤과 무관하게 흰 바탕에서도 쓴다(구멍은 «바탕을 보여 주는» 자리).
+     ⚠️backdropRgbAt 은 한 색이다 — 그라디언트·이미지 바탕에선 구멍이 단색 덩어리로 보인다(못 보는 꼴 · 실측표). */
+  if (bg && d.pointStyle === 'hollow' && d.chartType === 'line') want[3] = _rgbCss(bg);
   GRAPH_AUTO_VARS.forEach((v, i) => { if (want[i]) block.style.setProperty(v, want[i]); });
   return { prev, want };
 }
