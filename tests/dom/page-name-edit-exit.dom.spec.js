@@ -74,7 +74,7 @@ for (const exit of ['Enter', 'Escape', 'click-away']) {
   });
 }
 
-test('RG-N5 ㉢ [새 것] 끝난 뒤(키 없이 바깥 클릭) — (ⅱ) 이름 칸 keydown 처리기 0 · (ⅰ) Escape 보내도 이름 그대로 · (ⅲ) 다음 편집 «x»+Enter → 커밋 1', async ({ page }) => {
+test('RG-N5 ㉢ [새 것] 끝난 뒤(키 없이 바깥 클릭) — (ⅱ) 이름 칸 keydown 처리기 0 · (ⅰ) Escape 보내도 이름 그대로 · (ⅲ) 다음 편집 곧장 Enter → 커밋 1', async ({ page }) => {
   const { name } = await setup(page);
   // 키 없이 바깥 클릭으로 끝낸다(옛 꼴이면 onKey 가 남는 길 — 첫 키에만 떨어지므로)
   await startEdit(page, name);
@@ -90,11 +90,12 @@ test('RG-N5 ㉢ [새 것] 끝난 뒤(키 없이 바깥 클릭) — (ⅱ) 이름 
   const after = await st(name);
   expect.soft({ text: after.text, pageName: after.pageName }, '(ⅰ) 끝난 뒤 Escape → 이름 그대로').toEqual({ text: before.text, pageName: before.pageName });
   // (ⅲ) 행위 축(태양·지디): 남은 onKey 가 «다음 편집»에서 다르게 구나 — 예측(코드 읽기): 같다(남은 onKey 의 blur 도 commit 은 한 번)
+  //   ★글자 없이 곧장 Enter — 글자를 치면 변이 ⒜(:67 되살림)도 여기서 빨개져 ⒝ 와 겹친다(㉣ 와 같은 까닭)
   const c0 = await page.evaluate(() => window.__saves);
   await startEdit(page, name);
-  await page.keyboard.press('End'); await page.keyboard.type('x'); await page.keyboard.press('Enter'); await page.waitForTimeout(250);
+  await page.keyboard.press('Enter'); await page.waitForTimeout(250);
   const s2 = await st(name);
-  expect.soft({ editing: s2.editing, pageName: s2.pageName, commits: await page.evaluate((c0) => window.__saves - c0, c0) }, '(ⅲ) 다음 편집 «x»+Enter').toEqual({ editing: false, pageName: before.pageName + 'x', commits: 1 });
+  expect.soft({ editing: s2.editing, pageName: s2.pageName, commits: await page.evaluate((c0) => window.__saves - c0, c0) }, '(ⅲ) 다음 편집 곧장 Enter').toEqual({ editing: false, pageName: before.pageName, commits: 1 });
 });
 
 test('RG-N5 ㉣ [새 것] 편집 중 더블클릭 ×3 → 바로 Enter → 끝 · 처리기 0 · 커밋 1 번', async ({ page }) => {
