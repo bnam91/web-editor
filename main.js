@@ -2367,11 +2367,15 @@ ipcMain.handle('projects:load', (event, id, opts) => {
       continue;
     }
     console.warn(`[projects:load] ${id} 손상 → ${c.from}(${path.basename(c.path)})에서 복구`);
+    /* ★E169(2026-10-06 lane-drag · 지디 «우리 몫») 자가치유 «성패»를 렌더러에 싣는다 — 옛 판은 실패를 warn 만 남기고 삼켜서
+       토스트가 «백업에서 복구했습니다»(디스크에 성한 판 0 인데 안심)였다. 실앱 ro 판(디스크가 꽉 찼을 때 대역) 실측. */
+    let _healed = true, _healError;
     try { // 자가치유: 복구본을 proj.json으로 재기록 (다음 로드부터 정상)
       const paths = _ensureNewLayoutPaths(id);
       _atomicWriteFileSync(paths.proj, JSON.stringify(proj, null, 2));
-    } catch (e) { console.warn('[projects:load] 자가치유 재기록 실패:', e.message); }
-    return { ...proj, _recovered: c.from }; // _recovered: 렌더러 통지용(serialize엔 미포함)
+    } catch (e) { _healed = false; _healError = (e && e.code) || 'unknown'; console.warn('[projects:load] 자가치유 재기록 실패:', e.message); }
+    // _recovered · _healed · _healError: 렌더러 통지용(serialize엔 미포함 — js/io/proj-merge.js PROJ_RUNTIME_KEYS)
+    return _healed ? { ...proj, _recovered: c.from, _healed } : { ...proj, _recovered: c.from, _healed, _healError };
   }
   // 3) proj.json·백업·히스토리 모두 부재/손상 → 복구 불가
   return null;
