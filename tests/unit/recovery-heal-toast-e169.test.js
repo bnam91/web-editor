@@ -119,3 +119,13 @@ test('T6 ★시각 꼴은 «한 곳»(main _savedAtLabel) — 토스트 함수·
   assert.doesNotMatch(html.slice(k, k + 900), /getMonth|getHours/, '★카드 배지가 시각을 따로 만든다(두 벌)');
   assert.equal((MAIN_SRC.match(/function _savedAtLabel\(/g) || []).length, 1, 'main 의 시각 helper 는 하나');
 });
+
+/* ★T6b 잠금(2026-10-06 lane-drag · 태양 승인) — 탭 열기 길(js/tab-system.js)에도 날짜 조립 0 · 공용 열기 함수만 부른다.
+   잠금 — base 빨강 증거는 L1·L2·B1(tests/unit/open-load-notice-e170.test.js · 7e5007f5 에서 빨강). tab-system 은 고치기 전에도 날짜를 «안» 조립했다
+   (토스트 자체가 없었다) — 그래서 이 단언은 base 에서 정직하게 빨강을 못 낸다. 다시 자라지 않게 막는 자리다. */
+test('T6b 잠금 — 탭 열기 길(tab-system.js)에 날짜 조립 0 · 복구 글을 따로 안 만든다 · 공용 loadProjectForOpen 만', () => {
+  const tab = readSrc(REPO, 'js/tab-system.js');
+  assert.doesNotMatch(tab, /getMonth\(|getHours\(/, '★탭 열기 길이 시각을 따로 만든다(셋째 조립)');
+  assert.doesNotMatch(tab, /손상되어|저장분/, '★탭 열기 길이 복구 글을 따로 쓴다(둘째 문장)');
+  assert.match(tab, /window\.loadProjectForOpen\(id\)/);
+});
