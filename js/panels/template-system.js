@@ -395,6 +395,24 @@ function _tplReapplyPagePad(sec) {
   window.applyPadXToSection(inner, window.effectiveSectionPadX(inner));
 }
 
+/* ★넣은 나무를 «묶는» 한 곳 (2026-10-06 lane-drag · R7 · R7b · ② · block 갈래 — section 갈래와 block 갈래가 같이 쓴다).
+   ⑴ 정본 명부(js/block-bind-kinds.js) 종류 → bindBlock (+ 그리드·QA 는 다시 그리기 — 스냅샷과 CSS 가 어긋나지 않게)
+   ⑵ .frame-block 전부 → bindFrameDropZone (프레임은 bindBlock 이 아니다)
+   ⑶ 제 바인더 셋(그라데이션 · 스티커 · 어노테이션) → 제 바인더(묶기만 · 다시 그리기 안 함)
+   root 자신도 포함한다(block 갈래는 넣는 것이 블록·프레임 하나다). */
+function _bindInsertedTree(root) {
+  const each = (sel) => [...(root.matches?.(sel) ? [root] : []), ...root.querySelectorAll(sel)];
+  each(BLOCK_BIND_SEL).forEach(b => {
+    window.bindBlock?.(b);
+    if (b.classList.contains('grid-block')) window.renderGridBlock?.(b);
+    if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
+  });
+  each('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
+  each('.gradient-block').forEach(b => window.bindGradientSelect?.(b));
+  each('.sticker-block').forEach(b => window.bindStickerSelect?.(b));
+  each('.annotation-block').forEach(b => window.bindAnnotationSelect?.(b));
+}
+
 async function insertTemplate(tpl) {
   const canvas = await _loadCanvas(tpl.id);
   if (!canvas) {
@@ -426,15 +444,18 @@ async function insertTemplate(tpl) {
     row.dataset.layout = 'stack';
     row.appendChild(blockEl);
 
+    /* ★(2026-10-06 lane-drag · 태양/지디 승인) 새 id — 넣는 블록과 안의 [id] 전부(section 갈래와 같은 규칙: 접두어 + genId).
+       base 실앱 ㉠: 원본이 문서에 있으면 같은 id 가 둘(글자 1 · 프레임 안까지 5). */
+    const _gid = (prefix) => (typeof window.genId === 'function' ? window.genId(prefix) : prefix + '_' + Math.random().toString(36).slice(2, 9));
+    [blockEl, ...blockEl.querySelectorAll('[id]')].forEach(el => { if (el.id) el.id = _gid(el.id.split('_')[0] || 'el'); });
+
     window.insertAfterSelected?.(sec, row);
     /* ★rebindAll 비경유 문(2026-09-05 개명) — «옛 빌드가 저장한 블록 템플릿»이 여기로 들어온다.
        ⛔이 자리는 설계 문서의 문 목록(subsection:182 / section:277)에 «없었다» — 구현 중 발견.
        승격을 안 하면 bindBlock 안전망이 뒤늦게 잡아 warn 을 남긴다(= 문을 놓쳤다는 신호). */
     window.migrateGridIdentity?.(blockEl);
-    window.bindBlock?.(blockEl);
-    // ★이 문도 렌더러를 안 부른다 — 스냅샷(grd-*)과 CSS 가 어긋나지 않게 다시 그린다.
-    if (blockEl.classList.contains('grid-block')) window.renderGridBlock?.(blockEl);
-    if (blockEl.classList.contains('qa-block')) window.renderQABlock?.(blockEl);
+    /* ★(2026-10-06) 옛 판은 blockEl «하나»에 bindBlock — 프레임이면 틀린 바인더 · 안 블록·프레임은 안 묶였다(base 실앱: 클릭하면 섹션만). */
+    _bindInsertedTree(blockEl);
     window.buildLayerPanel?.();
     _tplReapplyPagePad(sec);   // ★E81 — push «앞»
     window.pushHistory?.();
@@ -609,22 +630,7 @@ async function insertTemplate(tpl) {
   window.migrateGridIdentity?.(sec);
   /* ★R7b(2026-10-05 lane-drag · 지디 ⒜) — 손 명부(15 종 · 도형·스텝·챗·목업·확대 등 14 종 빠짐) 대신 정본 명부(js/block-bind-kinds.js).
      나머지 손 명부 8 곳은 0.9.7 — 그 사이 tests/unit/block-bind-kinds-lock.test.mjs 가 자리마다 오늘 빠짐을 얼려 둔다. */
-  sec.querySelectorAll(BLOCK_BIND_SEL).forEach(b => {
-    bindBlock(b);
-    // ★이 문은 «유일하게» 렌더러를 안 부르던 문이다 — 개명으로 스냅샷(grd-*)과 CSS 가
-    //   어긋나면 P1.5 「빈 줄이 손에 안 닿음」이 여기서만 재현된다. save-load.js:979 와 같은 줄.
-    if (b.classList.contains('grid-block')) window.renderGridBlock?.(b);
-    if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
-  });
-  /* ★R7(2026-10-05 lane-drag) — 넣은 섹션의 프레임을 «건다»(block-factory.js 섹션 바인딩과 같은 꼴). 이 갈래는 한 번도 안 불러서
-     프레임 12/12 가 _subSecBound false · 오버레이 그룹 끌기 Δ0 이었다(실앱 실측). ⚠️section 갈래만 — block 갈래는 0.9.7. */
-  sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
-  /* ★②(2026-10-06 lane-drag · 지디 승인) — 제 바인더를 쓰는 셋은 bindBlock 명부 밖이라 «따로» 묶는다(rebindAll 과 같은 바인더).
-     실앱 ㉠: 평소 만든 것은 _blockBound false · 제 플래그 true · 클릭하면 골라짐 / 섹션 템플릿으로 넣은 것은 제 플래그 false · 안 골라짐.
-     ⚠️묶기만 한다 — rebindAll 의 다시 그리기(renderGradient/Sticker · 어노테이션 재구성)는 안 부른다(넣은 HTML 이 이미 그린 것이다). */
-  sec.querySelectorAll('.gradient-block').forEach(b => window.bindGradientSelect?.(b));
-  sec.querySelectorAll('.sticker-block').forEach(b => window.bindStickerSelect?.(b));
-  sec.querySelectorAll('.annotation-block').forEach(b => window.bindAnnotationSelect?.(b));
+  _bindInsertedTree(sec);   // ★section · block 갈래 «한 도우미»(R7 · R7b · ② 를 모은 것 — 아래 정의 머리말)
   sec.querySelectorAll('.group-block').forEach(g => {
     if (!g.querySelector(':scope > .group-block-label')) {
       const lbl = document.createElement('span');
