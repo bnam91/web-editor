@@ -2368,7 +2368,8 @@ function _imgNatSize(src) {
 async function dropAssetImageAt(clientX, clientY, dataUrl, nat = {}) {
   if (!dataUrl) return null;
   const hit = document.elementFromPoint(clientX, clientY);
-  if (!hit || !hit.closest('#canvas-wrap')) return null;              // 캔버스 밖(패널 위 등) — 지금처럼 무동작
+  /* ★D6 ⒡3(2026-10-05 · 지디 「조용한 무동작을 남기지 마라」) — 캔버스 밖이면 넣지 않되 «말한다». */
+  if (!hit || !hit.closest('#canvas-wrap')) { window.showToast?.('여기엔 놓을 수 없습니다'); return null; }
   let natW = nat.naturalWidth || 0, natH = nat.naturalHeight || 0;
   if (!(natW > 0 && natH > 0)) { const z = await _imgNatSize(dataUrl); natW = z.w; natH = z.h; }
   if (hit.closest('#canvas .section-block') && !hit.closest('.scratch-item')) {
@@ -2377,6 +2378,8 @@ async function dropAssetImageAt(clientX, clientY, dataUrl, nat = {}) {
     if (_SECTION_DROP_KINDS.has(kind) && commitScratchDropAt(clientX, clientY, dataUrl, { naturalWidth: natW, naturalHeight: natH })) {
       window.pushHistory?.('노트패널→섹션');   // push-after — 스크래치→섹션 변환과 같은 규약(호출자 책임, canvas-scratch-drop.js 주석)
       window.scheduleAutoSave?.();
+      /* ★D6 ⒡3 — 섹션 «배경»으로 간 것은 그림 블록이 안 생겨 화면에선 «안 들어간 것»처럼 보인다(실앱: 1px 그림 = 아무것도 안 보임) → 말한다. */
+      if (kind === 'sectionbg') window.showToast?.('섹션 배경으로 넣었어요');
       return 'section';
     }
     clearScratchDropGuides();
