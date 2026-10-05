@@ -117,7 +117,8 @@ test('RG-N5 ㉤ [새 것 · RG-N5b 합침] 편집 중 Space(첫 키) → ⒜ 이
   await startEdit(page, name1);
   expect((await st(name1)).editing, '[전제] 편집 중').toBe(true);
   const orig = (await st(name1)).text;
-  await page.keyboard.press('End');
+  // ★캐럿을 끝으로 — 키가 아니라 JS 로(End 를 누르면 그게 «첫 키»가 되어 변이 ⒜ 가 ㉤ 도 빨갛게 했다 · 10-06 fix4-mA)
+  await name1.evaluate(n => { const r = document.createRange(); r.selectNodeContents(n); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); });
   const w0 = await page.evaluate(() => window.__switches);
   // ★Space 를 «첫 키»로 — 변이 ⒜(:67 되살림)는 첫 키 뒤에 onKey 를 떼므로 첫 키는 ⒜ 와 무관 → ⒜·⒞ 가 다른 시험을 빨갛게
   await page.keyboard.press(' '); await page.keyboard.type('b'); await page.waitForTimeout(150);
