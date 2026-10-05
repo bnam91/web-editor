@@ -83,7 +83,7 @@ for (const [nm, line] of [['h200 줄', { type: 'image', height: 200 }], ['높이
   });
 }
 
-test('A4 [음성대조·줌] 100 에서 열고 → 40 → 끌기 → 100 → 닫기 — 틀이 안 튄다(H 는 커밋 직전에 잰다)', async ({ page }) => {
+test('A4 [배율 간 튐 방지] 100 에서 열고 → 40 → 끌기 → 100 → 닫기 — 틀이 안 튄다 (⛔묵은 H 는 못 가른다 — 레이아웃 px 는 줌 무관 · 그건 A6)', async ({ page }) => {
   const errs = await scene(page, { type: 'image', height: 200 });
   const h0 = await frameH(page);
   expect(await open(page), '[전제] 열림').toBe(true);
@@ -122,5 +122,27 @@ test('A6 [음성대조·묵은 H] 끌어 맞춘 «뒤» 그릇(섹션 여백)을
   const ln = await lineOf(page);
   expect(Number.isFinite(Number(ln.imgSizePct)), `[전제] 크롭이 커밋됐다(안 됐으면 «아무것도 안 씀» 길이라 H 를 못 잰다 — 무효) ${JSON.stringify({ ...ln, imgSrc: undefined })}`).toBe(true);
   expect(Math.abs((await frameH(page)) - hMid), `★커밋한 틀이 «닫기 직전 보이던 높이»(${hMid})가 아니다 → ${await frameH(page)} (열 때 ${h0})`).toBeLessThanOrEqual(1);
+  expect(errs).toEqual([]);
+});
+
+test('A7 [⒜ 덧단언] 크롭 → 「원래대로」 → 다시 크롭(UI) — 틀이 묵은 높이로 안 튄다', async ({ page }) => {
+  /* 지디(10-06): 「원래대로」 뒤 줄엔 안 읽히는 height 가 남는다(실측 P2: 200). 다시 크롭하면 그 묵은 값이 «틀 높이»로 살아나면 안 된다 —
+     ⒜ 는 재크롭 커밋이 height:Hc 로 덮어 이 갈래를 제품 쪽에서 닫는다. */
+  const errs = await scene(page, { type: 'image', height: 200 });
+  expect(await open(page), '[전제] 열림 1').toBe(true);
+  await drag(page); await close(page);
+  expect(await open(page), '[전제] 열림 2').toBe(true);
+  /* ⛔여기서 showGridProperties 를 부르지 마라 — 패널을 다시 그려 편집기가 붙인 「원래대로」 단추를 지운다(1판 [전제] 빨강 = 무효 06:37:19). */
+  const reset = await page.waitForSelector('#grd-img-crop-reset', { timeout: 5000 }).then(() => true, () => false);
+  expect(reset, '[전제] 「원래대로」 단추').toBe(true);
+  await page.click('#grd-img-crop-reset');
+  await page.waitForFunction(() => document.querySelectorAll('.grd-img-edit-proxy').length === 0, null, { timeout: 5000 });
+  await page.waitForTimeout(200);
+  const afterReset = await lineOf(page);
+  expect(['imgSizePct', 'imgPosX', 'imgPosY'].filter(k => afterReset[k] !== undefined), '[전제] 「원래대로」가 크롭을 지웠다').toEqual([]);
+  const hReset = await frameH(page);
+  expect(await open(page), '[전제] 열림 3').toBe(true);
+  await drag(page); await close(page);
+  expect(Math.abs((await frameH(page)) - hReset), `★다시 크롭했더니 틀이 튀었다 ${hReset} → ${await frameH(page)} (남아 있던 height ${afterReset.height})`).toBeLessThanOrEqual(1);
   expect(errs).toEqual([]);
 });
