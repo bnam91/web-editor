@@ -820,7 +820,12 @@ function _renderAutoPanel(ss) {
     if (ratio !== 1) {
       ss.querySelectorAll(':scope > [style*="position: absolute"], :scope > [style*="position:absolute"]').forEach(block => {
         const curLeft  = parseInt(block.style.left  || 0);
-        const curW = parseInt(block.style.width || block.offsetWidth || 0);
+        /* ★E166(2026-10-05 lane-drag · 0.9.6) — 폭은 «px 이거나 비었을 때만» 비율로 바꾼다.
+           옛 판 parseInt(style.width) 는 '100%' 를 100(px)으로 읽어 ×비율 = 78px — 폭 100% 글자가 쪼그라들어 왼쪽에 붙었다
+           (실앱 base·고친 판 둘 다 516→400 에서 100% → 78px · 가운데 −64.4). %·calc·fit-content 는 이미 부모를 따라간다.
+           꼴 전수: reports/lane-drag/E166-CENSUS.md(자유 프레임 직속 absolute 1038 중 % 95 · calc 10 · fit-content 3). */
+        const _sw = block.style.width || '';
+        const curW = (_sw === '' || /^-?[\d.]+px$/.test(_sw.trim())) ? (parseInt(_sw) || block.offsetWidth || 0) : 0;
         block.style.left = Math.round(curLeft * ratio) + 'px';
         if (curW) block.style.width = Math.round(curW * ratio) + 'px';
         if (isShapeFrame) {
