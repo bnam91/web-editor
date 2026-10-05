@@ -2253,6 +2253,11 @@ function renderGridBlock(block) {
     block.style.width = ownW + 'px';
   } else if (!floating) block.style.width = '100%';
   else if (block.dataset.overlayFrozenWidth) block.style.width = block.dataset.overlayFrozenWidth;
+  /* ★K1 ⒝(2026-10-05 지디 · lane-f-grid) — 그려지는 폭 = min(키, 부모 내용 폭). «그릴 때» 한 자리에서만 죈다 — 키는 안 죈다
+     (부모가 넓어지면 따라 커지고 · 저장·다시 열기에 키 3000 이 그대로 남는다). 패널·손잡이·MCP·읽는 문 넷 다 키에 쓰고 이 렌더로 그려진다.
+     키가 없거나(100%) 떠 있으면 «안» 건다 — 옛 저장본 style 바이트 동일(값이 없던 자리에 '' 대입 = 선언 없음 그대로). */
+  if (ownW !== null) block.style.maxWidth = '100%';
+  else if (block.style.maxWidth) block.style.maxWidth = '';
   block.style.boxSizing = 'border-box';
   _gridApplyBlockOutline(block);   // ★G17 블럭 외곽선 — 키 없으면 아무것도 안 만진다(옛 저장본 바이트 동일)
   _gridApplyBlockBgStacking(block);   // ★G12 블럭 배경 — 켰을 때만 isolation(끄면 흔적만 걷는다)

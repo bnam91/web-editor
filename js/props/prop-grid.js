@@ -2390,17 +2390,29 @@ function _grdWidthNow(block) {
   const key = window.getGridWidth?.(block) ?? null;
   return { val: key, floating: false, auto: key === null };
 }
+/* ★K1 ⒝(2026-10-05 지디 · lane-f-grid) — 패널 max = 담는 그릇의 «그려진» 내용 폭(H1 선례 — 칸 폭이 굵기 상한). 떠 있으면 종전 3000.
+ *  그릇 = 가장 가까운 사용자 프레임(글자 프레임 아님) 또는 섹션 안쪽 — 바로 위 행은 자유 프레임에서 fit-content 라 자를 못 된다.
+ *  ⛔키는 안 죈다 — 이미 3000 인 키는 숫자칸에 그대로 보이고, 그려진 폭은 렌더(grid-block.js renderGridBlock max-width)가 min 으로 정한다. */
+function _grdWidthMax(block) {
+  if (block.dataset.overlayBlock === 'true') return GRID_WIDTH_MAX;
+  const box = block.parentElement?.closest('.frame-block:not([data-text-frame]), .section-inner');
+  if (!box) return GRID_WIDTH_MAX;
+  const cs = getComputedStyle(box);
+  const w = Math.floor(box.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0));
+  return w > 0 ? Math.max(GRID_WIDTH_MIN, Math.min(GRID_WIDTH_MAX, w)) : GRID_WIDTH_MAX;
+}
 function _grdWidthRowHtml(block) {
   const w = _grdWidthNow(block);
-  const sliderVal = w.val ?? Math.min(GRID_WIDTH_MAX, Math.max(GRID_WIDTH_MIN, Math.round(block.offsetWidth) || GRID_WIDTH_MIN));
+  const wMax = _grdWidthMax(block);
+  const sliderVal = w.val ?? Math.min(wMax, Math.max(GRID_WIDTH_MIN, Math.round(block.offsetWidth) || GRID_WIDTH_MIN));
   const autoTitle = w.floating
     ? '떠 있는 동안은 굳힌 폭이 정본이라 «자동»으로 못 돌린다 — 오버레이를 풀고 누르세요'
     : (w.auto ? '지금 자동 — 담는 그릇 폭을 다 쓴다' : '정한 폭을 지우고 담는 그릇 폭을 다 쓰게(100%) 되돌린다');
   return `
       <div class="prop-row">
-        <span class="prop-label" title="그리드 블럭 자체의 너비(px, ${GRID_WIDTH_MIN}~${GRID_WIDTH_MAX}). 비우면 자동(100%)">너비</span>
-        <input type="range" class="prop-slider" id="grd-width-slider" min="${GRID_WIDTH_MIN}" max="${GRID_WIDTH_MAX}" step="1" value="${sliderVal}">
-        <input type="number" class="prop-number" id="grd-width-number" min="${GRID_WIDTH_MIN}" max="${GRID_WIDTH_MAX}" value="${w.val ?? ''}"${w.floating ? '' : ' placeholder="자동"'}>
+        <span class="prop-label" title="그리드 블럭 자체의 너비(px, ${GRID_WIDTH_MIN}~${wMax} — 담는 그릇 폭까지). 비우면 자동(100%)">너비</span>
+        <input type="range" class="prop-slider" id="grd-width-slider" min="${GRID_WIDTH_MIN}" max="${wMax}" step="1" value="${sliderVal}">
+        <input type="number" class="prop-number" id="grd-width-number" min="${GRID_WIDTH_MIN}" max="${wMax}" value="${w.val ?? ''}"${w.floating ? '' : ' placeholder="자동"'}>
         <button type="button" class="prop-btn-sm${w.auto ? ' active' : ''}" id="grd-width-auto" title="${autoTitle}"${w.floating ? ' disabled' : ''}>100%</button>
       </div>`;
 }
@@ -2408,7 +2420,7 @@ function _grdWireWidth(block) {
   const slider = document.getElementById('grd-width-slider');
   const number = document.getElementById('grd-width-number');
   const autoBtn = document.getElementById('grd-width-auto');
-  const clamp = (v) => Math.min(GRID_WIDTH_MAX, Math.max(GRID_WIDTH_MIN, Math.round(v)));
+  const clamp = (v) => Math.min(_grdWidthMax(block), Math.max(GRID_WIDTH_MIN, Math.round(v)));   // ★K1 ⒝ — 패널 입력 상한 = 그릇 폭(위 _grdWidthMax 한 자리)
   if (slider) {
     let armed = false;
     /* ★양쪽 끝 표본 — 시작 = 첫 input 직전(pushHistoryStartSample), 끝 = change. mousedown 에 걸면
