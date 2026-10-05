@@ -239,21 +239,35 @@ test('E2 ★끌면 움직이고, 끝나면 «％»로 커밋된다 (px→％ 통
   expect(d.max, `★끌었는데 «그림»은 그대로다 (다른 점 ${d.n}/${d.total})`).toBeGreaterThan(64);
 });
 
-test('E3 ★높이가 auto 인 줄 — 편집을 열면 «프레임 높이»를 먼저 못박고 그걸 말한다', async ({ page }) => {
+test('E3 ★높이가 auto 인 줄 — 편집이 «열리고», 끌어 커밋할 때 «프레임 높이»를 보이던 높이로 못박고 그걸 말한다', async ({ page }) => {
+  /* ★계약을 «열 때»에서 «커밋 때»로 옮겼다(2026-10-06 · APPROVED_BY: 지디 E2E3-crop-a ⒜).
+     옛 계약: 「편집을 열면 프레임 높이를 먼저 못박고(height 혼자 patch) 그걸 말한다」.
+     E157 뒤 크롭 없는 그림 줄은 height 를 안 읽어 그 patch 가 T-122 가드에 INVALID → 편집기가 «말없이 안 열렸다»(실측 a8f60da1).
+     ⇒ 열 때는 문서를 안 건드리고, 커밋 때 {크롭 세 값 + height:H(커밋 직전에 잰 보이는 틀 높이)} 를 한 patch 로 쓴다. */
   const errs = await boot(page);
   await plant(page, { type: 'image', imgSrc: IMG });     // height 없음
   await settle(page);
-  const h0 = await page.evaluate(() => document.querySelector('#host .grd-img-frame').getBoundingClientRect().height);
+  const h0 = await page.evaluate(() => document.querySelector('#host .grd-img-frame').offsetHeight);
   await page.evaluate(() => window.enterGridImageEditMode(document.getElementById(window.__ID), { r: 0, c: 0, li: 0 }));
-  await page.waitForFunction(() => document.querySelectorAll('.img-corner-handle').length > 0);
+  await page.waitForFunction(() => document.querySelectorAll('.img-corner-handle').length > 0, null, { timeout: 5000 });
+  const atOpen = await page.evaluate(() => window.__model(document.getElementById(window.__ID)).cells[0][0].lines[0].height);
+  expect(atOpen, '★열기만 했는데 모델에 height 가 써졌다 — 여는 길은 문서를 안 건드린다').toBeUndefined();
+  const box = await page.locator('.grd-img-edit-proxy img.asset-img').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 30, box.y + box.height / 2 - 12, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.querySelectorAll('.grd-img-edit-proxy').length === 0, null, { timeout: 5000 });
+  await settle(page);
   const out = await page.evaluate(() => ({
     height: window.__model(document.getElementById(window.__ID)).cells[0][0].lines[0].height,
     toast: window.__toast.slice(),
   }));
   expect(errs).toEqual([]);
-  expect(Number(out.height), '★프레임 높이를 안 못박았다 — 크롭 세 값이 렌더러에 «안 읽히고» 끝난다')
+  expect(Number(out.height), '★커밋했는데 프레임 높이를 안 못박았다 — 크롭 세 값이 렌더러에 «안 읽히고» 끝난다')
     .toBeGreaterThan(0);
-  expect(Math.abs(Number(out.height) - h0), '★못박은 높이가 지금 보이던 높이와 다르다 — 여는 순간 그림이 튄다')
+  expect(Math.abs(Number(out.height) - h0), '★못박은 높이가 보이던 높이와 다르다 — 커밋하는 순간 그림이 튄다')
     .toBeLessThanOrEqual(1);
   expect(out.toast.join(' '), '★말없이 모델을 바꿨다 — 「프레임 높이를 고정했다」를 사용자에게 알려야 한다')
     .toContain('프레임 높이');
