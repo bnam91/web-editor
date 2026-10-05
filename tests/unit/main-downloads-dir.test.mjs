@@ -1,4 +1,5 @@
-/* main-downloads-dir.test.mjs — GODITOR_DOWNLOADS_DIR(2026-10-05 지디 승인): 다운로드 기본 자리를 «절대경로 env 가 있을 때만» 그 폴더로.
+/* ★모든 다운로드는 main.js 의 will-download 핸들러 한 자리를 거친다 ⇒ 이 env 한 자리가 모든 내보내기 길을 덮는다(10-05 전수: app.getPath('downloads') 1곳)
+ * main-downloads-dir.test.mjs — GODITOR_DOWNLOADS_DIR(2026-10-05 지디 승인): 다운로드 기본 자리를 «절대경로 env 가 있을 때만» 그 폴더로.
  *   행위 = main.js 의 ▼DOWNLOADS_DIR 블록을 «떼어» 가짜 env·getPath·isAbs·mkdir 로 돌린다(Electron 을 띄우지 않는다).
  *   구조 = env 를 읽는 자리 «하나» · app.getPath('downloads') 를 부르는 자리 «하나»(그 함수의 인자로만) — 두 자리에서 읽으면 빨강.
  *   양성대조: GD1001_ROOT=<fad9c91c main.js 가 든 폴더> → D0(블록 찾기)부터 빨강. */
