@@ -541,6 +541,7 @@ function addTextBlock(type, opts = {}) {
       }
       if (refChild) activeSS.insertBefore(tf, refChild.nextSibling);
       else activeSS.appendChild(tf);
+      _followFrameHAlign(activeSS, tf);   // ★E135 — T▾ fullWidth 갈래도 프레임 정렬(E122 한 벌)
     } else {
       return; // 지원하지 않는 프레임 타입
     }
@@ -652,6 +653,7 @@ function addBlankTextBlock(type = 'body', opts = {}) {
       }
       if (refChild) activeSS.insertBefore(tf, refChild.nextSibling);
       else activeSS.appendChild(tf);
+      _followFrameHAlign(activeSS, tf);   // ★E135 — API 문(자동화): 앱 안 호출자 0 — 문서화된 window 문만 · 자동화로 넣어도 프레임 정렬
     } else {
       return null; // 지원하지 않는 프레임 타입
     }

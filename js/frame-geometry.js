@@ -358,3 +358,17 @@ export function applyFrameHAlignToChild(child, alignItems) {
     setSelf(child);
   }
 }
+
+/* ── ⑤ E135(2026-10-06) — «넣어진 자리의 부모»가 정렬을 준 스택 프레임이면 그 정렬을 입힌다 ──────────────
+ * ★E122 의 _followFrameHAlign(block-factory.js) 과 같은 규칙 — 부모를 «스스로» 찾는 꼴이라 넣는 길 어디서나 한 줄로 부른다.
+ *   E122 공용을 안 거치던 길(코드독해 · E122 README «못 보는 꼴»): 붙여넣기(editor.js) · 템플릿 넣기(drag-utils.js insertAfterSelected 프레임 갈래) ·
+ *   T▾ fullWidth(block-factory.js addTextBlock). 프레임 안으로 끌어 넣기(block-drag.js)는 그 레인 몫.
+ *   dataset.alignItems 가 «있을 때만» · 자유배치·글자 프레임 제외(좌표 갈래 / 래퍼) — E122 와 같은 문. */
+export function followHostFrameHAlign(el) {
+  const host = el && el.parentElement;
+  if (!host || !host.classList || !host.classList.contains('frame-block')) return;
+  if (host.dataset.freeLayout === 'true' || host.dataset.textFrame === 'true') return;
+  const ai = host.dataset.alignItems;
+  if (ai === 'flex-start' || ai === 'center' || ai === 'flex-end') applyFrameHAlignToChild(el, ai);
+}
+if (typeof window !== 'undefined') window.followHostFrameHAlign = followHostFrameHAlign;

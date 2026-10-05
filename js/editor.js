@@ -1974,6 +1974,7 @@ function pasteClipboard() {
         if (anchor) anchor.after(el); else insertAfterSelectedAsSibling(sec, el);   // F1 — 키보드 입구: 프레임을 골라 뒀으면 «다음 형제»
         if (pasteHasSS) window._activeFrame = savedActiveSS;
       }
+      window.followHostFrameHAlign?.(el);   // ★E135 — 정렬을 준 스택 프레임 안에 붙었으면 그 정렬(frame-geometry.js ⑤)
       _bindPastedEl(el);
       _normalizePastedAbsolute(el);
       lastEl = el;
@@ -2123,6 +2124,7 @@ function pasteClipboard() {
       if (pasteHasSS) window._activeFrame = null;
       insertAfterSelectedAsSibling(sec, el);   // F1 — 키보드 입구
       if (pasteHasSS) window._activeFrame = savedActiveSS;
+      window.followHostFrameHAlign?.(el);   // ★E135
       _bindPastedEl(el);
       _normalizePastedAbsolute(el);
       _keepOnlyPastedSelected([el]);
