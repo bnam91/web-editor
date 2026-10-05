@@ -62,10 +62,11 @@ test('M3 ★meta 키 넷은 «양쪽»에서 빠진다 — proj.json 에 실리�
 });
 
 test('M4 ★★`_recovered` 는 existing 에서 빠진다 — 두 벌이 «갈라져 있던» 바로 그 자리', () => {
-  assert.deepEqual(PROJ_RUNTIME_KEYS, ['_recovered']);
-  const proj = buildProjForSave({ _recovered: 'history', keep: 1 }, {}, 'proj_1', NOW);
-  assert.ok(!('_recovered' in proj),
-    '★★복구 마커가 저장본에 실렸다 — 「저장에 남기지 않음」이 두 곳에 명시돼 있다');
+  // ★E169(2026-10-06 lane-drag): 자가치유 성패 표식 둘이 같은 명부로 들어왔다(_healed · _healError) — 셋 다 저장에 안 남는다.
+  assert.deepEqual(PROJ_RUNTIME_KEYS, ['_recovered', '_healed', '_healError']);
+  const proj = buildProjForSave({ _recovered: 'history', _healed: false, _healError: 'ENOSPC', keep: 1 }, {}, 'proj_1', NOW);
+  for (const k of ['_recovered', '_healed', '_healError']) assert.ok(!(k in proj),
+    `★★복구 마커 ${k} 가 저장본에 실렸다 — 「저장에 남기지 않음」이 두 곳에 명시돼 있다`);
   assert.equal(proj.keep, 1, '★같이 딸려 빠졌다');
 });
 
