@@ -144,7 +144,7 @@ const EMPTY_FRAME_H = 'const ph = h > 0 ? h : 180;';
 async function loadVariant(tag, edit) {
   let v = src;
   if (edit) { const b = v; v = edit(v); assert.notEqual(v, b, `[전제] 대역 «${tag}» 닻을 못 찾았다`); }
-  v += '\nexport { _gridTypeCanRead as __typeCanRead };\n';
+  v += '\nexport { _gridTypeCanRead as __typeCanRead, GRID_LINE_FIELDS as __GLF };\n';
   const gcr2 = path.join(os.tmpdir(), `gcr-kindshed-${tag}-${process.pid}.mjs`);
   const ali = path.join(os.tmpdir(), `grid-kindshed-${tag}-${process.pid}.mjs`);
   fs.copyFileSync(path.join(ROOT, 'js/grid-cell-resize.js'), gcr2);
@@ -152,6 +152,7 @@ async function loadVariant(tag, edit) {
   try { return await import(pathToFileURL(ali).href); } finally { fs.unlinkSync(ali); fs.unlinkSync(gcr2); }
 }
 const hasTable = () => src.includes('function _gridTypeCanRead(');
+const GRID_LINE_FIELDS_OF = (m) => m.__GLF;
 
 test('K6 ★파생 증명 — 렌더러의 «빈 틀 높이» 모드를 끈 대역에선 image 표에서 height 가 빠지고 K1 길이 빨개진다', async () => {
   assert.ok(hasTable(), '[전제] 종류 표(_gridTypeCanRead)가 없는 판 — 이 검사는 고친 판 전용');
@@ -165,15 +166,21 @@ test('K6 ★파생 증명 — 렌더러의 «빈 틀 높이» 모드를 끈 대�
   assert.equal(dbl.getGridModel(block).cells[0][0].lines[0].height, 160, '★대역에서도 height 가 털렸다 — K1 이 표 말고 다른 것 때문에 초록이다');
 });
 
-test('K7 비용 — 종류별 첫 부름(표 뜨기)과 두 번째(기억) ms 를 찍는다 · 첫 부름 > 20ms 면 빨강(태양 문턱)', async () => {
+test('K7 비용 — 표 뜨기는 종류마다 «한 번»(첫 부름 = 줄 필드 수만큼 렌더러 탐침 · 두 번째 = 0) · ms 는 찍기만', async () => {
+  /* ★10-06 정정(lane-g15) — 옛 K7 은 «첫 부름 > 20ms 면 빨강»(벽시계 문턱)이었다. 전체 단위판(병렬 부하)에서 한 번 넘어 grid-render-gaps G5 가
+     빨개졌다(unit-fix25-c4.log · 따로 돌리면 초록) — 부하에 흔들리는 자는 자가 아니다. ⇒ 결정적인 양(탐침 «호출 수»)으로 잰다.
+     20ms 문턱은 커밋 전 «측정»으로 이미 냈다(첫 부름 0.12~0.57ms/종류 · 2ddf61e6 커밋 글). 여기선 ms 를 찍기만 한다. */
   assert.ok(hasTable(), '[전제] 종류 표가 없는 판');
-  const fresh = await loadVariant('cost');
+  const N = '__kindShedProbeN';
+  const fresh = await loadVariant('cost', s => s.replace('function _gridLineFieldIsRead(line, key) {', `function _gridLineFieldIsRead(line, key) { globalThis.${N} = (globalThis.${N} || 0) + 1;`));
+  const nFields = [...GRID_LINE_FIELDS_OF(fresh)].filter(k => k !== 'type').length;
   const rows = [];
   for (const T of ['image', 'gap', 'divider', 'body', 'h1', 'h2', 'h3', 'caption', 'label', 'text']) {
-    const t0 = performance.now(); fresh.__typeCanRead(T, 'height'); const t1 = performance.now();
-    fresh.__typeCanRead(T, 'height'); const t2 = performance.now();
-    rows.push({ T, first: +(t1 - t0).toFixed(2), cached: +(t2 - t1).toFixed(3) });
+    globalThis[N] = 0; const t0 = performance.now(); fresh.__typeCanRead(T, 'height'); const t1 = performance.now(); const first = globalThis[N];
+    globalThis[N] = 0; fresh.__typeCanRead(T, 'width'); const t2 = performance.now(); const cached = globalThis[N];
+    rows.push({ T, firstProbes: first, cachedProbes: cached, firstMs: +(t1 - t0).toFixed(2), cachedMs: +(t2 - t1).toFixed(3) });
   }
   console.log('K7-COST', JSON.stringify(rows));
-  assert.deepEqual(rows.filter(r => r.first > 20).map(r => r.T), [], '★첫 부름이 20ms 를 넘는 종류가 있다 — 커밋 전에 멈추고 보고');
+  assert.deepEqual(rows.filter(r => r.firstProbes !== nFields).map(r => [r.T, r.firstProbes]), [], `★첫 부름의 탐침 수가 줄 필드 수(${nFields})가 아니다 — 표를 «한 번에» 안 뜬다`);
+  assert.deepEqual(rows.filter(r => r.cachedProbes !== 0).map(r => [r.T, r.cachedProbes]), [], '★두 번째 부름이 다시 렌더러를 돌린다 — 기억(메모)이 안 된다');
 });
