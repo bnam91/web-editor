@@ -13,6 +13,13 @@ test.describe.configure({ timeout: 60000 });
 
 async function setup(page) {
   await page.setViewportSize({ width: 1500, height: 1100 });
+  /* 둘째 계기(JS) — keydown 붙이기/떼기를 요소별 Set 으로 센다(CDP 계기와 독립). 10-06 base 판에서 CDP 수가 예측(1)과 달리 0 → 계기부터 의심 */
+  await page.addInitScript(() => {
+    const M = new WeakMap(); const A = EventTarget.prototype.addEventListener, D = EventTarget.prototype.removeEventListener;
+    EventTarget.prototype.addEventListener = function (t, fn, o) { if (t === 'keydown' && fn) { let s = M.get(this); if (!s) M.set(this, s = new Set()); s.add(fn); } return A.call(this, t, fn, o); };
+    EventTarget.prototype.removeEventListener = function (t, fn, o) { if (t === 'keydown') M.get(this)?.delete(fn); return D.call(this, t, fn, o); };
+    window.__kdCount = (el) => M.get(el)?.size || 0;
+  });
   const errs = await bootApp(page);
   await page.evaluate(() => {
     window.switchToTab?.('file');
@@ -42,6 +49,8 @@ async function keydownCount(page, name) {
   await cdp.detach();
   return listeners.filter(l => l.type === 'keydown').length;
 }
+/** 두 계기 — { cdp, js } */
+async function kd(page, name) { return { cdp: await keydownCount(page, name), js: await name.evaluate(n => window.__kdCount(n)) }; }
 
 test('RG-N5 ㉠ [전제] 더블클릭 → 편집 중(.editing · contentEditable · 포커스)', async ({ page }) => {
   const { name } = await setup(page);
@@ -69,6 +78,8 @@ test('RG-N5 ㉢ [새 것] 끝난 뒤(키 없이 바깥 클릭) — (ⅰ) Escape 
   const { name } = await setup(page);
   // 키 없이 바깥 클릭으로 끝낸다(옛 꼴이면 onKey 가 남는 길 — 첫 키에만 떨어지므로)
   await startEdit(page, name);
+  // ★양성대조 — 편집 중엔 두 계기 모두 keydown 처리기 1 을 봐야 한다(못 보면 (ⅱ)의 0 은 «안 본» 0)
+  expect(await kd(page, name), '[양성대조] 편집 중 keydown 처리기 — CDP · JS 계기').toEqual({ cdp: 1, js: 1 });
   await clickAway(page);
   const before = await st(name);
   expect(before.editing, '[전제] 편집이 끝났다').toBe(false);
@@ -76,7 +87,7 @@ test('RG-N5 ㉢ [새 것] 끝난 뒤(키 없이 바깥 클릭) — (ⅰ) Escape 
   await page.waitForTimeout(150);
   const after = await st(name);
   expect({ text: after.text, pageName: after.pageName }, '(ⅰ) 끝난 뒤 Escape → 이름 그대로').toEqual({ text: before.text, pageName: before.pageName });
-  expect(await keydownCount(page, name), '(ⅱ) 끝난 뒤 이름 칸 keydown 처리기 수').toBe(0);
+  expect(await kd(page, name), '(ⅱ) 끝난 뒤 이름 칸 keydown 처리기 수 — CDP · JS').toEqual({ cdp: 0, js: 0 });
 });
 
 test('RG-N5 ㉣ [새 것] 편집 중 더블클릭 ×3 → 바로 Enter → 끝 · 처리기 0 · 커밋 1 번', async ({ page }) => {
@@ -86,7 +97,7 @@ test('RG-N5 ㉣ [새 것] 편집 중 더블클릭 ×3 → 바로 Enter → 끝 �
   await page.keyboard.press('Enter'); await page.waitForTimeout(250);
   const s = await st(name);
   const commits = await page.evaluate((s0) => window.__saves - s0, s0);
-  expect({ editing: s.editing, ce: s.ce, listeners: await keydownCount(page, name), commits }).toEqual({ editing: false, ce: 'false', listeners: 0, commits: 1 });
+  expect({ editing: s.editing, ce: s.ce, listeners: await kd(page, name), commits }).toEqual({ editing: false, ce: 'false', listeners: { cdp: 0, js: 0 }, commits: 1 });
 });
 
 test('RG-N5 ㉤ [새 것 · RG-N5b 합침] 편집 중 Space(첫 키) → ⒜ 이름에 공백이 들어간다 ⒝ 페이지 안 바뀜 ⒞ 항목 keydown(switchPage) 안 불림', async ({ page }) => {
