@@ -258,10 +258,12 @@ for (const type of TYPES) test(`B7-9 [${type}] ★넘침 없음 — 비교 12항
   {
     const errs = await setup(page, type, {}, many);
     await openPanel(page);
+    /* H1(2026-10-05): 세로·비교 두께 위 끝 = 막대가 선 칸의 폭 — 비교 12항목은 시리즈 칸이 48 보다 좁아 그 폭에서 멈춘다(넘침 없음은 그대로 잰다). */
+    const cap = await page.evaluate(() => Math.floor(document.querySelector('#b7g .grb-bar-fill').parentElement.clientWidth));
     await setNum(page, IDS.thick, 48); await setNum(page, IDS.gap, 80); await setNum(page, IDS.padx, 80);
     const r = await page.evaluate(() => { const b = document.getElementById('b7g'); const bars = b.querySelector('.grb-bars-v');
       return { sw: bars.scrollWidth, cw: bars.clientWidth, bsw: b.scrollWidth, bcw: b.clientWidth, ds: b.dataset.vBarThickness }; });
-    expect(r.ds, '키가 안 들어갔다').toBe('48');
+    expect(r.ds, `키가 안 들어갔다(48 · 칸 폭 ${cap} 이 작으면 그 폭 — H1)`).toBe(String(Math.min(48, cap)));
     expect(r.sw, `바 줄이 넘친다 ${JSON.stringify(r)}`).toBeLessThanOrEqual(r.cw);
     expect(r.bsw, `블럭이 넘친다 ${JSON.stringify(r)}`).toBeLessThanOrEqual(r.bcw);
     expect(errs, errs.join('\n')).toEqual([]);
