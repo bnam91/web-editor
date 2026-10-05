@@ -373,7 +373,7 @@ async function switchTab(id) {
     // 최초 로드: 파일에서 읽기 ({open:true} — 열 때 외부화 정책은 이 로드에서만 돈다)
     let proj = null;
     if (window.IS_ELECTRON) {
-      proj = await window.electronAPI.loadProject(id, { open: true })
+      proj = await window.loadProjectForOpen(id)   // ★E170 — 열기 로드 한 자리(복구 알림 포함 · save-load.js)
         .catch(e => { _settleErr('tab-load-failed:' + ((e && e.message) || e)); throw e; });
       if (targetTab && proj?.name) targetTab.name = proj.name;
       renderTabBar();

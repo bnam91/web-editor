@@ -2599,6 +2599,7 @@ async function _saveProjectImpl(project) {
   }
 
   _atomicWriteFileSync(filePath, JSON.stringify(project, null, 2));
+  _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — 성한 저장 뒤엔 «그 뒤 작업은 없을 수 있습니다»가 거짓
   // [b8] 목록 메타 캐시 갱신 — proj.json 직후 기록해 meta.mtime >= proj.mtime 불변식 유지(목록 풀파싱 회피)
   _refreshListMeta(project.id, project);
   // [version-history] 버전 스냅샷 — «지금 저장되는 객체»를 정규형(goya-asset)으로 기록 + 계층 프룬.
@@ -2656,6 +2657,7 @@ ipcMain.on('projects:save-sync', (event, project) => {
       _rollBackup(prevPath, paths.backup);   // ★E169 — save 와 같은 한 곳
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
+    _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — save 와 같은 규칙
     _refreshListMeta(project.id, project); // [b8] 목록 메타 캐시 동기 갱신 (mtime 불변식 유지)
     // [version-history/Q4] ★새로고침·탭닫기 순간에도 버전을 남긴다 — 사고가 제일 잦은 순간인데
     //   여태 이 경로엔 슬롯이 «전혀» 안 생겼다(롤링 백업만). 같은 10분 간격 게이트를 타므로
