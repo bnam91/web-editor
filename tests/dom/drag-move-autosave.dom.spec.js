@@ -160,6 +160,31 @@ test('S6 [새 것] P6 레이어 항목 — 레이어 창 안에서 A 를 B 뒤�
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
+test('S7 [새 것] 폴링이 «멎는다» — 창을 1초 쥐었다 닫으면 저장 뒤 걸린 타이머 0 · 틱 수 한정(1초 ≈ 10틱 · 상한 30)', async ({ page }) => {
+  /* 태양 23:10 조건: E164 는 이벤트 대신 100ms 폴링(묻지 않고 고른 좁은 길) — «멎는가»와 «한 끌기 동안 틱 수가 묶이나»를 단언으로 남긴다.
+     읽는 자리 = save-load.js window.__dragEditStateForTest (읽기 전용 · 시험용). 0.9.7: AutoSaveSuppress.end() 이벤트로 옮기면 이 시험의 틱 단언을 «0»으로 바꾼다. */
+  const errs = await boot(page);
+  const { A, B } = await scene(page, ['secA'], [['A', 'secA', 'text'], ['B', 'secA', 'text']]);
+  expect(await page.evaluate(() => typeof window.__dragEditStateForTest), '[전제] 읽는 자리').toBe('function');
+  await page.evaluate(([ua, ub]) => {
+    const a = (new Function('return ' + ua))(), b = (new Function('return ' + ub))();
+    window.__s7src = a; a.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() }));
+    b.after(a);
+  }, [unitOf(A), unitOf(B)]);
+  await page.waitForTimeout(1000);   // 창을 쥔 채 1초 — 이 동안 폴링이 돈다
+  const during = await page.evaluate(() => window.__dragEditStateForTest());
+  expect(during.armed, `[전제] 창이 열린 동안 폴링이 걸려 있다 · ${JSON.stringify(during)}`).toBe(true);
+  await page.evaluate(() => window.__s7src.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: new DataTransfer() })));
+  await expectSavedLikeScreen(page, [B, A], 'S7');
+  const after = await page.evaluate(() => window.__dragEditStateForTest());
+  expect(after.armed, `닫고 저장한 뒤 걸린 타이머 · ${JSON.stringify(after)}`).toBe(false);
+  expect(after.pending, `닫고 저장한 뒤 남은 «미저장 기억» · ${JSON.stringify(after)}`).toBe(false);
+  expect(after.ticks > 0 && after.ticks <= 30, `한 끌기(1초) 틱 수 · ${JSON.stringify(after)}`).toBe(true);
+  await page.waitForTimeout(500);
+  expect((await page.evaluate(() => window.__dragEditStateForTest())).ticks, '닫은 뒤 틱이 더 안 는다').toBe(after.ticks);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
 test('R0 [지킴] «진짜 손» 끌었다가 제자리에 놓으면(변화 0) 저장이 새로 안 생긴다', async ({ page }) => {
   const errs = await boot(page);
   const { A, B } = await scene(page, ['secA'], [['A', 'secA', 'text'], ['B', 'secA', 'text']]);
