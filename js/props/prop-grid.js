@@ -2357,6 +2357,7 @@ function _grdPadExcludeSectionHtml(block) {
   return `
     <div class="prop-section">
       ${_grdWidthRowHtml(block)}
+      ${_grdCellPadYRowHtml(block)}
       <div class="prop-row" style="align-items:center;gap:6px;">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;${floating ? 'display:none;' : ''}">
           <input type="checkbox" id="grd-use-padx"${on ? ' checked' : ''}>
@@ -2415,6 +2416,31 @@ function _grdWidthRowHtml(block) {
         <input type="number" class="prop-number" id="grd-width-number" min="${GRID_WIDTH_MIN}" max="${wMax}" value="${w.val ?? ''}"${w.floating ? '' : ' placeholder="자동"'}>
         <button type="button" class="prop-btn-sm${w.auto ? ' active' : ''}" id="grd-width-auto" title="${autoTitle}"${w.floating ? ' disabled' : ''}>100%</button>
       </div>`;
+}
+/* ★제4안 「위아래 여백」(2026-10-05 · lane-grid-height) — 그리드 «한 값»이 모든 칸 위·아래 여백에 더해진다(cellPadY).
+ *  읽는 문 = grid-block.js getGridCellPadY · 쓰는 문 = updateGridBlock{cellPadY}(히스토리 한 칸) · 상한 = GRID_CELL_PAD_Y_MAX(한 자리).
+ *  ⛔새 클래스 0 — 너비 줄과 같은 꼴(.prop-row/.prop-label/.prop-number). 0 = 키 지움(기존 바이트로). */
+function _grdCellPadYRowHtml(block) {
+  const v = window.getGridCellPadY?.(block) ?? 0;
+  const max = window.GRID_CELL_PAD_Y_MAX ?? 70;
+  return `
+      <div class="prop-row">
+        <span class="prop-label" title="모든 칸의 위·아래 여백(px, 0~${max}). 높이 손잡이(위·아래 변)와 같은 값 — 글자·그림 크기는 안 바뀐다">위아래 여백</span>
+        <input type="number" class="prop-number" id="grd-cellpady-number" min="0" max="${max}" step="1" value="${v}">
+      </div>`;
+}
+function _grdWireCellPadY(block) {
+  const number = document.getElementById('grd-cellpady-number');
+  if (!number) return;
+  number.addEventListener('change', () => {
+    const max = window.GRID_CELL_PAD_Y_MAX ?? 70;
+    const raw = String(number.value).trim();
+    const n = raw === '' ? 0 : Number(raw);
+    if (!Number.isFinite(n)) { number.value = window.getGridCellPadY?.(block) ?? 0; return; }
+    const v = Math.min(max, Math.max(0, Math.round(n)));
+    if (_grdToastCellFail(window.updateGridBlock?.(block.id, { cellPadY: v }))) number.value = window.getGridCellPadY?.(block) ?? 0;
+    else number.value = v;
+  });
 }
 function _grdWireWidth(block) {
   const slider = document.getElementById('grd-width-slider');
@@ -2476,6 +2502,7 @@ function _grdWirePadExclude(block) {
   window.wireFloatToggle?.({ block, buttonId: 'grd-float-toggle', rerender: () => { showGridProperties(block); window.showHandlesFor?.(block); } });
   window.wireFloatPosition?.({ block, xId: 'grd-x-number', yId: 'grd-y-number' });
   _grdWireWidth(block);   // ★G2-b 너비 줄 — 같은 절 안이다
+  _grdWireCellPadY(block);   // ★제4안 위아래 여백 줄
   const cb = document.getElementById('grd-use-padx');
   if (!cb) return;
   cb.addEventListener('change', () => {

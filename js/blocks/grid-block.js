@@ -558,6 +558,33 @@ function _gridValidateWidth(v) {
   const r = Math.round(n);
   return (r < GRID_WIDTH_MIN || r > GRID_WIDTH_MAX) ? null : r;
 }
+/* ══ ★제4안 «높이 = 칸 위아래 여백» cellPadY (2026-10-05 · 현빈 확정 · 지디 승인 lane-grid-height) ══
+ *  그리드 «한 값»이 «모든 칸»의 위·아래 여백에 «더해진다»(칸/열 padding 위에 얹음) — 글자 크기·그림 비율은 안 건드린다.
+ *  바닥 0 · 상한 GRID_CELL_PAD_Y_MAX(70 · 시안 MAXPAD). ★키가 없거나 0 = 렌더가 아무것도 안 쓴다 ⇒ 기존 문서 바이트 그대로.
+ *  ⛔읽는 문은 getGridCellPadY 하나 · 쓰는 문은 updateGridBlock{cellPadY}(한 번에 끝나는 입력) / applyGridCellPadY(끄는 동안 매 틱). */
+export const GRID_CELL_PAD_Y_MAX = 70;
+function _gridValidateCellPadY(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  const r = Math.round(n);
+  return (r < 0 || r > GRID_CELL_PAD_Y_MAX) ? null : r;
+}
+/** 그리드 칸 위아래 «더한» 여백(px) — 키가 없거나 무효면 0. */
+function getGridCellPadY(block) {
+  return _gridValidateCellPadY(block && block.dataset ? block.dataset.cellPadY : undefined) || 0;
+}
+/** 끄는 동안(손잡이) 매 틱 쓰는 문 — 0~상한으로 죄어 쓰고 다시 그린다 · 0 이면 키를 지운다(기존 바이트로 돌아감). ⛔히스토리는 부르는 쪽(드래그 끝). */
+function applyGridCellPadY(block, px) {
+  if (!block || !block.classList || !block.classList.contains('grid-block')) return null;
+  const n = Number(px);
+  if (!Number.isFinite(n)) return null;
+  const v = Math.min(GRID_CELL_PAD_Y_MAX, Math.max(0, Math.round(n)));
+  if (v === 0) delete block.dataset.cellPadY; else block.dataset.cellPadY = String(v);
+  renderGridBlock(block);
+  return v;
+}
+
 /** 블럭의 자체 너비(px) — 키가 없거나 무효면 null(= 100%). ⛔읽는 문은 이것 하나. */
 function getGridWidth(block) {
   return _gridValidateWidth(block && block.dataset ? block.dataset.gridWidth : undefined);
@@ -2239,6 +2266,7 @@ function renderGridBlock(block) {
   const { row: rowGapPx, col: colGapPx } = _gridGaps(block);
   const blockValign = _gridEnum(_GRID_VALIGN, block.dataset.valign) || 'flex-start';
   const cellBorder = _gridCellBorder(block);   // ★T-172 — «블록» 축. 칸 축(pick)과 섞지 않는다.
+  const cellPadY = getGridCellPadY(block);     // ★제4안 — 모든 칸 위아래에 «더함»(0 이면 칸 style 바이트 그대로)
 
   /* ★오버레이(떠 있음)면 폭을 «굳힌 px» 그대로 둔다 — 띄울 때 overlay-float.js _freezeWidth 가 px 로 굳히는데,
      아래 100% 를 그대로 박으면 다음 렌더(열 간격 등)가 그 폭을 «섹션 전폭»으로 펴 버린다(현빈 2026-10-01 그리드 오버레이).
@@ -2383,7 +2411,7 @@ function renderGridBlock(block) {
            먼저 그려져 내용 뒤에 깔린다(내용이 줄 위로 온다). */
       const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), colGapPx);
       const pullUp = rowGapPx < 0 && r > 0 ? `margin-top:${rowGapPx}px;` : '';   // 음수 행 간격 = 위 줄로 당긴다(GRID_ROW_GAP_MIN 주석)
-      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${pad > 0 ? `padding:${pad}px;` : ''}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}">
+      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${cellPadY > 0 ? `padding:${pad + cellPadY}px ${pad}px;` : (pad > 0 ? `padding:${pad}px;` : '')}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}">
         ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, cellImg ? true : _cellTone(bg))).join('')}
       </div>`);
     }
@@ -2519,6 +2547,12 @@ function makeGridBlock(opts = {}, drops = []) {
   if (opts.cellBorderWidth !== undefined) { const v = _gridValidateBorderWidth(opts.cellBorderWidth); if (v !== null) block.dataset.cellBorderWidth = String(v); }
   if (typeof opts.cellBorderColor === 'string' && _GRID_COLOR_RE.test(opts.cellBorderColor.trim())) block.dataset.cellBorderColor = opts.cellBorderColor.trim();
   if (GRID_BORDER_STYLES.includes(opts.cellBorderStyle)) block.dataset.cellBorderStyle = opts.cellBorderStyle;
+  /* ★제4안 cellPadY — 주어졌고 0 보다 클 때만 쓴다(안 주면 옛 dataset 과 같음) · 범위 밖은 말하고 버린다 */
+  if (opts.cellPadY !== undefined && opts.cellPadY !== null) {
+    const v = _gridValidateCellPadY(opts.cellPadY);
+    if (v === null) drops.push({ path: 'cellPadY', why: `${JSON.stringify(opts.cellPadY)} is outside 0~${GRID_CELL_PAD_Y_MAX} — it was not written` });
+    else if (v > 0) block.dataset.cellPadY = String(v);
+  }
   /* ★G12 블럭 배경 — 고치는 문과 «같은» 입구. 만드는 문은 거절 대신 «말하고 버린다»(이 함수의 drops 규약). */
   if (opts.blockBg !== undefined && opts.blockBg !== null) {
     const plan = _gridIntakeBlockBg(opts.blockBg, false);   // ⛔opts 는 MCP JSON 일 수 있다 — trusted 를 여기서 안 읽는다
@@ -2956,6 +2990,17 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   }
   /* ★G2-a 자체 너비 — 숫자(px)면 쓰고, `null` 이면 키를 «지워» 100%(옛 뜻)로 돌린다. 범위 밖은 거절. */
   let widthUnset = false;
+  /* ★제4안 cellPadY — null/0 = 키 지움(기존 바이트로) · 0~상한 정수 · 그 밖 거절 */
+  let cellPadYUnset = false;
+  if (partial.cellPadY !== undefined) {
+    if (partial.cellPadY === null || Number(partial.cellPadY) === 0) { cellPadYUnset = true; applied.cellPadY = 0; }
+    else {
+      const v = _gridValidateCellPadY(partial.cellPadY);
+      if (v === null) return { ok: false, code: 'INVALID', message: `cellPadY must be 0~${GRID_CELL_PAD_Y_MAX} (px — added to every cell's top and bottom padding) or null (= none)` };
+      next.cellPadY = String(v);
+      applied.cellPadY = v;
+    }
+  }
   if (partial.width !== undefined) {
     if (partial.width === null) { widthUnset = true; applied.width = null; }
     else {
@@ -2990,7 +3035,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     Object.assign(next, plan.set);
     bgDel = plan.del.filter(k => !(k in plan.set));
   }
-  if (Object.keys(next).length === 0 && !widthUnset && !outlineUnset && !bgDel.length) {
+  if (Object.keys(next).length === 0 && !widthUnset && !outlineUnset && !bgDel.length && !cellPadYUnset) {
     return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/width/cellBorderWidth/cellBorderColor/cellBorderStyle/{col,row}Rule{On,Width,Color,Inset,Span}/blockOutline/blockBg' };
   }
 
@@ -3016,6 +3061,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     rowRuleInset: block.dataset.rowRuleInset,
     rowRuleSpan: block.dataset.rowRuleSpan,
     gridWidth: block.dataset.gridWidth,   // G2-a
+    cellPadY: block.dataset.cellPadY,     // 제4안 — 칸 위아래 여백
     gridWidthAuto: block.dataset.gridWidthAuto,   // F3 후속 — 출처 표시도 같이 되돌린다
     blockOutline: block.dataset.blockOutline,     // G17 — 블럭 외곽선
     /* G12 — 블럭 배경 일곱 키(GRID_BLOCK_BG_KEYS 와 같은 줄) */
@@ -3057,6 +3103,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   Object.assign(block.dataset, next);
   if (_floatW) _gridSetFrozenWidth(block, Number(next.gridWidth));
   if (widthUnset) delete block.dataset.gridWidth;
+  if (cellPadYUnset) delete block.dataset.cellPadY;
   if (outlineUnset) delete block.dataset.blockOutline;
   bgDel.forEach(k => { delete block.dataset[k]; });
   if (partial.width !== undefined) delete block.dataset.gridWidthAuto;   // 사람이 정한 폭 — 자동 출처 표시를 뗀다
@@ -3460,6 +3507,9 @@ window.migrateGridIdentity = migrateGridIdentity;
 window.getGridModel = getGridModel;
 window.getGridWidth = getGridWidth;   // G2-a — 다른 파일이 폭을 «읽을» 때도 이 문 하나
 window.applyGridOwnWidth = applyGridOwnWidth;   // G2-b — 끄는 동안(손잡이·슬라이더) 매 틱 쓰는 문. 떠 있으면 굳힌 폭+키, 아니면 키
+window.applyGridCellPadY = applyGridCellPadY;   // 제4안 — 끄는 동안(높이 손잡이) 매 틱 쓰는 문
+window.getGridCellPadY = getGridCellPadY;       // 제4안 — 읽는 문(패널·손잡이)
+window.GRID_CELL_PAD_Y_MAX = GRID_CELL_PAD_Y_MAX; // 제4안 — 패널 칸 상한(같은 수 한 자리)
 window.syncAutoGridWidth = syncAutoGridWidth;   // F3 후속 — 옮긴 뒤 자동 폭을 새 자리에 맞춘다(떠나면 100%)
 window.fitGridWidthToFreeFrame = fitGridWidthToFreeFrame;   // F3 — 자유배치 프레임 입구 셋이 부른다(drag-utils·block-drag 는 이 파일을 import 안 함)
 window.fitKeylessFreeFrameGridsOnOpen = fitKeylessFreeFrameGridsOnOpen;   // E129 — 열기 길 셋(save-load.js)이 applyPageSettings 뒤에 부른다
@@ -3482,6 +3532,7 @@ export {
   _GRID_COLOR_RE as GRID_COLOR_RE, _GRID_FONT_RE as GRID_FONT_RE,
   getGridModel, _gridRows as gridRows, _gridCols as gridCols,
   getGridWidth, _gridValidateWidth as gridValidateWidth, fitGridWidthToFreeFrame, syncAutoGridWidth, applyGridOwnWidth,
+  getGridCellPadY, applyGridCellPadY,
   MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, MAX_CELL_LINES,
   _gridGaps as gridGaps, _gridCellsToDataset as gridCellsToDataset,
   _gridBlockOutline as gridBlockOutline,   /* ★G17 — 패널이 «같은 읽는 문»을 쓴다 */
