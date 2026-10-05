@@ -742,6 +742,16 @@ const _GRID_ROLES = {
  *   값의 근거(WCAG, 어두운 섹션 4종 중 가장 밝은 #555 기준): h1·h2·h3 #fff 7.46 · label·body #f2f2f2 6.66 · caption #ccc 4.64
  *   ★label·body 는 «새 값을 안 만든다»(지디 2026-10-03) — infocard-block.js 의 어두운 배경 글자색·G6 헤더와 같은 #f2f2f2.
  *   — 셋 다 작은 글자 4.5 를 넘는다. 흰/검 경계(L≈0.18) 근처에선 caption 이 4.5 아래로 갈 수 있다(흰 배경 caption #999 2.85 와 같은 관례). */
+/* ★E127(2026-10-06 · 지디 ⓒ) — 역할색을 «프리셋 변수»로 그린다: var(--preset-<역할>-color, <hex>). 텍스트 블럭(css/editor-layout.css .tb-h*)과 «같은 변수»라
+ *   프리셋을 바꾸면 그리드 줄도 같이 따라간다(전엔 hex 고정 — brand 에서 텍스트 h2 #2d4a7a vs 그리드 h2 #1a1a1a).
+ *   대체값 = 위 표의 hex(변수 없는 곳 — 단독 HTML 이 변수를 안 실었을 때 등 — 은 오늘과 같은 색).
+ *   다섯 역할만: label 은 --preset-label-color(#fff · 알약 위 흰 글자 전제)를 «일부러 안 따른다»(위 :720) · 어두운 칸(_GRID_ROLE_COLOR_ON_DARK)·색을 정한 줄은 이 길을 안 탄다.
+ *   ★기존 문서 모양: 기본이 아닌 프리셋을 쓰는 설치에서 «색을 안 정한 그리드 줄»이 바뀐다(데이터 무변 · 렌더만) — 릴리스 노트 한 줄(지디). */
+const _GRID_ROLE_PRESET_VAR = { h1: '--preset-h1-color', h2: '--preset-h2-color', h3: '--preset-h3-color', body: '--preset-body-color', caption: '--preset-caption-color' };
+function _gridRoleColorCss(type, hex) {
+  const v = _GRID_ROLE_PRESET_VAR[type];
+  return v ? `var(${v}, ${hex})` : hex;
+}
 const _GRID_ROLE_COLOR_ON_DARK = {
   label: '#f2f2f2', h1: '#ffffff', h2: '#ffffff', h3: '#ffffff', body: '#f2f2f2', caption: '#cccccc',
 };
@@ -2199,7 +2209,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
   /* ★G5 — useRoleColor 가 'light' 면 «어두운 배경 위» 역할색(_GRID_ROLE_COLOR_ON_DARK). 값을 늘리지 않고 이 인자에 싣는 까닭:
    *   중첩(duo) 재귀가 useRoleColor 를 «그대로» 물려주므로 중첩 줄도 같은 톤을 받는다. true/false 산출은 «바이트 동일». */
   const effColor = color || (useRoleColor
-    ? (useRoleColor === 'light' ? (_GRID_ROLE_COLOR_ON_DARK[line.type] || _GRID_ROLE_COLOR_ON_DARK.body) : role.color)
+    ? (useRoleColor === 'light' ? (_GRID_ROLE_COLOR_ON_DARK[line.type] || _GRID_ROLE_COLOR_ON_DARK.body) : _gridRoleColorCss(line.type, role.color))
     : '');
   // 뱃지/필: line.bg 지정 시 inline-block 필로 렌더 — 지정 bg가 조용히 탈락해
   // 카드 위 무배경 텍스트(색 반전처럼 보임)로 뭉개지던 케이스 방지 (2026-07-04 제니 발주)
