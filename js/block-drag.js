@@ -678,7 +678,7 @@ function bindBlock(block) {
     let _fullWidthTf = (isText && dragEl.dataset?.textFrame === 'true' && dragEl.dataset.width === '100%') ? dragEl : null;
 
     // freeLayout 다중선택 피어 수집 — shift+클릭으로 선택된 형제 absolute 요소들
-    const _parentFrameForMulti = dragEl.closest('.frame-block[data-free-layout]');
+    const _parentFrameForMulti = dragEl.parentElement?.closest('.frame-block[data-free-layout]') || null;   // ★D5c(:652) — 부모부터(도형 래퍼는 자신이 free-layout 이라 closest 가 «자기»를 잡아 피어 0 이었다)
     const multiPeers = [];
     if (_parentFrameForMulti) {
       [..._parentFrameForMulti.children].forEach(ch => {
