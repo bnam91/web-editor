@@ -221,6 +221,56 @@ export function syncTableHeaderTone(block) {
   return want || null;
 }
 
+/* ── 그래프 자동 밝기(H6 · 현빈 2026-10-05 · 지디 결정) ─────────────────────
+ * 섹션(바탕)이 어두우면(tone light) 그래프의 «자동 색»을 목표 대비까지 밝힌다 — 사용자 색이 없을 때만.
+ *   격자선(H6) 3.0 = 흰색을 투명도 a 로 · 꺾은선 선·점(K7) 4.5 = 그려진 선 색을 흰 쪽으로 m 만큼 · GR3 덧선·점·눈금 4.5 = 그려진 잉크(#333)를 흰 쪽으로.
+ *   ★목표는 둘로 갈린다(현빈 「꺾은선은 더 밝아져야 함」) — 한 계수로 덮지 않는다. ★흰(tone dark) 바탕은 안 바꾼다(E142 따로).
+ *   ★명시 색(gridColor · labelColor · lineColor · barColor)이 있으면 그 변수는 안 쓴다(U9 와 같은 정책 — E143 따로).
+ * ★자동 값은 «블럭 인라인 CSS 변수» 셋(--grb-auto-grid · --grb-auto-line · --grb-auto-ink)에만 산다(--tbl-header-fg 꼴).
+ *   읽는 자 = css/editor-graph.css 끝 네 줄 · 저장에선 io/section-serialize.js 의 «파생 변수» 목록이 걷는다(굳지 않음 · E144 와 한 목록).
+ * ★계산은 «변수 없는 그려진 값»을 바탕으로 한다 — 그래서 먼저 걷고 읽는다(자기 값을 다시 밝히는 고리 방지). */
+const GRAPH_AUTO_VARS = ['--grb-auto-grid', '--grb-auto-line', '--grb-auto-ink'];
+const _rgbOfCss = (v) => { const c = _parseWithAlpha(String(v || '')); return c && c.a > 0 ? c.rgb : null; };
+const _mixRgb = (a, b, t) => a.map((x, i) => x * (1 - t) + b[i] * t);
+const _rgbCss = (c) => `rgb(${c.map(x => Math.min(255, Math.ceil(x - 1e-9))).join(', ')})`;   // 흰 쪽으로 «올림» — 반올림이면 4.49 로 목표 밑에 앉는다(실측 graph-h6 D1)
+/** base 를 white 쪽으로 섞어 bg 위 대비 T 에 닿는 가장 작은 섞음 — 이미 넘으면 base 그대로. 못 닿으면 흰색. */
+function _lightenTo(base, bg, T) {
+  if (_cr(base, bg) >= T) return base;
+  const W = [255, 255, 255];
+  if (_cr(W, bg) < T) return W;
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (_cr(_mixRgb(base, W, m), bg) >= T) hi = m; else lo = m; }
+  return _mixRgb(base, W, hi);
+}
+/** 흰색을 투명도 a 로 bg 위에 얹어 대비 T 에 닿는 가장 작은 a(소수 셋째 자리 올림). */
+function _whiteAlphaTo(bg, T) {
+  const W = [255, 255, 255];
+  if (_cr(W, bg) < T) return 1;
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 40; i++) { const a = (lo + hi) / 2; if (_cr(_over(W, bg, a), bg) >= T) hi = a; else lo = a; }
+  return Math.ceil(hi * 1000) / 1000;
+}
+export const GRAPH_GRID_TARGET = 3.0, GRAPH_LINE_TARGET = 4.5;
+export function syncGraphTone(block) {
+  if (!block || !block.style || !block.classList?.contains('graph-block')) return null;
+  const d = block.dataset;
+  const prev = GRAPH_AUTO_VARS.map(v => block.style.getPropertyValue(v).trim());
+  GRAPH_AUTO_VARS.forEach(v => block.style.removeProperty(v));          // «변수 없는 그려진 값»을 읽기 위해 먼저 걷는다
+  const bg = backdropRgbAt(block);
+  const want = ['', '', ''];
+  if (bg && textToneOver(bg) === 'light') {
+    if (!d.gridColor && !d.labelColor) want[0] = `rgba(255, 255, 255, ${_whiteAlphaTo(bg, GRAPH_GRID_TARGET)})`;
+    const path = block.querySelector('.grb-line-path');
+    const lineBase = path && !d.lineColor && !d.barColor ? _rgbOfCss(_cs(path)?.stroke) : null;
+    if (lineBase) want[1] = _rgbCss(_lightenTo(lineBase, bg, GRAPH_LINE_TARGET));
+    const ov = block.querySelector('.grb-ov');
+    const inkBase = ov && !d.labelColor ? _rgbOfCss(_cs(ov)?.color) : null;
+    if (inkBase) want[2] = _rgbCss(_lightenTo(inkBase, bg, GRAPH_LINE_TARGET));
+  }
+  GRAPH_AUTO_VARS.forEach((v, i) => { if (want[i]) block.style.setProperty(v, want[i]); });
+  return { prev, want };
+}
+
 /* ── 한 깔때기 관찰자 ─────────────────────────────────────────
  * 배경을 쓰는 자리가 20곳이 넘는다(prop-section·editor·block-factory·badge-transform·gradient-model…).
  * 자리마다 호출을 달면 하나를 빠뜨린 날 «화면만 어둡고 글자는 그대로»가 된다 ⇒ #canvas 하나를 본다.
@@ -235,7 +285,8 @@ export function installTextToneObserver(root, { onGrid } = {}) {
     if (!el || el.nodeType !== 1) return;
     if (el.classList.contains('grid-block')) out.add(el);
     else if (el.classList.contains('table-block')) out.add(el);
-    else el.querySelectorAll?.('.grid-block, .table-block').forEach(b => out.add(b));
+    else if (el.classList.contains('graph-block')) out.add(el);   // H6
+    else el.querySelectorAll?.('.grid-block, .table-block, .graph-block').forEach(b => out.add(b));
   };
   _toneObs = new MutationObserver((muts) => {
     const hit = new Set();
@@ -262,6 +313,7 @@ export function installTextToneObserver(root, { onGrid } = {}) {
     hit.forEach(b => {
       if (!b.isConnected) return;
       if (b.classList.contains('table-block')) syncTableHeaderTone(b);
+      else if (b.classList.contains('graph-block')) syncGraphTone(b);   // H6
       else if (onGrid && (textToneAt(b) === 'light' ? 'light' : '') !== (b.dataset.textTone || '')) onGrid(b);
     });
   });
@@ -281,7 +333,7 @@ if (typeof window !== 'undefined') {
     (typeof document !== 'undefined' && document.getElementById('canvas-wrap')?.style.background) || ''
   );
   /* ★G5·G6 글자 톤 — grid-block.js 는 import 대신 이 전역으로 받는다(그 파일 renderGridBlock 의 주석 참조). */
-  window.__gdTextTone = { backdropRgbAt, textToneOver, textToneAt, syncTableHeaderTone };
+  window.__gdTextTone = { backdropRgbAt, textToneOver, textToneAt, syncTableHeaderTone, syncGraphTone };
   /* ★한 깔때기 관찰자 — #canvas 가 생긴 뒤 한 번. 그리드는 window.renderGridBlock 으로 다시 그린다. */
   const _goTone = () => { const cv = document.getElementById('canvas');
     if (cv) installTextToneObserver(cv, { onGrid: (b) => window.renderGridBlock?.(b) }); };

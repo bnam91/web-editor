@@ -608,7 +608,12 @@ function _barVPlotGeom(block, items, { maxVal, labelSize, vSize, bs }) {
   };
   return { on, axis, grid, line, scaleMax, ticks: nice ? nice.ticks : null, pct, top, bot, inset, barsExtra, lhCss, overlayHTML, gridLayerHTML };
 }
+/* H6 — 다시 그린 «뒤» 자동 밝기를 맞춘다(그린 값이 바탕이라 그린 다음이어야 한다 · canvas-contrast.js syncGraphTone). 렌더 몸통은 아래 그대로. */
 function renderGraph(block) {
+  _renderGraphBody(block);
+  window.__gdTextTone?.syncGraphTone?.(block);
+}
+function _renderGraphBody(block) {
   const items      = JSON.parse(block.dataset.items || '[]');
   const chartType  = block.dataset.chartType  || 'bar-v';
   // bar-pair(2시리즈)의 value2까지 포함해 스케일 산출 — 타 차트는 value2 없음(0)이라 영향 없음
