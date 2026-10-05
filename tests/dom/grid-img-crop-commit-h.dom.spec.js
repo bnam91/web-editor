@@ -146,3 +146,35 @@ test('A7 [⒜ 덧단언] 크롭 → 「원래대로」 → 다시 크롭(UI) —
   expect(Math.abs((await frameH(page)) - hReset), `★다시 크롭했더니 틀이 튀었다 ${hReset} → ${await frameH(page)} (남아 있던 height ${afterReset.height})`).toBeLessThanOrEqual(1);
   expect(errs).toEqual([]);
 });
+
+/* ══ ③ reset-drops-height (2026-10-06 · APPROVED_BY: 지디 reset-drops-height) — 「원래대로」가 height 키도 지운다.
+ *   병(실측 B2 · hbits.log): 「원래대로」 뒤 남은 height(안 읽힘)는 «씨앗»이다 — MCP 가 크롭 세 값만 주면(편집기 커밋을 안 거침) 그 묵은 값이 틀 높이로 살아나 645 → 200 으로 튄다.
+ *   ⛔이번 판은 MCP 쪽 가드를 따로 안 둔다(SCOPE 에 이름) — 씨앗을 없애는 것으로 이 갈래를 닫는다. */
+async function resetCrop(page) {
+  expect(await open(page), '[전제] 열림').toBe(true);
+  const ok = await page.waitForSelector('#grd-img-crop-reset', { timeout: 5000 }).then(() => true, () => false);
+  expect(ok, '[전제] 「원래대로」 단추').toBe(true);
+  await page.click('#grd-img-crop-reset');
+  await page.waitForFunction(() => document.querySelectorAll('.grd-img-edit-proxy').length === 0, null, { timeout: 5000 });
+  await page.waitForTimeout(200);
+}
+const LEGACY_CROPPED = { type: 'image', height: 200, imgSizePct: 120, imgPosX: -10, imgPosY: -10 };
+
+test('A8 [새 것] 옛 크롭 줄 → 「원래대로」 — 크롭 세 값과 height 키가 같이 없어진다', async ({ page }) => {
+  const errs = await scene(page, LEGACY_CROPPED);
+  await resetCrop(page);
+  const ln = await lineOf(page);
+  expect(['imgSizePct', 'imgPosX', 'imgPosY', 'height'].filter(k => ln[k] !== undefined), `★「원래대로」 뒤 남은 키 ${JSON.stringify({ ...ln, imgSrc: undefined })}`).toEqual([]);
+  expect(errs).toEqual([]);
+});
+
+test('A9 [새 것] 「원래대로」 뒤 MCP 가 크롭 세 값만 주면 — 틀이 묵은 높이로 안 튄다', async ({ page }) => {
+  const errs = await scene(page, LEGACY_CROPPED);
+  await resetCrop(page);
+  const h1 = await frameH(page);
+  const r = await page.evaluate(() => window.updateGridBlock('gC', { patchCell: { r: 0, c: 0, lineIndex: 0, imgSizePct: 100, imgPosX: 0, imgPosY: 0 } }));
+  expect(r && r.ok, `[전제] MCP 크롭 세 값 ${JSON.stringify(r)}`).toBe(true);
+  await page.waitForTimeout(250);
+  expect(Math.abs((await frameH(page)) - h1), `★크롭 세 값만 줬는데 틀이 튀었다 ${h1} → ${await frameH(page)}`).toBeLessThanOrEqual(1);
+  expect(errs).toEqual([]);
+});
