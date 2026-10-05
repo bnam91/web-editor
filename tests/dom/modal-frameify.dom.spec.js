@@ -48,6 +48,13 @@ async function frameifyByPanel(page) {
   await page.waitForTimeout(150);
   return page.evaluate(() => document.querySelector('#innerF > .frame-block[data-full-width="true"]')?.id || null);
 }
+/* ★10-05 H11 ⒝: 프레임화 직후 = 오브젝트 선택 = 밖 (안으로 넣으려면 안쪽 블럭을 먼저 고른다) — 그 «먼저 고르기»를 진짜 클릭으로. */
+async function drillIntoFrame(page, fid) {
+  const id = await page.evaluate((fid) => { const ts = [...document.getElementById(fid).querySelectorAll('.text-block')]; return ts[ts.length - 1].id; }, fid);
+  await page.waitForTimeout(400);
+  await clickEl(page, `[id="${id}"]`, 20, null);
+  await expect.poll(() => page.evaluate(([fid, id]) => document.getElementById(fid).classList.contains('selected') && document.getElementById(id).classList.contains('selected'), [fid, id]), { timeout: 2000, message: '[전제] 들어간 상태(프레임 + 안쪽 줄)' }).toBe(true);
+}
 const keyN = async (page, key, n = 1) => {
   await page.evaluate(() => { document.activeElement?.blur?.(); });
   for (let i = 0; i < n; i++) { await page.keyboard.press(key); await page.waitForTimeout(150); }
@@ -194,6 +201,7 @@ test('U5 프레임화 → 프레임에 줄 하나 → ⌘Z = 줄만 · ⌘Z = �
   await setup(page);
   await putModal(page, { variant: 'plain', text: '줄 더하기' });
   const fid = await frameifyByPanel(page);
+  await drillIntoFrame(page, fid);   // 10-05 H11 ⒝: 프레임화 직후 = 오브젝트 선택 = 밖 (안으로 넣으려면 안쪽 블럭을 먼저 고른다)
   await page.evaluate(() => window.addTextBlock('body'));
   const n = (p) => p.evaluate((id) => document.getElementById(id)?.querySelectorAll('.text-block').length ?? -1, fid);
   expect(await n(page)).toBe(2);
@@ -203,11 +211,33 @@ test('U5 프레임화 → 프레임에 줄 하나 → ⌘Z = 줄만 · ⌘Z = �
   expect(await page.evaluate(() => !!document.getElementById('mdlT'))).toBe(true);
 });
 
+// ── W ⒝(10-05 H11 · 지디 결정): 프레임화 직후 T = 밖 · 우회 = 안쪽 블럭을 먼저 고른다 ──────────────────
+test('W1 ⒝ 프레임화 직후 바로 t → 새 줄은 프레임 «밖»(오브젝트 선택) — 프레임 줄 수 그대로', async ({ page }) => {
+  await setup(page);
+  await putModal(page, { variant: 'titled', title: '제목', text: '본문' });
+  const fid = await frameifyByPanel(page);
+  const n0 = await page.evaluate((id) => document.getElementById(id).querySelectorAll('.text-block').length, fid);
+  const all0 = await page.evaluate(() => document.querySelectorAll('#canvas .text-block').length);
+  await keyN(page, 't');
+  expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll('.text-block').length, fid), '★프레임 안 줄 수 그대로').toBe(n0);
+  expect(await page.evaluate(() => document.querySelectorAll('#canvas .text-block').length), '[전제] 새 줄은 생겼다(밖에)').toBe(all0 + 1);
+});
+test('W2 ⒝ 우회 — 프레임화 → 안쪽 줄 클릭 → t → 새 줄은 프레임 «안»', async ({ page }) => {
+  await setup(page);
+  await putModal(page, { variant: 'titled', title: '제목', text: '본문' });
+  const fid = await frameifyByPanel(page);
+  const n0 = await page.evaluate((id) => document.getElementById(id).querySelectorAll('.text-block').length, fid);
+  await drillIntoFrame(page, fid);
+  await keyN(page, 't');
+  expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll('.text-block').length, fid), '★안쪽을 먼저 고르면 안으로').toBe(n0 + 1);
+});
+
 // ── K 살아남기 (G19 줄기) ─────────────────────────────────────────────────────
 test('K1 ★프레임화 + 줄 셋 → rebindAll · 직렬화 왕복(로드) · ⌘Z⌘⇧Z · 패널 열기 — 자식 수 그대로 · 모달 정체성 0', async ({ page }) => {
   await setup(page);
   await putModal(page, { variant: 'titled', title: '제목', text: '본문' });
   const fid = await frameifyByPanel(page);
+  await drillIntoFrame(page, fid);   // 10-05 H11 ⒝: 프레임화 직후 = 오브젝트 선택 = 밖 (안으로 넣으려면 안쪽 블럭을 먼저 고른다)
   await page.evaluate(() => { window.addTextBlock('body'); window.addTextBlock('body'); window.addTextBlock('body'); });
   const count = (p) => p.evaluate(([id, sel]) => { const f = document.getElementById(id); return f ? { tb: f.querySelectorAll('.text-block').length, ident: f.querySelectorAll(sel).length } : null; }, [fid, IDENT_SEL]);
   expect(await count(page)).toEqual({ tb: 5, ident: 0 });
@@ -233,6 +263,7 @@ for (const [name, opts, how] of [
     await setup(page);
     await putModal(page, opts);
     const fid = await frameifyByPanel(page);
+    await drillIntoFrame(page, fid);   // 10-05 H11 ⒝: 프레임화 직후 = 오브젝트 선택 = 밖 (안으로 넣으려면 안쪽 블럭을 먼저 고른다)
     const ids = (p) => p.evaluate((id) => [...document.getElementById(id).querySelectorAll('.text-block')].map(t => t.id), fid);
     const pre = await ids(page);
     const bodyId = pre[pre.length - 1];

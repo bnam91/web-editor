@@ -40,6 +40,9 @@ async function setup(page) {
 const mkGrid = (page, user) => page.evaluate((user) => {
   const fr = document.getElementById('frA'), sec = document.getElementById('sX');
   window.deselectAll?.(); sec.classList.add('selected'); fr.classList.add('selected'); window._activeFrame = fr;
+  /* ★10-05 H11: 자식 있는 프레임을 «오브젝트로» 골라 두면 넣기는 밖(다음 형제). 이 시험의 전제는 «frA 안에 넣기» ⇒
+     자식이 있으면 «들어간 상태»(안쪽 자식 골라짐)로 둔다 — 실기의 「안쪽 블럭을 먼저 고른다」. 빈 frA 는 ⒜ 정의로 그대로 안. */
+  if (fr.firstElementChild) fr.firstElementChild.classList.add('selected');
   const id = window.addGridBlock({}).block.id;
   if (user) window.updateGridBlock(id, { width: 300 });
   window.deselectAll?.(); window._activeFrame = null;
