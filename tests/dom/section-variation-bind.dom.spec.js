@@ -34,6 +34,9 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"><style>
     <div class="row" id="rowA" data-layout="stack"><div class="step-block" id="stpA" data-type="step"></div></div>
     <div class="frame-block" id="frA" data-free-layout="true" style="width:500px;height:200px;padding:0"></div>
   </div>
+  <div class="gradient-block" id="gradA" style="position:absolute;left:0;top:400px;width:200px;height:60px"></div>
+  <div class="sticker-block" id="stkA" style="position:absolute;left:300px;top:400px;width:60px;height:60px"></div>
+  <div class="annotation-block" id="antA" style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none"></div>
   <div class="frame-block" id="grpA" data-free-layout="true" data-group="true" data-overlay-block="true" data-sel-variant="sticker" data-offset-x="100" data-offset-y="60"
        style="position:absolute;left:100px;top:60px;width:150px;height:150px;padding:0;background:transparent"><div class="icon-circle-block" id="icbA" style="position:absolute;left:0;top:0"></div></div>
   </div>
@@ -50,6 +53,10 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"><style>
   window.selectSection = () => {}; window.selectSectionWithModifier = () => {};
   window.bindSectionDelete = () => {}; window.bindSectionOrder = () => {}; window.bindSectionDrag = () => {}; window.bindSectionDropZone = () => {};
   window.genId = (p) => p + '_' + Math.random().toString(36).slice(2, 9);
+  window.__own = [];
+  window.bindGradientSelect = (b) => window.__own.push('gradient:' + b.id);
+  window.bindStickerSelect = (b) => window.__own.push('sticker:' + b.id);
+  window.bindAnnotationSelect = (b) => window.__own.push('annotation:' + b.id);
 </script>
 <script type="module">
   import '/js/block-drag.js';
@@ -114,4 +121,17 @@ test('V2 ★A/B 사본의 오버레이 그룹을 끌면 움직인다', async ({ 
   await page.mouse.move(c.x + 20, c.y + 10); await page.mouse.move(c.x + 40, c.y + 20); await page.mouse.up();
   const p = await page.evaluate(() => ({ L: parseFloat(window.__C.grp.style.left), T: parseFloat(window.__C.grp.style.top) }));
   expect(p, `사본 그룹 자리=${JSON.stringify(p)} (고치기 전 실앱 165→165)`).toEqual({ L: 140, T: 80 });
+});
+
+test('V3 ★A/B 사본의 그라데이션 · 스티커 · 어노테이션은 «제 바인더»로 묶인다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(() => {
+    window.__own = [];
+    const A = document.getElementById('secA');
+    window.createVariation(A);
+    const B = [...document.querySelectorAll('.section-block')].find(s => s.dataset.variationGroup === A.dataset.variationGroup && s !== A);
+    const ids = ['.gradient-block', '.sticker-block', '.annotation-block'].map(q => B.querySelector(q).id);
+    return { own: window.__own.slice().sort(), want: ['annotation:' + ids[2], 'gradient:' + ids[0], 'sticker:' + ids[1]].sort() };
+  });
+  expect(r.own, `사본 제 바인더 부름=${JSON.stringify(r.own)} (고치기 전 실앱 B 사본: 셋 다 안 묶여 클릭해도 섹션만 골라짐)`).toEqual(r.want);
 });
