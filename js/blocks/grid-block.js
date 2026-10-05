@@ -653,6 +653,7 @@ function _gridRowFollows(g, inFree) {
 /** ★자리를 옮긴 «뒤» 부른다 — root(옮긴 단위) 안의 자동 폭 그리드를 새 자리에 맞춘다.
  *  자유 프레임 안 = 그 프레임 기준으로 다시 맞춤 · 밖 = 키·표시를 지우고 100%. 사용자 폭·떠 있는 블럭은 무접촉.
  *  ⛔로드·undo·rebind 에서는 부르지 않는다(저장된 판을 그대로 그린다 — 열 때 다시 맞추는 건 미결정).
+ *  ★결정됨: 열 때도 맞춘다(키 없는 전폭만) — E129 · 2026-10-05 · 지디 ⒜. 문 = 아래 fitKeylessFreeFrameGridsOnOpen(«페이지 padX 적용 뒤» — 그 전엔 프레임이 764 로 잡혀 611 이 된다).
  *  부르는 «떠나는/옮기는» 입구 전수는 커밋 메시지에 명부로 적었다. @returns 바꾼 개수 */
 function syncAutoGridWidth(root) {
   if (!root || root.nodeType !== 1) return 0;
@@ -669,6 +670,28 @@ function syncAutoGridWidth(root) {
     delete g.dataset.gridWidthAuto;
     renderGridBlock(g);
     n++;
+  }
+  return n;
+}
+
+/* ══ ★E129 F3 — 열 때 «키 없는 전폭» 자유프레임 그리드를 입구와 같은 규칙으로 맞춘다 (2026-10-05 · 지디 ⒜) ══
+ *  증상(실측): 저장본을 열면 키 없는 그리드는 renderGridBlock 이 '100%' 로 그려 폭 = 프레임 폭(716) →
+ *    T-088 클램프 left 상한 = 716 − 716 = 0 → «수직만» 움직인다(입구 셋은 이미 맞추지만 «열기»는 안 거쳤다).
+ *  ★대상 = 키 없음(getGridWidth === null — _gridValidateWidth 와 같은 부재 조건) ∧ 안 떠 있음 ∧ 집이 자유 프레임(_gridHomeFreeFrame · 그룹 제외).
+ *    키가 있는 그리드(사람 폭·자동 폭)는 «무접촉» — fitGridWidthToFreeFrame 도 같은 규칙이지만 문 앞에서 한 번 더 거른다.
+ *  ★언제 = «페이지 padX 가 적용된 뒤»(save-load.js applyPageSettings 바로 뒤). rebindAll 안에서 부르면 섹션 패딩이 아직 0 이라
+ *    프레임이 style 폭(764)으로 잡혀 764×0.8 = 611 이 된다(실측) — 끌기 클램프가 쓰는 프레임 폭은 716 이고 그 0.8 = 573.
+ *  ★이력 밖·자동저장 억제 구간 안(healAssetsBeyondSectionEdge 와 같은 자리 규약) — 열고 «편집해 저장할 때» 저장본에 반영된다.
+ *  @returns 맞춘 개수 */
+function fitKeylessFreeFrameGridsOnOpen(root) {
+  if (!root || root.nodeType !== 1) return 0;
+  let n = 0;
+  for (const g of root.querySelectorAll('.grid-block')) {
+    if (g.dataset.overlayBlock === 'true') continue;
+    if (getGridWidth(g) !== null) continue;
+    const home = _gridHomeFreeFrame(g);
+    if (!home || home === 'group') continue;
+    if (fitGridWidthToFreeFrame(g, home)) n++;
   }
   return n;
 }
@@ -3451,6 +3474,7 @@ window.getGridWidth = getGridWidth;   // G2-a — 다른 파일이 폭을 «읽�
 window.applyGridOwnWidth = applyGridOwnWidth;   // G2-b — 끄는 동안(손잡이·슬라이더) 매 틱 쓰는 문. 떠 있으면 굳힌 폭+키, 아니면 키
 window.syncAutoGridWidth = syncAutoGridWidth;   // F3 후속 — 옮긴 뒤 자동 폭을 새 자리에 맞춘다(떠나면 100%)
 window.fitGridWidthToFreeFrame = fitGridWidthToFreeFrame;   // F3 — 자유배치 프레임 입구 셋이 부른다(drag-utils·block-drag 는 이 파일을 import 안 함)
+window.fitKeylessFreeFrameGridsOnOpen = fitKeylessFreeFrameGridsOnOpen;   // E129 — 열기 길 셋(save-load.js)이 applyPageSettings 뒤에 부른다
 
 // ★deprecated 별칭 — 2026-09-05 개명 이전 이름. scripts/goditor_runner.js 와 외부 스킬 md·
 //   다른 맥의 CDP 스크립트가 아직 이 이름을 부른다. 제거는 P1(러너·스킬 md 갱신 «후»).

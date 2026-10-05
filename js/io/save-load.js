@@ -499,6 +499,7 @@ async function switchPage(pageId) {
     rebindAll({ videoPendingSidecar: _pageVideoPendingSidecars.get(page.id) });
     refreshLazyObservation(); // 새 페이지의 section-block을 lazy 관찰 등록 (innerHTML 교체 후)
     applyPageSettings();
+    window.fitKeylessFreeFrameGridsOnOpen?.(canvasEl);   // E129 F3 — 페이지 전환도 «열기»다
     window.deselectAll();
     window.showPageProperties();
     window.buildLayerPanel(); // also calls buildFilePageSection
@@ -549,6 +550,7 @@ function deletePage(pageId) {
       // ★T-031 3차: next 페이지 자신의 sidecar만 쓴다(_pageVideoPendingSidecars Map, 위 switchPage와 같은 이유).
       rebindAll({ videoPendingSidecar: _pageVideoPendingSidecars.get(next.id) });
       applyPageSettings();
+      window.fitKeylessFreeFrameGridsOnOpen?.(canvasEl);   // E129 F3 — 페이지 전환도 «열기»다
       window.deselectAll();
       window.showPageProperties();
     } finally { window.AutoSaveSuppress.end(_asTok); }
@@ -695,6 +697,7 @@ function applyProjectData(data) {
     initLazySections();       // 멱등 — 최초 1회만 IntersectionObserver 생성
     refreshLazyObservation(); // innerHTML 교체 후 새 section-block 관찰 등록
     applyPageSettings();
+    window.fitKeylessFreeFrameGridsOnOpen?.(canvasEl);   // E129 F3 — 키 없는 전폭 자유프레임 그리드(«padX 적용 뒤» — grid-block.js 머리말)
     healAssetsBeyondSectionEdge(canvasEl);   // B6 ㉡ — «페이지 padX 가 적용된 뒤»(computed 를 읽으므로) 열 때 정리
     window.deselectAll?.(); // DBG-10: 브랜치 전환 시 이전 선택 상태 클리어
     window._ckItems    = Array.isArray(data.checklistItems)    ? data.checklistItems    : [];
