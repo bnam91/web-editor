@@ -114,6 +114,18 @@ test('N4 [새 것 · 판정 꼴은 예측 표 참조] T▾ Body — 드릴 상�
   expect(errs).toEqual([]);
 });
 
+test('N5 [새 것 · 판정 꼴은 예측 표 참조] addBlankTextBlock(fullWidth 갈래 · 태양 승인 다섯째 자리) — 다시 누른 자리와 같다', async ({ page }) => {
+  /* [전제·JS] 앱 안에서 이 함수를 부르는 자리는 0 이다(T 키 = addTextBlock · editor.js:2863) — window 노출뿐이라 그 문을 직접 부른다. */
+  const errs = await setup(page);
+  await align(page, 'ss-align-right');
+  await drillIn(page); await markKnown(page);
+  await page.evaluate(() => window.addBlankTextBlock('body'));
+  await page.waitForTimeout(300);
+  const { a, b } = await expectFollows(page, 'N5');
+  expect(a.self, `N5: 글자 프레임 align-self(넣은 직후) = 다시 누른 뒤 · ${a.self} vs ${b.self}`).toBe(b.self);
+  expect(errs).toEqual([]);
+});
+
 test('N2 [지킴] ⌘D — 프레임 안(이미 정렬된) 자식 복제는 다시 누른 자리와 같다', async ({ page }) => {
   const errs = await setup(page);
   await align(page, 'ss-align-right');
