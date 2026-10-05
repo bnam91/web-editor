@@ -2526,6 +2526,13 @@ function bindFrameDropZone(ss) {
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
   if (ss.style.position === 'absolute') {
     ss.setAttribute('draggable', 'false');
+    /* ★D2(2026-10-05 현빈 · lane-drag) — 오버레이 «프레임»(스티커 그룹 · 도형 래퍼)의 전용 이동 드래그는 이 자리에서도 «건다».
+       프레임은 bindBlock 을 안 탄다 ⇒ 표식을 «쓰는» 세 자리(enterFloat · 오버레이 묶기 · 그룹 풀기)는 그 자리에서 걸지만,
+       HTML 에서 «다시 태어난» 오버레이 프레임(로드 · ⌘Z/⌘⇧Z · 붙여넣기 · 템플릿 …)은 여기만 지나서 받아줄 드래그가 없었다
+       (실앱 실측: 다시 연 뒤 _overlayMoveBound false · 끌기 Δ0).
+       ⛔«걸기만» 한다 — 둘 다 돌지 않는 근거는 둘 다 «매 누름 live» 판정이다: 전용 쪽은 오버레이가 아니면 return,
+         아래 absolute 셀 드래그는 오버레이면 return. 같은 posEl 에 두 번 안 걸린다(_overlayMoveBound). */
+    _bindFloatMoveDrag(ss);
 
     // 자식 블록 셀렉터 — 이 영역 클릭은 bindBlock에게 위임
     // text-frame 제거: B가 selected 상태에서 TF에 pointer-events:auto가 생겨도
