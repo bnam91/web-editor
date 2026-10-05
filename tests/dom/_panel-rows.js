@@ -14,7 +14,10 @@ const plainFill = (cls) => `[...${B}.querySelectorAll('${cls}')].find(e => !e.st
 
 const ROWS = [
   /* E105~E110(그래프) — 묶음 B 에서 뺌(팀장 2026-10-05: 릴리스 후 «그래프 패널 묶음» · 13≠20/E149 와 함께 · E108~E110 은 H6 자동 밝기와 충돌 → 설계 필요). 행은 격리 사본(quarantine bundle-b-wip-20261005-1603)에 있다. */
-  { id: 'E111', item: '디바이더 위아래 여백', make: `window.addDividerBlock(); window.__blk = [...document.querySelectorAll('#sB .divider-block')].pop();`,
+  /* E111 — ★새 디바이더는 padV '30' 을 박아 옛 표시(|| 12)도 30 이 맞았다(기준 초록 · 시험이 못 갈랐다 · lane-b2 실측). 병은 padV '0'(옛 문서·MCP 꼴):
+     렌더 '0' = 0 · 옛 표시 `|| 12` = 12 — 단 0 이면 선 1px 이라 «누를 자리»가 없다(실클릭이 옆 갭을 맞힘 · 실측) ⇒ 같은 병의 다른 꼴 «padV 비움»으로:
+     렌더 `|| 30` = 30 · 옛 표시 `|| 12` = 12(applyDividerStyle 로 다시 그림). */
+  { id: 'E111', item: '디바이더 위아래 여백(padV 비움 — 옛 문서·MCP 꼴)', make: `window.addDividerBlock(); window.__blk = [...document.querySelectorAll('#sB .divider-block')].pop(); delete window.__blk.dataset.padV; window.applyDividerStyle(window.__blk);`,
     target: `${B}`, open: 'click', panel: '#dvd-pady-number', kind: 'num', drawn: PX(`${B}`, 'paddingTop') },
   { id: 'E112', item: '태그 그룹 항목 높이(전체)', make: `window.addLabelGroupBlock(); window.__blk = [...document.querySelectorAll('#sB .label-group-block')].pop();`,
     target: `${B}.querySelector('.label-item')`, open: 'click', panel: '#lg-all-height-number', kind: 'num',
@@ -32,7 +35,9 @@ const ROWS = [
     target: `${B}`, open: 'click', panel: '#cvb-title-color-hex', kind: 'hex', drawn: CO(`${B}.querySelector('.cvb-card-title')`, 'color') },
   { id: '#18', item: '비교 블럭 칸 배경(색 없이 준 칸 — MCP 꼴)', make: `window.addComparisonBlock({ cols: [{ title: 'A', rows: ['a'] }, { title: 'B', rows: ['b'] }], featured: 1 }); window.__blk = [...document.querySelectorAll('#sB .comparison-block')].pop();`,
     target: `${B}`, open: 'click', panel: '#cmp-c0Bg-hex', kind: 'hex', drawn: CO(`${B}.querySelector('.cmp-col[data-col-idx="0"]')`, 'backgroundColor') },
-  { id: 'E119a', item: '형광펜 스티커 색(사용자 rgba)', make: `window.addStickerBlock({ shape: 'highlight', hlColor: 'rgba(0, 200, 255, 0.5)' }); window.__blk = [...document.querySelectorAll('.sticker-block')].pop();`,
+  /* E119a — ★addStickerBlock 은 hlColor 옵션을 안 받는다(저장 null · 그려진 기본 노랑 → 기준도 초록 · 시험이 못 갈랐다 · lane-b2 실측).
+     사용자 rgba 는 MCP 길(updateStickerBlock)로 들어온다 ⇒ 그 길로 칠한다. */
+  { id: 'E119a', item: '형광펜 스티커 색(사용자 rgba — MCP 길)', make: `window.addStickerBlock({ shape: 'highlight' }); window.__blk = [...document.querySelectorAll('.sticker-block')].pop(); window.updateStickerBlock(window.__blk.id, { hlColor: 'rgba(0, 200, 255, 0.5)' }); window.__blk = document.getElementById(window.__blk.id);`,
     target: `${B}`, open: 'click', panel: '#stk-hl-color-hex', kind: 'hex', drawn: CO(`${B}`, 'backgroundColor') },
   { id: 'E119b', item: '아이콘 스티커 색(색 안 준 것)', make: `window.addStickerBlock({ shape: 'icon', iconName: 't:dot', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/></svg>', size: 60 }); window.__blk = [...document.querySelectorAll('.sticker-block')].pop();`,
     target: `${B}`, open: 'click', panel: '#stk-icon-color-hex', kind: 'hex', drawn: CO(`${B}`, 'color') },
