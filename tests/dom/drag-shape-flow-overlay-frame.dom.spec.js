@@ -198,3 +198,48 @@ test('D2b ★로드된 오버레이 프레임을 끌면 움직이고, 전용 드
   expect({ ox: p.ox, oy: p.oy }, 'dataset 이 따라와야 한다').toEqual({ ox: 160, oy: 120 });
   expect(p.pushes, `push 라벨=${JSON.stringify(p.pushes)} — 옛 absolute 셀 드래그가 같이 돌면 '' 가 섞인다`).toEqual(['오버레이 이동']);
 });
+
+/* ── D5 (lane-drag 10-05 · 우리가 찾은 것) — 옛 꼴에서 «클릭 2번»(프레임 → 도형)으로 도형을 고른 뒤 끌면
+   래퍼가 프레임 밖으로 빠졌다(실앱 ㉠: (100,75)모델 끌기 → section-inner 로 추출).
+   까닭: bindBlock 끌어내기 판정 부모가 dragEl.closest(free) = «래퍼 자신»(free-layout 기본 · 100×100) → 중심이 100+60 을 넘으면 끌어내기.
+   ⚠️D1c 는 «클릭 1번»(부모 프레임 고름) 장면이라 이 갈래(bindBlock)를 안 타서 D5 를 못 잡았다 — 그래서 따로 둔다. */
+async function mountOldShapeSelected(page) {
+  await page.evaluate(() => {
+    const inner = document.getElementById('inner');
+    inner.innerHTML = '<div class="frame-block" id="fr" data-free-layout="true" style="width:500px;height:360px;padding:0">' +
+      '<div class="frame-block" id="sf2" data-free-layout="true" style="position:absolute;left:20px;top:30px;width:100px;height:100px;padding:0">' +
+      '<div class="shape-block" id="shp2" data-type="shape" style="position:absolute;left:0;top:0"></div></div></div>';
+    window.bindFrameDropZone(document.getElementById('fr'));
+    window.bindFrameDropZone(document.getElementById('sf2'));
+    window.bindBlock(document.getElementById('shp2'));
+    window.selectShapeBlock(document.getElementById('shp2'));   // 클릭 2번째 = 도형 고름(래퍼+도형 selected)
+    return true;
+  });
+}
+const sf2State = (page) => page.evaluate(() => { const e = document.getElementById('sf2'); return { L: parseFloat(e.style.left), T: parseFloat(e.style.top), par: e.parentElement.id || e.parentElement.className }; });
+
+test('D5a ★옛 꼴 · 도형을 고른 뒤 끌면 래퍼가 «프레임 안»에서 움직인다(밖으로 안 빠진다)', async ({ page }) => {
+  await boot(page);
+  await mountOldShapeSelected(page);
+  const c = await centerOf(page, 'shp2');
+  await page.mouse.move(c.x, c.y);
+  await page.mouse.down();
+  await page.mouse.move(c.x + 50, c.y + 20);
+  await page.mouse.move(c.x + 100, c.y + 40);
+  await page.mouse.up();
+  const p = await sf2State(page);
+  expect(p, `래퍼 자리=${JSON.stringify(p)} (고치기 전 실측 = 프레임 밖 section-inner 로 추출)`).toEqual({ L: 120, T: 70, par: 'fr' });
+});
+
+test('D5b 음성대조 · 진짜 프레임 «밖» 멀리 끌면 여전히 끌어내기 된다(의도된 기능 회귀 0)', async ({ page }) => {
+  await boot(page);
+  await mountOldShapeSelected(page);
+  const c = await centerOf(page, 'shp2');
+  await page.mouse.move(c.x, c.y);
+  await page.mouse.down();
+  await page.mouse.move(c.x + 300, c.y);
+  await page.mouse.move(c.x + 600, c.y);      // 중심 x = 20+600+50 = 670 > 프레임 500 + 여유 60
+  await page.mouse.up();
+  const p = await page.evaluate(() => { const e = document.getElementById('sf2'); return { par: e.parentElement.id || e.parentElement.className, pos: e.style.position }; });
+  expect(p, `끌어내기 결과=${JSON.stringify(p)}`).toEqual({ par: 'inner', pos: '' });
+});
