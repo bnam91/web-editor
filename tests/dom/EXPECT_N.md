@@ -7,7 +7,8 @@
 
 | 값 | 어느 커밋에서 셌나 | 어떻게 셌나 | 기록 |
 |---|---|---|---|
-| **2543** | `0f572e2a` (dev · integ24) | `--list` 의 `Total:` 줄 | 2026-10-05 태양 |
+| 2543 | `0f572e2a` (dev · integ24) | `--list` 의 `Total:` 줄 | 2026-10-05 태양 |
+| **2725** | `aa9af9f6` (integ25 머지 · dev 로 갈 판) | `--list` 의 `Total:` 줄 = 그 판 전수 `Running 2725` | 2026-10-06 태양 · 지디 승인(루프 증분 34 닫힘 조건) |
 
 ⚠️절대값은 한 출처(`--list`)다 — 「언제부터 셌나」이지 「언제부터 맞나」가 아니다. 게이트가 지키는 것은 **델타**다.
 
@@ -29,8 +30,26 @@
 
 어긋남이 정당한 꼴: 반복문 안 `test(` · `test.each` · describe 반복 · `test.skip` (선언 수 ≠ 실행 단위 수).
 예) integ24: 식 2536 ≠ 2543 — graph-panel-defaults · k2 · k3 · k5 의 반복 생성 +7 을 이름으로 설명했다.
+예) integ25(`0f572e2a`→`aa9af9f6`): 식 2543 + 148 − 0 = 2691 ≠ 2725 — 차 34 = 아래 11 spec 의 «루프 길이 × 감싼 test 수 − 선언 수» 합(정의 자리에서 셈 · `--list` 를 안 씀):
+
+| spec | 루프(정의 자리) | 감싼 test | 증분 |
+|---|---|---|---|
+| drag-fullwidth-text-horizontal | :95 `['center','right']` = 2 | 1 | +1 |
+| esweep-fixes | :138 `[['M1 …'],['M2 …']]` = 2 | 1 | +1 |
+| graph-e152-escape | :69 4 타입 × `EVIL`(:14) 2 = 8 | 1 | +7 |
+| grid-cellpady | :60 `[2, 3]` = 2 | 1 | +1 |
+| grid-img-crop-commit-h | :75 2 줄 꼴 = 2 | 1 | +1 |
+| grid-plus-g15 | 이번 판에 든 루프 :731 `[40,100]` × :732 `['col','row']` = 4 (옛 루프들은 base·head 같음) | 1 | +3 |
+| page-name-edit-exit | :62 `['Enter','Escape','click-away']` = 3 | 1 | +2 |
+| panel-shows-rendered | :42 `ROWS`(`_panel-rows.js` · node 로 잼 = 13) | 1 | +12 |
+| scratch-drop-insert-order | :85 4 겨냥 = 4 | 1 | +3 |
+| section-variation-bind | :108 `['create','add']` = 2 | 1 | +1 |
+| tab-name-edit-exit | :55 `['Enter','Escape','click-away']` = 3 | 1 | +2 |
+| **합** | | | **+34** = 2725 − 2691 ✔ |
+
+⇒ 12 번째 루프 spec 이 생기면 이 식이 깨진다 — 그때 이 표에 이름으로 더하라. ⛔「`--list` 만 쓰자」 금지 — 두 출처 대조가 ⑵ 의 설계다(한 출처는 자기를 못 잰다).
 
 ## 자
 
-`~/.claude/skills/지디/tools/expect-n.sh <base> <head>` (PIN · REPO · OUT 환경변수) — 아직 레포 밖이다(☐ 0.9.7 첫 묶음에서 레포 안으로 · 임자 태양).
+`~/.claude/skills/지디/tools/expect-n.sh <base> <head>` (PIN · REPO · OUT 환경변수) — 아직 레포 밖이다(☐ 다음 판 첫 묶음에서 레포 안으로 · 임자 태양).
 자가 밖에 있어도 **값과 식은 여기**가 정본이다. 머지할 때마다 위 «현재값» 줄을 고친다.
