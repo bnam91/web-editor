@@ -432,7 +432,7 @@ function _wireBranchActions() {
       case 'switch':       switchBranch(name); break;
       case 'merge':        mergeBranch(name); break;
       case 'delete':       deleteBranch(name); break;
-      case 'scope-add':    promptAddSectionToScope(name); break;
+      case 'scope-add':    promptAddSectionToScope(name, btn.closest('.branch-scope-list') || btn); break;
       case 'scope-remove': {
         e.stopPropagation();
         const sec = btn.closest('.branch-scope-tag')?.dataset.sec;
@@ -516,7 +516,8 @@ function createFeatureBranchFromSection(sectionId, name) {
 }
 
 // 스코프에 섹션 추가 (브랜치 패널 "+ 섹션" 버튼)
-function promptAddSectionToScope(branchName) {
+function promptAddSectionToScope(branchName, anchor) {
+  anchor = anchor || document.querySelector('.branch-scope-add')?.closest('.branch-scope-list');   // window. 로 부를 때(누른 단추 없음)
   const store = loadBranchStore();
   if (!store || !store.branches[branchName]) return;
   const currentScope = store.branches[branchName].scope || [];
@@ -533,12 +534,18 @@ function promptAddSectionToScope(branchName) {
     return `${i + 1}. ${label}`;
   }).join('\n');
 
-  const input = prompt(`스코프에 추가할 섹션 번호:\n${options}`);
-  if (!input) return;
-  const idx = parseInt(input) - 1;
-  if (idx >= 0 && idx < sections.length) {
-    addSectionToScope(branchName, sections[idx].id);
-  }
+  /* ⛔prompt() 금지 — Electron 렌더러는 부르는 순간 `Error: prompt() is not supported.` 로 던져
+       「+ 섹션」이 통째로 죽었다(dd407e27 와 같은 뿌리). 디자인시스템의 인라인 이름 폼을 «재사용»한다(둘째 구현 금지). */
+  const form = window.DesignSystem?.openInlineNameForm?.(anchor, {
+    id: 'branch-scope-add', placeholder: `섹션 번호 (1~${sections.length})`, hint: `스코프에 추가할 섹션 번호:\n${options}`,
+    onSubmit: (raw) => {
+      const idx = parseInt(raw) - 1;
+      if (!(idx >= 0 && idx < sections.length)) { showToast(`1~${sections.length} 사이 번호를 입력하세요`); return false; }
+      addSectionToScope(branchName, sections[idx].id);
+      return true;
+    },
+  });
+  if (!form) showToast('섹션 추가 입력칸을 열 수 없습니다.');
 }
 
 // 스코프에 섹션 추가
