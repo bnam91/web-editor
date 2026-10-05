@@ -114,8 +114,8 @@ test('N4 [새 것 · 판정 꼴은 예측 표 참조] T▾ Body — 드릴 상�
   expect(errs).toEqual([]);
 });
 
-test('N5 [새 것 · 판정 꼴은 예측 표 참조] addBlankTextBlock(fullWidth 갈래 · 태양 승인 다섯째 자리) — 다시 누른 자리와 같다', async ({ page }) => {
-  /* [전제·JS] 앱 안에서 이 함수를 부르는 자리는 0 이다(T 키 = addTextBlock · editor.js:2863) — window 노출뿐이라 그 문을 직접 부른다. */
+test('N5 [새 것 · API 문(자동화) — 앱 UI 경로 0 · ㉠ git grep] addBlankTextBlock fullWidth 갈래 — 다시 누른 자리와 같다', async ({ page }) => {
+  /* 앱 안 호출자 0 — 문서화된 window 문만(docs/goditor-api-reference.md · 자동화/CDP). ⑴ 사용자 항목으로 세지 않는다. T 키는 addTextBlock(editor.js:2863). */
   const errs = await setup(page);
   await align(page, 'ss-align-right');
   await drillIn(page); await markKnown(page);
