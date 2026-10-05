@@ -74,20 +74,27 @@ for (const exit of ['Enter', 'Escape', 'click-away']) {
   });
 }
 
-test('RG-N5 ㉢ [새 것] 끝난 뒤(키 없이 바깥 클릭) — (ⅰ) Escape 보내도 이름 그대로 (ⅱ) 이름 칸 keydown 처리기 0', async ({ page }) => {
+test('RG-N5 ㉢ [새 것] 끝난 뒤(키 없이 바깥 클릭) — (ⅱ) 이름 칸 keydown 처리기 0 · (ⅰ) Escape 보내도 이름 그대로 · (ⅲ) 다음 편집 «x»+Enter → 커밋 1', async ({ page }) => {
   const { name } = await setup(page);
   // 키 없이 바깥 클릭으로 끝낸다(옛 꼴이면 onKey 가 남는 길 — 첫 키에만 떨어지므로)
   await startEdit(page, name);
-  // ★양성대조 — 편집 중엔 두 계기 모두 keydown 처리기 1 을 봐야 한다(못 보면 (ⅱ)의 0 은 «안 본» 0)
+  // ★양성대조 — 편집 중엔 두 계기 모두 keydown 처리기 1 을 봐야 한다(못 보면 (ⅱ)의 0 은 «안 본» 0) — 10-06 잼: {1,1} 섬
   expect(await kd(page, name), '[양성대조] 편집 중 keydown 처리기 — CDP · JS 계기').toEqual({ cdp: 1, js: 1 });
   await clickAway(page);
   const before = await st(name);
   expect(before.editing, '[전제] 편집이 끝났다').toBe(false);
+  // ★(ⅱ) 를 (ⅰ) 보다 «먼저» 센다 — 10-06 판: Escape 를 먼저 보내면 옛 onKey 가 그 키를 받고 스스로 떨어져 0 으로 읽혔다(시험 순서 탓 · 계기 탓 아님)
+  expect.soft(await kd(page, name), '(ⅱ) 끝난 뒤 이름 칸 keydown 처리기 수 — CDP · JS').toEqual({ cdp: 0, js: 0 });
   await name.evaluate(n => n.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
   await page.waitForTimeout(150);
   const after = await st(name);
-  expect({ text: after.text, pageName: after.pageName }, '(ⅰ) 끝난 뒤 Escape → 이름 그대로').toEqual({ text: before.text, pageName: before.pageName });
-  expect(await kd(page, name), '(ⅱ) 끝난 뒤 이름 칸 keydown 처리기 수 — CDP · JS').toEqual({ cdp: 0, js: 0 });
+  expect.soft({ text: after.text, pageName: after.pageName }, '(ⅰ) 끝난 뒤 Escape → 이름 그대로').toEqual({ text: before.text, pageName: before.pageName });
+  // (ⅲ) 행위 축(태양·지디): 남은 onKey 가 «다음 편집»에서 다르게 구나 — 예측(코드 읽기): 같다(남은 onKey 의 blur 도 commit 은 한 번)
+  const c0 = await page.evaluate(() => window.__saves);
+  await startEdit(page, name);
+  await page.keyboard.press('End'); await page.keyboard.type('x'); await page.keyboard.press('Enter'); await page.waitForTimeout(250);
+  const s2 = await st(name);
+  expect.soft({ editing: s2.editing, pageName: s2.pageName, commits: await page.evaluate((c0) => window.__saves - c0, c0) }, '(ⅲ) 다음 편집 «x»+Enter').toEqual({ editing: false, pageName: before.pageName + 'x', commits: 1 });
 });
 
 test('RG-N5 ㉣ [새 것] 편집 중 더블클릭 ×3 → 바로 Enter → 끝 · 처리기 0 · 커밋 1 번', async ({ page }) => {
