@@ -173,7 +173,9 @@ test('A9 [새 것] 「원래대로」 뒤 MCP 가 크롭 세 값만 주면 — �
   await resetCrop(page);
   const h1 = await frameH(page);
   const r = await page.evaluate(() => window.updateGridBlock('gC', { patchCell: { r: 0, c: 0, lineIndex: 0, imgSizePct: 100, imgPosX: 0, imgPosY: 0 } }));
-  expect(r && r.ok, `[전제] MCP 크롭 세 값 ${JSON.stringify(r)}`).toBe(true);
+  /* ★10-06 정정 — 옛 [전제] «MCP 가 받는다(ok:true)» 는 고친 뒤엔 틀린 전제였다: 씨앗(height)이 없으면 크롭 세 값은 렌더러가 안 읽어
+     T-122 가드가 «시끄럽게» 거절한다(INVALID) — 그것도 «안 튐»이다. 여기서 재는 것은 «말없이 튀지 않는가» 하나다. */
+  expect(r && (r.ok === true || r.code === 'INVALID'), `[전제] MCP 응답이 받음 또는 시끄러운 거절이다 ${JSON.stringify(r)}`).toBe(true);
   await page.waitForTimeout(250);
   expect(Math.abs((await frameH(page)) - h1), `★크롭 세 값만 줬는데 틀이 튀었다 ${h1} → ${await frameH(page)}`).toBeLessThanOrEqual(1);
   expect(errs).toEqual([]);
