@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { panelRenderedPx } from './_panel-rendered.js';
 
 // 라벨 스타일 프리셋 정의
 const LABEL_STYLE_PRESETS = {
@@ -30,16 +31,17 @@ function showLabelGroupProperties(block, selectedItem) {
   const jc         = block.style.justifyContent || 'flex-start';
   const align      = jc === 'center' ? 'center' : jc === 'flex-end' ? 'right' : 'left';
   const firstItem  = block.querySelector('.label-item');
-  const allItemPadT = parseInt(firstItem?.style.paddingTop)    || 4;
-  const allItemPadB = parseInt(firstItem?.style.paddingBottom) || 4;
+  /* 묶음 B E112 — 항목 높이 = «그려진» 위아래 패딩(_panel-rendered.js). 옛 `|| 4` 는 인라인이 비면 8 을 그렸다 — 실제 CSS .label-item 11+11=22(원형 20+20). */
+  const allItemPadT = Math.round(panelRenderedPx(firstItem, 'paddingTop'));
+  const allItemPadB = Math.round(panelRenderedPx(firstItem, 'paddingBottom'));
   const allItemH   = allItemPadT + allItemPadB;
   const itemBg     = selectedItem?.dataset.bg     || '#111111';
   const itemColor  = selectedItem?.dataset.color  || '#ffffff';
   const itemBgAlpha    = parseAlphaFromColor(itemBg);
   const itemColorAlpha = parseAlphaFromColor(itemColor);
   const itemRadius = parseInt(selectedItem?.dataset.radius ?? 40);
-  const itemPadT   = parseInt(selectedItem?.style.paddingTop)    || 4;
-  const itemPadB   = parseInt(selectedItem?.style.paddingBottom) || 4;
+  const itemPadT   = Math.round(panelRenderedPx(selectedItem, 'paddingTop'));      // E112
+  const itemPadB   = Math.round(panelRenderedPx(selectedItem, 'paddingBottom'));
   const itemH      = itemPadT + itemPadB;
 
   propPanel.innerHTML = `

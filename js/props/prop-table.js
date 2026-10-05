@@ -2,6 +2,7 @@ import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { parseRatio, blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
 import { withTextSelection, spanExactlyCovering } from './_text-selection.js';
+import { panelRenderedPx } from './_panel-rendered.js';
 
 function _tblTok(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
@@ -262,7 +263,7 @@ export function showTableProperties(block) {
   const curShowOuterY  = block.dataset.showOuterY  !== 'false';   // 외곽 상하 (default: true)
   const curOuterW      = parseInt(block.dataset.outerWidth) || 1; // 외곽선 두께 (1~6)
   const curRowH        = parseInt(block.dataset.rowH) || 0;       // 행 높이 (0 = auto)
-  const curTablePadX   = parseInt(block.dataset.tablePadX) || 0;  // 테이블 좌우 패딩 (0~120)
+  const curTablePadX   = Math.round(panelRenderedPx(block, 'paddingLeft'));  // 테이블 좌우 패딩 (0~120) · 묶음 B E117 — 그려진 값(새 표는 dataset '0' + 인라인 없음 → CSS .table-block 8px · 옛 표시 0)
   // 색상 옵션
   const curLineColor   = block.dataset.lineColor   || _tblTok('--preset-table-line', '#cccccc');
   const curLineAlpha   = parseAlphaFromColor(curLineColor);

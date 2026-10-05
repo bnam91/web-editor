@@ -102,6 +102,11 @@ before(async () => {
       [/import \{([^}]*)\} from '\.\/_helpers\.js';/,
        (_m, names) => names.split(',').map(n => n.trim()).filter(Boolean)
          .map(n => `const ${n} = () => "";`).join(' ')],
+      /* lane-b2(2026-10-05) E118 — 심플카드 패널이 빈 글자색을 «그려진 색»으로 읽는다(_panel-rendered.js panelRenderedColor).
+         이 검사는 패널 색을 안 잰다 → _helpers 와 같은 꼴(정규식 · 이름 전부)로 '' 더블 = 옛 대체값 그대로. 그려진 색 표시는 panel-shows-rendered(DOM)가 잰다. */
+      [/import \{([^}]*)\} from '\.\/_panel-rendered\.js';/,
+       (_m, names) => names.split(',').map(n => n.trim()).filter(Boolean)
+         .map(n => `const ${n} = () => "";`).join(' ')],
       /* 2026-09-20 유닛 colorhex — 색 코드 칸의 배선이 color-picker.js 한 자리로 모였다.
          이 테스트는 «카드 접기/인라인 편집»만 본다(패널을 그리지 않는다) → 색 배선은 no-op 더블로 끊는다.
          ⛔여기에 진짜 파싱 규칙을 «베껴» 넣지 마라 — 그러면 검사가 자기 사본을 재게 된다.
