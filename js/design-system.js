@@ -265,8 +265,9 @@ const DesignSystem = (() => {
    *   ★새 모달을 만들지 않는다 — 이 레포에 이미 있는 꼴(variable-binding.js 서랍의 + → 이름칸·저장·취소, 클래스 var-add-form ·
    *     var-input · var-form-actions · var-btn)을 그대로 쓴다. 단추가 있는 줄 «바로 아래»에 열린다.
    *   onSubmit(name) 이 true 를 돌려주면 닫고, false 면 연 채로 둔다(고쳐 칠 수 있게 — 까닭은 onSubmit 이 토스트로 말한다).
-   *   Enter = 확인 · Esc/취소 = 닫기(아무것도 안 함). 이미 열려 있으면 다시 열지 않고 칸에 포커스만 준다. */
-  function _openInlineNameForm(anchorRow, { id, placeholder, submitLabel = '추가', onSubmit }) {
+   *   Enter = 확인 · Esc/취소 = 닫기(아무것도 안 함). 이미 열려 있으면 다시 열지 않고 칸에 포커스만 준다.
+   *   hint(선택) = 칸 위에 보일 안내 글(여러 줄 가능 · textContent 로 넣는다). 브랜치 「+ 섹션」이 고를 목록을 여기 보인다(옛 prompt 문구 그대로). */
+  function _openInlineNameForm(anchorRow, { id, placeholder, submitLabel = '추가', hint, onSubmit }) {
     if (!anchorRow) return null;
     const exist = document.getElementById(id + '-form');
     if (exist) { exist.querySelector('input')?.focus(); return exist; }
@@ -278,6 +279,13 @@ const DesignSystem = (() => {
         <button type="button" class="var-btn var-btn-primary" data-act="ok">${submitLabel}</button>
         <button type="button" class="var-btn var-btn-ghost" data-act="cancel">취소</button>
       </div>`;
+    if (hint) {
+      const h = document.createElement('div');
+      h.className = 'prop-hint';
+      h.style.cssText = 'text-align:left;white-space:pre-line;padding:0';
+      h.textContent = hint;
+      form.prepend(h);
+    }
     anchorRow.insertAdjacentElement('afterend', form);
     const input = form.querySelector('input');
     const close = () => form.remove();
