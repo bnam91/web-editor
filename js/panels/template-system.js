@@ -619,6 +619,12 @@ async function insertTemplate(tpl) {
   /* ★R7(2026-10-05 lane-drag) — 넣은 섹션의 프레임을 «건다»(block-factory.js 섹션 바인딩과 같은 꼴). 이 갈래는 한 번도 안 불러서
      프레임 12/12 가 _subSecBound false · 오버레이 그룹 끌기 Δ0 이었다(실앱 실측). ⚠️section 갈래만 — block 갈래는 0.9.7. */
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
+  /* ★②(2026-10-06 lane-drag · 지디 승인) — 제 바인더를 쓰는 셋은 bindBlock 명부 밖이라 «따로» 묶는다(rebindAll 과 같은 바인더).
+     실앱 ㉠: 평소 만든 것은 _blockBound false · 제 플래그 true · 클릭하면 골라짐 / 섹션 템플릿으로 넣은 것은 제 플래그 false · 안 골라짐.
+     ⚠️묶기만 한다 — rebindAll 의 다시 그리기(renderGradient/Sticker · 어노테이션 재구성)는 안 부른다(넣은 HTML 이 이미 그린 것이다). */
+  sec.querySelectorAll('.gradient-block').forEach(b => window.bindGradientSelect?.(b));
+  sec.querySelectorAll('.sticker-block').forEach(b => window.bindStickerSelect?.(b));
+  sec.querySelectorAll('.annotation-block').forEach(b => window.bindAnnotationSelect?.(b));
   sec.querySelectorAll('.group-block').forEach(g => {
     if (!g.querySelector(':scope > .group-block-label')) {
       const lbl = document.createElement('span');
