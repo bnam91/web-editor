@@ -1,6 +1,8 @@
 /* frame-insert-sibling.dom.spec.js — F1 (현빈 2026-10-03, 지디 결정): 프레임을 «마우스로 골라» 둔 채 ⌘V·g·⌘D 하면 «다음 형제»로 들어간다.
  * 키보드 입구(⌘V 일반·다중 폴백 · g→addGapBlock · ⌘D→duplicateSelected)만 — 패널 삽입(insertAfterSelected 기본·_insertToFlowFrame)은
  *   09-23 결정대로 «안»에 넣는 그대로다(frame-accepts-component-blocks F1 이 잠금 — 짝 시험). ⛔t 는 이 규칙에 넣지 않는다.
+ * ★H11(2026-10-05): 09-23 결정 = 패널 삽입은 «안»(현빈 「그리드가 프레임에 안 들어간다」) → 10-05 재지시로 «밖»(현빈 「한 번 클릭 후에는 프레임 밖에 삽입되어야지」) · 까닭 = drill-in 이 09-23 의 요구를 대신 채운다.
+ *   ⇒ 패널(툴바) 삽입도 이제 한 번 클릭이면 «다음 형제» — 판정 한 자리 drag-utils.js frameTakesInsert. 들어간 상태(프레임 → 자식 클릭)의 «안»은 h11-toolbar-depth 가 잠근다.
  * 실제 앱(bootApp) + 실제 마우스·키. 프레임은 «자유 프레임»과 «흐름 프레임» 둘 다 잰다.
  * ★양성대조: GD1001_ROOT=<bf9161d0 체크아웃> 으로 돌리면 S1·S2·S3·S5 가 빨강이어야 한다(S0·S4 는 지키는 시험 — 양쪽 초록).
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js --workers=2 frame-insert-sibling */
