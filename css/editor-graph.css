@@ -267,3 +267,5 @@
 .graph-block[style*="--grb-auto-line"] .grb-line-point-dot { background: var(--grb-auto-line); }
 .graph-block[style*="--grb-auto-grid"] .grb-ov-grid { stroke: var(--grb-auto-grid); stroke-opacity: 1; }
 .graph-block[style*="--grb-auto-ink"] .grb-ov { color: var(--grb-auto-ink); }
+/* K8⒤ — 꺾은선 카테고리 라벨만 클릭을 받는다(라벨층 .grb-line-overlay 는 pointer-events:none 이라 더블클릭이 SVG 로 새던 것). 값 라벨·점·층은 그대로 none. */
+.grb-line-overlay .grb-line-xlabel { pointer-events: auto; }
