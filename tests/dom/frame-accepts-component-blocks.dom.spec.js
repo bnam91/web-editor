@@ -16,6 +16,10 @@
  *   그건 0918 A안 확정이고 shape-frame-isolation.dom.spec.js I1~I3 이 이미 잠갔다.
  *   이 파일이 초록이면서 그쪽이 빨개지면 «고침이 너무 넓은» 것이다(짝 검사).
  *
+ * ★H11(2026-10-05): 09-23 결정 = 패널 삽입은 «안»(현빈 「그리드가 프레임에 안 들어간다」) → 10-05 재지시로 «밖»(현빈 「한 번 클릭 후에는 프레임 밖에 삽입되어야지」) · 까닭 = drill-in 이 09-23 의 요구를 대신 채운다.
+ *   ⇒ F1(아래)을 뒤집었다: 프레임을 «오브젝트로» 고른 채(자손 선택 0) 넣으면 «다음 형제». 옛 단언(«안»)은 지우지 않고 각 시험 안에 주석으로 남긴다.
+ *   F1d(새): 들어간 상태(프레임 안 자식이 골라짐)에서 넣으면 여전히 «안» — 09-23 의 요구가 drill-in 으로 살아 있다는 증거.
+ * ★10-05 ⒜: F1 은 10-05 H11 때 밖으로 뒤집었다가 ⒜ 정의(빈 프레임 = 안쪽)로 되돌림 — 픽스처 프레임이 비어 있어서(F0 「처음엔비어있다」).
  * ⛔앱을 «안» 띄운다 — js/drag-utils.js 원본만 route-fulfill (shape-frame-isolation 부트 패턴).
  * 실행: npm run test:dom -- frame-accepts-component-blocks
  */
@@ -94,7 +98,10 @@ test('F0 전제 — 그물이 살아 있다(프레임은 «진짜» 프레임이
 });
 
 for (const cls of COMPONENTS) {
-  test(`F1-${cls} ★프레임을 고른 채 「${cls}」을 넣으면 프레임 «안»에 들어간다 (화면이 약속한 그대로)`, async ({ page }) => {
+  /* 09-23 옛 제목(기록): `F1-${cls} ★프레임을 고른 채 「${cls}」을 넣으면 프레임 «안»에 들어간다 (화면이 약속한 그대로)`
+     H11 제목(기록): `F1-${cls} ★프레임을 «오브젝트로» 고른 채 …을 넣으면 프레임 «다음 형제»(H11 10-05 재지시 — 09-23 «안» 뒤집음)`
+     ★10-05 H11 때 밖으로 뒤집었다가 ⒜ 정의(빈 프레임 = 안쪽)로 되돌림 — 픽스처 프레임은 «처음엔 비어있다»(F0). */
+  test(`F1-${cls} ★«빈» 프레임을 고른 채 「${cls}」을 넣으면 프레임 «안»에 들어간다(09-23 · ⒜ 정의: 자식 요소 0 = 안쪽 상태)`, async ({ page }) => {
     const errs = await boot(page, FIXTURE);
     const out = await page.evaluate((klass) => {
       const F = document.getElementById('F');
@@ -107,9 +114,13 @@ for (const cls of COMPONENTS) {
         부모: el.parentElement.id,
         프레임자식수: F.children.length,
         표지블록그대로: document.getElementById('AFTER') ? document.getElementById('AFTER').previousElementSibling.id : null,
+        앞형제: el.previousElementSibling ? el.previousElementSibling.id : null,
       };
     }, cls);
     expect(errs).toEqual([]);
+    /* ── H11(10-05) 단언(기록 — ⒜ 정의로 되돌림: 빈 프레임은 오브젝트로 골라도 안쪽 상태):
+       expect(out.프레임안).toBe(false) · expect(out.프레임자식수).toBe(0) · expect(out.앞형제).toBe('R') ──
+       ── 아래 = 09-23 단언(다시 살아 있음 · 10-05 ⒜) ── */
     expect(out.프레임안,
       `★「${cls}」이 프레임 «밖»으로 나갔다 — 부모=${out.부모}.\n` +
       '   프레임 속성 패널은 「Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다」라고\n' +
@@ -117,6 +128,22 @@ for (const cls of COMPONENTS) {
       '   15종은 공용 insertAfterSelected 를 타서 프레임 «뒤»(형제)로 붙는다.\n' +
       '   ⇒ 고칠 자리는 drag-utils.js 의 «한 곳»이다. 15곳에 분기를 베끼지 마라.').toBe(true);
     expect(out.프레임자식수).toBe(1);
+  });
+}
+
+for (const cls of COMPONENTS) {
+  test(`F1d-${cls} [새 것·안전망] 들어간 상태(프레임 안 자식이 골라짐)에서 「${cls}」을 넣으면 여전히 프레임 «안»(09-23 요구 = drill-in)`, async ({ page }) => {
+    const errs = await boot(page, FIXTURE);
+    const out = await page.evaluate((klass) => {
+      const F = document.getElementById('F');
+      const kid = document.createElement('div'); kid.className = 'gap-block selected'; kid.id = 'KID'; F.appendChild(kid);   // 들어간 상태: 자손이 골라짐
+      window._activeFrame = F;
+      const el = document.createElement('div'); el.className = klass; el.id = 'NEW';
+      window.__DU.insertAfterSelected(document.getElementById('S'), el);
+      return { 프레임안: !!el.closest('#F'), 부모: el.parentElement.id };
+    }, cls);
+    expect(errs).toEqual([]);
+    expect(out.프레임안, `들어간 상태인데 프레임 «밖»으로 나갔다 · 부모=${out.부모}`).toBe(true);
   });
 }
 

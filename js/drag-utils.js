@@ -331,6 +331,27 @@ function _placeAfterFrameAsSibling(frame, el) {
 /* 키보드 입구용 삽입 — 프레임을 «오브젝트로» 골라 둔 상태면 안이 아니라 «다음 형제»로, 아니면 insertAfterSelected 그대로.
  *   ⛔insertAfterSelected 자체는 건드리지 않는다(패널 삽입 31곳이 쓰고, 「안에 넣는다」를 frame-accepts F1 이 잠근다 —
  *     본문 구간을 읽는 단위 시험 3종도 그 머리말에 걸려 있다). 키보드 입구는 {asSibling} 대신 이 한 문을 부른다. */
+/* ★H11(2026-10-05 · 지디 재지시) — 넣는 «깊이»의 한 자리: 「이 프레임 «안»에 넣나?」
+ *   거짓 = 프레임을 «오브젝트로» 골라 둔 상태(한 번 클릭 · 자손 선택 0) — frameSelectedAsObject 와 같은 판정. ⒜: 단 자식 요소가 있을 때만(아래 정의).
+ *   참   = 들어간 상태(프레임 클릭 → 자식 클릭 = 자식이 골라짐) · 또는 프레임이 안 골라짐(활성만).
+ *   부르는 곳: 아래 insertAfterSelected(활성 프레임 갈래 · 고른 프레임 갈래) · block-factory.js _insFrameTarget(툴바 add* 의 프레임 갈래)
+ *   · block-factory.js addShapeBlock 의 «고른 프레임» 갈래. ⛔부르는 곳마다 판정을 다시 쓰지 않는다 — 여기 하나. */
+/* ★H11 ⒜(2026-10-05 지디 승인) — 정의: 삽입은 «선택 깊이»를 따른다. drill-in 할 대상이 없는 프레임(자식 요소 0)은 그 자체가 안쪽 상태다 ⇒ 안에 넣는다.
+ *   («예외»가 아니라 정의다 — 오브젝트 선택 «밖»은 들어갈 자식이 있을 때만 뜻이 있다.)
+ *   까닭 둘: 09-23 「그리드가 프레임에 안 들어간다」(현빈) — 빈 프레임을 툴바로 못 채우면 이 요구가 깨진다(「Frame 추가」 직후가 바로 그 자리).
+ *            10-05 「한 번 클릭 후에는 프레임 밖에 삽입되어야지」(현빈) — 자식 있는 프레임을 한 번 클릭하면 밖, 그대로.
+ *   «자식 요소» = 요소 노드만(글자·주석 노드는 안 센다) · 끌기 중 잠깐 서는 .drop-indicator 는 안 센다. 갭·빈 글자 프레임은 «요소»라 센다
+ *   (경계 행 = tests/dom/h11-toolbar-depth.dom.spec.js E-*). */
+function frameHasDrillTarget(frame) {
+  return [...frame.children].some(c => !c.classList.contains('drop-indicator'));
+}
+function frameTakesInsert(frame) {
+  if (!frame) return false;
+  if (!frameHasDrillTarget(frame)) return true;   // 들어갈 자식이 없다 = 이미 안쪽 상태
+  return frameSelectedAsObject(frame.closest('.section-block')) !== frame;
+}
+if (typeof window !== 'undefined') window.frameTakesInsert = frameTakesInsert;
+
 function insertAfterSelectedAsSibling(section, el) {
   const picked = frameSelectedAsObject(section);
   if (picked) { _placeAfterFrameAsSibling(picked, el); return; }
@@ -342,6 +363,11 @@ function insertAfterSelected(section, el) {
   // ★도형 래퍼는 그냥 도형 — 활성이어도 그 «안»은 삽입 대상이 아니다(0918 A안, shape-frame.js SSOT).
   //   도형 래퍼면 한 단계 위 실제 프레임으로, 없으면 null → 아래 섹션 레벨 분기.
   const activeSS = resolveInsertFrame(window._activeFrame);
+  /* ★H11 — 프레임을 «오브젝트로» 골랐으면(한 번 클릭) 안이 아니라 «다음 형제»(F1 키보드 입구와 같은 자리 _placeAfterFrameAsSibling). */
+  if (activeSS && activeSS.closest('.section-block') === section && !activeSS.dataset?.textFrame && !frameTakesInsert(activeSS)) {
+    _placeAfterFrameAsSibling(activeSS, el);
+    return;
+  }
   // text-frame은 단순 wrapper — 삽입 대상이 아님 (_restoreParentFrameSelected 안전망)
   // banner-preset 외곽은 컴포넌트 단위 — 안에 직접 자식 추가 받지 않음 (drill-in으로 inner 활성화 시에만)
   if (activeSS && !activeSS.dataset?.textFrame && !activeSS.dataset?.bannerPreset && activeSS.closest('.section-block') === section) {
@@ -363,6 +389,9 @@ function insertAfterSelected(section, el) {
       window.settleRowInFreeFrame?.(ssInner, el, 'stack');   // B2 — 자유배치 프레임이면 좌표 단위로
     } else {
       /* ★2026-09-23 — 「프레임 «자체»가 오브젝트로 선택된 상태」도 프레임 «안»이다.
+       * ★2026-10-05 H11 — 09-23 결정 = 패널 삽입은 «안»(현빈 「그리드가 프레임에 안 들어간다」) → 10-05 재지시로 «밖»(현빈 「한 번 클릭 후에는 프레임 밖에 삽입되어야지」)
+       *   · 까닭 = drill-in(프레임 클릭 → 자식 클릭)이 09-23 의 요구(안에 넣기)를 대신 채운다. 판정은 위 frameTakesInsert 한 자리 —
+       *   이 갈래는 이제 «들어간 상태»(자식이 골라짐)에서만 온다(오브젝트 선택은 함수 머리에서 다음 형제로 빠진다). 아래 옛 글은 기록으로 둔다.
        *   옛 판은 여기서 `ssInner.closest('.row').after(el)` 로 «뒤»에 붙였다. 그런데
        *   ⛔프레임 속성 패널 맨 아랫줄이 이렇게 «약속»한다:
        *     「Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.」
@@ -396,6 +425,9 @@ function insertAfterSelected(section, el) {
     if (isShapeFrame(selSS) || selSS.dataset?.textFrame || selSS.dataset?.bannerPreset) {
       const ssRow = selSS.closest('.row') || selSS;
       ssRow.after(el);                 // 도형 래퍼·글자 래퍼·배너 외곽 = 최소 단위, 안에 안 넣는다
+    } else if (!frameTakesInsert(selSS)) {
+      /* ★H11 — 10-05 재지시: 한 번 클릭(오브젝트 선택)은 «밖»(다음 형제). 아래 «안» 줄은 09-23 결정의 기록으로 남는다(들어간 상태에서만 탄다). */
+      _placeAfterFrameAsSibling(selSS, el);
     } else {
       selSS.appendChild(el);           // 진짜 프레임 = 화면이 약속한 대로 «안»에
       window.settleRowInFreeFrame?.(selSS, el, 'stack');     // B2

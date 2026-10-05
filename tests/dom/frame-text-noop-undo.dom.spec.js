@@ -43,6 +43,12 @@ async function pickAndPressT(page) {
   const [x, y] = await page.evaluate(() => { const r = document.getElementById('FRX').getBoundingClientRect(); return [r.left + r.width * 0.85, r.top + r.height * 0.85]; });
   await page.mouse.click(x, y);
   await expect.poll(() => page.evaluate(() => document.getElementById('FRX').classList.contains('selected')), { timeout: 2000 }).toBe(true);
+  /* ★10-05 H11: 자식 있는 프레임을 한 번 클릭 = 오브젝트 선택 ⇒ t 는 프레임 «밖»(섹션)으로 간다. 이 시험이 재는 것은 «프레임 갈래»(지원 안 하는 타입의
+     빈 return · fullWidth 만들기)라 전제를 «들어간 상태»로 둔다: 안쪽 gIn 을 클릭해 고른다(실기의 「안쪽 블럭을 먼저 고른다」). */
+  await page.waitForTimeout(400);
+  const [gx, gy] = await page.evaluate(() => { const r = document.getElementById('gIn').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.mouse.click(gx, gy);
+  await expect.poll(() => page.evaluate(() => document.getElementById('FRX').classList.contains('selected') && !!document.querySelector('#FRX .selected')), { timeout: 2000, message: '[전제] 들어간 상태(프레임 + 안쪽 골라짐)' }).toBe(true);
   const kidsBefore = await page.evaluate(() => document.getElementById('FRX').children.length);
   await spyPush(page);
   await page.keyboard.press('t'); await page.waitForTimeout(250);

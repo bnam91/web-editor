@@ -154,7 +154,9 @@ test('P6 그리드 밑(.grd-children) fullWidth 프레임 — 그리드 재렌�
   expect(r.afterRestore).toBe(true);
 });
 
-test('P7 목적 — fullWidth 프레임을 «클릭으로» 고른 뒤 addTextBlock(body) 는 그 프레임 «안»으로 간다', async ({ page }) => {
+/* 옛 제목(기록): 'P7 목적 — fullWidth 프레임을 «클릭으로» 고른 뒤 addTextBlock(body) 는 그 프레임 «안»으로 간다'
+   ★10-05 H11 ⒝: 프레임화 직후 = 오브젝트 선택 = 밖 (안으로 넣으려면 안쪽 블럭을 먼저 고른다) — 자식 있는 프레임 한 번 클릭도 같다. */
+test('P7 목적 — 자식 있는 fullWidth 프레임을 «클릭으로» 고른 뒤 addTextBlock(body) 는 그 프레임 «밖»(다음 형제) · 안쪽을 먼저 고르면 «안»(P7b)', async ({ page }) => {
   await setup(page);
   await page.evaluate(() => {
     const f = window.makeFrameBlock({ fullWidth: true, bg: '#ddeeff', padding: 20 }); f.id = 'fwT'; f.style.minHeight = '0px';
@@ -169,5 +171,23 @@ test('P7 목적 — fullWidth 프레임을 «클릭으로» 고른 뒤 addTextBl
   const r = await page.evaluate(() => ({ active: window._activeFrame?.id, sel: document.getElementById('fwT').classList.contains('selected'), n: document.querySelectorAll('#fwT .text-block').length }));
   console.log('[P7]', JSON.stringify({ before, ...r }));
   expect(r.active).toBe('fwT');
-  expect(r.n).toBe(before + 1);
+  /* 옛 단언(기록): expect(r.n).toBe(before + 1) — 09-23 «안» */
+  expect(r.n, '★H11 ⒝: 오브젝트 선택 = 밖 — 프레임 안 줄 수 그대로').toBe(before);
+});
+test('P7b ⒝ 우회 — 같은 프레임에서 안쪽 줄을 먼저 클릭하면 addTextBlock(body) 는 «안»', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => {
+    const f = window.makeFrameBlock({ fullWidth: true, bg: '#ddeeff', padding: 20 }); f.id = 'fwT'; f.style.minHeight = '0px';
+    const { block } = window.makeTextBlock('body'); block.id = 'tbT0'; const tf = window._makeTextFrame(); tf.appendChild(block); f.appendChild(tf);
+    document.getElementById('gEnd').before(f); window.bindFrameDropZone(f); window.bindBlock(block); window.buildLayerPanel?.();
+  });
+  const pt = await page.evaluate(() => { const f = document.getElementById('fwT'); f.scrollIntoView({ block: 'center' }); const b = f.getBoundingClientRect(); return [b.right - 5, b.top + 5]; });
+  await page.mouse.click(pt[0], pt[1]);
+  await page.waitForTimeout(400);
+  const tp = await page.evaluate(() => { const ce = document.querySelector('#tbT0 [class^="tb-"]') || document.getElementById('tbT0'); const b = ce.getBoundingClientRect(); return [b.left + 20, b.top + b.height / 2]; });
+  await page.mouse.click(tp[0], tp[1]);
+  await expect.poll(() => page.evaluate(() => document.getElementById('tbT0').classList.contains('selected')), { timeout: 2000, message: '[전제] 들어간 상태' }).toBe(true);
+  const before = await page.evaluate(() => document.querySelectorAll('#fwT .text-block').length);
+  await page.evaluate(() => window.addTextBlock('body'));
+  expect(await page.evaluate(() => document.querySelectorAll('#fwT .text-block').length), '★안쪽을 먼저 고르면 안').toBe(before + 1);
 });
