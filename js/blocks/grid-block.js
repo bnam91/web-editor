@@ -2331,11 +2331,34 @@ function _gridRatioOf(src, block) {
       .catch(() => { _gridRatio.set(src, null); })
       .then(() => {
         const bs = _gridRatioWaiters.get(src); _gridRatioWaiters.delete(src); _gridRatioLoads.delete(src);
-        if (bs) bs.forEach(b => { if (b.isConnected) { try { renderGridBlock(b); } catch (_) {} } });
+        let drew = false;
+        if (bs) bs.forEach(b => { if (b.isConnected) { try { renderGridBlock(b); drew = true; } catch (_) {} } });
+        if (drew) _gridRestampAfterSettle();
       });
     _gridRatioLoads.set(src, p);
   }
   return undefined;
+}
+/* ★C4-settle-restamp(2026-10-06 · APPROVED_BY: 지디 C4-settle-restamp ⒜) — 디코드가 «늦게» 끝나 정착(gridTemplateRows)이 쓰이면
+ *   ⌘Z 기록의 꼭대기(push-after 끝 표본)를 그 값으로 «다시 찍는다»(새 칸 0 — restampHistoryTop 은 칸을 안 만든다).
+ *   왜: 꼭대기 ≠ 라이브면 ⌘Z 의 ensureHistoryCheckpoint 가 새 칸을 쌓고 «그림 있는» 끝 표본으로 되돌린다 —
+ *     느린 디코드(500ms)에서 ⌘Z 한 번이 아무것도 안 했다(5/5 · 0ff05430 0/5). model-update-history 의 2 rAF 뒤 restamp 는 그보다 이르다.
+ *   ⛔이 자리는 «디코드 끝» 갈래뿐이다 — _gridSettleBgTracks(동기 렌더) 안에서 부르면 updateGridBlock 의 push-before 표본(S0)을
+ *     «그림 있는» 값으로 덮어 ⌘Z 가 통째로 깨진다.
+ *   ⛔누른 포인터가 있으면(드래그 제스처 중) 안 한다 — 그 꼭대기는 제스처의 «시작 표본»일 수 있다(덮으면 그 드래그를 못 되돌린다).
+ *     남는 틈(㉢): 키보드 제스처(슬라이더 화살표 첫 input ~ change 사이)에 디코드가 끝나면 그 시작 표본을 덮을 수 있다. */
+let _gridPointerDown = 0;
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('pointerdown', () => { _gridPointerDown++; }, true);
+  const up = () => { _gridPointerDown = 0; };
+  document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
+}
+function _gridRestampAfterSettle() {
+  if (_gridPointerDown > 0 || typeof window === 'undefined') return;
+  try {
+    const tip = window.getHistoryTip?.();
+    if (tip && !tip.empty && tip.seq != null) window.restampHistoryTop?.(tip.seq);
+  } catch (_) {}
 }
 /* 렌더 «뒤»(레이아웃이 선 뒤) 배경 행만 트랙을 다시 세운다 — 칸 폭은 그려져야 안다. 배경 행이 없으면 아무것도 안 한다. */
 function _gridSettleBgTracks(block, bgRows, rows, padY) {
