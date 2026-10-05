@@ -51,7 +51,7 @@ const BLOCK_TYPES = [
      사용자가 「그리드에 글 넣어줘」 하면 클로드가 «그런 기능 없습니다»라고 답했다.
      ⛔옛 프로젝트의 접두는 `duo_` 다(개명 전) — 읽기 표(js/canvas-state.js)가 둘 다 알아야 한다. */
   { type: 'grid', add: 'add_grid_block', upd: 'update_grid_block', pfx: 'grd_',
-    blurb: 'column grid (1~4 cols × rows) — each cell holds text; the app\'s 4x4 picker builds these' },
+    blurb: 'column grid (1~8 cols × 1~8 rows) — each cell holds text; the app\'s 8x8 picker builds these' },
   { type: 'table', add: 'add_table_block', upd: 'update_table_block', pfx: 'tbl_',
     blurb: 'table of specs/prices (headers + rows)' },
   { type: 'comparison', add: 'add_comparison_block', upd: 'update_comparison_block', pfx: 'cmp_',
