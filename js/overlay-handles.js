@@ -3227,7 +3227,9 @@ function _updateGridOverlayHandlePositions() {
   if (!overlay || !_grdResizeBlock) return;
   const HALF = 3.5;
   overlay.querySelectorAll('[data-grd-resize-dir]').forEach(h => {
-    const c = _cornerScreen(_grdResizeBlock, h.dataset.grdResizeDir);
+    /* ★K3 ⒜ — 손잡이도 «보이는 상자»(grid-block.js gridVisualBox — 배경 켬 = .grd-bg) 모서리에. 선택 선(K2)과 같은 한 자리. */
+    const box = typeof window.gridVisualBox === 'function' ? window.gridVisualBox(_grdResizeBlock) : _grdResizeBlock;
+    const c = _cornerScreen(box, h.dataset.grdResizeDir);
     h.style.top  = (c.y - HALF) + 'px';
     h.style.left = (c.x - HALF) + 'px';
     syncHandleSelVariant(h, _grdResizeBlock);   // 떠 있으면 보라 — 테두리와 «한 색»
@@ -3239,7 +3241,8 @@ function _startGridOverlayResizeRaf() {
     const block = _grdResizeBlock;
     if (!block) return;
     /* ★오버레이를 «끄면» dataset.overlayBlock 이 사라진다 ⇒ 여기서 스스로 걷힌다(텍스트 갈래와 같은 규약). */
-    if (!block.isConnected || block.dataset.overlayBlock !== 'true' || !block.classList.contains('selected')) {
+    /* ★K3 ⒜ — 흐름 그리드에도 서므로 «떠 있음» 조건은 뺐다(골라져 있고 붙어 있을 때만). */
+    if (!block.isConnected || !block.classList.contains('selected')) {
       hideGridOverlayResizeHandles();
       return;
     }
@@ -3279,9 +3282,12 @@ function _onGridOverlayResizeMouseDown(e, block, dir) {
     if (newW == null) return;
     /* 높이는 «내용이 정한다» — 쓴 뒤 잰다. 맞은편 모서리 고정도 그 실측 높이로. */
     const newH = Math.max(1, block.offsetHeight);
-    const nx = sx > 0 ? startPosX : startPosX - (newW - startW);
-    const ny = sy > 0 ? startPosY : startPosY - (newH - startH);
-    _applyOverlayPos(block, nx, ny);
+    /* ★K3 ⒜ — 맞은편 모서리 고정은 «떠 있을 때만»(좌표가 있는 그리드). 흐름 그리드는 자리를 흐름이 정한다 — 폭만 쓴다. */
+    if (block.dataset.overlayBlock === 'true') {
+      const nx = sx > 0 ? startPosX : startPosX - (newW - startW);
+      const ny = sy > 0 ? startPosY : startPosY - (newH - startH);
+      _applyOverlayPos(block, nx, ny);
+    }
     window.scheduleAutoSave?.();
   }
   function onUp() {
@@ -3477,9 +3483,9 @@ function showHandlesFor(block) {
     if (posEl.dataset.overlayBlock === 'true') showTextOverlayResizeHandles(posEl);
     else hideTextOverlayResizeHandles();
   } else if (block.classList.contains('grid-block')) {
-    /* ★G2-b — 떠 있는 그리드에만 «폭» 손잡이. 흐름 그리드는 폭을 패널(너비 줄)로 정한다(손잡이 없음 = 옛 동작 그대로). */
-    if (block.dataset.overlayBlock === 'true') showGridOverlayResizeHandles(block);
-    else hideGridOverlayResizeHandles();
+    /* ★G2-b — 떠 있는 그리드에만 «폭» 손잡이였다(흐름 그리드는 패널 너비 줄로).
+       ★K3 ⒜(2026-10-05 지디 · lane-f-grid) — 흐름 그리드에도 같은 «폭» 손잡이. 자리 = gridVisualBox(K2 선택 선과 같은 상자) · ⛔높이 안 씀. */
+    showGridOverlayResizeHandles(block);
   }
 }
 window.showHandlesFor = showHandlesFor;
