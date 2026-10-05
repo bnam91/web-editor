@@ -99,3 +99,18 @@ test('S4 [새 것·끼어든 편집] 느린 디코드 · 넣고 곧 다른 칸 �
   expect((await state(page)).dataImg, '★⌘Z 두 번째에 그림이 안 없어졌다').toBe(false);
   expect(errs).toEqual([]);
 });
+
+test('S5 [자리 잠금] 비율이 기억된 그리드를 다시 고치면 — ⌘Z 한 번이 «그 고침»만 되돌린다(정착 restamp 가 push-before 표본을 안 덮는다)', async ({ page }) => {
+  /* 지디 C4 자리 조건 ㉠: restamp 를 «동기» _gridSettleBgTracks 로 옮긴 변이(MP)가 S0~S4 를 «전부 초록»으로 지났다(실측 07:04:30) —
+     첫 넣기 땐 동기 렌더가 비율을 몰라 쓰기가 없기 때문이다. 비율이 «이미 기억된» 뒤의 고침에서만 동기 정착이 push-before 표본을 덮는다.
+     ⇒ 이 시험이 자리(«디코드 끝» 갈래)를 잠근다. */
+  const errs = await setup(page, { slow: false });
+  await put(page, { r: 0, c: 1, bgImg: await page.evaluate(() => window.__IMG) });
+  await page.waitForTimeout(1500);                 // 디코드·정착 끝 — 비율이 기억됨
+  await put(page, { r: 1, c: 0, bg: '#ff0000' });  // 같은 그리드 다른 고침(동기 렌더가 정착을 다시 쓴다)
+  await page.waitForTimeout(400);
+  await key(page, 'Meta+z');
+  const u = await state(page);
+  expect([u.bg10, u.dataImg], `★⌘Z 한 번이 «색 고침»을 못 되돌렸다(정착 restamp 가 push-before 표본을 덮었나) ${JSON.stringify(u)}`).toEqual([null, true]);
+  expect(errs).toEqual([]);
+});
