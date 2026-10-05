@@ -48,7 +48,7 @@ function load(projectsDir, { breakShared = false } = {}) {
       const proj = JSON.parse(fs.readFileSync(p, 'utf8')); return { proj, from: 'proj', path: p, savedAt: fs.statSync(p).mtimeMs, healed: true }; }`;
   }
   const factory = new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console', 'ipcMain',
-    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst _externalizeOnOpen = () => {};\n` + body + '\n' + loadHandlerSrc() +
+    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst _externalizeOnOpen = () => {};\n` + (/const _recentRecovery = new Map\(\);/.test(MAIN_SRC) ? 'const _recentRecovery = new Map();\n' : '') + body + '\n' + loadHandlerSrc() +
     `\n; return { _listProjectsImpl };`);
   const R = factory(fs, path, projectsDir, req, { log() {}, warn() {}, error() {} }, ipcMain);
   return { list: () => R._listProjectsImpl(), loadProj: (id) => handlers['projects:load']({}, id) };

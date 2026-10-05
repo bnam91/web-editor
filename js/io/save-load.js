@@ -1694,11 +1694,12 @@ function _recoveryToastText(proj) {
   // ★E168 ㉢ — 무엇이 남았는지 말한다: 그 판의 저장 시각(그 파일 mtime). 없으면 옛 글 그대로.
   const at = typeof proj._recoveredAt === 'number' ? new Date(proj._recoveredAt) : null;
   const p2 = (n) => String(n).padStart(2, '0');
-  const lbl = at ? `${base}(${p2(at.getMonth() + 1)}-${p2(at.getDate())} ${p2(at.getHours())}:${p2(at.getMinutes())} 저장분)` : base;
-  if (proj._healed !== false) return `⚠️ 프로젝트 파일이 손상되어 ${lbl}에서 복구했습니다.`;
+  // ★E170 ㉢ 꼴(지디): 시각은 «동사 뒤 괄호» — 카드 배지(pages/projects.html)와 같은 꼴. 시각 = 그 후보 파일 mtime.
+  const when = at ? ` (${p2(at.getMonth() + 1)}-${p2(at.getDate())} ${p2(at.getHours())}:${p2(at.getMinutes())} 저장분)` : '';
+  if (proj._healed !== false) return `⚠️ 프로젝트 파일이 손상되어 ${base}에서 복구했습니다${when} — 그 뒤 작업은 없을 수 있습니다`;
   const code = proj._healError;
   const why = code === 'ENOSPC' ? '공간 부족' : (code === 'EACCES' || code === 'EPERM' || code === 'EROFS') ? '권한' : (code || '알 수 없음');
-  return `⚠️ 프로젝트 파일이 손상되어 ${lbl}에서 열었습니다. 디스크의 파일은 아직 고치지 못했습니다(${why}) — 이대로는 저장이 안 될 수 있습니다.`;
+  return `⚠️ 프로젝트 파일이 손상되어 ${base}에서 열었습니다${when}. 디스크의 파일은 아직 고치지 못했습니다(${why}) — 이대로는 저장이 안 될 수 있습니다.`;
 }
 
 let _autoSaveHideTimer = null;

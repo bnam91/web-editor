@@ -1529,7 +1529,7 @@ function _renderGridFromCache() {
     const _recAt = proj.recoveredAt ? new Date(proj.recoveredAt) : null;
     const _p2 = (n) => String(n).padStart(2, '0');
     const recoveredBadgeHtml = proj.recoveredFrom
-      ? `<div class="folder-badge" title="proj.json 이 손상돼 ${proj.recoveredFrom === 'history' ? '히스토리' : '백업'}${_recAt ? `(${_p2(_recAt.getMonth() + 1)}-${_p2(_recAt.getDate())} ${_p2(_recAt.getHours())}:${_p2(_recAt.getMinutes())} 저장분)` : ''}에서 읽었습니다 — 열면 복구합니다">⚠️ 백업에서 읽음</div>` : '';
+      ? `<div class="folder-badge" title="proj.json 이 손상돼 ${proj.recoveredFrom === 'history' ? '히스토리' : '백업'}에서 읽었습니다${_recAt ? ` (${_p2(_recAt.getMonth() + 1)}-${_p2(_recAt.getDate())} ${_p2(_recAt.getHours())}:${_p2(_recAt.getMinutes())} 저장분)` : ''} — 열면 복구합니다">⚠️ 백업에서 읽음</div>` : '';
     const badgeHtml = (isPlanning ? `<div class="planning-badge">📋 기획</div>` : '')
       + (isCollab ? `<div class="collab-badge" title="${proj.collabRef.role === 'owner' ? '내가 올린 공동작업본' : '초대받아 참여 중'}">👥 공동작업</div>` : '')
       + folderBadgeHtml + recoveredBadgeHtml;

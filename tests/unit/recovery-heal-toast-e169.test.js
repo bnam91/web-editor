@@ -39,7 +39,7 @@ function loader(projectsDir) {
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);
   const handlers = {};
   const factory = new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console', 'ipcMain',
-    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst _externalizeOnOpen = () => {};\n` +
+    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst _externalizeOnOpen = () => {};\n` + (/const _recentRecovery = new Map\(\);/.test(MAIN_SRC) ? 'const _recentRecovery = new Map();\n' : '') +
     FNS.map(n => fnSrc(MAIN_SRC, n)).join('\n\n') + '\n' + loadHandlerSrc() + '\n; return 1;');
   factory(fs, path, projectsDir, req, { log() {}, warn() {}, error() {} }, { handle: (ch, fn) => { handlers[ch] = fn; } });
   return (id) => handlers['projects:load']({}, id);

@@ -2392,15 +2392,29 @@ function readProjectWithFallback(id, { heal = false } = {}) {
   return null;
 }
 
+/* ★E170(2026-10-06 lane-drag · 지디 ⑴ · 태양 «E170») 「최근 복구됨」 표지 — 프로젝트 id 별 · 이 앱 실행 동안만(메모리).
+   까닭(실앱 rw 판 실측): 디스크가 성하면 부팅 때 loadProject 를 부르는 여럿 중 «먼저 온» 호출이 폴백·자가치유를 먹고,
+   에디터 본 열기(open:true · 토스트 자리)는 이미 고쳐진 proj.json 을 읽어 복구를 모른다 → 알림 0(말없는 복구).
+   ⇒ 열기 아닌 로드가 «고쳐서» 폴백을 먹으면 표지를 남기고, 다음 «열기» 로드에 한 번 싣고 지운다 — 누가 경합에서 이기든 성립.
+   ⛔열기 아닌 로드에 주지 않는다(토스트 안 띄우는 호출이 또 먹는다). 못 고친 경우는 매 로드가 폴백이라 표지가 필요 없다(매번 사실대로).
+   «부팅 때 누가 폴백을 먹나» = 경합 · 미측정 · 다음 판(scope). 시험: tests/unit/recovery-notice-once-e170.test.js */
+const _recentRecovery = new Map();
 ipcMain.handle('projects:load', (event, id, opts) => {
-  if (opts && opts.open === true) { try { _externalizeOnOpen(event, id); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
+  const isOpen = !!(opts && opts.open === true);
+  if (isOpen) { try { _externalizeOnOpen(event, id); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
+  const key = _safeSeg(String(id || ''));
   const r = readProjectWithFallback(id, { heal: true });   // ★E168 — 목록과 같은 한 곳
   if (!r) return null;
-  if (r.from === 'proj') return r.proj;
+  if (r.from === 'proj') {
+    if (isOpen && _recentRecovery.has(key)) { const m = _recentRecovery.get(key); _recentRecovery.delete(key); return { ...r.proj, ...m }; }
+    return r.proj;
+  }
   // _recovered · _recoveredAt · _healed · _healError: 렌더러 통지용(serialize엔 미포함 — js/io/proj-merge.js PROJ_RUNTIME_KEYS)
-  const out = { ...r.proj, _recovered: r.from, _recoveredAt: r.savedAt, _healed: r.healed };
-  if (!r.healed) out._healError = r.healError;
-  return out;
+  const mark = { _recovered: r.from, _recoveredAt: r.savedAt, _healed: r.healed };
+  if (!r.healed) mark._healError = r.healError;
+  if (isOpen) _recentRecovery.delete(key);          // 이 열기가 스스로 알린다
+  else if (r.healed) _recentRecovery.set(key, mark); // 고쳐 버려서 다음 열기는 폴백을 못 본다 → 그 열기에 한 번
+  return { ...r.proj, ...mark };
 });
 
 /* ── [externalize] 수동 변환 · 되돌리기 · 상태 조회 (설정>성능) ── */
