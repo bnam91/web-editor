@@ -243,3 +243,33 @@ test('D5b 음성대조 · 진짜 프레임 «밖» 멀리 끌면 여전히 끌�
   const p = await page.evaluate(() => { const e = document.getElementById('sf2'); return { par: e.parentElement.id || e.parentElement.className, pos: e.style.position }; });
   expect(p, `끌어내기 결과=${JSON.stringify(p)}`).toEqual({ par: 'inner', pos: '' });
 });
+
+/* ── D5c (지디 넓힘 10-05) — :652 다중선택 피어도 같은 꼴(dragEl.closest(free) 가 «래퍼 자신»)인가.
+   장면: 자유 프레임 fr 안에 도형 래퍼 sf2(absolute) + 글자 프레임 tf(absolute). 도형과 글자를 «둘 다» 고른 채(⇧클릭 결과 꼴)
+   도형을 끈다 → 글자도 같이 움직여야 한다(같은 프레임 안 다중선택 = 함께 이동). */
+test('D5c ★옛 꼴 · 도형+글자 다중선택 뒤 도형을 끌면 글자도 같이 움직인다', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => {
+    const inner = document.getElementById('inner');
+    inner.innerHTML = '<div class="frame-block" id="fr" data-free-layout="true" style="width:500px;height:360px;padding:0">' +
+      '<div class="frame-block" id="sf2" data-free-layout="true" style="position:absolute;left:20px;top:30px;width:100px;height:100px;padding:0">' +
+      '<div class="shape-block" id="shp2" data-type="shape" style="position:absolute;left:0;top:0"></div></div>' +
+      '<div class="frame-block" id="tf3" data-text-frame="true" style="position:absolute;left:200px;top:200px;width:120px">' +
+      '<div class="text-block" id="tb3"><div class="tb-body">글</div></div></div></div>';
+    window.bindFrameDropZone(document.getElementById('fr'));
+    window.bindFrameDropZone(document.getElementById('sf2'));
+    window.bindBlock(document.getElementById('shp2'));
+    window.bindBlock(document.getElementById('tb3'));
+    window.selectShapeBlock(document.getElementById('shp2'));
+    document.getElementById('tb3').classList.add('selected');   // ⇧클릭으로 더한 꼴
+    return true;
+  });
+  const c = await centerOf(page, 'shp2');
+  await page.mouse.move(c.x, c.y);
+  await page.mouse.down();
+  await page.mouse.move(c.x + 20, c.y + 10);
+  await page.mouse.move(c.x + 40, c.y + 20);
+  await page.mouse.up();
+  const p = await page.evaluate(() => ['sf2', 'tf3'].map(id => { const e = document.getElementById(id); return [id, parseFloat(e.style.left), parseFloat(e.style.top), e.parentElement.id]; }));
+  expect(p, `자리=${JSON.stringify(p)}`).toEqual([['sf2', 60, 50, 'fr'], ['tf3', 240, 220, 'fr']]);
+});
