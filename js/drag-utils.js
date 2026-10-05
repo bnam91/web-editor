@@ -634,13 +634,14 @@ function _bindGraphLabelEdit(block) {
 function _graphLabelBeginEdit(block, el, idx) {
   window.ensureHistoryCheckpoint?.('그래프 라벨 편집 전');
   block.classList.add('editing');
-  el.setAttribute('contenteditable', 'plaintext-only');
+  el.setAttribute('contenteditable', 'true');   // ⒥⒝ — 세움(parkEditing)은 'true' 만 «살아 있는 편집»으로 본다(_text-selection _parkedAlive). 확정은 textContent 라 서식이 안 남는다
   el.setAttribute('draggable', 'false');
   el.focus();
   const rg = document.createRange(); rg.selectNodeContents(el);
   const sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg);
+  window.__grbLabelEdit?.reveal?.(block);   // ⒥⒝ — 패널의 «라벨(크기)»·«카테고리 색상» 줄로 스크롤 + 강조(새 절·새 키 0 · prop-graph.js)
   let done = false;
-  const finish = (commit) => {
+  const finish = (commit, { keepPanel = false } = {}) => {
     if (done) return; done = true;
     el.removeEventListener('keydown', onKey); el.removeEventListener('blur', onBlur);
     block.classList.remove('editing');
@@ -651,7 +652,7 @@ function _graphLabelBeginEdit(block, el, idx) {
     renderGraph(block);   // 확정이든 취소든 라벨을 dataset 에서 다시 그린다(편집 흔적 0)
     if (changed) {
       window.pushHistory?.('그래프 라벨'); window.scheduleAutoSave?.();
-      if (block.classList.contains('selected')) window.showGraphProperties?.(block);
+      if (!keepPanel && block.classList.contains('selected')) window.showGraphProperties?.(block);
     }
   };
   const onKey = (ev) => {
@@ -659,7 +660,12 @@ function _graphLabelBeginEdit(block, el, idx) {
     if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); finish(true); }
     else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(false); }
   };
-  const onBlur = () => finish(true);
+  /* ⒥⒝ — 패널로 가는 blur 는 끝내지 «않고» 세운다(그리드 줄·텍스트블럭과 같은 술어 isBlurIntoPanel · prop-graph.js 가 _text-selection 을 잇는다).
+     끝내면 showGraphProperties 가 패널을 다시 그려 방금 누른 크기·색 칸이 떨어져 나간다(TX1 병). 패널 값이 들어오기 직전엔 flush = 패널을 안 다시 그리는 확정. */
+  const onBlur = (ev) => {
+    if (window.__grbLabelEdit?.park?.(ev, el, () => finish(true), () => finish(true, { keepPanel: true }))) return;
+    finish(true);
+  };
   el.addEventListener('keydown', onKey);
   el.addEventListener('blur', onBlur);
 }
