@@ -22,23 +22,23 @@ const C_DARK_EXPECT = {
   caption: { inline: '#cccccc', computed: 'rgb(204, 204, 204)' },
 };
 
-async function grid(page, secAttrs, bg) {
+async function grid(page, secAttrs, bg, bgImg = null) {
   await page.setViewportSize({ width: 1500, height: 1100 });
   const errs = await bootApp(page);
-  const r = await page.evaluate(([secAttrs, bg]) => {
+  const r = await page.evaluate(([secAttrs, bg, bgImg]) => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', `<div class="section-block" id="sK" data-section="1" ${secAttrs}><div class="section-hitzone"></div><div class="section-inner"><div class="row" id="rK" data-layout="stack"></div></div></div>`);
     window.rebindAll?.();
     const L = [{ type: 'h1', text: '제목' }, { type: 'body', text: '본문' }, { type: 'caption', text: '캡션' }];
-    const cell = { lines: L }; if (bg) cell.bg = bg;
+    const cell = { lines: L }; if (bg) cell.bg = bg; if (bgImg) cell.bgImg = bgImg;
     const { block } = window.makeGridBlock({ cols: [{ width: 1, lines: L }], rows: [{ height: 140 }], cells: [[cell]] });
     document.getElementById('rK').appendChild(block); window.renderGridBlock(block); window.applyZoom?.(100);
     const cellEl = block.querySelector('.grd-cell');
     const lines = Object.fromEntries([...block.querySelectorAll('.grd-line')].map(l => [(l.className.match(/grd-(\w+)$/) || [])[1],
       { inline: (l.getAttribute('style').match(/color:([^;]+);/) || [])[1] || null, computed: getComputedStyle(l).color }]));
-    return { cellBg: getComputedStyle(cellEl).backgroundColor, lines };
-  }, [secAttrs, bg]);
-  console.log(`[E127a] sec=${secAttrs.slice(13, 18)} bg=${bg} ⒦ cellBg=${r.cellBg} ${JSON.stringify(r.lines)}`);
+    return { cellBg: getComputedStyle(cellEl).backgroundColor, cellBgImage: getComputedStyle(cellEl).backgroundImage.slice(0, 40), lines };
+  }, [secAttrs, bg, bgImg]);
+  console.log(`[E127a] sec=${secAttrs.slice(13, 18)} bg=${bg} img=${bgImg ? 'yes' : 'no'} ⒦ cellBg=${r.cellBg} cellBgImage=${r.cellBgImage} ${JSON.stringify(r.lines)}`);
   return { errs, ...r };
 }
 
@@ -67,6 +67,20 @@ test('E127a ⒥ [지킴 · 개선 잠금] 칸 배경 없음 + 밝은 섹션의 �
     h1: { inline: 'var(--preset-h1-color, #111111)', computed: 'rgb(26, 58, 107)' },
     body: { inline: 'var(--preset-body-color, #555555)', computed: 'rgb(68, 68, 68)' },
     caption: { inline: 'var(--preset-caption-color, #999999)', computed: 'rgb(136, 136, 136)' },
+  });
+  expect(g.errs).toEqual([]);
+});
+
+/* ★E127 ⒜ 덧(지디 10-06): 칸 «배경 이미지»도 «배경 설정됨» — 색과 같은 한 조건.
+ *   ⛔이 결과를 «맞는/읽히는 색»이라 부르지 않는다: 이미지 위에선 어느 색도 맞다고 할 수 없다(이미지에 달림). 주장은 오직 «dev(0f572e2a)와 같은 값». */
+const PNG_1PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+test('E127a ⒤-3 [새 것] 칸 배경 이미지 + 어두운 섹션 프리셋 → dev 와 같은 값(옛 hex · 변수 안 씀)', async ({ page }) => {
+  const g = await grid(page, DARK, null, PNG_1PX);
+  expect(g.cellBgImage, '⒦-2 전제 — 칸에 배경 이미지가 정말 걸렸다(계산값)').toMatch(/^url\("data:image\/png/);
+  expect(g.lines, '⒤-3 dev(0f572e2a) 와 같은 값 — 이미지 위 «맞는 색» 주장 아님').toEqual({
+    h1: { inline: '#111111', computed: 'rgb(17, 17, 17)' },
+    body: { inline: '#555555', computed: 'rgb(85, 85, 85)' },
+    caption: { inline: '#999999', computed: 'rgb(153, 153, 153)' },
   });
   expect(g.errs).toEqual([]);
 });
