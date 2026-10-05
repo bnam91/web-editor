@@ -4,7 +4,7 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
-import { applyFrameTransform, frameAlignOffset, framePadding } from '../frame-geometry.js';
+import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed } from '../drag-utils.js';
@@ -510,26 +510,7 @@ function _renderAutoPanel(ss) {
              (사용자가 준 space-between/around/evenly 는 «분배»라 정렬 단추가 덮지 않는다)
            ④ row[grid] 는 칸이 폭을 채우므로 손대지 않는다. 그리드 «칸 안» 글자 정렬은 칸 정렬 몫(이 단추 밖).
          asset-block 은 dataset.align 도 맞춘다 — 안 맞추면 폭을 바꿀 때 prop-asset 이 옛 정렬로 되돌린다. */
-      const selfOf   = { 'flex-start': 'flex-start', 'center': 'center', 'flex-end': 'flex-end' };
-      const marginOf = { 'flex-start': '0',          'center': '0 auto',  'flex-end': '0' };
-      const alignKey = { 'flex-start': 'left',       'center': 'center',   'flex-end': 'right' };
-      const _setSelf = (el) => {
-        if (el.classList.contains('gap-block') || el.classList.contains('frame-resize-handle')) return;
-        if (getComputedStyle(el).position === 'absolute') return;
-        el.style.alignSelf = selfOf[alignItems] || '';
-        if (el.classList.contains('asset-block') && el.dataset.align) el.dataset.align = alignKey[alignItems] || el.dataset.align;
-      };
-      [...ss.children].forEach(c => {
-        if (c.classList.contains('row')) {
-          c.style.alignSelf = selfOf[alignItems] || '';
-          c.style.margin    = marginOf[alignItems] || '0';
-          const lay = c.dataset.layout;
-          if (lay === 'stack') [...c.children].forEach(_setSelf);
-          else if (lay !== 'grid' && !/^space-/.test(c.style.justifyContent)) c.style.justifyContent = alignItems === 'center' ? 'center' : (alignItems === 'flex-end' ? 'flex-end' : '');
-        } else {
-          _setSelf(c);
-        }
-      });
+      [...ss.children].forEach(c => applyFrameHAlignToChild(c, alignItems));   // 규칙 한 벌 = frame-geometry.js ④(새로 넣는 길도 같은 것)
     }
     if (justifyContent !== null) { ss.style.justifyContent = justifyContent; ss.dataset.justifyContent = justifyContent; }
     window.scheduleAutoSave?.();

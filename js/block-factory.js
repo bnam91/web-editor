@@ -23,7 +23,7 @@ import {
 } from './drag-drop.js';
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame, framePadding, innerFullWidth,
-         growFrameToFitChildren } from './frame-geometry.js';
+         growFrameToFitChildren, applyFrameHAlignToChild } from './frame-geometry.js';
 import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
 import { GRID_CIRCLE_ICON_INNER, GRID_CIRCLE_ICON_STROKE_WIDTH } from './blocks/grid-circle-icon.js';
@@ -1847,6 +1847,16 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
 }
 
 /* 흐름 그릇(fullWidth 프레임 · G19 그리드 .grd-children)에 makeBlockFn 의 결과를 붙인다 — A 모드 «한 벌». */
+/* ★E122(2026-10-05) — 사용자가 «정렬 단추로» 가로 정렬을 준 스택 프레임에 새로 넣는 것은 그 정렬을 따른다.
+   실측: 「왼쪽」 뒤 새 에셋(small·logo)·아이콘서클·아이콘텍스트·도형이 가운데로 섰다(단추를 «다시» 누르면 왼쪽 — 그 자리가 기준).
+   ★dataset.alignItems 가 «있을 때만» — 정렬 단추·MCP updateFrame·modal-frameify 만 쓴다(코드독해). 손 안 댄 프레임은 종전 그대로.
+   규칙은 frame-geometry.js applyFrameHAlignToChild 한 벌(단추와 같은 것). 자유배치 프레임은 좌표 갈래라 여기 안 온다. */
+function _followFrameHAlign(host, el) {
+  if (!host || !el || host.dataset.freeLayout === 'true') return;
+  const ai = host.dataset.alignItems;
+  if (ai === 'flex-start' || ai === 'center' || ai === 'flex-end') applyFrameHAlignToChild(el, ai);
+}
+
 function _appendFlowChild(ss, result) {
   // makeBlockFn이 { row, block } 또는 block(gap) 반환
   const newEl = result.row || result;
@@ -1863,6 +1873,7 @@ function _appendFlowChild(ss, result) {
   }
   if (refChild) ss.insertBefore(newEl, refChild.nextSibling);
   else ss.appendChild(newEl);
+  _followFrameHAlign(ss, newEl);
   bindBlock(innerBlock);
   window.buildLayerPanel();
   return true;
@@ -2652,6 +2663,7 @@ function addShapeBlock(type = 'rectangle') {
       ss.style.top  = stackY + 'px';
     }
     activeFrame.appendChild(ss);
+    _followFrameHAlign(activeFrame, ss);   // E122 — 도형 래퍼도 프레임 정렬을 따른다
   } else {
     const selSS = document.querySelector('.frame-block.selected');
     const isSelShapeFrame = isShapeFrame(selSS);
@@ -2664,6 +2676,7 @@ function addShapeBlock(type = 'rectangle') {
         ss.style.top  = stackY + 'px';
       }
       selSS.appendChild(ss);
+      _followFrameHAlign(selSS, ss);   // E122
     } else {
       // 섹션 레벨에 삽입 (shape frame은 다른 ss 중첩 금지)
       // insertAfterSelected 가 _activeFrame 을 resolveInsertFrame 으로 해석하므로 도형 래퍼 안엔 안 들어간다.
