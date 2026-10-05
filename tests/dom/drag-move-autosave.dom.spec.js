@@ -89,8 +89,7 @@ const ctr = (page, sel, fy = 0.5) => page.evaluate(([s, fy]) => { const e = docu
 async function expectSavedLikeScreen(page, ids, label) {
   const scr = await screenIdx(page, ids);
   expect(ordered(scr), `[전제] ${label}: 화면이 ${ids.join('<')} 로 바뀜 · 화면 idx=${scr}`).toBe(true);
-  let last = null;
-  await expect.poll(async () => { last = await savedIdx(page, ids); return ordered(last); }, { timeout: 2500, intervals: [250], message: `${label}: 2.5초 안 자동저장본 순서 · 저장본 idx=${JSON.stringify(last)} 화면 idx=${scr}` }).toBe(true);
+  await expect(async () => { const sv = await savedIdx(page, ids); expect(ordered(sv), `${label}: 2.5초 안 자동저장본 순서 · 저장본 idx=${JSON.stringify(sv)} 화면 idx=${scr}`).toBe(true); }).toPass({ timeout: 2500, intervals: [250] });
 }
 
 /** 그 길의 «요소»에 진짜 dragstart → (놓기 대신) DOM 을 손으로 옮김 → 진짜 dragend. 앱의 dragstart/dragend 리스너가 그대로 돈다(억제 창 열고 닫기).
