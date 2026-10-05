@@ -10,19 +10,18 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sliceBlock } from './_slice-block.js';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
 const KNOWN_GAP_BLOCK_DRAG = 1;
 
 test('E91 ★prop-grid.js 의 readAsDataURL 은 grdPickedImageSrc 안 «하나»뿐', () => {
   const src = read('js/props/prop-grid.js');
-  const at = src.indexOf('export async function grdPickedImageSrc(');
-  assert.ok(at >= 0, '[전제] 공용 함수가 있다');
-  const end = src.indexOf('\n}\n', at);
-  const all = [...src.matchAll(/readAsDataURL\(/g)].map(m => m.index);
-  const outside = all.filter(i => i < at || i > end);
-  assert.equal(all.length - outside.length, 1, '[전제] 공용 함수 안에 하나');
-  assert.deepEqual(outside, [], `공용 함수 밖 readAsDataURL ${outside.length}곳 — 입구는 grdPickedImageSrc 를 불러라`);
+  const body = sliceBlock(src, 'export async function grdPickedImageSrc(file) {', '공용 함수');   // ⛔꼬리 문자열로 끝을 찾지 않는다(slice-block-shared SB-16)
+  const inBody = (body.match(/readAsDataURL\(/g) || []).length;
+  const total = (src.match(/readAsDataURL\(/g) || []).length;
+  assert.equal(inBody, 1, '[전제] 공용 함수 안에 하나');
+  assert.equal(total - inBody, 0, `공용 함수 밖 readAsDataURL ${total - inBody}곳 — 입구는 grdPickedImageSrc 를 불러라`);
 });
 test('E91 ★block-factory.js(오른클릭 교체)는 readAsDataURL 0 — grdPickedImageSrc 를 부른다', () => {
   const src = read('js/block-factory.js');
