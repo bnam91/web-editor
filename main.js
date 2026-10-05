@@ -11,6 +11,17 @@ if (_QA_HIDDEN) {
   app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 }
 // ▲QA_HIDDEN
+// ▼DOWNLOADS_DIR (2026-10-05 지디 승인) — GODITOR_DOWNLOADS_DIR(절대경로)일 때만: 다운로드 기본 자리를 그 폴더로.
+//   ★목적 = 격리 QA 앱의 내보내기가 현빈 ~/Downloads 를 «안» 더럽힌다(applaunch.sh 가 $UD/downloads 를 넘긴다).
+//   ⛔이 환경변수가 없거나 빈 값·상대경로면 종전과 같다 = app.getPath('downloads').
+//   ★읽는 자리는 이 함수 «하나» — 사용처 전수(10-05 · fad9c91c): will-download 핸들러 한 곳뿐. ⛔다른 곳에서 env 를 또 읽지 마라.
+//   tests/unit/main-downloads-dir.test.mjs 가 이 블록을 떼어 «행위»로 잰다(env 없음·절대·상대·빈 값) + 읽는 자리 수를 «구조»로 잠근다.
+function _downloadsDir(env, getPath, isAbs, mkdir) {
+  const d = env.GODITOR_DOWNLOADS_DIR;
+  if (typeof d === 'string' && d !== '' && isAbs(d)) { try { mkdir(d); } catch (_) {} return d; }
+  return getPath();
+}
+// ▲DOWNLOADS_DIR
 
 // ── 캔버스 이미지 외부화: 커스텀 프로토콜 goya-asset://<projectId>/<filename> ──
 // 캔버스 HTML에 박히던 인라인 base64를 proj_<id>/assets/<contenthash>.<ext>로 분리하고,
@@ -401,7 +412,8 @@ function createWindow() {
   // 핸들러가 없으면 Electron 기본 저장 다이얼로그에 의존 — 창이 가려진/숨겨진
   // 상태에서는 다이얼로그가 못 떠서 다운로드가 조용히 유실된다.
   mainWindow.webContents.session.on('will-download', (event, item) => {
-    const dir = (_dlCollector && _dlCollector.outDir) || app.getPath('downloads');
+    const dir = (_dlCollector && _dlCollector.outDir)
+      || _downloadsDir(process.env, () => app.getPath('downloads'), path.isAbsolute, (d) => fs.mkdirSync(d, { recursive: true }));   // DOWNLOADS_DIR — 읽는 자리 하나(위 ▼ 블록)
     const base = item.getFilename() || 'export';
     let dest = path.join(dir, base);
     for (let n = 1; fs.existsSync(dest); n++) {
