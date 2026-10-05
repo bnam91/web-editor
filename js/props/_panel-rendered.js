@@ -32,3 +32,24 @@ export function labelShapeFromRendered(el) {
   if (h > 0 && radius >= h / 2) return 'pill';
   return 'box';
 }
+
+/** el 의 계산된 색(prop = 'color' · 'backgroundColor' · 'stroke' …) — 색 칸(colorFieldHTML)이 그대로 받는 꼴
+ *  ('rgb(r, g, b)' · 'rgba(r, g, b, a)' — 투명도는 parseAlphaFromColor 가 읽는다). 못 읽으면 ''.
+ *  ★묶음 B(2026-10-05) — panelRenderedPx 의 «색» 형제. 같은 규약: 패널은 그리는 요소의 계산값에서 읽는다(기본값 명부 두 벌 금지).
+ *  ⛔소비자마다 getComputedStyle 를 다시 쓰지 마라(이 한 자리를 비워도 빨강이 나야 한 벌이 잠긴다). */
+export function panelRenderedColor(el, prop) {
+  if (!el) return '';
+  const v = getComputedStyle(el)[prop];
+  return (typeof v === 'string' && /^rgba?\(/i.test(v.trim())) ? v.trim() : '';
+}
+
+/** el 의 계산된 굵기 — '100'~'900' 문자열(normal→'400' · bold→'700'). 못 읽으면 ''.
+ *  ★묶음 B #16(2026-10-05 · 지디 승인) — 글자 패널의 굵기 칸·B 단추 켜짐·B 토글이 «그려진 굵기»를 읽는다.
+ *    전엔 인라인만 읽어 새 T▾ Heading(인라인 없음 · CSS .tb-h2 600)이 「Regular 400 · B 꺼짐」으로 보였고, B 첫 클릭이 600→700 이라 «안 바뀐 듯» 했다. */
+export function panelRenderedWeight(el) {
+  if (!el) return '';
+  const w = String(getComputedStyle(el).fontWeight || '').trim();
+  if (w === 'normal') return '400';
+  if (w === 'bold') return '700';
+  return /^\d{3}$/.test(w) ? w : '';
+}
