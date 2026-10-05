@@ -1771,6 +1771,9 @@ window._holdBackgroundForTest = () => _bgHold;   // 시험 전용 읽기(쓰기 
 const _DRAG_SUPPRESS_REASONS = new Set(['section-drag', 'layer-drag']);
 let _dragEditPending = false;
 let _dragEditTimer = null;
+let _dragEditTicks = 0;   // 한 에피소드(창 열림 → 닫힘 → 저장)의 폴 횟수 — 시험이 «한정»을 단언한다(S7)
+/* ⚠️조건 «다른 파일이면 멈추고 와라» ↔ 실제: 묻지 않고 더 좁은 길(폴링)로 갔다 · 결과는 승인, 판단을 혼자 한 것은 이탈(태양·지디 10-05 23:11).
+   ☐0.9.7: AutoSaveSuppress.end() 이벤트(js/autosave-suppress.js — 마지막 창이 닫히는 그 자리)로 옮기고 이 폴링을 걷는다. */
 function _noteEditDuringDrag() {
   const AS = (typeof window !== 'undefined') ? window.AutoSaveSuppress : null;
   const holders = (AS && typeof AS.inspect === 'function') ? (AS.inspect().holders || []) : [];
@@ -1778,7 +1781,9 @@ function _noteEditDuringDrag() {
   _dirtySinceSave = true;
   _dragEditPending = true;
   if (_dragEditTimer) return;
+  _dragEditTicks = 0;
   const tick = () => {
+    _dragEditTicks++;
     if (state._suppressAutoSave) { _dragEditTimer = setTimeout(tick, 100); return; }
     _dragEditTimer = null;
     if (!_dragEditPending) return;
@@ -1787,6 +1792,8 @@ function _noteEditDuringDrag() {
   };
   _dragEditTimer = setTimeout(tick, 100);
 }
+/** 시험용 읽기(쓰기 없음) — S7 이 «폴링이 멎는가 · 틱 수 한정»을 단언한다. */
+if (typeof window !== 'undefined') window.__dragEditStateForTest = () => ({ armed: !!_dragEditTimer, pending: _dragEditPending, ticks: _dragEditTicks });
 
 function scheduleAutoSave() {
   /* ⒡ 끌기 창 안에서 버려지던 편집 — 위 머리말. ⛔꼴을 «if (state._X) return …» 로 둔다: tests/unit/autosave-overlap.test.js N6 이
