@@ -58,13 +58,14 @@ async function boot(page) {
   return errs;
 }
 
-/* 사본 꼴 그대로: 자유 프레임 516×361(위치 없음) > 글자 프레임(absolute 0,152 · 폭 100%) > 글자(가운데 «25%») */
+/* 사본 꼴(자유 프레임 516×361 · 위치 없음 > 글자 프레임 absolute · 폭 100% > 가운데 «25%»). ⚠️top 은 40 — 사본의 152 는 이 하네스 글자 높이(45)에서
+   프레임 세로 가운데(158)와 6px 라 스냅이 세로를 6 끌어당겨 «가로만» 장면이 깨졌다(고치기 전 판도 152→158). 요구(가로)를 재도록 장면을 옮겼다. */
 async function mount(page, align = 'center') {
   await page.evaluate((align) => {
     document.getElementById('inner').innerHTML =
       '<div class="frame-block" id="fr" data-free-layout="true" style="width:516px;height:361px;padding:0;margin:0 auto">' +
-      '<div class="frame-block" id="tf" data-text-frame="true" data-width="100%" data-offset-x="0" data-offset-y="152" ' +
-      'style="background:transparent;width:100%;box-sizing:border-box;position:absolute;left:0px;top:152px">' +
+      '<div class="frame-block" id="tf" data-text-frame="true" data-width="100%" data-offset-x="0" data-offset-y="40" ' +
+      'style="background:transparent;width:100%;box-sizing:border-box;position:absolute;left:0px;top:40px">' +
       `<div class="text-block" id="tb" data-type="body"><div class="tb-body" style="text-align:${align}">25%</div></div></div></div>`;
     const fr = document.getElementById('fr');
     window.bindBlock(document.getElementById('tb'));
