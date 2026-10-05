@@ -316,3 +316,33 @@ export function growFrameToFitChildren(frameEl) {
   }
   return grown;
 }
+
+/* ── ④ 스택 프레임의 가로 정렬을 «자식 하나»에 입힌다 (E122 · 2026-10-05) ────────────────
+ * ★정렬 단추(prop-frame.js _setAlign)와 «새로 넣는 길»(block-factory.js _appendFlowChild · addShapeBlock)이 같은 한 벌을 쓴다.
+ *   예전엔 단추 안에만 있어서, 「왼쪽」을 누른 프레임에 새 에셋을 넣으면 그 에셋은 자기 기본값(align-self:center)으로 가운데에 섰다.
+ * 규칙(F4, 2026-10-03 실측 — 단추에 있던 그대로 옮김):
+ *   ① 직계 비-row 자식 → align-self 를 같은 값 ② row[stack] → row 자신(align-self·margin) + «row 안 직계 자식» align-self
+ *   ③ row[flex]·레이아웃 미지정 → justify-content(사용자가 준 space-* 분배는 안 덮음) ④ row[grid] → 손대지 않음
+ *   asset-block 은 dataset.align 도 맞춘다(안 맞추면 폭 바꿀 때 prop-asset 이 옛 정렬로 되돌린다). 갭·리사이즈 손잡이·absolute 는 건너뜀.
+ * @param {string} alignItems 'flex-start' | 'center' | 'flex-end' */
+export function applyFrameHAlignToChild(child, alignItems) {
+  if (!child || !child.classList) return;
+  const selfOf   = { 'flex-start': 'flex-start', 'center': 'center', 'flex-end': 'flex-end' };
+  const marginOf = { 'flex-start': '0',          'center': '0 auto',  'flex-end': '0' };
+  const alignKey = { 'flex-start': 'left',       'center': 'center',   'flex-end': 'right' };
+  const setSelf = (el) => {
+    if (el.classList.contains('gap-block') || el.classList.contains('frame-resize-handle')) return;
+    if (getComputedStyle(el).position === 'absolute') return;
+    el.style.alignSelf = selfOf[alignItems] || '';
+    if (el.classList.contains('asset-block') && el.dataset.align) el.dataset.align = alignKey[alignItems] || el.dataset.align;
+  };
+  if (child.classList.contains('row')) {
+    child.style.alignSelf = selfOf[alignItems] || '';
+    child.style.margin    = marginOf[alignItems] || '0';
+    const lay = child.dataset.layout;
+    if (lay === 'stack') [...child.children].forEach(setSelf);
+    else if (lay !== 'grid' && !/^space-/.test(child.style.justifyContent)) child.style.justifyContent = alignItems === 'center' ? 'center' : (alignItems === 'flex-end' ? 'flex-end' : '');
+  } else {
+    setSelf(child);
+  }
+}
