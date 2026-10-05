@@ -79,6 +79,9 @@ let openTabs = [];
 
 /* ── 썸네일 생성 (첫 섹션 캡처 → base64, 200px 너비 축소) ── */
 async function captureThumbnail() {
+  /* ★E157 공용 대기(whenGridRatiosSettled · grid-block.js) — 칸 배경 비율이 서고 그 그리드가 다시 그려진 «뒤»에 찍는다(틀린 행 높이가 산출물로 굳지 않게).
+     반환 none(기다릴 것 없음) / settled / cap(상한 — 함수가 수·주소를 찍음). ⛔그 결과로 막지 않는다 — 찍기는 그대로 간다. */
+  await window.whenGridRatiosSettled?.();
   try {
     const firstSec = canvasEl?.querySelector('.section-block');
     if (!firstSec || typeof html2canvas === 'undefined') return null;

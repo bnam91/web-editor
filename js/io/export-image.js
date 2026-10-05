@@ -233,6 +233,9 @@ async function _waitImagesReady(root, timeoutMs = 8000) {
      넣지 마라 — 넣는 순간 그 변환의 버그를 이 검사가 영원히 못 잡는다.
    ══════════════════════════════════════════════════════════════════════════ */
 export async function prepareCloneForCapture(sec, w, useNative) {
+  /* ★E157 공용 대기(whenGridRatiosSettled · grid-block.js) — 칸 배경 비율이 서고 그 그리드가 다시 그려진 «뒤»에 찍는다(틀린 행 높이가 산출물로 굳지 않게).
+     반환 none(기다릴 것 없음) / settled / cap(상한 — 함수가 수·주소를 찍음). ⛔그 결과로 막지 않는다 — 찍기는 그대로 간다. */
+  await window.whenGridRatiosSettled?.();
   const clone = sec.cloneNode(true);
   /* ★편집 전용 DOM·상태 걷기는 «한 벌»이다 — js/io/capture-safety.js stripEditorOnlyForCapture.
      썸네일 경로(js/io/save-load.js captureThumbnail)와 같은 명부를 쓴다. 두 벌로 두었더니

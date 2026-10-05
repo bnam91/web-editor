@@ -2087,7 +2087,6 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
      *       골든이 증명을 덮는 자리를 그 자가 대신 막는다.
      *   · 중첩(depth≥1) 이미지 줄의 정렬 증인이 «<img> 태그»에서 «프레임 태그»로 옮겨갔다
      *     (alignCss 가 프레임에 실리므로). grid-render-gaps B4 가 그 자리다. */
-    const frameH  = h > 0 ? `height:${h}px;` : '';
     const radiusCss = r > 0 ? `border-radius:${r}px;` : '';
 
     /* ═══ ★프레임 «안»에서의 크롭 (2026-09-25, 커밋 ②) ═══════════════════════════
@@ -2110,6 +2109,9 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
     const cropX    = _gridNum(line.imgPosX);
     const cropY    = _gridNum(line.imgPosY);
     const cropped  = h > 0 && (cropSize !== null || cropX !== null || cropY !== null);
+    /* ★E157(10-05 현빈 「고쳐 그럼」) — 크롭 없는 그림 줄은 높이 키를 «그릴 때 무시»(저장 키 그대로 · 마이그레이션 0) → 네이티브 비율(height:auto).
+       크롭 줄(imgSizePct/PosX/PosY)은 사용자가 고른 «틀»이라 높이 h 그대로(사본 0). 옛 줄: `const frameH = h > 0 ? height:h : ''`. */
+    const frameH  = cropped ? `height:${h}px;` : '';
 
     let innerCss;
     if (cropped) {
@@ -2118,7 +2120,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
       const py = _gridClampPct(cropY === null ? 0 : cropY, -GRID_IMG_POS_LIMIT, GRID_IMG_POS_LIMIT);
       innerCss = `position:absolute;left:${px}%;top:${py}%;width:${sz}%;height:auto;`;
     } else {
-      innerCss = h > 0 ? 'width:100%;height:100%;object-fit:cover;' : 'width:100%;height:auto;';
+      innerCss = 'width:100%;height:auto;';   // ★E157 — 옛: h > 0 ? 'width:100%;height:100%;object-fit:cover;'(틀 높이 고정 + 잘림) : 'width:100%;height:auto;'
     }
     /* ★`position:relative;overflow:hidden` 은 «크롭이 있을 때만» 붙인다.
      *   까닭 — overflow 를 visible 밖으로 내보내면 flex 항목의 min-height:auto 가 0 이 되어
@@ -2261,6 +2263,85 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
 //   한다(스프레드시트 드래그가 목표, 5절/P2), flex 행 스택(R1안)은 그게 안 돼 탈락했다.
 //   열은 이전과 «같은 비율»(가중치)이라 fr 단위로 바로 옮긴다 — flex:(pct) 1 0 → <w>fr 은
 //   수학적으로 같은 분배지만 반올림 경로가 달라 1px 안팎 흔들릴 수 있다(완료조건, QA 대상).
+/* ══ ★E157 + 제4안 «한 식»(2026-10-05 · 현빈 「고쳐 그럼」 · 지디 ⒜ · lane-grid-height) ══════════════════════════════
+ *  트랙(행) r 의 «최소» = base + 2 × cellPadY.
+ *    base = ⑴ 그 행에 칸 배경 이미지가 있고 행 높이 키가 있으면 → 칸 폭(배경이 덮는 padding 상자) × 그림 원 비율(그 행 최댓값)
+ *           ⑵ 아니고 행 높이 키 H 가 있으면 → H
+ *           ⑶ auto → 없음(트랙 auto · 내용 + 칸 padding 이 정함 — cellPadY 는 칸 padding 으로 이미 들어감)
+ *  ★키 없음(cellPadY 0 · 배경 칸 없음)이면 옛 산출 `minmax(Hpx, auto)` / `auto` 그대로 = 바이트 같음.
+ *  ⛔행 높이를 다른 자리에서 따로 셈하지 마라 — 렌더(rowTemplate)와 배경 행 다시 세우기가 이 함수 «하나»를 부른다. */
+export function gridTrackMin(H, bgBase, padY) {
+  const base = (typeof bgBase === 'number' && bgBase >= 0) ? bgBase : ((typeof H === 'number' && H >= 0) ? H : null);
+  return base === null ? null : base + 2 * (Number(padY) || 0);
+}
+const _gridTrack = (H, bgBase, padY) => { const m = gridTrackMin(H, bgBase, padY); return m === null ? 'auto' : `minmax(${m}px, auto)`; };
+
+/* ★그림 원 비율 캐시 «한 자리» — src → 높이/폭. 모르면 읽고(decode) 다 되면 그 그림을 기다리던 그리드만 다시 그린다(처음엔 H+2Y 로 섰다가 한 번 바뀜).
+ *  ⛔비율을 저장 데이터에 «안» 남긴다(파생값이 저장에 굳는 E144 병 — 지디 ⒝ 탈락 까닭). 내보내기는 whenGridRatiosSettled 로 기다린다. */
+const _gridRatio = new Map();          // src → number(높이/폭) | null(못 읽음)
+const _gridRatioLoads = new Map();     // src → Promise(읽는 중 · 다 되면 다시 그린 «뒤» 끝남)
+const _gridRatioWaiters = new Map();   // src → Set<block>
+function _gridRatioOf(src, block) {
+  if (_gridRatio.has(src)) return _gridRatio.get(src);
+  let ws = _gridRatioWaiters.get(src); if (!ws) { ws = new Set(); _gridRatioWaiters.set(src, ws); } ws.add(block);
+  if (!_gridRatioLoads.has(src) && typeof Image !== 'undefined') {
+    const im = new Image(); im.src = src;
+    const p = (typeof im.decode === 'function' ? im.decode() : new Promise((res, rej) => { im.onload = res; im.onerror = rej; }))
+      .then(() => { _gridRatio.set(src, im.naturalWidth > 0 ? im.naturalHeight / im.naturalWidth : null); })
+      .catch(() => { _gridRatio.set(src, null); })
+      .then(() => {
+        const bs = _gridRatioWaiters.get(src); _gridRatioWaiters.delete(src); _gridRatioLoads.delete(src);
+        if (bs) bs.forEach(b => { if (b.isConnected) { try { renderGridBlock(b); } catch (_) {} } });
+      });
+    _gridRatioLoads.set(src, p);
+  }
+  return undefined;
+}
+/* 렌더 «뒤»(레이아웃이 선 뒤) 배경 행만 트랙을 다시 세운다 — 칸 폭은 그려져야 안다. 배경 행이 없으면 아무것도 안 한다. */
+function _gridSettleBgTracks(block, bgRows, rows, padY) {
+  if (!Object.keys(bgRows).length) return;
+  const inner = block.querySelector(':scope > .grd-inner'); if (!inner) return;
+  let changed = false;
+  const tracks = rows.map((row, r) => {
+    const H = row.height === 'auto' ? null : row.height;
+    const list = bgRows[r];
+    if (!list) return _gridTrack(H, null, padY);
+    let base = null;
+    for (const { c, src } of list) {
+      const ratio = _gridRatioOf(src, block);
+      if (typeof ratio !== 'number') continue;
+      const cell = inner.querySelector(`:scope > .grd-cell[data-r="${r}"][data-c="${c}"]`);
+      const w = cell ? cell.clientWidth : 0;
+      if (w > 0) base = Math.max(base ?? 0, Math.round(w * ratio));
+    }
+    if (base !== null) changed = true;
+    return _gridTrack(H, base, padY);
+  });
+  if (changed) inner.style.gridTemplateRows = tracks.join(' ');
+}
+/* ★내보내기·캡처 입구의 «공용 대기» — 칸 배경 비율이 다 서고 그 그리드가 다시 그려질 때까지.
+ *  반환 셋(⛔섞지 마라): {status:'none'} = 기다릴 것 없음(안 지남) · {status:'settled', ms} = 기다렸고 다 됨 · {status:'cap', pending, ms} = 상한 — 안 읽힌 수·주소를 찍고 돌아옴.
+ *  상한 = GRID_RATIO_WAIT_CAP_MS(⚠️임시 3000 — 큰 그림 최악 디코드 실측 뒤 정함). */
+export const GRID_RATIO_WAIT_CAP_MS = 3000;
+export async function whenGridRatiosSettled({ capMs = GRID_RATIO_WAIT_CAP_MS } = {}) {
+  if (!_gridRatioLoads.size) return { status: 'none' };
+  const t0 = Date.now(); let timer = null;
+  const capP = new Promise(res => { timer = setTimeout(() => res('cap'), Math.max(0, capMs)); });
+  const allP = Promise.all([..._gridRatioLoads.values()]).then(() => 'done');
+  const r = await Promise.race([allP, capP]); clearTimeout(timer);
+  if (r === 'done') {
+    const spent = Date.now() - t0;
+    if (_gridRatioLoads.size && spent < capMs) {   // 다시 그림이 새 읽기를 불렀으면 남은 상한 안에서 한 번 더
+      const again = await whenGridRatiosSettled({ capMs: capMs - spent });
+      if (again.status === 'cap') return { ...again, ms: Date.now() - t0 };
+    }
+    return { status: 'settled', ms: Date.now() - t0 };
+  }
+  const left = [..._gridRatioLoads.keys()].map(x => String(x).slice(0, 120));
+  console.warn(`[whenGridRatiosSettled] 상한 ${capMs}ms — 아직 안 읽힌 그림 ${left.length}개`, left);
+  return { status: 'cap', pending: left, ms: Date.now() - t0 };
+}
+
 function renderGridBlock(block) {
   const { cols, rows, cells } = getGridModel(block);
   const { row: rowGapPx, col: colGapPx } = _gridGaps(block);
@@ -2300,7 +2381,8 @@ function renderGridBlock(block) {
   /* 칸 사이 괘선 — 루프 «밖»에서 한 번 읽는다(칸마다 dataset 을 다시 파싱하지 않는다). */
   const rules = _gridRules(block, cols.length, rows.length);
   // ★행 높이는 «가중치»가 아니라 px 최소높이(minmax) — 3-A U5a 의미론. 'auto' 행은 내용 높이 그대로.
-  const rowTemplate = rows.map(r => r.height === 'auto' ? 'auto' : `minmax(${r.height}px, auto)`).join(' ');
+  const rowTemplate = rows.map(r => _gridTrack(r.height === 'auto' ? null : r.height, null, cellPadY)).join(' ');   // ★한 식(gridTrackMin) — 키 없으면 옛 산출 그대로
+  const bgRows = {};   // ★E157 — 높이 키 있는 행의 배경 칸 { r: [{c, src}] } · 렌더 뒤 _gridSettleBgTracks 가 쓴다
 
   /* ★G5 글자 톤 — 블럭 자리의 실제 배경(섹션/프레임, computed)을 한 번 재고, 칸 배경이 있으면 그 위에 합성해 칸마다 가른다.
      못 재면(떼어진 노드·그라데이션·이미지) null → 역할색 그대로(지금과 같음).
@@ -2372,6 +2454,7 @@ function renderGridBlock(block) {
       const cellFit = GRID_BG_FIT_VALUES.includes(fitRaw) ? fitRaw : 'cover';
       const cellPos = _gridNormBgPos(pick('bgPos')) || 'center center';
       const imgCss = cellImg ? `background-image:url('${cellImg}');background-size:${cellFit};background-position:${cellPos};background-repeat:no-repeat;` : '';
+      if (cellImg && rows[r] && rows[r].height !== 'auto') (bgRows[r] = bgRows[r] || []).push({ c, src: cellImg });   // ★E157
       // ★각 라인에도 좌표를 심는다(data-r/data-c/data-line) — 현빈 2026-09-04 지시.
       //   ★2026-09-05 P1.5 부터 «실제로 읽는 소비자»가 있다: js/block-drag.js 의 캔버스 인라인 편집이
       //   blur 때 「어느 셀 몇 번째 줄인가」를 DOM 순서 추측 없이 여기서 바로 읽어 patchCell 로 커밋한다.
@@ -2426,6 +2509,7 @@ function renderGridBlock(block) {
     ${cellsHtml.join('')}
   </div>`, GRID_CHILDREN_CLASS);
   _syncGridAddBtns(block);   // ★G15 — ＋ 흐림·자리 맞추기(＋ 는 블럭 밖 층 — 블럭 DOM 은 안 건드린다 ⇒ 렌더 바이트 불변)
+  _gridSettleBgTracks(block, bgRows, rows, cellPadY);   // ★E157 — 배경 행 트랙 = 칸 폭 × 원 비율 + 2Y(배경 행 없으면 아무것도 안 함)
 }
 
 /* ═══ ★G19 공용 — «껍데기만» 갈아끼우고 «자식 그릇»은 남긴다 (지디 2026-10-03 설계 확정) ══════════════
@@ -3510,6 +3594,8 @@ window.applyGridOwnWidth = applyGridOwnWidth;   // G2-b — 끄는 동안(손잡
 window.applyGridCellPadY = applyGridCellPadY;   // 제4안 — 끄는 동안(높이 손잡이) 매 틱 쓰는 문
 window.getGridCellPadY = getGridCellPadY;       // 제4안 — 읽는 문(패널·손잡이)
 window.GRID_CELL_PAD_Y_MAX = GRID_CELL_PAD_Y_MAX; // 제4안 — 패널 칸 상한(같은 수 한 자리)
+window.whenGridRatiosSettled = whenGridRatiosSettled;   // ★E157 — 내보내기·캡처 입구 공용 대기
+window.gridTrackMin = gridTrackMin;                     // ★한 식(진단·시험용 읽기)
 window.syncAutoGridWidth = syncAutoGridWidth;   // F3 후속 — 옮긴 뒤 자동 폭을 새 자리에 맞춘다(떠나면 100%)
 window.fitGridWidthToFreeFrame = fitGridWidthToFreeFrame;   // F3 — 자유배치 프레임 입구 셋이 부른다(drag-utils·block-drag 는 이 파일을 import 안 함)
 window.fitKeylessFreeFrameGridsOnOpen = fitKeylessFreeFrameGridsOnOpen;   // E129 — 열기 길 셋(save-load.js)이 applyPageSettings 뒤에 부른다
