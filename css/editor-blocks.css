@@ -1379,8 +1379,14 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 /* 글리프 «+» = 글자 노드가 아니라 ::before(E65 — 글자 '+' 가 PNG·MCP·검색으로 새지 않게). 옛: 안에 svg 14px(화면 고정). */
 #grd-plus-layer > .grd-add-btn::before { content: '+'; line-height: 1; pointer-events: none; }
 /* ★E28(2026-10-06 · 태양/지디) — ＋ 의 «잡는 자리»만 화면 최소 24px(배율 40% 에서 16px 이던 것). 보이는 원 = 모델 40px 그대로(H9 · 현빈 10-05 «꼴»).
-   태그블럭 ＋(editor-layout.css .label-group-add-btn::after)와 «같은 식» — 두 ＋ 가 같은 꼴·같은 손맛. */
-#grd-plus-layer > .grd-add-btn::after { content: ''; position: absolute; border-radius: 50%; inset: min(0px, calc((40px - 24px * var(--inv-zoom, 1)) / 2)); }
+   태그블럭 ＋(editor-layout.css .label-group-add-btn::after)와 «같은 식» — 두 ＋ 가 같은 꼴·같은 손맛.
+   ⇒ 그리드 ＋ 쪽은 바로 아래 E28-hit-G15 로 «뒤집혔다»(10-06) — 이제 두 ＋ 의 잡는 식이 다르다(태그 = 24px 최소 · 그리드 = 보이는 원). */
+/* ★E28-hit-G15(2026-10-06 · 지디 판정 «G15 > E28 · 보이는 것 = 잡히는 것» · APPROVED_BY: 지디 E28-hit-G15)
+   — 잡는 자리를 보이는 원 «안»으로 되돌린다(inset 0). 옛: inset: min(0px, calc((40px - 24px * var(--inv-zoom, 1)) / 2))
+     → 배율 40% 에서 보이는 원(16px) 밖 4px 까지 ＋ 가 잡혀, 원 밖 클릭이 행·열을 더했다(grid-plus-g15 K5·R1·R4).
+   ⇒ 값(받아들인 비용): 40% 에서 잡는 자리 = 보이는 원 16px. ⛔＋ 를 크게 «그리는» 길(⒥)은 현빈 ㉡1 답 전엔 안 간다.
+   ⛔태그블럭 ＋(editor-layout.css .label-group-add-btn::after)는 이 판정 밖 — 손대지 않았다. */
+#grd-plus-layer > .grd-add-btn::after { content: ''; position: absolute; border-radius: 50%; inset: 0; }
 /* 기준점: 오른쪽 ＋ = (블럭 오른쪽 끝, 껍데기 세로 가운데) → «중심을 기준점에»(H10 · 옛 translate(-100%, -50%) 안쪽 한 칸)
    아래 ＋ = (블럭 가로 가운데, 껍데기 아래 끝) → 왼쪽으로 반 칸(옛과 같다 — 위 ⛔ 까닭). */
 #grd-plus-layer > .grd-add-btn[data-grd-add="col"] { transform: translate(-50%, -50%); }
