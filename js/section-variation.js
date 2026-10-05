@@ -86,10 +86,14 @@ function bindVariationToolbarBtn(sec) {
    옛 판은 cloneNode 뒤 bindBlock 을 손 명부 14 종에만 걸고 프레임엔 bindFrameDropZone 을 «한 번도» 안 걸었다.
    실앱 ㉠(A/B 버튼 → ▷B 진짜 클릭): B 사본의 도형 · 자유 프레임 · 오버레이 그룹이 셋 다 안 묶여 클릭해도 안 골라지고 그룹 끌기 0px.
    ⇒ rebindAll · 섹션 템플릿 넣기와 같은 꼴: 정본 명부(js/block-bind-kinds.js)로 bindBlock + 프레임 전부 bindFrameDropZone.
-   ⛔제 바인더를 쓰는 종류(gradient · sticker · annotation)는 이 명부 밖 — 따로 묶는 줄은 ② 에서. */
+   제 바인더를 쓰는 종류(gradient · sticker · annotation)는 명부 밖 — 아래에서 제 바인더로 따로 묶는다. */
 function _bindVariantClone(clone) {
   clone.querySelectorAll(BLOCK_BIND_SEL).forEach(b => window.bindBlock && window.bindBlock(b));
   clone.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
+  /* ★(2026-10-06 · 태양 ⑴ 이번 판) 제 바인더 셋 — 섹션 템플릿 넣기(18285a47)와 같은 줄. 실앱 ㉠: B 사본의 셋이 안 묶여 클릭하면 섹션만 골라졌다. */
+  clone.querySelectorAll('.gradient-block').forEach(b => window.bindGradientSelect?.(b));
+  clone.querySelectorAll('.sticker-block').forEach(b => window.bindStickerSelect?.(b));
+  clone.querySelectorAll('.annotation-block').forEach(b => window.bindAnnotationSelect?.(b));
 }
 
 function createVariation(sec) {
