@@ -18,7 +18,7 @@
 export const PROJ_META_KEYS = ['branches', 'commits', 'currentBranch', 'thumbnail'];
 
 /** `existing` 에서만 «더» 떼는 키 — 런타임 표식이라 저장에 남기지 않는다. */
-export const PROJ_RUNTIME_KEYS = ['_recovered', '_healed', '_healError'];   // ★E169 — 자가치유 성패 표식도 저장에 안 남긴다
+export const PROJ_RUNTIME_KEYS = ['_recovered', '_healed', '_healError', '_recoveredAt'];   // ★E169 — 자가치유 성패 표식도 저장에 안 남긴다
 
 /**
  * @param {any} existing  디스크에 있던 판(없으면 null/undefined)

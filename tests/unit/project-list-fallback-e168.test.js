@@ -36,7 +36,7 @@ function loadHandlerSrc() {
 }
 // ★새 함수(readProjectWithFallback)는 «있으면» 같이 싣는다 — base 에선 없다(그래서 L1 이 «동작으로» 빨갛다).
 const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveMetaJsonPath', '_resolveBackupJsonPath',
-  '_ensureNewLayoutPaths', '_refreshListMeta', '_listItemFor', '_isListableProjectId', '_listProjectsImpl', '_SS', 'readProjectWithFallback'];
+  '_ensureNewLayoutPaths', '_refreshListMeta', '_listItemFor', '_isListableProjectId', '_listProjectsImpl', '_SS', '_mtimeOr', 'readProjectWithFallback'];
 
 function load(projectsDir, { breakShared = false } = {}) {
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);

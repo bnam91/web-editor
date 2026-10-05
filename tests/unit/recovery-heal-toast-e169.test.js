@@ -32,7 +32,9 @@ function loadHandlerSrc() {
   for (; i < MAIN_SRC.length; i++) { const c = MAIN_SRC[i]; if (c === '{') d++; else if (c === '}' && --d === 0) break; }
   return MAIN_SRC.slice(k, MAIN_SRC.indexOf(')', i) + 1) + ';';
 }
-const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveBackupJsonPath', '_ensureNewLayoutPaths', '_SS'];
+// ★E168 뒤 로드 몸통은 공용 readProjectWithFallback(+_mtimeOr)을 부른다 — «있으면» 싣는다
+const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveBackupJsonPath', '_ensureNewLayoutPaths', '_SS', '_mtimeOr', 'readProjectWithFallback']
+  .filter(n => [`function ${n}(`, `const ${n} = `].some(p => MAIN_SRC.includes(p)));
 function loader(projectsDir) {
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);
   const handlers = {};
