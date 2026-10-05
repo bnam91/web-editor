@@ -7,14 +7,17 @@ const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
 
-async function setup(page, zoom) {
+async function setup(page, zoom, short = false) {
   await page.setViewportSize({ width: 1600, height: 1300 });
   const errs = await bootApp(page);
+  await page.evaluate((short) => { window.__k3Short = short; }, short);
   await page.evaluate((zoom) => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', '<div class="section-block" id="kS" data-section="1"><div class="section-hitzone"></div><div class="section-inner" id="kI" style="padding-left:60px;padding-right:60px">'
       + '<div class="gap-block" data-type="gap" style="height:80px"></div><div class="row" id="kR" data-layout="stack"></div><div class="gap-block" data-type="gap" style="height:260px"></div></div></div>');
-    const { block: g } = window.makeGridBlock({ cols: [{ width: 1, lines: [{ type: 'body', text: 'A' }] }, { width: 1, lines: [{ type: 'body', text: 'B' }] }] });
+    /* ★키 큰 그리드(본문 네 줄) — 선택 시 ＋(G15)가 모서리와 안 겹치게(P4 ⒜: 겹치는 손잡이는 숨김). 짧은 그리드는 P4b 가 따로 잰다. */
+    const L4 = (t) => [1, 2, 3, 4].map(i => ({ type: 'body', text: t + i }));
+    const { block: g } = window.makeGridBlock({ cols: [{ width: 1, lines: window.__k3Short ? [{ type: 'body', text: 'A' }] : L4('A') }, { width: 1, lines: window.__k3Short ? [{ type: 'body', text: 'B' }] : L4('B') }] });
     g.id = 'kG'; document.getElementById('kR').appendChild(g);
     window.rebindAll?.(); window.renderGridBlock(g); window.deselectAll?.(); window.applyZoom?.(zoom);
     g.scrollIntoView({ block: 'center' });
@@ -88,5 +91,18 @@ test('H6 [회귀 지킴] 떠 있는 그리드 nw 손잡이 끌기 = 오른쪽 �
   await page.mouse.move(nw.x, nw.y); await page.mouse.down(); await page.mouse.move(nw.x + 60, nw.y, { steps: 6 }); await page.mouse.up();
   const br1 = await page.evaluate(() => { const r = document.getElementById('kG').getBoundingClientRect(); return [r.right, r.bottom]; });
   expect(Math.abs(br1[0] - br0[0]) <= 1, `오른쪽 끝 제자리 ${br0} → ${br1}`).toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('P4b [새 것] 짧은 그리드(＋ 가 오른쪽 모서리를 덮음) — ne·se 는 숨고 nw·sw 만 선다 · sw 로 폭이 바뀐다(흐름 그리드: 왼쪽을 끌어도 오른쪽으로 자람 = K3 «폭만» 한계)', async ({ page }) => {
+  const errs = await setup(page, 100, true); await pick(page);
+  await page.waitForFunction(() => document.querySelectorAll('#grd-plus-layer > .grd-add-btn[data-grd-for="kG"]').length === 2, null, { timeout: 3000 });
+  const hs = await handles(page);
+  expect(hs.map(h => h.dir).sort(), `★보이는 손잡이 ${JSON.stringify(hs)}`).toEqual(['nw', 'sw']);
+  const w0 = await page.evaluate(() => document.getElementById('kG').offsetWidth);
+  const sw = hs.find(h => h.dir === 'sw');
+  await page.mouse.move(sw.x, sw.y); await page.mouse.down(); await page.mouse.move(sw.x + 100, sw.y, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(250);
+  const r = await page.evaluate(() => { const g = document.getElementById('kG'); return { key: g.dataset.gridWidth ?? null, w: g.offsetWidth }; });
+  expect(Number(r.key), `★sw 오른쪽 +100 = 폭 −100 · ${JSON.stringify(r)} · w0=${w0}`).toBe(w0 - 100);
   expect(errs).toEqual([]);
 });
