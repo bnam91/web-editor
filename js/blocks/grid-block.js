@@ -1085,6 +1085,33 @@ function _gridUnreadLineFields(line, keys) {
 }
 const _gridLineTypeOf = (line) => (line && line.type) ? String(line.type) : 'text';
 
+/* ★종류가 «읽을 수 있는» 키 — 렌더러에서 «파생»한 종류→키 표 (E14 · 2026-10-06 · APPROVED_BY: 지디 E14-E157 · 모양 B = 태양)
+ *   왜: _gridMergeLine 의 청소는 «옛 줄이 읽던 키»만 턴다. 그런데 «읽나»를 그 «인스턴스»로 재면, 렌더러가 그 줄에서
+ *     조건부로 안 읽는 키(E157: 크롭 없는 그림 줄은 height 를 그릴 때 무시)를 「옛 종류도 안 읽었다」로 오판해 남긴다
+ *     → image(h160) → body → gap 이 160px 여백으로 되살아났다(실측 10-06).
+ *   무엇: 「종류 T 의 줄이 키 k 를 읽을 수 있나」 = 맨 줄 {type:T} 에서 _gridLineFieldIsRead(위 민감도 · 탐침 _GRID_FIELD_PROBES).
+ *     ⛔손으로 적은 종류별 필드표가 아니다(:1046 T-122 규칙 그대로) — 표는 렌더러를 돌려 «뜬다».
+ *   ★표 키 = 종류 이름(_gridLineTypeOf) 하나 · 렌더러 판(版)은 키에 없다 — 아래 수명이 그걸 대신한다.
+ *   ★수명 = 이 모듈 인스턴스 한 번(메모리 Map). 다시 불러오면 새로 뜬다. ⛔디스크 캐시·얼린 모듈 상수 금지 —
+ *     그러면 렌더러와 «따로 늙는» 표가 된다(T-122 가 막은 것).
+ *   ★본 것(10-06 실측 · 맨 줄 모드): image = height·imgSrc·marginTop·radius·widthPct(height 는 «빈 틀» grd-img-empty 높이로 읽힘)
+ *     · gap = height·marginTop · divider = color·height·marginTop · 글자 역할 = content·fontFamily·fontSize·letterSpacing·lineHeight·marginTop·text·weight.
+ *   ★못 본 것(맨 줄 탐침이 안 만드는 모드): 크롭(imgSrc ∧ imgSizePct/PosX/PosY — 두 키가 같이 있어야 함) · 원(imgShape:'circle')
+ *     · 탐침값이 유효값이 아닌 키(색 hex·정렬 낱말 등 — color/align/bg 는 글자 역할 표에 안 뜬다). ⇒ 표는 «하한»이다.
+ *     (10-06 실측: 맨 줄 + «한 키 더» 모드 전수(33 키 × 탐침 7)도 더 찾은 것 0 · 234ms — 그래서 안 쓴다.
+ *      옛 줄 «이웃» 모드는 크롭으로 height 를 찾지만 인스턴스마다 달라 표가 아니다 — 안 쓴다(태양 · 모양 B 유지).)
+ *   ★image height 는 «빈 틀» 모드가 나른다 — 그 모드가 height 를 안 읽게 되면 grid-kind-shed K1·K2 가 빨개진다(지킴).
+ *   그래서 청소는 «표 ∪ 인스턴스»로 판정한다(인스턴스 판정 = 옛 규칙 그대로) — 지우는 집합은 옛것보다 «넓어지기만» 한다. */
+const _gridTypeReadMemo = new Map();
+function _gridTypeCanRead(type, key) {
+  let set = _gridTypeReadMemo.get(type);
+  if (!set) {
+    set = new Set([...GRID_LINE_FIELDS].filter(k => k !== 'type' && _gridLineFieldIsRead({ type }, k)));
+    _gridTypeReadMemo.set(type, set);
+  }
+  return set.has(key);
+}
+
 /** 한 셀의 `lines` 를 훑어 «안 그려질 것»을 모은다. `where` 는 보고용 경로 앞머리. */
 function _gridInspectLines(lines, where, drops) {
   if (!Array.isArray(lines)) return;
@@ -1770,9 +1797,12 @@ function _gridMergeLine(curLines, li, fields) {
     const keys = Object.keys(merged);
     const unreadNow = new Set(_gridUnreadLineFields(merged, keys));
     const unreadBefore = new Set(_gridUnreadLineFields(prev, keys));
+    const prevType = _gridLineTypeOf(prev);
     for (const k of keys) {
       if (fields[k] !== undefined) continue;
-      if (unreadNow.has(k) && !unreadBefore.has(k)) delete merged[k];
+      /* ★E14 — «옛 종류가 읽을 수 있었나» = 인스턴스(옛 규칙) ∪ 종류 표(위 _gridTypeCanRead). */
+      const couldReadBefore = !unreadBefore.has(k) || _gridTypeCanRead(prevType, k);
+      if (unreadNow.has(k) && couldReadBefore) delete merged[k];
     }
   }
   next[i] = merged;
