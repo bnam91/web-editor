@@ -613,6 +613,9 @@ async function insertTemplate(tpl) {
     if (b.classList.contains('grid-block')) window.renderGridBlock?.(b);
     if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
   });
+  /* ★R7(2026-10-05 lane-drag) — 넣은 섹션의 프레임을 «건다»(block-factory.js 섹션 바인딩과 같은 꼴). 이 갈래는 한 번도 안 불러서
+     프레임 12/12 가 _subSecBound false · 오버레이 그룹 끌기 Δ0 이었다(실앱 실측). ⚠️section 갈래만 — block 갈래는 0.9.7. */
+  sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   sec.querySelectorAll('.group-block').forEach(g => {
     if (!g.querySelector(':scope > .group-block-label')) {
       const lbl = document.createElement('span');
