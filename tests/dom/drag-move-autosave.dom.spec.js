@@ -11,8 +11,9 @@
  *   (electronAPI 는 가짜라 파일은 못 잰다 — 자동저장이 파일 쓰기와 «같은 snap» 으로 localStorage 를 먼저 쓴다: save-load.js scheduleAutoSave.)
  * S* = 그 길의 요소에 진짜 dragstart → DOM 옮김 → 진짜 dragend(앱 리스너가 창을 열고 닫는다 · 놓기 판정·좌표는 안 잼).
  *   ⚠️처음엔 «진짜 손» 끌기로 짰다 — 하네스에서 앱 함수로 만든 글자 둘이 겹쳐 A 를 누르면 B 가 맞고(전제 실패) 프레임 판이 판마다 뒤집혀 S 꼴로 바꿨다.
- * R* = 진짜 손(page.mouse) — 전제가 서는 길 둘만(레이어 · 제자리).
- * 머리표: [새 것] 0f572e2a 에서 빨강(S1 · S3 · S5 · S6 · R6) · [지킴] 0f572e2a 에서도 초록(S2 · R0) · [전제] 재기 위한 조건.
+ * R0 = 진짜 손(page.mouse) 제자리 끌기.
+ *   ⚠️레이어 «진짜 손» 끌기(R6)는 뺐다 — 하네스에서 전제(화면이 바뀜)가 6 중 2 만 섰다(23:3x · 고친 판 · load 6~11). 저장 길은 S6 이 «정해진 꼴»로 잰다 · 진짜 손은 실앱 표가 잰다.
+ * 머리표: [새 것] 0f572e2a 에서 빨강(S1 · S3 · S5 · S6) · [지킴] 0f572e2a 에서도 초록(S2 · R0) · [전제] 재기 위한 조건.
  * ⛔못 보는 꼴: 앱 종료·다시 열기(파일) — 실앱 표가 잰다. P4 그룹(놓아도 바뀌는 것 없음)은 시험 없음.
  */
 const { test, expect } = require('@playwright/test');
@@ -74,7 +75,8 @@ const ordered = (a) => a.every((v, i) => i === 0 || (a[i - 1] >= 0 && v > a[i - 
  *  hitSel: 누르는 점이 그 요소 위인가를 «먼저» 단언([전제]). */
 async function nativeDrag(page, from, to, hitSel, fromSel) {
   await page.waitForTimeout(800);
-  if (fromSel) from = await ctr(page, fromSel);          // 클릭·선택 뒤 자리가 움직였을 수 있다 — 누르기 «직전»에 다시 잰다
+  if (fromSel) from = await ctr(page, fromSel);
+  if (typeof from === 'function') from = await from();          // 클릭·선택 뒤 자리가 움직였을 수 있다 — 누르기 «직전»에 다시 잰다
   if (typeof to === 'function') to = await to();
   await page.mouse.move(from.x, from.y); await page.waitForTimeout(250);   // 사람처럼 먼저 올려 둔다(섹션 라벨은 hover 때만 잡힌다)
   if (hitSel) { const hit = await page.evaluate(([x, y, s]) => { const e = document.elementFromPoint(x, y); return { ok: !!e?.closest(s), cls: String(e?.className).slice(0, 40) + '#' + (e?.closest('[id]')?.id || '') }; }, [from.x, from.y, hitSel]); expect(hit.ok, `[전제] 누르는 점이 ${hitSel} 위 · 맞은 것=${hit.cls}`).toBe(true); }
@@ -156,20 +158,6 @@ test('S6 [새 것] P6 레이어 항목 — 레이어 창 안에서 A 를 B 뒤�
   const item = `[...document.querySelectorAll('.layer-item')].find(i => i._dragTarget && (i._dragTarget.id === '${A}' || i._dragTarget.querySelector?.('#${A}')))`;
   await windowDrag(page, item, `const a=${unitOf(A)}, b=${unitOf(B)}; b.after(a);`, 'layer-drag');
   await expectSavedLikeScreen(page, [B, A], 'S6');
-  expect(errs, errs.join('\n')).toEqual([]);
-});
-
-test('R6 [새 것] P6 레이어 패널 «진짜 손» 끌기 — 레이어에서 A 를 B 아래로 놓으면 저장본도 따라감', async ({ page }) => {
-  const errs = await boot(page);
-  const { A, B } = await scene(page, ['secA'], [['A', 'secA', 'text'], ['B', 'secA', 'text']]);
-  await page.evaluate(() => { window.switchToTab?.('file'); window.buildLayerPanel?.(); });
-  await page.waitForTimeout(300);
-  const items = await page.evaluate(([A, B]) => { const its = [...document.querySelectorAll('.layer-item')].filter(i => i._dragTarget && i.getBoundingClientRect().width > 0);
-    const f = (id) => its.find(i => i._dragTarget.id === id || i._dragTarget.querySelector?.('#' + id)); const a = f(A), b = f(B); if (!a || !b) return null;
-    const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return { a: { x: Math.round(ra.left + ra.width / 2), y: Math.round(ra.top + ra.height / 2) }, b: { x: Math.round(rb.left + rb.width / 2), y: Math.round(rb.top + rb.height * 0.85) } }; }, [A, B]);
-  expect(items, '[전제] 레이어에 A·B 항목이 보인다').toBeTruthy();
-  await nativeDrag(page, items.a, items.b, '.layer-item');
-  await expectSavedLikeScreen(page, [B, A], 'R6');
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
