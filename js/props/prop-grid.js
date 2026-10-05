@@ -705,6 +705,28 @@ export function grdImageFileOk(file) {
   }
   return true;
 }
+
+/* ★E91(2026-10-06) — «파일창으로 고른 그림»을 칸·줄·블럭에 넣을 «값» 한 벌. G4 칸 배경의 몸통을 떼어 냈다(사본 0):
+ *   자산 IPC(assetsSaveCanvasImage)가 있고 프로젝트가 열려 있으면 goya-asset URL · 아니면 data URL(웹·헤드리스 — 저장 때 외부화가 거둔다).
+ *   까닭(실측 10-05): 패널 이미지 줄 · 오른클릭 교체 · 블럭 배경은 data URL 을 통째로 넣어 히스토리 표본마다 그림 두 벌(≈700KB PNG → 직렬화 +2,468,328자).
+ *   ⛔바이트 문(크기)과 상한 면제 표시는 «부르는 자리»가 쥔다 — tests/unit/grid-callsite-ssot 가 입구마다 글자로 센다. 여기엔 둘 다 안 쓴다.
+ * @returns {Promise<{src:string, asset:boolean}|null>} null = 읽기 실패(토스트 띄움) */
+export async function grdPickedImageSrc(file) {
+  let dataUrl;
+  try {
+    dataUrl = await new Promise((res, rej) => { const rd = new FileReader(); rd.onload = () => res(String(rd.result || '')); rd.onerror = () => rej(rd.error); rd.readAsDataURL(file); });
+  } catch (_) { window.showToast?.('⚠️ 이미지 읽기 실패'); return null; }
+  const projectId = window.activeProjectId || new URLSearchParams(window.location.search).get('project') || null;
+  const api = window.electronAPI;
+  if (api && typeof api.assetsSaveCanvasImage === 'function' && projectId) {
+    const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
+    let saved = null;
+    try { saved = m ? await api.assetsSaveCanvasImage({ projectId, b64: m[2], mime: m[1] }) : null; } catch (_) { saved = null; }
+    if (saved && saved.ok && typeof saved.url === 'string') return { src: saved.url, asset: true };
+  }
+  return { src: dataUrl, asset: false };
+}
+if (typeof window !== 'undefined') window.grdPickedImageSrc = grdPickedImageSrc;
 if (typeof window !== 'undefined') window.grdImageFileOk = grdImageFileOk;
 if (typeof window !== 'undefined') window.grdAddLine = grdAddLine;
 
@@ -1317,12 +1339,12 @@ function _grdWireImageSection(block, addr) {
       /* ★사람이 고른 파일이다 — «바이트»로 거르고(grdImageFileOk), 커밋은 trusted 로 보낸다.
          MCP/IPC 용 문자열 캡(GRID_IMG_MAX_CHARS)은 여기 적용하지 않는다(2026-09-20). */
       if (!grdImageFileOk(file)) return;
-      const reader = new FileReader();
-      reader.onload = ev => {
+      /* ★E91 — 값은 grdPickedImageSrc 한 벌(자산 URL · 없으면 data URL). */
+      grdPickedImageSrc(file).then(got => {
+        if (!got) return;
         grdToastImgFail(window.updateGridBlock?.(block.id,
-          { patchCell: { r, c, lineIndex: li, imgSrc: ev.target.result } }, { trusted: true }));
-      };
-      reader.readAsDataURL(file);
+          { patchCell: { r, c, lineIndex: li, imgSrc: got.src } }, { trusted: true }));
+      });
     };
     input.click();
   });
@@ -1796,19 +1818,10 @@ function _grdWireCellSection(block, addr) {
     const f = imgIn.files && imgIn.files[0];
     imgIn.value = '';
     if (!grdImageFileOk(f)) return;
-    let dataUrl;
-    try {
-      dataUrl = await new Promise((res, rej) => { const rd = new FileReader(); rd.onload = () => res(String(rd.result || '')); rd.onerror = () => rej(rd.error); rd.readAsDataURL(f); });
-    } catch (_) { window.showToast?.('⚠️ 이미지 읽기 실패'); return; }
-    const projectId = window.activeProjectId || new URLSearchParams(window.location.search).get('project') || null;
-    const api = window.electronAPI;
-    if (api && typeof api.assetsSaveCanvasImage === 'function' && projectId) {
-      const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
-      let saved = null;
-      try { saved = m ? await api.assetsSaveCanvasImage({ projectId, b64: m[2], mime: m[1] }) : null; } catch (_) { saved = null; }
-      if (saved && saved.ok && typeof saved.url === 'string') { _grdPatchCell(block, r, c, { bgImg: saved.url }); return; }
-    }
-    _grdToastCellFail(window.updateGridBlock?.(block.id, { patchCell: { r, c, bgImg: dataUrl } }, { trusted: true }));
+    const got = await grdPickedImageSrc(f);   // ★E91 — 몸통을 한 벌로 뗐다(이 입구가 원본)
+    if (!got) return;
+    if (got.asset) { _grdPatchCell(block, r, c, { bgImg: got.src }); return; }
+    _grdToastCellFail(window.updateGridBlock?.(block.id, { patchCell: { r, c, bgImg: got.src } }, { trusted: true }));
   });
   document.getElementById('grd-cell-img-clear')?.addEventListener('click', () => _grdPatchCell(block, r, c, { bgImg: _grdUnset() }));
   document.querySelectorAll('#grd-cell-fit-group [data-cell-fit]').forEach(b => b.addEventListener('click', () => _grdPatchCell(block, r, c, { bgFit: b.dataset.cellFit })));
@@ -2175,9 +2188,7 @@ function _grdWireBlockBgSection(block) {
     const f = imgIn.files && imgIn.files[0];
     imgIn.value = '';
     if (!grdImageFileOk(f)) return;   // ★파일 입구 = 바이트 게이트 + trusted «같이»(grid-callsite-ssot 가 센다)
-    const rd = new FileReader();
-    rd.onload = (e) => commit({ image: String(e.target.result || '') }, { trusted: true });   // 사람이 고른 그림 = 캡 면제(그리드 이미지 줄과 같은 규약)
-    rd.readAsDataURL(f);
+    grdPickedImageSrc(f).then(got => { if (got) commit({ image: got.src }, { trusted: true }); });   // ★E91 — 자산 URL(없으면 data URL) · 캡 면제 규약 그대로
   });
   document.getElementById('grd-bbg-img-clear')?.addEventListener('click', () => commit({ image: null }));
   const cur = () => gridBlockBg(block).pos.split(' ');
