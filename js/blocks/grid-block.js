@@ -2268,7 +2268,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
   /* ★G5 — useRoleColor 가 'light' 면 «어두운 배경 위» 역할색(_GRID_ROLE_COLOR_ON_DARK). 값을 늘리지 않고 이 인자에 싣는 까닭:
    *   중첩(duo) 재귀가 useRoleColor 를 «그대로» 물려주므로 중첩 줄도 같은 톤을 받는다. true/false 산출은 «바이트 동일». */
   const effColor = color || (useRoleColor
-    ? (useRoleColor === 'light' ? (_GRID_ROLE_COLOR_ON_DARK[line.type] || _GRID_ROLE_COLOR_ON_DARK.body) : _gridRoleColorCss(line.type, role.color))
+    ? (useRoleColor === 'light' ? (_GRID_ROLE_COLOR_ON_DARK[line.type] || _GRID_ROLE_COLOR_ON_DARK.body) : useRoleColor === 'hex' ? role.color : _gridRoleColorCss(line.type, role.color))
     : '');
   // 뱃지/필: line.bg 지정 시 inline-block 필로 렌더 — 지정 bg가 조용히 탈락해
   // 카드 위 무배경 텍스트(색 반전처럼 보임)로 뭉개지던 케이스 방지 (2026-07-04 제니 발주)
@@ -2469,7 +2469,11 @@ function renderGridBlock(block) {
   const _cellTone = (bg) => {
     if (!bg) return _blockTone === 'light' ? 'light' : true;
     const rgb = backdropRgbAt(block, bg);
-    return textToneOver(rgb) === 'light' ? 'light' : true;
+    /* ★E127 ⒜(지디 10-06 · ⑴) — 칸이 «자기 배경을 칠하면» 프리셋 변수를 쓰지 않는다: 'hex' = 그 배경에 맞는 옛 hex(role.color).
+     *   프리셋은 «섹션 배경»에 맞춰 고른 색이라, 칸이 제 배경을 칠한 줄엔 맞지 않는다(어두운 섹션 프리셋 + 흰 칸 → 흰 위 흰 · 옅은 회색).
+     *   조건은 «설정됐나» 하나 — 어두운 칸은 원래도 on-dark 표('light')라 «밝을 때만»과 같은 결과(㉢ 잼).
+     *   칸 «배경 이미지»(cellImg)도 같은 조건(지디 10-06) — 부르는 자리에서 'hex'. ⛔이미지 위 결과를 «맞는 색»이라 하지 않는다: dev 와 같은 값일 뿐. */
+    return textToneOver(rgb) === 'light' ? 'light' : 'hex';
   };
   const cellsHtml = [];
   for (let r = 0; r < rows.length; r++) {
@@ -2558,7 +2562,7 @@ function renderGridBlock(block) {
       const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), colGapPx);
       const pullUp = rowGapPx < 0 && r > 0 ? `margin-top:${rowGapPx}px;` : '';   // 음수 행 간격 = 위 줄로 당긴다(GRID_ROW_GAP_MIN 주석)
       cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${cellPadY > 0 ? `padding:${pad + cellPadY}px ${pad}px;` : (pad > 0 ? `padding:${pad}px;` : '')}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}">
-        ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, cellImg ? true : _cellTone(bg))).join('')}
+        ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, cellImg ? 'hex' : _cellTone(bg))).join('')}
       </div>`);
     }
   }

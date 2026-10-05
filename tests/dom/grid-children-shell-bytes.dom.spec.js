@@ -71,23 +71,33 @@ const SNAP = () => {
   { const { row, block } = mk({ gap: 20 }); inner.appendChild(row); block.dataset.overlayBlock = 'true'; window.renderGridBlock(block); take('overlay 폭 없음 gap20', block); }
   return out;
 };
+/* ★E127(c16bbccc · 지디 E127-guards 10-06): 그리드 역할색 color:#hex → color:var(--preset-<역할>-color, #hex) 는 «뜻한 바뀜»(폴백 hex 그대로 = 프리셋 덮기 없으면 같은 픽셀).
+ *   기준판엔 없는 꼴이라 «그 토큰만» 옛 꼴로 되돌려 비교한다 — 정규식은 역할 다섯 · 6자리 hex 만 잡는다(다른 바이트는 하나도 안 건드림).
+ *   양성대조: 글자색 아닌 바이트 하나(grd-line → grd-linX)를 바꾼 사본은 되돌려도 기준판과 «달라야» 한다 — 아래 단언. */
+const E127_TOKEN = /color:var\(--preset-(?:h1|h2|h3|body|caption)-color, (#[0-9a-fA-F]{6})\);/g;
+const e127Back = (h) => { let n = 0; const s = (h ?? '').replace(E127_TOKEN, (_, hex) => { n++; return `color:${hex};`; }); return { s, n }; };
 test.setTimeout(120000);
 test('B0 ★자식 없는 그리드 — 37ab1c65 와 block.outerHTML 바이트 동일(일곱 꼴 × 재렌더 = 21건)', async ({ browser }) => {
   const pCur = await browser.newPage(), pBase = await browser.newPage();
   const e1 = await setup(pCur, bootApp), e2 = await setup(pBase, bootBase);
   const cur = await pCur.evaluate(SNAP), base = await pBase.evaluate(SNAP);
   const ids = (h) => h.replace(/ id="[^"]*"/g, ' id=""');   // id 는 난수 — 비교에서만 지운다
-  let eq = 0, diff = 0; const lines = [];
+  let eq = 0, diff = 0, tokens = 0; const lines = [];
   for (const k of Object.keys(base)) {
-    const a = ids(cur[k]), b = ids(base[k]);
+    const back = e127Back(cur[k]); tokens += back.n;
+    const a = ids(back.s), b = ids(base[k]);
     if (a === b) eq++; else { diff++; let j = 0; while (j < a.length && a[j] === b[j]) j++; lines.push(`${k} @${j}: now=${JSON.stringify(a.slice(Math.max(0, j - 30), j + 60))} pin=${JSON.stringify(b.slice(Math.max(0, j - 30), j + 60))}`); }
   }
-  console.log(`BYTECOUNT total=${Object.keys(base).length} equal=${eq} different=${diff} errs=${e1.length}/${e2.length}`);
+  console.log(`BYTECOUNT total=${Object.keys(base).length} equal=${eq} different=${diff} errs=${e1.length}/${e2.length} e127tokens=${tokens}`);
   lines.forEach(l => console.log('BYTEDIFF ' + l));
   expect(e1).toEqual([]); expect(e2).toEqual([]);
   expect(Object.keys(base).length, '★표본이 21건이 아니다 — 자가 «덜» 재고 있다').toBe(21);
   expect(Object.keys(cur).sort()).toEqual(Object.keys(base).sort());
-  expect(diff).toBe(0);
+  // ★무엇이 다른지 실패 글에 바로(10-06 integ25: «Expected 0 Received 21» 만 보였다 — console 줄이 리포트에 안 실림)
+  expect(diff, `다른 판 ${diff}/${Object.keys(base).length} — 첫 셋:\n${lines.slice(0, 3).join('\n')}`).toBe(0);
+  expect(tokens, '영수증 — E127 토큰을 실제로 되돌렸다(0 이면 정규화가 헛돈다)').toBeGreaterThan(0);
+  const k0 = Object.keys(base)[0], mut = ids(e127Back(cur[k0].replace('grd-line', 'grd-linX')).s);
+  expect(mut, '[양성대조] 글자색 아닌 바이트를 바꾸면 되돌려도 기준판과 다르다').not.toBe(ids(base[k0]));
 });
 
 /* B1 ★자식이 있으면 «격자 껍데기만» 다시 그린다 — 재렌더 셋(renderGridBlock · updateGridBlock · rebindAll)을 지나도
