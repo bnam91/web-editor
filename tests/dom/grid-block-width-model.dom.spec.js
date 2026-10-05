@@ -65,6 +65,12 @@ const SNAP = () => {
   return out;
 };
 
+/* ★E127(c16bbccc · 지디 E127-guards 10-06): 그리드 역할색 color:#hex → color:var(--preset-<역할>-color, #hex) 는 «뜻한 바뀜»(폴백 hex 그대로 = 프리셋 덮기 없으면 같은 픽셀).
+ *   기준판엔 없는 꼴이라 «그 토큰만» 옛 꼴로 되돌려 비교한다 — 정규식은 역할 다섯 · 6자리 hex 만 잡는다(다른 바이트는 하나도 안 건드림).
+ *   양성대조: 글자색 아닌 바이트 하나(grd-line → grd-linX)를 바꾼 사본은 되돌려도 기준판과 «달라야» 한다 — 아래 단언. */
+const E127_TOKEN = /color:var\(--preset-(?:h1|h2|h3|body|caption)-color, (#[0-9a-fA-F]{6})\);/g;
+const e127Back = (h) => { let n = 0; const s = (h ?? '').replace(E127_TOKEN, (_, hex) => { n++; return `color:${hex};`; }); return { s, n }; };
+
 test.setTimeout(120000);
 test('W0 ★지키는 시험 — 키가 없으면 bf9161d0 과 style·innerHTML 바이트 동일(네 꼴 × 재렌더)', async ({ browser }) => {
   const pCur = await browser.newPage(), pBase = await browser.newPage();
@@ -75,7 +81,16 @@ test('W0 ★지키는 시험 — 키가 없으면 bf9161d0 과 style·innerHTML 
   expect(Object.keys(base).length, '전제 — 기준판에서도 여덟 판을 떴다').toBe(8);
   expect(base['흐름 기본'].style, '전제 — 기준판 흐름 그리드는 100%').toContain('width: 100%');
   expect(base['흐름 패딩제외'].style, '전제 — 패딩제외 꼴이 정말 걸렸다(calc)').toContain('calc(');
-  for (const k of Object.keys(base)) expect(cur[k], `«${k}» 이 기준판과 다르다`).toEqual(base[k]);
+  let tokens = 0;
+  for (const k of Object.keys(base)) {
+    const st = e127Back(cur[k].style), ht = e127Back(cur[k].html); tokens += st.n + ht.n;
+    expect({ style: st.s, html: ht.s }, `«${k}» 이 기준판과 다르다(E127 토큰만 되돌린 뒤)`).toEqual(base[k]);
+  }
+  console.log(`W0 E127 토큰 되돌림 ${tokens} 자리 / ${Object.keys(base).length} 판`);
+  expect(tokens, '영수증 — E127 토큰을 실제로 되돌렸다(0 이면 정규화가 헛돈다 · 10-06 실측 diff = 판마다 ×2)').toBeGreaterThan(0);
+  // 양성대조 — 글자색 아닌 바이트 하나
+  const k0 = '흐름 기본', mut = e127Back(cur[k0].html.replace('grd-line', 'grd-linX')).s;
+  expect(mut, '[양성대조] 글자색 아닌 바이트를 바꾸면 되돌려도 기준판과 다르다').not.toBe(base[k0].html);
   await pCur.close(); await pBase.close();
 });
 
