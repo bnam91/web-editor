@@ -1756,8 +1756,40 @@ function _holdBackground(on) {
 }
 window._holdBackgroundForTest = () => _bgHold;   // 시험 전용 읽기(쓰기 없음)
 
+/* ⒡ 끌기 저장 (2026-10-05 lane-esweep · 데이터 손실 · 지디 승인 21:59)
+   증상(실앱 실측): 섹션 안 블럭을 끌어 옮기면 화면은 바뀌는데 파일은 그대로 — 4초·20초 뒤에도 무변,
+     창을 닫거나 다시 읽으면 옮김이 사라진다. 「상관없는 편집 하나를 하면 그때 같이 저장된다」. E132 도 같은 뿌리.
+   뿌리: dragstart 가 억제 창을 연다(section-drag.js _suppressDragSave · layer-panel-items.js 'layer-drag').
+     놓기의 DOM 변화는 창 «안»이라 아래 scheduleAutoSave 가 «기억 없이» 버렸고, dragend 는 창만 닫는다(AutoSaveSuppress.end 는 예약 안 함).
+     b828e3fa(2026-03-28)부터 · v0.5.0~v0.9.5. 옮긴 뒤 다시 저장을 거는 길은 셋뿐이었다(프레임 dragend · 섹션 drop · ⌘S).
+   고침: 억제 «중» 버려지는 편집이 «끌기 창만» 열려 있을 때 생긴 것이면 ⑴ 미저장 표시(_dirtySinceSave)를 세우고
+     ⑵ 창이 닫히는 대로 저장을 한 번 건다. ⑴ 덕에 창을 바로 닫아도 beforeunload 동기 저장이 돈다.
+   ⛔끌기 아닌 억제(열기·탭/페이지 전환·되돌리기 복원 — 이유 'page-switch' 등, 혹은 이유 없는 날 대입)는 «건드리지 않는다»:
+     그 창의 변화는 편집이 아니라 불러오기다(DEF-03 — 무편집 방문이 파일을 다시 쓰지 않게).
+   분모 = 끌기 억제 이유 둘 ↔ 여는 길 6(block-drag.js 블럭 단위·프레임 · section-drag.js 라벨·그룹·빈 row → 'section-drag' / 레이어 → 'layer-drag').
+   시험: tests/dom/drag-move-autosave.dom.spec.js (깃발을 빼면 D1·D5·D6 빨강). */
+const _DRAG_SUPPRESS_REASONS = new Set(['section-drag', 'layer-drag']);
+let _dragEditPending = false;
+let _dragEditTimer = null;
+function _noteEditDuringDrag() {
+  const AS = (typeof window !== 'undefined') ? window.AutoSaveSuppress : null;
+  const holders = (AS && typeof AS.inspect === 'function') ? (AS.inspect().holders || []) : [];
+  if (!holders.length || !holders.every(h => _DRAG_SUPPRESS_REASONS.has(h.reason))) return;
+  _dirtySinceSave = true;
+  _dragEditPending = true;
+  if (_dragEditTimer) return;
+  const tick = () => {
+    if (state._suppressAutoSave) { _dragEditTimer = setTimeout(tick, 100); return; }
+    _dragEditTimer = null;
+    if (!_dragEditPending) return;
+    _dragEditPending = false;
+    scheduleAutoSave();
+  };
+  _dragEditTimer = setTimeout(tick, 100);
+}
+
 function scheduleAutoSave() {
-  if (state._suppressAutoSave) return;
+  if (state._suppressAutoSave) { _noteEditDuringDrag(); return; }   // ⒡ 끌기 창 안에서 버려지던 편집 — 위 머리말
   // [P-A2] 제스처 중이면 «미룬다» — 버리지 않고 기억해 뒀다가 놓을 때 다시 건다.
   if (_autoSaveDeferred) { _dirtySinceSave = true; _autoSavePending = true; return; }
   // BUG-12: activeProjectId가 없으면 'web-editor-autosave__undefined' 키로 저장되는 버그 방지
