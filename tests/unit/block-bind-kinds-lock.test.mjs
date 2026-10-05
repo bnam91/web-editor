@@ -1,7 +1,7 @@
 /* block-bind-kinds-lock.test.mjs — R7b 잠금 (lane-drag · 2026-10-05 · 지디 ⒜ + 잠금 시험)
  *
  * js/block-bind-kinds.js 가 «bindBlock 걸 종류»의 정본이다. 지금 그 명부를 쓰는 곳은 섹션 템플릿 넣기 하나뿐이고,
- * 손으로 적은 명부 8 곳은 0.9.7 에 옮긴다. 그 사이 «더 벌어지지» 않게, 손 명부마다 «오늘 빠진 종류»를 얼린다.
+ * 손으로 적은 명부 8 곳 중 A/B 변형 둘(section-variation.js)은 0.9.6 에 정본으로 옮겼고, 남은 6 곳은 0.9.7. 그 사이 «더 벌어지지» 않게, 손 명부마다 «오늘 빠진 종류»를 얼린다.
  *   - 손 명부가 종류를 «더» 빠뜨리면(줄 하나 지움) → 빨강.
  *   - 정본에 «새 종류»를 더하면 → 손 명부 8 곳이 전부 한 칸씩 더 벌어져 빨강(= 이 시험이 정본을 읽는다는 증거).
  *     그때 할 일: 손 명부에 그 종류를 넣거나, 아래 표에 «까닭»과 함께 얼린 칸을 늘린다.
@@ -43,12 +43,17 @@ const FROZEN = {
   'editor.js 초기 바인딩': { file: 'js/editor.js', anchor: "document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block", gaps: { 'joker-block': U, 'shape-block': U, 'speech-bubble-block': C } },
   'block-factory.js 섹션 바인딩': { file: 'js/block-factory.js', anchor: "sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block", gaps: { 'banner02-block': U, 'canvas-block': U, 'comparison-block': U, 'icon-block': U, 'joker-block': U, 'mockup-block': U, 'modal-block': U, 'speech-bubble-block': C } },
   'template-system.js subsection 갈래': { file: 'js/panels/template-system.js', anchor: "ss.querySelectorAll('.text-block, .asset-block", gaps: { 'banner02-block': U, 'canvas-block': U, 'chat-block': U, 'comparison-block': U, 'laurel-block': U, 'mockup-block': U, 'speech-bubble-block': C, 'step-block': U, 'vector-block': U, 'zoom-block': U } },
-  'section-variation.js createVariation': { file: 'js/section-variation.js', anchor: "clone.querySelectorAll('.text-block, .asset-block", occurrence: 0, gaps: Object.fromEntries(['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'joker-block', 'laurel-block', 'mockup-block', 'modal-block', 'qa-block', 'shape-block', 'step-block', 'vector-block', 'zoom-block'].map(k => [k, D]).concat([['speech-bubble-block', C]])) },
-  'section-variation.js addVariation': { file: 'js/section-variation.js', anchor: "clone.querySelectorAll('.text-block, .asset-block", occurrence: 1, gaps: Object.fromEntries(['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'joker-block', 'laurel-block', 'mockup-block', 'modal-block', 'qa-block', 'shape-block', 'step-block', 'vector-block', 'zoom-block'].map(k => [k, D]).concat([['speech-bubble-block', C]])) },
 };
 
 test('정본 명부가 서 있다(28 종 · 만드는 자리가 있고 bindBlock 으로 묶이는 종류)', () => {
   assert.equal(ROSTER.size, 28, `정본 ${ROSTER.size} 종`);
+});
+
+test('★A/B 변형 사본(section-variation.js createVariation·addVariation)도 정본에서 끌어온다(0.9.6)', () => {
+  const src = read('js/section-variation.js');
+  assert.ok(/import\s*\{[^}]*BLOCK_BIND_SEL[^}]*\}\s*from\s*'\.\/block-bind-kinds\.js'/.test(src), 'section-variation.js 가 block-bind-kinds.js 를 안 읽는다');
+  assert.ok(/clone\.querySelectorAll\(BLOCK_BIND_SEL\)/.test(src), '사본 bindBlock 이 정본 셀렉터를 안 쓴다');
+  assert.equal((src.match(/^\s*_bindVariantClone\(clone\);/gm) || []).length, 2, 'createVariation·addVariation 두 자리 모두 사본을 묶어야 한다');
 });
 
 test('★섹션 템플릿 넣기(section 갈래)는 손 명부가 아니라 정본에서 끌어온다', () => {
