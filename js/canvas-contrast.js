@@ -193,6 +193,46 @@ export function backdropRgbAt(el, ownBg) {
   for (let i = layers.length - 2; i >= 0; i--) out = _over(layers[i].rgb, out, layers[i].a);
   return out;
 }
+/* ★E151(2026-10-06 · 태양 승인 ⒜ «그래프만») — 바탕의 «정지점 전부». backdropRgbAt 이 한 색을 내면 [그 색] 그대로(단색 바탕 = 바이트 같음).
+ *   null 이었을 때만 다시 걷는다: 조상 중 맨 위 배경 층이 «모든 정지점 불투명» 그라디언트면 그 정지점들(그 밑 이미지는 가려진다 —
+ *   섹션 «이미지 + 불투명 색» = linear-gradient(c, c), url(img) 이 이 꼴 · prop-section.js _applySectionBg) · 그 위 반투명 층은 정지점마다 합성.
+ *   맨 위 층이 url(이미지) · 반투명 정지점 · 못 읽는 꼴('to right' 등) 이면 null(모른다 — 그림 픽셀은 못 본다 · 못 보는 꼴).
+ * ⛔소비자는 syncGraphTone 하나다 — backdropRgbAt 의 다른 소비자 넷(G5 그리드 · G6 표 · 관찰자 · 선택 톤)은 안 바뀐다(⒝ = 현빈 결정). */
+function _topBgLayer(bi) {
+  let depth = 0;
+  for (let i = 0; i < bi.length; i++) { const ch = bi[i]; if (ch === '(') depth++; else if (ch === ')') depth--; else if (ch === ',' && depth === 0) return bi.slice(0, i).trim(); }
+  return bi.trim();
+}
+function _opaqueGradientStops(bi) {
+  const top = _topBgLayer(String(bi || ''));
+  if (!/^(linear|radial)-gradient\(/i.test(top)) return null;
+  const g = parseGradient(top);
+  if (!g || !Array.isArray(g.stops) || !g.stops.length) return null;
+  const out = [];
+  for (const st of g.stops) { const c = _parseWithAlpha(st.color); if (!c || c.a < 1) return null; out.push(c.rgb); }
+  return out;
+}
+export function backdropStopsAt(el) {
+  const one = backdropRgbAt(el);
+  if (one) return [one];
+  const layers = [];
+  const comp = (base) => { let out = base; for (let i = layers.length - 1; i >= 0; i--) out = _over(layers[i].rgb, out, layers[i].a); return out; };
+  for (let e = el; e; e = e.parentElement) {
+    const cs = _cs(e);
+    if (!cs) return null;
+    const g = _gridBgLayer(e);
+    if (g === false) return null;
+    if (g) { if (g.a >= 1) return [comp(g.rgb)]; layers.push(g); }
+    if (cs.backgroundImage && cs.backgroundImage !== 'none') {
+      const stops = _opaqueGradientStops(cs.backgroundImage);
+      return stops ? stops.map(comp) : null;
+    }
+    const c = _parseWithAlpha(cs.backgroundColor);
+    if (c && c.a > 0) { if (c.a >= 1) return [comp(c.rgb)]; layers.push(c); }
+    if (e.classList && e.classList.contains('section-block')) break;
+  }
+  return null;
+}
 /** RGB 배경 → 'light'(밝은 글자가 낫다) | 'dark'. */
 export function textToneOver(rgb) {
   if (!rgb) return null;
@@ -262,20 +302,24 @@ export function syncGraphTone(block) {
   /* E149 — 패널 색 칸이 보일 «파생 전» 선 색을 여기서 기억한다(변수를 걷은 «지금»이 그 값 — 걷고 읽기는 이 함수가 원래 한다).
      JS 속성이라 DOM·저장·자동저장에 0. 읽는 자 = graphFieldShown(아래 한 곳). */
   { const _p = block.querySelector('.grb-line-path'); block._grbToneBase = { line: _p ? (_cs(_p)?.stroke || '') : '' }; }
-  const bg = backdropRgbAt(block);
+  /* E151 — 바탕 «정지점 전부»(단색이면 [한 색] = 옛 길 그대로). 톤은 모든 정지점이 'light'(어두운 바탕)일 때만 · 목표 대비는 «모든» 정지점 위에서(가장 많이 밝힌 값). */
+  const stops = backdropStopsAt(block);
+  const bg = stops && stops.length === 1 ? stops[0] : null;   // K6 구멍은 «한 색»일 때만(그라디언트엔 한 색이 없다 · ⒦1 흰 대체 그대로)
   const want = ['', '', '', ''];
-  if (bg && textToneOver(bg) === 'light') {
+  const _lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  const _lightenAll = (base) => stops.map(st => _lightenTo(base, st, GRAPH_LINE_TARGET)).reduce((a, b) => (_lum(b) > _lum(a) ? b : a));
+  if (stops && stops.every(st => textToneOver(st) === 'light')) {
     /* 격자 변수는 «격자가 켜졌을 때만» — 꺼진 그래프에 읽는 자 없는 변수를 쓰지 않는다(GR-W0: 셋 다 꺼짐 = 기준판과 바이트 동일, 회귀 실측). */
-    if (d.showGrid === '1' && !d.gridColor && !d.labelColor) want[0] = `rgba(255, 255, 255, ${_whiteAlphaTo(bg, GRAPH_GRID_TARGET)})`;
+    if (d.showGrid === '1' && !d.gridColor && !d.labelColor) want[0] = `rgba(255, 255, 255, ${Math.max(...stops.map(st => _whiteAlphaTo(st, GRAPH_GRID_TARGET)))})`;
     const path = block.querySelector('.grb-line-path');
     const lineBase = path && !d.lineColor && !d.barColor ? _rgbOfCss(_cs(path)?.stroke) : null;
-    if (lineBase) want[1] = _rgbCss(_lightenTo(lineBase, bg, GRAPH_LINE_TARGET));
+    if (lineBase) want[1] = _rgbCss(_lightenAll(lineBase));
     const ov = block.querySelector('.grb-ov');
     const inkBase = ov && !d.labelColor ? _rgbOfCss(_cs(ov)?.color) : null;
-    if (inkBase) want[2] = _rgbCss(_lightenTo(inkBase, bg, GRAPH_LINE_TARGET));
+    if (inkBase) want[2] = _rgbCss(_lightenAll(inkBase));
   }
   /* K6 — 속빈 점의 구멍 = 그 자리 바탕(단색). 톤과 무관하게 흰 바탕에서도 쓴다(구멍은 «바탕을 보여 주는» 자리).
-     ⚠️backdropRgbAt 은 한 색이다 — 그라디언트·이미지 바탕에선 구멍이 단색 덩어리로 보인다(못 보는 꼴 · 실측표). */
+     ⚠️그라디언트는 «한 색»이 없어 구멍 변수를 안 쓴다 → CSS 흰 대체(⒦1 · E151 은 H6 만 푼다) · 이미지 바탕도 같다(못 보는 꼴). */
   if (bg && d.pointStyle === 'hollow' && d.chartType === 'line') want[3] = _rgbCss(bg);
   GRAPH_AUTO_VARS.forEach((v, i) => { if (want[i]) block.style.setProperty(v, want[i]); });
   return { prev, want };
