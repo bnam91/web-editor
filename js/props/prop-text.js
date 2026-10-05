@@ -1,6 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { rgbToHex } from './prop-text-utils.js';
-import { panelRenderedPx, labelShapeFromRendered } from './_panel-rendered.js';
+import { panelRenderedPx, labelShapeFromRendered, panelRenderedWeight } from './_panel-rendered.js';
 import { buildTextPropsHtml } from './prop-text-template.js';
 import { detectMix } from './prop-text-mix-detect.js';
 import { wireBubbleSection }   from './prop-text-wireup-bubble.js';
@@ -46,7 +46,7 @@ export function showTextProperties(tb) {
   const currentClass = ['tb-h1','tb-h2','tb-h3','tb-body','tb-caption','tb-label','tb-bullet','tb-liner'].find(c => contentEl.classList.contains(c)) || (isSpeechBubble ? 'tb-bubble' : isLiner ? 'tb-liner' : 'tb-body');
   const rawBg = window.getComputedStyle(contentEl).backgroundColor;
   const currentBgColor = (!rawBg || rawBg === 'rgba(0, 0, 0, 0)' || rawBg === 'transparent') ? '#111111' : (rgbToHex(rawBg) || '#111111');
-  const currentRadius = parseInt(contentEl.style.borderRadius) || 4;
+  const currentRadius = Math.round(panelRenderedPx(contentEl, 'borderTopLeftRadius'));   // 묶음 B E113 — 그려진 모서리(CSS var(--preset-label-radius)=8). 옛 `|| 4` 는 빈 값·0 둘 다 4
   const isLabel = currentClass === 'tb-label';
   const currentTail = tb.dataset.tail || 'left';
   /* BT3 — dataset 이 없으면 «기본»(템플릿의 selected 판정·makeSpeechBubbleBlock 기본값과 같은 값). 옛 'imessage' 폴백은 드롭다운엔 iMessage 를 띄우고 모습은 기본이라 어긋났다. */
@@ -135,9 +135,10 @@ export function showTextProperties(tb) {
   let   phLinked     = currentPadL === currentPadR;
   // rawFont: CSS가 fontFamily를 정규화(따옴표 변환 등)하므로 raw option값을 별도 저장해서 우선 사용
   const currentFont   = contentEl.dataset.rawFont || contentEl.style.fontFamily || '';
-  const rawWeight     = contentEl.style.fontWeight || '';
-  const currentWeight = rawWeight === 'bold' ? '700' : rawWeight === 'normal' ? '400' : rawWeight;
-  const isBold        = currentWeight === '700' || rawWeight === 'bold';
+  /* ★묶음 B #16 — «그려진» 굵기(_panel-rendered.js). 옛 판은 인라인만 읽어 빈 인라인을 Regular 400 · B 꺼짐으로 그렸다(CSS .tb-h1 700 · .tb-h2/.tb-h3 600).
+     B 켜짐 = 600 이상 — B 토글(prop-text-wireup-text-edit.js isOn)과 같은 잣대. */
+  const currentWeight = panelRenderedWeight(contentEl);
+  const isBold        = parseInt(currentWeight, 10) >= 600;
   const isItalic      = contentEl.style.fontStyle  === 'italic';
   const isStrike      = (contentEl.style.textDecorationLine || contentEl.style.textDecoration || '').includes('line-through');
   const currentHighlight      = tb.dataset.highlight || 'none';

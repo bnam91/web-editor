@@ -19,6 +19,7 @@ import { detectMix } from './prop-text-mix-detect.js';
 import {
   withTextSelection, getSavedTextSelection, clearTextSelection, spanExactlyCovering, applyStyleToRange,
 } from './_text-selection.js';
+import { panelRenderedWeight } from './_panel-rendered.js';
 import {
   applyTextGradient, clearTextGradient, getTextGradient, hasTextGradient,
   textGradientBlockedReason,
@@ -416,7 +417,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
 
   wireInlineStyleBtn({
     btnId: 'txt-bold-btn', cmd: 'bold', tagSel: 'b, strong', styleProp: 'font-weight',
-    isOn: el => { const w = el.style.fontWeight; return w === 'bold' || parseInt(w, 10) >= 600; },
+    isOn: el => parseInt(panelRenderedWeight(el), 10) >= 600,   // 묶음 B #16 — 그려진 굵기(옛: 인라인만 → CSS 600 제목에서 첫 클릭이 600→700 «안 바뀐 듯»)
     setOn: el => {
       el.style.fontWeight = '700';
       // 블록 굵기의 단일 소스는 weight select 다 — 표시를 어긋나게 두지 않는다.
