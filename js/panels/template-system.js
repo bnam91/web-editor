@@ -474,17 +474,21 @@ async function insertTemplate(tpl) {
     // ID 재생성 (중복 방지)
     ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
     ss._subSecBound = false;
+    /* ★E104(2026-10-05) — 안쪽 [id] 도 «전부» 새로 준다(붙여넣기 editor.js _bindPastedEl 과 같은 규칙: 접두어_임의 7자).
+     *   전엔 바깥 ss.id 만 바꿔 안쪽 글자 프레임·글자 블럭 id 가 템플릿을 뜬 «원본과 같았다»(실측: 원본이 문서에 있으면 중복 2). */
+    ss.querySelectorAll('[id]').forEach(el => {
+      el.id = `${el.id.split('_')[0] || 'el'}_${Math.random().toString(36).slice(2, 9)}`;
+    });
 
-    // frame-block은 row 안에 있어야 함
+    /* frame-block은 row 안에 있어야 함 — ★E104: row > 프레임(«col» 없이).
+     *   옛 꼴 row > col > 프레임은 넣은 프레임이 «클릭해도 안 골라졌다»(실측 변이 v3: col 만 풀면 프레임·안 글자 클릭이 원본과 같아짐 ·
+     *   안쪽 id 재발급(v1)·안쪽 프레임 바인딩(v2)만으로는 안 됨). 열기 마이그레이션(save-load migrateColsFromDOM)이 어차피
+     *   row[stack] > col 을 풀어 같은 꼴로 만든다 — 넣는 순간부터 그 꼴로 둔다. */
     const row = document.createElement('div');
     row.className = 'row';
     row.id = 'row_' + Math.random().toString(36).slice(2, 9);
     row.dataset.layout = 'stack';
-    const col = document.createElement('div');
-    col.className = 'col';
-    col.dataset.width = '100';
-    col.appendChild(ss);
-    row.appendChild(col);
+    row.appendChild(ss);
 
     // 선택된 섹션의 콘텐츠 영역(section-inner 또는 직접)에 append
     const inner = targetSec.querySelector('.section-inner') || targetSec;
