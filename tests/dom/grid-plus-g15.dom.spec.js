@@ -1,9 +1,12 @@
 /* grid-plus-g15.dom.spec.js — G15 그리드 캔버스 ＋ (2026-10-04 현빈·지디, 안 ㉠)
  *   오른쪽 끝 ＋ = 열 하나를 «끝에» · 아래 끝 ＋ = 행 하나를 «끝에». 4×4 상한에선 흐리고 눌러도 무변화.
- *   히트 영역 = calc(40px * var(--inv-zoom)) — 화면에서 늘 ≈40px.
+ *   ~~히트 영역 = calc(40px * var(--inv-zoom)) — 화면에서 늘 ≈40px~~ ⇒ ★H9(2026-10-05): 40×40 «모델 px»(화면 = 40 × 배율) · 태그블럭 ＋ 꼴.
  *
- * ★뜨는 조건 = 그리드 블럭 «전체» 호버(2026-10-04 현빈 결정 — 태그블럭 ＋ 의 «선택» 선례와 다른 것이 의도).
- *   시험 전용 표지는 없다 — 진짜 마우스를 그리드 위에 올려서 띄운다(V1~V3 이 뜨고·지는 것을 잰다).
+ * ~~★뜨는 조건 = 그리드 블럭 «전체» 호버(2026-10-04 현빈 결정 — 태그블럭 ＋ 의 «선택» 선례와 다른 것이 의도)~~
+ *   ⇒ ★H8(2026-10-05 현빈 재지시): 뜨는 조건 = 그리드 «선택». 진짜 클릭으로 고른다(force) — V1~V3 이 뜨고·지는 것을 잰다.
+ * ★자리 H10(2026-10-05): 오른쪽 ＋ 중심 = 블럭 오른쪽 끝(옛: 안쪽 한 칸) · 아래 ＋ = 껍데기 바로 아래(자리 그대로 · 크기만 모델 40 — 행 손잡이와 겹쳐 중심을 못 올림).
+ *   이 파일의 «옛 계약» 단언(호버 · 화면 40 · 안쪽/매달림)은 2026-10-05 에 새 계약으로 «뒤집었다» — 뒤집은 것이 고친 증거다.
+ *   새 계약 묶음 시험 = tests/dom/grid-plus-e1.dom.spec.js.
  *   보임 = computed opacity·visibility + elementFromPoint(눌리는가).
  *
  * 양성대조 핀 07d8178b(origin/dev, 이 기능 전): GD1001_ROOT=<핀 체크아웃> 으로 같은 시험을 돌린다.
@@ -49,17 +52,20 @@ async function setup(page, zoom = 100) {
 /* 그리드 «안쪽» 한 점 — 왼쪽 1/4 · 세로 가운데(＋ 두 개 어느 쪽과도 안 겹치는 자리) */
 const gridPoint = (page, id) => page.evaluate((id) => {
   const g = document.getElementById(id); g.scrollIntoView({ block: 'center' });
-  const r = g.getBoundingClientRect(); return [r.left + r.width * 0.25, r.top + r.height / 2];
+  /* 자식(G19) 있는 그리드는 블럭 가운데가 자식 위다 — 격자 껍데기(.grd-inner) 가운데를 누른다(고르기 = 그리드). */
+  const r = (g.querySelector(':scope > .grd-inner') || g).getBoundingClientRect(); return [r.left + r.width * 0.25, r.top + r.height / 2];
 }, id);
 /* 그리드 «밖» 한 점 — 블럭 위 30px(위 gap 블럭) */
 const outsidePoint = (page, id) => page.evaluate((id) => {
   const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width * 0.25, r.top - 30];
 }, id);
-/* 진짜 마우스로 그리드 위에 올린다 — ＋ 가 붙는 유일한 길(호버) */
+/* ＋ 가 붙는 유일한 길 = 그리드를 «진짜 클릭으로 고른다»(H8 · 2026-10-05 현빈 재지시). 옛: 그리드 위에 마우스를 올림(호버 · 2026-10-04).
+   첫 클릭 = 블럭 선택(T-058) — 그리드 안쪽 왼쪽 1/4 점(＋ 둘과 안 겹치는 자리). 고른 뒤 상태 대기. */
 async function force(page, id) {
   const [x, y] = await gridPoint(page, id);
-  await page.mouse.move(x, y, { steps: 4 });
-  await page.waitForTimeout(80);
+  await page.mouse.click(x, y);
+  await page.waitForFunction((id) => document.getElementById(id).classList.contains('selected')
+    && document.querySelectorAll(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"]`).length === 2, id, { timeout: 3000 });
 }
 /* ＋ 가 «보이고 눌리는가» — 없으면 그 자리에 무엇이 잡히는지도 본다 */
 const vis = (page, id) => page.evaluate((id) => {
@@ -125,21 +131,28 @@ test('V1 ★그리드 밖 → ＋ 안 보임(opacity·visibility·elementFromPoi
   expect(errs).toEqual([]);
 });
 
-test('V2 ★그리드 위(블럭 아무 데나) → 두 ＋ 보이고 눌린다 · 선택 불필요', async ({ page }) => {
+test('V2 ★H8 — 그리드 위 «호버만»(안 고름) → ＋ 안 보임 · 고르면 → 두 ＋ 보이고 눌린다', async ({ page }) => {
   const { errs, a } = await setup(page);
-  await force(page, a);
+  const [x, y] = await gridPoint(page, a);
+  await page.mouse.move(x, y, { steps: 4 });
+  await page.waitForFunction((id) => document.getElementById(id).matches(':hover'), a, { timeout: 3000 });
   expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), a), '전제 — 선택 안 됨(호버만)').toBe(false);
-  expect(await vis(page, a), '★호버 → 둘 다 보이고 눌린다').toEqual({ col: SHOWN, row: SHOWN });
+  expect(await vis(page, a), '★호버만 → 둘 다 없다(옛: 보였다)').toEqual({ col: HIDDEN, row: HIDDEN });
+  await force(page, a);
+  expect(await vis(page, a), '★고르면 → 둘 다 보이고 눌린다').toEqual({ col: SHOWN, row: SHOWN });
   expect(errs).toEqual([]);
 });
 
-test('V3 ★그리드에서 벗어나면 → 다시 안 보임', async ({ page }) => {
+test('V3 ★H8 — 고른 채로 마우스가 벗어나도 보인다 · 다른 것을 고르면(선택 풀림) → 안 보임', async ({ page }) => {
   const { errs, a } = await setup(page);
   await force(page, a);
-  expect(await vis(page, a), '전제 — 호버 중엔 보인다').toEqual({ col: SHOWN, row: SHOWN });
   const [ox, oy] = await outsidePoint(page, a);
-  await page.mouse.move(ox, oy, { steps: 4 }); await page.waitForTimeout(80);
-  expect(await vis(page, a), '★벗어나면 둘 다 사라진다').toEqual({ col: HIDDEN, row: HIDDEN });
+  await page.mouse.move(ox, oy, { steps: 4 });
+  await page.waitForFunction((id) => !document.getElementById(id).matches(':hover'), a, { timeout: 3000 });
+  expect(await vis(page, a), '★고른 채 마우스 밖 → 그대로 보인다(옛: 사라졌다)').toEqual({ col: SHOWN, row: SHOWN });
+  await page.mouse.click(ox, oy);   // 위 gap 블럭 클릭 = 그리드 선택 풀림
+  await page.waitForFunction((id) => !document.getElementById(id).classList.contains('selected'), a, { timeout: 3000 });
+  expect(await vis(page, a), '★선택 풀림 → 둘 다 사라진다').toEqual({ col: HIDDEN, row: HIDDEN });
   expect(errs).toEqual([]);
 });
 
@@ -234,23 +247,23 @@ test('P3 ★4×4 상한 — ＋ 흐림(disabled · --ui-disabled-opacity) · 눌
 });
 
 for (const z of [40, 100]) {
-  test(`P4 ★배율 ${z}% — 히트 영역이 화면에서 ≈40px · 진짜 클릭이 먹는다`, async ({ page }) => {
+  test(`P4 ★배율 ${z}% — ＋ 화면 크기 = 40 × 배율(모델 40 · H9) · 진짜 클릭이 먹는다`, async ({ page }) => {
     const { errs, a } = await setup(page, z);
     expect(await page.evaluate(() => window.currentZoom), `★재기 전 — 배율이 정말 ${z}`).toBe(z);
     await force(page, a);
     for (const axis of ['col', 'row']) {
       const bx = await btnBox(page, a, axis);
       expect(bx, `${axis} ＋ 가 있다`).not.toBeNull();
-      expect(Math.abs(bx.w - 40), `★${axis} 폭 ${bx.w}px ≈ 40`).toBeLessThanOrEqual(1);
-      expect(Math.abs(bx.h - 40), `★${axis} 높이 ${bx.h}px ≈ 40`).toBeLessThanOrEqual(1);
+      expect(Math.abs(bx.w - 40 * z / 100), `★${axis} 폭 ${bx.w}px ≈ ${40 * z / 100}(모델 40 × 배율 · 옛: 화면 40 고정)`).toBeLessThanOrEqual(1);
+      expect(Math.abs(bx.h - 40 * z / 100), `★${axis} 높이 ${bx.h}px ≈ ${40 * z / 100}`).toBeLessThanOrEqual(1);
       expect(bx.hitIsBtn, `★${axis} 가운데 elementFromPoint = 버튼 ${JSON.stringify(bx)}`).toBe(true);
     }
     // 가장자리 안쪽 4px 도 버튼이 잡는다(히트 = 보이는 원 상자 전체)
     const edge = await page.evaluate((id) => {
       const b = document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"][data-grd-add="col"]`); const r = b.getBoundingClientRect();
-      return document.elementFromPoint(r.left + r.width / 2, r.top + 4) === b;
+      return document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(4, r.height / 4)) === b;
     }, a);
-    expect(edge, '★위 가장자리 4px 안쪽도 버튼').toBe(true);
+    expect(edge, '★위 가장자리 안쪽(4px · 작으면 1/4)도 버튼').toBe(true);
     const bx = await btnBox(page, a, 'col');
     await page.mouse.click(bx.cx, bx.cy); await page.waitForTimeout(150);
     expect((await model(page, a)).nCols, `★${z}% 진짜 클릭 → 열 +1`).toBe(3);
@@ -276,16 +289,18 @@ test('P5 저장·내보내기에 ＋ 가 안 샌다(편집 전용)', async ({ pa
   expect(errs).toEqual([]);
 });
 
-test('P6 ★호버 ＋ 가 «블럭 고르기» 첫 클릭을 안 먹는다 — 1행 그리드 가운데 클릭 = 선택 · 행·열 그대로', async ({ page }) => {
+test('P6 ★H8 — 고르기 «전»엔 ＋ 가 없다 · 1행 그리드 가운데 첫 클릭 = 선택 · 행·열 그대로 · 그 뒤 ＋ 둘', async ({ page }) => {
   const { errs, a } = await setup(page);
   const m0 = await model(page, a);
   const [x, y] = await page.evaluate((id) => { const g = document.getElementById(id); g.scrollIntoView({ block: 'center' });
     const r = g.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, a);
   expect(await page.evaluate((id) => document.getElementById(id).getBoundingClientRect().height, a), '전제 — 1행 그리드는 ＋(40) 보다 낮다').toBeLessThan(80);
-  await page.mouse.move(x, y, { steps: 4 }); await page.waitForTimeout(80);
-  expect((await vis(page, a)).row.present, '전제 — 호버로 ＋ 가 떴다').toBe(true);
-  await page.mouse.click(x, y); await page.waitForTimeout(200);
-  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), a), '★가운데 클릭 = 블럭 선택').toBe(true);
+  await page.mouse.move(x, y, { steps: 4 });
+  await page.waitForFunction((id) => document.getElementById(id).matches(':hover'), a, { timeout: 3000 });
+  expect((await vis(page, a)).row.present, '★고르기 전(호버 중)엔 ＋ 없다(옛: 떴다)').toBe(false);
+  await page.mouse.click(x, y);
+  await page.waitForFunction((id) => document.getElementById(id).classList.contains('selected'), a, { timeout: 3000 });
+  expect(await page.evaluate((id) => document.querySelectorAll(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"]`).length, a), '★고른 뒤 ＋ 둘').toBe(2);
   const m1 = await model(page, a);
   expect({ cols: m1.cols, rows: m1.rows, cells: m1.cells }, '★행·열 무변화').toEqual({ cols: m0.cols, rows: m0.rows, cells: m0.cells });
   expect(errs).toEqual([]);
@@ -325,17 +340,19 @@ for (const z of [100, 40]) {
     await tall(page, a);
     await force(page, a);
     let bx = await boxOf(page, a, 'col');
-    expect(bx.w, '전제 — ＋ 상자 40px').toBeCloseTo(40, 0);
+    expect(bx.w, `전제 — ＋ 상자 ${40 * z / 100}px(모델 40)`).toBeCloseTo(40 * z / 100, 0);
+    const o = bx.w >= 30 ? 3 : 1;   // 원 밖 모서리 점: 상자 안 o px(작은 원에서 3px 는 원 안이다 — 16px 상자: √(5²+5²)=7.1 < 8)
     expect(bx.t >= bx.g.t + 1 && bx.b <= bx.g.b - 1, `전제 — ＋ 상자가 세로로 그리드 안 ${JSON.stringify(bx)}`).toBe(true);
     // R1 ＋ 상자 1px 옆(왼쪽 — 오른쪽은 블럭 밖이다) · 세로 가운데
     const r1 = await clickAt(page, a, bx.l - 1, bx.cy);
     expect(r1, `★R1 1px 옆 = 선택 · 열 그대로 ${JSON.stringify(r1)}`).toMatchObject({ selected: true, dCols: 0, dRows: 0 });
     // R5 원 밖 네모 모서리(왼쪽 위 · 왼쪽 아래 · 오른쪽 위 — 상자 안 3px, 중심까지 ≈24px > 반지름 20)
-    for (const [nm, x, y] of [['좌상', bx.l + 3, bx.t + 3], ['좌하', bx.l + 3, bx.b - 3], ['우상', bx.r - 3, bx.t + 3]]) {
+    /* H10 뒤: 오른쪽 ＋ 는 반이 블럭 밖이다 — 왼쪽 모서리 = 그리드 위(선택) · 오른쪽 모서리 = 블럭 밖(＋ 아님 · 열 그대로만 잰다). */
+    for (const [nm, inGrid] of [['좌상', true], ['좌하', true], ['우상', false]]) {
       await page.evaluate(() => window.deselectAll?.()); await force(page, a);
       bx = await boxOf(page, a, 'col');
-      const r5 = await clickAt(page, a, nm === '우상' ? bx.r - 3 : bx.l + 3, nm === '좌하' ? bx.b - 3 : bx.t + 3);
-      expect(r5, `★R5 ${nm} 모서리(원 밖) = 선택 · 열 그대로 ${JSON.stringify(r5)}`).toMatchObject({ selected: true, dCols: 0 });
+      const r5 = await clickAt(page, a, nm === '우상' ? bx.r - o : bx.l + o, nm === '좌하' ? bx.b - o : bx.t + o);
+      expect(r5, `★R5 ${nm} 모서리(원 밖) = 열 그대로${inGrid ? ' · 선택' : ''} ${JSON.stringify(r5)}`).toMatchObject(inGrid ? { selected: true, dCols: 0 } : { dCols: 0 });
       expect(r5.under.includes('grd-add-btn'), `★R5 ${nm} 모서리에서 ＋ 가 잡히지 않는다 ${r5.under}`).toBe(false);
     }
     // R2 정중앙 = 열 추가
@@ -353,7 +370,8 @@ for (const z of [100, 40]) {
     await force(page, a);
     let bx = await boxOf(page, a, 'row');
     expect(Math.abs(bx.t - bx.g.b), '전제 — 아래 ＋ 는 그리드 바로 아래').toBeLessThanOrEqual(1);
-    for (const [nm, x, y] of [['좌하', bx.l + 3, bx.b - 3], ['우하', bx.r - 3, bx.b - 3]]) {
+    const o = bx.w >= 30 ? 3 : 1;
+    for (const [nm, x, y] of [['좌하', bx.l + o, bx.b - o], ['우하', bx.r - o, bx.b - o]]) {
       const r = await clickAt(page, a, x, y);
       expect(r.under.includes('grd-add-btn'), `★아래 ＋ ${nm} 모서리(원 밖)에서 ＋ 가 잡히지 않는다 ${JSON.stringify(r)}`).toBe(false);
       expect(r.dRows, `★아래 ＋ ${nm} 모서리 = 행 그대로 ${JSON.stringify(r)}`).toBe(0);
@@ -467,18 +485,22 @@ test('K2 ★자식 있는 그리드 — 아래 ＋ 진짜 클릭 = 행 +1 · 자
   expect(errs).toEqual([]);
 });
 
-test('K3 자식 있는 그리드 — 자식 위에 마우스 = 그리드 호버로 ＋ 뜬다 · 오른쪽 ＋ 세로 자리 기록', async ({ page }) => {
+test('K3 자식 있는 그리드 — 자식 위 호버만으론 ＋ 없음(H8) · 그리드를 고르면 ＋ 둘 · 오른쪽 ＋ 세로 자리 기록', async ({ page }) => {
   const { errs, a } = await setup(page);
   await withKids(page, a);
   const k = await page.evaluate(() => { const r = document.getElementById('kB').getBoundingClientRect(); return [r.left + r.width * 0.25, r.top + r.height / 2]; });
-  await page.mouse.move(k[0], k[1], { steps: 4 }); await page.waitForTimeout(100);
+  await page.mouse.move(k[0], k[1], { steps: 4 });
+  await page.waitForFunction((id) => document.getElementById(id).matches(':hover'), a, { timeout: 3000 });
+  const s0 = await kidState(page, a);
+  expect(!!(s0.col || s0.row), `★자식 위 호버만 → ＋ 없다(옛: 떴다) ${JSON.stringify(s0)}`).toBe(false);
+  await force(page, a);
   const s = await kidState(page, a);
-  expect(s.col && s.row, `★자식 위 호버 → ＋ 둘 ${JSON.stringify(s)}`).toBeTruthy();
+  expect(s.col && s.row, `★고르면 → ＋ 둘 ${JSON.stringify(s)}`).toBeTruthy();
   console.log('K3-geo', JSON.stringify({ colMidY: (s.col.t + s.col.b) / 2, inner: s.inner, kidsBox: s.kidsBox, block: s.block }));
   expect(errs).toEqual([]);
 });
 
-test('K0 자식 «없는» 그리드 — ＋ 는 블럭 밖 층 · 오른쪽 ＋ = 블럭 세로 가운데 · 아래 ＋ = 블럭 바로 아래(층으로 옮기기 전과 같은 자리)', async ({ page }) => {
+test('K0 자식 «없는» 그리드 — ＋ 는 블럭 밖 층 · 오른쪽 ＋ 중심 = 블럭 오른쪽 끝·세로 가운데(H10) · 아래 ＋ = 블럭 바로 아래', async ({ page }) => {
   const { errs, a } = await setup(page);
   await force(page, a);
   const r = await page.evaluate((id) => ({ inBlock: document.getElementById(id).querySelectorAll('.grd-add-btn').length, layer: [...document.querySelectorAll(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"]`)].map(b => b.dataset.grdAdd) }), a);
@@ -486,6 +508,7 @@ test('K0 자식 «없는» 그리드 — ＋ 는 블럭 밖 층 · 오른쪽 ＋
   const s = await kidState(page, a);
   expect(Math.abs((s.col.t + s.col.b) / 2 - (s.block.t + s.block.b) / 2), '★오른쪽 ＋ = 블럭(=껍데기) 세로 가운데').toBeLessThanOrEqual(1);
   expect(Math.abs(s.row.t - s.block.b), '★아래 ＋ = 블럭 바로 아래').toBeLessThanOrEqual(1);
+  expect(Math.abs((s.col.l + s.col.r) / 2 - s.block.r), '★오른쪽 ＋ 중심 = 블럭 오른쪽 끝(H10 · 옛: 안쪽 한 칸)').toBeLessThanOrEqual(1);
   expect(errs).toEqual([]);
 });
 
@@ -592,7 +615,7 @@ for (const z of [100, 40]) {
 
 /* ══ T — ＋ 층(#grd-plus-layer)이 그리드를 «따라가나» (팀리드 조건 2026-10-04) ══════════════════════════
  * 스크롤·배율(스케일러 transform)·재렌더·크기·자식 넣고 빼기·그리드 이동·삭제(고아 0). 매번 «기준점»을 다시 잰다:
- *   오른쪽 ＋ 오른쪽 끝 = 블럭 오른쪽 끝 · 세로 가운데 = 기준(자식 없으면 블럭 · 있으면 껍데기) 세로 가운데
+ *   오른쪽 ＋ «가로 중심» = 블럭 오른쪽 끝(H10 · 옛: 오른쪽 끝) · 세로 가운데 = 기준(자식 없으면 블럭 · 있으면 껍데기) 세로 가운데
  *   아래 ＋ 위 끝 = 기준 아래 끝 · 가로 가운데 = 블럭 가로 가운데 (모두 ±1px) */
 const anchorCheck = (page, id) => page.evaluate((id) => {
   const g = document.getElementById(id);
@@ -602,10 +625,10 @@ const anchorCheck = (page, id) => page.evaluate((id) => {
   const br = g.getBoundingClientRect(), inner = g.querySelector(':scope > .grd-inner'), kids = g.querySelector(':scope > .grd-children');
   const ar = (kids && kids.childElementCount) ? inner.getBoundingClientRect() : br;
   const cr = c.getBoundingClientRect(), rr = r.getBoundingClientRect();
-  const d = { colRight: cr.right - br.right, colMidY: (cr.top + cr.bottom) / 2 - (ar.top + ar.bottom) / 2,
+  const d = { colMidX: (cr.left + cr.right) / 2 - br.right, colMidY: (cr.top + cr.bottom) / 2 - (ar.top + ar.bottom) / 2,
               rowTop: rr.top - ar.bottom, rowMidX: (rr.left + rr.right) / 2 - (br.left + br.right) / 2, colW: cr.width };
   for (const k of Object.keys(d)) d[k] = +d[k].toFixed(2);
-  d.ok = Math.abs(d.colRight) <= 1 && Math.abs(d.colMidY) <= 1 && Math.abs(d.rowTop) <= 1 && Math.abs(d.rowMidX) <= 1;
+  d.ok = Math.abs(d.colMidX) <= 1 && Math.abs(d.colMidY) <= 1 && Math.abs(d.rowTop) <= 1 && Math.abs(d.rowMidX) <= 1;
   return d;
 }, id);
 /* 바뀐 뒤 마우스를 «그 자리의 그리드 위로» 다시 올린다(스크롤 없이) — 스크롤·이동으로 그리드가 마우스 밑에서 빠지면
@@ -648,7 +671,7 @@ test('T1~T6 ★＋ 가 따라간다 — 스크롤 · 배율 100→40 · 재렌�
   steps.moved = await anchorCheck(page, a);
   const msg = JSON.stringify(steps);
   for (const [k, v] of Object.entries(steps)) expect(v.ok, `★${k} 에서 ＋ 가 기준점에 붙어 있다 ${msg}`).toBe(true);
-  expect(Math.abs(steps.zoom40.colW - 40), `★배율 40 에서도 ＋ 화면 40px ${msg}`).toBeLessThanOrEqual(1);
+  expect(Math.abs(steps.zoom40.colW - 16), `★배율 40 에서 ＋ 화면 16px(모델 40 × 0.4 · H9 · 옛: 화면 40 고정) ${msg}`).toBeLessThanOrEqual(1);
   expect(errs).toEqual([]);
 });
 
