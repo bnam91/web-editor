@@ -2050,6 +2050,7 @@ function initApp() {
     if (!nameEl) return;
     const tab = nameEl.closest('.proj-tab');
     if (!tab || tab.dataset.id !== activeProjectId) return;
+    if (nameEl.isContentEditable) return;   // ★RG-N5c — 편집 중 다시 더블클릭해도 처리기가 겹쳐 붙지 않게(RG-N5 와 같은 꼴)
     const current = nameEl.textContent;
     nameEl.contentEditable = 'true';
     nameEl.focus();
@@ -2060,12 +2061,15 @@ function initApp() {
       nameEl.textContent = newName;
       setProjectName(newName);
       nameEl.removeEventListener('blur', commit);
+      // ★RG-N5c — 나가는 문은 이것 하나(blur): 떼기를 여기서(선례 line-host.js lnBeginEdit finish · drag-utils.js _graphLabelBeginEdit finish).
+      //   예전엔 onKey 가 «첫 키 하나» 뒤 스스로 떨어져, 글자를 친 뒤의 Enter/Escape 가 안 먹었다.
+      nameEl.removeEventListener('keydown', onKey);
     }, { once: true });
-    nameEl.addEventListener('keydown', function onKey(e) {
+    function onKey(e) {
       if (e.key === 'Enter') { e.preventDefault(); nameEl.blur(); }
       if (e.key === 'Escape') { nameEl.textContent = current; nameEl.blur(); }
-      nameEl.removeEventListener('keydown', onKey);
-    });
+    }
+    nameEl.addEventListener('keydown', onKey);
   });
 
   // + 드롭다운 — 바깥 클릭 닫기
