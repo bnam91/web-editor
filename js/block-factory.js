@@ -482,7 +482,7 @@ function addTextBlock(type, opts = {}) {
   // 활성 프레임(frame-block) 분기 — freeLayout / fullWidth 모두 처리
   // banner-preset 외곽은 컴포넌트 단위 — 직접 자식 받지 않음. drill-in한 inner만 활성 대상.
   // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
-  const activeSS = resolveInsertFrame(window._activeFrame);
+  const activeSS = _insFrameTarget();
   if (activeSS && !activeSS.dataset.bannerPreset) {
     /* ★아무것도 안 넣는 «지원하지 않는 프레임 타입»(자유배치도 fullWidth 도 아님)은 pushHistory «전»에 빠진다 —
        옛 판은 찍고 나서 return 해, 라이브 변경이 찍히지 않은 채였다면 화면이 안 바뀌는 ⌘Z 한 칸(먹통)이 남았다.
@@ -609,7 +609,7 @@ function addBlankTextBlock(type = 'body', opts = {}) {
 
   // 활성 프레임(frame-block) 분기
   // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
-  const activeSS = resolveInsertFrame(window._activeFrame);
+  const activeSS = _insFrameTarget();
   if (activeSS && !activeSS.dataset.bannerPreset) {
     /* ★아무것도 안 넣는 «지원하지 않는 프레임 타입»(자유배치도 fullWidth 도 아님)은 pushHistory «전»에 빠진다 —
        옛 판은 찍고 나서 return 해, 라이브 변경이 찍히지 않은 채였다면 화면이 안 바뀌는 ⌘Z 한 칸(먹통)이 남았다.
@@ -1795,7 +1795,7 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
     return _appendFlowChild(_into(), result);
   }
   // ★도형 래퍼가 활성이어도 그 «안»에 넣지 않는다 — 한 단계 위 실제 프레임(없으면 섹션 레벨 폴백)
-  const ss = resolveInsertFrame(window._activeFrame);
+  const ss = _insFrameTarget();
   if (!ss) return false;
 
   /* banner-preset 외곽은 컴포넌트 단위로 취급 — 직접 자식 추가 받지 않음.
@@ -1851,6 +1851,14 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
    실측: 「왼쪽」 뒤 새 에셋(small·logo)·아이콘서클·아이콘텍스트·도형이 가운데로 섰다(단추를 «다시» 누르면 왼쪽 — 그 자리가 기준).
    ★dataset.alignItems 가 «있을 때만» — 정렬 단추·MCP updateFrame·modal-frameify 만 쓴다(코드독해). 손 안 댄 프레임은 종전 그대로.
    규칙은 frame-geometry.js applyFrameHAlignToChild 한 벌(단추와 같은 것). 자유배치 프레임은 좌표 갈래라 여기 안 온다. */
+/* ★H11(2026-10-05) — 툴바 add* 의 «프레임 갈래» 대상. 판정은 drag-utils.js frameTakesInsert 한 자리(여기선 부르기만):
+   프레임을 «오브젝트로» 골랐으면 null → 각 add* 는 섹션 레벨 길(insertAfterSelected)로 떨어지고, 그 길이 «다음 형제»에 둔다.
+   ⚠️import 줄은 안 바꾼다(단위 시험 여럿이 이 파일 import 줄을 글자로 갈아 끼운다) — window 로 부른다. */
+function _insFrameTarget() {
+  const f = resolveInsertFrame(window._activeFrame);
+  return (f && typeof window.frameTakesInsert === 'function' && !window.frameTakesInsert(f)) ? null : f;
+}
+
 function _followFrameHAlign(host, el) {
   if (!host || !el || host.dataset.freeLayout === 'true') return;
   const ai = host.dataset.alignItems;
@@ -2652,7 +2660,7 @@ function addShapeBlock(type = 'rectangle') {
 
   // 삽입 대상 결정: 활성 프레임 → 선택된 프레임 → 섹션 레벨
   // ★도형 래퍼 안에 도형을 넣지 않는다 — 활성이 도형 래퍼면 한 단계 위 실제 프레임(SSOT)
-  const activeFrame = resolveInsertFrame(window._activeFrame);
+  const activeFrame = _insFrameTarget();
 
   if (activeFrame && activeFrame.closest('.section-block') === sec) {
     // 활성 프레임 안에 삽입
@@ -2667,7 +2675,7 @@ function addShapeBlock(type = 'rectangle') {
   } else {
     const selSS = document.querySelector('.frame-block.selected');
     const isSelShapeFrame = isShapeFrame(selSS);
-    if (selSS && !isSelShapeFrame && !selSS.dataset.textFrame && selSS.closest('.section-block') === sec) {
+    if (selSS && !isSelShapeFrame && !selSS.dataset.textFrame && selSS.closest('.section-block') === sec && (typeof window.frameTakesInsert !== 'function' || window.frameTakesInsert(selSS))) {   // H11 — 오브젝트 선택이면 아래 섹션 레벨 → 다음 형제
       // 선택된 프레임 안에 삽입
       if (selSS.dataset.freeLayout === 'true') {
         const stackY = _calcFreeLayoutStackY(selSS);
