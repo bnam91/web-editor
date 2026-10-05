@@ -115,7 +115,9 @@ test('R1 ★패널(진짜 마우스) — 텍스트·도형·에셋 셋 다 「Ef
 
 test('R2 ★옛 문서 바이트 동일 — 같은 장면을 «핀 6119145c 파일»과 지금 파일로 각각 띄워 패널 셋을 열고 직렬화 → 같다', async ({ page }) => {
   /* 핀 파일 덮개 — ROOT 가 git 나무가 아닐 수도 있어(양성대조·변이 사본) 핀 «내용»을 원 레포 git 에서 꺼내 «내용이 다른» 파일만 덮는다. */
-  const GIT = fs.existsSync(path.join(ROOT, '.git')) ? ROOT : '/Users/a1/web-editor';
+  // ⛔ 현빈 라이브 트리로 떨어지지 않는다(2026-10-06 지디) — `.git` 없는 사본(pin-tree · 변이)에서는 이 시험을 «무효»로 멈춘다.
+  if (!fs.existsSync(path.join(ROOT, '.git'))) throw new Error(`INVALID: ${ROOT} 에 .git 이 없다 — 핀 내용을 꺼낼 git 나무가 없어 이 시험은 돌 수 없다(라이브 트리로 대체 금지)`);
+  const GIT = ROOT;
   const overlay = new Map();
   const pinFiles = execFileSync('git', ['-C', GIT, 'ls-tree', '-r', '--name-only', PIN, '--', 'js', 'css', 'index.html'], { encoding: 'utf8' }).split('\n').filter(Boolean);
   const pinSet = new Set(pinFiles);
