@@ -556,7 +556,7 @@ function _barVPlotGeom(block, items, { maxVal, labelSize, vSize, bs }) {
   const axis = d.showAxis === '1', grid = d.showGrid === '1', line = d.showLine === '1';
   const on = axis || grid || line;
   if (!on) {
-    return { on, pct: (v) => (v === 0 ? 0 : Math.max(1, Math.round((v / maxVal) * 100))), barsExtra: '', lhCss: '', overlayHTML: () => '' };
+    return { on, pct: (v) => (v === 0 ? 0 : Math.max(1, Math.round((v / maxVal) * 100))), barsExtra: '', lhCss: '', overlayHTML: () => '', gridLayerHTML: () => '' };
   }
   const nice = (axis || grid) ? _niceScale(maxVal) : null;
   const scaleMax = nice ? nice.max : maxVal;
@@ -574,13 +574,16 @@ function _barVPlotGeom(block, items, { maxVal, labelSize, vSize, bs }) {
   const tickChars = nice ? Math.max(...nice.ticks.map(t => fmt(t).length)) : 0;
   // 눈금 글자 자리 — 오버레이 상자 왼쪽 밖(right:100% + 6px)에 그리므로, 그만큼 막대 띠를 오른쪽으로 민다(「11」이 잘리던 시제품 꼴 방지).
   const axisMargin = axis ? Math.ceil(tickChars * tickFont * 0.65 + 8) : 0;
-  const barsExtra = 'position:relative;' + (axisMargin ? `margin-left:${axisMargin}px;` : '');
+  /* H2(현빈 2026-10-05 「격자선을 막대 뒤로」) — 격자선은 따로 한 층(z-index:-1)에 그리고, 막대 줄을 쌓임 맥락(z-index:0)으로 만든다
+     ⇒ 격자 층은 막대(흐름 칸)보다 «뒤», 막대 줄 배경보다는 «앞». 선·점·축·눈금은 그대로 위 층(.grb-ov z-index:1).
+     격자가 꺼져 있으면 이 조각은 '' — 옛 바이트 그대로(GR-W0). */
+  const barsExtra = 'position:relative;' + (grid ? 'z-index:0;' : '') + (axisMargin ? `margin-left:${axisMargin}px;` : '');
   const lhCss = `line-height:${LH};height:${LH}em;`;
   const ink = _safeGraphColor(d.labelColor);   // 선·점·격자·눈금 색 = 라벨 색(지정 시) 아니면 블럭 글자색(프리셋 color) — 새 색 없음
   const overlayHTML = () => {
     const yOf = (p) => (1000 - p * 10).toFixed(1);
     const ticks = nice ? nice.ticks : [];
-    const gridEl = grid ? ticks.map(t => `<line class="grb-ov-grid" x1="0" x2="1000" y1="${yOf((t / scaleMax) * 100)}" y2="${yOf((t / scaleMax) * 100)}" stroke="currentColor" stroke-opacity="0.2" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('') : '';
+    /* (격자선은 H2 로 아래 gridLayerHTML 층으로 옮겼다 — H7 색 규칙도 그리로.) */
     const axisEl = axis ? `<line class="grb-ov-axis" x1="0" x2="0" y1="0" y2="1000" stroke="currentColor" stroke-opacity="0.6" stroke-width="1" vector-effect="non-scaling-stroke"/>` : '';
     const pts = items.map((it, i) => ({ x: (xPct(i) * 10).toFixed(1), p: pct(it.value) }));
     const lineEl = line ? `<polyline class="grb-ov-line" points="${pts.map(q => `${q.x},${yOf(q.p)}`).join(' ')}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>` : '';
@@ -589,12 +592,28 @@ function _barVPlotGeom(block, items, { maxVal, labelSize, vSize, bs }) {
     const dots = line ? pts.map((q, i) => `<div class="grb-ov-dot" style="position:absolute;left:${xPct(i).toFixed(4)}%;bottom:${q.p === 0 ? '6px' : `max(${q.p}%, 4px)`};width:10px;height:10px;transform:translate(-50%,50%);border-radius:50%;background:currentColor"></div>`).join('') : '';
     const tickEls = axis ? ticks.map(t => `<div class="grb-ov-tick" style="position:absolute;right:100%;margin-right:6px;bottom:${((t / scaleMax) * 100).toFixed(4)}%;transform:translateY(50%);font-size:${tickFont}px;line-height:1;opacity:0.75;white-space:nowrap">${_escGraphHtml(fmt(t))}</div>`).join('') : '';
     return `<div class="grb-ov" style="position:absolute;left:${inset};right:${inset};top:${top}px;bottom:${bot}px;pointer-events:none;z-index:1;${ink ? `color:${ink};` : ''}">`
-      + `<svg class="grb-ov-svg" viewBox="0 0 1000 1000" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">${gridEl}${axisEl}${lineEl}</svg>`
+      + `<svg class="grb-ov-svg" viewBox="0 0 1000 1000" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">${axisEl}${lineEl}</svg>`
       + dots + tickEls + `</div>`;
   };
-  return { on, axis, grid, line, scaleMax, ticks: nice ? nice.ticks : null, pct, top, bot, inset, barsExtra, lhCss, overlayHTML };
+  /* H2 — 격자선 층(막대 «뒤»). 상자는 위 오버레이와 같은 자리·크기(같은 inset · top · bottom) — 선 높이가 눈금과 맞는다. */
+  const gridLayerHTML = () => {
+    if (!grid) return '';
+    const yOf = (p) => (1000 - p * 10).toFixed(1);
+    const ticks = nice ? nice.ticks : [];
+    const _gc = _safeGraphColor(d.gridColor);
+    const _gridStroke = (_gc && !/gradient\(/i.test(_gc)) ? `stroke="${_gc}" stroke-opacity="1"` : `stroke="currentColor" stroke-opacity="0.2"`;
+    const gridEl = ticks.map(t => `<line class="grb-ov-grid" x1="0" x2="1000" y1="${yOf((t / scaleMax) * 100)}" y2="${yOf((t / scaleMax) * 100)}" ${_gridStroke} stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('');
+    return `<div class="grb-ov-grid-layer" style="position:absolute;left:${inset};right:${inset};top:${top}px;bottom:${bot}px;pointer-events:none;z-index:-1;${ink ? `color:${ink};` : ''}">`
+      + `<svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">${gridEl}</svg></div>`;
+  };
+  return { on, axis, grid, line, scaleMax, ticks: nice ? nice.ticks : null, pct, top, bot, inset, barsExtra, lhCss, overlayHTML, gridLayerHTML };
 }
+/* H6 — 다시 그린 «뒤» 자동 밝기를 맞춘다(그린 값이 바탕이라 그린 다음이어야 한다 · canvas-contrast.js syncGraphTone). 렌더 몸통은 아래 그대로. */
 function renderGraph(block) {
+  _renderGraphBody(block);
+  window.__gdTextTone?.syncGraphTone?.(block);
+}
+function _renderGraphBody(block) {
   const items      = JSON.parse(block.dataset.items || '[]');
   const chartType  = block.dataset.chartType  || 'bar-v';
   // bar-pair(2시리즈)의 value2까지 포함해 스케일 산출 — 타 차트는 value2 없음(0)이라 영향 없음
@@ -628,7 +647,7 @@ function renderGraph(block) {
               </div>
               <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}${_g.lhCss}">${_escGraphHtml(item.label)}</div>
             </div>`;
-        }).join('')}${_g.overlayHTML()}
+        }).join('')}${_g.gridLayerHTML()}${_g.overlayHTML()}
       </div>`;
   } else if (chartType === 'line') {
     // ── 꺾은선 (line) — SVG polyline + circle data points

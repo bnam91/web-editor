@@ -259,3 +259,11 @@
   margin-right: 6px;
   background: var(--ui-accent-primary);
 }
+
+/* ── H6 자동 밝기(현빈 2026-10-05) — 맨 끝에 둔다: 프리셋 규칙(.graph-block[data-preset=…] …)과 세기(0,3,0)가 같아 «순서»로 이긴다.
+ *   변수는 canvas-contrast.js syncGraphTone 이 «어두운 바탕 · 사용자 색 없음»일 때만 블럭 인라인에 쓴다. 저장에선 걷힌다(section-serialize) ⇒ 저장본에선 이 줄들이 아무것도 못 고른다.
+ *   명시 색(lineColor 인라인 stroke · labelColor 인라인 color)은 인라인이라 이 줄들보다 세다. */
+.graph-block[style*="--grb-auto-line"] .grb-line-path { stroke: var(--grb-auto-line); }
+.graph-block[style*="--grb-auto-line"] .grb-line-point-dot { background: var(--grb-auto-line); }
+.graph-block[style*="--grb-auto-grid"] .grb-ov-grid { stroke: var(--grb-auto-grid); stroke-opacity: 1; }
+.graph-block[style*="--grb-auto-ink"] .grb-ov { color: var(--grb-auto-ink); }

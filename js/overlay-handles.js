@@ -1788,6 +1788,11 @@ function _updateGridGutterPositions() {
   if (!overlay || !_gridGutterBlock) return;
   const block = _gridGutterBlock;
   const blockRect = block.getBoundingClientRect();
+  /* ★열 경계 손잡이의 세로 범위 = 격자 껍데기(.grd-inner) — 블럭 전체가 아니다(H8 · 2026-10-05).
+     블럭 전체면 G19 자식 그릇(.grd-children) 위까지 내려가, «고른» 그리드의 아래 ＋(블럭 가로 가운데 · 껍데기 바로 아래)를
+     2열 그리드 가운데 경계 손잡이가 덮었다(실측 grid-plus-g15 K2: ＋ 정중앙 elementFromPoint = .grd-gutter).
+     옛날엔 ＋ 가 «호버»(안 고름 = 손잡이 없음)에만 떠서 안 만났다. 자식 위에서 열 폭을 끄는 것은 뜻이 없다. */
+  const shellRect = (block.querySelector(':scope > .grd-inner') || block).getBoundingClientRect();
   overlay.querySelectorAll('.grd-gutter[data-axis="col"]').forEach(g => {
     const i = +g.dataset.i;
     const a = _getGridCell(block, 0, i), b = _getGridCell(block, 0, i + 1);
@@ -1797,8 +1802,8 @@ function _updateGridGutterPositions() {
     const br = b.getBoundingClientRect();
     const cx = (ar.right + br.left) / 2; // 두 열 사이 gap 의 중앙(스크린 좌표, 스케일 반영된 rect)
     g.style.left = (cx - 4) + 'px';      // 8px 폭 중앙 정렬
-    g.style.top = blockRect.top + 'px';
-    g.style.height = blockRect.height + 'px';
+    g.style.top = shellRect.top + 'px';
+    g.style.height = shellRect.height + 'px';
   });
   overlay.querySelectorAll('.grd-gutter[data-axis="row"]').forEach(g => {
     const i = +g.dataset.i;

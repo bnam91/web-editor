@@ -32,8 +32,10 @@ async function setup(page) {
   }, SEC);
   await page.waitForTimeout(200);
   const [x, y] = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width * 0.25, r.top + r.height / 2]; }, id);
-  await page.mouse.move(x, y, { steps: 4 }); await page.waitForTimeout(120);
-  expect(await page.evaluate(() => document.querySelectorAll('.grd-add-btn').length), '전제 — 호버로 ＋ 가 떠 있다(문서 어딘가에 둘)').toBe(2);
+  /* H8(2026-10-05) — ＋ 는 «고르면» 뜬다(옛: 호버). 진짜 클릭으로 고른다. */
+  await page.mouse.click(x, y);
+  await page.waitForFunction(() => document.querySelectorAll('.grd-add-btn').length === 2, null, { timeout: 3000 });
+  expect(await page.evaluate(() => document.querySelectorAll('.grd-add-btn').length), '전제 — 골라서 ＋ 가 떠 있다(문서 어딘가에 둘)').toBe(2);
   return { errs, id };
 }
 

@@ -1336,16 +1336,25 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 
 /* ── G15 그리드 캔버스 ＋ (2026-10-04 현빈·지디 안 ㉠) — 오른쪽 끝 = 열 +1 · 아래 끝 = 행 +1
  * ★꼴은 태그블럭 ＋(.label-group-add-btn, editor-layout.css)를 빌린다: 점선 원 · --ui-divider · --ui-text-muted · hover 시 --ui-accent-primary.
- * ★히트 영역 = 화면 고정 40px — calc(40px * var(--inv-zoom)) (선례 editor-blocks.css «.icon-circle-block .img-corner-handle» 줄).
- *   굵기·글자도 같은 축에 태운다(크기만 태우면 40% 에서 테두리가 굵어 보인다).
- * ★자리
+ * ★크기 = 40×40 «모델 px»(배율 따라) · 1.5px 점선 · 글리프 «+» 20px — 태그블럭 ＋ 꼴 그대로(H9 · 현빈 2026-10-05).
+ *   ~~히트 영역 = 화면 고정 40px — calc(40px * var(--inv-zoom))~~(2026-10-04) ⇒ 배율 50 에서 라벨 ＋ 의 두 배였고
+ *   같은 단위가 H10(오른쪽 ＋ 가 안쪽 40 화면px = 80 모델px 겹침 · 아래 ＋ 가 40 화면px 매달림)을 만들었다(실측 $S/reports/BUNDLE-E/h10.json).
+ * ★자리(H10 · 현빈 2026-10-05 「우측은 너무 안쪽 · 아래는 너무 내려감」):
+ *   · 오른쪽(열) = «중심»이 블럭 오른쪽 끝(반은 안 · 반은 밖) — 옛: 안쪽 한 칸.
+ *   · 아래(행) = 껍데기 바로 아래(자리는 옛 그대로) · 크기가 모델 40 이 되어 매달림이 배율 50 에서 화면 40 → 20.
+ *     ⛔«중심을 아래 끝에»로 올리지 않았다 — 고른 그리드엔 칸 경계 손잡이 .grd-gutter(#ss-handles-overlay · 고정층 z 9990 — 층이 달라
+ *       z 로 못 이긴다)가 껍데기 위에 깔린다. 중심을 아래 끝에 두면 2열 그리드 가운데 경계 손잡이의 끝과 ＋ 정중앙이 맞닿는다.
+ *       (실측 2026-10-05 grid-plus-g15 K2 — 그때는 손잡이가 자식 그릇까지 내려가 «바로 아래» ＋ 도 덮었다 → overlay-handles.js 에서 껍데기까지로 줄였다.)
+ *   ★이제 «선택 시»에만 뜨므로(H8) 아래 옛 걱정(«블럭을 고르려는 첫 클릭»을 ＋ 가 먹음)은 없다 — 고른 «뒤»에만 ＋ 가 있다.
+ *   옛 자리(2026-10-04)와 까닭은 그대로 남긴다:
  *   · 오른쪽(열) = 블럭 «안쪽» 오른쪽 끝(태그블럭 ＋ 도 안쪽 오른쪽 끝). 밖으로 반을 내면 전폭 그리드에서 섹션 끝에 잘린다
  *     — 실측 2026-10-04: 중심이 섹션 오른쪽 끝(x=1230)과 겹쳐 elementFromPoint 가 #canvas-wrap 을 잡았다(클릭 안 먹음).
  *   · 아래(행) = 블럭 «바로 아래 바깥»(top:100% · 틈 0). 호버로 뜨므로 블럭을 덮으면 «블럭을 고르려는 첫 클릭»을 ＋ 가 먹는다
  *     — 실측 2026-10-04: 높이 34px 그리드(프레임 안)에서 모서리 걸침 ＋ 가 블럭 가운데를 덮어 클릭이 행 추가가 됐다
  *       (tests/dom/frame-paste-grid-real P0 · grid-first-click-block T-058-14 빨강). 틈을 두면 ＋ 로 가는 길에 mouseleave 로 꺼진다.
  *   ⚠️오른쪽 ＋ 는 안쪽이라 블럭 오른쪽 끝 40px 의 첫 클릭은 여전히 ＋ 가 먹는다(전폭 그리드라 밖으로 못 낸다) — 보고서 미결.
- * ★뜨는 조건(블럭 «호버», 2026-10-04 현빈 결정)은 여기 «없다» — js/blocks/grid-block.js _gridPlusShown 하나에만 있다. 붙어 있으면 보인다.
+ * ★뜨는 조건은 여기 «없다» — js/blocks/grid-block.js _gridPlusShown 하나에만 있다. 붙어 있으면 보인다.
+ *   역사: 블럭 «호버»(2026-10-04 현빈 결정) → 블럭 «선택 시»(2026-10-05 현빈 재지시 · H8).
  * ★＋ 는 블럭 «밖» 층 #grd-plus-layer(#canvas-scaler 안, #canvas 의 형제 — 선례 #todo-pin-overlay z 50)에 산다(E65·RG5 — grid-block.js 머리말).
  *   층은 손이 안 닿고(pointer-events:none) ＋ 만 받는다. 자리는 JS 가 스케일러 로컬 px 로 건다(left/top = 기준점) — 아래 transform 이 끝을 맞춘다. */
 #grd-plus-layer { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 60; }
@@ -1353,19 +1362,21 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   position: absolute;
   pointer-events: auto;
   display: flex; align-items: center; justify-content: center;
-  width:  calc(40px * var(--inv-zoom, 1));
-  height: calc(40px * var(--inv-zoom, 1));
+  width: 40px; height: 40px;   /* 모델 px(H9) — 옛 calc(40px * var(--inv-zoom, 1)) */
   padding: 0; margin: 0; box-sizing: border-box;
   border-radius: 50%;
-  border: calc(1.5px * var(--inv-zoom, 1)) dashed var(--ui-divider);
+  border: 1.5px dashed var(--ui-divider);
+  font-size: 20px;
   background: var(--ui-bg-elevated);
   color: var(--ui-text-muted);
   line-height: 0;
   cursor: pointer;
 }
-#grd-plus-layer > .grd-add-btn > svg { width: calc(14px * var(--inv-zoom, 1)); height: calc(14px * var(--inv-zoom, 1)); display: block; pointer-events: none; }
-/* 기준점: 오른쪽 ＋ = (블럭 오른쪽 끝, 껍데기 세로 가운데) → 왼쪽으로 한 칸·위로 반 칸 / 아래 ＋ = (블럭 가로 가운데, 껍데기 아래 끝) → 왼쪽으로 반 칸 */
-#grd-plus-layer > .grd-add-btn[data-grd-add="col"] { transform: translate(-100%, -50%); }
+/* 글리프 «+» = 글자 노드가 아니라 ::before(E65 — 글자 '+' 가 PNG·MCP·검색으로 새지 않게). 옛: 안에 svg 14px(화면 고정). */
+#grd-plus-layer > .grd-add-btn::before { content: '+'; line-height: 1; pointer-events: none; }
+/* 기준점: 오른쪽 ＋ = (블럭 오른쪽 끝, 껍데기 세로 가운데) → «중심을 기준점에»(H10 · 옛 translate(-100%, -50%) 안쪽 한 칸)
+   아래 ＋ = (블럭 가로 가운데, 껍데기 아래 끝) → 왼쪽으로 반 칸(옛과 같다 — 위 ⛔ 까닭). */
+#grd-plus-layer > .grd-add-btn[data-grd-add="col"] { transform: translate(-50%, -50%); }
 #grd-plus-layer > .grd-add-btn[data-grd-add="row"] { transform: translateX(-50%); }
 #grd-plus-layer > .grd-add-btn:not(:disabled):hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
 /* 상한(4×4)에서는 흐리게 — 캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 참고 선례: layer-panel.js:559 disabled) */

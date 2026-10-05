@@ -6,7 +6,9 @@
  *   T4 api    — window.updateGraphBlock({barThickness}) : 60 통과 / 61·999 는 INVALID 로 «거절»(API 는 자르지 않는다 — 원래 동작) · 가로 키만(세로 키는 API 에 없다)
  * 전제 단언(첫 줄): 패널이 «떴고» 칸이 «보이며» 시작값이 60 이 아니다 — 아니면 아래 60 은 «처음부터 참»이다.
  * 렌더 확인: 값이 dataset 에만 있고 그림에 안 닿으면 의미 없다 ⇒ 막대 실제 크기(offsetHeight/Width)도 60.
- * 양성대조: GD1001_ROOT=<37ab1c65 체크아웃> 으로 돌리면 «60 → 60» 류가 빨강(48)이어야 한다. */
+ * 양성대조: GD1001_ROOT=<37ab1c65 체크아웃> 으로 돌리면 «60 → 60» 류가 빨강(48)이어야 한다.
+ * ★H1(2026-10-05 현빈 「세로그래프 두께 60 → 더」): 세로·비교(bar-v · bar-pair)의 위 끝 = «그 막대가 선 칸의 폭»(GRAPH_LIMITS.BAR_THICKNESS_V_MAX 'column').
+ *   가로(bar-h)는 60 그대로. 아래 T1·T3 의 «60» 은 폼별 상한 cap(가로 60 · 세로·비교 = 칸 폭)으로 «뒤집었다» — 뒤집은 것이 고친 증거(새 계약 시험 graph-e1). */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
@@ -42,6 +44,9 @@ async function premise(page, f) {
   expect(r.n, '시작값이 이미 60 이면 「60 → 60」은 처음부터 참').not.toBe('60');
   return { num, sl };
 }
+/** 폼의 위 끝 — 가로 60 · 세로·비교 = 막대가 선 칸(막대의 부모)의 그려진 폭(H1). */
+const capOf = (page, f) => f.type === 'bar-h' ? Promise.resolve(60)
+  : page.evaluate(() => Math.floor(document.querySelector('#tg .grb-bar-fill').parentElement.clientWidth));
 const state = (page, f) => page.evaluate(({ key, fill, type }) => {
   const b = document.getElementById('tg'); const e = b.querySelector(fill);
   return { ds: b.dataset[key], num: document.getElementById('grb-bar-thickness-number').value, sl: document.getElementById('grb-bar-thickness-slider').value,
@@ -49,20 +54,24 @@ const state = (page, f) => page.evaluate(({ key, fill, type }) => {
 }, { key: f.key, fill: f.fill, type: f.type });
 
 for (const f of FORMS) {
-  test(`T1 range [${f.type}] 슬라이더 End 키 → 60`, async ({ page }) => {
+  test(`T1 range [${f.type}] 슬라이더 End 키 → 위 끝(가로 60 · 세로·비교 칸 폭)`, async ({ page }) => {
     const errs = await setup(page, f.type); const { sl } = await premise(page, f);
+    const cap = await capOf(page, f);
     await sl.focus(); await page.keyboard.press('End');
     const s = await state(page, f);
-    expect(s.ds, 'dataset').toBe('60'); expect(s.px, '그림 속 막대 크기').toBe(60); expect(s.sl).toBe('60'); expect(s.num).toBe('60');
+    /* 슬라이더 step 2(min 8) — 홀수 칸 폭(예 245)이면 End 는 244 에 앉는다. 막대·칸은 그 값과 같아야 한다. */
+    expect(Math.abs(+s.ds - cap), `dataset ${s.ds} ≈ cap ${cap}`).toBeLessThanOrEqual(1); expect(s.px, '그림 속 막대 크기 = 키').toBe(+s.ds); expect(s.num).toBe(s.ds);
+    expect(Math.abs(+s.sl - cap), `슬라이더(step 2 라 홀수 cap 은 1 아래로 앉을 수 있다) ${s.sl}`).toBeLessThanOrEqual(1);
     expect(errs, errs.join('\n')).toEqual([]);
   });
-  test(`T1 range [${f.type}] 슬라이더를 오른쪽 끝 «너머»로 끌기 → 60`, async ({ page }) => {
+  test(`T1 range [${f.type}] 슬라이더를 오른쪽 끝 «너머»로 끌기 → 위 끝`, async ({ page }) => {
     const errs = await setup(page, f.type); const { sl } = await premise(page, f);
+    const cap = await capOf(page, f);
     const bb = await sl.boundingBox();
     await page.mouse.move(bb.x + bb.width * 0.3, bb.y + bb.height / 2); await page.mouse.down();
     await page.mouse.move(bb.x + bb.width + 80, bb.y + bb.height / 2, { steps: 8 }); await page.mouse.up();
     const s = await state(page, f);
-    expect(s.ds).toBe('60'); expect(s.px).toBe(60);
+    expect(Math.abs(+s.ds - cap), `끌기 끝 = 위 끝(슬라이더 step 2) ds=${s.ds} cap=${cap}`).toBeLessThanOrEqual(1); expect(Math.abs(s.px - cap)).toBeLessThanOrEqual(1);
     expect(errs, errs.join('\n')).toEqual([]);
   });
   test(`T2 number [${f.type}] 60 을 타자로 → 60`, async ({ page }) => {
@@ -73,11 +82,12 @@ for (const f of FORMS) {
     expect(s.other, '가로/세로 키가 섞여 들어갔다').toBeUndefined();
     expect(errs, errs.join('\n')).toEqual([]);
   });
-  for (const v of ['61', '999']) test(`T3 clamp [${f.type}] 숫자칸에 ${v} → 60 에서 멈추고 칸·슬라이더도 60`, async ({ page }) => {
+  for (const v of ['61', '999']) test(`T3 clamp [${f.type}] 숫자칸에 ${v} → 위 끝(가로 60 · 세로·비교 칸 폭 — 61 은 칸 안이면 그대로)`, async ({ page }) => {
     const errs = await setup(page, f.type); const { num } = await premise(page, f);
+    const cap = await capOf(page, f), want = Math.min(+v, cap);
     await num.fill(v); await num.press('Tab');
     const s = await state(page, f);
-    expect(s.ds).toBe('60'); expect(s.px).toBe(60); expect(s.num, '칸이 자른 값을 안 보여 준다').toBe('60'); expect(s.sl).toBe('60');
+    expect(s.ds, `cap ${cap}`).toBe(String(want)); expect(s.px).toBe(want); expect(s.num, '칸이 자른 값을 안 보여 준다').toBe(String(want));
     expect(errs, errs.join('\n')).toEqual([]);
   });
   test(`T3 clamp [${f.type}] 숫자칸에 7 → 8 (아래쪽 한계 그대로)`, async ({ page }) => {

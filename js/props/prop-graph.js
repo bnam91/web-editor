@@ -3,7 +3,7 @@ import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
-const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
@@ -22,17 +22,32 @@ function overlayTogglesHTML(block) {
           <input type="checkbox" id="${t.id}" ${block.dataset[t.key] === '1' ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
-      </div>`).join('');
+      </div>${t.key === 'showGrid' ? gridColorRowHTML(block) : ''}`).join('');
+}
+/* H7(현빈 2026-10-05) — 격자선 색 칸. 비어 있으면(키 없음) «지금 그려진» 색 = 블럭 글자색(currentColor) · 투명도 20(렌더 기본 그대로).
+   ⛔기본값을 새로 박지 않는다 — 렌더(drag-utils.js _barVPlotGeom)가 키 없을 때 currentColor×0.2 를 그리고, 칸은 그 계산값을 보인다. */
+function _gridColorShown(block) {
+  if (block.dataset.gridColor) return { c: block.dataset.gridColor, a: parseAlphaFromColor(block.dataset.gridColor) };
+  const el = block.querySelector('.grb-ov') || block;
+  return { c: getComputedStyle(el).color, a: 20 };
+}
+function gridColorRowHTML(block) {
+  const g = _gridColorShown(block);
+  return `
+      <div class="prop-row" title="격자선 색(비우면 블럭 글자색 · 투명도 20%)">
+        <span class="prop-label">격자선 색</span>
+        ${colorFieldHTML({ idPrefix: 'grb-grid', hex: g.c, alpha: g.a })}
+      </div>`;
 }
 
-function barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize, pctMin, barColor, barAlpha, overlayToggles = '' }) {
+function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS_MAX, padX, itemGap, pctSize, pctMin, barColor, barAlpha, overlayToggles = '' }) {
   return `
     <div class="prop-section">
       <div class="prop-section-title">Bar Settings</div>
       <div class="prop-row">
         <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="grb-bar-thickness-slider" min="${BAR_THICKNESS_MIN}" max="${BAR_THICKNESS_MAX}" step="2" value="${barThickness}">
-        <input type="number" class="prop-number" id="grb-bar-thickness-number" min="${BAR_THICKNESS_MIN}" max="${BAR_THICKNESS_MAX}" value="${barThickness}">
+        <input type="range" class="prop-slider" id="grb-bar-thickness-slider" min="${BAR_THICKNESS_MIN}" max="${thicknessMax}" step="2" value="${barThickness}">
+        <input type="number" class="prop-number" id="grb-bar-thickness-number" min="${BAR_THICKNESS_MIN}" max="${thicknessMax}" value="${barThickness}">
       </div>
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
@@ -83,6 +98,14 @@ export function showGraphProperties(block) {
   //      타입 전환 때 단위가 다른 값이 딸려 온다(가로 숫자 크기 60 ↔ 세로 값 글자 21 …).
   const _vOnly = chartType === 'bar-v' || chartType === 'bar-pair';
   const barThickness = parseInt(block.dataset[_vOnly ? 'vBarThickness' : 'barThickness']) || BAR_THICKNESS_DEFAULT;   // 렌더(drag-utils.js)와 «같은 값»
+  /* H1 — 세로·비교 막대 두께의 위 끝 = «그 막대가 선 칸의 폭»(GRAPH_LIMITS.BAR_THICKNESS_V_MAX 'column'). 막대의 max-width:100% 가 재는 그 상자
+     (막대의 부모 = 막대 칸 · 비교는 시리즈 칸)의 «그려진» 폭이다. 못 재면(막대 0) 옛 상한. 가로 막대는 60 그대로. */
+  const _thkMax = (() => {
+    if (!(_vOnly && BAR_THICKNESS_V_MAX === 'column')) return BAR_THICKNESS_MAX;
+    const f = block.querySelector('.grb-bar-fill');
+    const w = f && f.parentElement ? Math.floor(f.parentElement.clientWidth) : 0;
+    return w > BAR_THICKNESS_MIN ? w : BAR_THICKNESS_MAX;
+  })();
   const padX         = parseInt(block.dataset[_vOnly ? 'vPadX' : 'padX'])         || 0;
   const barColor     = block.dataset.barColor || '#222222';
   const barAlpha     = parseAlphaFromColor(barColor);
@@ -241,7 +264,7 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="grb-fillalpha-number" min="0" max="100" value="${fillAlpha}">
       </div>
     </div>` : ''}
-    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '' }) : ''}
+    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '' }) : ''}
     <div class="prop-section">
       <div class="prop-section-title">Preset</div>
       <div class="prop-preset-group">
@@ -442,7 +465,7 @@ ${blockHeaderHTML({
   const btNumber = document.getElementById('grb-bar-thickness-number');
   if (btSlider) {
     const applyBarThickness = v => {
-      v = Math.min(BAR_THICKNESS_MAX, Math.max(BAR_THICKNESS_MIN, v));
+      v = Math.min(_thkMax, Math.max(BAR_THICKNESS_MIN, v));   // H1 — 세로·비교는 칸 폭까지(가로는 60)
       block.dataset[_vKey('barThickness','vBarThickness')] = v;
       window.renderGraph(block);
       btSlider.value = v; btNumber.value = v;
@@ -590,6 +613,14 @@ ${blockHeaderHTML({
       block.dataset.showVLabel = showVL.checked ? '1' : '0';
       window.renderGraph(block);
       window.pushHistory();
+    });
+  }
+  // H7 — 격자선 색(bar-v). 고르는 순간에만 키가 생긴다(안 고르면 옛 꼴 그대로).
+  if (document.getElementById('grb-grid-color')) {
+    wireColorField('grb-grid', {
+      initialAlpha: _gridColorShown(block).a,
+      onApply: (c) => { block.dataset.gridColor = c; window.renderGraph(block); },
+      onCommit: () => window.pushHistory(),
     });
   }
   // GR2·GR3 — 축·격자선·꺾은선 토글(bar-v). 켜면 '1', 끄면 키 삭제.

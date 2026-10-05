@@ -3228,7 +3228,8 @@ window.updateGridBlockRaw = updateGridBlock;
  * ★자리 둘: 오른쪽 끝(열 +1) · 아래 끝(행 +1). 안 고른 안 ㉡(네 끝·앞에) ㉢(칸 사이)는 만들지 않는다.
  * ★동작은 우측 패널 4×4 피커와 «같은 함수»(gridResizeTo)를 지난다 — 새 칸 크기·내용·히스토리가
  *   피커 결과와 같아야 한다(측정 G15-MEASURE ⑷: 새 열 width:1 · 새 행 height:'auto' · 새 칸 기본 줄).
- * ★히트 영역 = calc(40px * var(--inv-zoom)) — 화면에서 늘 40px(선례 css/editor-blocks.css:578-579).
+ * ★크기 = 40×40 «모델 px»(배율 따라 작아진다 — 태그블럭 ＋ 와 같은 단위 · H9/H10 2026-10-05).
+ *   옛: calc(40px * var(--inv-zoom)) 화면 고정 — 배율 50 에서 라벨 ＋ 의 두 배였고, 그 단위가 그대로 H10(매달림·겹침 40 화면px)이었다.
  * ★＋ 는 그리드 블럭 «밖»의 층에 그린다 — #canvas-scaler 안 `#grd-plus-layer`(#canvas 의 형제 · 선례 #todo-pin-overlay).
  *   까닭(2026-10-04 실측) ⑴ E65: 블럭 안 <button>+</button> 이면 호버 중 '+' 가 PNG 클론·MCP get_canvas_state·검색(innerText)으로 샜다
  *     (tests/dom/grid-plus-g15-leak) ⑵ RG5: G12 배경이 블럭에 isolation 을 걸면 블럭 밖 아래 ＋ 가 뒤 형제 밑에 깔려 안 눌렸다
@@ -3251,59 +3252,29 @@ function _gridPlusLayer() {
   return L;
 }
 
-/* ★뜨는 조건 = «호버» — 그리드 블럭 «전체» 위에 마우스가 있으면 두 ＋ 가 붙는다(선택 불필요).
- * .label-group-block.selected 의 ＋ 는 선택 때만 보인다(opacity 0 + pointer-events none). 그리드 ＋ 는 «호버»로 간다 — 선례와 다른 것이 의도다, 2026-10-04 현빈 결정
- * ★호버 영역은 ＋ 가 아니라 «블럭 전체»다 — ＋ 만 반응하면 ＋ 는 영영 안 나타난다.
+/* ★뜨는 조건 = «선택» — 그리드 블럭이 골라져 있으면(.selected) 두 ＋ 가 붙는다.
+ *   역사: «호버»(현빈 2026-10-04 결정 — 태그블럭 ＋ 의 «선택» 선례와 일부러 다르게) → «선택 시»(현빈 2026-10-05 재지시 · H8).
+ *   ⛔옛 줄을 지우지 않는다 — 결정이 «바뀐» 것이지 처음부터 이랬던 게 아니다.
+ *   이제 태그블럭 ＋(.label-group-block.selected .label-group-add-btn)와 같은 조건이다.
  * ★클릭은 «＋ 버튼 그 자체»(둥근 원)만 받는다 — 「정확히 +버튼을 눌러야지만 칼럼추가」(현빈 2026-10-04).
- *   ＋ 를 감싸는 띠·상자 요소는 없다. 원 밖 네모 모서리는 크로미움의 둥근 모서리 히트 판정(border-radius:50%)으로
- *   밑의 그리드에 간다 → 선택. (tests/dom/grid-plus-g15 R5 가 잰다.)
- *   ＋ 는 블럭 «밖»(층)이라 ＋ 위로 가면 블럭 mouseleave 가 난다 — 그래서 호버 영역 = 블럭 ∪ ＋ 상자 네모(아래 _inGridPlusZone).
- * ★조건은 이 함수 «하나»에만 둔다. 붙이고 떼는 계기는 _bindGridPlusHover(mouseenter/leave) + 렌더 끝(_syncGridAddBtns). */
+ * ★조건은 이 함수 «하나»에만 둔다. 붙이고 떼는 계기 = 블럭 class 바뀜(아래 관측자) + 렌더 끝(_syncGridAddBtns).
+ *   (옛 호버 장치 — mouseenter/leave · ＋ 상자까지 덮는 호버 네모 _inGridPlusZone/_trackGridPlusZone — 는 걷었다. 선택은 마우스 자리와 무관하다.) */
 function _gridPlusShown(block) {
-  /* 깃발(들어옴~나감) «또는» :hover. ⛔:hover 만 보면 ＋ 를 누른 직후 다시 그릴 때 꺼진다 —
-     ＋ 위(층)에 있을 땐 블럭 :hover 가 아니다 — 깃발은 그 사이에도 산다(호버 네모를 벗어날 때 내린다).
-     :hover 는 «마우스가 이미 위에 있는데 블럭이 새로 생긴» 경우(⌘Z 뒤 블럭 교체 등)를 받는다. */
-  return _gridPlusHovered.has(block) || !!block?.matches?.(':hover');
+  return !!block?.classList?.contains('selected');
 }
 
-/* 블럭마다 한 번 — 들어오면 붙이고 나가면 뗀다. ＋ 는 #canvas 밖 층이라 붙였다 떼도 자동저장 감시(#canvas)에 안 걸린다. */
+/* 블럭마다 한 번 — class 가 바뀌면(골라짐·풀림) 다시 맞춘다. ＋ 는 #canvas 밖 층이라 붙였다 떼도 자동저장 감시(#canvas)에 안 걸린다. */
 const _gridPlusBound = new WeakSet();
-const _gridPlusHovered = new WeakSet();   // mouseenter~mouseleave 사이(_gridPlusShown 이 읽는다)
-function _bindGridPlusHover(block) {
-  if (!block?.addEventListener || _gridPlusBound.has(block)) return;
+function _bindGridPlusHover(block) {   // 이름은 옛 그대로(부르는 자리 하나 — _syncGridAddBtns) · 하는 일 = «선택» 관측
+  if (!block?.addEventListener || _gridPlusBound.has(block) || typeof MutationObserver !== 'function') return;
   _gridPlusBound.add(block);
-  block.addEventListener('mouseenter', () => { _gridPlusHovered.add(block); _syncGridAddBtns(block); });
-  block.addEventListener('mouseleave', (e) => {
-    /* ★호버 영역 = 블럭과 두 ＋ 상자를 «다 덮는 네모»(클릭은 둥근 ＋ «원»만 받는다 — _gridPlusShown 주석).
-       아래 ＋ 는 블럭 «밖»이라, 그리드 안에서 비스듬히 내려가면 ＋ 에 닿기 전에 블럭을 벗어나 mouseleave 로 ＋ 가 사라졌다
-       (실측 2026-10-04, 진짜 마우스 3걸음: 아래 ＋ 정중앙으로 가던 클릭이 gap-block 에 떨어짐 — ＋ 상자만 이어 줘도 그대로였다).
-       ⇒ 나가는 점이 그 네모 안이면 안 끈다 — 네모를 벗어날 때 끈다(문서 mousemove 를 걸고 스스로 뗀다).
-       ⛔이 네모는 «호버»만이다. 클릭은 그 자리의 원래 요소(그리드·gap 등)가 받는다. */
-    if (_inGridPlusZone(block, e.clientX, e.clientY)) { _trackGridPlusZone(block); return; }
-    _gridPlusHovered.delete(block); _syncGridAddBtns(block);
-  });
-}
-function _inGridPlusZone(block, x, y) {
-  const p = _gridPlusBtns.get(block);
-  if (!p) return false;
-  const btns = [p.col, p.row];
-  let { left, top, right, bottom } = block.getBoundingClientRect();
-  for (const b of btns) {
-    const r = b.getBoundingClientRect();
-    left = Math.min(left, r.left); top = Math.min(top, r.top); right = Math.max(right, r.right); bottom = Math.max(bottom, r.bottom);
-  }
-  return x >= left && x <= right && y >= top && y <= bottom;
-}
-function _trackGridPlusZone(block) {
-  if (block._grdPlusZoneTrack) return;
-  const onMove = (e) => {
-    if (_inGridPlusZone(block, e.clientX, e.clientY)) return;
-    document.removeEventListener('mousemove', onMove, true); block._grdPlusZoneTrack = null;
-    if (block.matches(':hover')) return;   // 블럭 안으로 돌아와 있으면 그대로(mouseenter 가 이미 깃발을 세웠다)
-    _gridPlusHovered.delete(block); _syncGridAddBtns(block);
-  };
-  block._grdPlusZoneTrack = onMove;
-  document.addEventListener('mousemove', onMove, true);
+  let was = _gridPlusShown(block);
+  new MutationObserver(() => {
+    const now = _gridPlusShown(block);
+    if (now === was) return;
+    was = now;
+    _syncGridAddBtns(block);
+  }).observe(block, { attributes: true, attributeFilter: ['class'] });
 }
 
 /* 피커·＋ 공용 — 칸 수를 (nCols, nRows) 로 바꾼다. 바뀌었으면 true.
@@ -3408,7 +3379,7 @@ function _startGridPlusRaf() {
   const loop = () => {
     _gridPlusRaf = 0;
     for (const blk of [..._gridPlusBtns.keys()]) {
-      if (!blk.isConnected) { _dropGridPlus(blk); _gridPlusHovered.delete(blk); continue; }
+      if (!blk.isConnected) { _dropGridPlus(blk); continue; }
       _placeGridAddBtns(blk);
     }
     if (_gridPlusBtns.size) _gridPlusRaf = requestAnimationFrame(loop);
@@ -3440,14 +3411,15 @@ function _placeGridAddBtns(block) {
   put(p.row, (br.left + br.right) / 2, ar.bottom);
 }
 
-/* ＋ 글리프 = 아이콘 정본 PLUS_ICON_SVG(js/props/_helpers.js — window 다리, 까닭은 그 머리말). 글자 '+' 가 아니다(E65). */
+/* ＋ 글리프 = CSS ::before «+»(H9 · 태그블럭 ＋ 꼴) — 옛: 아이콘 정본 PLUS_ICON_SVG. 글자 노드는 없다(E65). */
 function _makeGridAddBtn(block, axis) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = GRID_ADD_BTN_CLS;
   btn.dataset.grdAdd = axis;
   if (block.id) btn.dataset.grdFor = block.id;
-  btn.innerHTML = window.PLUS_ICON_SVG || '';   // 정본이 아직 안 실렸으면 빈 원(누르기는 된다)
+  /* ★H9(2026-10-05) — 글리프는 태그블럭 ＋ 와 같은 «+» 글자 꼴. 단 글자 «노드»가 아니라 CSS ::before 로 그린다
+     (E65 — 글자 '+' 가 PNG·MCP·검색으로 새던 병을 다시 안 연다). 옛: PLUS_ICON_SVG 14px(화면 고정). */
   const label = axis === 'col' ? '열 추가' : '행 추가';
   btn.title = label;
   btn.setAttribute('aria-label', label);
