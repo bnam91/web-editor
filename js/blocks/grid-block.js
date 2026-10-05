@@ -77,8 +77,10 @@ const ROW_DEFAULT = { height: 'auto' };
  *     _helpers.js 옛 주석이 경고한 「눌러도 dataset 만 1 이 되고 캔버스는 2칸으로 남는다」가 그것이고,
  *     MIN_COLS=1 이면 그 «폴백 조건 자체»가 사라진다.
  * ═══════════════════════════════════════════════════════════════════════════════ */
-const MIN_COLS = 1, MAX_COLS = 4;
-const MIN_ROWS = 1, MAX_ROWS = 4;   // 1행 = 옛 duo 파일과 동일(행 축 신설 이전 기본값).
+/* ★K5 ⒜(2026-10-05 지디 · lane-f-grid) — 상한 4×4 → 8×8(현빈 「8×8」). 피커(_helpers.js buildGridPicker)·캔버스 ＋(gridResizeTo)·정리 slice·검증이
+   전부 이 두 상수를 읽는다 ⇒ 여기 한 자리. 옛 값 4(2026-09-04 4×4 피커). */
+const MIN_COLS = 1, MAX_COLS = 8;
+const MIN_ROWS = 1, MAX_ROWS = 8;   // 1행 = 옛 duo 파일과 동일(행 축 신설 이전 기본값).
 /* ★셀당 줄 개수 상한 — SSOT(2026-09-16). 이전엔 이 파일(:205)과 prop-grid.js(:367)가 각자
  *   리터럴 20을 들고 있었다(하드코딩 2건 반복 — MIN_COLS/MAX_COLS 사고와 같은 유형).
  *   grdAddLine(prop-grid.js)이 이 값을 import 해서 사전 확인한다. */
