@@ -393,6 +393,8 @@ function _renderBrowserCards() {
           <span class="tb-card-name">${_esc(tpl.name)}</span>
           <span class="tb-card-meta">${_esc(tpl.category || '')}${tpl.folder ? ' · ' + _esc(tpl.folder) : ''}</span>
           ${isShared ? '<span class="tb-card-shared" title="모든 계정이 함께 쓰는 공용 템플릿 — 수정·삭제할 수 없습니다">공용</span>' : ''}
+          ${/* ★⑺ tb-card-edit-btn(현빈 09-30 「템플릿에서 수정이 안 되는데 뭐 때문에」) — 막힌 까닭을 «보이게». 배지·hover 만으론 까닭이 안 읽혔다. */
+             isShared ? '<span class="tb-card-meta tb-card-shared-why">공용 템플릿이라 수정·삭제할 수 없습니다</span>' : ''}
         </div>
         <div class="tb-card-btns">
           <button class="tb-card-star-btn ${isStarred ? 'starred' : ''}" data-tpl-id="${_esc(tpl.id)}" title="${isStarred ? '즐겨찾기 해제' : '즐겨찾기 추가'}">★</button>
