@@ -133,3 +133,17 @@ for (const preset of ['default', 'dark', 'minimal', 'colorful']) {
     else expect(l.vars[1]).toBe('');
   });
 }
+
+/* N5 — 저장에서 걷는 목록은 «쓰는 자»(canvas-contrast DERIVED_AUTO_VARS)에서 나온다(두 번째 목록 금지 · 팀리드 10-05).
+   쓰는 자의 목록에 새 이름을 보태고 그 이름을 인라인에 쓰면 → 저장에서 «저절로» 걷힌다. (양성대조: 직렬화기의 목록을 비운 판 → N3·N5 빨강) */
+test('N5 ★쓰는 자 목록에 새 자동 변수를 보태면 저장에서 저절로 걷힌다(파생 목록 한 벌)', async ({ page }) => {
+  const { errs, id } = await setup(page, { graph: { chartType: 'line' } });
+  const r = await page.evaluate((id) => {
+    const list = window.__gdTextTone.DERIVED_AUTO_VARS; list.push('--grb-auto-fake');
+    const g = document.getElementById(id); g.style.setProperty('--grb-auto-fake', 'red');
+    const out = { live: g.style.getPropertyValue('--grb-auto-fake'), saved: /--grb-auto-fake/.test(window.getSerializedCanvas()) };
+    list.pop(); g.style.removeProperty('--grb-auto-fake'); return out;
+  }, id);
+  expect(r).toEqual({ live: 'red', saved: false });
+  expect(errs).toEqual([]);
+});
