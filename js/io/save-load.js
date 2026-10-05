@@ -1789,7 +1789,9 @@ function _noteEditDuringDrag() {
 }
 
 function scheduleAutoSave() {
-  if (state._suppressAutoSave) { _noteEditDuringDrag(); return; }   // ⒡ 끌기 창 안에서 버려지던 편집 — 위 머리말
+  /* ⒡ 끌기 창 안에서 버려지던 편집 — 위 머리말. ⛔꼴을 «if (state._X) return …» 로 둔다: tests/unit/autosave-overlap.test.js N6 이
+     이 꼴로 억제 플래그를 «도출»한다(블록 { … return } 로 바꾸면 도출이 0 이 돼 N7 전수가 거짓 초록이 된다 — 10-05 실측). */
+  if (state._suppressAutoSave) return _noteEditDuringDrag();
   // [P-A2] 제스처 중이면 «미룬다» — 버리지 않고 기억해 뒀다가 놓을 때 다시 건다.
   if (_autoSaveDeferred) { _dirtySinceSave = true; _autoSavePending = true; return; }
   // BUG-12: activeProjectId가 없으면 'web-editor-autosave__undefined' 키로 저장되는 버그 방지
