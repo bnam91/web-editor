@@ -24,24 +24,30 @@ function fnSrc(name) {
   }
   throw new Error(`★main.js 에 ${name} 이(가) 없다`);
 }
+function saveSyncSrc() {
+  const A = "ipcMain.on('projects:save-sync'"; const k = MAIN_SRC.indexOf(A); let i = MAIN_SRC.indexOf('{', k), d = 0;
+  for (; i < MAIN_SRC.length; i++) { const c = MAIN_SRC[i]; if (c === '{') d++; else if (c === '}' && --d === 0) break; }
+  return MAIN_SRC.slice(k, MAIN_SRC.indexOf(')', i) + 1) + ';';
+}
 function loadHandlerSrc() {
   const A = "ipcMain.handle('projects:load'";
   const k = MAIN_SRC.indexOf(A); let i = MAIN_SRC.indexOf('{', k), d = 0;
   for (; i < MAIN_SRC.length; i++) { const c = MAIN_SRC[i]; if (c === '{') d++; else if (c === '}' && --d === 0) break; }
   return MAIN_SRC.slice(k, MAIN_SRC.indexOf(')', i) + 1) + ';';
 }
-const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveBackupJsonPath', '_ensureNewLayoutPaths', '_SS', '_mtimeOr', 'readProjectWithFallback', '_savedAtLabel']
+const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveBackupJsonPath', '_ensureNewLayoutPaths', '_SS', '_mtimeOr', 'readProjectWithFallback', '_savedAtLabel',
+  '_resolveMetaJsonPath', '_refreshListMeta', '_guardProjectName', '_rollBackup', '_saveProjectImpl']
   .filter(n => [`function ${n}(`, `const ${n} = `].some(p => MAIN_SRC.includes(p)));
 /** main 쪽 상태(표지)는 «한 앱 실행» 동안 산다 — 한 loader = 한 실행 */
 function app(projectsDir) {
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);
-  const handlers = {};
+  const handlers = {}; const on = {};
   // 표지 상태(있으면) — 핸들러 밖 최상위 선언이라 같이 떼어 온다
   const stateDecl = /const _recentRecovery = new Map\(\);/.test(MAIN_SRC) ? 'const _recentRecovery = new Map();\n' : '';
-  new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console', 'ipcMain',
+  const R = new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console', 'ipcMain',
     `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst _externalizeOnOpen = () => {};\n` + stateDecl +
-    FNS.map(fnSrc).join('\n\n') + '\n' + loadHandlerSrc() + '\n; return 1;')(fs, path, projectsDir, req, { log() {}, warn() {}, error() {} }, { handle: (ch, fn) => { handlers[ch] = fn; } });
-  return { load: (id, opts) => handlers['projects:load']({}, id, opts) };
+    'const syncClaudePmTitle = async () => {};\n' + FNS.map(fnSrc).join('\n\n') + '\n' + loadHandlerSrc() + '\n' + saveSyncSrc() + '\n; return { _saveProjectImpl };')(fs, path, projectsDir, req, { log() {}, warn() {}, error() {} }, { handle: (ch, fn) => { handlers[ch] = fn; }, on: (ch, fn) => { on[ch] = fn; } });
+  return { load: (id, opts) => handlers['projects:load']({}, id, opts), save: (p) => R._saveProjectImpl(p), saveSync: (p) => { const ev = {}; on['projects:save-sync'](ev, p); return ev.returnValue; } };
 }
 const ID = 'proj_1775644888754';
 function scene({ broken = true, readOnly = false } = {}) {
@@ -100,3 +106,18 @@ test('R6 앱을 새로 띄우면(새 실행) 표지는 없다 — 이미 알린 
   const B = app(s.dir);
   assert.equal(B.load(ID, OPEN)._recovered, undefined);
 });
+
+test('R2b ★«열기만» 셋 연속(앞에 부팅 호출이 폴백을 먹음) → 열기에 딱 한 번', () => {
+  const s = scene(); const A = app(s.dir);
+  const seq = [undefined, OPEN, OPEN, OPEN].map(o => A.load(ID, o));
+  assert.deepEqual(seq.slice(1).map(r => !!r._recovered), [true, false, false]);
+});
+
+for (const [name, saveFn] of [['save', (A, p) => A.save(p)], ['save-sync', (A, p) => A.saveSync(p)]]) {
+  test(`R7 ★표지 수명(지디) — 복구 → 안 열고 «성한 저장» 한 번(${name}) → 그 뒤 열기 = 알림 0 («그 뒤 작업은 없을 수 있습니다»가 거짓이 되므로)`, async () => {
+    const s = scene(); const A = app(s.dir);
+    A.load(ID);   // 부팅 호출이 폴백 · 자가치유
+    await saveFn(A, { id: ID, name: 'n', pages: [{ id: 'page_1', canvas: '<div class="section-block">새</div>' }] });
+    assert.equal(A.load(ID, OPEN)._recovered, undefined, '★성한 저장 뒤에도 «복구» 알림이 남았다');
+  });
+}
