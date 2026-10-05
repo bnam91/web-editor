@@ -12,12 +12,15 @@ function _isCssBg(v) {
   try { _gradProbe.style.background = v; } catch (_) { return false; }
   return _gradProbe.style.background !== '';
 }
+/* ★E152(2026-10-06) — 그래프 렌더러의 «속성 안 색»은 전부 이 검증기를 지난다(값/카테고리 라벨 색 · 선 · 면 · 막대 · 범례 점).
+   사본 52(08-07)의 그래프 색 값 56 개 전부 통과(거절 0 · \$S/bt2fix/color-census.json) ⇒ 그 표본의 기존 문서 색 무변. */
 function _safeGraphColor(c) {
   if (typeof c !== 'string') return '';
   const s = c.trim();
   if (/^linear-gradient\(/i.test(s)) return (!/url\(|[;"'<>\\]/i.test(s) && _isCssBg(s)) ? s : '';
   return (/^#[0-9a-fA-F]{3,8}$/.test(s) || /^rgba?\(\s*[\d.,\s%]+\)$/i.test(s) || /^hsla?\(\s*[\d.,\s%]+\)$/i.test(s) || /^[a-zA-Z]+$/.test(s)) ? s : '';
 }
+/* ★E152(2026-10-06) — 사용자 글자는 이 한 자리로: 카테고리 라벨 셋(E150 포함) · 값 라벨(세로 · 꺾은선 · 비교) · 비교 범례 A/B · 가로 % (innerHTML 에 날것 0). */
 function _escGraphHtml(v) {
   return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -715,8 +718,8 @@ function _renderGraphBody(block) {
   if (chartType === 'bar-v') {
     // 값/카테고리 라벨 표시·색 — line 차트와 동일 시맨틱 (이전엔 bar에서 미반영되던 버그)
     const _lc = block.dataset.labelColor || '';
-    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((block.dataset.vlabelColor || _lc) ? `color:${block.dataset.vlabelColor || _lc};` : '');
-    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((block.dataset.xlabelColor || _lc) ? `color:${block.dataset.xlabelColor || _lc};` : '');
+    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.vlabelColor || _lc)));
+    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.xlabelColor || _lc)));
     const _bs = _barVSettings(block, items.length);
     const _vSize = _bs.pctSize ?? valSize;
     const _blockBar = _safeGraphColor(block.dataset.vBarColor);
@@ -802,8 +805,8 @@ function _renderGraphBody(block) {
 
     // 선/면 색상 분리 — lineColor가 선(stroke)·점, fillColor가 면(area). fallback은 barColor.
     // CSS preset rule이 stroke를 var()로 박아 SVG attribute를 덮어씀 → inline style로 우선순위 강제
-    const lineColor = block.dataset.lineColor || block.dataset.barColor || '';
-    const fillColor = block.dataset.fillColor || block.dataset.barColor || '';
+    const lineColor = _safeGraphColor(block.dataset.lineColor || block.dataset.barColor || '');   // E152 — 색 문자열은 검증기를 지나서만 속성으로
+    const fillColor = _safeGraphColor(block.dataset.fillColor || block.dataset.barColor || '');
     const colorAttr = lineColor ? ` style="stroke:${lineColor}"` : '';
     const pointInlineStyle = lineColor ? `background:${lineColor};border-color:${lineColor};` : '';
 
@@ -843,12 +846,12 @@ function _renderGraphBody(block) {
     const xlabelColor = block.dataset.xlabelColor || labelColor;
     const showVLabel = block.dataset.showVLabel !== '0';  // default 보임
     const showXLabel = block.dataset.showXLabel !== '0';  // default 보임
-    const vlabelColorCss = vlabelColor ? `color:${vlabelColor};` : '';
-    const xlabelColorCss = xlabelColor ? `color:${xlabelColor};` : '';
+    const vlabelColorCss = _safeGraphColor(vlabelColor) ? `color:${_safeGraphColor(vlabelColor)};` : '';   // E152
+    const xlabelColorCss = _safeGraphColor(xlabelColor) ? `color:${_safeGraphColor(xlabelColor)};` : '';
     const vlabelDisp = showVLabel ? '' : 'display:none;';
     const xlabelDisp = showXLabel ? '' : 'display:none;';
     const labelsHTML = overlayItems.map(o =>
-      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${vlabelColorCss}${vlabelDisp}">${o.p.v}</div>
+      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${vlabelColorCss}${vlabelDisp}">${_escGraphHtml(o.p.v)}</div>
        <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${xlabelColorCss}${xlabelDisp}">${_escGraphHtml(o.p.label)}</div>`   /* E150 — 사용자 글자는 이스케이프(막대 셋과 같은 _escGraphHtml). 옛: `<b>` 가 태그로 읽혔다 */
     ).join('');
 
@@ -864,16 +867,16 @@ function _renderGraphBody(block) {
   } else if (chartType === 'bar-pair') {
     // ── U9(BL-BOL-03): 2시리즈 비교 세로 막대 (자사 vs 경쟁) — items: [{label, value, value2}]
     const _lc = block.dataset.labelColor || '';
-    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((block.dataset.vlabelColor || _lc) ? `color:${block.dataset.vlabelColor || _lc};` : '');
-    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((block.dataset.xlabelColor || _lc) ? `color:${block.dataset.xlabelColor || _lc};` : '');
-    const barColor  = block.dataset.barColor  || '';
-    const barColor2 = block.dataset.barColor2 || '#c9c9c9';
+    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.vlabelColor || _lc)));
+    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.xlabelColor || _lc)));
+    const barColor  = _safeGraphColor(block.dataset.barColor  || '');   // E152 — 범례 점 · 막대 채움 모두 이 값
+    const barColor2 = _safeGraphColor(block.dataset.barColor2 || '') || '#c9c9c9';
     const sA = block.dataset.seriesA || '';
     const sB = block.dataset.seriesB || '';
     const legend = (sA || sB) ? `
       <div class="grb-pair-legend" style="font-size:${labelSize}px;${_xCss}">
-        ${sA ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot"${barColor ? ` style="background:${barColor}"` : ''}></span>${sA}</span>` : ''}
-        ${sB ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot" style="background:${barColor2}"></span>${sB}</span>` : ''}
+        ${sA ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot"${barColor ? ` style="background:${barColor}"` : ''}></span>${_escGraphHtml(sA)}</span>` : ''}
+        ${sB ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot" style="background:${barColor2}"></span>${_escGraphHtml(sB)}</span>` : ''}
       </div>` : '';
     const _bs = _barVSettings(block, items.length);
     const _vSize = _bs.pctSize ?? valSize;
@@ -882,7 +885,7 @@ function _renderGraphBody(block) {
       const fillStyle = pct === 0 ? 'height:4px;opacity:0.25;border-style:dashed;' : `height:${pct}%;`;
       return `
         <div class="grb-pair-series">
-          <div class="grb-bar-val-label" style="font-size:${_vSize}px;${_vCss}">${v ?? 0}</div>
+          <div class="grb-bar-val-label" style="font-size:${_vSize}px;${_vCss}">${_escGraphHtml(v ?? 0)}</div>
           <div class="grb-bar-fill${extraClass}" style="${fillStyle}${_bs.fillW}${color ? `background:${color};` : ''}"></div>
         </div>`;
     };
@@ -900,7 +903,7 @@ function _renderGraphBody(block) {
   } else {
     const barThickness = parseInt(block.dataset.barThickness) || 0;
     const padX         = parseInt(block.dataset.padX)         || 0;
-    const barColor     = block.dataset.barColor || '';
+    const barColor     = _safeGraphColor(block.dataset.barColor || '');   // E152
     const itemGap      = parseInt(block.dataset.itemGap)      || 24;
     const pctSize      = parseInt(block.dataset.pctSize)      || Math.round(labelSize * window.GRAPH_LIMITS.PCT_SIZE_FACTOR);   // 패널과 같은 식(값 ×3 그대로)
     const trackH       = barThickness || window.GRAPH_LIMITS.BAR_THICKNESS_DEFAULT;   // E99 — 패널·세로·비교와 같은 기본 한 자리
@@ -909,8 +912,8 @@ function _renderGraphBody(block) {
     const fillStyle    = `width:__PCT__;border-radius:${trackR}px;${barColor ? `background:${barColor};` : ''}`;
     // 값/카테고리 라벨 표시·색 — line 차트와 동일 시맨틱 (이전엔 bar-h에서 미반영되던 버그)
     const _lc = block.dataset.labelColor || '';
-    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((block.dataset.vlabelColor || _lc) ? `color:${block.dataset.vlabelColor || _lc};` : '');
-    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((block.dataset.xlabelColor || _lc) ? `color:${block.dataset.xlabelColor || _lc};` : '');
+    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.vlabelColor || _lc)));
+    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.xlabelColor || _lc)));
 
     // freeLayout 절대 배치가 아닌 경우 height 고정 해제 → 콘텐츠 크기에 따라 자동 증가
     if (block.style.position !== 'absolute') {
@@ -927,7 +930,7 @@ function _renderGraphBody(block) {
           const _bc = _safeGraphColor(item.color); const colorStyle = _bc ? `background:${_bc};` : '';
           return `
             <div class="grb-bar-row">
-              <div class="grb-bar-h-pct" style="font-size:${pctSize}px;${_vCss}">${displayVal}</div>
+              <div class="grb-bar-h-pct" style="font-size:${pctSize}px;${_vCss}">${_escGraphHtml(displayVal)}</div>
               <div class="grb-bar-h-desc" style="font-size:${Math.round(labelSize * 1.4)}px;${_xCss}">${_escGraphHtml(item.label)}</div>
               <div class="grb-bar-h-track" style="${trackStyle}">
                 <div class="grb-bar-h-fill" style="${fillStyle.replace('__PCT__', pct + '%')}${hFillExtra}${colorStyle}"></div>
