@@ -162,5 +162,12 @@ test('D5 지키는 시험 — 사각 이미지 줄: 고르면 왼쪽 막대·가
     return page.evaluate(async (b) => { const i = new Image(); i.src = 'data:image/png;base64,' + b; await i.decode(); const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const k = c.getContext('2d'); k.drawImage(i, 0, 0);
       const d = k.getImageData(0, 0, i.width, i.height).data; let h = 2166136261; for (let t = 0; t < d.length; t++) { h ^= d[t]; h = Math.imul(h, 16777619) >>> 0; } return h + ':' + i.width + 'x' + i.height; }, b); })();
   await page.evaluate(() => document.querySelectorAll('[data-grd-resize-dir]').forEach(h => { h.style.visibility = h.dataset.d5Vis || ''; delete h.dataset.d5Vis; }));
-  expect(hash, '사각 줄 사진 해시 = 핀 37ab1c65 에서 잰 값').toBe('2383551274:217x128');
+  /* ★⑵ 다시 핀(2026-10-06 · 주인 R1 E157 a497e201 · 통 ⒝ · APPROVED_BY: 태양 integ25-pins) — 옛 값 '2383551274:217x128'(핀 37ab1c65).
+     까닭(잰 것): R1(E157) 되돌림 판에서 이 빨강이 사라짐(fix25 7b017a98 위 07:34:50) — E157 뒤 크롭 없는 1×1 사각 줄은 높이 120 을 안 쓰고
+       폭 × 비율로 정사각(209×120 → 209×209)이 된다. 다른 점은 고른 상태의 «선»뿐 — 고르지 않으면 핀 장면과 0 px 차이(그림 내용 같음 · 08:01:15).
+       보통 크롭 줄의 틀 오른변은 dev 0f572e2a 와 같다(줌 100 · 40 · 07:57). 새 값 = 병합 판 e548c211 의 렌더(×2 같음 08:06:35).
+     무엇이 여전히 잠그나: 위 모양 단언(cs — 왼쪽 막대 inset · 가상요소 둘 다 없음 · position static · overflow visible · 반경 0 · 그림 반경 0) 전부 그대로 + 이 새 해시(사각 줄 그림의 픽셀).
+     측정 판 = fix25 7b017a98 · e548c211 과 차이는 e127-fix(글자색)뿐 ⇒ 고르지 않은 열·z100 은 다시 안 잼 (태양 ㉢).
+     D5 의 «평범한 크롭» 장면은 심은 것이다. 앱이 그 4 키를 쓰는 것은 정의 자리(image-handling.js :1461-1464 · overlay-handles.js :2159-2167)에서 확인했다. 에디터를 주행해 만든 측정은 안 했다 — 다음 판 후보 */
+  expect(hash, '사각 줄 사진 해시 = 병합 판 e548c211 에서 잰 값(E157 R1 — 크롭 없는 1×1 사각 줄 = 정사각)').toBe('2755476141:217x217');
 });
