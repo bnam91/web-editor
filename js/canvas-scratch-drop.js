@@ -186,6 +186,21 @@ function _classifyDrop(clientX, clientY) {
      ⚠️여기서 편집을 «대신 끝내지» 않는다 — 사용자가 시킨 적 없는 동작이라 더 놀랍다.
        무시하되 호버 배지 + 드롭 토스트로 «왜 안 되는지»를 말한다(조용한 무반응은 고장으로 읽힌다). */
   if (sec._secBgEditing) return { kind: 'sectionbg', sec, inner: sectionInner, locked: true };
+  /* ★D6 ⒡2 = ⒠(2026-10-05 · 지디 승인 · 현빈 「내가 놓은 자리에 추가되어야지」) — x 가 «내용 칼럼»(section-inner 좌우 패딩 안쪽)이면
+     배경이 아니라 «그 자리에 넣기». 배경은 좌우 패딩 띠에 놓을 때만(⒡3 토스트가 말한다).
+     까닭(실앱 계측): 블록 사이 빈자리 · 경계 · 칼럼 맨 위(끄는 동안 elementFromPoint 가 gap ↔ section-inner 를 오감)가 배경으로 갔다.
+     ⚠️위·아래 바깥 띠로 배경을 남기는 안(⒝)은 실측 0px 라 기각 — 배경 길은 좌우 패딩(z40 28.8px · z100 72px)뿐이다. */
+  if (sectionInner !== sec) {
+    const ir = sectionInner.getBoundingClientRect();
+    const ics = window.getComputedStyle(sectionInner);
+    const k = sectionInner.offsetWidth ? ir.width / sectionInner.offsetWidth : 1;   // 배율(화면/모델)
+    const colL = ir.left + (parseFloat(ics.paddingLeft) || 0) * k;
+    const colR = ir.right - (parseFloat(ics.paddingRight) || 0) * k;
+    if (clientX >= colL && clientX <= colR) {
+      const after = (typeof window.getDragAfterElement === 'function') ? window.getDragAfterElement(sectionInner, clientY) : null;
+      return { kind: 'insert', sec, inner: sectionInner, after };
+    }
+  }
   return { kind: 'sectionbg', sec, inner: sectionInner };   // 배경은 «섹션» 것이지 상자 것이 아니다
 }
 
