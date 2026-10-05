@@ -809,7 +809,7 @@ function _renderGraphBody(block) {
     const xlabelDisp = showXLabel ? '' : 'display:none;';
     const labelsHTML = overlayItems.map(o =>
       `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${vlabelColorCss}${vlabelDisp}">${o.p.v}</div>
-       <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${xlabelColorCss}${xlabelDisp}">${o.p.label}</div>`
+       <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${xlabelColorCss}${xlabelDisp}">${_escGraphHtml(o.p.label)}</div>`   /* E150 — 사용자 글자는 이스케이프(막대 셋과 같은 _escGraphHtml). 옛: `<b>` 가 태그로 읽혔다 */
     ).join('');
 
     block.innerHTML = `
