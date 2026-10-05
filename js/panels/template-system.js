@@ -4,6 +4,7 @@
 import { canvasEl } from '../globals.js';
 import { fitScale } from '../fit-scale.js';
 import { TPL_ROLES, TPL_ROLE_KEYS, tplRoleKo, tplRoleTags, tplRoleOf } from './template-roles.js';
+import { BLOCK_BIND_SEL } from '../block-bind-kinds.js';   // R7b — bindBlock 걸 종류의 정본(section 갈래가 씀)
 
 const TEMPLATE_KEY = 'sangpe-templates'; // localStorage fallback key
 /* ★1회성 이관 마커 — 「이미 옮겼나」를 «캐시 건수»가 아니라 이걸로 판정한다.
@@ -606,7 +607,9 @@ async function insertTemplate(tpl) {
   bindSectionDropZone(sec);
   // ★rebindAll 비경유 문 — 승격을 직접 한다(2026-09-05 개명).
   window.migrateGridIdentity?.(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .qa-block').forEach(b => {
+  /* ★R7b(2026-10-05 lane-drag · 지디 ⒜) — 손 명부(15 종 · 도형·스텝·챗·목업·확대 등 14 종 빠짐) 대신 정본 명부(js/block-bind-kinds.js).
+     나머지 손 명부 8 곳은 0.9.7 — 그 사이 tests/unit/block-bind-kinds-lock.test.mjs 가 자리마다 오늘 빠짐을 얼려 둔다. */
+  sec.querySelectorAll(BLOCK_BIND_SEL).forEach(b => {
     bindBlock(b);
     // ★이 문은 «유일하게» 렌더러를 안 부르던 문이다 — 개명으로 스냅샷(grd-*)과 CSS 가
     //   어긋나면 P1.5 「빈 줄이 손에 안 닿음」이 여기서만 재현된다. save-load.js:979 와 같은 줄.
