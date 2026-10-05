@@ -259,6 +259,9 @@ export function syncGraphTone(block) {
   const d = block.dataset;
   const prev = GRAPH_AUTO_VARS.map(v => block.style.getPropertyValue(v).trim());
   GRAPH_AUTO_VARS.forEach(v => block.style.removeProperty(v));          // «변수 없는 그려진 값»을 읽기 위해 먼저 걷는다
+  /* E149 — 패널 색 칸이 보일 «파생 전» 선 색을 여기서 기억한다(변수를 걷은 «지금»이 그 값 — 걷고 읽기는 이 함수가 원래 한다).
+     JS 속성이라 DOM·저장·자동저장에 0. 읽는 자 = graphFieldShown(아래 한 곳). */
+  { const _p = block.querySelector('.grb-line-path'); block._grbToneBase = { line: _p ? (_cs(_p)?.stroke || '') : '' }; }
   const bg = backdropRgbAt(block);
   const want = ['', '', '', ''];
   if (bg && textToneOver(bg) === 'light') {
@@ -276,6 +279,40 @@ export function syncGraphTone(block) {
   if (bg && d.pointStyle === 'hollow' && d.chartType === 'line') want[3] = _rgbCss(bg);
   GRAPH_AUTO_VARS.forEach((v, i) => { if (want[i]) block.style.setProperty(v, want[i]); });
   return { prev, want };
+}
+
+/* ── E149 그래프 패널 색 칸의 «보일 값» 한 자리 ───────────────────────────
+ * 칸에 데이터 값(dataset)이 없을 때 = «그려진» 색(프리셋·CSS) — 단 H6 가 밝힌 값이 아니라 «파생 전» 색.
+ *   H6 변수가 닿는 칸은 꺾은선 선 하나(--grb-auto-line) → syncGraphTone 이 걷은 채 읽어 둔 block._grbToneBase.line.
+ *   나머지(막대·라벨·면·격자)는 H6 변수가 안 닿는 요소의 계산값 그대로(격자는 격자층의 글자색 — 렌더가 currentColor×0.2 로 긋는다).
+ * ⛔칸마다 기본값을 박지 않는다 — 칸 → (그리는 요소 · CSS 속성) 표 «하나». 못 읽으면 ''(= 칸은 «정해지지 않음»).
+ * 'label'(값+카테고리 한꺼번에)은 { c, mixed } — 두 색이 다르면 Mix. */
+const _firstPlain = (b, sel) => [...b.querySelectorAll(sel)].find(e => !e.style.background && !e.style.backgroundColor) || null;
+const GRAPH_FIELD_PARTS = {
+  bar:    (b) => (b.dataset.chartType || 'bar-v') === 'line' ? { tone: 'line', el: b.querySelector('.grb-line-path'), prop: 'stroke' }
+                 : { el: _firstPlain(b, b.dataset.chartType === 'bar-h' ? '.grb-bar-h-fill' : '.grb-bar-fill:not(.grb-bar-fill-b)'), prop: 'backgroundColor' },
+  bar2:   (b) => ({ el: b.querySelector('.grb-bar-fill-b'), prop: 'backgroundColor' }),
+  vlabel: (b) => ({ el: b.querySelector('.grb-bar-val-label, .grb-line-vlabel, .grb-bar-h-pct'), prop: 'color' }),
+  xlabel: (b) => ({ el: b.querySelector('.grb-bar-label, .grb-line-xlabel, .grb-bar-h-desc'), prop: 'color' }),
+  fill:   (b) => ({ el: b.querySelector('.grb-line-area'), prop: 'fill' }),
+  grid:   (b) => ({ el: b.querySelector('.grb-ov-grid-layer') || b, prop: 'color' }),
+};
+export function graphFieldShown(block, field) {
+  if (!block) return field === 'label' ? { c: '', mixed: false } : '';
+  if (field === 'label') {
+    const v = graphFieldShown(block, 'vlabel'), x = graphFieldShown(block, 'xlabel');
+    return { c: x || v, mixed: !!(v && x && v !== x) };
+  }
+  const p = GRAPH_FIELD_PARTS[field]?.(block);
+  if (!p) return '';
+  if (p.tone) {
+    const t = block._grbToneBase?.[p.tone];
+    if (t) return t;
+    if (block.style.getPropertyValue('--grb-auto-' + p.tone).trim()) return '';   // 밝힌 값만 보이고 파생 전 값을 모른다 → «정해지지 않음»
+  }
+  if (!p.el) return '';
+  const v = _cs(p.el)?.[p.prop];
+  return (typeof v === 'string' && /^rgba?\(/i.test(v.trim())) ? v.trim() : '';
 }
 
 /* ── 한 깔때기 관찰자 ─────────────────────────────────────────
@@ -340,7 +377,7 @@ if (typeof window !== 'undefined') {
     (typeof document !== 'undefined' && document.getElementById('canvas-wrap')?.style.background) || ''
   );
   /* ★G5·G6 글자 톤 — grid-block.js 는 import 대신 이 전역으로 받는다(그 파일 renderGridBlock 의 주석 참조). */
-  window.__gdTextTone = { backdropRgbAt, textToneOver, textToneAt, syncTableHeaderTone, syncGraphTone, DERIVED_AUTO_VARS };
+  window.__gdTextTone = { backdropRgbAt, textToneOver, textToneAt, syncTableHeaderTone, syncGraphTone, DERIVED_AUTO_VARS, graphFieldShown };
   /* ★한 깔때기 관찰자 — #canvas 가 생긴 뒤 한 번. 그리드는 window.renderGridBlock 으로 다시 그린다. */
   const _goTone = () => { const cv = document.getElementById('canvas');
     if (cv) installTextToneObserver(cv, { onGrid: (b) => window.renderGridBlock?.(b) }); };

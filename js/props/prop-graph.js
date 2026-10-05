@@ -3,6 +3,7 @@ import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
+import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
 
 const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
@@ -29,8 +30,8 @@ function overlayTogglesHTML(block) {
    ⛔기본값을 새로 박지 않는다 — 렌더(drag-utils.js _barVPlotGeom)가 키 없을 때 currentColor×0.2 를 그리고, 칸은 그 계산값을 보인다. */
 function _gridColorShown(block) {
   if (block.dataset.gridColor) return { c: block.dataset.gridColor, a: parseAlphaFromColor(block.dataset.gridColor) };
-  const el = block.querySelector('.grb-ov') || block;
-  return { c: getComputedStyle(el).color, a: 20 };
+  /* E149 — 격자층의 글자색(파생 전). 옛: .grb-ov 의 계산값 = 어두운 바탕에선 H6 가 밝힌 잉크라 #111 위 7C7C7C ↔ 그려진 흰 0.33(실측). */
+  return { c: graphFieldShown(block, 'grid'), a: 20 };
 }
 function gridColorRowHTML(block) {
   const g = _gridColorShown(block);
@@ -88,6 +89,20 @@ function itemColorFieldHTML(item, i) {
   })}</div>`;
 }
 
+/* E149 — 그래프 색 칸 배선 한 자리. 칸이 «정해지지 않음»(Mix · 그려진 색을 못 읽음)이면 hex 를 비우고 안내(Mix/—)를 보이며,
+ * «투명도만» 고친 입력은 색을 안 쓴다(어느 색에 투명도를 줄지 없다 — Mix 에서 한 색으로 덮으면 파란 값 라벨이 회색이 되는 같은 병).
+ * hex·피커로 색을 고르는 순간 정해진다. ⛔칸마다 따로 짜지 않는다. */
+function _wireGraphColor(prefix, { unset = false, mixed = false, ...opts } = {}) {
+  const hex = document.getElementById(prefix + '-hex'), alpha = document.getElementById(prefix + '-alpha');
+  let pending = unset, alphaEvt = false;
+  if (unset && hex) { hex.value = ''; hex.placeholder = mixed ? 'Mix' : '—'; }
+  /* wireColorField 의 alpha 리스너보다 «먼저» 건다(같은 이벤트 안에서 이 깃발을 보고 onApply 가 갈린다).
+     ⚠️내리기는 setTimeout — 사용자 이벤트는 «리스너 사이»에 마이크로태스크가 돈다(queueMicrotask 면 다음 리스너 전에 내려가 투명도만이 색을 썼다 · C3 실측). */
+  alpha?.addEventListener('input', () => { alphaEvt = true; setTimeout(() => { alphaEvt = false; }, 0); });
+  const onApply = opts.onApply;
+  return wireColorField(prefix, { ...opts, onApply: (c) => { if (pending && alphaEvt) return; pending = false; onApply?.(c); } });
+}
+
 export function showGraphProperties(block) {
   const _vKey = (hKey, vKey) => (block.dataset.chartType === 'bar-v' || block.dataset.chartType === 'bar-pair') ? vKey : hKey;
   const chartType    = block.dataset.chartType    || 'bar-v';
@@ -108,7 +123,11 @@ export function showGraphProperties(block) {
     return w > BAR_THICKNESS_MIN ? w : BAR_THICKNESS_MAX;
   })();
   const padX         = parseInt(block.dataset[_vOnly ? 'vPadX' : 'padX'])         || 0;
-  const barColor     = block.dataset.barColor || '#222222';
+  /* ★E149(2026-10-05 · 지디 ⒝) — 색 칸의 «보일 값» = 데이터 값, 없으면 «그려진 파생 전» 색(canvas-contrast graphFieldShown 표 한 자리).
+     옛: 칸마다 #222222·#4dabf7·#888888·#3b82f6 을 박아 19 칸 중 18 이 그려진 색과 달랐고(실측 $S/e149/census.json),
+     «투명도만» 고쳐도 그 틀린 hex 로 명시 색이 굳었다(꺾은선: 파랑 → rgba(34,34,34,.5) · #111 위 26,26,26). */
+  const _shown = (f) => graphFieldShown(block, f);
+  const barColor     = (chartType === 'line' ? (block.dataset.lineColor || block.dataset.barColor) : block.dataset.barColor) || _shown('bar');
   const barAlpha     = parseAlphaFromColor(barColor);
   const itemGap      = _vOnly ? (parseInt(block.dataset.vItemGap) || 10) : (parseInt(block.dataset.itemGap) || 24);
   const pctSize      = parseInt(block.dataset.pctSize)      || 60;
@@ -117,14 +136,19 @@ export function showGraphProperties(block) {
   const barPctMin    = _isBarH ? 20 : 8;
   const barPctSize   = _isBarH ? pctSize
     : (parseInt(block.dataset.vPctSize) || Math.round((parseInt(block.dataset.labelSize) || 20) * 1.07));
-  const _barSetColor = chartType === 'bar-v' ? (block.dataset.vBarColor || '#4dabf7') : barColor;
+  const _barSetColor = chartType === 'bar-v' ? (block.dataset.vBarColor || _shown('bar')) : barColor;   // E149
   const strokeWidth  = parseInt(block.dataset.strokeWidth)  || 3;
   const pointRadius  = parseInt(block.dataset.pointRadius)  || 5;
   const fillArea     = block.dataset.fillArea === '1';
   const fillAlpha    = Math.round((parseFloat(block.dataset.fillAlpha) || 0.18) * 100);
-  const labelColor   = block.dataset.labelColor || '#888888';
+  const _lblShown    = _shown('label');   // { c, mixed } — 값·카테고리 두 색이 다르면 Mix
+  const labelColor   = block.dataset.labelColor || _lblShown.c;
+  const _labelUnset  = !block.dataset.labelColor && (_lblShown.mixed || !_lblShown.c);
+  const _vlabelShown = block.dataset.vlabelColor || block.dataset.labelColor || _shown('vlabel');
+  const _xlabelShown = block.dataset.xlabelColor || block.dataset.labelColor || _shown('xlabel');
+  const _bar2Shown   = block.dataset.barColor2 || _shown('bar2');
   const labelAlpha   = parseAlphaFromColor(labelColor);
-  const fillColor    = block.dataset.fillColor || block.dataset.barColor || '#3b82f6';
+  const fillColor    = block.dataset.fillColor || block.dataset.barColor || _shown('fill');   // E149
   const fillColorAlpha = parseAlphaFromColor(fillColor);
   const showVLabel   = block.dataset.showVLabel !== '0';
   const showXLabel   = block.dataset.showXLabel !== '0';
@@ -168,12 +192,12 @@ ${blockHeaderHTML({
       </div>
       <div class="prop-row" title="값 라벨(숫자)만 별도 색상">
         <span class="prop-label">값 색상</span>
-        ${colorFieldHTML({ idPrefix: 'grb-vlabel', hex: block.dataset.vlabelColor || labelColor, alpha: parseAlphaFromColor(block.dataset.vlabelColor || labelColor) })}
+        ${colorFieldHTML({ idPrefix: 'grb-vlabel', hex: _vlabelShown, alpha: parseAlphaFromColor(_vlabelShown) })}
       </div>
       <!-- ★E103 U27(2026-10-05): 「카테고리 색상」·「카테고리 표시」는 56px 고정 라벨에서 잘렸다(sw60/cw56 실측) — 기존 변형 .prop-label--auto(css/editor-props.css, 「그리드 가이드」 선례)를 쓴다. 전역 56px 은 안 건드린다. -->
       <div class="prop-row" title="카테고리 라벨(7차 입고 등)만 별도 색상">
         <span class="prop-label prop-label--auto">카테고리 색상</span>
-        ${colorFieldHTML({ idPrefix: 'grb-xlabel', hex: block.dataset.xlabelColor || labelColor, alpha: parseAlphaFromColor(block.dataset.xlabelColor || labelColor) })}
+        ${colorFieldHTML({ idPrefix: 'grb-xlabel', hex: _xlabelShown, alpha: parseAlphaFromColor(_xlabelShown) })}
       </div>
       <div class="prop-row">
         <span class="prop-label">값 표시</span>
@@ -216,7 +240,7 @@ ${blockHeaderHTML({
       </div>
       <div class="prop-row">
         <span class="prop-label">색상 B</span>
-        ${colorFieldHTML({ idPrefix: 'grb-bar2', hex: block.dataset.barColor2 || '#c9c9c9', alpha: parseAlphaFromColor(block.dataset.barColor2 || '#c9c9c9') })}
+        ${colorFieldHTML({ idPrefix: 'grb-bar2', hex: _bar2Shown, alpha: parseAlphaFromColor(_bar2Shown) })}
       </div>
     </div>` : ''}
     ${chartType === 'line' ? `
@@ -329,8 +353,8 @@ ${blockHeaderHTML({
   if (seriesB) seriesB.addEventListener('input', () => { block.dataset.seriesB = seriesB.value; window.renderGraph(block); });
   if (seriesB) seriesB.addEventListener('change', () => window.pushHistory());
   if (document.getElementById('grb-bar2-color')) {
-    wireColorField('grb-bar2', {
-      initialAlpha: parseAlphaFromColor(block.dataset.barColor2 || '#c9c9c9'),
+    _wireGraphColor('grb-bar2', { unset: !_bar2Shown,
+      initialAlpha: parseAlphaFromColor(_bar2Shown),
       onApply: (c) => { block.dataset.barColor2 = c; window.renderGraph(block); },
       onCommit: () => window.pushHistory(),
     });
@@ -500,7 +524,7 @@ ${blockHeaderHTML({
 
   // 색상 — line 차트는 선 색상(lineColor)에, bar 차트는 막대 색상(barColor)에 적용
   if (document.getElementById('grb-bar-color')) {
-    wireColorField('grb-bar', {
+    _wireGraphColor('grb-bar', { unset: !(chartType === 'bar-v' ? _barSetColor : barColor),
       initialAlpha: chartType === 'bar-v' ? parseAlphaFromColor(_barSetColor) : barAlpha,
       onApply: (c) => {
         if (block.dataset.chartType === 'line') block.dataset.lineColor = c;
@@ -565,11 +589,13 @@ ${blockHeaderHTML({
       if (fillColorRow) fillColorRow.style.display = on ? 'flex' : 'none';
       window.renderGraph(block);
       window.pushHistory();
+      /* E149 — 면은 켜야 그려진다 → 그 전엔 칸이 읽을 «그려진 면»이 없었다. 데이터 색이 없으면 켠 뒤 패널을 다시 열어 칸을 그려진 면 색으로. */
+      if (on && !block.dataset.fillColor && !block.dataset.barColor) showGraphProperties(block);
     });
   }
   // 면 색상 picker
   if (document.getElementById('grb-fill-color')) {
-    wireColorField('grb-fill', {
+    _wireGraphColor('grb-fill', { unset: !fillColor,
       initialAlpha: fillColorAlpha,
       onApply: (c) => { block.dataset.fillColor = c; window.renderGraph(block); },
       onCommit: () => window.pushHistory(),
@@ -604,21 +630,21 @@ ${blockHeaderHTML({
 
   // 라벨 색상
   if (document.getElementById('grb-vlabel-color')) {
-    wireColorField('grb-vlabel', {
-      initialAlpha: parseAlphaFromColor(block.dataset.vlabelColor || labelColor),
+    _wireGraphColor('grb-vlabel', { unset: !_vlabelShown,
+      initialAlpha: parseAlphaFromColor(_vlabelShown),
       onApply: (c) => { block.dataset.vlabelColor = c; window.renderGraph(block); },
       onCommit: () => window.pushHistory(),
     });
   }
   if (document.getElementById('grb-xlabel-color')) {
-    wireColorField('grb-xlabel', {
-      initialAlpha: parseAlphaFromColor(block.dataset.xlabelColor || labelColor),
+    _wireGraphColor('grb-xlabel', { unset: !_xlabelShown,
+      initialAlpha: parseAlphaFromColor(_xlabelShown),
       onApply: (c) => { block.dataset.xlabelColor = c; window.renderGraph(block); },
       onCommit: () => window.pushHistory(),
     });
   }
   if (document.getElementById('grb-label-color')) {
-    wireColorField('grb-label', {
+    _wireGraphColor('grb-label', { unset: _labelUnset, mixed: _lblShown.mixed && !block.dataset.labelColor,
       initialAlpha: labelAlpha,
       onApply: (c) => { block.dataset.labelColor = c; window.renderGraph(block); },
       onCommit: () => window.pushHistory(),
@@ -636,7 +662,7 @@ ${blockHeaderHTML({
   }
   // H7 — 격자선 색(bar-v). 고르는 순간에만 키가 생긴다(안 고르면 옛 꼴 그대로).
   if (document.getElementById('grb-grid-color')) {
-    wireColorField('grb-grid', {
+    _wireGraphColor('grb-grid', { unset: !_gridColorShown(block).c,
       initialAlpha: _gridColorShown(block).a,
       onApply: (c) => { block.dataset.gridColor = c; window.renderGraph(block); },
       onCommit: () => window.pushHistory(),
