@@ -18,7 +18,8 @@ const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
 const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html' };
 
-/* 실앱 장면 꼴: section-inner 직속 [gap · A글자프레임 · gap · B · gap · C · gap] (글 6번 반복 = 키 큰 글자) */
+/* ⚠️«B 가운데 정확히»는 겨눔이 안 서는 점이다(getDragAfterElement 는 가운데 = «아래»로 친다) — 그래서 B 아래 60% 로 잰다(실앱 「B 가운데 ✘」 와 같은 갈래: 안내선이 C 앞에 서서 기준이 됨).
+   실앱 장면 꼴: section-inner 직속 [gap · A글자프레임 · gap · B · gap · C · gap] (글 6번 반복 = 키 큰 글자) */
 const TB = (k) => `<div class="frame-block" id="tf${k}" data-text-frame="true" style="width:100%"><div class="text-block" id="tb${k}"><div class="tb-body">${('블럭 ' + k + ' ').repeat(30)}</div></div></div>`;
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8"><style>
   * { box-sizing: border-box; } body { margin:0; font: 20px/1.5 sans-serif; }
@@ -65,7 +66,7 @@ async function dropAt(page, aim) {
     const r = (id) => document.getElementById(id).getBoundingClientRect();
     const A = r('tfA'), B = r('tfB'), C = r('tfC');
     const y = aim === 'A-lower75' ? A.top + A.height * 0.75 : aim === 'A-upper25' ? A.top + A.height * 0.25
-            : aim === 'B-center' ? B.top + B.height / 2 : (B.bottom + C.top) / 2;
+            : aim === 'B-lower60' ? B.top + B.height * 0.6 : (B.bottom + C.top) / 2;
     const x = A.left + A.width / 2;
     const kind = window.previewScratchDropAt(x, y);
     const ind = document.querySelector('.sp2c-insert-indicator');
@@ -81,7 +82,7 @@ test('전제 — 두 모듈이 콘솔 오류 없이 얹힌다', async ({ page })
   expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
 });
 
-for (const [aim, want] of [['A-upper25', 'row_new tfA tfB tfC'], ['A-lower75', 'tfA row_new tfB tfC'], ['B-center', 'tfA row_new tfB tfC'], ['BC-boundary', 'tfA tfB row_new tfC']]) {
+for (const [aim, want] of [['A-upper25', 'row_new tfA tfB tfC'], ['A-lower75', 'tfA row_new tfB tfC'], ['B-lower60', 'tfA tfB row_new tfC'], ['BC-boundary', 'tfA tfB row_new tfC']]) {
   test(`F1[${aim}] ★블록 사이에 놓으면 «그 자리»에 들어간다(맨 끝 아님)`, async ({ page }) => {
     await boot(page);
     const r = await dropAt(page, aim);
