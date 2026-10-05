@@ -13,7 +13,11 @@
        실측(실앱 d1f642ff · 5항목 860 블럭 · 칸 127): 두께 120 → 막대 120 · 200 → 127 · 1000 → 127 — 렌더가 이미 max-width:100% 로 칸에서 자른다
        (drag-utils.js _barVSettings fillW). 넘침·이웃 겹침·블럭 밖 0. ⇒ 칸보다 큰 수는 «아무 일도 안 하는» 칸이라 상한 = 칸 폭(⒤).
        ⒥ 고정 큰 값(200)·⒦ 무제한은 그 «헛칸»만 늘린다(측정 $S/e1/real/h1.json). 가로 막대(BAR_THICKNESS_MAX 60)는 그대로. */
-  var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column' });
+  /* ★LABEL_SIZE_DEFAULT · LINE_PADX_DEFAULT · PCT_SIZE_FACTOR(그래프 패널 묶음 · 2026-10-05 · 승인 lane-graph-panel) — 키를 «안 정한» 그래프의
+       라벨 글자 크기 20 · 꺾은선 좌우 여백 16(SVG 가상폭 1000 단위 — 계산된 CSS 로 못 읽는다) · 가로 막대 숫자 크기 = 라벨 크기 × 3.
+       렌더러(drag-utils renderGraph)와 패널(prop-graph)이 «이 값들»을 읽는다. 전엔 패널 13·0·60 을 각자 적어 그려지는 20·16·라벨×3 과 달랐다
+       (명부 E105 = 13≠20 · E106 · E110 — PANEL-SHOWS-WRONG 꼴). 값은 렌더러의 옛 값 그대로 = 렌더 바이트 무변. */
+  var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3 });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_LIMITS;
   if (root) root.GRAPH_LIMITS = GRAPH_LIMITS;
 })(typeof window !== 'undefined' ? window : null);

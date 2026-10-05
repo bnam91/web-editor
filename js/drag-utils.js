@@ -707,7 +707,7 @@ function _renderGraphBody(block) {
   // bar-pair(2시리즈)의 value2까지 포함해 스케일 산출 — 타 차트는 value2 없음(0)이라 영향 없음
   const maxVal     = Math.max(...items.flatMap(i => [i.value || 0, i.value2 || 0]), 1);
   const chartH     = parseInt(block.dataset.chartHeight) || 240;
-  const labelSize  = parseInt(block.dataset.labelSize)   || 20;
+  const labelSize  = parseInt(block.dataset.labelSize)   || window.GRAPH_LIMITS.LABEL_SIZE_DEFAULT;   // 패널과 같은 한 자리(graph-limits.js · 값 20 그대로)
   const valSize    = Math.round(labelSize * 1.07);
 
   if (chartType === 'bar-v') {
@@ -741,7 +741,7 @@ function _renderGraphBody(block) {
     // ── 꺾은선 (line) — SVG polyline + circle data points
     const strokeWidth = parseInt(block.dataset.strokeWidth) || 3;
     const pointRadius = parseInt(block.dataset.pointRadius) || 5;
-    const padXL       = parseInt(block.dataset.padX) || 16;
+    const padXL       = parseInt(block.dataset.padX) || window.GRAPH_LIMITS.LINE_PADX_DEFAULT;   // 패널과 같은 한 자리(값 16 그대로 · SVG 가상폭 단위)
     const padTop      = Math.round(valSize * 1.4) + 8;
     const padBottom   = Math.round(labelSize * 1.4) + 8;
 
@@ -900,7 +900,7 @@ function _renderGraphBody(block) {
     const padX         = parseInt(block.dataset.padX)         || 0;
     const barColor     = block.dataset.barColor || '';
     const itemGap      = parseInt(block.dataset.itemGap)      || 24;
-    const pctSize      = parseInt(block.dataset.pctSize)      || Math.round(labelSize * 3);
+    const pctSize      = parseInt(block.dataset.pctSize)      || Math.round(labelSize * window.GRAPH_LIMITS.PCT_SIZE_FACTOR);   // 패널과 같은 식(값 ×3 그대로)
     const trackH       = barThickness || window.GRAPH_LIMITS.BAR_THICKNESS_DEFAULT;   // E99 — 패널·세로·비교와 같은 기본 한 자리
     const trackR       = Math.round(trackH / 2);
     const trackStyle   = `height:${trackH}px;border-radius:${trackR}px;`;

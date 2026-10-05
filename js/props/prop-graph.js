@@ -5,7 +5,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
 
-const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
@@ -109,7 +109,7 @@ export function showGraphProperties(block) {
   const preset       = block.dataset.preset       || 'default';
   const items        = JSON.parse(block.dataset.items || '[]');
   const chartH       = parseInt(block.dataset.chartHeight)  || 240;
-  const labelSize    = parseInt(block.dataset.labelSize)    || 13;
+  const labelSize    = parseInt(block.dataset.labelSize)    || LABEL_SIZE_DEFAULT;   // E105 = 13≠20 — 렌더러와 같은 한 자리(옛 13 은 그려지는 20 과 달랐다)
   // B7r: bar-v·bar-pair 는 «자기 키»(vXxx)만 읽고 쓴다 — bar-h 키(itemGap·barThickness·padX·pctSize·barColor)와 겹치면
   //      타입 전환 때 단위가 다른 값이 딸려 온다(가로 숫자 크기 60 ↔ 세로 값 글자 21 …).
   const _vOnly = chartType === 'bar-v' || chartType === 'bar-pair';
@@ -122,7 +122,7 @@ export function showGraphProperties(block) {
     const w = f && f.parentElement ? Math.floor(f.parentElement.clientWidth) : 0;
     return w > BAR_THICKNESS_MIN ? w : BAR_THICKNESS_MAX;
   })();
-  const padX         = parseInt(block.dataset[_vOnly ? 'vPadX' : 'padX'])         || 0;
+  const padX         = parseInt(block.dataset[_vOnly ? 'vPadX' : 'padX'])         || (chartType === 'line' ? LINE_PADX_DEFAULT : 0);   // E106 — 꺾은선은 렌더 16(막대는 0 그대로)
   /* ★E149(2026-10-05 · 지디 ⒝) — 색 칸의 «보일 값» = 데이터 값, 없으면 «그려진 파생 전» 색(canvas-contrast graphFieldShown 표 한 자리).
      옛: 칸마다 #222222·#4dabf7·#888888·#3b82f6 을 박아 19 칸 중 18 이 그려진 색과 달랐고(실측 $S/e149/census.json),
      «투명도만» 고쳐도 그 틀린 hex 로 명시 색이 굳었다(꺾은선: 파랑 → rgba(34,34,34,.5) · #111 위 26,26,26). */
@@ -130,12 +130,12 @@ export function showGraphProperties(block) {
   const barColor     = (chartType === 'line' ? (block.dataset.lineColor || block.dataset.barColor) : block.dataset.barColor) || _shown('bar');
   const barAlpha     = parseAlphaFromColor(barColor);
   const itemGap      = _vOnly ? (parseInt(block.dataset.vItemGap) || 10) : (parseInt(block.dataset.itemGap) || 24);
-  const pctSize      = parseInt(block.dataset.pctSize)      || 60;
+  const pctSize      = parseInt(block.dataset.pctSize)      || Math.round(labelSize * PCT_SIZE_FACTOR);   // E110 — 렌더러와 같은 식(옛 60 = 라벨 20 일 때만 맞았다)
   // 숫자 크기 — bar-h 는 기존 기본 60·최소 20, bar-v·pair 는 렌더가 쓰는 값 라벨 크기(valSize)·8~120
   const _isBarH      = chartType === 'bar-h';
   const barPctMin    = _isBarH ? 20 : 8;
   const barPctSize   = _isBarH ? pctSize
-    : (parseInt(block.dataset.vPctSize) || Math.round((parseInt(block.dataset.labelSize) || 20) * 1.07));
+    : (parseInt(block.dataset.vPctSize) || Math.round((parseInt(block.dataset.labelSize) || LABEL_SIZE_DEFAULT) * 1.07));
   const _barSetColor = chartType === 'bar-v' ? (block.dataset.vBarColor || _shown('bar')) : barColor;   // E149
   const strokeWidth  = parseInt(block.dataset.strokeWidth)  || 3;
   const pointRadius  = parseInt(block.dataset.pointRadius)  || 5;
