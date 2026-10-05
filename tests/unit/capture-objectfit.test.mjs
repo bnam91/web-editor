@@ -50,7 +50,8 @@ test('F-1 전제 — 동봉 html2canvas 에 object-fit 구현이 «없다»', ()
 test('F-2 html2canvas 3경로가 전부 object-fit 중화를 부른다', () => {
   const sites = [
     ['js/io/save-load.js',      '프로젝트 목록 썸네일(captureThumbnail)'],
-    ['js/props/prop-mockup.js', '목업 캡처(_captureAndApply)'],
+    /* 10-05 G11 ① 로 옮김 · 옛 자리 = js/props/prop-mockup.js(목업 캡처 _captureAndApply) — 찍기가 공용 captureSectionImage 로 갔다 */
+    ['js/io/capture-safety.js', '목업 캡처(captureSectionImage — _captureAndApply 가 부름)'],
     ['js/io/export-image.js',   'PNG 내보내기의 html2canvas 폴백(웹 빌드)'],
   ];
   for (const [f, why] of sites) {
@@ -60,6 +61,9 @@ test('F-2 html2canvas 3경로가 전부 object-fit 중화를 부른다', () => {
     assert.match(src, /neutralizeObjectFitForH2C/,
       `★${why} 가 중화를 import 하지 않는다`);
   }
+  // 목업이 공용 찍기를 «부르는지»까지 — 안 부르면 위 capture-safety 자리는 목업 길이 아니다
+  assert.match(read('js', 'props', 'prop-mockup.js'), /await\s+captureSectionImage\s*\(\s*sec\s*\)/,
+    '★목업 캡처(_captureAndApply)가 captureSectionImage 를 안 부른다 — 중화 없는 «둘째 찍기»가 생겼을 수 있다');
 });
 
 test('F-3 ⛔네이티브(CDP) 캡처에는 중화를 걸지 않는다 (두 번 자르기 방지)', () => {
