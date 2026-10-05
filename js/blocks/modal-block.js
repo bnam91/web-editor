@@ -389,6 +389,11 @@ function applyPickedIconToModal(block, picked) {
   if (picked.name) block.dataset.iconName = picked.name;
   if (picked.svg) { block.dataset.iconSvg = picked.svg; delete block.dataset.raster; delete block.dataset.iconSrc; }
   if (picked.src) { block.dataset.iconSrc = picked.src; block.dataset.raster = '1'; delete block.dataset.iconSvg; }
+  /* ★E125(2026-10-05) — 고르기 창이 «보여 준» 크기를 그대로 앉힌다(64 를 골랐는데 24 로 남던 것). 범위는 모달 패널과 같다(prop-modal mdl-isize 12~96)
+     — 창은 16~600 까지 받으니 «넘치면 패널 끝값»으로 자른다(슬라이더와 캔버스가 같은 수를 말하게). 크기가 없으면(옛 호출) 손대지 않는다.
+     ⚠️창의 크기 칸 기본값이 64 라 «안 건드리고 고르면» 64 가 된다 — 태양 판정 (a) «보이는 것을 적용»(10-05). */
+  const _sz = Number(picked.size);
+  if (Number.isFinite(_sz) && _sz > 0) block.dataset.iconSize = String(Math.round(Math.min(96, Math.max(12, _sz))));
   return true;
 }
 
