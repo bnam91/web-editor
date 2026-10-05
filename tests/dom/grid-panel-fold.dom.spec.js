@@ -188,7 +188,8 @@ test('F2 ★줄어든 것은 «접힌» 것이지 «빠진» 것이 아니다 �
   expect(folded.sizeBodyNodes, `★접었더니 절 안 원소가 ${open.sizeBodyNodes} → ${folded.sizeBodyNodes} 로 줄었다`)
     .toBe(open.sizeBodyNodes);
   expect(folded.hintN, '★접었더니 안내문 줄이 없어졌다 — 펴면 다시 있어야 한다').toBe(open.hintN);
-  expect(folded.pickerCellN, '★피커가 4×4(16칸)가 아니다 — 전제가 안 선다').toBe(16);
+  /* 10-05 K5 로 뒤집음 · 옛 단언 = 「피커가 4×4(16칸)」 — 피커는 상수(MAX_COLS×MAX_ROWS = 8×8)만큼 그린다. 4×4 그리드의 «칠해진 칸 16»(아래 :215·:246)은 그대로. */
+  expect(folded.pickerCellN, '★피커가 8×8(64칸)이 아니다 — 전제가 안 선다').toBe(64);
 
   // ⑶ ★«다른 절»이 같이 사라지지 않았다 — G2 의 controlN·절 수로 댄다(그것이 G2 가 세는 양이다).
   expect(folded.controlN, `★접었더니 손잡이(input/select/textarea/button)가 ` +

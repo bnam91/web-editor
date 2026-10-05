@@ -207,20 +207,21 @@ test('P2 ★아래 ＋ 진짜 클릭 → 행이 «끝에» 하나 · 데이터·
   expect(errs).toEqual([]);
 });
 
-test('P3 ★4×4 상한 — ＋ 흐림(disabled · --ui-disabled-opacity) · 눌러도 데이터 무변화', async ({ page }) => {
+/* 10-05 K5 로 뒤집음 · 옛 단언 = 「4×4 상한 — 4열에서 열 ＋ 흐림 · 행 4 까지 · 4×4(dom 16) → 둘 다 비활성」(옛 제목 'P3 ★4×4 상한 — …') */
+test('P3 ★8×8 상한(K5 10-05) — ＋ 흐림(disabled · --ui-disabled-opacity) · 눌러도 데이터 무변화', async ({ page }) => {
   const { errs, a } = await setup(page);
   await force(page, a);
-  // 열 4 까지 ＋ 로 (2→4) — 그 사이 col 은 살아 있다
-  for (let i = 0; i < 2; i++) {
+  // 열 8 까지 ＋ 로 (2→8) — 그 사이 col 은 살아 있다
+  for (let i = 0; i < 6; i++) {
     const bx = await btnBox(page, a, 'col');
     expect(bx.disabled, `전제 — ${2 + i}열에선 살아 있다`).toBe(false);
     expect(bx.hitIsBtn, `전제 — ${2 + i}열 ＋ 가운데가 눌린다 ${JSON.stringify(bx)}`).toBe(true);
     await page.mouse.click(bx.cx, bx.cy); await page.waitForTimeout(120);
   }
   let m = await model(page, a);
-  expect(m.nCols, '전제 — 4열').toBe(4);
+  expect(m.nCols, '전제 — 8열').toBe(8);
   let col = await btnBox(page, a, 'col'), row = await btnBox(page, a, 'row');
-  expect(col.disabled, '★4열 → 열 ＋ 비활성').toBe(true);
+  expect(col.disabled, '★8열 → 열 ＋ 비활성').toBe(true);
   expect(col.opacity, '★흐림 = --ui-disabled-opacity').toBeCloseTo(col.tokenOpacity, 3);
   expect(col.opacity).toBeLessThan(1);
   expect(row.disabled, '★행은 아직 1 → 행 ＋ 살아 있다(축별 판정)').toBe(false);
@@ -228,20 +229,23 @@ test('P3 ★4×4 상한 — ＋ 흐림(disabled · --ui-disabled-opacity) · 눌
   const before = await model(page, a);
   await page.mouse.click(col.cx, col.cy); await page.waitForTimeout(150);
   expect(await model(page, a), '★흐린 열 ＋ 클릭 = 무변화').toEqual(before);
-  // 행도 4 까지
-  for (let i = 0; i < 3; i++) {
+  // 행도 8 까지 — ★K5(10-05): 행이 늘수록 행 ＋(아래 가운데)가 내려가 화면 밖으로 나갈 수 있다(4×4 땐 안 나갔음) ⇒ 누르기 전 보이게 하고 맞힘 단언(열 고리와 같은 꼴)
+  for (let i = 0; i < 7; i++) {
+    await page.evaluate((id) => document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"][data-grd-add="row"]`)?.scrollIntoView({ block: 'center' }), a);
+    await page.waitForTimeout(80);
     const bx = await btnBox(page, a, 'row');
+    expect(bx.hitIsBtn, `전제 — ${1 + i}행 ＋ 가운데가 눌린다 ${JSON.stringify(bx)}`).toBe(true);
     await page.mouse.click(bx.cx, bx.cy); await page.waitForTimeout(120);
   }
   m = await model(page, a);
-  expect({ c: m.nCols, r: m.nRows, dom: m.domCells }, '전제 — 4×4').toEqual({ c: 4, r: 4, dom: 16 });
+  expect({ c: m.nCols, r: m.nRows, dom: m.domCells }, '전제 — 8×8').toEqual({ c: 8, r: 8, dom: 64 });
   col = await btnBox(page, a, 'col'); row = await btnBox(page, a, 'row');
-  expect([col.disabled, row.disabled], '★4×4 → 둘 다 비활성').toEqual([true, true]);
+  expect([col.disabled, row.disabled], '★8×8 → 둘 다 비활성').toEqual([true, true]);
   await page.evaluate(() => { const o = window.pushHistory; window.__ph = 0; window.pushHistory = (...x) => { window.__ph++; return o(...x); }; });
   const b4 = await model(page, a);
   await page.mouse.click(col.cx, col.cy); await page.waitForTimeout(120);
   await page.mouse.click(row.cx, row.cy); await page.waitForTimeout(120);
-  expect(await model(page, a), '★4×4 에서 두 ＋ 클릭 = 무변화').toEqual(b4);
+  expect(await model(page, a), '★8×8 에서 두 ＋ 클릭 = 무변화').toEqual(b4);
   expect(await page.evaluate(() => window.__ph), '★pushHistory 0회(히스토리도 안 쌓였다)').toBe(0);
   expect(errs).toEqual([]);
 });
