@@ -75,7 +75,11 @@
       row.style.cssText = 'padding:6px 2px;border-bottom:1px solid #333;';
       const t = document.createElement('div'); t.style.fontWeight = '600'; t.textContent = iv.name || iv.projectName || iv.collabId;
       const who = document.createElement('div'); who.style.cssText = 'opacity:.75;margin:2px 0 6px;';
-      who.textContent = `${iv.invitedBy || ''} ${T('invited_by')}`.trim();
+      /* 보낸 사람: 이름이 있으면 이름 · 없으면 이메일의 «아이디 부분»(@ 앞)만 — 긴 이메일이 줄을 넘기지 않게(지디 2026-10-06 표시 규칙).
+         전체 주소는 title 로. 서버 초대 응답엔 지금 이메일(invitedBy)뿐이다. */
+      const from = iv.invitedByName || String(iv.invitedBy || '').split('@')[0];
+      who.textContent = `${from}${T('invited_by')}`;
+      if (iv.invitedBy) who.title = iv.invitedBy;
       const ok = document.createElement('button'); ok.className = 'settings-api-test'; ok.dataset.accept = iv.inviteId; ok.textContent = '수락';
       const no = document.createElement('button'); no.className = 'settings-api-test'; no.dataset.decline = iv.inviteId; no.textContent = '거절'; no.style.marginLeft = '6px';
       ok.addEventListener('click', () => respond(iv, true, ok));

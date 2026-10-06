@@ -66,7 +66,10 @@ test('IB1 ★프로젝트 0 개 + 초대 1 건 — 목록 화면에 종이 보�
   await page.waitForSelector('#collab-inbox-pop .collab-inbox-row');
   const row = await page.evaluate(() => document.querySelector('#collab-inbox-pop .collab-inbox-row').textContent);
   expect(row).toContain('같이 만드는 상세');
-  expect(row).toContain('owner@x.com');
+  // 보낸 사람 = 이메일 «아이디 부분» + 승인 문장 · 전체 주소는 title(지디 표시 규칙)
+  expect(row).toContain('owner님이 초대했습니다');
+  expect(row).not.toContain('owner@x.com');
+  expect(await page.evaluate(() => [...document.querySelectorAll('#collab-inbox-pop .collab-inbox-row div')].some(d => d.title === 'owner@x.com'))).toBe(true);
   // 진짜 사람이 하듯 openProject 를 가로채 «무엇을 여나»만 본다(페이지 이동은 하지 않게)
   await page.evaluate(() => { window.openProject = (id) => window.__inbox.opened.push(id); });
   await page.click('#collab-inbox-pop [data-accept="iv_1"]');
