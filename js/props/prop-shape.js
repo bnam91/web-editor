@@ -229,8 +229,8 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="shape-rot-num" min="-180" max="180" value="${parseInt(block.dataset.shapeRotation || '0')}">
       </div>
     </div>
-    ${window.fxReflectSectionHtml?.(block, 'shape') || ''}`;   /* ★E1 Effects — Rotation 아래(맨 끝 · 지디 승인) */
-  window.wireFxReflectSection?.(block, 'shape', () => showShapeProperties(block));
+    ${window.fxSectionHtml?.(block, 'shape') || ''}`;   /* ★E1 Effects — Rotation 아래(맨 끝 · 지디 승인) */
+  window.wireFxSection?.(block, 'shape', () => showShapeProperties(block));
 
   if (window.setRpIdBadge) window.setRpIdBadge(id || null);
 

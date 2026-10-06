@@ -15,8 +15,13 @@
    ★정본 = dataset 키 넷 `fxReflect`('on'|'off' · 없음 = 효과 없음) · `fxReflectGap` · `fxReflectLen` · `fxReflectOp`.
      키가 하나도 없고 흔적도 없으면 «아무것도 안 만진다» ⇒ 옛 문서 바이트 동일(시험 R2 가 6119145c 골든과 비교).
      'off' = 눈을 끈 상태(값 보존 · 그리지 않음) · ✕ = 키 «전부» 지움.
-   ⛔import 없음 — 패널 세 곳(prop-text-template · prop-shape · prop-asset)이 window 다리로 부른다(단위 하네스가 그 파일들을 대역으로 싣는다).
+   ★2026-10-06 — 이 파일은 «효과 명부»(js/effects-registry.js)의 ★첫 식구다. 절을 그리는 일·＋ 배선·로드 감시는
+     명부가 하고, 여기엔 «반사 하나»만 남는다(현빈 「계속 이펙트는 추가예정」 ⇒ 효과 1개 = 파일 1개 + index.html 1줄).
+     ⛔패널 세 곳(prop-text-template · prop-shape · prop-asset)은 그대로 window 다리로 부른다 —
+       단위 하네스가 그 파일들을 «대역»으로 싣기 때문이다(PLUS_ICON_SVG 와 같은 까닭).
    ═══════════════════════════════════════════════════════════════════════════ */
+import { registerFxType, fxIsCardOpen, fxSetCardOpen } from './effects-registry.js';
+import { applyHostMarginY } from './frame-geometry.js';
 
 export const FX_REFLECT_KEYS = ['fxReflect', 'fxReflectGap', 'fxReflectLen', 'fxReflectOp'];
 export const FX_REFLECT_DEFAULTS = { gap: 4, len: 55, op: 35 };
@@ -42,17 +47,16 @@ function _host(el) {
   return el;
 }
 
-/** host 의 margin-bottom = 회전 보정 + 반사 여백. ★둘 다 0 이고 우리가 건 적 없으면 안 만진다. */
+/** host 의 margin-bottom 에 «우리 키»(rfMarginY)만 세우거나 지운다. ★둘 다 0 이고 우리가 건 적 없으면 안 만진다.
+ *  ⛔합을 여기서 더하지 마라 — 이 자리는 회전 보정(rotMarginY)과 «나눠 쓰는» 한 자리다.
+ *    합은 js/frame-geometry.js 의 applyHostMarginY 가 HOST_MARGIN_Y_KEYS 에서 «파생»한다(명부가 하나). */
 function _setHostMargin(host, m) {
   if (!host || !host.style || !host.dataset) return;
   const had = host.dataset.rfMarginY != null;
   if (m > 0) host.dataset.rfMarginY = String(m);
   else if (had) delete host.dataset.rfMarginY;
   else return;                                    // 건 적 없음 + 0 → 바이트 그대로
-  const rot = Number(host.dataset.rotMarginY) || 0;
-  const total = rot + (m > 0 ? m : 0);
-  if (total > 0) host.style.marginBottom = total + 'px';
-  else { host.style.removeProperty('margin-bottom'); _dropEmptyStyle(host); }
+  applyHostMarginY(host);
 }
 
 /** 우리가 걷어서 style 이 «빈 속성»만 남으면 속성째 지운다 — ✕ 뒤 outerHTML 이 켜기 전과 바이트 같게(U8 조건⑴). */
@@ -122,17 +126,15 @@ export function watchAllFxReflect(root = document) {
    절 머리 = 텍스트 「Shadow」 절과 같은 .prop-section-title-row(제목 + 오른쪽 손잡이) · ＋ = .prop-icon-btn 안 PLUS_ICON_SVG 정본 ·
    효과 카드 = .prop-cell-card(월계관 칸 카드 선례) · 눈·✕ = .prop-icon-btn(EYE_ICONS · ×) ·
    간격 = .prop-icon-input(「Y」 접두 — prop-multisel mkInput 꼴) · 길이·불투명도 = .prop-slider + .prop-number.
-   ★U4(지디 2026-10-04): 「효과 종류 1(반사)」은 «이번 범위»다 — «구조»가 아니다. 절은 효과 카드 «목록»을 담고(FX_TYPES),
-     다음 효과(그림자·외곽 광)는 FX_TYPES 에 한 줄 + 카드 그리개·배선 하나로 붙는다. ＋ 는 «아직 없는 종류»가 있을 때만 보인다.
+   ★U4(지디 2026-10-04 · 2026-10-06 실현): 절은 효과 카드 «목록»을 담는다. 그 목록·＋·로드 감시는
+     js/effects-registry.js 가 가지고, 이 파일엔 «반사 카드 하나»만 남는다.
    ★U3: 효과 0개 = 절 머리(「Effects」 + ＋) 한 줄 — 추가할 길이 늘 있다.
-   ★U8: 눈 = 'off'(값 남김 · 피그마 결) · ✕ = 그 효과 키 «모두» 지움 · 접기 = 패널 표시만(데이터 무변). */
-const _openCards = new WeakMap();   // el → { [type]: 펼침 } (기본 펼침 · 패널 표시만 — 데이터 아님)
-const _isOpen = (el, t) => (_openCards.get(el) || {})[t] !== false;
-const _setOpen = (el, t, v) => _openCards.set(el, { ...(_openCards.get(el) || {}), [t]: v });
+   ★U8: 눈 = 'off'(값 남김 · 피그마 결) · ✕ = 그 효과 키 «모두» 지움 · 접기 = 패널 표시만(데이터 무변).
+   ★접힘 상태는 명부가 쥔다(fxIsCardOpen/fxSetCardOpen) — 효과가 늘어도 한 자리. */
 
 function _reflectCardHtml(el, P) {
   const fx = fxReflectOf(el);
-  const open = _isOpen(el, 'reflect');
+  const open = fxIsCardOpen(el, 'reflect');
   const eye = (window.EYE_ICONS || {})[fx.state === 'off' ? 'hidden' : 'shown'] || '';
   const R = FX_REFLECT_RANGES;
   const slider = (lbl, key, val, [lo, hi]) => `
@@ -164,7 +166,7 @@ function _wireReflectCard(el, P, again) {
   const $ = (id) => document.getElementById(`${P}-${id}`);
   $('fx-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxReflect(el, { state: 'none' }); again(); });
   $('fx-eye')?.addEventListener('click', (e) => { e.stopPropagation(); const cur = fxReflectOf(el).state; setFxReflect(el, { state: cur === 'off' ? 'on' : 'off' }); again(); });
-  $('fx-head')?.addEventListener('click', () => { const b = $('fx-body'); if (!b) return; const open = b.hidden; b.hidden = !open; _setOpen(el, 'reflect', open); $('fx-card')?.classList.toggle('expanded', open); });
+  $('fx-head')?.addEventListener('click', () => { const b = $('fx-body'); if (!b) return; const open = b.hidden; b.hidden = !open; fxSetCardOpen(el, 'reflect', open); $('fx-card')?.classList.toggle('expanded', open); });
   const gap = $('fx-gap');
   gap?.addEventListener('change', () => { setFxReflect(el, { gap: gap.value }); gap.value = fxReflectOf(el).gap; });
   for (const key of ['len', 'op']) {
@@ -176,40 +178,21 @@ function _wireReflectCard(el, P, again) {
   }
 }
 
-/** 효과 종류 명부 — ★이번 범위는 반사 하나(U4). 종류를 더하면 여기 한 줄. */
-const FX_TYPES = [
-  { key: 'reflect', has: (el) => fxReflectOf(el).state !== 'none', add: (el) => setFxReflect(el, { state: 'on' }), card: _reflectCardHtml, wire: _wireReflectCard },
-];
-
-export function fxReflectSectionHtml(el, prefix) {
-  const P = prefix;
-  const present = FX_TYPES.filter(t => t.has(el));
-  const canAdd = present.length < FX_TYPES.length;
-  const add = canAdd
-    ? `<button class="prop-icon-btn" id="${P}-fx-add" title="효과 추가 — 바닥 반사" aria-label="효과 추가" style="width:18px;height:18px;">${window.PLUS_ICON_SVG || ''}</button>` : '';
-  return `
-    <div class="prop-section" id="${P}-fx-section">
-      <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div class="prop-section-title" style="margin-bottom:0">Effects</div>${add}
-      </div>${present.length ? `
-      <div id="${P}-fx-list">${present.map(t => t.card(el, P)).join('')}
-      </div>` : ''}
-    </div>`;
-}
-
-/** 배선 — 단추(＋·눈·✕)는 setFxReflect «한 문»(⌘Z 한 걸음) 뒤 패널을 다시 그린다(rerender) · 슬라이더는 끄는 동안 바로 반영(이력은 mousedown 한 번). */
-export function wireFxReflectSection(el, prefix, rerender) {
-  const P = prefix;
-  const again = () => { try { rerender?.(); } catch (_) {} };
-  document.getElementById(`${P}-fx-add`)?.addEventListener('click', () => {
-    const t = FX_TYPES.find(x => !x.has(el)); if (!t) return;   // 이번 범위에선 반사 하나
-    t.add(el); _setOpen(el, t.key, true); again();
-  });
-  for (const t of FX_TYPES) if (t.has(el)) t.wire(el, P, again);
-}
+/* ═══ 명부의 첫 식구 — ★반사 ════════════════════════════════════════════════
+   ⛔여기에 둘째 효과를 «끼워» 넣지 마라 — 새 파일에서 registerFxType 을 부르면 목록에 저절로 뜬다.
+   ★supports 없음 = 이 효과를 «쓸 수 있는 블럭»을 패널 쪽이 가린다(prop-text-template.js 가
+     말풍선·라벨·아이콘텍스트에선 절 자체를 안 그린다). */
+registerFxType({
+  key: 'reflect',
+  label: '반사',
+  has:  (el) => fxReflectOf(el).state !== 'none',
+  add:  (el) => setFxReflect(el, { state: 'on' }),
+  card: _reflectCardHtml,
+  wire: _wireReflectCard,
+  watchAll: watchAllFxReflect,
+});
 
 if (typeof window !== 'undefined') {
-  Object.assign(window, { fxReflectOf, applyFxReflect, setFxReflect, watchAllFxReflect, fxReflectSectionHtml, wireFxReflectSection, FX_REFLECT_KEYS, FX_REFLECT_DEFAULTS, FX_REFLECT_RANGES });
-  /* 문서가 열린 뒤 켜진 블럭을 감시에 올린다(로드는 캔버스를 통째로 갈아 끼운다 — 그 뒤 rebindAll 이 돈다). */
-  window.addEventListener('load', () => { try { watchAllFxReflect(document.getElementById('canvas') || document); } catch (_) {} });
+  Object.assign(window, { fxReflectOf, applyFxReflect, setFxReflect, watchAllFxReflect, FX_REFLECT_KEYS, FX_REFLECT_DEFAULTS, FX_REFLECT_RANGES });
+  /* ★로드 뒤 감시는 명부(js/effects-registry.js watchAllFx)가 «한 자리»에서 돈다 — 효과가 늘어도 그대로다. */
 }

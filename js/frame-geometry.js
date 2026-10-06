@@ -215,6 +215,38 @@ export function frameFitHeight(currentH, childrenBottom, chrome) {
   return Math.max(cur, Math.ceil(need));
 }
 
+/* ── 호스트 아래여백 — «나눠 쓰는 자»가 둘 이상인 한 자리 ──────────── */
+
+/** ★이 자리(흐름 안 상자의 margin-bottom)를 «나눠 쓰는 자» 명부 — 하나뿐인 참값.
+ *    rotMarginY = 회전 AABB 보정(이 파일)  ·  rfMarginY = 바닥 반사 여백(js/effects-reflect.js)
+ *  ⛔합을 다른 파일에 «손으로» 적지 마라. 2026-10-06 조사(GD-FXMENU)에서 같은 합이 여기와
+ *    js/effects-reflect.js _setHostMargin 두 곳에 적혀 있었다 — 셋째 쓰는 자가 생기면 한쪽만 늙는다.
+ *  ⇒ 쓰는 자가 늘면 ★이 배열에 한 줄만 더한다(그리고 그 자는 «자기 키»만 세운다).
+ *  ⛔경고 주석으로 막지 않는다 — 합을 «파생»시켜 둘째 명부가 생길 자리를 없앴다. */
+export const HOST_MARGIN_Y_KEYS = ['rotMarginY', 'rfMarginY'];
+
+/** 그 상자의 아래 여백 «합» — 명부에서 파생한다(손으로 더하지 않는다). */
+export function hostMarginY(host) {
+  const ds = (host && host.dataset) || {};
+  let sum = 0;
+  for (const k of HOST_MARGIN_Y_KEYS) { const n = Number(ds[k]); if (Number.isFinite(n) && n > 0) sum += n; }
+  return sum;
+}
+
+/** 합을 style 에 민다. ★쓰는 자는 «자기 키»를 세우거나 지운 «뒤» 이것을 부른다.
+ *  ⛔자기 키를 안 건드린 채로 부르지 마라 — 남이 자기 용도로 쓰는 margin-bottom(배너 inner 등)을 걷는다. */
+export function applyHostMarginY(host) {
+  if (!host || !host.style) return 0;
+  const total = hostMarginY(host);
+  if (total > 0) host.style.marginBottom = total + 'px';
+  else {
+    host.style.removeProperty('margin-bottom');
+    /* 우리가 걷어서 style 이 «빈 속성»만 남으면 속성째 지운다 — 켜기 전과 바이트 같게. */
+    if (host.getAttribute && host.getAttribute('style') === '') host.removeAttribute('style');
+  }
+  return total;
+}
+
 /* ── 얇은 DOM 어댑터 ─────────────────────────────────────────────── */
 
 /* 회전 보정 마진을 적용/해제한다.
@@ -234,18 +266,17 @@ export function applyFrameRotationMargin(ss, sizeHint) {
   const w = sizeHint ? (Number(sizeHint.w) || 0) : ss.offsetWidth;
   const h = sizeHint ? (Number(sizeHint.h) || 0) : ss.offsetHeight;
   const m = isAbs ? 0 : rotationMarginY(w, h, deg);
-  /* ★E1 Effects(2026-10-04) — 도형 래퍼의 margin-bottom 은 «반사 여백»(dataset.rfMarginY · js/effects-reflect.js)과 같은 자리다.
-     둘을 «더해서» 쓴다 — 회전만 걷을 때 반사 여백까지 지우지 않게(반사 쪽 _setHostMargin 도 같은 합을 쓴다). */
-  const fx = (ss.dataset && Number(ss.dataset.rfMarginY)) || 0;
+  /* ★E1 Effects(2026-10-04) — 도형 래퍼의 margin-bottom 은 «반사 여백»(dataset.rfMarginY)과 «같은 자리»다.
+     ⇒ 여기선 «우리 키»(rotMarginY)만 세우거나 지우고, 합은 applyHostMarginY 가 HOST_MARGIN_Y_KEYS 에서 파생한다.
+     ⛔ 표식이 없을 때는 부르지 않는다 — 배너 inner 가 «자기 용도»로 쓰는 margin-bottom 을 걷지 않게(④-c·④-d). */
   if (m > 0) {
     ss.style.marginTop    = m + 'px';
-    ss.style.marginBottom = (m + fx) + 'px';
     ss.dataset.rotMarginY = String(m);
+    applyHostMarginY(ss);
   } else if (ss.dataset && ss.dataset.rotMarginY != null) {
     ss.style.removeProperty('margin-top');
-    if (fx > 0) ss.style.marginBottom = fx + 'px';
-    else ss.style.removeProperty('margin-bottom');
     delete ss.dataset.rotMarginY;
+    applyHostMarginY(ss);
   }
   return m;
 }
