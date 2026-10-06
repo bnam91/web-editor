@@ -38,6 +38,7 @@ async function call(pathname, body) {
   try {
     r = await request(pathname, { ...body, sessionToken: auth.sessionToken });
   } catch (_) {
+    // 조용한 까닭 아님 — 'offline' 으로 «말한다»(호출부가 reason 문장으로 띄운다). 네트워크 실패·타임아웃만 throw 된다(transport.js).
     return { ok: false, reason: 'offline' };
   }
   if (!r.json || typeof r.json !== 'object') {
@@ -47,9 +48,18 @@ async function call(pathname, body) {
     return { ok: false, reason: 'bad_response', status: r.status };
   }
   if (r.status === 401) return { ok: false, reason: r.json.reason || 'invalid_session' };
-  if (r.status === 404) return { ok: false, reason: 'not_a_member' };  // 서버가 존재를 안 알려준다
-  if (r.status === 413) return { ok: false, reason: 'too_large', message: r.json.message || '' };
+  /* ★D3(2026-10-06): 서버 라우터(api/collab/[action].js)는 모르는 경로에도 «JSON» 404
+   *   {reason:'unknown_action'} 를 준다 — 그래서 위 HTML 갈래로는 「미배포」가 더는 안 잡히고
+   *   「접근 권한 없음」이라는 «거짓 문장»이 됐다. 그 이름은 «경로가 없다»는 뜻이므로 not_deployed 다. */
+  if (r.status === 404) return { ok: false, reason: r.json.reason === 'unknown_action' ? 'not_deployed' : 'not_a_member' };  // 서버가 존재를 안 알려준다
+  /* ★D2: 413 의 본문(sectionId·bytes·limit — 서버 sectionTooLarge)을 «버리지 않는다».
+   *   reason 만 too_large 로 맞추고 나머지는 그대로 싣는다 — 무엇이 몇 바이트였는지 말할 재료다. */
+  if (r.status === 413) return { ...r.json, ok: false, reason: 'too_large', serverReason: r.json.reason || r.json.error || '', message: r.json.message || '' };
   if (r.status >= 500)  return { ok: false, reason: 'server', status: r.status };
+  /* ★D1: 위에서 안 갈린 4xx(400 invalid_body · 429 …)는 서버가 reason 대신 error 를 주기도 한다.
+   *   그대로 넘기면 앱은 reason 이 없어 'unknown' 으로 뭉갠다 ⇒ 서버가 준 이름(error)을 reason 으로 싣는다.
+   *   ⛔모르는 이름을 지어내지 않는다 — 서버 값이 없으면 'http_<status>' (숫자는 사실이다). */
+  if (r.status >= 400 && !r.json.reason) return { ...r.json, ok: false, reason: r.json.error || `http_${r.status}`, status: r.status };
   return { ...r.json, status: r.status };
 }
 
@@ -58,7 +68,9 @@ async function call(pathname, body) {
  * 목록 렌더가 이미 그 필드를 읽어 배지를 그리는 길이 나 있어서, 새 길을 안 낸다.
  */
 function getRef(projectId) {
-  try { return _deps.readMeta(projectId).collabRef || null; } catch (_) { return null; }
+  /* ⚠️meta 를 못 읽으면 «연결 없음»으로 답한다 ⇒ 렌더러는 not_linked(조용한 갈래)로 읽는다. 공동작업본인데 동기화가
+   *   안 붙는 꼴이 될 수 있어 «조용히» 두지 않고 main 콘솔에 남긴다(렌더러 문장은 별건 — 2026-10-06 명부 밖 발견). */
+  try { return _deps.readMeta(projectId).collabRef || null; } catch (e) { console.error('[collab] proj_meta 읽기 실패 — 연결 없음으로 답한다:', projectId, e && e.message); return null; }
 }
 function setRef(projectId, collabRef) {
   _deps.writeMeta(projectId, { collabRef: collabRef || null });

@@ -65,3 +65,63 @@ test('W4 — 배지가 안 뜬다(문이 닫힌 동안 «못 받을 초대»를 
   const disp = await page.evaluate(() => getComputedStyle(document.getElementById('collab-invite-badge')).display);
   expect(disp).toBe('none');
 });
+
+/* ── ⒝ 걸음(2026-10-06): notify.js 가 «화면에» 말한다 ─────────────────────────────────────────
+ * ★하네스 전제: start() 를 지나야 사건이 난다 ⇒ 검사 페이지 «안에서만» window.COLLAB_ENABLED=true 와 가짜
+ *   electronAPI.collab(서버 대신 정해진 답)을 끼운다. 제품 파일 값 무변경 · 앱·서버·포트 0(지디 판정 ⑥ 의 근거와 같은 꼴).
+ * ★토스트는 #editor-toast 의 textContent(drag-utils.js showToast) — 화면에 «실제로» 뜬 글자를 읽는다.
+ * 기대 문장은 «글자로» 박는다(reasons.js 에서 읽으면 무력화해도 같이 바뀌어 항등식이 된다). */
+const OFFLINE = '서버에 닿지 못했습니다. 네트워크를 확인해 주세요.';
+
+async function bootWithFakeCollab(page) {
+  await bootApp(page);
+  await page.evaluate(() => {
+    window.__pullMode = 'offline';
+    window.electronAPI = Object.assign({}, window.electronAPI, { collab: {
+      ref: async () => ({ ok: true, ref: { collabId: 'cb_test', seq: 5, role: 'member' } }),
+      pull: async () => (window.__pullMode === 'ok'
+        ? { ok: true, patches: [], seq: 5, presence: [] }
+        : { ok: false, reason: 'offline' }),
+      push: async () => ({ ok: true, seq: 5 }),
+      seq: async () => ({ ok: true }),
+    } });
+    window.COLLAB_ENABLED = true;   // ★검사 페이지 안에서만(제품 js/feature-flags.js 는 false 그대로)
+  });
+}
+
+test('W5 ★A5 — 첫 받기가 실패하면 start() 는 ok:false(거짓 성공 아님) · 화면에 기존 문장으로 말한다', async ({ page }) => {
+  await bootWithFakeCollab(page);
+  const r = await page.evaluate(async () => {
+    const res = await window.collabSync.start('proj_fake');
+    const toast = document.getElementById('editor-toast');
+    const heard = window.collabNotify.heard().map(h => h.type);
+    window.collabSync.stop();
+    return { res, toast: toast && toast.textContent, heard };
+  });
+  expect(r.res.ok, '첫 받기 실패인데 ok:true — 거짓 성공(A5)').toBe(false);
+  expect(r.res.reason).toBe('offline');
+  expect(r.heard).toContain('start_failed');
+  expect(r.heard, '실패했는데 「started」를 냈다').not.toContain('started');
+  expect(r.toast, '★R1\' 축: 화면 토스트에 «기존 표 문장»이 뜬다').toContain(OFFLINE);
+});
+
+test('W6 ★상태 전이 1회 — 같은 받기 실패는 한 번만 · 회복 뒤 다시 실패하면 또 한 번(_lastShown)', async ({ page }) => {
+  await bootWithFakeCollab(page);
+  const r = await page.evaluate(async () => {
+    await window.collabSync.start('proj_fake');                 // start_failed(토스트 1) — pull 채널과 별개
+    const base = window.collabNotify.shown().length;
+    const pullToasts = () => window.collabNotify.shown().slice(base).length;
+    await window.collabSync.tick(); const n1 = pullToasts();    // 실패 → 말함
+    await window.collabSync.tick(); await window.collabSync.tick(); const n3 = pullToasts();   // 같은 실패 → 안 말함
+    window.__pullMode = 'ok'; await window.collabSync.tick(); const last = window.collabNotify.lastShown().pull;
+    window.__pullMode = 'offline'; await window.collabSync.tick(); const n5 = pullToasts();   // 회복 뒤 다시 실패 → 말함
+    window.collabSync.stop();
+    return { n1, n3, last, n5, msgs: window.collabNotify.shown().slice(base) };
+  });
+  expect(r.n1, '첫 실패에 한 번 말한다').toBe(1);
+  expect(r.n3, '같은 실패가 이어지는 동안은 다시 말하지 않는다(2초 폴링 폭주 금지)').toBe(1);
+  expect(r.last, '회복(pulled)하면 _lastShown.pull 을 지운다').toBe(null);
+  expect(r.n5, '회복 뒤 다시 실패하면 또 말한다').toBe(2);
+  expect(r.msgs.every(m => m === OFFLINE), `문구: ${JSON.stringify(r.msgs)}`).toBe(true);
+});
+

@@ -36,6 +36,19 @@
     id_collision:       '프로젝트 번호가 겹쳤습니다. 잠시 후 다시 시도해 주세요.',
     save_failed:        '로컬 프로젝트 파일을 만들지 못했습니다(디스크 권한·용량 확인).',
     ref_not_saved:      '연결 정보를 저장하지 못했습니다(디스크 권한·용량 확인).',
+    /* ── 2026-10-06 ⒝ 에서 생긴 갈래 — ★문장 «없음»(null) ──────────────────────────
+     * 사용자가 읽는 새 문장은 현빈 검수 대상이다(지디 판정) ⇒ 여기서 짓지 않는다. null 이면 text() 가
+     * reason «원문»(＋개수·id·status 같은 «자료»)을 보인다 — 무음도 아니고 지은 문장도 아니다.
+     * ⛔문장이 빈 키가 하나라도 있으면 COLLAB_ENABLED 를 켤 수 없다(tests/unit/collab-enable-gate.test.mjs).
+     * 문장 후보는 한 자리에 모아 지디→현빈: 태양 notes lanes/collab/NEW-SENTENCES.md */
+    resync_required:  null,   // A4 서버가 오래된 패치를 정리함 — 남의 변경 유실 가능
+    start_failed:     null,   // A5/A6/B1 동기화 시작 실패(뒤에 원인 문장이 붙는다)
+    page_missing:     null,   // A7 내게 없는 페이지로 온 변경을 받지 못함(설계상 한계)
+    list_failed:      null,   // B4 프로젝트 목록을 못 읽어 수락을 멈춤
+    meta_unreadable:  null,   // B3 meta 를 못 읽은 프로젝트가 있어 수락을 멈춤(개수·id 를 같이 보인다)
+    inbox_closed:     null,   // C2/C3 초대가 와 있지만 받을 창구(협업 탭)가 닫혀 있음
+    exception:        null,   // 앱 내부 예외(IPC 등)
+    unknown:          null,   // reason 없이 실패한 응답
   };
 
   /** reason → 문장. status 가 있는 갈래(server·bad_response·모르는 4xx)는 숫자를 붙인다. */
@@ -43,9 +56,19 @@
     const st = r && r.status;
     if (reason === 'server')       return `서버 오류(${st || '5xx'}) — 잠시 뒤 다시 시도해 주세요.`;
     if (reason === 'bad_response') return `서버가 알 수 없는 응답을 보냈습니다(${st || '?'}).`;
-    if (Object.prototype.hasOwnProperty.call(TEXT, reason)) return TEXT[reason];
+    if (Object.prototype.hasOwnProperty.call(TEXT, reason) && TEXT[reason] != null) return TEXT[reason];
     if (!reason) return '알 수 없는 오류' + (st ? ` (${st})` : '');
-    return String(reason) + (st ? ` (${st})` : '');   // ★모르는 값은 «그대로» — 뭉개지 않는다
+    return String(reason) + facts(r);   // ★모르는 값·문장 없는 값은 «원문 그대로» ＋ 자료 — 뭉개지 않는다
+  }
+
+  /** 문장이 없을 때 붙이는 «자료»(지어낸 말이 아니라 값): 개수 · 프로젝트 id · HTTP status. */
+  function facts(r) {
+    if (!r || typeof r !== 'object') return '';
+    const out = [];
+    if (typeof r.count === 'number') out.push('×' + r.count);
+    if (Array.isArray(r.projectIds) && r.projectIds.length) out.push(r.projectIds.slice(0, 5).join(', ') + (r.projectIds.length > 5 ? ' …' : ''));
+    if (r.status) out.push(String(r.status));
+    return out.length ? ` (${out.join(' · ')})` : '';
   }
 
   /* ★이름이 소비자 함수와 «달라야» 한다 — pages/projects.html 의 인라인 `function collabReasonText`
@@ -54,5 +77,6 @@
   w.CollabReasons = Object.freeze({
     text,
     keys: () => Object.keys(TEXT),   // 검사용 — 표의 갈래를 «정의 자리»에서 센다
+    missing: () => Object.keys(TEXT).filter(k => TEXT[k] == null),   // 문장이 빈 갈래 — 켜는 조건(collab-enable-gate)
   });
 })(window);

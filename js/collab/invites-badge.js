@@ -34,7 +34,9 @@
     const c = api(); if (!c) return;
     if (document.hidden) return;                    // 안 보이는 창은 두드리지 않는다
     const r = await c.invites({});
-    if (!r || !r.ok) return;                        // 오프라인·미배포는 «조용히» — 배지는 알림이지 진단창이 아니다
+    /* ★조용한 까닭(C1 · 지디 판정 2026-10-06): 배지는 «알림»이지 진단창이 아니다. 실패는 다음 20초 폴링이 다시 묻는다 —
+     *   진짜 문제(로그인·오프라인)는 편집기 동기화(notify.js)와 협업 탭이 말한다. 여기서 또 말하면 같은 실패가 두 번 뜬다. */
+    if (!r || !r.ok) return;
     _last = { invites: r.invites || [], projects: r.projects || [] };
     paint();
     window.dispatchEvent(new CustomEvent('gd:collab-invites', { detail: _last }));
@@ -59,11 +61,19 @@
   function openCollabSettings() {
     // 환경설정의 「협업」 탭으로 보낸다. 탭이 아직 없으면 모달만 연다 —
     // ★「눌렀는데 아무 일도 안 일어난다」가 제일 나쁘다.
-    // ★배지는 inboxOpen() 일 때만 뜬다(boot) ⇒ 여기 오면 탭은 열려 있다. 그래도 같은 술어로 한 번 더 본다
-    //   (전역 함수라 다른 길로 불릴 수 있다). 닫혀 있으면 아래 alert 는 «다음 걸음 ⒝ C3» 에서 문장을 고친다.
-    if (inboxOpen() && typeof window.openSettingsModal === 'function') { window.openSettingsModal('collab'); return; }
+    // ★배지는 inboxOpen() 일 때만 뜬다(boot) ⇒ 여기 오면 탭은 열려 있다. 그래도 같은 술어로 한 번 더 본다.
+    /* ★C2·C3(2026-10-06): 창구가 닫혀 있는데 모달을 열거나 「환경설정 › 협업 에서…」 라고 안내하면 «거짓 안내»다
+     *   (탭이 회색이라 가 봐도 못 누른다). 그 사실을 그대로 말한다 — 문장은 reasons.js 표(inbox_closed).
+     *   ⚠️지금은 «죽은 길»이다: 이 함수는 IIFE 지역이고 부르는 자리는 boot 가 단 클릭 리스너 하나뿐인데, boot 가 같은 술어로
+     *   리스너를 안 단다(2026-10-06 코드로 판정 · 검사로는 못 잰다 — 닿을 길이 0). 술어와 클릭이 갈리는 날을 위한 방어다. */
+    if (!inboxOpen()) {
+      const msg = window.CollabReasons ? window.CollabReasons.text('inbox_closed') : 'inbox_closed';
+      if (typeof window.showToast === 'function') window.showToast(msg); else console.warn('[collab]', msg);
+      return;
+    }
+    if (typeof window.openSettingsModal === 'function') { window.openSettingsModal('collab'); return; }
     if (typeof window.toggleSettingsModal === 'function') { window.toggleSettingsModal(); return; }
-    alert('환경설정 › 협업 에서 초대를 확인할 수 있습니다.');
+    alert('환경설정 › 협업 에서 초대를 확인할 수 있습니다.');   // 창구가 열려 있을 때만 닿는다 ⇒ 이제 참인 안내
   }
 
   function boot() {

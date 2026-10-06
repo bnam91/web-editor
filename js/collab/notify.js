@@ -7,8 +7,16 @@
    ⇒ 듣는 문을 «여기 하나»로 둔다. 새 emit 이 생기면 아래 CLASS 에 칸이 없어 검사가 빨개진다
       (tests/unit/collab-notify-classes.test.mjs — sync.js 의 emit type 집합 == CLASS 키 집합).
 
-   ★이 판(⒜ 걸음)은 «배선만» 한다 — 듣고, 분류하고, 기록한다. 화면에 띄우는 건 다음 걸음(⒝).
-     그래서 지금은 사용자 화면이 «하나도» 안 바뀐다(문장을 채우기 전에 구조부터 — 지디 판정).
+   ★⒜ 걸음(b94be0b0)은 듣고·분류·기록만 했다. ⒝ 걸음(2026-10-06)부터 speak 를 토스트로 «말한다».
+     문장은 js/collab/reasons.js 한 벌에서만 온다 — 이 파일은 문장을 «짓지 않는다»(새 문장은 현빈 검수).
+
+   ★「같은 실패를 2초마다 말하지 않는다」를 무엇으로 재나(지디 ④):
+     _lastShown = { pull, push } — 채널마다 «마지막으로 말한 reason». 수명 = 이 페이지.
+     말하는 조건 = `_lastShown[ch] !== reason`. 지우는 때 = 그 채널이 성공(pulled · pushed 오류 없음)했을 때와
+     started · stopped(새 판이 시작/끝남). ⇒ 실패가 «바뀌거나», 한 번 회복한 뒤 «다시» 실패할 때만 뜬다.
+     _onceShown(Set) — section_too_large(섹션마다) · patch_dropped(reason 마다)는 «세션당 1회».
+   ★상태(status)는 토스트를 «안» 낸다 — 상단바 배지(#collab-topbar-badge)의 data-collab-state 에만 적는다
+     (보이는 글자는 새 문장이라 현빈 검수 뒤 — 지금은 값만 남는다).
 
    분류(지디 판정 2026-10-06):
      speak   — 사용자에게 말한다(⒝ 에서 토스트). 같은 reason 은 상태가 바뀔 때만.
@@ -17,7 +25,9 @@
 ═══════════════════════════════════════════════════════════════════════════ */
 (function () {
   const CLASS = Object.freeze({
-    section_too_large: 'speak',    // A1 — 그 섹션은 공동작업본에 영영 안 올라간다
+    section_too_large: 'speak',    // A1 — 그 섹션은 공동작업본에 영영 안 올라간다 · 섹션마다 세션당 1회
+    start_failed:      'speak',    // A5/A6/B1 — 동기화 시작 실패(예전엔 ok:true 를 냈다 = 거짓 성공)
+    patch_dropped:     'speak',    // A7 — 없는 페이지로 온 변경을 버림(설계상 한계) · reason 마다 세션당 1회
     resync_required:   'speak',    // A4 — 서버가 패치를 정리함 = 남의 변경 유실 가능
     pull_error:        'speak',    // A3 — 받기 실패(2초마다) → 상태 전이 때만
     pushed:            'status',   // A2/A12 — error 가 있으면 speak 로 올린다(isFailure)
@@ -47,12 +57,74 @@
 
   const HEARD_MAX = 50;
   const _heard = [];
+  const _shown = [];                      // 실제로 띄운 토스트 문구(검사용 · 최근 50)
+  let _lastShown = { pull: null, push: null };
+  let _onceShown = new Set();
+
+  function toast(msg) {
+    _shown.push(msg); if (_shown.length > HEARD_MAX) _shown.shift();
+    if (typeof window.showToast === 'function') {
+      try { window.showToast(msg); return; } catch (e) { console.error('[collab/notify] 토스트 실패:', e); }
+    }
+    console.warn('[collab]', msg);        // 토스트가 없는 화면 — 최소한 콘솔에는 «말한다»
+  }
+
+  function setState(evt) {
+    const el = document.getElementById('collab-topbar-badge');
+    if (!el) return;                      // 조용한 까닭: 상단바가 없는 화면(목록 등) — 상태를 둘 자리가 없다
+    el.dataset.collabState = evt.type + (isFailure(evt) ? ':' + (evt.reason || evt.error || '') : '');
+  }
+
+  function speakOnce(key, msg) {
+    if (_onceShown.has(key)) return;
+    _onceShown.add(key);
+    toast(msg);
+  }
+  function speakOnChange(ch, reason, msg) {
+    if (_lastShown[ch] === reason) return;
+    _lastShown[ch] = reason;
+    toast(msg);
+  }
+
   function onEvent(evt) {
     const cls = (evt && CLASS[evt.type]) || 'unclassified';
     _heard.push({ type: evt && evt.type, cls, failure: isFailure(evt), at: Date.now() });
     if (_heard.length > HEARD_MAX) _heard.shift();
     /* ⛔분류에 없는 type 은 «조용히 버리지» 않는다 — 콘솔에라도 남긴다(검사가 빨개지기 전 실행 중 신호). */
-    if (cls === 'unclassified') console.error('[collab/notify] 분류 없는 사건:', evt && evt.type);
+    if (cls === 'unclassified') { console.error('[collab/notify] 분류 없는 사건:', evt && evt.type); return; }
+    setState(evt);
+    const R = window.CollabReasons;
+    switch (evt.type) {
+      case 'started': case 'stopped':
+        _lastShown = { pull: null, push: null };
+        return;
+      case 'pulled':
+        _lastShown.pull = null;
+        return;
+      case 'pushed':
+        if (!evt.error) { _lastShown.push = null; return; }
+        /* too_large 는 section_too_large 사건이 섹션 이름까지 말한다 — 여기서 또 말하면 두 번 뜬다. */
+        if (evt.error === 'too_large' || evt.error === 'section_too_large') return;
+        speakOnChange('push', evt.error, R.text(evt.error, evt));
+        return;
+      case 'pull_error':
+        speakOnChange('pull', evt.reason, R.text(evt.reason, evt));
+        return;
+      case 'section_too_large':
+        speakOnce('too_large:' + evt.sectionId, R.text('too_large', evt.detail) + ' · ' + evt.sectionId);
+        return;
+      case 'resync_required':
+        toast(R.text('resync_required', evt));
+        return;
+      case 'start_failed':
+        toast(R.text('start_failed') + ' — ' + R.text(evt.reason, evt));
+        return;
+      case 'patch_dropped':
+        speakOnce('dropped:' + evt.reason, R.text(evt.reason, evt));
+        return;
+      default:
+        return;   // status·source — 상태만 적었다(위 setState) / 낸 자리가 이미 말했다
+    }
   }
 
   let _unsub = null;
@@ -72,5 +144,7 @@
     CLASS, isFailure, textFor,
     attached: () => !!_unsub,
     heard: () => _heard.slice(),
+    shown: () => _shown.slice(),
+    lastShown: () => ({ ..._lastShown }),
   });
 })();

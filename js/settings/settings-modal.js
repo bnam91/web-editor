@@ -814,7 +814,7 @@
 
     // 서버 reason → 사람이 다음에 뭘 할지 아는 문장. 코드값을 그대로 보여주면 아무것도 못 한다.
     // ★표는 js/collab/reasons.js 한 벌이다(2026-10-06 발주 TWO ⒜). 모르는 값은 원문 그대로 보인다.
-    const reasonText = (r) => window.CollabReasons.text(r);
+    const reasonText = (r, d) => window.CollabReasons.text(r, d);   // d = 응답 자료(개수·id·status) — 문장 없는 갈래에 «값»으로 붙는다
 
     /* ★label·help 를 «항상 글자»로 넣는다 (2026-09-21, T-049 전수에서 나온 자리).
        ⛔날것으로 꽂으면 안 된다 — 이 틀에 들어오는 이름은 «내가 지은 것»이 아니다:
@@ -906,7 +906,7 @@
                 showOpenCta(lk.projectId, lk.name || rr.name || '', lk.reused);
               } else {
                 // 서버 수락은 «됐다». 로컬 연결만 실패한 것이라 그 구분을 분명히 말한다.
-                setStatus('✓ 참여했지만 로컬 프로젝트 연결에 실패했습니다 — ' + reasonText(lk && lk.reason), 'err');
+                setStatus('✓ 참여했지만 로컬 프로젝트 연결에 실패했습니다 — ' + reasonText(lk && lk.reason, lk), 'err');
               }
             }
           }

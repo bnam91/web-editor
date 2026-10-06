@@ -92,16 +92,19 @@
   function actorId() {
     if (typeof window.getActorId === 'function') return window.getActorId();
     let v = '';
-    try { v = localStorage.getItem('goditor.actorId') || ''; } catch (_) {}
+    /* ★조용한 까닭: 저장소가 막힌 창(사생활 모드 등)이면 아래에서 «이번 세션 값»을 만들어 쓴다 — 동기화는 계속 된다. */
+    try { v = localStorage.getItem('goditor.actorId') || ''; } catch (e) { console.debug('[collab] actorId 읽기 실패 — 새로 만든다:', e); }
     if (!/^[a-z0-9]{4,8}$/.test(v)) {
       v = Math.random().toString(36).slice(2, 7);
-      try { localStorage.setItem('goditor.actorId', v); } catch (_) {}
+      try { localStorage.setItem('goditor.actorId', v); } catch (e) { console.debug('[collab] actorId 저장 실패 — 이번 세션 값으로 산다:', e); }
     }
     return v;
   }
 
   function emit(evt) {
-    for (const fn of _listeners) { try { fn(evt); } catch (_) {} }
+    /* ★조용한 까닭(A11 · 지디 판정 2026-10-06): 구독자 하나가 던져도 다른 구독자·동기화 루프를 죽이지 않게 «격리»한다.
+     *   ⛔삼키지는 않는다 — 콘솔에 남긴다(구독자 쪽 결함이다). */
+    for (const fn of _listeners) { try { fn(evt); } catch (e) { console.error('[collab] 구독자 예외(격리됨):', e); } }
   }
 
   /* ★진도(seq)를 디스크에 남긴다 — 안 남기면 앱을 껐다 켤 때마다 0 부터 다시 받아
@@ -113,7 +116,9 @@
     if (!c || !_cfg || !c.seq) return;
     if (_cfg.seq <= _seqSaved) return;
     const v = _cfg.seq;
-    c.seq({ projectId: _cfg.projectId, seq: v }).then(() => { _seqSaved = v; }).catch(() => {});
+    /* ★조용한 까닭(A9 · 지디 판정): 진도 저장 실패의 대가는 «다음 시작 때 몇 초치를 다시 받는 것»뿐이다(되받는 건 안전한 쪽 실패 —
+     *   위 주석). 사용자가 할 일이 없다 ⇒ 화면엔 안 띄우고 debug 로만 남긴다. */
+    c.seq({ projectId: _cfg.projectId, seq: v }).then(() => { _seqSaved = v; }).catch((e) => { console.debug('[collab] 진도(seq) 저장 실패 — 다음에 되받음:', e); });
   }
 
   /* ── 「사용자가 지금 이 섹션을 만지고 있나」 ──────────────────────────────
@@ -221,7 +226,7 @@
     if (done.length) {
       refreshNeeds();
       const msg = `⚠️ 이 공동작업본의 일부 섹션(${done.slice(0, 3).join(', ')}${done.length > 3 ? ' 외 ' + (done.length - 3) : ''})을 받지 못했습니다 — 상대가 접속했을 때 다시 시도됩니다.`;
-      if (typeof window.showToast === 'function') { try { window.showToast(msg); } catch (_) {} }
+      if (typeof window.showToast === 'function') { try { window.showToast(msg); } catch (e) { console.error('[collab] 토스트 실패:', e); } }
       console.warn('[collab]', msg);
       emit({ type: 'seed_giveup', sections: done });
     }
@@ -263,7 +268,8 @@
     _seedRepushes++;
     emit({ type: 'seed_repush', sections: [...wanted], count: hit });
     if (typeof window.serializeProject === 'function') {
-      try { pushChanged(window.serializeProject()); } catch (_) {}
+      /* ★조용한 까닭(A10): pushChanged 안의 실패(413·오프라인 등)는 그 안에서 emit 으로 말한다. 여기 걸리는 건 직렬화 «예외»뿐. */
+      try { pushChanged(window.serializeProject()); } catch (e) { console.error('[collab] 재푸시 직렬화 실패:', e); }
     }
   }
 
@@ -283,13 +289,13 @@
       window.dispatchEvent(new CustomEvent('gd:collab-remote-applied', {
         detail: { key: p.pageId + '::' + p.sectionId, hash: p.hash, pageId: p.pageId, sectionId: p.sectionId },
       }));
-    } catch (_) {}
+    } catch (e) { console.error('[collab] gd:collab-remote-applied 발화 실패 — 협업 undo 스코프가 이 원격분을 모른다:', e); }
   }
 
   function notifyConflict(conflicts) {
     const ids = conflicts.map(c => c.sectionId).filter(Boolean);
     const msg = `⚠️ 같은 섹션을 동시에 고쳤습니다 (${ids.slice(0, 3).join(', ')}${ids.length > 3 ? ' 외 ' + (ids.length - 3) : ''}) — 상대 내용이 보일 수 있습니다. 서버엔 양쪽 다 남아 있습니다.`;
-    if (typeof window.showToast === 'function') { try { window.showToast(msg); return; } catch (_) {} }
+    if (typeof window.showToast === 'function') { try { window.showToast(msg); return; } catch (e) { console.error('[collab] 토스트 실패:', e); } }
     console.warn('[collab]', msg);
   }
 
@@ -298,7 +304,8 @@
     if (!_cfg || _inFlight) return;
     const c = api(); if (!c) return;
     let obj;
-    try { obj = typeof snapStr === 'string' ? JSON.parse(snapStr) : snapStr; } catch (_) { return; }
+    /* ★A8(지디 판정): 저장 스냅샷이 JSON 이 아니면 «내부 오류»다 — 사용자가 할 일이 없어 화면엔 안 띄우고 error 로 남긴다. */
+    try { obj = typeof snapStr === 'string' ? JSON.parse(snapStr) : snapStr; } catch (e) { console.error('[collab] 저장 스냅샷 파싱 실패 — 이번 push 건너뜀:', e); return; }
 
     const secs = collectSections(obj);
     // ★모든 섹션의 «스냅샷 해시»를 기록해 둔다(바뀐 것만이 아니라). 덮어쓰기 경고가
@@ -357,7 +364,10 @@
     // 다른 페이지의 섹션이면 DOM 이 아니라 state.pages[].canvas 문자열을 고친다.
     if (p.pageId && p.pageId !== st.currentPageId) {
       const page = (st.pages || []).find(x => x.id === p.pageId);
-      if (!page) return false;
+      /* ★A7(지디 판정 2026-10-06): 내게 없는 페이지로 온 패치는 버려진다 = 조용한 «유실»이라 무음 불가.
+       *   설계상 한계다(위 NEED_MAX_ASKS 주석: 「페이지 생성은 아직 동기화 대상이 아니다」) ⇒ 고치지 않고 «말한다».
+       *   notify.js 가 세션당 1회만 토스트 + 상태로 올린다(2초 폴링마다 뜨지 않게). */
+      if (!page) { emit({ type: 'patch_dropped', reason: 'page_missing', pageId: p.pageId, sectionId: p.sectionId }); return false; }
       const parser = new DOMParser();
       const doc = parser.parseFromString(`<div id="c">${page.canvas || ''}</div>`, 'text/html');
       const root = doc.getElementById('c');
@@ -499,13 +509,15 @@
    * ⚠️남은 한계(정직하게): 화면에는 결국 «나중에 적용된 쪽»이 뜬다. 서버엔 둘 다 남지만
    *   고르는 UI 는 아직 없다 — 그래서 충돌은 반드시 사용자에게 «보이게» 알린다.
    */
+  /* ★A5(2026-10-06 지디: 「무음이 아니라 거짓 성공」): 결과를 «돌려준다» — 예전엔 첫 pull 이 실패해도 아무것도 안 돌려줘서
+   *   start() 가 ok:true ＋ 「started」를 냈다. 이제 { ok } 로 답하고 start() 가 그걸 읽는다. */
   async function resumeSafely() {
-    const c = api(); if (!c || !_cfg) return;
+    const c = api(); if (!c || !_cfg) return { ok: false, reason: 'unavailable' };
     let r;
     try {
       r = await c.pull({ collabId: _cfg.collabId, sinceSeq: _cfg.seq, actorId: _cfg.actorId, wantSections: true });
-    } catch (_) { return; }
-    if (!r || !r.ok) { _lastError = (r && r.reason) || 'unknown'; return; }
+    } catch (e) { console.error('[collab] 첫 받기 예외:', e); return { ok: false, reason: 'exception' }; }
+    if (!r || !r.ok) { _lastError = (r && r.reason) || 'unknown'; return { ok: false, reason: _lastError, status: r && r.status }; }
 
     // ① 서버가 아는 해시를 «이미 보낸 것»으로 심는다 → 안 바뀐 섹션은 다시 안 올라간다.
     for (const s of (r.sections || [])) {
@@ -513,7 +525,8 @@
     }
     // ② 내가 그 사이 바꾼 것만 올라간다.
     if (typeof window.serializeProject === 'function') {
-      try { await pushChanged(window.serializeProject()); } catch (_) {}
+      /* ★조용한 까닭(A10): pushChanged 안의 실패는 그 안에서 emit 으로 말한다 — 여기는 직렬화 예외만. */
+      try { await pushChanged(window.serializeProject()); } catch (e) { console.error('[collab] 재개 push 직렬화 실패:', e); }
     }
     // ③ 이제 남의 것을 적용한다.
     for (const p of (r.patches || [])) {
@@ -527,6 +540,7 @@
     refreshNeeds();
     serveNeeds(r.presence || []);
     paintPresence(r.presence || []);
+    return { ok: true };
   }
 
   /* ── 수명 ──────────────────────────────────────────────────────────────── */
@@ -549,9 +563,16 @@
     /* ★seq 0 = 「이 방의 문서를 처음부터 쌓아올리는 중」 = 결손이 생길 수 있는 유일한 구간.
      *   이미 진도가 있는 멤버는 목차 대조를 아예 안 한다(위 주석의 오판 방지). */
     _bootstrap = (ref.seq || 0) === 0;
-    await resumeSafely();                         // ★먼저 내 것을 올리고, 그 다음에 남의 것을 받는다
+    const rs = await resumeSafely();              // ★먼저 내 것을 올리고, 그 다음에 남의 것을 받는다
+    /* ★폴링은 «실패해도» 건다 — 첫 받기만 실패한 것(오프라인 등)이면 다음 tick 이 회복한다. 예전과 같은 동작이다.
+     *   바뀐 것은 «거짓말을 안 하는 것»뿐이다: 실패면 ok:false ＋ reason, 「started」 대신 「start_failed」. */
     _timer = setInterval(tick, POLL_MS);
     _seqTimer = setInterval(flushSeq, 10000);
+    if (!rs || !rs.ok) {
+      const reason = (rs && rs.reason) || 'unknown';
+      emit({ type: 'start_failed', reason, status: rs && rs.status, collabId: ref.collabId });
+      return { ok: false, reason, retrying: true, collabId: ref.collabId };
+    }
     emit({ type: 'started', collabId: ref.collabId });
     return { ok: true, collabId: ref.collabId };
   }
@@ -607,10 +628,19 @@
   function autoStart() {
     if (!window.COLLAB_ENABLED) return;   // ★킬스위치: 협업 비활성 시 프로젝트 열어도 동기화 시작 안 함
     let id = '';
-    try { id = new URLSearchParams(location.search).get('project') || ''; } catch (_) {}
+    /* ★조용한 까닭: 주소에 project 가 없으면(목록·빈 탭) 붙을 프로젝트가 없다 — 할 일이 없다. */
+    try { id = new URLSearchParams(location.search).get('project') || ''; } catch (e) { console.debug('[collab] 주소 읽기 실패:', e); }
     if (!id || !api()) return;
+    /* ★A6(2026-10-06): 성공만 info 하고 실패를 «버리던» 자리.
+     *   - 연결 «후» 실패(resumeSafely)는 start() 가 이미 start_failed 를 emit 했다 → 여기서 또 말하지 않는다.
+     *   - 연결 «전» 갈래 셋은 조용하다 — 까닭: not_linked = 공동작업본이 아닌 보통 프로젝트(정상) ·
+     *     unavailable = 데스크탑 앱이 아닌 화면 · collab_disabled = 킬스위치 off. 셋 다 사용자가 할 일이 없다.
+     *   - start() 자체가 던지면(IPC 예외) 버리지 않고 start_failed 로 말한다. */
     start(id).then(r => {
       if (r && r.ok) console.info('[collab] 동기화 시작 —', r.collabId);
+    }).catch((e) => {
+      console.error('[collab] 동기화 시작 예외:', e);
+      emit({ type: 'start_failed', reason: 'exception' });
     });
   }
   if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', autoStart);

@@ -26,26 +26,43 @@
 
   const api = () => (typeof window !== 'undefined' && window.electronAPI) || null;
 
-  /** 이 설치에 이미 그 방과 연결된 프로젝트가 있나? → 있으면 그 projectId. */
-  async function findLinkedProject(collabId) {
+  /** 이 설치에 이미 그 방과 연결된 프로젝트가 있나?
+   *  → { id } 찾음 · { id:null } 없음 · { listFailed } 목록 못 읽음 · { unreadable:[ids] } meta 못 읽은 후보 있음.
+   *  ★B3·B4(2026-10-06 지디 판정 ㉠): 예전엔 실패를 전부 「없다」(null)로 뭉갰다 ⇒ 이미 연결된 방인데 «또» 만들어
+   *    같은 방에 로컬 프로젝트가 둘 생겼다(중복 카드 — 「어느 게 진짜냐」를 사용자에게 떠넘김).
+   *    meta 를 못 읽으면 그 프로젝트가 «이 방과 관련 있나»를 가릴 수 없다 ⇒ 가릴 수 없으면 «닫는 쪽».
+   *  ⚠️맞바꿈: 데이터 꼬임(중복 생성)을 막는 대신 가용성을 깎는다 — 무관한 프로젝트 하나의 meta 가 깨져 있으면
+   *    수락이 계속 실패한다. 그래서 «몇 개·어느 id» 를 실어 사용자가 손쓸 길을 남긴다. 얼마나 자주 나나 = 미측정. */
+  async function scanLinked(collabId) {
     const a = api();
-    if (!a || !a.listProjects || !collabId) return null;
+    if (!a || !a.listProjects || !collabId) return { id: null };
     let list = [];
-    try { list = await a.listProjects() || []; } catch (_) { return null; }
+    try { list = await a.listProjects() || []; } catch (e) { console.error('[collab/accept] 프로젝트 목록 읽기 실패:', e); return { id: null, listFailed: true }; }
     // ① 목록이 이미 collabRef 를 실어준다(신 레이아웃) — 파일을 다시 안 읽는다.
     for (const p of list) {
-      if (p && p.collabRef && p.collabRef.collabId === collabId) return p.id;
+      if (p && p.collabRef && p.collabRef.collabId === collabId) return { id: p.id, list };
     }
     // ② 구 레이아웃(flat)은 목록에 collabRef 칸 자체가 «없다»(undefined). 그것만 meta 를 읽는다.
     //    null 은 「읽어봤고 연결 없음」이라 다시 읽을 이유가 없다.
+    const unreadable = [];
     for (const p of list) {
       if (!p || p.collabRef !== undefined) continue;
       try {
         const meta = await a.loadProjectMeta(p.id);
-        if (meta && meta.collabRef && meta.collabRef.collabId === collabId) return p.id;
-      } catch (_) {}
+        if (meta && meta.collabRef && meta.collabRef.collabId === collabId) return { id: p.id, list };
+      } catch (e) {
+        console.error('[collab/accept] 프로젝트 meta 읽기 실패 — 이 방과 관련 있는지 가릴 수 없다:', p.id, e);
+        unreadable.push(p.id);
+      }
     }
-    return null;
+    if (unreadable.length) return { id: null, unreadable, list };
+    return { id: null, list };
+  }
+
+  /** 옛 이름(window.collabAccept.findLinkedProject) — projectId 또는 null.
+   *  ⚠️null 이 「없다」와 「못 읽었다」를 못 가른다 ⇒ link() 는 이걸 쓰지 않고 scanLinked 를 쓴다. 바깥 호출 0(2026-10-06 grep). */
+  async function findLinkedProject(collabId) {
+    return (await scanLinked(collabId)).id || null;
   }
 
   /** 겹치지 않는 새 projectId. ⚠️같은 ms 충돌 시 projects:save 는 «덮어쓴다» — 먼저 배제한다. */
@@ -79,11 +96,15 @@
       const a = api();
       if (!a || !a.saveProject || !a.saveProjectMeta) return { ok: false, reason: 'unavailable' };
 
-      const existing = await findLinkedProject(collabId);
-      if (existing) return { ok: true, projectId: existing, name: resp.name || '', reused: true };
+      const scan = await scanLinked(collabId);
+      if (scan.id) return { ok: true, projectId: scan.id, name: resp.name || '', reused: true };
+      /* ★B4: 목록을 못 읽으면 아래 id 충돌 검사(freshProjectId)가 «빈 집합»과 견주어 항상 통과한다 = 잠그는 길 0.
+       *   같은 id 면 projects:save 가 남의 프로젝트를 덮는다(위 머리 주석 · 치명①) ⇒ 만들지 않는다. */
+      if (scan.listFailed) return { ok: false, reason: 'list_failed' };
+      /* ★B3: meta 를 못 읽은 후보가 있으면 이미 연결된 방일 수 있다 ⇒ 만들지 않는다(중복 방지). 몇 개·어느 id 를 싣는다. */
+      if (scan.unreadable) return { ok: false, reason: 'meta_unreadable', count: scan.unreadable.length, projectIds: scan.unreadable };
 
-      let list = [];
-      try { list = await a.listProjects() || []; } catch (_) {}
+      const list = scan.list || [];
       const id = freshProjectId(list);
       if (!id) return { ok: false, reason: 'id_collision' };
 
@@ -108,7 +129,7 @@
       try {
         const meta = await a.loadProjectMeta(id);
         ok = !!(meta && meta.collabRef && meta.collabRef.collabId === collabId);
-      } catch (_) {}
+      } catch (e) { console.error('[collab/accept] 심은 collabRef 확인 실패:', e); }   // ok=false → ref_not_saved 로 말한다
       if (!ok) return { ok: false, reason: 'ref_not_saved', projectId: id };
 
       return { ok: true, projectId: id, name: proj.name, reused: false };
@@ -126,12 +147,17 @@
    */
   async function open(projectId) {
     if (!projectId) return false;
-    const cur = () => { try { return new URLSearchParams(location.search).get('project') || ''; } catch (_) { return ''; } };
+    /* ★조용한 까닭: 주소를 못 읽으면 ''(=「그 프로젝트가 아니다」) — 동기화를 «안» 켜는 쪽으로 넘어진다(남의 캔버스에 붙지 않게). */
+    const cur = () => { try { return new URLSearchParams(location.search).get('project') || ''; } catch (e) { console.debug('[collab/accept] 주소 읽기 실패:', e); return ''; } };
     if (typeof window.openTabForProject === 'function' && window.collabSync && typeof window.collabSync.start === 'function') {
       try {
         await window.openTabForProject(projectId);
+        /* start() 실패는 start() 가 start_failed 로 말한다(sync.js A5) — 여기서 또 말하지 않는다(B1). */
         if (cur() === projectId) { await window.collabSync.start(projectId); return true; }
-      } catch (_) {}
+      } catch (e) {
+        /* ★조용한 까닭(B2 · 지디 판정): 탭 전환이 실패하면 아래 «주소 이동»으로 연다 — 의도된 폴백이다. */
+        console.debug('[collab/accept] 탭으로 열기 실패 — 주소 이동으로 연다:', e);
+      }
     }
     location.href = 'index.html?project=' + encodeURIComponent(projectId);
     return true;

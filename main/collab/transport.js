@@ -56,7 +56,7 @@ async function request(pathname, body) {
       signal: ctl.signal,
     });
     let json = null;
-    try { json = await res.json(); } catch (_) { json = null; }
+    try { json = await res.json(); } catch (_) { json = null; }   // 본문이 JSON 이 아니면 null — index.js call() 이 not_deployed/bad_response 로 «말한다»
     return { status: res.status, json };
   } finally {
     clearTimeout(timer);

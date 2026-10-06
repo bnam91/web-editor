@@ -64,7 +64,7 @@ test('C1 — 목록 화면(projects.html) collabReasonText 가 공용 표를 거
 
 test('C2 — 환경설정(settings-modal.js) reasonText 가 공용 표를 거친다', () => {
   const ctx = freshWindow();
-  const line = cut(SETTINGS, 'const reasonText = (r) =>', ';');
+  const line = cut(SETTINGS, 'const reasonText = (r', ';');
   vm.runInContext(line + '\nwindow.__c2 = reasonText;', ctx);
   assert.equal(ctx.__c2('not_signed_in'), WANT.not_signed_in);
   assert.equal(ctx.__c2('self_invite'), WANT.self_invite);
