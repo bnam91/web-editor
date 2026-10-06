@@ -197,6 +197,73 @@ for (const path of ['cdp', 'h2c']) {
   });
 }
 
+/* ── ⑼ 불투명도(fxOpacity) · 중첩 불투명도 — 지디 2026-10-06 ─────────────────────────────────────────
+ * 글로우 «층 통째» 불투명도는 바깥 <g opacity> 하나다. 그 안에 색수차 층(0.55)·고스트(fill-opacity)가 «중첩»된다.
+ * html2canvas 가 중첩 알파를 한 번만/두 번 먹으면 화면(=CDP)과 썸네일이 갈린다(모자이크 꼴) ⇒ 두 경로를 같은 자로 잰다. */
+async function shotBoth(page, buildFn, arg) {
+  const info = await page.evaluate(buildFn, arg);
+  const cdp = await page.context().newCDPSession(page);
+  const shot = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true,
+    clip: { x: info.rect.x, y: info.rect.y, width: info.rect.w, height: info.rect.h, scale: 1 } });
+  const h2c = await page.evaluate(async (bg) => {
+    const cv = await html2canvas(document.getElementById('cap-root'), { scale: 1, useCORS: true, backgroundColor: bg, logging: false });
+    return cv.toDataURL('image/png').split(',')[1];
+  }, info.bg);
+  const read = (b64) => page.evaluate(async ({ b64, pts, w }) => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+    const k = img.width / w; const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+    const x = cv.getContext('2d'); x.drawImage(img, 0, 0);
+    return pts.map(([px, py]) => { const d = x.getImageData(Math.round(px * k), Math.round(py * k), 1, 1).data; return Math.round(0.2126 * d[0] + 0.7152 * d[1] + 0.0722 * d[2]); });
+  }, { b64, pts: info.pts, w: info.rect.w });
+  return { cdp: await read(shot.data), h2c: await read(h2c) };
+}
+
+test('F11 ⑼ fxOpacity — 글로우 층 불투명도가 두 내보내기 경로에서 «같은 값»으로 먹는다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page, [{ fxKind: 'dot', x: 150, y: 120, fxOpacity: 100 }, { fxKind: 'dot', x: 450, y: 120, fxOpacity: 40 }]);
+  const m = await shotBoth(page, () => {
+    const sec = document.getElementById('secG');
+    const [a, b] = [...sec.querySelectorAll('.sticker-block')];
+    const c = (el) => [(parseFloat(el.style.left) || 0) + el.offsetWidth / 2, (parseFloat(el.style.top) || 0) + el.offsetHeight / 2];
+    const clone = sec.cloneNode(true); clone.id = 'cap-root';
+    clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;';
+    document.body.appendChild(clone);
+    const r = clone.getBoundingClientRect();
+    return { rect: { x: r.left, y: r.top, w: Math.round(r.width), h: Math.round(r.height) }, bg: '#101018', pts: [c(a), c(b), [5, 5]],
+             opAttr: [a, b].map(el => el.querySelector('.sticker-glow-layer')?.getAttribute('opacity')) };
+  });
+  const [fullC, partC, bgC] = m.cdp, [fullH, partH, bgH] = m.h2c;
+  expect(fullC, '★전제: 100% 심이 하얗다(CDP)').toBeGreaterThan(220);
+  // 기대: 40% 심 ≈ 0.4·흰 + 0.6·바탕(17) ≈ 112 — 정확한 합성식이 아니라 «둘 사이·두 경로 같음»을 잰다
+  expect(partC, `40% 심이 100% 와 바탕 사이가 아니다(CDP ${partC})`).toBeGreaterThan(bgC + 40);
+  expect(partC).toBeLessThan(fullC - 40);
+  expect(Math.abs(partH - partC), `★두 경로가 갈린다 — CDP ${partC} · html2canvas ${partH}`).toBeLessThan(10);
+  expect(Math.abs(fullH - fullC)).toBeLessThan(10);
+});
+
+test('F12 ★중첩 불투명도 0.8 안의 0.8 — 두 경로 다 0.64 로 합성한다(대조: 1.0 안의 1.0 · 0.8 하나)', async ({ page }) => {
+  await bootApp(page);
+  const m = await shotBoth(page, () => {
+    // 글로우가 쓰는 꼴 그대로: SVG 안의 <g opacity> 중첩. 검은 바탕 위 흰 사각.
+    const cell = (o1, o2) => `<svg width="80" height="80" style="display:block;flex:none"><g opacity="${o1}"><g opacity="${o2}"><rect x="10" y="10" width="60" height="60" fill="#ffffff"/></g></g></svg>`;
+    const root = document.createElement('div');
+    root.id = 'cap-root';
+    root.style.cssText = 'position:fixed;top:-99999px;left:0;width:240px;height:80px;background:#000000;display:flex;margin:0;';
+    root.innerHTML = cell(1, 1) + cell(0.8, 1) + cell(0.8, 0.8);
+    document.body.appendChild(root);
+    const r = root.getBoundingClientRect();
+    return { rect: { x: r.left, y: r.top, w: Math.round(r.width), h: Math.round(r.height) }, bg: '#000000', pts: [[40, 40], [120, 40], [200, 40], [3, 3]] };
+  });
+  for (const path of ['cdp', 'h2c']) {
+    const [one, single, nested, bg] = m[path];
+    expect(bg, `★전제(${path}): 바탕 검정`).toBeLessThan(5);
+    expect(one, `★대조(${path}): 1.0 안의 1.0 = 흰색`).toBeGreaterThan(250);
+    expect(Math.abs(single - 204), `★대조(${path}): 0.8 하나 = 204 근처(받음 ${single})`).toBeLessThan(6);
+    expect(Math.abs(nested - 163), `${path}: 0.8 안의 0.8 이 0.64(≈163)가 아니다 — 받음 ${nested} (204 근처면 한 번만 먹음 · 130 근처면 세 번)`).toBeLessThan(6);
+  }
+  expect(Math.abs(m.cdp[2] - m.h2c[2]), `두 경로의 중첩 합성값이 갈린다 — CDP ${m.cdp[2]} · html2canvas ${m.h2c[2]}`).toBeLessThan(4);
+});
+
 test('F9 즐겨찾기 — glow 는 이번 판 즐겨찾기 밖: 조용히 실패하지 않고 «말하고» 거절한다', async ({ page }) => {
   await bootApp(page);
   const [id] = await setup(page, [{ fxKind: 'star' }]);

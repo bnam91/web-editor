@@ -16,9 +16,9 @@
   /* 프리셋 셋 — 현빈이 보낸 이미지 셋(렌즈 플레어 · 둥근 빛점 · 보라 별 반짝이). 색은 패널에서 바꿀 수 있다.
      ★기본 색은 «값만» 바꾸면 되게 여기 한 자리에 둔다(현빈이 시안을 보고 고르면 이 표만 고친다 — 지디 ②-2). */
   const PRESETS = Object.freeze({
-    star:  Object.freeze({ glowColor: '#b06cff', coreColor: '#ffffff', intensity: 70, rays: 4, chroma: '0', sizeW: 96,  sizeH: 96 }),
-    flare: Object.freeze({ glowColor: '#ff9a3c', coreColor: '#fff4e0', intensity: 70, rays: 6, chroma: '0', sizeW: 180, sizeH: 100 }),
-    dot:   Object.freeze({ glowColor: '#ffffff', coreColor: '#ffffff', intensity: 60, rays: 0, chroma: '0', sizeW: 64,  sizeH: 64 }),
+    star:  Object.freeze({ glowColor: '#b06cff', coreColor: '#ffffff', intensity: 70, rays: 4, chroma: '0', fxOpacity: 100, sizeW: 96,  sizeH: 96 }),
+    flare: Object.freeze({ glowColor: '#ff9a3c', coreColor: '#fff4e0', intensity: 70, rays: 6, chroma: '0', fxOpacity: 100, sizeW: 180, sizeH: 100 }),
+    dot:   Object.freeze({ glowColor: '#ffffff', coreColor: '#ffffff', intensity: 60, rays: 0, chroma: '0', fxOpacity: 100, sizeW: 64,  sizeH: 64 }),
   });
   const KINDS = Object.freeze(Object.keys(PRESETS));
 
@@ -78,7 +78,10 @@
   }
 
   /**
-   * @param {object} p  { filterId, kind, glowColor, coreColor, intensity(0~100), rays, chroma('1'|'0'), seed }
+   * @param {object} p  { filterId, kind, glowColor, coreColor, intensity(0~100), rays, chroma('1'|'0'), seed, fxOpacity(0~100) }
+   *   ★fxOpacity — 이펙트 «층 통째» 불투명도. 이름을 파티클과 «같게» 쓴다(지디 2026-10-06: 글로우 opacity · 파티클 alpha 로 갈리면
+   *     다음 사람이 두 벌로 읽는다). 바깥 <g opacity> 하나 — 안의 색수차 층(0.55)·고스트(fill-opacity)와 «중첩»된다
+   *     ⇒ 두 내보내기 경로가 중첩을 같은 값으로 합성하는지 tests/dom/fx-glow-sticker F12 가 잰다.
    * @returns {string} <svg …> 한 장(스티커 상자에 100%로 깔린다 · 후광은 overflow:visible 로 상자 밖까지)
    */
   function svg(p) {
@@ -88,7 +91,8 @@
     const core = safeColor(p.coreColor, pre.coreColor);
     const I = clamp(Number.isFinite(+p.intensity) ? +p.intensity : pre.intensity, 0, 100) / 100;
     const rays = Number.isFinite(+p.rays) ? +p.rays : pre.rays;
-    const seed = (+p.seed >>> 0) || 1;
+    const seed = +p.seed >>> 0;   // 0 도 정당한 seed(시안과 같은 수열 — seeded-random.js 머리말)
+    const op = r2(clamp(Number.isFinite(+p.fxOpacity) ? +p.fxOpacity : (pre.fxOpacity ?? 100), 0, 100) / 100);
     const fid = String(p.filterId || 'fxg-tmp').replace(/[^A-Za-z0-9_-]/g, '');
     const rng = w.FxSeed.mulberry32(seed);
     const body = shapes(kind, rays, core, glow, rng);
@@ -108,7 +112,7 @@
       + `<feGaussianBlur in="tint" stdDeviation="${s(18)}" result="g3"/>`
       + `<feMerge><feMergeNode in="g3"/><feMergeNode in="g2"/><feMergeNode in="g1"/><feMergeNode in="SourceGraphic"/></feMerge>`
       + `</filter></defs>`
-      + `<g class="sticker-glow-body" filter="url(#${fid})">${chroma}${body}</g></svg>`;
+      + `<g class="sticker-glow-layer" opacity="${op}"><g class="sticker-glow-body" filter="url(#${fid})">${chroma}${body}</g></g></svg>`;
   }
 
   w.GlowFx = Object.freeze({ PRESETS, KINDS, svg });

@@ -1,6 +1,6 @@
 /* prop-sticker-glow.js — 글로우 이펙트 스티커(shape:'glow')의 우측 패널 절.
  *   prop-sticker.js 가 shape==='glow' 일 때 이 절만 보이고 원·사각 기본 절·Shape 고르기는 숨긴다.
- *   조절 축(2026-10-06 지디 발주 FOUR 설계): 종류(프리셋) · 후광색 · 심 색 · 세기 · 갈래 수 · 색수차 · [다시 뿌리기](seed).
+ *   조절 축(2026-10-06 지디 발주 FOUR 설계): 종류(프리셋) · 후광색 · 심 색 · 세기 · 갈래 수 · 색수차 · 불투명도(fxOpacity) · [다시 뿌리기](seed).
  *   ⛔seed 는 여기서만 새로 뽑는다(js/fx/seeded-random.js FxSeed.newSeed) — 그림(glow-render.js)은 seed 를 «읽기만» 한다.
  *   ★「다시 뿌리기」의 0.2초 페이드는 «상태 전이 표시»다(지디 ②-1: 효과 애니메이션은 넣지 않는다 — 화면 == 내보낸 것).
  */
@@ -12,6 +12,7 @@ export function glowSectionHTML(block) {
   const d = block.dataset;
   const kind = d.fxKind || 'star';
   const I = parseInt(d.intensity, 10);
+  const OP = parseInt(d.fxOpacity, 10);
   const rays = parseInt(d.rays, 10);
   const raysOn = kind !== 'dot';
   const kinds = (window.GlowFx && window.GlowFx.KINDS) || ['star', 'flare', 'dot'];
@@ -32,6 +33,10 @@ export function glowSectionHTML(block) {
       <div class="prop-row"><span class="prop-label">세기</span>
         <input type="range" class="prop-slider" id="stk-glow-int" min="0" max="100" step="1" value="${Number.isFinite(I) ? I : 70}">
         <input type="number" class="prop-number" id="stk-glow-int-num" min="0" max="100" value="${Number.isFinite(I) ? I : 70}">
+      </div>
+      <div class="prop-row"><span class="prop-label">불투명도</span>
+        <input type="range" class="prop-slider" id="stk-glow-op" min="0" max="100" step="1" value="${Number.isFinite(OP) ? OP : 100}">
+        <input type="number" class="prop-number" id="stk-glow-op-num" min="0" max="100" value="${Number.isFinite(OP) ? OP : 100}">
       </div>
       <div class="prop-row" id="stk-glow-rays-row" style="display:${raysOn ? 'flex' : 'none'};"><span class="prop-label">갈래</span>
         <input type="range" class="prop-slider" id="stk-glow-rays" min="${kind === 'star' ? 2 : 0}" max="${kind === 'star' ? 8 : 12}" step="1" value="${Number.isFinite(rays) ? rays : 4}">
@@ -58,7 +63,7 @@ export function wireGlowSection(panel, block, rerender) {
       if (!pre || block.dataset.fxKind === k) return;
       /* 종류를 바꾸면 그 프리셋(색·세기·갈래·크기)을 «통째로» 깐다 — 현빈이 시안을 보고 고르게(지디 ②-2). seed 는 그대로. */
       Object.assign(block.dataset, { fxKind: k, glowColor: pre.glowColor, coreColor: pre.coreColor, intensity: pre.intensity,
-        rays: pre.rays, chroma: pre.chroma, sizeW: pre.sizeW, sizeH: pre.sizeH });
+        rays: pre.rays, chroma: pre.chroma, fxOpacity: pre.fxOpacity, sizeW: pre.sizeW, sizeH: pre.sizeH });
       rerender(); commit('글로우 종류');
       window.showStickerProperties?.(block);   // 칸 값·갈래 범위를 새 종류로 다시 그린다
     });
@@ -89,6 +94,7 @@ export function wireGlowSection(panel, block, rerender) {
   };
   pair('stk-glow-int', 'stk-glow-int-num', 'intensity', '글로우 세기');
   pair('stk-glow-rays', 'stk-glow-rays-num', 'rays', '글로우 갈래');
+  pair('stk-glow-op', 'stk-glow-op-num', 'fxOpacity', '글로우 불투명도');
 
   $('stk-glow-chroma')?.addEventListener('change', (e) => {
     block.dataset.chroma = e.target.checked ? '1' : '0'; rerender(); commit('글로우 색수차');

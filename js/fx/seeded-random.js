@@ -14,9 +14,12 @@
      네임스페이스 하나(FxSeed)로 낸다(같은 이름 최상위 function 이 전역을 덮는 함정 — 2026-10-06 CollabReasons).
 ═══════════════════════════════════════════════════════════════════════════ */
 (function (w) {
-  /** mulberry32 — 32비트 seed → [0,1) 수열. 같은 seed = 같은 수열(엔진·기계 무관 · 정수 연산만). */
+  /** mulberry32 — 32비트 seed → [0,1) 수열. 같은 seed = 같은 수열(엔진·기계 무관 · 정수 연산만).
+   *  ★지디 파티클 시안(goditor-effects-particles.html)의 mulberry32 와 «같은 수열»이어야 한다 — 다르면 시안과 앱이 같은 seed 로
+   *    다른 그림을 낸다. 2026-10-06 대조: seed 1·12345·3141592653·4294967295·2147483648 각 1000개 일치, seed 0 만 갈렸다
+   *    (옛 판이 0 을 0x9e3779b9 로 바꿔치기) → 바꿔치기를 뗐다. 회귀: tests/unit/fx-seeded-random.test.mjs(시안 알고리즘에서 뽑은 값을 글자로). */
   function mulberry32(seed) {
-    let a = (seed >>> 0) || 0x9e3779b9;
+    let a = seed >>> 0;
     return function () {
       a = (a + 0x6D2B79F5) >>> 0;
       let t = a;
