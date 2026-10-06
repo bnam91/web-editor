@@ -886,6 +886,8 @@ body {
 <!-- ★킬스위치 단일 원본(js/feature-flags.js) — 이 인라인 스크립트가 window.COLLAB_ENABLED 를
      읽으므로 «반드시 먼저» 실행돼야 한다. 에디터(index.html)도 같은 파일을 읽는다. -->
 <script src="../js/feature-flags.js"></script>
+<!-- ★협업 reason 문장 표 단일 원본(js/collab/reasons.js) — 아래 인라인 collabReasonText 가 읽는다. 에디터(index.html)도 같은 파일. -->
+<script src="../js/collab/reasons.js"></script>
 <script src="../js/io/image-data-url.js"></script><!-- 썸네일 «빈 그림» 판정 — 아래 인라인 스크립트가 바로 쓴다 (T-87) -->
 <script src="../js/notice.js"></script>
 <script src="../js/entitlement-banner.js"></script>
@@ -2094,20 +2096,11 @@ async function shareProjectUI(e, id) {
 }
 
 /* 서버가 준 reason 을 «사용자가 다음에 뭘 할지 아는» 문장으로. 코드값을 그대로 보여주면
- * 사용자는 아무것도 못 한다. 모르는 값은 그대로 노출한다(빈칸이면 무슨 일인지조차 모른다). */
+ * 사용자는 아무것도 못 한다. 모르는 값은 그대로 노출한다(빈칸이면 무슨 일인지조차 모른다).
+ * ★표는 여기 없다 — js/collab/reasons.js 한 벌(2026-10-06 발주 TWO ⒜ · 전엔 이 자리와
+ *   settings-modal.js 에 «두 벌»이 따로 살았다: 여기 9 · 거기 13 · 겹침 5 → 합집합 17). */
 function collabReasonText(reason, r) {
-  switch (reason) {
-    case 'not_signed_in':  return '로그인이 필요합니다.';
-    case 'invalid_session':return '로그인이 만료됐습니다. 다시 로그인해 주세요.';
-    case 'offline':        return '서버에 닿지 못했습니다. 네트워크를 확인해 주세요.';
-    case 'not_deployed':   return '서버에 공동작업 기능이 아직 배포되지 않았습니다.';
-    case 'not_a_member':   return '이 공동작업본에 접근 권한이 없습니다.';
-    case 'too_large':
-    case 'section_too_large': return '섹션 하나가 너무 큽니다(이미지가 인라인으로 박혀 있습니다).';
-    case 'server':         return `서버 오류(${r?.status || '5xx'}) — 잠시 뒤 다시 시도해 주세요.`;
-    case 'bad_response':   return `서버가 알 수 없는 응답을 보냈습니다(${r?.status || '?'}).`;
-    default:               return reason || '알 수 없는 오류';
-  }
+  return window.CollabReasons.text(reason, r);
 }
 
 async function duplicateProjectUI(e, id) {

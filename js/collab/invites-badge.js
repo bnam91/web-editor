@@ -47,16 +47,27 @@
   }
   function stop() { if (_timer) clearInterval(_timer); _timer = null; }
 
+  /* ★S7(2026-10-06 발주 TWO ⒜): 「초대를 받을 창구가 열려 있나」 — 두 스위치를 «한 술어»로 묶는다.
+   *   COLLAB_ENABLED(js/feature-flags.js) ＋ 설정의 협업 탭이 MVP 문 밖인가(settings-modal.js
+   *   isSettingsTabEnabled). 하나만 보면 「배지는 떴는데 탭이 회색」 — 눌러도 아무 일 없다.
+   *   ⛔술어가 «없으면» 닫힌 쪽(배지 안 띄움): 못 받을 초대를 알리는 것보다 안 알리는 게 낫다. */
+  function inboxOpen() {
+    if (!window.COLLAB_ENABLED) return false;
+    return typeof window.isSettingsTabEnabled === 'function' && window.isSettingsTabEnabled('collab') === true;
+  }
+
   function openCollabSettings() {
     // 환경설정의 「협업」 탭으로 보낸다. 탭이 아직 없으면 모달만 연다 —
     // ★「눌렀는데 아무 일도 안 일어난다」가 제일 나쁘다.
-    if (typeof window.openSettingsModal === 'function') { window.openSettingsModal('collab'); return; }
+    // ★배지는 inboxOpen() 일 때만 뜬다(boot) ⇒ 여기 오면 탭은 열려 있다. 그래도 같은 술어로 한 번 더 본다
+    //   (전역 함수라 다른 길로 불릴 수 있다). 닫혀 있으면 아래 alert 는 «다음 걸음 ⒝ C3» 에서 문장을 고친다.
+    if (inboxOpen() && typeof window.openSettingsModal === 'function') { window.openSettingsModal('collab'); return; }
     if (typeof window.toggleSettingsModal === 'function') { window.toggleSettingsModal(); return; }
     alert('환경설정 › 협업 에서 초대를 확인할 수 있습니다.');
   }
 
   function boot() {
-    if (!window.COLLAB_ENABLED) return;   // ★킬스위치: 협업 비활성 시 초대 폴링·배지 안 뜸
+    if (!inboxOpen()) return;   // ★킬스위치 ＋ MVP 문: 초대를 받을 창구가 닫혀 있으면 폴링·배지 안 뜸(S7)
     const el = document.getElementById('collab-invite-badge');
     if (el) el.addEventListener('click', openCollabSettings);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
@@ -66,5 +77,5 @@
   else boot();
   window.addEventListener('beforeunload', stop);
 
-  window.collabInvites = { refresh, start, stop, latest: () => _last };
+  window.collabInvites = { refresh, start, stop, latest: () => _last, inboxOpen };
 })();

@@ -976,6 +976,8 @@
 <!-- ★킬스위치 단일 원본 — «맨 앞»에 둔다(다른 스크립트가 window.COLLAB_ENABLED 를 읽는다).
      pages/projects.html 도 «같은 파일»을 읽는다 — 스위치가 두 벌이 되면 한쪽이 샌다. -->
 <script src="js/feature-flags.js"></script>
+<!-- ★협업 reason 문장 표 단일 원본 — settings-modal·collab/notify 가 읽는다. 목록 화면(pages/projects.html)도 같은 파일. -->
+<script src="js/collab/reasons.js"></script>
 <script src="js/io/image-data-url.js"></script><!-- 썸네일 «빈 그림» 판정 — save-load.js(모듈)보다 먼저 실려야 한다 (T-87) -->
 <!-- [Unit B] 오류 링버퍼 — ★반드시 «맨 앞». 뒤에 두면 초기 오류를 놓친다 -->
 <script src="js/report-buffer.js"></script>
@@ -1015,6 +1017,8 @@
 <script src="js/history-diff.js"></script>
 <!-- 협업 동기화 루프. market-merge «뒤»여야 한다 — 섹션 해시를 그걸 빌려 쓴다. -->
 <script src="js/collab/sync.js"></script>
+<!-- ★협업 사건을 듣는 «단 하나의» 자리 — sync.js «바로 뒤»(window.collabSync 가 있어야 붙는다). 문장은 js/collab/reasons.js. -->
+<script src="js/collab/notify.js"></script>
 <script src="js/collab/invites-badge.js"></script>
 <!-- 초대 수락 → 로컬 프로젝트 연결(U6). settings-modal 이 이걸 쓴다 — «앞»에 둔다. -->
 <script src="js/collab/accept.js"></script>
