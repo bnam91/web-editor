@@ -74,13 +74,16 @@ test('P3 fullWidth 프레임 + 인라인 min-height:0 — 높이 = 내용(작은
       tf.appendChild(block); f.appendChild(tf); document.getElementById('gEnd').before(f);
       /* ★레이아웃 px(offsetHeight) — getBoundingClientRect 는 캔버스 배율을 탄다. CI(10-06 v0.9.6 맥 2차)에서 frame·kid 가 «같은 비 0.98393» 으로 줄어
          60 → 59.04 가 됐다(배율 ≠ 100%). 같은 꼴의 앞선 고침 = 1c210496(KR6 · tpl-pagepad «레이아웃 px»). 화면 px 는 비교용으로만 같이 찍는다. */
-      return { frame: f.offsetHeight, kid: tf.offsetHeight, frameScr: f.getBoundingClientRect().height, kidScr: tf.getBoundingClientRect().height };
+      return { frame: f.offsetHeight, kid: tf.offsetHeight, frameScr: f.getBoundingClientRect().height, kidScr: tf.getBoundingClientRect().height, cssMin: parseFloat(getComputedStyle(f).minHeight) };
     };
     return { withZero: mk('0px'), without: mk(null) };
   });
   console.log('[P3]', JSON.stringify(r));
   expect(Math.abs(r.withZero.frame - r.withZero.kid), '★min-height:0 이 CSS 60px 를 못 눌렀다').toBeLessThan(0.01);
-  expect(r.without.frame, '전제 — 인라인이 없으면 60 으로 커진다(누를 까닭이 실제로 있다)').toBeGreaterThanOrEqual(60);
+  /* ★60 을 시험에 «복사»하지 않는다 — 참값은 CSS(.frame-block min-height · editor-blocks.css). 살아 있는 값을 읽어 파생(명부 하나 · 지디 10-06) */
+  expect(r.without.cssMin, '[전제] 인라인 없는 프레임의 CSS min-height 가 읽힌다(> 0)').toBeGreaterThan(0);
+  expect(r.without.frame, `전제 — 인라인이 없으면 CSS 최소값(${r.without.cssMin}px)으로 커진다(누를 까닭이 실제로 있다)`).toBe(r.without.cssMin);
+  expect(r.without.frame, '관계 — 인라인 없는 판이 min-height:0 판보다 크다').toBeGreaterThan(r.withZero.frame);
 });
 
 test('P4 자리 — .row 로 싼 모달 자리에 section-inner 직속 프레임을 끼우면 같은 y·x·폭에 선다', async ({ page }) => {
