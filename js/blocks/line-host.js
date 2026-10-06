@@ -265,11 +265,11 @@ function _insertAfterHeader(html) {
   head.after(box);
   return box;
 }
-function _mountLineUi(block, host, addr) {
+function _mountLineUi(block, host, addr, { synthetic = false } = {}) {
   const anyHit = host.resolveAny(addr);
   const hit = anyHit && anyHit.line && gridLineHasText(anyHit.line) ? anyHit : null;
   const cur = anyHit ? { r: anyHit.r, c: 0, li: anyHit.li } : null;
-  grdSetActiveLine(block, cur);
+  if (!synthetic) grdSetActiveLine(block, cur);
   const html = grdLineUi.lineBarHtml(anyHit, block, host)
     + (anyHit && anyHit.li !== null ? grdLineUi.lineSectionHtml(anyHit, block, host) : '')
     + (hit ? grdLineUi.typoSectionsHtml(hit, block) : '');
@@ -277,7 +277,7 @@ function _mountLineUi(block, host, addr) {
   if (cur) grdLineUi.wireLineBar(block, cur, host);
   if (cur && cur.li !== null) grdLineUi.wireLineSection(block, cur, host);
   if (hit) grdLineUi.wireTypo(block, cur, host);
-  lnMark(block, cur);
+  if (!synthetic) lnMark(block, cur);
 }
 
 /** D6 — 줄 모드 버블은 블럭 단위 글자 절(Type·Typography·Fill·정렬)을 숨긴다: 줄마다 인라인 값을 찍어 «안 먹는다».
@@ -303,7 +303,10 @@ export function lnAugmentBubblePanel(tb) {
   _mountLineUi(tb, host, grdGetActiveLine(tb));
 }
 export function lnAugmentChatPanel(block) {
-  _mountLineUi(block, lnChatHost(block), grdGetActiveLine(block));
+  const act = grdGetActiveLine(block);
+  if (act) { _mountLineUi(block, lnChatHost(block), act); return; }
+  if (_chatMsgs(block).length === 1) { _mountLineUi(block, lnChatHost(block), { r: 0, c: 0, li: null }, { synthetic: true }); return; }
+  _mountLineUi(block, lnChatHost(block), null);
 }
 
 /* ══ 줄 «글자» 편집 — 더블클릭 (그리드 인라인 편집과 같은 손짓) ═════════════════
