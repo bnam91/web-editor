@@ -45,7 +45,12 @@ function _chatToken(name, fallback) {
  *       ⇒ 그 한 자리는 ★«일관성»으로만 바꿨다. ⛔«고친 결함»으로 세지 마라 — 재는 자도 없다
  *         (실측: tests/dom/chat-width-handles W1 은 profileSize 폴백을 되돌려도 ★초록이다).
  *   ⛔`??` 로 바꾸면 안 된다 — `parseInt('abc')` 는 NaN 이고 `NaN ?? d` 는 ★NaN 이다(?? 는 null/undefined 만).
- *     ⇒ 유한수인지 «재서» 고른다. 그게 「0 은 살리고 빈값·쓰레기는 기본값」의 유일한 꼴이다. */
+ *     ⇒ 유한수인지 «재서» 고른다. 그게 「0 은 살리고 빈값·쓰레기는 기본값」의 유일한 꼴이다.
+ * ★★그리고 `x || d` 와 `x ?? d` 는 ★거울상이다 — ★한 뿌리는 「★0 과 «없음»을 안 가린다」다.
+ *     `||`  : 0 을 «없음»으로 ★잘못 본다  ⇒ 0 이 d 로 되돌아간다(이 커밋이 고친 그것)
+ *     `??`  : NaN 을 «있음»으로 ★잘못 본다 ⇒ NaN 이 그대로 흘러 dataset 에 "NaN" 이 저장된다
+ *     ⇒ ★둘 다 «짧은 연산자로 두 상태를 한 번에 가리려 한» 탓이다. ★재서 갈라야 한다.
+ *     ★같은 날(2026-10-06) 이 레포에서 ★둘 다 났다 — ⒜-1 의 `||`(제품) · prop-chat.js chbClamp 의 `??`(내가 넣고 잡았다). */
 function _chatNum(raw, dflt) {
   const n = parseInt(raw, 10);
   return Number.isFinite(n) ? n : dflt;
