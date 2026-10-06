@@ -60,17 +60,19 @@ const fx = (page, id, patch, opts) => page.evaluate(([id, p, o]) => window.setFx
 const ds = (page, id) => page.evaluate((id) => Object.fromEntries(Object.entries(document.getElementById(id).dataset).filter(([k]) => k.startsWith('fx'))), id);
 
 /* ══ P0 전제 — 핀에서도 초록 ══ */
-test('P0 전제 — 패널 부품(.prop-cell-card·.prop-section-title-row·.prop-icon-btn·.prop-icon-input) · PLUS_ICON_SVG', async ({ page }) => {
+test('P0 전제 — 패널 부품(.prop-cell-card·.prop-section-title-row·.prop-icon-btn·.prop-icon-input·.prop-select) · ★따른 선례가 아직 있다', async ({ page }) => {
   const errs = await setup(page);
   const css = fs.readFileSync(path.join(ROOT, 'css/editor-props.css'), 'utf8');
-  for (const sel of ['.prop-cell-card {', '.prop-cell-card-header {', '.prop-icon-btn {', '.prop-icon-input {']) expect(css.includes(sel), sel).toBe(true);
+  for (const sel of ['.prop-cell-card {', '.prop-cell-card-header {', '.prop-icon-btn {', '.prop-icon-input {', '.prop-select {']) expect(css.includes(sel), sel).toBe(true);
   expect(fs.readFileSync(path.join(ROOT, 'js/props/prop-text-template.js'), 'utf8').includes('prop-section-title-row'), 'Shadow 절 머리 꼴이 있다').toBe(true);
-  expect(await page.evaluate(() => typeof window.PLUS_ICON_SVG)).toBe('string');
+  /* ★2026-10-06 — 추가 손잡이가 ＋단추(PLUS_ICON_SVG)에서 «고르는 목록»(.prop-select)으로 바뀌었다(현빈 「바로 적용되는 것이 아니라」).
+     ⇒ 전제도 «따라간 선례»로 바꾼다: 「＋ 줄 추가」 꼴이 prop-grid 에 ★아직 있다(없어지면 내 「선례를 따랐다」가 거짓이 된다). */
+  expect(fs.readFileSync(path.join(ROOT, 'js/props/prop-grid.js'), 'utf8').includes('_grdAddKindSelectHtml'), '따른 선례(＋ 줄 추가 select)가 아직 있다').toBe(true);
   expect(errs).toEqual([]);
 });
 
 /* ══ R — 기능(핀에서 빨강) ══ */
-test('R1 ★패널(진짜 마우스) — 텍스트·도형·에셋 셋 다 「Effects」 절 · ＋ → 카드(간격·길이·불투명도 = 시안 값) · 눈 끔/켬 · ✕ · 접기 · 흐림 없음', async ({ page }) => {
+test('R1 ★패널(진짜 마우스) — 텍스트·도형·에셋 셋 다 「Effects」 절 · ★추가는 «고르는 목록»(열어도 안 붙고 고른 것만 붙는다) → 카드(간격·길이·불투명도 = 시안 값) · 눈 끔/켬 · ✕ · 접기 · 흐림 없음', async ({ page }) => {
   const errs = await setup(page);
   const select = async (id) => { const p = await page.evaluate((id) => { const e = document.getElementById(id); e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return [q.left + 6, q.top + q.height / 2]; }, id);
     await page.evaluate(() => window.deselectAll?.()); await page.mouse.click(p[0], p[1]); await page.waitForTimeout(300); };
@@ -79,15 +81,26 @@ test('R1 ★패널(진짜 마우스) — 텍스트·도형·에셋 셋 다 「Ef
   for (const [id, P, after] of [['eT', 'txt', 'txt-shadow-section'], ['eSh', 'shape', null], ['eA', 'asset', null]]) {
     await select(id);
     const sec = await page.evaluate(([P, after]) => { const s = document.getElementById(`${P}-fx-section`); if (!s) return null;
-      return { title: s.querySelector('.prop-section-title').textContent.trim(), plus: !!document.getElementById(`${P}-fx-add`)?.querySelector('svg'), prevOk: after ? s.previousElementSibling?.id === after : true,
-        plusText: (document.getElementById(`${P}-fx-add`)?.textContent || '').trim() }; }, [P, after]);
+      const a = document.getElementById(`${P}-fx-add`);
+      return { title: s.querySelector('.prop-section-title').textContent.trim(), prevOk: after ? s.previousElementSibling?.id === after : true,
+        addTag: a?.tagName || null, addCls: a?.className || null, headVal: a ? a.options[0].value : null, headSel: a ? a.selectedIndex : null,
+        opts: a ? [...a.options].slice(1).map(o => o.value) : null, addText: (a?.textContent || '').trim() }; }, [P, after]);
     expect(sec, `${id}: Effects 절`).not.toBeNull();
     expect(sec.title).toBe('Effects');
-    expect(sec.plus, '＋ = PLUS_ICON_SVG(svg)').toBe(true);
-    expect(sec.plusText, '⛔＋ 를 글자로 쓰지 않는다(E65)').toBe('');
+    /* ★2026-10-06 현빈 — 「바로 적용되는 것이 아니라」. 더하는 자리는 «고르는 목록»이다(선례 = prop-grid 「＋ 줄 추가」). */
+    expect(sec.addTag, '추가 손잡이 = 고르는 목록').toBe('SELECT');
+    expect(sec.addCls, '선례와 같은 옷(.prop-select)').toContain('prop-select');
+    expect(sec.headVal, '머리 = 값 없는 option(고른 것 아님)').toBe('');
+    expect(sec.headSel, '열었을 때 머리가 골라져 있다').toBe(0);
+    expect(sec.opts, '목록 = 아직 안 걸린 효과 — 반사가 들어 있다').toContain('reflect');
+    expect(sec.addText, '⛔글자 + 를 쓰지 않는다(E65)').not.toContain('+');
     expect(sec.prevOk, '텍스트 = Shadow 절 바로 아래').toBe(true);
+    /* ★목록을 «열기만» 해서는 아무것도 안 붙는다 — 이것이 이 발주의 한 줄이다 */
     await click(`#${P}-fx-add`);
-    expect(await ds(page, id)).toEqual({ fxReflect: 'on' });
+    expect(await ds(page, id), '★고르기 전 = 아무 키도 안 붙는다').toEqual({});
+    await page.selectOption(`#${P}-fx-add`, 'reflect');
+    await page.waitForTimeout(250);
+    expect(await ds(page, id), '★고른 것만 붙는다').toEqual({ fxReflect: 'on' });
     const card = await page.evaluate((P) => ({ rows: [...document.querySelectorAll(`#${P}-fx-body .prop-label`)].map(e => e.textContent.trim()),
       gap: document.getElementById(`${P}-fx-gap`).value, gmin: document.getElementById(`${P}-fx-gap`).min, gmax: document.getElementById(`${P}-fx-gap`).max,
       len: document.getElementById(`${P}-fx-len-num`).value, lmin: document.getElementById(`${P}-fx-len-slider`).min, lmax: document.getElementById(`${P}-fx-len-slider`).max,
