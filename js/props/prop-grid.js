@@ -666,7 +666,21 @@ export function grdMoveLineToCell(block, fromPos, fromLi, toPos, toLi = null) {
      띄운다(grdAddLine 의 「없는 li 를 가리키면」과 같은 병). null 은 «줄 선택 없음»이라
      정상적으로 그려지는 상태다. */
   grdSetActiveLine(block, null);
-  const res1 = window.updateGridBlock?.(block.id, { patchCell: { r: fr, c: fc, lines: nextSrc } });
+  /* ★★문1 은 ★`updateGridBlockRaw` 로 보낸다 — ★래퍼(js/model-update-history.js)를 ★안 타게 (2026-10-06 ㉣ · 지디)
+   *   ⛔무엇이었나(실측 · 핀 116af0c4) — 문1 을 일반 입구로 보내면 그 래퍼가 ★«끝 표본»을 한 칸 더 쌓는다.
+   *     그 표본은 ★「출발 칸에서만 뺀」 ★반쪽이라(도착 칸은 문2 가 쓴다) ⇒ ★⌘Z 한 번이 ★그 반쪽으로 간다.
+   *     ★수로: 스택 ★＋2 · ⌘Z① = `[["B"],["X"]]` ⇒ ★옮긴 줄이 ★«어느 칸에도 없다»(A 가 사라진 것처럼 보인다).
+   *     ⇒ 이 함수 머리말의 「★★이력은 «한 칸»이다」가 ★실앱에서 거짓이었다.
+   *   ★왜 Raw 인가 — `noHistory` 는 ★입구 «안»의 push-before 만 끈다. ★래퍼의 끝 표본은 ★opts 를 안 본다.
+   *     그리고 ★래퍼를 「noHistory 면 끝 표본도 끈다」로 고치면 ⛔이 제스처의 끝 표본이 ★아예 0 이 되어
+   *     ★래퍼가 존재하는 까닭(T-012 「모든 동작이 끝 표본을 남긴다」)을 이 자리에서 끈다.
+   *     ⇒ ★«마지막 문만» 끝 표본을 남겨야 하고, 그건 ★«앞 문을 래퍼 밖으로 빼는» 꼴이다 = ★이 한 줄.
+   *   ★`noHistory` 는 ★주지 않는다 — 문1 의 push-before 가 ★이 제스처의 «변경 전» 칸이다(그게 ⌘Z 의 과녁이다).
+   *   ★★Raw 의 선례·까닭은 js/blocks/grid-block.js `window.updateGridBlockRaw` 머리말에 적혀 있다
+   *     (＋js/canvas-scratch-drop.js:486 이 이미 그 길을 쓴다 · 챗·버블도 같은 쌍을 가졌다:
+   *      chat-block.js `updateChatBlockRaw` · block-factory.js `updateSpeechBubbleBlockRaw`).
+   *   ⚠️아래 ★되돌림(실패 경로)은 ★안 고쳤다 — 같은 병으로 보이지만 ★안 쟀다(별건). */
+  const res1 = window.updateGridBlockRaw?.(block.id, { patchCell: { r: fr, c: fc, lines: nextSrc } });
   if (res1 && res1.ok === false) {
     grdSetActiveLine(block, prevActive);
     return { ok: false, code: res1.code, message: res1.message };

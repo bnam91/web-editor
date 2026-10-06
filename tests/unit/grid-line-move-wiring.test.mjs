@@ -248,7 +248,7 @@ test('★「옆 칸으로」 손잡이도 게이트 한 벌을 쓴다 — 행은
 /** 실물 grdMoveLineToCell 을 가짜 이웃들로 돌린다.
  *  @param cells 2차원 [[{lines}, {lines}], …] · @param verdicts updateGridBlock 이 돌려줄 답들 */
 function makeCrosser(cells, verdicts = []) {
-  const calls = { patch: [], opts: [], active: [], toasts: [] };
+  const calls = { patch: [], opts: [], active: [], toasts: [], via: [] };
   let active = { r: 0, c: 0, li: 0 };
   let n = 0;
   const scope = {
@@ -258,8 +258,16 @@ function makeCrosser(cells, verdicts = []) {
     MAX_CELL_LINES: 20,
     window: {
       showToast: (m) => calls.toasts.push(m),
+      /* ★★2026-10-06 ㉣ — 문1 이 `updateGridBlockRaw`(래퍼 밖 원본)로 간다. ⛔그 이름을 이 가짜 window 에
+         안 두면 `window.updateGridBlockRaw?.(…)` 가 ★조용히 undefined 를 돌려주고 문1 이 ★안 세어진다
+         (실측: 이 파일 ★5개가 그 까닭으로 빨개졌다 — 「★하네스에 이름이 없으면 조용히 undefined」의 또 한 판).
+         ★그래서 ★«어느 입구로 갔나»를 ★따로 적는다(calls.via) — ★그게 ㉣ 구조를 잠그는 자리다. */
       updateGridBlock: (_id, partial, opts) => {
-        calls.patch.push(partial); calls.opts.push(opts);
+        calls.patch.push(partial); calls.opts.push(opts); calls.via.push('wrapped');
+        return verdicts[n++] || { ok: true };
+      },
+      updateGridBlockRaw: (_id, partial, opts) => {
+        calls.patch.push(partial); calls.opts.push(opts); calls.via.push('raw');
         return verdicts[n++] || { ok: true };
       },
     },
@@ -280,13 +288,26 @@ test('★옆 칸으로 옮기면 두 문이 나간다 — 출발에서 빠지고
   assert.deepEqual(m.calls.patch[1].patchCell, { r: 0, c: 1, lines: [{ text: 'X' }, { text: 'A' }] });
 });
 
-test('★★이력은 «한 칸»이다 — 첫 문만 쌓고 둘째 문은 noHistory 로 끈다(⌘Z 한 번)', () => {
+test('★★두 문의 «이력 꼴» — 문1 = Raw·noHistory 없음 · 문2 = 래퍼·noHistory (㉣ 구조)', () => {
+  /* ★★⛔제목이 바뀐 까닭 — 옛 제목은 「★이력은 «한 칸»이다 … (⌘Z 한 번)」이었고 ★제목째 거짓이었다.
+   *   이 검사는 `grdMoveLineToCell` 을 ★«가짜 이웃»으로 돌려 ★opts 만 본다 ⇒ ★js/model-update-history.js
+   *   래퍼를 ★«안 본다». 그 래퍼는 `window.update*Block` 전부를 감싸 ★«끝 표본»을 한 칸 더 쌓고 ★opts 를 안 본다.
+   *   ⇒ 실앱에서는 ★스택 ＋2 였고 ⌘Z① 이 ★「출발 칸에서만 뺀 반쪽」으로 갔다(실측 · 핀 116af0c4).
+   *   ⇒ ★★「제목이 ★조건을 말하면 제목째 거짓이 된다」 — 그래서 ★«구조»만 말하게 고쳤다.
+   * ★★「★한 칸인가」를 재는 자리는 ★여기가 아니다 — ★tests/dom/grid-cross-cell-undo.dom.spec.js U1·U2 다
+   *   (래퍼가 ★얹힌 DOM 자리에서 ★«스택 길이»와 ★«⌘Z 한 번의 결과»로 잰다). ⛔그 둘을 같이 봐야 닫힌다. */
   const m = makeCrosser(G2());
   m.fn({}, { r: 0, c: 0 }, 0, { r: 0, c: 1 }, null);
+  /* ★문1 — ★Raw 로 간다(래퍼를 안 탄다) ＋ noHistory 를 ★안 준다(그 push-before 가 «변경 전» 칸이다). */
+  assert.equal(m.calls.via[0], 'raw',
+    '★문1 이 ★래퍼를 타는 입구로 갔다 — 그러면 그 끝 표본이 ★«반쪽» 칸을 남긴다(DOM U2 가 그것을 잡는다)');
   assert.ok(!m.calls.opts[0] || m.calls.opts[0].noHistory !== true,
-    '★첫 문이 이력을 안 쌓았다 — 그러면 ⌘Z 가 이 이동을 «아예» 못 되돌린다');
+    '★문1 이 이력을 안 쌓았다 — 그러면 ⌘Z 가 이 이동을 «아예» 못 되돌린다');
+  /* ★문2 — ★래퍼를 ★타고(그 끝 표본이 «마지막 문»의 칸이다) ＋ noHistory 로 안쪽 push-before 를 끈다. */
+  assert.equal(m.calls.via[1], 'wrapped',
+    '★문2 가 Raw 로 갔다 — 그러면 이 제스처의 ★끝 표본이 0 이 되어 T-012(모든 동작이 끝 표본을 남긴다)를 끈다');
   assert.equal(m.calls.opts[1] && m.calls.opts[1].noHistory, true,
-    '★★둘째 문도 이력을 쌓는다 — ⌘Z 를 한 번만 누른 사용자는 «줄이 두 칸에 다 있는» 반쪽을 본다');
+    '★★둘째 문이 안쪽 이력을 쌓는다 — 그러면 칸이 둘이 된다');
 });
 
 test('★활성줄이 옮긴 줄을 따라간다 — 그리고 첫 문 «전»에는 비워 둔다(없는 li 금지)', () => {
