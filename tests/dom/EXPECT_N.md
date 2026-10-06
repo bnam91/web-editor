@@ -61,10 +61,10 @@
 
 ## 레인별 «증분» — ⛔최종값을 박지 않는다(지디 규약 2026-10-06)
 
-레인이 넷이 동시에 같은 베이스(2738)에서 올라오므로, 각 레인은 ★자기 증분만 적는다.
+레인이 넷이 동시에 올라오므로, 각 레인은 ★자기 증분만 적는다.
 ★최종 수는 ★머지하는 쪽(지디)이 한 번에 맞춘다.
 
-| 레인 | 증분 | 내역(출처 ㉠ git `test(` 선언 수 · base `e7444dd3`) | 비고 |
+| 레인 | 증분 | 내역(출처 ㉠ git `test(` 선언 수 · base = dev `40179846`) | 비고 |
 |---|---|---|---|
 | `gd/small3` (fx-small3 · 작은 고침) | **＋30** | `scratch-folder-columns` +4 · `bubble-shortcut-not-in-text` +7 · `marquee-edge-autoscroll` +6 · `shape-star-count` +9 · `frame-empty-no-dashed` +4 | 새 spec 5개 ⇒ 파일 수 **＋5** |
 
@@ -76,4 +76,5 @@
 
 ⑷(말풍선 g)의 제품 고침은 ★이 레인이 든다(`js/blocks/line-host.js` `_lnPickedLine` — 지디 2026-10-06
 채택, fx-parity 의 `synthetic` 안은 물렸다). `bubble-shortcut-not-in-text` 7칸 전부 ★이 레인에서 초록이다.
-⚠️머지 순서: ★태양의 협업 묶음이 먼저 올라간 뒤 이 레인을 그 위로 rebase 한다(지디 지시).
+머지 순서: ★태양의 협업 묶음(dev `40179846` · 2744)이 먼저 올라갔고, 이 레인을 ★그 위로 rebase 했다
+(2026-10-06 · 충돌 0). ⇒ 이 레인의 증분 ＋30 은 ★2744 위에 얹힌다.
