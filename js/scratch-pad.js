@@ -1469,7 +1469,7 @@ async function initScratchPad(projectId, pageId) {
     e.preventDefault();
     const items = [..._selectedItems];
     if (!await _copySelectedToClipboard(items)) return;
-    if (items.length === 1) window.showToast?.('📋 이미지 복사됨 — 모달 프롬프트에 Cmd+V');
+    if (items.length === 1) window.showToast?.('📋 이미지 복사됨 — 모달 프롬프트에 ⌘V');
     else window.showToast?.(`📋 첫 장 복사됨 (선택 ${items.length}장 / OS 한계로 1장씩만)`);
   });
 
