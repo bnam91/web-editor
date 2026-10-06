@@ -7,13 +7,16 @@
  * ★자기 전제를 단언한다 — 명부의 «수»를 ⛔숫자로 박지 않고 ★판에서 읽어(window.fxTypeKeys) 등록 전/후를 견준다.
  * ★음성대조 A2 — 등록하지 «않은» 이름은 목록에 0건(목록을 무조건 전부 그리는 판을 잡는다).
  * ⚠️A7 은 ★지디 판정(「반사에 그림자가 비치는 것이 맞다」)과 ★다른 실측을 «기록»한다 — 결정이 아니다(머리말 A7 참조).
- * ★양성대조(돌연변이 · ×3) — ⛔핀은 «기능이 없어서» 빨강이라 약하다. ★같은 판에서 조건만 바꿔 빨강을 만든다:
- *     ㉠ js/effects-registry.js 의 `missing.map(...)` 을 `[{key:'reflect',label:'반사'}].map(...)` 리터럴로 ⇒ ★A1 빨강
- *     ㉡ fxTypesFor 의 supports 가름을 지워 전부 돌려주게 ⇒ ★A3 빨강
- *     ㉢ wireFxSection 의 change 를 옛 `find(x => !x.has(el))` 즉시추가로 되돌림 ⇒ ★A4 빨강
- *     ㉣ js/frame-geometry.js applyHostMarginY 를 no-op 으로 ⇒ ★여백 소비자 «둘»이 빨강
- *        (tests/unit/frame-geometry.test.mjs ④-a · tests/dom/effects-reflection.dom.spec.js R3)
- *   ⇒ 결과는 «어느 시험이 빨강인가» 명부로 적는다.
+ * ★양성대조(돌연변이) — ⛔핀은 «기능이 없어서» 빨강이라 약하다. ★같은 판에서 조건만 바꿔 빨강을 만들었다.
+ *   ★실제로 돌렸다(2026-10-06 · 각 ×3 · ⛔1회로는 안 선다) — «어느 시험이 빨강이었나» 명부:
+ *     ⓪ 돌연변이 «없이» 먼저        ⇒ A1·A3·A4 ★3 passed ×3  (★계측기 대조 — 이게 초록이어야 아래가 뜻이 있다)
+ *     ㉠ `missing.map(...)` → 리터럴 `[reflect, shadow]`           ⇒ ★A1 빨강 3/3 「★목록도 «정확히 하나» 늘었다」
+ *     ㉡ fxTypesFor 의 supports 가름 제거(전부 돌려줌)              ⇒ ★A3 빨강 3/3 「★텍스트 — 그림자 없음」
+ *     ㉢ wireFxSection 을 옛 «누르면 즉시 추가»로 되돌림            ⇒ ★A4 빨강 3/3 「eT: ★열기만 해서는 키가 0개」
+ *     ㉣ js/frame-geometry.js applyHostMarginY no-op               ⇒ ★여백 «소비자 둘»이 같이 빨강 3/3
+ *        tests/unit/frame-geometry.test.mjs ④-a(pass 21/fail 1) ＋ effects-reflection.dom.spec.js R3(기대 "46px" / 받은 "")
+ *        ⇒ 「공용 본문 무력화 → 소비자 수만큼 빨강」이 선다(지디 요구 쌍).
+ *   ⛔내 대조 하네스도 한 번 틀렸다 — `set -e` 가 «빨강이 기대값인» 시험에서 스크립트를 죽였다(고쳐서 다시 돌렸다).
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/effects-registry.dom.spec.js */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
