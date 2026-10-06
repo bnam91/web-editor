@@ -28,9 +28,13 @@
  *   ★어디에 영향이 있나 — Electron 실앱의 PNG 내보내기는 native(CDP) 길이라 ★안 탄다(H8 이 그 길을 잰다).
  *     h2c 를 타는 길은 ⑴ 프로젝트 썸네일(js/io/save-load.js:137) ⑵ 캡처 보조(js/io/capture-safety.js:537)
  *     ⑶ 웹 빌드 PNG 폴백(js/io/export-image.js:484).
- *   ⛔«여러 줄» 은 ★안 고쳤다 — 고치려면 capture-safety.js 의 neutralize*ForH2C 꼴로 클론에서 획을
- *     줄마다 상자로 펴 줘야 한다(세 길에 다 영향). ★지디 판단 대기. 그때까지 H9 는 ★한 줄만 잠근다.
- *   ⛔H9 를 「여러 줄도 된다」로 넓히지 마라 — 지금은 거짓이다.
+ *   ⛔★H9 는 «여러 줄»을 ★안 잠갔다 — h2c 는 그걸 ★한 상자로 칠한다(실측 524×43 = 두 줄 높이 합).
+ *     ★까닭의 증거: 번들에 `box-decoration-break` ★0건(`linear-gradient` 는 5건 — 그라데이션은 안다).
+ *     고치려면 capture-safety.js 의 neutralize*ForH2C 꼴로 클론에서 획을 줄마다 상자로 펴야 하고
+ *     ★세 길(썸네일·캡처 보조·웹 폴백)에 다 영향이 간다 ⇒ ★별건 카드다(지디 2026-10-06 판정:
+ *     「이번 판에 고치지 마라 — 주 경로인 Electron PNG 는 native 라 멀쩡하고, 섞으면 첫 빨강이
+ *      어디서 났는지 못 가린다」).
+ *   ⛔H9 를 「여러 줄도 된다」로 넓히지 마라 — 지금은 거짓이다. 전제 `lines === 1` 이 그걸 막는다.
  *
  * ⛔이 하네스로 «못 재는» 축: 실제 Electron 재기동·네이티브 메뉴.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/text-highlight-bar.dom.spec.js

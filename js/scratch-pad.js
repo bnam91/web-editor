@@ -1501,8 +1501,10 @@ async function initScratchPad(projectId, pageId) {
       const cut = [items[0]];
       _clearSelection();
       _deleteScratchItemsWithHistory(cut);            // ⌘Z 로 되살아난다(삭제와 같은 길)
-      window.showToast?.(items.length === 1 ? '✂️ 잘라냄 — Cmd+V 로 붙여넣기'
-                                            : `✂️ 첫 장만 잘라냄 (선택 ${items.length}장 / OS 클립보드가 1장뿐 — 나머지는 그대로 둔다)`);
+      /* ★단축키는 ⌘ 로 적는다 — 레포 센서스 2026-10-06: 사용자에게 보이는 자리 ⌘ 549 : Cmd+ 36(토스트만 보면 5:2).
+         ★N장 알림은 «우리 말»(OS 클립보드)을 빼고 ★사용자가 아는 말로만 — 지디 2026-10-06. */
+      window.showToast?.(items.length === 1 ? '✂️ 잘라냄 — ⌘V 로 붙여넣기'
+                                            : `✂️ 첫 장만 잘라냈습니다 — 나머지 ${items.length - 1}장은 그대로입니다`);
     })();
     return true;
   };

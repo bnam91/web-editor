@@ -136,7 +136,7 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <span class="prop-label">형광펜</span>
         ${hlColorHtml}
       </div>
-      <div class="prop-row" id="${p}-hl-h-row" style="display:${isHighlight?'flex':'none'}" title="글자 상자 높이 대비 획의 높이(%). 100 = 글자를 다 덮는다 · 40 = 아래쪽 40%만 그어진다">
+      <div class="prop-row" id="${p}-hl-h-row" style="display:${isHighlight?'flex':'none'}" title="글자 상자 높이 대비 획의 높이(%). 100 = 글자를 다 덮음 · 40 = 아래쪽 40%만">
         <span class="prop-label">바 높이</span>
         <input type="range" class="prop-slider" id="${p}-hl-h" min="5" max="100" step="1" value="${hlH}">
         <input type="number" class="prop-number" id="${p}-hl-h-num" min="5" max="100" value="${hlH}">

@@ -216,7 +216,7 @@ async function showSectionProperties(sec) {
            켜져 «있을 때만» 보인다(끔 상태에선 정할 것이 없다).
          ★어휘는 페이지 패널에서 걷어온 그 라디오 그대로 쓴다 — 새 클래스 0.
          ⛔「내보내기엔 무늬가 안 나간다」는 톤과 무관하게 그대로다(걷는 판정이 «색»이 아니라 «서명»이라서). -->
-    <div class="prop-row" style="margin-top:4px;" title="이 섹션의 체크 배경만 어둡게 합니다 — 흰 글자가 체커 위에서 보이게. 섹션 «안»의 빈 카드·도형 체커는 그대로입니다. 내보내기에는 체커가 나가지 않습니다.">
+    <div class="prop-row" style="margin-top:4px;" title="이 섹션의 체크 배경만 어둡게 합니다 — 흰 글자가 체커 위에서 보이게. 이 섹션 안의 빈 카드·도형 체커는 그대로입니다. 내보내기에는 체커가 나가지 않습니다.">
       <span class="prop-label prop-label--auto">체커 어둡게</span>
       <div class="prop-radio-group">
         <label class="prop-radio"><input type="radio" name="sec-checker-tone" id="sec-checker-tone-on" value="dark" ${_bgTone === 'dark' ? 'checked' : ''}> 켬</label>
