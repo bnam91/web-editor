@@ -3134,7 +3134,13 @@ document.addEventListener('keydown', e => {
  *   null = 쓸 줄이 없다(호출부는 false 로 흘려 «블럭 이동»이 되게 둔다).
  *   nested:true = 중첩 «안»의 줄이다 — 호출부는 «소비만» 하고 아무것도 옮기지 않는다. */
 function _gridActiveOuterLine() {
-  const gridSel = document.querySelector('.grid-block.selected');
+  /* ★⑵-B②(2026-10-06) — ★버블·챗도 묻는다. 예전엔 이 첫 줄이 `.grid-block.selected` ★하나였고,
+   *   그래서 ⌫·T·G·Esc 는 버블·챗에 먹는데(line-host.js) ★«옮기기»만 꺼져 있었다
+   *   — 현빈 「이게 똑같지 않니 구조가?」의 그 자리다.
+   * ★아래 게이트 셋(단독선택 → 중첩(np) 막기 → 바깥 줄)은 ★한 글자도 안 바꿨다 — 블럭을 «찾는» 자리만 넓혔다.
+   * ⛔버블·챗에는 중첩(np)이 ★없다 — 그 가지는 그리드에서만 선다(값이 안 들어온다). */
+  const gridSel = document.querySelector('.grid-block.selected')
+    || document.querySelector('.speech-bubble-block.selected, .chat-block.selected');
   let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
   /* ★단독 선택일 때만 — ⌘클릭 다중선택·붙여넣기 뒤 [원본(활성줄)+사본] 은 사용자가 «블럭들»을
      보고 있다. 거기서 첫 그리드의 활성줄만 보고 줄을 옮기면 블럭은 그대로인데 줄만 조용히 바뀐다
@@ -3167,7 +3173,20 @@ function moveGridLineFromCanvas({ dir } = {}) {
   /* ★옮기는 «한 벌»은 prop-grid.js grdMoveLine — 줄을 넣는/지우는 길과 같은 집이다.
      EDGE(칸의 끝)·INVALID(그 사이 데이터가 바뀜)는 조용히 소비만 한다. 여기서 false 를
      돌려주면 「맨 위 줄에서 ⌘↑」가 갑자기 «블럭 이동»으로 바뀐다 — 바로 그 혼동을 막는다. */
-  window.grdMoveLine?.(got.block, { r: got.addr.r, c: got.addr.c }, got.addr.li, dir);
+  /* ★⑵-B② — 그리드는 종전대로 grdMoveLine(EDGE·INVALID 를 조용히 소비). 버블·챗은 ★주인의 moveLine 으로.
+     ⛔두 벌이 아니다 — grdMoveLine 은 「끝인가」를 보고 grdMoveLineWithin 을 부르는 ★그리드 전용 문이고,
+       버블·챗은 그 안쪽 셈(끝 판정 ＋ 재배치)을 주인이 든다. ★한쪽을 다른 쪽으로 밀면 그리드 34검사가 빨개진다. */
+  if (got.block.classList.contains('grid-block')) {
+    window.grdMoveLine?.(got.block, { r: got.addr.r, c: got.addr.c }, got.addr.li, dir);
+    return true;
+  }
+  const H = window.lnHostFor?.(got.block);
+  const lines = H?.getLines?.(got.addr.r) || [];
+  const to = Number(got.addr.li) + (dir < 0 ? -1 : 1);
+  /* ★칸(행)의 끝은 ★조용히 소진한다 — 그리드 EDGE 와 ★같은 뜻이다(여기서 false 를 주면
+     「맨 위 줄에서 ⌘↑」가 갑자기 «블럭 이동»으로 바뀐다). */
+  if (to < 0 || to >= lines.length) return true;
+  H?.moveLine?.({ r: got.addr.r, c: 0 }, got.addr.li, { r: got.addr.r, c: 0 }, to);
   return true;
 }
 
@@ -3186,6 +3205,20 @@ function moveGridLineAcrossCells({ dir } = {}) {
      하면 사용자는 「어느 쪽이 되는 건가」를 새로 배워야 한다). */
   if (got.nested) {
     window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 옮길 수 없습니다 — 바깥 줄을 고르세요');
+    return true;
+  }
+  /* ★⑵-B②(2026-10-06) — ⌘←/→ 는 ★「옆 칸으로」다. 버블·챗에서 그 뜻이 갈린다:
+   *   ★버블 = ★해당 없다(행이 하나다) ⇒ ★조용히 소진한다. ⛔「실패」가 아니다 — ★SKIP 이다.
+   *   ★챗 = 「옆 ★메시지로」가 뜻이 선다. ⛔그런데 ★아직 못 한다 —
+   *     한 제스처가 ★두 문으로 나가야 하는데 `updateChatBlock` 에 ★`opts.noHistory` 가 ★없다(실측: 그 낱말 0건).
+   *     그리드는 `updateGridBlock` 이 그것을 보므로 grdMoveLineToCell 이 둘째 문을 끈다.
+   *     ⇒ 지금 두 문을 보내면 ★⌘Z 가 ★두 칸이 된다(한 제스처 = 이력 한 칸 규약 위반).
+   *     ⇒ ★모델 입구에 noHistory 를 더하는 일이 ★선행이다(별건). ★그때까지 ★사람에게 말한다.
+   *   ⛔「조용히 아무 일 없음」으로 두지 않는다 — 챗에서는 ★뜻이 서는 손짓이라 사람이 기다린다. */
+  if (!got.block.classList.contains('grid-block')) {
+    if (got.block.classList.contains('chat-block')) {
+      window.showToast?.('⚠️ 줄을 «옆 메시지»로 옮기는 것은 아직 안 됩니다 — 같은 메시지 안에서는 ⌘↑/↓ 로 됩니다');
+    }
     return true;
   }
   const step = dir < 0 ? -1 : 1;

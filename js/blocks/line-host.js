@@ -168,6 +168,54 @@ function _baseHost(block, o) {
       const s = grdLineUi.summaryText(addr.r, addr.c, addr.li, line, host);
       el.textContent = s; el.title = s;
     },
+
+    /* ══ ★줄 «옮기기» 다섯 칸 (BT3, 2026-10-06 ⑵-B② · 현빈 「그리드블럭에 줄추가하는 것 처럼 핸들이 있어서
+     *    드래그로 옮길 수도 있고 그런데 이게 똑같지 않니 구조가?」) ══════════════════════════════
+     * ★계약은 그리드 주인(prop-grid.js `_grdGridHost`)과 ★같다 — 끄는 손잡이(overlay-handles.js)가
+     *   ★이 다섯 칸으로만 묻는다(⑵-B① 에서 그렇게 바꿨다). ⛔손잡이를 복사해 새로 만들지 않았다.
+     * ★「행」이 블럭마다 다른 것이 이 계약의 전부다 — 그리드 = 칸{r,c} · 버블 = 하나{r:0} · 챗 = 메시지{r:idx}.
+     * ★버블·챗 줄은 그리드 주소(data-r/c/line)를 ★고의로 안 찍는다(이 파일 머리말 · 시험 T7) ⇒ `.ln-row` 로 찾는다. */
+    rowEl: (addr) => {
+      if (!addr || addr.li === null || addr.li === undefined || addr.np) return null;
+      return block.querySelector(o.rowSel(addr.r, addr.li));
+    },
+    linesBox: (r) => o.boxOf(r),
+    /** 그 그릇의 줄들 — 직속 `.ln-row` 만. ★그리드의 `:scope > [data-line]` 과 같은 뜻이다. */
+    rowsIn: (boxEl) => (boxEl ? [...boxEl.querySelectorAll(`:scope > .${LN_ROW_CLASS}`)] : []),
+    rowAt: (el) => o.rowAt(el),
+    /** 옮기기 — ★같은 행만. 다른 행은 ⛔아직 못 한다(까닭은 아래). */
+    moveLine: (from, fromLi, to, toLi) => {
+      if (to.r !== from.r) {
+        /* ⛔★«다른 행»(챗의 옆 메시지)은 아직 못 옮긴다 — ★한 제스처가 ★두 문으로 나가야 하는데
+         *   `updateChatBlock`·`updateSpeechBubbleBlock` 에 ★`opts.noHistory` 가 ★없다(실측: 그 낱말 0건).
+         *   그리드는 `updateGridBlock` 이 그것을 보므로(grid-block.js) `grdMoveLineToCell` 이 둘째 문을 끌 수 있다.
+         *   ⇒ 지금 그냥 두 문을 보내면 ★⌘Z 가 ★두 칸이 된다(한 제스처 = 이력 한 칸이라는 이 레포 규약 위반).
+         * ★그래서 «모델 입구에 noHistory 를 더하는 일»이 ★선행이다 — 별건으로 올렸다(지디 보고).
+         * ⛔조용히 아무 일도 안 하지 않는다 — 사람에게 말한다(「눌리는데 아무 일도 안 난다」 금지). */
+        window.showToast?.('⚠️ 줄을 «다른 메시지»로 옮기는 것은 아직 안 됩니다 — 같은 메시지 안에서는 됩니다');
+        return { ok: false, code: 'CROSS_ROW_UNSUPPORTED' };
+      }
+      const lines = o.getLines(from.r);
+      if (!Array.isArray(lines)) return { ok: false, code: 'INVALID' };
+      const f = Number(fromLi), t = Number(toLi);
+      if (!Number.isInteger(f) || f < 0 || f >= lines.length) return { ok: false, code: 'INVALID' };
+      if (!Number.isInteger(t) || t < 0 || t >= lines.length) return { ok: false, code: 'INVALID' };
+      if (f === t) return { ok: false, code: 'SAME_SPOT' };   // ★끌다 되돌리는 것은 흔한 일이다(그리드 D6 와 같은 뜻)
+      /* ★줄 «객체를 그대로» 옮긴다 — 꾸밈은 그 객체에 살아 있으므로 자동으로 따라온다.
+         ⛔필드를 골라 베끼지 마라(grdMoveLineToCell 이 같은 말을 적어 뒀다). */
+      const next = lines.slice();
+      next.splice(t, 0, next.splice(f, 1)[0]);
+      /* ★활성 줄을 «도착 자리»로 먼저 옮긴다 — commitLines 가 패널을 다시 그리므로, 안 옮기면
+         그 한 번이 «옛 자리»를 가리킨다(grdMoveLineToCell 의 그 순서 규약). */
+      const prev = grdGetActiveLine(block);
+      grdSetActiveLine(block, { r: from.r, c: 0, li: t });
+      const res = host.commitLines(from.r, 0, next);
+      if (res && res.ok === false) {
+        grdSetActiveLine(block, prev);
+        window.showToast?.('⚠️ 줄 옮기기 실패 — ' + (res.message || res.code));
+      }
+      return res;
+    },
   };
   return host;
 }
@@ -183,6 +231,14 @@ export function lnBubbleHost(block) {
     commit: (r, lines, opts) => window.updateSpeechBubbleBlock?.(block.id, { lines }, opts),
     write: (r, lines) => { block.dataset.lines = JSON.stringify(lines); lnRenderBubble(block); },
     show: () => window.showTextProperties?.(block),
+    /* ★버블은 «행이 하나»다(r=0) ⇒ 「다른 행으로」가 ★해당 없다(⌘←/→ 는 SKIP — ⛔FAIL 이 아니다). */
+    rowSel: (r, li) => `.${LN_ROW_CLASS}[data-ln="${li}"]`,
+    boxOf: () => block.querySelector('.tb-bubble'),
+    rowAt: (el) => {
+      if (!el || !el.closest || !block.contains(el)) return null;
+      const box = block.querySelector('.tb-bubble');
+      return box ? { r: 0, c: 0, box } : null;
+    },
   });
 }
 
@@ -204,6 +260,31 @@ export function lnChatHost(block) {
       window.renderChatBlock?.(block);
     },
     show: () => window.showChatProperties?.(block),
+    /* ★챗은 «행 = 메시지»다. 줄 감싸개가 `data-ln-m` 으로 메시지 번호를 든다(lnLinesHtml). */
+    rowSel: (r, li) => `.${LN_ROW_CLASS}[data-ln-m="${r}"][data-ln="${li}"]`,
+    boxOf: (r) => {
+      /* 그 메시지의 말풍선 상자 — 줄들이 그 ★직속 자식이다(chat-block.js wrapHtml). */
+      const row = block.querySelector(`.${LN_ROW_CLASS}[data-ln-m="${r}"]`);
+      return row ? row.parentElement : null;
+    },
+    rowAt: (el) => {
+      if (!el || !el.closest || !block.contains(el)) return null;
+      /* ★줄 위면 그 줄의 감싸개에서 메시지 번호를 읽는다 — ⛔.chb-msg 의 순서로 세지 마라
+         (프로필·이름이 끼면 자식 index 와 메시지 index 가 갈린다). */
+      const row = el.closest('.' + LN_ROW_CLASS);
+      if (row && row.dataset.lnM !== undefined) {
+        const r = Number(row.dataset.lnM);
+        return Number.isInteger(r) ? { r, c: 0, box: row.parentElement } : null;
+      }
+      /* ★줄이 아직 없는 메시지 위면 그 본문에서 번호를 읽는다(lnClickAddr 와 ★같은 길). */
+      const msg = el.closest('.chb-msg');
+      const bt = msg && msg.querySelector('.chb-btext[data-msg-idx]');
+      if (bt && block.contains(bt)) {
+        const r = Number(bt.dataset.msgIdx);
+        return Number.isInteger(r) ? { r, c: 0, box: bt.parentElement } : null;
+      }
+      return null;
+    },
   });
 }
 
@@ -278,6 +359,10 @@ function _mountLineUi(block, host, addr, { synthetic = false } = {}) {
   if (cur && cur.li !== null) grdLineUi.wireLineSection(block, cur, host);
   if (hit) grdLineUi.wireTypo(block, cur, host);
   if (!synthetic) lnMark(block, cur);
+  /* ★⑵-B② — 줄을 고르면 ★끄는 손잡이도 같이 뜬다(그리드는 prop-grid.js 가 같은 자리에서 부른다).
+     ⛔synthetic(패널이 세운 기본 주소)에는 ★안 띄운다 — 사람이 고른 줄이 아니다(⑵-A 의 그 가름).
+     ★걷는 자리는 ★이미 범용이다 — editor.js deselectAll 의 hideGridLineGrip. */
+  if (!synthetic && cur && cur.li !== null) window.showGridLineGrip?.(block);
 }
 
 /** D6 — 줄 모드 버블은 블럭 단위 글자 절(Type·Typography·Fill·정렬)을 숨긴다: 줄마다 인라인 값을 찍어 «안 먹는다».
