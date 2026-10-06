@@ -73,8 +73,10 @@ test('U2 ⌘Z 한 걸음 — row[stack]>에셋', async ({ page }) => {
   await page.keyboard.press('Meta+z'); await page.waitForTimeout(300);
   expect((await pos(page)).left).toBeCloseTo(before.left, 0);
 });
-test('S1 저장·다시 열기 뒤에도 가운데 (row>에셋 · 직계 text-frame)', async ({ page }) => {
-  for (const key of ['K1 row[stack]>에셋200', 'K2 직계 text-frame', 'K4 row(레이아웃 미지정·가로)>에셋200']) {
+/* ★S1 을 종류마다 한 시험으로 쪼갬(2026-10-06 · 지디 release-096-ci-fix · KR2 해소) — 옛 한 시험이 «앱 부팅 6 회»(3 종류 × [setup 의 bootApp ＋ 다시 열기 bootApp])를
+ *   한 30s 예산에 넣어 CI 맥에서 넘쳤다(로컬 14.2s · CI 18.7s · CI ≥30.3s). 이제 시험마다 부팅 2 회. 단언·대기·timeout 불변. */
+for (const key of ['K1 row[stack]>에셋200', 'K2 직계 text-frame', 'K4 row(레이아웃 미지정·가로)>에셋200']) {
+  test(`S1 저장·다시 열기 뒤에도 가운데 (row>에셋 · 직계 text-frame) — ${key}`, async ({ page }) => {
     await setup(page, KINDS[key]);
     await press(page, 'ss-align-hcenter');
     const snap = await page.evaluate(() => window.serializeProject());
@@ -83,8 +85,8 @@ test('S1 저장·다시 열기 뒤에도 가운데 (row>에셋 · 직계 text-fr
     await page.waitForTimeout(300);
     await page.evaluate(() => { window.__ss = document.querySelector('#canvas .frame-block[data-full-width]').id; });
     expect(Math.abs((await pos(page)).centerDiff), key).toBeLessThanOrEqual(1);
-  }
-});
+  });
+}
 test('R1 폭에 «여유 없는» 자식(row>꽉 찬 에셋)은 정렬해도 안 움직이고 안 깨진다', async ({ page }) => {
   await setup(page, `<div class="row" data-layout="stack"><div class="asset-block" id="k" style="width:100%;height:60px;background:#ccc"></div></div>`);
   const a = await pos(page);

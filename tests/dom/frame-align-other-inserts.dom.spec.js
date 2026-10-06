@@ -73,9 +73,9 @@ async function expectFollows(page, tag, btn = 'ss-align-right') {
 test('N1 [새 것] 붙여넣기 — 밖의 Object 를 «오른쪽» 프레임 안(드릴)에 ⌘V → 오른쪽', async ({ page }) => {
   const errs = await setup(page);
   await align(page, 'ss-align-right');
-  const s = await page.evaluate(() => { const e = document.getElementById('SRC'); e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; });
+  const s = await page.evaluate(() => { const e = document.getElementById('SRC'); e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); /* ★CI(10-06 v0.9.6 맥 러너)에서 «가운데 한 점»이 FR 을 맞혔다 — 좌표를 «정체»로 고른다: SRC 상자를 훑어 elementFromPoint === SRC 인 점(FR 고르기 :35 와 같은 꼴) */ for (let y = Math.round(r.top + r.height / 2), d = 0; d < r.height / 2; d += 3) for (const yy of [y - d, y + d]) for (const x of [Math.round(r.left + r.width / 2), Math.round(r.left + 8), Math.round(r.right - 8)]) if (document.elementFromPoint(x, yy) === e) return [x, yy]; return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2), `SRC 에 맞는 점 없음 · 상자 ${Math.round(r.width)}×${Math.round(r.height)} @(${Math.round(r.left)},${Math.round(r.top)})`]; });
   await page.evaluate(() => window.deselectAll?.());
-  await clickAt(page, s[0], s[1], { sel: '#SRC' }, { label: '원본 고르기' }); await page.waitForTimeout(250);
+  await clickAt(page, s[0], s[1], { sel: '#SRC' }, { label: '원본 고르기' + (s[2] ? ' · ' + s[2] : '') }); await page.waitForTimeout(250);
   await page.keyboard.press('Meta+c'); await page.waitForTimeout(250);
   await drillIn(page); await markKnown(page);
   await page.keyboard.press('Meta+v'); await page.waitForTimeout(500);
@@ -138,9 +138,9 @@ test('N2 [지킴] ⌘D — 프레임 안(이미 정렬된) 자식 복제는 다�
 test('N0 [지킴] 정렬을 «안 준» 프레임에 붙여넣기 — 종전대로 가운데', async ({ page }) => {
   const errs = await setup(page);
   expect(await page.evaluate(() => document.getElementById('FR').dataset.alignItems ?? null), '[전제] 정렬 값 없음').toBe(null);
-  const s = await page.evaluate(() => { const e = document.getElementById('SRC'); e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; });
+  const s = await page.evaluate(() => { const e = document.getElementById('SRC'); e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); /* ★CI(10-06 v0.9.6 맥 러너)에서 «가운데 한 점»이 FR 을 맞혔다 — 좌표를 «정체»로 고른다: SRC 상자를 훑어 elementFromPoint === SRC 인 점(FR 고르기 :35 와 같은 꼴) */ for (let y = Math.round(r.top + r.height / 2), d = 0; d < r.height / 2; d += 3) for (const yy of [y - d, y + d]) for (const x of [Math.round(r.left + r.width / 2), Math.round(r.left + 8), Math.round(r.right - 8)]) if (document.elementFromPoint(x, yy) === e) return [x, yy]; return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2), `SRC 에 맞는 점 없음 · 상자 ${Math.round(r.width)}×${Math.round(r.height)} @(${Math.round(r.left)},${Math.round(r.top)})`]; });
   await page.evaluate(() => window.deselectAll?.());
-  await clickAt(page, s[0], s[1], { sel: '#SRC' }, { label: '원본 고르기' }); await page.waitForTimeout(250);
+  await clickAt(page, s[0], s[1], { sel: '#SRC' }, { label: '원본 고르기' + (s[2] ? ' · ' + s[2] : '') }); await page.waitForTimeout(250);
   await page.keyboard.press('Meta+c'); await page.waitForTimeout(250);
   await drillIn(page); await markKnown(page);
   await page.keyboard.press('Meta+v'); await page.waitForTimeout(500);
