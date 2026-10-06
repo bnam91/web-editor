@@ -202,8 +202,11 @@ test('T2 ★--gdt-pad-l·--gdt-pad-r 는 «그 섹션의 inner» 에 박힌다 (
       ★기존 M2(그리드)도 계속 초록이어야 한다 — 이 검사는 그 옆에 «더한다».
    ───────────────────────────────────────────────────────────── */
 test('T3 ★내보내기 직전 gdt-pad-on 도 끄고 finally 로 되돌린다', () => {
+  /* ★L1(2026-10-04) — 가드 몸은 capture-safety.js withGuideOff «한 벌»로 옮겼다(PNG exportSection · 썸네일 captureThumbnail 이 같이 부른다).
+     닻을 그 함수로 옮기고, exportSection 이 그 함수를 «부르는지»를 따로 본다. */
   const exp = codeOnly(EXP);
-  const body = bodyOf(exp, 'async function exportSection(', 'T3');
+  assert.match(bodyOf(exp, 'async function exportSection(', 'T3'), /withGuideOff\(/, '★exportSection 이 가드(withGuideOff)를 안 부른다');
+  const body = bodyOf(codeOnly(readSrc(ROOT, 'js', 'io', 'capture-safety.js')), 'export async function withGuideOff(', 'T3');
 
   assert.match(body, /classList\.remove\('gdt-pad-on'\)/,
     '★내보내기 직전에 패딩 힌트를 끄는 코드가 없다 — 띠가 내보낸 이미지에 찍힌다');

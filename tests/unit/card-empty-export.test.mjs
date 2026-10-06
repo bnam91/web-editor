@@ -72,11 +72,16 @@ function allJsFiles(dir = JS_DIR, out = []) {
   return out;
 }
 
+/* ★S1 선행(2026-10-04) — 체커 값이 CSS 토큰이 되면서 JS 인라인 자리는 문자열 리터럴 대신 js/checker-tokens.js 의
+   checkerBg()/checkerBgBigColors() 를 «부른다». 담는 이름도 `const X = '…conic…'` 에서 `const X = () => checkerBg…` 로 바뀌었다.
+   이 정규식이 둘 다 잡지 않으면 예외 표(아래)의 인라인 자리가 «안 보여» 검사가 조용히 느슨해진다(그 건수 단언이 그걸 잡았다). */
+const HOLDER_RE = /const\s+([A-Za-z0-9_$]+)\s*=\s*(?:\(\)\s*=>\s*checkerBg\w*\(|'[^']*repeating-conic-gradient)/g;
+
 /** 소스 한 벌에서 «인라인으로 체커를 박는 줄»을 찾는다(상수 뒤에 숨어도 잡는다). */
 function inlineCheckerLines(src) {
-  const holders = [...src.matchAll(/const\s+([A-Za-z0-9_$]+)\s*=\s*'[^']*repeating-conic-gradient/g)]
+  const holders = [...src.matchAll(HOLDER_RE)]
     .map(m => m[1]);
-  const rhs = ['repeating-conic-gradient', ...holders];
+  const rhs = ['repeating-conic-gradient', 'checkerBg', ...holders];
   return src.split('\n')
     .map((l, i) => [i + 1, l])
     .filter(([, l]) => /\.style\.(background|backgroundImage|cssText)\s*=/.test(l)
@@ -90,9 +95,9 @@ function inlineCheckerLines(src) {
    ⇒ 리터럴이 아니라 «체커를 담은 이름»까지 같이 본다. 값이 상수 뒤에 숨어도 잡힌다. */
 test('★조건① — 빈 카드 이미지 체커를 «인라인 style» 로 박지 않는다(직렬화돼 결과물에 실린다)', () => {
   // 이 파일 안에서 체커 문자열을 담은 const 이름을 «소스에서» 찾아낸다(이름을 박지 않는다).
-  const holders = [...CVB.matchAll(/const\s+([A-Za-z0-9_$]+)\s*=\s*'[^']*repeating-conic-gradient/g)]
+  const holders = [...CVB.matchAll(HOLDER_RE)]
     .map(m => m[1]);
-  const rhs = ['repeating-conic-gradient', ...holders];
+  const rhs = ['repeating-conic-gradient', 'checkerBg', ...holders];
   const bad = CVB.split('\n')
     .map((l, i) => [i + 1, l])
     .filter(([, l]) => /\.style\.(background|backgroundImage|cssText)\s*=/.test(l)
@@ -107,9 +112,9 @@ test('★자기검사 — 위 검사가 «상수 뒤에 숨은» 인라인도 �
     "const _X_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';",
     '  el.style.background = _X_BG;',
   ].join('\n');
-  const holders = [...FAKE.matchAll(/const\s+([A-Za-z0-9_$]+)\s*=\s*'[^']*repeating-conic-gradient/g)]
+  const holders = [...FAKE.matchAll(HOLDER_RE)]
     .map(m => m[1]);
-  const rhs = ['repeating-conic-gradient', ...holders];
+  const rhs = ['repeating-conic-gradient', 'checkerBg', ...holders];
   const caught = FAKE.split('\n').filter(l =>
     /\.style\.(background|backgroundImage|cssText)\s*=/.test(l) && rhs.some(r => l.includes(r)));
   assert.equal(caught.length, 1,
@@ -193,9 +198,10 @@ test('★표 이미지 칸 체커는 CSS 에 «있다» — 옮기기만 하고 
   const i = CSS.indexOf('.table-block .tbl-img-cell {');
   assert.ok(i !== -1, '.tbl-img-cell 규칙이 없다 — 빈 이미지 칸이 아예 안 그려진다');
   const body = CSS.slice(i, CSS.indexOf('}', i));
-  assert.match(body, /repeating-conic-gradient\(#e0e0e0 0% 25%, transparent 0% 50%\)/,
-    '표 체커 «값»이 옮기는 중에 달라졌다 — 자리만 바꾸는 수정이라 화면 그림은 같아야 한다');
-  assert.match(body, /background-size:\s*16px 16px/, '체커 크기가 빠졌다');
+  /* S1 선행 — 값은 --goya-checker-clear-a/b(#e0e0e0 / transparent)·small-size(16px) 토큰이다(값 동일성은 tests/dom/checker-pixel-identity 가 «픽셀»로 잠근다). */
+  assert.match(body, /repeating-conic-gradient\(var\(--goya-checker-clear-a\) 0% 25%, var\(--goya-checker-clear-b\) 0% 50%\)/,
+    '표 체커가 «투명 쌍» 토큰을 안 읽는다');
+  assert.match(body, /background-size:\s*var\(--goya-checker-small-size\)/, '체커 크기가 빠졌다');
 });
 
 test('★자기검사(전수) — 고치기 «전» 배너 소스를 넣으면 이 검사가 빨강이어야 한다(음성대조)', () => {
@@ -213,8 +219,8 @@ test('★체커는 CSS 에 «있다» — 배너 빈 이미지 칸도 값이 안
   const i = CSS.indexOf('.banner02-block .bn2-img-empty {');
   assert.ok(i !== -1, '.bn2-img-empty 규칙이 없다 — 체커가 아예 안 그려진다');
   const body = CSS.slice(i, CSS.indexOf('}', i));
-  assert.match(body, /repeating-conic-gradient\(#e3e3e3 0% 25%, #efefef 0% 50%\)/,
-    '배너 체커 «값»이 옮기는 중에 달라졌다 — 자리만 바꾸는 수정이라 화면 그림은 같아야 한다');
+  assert.match(body, /repeating-conic-gradient\(var\(--goya-checker-small-a\) 0% 25%, var\(--goya-checker-small-b\) 0% 50%\)/,
+    '배너 체커가 «작은 쌍» 토큰을 안 읽는다(값 동일성은 checker-pixel-identity 가 픽셀로 잠근다)');
 });
 
 test('★export 는 배너 체커도 «편집 전용»으로 다룬다', () => {
@@ -276,7 +282,7 @@ const TEMPLATE_CHECKER_ALLOW = {
 function templateCheckerLines(src) {
   return src.split('\n')
     .map((l, i) => [i + 1, l])
-    .filter(([, l]) => /style\s*=\s*(["'])[^"']*repeating-conic-gradient/.test(l))
+    .filter(([, l]) => /style\s*=\s*(["'])[^"']*(?:repeating-conic-gradient|checkerBg)/.test(l))
     .map(([n, l]) => `${n}: ${l.trim().slice(0, 160)}`);
 }
 

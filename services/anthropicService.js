@@ -33,11 +33,19 @@ const STYLE_HINTS = {
   'table-cell':   '표 셀 내용. 짧게(2~30자).',
   'graph-label':  '그래프 항목 이름. 짧게(2~10자).',
   'graph-value':  '그래프 항목 수치. 0~100 범위 정수 권장. 카테고리별 상대 크기를 반영해서 다양하게.',
+  // 텍스트 블록 변형 3종(2026-10-03 AI 묶음 A) — 렌더러 정본 js/ai-text-slots.js 의 style(tb-bubble·tb-bullet·tb-liner)이 여기로 온다.
+  // ★세 서비스(gemini·openai·anthropic) 사본이 같아야 한다 — tests/unit/ai-text-slots-ssot.test.mjs 가 센다.
+  bubble:       '말풍선 본문. 자연스러운 대화체 1~2문장(10~40자).',
+  bullet:       '글머리 목록. 항목 2~4개를 줄바꿈(\\n)으로 구분, 항목당 짧게(6~20자). 글머리 기호(•, -)는 붙이지 말 것.',
+  liner:        '곡선 텍스트. 한 줄로 아주 짧게(4~14자). 줄바꿈 금지.',
 };
 
 function _detectStyle(b) {
   const cls = (b.style || '').toLowerCase();
   if (STYLE_HINTS[cls]) return cls;
+  if (cls.includes('bullet')) return 'bullet';
+  if (cls.includes('bubble')) return 'bubble';
+  if (cls.includes('liner')) return 'liner';
   if (cls.includes('h1')) return 'h1';
   if (cls.includes('h2')) return 'h2';
   if (cls.includes('label')) return 'label';

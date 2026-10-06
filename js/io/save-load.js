@@ -6,8 +6,9 @@ import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제는 «켠 쪽»이 닫는다
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 import { applyFrameTransform } from '../frame-geometry.js';
+import { checkerBg } from '../checker-tokens.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, withGuideOff } from './capture-safety.js';
 import { prepareGoyaAssetsForClone } from './goya-asset-inline.js';   /* 썸네일 클론에서 goya-asset 을 data: 로 (T-149) */
 import { ejectShapeFrameIntruders } from '../shape-frame.js';
 import { warnPendingVideoLossIf } from './pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원 */
@@ -78,6 +79,9 @@ let openTabs = [];
 
 /* ── 썸네일 생성 (첫 섹션 캡처 → base64, 200px 너비 축소) ── */
 async function captureThumbnail() {
+  /* ★E157 공용 대기(whenGridRatiosSettled · grid-block.js) — 칸 배경 비율이 서고 그 그리드가 다시 그려진 «뒤»에 찍는다(틀린 행 높이가 산출물로 굳지 않게).
+     반환 none(기다릴 것 없음) / settled / cap(상한 — 함수가 수·주소를 찍음). ⛔그 결과로 막지 않는다 — 찍기는 그대로 간다. */
+  await window.whenGridRatiosSettled?.();
   try {
     const firstSec = canvasEl?.querySelector('.section-block');
     if (!firstSec || typeof html2canvas === 'undefined') return null;
@@ -124,7 +128,13 @@ async function captureThumbnail() {
     } catch (e) { console.warn('[thumb] goya-asset 클론 준비 실패:', e); }
 
     const bgColor = firstSec.style.background || firstSec.style.backgroundColor || '#ffffff';
-    const canvas = await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false });
+    /* ★L1(2026-10-04) — 편집 보조(그리드 가이드·패딩 비주얼)는 «캡처 동안» 끈다 — PNG(exportSection)와 «같은 함수» withGuideOff(capture-safety.js).
+       지금까지 썸네일에 안 샌 것은 html2canvas 가 반복 그라데이션을 못 그려서일 뿐이었다(tests/dom/l1-guide-align L1-X). */
+    /* ⚠️바로 아래 html2canvas 호출의 글자 꼴(await · 첫 인자 clone)을 지킨다 — tests/dom/thumb-goya-asset H4 가 그 글자를 «찍는 자리» 닻으로 쓴다(goya 풀기가 그 앞인지 본다).
+       ⛔이 주석에 그 닻 글자를 그대로 적지 마라 — H4 는 주석을 안 거르고 «첫» 자리를 닻으로 잡는다(닻이 주석에 걸리면 진짜 호출을 안 잰다).
+       ★꼴을 바꾸면 H4 가 «빨개진다»(전제 단언 + H5 음성대조가 있는 단단한 시험) — 다음 사람은 «왜 빨간지»를 모른다. 어색해 보여도 고치지 마라.
+       0.9.7: H4 가 재려는 것(「푸는 자리가 찍는 자리보다 앞인가」)을 «실행 시점»에 잰다 — 호출 순서를 기록해 html2canvas «전»에 불렸나를 런타임으로(명부 E75 · 2026-10-04 지디). */
+    const canvas = await withGuideOff(async () => await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false }));
     document.body.removeChild(clone);
 
     /* 200px 너비로 축소 — ★«빈 그림»이면 null 이다. 그럴듯한 6자를 돌려주지 않는다 (T-87).
@@ -492,6 +502,7 @@ async function switchPage(pageId) {
     rebindAll({ videoPendingSidecar: _pageVideoPendingSidecars.get(page.id) });
     refreshLazyObservation(); // 새 페이지의 section-block을 lazy 관찰 등록 (innerHTML 교체 후)
     applyPageSettings();
+    window.fitKeylessFreeFrameGridsOnOpen?.(canvasEl);   // E129 F3 — 페이지 전환도 «열기»다
     window.deselectAll();
     window.showPageProperties();
     window.buildLayerPanel(); // also calls buildFilePageSection
@@ -542,6 +553,7 @@ function deletePage(pageId) {
       // ★T-031 3차: next 페이지 자신의 sidecar만 쓴다(_pageVideoPendingSidecars Map, 위 switchPage와 같은 이유).
       rebindAll({ videoPendingSidecar: _pageVideoPendingSidecars.get(next.id) });
       applyPageSettings();
+      window.fitKeylessFreeFrameGridsOnOpen?.(canvasEl);   // E129 F3 — 페이지 전환도 «열기»다
       window.deselectAll();
       window.showPageProperties();
     } finally { window.AutoSaveSuppress.end(_asTok); }
@@ -580,7 +592,9 @@ function getSerializedCanvas() {
    ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
    ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
 export const NON_CONTENT_UI_SELECTOR =
-  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy';
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy, .grd-add-btn';
+
+if (typeof window !== 'undefined') window.NON_CONTENT_UI_SELECTOR = NON_CONTENT_UI_SELECTOR;   // ★E148 — ⌘C 글자 뽑기(editor.js)가 «같은 목록»으로 UI 를 걷는다
 
 /** 이 mutation 이 «UI 장식»만 건드렸나 — 그렇다면 편집이 아니다. */
 function _isNonContentUiMutation(m) {
@@ -601,6 +615,49 @@ function serializeProject() {
     imageGallery: Array.isArray(state.imageGallery) ? state.imageGallery : [],
     assetsTree:   Array.isArray(state.assetsTree)   ? state.assetsTree   : [],
   });
+}
+
+/* ★B6 ㉡ 열 때 정리 (현빈 「좌측정렬인데 왼쪽으로 튀어나감」, 2026-10-03; 정렬 단추 쪽은 prop-asset.js applyAlign)
+ *  ㉡ = px 폭(전폭 calc 아님) 에셋이 «그 블럭이 든 섹션의 안쪽 좌우 패딩»보다 더 큰 음수 margin 을 갖는 것
+ *       — 풀블리드가 심은 음수마진이 «반쪽 세트»로 남아 섹션 가장자리보다 밖으로 나간 꼴.
+ *  판정식: |음수 margin| > 그 섹션 section-inner 의 padding(computed). ⛔60·72 같은 고정값을 박지 않는다.
+ *  ⛔㉠(|margin| == 패딩, 가장자리에 딱 붙음)은 손대지 않는다 — 사람이 일부러 둔 것일 수 있다.
+ *  ⛔㉢ 가운데 정렬도 안 건드린다(양쪽 마진이 상쇄돼 화면이 안 밀린다). 좌·우 정렬만 대상.
+ *  실측 ㉡ 8건: proj_1781053673152 · proj_1781053545182 · proj_1781451947664 · proj_1782274786302 ·
+ *    proj_1786077501267 의 ab_lns8z1r(sec_brhc463, -72 · 패딩 60) / proj_1783422689095 의 ab_38vkd83(sec_9y6vryg, -72 · 60) /
+ *    proj_1791003000001 · proj_1791003000002 의 ab_lns8z1r(태양 실측 사본). 모두 좌정렬.
+ *  ★히스토리 밖이다(⌘Z 불가): applyProjectData 의 자동저장 억제 구간 안이라 «저장본을 곧바로 바꾸지 않는다» —
+ *    화면(DOM)만 고치고, 사용자가 다음에 저장(편집 → 자동저장)할 때 그 DOM 이 저장본에 반영된다. 고치기만 하고 안 저장하면 파일은 옛 값.
+ *  폭·마진 «세트»는 window.applyAssetWidth 가 정본(prop-page.js). */
+function healAssetsBeyondSectionEdge(root) {
+  try {
+    root.querySelectorAll('.section-inner .asset-block').forEach(ab => {
+      const align = ab.dataset.align;
+      if (align !== 'left' && align !== 'right') return;
+      /* ★적대QA(0e) — 「실제로 든 상자」를 따라간다: 에셋 부모부터 .section-block 까지 «모든 조상»의 좌우 패딩을 합한다
+           (행 패딩·합친 섹션 상자(.section-merged-part)·섹션 개별 패딩/페이지 padX 가 다 들어간다).
+           합이 클수록 정리를 «덜» 한다(보수적) — ㉠(딱 붙음)·행 패딩 안의 음수마진을 ㉡ 로 오인하지 않는다.
+         ⛔띄운 에셋(오버레이·자유 프레임 안 absolute)은 left/top 이 기준이라 margin 이 뜻이 다르다 — 대상에서 뺀다. */
+      if (ab.dataset.overlay === 'true' || ab.parentElement?.closest('[data-free-layout]')) return;
+      const acs = getComputedStyle(ab);
+      if (acs.position === 'absolute' || acs.position === 'fixed') return;
+      const w = ab.style.width;
+      if (!/^\d+(\.\d+)?px$/.test(w)) return;
+      const sec = ab.closest('.section-block');
+      let padL = 0, padR = 0, contentW = 0;
+      for (let el = ab.parentElement; el && el !== sec; el = el.parentElement) {
+        const c = getComputedStyle(el);
+        padL += parseFloat(c.paddingLeft) || 0; padR += parseFloat(c.paddingRight) || 0;
+      }
+      const par = ab.parentElement;
+      contentW = par ? par.clientWidth - (parseFloat(getComputedStyle(par).paddingLeft) || 0) - (parseFloat(getComputedStyle(par).paddingRight) || 0) : 0;
+      if (contentW > 0 && parseFloat(w) > contentW + 0.5) return;   // 콘텐츠 폭을 넘는 폭은 건드리지 않는다
+      const negL = -(parseFloat(ab.style.marginLeft) || 0), negR = -(parseFloat(ab.style.marginRight) || 0);
+      if (!(negL > padL + 0.5 || negR > padR + 0.5)) return;        // ㉠(딱 붙음)·안쪽은 그대로
+      if (window.applyAssetWidth) window.applyAssetWidth(ab, parseFloat(w));
+      else { ab.style.marginLeft = ''; ab.style.marginRight = ''; }
+    });
+  } catch (_) {}
 }
 
 function applyProjectData(data) {
@@ -645,6 +702,8 @@ function applyProjectData(data) {
     initLazySections();       // 멱등 — 최초 1회만 IntersectionObserver 생성
     refreshLazyObservation(); // innerHTML 교체 후 새 section-block 관찰 등록
     applyPageSettings();
+    window.fitKeylessFreeFrameGridsOnOpen?.(canvasEl);   // E129 F3 — 키 없는 전폭 자유프레임 그리드(«padX 적용 뒤» — grid-block.js 머리말)
+    healAssetsBeyondSectionEdge(canvasEl);   // B6 ㉡ — «페이지 padX 가 적용된 뒤»(computed 를 읽으므로) 열 때 정리
     window.deselectAll?.(); // DBG-10: 브랜치 전환 시 이전 선택 상태 클리어
     window._ckItems    = Array.isArray(data.checklistItems)    ? data.checklistItems    : [];
     window._ckSections = Array.isArray(data.checklistSections) ? data.checklistSections : [];
@@ -1354,6 +1413,9 @@ function rebindAll(opts = {}) {
     if (b.classList.contains('modal-block')) window.renderModalBlock?.(b);
     // chat-block: 저장본 innerHTML은 정적이라 dblclick 편집 핸들러가 없음 → 재렌더로 위임 바인딩
     if (b.classList.contains('chat-block')) window.renderChatBlock?.(b);
+    /* ★BT2 말풍선 «줄» — dataset.lines 가 진실(grid/innercard 와 같은 규약). ⛔속성이 «있을 때만» 부른다:
+       옛 말풍선(줄 없음)은 이 줄을 «안 지난다» = 저장된 DOM 그대로(tests/dom/bt2-safety T1b, 설계 조건 ㈎). */
+    if (b.classList.contains('speech-bubble-block') && b.dataset.lines !== undefined) window.lnRenderBubble?.(b);
     // banner02/comparison: scale-to-fit ResizeObserver + dblclick 편집 핸들러 재바인딩
     if (b.classList.contains('banner02-block')) window.renderBanner02?.(b);
     if (b.classList.contains('comparison-block')) window.renderComparison?.(b);
@@ -1518,7 +1580,7 @@ function rebindAll(opts = {}) {
     if (imgSrc) {
       const screen = block.querySelector('.mkp-screen');
       if (screen) {
-        screen.style.background = `url('${imgSrc}') top center / cover no-repeat, repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px`;
+        screen.style.background = `url('${imgSrc}') top center / cover no-repeat, ${checkerBg('big')}`;
         screen.innerHTML = '';
       }
     }
@@ -1627,6 +1689,34 @@ function safeLocalStorageSet(key, value) {
   return false;
 }
 
+/* ★E169(2026-10-06 lane-drag · 지디) 손상 복구 알림 글 — «백업이 있었나»가 아니라 «디스크 파일을 고쳤나»(_healed)로 고른다.
+   옛 글 하나(«…복구했습니다»)는 자가치유가 실패해 디스크에 성한 판이 없을 때도 떠서 사용자를 안심시켰다(실앱 ro 판).
+   ⛔«무엇을 하라» 조언은 안 붙인다(디스크 비우기가 유일한 길이라는 증거 없음). 시험: tests/unit/recovery-heal-toast-e169.test.js */
+function _recoveryToastText(proj) {
+  const base = proj._recovered === 'history' ? '히스토리'
+             : proj._recovered === 'pre-externalize' ? '변환 전 원본(오래된 상태일 수 있음)'
+             : '백업';
+  // ★E168·E170 ㉢ — 무엇이 남았는지 말한다: 그 판의 저장 시각(그 파일 mtime). 글자는 main _savedAtLabel 이 «한 곳»에서 만든다 — 여기는 싣기만.
+  //   꼴: «동사 뒤 괄호» — 카드 배지(pages/projects.html)와 같은 꼴. 없으면 괄호만 빠진다.
+  const when = proj._recoveredAtLabel ? ` (${proj._recoveredAtLabel} 저장분)` : '';
+  if (proj._healed !== false) return `⚠️ 프로젝트 파일이 손상되어 ${base}에서 복구했습니다${when} — 그 뒤 작업은 없을 수 있습니다`;
+  const code = proj._healError;
+  const why = code === 'ENOSPC' ? '공간 부족' : (code === 'EACCES' || code === 'EPERM' || code === 'EROFS') ? '권한' : (code || '알 수 없음');
+  return `⚠️ 프로젝트 파일이 손상되어 ${base}에서 열었습니다${when}. 디스크의 파일은 아직 고치지 못했습니다(${why}) — 이대로는 저장이 안 될 수 있습니다.`;
+}
+
+/* ★E170(2026-10-06 lane-drag · 태양/지디 «한 곳») 프로젝트 «열기» 로드의 한 자리 — 부팅 로드 · 탭 첫 로드가 같이 부른다.
+   열기 입구 10 곳(카드 · 홈 최근 탭 · 설정 · 협업 수락 · MCP open_project · 탭 바 · 탭 닫기 뒤 · 「+」 최근 · 새 프로젝트)이 이 두 자리로 모인다.
+   옛 판: 부팅 로드만 복구 토스트 · 탭 첫 로드는 없음(말없는 복구). ⇒ 토스트(같은 글)와 표식 걷기를 여기 «한 번»만.
+   ⛔렌더러에서 electronAPI.loadProject 에 open:true 를 넘기는 «날» 호출을 새로 쓰지 마라 — tests/unit/open-load-notice-e170.test.js 가 «하나»로 잠근다. */
+async function loadProjectForOpen(id) {
+  const proj = await window.electronAPI.loadProject(id, { open: true });
+  if (proj && proj._recovered) window.showToast?.(_recoveryToastText(proj));
+  if (proj) { delete proj._recovered; delete proj._healed; delete proj._healError; delete proj._recoveredAt; delete proj._recoveredAtLabel; } // 마커는 메모리/저장에 남기지 않음
+  return proj;
+}
+window.loadProjectForOpen = loadProjectForOpen;
+
 let _autoSaveHideTimer = null;
 function _setAutosaveIndicator(state) {
   const el = document.getElementById('autosave-indicator');
@@ -1686,19 +1776,76 @@ window.__autoSaveDeferState = () => ({ deferred: _autoSaveDeferred, pending: _au
 // ⑵창 포커스를 잃으면(다른 앱으로 전환 등) 제스처가 끝난 것으로 본다 — 고착 방지.
 window.addEventListener('blur', () => resumeAutoSave());
 
+/* ★S1(2026-10-03, 현빈 승인 · 지디 «저장 대기 중에만»으로 좁힘) — 창이 오래 가려지면 Chromium 이 타이머를 분 단위로 묶어
+   자동저장이 10~30분+ 밀렸다(실측: 숨긴 지 10·20·30분 지점 모두 180초 안 저장 0회 · setTimeout(1500) 이 119초 뒤 발화).
+   처음엔 창 억제를 «상시» 껐다(4ba5c791) — 숨겨 둔 앱이 %CPU 평균 12.2(켬 0.06)를 상시 먹고, visibilityState 가 visible 로 남아
+   visibilitychange 의존 2곳(초대 배지·Option 키 초기화)이 죽었다. ⇒ «저장 대기 중에만» 메인에 억제를 풀어 달라고 한다.
+   ⛔되돌림은 반드시 — 이 렌더러 쪽은 모든 끝(성공·실패·건너뜀·예외)에서 false, 메인은 상한 타이머·창 파괴로 한 번 더 되돌린다. */
+let _bgHold = false;
+function _holdBackground(on) {
+  if (_bgHold === on) return;
+  _bgHold = on;
+  try { window.electronAPI?.setSavePending?.(on); } catch (_) {}
+}
+window._holdBackgroundForTest = () => _bgHold;   // 시험 전용 읽기(쓰기 없음)
+
+/* ⒡ 끌기 저장 (2026-10-05 lane-esweep · 데이터 손실 · 지디 승인 21:59)
+   증상(실앱 실측): 섹션 안 블럭을 끌어 옮기면 화면은 바뀌는데 파일은 그대로 — 4초·20초 뒤에도 무변,
+     창을 닫거나 다시 읽으면 옮김이 사라진다. 「상관없는 편집 하나를 하면 그때 같이 저장된다」. E132 도 같은 뿌리.
+   뿌리: dragstart 가 억제 창을 연다(section-drag.js _suppressDragSave · layer-panel-items.js 'layer-drag').
+     놓기의 DOM 변화는 창 «안»이라 아래 scheduleAutoSave 가 «기억 없이» 버렸고, dragend 는 창만 닫는다(AutoSaveSuppress.end 는 예약 안 함).
+     b828e3fa(2026-03-28)부터 · v0.5.0~v0.9.5. 옮긴 뒤 다시 저장을 거는 길은 셋뿐이었다(프레임 dragend · 섹션 drop · ⌘S).
+   고침: 억제 «중» 버려지는 편집이 «끌기 창만» 열려 있을 때 생긴 것이면 ⑴ 미저장 표시(_dirtySinceSave)를 세우고
+     ⑵ 창이 닫히는 대로 저장을 한 번 건다. ⑴ 덕에 창을 바로 닫아도 beforeunload 동기 저장이 돈다.
+   ⛔끌기 아닌 억제(열기·탭/페이지 전환·되돌리기 복원 — 이유 'page-switch' 등, 혹은 이유 없는 날 대입)는 «건드리지 않는다»:
+     그 창의 변화는 편집이 아니라 불러오기다(DEF-03 — 무편집 방문이 파일을 다시 쓰지 않게).
+   분모 = 끌기 억제 이유 둘 ↔ 여는 길 6(block-drag.js 블럭 단위·프레임 · section-drag.js 라벨·그룹·빈 row → 'section-drag' / 레이어 → 'layer-drag').
+   시험: tests/dom/drag-move-autosave.dom.spec.js (깃발을 빼면 D1·D5·D6 빨강). */
+const _DRAG_SUPPRESS_REASONS = new Set(['section-drag', 'layer-drag']);
+let _dragEditPending = false;
+let _dragEditTimer = null;
+let _dragEditTicks = 0;   // 한 에피소드(창 열림 → 닫힘 → 저장)의 폴 횟수 — 시험이 «한정»을 단언한다(S7)
+/* ⚠️조건 «다른 파일이면 멈추고 와라» ↔ 실제: 묻지 않고 더 좁은 길(폴링)로 갔다 · 결과는 승인, 판단을 혼자 한 것은 이탈(태양·지디 10-05 23:11).
+   ☐0.9.7: AutoSaveSuppress.end() 이벤트(js/autosave-suppress.js — 마지막 창이 닫히는 그 자리)로 옮기고 이 폴링을 걷는다. */
+function _noteEditDuringDrag() {
+  const AS = (typeof window !== 'undefined') ? window.AutoSaveSuppress : null;
+  const holders = (AS && typeof AS.inspect === 'function') ? (AS.inspect().holders || []) : [];
+  if (!holders.length || !holders.every(h => _DRAG_SUPPRESS_REASONS.has(h.reason))) return;
+  _dirtySinceSave = true;
+  _dragEditPending = true;
+  if (_dragEditTimer) return;
+  _dragEditTicks = 0;
+  const tick = () => {
+    _dragEditTicks++;
+    if (state._suppressAutoSave) { _dragEditTimer = setTimeout(tick, 100); return; }
+    _dragEditTimer = null;
+    if (!_dragEditPending) return;
+    _dragEditPending = false;
+    scheduleAutoSave();
+  };
+  _dragEditTimer = setTimeout(tick, 100);
+}
+/** 시험용 읽기(쓰기 없음) — S7 이 «폴링이 멎는가 · 틱 수 한정»을 단언한다. */
+if (typeof window !== 'undefined') window.__dragEditStateForTest = () => ({ armed: !!_dragEditTimer, pending: _dragEditPending, ticks: _dragEditTicks });
+
 function scheduleAutoSave() {
-  if (state._suppressAutoSave) return;
+  /* ⒡ 끌기 창 안에서 버려지던 편집 — 위 머리말. ⛔꼴을 «if (state._X) return …» 로 둔다: tests/unit/autosave-overlap.test.js N6 이
+     이 꼴로 억제 플래그를 «도출»한다(블록 { … return } 로 바꾸면 도출이 0 이 돼 N7 전수가 거짓 초록이 된다 — 10-05 실측). */
+  if (state._suppressAutoSave) return _noteEditDuringDrag();
   // [P-A2] 제스처 중이면 «미룬다» — 버리지 않고 기억해 뒀다가 놓을 때 다시 건다.
   if (_autoSaveDeferred) { _dirtySinceSave = true; _autoSavePending = true; return; }
   // BUG-12: activeProjectId가 없으면 'web-editor-autosave__undefined' 키로 저장되는 버그 방지
   if (!activeProjectId) { console.warn('[save-load] scheduleAutoSave: activeProjectId 없음, 저장 건너뜀'); return; }
   _dirtySinceSave = true;
   clearTimeout(autoSaveTimer);
+  _holdBackground(true);   // ★S1 — 타이머를 걸기 «전에» 푼다(숨은 창에서 이 1.5초가 분 단위로 밀리지 않게)
   _setAutosaveIndicator('saving');
   scheduleIdleThumbnail();   // ★편집이 멈춘 뒤 썸네일 — 홈 나갈 때 찍지 않으려면 여기서 찍어둬야 한다
   // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
   const _saveTargetId = activeProjectId; // H1: 발화 시점에 탭이 바뀌었는지 비교할 대상 캡처
   autoSaveTimer = setTimeout(() => {
+    let _handed = false;   // ★S1 — 저장 약속에 넘겼으면 되돌림은 그 finally 몫, 아니면 아래 finally 몫
+    try {
     autoSaveTimer = null; // 발화 후 stale id 잔존 방지 — hasUnsavedChanges 판정에 쓰임
     // H1: 타이머 set 이후 탭이 전환됐으면 이 저장은 다른 프로젝트를 오염시킨다 — 건너뛴다.
     // (전환된 탭은 자기 편집 시 자체 타이머를 갖고, 이전 탭은 flushCurrentPage/beforeunload로 보존됨)
@@ -1723,6 +1870,7 @@ function scheduleAutoSave() {
     // ok:false(EACCES·디스크풀·잠금 등) → '저장 실패'(빨강), 성공/큐잉 → '저장됨'.
     // BL-CDD-08: 파일 저장 대상을 발화 시점 검증된 id로 명시 고정 — saveProjectToFile 내부의
     // "저장 시점 activeProjectId 재읽기"에 의존하지 않는다(비동기 큐잉 중 전환 대비).
+    _handed = true;
     Promise.resolve(saveProjectToFile(snap, { skipThumbnail: true, projectId: _saveTargetId })) // 자동저장은 썸네일 캡처 생략
       .then(r => {
         // ★보호성 스킵(빈 캔버스)은 «실패»가 아니다 — 새 프로젝트에서 매번 빨강이 되면 신호가 죽는다.
@@ -1736,7 +1884,11 @@ function scheduleAutoSave() {
           try { window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { projectId: _saveTargetId, snap } })); } catch (_) {}
         }
       })
-      .catch(() => _setAutosaveIndicator('error'));
+      .catch(() => _setAutosaveIndicator('error'))
+      .finally(() => { if (!autoSaveTimer) _holdBackground(false); });   // ★S1 — 새 저장이 그새 걸렸으면 그쪽이 되돌린다
+    } finally {
+      if (!_handed && !autoSaveTimer) _holdBackground(false);   // ★S1 — 건너뜀(탭 전환·빈 캔버스)·예외도 되돌린다
+    }
   }, 1500);
 }
 
@@ -1929,6 +2081,7 @@ function initApp() {
     if (!nameEl) return;
     const tab = nameEl.closest('.proj-tab');
     if (!tab || tab.dataset.id !== activeProjectId) return;
+    if (nameEl.isContentEditable) return;   // ★RG-N5c — 편집 중 다시 더블클릭해도 처리기가 겹쳐 붙지 않게(RG-N5 와 같은 꼴)
     const current = nameEl.textContent;
     nameEl.contentEditable = 'true';
     nameEl.focus();
@@ -1939,12 +2092,15 @@ function initApp() {
       nameEl.textContent = newName;
       setProjectName(newName);
       nameEl.removeEventListener('blur', commit);
+      // ★RG-N5c — 나가는 문은 이것 하나(blur): 떼기를 여기서(선례 line-host.js lnBeginEdit finish · drag-utils.js _graphLabelBeginEdit finish).
+      //   예전엔 onKey 가 «첫 키 하나» 뒤 스스로 떨어져, 글자를 친 뒤의 Enter/Escape 가 안 먹었다.
+      nameEl.removeEventListener('keydown', onKey);
     }, { once: true });
-    nameEl.addEventListener('keydown', function onKey(e) {
+    function onKey(e) {
       if (e.key === 'Enter') { e.preventDefault(); nameEl.blur(); }
       if (e.key === 'Escape') { nameEl.textContent = current; nameEl.blur(); }
-      nameEl.removeEventListener('keydown', onKey);
-    });
+    }
+    nameEl.addEventListener('keydown', onKey);
   });
 
   // + 드롭다운 — 바깥 클릭 닫기
@@ -2037,7 +2193,7 @@ function initApp() {
         } catch (_) {}
         // proj + meta 병렬 로드 — meta 실패해도 proj는 사용해야 하므로 독립 처리
         let proj = null;
-        try { proj = await window.electronAPI.loadProject(activeProjectId, { open: true }); } catch(e) { // {open:true}: 열 때 외부화 정책 대상
+        try { proj = await loadProjectForOpen(activeProjectId); } catch(e) { // {open:true}: 열 때 외부화 정책 대상 · ★E170 복구 알림도 그 안
           console.error('[initLoad] loadProject 실패:', e);
         }
         const meta = await window.electronAPI.loadProjectMeta(activeProjectId).catch(() => null);
@@ -2045,14 +2201,7 @@ function initApp() {
         window.DesignSystem?.restoreColorVarsFromMeta?.(activeProjectId);
         window.DesignSystem?.restoreColorHistoryFromMeta?.(activeProjectId);   // 최근 쓴 색 — 프로젝트별(meta 에 없으면 빈 목록)
         if (proj) {
-          // GAP-004: proj.json 손상으로 백업/히스토리에서 복구된 경우 사용자에게 정직하게 통지.
-          if (proj._recovered) {
-            const _recLbl = proj._recovered === 'history' ? '히스토리'
-                          : proj._recovered === 'pre-externalize' ? '변환 전 원본(오래된 상태일 수 있음)'
-                          : '백업';
-            window.showToast?.(`⚠️ 프로젝트 파일이 손상되어 ${_recLbl}에서 복구했습니다.`);
-            delete proj._recovered; // 마커는 메모리/저장에 남기지 않음
-          }
+          // GAP-004: proj.json 손상 복구 통지는 loadProjectForOpen 이 «한 곳»에서 한다(★E170 — 탭 열기 길도 같은 글).
           // 마이그레이션: proj.json에 branches/commits가 남아있으면 meta로 이전
           if (!meta && (proj.branches || proj.commits)) {
             const migratedMeta = {

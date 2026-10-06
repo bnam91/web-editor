@@ -47,7 +47,7 @@ function makeFakeDom() {
   function createElement(tag) {
     let _id = '', _classes = new Set();
     const el = {
-      tagName: tag, dataset: {}, style: {}, innerHTML: '',
+      tagName: tag, dataset: {}, style: {}, innerHTML: '', children: [],   // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 이 가짜는 자식을 안 붙이므로 늘 빈 목록
       get id() { return _id; },
       set id(v) { if (_id) registry.delete(_id); _id = v; if (v) registry.set(v, el); },
       get className() { return [..._classes].join(' '); },
@@ -282,12 +282,13 @@ test('I5 ★명부 무지 증명 — GRID_CELL_FIELDS 에 가짜 필드를 끼�
   /* ★비트는 것은 «명부 한 줄»뿐이다 — `const { lines, ...deco } = cellPatch` 는 그대로다.
      ⇒ 이 검사가 초록이면 「새 칸 필드(T-172 테두리 등)가 생겨도 가르는 코드는 안 고쳐도 된다」가
        실제로 참이다. 손-명부를 다시 만들면 여기가 빨개진다. */
-  const DECL = "const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', 'radius']);";
+  /* ★G4(2026-10-04) — 칸 배경 이미지 셋(bgImg·bgFit·bgPos)이 명부에 들어와 닻 문자열을 같이 옮겼다(검사의 뜻은 그대로). */
+  const DECL = "const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', 'radius', 'bgImg', 'bgFit', 'bgPos']);";
   assert.ok(RAW.includes(DECL), '★GRID_CELL_FIELDS 선언을 못 찾았다 — 이 검사의 겨냥이 빗나갔다');
   const mod = await loadModule((src) => {
     const out = src.replace(
       DECL,
-      "const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', 'radius', '__probe']);"
+      "const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', 'radius', 'bgImg', 'bgFit', 'bgPos', '__probe']);"
     );
     assert.notEqual(out, src, '★명부 닻이 빗나갔다 — GRID_CELL_FIELDS 선언을 못 바꿨다');
     return out;

@@ -2,6 +2,7 @@ import { canvasEl, propPanel, state, BLOCK_DELEGATE_SEL } from './globals.js';
 import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './history.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
 import { fitScale } from './fit-scale.js';
+import { clampChildIntoFrame } from './frame-geometry.js';   /* F2 — 붙여넣기 자리를 프레임 안으로(드래그 클램프와 «같은 함수») */
 import { setTextTypeClass, afterTextTypeChange } from './props/text-type-class.js';
 import { warnPendingVideoLossIf } from './io/pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원(「한 번만」 래치 포함) */
 
@@ -109,27 +110,49 @@ function coalesceSizeHistory(targetEl, label) {
 }
 
 const _AUTO_SELECT_SEL = '.prop-number, .prop-color-hex, .prop-color-alpha-input, .goya-cp-hex, .goya-cp-alpha-input';
+/* ★패널 칸 «값 전체 선택»(피그마와 같음 — TX1 지디 판정 D, 2026-10-03)
+ *   ⑴ 포커스를 «얻는» 첫 클릭 = 값 전체 선택(기존).
+ *   ⑵ ★이미 포커스가 든 «숫자칸»을 커밋 «뒤»(타이핑 중이 아닐 때) 다시 누름 = 값 전체 선택(새로).
+ *      Enter 커밋 뒤 커밋 가드(prop-number-commit-guard.js)가 포커스를 칸에 되돌리므로, 연달아 두 번째 값을 넣으려고
+ *      칸을 다시 누르면 옛 판은 캐럿만 꽂혀 「40」 뒤에 「52」가 이어붙었다(TX1 측정 x5: 다시 누르면 docSel="").
+ *      ⚠️타이핑 중(_pnTyping)이면 손대지 않는다 — 캐럿을 옮겨 고치는 손짓이다. 스피너(오른쪽 18px)도 손대지 않는다.
+ *   ⛔예외 = Mixed 칸(value="" · placeholder="Mix") — 피그마도 Mixed 칸은 전체 선택을 안 한다(지디 실측). */
+const _isMixedField = (el) => el.value === '' && String(el.placeholder || '').trim() === 'Mix';
+const _reclickSelectAll = (el, e) => el.type === 'number' && document.activeElement === el && !el._pnTyping
+  && !_isMixedField(el) && (el.clientWidth - (e.offsetX ?? 0)) > 18;
 document.addEventListener('focusin', (e) => {
   const el = e.target;
   if (!el.matches?.(_AUTO_SELECT_SEL)) return;
-  // mousedown 이후에 select() 호출되도록 한 틱 지연
+  if (_isMixedField(el)) return;
+  /* ★E66(2026-10-04) — select() 를 «바로» 부른다. 옛 판은 setTimeout(…,0) 으로 한 틱 미뤘다.
+   *   ⛔무엇이 났나: Chromium 은 입력 이벤트를 타이머보다 먼저 돌린다 ⇒ 클릭 «직후» 친 첫 키가 그 0ms 타이머보다
+   *     앞에 처리되고, 늦게 온 select() 가 첫 글자를 감싸 다음 글자가 덮었다(「12AB34」→「2AB34」 · 「64」→「4」 ·
+   *     기계 타이핑 실측 dcc8361c 원본 5/15 빨강, 0틱 판 15/15 초록 — $S/reports/E66-MEASURE.md).
+   *   ★한 틱 미룬 까닭(5f6be93e, 2026-04-22 「mousedown 이후에 select() 호출되도록 한 틱 지연」) = 포커스 클릭의
+   *     기본 캐럿 배치가 select 를 지운다 — 그런데 «같은 커밋»이 아래 mouseup 캡처 preventDefault(_selJustFocused)로
+   *     그 캐럿 배치를 이미 막는다. 실측: 바로 select = 첫 클릭 전체선택 30/30(세 칸×10), 대조 select 없음 = 0/30.
+   *   ⛔그래서 아래 mouseup preventDefault · _selJustFocused · ⑵ 다시 누름 · Mixed/`<select>` 가드는 «그대로» 둬야 한다 —
+   *     mouseup preventDefault 가 빠지면 이 0틱 select 를 캐럿 배치가 지운다(한 틱이 필요 없는 까닭이 바로 그것이다).
+   *   다섯 클래스(_AUTO_SELECT_SEL) 전부 이 한 자리를 탄다. */
   // ⚠️`<select class="prop-number">` 처럼 select() 가 «없는» 요소도 이 셀렉터에 걸린다
   //   (prop-banner02 줄 kind · prop-iconify). 가드 없으면 클릭할 때마다 uncaught TypeError.
-  setTimeout(() => { if (document.activeElement === el && typeof el.select === 'function') el.select(); }, 0);
+  if (document.activeElement === el && typeof el.select === 'function') el.select();
 });
 document.addEventListener('mouseup', (e) => {
   const el = e.target;
   if (!el.matches?.(_AUTO_SELECT_SEL)) return;
-  // 포커스 얻는 첫 클릭에서만 기본 caret 배치 막기
+  // 포커스 얻는 첫 클릭(또는 ⑵ 커밋 뒤 다시 누름)에서만 기본 caret 배치 막기
   if (el.dataset._selJustFocused === '1') {
     e.preventDefault();
     delete el.dataset._selJustFocused;
+    if (el._selReclick) { el._selReclick = false; if (typeof el.select === 'function') el.select(); }
   }
 }, true);
 document.addEventListener('mousedown', (e) => {
   const el = e.target;
   if (!el.matches?.(_AUTO_SELECT_SEL)) return;
   if (document.activeElement !== el) el.dataset._selJustFocused = '1';
+  else if (_reclickSelectAll(el, e)) { el.dataset._selJustFocused = '1'; el._selReclick = true; }
 }, true);
 
 /* ═══════════════════════════════════
@@ -1542,11 +1565,23 @@ function _isRowFullySelected(row, allTypesSel) {
 function _internalClipboardTextOf() {
   const sel = [...document.querySelectorAll('#canvas .selected')];
   const tops = sel.filter(el => !sel.some(o => o !== el && o.contains(el)));
-  const txt = tops.map(el => (el.innerText || '').trim()).filter(Boolean).join('\n\n').slice(0, 5000);
+  /* ★E148(2026-10-06) — 편집 UI 글자가 OS 클립보드로 새던 것(실측 기록: 섹션이 골라진 채 ⌘C → 「✕ 드래그: 위치 · 모서리: 크기 · Esc: 완료」).
+     사본에서 UI 를 걷고 읽는다 — 목록은 저장이 쓰는 그것(save-load.js NON_CONTENT_UI_SELECTOR) + 섹션 껍데기(라벨·툴바·히트존 = export-css-collect.js:37 과 같은 셋).
+     사본은 #canvas «밖» 화면 밖 그릇에 잠깐 붙여 읽는다(innerText 의 줄바꿈은 배치가 있어야 산다 · ⛔visibility:hidden 이면 innerText 가 비므로 투명도로 숨김 ·
+     #canvas 밖이라 자동저장 관찰자 무관). */
+  const _strip = [window.NON_CONTENT_UI_SELECTOR, '.section-label', '.section-toolbar', '.section-hitzone'].filter(Boolean).join(', ');
+  const _box = document.createElement('div');
+  _box.style.cssText = 'position:fixed;left:-100000px;top:0;width:1200px;opacity:0;pointer-events:none;';
+  document.body.appendChild(_box);
+  let txt;
+  try {
+    txt = tops.map(el => { const c = el.cloneNode(true); c.querySelectorAll(_strip).forEach(n => n.remove()); _box.appendChild(c); const t = (c.innerText || '').trim(); c.remove(); return t; })
+      .filter(Boolean).join('\n\n').slice(0, 5000);
+  } finally { _box.remove(); }
   return txt || `고디터 블럭 ${Math.max(1, tops.length)}개`;
 }
-function _writeInternalClipboardToOS() {
-  const text = _internalClipboardTextOf();
+function _writeInternalClipboardToOS(textOverride) {
+  const text = textOverride || _internalClipboardTextOf();
   window._internalClipboardText = text;
   window._internalClipboardOnOS = false;
   Promise.resolve(window.electronAPI?.clipboardWriteText?.(text))
@@ -1564,6 +1599,15 @@ function clipboardPrefersInternal(e) {
   return internalT > (window._scratchClipboardTime || 0); // OS 에 못 썼으면 옛 규칙
 }
 window.clipboardPrefersInternal = clipboardPrefersInternal;
+
+/** 블럭 «밖» 고디터 복사(그리드 줄 ⌘C 등)도 «내 복사가 최신»임을 선언한다 — G10(2026-10-03).
+ *  ⌘C 가 이걸 안 하면 OS 클립보드엔 «그 전에 바깥에서 복사한 이미지»가 그대로 남아, ⌘V 한 번에
+ *  줄(keydown)과 스크래치 이미지(paste 이벤트)가 «동시에» 붙는다. copySelected 와 «같은 두 줄»이다. */
+function claimInternalClipboard(text) {
+  window._internalClipboardTime = Date.now();
+  _writeInternalClipboardToOS(text);
+}
+window.claimInternalClipboard = claimInternalClipboard;
 
 function copySelected() {
   // 내부 클립보드(섹션/블록) 복사 timestamp — OS 클립보드에 못 썼을 때의 옛 규칙(시각 비교)용
@@ -1647,8 +1691,16 @@ function copySelected() {
      * 「행이 통째로 선택됐을 때만 행을 담는다」는 판정은 멀티 분기와 «같은 헬퍼»를 쓴다 —
      * 두 분기가 다른 기준을 쓰면 개수에 따라 동작이 갈린다(그게 이 버그였다). */
     const _row1 = selNormal.closest('.row');
+    /* ★E128(2026-10-05) — 흐름 «글자 프레임» 직속 글자 블럭은 «프레임째» 담는다(위 오버레이 갈래와 같은 꼴).
+     *   글자 프레임은 .row 가 아니라 _row1 이 잡지 못해 «블럭만» 담겼다 → 사본이 맨 text-block 이 돼
+     *   프레임이 쥐던 폭(dataset.width)·회전(dataset.rotation)·바깥 패딩(dataset.paddingX)을 잃었다(실측 400→716 · 15°→없음 · 24→없음).
+     *   붙여넣기(_bindPastedEl)는 프레임 바인딩·안쪽 id 재발급을 이미 한다 — 여기선 «무엇을 담나»만 바꾼다.
+     *   자유 프레임 안 글자는 위 _flWrapper 갈래가 이미 래퍼째 담는다(무접촉). ⌘D(흐름) = copySelected + pasteClipboard 라 같이 고쳐진다. */
+    const _flowTf = (!isOverlayFloating && !isGapSel && !isFloating && selNormal.classList.contains('text-block')
+      && selNormal.parentElement?.matches?.('.frame-block[data-text-frame="true"]')) ? selNormal.parentElement : null;
     const target = isOverlayFloating ? _overlayWrapper
       : (isGapSel || isFloating) ? selNormal
+      : _flowTf ? _flowTf
       : ((_row1 && _isRowFullySelected(_row1, ALL_TYPES_SEL)) ? _row1 : selNormal);
     const banner = target.closest?.('.frame-block[data-banner-preset]');
     clipboard = { type: 'block', html: target.outerHTML, sourceBannerId: banner?.id || null };
@@ -1718,6 +1770,7 @@ function _bindPastedEl(el) {
     // qa-block: 위에서 id 를 재발급했다 — 풋터 ID칩(.qa-id-chip)이 옛 id 를 그대로 보여주지 않게 재렌더.
     if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
   });
+  window.syncAutoGridWidth?.(el);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — 붙여넣기·복제가 이 문을 지난다(넣은 «뒤»에 불린다)
 }
 
 // 붙여넣은 최상위 요소가 freeLayout이 아닌 부모로 들어가면 absolute 좌표는
@@ -1800,21 +1853,36 @@ function _viewportCenterInContainerLocal(containerEl) {
    ⇒ ⑴섹션 상자 안으로 클램프하고 ⑵이미 같은 자리에 오버레이가 있으면 계단식으로 비킨다.
    ⛔드래그의 «탄성 클램프»(overlay-float.js)와 섞지 마라 — 저건 손맛이고 이건 «사본을
      사용자가 찾을 수 있는 자리에 둔다»는 다른 규칙이다. 붙인 뒤에 얼마든지 밖으로 끌 수 있다. */
-function _placePastedOverlay(sec, el, nx, ny) {
+function _placePastedOverlay(box, el, nx, ny, posOf) {
   const w = el.offsetWidth || 0, h = el.offsetHeight || 0;
-  const maxX = Math.max(0, (sec.clientWidth  || 0) - w);
-  const maxY = Math.max(0, (sec.clientHeight || 0) - h);
-  let x = Math.min(Math.max(0, Math.round(nx) || 0), maxX);
-  let y = Math.min(Math.max(0, Math.round(ny) || 0), maxY);
+  const maxX = Math.max(0, (box.clientWidth  || 0) - w);
+  const maxY = Math.max(0, (box.clientHeight || 0) - h);
+  const x0 = Math.min(Math.max(0, Math.round(nx) || 0), maxX);
+  const y0 = Math.min(Math.max(0, Math.round(ny) || 0), maxY);
+  let x = x0, y = y0;
   const STEP = 20;
-  const taken = (cx, cy) => [...sec.children].some(c =>
-    c !== el && c.nodeType === 1 && c.dataset && c.dataset.overlayBlock === 'true'
-    && Math.abs((parseInt(c.dataset.offsetX) || 0) - cx) < 2
-    && Math.abs((parseInt(c.dataset.offsetY) || 0) - cy) < 2);
+  /* ★2026-10-03 F2 — «컨테이너를 받는 꼴»로 일반화했다(섹션 오버레이 · 자유 프레임 직계 붙여넣기가 이 «한 벌»을 쓴다 — 사본 금지).
+   *   posOf(c) = 그 자식이 «자리를 차지하는 것»이면 {x,y}, 아니면 null. 기본 = 오버레이(섹션 직속, data-overlay-block).
+   *   프레임 쪽은 «절대배치 자식»의 left/top 을 읽는 판정을 넘긴다. */
+  const at = posOf || ((c) => (c.dataset && c.dataset.overlayBlock === 'true')
+    ? { x: parseInt(c.dataset.offsetX) || 0, y: parseInt(c.dataset.offsetY) || 0 } : null);
+  const taken = (cx, cy) => [...box.children].some(c => {
+    if (c === el || c.nodeType !== 1) return false;
+    const p = at(c);
+    return !!p && Math.abs(p.x - cx) < 2 && Math.abs(p.y - cy) < 2;
+  });
   for (let i = 0; i < 20 && taken(x, y); i++) {
-    if (x >= maxX && y >= maxY) break;   // 더 비킬 곳이 없다 — 겹쳐도 어쩔 수 없다
+    if (x >= maxX && y >= maxY) break;   // 더 «내려갈» 곳이 없다
     x = Math.min(x + STEP, maxX);
     y = Math.min(y + STEP, maxY);
+  }
+  /* 끝까지 내려갔는데도 같은 자리면 «위쪽으로» 비킨다 — 아래 끝에 클램프된 사본(프레임이 화면 위쪽일 때)이 두 번째에 못 비키던 것 */
+  if (taken(x, y)) {
+    for (let i = 1; i <= 20; i++) {
+      const cx = Math.max(0, x0 - i * STEP), cy = Math.max(0, y0 - i * STEP);
+      if (!taken(cx, cy)) { x = cx; y = cy; break; }
+      if (cx <= 0 && cy <= 0) break;     // 더 비킬 곳이 없다 — 겹쳐도 어쩔 수 없다
+    }
   }
   return { x, y };
 }
@@ -1915,9 +1983,10 @@ function pasteClipboard() {
         const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
         const savedActiveSS = window._activeFrame;
         if (pasteHasSS) window._activeFrame = null;
-        if (anchor) anchor.after(el); else insertAfterSelected(sec, el);
+        if (anchor) anchor.after(el); else insertAfterSelectedAsSibling(sec, el);   // F1 — 키보드 입구: 프레임을 골라 뒀으면 «다음 형제»
         if (pasteHasSS) window._activeFrame = savedActiveSS;
       }
+      window.followHostFrameHAlign?.(el);   // ★E135 — 정렬을 준 스택 프레임 안에 붙었으면 그 정렬(frame-geometry.js ⑤)
       _bindPastedEl(el);
       _normalizePastedAbsolute(el);
       lastEl = el;
@@ -1987,10 +2056,8 @@ function pasteClipboard() {
       const ox = parseInt(el.style.left || '0'), oy = parseInt(el.style.top || '0');
       // 프레임이 지금 화면에 보이면 뷰포트 중앙(frame-local)에, 안 보이면 기존처럼 원본 위치 +20px.
       const vp = _viewportCenterInContainerLocal(frame);
-      const nx = vp ? Math.round(vp.x) : ox + 20;
-      const ny = vp ? Math.round(vp.y) : oy + 20;
-      el.style.left = nx + 'px'; el.style.top = ny + 'px';
-      el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
+      // ★자리는 «붙인 뒤» — 사본의 실제 크기를 재야 (중앙 − 크기/2)를 구하고 프레임 안으로 넣을 수 있다(F2). 여기는 임시 자리.
+      el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
       frame.appendChild(el);
       const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block';
       el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
@@ -1999,6 +2066,14 @@ function pasteClipboard() {
       // fix(frame-p0#4): el이 실제로는 프레임이 아닌 맨몸 블록(예: asset-block)일 수 있다 —
       // bindFrameDropZone은 함수 내부에서도 게이트하지만 호출부도 명시적으로 가드한다.
       if (el.classList.contains('frame-block')) window.bindFrameDropZone?.(el);
+      /* ★F2 (현빈 proj_1790917712926 · 그리드 ⌘C⌘V) — 옛 판은 «화면 가운데»를 사본의 왼쪽 위 모서리로 썼다(크기 절반을 안 빼고 · 클램프 없음)
+       *   ⇒ 764 폭 그리드가 프레임 밖 +382 로 넘쳤다. 이제 (중앙 − 크기/2) → clampChildIntoFrame(드래그 클램프와 같은 함수) → 같은 자리면 20px 계단. */
+      const _fw = el.offsetWidth || 0, _fh = el.offsetHeight || 0;
+      const _c = clampChildIntoFrame(vp ? vp.x - _fw / 2 : ox + 20, vp ? vp.y - _fh / 2 : oy + 20, _fw, _fh, frame.clientWidth, frame.clientHeight);
+      const _absPos = (c) => (c.style && c.style.position === 'absolute') ? { x: parseInt(c.style.left) || 0, y: parseInt(c.style.top) || 0 } : null;
+      const { x: nx, y: ny } = _placePastedOverlay(frame, el, _c.left, _c.top, _absPos);
+      el.style.left = nx + 'px'; el.style.top = ny + 'px';
+      el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
       deselectAll();
       const cb = el.querySelector('.text-block, .shape-block, .asset-block') || el;
       cb.classList.add('selected');
@@ -2059,8 +2134,9 @@ function pasteClipboard() {
       const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
       const savedActiveSS = window._activeFrame;
       if (pasteHasSS) window._activeFrame = null;
-      insertAfterSelected(sec, el);
+      insertAfterSelectedAsSibling(sec, el);   // F1 — 키보드 입구
       if (pasteHasSS) window._activeFrame = savedActiveSS;
+      window.followHostFrameHAlign?.(el);   // ★E135
       _bindPastedEl(el);
       _normalizePastedAbsolute(el);
       _keepOnlyPastedSelected([el]);
@@ -2598,7 +2674,7 @@ document.addEventListener('keydown', e => {
     : (e.code === 'KeyS' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey);
   if (_isAddSection) {
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
     e.preventDefault();
     window.addSection?.();
     return;
@@ -2682,6 +2758,7 @@ document.addEventListener('keydown', e => {
       window.showGridProperties?.(_gridSelEsc, null);
       return;
     }
+    if (window.lnEscLine?.()) return;   // ★BT2 D10 — 말풍선·챗도 «줄 선택만» 먼저 푼다(그리드와 같은 규칙)
     deselectAll();
   }
 
@@ -2790,11 +2867,13 @@ document.addEventListener('keydown', e => {
     if (_isAddGap && !e.isComposing) {
       e.preventDefault();
       if (window.grdAddLineToSelectedCell?.('gap')) return;
-      window.addGapBlock?.(); return;
+      if (window.lnAddLineToSelected?.('gap')) return;   // ★BT2 D10 — 말풍선·챗의 고른 줄 다음에 여백 줄
+      window.addGapBlock?.(undefined, { asSibling: true }); return;   // F1 — 키보드 입구
     }
     if (_isAddText && !e.isComposing) {
       e.preventDefault();
       if (window.grdAddLineToSelectedCell?.('body')) return;
+      if (window.lnAddLineToSelected?.('body')) return;  // ★BT2 D10 — 말풍선·챗의 고른 줄 다음에 본문 줄
       window.addTextBlock?.('body'); return;
     }
     if (_isAddAsset) { e.preventDefault(); window.toggleFpDropdown?.('fp-asset-dropdown'); return; }
@@ -2845,6 +2924,12 @@ document.addEventListener('keydown', e => {
       if (!tb) return;
       // 0920r4 texttype: 라이너는 타입이 없다(패널도 Type 토글 숨김, prop-text.js M2) — 미러 .tb-liner 를 건드리지 않는다
       if (tb.classList.contains('liner-block')) return;
+      /* ★BT2 — 줄 모드 말풍선: 본체 클래스를 바꾸면 줄마다 인라인 크기라 «값만 남고 화면은 그대로»(실측: tb-h1 저장·보이는 줄 무변). 거절하고 알린다. */
+      if (tb.classList.contains('speech-bubble-block') && tb.dataset.lines !== undefined) {
+        e.preventDefault();
+        window.showToast?.('⚠️ 줄이 있는 말풍선은 숫자 키로 종류를 못 바꿉니다 — 줄을 골라 「줄 종류」에서 바꾸세요');
+        return;
+      }
       e.preventDefault();
       const typeMap = { 'Digit1': ['tb-h1','heading'], 'Digit2': ['tb-h2','heading'], 'Digit3': ['tb-h3','heading'], 'Digit4': ['tb-body','body'] };
       const phMap = { 'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요', 'tb-body':'본문 내용을 입력하세요.' };
@@ -3149,6 +3234,9 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
        그 함수들을 그대로 부른다.
        ※2026-09-25 — 여기 같이 적혀 있던 `grd-img-remove-btn`(Image 절의 「이미지 제거」)은
          현빈 지시로 없앴다. 줄바의 「줄 삭제」가 «한 글자도 안 다른» 같은 코드였다. */
+    /* ★BT2 D10 — 말풍선·챗의 «줄»이 골라져 있으면 ⌫/⌘X 는 그 줄 하나만 지운다(아래 그리드 갈래와 같은 뜻).
+       게이트(단독 선택·주소 유효)는 js/blocks/line-host.js lnDeleteActiveLine 한 곳. */
+    if (window.lnDeleteActiveLine?.()) { consumed = true; return consumed; }
     const gridSel = document.querySelector('.grid-block.selected');
     let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
     /* ★0918r2 T-058 — 줄 삭제는 «그 그리드 하나만» 선택됐을 때만. ⌘클릭 다중선택·붙여넣기 뒤
@@ -3218,6 +3306,9 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
     // 다중 선택 삭제: col 다중
     if (multiSel.cols.size > 1) {
       consumed = true;
+      /* ★E80 — 이 갈래는 «끝 표본만» 찍었다. 끝 표본 없이 끝난 편집(Esc · 캔버스 밖 클릭 · 안 끝냄) 뒤 지우면 ⌘Z 가 그 편집까지 되돌렸다(v0.9.5 부터 · 2026-10-04 실측).
+           공용 블록 삭제(:3396)와 같은 꼴로 «삭제 전»을 먼저 찍는다 — 라이브가 꼭대기와 같으면 칸을 안 만든다(⌘Z 횟수 그대로). */
+      window.ensureHistoryCheckpoint?.('삭제 전');
       multiSel.cols.forEach(col => {
         const row = col.closest('.row');
         col.remove();
@@ -3294,6 +3385,9 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
         .some(el => el !== selSS && !selSS.contains(el));
       if (!ssHasSelectedChild && !_selOutsideSS) {
         consumed = true;
+        /* ★E80 — 이 갈래는 «끝 표본만» 찍었다. 끝 표본 없이 끝난 편집(Esc · 캔버스 밖 클릭 · 안 끝냄) 뒤 지우면 ⌘Z 가 그 편집까지 되돌렸다(v0.9.5 부터 · 2026-10-04 실측).
+             공용 블록 삭제(:3396)와 같은 꼴로 «삭제 전»을 먼저 찍는다 — 라이브가 꼭대기와 같으면 칸을 안 만든다(⌘Z 횟수 그대로). */
+        window.ensureHistoryCheckpoint?.('삭제 전');
         const ssRow = selSS.closest('.row') || selSS;
         ssRow.remove();
         window._activeFrame = null;
@@ -3366,8 +3460,29 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
         if (block.classList.contains('gap-block')) {
           block.remove();
         } else {
+          /* ★줄(.row)은 «블록과 그 줄 사이에 프레임이 없을 때만» 단위로 쓴다. 자유배치 프레임의 절대배치 자식은
+             자기 줄이 없어 closest('.row') 가 «프레임을 감싼 줄»까지 올라가 프레임째 지웠다
+             (2026-10-03 G3 실측: row>UF>그룹>에셋 에서 에셋 하나 지우자 UF 가 사라졌다 — 핀 604602cd 에도 있던 길). */
           const row = block.closest('.row');
-          if (row) rowsToRemove.add(row); else block.remove();
+          const _frameBetween = row && block.parentElement?.closest('.frame-block:not([data-text-frame])');   // 글자 래퍼는 «블록의 일부»라 경계가 아니다
+          /* ★E55(2026-10-04) — 「블럭 밑 자식 그릇」(G19 그리드 .grd-children · G14 서클 .icb-children)도 경계다.
+             그릇의 글자 자식은 «자기 줄 없이» 맨몸 글자래퍼(.frame-block[data-text-frame])로 그릇 바로 밑에 산다 —
+             closest('.row') 가 그릇을 넘어 «그리드(서클)를 품은 줄»까지 올라가 자식 하나 지우자 그리드째 사라졌다
+             (실측 dev 5015a2ab: grd-children 글자 자식 클릭 → Delete = rG 통째 삭제). 위 _frameBetween 은
+             «글자래퍼 아닌 프레임»만 보므로 그리드에서 안 선다.
+             ⇒ 줄이 그릇 «밖»일 때만(=줄이 그릇을 품을 때만) 단위를 «그릇의 직계 자식»으로 바꾼다.
+               그릇 안에 자기 줄이 있는 자식(에셋 = .row>.asset-block)은 closest('.row') 가 그 줄이라 이 갈래를 안 탄다(종전 그대로).
+               그릇과 블럭 사이에 사용자 프레임이 끼면 종전 규칙대로 블럭만.
+             ⛔그릇 밖 블럭은 _kidsBox 가 null 이라 한 바이트도 안 바뀐다. 그리드 «자체»를 고른 삭제는 그리드가 그릇 안에 없어 그대로 줄째. */
+          /* 그릇 셀렉터는 «이 함수 안»에 둔다 — 시험 몇(grid-first-click-block 등)이 이 함수 «소스만» 떼어 돌린다(모듈 상수는 거기서 undefined).
+             새 그릇이 생기면 여기 한 줄. (.icb-children = G14 설계 — 아직 없는 클래스면 아무것도 안 잡는다.) */
+          const _kidsBox = row && block.parentElement?.closest('.grd-children, .icb-children');
+          if (_kidsBox && row.contains(_kidsBox)) {
+            const _fb = block.parentElement.closest('.frame-block:not([data-text-frame])');
+            let _unit = block;
+            if (!(_fb && _kidsBox.contains(_fb))) { while (_unit.parentElement && _unit.parentElement !== _kidsBox) _unit = _unit.parentElement; }
+            rowsToRemove.add(_unit);   // 줄과 같은 «지울 단위» 묶음으로 — 새 삭제문을 안 늘린다(scratch-section-delete D14 래칫)
+          } else if (row && !(_frameBetween && row.contains(_frameBetween))) rowsToRemove.add(row); else block.remove();
         }
       });
       rowsToRemove.forEach(r => r.remove());
@@ -3376,12 +3491,40 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
            빈 텍스트래퍼뿐이면 SECTION_BLOCK_TYPE_SEL 이 아무것도 못 찾아 줄째 사라진다.
          ⚠️`.row` 는 «그 줄에 남은 알맹이가 없을 때만» 단위로 쓴다 — 한 줄에 다른 블록이
            같이 있으면 그 줄을 지우는 것이 곧 «조용한 소실»이다. */
-      _emptiedFrameCands.forEach(f => {
-        if (!f.isConnected) return;
-        if (f.querySelector(SECTION_BLOCK_TYPE_SEL)) return;
-        const row = f.closest('.row');
-        ((row && !row.querySelector(SECTION_BLOCK_TYPE_SEL)) ? row : f).remove();
-      });
+      /* ★2026-10-03 현빈 결정 「프레임 안 블럭을 다 지우면 빈 프레임이 되어야지 — 나중에 다른 걸 다시
+           넣을 수도 있으니」 ⇒ 사용자 «프레임»은 비어도 남긴다. 걷는 것은 사용자가 «프레임으로 본 적 없는»
+           껍데기뿐이다: 글자 래퍼(data-text-frame — deleteBlock 이 이미 같은 규칙으로 걷는다) · 그룹(data-group —
+           알맹이 없는 그룹은 묶을 것이 없다). T-099 의 원래 까닭(⌘A→Delete 뒤 «보이는 빈 Frame»)은
+           «지저분하다»였고 저장·내보내기·⌘Z 사고가 아니었다(eddff69c 본문). */
+      /* ★«안쪽부터» 보고(깊은 것 먼저), «더 걷을 것이 없을 때까지» 되풀이한다(고정점 — 지디 권고 ㉡).
+         후보는 «선택 → 조상» 순으로 들어가 바깥 그룹이 안쪽 그룹보다 먼저 검사될 수 있다. 그러면 바깥이
+         「안 빈 그룹이 들어 있다」로 남고 그 뒤 안쪽만 걷혀 «보이지 않는 빈 그룹»이 남았다
+         (적대QA 2026-10-03: GO[A, GI[B]] 에서 A·B 삭제 → GO 300px 잔존). 깊이순이면 한 바퀴에 닫히지만,
+         순서 가정에 기대지 않게 «한 바퀴에 하나도 안 걷으면 멈춤»으로 잠근다.
+         ★되풀이 상한 = 후보 수 + 1 — 한 바퀴에 최소 하나는 걷어야 다음 바퀴로 가므로 그 이상은 돌 수 없다(무한루프 방지). */
+      const _depth = (el) => { let d = 0; for (let p = el; p; p = p.parentElement) d++; return d; };
+      const _USER_FRAME_SEL = '.frame-block:not([data-text-frame]):not([data-group="true"])';
+      const _sweepOrder = [..._emptiedFrameCands].sort((a, b) => _depth(b) - _depth(a));
+      for (let _pass = 0, _swept = true; _swept && _pass <= _sweepOrder.length; _pass++) {
+        _swept = false;
+        _sweepOrder.forEach(f => {
+          if (!f.isConnected) return;
+          // ★프레임과 그룹은 «다르게» 동작한다(2026-10-03 결정): 프레임=비면 남긴다(그릇이라 다시 채울 수 있다)
+          //   / 그룹=비면 같이 지운다(묶음이라 빌 수 없다). 둘을 같게 만들지 마라 — 일부러 가른 것이다.
+          if (f.dataset.textFrame !== 'true' && f.dataset.group !== 'true') return;
+          // 그룹 안에 «남긴» 사용자 프레임이 있으면 그 그룹은 비지 않았다(.frame-block 은 SECTION_BLOCK_TYPE_SEL 밖이다)
+          //   ⚠️그룹(.frame-block[data-group="true"])은 «남길 프레임»이 아니다 — 세면 빈 그룹 사슬이 서로를 붙잡는다.
+          if (f.querySelector(_USER_FRAME_SEL)) return;
+          if (f.querySelector(SECTION_BLOCK_TYPE_SEL)) return;
+          /* `.row` 단위는 «f 와 그 줄 사이에 남길 사용자 프레임이 없을 때만» — 사용자 프레임 UF 의 줄 안에 든
+             빈 그룹을 걷다가 closest('.row') 가 UF 의 줄을 잡아 UF 째 지웠다(2026-10-03 G3 실측). */
+          const row = f.closest('.row');
+          const keeper = f.parentElement?.closest(_USER_FRAME_SEL);
+          const rowOk = row && !row.querySelector(SECTION_BLOCK_TYPE_SEL) && !(keeper && row.contains(keeper));
+          (rowOk ? row : f).remove();
+          _swept = true;
+        });
+      }
       window._activeFrame = null;
       deselectAll();
       window.buildLayerPanel();
@@ -3390,6 +3533,9 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
       const selRow = document.querySelector('.row.row-active');
       if (selRow) {
         consumed = true;
+        /* ★E80 — 이 갈래는 «끝 표본만» 찍었다. 끝 표본 없이 끝난 편집(Esc · 캔버스 밖 클릭 · 안 끝냄) 뒤 지우면 ⌘Z 가 그 편집까지 되돌렸다(v0.9.5 부터 · 2026-10-04 실측).
+             공용 블록 삭제(:3396)와 같은 꼴로 «삭제 전»을 먼저 찍는다 — 라이브가 꼭대기와 같으면 칸을 안 만든다(⌘Z 횟수 그대로). */
+        window.ensureHistoryCheckpoint?.('삭제 전');
         selRow.remove();
         deselectAll();
         window.buildLayerPanel();
@@ -3686,6 +3832,7 @@ function clearSelectionMarks(root) {
   // ★0918 grid: 마커만 지우고 «모델»(활성줄 WeakMap)을 두면, 블럭으로 다시 골랐을 때 옛 줄이 살아나
   //   Backspace 가 줄 삭제 분기로 새서 블럭이 안 지워졌다. 블럭을 떠나면 줄 선택도 해제한다.
   window.grdClearAllActiveLines?.(canvas);
+  window.lnClearAllActive?.(canvas);   // ★BT2 — 말풍선·챗 «줄 선택»도 같은 자리에서(마커 + 활성줄)
   // 스텝 «지금 보는 스텝» 마커도 같은 자리에서 (prop-step.js 의 _stbSyncMark 와 짝 · 옛 이름 포함)
   canvas.querySelectorAll('.stb-line-selected, .stb-step-selected').forEach(el => el.classList.remove('stb-line-selected', 'stb-step-selected'));
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
@@ -3742,6 +3889,7 @@ function deselectAll() {
      «해제된 블록»을 계속 가리킨 채 남아, 같은 블록을 다시 클릭하면 동일블록 가드에 걸려
      no-op 이 된다(아이콘원형이 실제로 밟은 사고 — 바로 위 주석 참고). */
   window.hideTextOverlayResizeHandles?.();
+  window.hideGridOverlayResizeHandles?.(); // ★G2-b 떠 있는 그리드 «폭» 손잡이 — 빠지면 같은 블럭 재클릭이 동일블럭 빗장에 걸린다(위와 같은 사고)
   window._deselectAllGradients?.(); // gradient 블록 선택 해제 + 4모서리 핸들 제거 (deselectAll 셀렉터에 없어 누락됐던 정리)
   window.hideGradientLine?.(); // banner02/comparison 배경 그라데이션 온캔버스 라인 숨김
   // (.frame-block 의 .selected 는 clearSelectionMarks 의 일괄 제거가 이미 벗긴다)
@@ -4210,6 +4358,7 @@ function moveBlock(blockId, { beforeId, afterId } = {}) {
   //   복제하지 않는다 — 검증을 모두 끝낸 뒤, mutate «전»에 pushHistory.
   pushHistory('블록 이동 전');
   if (mode === 'before') refUnit.before(unit); else refUnit.after(unit);
+  window.syncAutoGridWidth?.(unit);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
   window.buildLayerPanel?.();
   window.triggerAutoSave?.();
   return { movedUnitId: unit.id || null, refUnitId: refUnit.id || null };
@@ -4218,7 +4367,8 @@ window.moveBlock = moveBlock;
 
 /* ── 특정 블록 뒤에 갭 삽입 (기존 섹션 중간 갭) ── */
 function insertGapAfterBlock(blockId, height) {
-  const block = document.getElementById(blockId);
+  /* U17②(2026-10-05) — 요소도 받는다: 우클릭 메뉴는 «id 없는 .row» 뒤에도 넣어야 한다. id 문자열 길(MCP)은 그대로. */
+  const block = (blockId && blockId.nodeType === 1) ? blockId : document.getElementById(blockId);
   if (!block) return null;
   const gb = window.makeGapBlock?.() || (() => { const d = document.createElement('div'); d.className = 'gap-block'; d.dataset.type = 'gap'; d.id = 'gb_' + Math.random().toString(36).slice(2,8); return d; })();
   if (height) gb.style.height = height + 'px';

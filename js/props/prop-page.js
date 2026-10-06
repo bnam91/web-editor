@@ -3,7 +3,8 @@
 ═══════════════════════════════════ */
 import { propPanel, canvasEl, state } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기(applyCanvasBackground)만 쓰므로 «바인딩 자체»를 없앤다(직접 대입 재유입 방지) */
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
-import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»에서만 온다(유닛 colorhex) */
+import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
+import { readCheckerDarkOn, setCheckerDarkOn } from '../checker-tokens.js';   /* S1 체커 어둡게 — 읽고 쓰는 문은 거기 하나(여기서 localStorage 를 직접 읽지 않는다) */   /* 색 코드 칸 배선은 «한 자리»에서만 온다(유닛 colorhex) */
 
 /* ── 헬퍼: ab의 effective usePadx 결정 ──
    'true' / 'false' 명시 → 그 값 (개별 오버라이드)
@@ -294,6 +295,16 @@ export function showPageProperties() {
           <label class="prop-radio"><input type="radio" name="page-pad-hint" id="page-pad-hint-off" value="off" checked> 끔</label>
         </div>
       </div>
+      <!-- ★S1 체커 어둡게(2026-10-04 현빈 「켜고 끄는 단추를 두기」·지디: 전역·기본 끔) — 패딩 비주얼 «바로 아래».
+           셋 다 «편집 화면에서만 보이는 보조»라 같은 절이고, 같은 어휘(켬/끔 라디오)를 쓴다(새 클래스 0).
+           ⛔프로젝트에 저장하지 않는다 — 「보기」 설정(localStorage gdt.checkerDark). 내보내기엔 체커 자체가 안 나간다. -->
+      <div class="prop-row" title="편집 화면의 투명 표시(체커)만 어둡게 합니다 — 흰 글자가 체커 위에서 보이게. 내보내기에는 체커가 나가지 않습니다. 켠 동안 새로 만든 목업·주석 라벨의 체커는 그때 색으로 남습니다.">
+        <span class="prop-label prop-label--auto">체커 어둡게</span>
+        <div class="prop-radio-group">
+          <label class="prop-radio"><input type="radio" name="page-checker-dark" id="page-checker-dark-on" value="on"> 켬</label>
+          <label class="prop-radio"><input type="radio" name="page-checker-dark" id="page-checker-dark-off" value="off" checked> 끔</label>
+        </div>
+      </div>
       <!-- ★칼럼·거터를 «한 줄»에 둔다 (2026-09-08 현빈: "칼럼과 거터 하나의 로우에 둬도 될듯해").
            ⚠️그냥 합치면 안 들어간다 — 240px 패널의 가용 폭은 211px 인데
              라벨 56×2 + 숫자칸 44×2 + gap 16 = 216px 로 «라벨만으로» 이미 넘친다(실측).
@@ -394,6 +405,14 @@ export function showPageProperties() {
     });
   }
 
+  /* ── S1 체커 어둡게 라디오 배선 — 읽기·쓰기는 js/checker-tokens.js 의 문 하나(readCheckerDarkOn/setCheckerDarkOn). ── */
+  const ckDarkOn  = document.getElementById('page-checker-dark-on');
+  const ckDarkOff = document.getElementById('page-checker-dark-off');
+  if (ckDarkOn) {
+    _radioPairSet(ckDarkOn, ckDarkOff, readCheckerDarkOn());
+    _radioPairOn(ckDarkOn, ckDarkOff, 'change', () => setCheckerDarkOn(ckDarkOn.checked));
+  }
+
   const gridOn   = document.getElementById('page-grid-on');
   const gridOff  = document.getElementById('page-grid-off');
   const gridCols = document.getElementById('page-grid-cols');
@@ -450,22 +469,15 @@ export function showPageProperties() {
          꺼 놓고 패널을 다시 열면 가이드가 되살아났다. */
     saveGridPref({ on, n, g });
     if (!on) return;
-    /* 콘텐츠 폭 — «화면에서» 잰다. 섹션마다 패딩이 다를 수 있어 첫 섹션을 기준으로 삼는다.
-       ⚠️섹션별로 패딩을 따로 준 곳은 그 섹션에서 어긋난다 — 가이드지 자[尺]가 아니다. */
-    const inner = document.querySelector('#canvas .section-inner');
-    let contentW;
-    if (inner) {
-      const cs = getComputedStyle(inner);
-      contentW = inner.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
-    } else {
-      contentW = 860 - (parseInt(state.pageSettings.padX) || 0) * 2;
-    }
-    const col = Math.max(1, (contentW - g * (n - 1)) / n);
+    /* ★L1(2026-10-04) — 칼럼 «폭»은 여기서 재지 않는다. CSS 가 섹션마다 자기 내용 상자에서 «%»로 푼다(css/editor-canvas.css).
+       옛 길: 첫 섹션 하나의 내용 폭을 재 --gdt-grid-col 에 박았다 ⇒ 섹션별 패딩이면 그 섹션이 +96px 어긋났고,
+       섹션 패널 패딩 조작은 이 함수를 안 불러 첫 섹션도 어긋났다(측정 L1-DESIGN.md). 이제 문서 변수는 «수»만 든다. */
     const root = document.documentElement.style;
-    root.setProperty('--gdt-grid-col', col.toFixed(2) + 'px');
+    root.setProperty('--gdt-grid-n', String(n));
     root.setProperty('--gdt-grid-gut', g + 'px');
+    root.removeProperty('--gdt-grid-col');   // 옛 변수 — 남겨 두면 읽는 쪽이 있는 줄 안다
   }
-  /* 패딩이 바뀌면 그리드도 따라와야 한다 — 이 자리를 빠뜨리면 «켜 두고 패딩만 바꿨을 때» 어긋난다 */
+  /* 페이지 패딩 핸들러가 부른다(applyPadX). ★L1 뒤로는 폭을 CSS 가 풀어 «패딩 때문에» 부를 필요는 없다 — 남은 일은 수·거터 다시 쓰기뿐이라 무해하다. */
   window.__gdtRefreshGrid = refreshGrid;
 
   if (gridOn) {

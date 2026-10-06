@@ -215,3 +215,21 @@ test('T9 ★도형·에셋 패널에도 오버레이 X/Y 두 칸이 있고, 동�
   assert.match(SRC.float, /if \(Number\.isNaN\(v\)\) return;/,
     '빈 칸/중간 입력을 그대로 커밋한다 — 백스페이스 도중 블록이 (0,0) 으로 튄다');
 });
+
+/* ══ T10 — 아이콘 블럭(B1)도 같은 부품을 «부른다» — 패널 접두사 'icn' 이 X/Y 되비침 명부에 있다 ═══════ */
+test('T10 ★아이콘 패널이 공용 토글·X/Y 를 부르고, 떠 있으면 정렬(margin auto)을 건너뛴다', () => {
+  const icon = S('js/props/prop-iconify.js');
+  assert.ok(icon.length > 500, '전제 — prop-iconify.js 를 읽었다');
+  // 정적 import 가 아니라 window 로 부른다(unit 하네스 축소 복사 때문 — prop-grid 선례)
+  assert.match(icon, /overlayToggleBtnHTML\?\.\(\s*\{\s*id:\s*'icn-float-toggle'/, '아이콘 패널에 icn-float-toggle 이 없다');
+  assert.match(icon, /floatPositionRowHTML\?\.\(\s*\{\s*prefix:\s*'icn'/, "아이콘 패널에 floatPositionRowHTML(prefix 'icn') 이 없다");
+  assert.match(icon, /wireFloatToggle\?\.\(\s*\{[^}]*buttonId:\s*'icn-float-toggle'/, '아이콘 패널이 wireFloatToggle 을 안 부른다');
+  assert.match(icon, /wireFloatPosition\?\.\(\s*\{[^}]*xId:\s*'icn-x-number'/, '아이콘 패널이 wireFloatPosition 을 안 부른다');
+  assert.match(icon, /block\.dataset\.align && block\.dataset\.overlayBlock !== 'true'\)\s*applyAlign/,
+    '떠 있어도 초기 정렬 복원이 margin 을 auto 로 덮는다(applyAlign 가드가 빠졌다)');
+  // 드래그가 움직인 좌표를 열린 패널 X/Y 칸에 되비치는 명부 — 'icn-' 이 빠지면 끌어도 칸이 안 따라온다
+  const sync = sliceBlock(SRC.float, 'function _syncPanelXY');
+  assert.match(sync, /getElementById\('icn-' \+ suf\)/, "_syncPanelXY 명부에 'icn-' 이 없다");
+  for (const pre of ['txt-', 'shape-', 'asset-', 'lg-'])
+    assert.match(sync, new RegExp(`getElementById\\('${pre}' \\+ suf\\)`), `_syncPanelXY 명부에서 '${pre}' 가 빠졌다`);
+});

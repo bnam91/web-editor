@@ -214,10 +214,12 @@
 
     <div class="prop-section" style="">
       <div class="prop-section-title">Padding</div>
-      <div class="prop-row" id="txt-label-h-row" style="display:none">
-        <span class="prop-label">박스 높이</span>
-        <input type="range" class="prop-slider" id="txt-label-h-slider" min="0" max="120" step="2" value="24">
-        <input type="number" class="prop-number" id="txt-label-h-number" min="0" max="120" value="24">
+      <div id="txt-label-padx-wrap" style="display:none">
+      <div class="prop-row">
+        <span class="prop-label">좌우 패딩</span>
+        <input type="range" class="prop-slider" id="txt-label-padx-slider" min="0" max="100" step="2" value="0">
+        <input type="number" class="prop-number" id="txt-label-padx-number" min="0" max="100" value="0">
+      </div>
       </div>
       <div class="prop-row">
         <span class="prop-label">상하</span>
@@ -305,13 +307,10 @@
         </div>
         <div class="prop-row">
           <span class="prop-label">발신자 이름</span>
-          <label class="prop-toggle" title="발신자 이름 표시">
+          <label class="prop-toggle" title="발신자 이름 표시 — 이름은 캔버스에서 더블클릭해 고친다">
             <input type="checkbox" id="bubble-show-sender" >
             <span class="prop-toggle-track"></span>
           </label>
-        </div>
-        <div class="prop-row" id="bubble-sender-name-row" style="display:none">
-          <input type="text" class="prop-color-hex" id="bubble-sender-name-input" value="" placeholder="Your name" style="flex:1;max-width:none">
         </div>
       </div>
     </div>

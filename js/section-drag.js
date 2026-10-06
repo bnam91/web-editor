@@ -67,8 +67,11 @@ function getDragAfterElement(container, y) {
      ⇒ 반환된 기준 노드의 «부모»에 넣어야 한다 — 부르는 쪽이 그렇게 하고 있다. */
   const flatten = (el) => [...el.children].flatMap(c =>
     c.classList.contains('section-merged-part') ? flatten(c) : [c]);
+  /* ★D6/E162(2026-10-05 lane-drag) — 안내선은 «기준»이 아니다: 스크래치·노트패널 미리보기의 .sp2c-insert-indicator 도 거른다
+     (.drop-indicator 와 같은 까닭). 안 거르면 놓을 때 이 안내선을 기준으로 돌려주고, 곧 안내선이 떼어져 섹션 «맨 끝»에 붙었다(실앱 계측).
+     그릇 안에 꽂히는 우리 안내선은 이 둘이 전부다(정의 자리 전수 — reports/lane-drag/D6-GUIDE-CENSUS.md). */
   const children = flatten(container).filter(el =>
-    !el.classList.contains('drop-indicator') && el !== dragState.dragSrc
+    !el.classList.contains('drop-indicator') && !el.classList.contains('sp2c-insert-indicator') && el !== dragState.dragSrc
   );
   return children.reduce((closest, child) => {
     const box = child.getBoundingClientRect();
@@ -144,6 +147,7 @@ function ungroupBlock(groupEl) {
         c.style.transformOrigin = 'center center';
       }
       groupEl.before(c);
+      window.syncAutoGridWidth?.(c);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
       /* ★오버레이 그룹을 풀면 자식은 «다시 섹션 직속 오버레이»가 된다 (현빈 2026-09-30).
        * 부모가 섹션 «자신»이라는 것이 곧 그 뜻이다 — 흐름 블록은 .section-inner 안에 산다.
        * ⛔표식을 안 되살리면 좌표(left/top)는 맞는데 «떠 있다는 사실»만 사라져,
@@ -311,11 +315,13 @@ function bindSectionDropZone(sec) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     if (_innerDragRafId) return;
-    const clientY = e.clientY;
+    const clientY = e.clientY, clientX = e.clientX;
     _innerDragRafId = requestAnimationFrame(() => {
       _innerDragRafId = null;
       if (!dragState.dragSrc) return;
       clearDropIndicators();
+      /* G19 — 그리드 «밑» 자리(사각형 판정)면 표시선을 그 그릇 안에 그렸다(js/grid-children.js). */
+      if (window.gridChildDragOver?.(inner, clientX, clientY, dragState.dragSrc)) return;
       const after = getDragAfterElement(inner, clientY);
       const indicator = document.createElement('div');
       indicator.className = 'drop-indicator';
@@ -335,10 +341,21 @@ function bindSectionDropZone(sec) {
     e.preventDefault();
     if (_innerDragRafId) { cancelAnimationFrame(_innerDragRafId); _innerDragRafId = null; }
     if (!dragState.dragSrc) return;
+    /* G19 — 그리드 «밑» 자리면 그 그리드의 자식으로 넣는다. 아니면 임시 띠만 걷고 종전 그대로(js/grid-children.js). */
+    if (window.gridChildDrop?.(e, inner, dragState.dragSrc)) { dragState.dragSrc = null; return; }
+    /* G9 — 글자 블럭을 «그리드 칸» 위에 놓았으면 칸의 한 줄로 받는다(prop-grid.js grdDropTextBlockOnCell — 거짓이면 종전 그대로). */
+    if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc)) {
+      clearDropIndicators();
+      dragState.dragSrc = null;
+      return;
+    }
     window.pushHistory();
+    const _fromKids = dragState.dragSrc.parentElement;   // G19 — 그리드 밑 그릇에서 끌어냈으면 비었을 때 걷는다
     const indicator = inner.querySelector('.drop-indicator');
     if (indicator && indicator.parentElement) indicator.parentElement.insertBefore(dragState.dragSrc, indicator);
     else inner.appendChild(dragState.dragSrc);
+    window.pruneGridKidsBox?.(_fromKids);
+    window.syncAutoGridWidth?.(dragState.dragSrc);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
     clearDropIndicators();
     window.buildLayerPanel();
     dragState.dragSrc = null;

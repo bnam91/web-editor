@@ -120,6 +120,10 @@ function harness(preMode) {
       const beginDragHistory = (...a) => window.beginDragHistory(...a);
       const bindBlock = () => {};
       const rebindAll = () => {};
+      /* ★D2(lane-drag 10-05) — bindFrameDropZone 이 absolute 갈래에서 전용 이동 드래그를 «건다»(재로드 오버레이 프레임).
+         그 이웃 이름(block-drag.js 의 import 별칭)을 앱과 같은 실체(window._bindOverlayMoveDrag = overlay-float.js bindFloatMoveDrag)로 잇는다.
+         같은 posEl 에 두 번 안 걸리므로(_overlayMoveBound) boot 의 선행 바인딩과 겹쳐도 리스너는 하나다. */
+      const _bindFloatMoveDrag = (el) => window._bindOverlayMoveDrag(el);
       ${preMode ? BIND_FRAME_DROPZONE_PRE : BIND_FRAME_DROPZONE}
       window.__bindFrameDropZone = bindFrameDropZone;
       window.__frameZoneReady = true;

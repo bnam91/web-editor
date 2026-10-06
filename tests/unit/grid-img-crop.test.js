@@ -38,7 +38,7 @@ function makeFakeDom() {
   function createElement(tag) {
     let _id = '', _classes = new Set();
     const el = {
-      tagName: tag, dataset: {}, style: {}, innerHTML: '',
+      tagName: tag, dataset: {}, style: {}, innerHTML: '', children: [],   // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 이 가짜는 자식을 안 붙이므로 늘 빈 목록
       get id() { return _id; },
       set id(v) { if (_id) registry.delete(_id); _id = v; if (v) registry.set(v, el); },
       get className() { return [..._classes].join(' '); },
@@ -140,14 +140,18 @@ test('K2 ★효과 — 통과가 아니라 «화면»이 절대배치로 갈아�
 
 /* ═══ K3 — 무변화 ═════════════════════════════════════════════════════ */
 
-test('K3 ★무변화 — 크롭이 «하나도» 없으면 커밋 ① 산출과 바이트 동일이다', () => {
+/* 10-05 E157 로 뒤집음(현빈 「고쳐 그럼」 · 지디 승인) · 옛 단언 = 크롭 없는 높이 200 줄 산출
+   `…class="grd-img-frame" style="width:100%;height:200px;"><img … style="display:block;width:100%;height:100%;object-fit:cover;">` (틀 높이 고정 + cover 잘림).
+   지금 = 높이 키를 «그릴 때 무시» → 네이티브 비율(height:auto) · 저장 키(height 200)는 그대로. */
+test('K3 ★크롭이 «하나도» 없으면 높이 키는 그릴 때 무시 — 네이티브 비율(E157 · 옛 = 틀 200 + cover)', () => {
   const b = fixture();
   const html = lineHtml(b);
   assert.equal(html,
-    `<div data-r="1" data-c="0" data-line="0" class="grd-img-frame" style="width:100%;height:200px;">`
-    + `<img class="grd-img" src="${PX}" draggable="false" style="display:block;width:100%;height:100%;object-fit:cover;">`
+    `<div data-r="1" data-c="0" data-line="0" class="grd-img-frame" style="width:100%;">`
+    + `<img class="grd-img" src="${PX}" draggable="false" style="display:block;width:100%;height:auto;">`
     + `</div>`,
-    '★크롭을 «안 준» 줄의 산출이 바뀌었다 — 그러면 기존 저장본의 그림이 통째로 달라진다');
+    '★크롭 없는 높이 줄이 네이티브 비율(height:auto)이 아니다');
+  assert.equal(G.getGridModel(b).cells[1][0].lines[0].height, 200, '저장 키 height 는 그대로(마이그레이션 0)');
 });
 
 /* ═══ K4 — 프레임이 없으면 거절 ═══════════════════════════════════════ */
@@ -214,7 +218,8 @@ for (const r of [0, 1]) {
 
 /* ═══ K7 — 지우기 ═════════════════════════════════════════════════════ */
 
-test('K7 지우기 — 셋을 undefined 로 주면 cover 로 «되돌아간다»', () => {
+/* 10-05 E157 로 뒤집음 · 옛 단언 = 크롭을 지우면 «cover 로» 돌아간다(object-fit:cover). 지금 = 네이티브(height:auto)로 돌아간다. */
+test('K7 지우기 — 셋을 undefined 로 주면 네이티브 비율로 «되돌아간다»(E157 · 옛 = cover)', () => {
   const b = fixture();
   G.updateGridBlock(b.id, { patchCell: { r: 1, c: 0, lineIndex: 0, imgSizePct: 160, imgPosX: -20, imgPosY: -10 } });
   assert.match(lineHtml(b), /position:absolute/, '★전제가 깨졌다 — 크롭이 애초에 안 걸렸다');
@@ -225,7 +230,8 @@ test('K7 지우기 — 셋을 undefined 로 주면 cover 로 «되돌아간다»
   const r = G.updateGridBlock(b.id, { patchCell: { r: 1, c: 0, lines } });
   assert.equal(r.ok, true, `★되돌리기가 거절됐다 — ${r.message}`);
   const html = lineHtml(b);
-  assert.match(html, /object-fit:cover/, `★cover 로 안 돌아갔다: ${html}`);
+  assert.match(html, /height:auto/, `★네이티브(height:auto)로 안 돌아갔다: ${html}`);
+  assert.doesNotMatch(html, /object-fit:cover/, `★cover 가 남았다: ${html}`);
   assert.doesNotMatch(html, /position:absolute/, '★절대배치가 남아 있다');
   assert.doesNotMatch(html, /overflow:hidden/, '★크롭이 없는데 프레임이 계속 «자르는 그릇»이다');
 });

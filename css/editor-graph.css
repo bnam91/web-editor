@@ -210,7 +210,9 @@
 
 /* 프로퍼티 패널 - 데이터 편집 */
 .grb-data-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
-.grb-data-item { display: flex; align-items: center; gap: 4px; }
+.grb-data-item { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+/* GR1 — 항목 색 칸(colorFieldHTML)은 라벨·값 줄 «아래» 자기 줄을 쓴다(같은 줄이면 색 필드 min-width 128 이 라벨 칸을 0 으로 민다 — T-100 과 같은 병). */
+.grb-data-color { flex: 1 0 100%; display: flex; }
 .grb-data-label-input {
   flex: 1; height: 24px; min-width: 0;
   background: var(--ui-bg-app); border: 1px solid var(--ui-border);
@@ -257,3 +259,16 @@
   margin-right: 6px;
   background: var(--ui-accent-primary);
 }
+
+/* ── H6 자동 밝기(현빈 2026-10-05) — 맨 끝에 둔다: 프리셋 규칙(.graph-block[data-preset=…] …)과 세기(0,3,0)가 같아 «순서»로 이긴다.
+ *   변수는 canvas-contrast.js syncGraphTone 이 «어두운 바탕 · 사용자 색 없음»일 때만 블럭 인라인에 쓴다. 저장에선 걷힌다(section-serialize) ⇒ 저장본에선 이 줄들이 아무것도 못 고른다.
+ *   명시 색(lineColor 인라인 stroke · labelColor 인라인 color)은 인라인이라 이 줄들보다 세다. */
+.graph-block[style*="--grb-auto-line"] .grb-line-path { stroke: var(--grb-auto-line); }
+.graph-block[style*="--grb-auto-line"] .grb-line-point-dot { background: var(--grb-auto-line); }
+.graph-block[style*="--grb-auto-grid"] .grb-ov-grid { stroke: var(--grb-auto-grid); stroke-opacity: 1; }
+.graph-block[style*="--grb-auto-ink"] .grb-ov { color: var(--grb-auto-ink); }
+/* K8⒤ — 꺾은선 카테고리 라벨만 클릭을 받는다(라벨층 .grb-line-overlay 는 pointer-events:none 이라 더블클릭이 SVG 로 새던 것). 값 라벨·점·층은 그대로 none. */
+.grb-line-overlay .grb-line-xlabel { pointer-events: auto; }
+/* K6 — 속빈 점: 고리 = 점 자신의 배경(= 선 색 · 프리셋/명시 lineColor/H6 --grb-auto-line 어느 길이든) · 구멍 = 바탕색(--grb-dot-hole · canvas-contrast syncGraphTone).
+   투명 구멍은 꺾은선이 점 가운데를 지나가 보여 안 쓴다. */
+.graph-block[data-point-style="hollow"] .grb-line-point-dot::after { content: ''; position: absolute; inset: 22%; border-radius: 50%; background: var(--grb-dot-hole, #ffffff); }

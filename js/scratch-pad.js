@@ -1052,6 +1052,13 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
       let committed = false;
       // Undo 복원용 — 변환 전에 캡쳐 (id 포함 — 복원 시 원본 id 유지해야 이동 undo 체인 안 끊김)
       const restoreInfo = _pickScratch(item, ['g', 'linkDy']);   // 옛 동작대로 g·linkDy 는 빼고, fx 는 담는다(되살리면 효과도)
+      /* ★E95(U11) — 되살릴 «자리»는 끌기 «시작» 자리다. 위 item.x/y 는 onMove 가 이미 «끌린 자리»로 바꿔 놓아
+         (`t.x = t._dragOrigX + finalDx`), 그대로 쓰면 ⌘Z 가 카드를 «놓은 자리»(페이지 위)로 되살려 다음 드롭 대상을 덮었다
+         (2026-10-05 실측 · 772ccadc). 평소 이동 갈래와 같은 원본 geomBefore(onMove 가 바꾸기 «전» 캡처)에서 뜬다.
+         ⚠️geomBefore 에 그 id 가 없으면(일어나선 안 됨) 지금 값으로 떨어지되 «조용히» 넘기지 않는다 — 경고를 남기고 시험이 이 경고 0 을 단언한다. */
+      const _geo0 = geomBefore.find(g => g.id === item.id);
+      if (_geo0) { restoreInfo.x = _geo0.x; restoreInfo.y = _geo0.y; }
+      else console.warn('[scratch] E95 restore fallback — geomBefore 에 id 없음, 지금 자리로 되살림:', item.id);
       // 이미지 자연 비율 (insert/append 케이스용)
       const imgEl = item.el.querySelector('img');
       const natW = imgEl?.naturalWidth || 0;
@@ -1741,6 +1748,9 @@ function _moveAssetToScratch(ab, clientX, clientY) {
   // 캔버스에서 뺀다 — 그 블럭만 든 row 면 row 째(빈 row 를 남기지 않는다)
   const row = ab.closest('.row');
   const unit = (row && [...row.querySelectorAll('*')].filter(el => window.hasPanelForBlock?.(el)).length === 1) ? row : ab;
+  /* ★E80 — 이 갈래는 «끝 표본만» 찍었다(아래 pushHistory). 에셋 위 오버레이 글자 편집은 끝 표본을 안 쌓아, 그 편집 뒤 이리 옮기고 ⌘Z 하면
+     에셋은 돌아오되 편집은 사라졌다(⌘⇧Z 로도 못 되찾음 · 2026-10-04 실측). 블록 삭제(editor.js)와 같은 꼴로 «삭제 전»을 먼저 찍는다. */
+  window.ensureHistoryCheckpoint?.('삭제 전');
   unit.remove();
   _saveScratch();
   window.buildLayerPanel?.();
@@ -1905,6 +1915,64 @@ window.toggleScratchHideAll = (force) => {
     ? '🙈 스크래치패드를 숨겼습니다 (데이터는 그대로)'
     : '👁 스크래치패드를 다시 표시합니다');
   return next;
+};
+
+// ════════════════════════════════════════════════════════════════════════
+// ★U29 ㉡(2026-10-05 · 지디 A+C) — 칸에 넣은 줄이 스크래치 카드에 «가려지는» 일
+//   ⓐ 까닭: 카드 층(z-index 100, 88498755 「섹션 위에 떠 보이도록」)은 «칸을 덮어도 된다»를 적지 않았다(그때 G9 없음).
+//   ⓑ 왜 A 와 C «둘 다»인가: 칸은 넣으면 «카드 쪽으로 자란다» — 놓기 «전»엔 가려질지 모른다(실측 P4: 놓기 전 겹침 0 → 뒤 22px).
+//      끄는 동안의 A 로는 못 막고, 놓은 «뒤»의 C 가 있어야 한다.
+// ── A: 끄는 동안만 카드가 비킨다(css/editor-canvas.css body.scratch-yield-drag) ──
+//   켬 = document dragstart(capture) — 끄는 것이 #canvas 안(스크래치 카드 자신 아님).
+//   끔 = document dragend(capture) · window drop(capture) · document mousedown(capture, 안전망).
+//   ★drop 으로도 걷는 까닭: G9 은 놓는 순간 끌던 단위를 DOM 에서 «뗀다»(prop-grid.js grdDropTextBlockOnCell) —
+//     떨어진 노드의 dragend 는 document 까지 «안 올라온다». 그러면 카드가 영영 반투명으로 남는다(이 고침의 가장 큰 위험).
+//     Esc·창 밖에 놓기·빗나간 놓기는 원본이 붙어 있어 dragend 로 걷힌다(음성대조 시험이 잰다).
+const _SCRATCH_YIELD = 'scratch-yield-drag';
+function _scratchYieldOff() { document.body.classList.remove(_SCRATCH_YIELD); }
+document.addEventListener('dragstart', (e) => {
+  const t = e.target;
+  if (t && t.closest && t.closest('#canvas') && !t.closest('.scratch-item')) document.body.classList.add(_SCRATCH_YIELD);
+}, true);
+document.addEventListener('dragend', _scratchYieldOff, true);
+window.addEventListener('drop', _scratchYieldOff, true);
+document.addEventListener('mousedown', _scratchYieldOff, true);
+// ── C: 놓은 «뒤» 정말 가렸을 때만 알린다 + 「참고 이미지 숨기기」(위 toggleScratchHideAll 그대로) ──
+//   조건 = el rect ∩ «보이는» 카드 rect 넓이 > 0 ∧ el 중심의 맨 위 요소가 그 카드 안. 둘 다여야 «가렸다».
+window.scratchCardsCovering = (el) => {
+  if (!el || !el.getBoundingClientRect || _scratchHiddenAll) return [];
+  const r = el.getBoundingClientRect();
+  if (!r.width || !r.height) return [];
+  const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  const onTop = top && top.closest ? top.closest('.scratch-item') : null;
+  if (!onTop) return [];
+  return [...document.querySelectorAll('.scratch-item')].filter(c => {
+    const q = c.getBoundingClientRect();
+    const ov = Math.max(0, Math.min(r.right, q.right) - Math.max(r.left, q.left)) * Math.max(0, Math.min(r.bottom, q.bottom) - Math.max(r.top, q.top));
+    return ov > 0 && c === onTop;
+  });
+};
+//   알림 꼴 = 공지 토스트(.settings-toast.notice-toast · 글 + 링크 단추 하나) 재사용 — 새 CSS 0.
+window.showScratchCoverNotice = () => {
+  document.querySelectorAll('.scratch-cover-notice').forEach(n => n.remove());
+  const el = document.createElement('div');
+  el.className = 'settings-toast notice-toast scratch-cover-notice';
+  el.setAttribute('role', 'status');
+  const txt = document.createElement('span');
+  txt.className = 'notice-toast-text';
+  txt.textContent = '넣은 줄이 참고 이미지(스크래치패드)에 가려졌습니다';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'notice-toast-link';
+  btn.textContent = '참고 이미지 숨기기';
+  el.appendChild(txt); el.appendChild(btn);
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  let done = false;
+  const close = () => { if (done) return; done = true; clearTimeout(timer); el.classList.remove('show'); setTimeout(() => el.remove(), 220); };
+  const timer = setTimeout(close, 6000);
+  btn.addEventListener('click', () => { close(); window.toggleScratchHideAll?.(true); });
+  return el;
 };
 
 // 메뉴 항목의 «라벨»이 현재 상태를 말하게 한다 — 누르기 전에 무슨 일이 날지 보여야 한다.
@@ -2292,7 +2360,7 @@ function _scratchShowSendMenu(item, x, y) {
 //   그리고 capture 로 다 가로채서 섹션에 놓아도 스크래치로 갔다(섹션에 넣는 길에 안 닿았다).
 // ⛔판정은 «이 함수 한 곳» — 네이티브 끌기(아래 _drop)와 자산 패널 mousedown 끌기(assets-panel.js onUp) 둘 다 이것만 부른다.
 // ════════════════════════════════════════════════════════════════════════
-const _SECTION_DROP_KINDS = new Set(['insert', 'replace', 'sectionbg', 'cvbcard']);   // commitScratchDropAt 의 «섹션 쪽» 판정
+const _SECTION_DROP_KINDS = new Set(['insert', 'replace', 'sectionbg', 'cvbcard', 'gridimg']);   // commitScratchDropAt 의 «섹션 쪽» 판정
 function _imgNatSize(src) {
   return new Promise(res => { const im = new Image(); im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight }); im.onerror = () => res({ w: 0, h: 0 }); im.src = src; });
 }
@@ -2300,7 +2368,8 @@ function _imgNatSize(src) {
 async function dropAssetImageAt(clientX, clientY, dataUrl, nat = {}) {
   if (!dataUrl) return null;
   const hit = document.elementFromPoint(clientX, clientY);
-  if (!hit || !hit.closest('#canvas-wrap')) return null;              // 캔버스 밖(패널 위 등) — 지금처럼 무동작
+  /* ★D6 ⒡3(2026-10-05 · 지디 「조용한 무동작을 남기지 마라」) — 캔버스 밖이면 넣지 않되 «말한다». */
+  if (!hit || !hit.closest('#canvas-wrap')) { window.showToast?.('여기엔 놓을 수 없습니다'); return null; }
   let natW = nat.naturalWidth || 0, natH = nat.naturalHeight || 0;
   if (!(natW > 0 && natH > 0)) { const z = await _imgNatSize(dataUrl); natW = z.w; natH = z.h; }
   if (hit.closest('#canvas .section-block') && !hit.closest('.scratch-item')) {
@@ -2309,6 +2378,8 @@ async function dropAssetImageAt(clientX, clientY, dataUrl, nat = {}) {
     if (_SECTION_DROP_KINDS.has(kind) && commitScratchDropAt(clientX, clientY, dataUrl, { naturalWidth: natW, naturalHeight: natH })) {
       window.pushHistory?.('노트패널→섹션');   // push-after — 스크래치→섹션 변환과 같은 규약(호출자 책임, canvas-scratch-drop.js 주석)
       window.scheduleAutoSave?.();
+      /* ★D6 ⒡3 — 섹션 «배경»으로 간 것은 그림 블록이 안 생겨 화면에선 «안 들어간 것»처럼 보인다(실앱: 1px 그림 = 아무것도 안 보임) → 말한다. */
+      if (kind === 'sectionbg') window.showToast?.('섹션 배경으로 넣었어요');
       return 'section';
     }
     clearScratchDropGuides();

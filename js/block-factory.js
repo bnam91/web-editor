@@ -1,9 +1,12 @@
+import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
 import { state } from './globals.js';
 import {
   genId,
   showNoSelectionHint,
   showToast,
   insertAfterSelected,
+  insertAfterSelectedAsSibling,
+  frameSelectedAsObject,
   getSectionAlign,
   makeLabelItem,
   renderGraph,
@@ -19,10 +22,11 @@ import {
   bindSectionDropZone,
 } from './drag-drop.js';
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
-         newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame,
-         growFrameToFitChildren } from './frame-geometry.js';
+         newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame, framePadding, innerFullWidth,
+         growFrameToFitChildren, applyFrameHAlignToChild } from './frame-geometry.js';
 import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
+import { GRID_CIRCLE_ICON_INNER, GRID_CIRCLE_ICON_STROKE_WIDTH } from './blocks/grid-circle-icon.js';
 import { isImageMemoHost, getImageMemo, setImageMemo, openImageMemoEditor } from './image-memo.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, topLevelBlocksOf, isEmptyShell } from './shape-frame.js';
 
@@ -111,6 +115,33 @@ function _makeTextFrame() {
   ss.dataset.bg = 'transparent';
   ss.style.cssText = 'background:transparent;width:100%;box-sizing:border-box;';
   return ss;
+}
+
+/* ═══ ★M1 R6 — 「줄 글자 꼴」 (2026-10-04, 지디 조건: 프레임화 «뒤» 더한 줄이 모달 본문과 다르면 안 된다) ═══════
+ *  프레임 `data-row-text-style` = JSON {ce:{contentEl style}, tb:{text-block style}} — 지금은 모달 프레임화(js/blocks/modal-frameify.js)만 심는다.
+ *  ★CSS 상속으로는 안 된다: `.text-block .tb-body{font-size:36px;line-height:1.6;color:var(--preset-body-color)}` 클래스 규칙이
+ *    부모에서 물려받은 값을 이기고, makeTextBlock 은 font-family 를 인라인으로 박는다 ⇒ 새 줄에 «직접» 칠해야 한다.
+ *  ★본문 줄(프레임화가 만든 것)과 새 줄이 «같은 함수»로 칠해진다 ⇒ 둘의 꼴이 구성상 같다(두 벌 금지).
+ *  ⚠️키는 «허용 목록»만 — 저장본(손으로 고친 JSON)이 아무 속성이나 밀어 넣지 못하게. 값은 style API 로만 쓴다.
+ *  ⚠️본문(body) 줄에만 — 제목(h1~h3)·캡션·라벨을 넣으면 그건 «다른 줄»을 고른 것이라 본문 꼴을 덮지 않는다. */
+const _ROW_TEXT_CE_KEYS = ['fontSize', 'lineHeight', 'color', 'fontFamily', 'fontWeight', 'letterSpacing', 'fontStyle',
+  'textDecoration', 'textAlign', 'whiteSpace', 'wordBreak', 'overflowWrap'];
+const _ROW_TEXT_TB_KEYS = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'backgroundColor'];
+function applyRowTextStyle(block, style) {
+  if (!block || !style || typeof style !== 'object') return false;
+  const ce = block.querySelector('[class^="tb-"]');
+  if (!ce) return false;
+  for (const k of _ROW_TEXT_CE_KEYS) { const v = style.ce?.[k]; if (typeof v === 'string' && v.length <= 200) ce.style[k] = v; }
+  if (typeof style.ce?.fontFamily === 'string' && style.ce.fontFamily) ce.dataset.rawFont = style.ce.fontFamily;   // 텍스트 패널이 «현재 글꼴»로 읽는 칸
+  for (const k of _ROW_TEXT_TB_KEYS) { const v = style.tb?.[k]; if (typeof v === 'string' && v.length <= 64) block.style[k] = v; }
+  return true;
+}
+/** 흐름 프레임에 새 «본문» 줄을 넣을 때 — 프레임에 심긴 줄 꼴이 있으면 칠한다. 칠했으면 true. */
+function applyFrameRowTextStyle(frame, block, type) {
+  if ((type || 'body') !== 'body' || !frame?.dataset?.rowTextStyle) return false;
+  let s;
+  try { s = JSON.parse(frame.dataset.rowTextStyle); } catch (_) { return false; }
+  return applyRowTextStyle(block, s);
 }
 
 function makeAssetBlock() {
@@ -452,7 +483,11 @@ function addTextBlock(type, opts = {}) {
   // banner-preset 외곽은 컴포넌트 단위 — 직접 자식 받지 않음. drill-in한 inner만 활성 대상.
   // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
   const activeSS = resolveInsertFrame(window._activeFrame);
-  if (activeSS && !activeSS.dataset.bannerPreset) {
+  if (activeSS && !activeSS.dataset.bannerPreset && _insFrameGate(activeSS)) {   // H11 — 오브젝트로 고른 프레임이면 섹션 레벨 길(다음 형제)
+    /* ★아무것도 안 넣는 «지원하지 않는 프레임 타입»(자유배치도 fullWidth 도 아님)은 pushHistory «전»에 빠진다 —
+       옛 판은 찍고 나서 return 해, 라이브 변경이 찍히지 않은 채였다면 화면이 안 바뀌는 ⌘Z 한 칸(먹통)이 남았다.
+       아래 분기 조건과 «같은 식» — 두 벌로 갈리면 이 가드가 거짓이 된다. */
+    if (activeSS.dataset.freeLayout !== 'true' && activeSS.dataset.fullWidth !== 'true') return;
     window.pushHistory();
     const { block } = makeTextBlock(type);
     const tf = _makeTextFrame();
@@ -466,6 +501,7 @@ function addTextBlock(type, opts = {}) {
     const _hasAbsCoords = (opts.x !== undefined || opts.y !== undefined || opts.width !== undefined);
     const _newAlign = newTextAlignInFrame(activeSS, opts.align, _hasAbsCoords);
     const _opts = _newAlign ? { ...opts, align: _newAlign } : opts;
+    applyFrameRowTextStyle(activeSS, block, type);   // ★M1 R6 — 프레임에 심긴 줄 꼴(있을 때만). «앞»에 둔다: 명시 opts(MCP 등)가 이긴다
     applyTextOpts(block, tf, _opts, type);
     tf.appendChild(block);
 
@@ -474,7 +510,7 @@ function addTextBlock(type, opts = {}) {
       // opts에 x/y/width가 있으면 절대좌표 고정, 없으면 자동 스택
       const hasAbsCoords = _hasAbsCoords;   // ★위에서 «한 번» 센 것 — 두 벌 금지
       const stackY = hasAbsCoords ? (opts.y ?? 0) : _calcFreeLayoutStackY(activeSS);
-      const leftPx = hasAbsCoords ? (opts.x ?? 0) : 0;
+      const leftPx = hasAbsCoords ? (opts.x ?? 0) : framePadding(activeSS).l;   // F5: 안쪽 여백만큼 들여 시작
       tf.style.position = 'absolute';
       tf.style.left     = leftPx + 'px';
       tf.style.top      = stackY + 'px';
@@ -505,6 +541,7 @@ function addTextBlock(type, opts = {}) {
       }
       if (refChild) activeSS.insertBefore(tf, refChild.nextSibling);
       else activeSS.appendChild(tf);
+      _followFrameHAlign(activeSS, tf);   // ★E135 — T▾ fullWidth 갈래도 프레임 정렬(E122 한 벌)
     } else {
       return; // 지원하지 않는 프레임 타입
     }
@@ -574,10 +611,15 @@ function addBlankTextBlock(type = 'body', opts = {}) {
   // 활성 프레임(frame-block) 분기
   // ★도형 래퍼는 그냥 도형 — 넣을 자리는 resolveInsertFrame 으로만 해석(0918 shape A안)
   const activeSS = resolveInsertFrame(window._activeFrame);
-  if (activeSS && !activeSS.dataset.bannerPreset) {
+  if (activeSS && !activeSS.dataset.bannerPreset && _insFrameGate(activeSS)) {   // H11 — 오브젝트로 고른 프레임이면 섹션 레벨 길(다음 형제)
+    /* ★아무것도 안 넣는 «지원하지 않는 프레임 타입»(자유배치도 fullWidth 도 아님)은 pushHistory «전»에 빠진다 —
+       옛 판은 찍고 나서 return 해, 라이브 변경이 찍히지 않은 채였다면 화면이 안 바뀌는 ⌘Z 한 칸(먹통)이 남았다.
+       아래 분기 조건과 «같은 식» — 두 벌로 갈리면 이 가드가 거짓이 된다. */
+    if (activeSS.dataset.freeLayout !== 'true' && activeSS.dataset.fullWidth !== 'true') return null;
     window.pushHistory();
     const { block } = makeTextBlock(type, { blank: true });
     const tf = _makeTextFrame();
+    applyFrameRowTextStyle(activeSS, block, type);   // ★M1 R6 — addTextBlock 프레임 갈래와 같은 자리·같은 함수
     // ★(a) 신규 추가 — addTextBlock 과 «같은 술어»로 기본 정렬을 정한다(두 벌 금지).
     // addBlankTextBlock 은 좌표 옵션 자체가 없다(항상 스택) → hasExplicitCoords=false.
     const _blankAlign = o.align || newTextAlignInFrame(activeSS, o.align, false);
@@ -591,12 +633,12 @@ function addBlankTextBlock(type = 'body', opts = {}) {
     if (activeSS.dataset.freeLayout === 'true') {
       const stackY = _calcFreeLayoutStackY(activeSS);
       tf.style.position = 'absolute';
-      tf.style.left     = '0px';
+      tf.style.left     = framePadding(activeSS).l + 'px';   // F5
       tf.style.top      = stackY + 'px';
       activeSS.appendChild(tf);
       // 의도적 빈 줄(data-blank)은 콘텐츠 폭이 ~0이라 클램프 시 너무 좁아짐
       // → _clampTextFrameWidth가 측정 실패(<=1px)로 안전 원복하므로 100% 기본 명시
-      tf.style.width = '100%';
+      tf.style.width = innerFullWidth(activeSS);
       tf.dataset.width = '100%';
       _clampTextFrameWidth(tf, activeSS);
       // #2 와 동일 — 빈 줄도 프레임 중앙에서 시작한다(폭 100% 라 좌우는 0, 세로가 실제로 움직인다).
@@ -611,6 +653,7 @@ function addBlankTextBlock(type = 'body', opts = {}) {
       }
       if (refChild) activeSS.insertBefore(tf, refChild.nextSibling);
       else activeSS.appendChild(tf);
+      _followFrameHAlign(activeSS, tf);   // ★E135 — API 문(자동화): 앱 안 호출자 0 — 문서화된 window 문만 · 자동화로 넣어도 프레임 정렬
     } else {
       return null; // 지원하지 않는 프레임 타입
     }
@@ -914,7 +957,9 @@ function addAssetBlock(preset, opts = {}) {
   window.selectSection(sec);
 }
 
-function addGapBlock(height) {
+/* opts.asSibling — 키보드 입구(g)와 하단 툴바 Component ▸ Gap(2026-10-05 U17)이 켠다. 툴바도 «g 와 같은 동작»(툴팁이 「단축키 G」라 같아야 한다). 그리드 칸·말풍선 줄 우선 처리(g 키 쪽)는 툴바엔 없다.
+ *   켜면: 프레임을 «오브젝트로» 골라 둔 상태(frameSelectedAsObject)일 때 프레임 안 분기를 건너뛰고 «다음 형제»로 간다(F1). */
+function addGapBlock(height, opts = {}) {
   // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
   const overlay = getSelectedOverlay();
   if (overlay) {
@@ -926,19 +971,20 @@ function addGapBlock(height) {
     window.buildLayerPanel();
     return;
   }
+  const pickedFrame = opts.asSibling ? frameSelectedAsObject(null) : null;
   // fullWidth 플로우 프레임에만 추가 — 자유배치(freeLayout) 프레임은 스킵 후 섹션 레벨로
-  if (resolveInsertFrame(window._activeFrame)?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
+  if (!pickedFrame && resolveInsertFrame(window._activeFrame)?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
     const gb = makeGapBlock();
     if (height) gb.style.height = height + 'px';
     gb.dataset.h = height || 40;
     return gb;
   })) return;
-  const sec = window.getSelectedSection();
+  const sec = pickedFrame ? pickedFrame.closest('.section-block') : window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const gb = makeGapBlock();
   if (height) gb.style.height = height + 'px';
-  insertAfterSelected(sec, gb);
+  (opts.asSibling ? insertAfterSelectedAsSibling : insertAfterSelected)(sec, gb);
   bindBlock(gb);
   window.buildLayerPanel();
   window.selectSection(sec);
@@ -1669,12 +1715,13 @@ function _clampTextFrameWidth(tf, frameEl) {
     || tf.style.textAlign
     || 'left';
   if (align === 'center' || align === 'right' || align === 'justify') {
-    tf.style.width = '100%';
+    tf.style.width = innerFullWidth(frameEl);   // F5: 여백이 있으면 안쪽 상자 폭(dataset 은 '100%' 의미 그대로)
     tf.dataset.width = '100%';
-    return '100%';
+    return tf.style.width;
   }
   // 프레임 가용 폭(클램프 상한)
-  const frameW = (frameEl && frameEl.clientWidth) || 860;
+  const _fp = framePadding(frameEl);   // F5: 안쪽 여백 안에서만 자란다
+  const frameW = ((frameEl && frameEl.clientWidth) || 860) - _fp.l - _fp.r;
   // 콘텐츠 실측: 측정 동안 width를 fit-content로 잠시 풀어 자연 폭 산출
   const prevWidth = tf.style.width;
   tf.style.width = 'fit-content';
@@ -1683,7 +1730,7 @@ function _clampTextFrameWidth(tf, frameEl) {
   // box-sizing:border-box이므로 패딩 포함 offsetWidth가 곧 프레임 폭
   if (!contentW || contentW <= 1) {
     // 측정 실패 시 안전하게 원복
-    tf.style.width = prevWidth || '100%';
+    tf.style.width = prevWidth || innerFullWidth(frameEl);
     return tf.style.width;
   }
   const w = Math.min(Math.round(contentW), frameW);
@@ -1702,13 +1749,15 @@ function _placeAtFrameCenter(el, frame) {
   if (!el || !frame) return null;
   // (c) 「중앙」의 기준 = 프레임의 «보여지는» 폭/높이 — 축 선택 근거는 frameVisibleSize 주석 참조.
   const fv = frameVisibleSize(frame);
+  const _pad = framePadding(frame);   // F5: 자유 프레임 «안쪽 여백» 안의 중앙
   const off = frameAlignOffset(fv.w, fv.h,
-                               el.offsetWidth, el.offsetHeight, 'center', 'center');
+                               el.offsetWidth, el.offsetHeight, 'center', 'center', _pad);
   // ★삽입 경로에서만 «음수 클램프» — 공유 술어(frameAlignOffset)는 클램프하지 않는다.
   //   실측(2026-09-05): 에셋 프리셋은 780px 인데 기본 프레임은 520px 이라 순수 중앙은
   //   top:-130px 이 되고, 프레임 overflow:hidden 이 «방금 넣은 이미지의 윗부분»을 잘랐다.
   //   정렬 «버튼»(prop-frame _setAlign)은 사용자가 의도적으로 누른 것이라 음수를 허용하지만,
   //   «삽입 기본값»이 블록을 프레임 밖으로 밀어내면 안 된다 → 여기서만 0으로 막는다.
+  off.left = Math.max(off.left, _pad.l); off.top = Math.max(off.top, _pad.t);   // 안쪽 여백이 바닥(F5) — 여백 0 이면 옛 식 그대로
   const baseL = Math.max(0, off.left);
   const baseT = Math.max(0, off.top);
   const occupied = [...frame.children]
@@ -1721,7 +1770,7 @@ function _placeAtFrameCenter(el, frame) {
      글자 중앙정렬을 기본으로 켜면(폭 100%) 이 자리를 «모든» 텍스트가 지나간다.
      X 로 비킬 자리가 없으면(가득 찬 폭) X 는 0 으로 되돌리고 Y 캐스케이드만 남긴다
      — 두 형제의 top 이 20px 다르므로 «완전히 겹치는» 일은 그대로 막힌다. */
-  const left = clampLeftIntoFrame(pos.left, fv.w, el.offsetWidth);
+  const left = Math.max(_pad.l, clampLeftIntoFrame(pos.left, fv.w - _pad.r, el.offsetWidth));
   el.style.left = left + 'px';
   el.style.top  = pos.top  + 'px';
   return { left, top: pos.top };
@@ -1730,15 +1779,25 @@ function _placeAtFrameCenter(el, frame) {
 /* freeLayout inner 안에서 absolute 블록들을 아래로 쌓을 Y 좌표 계산 */
 function _calcFreeLayoutStackY(inner) {
   const absEls = [...inner.querySelectorAll(':scope > *')].filter(el => el.style.position === 'absolute');
-  if (!absEls.length) return 20;
+  if (!absEls.length) return Math.max(20, framePadding(inner).t);   // F5: 위 여백 아래에서 시작
   const last = absEls[absEls.length - 1];
   return Math.round(parseInt(last.style.top || '0') + (last.offsetHeight || 60) + 16);
 }
 
 /* sub-section이 활성화된 경우 블록 삽입 — freeLayout(B모드) / fullWidth(플로우) 분기 */
 function _insertToFlowFrame(makeBlockFn, opts = {}) {
+  /* ★G19 — opts.into: 넣을 «그릇»을 부르는 쪽이 직접 준다(그리드 밑 .grd-children). 함수로 받는다 —
+     그릇은 «넣기 직전»(pushHistory 뒤)에 만들어야 시작 표본에 빈 그릇이 안 찍힌다. 그릇은 흐름이라 A 모드만 탄다.
+     ⛔새 길을 만들지 않는다 — 아래 A 모드(선택된 자식 뒤 / 끝에 붙이기 · bindBlock · 레이어) 그대로다. */
+  const _into = typeof opts.into === 'function' ? opts.into : null;
+  if (_into) {
+    window.pushHistory();
+    const result = makeBlockFn();
+    if (!result) { window.buildLayerPanel(); return true; }
+    return _appendFlowChild(_into(), result);
+  }
   // ★도형 래퍼가 활성이어도 그 «안»에 넣지 않는다 — 한 단계 위 실제 프레임(없으면 섹션 레벨 폴백)
-  const ss = resolveInsertFrame(window._activeFrame);
+  const ss = _insFrameGate(resolveInsertFrame(window._activeFrame));
   if (!ss) return false;
 
   /* banner-preset 외곽은 컴포넌트 단위로 취급 — 직접 자식 추가 받지 않음.
@@ -1755,9 +1814,9 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
     // opts에 x/y/width가 있으면 절대좌표 고정, 없으면 자동 스택
     const hasAbsCoords = (opts.x !== undefined || opts.y !== undefined || opts.width !== undefined);
     const stackY = hasAbsCoords ? (opts.y ?? 0) : _calcFreeLayoutStackY(ss);
-    const leftPx = hasAbsCoords ? (opts.x ?? 0) : 0;
+    const leftPx = hasAbsCoords ? (opts.x ?? 0) : framePadding(ss).l;   // F5
     // opts.width 없으면 preset이 설정한 width 유지 (logo 등 고정 너비 preset 보호)
-    const widthVal = opts.width ? opts.width + 'px' : (block.style.width || '100%');
+    const widthVal = opts.width ? opts.width + 'px' : ((block.style.width && block.style.width !== '100%') ? block.style.width : innerFullWidth(ss));   // F5: 100% 는 안쪽 상자 폭
     block.style.position = 'absolute';
     block.style.left     = leftPx + 'px';
     block.style.top      = stackY + 'px';
@@ -1768,6 +1827,10 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
       block.dataset.offsetY = stackY;
     }
     ss.appendChild(block);
+    /* ★F3(2026-10-03) — 그리드는 위 '100%' 기본을 그대로 두면 폭 = 프레임 폭 → T-088 클램프 x 범위 [0,0](수직만 움직임).
+       폭은 그리드 폭 모델로 준다(opts.width 가 있으면 그 값을 키로). 규칙은 grid-block.js fitGridWidthToFreeFrame 한 곳.
+       append «뒤»라 프레임 폭을 잰다 · 아래 중앙 놓기가 줄어든 폭으로 가운데를 잡는다. */
+    if (block.classList.contains('grid-block')) window.fitGridWidthToFreeFrame?.(block, ss, opts.width);
     // #3 «블록을 프레임 중앙에 놓기» — 좌표 미지정 삽입의 기본값을 프레임 중앙으로.
     // append «뒤»에 불러야 offsetWidth/Height 가 실측된다. hasAbsCoords(MCP·명시좌표)면 유지.
     if (!hasAbsCoords) _placeAtFrameCenter(block, ss);
@@ -1782,6 +1845,28 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
   window.pushHistory();
   const result = makeBlockFn();
   if (!result) { window.buildLayerPanel(); return true; }
+  return _appendFlowChild(ss, result);
+}
+
+/* 흐름 그릇(fullWidth 프레임 · G19 그리드 .grd-children)에 makeBlockFn 의 결과를 붙인다 — A 모드 «한 벌». */
+/* ★E122(2026-10-05) — 사용자가 «정렬 단추로» 가로 정렬을 준 스택 프레임에 새로 넣는 것은 그 정렬을 따른다.
+   실측: 「왼쪽」 뒤 새 에셋(small·logo)·아이콘서클·아이콘텍스트·도형이 가운데로 섰다(단추를 «다시» 누르면 왼쪽 — 그 자리가 기준).
+   ★dataset.alignItems 가 «있을 때만» — 정렬 단추·MCP updateFrame·modal-frameify 만 쓴다(코드독해). 손 안 댄 프레임은 종전 그대로.
+   규칙은 frame-geometry.js applyFrameHAlignToChild 한 벌(단추와 같은 것). 자유배치 프레임은 좌표 갈래라 여기 안 온다. */
+/* ★H11(2026-10-05) — 툴바 add* 의 «프레임 갈래» 문지기. 판정은 drag-utils.js frameTakesInsert 한 자리(여기선 부르기만):
+   프레임을 «오브젝트로» 골랐으면 null → 각 add* 는 섹션 레벨 길(insertAfterSelected)로 떨어지고, 그 길이 «다음 형제»에 둔다.
+   ⚠️import 줄은 안 바꾼다(단위 시험 여럿이 이 파일 import 줄을 글자로 갈아 끼운다) — window 로 부른다. */
+function _insFrameGate(f) {   // f = resolveInsertFrame 으로 «이미 해석한» 프레임(해석 한 줄 불변식은 각 자리에 그대로 — shape-frame-wiring ②)
+  return (f && typeof window.frameTakesInsert === 'function' && !window.frameTakesInsert(f)) ? null : f;
+}
+
+function _followFrameHAlign(host, el) {
+  if (!host || !el || host.dataset.freeLayout === 'true') return;
+  const ai = host.dataset.alignItems;
+  if (ai === 'flex-start' || ai === 'center' || ai === 'flex-end') applyFrameHAlignToChild(el, ai);
+}
+
+function _appendFlowChild(ss, result) {
   // makeBlockFn이 { row, block } 또는 block(gap) 반환
   const newEl = result.row || result;
   const innerBlock = result.block || result;
@@ -1797,10 +1882,74 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
   }
   if (refChild) ss.insertBefore(newEl, refChild.nextSibling);
   else ss.appendChild(newEl);
+  _followFrameHAlign(ss, newEl);
   bindBlock(innerBlock);
   window.buildLayerPanel();
   return true;
 }
+
+/* ═══ G19 「＋ 블럭 넣기 ▾」 — 그리드 «밑»(.grd-children)에 블럭 하나를 넣는다 ═══════════════
+ * ★넣는 길은 _insertToFlowFrame 그대로(opts.into 만 준다 — 새 길 금지). 그릇은 «넣기 직전»에 만든다.
+ * ★삽입 래퍼 둘(js/insert-history.js 끝 표본 · js/insert-select.js 새 블럭 선택)이 감싼다 — 로스터 EXTRA 한 줄
+ *   (이름이 …Block 이 아닌 까닭은 그 EXTRA 줄 주석). ⛔입구 안에서 끝 표본·선택을 따로 하지 않는다(js/CLAUDE.md).
+ * ★블럭 선택 + T/G/K 는 여전히 «그리드 뒤 형제»다(insert-anchor G3 계약 무변경) — 자식은 이 입구로만 넣는다.
+ * @param {string|Element} grid  그리드 블럭(또는 id)
+ * @param {'body'|'h2'|'image'|'gap'} kind */
+export const GRID_CHILD_KINDS = ['body', 'h2', 'image', 'gap'];
+function addGridChild(grid, kind = 'body') {
+  const g = typeof grid === 'string' ? document.getElementById(grid) : grid;
+  if (!g || !g.classList?.contains('grid-block') || !GRID_CHILD_KINDS.includes(kind)) return null;
+  let made = null;
+  _insertToFlowFrame(() => {
+    if (kind === 'gap') {
+      const gb = makeGapBlock();
+      gb.style.height = '40px'; gb.dataset.h = 40;
+      made = gb;
+      return gb;
+    }
+    if (kind === 'image') {
+      const r = makeAssetBlock();
+      made = r.block;
+      return r;
+    }
+    const { block } = makeTextBlock(kind);
+    const tf = _makeTextFrame();
+    applyTextOpts(block, tf, {}, kind);
+    tf.appendChild(block);
+    made = block;
+    return { row: tf, block };
+  }, { into: () => window.ensureGridKidsBox(g) });
+  return made ? { block: made } : null;
+}
+window.addGridChild = addGridChild;
+
+/* ═══ G14 「＋ 블럭 넣기 ▾」 — 서클 에셋블럭의 «원 안»(.icb-circle > .icb-children)에 블럭 하나를 넣는다 ═══════════════
+ * ★길은 addGridChild 와 같다 — _insertToFlowFrame(opts.into) · 그릇은 «넣기 직전»(pushHistory 뒤)에 만든다(js/icb-children.js).
+ * ★삽입 래퍼 둘(insert-history 끝 표본 · insert-select 새 블럭 선택)이 감싼다 — 로스터 EXTRA 한 줄(이름이 …Block 이 아닌 까닭도 같다).
+ * ★글자는 가운데 정렬로 넣는다(원 한가운데라서) — 글자 블럭 «자기» 속성이라 사람이 바꿀 수 있다.
+ * ★아이콘은 row 없이 맨몸으로 넣는다 — 그릇이 가운데 정렬 flex 라 row(폭 100%) 안에 두면 왼쪽에 붙는다. 고르기는 아이콘 패널 「교체」.
+ * @param {string|Element} circle  서클 블럭(또는 id)
+ * @param {'body'|'h2'|'icon'} kind */
+function addCircleChild(circle, kind = 'body') {
+  const c = typeof circle === 'string' ? document.getElementById(circle) : circle;
+  if (!c || !c.classList?.contains('icon-circle-block') || !(window.ICB_CHILD_KINDS || []).includes(kind)) return null;
+  let made = null;
+  _insertToFlowFrame(() => {
+    if (kind === 'icon') {
+      const { block } = window.makeIconifyBlock('', '', 64);
+      made = block;
+      return block;
+    }
+    const { block } = makeTextBlock(kind);
+    const tf = _makeTextFrame();
+    applyTextOpts(block, tf, { align: 'center' }, kind);
+    tf.appendChild(block);
+    made = block;
+    return { row: tf, block };
+  }, { into: () => window.ensureIcbKidsBox(c) });
+  return made ? { block: made } : null;
+}
+window.addCircleChild = addCircleChild;
 
 function addFrameBlock(opts = {}) {
   const sec = window.getSelectedSection();
@@ -2512,7 +2661,7 @@ function addShapeBlock(type = 'rectangle') {
 
   // 삽입 대상 결정: 활성 프레임 → 선택된 프레임 → 섹션 레벨
   // ★도형 래퍼 안에 도형을 넣지 않는다 — 활성이 도형 래퍼면 한 단계 위 실제 프레임(SSOT)
-  const activeFrame = resolveInsertFrame(window._activeFrame);
+  const activeFrame = _insFrameGate(resolveInsertFrame(window._activeFrame));
 
   if (activeFrame && activeFrame.closest('.section-block') === sec) {
     // 활성 프레임 안에 삽입
@@ -2523,10 +2672,11 @@ function addShapeBlock(type = 'rectangle') {
       ss.style.top  = stackY + 'px';
     }
     activeFrame.appendChild(ss);
+    _followFrameHAlign(activeFrame, ss);   // E122 — 도형 래퍼도 프레임 정렬을 따른다
   } else {
     const selSS = document.querySelector('.frame-block.selected');
     const isSelShapeFrame = isShapeFrame(selSS);
-    if (selSS && !isSelShapeFrame && !selSS.dataset.textFrame && selSS.closest('.section-block') === sec) {
+    if (selSS && !isSelShapeFrame && !selSS.dataset.textFrame && selSS.closest('.section-block') === sec && (typeof window.frameTakesInsert !== 'function' || window.frameTakesInsert(selSS))) {   // H11 — 오브젝트 선택이면 아래 섹션 레벨 → 다음 형제
       // 선택된 프레임 안에 삽입
       if (selSS.dataset.freeLayout === 'true') {
         const stackY = _calcFreeLayoutStackY(selSS);
@@ -2535,6 +2685,7 @@ function addShapeBlock(type = 'rectangle') {
         ss.style.top  = stackY + 'px';
       }
       selSS.appendChild(ss);
+      _followFrameHAlign(selSS, ss);   // E122
     } else {
       // 섹션 레벨에 삽입 (shape frame은 다른 ss 중첩 금지)
       // insertAfterSelected 가 _activeFrame 을 resolveInsertFrame 으로 해석하므로 도형 래퍼 안엔 안 들어간다.
@@ -2608,6 +2759,43 @@ function getBubbleTailSVG(tail) {
   return `<svg class="tb-bubble-tail" viewBox="0 0 19 16" xmlns="http://www.w3.org/2000/svg" width="19" height="16"><path d="M18.3597 14.7395C9.25742 16.3944 2.32729 11.6364 0 9.05055L0.258587 1.29294C2.75826 1.81011 8.17136 2.27557 9.82631 0C9.56773 9.30914 16.5496 13.9637 18.3597 14.7395Z"/></svg>`;
 }
 window.getBubbleTailSVG = getBubbleTailSVG;
+
+/* ★BT3(2026-10-04) 말풍선 «스타일» = 배경·글자색 프리셋. 패널 드롭다운(prop-text-wireup-bubble.js)과
+   MCP(updateSpeechBubbleBlock bubbleStyle)가 «이 한 곳»을 부른다.
+   뿌리: 904c5027(「Apple은 추후 정의」) 이래 드롭다운은 .tb-bubble 에 data-bubble-style 만 붙였고 그 속성을 읽는 CSS 가
+     레포 어디에도 없었다 ⇒ 세 옵션 모두 같은 모습(07d8178b 실측: 셋 다 rgb(229,229,234)).
+   ★CSS 속성선택자가 아니라 «인라인 값»으로 쓰는 이유 — ⑴배경색 칸이 이미 인라인(--bubble-bg·backgroundColor)이라
+     CSS 규칙으로는 한 번이라도 배경을 만진 블럭에서 다시 「적용 안 됨」이 된다 ⑵내보내기(export-html.js)는 자기 CSS 를
+     따로 들고 있어 새 규칙을 못 본다 — 인라인은 그대로 실린다 ⑶옛 문서에 남은 bubbleStyle 값이 «열 때» 모습을 바꾸지 않는다.
+   스타일은 «출발점»이다 — 고른 뒤 배경색 칸으로 바꾸면 그 색이 이긴다. 'default' = 인라인을 지워 CSS 기본으로.
+   apple 의 모습은 원 커밋이 정의하지 않았다 — 레인이 고른 초록 #34c759 · 흰 글자를 2026-10-04 현빈이 「애플 메시지 녹색」으로 확정. */
+const _sbToken = (name, fb) => {
+  try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb; } catch (_) { return fb; }
+};
+const SPEECH_BUBBLE_STYLES = {
+  default:  () => null,
+  imessage: () => ({ bg: _sbToken('--preset-chat-bg-right', '#1888fe'), color: _sbToken('--preset-chat-text-right', '#ffffff') }),
+  // 2026-10-04 현빈 확정 「애플 메시지 녹색」 — 904c5027 「Apple은 추후 정의」의 빈칸을 채움(RG1 닫힘)
+  apple:    () => ({ bg: '#34c759', color: '#ffffff' }),
+};
+function applySpeechBubbleStyle(block, style) {
+  const bubbleEl = block?.querySelector('.tb-bubble');
+  if (!bubbleEl || !SPEECH_BUBBLE_STYLES[style]) return false;
+  block.dataset.bubbleStyle = style;
+  delete bubbleEl.dataset.bubbleStyle;   // 옛 판의 표식(읽는 CSS 없음) — 남기지 않는다
+  const p = SPEECH_BUBBLE_STYLES[style]();
+  if (!p) {
+    block.style.removeProperty('--bubble-bg');
+    bubbleEl.style.backgroundColor = '';
+    bubbleEl.style.color = '';
+  } else {
+    block.style.setProperty('--bubble-bg', p.bg);
+    bubbleEl.style.backgroundColor = p.bg;
+    bubbleEl.style.color = p.color;
+  }
+  return true;
+}
+window.applySpeechBubbleStyle = applySpeechBubbleStyle;
 
 function makeSpeechBubbleBlock(tail) {
   tail = tail || 'left';
@@ -4003,6 +4191,7 @@ function updateIconCircleBlock(blockId, partial = {}) {
   return { ok: true, blockId, before, applied };
 }
 
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 // ── updateGraphBlock (graph-block) ─────────────────────────────────────
 function updateGraphBlock(blockId, partial = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
@@ -4123,7 +4312,7 @@ function updateGraphBlock(blockId, partial = {}) {
   try {
     _intField('chartHeight',  'chartHeight',  80, 2000);
     _intField('labelSize',    'labelSize',    8,  28);
-    _intField('barThickness', 'barThickness', 8,  48);
+    _intField('barThickness', 'barThickness', BAR_THICKNESS_MIN, BAR_THICKNESS_MAX);
     _intField('padX',         'padX',         0,  80);
     _intField('itemGap',      'itemGap',      8,  80);
     _intField('pctSize',      'pctSize',      20, 120);
@@ -4256,6 +4445,20 @@ function updateSpeechBubbleBlock(blockId, partial = {}) {
     return { ok: false, code: 'RENDER_ERROR', message: '.tb-bubble missing — block malformed' };
   }
 
+  /* ★BT2(2026-10-04) «줄» — 그리드 줄 데이터(dataset.lines). 검사·D4 는 pushHistory «앞»(빈 이력 칸 금지).
+     lines:[] 또는 null = 줄을 끈다(본문 = 줄 글자 평문으로 돌아간다). */
+  const _lnNow = window.lnBubbleLines?.(block) || null;
+  if (partial.lines !== undefined && partial.lines !== null) {
+    const lr = window.lnValidateLines?.(partial.lines, 'lines');
+    if (lr) return lr;
+  }
+  const _lnAfter = partial.lines === undefined ? _lnNow : (window.lnHasLines?.(partial.lines) ? partial.lines : null);
+  if (partial.text !== undefined && partial.text !== null && _lnAfter) {
+    return { ok: false, code: 'INVALID',
+      message: 'text: this bubble has lines — its body is drawn from those lines and text would not change the screen. '
+        + 'Edit lines instead (lines:[{type,text,…}]), or pass lines:null first to turn the lines off.' };
+  }
+
   const before = {
     tail:        block.dataset.tail,
     bubbleStyle: block.dataset.bubbleStyle,
@@ -4263,6 +4466,7 @@ function updateSpeechBubbleBlock(blockId, partial = {}) {
     senderName:  block.dataset.senderName,
     bubbleBg:    block.style.getPropertyValue('--bubble-bg').trim() || bubbleEl.style.backgroundColor || '',
     text:        (() => { const t = (bubbleEl.innerText || ''); const ph = bubbleEl.dataset.placeholder || ''; return (bubbleEl.dataset.isPlaceholder === 'true' && (t.trim() === '' || t.trim() === ph.trim())) ? '' : t; })(),
+    lines:       _lnNow,
   };
 
   window.pushHistory?.();
@@ -4295,12 +4499,7 @@ function updateSpeechBubbleBlock(blockId, partial = {}) {
       return { ok: false, code: 'INVALID', message: `invalid bubbleStyle: ${partial.bubbleStyle}. allowed: default|apple|imessage` };
     }
     const style = partial.bubbleStyle;
-    block.dataset.bubbleStyle = style;
-    if (style === 'apple') {
-      bubbleEl.dataset.bubbleStyle = 'apple';
-    } else {
-      delete bubbleEl.dataset.bubbleStyle;
-    }
+    applySpeechBubbleStyle(block, style);   // BT3 — 패널 드롭다운과 같은 한 곳
     applied.bubbleStyle = style;
   }
 
@@ -4348,6 +4547,21 @@ function updateSpeechBubbleBlock(blockId, partial = {}) {
     bubbleEl.style.backgroundColor = v;
     block.style.setProperty('--bubble-bg', v);
     applied.bubbleBg = v;
+  }
+
+  if (partial.lines !== undefined) {
+    if (window.lnHasLines?.(partial.lines)) {
+      block.dataset.lines = JSON.stringify(partial.lines);
+      window.lnRenderBubble?.(block);
+      applied.lines = partial.lines;
+    } else if (block.dataset.lines !== undefined) {
+      /* 줄을 끈다 — 본문은 «줄 글자 평문»으로 돌아온다(내용을 잃지 않는다). 비면 placeholder. */
+      const plain = window.lnPlainText?.(_lnNow) || '';
+      delete block.dataset.lines;
+      if (plain) { delete bubbleEl.dataset.isPlaceholder; bubbleEl.innerText = plain; }
+      else { bubbleEl.dataset.isPlaceholder = 'true'; bubbleEl.innerText = bubbleEl.dataset.placeholder || '말풍선 텍스트를 입력하세요'; }
+      applied.lines = null;
+    }
   }
 
   if (partial.text !== undefined && partial.text !== null) {
@@ -4720,6 +4934,9 @@ function updateShapeBlock(blockId, partial = {}) {
       return { ok: false, code: 'API_MISSING', message: 'SHAPE_DEFS/makeShapeBlock 미노출 — shapeType 변경 불가' };
     }
     block.dataset.shapeType = partial.shapeType;
+    // ★위 swap 이 기하를 «기본(별=5각)»으로 새로 쓴다 ⇒ 별 꼭짓점 수(B2)도 기본으로 — 안 지우면 SVG 5각·dataset 7·이미지 clip 14 로 어긋난다.
+    //   편집 경로에서만 지운다(복원·로드는 이 함수를 안 지나므로 재생성 없음).
+    delete block.dataset.starPoints;
     applied.shapeType = partial.shapeType;
     // 이미지(에셋) 채우기 모드(0918 picker) — 면 없는 타입(선·화살표)이면 해제, 면 있으면 모양 clip 을 새 타입으로
     if (block.dataset.shapeFill) {
@@ -4900,6 +5117,58 @@ function updateShapeBlock(blockId, partial = {}) {
   return { ok: true, blockId, before, applied };
 }
 
+/* ══ S3V(2026-10-04) Icon Text «방향» — 한 곳 ═══════════════════════════════════
+ * ⛔Icon Text 는 렌더러가 없다 — 저장된 DOM 이 정본. 방향 = 블럭 속성 data-itb-dir="v" 하나(없으면 가로 = 옛 모양).
+ * 패널 「방향」 단추(prop-text-wireup-align.js)와 MCP update_icon_text_block{direction} 이 «이것»을 부른다(두 벌 금지).
+ * ★정렬을 «옮겨 적는다»(겉보기 유지): 가로 정렬 키 = justifyContent(+ .itb-text flex) · 세로 = alignItems(+ .itb-text textAlign).
+ *   옛 키는 지운다 — 남기면 다시 돌아올 때 옛 값이 되살아난다(지디 시험 ⒦).
+ *   정렬을 손댄 적 없으면(인라인 없음) 옮길 것도 없다: 세로 기본 = 가운데(지디 시안 ㉮ — 2026-10-04, CSS) · 가로 기본 = 왼쪽(CSS). */
+const _ITB_FLEX = { left: 'flex-start', center: 'center', right: 'flex-end' };
+const _ITB_ALIGN_OF = { 'flex-start': 'left', 'center': 'center', 'flex-end': 'right', 'start': 'left', 'end': 'right', 'left': 'left', 'right': 'right' };
+/** 지금 «손으로 준» 정렬(left|center|right) — 인라인이 없으면 null(=방향별 CSS 기본). */
+function iconTextAlignOf(block) {
+  if (!block) return null;
+  return _ITB_ALIGN_OF[block.dataset.itbDir === 'v' ? block.style.alignItems : block.style.justifyContent] || null;
+}
+/** 정렬 하나를 지금 방향의 키로 쓴다. ★가로 갈래는 옛 정렬 단추(prop-text-wireup-align.js)와 «같은 값»을 쓴다(바이트 동일 — S1). */
+function applyIconTextAlign(block, align) {
+  if (!block || !_ITB_FLEX[align]) return false;
+  const t = block.querySelector(':scope > .itb-text');
+  if (block.dataset.itbDir === 'v') {
+    block.style.alignItems = _ITB_FLEX[align];
+    if (t) t.style.textAlign = align;
+  } else {
+    block.style.justifyContent = _ITB_FLEX[align];
+    if (t) t.style.flex = align === 'left' ? '1' : '0 1 auto';
+  }
+  return true;
+}
+/** @param {'horizontal'|'vertical'} dir  @returns {boolean} 바뀌었으면 true(같은 방향이면 false — 이력 칸을 안 만든다) */
+function setIconTextDirection(block, dir) {
+  if (!block || !block.classList.contains('icon-text-block')) return false;
+  if (dir !== 'horizontal' && dir !== 'vertical') return false;
+  const toV = dir === 'vertical';
+  if (toV === (block.dataset.itbDir === 'v')) return false;
+  const cur = iconTextAlignOf(block);
+  const t = block.querySelector(':scope > .itb-text');
+  if (toV) {
+    block.style.removeProperty('justify-content');
+    t?.style.removeProperty('flex');
+    block.dataset.itbDir = 'v';
+  } else {
+    block.style.removeProperty('align-items');
+    t?.style.removeProperty('text-align');
+    delete block.dataset.itbDir;
+  }
+  if (cur) applyIconTextAlign(block, cur);
+  if (block.getAttribute('style') === '') block.removeAttribute('style');
+  if (t && t.getAttribute('style') === '') t.removeAttribute('style');
+  return true;
+}
+window.iconTextAlignOf = iconTextAlignOf;
+window.applyIconTextAlign = applyIconTextAlign;
+window.setIconTextDirection = setIconTextDirection;
+
 // ── 수정: icon-text 블록 partial update ──────────────────────────────────
 function updateIconTextBlock(blockId, partial = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
@@ -4918,7 +5187,12 @@ function updateIconTextBlock(blockId, partial = {}) {
   const before = {
     text:   _textEl0 ? _textEl0.textContent : '',
     imgSrc: block.dataset.imgSrc || '',
+    direction: block.dataset.itbDir === 'v' ? 'vertical' : 'horizontal',   // ★S3V
   };
+  if (partial.direction !== undefined && partial.direction !== null
+      && partial.direction !== 'horizontal' && partial.direction !== 'vertical') {
+    return { ok: false, code: 'INVALID', message: `direction must be 'horizontal' | 'vertical' (got ${JSON.stringify(partial.direction)})` };
+  }
 
   if (partial.text !== undefined && partial.text !== null) {
     if (typeof partial.text !== 'string') {
@@ -4989,6 +5263,12 @@ function updateIconTextBlock(blockId, partial = {}) {
     applied.imgSrc = newSrc;
   }
 
+  /* ★S3V — 방향. 패널 「방향」 단추와 «같은 한 곳»(setIconTextDirection — 정렬을 옮겨 적고 옛 키를 지운다). */
+  if (partial.direction !== undefined && partial.direction !== null) {
+    setIconTextDirection(block, partial.direction);
+    applied.direction = partial.direction;
+  }
+
   try { window.buildLayerPanel?.(); } catch (_) {}
 
   try { window.triggerAutoSave?.(); } catch (_) {}
@@ -5040,6 +5320,8 @@ window.deactivateFrame = deactivateFrame;
 window._insertToFlowFrame = _insertToFlowFrame;
 window._makeTextFrame     = _makeTextFrame;
 window.applyTextOpts      = applyTextOpts;
+window.applyRowTextStyle      = applyRowTextStyle;        // M1 R6 — 줄 글자 꼴(modal-frameify.js 가 본문 줄을 같은 함수로 칠한다)
+window.applyFrameRowTextStyle = applyFrameRowTextStyle;
 window.makeJokerBlock       = makeJokerBlock;
 window.addJokerBlock        = addJokerBlock;
 window.makeShapeBlock       = makeShapeBlock;
@@ -5161,6 +5443,22 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       folderSel.innerHTML = folders.map(f => `<option value="${f}">${f}</option>`).join('') + '<option value="__new__">새 폴더...</option>';
     }
 
+    /* ★U16①(2026-10-05 숨김 → 2026-10-06 풀림 · lane-drag) — 「블록 템플릿으로 저장」을 프레임에서도 보인다.
+       숨겼던 까닭: 프레임 저장 → insertTemplate 왕복에서 넣은 프레임이 bindFrameDropZone 을 못 받아 클릭해도 안 골라지고 id 가 원본과 겹쳤다.
+       고침 — 증거 커밋 3f832141: block 갈래가 넣는 블록과 안의 [id] 를 새로 주고 section 갈래와 같은 묶기 도우미(_bindInsertedTree)를 탄다.
+       (실앱 왕복 = 프레임 저장 → 넣기 → 클릭·끌기: reports/lane-drag 실앱 표.) */
+    const saveTplItem = document.getElementById('bcm-save-template');
+    if (saveTplItem) saveTplItem.style.display = '';
+
+    /* ★U17② 「바로 아래에 여백 넣기 (G)」 — 블럭·프레임 모두. 자리 = _gapAnchorOf(누른 그것).
+       ⛔자유배치 프레임 «안»에선 안 보인다 — 거기 흐름 갭은 좌표 자식들과 겹쳐 y=0 에 선다.
+         G 키도 자유배치 프레임 안엔 갭을 안 넣는다(block-factory.js addGapBlock 의 freeLayout 스킵). */
+    const gapItem = document.getElementById('bcm-insert-gap');
+    if (gapItem) {
+      const unit = _gapAnchorOf(block);
+      gapItem.style.display = (unit && unit.parentElement?.dataset?.freeLayout !== 'true') ? 'flex' : 'none';
+    }
+
     // 에셋 블록일 때만 "스크래치로 보내기" 노출
     const sendItem = document.getElementById('bcm-send-to-scratch');
     if (sendItem) {
@@ -5249,12 +5547,39 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       if (lbl) lbl.textContent = ln?.type === 'image' ? (ln.imgShape === 'circle' ? '사각으로 바꾸기' : '원형으로 바꾸기') : '원형 이미지 추가';
     }
 
+    // 보일 항목이 하나도 없으면 빈 상자를 띄우지 않는다(자유배치 프레임 안 프레임 = 저장·갭 둘 다 숨김)
+    if (![...menu.querySelectorAll(':scope > .bcm-item')].some(it => it.style.display !== 'none')) { closeMenu(); return; }
+
     const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
     const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
     menu.style.left    = x + 'px';
     menu.style.top     = y + 'px';
     menu.style.display = 'block';
   }
+
+  /* 갭이 설 «단위» — G 키의 자리 잡기(drag-utils.js insertAfterSelected 의 ref)와 같은 꼴:
+       갭이면 그 자신 · 글자면 글자 프레임 · .row 안이면 그 row · 아니면 그 블럭.
+     ⛔.row/글자 프레임은 «누른 것의 그릇(가장 가까운 프레임/섹션 안)» 안의 것만 — 프레임 안 블럭이
+       프레임 바깥 row 를 집어 갭이 프레임 밖으로 튀지 않게. */
+  function _gapAnchorOf(block) {
+    if (!block || block.classList.contains('section-block')) return null;
+    if (block.classList.contains('gap-block')) return block;
+    const host = block.parentElement?.closest('.frame-block:not([data-text-frame]), .section-inner');
+    if (!host) return null;
+    const unit = block.closest('.frame-block[data-text-frame]') || block.closest('.row');
+    return (unit && unit !== host && host.contains(unit)) ? unit : block;
+  }
+
+  document.getElementById('bcm-insert-gap')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const unit = _gapAnchorOf(_targetBlock);
+    closeMenu();
+    if (!unit || !unit.isConnected) return;
+    /* ★insertGapAfterBlock 은 push-after(넣고 나서 찍기)다. 꼭대기가 라이브와 다르면(push-before 동작 직후)
+       ⌘Z 한 번이 «갭 + 그 앞 동작»을 같이 되돌린다 → 넣기 «전» 라이브를 먼저 찍는다(삭제 길 「삭제 전」과 같은 관용구). */
+    window.ensureHistoryCheckpoint?.('여백 넣기 전');
+    window.insertGapAfterBlock?.(unit);
+  });
 
   // 저장 버튼 → 인라인 이름 입력 표시
   const nameRow     = document.getElementById('bcm-name-row');
@@ -5424,6 +5749,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
 
   /* ★「원형 이미지 추가」(현빈 2026-10-01) — 늘 «새 줄»: 누른 줄 뒤(줄 위에서 눌렀으면 그 뒤, 빈 칸이면 «이미지 추가»와 같은 자리).
      빈 원 슬롯으로 넣는다(「이미지 추가」의 새 줄 갈래와 같다 — 파일창은 패널 「이미지 선택…」/교체에서). */
+  { const _ic = document.getElementById('bcm-grid-img-circle-icon'); if (_ic) { _ic.innerHTML = GRID_CIRCLE_ICON_INNER; _ic.setAttribute('stroke-width', GRID_CIRCLE_ICON_STROKE_WIDTH); } }   // 메뉴 그림도 같은 상수
   document.getElementById('bcm-grid-img-circle')?.addEventListener('click', e => {
     e.stopPropagation();
     const block = _targetBlock;
@@ -5478,17 +5804,17 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
          ⛔그 캡을 그대로 두면 스크린샷·사진은 거의 전부 거절된다 — 현빈이 본
            「그리드 우클릭 이미지 삽입이 안 된다」의 실제 원인이다(2026-09-20 실측). */
       if (!grdImageFileOk(file)) return;
-      const reader = new FileReader();
-      reader.onload = ev => {
+      /* ★E91 — 값은 prop-grid.js grdPickedImageSrc 한 벌(자산 URL · 없으면 data URL). ⛔import 줄은 안 바꾼다 — window 로. */
+      window.grdPickedImageSrc(file).then(got => {
+        if (!got) return;
         /* ★기존 이미지 줄 «교체»는 patchCell{lineIndex} — 이 길만 파일창을 지난다.
            ⛔여기 있던 「새 줄 추가(grdAddLine)」 가지는 위쪽 `addr.li == null` 로 «올라갔다»
              (2026-09-26). 파일창을 열기 «전»에 갈려야 파일창이 안 뜨기 때문이다.
            ★반환을 «받는다» — 예전엔 안 받아서 실패가 토스트 0건·콘솔 0건으로 사라졌다. */
         grdToastImgFail(window.updateGridBlock?.(block.id,
-          { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc: ev.target.result } },
+          { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc: got.src } },
           { trusted: true }));
-      };
-      reader.readAsDataURL(file);
+      });
     };
     input.click();
   });

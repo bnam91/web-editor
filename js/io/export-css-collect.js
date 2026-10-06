@@ -37,7 +37,7 @@ const EDITOR_ONLY_SEL = new RegExp([
   '\\.section-label', '\\.section-toolbar', '\\.section-hitzone', '\\.variation-badge',
   '\\.annotation', '\\.annot-', '\\.qa-block', '\\.todo-pin', '\\.pen-',
   '\\.col-placeholder', '\\.col-add', '\\.row-col-add', '\\.row-drop-indicator', '\\.layer-',
-  'placeholder', '-handle\\b', '\\.cvb-img-empty', '\\.bn2-line-empty', '\\.grd-line-selected',
+  'placeholder', '-handle\\b', '\\.cvb-img-empty', '\\.bn2-line-empty', '\\.grd-line-selected', '\\.grd-add-btn',
   '\\.st-btn', '#preview-overlay', '#canvas-scaler', '#canvas-wrap', '#canvas-area',
   ':hover', ':focus', ':active', ':focus-visible', ':focus-within', '::selection', '::-webkit-',
 ].join('|'), 'i');
@@ -67,6 +67,7 @@ function rootCustomProps(rule) {
   for (let i = 0; i < st.length; i++) {
     const name = st.item(i);
     if (!name.startsWith('--')) continue;
+    if (name.startsWith('--goya-checker-')) continue;   // 편집용 체커 토큰 — 배송본에 «값»도 안 싣는다(체커 규칙을 안 싣는 것과 한 쌍)
     const pri = st.getPropertyPriority(name);
     out.push(`${name}:${st.getPropertyValue(name)}${pri ? ' !' + pri : ''}`);
   }
@@ -114,19 +115,30 @@ export function ruleCssTextWithoutChecker(rule) {
   let st = null;
   try { st = rule.style; } catch (_) { return txt; }
   if (!st) return txt;
-  const bg = st.getPropertyValue('background-image') || '';
-  if (!CHECKER_RE.test(bg)) return txt;                 // 체커가 배경이 아닌 자리에 있다 — 그대로 둔다
+  let bg = st.getPropertyValue('background-image') || '';
+  /* ★체커 값이 CSS 변수(var(--goya-checker-*))가 되면서 생긴 길 — `background:` «shorthand» 안에 var() 가 있으면
+     CSSOM 은 longhand 를 «비워» 돌려준다(background-image === ''). 그러면 아래 서명 판정이 조용히 빗나가
+     체커 규칙이 배송본에 «그대로» 실린다. ⇒ longhand 가 비면 shorthand 값으로 한 번 더 본다. */
+  let viaShorthand = false;
+  if (!CHECKER_RE.test(bg)) {
+    const sh = st.getPropertyValue('background') || '';
+    if (!CHECKER_RE.test(sh)) return txt;               // 체커가 배경이 아닌 자리에 있다 — 그대로 둔다
+    bg = sh; viaShorthand = true;
+  }
   const kept = splitBgLayers(bg).filter(l => !CHECKER_RE.test(l));
   /* ★CSSOM 은 shorthand 를 longhand 로 펴서 열거한다(실측 2026-09-21, Chromium 146:
      `.asset-block` → 29개 longhand). 그래서 `background:` 로 쓴 규칙도 background-image
      «하나만» 갈아끼울 수 있다 — 배경색·크기·위치는 그대로 산다. */
   const decls = [];
+  if (viaShorthand) decls.push(`background:${kept.length ? kept.join(', ') : 'none'}`);   // shorthand 한 줄이 background-* 전부를 대신한다
   for (let i = 0; i < st.length; i++) {
     const name = st.item(i);
+    if (viaShorthand && name.startsWith('background-')) continue;   // 위 shorthand 가 이미 덮었다(var 로 비어 있던 longhand 를 «빈 값»으로 싣지 않는다)
     const value = name === 'background-image'
       ? (kept.length ? kept.join(', ') : 'none')
       : st.getPropertyValue(name);
     if (CHECKER_RE.test(value)) continue;               // 또 다른 선언에 숨어 있으면 그 선언만 뺀다
+    if (/--goya-checker-/.test(value)) continue;        // 체커 «크기» 변수 — 토큰은 배송본에 안 실리니 참조도 끊는다(이미지가 none 이라 크기는 무의미)
     const pri = st.getPropertyPriority(name);
     decls.push(`${name}:${value}${pri ? ' !' + pri : ''}`);
   }

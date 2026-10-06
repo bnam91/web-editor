@@ -1,0 +1,273 @@
+/* asset-bg-visible-on-canvas.dom.spec.js — 현빈 2026-10-03 「에셋블럭 우측패널에 컬러 패널이 있는데 색을 골라도 안 바뀐다」.
+ *
+ * ★병 (실앱 9382 실측, 37ab1c65): 패널 배선은 «맞게» 돈다 — 블럭 인라인 background-color 가 고른 색이 된다.
+ *   그런데 빈 에셋의 체커(css/editor-layout.css .asset-block — background 단축의 repeating-conic-gradient)가
+ *   background-image 로 «그 위에» 남아, 화면 픽셀은 체커 회색(#d8d8d8/#f0f0f0) 그대로였다.
+ *   (가설 ㉠. 블럭 중앙 elementsFromPoint 는 블럭 «하나»뿐 — 자식이 덮는 ㉡ 은 아니었다.)
+ * ★옛 그물이 왜 못 잡았나: asset-image-bg-reach.dom.spec.js 는 editor-blocks.css 만 얹는다 —
+ *   체커가 사는 editor-layout.css 가 그 하네스엔 «없어서» 거기선 늘 색이 보였다(한 환경에서만 참).
+ *   ⇒ 이 시험은 앱 통째(bootApp = index.html 의 CSS 전부)로 «화면 픽셀»을 잰다.
+ *
+ * ★양성대조 판 = 37ab1c65 (GD1001_ROOT). 실측 명부는 커밋 메시지.
+ *   AB3 = 「초기화 = 체커」(2026-10-03 지디 판정으로 바뀐 규약) — 핀에선 dataset 에 #a0a0a0 이 남아 빨강.
+ * ★서클블럭(icon-circle) 빈 원도 같은 병·같은 규칙 — IC0~IC3 (색은 안쪽 .icb-circle 에 실린다).
+ * ⚠️못 재는 것: 실앱 Electron 의 색 관리(실앱 스샷은 #00ff00 → #71fb48 로 찍힌다) — 여기선 헤드리스 sRGB 로 잰다.
+ */
+const { test, expect } = require('@playwright/test');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
+
+// 왼쪽 절반 불투명 파랑 · 오른쪽 절반 완전 투명 (2×1)
+const HALF = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAD0lEQVR4nGNgYPj/nwEIAAr+Af/hHqJQAAAAAElFTkSuQmCC';
+const SEC = (inner) => `
+<div class="section-block" id="sA" data-section="1" data-name="A" data-bg="#ffffff" style="background-color:#ffffff;">
+  <div class="section-hitzone"><span class="section-label">A</span></div>
+  <div class="section-inner"><div class="gap-block" data-type="gap" id="gA" style="height:40px;"></div>
+    <div class="row" id="rowA">${inner}</div>
+  </div></div>`;
+const EMPTY = `<div class="asset-block" id="abA" style="height:300px;"></div>`;
+const WITH_IMG = `<div class="asset-block has-image" id="abA" data-img-src="${HALF}" style="height:300px;">
+  <div class="asset-img-clip"><img class="asset-img" src="${HALF}" style="width:100%;height:100%;object-fit:fill;image-rendering:pixelated"></div></div>`;
+
+async function setup(page, inner = EMPTY) {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await bootApp(page);
+  await page.evaluate((html) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove()); c.insertAdjacentHTML('beforeend', html); window.rebindAll?.(); window.deselectAll?.(); }, SEC(inner));
+  await waitStableRect(page, '#sA');   // 고정 200ms 대신 — 삽입한 섹션의 자리가 멈출 때까지
+}
+
+/** 화면에서 (x,y) 한 점의 «찍힌» 색 — 스크린샷을 페이지 캔버스로 되읽는다(디코더 없이). */
+async function pixelAt(page, x, y) {
+  const buf = await page.screenshot({ clip: { x: Math.round(x) - 1, y: Math.round(y) - 1, width: 3, height: 3 } });
+  return page.evaluate(async (b64) => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    const d = g.getImageData(Math.floor(img.width / 2), Math.floor(img.height / 2), 1, 1).data;
+    return [d[0], d[1], d[2]];
+  }, buf.toString('base64'));
+}
+const near = (a, b, tol = 6) => a.every((v, i) => Math.abs(v - b[i]) <= tol);
+
+/** 마우스를 블럭 밖으로 치운다 — hover 틴트(.asset-block:hover::after)가 픽셀에 섞이지 않게. */
+const park = (page) => page.mouse.move(5, 500);
+
+/** 조건 대기 헬퍼 — 고정 대기(waitForTimeout)를 «상태»로 바꾼다(IC1: 부하 때 패널이 안 선 채 지나가 빨강). */
+const panelHas = (page, id) => expect.poll(() => page.evaluate((i) => !!document.getElementById(i), id), { message: `전제 — 패널에 #${id} 가 섰다`, timeout: 10000 }).toBe(true);
+/** 블럭 «클릭»으로 패널이 서도록 — 서기 전에 누른 클릭이 «빈 데로» 갔을 수 있어, 안 서 있으면 다시 누른다. */
+async function clickUntilPanel(page, cx, cy, id) {
+  await expect.poll(async () => {
+    if (await page.evaluate((i) => !!document.getElementById(i), id)) return true;
+    await page.mouse.click(cx, cy);
+    return page.evaluate((i) => !!document.getElementById(i), id);
+  }, { message: `전제 — 클릭하면 패널에 #${id} 가 선다`, timeout: 10000 }).toBe(true);
+}
+
+/** 블럭을 «진짜 클릭»으로 고르고, 우측 패널의 배경색 칸이 섰는지 전제로 확인한다. */
+async function selectAndFindField(page) {
+  const r = await waitStableRect(page, '#abA');
+  await clickUntilPanel(page, r.cx, r.cy, 'asset-bg-hex');
+  await page.evaluate(() => document.getElementById('asset-bg-hex')?.scrollIntoView({ block: 'center' }));
+  await waitStableRect(page, '#asset-bg-hex');   // 스크롤·패널 재배치가 멈춘 뒤에 좌표를 잰다
+  const f = await page.evaluate(() => { const h = document.getElementById('asset-bg-hex'); const sw = document.getElementById('asset-bg-color')?.closest('.prop-color-swatch');
+    if (!h || !sw) return null; h.scrollIntoView({ block: 'center' }); const a = h.getBoundingClientRect(), b = sw.getBoundingClientRect();
+    return { hex: [a.left + a.width / 2, a.top + a.height / 2, a.width], sw: [b.left + b.width / 2, b.top + b.height / 2, b.width] }; });
+  expect(f, '전제 — 우측 패널에 배경색 칸(asset-bg)이 있다').not.toBeNull();
+  expect(f.hex[2], '전제 — hex 칸이 화면에 보인다').toBeGreaterThan(0);
+  return { r, f };
+}
+async function typeHex(page, f, hex, prefix) {
+  const hexId = `${prefix}-hex`, colorId = `${prefix}-color`;
+  // 칸에 «포커스가 실제로 선» 것을 확인한 뒤 친다 — 안 섰으면 다시 누른다(타이핑이 허공에 가는 것 방지)
+  await expect.poll(async () => {
+    if (await page.evaluate((i) => document.activeElement?.id === i, hexId)) return true;
+    await page.mouse.click(f.hex[0], f.hex[1]);
+    return page.evaluate((i) => document.activeElement?.id === i, hexId);
+  }, { message: `전제 — #${hexId} 에 포커스가 섰다`, timeout: 10000 }).toBe(true);
+  await page.keyboard.press('Meta+a');
+  await page.keyboard.type(hex);
+  await page.keyboard.press('Enter');
+  // 고정 250ms 대신 — 패널이 «색을 받은» 상태(색 입력값 = 친 값)를 기다린다
+  await expect.poll(() => page.evaluate((i) => document.getElementById(i)?.value, colorId), { message: `패널 #${colorId} 가 친 색을 받았다`, timeout: 10000 }).toBe('#' + hex.toLowerCase());
+  // …그리고 그 색이 «블럭에 칠해진» 것까지(패널 값이 먼저 서고 블럭 스타일은 뒤따른다 — AB1 실측)
+  const rgb = `rgb(${[1, 3, 5].map(i => parseInt(hex.slice(i - 1, i + 1), 16)).join(', ')})`;
+  const target = prefix === 'icb-bg' ? '#icA .icb-circle' : '#abA';
+  await expect.poll(() => page.evaluate((sel) => getComputedStyle(document.querySelector(sel)).backgroundColor, target), { message: `${target} 의 배경이 ${rgb} 로 칠해졌다`, timeout: 10000 }).toBe(rgb);
+}
+const centre = async (page) => { const r = await waitStableRect(page, '#abA'); return [r.cx, r.cy]; };
+const bgOf = (page) => page.evaluate(() => { const e = document.getElementById('abA'); const cs = getComputedStyle(e); return { ds: e.dataset.bgColor ?? null, bgc: cs.backgroundColor, bgi: cs.backgroundImage, has: e.classList.contains('has-image') }; });
+
+test('AB0 전제·계측기 — 색을 안 고른 빈 에셋은 체커가 «화면에» 보인다(이 자가 체커를 본다)', async ({ page }) => {
+  await setup(page);
+  expect(await page.evaluate(() => !!document.getElementById('abA')), '전제 — 블럭이 있다').toBe(true);
+  const b = await bgOf(page);
+  expect(b.has, '전제 — 빈 에셋(이미지 없음)').toBe(false);
+  expect(b.bgi, '빈 에셋은 체커').toContain('repeating-conic-gradient');
+  await park(page);
+  const [x, y] = await centre(page);
+  const top = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.id, [x, y]);
+  expect(top, '전제 — 중앙의 맨 위가 블럭 자신').toBe('abA');
+  const px = await pixelAt(page, x, y);
+  expect(near(px, [0xd8, 0xd8, 0xd8]) || near(px, [0xf0, 0xf0, 0xf0]), `체커 회색이어야 — 찍힌 ${px}`).toBe(true);
+});
+
+test('AB1 ★hex 로 고른 색이 빈 에셋 «화면»에 칠해진다(체커가 덮지 않는다)', async ({ page }) => {
+  await setup(page);
+  const { f } = await selectAndFindField(page);
+  await typeHex(page, f, 'FF0000', 'asset-bg');
+  const b = await bgOf(page);
+  expect(b.ds, '전제 — 패널이 색을 받았다(배선)').toBe('#ff0000');
+  expect(b.bgc).toBe('rgb(255, 0, 0)');
+  expect(b.bgi, '색이 있으면 체커를 걷는다').toBe('none');
+  await park(page);
+  const [x, y] = await centre(page);
+  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.id, [x, y]), '중앙 맨 위 = 블럭').toBe('abA');
+  const px = await pixelAt(page, x, y);
+  expect(near(px, [255, 0, 0]), `중앙 픽셀 = 고른 색 — 찍힌 ${px}`).toBe(true);
+});
+
+test('AB2 ★색 팝업의 스펙트럼을 «진짜 클릭»해 고른 색이 화면에 칠해진다', async ({ page }) => {
+  await setup(page);
+  const { f } = await selectAndFindField(page);
+  await page.mouse.click(f.sw[0], f.sw[1]);
+  await expect.poll(() => page.evaluate(() => !!document.querySelector('.goya-cp-popover .goya-cp-spectrum')), { message: '전제 — 색 팝업의 스펙트럼이 떴다', timeout: 10000 }).toBe(true);
+  await waitStableRect(page, '.goya-cp-popover .goya-cp-spectrum');   // 팝업 자리가 멈춘 뒤 클릭
+  const sp = await page.evaluate(() => { const s = document.querySelector('.goya-cp-popover .goya-cp-spectrum'); if (!s) return null; const r = s.getBoundingClientRect(); return [r.right - 4, r.top + 4, r.width]; });
+  expect(sp, '전제 — 색 팝업의 스펙트럼이 떴다').not.toBeNull();
+  expect(sp[2]).toBeGreaterThan(0);
+  await page.mouse.click(sp[0], sp[1]);
+  await expect.poll(() => page.evaluate(() => document.getElementById('asset-bg-color').value), { message: '스펙트럼이 색을 냈다(기본 회색을 벗어났다)', timeout: 10000 }).not.toBe('#a0a0a0');
+  const picked = await page.evaluate(() => document.getElementById('asset-bg-color').value);
+  expect(picked, '전제 — 스펙트럼이 색을 냈다(회색 기본값 아님)').not.toBe('#a0a0a0');
+  await page.evaluate(() => document.querySelector('.goya-cp-popover [data-action=close]')?.click());
+  const want = [1, 3, 5].map(i => parseInt(picked.slice(i, i + 2), 16));
+  const b = await bgOf(page);
+  expect(b.bgi).toBe('none');
+  await park(page);
+  const [x, y] = await centre(page);
+  const px = await pixelAt(page, x, y);
+  expect(near(px, want), `중앙 픽셀 = 고른 ${picked} — 찍힌 ${px}`).toBe(true);
+});
+
+test('AB3 ★「초기화」= «배경 없음» — 체커가 화면에 돌아온다(회색 #a0a0a0 판이 아니다)', async ({ page }) => {
+  /* 규약 변경(2026-10-03 지디 판정): 예전엔 초기화가 기본 회색 #a0a0a0 을 다시 썼다(asset-bg-api-reset 옛 B4).
+     그 약속은 «체커가 가린 상태»를 고정한 것이었다. ⇒ 지금은 dataset 을 지우고 체커로 돌아간다. */
+  await setup(page);
+  const { f } = await selectAndFindField(page);
+  await typeHex(page, f, '00AA00', 'asset-bg');
+  const c = await page.evaluate(() => { const b = document.getElementById('asset-bg-clear'); b.scrollIntoView({ block: 'center' }); const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.mouse.click(c[0], c[1]);
+  await expect.poll(() => page.evaluate(() => { const e = document.getElementById('abA'); const cs = getComputedStyle(e); return [e.dataset.bgColor ?? null, cs.backgroundColor, cs.backgroundImage.includes('repeating-conic-gradient')]; }), { message: '초기화가 dataset·인라인 색을 비우고 체커가 돌아왔다', timeout: 10000 }).toEqual([null, 'rgba(0, 0, 0, 0)', true]);
+  const b = await bgOf(page);
+  expect(b.ds, '초기화 = dataset.bgColor 없음').toBeNull();
+  expect(b.bgc, '인라인 색도 없다').toBe('rgba(0, 0, 0, 0)');
+  expect(b.bgi).toContain('repeating-conic-gradient');
+  await park(page);
+  const [x, y] = await centre(page);
+  const px = await pixelAt(page, x, y);
+  expect(near(px, [0xd8, 0xd8, 0xd8]) || near(px, [0xf0, 0xf0, 0xf0]), `체커 회색이어야 — 찍힌 ${px}`).toBe(true);
+});
+
+test('AB4 불투명도 0(보이는 색 없음)이면 체커를 그대로 둔다 — 빈 칸이 «투명하게 사라지지» 않는다', async ({ page }) => {
+  await setup(page);
+  const { f } = await selectAndFindField(page);
+  await typeHex(page, f, 'FF0000', 'asset-bg');
+  const a = await page.evaluate(() => { const e = document.getElementById('asset-bg-alpha'); const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.mouse.click(a[0], a[1]);
+  await page.keyboard.press('Meta+a');
+  await page.keyboard.type('0');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => { const e = document.getElementById('abA'); return [/,0\)$/.test(e.dataset.bgColor ?? ''), getComputedStyle(e).backgroundImage.includes('repeating-conic-gradient')]; }), { message: '알파 0 이 실렸고 체커가 남았다', timeout: 10000 }).toEqual([true, true]);
+  const b = await bgOf(page);
+  expect(b.ds, '전제 — 알파 0 이 실렸다').toMatch(/,0\)$/);
+  expect(b.bgi).toContain('repeating-conic-gradient');
+});
+
+test('AB5 이미지가 있으면 배경색은 그림의 투명한 곳으로 비친다(이미 되던 것 — 지키기)', async ({ page }) => {
+  await setup(page, WITH_IMG);
+  const { f } = await selectAndFindField(page);
+  await typeHex(page, f, '00FF00', 'asset-bg');
+  await park(page);
+  const r = await waitStableRect(page, '#abA');
+  const left = await pixelAt(page, r.left + r.width * 0.25, r.cy);
+  const right = await pixelAt(page, r.left + r.width * 0.75, r.cy);
+  expect(near(left, [0, 0, 255], 20), `왼쪽 = 그림(파랑) — 찍힌 ${left}`).toBe(true);
+  expect(near(right, [0, 255, 0]), `오른쪽 = 비친 배경색 — 찍힌 ${right}`).toBe(true);
+});
+
+/* ═══ 서클블럭(icon-circle) — 같은 병: 색은 .icb-circle 인라인, 체커는 .icb-circle 의 background-image ═══ */
+const CIRCLE = `<div class="icon-circle-block" data-type="icon-circle" id="icA" data-size="240" data-bg-color="#e8e8e8" data-border="none">
+  <div class="icb-circle" style="width:240px;height:240px;"><span class="icb-placeholder"></span></div></div>`;
+async function selectCircleField(page) {
+  const r = await waitStableRect(page, '#icA .icb-circle');
+  await clickUntilPanel(page, r.cx, r.cy, 'icb-bg-hex');
+  await page.evaluate(() => document.getElementById('icb-bg-hex')?.scrollIntoView({ block: 'center' }));
+  await waitStableRect(page, '#icb-bg-hex');
+  const f = await page.evaluate(() => { const h = document.getElementById('icb-bg-hex'); const sw = document.getElementById('icb-bg-color')?.closest('.prop-color-swatch');
+    if (!h || !sw) return null; h.scrollIntoView({ block: 'center' }); const a = h.getBoundingClientRect(), b = sw.getBoundingClientRect();
+    return { hex: [a.left + a.width / 2, a.top + a.height / 2, a.width], sw: [b.left + b.width / 2, b.top + b.height / 2, b.width] }; });
+  expect(f, '전제 — 우측 패널에 서클 배경색 칸(icb-bg)이 있다').not.toBeNull();
+  expect(f.hex[2], '전제 — hex 칸이 보인다').toBeGreaterThan(0);
+  return f;
+}
+const circleBg = (page) => page.evaluate(() => { const b = document.getElementById('icA'); const c = b.querySelector('.icb-circle'); const cs = getComputedStyle(c); return { ds: b.dataset.bgColor ?? null, bgc: cs.backgroundColor, bgi: cs.backgroundImage }; });
+const circleCentre = async (page) => { const r = await waitStableRect(page, '#icA .icb-circle'); return [r.cx, r.cy]; };
+
+test('IC0 전제·계측기 — 색 안 고른 빈 원(placeholder dataset #e8e8e8)은 체커가 보인다', async ({ page }) => {
+  await setup(page, CIRCLE);
+  const b = await circleBg(page);
+  expect(b.ds, '전제 — 생성 때 박히는 placeholder').toBe('#e8e8e8');
+  expect(b.bgi).toContain('repeating-conic-gradient');
+  await park(page);
+  const [x, y] = await circleCentre(page);
+  const px = await pixelAt(page, x, y);
+  expect(near(px, [0xd8, 0xd8, 0xd8]) || near(px, [0xf0, 0xf0, 0xf0]), `체커 회색 — 찍힌 ${px}`).toBe(true);
+});
+
+test('IC1 ★hex 로 고른 색이 빈 원 «화면»에 칠해진다', async ({ page }) => {
+  await setup(page, CIRCLE);
+  const f = await selectCircleField(page);
+  await typeHex(page, f, 'FF0000', 'icb-bg');
+  const b = await circleBg(page);
+  expect(b.ds, '전제 — 패널이 색을 받았다').toBe('#ff0000');
+  expect(b.bgc).toBe('rgb(255, 0, 0)');
+  expect(b.bgi).toBe('none');
+  await park(page);
+  const [x, y] = await circleCentre(page);
+  const px = await pixelAt(page, x, y);
+  expect(near(px, [255, 0, 0]), `중앙 픽셀 = 고른 색 — 찍힌 ${px}`).toBe(true);
+});
+
+test('IC2 ★스펙트럼 «진짜 클릭»으로 고른 색이 빈 원에 칠해진다', async ({ page }) => {
+  await setup(page, CIRCLE);
+  const f = await selectCircleField(page);
+  await page.mouse.click(f.sw[0], f.sw[1]);
+  await expect.poll(() => page.evaluate(() => !!document.querySelector('.goya-cp-popover .goya-cp-spectrum')), { message: '전제 — 스펙트럼이 떴다', timeout: 10000 }).toBe(true);
+  await waitStableRect(page, '.goya-cp-popover .goya-cp-spectrum');   // 팝업 자리가 멈춘 뒤 클릭
+  const sp = await page.evaluate(() => { const s = document.querySelector('.goya-cp-popover .goya-cp-spectrum'); if (!s) return null; const r = s.getBoundingClientRect(); return [r.right - 4, r.top + 4, r.width]; });
+  expect(sp, '전제 — 스펙트럼이 떴다').not.toBeNull();
+  await page.mouse.click(sp[0], sp[1]);
+  await expect.poll(() => page.evaluate(() => document.getElementById('icb-bg-color').value), { message: '스펙트럼이 색을 냈다', timeout: 10000 }).not.toBe('#e8e8e8');
+  const picked = await page.evaluate(() => document.getElementById('icb-bg-color').value);
+  expect(picked, '전제 — 스펙트럼이 색을 냈다').not.toBe('#e8e8e8');
+  await page.evaluate(() => document.querySelector('.goya-cp-popover [data-action=close]')?.click());
+  const want = [1, 3, 5].map(i => parseInt(picked.slice(i, i + 2), 16));
+  await park(page);
+  const [x, y] = await circleCentre(page);
+  const px = await pixelAt(page, x, y);
+  expect(near(px, want), `중앙 픽셀 = 고른 ${picked} — 찍힌 ${px}`).toBe(true);
+});
+
+test('IC3 불투명도 0 이면 빈 원의 체커를 그대로 둔다', async ({ page }) => {
+  await setup(page, CIRCLE);
+  const f = await selectCircleField(page);
+  await typeHex(page, f, 'FF0000', 'icb-bg');
+  const a = await page.evaluate(() => { const e = document.getElementById('icb-bg-alpha'); const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.mouse.click(a[0], a[1]);
+  await page.keyboard.press('Meta+a');
+  await page.keyboard.type('0');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => { const b = document.getElementById('icA'); return [/,0\)$/.test(b.dataset.bgColor ?? ''), getComputedStyle(b.querySelector('.icb-circle')).backgroundImage.includes('repeating-conic-gradient')]; }), { message: '알파 0 이 실렸고 체커가 남았다', timeout: 10000 }).toEqual([true, true]);
+  const b = await circleBg(page);
+  expect(b.ds, '전제 — 알파 0 이 실렸다').toMatch(/,0\)$/);
+  expect(b.bgi).toContain('repeating-conic-gradient');
+});

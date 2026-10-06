@@ -1,10 +1,26 @@
 
 // [v0.8 #4 보안] 그래프 바 color/라벨은 innerHTML 주입 → 화이트리스트·이스케이프(저장형 XSS 차단·고디터QA BUG-P2-1 S2)
+// GR1(2026-10-03): 항목 막대 «그라데이션» — linear-gradient 만 넓혀 받는다. 판정은 브라우저 파서(_isCssBg)에 맡기고,
+//   style="…" 속성 안에 그대로 박히므로 따옴표·세미콜론·꺾쇠·url( 은 막는다(속성 탈출·외부 자원 로드 차단). 그 밖의 꼴은 예전 그대로.
+//   ⚠️판정 함수는 js/props/color-picker.js isCssBackgroundValue 와 «같은 식»의 사본이다 — import 하지 않는 까닭: drag-utils 를 «홀로»
+//   서빙하는 DOM 하네스가 6개(frame-accepts-component-blocks·free-frame-flow-drag·grid-line-drag·no-selection-hint·
+//   qa0920b-asset-width-set·shape-frame-isolation)라 import 한 줄이 404 → 모듈 통째 죽음이 된다(실측 2026-10-03 F0 30s 시간초과).
+let _gradProbe = null;
+function _isCssBg(v) {
+  if (!_gradProbe) _gradProbe = document.createElement('div');
+  _gradProbe.style.background = '';
+  try { _gradProbe.style.background = v; } catch (_) { return false; }
+  return _gradProbe.style.background !== '';
+}
+/* ★E152(2026-10-06) — 그래프 렌더러의 «속성 안 색»은 전부 이 검증기를 지난다(값/카테고리 라벨 색 · 선 · 면 · 막대 · 범례 점).
+   사본 52(08-07)의 그래프 색 값 56 개 전부 통과(거절 0 · \$S/bt2fix/color-census.json) ⇒ 그 표본의 기존 문서 색 무변. */
 function _safeGraphColor(c) {
   if (typeof c !== 'string') return '';
   const s = c.trim();
+  if (/^linear-gradient\(/i.test(s)) return (!/url\(|[;"'<>\\]/i.test(s) && _isCssBg(s)) ? s : '';
   return (/^#[0-9a-fA-F]{3,8}$/.test(s) || /^rgba?\(\s*[\d.,\s%]+\)$/i.test(s) || /^hsla?\(\s*[\d.,\s%]+\)$/i.test(s) || /^[a-zA-Z]+$/.test(s)) ? s : '';
 }
+/* ★E152(2026-10-06) — 사용자 글자는 이 한 자리로: 카테고리 라벨 셋(E150 포함) · 값 라벨(세로 · 꺾은선 · 비교) · 비교 범례 A/B · 가로 % (innerHTML 에 날것 0). */
 function _escGraphHtml(v) {
   return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -12,6 +28,7 @@ function _escGraphHtml(v) {
 /* ═══════════════════════════════════
    DRAG UTILITIES — pure helpers, no drag state
 ═══════════════════════════════════ */
+import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS(막대 두께 기본·한계의 한 자리)를 «이 모듈보다 먼저»
 import { state } from './globals.js';
 import { isShapeFrame, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
 
@@ -248,6 +265,11 @@ function settleRowInFreeFrame(frame, row, mode = 'stack') {
   if (frame.dataset?.freeLayout !== 'true' || row.parentElement !== frame) return false;
   // 받는 것 = .row 또는 정본 표(panel-dispatch hasPanelForBlock)의 블럭. 글자 래퍼·도형 래퍼는 제 갈래가 따로 세운다.
   if (!(row.classList?.contains('row') || window.hasPanelForBlock?.(row))) return false;
+  /* ★F3(2026-10-03) — 폭 100% 그리드는 «안의 내용»도 프레임 폭이라 아래 w 가 곧 프레임 폭이 됐다 → T-088 클램프 x 범위 [0,0]
+     (49c74728 의 시험은 픽스처가 400px 라 못 잡았다). 재기 «전»에 그리드 폭 모델로 프레임보다 작은 폭을 준다.
+     규칙·까닭은 grid-block.js fitGridWidthToFreeFrame 머리말 한 곳. ⛔여기서 style.width 를 따로 박지 않는다. */
+  const _units = row.classList.contains('row') ? [...row.children] : [row];
+  _units.forEach(u => window.fitGridWidthToFreeFrame?.(u, frame));
   const fr = frame.getBoundingClientRect();
   const k = frame.offsetWidth ? (fr.width / frame.offsetWidth) || 1 : 1;   // 캔버스 줌
   /* ★폭·x 는 row 상자가 아니라 «안의 내용» 기준. row 는 블록 요소라 프레임 폭을 다 먹는다 —
@@ -270,9 +292,73 @@ function settleRowInFreeFrame(frame, row, mode = 'stack') {
   row.style.position = 'absolute';
   row.style.left = left + 'px';
   row.style.top  = top + 'px';
-  if (w && (!row.style.width || row.style.width === '100%')) row.style.width = w + 'px';
+  /* ★D1(2026-10-03) — 폭 모델을 가진 그리드의 row 에는 폭을 «안» 적는다. 적으면 그 px 가 «두 번째 명부»가 되어
+     키를 지우거나 다른 프레임에 맞춰도 row 가 옛 폭을 쥔다(실측: 섹션에 나와도 611 · frB 에서 그리드 320 / row 611 → 다시 수직만).
+     ⚠️폭을 비우면 안 된다 — CSS `.row{width:100%}`(editor-layout.css) 라 프레임 폭이 된다(실측 400). 그래서 «값이 아닌» fit-content 로
+     안의 px 그리드 폭을 따라가게 한다. 규칙은 grid-block.js _gridRowFollows 한 곳. */
+  const _modelSized = _units.some(u => u.classList?.contains('grid-block') && window.getGridWidth?.(u) != null);
+  if (_modelSized) row.style.width = 'fit-content';
+  else if (w && (!row.style.width || row.style.width === '100%')) row.style.width = w + 'px';
   row.setAttribute('draggable', 'false');
   return true;
+}
+
+/* ★F1 (2026-10-03, 지디 결정) — 「프레임 «자체»가 오브젝트로 골라져 있나」.
+ *   키보드 입구(⌘V·g·⌘D)가 이 판정으로 «다음 형제»를 가른다. 패널 삽입은 이걸 안 부른다(09-23 「안에 넣는다」 그대로 —
+ *   frame-accepts-component-blocks F1 이 잠근다). ⛔t(addTextBlock)는 이 규칙에 넣지 않는다.
+ *   조건 셋 = 프레임에 .selected · 그 안에 «흐름 앵커»(선택된 자식 블럭)가 없다 · 그 안에 도형 선택이 없다.
+ *   돌려주는 것 = 그 프레임(가장 안쪽의 골라진 것) 또는 null. 도형 래퍼·글자 래퍼·배너 외곽은 «프레임»이 아니라 null 쪽이다. */
+function frameSelectedAsObject(section) {
+  const ok = (f) => f && f.classList?.contains('frame-block') && f.classList.contains('selected')
+    && !isShapeFrame(f) && !f.dataset?.textFrame && !f.dataset?.bannerPreset
+    && f.dataset?.group !== 'true'                                  // 그룹(⌘G)은 F1 범위 밖 — 예전대로 «안»
+    && (!section || f.closest('.section-block') === section);
+  const act = window._activeFrame;
+  const cands = [...document.querySelectorAll('.frame-block.selected')].filter(ok);
+  const frame = (act && cands.includes(act)) ? act : cands[cands.length - 1];
+  if (!frame) return null;
+  /* 자식을 골라 둔 것 = 안쪽. ★흐름 앵커(isFlowAnchorBlock)로 세지 않는다 — 그건 절대배치를 제외해서, 자유 프레임의 절대배치 자식(그리드·에셋)을
+   *   골라도 «프레임을 골랐다»로 읽혔다(적대QA). 프레임에 .selected 가 남은 채 «자손이 하나라도» 골라져 있으면 오브젝트 선택이 아니다. */
+  if (frame.querySelector('.selected')) return null;
+  return frame;
+}
+
+/* 고른 프레임의 «다음 형제» 자리에 el 을 놓는다. 부모가 자유 프레임이면 좌표를 세운다(settleRowInFreeFrame 은 부르기만 한다). */
+function _placeAfterFrameAsSibling(frame, el) {
+  const unit = frame.parentElement?.classList.contains('row') ? frame.parentElement : frame;
+  unit.after(el);
+  const parent = unit.parentElement;
+  if (parent?.dataset?.freeLayout === 'true') window.settleRowInFreeFrame?.(parent, el, 'stack');
+}
+
+/* 키보드 입구용 삽입 — 프레임을 «오브젝트로» 골라 둔 상태면 안이 아니라 «다음 형제»로, 아니면 insertAfterSelected 그대로.
+ *   ⛔insertAfterSelected 자체는 건드리지 않는다(패널 삽입 31곳이 쓰고, 「안에 넣는다」를 frame-accepts F1 이 잠근다 —
+ *     본문 구간을 읽는 단위 시험 3종도 그 머리말에 걸려 있다). 키보드 입구는 {asSibling} 대신 이 한 문을 부른다. */
+/* ★H11(2026-10-05 · 지디 재지시) — 넣는 «깊이»의 한 자리: 「이 프레임 «안»에 넣나?」
+ *   거짓 = 프레임을 «오브젝트로» 골라 둔 상태(한 번 클릭 · 자손 선택 0) — frameSelectedAsObject 와 같은 판정. ⒜: 단 자식 요소가 있을 때만(아래 정의).
+ *   참   = 들어간 상태(프레임 클릭 → 자식 클릭 = 자식이 골라짐) · 또는 프레임이 안 골라짐(활성만).
+ *   부르는 곳: 아래 insertAfterSelected(활성 프레임 갈래 · 고른 프레임 갈래) · block-factory.js _insFrameTarget(툴바 add* 의 프레임 갈래)
+ *   · block-factory.js addShapeBlock 의 «고른 프레임» 갈래. ⛔부르는 곳마다 판정을 다시 쓰지 않는다 — 여기 하나. */
+/* ★H11 ⒜(2026-10-05 지디 승인) — 정의: 삽입은 «선택 깊이»를 따른다. drill-in 할 대상이 없는 프레임(자식 요소 0)은 그 자체가 안쪽 상태다 ⇒ 안에 넣는다.
+ *   («예외»가 아니라 정의다 — 오브젝트 선택 «밖»은 들어갈 자식이 있을 때만 뜻이 있다.)
+ *   까닭 둘: 09-23 「그리드가 프레임에 안 들어간다」(현빈) — 빈 프레임을 툴바로 못 채우면 이 요구가 깨진다(「Frame 추가」 직후가 바로 그 자리).
+ *            10-05 「한 번 클릭 후에는 프레임 밖에 삽입되어야지」(현빈) — 자식 있는 프레임을 한 번 클릭하면 밖, 그대로.
+ *   «자식 요소» = 요소 노드만(글자·주석 노드는 안 센다) · 끌기 중 잠깐 서는 .drop-indicator 는 안 센다. 갭·빈 글자 프레임은 «요소»라 센다
+ *   (경계 행 = tests/dom/h11-toolbar-depth.dom.spec.js E-*). */
+function frameHasDrillTarget(frame) {
+  return [...frame.children].some(c => !c.classList.contains('drop-indicator'));
+}
+function frameTakesInsert(frame) {
+  if (!frame) return false;
+  if (!frameHasDrillTarget(frame)) return true;   // 들어갈 자식이 없다 = 이미 안쪽 상태
+  return frameSelectedAsObject(frame.closest('.section-block')) !== frame;
+}
+if (typeof window !== 'undefined') window.frameTakesInsert = frameTakesInsert;
+
+function insertAfterSelectedAsSibling(section, el) {
+  const picked = frameSelectedAsObject(section);
+  if (picked) { _placeAfterFrameAsSibling(picked, el); return; }
+  insertAfterSelected(section, el);
 }
 
 function insertAfterSelected(section, el) {
@@ -280,6 +366,11 @@ function insertAfterSelected(section, el) {
   // ★도형 래퍼는 그냥 도형 — 활성이어도 그 «안»은 삽입 대상이 아니다(0918 A안, shape-frame.js SSOT).
   //   도형 래퍼면 한 단계 위 실제 프레임으로, 없으면 null → 아래 섹션 레벨 분기.
   const activeSS = resolveInsertFrame(window._activeFrame);
+  /* ★H11 — 프레임을 «오브젝트로» 골랐으면(한 번 클릭) 안이 아니라 «다음 형제»(F1 키보드 입구와 같은 자리 _placeAfterFrameAsSibling). */
+  if (activeSS && activeSS.closest('.section-block') === section && !activeSS.dataset?.textFrame && !frameTakesInsert(activeSS)) {
+    _placeAfterFrameAsSibling(activeSS, el);
+    return;
+  }
   // text-frame은 단순 wrapper — 삽입 대상이 아님 (_restoreParentFrameSelected 안전망)
   // banner-preset 외곽은 컴포넌트 단위 — 안에 직접 자식 추가 받지 않음 (drill-in으로 inner 활성화 시에만)
   if (activeSS && !activeSS.dataset?.textFrame && !activeSS.dataset?.bannerPreset && activeSS.closest('.section-block') === section) {
@@ -298,9 +389,13 @@ function insertAfterSelected(section, el) {
     if (sel) {
       const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
       ref.after(el);
+      window.followHostFrameHAlign?.(el);   // ★E135 — 템플릿 넣기 등 이 문으로 프레임 안에 든 것도 정렬을 따른다
       window.settleRowInFreeFrame?.(ssInner, el, 'stack');   // B2 — 자유배치 프레임이면 좌표 단위로
     } else {
       /* ★2026-09-23 — 「프레임 «자체»가 오브젝트로 선택된 상태」도 프레임 «안»이다.
+       * ★2026-10-05 H11 — 09-23 결정 = 패널 삽입은 «안»(현빈 「그리드가 프레임에 안 들어간다」) → 10-05 재지시로 «밖»(현빈 「한 번 클릭 후에는 프레임 밖에 삽입되어야지」)
+       *   · 까닭 = drill-in(프레임 클릭 → 자식 클릭)이 09-23 의 요구(안에 넣기)를 대신 채운다. 판정은 위 frameTakesInsert 한 자리 —
+       *   이 갈래는 이제 «들어간 상태»(자식이 골라짐)에서만 온다(오브젝트 선택은 함수 머리에서 다음 형제로 빠진다). 아래 옛 글은 기록으로 둔다.
        *   옛 판은 여기서 `ssInner.closest('.row').after(el)` 로 «뒤»에 붙였다. 그런데
        *   ⛔프레임 속성 패널 맨 아랫줄이 이렇게 «약속»한다:
        *     「Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.」
@@ -316,6 +411,7 @@ function insertAfterSelected(section, el) {
        *   지키는 검사: tests/dom/frame-accepts-component-blocks.dom.spec.js F1(안에 들어간다)
        *                ＋ F2·shape-frame-isolation I1~I3(도형 래퍼는 여전히 뒤 — 짝 검사) */
       ssInner.appendChild(el);
+      window.followHostFrameHAlign?.(el);   // ★E135
       window.settleRowInFreeFrame?.(ssInner, el, 'stack');   // B2
     }
     return;
@@ -334,6 +430,9 @@ function insertAfterSelected(section, el) {
     if (isShapeFrame(selSS) || selSS.dataset?.textFrame || selSS.dataset?.bannerPreset) {
       const ssRow = selSS.closest('.row') || selSS;
       ssRow.after(el);                 // 도형 래퍼·글자 래퍼·배너 외곽 = 최소 단위, 안에 안 넣는다
+    } else if (!frameTakesInsert(selSS)) {
+      /* ★H11 — 10-05 재지시: 한 번 클릭(오브젝트 선택)은 «밖»(다음 형제). 아래 «안» 줄은 09-23 결정의 기록으로 남는다(들어간 상태에서만 탄다). */
+      _placeAfterFrameAsSibling(selSS, el);
     } else {
       selSS.appendChild(el);           // 진짜 프레임 = 화면이 약속한 대로 «안»에
       window.settleRowInFreeFrame?.(selSS, el, 'stack');     // B2
@@ -431,42 +530,223 @@ const GRAPH_DEFAULT_ITEMS = [
   { label: '항목 5', value: 65 },
 ];
 
+// B7: bar-v·bar-pair 의 Bar Settings(항목 간격·두께·좌우 패딩·숫자 크기) — 간격·패딩·숫자 크기는 dataset 키가 «있을 때만» inline 으로 낸다.
+// ★E99 U26(2026-10-05): 두께는 «늘» 낸다 — 키가 없으면 GRAPH_LIMITS.BAR_THICKNESS_DEFAULT(가로 막대와 같은 기본, 패널이 보이는 값).
+//   전엔 키가 없으면 막대가 칸 전폭(127px 실측)인데 패널은 24 를 보였다. ⚠️두께 키 없는 옛 세로·비교 그래프는 «열면 24px 막대»로 바뀐다(⒜⒝⒞ 현빈 판단 사항).
+function _barVSettings(block, nItems) {
+  const d = block.dataset;
+  const has = k => d[k] !== undefined && d[k] !== '' && !isNaN(parseInt(d[k]));
+  const n = k => parseInt(d[k]);
+  // 간격은 «블럭 폭/항목 수»를 넘지 않게(min(Npx, 100%/항목수)) — 항목이 많아도 가로로 넘치지 않는다. 폭 안이면 Npx 그대로.
+  const gap = has('vItemGap') ? `gap:min(${n('vItemGap')}px,${(100 / Math.max(1, nItems)).toFixed(2)}%);` : '';
+  const pad = has('vPadX') ? `padding:0 ${n('vPadX')}px;` : '';
+  return {
+    barsStyle: (gap + pad) ? ';' + gap + pad : '',
+    // 막대 폭은 칸(%)을 넘지 않게 max-width:100%, 칸은 min-width:0 이라 줄어들 수 있다
+    fillW: `width:${has('vBarThickness') ? n('vBarThickness') : window.GRAPH_LIMITS.BAR_THICKNESS_DEFAULT}px;max-width:100%;margin:0 auto;`,
+    colMin: 'min-width:0;',   // 막대 폭이 늘 정해지므로 칸이 줄 수 있게(전엔 두께 키가 있을 때만 — 위와 같은 꼴)
+    pctSize: has('vPctSize') ? n('vPctSize') : null,
+    // GR2·GR3 오버레이가 «같은 칸 수식»을 쓰게 내보내는 원값(렌더 문자열에는 안 쓰인다 — 위 세 줄이 바이트를 정한다)
+    padX: has('vPadX') ? n('vPadX') : 0,
+    gapPx: has('vItemGap') ? n('vItemGap') : null,
+    gapPct: (100 / Math.max(1, nItems)).toFixed(2),
+  };
+}
+
+/* GR2 축 눈금 — 「깔끔한 상한」(지디 판정 2026-10-03 후속, 이전 규칙 «M/step≤6 최소 step + max(ceil,5)칸» 폐기).
+ *   후보 step ∈ {1,2,5}×10^k, step ≥ 1(하한 1) · 상단 = ceil(M/step)×step · 칸수 = 상단/step ∈ [3,7] 인 것만.
+ *   그중 «상단/M» 이 1 에 가장 가깝게. 동률이면 ★칸수 «많은» 쪽(= 작은 step) — 지디 기대값 표 55→60·step 10·6칸 을 따른 것.
+ *     동률 처리는 표를 참값으로 — 2026-10-03 지디 판정(옛 규칙 문장 「칸수 적은 쪽」은 하한 3 의 취지와 어긋나 폐기).
+ *   기대값: 13→14(2·7칸) · 11→12(2·6칸) · 4.6→5(1·5칸) · 55→60(10·6칸) · 3.5→4(1·4칸) · 100→100(20·5칸).
+ *   후보가 없으면(M<3 같은 작은 값: step 1 이어도 칸이 3 미만) step 1 · 상단 ceil(M)(최소 1) — 예) 1→0~1 · 2→0~2. */
+function _niceScale(M) {
+  M = (Number.isFinite(M) && M > 0) ? M : 1;
+  let best = null;
+  for (let k = 0; Math.pow(10, k) <= M; k++) {
+    for (const m of [1, 2, 5]) {
+      const step = m * Math.pow(10, k);
+      const top = Math.ceil(M / step - 1e-9) * step;
+      const cnt = Math.round(top / step);
+      if (cnt < 3 || cnt > 7) continue;
+      const r = top / M;
+      if (!best || r < best.r - 1e-12 || (Math.abs(r - best.r) <= 1e-12 && cnt > best.cnt)) best = { step, top, cnt, r };
+    }
+  }
+  if (!best) { const top = Math.max(1, Math.ceil(M - 1e-9)); best = { step: 1, top, cnt: top }; }
+  const ticks = []; for (let i = 0; i <= best.cnt; i++) ticks.push(i * best.step);
+  return { max: best.top, step: best.step, ticks };
+}
+
+/* ★GR2·GR3 — bar-v 플롯 기하 «한 곳». 막대 높이(pct)와 오버레이(축·격자·꺾은선) 좌표가 이 함수 하나에서 나온다.
+ *   좌표는 «렌더 때 DOM 을 재서 박는» 게 아니라 모델 수식 + CSS 앵커다(폭이 바뀌어도 맞는다 — GR-DESIGN 대조: px 박기 270px·비율 1.6px 오차).
+ *   · 가로: 오버레이 상자 left/right = calc(P − gap/2) ⇒ i번째 막대 가운데 = 상자의 (i+0.5)/n.
+ *       gap 은 .grb-bars-v 의 실제 gap 과 같은 식 — 키 없으면 CSS 기본 10px(css/editor-graph.css .grb-bars-v), 있으면
+ *       min(Npx, X%)(X% 는 flex 내용폭 기준) ⇒ 오버레이(패딩 상자 기준)에서는 (100% − 2P)×X/100.
+ *   · 세로: top = 값 라벨 높이(vSize×1.2 + margin 4) · bottom = 항목 라벨 높이(labelSize×1.2 + margin 6).
+ *       라벨 높이를 수식으로 알려고 «오버레이가 켜졌을 때만» 두 라벨에 line-height:1.2;height:1.2em 을 건다(겉모습 ≈1px 변화).
+ *   · 셋 다 꺼짐(on=false) ⇒ pct 는 예전 식 그대로·나머지 조각은 전부 '' ⇒ innerHTML 이 30984c67 과 바이트 동일(GR-W0).
+ *   · 축 또는 격자가 켜지면 막대도 «깔끔한 상한»으로 다시 비율을 잡는다(격자선과 값이 맞게). 꺾은선만 켜면 예전 상한.
+ *   ⚠️값 0·아주 작은 값: 막대는 min-height 4px(.grb-bar-fill)라 꼭대기가 바닥+4px 인데, polyline 꼭짓점은 수식(pct%)이라
+ *     바닥에 붙는다 ⇒ 선 꼭짓점이 막대 꼭대기와 최대 ~6px 어긋난다(점 div 는 bottom 이 막대와 같은 식이라 맞는다). 시험 허용치 6.5px. */
+function _barVPlotGeom(block, items, { maxVal, labelSize, vSize, bs }) {
+  const d = block.dataset;
+  const axis = d.showAxis === '1', grid = d.showGrid === '1', line = d.showLine === '1';
+  const on = axis || grid || line;
+  if (!on) {
+    return { on, pct: (v) => (v === 0 ? 0 : Math.max(1, Math.round((v / maxVal) * 100))), barsExtra: '', lhCss: '', overlayHTML: () => '', gridLayerHTML: () => '' };
+  }
+  const nice = (axis || grid) ? _niceScale(maxVal) : null;
+  const scaleMax = nice ? nice.max : maxVal;
+  const pct = (v) => (!v ? 0 : Math.max(1, +((v / scaleMax) * 100).toFixed(2)));
+  const LH = 1.2;
+  const top = d.showVLabel !== '0' ? vSize * LH + 4 : 0;      // .grb-bar-val-label margin-bottom:4px
+  const bot = d.showXLabel !== '0' ? labelSize * LH + 6 : 0;  // .grb-bar-label margin-top:6px
+  const P = bs.padX;
+  const gap = bs.gapPx == null ? '10px' : `min(${bs.gapPx}px, calc((100% - ${2 * P}px) * ${bs.gapPct} / 100))`;
+  const inset = `calc(${P}px - ${gap} / 2)`;
+  const n = Math.max(1, items.length);
+  const xPct = (i) => ((i + 0.5) / n) * 100;
+  const tickFont = Math.max(10, Math.round(labelSize * 0.75));
+  const fmt = (t) => String(t);
+  const tickChars = nice ? Math.max(...nice.ticks.map(t => fmt(t).length)) : 0;
+  // 눈금 글자 자리 — 오버레이 상자 왼쪽 밖(right:100% + 6px)에 그리므로, 그만큼 막대 띠를 오른쪽으로 민다(「11」이 잘리던 시제품 꼴 방지).
+  const axisMargin = axis ? Math.ceil(tickChars * tickFont * 0.65 + 8) : 0;
+  /* H2(현빈 2026-10-05 「격자선을 막대 뒤로」) — 격자선은 따로 한 층(z-index:-1)에 그리고, 막대 줄을 쌓임 맥락(z-index:0)으로 만든다
+     ⇒ 격자 층은 막대(흐름 칸)보다 «뒤», 막대 줄 배경보다는 «앞». 선·점·축·눈금은 그대로 위 층(.grb-ov z-index:1).
+     격자가 꺼져 있으면 이 조각은 '' — 옛 바이트 그대로(GR-W0). */
+  const barsExtra = 'position:relative;' + (grid ? 'z-index:0;' : '') + (axisMargin ? `margin-left:${axisMargin}px;` : '');
+  const lhCss = `line-height:${LH};height:${LH}em;`;
+  const ink = _safeGraphColor(d.labelColor);   // 선·점·격자·눈금 색 = 라벨 색(지정 시) 아니면 블럭 글자색(프리셋 color) — 새 색 없음
+  const overlayHTML = () => {
+    const yOf = (p) => (1000 - p * 10).toFixed(1);
+    const ticks = nice ? nice.ticks : [];
+    /* (격자선은 H2 로 아래 gridLayerHTML 층으로 옮겼다 — H7 색 규칙도 그리로.) */
+    const axisEl = axis ? `<line class="grb-ov-axis" x1="0" x2="0" y1="0" y2="1000" stroke="currentColor" stroke-opacity="0.6" stroke-width="1" vector-effect="non-scaling-stroke"/>` : '';
+    const pts = items.map((it, i) => ({ x: (xPct(i) * 10).toFixed(1), p: pct(it.value) }));
+    const lineEl = line ? `<polyline class="grb-ov-line" points="${pts.map(q => `${q.x},${yOf(q.p)}`).join(' ')}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>` : '';
+    // 점 높이 = 막대 꼭대기와 같은 식: 값 0 막대는 height:4px + border-style:dashed(기본 medium 3px ×2, border-box) = 6px,
+    //   그 밖은 min-height 4px ⇒ max(pct%, 4px).
+    const dots = line ? pts.map((q, i) => `<div class="grb-ov-dot" style="position:absolute;left:${xPct(i).toFixed(4)}%;bottom:${q.p === 0 ? '6px' : `max(${q.p}%, 4px)`};width:10px;height:10px;transform:translate(-50%,50%);border-radius:50%;background:currentColor"></div>`).join('') : '';
+    const tickEls = axis ? ticks.map(t => `<div class="grb-ov-tick" style="position:absolute;right:100%;margin-right:6px;bottom:${((t / scaleMax) * 100).toFixed(4)}%;transform:translateY(50%);font-size:${tickFont}px;line-height:1;opacity:0.75;white-space:nowrap">${_escGraphHtml(fmt(t))}</div>`).join('') : '';
+    return `<div class="grb-ov" style="position:absolute;left:${inset};right:${inset};top:${top}px;bottom:${bot}px;pointer-events:none;z-index:1;${ink ? `color:${ink};` : ''}">`
+      + `<svg class="grb-ov-svg" viewBox="0 0 1000 1000" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">${axisEl}${lineEl}</svg>`
+      + dots + tickEls + `</div>`;
+  };
+  /* H2 — 격자선 층(막대 «뒤»). 상자는 위 오버레이와 같은 자리·크기(같은 inset · top · bottom) — 선 높이가 눈금과 맞는다. */
+  const gridLayerHTML = () => {
+    if (!grid) return '';
+    const yOf = (p) => (1000 - p * 10).toFixed(1);
+    const ticks = nice ? nice.ticks : [];
+    const _gc = _safeGraphColor(d.gridColor);
+    const _gridStroke = (_gc && !/gradient\(/i.test(_gc)) ? `stroke="${_gc}" stroke-opacity="1"` : `stroke="currentColor" stroke-opacity="0.2"`;
+    const gridEl = ticks.map(t => `<line class="grb-ov-grid" x1="0" x2="1000" y1="${yOf((t / scaleMax) * 100)}" y2="${yOf((t / scaleMax) * 100)}" ${_gridStroke} stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('');
+    return `<div class="grb-ov-grid-layer" style="position:absolute;left:${inset};right:${inset};top:${top}px;bottom:${bot}px;pointer-events:none;z-index:-1;${ink ? `color:${ink};` : ''}">`
+      + `<svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">${gridEl}</svg></div>`;
+  };
+  return { on, axis, grid, line, scaleMax, ticks: nice ? nice.ticks : null, pct, top, bot, inset, barsExtra, lhCss, overlayHTML, gridLayerHTML };
+}
+/* H6 — 다시 그린 «뒤» 자동 밝기를 맞춘다(그린 값이 바탕이라 그린 다음이어야 한다 · canvas-contrast.js syncGraphTone). 렌더 몸통은 아래 그대로. */
 function renderGraph(block) {
+  _renderGraphBody(block);
+  window.__gdTextTone?.syncGraphTone?.(block);
+  _bindGraphLabelEdit(block);
+}
+/* K8⒤ — 카테고리 라벨 캔버스 직접 편집(더블클릭). 저장 자리 = dataset.items[i].label 한 곳(패널 .grb-data-label-input 과 같은 키).
+ *   라벨은 렌더마다 새로 만들어진다 ⇒ 블럭에 «위임» 한 번만 건다(요소 속성이라 복제·로드된 블럭은 첫 렌더에서 새로 건다).
+ *   ⌘Z 한 번: 들어갈 때 ensureHistoryCheckpoint · 확정 뒤 pushHistory. Esc · 빈 글자 · 같은 글자 = 무변(다시 그려 원래 글자로).
+ *   편집 중엔 block.editing — 공통 mousedown 드래그·삭제키 가드가 본다(그리드 줄 편집과 같은 꼴). */
+/* 카테고리 라벨 «셋»(막대·비교 .grb-bar-label · 가로 .grb-bar-h-desc · 꺾은선 .grb-line-xlabel) — 항목마다 정확히 하나(숨김이어도 display:none 으로 있다)
+   ⇒ 블럭 안 순서 = items 순서. 색인을 DOM 속성으로 안 박는다 — 렌더 바이트가 핀(graph-vpair 골든 · GR-W0 기준판)과 같게(회귀 실측: data-grb-idx 가 5 빨강). */
+const GRB_CAT_LABEL_SEL = '.grb-bar-label, .grb-bar-h-desc, .grb-line-xlabel';
+function _bindGraphLabelEdit(block) {
+  if (block._grbLabelEditBound) return;
+  block._grbLabelEditBound = true;
+  block.addEventListener('dblclick', e => {
+    const el = e.target?.closest?.(GRB_CAT_LABEL_SEL);
+    if (!el || !block.contains(el) || el.isContentEditable) return;
+    e.stopPropagation(); e.preventDefault();
+    _graphLabelBeginEdit(block, el, [...block.querySelectorAll(GRB_CAT_LABEL_SEL)].indexOf(el));
+  });
+}
+function _graphLabelBeginEdit(block, el, idx) {
+  window.ensureHistoryCheckpoint?.('그래프 라벨 편집 전');
+  block.classList.add('editing');
+  el.setAttribute('contenteditable', 'true');   // ⒥⒝ — 세움(parkEditing)은 'true' 만 «살아 있는 편집»으로 본다(_text-selection _parkedAlive). 확정은 textContent 라 서식이 안 남는다
+  el.setAttribute('draggable', 'false');
+  el.focus();
+  const rg = document.createRange(); rg.selectNodeContents(el);
+  const sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg);
+  window.__grbLabelEdit?.reveal?.(block);   // ⒥⒝ — 패널의 «라벨(크기)»·«카테고리 색상» 줄로 스크롤 + 강조(새 절·새 키 0 · prop-graph.js)
+  let done = false;
+  const finish = (commit, { keepPanel = false } = {}) => {
+    if (done) return; done = true;
+    el.removeEventListener('keydown', onKey); el.removeEventListener('blur', onBlur);
+    block.classList.remove('editing');
+    const val = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    const items = JSON.parse(block.dataset.items || '[]');
+    const changed = commit && val && items[idx] && val !== items[idx].label;
+    if (changed) { items[idx].label = val; block.dataset.items = JSON.stringify(items); }
+    renderGraph(block);   // 확정이든 취소든 라벨을 dataset 에서 다시 그린다(편집 흔적 0)
+    if (changed) {
+      window.pushHistory?.('그래프 라벨'); window.scheduleAutoSave?.();
+      if (!keepPanel && block.classList.contains('selected')) window.showGraphProperties?.(block);
+    }
+  };
+  const onKey = (ev) => {
+    if (ev.isComposing || ev.keyCode === 229) return;   // 한글 조합 중 Enter 는 조합 확정이다
+    if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); finish(true); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(false); }
+  };
+  /* ⒥⒝ — 패널로 가는 blur 는 끝내지 «않고» 세운다(그리드 줄·텍스트블럭과 같은 술어 isBlurIntoPanel · prop-graph.js 가 _text-selection 을 잇는다).
+     끝내면 showGraphProperties 가 패널을 다시 그려 방금 누른 크기·색 칸이 떨어져 나간다(TX1 병). 패널 값이 들어오기 직전엔 flush = 패널을 안 다시 그리는 확정. */
+  const onBlur = (ev) => {
+    if (window.__grbLabelEdit?.park?.(ev, el, () => finish(true), () => finish(true, { keepPanel: true }))) return;
+    finish(true);
+  };
+  el.addEventListener('keydown', onKey);
+  el.addEventListener('blur', onBlur);
+}
+function _renderGraphBody(block) {
   const items      = JSON.parse(block.dataset.items || '[]');
   const chartType  = block.dataset.chartType  || 'bar-v';
   // bar-pair(2시리즈)의 value2까지 포함해 스케일 산출 — 타 차트는 value2 없음(0)이라 영향 없음
   const maxVal     = Math.max(...items.flatMap(i => [i.value || 0, i.value2 || 0]), 1);
   const chartH     = parseInt(block.dataset.chartHeight) || 240;
-  const labelSize  = parseInt(block.dataset.labelSize)   || 20;
+  const labelSize  = parseInt(block.dataset.labelSize)   || window.GRAPH_LIMITS.LABEL_SIZE_DEFAULT;   // 패널과 같은 한 자리(graph-limits.js · 값 20 그대로)
   const valSize    = Math.round(labelSize * 1.07);
 
   if (chartType === 'bar-v') {
     // 값/카테고리 라벨 표시·색 — line 차트와 동일 시맨틱 (이전엔 bar에서 미반영되던 버그)
     const _lc = block.dataset.labelColor || '';
-    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((block.dataset.vlabelColor || _lc) ? `color:${block.dataset.vlabelColor || _lc};` : '');
-    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((block.dataset.xlabelColor || _lc) ? `color:${block.dataset.xlabelColor || _lc};` : '');
+    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.vlabelColor || _lc)));
+    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.xlabelColor || _lc)));
+    const _bs = _barVSettings(block, items.length);
+    const _vSize = _bs.pctSize ?? valSize;
+    const _blockBar = _safeGraphColor(block.dataset.vBarColor);
+    const _g = _barVPlotGeom(block, items, { maxVal, labelSize, vSize: _vSize, bs: _bs });   // GR2·GR3 — 꺼져 있으면 아래 조각 전부 ''
+    const _barsStyle = _g.on ? (_bs.barsStyle || ';') + _g.barsExtra : _bs.barsStyle;
     block.innerHTML = `
-      <div class="grb-bars-v" style="height:${chartH}px">
+      <div class="grb-bars-v" style="height:${chartH}px${_barsStyle}">
         ${items.map(item => {
-          const pct = item.value === 0 ? 0 : Math.max(1, Math.round((item.value / maxVal) * 100));
+          const pct = _g.pct(item.value);
           const fillStyle = pct === 0 ? 'height:4px;opacity:0.25;border-style:dashed;' : `height:${pct}%;`;
           // 바 개별색 — item.color 있으면 인라인 background로 CSS 프리셋(colorful nth-child 포함) 우선
-          const _bc = _safeGraphColor(item.color); const colorStyle = _bc ? `background:${_bc};` : '';
+          const _bc = _safeGraphColor(item.color) || _blockBar; const colorStyle = _bc ? `background:${_bc};` : '';
           return `
-            <div class="grb-bar-col">
-              <div class="grb-bar-val-label" style="font-size:${valSize}px;${_vCss}">${_escGraphHtml(item.value)}</div>
+            <div class="grb-bar-col"${_bs.colMin ? ` style="${_bs.colMin}"` : ''}>
+              <div class="grb-bar-val-label" style="font-size:${_vSize}px;${_vCss}${_g.lhCss}">${_escGraphHtml(item.value)}</div>
               <div class="grb-bar-fill-wrap">
-                <div class="grb-bar-fill" style="${fillStyle}${colorStyle}"></div>
+                <div class="grb-bar-fill" style="${fillStyle}${_bs.fillW}${colorStyle}"></div>
               </div>
-              <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}">${_escGraphHtml(item.label)}</div>
+              <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}${_g.lhCss}">${_escGraphHtml(item.label)}</div>
             </div>`;
-        }).join('')}
+        }).join('')}${_g.gridLayerHTML()}${_g.overlayHTML()}
       </div>`;
   } else if (chartType === 'line') {
     // ── 꺾은선 (line) — SVG polyline + circle data points
     const strokeWidth = parseInt(block.dataset.strokeWidth) || 3;
     const pointRadius = parseInt(block.dataset.pointRadius) || 5;
-    const padXL       = parseInt(block.dataset.padX) || 16;
+    const padXL       = parseInt(block.dataset.padX) || window.GRAPH_LIMITS.LINE_PADX_DEFAULT;   // 패널과 같은 한 자리(값 16 그대로 · SVG 가상폭 단위)
     const padTop      = Math.round(valSize * 1.4) + 8;
     const padBottom   = Math.round(labelSize * 1.4) + 8;
 
@@ -525,8 +805,8 @@ function renderGraph(block) {
 
     // 선/면 색상 분리 — lineColor가 선(stroke)·점, fillColor가 면(area). fallback은 barColor.
     // CSS preset rule이 stroke를 var()로 박아 SVG attribute를 덮어씀 → inline style로 우선순위 강제
-    const lineColor = block.dataset.lineColor || block.dataset.barColor || '';
-    const fillColor = block.dataset.fillColor || block.dataset.barColor || '';
+    const lineColor = _safeGraphColor(block.dataset.lineColor || block.dataset.barColor || '');   // E152 — 색 문자열은 검증기를 지나서만 속성으로
+    const fillColor = _safeGraphColor(block.dataset.fillColor || block.dataset.barColor || '');
     const colorAttr = lineColor ? ` style="stroke:${lineColor}"` : '';
     const pointInlineStyle = lineColor ? `background:${lineColor};border-color:${lineColor};` : '';
 
@@ -566,13 +846,13 @@ function renderGraph(block) {
     const xlabelColor = block.dataset.xlabelColor || labelColor;
     const showVLabel = block.dataset.showVLabel !== '0';  // default 보임
     const showXLabel = block.dataset.showXLabel !== '0';  // default 보임
-    const vlabelColorCss = vlabelColor ? `color:${vlabelColor};` : '';
-    const xlabelColorCss = xlabelColor ? `color:${xlabelColor};` : '';
+    const vlabelColorCss = _safeGraphColor(vlabelColor) ? `color:${_safeGraphColor(vlabelColor)};` : '';   // E152
+    const xlabelColorCss = _safeGraphColor(xlabelColor) ? `color:${_safeGraphColor(xlabelColor)};` : '';
     const vlabelDisp = showVLabel ? '' : 'display:none;';
     const xlabelDisp = showXLabel ? '' : 'display:none;';
     const labelsHTML = overlayItems.map(o =>
-      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${vlabelColorCss}${vlabelDisp}">${o.p.v}</div>
-       <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${xlabelColorCss}${xlabelDisp}">${o.p.label}</div>`
+      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${vlabelColorCss}${vlabelDisp}">${_escGraphHtml(o.p.v)}</div>
+       <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${xlabelColorCss}${xlabelDisp}">${_escGraphHtml(o.p.label)}</div>`   /* E150 — 사용자 글자는 이스케이프(막대 셋과 같은 _escGraphHtml). 옛: `<b>` 가 태그로 읽혔다 */
     ).join('');
 
     block.innerHTML = `
@@ -587,30 +867,32 @@ function renderGraph(block) {
   } else if (chartType === 'bar-pair') {
     // ── U9(BL-BOL-03): 2시리즈 비교 세로 막대 (자사 vs 경쟁) — items: [{label, value, value2}]
     const _lc = block.dataset.labelColor || '';
-    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((block.dataset.vlabelColor || _lc) ? `color:${block.dataset.vlabelColor || _lc};` : '');
-    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((block.dataset.xlabelColor || _lc) ? `color:${block.dataset.xlabelColor || _lc};` : '');
-    const barColor  = block.dataset.barColor  || '';
-    const barColor2 = block.dataset.barColor2 || '#c9c9c9';
+    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.vlabelColor || _lc)));
+    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.xlabelColor || _lc)));
+    const barColor  = _safeGraphColor(block.dataset.barColor  || '');   // E152 — 범례 점 · 막대 채움 모두 이 값
+    const barColor2 = _safeGraphColor(block.dataset.barColor2 || '') || '#c9c9c9';
     const sA = block.dataset.seriesA || '';
     const sB = block.dataset.seriesB || '';
     const legend = (sA || sB) ? `
       <div class="grb-pair-legend" style="font-size:${labelSize}px;${_xCss}">
-        ${sA ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot"${barColor ? ` style="background:${barColor}"` : ''}></span>${sA}</span>` : ''}
-        ${sB ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot" style="background:${barColor2}"></span>${sB}</span>` : ''}
+        ${sA ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot"${barColor ? ` style="background:${barColor}"` : ''}></span>${_escGraphHtml(sA)}</span>` : ''}
+        ${sB ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot" style="background:${barColor2}"></span>${_escGraphHtml(sB)}</span>` : ''}
       </div>` : '';
+    const _bs = _barVSettings(block, items.length);
+    const _vSize = _bs.pctSize ?? valSize;
     const bar = (v, color, extraClass) => {
       const pct = !v ? 0 : Math.max(1, Math.round((v / maxVal) * 100));
       const fillStyle = pct === 0 ? 'height:4px;opacity:0.25;border-style:dashed;' : `height:${pct}%;`;
       return `
         <div class="grb-pair-series">
-          <div class="grb-bar-val-label" style="font-size:${valSize}px;${_vCss}">${v ?? 0}</div>
-          <div class="grb-bar-fill${extraClass}" style="${fillStyle}${color ? `background:${color};` : ''}"></div>
+          <div class="grb-bar-val-label" style="font-size:${_vSize}px;${_vCss}">${_escGraphHtml(v ?? 0)}</div>
+          <div class="grb-bar-fill${extraClass}" style="${fillStyle}${_bs.fillW}${color ? `background:${color};` : ''}"></div>
         </div>`;
     };
     block.innerHTML = `${legend}
-      <div class="grb-bars-v" style="height:${chartH}px">
+      <div class="grb-bars-v" style="height:${chartH}px${_bs.barsStyle}">
         ${items.map(item => `
-          <div class="grb-bar-col">
+          <div class="grb-bar-col"${_bs.colMin ? ` style="${_bs.colMin}"` : ''}>
             <div class="grb-bar-fill-wrap grb-pair-wrap">
               ${bar(item.value, barColor, '')}
               ${bar(item.value2, barColor2, ' grb-bar-fill-b')}
@@ -621,17 +903,17 @@ function renderGraph(block) {
   } else {
     const barThickness = parseInt(block.dataset.barThickness) || 0;
     const padX         = parseInt(block.dataset.padX)         || 0;
-    const barColor     = block.dataset.barColor || '';
+    const barColor     = _safeGraphColor(block.dataset.barColor || '');   // E152
     const itemGap      = parseInt(block.dataset.itemGap)      || 24;
-    const pctSize      = parseInt(block.dataset.pctSize)      || Math.round(labelSize * 3);
-    const trackH       = barThickness || 24;
+    const pctSize      = parseInt(block.dataset.pctSize)      || Math.round(labelSize * window.GRAPH_LIMITS.PCT_SIZE_FACTOR);   // 패널과 같은 식(값 ×3 그대로)
+    const trackH       = barThickness || window.GRAPH_LIMITS.BAR_THICKNESS_DEFAULT;   // E99 — 패널·세로·비교와 같은 기본 한 자리
     const trackR       = Math.round(trackH / 2);
     const trackStyle   = `height:${trackH}px;border-radius:${trackR}px;`;
     const fillStyle    = `width:__PCT__;border-radius:${trackR}px;${barColor ? `background:${barColor};` : ''}`;
     // 값/카테고리 라벨 표시·색 — line 차트와 동일 시맨틱 (이전엔 bar-h에서 미반영되던 버그)
     const _lc = block.dataset.labelColor || '';
-    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((block.dataset.vlabelColor || _lc) ? `color:${block.dataset.vlabelColor || _lc};` : '');
-    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((block.dataset.xlabelColor || _lc) ? `color:${block.dataset.xlabelColor || _lc};` : '');
+    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.vlabelColor || _lc)));
+    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.xlabelColor || _lc)));
 
     // freeLayout 절대 배치가 아닌 경우 height 고정 해제 → 콘텐츠 크기에 따라 자동 증가
     if (block.style.position !== 'absolute') {
@@ -648,7 +930,7 @@ function renderGraph(block) {
           const _bc = _safeGraphColor(item.color); const colorStyle = _bc ? `background:${_bc};` : '';
           return `
             <div class="grb-bar-row">
-              <div class="grb-bar-h-pct" style="font-size:${pctSize}px;${_vCss}">${displayVal}</div>
+              <div class="grb-bar-h-pct" style="font-size:${pctSize}px;${_vCss}">${_escGraphHtml(displayVal)}</div>
               <div class="grb-bar-h-desc" style="font-size:${Math.round(labelSize * 1.4)}px;${_xCss}">${_escGraphHtml(item.label)}</div>
               <div class="grb-bar-h-track" style="${trackStyle}">
                 <div class="grb-bar-h-fill" style="${fillStyle.replace('__PCT__', pct + '%')}${hFillExtra}${colorStyle}"></div>
@@ -810,6 +1092,8 @@ export {
   makeLabelItem,
   insertBeforeBottomGap,
   insertAfterSelected,
+  insertAfterSelectedAsSibling,
+  frameSelectedAsObject,
   settleRowInFreeFrame,
   effectiveSectionPadX,
   applyBlockFullBleed,
@@ -838,6 +1122,8 @@ window.clearLayerSectionIndicators= clearLayerSectionIndicators;
 window.makeLabelItem              = makeLabelItem;
 window.insertBeforeBottomGap      = insertBeforeBottomGap;
 window.insertAfterSelected        = insertAfterSelected;
+window.frameSelectedAsObject      = frameSelectedAsObject;
+window.insertAfterSelectedAsSibling = insertAfterSelectedAsSibling;
 window.settleRowInFreeFrame       = settleRowInFreeFrame;
 window.effectiveSectionPadX       = effectiveSectionPadX;
 window.applyBlockFullBleed        = applyBlockFullBleed;

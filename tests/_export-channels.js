@@ -102,8 +102,9 @@ const CHANNELS = [
   { file: 'js/io/save-load.js', kind: 'transient', axes: ['marker'], strips: null,
     why: '⑴ 썸네일 클론은 document.body 로 나가 #canvas 스코프 밖이라 마커가 «안 그려진다» ' +
          '⑵ 캔버스 직렬화는 serializeCleanRoot 에 위임한다 ⑶ 히트존 리스너 교체' },
-  { file: 'js/props/prop-mockup.js', kind: 'transient', axes: ['marker'], strips: null,
-    why: '목업 이미지 — 클론을 document.body 에 붙여 찍는다. 마커 CSS 가 «#canvas .grid-block» 스코프라 안 그려진다' },
+  /* 10-05 G11 ① 로 옮김 · 옛 자리 = js/props/prop-mockup.js(같은 «왜») — 클론하는 찍기가 공용 captureSectionImage 로 갔다 */
+  { file: 'js/io/capture-safety.js', kind: 'transient', axes: ['marker'], strips: null,
+    why: '목업 이미지(captureSectionImage) — 클론을 document.body 에 붙여 찍는다. 마커 CSS 가 «#canvas .grid-block» 스코프라 안 그려진다' },
   { file: 'js/editor.js', kind: 'transient', axes: ['marker'], strips: null,
     why: '⑴ 절대배치 블록 «복제»(라이브 캔버스로 들어간다) ⑵ 히트존 노드 교체(리스너 초기화)' },
   { file: 'js/block-factory.js', kind: 'transient', axes: ['marker'], strips: null,

@@ -1,4 +1,27 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net: electronNet, screen: electronScreen } = require('electron');
+// ▼QA_HIDDEN (2026-10-02 현빈 승인) — GODITOR_QA_HIDDEN=1 일 때만: 창을 숨기고(show:false) 렌더러가 서지 않게 플래그 셋.
+//   ★목적 = QA 창이 «현빈 화면 포커스를 안 뺏는다»(2026-10-02 격리앱을 open -g 로 띄워도 뺏은 사고).
+//   ⛔이 환경변수가 없으면 이 파일은 dev(22d94bf0)판과 «한 바이트도» 다르지 않아야 한다 — ▼▲ 표식 안만 다르다
+//     tests/unit/main-qa-hidden.test.mjs 가 «구조»로 잠근다: 숨김 관련 줄은 전부 ▼▲ 블록 안 · 블록 안 코드는 전부 _QA_HIDDEN 조건 아래.
+//     ⚠️행위가 아니라 소스 대조다(Electron 을 띄워 재지 않음). git 판 대조는 넣은 커밋에서 한 번만 했다(시험이 main.js 를 얼리지 않게).
+const _QA_HIDDEN = process.env.GODITOR_QA_HIDDEN === '1';
+if (_QA_HIDDEN) {
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+  app.commandLine.appendSwitch('disable-renderer-backgrounding');
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+}
+// ▲QA_HIDDEN
+// ▼DOWNLOADS_DIR (2026-10-05 지디 승인) — GODITOR_DOWNLOADS_DIR(절대경로)일 때만: 다운로드 기본 자리를 그 폴더로.
+//   ★목적 = 격리 QA 앱의 내보내기가 현빈 ~/Downloads 를 «안» 더럽힌다(applaunch.sh 가 $UD/downloads 를 넘긴다).
+//   ⛔이 환경변수가 없거나 빈 값·상대경로면 종전과 같다 = app.getPath('downloads').
+//   ★읽는 자리는 이 함수 «하나» — 사용처 전수(10-05 · fad9c91c): will-download 핸들러 한 곳뿐. ⛔다른 곳에서 env 를 또 읽지 마라.
+//   tests/unit/main-downloads-dir.test.mjs 가 이 블록을 떼어 «행위»로 잰다(env 없음·절대·상대·빈 값) + 읽는 자리 수를 «구조»로 잠근다.
+function _downloadsDir(env, getPath, isAbs, mkdir) {
+  const d = env.GODITOR_DOWNLOADS_DIR;
+  if (typeof d === 'string' && d !== '' && isAbs(d)) { try { mkdir(d); } catch (_) {} return d; }
+  return getPath();
+}
+// ▲DOWNLOADS_DIR
 
 // ── 캔버스 이미지 외부화: 커스텀 프로토콜 goya-asset://<projectId>/<filename> ──
 // 캔버스 HTML에 박히던 인라인 base64를 proj_<id>/assets/<contenthash>.<ext>로 분리하고,
@@ -357,7 +380,13 @@ function createWindow() {
   const isMac = process.platform === 'darwin';
   const gitBranch = getGitBranch();
   const windowTitle = gitBranch ? `GODITOR [${gitBranch}]` : 'GODITOR';
+  // ▼QA_HIDDEN — 맥: 독 아이콘 없는 «부속 앱» = 스스로 앞에 나오지 않는다(show:false 만으론 실행 직후 활성화가 남을 수 있다). 지키는지는 «재서» 판정.
+  if (_QA_HIDDEN && isMac && typeof app.setActivationPolicy === 'function') app.setActivationPolicy('accessory');
+  // ▲QA_HIDDEN
   mainWindow = new BrowserWindow({
+    // ▼QA_HIDDEN
+    ...(_QA_HIDDEN ? { show: false } : {}),
+    // ▲QA_HIDDEN
     width: 1440,
     height: 900,
     minWidth: 1024,
@@ -383,7 +412,8 @@ function createWindow() {
   // 핸들러가 없으면 Electron 기본 저장 다이얼로그에 의존 — 창이 가려진/숨겨진
   // 상태에서는 다이얼로그가 못 떠서 다운로드가 조용히 유실된다.
   mainWindow.webContents.session.on('will-download', (event, item) => {
-    const dir = (_dlCollector && _dlCollector.outDir) || app.getPath('downloads');
+    const dir = (_dlCollector && _dlCollector.outDir)
+      || _downloadsDir(process.env, () => app.getPath('downloads'), path.isAbsolute, (d) => fs.mkdirSync(d, { recursive: true }));   // DOWNLOADS_DIR — 읽는 자리 하나(위 ▼ 블록)
     const base = item.getFilename() || 'export';
     let dest = path.join(dir, base);
     for (let n = 1; fs.existsSync(dest); n++) {
@@ -1925,7 +1955,11 @@ function _listItemFor(id, projPath, metaFast) {
     } catch (_) { /* stat/parse 실패 → 풀파싱 폴백 */ }
   }
   // 폴백: proj.json 풀파싱(현행 동작) + (신 레이아웃이면) 목록 메타 캐시 갱신
-  const data = JSON.parse(fs.readFileSync(projPath, 'utf8'));
+  // ★E168: 깨진 proj.json 이면 로드와 «같은 한 곳»으로 백업·히스토리에서 읽는다(읽기만 · 자가치유는 열 때) — 옛 판은 던져서 카드가 사라졌다.
+  const _rd = readProjectWithFallback(id, { heal: false });
+  if (!_rd) return null;
+  const data = _rd.proj;
+  const _fromFallback = _rd.from !== 'proj';
   if (!data.id || data.id === 'undefined') return null;
   let thumbnail = data.thumbnail || null;
   // ★collabRef 는 proj.json 이 아니라 meta 에만 산다(원격 연결은 «문서»가 아니라 «이 설치»의 상태다).
@@ -1942,9 +1976,11 @@ function _listItemFor(id, projPath, metaFast) {
       folderId = meta.folderId || null;
     } catch {}
   }
-  if (metaFast) { try { _refreshListMeta(data.id, data); } catch (_) {} }
+  // ★E168: 폴백으로 읽은 카드는 meta 를 «안» 고친다 — 고치면 다음 목록이 빠른 길로 «표시 없는» 카드를 세운다(말없는 복구).
+  if (metaFast && !_fromFallback) { try { _refreshListMeta(data.id, data); } catch (_) {} }
   return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt,
-           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, collabRef, favorite, folderId };
+           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, collabRef, favorite, folderId,
+           ...(_fromFallback ? { recoveredFrom: _rd.from, recoveredAt: _rd.savedAt, recoveredAtLabel: _savedAtLabel(_rd.savedAt) } : {}) };
 }
 
 /* ── IPC: AI Image Gen ──
@@ -2295,8 +2331,18 @@ function _externalizeOnOpen(event, id) {
   if (scan.bytes >= EXTERNALIZE_HINT_MIN_BYTES) send('projects:externalize-hint', { projectId: safeId, reason: 'legacy', bytes: scan.bytes, base64Refs: scan.base64Refs });
 }
 
-ipcMain.handle('projects:load', (event, id, opts) => {
-  if (opts && opts.open === true) { try { _externalizeOnOpen(event, id); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
+/* ★E168(2026-10-06 lane-drag · 지디 ⒜ · 태양 v2) proj.json 을 «폴백까지» 읽는 «한 곳» — 로드(projects:load)와 목록(_listItemFor)이 같이 부른다(⛔사본 루프).
+   옛 판: 폴백 체인이 로드 핸들러 안에만 있어, 목록은 깨진 proj.json 을 던지고 _listProjectsImpl 의 catch 가 말없이 건너뜀 → 카드가 사라졌다
+   (실앱 dev 0f572e2a 실측 · 백업은 성함). 반환: { proj, from:'proj'|'backup'|'history'|'pre-externalize', path, savedAt(그 파일 mtime), healed, healError } | null.
+   heal:true(로드)만 자가치유 재기록 — 목록은 «읽기만». 소비자 명부: docs/proj-json-consumers.md · 시험: tests/unit/project-list-fallback-e168.test.js */
+function _mtimeOr(p) { try { return fs.statSync(p).mtimeMs; } catch (_) { return null; } }
+/* ★E170(태양 «한 helper») 복구 알림·카드 배지가 같은 꼴로 말하는 시각 글자 «MM-DD HH:mm» — 여기 «한 곳»에서만 만든다(렌더러 두 곳은 싣기만). */
+function _savedAtLabel(ms) {
+  if (typeof ms !== 'number' || !isFinite(ms)) return null;
+  const d = new Date(ms); const p2 = (n) => String(n).padStart(2, '0');
+  return `${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+function readProjectWithFallback(id, { heal = false } = {}) {
   const filePath = _resolveProjectJsonPath(id);
   // 1) 정상 경로: proj.json
   if (filePath) {
@@ -2311,7 +2357,7 @@ ipcMain.handle('projects:load', (event, id, opts) => {
            `{ ...existingWithoutMeta, … }`)이 그 문자열을 «0,1,2…» 로 펼쳐 저장했다.
          ⛔거절이 아니라 «폴백으로 내려보낸다» — 백업·히스토리에 성한 판이 있으면 그것이 답이다
            (손상 JSON 일 때 하는 것과 «같은 처분»으로 둔다. 새 뜻을 만들지 않는다). */
-      if (_SS().isProjectShaped(parsed)) return parsed;
+      if (_SS().isProjectShaped(parsed)) return { proj: parsed, from: 'proj', path: filePath, savedAt: _mtimeOr(filePath), healed: true };
       console.warn(`[projects:load] proj.json 이 «프로젝트 형태»가 아니다(${id}, ${typeof parsed}) — 백업 폴백 시도`);
     }
     catch (e) { console.warn(`[projects:load] proj.json 손상(${id}): ${e.message} — 백업 폴백 시도`); }
@@ -2336,15 +2382,45 @@ ipcMain.handle('projects:load', (event, id, opts) => {
       console.warn(`[projects:load] 후보가 프로젝트 형태가 아님 — 건너뜀: ${path.basename(c.path)}`);
       continue;
     }
-    console.warn(`[projects:load] ${id} 손상 → ${c.from}(${path.basename(c.path)})에서 복구`);
-    try { // 자가치유: 복구본을 proj.json으로 재기록 (다음 로드부터 정상)
-      const paths = _ensureNewLayoutPaths(id);
-      _atomicWriteFileSync(paths.proj, JSON.stringify(proj, null, 2));
-    } catch (e) { console.warn('[projects:load] 자가치유 재기록 실패:', e.message); }
-    return { ...proj, _recovered: c.from }; // _recovered: 렌더러 통지용(serialize엔 미포함)
+    console.warn(`[projects:load] ${id} 손상 → ${c.from}(${path.basename(c.path)})에서 ${heal ? '복구' : '읽음(목록)'}`);
+    /* ★E169(2026-10-06 lane-drag · 지디 «우리 몫») 자가치유 «성패»를 렌더러에 싣는다 — 옛 판은 실패를 warn 만 남기고 삼켜서
+       토스트가 «백업에서 복구했습니다»(디스크에 성한 판 0 인데 안심)였다. 실앱 ro 판(디스크가 꽉 찼을 때 대역) 실측. */
+    let healed = true, healError;
+    if (heal) {   // ★E168: 목록(heal:false)은 «읽기만» — 자가치유는 열 때만
+      try { // 자가치유: 복구본을 proj.json으로 재기록 (다음 로드부터 정상)
+        const paths = _ensureNewLayoutPaths(id);
+        _atomicWriteFileSync(paths.proj, JSON.stringify(proj, null, 2));
+      } catch (e) { healed = false; healError = (e && e.code) || 'unknown'; console.warn('[projects:load] 자가치유 재기록 실패:', e.message); }
+    }
+    return { proj, from: c.from, path: c.path, savedAt: _mtimeOr(c.path), healed, healError };
   }
   // 3) proj.json·백업·히스토리 모두 부재/손상 → 복구 불가
   return null;
+}
+
+/* ★E170(2026-10-06 lane-drag · 지디 ⑴ · 태양 «E170») 「최근 복구됨」 표지 — 프로젝트 id 별 · 이 앱 실행 동안만(메모리).
+   까닭(실앱 rw 판 실측): 디스크가 성하면 부팅 때 loadProject 를 부르는 여럿 중 «먼저 온» 호출이 폴백·자가치유를 먹고,
+   에디터 본 열기(open:true · 토스트 자리)는 이미 고쳐진 proj.json 을 읽어 복구를 모른다 → 알림 0(말없는 복구).
+   ⇒ 열기 아닌 로드가 «고쳐서» 폴백을 먹으면 표지를 남기고, 다음 «열기» 로드에 한 번 싣고 지운다 — 누가 경합에서 이기든 성립.
+   ⛔열기 아닌 로드에 주지 않는다(토스트 안 띄우는 호출이 또 먹는다). 못 고친 경우는 매 로드가 폴백이라 표지가 필요 없다(매번 사실대로).
+   «부팅 때 누가 폴백을 먹나» = 경합 · 미측정 · 다음 판(scope). 시험: tests/unit/recovery-notice-once-e170.test.js */
+const _recentRecovery = new Map();
+ipcMain.handle('projects:load', (event, id, opts) => {
+  const isOpen = !!(opts && opts.open === true);
+  if (isOpen) { try { _externalizeOnOpen(event, id); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
+  const key = _safeSeg(String(id || ''));
+  const r = readProjectWithFallback(id, { heal: true });   // ★E168 — 목록과 같은 한 곳
+  if (!r) return null;
+  if (r.from === 'proj') {
+    if (isOpen && _recentRecovery.has(key)) { const m = _recentRecovery.get(key); _recentRecovery.delete(key); return { ...r.proj, ...m }; }
+    return r.proj;
+  }
+  // _recovered · _recoveredAt · _healed · _healError: 렌더러 통지용(serialize엔 미포함 — js/io/proj-merge.js PROJ_RUNTIME_KEYS)
+  const mark = { _recovered: r.from, _recoveredAt: r.savedAt, _recoveredAtLabel: _savedAtLabel(r.savedAt), _healed: r.healed };
+  if (!r.healed) mark._healError = r.healError;
+  if (isOpen) _recentRecovery.delete(key);          // 이 열기가 스스로 알린다
+  else if (r.healed) _recentRecovery.set(key, mark); // 고쳐 버려서 다음 열기는 폴백을 못 본다 → 그 열기에 한 번
+  return { ...r.proj, ...mark };
 });
 
 /* ── [externalize] 수동 변환 · 되돌리기 · 상태 조회 (설정>성능) ── */
@@ -2483,6 +2559,27 @@ function _guardProjectName(incomingProject, prevPath) {
 
 // 저장 코어 — ipcMain.handle('projects:save')(렌더러)와 MCP create_project(main)가 공용.
 // (_duplicateProjectImpl과 같은 패턴 — 핸들러 본문을 함수로 추출했을 뿐 로직 무변경.)
+/* ★E169(2026-10-06 lane-drag · 태양 승인) 롤링 백업 «한 곳» — save(_saveProjectImpl) · save-sync 가 같이 부른다.
+   직전 proj.json 이 «프로젝트로 읽히지 않으면» 백업을 건드리지 않는다(불렀고 거절 → copied:false + 까닭).
+   까닭(실앱 실측 · 디스크가 꽉 찼을 때 대역 = 폴더 쓰기 막힘): 깨진 proj.json + 성한 백업으로 열면 projects:load 가 백업에서
+     열고 자가치유(proj.json 재기록)를 시도하는데, 그 쓰기가 실패하면 catch 가 warn 만 남긴다(= 말없게 만든 자리).
+     그 뒤 저장 한 번에 옛 코드는 깨진 proj.json 을 «검사 없이» 백업으로 복사 → 디스크에 성한 판 0.
+   ⛔다세대 백업 아님(다음 판). 저장 자체는 막지 않는다. 시험: tests/unit/rolling-backup-e169.test.js */
+function _rollBackup(prevPath, backupPath) {
+  let prev;
+  try { prev = JSON.parse(fs.readFileSync(prevPath, 'utf8')); }
+  catch (e) {
+    console.warn(`[rolling-backup] 직전 proj.json 이 읽히지 않아 백업을 그대로 둔다: ${e.message}`);
+    return { called: true, copied: false, reason: 'unparsable' };
+  }
+  if (!_SS().isProjectShaped(prev)) {
+    console.warn('[rolling-backup] 직전 proj.json 이 «프로젝트 형태»가 아니라 백업을 그대로 둔다');
+    return { called: true, copied: false, reason: 'not_project' };
+  }
+  try { fs.copyFileSync(prevPath, backupPath); } catch (e) { return { called: true, copied: false, reason: 'copy_failed:' + (e && e.code) }; }
+  return { called: true, copied: true };
+}
+
 async function _saveProjectImpl(project) {
   // write는 항상 신 위치. read(백업 직전 상태)는 dual fallback.
   const paths = _ensureNewLayoutPaths(project.id);
@@ -2495,13 +2592,14 @@ async function _saveProjectImpl(project) {
   if (prevPath && fs.existsSync(prevPath)) {
     try {
       // 롤링 백업: 정상 저장 전 직전 버전 보존 — 신 위치에만 작성
-      try { fs.copyFileSync(prevPath, paths.backup); } catch (_) {}
+      _rollBackup(prevPath, paths.backup);   // ★E169 — 깨진 직전 판은 백업으로 안 옮긴다
 
       // (버전 스냅샷은 proj.json 을 «쓴 뒤» 아래에서 만든다 — 재료가 파일이 아니라 메모리의 객체다)
     } catch {}
   }
 
   _atomicWriteFileSync(filePath, JSON.stringify(project, null, 2));
+  _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — 성한 저장 뒤엔 «그 뒤 작업은 없을 수 있습니다»가 거짓
   // [b8] 목록 메타 캐시 갱신 — proj.json 직후 기록해 meta.mtime >= proj.mtime 불변식 유지(목록 풀파싱 회피)
   _refreshListMeta(project.id, project);
   // [version-history] 버전 스냅샷 — «지금 저장되는 객체»를 정규형(goya-asset)으로 기록 + 계층 프룬.
@@ -2520,6 +2618,33 @@ ipcMain.handle('projects:save', (event, project) => _saveProjectImpl(project));
 // BUG-44: 새로고침/탭 닫기 시 동기 저장 — beforeunload는 async를 await할 수 없어
 // 1.5초 debounce가 끝나기 전 새로고침 시 이미지·텍스트 변경분이 파일에 누락되던 문제 해결
 // 페이지/섹션 감소 차단 가드는 제거 (정당한 삭제도 막혔던 부작용) — 백업만 유지
+/* ★S1(2026-10-03, 현빈 승인 → 지디 «저장 대기 중에만»으로 좁힘) — 자동저장이 기다리는 동안에만 그 창의 백그라운드 억제를 푼다.
+   까닭: 오래 가려진 창은 타이머가 분 단위로 묶여 자동저장이 10~30분+ 밀렸다(실측). 상시로 끄면(4ba5c791) 숨겨 둔 앱이
+     %CPU 평균 12.2(켬 0.06)를 상시 먹고 visibilitychange 의존 2곳이 죽었다(실측) ⇒ 저장 대기 구간만.
+   ⛔되돌림 보증 셋: ⑴렌더러가 저장의 모든 끝에서 off ⑵on 마다 상한 타이머(SAVE_PENDING_MAX_MS) — 렌더러가 off 를 못 보내도 되돌림
+     ⑶창(webContents) 파괴 때 타이머 정리. ⇒ «풀린 채 남는» 꼴이 생기면 그건 12% 상시 세금이다.
+   ⚠️이 구간 «안»에서는 숨은 창 타이머 억제를 못 잰다 — S1 재발 판정은 저장 대기 밖에서. */
+const SAVE_PENDING_MAX_MS = 120000;
+const _savePendingTimers = new Map();   // webContents.id → timeout
+function _setSavePending(wc, on) {
+  if (!wc || wc.isDestroyed()) return;
+  const id = wc.id;
+  clearTimeout(_savePendingTimers.get(id));
+  _savePendingTimers.delete(id);
+  try { wc.setBackgroundThrottling(!on); } catch (_) {}
+  if (on) {
+    _savePendingTimers.set(id, setTimeout(() => {
+      _savePendingTimers.delete(id);
+      try { if (!wc.isDestroyed()) wc.setBackgroundThrottling(true); } catch (_) {}
+    }, SAVE_PENDING_MAX_MS));
+    if (!wc._gdSavePendingHooked) {
+      wc._gdSavePendingHooked = true;
+      wc.once('destroyed', () => { clearTimeout(_savePendingTimers.get(id)); _savePendingTimers.delete(id); });
+    }
+  }
+}
+ipcMain.on('app:save-pending', (event, on) => _setSavePending(event.sender, !!on));
+
 ipcMain.on('projects:save-sync', (event, project) => {
   try {
     if (!project || !project.id) { event.returnValue = { ok: false, reason: 'invalid' }; return; }
@@ -2529,9 +2654,10 @@ ipcMain.on('projects:save-sync', (event, project) => {
     project = _guardProjectName(project, prevPath);
     if (prevPath && fs.existsSync(prevPath)) {
       // 롤링 백업 (다중 백업 슬롯은 sync 경로에서 생략 — 새로고침 빈도가 높아 슬롯 폭주 우려)
-      try { fs.copyFileSync(prevPath, paths.backup); } catch {}
+      _rollBackup(prevPath, paths.backup);   // ★E169 — save 와 같은 한 곳
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
+    _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — save 와 같은 규칙
     _refreshListMeta(project.id, project); // [b8] 목록 메타 캐시 동기 갱신 (mtime 불변식 유지)
     // [version-history/Q4] ★새로고침·탭닫기 순간에도 버전을 남긴다 — 사고가 제일 잦은 순간인데
     //   여태 이 경로엔 슬롯이 «전혀» 안 생겼다(롤링 백업만). 같은 10분 간격 게이트를 타므로
@@ -6781,7 +6907,7 @@ async function _invokeRendererUpdateCanvasBlock({ blockId, partial } = {}) {
    ⇒ 앱이 이미 검증(cols 1~4·rows·cells·gap·valign)을 하므로 여기선 «넘겨주고 결과를 읽어» 돌려준다.
    ⛔`applied` 를 인자에서 만들지 않는다 — 오늘 그 병으로 네 자리가 거짓 성공했다. */
 async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, rowGap, colGap, valign,
-  cellBorderWidth, cellBorderColor, cellBorderStyle } = {}) {
+  cellBorderWidth, cellBorderColor, cellBorderStyle, blockBg } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
   const opts = {};
@@ -6796,6 +6922,8 @@ async function _invokeRendererAddGridBlock({ sectionId, cols, rows, cells, gap, 
   if (cellBorderWidth != null) opts.cellBorderWidth = Number(cellBorderWidth);
   if (cellBorderColor != null) opts.cellBorderColor = String(cellBorderColor);
   if (cellBorderStyle != null) opts.cellBorderStyle = String(cellBorderStyle);
+  /* ★G12 블럭 배경 — 객체 그대로 넘긴다(검증·거절은 앱 _gridIntakeBlockBg 가 정본 · 만드는 문은 «말하고 버린다»). */
+  if (blockBg !== undefined) opts.blockBg = blockBg;
   const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
   const safeOpts = JSON.stringify(opts);
   const atomicJs = `(() => {
@@ -8655,7 +8783,7 @@ async function _invokeRendererAddIconTextBlock(opts = {}) {
   }
   const safeSectionId = opts.sectionId ? JSON.stringify(String(opts.sectionId)) : 'null';
   // text/imgSrc는 post-add update 단계에서 적용 (addIconTextBlock 기존 시그니처가 opts 미수용).
-  const dataOpts = { text: opts.text, imgSrc: opts.imgSrc };
+  const dataOpts = { text: opts.text, imgSrc: opts.imgSrc, direction: opts.direction };   // ★S3V direction
   const safeData = JSON.stringify(dataOpts);
   const atomicJs = `(() => {
     try {
@@ -8693,10 +8821,11 @@ async function _invokeRendererAddIconTextBlock(opts = {}) {
       // text/imgSrc는 post-add update로 적용 (기존 addIconTextBlock이 opts 미수용)
       const data = ${safeData};
       if (typeof window.updateIconTextBlock === 'function'
-          && (data.text !== undefined || data.imgSrc !== undefined)) {
+          && (data.text !== undefined || data.imgSrc !== undefined || data.direction !== undefined)) {
         const partial = {};
         if (data.text   !== undefined && data.text   !== null) partial.text   = data.text;
         if (data.imgSrc !== undefined && data.imgSrc !== null) partial.imgSrc = data.imgSrc;
+        if (data.direction !== undefined && data.direction !== null) partial.direction = data.direction;
         try { window.updateIconTextBlock(newBlock.id, partial); } catch (_) {}
       }
       return {

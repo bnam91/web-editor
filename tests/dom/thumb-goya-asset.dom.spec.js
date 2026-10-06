@@ -162,6 +162,11 @@ const callSite = (src) => ({
 test('★H4 배선 — captureThumbnail 이 그 부품을 «부른다» (이름이 있는 게 아니라)', () => {
   const src = fs.readFileSync(path.join(REPO, 'js', 'io', 'save-load.js'), 'utf8');
   const { shoot, call } = callSite(src);
+  /* ★닻 글자는 save-load.js 에 «정확히 하나»여야 한다(지디 2026-10-04 · integ12) — 주석·다른 호출에 같은 글자가 섞이면
+     indexOf 가 «첫» 자리를 잡아 엉뚱한 곳을 잰다. 실제로 L1 주석에 섞여 1→2→1 이 됐다(b4cb0b7d 로 걷음).
+     「주석에 적지 마라」는 말이고, 이 한 줄이 그 «자»다. */
+  const n = src.split('await html2canvas(clone').length - 1;
+  expect(n, '★닻 글자가 1개가 아니다 — 주석·다른 호출에 섞였고 indexOf 가 엉뚱한 자리를 잡는다').toBe(1);
   /* 양성대조 — 기준 앵커가 실재하는지 «먼저». 없으면 아래 초록은 「못 봐서」다. */
   expect(shoot, '★html2canvas 호출 자리를 못 찾았다 — 이 검사가 «안 돈» 것이다').toBeGreaterThan(0);
   expect(call,

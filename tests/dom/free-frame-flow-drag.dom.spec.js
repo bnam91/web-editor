@@ -103,3 +103,50 @@ test('F5 세운 뒤 두 번째 끌기도 같은 거리만큼 — 매번 다시 �
   const end = await rel(page, 'grdOld', 'fr1');
   expect([end[0] - mid[0], end[1] - mid[1]]).toEqual([0, 60]);
 });
+
+/* ── F6·F7 — «폭 100%» 픽스처 (F3 재발 건, 2026-10-03 · TASK-20261003-goditor-32 F3) ─────────────────────
+ * ★위 F1~F5 가 초록이었던 것은 픽스처 그리드가 «400px» 였기 때문이다 — 한 환경에서만 참.
+ *   실물 그리드는 renderGridBlock 이 100% 로 그려 «안의 내용» 폭 = 프레임 폭 → settleRowInFreeFrame 이 그 폭으로 세우고
+ *   T-088 클램프 x 범위가 [0,0] 이 된다(Evaluator 36cbe872 실측: 602f57ed^ 100 → 49c74728·36cbe872 0).
+ * ★그래서 여기 픽스처는 «진짜» 그리드 모듈을 싣는다(grid-block.js) — 폭 모델·렌더가 실물과 같다.
+ * 양성대조: bf9161d0 에서 F6 빨강(Δx 0) · F7 초록(지키는 시험 — 400px 꼴은 옛 판도 정상). */
+const PAGE_GRID = PAGE.replace(
+  "await import('/js/block-drag.js');",
+  "await import('/js/block-drag.js');\n    await import('/js/blocks/grid-block.js');",
+).replace(
+  '<div class="row" id="rowOld" draggable="true"><div class="grid-block" id="grdOld" style="width:400px;height:120px;background:#ccd">그리드</div></div>',
+  '<div class="row" id="rowOld" draggable="true"><div class="grid-block" id="grdOld" data-type="grid" style="background:#ccd"></div></div>',
+);
+
+test('F6 ★폭 100% 그리드(실물 렌더)도 처음 끌 때 좌우로 움직이고, 프레임 밖엔 안 나간다', async ({ page }) => {
+  await boot(page, PAGE_GRID);
+  expect(PAGE_GRID.includes('grid-block.js') && !PAGE_GRID.includes('width:400px;height:120px'), '전제 — 픽스처 치환이 «먹었다»').toBe(true);
+  const pre = await page.evaluate(() => {
+    const g = document.getElementById('grdOld'); window.renderGridBlock(g); window.bindBlock(g); g.classList.add('selected');
+    return { w: g.offsetWidth, fw: document.getElementById('fr1').clientWidth, err: window.__loadErr };
+  });
+  expect(pre, '전제 — 실물 렌더 그리드는 프레임 폭 그대로(=옛 꼴의 병)').toEqual({ w: 860, fw: 860, err: [] });
+  const before = await rel(page, 'grdOld', 'fr1');
+  await dragBy(page, 'grdOld', 100, 50);
+  const after = await rel(page, 'grdOld', 'fr1');
+  expect(after[1] - before[1], '전제 — 끌기가 먹었다(세로)').toBe(50);
+  expect(after[0] - before[0], '★폭 100% 그리드가 수직으로만 움직였다').toBeGreaterThan(0);
+  await dragBy(page, 'grdOld', 400, 0);
+  const box = await page.evaluate(() => { const r = document.getElementById('rowOld'); return { l: parseInt(r.style.left, 10), w: r.offsetWidth, fw: document.getElementById('fr1').offsetWidth, p: r.parentElement.id }; });
+  expect(box.p, '전제 — 끌어내기 안 났다').toBe('fr1');
+  expect(box.l + box.w, '프레임 오른쪽 밖으로 나갔다(T-088)').toBeLessThanOrEqual(box.fw);
+});
+
+test('F7 지키는 시험 — 같은 실물 모듈 판에서 400px 꼴은 Δx 100 그대로(F6 과 «폭»만 다르다)', async ({ page }) => {
+  await boot(page, PAGE_GRID);
+  await page.evaluate(() => {
+    const g = document.getElementById('grdOld'); window.renderGridBlock(g);
+    document.getElementById('rowOld').style.width = '400px';   // ⛔모델 키를 안 쓴다 — 옛 판에도 같은 꼴
+    window.bindBlock(g); g.classList.add('selected');
+  });
+  expect(await page.evaluate(() => document.getElementById('grdOld').offsetWidth), '전제 — 400').toBe(400);
+  const before = await rel(page, 'grdOld', 'fr1');
+  await dragBy(page, 'grdOld', 100, 50);
+  const after = await rel(page, 'grdOld', 'fr1');
+  expect([after[0] - before[0], after[1] - before[1]]).toEqual([100, 50]);
+});

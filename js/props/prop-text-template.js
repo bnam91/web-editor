@@ -1,6 +1,6 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
-import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
+import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
 
 export function buildTextPropsHtml(state) {
   const {
@@ -8,10 +8,10 @@ export function buildTextPropsHtml(state) {
     currentX, currentY, currentRotation = 0, currentW, currentFont, currentWeight, currentSize,
     currentLH, currentLS, currentColor, currentColorAlpha,
     currentPadT, currentPadL, currentPadR, phLinked,
-    isLabel, currentBgColor, currentRadius, labelPillH,
+    isLabel, currentBgColor, currentRadius, labelPillH, labelPadX = 0, labelIsCircle = false, labelShape = null,
     isSpeechBubble, currentBubbleStyle, currentTail,
-    bubbleBgHex, showSender, senderName,
-    isIconText, currentItbGap,
+    bubbleBgHex, showSender,
+    isIconText, currentItbGap, itbVertical,
     mix,
     shadow,
     isLiner,
@@ -51,7 +51,7 @@ ${blockHeaderHTML({
     })}
     </div>
 
-    <div class="prop-section" id="type-section" style="display:${isLiner?'none':'block'}">
+    <div class="prop-section" id="type-section" style="display:${(isLiner || isIconText)?'none':'block'}">
       <div class="prop-section-title">Type</div>
       <div class="prop-type-group">
         <button class="prop-type-btn ${currentClass==='tb-h1'?'active':''}"      data-cls="tb-h1">H1</button>
@@ -166,7 +166,8 @@ ${blockHeaderHTML({
           </div>
         </div>
       </div>
-    </div>
+    </div>${/* ★E1 Effects(바닥 반사) — Shadow 바로 아래(지디 승인) · 말풍선·라벨·아이콘텍스트는 대상 밖. ⛔줄바꿈을 더하지 마라 — 절이 없을 때 산출이 추출 전 골든과 같아야 한다(typo-section-ssot T1). */
+      (!isSpeechBubble && !isLabel && !isIconText) ? (window.fxReflectSectionHtml?.(tb, 'txt') || '') : ''}
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
       <div class="prop-section-title">Size</div>
@@ -179,16 +180,17 @@ ${blockHeaderHTML({
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
       <div class="prop-section-title">Padding</div>
-      <div class="prop-row" id="txt-label-h-row" style="display:${isLabel?'flex':'none'}">
-        <span class="prop-label">박스 높이</span>
-        <input type="range" class="prop-slider" id="txt-label-h-slider" min="0" max="120" step="2" value="${labelPillH}">
-        <input type="number" class="prop-number" id="txt-label-h-number" min="0" max="120" value="${labelPillH}">
+      <div id="txt-label-padx-wrap" style="display:${isLabel && !labelIsCircle ? 'block' : 'none'}">
+      ${sliderRowHTML('좌우 패딩', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 100, step: 2, value: labelPadX })}
       </div>
       <div class="prop-row">
         <span class="prop-label">상하</span>
-        <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}">
-        <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}">
-      </div>
+        <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
+        <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
+      </div>${/* ★⑷㉣ 현빈 sb_ts0he_4lus8he 「상하패딩 → 말꼬리 분리 → 상하패딩 비활성화」 — 꼬리는 블럭 기준 absolute 라 상하 여백을 주면 몸통에서 떨어진다(실측 −10 → +14px).
+            칸은 «숨기지 않고» 막고 까닭을 보이게 적는다(호버만으론 안 보인다). 이미 상하 여백이 있는 말풍선은 그대로 둔다(문서 무변).
+            ⛔줄바꿈은 «말풍선 문자열 안»에만 — 밖에 두면 보통 텍스트 패널 산출이 7자 늘어 골든(typo-section-ssot T1)이 깨진다(10-06 실측 17994 → 18001). */
+         isSpeechBubble ? '\n      <div class="prop-hint" id="txt-pv-bubble-hint">말풍선은 꼬리 때문에 상하 여백을 쓸 수 없습니다</div>' : ''}
       <div class="prop-ph-header">
         <span class="prop-section-title" style="margin-bottom:0">L/R</span>
         <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 연동">
@@ -215,11 +217,11 @@ ${blockHeaderHTML({
       <div class="prop-section">
         <div class="prop-section-title">Tag Style</div>
         <div class="prop-row" style="gap:4px">
-          <button class="prop-btn-full" id="label-shape-pill">Pill</button>
-          <button class="prop-btn-full" id="label-shape-box">Box</button>
-          <button class="prop-btn-full" id="label-shape-outline">Outline</button>
-          <button class="prop-btn-full" id="label-shape-circle">Circle</button>
-          <button class="prop-btn-full" id="label-shape-text">Text</button>
+          <button class="prop-btn-full${labelShape==='pill'?' active':''}" id="label-shape-pill">Pill</button>
+          <button class="prop-btn-full${labelShape==='box'?' active':''}" id="label-shape-box">Box</button>
+          <button class="prop-btn-full${labelShape==='outline'?' active':''}" id="label-shape-outline">Outline</button>
+          <button class="prop-btn-full${labelShape==='circle'?' active':''}" id="label-shape-circle">Circle</button>
+          <button class="prop-btn-full${labelShape==='text'?' active':''}" id="label-shape-text">Text</button>
         </div>
         <div class="prop-color-row">
           <span class="prop-label">배경색</span>
@@ -270,20 +272,31 @@ ${blockHeaderHTML({
         </div>
         <div class="prop-row">
           <span class="prop-label">발신자 이름</span>
-          <label class="prop-toggle" title="발신자 이름 표시">
+          <label class="prop-toggle" title="발신자 이름 표시 — 이름은 캔버스에서 더블클릭해 고친다">
             <input type="checkbox" id="bubble-show-sender" ${showSender ? 'checked' : ''}>
             <span class="prop-toggle-track"></span>
           </label>
-        </div>
-        <div class="prop-row" id="bubble-sender-name-row" style="display:${showSender?'flex':'none'}">
-          <input type="text" class="prop-color-hex" id="bubble-sender-name-input" value="${senderName.replace(/"/g,'&quot;')}" placeholder="Your name" style="flex:1;max-width:none">
         </div>
       </div>
     </div>
 
     <div id="icon-text-style-section" style="display:${isIconText?'block':'none'}">
       <div class="prop-section">
-        <div class="prop-section-title">Icon Text</div>
+        <div class="prop-section-title">Icon Text</div>${isIconText ? /* ★S3V(2026-10-04) 방향 — 구분선 패널(prop-divider.js #dvd-dir-group)과 «같은 꼴·같은 그림»(지디 ⓑ).
+             data-align 이 없어 정렬 배선은 건너뛴다. Icon Text 일 때만 «빈 문자열 밖»으로 나온다 — 다른 블럭 텍스트 패널 HTML 은 한 글자도 안 바뀐다(typo-section-ssot T1 골든). */ `
+        <div class="prop-row">
+          <span class="prop-label">방향</span>
+          <div class="prop-align-group" id="itb-dir-group">
+            <button class="prop-align-btn${!itbVertical?' active':''}" data-dir="horizontal" title="가로 — 아이콘 왼쪽 · 글 오른쪽">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="1" y1="7" x2="13" y2="7"/></svg>
+              가로
+            </button>
+            <button class="prop-align-btn${itbVertical?' active':''}" data-dir="vertical" title="세로 — 아이콘 위 · 글 아래">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="7" y1="1" x2="7" y2="13"/></svg>
+              세로
+            </button>
+          </div>
+        </div>` : ''}
         <div class="prop-row">
           <span class="prop-label">아이콘-텍스트 간격</span>
           <input type="range" class="prop-slider" id="itb-gap-slider" min="0" max="80" step="4" value="${currentItbGap}">

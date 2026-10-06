@@ -482,9 +482,12 @@ test('D14 ⛔전수 래칫 — editor.js 의 `.remove()` 문 수 + 섹션 제거
      지우는 대상은 document.createComment 로 방금 만든 «주석 노드»다.
      ⇒ 섹션은커녕 요소도 아니다 — 링크 처분과 무관하고, SECT 의 얼굴·순서와
        D9·D10·D11 의 기대 수(3)도 그대로다. */
+  /* 23 → 26 (2026-10-06, E148 · lane-esweep): _internalClipboardTextOf 가 ⌘C 글자를 «UI 를 걷은 사본»에서 읽는다 —
+     `n.remove()`(사본 안 UI 노드) · `c.remove()`(다 읽은 사본) · `_box.remove()`(화면 밖 임시 그릇). 셋 다 «떼어 낸 사본»이나
+     방금 만든 임시 그릇이다 — 캔버스의 요소가 아니다 ⇒ 섹션과 무관 · SECT 의 얼굴·순서와 D9·D10·D11 의 기대 수(3) 그대로. */
   const ALL = [...SRC.editor.matchAll(/\.remove\(\)/g)];
-  assert.strictEqual(ALL.length, 23,
-    `★editor.js 의 .remove() 가 ${ALL.length}개다(박아 둔 값 23) — 삭제 문이 늘거나 줄었다. `
+  assert.strictEqual(ALL.length, 26,
+    `★editor.js 의 .remove() 가 ${ALL.length}개다(박아 둔 값 26) — 삭제 문이 늘거나 줄었다. `
     + '새 문이 «섹션»을 지운다면 링크 처분을 먼저 지나게 하고, D9·D10·D11 의 기대 수(3)도 같이 갱신해라.');
   const SECT = [...SRC.editor.matchAll(/(selSection\.remove\(\)|sec\.remove\(\)|toDelete\.forEach\(s => s\.remove\(\)\))/g)]
     .map((m) => m[1]);

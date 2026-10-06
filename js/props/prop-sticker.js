@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { panelRenderedColor } from './_panel-rendered.js';
 
 function _esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -151,6 +152,12 @@ export function showStickerProperties(block) {
   const tBoxWOn   = Number.isFinite(_tBoxWpx) && _tBoxWpx > 0;
   const tBoxWVal  = tBoxWOn ? _tBoxWpx : 200;
 
+  /* 묶음 B E119(새 블럭 갈래 · 색) — 형광 색은 «저장된 값 그대로»(rgba 투명도 포함) · 비면 그려진 색. 옛 표시는 rgba 를 통째로 #ffeb46·70% 로 바꿔 사용자 색을 숨겼다.
+     아이콘 색은 비면 «그려진»(상속) 색 — 옛 표시 #222222. */
+  const _stkHlShown = block.dataset.hlColor
+    || (shape === 'highlightB' ? panelRenderedColor(block.querySelector('svg [stroke]'), 'stroke') : panelRenderedColor(block, 'backgroundColor'))
+    || 'rgba(255, 235, 70, 0.7)';
+  const _stkIconShown = block.dataset.iconColor || panelRenderedColor(block, 'color') || '#222222';
   propPanel.innerHTML = `
     <div class="prop-section">
 ${blockHeaderHTML({
@@ -186,7 +193,7 @@ ${blockHeaderHTML({
       </div>
       <div class="prop-color-row" style="margin-top:6px;">
         <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'stk-icon-color', hex: (block.dataset.iconColor || '#222222'), alpha: parseAlphaFromColor(block.dataset.iconColor || '#222222') })}
+        ${colorFieldHTML({ idPrefix: 'stk-icon-color', hex: _stkIconShown, alpha: parseAlphaFromColor(_stkIconShown) })}
       </div>
       <div class="prop-hint" style="font-size:11px;color:#888;margin-top:4px;">SVG가 currentColor를 쓰는 아이콘만 색상이 반영됩니다.</div>
     </div>
@@ -248,7 +255,7 @@ ${blockHeaderHTML({
       </div>
       <div class="prop-color-row" style="margin-top:6px;">
         <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'stk-hl-color', hex: (block.dataset.hlColor || '#ffeb46').replace(/rgba?\(([\d.\s,]+)\).*/, '#ffeb46'), alpha: 70 })}
+        ${colorFieldHTML({ idPrefix: 'stk-hl-color', hex: _stkHlShown, alpha: parseAlphaFromColor(_stkHlShown) })}
       </div>
     </div>
     <div class="prop-section" id="stk-hlb-section" style="display:${shape === 'highlightB' ? 'block' : 'none'};">
@@ -284,7 +291,7 @@ ${blockHeaderHTML({
       </div>
       <div class="prop-color-row" style="margin-top:6px;">
         <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'stk-hlb-color', hex: (block.dataset.hlColor || '#ffeb46').replace(/rgba?\(([\d.\s,]+)\).*/, '#ffeb46'), alpha: 70 })}
+        ${colorFieldHTML({ idPrefix: 'stk-hlb-color', hex: _stkHlShown, alpha: parseAlphaFromColor(_stkHlShown) })}
       </div>
     </div>
     <div class="prop-section" id="stk-size-section" style="display:${hideBasic ? 'none' : 'block'};">
@@ -814,7 +821,7 @@ ${blockHeaderHTML({
 
   // Highlight color (alpha 70% default)
   wireColorField('stk-hl-color', {
-    initialAlpha: 70,
+    initialAlpha: parseAlphaFromColor(_stkHlShown),   // 묶음 B — 칸이 보인 투명도와 같게
     onApply: (c) => { block.dataset.hlColor = c; rerender(); },
     onCommit: () => { window.pushHistory?.('형광펜 색'); window.scheduleAutoSave?.(); },
   });
@@ -877,7 +884,7 @@ ${blockHeaderHTML({
 
   // HighlightB color
   wireColorField('stk-hlb-color', {
-    initialAlpha: 70,
+    initialAlpha: parseAlphaFromColor(_stkHlShown),   // 묶음 B — 칸이 보인 투명도와 같게
     onApply: (c) => { block.dataset.hlColor = c; rerender(); },
     onCommit: () => { window.pushHistory?.('선 형광펜 색'); window.scheduleAutoSave?.(); },
   });
@@ -1010,7 +1017,7 @@ ${blockHeaderHTML({
   _bindTPair('stk-icon-rot',  'stk-icon-rot-num',  'rotation', -180, 180, 1);
   // icon color (currentColor SVG에 반영)
   wireColorField('stk-icon-color', {
-    initialAlpha: parseAlphaFromColor(block.dataset.iconColor || '#222222'),
+    initialAlpha: parseAlphaFromColor(_stkIconShown),
     onApply: (c) => { block.dataset.iconColor = c; rerender(); },
     onCommit: () => { window.pushHistory?.('아이콘 스티커 색'); window.scheduleAutoSave?.(); },
   });

@@ -81,8 +81,9 @@ before(async () => {
   const cvbUrl = stubCopy(
     'js/blocks/canvas-block.js',
     [[
-      "import { genId, showNoSelectionHint, insertAfterSelected, colorLuminance } from '../drag-utils.js';\nimport { bindBlock } from '../drag-drop.js';",
-      "const genId = (p) => `${p}_` + Math.random().toString(36).slice(2, 9);\n"
+      "import { genId, showNoSelectionHint, insertAfterSelected, colorLuminance } from '../drag-utils.js';\nimport { bindBlock } from '../drag-drop.js';\nimport { checkerBg } from '../checker-tokens.js';",
+      "const checkerBg = () => '';   // S1 선행(2026-10-04): canvas-block 이 체커 토큰 읽기를 import 한다 — 이 시험은 카드 인라인 편집만 본다\n"
+      + "const genId = (p) => `${p}_` + Math.random().toString(36).slice(2, 9);\n"
       + "const showNoSelectionHint = () => {};\nconst insertAfterSelected = () => {};\n"
       + "const colorLuminance = () => null;\nconst bindBlock = () => {};",
     ]],
@@ -99,6 +100,11 @@ before(async () => {
            검사 스물한 개가 빨개졌다. ⇒ ★import 문을 «정규식»으로 잡아 «그 안의 이름 전부»를
            더블로 만든다. 이제 export 가 늘어도 안 깨진다. */
       [/import \{([^}]*)\} from '\.\/_helpers\.js';/,
+       (_m, names) => names.split(',').map(n => n.trim()).filter(Boolean)
+         .map(n => `const ${n} = () => "";`).join(' ')],
+      /* lane-b2(2026-10-05) E118 — 심플카드 패널이 빈 글자색을 «그려진 색»으로 읽는다(_panel-rendered.js panelRenderedColor).
+         이 검사는 패널 색을 안 잰다 → _helpers 와 같은 꼴(정규식 · 이름 전부)로 '' 더블 = 옛 대체값 그대로. 그려진 색 표시는 panel-shows-rendered(DOM)가 잰다. */
+      [/import \{([^}]*)\} from '\.\/_panel-rendered\.js';/,
        (_m, names) => names.split(',').map(n => n.trim()).filter(Boolean)
          .map(n => `const ${n} = () => "";`).join(' ')],
       /* 2026-09-20 유닛 colorhex — 색 코드 칸의 배선이 color-picker.js 한 자리로 모였다.

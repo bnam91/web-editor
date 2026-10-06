@@ -745,6 +745,7 @@ function _serializeCall(fn) {
  * ⛔환경변수는 «검사용 구멍»이다: GODITOR_SPACING_DEBOUNCE_MS=0 이면 즉시, 음수면 «끈다».
  * ───────────────────────────────────────────────────────────────────────── */
 const _spacing = require('./services/spacing');
+const GRAPH_LIMITS = require('../../js/graph-limits.js');   // 막대 두께 한계의 한 자리(렌더러와 공유)
 /* ★12초 — ⛔«도구 호출 사이 간격»을 직접 잰 값이 «아니다». 그건 못 쟀다.
  *   원장(live-progress·*result*.jsonl)에 턴 «안»의 «도구 호출 시각»이 안 남는다. 남는 건
  *   턴 소요(elapsed)와 도구 «수»뿐이라, 여기서 얻을 수 있는 건 «턴당 평균 간격의 상한»이다.
@@ -3589,7 +3590,7 @@ function _registerDefaultTools() {
   /* ─── grid-block ★2026-09-07 신설 ───────────────────────────────────────
      앱엔 `window.addGridBlock`/`updateGridBlock` 이 검증까지 갖춰 있는데 MCP 도구가 «없었다».
      ⇒ 사용자가 「그리드에 글 넣어줘」 하면 클로드가 «그런 기능 없습니다»라고 답했다(실측).
-     ⛔여기서 다시 검증하지 «않는다» — 앱이 정본이다(cols 1~4·rows·cells·gap·valign).
+     ⛔여기서 다시 검증하지 «않는다» — 앱이 정본이다(cols 1~8·rows 1~8·cells·gap·valign — K5 10-05 4→8).
        두 곳에서 검증하면 둘이 어긋나는 날이 온다. 여기선 «넘기고, 결과를 읽어» 돌려준다. */
   registerTool(
     'add_grid_block',
@@ -3599,11 +3600,12 @@ function _registerDefaultTools() {
         sectionId: args.sectionId, cols: args.cols, rows: args.rows,
         cells: args.cells, gap: args.gap, rowGap: args.rowGap, colGap: args.colGap, valign: args.valign,
         cellBorderWidth: args.cellBorderWidth, cellBorderColor: args.cellBorderColor, cellBorderStyle: args.cellBorderStyle,
+        blockBg: args.blockBg,   // ★G12 블럭 배경 — 검증은 앱(grid-block.js _gridIntakeBlockBg)이 정본
       });
     },
     {
-      description: 'Add a grid block (grd_xxx) — a column grid (1~4 columns × rows) where each cell holds text. '
-        + 'cols = column widths (array, 1~4). rows = row heights ([{height:"auto"|number}]). '
+      description: 'Add a grid block (grd_xxx) — a column grid (1~8 columns × 1~8 rows) where each cell holds text. '
+        + 'cols = column widths (array, 1~8). rows = row heights, 1~8 entries ([{height:"auto"|number}]). '
         + 'cells = cell contents, row-major. gap = px between cells (both axes). rowGap/colGap = per-axis '
         + 'override (0~200px, optional — omit to use gap for both). valign = top|middle|bottom. '
         + '★To make a TABLE (spec/compare/price): set cellBorderWidth (px) — every cell gets a line. '
@@ -3629,7 +3631,7 @@ function _registerDefaultTools() {
         properties: {
           sectionId: { type: 'string', description: 'sec_xxx to insert into (else uses selected section)' },
           cols: { type: 'array',
-            description: 'columns — 1~4 entries, each {width:number, lines:[{type:"body"|"h1".., text:"..."}]}. '
+            description: 'columns — 1~8 entries, each {width:number, lines:[{type:"body"|"h1".., text:"..."}]}. '
               /* ★T-178(2026-09-23) — 「cols 가 곧 행 0」이 아니게 됐다. 갈림을 여기 적는다:
                  안 적으면 예전 동작(행 0 칸에 준 꾸밈이 열 전체를 칠하던 것)이 MCP 회귀로 읽힌다. */
               + '★cols[c].lines = «행 0 의 줄 내용»(단일 진실원 — 행 0 줄은 여기 하나뿐이다). '
@@ -3650,6 +3652,11 @@ function _registerDefaultTools() {
           cellBorderWidth: { type: 'number', description: '★T-172 cell border width (px, 0~20). 0 = no border. Draws a line around EVERY cell — this is what makes a spec/compare table look like a table.' },
           cellBorderColor: { type: 'string', description: "cell border color, e.g. '#d0d0d0' (default #d0d0d0)" },
           cellBorderStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted'], description: 'cell border style (default solid)' },
+          blockBg: { type: ['object', 'null'], description: '★G12 block background — painted behind the WHOLE grid and extended OUTSIDE the block by padY/padX '
+            + '(「배경 여백」: neighbours are not pushed, cells are not shrunk). {on:boolean, color:"#hex"|rgba(), image:"data:image/…"|"goya-asset://…"|null, '
+            + 'pos:"<left|center|right> <top|center|bottom>", opacity:0~100, padY:0~200, padX:0~100}. Each field optional; a field set to null resets to its default. '
+            + 'on:false hides it but keeps the values; blockBg:null removes everything. Unknown fields are REJECTED.' },
+          cellPadY: { type: ['number', 'null'], description: '★grid «height» (제4안 2026-10-05) — px added to EVERY cell\'s top AND bottom padding (0~70). Text size and image ratio are never changed; the grid gets taller by 2 × cellPadY × rows. 0 or null = none (old documents unchanged).' },
           expectedProject: { type: 'string', description: 'proj_xxx — refuse if a different project is open' },
         },
         additionalProperties: false,
@@ -3667,7 +3674,7 @@ function _registerDefaultTools() {
       }
       if (!Object.keys(partial).length) {
         return { ok: false, code: 'NOTHING_TO_DO',
-          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / rowGap / colGap / valign / cellBorderWidth / cellBorderColor / cellBorderStyle' };
+          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / rowGap / colGap / valign / cellBorderWidth / cellBorderColor / cellBorderStyle / blockBg / cellPadY' };
       }
       return await _rendererInvoker.updateGridBlock({ blockId, partial });
     },
@@ -3679,7 +3686,7 @@ function _registerDefaultTools() {
            한 번 실패해야 안다(거절 메시지가 알려주긴 하지만, 그건 «두 번째» 기회다). */
         + 'patchCell has TWO modes: with lineIndex → patches ONE line (text, type, fontSize, color, '
         + 'weight, align, bg, fontFamily, italic, strike, marginTop, ...); without lineIndex → patches '
-        + 'the CELL (lines, align, valign, bg, padding, radius). Column width goes through patchCol. '
+        + 'the CELL (lines, align, valign, bg, padding, radius, ★bgImg = cell background image "goya-asset://…"|"data:image/…" (≤200000 chars), bgFit = cover|contain, bgPos = "<left|center|right> <top|center|bottom>"). Column width goes through patchCol. '
         /* ★T-178(2026-09-23) — patchCell{r:0} 과 patchCol 의 갈림. 지금까지 «어디에도» 안 적혀 있었고,
            예전엔 둘이 같은 자리에 썼다(행 0 칸에 준 색이 열 기본값이 되어 아래 행까지 칠했다).
            ⛔이 문단을 지우지 마라 — 없으면 고쳐진 동작이 「MCP 회귀」로 읽힌다. */
@@ -3741,6 +3748,11 @@ function _registerDefaultTools() {
           cellBorderWidth: { type: 'number', description: 'cell border width (px, 0~20). 0 = no border' },
           cellBorderColor: { type: 'string', description: "cell border color, e.g. '#d0d0d0'" },
           cellBorderStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted'] },
+          blockBg: { type: ['object', 'null'], description: '★G12 block background — painted behind the WHOLE grid and extended OUTSIDE the block by padY/padX '
+            + '(「배경 여백」: neighbours are not pushed, cells are not shrunk). {on:boolean, color:"#hex"|rgba(), image:"data:image/…"|"goya-asset://…"|null, '
+            + 'pos:"<left|center|right> <top|center|bottom>", opacity:0~100, padY:0~200, padX:0~100}. Each field optional; a field set to null resets to its default. '
+            + 'on:false hides it but keeps the values; blockBg:null removes everything. Unknown fields are REJECTED.' },
+          cellPadY: { type: ['number', 'null'], description: '★grid «height» (제4안 2026-10-05) — px added to EVERY cell\'s top AND bottom padding (0~70). Text size and image ratio are never changed; the grid gets taller by 2 × cellPadY × rows. 0 or null = none (old documents unchanged).' },
           expectedProject: { type: 'string' },
         },
         required: ['blockId'],
@@ -4139,7 +4151,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.updateChatBlock({ blockId, partial });
     },
     {
-      description: 'Edit an EXISTING chat block (chb_xxx) — partial update. messages는 가변 배열: messages(전체 교체) / addMessage({...msg, atIndex?}) / removeMessage(number|{index}) / editMessage({index, ...partial}). 스타일: gap/fontSize/bgLeft/bgRight/colorLeft/colorRight/radius/padding. 프로필: showProfile/showName (0|1 또는 boolean), profileSize(null이면 reset)/profileOffsetY/profileGap. 꼬리/레이아웃: tailScale(꼬리 크기 % 0~400), fullBleed(패딩 제외 0|1|boolean). layerName도 갱신 가능. 한 콜에 여러 partial 조합 가능. Returns USER_BUSY if user is editing a bubble (contenteditable=true). Get blockId from get_canvas_state or returned from add_chat_block.',
+      description: 'Edit an EXISTING chat block (chb_xxx) — partial update. messages는 가변 배열: messages(전체 교체) / addMessage({...msg, atIndex?}) / removeMessage(number|{index}) / editMessage({index, ...partial}). 메시지 «줄»: 각 메시지에 lines(그리드 줄 배열, 있으면 본문 대신 줄을 그림) — editMessage{index, lines} 로 고치고 lines:null 로 끈다(줄이 있는 메시지의 text 만 고치면 거절). 스타일: gap/fontSize/bgLeft/bgRight/colorLeft/colorRight/radius/padding. 프로필: showProfile/showName (0|1 또는 boolean), profileSize(null이면 reset)/profileOffsetY/profileGap. 꼬리/레이아웃: tailScale(꼬리 크기 % 0~400), fullBleed(패딩 제외 0|1|boolean). layerName도 갱신 가능. 한 콜에 여러 partial 조합 가능. Returns USER_BUSY if user is editing a bubble (contenteditable=true). Get blockId from get_canvas_state or returned from add_chat_block.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -4155,7 +4167,8 @@ function _registerDefaultTools() {
                 hideProfile: { type: 'boolean' },
                 profileImg:  { type: 'string', description: 'data:image/* | http(s) | assets/ (≤200000, no quote/newline)' },
                 profileName: { type: 'string', maxLength: 200 },
-                stars:       { type: ['integer','null'], minimum: 0, maximum: 5, description: '말풍선 상단 별점 0~5. null/생략이면 별점 없음' }
+                stars:       { type: ['integer','null'], minimum: 0, maximum: 5, description: '말풍선 상단 별점 0~5. null/생략이면 별점 없음' },
+                lines:       { type: ['array','null'], maxItems: 20, items: { type: 'object' }, description: 'BT2 «줄»(그리드 줄과 같은 모양) — [{type:label|h1|h2|h3|body|caption|gap, text?, align?, fontSize?, weight?, color?, …}]. 있으면 본문(text) 대신 줄을 그린다(text 는 줄 글자의 거울). null/[] = 줄 끄기. 줄이 있는 동안 text 만 고치면 거절된다.' }
               }
             }
           },
@@ -4169,6 +4182,7 @@ function _registerDefaultTools() {
               profileImg:  { type: 'string' },
               profileName: { type: 'string', maxLength: 200 },
               stars:       { type: ['integer','null'], minimum: 0, maximum: 5 },
+              lines:       { type: ['array','null'], maxItems: 20, items: { type: 'object' }, description: 'BT2 «줄»(그리드 줄과 같은 모양) — [{type:label|h1|h2|h3|body|caption|gap, text?, align?, fontSize?, weight?, color?, …}]. 있으면 본문(text) 대신 줄을 그린다(text 는 줄 글자의 거울). null/[] = 줄 끄기. 줄이 있는 동안 text 만 고치면 거절된다.' },
               atIndex:     { type: 'integer', minimum: 0 }
             }
           },
@@ -4189,7 +4203,8 @@ function _registerDefaultTools() {
               hideProfile: { type: 'boolean' },
               profileImg:  { type: 'string' },
               profileName: { type: 'string', maxLength: 200 },
-              stars:       { type: ['integer','null'], minimum: 0, maximum: 5 }
+              stars:       { type: ['integer','null'], minimum: 0, maximum: 5 },
+              lines:       { type: ['array','null'], maxItems: 20, items: { type: 'object' }, description: 'BT2 «줄»(그리드 줄과 같은 모양) — [{type:label|h1|h2|h3|body|caption|gap, text?, align?, fontSize?, weight?, color?, …}]. 있으면 본문(text) 대신 줄을 그린다(text 는 줄 글자의 거울). null/[] = 줄 끄기. 줄이 있는 동안 text 만 고치면 거절된다.' }
             },
             required: ['index']
           },
@@ -4831,7 +4846,7 @@ function _registerDefaultTools() {
           },
           chartHeight:  { type: 'integer', description: '차트 높이 px (80~2000). default 240' },
           labelSize:    { type: 'integer', description: '라벨 글자 크기 px (8~28). default 13' },
-          barThickness: { type: 'integer', description: 'bar-h 막대 두께 px (8~48). default 24' },
+          barThickness: { type: 'integer', description: `bar-h 막대 두께 px (${GRAPH_LIMITS.BAR_THICKNESS_MIN}~${GRAPH_LIMITS.BAR_THICKNESS_MAX}). default ${GRAPH_LIMITS.BAR_THICKNESS_DEFAULT}` },
           padX:         { type: 'integer', description: 'bar-h/line 좌우 패딩 px (0~80). default 0' },
           barColor:     { type: 'string',  description: 'bar-h/line 색상 (#hex | rgb(a)/hsl(a)() | transparent). default #222222' },
           itemGap:      { type: 'integer', description: 'bar-h 항목 간 간격 px (8~80). default 24' },
@@ -4886,7 +4901,7 @@ function _registerDefaultTools() {
           },
           chartHeight:  { type: 'integer', description: '80~2000' },
           labelSize:    { type: 'integer', description: '8~28' },
-          barThickness: { type: 'integer', description: 'bar-h 8~48' },
+          barThickness: { type: 'integer', description: `bar-h ${GRAPH_LIMITS.BAR_THICKNESS_MIN}~${GRAPH_LIMITS.BAR_THICKNESS_MAX}` },
           padX:         { type: 'integer', description: 'bar-h/line 0~80' },
           barColor:     { type: 'string',  description: '#hex | rgb(a)/hsl(a)() | transparent' },
           itemGap:      { type: 'integer', description: 'bar-h 8~80' },
@@ -4975,12 +4990,12 @@ function _registerDefaultTools() {
       }
       const partial = _validateSpeechBubbleOpts(rest, { mode: 'update' });
       if (Object.keys(partial).length === 0) {
-        throw new Error('no fields to update — provide at least one speech-bubble field (tail|bubbleStyle|showSender|senderName|bubbleBg|text)');
+        throw new Error('no fields to update — provide at least one speech-bubble field (tail|bubbleStyle|showSender|senderName|bubbleBg|text|lines)');
       }
       return await _rendererInvoker.updateSpeechBubbleBlock({ blockId, partial });
     },
     {
-      description: 'Edit an EXISTING speech-bubble block (sb_xxx) — partial update. 필드: tail (left|center|right, SVG 말꼬리 교체), bubbleStyle (default|apple|imessage, .tb-bubble dataset 동기화), showSender (true|false 문자열), senderName (≤100), bubbleBg (#hex|rgb|hsl|transparent — SVG 말꼬리도 var(--bubble-bg)로 동기화), text (≤2000, 빈문자열이면 placeholder 복귀). 적어도 1개 필드 필수. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state or returned from add_speech_bubble_block.',
+      description: 'Edit an EXISTING speech-bubble block (sb_xxx) — partial update. lines(그리드 줄 배열 — 있으면 본문 대신 줄을 그림, null 이면 끔; 줄이 있는 동안 text 는 거절). 필드: tail (left|center|right, SVG 말꼬리 교체), bubbleStyle (default|apple|imessage, .tb-bubble dataset 동기화), showSender (true|false 문자열), senderName (≤100), bubbleBg (#hex|rgb|hsl|transparent — SVG 말꼬리도 var(--bubble-bg)로 동기화), text (≤2000, 빈문자열이면 placeholder 복귀). 적어도 1개 필드 필수. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state or returned from add_speech_bubble_block.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -4990,7 +5005,8 @@ function _registerDefaultTools() {
           showSender:  { type: 'string', enum: ['true', 'false'] },
           senderName:  { type: 'string', description: '발신자 이름 (≤100)' },
           bubbleBg:    { type: 'string', description: '#hex | rgb(a)/hsl(a)() | transparent' },
-          text:        { type: 'string', description: '본문 텍스트 (≤2000). "" → placeholder 모드' }
+          text:        { type: 'string', description: '본문 텍스트 (≤2000). "" → placeholder 모드. 줄(lines)이 있으면 거절 — lines 를 고치거나 lines:null 로 먼저 끈다' },
+          lines:       { type: ['array','null'], maxItems: 20, items: { type: 'object' }, description: 'BT2 «줄»(그리드 줄과 같은 모양) — [{type:label|h1|h2|h3|body|caption|gap, text?, align?, fontSize?, weight?, color?, …}]. 있으면 본문(text) 대신 줄을 그린다(text 는 줄 글자의 거울). null/[] = 줄 끄기. 줄이 있는 동안 text 만 고치면 거절된다.' }
         },
         required: ['blockId']
       }
@@ -5143,8 +5159,11 @@ function _registerDefaultTools() {
   // 텍스트/이미지는 add 직후 update_icon_text_block으로도 갱신 가능.
   registerTool(
     'add_icon_text_block',
-    async ({ sectionId, text, imgSrc } = {}) => {
+    async ({ sectionId, text, imgSrc, direction } = {}) => {
       if (!_rendererInvoker?.addIconTextBlock) throw new Error('renderer bridge not ready');
+      if (direction !== undefined && direction !== null && direction !== 'horizontal' && direction !== 'vertical') {
+        throw new Error(`invalid direction: ${direction}. allowed: horizontal|vertical`);   // ★S3V
+      }
       // sectionId 검증
       if (sectionId !== undefined && sectionId !== null) {
         if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) {
@@ -5171,7 +5190,7 @@ function _registerDefaultTools() {
           if (!okProto) throw new Error('imgSrc protocol not allowed (use data:image/*, http(s)://, blob:, or assets/)');
         }
       }
-      return await _rendererInvoker.addIconTextBlock({ sectionId, text, imgSrc });
+      return await _rendererInvoker.addIconTextBlock({ sectionId, text, imgSrc, direction });
     },
     {
       description: 'Add an icon-text block (small icon + single body text). 좌측 .itb-icon(이미지 박스) + 우측 .itb-text(본문) 구조. text 생략시 기본 placeholder. imgSrc 생략시 dashed SVG placeholder. blockId는 itb_xxx. 이후 update_icon_text_block(blockId, partial)으로 수정.',
@@ -5180,7 +5199,8 @@ function _registerDefaultTools() {
         properties: {
           sectionId: { type: 'string', description: 'sec_xxx — omit to use currently selected section' },
           text:      { type: 'string', description: '본문 텍스트 (≤2000 code points). default "본문 내용을 입력하세요."' },
-          imgSrc:    { type: 'string', description: '아이콘 이미지. data:image/*, http(s)://, blob:, assets/ 만 허용. ≤200000. " 와 개행 금지. 빈 문자열은 미설정과 동일.' }
+          imgSrc:    { type: 'string', description: '아이콘 이미지. data:image/*, http(s)://, blob:, assets/ 만 허용. ≤200000. " 와 개행 금지. 빈 문자열은 미설정과 동일.' },
+          direction: { type: 'string', enum: ['horizontal', 'vertical'], description: '배치 방향. horizontal(기본) = 아이콘 왼쪽·글 오른쪽 · vertical = 아이콘 위·글 아래(가운데 정렬)' }
         },
         required: []
       }
@@ -5199,7 +5219,7 @@ function _registerDefaultTools() {
       }
       const partial = _validateIconTextOpts(rest, { mode: 'update' });
       if (Object.keys(partial).length === 0) {
-        throw new Error('no fields to update — provide at least one of text/imgSrc');
+        throw new Error('no fields to update — provide at least one of text/imgSrc/direction');
       }
       return await _rendererInvoker.updateIconTextBlock({ blockId, partial });
     },
@@ -5210,7 +5230,8 @@ function _registerDefaultTools() {
         properties: {
           blockId: { type: 'string', description: 'itb_xxx (icon-text block id)' },
           text:    { type: 'string', description: '본문 텍스트 갱신 (≤2000 code points). textContent로만 set (HTML 주입 X).' },
-          imgSrc:  { type: 'string', description: '아이콘 이미지 갱신. data:image/*, http(s)://, blob:, assets/ 허용. ≤200000. " / 개행 금지. 빈 문자열 → 이미지 제거 + dashed placeholder 복원.' }
+          imgSrc:  { type: 'string', description: '아이콘 이미지 갱신. data:image/*, http(s)://, blob:, assets/ 허용. ≤200000. " / 개행 금지. 빈 문자열 → 이미지 제거 + dashed placeholder 복원.' },
+          direction: { type: 'string', enum: ['horizontal', 'vertical'], description: '배치 방향 바꾸기. vertical = 아이콘 위·글 아래. 지금 정렬(왼/가운데/오른)은 그대로 옮겨진다' }
         },
         required: ['blockId']
       }
@@ -6424,6 +6445,16 @@ function _validateCanvasOpts(args, { mode } = {}) {
 // mode='add'    → sectionId 허용, 모든 필드 optional (block-factory가 기본값 채움)
 // mode='update' → sectionId 무시, blockId는 caller에서 처리. 빈 객체도 허용 (caller가 별도 체크).
 // banner02 _validateBanner02Opts 패턴 미러: _int/_str/_color/_enum + sub-validator (messages).
+/* ★BT2(2026-10-04) 말풍선·챗 «줄»의 모양 검사(main 쪽) — 배열|null · 상한 20(그리드 MAX_CELL_LINES 와 같은 값) · 원소는 객체.
+   ⛔깊은 검사(줄 필드 명부·색·종류)는 여기서 «다시 적지 않는다» — 렌더러 lnValidateLines 가 그리드 잣대 한 벌로 잰다. */
+function _validateLinesShape(v, ctx) {
+  if (v === null) return null;
+  if (!Array.isArray(v)) throw new Error(`${ctx} must be an array of line objects or null`);
+  if (v.length > 20) throw new Error(`${ctx} too many (>20)`);
+  v.forEach((ln, i) => { if (!ln || typeof ln !== 'object' || Array.isArray(ln)) throw new Error(`${ctx}[${i}] must be an object like {type:'h2', text:'…'}`); });
+  return v;
+}
+
 function _validateChatOpts(args, { mode } = {}) {
   if (!args || typeof args !== 'object') throw new Error('args must be object');
   const out = {};
@@ -6473,6 +6504,7 @@ function _validateChatOpts(args, { mode } = {}) {
     if (/["\r\n]/.test(val)) throw new Error(`${ctx} contains quote/newline (escape unsafe)`);
     return val;
   };
+  const _lines = (v, ctx) => _validateLinesShape(v, ctx);
   // 단일 메시지 객체 검증
   const _validateMessage = (m, ctx) => {
     if (!m || typeof m !== 'object') throw new Error(`${ctx} must be object`);
@@ -6504,6 +6536,9 @@ function _validateChatOpts(args, { mode } = {}) {
       if ([...m.profileName].length > 200) throw new Error(`${ctx}.profileName too long (>200)`);
       o.profileName = m.profileName;
     }
+    /* ★BT2(2026-10-04) «줄» — 예전엔 이 함수가 아는 필드만 다시 만들어 lines 를 조용히 버렸다(tests/unit/bt2-mcp-lines M1·M2).
+       여기서는 «모양»만 본다(배열|null, 상한 20, 원소=객체). 줄 명부·값·종류는 렌더러 lnValidateLines(그리드와 같은 잣대) 한 곳. */
+    if (m.lines !== undefined) o.lines = _lines(m.lines, `${ctx}.lines`);
     return o;
   };
 
@@ -7857,7 +7892,7 @@ function _validateGraphOpts(args, { mode } = {}) {
 
   _int('chartHeight',  80,  2000);
   _int('labelSize',    8,   28);
-  _int('barThickness', 8,   48);
+  _int('barThickness', GRAPH_LIMITS.BAR_THICKNESS_MIN, GRAPH_LIMITS.BAR_THICKNESS_MAX);
   _int('padX',         0,   80);
   _int('itemGap',      8,   80);
   _int('pctSize',      20,  120);
@@ -7959,6 +7994,7 @@ function _validateSpeechBubbleOpts(args, { mode } = {}) {
   _str('senderName', 100);
   _color('bubbleBg');
   _str('text', 2000);
+  if (args.lines !== undefined) out.lines = _validateLinesShape(args.lines, 'lines');   // ★BT2 «줄»
 
   return out;
 }
@@ -8124,6 +8160,11 @@ function _validateIconTextOpts(args, { mode } = {}) {
   }
 
   _str('text', 2000);
+  // ★S3V — 방향(세로 = 아이콘 위 · 글 아래). 렌더러 updateIconTextBlock → setIconTextDirection «한 곳».
+  if (args.direction !== undefined && args.direction !== null) {
+    if (args.direction !== 'horizontal' && args.direction !== 'vertical') throw new Error(`invalid direction: ${args.direction}. allowed: horizontal|vertical`);
+    out.direction = args.direction;
+  }
 
   // imgSrc: length + 개행/따옴표 + 프로토콜 화이트리스트
   if (args.imgSrc !== undefined && args.imgSrc !== null) {

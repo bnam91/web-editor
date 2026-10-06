@@ -38,12 +38,14 @@ function fnSrc(name) {
 
 const REAL_FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath',
   '_resolveMetaJsonPath', '_ensureNewLayoutPaths', '_refreshListMeta', '_listItemFor',
-  '_isListableProjectId', '_listProjectsImpl'];
+  '_isListableProjectId', '_listProjectsImpl',
+  // ★E168(2026-10-06 lane-drag): _listItemFor 의 풀파싱 폴백이 공용 readProjectWithFallback(로드와 같은 한 곳)을 부른다 — 그 이웃들
+  '_resolveBackupJsonPath', '_SS', '_mtimeOr', 'readProjectWithFallback'];
 
 function loadRealImpls(projectsDir) {
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);
   const factory = new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console',
-    REAL_FNS.map(fnSrc).join('\n\n') + `\n; return { ${REAL_FNS.join(', ')} };`);
+    'let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\n' + REAL_FNS.map(fnSrc).join('\n\n') + `\n; return { ${REAL_FNS.join(', ')} };`);
   return factory(fs, path, projectsDir, req, { log() {}, warn() {}, error() {} });
 }
 

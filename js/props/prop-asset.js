@@ -228,6 +228,7 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="asset-grain-number" min="0" max="100" value="${grainIntensity}">
       </div>
     </div>` : ''}
+    ${window.fxReflectSectionHtml?.(ab, 'asset') || ''}<!-- ★E1 Effects — 그레인 아래(지디 승인) -->
     <div class="prop-section">
       <div class="prop-section-title">Text Overlay</div>
       <!-- ★2026-09-20 픽스라운드(low④) — 같은 패널에 「오버레이」가 두 뜻으로 보인다:
@@ -519,6 +520,23 @@ ${blockHeaderHTML({
     if (a === 'left')   ab.style.alignSelf = 'flex-start';
     if (a === 'center') ab.style.alignSelf = 'center';
     if (a === 'right')  ab.style.alignSelf = 'flex-end';
+    /* ★B6(0e 2026-10-03 「좌측정렬인데 왼쪽으로 튀어나감」 proj_1786077501267/ab_lns8z1r) —
+       정렬은 «폭이 px 로 고정된» 에셋에서만 뜻이 있다(꽉 찬 풀블리드는 정렬할 여백이 없다).
+       그런데 그런 에셋에 풀블리드가 심은 음수마진(-padX)이 «반쪽 세트»로 남아 있으면(옛 폭 경로·패딩 변경이
+       row 안 에셋을 안 만진 흔적: width 720px + margin ±72) 왼쪽 정렬이 padX 만큼 섹션 밖으로,
+       오른쪽 정렬이 반대로 밀린다(가운데만 상쇄). 「폭과 마진은 세트」(prop-page.js applyAssetWidth)를
+       정렬을 «정하는 자리»에서도 지킨다. ⛔풀블리드(폭이 calc/100%)는 의도된 바깥 뻗음이라 안 건드린다. */
+    const _w = ab.style.width;
+    /* ★적대QA(0e): 상한은 고정 860 이 아니라 «이 에셋이 든 상자의 콘텐츠 폭»이다 — 741~859px 에셋의 음수마진을 걷으면
+       (마진이 폭을 보태 주던 자리가 사라져) 좌정렬 때 오른쪽이 섹션 밖으로 잘린다. 콘텐츠 폭을 넘는 폭은 건드리지 않는다. */
+    const _par = ab.parentElement, _pcs = _par ? getComputedStyle(_par) : null;
+    const _contentW = _par ? _par.clientWidth - (parseFloat(_pcs.paddingLeft) || 0) - (parseFloat(_pcs.paddingRight) || 0) : 0;
+    if (/^\d+(\.\d+)?px$/.test(_w) && parseFloat(_w) < 860
+        && !(_contentW > 0 && parseFloat(_w) > _contentW + 0.5)
+        && (parseFloat(ab.style.marginLeft) < 0 || parseFloat(ab.style.marginRight) < 0)) {
+      if (window.applyAssetWidth) window.applyAssetWidth(ab, parseFloat(_w));
+      else { ab.style.marginLeft = ''; ab.style.marginRight = ''; }
+    }
     propPanel.querySelectorAll('#asset-align-group .prop-align-btn').forEach(b => b.classList.toggle('active', b.dataset.align === a));
   };
   propPanel.querySelectorAll('#asset-align-group .prop-align-btn').forEach(btn => {
@@ -611,10 +629,15 @@ ${blockHeaderHTML({
     onCommit: () => window.pushHistory?.(),
   });
   document.getElementById('asset-bg-clear').addEventListener('click', () => {
+    /* ★초기화 = «배경 없음»(체커) — 2026-10-03 지디 판정으로 규약을 바꿈(예전: 기본 회색 #a0a0a0 을 다시 씀).
+       예전 약속은 «체커가 그 회색을 가린 상태»를 고정한 것이었다 — 색이 있으면 체커를 걷게 되면서(editor-layout.css
+       .asset-block[data-bg-color]) 회색 판이 드러났다.
+       ⇒ 칸 표시(setHex)를 «먼저», 지우기를 «뒤에». setHex 는 apply()→onApply 를 불러 dataset·인라인을 다시 박으므로
+         지운 뒤에 부르면 초기화가 회색 칠하기가 된다. */
+    bgField?.setHex('#a0a0a0');
     delete ab.dataset.bgColor;
     ab.style.backgroundColor = '';
     ab.style.background = '';
-    bgField?.setHex('#a0a0a0');
     window.pushHistory?.();
   });
 
@@ -652,6 +675,8 @@ ${blockHeaderHTML({
       window.pushHistory();
     });
   });
+
+  window.wireFxReflectSection?.(ab, 'asset', () => showAssetProperties(ab));   // ★E1 Effects
 
   // ── 그레인 이벤트 바인딩 ──
   if (hasImage) {

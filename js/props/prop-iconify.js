@@ -8,6 +8,10 @@ export function showIconifyProperties(block) {
   const rotation = parseInt(block.dataset.rotation) || 0;
   const color    = block.dataset.iconColor || '#000000';
   const colorAlpha = parseAlphaFromColor(color);
+  /* ★오버레이(플로팅) — 공용 js/overlay-float.js(아이콘은 posElOf 가 «자기 자신»). 선례: prop-grid.js(그리드 오버레이).
+     ⛔정적 import 하지 않는다 — unit 하네스 여럿이 이 파일을 축소 복사로 불러서 import 를 늘리면 모듈 로드가 통째로 실패한다
+       (그리드 d9c3525e 가 실측한 함정). window 로 부른다. */
+  const floating = block.dataset.overlayBlock === 'true';
   const isRaster = block.dataset.raster === '1'; // PNG/JPG(<img>) — currentColor 착색 불가 → 색 UI 비활성
 
   propPanel.innerHTML = `
@@ -38,13 +42,16 @@ ${blockHeaderHTML({
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">Size</div>
+      <div class="prop-section-title prop-ph-header">
+        <span>Size</span>
+        ${window.overlayToggleBtnHTML?.({ id: 'icn-float-toggle', active: floating }) || ''}
+      </div>
       <div class="prop-row">
         <span class="prop-label">Size</span>
         <input type="range"  class="prop-slider" id="icn-size-slider" min="16" max="512" step="8"  value="${size}">
         <input type="number" class="prop-number" id="icn-size-number" min="16" max="512" value="${size}">
       </div>
-      <div class="prop-row">
+      <div class="prop-row"${floating ? ' style="display:none"' : ''}>
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="icn-align-group">
           <button class="prop-align-btn${(block.dataset.align || 'center') === 'left'   ? ' active' : ''}" data-align="left"   title="좌측 정렬">
@@ -58,6 +65,7 @@ ${blockHeaderHTML({
           </button>
         </div>
       </div>
+      ${window.floatPositionRowHTML?.({ prefix: 'icn', posEl: block }) || ''}
     </div>
 
     <div class="prop-section">
@@ -205,7 +213,13 @@ ${blockHeaderHTML({
     /* ★카테고리 이름도 틀에 안 넣는다 (T-049) — option 을 노드로 만들고 value·글자는 프로퍼티로. */
     presetCatSelect.innerHTML = '';
     if (!_presetCategories.length) {
-      presetCatSelect.innerHTML = '<option value="">(폴더 비어있음 — Application Support/GODITOR/svg-presets/ 에 폴더+SVG 추가)</option>';
+      /* U21(2026-10-05) — 안내 전문을 <option> 에 넣으면 칸 폭에서 잘린다(「(폴더 비어있음 — Application S…」).
+         칸엔 짧은 상태만, 안내는 그 아래 그리드 자리에 줄바꿈되는 힌트로.
+         ⛔폴더 경로를 글로 적지 않는다 — 실제 자리는 app.getPath('userData')/svg-presets(main.js:1714 · 이름은 :33 app.name)라
+           맥만 「Application Support/GODITOR」이고 윈도우는 %APPDATA%\GODITOR 다(옛 문구는 윈도우에서 틀린 길이었다).
+           앱 «안»의 길(+ · 라이브러리에 저장)만 가리킨다. */
+      presetCatSelect.innerHTML = '<option value="">(비어 있음)</option>';
+      presetGrid.innerHTML = '<div class="prop-hint" style="grid-column:1/-1;overflow-wrap:anywhere;">카테고리가 없습니다. + 로 만든 뒤 「라이브러리에 저장」으로 SVG 를 넣으세요.</div>';
     } else {
       for (const c of _presetCategories) {
         const o = document.createElement('option');
@@ -464,8 +478,12 @@ ${blockHeaderHTML({
       window.scheduleAutoSave?.();
     });
   });
-  // 초기 정렬 복원
-  if (block.dataset.align) applyAlign(block.dataset.align);
+  // 초기 정렬 복원 — ⛔떠 있으면 건너뛴다: applyAlign 이 margin 을 auto 로 덮어 오버레이 자리(left/top)와 싸운다
+  if (block.dataset.align && block.dataset.overlayBlock !== 'true') applyAlign(block.dataset.align);
+
+  /* 오버레이 토글·X/Y — 공용 배선(도형·에셋 패널과 같은 함수). 토글 뒤엔 패널을 다시 그린다(정렬 줄 숨김/보임). */
+  window.wireFloatToggle?.({ block, buttonId: 'icn-float-toggle', rerender: () => showIconifyProperties(block) });
+  window.wireFloatPosition?.({ block, xId: 'icn-x-number', yId: 'icn-y-number' });
 }
 
 window.showIconifyProperties = showIconifyProperties;

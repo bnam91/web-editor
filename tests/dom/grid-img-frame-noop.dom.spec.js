@@ -88,7 +88,7 @@ function makeFakeDom() {
   function createElement(tag) {
     let _id = '', _classes = new Set();
     const el = {
-      tagName: tag, dataset: {}, style: {}, innerHTML: '',
+      tagName: tag, dataset: {}, style: {}, innerHTML: '', children: [],   // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 이 가짜는 자식을 안 붙이므로 늘 빈 목록
       get id() { return _id; },
       set id(v) { if (_id) registry.delete(_id); _id = v; if (v) registry.set(v, el); },
       get className() { return [..._classes].join(' '); },
@@ -282,13 +282,16 @@ test('N0-a ★자가점검 — 옛 마크업과 새 마크업이 «실제로 다
 test('N0-b ★★양성대조 — 내 비교기가 «차이를 잡기는» 하는가 (안쪽 그림이 프레임을 안 채우는 사본)', async ({ page }) => {
   const errs = await boot(page);
   const c = { align: 'left', widthPct: 50, height: 200, radius: 0, short: false };
-  const o = OLD_IMAGE_LINE({ imgSrc: IMG, height: c.height, radius: c.radius, widthPct: c.widthPct, align: c.align });
+  /* ★⑵(10-06 · E157 ⒜) — 크롭 없는 줄은 height 를 그릴 때 무시 ⇒ «옛 화면»의 짝은 옛 마크업 height 0(아래 N1 과 같은 규칙). */
+  const o = OLD_IMAGE_LINE({ imgSrc: IMG, height: 0, radius: c.radius, widthPct: c.widthPct, align: c.align });
   const n = NEW_IMAGE_LINE(MOD, { type: 'image', imgSrc: IMG, widthPct: c.widthPct, align: c.align, height: c.height });
   /* ★일부러 깨뜨린다 — 안쪽 그림이 프레임을 «100%×100% 로 채우는 것»이 이 구조의 심장이다
      (그래야 height:200px + cover 가 옛 <img> 와 같은 그림을 낸다). height 를 auto 로 돌리면
      상자는 200 인데 그림은 제 비율(112.5)만 차지해 «다른 그림»이 되어야 한다.
      ⛔이 자가 안 울면 아래 N1 의 초록은 전부 「안 봤다」다. */
-  const broken = n.replace('height:100%;object-fit:cover;', 'height:auto;');
+  /* ★⑵ 다시 세움(10-06 · E157 ⒜) — 옛 변이(안쪽 그림 «height:100%;object-fit:cover» → auto)는 E157 뒤 새 마크업에 그 닻이 «없어»
+       「변이가 주입되지 않았다」로 무효였다(실측 7b017a98). E157 뒤에도 먹는 변이 = 안쪽 그림을 좌우로 뒤집는다(상자 크기 그대로 · 네 귀퉁이 색이 달라 그림이 바뀐다). */
+  const broken = n.replace('display:block;width:100%;height:auto;', 'display:block;width:100%;height:auto;transform:scaleX(-1);');
   expect(broken, '★변이가 «주입되지 않았다» — 이 양성대조는 아무것도 안 쟀다').not.toBe(n);
   const bad = await stand(page, o, broken, c.short);
   expect(errs).toEqual([]);
@@ -310,7 +313,11 @@ for (const c of CASES) {
     const line = { type: 'image', imgSrc: IMG, widthPct: c.widthPct, align: c.align };
     if (c.height) line.height = c.height;
     if (c.radius) line.radius = c.radius;
-    const o = OLD_IMAGE_LINE({ imgSrc: IMG, height: c.height, radius: c.radius, widthPct: c.widthPct, align: c.align });
+    /* ★⑵(10-06 · E157 ⒜) — E157 규칙: 크롭 없는 그림 줄은 height 키를 «그릴 때 무시»하고 네이티브 비율로 그린다.
+       ⇒ height 200 꼴의 «옛 화면» 짝은 옛 마크업의 height 0 꼴이다(옛: height 200 + cover — 이제 E157 이 요구하지 않는 화면).
+       잠그는 것은 그대로: «프레임 구조로 갈아탄 것은 그림을 안 바꾼다» — 비교 기준에 E157 규칙을 적용했다(지운 단언 0 · 바꾼 것 = 옛 짝의 height).
+       모양 변화(수): h200 꼴의 틀 = 200 → 칸 폭 × 비율(그림 400×250 · wp50 → 180×112.5 · wp100 → 360×225). */
+    const o = OLD_IMAGE_LINE({ imgSrc: IMG, height: 0, radius: c.radius, widthPct: c.widthPct, align: c.align });
     const n = NEW_IMAGE_LINE(MOD, line);
     const r = await stand(page, o, n, c.short);
     expect(errs).toEqual([]);

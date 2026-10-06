@@ -2,7 +2,8 @@
 
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C } from '../io/capture-safety.js';
+import { checkerBg } from '../checker-tokens.js';
+import { captureSectionImage } from '../io/capture-safety.js';
 
 export function showMockupProperties(block) {
   const deviceKey = block.dataset.device || 'iphone';
@@ -213,59 +214,17 @@ function _isSecHidden(secId) {
 
 async function _captureAndApply(block, sec) {
   if (typeof html2canvas === 'undefined') { window.showToast?.('html2canvas 없음'); return; }
-  let clone = null;
   try {
     window.showToast?.('캡처 중...');
-
-    // 클론 후 오프스크린에 배치 (ignoreElements 없이 깔끔하게 찍기)
-    clone = sec.cloneNode(true);
-    clone.querySelector?.('.section-hitzone')?.remove();
-    clone.querySelector?.('.section-toolbar')?.remove();
-    clone.classList.remove('selected');
-    // 선택 아웃라인 제거
-    clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
-    /* ★display:block 을 «같이» 건다 — 이 줄이 이 고침의 절반이다(2026-09-22).
-       한 번 캡처한 섹션은 아래에서 sec.style.display='none' 으로 숨는다. 그 섹션을 «다시»
-       캡처하면 cloneNode 가 그 display:none 까지 베껴 와, html2canvas 가 크기 0 짜리를 그리고
-       canvas 가 0×0 이 된다. ⛔그때 toDataURL 은 «던지지 않고» 문자열 "data:," 를 «돌려준다»
-       — 아래 try/catch 는 예외만 보므로 그대로 통과해 멀쩡한 PNG 를 6자로 덮고
-       「캡처 완료!」라고 말했다(2026-09-21 실측: 928,378자 → 6자).
-       ⛔원본 sec 의 display 를 건드리지 않는다 — 클론만 편다. 원본을 폈다 접으면 화면이
-         깜빡이고, 도중에 실패하면 숨김 상태가 어긋난 채 남는다.
-       ★cssText 뒤에 붙이므로 앞서 베껴 온 display:none 을 이긴다(뒤가 이긴다). */
-    clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;box-shadow:none;display:block;';
-    document.body.appendChild(clone);
-    neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
-    neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
-    await neutralizeObjectFitForH2C(clone); // html2canvas는 object-fit 미지원 → 상자에 «늘려» 그린다. 상자 크기대로 미리 잘라 끼운다(썸네일이 화면과 다른 그림이 되던 자리)
-    if (window.finalizeMosaicForClone) { try { await window.finalizeMosaicForClone(sec, clone); } catch (_) {} }
-
-    const bgColor = sec.style.backgroundColor || sec.style.background || '#ffffff';
-    const canvas = await html2canvas(clone, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: bgColor || '#ffffff',
-      logging: false,
-    });
-    const dataUrl = canvas.toDataURL('image/png');
-
-    /* ★짝 검사 — «입구»만 막지 말고 «결과»를 재라(2026-09-22).
-       위 display:block 은 «지금 아는 한 가지 원인»만 덮는다. 캔버스가 0 이 되는 길은 그것
-       하나라는 보장이 없다(섹션이 0 높이·부모가 접힘·html2canvas 자체 실패 등).
-       ⛔그리고 이 자리의 병은 «캔버스가 0 이 되는 것»이 아니라 «0 인 줄 모르고 덮는 것»이다.
-       toDataURL 은 0×0 에서 예외를 «안» 던지고 "data:," 를 돌려주므로 try/catch 로는 못 잡는다.
-       ⇒ 덮기 «전»에 결과를 재고, 빈 그림이면 가진 것을 지키고 «사실대로» 말한다. */
-    /* ★판정은 js/io/image-data-url.js «한 곳»에서 한다 (T-148).
-       여기 128 을 다시 적지 마라 — 2026-09-22 에 이 사본과 썸네일 사본이 «둘»로 갈렸고,
-       그날 안에 모았다. tests/unit/one-empty-image-judge.test.mjs 가 셋째를 막는다.
-       ⛔판정기가 없으면 «빈 그림으로 친다» — 배선이 깨졌을 때 «가진 그림을 지키는» 쪽이 안전하다.
-         (조용히 덮는 것보다 「캡처 실패」라고 말하고 멈추는 것이 낫다.) */
-    const _judge = window.isUsableImageDataUrl;
-    const _degenerate = !canvas.width || !canvas.height || typeof _judge !== 'function' || !_judge(dataUrl);
-    if (_degenerate) {
+    /* «찍기»는 capture-safety.js captureSectionImage 한 자리(G11 ① · 2026-10-05) — 클론·가드 ㉠·중화기 넷·
+       html2canvas·가드 ㉡·클론 치우기가 거기 있다. 여기는 «붙이기»만: 문구·순서는 옮기기 전 그대로. */
+    const shot = await captureSectionImage(sec);
+    if (!shot.ok) {
+      if (shot.reason === 'no-h2c') { window.showToast?.('html2canvas 없음'); return; }
       window.showToast?.('캡처 실패: 섹션이 화면에 그려지지 않았습니다 — 이전 이미지를 그대로 둡니다.');
       return;   // ⛔dataset.imgSrc 를 «건드리지 않는다» — 가진 그림이 이긴다
     }
+    const dataUrl = shot.dataUrl;
 
     window.pushHistory?.();
     block.dataset.imgSrc = dataUrl;
@@ -278,13 +237,11 @@ async function _captureAndApply(block, sec) {
     window.showMockupProperties?.(block);
   } catch(err) {
     window.showToast?.('캡처 실패: ' + err.message);
-  } finally {
-    clone?.remove();
   }
 }
 
 // asset-block과 동일한 체커보드 패턴
-const _CHECKER_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
+const _checkerBg = () => checkerBg('big');   // 값은 CSS --goya-checker-big-* 에서 «읽는다»(js/checker-tokens.js)
 
 // backgroundSize 'cover'(디자인 규약 — asset/section/banner 등 전 블록 공용 기본값)로 화면을 꽉 채운다.
 // 예전 '100% auto'는 원본 섹션이 폰 화면(세로로 긴 화면)보다 넓고 낮은 게 보통이라
@@ -296,7 +253,7 @@ function _applyScreenImage(block, src) {
   screen.style.backgroundSize     = 'cover';
   screen.style.backgroundPosition = 'top center';
   screen.style.backgroundRepeat   = 'no-repeat';
-  screen.style.background         = `url('${src}') top center / cover no-repeat, ${_CHECKER_BG}`;
+  screen.style.background         = `url('${src}') top center / cover no-repeat, ${_checkerBg()}`;
   screen.innerHTML = '';
 }
 

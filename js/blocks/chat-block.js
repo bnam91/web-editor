@@ -7,6 +7,8 @@
 
 import { genId, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
+/* ★BT2(2026-10-04) — 메시지별 «줄»(그리드 줄 데이터). 없으면 지금 그대로(아래 렌더 갈래는 «있을 때만» 갈린다). */
+import { lnHasLines, lnLinesHtml, lnValidateLines, lnTextMirrorHtml, lnRemark } from './line-host.js';
 
 const CHAT_DEFAULT_MESSAGES = [
   { text: '안녕하세요! 반갑습니다 😊', align: 'left' },
@@ -122,7 +124,7 @@ function renderChatBlock(block) {
     // bubblePadding 미설정(null) 시엔 인라인 padding 미주입 → CSS 10px 14px 기본 보존(무회귀).
     // 텍스트는 .chb-btext로 분리(편집 대상). data-msg-idx는 편집 타깃인 .chb-btext에 둔다.
     const padCss = (bubblePadding != null) ? `;padding:${bubblePadding}px` : '';
-    const wrapHtml = `<div class="chb-wrap" style="padding-bottom:${tailPadB}px;max-width:${bubbleMaxW}%">${nameHtml}<div class="chb-bubble" style="background:${bg};color:${color};font-size:${fontSize}px;border-radius:${radius}px${padCss}">${starsHtml}<div class="chb-btext" data-msg-idx="${idx}">${msg.text}</div></div>${tail}</div>`;
+    const wrapHtml = `<div class="chb-wrap" style="padding-bottom:${tailPadB}px;max-width:${bubbleMaxW}%">${nameHtml}<div class="chb-bubble" style="background:${bg};color:${color};font-size:${fontSize}px;border-radius:${radius}px${padCss}">${starsHtml}${lnHasLines(msg.lines) ? lnLinesHtml(msg.lines, idx) : `<div class="chb-btext" data-msg-idx="${idx}">${msg.text}</div>`}</div>${tail}</div>`;
     const inner = isLeft ? `${profileHtml}${wrapHtml}` : `${wrapHtml}${profileHtml}`;
     return `<div class="chb-msg chb-${dir}" style="margin-bottom:${gap}px;gap:${profileGap}px">${inner}</div>`;
   }).join('');
@@ -172,7 +174,43 @@ function renderChatBlock(block) {
       }
     };
 
+    /* ★BT1 짝(2026-10-04) — 캔버스의 이름(.chb-profile-name)도 더블클릭으로 바로 고친다(말풍선 «발신자 이름»과 같은 길).
+       이름 칸은 «한 줄»: Enter·Esc = 끝. 빈 이름 = 그 메시지의 이름을 뺀다(profileName '' → 렌더가 이름 칸을 안 그린다).
+       ⚠️패널 «프로필 이름» 칸(prop-chat.js)은 남긴다 — 이름이 «없는» 메시지는 캔버스에 칸이 없어서 처음 넣는 길은 거기뿐이다.
+       ⛔이름은 innerHTML 이 아니라 textContent 로만 다룬다(T-049 — 렌더도 textContent 로 채운다). */
+    const finishNameEdit = (nameEl) => {
+      if (nameEl.getAttribute('contenteditable') !== 'true') return;
+      nameEl.removeAttribute('contenteditable');
+      nameEl.style.cursor = '';
+      nameEl.style.userSelect = '';
+      const idx = parseInt(nameEl.dataset.nameIdx);
+      const msgs = JSON.parse(block.dataset.messages || '[]');
+      if (!msgs[idx]) return;
+      const newName = (nameEl.textContent || '').replace(/\s+/g, ' ').trim();
+      if ((msgs[idx].profileName || '') !== newName) {
+        msgs[idx].profileName = newName;
+        block.dataset.messages = JSON.stringify(msgs);
+        window.scheduleAutoSave?.();
+      }
+      renderChatBlock(block);
+      if (block.classList.contains('selected')) window.showChatProperties?.(block);
+    };
+
     block.addEventListener('dblclick', (e) => {
+      const nameEl = e.target.closest?.('.chb-profile-name[data-name-idx]');
+      if (nameEl && block.contains(nameEl)) {
+        e.stopPropagation();
+        e.preventDefault();
+        if (nameEl.getAttribute('contenteditable') === 'true') return;
+        window.pushHistory?.('채팅 이름 편집');
+        nameEl.setAttribute('contenteditable', 'true');
+        nameEl.style.cursor = 'text';
+        nameEl.style.userSelect = 'text';
+        nameEl.focus();
+        const sel = window.getSelection();
+        try { sel.selectAllChildren(nameEl); sel.collapseToEnd(); } catch(_) {}
+        return;
+      }
       const bubble = e.target.closest('.chb-btext');
       if (!bubble || !block.contains(bubble)) return;
       e.stopPropagation();
@@ -189,11 +227,20 @@ function renderChatBlock(block) {
 
     // blur 위임: focusout 이벤트로 btext 단위 종료 감지
     block.addEventListener('focusout', (e) => {
+      const nameEl = e.target.closest?.('.chb-profile-name[data-name-idx]');
+      if (nameEl && block.contains(nameEl)) { finishNameEdit(nameEl); return; }
       const bubble = e.target.closest?.('.chb-btext');
       if (bubble && block.contains(bubble)) finishEdit(bubble);
     });
 
     block.addEventListener('keydown', (e) => {
+      const nameEl = e.target.closest?.('.chb-profile-name[contenteditable="true"]');
+      if (nameEl && (e.key === 'Enter' || e.key === 'Escape')) {
+        e.preventDefault();
+        e.stopPropagation();
+        nameEl.blur();
+        return;
+      }
       const bubble = e.target.closest?.('.chb-btext');
       if (!bubble || bubble.getAttribute('contenteditable') !== 'true') return;
       if (e.key === 'Escape') {
@@ -204,6 +251,7 @@ function renderChatBlock(block) {
       // Enter는 default(줄바꿈) 그대로
     });
   }
+  lnRemark(block);   // ★BT2 — 다시 그리면 줄 선택 표시가 지워진다. 선택된 블럭의 활성 줄만 되붙인다(옛 챗: 표시 0 → DOM 무변).
 }
 
 function makeChatBlock(opts = {}) {
@@ -267,7 +315,7 @@ function updateChatBlock(blockId, partial = {}) {
     return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
   }
   // 사용자가 인라인 편집(dblclick contenteditable) 중이면 USER_BUSY
-  if (block.querySelector('.chb-btext[contenteditable="true"]')) {
+  if (block.querySelector('.chb-btext[contenteditable="true"], .chb-profile-name[contenteditable="true"], .ln-row [contenteditable="true"]')) {
     return { ok: false, code: 'USER_BUSY', message: 'user is editing a bubble — try again later', retryAfter: 2000 };
   }
 
@@ -320,6 +368,19 @@ function updateChatBlock(blockId, partial = {}) {
       if (!Number.isInteger(sv) || sv < 0 || sv > 5) throw new Error(`${ctx}.stars must be integer 0~5 or null`);
       o.stars = sv;
     }
+    /* ★BT2(2026-10-04) «줄» — 그리드 줄 데이터. ⛔예전엔 이 함수가 «아는 필드만» 다시 만들어 lines 를 조용히 버렸다
+       (editMessage 가 그 결과로 덮어써 «글자만 고쳤는데 줄이 사라진다» — tests/dom/bt2-safety T5r 가 그 모양을 증명).
+       ★검사는 그리드와 «같은 잣대»(lnValidateLines = gridValidateLines + 종류 제한 D5).
+       ★D3 — 줄이 있으면 text 는 «줄 글자 거울»이다(이스케이프한 평문). 그래서 줄이 있으면 들어온 text 는 거울로 덮인다.
+       null·[] = 줄 없음(키를 안 만든다 = 옛 모양). */
+    if (m.lines !== undefined && m.lines !== null) {
+      const lr = lnValidateLines(m.lines, `${ctx}.lines`);
+      if (lr) throw new Error(lr.message);
+      if (m.lines.length) {
+        o.lines = JSON.parse(JSON.stringify(m.lines));
+        o.text = lnTextMirrorHtml(o.lines);
+      }
+    }
     return o;
   };
 
@@ -336,6 +397,19 @@ function updateChatBlock(blockId, partial = {}) {
     profileGap: block.dataset.profileGap, layerName: block.dataset.layerName,
     tailScale: block.dataset.tailScale, fullBleed: block.dataset.fullBleed,
   };
+
+  /* ★BT2 D4 — 줄이 있는 메시지의 «글자»를 text 로 쓰면 거절한다(그 text 는 줄의 거울이다 — 써도 화면이 안 바뀐다).
+     ⛔pushHistory «앞»에서 거절한다 — 뒤에서 거절하면 빈 이력 칸이 남는다. */
+  if (partial.editMessage && typeof partial.editMessage === 'object' && partial.editMessage.text !== undefined
+      && partial.editMessage.lines === undefined && Number.isInteger(partial.editMessage.index)) {
+    let _cur = null;
+    try { _cur = (JSON.parse(block.dataset.messages || '[]') || [])[partial.editMessage.index]; } catch (_) {}
+    if (_cur && lnHasLines(_cur.lines)) {
+      return { ok: false, code: 'INVALID',
+        message: `editMessage.text: message ${partial.editMessage.index} has lines — its text is a mirror of those lines and would not change the screen. `
+          + 'Edit the lines instead (editMessage.lines), or pass editMessage.lines:null first to turn the lines off.' };
+    }
+  }
 
   window.pushHistory?.('채팅 블록 수정');
 
@@ -402,6 +476,7 @@ function updateChatBlock(blockId, partial = {}) {
         profileImg:  e.profileImg  !== undefined ? e.profileImg  : cur.profileImg,
         profileName: e.profileName !== undefined ? e.profileName : cur.profileName,
         stars:       e.stars       !== undefined ? e.stars       : cur.stars,
+        lines:       e.lines       !== undefined ? e.lines       : cur.lines,   // ★BT2 — 안 줬으면 «지금 줄 그대로»(예전엔 여기서 사라졌다)
       }, 'editMessage');
     } catch (err) { return { ok: false, code: 'INVALID', message: err.message }; }
     messages[e.index] = merged;

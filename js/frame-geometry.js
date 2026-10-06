@@ -68,17 +68,37 @@ export function rotationMarginY(w, h, deg) {
    alignY: 'flex-start' | 'center' | 'flex-end' | null
    반환: { left, top } — 계산하지 않은 축은 null.
    ★클램프하지 않는다: 자식이 프레임보다 크면 음수가 나온다(기존 `_setAlign` 과 동일 계약). */
-export function frameAlignOffset(frameW, frameH, elW, elH, alignX, alignY) {
+export function frameAlignOffset(frameW, frameH, elW, elH, alignX, alignY, pad) {
   const fw = Number(frameW) || 0, fh = Number(frameH) || 0;
   const ew = Number(elW) || 0,    eh = Number(elH) || 0;
-  const pick = (span, size, align) =>
-    align === 'center'   ? Math.round((span - size) / 2)
-  : align === 'flex-end' ? Math.round(span - size)
-  : 0;
+  const P = Object.assign({ l: 0, r: 0, t: 0, b: 0 }, pad || {});
+  /* ★안쪽 여백(F5) — 자유 프레임의 자식은 절대배치라 CSS padding 이 «안 먹는다».
+     left/top 의 원점은 패딩 상자 모서리이므로 여백만큼 «우리가» 안쪽으로 들인다.
+     pad 를 안 주면 옛 계산 그대로(여백 0). */
+  const pick = (span, size, align, lo, hi) =>
+    align === 'center'   ? lo + Math.round((span - lo - hi - size) / 2)
+  : align === 'flex-end' ? Math.round(span - hi - size)
+  : lo;
   return {
-    left: alignX == null ? null : pick(fw, ew, alignX),
-    top:  alignY == null ? null : pick(fh, eh, alignY),
+    left: alignX == null ? null : pick(fw, ew, alignX, P.l, P.r),
+    top:  alignY == null ? null : pick(fh, eh, alignY, P.t, P.b),
   };
+}
+
+/* 폭 100% 로 «들어가는» 자유 프레임 자식의 width — 안쪽 상자 폭(프레임 − 좌우 패딩).
+   left 를 여백만큼 들였는데 폭이 100% 면 그만큼 오른쪽으로 «프레임 밖»에 나온다(F5 적대QA).
+   여백 0 이면 '100%' 그대로(옛 계약). */
+export function innerFullWidth(frameEl) {
+  const p = framePadding(frameEl), n = p.l + p.r;
+  return n > 0 ? `calc(100% - ${n}px)` : '100%';
+}
+
+/* 프레임 «안쪽 여백»(px) — 자유 프레임 자식 좌표 계산이 쓴다. 스택 프레임엔 필요 없다(CSS 가 먹는다). */
+export function framePadding(frameEl) {
+  if (!frameEl || typeof getComputedStyle !== 'function') return { l: 0, r: 0, t: 0, b: 0 };
+  const cs = getComputedStyle(frameEl);
+  return { l: parseFloat(cs.paddingLeft) || 0, r: parseFloat(cs.paddingRight) || 0,
+           t: parseFloat(cs.paddingTop) || 0,  b: parseFloat(cs.paddingBottom) || 0 };
 }
 
 /* 같은 자리에 이미 형제가 있으면 대각선으로 비켜 놓을 좌표(붙여넣기 관례와 동일한 +20px).
@@ -160,12 +180,13 @@ export function clampLeftIntoFrame(left, frameW, elW) {
    ⚠️위아래 «둘 다» 죈다 — 0 아래로도 못 간다(위로 밀어 넣어도 똑같이 잘린다).
    ⚠️자식이 프레임보다 «크면» max 가 음수가 된다 — 그땐 0(왼쪽·위 맞춤)이다.
      그래야 적어도 머리는 보인다. 음수를 그대로 쓰면 반대쪽으로 잘린다. */
-export function clampChildIntoFrame(left, top, elW, elH, frameW, frameH) {
-  const one = (v, extent, size) => {
-    const max = Math.max(0, (Number(extent) || 0) - (Number(size) || 0));
-    return Math.max(0, Math.min(max, Number(v) || 0));
+export function clampChildIntoFrame(left, top, elW, elH, frameW, frameH, pad) {
+  const P = Object.assign({ l: 0, r: 0, t: 0, b: 0 }, pad || {});
+  const one = (v, extent, size, lo, hi) => {
+    const max = Math.max(0, (Number(extent) || 0) - hi - (Number(size) || 0));
+    return Math.max(0, lo, Math.min(max, Number(v) || 0));   // 여백(lo)이 바닥 — 자식이 더 커도 머리는 여백 자리
   };
-  return { left: one(left, frameW, elW), top: one(top, frameH, elH) };
+  return { left: one(left, frameW, elW, P.l, P.r), top: one(top, frameH, elH, P.t, P.b) };
 }
 
 /* ══ ④ 프레임이 «자식을 잘라 먹지» 않는 최소 높이 (T-088, 2026-09-21) ══
@@ -213,13 +234,17 @@ export function applyFrameRotationMargin(ss, sizeHint) {
   const w = sizeHint ? (Number(sizeHint.w) || 0) : ss.offsetWidth;
   const h = sizeHint ? (Number(sizeHint.h) || 0) : ss.offsetHeight;
   const m = isAbs ? 0 : rotationMarginY(w, h, deg);
+  /* ★E1 Effects(2026-10-04) — 도형 래퍼의 margin-bottom 은 «반사 여백»(dataset.rfMarginY · js/effects-reflect.js)과 같은 자리다.
+     둘을 «더해서» 쓴다 — 회전만 걷을 때 반사 여백까지 지우지 않게(반사 쪽 _setHostMargin 도 같은 합을 쓴다). */
+  const fx = (ss.dataset && Number(ss.dataset.rfMarginY)) || 0;
   if (m > 0) {
     ss.style.marginTop    = m + 'px';
-    ss.style.marginBottom = m + 'px';
+    ss.style.marginBottom = (m + fx) + 'px';
     ss.dataset.rotMarginY = String(m);
   } else if (ss.dataset && ss.dataset.rotMarginY != null) {
     ss.style.removeProperty('margin-top');
-    ss.style.removeProperty('margin-bottom');
+    if (fx > 0) ss.style.marginBottom = fx + 'px';
+    else ss.style.removeProperty('margin-bottom');
     delete ss.dataset.rotMarginY;
   }
   return m;
@@ -291,3 +316,59 @@ export function growFrameToFitChildren(frameEl) {
   }
   return grown;
 }
+
+/* ── ④ 스택 프레임의 가로 정렬을 «자식 하나»에 입힌다 (E122 · 2026-10-05) ────────────────
+ * ★정렬 단추(prop-frame.js _setAlign)와 «새로 넣는 길»(block-factory.js _appendFlowChild · addShapeBlock)이 같은 한 벌을 쓴다.
+ *   예전엔 단추 안에만 있어서, 「왼쪽」을 누른 프레임에 새 에셋을 넣으면 그 에셋은 자기 기본값(align-self:center)으로 가운데에 섰다.
+ * 규칙(F4, 2026-10-03 실측 — 단추에 있던 그대로 옮김):
+ *   ① 직계 비-row 자식 → align-self 를 같은 값 ② row[stack] → row 자신(align-self·margin) + «row 안 직계 자식» align-self
+ *   ③ row[flex]·레이아웃 미지정 → justify-content(사용자가 준 space-* 분배는 안 덮음) ④ row[grid] → 손대지 않음
+ *   asset-block 은 dataset.align 도 맞춘다(안 맞추면 폭 바꿀 때 prop-asset 이 옛 정렬로 되돌린다). 갭·리사이즈 손잡이·absolute 는 건너뜀.
+ * @param {string} alignItems 'flex-start' | 'center' | 'flex-end' */
+export function applyFrameHAlignToChild(child, alignItems) {
+  if (!child || !child.classList) return;
+  const selfOf   = { 'flex-start': 'flex-start', 'center': 'center', 'flex-end': 'flex-end' };
+  const marginOf = { 'flex-start': '0',          'center': '0 auto',  'flex-end': '0' };
+  const alignKey = { 'flex-start': 'left',       'center': 'center',   'flex-end': 'right' };
+  const setSelf = (el) => {
+    if (el.classList.contains('gap-block') || el.classList.contains('frame-resize-handle')) return;
+    if (getComputedStyle(el).position === 'absolute') return;
+    el.style.alignSelf = selfOf[alignItems] || '';
+    if (el.classList.contains('asset-block') && el.dataset.align) el.dataset.align = alignKey[alignItems] || el.dataset.align;
+    /* ★E133 — 자기 CSS 가 `margin: 0 auto` 인 블럭(아이콘 .icon-block · 심플카드 .canvas-block 등)은 auto 마진이 align-self 를 이긴다
+       (실측: 왼/오 눌러도 Icon 326/326 · Card 178/178). ⇒ «인라인 마진이 없고 계산 좌우가 같고 > 0» 이면 정렬을 인라인 마진으로 싣는다.
+       이미 이 갈래가 쓴 짝(0/auto · auto/0)이면 다시 눌러도 바꾼다 · 가운데 = 비움(CSS auto 로 돌아감). 그 밖(풀블리드 음수 마진 등)은 안 건드린다. */
+    const _ml = el.style.marginLeft, _mr = el.style.marginRight;
+    const _ours = (_ml === '0px' && _mr === 'auto') || (_ml === 'auto' && _mr === '0px');
+    let _autoCentered = false;
+    if (!_ml && !_mr) { const cs = getComputedStyle(el); const l = parseFloat(cs.marginLeft) || 0, r = parseFloat(cs.marginRight) || 0; _autoCentered = l > 0 && Math.abs(l - r) < 0.5; }
+    if (_ours || _autoCentered) {
+      if (alignItems === 'flex-start') { el.style.marginLeft = '0px'; el.style.marginRight = 'auto'; }
+      else if (alignItems === 'flex-end') { el.style.marginLeft = 'auto'; el.style.marginRight = '0px'; }
+      else { el.style.marginLeft = ''; el.style.marginRight = ''; }
+    }
+  };
+  if (child.classList.contains('row')) {
+    child.style.alignSelf = selfOf[alignItems] || '';
+    child.style.margin    = marginOf[alignItems] || '0';
+    const lay = child.dataset.layout;
+    if (lay === 'stack') [...child.children].forEach(setSelf);
+    else if (lay !== 'grid' && !/^space-/.test(child.style.justifyContent)) child.style.justifyContent = alignItems === 'center' ? 'center' : (alignItems === 'flex-end' ? 'flex-end' : '');
+  } else {
+    setSelf(child);
+  }
+}
+
+/* ── ⑤ E135(2026-10-06) — «넣어진 자리의 부모»가 정렬을 준 스택 프레임이면 그 정렬을 입힌다 ──────────────
+ * ★E122 의 _followFrameHAlign(block-factory.js) 과 같은 규칙 — 부모를 «스스로» 찾는 꼴이라 넣는 길 어디서나 한 줄로 부른다.
+ *   E122 공용을 안 거치던 길(코드독해 · E122 README «못 보는 꼴»): 붙여넣기(editor.js) · 템플릿 넣기(drag-utils.js insertAfterSelected 프레임 갈래) ·
+ *   T▾ fullWidth(block-factory.js addTextBlock). 프레임 안으로 끌어 넣기(block-drag.js)는 그 레인 몫.
+ *   dataset.alignItems 가 «있을 때만» · 자유배치·글자 프레임 제외(좌표 갈래 / 래퍼) — E122 와 같은 문. */
+export function followHostFrameHAlign(el) {
+  const host = el && el.parentElement;
+  if (!host || !host.classList || !host.classList.contains('frame-block')) return;
+  if (host.dataset.freeLayout === 'true' || host.dataset.textFrame === 'true') return;
+  const ai = host.dataset.alignItems;
+  if (ai === 'flex-start' || ai === 'center' || ai === 'flex-end') applyFrameHAlignToChild(el, ai);
+}
+if (typeof window !== 'undefined') window.followHostFrameHAlign = followHostFrameHAlign;

@@ -40,7 +40,7 @@ function makeFakeDom() {
   function createElement(tag) {
     let _id = '', _classes = new Set();
     const el = {
-      tagName: tag, dataset: {}, style: {}, innerHTML: '',
+      tagName: tag, dataset: {}, style: {}, innerHTML: '', children: [],   // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 이 가짜는 자식을 안 붙이므로 늘 빈 목록
       get id() { return _id; },
       set id(v) { if (_id) registry.delete(_id); _id = v; if (v) registry.set(v, el); },
       get className() { return [..._classes].join(' '); },
@@ -596,10 +596,11 @@ const L = () => [{ type: 'body', text: 'X' }];
 test('U10 ★만드는 문이 «눌러 맞춘 것»을 전부 말한다 — 그리고 동작은 그대로다', () => {
   withSection(() => {
     const cases = [
-      ['cols 6개', { cols: [1, 2, 3, 4, 5, 6].map(() => ({ width: 1, lines: L() })) }, 'cols[4..5]',
-        (b) => assert.equal(JSON.parse(b.dataset.cols).length, 4, '★동작이 바뀌었다 — 여전히 4로 잘려야 한다')],
-      ['rows 6개', { cols: [{ width: 1, lines: L() }], rows: Array.from({ length: 6 }, () => ({ height: 'auto' })) }, 'rows[4..5]',
-        (b) => assert.equal(JSON.parse(b.dataset.rows).length, 4, '★동작이 바뀌었다 — 여전히 4로 잘려야 한다')],
+      /* K5 ⒜(2026-10-05 · lane-f-grid): 상한 4 → 8 — 옛 행 「cols 6개 → cols[4..5] · 4로 잘림」「rows 6개 → rows[4..5]」를 10개 → [8..9] · 8 로. */
+      ['cols 10개', { cols: Array.from({ length: 10 }, () => ({ width: 1, lines: L() })) }, 'cols[8..9]',
+        (b) => assert.equal(JSON.parse(b.dataset.cols).length, 8, '★동작이 바뀌었다 — 여전히 8로 잘려야 한다')],
+      ['rows 10개', { cols: [{ width: 1, lines: L() }], rows: Array.from({ length: 10 }, () => ({ height: 'auto' })) }, 'rows[8..9]',
+        (b) => assert.equal(JSON.parse(b.dataset.rows).length, 8, '★동작이 바뀌었다 — 여전히 8로 잘려야 한다')],
       ["valign:'중간'", { cols: [{ width: 1, lines: L() }], valign: '중간' }, 'valign',
         (b) => assert.equal(b.dataset.valign, 'top', '★동작이 바뀌었다 — 여전히 기본값으로 떨어져야 한다')],
       /* ~~[뒤집음 · 2026-09-24] 「999 는 «그대로 저장»돼야 한다(자르는 건 별건)」~~

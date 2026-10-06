@@ -11,6 +11,7 @@
    - window.show*Properties, window.layerDragSrc, window.layerMultiDragTargets
 ══════════════════════════════════════ */
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
+import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
 
 /* ═══════════════════════════════════
    LAYER PANEL
@@ -35,7 +36,7 @@ const layerIcons = {
   asset:   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="8" height="8" rx="1"/><circle cx="4.5" cy="4.5" r="0.8"/><polyline points="10 8 7.5 5.5 4 9"/></svg>`,
   gap:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="4" x2="11" y2="4" stroke-dasharray="2,1"/><line x1="1" y1="8" x2="11" y2="8" stroke-dasharray="2,1"/></svg>`,
   label:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="10" height="6" rx="1.5"/></svg>`,
-  'icon-circle': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="5"/><text x="3.5" y="9" font-size="6" fill="currentColor" stroke="none">★</text></svg>`,
+  'icon-circle': gridCircleIconSvg({ cls: 'layer-item-icon' }),   // 그리드 칸 원형 이미지 svg 와 «같은 상수»(S2 2026-10-04)
   table:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1"/><line x1="1" y1="4.5" x2="11" y2="4.5"/><line x1="5" y1="4.5" x2="5" y2="11"/></svg>`,
   divider:    `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="6" x2="11" y2="6"/></svg>`,
   bridge:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 4 H4.5 Q5.2 4 6 7 Q6.8 4 7.5 4 H11"/></svg>`,
@@ -662,6 +663,67 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
 }
 
 
+/* ★그릇(프레임 · G19 그리드 .grd-children)의 «직계 자식»을 레이어 줄로 — 프레임과 그리드가 «한 벌»을 쓴다.
+   ★text-frame 투명 규칙(js-structure.md 「전 레벨 적용」)이 여기 한 곳에 산다 — 두 벌로 베끼면 한쪽만 「Frame + Text」 두 겹이 된다.
+   (makeLayerFrameItem 안에 있던 루프를 그대로 옮겼다 — 동작 무변경. 그리드 블럭만 makeLayerGridItem 으로 보낸다.) */
+function appendFlowChildrenToLayer(containerEl, out, sec, appendRowFn, depth) {
+  [...containerEl.children].forEach(child => {
+    if (child.classList.contains('frame-block')) {
+      if (child.dataset.textFrame === 'true') {
+        // text-frame 투명: 내부 text-block을 직접 렌더링 (drag target은 text-frame)
+        const tb = child.querySelector(':scope > .text-block');
+        if (tb) out.appendChild(makeLayerBlockItem(tb, child, sec, depth));
+      } else {
+        // 중첩 프레임 — 재귀 렌더링 (depth +1)
+        out.appendChild(makeLayerFrameItem(child, sec, appendRowFn, depth));
+      }
+    } else if (child.classList.contains('row')) {
+      appendRowFn(child, out, depth);
+    } else if (child.classList.contains('grid-block') || child.classList.contains('icon-circle-block')) {   // G14 서클도 자식을 펼친다
+      out.appendChild(makeLayerGridItem(child, child, sec, depth, appendRowFn));
+    } else if (window.hasPanelForBlock?.(child)) {
+      /* ★「이 자식이 블럭인가」는 정본 표(js/panel-dispatch.js _PANEL_BY_CLASS) 한 곳이 답한다.
+         예전엔 여기 손으로 적은 21종 목록이 있었고, 정본 28종 중 7종(mockup·vector·icon·laurel·
+         qa·icon-text·annotation)이 빠져 있었다 ⇒ 프레임 안에 목업만 두면 자식 0개로 읽혀
+         쉐브론(토글)이 안 생겼다(현빈 2026-09-30, proj_1790568699549 ss_ts0he_hluhyl6). */
+      out.appendChild(makeLayerBlockItem(child, child, sec, depth));
+    }
+  });
+}
+
+/* ★G19 그리드 줄 — 그리드 «밑» 자식(.grd-children)이 «하나라도» 있으면 프레임처럼 펼친다(쉐브론 + 자식 줄).
+   ★0개면 «지금과 똑같은 말단 줄»을 그대로 돌려준다(makeLayerBlockItem 그 자체).
+   ★머리 줄은 말단 줄을 «그대로» 품는다 — 선택·이름바꾸기·패널은 말단 줄의 처리기가 한다(새로 안 만든다).
+     꼴은 makeLayerRowGroup 의 머리(.layer-row-header > .layer-item, editor-panels.css 의 그 규칙)와 같다. */
+function makeLayerGridItem(block, dragTarget, sec, depth = 1, appendRowFn) {
+  const item = makeLayerBlockItem(block, dragTarget, sec, depth);
+  /* ★G14 — 서클 에셋블럭의 «원 안» 그릇(.icb-children)도 같은 꼴로 펼친다(그릇 해석만 다르다 — js/icb-children.js). */
+  const _isCircle = block.classList.contains('icon-circle-block');
+  const box = _isCircle ? window.icbKidsBox?.(block) : window.gridKidsBox?.(block);
+  if (!box || !appendRowFn) return item;
+  const kidsOut = document.createElement('div');
+  kidsOut.className = 'layer-row-children';
+  appendFlowChildrenToLayer(box, kidsOut, sec, appendRowFn, depth + 1);
+  if (!kidsOut.children.length) return item;
+  const group = document.createElement('div');
+  group.className = 'layer-row-group';
+  group.dataset.type = _isCircle ? 'icon-circle' : 'grid';
+  group._dragTarget = dragTarget;
+  const header = document.createElement('div');
+  header.className = 'layer-row-header';
+  const ind = item.querySelector(':scope > .layer-indents');
+  if (ind) header.appendChild(ind);
+  header.insertAdjacentHTML('beforeend', '<svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>');
+  header.appendChild(item);
+  header.querySelector('.layer-chevron').addEventListener('click', e => {
+    e.stopPropagation();
+    group.classList.toggle('collapsed');
+  });
+  group.appendChild(header);
+  group.appendChild(kidsOut);
+  return group;
+}
+
 /* 레이어 Frame 아이템 생성 */
 function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   const wrapper = document.createElement('div');
@@ -752,29 +814,7 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   const ssChildren = document.createElement('div');
   ssChildren.className = 'layer-row-children';
 
-  const ssInner = ssEl;
-  {
-    [...ssInner.children].forEach(child => {
-      if (child.classList.contains('frame-block')) {
-        if (child.dataset.textFrame === 'true') {
-          // text-frame 투명: 내부 text-block을 직접 렌더링 (drag target은 text-frame)
-          const tb = child.querySelector(':scope > .text-block');
-          if (tb) ssChildren.appendChild(makeLayerBlockItem(tb, child, sec, depth + 1));
-        } else {
-          // 중첩 프레임 — 재귀 렌더링 (depth +1)
-          ssChildren.appendChild(makeLayerFrameItem(child, sec, appendRowFn, depth + 1));
-        }
-      } else if (child.classList.contains('row')) {
-        appendRowFn(child, ssChildren, depth + 1);
-      } else if (window.hasPanelForBlock?.(child)) {
-        /* ★「이 자식이 블럭인가」는 정본 표(js/panel-dispatch.js _PANEL_BY_CLASS) 한 곳이 답한다.
-           예전엔 여기 손으로 적은 21종 목록이 있었고, 정본 28종 중 7종(mockup·vector·icon·laurel·
-           qa·icon-text·annotation)이 빠져 있었다 ⇒ 프레임 안에 목업만 두면 자식 0개로 읽혀
-           쉐브론(토글)이 안 생겼다(현빈 2026-09-30, proj_1790568699549 ss_ts0he_hluhyl6). */
-        ssChildren.appendChild(makeLayerBlockItem(child, child, sec, depth + 1));
-      }
-    });
-  }
+  appendFlowChildrenToLayer(ssEl, ssChildren, sec, appendRowFn, depth + 1);
 
   // shape-only frame이 아니고 자식이 있으면 chevron + group 구조로 반환
   // ★도형 래퍼는 «그냥 도형» — 자식 수와 무관하게 쉐브론 없는 단일 행(0918 A안, SSOT 직속 판정).
@@ -854,4 +894,6 @@ export {
   makeLayerGroupItem,
   makeLayerFrameItem,
   makeLayerAssetItem,
+  makeLayerGridItem,
+  appendFlowChildrenToLayer,
 };

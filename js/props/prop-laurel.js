@@ -440,6 +440,8 @@ ${blockHeaderHTML({
       const ci = parseInt(btn.dataset.cell), li = parseInt(btn.dataset.line);
       const cur = _readCells(block);
       if (!cur[ci]?.lines || cur[ci].lines.length <= 1) return;
+      /* ★E80 — «끝 표본만»이던 자리. 앞 «삭제 전»을 먼저 찍는다(editor.js 블록 삭제 :3396 과 같은 꼴 · 2026-10-04). */
+      window.ensureHistoryCheckpoint?.('삭제 전');
       cur[ci].lines.splice(li, 1);
       _writeCells(block, cur);
       rerender();

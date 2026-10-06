@@ -59,7 +59,9 @@ const REAL_FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveP
   '_resolveMetaJsonPath', '_ensureNewLayoutPaths', '_refreshListMeta', '_listItemFor',
   // [T-064] _listProjectsImpl 이 id 모양 판정을 이 함수에 맡긴다 — 빠지면 ReferenceError 로 «검사가» 죽는다
   '_isListableProjectId',
-  '_listProjectsImpl', '_duplicateProjectImpl', '_renameProjectImpl'];
+  '_listProjectsImpl',
+  // ★E168(2026-10-06 lane-drag): _listItemFor 의 풀파싱 폴백이 공용 readProjectWithFallback(로드와 같은 한 곳)을 부른다 — 그 이웃들
+  '_resolveBackupJsonPath', '_SS', '_mtimeOr', 'readProjectWithFallback', '_duplicateProjectImpl', '_renameProjectImpl'];
 
 /** 떼어낸 «진짜» 구현. PROJECTS_DIR 만 임시 폴더로 바꿔 꽂는다. */
 function loadRealImpls(projectsDir) {
@@ -77,7 +79,7 @@ function loadRealImpls(projectsDir) {
   };
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);
   const factory = new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console', '_saveProjectImpl',
-    REAL_FNS.map(fnSrc).join('\n\n') + `\n; return { ${REAL_FNS.join(', ')} };`);
+    'let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\n' + REAL_FNS.map(fnSrc).join('\n\n') + `\n; return { ${REAL_FNS.join(', ')} };`);
   const api = factory(fs, path, projectsDir, req, { log() {}, warn() {}, error() {} }, saveProject);
   api.__setSave = (fn) => { hook = fn; };
   return api;

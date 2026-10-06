@@ -1,5 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { rgbToHex } from './prop-text-utils.js';
+import { panelRenderedPx, labelShapeFromRendered, panelRenderedWeight } from './_panel-rendered.js';
 import { buildTextPropsHtml } from './prop-text-template.js';
 import { detectMix } from './prop-text-mix-detect.js';
 import { wireBubbleSection }   from './prop-text-wireup-bubble.js';
@@ -45,24 +46,29 @@ export function showTextProperties(tb) {
   const currentClass = ['tb-h1','tb-h2','tb-h3','tb-body','tb-caption','tb-label','tb-bullet','tb-liner'].find(c => contentEl.classList.contains(c)) || (isSpeechBubble ? 'tb-bubble' : isLiner ? 'tb-liner' : 'tb-body');
   const rawBg = window.getComputedStyle(contentEl).backgroundColor;
   const currentBgColor = (!rawBg || rawBg === 'rgba(0, 0, 0, 0)' || rawBg === 'transparent') ? '#111111' : (rgbToHex(rawBg) || '#111111');
-  const currentRadius = parseInt(contentEl.style.borderRadius) || 4;
+  const currentRadius = Math.round(panelRenderedPx(contentEl, 'borderTopLeftRadius'));   // 묶음 B E113 — 그려진 모서리(CSS var(--preset-label-radius)=8). 옛 `|| 4` 는 빈 값·0 둘 다 4
   const isLabel = currentClass === 'tb-label';
   const currentTail = tb.dataset.tail || 'left';
-  const currentBubbleStyle = tb.dataset.bubbleStyle || 'imessage';
+  /* BT3 — dataset 이 없으면 «기본»(템플릿의 selected 판정·makeSpeechBubbleBlock 기본값과 같은 값). 옛 'imessage' 폴백은 드롭다운엔 iMessage 를 띄우고 모습은 기본이라 어긋났다. */
+  const currentBubbleStyle = tb.dataset.bubbleStyle || 'default';
   const _blockBubbleVar = isSpeechBubble ? tb.style.getPropertyValue('--bubble-bg').trim() : '';
   const bubbleBg = isSpeechBubble ? (_blockBubbleVar || contentEl.style.backgroundColor || '#e5e5ea') : '#e5e5ea';
   const bubbleBgHex = isSpeechBubble ? (_blockBubbleVar || rgbToHex(window.getComputedStyle(contentEl).backgroundColor) || '#e5e5ea') : '#e5e5ea';
   const showSender = isSpeechBubble && tb.dataset.showSender === 'true';
-  const senderName = isSpeechBubble ? (tb.dataset.senderName || 'Your name') : 'Your name';
-  const labelPillPadT = parseInt(contentEl.style.paddingTop)    || 4;
-  const labelPillPadB = parseInt(contentEl.style.paddingBottom) || 4;
+  /* ★#9(E121 · 2026-10-05): 옛 `parseInt(contentEl.style.paddingTop) || 4` 는 인라인이 비면 4+4=8 을 그렸다 — 실제는 CSS .tb-label 11+11=22.
+     «그려진 값»을 읽는다(_panel-rendered.js). U22① 로 남긴 「높이」 손잡이가 이 값을 쓴다 — U22① 의 전제 조건(지디). */
+  const labelPillPadT = Math.round(panelRenderedPx(contentEl, 'paddingTop'));
+  const labelPillPadB = Math.round(panelRenderedPx(contentEl, 'paddingBottom'));
   // ★원형(Circle)의 «크기»는 패딩이 아니라 지름(인라인 width)이다 — 패딩으로 읽으면
   //   실제 지름 100 짜리에 슬라이더가 8 을 가리켜 다시 잡을 때 크기가 툭 튄다.
   const _isCircleLabel = contentEl.dataset.shape === 'circle';
   const labelPillH    = _isCircleLabel
     ? (parseInt(contentEl.style.width) || Math.round(contentEl.getBoundingClientRect().width) || 64)
     : labelPillPadT + labelPillPadB;
-  const _jcToAlign   = { 'flex-start': 'left', 'center': 'center', 'flex-end': 'right' };
+  // 알약 «안쪽» 좌우 패딩 — 인라인이든 CSS 기본(36px)이든 «지금 그려진 값»을 읽는다(읽기만, 쓰지 않는다)
+  const labelPadX = isLabel && !_isCircleLabel ? Math.round(panelRenderedPx(contentEl, 'paddingLeft')) : 0;
+  const labelShape = isLabel ? labelShapeFromRendered(contentEl) : null;   // ★U7(E121): Tag Style 켜짐 — 그려진 모양에서
+  const _jcToAlign  = { 'flex-start': 'left', 'center': 'center', 'flex-end': 'right' };
   // U10 후속 — «거짓 active» 제거.
   //   커스텀 폭(width≠100%) 블록의 «박스 가로 위치»를 지배하는 건 textAlign 이 아니라
   //   레이아웃 요소(text-frame 래퍼)의 align-self 다(prop-text-wireup-align.js 참고).
@@ -103,9 +109,11 @@ export function showTextProperties(tb) {
   const currentAlign = isLabel
     ? (tb.style.textAlign || 'left')
     : isIconText
-      ? (_jcToAlign[tb.style.justifyContent] || 'left')
+      /* ★S3V — 세로(data-itb-dir="v")면 정렬 키가 alignItems(기본 = 가운데, 지디 시안 ㉮). 가로는 옛 그대로. */
+      ? (tb.dataset.itbDir === 'v' ? (window.iconTextAlignOf?.(tb) || 'center') : (_jcToAlign[tb.style.justifyContent] || 'left'))
       : _alignDisplayFor(contentEl.style.textAlign || 'left');
   const currentItbGap = isIconText ? (parseInt(tb.style.gap) || 16) : 16;
+  const itbVertical = isIconText && tb.dataset.itbDir === 'v';   // ★S3V 「방향」 단추 active
   // 자식 span/div에 inline font-size가 있으면 그 값을 우선 사용 (복사 블록 대응)
   const _firstSizedChild = contentEl.querySelector('[style*="font-size"]');
   const currentSize  = _firstSizedChild
@@ -127,9 +135,10 @@ export function showTextProperties(tb) {
   let   phLinked     = currentPadL === currentPadR;
   // rawFont: CSS가 fontFamily를 정규화(따옴표 변환 등)하므로 raw option값을 별도 저장해서 우선 사용
   const currentFont   = contentEl.dataset.rawFont || contentEl.style.fontFamily || '';
-  const rawWeight     = contentEl.style.fontWeight || '';
-  const currentWeight = rawWeight === 'bold' ? '700' : rawWeight === 'normal' ? '400' : rawWeight;
-  const isBold        = currentWeight === '700' || rawWeight === 'bold';
+  /* ★묶음 B #16 — «그려진» 굵기(_panel-rendered.js). 옛 판은 인라인만 읽어 빈 인라인을 Regular 400 · B 꺼짐으로 그렸다(CSS .tb-h1 700 · .tb-h2/.tb-h3 600).
+     B 켜짐 = 600 이상 — B 토글(prop-text-wireup-text-edit.js isOn)과 같은 잣대. */
+  const currentWeight = panelRenderedWeight(contentEl);
+  const isBold        = parseInt(currentWeight, 10) >= 600;
   const isItalic      = contentEl.style.fontStyle  === 'italic';
   const isStrike      = (contentEl.style.textDecorationLine || contentEl.style.textDecoration || '').includes('line-through');
   const currentHighlight      = tb.dataset.highlight || 'none';
@@ -162,10 +171,10 @@ export function showTextProperties(tb) {
     currentX, currentY, currentRotation, currentW, currentFont, currentWeight, currentSize,
     currentLH, currentLS, currentColor, currentColorAlpha,
     currentPadT, currentPadL, currentPadR, phLinked,
-    isLabel, currentBgColor, currentRadius, labelPillH,
+    isLabel, currentBgColor, currentRadius, labelPillH, labelPadX, labelIsCircle: _isCircleLabel, labelShape,
     isSpeechBubble, currentBubbleStyle, currentTail,
-    bubbleBgHex, showSender, senderName,
-    isIconText, currentItbGap,
+    bubbleBgHex, showSender,
+    isIconText, currentItbGap, itbVertical,
     mix,
     shadow,
     isLiner,
@@ -182,7 +191,7 @@ export function showTextProperties(tb) {
   // 각 wireup 핸들러는 ctx.contentEl을 동적 참조해 type 토글 후 새 노드를 본다
   const ctx = { contentEl };
 
-  if (isSpeechBubble) wireBubbleSection({ tb, ctx, currentBubbleStyle });
+  if (isSpeechBubble) wireBubbleSection({ tb, ctx });
   wireFontSection({ propPanel, ctx });
   // 라이너 블록은 Type 토글 숨김 — 클릭 시 contentEl.className 교체로 .tb-liner가 깨지는 회귀 방지 (M2)
   if (!isLiner) wireTypeSection({ tb, propPanel, ctx });
@@ -191,6 +200,7 @@ export function showTextProperties(tb) {
   wireTextEditSection({ tb, ctx, currentColorAlpha });   // tb: 0920b textgrad-bar — 캔버스 그라데이션 바 대상 블럭
   wireSpacingSection({ ctx, isLiner }); // M6b: 라이너는 자간 바인딩 스킵(우리 슬라이더 단일소스)
   wireShadowSection({ ctx, initial: shadow });
+  window.wireFxReflectSection?.(tb, 'txt', () => showTextProperties(tb));   // ★E1 Effects — 절이 없으면 아무것도 안 한다
   if (!isOverlayTb) wirePositionSection({ tb });
   if (!isOverlayTb) wirePaddingSection({ tb, phLinked });
   if (!isOverlayTb) wireOverlaySection({ tb });
@@ -223,6 +233,9 @@ export function showTextProperties(tb) {
 
   // 라이너(곡선 텍스트): 프리셋 select + 곡률 슬라이더 증강
   if (isLiner) window.enhanceLinerPropPanel?.(tb);
+
+  // ★BT2 — 말풍선 «줄»: 줄바(＋ 줄 추가)·줄 꾸미기·줄 Typography. 줄 모드면 블럭 단위 글자 절을 숨긴다(D6). js/blocks/line-host.js
+  if (isSpeechBubble) window.lnAugmentBubblePanel?.(tb);
 }
 
 // Backward compat: classic scripts call these via window.*

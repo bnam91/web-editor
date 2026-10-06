@@ -53,7 +53,7 @@ function makeFakeDom() {
       tagName: tag,
       dataset: {},
       style: {},
-      innerHTML: '',
+      innerHTML: '', children: [],   // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 이 가짜는 자식을 안 붙이므로 늘 빈 목록
       get id() { return _id; },
       set id(v) {
         if (_id) registry.delete(_id);
@@ -107,9 +107,10 @@ before(async () => {
  *   ⛔이 단언 하나만 고치고 끝내면 «값만» 맞고 «동작»은 안 열릴 수 있다 —
  *     그래서 아래에 「1열이 폴백에 안 먹힌다」「1x4 가 실제로 만들어진다」를 같이 세웠다.
  *   ⛔되돌리려면 코드가 아니라 현빈에게 물어라. */
-test('한도 상수 — 열 1~4, 행 1~4 (M40: 1열 허용 · 2026-09-05 정책 변경)', () => {
-  assert.equal(MIN_COLS, 1); assert.equal(MAX_COLS, 4);
-  assert.equal(MIN_ROWS, 1); assert.equal(MAX_ROWS, 4);
+test('한도 상수 — 열 1~8, 행 1~8 (M40: 1열 허용 · 2026-09-05 정책 변경 · K5 ⒜ 10-05 4→8)', () => {
+  /* K5 ⒜(2026-10-05 지디 · lane-f-grid): 상한 4 → 8. 옛 단언(4 · 5개 거부 · 6개→4)은 이 줄로 기록 — 정책이 바뀐 것이지 결함 아님. */
+  assert.equal(MIN_COLS, 1); assert.equal(MAX_COLS, 8);
+  assert.equal(MIN_ROWS, 1); assert.equal(MAX_ROWS, 8);
 });
 
 test('★M40 — 1열 그리드가 «폴백에 먹히지 않고» 1열 그대로 읽힌다', () => {
@@ -157,7 +158,7 @@ test('승격① — dataset.rows/cells 가 아예 없으면 1행 그리드로 �
      ★「그래도 화면엔 왼쪽 정렬로 나오나」를 대신 잰다 — 기능이 사라진 게 아님을 그쪽이 지킨다. */
   assert.equal(cells[0][0].align, undefined,
     '열 기본값은 «모델의 칸»에 안 섞인다 — 칸 자기 값이 없으면 undefined 다(합성은 렌더러 pick)');
-  const painted = { dataset: block.dataset, style: {} };
+  const painted = { dataset: block.dataset, style: {}, children: [] };  // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 글자 그대로의 가짜 블럭이라 자식은 늘 없다
   renderGridBlock(painted);
   assert.match(painted.innerHTML, /data-r="0" data-c="0"[\s\S]*?text-align:left;[\s\S]*?>왼쪽</,
     '★열 기본값(align)이 화면에는 «여전히» 걸린다 — 모델에서 안 섞는 것이 기능 상실이면 안 된다');
@@ -230,16 +231,18 @@ test('승격④ — dataset.cells(행 0 포함 전체)가 있으면 실제로 �
 });
 
 /* ═══ ② 클램프/폴백 — 열 2~4, 행 1~4 (플랜 P1 회귀위험: 「1열 폴백이 데이터를 지운다」) ═══ */
-test('gridCols — 6개짜리 cols 는 4개로 잘린다(초과 클램프)', () => {
-  const cols = Array.from({ length: 6 }, (_, i) => ({ width: 1, lines: [{ type: 'body', text: String(i) }] }));
+test('gridCols — 10개짜리 cols 는 8개로 잘린다(초과 클램프 · K5 ⒜ 4→8)', () => {
+  /* K5 ⒜(2026-10-05 지디 · lane-f-grid): 상한 4 → 8. 옛 단언(4 · 5개 거부 · 6개→4)은 이 줄로 기록 — 정책이 바뀐 것이지 결함 아님. */
+  const cols = Array.from({ length: 10 }, (_, i) => ({ width: 1, lines: [{ type: 'body', text: String(i) }] }));
   const block = { dataset: { cols: JSON.stringify(cols) } };
-  assert.equal(gridCols(block).length, 4);
+  assert.equal(gridCols(block).length, 8);
 });
 
-test('gridRows — 6개짜리 rows 는 4개로 잘린다(초과 클램프)', () => {
-  const rows = Array.from({ length: 6 }, (_, i) => ({ height: i * 10 }));
+test('gridRows — 10개짜리 rows 는 8개로 잘린다(초과 클램프 · K5 ⒜ 4→8)', () => {
+  /* K5 ⒜(2026-10-05 지디 · lane-f-grid): 상한 4 → 8. 옛 단언(4 · 5개 거부 · 6개→4)은 이 줄로 기록 — 정책이 바뀐 것이지 결함 아님. */
+  const rows = Array.from({ length: 10 }, (_, i) => ({ height: i * 10 }));
   const block = { dataset: { rows: JSON.stringify(rows) } };
-  assert.equal(gridRows(block).length, 4);
+  assert.equal(gridRows(block).length, 8);
 });
 
 test('gridRows — height 가 이상해도(음수/문자/undefined) auto 로 떨어진다(크래시 없음)', () => {
@@ -259,7 +262,7 @@ test('renderGridBlock — grid-template-columns 는 fr, grid-template-rows 는 m
       rows: JSON.stringify([{ height: 'auto' }, { height: 120 }]),
       gap: '24',
     },
-    style: {},
+    style: {}, children: [],  // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 글자 그대로의 가짜 블럭이라 자식은 늘 없다
   };
   renderGridBlock(block);
   assert.match(block.innerHTML, /display:grid/);
@@ -270,7 +273,7 @@ test('renderGridBlock — grid-template-columns 는 fr, grid-template-rows 는 m
 });
 
 test('renderGridBlock — 옛 1행 파일도 grid 로 렌더되지만 셀 수는 열 수와 같다(회귀: flex 시절과 시각적 동치)', () => {
-  const block = { dataset: { cols: JSON.stringify([{ width: 1, lines: [] }, { width: 1, lines: [] }, { width: 2, lines: [] }]) }, style: {} };
+  const block = { dataset: { cols: JSON.stringify([{ width: 1, lines: [] }, { width: 1, lines: [] }, { width: 2, lines: [] }]) }, style: {}, children: [] };  // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 글자 그대로의 가짜 블럭이라 자식은 늘 없다
   renderGridBlock(block);
   assert.match(block.innerHTML, /grid-template-columns:1fr 1fr 2fr/);
   // ★모든 칸이 lines:[] 라 grd-cell-empty(T-A, 2026-09-16)도 같이 찍힌다.
@@ -311,7 +314,7 @@ test('renderGridBlock — row-gap/column-gap 이 longhand 로 각각 찍힌다(s
       cols: JSON.stringify([{ width: 1, lines: [] }, { width: 1, lines: [] }]),
       rowGap: '8', colGap: '32',
     },
-    style: {},
+    style: {}, children: [],  // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 글자 그대로의 가짜 블럭이라 자식은 늘 없다
   };
   renderGridBlock(block);
   assert.match(block.innerHTML, /row-gap:8px/);
@@ -380,7 +383,7 @@ test('renderGridBlock — 각 라인에 data-r/data-c/data-line 좌표가 심긴
       // ★T-178 — dataset.cells 는 «행 0 포함 전체». 행 0 칸은 꾸밈만(여기선 빈 객체).
       cells: JSON.stringify([[{}, {}], [{ lines: [{ type: 'body', text: 'D' }] }, { lines: [] }]]),
     },
-    style: {},
+    style: {}, children: [],  // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 글자 그대로의 가짜 블럭이라 자식은 늘 없다
   };
   renderGridBlock(block);
   // 행0 셀0 의 2번째 줄(li=1) = "B"
@@ -395,7 +398,8 @@ test('gridLineHtml(named export, innercard 경로) — addr 를 안 주면 data-
   // innercard-block.js 는 gridLineHtml(l, align) 2개 인자로만 부른다 — depth/addr 는 기본값(0/null).
   const html = gridLineHtml({ type: 'h2', text: '제목' }, 'center');
   assert.doesNotMatch(html, /data-r=|data-c=|data-line=/);
-  assert.equal(html, '<div class="grd-line grd-h2" style="font-size:40px;font-weight:700;line-height:1.2;letter-spacing:-0.01em;text-align:center;white-space:pre-wrap;word-break:keep-all;">제목</div>');
+  // 2026-10-03 (나) 결정: 그리드 역할표를 텍스트 체계(700·600·600)로. innercard 경로도 같이 간다(소비자 둘)
+  assert.equal(html, '<div class="grd-line grd-h2" style="font-size:40px;font-weight:600;line-height:1.2;letter-spacing:-0.01em;text-align:center;white-space:pre-wrap;word-break:keep-all;">제목</div>');
 });
 
 /* ═══ ④ makeGridBlock — 생성 경로 ═══ */
@@ -531,17 +535,22 @@ test('updateGridBlock — cells(행0 포함 전체)로 한 번에 그리드 콘�
 /* ★2026-09-05(M40 · 정책 변경): 하한 2 → 1(현빈 지시 「1*4로도 할수 있어야」). 상한 4 는 그대로다.
    ~~[폐기] 「cols 1개/5개는 거부된다(하한 2 유지 — PLAN §3-A "1열 허용 여부" 에 대한 보수적 답)」~~
    ⇒ 「거부되는가」의 표본을 0개·5개로 옮기고, 1개는 «통과해야 한다»를 같은 테스트에서 못 박는다. */
-test('updateGridBlock — cols 0개/5개는 거부되고 1개는 통과한다(하한 1 · 상한 4 — M40)', () => {
+test('updateGridBlock — cols 0개/9개는 거부되고 1개는 통과한다(하한 1 · 상한 8 — M40 · K5 ⒜ 4→8)', () => {
+  /* K5 ⒜(2026-10-05 지디 · lane-f-grid): 상한 4 → 8. 옛 단언(4 · 5개 거부 · 6개→4)은 이 줄로 기록 — 정책이 바뀐 것이지 결함 아님. */
+
   const block = freshBlock({ cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }] });
   assert.equal(updateGridBlock(block.id, { cols: [] }).ok, false);
-  assert.equal(updateGridBlock(block.id, { cols: Array.from({ length: 5 }, () => ({ width: 1 })) }).ok, false);
+  assert.equal(updateGridBlock(block.id, { cols: Array.from({ length: 9 }, () => ({ width: 1 })) }).ok, false);
+  assert.equal(updateGridBlock(block.id, { cols: Array.from({ length: 8 }, () => ({ width: 1 })) }).ok, true, '8열 = 상한 안');
   assert.equal(updateGridBlock(block.id, { cols: [{ width: 1 }] }).ok, true, '1열은 이제 허용된다');
 });
 
-test('updateGridBlock — rows 0개/5개는 거부된다(1~4)', () => {
+test('updateGridBlock — rows 0개/9개는 거부된다(1~8 · K5 ⒜ 4→8)', () => {
+  /* K5 ⒜(2026-10-05 지디 · lane-f-grid): 상한 4 → 8. 옛 단언(4 · 5개 거부 · 6개→4)은 이 줄로 기록 — 정책이 바뀐 것이지 결함 아님. */
+
   const block = freshBlock({ cols: [{ width: 1, lines: [] }, { width: 1, lines: [] }] });
   assert.equal(updateGridBlock(block.id, { rows: [] }).ok, false);
-  assert.equal(updateGridBlock(block.id, { rows: Array.from({ length: 5 }, () => ({ height: 'auto' })) }).ok, false);
+  assert.equal(updateGridBlock(block.id, { rows: Array.from({ length: 9 }, () => ({ height: 'auto' })) }).ok, false);
 });
 
 test('updateGridBlock — 구조 필드(cols/patchCol/cells/patchCell)는 한 번에 하나만 허용된다', () => {

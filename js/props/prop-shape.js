@@ -1,7 +1,9 @@
 import { propPanel } from '../globals.js';
+import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { svgStopRemap } from './gradient-model.js';
 import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
+import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX } from '../shape-star.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
@@ -79,6 +81,7 @@ export function showShapeProperties(block) {
   const ss          = block.closest('.frame-block');
   const w           = _shapeFrameSize(ss || block, 'w');
   const h           = _shapeFrameSize(ss || block, 'h');
+  const starN       = clampStarN(block.dataset.starPoints);
   const iconSvg     = SHAPE_ICONS[shapeType] || SHAPE_ICONS.rectangle;
   const shapeName   = SHAPE_NAMES[shapeType] || shapeType;
   const id          = block.id || '';
@@ -199,6 +202,11 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="shape-h-slider" min="10" max="860" step="1" value="${h}">
         <input type="number" class="prop-number" id="shape-h-num" min="10" max="860" value="${h}">
       </div>
+      ${shapeType === 'star' ? `<div class="prop-row">
+        <span class="prop-label">꼭짓점</span>
+        <input type="range" class="prop-slider" id="shape-star-slider" min="${STAR_MIN}" max="${STAR_MAX}" step="1" value="${starN}">
+        <input type="number" class="prop-number" id="shape-star-num" min="${STAR_MIN}" max="${STAR_MAX}" value="${starN}">
+      </div>` : ''}
       ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
     </div>
 
@@ -209,7 +217,9 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="shape-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.shapeRotation || '0')}">
         <input type="number" class="prop-number" id="shape-rot-num" min="-180" max="180" value="${parseInt(block.dataset.shapeRotation || '0')}">
       </div>
-    </div>`;
+    </div>
+    ${window.fxReflectSectionHtml?.(block, 'shape') || ''}`;   /* ★E1 Effects — Rotation 아래(맨 끝 · 지디 승인) */
+  window.wireFxReflectSection?.(block, 'shape', () => showShapeProperties(block));
 
   if (window.setRpIdBadge) window.setRpIdBadge(id || null);
 
@@ -547,7 +557,7 @@ ${blockHeaderHTML({
       else _enterShapeChecker(block);
       shapeColorInput.dataset.cpFill = 'image';
       const sw = shapeColorInput.closest('.prop-color-swatch');
-      if (sw) sw.style.background = d.src ? `center / cover no-repeat url("${d.src}")` : CHECKER_SWATCH_BG;
+      if (sw) sw.style.background = d.src ? `center / cover no-repeat url("${d.src}")` : _checkerSwatchBg();
       window.scheduleAutoSave?.();
       if (d.commit) window.pushHistory?.();
     });
@@ -557,7 +567,7 @@ ${blockHeaderHTML({
     const sw = document.getElementById('shape-color-color')?.closest('.prop-color-swatch');
     const img = block.querySelector(':scope > .shape-img-fill');
     const src = img ? (img.style.backgroundImage || '') : '';
-    if (sw) sw.style.background = src ? `center / cover no-repeat ${src}` : CHECKER_SWATCH_BG;
+    if (sw) sw.style.background = src ? `center / cover no-repeat ${src}` : _checkerSwatchBg();
   }
 
   // 선택 시 채우기가 그라데이션이면 캔버스 위 그라데이션 라인 표시 (아니면 overlay가 no-op)
@@ -597,6 +607,26 @@ ${blockHeaderHTML({
     hSlider.value = v; hNum.value = v; applySize(null, v);
   });
   hNum.addEventListener('change', () => window.pushHistory?.());
+
+  // ── 별 꼭짓점 수(B2) ── 값이 «다를 때만» polygon 에 쓴다(같은 값을 다시 쓰면 복원 뒤 직렬화가 갈려 ⌘Z 깊이가 깎인다).
+  const starSlider = document.getElementById('shape-star-slider');
+  const starNum    = document.getElementById('shape-star-num');
+  if (starSlider && starNum) {
+    const applyStar = (raw) => {
+      const n = clampStarN(raw);
+      starSlider.value = n; starNum.value = n;
+      const poly = block.querySelector('svg polygon');
+      const pts = starPoints(n);
+      if (poly && poly.getAttribute('points') !== pts) poly.setAttribute('points', pts);
+      if (block.dataset.starPoints !== String(n)) block.dataset.starPoints = String(n);
+      _syncShapeImageClip(block);
+      window.scheduleAutoSave?.();
+    };
+    starSlider.addEventListener('input',  () => applyStar(starSlider.value));
+    starSlider.addEventListener('change', () => window.pushHistory?.());
+    starNum.addEventListener('input',  () => { if (starNum.value !== '') applyStar(starNum.value); });
+    starNum.addEventListener('change', () => { applyStar(starNum.value); window.pushHistory?.(); });
+  }
 
   // ── 회전 ──
   // 사용자 의도: 회전해도 frame 자체 크기는 변하지 않아야 함.
@@ -845,13 +875,13 @@ window._clearShapeGradient = _clearShapeGradient;
  *   (SVG <pattern><image> 는 도형 svg 가 preserveAspectRatio="none" 이라 사진이 늘어나 버려서 쓰지 않는다.)
  * ★svg.style.color(마지막 단색)는 건드리지 않는다 → 외곽선(currentColor)은 그대로, 솔리드 복귀 = 그 색. */
 const SHAPE_FACE_TYPES = { rectangle: true, ellipse: true, polygon: true, star: true };
-const CHECKER_SWATCH_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 10px 10px';
+const _checkerSwatchBg = () => checkerBgBigColors('10px');   // 패널 스와치 — 색은 큰 쌍(CSS 토큰), 칸만 10px
 // SHAPE_DEFS(block-factory.js) 좌표를 %로 옮긴 것 — polygon: viewBox 200×180, star: 200×190.
 const SHAPE_IMG_CLIP = {
   rectangle: '',
   ellipse: 'ellipse(50% 50% at 50% 50%)',
   polygon: 'polygon(50% 4.44%, 97% 95.56%, 3% 95.56%)',
-  star: 'polygon(50% 4.21%, 61% 36.84%, 94% 36.84%, 67.5% 57.89%, 77.5% 90.53%, 50% 69.47%, 22.5% 90.53%, 32.5% 57.89%, 6% 36.84%, 39% 36.84%)',
+  star: starClipPath(5),   // 꼭짓점 수가 다르면 _syncShapeImageClip 이 dataset.starPoints 로 다시 만든다
 };
 
 /* 도형의 «마지막 단색» — svg.style.color(applyColor 가 쓰고, 그라데이션·이미지 모드는 안 건드림)를
@@ -877,11 +907,12 @@ function _ensureShapeCheckerDefs() {
   holder.setAttribute('height', '0');
   holder.setAttribute('aria-hidden', 'true');
   holder.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;';
-  // 8×8 칸 바둑판 — objectBoundingBox 라 도형 크기와 무관하게 칸 수가 같다. 색 = 앱 체커 토큰(#d8d8d8/#f0f0f0).
+  // 8×8 칸 바둑판 — objectBoundingBox 라 도형 크기와 무관하게 칸 수가 같다. 색 = 앱 체커 토큰(--goya-checker-svg-a/b).
+  const { a, b } = checkerSvgFills();   // 색 = CSS --goya-checker-svg-a/b (var 참조 — style fill 이라 살아 있다)
   holder.innerHTML = `<defs><pattern id="goya-shape-checker" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width="0.25" height="0.25">
-    <rect x="0" y="0" width="0.25" height="0.25" fill="#f0f0f0"/>
-    <rect x="0" y="0" width="0.125" height="0.125" fill="#d8d8d8"/>
-    <rect x="0.125" y="0.125" width="0.125" height="0.125" fill="#d8d8d8"/>
+    <rect x="0" y="0" width="0.25" height="0.25" style="fill:${b}"/>
+    <rect x="0" y="0" width="0.125" height="0.125" style="fill:${a}"/>
+    <rect x="0.125" y="0.125" width="0.125" height="0.125" style="fill:${a}"/>
   </pattern></defs>`;
   (document.body || document.documentElement).appendChild(holder);
 }
@@ -889,7 +920,8 @@ function _ensureShapeCheckerDefs() {
 function _syncShapeImageClip(block) {
   const img = block && block.querySelector(':scope > .shape-img-fill');
   if (!img) return;
-  const clip = SHAPE_IMG_CLIP[block.dataset.shapeType || 'rectangle'] || '';
+  const type = block.dataset.shapeType || 'rectangle';
+  const clip = type === 'star' ? starClipPath(block.dataset.starPoints) : (SHAPE_IMG_CLIP[type] || '');
   if (clip) img.style.clipPath = clip; else img.style.removeProperty('clip-path');
 }
 

@@ -3,11 +3,12 @@
 ══════════════════════════════════════ */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { bindSlider, alignBtn, blockHeaderHTML } from './_helpers.js';
-import { applyFrameTransform, frameAlignOffset } from '../frame-geometry.js';
+import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
+import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed } from '../drag-utils.js';
+import { panelRenderedPx } from './_panel-rendered.js';
 
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#ffffff';
@@ -208,12 +209,13 @@ function _renderAutoPanel(ss) {
   const bgGradCss = [ss.dataset.bg, ss.style.backgroundImage].find(v => /gradient\s*\(/i.test(v || '')) || '';
   const hexBg  = bgGradCss ? '#ffffff' : rgbToHex(rawBg);   // 그라데이션이면 wireColorField 가 첫 스탑 색으로 덮는다
   const bgAlpha = bgGradCss ? 100 : parseAlphaFromColor(rawBg);
-  const padY   = parseInt(ss.dataset.padY)   || 0;
+  const padY   = Math.round(panelRenderedPx(ss, 'paddingTop'));   // 묶음 B E115 — 그려진 위 여백(_frameDecorCss 는 dataset.padding+인라인 padding 으로 그린다 · 옛 표시는 dataset.padY 만 → 0)
+  const padX   = parseInt(ss.dataset.padX) || parseInt(ss.style.paddingLeft) || 0;   // F5: 좌우 패딩(데이터 칸이 없던 옛 프레임은 인라인 padding 을 읽는다)
   const width  = parseInt(ss.dataset.width)  || (isShapeFrame ? 100 : 780);
   const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
   const minWidth = isShapeFrame ? Math.min(width, 20) : 200;
   const hasBgImg = ss.style.backgroundImage && ss.style.backgroundImage !== 'none';
-  const borderWidth = parseInt(ss.dataset.borderWidth) || 0;
+  const borderWidth = Math.round(panelRenderedPx(ss, 'borderTopWidth'));   // 묶음 B E114 — 그려진 테두리(쓰기 키는 dataset.borderW · 옛 표시는 dataset.borderWidth 를 읽어 늘 0)
   const borderStyle = ss.dataset.borderStyle || 'solid';
   const rawBorderColor = ss.style.borderColor || ss.dataset.borderColor || '#888888';
   const hexBorderColor = rgbToHex(rawBorderColor);
@@ -337,10 +339,11 @@ function _renderAutoPanel(ss) {
         <input type="number" class="prop-number" id="ss-height-num" min="100" max="1200" value="${height}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">상/하 여백</span>
+        <span class="prop-label">상하 패딩</span>   <!-- 2026-10-03 지디: 섹션·디바이더·비교 패널과 같은 말(「상하 패딩」·「좌우 패딩」) — 옛 「상/하 여백」 -->
         <input type="range" class="prop-slider" id="ss-pady-slider" min="0" max="200" step="4" value="${padY}">
         <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
       </div>
+      ${sliderRowHTML('좌우 패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}
       ${canFullBleed ? `
       <div class="prop-row">
         <span class="prop-label">패딩 제외</span>
@@ -482,12 +485,13 @@ function _renderAutoPanel(ss) {
     // 부모 프레임 크기 기준으로 각 자식의 left/top을 직접 재계산
     if (ss.dataset.freeLayout === 'true') {
       const ssW = ss.clientWidth, ssH = ss.clientHeight;
+      const _pad = framePadding(ss);   // F5: 절대배치 자식엔 CSS padding 이 안 먹는다 → 안쪽 여백을 좌표에 반영
       const kids = [...ss.children].filter(c =>
         !c.classList.contains('frame-resize-handle') &&
         getComputedStyle(c).position === 'absolute');
       kids.forEach(c => {
         // ★«프레임 안 어디»의 정의는 frameAlignOffset 하나다 — 삽입 경로(block-factory)도 같은 걸 쓴다.
-        const off = frameAlignOffset(ssW, ssH, c.offsetWidth, c.offsetHeight, alignItems, justifyContent);
+        const off = frameAlignOffset(ssW, ssH, c.offsetWidth, c.offsetHeight, alignItems, justifyContent, _pad);
         if (off.left !== null) { c.style.left = off.left + 'px'; c.dataset.offsetX = off.left; }
         if (off.top  !== null) { c.style.top  = off.top  + 'px'; c.dataset.offsetY = off.top; }
       });
@@ -499,13 +503,15 @@ function _renderAutoPanel(ss) {
     if (alignItems !== null) {
       ss.style.alignItems = alignItems;
       ss.dataset.alignItems = alignItems;
-      // 자식 row의 align-self / margin이 align-items를 덮어쓰는 문제 수정
-      const alignSelfMap = { 'flex-start': 'flex-start', 'center': 'center', 'flex-end': 'flex-end' };
-      const marginMap    = { 'flex-start': '0',          'center': '0 auto',  'flex-end': '0' };
-      ss.querySelectorAll(':scope > .row').forEach(row => {
-        row.style.alignSelf = alignSelfMap[alignItems] || '';
-        row.style.margin    = marginMap[alignItems]    || '0';
-      });
+      /* ★자식이 «자기 align-self» 를 들고 있으면 부모 align-items 는 «무시된다».
+         그래서 정렬 단추가 «내용»까지 닿으려면 자식 쪽을 같이 맞춰야 한다(F4, 2026-10-03 실측):
+           ① 직계 비-row 자식(text-frame·직계 에셋 — _convertFreeLayoutToStack 이 alignSelf 를 남긴다) → 같은 값
+           ② row[stack] 은 폭 100% 라 row 자신이 움직여도 무변화 → «row 안 직계 자식»(에셋 등 고정폭)을 같은 값
+           ③ row[flex]·레이아웃 미지정(가로로 나란히 놓인 것들) → justify-content 로 묶음 전체를 옮긴다
+             (사용자가 준 space-between/around/evenly 는 «분배»라 정렬 단추가 덮지 않는다)
+           ④ row[grid] 는 칸이 폭을 채우므로 손대지 않는다. 그리드 «칸 안» 글자 정렬은 칸 정렬 몫(이 단추 밖).
+         asset-block 은 dataset.align 도 맞춘다 — 안 맞추면 폭을 바꿀 때 prop-asset 이 옛 정렬로 되돌린다. */
+      [...ss.children].forEach(c => applyFrameHAlignToChild(c, alignItems));   // 규칙 한 벌 = frame-geometry.js ④(새로 넣는 길도 같은 것)
     }
     if (justifyContent !== null) { ss.style.justifyContent = justifyContent; ss.dataset.justifyContent = justifyContent; }
     window.scheduleAutoSave?.();
@@ -526,7 +532,38 @@ function _renderAutoPanel(ss) {
   const vGroup = ['ss-align-top','ss-align-vcenter','ss-align-bottom'];
   const hMap = { 'flex-start':'ss-align-left', 'center':'ss-align-hcenter', 'flex-end':'ss-align-right' };
   const vMap = { 'flex-start':'ss-align-top',  'center':'ss-align-vcenter',  'flex-end':'ss-align-bottom' };
-  _markAlignActive(hMap[curAlignItems]    || 'ss-align-left', hGroup);
+  /* ★U6(E121 · 2026-10-05): 스택(흐름) 프레임의 가로 정렬 켜짐은 «내용이 실제로 놓인 자리»로 판정한다.
+     까닭(실측 772ccadc): 자유배치→스택 변환(_convertFreeLayoutToStack)이 자식마다 align-self:center 를 남기고 프레임 align-items 는
+     비워 둔다 ⇒ 옛 판정(`ss.style.alignItems || dataset || 'flex-start'`)이 «왼쪽»을 켜는데 내용은 가운데(L=258/R=258).
+     스택 정렬의 수단은 자식별(align-self · row margin · row justify-content)이라 프레임 속성 하나로는 못 읽는다 —
+     텍스트 패널 _alignDisplayFor(prop-text.js) 와 같은 꼴: 그려진 위치로 보고, 섞이면 «아무것도 안 켠다».
+     ⛔자유배치 프레임은 이 판정 밖(자식 절대좌표 · 저장된 childAlignX 가 따로 있다). */
+  const _renderedHAlign = () => {
+    if (!ss || ss.dataset.freeLayout === 'true') return undefined;   // undefined = 옛 판정 그대로
+    const fr = ss.getBoundingClientRect();
+    const sc = (ss.offsetWidth && fr.width / ss.offsetWidth) || 1;
+    const pad = framePadding(ss);
+    const inL = fr.left + pad.l * sc, inR = fr.right - pad.r * sc;
+    const items = [];
+    const take = (el) => {
+      if (!el || el.classList.contains('gap-block') || el.classList.contains('frame-resize-handle')) return;
+      if (getComputedStyle(el).position === 'absolute') return;
+      const r = el.getBoundingClientRect();
+      if (!r.width) return;
+      const l = (r.left - inL) / sc, rr = (inR - r.right) / sc;
+      if (l <= 1 && rr <= 1) return;                                   // 폭을 다 채움 — 정렬을 말하지 않는다
+      items.push(Math.abs(l - rr) <= 1 ? 'center' : l <= 1 ? 'flex-start' : rr <= 1 ? 'flex-end' : 'mixed');
+    };
+    [...ss.children].forEach(c => {
+      if (c.classList.contains('row') && (c.dataset.layout === 'stack')) [...c.children].forEach(take);
+      else take(c);
+    });
+    if (!items.length) return undefined;                                 // 말해 주는 내용이 없음 — 옛 판정
+    return items.every(v => v === items[0]) && items[0] !== 'mixed' ? items[0] : null;   // null = 섞임 → 아무것도 안 켠다
+  };
+  const _hNow = _renderedHAlign();
+  if (_hNow === null) hGroup.forEach(i => document.getElementById(i)?.classList.remove('active'));
+  else _markAlignActive(hMap[_hNow !== undefined ? _hNow : curAlignItems] || 'ss-align-left', hGroup);
   _markAlignActive(vMap[curJustifyContent] || 'ss-align-top',  vGroup);
 
   document.getElementById('ss-align-left')?.addEventListener('click',    () => { _setAlign('flex-start', null); _markAlignActive('ss-align-left',    hGroup); window.pushHistory?.(); });
@@ -784,7 +821,12 @@ function _renderAutoPanel(ss) {
     if (ratio !== 1) {
       ss.querySelectorAll(':scope > [style*="position: absolute"], :scope > [style*="position:absolute"]').forEach(block => {
         const curLeft  = parseInt(block.style.left  || 0);
-        const curW = parseInt(block.style.width || block.offsetWidth || 0);
+        /* ★E166(2026-10-05 lane-drag · 0.9.6) — 폭은 «px 이거나 비었을 때만» 비율로 바꾼다.
+           옛 판 parseInt(style.width) 는 '100%' 를 100(px)으로 읽어 ×비율 = 78px — 폭 100% 글자가 쪼그라들어 왼쪽에 붙었다
+           (실앱 base·고친 판 둘 다 516→400 에서 100% → 78px · 가운데 −64.4). %·calc·fit-content 는 이미 부모를 따라간다.
+           꼴 전수: reports/lane-drag/E166-CENSUS.md(자유 프레임 직속 absolute 1038 중 % 95 · calc 10 · fit-content 3). */
+        const _sw = block.style.width || '';
+        const curW = (_sw === '' || /^-?[\d.]+px$/.test(_sw.trim())) ? (parseInt(_sw) || block.offsetWidth || 0) : 0;
         block.style.left = Math.round(curLeft * ratio) + 'px';
         if (curW) block.style.width = Math.round(curW * ratio) + 'px';
         if (isShapeFrame) {
@@ -856,6 +898,10 @@ function _renderAutoPanel(ss) {
   const padYNum    = document.getElementById('ss-pady-num');
   const applyPadY  = (v) => { ss.dataset.padY = v; ss.style.paddingTop = v + 'px'; ss.style.paddingBottom = v + 'px'; };
   bindSlider(padYSlider, padYNum, applyPadY, { min: 0, max: 200 });
+  /* 좌우 패딩(F5) — 섹션 «좌우 패딩» 줄과 같은 마크업(sliderRowHTML)·같은 띠 힌트(_showPadXHint)를 쓴다.
+     자유 프레임은 자식이 절대배치라 CSS padding 이 안 먹는다 — 정렬·삽입·끌기 죔이 framePadding 으로 이 값을 읽는다. */
+  const applyPadX = (v) => { ss.dataset.padX = v; ss.style.paddingLeft = v + 'px'; ss.style.paddingRight = v + 'px'; window._showPadXHint?.(ss, v); };
+  bindSlider(document.getElementById('ss-padx-slider'), document.getElementById('ss-padx-num'), applyPadX, { min: 0, max: 100 });
 
   // 컴포넌트 저장
   const ssTplFolderSel = document.getElementById('ss-tpl-folder');

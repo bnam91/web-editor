@@ -368,6 +368,8 @@
 }
 .prop-style-btn:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); }
 .prop-style-btn.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
+/* U7(E121 · 2026-10-05) 라벨 Tag Style 켜짐 — 형제 단추(.prop-style-btn/.prop-align-btn)와 같은 토큰 */
+.prop-btn-full.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
 
 /* prop-type-btn 세그먼트 pill (정렬 탭 용도) */
 .prop-type-btn:first-child { border-radius: 4px 0 0 4px; }

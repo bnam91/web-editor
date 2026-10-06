@@ -1,7 +1,7 @@
 import { canvasEl, state } from '../globals.js';
 import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture, warnIfCaptureTextVanished } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture, warnIfCaptureTextVanished, withGuideOff } from './capture-safety.js';
 
 const CANVAS_W = 860;
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
@@ -233,6 +233,9 @@ async function _waitImagesReady(root, timeoutMs = 8000) {
      넣지 마라 — 넣는 순간 그 변환의 버그를 이 검사가 영원히 못 잡는다.
    ══════════════════════════════════════════════════════════════════════════ */
 export async function prepareCloneForCapture(sec, w, useNative) {
+  /* ★E157 공용 대기(whenGridRatiosSettled · grid-block.js) — 칸 배경 비율이 서고 그 그리드가 다시 그려진 «뒤»에 찍는다(틀린 행 높이가 산출물로 굳지 않게).
+     반환 none(기다릴 것 없음) / settled / cap(상한 — 함수가 수·주소를 찍음). ⛔그 결과로 막지 않는다 — 찍기는 그대로 간다. */
+  await window.whenGridRatiosSettled?.();
   const clone = sec.cloneNode(true);
   /* ★편집 전용 DOM·상태 걷기는 «한 벌»이다 — js/io/capture-safety.js stripEditorOnlyForCapture.
      썸네일 경로(js/io/save-load.js captureThumbnail)와 같은 명부를 쓴다. 두 벌로 두었더니
@@ -512,16 +515,8 @@ export function sectionBgColor(sec) {
    ⛔가장 안쪽인 이 함수에 둔다. 전체 내보내기(exportAllSections)도 여길 지나므로
      경로가 늘어도 새지 않는다 — 바깥에 두면 새 경로가 생길 때마다 빠뜨린다. */
 async function exportSection(sec, format, width, opts) {
-  const _gOn = document.body.classList.contains('gdt-grid-on');
-  if (_gOn) document.body.classList.remove('gdt-grid-on');
-  const _pOn = document.body.classList.contains('gdt-pad-on');
-  if (_pOn) document.body.classList.remove('gdt-pad-on');
-  try {
-    return await _exportSectionNoGuide(sec, format, width, opts);
-  } finally {
-    if (_gOn) document.body.classList.add('gdt-grid-on');
-    if (_pOn) document.body.classList.add('gdt-pad-on');
-  }
+  /* ★가드 몸은 «한 벌» — capture-safety.js withGuideOff(썸네일도 같은 함수를 부른다, L1). */
+  return withGuideOff(() => _exportSectionNoGuide(sec, format, width, opts));
 }
 
 async function _exportSectionNoGuide(sec, format, width, opts) {

@@ -5,6 +5,7 @@ import { blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
 /* 색 코드 칸의 배선은 «한 자리»에서 온다 — 이 파일 안에만 손복사본이 여섯 벌 있었다
    (input/blur 가 아예 없어 무효값이 영원히 남던 사본 포함). 2026-09-20 유닛 colorhex. */
 import { wireHexText, parseHex6, formatHex6, parseHex6OrTransparent, formatHex6OrTransparent, isCssBackgroundValue } from './color-picker.js';
+import { panelRenderedColor } from './_panel-rendered.js';
 
 // ② 카드 텍스트 입력칸 펼침 상태 — 블록별 «펼친 카드 인덱스» 집합.
 //   ★캔버스에서 더블클릭으로 바로 고칠 수 있게 됐으니(canvas-block.js _bindCvbDblEdit) 우측
@@ -93,8 +94,11 @@ function showSimpleCardProperties(block, expandCardArg) {
   const isTextBgTransparent = block.dataset.textBg === 'transparent';
   const textBgLast = block.dataset.textBgLast || '#f5f5f5';
   const textBg    = isTextBgTransparent ? textBgLast : (block.dataset.textBg || '#f5f5f5');
-  const titleColor = block.dataset.titleColor || '#ffffff';
-  const descColor  = block.dataset.descColor  || '#ffffff';
+  /* 묶음 B E118 — 비면 «그려진» 글자색(렌더 canvas-block.js 는 띠 밝기로 #1a1a1a/#555 · #fff/#e0e0e0 를 고른다). 옛 `|| #ffffff` 는 흰 띠 위 검은 글자를 흰색으로 보였다.
+     ⚠️첫 카드가 자기 색(titleColorTop 등)을 가지면 그 색이 보인다 — 블럭 색이 화면에 그대로 드러나는 첫 글자에서 읽는 것이 정확하지만 표시만이라 여기서 멈춘다. */
+  const _rgbHex = (c) => { const m = /^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i.exec(c || ''); return m ? '#' + [m[1], m[2], m[3]].map(x => (+x).toString(16).padStart(2, '0')).join('') : ''; };   // 이 패널의 색 칸은 #rrggbb 만 받는다(color input)
+  const titleColor = block.dataset.titleColor || _rgbHex(panelRenderedColor(block.querySelector('.cvb-card-title'), 'color')) || '#ffffff';
+  const descColor  = block.dataset.descColor  || _rgbHex(panelRenderedColor(block.querySelector('.cvb-card-desc'), 'color'))  || '#ffffff';
   const titleSize = parseInt(block.dataset.titleSize) || 20;
   const descSize  = parseInt(block.dataset.descSize)  || 14;
   const textAlign = block.dataset.textAlign || 'left';
@@ -1341,7 +1345,7 @@ ${blockHeaderHTML({
           setCards(arr);
           showSimpleCardProperties(block);
         }
-      });
+      }, { hideSize: true });   // ★E134 — 카드 아이콘 크기는 블럭 «아이콘 크기»(%)가 정한다 · 창의 px 칸은 안 쓰이므로 안 보인다
       return;
     }
     if (iconClear) {

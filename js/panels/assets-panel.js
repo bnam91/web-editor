@@ -759,6 +759,9 @@ function _renderTreeNode(node, depth, parentEl) {
 }
 
 function _assetsBeginInlineRename(nameEl, id) {
+  // ★#8(10-06 ⑴) — 편집 중 다시 들어오지 않는다: 단어를 고르려는 더블클릭이 아래 textContent = cur 로 친 글자를 지우던 것(잼 0/5 남음).
+  //   RG-N5(file-page-section) · RG-N5c(탭 이름)와 같은 들어오는 문 가드. 떼는 자리(finish)는 원래 옳다.
+  if (nameEl.isContentEditable) return;
   const f = assetsFindNode(id);
   if (!f) return;
   // 보호 폴더(favorite/texture/locked)는 이름변경 차단(삭제/이동과 일치). 더블클릭·✎ 양 경로 방어.

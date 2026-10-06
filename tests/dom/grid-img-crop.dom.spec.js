@@ -147,14 +147,20 @@ const diffPng = (page, a, b) => page.evaluate(async ([x, y]) => {
 
 const PLAIN = { type: 'image', imgSrc: IMG, height: 200 };
 const CROPPED = { type: 'image', imgSrc: IMG, height: 200, imgSizePct: 180, imgPosX: -40, imgPosY: -25 };
+/* ★⑵(10-06 · E157 ⒜) — «크롭 중립» 줄: 같은 틀 높이 200 · 그림 100% · 자리 0. E157 뒤 크롭 없는 줄(PLAIN)은 비율로 그려(796×498) CROPPED(796×200)와 틀이 달라졌다.
+   D0 만 이 줄과 견준다(다른 시험의 PLAIN 은 그대로). */
+const NEUTRAL = { type: 'image', imgSrc: IMG, height: 200, imgSizePct: 100, imgPosX: 0, imgPosY: 0 };
 
 /* ══════════════════════════════════════════════════════════════════════
  * D0 — 계측기. ⛔이게 빨갛다면 아래 「같다」는 전부 빈 것끼리 견주기다.
  * ════════════════════════════════════════════════════════════════════ */
 
 test('D0 ★계측기 — 크롭이 «실제로 다른 그림»을 만든다', async ({ page }) => {
+  /* ★⑵ 장면 바꿈(10-06 · E157 ⒜) — 옛 장면이 잠근 것(한 줄): «크롭은 같은 틀 안의 그림만 바꾼다(틀 크기 그대로 · 그림은 다름)».
+     옛 장면(PLAIN = 크롭 없는 h200)은 E157 뒤 비율 틀(796×498)이라 CROPPED(796×200)와 틀부터 달라 «크기» 단언이 못 선다(실측 7b017a98 [796, 498, 796, 200]).
+     새 장면 = NEUTRAL(크롭 중립 · 같은 틀 200) vs CROPPED — 같은 것을 잠근다: 크기 같음 · 그림 다름(max > 64). */
   const errs = await boot(page);
-  await plant(page, PLAIN); await settle(page);
+  await plant(page, NEUTRAL); await settle(page);
   const a = await shotFrame(page);
   await plant(page, CROPPED); await settle(page);
   const b = await shotFrame(page);
@@ -239,21 +245,35 @@ test('E2 ★끌면 움직이고, 끝나면 «％»로 커밋된다 (px→％ 통
   expect(d.max, `★끌었는데 «그림»은 그대로다 (다른 점 ${d.n}/${d.total})`).toBeGreaterThan(64);
 });
 
-test('E3 ★높이가 auto 인 줄 — 편집을 열면 «프레임 높이»를 먼저 못박고 그걸 말한다', async ({ page }) => {
+test('E3 ★높이가 auto 인 줄 — 편집이 «열리고», 끌어 커밋할 때 «프레임 높이»를 보이던 높이로 못박고 그걸 말한다', async ({ page }) => {
+  /* ★계약을 «열 때»에서 «커밋 때»로 옮겼다(2026-10-06 · APPROVED_BY: 지디 E2E3-crop-a ⒜).
+     옛 계약: 「편집을 열면 프레임 높이를 먼저 못박고(height 혼자 patch) 그걸 말한다」.
+     E157 뒤 크롭 없는 그림 줄은 height 를 안 읽어 그 patch 가 T-122 가드에 INVALID → 편집기가 «말없이 안 열렸다»(실측 a8f60da1).
+     ⇒ 열 때는 문서를 안 건드리고, 커밋 때 {크롭 세 값 + height:H(커밋 직전에 잰 보이는 틀 높이)} 를 한 patch 로 쓴다. */
   const errs = await boot(page);
   await plant(page, { type: 'image', imgSrc: IMG });     // height 없음
   await settle(page);
-  const h0 = await page.evaluate(() => document.querySelector('#host .grd-img-frame').getBoundingClientRect().height);
+  const h0 = await page.evaluate(() => document.querySelector('#host .grd-img-frame').offsetHeight);
   await page.evaluate(() => window.enterGridImageEditMode(document.getElementById(window.__ID), { r: 0, c: 0, li: 0 }));
-  await page.waitForFunction(() => document.querySelectorAll('.img-corner-handle').length > 0);
+  await page.waitForFunction(() => document.querySelectorAll('.img-corner-handle').length > 0, null, { timeout: 5000 });
+  const atOpen = await page.evaluate(() => window.__model(document.getElementById(window.__ID)).cells[0][0].lines[0].height);
+  expect(atOpen, '★열기만 했는데 모델에 height 가 써졌다 — 여는 길은 문서를 안 건드린다').toBeUndefined();
+  const box = await page.locator('.grd-img-edit-proxy img.asset-img').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 30, box.y + box.height / 2 - 12, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.querySelectorAll('.grd-img-edit-proxy').length === 0, null, { timeout: 5000 });
+  await settle(page);
   const out = await page.evaluate(() => ({
     height: window.__model(document.getElementById(window.__ID)).cells[0][0].lines[0].height,
     toast: window.__toast.slice(),
   }));
   expect(errs).toEqual([]);
-  expect(Number(out.height), '★프레임 높이를 안 못박았다 — 크롭 세 값이 렌더러에 «안 읽히고» 끝난다')
+  expect(Number(out.height), '★커밋했는데 프레임 높이를 안 못박았다 — 크롭 세 값이 렌더러에 «안 읽히고» 끝난다')
     .toBeGreaterThan(0);
-  expect(Math.abs(Number(out.height) - h0), '★못박은 높이가 지금 보이던 높이와 다르다 — 여는 순간 그림이 튄다')
+  expect(Math.abs(Number(out.height) - h0), '★못박은 높이가 보이던 높이와 다르다 — 커밋하는 순간 그림이 튄다')
     .toBeLessThanOrEqual(1);
   expect(out.toast.join(' '), '★말없이 모델을 바꿨다 — 「프레임 높이를 고정했다」를 사용자에게 알려야 한다')
     .toContain('프레임 높이');
@@ -683,12 +703,15 @@ test('P2 ★편집기의 「원래대로」가 크롭을 «지운다» — 모�
   expect(errs).toEqual([]);
   expect(after.keys, `★「원래대로」를 눌렀는데 모델에 크롭이 남았다: ${after.keys.join(', ')} — ` +
     '나가는 길의 beforeCommit 이 세 값을 «다시 썼을» 수 있다(깃발을 안 읽었나)').toEqual([]);
-  expect(after.inline, '★cover 로 안 돌아갔다 — 모델은 지워졌는데 화면이 안 따라왔다').toContain('object-fit:cover');
+  /* ★⑵(10-06 · E157 ⒜) — 「원래대로」 = 크롭 없는 줄 ⇒ E157 규칙이 «네이티브 비율(height:auto)»을 요구한다(옛: cover — 틀 높이 고정 + 잘림).
+     지운 단언 1(이름: toContain('object-fit:cover')). 잠그는 것은 그대로: «크롭을 지우면 화면이 크롭 없는 꼴로 돌아온다». */
+  expect(after.inline, '★크롭 없는 꼴(E157: 비율 · height:auto)로 안 돌아갔다 — 모델은 지워졌는데 화면이 안 따라왔다').toBe('display:block;width:100%;height:auto;');
   expect(after.frame, '★크롭이 없는데 프레임이 계속 «자르는 그릇»이다').not.toContain('overflow:hidden');
   expect(after.proxies, '★편집기 임시 DOM 이 남았다').toBe(0);
   // ★«화면»이 정말 달라졌나 — 모델만 보면 「지웠다」가 그림과 무관할 수 있다.
   const d = await diffPng(page, before, await shotFrame(page));
-  expect(d.max, '★초기화했는데 «그림»은 크롭 그대로다').toBeGreaterThan(64);
+  /* ★⑵(10-06 · E157 ⒜) — 크롭 없는 꼴은 비율 틀이라 크기부터 달라질 수 있다(diffPng 가 size 를 준다) — 크기가 다르면 그것도 «달라졌다». */
+  expect(d.size !== undefined || d.max > 64, `★초기화했는데 «그림»은 크롭 그대로다 ${JSON.stringify(d)}`).toBe(true);
 });
 
 test('P1-b ★양성대조 — 「맞추기」를 잃어도 «기능»은 산다: 더블클릭이 여전히 같은 편집기를 연다', async ({ page }) => {

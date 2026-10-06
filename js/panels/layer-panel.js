@@ -2,7 +2,7 @@
    LAYER PANEL
    makeLayer* 렌더러는 layer-panel-items.js로 분리 (2025-03-31)
 ═══════════════════════════════════ */
-import { makeIndents, layerIcons, addLayerRename, makeLayerBlockItem, makeLayerGroupItem,
+import { makeIndents, layerIcons, addLayerRename, makeLayerBlockItem, makeLayerGroupItem, makeLayerGridItem,
          makeLayerFrameItem, makeLayerAssetItem } from './layer-panel-items.js';
 
 // LP-COLLAPSE-DEFAULT (2026-05): 신규 row-group은 collapsed로 시작.
@@ -231,6 +231,9 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
           container.appendChild(ssItem);
         } else if (block.classList.contains('asset-block')) {
           container.appendChild(makeLayerAssetItem(block, child, sec));
+        } else if (block.classList.contains('grid-block') || block.classList.contains('icon-circle-block')) {
+          // G19 — 그리드 «밑» 자식이 있으면 펼친다(0개면 makeLayerBlockItem 과 같은 말단 줄) · G14 서클 «원 안» 자식도 같은 꼴
+          container.appendChild(makeLayerGridItem(block, child, sec, depth, appendRowToLayer));
         } else {
           container.appendChild(makeLayerBlockItem(block, child, sec, depth));
         }
@@ -275,7 +278,9 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
               || child.classList.contains('shape-block')
               || child.classList.contains('qa-block')) {
         // section-inner 직접 자식 블록 (frame-block으로 감싸지지 않은 케이스) — 안전망
-        children.appendChild(makeLayerBlockItem(child, child, sec, 1));
+        children.appendChild((child.classList.contains('grid-block') || child.classList.contains('icon-circle-block'))
+          ? makeLayerGridItem(child, child, sec, 1, appendRowToLayer)
+          : makeLayerBlockItem(child, child, sec, 1));
       }
     }
     [...(sectionInner ? sectionInner.children : [])].forEach(walkInnerChild);
@@ -302,6 +307,8 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
           children.appendChild(makeLayerGroupItem(fc, sec, appendRowToLayer));
         } else if (fc.classList.contains('asset-block')) {
           children.appendChild(makeLayerAssetItem(fc, fc, sec));
+        } else if (fc.classList.contains('grid-block') || fc.classList.contains('icon-circle-block')) {
+          children.appendChild(makeLayerGridItem(fc, fc, sec, 1, appendRowToLayer));   // G19 — 떠 있는 그리드도 자식을 펼친다 · G14 떠 있는 서클(B1)도
         } else {
           children.appendChild(makeLayerBlockItem(fc, fc, sec, 1));
         }
@@ -351,7 +358,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
         return found;
       };
       const insertIntoSec = (domEl) => {
-        if (!indicator) { sectionInner.appendChild(domEl); return; }
+        if (!indicator) { sectionInner.appendChild(domEl); window.syncAutoGridWidth?.(domEl); return; }   // ⛔이 return 이 아래 sync 를 건너뛰었다(D2)
         const nextEl = indicator.nextElementSibling;
         const nextTarget = nextEl?._dragTarget || null;
         /* ★기준 노드의 «실제 부모»에 넣는다.
@@ -369,6 +376,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
             bottomGap.parentElement.insertBefore(domEl, bottomGap);
           } else sectionInner.appendChild(domEl);
         }
+        window.syncAutoGridWidth?.(domEl);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
       };
 
       // Cross-boundary: overlay-tb → section
@@ -433,6 +441,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
         sorted.forEach(target => {
           if (refNode && sectionInner.contains(refNode)) sectionInner.insertBefore(target, refNode);
           else sectionInner.appendChild(target);
+          window.syncAutoGridWidth?.(target);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
         });
         clearLayerIndicators();
         buildLayerPanel();

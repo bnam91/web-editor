@@ -89,6 +89,7 @@ function _syncPanelXY(posEl) {
   const pick = suf => document.getElementById('txt-' + suf)
                    || document.getElementById('shape-' + suf)
                    || document.getElementById('asset-' + suf)
+                   || document.getElementById('icn-' + suf)
                    || document.getElementById('lg-' + suf);
   const xN = pick('x-number'), yN = pick('y-number');
   if (xN && xN !== document.activeElement) xN.value = posEl.dataset.offsetX;
@@ -351,8 +352,16 @@ export function enterFloat(posEl) {
   const zoom = _zoom();
   const secRect = sec.getBoundingClientRect();
   const elRect  = posEl.getBoundingClientRect();
-  const x = Math.round((elRect.left - secRect.left) / zoom);
-  const y = Math.round((elRect.top  - secRect.top)  / zoom);
+  let x = (elRect.left - secRect.left) / zoom;
+  let y = (elRect.top  - secRect.top)  / zoom;
+  /* ★posEl «자신»이 회전(transform)을 쥔 타입(아이콘 B1)은 rect 가 회전된 «외접 사각형»이라 left/top(회전 전 상자 기준)보다
+     (외접−원래)/2 만큼 바깥이다 — 그대로 굳히면 띄우는 순간 그만큼 점프한다(45° 80px 아이콘 실측 34px). 회전은 중심축이라 반만큼 되돌린다.
+     래퍼가 회전하지 않는 텍스트·도형은 transform 이 'none' 이라 이 두 줄이 0 을 더한다(동작 불변). */
+  if (typeof getComputedStyle === 'function' && getComputedStyle(posEl).transform !== 'none') {
+    x += (elRect.width  / zoom - posEl.offsetWidth)  / 2;
+    y += (elRect.height / zoom - posEl.offsetHeight) / 2;
+  }
+  x = Math.round(x); y = Math.round(y);
   /* ⛔마진은 «좌표를 «재고 난 뒤»» 걷어낸다 — 지금 눈에 보이는 자리(=마진이 이미 반영된 rect)가
      우리가 유지해야 할 자리다. 먼저 걷어내고 재면 마진만큼 어긋난 자리를 «정답»으로 굳힌다. */
   _freezeMargins(posEl);
@@ -435,6 +444,14 @@ export function exitFloat(posEl) {
      넣는다(=fallback, 사라진 부모 케이스와 같은 경로). */
   const returnParentSameSection = parent && parent.isConnected && parent.closest('.section-block') === currentSec;
   const target = returnParentSameSection ? parent : fallback;
+  /* ★E130(2026-10-05) — 띄운 채 «다른 섹션»으로 옮겼다 끄면 원래 섹션에 «빈 행»이 남았다(아이콘 블럭·서클 실측: 원래 행 자식 0).
+   *   posElOf 가 블럭 «자신»인 것(아이콘·서클·에셋)은 띄울 때 행이 부모로 남는다 — 같은 섹션이면 그 행으로 돌아가니 문제없지만,
+   *   다른 섹션 갈래는 지금 섹션에 넣고 옛 행을 안 치웠다. ⇒ 그 갈래에서만, 옛 부모가 .row 이고 «요소 자식이 하나도 없으면» 지운다.
+   *   ⛔다른 블럭이 같이 든 행·행이 아닌 부모(프레임·섹션 본문)는 안 건드린다. */
+  if (!returnParentSameSection && parent && parent.isConnected && parent.classList?.contains('row')
+      && ![...parent.children].some(k => !k.classList.contains('drop-indicator'))) {
+    parent.remove();
+  }
 
   /* ⛔«자리를 옮기기 전»에 잰다 — 흐름으로 되돌린 뒤엔 절대배치가 풀려 rect 가 이미 새 자리다. */
   const _r = posEl.getBoundingClientRect?.();
@@ -499,6 +516,13 @@ export function exitFloat(posEl) {
        (702 → 600 으로 조용히 줄어 D7 이 빨강). 두 결정이 부딪히는 자리라 «현빈 판단»으로
        남긴다 — 0920b QA 보고서에 수치와 함께 올린다. */
   }
+  window.syncAutoGridWidth?.(posEl);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
+  /* ★G2-b — 「떠 있는 동안 바꾼 폭이 해제 뒤에도 남는다」(지디 2026-10-04 추가 조건).
+     떠 있는 동안 패널·손잡이는 굳힌 폭과 «키»에 같이 쓴다(grid-block.js applyGridOwnWidth). 키는 떠 있는 동안 렌더에서 잠잔다.
+     그런데 위 _unfreezeWidth 는 굳힌 폭이 «우리가 넣은 그대로»면 진입 전 값('100%')으로 되돌리고 끝난다 — 그리드는 여기서
+     다시 그려지지 않아 키가 안 깨어나고, 화면은 100% · 키는 px 인 «두 명부»가 된다(다음 렌더 때 갑자기 폭이 튄다).
+     ⇒ 키가 있는 그리드만 한 번 다시 그린다. 키가 없으면(한 번도 폭을 안 정했다) 아무것도 안 한다 = 옛 동작 그대로. */
+  if (posEl.classList?.contains('grid-block') && window.getGridWidth?.(posEl) != null) window.renderGridBlock?.(posEl);
   return true;
 }
 

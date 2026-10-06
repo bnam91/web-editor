@@ -98,8 +98,11 @@ export function showChatProperties(block) {
         </div>
         ${profileFieldsHtml}
         ${starsRowHtml}
-        <textarea class="prop-color-hex chb-text-input" data-idx="${i}" rows="2"
-          style="width:100%;box-sizing:border-box;min-height:42px;resize:vertical;font-family:inherit;line-height:1.4;padding:6px 8px;margin-top:6px">${(m.text || '').replace(/</g, '&lt;')}</textarea>
+        ${(Array.isArray(m.lines) && m.lines.length)
+          /* ★BT2 D4 — 줄이 있는 메시지의 text 는 «줄 글자 거울»이다. 여기 글자칸을 두면 «쳐도 화면이 안 바뀐다». */
+          ? `<div class="prop-hint chb-lines-hint" data-idx="${i}" style="text-align:left;margin-top:6px;">줄 ${m.lines.length}개 — 캔버스에서 이 메시지를 한 번 더 누르면 줄 편집</div>`
+          : `<textarea class="prop-color-hex chb-text-input" data-idx="${i}" rows="2"
+          style="width:100%;box-sizing:border-box;min-height:42px;resize:vertical;font-family:inherit;line-height:1.4;padding:6px 8px;margin-top:6px">${(m.text || '').replace(/</g, '&lt;')}</textarea>`}
       </div>`;
     }).join('');
   }
@@ -420,6 +423,7 @@ ${blockHeaderHTML({
       btn.addEventListener('click', e => {
         const i = parseInt(btn.dataset.idx);
         window.pushHistory?.();
+        window.grdSetActiveLine?.(block, null);   // ★BT2 — 메시지 번호가 밀린다. 고른 줄 주소를 놓는다(낡은 주소 = 엉뚱한 메시지)
         messages.splice(i, 1);
         block.dataset.messages = JSON.stringify(messages);
         rerender();
@@ -512,6 +516,9 @@ ${blockHeaderHTML({
     rerender();
     rebindMsgList();
   });
+
+  // ★BT2 — 고른 메시지/줄의 줄바·줄 꾸미기·Typography (버블과 «같은» 함수, js/blocks/line-host.js)
+  window.lnAugmentChatPanel?.(block);
 }
 
 window.showChatProperties = showChatProperties;

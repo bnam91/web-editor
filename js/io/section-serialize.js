@@ -214,7 +214,7 @@
     });
     // ghost 섹션은 저장에서 제외
     root.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
-    root.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy').forEach(el => el.remove());
+    root.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy, .grd-add-btn').forEach(el => el.remove());
     /* ★UI 상태 클래스 전면 제거 — «성질»로 센다. 손 열거가 아니다.
        selected 잔존이 독립렌더/export 에 파란 아웃라인을 유출하고, 줄 선택 마커
        (bn2/grd/앞으로 생길 것)는 템플릿에 박혀 «유령 선택바»가 된다.
@@ -255,6 +255,17 @@
       inner.style.removeProperty('--gdt-pad-l');
       inner.style.removeProperty('--gdt-pad-r');
     });
+    root.querySelectorAll('.frame-block').forEach(fb => {   // 프레임 좌우 패딩(F5)도 같은 띠 — 위 줄(정규식 검사가 지킨다)은 그대로 둔다
+      fb.style.removeProperty('--gdt-pad-l');
+      fb.style.removeProperty('--gdt-pad-r');
+    });
+    /* ★파생 변수(관찰자가 «바탕»에서 다시 계산하는 자동 색) — 저장에 굳히지 않는다(열면 관찰자가 다시 쓴다).
+       E144(표 G6 --tbl-header-fg · 지금까지 저장에 실렸다 — 실측 2026-10-05) + H6(그래프 --grb-auto-*). 한 목록 · 한 고리.
+       ⛔라이브 DOM 이 아니라 «클론»에만 쓴다 — 이 함수의 계약이 그렇다. */
+    /* 목록은 «쓰는 자»(canvas-contrast.js DERIVED_AUTO_VARS)가 낸 것을 그대로 쓴다 — 여기 따로 적지 않는다(두 번째 목록이면 새 변수를 빠뜨린다).
+       블럭 종류도 묻지 않는다 — 인라인에 그 이름이 있으면 어느 요소든 걷는다. */
+    const _derived = window.__gdTextTone?.DERIVED_AUTO_VARS || [];
+    if (_derived.length) root.querySelectorAll('[style*="--"]').forEach(el => _derived.forEach(v => el.style.removeProperty(v)));
     // 섹션 임시 스타일 제거 — 미리보기/썸네일용 scale transform 이 저장에 포함되지 않도록
     root.querySelectorAll('.section-block').forEach(sec => {
       sec.style.transform       = '';

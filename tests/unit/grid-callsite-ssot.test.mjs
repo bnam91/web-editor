@@ -143,7 +143,9 @@ test('★UI 파일 입구 3곳은 «바이트 게이트 + trusted»를 «같이�
    * ★센 자 — 아래 두 정규식이다(「전수」라고 «주장»하지 않는다. 이 세 파일 안에서 이 꼴만 센다).
    *   ⑴ 파일 입구 = 사람이 «파일창»으로 고른 바이트가 지나는 자리:
    *        우클릭 「이미지 교체」(block-factory.js) · 패널 [이미지 선택…](prop-grid.js) ·
-   *        빈 슬롯 더블클릭(block-drag.js)  ⇒ 셋.
+   *        빈 슬롯 더블클릭(block-drag.js) · ★G12 「블럭 배경」 [이미지 선택](prop-grid.js, 2026-10-04) · ★G4 「칸 배경 이미지」 [이미지 선택](prop-grid.js, 2026-10-04)  ⇒ 다섯.
+   *   ★3 → 4 (2026-10-04 G12) — 새 «파일창 입구»가 하나 생겼다. 그 입구도 게이트+trusted 를 «같이» 건다
+   *     (이 검사가 처음 판에서 trusted 만 건 그 입구를 «잡았다» — trusted 4 · 게이트 3).
    *   ⑵ ★거짓양성 하나를 «뺀다» — `export function grdImageFileOk(file)` 정의부. 부르는 자리가
    *      아니라 «만든 자리»다. 이걸 세면 게이트가 하나 더 있는 것처럼 보인다.
    *
@@ -156,7 +158,7 @@ test('★UI 파일 입구 3곳은 «바이트 게이트 + trusted»를 «같이�
    *   ⛔그러니 여기 3 은 「입구 하나가 죽었다」가 아니라 「입구가 아닌 것이 빠졌다」다.
    *     그 자리의 계약은 tests/dom/grid-rclick-line-target.dom.spec.js ②③④(파일창 횟수)가 잰다. */
   const files = ['js/block-factory.js', 'js/props/prop-grid.js', 'js/block-drag.js'];
-  const UI_FILE_ENTRANCES = 3;
+  const UI_FILE_ENTRANCES = 5;   // 4 → 5: G4 칸 배경 이미지 입구(게이트 + 폴백 trusted)
   let gates = 0, trusted = 0;
   for (const rel of files) {
     const src = stripComments(read(rel));

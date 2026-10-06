@@ -72,6 +72,12 @@ const CELL_WITNESS = {
   radius:      { css: ['css.borderTopLeftRadius'],            ko: '칸 모서리' },
   align:       { css: ['css.lineTextAlign'],                  ko: '칸 가로정렬' },
   valign:      { css: ['css.justifyContent'],                 ko: '칸 세로정렬' },
+  /* ★G4 칸 배경 이미지(2026-10-04) — 증인 «없음»(null)으로 명부에 올린다(lines 와 같은 대우: E4 루프가 건너뛴다).
+     까닭: 손잡이가 «파일 고르기»라 이 파일의 범용 구동기(값을 넣고 change)가 못 누른다 · Fit·위치 단추는 이미지가 있을 때만 뜬다.
+     ⇒ 그 손잡이 셋은 tests/dom/grid-cell-bg-image.dom.spec.js C3 가 «진짜 마우스·setInputFiles» 로 잰다(자산 길 URL · Fit · 위치). */
+  bgImg: null,
+  bgFit: null,
+  bgPos: null,
   /* ~~[2026-09-23 예정 · 안 그렇게 됐다] 「테두리를 «칸 필드» borderWidth/borderColor 로 낸다」~~
      ★T-172 는 2026-09-24 에 «블록 축»으로 났다 — dataset.cellBorderWidth/Color/Style 셋이고,
        GRID_CELL_FIELDS 에는 «안» 들어간다(그래서 E4 의 루프는 이 칸을 영영 안 돈다).
@@ -229,6 +235,9 @@ const PROBE = async (page, addr) => page.evaluate(async ({ addr, fields }) => {
     }
     out['ds.valign'] = B.dataset.valign || '';
     out['ds.colsN'] = String((() => { try { return JSON.parse(B.dataset.cols || '[]').length; } catch (_) { return -1; } })());
+    /* ★E0-f(10-06 · APPROVED_BY 지디 E0-f-cellpady) — 그리드 «한 값» 위아래 여백(cellPadY)은 칸 패딩과 «다른 손잡이»다.
+         그 손잡이도 칸의 css.paddingTop 을 움직이므로(칸 위 여백 = pad + cellPadY) 제 축을 따로 세운다. */
+    out['ds.cellPadY'] = B.dataset.cellPadY || '';
     /* ★음성대조 열 — 어떤 조작에도 절대 안 변한다. 여기가 변했다고 나오면 비교기가 고장난 것이다. */
     out['__never'] = 'CONSTANT';
     return out;
@@ -296,6 +305,8 @@ const PROBE = async (page, addr) => page.evaluate(async ({ addr, fields }) => {
       label: (el.textContent || '').trim().slice(0, 28),
       disabled: !!el.disabled,
       act, changed,
+      /* ★E0-f ⑵(10-06) — 빨개졌을 때 «무엇이 무엇으로» 움직였나를 보이게(이름만으론 어느 손잡이가 새는지 못 읽는다) */
+      delta: Object.fromEntries(changed.map(k => [k, [before[k], after[k]]])),
     });
   }
   return { n, results, iconifyCalls: window.__iconifyCalls };
@@ -530,9 +541,23 @@ test('E0-f ★★양성대조 — 패딩 «손잡이를 없앤» 변형본에서
   expect(movers(probe, ['cell.bg', 'css.backgroundColor']).length,
     '★변이가 패널을 통째로 부쉈다 — 배경색 손잡이까지 사라졌다면 이 양성대조는 아무것도 안 가른다')
     .toBeGreaterThan(0);
-  expect(movers(probe, ['cell.padding', 'css.paddingTop', 'css.paddingLeft']),
-    '★패딩 배선을 «지웠는데도» 누군가 패딩을 주고 있다 — E1~E3·E4 의 패딩 판정은 헛것이다')
+  /* ★이 대조가 증명하는 것(한 줄): 칸 패딩 손잡이를 지우면 «칸 패딩을 움직이는 손잡이는 0» — 그래야 E1~E4 의 패딩 판정이 거짓일 수 있다.
+     10-06(제4안 cellPadY 합류) — 위아래 여백 손잡이는 «칸 패딩 손잡이가 아니면서» css.paddingTop 을 정당하게 움직인다.
+     ⇒ 기댓값을 고치지 않고 축을 나눈다: ⑴ 칸 패딩 축(cell.padding · css.paddingLeft — cellPadY 는 좌우를 안 건드린다) = 0
+       ⑵ css.paddingTop 을 움직인 후보는 «전부» cellPadY 축(ds.cellPadY)도 움직인 것이어야 한다(설명 안 되는 위 여백 = 0)
+       ⑶ cellPadY 축은 «살아 있다»(> 0) — 아니면 ⑵ 의 빼기가 헛것이다. 짝: 위아래 여백 배선까지 지우면 ⑶ 이 빨강(대조의 대조). */
+  expect(movers(probe, ['cell.padding', 'css.paddingLeft']),
+    '★패딩 배선을 «지웠는데도» 누군가 칸 패딩을 주고 있다 — E1~E3·E4 의 패딩 판정은 헛것이다')
     .toEqual([]);
+  const padY = new Set(movers(probe, ['ds.cellPadY']));
+  const leak = probe.results.filter(r => !r.gone && r.changed.includes('css.paddingTop'))
+    .map(r => ({ who: `${r.id || r.cls || r.tag}(${r.label})`, delta: r.delta }))
+    .filter(x => !padY.has(x.who));
+  expect(leak.map(x => x.who),
+    '★칸 위 여백을 움직인 손잡이 중 cellPadY 축이 «아닌» 것이 있다 — 칸 패딩이 다른 길로 새고 있다:\n' +
+    leak.map(x => `  ${x.who} ${JSON.stringify(x.delta)}`).join('\n'))
+    .toEqual([]);
+  expect(padY.size, '★위아래 여백(cellPadY) 축이 죽었다 — 위 ⑵ 의 빼기가 아무것도 안 가른다').toBeGreaterThan(0);
 });
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1293,7 +1318,30 @@ test('E14 ★image → body 로 바꾸면 imgSrc 가 «안» 남는다 (전환 �
  *        설계대로다(그 되돌림은 grid-panel-fold F1 이 먼저 잡는다).
  *     ⑶ 이 패널을 같이 만지는 다른 유닛의 가지에도 병합 시 같은 사면이 간다.
  *   ~~[폐기 · 2026-09-25] 옛 기준선 `59c6d63` (2026-09-24 재촬영분, 86dce84 에서 옮겨온 것)~~ */
-const GOLDEN_BASELINE = '9d00ec1';
+/* ★2026-10-03 «재촬영» — 9d00ec1 → 37ab1c65 (G17 「블럭 외곽선」 가지의 바닥 = origin/dev 핀). 태양 레인 C.
+ *   까닭: 9d00ec1 이후 이 패널에 커밋이 쌓여 핀에서 이미 ★Δ = +60px (910 → 970 · 컨트롤 47 → 68) —
+ *     합격선 60 에 «정확히» 닿아 남은 여유가 0px 다. G17 은 절 하나(제목 + 단추 한 줄)를 «펴서» 내므로
+ *     원리적으로 못 들어간다(실측: 핀 위에 G17 = 1029px, Δ +119).
+ *   ⛔합격선 60 은 «한 글자도» 안 넓혔다. 기준점만 이 가지의 바닥(37ab1c65)으로 옮긴다 — 위 두 재촬영과 같은 절차.
+ *     골든은 37ab1c65 체크아웃 나무에서 G1 이 찍었다(제품코드 지문 f6a0f73e582f — G1 이 git show 로 대조한다).
+ *     이 커밋은 제품코드 0줄(시험·골든만) — G17 제품 커밋과 «따로»다.
+ *   ⛔G17 을 접이식에 숨겨 0원으로 지나가지 «않았다» — 펴 둔 채 +59px 을 정직하게 낸다(다음 커밋).
+ *   ⚠️★잃는 것 (지디·팀리드가 «알고» 받아야 하는 값):
+ *     ⑴ 9d00ec1 → 37ab1c65 사이에 쌓인 ★+60px · 컨트롤 +21 의 «빚»이 여기서 0 으로 리셋된다.
+ *     ⑵ G17 이 들어가면 다시 +59px 이라 남은 여유는 1px 이다 — 다음 손잡이는 또 재촬영 판단이 된다.
+ *     ⑶ 이 패널을 같이 만지는 다른 레인(G12 블럭 배경 등) 가지에도 병합 시 같은 사면이 간다.
+ *   ~~[폐기 · 2026-10-03] 옛 기준선 `9d00ec1` (2026-09-25 재촬영분)~~ */
+/* ★2026-10-04 «재촬영» — 37ab1c65 → 5015a2ab (G2-b 「그리드 너비」 가지의 바닥 = origin/dev 핀). 태양 레인 G2-b · 지디 판정 ㉢.
+ *   까닭: 재촬영 까닭 — 남은 여유 1px < 너비 줄 30px(traps.md:63-68 조건). 실측: 핀 5015a2ab 의 제품코드로
+ *     scrollHeight 1029 · 컨트롤 74 (골든 970 · 68 대비 Δ +59 — G17 이 남긴 그 +59 그대로), 그 위에 G2-b 너비 줄 = 1059 · 77 (Δ +89).
+ *   ⛔합격선 60 은 «한 글자도» 안 넓혔다. 기준점만 옮긴다 — 위 재촬영들과 같은 절차. 이 커밋은 제품코드 0줄(시험·골든만).
+ *     골든은 5015a2ab 제품코드를 올린 나무에서 G1 이 찍었다(지문은 G1 이 git show 로 대조한다).
+ *   ⛔너비 줄을 「행 높이」 하위 줄 등에 접어 넣어 0원으로 지나가지 «않았다» — 자주 쓰는 손잡이라 펴서 +30px 을 정직하게 낸다(지디 판정).
+ *   ⚠️★잃는 것: ⑴ 37ab1c65 → 5015a2ab 사이의 +59px · 컨트롤 +6 의 «빚»이 0 으로 리셋된다.
+ *     ⑵ G2-b 가 들어가면 Δ +30 이라 남은 여유는 30px — 다음 손잡이 한 줄(≈30~35px)은 또 재촬영 판단이다.
+ *     ⑶ 이 패널을 같이 만지는 다른 레인 가지에도 병합 시 같은 사면이 간다.
+ *   ~~[폐기 · 2026-10-04] 옛 기준선 `37ab1c65` (2026-10-03 재촬영분)~~ */
+const GOLDEN_BASELINE = '5015a2ab';
 const GOLDEN_PATH = path.join(__dirname, 'fixtures', 'grid-panel-golden.json');
 
 /* ★「골든에 86dce84 라고 «적혀 있다»」와 「그 판에서 «찍혔다»」는 다른 말이다.

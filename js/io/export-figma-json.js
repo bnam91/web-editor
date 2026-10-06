@@ -53,6 +53,9 @@ function _shapeFigmaBlock(el) {
 }
 
 async function exportFigmaJSON() {
+  /* ★E157 공용 대기(whenGridRatiosSettled · grid-block.js) — 칸 배경 비율이 서고 그 그리드가 다시 그려진 «뒤»에 찍는다(틀린 행 높이가 산출물로 굳지 않게).
+     반환 none(기다릴 것 없음) / settled / cap(상한 — 함수가 수·주소를 찍음). ⛔그 결과로 막지 않는다 — 찍기는 그대로 간다. */
+  await window.whenGridRatiosSettled?.();
   // 현재 페이지를 pages 배열에 반영
   window.flushCurrentPage();
 
@@ -463,13 +466,38 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         const _ds = el.dataset.bgColor;
         bgColor = (_ds && _ds !== '#e8e8e8') ? _ds : null;
       }
-      return {
+      const _circleOut = {
         type:    'circle',
         id:      el.id || ('icb_' + Math.random().toString(36).slice(2, 8)),
         size,
         bgColor,
         src:     imgSrc,
       };
+      /* ★G14 — «원 안» 자식(.icb-circle > .icb-children)이 있으면 원 + 자식을 «자유 프레임» 하나로 싸서 낸다.
+         렌더러(figma-renderer) 무변경 — frame(free) 분기는 이미 있다(좁으면 가운데 · 자식은 x,y 절대). 원은 그 프레임의 (0,0)·폭 size.
+         자식 좌표는 «살아 있는 문서»에서 잰다(G19 _gridKidBlocks 와 같은 수법 · 배율은 화면폭/레이아웃폭으로 나눈다).
+         ⛔자식 0개면 옛 출력 그대로(type:'circle' 하나 — tests/dom/icb-children K12b).
+         ⚠️배경색 형식(computed rgb() 문자열 → 렌더러 hexToRgb)은 손대지 않는다 — E49, 범위 밖(지디 2026-10-04).
+         ⚠️피그마 프레임은 «네모»로 자른다 — 원 밖·네모 안으로 넘친 글자는 피그마에선 보인다(캔버스는 원으로 자른다). 미측정. */
+      const _kbox = el.querySelector(':scope > .icb-circle > .icb-children');
+      const _kidEls = _kbox ? [..._kbox.children].filter(k => !k.classList.contains('drop-indicator')) : [];
+      if (_kidEls.length) {
+        const children = [{ x: 0, y: 0, w: size, block: _circleOut }];
+        const cr = _circ ? _circ.getBoundingClientRect() : null;
+        const z = (_circ && _circ.offsetWidth) ? ((cr.width / _circ.offsetWidth) || 1) : 1;
+        _kidEls.forEach(kid => {
+          const blocks = _flowKidBlocks(kid, ps);
+          if (!blocks.length) return;
+          const lk = kid.id ? document.getElementById(kid.id) : null;
+          const kr = lk ? lk.getBoundingClientRect() : null;
+          const x = (cr && kr) ? Math.round((kr.left - cr.left) / z) : 0;
+          const y = (cr && kr) ? Math.round((kr.top - cr.top) / z) : 0;
+          const w = lk ? (lk.offsetWidth || size) : size;
+          blocks.forEach(b => children.push({ x, y, w, block: b }));
+        });
+        return { type: 'frame', id: (el.id || _circleOut.id) + '__kids', width: size, height: size, bg: '', radius: 0, free: true, children };
+      }
+      return _circleOut;
     }
     if (el.classList.contains('table-block')) {
       const table   = el.querySelector('.tb-table');
@@ -614,7 +642,8 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       return {
         type:       'chat',
         id:         el.id || ('chb_' + Math.random().toString(36).slice(2, 8)),
-        messages:   messages.map((m, mi) => ({ text: m.text || '', align: m.align === 'right' ? 'right' : 'left', w: _bubbles[mi] ? Math.round(_bubbles[mi].offsetWidth) : 0, h: _bubbles[mi] ? Math.round(_bubbles[mi].offsetHeight) : 0 })),
+        /* ★BT2 — 줄 있는 메시지는 «줄 글자 평문»(msg.text 는 이스케이프된 거울이라 &lt; 가 그대로 찍힌다). 줄별 크기·굵기는 E40 과 같은 별건. */
+        messages:   messages.map((m, mi) => ({ text: (Array.isArray(m.lines) && m.lines.length && window.lnPlainText) ? window.lnPlainText(m.lines) : (m.text || ''), align: m.align === 'right' ? 'right' : 'left', w: _bubbles[mi] ? Math.round(_bubbles[mi].offsetWidth) : 0, h: _bubbles[mi] ? Math.round(_bubbles[mi].offsetHeight) : 0 })),
         fontSize:   parseInt(el.dataset.fontSize) || 32,
         bgLeft:     _bg(_lb, el.dataset.bgLeft    || '#e5e5ea'),
         bgRight:    _bg(_rb, el.dataset.bgRight   || '#1888fe'),
@@ -669,6 +698,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         items,
         width: Math.round((el.id && document.getElementById(el.id)?.offsetWidth) || el.offsetWidth || 0),
         height: parseInt(el.dataset.chartHeight) || parseFloat(el.style.height) || 300,
+        // GR2·GR3 — 축·격자·꺾은선 토글은 «켜진 것만» 싣는다(꺼진 그래프의 JSON 은 예전과 같다). ⚠️렌더러(sangpe_to_figma)는 아직 안 읽는다(E11).
+        ...(['showAxis', 'showGrid', 'showLine'].some(k => el.dataset[k] === '1')
+          ? { showAxis: el.dataset.showAxis === '1', showGrid: el.dataset.showGrid === '1', showLine: el.dataset.showLine === '1' } : {}),
       };
     }
     // ── SHAPE (shape-block) : 도형(선/사각/원) ──
@@ -851,24 +883,121 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     // ── GENERIC 폴백 (잔여) ──
     //    드롭 방지: 높이 보존 + 배경 + 내부 텍스트/아이콘 살림. (완벽 레이아웃은 후속 refinement)
     if (/(-block)$/.test([...el.classList].find(c => c.endsWith('-block')) || '')) {
+      /* ★G19 — 그리드 «밑» 자식 블럭(:scope > .grd-children)은 «블럭»으로 따로 나간다(_blockAll · _gridKidBlocks).
+         여기서 그 안의 글자·아이콘까지 긁으면 자식 글자가 그리드 껍데기 (0,0)에 24px 로 «한 번 더» 찍힌다(측정 M2).
+         ⇒ 껍데기 수집은 그릇 «밖»만 본다. 자식이 없으면 _kidsBox 가 null 이라 옛 수집과 «같은 결과»다. */
+      const _kidsBox = el.classList.contains('grid-block') ? _gridKidsBoxOf(el) : null;
+      const _notKid = (n) => !_kidsBox || !_kidsBox.contains(n);
       const w = parseInt(el.dataset.bannerW || el.dataset.compW || el.dataset.width) || parseFloat(el.style.width) || null;
-      const h = parseInt(el.dataset.bannerH || el.dataset.chartHeight) || parseFloat(el.style.height)
+      /* ★자식이 있는 그리드의 «껍데기 높이» = 격자(.grd-inner) 높이 — 그리드 상자 높이엔 자식이 들어 있어 그대로 쓰면
+         Figma 에서 격자 프레임이 자식 높이만큼 길어지고 그 밑에 자식이 «또» 쌓인다. */
+      const _liveInner = _kidsBox && el.id ? document.getElementById(el.id)?.querySelector(':scope > .grd-inner') : null;
+      const h = (_liveInner && Math.round(_liveInner.offsetHeight))
+                || parseInt(el.dataset.bannerH || el.dataset.chartHeight) || parseFloat(el.style.height)
                 || Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0);
       const texts = [];
       el.querySelectorAll('[class^="tb-"], [class*=" tb-"]').forEach(t => {
+        if (!_notKid(t)) return;
         const tx = (t.innerText || '').trim();
         if (tx) { const cs = (typeof window.getComputedStyle === 'function') ? window.getComputedStyle(t) : {};
           texts.push({ t: tx, fs: parseInt(cs.fontSize) || 24, color: cs.color || '#111111',
             x: parseFloat(t.style.left) || 0, y: parseFloat(t.style.top) || 0 }); }
       });
       const ds = el.dataset || {};
-      return {
+      const out = {
         type: 'generic', id: el.id || '', kind: ds.type || '',
         width: w, height: h || 0, bg: ds.bg || '', radius: parseInt(ds.radius) || 0,
-        svg: el.querySelector('svg')?.outerHTML || '', texts,
+        svg: [...el.querySelectorAll('svg')].find(_notKid)?.outerHTML || '', texts,
       };
+      /* ★G17 그리드 «블럭 외곽선» — 키(data-block-outline)가 있을 때만 `border` 를 싣는다(없으면 JSON 바이트 그대로).
+       *   값은 렌더러가 블럭 style 에 «이미 그은» 변을 그대로 읽는다(모델 해석을 여기서 다시 하지 않는다 — 두 벌 금지).
+       *   ⚠️figma-renderer/sangpe_to_figma.mjs 의 generic 분기는 아직 `border` 를 «안 읽는다»(플러그인에 면별 stroke 명령 0).
+       *     ⇒ 피그마 화면에 선이 나오는 것은 «미구현·미측정»이다. 여기서는 «실어 보낸다»까지만. */
+      /* ★G12 블럭 배경 — 켰을 때 선은 «배경 바깥 가장자리»의 .grd-edge 가 긋고 블럭 자기 테두리는 색이 투명이다(안 A).
+       *   ⇒ 선 값은 .grd-edge 에서 읽는다(렌더러가 «이미 그은» 것을 읽는 원칙 그대로 · 모델 해석 두 벌 금지). */
+      const _bbg = el.classList.contains('grid-block') ? window.gridBlockBg?.(el) : null;
+      const _edge = _bbg && _bbg.on ? el.querySelector(':scope > .grd-edge') : null;
+      if (ds.blockOutline && el.classList.contains('grid-block') && el.style) {
+        const border = {};
+        const src = _edge || el;
+        for (const sd of ['top', 'right', 'bottom', 'left']) {
+          const st = src.style.getPropertyValue('border-' + sd + '-style');
+          border[sd] = st && st !== 'none'
+            ? { width: parseFloat(src.style.getPropertyValue('border-' + sd + '-width')) || 0, style: st, color: src.style.getPropertyValue('border-' + sd + '-color') }
+            : null;
+        }
+        out.border = border;
+        if (_edge) out.borderAt = 'bg-edge';   // 선이 블럭 상자가 아니라 배경 바깥 가장자리에 있다
+      }
+      /* ★G12 블럭 배경 — 켰을 때만 `blockBg` 를 싣는다(끄면 JSON 바이트 그대로). 읽는 문 = grid-block.js gridBlockBg(window) «하나».
+       *   height = 살아 있는 그리드 상자 높이(G19 자식 포함 — 위 껍데기 높이 h 와 다르다: 배경은 자식까지 덮는다).
+       *   ⚠️figma-renderer/sangpe_to_figma.mjs generic 은 아직 이것을 «안 그린다»(G17 border 와 같은 처지 · 미구현·미측정). */
+      if (_bbg && _bbg.on) {
+        const _live = el.id ? document.getElementById(el.id) : null;
+        out.blockBg = { color: _bbg.color, opacity: _bbg.opacity, padX: _bbg.padX, padY: _bbg.padY, pos: _bbg.pos, hasImage: !!_bbg.img,
+          height: Math.round((_live && _live.offsetHeight) || h || 0) };
+      }
+      return out;
     }
     return null;
+  }
+
+  /* ═══ ★G19 그리드 «밑» 자식 블럭 — 그리드 전용 분기 ═══════════════════════════════════════
+     그리드 블럭 = [격자 껍데기(GENERIC)] + [자식 블럭들]. 자식은 «흐름 블럭»으로 그리드 «뒤»에 잇는다
+     (그릇 간격 data-child-gap 만큼 gap 블럭을 앞에 하나씩 — 화면의 margin-top·flex gap 과 같은 자리).
+     ⛔순회기(_walkSectionChild·_row)는 그리드 «안»으로 안 내려간다 — 그래서 여기 «한 자리»에서만 내려간다.
+     _blockAll 은 _block 과 같되 그리드면 자식 블럭을 뒤에 붙여 «목록»을 돌려준다(자식 0개면 [그리드] 하나 — 옛 출력과 같다). */
+  function _gridKidsBoxOf(grid) {
+    for (const ch of grid.children) if (ch.classList && ch.classList.contains('grd-children')) return ch;
+    return null;
+  }
+  function _gridKidGap(grid) {
+    const n = Number(grid.dataset?.childGap);
+    return (grid.dataset?.childGap !== undefined && grid.dataset.childGap !== '' && Number.isFinite(n)) ? Math.max(0, Math.min(80, Math.round(n))) : 24;
+  }
+  let _frameBlockFn = null;   // _section 이 자기 _frameBlock 을 걸어 둔다(자식 중 자유배치 프레임용)
+  /** 그릇 «한 자식»(row · gap · 글자 래퍼 · 흐름/자유 프레임 · 맨몸 블럭) → 블럭 목록. */
+  function _flowKidBlocks(kid, ps) {
+    if (!kid || kid.nodeType !== 1 || !kid.classList || kid.classList.contains('drop-indicator')) return [];
+    if (kid.classList.contains('row')) return _row(kid, ps);
+    if (kid.classList.contains('gap-block')) return [{ type: 'gap', height: parseFloat(kid.style.height) || 50 }];
+    if (kid.classList.contains('frame-block')) {
+      if (kid.dataset.freeLayout === 'true' && _frameBlockFn) return [_frameBlockFn(kid)];
+      const out = [];
+      _blockChildren(kid).forEach(b => out.push(..._blockAll(b, ps)));
+      kid.querySelectorAll(':scope > .frame-block').forEach(n => out.push(..._flowKidBlocks(n, ps)));
+      return out;
+    }
+    return _isContentBlock(kid) ? _blockAll(kid, ps) : [];
+  }
+  /** 그리드의 자식 블럭 — [{dy, blocks}] (dy = 그리드 윗변에서 그 자식 윗변까지, 캔버스 px · 살아 있는 문서에서 잼). */
+  function _gridKidBlocks(grid, ps) {
+    const box = _gridKidsBoxOf(grid);
+    if (!box) return [];
+    const liveGrid = grid.id ? document.getElementById(grid.id) : null;
+    const gr = liveGrid ? liveGrid.getBoundingClientRect() : null;
+    const z = liveGrid && liveGrid.offsetWidth ? (gr.width / liveGrid.offsetWidth) || 1 : 1;
+    const out = [];
+    [...box.children].forEach(kid => {
+      const blocks = _flowKidBlocks(kid, ps);
+      if (!blocks.length) return;
+      const lk = kid.id ? document.getElementById(kid.id) : null;
+      const dy = (gr && lk) ? Math.round((lk.getBoundingClientRect().top - gr.top) / z) : null;
+      out.push({ dy, blocks });
+    });
+    return out;
+  }
+  /** _block + 그리드면 자식 블럭을 «흐름»으로 뒤에 잇는다(간격 gap 블럭 포함). */
+  function _blockAll(el, ps) {
+    const parsed = _block(el, ps);
+    if (!parsed) return [];
+    if (!el.classList || !el.classList.contains('grid-block')) return [parsed];
+    const kids = _gridKidBlocks(el, ps);
+    if (!kids.length) return [parsed];
+    const gap = _gridKidGap(el);
+    const out = [parsed];
+    kids.forEach(k => { if (gap > 0) out.push({ type: 'gap', height: gap }); out.push(...k.blocks); });
+    return out;
   }
 
   /* ═══════════════════════════════════════════════════════════════════════
@@ -932,7 +1061,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
          (그 특례가 명부에 canvas-block 이 «없다는 사실»을 오래 가려 주고 있었다.) */
     const toBlocks = (els) => {
       const out = [];
-      els.forEach(b => { const parsed = _block(b, ps); if (parsed) out.push(parsed); });
+      els.forEach(b => out.push(..._blockAll(b, ps)));   // G19 — 그리드면 자식 블럭이 뒤에 붙는다(자식 0개면 _block 과 같다)
       return out;
     };
 
@@ -962,8 +1091,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     const blocks = [];
     function _processFrameBlock(fb) {
       _blockChildren(fb).forEach(b => {
-        const parsed = _block(b, psEx);
-        if (parsed) blocks.push(parsed);
+        _blockAll(b, psEx).forEach(x => blocks.push(x));   // G19 — 그리드면 자식 블럭까지
       });
       fb.querySelectorAll(':scope > .frame-block').forEach(nested => _processFrameBlock(nested));
     }
@@ -989,6 +1117,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         if (innerB) {
           if (free && innerB.type === 'text') innerB.padding = { top: 0, right: 0, bottom: 0, left: 0 };
           children.push({ x, y, w: cw, block: innerB });
+          /* G19 — 자유배치 프레임 안 그리드의 «밑» 자식: 같은 x, y = 그리드 y + 살아 있는 문서에서 잰 dy. */
+          const _g = c.classList.contains('grid-block') ? c : (c.classList.contains('row') ? c.querySelector(':scope > .grid-block') : null);
+          if (_g) _gridKidBlocks(_g, psEx).forEach(k => k.blocks.forEach(b => children.push({ x, y: y + (k.dy ?? 0), w: cw, block: b })));
         }
       });
       const _bg = fb.dataset.bg || '';
@@ -1002,6 +1133,14 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       }
       return out;
     }
+    /* G19 — 떠 있는(오버레이) 그리드의 «밑» 자식도 떠 있는 블럭으로: 같은 x, y = 그리드 y + dy(살아 있는 문서에서 잼). */
+    function _pushFloatingGridKids(el, parsed) {
+      if (!el || !el.classList || !el.classList.contains('grid-block')) return;
+      _gridKidBlocks(el, psEx).forEach(k => k.blocks.forEach(b => {
+        blocks.push({ ...b, floating: true, x: parsed.x, y: parsed.y + (k.dy ?? 0) });
+      }));
+    }
+    _frameBlockFn = _frameBlock;   // G19 — 그리드 자식 중 자유배치 프레임은 이 섹션의 _frameBlock 으로
     /* ★.section-merged-part(합쳐 넣은 아래 섹션의 몸)는 «투명하게» 통과한다.
        이 화이트리스트에 안 걸리면 자식을 내려가 보지도 않고 버려서, 합친 섹션을
        내보내면 아래쪽 몸이 «조용히» 통째로 사라진다(에러도 경고도 없다). */
@@ -1022,9 +1161,8 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         if (child.dataset.freeLayout === 'true') blocks.push(_frameBlock(child));
         else _processFrameBlock(child);
       } else if (_isContentBlock(child)) {
-        // section-inner 직속 콘텐츠 블록(row/frame 미포함) — 드롭 방지.
-        const parsed = _block(child, psEx);
-        if (parsed) blocks.push(parsed);
+        // section-inner 직속 콘텐츠 블록(row/frame 미포함) — 드롭 방지. G19 — 그리드면 자식 블럭까지.
+        _blockAll(child, psEx).forEach(x => blocks.push(x));
       }
     };
     [...inner.children].forEach(_walkSectionChild);
@@ -1061,6 +1199,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         parsed.x = (dx !== undefined && dx !== '') ? (parseFloat(dx) || 0) : (parseFloat(fc.style.left) || 0);
         parsed.y = (dy !== undefined && dy !== '') ? (parseFloat(dy) || 0) : (parseFloat(fc.style.top)  || 0);
         blocks.push(parsed);
+        _pushFloatingGridKids(fc, parsed);
       });
 
     /* ★오버레이(플로팅) 텍스트 — js/props/prop-text-wireup-overlay.js 의 _enterOverlay 가
@@ -1098,6 +1237,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         parsed.x = (dx !== undefined && dx !== '') ? (parseFloat(dx) || 0) : (parseFloat(tf.style.left) || 0);
         parsed.y = (dy !== undefined && dy !== '') ? (parseFloat(dy) || 0) : (parseFloat(tf.style.top)  || 0);
         blocks.push(parsed);
+        _pushFloatingGridKids(tb, parsed);
       });
 
     const bgColor = secEl.style.backgroundColor || '';

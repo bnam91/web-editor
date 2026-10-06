@@ -152,6 +152,16 @@
 .frame-block.ss-drag-over {
   outline: 2px dashed var(--sel-color);
 }
+/* ★빈 프레임 «자리» 표시 — 편집 화면 전용 (2026-10-03 현빈 결정: 자식을 다 지워도 프레임은 남는다).
+   흰 프레임이 흰 섹션 위에 비면 높이(자유 520·흐름 60)는 있는데 «경계»가 안 보였다(실측: outline none · 배경 둘 다 #fff).
+   꼴은 새로 짓지 않는다 — 빈 줄 표시(.bn2-line-empty: 1px dashed --ui-border-mid)에 배율 보정(.marquee-hit 의 --inv-zoom)만 얹었다.
+   ★#canvas-scaler 아래로만 건다: PNG 클론은 body 로 나가 이 조상이 없고, HTML 내보내기의 CSS 수확은
+     '#canvas-scaler' 를 편집 전용으로 걸러낸다(export-css-collect.js EDITOR_ONLY_SEL) ⇒ 배송본엔 안 실린다.
+   글자 래퍼·그룹은 사용자가 보는 «프레임»이 아니다 — 뺀다. */
+#canvas-scaler .frame-block:not([data-text-frame]):not([data-group="true"]):not(.selected):not(:has(> *)) {
+  outline: calc(1px * var(--inv-zoom, 1)) dashed var(--ui-border-mid);
+  outline-offset: calc(-1px * var(--inv-zoom, 1));
+}
 
 /* ── 배경 투명도(bgOpacity) — 점진 적용안 (I2) ──
    has-bg-opacity 클래스가 있을 때만 활성. 기존 프레임은 무변경.
@@ -364,8 +374,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * ⛔`.asset-overlay-handle` 을 빌리지 않는다 — hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다. */
 /* ★`.tfo-overlay-handle`(오버레이 텍스트, 0920b)도 같은 규칙에 얹는다 — 다섯 번째다.
  * ⛔`.asset-overlay-handle` 을 빌리지 않는다 — hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다. */
+/* ★`.grd-overlay-handle`(떠 있는 그리드의 «폭» 손잡이, G2-b 2026-10-04)도 같은 규칙에 얹는다 — 여섯 번째다.
+ * ⛔`.grd-img-overlay-handle`(칸 안 이미지 크기)과 이름이 비슷하지만 «다른 손잡이»다 — 그건 줄 하나, 이건 블럭 폭. */
 .tfo-overlay-handle,
-.grd-img-overlay-handle {
+.grd-img-overlay-handle,
+.grd-overlay-handle {
   position: absolute;
   width:  7px;
   height: 7px;
@@ -433,6 +446,12 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne, .mdl-overlay-handle.ne, .grd-img-overlay-handle.ne, .tfo-overlay-handle.ne { cursor: ne-resize; }
 .asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw, .grd-img-overlay-handle.sw, .tfo-overlay-handle.sw { cursor: sw-resize; }
 .asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se, .grd-img-overlay-handle.se, .tfo-overlay-handle.se { cursor: se-resize; }
+/* ★그리드 폭 손잡이는 네 모서리 «모두» 좌우 화살표 — 폭만 바뀌고 높이는 내용이 정한다(대각 커서는 거짓말이 된다). */
+/* 10-05 제4안으로 높이도 바뀌어 방향별로 — 모서리 = 폭+높이(대각) · e/w = 폭(좌우) · n/s = 높이(칸 위아래 여백 · 위아래). */
+.grd-overlay-handle { cursor: ew-resize; }
+.grd-overlay-handle.nw, .grd-overlay-handle.se { cursor: nwse-resize; }
+.grd-overlay-handle.ne, .grd-overlay-handle.sw { cursor: nesw-resize; }
+.grd-overlay-handle.n, .grd-overlay-handle.s { cursor: ns-resize; }
 
 /* ── Canvas Block overlay resize handles ── */
 .canvas-overlay-handle {
@@ -981,7 +1000,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   align-self: center;            /* 부모 flex stretch로 height가 늘어나는 경우 대비 */
   border-radius: 50%;
   background:
-    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+    repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) 0 0 / var(--goya-checker-big-size) var(--goya-checker-big-size);
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
   flex-shrink: 0;
@@ -990,6 +1009,12 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 /* 이미지가 들어오면 체크무늬(투명 표시용 placeholder) 제거 — 투명 SVG의 투명부로 체크가 비쳐
    Export PNG에까지 박히던 버그(현빈). 배경색(inline bgColor)이 있으면 그게, 없으면 섹션 배경이 비침. */
 .icon-circle-block.has-image .icb-circle { background-image: none; }
+/* ★배경색을 고르면 빈 원의 체커도 걷는다 (2026-10-03 A1 · .asset-block[data-bg-color] 와 같은 규칙 — editor-layout.css).
+   패널은 색을 .icb-circle «인라인 background-color» 로 박는데 위 체커(background-image)가 그 위에 남아 안 보였다
+   (실앱 실측: 인라인 rgb(251,4,4) · 픽셀 체커 그대로).
+   ⚠️블럭 dataset.bgColor 로 가르지 않는다 — 빈 원도 생성 때 placeholder '#e8e8e8' 이 박혀 있다(block-factory makeIconCircleBlock ·
+     export-figma-json 같은 이유). 원에 «인라인 색이 실렸나»가 신호다. 보이지 않는 값(transparent · 알파 0)은 체커 유지. */
+.icon-circle-block:not([data-bg-color="transparent"]):not([data-bg-color$=",0)"]):not([data-bg-color$=", 0)"]) .icb-circle[style*="background-color"] { background-image: none; }
 .icb-placeholder {
   font-size: 28px;
   color: var(--ui-text-sub);
@@ -1020,6 +1045,27 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 /* 테두리 스타일 variants */
 .icb-circle[data-border="solid"]  { border: 3px solid var(--ui-border); }
 .icb-circle[data-border="dashed"] { border: 3px dashed var(--ui-border); }
+
+/* ── G14 자식 그릇 — 「원형이 그릇이 된다」(js/icb-children.js) ─────────────────────────
+   원 «위»에 얹히는 흐름 상자: 가운데 · 세로 쌓기 · 간격 8px · 폭 = 지름 × 1/√2(내접 정사각형).
+   넘친 것은 원(overflow:hidden · radius 50%)이 원 모양으로 자른다 — 원이 자식 따라 커지지 않는다.
+   ⛔`inset` 단축 속성 금지 — html2canvas(PNG 내보내기)가 못 읽는다(export-image.js 주석).
+   새 토큰 0. */
+.icb-children {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 70.71%;
+  box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px;
+  z-index: 1;
+}
+.icb-children:empty { display: none; }
+/* 그림 위치 조절 중엔 원이 overflow:visible 이 된다 — 그동안 자식은 숨겨 그림만 보이게 */
+.icon-circle-block.img-editing .icb-children { visibility: hidden; }
+/* 자식이 있으면 빈 원 자리표시는 숨긴다 */
+.icb-circle:has(> .icb-children:not(:empty)) > .icb-placeholder { display: none; }
 
 /* ═══════════════════════════════════
    TABLE BLOCK
@@ -1057,6 +1103,10 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   color: #222;
 }
 .tb-table thead th { font-weight: 600; font-size: var(--tbl-header-size, inherit); }
+/* ★G6(현빈 2026-10-03 「테이블 헤더가 어두워지면 텍스트도 자동으로 밝아지게」) — --tbl-header-fg 는
+   js/canvas-contrast.js syncTableHeaderTone 만 쓴다(헤더 배경이 어둡고 글자색이 «미지정»일 때 #f2f2f2, 아니면 걷음).
+   없으면 지금과 같은 --tbl-text-color. stripe·borderless 의 thead 규칙도 같은 변수를 먼저 본다. */
+.table-block .tb-table thead th { color: var(--tbl-header-fg, var(--tbl-text-color, inherit)); }
 
 /* 기본 스타일 (first-col-bold 프리셋은 기본 룩 + 첫 칼럼만 볼드 — 기본 셀룰 그대로 재사용) */
 .table-block[data-style="default"] .tb-table th,
@@ -1124,7 +1174,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   text-align: center;
   vertical-align: middle;
 }
-.table-block[data-style="stripe"] .tb-table thead th { background: var(--tbl-header-bg, var(--ui-border)); color: var(--tbl-text-color, #fff); font-weight: 600; }
+.table-block[data-style="stripe"] .tb-table thead th { background: var(--tbl-header-bg, var(--ui-border)); color: var(--tbl-header-fg, var(--tbl-text-color, #fff)); font-weight: 600; }
 .table-block[data-style="stripe"] .tb-table tbody tr:nth-child(even) td { background: #f7f7f7; }
 
 /* 보더리스 스타일 */
@@ -1136,7 +1186,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   text-align: center;
   vertical-align: middle;
 }
-.table-block[data-style="borderless"] .tb-table thead th { background: var(--tbl-header-bg, transparent); font-weight: 600; color: var(--tbl-text-color, var(--ui-text-dim)); }
+.table-block[data-style="borderless"] .tb-table thead th { background: var(--tbl-header-bg, transparent); font-weight: 600; color: var(--tbl-header-fg, var(--tbl-text-color, var(--ui-text-dim))); }
 
 /* ──────────────────────────────────────────────
    라인 표시/숨김 옵션 (모든 테마 공통)
@@ -1263,6 +1313,87 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .infocard-block.selected,
 .modal-block.selected,
 .innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+/* ★G19 그리드 «밑» 자식 블럭 그릇(.grd-children) — 간격(margin-top·flex gap)은 js/grid-children.js 가 «인라인»으로 건다
+   (그래야 PNG·HTML 내보내기가 에디터 CSS 없이도 같은 자리를 낸다). 여기는 두 가지만:
+   ⑴ 빈 그릇은 자리를 안 먹는다 — 자식을 지우거나 끌어낸 직후 «다음 렌더 전»까지 남는 빈 그릇(인라인 margin-top)이
+      그리드 밑에 빈 띠를 만들지 않게. ⛔끄는 동안의 임시 띠(.grd-child-strip)는 비어 있어도 «자리가 곧 기능»이라 뺀다.
+   ⑵ 임시 띠 겉모습 — 새 토큰 0(선택색·선택 채움 그대로) · #canvas 한정(내보내기 클론엔 안 간다). */
+.grd-children:not(.grd-child-strip):empty { display: none; }
+/* ★G12·C5 — 블럭 배경을 켠 그리드의 바탕이 «어두우면»(톤 표식 light — js/canvas-contrast.js 가 배경 층까지 합성해 판정),
+   그 밑 G19 자식 글자의 «기본색»을 칸 글자와 같은 밝은 역할색으로 바꾼다(grid-block.js _GRID_ROLE_COLOR_ON_DARK 와 같은 값).
+   ★변수만 덮는다 — 사용자가 글자에 직접 준 색(인라인)은 그대로 이긴다. 라벨은 자기 바탕이 있어 안 건드린다.
+   ★저장 데이터에 새로 쓰는 것이 없다 — 표식(그리드의 톤·배경 켬)은 렌더가 매번 다시 정한다. 배경을 안 켠 문서는 이 규칙에 안 걸린다. */
+.grid-block[data-block-bg-on="1"][data-text-tone="light"] > .grd-children {
+  --preset-h1-color: #ffffff;
+  --preset-h2-color: #ffffff;
+  --preset-h3-color: #ffffff;
+  --preset-body-color: #f2f2f2;
+  --preset-caption-color: #cccccc;
+}
+/* ★C5 — 끄는 동안 G9 가 «받을 칸» 표시(섹션 표시선 대신). 줄 선택 표시와 같은 기법(inset box-shadow · 줌 불변) · 새 토큰 0. */
+#canvas .grid-block .grd-cell.grd-cell-drop-target { box-shadow: inset 0 0 0 calc(2px * var(--inv-zoom, 1)) var(--sel-color); }
+#canvas .grd-child-strip {
+  outline: var(--sel-outline-w) dashed var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+  background: var(--sel-color-fill);
+}
+
+/* ── G15 그리드 캔버스 ＋ (2026-10-04 현빈·지디 안 ㉠) — 오른쪽 끝 = 열 +1 · 아래 끝 = 행 +1
+ * ★꼴은 태그블럭 ＋(.label-group-add-btn, editor-layout.css)를 빌린다: 점선 원 · --ui-divider · --ui-text-muted · hover 시 --ui-accent-primary.
+ * ★크기 = 40×40 «모델 px»(배율 따라) · 1.5px 점선 · 글리프 «+» 20px — 태그블럭 ＋ 꼴 그대로(H9 · 현빈 2026-10-05).
+ *   ~~히트 영역 = 화면 고정 40px — calc(40px * var(--inv-zoom))~~(2026-10-04) ⇒ 배율 50 에서 라벨 ＋ 의 두 배였고
+ *   같은 단위가 H10(오른쪽 ＋ 가 안쪽 40 화면px = 80 모델px 겹침 · 아래 ＋ 가 40 화면px 매달림)을 만들었다(실측 $S/reports/BUNDLE-E/h10.json).
+ * ★자리(H10 · 현빈 2026-10-05 「우측은 너무 안쪽 · 아래는 너무 내려감」):
+ *   · 오른쪽(열) = «중심»이 블럭 오른쪽 끝(반은 안 · 반은 밖) — 옛: 안쪽 한 칸.
+ *   · 아래(행) = 껍데기 바로 아래(자리는 옛 그대로) · 크기가 모델 40 이 되어 매달림이 배율 50 에서 화면 40 → 20.
+ *     ⛔«중심을 아래 끝에»로 올리지 않았다 — 고른 그리드엔 칸 경계 손잡이 .grd-gutter(#ss-handles-overlay · 고정층 z 9990 — 층이 달라
+ *       z 로 못 이긴다)가 껍데기 위에 깔린다. 중심을 아래 끝에 두면 2열 그리드 가운데 경계 손잡이의 끝과 ＋ 정중앙이 맞닿는다.
+ *       (실측 2026-10-05 grid-plus-g15 K2 — 그때는 손잡이가 자식 그릇까지 내려가 «바로 아래» ＋ 도 덮었다 → overlay-handles.js 에서 껍데기까지로 줄였다.)
+ *   ★이제 «선택 시»에만 뜨므로(H8) 아래 옛 걱정(«블럭을 고르려는 첫 클릭»을 ＋ 가 먹음)은 없다 — 고른 «뒤»에만 ＋ 가 있다.
+ *   옛 자리(2026-10-04)와 까닭은 그대로 남긴다:
+ *   · 오른쪽(열) = 블럭 «안쪽» 오른쪽 끝(태그블럭 ＋ 도 안쪽 오른쪽 끝). 밖으로 반을 내면 전폭 그리드에서 섹션 끝에 잘린다
+ *     — 실측 2026-10-04: 중심이 섹션 오른쪽 끝(x=1230)과 겹쳐 elementFromPoint 가 #canvas-wrap 을 잡았다(클릭 안 먹음).
+ *   · 아래(행) = 블럭 «바로 아래 바깥»(top:100% · 틈 0). 호버로 뜨므로 블럭을 덮으면 «블럭을 고르려는 첫 클릭»을 ＋ 가 먹는다
+ *     — 실측 2026-10-04: 높이 34px 그리드(프레임 안)에서 모서리 걸침 ＋ 가 블럭 가운데를 덮어 클릭이 행 추가가 됐다
+ *       (tests/dom/frame-paste-grid-real P0 · grid-first-click-block T-058-14 빨강). 틈을 두면 ＋ 로 가는 길에 mouseleave 로 꺼진다.
+ *   ⚠️오른쪽 ＋ 는 안쪽이라 블럭 오른쪽 끝 40px 의 첫 클릭은 여전히 ＋ 가 먹는다(전폭 그리드라 밖으로 못 낸다) — 보고서 미결.
+ * ★뜨는 조건은 여기 «없다» — js/blocks/grid-block.js _gridPlusShown 하나에만 있다. 붙어 있으면 보인다.
+ *   역사: 블럭 «호버»(2026-10-04 현빈 결정) → 블럭 «선택 시»(2026-10-05 현빈 재지시 · H8).
+ * ★＋ 는 블럭 «밖» 층 #grd-plus-layer(#canvas-scaler 안, #canvas 의 형제 — 선례 #todo-pin-overlay z 50)에 산다(E65·RG5 — grid-block.js 머리말).
+ *   층은 손이 안 닿고(pointer-events:none) ＋ 만 받는다. 자리는 JS 가 스케일러 로컬 px 로 건다(left/top = 기준점) — 아래 transform 이 끝을 맞춘다. */
+#grd-plus-layer { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 60; }
+#grd-plus-layer > .grd-add-btn {
+  position: absolute;
+  pointer-events: auto;
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;   /* 모델 px(H9) — 옛 calc(40px * var(--inv-zoom, 1)) */
+  padding: 0; margin: 0; box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px dashed var(--ui-divider);
+  font-size: 20px;
+  background: var(--ui-bg-elevated);
+  color: var(--ui-text-muted);
+  line-height: 0;
+  cursor: pointer;
+}
+/* 글리프 «+» = 글자 노드가 아니라 ::before(E65 — 글자 '+' 가 PNG·MCP·검색으로 새지 않게). 옛: 안에 svg 14px(화면 고정). */
+#grd-plus-layer > .grd-add-btn::before { content: '+'; line-height: 1; pointer-events: none; }
+/* ★E28(2026-10-06 · 태양/지디) — ＋ 의 «잡는 자리»만 화면 최소 24px(배율 40% 에서 16px 이던 것). 보이는 원 = 모델 40px 그대로(H9 · 현빈 10-05 «꼴»).
+   태그블럭 ＋(editor-layout.css .label-group-add-btn::after)와 «같은 식» — 두 ＋ 가 같은 꼴·같은 손맛.
+   ⇒ 그리드 ＋ 쪽은 바로 아래 E28-hit-G15 로 «뒤집혔다»(10-06) — 이제 두 ＋ 의 잡는 식이 다르다(태그 = 24px 최소 · 그리드 = 보이는 원). */
+/* ★E28-hit-G15(2026-10-06 · 지디 판정 «G15 > E28 · 보이는 것 = 잡히는 것» · APPROVED_BY: 지디 E28-hit-G15)
+   — 잡는 자리를 보이는 원 «안»으로 되돌린다(inset 0). 옛: inset: min(0px, calc((40px - 24px * var(--inv-zoom, 1)) / 2))
+     → 배율 40% 에서 보이는 원(16px) 밖 4px 까지 ＋ 가 잡혀, 원 밖 클릭이 행·열을 더했다(grid-plus-g15 K5·R1·R4).
+   ⇒ 값(받아들인 비용): 40% 에서 잡는 자리 = 보이는 원 16px. ⛔＋ 를 크게 «그리는» 길(⒥)은 현빈 ㉡1 답 전엔 안 간다.
+   ⛔태그블럭 ＋(editor-layout.css .label-group-add-btn::after)는 이 판정 밖 — 손대지 않았다. */
+#grd-plus-layer > .grd-add-btn::after { content: ''; position: absolute; border-radius: 50%; inset: 0; }
+/* 기준점: 오른쪽 ＋ = (블럭 오른쪽 끝, 껍데기 세로 가운데) → «중심을 기준점에»(H10 · 옛 translate(-100%, -50%) 안쪽 한 칸)
+   아래 ＋ = (블럭 가로 가운데, 껍데기 아래 끝) → 왼쪽으로 반 칸(옛과 같다 — 위 ⛔ 까닭). */
+#grd-plus-layer > .grd-add-btn[data-grd-add="col"] { transform: translate(-50%, -50%); }
+#grd-plus-layer > .grd-add-btn[data-grd-add="row"] { transform: translateX(-50%); }
+#grd-plus-layer > .grd-add-btn:not(:disabled):hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
+/* 상한(4×4)에서는 흐리게 — 캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 참고 선례: layer-panel.js:559 disabled) */
+#grd-plus-layer > .grd-add-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
 
 /* ═══════════════════════════════════
    QA BLOCK — admin 전용 체크리스트 (2026-09-16)
@@ -1418,8 +1549,17 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .modal-block .tb-mdl-text,
 .modal-block .tb-mdl-title,
 .modal-block .tb-mdl-cell { outline: none; }
+/* ★저장된 \n(Enter 로 낸 줄바꿈)이 «보이게» — dataset 이 진실이고 렌더는 textContent 로 그린다.
+   white-space 가 normal 이면 편집 중(contenteditable 의 <div>)엔 두 줄인데 포커스를 풀어 다시 그리는 순간 \n 이 공백으로 접힌다(B4).
+   채팅 말풍선(.chb-bubble)과 같은 관용구. 슬롯 세 종(text/title/cell)이 «한 규칙»이다. */
+.modal-block .tb-mdl-text,
+.modal-block .tb-mdl-title,
+.modal-block .tb-mdl-cell { white-space: pre-wrap; }
 .modal-block .mdl-icon { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
 .modal-block .mdl-icon svg { display: block; width: 100%; height: 100%; }
+/* ★아이콘이 인라인 svg 가 아니라 <img src="https://api.iconify.design/…"> «폴백»으로 저장된 블록(B5) —
+   img 의 width/height 속성(64)이 24px 상자를 넘쳤다. svg 와 같은 꼴로 상자에 맞춘다. */
+.modal-block .mdl-icon img { display: block; width: 100%; height: 100%; object-fit: contain; }
 /* ★grid-2 칼럼은 «투명»이다(현빈 조정⑴) — 위치만 잡는 용도라 배경·테두리를 주지 않는다.
    셀은 텍스트 전용이라 드롭존을 달지 않는다 → 모달 안에 모달이 생기지 않는다. */
 .modal-block .mdl-grid { width: 100%; }
@@ -1464,6 +1604,45 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 #canvas .grid-block .grd-line-selected {
   box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
 }
+/* ★BT2(2026-10-04) 말풍선·챗 «줄» 선택 표시 — 그리드 줄과 «같은 그림·같은 토큰»(--sel-color · --inv-zoom).
+   감싸개(.ln-row)에 붙인다. 클래스가 `-line-selected` 로 끝나 저장 직렬화가 벗긴다(section-serialize RUNTIME_MARKER_RE). */
+#canvas .speech-bubble-block .ln-row.ln-line-selected,
+#canvas .chat-block .ln-row.ln-line-selected {
+  box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
+}
+/* 빈 글자 줄이 «손에 닿게» — 그리드 빈 줄 안내문(아래 .grd-line:empty)과 같은 관용구. #canvas 스코프라 내보내기엔 안 샌다. */
+#canvas .ln-row > .grd-line:empty::before { color: #ccc; pointer-events: none; content: '글자를 입력하세요'; }
+
+/* ★원형 이미지 줄(.grd-img-circle)의 선택 표시 = «서클 에셋과 같은 두 줄» (현빈 2026-10-03
+ *   「그리드 칸의 원형 이미지 아웃라인이 이상하다 — 서클 에셋블럭의 그것과 달라」, G24).
+ * ★무엇이 이상했나(실측) — 위 «왼쪽 막대» inset box-shadow 가 인라인 border-radius:50% 를 따라 «초승달 호»로 휘어
+ *   링처럼 안 읽혔고, 줄 상자엔 «모서리 핸들 네 개»뿐 변이 없었다. 상자 변(선택 오버레이 #ss-handles-overlay 의
+ *   SVG path — js/selection-overlay.js _render)은 «블럭» 전체의 것이지 이 줄의 것이 아니다.
+ * ★그래서 서클 에셋(.icon-circle-block.selected::before, 위 :976)과 «같은 두 줄»을 이 줄에 그린다:
+ *     ::before = 원형 링(보이는 모양)  ·  ::after = 네모 선(핸들이 앉은 «선택 범위»).
+ *   둘 다 z-index:3 으로 <img> 위 — outline 은 자손 아래에 깔려 접점이 «지워진다»(서클 에셋이 먼저 물린 그 증상).
+ * ★네모 선이 «프레임 안»에서 안 잘리게 하려면 프레임의 overflow:hidden(인라인)이 «선택 중엔» 풀려야 한다 —
+ *   그러면 <img> 자신이 반경 50%로 잘라 «그림 픽셀은 그대로»다(아래 두 번째 규칙). 선택이 풀리면 인라인이 도로 이긴다.
+ * ⛔이 규칙은 .grd-img-circle «뿐»이다 — 사각 이미지 줄(.grd-line-selected 의 왼쪽 막대)은 한 픽셀도 안 바뀐다
+ *   (tests/dom/grid-img-frame-noop · grid-img-circle-outline D5).
+ * ⛔굵기는 --sel-outline-w(=1px×--inv-zoom) — 줌 40%에서도 화면상 같은 굵기. 새 토큰 없음. */
+#canvas .grid-block .grd-img-circle { position: relative; }
+#canvas .grid-block .grd-img-circle > .grd-img { border-radius: 50%; }
+#canvas .grid-block .grd-img-circle.grd-line-selected {
+  box-shadow: none;          /* 휜 «왼쪽 막대» 대신 아래 링 */
+  overflow: visible !important;   /* 인라인 overflow:hidden 을 선택 중에만 푼다 — 네모 선이 안 잘리게(그림은 <img> 반경이 자른다) */
+}
+#canvas .grid-block .grd-img-circle.grd-line-selected::before,
+#canvas .grid-block .grd-img-circle.grd-line-selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border: var(--sel-outline-w) solid var(--sel-color);
+  pointer-events: none;      /* 클릭은 줄이 그대로 받는다 */
+  z-index: 3;                /* <img>(z auto) 보다 위 — 「가림」을 푸는 자리 */
+}
+#canvas .grid-block .grd-img-circle.grd-line-selected::before { border-radius: 50%; }
 
 /* ★구분선 줄에 «손이 닿게» 한다 (현빈 2026-09-30 — grd_owr55_gql6n0n
  *   「구분선을 추가했는데 구분선 줄이 선택이 안 돼서 너비 수정을 할 수가 없다」).
@@ -2130,7 +2309,7 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
    ⚠️PNG 내보내기는 이 이동만으론 안 고쳐진다 — 캡처 클론은 body 에 붙어 앱 CSS 를 그대로
      받는다. 그 몫은 js/io/capture-safety.js neutralizeEmptyImageCheckerForCapture 가 진다. */
 .banner02-block .bn2-img-empty {
-  background: repeating-conic-gradient(#e3e3e3 0% 25%, #efefef 0% 50%) 0 0 / 16px 16px;
+  background: repeating-conic-gradient(var(--goya-checker-small-a) 0% 25%, var(--goya-checker-small-b) 0% 50%) 0 0 / var(--goya-checker-small-size) var(--goya-checker-small-size);
 }
 /* ★표 «이미지 row» 빈 칸 체커 — 위 .bn2-img-empty 와 같은 결함군이었다(EVAL low, 2026-09-21).
    js/props/prop-table.js _makeImgCellPlaceholder 가 style.cssText 로 «인라인» 체커를 박고 있었다.
@@ -2140,8 +2319,8 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
    ★이미지를 넣으면 prop-table.js 가 인라인 background-image:url(...) 로 덮는다 — 인라인이
      클래스를 이기므로 순서 다툼이 없다(.asset-block/.has-image 와 같은 모양). */
 .table-block .tbl-img-cell {
-  background-image: repeating-conic-gradient(#e0e0e0 0% 25%, transparent 0% 50%);
-  background-size: 16px 16px;
+  background-image: repeating-conic-gradient(var(--goya-checker-clear-a) 0% 25%, var(--goya-checker-clear-b) 0% 50%);
+  background-size: var(--goya-checker-small-size) var(--goya-checker-small-size);
 }
 /* ★그리드 «빈 이미지 슬롯» 체커 — 현빈 2026-09-25 「빈 슬롯이 들어갈 수 있어야지 …
    처음에 체크패턴으로 둘 수 있을 것 같은데」.
@@ -2158,7 +2337,7 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
      그 몫은 js/io/capture-safety.js neutralizeEmptyImageCheckerForCapture 가 진다
      (.bn2-img-empty 주석과 같은 분업). 단독 HTML 은 js/io/export-css-collect.js 가 진다. */
 .grid-block .grd-img-empty {
-  background: repeating-conic-gradient(#e3e3e3 0% 25%, #efefef 0% 50%) 0 0 / 16px 16px;
+  background: repeating-conic-gradient(var(--goya-checker-small-a) 0% 25%, var(--goya-checker-small-b) 0% 50%) 0 0 / var(--goya-checker-small-size) var(--goya-checker-small-size);
 }
 /* ★섹션 «체크 배경»(2026-09-28 기능, 2026-09-30 현빈 「눌렀는데 체크배경으로 안 된다」).
    JS(prop-section.js _applySectionBg · save-load.js 복원)는 .sec-bg-empty 를 켜 왔는데 ★이 규칙이
@@ -2169,8 +2348,8 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
    ⚠️그래서 캡처 클론의 «인라인으로 지우기»(neutralizeEmptyImageCheckerForCapture)는 이걸 못 이긴다 —
      클론에서 «클래스를 뗀다»(capture-safety.js stripEditorOnlyForCapture · export-html.js 는 원래 뗀다). */
 .section-block.sec-bg-empty {
-  background-image: repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) !important;
-  background-size: 72px 72px !important;
+  background-image: repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) !important;
+  background-size: var(--goya-checker-big-size) var(--goya-checker-big-size) !important;
   background-position: 0 0 !important;
   background-repeat: repeat !important;
 }
@@ -2292,7 +2471,7 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
      (CSS 가 안 실리므로 그것만으로 이미 충분하지만, «의도»를 코드에 남겨 다음 사람이
       인라인으로 되돌리지 않게 한다.) */
 .canvas-block .cvb-img-empty {
-  background: repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+  background: repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) 0 0 / var(--goya-checker-big-size) var(--goya-checker-big-size);
   display: flex; align-items: center; justify-content: center;
 }
 .canvas-block .cvb-img-empty::before {
@@ -2303,7 +2482,7 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 }
 /* 절대배치 레이어의 빈 이미지 — 체커«만». '+' 안내문은 클릭 배선이 없어 안 붙인다. */
 .canvas-block .cvb-img-empty-plain {
-  background: repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+  background: repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) 0 0 / var(--goya-checker-big-size) var(--goya-checker-big-size);
 }
 /* 카드 제목/설명은 클릭 가능해야 더블클릭 인라인 편집(_bindCvbDblEdit)이 동작한다.
    cvb-inner의 pointer-events:none를 텍스트에서만 되살림 (나머지는 카드 본체로 통과).
@@ -2620,7 +2799,7 @@ textarea.cvb-card-input {
        `.zoom-block.has-image .zoom-bg { background-image: none; }` 를 여기에 더해라. */
 .zoom-block .zoom-bg {
   background:
-    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+    repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) 0 0 / var(--goya-checker-big-size) var(--goya-checker-big-size);
   /* ★이미지를 «도형 모양»으로 자르는 자리 — 블록이 아니라 «여기»가 자른다.
      블록은 그림자가 나가야 해서 안 자른다(자르면 그림자까지 잘린다). */
   overflow: hidden;
@@ -3762,4 +3941,20 @@ html.tgs-selecting .tgs:focus-within {
 }
 [style*="background-clip: text"] span[style*="background-color"] {
   -webkit-text-fill-color: currentColor;
+}
+
+/* ── 패널에 포커스가 간 동안의 «보이는 글자 선택» (TX1 · 2026-10-03) ──
+   숫자·색코드·select 처럼 포커스를 가져가는 패널 칸을 누르면 DOM 선택이 그 칸으로 가서 캔버스 글자 선택이 안 보인다.
+   저장된 범위(js/props/_text-selection.js)를 CSS Custom Highlight 로 칠한다 — 새 색 없이 기존 --ui-accent 를 35% 로 비친
+   반투명(글자가 가려지지 않게, 브라우저 선택색에 가깝게 — 2026-10-03 지디 판정).
+   CSS.highlights 가 없으면 이 규칙은 아무것도 안 칠할 뿐, 저장·적용 동작은 같다. */
+::highlight(goditor-text-sel) {
+  background-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
+}
+/* 어두운 바탕(글자 톤 판정 = js/canvas-contrast.js textToneAt — «host 의 바탕»을 섹션까지 합성해 본다)에선 같은 바탕에 흰 글자.
+   측정(scratchpad/tx1/hl/num.json): #111 위 #555 글자 + 35% 블렌드 = 대비 1.33 · 흰 글자면 9.91.
+   ⚠️#fff 는 지디 지시 값 그대로 — --ui-* 에 흰색 토큰이 없다(있는 #fff 토큰은 --preset-* 블럭 기본값뿐). */
+::highlight(goditor-text-sel-dark) {
+  background-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
+  color: #fff;
 }

@@ -61,7 +61,7 @@ function makeFakeDom() {
   function createElement(tag) {
     let _id = '', _classes = new Set();
     const el = {
-      tagName: tag, dataset: {}, style: {}, innerHTML: '',
+      tagName: tag, dataset: {}, style: {}, innerHTML: '', children: [],   // G19 — 렌더러가 직계 자식(.grd-children 유무)을 읽는다 · 이 가짜는 자식을 안 붙이므로 늘 빈 목록
       get id() { return _id; },
       set id(v) { if (_id) registry.delete(_id); _id = v; if (v) registry.set(v, el); },
       get className() { return [..._classes].join(' '); },
@@ -1146,7 +1146,9 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *       손으로 적은 명부를 되살리면 R12 빨강 · `before` 에서 키 하나를 빼면 R13 빨강.
  *     ⚠️RENDER_ERROR 는 «데이터로 못 일으킨다»(입구가 다 검증한다) ⇒ 행위로 못 재는 자리를
  *       구조로 잠갔다. 그 사실도 그 파일에 적었다. */
-const GRID_BASELINE_TESTS = 391;
+/* 391 → 394 (2026-10-06 · lane-esweep E91): grid-picked-image-entrances.test.mjs 3 개가 grid-* 명부에 들어왔다(더한 것 — 지운 것 0). */
+/* 394 → 402 (2026-10-06 · fix25 E14 · APPROVED_BY: 지디 E14-E157): grid-kind-shed.test.js K0~K7 8 개가 grid-* 명부에 들어왔다(더한 것 — 지운 것 0). */
+const GRID_BASELINE_TESTS = 402;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {

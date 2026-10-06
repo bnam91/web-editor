@@ -704,8 +704,18 @@ function _updateAssetRadiusHandlePositions() {
   if (!overlay || !_assetRadiusBlock) return;
   const INSET = 10;
   const HALF  = 3.5; // 7px 핸들 중앙 정렬
+  /* ★R2-b(2026-10-03) — 「이미지 지우기 ✕」를 덮는 둥글기 손잡이는 «숨긴다». ✕ 는 블럭 오른쪽 위(모델 10px·30px)라 배율 따라
+     작아지고 이 손잡이는 화면 크기 고정(INSET 10)이라, 낮은 배율에서 ✕ 위에 앉았다(실측 40%: ✕ 원 113점 중 55점·가운데 포함).
+     ⚠️첫 판(aaa94060)은 ne 를 ✕ 아래로 «옮겼다» — 적대QA 가 깼다: 회전 블럭은 건너뛰어 그대로 덮었고(15°·90° 54/168·51/113),
+       아주 작은 블럭(높이 40px)에선 ne 가 블럭 밖으로 나가고 se 가 ✕ 를 덮었다(35/113).
+     ⇒ 어느 모서리든 ✕ 의 화면 사각형(회전이면 외접 사각형)과 겹치는 손잡이는 숨긴다. 반경은 네 모서리 어느 것으로도 같은 값을
+       바꾸므로(_onAssetRadiusHandleMouseDown — 블럭 borderRadius 하나) 남은 손잡이로 기능은 산다. 겹치지 않으면 지금 그대로. */
+  const _clear = _assetRadiusBlock.classList.contains('has-image') ? _assetRadiusBlock.querySelector(':scope > .asset-overlay-clear') : null;
+  const _cr = _clear ? _clear.getBoundingClientRect() : null;
   overlay.querySelectorAll('.asset-radius-handle').forEach(h => {
     const c = _cornerScreen(_assetRadiusBlock, h.dataset.assetRadiusDir, INSET);
+    const hit = !!(_cr && _cr.width && c.x + HALF > _cr.left - 1 && c.x - HALF < _cr.right + 1 && c.y + HALF > _cr.top - 1 && c.y - HALF < _cr.bottom + 1);
+    h.style.display = hit ? 'none' : '';
     h.style.top  = (c.y - HALF) + 'px';
     h.style.left = (c.x - HALF) + 'px';
     syncHandleSelVariant(h, _assetRadiusBlock);   // 오버레이면 보라 — 테두리와 한 색
@@ -1245,6 +1255,7 @@ function showIconCircleResizeHandle(block) {
       const { sx, sy } = cornerSign(h.dataset.icbResize);
       h.style.left = (cx + off * sx - 3.5) + 'px';
       h.style.top  = (cy + off * sy - 3.5) + 'px';
+      syncHandleSelVariant(h, block);   // 띄우면 보라 — 테두리와 «한 색»(현빈 icb_k7kbb_msmevtj · 에셋 :826 과 같은 꼴)
     });
   }
   function _loop() {
@@ -1778,6 +1789,11 @@ function _updateGridGutterPositions() {
   if (!overlay || !_gridGutterBlock) return;
   const block = _gridGutterBlock;
   const blockRect = block.getBoundingClientRect();
+  /* ★열 경계 손잡이의 세로 범위 = 격자 껍데기(.grd-inner) — 블럭 전체가 아니다(H8 · 2026-10-05).
+     블럭 전체면 G19 자식 그릇(.grd-children) 위까지 내려가, «고른» 그리드의 아래 ＋(블럭 가로 가운데 · 껍데기 바로 아래)를
+     2열 그리드 가운데 경계 손잡이가 덮었다(실측 grid-plus-g15 K2: ＋ 정중앙 elementFromPoint = .grd-gutter).
+     옛날엔 ＋ 가 «호버»(안 고름 = 손잡이 없음)에만 떠서 안 만났다. 자식 위에서 열 폭을 끄는 것은 뜻이 없다. */
+  const shellRect = (block.querySelector(':scope > .grd-inner') || block).getBoundingClientRect();
   overlay.querySelectorAll('.grd-gutter[data-axis="col"]').forEach(g => {
     const i = +g.dataset.i;
     const a = _getGridCell(block, 0, i), b = _getGridCell(block, 0, i + 1);
@@ -1787,8 +1803,8 @@ function _updateGridGutterPositions() {
     const br = b.getBoundingClientRect();
     const cx = (ar.right + br.left) / 2; // 두 열 사이 gap 의 중앙(스크린 좌표, 스케일 반영된 rect)
     g.style.left = (cx - 4) + 'px';      // 8px 폭 중앙 정렬
-    g.style.top = blockRect.top + 'px';
-    g.style.height = blockRect.height + 'px';
+    g.style.top = shellRect.top + 'px';
+    g.style.height = shellRect.height + 'px';
   });
   overlay.querySelectorAll('.grd-gutter[data-axis="row"]').forEach(g => {
     const i = +g.dataset.i;
@@ -3161,6 +3177,157 @@ window.showTextOverlayResizeHandles = showTextOverlayResizeHandles;
 window.hideTextOverlayResizeHandles = hideTextOverlayResizeHandles;
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   오버레이(떠 있는) 그리드 — 모서리 «폭» 손잡이 (.grd-overlay-handle) · G2-b (지디 2026-10-04)
+   ───────────────────────────────────────────────────────────────────────────
+   ★증상(G2-b 측정 2026-10-04, 실앱 줌 40/100): 떠 있는 그리드를 골라도 모서리 손잡이가 0개 —
+     showHandlesFor 에 그리드 갈래가 «없었다». 칸 경계(.grd-gutter)·줄 손잡이만 떴다.
+   ★뜻 = «폭만». 높이는 칸 내용이 정한다(텍스트 갈래 주석 ⓐ와 같은 이유) — 쓰지 않고 잰다.
+   ⛔텍스트 손잡이(showTextOverlayResizeHandles)를 «그대로» 쓰지 않는다 — 그건 폭 + 글자 비례확대가 뜻이라
+     (_tfoFontSnapshot · .tb-/.itb- 칸 가정) 그리드에 걸면 글자가 같이 커진다. 빌린 부품은 넷뿐이다:
+     CORNER_DIRS · _cornerScreen · 고정층(#ss-handles-overlay) · 크기 규칙(css 의 공유 손잡이 규칙 = 7px·--ui-handle-border-w).
+   ★쓰는 문은 grid-block.js applyGridOwnWidth «하나»다(떠 있으면 굳힌 폭 + 키). 여기서 style/dataset 을 직접 만지지 않는다.
+   ★맞은편 모서리 고정 — w 쪽을 끌면 오른쪽 끝이, n 쪽을 끌면 아래 끝이 제자리다(확대블럭 ④·텍스트와 같은 식, 회전 0).
+   ★히트 영역은 «화면»에 고정 — 고정층은 #canvas-scaler 밖이라 7px 가 줌과 무관하게 7 화면px 다.
+   ⛔클래스 이름은 `-overlay-handle` 로 끝난다 — tests/unit/overlay-handle-cursor.test.mjs 전수 그물에 자동으로 걸린다.
+   ⛔`.asset-overlay-handle` 을 빌리지 않는다 — hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다(세 번 밟은 함정). */
+let _grdResizeBlock = null;
+let _grdResizeRafId = null;
+
+/** 그리드가 «편집 중»(칸 글자 인라인 편집)인가 — 그때는 숨기기만 한다(텍스트 갈래와 같은 술어 꼴). */
+function _grdEditing(block) {
+  return !!(block.classList.contains('editing') || block.querySelector('[contenteditable="true"]'));
+}
+
+const GRID_HANDLE_DIRS = [...CORNER_DIRS, 'n', 's', 'e', 'w'];
+/* 변 가운데 = 두 모서리의 가운데(보이는 상자 — 그리드는 회전 길이 없어 평균이 곧 가운데) */
+function _grdHandlePoint(box, dir) {
+  if (dir.length === 2) return _cornerScreen(box, dir);
+  const pair = { n: ['nw', 'ne'], s: ['sw', 'se'], e: ['ne', 'se'], w: ['nw', 'sw'] }[dir];
+  const a = _cornerScreen(box, pair[0]), b = _cornerScreen(box, pair[1]);
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function showGridOverlayResizeHandles(block) {
+  const overlay = _getOverlay();
+  /* 빗장은 «지워진 상태»도 본다 — 확대블럭 주석(같은 파일)과 같은 이유. */
+  if (_grdResizeBlock === block && overlay && overlay.querySelector('[data-grd-resize-dir]')) return;
+  hideGridOverlayResizeHandles();
+  _grdResizeBlock = block;
+  if (!overlay) return;
+  /* ★제4안(2026-10-05 현빈 확정 · lane-grid-height) — 손잡이 여덟: 모서리 넷 = 폭+높이(두 방향) · 변 가운데 넷 = 한 방향(e/w 폭 · n/s 높이).
+     «높이» = 칸 위아래 여백(cellPadY · grid-block.js) — 글자·그림은 안 건드린다. */
+  GRID_HANDLE_DIRS.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `grd-overlay-handle ${dir}`;
+    h.dataset.grdResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onGridOverlayResizeMouseDown(e, block, dir));
+  });
+  _updateGridOverlayHandlePositions();
+  _startGridOverlayResizeRaf();
+}
+
+function hideGridOverlayResizeHandles() {
+  if (_grdResizeRafId) { cancelAnimationFrame(_grdResizeRafId); _grdResizeRafId = null; }
+  _grdResizeBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('[data-grd-resize-dir]').forEach(h => h.remove());
+}
+
+function _updateGridOverlayHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_grdResizeBlock) return;
+  const HALF = 3.5;
+  overlay.querySelectorAll('[data-grd-resize-dir]').forEach(h => {
+    /* ★K3 ⒜ — 손잡이도 «보이는 상자»(grid-block.js gridVisualBox — 배경 켬 = .grd-bg) 모서리에. 선택 선(K2)과 같은 한 자리. */
+    const box = typeof window.gridVisualBox === 'function' ? window.gridVisualBox(_grdResizeBlock) : _grdResizeBlock;
+    const c = _grdHandlePoint(box, h.dataset.grdResizeDir);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+    /* ★P4 ⒜(2026-10-05 태양 · lane-f-grid) — 같은 그리드의 ＋(G15 · #grd-plus-layer)와 겹치는 손잡이는 «숨긴다».
+       ＋ 가 먼저 있던 기능이라 자리를 양보한다(그리드가 ＋ 보다 낮으면 오른쪽 ne/se 가 열 ＋ 위에 얹혔다 — P4 실측).
+       ⛔pointer-events:none 이 아니라 숨김 — 보이는데 안 잡히는 손잡이는 거짓이다. 매 rAF 위 루프가 display 를 먼저 되돌리므로 겹침이 풀리면 다시 선다. */
+    const hb = { l: c.x - HALF, t: c.y - HALF, r: c.x + HALF, b: c.y + HALF };
+    const overPlus = [...document.querySelectorAll(`#grd-plus-layer > .grd-add-btn[data-grd-for="${_grdResizeBlock.id}"]`)].some(p => {
+      const q = p.getBoundingClientRect(); return q.width > 0 && hb.r > q.left && hb.l < q.right && hb.b > q.top && hb.t < q.bottom; });
+    if (overPlus) h.style.display = 'none';
+    syncHandleSelVariant(h, _grdResizeBlock);   // 떠 있으면 보라 — 테두리와 «한 색»
+  });
+}
+
+function _startGridOverlayResizeRaf() {
+  function loop() {
+    const block = _grdResizeBlock;
+    if (!block) return;
+    /* ★오버레이를 «끄면» dataset.overlayBlock 이 사라진다 ⇒ 여기서 스스로 걷힌다(텍스트 갈래와 같은 규약). */
+    /* ★K3 ⒜ — 흐름 그리드에도 서므로 «떠 있음» 조건은 뺐다(골라져 있고 붙어 있을 때만). */
+    if (!block.isConnected || !block.classList.contains('selected')) {
+      hideGridOverlayResizeHandles();
+      return;
+    }
+    const editing = _grdEditing(block);
+    const overlay = _getOverlay();
+    if (overlay) overlay.querySelectorAll('[data-grd-resize-dir]').forEach(h => { h.style.display = editing ? 'none' : ''; });
+    if (!editing) _updateGridOverlayHandlePositions();
+    _grdResizeRafId = requestAnimationFrame(loop);
+  }
+  _grdResizeRafId = requestAnimationFrame(loop);
+}
+
+function _onGridOverlayResizeMouseDown(e, block, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startW = Math.max(1, Math.round(block.offsetWidth));
+  const startH = Math.max(1, Math.round(block.offsetHeight));
+  const startX = e.clientX, startY = e.clientY;
+  /* ★제4안 — 축마다 따로: e/w 가 든 손잡이만 폭(sx ≠ 0) · n/s 가 든 손잡이만 높이(sy ≠ 0 · 칸 위아래 여백 1:1 — 시안). */
+  const sx = dir.includes('e') ? 1 : dir.includes('w') ? -1 : 0;
+  const sy = dir.includes('s') ? 1 : dir.includes('n') ? -1 : 0;
+  const startPad = typeof window.getGridCellPadY === 'function' ? window.getGridCellPadY(block) : 0;
+  /* 위치 SSOT = dataset.offsetX/offsetY (overlay-float.js _applyOverlayPos). */
+  const startPosX = Number(block.dataset.offsetX ?? parseFloat(block.style.left)) || 0;
+  const startPosY = Number(block.dataset.offsetY ?? parseFloat(block.style.top))  || 0;
+  let moved = false;
+  /* ★드래그는 «양쪽 끝»을 찍는다 — js/drag-history.js 규약(시작 = 첫 실제 이동의 arm, 끝 = onUp pushHistory). */
+  const _hist = window.beginDragHistory?.('그리드 크기');
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale, dy = (ev.clientY - startY) / scale;   // 캔버스 좌표
+    const dw = sx * dx, dp = sy * dy;
+    if (!moved && Math.abs(dw) < 1 && Math.abs(dp) < 1) return;
+    moved = true;
+    _hist?.arm(dx, dy);          // ⛔반환값으로 쓰기를 막지 않는다(drag-history.js 규약 ⑵)
+    let newW = startW;
+    if (sx !== 0) { newW = window.applyGridOwnWidth?.(block, startW + dw); if (newW == null) return; }
+    if (sy !== 0) window.applyGridCellPadY?.(block, startPad + dp);   // 제4안 — 바닥 0 · 상한 70 은 쓰는 문이 죈다
+    /* 높이는 «내용이 정한다» — 쓴 뒤 잰다. 맞은편 모서리 고정도 그 실측 높이로. */
+    const newH = Math.max(1, block.offsetHeight);
+    /* ★K3 ⒜ — 맞은편 모서리 고정은 «떠 있을 때만»(좌표가 있는 그리드). 흐름 그리드는 자리를 흐름이 정한다 — 폭만 쓴다. */
+    if (block.dataset.overlayBlock === 'true') {
+      const nx = sx >= 0 ? startPosX : startPosX - (newW - startW);
+      const ny = sy >= 0 ? startPosY : startPosY - (newH - startH);
+      _applyOverlayPos(block, nx, ny);
+    }
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (moved) {
+      window.pushHistory?.('그리드 크기');   // ★끝 표본 — 시작(_hist.arm)과 짝
+      if (block.classList.contains('selected')) window.showGridProperties?.(block);   // 패널 너비칸이 손잡이 값을 알게
+      window.triggerAutoSave?.();
+    }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+window.showGridOverlayResizeHandles = showGridOverlayResizeHandles;
+window.hideGridOverlayResizeHandles = hideGridOverlayResizeHandles;
+
+/* ═══════════════════════════════════════════════════════════════════════════
    손잡이 «탈출층» — 블럭의 자식으로 남은 손잡이를 고정층으로 옮긴다 (2026-09-21)
    ───────────────────────────────────────────────────────────────────────────
    ★증상(현빈): 도형의 «아래쪽» 모서리 손잡이가 «보이는데 안 눌린다».
@@ -3337,6 +3504,10 @@ function showHandlesFor(block) {
     const posEl = _posElOf(block);
     if (posEl.dataset.overlayBlock === 'true') showTextOverlayResizeHandles(posEl);
     else hideTextOverlayResizeHandles();
+  } else if (block.classList.contains('grid-block')) {
+    /* ★G2-b — 떠 있는 그리드에만 «폭» 손잡이였다(흐름 그리드는 패널 너비 줄로).
+       ★K3 ⒜(2026-10-05 지디 · lane-f-grid) — 흐름 그리드에도 같은 «폭» 손잡이. 자리 = gridVisualBox(K2 선택 선과 같은 상자) · ⛔높이 안 씀. */
+    showGridOverlayResizeHandles(block);
   }
 }
 window.showHandlesFor = showHandlesFor;
@@ -3372,6 +3543,8 @@ export {
   hideGridLineGrip,
   showTextOverlayResizeHandles,
   hideTextOverlayResizeHandles,
+  showGridOverlayResizeHandles,
+  hideGridOverlayResizeHandles,
 
   showHandlesFor,
 };

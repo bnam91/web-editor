@@ -1,3 +1,4 @@
+import { BLOCK_BIND_SEL } from './block-bind-kinds.js';   // 0.9.6 — A/B 사본 bindBlock 종류의 정본
 /* ═══════════════════════════════════
    A/B VARIATION
 ═══════════════════════════════════ */
@@ -81,6 +82,20 @@ function bindVariationToolbarBtn(sec) {
   }
 }
 
+/* ★0.9.6(2026-10-06 lane-drag · 지디 미리 승인) — A/B 사본을 «살린다».
+   옛 판은 cloneNode 뒤 bindBlock 을 손 명부 14 종에만 걸고 프레임엔 bindFrameDropZone 을 «한 번도» 안 걸었다.
+   실앱 ㉠(A/B 버튼 → ▷B 진짜 클릭): B 사본의 도형 · 자유 프레임 · 오버레이 그룹이 셋 다 안 묶여 클릭해도 안 골라지고 그룹 끌기 0px.
+   ⇒ rebindAll · 섹션 템플릿 넣기와 같은 꼴: 정본 명부(js/block-bind-kinds.js)로 bindBlock + 프레임 전부 bindFrameDropZone.
+   제 바인더를 쓰는 종류(gradient · sticker · annotation)는 명부 밖 — 아래에서 제 바인더로 따로 묶는다. */
+function _bindVariantClone(clone) {
+  clone.querySelectorAll(BLOCK_BIND_SEL).forEach(b => window.bindBlock && window.bindBlock(b));
+  clone.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
+  /* ★(2026-10-06 · 태양 ⑴ 이번 판) 제 바인더 셋 — 섹션 템플릿 넣기(18285a47)와 같은 줄. 실앱 ㉠: B 사본의 셋이 안 묶여 클릭하면 섹션만 골라졌다. */
+  clone.querySelectorAll('.gradient-block').forEach(b => window.bindGradientSelect?.(b));
+  clone.querySelectorAll('.sticker-block').forEach(b => window.bindStickerSelect?.(b));
+  clone.querySelectorAll('.annotation-block').forEach(b => window.bindAnnotationSelect?.(b));
+}
+
 function createVariation(sec) {
   if (sec.dataset.variationGroup) return;
   window.pushHistory('A/B 베리에이션 생성');   // ★머리에서 «변경 전»을 민다 — 아래 GAP 주석 참조
@@ -116,7 +131,7 @@ function createVariation(sec) {
   window.bindSectionOrder(clone);
   if (window.bindSectionDrag) window.bindSectionDrag(clone);
   if (window.bindSectionDropZone) window.bindSectionDropZone(clone);
-  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block').forEach(b => window.bindBlock && window.bindBlock(b));
+  _bindVariantClone(clone);   // ★0.9.6(lane-drag) — 손 명부 14 종 → 정본 명부 + 프레임
   bindVariationToolbarBtn(clone);
   if (window.buildLayerPanel) window.buildLayerPanel();
   /* ⛔[#16-DUP] 스크래치 사본의 undo 는 «안 배선했다» — 배선하려다 실물에서 깨뜨렸다(2026-09-09 실측).
@@ -198,7 +213,7 @@ function addVariation(sec) {
   window.bindSectionOrder(clone);
   if (window.bindSectionDrag) window.bindSectionDrag(clone);
   if (window.bindSectionDropZone) window.bindSectionDropZone(clone);
-  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block').forEach(b => window.bindBlock && window.bindBlock(b));
+  _bindVariantClone(clone);   // ★0.9.6(lane-drag) — 손 명부 14 종 → 정본 명부 + 프레임
   bindVariationToolbarBtn(clone);
   all.forEach(s => bindVariationToolbarBtn(s));
   if (window.buildLayerPanel) window.buildLayerPanel();

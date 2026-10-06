@@ -92,6 +92,11 @@
    ⚠️`display:none` 이라 rect 가 0×0 이 된다 → 연결선은 scratchpad-link.js 의
      «0×0 이면 건너뛴다» 문이 같이 감춰 준다(허공 선 방지). */
 body.scratch-hidden-all .scratch-item { display: none; }
+/* ★U29 ㉡ A(2026-10-05 · 지디 A+C) — 캔버스 블럭을 «끄는 동안만» 카드가 비킨다(반투명 + 클릭 통과).
+   까닭: z-index 100(아래 .scratch-item)은 「섹션 위에 떠 있도록」(88498755)이고 «칸을 덮어도 된다»는 적혀 있지 않다 —
+   끄는 동안 카드 밑 칸이 보이고 놓을 수 있어야 한다. 켜고 끄는 신호는 js/scratch-pad.js 「U29 ㉡ A」 한 곳.
+   새 색 0 — 투명도 한 값(.35)뿐. */
+body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
 
 /* ── 스크래치패드 아이템 ── */
 .scratch-item {
@@ -400,20 +405,25 @@ body.scratch-hidden-all .scratch-item { display: none; }
        그러면 남의 컴퓨터에서 열었을 때도 가이드가 따라가고, 내보낸 이미지에도 찍힌다.
      ⇒ 그래서 body 클래스 + background-image 로만 그린다.
        background-origin/clip:content-box 라 «패딩 안쪽»에만 정확히 그려진다 —
-       좌우 패딩을 바꾸면 그리드가 «자동으로» 따라온다(계산을 두 번 하지 않는다).
+       칼럼 폭도 «%»라 좌우 패딩을 바꾸면(페이지든 섹션이든) 그리드가 «자동으로» 따라온다(L1).
    ⛔내보내기 전에는 반드시 꺼야 한다(js/props/prop-page.js 의 export 가드).
    ═══════════════════════════════════════════════════════════ */
 /* (기록) 중앙선(`gdt-grid-mid`)이 있던 시절, 이 규칙과 중앙선 규칙이 «같은 특이도»로
    background-image 를 각각 세팅해 뒤가 이기면서 «칼럼이 지워지던» 결함이 있었다
    (두 그라디언트를 한 선언에 콤마로 겹쳐 막았다). 중앙선을 걷어내(현빈 지시) 그 자리가 없어졌다.
    ⇒ 이 규칙에 background-image 를 «따로» 세팅하는 형제 규칙을 다시 만들지 마라 — 같은 결함이 돌아온다. */
+/* ★L1(2026-10-04) — 칼럼 폭은 «섹션마다 자기 내용 상자»에서 CSS 가 푼다(JS 가 첫 섹션 하나를 재서 문서 변수에 박던 것을 걷었다).
+     색 멈춤의 «%» = 그라데이션 길이 = 배경 위치 상자 = content-box(아래 origin) ⇒ 섹션 패딩이 섹션마다 달라도 각자 맞는다.
+     옛 길의 결함(측정 L1-DESIGN.md): ⑴ 섹션 패딩 조작이 다시 재기를 안 불렀다 ⑵ 폭이 문서 하나라 섹션별로는 맞을 수 없었다(+96px).
+     JS 는 칼럼 수(--gdt-grid-n)·거터(--gdt-grid-gut)만 쓴다(js/props/prop-page.js refreshGrid). */
 body.gdt-grid-on .section-inner {
+  --gdt-grid-colw: calc((100% - (var(--gdt-grid-n, 12) - 1) * var(--gdt-grid-gut, 10px)) / var(--gdt-grid-n, 12));
   background-image: repeating-linear-gradient(
     to right,
     var(--gdt-grid-color, rgba(255, 0, 0, .10)) 0,
-    var(--gdt-grid-color, rgba(255, 0, 0, .10)) var(--gdt-grid-col, 33.33px),
-    transparent var(--gdt-grid-col, 33.33px),
-    transparent calc(var(--gdt-grid-col, 33.33px) + var(--gdt-grid-gut, 10px))
+    var(--gdt-grid-color, rgba(255, 0, 0, .10)) var(--gdt-grid-colw),
+    transparent var(--gdt-grid-colw),
+    transparent calc(var(--gdt-grid-colw) + var(--gdt-grid-gut, 10px))
   );
   background-origin: content-box;
   background-clip: content-box;
@@ -433,7 +443,8 @@ body.gdt-grid-on .section-inner {
    ⛔내보내기 전에는 반드시 꺼야 한다(js/io/export-image.js 의 exportSection 가드).
    ═══════════════════════════════════════════════════════════ */
 body.gdt-pad-on .section-inner { position: relative; }
-body.gdt-pad-on .section-inner::before {
+body.gdt-pad-on .section-inner::before,
+body.gdt-pad-on .frame-block:not(.has-bg-opacity)[style*="--gdt-pad-l"]::before {
   content: '';
   position: absolute;
   inset: 0;

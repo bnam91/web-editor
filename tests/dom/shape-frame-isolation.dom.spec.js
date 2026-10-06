@@ -16,6 +16,7 @@
  * 실행: npm run test:dom -- shape-frame-isolation
  */
 const { test, expect } = require('@playwright/test');
+const { dragUtilsDep } = require('./_drag-utils-deps.js');   // E99 후속 — drag-utils 의 side-effect import(graph-limits.js)를 진짜로
 const fs = require('fs');
 const path = require('path');
 
@@ -47,6 +48,7 @@ async function boot(page, bodyHtml) {
     if (url.pathname === '/js/shape-frame.js') {
       return route.fulfill({ contentType: 'application/javascript', body: SHAPE_FRAME_JS });
     }
+    { const d = dragUtilsDep(url.pathname, '/js/'); if (d) return route.fulfill(d); }
     if (url.pathname === '/js/drag-utils.js') {
       return route.fulfill({ contentType: 'application/javascript', body: DRAG_UTILS_JS });
     }

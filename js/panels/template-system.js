@@ -4,6 +4,7 @@
 import { canvasEl } from '../globals.js';
 import { fitScale } from '../fit-scale.js';
 import { TPL_ROLES, TPL_ROLE_KEYS, tplRoleKo, tplRoleTags, tplRoleOf } from './template-roles.js';
+import { BLOCK_BIND_SEL } from '../block-bind-kinds.js';   // R7b — bindBlock 걸 종류의 정본(section 갈래가 씀)
 
 const TEMPLATE_KEY = 'sangpe-templates'; // localStorage fallback key
 /* ★1회성 이관 마커 — 「이미 옮겼나」를 «캐시 건수»가 아니라 이걸로 판정한다.
@@ -100,6 +101,22 @@ function _tplStripPath(root) {
   if (root.hasAttribute(_TPL_PATH_ATTR)) { root.removeAttribute(_TPL_PATH_ATTR); n++; }
   root.querySelectorAll('[' + _TPL_PATH_ATTR + ']').forEach(el => { el.removeAttribute(_TPL_PATH_ATTR); n++; });
   return n;
+}
+
+/* ★템플릿은 «스크래치 링크 없이» 들어오고 «없이» 저장된다 (현빈 2026-10-03 확정 —
+   「템플릿에서 캔버스로 새로 추가되는건 스크래치패드 없이 들어와야해」).
+   링크 토큰(data-ref-links)은 «scratchId 참조»일 뿐 이미지를 안 싣는다 — 그대로 들어오면
+   ⑴같은 프로젝트: 원본과 한 이미지를 두 섹션이 쥔다(링크체인 2개) ⑵다른 프로젝트: 死참조.
+   ⛔속성 이름을 여기 적지 마라 — 이름은 SPLink(js/scratchpad-link.js)만 안다.
+   ⛔«분리된» 클론/요소에만 부른다. 라이브 섹션에 부르면 원본 링크가 날아간다.
+   삽입 시점 호출이 «방벽»이다(이미 등록된 템플릿도 토큰을 품고 있다) — 등록 시점 호출은 새 것을 깨끗이 두는 용. */
+function _tplStripLinks(root) {
+  const sp = window.SPLink;
+  if (!sp || typeof sp.stripTokens !== 'function') {
+    console.warn('[template] SPLink.stripTokens 없음 — 스크래치 링크 토큰이 템플릿으로/에서 샌다');
+    return 0;
+  }
+  return sp.stripTokens(root);
 }
 
 // 앱 시작 시 1회 호출
@@ -321,6 +338,7 @@ async function saveAsTemplate(el, name, folder, category, tags, type = 'section'
      (삽입 시 strip 하지만, 캔버스를 거쳐 온 것에 옛 값이 남아 있을 수 있다) */
   _tplStripPath(clone);
   _tplStampPath(clone);
+  _tplStripLinks(clone);   // ★클론에만 — 캔버스의 원본 섹션은 링크를 그대로 쥔다
 
   const id  = 'tpl_' + Date.now();
   const html = clone.outerHTML;
@@ -361,6 +379,40 @@ async function deleteTemplate(id) {
   renderTemplatePanel();
 }
 
+/* ★E81(integ14 · 2026-10-04 · 지디 ㉯) — 블럭·서브섹션 템플릿을 넣은 «그 섹션 하나»에 페이지 padX 를 다시 건다.
+   까닭: 템플릿은 «뜬 문서»의 padX 로 박힌 전폭 인라인 값(margin −48 · width calc(100%+96px))을 그대로 들고 들어온다.
+     섹션 갈래는 아래 :603 applyPageSettings() 가 «문서 전체»를 다시 걸지만, 블럭·서브섹션 갈래는 안 걸고 return 했다
+     → 낡은 값이 그 pushHistory 표본·저장 파일에 남았다(실측: $S/reports/E81-MEASURE.md · 등급 «저장에 남는 꼴 어긋남»).
+   ★«넣은 섹션만» — 사용자 행동이 «이 섹션에 넣기»라 범위를 최소로(문서 전체 :603 꼴이 아니다).
+   ★부품은 «이미 있는 것»만 부른다 — 새 벌 0: applyPadXToSection(prop-page.js · applyPagePadX 가 섹션마다 부르는 그것) ·
+     실효 padX = window.effectiveSectionPadX(inner)(drag-utils.js — section override ?? 페이지 padX). section-inner 를 넘기면
+     parent 가 .section-block 이라 프레임·행 갈래를 안 타고 그 inner 의 값을 돌려준다(override 섹션 시험 T4 가 잠근다).
+   ⛔applyPadXToSection 은 section-inner «직속» 에셋만 덮는다 — 행 안 에셋은 안 덮인다 → E92(별건 · integ16).
+   ⛔pushHistory «앞»에서 부른다 — 뒤에 부르면 표본·저장에 낡은 값이 남는다(시험 T5 · T13). */
+function _tplReapplyPagePad(sec) {
+  const inner = sec && (sec.querySelector('.section-inner') || null);
+  if (!inner || typeof window.applyPadXToSection !== 'function' || typeof window.effectiveSectionPadX !== 'function') return;
+  window.applyPadXToSection(inner, window.effectiveSectionPadX(inner));
+}
+
+/* ★넣은 나무를 «묶는» 한 곳 (2026-10-06 lane-drag · R7 · R7b · ② · block 갈래 — section 갈래와 block 갈래가 같이 쓴다).
+   ⑴ 정본 명부(js/block-bind-kinds.js) 종류 → bindBlock (+ 그리드·QA 는 다시 그리기 — 스냅샷과 CSS 가 어긋나지 않게)
+   ⑵ .frame-block 전부 → bindFrameDropZone (프레임은 bindBlock 이 아니다)
+   ⑶ 제 바인더 셋(그라데이션 · 스티커 · 어노테이션) → 제 바인더(묶기만 · 다시 그리기 안 함)
+   root 자신도 포함한다(block 갈래는 넣는 것이 블록·프레임 하나다). */
+function _bindInsertedTree(root) {
+  const each = (sel) => [...(root.matches?.(sel) ? [root] : []), ...root.querySelectorAll(sel)];
+  each(BLOCK_BIND_SEL).forEach(b => {
+    window.bindBlock?.(b);
+    if (b.classList.contains('grid-block')) window.renderGridBlock?.(b);
+    if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
+  });
+  each('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
+  each('.gradient-block').forEach(b => window.bindGradientSelect?.(b));
+  each('.sticker-block').forEach(b => window.bindStickerSelect?.(b));
+  each('.annotation-block').forEach(b => window.bindAnnotationSelect?.(b));
+}
+
 async function insertTemplate(tpl) {
   const canvas = await _loadCanvas(tpl.id);
   if (!canvas) {
@@ -383,6 +435,7 @@ async function insertTemplate(tpl) {
       return;
     }
     _tplStripPath(blockEl);   // ★템플릿 안에서만 쓰는 이름표 — 캔버스로 들고 들어가지 않는다
+    _tplStripLinks(blockEl);  // ★스크래치 링크 토큰도 — DOM 에 붙이기 «전»
 
     // row로 감싸서 insertAfterSelected로 삽입 (섹션 패딩/레이아웃 정상 적용)
     const row = document.createElement('div');
@@ -391,16 +444,20 @@ async function insertTemplate(tpl) {
     row.dataset.layout = 'stack';
     row.appendChild(blockEl);
 
+    /* ★(2026-10-06 lane-drag · 태양/지디 승인) 새 id — 넣는 블록과 안의 [id] 전부(section 갈래와 같은 규칙: 접두어 + genId).
+       base 실앱 ㉠: 원본이 문서에 있으면 같은 id 가 둘(글자 1 · 프레임 안까지 5). */
+    const _gid = (prefix) => (typeof window.genId === 'function' ? window.genId(prefix) : prefix + '_' + Math.random().toString(36).slice(2, 9));
+    [blockEl, ...blockEl.querySelectorAll('[id]')].forEach(el => { if (el.id) el.id = _gid(el.id.split('_')[0] || 'el'); });
+
     window.insertAfterSelected?.(sec, row);
     /* ★rebindAll 비경유 문(2026-09-05 개명) — «옛 빌드가 저장한 블록 템플릿»이 여기로 들어온다.
        ⛔이 자리는 설계 문서의 문 목록(subsection:182 / section:277)에 «없었다» — 구현 중 발견.
        승격을 안 하면 bindBlock 안전망이 뒤늦게 잡아 warn 을 남긴다(= 문을 놓쳤다는 신호). */
     window.migrateGridIdentity?.(blockEl);
-    window.bindBlock?.(blockEl);
-    // ★이 문도 렌더러를 안 부른다 — 스냅샷(grd-*)과 CSS 가 어긋나지 않게 다시 그린다.
-    if (blockEl.classList.contains('grid-block')) window.renderGridBlock?.(blockEl);
-    if (blockEl.classList.contains('qa-block')) window.renderQABlock?.(blockEl);
+    /* ★(2026-10-06) 옛 판은 blockEl «하나»에 bindBlock — 프레임이면 틀린 바인더 · 안 블록·프레임은 안 묶였다(base 실앱: 클릭하면 섹션만). */
+    _bindInsertedTree(blockEl);
     window.buildLayerPanel?.();
+    _tplReapplyPagePad(sec);   // ★E81 — push «앞»
     window.pushHistory?.();
     window.scheduleAutoSave?.();
     window.showToast?.('블록 템플릿 삽입됨');
@@ -435,20 +492,25 @@ async function insertTemplate(tpl) {
     }
 
     _tplStripPath(ss);        // ★템플릿 전용 이름표 제거(형제 셋 공통)
+    _tplStripLinks(ss);       // ★스크래치 링크 토큰 제거 — DOM 에 붙이기 «전»
     // ID 재생성 (중복 방지)
     ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
     ss._subSecBound = false;
+    /* ★E104(2026-10-05) — 안쪽 [id] 도 «전부» 새로 준다(붙여넣기 editor.js _bindPastedEl 과 같은 규칙: 접두어_임의 7자).
+     *   전엔 바깥 ss.id 만 바꿔 안쪽 글자 프레임·글자 블럭 id 가 템플릿을 뜬 «원본과 같았다»(실측: 원본이 문서에 있으면 중복 2). */
+    ss.querySelectorAll('[id]').forEach(el => {
+      el.id = `${el.id.split('_')[0] || 'el'}_${Math.random().toString(36).slice(2, 9)}`;
+    });
 
-    // frame-block은 row 안에 있어야 함
+    /* frame-block은 row 안에 있어야 함 — ★E104: row > 프레임(«col» 없이).
+     *   옛 꼴 row > col > 프레임은 넣은 프레임이 «클릭해도 안 골라졌다»(실측 변이 v3: col 만 풀면 프레임·안 글자 클릭이 원본과 같아짐 ·
+     *   안쪽 id 재발급(v1)·안쪽 프레임 바인딩(v2)만으로는 안 됨). 열기 마이그레이션(save-load migrateColsFromDOM)이 어차피
+     *   row[stack] > col 을 풀어 같은 꼴로 만든다 — 넣는 순간부터 그 꼴로 둔다. */
     const row = document.createElement('div');
     row.className = 'row';
     row.id = 'row_' + Math.random().toString(36).slice(2, 9);
     row.dataset.layout = 'stack';
-    const col = document.createElement('div');
-    col.className = 'col';
-    col.dataset.width = '100';
-    col.appendChild(ss);
-    row.appendChild(col);
+    row.appendChild(ss);
 
     // 선택된 섹션의 콘텐츠 영역(section-inner 또는 직접)에 append
     const inner = targetSec.querySelector('.section-inner') || targetSec;
@@ -459,7 +521,7 @@ async function insertTemplate(tpl) {
     // 내부 블록 이벤트 핸들러 재등록 (Section 삽입과 동일 수준)
     // ★rebindAll 비경유 문 — 승격을 직접 한다(2026-09-05 개명).
     window.migrateGridIdentity?.(ss);
-    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .qa-block').forEach(b => {
+    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .qa-block').forEach(b => {
       window.bindBlock?.(b);
       if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
     });
@@ -474,6 +536,7 @@ async function insertTemplate(tpl) {
     const bw = parseInt(ss.dataset.borderWidth) || 0;
     if (bw > 0) ss.style.border = `${bw}px ${ss.dataset.borderStyle || 'solid'} ${ss.dataset.borderColor || '#888'}`;
 
+    _tplReapplyPagePad(targetSec);   // ★E81 — push «앞»
     window.pushHistory?.();
     window.buildLayerPanel?.();
     window.scheduleAutoSave?.();
@@ -499,6 +562,7 @@ async function insertTemplate(tpl) {
     ? window.genId(prefix)
     : prefix + '_' + Math.random().toString(36).slice(2, 9));
   _tplStripPath(sec);         // ★템플릿 전용 이름표 제거(형제 셋 공통)
+  _tplStripLinks(sec);        // ★스크래치 링크 토큰 제거 — anchorSec.after/appendChild «전»(이미 등록된 템플릿의 토큰도 여기서 막힌다)
   sec.id = genId('sec');
   sec.querySelectorAll('[id]').forEach(el => {
     const prefix = el.id.split('_')[0] || 'el';
@@ -564,13 +628,9 @@ async function insertTemplate(tpl) {
   bindSectionDropZone(sec);
   // ★rebindAll 비경유 문 — 승격을 직접 한다(2026-09-05 개명).
   window.migrateGridIdentity?.(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .qa-block').forEach(b => {
-    bindBlock(b);
-    // ★이 문은 «유일하게» 렌더러를 안 부르던 문이다 — 개명으로 스냅샷(grd-*)과 CSS 가
-    //   어긋나면 P1.5 「빈 줄이 손에 안 닿음」이 여기서만 재현된다. save-load.js:979 와 같은 줄.
-    if (b.classList.contains('grid-block')) window.renderGridBlock?.(b);
-    if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
-  });
+  /* ★R7b(2026-10-05 lane-drag · 지디 ⒜) — 손 명부(15 종 · 도형·스텝·챗·목업·확대 등 14 종 빠짐) 대신 정본 명부(js/block-bind-kinds.js).
+     나머지 손 명부 8 곳은 0.9.7 — 그 사이 tests/unit/block-bind-kinds-lock.test.mjs 가 자리마다 오늘 빠짐을 얼려 둔다. */
+  _bindInsertedTree(sec);   // ★section · block 갈래 «한 도우미»(R7 · R7b · ② 를 모은 것 — 아래 정의 머리말)
   sec.querySelectorAll('.group-block').forEach(g => {
     if (!g.querySelector(':scope > .group-block-label')) {
       const lbl = document.createElement('span');
@@ -1012,6 +1072,7 @@ export async function saveBlockAsTemplate(block, name, folder = '블록', tagsSt
   /* 블록 저장도 «같은 형제»다 — 현빈 지시가 「섹션이나 블럭들도 모두」였다. 순서는 위와 같다. */
   _tplStripPath(clone);
   _tplStampPath(clone);
+  _tplStripLinks(clone);   // ★클론에만 — 캔버스의 원본 블록(과 그 섹션)은 링크를 그대로 쥔다
   const html = clone.outerHTML;
 
   const id = 'btpl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
