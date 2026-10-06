@@ -72,7 +72,9 @@ test('P3 fullWidth 프레임 + 인라인 min-height:0 — 높이 = 내용(작은
       const { block } = window.makeTextBlock('body'); const tf = window._makeTextFrame();
       const ce = block.querySelector('.tb-body'); ce.textContent = 'x'; ce.style.fontSize = '12px'; ce.style.lineHeight = '1.2'; delete ce.dataset.isPlaceholder;
       tf.appendChild(block); f.appendChild(tf); document.getElementById('gEnd').before(f);
-      return { frame: f.getBoundingClientRect().height, kid: tf.getBoundingClientRect().height };
+      /* ★레이아웃 px(offsetHeight) — getBoundingClientRect 는 캔버스 배율을 탄다. CI(10-06 v0.9.6 맥 2차)에서 frame·kid 가 «같은 비 0.98393» 으로 줄어
+         60 → 59.04 가 됐다(배율 ≠ 100%). 같은 꼴의 앞선 고침 = 1c210496(KR6 · tpl-pagepad «레이아웃 px»). 화면 px 는 비교용으로만 같이 찍는다. */
+      return { frame: f.offsetHeight, kid: tf.offsetHeight, frameScr: f.getBoundingClientRect().height, kidScr: tf.getBoundingClientRect().height };
     };
     return { withZero: mk('0px'), without: mk(null) };
   });
