@@ -22,6 +22,14 @@
  * ★지키는 검사(이 고침이 깨뜨리면 안 되는 것 — 양쪽 판에서 초록):
  *   B3 챗의 메시지 단위 줄 추가 · B4 줄 없는 말풍선 패널의 「줄 추가」 UI · B5 줄을 고른 뒤 g ·
  *   B7 편집 중 g 는 ★글자로 들어간다.
+ *
+ * ⛔★★이 분모의 «구멍» — ★B1~B7 이 전부 초록이어도 ★「챗은 안전하다」로 읽지 마라(fx-parity 가 찾았다).
+ *   ⑴ ★이 분모엔 ★«챗을 클릭해서 고른 상태»가 ★없다. B3 는 grdSetActiveLine 을 ★손으로 불러 장면을
+ *      만든다 ⇒ ★사람이 하는 순서(클릭 → 패널이 주소를 세운다)를 ★안 밟는다.
+ *   ⑵ 그 장면은 ★챗에 「기본 주소」가 없던 판에선 생길 수 없었다 — 챗에 그것을 넣으면 ★같은 결함이 번진다.
+ *   ⇒ ★그 칸은 fx-parity 의 `ln-default-addr` P5 가 메운다. ⛔여기서 메웠다고 적지 마라.
+ *   ※ _lnPickedLine 은 ★챗을 ★안 가른다(술어가 .speech-bubble-block 만 본다) — 설계대로다.
+ *     챗의 「메시지만 고른 상태에서 줄 추가」(D10)를 죽이지 않으려고 ★일부러 그렇게 뒀다.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -168,6 +176,11 @@ test('B5 ★지키는 검사 — 줄이 이미 있고 그 줄을 고른 뒤 g �
 });
 
 test('B6 ★전수 — 7종 모두 고른 상태에서 g 는 「전역 갭 블록 +1」이다', async ({ page }) => {
+  /* ★이 한 칸이 앱을 ★7번 띄운다(종류마다 setup → bootApp). 기본 30000ms 로는 ★예산이 모자란다 —
+     실측 2026-10-06: 단독 14.0s · 13.6s · ★30.1s 타임아웃(3회 중 1회 · load 16).
+     ⛔「부하 탓」이라는 라벨은 ★틀리다 — 14s 가 기본인데 상한 30s 에 너무 가깝다(구조다).
+     레포 선례대로 이 칸만 올린다(grid-block-width-model:74 · grid-line-bold-role:51 등 8곳). */
+  test.setTimeout(120000);
   const CASES = [
     ['speech-bubble', "window.addSpeechBubbleBlock('left')", '.speech-bubble-block'],
     ['text',          "window.addTextBlock('body')",         '.text-block:not(.speech-bubble-block)'],

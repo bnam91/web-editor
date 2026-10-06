@@ -152,16 +152,36 @@
 .frame-block.ss-drag-over {
   outline: 2px dashed var(--sel-color);
 }
-/* ★빈 프레임 «자리» 표시 — 편집 화면 전용 (2026-10-03 현빈 결정: 자식을 다 지워도 프레임은 남는다).
-   흰 프레임이 흰 섹션 위에 비면 높이(자유 520·흐름 60)는 있는데 «경계»가 안 보였다(실측: outline none · 배경 둘 다 #fff).
-   꼴은 새로 짓지 않는다 — 빈 줄 표시(.bn2-line-empty: 1px dashed --ui-border-mid)에 배율 보정(.marquee-hit 의 --inv-zoom)만 얹었다.
-   ★#canvas-scaler 아래로만 건다: PNG 클론은 body 로 나가 이 조상이 없고, HTML 내보내기의 CSS 수확은
-     '#canvas-scaler' 를 편집 전용으로 걸러낸다(export-css-collect.js EDITOR_ONLY_SEL) ⇒ 배송본엔 안 실린다.
-   글자 래퍼·그룹은 사용자가 보는 «프레임»이 아니다 — 뺀다. */
-#canvas-scaler .frame-block:not([data-text-frame]):not([data-group="true"]):not(.selected):not(:has(> *)) {
-  outline: calc(1px * var(--inv-zoom, 1)) dashed var(--ui-border-mid);
-  outline-offset: calc(-1px * var(--inv-zoom, 1));
-}
+/* ★★[폐기 2026-10-06] «빈 프레임 자리 표시»(점선 아웃라인)를 ★없앴다 — 규칙 4줄을 지웠다.
+   ⛔이 비석을 지우지 마라. 없으면 다음 사람이 「흰 프레임이 안 보인다」를 ★새 버그로 다시 신고한다.
+
+   ─ 왜 넣었나 (2026-10-03 · T-099 · 커밋 ab1f7c20) ───────────────────────────────
+   그날 현빈 결정이 「자식을 다 지워도 프레임은 남는다」였다. 그 결과 ★흰 프레임이 흰 섹션 위에
+   비면 «경계»가 안 보였다 — 높이는 그대로 차지한다(실측: 자유배치 520px · 흐름 60px ·
+   outline none · 배경이 둘 다 #fff). 그래서 «자리»를 알리는 점선을 얹었다. 규칙은 이랬다:
+     #canvas-scaler .frame-block:not([data-text-frame]):not([data-group="true"]):not(.selected):not(:has(> *))
+       { outline: calc(1px * var(--inv-zoom,1)) dashed var(--ui-border-mid);
+         outline-offset: calc(-1px * var(--inv-zoom,1)); }
+   꼴은 새로 짓지 않았다 — 빈 줄 표시(.bn2-line-empty: 1px dashed --ui-border-mid)에
+   배율 보정(.marquee-hit 의 --inv-zoom)만 얹은 것이었다.
+
+   ─ 왜 없앴나 (2026-10-06 · 현빈) ────────────────────────────────────────────────
+   현빈 원문: 「프레임블럭에는 처음에 왜 점선 아웃라인이 생기는지?? 없어도됨」.
+   ★지디가 ★대가를 그림으로 보여 드리고 받은 답이다 — 「흰 섹션 위의 빈 프레임이 눈에
+   안 들어오게 된다(높이는 그대로 차지)」를 ★알고도 「없애라」. ⇒ 그 대가는 ★받아들인 것이다.
+   ⛔그러니 「안 보인다」가 다시 올라오면 ★버그가 아니라 ★이 결정의 대가다. 되살리려면
+     2026-10-03 결정(「자식을 다 지워도 프레임은 남는다」)까지 같이 다시 봐라.
+
+   ─ 지우기 전에 잰 것 (2026-10-06 · 하네스 bootApp) ──────────────────────────────
+   언제 떴나: ★«자식 0 ＋ 미선택»일 때만. 자식 1개 → none · 자식을 다시 지우면 → dashed ·
+     글자 래퍼(data-text-frame) → none · 그룹(data-group="true") → none · 선택 → solid.
+     ★새로 만든 직후는 selected 라 solid 였다 ⇒ 바깥을 눌러야 점선이 보였다
+     (현빈이 「처음에」라 하신 것은 «비어 있을 때»였다 — 「새로 만들 때만」이 아니다).
+   ★배송본엔 ★원래 안 나갔다 — ⒜PNG: 클론이 body 로 나가 #canvas-scaler 조상을 잃어 outline none.
+     ⒝HTML 내보내기: collectCanvasCss 수확 4,983자에 이 규칙 ★미포함 · '#canvas-scaler' 문자열 0건
+     (export-css-collect.js EDITOR_ONLY_SEL 이 그 문자열을 편집 전용으로 걸러낸다).
+   ⇒ 이 삭제는 ★편집 화면만 바꾼다. 내보낸 산출물은 전·후가 같다.
+   검사: tests/dom/frame-empty-no-dashed.dom.spec.js (★양성대조 = 위 4줄을 되살리면 dashed). */
 
 /* ── 배경 투명도(bgOpacity) — 점진 적용안 (I2) ──
    has-bg-opacity 클래스가 있을 때만 활성. 기존 프레임은 무변경.

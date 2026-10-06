@@ -66,12 +66,13 @@
 
 | 레인 | 증분 | 내역(출처 ㉠ git `test(` 선언 수 · base `e7444dd3`) | 비고 |
 |---|---|---|---|
-| `gd/small3` (fx-small3 · 작은 고침) | **＋26** | `scratch-folder-columns` +4 · `bubble-shortcut-not-in-text` +7 · `marquee-edge-autoscroll` +6 · `shape-star-count` +9 | 새 spec 4개 ⇒ 파일 수 **＋4** |
+| `gd/small3` (fx-small3 · 작은 고침) | **＋30** | `scratch-folder-columns` +4 · `bubble-shortcut-not-in-text` +7 · `marquee-edge-autoscroll` +6 · `shape-star-count` +9 · `frame-empty-no-dashed` +4 | 새 spec 5개 ⇒ 파일 수 **＋5** |
 
 ★네 spec 모두 «루프로 test 를 감싸지 않았다» ⇒ 선언 수 = 실행 단위 수 ⇒ 위 「루프 spec」 표에 더할 것이 ★없다.
 (루프는 ★test 안에만 있다 — bubble B6 의 7종 전수 · star S2~S4b 의 좌표 순회. 그건 실행 단위 1개다.)
-★이 레인 단독 `--list` 는 `Total: 2764 tests in 318 files` 였다(= 2738＋26 · 314＋4) — ⚠️그 **2764 는
-머지 전 한 레인 기준이라 다른 레인이 들어오면 틀린다**. 그래서 여기엔 ★증분만 남긴다.
+⚠️⛔이 레인 «단독» 절대값은 ★적지 않는다 — 머지 전 한 레인 기준이라 다른 레인이 들어오면 틀린다.
+(참고로 ＋26 시점에 러너 헤더 `Running 2764 tests using 3 workers` 와 `--list` `Total: 2764` 가 ★두 출처로
+일치했다는 사실만 남긴다 — 그 수가 아니라 ★두 출처가 맞았다는 것이 기록할 값이다.)
 
 ⑷(말풍선 g)의 제품 고침은 ★이 레인이 든다(`js/blocks/line-host.js` `_lnPickedLine` — 지디 2026-10-06
 채택, fx-parity 의 `synthetic` 안은 물렸다). `bubble-shortcut-not-in-text` 7칸 전부 ★이 레인에서 초록이다.
