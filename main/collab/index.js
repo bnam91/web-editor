@@ -69,7 +69,10 @@ async function call(pathname, body) {
  */
 function getRef(projectId) {
   /* ⚠️meta 를 못 읽으면 «연결 없음»으로 답한다 ⇒ 렌더러는 not_linked(조용한 갈래)로 읽는다. 공동작업본인데 동기화가
-   *   안 붙는 꼴이 될 수 있어 «조용히» 두지 않고 main 콘솔에 남긴다(렌더러 문장은 별건 — 2026-10-06 명부 밖 발견). */
+   *   안 붙는 꼴이 될 수 있어 «조용히» 두지 않고 main 콘솔에 남긴다(렌더러 문장은 별건 — 2026-10-06 명부 밖 발견).
+   *   ⚠️그런데 이 catch 는 지금 «닿지 않는다»: 주입된 readMeta(main.js 의 init 주입부)가 파싱 오류를 스스로 삼켜 {} 를
+   *   돌려준다 ⇒ 진짜 삼키는 자리는 main.js 다(현빈 게이트 — 2026-10-06 지디에게 올림). 그 자리가 던지게 되는 날 이 catch 가 산다.
+   *   ★같은 뿌리·다른 처방(2026-10-06 지디): meta 읽기 실패는 accept.js B3 와 main/collab/index.js getRef 가 «같은 뿌리»다. B3(수락 = 만들기)는 «닫는다» — 못 읽으면 이미 연결된 방인지 가릴 수 없고, 만들면 중복이 된다. getRef(읽기)는 «말한다» — 닫으면 읽기 자체가 불가능해진다. 꼴이 갈린 것은 까닭이 갈려서다 — 한쪽에 맞추지 마라. */
   try { return _deps.readMeta(projectId).collabRef || null; } catch (e) { console.error('[collab] proj_meta 읽기 실패 — 연결 없음으로 답한다:', projectId, e && e.message); return null; }
 }
 function setRef(projectId, collabRef) {

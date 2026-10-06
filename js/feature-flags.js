@@ -46,6 +46,11 @@
    *   ⑶ tests/dom/collab-undo-scope.dom.spec.js 초록(C8) · tests/unit/collab-silence-ruler 초록(삼키는 catch 0).
    *   ⑷ 「못 쟀다」 셋은 켜기 전 결정할 것: 현재 판 C8 2인스턴스 harm · 설정 협업 탭 화면(MVP 문 뒤라 못 엶) ·
    *      서버 배포본 == hompage_app 클론(정황 셋 일치 · 증명 없음).
+   *   ⑸ 켜는 판에서는 tests/dom/collab-undo-scope U0 · collab-notify W1 의 «전제 단언»(flag === false)을 같이 고친다.
+   *      ⛔안 고치면 G1 의 빨강(「문장부터 채워라」)이 가짜 빨강 둘에 묻힌다(2026-10-06 사본 실측: true → G1·U0·W1 셋 빨강).
+   *   ⑹ «켜는 날 살아나는 코드» — 지금은 닿는 길이 0 인 자리. 켜기 전에 «닿는 길이 생겼는지» 재라:
+   *      js/collab/invites-badge.js openCollabSettings 의 inbox_closed 갈래(C2·C3 · boot 가 같은 술어로 리스너를 안 단다) ·
+   *      main/collab/index.js getRef 의 catch(주입된 readMeta 가 오류를 삼켜 안 던진다 — main.js 쪽).
    *
    * ★되돌리기 = 이 줄 하나를 true 로. 코드·데이터는 아무것도 안 지웠다.
    *   서버 ROUTES 에 collab 이 올라간 «뒤에» 켠다(순서 반대면 또 404 를 판다).
