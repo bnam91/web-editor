@@ -110,13 +110,24 @@ async function register({ projectId, name, actorId }) {
 }
 
 /** 원격 연결만 끊는다 — ⚠️로컬 프로젝트는 그대로 남는다(지우지 않는다). */
-async function leave({ projectId }) {
-  const ref = getRef(projectId);
-  if (!ref || !ref.collabId) return { ok: false, reason: 'not_linked' };
-  const r = await call('leave', { collabId: ref.collabId });
+/* ★SIX ②(2026-10-06 · 현빈 「주인이 자기가 올린 걸 못 내린다」):
+ *   ⑴ 설정 「연결 끊기」는 { collabId } 만 보냈는데 여기선 projectId 로만 찾아 → 서버를 부르기도 전에 not_linked 로 끝났다
+ *      (실측: leave({collabId}) → not_linked · 서버 호출 0). 참여자도 못 나갔다. ⇒ collabId 만 와도 서버를 부른다.
+ *   ⑵ 서버(api/_lib/collab-handlers/leave.js)는 주인의 leave 를 owner_cannot_leave 로 거절하고, 해산은 action:'disband' 를
+ *      «명시»해야 한다 — 앱은 그걸 안 보냈다. ⇒ action 을 그대로 싣는다(주인 → 'disband'). */
+async function leave({ projectId, collabId, action } = {}) {
+  const ref = projectId ? getRef(projectId) : null;
+  const cid = (ref && ref.collabId) || collabId;
+  if (!cid) return { ok: false, reason: 'not_linked' };
+  const body = { collabId: cid };
+  if (action === 'disband') body.action = 'disband';
+  const r = await call('leave', body);
   // 서버가 「멤버 아님」이라고 답해도 로컬 연결은 끊는 게 맞다 —
   // 이미 끊긴 걸 못 지우면 사용자는 영영 유령 배지를 본다.
-  if (r.ok || r.reason === 'not_a_member') { setRef(projectId, null); return { ok: true }; }
+  if (r.ok || r.reason === 'not_a_member') {
+    if (projectId && ref) setRef(projectId, null);
+    return { ok: true, disbanded: !!r.disbanded };
+  }
   return r;
 }
 

@@ -874,7 +874,10 @@
         : '<div class="settings-help">받은 초대가 없습니다.</div>';
       prj.innerHTML = projects.length
         ? projects.map(p => row(p.name || p.collabId, p.role === 'owner' ? '내가 올린 공동작업본' : '초대받아 참여 중',
-            `<button class="settings-api-test" data-leave="${p.collabId}">연결 끊기</button>`)).join('')
+            /* ★SIX ②: 주인이면 «해산»(서버 action:'disband') · 참여자면 «연결 끊기» — 묻는 말도 다르다 */
+            (p.role === 'owner'
+              ? `<button class="settings-api-test" data-leave="${p.collabId}" data-role="owner">${_escapeHtml(window.CollabReasons.text('disband_button'))}</button>`
+              : `<button class="settings-api-test" data-leave="${p.collabId}" data-role="member">연결 끊기</button>`))).join('')
         : '<div class="settings-help">참여 중인 공동작업이 없습니다.</div>';
 
       pane.querySelectorAll('[data-accept],[data-decline],[data-leave]').forEach(btn => {
@@ -882,10 +885,19 @@
           const lock = () => { btn.disabled = true; btn.textContent = '…'; };
           if (btn.dataset.leave) {
             // ⚠️되돌릴 수 없다 — 다시 들어오려면 상대가 «다시 초대»해야 한다. 그래서 묻는다.
-            if (!confirm('이 공동작업 연결을 끊을까요?\n\n로컬 프로젝트는 그대로 남습니다.\n다시 참여하려면 상대가 다시 초대해야 합니다.')) return;
+            const isOwner = btn.dataset.role === 'owner';
+            const ask = isOwner
+              ? window.CollabReasons.text('disband_confirm')
+              : '이 공동작업 연결을 끊을까요?\n\n로컬 프로젝트는 그대로 남습니다.\n다시 참여하려면 상대가 다시 초대해야 합니다.';
+            if (!confirm(ask)) return;
             lock();
-            const rr = await api.leave({ collabId: btn.dataset.leave });
-            setStatus(rr && rr.ok ? '✓ 연결을 끊었습니다' : '✗ ' + reasonText(rr && rr.reason), rr && rr.ok ? 'ok' : 'err');
+            /* 로컬 프로젝트를 찾아 같이 넘긴다 — 그래야 이 설치의 연결(collabRef)도 지운다(못 찾아도 서버 쪽 나가기는 된다) */
+            let pid = null;
+            try { pid = window.collabAccept ? await window.collabAccept.findLinkedProject(btn.dataset.leave) : null; }
+            catch (e) { console.error('[collab] 연결된 로컬 프로젝트 찾기 실패 — 서버 쪽만 처리한다:', e); }
+            const rr = await api.leave({ projectId: pid, collabId: btn.dataset.leave, ...(isOwner ? { action: 'disband' } : {}) });
+            setStatus(rr && rr.ok ? (isOwner ? '✓ ' + window.CollabReasons.text('disbanded_done') : '✓ 연결을 끊었습니다') : '✗ ' + reasonText(rr && rr.reason, rr),
+              rr && rr.ok ? 'ok' : 'err');
           } else {
             const accept = !!btn.dataset.accept;
             lock();

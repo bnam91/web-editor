@@ -62,6 +62,11 @@
     conflict_use_theirs: null,   // 단추
     conflict_keep_mine:  null,   // 단추
     editing_by:          null,   // 섹션 위 꼬리표(앞에 사람 이름)
+    // SIX ② 주인 해산(2026-10-06) — 문장 후보는 지디 문구(현빈 검수 대기 · NEW-SENTENCES.md F 칸)
+    owner_cannot_leave:  null,   // 서버 reason — 주인은 «나가기» 대신 «해산»
+    disband_button:      null,   // 설정 협업 탭 주인 줄 단추
+    disband_confirm:     null,   // 해산 확인 창
+    disbanded_done:      null,   // 해산 뒤 상태줄
   };
 
   /** reason → 문장. status 가 있는 갈래(server·bad_response·모르는 4xx)는 숫자를 붙인다. */
