@@ -70,14 +70,43 @@ for (const variant of Object.keys(SHAPE)) {
       const f = window.frameifyModal('mdlT');
       if (!f) return null;
       const kids = [...f.children].map(c => c.matches('.frame-block[data-text-frame]') ? (c.querySelector('.text-block').dataset.type) : (c.querySelector('.icon-block') ? 'icon' : c.className));
-      return { full: f.dataset.fullWidth, parent: f.parentElement.id, kids, ident: f.querySelectorAll('[data-type="modal"], [data-mdl-slot], [data-mdl-icon], [class*="mdl"]').length + (f.outerHTML.includes('mdl') ? 1 : 0),
+      /* ★★2026-10-07 — 「모달 정체성 0」을 ★두 자로 ★갈라 잰다(지디가 열었다 · 까닭은 아래 단언 주석).
+         ⛔합친 조건은 ★한 글자도 약해지지 않는다 — 아래 단언 둘의 ★논리곱이 옛 `ident === 0` 과 ★같다. */
+      const IDENT = '[data-type="modal"], [data-mdl-slot], [data-mdl-icon], [class*="mdl"]';
+      const hits = [...f.querySelectorAll(IDENT)];
+      const html = f.outerHTML;
+      const at = html.indexOf('mdl');
+      return { full: f.dataset.fullWidth, parent: f.parentElement.id, kids,
+               /* ㉠ ★요소 자 — 매치 수 ＋ ★매치된 첫 요소를 ★찍는다(빨강일 때 «무엇이 남았나»가 보이게) */
+               identSel: hits.length,
+               identSelFirst: hits.length ? hits[0].outerHTML.slice(0, 200) : null,
+               /* ㉡ ★낱말 자 — `outerHTML` 에 글자 `mdl` 이 있나 ＋ ★있으면 ★그 주변 80자(어느 글자가 걸렸나) */
+               identWord: at >= 0,
+               identWordCtx: at >= 0 ? html.slice(Math.max(0, at - 40), at + 40) : null,
                body: [...f.querySelectorAll('.text-block')].pop().querySelector('[class^="tb-"]').textContent, tpl: !!f.dataset.rowTextStyle, modalGone: !document.getElementById('mdlT') };
     });
     expect(r, '★frameifyModal 이 없다/거절했다').not.toBeNull();
     expect(r.full).toBe('true');
     expect(r.parent, '자리 — 모달만 든 row 를 갈아끼워 section-inner 직속').toBe('innerF');
     expect(r.kids).toEqual(SHAPE[variant]);
-    expect(r.ident, '★모달 정체성이 남았다 — 다음 rebindAll 이 자식을 지운다').toBe(0);
+    /* ★★★2026-10-07 — 옛 단언은 ★`ident === 0` ★하나였고 ★두 항의 ★합이었다:
+     *     `querySelectorAll(IDENT).length  +  (outerHTML.includes('mdl') ? 1 : 0)`
+     *   ⛔그래서 ★빨강이 떴을 때 ★«어느 항이 1 이었나»를 ★못 가렸다 — ★자가 증상을 못 읽었다.
+     *   ★실측(2026-10-06 전수 · 판 8a2e6f74): 이 M1 dashed 가 ★Expected 0 · Received 1 로 빨강.
+     *     ★그런데 ★단독 재현 ★0/20 이었다(핀 d3092d8d 23/23 초록 · 내 것 혼자 23/23 초록 ·
+     *     같은 판 워커1 ×5 ★115/115 · 워커3 ×5 ★115/115) ⇒ ★남은 변수는 «전수 환경»뿐이었다.
+     *   ⇒ ★★그래서 ★자를 먼저 갈랐다 — ★다음 빨강이 ★그 자리에서 읽히게.
+     * ⛔합친 조건은 ★약해지지 않았다 — 아래 둘의 ★논리곱이 옛 `ident === 0` 과 ★같다
+     *   (옛 합이 0 ⟺ 매치 수 0 ★그리고 낱말 없음).
+     * ★이 spec 은 ★fx-parity 범위 밖이었다 — ★지디가 「㉡ 를 먼저」로 ★열어 줬다(2026-10-07).
+     * ★`IDENT_SEL`(이 파일 :16)은 `[class*="tb-mdl"]`·`[class*="mdl-"]` 를 덮는다 ⇒ ★낱말 자가 잡는 것은
+     *   ★그 밖이다(id·style 같은 자리). ⛔그러나 ★단정하지 않는다 — ★찍힌 값으로 ★읽어라. */
+    expect(`요소 ${r.identSel}개 · 첫 매치 ${r.identSelFirst}`,
+      '★★모달 정체성 요소가 남았다 — 다음 rebindAll 이 자식을 지운다(위가 그 요소다)')
+      .toBe('요소 0개 · 첫 매치 null');
+    expect(`낱말 ${r.identWord} · 주변 ${r.identWordCtx}`,
+      '★★outerHTML 에 글자 «mdl» 이 남았다 — ★주변 80자가 ★어느 글자인지 말한다(요소가 아닐 수 있다)')
+      .toBe('낱말 false · 주변 null');
     expect(r.body).toBe('첫 줄\n둘째 줄');
     expect(r.tpl).toBe(true);
     expect(r.modalGone).toBe(true);
