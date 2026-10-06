@@ -51,6 +51,10 @@
    *   ⑹ «켜는 날 살아나는 코드» — 지금은 닿는 길이 0 인 자리. 켜기 전에 «닿는 길이 생겼는지» 재라:
    *      js/collab/invites-badge.js openCollabSettings 의 inbox_closed 갈래(C2·C3 · boot 가 같은 술어로 리스너를 안 단다) ·
    *      main/collab/index.js getRef 의 catch(주입된 readMeta 가 오류를 삼켜 안 던진다 — main.js 쪽).
+   *   ⑺ 협업을 켜면 collabRef 를 «쓰는» 길(register·respond 수락·seq 저장)이 늘어난다 — 그 전에 main.js collab init 주입부의
+   *      writeMeta(read-merge-write)가 «깨진» proj_meta.json 을 {} 로 읽고 patch 만 덧써 다른 필드(목록 캐시·collabRef)를
+   *      날리는지 «먼저 재라». ⚠️2026-10-06 태양 «코드 독해 · 미측정» — 「난다」가 아니다. 지금은 꺼져 있어 그 길이 좁고,
+   *      켜는 순간 넓어진다(선후가 핵심). main.js = 현빈 게이트 · 카드는 지디가 작업목록매니저 경유로 뗀다.
    *
    * ★되돌리기 = 이 줄 하나를 true 로. 코드·데이터는 아무것도 안 지웠다.
    *   서버 ROUTES 에 collab 이 올라간 «뒤에» 켠다(순서 반대면 또 404 를 판다).
