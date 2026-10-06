@@ -773,6 +773,9 @@ body {
            ★그 새로고침은 «서버에 물어 등급을 다시 받는» 유일한 경로다 —
              이 앱엔 사용자용 리로드(⌘R)·메뉴가 없어서 지우면 등급이 영영 안 바뀐다.
            평소엔 아바타+이메일+배지 한 줄만 두고, 나머지는 이 드롭다운 안에 접었다. -->
+      <!-- ★SIX ①(2026-10-06): 공동작업 초대 종 — 프로젝트가 0 개여도 «여기서» 초대를 보고 수락한다(편집기를 못 여는 사람의 첫 경험).
+           그리기·칸은 js/collab/invites-badge.js(편집기와 같은 파일). -->
+      <span id="collab-invite-badge" style="display:none;cursor:pointer;align-self:center;margin-right:10px;padding:4px 6px;border-radius:6px;color:inherit;"></span>
       <div id="acct" title="내 계정">
         <button type="button" id="acct-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="acct-menu">
           <span class="acct-avatar" id="acct-avatar" aria-hidden="true"></span>
@@ -888,6 +891,11 @@ body {
 <script src="../js/feature-flags.js"></script>
 <!-- ★협업 reason 문장 표 단일 원본(js/collab/reasons.js) — 아래 인라인 collabReasonText 가 읽는다. 에디터(index.html)도 같은 파일. -->
 <script src="../js/collab/reasons.js"></script>
+<!-- ★빈 프로젝트 모양 단일 원본 — createProject · 초대 수락(collab/accept.js)이 같이 쓴다. feature-flags.js(PAGE_BG_DEFAULT) 뒤. -->
+<script src="../js/io/empty-project.js"></script>
+<!-- ★SIX ①: 초대 수락(로컬 프로젝트 만들기 + 연결) · 초대 종 — 편집기와 «같은 파일». reasons.js·empty-project.js 뒤. -->
+<script src="../js/collab/accept.js"></script>
+<script src="../js/collab/invites-badge.js"></script>
 <script src="../js/io/image-data-url.js"></script><!-- 썸네일 «빈 그림» 판정 — 아래 인라인 스크립트가 바로 쓴다 (T-87) -->
 <script src="../js/notice.js"></script>
 <script src="../js/entitlement-banner.js"></script>
@@ -1819,23 +1827,8 @@ async function _adoptIntoCurrentFolder(id) {
 
 async function createProject() {
   const id = 'proj_' + Date.now();
-  const now = new Date().toISOString();
-  const emptySnap = JSON.stringify({
-    version: 2, currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: window.PAGE_BG_DEFAULT, gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }]
-  });
-  const proj = {
-    id, name: 'Untitled',
-    createdAt: now, updatedAt: now,
-    version: 2,
-    currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: window.PAGE_BG_DEFAULT, gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }],
-    currentBranch: 'dev',
-    branches: {
-      main: { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },
-      dev:  { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() }
-    }
-  };
+  /* ★모양은 js/io/empty-project.js 한 벌(2026-10-06 — 이 자리에 있던 사본을 걷었다 · 편집기 탭·초대 수락과 같은 공장). */
+  const proj = window.buildEmptyProject(id, 'Untitled');
   await saveNewProject(proj);
   // [B안] 폴더 «안»에서 만들면 그 폴더 소속으로 — 실패해도 프로젝트 진입은 막지 않는다.
   await _adoptIntoCurrentFolder(id);

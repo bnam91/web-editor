@@ -66,6 +66,9 @@
     disband_button:      '공동작업 해산',   // 설정 협업 탭 주인 줄 단추
     disband_confirm:     '이 공동작업을 해산할까요?\n서버에서 내용이 지워지고 참여자들은 더 이상 못 봅니다.\n각자의 로컬 프로젝트는 그대로 남습니다.',   // 해산 확인 창
     disbanded_done:      '공동작업을 해산했습니다',   // 해산 뒤 상태줄
+    // SIX ① 초대 종(2026-10-06) — 현빈 승인(지디 경유 · NEW-SENTENCES.md G 칸)
+    inbox_title:         '공동작업 초대',       // 종 title · aria-label(뒤에 개수)
+    invited_by:          '님이 초대했습니다',    // 초대 줄 «보낸 사람» 꼬리(앞에 이름 또는 이메일 «아이디 부분»)
   };
 
   /** reason → 문장. status 가 있는 갈래(server·bad_response·모르는 4xx)는 숫자를 붙인다. */

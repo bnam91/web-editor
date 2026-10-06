@@ -441,26 +441,9 @@ async function openTabForProject(id) {
      복사하지 말고 이 함수를 부른다.
    ★[M58] 그 「bg 가 다르다」는 경고가 «사실이었다» — 실측 결과 네 벌 네 색이었다.
      이제 bg 는 js/feature-flags.js 의 window.PAGE_BG_DEFAULT «하나»에서 온다. 리터럴 금지. */
-function buildEmptyProject(id, name) {
-  const now = new Date().toISOString();
-  const emptySnap = JSON.stringify({
-    version: 2, currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: window.PAGE_BG_DEFAULT, gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }]
-  });
-  const proj = {
-    id, name: name || 'Untitled',
-    createdAt: now, updatedAt: now,
-    version: 2,
-    currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: window.PAGE_BG_DEFAULT, gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }],
-    currentBranch: 'dev',
-    branches: {
-      main: { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },
-      dev:  { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() }
-    }
-  };
-  return proj;
-}
+/* ★빈 프로젝트 모양은 js/io/empty-project.js 한 벌(2026-10-06 SIX ① — 목록 화면도 같은 공장을 쓰게 올림).
+   이 모듈은 그걸 «읽기만» 한다. ⛔여기서 다시 정의하지 마라(두 벌이 되면 목록과 편집기의 새 프로젝트가 갈린다). */
+const buildEmptyProject = (id, name) => window.buildEmptyProject(id, name);
 
 /* ── 새 프로젝트를 직접 생성하고 탭으로 열기 ── */
 async function createNewProjectTab() {
@@ -550,7 +533,7 @@ window.closeTab             = closeTab;
 window.openTabForProject    = openTabForProject;
 window.toggleTabAddMenu     = toggleTabAddMenu;
 window.createNewProjectTab  = createNewProjectTab;
-window.buildEmptyProject    = buildEmptyProject;   // 초대 수락 경로(js/collab/accept.js)가 «같은 모양»을 쓰게
+/* window.buildEmptyProject 는 js/io/empty-project.js 가 낸다 — 여기서 다시 대입하면 자기 자신을 부르는 재귀가 된다(CollabReasons 와 같은 함정). */
 
 export {
   saveTabState,
