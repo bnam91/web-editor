@@ -35,6 +35,8 @@ test('G0 — 전제: 스위치 값을 «실제로» 읽었다(불리언) · 공�
 test('G1 — COLLAB_ENABLED 가 true 면 reasons 표의 «모든» 갈래에 문장이 있어야 한다', () => {
   const w = load();
   if (w.COLLAB_ENABLED !== true) return;   // 꺼져 있으면 조건이 걸리지 않는다(지금 상태)
-  const miss = w.CollabReasons.missing();
-  assert.deepEqual(miss, [], `★문장 없는 갈래가 있는데 협업이 켜져 있다: ${miss.join(', ')} — 사용자 화면에 코드가 그대로 뜬다. 현빈 검수 문장을 js/collab/reasons.js 에 채운 뒤 켜라`);
+  const miss = [...w.CollabReasons.missing()];   // ★vm 안 배열 → 이 realm 배열로(그대로 deepEqual 하면 프로토타입이 달라 «항상 다르다»)
+  /* ⚠️2026-10-06: 처음 판은 vm 배열을 그대로 deepEqual([]) 해서, 문장을 다 채워도 «켜면 항상 빨강»인 자였다.
+     ⒝ 때 켠 사본은 «8 빠짐»으로 빨개서 그 흠이 가려졌다 — 문장 8 을 채운 뒤 켠 사본에서 빈 목록인데도 빨개 드러났다. 길이로 잰다. */
+  assert.equal(miss.length, 0, `★문장 없는 갈래가 있는데 협업이 켜져 있다: ${miss.join(', ')} — 사용자 화면에 코드가 그대로 뜬다. 현빈 검수 문장을 js/collab/reasons.js 에 채운 뒤 켜라`);
 });
