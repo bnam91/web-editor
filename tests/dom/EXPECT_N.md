@@ -67,6 +67,7 @@
 | 레인 | 증분 | 내역(출처 ㉠ git `test(` 선언 수 · base = dev `40179846`) | 비고 |
 |---|---|---|---|
 | `gd/small3` (fx-small3 · 작은 고침) | **＋30** | `scratch-folder-columns` +4 · `bubble-shortcut-not-in-text` +7 · `marquee-edge-autoscroll` +6 · `shape-star-count` +9 · `frame-empty-no-dashed` +4 | 새 spec 5개 ⇒ 파일 수 **＋5** |
+| `taeyang/collab-unmute-c8` (SIX ① 초대 종 · 빈 프로젝트 공장) | **＋5** | `collab-inbox` +2(IB1·IB2) · `empty-project-consumers` +3(E1~E3) | 새 spec 2개 ⇒ 파일 수 **＋2** · 루프 감싼 test 0 · 이 레인 판 전수(rebase 전 90b60b29): Running 2749 → 2746 passed · 3 skipped · 0 failed(부하 load 16~26) |
 
 ★네 spec 모두 «루프로 test 를 감싸지 않았다» ⇒ 선언 수 = 실행 단위 수 ⇒ 위 「루프 spec」 표에 더할 것이 ★없다.
 (루프는 ★test 안에만 있다 — bubble B6 의 7종 전수 · star S2~S4b 의 좌표 순회. 그건 실행 단위 1개다.)
