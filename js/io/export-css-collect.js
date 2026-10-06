@@ -68,6 +68,8 @@ function rootCustomProps(rule) {
     const name = st.item(i);
     if (!name.startsWith('--')) continue;
     if (name.startsWith('--goya-checker-')) continue;   // 편집용 체커 토큰 — 배송본에 «값»도 안 싣는다(체커 규칙을 안 싣는 것과 한 쌍)
+    /* ★이 줄의 «짝»이 아래 ruleCssTextWithoutChecker 의 CHECKER_VAR_RE 다 — 여기는 :root/html 만,
+       거기는 그 밖의 규칙(섹션 톤 규칙 등)을 본다. ⛔한쪽만 고치면 다른 쪽으로 샌다. */
     const pri = st.getPropertyPriority(name);
     out.push(`${name}:${st.getPropertyValue(name)}${pri ? ' !' + pri : ''}`);
   }
@@ -109,9 +111,36 @@ function splitBgLayers(css) {
   return out;
 }
 
+/* ★체커 «토큰 선언» 거르개 — rootCustomProps(:70) 의 «한 쌍»이다. 둘을 따로 고치지 마라.
+ * ★왜 둘이 필요한가(2026-10-06 실측) — 그 자리는 ROOT_SEL(`:root`/`html`) 규칙에만 걸린다.
+ *   2026-10-06 현빈 「체커는 일괄이 아니라 섹션마다」로 톤 규칙이
+ *   `.section-block[data-checker-tone="dark"]` 가 되면서, 선택자가 ★캔버스 안에서 맞게 됐다
+ *   ⇒ 그 규칙이 통째로 수확돼 배송본 <style> 에 체커 토큰 선언이 실린다.
+ *   실측: 거르개 없이 0줄 → ★5줄(--goya-checker-secbg-a/b 외). 무늬(repeating-conic-gradient)는
+ *   그래도 0건이라 «그려지지는» 않지만, 「체커 토큰은 배송본에 값도 안 싣는다」는 규약이 깨진다.
+ * ★이름으로 거른다(값이 아니라) — 커스텀 속성은 값이 그냥 hex 라 값 검사에 안 걸린다. */
+const CHECKER_VAR_RE = /^--goya-checker-/;
+
 export function ruleCssTextWithoutChecker(rule) {
   const txt = rule.cssText || '';
-  if (!CHECKER_RE.test(txt)) return txt;
+  if (!CHECKER_RE.test(txt)) {
+    if (!CHECKER_VAR_RE.test(txt) && !/--goya-checker-/.test(txt)) return txt;
+    /* 무늬 서명은 없고 «토큰 선언»만 있는 규칙(섹션 톤 규칙이 이 꼴이다) — 그 선언만 뺀다. */
+    let st2 = null;
+    try { st2 = rule.style; } catch (_) { return txt; }
+    if (!st2) return txt;
+    const keep = [];
+    for (let i = 0; i < st2.length; i++) {
+      const name = st2.item(i);
+      if (CHECKER_VAR_RE.test(name)) continue;                 // 체커 토큰 선언 — 안 싣는다
+      const value = st2.getPropertyValue(name);
+      if (/--goya-checker-/.test(value)) continue;             // 체커 토큰을 «참조»하는 선언도 끊는다(토큰이 없으니 의미가 없다)
+      const pri = st2.getPropertyPriority(name);
+      keep.push(`${name}:${value}${pri ? ' !' + pri : ''}`);
+    }
+    if (!keep.length) return '';                               // 체커 토큰뿐이던 규칙 — 껍데기도 안 싣는다
+    return `${rule.selectorText}{${keep.join(';')}}`;
+  }
   let st = null;
   try { st = rule.style; } catch (_) { return txt; }
   if (!st) return txt;
@@ -134,6 +163,7 @@ export function ruleCssTextWithoutChecker(rule) {
   for (let i = 0; i < st.length; i++) {
     const name = st.item(i);
     if (viaShorthand && name.startsWith('background-')) continue;   // 위 shorthand 가 이미 덮었다(var 로 비어 있던 longhand 를 «빈 값»으로 싣지 않는다)
+    if (CHECKER_VAR_RE.test(name)) continue;                       // 체커 «토큰 선언» — 위 거르개와 같은 잣대(이름으로)
     const value = name === 'background-image'
       ? (kept.length ? kept.join(', ') : 'none')
       : st.getPropertyValue(name);

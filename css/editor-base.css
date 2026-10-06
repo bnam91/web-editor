@@ -180,27 +180,34 @@
      preset-h*-weight는 --preset-* 캔버스 네임스페이스라 UI 크롬 토큰 범위 밖(제외). */
 }
 
-/* ── S1 «체커 어둡게» — 켜고 끄는 단추(2026-10-04 현빈 「켜고 끄는 단추를 두기」 · 지디 결정: 전역·기본 끔·값 A) ──
-   흰 글자 뒤에서 체커가 안 보이던 문제. 켜면 «편집 화면의 투명 표시»만 어두워진다(에디터 다크모드가 아니다).
-   켜는 문 = js/checker-tokens.js setCheckerDarkOn → <html data-goya-checker-tone="dark"> · 단추 = 페이지 패널 Grid 절.
-   ⛔프로젝트에 저장하지 않는다(사용자 «보기» 설정 — localStorage gdt.checkerDark). 끄면 위 :root 값 그대로(픽셀 동일).
-   값(WCAG 대비, 두 칸 중 낮은 쪽 — $S/reports/S1-DESIGN.md 표):
-     big   #7c7c7c/#949494 — 흰 글자 3.03 · #111 4.52 (지금 1.14 · 13.25)
-     small #868686/#929292 — 흰 3.11 · #111 5.19 · «작은 쌍이 더 연하다»(중간값 140>136)·차 12 그대로
-     clear #838383/transparent — 흰 3.79 · #111 4.98. b 는 «비침»이라 그대로 둔다(흰 글자는 b 칸에서 여전히 ≈1.0 — 넣는 줄 알고 넣는다).
-       ⛔#828282 가 아닌 까닭: 페이지 바탕 기본값(js/globals.js pageSettings.bg)과 «같은 글자»라 배송본 누출 센서스가 가짜 1건을 셌다(실측).
-     svg   = big 을 따라간다(위 :root 의 var(--goya-checker-big-*) 가 «이 요소에서» 다시 풀린다 — 따로 적지 않는다)
-   넣는 줄 알고 넣는 부작용: 같은 hex 차라 무늬 대비 a↔b 가 1.25→1.38 로 커진다(무늬가 조금 «시끄럽다») ·
-     카드 빈칸 '+'(rgba(0,0,0,.35)) 대비가 낮아진다 · 켠 «동안» 새로 만든 목업·주석 라벨의 인라인 체커는 그때 색으로 굳는다
-     (js/checker-tokens.js 머리말 — 이미 저장된 인라인이 안 바뀌는 것과 같은 결).
-   ⛔크기 토큰은 덮지 않는다(색만). 내보내기는 «서명»(repeating-conic-gradient)으로 걷으므로 값과 무관하고,
-     이 규칙은 선택자가 캔버스 안에 안 맞아 단독 HTML CSS 수확(export-css-collect.js)에 실리지 않는다. */
-:root[data-goya-checker-tone="dark"] {
-  --goya-checker-big-a:   #7c7c7c;
-  --goya-checker-big-b:   #949494;
-  --goya-checker-small-a: #868686;
-  --goya-checker-small-b: #929292;
-  --goya-checker-clear-a: #838383;
+/* ── S1 «체커 어둡게» — ★섹션 배경 체커 «섹션마다» (2026-10-06 현빈: 「일괄이 아니라 섹션마다」 ·
+     그림으로 여쭌 뒤 ★R1 확정 — 「섹션 배경 체커만 · 빈 카드는 그대로」) ──
+   흰 글자 뒤에서 체커가 안 보이던 문제. 켜면 «그 섹션의 배경 체커»만 어두워진다(에디터 다크모드가 아니다).
+   켜는 문 = js/props/prop-section.js 의 [체크 배경] 단추 «옆» 라디오 → <section data-checker-tone="dark">
+   ★정본은 섹션 dataset 하나다(sec.dataset.checkerTone) — ⛔전역 보기설정(localStorage)을 ★되살리지 마라.
+     같은 것을 두 군데서 정하면 「페이지=끔인데 섹션=켬」의 우선순위를 사람이 못 외운다(2026-10-06 지디).
+   ★왜 «전용 토큰 쌍»인가(--goya-checker-big-* 를 안 덮고) — 덮으면 CSS 변수가 ★자식에게 상속돼
+     같은 섹션 안의 빈 카드(.cvb-img-empty)·도형·에셋까지 같이 어두워진다. 그건 R1 이 아니다(현빈: 「빈 카드는 그대로」).
+     ⇒ 이 쌍을 읽는 자리는 .section-block.sec-bg-empty «하나»뿐이라, 상속돼도 따라올 자가 없다.
+   ★값은 새로 안 만든다 — 라이트 기본값은 .asset-block 72px 정본(--goya-checker-big-*)을 그대로 가리킨다.
+   어두운 값(WCAG 대비, 두 칸 중 낮은 쪽 — $S/reports/S1-DESIGN.md 표):
+     #7c7c7c/#949494 — 흰 글자 3.03 · #111 4.52 (라이트는 1.14 · 13.25)
+     ⛔#828282 가 아닌 까닭: 페이지 바탕 기본값(js/globals.js pageSettings.bg)과 «같은 글자»라
+       배송본 누출 센서스가 가짜 1건을 셌다(실측).
+   ⛔크기 토큰은 덮지 않는다(색만).
+   ★내보내기 0 은 ★두 겹이 함께 진다 — 어느 하나도 빼지 마라:
+     ⑴ 무늬: 세 산출물이 «서명»(repeating-conic-gradient)으로 걷는다 ⇒ 톤이 바뀌어도 무관
+        (js/io/capture-safety.js _CHECKER_RE · js/io/export-css-collect.js CHECKER_RE)
+     ⑵ 토큰 값: 아래 규칙은 선택자가 ★캔버스 안에서 맞으므로(옛 :root 규칙과 달리) 단독 HTML CSS
+        수확에 ★실린다 — js/io/export-css-collect.js 의 --goya-checker-* 거르개가 그 몫을 진다.
+        ⛔그 거르개를 지우면 배송본 <style> 에 체커 토큰 선언이 다시 샌다(실측 2026-10-06: 0 → 5줄). */
+:root {
+  --goya-checker-secbg-a: var(--goya-checker-big-a);
+  --goya-checker-secbg-b: var(--goya-checker-big-b);
+}
+.section-block[data-checker-tone="dark"] {
+  --goya-checker-secbg-a: #7c7c7c;
+  --goya-checker-secbg-b: #949494;
 }
 
 /* 프리셋 스타일은 JS에서 inline CSS variables로 적용 (presets/*.json 기반)

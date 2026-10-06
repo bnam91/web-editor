@@ -2363,12 +2363,16 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
    JS(prop-section.js _applySectionBg · save-load.js 복원)는 .sec-bg-empty 를 켜 왔는데 ★이 규칙이
    «한 번도» 없었다(git 전 브랜치 이력 0건) ⇒ 단추가 아무것도 안 그렸다.
    값은 새로 안 만든다 — 단추 주석대로 .asset-block 72px 정본(editor-layout.css)을 쓴다.
+   ★2026-10-06 현빈 「일괄이 아니라 섹션마다」(R1) — 색만 전용 토큰 쌍(--goya-checker-secbg-*)으로 갈아탄다.
+     그 쌍의 기본값은 editor-base.css :root 에서 --goya-checker-big-* 를 «가리킨다» ⇒ 톤이 라이트면 픽셀 동일.
+     ⛔--goya-checker-big-* 를 섹션에서 직접 덮지 마라 — 상속돼 같은 섹션 «안»의 빈 카드까지 어두워진다(R1 아님).
+     ★크기(--goya-checker-big-size)는 톤과 무관하므로 그대로 둔다.
    ★!important 인 까닭: 섹션에 색(data-bg)이 있으면 _applySectionBg 가 인라인 background-image:none 을
      박고, 저장본 HTML 에도 그대로 실린다 — 인라인은 클래스를 이긴다. 체크를 켠 것은 사용자의 명시라 이겨야 한다.
    ⚠️그래서 캡처 클론의 «인라인으로 지우기»(neutralizeEmptyImageCheckerForCapture)는 이걸 못 이긴다 —
      클론에서 «클래스를 뗀다»(capture-safety.js stripEditorOnlyForCapture · export-html.js 는 원래 뗀다). */
 .section-block.sec-bg-empty {
-  background-image: repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) !important;
+  background-image: repeating-conic-gradient(var(--goya-checker-secbg-a) 0% 25%, var(--goya-checker-secbg-b) 0% 50%) !important;
   background-size: var(--goya-checker-big-size) var(--goya-checker-big-size) !important;
   background-position: 0 0 !important;
   background-repeat: repeat !important;

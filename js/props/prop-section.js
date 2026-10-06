@@ -182,6 +182,10 @@ async function showSectionProperties(sec) {
   // 「위치 편집」으로 잡은 크기는 px 값이라 3개 키워드 어디에도 안 맞는다 —
   // 옵션을 안 넣으면 select 가 «Cover» 로 보이는 거짓말을 한다.
   const _bgEmpty = sec.dataset.bgImgEmpty === '1';
+  /* ★S1 섹션 체커 톤(2026-10-06 현빈 「일괄이 아니라 섹션마다」 · R1 = 섹션 «배경» 체커만).
+     정본은 이 dataset 하나다 — ⛔전역 보기설정을 되살리지 마라(css/editor-base.css 머리말).
+     ★키가 없으면 라이트 = 지금까지 저장된 모든 프로젝트가 «픽셀 동일»이다(마이그레이션 코드 0). */
+  const _bgTone  = sec.dataset.checkerTone === 'dark' ? 'dark' : 'light';
   const _bgSizeCustom = /px/.test(bgSize);
   const bgImgHTML = hasBgImg ? `
     <div class="prop-row">
@@ -207,6 +211,18 @@ async function showSectionProperties(sec) {
     <button class="prop-action-btn ${_bgEmpty ? 'primary' : 'secondary'}" id="sec-bg-img-empty" style="margin-top:4px;"
       title="이미지를 넣기 «전»에 자리만 잡아 둔다. 내보내기엔 무늬가 안 나간다">
       ${_bgEmpty ? '체크 배경 끄기' : '체크 배경으로 두기'}</button>
+    ${_bgEmpty ? `<!-- ★체커 톤 — 현빈 2026-10-06 「체크 배경 끄기 이거할때마다 «옆에 있을» 옵션 ·
+           섹션마다 라이트 체크일수도, 어두운 체크일수도」. ⇒ 자리는 «그 단추 옆»이고, 체크 배경이
+           켜져 «있을 때만» 보인다(끔 상태에선 정할 것이 없다).
+         ★어휘는 페이지 패널에서 걷어온 그 라디오 그대로 쓴다 — 새 클래스 0.
+         ⛔「내보내기엔 무늬가 안 나간다」는 톤과 무관하게 그대로다(걷는 판정이 «색»이 아니라 «서명»이라서). -->
+    <div class="prop-row" style="margin-top:4px;" title="이 섹션의 체크 배경만 어둡게 합니다 — 흰 글자가 체커 위에서 보이게. 섹션 «안»의 빈 카드·도형 체커는 그대로입니다. 내보내기에는 체커가 나가지 않습니다.">
+      <span class="prop-label prop-label--auto">체커 어둡게</span>
+      <div class="prop-radio-group">
+        <label class="prop-radio"><input type="radio" name="sec-checker-tone" id="sec-checker-tone-on" value="dark" ${_bgTone === 'dark' ? 'checked' : ''}> 켬</label>
+        <label class="prop-radio"><input type="radio" name="sec-checker-tone" id="sec-checker-tone-off" value="light" ${_bgTone === 'dark' ? '' : 'checked'}> 끔</label>
+      </div>
+    </div>` : ''}
   `;
 
   // 섹션 내 텍스트 블록 타입별 수집
@@ -534,10 +550,28 @@ ${blockHeaderHTML({
       const on = sec.dataset.bgImgEmpty === '1';
       window.pushHistory?.(on ? '섹션 체크 배경 끄기' : '섹션 체크 배경');
       if (on) delete sec.dataset.bgImgEmpty; else sec.dataset.bgImgEmpty = '1';
+      /* ⛔checkerTone 은 «같이 지우지 마라» — 체크 배경을 껐다 켜면 고른 톤이 돌아와야 한다.
+         남아도 그리는 것이 없다: 그 속성이 바꾸는 토큰(--goya-checker-secbg-*)을 읽는 자리는
+         .section-block.sec-bg-empty «하나»뿐이고, 그 클래스가 없으면 아무도 안 읽는다. */
       _applySectionBg(sec);
       window.scheduleAutoSave?.();
       showSectionProperties(sec);
     });
+  }
+  /* ★체커 톤 라디오 — 쓰는 문은 여기 하나(sec.dataset.checkerTone). CSS 가 속성을 보고 색을 바꾼다.
+     ⛔_applySectionBg 를 부를 필요가 없다 — 이 값은 «클래스»도 «인라인»도 안 건드리고 CSS 변수만 바꾼다.
+     ★showSectionProperties 를 다시 안 부른다: 패널을 다시 그리면 라디오 포커스가 날아가고, 바뀐 것은
+       화면 색뿐이라 패널이 들고 있는 다른 값이 틀려질 자리가 없다. */
+  const toneOn  = document.getElementById('sec-checker-tone-on');
+  const toneOff = document.getElementById('sec-checker-tone-off');
+  if (toneOn && toneOff) {
+    const applyTone = (dark) => {
+      window.pushHistory?.(dark ? '섹션 체커 어둡게' : '섹션 체커 밝게');
+      if (dark) sec.dataset.checkerTone = 'dark'; else delete sec.dataset.checkerTone;
+      window.scheduleAutoSave?.();
+    };
+    toneOn.addEventListener('change',  () => { if (toneOn.checked)  applyTone(true);  });
+    toneOff.addEventListener('change', () => { if (toneOff.checked) applyTone(false); });
   }
   if (bgSizeEl) {
     bgSizeEl.addEventListener('change', () => {
