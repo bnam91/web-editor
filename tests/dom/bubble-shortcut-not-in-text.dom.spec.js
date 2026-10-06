@@ -1,26 +1,25 @@
 /* bubble-shortcut-not-in-text.dom.spec.js — ⑷ 「고른 상태」에서 g 가 말풍선 «안»으로 새지 않는다
  * (현빈 2026-10-06 「말풍선 블럭 선택후 g 누르면 풍선안에 g 가 추가되는 문제 / 진입 후 g 눌려야 되지않겠니?」)
  *
- * ★★이 파일은 ★검사만 든다 — 제품 고침은 ★fx-parity 가 한다(지디 2026-10-06 분담 변경).
- *   그쪽 처방: `_mountLineUi(block, host, addr, { synthetic })` — synthetic=true 면 grdSetActiveLine 을
- *   «안» 쓴다 ⇒ 패널은 그 주소로 «그리고», 단축키가 읽는 활성 줄은 null 로 남는다.
- *   ★그 한 줄이 ⑴버블 g 결함과 ⑵챗에 기본 주소를 넣어도 같은 결함이 안 생기는 것을 ★같이 닫는다.
- *   ⛔그래서 나는 js/blocks/line-host.js ★무접촉이다(내가 한 번 고쳤다가 ★되돌렸다 — c429aab7 → 이 커밋).
- *
- * ★범인(내가 잰 것): contenteditable 도 포커스 도 클래스도 아니다 — «활성 줄»이라는 ★넷째 상태다.
+ * ★범인은 contenteditable 도 포커스도 클래스도 아니다 — «활성 줄»이라는 ★넷째 상태다.
  *   한 번 클릭한 「고른 상태」에서 editing 없음 · .tb-bubble contenteditable="false" ·
  *   activeElement=BODY · isContentEditable=false 인데 grdGetActiveLine 이 {r:0,c:0,li:null} 을 돌려준다.
  *   세운 자리 = js/blocks/line-host.js lnAugmentBubblePanel — «줄 없는 말풍선»의 패널에 「＋ 줄 추가」를
  *   띄우려고 그 기본 주소를 _mountLineUi 에 넘기고, _mountLineUi 가 grdSetActiveLine 으로 «굳힌다».
  *   그래서 lnAddLineToSelected 의 `if (!addr) return false` 가 참이 안 되고 g 가 소진된다.
  *
- * ★양성대조(㉣) = ★synthetic 처리가 ★없는 판 — 지금 이 레인(gd/small3)과 핀 e7444dd3 이 둘 다 그 판이다.
- *   2026-10-06 실측 — 빨강: B1 · B2 · B6 / 초록: B3 · B4 · B5 · B7
+ * ★처방 = _lnPickedLine 술어(line-host.js) — 두 쓰임을 «가른다»:
+ *   ㉠ 패널이 그리는 기본 주소는 ★그대로(B4 가 그것을 잠근다) ㉡ 단축키가 쓸 활성 줄은 «사람이 고른 것»만.
+ *   ★셋(추가 G/T · 삭제 ⌫ · Esc)이 ★한 술어를 읽는다. ★표식을 세우지 않고 DOM 에서 파생하므로
+ *   ★둘째 명부가 안 생긴다(세우는 자리와 지우는 자리가 둘이면 한쪽이 조용히 늙는다).
+ *
+ * ★양성대조 = 그 술어가 ★없는 판(핀 e7444dd3). 2026-10-06 실측 —
+ *   ★빨강 B1 · B2 · B6  /  ★초록 B3 · B4 · B5 · B7
  *     B1: dataset.lines "(없음)" → [{"type":"body",…},{"type":"gap","height":16}] · 안내문구 소실 · 갭 블록 +0
  *     B2: Esc 뒤 selected 가 true 로 남는다(줄 선택 풀기로 샌다)
  *     B6: {"speech-bubble":0, text:1, chat:1, table:1, grid:1, step:1, asset:1}
- *   ⇒ ★fx-parity 의 synthetic 줄이 올라오면 B1·B2·B6 이 초록으로 바뀌어야 한다. 그것이 이 파일의 몫이다.
- * ★지키는 검사(그 고침이 ★깨뜨리면 안 되는 것 — 양쪽 판에서 초록이어야 한다):
+ *   ⇒ ⛔무력화 방법: _lnPickedLine 의 세 호출을 grdGetActiveLine 으로 되돌리면 B1·B2·B6 이 빨강이 된다.
+ * ★지키는 검사(이 고침이 깨뜨리면 안 되는 것 — 양쪽 판에서 초록):
  *   B3 챗의 메시지 단위 줄 추가 · B4 줄 없는 말풍선 패널의 「줄 추가」 UI · B5 줄을 고른 뒤 g ·
  *   B7 편집 중 g 는 ★글자로 들어간다.
  */

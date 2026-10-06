@@ -73,7 +73,6 @@
 ★이 레인 단독 `--list` 는 `Total: 2764 tests in 318 files` 였다(= 2738＋26 · 314＋4) — ⚠️그 **2764 는
 머지 전 한 레인 기준이라 다른 레인이 들어오면 틀린다**. 그래서 여기엔 ★증분만 남긴다.
 
-⚠️⑷(말풍선 g) 검사 `bubble-shortcut-not-in-text` 의 **B1·B2·B6 은 이 레인에서 ★일부러 빨강**이다 —
-제품 고침(`_mountLineUi` 의 `synthetic`)은 ★fx-parity 레인이 든다(지디 분담). ★그 레인이 들어온
-뒤에야 초록이 된다 ⇒ ★머지 순서: fx-parity 가 `gd/small3` «보다 먼저 또는 같이». 그 파일 머리말에
-빨강 셋의 잰 값이 적혀 있다.
+⑷(말풍선 g)의 제품 고침은 ★이 레인이 든다(`js/blocks/line-host.js` `_lnPickedLine` — 지디 2026-10-06
+채택, fx-parity 의 `synthetic` 안은 물렸다). `bubble-shortcut-not-in-text` 7칸 전부 ★이 레인에서 초록이다.
+⚠️머지 순서: ★태양의 협업 묶음이 먼저 올라간 뒤 이 레인을 그 위로 rebase 한다(지디 지시).
