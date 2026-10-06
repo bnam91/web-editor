@@ -317,7 +317,7 @@ function addChatBlock(opts = {}) {
 //   - 스타일: gap, fontSize, bgLeft, bgRight, colorLeft, colorRight, radius, padding, bubblePadding
 //   - 프로필: showProfile, showName, profileSize, profileOffsetY, profileGap
 //   - 기타: layerName
-function updateChatBlock(blockId, partial = {}) {
+function updateChatBlock(blockId, partial = {}, opts = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
   const block = document.getElementById(String(blockId));
   if (!block || !block.classList.contains('chat-block')) {
@@ -426,7 +426,22 @@ function updateChatBlock(blockId, partial = {}) {
     }
   }
 
-  window.pushHistory?.('채팅 블록 수정');
+  /* ★opts.noHistory — «한 제스처가 두 문으로 나갈 때» 두 번째부터 끄는 자리다.
+     ★★꼴은 ★그리드와 «한 글자도 다르지 않다» — js/blocks/grid-block.js updateGridBlock 의 그 자리를 보고 맞췄다
+       (이름·뜻·기본값까지). ⛔새 설계를 하지 않았다(지디 조건 ㉠).
+     ⛔첫 문에는 절대 쓰지 마라 — pushHistory 는 dataset 쓰기 «앞»이라 «변경 전» 스냅샷을 쌓는다.
+       첫 문만 쌓으면 그 한 칸이 «둘 다 바뀌기 전»을 담아 ⌘Z 한 번이 두 칸을 함께 되돌린다.
+       두 문 다 쌓으면 ⌘Z 를 «두 번» 눌러야 하고, 한 번만 누른 사람은 «반쪽 상태»를 본다.
+     ⛔이 플래그는 히스토리를 끄는 것뿐 — ★«되돌림»을 주지 않는다. 부르는 쪽이 「실패하면 되돌린다」를 같이 들어야 한다
+       (선례: prop-grid.js grdMoveLineToCell 이 그 되돌림을 든다).
+     ★★왜 지금 생겼나(2026-10-06 ⑵-B③ 선행) — line-host.js 의 두 commit 이 ★이미 `opts` 를 3인자로 넘기는데
+       이 입구들이 ★그 인자를 «안 받아» ★조용히 버려지고 있었다(실측: 서명이 `(blockId, partial = {})` 였다).
+       ⇒ 「값은 넘기는데 아무 일도 안 난다」 — 사슬이 연결돼 있고 ★끝에서 떨어져 있었다.
+     ★기본값 불변: opts 를 안 주면 {} ⇒ `!== true` ⇒ 종전대로 쌓는다.
+       ★소비자 전수(제품 코드 · 실측): updateChatBlock 2(line-host:253 · main.js:7708) ·
+       updateSpeechBubbleBlock 3(line-host:231 · main.js:8518 · 8564). ★MCP 쪽은 2인자라 영향 0.
+     ★낱말은 이 저장소에 이미 있는 것을 쓴다(grid-block.js · js/spacing-normalize.js `plan.noHistory`). */
+  if (opts.noHistory !== true) window.pushHistory?.('채팅 블록 수정');
 
   const applied = {};
 
@@ -632,6 +647,16 @@ window.makeChatBlock   = makeChatBlock;
 window.addChatBlock    = addChatBlock;
 window.renderChatBlock = renderChatBlock;
 window.updateChatBlock = updateChatBlock;
+/* ★«끝 표본» 래퍼(js/model-update-history.js — window.update*Block 전부를 감싸 호출마다 pushHistory 를 한 칸 더 쌓는다)를
+   «안 타는» 원본. ★이름이 `/^update[A-Z]\w*Block$/` 에 안 걸리게 ★Raw 로 끝낸다 — ★그 우회 설계는
+   js/blocks/grid-block.js `window.updateGridBlockRaw` 가 ★먼저 쓴 꼴이고, ★그 주석에 까닭이 적혀 있다.
+   ⛔일반 호출부는 window.updateChatBlock 를 쓴다. 이건 ★«한 제스처가 두 문으로 나가는» 호출자 전용이다.
+   ★★왜 opts.noHistory ★하나로는 안 되나(실측 2026-10-06) — 그 플래그는 ★입구 «안»의 push-before 만 끈다.
+     ★래퍼의 «끝 표본»은 ★그대로 쌓인다 ⇒ 문2 가 ★이력 한 칸을 남겨 ⌘Z 가 ★두 번이 된다.
+     ⇒ ★두 문 꼴은 ★«Raw ＋ noHistory» ★둘을 같이 써야 «이력 0칸»이 된다.
+   ⚠️그리드의 `grdMoveLineToCell`(prop-grid.js)은 ★아직 Raw 를 안 쓴다 ⇒ 실앱에서 ⌘Z 가 두 번이고
+     ★중간이 «줄이 어느 칸에도 없는» 반쪽이다(실측). ★그건 ★별건으로 올렸다 — ⛔이 파일 몫이 아니다. */
+window.updateChatBlockRaw = updateChatBlock;
 
 export { makeChatBlock, addChatBlock, updateChatBlock, renderChatBlock, CHAT_DEFAULT_MESSAGES, CHAT_TAIL_PATH };
 export { CHAT_NUM_BOUNDS };   /* 되보냄 — 옛 import 경로를 깨지 않게. 정본은 ./chat-bounds.js */
