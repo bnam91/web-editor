@@ -9,7 +9,8 @@
 |---|---|---|---|
 | 2543 | `0f572e2a` (dev · integ24) | `--list` 의 `Total:` 줄 | 2026-10-05 태양 |
 | 2725 | `f4987e7a` (dev 로 갈 판 · 2026-10-06 08:5x 다시 셈 = `Total: 2725 tests in 312 files`) — `aa9af9f6`(integ25 머지) 에서도 2725 = 그 판 전수 `Running 2725` | `--list` 의 `Total:` 줄 | 2026-10-06 태양 · 지디 승인(루프 증분 34 닫힘 조건) |
-| **2727** | ci-fix 묶음(아래 S1 쪼개기 +2 · 판 sha = 이 묶음이 들어간 main 머지 — 커밋 뒤 확정) | `--list` 의 `Total:` 줄 = `Total: 2727 tests in 312 files`(2026-10-06 11:4x · rel-096 작업트리) | 2026-10-06 태양 · 지디 release-096-ci-fix |
+| 2727 | ci-fix 묶음(아래 S1 쪼개기 +2 · 판 sha = 이 묶음이 들어간 main 머지 — 커밋 뒤 확정) | `--list` 의 `Total:` 줄 = `Total: 2727 tests in 312 files`(2026-10-06 11:4x · rel-096 작업트리) | 2026-10-06 태양 · 지디 release-096-ci-fix |
+| **2736** | 레인 `taeyang/collab-unmute-c8`(047becd7 · dev 로 갈 판) | `--list` 의 `Total:` 줄 = `Total: 2736 tests in 314 files` · 그 판 전수 `Running 2736 tests using 4 workers` → 2733 passed · 3 skipped(기존 · 협업 무관) · 0 failed | 2026-10-06 태양 · 지디 발주 TWO — 식 2727 + 9 − 0 = 2736 (collab-notify 0→6 · collab-undo-scope 0→3, 선언 수 = 실행 단위 수) |
 
 ⚠️절대값은 한 출처(`--list`)다 — 「언제부터 셌나」이지 「언제부터 맞나」가 아니다. 게이트가 지키는 것은 **델타**다.
 
