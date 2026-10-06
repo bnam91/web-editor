@@ -145,6 +145,23 @@ function _renderStickerBlockInner(block) {
   const _stkRot    = parseFloat(block.dataset.rotation) || 0;
   const _stkRotCss = _stkRot ? `transform:rotate(${_stkRot}deg);transform-origin:center center;` : '';
 
+  /* ★glow(이펙트 스티커 · 2026-10-06 지디 발주 FOUR) — 그림은 js/fx/glow-render.js(SVG filter · seed 고정).
+     상자 = sizeW×sizeH, 후광은 overflow:visible 로 상자 밖까지. 저장은 dataset 만 — 매번 여기서 다시 그린다
+     (리로드·undo·내보내기가 같은 seed 로 같은 모습). 필터 id = 'fxg-<block.id>'(highlightB 'hlb-rough-<id>' 와 같은 꼴).
+     ⚠️GlowFx 가 아직 안 실렸으면(고전 스크립트 순서 사고) 빈 상자 + 콘솔 — 조용히 다른 그림을 그리지 않는다. */
+  if (shape === 'glow') {
+    block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`
+      + `background:transparent;overflow:visible;${_stkRotCss}`
+      + `user-select:none;cursor:move;z-index:55;pointer-events:auto;`;
+    if (!window.GlowFx || !window.FxSeed) { console.error('[sticker/glow] GlowFx·FxSeed 가 안 실렸다 — index.html 고전 스크립트 순서'); block.innerHTML = ''; return; }
+    block.innerHTML = window.GlowFx.svg({
+      filterId: 'fxg-' + (block.id || 'tmp'),
+      kind: block.dataset.fxKind, glowColor: block.dataset.glowColor, coreColor: block.dataset.coreColor,
+      intensity: block.dataset.intensity, rays: block.dataset.rays, chroma: block.dataset.chroma, seed: block.dataset.seed,
+    });
+    return;
+  }
+
   if (shape === 'highlight') {
     // 형광펜 모드 — 색 사각형 (글자 없음), W/H 별도, z-index 낮음 (텍스트 아래)
     const hlW = parseInt(block.dataset.hlW) || 160;
@@ -428,6 +445,15 @@ function rememberStickerStyle(block) {
   const shape = d.shape || 'circle';
   const slot = {};
   const put = (k) => { if (d[k] !== undefined && d[k] !== '') slot[k] = d[k]; };
+  /* ★glow: 모양 축만 기억(seed·위치·크기 제외 — seed 는 «찍을 때마다 다른 모습»이라 매번 새로).
+     ⛔__last 에는 안 올린다 — 펜 메뉴 「Sticker」(shape 미지정) 한 번 클릭이 «마지막 shape»를 다시 만드는데,
+       글로우를 쓴 뒤 그게 글로우가 되면 일반 뱃지 버튼이 글로우를 낳는다(2026-10-06 설계 판단). */
+  if (shape === 'glow') {
+    ['fxKind', 'glowColor', 'coreColor', 'intensity', 'rays', 'chroma'].forEach(put);
+    slot.shape = shape;
+    _lastStickerStyle.glow = slot;
+    return;
+  }
   if (shape === 'highlight') {
     put('hlColor');
   } else if (shape === 'highlightB') {
@@ -476,6 +502,21 @@ function makeStickerBlock(opts = {}) {
     block.dataset.lineStyle = opts.lineStyle ?? 'line';   // 'line' | 'wavy' | 'marker'
     block.dataset.amplitude = opts.amplitude ?? 6;
     block.dataset.period    = opts.period    ?? 30;
+  }
+  // ★glow(이펙트) — 프리셋(js/fx/glow-render.js GlowFx.PRESETS)을 깔고 opts 로 덮는다. seed 는 «만들 때» 새로(찍을 때마다 다른 모습).
+  if (opts.shape === 'glow') {
+    const kind = (window.GlowFx && window.GlowFx.KINDS.includes(opts.fxKind)) ? opts.fxKind : 'star';
+    const pre = (window.GlowFx && window.GlowFx.PRESETS[kind]) || {};
+    block.dataset.fxKind    = kind;
+    block.dataset.glowColor = opts.glowColor ?? pre.glowColor ?? '#b06cff';
+    block.dataset.coreColor = opts.coreColor ?? pre.coreColor ?? '#ffffff';
+    block.dataset.intensity = opts.intensity ?? pre.intensity ?? 70;
+    block.dataset.rays      = opts.rays      ?? pre.rays      ?? 4;
+    block.dataset.chroma    = opts.chroma    ?? pre.chroma    ?? '0';
+    block.dataset.seed      = opts.seed      ?? (window.FxSeed ? window.FxSeed.newSeed() : 1);
+    block.dataset.sizeW     = opts.sizeW     ?? pre.sizeW     ?? 96;
+    block.dataset.sizeH     = opts.sizeH     ?? pre.sizeH     ?? 96;
+    block.dataset.text      = '';   // glow 는 글자 없음
   }
   // U6(e): 아이콘 스티커 — Iconify에서 고른 SVG/이름 보관 (size는 위 size dataset 공유)
   if (opts.shape === 'icon') {
