@@ -1,5 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { rgbToHex } from './prop-text-utils.js';
+import { parseAlphaFromColor } from './color-picker.js';   /* ★형광펜 색 투명도 — 스티커 형광펜이 쓰는 그 자 그대로 */
 import { panelRenderedPx, labelShapeFromRendered, panelRenderedWeight } from './_panel-rendered.js';
 import { buildTextPropsHtml } from './prop-text-template.js';
 import { detectMix } from './prop-text-mix-detect.js';
@@ -8,7 +9,7 @@ import { wireFontSection }     from './prop-text-wireup-font.js';
 import { wireTypeSection }     from './prop-text-wireup-type.js';
 import { wireLabelSection }    from './prop-text-wireup-label.js';
 import { wireAlignSection }    from './prop-text-wireup-align.js';
-import { wireTextEditSection } from './prop-text-wireup-text-edit.js';
+import { wireTextEditSection, isHighlightOn } from './prop-text-wireup-text-edit.js';
 import { wireSpacingSection }  from './prop-text-wireup-spacing.js';
 import { wirePositionSection } from './prop-text-wireup-position.js';
 import { wirePaddingSection }  from './prop-text-wireup-padding.js';
@@ -141,10 +142,17 @@ export function showTextProperties(tb) {
   const isBold        = parseInt(currentWeight, 10) >= 600;
   const isItalic      = contentEl.style.fontStyle  === 'italic';
   const isStrike      = (contentEl.style.textDecorationLine || contentEl.style.textDecoration || '').includes('line-through');
-  const currentHighlight      = tb.dataset.highlight || 'none';
-  const currentHighlightColor = tb.dataset.highlightColor || getComputedStyle(document.documentElement).getPropertyValue('--ui-highlight').trim();
+  /* ★형광펜(2026-10-06 현빈 tb_5bkw8dq) — 정본은 ★.text-block 의 인라인 --tb-hl-color / --tb-hl-h
+     ★하나씩이다(사본을 dataset 에 두지 않는다 — 그리는 값과 패널 값이 갈린다). 없으면 CSS 기본값.
+     ⛔옛 `tb.dataset.highlight`('none'|'highlight'|'underline')는 ★지웠다 — 레포 전수에 ★쓰는 코드가
+       0건이던 죽은 값이었고(읽는 자리가 여기뿐), 그 짝인 ::after 바는 «글자 길이»를 못 잰다. */
+  const currentHighlightColor = (tb.style.getPropertyValue('--tb-hl-color') || '').trim()
+                             || getComputedStyle(document.documentElement).getPropertyValue('--ui-highlight').trim();
+  const _hlH = Math.min(100, Math.max(5, parseInt(tb.style.getPropertyValue('--tb-hl-h'), 10) || 100));
   // ⑨ 서식 버튼 — 블록 전체에 걸린 인라인 서식 여부(부분 서식은 selection 기준이라 여기서 안 본다)
-  const isHighlight   = !!(contentEl.style.backgroundColor && contentEl.style.backgroundColor !== 'transparent');
+  /* ★켜짐 판정은 «식»을 여기 두지 않는다 — 정본은 prop-text-wireup-text-edit.js 의 isHighlightOn 하나.
+     단추 표시(여기)와 토글 방향(거기)이 갈리면 ★옛 형광펜을 지우고 새로 칠하는 사고가 난다. */
+  const isHighlight   = isHighlightOn(contentEl);
 
   // 위치/크기 — text-frame(래퍼)이 position/size를 보유
   const _tf         = tb.closest('.frame-block[data-text-frame="true"]');
@@ -182,6 +190,7 @@ export function showTextProperties(tb) {
     isBold,
     isItalic,
     isHighlight,
+    hlColor: currentHighlightColor, hlAlpha: parseAlphaFromColor(currentHighlightColor) || 100, hlH: _hlH,
     isOverlayBlock,
   });
 

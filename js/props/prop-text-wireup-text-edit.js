@@ -13,7 +13,7 @@
  */
 
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
-import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
+import { wireHexText, parseHex6, formatHex6, wireColorField } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { detectMix } from './prop-text-mix-detect.js';
 import {
@@ -146,6 +146,23 @@ export function applyColorToSelection(color, host, savedRange = null, prevSpan =
 if (typeof window !== 'undefined') window.applyColorToSelection = applyColorToSelection;
 
 /* (옛 「전역 셀 selection 캐시 window.__lastCellSel」은 지웠다 — 표 칸도 js/props/_text-selection.js 한 벌을 쓴다.) */
+
+/* ★형광펜 «켜짐» 판정 — 이 식이 사는 자리는 ★여기 하나다(2026-10-06).
+ *   prop-text.js(단추 active 표시)와 아래 단추 핸들러(토글 방향)가 ★같은 것을 써야 한다.
+ *   갈리면 「단추는 꺼짐인데 누르면 꺼진다」가 되고, 더 나쁘게는 ★옛 형광펜을 지우고 새로 칠한다.
+ * ★세 꼴을 다 본다:
+ *   ⑴ 새 꼴      span.tb-hl
+ *   ⑵ 옛 꼴(부분) span[style*="background-color"]  — execCommand('hiliteColor') 가 만들던 것
+ *   ⑶ 옛 꼴(전체) contentEl 자신의 인라인 background-color — 옛 «무선택» 갈래가 만들던 것
+ *   ⑵ 를 빼면 옛 문서에서 단추가 «꺼짐»으로 보이고, 한 번 누르면 _hlStripAll 이 그 획을 ★지워버린다. */
+export const HL_CLASS = 'tb-hl';
+export function isHighlightOn(contentEl) {
+  if (!contentEl) return false;
+  if (contentEl.querySelector('span.' + HL_CLASS)) return true;
+  if (contentEl.querySelector('span[style*="background-color"]')) return true;
+  const bg = contentEl.style && contentEl.style.backgroundColor;
+  return !!(bg && bg !== 'transparent');
+}
 
 export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
   /* ★선택 저장·복원 = js/props/_text-selection.js 한 벌. 여기엔 저장 변수가 «없다». */
@@ -358,11 +375,12 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
    *     (click 때 읽으면 이미 사라진 뒤다 — 취소선이 쓰던 것과 같은 함정).
    *   ⚠️블록 전체로 켤 땐 내부 부분서식 잔재를 먼저 걷어내야 «블록 스타일이 단일 소스»가 된다.
    *     (안 걷어내면 껐는데도 일부 글자만 굵게 남는다.)
-   * 형광펜 기본색은 앱에 이미 있는 텍스트 하이라이트 값(prop-text.js currentHighlightColor 기본값)
-   * 을 그대로 쓴다 — 새 색을 만들지 않는다.
+   * ★형광펜은 2026-10-06 에 이 규약에서 «빠졌다» — 아래 전용 배선을 보라(무선택도 «글자 길이»).
+   * ★형광펜 기본색은 앱에 이미 있는 값(--ui-highlight)을 그대로 쓰되, 이제 그 기본값을 ★CSS 가 들고 있다
+   *   (css/editor-layout.css `.text-block { --tb-hl-color: var(--ui-highlight) }`).
+   *   ⇒ 여기서 토큰을 읽어 두던 HL_COLOR 상수는 ★지웠다. 색을 안 고른 블럭은 인라인이 «없어서»
+   *     토큰이 바뀌면 같이 따라온다(옛 판은 단추를 누른 순간 hex 가 굳었다).
    */
-  // 색 리터럴을 JS에 두지 않는다 — 정본은 --ui-highlight 토큰(editor-base.css).
-  const HL_COLOR = (getComputedStyle(document.documentElement).getPropertyValue('--ui-highlight') || '').trim() || 'yellow';
 
   // 부분서식 잔재 정리: 지정 태그를 언랩하고, 지정 style prop 을 가진 span 을 벗긴다.
   const _stripInlineResidue = (el, tagSel, styleProp) => {
@@ -438,13 +456,109 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     setOff: el => { el.style.fontStyle = ''; },
   });
 
-  wireInlineStyleBtn({
-    btnId: 'txt-highlight-btn', cmd: 'hiliteColor', cmdVal: HL_COLOR,
-    tagSel: null, styleProp: 'background-color',
-    isOn: el => !!(el.style.backgroundColor && el.style.backgroundColor !== 'transparent'),
-    setOn: el => { el.style.backgroundColor = HL_COLOR; },
-    setOff: el => { el.style.backgroundColor = ''; },
+  /* ── ★형광펜 (2026-10-06 현빈 tb_5bkw8dq: 「하이라이트 기능은 ★텍스트 길이만큼 해주고,
+   *    ★색변경 및 ★하이라이트 바 높이 조절가능하게」) ───────────────────────────────────────
+   * ★무엇이 달라졌나 — 옛 판은 «갈래가 둘»이었다:
+   *     부분 선택 → execCommand('hiliteColor') ⇒ span 이 글자를 감싸 «글자 길이»  ✅
+   *     무선택   → contentEl.style.backgroundColor ⇒ «블럭 상자» 전체            ❌ (실측 716px vs 글자 298px)
+   *   같은 단추가 다르게 동작했다. ⇒ ★두 갈래를 «하나»로 합친다 — 무선택이면 글자 «전체»를 범위로 잡아
+   *   같은 span 을 두른다. 그러면 길이·색·높이 셋이 한 기전(css .tb-hl)에서 나온다.
+   * ⛔wireInlineStyleBtn 으로 되돌리지 마라 — 그 규약의 「무선택=블럭 인라인」이 바로 이 결함이다. */
+  const _hlSpans = (el) => (el ? [...el.querySelectorAll('span.' + HL_CLASS)] : []);
+  const _hlIsOn = isHighlightOn;   // ★판정은 이 파일 맨 위 «한 자리»에서만 온다(prop-text.js 도 그걸 쓴다)
+  const _unwrap = (n) => { const p = n.parentNode; if (!p) return; while (n.firstChild) p.insertBefore(n.firstChild, n); p.removeChild(n); };
+  /* 새 꼴·옛 꼴·블럭 인라인을 «다» 걷는다 — 걷고 다시 두르므로 겹 span 이 안 쌓인다. */
+  const _hlStripAll = (el) => {
+    if (!el) return;
+    _hlSpans(el).forEach(_unwrap);
+    _stripInlineResidue(el, null, 'background-color');
+    el.style.backgroundColor = '';
+    el.normalize?.();
+  };
+  const _hlWrap = (range) => {
+    const sp = document.createElement('span');
+    sp.className = HL_CLASS;
+    /* surroundContents 는 «부분만 걸친» 범위에서 던진다(여러 노드를 반쯤 덮을 때) — 그 때는 꺼내서 다시 넣는다. */
+    try { range.surroundContents(sp); } catch (_) { sp.appendChild(range.extractContents()); range.insertNode(sp); }
+    return sp;
+  };
+  /* 블럭 «전체»를 범위로. ⛔글자가 없으면 두르지 않는다 — 빈 span 은 획이 0폭이라 「눌렀는데 아무 일 없음」이 된다. */
+  const _hlWrapWhole = (el) => {
+    if (!el || !el.firstChild || !(el.textContent || '').trim()) return null;
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    return _hlWrap(r);
+  };
+  const _hlVarsOf = (el) => (el ? el.closest('.text-block') : null) || tb;
+  /* 패널의 색·높이 칸을 함께 여닫는다 — 꺼져 있으면 정할 것이 없다. */
+  const _hlSyncOpts = (on) => {
+    const cr = document.getElementById('txt-hl-color-row'), hr = document.getElementById('txt-hl-h-row');
+    if (cr) cr.style.display = on ? 'flex' : 'none';
+    if (hr) hr.style.display = on ? 'flex' : 'none';
+  };
+  const hlBtn = document.getElementById('txt-highlight-btn');
+  if (hlBtn) {
+    hlBtn.addEventListener('click', () => {
+      const el = ctx.contentEl;
+      if (!el) return;
+      const saved = getSavedTextSelection(el)?.range || null;
+      if (saved) {
+        /* 부분 선택 — 그 글자만. ⛔블럭 전체 상태를 건드리지 않는다(선택 밖 획이 살아 있어야 한다). */
+        _hlWrap(saved);
+        clearTextSelection?.(el);
+        hlBtn.classList.add('active');
+        _hlSyncOpts(true);
+      } else {
+        const nowOn = !_hlIsOn(el);
+        _hlStripAll(el);                       // 켜든 끄든 «먼저 걷는다» — 켤 때 겹 span, 끌 때 잔재를 같이 없앤다
+        if (nowOn) _hlWrapWhole(el);
+        hlBtn.classList.toggle('active', nowOn);
+        _hlSyncOpts(nowOn);
+      }
+      window.pushHistory?.();
+      window.scheduleAutoSave?.();
+    });
+  }
+
+  /* ★색 — 정본은 ★.text-block 의 인라인 --tb-hl-color ★하나다(dataset 사본을 두지 «않는다» —
+       그리는 값과 패널이 읽는 값이 갈리는 자리가 된다. 패널은 prop-text.js 에서 이 인라인을 읽는다).
+     ★왜 span 이 아니라 «블럭»에 박나 — 한 블럭 안에 획이 여럿일 수 있고(부분 선택 반복), 그 전부가
+       같은 색이어야 「형광펜 색」이 한 값이다. span 마다 박으면 명부가 획 수만큼 늘어난다.
+     ★안 고른 블럭은 인라인이 «없다» ⇒ CSS 기본값(--ui-highlight)이 산다. */
+  const _hlApplyColor = (c) => {
+    const host = _hlVarsOf(ctx.contentEl);
+    if (!host) return;
+    host.style.setProperty('--tb-hl-color', c);
+  };
+  wireColorField('txt-hl-color', {
+    initialAlpha: 100,
+    onApply: (c) => _hlApplyColor(c),
+    onCommit: () => { window.pushHistory?.('형광펜 색'); window.scheduleAutoSave?.(); },
   });
+
+  /* ★바 높이(%) — 100 = 글자를 다 덮는다 · 40 = 아래 40%만. 슬라이더와 숫자칸이 «같은 값»을 쓴다. */
+  const _hlClampH = (v) => Math.min(100, Math.max(5, parseInt(v, 10) || 100));
+  const _hlApplyH = (v) => {
+    const host = _hlVarsOf(ctx.contentEl);
+    if (!host) return;
+    const n = _hlClampH(v);
+    host.style.setProperty('--tb-hl-h', n + '%');   // ★정본은 이 인라인 하나(색과 같은 규약)
+    return n;
+  };
+  const hlHRange = document.getElementById('txt-hl-h');
+  const hlHNum   = document.getElementById('txt-hl-h-num');
+  if (hlHRange && hlHNum) {
+    const sync = (v, commit) => {
+      const n = _hlApplyH(v);
+      if (n == null) return;
+      hlHRange.value = String(n); hlHNum.value = String(n);
+      if (commit) { window.pushHistory?.('형광펜 바 높이'); window.scheduleAutoSave?.(); }
+    };
+    hlHRange.addEventListener('input',  () => sync(hlHRange.value, false));
+    hlHRange.addEventListener('change', () => sync(hlHRange.value, true));
+    hlHNum.addEventListener('input',    () => sync(hlHNum.value, false));
+    hlHNum.addEventListener('change',   () => sync(hlHNum.value, true));
+  }
 
   /* ── 취소선 토글 ──
    * 부분 선택 시: Cmd+B/I 와 동일한 execCommand 계열('strikeThrough')을 selection 복원 후 실행

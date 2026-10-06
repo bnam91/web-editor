@@ -19,6 +19,7 @@ export function buildTextPropsHtml(state) {
     isBold,
     isItalic,
     isHighlight,
+    hlColor, hlAlpha, hlH,          /* ★형광펜 색·바 높이 (2026-10-06) — 정본은 tb.dataset, 읽는 자리는 prop-text.js */
     isOverlayBlock,
   } = state;
 
@@ -123,6 +124,9 @@ ${blockHeaderHTML({
       lh: currentLH, ls: currentLS,
       sizeMin: 8, sizeMax: 800,
       showStyleGroup: !isLiner, showLetterSpacing: !isLiner, showSize: !isLiner,
+      /* ★텍스트 패널만 형광펜 색·바 높이 칸을 갖는다 — 배선(wireTextEditSection)이 여기에만 있다.
+         ⛔모달(prop-modal.js)·그리드(prop-grid.js)는 기본값 false 라 마크업이 «바이트 동일»이다. */
+      showHighlightOpts: !isLiner, hlColor, hlAlpha, hlH,
       mix: _mix,
     })}
 
