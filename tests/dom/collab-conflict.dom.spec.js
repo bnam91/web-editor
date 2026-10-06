@@ -54,7 +54,7 @@ async function staleScene(page) {
     await window.collabSync.tick();
     const afterFlush = window.__text();
     window.__save(); await new Promise(r => setTimeout(r, 150));
-    return { deferredSeq, afterFlush, pushes: window.__pushes.slice(pushedAtStart), conflicts: window.collabSync.conflicts().map(c => ({ mode: c.mode, sectionId: c.sectionId })),
+    return { deferredSeq, afterFlush, pushes: window.__pushes.slice(pushedAtStart), conflicts: (window.collabSync.conflicts ? window.collabSync.conflicts() : []).map(c => ({ mode: c.mode, sectionId: c.sectionId })),   // 옛 판(API 없음)에서도 장면이 끝까지 돌게 — 양성대조가 «재현 단언»에서 빨개지도록
              toasts: window.collabNotify.shown() };
   });
 }
