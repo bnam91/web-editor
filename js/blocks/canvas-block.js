@@ -10,6 +10,7 @@
 import { genId, showNoSelectionHint, insertAfterSelected, colorLuminance } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import { checkerBg } from '../checker-tokens.js';
+import { effSectionPadX as _effSectionPadX } from './outer-pad.js';   // ⛔사본을 되만들지 마라 — 챗과 «한 글자도 안 다른» 두 벌이었다(그 파일 머리말)
 
 // slot: null | 'top' | 'bottom' — labelPos='both'일 때 상/하단 라벨이 서로 다른 내용·색을 갖도록 분리.
 //   - slot==='top'    → card.titleTop/descTop (없으면 card.title/desc fallback), 색은 titleColorTop/descColorTop (없으면 블록색)
@@ -516,15 +517,6 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
 //   - 없으면 window.state?.pageSettings?.padX (프로젝트 globals state)
 //   - section-inner 없거나(프레임 free-layout 등) full-bleed 무의미하면 0
 // 에셋블럭 패턴(prop-asset.js:217-221) 미러. free-layout 프레임 내부 카드는 절대좌표라 제외.
-function _effSectionPadX(block) {
-  // free-layout 프레임 내부 카드는 absolute 배치 → full-bleed 무의미 (에셋 applyExcludePadX 가드 미러)
-  if (block.closest?.('.frame-block[data-free-layout="true"]')) return 0;
-  const inner = block.closest?.('.section-inner');
-  if (!inner) return 0;
-  const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
-  if (hasOverride) return parseInt(inner.dataset.paddingX) || 0;
-  return window.state?.pageSettings?.padX || 0;
-}
 
 function renderCanvas(block) {
   const layers   = JSON.parse(block.dataset.layers || '[]');

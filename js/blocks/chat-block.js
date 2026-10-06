@@ -10,6 +10,7 @@ import { bindBlock } from '../drag-drop.js';
 /* ★BT2(2026-10-04) — 메시지별 «줄»(그리드 줄 데이터). 없으면 지금 그대로(아래 렌더 갈래는 «있을 때만» 갈린다). */
 import { lnHasLines, lnLinesHtml, lnValidateLines, lnTextMirrorHtml, lnRemark } from './line-host.js';
 import { CHAT_NUM_BOUNDS } from './chat-bounds.js';   // ⛔표를 여기 되적지 마라 — 그 파일 머리말의 까닭
+import { effSectionPadX as _effSectionPadX } from './outer-pad.js';   // ⛔사본을 되만들지 마라 — 그 파일 머리말의 까닭(두 벌이었다)
 
 const CHAT_DEFAULT_MESSAGES = [
   { text: '안녕하세요! 반갑습니다 😊', align: 'left' },
@@ -28,15 +29,6 @@ const CHAT_TAIL_H = 16;
 //   - closest('.section-inner')의 dataset.paddingX override가 있으면 그 값
 //   - 없으면 window.state?.pageSettings?.padX (프로젝트 globals state)
 //   - section-inner 없거나(프레임 free-layout 등) full-bleed 무의미하면 0
-// 에셋블럭(prop-asset.js:217-221)·canvas-block(_effSectionPadX) 패턴 미러.
-function _effSectionPadX(block) {
-  if (block.closest?.('.frame-block[data-free-layout="true"]')) return 0;
-  const inner = block.closest?.('.section-inner');
-  if (!inner) return 0;
-  const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
-  if (hasOverride) return parseInt(inner.dataset.paddingX) || 0;
-  return window.state?.pageSettings?.padX || 0;
-}
 
 function _chatToken(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;

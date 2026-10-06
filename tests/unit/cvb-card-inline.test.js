@@ -86,6 +86,16 @@ before(async () => {
       + "const genId = (p) => `${p}_` + Math.random().toString(36).slice(2, 9);\n"
       + "const showNoSelectionHint = () => {};\nconst insertAfterSelected = () => {};\n"
       + "const colorLuminance = () => null;\nconst bindBlock = () => {};",
+    ],
+    /* ★★2026-10-06 ⒜-2 — canvas-block 이 `./outer-pad.js` 를 import 하기 시작했다(챗과 두 벌이던 _effSectionPadX 를 합쳤다).
+       ⛔이 하네스는 소스를 «임시 디렉터리로 복사해» import 하므로, 상대경로 import 가 하나라도 남으면
+         ERR_MODULE_NOT_FOUND 로 ★이 파일의 검사 스물한 개가 전부 빨개진다(실측 2026-10-06 · 21/21).
+       ★★그래서 규약 하나: ★«import 를 늘리면 ★그 파일을 복사해 쓰는 하네스 명부를 세라».
+         같은 함정을 그날 ★세 번 밟았다 — ㉠tests/dom/number-field-contract(모듈 골라 싣기) ㉡여기 ㉢아래 prop-simple-card.
+       ★0 을 돌려주는 스텁이 맞다 — 이 시험은 «카드 인라인 편집»만 본다(full-bleed 와 무관). */
+    [
+      "import { effSectionPadX as _effSectionPadX } from './outer-pad.js';",
+      'const _effSectionPadX = () => 0;   // ⒜-2 — 이 시험은 full-bleed 를 안 잰다',
     ]],
     'cvb-canvas-block'
   );
