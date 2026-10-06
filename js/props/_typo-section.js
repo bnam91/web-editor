@@ -44,6 +44,10 @@ const _NO_MIX = { color: { mixed: false }, fontSize: { mixed: false }, fontWeigh
  * @param {boolean} o.showHighlight     형광펜(H) 버튼 표시. ★기본 true = 이전과 «바이트 동일»
  *                                      (T1 골든이 그 동일성을 지킨다). 끄는 쪽은 «왜 끄는지»를
  *                                      호출부에 적어야 한다 — 그리드가 그 사례다(prop-grid.js).
+ * @param {boolean} o.showFont          Font 피커 표시 · @param {boolean} o.showWeight 굵기 select 표시
+ * @param {boolean} o.showLineHeight    줄간격 칸 표시
+ *                                      ★셋 다 기본 true = 이전과 «바이트 동일». 끄는 쪽은 «왜 끄는지»를
+ *                                      호출부에 적어야 한다 — 챗이 그 사례다(prop-chat.js: 렌더러가 fontSize 만 읽는다).
  * @param {string}  o.sizePh|lhPh|lsPh  ★값을 «안 정한» 칸의 회색 안내값(역할 기본값). value 는 비우고
  *                                      이것만 주면 「아무도 안 정했다」가 화면에 보인다. mix 가 이긴다.
  * @param {object}  o.mix               Figma "Mix" 정책 — 섞였으면 빈 값 + placeholder="Mix"
@@ -54,6 +58,7 @@ export function buildTypographySectionHtml({
   lh, ls,
   sizeMin = 8, sizeMax = 800,
   showStyleGroup = true, showLetterSpacing = true, showSize = true, showHighlight = true,
+  showFont = true, showWeight = true, showLineHeight = true,
   sizePh, lhPh, lsPh,
   mix,
 } = {}) {
@@ -68,13 +73,19 @@ export function buildTypographySectionHtml({
   /* ★placeholder 속성은 «값이 있을 때만» 찍는다 — 안 그러면 기본 호출의 산출이 한 글자 늘어
      T1 골든이 빨개진다. 이 절의 규약: 기본 인자에서는 «바이트 동일». */
   const _ph = (v) => (v === undefined || v === null || v === '') ? '' : ` placeholder="${v}"`;
+  /* ★끄는 칸(showFont·showWeight·showLineHeight) — «켤 때는 한 글자도 안 찍는다». 바로 위 _ph 와 같은 규약이다:
+     기본 인자에서 산출이 한 글자라도 늘면 T1 골든이 빨개진다(그게 이 절의 계약이다).
+     ⛔지우지 «않고» 숨긴다 — 배선(wireFontPicker 등)이 요소를 찾다 죽지 않게(line-host.js _hideBlockTypo 가 같은 말을 적었다).
+     ★왜 이 셋이 필요했나 — 챗 블럭이 네 번째 소비자로 들어왔는데(2026-10-06), 렌더러(chat-block.js)가 읽는 것은
+       dataset.fontSize «하나»다. 안 읽는 칸을 펴 두면 「눌리는데 아무 일도 안 난다」가 된다(prop-grid.js 머리말의 그 고질). */
+  const _hide = (show) => (show ? '' : ' style="display:none"');
   const _weightMixed = _mix.fontWeight.mixed;
 
   return `<div class="prop-section">
       <div class="prop-section-title">Typography</div>
 
-      <span class="prop-field-label">Font</span>
-      <div class="font-picker" id="${p}-font-picker">
+      <span class="prop-field-label"${_hide(showFont)}>Font</span>
+      <div class="font-picker" id="${p}-font-picker"${_hide(showFont)}>
         <button class="font-picker-trigger" id="${p}-font-trigger" type="button">
           <span class="font-picker-current" id="${p}-font-name">${font ? escHtml(_fontDisplayName(font)) : '기본 (시스템)'}</span>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="flex-shrink:0"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
@@ -87,7 +98,7 @@ export function buildTypographySectionHtml({
       </div>
 
       <div class="prop-row">
-        <select class="prop-select" id="${p}-font-weight" style="flex:1">
+        <select class="prop-select" id="${p}-font-weight" style="flex:1${showWeight ? '' : ';display:none'}">
           ${_weightMixed ? '<option value="" selected disabled>Mix</option>' : ''}
           <option value="100" ${!_weightMixed && weight==='100'?'selected':''}>Thin 100</option>
           <option value="200" ${!_weightMixed && weight==='200'?'selected':''}>ExtraLight 200</option>
@@ -110,7 +121,7 @@ export function buildTypographySectionHtml({
       </div>
 
       <div class="prop-lhls-row">
-        <div class="prop-lhls-col">
+        <div class="prop-lhls-col"${_hide(showLineHeight)}>
           <span class="prop-field-label">Line Height</span>
           <div class="prop-icon-input">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M17.5 17a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1zm-5.25-9a.5.5 0 0 1 .476.347l2.25 7a.5.5 0 0 1-.952.306L13.494 14h-2.987l-.531 1.653a.5.5 0 0 1-.952-.306l2.25-7 .03-.075A.5.5 0 0 1 11.75 8zm-1.422 5h2.344L12 9.354zM17.5 6a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1z"/></svg>

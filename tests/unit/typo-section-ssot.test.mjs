@@ -39,6 +39,7 @@ const SRC = {
   template: stripComments(readSrc(ROOT, 'js/props/prop-text-template.js')),
   modal:    stripComments(readSrc(ROOT, 'js/props/prop-modal.js')),
   grid:     stripComments(readSrc(ROOT, 'js/props/prop-grid.js')),
+  chat:     stripComments(readSrc(ROOT, 'js/props/prop-chat.js')),
   typo:     stripComments(readSrc(ROOT, 'js/props/_typo-section.js')),
   fontWire: stripComments(readSrc(ROOT, 'js/props/prop-text-wireup-font.js')),
   picker:   stripComments(readSrc(ROOT, 'js/props/_font-picker.js')),
@@ -130,26 +131,108 @@ const IMPORT_TYPO = /import\s*\{[^}]*\bbuildTypographySectionHtml\b[^}]*\}\s*fro
 const IMPORT_FILL = /import\s*\{[^}]*\bbuildFillSectionHtml\b[^}]*\}\s*from\s*['"][^'"]*_typo-section\.js['"]/;
 
 /* ★U3(2026-09-08) — 그리드 «줄 단위» 타이포 패널이 3번째로 들어왔다.
-   그리드는 「줄 하나」를 다루므로 mix 는 안 쓰지만, 절 마크업은 «같은 한 곳»에서 와야 한다. */
-const PANELS = [
+   그리드는 「줄 하나」를 다루므로 mix 는 안 쓰지만, 절 마크업은 «같은 한 곳»에서 와야 한다.
+   ★U4(2026-10-06 ⒝ · 현빈 「챗블럭 클릭하면 우측패널에서 동적으로 타이포 크기 조절 — 그리드 줄 블럭처럼」) —
+     ★챗이 4번째다. ⛔그때까지 챗은 손으로 만든 <input type=number min=10 max=60> 을 들고 있었고,
+       모델은 4~400 을 받았다(chat-block.js CHAT_NUM_BOUNDS) ⇒ 패널이 ★340 을 가렸다.
+     ★★왜 이 검사가 그것을 못 봤나 — 이 명부가 «셋»이었고 아래 단언이 `PANELS.length === 3` 이었다.
+       prop-chat.js 는 ★분모 밖이라, 「절을 베끼지 마라」가 초록인 채로 사본이 살았다.
+       ⇒ 「검사가 있다」는 ★«그 분모 안에서만» 참이다. 명부를 늘릴 때 ★수만 고치면 또 못 본다.
+     ⇒ 아래 단언을 «수»가 아니라 ★«이름 집합»으로 바꿨다 — 수만 올리고 줄을 안 넣으면 그 자리에서 빨개진다. */
+const TYPO_PANELS = [
   ['prop-text-template.js', () => SRC.template],
   ['prop-modal.js', () => SRC.modal],
   ['prop-grid.js', () => SRC.grid],
+  ['prop-chat.js', () => SRC.chat],
 ];
+/** ★Fill(한 색) 절까지 쓰는 패널 — ⛔챗은 «빠진다»: 좌/우 글자색 «둘»이라 한 색 절로 못 담는다
+ *  (prop-chat.js Color 절의 chb-color-left·chb-color-right). ⇒ 억지로 넣으면 «틀린 절»이 생긴다.
+ *  ★파생이다 — 명부를 손으로 두 벌 적지 않는다. */
+const FILL_PANELS = TYPO_PANELS.filter(([name]) => name !== 'prop-chat.js');
 
-test('T2 ★텍스트·모달·그리드 패널이 «전부» _typo-section.js 를 import 해서 부른다', () => {
+test('T2 ★텍스트·모달·그리드·챗 패널이 «전부» _typo-section.js 를 import 해서 부른다', () => {
   // 되돌리면 빨강: 한쪽을 인라인 마크업으로 되돌리면(이 파일의 존재 이유 그 자체다).
-  assert.equal(PANELS.length, 3, '패널 명부가 낡았다 — 루프가 한 벌을 안 보고 있다');
-  for (const [name, get] of PANELS) {
+  /* ★★⛔`length === N` 으로 닫지 «않는다» — 수만 올리고 줄을 안 넣으면 루프가 한 벌을 조용히 건너뛴다
+     (2026-10-06 실측: 그래서 챗이 분모 밖에 1개월 넘게 있었다). 이름 집합으로 잠근다. */
+  assert.deepEqual(TYPO_PANELS.map(([name]) => name),
+    ['prop-text-template.js', 'prop-modal.js', 'prop-grid.js', 'prop-chat.js'],
+    '패널 명부가 낡았다 — 루프가 한 벌을 안 보고 있다. ★수가 아니라 «이름»을 맞춰라');
+  assert.deepEqual(FILL_PANELS.map(([name]) => name),
+    ['prop-text-template.js', 'prop-modal.js', 'prop-grid.js'],
+    'Fill 명부가 낡았다 — 챗은 좌/우 색 «둘»이라 한 색 절을 안 쓴다(까닭은 바로 위 주석)');
+  for (const [name, get] of TYPO_PANELS) {
     const src = get();
     assert.match(src, IMPORT_TYPO,
       `${name} 이 buildTypographySectionHtml 을 import 하지 않는다 — 인라인 마크업으로 되돌아갔나. ` +
       `두 패널이 «다른 벌»을 들면 한쪽만 고쳐도 조용히 갈라진다.`);
-    assert.match(src, IMPORT_FILL, `${name} 이 buildFillSectionHtml 을 import 하지 않는다`);
     assert.match(src, /\$\{buildTypographySectionHtml\(/,
       `${name} 이 buildTypographySectionHtml 을 «부르지» 않는다 — import 만 하고 안 쓰면 소용없다`);
+  }
+  for (const [name, get] of FILL_PANELS) {
+    const src = get();
+    assert.match(src, IMPORT_FILL, `${name} 이 buildFillSectionHtml 을 import 하지 않는다`);
     assert.match(src, /\$\{buildFillSectionHtml\(/, `${name} 이 buildFillSectionHtml 을 «부르지» 않는다`);
   }
+});
+
+test('T2-d ★끈 칸이 «정말» 꺼진다 — 챗이 쓰는 조합에서 ㉠ 크기칸만 보이고 ㉡ 나머지는 숨고 ㉢ 기본 호출은 그대로다', () => {
+  /* ★왜 재나 — ⒝ 에서 「렌더러가 안 읽는 칸은 끄고 까닭을 적어라」가 조건이었다(지디). 그 조건은
+     «무엇으로 아나»가 같이 걸려야 집행된다 ⇒ 여기가 그 자다.
+     ⛔「숨겼다」를 눈으로 믿지 마라 — 끄는 인자 이름을 하나 잘못 적어도 산출은 멀쩡해 보인다(그냥 펴진 채다). */
+  const H = buildSection('buildTypographySectionHtml', {
+    p: 'chb-typo', size: 32, sizeMin: 4, sizeMax: 400,
+    showFont: false, showWeight: false, showStyleGroup: false,
+    showLetterSpacing: false, showLineHeight: false, showHighlight: false,
+  });
+  // ㉠ 전제 — 이 조합에서 «크기칸은 산다». 이게 거짓이면 아래 ㉡ 는 「아무것도 없다」를 재는 것이 된다.
+  assert.match(H, /id="chb-typo-size-number"[^>]*min="4" max="400"/, '전제: 크기칸이 모델 경계로 나와야 한다');
+  assert.match(H, /id="chb-typo-size-number"[^>]*display:block/, '전제: 크기칸은 보여야 한다');
+  // ㉡ 끈 것 — 다섯. ★이름으로 센다(수로만 세면 하나가 조용히 켜져도 안 보인다).
+  const OFF = [
+    ['Font 라벨',   /class="prop-field-label" style="display:none">Font</],
+    ['Font 피커',   /id="chb-typo-font-picker" style="display:none"/],
+    ['굵기 select', /id="chb-typo-font-weight" style="flex:1;display:none"/],
+    ['B\/I\/S 그룹', /id="chb-typo-style-group"[^>]*display:none/],
+    ['줄간격 열',   /class="prop-lhls-col" style="display:none"/],
+    ['자간 열',     /id="chb-typo-ls-col"[^>]*display:none/],
+  ];
+  for (const [label, re] of OFF) assert.match(H, re, `★«${label}» 이 안 꺼졌다 — 챗 렌더러는 그 값을 «안 읽는다»(눌리는데 아무 일도 안 난다)`);
+  assert.equal(/highlight-btn/.test(H), false, '형광펜(H) 단추가 남았다 — showHighlight:false 가 안 먹었다');
+  /* ㉢ ★음성대조 — 기본 호출(끄는 인자 없음)에서는 그 숨김이 «한 글자도» 안 찍힌다.
+     ⛔이게 없으면 위 ㉡ 가 「언제나 숨는다」(= 텍스트·모달·그리드를 망가뜨린 상태)와 구분되지 않는다. */
+  const D = buildSection('buildTypographySectionHtml', { p: 'txt', size: 32 });
+  assert.equal(/style="display:none">Font</.test(D), false, '기본 호출에서 Font 가 숨었다 — 세 패널이 망가진다');
+  assert.equal(/id="txt-font-picker" style="display:none"/.test(D), false, '기본 호출에서 Font 피커가 숨었다');
+  assert.match(D, /id="txt-font-weight" style="flex:1">/, '기본 호출의 굵기 select 가 예전과 달라졌다');
+  assert.match(D, /<div class="prop-lhls-col">\s*\n\s*<span class="prop-field-label">Line Height<\/span>/,
+    '기본 호출의 줄간격 열이 예전과 달라졌다');
+});
+
+test('T2-c ★챗 패널 범위가 ★모델 경계 표에서 «파생»한다 — 패널이 모델보다 좁으면 빨강', () => {
+  /* ★⒝ 의 본 결함: 패널 min/max 가 모델과 «두 벌»이라 조용히 갈렸다(fontSize 10~60 vs 4~400 등 일곱 자리).
+     ⇒ 명부를 chat-block.js 한 자리로 모았다. 이 검사는 「패널이 그 표를 «읽어» 쓰나」를 본다.
+     ⛔숫자 리터럴로 재지 마라 — 그러면 이 검사가 ★둘째 명부가 된다. */
+  /* ★출처는 «의존 0» 인 chat-bounds.js 다 — ⛔chat-block.js 에서 끌면 number-field-contract 하네스의
+     모듈 그래프가 통째로 커져 __ready 가 안 켜진다(실측 14/14 타임아웃 · 까닭은 chat-bounds.js 머리말). */
+  assert.match(SRC.chat, /import\s*\{[^}]*\bCHAT_NUM_BOUNDS\b[^}]*\}\s*from\s*['"][^'"]*chat-bounds\.js['"]/,
+    'prop-chat.js 가 chat-bounds.js 에서 CHAT_NUM_BOUNDS 를 import 하지 않는다 — 경계가 다시 두 벌이 됐나');
+  assert.doesNotMatch(SRC.chat, /from\s*['"][^'"]*blocks\/chat-block\.js['"]/,
+    '⛔prop-chat.js 가 chat-block.js 를 import 한다 — 그 한 간선이 number-field-contract 하네스를 통째로 죽인다');
+  const bounds = stripComments(readSrc(ROOT, 'js/blocks/chat-bounds.js'));
+  assert.match(bounds, /export const CHAT_NUM_BOUNDS = Object\.freeze\(/,
+    'chat-bounds.js 에 CHAT_NUM_BOUNDS 가 없다 — 이 검사의 겨냥이 빗나갔다(양성대조)');
+  /* ★그 파일이 «의존 0» 임을 잠근다 — import 가 하나라도 생기면 위 함정이 되돌아온다. */
+  assert.equal((bounds.match(/^\s*import\s/gm) || []).length, 0,
+    '⛔chat-bounds.js 에 import 가 생겼다 — 「표만 들고 의존 0」이 이 파일의 존재 이유다');
+  const chatBlk = stripComments(readSrc(ROOT, 'js/blocks/chat-block.js'));
+  assert.match(chatBlk, /import\s*\{[^}]*\bCHAT_NUM_BOUNDS\b[^}]*\}\s*from\s*['"]\.\/chat-bounds\.js['"]/,
+    'chat-block.js 가 표를 되적었나 — 모델도 같은 표에서 파생해야 한다');
+  /* ★패널 마크업에 «맨 숫자» min/max 가 남아 있지 않다 — 하나라도 남으면 그 칸이 다시 갈린다.
+     ⛔'chb-' 가 붙은 input 줄만 본다(공용 절·색 피커는 이 파일 밖에서 온다). */
+  const bare = (SRC.chat.match(/<input[^>]*id="chb-[^"]*"[^>]*>/g) || [])
+    .filter(t => /\b(?:min|max)="-?\d+"/.test(t));
+  assert.deepEqual(bare, [],
+    `챗 패널에 «맨 숫자» min/max 가 남았다 — 경계는 CHAT_NUM_BOUNDS 에서만 온다:\n${bare.join('\n')}`);
 });
 
 test('T2-b ★절의 «알맹이»가 _typo-section.js 밖에 리터럴로 없다', () => {
@@ -158,7 +241,7 @@ test('T2-b ★절의 «알맹이»가 _typo-section.js 밖에 리터럴로 없�
        그래서 «접두사 없는 꼬리»로 잰다. */
   const TAILS = ['-font-trigger"', '-font-dropdown"', '-style-group"', '-lh-number"', '-ls-col"', '-color-chips"'];
   assert.ok(TAILS.length >= 5, '지문이 너무 적다 — 이 검사가 헐거워진다');
-  for (const [name, get] of PANELS) {
+  for (const [name, get] of TYPO_PANELS) {
     const src = get();
     for (const t of TAILS) {
       assert.equal(src.includes(t), false,

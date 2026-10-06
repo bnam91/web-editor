@@ -9,6 +9,7 @@ import { genId, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 /* ★BT2(2026-10-04) — 메시지별 «줄»(그리드 줄 데이터). 없으면 지금 그대로(아래 렌더 갈래는 «있을 때만» 갈린다). */
 import { lnHasLines, lnLinesHtml, lnValidateLines, lnTextMirrorHtml, lnRemark } from './line-host.js';
+import { CHAT_NUM_BOUNDS } from './chat-bounds.js';   // ⛔표를 여기 되적지 마라 — 그 파일 머리말의 까닭
 
 const CHAT_DEFAULT_MESSAGES = [
   { text: '안녕하세요! 반갑습니다 😊', align: 'left' },
@@ -17,6 +18,8 @@ const CHAT_DEFAULT_MESSAGES = [
 ];
 
 const CHAT_TAIL_PATH = 'M18.3597 14.7395C9.25742 16.3944 2.32729 11.6364 0 9.05055L0.258587 1.29294C2.75826 1.81011 8.17136 2.27557 9.82631 0C9.56773 9.30914 16.5496 13.9637 18.3597 14.7395Z';
+const _B = CHAT_NUM_BOUNDS;   /* ★경계 명부는 ./chat-bounds.js «한 자리» — 까닭(하네스 그래프)은 그 파일 머리말 */
+
 // 꼬리 SVG 기본 크기(viewBox 단위와 동일). tailScale(%)로 width/height만 비례 조정 → path·좌측 translate는 viewBox 좌표라 무관.
 const CHAT_TAIL_W = 19;
 const CHAT_TAIL_H = 16;
@@ -499,14 +502,10 @@ function updateChatBlock(blockId, partial = {}) {
     return null;
   };
   let err;
-  err = _setInt('gap',      'gap',      0, 400); if (err) return err;
-  err = _setInt('fontSize', 'fontSize', 4, 400); if (err) return err;
-  err = _setInt('radius',   'radius',   0, 400); if (err) return err;
-  err = _setInt('padding',  'padding',  0, 400); if (err) return err;
-  err = _setInt('profileOffsetY', 'profileOffsetY', -400, 400); if (err) return err;
-  err = _setInt('profileGap',     'profileGap',     0, 400);    if (err) return err;
-  err = _setInt('tailScale',      'tailScale',      0, 600);    if (err) return err;
-  err = _setInt('bubbleMaxW',     'bubbleMaxW',     10, 100);   if (err) return err;
+  /* ★경계는 CHAT_NUM_BOUNDS «한 표»에서 온다(이 파일 머리). ⛔숫자를 여기 되적지 마라 — 그게 ⒝ 의 그 결함이었다. */
+  for (const k of ['gap', 'fontSize', 'radius', 'padding', 'profileOffsetY', 'profileGap', 'tailScale', 'bubbleMaxW']) {
+    err = _setInt(k, k, _B[k].min, _B[k].max); if (err) return err;
+  }
 
   // fullBleed(패딩 제외): boolean → dataset 'true'/'false'. (canvas-block과 동일 표기)
   if (partial.fullBleed !== undefined) {
@@ -525,7 +524,7 @@ function updateChatBlock(blockId, partial = {}) {
       const v = partial.bubblePadding;
       if (!Number.isFinite(+v) || !Number.isInteger(+v)) return { ok: false, code: 'INVALID', message: 'bubblePadding must be integer or null' };
       const n = +v;
-      if (n < 0 || n > 120) return { ok: false, code: 'INVALID', message: 'bubblePadding out of range [0,120]' };
+      if (n < _B.bubblePadding.min || n > _B.bubblePadding.max) return { ok: false, code: 'INVALID', message: `bubblePadding out of range [${_B.bubblePadding.min},${_B.bubblePadding.max}]` };
       block.dataset.bubblePadding = String(n);
       applied.bubblePadding = n;
     }
@@ -540,7 +539,7 @@ function updateChatBlock(blockId, partial = {}) {
       const v = partial.profileSize;
       if (!Number.isFinite(+v) || !Number.isInteger(+v)) return { ok: false, code: 'INVALID', message: 'profileSize must be integer or null' };
       const n = +v;
-      if (n < 24 || n > 400) return { ok: false, code: 'INVALID', message: 'profileSize out of range [24,400]' };
+      if (n < _B.profileSize.min || n > _B.profileSize.max) return { ok: false, code: 'INVALID', message: `profileSize out of range [${_B.profileSize.min},${_B.profileSize.max}]` };
       block.dataset.profileSize = String(n);
       applied.profileSize = n;
     }
@@ -623,3 +622,4 @@ window.renderChatBlock = renderChatBlock;
 window.updateChatBlock = updateChatBlock;
 
 export { makeChatBlock, addChatBlock, updateChatBlock, renderChatBlock, CHAT_DEFAULT_MESSAGES, CHAT_TAIL_PATH };
+export { CHAT_NUM_BOUNDS };   /* 되보냄 — 옛 import 경로를 깨지 않게. 정본은 ./chat-bounds.js */
