@@ -68,6 +68,7 @@
 |---|---|---|---|
 | `gd/small3` (fx-small3 · 작은 고침) | **＋30** | `scratch-folder-columns` +4 · `bubble-shortcut-not-in-text` +7 · `marquee-edge-autoscroll` +6 · `shape-star-count` +9 · `frame-empty-no-dashed` +4 | 새 spec 5개 ⇒ 파일 수 **＋5** |
 | `taeyang/collab-unmute-c8` (SIX ① 초대 종 · 빈 프로젝트 공장) | **＋5** | `collab-inbox` +2(IB1·IB2) · `empty-project-consumers` +3(E1~E3) | 새 spec 2개 ⇒ 파일 수 **＋2** · 루프 감싼 test 0 · 이 레인 판 전수(rebase 전 90b60b29): Running 2749 → 2746 passed · 3 skipped · 0 failed(부하 load 16~26) |
+| `taeyang/fx-glow` (THREE/FOUR 글로우 스티커) | **＋15** | `fx-glow-sticker` +15(F0~F15 · F7·F8 은 ★한 `test(` 를 경로 2개 루프로 — git 선언 수 14 · 러너 `--list` 15) | 새 spec 1개 ⇒ 파일 수 **＋1** · ⚠️루프 감싼 test 1(×2) — 선언 수로 세면 1 모자란다 |
 
 ★네 spec 모두 «루프로 test 를 감싸지 않았다» ⇒ 선언 수 = 실행 단위 수 ⇒ 위 「루프 spec」 표에 더할 것이 ★없다.
 (루프는 ★test 안에만 있다 — bubble B6 의 7종 전수 · star S2~S4b 의 좌표 순회. 그건 실행 단위 1개다.)
