@@ -52,21 +52,20 @@
     section_not_synced: '이 섹션은 상대에게 보이지 않습니다.',
     // 지디 C(2026-10-06): 상단바 상태 글자 — S3(2초마다 조용히 실패하던 자리)의 핵심
     link_down:        '⚠ 연결 끊김',
-    /* ── SIX(2026-10-06) 새 갈래 — ★문장 «없음»(null) · 현빈 검수 대기(태양 notes lanes/collab/NEW-SENTENCES.md E 칸).
-     *   null 이면 원문 키가 보이고, 협업이 켜진 판에선 G1(collab-enable-gate)이 push 를 막는다 — 그게 «검수 전엔 못 나간다»의 자다. */
-    conflict_kept:       null,   // 묵은 원격 패치를 붙이지 않고 내 판을 지킴(토스트 머리)
-    conflict_replaced:   null,   // 상대가 내 마지막 판을 못 보고 더 늦게 올려 덮임 — 되살릴 수 있음(토스트 머리)
-    conflict_badge:      null,   // 상단바 단추(뒤에 개수)
-    conflict_mine:       null,   // 칸 안 「내 판」 머리
-    conflict_theirs:     null,   // 칸 안 「상대 판」 머리
-    conflict_use_theirs: null,   // 단추
-    conflict_keep_mine:  null,   // 단추
-    editing_by:          null,   // 섹션 위 꼬리표(앞에 사람 이름)
-    // SIX ② 주인 해산(2026-10-06) — 문장 후보는 지디 문구(현빈 검수 대기 · NEW-SENTENCES.md F 칸)
-    owner_cannot_leave:  null,   // 서버 reason — 주인은 «나가기» 대신 «해산»
-    disband_button:      null,   // 설정 협업 탭 주인 줄 단추
-    disband_confirm:     null,   // 해산 확인 창
-    disbanded_done:      null,   // 해산 뒤 상태줄
+    /* ── SIX(2026-10-06) — 현빈 승인 문구(지디 경유 · 「판」→「것」 지디 다듬음 · NEW-SENTENCES.md E 칸). ⒝ 때와 같이 승인 전엔 null 이었다(G1 이 막음). */
+    conflict_kept:       '상대가 같은 섹션을 고쳤지만 내 것을 지켰습니다 — 「충돌」에서 상대 것을 볼 수 있습니다',   // 묵은 원격 패치를 붙이지 않고 내 판을 지킴(토스트 머리)
+    conflict_replaced:   '상대가 같은 섹션을 나중에 고쳐 내 것이 가려졌습니다 — 「충돌」에서 되살릴 수 있습니다',   // 상대가 내 마지막 판을 못 보고 더 늦게 올려 덮임 — 되살릴 수 있음(토스트 머리)
+    conflict_badge:      '⚠ 충돌',   // 상단바 단추(뒤에 개수)
+    conflict_mine:       '내 것',   // 칸 안 「내 판」 머리
+    conflict_theirs:     '상대 것',   // 칸 안 「상대 판」 머리
+    conflict_use_theirs: '상대 것으로 바꾸기',   // 단추
+    conflict_keep_mine:  '내 것 유지',   // 단추
+    editing_by:          '편집 중',   // 섹션 위 꼬리표(앞에 사람 이름)
+    // SIX ② 주인 해산(2026-10-06) — 현빈 승인 문구(지디 경유 · NEW-SENTENCES.md F 칸)
+    owner_cannot_leave:  '공동작업을 올린 사람은 「나가기」 대신 「해산」할 수 있습니다.',   // 서버 reason — 주인은 «나가기» 대신 «해산»
+    disband_button:      '공동작업 해산',   // 설정 협업 탭 주인 줄 단추
+    disband_confirm:     '이 공동작업을 해산할까요?\n서버에서 내용이 지워지고 참여자들은 더 이상 못 봅니다.\n각자의 로컬 프로젝트는 그대로 남습니다.',   // 해산 확인 창
+    disbanded_done:      '공동작업을 해산했습니다',   // 해산 뒤 상태줄
   };
 
   /** reason → 문장. status 가 있는 갈래(server·bad_response·모르는 4xx)는 숫자를 붙인다. */
