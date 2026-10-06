@@ -3,7 +3,8 @@ import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { svgStopRemap } from './gradient-model.js';
 import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
-import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX } from '../shape-star.js';
+import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
+         starPointsList, starViewBox, clampStarCount, STAR_COUNT_MIN, STAR_COUNT_MAX } from '../shape-star.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
@@ -82,6 +83,7 @@ export function showShapeProperties(block) {
   const w           = _shapeFrameSize(ss || block, 'w');
   const h           = _shapeFrameSize(ss || block, 'h');
   const starN       = clampStarN(block.dataset.starPoints);
+  const starCount   = clampStarCount(block.dataset.starCount);   // ★별 «갯수»(현빈 2026-10-06) — 없으면 1 = 옛 별
   const iconSvg     = SHAPE_ICONS[shapeType] || SHAPE_ICONS.rectangle;
   const shapeName   = SHAPE_NAMES[shapeType] || shapeType;
   const id          = block.id || '';
@@ -206,7 +208,16 @@ ${blockHeaderHTML({
         <span class="prop-label">꼭짓점</span>
         <input type="range" class="prop-slider" id="shape-star-slider" min="${STAR_MIN}" max="${STAR_MAX}" step="1" value="${starN}">
         <input type="number" class="prop-number" id="shape-star-num" min="${STAR_MIN}" max="${STAR_MAX}" value="${starN}">
-      </div>` : ''}
+      </div>
+      <!-- ★별 «갯수»(현빈 2026-10-06 「우측패널에 갯수추가하기하면 별 갯수가 여러개 추가되게」).
+           ★꼴은 새로 짓지 않았다 — 바로 위 「꼭짓점」·「W/H」·「두께」와 «같은» slider+number 쌍이다.
+           ★갯수를 늘리면 블록이 «옆으로» 넓어진다(별 크기 유지 — 현빈 판정). -->
+      <div class="prop-row">
+        <span class="prop-label">갯수</span>
+        <input type="range" class="prop-slider" id="shape-star-count-slider" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" step="1" value="${starCount}">
+        <input type="number" class="prop-number" id="shape-star-count-num" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" value="${starCount}">
+      </div>
+      ${starCount > 1 ? `<div class="prop-hint" id="shape-star-count-hint" style="margin-top:4px;">별이 여러 개면 이미지 채우기를 쓸 수 없습니다.</div>` : ''}` : ''}
       ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
     </div>
 
@@ -487,8 +498,17 @@ ${blockHeaderHTML({
   {
     const inp = document.getElementById('shape-color-color');
     if (inp) {
-      const hasFace = !!SHAPE_FACE_TYPES[shapeType];
+      /* ★별이 여러 개면 이미지 채우기를 «닫는다»(지디 승인 2026-10-06).
+         까닭: 이미지 모드는 .shape-img-fill 에 CSS clip-path 를 «하나» 건다(_syncShapeImageClip).
+           그런데 `clip-path: polygon(...) polygon(...)` 은 ★브라우저가 거절한다(실측 2026-10-06:
+           computed 가 "none"). `path('… Z … Z')` 는 받지만 ★px 단위라 도형 크기에 따라 안 늘어난다.
+         ⛔「조용히 첫 별 하나만 칠한다」가 더 나쁘다 ⇒ 탭을 닫고 ★까닭을 화면에 적는다.
+         ★기존 부품을 쓴다 — cpModes/cpModesNote 가 그 일을 하는 자리다(color-picker.js _applyModeGate,
+           선례 prop-text-wireup-text-edit.js:283). 새 UI 언어 0. */
+      const hasFace = !!SHAPE_FACE_TYPES[shapeType] && !(shapeType === 'star' && starCount > 1);
       inp.dataset.cpModes = hasFace ? 'solid,gradient,image' : 'solid,gradient';
+      if (shapeType === 'star' && starCount > 1) inp.dataset.cpModesNote = '별이 여러 개면 이미지 채우기를 쓸 수 없습니다.';
+      else delete inp.dataset.cpModesNote;
       // 패널을 다시 그리면 native input 이 새로 만들어져 시드가 사라진다 → 블럭 dataset 에서 다시 채운다
       if (block.dataset.shapeGradient) inp.dataset.cpGradient = block.dataset.shapeGradient;
       if (hasFace && block.dataset.shapeFill === 'image') inp.dataset.cpFill = 'image';
@@ -608,17 +628,45 @@ ${blockHeaderHTML({
   });
   hNum.addEventListener('change', () => window.pushHistory?.());
 
-  // ── 별 꼭짓점 수(B2) ── 값이 «다를 때만» polygon 에 쓴다(같은 값을 다시 쓰면 복원 뒤 직렬화가 갈려 ⌘Z 깊이가 깎인다).
+  /* ── 별 꼭짓점 수(B2) ＋ 별 갯수(현빈 2026-10-06) ──
+   * ★두 값을 ★한 함수(_applyStarGeom)로 쓴다 — 명부를 둘로 만들지 않는다. 꼭짓점만 바꿔도 갯수를
+   *   «지금 값»에서 읽어 같이 쓰므로, 둘이 어긋난 SVG(폴리곤 3개인데 viewBox 는 1개분 같은 꼴)가 안 생긴다.
+   * ★값이 «다를 때만» DOM 에 쓴다 — 같은 값을 다시 쓰면 복원 뒤 직렬화가 갈려 ⌘Z 깊이가 깎인다(B2 규율). */
   const starSlider = document.getElementById('shape-star-slider');
   const starNum    = document.getElementById('shape-star-num');
+  const starCSlider = document.getElementById('shape-star-count-slider');
+  const starCNum    = document.getElementById('shape-star-count-num');
+
+  /** 지금 dataset 에서 읽은 (꼭짓점, 갯수) 로 SVG 기하를 맞춘다. 멱등. */
+  const _applyStarGeom = (n, count) => {
+    const svg = block.querySelector('svg');
+    if (!svg) return;
+    const list = starPointsList(n, count);
+    const vb = starViewBox(count);
+    if (svg.getAttribute('viewBox') !== vb) svg.setAttribute('viewBox', vb);
+    const polys = [...svg.querySelectorAll('polygon')];
+    /* 갯수가 줄면 남는 polygon 을 지우고, 늘면 첫 polygon 을 ★복제해서 더한다
+       (fill·stroke 는 svg 의 style 상속 ＋ 그라데이션 url(#…) 이 polygon 속성에 있을 수 있어
+        ⛔createElementNS 로 새로 만들지 않는다 — 그러면 그라데이션이 걸린 별만 색이 샌다). */
+    while (polys.length > list.length) polys.pop().remove();
+    while (polys.length < list.length) {
+      const seed = polys[0];
+      if (!seed) break;
+      const cl = seed.cloneNode(false);
+      seed.parentNode.appendChild(cl);
+      polys.push(cl);
+    }
+    polys.forEach((poly, i) => {
+      if (poly.getAttribute('points') !== list[i]) poly.setAttribute('points', list[i]);
+    });
+  };
+
   if (starSlider && starNum) {
     const applyStar = (raw) => {
       const n = clampStarN(raw);
       starSlider.value = n; starNum.value = n;
-      const poly = block.querySelector('svg polygon');
-      const pts = starPoints(n);
-      if (poly && poly.getAttribute('points') !== pts) poly.setAttribute('points', pts);
       if (block.dataset.starPoints !== String(n)) block.dataset.starPoints = String(n);
+      _applyStarGeom(n, clampStarCount(block.dataset.starCount));
       _syncShapeImageClip(block);
       window.scheduleAutoSave?.();
     };
@@ -626,6 +674,39 @@ ${blockHeaderHTML({
     starSlider.addEventListener('change', () => window.pushHistory?.());
     starNum.addEventListener('input',  () => { if (starNum.value !== '') applyStar(starNum.value); });
     starNum.addEventListener('change', () => { applyStar(starNum.value); window.pushHistory?.(); });
+  }
+
+  if (starCSlider && starCNum) {
+    const applyStarCount = (raw) => {
+      const prev = clampStarCount(block.dataset.starCount);
+      const c = clampStarCount(raw);
+      starCSlider.value = c; starCNum.value = c;
+      if (c === prev) return;
+      /* ★갯수를 늘리면 블록이 «옆으로» 넓어진다 — 별 크기 유지(현빈 판정 2026-10-06).
+         ⛔W 를 그대로 두면 viewBox 만 N배라 preserveAspectRatio="none" 때문에 별이 1/N 로 납작해진다.
+         ★폭은 «읽는 곳과 쓰는 곳이 같은 객체»(래퍼 frame)로 간다 — applySize 가 그 자리다.
+         ★W 상한 860 에 닿으면 거기서 멈춘다(= 별이 작아진다). 슬라이더 상한과 같은 수를 쓴다. */
+      const curW = _shapeFrameSize(ss || block, 'w');
+      const wantW = Math.max(10, Math.min(860, Math.round(curW * c / prev)));
+      if (block.dataset.starCount !== String(c)) block.dataset.starCount = String(c);
+      _applyStarGeom(clampStarN(block.dataset.starPoints), c);
+      if (wantW !== curW) applySize(wantW, null);
+      /* 이미지 채우기는 갯수>1 에서 못 쓴다(위 cpModes 주석) — 이미 걸려 있으면 «여기서» 푼다.
+         ⛔그냥 두면 사진이 첫 별 모양으로만 잘린 채 나머지 별이 투명해진다(조용한 반쪽 동작). */
+      if (c > 1 && block.dataset.shapeFill === 'image') {
+        _clearShapeImage(block);
+        const svg2 = block.querySelector('svg.shape-svg') || block.querySelector('svg');
+        if (svg2 && svg2.style.fill === 'transparent') svg2.style.fill = 'currentColor';
+        window.showToast?.('별이 여러 개면 이미지 채우기를 쓸 수 없습니다 — 색 채우기로 되돌렸어요');
+      }
+      _syncShapeImageClip(block);
+      window.scheduleAutoSave?.();
+      showShapeProperties(block);   // 갯수에 따라 안내문구·이미지 탭 가능 여부가 바뀐다 → 패널 다시
+    };
+    starCSlider.addEventListener('input',  () => applyStarCount(starCSlider.value));
+    starCSlider.addEventListener('change', () => window.pushHistory?.());
+    starCNum.addEventListener('input',  () => { if (starCNum.value !== '') applyStarCount(starCNum.value); });
+    starCNum.addEventListener('change', () => { applyStarCount(starCNum.value); window.pushHistory?.(); });
   }
 
   // ── 회전 ──
@@ -921,6 +1002,11 @@ function _syncShapeImageClip(block) {
   const img = block && block.querySelector(':scope > .shape-img-fill');
   if (!img) return;
   const type = block.dataset.shapeType || 'rectangle';
+  /* ★별이 여러 개면 이미지 모드를 «지운다» — clip-path 는 polygon 하나뿐이라(실측: polygon 둘은
+     computed "none") 사진이 ★첫 별 모양으로만 잘리고 나머지 별은 투명해진다. 패널 경로는 갯수를
+     올릴 때 이미 풀지만(prop-shape applyStarCount), 저장본·다른 입구로 둘이 함께 들어와도
+     «조용한 반쪽 동작»이 되지 않게 여기서도 막는다. */
+  if (type === 'star' && clampStarCount(block.dataset.starCount) > 1) { _clearShapeImage(block); return; }
   const clip = type === 'star' ? starClipPath(block.dataset.starPoints) : (SHAPE_IMG_CLIP[type] || '');
   if (clip) img.style.clipPath = clip; else img.style.removeProperty('clip-path');
 }

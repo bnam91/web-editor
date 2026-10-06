@@ -4937,6 +4937,10 @@ function updateShapeBlock(blockId, partial = {}) {
     // ★위 swap 이 기하를 «기본(별=5각)»으로 새로 쓴다 ⇒ 별 꼭짓점 수(B2)도 기본으로 — 안 지우면 SVG 5각·dataset 7·이미지 clip 14 로 어긋난다.
     //   편집 경로에서만 지운다(복원·로드는 이 함수를 안 지나므로 재생성 없음).
     delete block.dataset.starPoints;
+    /* ★별 «갯수»(2026-10-06)도 같은 까닭으로 기본으로 — 위 swap 은 polygon 을 ★한 벌만 쓰고
+       viewBox 를 def.vb(= 별 1개분)로 되돌린다. 안 지우면 「SVG 별 1개 · dataset 3개」로 어긋나고,
+       패널이 갯수 3 을 보여주면서 캔버스는 1개인 상태가 된다. */
+    delete block.dataset.starCount;
     applied.shapeType = partial.shapeType;
     // 이미지(에셋) 채우기 모드(0918 picker) — 면 없는 타입(선·화살표)이면 해제, 면 있으면 모양 clip 을 새 타입으로
     if (block.dataset.shapeFill) {
