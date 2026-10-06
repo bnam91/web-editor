@@ -106,10 +106,14 @@ test('F5 패널 — glow 절만 보이고(Shape·기본 절 숨김) · 세기·�
     const vis = (el) => !!el && getComputedStyle(el).display !== 'none';
     const shapeSec = [...document.querySelectorAll('.prop-section')].find(s => s.querySelector('.prop-section-title')?.textContent.trim() === 'Shape');
     const out = { glowSec: vis(document.getElementById('stk-glow-section')), shapeSec: vis(shapeSec), imageSec: vis(document.getElementById('stk-image-section')) };
+    // 세기 = 진하기(알파 기울기) · 퍼짐 = 반경 — 두 축이 «따로» 그림에 닿는다(2026-10-06 분리)
     const sd = () => b.querySelector('feGaussianBlur').getAttribute('stdDeviation');
-    const sd0 = sd();
+    const slope = () => b.querySelector('feFuncA').getAttribute('slope');
+    const sd0 = sd(), sl0 = slope();
     const s = document.getElementById('stk-glow-int'); s.value = '20'; s.dispatchEvent(new Event('input', { bubbles: true }));
-    out.int = b.dataset.intensity; out.sdChanged = sd() !== sd0;
+    out.int = b.dataset.intensity; out.slopeChanged = slope() !== sl0; out.sdSameAfterInt = sd() === sd0;
+    const sp = document.getElementById('stk-glow-spread'); sp.value = '15'; sp.dispatchEvent(new Event('input', { bubbles: true }));
+    out.spread = b.dataset.spread; out.sdChanged = sd() !== sd0;
     document.querySelector('#stk-glow-kind [data-fx-kind="flare"]').click();
     out.kind = b.dataset.fxKind; out.color = b.dataset.glowColor;
     return out;
@@ -118,7 +122,10 @@ test('F5 패널 — glow 절만 보이고(Shape·기본 절 숨김) · 세기·�
   expect(r.shapeSec, 'Shape 고르기가 보인다(glow 는 자기 프리셋을 쓴다)').toBe(false);
   expect(r.imageSec).toBe(false);
   expect(r.int).toBe('20');
-  expect(r.sdChanged, '세기를 바꿨는데 후광 반경이 그대로다').toBe(true);
+  expect(r.slopeChanged, '세기를 바꿨는데 후광 진하기가 그대로다').toBe(true);
+  expect(r.sdSameAfterInt, '세기가 반경까지 바꿨다 — 두 축이 다시 묶였다').toBe(true);
+  expect(r.spread).toBe('15');
+  expect(r.sdChanged, '퍼짐을 바꿨는데 후광 반경이 그대로다').toBe(true);
   expect(r.kind).toBe('flare');
   expect(r.color, '종류를 바꾸면 그 프리셋 색을 깐다').toBe('#ff9a3c');
 });
@@ -262,6 +269,56 @@ test('F12 ★중첩 불투명도 0.8 안의 0.8 — 두 경로 다 0.64 로 합�
     expect(Math.abs(nested - 163), `${path}: 0.8 안의 0.8 이 0.64(≈163)가 아니다 — 받음 ${nested} (204 근처면 한 번만 먹음 · 130 근처면 세 번)`).toBeLessThan(6);
   }
   expect(Math.abs(m.cdp[2] - m.h2c[2]), `두 경로의 중첩 합성값이 갈린다 — CDP ${m.cdp[2]} · html2canvas ${m.h2c[2]}`).toBeLessThan(4);
+});
+
+
+/* ── 세기·퍼짐 분리 · 필터 영역(2026-10-06 지디 · 현빈 「글로우가 어느 순간 약해지네」) ──────────────────────
+ * 스티커 하나의 SVG 를 큰 캔버스에 그려 픽셀로 잰다(화면 배율과 무관). */
+async function renderPx(page, opts, { wide = false, W = 600 } = {}) {
+  return page.evaluate(async ({ opts, wide, W }) => {
+    const canvas = document.getElementById('canvas');
+    canvas.innerHTML = '<div class="section-block" id="secG" style="position:relative;height:400px;background:#000"><div class="section-inner"></div></div>';
+    const b = window.makeStickerBlock({ shape: 'glow', x: 300, y: 150, seed: 7, ...opts });
+    document.getElementById('secG').appendChild(b);
+    const svg = b.querySelector('svg').cloneNode(true);
+    if (wide) { const f = svg.querySelector('filter'); f.setAttribute('filterUnits', 'userSpaceOnUse'); f.setAttribute('x', '-1000'); f.setAttribute('y', '-1000'); f.setAttribute('width', '2100'); f.setAttribute('height', '2100'); }
+    svg.setAttribute('width', W); svg.setAttribute('height', W); svg.setAttribute('viewBox', '-100 -100 300 300');
+    const img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg)); await img.decode();
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = W; const x = cv.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, W, W); x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, W, W).data;
+    const lum = (px, py) => { const i = (Math.round(py) * W + Math.round(px)) * 4; return 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; };
+    let lit = 0; for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 6) lit++;
+    // viewBox(-100..200) → 캔버스 W: 상자 중심(50,50) = W/2 · 1 단위 = W/300 px
+    const u = W / 300;
+    return { lit, center: lum(W / 2, W / 2), halo: lum(W / 2 + 15 * u, W / 2), data: Array.from(d.filter((_, i) => i % 4 === 0)) };
+  }, { opts, wide, W });
+}
+
+test('F13 ★필터 영역이 후광을 안 자른다 — 세기 100 · 퍼짐 20(최대) · 종류 셋 다 «아주 넓은 영역»과 픽셀이 같다', async ({ page }) => {
+  await bootApp(page);
+  for (const fxKind of ['dot', 'star', 'flare']) {
+    const a = await renderPx(page, { fxKind, intensity: 100, spread: 20 });
+    const w = await renderPx(page, { fxKind, intensity: 100, spread: 20 }, { wide: true });
+    let diff = 0; for (let i = 0; i < a.data.length; i++) if (Math.abs(a.data[i] - w.data[i]) > 2) diff++;
+    expect(a.lit, `★전제(${fxKind}): 후광이 그려졌다`).toBeGreaterThan(1000);
+    expect(diff, `${fxKind}: 필터 영역이 후광을 잘랐다(넓힌 판과 ${diff} px 다름 · 켜진 픽셀 ${a.lit} vs ${w.lit})`).toBe(0);
+  }
+});
+
+test('F14 ★세기 0 → 100 에 후광이 «단조증가»한다(같은 퍼짐)', async ({ page }) => {
+  await bootApp(page);
+  const v = [];
+  for (const I of [0, 25, 50, 75, 100]) v.push(Math.round((await renderPx(page, { fxKind: 'dot', intensity: I, spread: 6 })).halo));
+  for (let i = 1; i < v.length; i++) expect(v[i], `세기를 올렸는데 후광이 안 늘었다: ${JSON.stringify(v)}`).toBeGreaterThan(v[i - 1]);
+});
+
+test('F15 반투명 조합 — 심 색 50% 알파 · 층 불투명도 50% · 세기 100 에서도 «중심»이 후광보다 밝다(중심이 같이 죽지 않는다)', async ({ page }) => {
+  await bootApp(page);
+  const r = await renderPx(page, { fxKind: 'dot', intensity: 100, spread: 6, coreColor: 'rgba(255,255,255,0.5)', glowColor: '#ffffff', fxOpacity: 50 });
+  const full = await renderPx(page, { fxKind: 'dot', intensity: 100, spread: 6, glowColor: '#ffffff', fxOpacity: 100 });
+  expect(full.center, '★대조: 불투명·100% 의 중심은 흰색').toBeGreaterThan(240);
+  expect(r.center, `반투명 조합에서 중심(${Math.round(r.center)})이 후광(${Math.round(r.halo)})보다 어둡다`).toBeGreaterThan(r.halo + 10);
+  expect(r.center, '반투명 조합의 중심은 «보인다»').toBeGreaterThan(40);
 });
 
 test('F9 즐겨찾기 — glow 는 이번 판 즐겨찾기 밖: 조용히 실패하지 않고 «말하고» 거절한다', async ({ page }) => {

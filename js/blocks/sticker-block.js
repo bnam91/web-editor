@@ -157,7 +157,7 @@ function _renderStickerBlockInner(block) {
     block.innerHTML = window.GlowFx.svg({
       filterId: 'fxg-' + (block.id || 'tmp'),
       kind: block.dataset.fxKind, glowColor: block.dataset.glowColor, coreColor: block.dataset.coreColor,
-      intensity: block.dataset.intensity, rays: block.dataset.rays, chroma: block.dataset.chroma, seed: block.dataset.seed,
+      intensity: block.dataset.intensity, spread: block.dataset.spread, rays: block.dataset.rays, chroma: block.dataset.chroma, seed: block.dataset.seed,
       fxOpacity: block.dataset.fxOpacity,
     });
     return;
@@ -450,7 +450,7 @@ function rememberStickerStyle(block) {
      ⛔__last 에는 안 올린다 — 펜 메뉴 「Sticker」(shape 미지정) 한 번 클릭이 «마지막 shape»를 다시 만드는데,
        글로우를 쓴 뒤 그게 글로우가 되면 일반 뱃지 버튼이 글로우를 낳는다(2026-10-06 설계 판단). */
   if (shape === 'glow') {
-    ['fxKind', 'glowColor', 'coreColor', 'intensity', 'rays', 'chroma', 'fxOpacity'].forEach(put);
+    ['fxKind', 'glowColor', 'coreColor', 'intensity', 'spread', 'rays', 'chroma', 'fxOpacity'].forEach(put);
     slot.shape = shape;
     _lastStickerStyle.glow = slot;
     return;
@@ -512,6 +512,7 @@ function makeStickerBlock(opts = {}) {
     block.dataset.glowColor = opts.glowColor ?? pre.glowColor ?? '#b06cff';
     block.dataset.coreColor = opts.coreColor ?? pre.coreColor ?? '#ffffff';
     block.dataset.intensity = opts.intensity ?? pre.intensity ?? 70;
+    block.dataset.spread    = opts.spread    ?? pre.spread    ?? 6;
     block.dataset.rays      = opts.rays      ?? pre.rays      ?? 4;
     block.dataset.chroma    = opts.chroma    ?? pre.chroma    ?? '0';
     block.dataset.fxOpacity = opts.fxOpacity ?? pre.fxOpacity ?? 100;

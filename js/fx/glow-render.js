@@ -16,9 +16,9 @@
   /* 프리셋 셋 — 현빈이 보낸 이미지 셋(렌즈 플레어 · 둥근 빛점 · 보라 별 반짝이). 색은 패널에서 바꿀 수 있다.
      ★기본 색은 «값만» 바꾸면 되게 여기 한 자리에 둔다(현빈이 시안을 보고 고르면 이 표만 고친다 — 지디 ②-2). */
   const PRESETS = Object.freeze({
-    star:  Object.freeze({ glowColor: '#b06cff', coreColor: '#ffffff', intensity: 70, rays: 4, chroma: '0', fxOpacity: 100, sizeW: 96,  sizeH: 96 }),
-    flare: Object.freeze({ glowColor: '#ff9a3c', coreColor: '#fff4e0', intensity: 70, rays: 6, chroma: '0', fxOpacity: 100, sizeW: 180, sizeH: 100 }),
-    dot:   Object.freeze({ glowColor: '#ffffff', coreColor: '#ffffff', intensity: 60, rays: 0, chroma: '0', fxOpacity: 100, sizeW: 64,  sizeH: 64 }),
+    star:  Object.freeze({ glowColor: '#b06cff', coreColor: '#ffffff', intensity: 70, spread: 6, rays: 4, chroma: '0', fxOpacity: 100, sizeW: 96,  sizeH: 96 }),
+    flare: Object.freeze({ glowColor: '#ff9a3c', coreColor: '#fff4e0', intensity: 70, spread: 7, rays: 6, chroma: '0', fxOpacity: 100, sizeW: 180, sizeH: 100 }),
+    dot:   Object.freeze({ glowColor: '#ffffff', coreColor: '#ffffff', intensity: 60, spread: 5, rays: 0, chroma: '0', fxOpacity: 100, sizeW: 64,  sizeH: 64 }),
   });
   const KINDS = Object.freeze(Object.keys(PRESETS));
 
@@ -78,7 +78,10 @@
   }
 
   /**
-   * @param {object} p  { filterId, kind, glowColor, coreColor, intensity(0~100), rays, chroma('1'|'0'), seed, fxOpacity(0~100) }
+   * @param {object} p  { filterId, kind, glowColor, coreColor, intensity(0~100), spread(0~20), rays, chroma('1'|'0'), seed, fxOpacity(0~100) }
+   *   ★세기와 퍼짐은 «두 축»이다(지디 2026-10-06 · 현빈 「글로우가 어느 순간 약해지네」 원인 둘을 일꾼이 잰 뒤):
+   *     퍼짐(spread) = 후광 3겹의 반경 — ×0.43 / ×1 / ×2 (네온 6:14:28 비율) · 세기(intensity) = 겹의 «진하기»(알파 기울기)
+   *     옛 판은 intensity 하나로 반경까지 태웠다 → 세기를 올리면 반경만 커져 «옅어지고» 필터 영역에서 잘렸다.
    *   ★fxOpacity — 이펙트 «층 통째» 불투명도. 이름을 파티클과 «같게» 쓴다(지디 2026-10-06: 글로우 opacity · 파티클 alpha 로 갈리면
    *     다음 사람이 두 벌로 읽는다). 바깥 <g opacity> 하나 — 안의 색수차 층(0.55)·고스트(fill-opacity)와 «중첩»된다
    *     ⇒ 두 내보내기 경로가 중첩을 같은 값으로 합성하는지 tests/dom/fx-glow-sticker F12 가 잰다.
@@ -96,21 +99,27 @@
     const fid = String(p.filterId || 'fxg-tmp').replace(/[^A-Za-z0-9_-]/g, '');
     const rng = w.FxSeed.mulberry32(seed);
     const body = shapes(kind, rays, core, glow, rng);
-    // 네온(.tfx-neon) 매핑: 6/14/28px × 세기 → viewBox 단위(상자 ≈ 100) 4/9/18 × 세기. 세기 0 이어도 아주 옅은 후광은 남긴다.
-    const s = (k) => r2(Math.max(0.3, k * I));
+    const S = clamp(Number.isFinite(+p.spread) ? +p.spread : (pre.spread ?? 6), 0, 20);
+    const sd = (k) => r2(Math.max(0.3, k * S));               // 3겹 반경 = 퍼짐 × 0.43 / 1 / 2
+    const gain = r2(I / 0.7);                                   // 세기 70 = 1.0(옛 기본 모습) · 100 ≈ 1.43 · 0 = 후광 없음 — 단조증가
+    /* ★필터 영역 = userSpaceOnUse(viewBox 단위) · 가장 넓은 겹의 3σ + 여유. objectBoundingBox(-150%/400%)는 «대상 상자» 기준이라
+       대상이 작으면(빛점 하나) 3σ 를 못 담아 후광이 «잘렸다» — 2026-10-06 실측: dot 세기 100 에서 넓힌 영역 판과 1,860 px 다름(켜진 픽셀 19,195 vs 21,055). */
+    const M = Math.ceil(3 * 2 * S) + 12;
     const chroma = (p.chroma === '1' || p.chroma === true)
       ? `<g transform="translate(0.9,0)" opacity="0.55">${body.replace(/fill="[^"]*"/g, 'fill="#00ffff"')}</g>`
         + `<g transform="translate(-0.9,0)" opacity="0.55">${body.replace(/fill="[^"]*"/g, 'fill="#ff0080"')}</g>`
       : '';
     return `<svg class="sticker-glow-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"`
       + ` width="100%" height="100%" style="display:block;overflow:visible;pointer-events:none;">`
-      + `<defs><filter id="${fid}" x="-150%" y="-150%" width="400%" height="400%" color-interpolation-filters="sRGB">`
+      + `<defs><filter id="${fid}" filterUnits="userSpaceOnUse" x="${-M}" y="${-M}" width="${100 + 2 * M}" height="${100 + 2 * M}" color-interpolation-filters="sRGB">`
       + `<feFlood flood-color="${glow}" result="c"/>`
       + `<feComposite in="c" in2="SourceAlpha" operator="in" result="tint"/>`
-      + `<feGaussianBlur in="tint" stdDeviation="${s(4)}" result="g1"/>`
-      + `<feGaussianBlur in="tint" stdDeviation="${s(9)}" result="g2"/>`
-      + `<feGaussianBlur in="tint" stdDeviation="${s(18)}" result="g3"/>`
-      + `<feMerge><feMergeNode in="g3"/><feMergeNode in="g2"/><feMergeNode in="g1"/><feMergeNode in="SourceGraphic"/></feMerge>`
+      + `<feGaussianBlur in="tint" stdDeviation="${sd(0.43)}" result="g1"/>`
+      + `<feGaussianBlur in="tint" stdDeviation="${sd(1)}" result="g2"/>`
+      + `<feGaussianBlur in="tint" stdDeviation="${sd(2)}" result="g3"/>`
+      + `<feMerge result="halo"><feMergeNode in="g3"/><feMergeNode in="g2"/><feMergeNode in="g1"/></feMerge>`
+      + `<feComponentTransfer in="halo" result="haloK"><feFuncA type="linear" slope="${gain}"/></feComponentTransfer>`
+      + `<feMerge><feMergeNode in="haloK"/><feMergeNode in="SourceGraphic"/></feMerge>`
       + `</filter></defs>`
       + `<g class="sticker-glow-layer" opacity="${op}"><g class="sticker-glow-body" filter="url(#${fid})">${chroma}${body}</g></g></svg>`;
   }
