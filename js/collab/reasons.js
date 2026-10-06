@@ -52,6 +52,16 @@
     section_not_synced: '이 섹션은 상대에게 보이지 않습니다.',
     // 지디 C(2026-10-06): 상단바 상태 글자 — S3(2초마다 조용히 실패하던 자리)의 핵심
     link_down:        '⚠ 연결 끊김',
+    /* ── SIX(2026-10-06) 새 갈래 — ★문장 «없음»(null) · 현빈 검수 대기(태양 notes lanes/collab/NEW-SENTENCES.md E 칸).
+     *   null 이면 원문 키가 보이고, 협업이 켜진 판에선 G1(collab-enable-gate)이 push 를 막는다 — 그게 «검수 전엔 못 나간다»의 자다. */
+    conflict_kept:       null,   // 묵은 원격 패치를 붙이지 않고 내 판을 지킴(토스트 머리)
+    conflict_replaced:   null,   // 상대가 내 마지막 판을 못 보고 더 늦게 올려 덮임 — 되살릴 수 있음(토스트 머리)
+    conflict_badge:      null,   // 상단바 단추(뒤에 개수)
+    conflict_mine:       null,   // 칸 안 「내 판」 머리
+    conflict_theirs:     null,   // 칸 안 「상대 판」 머리
+    conflict_use_theirs: null,   // 단추
+    conflict_keep_mine:  null,   // 단추
+    editing_by:          null,   // 섹션 위 꼬리표(앞에 사람 이름)
   };
 
   /** reason → 문장. status 가 있는 갈래(server·bad_response·모르는 4xx)는 숫자를 붙인다. */

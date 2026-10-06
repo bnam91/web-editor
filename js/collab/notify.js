@@ -38,6 +38,9 @@
     seed_done:         'status',   // A12
     seed_repush:       'status',   // A12
     seed_giveup:       'source',   // sync.js:224 가 이미 토스트
+    conflict_kept:     'speak',    // SIX ⓐ 묵은 원격 패치를 붙이지 않고 내 판을 지킴 → 알리고 «고르기» 칸
+    conflict_replaced: 'speak',    // SIX 상대가 내 마지막 판을 못 보고 더 늦게 올림 → 붙이되 내 판을 «되살리기» 칸
+    conflict_resolved: 'status',   // SIX 사용자가 골랐다 — 충돌 단추 다시 그림
     conflict:          'source',   // sync.js notifyConflict 가 이미 토스트
   });
 
@@ -141,6 +144,13 @@
       case 'patch_dropped':
         speakOnce('dropped:' + evt.reason, R.text(evt.reason, evt));
         return;
+      case 'conflict_kept': case 'conflict_replaced':
+        toast(`${R.text(evt.type)} · ${sectionLabel(evt.sectionId)}`);
+        if (window.CollabConflictUI) { try { window.CollabConflictUI.render(); } catch (e) { console.error('[collab/notify] 충돌 단추 그리기 실패:', e); } }
+        return;
+      case 'conflict_resolved':
+        if (window.CollabConflictUI) { try { window.CollabConflictUI.render(); } catch (e) { console.error('[collab/notify] 충돌 단추 그리기 실패:', e); } }
+        return;
       default:
         return;   // status·source — 상태만 적었다(위 setState) / 낸 자리가 이미 말했다
     }
@@ -160,7 +170,7 @@
   attach();   // ★sync.js «뒤»에 실린다(index.html) — 그 시점엔 window.collabSync 가 이미 있다
 
   window.collabNotify = Object.freeze({
-    CLASS, isFailure, textFor,
+    CLASS, isFailure, textFor, sectionLabel,
     attached: () => !!_unsub,
     heard: () => _heard.slice(),
     shown: () => _shown.slice(),
