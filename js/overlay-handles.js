@@ -2215,9 +2215,25 @@ const GRD_GRIP_H = 18;
 
 /** 그 주소의 «바깥 줄» DOM. ⛔중첩 안 줄(np)은 null — data-line 을 안 쓰므로 addr.li 로
  *  조회하면 «품은 duo 줄»을 집는다(_gridImgFindEl 이 같은 함정을 같은 말로 막는다). */
+/* ★★BT3(2026-10-06 ⑵-B) — 아래 넷은 «주인(host)»에게 묻는다. ⛔그리드 주소를 ★여기서 직접 읽지 마라.
+ *   무엇이었나 — 이 손잡이가 `[data-r][data-c][data-line]` 로 줄을 찾고 `.grd-cell` 로 칸을 찾았다.
+ *     ⇒ 버블·챗 줄은 그 주소를 ★고의로 안 찍으므로(line-host.js 머리말 · 시험 T7) 손잡이가 ★못 섰다.
+ *   ⇒ 묻는 길을 계약 다섯 칸(rowEl·linesBox·rowsIn·rowAt·moveLine)으로 바꿨다.
+ *     ★그리드 구현은 prop-grid.js `_grdGridHost` 안에 ★옛 내부 그대로 옮겼다(산출·동작 불변).
+ *   ⛔이 파일을 복사해 `showLineGrip` 을 새로 만들지 마라 — 그게 이 레포가 갈라진 까닭이다. */
+function _lnGripHost(block) {
+  if (!block || !block.classList) return null;
+  /* ★버블·챗이면 그쪽 주인, 아니면 그리드 주인. ★하나의 문으로 모은다(명부 둘 금지). */
+  const h = window.lnHostFor ? window.lnHostFor(block) : null;
+  if (h) return h;
+  if (!block.classList.contains('grid-block')) return null;
+  return window.grdLineUi && window.grdLineUi.gridHost ? window.grdLineUi.gridHost(block) : null;
+}
+
 function _grdGripFindEl(block, addr) {
   if (!block || !addr || addr.li === null || addr.li === undefined || addr.np) return null;
-  return block.querySelector(`[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
+  const H = _lnGripHost(block);
+  return (H && H.rowEl) ? H.rowEl(addr) : null;
 }
 
 /** 지금 고른 «바깥 줄» 주소 — 없으면 null. */
@@ -2227,15 +2243,15 @@ function _grdGripActiveAddr(block) {
   return addr;
 }
 
-/** 이 칸의 «바깥 줄» DOM 들 — 직속 자식만. ★중첩 «안»의 줄은 `.grd-nested` 안이라 안 걸린다
- *  (그 `.grd-nested` 자신은 바깥 줄이므로 걸리는 게 맞다). */
-function _grdGripCellLines(cellEl) {
-  return [...cellEl.querySelectorAll(':scope > [data-line]')];
+/** 이 그릇의 «바깥 줄» DOM 들. ★중첩 «안»의 줄은 그리드 구현이 걸러낸다(:scope > [data-line]). */
+function _grdGripCellLines(boxEl, block) {
+  const H = _lnGripHost(block);
+  return (H && H.rowsIn) ? H.rowsIn(boxEl) : [];
 }
 
-/** 포인터 y 가 이 칸의 «몇 번째 자리»인가 — 0..N (N = 줄 수 = 끝에 붙이기). */
-function _grdGripInsertAt(cellEl, clientY) {
-  const kids = _grdGripCellLines(cellEl);
+/** 포인터 y 가 이 그릇의 «몇 번째 자리»인가 — 0..N (N = 줄 수 = 끝에 붙이기). */
+function _grdGripInsertAt(boxEl, clientY, block) {
+  const kids = _grdGripCellLines(boxEl, block);
   for (let i = 0; i < kids.length; i++) {
     const rc = kids[i].getBoundingClientRect();
     if (clientY < rc.top + rc.height / 2) return i;
@@ -2371,8 +2387,11 @@ function _onGridLineGripMouseDown(e, block, addr) {
     window.clearDropIndicators?.();
     dropRC = null; dropInsertAt = null;
     const t = document.elementFromPoint(ev.clientX, ev.clientY);
-    const cellEl = t && t.closest ? t.closest('.grd-cell[data-r][data-c]') : null;
-    if (!cellEl || !block.contains(cellEl)) return;
+    /* ★«행»을 주인에게 묻는다 — 그리드 = 칸{r,c} · 버블 = 하나{r:0} · 챗 = 메시지{r:idx}. */
+    const H = _lnGripHost(block);
+    const at = (H && H.rowAt) ? H.rowAt(t) : null;
+    const cellEl = at ? at.box : null;
+    if (!cellEl) return;
     /* ★★중첩(duo) «안»은 따로 막지 않는다 — ⛔처음엔 `cellEl.closest('.grd-nested')` 가드를
        넣었는데 그것은 ★아무것도 안 재는 문이었다. 실측: 중첩의 열은 `.grd-nested-col` 이고
        중첩 «안»에는 `.grd-cell` 이 아예 없다(grid-block.js 의 중첩 렌더 두 줄). ⇒ 중첩 위에
@@ -2382,13 +2401,11 @@ function _onGridLineGripMouseDown(e, block, addr) {
        위쪽 절반이면 «그 줄 앞», 아래쪽이면 «그 줄 뒤»가 된다. 사용자가 보는 것과 같다.
        ⛔중첩 «안»으로 줄을 밀어 넣는 것은 여전히 못 한다 — 쓰는 길이 거기로 안 내려간다
          (T-220 몫). 그건 여기서 «막을» 일이 아니라 애초에 «갈 수 없는» 자리다. */
-    const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
-    if (!Number.isInteger(r) || !Number.isInteger(c)) return;
-    dropRC = { r, c };
-    dropInsertAt = _grdGripInsertAt(cellEl, ev.clientY);
+    dropRC = { r: at.r, c: at.c };
+    dropInsertAt = _grdGripInsertAt(cellEl, ev.clientY, block);
     const ind = document.createElement('div');
     ind.className = 'drop-indicator';
-    const kids = _grdGripCellLines(cellEl);
+    const kids = _grdGripCellLines(cellEl, block);
     if (dropInsertAt >= kids.length) cellEl.appendChild(ind);
     else cellEl.insertBefore(ind, kids[dropInsertAt]);
   }
@@ -2406,8 +2423,9 @@ function _onGridLineGripMouseDown(e, block, addr) {
     const to = _grdGripDropTarget(addr.li, dropInsertAt, sameCell);
     /* ★쓰는 길은 «부른다» — 이력·되돌림·활성줄 옮기기는 그쪽이 들고 있다(여기서 pushHistory 를
        부르지 않는다. updateGridBlock 이 쓰기 직전에 스스로 1회 쌓는다). */
-    if (sameCell) window.grdMoveLineWithin?.(block, { r: addr.r, c: addr.c }, addr.li, to);
-    else window.grdMoveLineToCell?.(block, { r: addr.r, c: addr.c }, addr.li, { r: dropRC.r, c: dropRC.c }, to);
+    /* ★쓰는 길도 주인이 든다 — 같은 행/다른 행 가름과 이력은 그쪽 몫이다(여기서 pushHistory 를 안 부른다). */
+    const Hup = _lnGripHost(block);
+    Hup?.moveLine?.({ r: addr.r, c: addr.c }, addr.li, { r: dropRC.r, c: dropRC.c }, to);
   }
 
   document.addEventListener('mousemove', onMove);

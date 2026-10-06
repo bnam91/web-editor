@@ -358,6 +358,36 @@ function _grdGridHost(block) {
     refreshSummary: (addr) => _grdRefreshSummary(block, addr),
     line: (addr) => _grdLine(block, addr),
     resolveAny: (addr) => _grdResolveAnyAddr(block, addr),
+    /* ══ ★줄 «옮기기» 네 칸 (BT3, 2026-10-06 ⑵-B · 현빈 「그리드블럭에 줄추가하는 것 처럼 핸들이 있어서
+     *    드래그로 옮길 수도 있고 그런데 이게 똑같지 않니 구조가?」) ══════════════════════════════
+     * ★왜 계약으로 올리나 — 끄는 손잡이(js/overlay-handles.js `.grd-line-grip`)가 그리드 주소
+     *   `[data-r][data-c][data-line]` 로 «직접» 줄을 찾고, `.grd-cell` 로 칸을 찾고, grdMoveLine* 를 직접 불렀다.
+     *   ⇒ 버블·챗 줄은 그 주소를 ★고의로 안 찍는다(line-host.js 머리말 · 시험 T7) ⇒ 손잡이가 못 섰다.
+     *   ⛔`showGridLineGrip` 을 ★복사해 `showLineGrip` 을 새로 만들지 마라 — 그게 이 레포가 갈라진 까닭이다.
+     *   ⇒ 손잡이는 ★이 네 칸으로만 묻는다. 그리드 구현은 ★옛 grip 내부 그대로다(산출·동작 불변).
+     * ★`rowAt` 의 «행»이 블럭마다 다른 것 = 이 계약의 전부다: 그리드 = 칸{r,c} · 버블 = 하나{r:0} · 챗 = 메시지{r:idx}. */
+    /** 그 주소의 «바깥 줄» DOM. ⛔중첩(np)은 null — data-line 을 안 쓰므로 li 로 조회하면 «품은 duo 줄»을 집는다. */
+    rowEl: (addr) => {
+      if (!addr || addr.li === null || addr.li === undefined || addr.np) return null;
+      return block.querySelector(`[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
+    },
+    /** 그 행의 «줄 그릇» DOM(드롭 자리를 세는 상자). 그리드는 칸이다. */
+    linesBox: (r, c) => block.querySelector(`.grd-cell[data-r="${r}"][data-c="${c}"]`),
+    /** 그 그릇의 «바깥 줄» DOM 들 — 직속 자식만. ★중첩 «안»의 줄은 `.grd-nested` 안이라 안 걸린다. */
+    rowsIn: (boxEl) => [...boxEl.querySelectorAll(':scope > [data-line]')],
+    /** 포인터 아래 «행» 주소 — 없으면 null. ⛔elementFromPoint 로 받은 요소에서 올라간다(호출부가 준다). */
+    rowAt: (el) => {
+      const cellEl = el && el.closest ? el.closest('.grd-cell[data-r][data-c]') : null;
+      if (!cellEl || !block.contains(cellEl)) return null;
+      const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
+      return (Number.isInteger(r) && Number.isInteger(c)) ? { r, c, box: cellEl } : null;
+    },
+    /** 옮기기 — 같은 행이면 한 문, 다른 행이면 두 문 ＋ 이력 한 칸. ★쓰는 길은 이 파일의 그 한 벌이다. */
+    moveLine: (from, fromLi, to, toLi) => {
+      const same = to.r === from.r && to.c === from.c;
+      return same ? grdMoveLineWithin(block, { r: from.r, c: from.c }, fromLi, toLi)
+                  : grdMoveLineToCell(block, { r: from.r, c: from.c }, fromLi, { r: to.r, c: to.c }, toLi);
+    },
   };
 }
 

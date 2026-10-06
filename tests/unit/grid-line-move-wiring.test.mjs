@@ -378,14 +378,26 @@ test('★손잡이는 «고른 바깥 줄»에만 뜬다 — 중첩(np)·빈 칸
   assert.match(find, /addr\.np/, '★DOM 조회가 np 를 안 본다 — 엉뚱한 줄에 손잡이가 앉는다');
 });
 
-test('★끄는 손은 «쓰는 길»을 부른다 — 같은 칸은 한 문, 다른 칸은 두 문', () => {
+test('★끄는 손은 «쓰는 길»을 부른다 — ★그 사실이 ★두 자리로 갈렸다(손잡이 → 주인 → 두 문)', () => {
   /* ★«안 부른다» 쪽은 ★주석을 걷어낸 소스로 잰다(위 import 머리말의 그 까닭 — 내 주석의
      낱말이 내 단언을 깨뜨렸다). 있는 것을 재는 쪽은 원본으로 봐도 같다. */
   const fn = stripComments(extractFn(OVERLAY, '_onGridLineGripMouseDown'));
-  assert.match(fn, /grdMoveLineWithin/, '★같은 칸 길(grdMoveLineWithin)을 안 부른다');
-  assert.match(fn, /grdMoveLineToCell/, '★다른 칸 길(grdMoveLineToCell)을 안 부른다');
-  assert.match(fn, /const sameCell = /, '★같은 칸인지 안 센다');
-  assert.match(fn, /if \(sameCell\) window\.grdMoveLineWithin/, '★같은 칸/다른 칸을 안 가른다');
+  /* ★★2026-10-06 ⑵-B — 손잡이가 그리드 주소·그리드 함수를 «직접» 들고 있어서 버블·챗 줄엔 안 섰다.
+     ⇒ 묻는 길을 «주인(host)» 계약으로 모았다. 그래서 ★이 사실이 ★두 자리에 산다:
+       ㉠ 손잡이는 ★주인의 moveLine 을 부른다(어느 블럭이든)
+       ㉡ ★그리드 주인이 ★같은 칸/다른 칸을 갈라 두 문을 부른다(prop-grid.js `_grdGridHost`)
+     ⛔한 자리만 재면 반쪽이다 — ㉠만 재면 「두 문」이 안 잠기고, ㉡만 재면 「손잡이가 그걸 쓴다」가 안 잠긴다. */
+  assert.match(fn, /_lnGripHost\(block\)/, '★손잡이가 «주인»을 안 묻는다 — 그리드 주소를 직접 읽는 판으로 되돌아갔나');
+  assert.match(fn, /moveLine\?\.\(/, '★주인의 moveLine 을 안 부른다');
+  assert.equal(/grdMoveLineWithin|grdMoveLineToCell/.test(fn), false,
+    '⛔손잡이가 ★그리드 전용 함수를 직접 부른다 — 그러면 버블·챗에서 다시 못 쓴다(주인을 거쳐라)');
+  assert.match(fn, /const sameCell = /, '★같은 칸인지 안 센다(아래 보정에 쓴다)');
+  {
+    const host = stripComments(extractFn(PROP_GRID, '_grdGridHost'));
+    assert.match(host, /grdMoveLineWithin/, '★그리드 주인이 같은 칸 길(grdMoveLineWithin)을 안 부른다');
+    assert.match(host, /grdMoveLineToCell/, '★그리드 주인이 다른 칸 길(grdMoveLineToCell)을 안 부른다');
+    assert.match(host, /const same = to\.r === from\.r && to\.c === from\.c/, '★주인이 같은 칸/다른 칸을 안 가른다');
+  }
   assert.match(fn, /_grdGripDropTarget\(addr\.li, dropInsertAt, sameCell\)/,
     '★★삽입 자리를 «보정 없이» 그대로 넘긴다 — 같은 칸에서 한 칸 더 간다');
   /* ⛔DOM 을 옮기지 않는다 — renderGridBlock 이 innerHTML 을 통째로 갈아끼우므로 다음 렌더에
@@ -448,9 +460,16 @@ test('★다른 칸에는 보정을 «하지 않는다» — 떼는 일이 다�
 
 /** 실물 _grdGripInsertAt 을 «가짜 칸»으로 돌린다 — rect 만 쓰므로 DOM 없이 잴 수 있다. */
 function makeInsertAt(tops) {
+  /* ★★2026-10-06 ⑵-B — 「줄을 어떻게 찾나」가 «주인»에게 갔다(_grdGripCellLines → host.rowsIn).
+     ⛔예전엔 이 하네스가 그 둘을 ★묶어 떠냈다. 그래서 «찾는 길»이 바뀌자 ★«셈»을 재는 검사 둘이
+       같이 죽었다(실측 2026-10-06).
+     ⇒ ★가른다 — 이 검사가 재는 것은 ★«삽입 자리 셈»(rect 중간선)이고 「줄을 어떻게 찾나」가 아니다.
+       줄 목록은 ★가짜로 주입하고, 찾는 길은 ★위 host 검사(rowsIn)가 잠근다.
+     ⛔묶여 있으면 ★한 쪽이 바뀔 때 ★다른 쪽을 재던 검사까지 죽어 「무엇이 깨졌나」가 흐려진다. */
   const kids = tops.map(([top, h]) => ({ getBoundingClientRect: () => ({ top, height: h }) }));
-  const cellEl = { querySelectorAll: () => kids };
-  const src = `${extractFn(OVERLAY, '_grdGripCellLines')}; ${extractFn(OVERLAY, '_grdGripInsertAt')}; return _grdGripInsertAt;`;
+  const cellEl = { __kids: kids };
+  const src = 'const _grdGripCellLines = (box) => box.__kids;\n'
+    + `${extractFn(OVERLAY, '_grdGripInsertAt')}; return _grdGripInsertAt;`;
   return { fn: new Function(src)(), cellEl };
 }
 

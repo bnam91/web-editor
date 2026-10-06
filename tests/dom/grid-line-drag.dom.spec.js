@@ -410,9 +410,15 @@ test('P2 ★★양성대조 — «순서»와 «셀렉터»를 둘 다 떼면 �
     { path: '/js/overlay-handles.js',
       from: "    window.clearDropIndicators?.();\n    dropRC = null; dropInsertAt = null;",
       to: "    dropRC = null; dropInsertAt = null;" },
-    { path: '/js/overlay-handles.js',
-      from: "return [...cellEl.querySelectorAll(':scope > [data-line]')];",
-      to: "return [...cellEl.querySelectorAll(':scope > *')];" },
+    /* ★★2026-10-06 ⑵-B — 「둘째 겹」(셀렉터)이 ★다른 파일로 옮겨 갔다.
+       무엇이었나: 끄는 손잡이가 그리드 주소를 «직접» 읽어서 버블·챗 줄에는 안 섰다. ⇒ 묻는 길을
+       «주인(host)» 계약으로 모았고, 그 셀렉터는 prop-grid.js `_grdGridHost.rowsIn` 으로 갔다.
+       ⛔앵커를 ★지어내지 않고 ★따라갔다 — 그대로 뒀더니 이 하네스가 MUTATION_ANCHOR_MISSING 을
+         «던져» 모듈이 죽고 __ready 가 안 켜져 ★30초 타임아웃이 났다(실측). ★그 설계가 맞다:
+         앵커가 사라지면 ★조용히 초록이 되지 않는다. ⇒ 옮긴 자리로 겨냥을 옮긴다. */
+    { path: '/js/props/prop-grid.js',
+      from: "rowsIn: (boxEl) => [...boxEl.querySelectorAll(':scope > [data-line]')],",
+      to: "rowsIn: (boxEl) => [...boxEl.querySelectorAll(':scope > *')]," },
   ]);
   await mount(page);
   const g = await selectLineAndGrip(page, { r: 0, c: 0, li: 0 });
