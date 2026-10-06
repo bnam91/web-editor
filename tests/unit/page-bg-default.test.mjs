@@ -17,6 +17,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire as __cr } from 'node:module';
+const { sliceBlock } = __cr(import.meta.url)('./_slice-block.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
@@ -71,10 +73,10 @@ test('★M58-ONE — 빈 프로젝트 «사본»이 옛 두 자리에 다시 자
   const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '');
   const SHAPE = /pageSettings\s*:\s*\{[^}]*\bbg\s*:/;
   assert.doesNotMatch(strip(read('js/tab-system.js')), SHAPE, 'tab-system.js 에 빈 프로젝트 모양 사본이 다시 생겼다 — js/io/empty-project.js 를 써라');
-  const pj = strip(read('pages/projects.html'));
-  const i = pj.indexOf('async function createProject() {'); const j = pj.indexOf('\n}\n', i);
-  assert.ok(i > 0 && j > i, '★전제: projects.html createProject 를 찾았다');
-  assert.doesNotMatch(pj.slice(i, j), SHAPE, 'projects.html createProject 에 빈 프로젝트 모양 사본이 다시 생겼다');
-  assert.match(pj.slice(i, j), /window\.buildEmptyProject\(/, 'createProject 가 단일 원본(window.buildEmptyProject)을 안 부른다');
+  // 구간은 공용 자(_slice-block.js sliceBlock)로 자른다 — 꼬리 문자열 짝맞추기 금지(slice-block-shared SB-16)
+  const fn = sliceBlock(strip(read('pages/projects.html')), 'async function createProject() {');
+  assert.ok(fn && fn.length > 40, '★전제: projects.html createProject 를 찾았다');
+  assert.doesNotMatch(fn, SHAPE, 'projects.html createProject 에 빈 프로젝트 모양 사본이 다시 생겼다');
+  assert.match(fn, /window\.buildEmptyProject\(/, 'createProject 가 단일 원본(window.buildEmptyProject)을 안 부른다');
   for (const page of ['index.html', 'pages/projects.html']) assert.match(read(page), /js\/io\/empty-project\.js/, `${page} 가 empty-project.js 를 안 싣는다`);
 });
