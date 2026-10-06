@@ -8,12 +8,17 @@
  * 실제 앱(bootApp) + 실제 마우스·키. 판은 «진짜 경로»로 만든다: addFrameBlock(자유 / 흐름) → 패널 addAssetBlock 으로 안에 넣기.
  * 자유 프레임·흐름 프레임 둘 다, 배율 100·40 둘 다.
  *   K  — 지운 뒤 프레임이 남고 자식만 사라진다 · 히스토리 라벨
- *   V  — 빈 프레임이 «보이나»: ⑴높이(px) ⑵elementFromPoint·클릭으로 골라짐 ⑶프레임 패널 ⑷패널 삽입으로 다시 넣기 + 빈 표시(점선)
+ *   V  — 빈 프레임을 «쓸 수 있나»: ⑴높이(px) ⑵elementFromPoint·클릭으로 골라짐 ⑶프레임 패널 ⑷패널 삽입으로 다시 넣기
+ *          ⚠️[2026-10-06] 옛 V 는 「빈 표시(점선)로 ★보인다」까지 잠갔는데, 현빈 결정으로 그 점선을 없앴다 ⇒
+ *            그 축은 ★포기했다(V 안 비석 참조). 남은 것은 「★쓸 수 있다」뿐이다.
  *   U  — ⌘Z 한 걸음이면 자식이 돌아오고 프레임은 그대로(같은 id)
  *   S  — 저장 왕복(serializeProject → 새로 띄워 applyProjectData) 뒤에도 빈 프레임이 같은 높이로 선다
- *   E  — 내보내기: PNG 클론·단독 HTML 에 «빈 표시(점선)»가 안 실린다 (★같은 판의 라이브엔 점선이 있다 = 대조)
+ *   E  — 내보내기: PNG 클론·단독 HTML 에 «편집 전용 표시»가 안 실린다
+ *          ★양성대조 = 같은 판 라이브엔 ★선택 실선(.selected)이 있다 — [2026-10-06] 옛 점선 대조를 갈아끼웠다
  *   G  — 그룹은 비면 같이 걷힌다(이 커밋이 그룹을 «남기지 않는다»는 것을 잠근다 — 판단, 보고에 적음)
- * ★양성대조: GD1001_ROOT=<604602cd 체크아웃> 이면 K·V·U·S·E 가 빨강이어야 한다(프레임이 지워져 없다 / 점선 CSS 가 없다). G 는 양쪽 초록.
+ * ★양성대조: GD1001_ROOT=<604602cd 체크아웃> 이면 K·V·U·S 가 빨강이어야 한다(프레임이 지워져 없다). G 는 양쪽 초록.
+ *   ⚠️[2026-10-06] E 는 그 핀으로 더 못 잰다 — 옛 대조(점선 CSS)가 없어졌다. E 의 양성대조는 ★다른 변이로 잰다:
+ *   capture-safety.js stripEditorOnlyForCapture 의 `.selected` 제거를 무력화하면 E 가 빨강(PNG 클론 outline = solid · 실측 2026-10-06).
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js --workers=1 frame-keep-empty */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -77,7 +82,7 @@ for (const kind of ['free', 'flow']) {
   });
 
   for (const z of [100, 40]) {
-    test(`V-${kind}@${z} ★빈 프레임이 보이고(높이·점선) 골라지고(점·클릭) 패널이 뜨고 다시 넣을 수 있다`, async ({ page }) => {
+    test(`V-${kind}@${z} ★빈 프레임이 자리를 차지하고(높이) 골라지고(점·클릭) 패널이 뜨고 다시 넣을 수 있다`, async ({ page }) => {
       const errs = await setup(page, kind, z);
       expect(await page.evaluate(() => window.currentZoom), '전제 — 그 배율이 «정말» 걸렸다').toBe(z);
       await selectKidAndDelete(page);
@@ -90,14 +95,17 @@ for (const kind of ['free', 'flow']) {
       // ⑴ 화면 높이 = 모델 높이 × 배율 (±1)
       expect(s.offsetH, '모델 높이').toBe(EXPECT_H[kind]);
       expect(Math.abs(r.h - EXPECT_H[kind] * z / 100), `화면 높이 ${r.h}`).toBeLessThanOrEqual(1);
-      // ⑴' 경계가 보인다 — 흰 프레임 + 흰 섹션이라 경계는 «빈 표시(점선)»뿐이다
-      const look = await page.evaluate(() => { const F = document.getElementById('FR'); const cs = getComputedStyle(F);
-        return { outline: cs.outlineStyle, ow: parseFloat(cs.outlineWidth), bg: cs.backgroundColor, secBg: getComputedStyle(document.getElementById('sF1')).backgroundColor }; });
-      expect(look.outline, '★빈 프레임에 «빈 표시»(점선)가 없다 — 흰 위에 흰 상자라 경계가 안 보인다').toBe('dashed');
-      /* 배율 보정(--inv-zoom) — 40% 에서 2.5px 를 주지만 크로미움이 outline 폭을 정수 px 로 내려 2px(=화면 0.8px)가 된다.
-         같은 토큰을 쓰는 .marquee-hit 도 같은 꼴이다. ⇒ 화면 두께 0.75~1.25px 를 «한 줄로 보인다»로 잰다(보정 없으면 40% 에서 0.4px). */
-      const scr = look.ow * z / 100;
-      expect(scr >= 0.75 && scr <= 1.25, `점선 화면 두께 ${scr}px`).toBe(true);
+      /* ★★[폐기 2026-10-06] 여기 있던 ⑴' 「경계가 보인다 = 빈 표시(점선)」 단언 ★둘을 지웠다
+         (`outlineStyle === 'dashed'` ＋ 점선 화면 두께 0.75~1.25px).
+         ★까닭: 현빈 2026-10-06 「프레임블럭에는 처음에 왜 점선 아웃라인이 생기는지?? 없어도됨」 —
+           ★지디가 ★대가를 그림으로 보여 드리고 받은 답이다(「흰 섹션 위의 빈 프레임이 눈에 안 들어오게
+           된다 · 높이는 그대로 차지」를 ★알고도 없애라) ⇒ css/editor-blocks.css 의 그 규칙 4줄을 지웠다.
+           폐기 까닭 전문은 그 파일의 비석 주석에 있다.
+         ★무엇을 잃었나(★솔직히): 흰 프레임이 흰 섹션 위에 비면 ★경계를 알 길이 없다. 이 칸이 잠그던
+           「빈 프레임이 ★눈에 보인다」는 ★이제 아무도 안 잠근다 — 남은 것은 아래 ⑴높이 · ⑵점·클릭으로
+           골라짐 · ⑶패널 · ⑷다시 넣기, 즉 「★쓸 수 있다」뿐이다. 「★보인다」는 ★포기한 축이다.
+         ⛔이 칸 제목에서도 「점선」을 뗐다 — 제목이 조건을 말하면 ★제목째 거짓이 된다.
+         ⛔점선을 되살리려면 ★2026-10-06 현빈 결정부터 다시 봐라(그건 버그 수정이 아니다). */
       if (SHOT_DIR && z === 100) await page.screenshot({ path: `${SHOT_DIR}/t099-empty${kind === 'free' ? '' : '-flow'}.png` });
       // ⑵ 고를 수 있나 — 가운데 점이 그 프레임, 클릭하면 골라진다
       const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('.frame-block')?.id || null, [r.cx, r.cy]);
@@ -117,8 +125,20 @@ for (const kind of ['free', 'flow']) {
       await page.waitForTimeout(300);
       const ins = await page.evaluate(() => ({ inFrame: document.querySelectorAll('#FR .text-block').length, all: document.querySelectorAll('#sF1 .text-block').length }));
       expect(ins, '다시 넣은 블록이 빈 프레임 «안»에 안 들어갔다').toEqual({ inFrame: 1, all: 1 });
+      /* ★[2026-10-06] 옛 단언은 「내용이 생겼는데 ★빈 표시(점선)가 남았다 → none」이었다. 점선을 없앤 뒤엔
+         ★항상 참이라 ★아무것도 안 잠근다(항등식) ⇒ 갈아끼웠다.
+         ⛔첫 시도(「풀기 전엔 solid 가 있다」)도 ★틀린 가정이었다 — ★재 보니 삽입 직후엔 프레임이 이미
+            미선택이다. 삽입 입구가 ★선택을 «새 블럭»으로 옮긴다(T-084 「선택 따라가기」).
+            실측 2026-10-06: 클릭 직후 {frSel:true, outline:'solid'} → ★삽입 직후 {frSel:false,
+            outline:'none', ★tbSel:true} → deselectAll 뒤 {tbSel:false}.
+         ⇒ ★그 «실제로 바뀌는 것»을 잠근다. 항등식이 아니다 — 삽입 입구가 선택을 안 옮기면 빨강이 된다. */
+      const moved = await page.evaluate(() => { const F = document.getElementById('FR'); const tb = F.querySelector('.text-block');
+        return { frSel: F.classList.contains('selected'), frOutline: getComputedStyle(F).outlineStyle, tbSel: !!tb?.classList.contains('selected') }; });
+      expect(moved, '★삽입 직후 선택이 «새 블럭»으로 옮겨가지 않았다(T-084)').toEqual({ frSel: false, frOutline: 'none', tbSel: true });
       await page.evaluate(() => window.deselectAll?.()); await page.waitForTimeout(100);
-      expect(await page.evaluate(() => getComputedStyle(document.getElementById('FR')).outlineStyle), '내용이 생겼는데 빈 표시가 남았다').toBe('none');
+      const cleared = await page.evaluate(() => { const tb = document.querySelector('#FR .text-block');
+        return { tbSel: !!tb?.classList.contains('selected'), frOutline: getComputedStyle(document.getElementById('FR')).outlineStyle }; });
+      expect(cleared, '선택을 풀었는데 표시가 남았다').toEqual({ tbSel: false, frOutline: 'none' });
       expect(errs).toEqual([]);
     });
   }
@@ -152,11 +172,23 @@ for (const kind of ['free', 'flow']) {
     expect(after.offsetH).toBe(before.offsetH);
   });
 
-  test(`E-${kind} ★내보내기 — PNG 클론·단독 HTML 엔 빈 표시(점선)가 없다 (같은 판 라이브엔 있다)`, async ({ page }) => {
+  /* ★★[양성대조 교체 2026-10-06] 이 칸이 재는 것은 「★편집 전용 표시가 ★배송본에 안 샌다」다.
+     옛 양성대조 = 「같은 판 ★라이브엔 ★점선(빈 프레임 표시)이 있다」. 그 점선을 현빈 결정으로
+     없앴으므로(css/editor-blocks.css 비석 참조) ★라이브도 none 이 된다 ⇒ 아래 음성 셋(PNG none ·
+     어두운 픽셀 0 · HTML none)이 ★전부 「0건이 초록」이 된다. ⛔음성대조는 ★죽은 자를 못 잡는다.
+     ⇒ 양성대조를 ★«선택 실선(.selected)»으로 갈아끼운다. ★더 세다 —
+        점선은 ★조상 셀렉터(#canvas-scaler) ★한 겹이었는데, .selected 는
+        ⒜클래스 제거(capture-safety.js stripEditorOnlyForCapture :447·:458)
+        ⒝CSS 수확 제외(export-css-collect.js EDITOR_ONLY_SEL `\.selected\b`) ★두 겹이다.
+     ★그 양성대조가 ★실제로 빨개지는지 ★쟀다(2026-10-06): capture-safety.js 의 .selected 제거를
+        무력화한 워크트리에서 ★E 가 빨강(PNG 클론 outline = solid). 결과는 커밋글에 수로 적었다. */
+  test(`E-${kind} ★내보내기 — PNG 클론·단독 HTML 엔 편집 전용 표시(선택 실선)가 없다 (같은 판 라이브엔 있다)`, async ({ page }) => {
     const errs = await setup(page, kind);
     await selectKidAndDelete(page);
     await page.evaluate(() => window.deselectAll?.());
-    expect((await frameState(page)).outline, '대조 — 라이브 편집 화면엔 점선이 있다').toBe('dashed');
+    // ★양성대조를 세운다 — 라이브에서 그 프레임을 «고른» 상태로 둔다(선택 실선이 뜬다)
+    await page.evaluate(() => document.getElementById('FR').classList.add('selected'));
+    expect((await frameState(page)).outline, '★대조 — 라이브 편집 화면엔 선택 실선이 있다').toBe('solid');
     // PNG — 제품 파이프라인(prepareCloneForCapture)으로 클론을 세워 브라우저가 직접 찍는다
     const png = await page.evaluate(async () => {
       const ex = await import('/js/io/export-image.js');
@@ -167,7 +199,7 @@ for (const kind of ['free', 'flow']) {
       const r = F.getBoundingClientRect(); const cr = clone.getBoundingClientRect();
       return { outline: getComputedStyle(F).outlineStyle, h: Math.round(r.height), x: Math.round(r.left - cr.left), y: Math.round(r.top - cr.top), w: Math.round(r.width) };
     });
-    expect(png.outline, '★PNG 클론에 점선이 실린다').toBe('none');
+    expect(png.outline, `★PNG 클론에 편집 전용 표시가 실린다 (잰 값: ${png.outline})`).toBe('none');
     expect(png.h, 'PNG 에서 빈 프레임 높이').toBe(EXPECT_H[kind]);
     await page.evaluate(() => document.getElementById('proj-loading-overlay')?.remove());
     const shot = await page.locator('#__clone').screenshot({ type: 'png' });
@@ -181,7 +213,7 @@ for (const kind of ['free', 'flow']) {
       for (let j = 2; j < p.h - 2; j++) { const d = ctx.getImageData(Math.round(p.x * sx), Math.round((p.y + j) * sx), 1, 1).data; if (d[0] < 200) n++; }
       return n;
     }, [shot.toString('base64'), png]);
-    expect(dark, '★PNG 에 빈 프레임 테두리(어두운 점)가 찍혔다').toBe(0);
+    expect(dark, `★PNG 에 프레임 테두리(어두운 점)가 찍혔다 (잰 값: ${dark}개)`).toBe(0);
     await page.evaluate(() => document.getElementById('__clone')?.remove());
     // 단독 HTML — 진짜 exportHTMLFile 을 돌려 산출 문자열을 받는다
     const html = await page.evaluate(async () => {
@@ -199,7 +231,7 @@ for (const kind of ['free', 'flow']) {
       return { outline: cs.outlineStyle, h: Math.round(F.getBoundingClientRect().height) }; });
     await page2.close();
     expect(h2, 'HTML 에 빈 프레임이 없다').not.toBeNull();
-    expect(h2.outline, '★단독 HTML 에 점선이 실린다').toBe('none');
+    expect(h2.outline, `★단독 HTML 에 편집 전용 표시가 실린다 (잰 값: ${h2.outline})`).toBe('none');
     expect(errs).toEqual([]);
   });
 }
