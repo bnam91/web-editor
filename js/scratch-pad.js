@@ -1416,16 +1416,13 @@ async function initScratchPad(projectId, pageId) {
     _deleteScratchItemsWithHistory(toRemove);
   });
 
-  // Cmd/Ctrl+C → 선택된 스크래치 이미지 (첫 장)를 OS 클립보드에 복사
-  // 사용 흐름: 스크래치 선택 → Cmd+C → AI 모달 프롬프트에서 Cmd+V로 첨부
-  // OS 클립보드는 한 번에 이미지 1장만 받으므로 N장 선택해도 첫 장만 복사된다.
-  document.addEventListener('keydown', async e => {
-    if ((e.key !== 'c' && e.key !== 'C') || !(e.metaKey || e.ctrlKey)) return;
-    if (_selectedItems.size === 0) return;
-    const active = document.activeElement;
-    if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
-    e.preventDefault();
-    const items = [..._selectedItems];
+  /* ── ⌘C / ⌘X 가 함께 쓰는 «복사 본체» 한 벌 ──────────────────────────────────────────
+   * ★2026-10-06 현빈 「스크래치패드 잘라내기가 안되는 문제」로 ⌘X 를 더하면서 뽑았다.
+   *   잘라내기 = «복사» ＋ «삭제»인데, 복사를 베껴 두면 둘이 조용히 갈린다.
+   * ★돌려주는 값이 ★참일 때만 지워도 된다 — 옛 ⌘C 는 실패를 토스트로만 알리고 삼켰다.
+   *   잘라내기에서 그러면 ★클립보드는 비었는데 원본은 사라진다(데이터 손실).
+   * OS 클립보드는 한 번에 이미지 1장만 받으므로 N장 선택해도 첫 장만 담긴다. */
+  async function _copySelectedToClipboard(items, { verb = '복사' } = {}) {
     try {
       // goya-asset://·webp 등 nativeImage가 못 읽는 src를 PNG data URL로 정규화
       const srcForCopy = await _srcToPngDataUrl(items[0].src);
@@ -1448,16 +1445,67 @@ async function initScratchPad(projectId, pageId) {
         natH: copiedImg?.naturalHeight || 0,
         time: window._scratchClipboardTime
       };
-      if (items.length === 1) {
-        window.showToast?.('📋 이미지 복사됨 — 모달 프롬프트에 Cmd+V');
-      } else {
-        window.showToast?.(`📋 첫 장 복사됨 (선택 ${items.length}장 / OS 한계로 1장씩만)`);
-      }
+      return true;
     } catch (err) {
-      console.error('[ScratchPad] copy failed:', err);
-      window.showToast?.('❌ 이미지 복사 실패: ' + err.message);
+      console.error(`[ScratchPad] ${verb} failed:`, err);
+      window.showToast?.(`❌ 이미지 ${verb} 실패: ` + err.message);
+      return false;
     }
+  }
+
+  /* ⌘C·⌘X 가 같은 잣대를 쓴다 — 갈리면 한쪽만 먹는다. */
+  const _scratchKeyGuardOk = () => {
+    if (_selectedItems.size === 0) return false;
+    const active = document.activeElement;
+    if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return false;
+    return true;
+  };
+
+  // Cmd/Ctrl+C → 선택된 스크래치 이미지 (첫 장)를 OS 클립보드에 복사
+  // 사용 흐름: 스크래치 선택 → Cmd+C → AI 모달 프롬프트에서 Cmd+V로 첨부
+  document.addEventListener('keydown', async e => {
+    if ((e.key !== 'c' && e.key !== 'C') || !(e.metaKey || e.ctrlKey)) return;
+    if (!_scratchKeyGuardOk()) return;
+    e.preventDefault();
+    const items = [..._selectedItems];
+    if (!await _copySelectedToClipboard(items)) return;
+    if (items.length === 1) window.showToast?.('📋 이미지 복사됨 — 모달 프롬프트에 Cmd+V');
+    else window.showToast?.(`📋 첫 장 복사됨 (선택 ${items.length}장 / OS 한계로 1장씩만)`);
   });
+
+  /* ── ★⌘X 잘라내기 (2026-10-06 현빈 「스크래치패드 잘라내기가 안되는 문제」) ────────────────
+   * ★무엇이 「안 된다」였나 — 네 갈래로 갈라 실측했다(핀 e7444dd3, 실앱 CDP):
+   *   ㉠ 안 닿나?       닿는다 — document 캡처단계에서 ⌘X keydown 1회 수신
+   *   ㉡ 안 불리나?     ★스크래치의 잘라내기가 «없었다». js/ 전수에서 key==='x' 를 처리하는 자리는
+   *                     editor.js 의 ⌘⇧X(취소선)·⌘X(캔버스 잘라내기) 둘뿐이고 이 파일엔 0건이었다.
+   *   ㉢ 틀린 갈래?     ★그렇다 — editor.js 의 «캔버스» 잘라내기가 받아 preventDefault 했고,
+   *                     캔버스 선택이 비어 있어 아무것도 안 했다(아이템 1 → 1, 토스트 0).
+   *   ㉣ 결과가 틀리나? 아니다 — 아무 결과도 안 났다.
+   *   ★두 번째 피해: 그 preventDefault 가 네이티브 `cut` 이벤트까지 막았다(실측 cutEvt 0) —
+   *     addEventListener('cut') 으로 고치는 길은 ★애초에 막혀 있다. 그래서 keydown 체인에 둔다.
+   * ★editor.js 쪽이 «먼저» 물어보고 양보한다(window.scratchCutSelected) — 선례는 바로 위
+   *   그리드 줄 붙여넣기(`if (window.grdPasteLines?.()) return;`)와 같은 꼴이다.
+   *   ⇒ 여기서는 keydown 을 또 듣지 않는다. 두 군데서 들으면 ⌘X 한 번에 두 번 돈다. */
+  window.scratchCutSelected = function scratchCutSelected() {
+    if (!_scratchKeyGuardOk()) return false;          // 내 일이 아니다 — 캔버스 잘라내기가 종전대로 돈다
+    const items = [..._selectedItems];
+    /* ★참을 «먼저» 돌려줘야 editor.js 가 양보한다 — 복사는 비동기(클립보드 IPC)라 기다릴 수 없다.
+       ⛔그래서 «지우기»는 복사가 끝난 뒤에만 한다. 복사가 실패하면 아이템은 ★그대로 남는다
+         (클립보드는 비었는데 원본이 사라지는 것이 이 기능의 가장 나쁜 실패다). */
+    (async () => {
+      if (!await _copySelectedToClipboard(items, { verb: '잘라내기' })) return;
+      /* ★★«클립보드에 담긴 것»만 지운다 — OS 클립보드는 이미지 한 장뿐이라 N장을 골라도 첫 장만 담긴다.
+         ⛔N장을 다 지우면 나머지 N-1 은 ★어디에도 사본이 없다(⌘Z 로만 돌아온다 — 한 번 붙여넣고
+           작업을 이어가면 영영 사라진다). 「잘라내기」는 «옮기기»지 «지우기»가 아니다.
+         ★Delete 는 종전대로 N장을 다 지운다 — 그건 사본을 약속하지 않는 동작이라 갈래가 다르다. */
+      const cut = [items[0]];
+      _clearSelection();
+      _deleteScratchItemsWithHistory(cut);            // ⌘Z 로 되살아난다(삭제와 같은 길)
+      window.showToast?.(items.length === 1 ? '✂️ 잘라냄 — Cmd+V 로 붙여넣기'
+                                            : `✂️ 첫 장만 잘라냄 (선택 ${items.length}장 / OS 클립보드가 1장뿐 — 나머지는 그대로 둔다)`);
+    })();
+    return true;
+  };
 
   /* ── C1(현빈 2026-10-01): 에셋을 «섹션 밖»(스크래치 바닥)에 놓으면 스크래치패드로 «이동» ─────────────
      · 우클릭 「스크래치로 보내기」는 «복사»(블럭이 남는다). 이건 «이동» — 블럭은 섹션에서 빠지고 스크래치로 돌아간다.

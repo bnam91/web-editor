@@ -2501,6 +2501,12 @@ document.addEventListener('keydown', e => {
       // shift 조합 배제 — 한글 IME에서 ⌘⇧X(취소선)가 e.key 'x'로 들어와 오삭제되는 경로 차단
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      /* ★스크래치패드 아이템이 골라져 있으면 그쪽이 가져간다 (2026-10-06 현빈 「스크래치패드 잘라내기가
+           안되는 문제」). 참이면 «여기서 끝» — 아래 preventDefault 까지 가면 안 된다.
+         ★왜 여기서 묻나 — 이 갈래가 ⌘X 를 받아 preventDefault 해 버리므로, 스크래치가 keydown 을
+           따로 들어도 네이티브 cut 이벤트가 안 온다(실측 cutEvt 0). «양보»만이 길이다.
+         ★선례 = 바로 위 그리드 줄(`if (window.grdPasteLines?.()) return;`) — 같은 꼴로 맞췄다. */
+      if (window.scratchCutSelected?.()) { e.preventDefault(); return; }
       e.preventDefault();
       copySelected();
       deleteSelectedFromCanvas({ isCut: true });   // [#16-DEL] ⌘X=이동 ⇒ ⛔스크래치를 안 건드린다
