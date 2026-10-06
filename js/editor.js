@@ -3216,9 +3216,16 @@ function moveGridLineAcrossCells({ dir } = {}) {
    *     ⇒ ★모델 입구에 noHistory 를 더하는 일이 ★선행이다(별건). ★그때까지 ★사람에게 말한다.
    *   ⛔「조용히 아무 일 없음」으로 두지 않는다 — 챗에서는 ★뜻이 서는 손짓이라 사람이 기다린다. */
   if (!got.block.classList.contains('grid-block')) {
-    if (got.block.classList.contains('chat-block')) {
-      window.showToast?.('⚠️ 줄을 «옆 메시지»로 옮기는 것은 아직 안 됩니다 — 같은 메시지 안에서는 ⌘↑/↓ 로 됩니다');
-    }
+    /* ★⑵-B③(2026-10-06) — ★챗은 「옆 ★메시지로」가 뜻이 선다 ⇒ ★주인의 moveLine 으로 보낸다.
+     *   ⛔버블은 ★행이 하나라 ★해당 없다 — ★조용히 소진한다(SKIP · ⛔FAIL 이 아니다 · 지디 승인).
+     *     그 길로 보내도 `o.rowOk(to.r)` 가 거짓이라 INVALID 로 떨어지지만, ★여기서 먼저 끊어
+     *     «될 것 같은 손짓»을 애초에 안 만든다(토스트도 안 띄운다 — 뜻이 없는 손짓이다).
+     * ★행의 끝(첫·마지막 메시지에서 밖으로)은 ★moveLine 이 INVALID 로 돌려주고 ★여기서 조용히 소진한다
+     *   — ★그리드의 EDGE 와 ★같은 뜻이다(「맨 왼쪽에서 ⌘←」가 갑자기 «블럭 이동»이 되지 않게). */
+    if (!got.block.classList.contains('chat-block')) return true;
+    const H = window.lnHostFor?.(got.block);
+    const step = dir < 0 ? -1 : 1;
+    H?.moveLine?.({ r: got.addr.r, c: 0 }, got.addr.li, { r: got.addr.r + step, c: 0 }, null);
     return true;
   }
   const step = dir < 0 ? -1 : 1;

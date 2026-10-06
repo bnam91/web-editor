@@ -185,15 +185,56 @@ function _baseHost(block, o) {
     rowAt: (el) => o.rowAt(el),
     /** 옮기기 — ★같은 행만. 다른 행은 ⛔아직 못 한다(까닭은 아래). */
     moveLine: (from, fromLi, to, toLi) => {
+      /* ══ ★«다른 행»으로 (⑵-B③, 2026-10-06) — 챗의 ★옆 메시지로 줄을 옮긴다 ════════════════════
+       * ★버블은 ★여기 안 온다 — 행이 하나라 아래 `o.rowOk(to.r)` 가 거짓이 된다 ⇒ INVALID(⛔SKIP 이지 FAIL 아니다).
+       * ★★이력 꼴은 ★㉣ 다 — `prop-grid.js grdMoveLineToCell` 과 ★같은 꼴로 맞췄다(⛔새 설계 금지):
+       *     문1 = ★Raw(래퍼 밖) · `noHistory` ★안 줌  ⇒ 그 push-before 가 ★이 제스처의 «변경 전» 칸이다
+       *     문2 = ★래퍼를 타고 ＋ `noHistory`         ⇒ 그 ★끝 표본이 ★«마지막 문»의 칸이다
+       *   ⇒ 스택 ★＋1 · ⌘Z 한 번에 둘 다. ⛔문1 을 일반 입구로 보내면 래퍼 끝 표본이 ★«반쪽» 칸을 남긴다
+       *     (실측 2026-10-06: 그 꼴로 ⌘Z① 이 「출발 행에서만 뺀」 상태로 갔다 — tests/dom/ln-nohistory N2 가 잠근다).
+       *   ⛔「호출자가 pushHistory 1칸 ＋ 둘 다 Raw」 꼴도 ★틀렸다 — 그 한 칸이 ★무변화 차단에 먹혀 스택 ＋0 이 된다(실측).
+       * ★상한을 ★«먼저» 본다 — 거절되는 순간 줄이 ★어느 행에도 없어서는 안 된다(grdMoveLineToCell 의 그 순서 규약).
+       * ★줄 «객체를 그대로» 옮긴다 — 꾸밈은 그 객체에 산다. ⛔필드를 골라 베끼지 마라. */
       if (to.r !== from.r) {
-        /* ⛔★«다른 행»(챗의 옆 메시지)은 아직 못 옮긴다 — ★한 제스처가 ★두 문으로 나가야 하는데
-         *   `updateChatBlock`·`updateSpeechBubbleBlock` 에 ★`opts.noHistory` 가 ★없다(실측: 그 낱말 0건).
-         *   그리드는 `updateGridBlock` 이 그것을 보므로(grid-block.js) `grdMoveLineToCell` 이 둘째 문을 끌 수 있다.
-         *   ⇒ 지금 그냥 두 문을 보내면 ★⌘Z 가 ★두 칸이 된다(한 제스처 = 이력 한 칸이라는 이 레포 규약 위반).
-         * ★그래서 «모델 입구에 noHistory 를 더하는 일»이 ★선행이다 — 별건으로 올렸다(지디 보고).
-         * ⛔조용히 아무 일도 안 하지 않는다 — 사람에게 말한다(「눌리는데 아무 일도 안 난다」 금지). */
-        window.showToast?.('⚠️ 줄을 «다른 메시지»로 옮기는 것은 아직 안 됩니다 — 같은 메시지 안에서는 됩니다');
-        return { ok: false, code: 'CROSS_ROW_UNSUPPORTED' };
+        if (!o.rowOk(to.r)) return { ok: false, code: 'INVALID' };   // 버블(행 하나)·없는 메시지
+        const src = o.getLines(from.r);
+        const dst = o.getLines(to.r) || [];
+        if (!Array.isArray(src)) return { ok: false, code: 'INVALID' };
+        const f2 = Number(fromLi);
+        if (!Number.isInteger(f2) || f2 < 0 || f2 >= src.length) return { ok: false, code: 'INVALID' };
+        if (dst.length >= MAX_CELL_LINES) {
+          window.showToast?.(`⚠️ 줄 옮기기 실패: ${o.limitLabel} 최대 ${MAX_CELL_LINES}줄`);
+          return { ok: false, code: 'LIMIT' };
+        }
+        const at = (toLi === null || toLi === undefined)
+          ? dst.length
+          : Math.max(0, Math.min(dst.length, Math.trunc(Number(toLi)) || 0));
+        const moved = src[f2];
+        const nextSrc = src.slice(); nextSrc.splice(f2, 1);
+        const nextDst = dst.slice(); nextDst.splice(at, 0, moved);
+        const prev2 = grdGetActiveLine(block);
+        /* ★문1 «전»에 활성 줄을 비운다 — 커밋이 패널을 다시 그리므로, 그대로 두면 그 한 번이
+           «방금 사라진 li»를 가리킨다(grdMoveLineToCell 의 같은 자리·같은 까닭). */
+        grdSetActiveLine(block, null);
+        const r1 = o.commitRaw(from.r, nextSrc);
+        if (r1 && r1.ok === false) {
+          grdSetActiveLine(block, prev2);
+          return { ok: false, code: r1.code, message: r1.message };
+        }
+        grdSetActiveLine(block, { r: to.r, c: 0, li: at });
+        const r2 = o.commit(to.r, nextDst, { noHistory: true });
+        if (r2 && r2.ok === false) {
+          /* ★되돌린다 — 안 되돌리면 줄이 ★어느 행에도 없다. 되돌림도 Raw·noHistory 다
+             (⌘Z 가 「되돌림을 되돌리는」 칸을 만나면 사람이 두 번 눌러야 한다).
+             ⛔반환을 «받는다» — 되돌림이 «또» 실패하면 줄이 정말 사라졌고 그때는 말해야 한다. */
+          const back = o.commitRaw(from.r, src, { noHistory: true });
+          if (back && back.ok === false) {
+            window.showToast?.('⚠️ 줄 옮기기가 실패하고 되돌리지도 못했습니다 — ⌘Z 를 눌러 주세요');
+          }
+          grdSetActiveLine(block, prev2);
+          return { ok: false, code: r2.code, message: r2.message };
+        }
+        return r2 || { ok: true };
       }
       const lines = o.getLines(from.r);
       if (!Array.isArray(lines)) return { ok: false, code: 'INVALID' };
@@ -229,6 +270,9 @@ export function lnBubbleHost(block) {
     rowOk: (r) => r === 0,
     bake: () => lnBakeBubble(block),
     commit: (r, lines, opts) => window.updateSpeechBubbleBlock?.(block.id, { lines }, opts),
+    /* ★Raw = 끝 표본 래퍼 밖(까닭은 block-factory.js 의 그 등록 주석). ★버블은 행이 하나라 쓸 일이 없지만
+       ⛔계약을 반쪽으로 두지 않는다 — 두 주인이 ★같은 칸을 갖는다(한쪽만 있으면 다음 사람이 그 차이를 함정으로 밟는다). */
+    commitRaw: (r, lines, opts) => window.updateSpeechBubbleBlockRaw?.(block.id, { lines }, opts),
     write: (r, lines) => { block.dataset.lines = JSON.stringify(lines); lnRenderBubble(block); },
     show: () => window.showTextProperties?.(block),
     /* ★버블은 «행이 하나»다(r=0) ⇒ 「다른 행으로」가 ★해당 없다(⌘←/→ 는 SKIP — ⛔FAIL 이 아니다). */
@@ -251,6 +295,8 @@ export function lnChatHost(block) {
     rowOk: (r) => r >= 0 && r < _chatMsgs(block).length,
     bake: (r) => lnBakeChat(block, r),
     commit: (r, lines, opts) => window.updateChatBlock?.(block.id, { editMessage: { index: r, lines: lines.length ? lines : null } }, opts),
+    /* ★Raw = 끝 표본 래퍼 밖 — ⑵-B③ 의 ★문1 이 이 길로 간다(㉣ 꼴 · 까닭은 moveLine 머리말). */
+    commitRaw: (r, lines, opts) => window.updateChatBlockRaw?.(block.id, { editMessage: { index: r, lines: lines.length ? lines : null } }, opts),
     write: (r, lines) => {
       const msgs = _chatMsgs(block);
       if (!msgs[r]) return;
