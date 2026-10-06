@@ -44,16 +44,31 @@ function _chatToken(name, fallback) {
   return v || fallback;
 }
 
+/* ★수 읽기 — «0 을 살린다». ⛔`parseInt(x) || d` 를 쓰지 마라: 0 이 d 로 되돌아간다.
+ *   ★무엇이었나(실측 2026-10-06 ⒜) — 모델은 padding:0 을 «받는데»(CHAT_NUM_BOUNDS.padding.min = 0)
+ *     렌더러가 `|| 16` 으로 조용히 16 을 다시 썼다 ⇒ dataset.padding="0" 인데 화면은 16px.
+ *     「값은 저장되는데 화면이 안 바뀐다」 — 현빈의 ⒜「챗 블럭 너비가 더 늘어날 순 없는지?」의 한 범인이다.
+ *     ★«실제로 닿는» 자리는 ★셋이다: gap(0→8) · radius(0→16) · padding(0→16) — 셋 다 모델 하한이 0 이다.
+ *     ⚠️profileSize 는 ★안 닿는다 — 모델 하한이 24 라 0 이 애초에 거절된다(이 파일 profileSize out of range).
+ *       ⇒ 그 한 자리는 ★«일관성»으로만 바꿨다. ⛔«고친 결함»으로 세지 마라 — 재는 자도 없다
+ *         (실측: tests/dom/chat-width-handles W1 은 profileSize 폴백을 되돌려도 ★초록이다).
+ *   ⛔`??` 로 바꾸면 안 된다 — `parseInt('abc')` 는 NaN 이고 `NaN ?? d` 는 ★NaN 이다(?? 는 null/undefined 만).
+ *     ⇒ 유한수인지 «재서» 고른다. 그게 「0 은 살리고 빈값·쓰레기는 기본값」의 유일한 꼴이다. */
+function _chatNum(raw, dflt) {
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) ? n : dflt;
+}
+
 function renderChatBlock(block) {
   const messages    = JSON.parse(block.dataset.messages || '[]');
-  const gap         = parseInt(block.dataset.gap)      || 8;
+  const gap         = _chatNum(block.dataset.gap, 8);
   const fontSize    = parseInt(block.dataset.fontSize) || 32;
   const bgLeft      = block.dataset.bgLeft   || _chatToken('--preset-chat-bg-left', '#e5e5ea');
   const bgRight     = block.dataset.bgRight  || _chatToken('--preset-chat-bg-right', '#1888fe');
   const colorLeft   = block.dataset.colorLeft  || _chatToken('--preset-chat-text-left', '#111111');
   const colorRight  = block.dataset.colorRight || _chatToken('--preset-chat-text-right', '#ffffff');
-  const radius      = parseInt(block.dataset.radius)  || 16;
-  const padding     = parseInt(block.dataset.padding) || 16;
+  const radius      = _chatNum(block.dataset.radius, 16);
+  const padding     = _chatNum(block.dataset.padding, 16);
   // 말풍선 "내부" 패딩(텍스트↔버블 경계). block.dataset.padding은 블록 "바깥" 패딩이라 별개.
   // 하위호환: 명시적으로 설정된 경우에만 인라인 주입 → 미설정 시 CSS 기본(.chb-bubble {padding:10px 14px}) 보존.
   const hasBubblePadding = block.dataset.bubblePadding != null && block.dataset.bubblePadding !== '';
@@ -61,7 +76,7 @@ function renderChatBlock(block) {
   // 카톡식 프로필 — 토글 별도 (default off). 크기는 fontSize에 비례.
   const showProfile = block.dataset.showProfile === '1';
   const showName    = block.dataset.showName === '1';
-  const profileSize    = parseInt(block.dataset.profileSize)    || Math.max(48, Math.round(fontSize * 1.6));
+  const profileSize    = _chatNum(block.dataset.profileSize, Math.max(48, Math.round(fontSize * 1.6)));
   const profileOffsetY = parseInt(block.dataset.profileOffsetY) || 0;
   const profileGap     = (block.dataset.profileGap != null) ? parseInt(block.dataset.profileGap) : 8;
   // 말풍선 꼬리 크기 — tailScale(%). 미설정 시 100(기본). 0이면 꼬리 숨김.
