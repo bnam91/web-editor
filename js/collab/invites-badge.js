@@ -18,7 +18,10 @@
   let _timer = null;
   let _last = { invites: [], projects: [] };
 
-  const api = () => (window.electronAPI && window.electronAPI.collab) || null;
+  /* ★invites 가 «함수»일 때만 협업 API 로 친다(2026-10-06 켤 때 실측): 데스크탑 preload 는 collab 객체에 invites 를 준다(preload.js:101~).
+     그 밖의 꼴(웹 빌드 · 검사 하네스의 가짜 electronAPI 처럼 collab 이 함수인 것)에서 20초마다 «c.invites is not a function» 을
+     던지지 않게 — 조용한 까닭: 초대를 물을 길이 없는 화면이다(배지는 알림이지 진단창이 아니다 · C1 과 같은 판단). */
+  const api = () => { const c = window.electronAPI && window.electronAPI.collab; return (c && typeof c.invites === 'function') ? c : null; };
 
   function paint() {
     const el = document.getElementById('collab-invite-badge');

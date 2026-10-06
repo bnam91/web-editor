@@ -25,7 +25,8 @@ test('U0 전제 — 실물 모듈이 실렸다(sync.js · history.js · history-
     diff: typeof window.historyDiff?.diffSnapshots, stats: typeof window._collabScopedUndoStats,
     flag: window.COLLAB_ENABLED,
   }));
-  expect(r).toEqual({ applyPatch: 'function', undo: 'function', push: 'function', diff: 'function', stats: 'object', flag: false });
+  // ★켜는 조건 ⑸(2026-10-06): 협업이 켜진 판 — 전제 단언도 «켜짐»으로(꺼짐을 전제하면 켠 날 가짜 빨강이 G1 을 묻는다)
+  expect(r).toEqual({ applyPatch: 'function', undo: 'function', push: 'function', diff: 'function', stats: 'object', flag: true });
   expect(errs).toEqual([]);
 });
 

@@ -30,15 +30,17 @@ test('S2 — 술어와 탭 막기가 «그 하나»를 읽는다(값을 복사�
   assert.match(SRC, /MVP_DISABLED_TABS\.includes\(btn\.dataset\.tab\)/, '탭 막기가 MVP_DISABLED_TABS 를 직접 읽지 않는다');
 });
 
-test('S3 — 현빈 08-28 문장 4줄이 정의 바로 위에 그대로 있다', () => {
+test('S3 — 현빈 08-28 문장 3줄이 그대로 · 그 밑에 2026-10-06 다시 연 줄 · 정의는 \'dev\' 만 닫는다', () => {
+  /* 2026-10-06 현빈 승인으로 협업 탭을 다시 열었다 — 08-28 문장은 «긋고 덧붙임»(지우지 않는다). */
   const HYUNBIN = [
     "/* ★[MVP 제외] 개발자·협업 탭은 «보이되 안 눌린다»(현빈 2026-08-28).",
     " *   Figma 때와 같은 방식 — 감추면 「있었다」는 것조차 사라진다. 다음 런칭에 돌아온다.",
     " *   ⛔탭 «내용»(renderDevPane 등)은 그대로 둔다. 여기서 막는 건 «들어가는 문»이다. */",
-    "const MVP_DISABLED_TABS = ['dev', 'collab'];",
   ];
   const lines = SRC.split('\n').map(l => l.trim());
   const i = lines.findIndex(l => l === HYUNBIN[0].trim());
   assert.ok(i >= 0, '현빈 문장 첫 줄이 없다');
-  assert.deepEqual(lines.slice(i, i + 4), HYUNBIN.map(l => l.trim()), '현빈 문장 4줄(주석 3 + 정의 1)이 연달아 그대로 있지 않다');
+  assert.deepEqual(lines.slice(i, i + 3), HYUNBIN.map(l => l.trim()), '현빈 08-28 문장 3줄이 연달아 그대로 있지 않다');
+  assert.match(lines[i + 3], /협업은 2026-10-06 현빈 승인으로 다시 열림/, '다시 연 까닭 줄이 현빈 문장 바로 밑에 없다');
+  assert.equal(lines[i + 4], "const MVP_DISABLED_TABS = ['dev'];", "정의가 'dev' 만 닫지 않는다(협업만 연다 — dev 는 그대로)");
 });

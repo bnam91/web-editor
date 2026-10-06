@@ -18,7 +18,7 @@ test('W1 — reasons.js 가 실리고 notify.js 가 collabSync 에 붙어 있다
     sync: typeof window.collabSync?.onEvent,
     flag: window.COLLAB_ENABLED,
   }));
-  expect(r.flag, '★전제: 킬스위치는 «꺼진 채» 잰다').toBe(false);
+  expect(r.flag, '★전제(켜는 조건 ⑸ · 2026-10-06): 협업이 «켜진» 판').toBe(true);
   expect(r.reasons).toBe('function');
   expect(r.sync, '★전제: sync.js 가 실렸다').toBe('function');
   expect(r.notify).toBe('function');
@@ -55,12 +55,14 @@ test('W3 — S7 술어가 DOMContentLoaded 순간에 «이미» 정의돼 있다
   const r = await page.evaluate(() => ({ dcl: window.__s7AtDCL, inbox: window.collabInvites?.inboxOpen?.() }));
   expect(r.dcl, '★전제: DOMContentLoaded 에서 잰 값이 있다').toBeTruthy();
   expect(r.dcl.type).toBe('function');
-  expect(r.dcl.collab, '협업 탭 = MVP 문 안(현빈 08-28) ⇒ 닫힘').toBe(false);
-  expect(r.dcl.api, '음성대조: MVP 밖 탭은 열림').toBe(true);
-  expect(r.inbox, '배지 술어 = COLLAB_ENABLED(false) && 탭 열림(false)').toBe(false);
+  // ★2026-10-06 현빈 승인: 협업 탭이 MVP 문 밖으로 나왔다 · 'dev' 는 그대로 닫힘(음성대조)
+  expect(r.dcl.collab, '협업 탭이 열려 있어야 한다(켜는 조건 ⑵)').toBe(true);
+  expect(r.dcl.api, 'MVP 밖 탭은 열림').toBe(true);
+  expect(await page.evaluate(() => window.isSettingsTabEnabled('dev')), '★음성대조: dev 탭은 여전히 닫힘').toBe(false);
+  expect(r.inbox, '배지 술어 = COLLAB_ENABLED(true) && 탭 열림(true)').toBe(true);
 });
 
-test('W4 — 배지가 안 뜬다(문이 닫힌 동안 «못 받을 초대»를 알리지 않는다)', async ({ page }) => {
+test('W4 — 초대가 0건(가짜 API 가 null)이면 배지가 안 뜬다', async ({ page }) => {
   await bootApp(page);
   const disp = await page.evaluate(() => getComputedStyle(document.getElementById('collab-invite-badge')).display);
   expect(disp).toBe('none');

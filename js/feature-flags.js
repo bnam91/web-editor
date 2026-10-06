@@ -51,6 +51,17 @@
    *   ⑹ «켜는 날 살아나는 코드» — 지금은 닿는 길이 0 인 자리. 켜기 전에 «닿는 길이 생겼는지» 재라:
    *      js/collab/invites-badge.js openCollabSettings 의 inbox_closed 갈래(C2·C3 · boot 가 같은 술어로 리스너를 안 단다) ·
    *      main/collab/index.js getRef 의 catch(주입된 readMeta 가 오류를 삼켜 안 던진다 — main.js 쪽).
+   *   ── 2026-10-06 켤 때 밟은 결과(태양) ──
+   *   ⑴ G1 초록 — reasons.js 문장 8 현빈 승인 문구로 채움(missing()=[]). ⚠️G1 자에 흠이 있었다(vm 배열 deepEqual → 켜면 «항상 빨강»)
+   *      → 5c4f2ffc 에서 길이로 고침 · 음성대조: 켠 사본에서 unknown 을 null 로 되돌리면 빨강(이름으로).
+   *   ⑵ MVP_DISABLED_TABS 에서 'collab' 만 뺌('dev' 그대로) — 현빈 08-28 주석은 긋고 덧붙임(settings-modal.js 머리).
+   *   ⑶ collab-undo-scope · collab-silence-ruler 초록(이 판 전수).
+   *   ⑷ 못 쟀다 셋은 그대로 «못 쟀다» — 현빈 GO 로 켠다(현재 판 C8 2인스턴스 harm 은 현빈 두 기기 시험이 첫 실측이 된다).
+   *   ⑸ U0 · W1 · W3 전제 단언을 «켜진 판»으로 같이 고침.
+   *   ⑹ inbox_closed 갈래 = 여전히 닿는 길 0(이제 탭이 열려 술어가 참 — 닫힌 갈래가 안 탄다) · getRef catch = 여전히 죽음(main.js readMeta 가 삼킴).
+   *   ⑺ ⚰️«켜기 조건»이었으나 근거가 바뀌어 «별건 카드»로 옮김(지디 2026-10-06): 같은 꼴이 4자리이고 _refreshListMeta 는 «저장마다» 돈다
+   *      ⇒ 협업이 꺼진 지금도 난다(실측 125B → folderId·favorite·collabRef·thumbnail 소실) — 켜기는 원인이 아니다. 설계 = 태양 notes
+   *      lanes/collab/DESIGN-meta-corrupt-guard.md · 카드 = 지디. 아래 원문은 그날의 판단으로 남긴다:
    *   ⑺ 협업을 켜면 collabRef 를 «쓰는» 길(register·respond 수락·seq 저장)이 늘어난다 — 그 전에 main.js collab init 주입부의
    *      writeMeta(read-merge-write)가 «깨진» proj_meta.json 을 {} 로 읽고 patch 만 덧써 다른 필드(목록 캐시·collabRef)를
    *      날리는지 «먼저 재라». ⚠️2026-10-06 태양 «코드 독해 · 미측정» — 「난다」가 아니다. 지금은 꺼져 있어 그 길이 좁고,
@@ -61,7 +72,9 @@
    * ⚠️데이터는 안 건드린다 — 이미 협업으로 올라간 프로젝트(proj.collabRef)의
    *   「👥 공동작업」 배지·collab-card 표시는 «그대로 남는다». 감추는 건 입구뿐이다
    *   (사용자가 「내 프로젝트가 사라졌다」고 느끼면 안 된다). */
-  w.COLLAB_ENABLED = false;
+  /* ⚰️위 «감춘다» 판단은 그날의 사실로 남긴다. ★2026-10-06 현빈 승인으로 다시 연다
+   *   (현빈 「협업기능 다시 켤건데 … 둘이 되는지 내가 보려고」 + 「좋네 구현가자」 · 지디 경유 · 켜는 조건 ⑴~⑺ 결과는 아래). */
+  w.COLLAB_ENABLED = true;
 
   /* ── ★[M58] 새 프로젝트의 «페이지 배경» 기본값 ─────────────────────────
    * 현빈 2026-09-06: 「애초에 시작할때 캔버스 밝기가 너무 밝아서 바탕색을 777777으로 해줄래?」
