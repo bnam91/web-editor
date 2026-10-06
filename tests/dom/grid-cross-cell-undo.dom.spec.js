@@ -9,9 +9,16 @@
  *     ★pushHistory ★호출 수만 센다 ⇒ ★래퍼를 ★안 본다 = ★「한 환경에서만 참인 검사」.
  *   ⇒ ★그래서 ★여기(래퍼가 얹힌 DOM 자리)에서 ★«스택이 몇 칸 늘었나»와 ★«⌘Z 한 번의 결과»로 잰다.
  *
- * ★양성대조 = ★핀(고치기 «전» 판)에서 돌리면 ★U2 가 빨강이어야 한다:
- *     GD1001_ROOT=<dev 체크아웃 경로> npx playwright test … tests/dom/grid-cross-cell-undo.dom.spec.js
- *   ⛔HEAD 를 핀으로 쓰지 마라 — 고친 뒤엔 HEAD 가 곧 고친 판이라 대조가 전부 초록이 된다.
+ * ★★양성대조를 ★두 겹으로 쟀다(2026-10-06 · 지디 지적):
+ *   ㉠ ★핀 판 — origin/dev `116af0c4` 를 ★별 워크트리로 떠서 ★같은 spec 을 돌렸다.
+ *      ⇒ U1 ★빨강(스택 4→★6 · ＋2) · U2 ★빨강(A가사라짐=★true · 값 `[["B"],["X"]]`)
+ *      ⛔HEAD 를 핀으로 쓰지 마라 — 고친 뒤엔 HEAD 가 곧 고친 판이라 대조가 전부 초록이 된다.
+ *      ⚠️다만 그 핀에는 ★내 선행(chat/bubble 의 `*BlockRaw` 등록)도 ★없다 ⇒ ★변수가 ★둘 섞인다.
+ *   ㉡ ★★그래서 ★«같은 판에서 ★조건만 바꾼» 대조를 ★더 했다 — ★아래 한 줄만 되돌린다:
+ *        `window.updateGridBlockRaw?.(…)` → `window.updateGridBlock?.(…)`   (prop-grid.js grdMoveLineToCell 문1)
+ *      ⇒ ★같은 값이 나왔다(스택 ＋2 · A가사라짐=true) · 되돌리면 ★3/3 초록
+ *      ⇒ ★★변수가 ★«그 한 줄 하나»임을 못박았다. ⛔㉠만으로는 「Raw 등록이 없어서」와 구분이 안 됐다.
+ *   ★실행(㉠): GD1001_ROOT=<dev 체크아웃 경로> npx playwright test … tests/dom/grid-cross-cell-undo.dom.spec.js
  *
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/grid-cross-cell-undo.dom.spec.js --workers=1
  */
