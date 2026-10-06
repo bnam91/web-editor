@@ -22,7 +22,6 @@
  */
 import { _fontDisplayName } from './prop-text-utils.js';
 import { escHtml } from './_helpers.js';
-import { colorFieldHTML } from './color-picker.js';   /* ★형광펜 색 칸 — 스티커 형광펜이 쓰는 그 부품 그대로(새로 만들지 않는다) */
 
 /** mix 기본값 — 셋 다 «안 섞임». 호출부가 안 주면 이걸 쓴다. */
 const _NO_MIX = { color: { mixed: false }, fontSize: { mixed: false }, fontWeight: { mixed: false } };
@@ -45,9 +44,11 @@ const _NO_MIX = { color: { mixed: false }, fontSize: { mixed: false }, fontWeigh
  * @param {boolean} o.showHighlight     형광펜(H) 버튼 표시. ★기본 true = 이전과 «바이트 동일»
  * @param {boolean} o.showHighlightOpts 형광펜 «색·바 높이» 칸 표시. ★기본 false = 모달·그리드는 이전과 «바이트 동일»
  *                                      (텍스트 패널만 true — 그 둘을 쓰는 배선이 wireTextEditSection 에만 있다)
- * @param {string}  o.hlColor           형광펜 색(hex). showHighlightOpts 일 때만 쓴다
- * @param {number}  o.hlAlpha           형광펜 색 투명도(%)
- * @param {number}  o.hlH               형광펜 바 높이(%, 1~100)
+ * @param {string}  o.hlColorHtml      형광펜 «색 칸» 마크업. ★부르는 쪽이 colorFieldHTML 로 만들어 넘긴다
+ *                                      ⛔여기서 color-picker.js 를 import 하지 «마라» — 이 파일은 마크업만 내는 순수 함수이고,
+ *                                        tests/unit/_text-template-harness.js 가 vm 에 올리는 의존 목록이 그만큼 늘어난다
+ *                                        (2026-10-06 실측: import 를 더했더니 골든 검사가 ReferenceError 로 통째로 빨강).
+ * @param {number}  o.hlH               형광펜 바 높이(%, 5~100)
  *                                      (T1 골든이 그 동일성을 지킨다). 끄는 쪽은 «왜 끄는지»를
  *                                      호출부에 적어야 한다 — 그리드가 그 사례다(prop-grid.js).
  * @param {boolean} o.showFont          Font 피커 표시 · @param {boolean} o.showWeight 굵기 select 표시
@@ -65,7 +66,7 @@ export function buildTypographySectionHtml({
   sizeMin = 8, sizeMax = 800,
   showStyleGroup = true, showLetterSpacing = true, showSize = true, showHighlight = true,
   showFont = true, showWeight = true, showLineHeight = true,
-  showHighlightOpts = false, hlColor = '', hlAlpha = 100, hlH = 100,
+  showHighlightOpts = false, hlColorHtml = '', hlH = 100,
   sizePh, lhPh, lsPh,
   mix,
 } = {}) {
@@ -133,7 +134,7 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
              colorFieldHTML ＋ range/number 쌍을 ★그대로 쓴다. -->
       <div class="prop-color-row" id="${p}-hl-color-row" style="margin-top:6px;display:${isHighlight?'flex':'none'}">
         <span class="prop-label">형광펜</span>
-        ${colorFieldHTML({ idPrefix: `${p}-hl-color`, hex: hlColor, alpha: hlAlpha })}
+        ${hlColorHtml}
       </div>
       <div class="prop-row" id="${p}-hl-h-row" style="display:${isHighlight?'flex':'none'}" title="글자 상자 높이 대비 획의 높이(%). 100 = 글자를 다 덮는다 · 40 = 아래쪽 40%만 그어진다">
         <span class="prop-label">바 높이</span>

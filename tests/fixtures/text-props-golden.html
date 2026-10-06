@@ -123,7 +123,21 @@
         <button class="prop-style-btn active" id="txt-bold-btn" title="굵게 (⌘B)"><b>B</b></button>
         <button class="prop-style-btn " id="txt-italic-btn" title="기울임 (⌘I)"><i>I</i></button>
         <button class="prop-style-btn active" id="txt-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>
-        <button class="prop-style-btn " id="txt-highlight-btn" title="형광펜 (선택 영역 배경칠)">H</button>
+        <button class="prop-style-btn " id="txt-highlight-btn" title="형광펜 (글자 길이만큼 — 선택이 있으면 그 글자만)">H</button>
+      </div>
+      <!-- ★형광펜 색·바 높이 (2026-10-06 현빈 tb_5bkw8dq: 「색변경 및 하이라이트 바 높이 조절가능하게」).
+           ★H 단추 «바로 아래» — 그 단추가 켜는 것을 고치는 칸이라 같은 자리가 맞다.
+           ★형광펜이 꺼져 있으면 «없다» — 정할 것이 없다(섹션 체커 톤 라디오와 같은 규약).
+           ⛔칸 꼴을 새로 만들지 않는다: 스티커 형광펜(prop-sticker.js stk-hl-*)이 쓰는
+             colorFieldHTML ＋ range/number 쌍을 ★그대로 쓴다. -->
+      <div class="prop-color-row" id="txt-hl-color-row" style="margin-top:6px;display:none">
+        <span class="prop-label">형광펜</span>
+        
+      </div>
+      <div class="prop-row" id="txt-hl-h-row" style="display:none" title="글자 상자 높이 대비 획의 높이(%). 100 = 글자를 다 덮는다 · 40 = 아래쪽 40%만 그어진다">
+        <span class="prop-label">바 높이</span>
+        <input type="range" class="prop-slider" id="txt-hl-h" min="5" max="100" step="1" value="100">
+        <input type="number" class="prop-number" id="txt-hl-h-num" min="5" max="100" value="100">
       </div>
 
       <div class="prop-lhls-row">

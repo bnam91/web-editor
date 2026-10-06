@@ -1,6 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { rgbToHex } from './prop-text-utils.js';
-import { parseAlphaFromColor } from './color-picker.js';   /* ★형광펜 색 투명도 — 스티커 형광펜이 쓰는 그 자 그대로 */
+import { parseAlphaFromColor, colorFieldHTML } from './color-picker.js';   /* ★형광펜 색 칸 — 스티커 형광펜이 쓰는 그 부품 그대로(새로 만들지 않는다) */
 import { panelRenderedPx, labelShapeFromRendered, panelRenderedWeight } from './_panel-rendered.js';
 import { buildTextPropsHtml } from './prop-text-template.js';
 import { detectMix } from './prop-text-mix-detect.js';
@@ -190,7 +190,10 @@ export function showTextProperties(tb) {
     isBold,
     isItalic,
     isHighlight,
-    hlColor: currentHighlightColor, hlAlpha: parseAlphaFromColor(currentHighlightColor) || 100, hlH: _hlH,
+    /* ★색 칸 마크업은 «여기»서 만든다 — _typo-section.js 는 마크업만 내는 순수 함수라 color-picker 를
+       import 하면 안 된다(단위 하네스가 vm 에 그 모듈을 안 올려 골든이 통째로 빨강이 된다. 2026-10-06 실측). */
+    hlColorHtml: colorFieldHTML({ idPrefix: 'txt-hl-color', hex: currentHighlightColor, alpha: parseAlphaFromColor(currentHighlightColor) || 100 }),
+    hlH: _hlH,
     isOverlayBlock,
   });
 
