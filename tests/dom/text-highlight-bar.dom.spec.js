@@ -47,8 +47,13 @@ const openText = async (page) => {
   await page.waitForSelector('#txt-highlight-btn', { state: 'attached' });
 };
 
-/* 획(span.tb-hl)의 조각들과 글자 폭을 «같은 자»로 잰다. */
-const measure = (page) => page.evaluate(() => {
+/* 획(span.tb-hl)의 조각들과 글자 폭을 «같은 자»로 잰다.
+   ⚠️★글꼴이 앉기를 먼저 기다린다 — 안 그러면 폭이 흔들린다. 특히 «두 번 재서 견주는» H2 는
+     한 번은 대체 글꼴, 한 번은 실제 글꼴로 재서 197/177 ↔ 210/188 로 어긋났다(2026-10-06, 병렬 부하에서 1회).
+     ⛔「줄바꿈 공백 탓」으로 읽으면 안 된다 — 단독 6회는 두 값이 늘 같았다. 원인은 ★자였다. */
+const measure = (page) => page.evaluate(async () => {
+  try { await document.fonts.ready; } catch (_) {}
+  await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
   const tb = document.getElementById('hlTb');
   const ce = tb.querySelector('[contenteditable]');
   const spans = [...ce.querySelectorAll('span.tb-hl')];

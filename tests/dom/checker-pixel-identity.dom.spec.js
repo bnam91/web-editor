@@ -51,27 +51,47 @@ async function diffPng(page, aB64, bB64) {
   }, [aB64, bB64]);
 }
 
-/* 끔/켬 «두 판»을 같은 손으로 찍는다. tone: 'off'(기본·저장값 없음) | 'dark'(진짜 단추 함수로 켬) | 'off-after-on'(켰다 끔). */
+/* 끔/켬 «두 판»을 같은 손으로 찍는다. tone: 'off' | 'dark' | 'off-after-on'.
+ * ★2026-10-06 — 토글이 «전역»에서 «섹션마다»로 바뀌었다(현빈 R1: 섹션 배경 체커만 · 「빈 카드는 그대로」).
+ *   ⇒ 더 이상 window.setCheckerDarkOn 이 없다. 켜는 법 = 그 섹션에 data-checker-tone="dark".
+ * ★무대를 ★.section-block[data-checker-tone="dark"] 로 감싼다 — 그러면 열한 자리가 «전부»
+ *   톤 켜진 섹션 «안»에 들어간다. 그 판에서 ⑴ 섹션 배경 자리만 어두워지고 ⑵ 나머지 열 자리는
+ *   ★0 픽셀이어야 R1 이다(CSS 변수는 상속되므로, 공용 토큰을 덮었다면 열 자리가 다 바뀐다). */
 async function shootAll(page, tone) {
   await page.setViewportSize({ width: 1200, height: 900 });
   const errs = await bootApp(page);
-  const toneState = await page.evaluate((tone) => {
-    if (tone !== 'off') { if (typeof window.setCheckerDarkOn !== 'function') return 'NO-TOGGLE'; window.setCheckerDarkOn(true); }
-    if (tone === 'off-after-on') window.setCheckerDarkOn(false);
-    return document.documentElement.getAttribute('data-goya-checker-tone');
-  }, tone);
+  const toneState = tone === 'off' ? null : (tone === 'off-after-on' ? 'off-after-on' : 'dark');
   // 앱 CSS 가 «다 얹힌» 문서에 격리 무대를 만든다(앱 CSS 를 그대로 먹는다 — 한 환경에서만 참인 검사 방지).
-  await page.evaluate(() => { const st = document.createElement('div'); st.id = 'ck-stage'; st.style.cssText = 'position:fixed;left:0;top:0;width:1100px;height:880px;background:#fff;z-index:99999;padding:20px;display:flex;flex-direction:column;gap:20px;overflow:auto'; document.body.appendChild(st); });
+  await page.evaluate((tone) => {
+    const st = document.createElement('div'); st.id = 'ck-stage';
+    st.style.cssText = 'position:fixed;left:0;top:0;width:1100px;height:880px;background:#fff;z-index:99999;padding:20px;display:flex;flex-direction:column;gap:20px;overflow:auto';
+    /* ★무대 자체를 «톤 켜진 섹션»으로 — 열한 자리가 전부 그 안에 들어간다(R1 경계를 픽셀로 잰다).
+       'off-after-on' 은 켰다 «끈» 판: 속성을 걸었다가 뗀다(화면이 지금으로 돌아오는지). */
+    /* ★'off-in-section' = 섹션 안이되 ★톤만 없는 판. CP-dark 의 ★대조군이다(바뀌는 변수가 속성 «하나»).
+       ⛔톤 켠 판을 «끔 골든»과 바로 견주면 안 된다 — 무대에 .section-block 이 붙는 것만으로
+         레이아웃이 아주 조금 달라져 둥근 테두리 안티에일리어싱이 33점 바뀐다(2026-10-06 실측).
+         그 33점은 ★무대 탓이지 톤 탓이 아니다. 같은 무대끼리 견줘야 톤만 잰 것이다. */
+    if (tone !== 'off') st.classList.add('section-block');
+    if (tone === 'dark') st.setAttribute('data-checker-tone', 'dark');
+    if (tone === 'off-after-on') { st.setAttribute('data-checker-tone', 'dark'); st.removeAttribute('data-checker-tone'); st.classList.remove('section-block'); }
+    document.body.appendChild(st);
+  }, tone);
   const shots = [];
   for (const s of SITES) {
     /* 도형 체커 규칙은 `#canvas .shape-block…` 로 «캔버스 안»에만 선다 — 그 자리 무대는 #canvas «안, 흐름 속»에 둔다(fixed 로 두면 캔버스 배율·잘림에 가려 빈 흰 그림이 찍혔다 — 핀에서도 단색이라 전제 단언이 잡았다). */
-    await page.evaluate(([html, run, inCanvas]) => {
+    await page.evaluate(([html, run, inCanvas, tone]) => {
       let st = document.getElementById('ck-stage');
       st.style.display = inCanvas ? 'none' : 'flex';   // 위에 뜬 흰 무대가 캔버스 안 자리를 «덮지» 않게
       const old = document.getElementById('ck-stage-c'); if (old && !inCanvas) old.remove();
       if (inCanvas) { st = document.getElementById('ck-stage-c') || Object.assign(document.createElement('div'), { id: 'ck-stage-c' }); st.style.cssText = 'background:#fff;padding:20px;width:900px'; const cv = document.getElementById('canvas'); cv.insertBefore(st, cv.firstChild); st.scrollIntoView(); }
       st.innerHTML = html; if (run) (0, eval)(run);
-    }, [s.html, s.run || '', !!s.inCanvas]);
+      /* ★섹션 배경 자리는 «그 섹션 자신»이다 — 조상 무대가 아니라 ★제 요소에 속성이 걸려야 어두워진다
+         (규칙 선택자가 .section-block[data-checker-tone="dark"] 이고, 그 섹션의 배경은 제 토큰으로 칠해진다). */
+      if (tone === 'dark' || tone === 'off-after-on') {
+        const s1 = document.getElementById('s1');
+        if (s1) { s1.setAttribute('data-checker-tone', 'dark'); if (tone === 'off-after-on') s1.removeAttribute('data-checker-tone'); }
+      }
+    }, [s.html, s.run || '', !!s.inCanvas, tone]);
     await page.waitForTimeout(80);
     // 전제 ① 진짜 체커로 칠해졌다
     const sig = await page.evaluate(([sel, kind]) => {
@@ -107,9 +127,13 @@ function cssPairs() {
   const css = fs.readFileSync(path.join(ROOT, 'css', 'editor-base.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   const block = (re) => { const m = css.match(re); return m ? m[1] : ''; };
   const pick = (txt, n) => { const m = txt.match(new RegExp(`--goya-checker-${n}\\s*:\\s*(#[0-9a-fA-F]{6})`)); return m ? m[1].toLowerCase() : null; };
-  const dark = block(/:root\[data-goya-checker-tone="dark"\]\s*\{([^}]*)\}/), base = block(/(?:^|[;}\s]):root\s*\{([^}]*)\}/);
+  /* ★2026-10-06 — 톤 규칙은 «섹션 선택자»이고, 덮는 토큰은 ★전용 쌍(secbg-a/b) 둘뿐이다.
+     섹션 배경의 «끔» 값은 :root 의 secbg 기본값이 big 을 var 로 가리키므로 big 쌍을 그대로 쓴다. */
+  const dark = block(/\.section-block\[data-checker-tone="dark"\]\s*\{([^}]*)\}/);
+  const base = block(/(?:^|[;}\s]):root\s*\{([^}]*)\}/);
   const P = {};
-  for (const p of ['big', 'small', 'clear']) P[p] = { dark: [pick(dark, p + '-a'), p === 'clear' ? null : pick(dark, p + '-b')], off: [pick(base, p + '-a'), p === 'clear' ? null : pick(base, p + '-b')] };
+  for (const p of ['big', 'small', 'clear']) P[p] = { dark: [null, null], off: [pick(base, p + '-a'), p === 'clear' ? null : pick(base, p + '-b')] };
+  P.secbg = { dark: [pick(dark, 'secbg-a'), pick(dark, 'secbg-b')], off: [pick(base, 'big-a'), pick(base, 'big-b')] };
   return P;
 }
 
@@ -130,10 +154,10 @@ test('CP 체커 자리 전부 — 끔(기본·저장값 없음)이 변수화 전
   expect(errs, '페이지 오류 0').toEqual([]);
 });
 
-test('CP-off ★켰다가 «끄면» 끔 골든과 0 픽셀 — 토글을 끈 화면은 지금과 같다', async ({ page }) => {
+test('CP-off ★섹션 톤을 켰다가 «끄면» 끔 골든과 0 픽셀 — 끈 화면은 지금과 같다', async ({ page }) => {
   test.skip(UPDATE || UPDATE_DARK, '골든 찍는 판');
   const { errs, toneState, shots } = await shootAll(page, 'off-after-on');
-  expect(toneState, '끈 뒤 html 에 톤 속성이 남았다').toBeNull();
+  expect(toneState).toBe('off-after-on');
   const report = [];
   for (const { s, shot } of shots) {
     const r = await diffPng(page, fs.readFileSync(path.join(GOLD, s.id + '.png')).toString('base64'), shot);
@@ -145,50 +169,62 @@ test('CP-off ★켰다가 «끄면» 끔 골든과 0 픽셀 — 토글을 끈 �
   expect(errs, '페이지 오류 0').toEqual([]);
 });
 
-test('CP-dark ★켬 — 켬 골든과 0 픽셀 + ⓐ끔 골든과 11/11 «모두» 다름 + ⓑ CSS 텍스트의 톤 hex 가 그림에 정확히 있다', async ({ page }) => {
+/* ★CP-dark — 2026-10-06 현빈 R1(「섹션 배경 체커만 · 빈 카드는 그대로」)을 ★픽셀로 잰다.
+ *   무대 전체가 «톤 켜진 섹션» 안이므로 ⑴ 섹션 배경 자리 ★하나만 어두워지고
+ *   ⑵ 나머지 열 자리는 끔 골든과 ★0 픽셀이어야 한다.
+ *   ★⑵ 가 이 검사의 가장 날카로운 이빨이다 — 누가 톤 규칙에서 공용 토큰(big/small/clear)을 덮으면
+ *     CSS 변수 상속으로 열 자리가 «다» 바뀌어 즉시 빨강이다.
+ *   ⛔옛 판(전역 토글)은 「11/11 모두 달라야 한다」였다 — 그 단언은 지금 ★거꾸로다. 되살리지 마라.
+ *   ⛔그래서 @dark 골든도 섹션 배경 자리 ★한 벌만 남긴다(나머지 열 벌은 2026-10-06 에 지웠다 —
+ *     「켬 = 끔」인 자리에 별도 골든을 두면 같은 그림이 두 이름으로 산다). */
+const DARK_SITE = 'section-sec-bg-empty';
+
+test('CP-dark ★섹션 톤 — 섹션 배경 자리만 어두워지고 ★나머지 열 자리는 끔 골든과 0 픽셀(R1)', async ({ page }) => {
   test.skip(UPDATE, '끔 골든 찍는 판');
   const { errs, toneState, shots } = await shootAll(page, 'dark');
-  expect(toneState, '★단추 함수가 html 에 톤 속성을 안 걸었다 — 이 검사는 공회전이다').toBe('dark');
+  expect(toneState).toBe('dark');
+  /* ★대조군 — «같은 무대»에서 톤 속성만 뺀 판. keep 자리는 이것과 견준다(변수 하나만 다르게). */
+  const ctrl = {};
+  { const c = await shootAll(page, 'off-in-section'); for (const { s, shot } of c.shots) ctrl[s.id] = shot; }
   const P = cssPairs();
-  for (const p of ['big', 'small', 'clear']) expect(P[p].dark[0], `CSS 텍스트에서 ${p} 톤 값을 못 읽었다`).toMatch(/^#[0-9a-f]{6}$/);
+  expect(P.secbg.dark[0], 'CSS 텍스트에서 섹션 톤 값(secbg-a)을 못 읽었다').toMatch(/^#[0-9a-f]{6}$/);
+  expect(P.secbg.dark[1], 'CSS 텍스트에서 섹션 톤 값(secbg-b)을 못 읽었다').toMatch(/^#[0-9a-f]{6}$/);
+
   const report = [];
-  let changed = 0;
-  for (const { s, shot, inline } of shots) {
-    const gd = path.join(GOLD, s.id + '@dark.png');
-    if (UPDATE_DARK) fs.writeFileSync(gd, Buffer.from(shot, 'base64'));
-    // ⓐ 순환 방지 — 끔 골든(변수화 전 판에서 찍은 그대로)과 «달라야» 한다
+  let changed = 0, same = 0;
+  for (const { s, shot } of shots) {
     const vsOff = await diffPng(page, fs.readFileSync(path.join(GOLD, s.id + '.png')).toString('base64'), shot);
-    expect.soft(vsOff.diff, `${s.id} ★켬 그림이 끔 골든과 같다 — 토글이 이 자리에 안 닿았다`).toBeGreaterThan(0);
-    if (vsOff.diff > 0) changed++;
-    // ⓑ 값 대조 — 톤 hex 가 «정확히» 있고, 끔 hex 는 없다
-    /* ★몫으로 잰다 — 원(아이콘원)·글자 가장자리 안티에일리어싱이 우연히 끔 색과 «같은 값»을 몇 점 만든다(실측: 아이콘원 #f0f0f0 9점/25,600).
-       체커 «면»이 남았다면 수천 점이다. ⇒ 켬 색은 각 ≥10%, 끔 색은 각 ≤1%.
-       ⚠️목업 자리는 화면 이미지(반투명 파란 1px)가 체커 «위»에 섞여 그림에 체커 hex 가 그대로 안 나온다(실측: 끔 #7878f7·켬 #4a4ac9)
-         ⇒ 그 자리는 «인라인 문자열»을 CSS 텍스트 값과 대조한다(그림 대조는 ⓐ 끔 골든과 다름 + 켬 골든 0 픽셀이 맡는다). */
-    const cols = await colorsOf(page, shot);
-    const total = Object.values(cols).reduce((a, b) => a + b, 0);
-    const want = P[s.pair].dark.filter(Boolean), gone = P[s.pair].off.filter(Boolean);
-    let valueNote = '';
-    if (s.valueBy === 'inline') {
-      const inl = inline.toLowerCase();
-      const rgbOf = (h) => `rgb(${parseInt(h.slice(1, 3), 16)}, ${parseInt(h.slice(3, 5), 16)}, ${parseInt(h.slice(5, 7), 16)})`;   // CSSOM 은 인라인 hex 를 rgb() 로 돌려준다
-      for (const h of want) expect.soft(inl.includes(rgbOf(h)), `${s.id} 인라인에 켬 색 ${h}`).toBe(true);
-      for (const h of gone) expect.soft(inl.includes(rgbOf(h)), `${s.id} 인라인에 끔 색 ${h} 이 남았다`).toBe(false);
-      valueNote = 'inline';
+    expect(vsOff.colors, `${s.id} 전제 — 색 둘 이상`).toBeGreaterThanOrEqual(2);
+
+    if (s.id === DARK_SITE) {
+      changed++;
+      const vsCtrlDark = await diffPng(page, ctrl[s.id], shot);
+      expect.soft(vsCtrlDark.diff, `★${s.id} — 섹션 톤을 켰는데 «같은 무대의 톤 없는 판»과 같다(토글이 안 닿았다)`).toBeGreaterThan(0);
+      expect.soft(vsOff.diff, `★${s.id} — 섹션 톤을 켰는데 끔 골든과 같다`).toBeGreaterThan(0);
+      // 값 대조 — 톤 hex 가 «정확히» 있고, 끔 hex 는 없다(몫으로: 안티에일리어싱 몇 점에 안 속는다)
+      const cols = await colorsOf(page, shot);
+      const total = Object.values(cols).reduce((a, b) => a + b, 0);
+      for (const h of P.secbg.dark) expect.soft((cols[h] || 0) / total, `${s.id} 켬 색 ${h} 몫(${cols[h] || 0}/${total})`).toBeGreaterThanOrEqual(0.10);
+      for (const h of P.secbg.off)  expect.soft((cols[h] || 0) / total, `${s.id} 끔 색 ${h} 몫(${cols[h] || 0}/${total}) — 끔 면이 남았다`).toBeLessThanOrEqual(0.01);
+      const gd = path.join(GOLD, s.id + '@dark.png');
+      if (UPDATE_DARK) fs.writeFileSync(gd, Buffer.from(shot, 'base64'));
+      else {
+        expect(fs.existsSync(gd), `${s.id} 켬 골든이 있다(${gd})`).toBe(true);
+        const vsDark = await diffPng(page, fs.readFileSync(gd).toString('base64'), shot);
+        expect.soft(vsDark.diff, `${s.id} 켬 골든과 다른 픽셀 수`).toBe(0);
+      }
+      report.push(`${s.id}[DARK]: vsOff=${vsOff.diff}`);
     } else {
-      for (const h of want) expect.soft((cols[h] || 0) / total, `${s.id} 켬 색 ${h} 몫(${cols[h] || 0}/${total})`).toBeGreaterThanOrEqual(0.10);
-      for (const h of gone) expect.soft((cols[h] || 0) / total, `${s.id} 끔 색 ${h} 몫(${cols[h] || 0}/${total}) — 끔 면이 남았다`).toBeLessThanOrEqual(0.01);
+      same++;
+      /* ★R1 — 톤 켜진 섹션 «안»인데도 한 점도 안 바뀌어야 한다(현빈: 「빈 카드는 그대로」).
+         ★대조군(같은 무대 · 톤 속성만 없음)과 견준다 — 무대 탓 차이를 톤 탓으로 읽지 않게. */
+      const vsCtrl = await diffPng(page, ctrl[s.id], shot);
+      expect.soft(vsCtrl.diff, `★${s.id} — 섹션 톤이 이 자리까지 바꿨다(R1 위반: 공용 토큰을 덮었다)`).toBe(0);
+      report.push(`${s.id}[keep]: vsCtrl=${vsCtrl.diff} (vsOff=${vsOff.diff})`);
     }
-    // 켬 골든 대조(회귀)
-    let vsDark = { diff: 'written' };
-    if (!UPDATE_DARK) {
-      expect(fs.existsSync(gd), `${s.id} 켬 골든이 있다(${gd})`).toBe(true);
-      vsDark = await diffPng(page, fs.readFileSync(gd).toString('base64'), shot);
-      expect.soft(vsDark.diff, `${s.id} 켬 골든과 다른 픽셀 수`).toBe(0);
-    }
-    report.push(`${s.id}[${s.pair}]: vsOff=${vsOff.diff} vsDark=${vsDark.diff} ${valueNote || want.map(h => `${h}:${cols[h] || 0}`).join(' ') + ' | off ' + gone.map(h => `${h}:${cols[h] || 0}`).join(' ') + ' / ' + total}`);
   }
-  console.log('[checker-pixel dark]\n' + report.join('\n'));
-  expect(changed, '★켬이 바꾼 자리 수 — 11 자리 전부여야 한다').toBe(SITES.length);
+  console.log('[checker-pixel section-tone]\n' + report.join('\n'));
+  expect(changed, '★어두워진 자리 수 = 1(섹션 배경)').toBe(1);
+  expect(same, '★그대로여야 하는 자리 수').toBe(SITES.length - 1);
   expect(errs, '페이지 오류 0').toEqual([]);
 });
