@@ -80,7 +80,13 @@ function setRef(projectId, collabRef) {
 /* ⚠️★sections 는 «목차»(sectionId+hash)다. 내용은 안 보낸다.
  *   proj.json 은 캔버스에 base64 이미지가 인라인돼 수십 MB 까지 간다(실측 85MB).
  *   Vercel 서버리스 본문 한도(≈4.5MB)로는 통째 업로드가 구조적으로 불가능하다.
- *   ⇒ register 는 «방»만 만들고, 내용은 push 가 섹션 한 개씩 올린다. */
+ *   ⇒ register 는 «방»만 만들고, 내용은 push 가 섹션 한 개씩 올린다.
+ *   ⚰️(2026-10-06 태양 실측 · 위 문장은 그날의 사실) 서버는 이제 Vercel 이 아니라 Cloudflare 뒤 EC2 다. 천장은 «둘»:
+ *     핸들러 1,000,000B(api/_lib/util.js readJsonBody · 초과 = invites 400 invalid_body / push·register 413) ← 실효 천장
+ *     어댑터 4,500,000B(ec2-server.js · 초과 413) ← Vercel 값을 «흉내»낸다(사라진 게 아니다)
+ *     섹션 700,000B(api/_lib/collab.js MAX_SECTION_BYTES) ← 서버 소스 값 · push 로만 걸려 «못 쟀다»(쓰기 금지)
+ *     경계는 invites(읽기)·토큰 없이 바이트 단위로 쟀다(1,000,000→401 · 1,000,001→400 · 4,500,000→400 · 4,500,001→413).
+ *     ⚠️배포본 == hompage_app 클론 3f5422d 는 «못 쟀다»(healthz sha 는 정적 배포 마커라 api/ 를 증명하지 않는다 · 정황 셋 일치). */
 async function register({ projectId, name, actorId }) {
   const existing = getRef(projectId);
   if (existing && existing.collabId) return { ok: true, ...existing, already: true };

@@ -2059,6 +2059,8 @@ async function deleteProject(e, id) {
  * 에디터를 열어 동기화 루프가 섹션을 한 개씩 올린다.
  *   왜: proj.json 은 캔버스에 base64 이미지가 인라인돼 수십 MB 까지 간다(실측 85MB).
  *   서버리스 본문 한도(≈4.5MB)로는 통째 업로드가 «구조적으로» 불가능하다.
+ *   ⚰️(2026-10-06) 지금 서버는 Cloudflare 뒤 EC2 — 실효 천장은 핸들러 1MB, 4.5MB 는 어댑터가 흉내낸다.
+ *     자세한 실측·못 잰 것: main/collab/index.js register 주석.
  * ★초대는 여기서 안 받는다 — Electron 은 native prompt() 를 «차단»한다(복제 기능이
  *   그것 때문에 한 번 죽었다, duplicateProjectUI 주석 참고). 초대는 환경설정 「협업」 탭.
  */

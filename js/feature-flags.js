@@ -24,7 +24,28 @@
    *   (대조군 /api/license/signup 은 405 = 존재). server/ec2-server.js 의 ROUTES
    *   화이트리스트에 collab 이 없다. 그런데 앱에는 협업이 v0.8.5 로 이미 나갔다
    *   — 지금 사용자가 저 버튼을 누르면 «반드시» 실패한다.
+   *   ⚰️(2026-10-06 지디·태양 실측 — 위 문장은 그날의 사실로 남긴다) 앱은 create/join/ops 를 «부르지 않는다».
+   *     부르는 이름은 register·invite·invites·respond·push·pull·leave 7개이고, 2026-10-06 실측으로 7개 전부
+   *     «있다»(400/401 · 음성대조 /api/collab/control-nonsense = 404). 서버는 지금 Vercel 이 아니라 Cloudflare 뒤 EC2.
+   *     ⇒ 사유 ① 은 «부르지도 않는 이름으로 잰 근거»였다.
+   *     ⚠️404 의 뜻이 서버 판에 따라 갈린다: 옛 서버(HTML 404)는 「미배포」, 지금 라우터(api/collab/[action].js)는
+   *     모르는 경로에도 JSON 404 {reason:'unknown_action'} 를 준다 — 앱이 그걸 「멤버 아님(접근 권한 없음)」으로 읽던
+   *     거짓 문장을 2026-10-06 main/collab/index.js 에서 not_deployed 로 갈랐다.
    * 사유 ②: C8(협업 undo 가 상대 작업 재전파로 영구삭제) 미수정 — feat/collab-undo-op.
+   *   ⚰️(2026-10-06) C8 은 1ec78f0a(2026-08-16)로 dev 에 머지됐다(브랜치만 지워졌다). 08-15 harm 2인스턴스 실증 GREEN.
+   *     까닭은 «사라진» 게 아니라 «바뀌었다» — 그 뒤 C8 을 잠근 검사가 «CI 가 보는 자리»에 0 이었다
+   *     (tests/e2e/10-collab-undo-diff 는 유틸만 잠그고 CI 는 e2e 를 안 돈다). ⇒ 2026-10-06 tests/dom/collab-undo-scope
+   *     U1·U2 가 잠근다(가드 무력화 M1 · 배선 되돌림 M2 · 유틸 무력화 M3 → 각 ×3 빨강).
+   *     ⚠️현재 판의 2인스턴스 harm 은 «다시 안 쟀다»(하네스 신설 필요 — 지디가 일부러 안 시킴).
+   *
+   * ★켜는 조건 — 이름으로(2026-10-06 지디 발주 TWO). 다 초록이어야 이 줄을 true 로 바꾼다:
+   *   ⑴ tests/unit/collab-enable-gate.test.mjs G1 — js/collab/reasons.js 에 «문장 없는»(null) 갈래 0.
+   *      (켜는 순간 이 검사가 빨개진다 — 문장은 현빈 검수: 태양 notes lanes/collab/NEW-SENTENCES.md)
+   *   ⑵ 설정 «협업» 탭이 MVP 문 밖 — js/settings/settings-modal.js MVP_DISABLED_TABS(현빈 2026-08-28 결정).
+   *      안 열면 초대를 받을/보낼 창구가 0 이다(배지도 window.isSettingsTabEnabled 로 같이 닫혀 있다).
+   *   ⑶ tests/dom/collab-undo-scope.dom.spec.js 초록(C8) · tests/unit/collab-silence-ruler 초록(삼키는 catch 0).
+   *   ⑷ 「못 쟀다」 셋은 켜기 전 결정할 것: 현재 판 C8 2인스턴스 harm · 설정 협업 탭 화면(MVP 문 뒤라 못 엶) ·
+   *      서버 배포본 == hompage_app 클론(정황 셋 일치 · 증명 없음).
    *
    * ★되돌리기 = 이 줄 하나를 true 로. 코드·데이터는 아무것도 안 지웠다.
    *   서버 ROUTES 에 collab 이 올라간 «뒤에» 켠다(순서 반대면 또 404 를 판다).

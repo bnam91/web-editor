@@ -10,7 +10,7 @@
      쏘는 gd:project-saved 를 듣는다.
 
    ★받는 시점 = 2초 폴링
-     Vercel 서버리스가 WebSocket 을 못 받는다. 전송계층(main/collab/transport.js)만
+     Vercel 서버리스가 WebSocket 을 못 받는다(⚰️2026-10-06: 지금은 EC2 — WS 를 «못 받는»지는 안 쟀다). 전송계층(main/collab/transport.js)만
      갈아끼우면 WS 로 옮길 수 있게 여기서는 「부르면 온다」만 안다.
 
    ★에코 가드가 2겹이다 — 하나로는 못 막는다

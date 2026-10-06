@@ -823,7 +823,7 @@
        ★이 파일엔 _escapeHtml(:340) 이 이미 있고 :325 등에서는 제대로 쓰고 있었다 —
          도구가 없어서가 아니라 «이 틀만» 안 쓰고 있었다.
        ⚠️help 는 «속성 안»(value="…")이라 따옴표까지 막아야 한다 — _escapeHtml 이 " 를 덮는다.
-       회귀: tests/dom/settings-row-injection.dom.spec.js */
+       회귀: tests/unit/settings-row-escape.test.mjs (⚰️2026-10-06: 처음 적은 tests/dom/settings-row-injection.dom.spec.js 는 «없는» 파일이었다) */
     const row = (label, help, buttons) => `
       <div class="settings-api-row">
         <div class="settings-api-label">${_escapeHtml(label)}</div>
