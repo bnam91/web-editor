@@ -69,10 +69,29 @@
     console.warn('[collab]', msg);        // 토스트가 없는 화면 — 최소한 콘솔에는 «말한다»
   }
 
+  /* ★상단바 상태(지디 C · 2026-10-06): 받기·시작이 실패하면 «⚠ 연결 끊김» 을 보인다 — S3(2초마다 조용히 실패하던 자리)의 핵심.
+     지우는 것은 sync.js paintPresence 다: 다음 «성공한» 받기가 상단바를 다시 그린다(상대가 없으면 숨김). 그래서 여기선 «켜기»만 한다. */
+  const LINK_DOWN = { pull_error: 1, start_failed: 1 };
   function setState(evt) {
     const el = document.getElementById('collab-topbar-badge');
     if (!el) return;                      // 조용한 까닭: 상단바가 없는 화면(목록 등) — 상태를 둘 자리가 없다
     el.dataset.collabState = evt.type + (isFailure(evt) ? ':' + (evt.reason || evt.error || '') : '');
+    if (LINK_DOWN[evt.type] && window.CollabReasons) {
+      el.textContent = window.CollabReasons.text('link_down');
+      el.title = window.CollabReasons.text(evt.reason, evt);
+      el.style.display = '';
+    }
+  }
+
+  /* section_too_large 의 섹션 이름(지디 B ⑴): 「N번째 섹션」 — 지금 캔버스(#canvas)의 섹션 순서에서 센다.
+     ★다른 페이지의 섹션은 DOM 에 없어 번호를 못 센다 → 그때만 id 를 그대로 보인다(지어내지 않는다). */
+  function sectionLabel(sectionId) {
+    try {
+      const secs = [...(document.getElementById('canvas')?.querySelectorAll(':scope .section-block') || [])];
+      const i = secs.findIndex(s => s.id === sectionId);
+      if (i >= 0) return `${i + 1}번째 섹션`;
+    } catch (e) { console.debug('[collab/notify] 섹션 번호 세기 실패 — id 로 보인다:', e); }
+    return String(sectionId || '');
   }
 
   function speakOnce(key, msg) {
@@ -111,7 +130,7 @@
         speakOnChange('pull', evt.reason, R.text(evt.reason, evt));
         return;
       case 'section_too_large':
-        speakOnce('too_large:' + evt.sectionId, R.text('too_large', evt.detail) + ' · ' + evt.sectionId);
+        speakOnce('too_large:' + evt.sectionId, `${R.text('too_large', evt.detail)} · ${sectionLabel(evt.sectionId)} — ${R.text('section_not_synced')}`);
         return;
       case 'resync_required':
         toast(R.text('resync_required', evt));

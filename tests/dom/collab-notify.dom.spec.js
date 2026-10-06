@@ -125,3 +125,44 @@ test('W6 ★상태 전이 1회 — 같은 받기 실패는 한 번만 · 회복 
   expect(r.msgs.every(m => m === OFFLINE), `문구: ${JSON.stringify(r.msgs)}`).toBe(true);
 });
 
+
+/* ── 현빈 승인 문장(2026-10-06) 이후: 상단바 «⚠ 연결 끊김»(지디 C) · section_too_large 의 섹션 이름(지디 B ⑴) ── */
+test('W7 ★상단바 — 받기 실패면 「⚠ 연결 끊김」이 보이고, 다음 성공한 받기가 지운다', async ({ page }) => {
+  await bootWithFakeCollab(page);
+  const r = await page.evaluate(async () => {
+    window.__pullMode = 'ok';
+    await window.collabSync.start('proj_fake');
+    const el = document.getElementById('collab-topbar-badge');
+    window.__pullMode = 'offline'; await window.collabSync.tick();
+    const down = { text: el.textContent, shown: getComputedStyle(el).display !== 'none', title: el.title };
+    window.__pullMode = 'ok'; await window.collabSync.tick();
+    const up = { text: el.textContent, shown: getComputedStyle(el).display !== 'none' };
+    window.collabSync.stop();
+    return { down, up };
+  });
+  expect(r.down.shown, '받기 실패인데 상단바가 조용하다(S3)').toBe(true);
+  expect(r.down.text).toBe('⚠ 연결 끊김');
+  expect(r.down.title, '마우스를 올리면 원인 문장').toBe(OFFLINE);
+  expect(r.up.shown, '회복했는데 「연결 끊김」이 남아 있다').toBe(false);
+});
+
+test('W8 ★section_too_large — 「N번째 섹션」 + 「이 섹션은 상대에게 보이지 않습니다.」 (번호를 셀 수 있나 = 이 시험이 잰다)', async ({ page }) => {
+  await bootWithFakeCollab(page);
+  const r = await page.evaluate(async () => {
+    const canvas = document.getElementById('canvas');
+    canvas.innerHTML = '<div class="section-block" id="secA"><div class="section-inner">A</div></div><div class="section-block" id="secB"><div class="section-inner">B</div></div>';
+    window.__pullMode = 'ok';
+    window.electronAPI.collab.push = async (p) => (p.patches[0].sectionId === 'secB' ? { ok: false, reason: 'too_large' } : { ok: true, seq: 6 });
+    const pre = { mm: typeof window.marketMerge?.hash, start: (await window.collabSync.start('proj_fake')).ok };
+    const snap = JSON.stringify({ pages: [{ id: window.state.currentPageId, canvas: canvas.innerHTML }] });
+    window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { snap } }));
+    await new Promise(res => setTimeout(res, 300));
+    const shown = window.collabNotify.shown();
+    window.collabSync.stop();
+    return { pre, shown };
+  });
+  expect(r.pre, '★전제: marketMerge 가 있고 동기화가 섰다').toEqual({ mm: 'function', start: true });
+  const msg = r.shown.find(m => m.includes('너무 큽니다'));
+  expect(msg, `413 토스트가 없다: ${JSON.stringify(r.shown)}`).toBeTruthy();
+  expect(msg).toBe('섹션 하나가 너무 큽니다(이미지가 인라인으로 박혀 있습니다). · 2번째 섹션 — 이 섹션은 상대에게 보이지 않습니다.');
+});
