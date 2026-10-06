@@ -17,7 +17,22 @@
  *   H7 ★배송본 — 단독 HTML CSS 에 .tb-hl 규칙과 box-decoration-break 가 실린다(형광펜은 «나가야» 하는 것이다).
  *   H8 ★PNG — 화면의 획 폭·높이가 내보낸 그림에 ±3% 안으로 같다.
  *
- * ⛔이 하네스로 «못 재는» 축: html2canvas 폴백이 linear-gradient 를 그리는지 — H8 은 native(CDP) 길만 잰다.
+ *   H9 ★웹 폴백(html2canvas) — ★한 줄짜리 획은 그 길에서도 «글자 길이»로 그려진다.
+ *
+ * ★2026-10-06 실측 — html2canvas 폴백의 «아는 것/모르는 것»(지디 발주: 한 칸만 재라)
+ *   번들 문자열 센서스(vendor/html2canvas/html2canvas.min.js): `linear-gradient` 5건 · `box-decoration-break` ★0건.
+ *   그려서 잰 결과(섹션 폭 344 → 860 내보내기, 배율 2.5):
+ *     ⒜ ★한 줄  — 화면 span 101px·획 높이 8px → 그림 띠 252×21 ≈ 101·8 ×2.5 ★맞다
+ *     ⒝ ★여러 줄 — ★틀리게 그린다. 줄마다가 아니라 ★한 상자로 칠해져 둘째 줄이 첫 줄 폭까지 번지고
+ *        두 띠가 하나로 합쳐진다(실측 524×43 = 두 줄 높이 합). box-decoration-break 를 모르기 때문이다.
+ *   ★어디에 영향이 있나 — Electron 실앱의 PNG 내보내기는 native(CDP) 길이라 ★안 탄다(H8 이 그 길을 잰다).
+ *     h2c 를 타는 길은 ⑴ 프로젝트 썸네일(js/io/save-load.js:137) ⑵ 캡처 보조(js/io/capture-safety.js:537)
+ *     ⑶ 웹 빌드 PNG 폴백(js/io/export-image.js:484).
+ *   ⛔«여러 줄» 은 ★안 고쳤다 — 고치려면 capture-safety.js 의 neutralize*ForH2C 꼴로 클론에서 획을
+ *     줄마다 상자로 펴 줘야 한다(세 길에 다 영향). ★지디 판단 대기. 그때까지 H9 는 ★한 줄만 잠근다.
+ *   ⛔H9 를 「여러 줄도 된다」로 넓히지 마라 — 지금은 거짓이다.
+ *
+ * ⛔이 하네스로 «못 재는» 축: 실제 Electron 재기동·네이티브 메뉴.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/text-highlight-bar.dom.spec.js
  */
 const { test, expect } = require('@playwright/test');
@@ -335,5 +350,56 @@ test('H8 ★PNG — 화면의 획 폭·높이가 내보낸 그림과 ±3% 안으
   expect(r.png.wRatio / r.screen.wRatio, '★내보낸 획 폭(섹션 대비)이 화면과 다르다 — 「화면엔 보이는데 내보내면 달라진다」').toBeGreaterThan(0.97);
   expect(r.png.wRatio / r.screen.wRatio).toBeLessThan(1.03);
   expect(Math.abs(r.png.h - r.screen.h * r.screen.scale), '★내보낸 획 높이가 화면과 다르다(배율 보정 뒤)').toBeLessThanOrEqual(3);
+  expect(errs).toEqual([]);
+});
+
+test('H9 ★웹 폴백(html2canvas) — 한 줄짜리 획은 그 길에서도 «글자 길이»로 그려진다', async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 900 });
+  const errs = await bootApp(page);
+  await buildText(page, TEXT_1);
+  await openText(page);
+  await page.click('#txt-highlight-btn');
+  await page.fill('#txt-hl-color-hex', '22AA55');
+  await page.press('#txt-hl-color-hex', 'Enter');
+  await page.fill('#txt-hl-h-num', '40');
+  await page.press('#txt-hl-h-num', 'Enter');
+
+  const r = await page.evaluate(async () => {
+    try { await document.fonts.ready; } catch (_) {}
+    await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+    const sp = document.querySelector('#hlTb span.tb-hl');
+    const sr = sp.getBoundingClientRect();
+    const secW = document.getElementById('hlSec').getBoundingClientRect().width;
+    const scale = 860 / secW;
+    const screen = { w: Math.round(sr.width), h: Math.round(sr.height * 0.40), lines: sp.getClientRects().length };
+
+    /* ★forceH2C — Electron 이어도 «웹 폴백» 길로 보낸다(export-image.js isNativeCapture). */
+    const url = await window.exportSection(document.getElementById('hlSec'), 'png', 860, { returnDataUrl: true, forceH2C: true });
+    if (typeof url !== 'string' || !url.startsWith('data:image/png')) return { err: 'not png', screen };
+    const i = new Image(); i.src = url; await i.decode();
+    const c = document.createElement('canvas'); c.width = i.width; c.height = i.height;
+    const g = c.getContext('2d'); g.drawImage(i, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let maxRun = 0, rows = 0, mark = 0;
+    for (let y = 0; y < c.height; y++) {
+      let run = 0, best = 0;
+      for (let x = 0; x < c.width; x++) {
+        const k = (y * c.width + x) * 4;
+        if (d[k] === 255 && d[k + 1] === 0 && d[k + 2] === 170) mark++;
+        if (Math.abs(d[k] - 34) < 30 && Math.abs(d[k + 1] - 170) < 34 && Math.abs(d[k + 2] - 85) < 34) { run++; best = Math.max(best, run); }
+        else run = 0;
+      }
+      if (best > 20) { rows++; maxRun = Math.max(maxRun, best); }
+    }
+    return { screen, scale, png: { w: maxRun, h: rows, mark } };
+  });
+  console.log('  H9:', JSON.stringify(r));
+  expect(r.err).toBeUndefined();
+  expect(r.screen.lines, '★전제 — 한 줄짜리여야 한다(여러 줄은 이 길에서 아직 틀리게 그려진다 — 머리말 참조)').toBe(1);
+  expect(r.png.mark, '★내보낸 PNG 에 섹션 표식(#ff00aa)이 없다 — 엉뚱한 곳을 찍었으면 아래 수는 증거가 아니다').toBeGreaterThan(3000);
+  expect(r.png.w, '★웹 폴백에서 획이 아예 안 그려졌다 — linear-gradient 를 못 그리는 것이다').toBeGreaterThan(0);
+  expect(r.png.w / (r.screen.w * r.scale), '★웹 폴백의 획 폭이 화면과 다르다').toBeGreaterThan(0.95);
+  expect(r.png.w / (r.screen.w * r.scale)).toBeLessThan(1.05);
+  expect(Math.abs(r.png.h - r.screen.h * r.scale), '★웹 폴백의 획 높이가 화면과 다르다 — 바 높이가 그 길에서 죽었다').toBeLessThanOrEqual(3);
   expect(errs).toEqual([]);
 });
