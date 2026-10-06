@@ -1277,12 +1277,48 @@ async function initScratchPad(projectId, pageId) {
     let active = false;
     let _rafId = null;
     let lastMv = null;
+    let ended = false;
+
+    /* ★가장자리 자동 스크롤 (현빈 2026-10-06 「화면 밑에 드래그를 하면 화면 스크롤이 내려가면서
+     *   더 입력가능할수 있게 해줄래?」) — ★위쪽도 같이 한다(지디 2026-10-06 판정: 아래만 되면
+     *   위로 넓힐 때 막혀 같은 손짓인데 한쪽만 되는 결함으로 읽힌다). ⛔좌우는 이번 판에서 뺐다.
+     * ★고치기 전 실측(e7444dd3): 하단 −4px 에서 1.2초 보유 → scrollTop 1552 그대로(내려갈 여지
+     *   1876px 이 있었는데 0px 이동), 상자도 안 자랐다. 이 자리엔 'scroll' 문자열이 0건이었다.
+     * ⛔팬 여지(growPanRoom)를 늘리지 않는다 — 마지막 섹션 아래엔 고를 것이 없고, 늘리면 끝없이
+     *   내려간다. 스크롤 최대에서 «멈춘다». */
+    const EDGE_BAND = 40;    // 가장자리 띠(화면 px)
+    const EDGE_STEP = 24;    // 한 프레임 최대 스크롤(화면 px) — 60fps 에서 약 1440px/s
+
+    /** 포인터가 띠 안이면 세로로 스크롤한다. ★실제로 움직였으면 true(그때만 다음 프레임을 예약한다). */
+    const _edgeScroll = () => {
+      if (ended || !active || !lastMv) return false;
+      const wr = wrap.getBoundingClientRect();
+      const maxT = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+      const dBottom = wr.bottom - lastMv.clientY;   // 아래 끝에서의 거리(음수 = 화면 밖)
+      const dTop    = lastMv.clientY - wr.top;
+      let dy = 0;
+      if (dBottom < EDGE_BAND)   dy =  Math.ceil(EDGE_STEP * Math.min(1, (EDGE_BAND - dBottom) / EDGE_BAND));
+      else if (dTop < EDGE_BAND) dy = -Math.ceil(EDGE_STEP * Math.min(1, (EDGE_BAND - dTop)    / EDGE_BAND));
+      if (!dy) return false;
+      const before = wrap.scrollTop;
+      wrap.scrollTop = Math.max(0, Math.min(maxT, before + dy));
+      return wrap.scrollTop !== before;
+    };
 
     const _update = () => {
       _rafId = null;
       if (!lastMv || !marqueeEl) return;
-      const curX = (lastMv.clientX - scalerRect.left) / scale;
-      const curY = (lastMv.clientY - scalerRect.top)  / scale;
+      /* ★먼저 스크롤하고, 그 «뒤»에 상자를 잰다 — 같은 프레임에서 늘어난 만큼이 바로 상자에 든다. */
+      const scrolled = _edgeScroll();
+      /* ★scaler 를 «매 프레임» 다시 잰다. ⛔시작 때 캐시한 scalerRect 를 쓰면 안 된다 — 스크롤하면
+         scaler 가 client 좌표계에서 올라가므로 캐시는 그만큼 낡아, 「스크롤은 되는데 상자는 제자리」가
+         된다(그게 이 줄의 양성대조다 — 검사 M2). scale 도 같이 다시 읽는다(끌기 중 ⌘+/− 대비).
+         startX/startY·canvasBoxes·boxes 는 «모델 좌표»라 스크롤·배율과 무관하다 — 그대로 쓴다. */
+      const sr = scalerEl.getBoundingClientRect();
+      const sc = _getScale() || scale;
+      const curX = (lastMv.clientX - sr.left) / sc;
+      const curY = (lastMv.clientY - sr.top)  / sc;
+      if (scrolled && !_rafId) _rafId = requestAnimationFrame(_update);   // ★포인터가 멈춰 있어도 계속 돈다
       const x1 = Math.min(startX, curX), x2 = Math.max(startX, curX);
       const y1 = Math.min(startY, curY), y2 = Math.max(startY, curY);
       marqueeEl.style.left   = x1 + 'px';
@@ -1325,6 +1361,7 @@ async function initScratchPad(projectId, pageId) {
     };
 
     const onUp = () => {
+      ended = true;                       // ★이 뒤의 _update 는 «재지 않고 스크롤도 않는다»(_edgeScroll 가 먼저 빠진다)
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; _update(); }
