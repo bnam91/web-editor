@@ -1638,45 +1638,80 @@ window._scratchAddForMcp = async (src, { width } = {}) => {
   return { ok: true, scratchId: last.id, x, y, width: W };
 };
 
+/* 폴더 일괄 불러오기 — 파일들을 «폴더 단위»로 묶는다. 순수 함수.
+ * ★왜 필요했나(현빈 2026-10-06 「여러폴더를 넣을 시, 한줄로 들어가는데, 폴더단위로, 칼럼나눠서」):
+ *   옛 판은 `f.name`(basename)만으로 정렬해 «한 컬럼»에 전부 쌓았다 — 하위폴더가 여럿이면
+ *   같은 이름(img1.png)끼리 뭉쳐 ★폴더가 교대로 섞였다(실측 2026-10-06: 하위폴더 3개 → 컬럼 1개,
+ *   쌓인 순서 사용샷·모델컷·디테일·사용샷·…). 막는 벽은 없었다 — `File.webkitRelativePath` 가
+ *   폴더 경로를 그냥 주는데(실측: "reffolders/01_모델컷/img1.png") ★레포 어디서도 안 읽고 있었다.
+ * ★폴더 단위 = «최하위 폴더»(경로의 마지막 디렉터리). 2단 이상 중첩도 사람이 보는 「그 폴더」로 묶인다.
+ * ⚠️`webkitRelativePath` 는 폴더가 아닌 투입(드래그드롭·단일 파일 선택)에선 '' 이다 ⇒ 전부 한 묶음 =
+ *   옛 동작(컬럼 1개) 그대로. 그 길의 수를 바꾸지 않는다.
+ * ★묶음 순서 = 폴더 경로 오름차순, 묶음 «안»은 파일명 오름차순(numeric) — 비교기는 옛 것을 그대로 쓴다. */
+function _groupImagesByFolder(images) {
+  const cmp = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true });
+  const byDir = new Map();
+  for (const f of images) {
+    const rel = f.webkitRelativePath || '';
+    const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
+    if (!byDir.has(dir)) byDir.set(dir, []);
+    byDir.get(dir).push(f);
+  }
+  return [...byDir.keys()].sort(cmp)
+    .map(dir => ({ dir, files: byDir.get(dir).slice().sort((a, b) => cmp(a.name, b.name)) }));
+}
+
 // Port 드롭다운 → 폴더 일괄 불러오기 (goditor-images_to_scratchpad 스킬 UI판)
-// 좌표 정책: 첫 batch는 x=960부터 세로 컬럼. 이후 batch는 기존 max X 옆 컬럼(+GAP_X)에 새 세로 컬럼으로 추가
+// 좌표 정책: ★폴더 하나 = 세로 컬럼 하나. 첫 컬럼은 x=960부터, 다음 폴더는 기존 max X 옆 컬럼(+GAP_X)에 새 컬럼
 async function loadScratchpadFolder(event) {
   const files = [...(event.target.files || [])];
   event.target.value = ''; // 같은 폴더 재선택 가능하도록 즉시 리셋
   if (!files.length) return;
 
   const images = files
-    .filter(f => /^image\//.test(f.type) || /\.(png|jpg|jpeg|gif|webp)$/i.test(f.name))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    .filter(f => /^image\//.test(f.type) || /\.(png|jpg|jpeg|gif|webp)$/i.test(f.name));
   if (!images.length) { window.showToast?.('⚠️ 이미지 파일을 찾지 못했습니다'); return; }
 
-  const { x: startX, y: startY } = window._scratchNextSlot({ newColumn: true });
+  const groups = _groupImagesByFolder(images);
   const WIDTH = SCRATCH_PLACE.WIDTH, GAP_Y = SCRATCH_PLACE.GAP_Y;
 
-  let curY = startY, added = 0;
-  window.showToast?.(`📥 ${images.length}개 불러오는 중...`);
+  let added = 0, cols = 0;
+  window.showToast?.(groups.length > 1
+    ? `📥 ${groups.length}폴더 ${images.length}개 불러오는 중...`
+    : `📥 ${images.length}개 불러오는 중...`);
 
-  for (const file of images) {
-    const dataUrl = await new Promise(res => {
-      const r = new FileReader();
-      r.onload = e => res(e.target.result);
-      r.onerror = () => res(null);
-      r.readAsDataURL(file);
-    });
-    if (!dataUrl) continue;
-    const nat = await new Promise(res => {
-      const img = new Image();
-      img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight });
-      img.onerror = () => res({ w: WIDTH, h: WIDTH });
-      img.src = dataUrl;
-    });
-    const displayH = nat.w > 0 ? Math.round((nat.h / nat.w) * WIDTH) : WIDTH;
-    await window._scratchAddAndSave(dataUrl, startX, curY, WIDTH);
-    curY += displayH + GAP_Y;
-    added++;
+  for (const group of groups) {
+    /* ★컬럼은 «폴더마다» 연다 — 옛 판은 이 호출이 루프 «밖»에 한 번뿐이었다.
+       ⛔여기서 x 를 직접 계산하지 마라: 자리 규칙의 단일 진실소스는 _scratchNextSlot 이다
+       (START_X 하한·GAP_X·「컬럼 상한은 원래 없다」가 전부 그 함수 위 주석에 있다). */
+    const { x: startX, y: startY } = window._scratchNextSlot({ newColumn: true });
+    let curY = startY, inThisCol = 0;
+
+    for (const file of group.files) {
+      const dataUrl = await new Promise(res => {
+        const r = new FileReader();
+        r.onload = e => res(e.target.result);
+        r.onerror = () => res(null);
+        r.readAsDataURL(file);
+      });
+      if (!dataUrl) continue;
+      const nat = await new Promise(res => {
+        const img = new Image();
+        img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight });
+        img.onerror = () => res({ w: WIDTH, h: WIDTH });
+        img.src = dataUrl;
+      });
+      const displayH = nat.w > 0 ? Math.round((nat.h / nat.w) * WIDTH) : WIDTH;
+      await window._scratchAddAndSave(dataUrl, startX, curY, WIDTH);
+      curY += displayH + GAP_Y;
+      added++; inThisCol++;
+    }
+    if (inThisCol > 0) cols++;   // 한 장도 못 읽은 폴더는 컬럼으로 세지 않는다(「3컬럼」이 거짓이 되지 않게)
   }
 
-  window.showToast?.(`✅ 스크래치 ${added}개 추가 완료`);
+  window.showToast?.(cols > 1
+    ? `✅ 스크래치 ${cols}컬럼 ${added}개 추가 완료`
+    : `✅ 스크래치 ${added}개 추가 완료`);
 }
 
 window.loadScratchpadFolder = loadScratchpadFolder;
