@@ -383,11 +383,39 @@ function _soleSelectedHost() {
   if (sel.length !== 1 || !grdIsSoleSelected(sel[0])) return null;
   return sel[0];
 }
+
+/* 단축키가 쓸 «활성 줄» — ★사람이 실제로 고른 것만. (현빈 2026-10-06 「말풍선 블럭 선택후 g 누르면
+ * 풍선안에 g 가 추가되는 문제 / 진입 후 g 눌려야 되지않겠니?」)
+ *
+ * ★무엇이 문제였나(실측 2026-10-06, e7444dd3): 말풍선을 «한 번 클릭»한 것만으로 — editing 없음,
+ *   .tb-bubble contenteditable="false", document.activeElement=BODY — grdGetActiveLine 이
+ *   {r:0,c:0,li:null} 을 돌려줬다. 그래서 아래 lnAddLineToSelected 의 `if (!addr) return false` 가
+ *   ★참이 안 되고 g 가 소진돼, 말풍선이 줄 모드로 바뀌며 여백 줄이 들어가고 안내문구
+ *   (data-is-placeholder)가 사라졌다. 전역 갭 블록은 «안» 생겼다(g 갭추가 0).
+ *   ★같은 조건에서 다른 블럭 6종(text·chat·table·grid·step·asset)은 모두 갭 +1 로 정상 ⇒ 말풍선 한 자리.
+ *
+ * ★범인은 contenteditable·포커스·클래스가 아니다(셋 다 「고른 상태」와 「편집 중」을 정확히 가른다).
+ *   «활성 줄»이라는 ★넷째 상태였다 — lnAugmentBubblePanel(아래)이 «줄이 없는 말풍선»의 패널에
+ *   「＋ 줄 추가」를 띄우려고 그 기본 주소를 세운다. ⛔그 줄을 지우면 버블의 줄 추가가 죽는다.
+ *   ⇒ 두 쓰임을 «가른다»: ㉠패널이 그리는 기본 주소(그대로 둔다) ㉡단축키가 쓸 활성 줄(여기).
+ *
+ * ★둘째 명부를 만들지 «않는다» — 표식을 어딘가 세우고 지우는 대신 DOM 상태에서 ★파생시킨다
+ *   (세우는 자리와 지우는 자리가 둘이면 한쪽이 조용히 늙는다).
+ *   판정: 말풍선인데 ★줄이 아직 없고 주소가 li:null 이면 = 패널이 세운 기본값 ⇒ «없음».
+ * ⚠️챗은 이 갈래에 안 들어간다 — lnAugmentChatPanel 은 기본 주소를 안 세우므로(grdGetActiveLine 그대로)
+ *   챗의 「메시지만 고른 상태(li:null)에서 줄 추가」는 ★사람이 고른 것이고 그대로 살아 있어야 한다. */
+function _lnPickedLine(block) {
+  const addr = grdGetActiveLine(block);
+  if (!addr) return null;
+  if (block.classList.contains('speech-bubble-block') && !lnBubbleLines(block) && addr.li === null) return null;
+  return addr;
+}
+
 /** ⌫ — 고른 줄 하나를 지운다. 먹었으면 true. */
 export function lnDeleteActiveLine() {
   const block = _soleSelectedHost();
   if (!block) return false;
-  const addr = grdGetActiveLine(block);
+  const addr = _lnPickedLine(block);
   if (!addr || addr.li === null || addr.li === undefined) return false;
   const host = lnHostFor(block);
   const lines = host.getLines(addr.r);
@@ -404,7 +432,7 @@ export function lnDeleteActiveLine() {
 export function lnAddLineToSelected(type) {
   const block = _soleSelectedHost();
   if (!block) return false;
-  const addr = grdGetActiveLine(block);
+  const addr = _lnPickedLine(block);   // ★«사람이 고른 줄»만 — 줄 없는 말풍선의 기본 주소는 «없음»(위 주석)
   if (!addr) return false;
   const host = lnHostFor(block);
   const spec = type === 'gap' ? { type: 'gap', height: 16 } : { type: 'body', text: '' };
@@ -415,7 +443,9 @@ export function lnAddLineToSelected(type) {
 /** Esc — 줄 선택만 풀고 블럭은 남긴다(그리드 «상위 선택»과 같은 규칙). 먹었으면 true. */
 export function lnEscLine() {
   const block = _soleSelectedHost();
-  if (!block || !grdGetActiveLine(block)) return false;
+  /* ★_lnPickedLine — 옛 판은 grdGetActiveLine 을 봐서, «줄만 고른 적 없는» 말풍선에서도 Esc 가
+     여기서 소진됐다(블럭 선택 해제 대신 「줄 선택 풀기」로 샜다 — 2026-10-06 독해). */
+  if (!block || !_lnPickedLine(block)) return false;
   lnHostFor(block).show(null);
   return true;
 }
