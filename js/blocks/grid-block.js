@@ -134,6 +134,14 @@ export const GRID_IMG_CIRCLE_D = 120;
  *    (같은 파일 GRID_IMG_CIRCLE_D 가 이미 그 꼴로 쓰이고 있다 — 높이 칸 placeholder.)
  *  ⛔상수를 0 으로 바꾸는 것은 ★별건이다(기존 프로젝트 빈 슬롯 모양이 전부 바뀐다 — 시각 마이그레이션). */
 export const GRID_IMG_EMPTY_RADIUS = 0;   /* ★8 → 0 (현빈 2026-10-07 ★직접 결정 「0으로 하자」) */
+/* ★알약(배경색을 준 글자 줄)의 «미설정» 모서리 — 완전 둥근 알약. (현빈 2026-10-07 「만들라고 했어」)
+ *  ★여기 한 자리에 두는 까닭 = 패널 placeholder 가 ★이 수를 끌어다 쓴다(js/props/prop-grid.js).
+ *    ⛔패널에 999 를 손으로 적으면 명부가 둘이 되어, 이 수를 바꾸는 날 placeholder 가 조용히 뒤처진다.
+ *    (같은 꼴: GRID_IMG_EMPTY_RADIUS · GRID_IMG_CIRCLE_D — 새 관용구 0.)
+ *  ⚠️`line.radius` 는 ★두 뜻으로 쓰인다 — 이미지 줄(폴백 0 · :2082)과 알약(폴백 999 · 아래).
+ *    ★다만 패널 입력칸은 ★따로다(이미지 절 `grd-img-radius` ↔ 글자 절 `grd-badge-radius`)
+ *    ⇒ 그래서 placeholder 를 «상태 의존»으로 만들 필요가 ★없다(절이 이미 갈라져 있다). */
+export const GRID_BADGE_RADIUS = 999;
 /* ★T4② (현빈 2026-10-07 「높이·너비 ★100% 가 디폴트여야지 · 개별로 추가 조절했으면 그때만 별개 적용」)
  *  ★옛 뜻: 빈 이미지 슬롯의 «고정 높이» 180px.  ★새 뜻: «바닥»(min-height)이다.
  *  까닭 — 미설정이면 칸을 ★채운다(height:100%). 그런데 칸 높이가 ★그 슬롯으로만 정해지는 판
@@ -2416,7 +2424,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
   if (bg) {
     const padV = Number(line.padV) || Math.max(6, Math.round(size * 0.4));
     const padH = Number(line.padH) || Math.max(14, Math.round(size * 1.0));
-    const rad = Number.isFinite(Number(line.radius)) ? Number(line.radius) : 999;
+    const rad = Number.isFinite(Number(line.radius)) ? Number(line.radius) : GRID_BADGE_RADIUS;
     return `<div${addrAttr} style="text-align:${align};${mtCss}"><span class="grd-badge" style="display:inline-block;background:${bg};` +
       `font-size:${size}px;font-weight:${weight};line-height:1.2;letter-spacing:${role.ls};${color ? `color:${color};` : ''}` +
       `padding:${padV}px ${padH}px;border-radius:${rad}px;white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</span></div>`;
