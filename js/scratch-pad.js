@@ -1281,7 +1281,12 @@ async function initScratchPad(projectId, pageId) {
 
     /* ★가장자리 자동 스크롤 (현빈 2026-10-06 「화면 밑에 드래그를 하면 화면 스크롤이 내려가면서
      *   더 입력가능할수 있게 해줄래?」) — ★위쪽도 같이 한다(지디 2026-10-06 판정: 아래만 되면
-     *   위로 넓힐 때 막혀 같은 손짓인데 한쪽만 되는 결함으로 읽힌다). ⛔좌우는 이번 판에서 뺐다.
+     *   위로 넓힐 때 막혀 같은 손짓인데 한쪽만 되는 결함으로 읽힌다). ⛔좌우는 ★그 판(2fe08b09)에서 뺐다.
+     * ★좌우를 ★더한 판 = 2026-10-07 (현빈 「★드래그 자동 스크롤은 ★위아래만 됩니다 → ★이것도 되면 해」).
+     *   ★세로와 ★같은 꼴·★같은 수(EDGE_BAND·EDGE_STEP 를 ★그대로 쓴다 — 새 상수 0개).
+     *   ★가로 여지의 출처: #canvas-wrap 은 overflow:auto 이고 #canvas-scaler 에 ★좌우 대칭 팬 여백
+     *   (margin-left/right = clientWidth)이 상시 있다 ⇒ 실측(하네스 1500×800 · 배율 0.4): maxL 1960 ·
+     *   쉼 scrollLeft 980(양쪽 980px). ⛔가로도 팬 여지를 ★안 늘린다 — 세로와 같은 금지(검사 M12).
      * ★고치기 전 실측(e7444dd3): 하단 −4px 에서 1.2초 보유 → scrollTop 1552 그대로(내려갈 여지
      *   1876px 이 있었는데 0px 이동), 상자도 안 자랐다. 이 자리엔 'scroll' 문자열이 0건이었다.
      * ⛔팬 여지(growPanRoom)를 늘리지 않는다 — 마지막 섹션 아래엔 고를 것이 없고, 늘리면 끝없이
@@ -1289,7 +1294,11 @@ async function initScratchPad(projectId, pageId) {
     const EDGE_BAND = 40;    // 가장자리 띠(화면 px)
     const EDGE_STEP = 24;    // 한 프레임 최대 스크롤(화면 px) — 60fps 에서 약 1440px/s
 
-    /** 포인터가 띠 안이면 세로로 스크롤한다. ★실제로 움직였으면 true(그때만 다음 프레임을 예약한다). */
+    /** 포인터가 띠 안이면 ★세로·가로로 스크롤한다. ★실제로 움직였으면 true(그때만 다음 프레임을 예약한다).
+     * ★축마다 «따로» 재고 «따로» clamp 한다 ⇒ 모서리(예: 오른쪽 아래 끝)에서 둘이 ★같이 돌아도
+     *   ★세로 속도는 세로만일 때와 ★그대로다(두 배가 아니다 — 검사 M11 이 그것을 잠근다).
+     *   ⛔합성 길이를 EDGE_STEP 으로 «정규화»하지 않는다 — 그러면 모서리에서 ★세로가 느려져
+     *   «위아래 동작»이 바뀐다(발주: 위아래 무변이 더 중요하다). */
     const _edgeScroll = () => {
       if (ended || !active || !lastMv) return false;
       const wr = wrap.getBoundingClientRect();
@@ -1299,10 +1308,18 @@ async function initScratchPad(projectId, pageId) {
       let dy = 0;
       if (dBottom < EDGE_BAND)   dy =  Math.ceil(EDGE_STEP * Math.min(1, (EDGE_BAND - dBottom) / EDGE_BAND));
       else if (dTop < EDGE_BAND) dy = -Math.ceil(EDGE_STEP * Math.min(1, (EDGE_BAND - dTop)    / EDGE_BAND));
-      if (!dy) return false;
-      const before = wrap.scrollTop;
-      wrap.scrollTop = Math.max(0, Math.min(maxT, before + dy));
-      return wrap.scrollTop !== before;
+      /* ★좌우 — 위 세로 블럭과 ★완전 대칭(bottom↔right · top↔left · maxT↔maxL · dy↔dx). */
+      const maxL = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+      const dRight = wr.right - lastMv.clientX;     // 오른 끝에서의 거리(음수 = 화면 밖)
+      const dLeft  = lastMv.clientX - wr.left;
+      let dx = 0;
+      if (dRight < EDGE_BAND)     dx =  Math.ceil(EDGE_STEP * Math.min(1, (EDGE_BAND - dRight) / EDGE_BAND));
+      else if (dLeft < EDGE_BAND) dx = -Math.ceil(EDGE_STEP * Math.min(1, (EDGE_BAND - dLeft)  / EDGE_BAND));
+      if (!dy && !dx) return false;
+      const before = { t: wrap.scrollTop, l: wrap.scrollLeft };
+      if (dy) wrap.scrollTop  = Math.max(0, Math.min(maxT, before.t + dy));
+      if (dx) wrap.scrollLeft = Math.max(0, Math.min(maxL, before.l + dx));
+      return wrap.scrollTop !== before.t || wrap.scrollLeft !== before.l;
     };
 
     const _update = () => {
