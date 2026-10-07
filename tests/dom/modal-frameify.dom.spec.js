@@ -165,7 +165,9 @@ test('U1 ★프레임화 → ⌘Z 한 번 = 앞 직렬화와 글자 단위로 �
   const post = await page.evaluate(() => ({ ser: window.getSerializedCanvas(), ds: document.getElementById('mdlT') ? { ...document.getElementById('mdlT').dataset } : null, sel: document.getElementById('mdlT')?.classList.contains('selected'), frame: !!document.querySelector('#innerF > .frame-block') }));
   expect(post.frame, '★⌘Z 한 번에 프레임이 안 사라졌다').toBe(false);
   expect(post.ds).toEqual(pre.ds);
-  expect(post.ser === pre.ser, '★⌘Z 결과가 프레임화 «앞»과 다르다').toBe(true);
+  /* ⛔`toBe(true)` 는 「무엇이 다른지」를 안 찍는다 — 조사가 증거를 지운다(지디 2026-10-08).
+     ⇒ 문자열을 바로 견준다. 빨개지면 playwright 가 diff 를 그려 준다. */
+  expect(post.ser, '★⌘Z 결과가 프레임화 «앞»과 다르다').toBe(pre.ser);
   expect(post.sel).toBe(true);
 });
 test('U1b 히스토리 꼭대기 이름 = 「프레임화 하기」 — «뒤» 표본(pushHistory)이 실제로 찍혔다', async ({ page }) => {
