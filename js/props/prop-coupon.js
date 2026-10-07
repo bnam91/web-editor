@@ -21,7 +21,7 @@ import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 /* ★HTML 이스케이프는 ★정본 하나다 — ⛔제 사본을 만들지 마라
    (tests/unit/name-axes-to-markup X9 가 사본 수를 센다). */
-import { blockHeaderHTML, escHtml as _esc } from './_helpers.js';
+import { blockHeaderHTML, escHtml as _esc, disclosureChevronHtml } from './_helpers.js';
 import {
   COUPON_SLOTS, COUPON_SLOT_KEYS, COUPON_DEFAULTS, COUPON_LIMITS, clampCoupon,
   _dsKey, _slotOf, _cpnBoxH, couponStubHasRoom,
@@ -72,14 +72,24 @@ function _slotListHTML(block, openKey) {
     const style = dead ? ' style="opacity:0.4;pointer-events:none"' : '';
     const sel = (def.key === openKey) ? ' style="font-weight:700"' : '';
     const preview = sl.isPh ? `<span style="opacity:.55">${_esc(def.ph)}</span>` : _esc(sl.txt);
+    const open = (def.key === openKey);
+    /* ★줄 꼴은 ★prop-laurel.js:51~59 의 «줄 머리»와 ★같다 — 라벨 ＋ 체크 ＋ ★아이콘 토글.
+       ⛔글자 단추(「열기」)를 ★쓰지 않는다: 줄 폭 211 에서 ★17px 로 눌려 ★두 줄로 쪼개졌다
+         (지디 실앱 QA 2026-10-07 · tests/dom C-PANEL5 가 그 자로 잰다).
+       ★`.prop-icon-btn` 은 ★22×22 고정 ＋ `flex-shrink:0` 을 ★이미 갖고 있다(css/editor-props.css).
+       ★쉐브론은 ★정본 하나를 부른다 — `_helpers.disclosureChevronHtml`
+         (T-234: ⛔여기에 다시 인라인으로 그리지 마라 · 네 패널이 같은 마크업을 쓴다).
+       ★`.prop-none-check` 도 ★정본이다(editor-props.css:526 — `flex-shrink:0; white-space:nowrap`).
+         ⛔전에 쓴 `.prop-check` 는 ★내가 ★지어낸 이름이었다(레포 전수 1건 = 이 파일 · CSS 0건). */
     return `
       <div class="prop-row"${style}>
-        <span class="prop-label"${sel}>${_esc(def.label)}</span>
-        <label class="prop-check" style="margin-right:6px">
-          <input type="checkbox" data-cpn-on="${def.key}"${sl.on ? ' checked' : ''}> 표시
+        <span class="prop-label"${sel} title="${_esc(def.label)}">${_esc(def.label)}</span>
+        <label class="prop-none-check" title="이 칸을 캔버스에 보일지">
+          <input type="checkbox" data-cpn-on="${def.key}"${sl.on ? ' checked' : ''} aria-label="${_esc(def.label)} 표시">
         </label>
-        <button class="prop-btn" data-cpn-open="${def.key}" title="이 칸만 열기">${def.key === openKey ? '닫기' : '열기'}</button>
-        <span class="prop-hint" style="margin-left:6px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</span>
+        <button class="prop-icon-btn" data-cpn-open="${def.key}" aria-expanded="${open ? 'true' : 'false'}"
+                title="${open ? '이 칸 접기' : '이 칸만 열기'}">${disclosureChevronHtml(open)}</button>
+        <span class="prop-hint" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</span>
       </div>`;
   }).join('');
   const note = stubRoom ? '' : `

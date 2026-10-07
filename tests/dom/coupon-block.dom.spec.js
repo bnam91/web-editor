@@ -27,14 +27,23 @@ const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'tex
    호스트 폭 860 = 고디터 캔버스 폭. */
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="/css/editor-base.css">
-<link rel="stylesheet" href="/css/editor-blocks.css"></head><body style="margin:0">
+<link rel="stylesheet" href="/css/editor-blocks.css">
+<!-- ★★우측 패널 CSS 를 ★같이 얹는다 (2026-10-07 — ★이게 없어서 ★결함을 놓쳤다).
+     ⛔안 얹으면 «.prop-row»·«.prop-label»·«.prop-btn» 에 ★스타일이 ★0 이고 «#panel-right» 에
+       ★폭이 ★없다 ⇒ 패널이 ★본문 폭(1280)으로 펴져 ★아무것도 안 눌린다.
+     ★그래서 C-PANEL5 가 ★고장난 판에서도 ★초록이었다 — ★장면이 ★앱과 달랐다.
+     ★앱의 참값: css/editor-panels.css:67 «#panel-right{width:var(--panel-right-w,240px)}»
+                 · :255 «.panel-body{padding:6px}» -->
+<link rel="stylesheet" href="/css/editor-panels.css">
+<link rel="stylesheet" href="/css/editor-props.css"></head><body style="margin:0">
 <div id="canvas-scaler" style="transform: scale(1); transform-origin: 0 0;">
   <div id="canvas" style="width:860px">
     <div class="section-block"><div class="section-inner" id="host" style="width:860px"></div></div>
   </div>
 </div>
 <div id="ss-handles-overlay"></div>
-<div id="panel-right"><div class="panel-body"></div></div>
+<!-- ★«class=panel» 까지 ★앱 그대로(index.html:558) — 그 클래스가 레이아웃을 준다 -->
+<div class="panel" id="panel-right"><div class="panel-body"></div></div>
 <script src="/js/feature-flags.js"></script>
 <!-- ★«진짜» panel-dispatch + selectBlock 을 얹는다(플레인 스크립트).
      스텁을 쓰면 C-PANEL 의 전제(「표가 패널을 연다」)가 사라져 거짓 그린이 된다. -->
@@ -275,6 +284,71 @@ test('C-PANEL4 ★자리가 없는 스텁 줄은 «회색»이고 까닭을 적�
   /* ★음성대조 — «다른» 줄은 ★안 흐리다. 전부 흐리면 아무것도 안 재는 것이다. */
   expect(parseFloat(r.numOpacity)).toBe(1);
   expect(r.why).toBe(true);
+  expect(errs).toEqual([]);
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   C-PANEL5 — ★«있나»가 아니라 ★«읽히나». 지디 실앱 QA 2026-10-07
+   ───────────────────────────────────────────────────────────────────────────
+   ★지디가 ★별도 포트 9381 에서 ★사람처럼 눌러 찾은 결함:
+       패널 폭 240 · 줄 폭 ★211 · ★「열기」 단추 = ★★17×24 px
+       ⇒ ★「열」/「기」가 ★세로로 쪼개져 보였다.
+   ★★내 C-PANEL2 는 [data-cpn-open] 이 ★5개 «있나»만 쟀다 ⇒ ★초록이었다.
+
+   ══ ★자를 ★두 번 갈았다 — 그 경위를 적는다(둘 다 ★실측) ═════════════════════
+   ⒜ ★첫 자 = scrollWidth > clientWidth  ⇒ ★못 잡는다. ★단추는 overflow 가 visible 이라
+      글자가 ★넘쳐도 scrollWidth 가 ★안 자란다(실측 btn 17px 인데 over ★0).
+   ⒝ ★맞는 자 = ★«글자가 차지한 줄 상자 수» (Range.getClientRects().length).
+      실측(고치기 전): 「윗줄」 ★1줄 ✅ · ★「표시」 ★3줄 ⛔ · ★「열기」 ★2줄 ⛔
+      ⇒ ★지디가 본 것보다 ★더 나빴다 — 체크박스 라벨이 ★셋으로 쪼개져 높이가 38px 이었다.
+   ★이 자는 ⛔px 수를 ★안 박는다 — 글꼴·배율이 바뀌어도 「한 줄인가」는 ★그대로 참이다.
+   ⚠️미리보기(.prop-hint)는 ★«일부러» 줄임표로 자른다 — ★그물에서 ★빼고 까닭을 적는다.
+
+   ══ ★하네스도 같이 고쳤다 — ★이게 ★진짜 구멍이었다 ═══════════════════════════
+   ⛔이 파일의 하네스는 ★editor-panels.css·editor-props.css 를 ★안 얹고 있었다 ⇒
+     .prop-row·.prop-label 에 ★스타일이 0 · #panel-right 에 ★폭이 0 ⇒ 패널이 ★본문 폭으로 펴져
+     ★아무것도 안 눌렸다. ⇒ ★자를 ⒝로 갈아도 ★여전히 초록이었을 것이다.
+   ★얹은 뒤 실측: panel ★240 · row ★211 · btn ★17×24 — ★지디의 실앱 수와 ★같다.
+   ★교훈: ★검사가 제 장면을 손으로 만들면 ★«그 꼴이 앱에서 생기나»부터 재라.
+═══════════════════════════════════════════════════════════════════════════ */
+
+test('C-PANEL5 ★칸 목록의 라벨·토글·체크박스가 «한 줄»에 읽힌다 (글자가 쪼개지지 않는다)', async ({ page }) => {
+  // ⇐ 되돌리기: 토글을 다시 «글자 단추»(.prop-btn 「열기」)로 바꾸면 그 칸이 2줄이 되어 빨강
+  const errs = await boot(page);
+  await mount(page);
+  const r = await page.evaluate(() => {
+    window.__open(window.__block);
+    const pr = document.getElementById('panel-right');
+    const rows = [...pr.querySelectorAll('.prop-row')].filter(x => x.querySelector('[data-cpn-open]'));
+    const split = [], seen = [];
+    for (const row of rows) {
+      for (const el of [...row.children]) {
+        if (el.classList.contains('prop-hint')) continue;   // ★일부러 줄임표로 자르는 칸
+        const txt = (el.textContent || '').trim();
+        if (!txt) continue;                                  // 글자가 없으면 「읽히나」가 뜻이 없다
+        const rg = document.createRange();
+        rg.selectNodeContents(el);
+        /* ★★줄 수 = «구별되는 y» 의 수다. ⛔getClientRects().length 로 세지 마라 —
+           그건 ★«글자 토막(run)»을 센다. 실측: `.prop-label「스텁/머리 글자」` 는 ★한 줄인데
+           (두 rect 의 y 가 ★똑같이 657) rect 는 ★2개였다 ⇒ ★멀쩡한 줄을 ★결함으로 읽었다.
+           ★`.prop-label` 은 nowrap ＋ ellipsis 라 ★넘쳐도 ★한 줄이다(그게 ★설계다). */
+        const lines = new Set([...rg.getClientRects()].map(x => Math.round(x.y))).size;
+        seen.push({ cls: el.className || el.tagName, txt: txt.slice(0, 8), lines,
+                    w: Math.round(el.getBoundingClientRect().width) });
+        if (lines > 1) split.push(`${el.className || el.tagName}「${txt.slice(0, 8)}」 ${lines}줄 (폭 ${Math.round(el.getBoundingClientRect().width)}px)`);
+      }
+    }
+    return { rowCount: rows.length, panelW: Math.round(pr.getBoundingClientRect().width),
+             rowW: rows[0] ? Math.round(rows[0].getBoundingClientRect().width) : null, seen, split };
+  });
+  /* ★전제 ① — ★장면이 ★앱과 같은가. ⛔패널이 넓으면 아무것도 안 눌려 이 검사가 «안 재고 있다». */
+  expect(r.panelW, `패널 폭 ${r.panelW} — 앱(240)과 다르다. 패널 CSS 를 안 얹었나`).toBe(240);
+  expect(r.rowW, `줄 폭 ${r.rowW} — 지디 실앱 실측 211 과 다르다`).toBe(211);
+  /* ★전제 ② — 잴 줄이 ★다섯이고 잰 요소가 ★있다(0 이면 「0건이 초록」) */
+  expect(r.rowCount, '칸 목록 줄을 못 찾았다').toBe(5);
+  expect(r.seen.length, `잰 요소가 ${r.seen.length}개뿐이다`).toBeGreaterThanOrEqual(5);
+  /* ★본단언 — ★잰 값을 메시지에 찍는다 */
+  expect(r.split, `★쪼개진 것: ${JSON.stringify(r.split)}\n잰 것: ${JSON.stringify(r.seen)}`).toEqual([]);
   expect(errs).toEqual([]);
 });
 
