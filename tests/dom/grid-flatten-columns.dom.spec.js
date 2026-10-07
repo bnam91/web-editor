@@ -322,6 +322,7 @@ test('F7 [새 것] the flatten button appears only at rows>=2, and opening the p
 const fs = require('fs');
 const path = require('path');
 const GOLD = path.join(__dirname, 'fixtures', 'grid-flatten-y0-golden.json');
+const { tokensBack } = require('./_golden-tokens.js');
 
 test('F8 [회귀 지킴] grids that never flatten render byte-identical to the pinned board', async ({ page }) => {
   const errs = await scene(page);
@@ -357,8 +358,20 @@ test('F8 [회귀 지킴] grids that never flatten render byte-identical to the p
   const want = JSON.parse(fs.readFileSync(GOLD, 'utf8'));
   // ★꼴 집합이 같은지부터 — 빠진 꼴이 «통과»로 보이지 않게
   expect(Object.keys(got).sort()).toEqual(Object.keys(want).sort());
+  /* ★«뜻한 바뀜» 토큰은 옛 꼴로 되돌려 견준다 — 정본 = tests/dom/_golden-tokens.js (까닭·명부는 거기).
+     ★WANT = 이 핀이 ★어느 판인가로 고른다. ⛔골든을 갱신하지 마라 — 위 머리말의 가드가 그 까닭이다. */
+  const WANT = ['FONT'];
+  const rc = {};
   for (const k of Object.keys(want)) {
-    expect(got[k], `★«${k}» 그리드의 렌더 바이트가 핀 판과 다르다 — 펴기를 안 부른 꼴인데 산출이 바뀌었다`).toBe(want[k]);
+    const bk = tokensBack(got[k], WANT);
+    for (const t of WANT) rc[t] = (rc[t] || 0) + (bk.counts[t] || 0);
+    expect(bk.s, `★«${k}» 그리드의 렌더 바이트가 핀 판과 다르다 — 펴기를 안 부른 꼴인데 산출이 바뀌었다(뜻한 바뀜 토큰만 되돌린 뒤)`).toBe(want[k]);
   }
+  console.log(`F8 토큰 되돌림 ${JSON.stringify(rc)} / ${Object.keys(want).length} 꼴`);
+  for (const t of WANT) expect(rc[t] || 0, `영수증 — ${t} 토큰을 실제로 되돌렸다(잰 값 ${rc[t] || 0})`).toBeGreaterThan(0);
+  /* ★양성대조 — 토큰 아닌 바이트 하나를 바꾼 사본은 되돌려도 핀과 «달라야» 한다. */
+  const _k0 = Object.keys(want).find(k => String(got[k]).includes('grd-cell')) || Object.keys(want)[0];
+  expect(tokensBack(String(got[_k0]).replace('grd-cell', 'grd-cellX'), WANT).s,
+    `[양성대조] 토큰 아닌 바이트를 바꾸면 되돌려도 핀과 다르다 (${_k0})`).not.toBe(want[_k0]);
   expect(errs).toEqual([]);
 });
