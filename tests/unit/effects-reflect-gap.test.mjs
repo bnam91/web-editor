@@ -160,3 +160,50 @@ test('⒟ ★하한에서 ★여백 0 이 되는 조합이 ★실재한다 — �
   assert.doesNotMatch(RAW, /간격[^\n]*시안 슬라이더 그대로/,
     '★간격의 까닭이 아직 「시안 그대로」다 — 그 까닭은 ★현빈이 물렀다');
 });
+
+/* ─────────────────────────────────────────────
+   ⒠ ★★음수 간격에서 ★반사가 ★«블럭 자신»을 ★덮는 양 — ★★탐침에서 ★옮겨 왔다
+   (출처: `tests/dom/_gdprobe-t8.dom.spec.js` PR2, 2026-10-07 측정 후 ★치웠다)
+   ★왜 여기로 — ★덮는 ★양은 ★산수다(브라우저가 필요 없다) ⇒ ★부하 0 으로 ★잠근다.
+   ★★⛔이 칸이 ★«못 잠그는 것»: ★★「CSS `-webkit-box-reflect: below <gap>px` 가
+     ★반사 윗변을 ★«블럭 하단 + gap» 에 ★둔다」는 ★가정 자체. ★그건 ★DOM 이 필요하다
+     ⇒ ★★별건으로 올렸다. ★그 전까지 ★이 칸은 ★«그 가정 위의 산수»만 잠근다.
+   ───────────────────────────────────────────── */
+test('⒠ ★음수 간격의 ★덮는 양 — ★−40 은 ★높이 40 미만 블럭에서 ★블럭 위로 넘어간다', () => {
+  /* ★CSS 정의: 반사 윗변 y = 블럭 하단 + gap ⇒ gap<0 이면 ★−gap 만큼 블럭을 덮는다 */
+  const overlap = (gap) => Math.max(0, -gap);
+  const spillsAbove = (gap, h) => -gap > h;     /* 블럭 ★위로 완전히 넘어간다 */
+
+  const lo = ranges().gLo;
+  assert.strictEqual(lo, -40, `★전제 — 하한이 ${lo} 다(이 칸의 수가 하한에 매여 있다)`);
+
+  /* ⒠-1 ★덮는 양은 ★간격의 절댓값 — ⛔양수 간격은 ★0 이다(항등식이 아니라는 증인) */
+  assert.strictEqual(overlap(-40), 40);
+  assert.strictEqual(overlap(-20), 20);
+  assert.strictEqual(overlap(0), 0);
+  assert.strictEqual(overlap(40), 0, '★양수 간격인데 덮는다고 나왔다 — 식이 뒤집혔다');
+
+  /* ⒠-2 ★★분기점 — ★높이 ★40 이 ★하한의 경계다 */
+  assert.strictEqual(spillsAbove(lo, 41), false, '★h=41 인데 넘어간다고 나왔다');
+  assert.strictEqual(spillsAbove(lo, 40), false, '★h=40(경계)에서 넘어간다고 나왔다 — 등호 자리를 봐라');
+  assert.strictEqual(spillsAbove(lo, 39), true,
+    '★★h=39 에서 ★안 넘어간다고 나왔다 — ★이 칸이 ★분기점을 ★못 잡고 있다');
+
+  /* ⒠-3 ★★하한을 넓힌 ★대가를 ★수로 적는다.
+     ⚠️넘어가기 시작하는 ★높이 상한은 ★`overlap` 과 ★«같은 식»이다 — ★따로 함수를 두면
+       ★이름만 둘인 ★같은 식을 ★검사처럼 세우게 된다 ⇒ ★하나로 센다. */
+  assert.ok(overlap(lo) > overlap(-20),
+    `★하한을 ${lo} 로 넓혔는데 ★넘어가는 높이대(${overlap(lo)}) 가 ★−20 때(${overlap(-20)}) 보다 ★안 넓다`
+    + ' — 대가가 ★0 이면 ★이 칸이 공회전이다');
+  assert.strictEqual(spillsAbove(-20, 25), false, '★−20 은 h=25 에서 ★안 넘어갔다 — 그게 넓힌 대가의 기준선');
+  assert.strictEqual(spillsAbove(lo, 25), true,
+    `★${lo} 에서는 h=25 가 ★넘어가야 한다 — ★두 하한이 ★같은 판정을 내면 ★대가를 ★안 재고 있다`);
+
+  /* ⒠-4 ★음성대조 — ★식을 ★뒤집으면 ★다른 답이 나온다(⛔항등식 아님) */
+  const wrong = (gap) => Math.max(0, gap);
+  assert.notStrictEqual(wrong(-40), overlap(-40),
+    '★뒤집은 식이 ★같은 답을 낸다 — ★이 단언들은 ★아무것도 안 잠근다');
+
+  console.log(`  ⒠ ★하한 ${lo} → 덮는 양 ${overlap(lo)}px · ★블럭 위로 넘어가는 높이 = ${overlap(lo)}px 미만`
+    + ` (−20 이었을 때는 ${overlap(-20)}px 미만)`);
+});
