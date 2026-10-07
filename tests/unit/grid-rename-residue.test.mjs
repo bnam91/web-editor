@@ -19,68 +19,36 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-/* ── 주석 제거기 ────────────────────────────────────────────────
- * ★단순 상태기계로는 «틀린다» — 이 레포는 중첩 템플릿 리터럴
- *   (`a${b ? `c` : ''}d`)과 따옴표를 품은 정규식(/['"]/)을 쓴다.
- *   둘 중 하나만 놓쳐도 상태가 어긋나 «주석이 코드로, 코드가 주석으로» 보인다.
- *   ⇒ 템플릿은 스택으로, 정규식은 «직전 유의미 토큰»으로 판정한다.
- *   이 함수 자체를 아래 «제거기 자기검사»가 지킨다.
+/* ── 주석 제거기 — ★공용 부품을 ★쓴다(제 것을 ★안 만든다) ─────────────────
+ * ★★2026-10-07 — 여기 있던 ★자기 제거기 ★45줄을 ★걷고 `_strip-comments.js` 로 갔다.
  *
- * ⛔★2026-09-09 실측 결함 — 「템플릿 «안»인가」를 «맨 먼저» 물어야 한다.
- *   초판은 `/*` · `//` · 따옴표 분기가 템플릿 분기보다 «위»에 있었다. 그래서 템플릿 리터럴
- *   안의 평범한 글자가 코드로 읽혔다. 실측 세 갈래(전부 이 레포에 나올 수 있는 모양):
- *     `it's ${x}`        → 「'」 를 문자열 시작으로 읽어 그 뒤 주석이 «코드»가 됐다
- *     `https://a.com`    → 「//」 를 줄 주석으로 읽어 «줄 나머지를 통째로» 먹었다
- *     `a /* b *\/ c`      → 「/*」 를 블록 주석으로 읽었다
- *   ⇒ 첫째 갈래를 grid-block.js 의 새 거절 메시지가 실제로 밟아 S1 이 «주석 12줄»을
- *     코드로 신고했다. 검사가 «틀린 것»을 신고하면 진짜 잔존은 그 소음에 묻힌다.
- *   ★그리고 이건 자기검사 5건이 «전부 초록»인 채로 났다 — 셋 다 검사에 없던 모양이었다.
- *     「검사가 있다」 ≠ 「그 모양을 밟는다」. 그래서 셋을 아래에 «전부» 박았다. */
-function stripComments(src) {
-  const out = [];
-  const stack = [];              // 템플릿 리터럴 중첩 깊이(`${` 안의 `)
-  let i = 0, prev = '';          // prev = 직전 유의미 문자(정규식 판정용)
-  const n = src.length;
-  const keep = (c) => { out.push(c); if (!/\s/.test(c)) prev = c; };
-  const blank = (c) => out.push(c === '\n' ? '\n' : ' ');
-  while (i < n) {
-    const c = src[i], c2 = src.slice(i, i + 2);
-    /* ★★「템플릿 «안»인가」가 «맨 먼저» — 위 주석의 실측 결함. 여기가 아래로 내려가면
-       템플릿 안의 `'` · `//` · `/*` 가 각각 문자열·주석으로 읽혀 상태가 통째로 어긋난다. */
-    if (stack.length && stack[stack.length - 1] === '`') {
-      // 템플릿 리터럴 «안» — `${` 를 만나면 코드 모드로 돌아간다(중첩 가능).
-      if (c === '\\') { out.push('  '); i += 2; continue; }
-      if (c2 === '${') { stack.push('${'); keep('$'); keep('{'); i += 2; continue; }
-      if (c === '`') { stack.pop(); keep(c); i++; continue; }
-      out.push(c === '\n' ? '\n' : c); i++; continue;
-    }
-    if (c2 === '/*') { i += 2; out.push('  '); while (i < n && src.slice(i, i + 2) !== '*/') blank(src[i++]); i += 2; out.push('  '); continue; }
-    if (c2 === '//') { i += 2; out.push('  '); while (i < n && src[i] !== '\n') blank(src[i++]); continue; }
-    if (c === '"' || c === "'") { keep(c); i++; while (i < n && src[i] !== c) { if (src[i] === '\\') { out.push('  '); i += 2; } else { out.push(src[i] === '\n' ? '\n' : src[i]); i++; } } keep(src[i] ?? ''); i++; continue; }
-    if (c === '`') { stack.push('`'); keep(c); i++; continue; }
-    if (c === '}' && stack[stack.length - 1] === '${') { stack.pop(); keep(c); i++; continue; }
-    if (c === '/') {
-      // 정규식 리터럴인가? 직전 유의미 문자가 «값의 끝»이면 나눗셈, 아니면 정규식.
-      const isRegex = !/[A-Za-z0-9_$)\]]/.test(prev);
-      if (isRegex) {
-        keep(c); i++;
-        let inClass = false;
-        while (i < n) {
-          const d = src[i];
-          if (d === '\\') { out.push('  '); i += 2; continue; }
-          if (d === '[') inClass = true;
-          else if (d === ']') inClass = false;
-          else if (d === '/' && !inClass) break;
-          else if (d === '\n') break;             // 미종결 정규식 — 방어
-          out.push(d); i++;
-        }
-        keep('/'); i++; continue;
-      }
-    }
-    keep(c); i++;
-  }
-  return out.join('');
-}
+ * ★왜 — ★그 자기 제거기가 ★이 파일 ★자신을 ★눈멀게 하고 있었다. ★행위로 쟀다:
+ *   `js/blocks/grid-block.js` 를 걸러 ★«살아남은 주석 줄»을 세면
+ *     ★자기 제거기 = ★100줄 (★첫 줄 3407) · ★공용 부품 = ★0줄
+ *   ⇒ ★base(`64a06566`)에서 ★이미 ★멀어 있었다. S1 이 ★그때 초록이던 까닭은
+ *     ★그 먼 구간에 `duo` 를 품은 주석이 ★아직 ★없었을 뿐이다(= ★「괜찮다」가 아니라 ★「안 봤다」).
+ *   ⇒ 그리고 `gd/gridcol` 의 `4b0dbd4e` 가 ★그 구간에 ★주석 한 줄을 적자 S1 이 ★빨개졌다.
+ *     ★그 주석은 ★제품 동작을 ★한 줄도 안 바꾼다 — ★빨강의 임자는 ★이 거르개였다.
+ *
+ * ★어긋난 자리 — ★한 줄로 적어 둔다(⛔다음 사람이 ★또 자기 것을 짓지 않게):
+ *     return /^<div[^>]*\sclass="grd-line\s/.test(html)
+ *   ★자기 제거기는 「정규식이냐 나눗셈이냐」를 ★«직전 유의미 글자»로만 갈랐고,
+ *   그 글자가 `return` 의 ★`n`(영숫자)이라 ★나눗셈으로 읽었다. ⇒ 정규식 안의 `"` 가
+ *   ★문자열을 열어 그 뒤 상태가 통째로 어긋났다. ★공용 부품은 `return` 을 ★키워드로 안다.
+ *   ★양성대조(실측): ★그 한 줄만 괄호로 감싸니 살아남은 주석 줄 ★100 → ★0.
+ *
+ * ★★`templateAware: true` 로 켠다 — 이 레포는 ★여러 줄 템플릿 안에 ★주석을 쓴다
+ *   (`js/props/prop-grid.js` 의 알약 주석이 ★그 꼴이고, ★name-axes X5 를 ★빨갛게 만든 자다).
+ *   ⛔그 모드는 ★정규식을 안 파싱하므로 ★`templateBalanced()` 를 ★«전제»로 ★같이 건다(아래 S0).
+ * ⛔여기에 ★다시 제거기를 ★만들지 마라 — `strip-comments-shared.test.js` S-6 이 그것을 막고,
+ *   ★이 파일은 ★그 ★LEGACY 허용목록에서 ★빠졌다(같은 커밋).
+ * ★★그래서 ★별칭 수입이다 — ⛔공용본을 감싸는 ★지역 상수를 ★`stripComments` 라는 ★이름으로
+ *   ★선언하면 ★그 S-6 이 ★이 파일을 ★«자기 제거기를 만들었다»로 ★잡는다(그 자는 ★정의를 찾는다).
+ *   ★★⚠️그 함정을 ★내가 ★한 번 밟았다(2026-10-07) — ★그 선언 꼴을 ★이 주석에 ★«예시»로 적었더니
+ *     ★S-6 이 ★주석을 ★안 걷고 ★raw 로 읽어 ★이 파일을 ★잡았다. ⇒ ⛔금지 꼴을 ★«그대로» 적지 마라.
+ *     (같은 병의 선례 = 소스 파싱 게이트의 입력에 ★주석이 들어가는 자리.)
+ *   ⇒ `templateAware` 를 켠 이름은 ★정본이 ★`stripCommentsTA` 로 ★내준다. */
+import { stripCommentsTA as stripComments, templateBalanced } from './_strip-comments.js';
 
 /* ── 허용 목록 — «파일까지» 일치해야 한다 ── */
 const ALLOW = [
@@ -112,6 +80,44 @@ function targets() {
   return execFileSync('git', ['ls-files', 'js', 'css', 'index.html'], { cwd: ROOT, encoding: 'utf8' })
     .split('\n').filter(Boolean);
 }
+
+/* ★S0 — ★이 검사의 ★«자기 전제». ⛔S1 의 「0건」을 믿기 전에 ★거르개가 ★제 일을 했나부터.
+ *  `templateAware` 는 ★정규식 리터럴을 ★안 파싱한다 ⇒ 정규식 «안»의 백틱 하나가
+ *  ★템플릿 보간을 ★열린 채 남기면 ★그 뒤 파일 전체가 ★«안 보인다» — 그러면 S1 은 ★조용히 초록이다.
+ *  ⇒ ★훑는 파일 ★전수에 대해 ★균형을 ★단언한다. ★이게 ★빨개지면 S1 의 초록은 ★근거가 없다. */
+test('S0 ★전제 — 거르개가 훑는 파일 전수에서 템플릿 보간이 «닫힌다»(안 그러면 S1 은 안 본 것이다)', () => {
+  const files = targets();
+  assert.ok(files.length > 50,
+    `★훑을 파일이 ${files.length}개뿐이다 — 이 검사가 «안 돈» 것이지 통과가 아니다`);
+  const unbalanced = files.filter(f => !templateBalanced(fs.readFileSync(path.join(ROOT, f), 'utf8')));
+  assert.deepEqual(unbalanced, [],
+    `★템플릿 보간이 «열린 채» 끝난 파일 ${unbalanced.length}건 — 그 파일의 ★그 뒤 줄은 ` +
+    'S1 에게 ★안 보인다(초록이 「괜찮다」가 아니라 「안 봤다」가 된다). ' +
+    '⛔ALLOW 를 늘려 끄지 마라 — tests/unit/_strip-comments.js 의 _skipRegexAt 를 고쳐라:\n  ' +
+    unbalanced.join('\n  '));
+});
+
+/* ★양성대조 — 위 S0 의 자가 ★«불균형을 잡기는» 하는가. ⛔「0건」이 ★자가 죽어서 0 이면 안 된다. */
+test('S0 ★양성대조 — 일부러 열어 둔 보간을 templateBalanced 가 거짓으로 읽는다', () => {
+  assert.equal(templateBalanced('const s = `ok`;'), true, '★정상 소스를 거짓으로 읽는다 — 자가 너무 좁다');
+  assert.equal(templateBalanced('const s = `open'), false, '★열어 둔 템플릿을 참으로 읽는다 — 자가 죽었다');
+  assert.equal(templateBalanced('const s = `a${ (1'), false, '★열어 둔 보간을 참으로 읽는다 — 자가 죽었다');
+});
+
+/* ★★양성대조 — ★공용 부품이 ★진짜로 ★이 파일의 눈을 ★뜨게 했나.
+ *  ⛔「초록이니 됐다」로 안 닫는다: ★옛 지역 제거기의 ★결함 꼴을 ★여기서 ★재현해
+ *  ★그 꼴에서는 ★주석이 ★안 걷히고 ★공용 부품에서는 ★걷힌다를 ★나란히 센다.
+ *  ★이 둘이 ★같아지는 날 = ★누가 공용 부품을 ★옛 꼴로 되돌린 날이다. */
+test('S0 ★양성대조 — 옛 지역 제거기를 빨갛게 만들던 두 꼴이 공용 부품에서는 걷힌다', () => {
+  /* ㉠ `return` 뒤 정규식 + 그 안의 따옴표 — ★S1 을 100줄 눈멀게 한 꼴(grid-block.js:3403) */
+  const shapeA = 'function f(h) {\n  return /^<div[^>]*\\sclass="x\\s/.test(h);\n}\n/* duo */';
+  assert.equal(/duo/i.test(stripComments(shapeA)), false,
+    '★`return` 뒤 정규식을 ★나눗셈으로 읽어 그 뒤 주석이 ★코드가 됐다 — 옛 결함이 돌아왔다');
+  /* ㉡ 여러 줄 템플릿 «보간 안»의 블록 주석 — ★name-axes X5 를 빨갛게 만든 꼴(prop-grid.js:3114) */
+  const shapeB = 'const h = `<a>\n  </a>` + `${/* duo\n   still comment */ \'\'}`;';
+  assert.equal(/duo/i.test(stripComments(shapeB)), false,
+    '★여러 줄 템플릿 보간 안의 블록 주석이 ★안 걷혔다 — templateAware 가 꺼졌거나 깨졌다');
+});
 
 test('S1 ★개명 잔존 0 — js/css/index.html 의 코드(주석 제외)에 남은 duo 는 허용 목록뿐이다', () => {
   const stray = [];

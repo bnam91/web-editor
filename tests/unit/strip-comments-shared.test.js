@@ -9,7 +9,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { makeStripper, stripComments } = require('./_strip-comments.js');
+const { makeStripper, stripComments, stripCommentsTA, templateBalanced } = require('./_strip-comments.js');
 
 const UNIT = __dirname;
 
@@ -110,9 +110,14 @@ test('S-7 ★블록 주석이 «아닌 자리»에서 열리지 않는다 — �
 test('S-6 ⛔새 검사가 «자기 stripComments 를 만들지» 못한다 — 공용 부품을 써라', () => {
   /* ★허용목록은 «오늘의 빚»이다. 줄면 여기서 지워라. ⛔늘리려면 «왜»를 커밋에 적어라.
      자동으로 따라가게 두면 검사가 아니라 «기록»이 된다. */
+  /* ~~[갚음 · 2026-10-07] 'grid-rename-residue.test.mjs'~~ — 그 파일의 자기 제거기를 걷고
+     공용 부품(별칭 수입)으로 갔다. ★지우지 않고 ★«갚았다»고 적는다 — 이 명부의 길이가
+     ★남은 빚이고, 줄어든 ★까닭이 보여야 다음 사람이 ★같은 길을 따라간다.
+     ★까닭(실측): 그 자기 제거기는 `return` 뒤 정규식을 ★나눗셈으로 읽어
+       js/blocks/grid-block.js 를 ★100줄 눈멀게 하고 있었다(첫 줄 :3407). ⇒ ★빚이 ★결함이었다. */
   const LEGACY = new Set([
     'account-projects-root.test.js', 'tpl-open-window-await.test.mjs',
-    'grid-rename-residue.test.mjs', 'pan-native-scroll.test.js',
+    'pan-native-scroll.test.js',
     'modal-variant-identity.test.mjs', 'mcp-delete-project.test.js',
     'spacing-wiring.test.js', 'zoom-wheel-geometric.test.mjs',
     'zoom-block.test.js', 'no-blocking-alert.test.js',
@@ -132,6 +137,76 @@ test('S-6 ⛔새 검사가 «자기 stripComments 를 만들지» 못한다 — 
     try { return /function stripComments|const stripComments\s*=|function makeStripper/
       .test(fs.readFileSync(path.join(UNIT, n), 'utf8')); } catch { return false; }
   });
-  assert.ok(wouldCatch.length >= 8,
-    `★잣대가 죽었다 — 알려진 사본 ${LEGACY.size}개 중 ${wouldCatch.length}개만 잡힌다`);
+  /* ⛔하한을 ★손-숫자로 두지 마라 — 명부가 줄면 그 수가 ★조용히 느슨해진다(8 은 10 짝이었다).
+     ★명부에서 ★파생시킨다: 허용한 것은 ★전부 ★실제로 사본을 들고 있어야 한다. */
+  assert.equal(wouldCatch.length, LEGACY.size,
+    `★잣대가 죽었거나 명부가 낡았다 — 알려진 사본 ${LEGACY.size}개 중 ${wouldCatch.length}개만 잡힌다. ` +
+    `잡히지 않은 것: ${[...LEGACY].filter((n) => !wouldCatch.includes(n)).join(', ') || '-'} ` +
+    '(그 파일이 이미 공용 부품으로 갔다면 ★이 명부에서 지워라 — 빚을 갚았다는 뜻이다)');
+});
+
+/* ══ S-7 · S-8 — ★두 모드. (2026-10-07) ════════════════════════════════════════════
+ * ★왜 모드가 둘인가 = `_strip-comments.js` 머리말. ★여기서 재는 것은 ★«무엇에서 갈리나»다.
+ * ⛔「레거시 산출이 옛 모듈과 바이트 동일」은 ★이 검사가 ★못 센다 — 옛 모듈이 레포에 ★없다.
+ *   그건 ★갈던 날 ★1069 파일로 ★한 번 쟀고(머리말에 적었다), ★상시 게이트는 ★아래 둘이다.
+ * ══════════════════════════════════════════════════════════════════════════════════ */
+
+test('S-9 ★두 모드가 «갈리는 자리»는 템플릿 보간 안의 주석 하나다', () => {
+  /* ★합성물은 ★실물 꼴을 베꼈다 — js/props/prop-grid.js:3114 의 생김새다:
+       ★«닫는 백틱 ★하나»가 `${` 앞에 오는 줄. ★그 홀수 하나가 레거시의 한 줄짜리 백틱 상태를
+       ★참으로 남겨 주석 입구를 ★못 열게 한다.
+     ⚠️★내 첫 합성물은 백틱이 ★짝수라 ★레거시에서도 ★걷혔다 ⇒ S-9 ⒜ 가 ★거짓 빨강이었다.
+       ⇒ ★합성물은 ★«그 꼴이 실물에 있나»부터 — 아래 ⒞ 가 그걸 센다. */
+  const shape = 'const a = `x${cond ? `<div>\n  </div>` : \'\'}${/* FORBIDDEN_TOKEN\n   still comment */ \'\'}`;';
+  /* ⒜ 레거시 = ★문서된 그대로 «못 걷는다». ⛔이것이 ★느슨함이 아니라 ★호환이다 —
+         이 모드를 쓰는 소비자들의 산출을 ★한 바이트도 안 바꾸겠다는 약속이 ★그 값이다. */
+  assert.ok(stripComments(shape).includes('FORBIDDEN_TOKEN'),
+    '★레거시 모드가 보간 안 주석을 ★걷기 시작했다 — 그 모드를 쓰는 소비자들의 산출이 ★바뀐다. '
+    + '넓히려면 ★소비자 전수를 다시 재고 ★이 검사를 ★같이 고쳐라');
+  /* ⒝ templateAware = ★걷는다. 이게 ★name-axes X5 와 ★grid-rename-residue S1 이 서는 자리다. */
+  assert.ok(!stripCommentsTA(shape).includes('FORBIDDEN_TOKEN'),
+    '★templateAware 가 보간 안 주석을 ★못 걷는다 — X5·S1 이 ★주석을 ★코드로 신고하게 된다');
+
+  /* ⒞ ★이 꼴이 ★가상이 아니라는 근거 — ★레포에 ★실재하나를 ★행위로 센다.
+         ⛔0 이면 위 둘은 ★«안 쓰이는 길»을 재는 것이다(그때는 이 가드를 지워라). */
+  const js = path.join(UNIT, '..', '..', 'js');
+  const seen = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+      const q = path.join(d, e.name);
+      if (e.isDirectory()) walk(q);
+      else if (/\.js$/.test(e.name) && /\$\{\/\*/.test(fs.readFileSync(q, 'utf8'))) seen.push(e.name);
+    }
+  };
+  walk(js);
+  assert.ok(seen.length > 0,
+    '★템플릿 보간 안에 주석을 쓰는 자리가 js/ 에 ★0건이다 — 위 두 단언은 ★안 쓰이는 길을 재고 있다');
+});
+
+test('S-10 ★templateBalanced 가 «열린 채 끝난 것»을 잡는다 — 그리고 js/ 는 전수 닫힌다', () => {
+  /* ★이 자가 ★없으면 templateAware 의 초록은 ★「안 봤다」와 구분이 안 된다
+     (정규식 «안»의 백틱 하나가 ★보간을 열어 둔 채 ★파일 나머지를 가린다). */
+  assert.equal(templateBalanced('const s = `ok`;'), true, '★정상 소스를 거짓으로 읽는다 — 자가 너무 좁다');
+  assert.equal(templateBalanced('const s = `open'), false, '★열어 둔 템플릿을 참으로 읽는다 — 자가 죽었다');
+  assert.equal(templateBalanced('const s = `a${ (1'), false, '★열어 둔 보간을 참으로 읽는다 — 자가 죽었다');
+
+  /* ★실측 기록(2026-10-07): 정규식 건너뛰기를 ★넣기 전에는 js/ 에서 ★7 파일이 거짓이었다
+     (ai-section-fill · block-factory · fx/glow-render · io/gdt-import · props/{banner02,section,step}).
+     ⇒ ★그 7 이 ★0 이 된 것이 `_skipRegexAt` 가 ★실제로 일한다는 근거다. */
+  const js = path.join(UNIT, '..', '..', 'js');
+  const bad = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+      const q = path.join(d, e.name);
+      if (e.isDirectory()) walk(q);
+      else if (/\.js$/.test(e.name) && !templateBalanced(fs.readFileSync(q, 'utf8'))) bad.push(path.relative(js, q));
+    }
+  };
+  walk(js);
+  assert.deepEqual(bad, [],
+    `★템플릿 보간이 «열린 채» 끝난 js/ 파일 ${bad.length}건 — 그 파일의 그 뒤 줄은 `
+    + 'templateAware 를 쓰는 게이트에 ★안 보인다. ⛔게이트를 느슨하게 하지 말고 '
+    + '`_strip-comments.js` 의 `_skipRegexAt` 를 고쳐라:\n  ' + bad.join('\n  '));
 });
