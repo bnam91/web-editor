@@ -2,7 +2,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
-import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, CMP_PLACEHOLDER_TITLE, CMP_PLACEHOLDER_ROW } from '../blocks/comparison-block.js';
+import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows } from '../blocks/comparison-block.js';
 import { panelRenderedColor } from './_panel-rendered.js';
 
 /* ★옛 사본은 «닫는 꺾쇠»와 홑따옴표를 안 덮었다 — 이 파일이 쓰는 세 자리에서는 무력한
@@ -144,7 +144,9 @@ ${blockHeaderHTML({
     const c = getCols();
     const prevFeat = getComparisonFeaturedIdx(block.dataset, c.length);
     const rowCount = Math.max(1, ...c.map(x => (x.rows || []).length));
-    c.unshift({ title: CMP_PLACEHOLDER_TITLE, bg: '#f5f5f7', text: '#666666', rows: Array.from({ length: rowCount }, () => CMP_PLACEHOLDER_ROW) });
+    /* ★⒜ 새 칼럼은 ★빈 칸으로 난다(2026-10-08 · 현빈 「캔버스 직접 입력 가능하니 불필요」).
+       행 «수»는 그대로 rowCount 를 따른다 — 칼럼 간 행 정렬이 틀어지면 안 된다. */
+    c.unshift({ title: '', bg: '#f5f5f7', text: '#666666', rows: cmpEmptyRows(rowCount) });
     block.dataset.featured = String(prevFeat + 1); // 왼쪽 삽입 → 기존 강조 칼럼이 한 칸 밀림
     saveCols(c); rerender(); commit(); showComparisonProperties(block);
   });
@@ -277,11 +279,11 @@ ${blockHeaderHTML({
       }
       rerender(); commit(); showComparisonProperties(block);
     }));
-  // 행 추가 (기본 text)
+  // 행 추가 (기본 text) — ★⒜ 빈 칸으로 난다(2026-10-08). 꼴은 cmpEmptyRow 한 벌.
   propPanel.querySelectorAll('.cmp-row-add').forEach(btn =>
     btn.addEventListener('click', () => {
       const c = getCols(); const ci = +btn.dataset.col;
-      if (c[ci]) { c[ci].rows.push({ type: 'text', text: CMP_PLACEHOLDER_ROW }); saveCols(c); rerender(); commit(); showComparisonProperties(block); }
+      if (c[ci]) { c[ci].rows.push(cmpEmptyRow()); saveCols(c); rerender(); commit(); showComparisonProperties(block); }
     }));
 
   // 선택 시 활성 칼럼 배경이 그라데이션이면 캔버스 위 그라데이션 라인 표시 (아니면 overlay가 no-op)
