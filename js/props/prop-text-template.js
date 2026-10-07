@@ -18,10 +18,13 @@ export function buildTextPropsHtml(state) {
     shadow,
     isLiner,
     isStrike,
+    isUnderline,
+    isDot,
     isBold,
     isItalic,
     isHighlight,
     hlColorHtml, hlH,               /* ★형광펜 «색 칸 마크업»·바 높이 (2026-10-06). 마크업은 prop-text.js 가 만들어 준다 */
+    dotColorHtml, dotSize, dotGap, dotX, dotY,   /* ★점 찍기 «색 칸 마크업»·네 수 (⑥ · 2026-10-08). 같은 까닭으로 prop-text.js 가 만든다 */
     isOverlayBlock,
   } = state;
 
@@ -145,13 +148,20 @@ ${blockHeaderHTML({
     ${buildTypographySectionHtml({
       p: 'txt',
       font: currentFont, weight: currentWeight, size: currentSize,
-      isBold, isItalic, isStrike, isHighlight,
+      isBold, isItalic, isStrike, isHighlight, isUnderline,
       lh: currentLH, ls: currentLS,
       sizeMin: 8, sizeMax: 800,
       showStyleGroup: !isLiner, showLetterSpacing: !isLiner, showSize: !isLiner,
       /* ★텍스트 패널만 형광펜 색·바 높이 칸을 갖는다 — 배선(wireTextEditSection)이 여기에만 있다.
          ⛔모달(prop-modal.js)·그리드(prop-grid.js)는 기본값 false 라 마크업이 «바이트 동일»이다. */
       showHighlightOpts: !isLiner, hlColorHtml, hlH,
+      /* ★밑줄(U) 단추는 ★텍스트 패널만 — 배선(wireTextEditSection)이 여기에만 있다.
+         ⛔모달·그리드·챗은 기본값 false 라 마크업이 «바이트 동일»이다(형광펜 색 칸과 ★같은 규약).
+         ★켜는 쪽이 배선을 옮기고 ★공유 골든(tests/dom/fixtures/*.json)을 같이 떠야 한다. */
+      showUnderline: true,
+      /* ★점 찍기(⑥)도 ★텍스트 패널만 — 배선(wireTextEditSection)이 여기에만 있다. 모달·그리드·챗은 기본 false ⇒ «바이트 동일».
+         ★isLiner(곡선 텍스트)는 손잡이 칸을 안 준다 — 서식 그룹 자체가 숨는 판이라 칸만 떠 있으면 「눌리는데 아무 일 없음」이 된다. */
+      showDots: true, showDotOpts: !isLiner, isDot, dotColorHtml, dotSize, dotGap, dotX, dotY,
       mix: _mix,
     })}
 

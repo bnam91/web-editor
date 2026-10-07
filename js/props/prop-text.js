@@ -9,7 +9,7 @@ import { wireFontSection }     from './prop-text-wireup-font.js';
 import { wireTypeSection, wireBulletStyleSection } from './prop-text-wireup-type.js';
 import { wireLabelSection }    from './prop-text-wireup-label.js';
 import { wireAlignSection }    from './prop-text-wireup-align.js';
-import { wireTextEditSection, isHighlightOn } from './prop-text-wireup-text-edit.js';
+import { wireTextEditSection, isHighlightOn, isDotOn } from './prop-text-wireup-text-edit.js';
 import { wireSpacingSection }  from './prop-text-wireup-spacing.js';
 import { wirePositionSection } from './prop-text-wireup-position.js';
 import { wirePaddingSection }  from './prop-text-wireup-padding.js';
@@ -142,6 +142,11 @@ export function showTextProperties(tb) {
   const isBold        = parseInt(currentWeight, 10) >= 600;
   const isItalic      = contentEl.style.fontStyle  === 'italic';
   const isStrike      = (contentEl.style.textDecorationLine || contentEl.style.textDecoration || '').includes('line-through');
+  /* ★밑줄(⑤ · 2026-10-08 수지 피드백 — ⚠️출처는 2차다, server-manager 가 전한 요약) —
+     ★취소선과 ★같은 CSS 속성(text-decoration-line)에 ★같이 산다. 그래서 「있나」를 ★포함으로 본다
+     (`=== 'underline'` 로 재면 둘이 켜진 'underline line-through' 를 ★꺼짐으로 읽어, 한 번 누를 때
+      밑줄을 켜는 대신 끈다). ★토글 쪽 정본은 prop-text-wireup-text-edit.js 의 _decoTokens 다 — 같은 잣대. */
+  const isUnderline   = (contentEl.style.textDecorationLine || contentEl.style.textDecoration || '').includes('underline');
   /* ★형광펜(2026-10-06 현빈 tb_5bkw8dq) — 정본은 ★.text-block 의 인라인 --tb-hl-color / --tb-hl-h
      ★하나씩이다(사본을 dataset 에 두지 않는다 — 그리는 값과 패널 값이 갈린다). 없으면 CSS 기본값.
      ⛔옛 `tb.dataset.highlight`('none'|'highlight'|'underline')는 ★지웠다 — 레포 전수에 ★쓰는 코드가
@@ -153,6 +158,25 @@ export function showTextProperties(tb) {
   /* ★켜짐 판정은 «식»을 여기 두지 않는다 — 정본은 prop-text-wireup-text-edit.js 의 isHighlightOn 하나.
      단추 표시(여기)와 토글 방향(거기)이 갈리면 ★옛 형광펜을 지우고 새로 칠하는 사고가 난다. */
   const isHighlight   = isHighlightOn(contentEl);
+  /* ★점 찍기(⑥ · 2026-10-08 수지 — ⚠️출처 2차) — 정본은 ★.text-block 의 인라인 --tb-dot-* ★하나씩
+     (형광펜 --tb-hl-* 과 ★같은 규약. ⛔사본을 dataset 에 두지 않는다).
+     ★켜짐 판정의 «식»은 여기 두지 않는다 — 정본은 prop-text-wireup-text-edit.js 의 isDotOn 하나.
+     ★★수 네 개의 ★참값은 ★css/editor-layout.css 의 --tb-dot-* 기본값이다.
+       ⇒ ★여기 4·0·0·0 을 다시 적지 «않고» getComputedStyle 로 ★거기서 뽑는다(명부 둘 방지).
+       ⚠️아래 `?? 0` 은 «CSS 가 안 실린 판»의 바닥일 뿐이다 — 브라우저에선 늘 CSS 기본값이 온다.
+         「패널 값이 CSS 에서 파생한다」는 tests/dom/text-dot-over.dom.spec.js D3 의 ★전제가 잰다
+         (패널 칸 값 + 'px' === getComputedStyle 의 --tb-dot-size — 둘 다 ★런타임에서 읽는다). */
+  const isDot = isDotOn(contentEl);
+  const _tbCs = window.getComputedStyle(tb);
+  const _dotNum = (v) => { const n = parseInt(_tbCs.getPropertyValue(v), 10); return Number.isFinite(n) ? n : 0; };
+  const dotSize = _dotNum('--tb-dot-size');
+  const dotGap  = _dotNum('--tb-dot-gap');
+  const dotX    = _dotNum('--tb-dot-x');
+  const dotY    = _dotNum('--tb-dot-y');
+  /* ★스와치는 «지금 무슨 색인가»(진실)다 — 안 고르면 CSS 기본값이 currentColor 라 ★글자색이 그 답이다.
+     (buildFillSectionHtml 머리말의 그 갈래: 스와치=진실 / hex 칸=누가 정했나.) */
+  const _dotColorRaw = (tb.style.getPropertyValue('--tb-dot-color') || '').trim();
+  const dotColor = /^(#|rgb)/i.test(_dotColorRaw) ? _dotColorRaw : currentColor;
 
   // 위치/크기 — text-frame(래퍼)이 position/size를 보유
   const _tf         = tb.closest('.frame-block[data-text-frame="true"]');
@@ -187,6 +211,8 @@ export function showTextProperties(tb) {
     shadow,
     isLiner,
     isStrike,
+    isUnderline,
+    isDot,
     isBold,
     isItalic,
     isHighlight,
@@ -194,6 +220,9 @@ export function showTextProperties(tb) {
        import 하면 안 된다(단위 하네스가 vm 에 그 모듈을 안 올려 골든이 통째로 빨강이 된다. 2026-10-06 실측). */
     hlColorHtml: colorFieldHTML({ idPrefix: 'txt-hl-color', hex: currentHighlightColor, alpha: parseAlphaFromColor(currentHighlightColor) || 100 }),
     hlH: _hlH,
+    /* ★점 «색 칸»도 같은 까닭으로 ★여기서 만든다(⑥) — _typo-section.js 는 color-picker 를 import 하면 안 된다. */
+    dotColorHtml: colorFieldHTML({ idPrefix: 'txt-dot-color', hex: dotColor, alpha: parseAlphaFromColor(dotColor) || 100 }),
+    dotSize, dotGap, dotX, dotY,
     isOverlayBlock,
   });
 
