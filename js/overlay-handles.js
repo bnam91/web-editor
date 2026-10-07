@@ -1779,10 +1779,16 @@ function showGridGutters(block) {
     const ovl = _getOverlay();
     const haveCol = ovl ? ovl.querySelectorAll('.grd-gutter[data-axis="col"]').length : 0;
     const haveRow = ovl ? ovl.querySelectorAll('.grd-gutter[data-axis="row"]').length : 0;
-    if (haveCol === needCol && haveRow === needRow) { _updateGridGutterPositions(); return; }
+    /* ★S11 — 중첩 거터도 «축별로» 센다. 안 세면 「줄을 나눴는데 거터가 안 선다」가 난다
+       (바깥 격자 수는 그대로라 조기 return 이 걸린다 — 위 3x3 회귀와 ★같은 꼴이다). */
+    const haveNcol = ovl ? ovl.querySelectorAll('.grd-gutter[data-axis="ncol"]').length : 0;
+    const needNcol = _gridNestedLines(block).reduce((a, nl) => a + Math.max(0, nl.n - 1), 0);
+    if (haveCol === needCol && haveRow === needRow && haveNcol === needNcol) { _updateGridGutterPositions(); return; }
   }
   hideGridGutters();
-  if (cols.length < 2 && rows.length < 2) return; // 경계가 하나도 없다
+  /* ★S11 — 중첩 줄이 있으면 바깥이 1×1 이어도 «경계»가 있다. 안 고치면 1열 그리드의
+     나눈 줄에 거터가 영영 안 선다(현빈의 쓰임에 바로 걸린다). */
+  if (cols.length < 2 && rows.length < 2 && !_gridNestedLines(block).length) return; // 경계가 하나도 없다
   _gridGutterBlock = block;
   const overlay = _getOverlay();
   if (!overlay) return;
@@ -1797,6 +1803,20 @@ function showGridGutters(block) {
     overlay.appendChild(g);
     g.addEventListener('mousedown', e => _onGridColMouseDown(e, block, i));
     _wireGutterContextMenu(g, block);
+  }
+  /* ★S11 — 중첩 줄(.grd-nested) «안» 두 칸 사이에도 거터를 둔다. 열 N 개면 ★N−1 개.
+     ⛔바깥 거터 수는 ★안 늘린다 — data-axis 를 'ncol' 로 ★갈라 둔다(검사가 그 수를 따로 센다). */
+  for (const nl of _gridNestedLines(block)) {
+    for (let i = 0; i < nl.n - 1; i++) {
+      const g = document.createElement('div');
+      g.className = 'grd-gutter';
+      g.dataset.axis = 'ncol';
+      g.dataset.r = String(nl.r); g.dataset.c = String(nl.c); g.dataset.li = String(nl.li);
+      g.dataset.i = String(i);
+      g.style.cssText = 'position:absolute;width:8px;cursor:col-resize;z-index:97;pointer-events:auto;';
+      overlay.appendChild(g);
+      g.addEventListener('mousedown', e => _onGridNestedColMouseDown(e, block, { r: nl.r, c: nl.c, li: nl.li }, i));
+    }
   }
   for (let i = 0; i < rows.length - 1; i++) {
     const g = document.createElement('div');
@@ -1935,6 +1955,20 @@ function _updateGridGutterPositions() {
     g.style.top = shellRect.top + 'px';
     g.style.height = shellRect.height + 'px';
   });
+  /* ★S11 — 중첩 거터 자리. 세로 범위는 ★그 줄(.grd-nested)만 — 바깥 칸 전체가 아니다
+     (그 줄 밖에서 끄는 것은 뜻이 없고, 바깥 열 거터와 겹치면 서로 가린다). */
+  overlay.querySelectorAll('.grd-gutter[data-axis="ncol"]').forEach(g => {
+    const i = +g.dataset.i;
+    const els = _getNestedCols(block, +g.dataset.r, +g.dataset.c, +g.dataset.li);
+    const a = els[i], b = els[i + 1];
+    if (!a || !b) { g.style.display = 'none'; return; }
+    g.style.display = '';
+    const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+    const cx = (ar.right + br.left) / 2;
+    g.style.left = (cx - 4) + 'px';
+    g.style.top = Math.min(ar.top, br.top) + 'px';
+    g.style.height = Math.max(ar.height, br.height) + 'px';
+  });
   overlay.querySelectorAll('.grd-gutter[data-axis="row"]').forEach(g => {
     const i = +g.dataset.i;
     const a = _getGridCell(block, i, 0), b = _getGridCell(block, i + 1, 0);
@@ -1960,6 +1994,113 @@ function _updateGridGutterPositions() {
 
 // 열 경계 드래그 — 인접 두 열의 «가중치»만 재분배(합 보존, 다른 열 불변).
 // wL0/wR0(화면 px, 스케일로 나눈 캔버스 px)와 W(가중치 합)는 mousedown 시점 1회 스냅샷 —
+/* ═══ ★S11 «중첩 줄 안 두 칸»의 비율을 ★마우스로 (현빈 2026-10-07) ═══════════════════
+ *   원문: 「그리드 블럭 선택후 우클릭 후 ★나란히 두칸으로 나누기를 통해서 추가되는 줄 ★간에
+ *          ★칸 비율 ★마우스로 조절 가능하게 해줘」
+ *   현빈 확답(지디 중계) — ① 「줄 간에」 = ★«그 줄 ★안»의 두 칸 사이  ② ★줄마다 ★따로
+ *                        ③ 방법은 ★«마우스 하나» (⛔패널 숫자칸 안 만든다)
+ *
+ * ★이미 있던 것(실측) — ⛔새로 안 만든다
+ *   · 「나란히 두 칸으로 나누기」 = `#bcm-grid-nested`(index.html:1662) ＋ block-factory.js:5759 (T-221)
+ *     만드는 값 = `{type:'duo', gap:8, cols:[{width:1,lines:[…]},{width:1,lines:[…]}]}`
+ *   · 비율 ★필드 = `line.cols[c].width` — ★이미 모델에 있고 `grid-block.js:2278` 이 `flex:${w}` 로 ★그린다
+ *   · `cols` 는 ★이미 `GRID_LINE_FIELDS` 에 있다(런타임 import 로 센 명부) ⇒ ★새 필드 ★0
+ *   ⇒ ★★없던 것은 ★«쓰는 손» 하나뿐이었다. 이 아래가 그 손이다.
+ *
+ * ★★조건 ① «합 보존»은 ⛔새로 짜지 않는다 — 바깥 열과 ★같은 순수함수 `resizeColBoundary`
+ *   (grid-cell-resize.js)를 ★그대로 먹인다. ★minPx 도 모듈 기본값(COL_MIN_PX)을 쓴다.
+ *   ⇒ 한 레인에 두 벌을 만들지 않는다.
+ * ★★조건 ⑤ 쓰는 문은 ★`patchCell{r,c,lineIndex,cols}` ★하나 — ⛔dataset 직접 쓰기 금지.
+ *   그래야 `_gridIntake`·`_gridInspectNested`(깊이·열 상한)·모르는 필드 거절을 ★건너뛰지 않는다.
+ *   ⚠️바깥 거터는 `block.dataset.cols` 를 ★직접 쓴다 — ★그 관례를 ★따르지 «않는다».
+ *     까닭: 바깥 `cols` 는 입구 검증이 따로 서 있지만, ★중첩은 `_gridInspectNested` 가
+ *     ★입구에서만 잰다. 직접 쓰면 그 자를 ★통째로 건너뛴다.
+ * ★★조건 ② «면적» — 거터는 `#ss-handles-overlay`(position:fixed) 위에 ★스크린 좌표로 앉는다.
+ *   ⇒ 캔버스 `matrix(0.4)` 를 ★안 탄다(배율이 낮아도 8px 그대로). ★바깥 거터와 ★같은 꼴이다.
+ *   ⛔이것을 ★추론으로 두지 않는다 — 검사가 `elementFromPoint` 로 ★배율 둘에서 잰다. */
+
+/** 중첩 줄 하나의 열 DOM — `.grd-nested[data-r][data-c][data-line] > .grd-nested-col` */
+function _getNestedCols(block, r, c, li) {
+  const nest = block.querySelector(
+    `.grd-cell[data-r="${r}"][data-c="${c}"] .grd-nested[data-r="${r}"][data-c="${c}"][data-line="${li}"]`);
+  return nest ? [...nest.querySelectorAll(':scope > .grd-nested-col')] : [];
+}
+
+/** 이 블럭 안의 «중첩 줄» 전수 — [{r,c,li,n}] (n = 그 줄의 열 수). ★DOM 에서 센다(그려진 것이 참값). */
+function _gridNestedLines(block) {
+  const out = [];
+  block.querySelectorAll('.grd-nested[data-line]').forEach(nest => {
+    /* ★중첩 «안»의 중첩은 건너뛴다 — 안쪽 줄은 data-line 을 안 가지지만(naddr 만 실린다),
+       혹시 바뀌어도 바깥 칸 직계만 집도록 closest 로 한 번 더 가른다. */
+    const cell = nest.closest('.grd-cell');
+    if (!cell) return;
+    const r = cell.dataset.r, c = cell.dataset.c, li = nest.dataset.line;
+    if (r === undefined || c === undefined || li === undefined) return;
+    if (nest.dataset.r !== r || nest.dataset.c !== c) return;   // 바깥 칸의 «제» 줄만
+    const n = nest.querySelectorAll(':scope > .grd-nested-col').length;
+    if (n >= 2) out.push({ r: +r, c: +c, li: +li, n });
+  });
+  return out;
+}
+
+function _onGridNestedColMouseDown(e, block, addr, i) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const model = window.getGridModel?.(block);
+  const line = model?.cells?.[addr.r]?.[addr.c]?.lines?.[addr.li];
+  const cols = Array.isArray(line && line.cols) ? line.cols.map(x => ({ ...x })) : null;
+  if (!cols || !cols[i] || !cols[i + 1]) return;
+  const els = _getNestedCols(block, addr.r, addr.c, addr.li);
+  const elA = els[i], elB = els[i + 1];
+  if (!elA || !elB) return;
+
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+  const scale0 = _canvasScaleNow();
+  const wL0 = elA.getBoundingClientRect().width / scale0;
+  const wR0 = elB.getBoundingClientRect().width / scale0;
+  const W = (Number(cols[i].width) || 1) + (Number(cols[i + 1].width) || 1);
+  const startX = e.clientX;
+  /* ★드래그 «시작 직전» 1회만 — 바깥 거터와 같은 규약. 아래 쓰기는 noHistory 로 보낸다
+     (updateGridBlock 이 제 스스로 1회 쌓으므로, 안 끄면 mousemove 마다 한 칸씩 쌓인다). */
+  window.pushHistory?.();
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const delta = (ev.clientX - startX) / scale;
+    const r = resizeColBoundary(wL0, wR0, W, delta);   // ★바깥 열과 «같은 순수함수». ⛔제 계산 금지
+    if (!r) return;
+    cols[i].width = r.leftWeight;
+    cols[i + 1].width = r.rightWeight;
+    /* ★★쓰는 문은 ★하나 — patchCell. ⛔dataset 직접 쓰기 금지(입구 검증·중첩 상한을 건너뛴다). */
+    /* ★`keepPanel:true` 가 ★없으면 — updateGridBlock 이 mousemove 마다 `showGridProperties` 를
+       다시 불러 패널을 ★통째로 새로 그리고, 그 끝의 `showGridGutters` 가 ★지금 끌고 있는 거터를
+       ★지웠다 다시 만든다 ⇒ ★드래그가 ★첫 픽셀에서 끊긴다.
+       ⇒ ★바깥 거터가 「드래그 중 패널 재렌더 금지」라 적어 둔 ★그 규약을 ★같은 뜻으로 지킨다
+         (바깥은 dataset 직접 쓰기라 애초에 패널을 안 건드리고, 나는 patchCell 을 쓰므로 ★이 깃발이 그 자리다).
+       ★`noHistory:true` — 이력은 mousedown 에서 ★1회만 쌓았다(바깥과 같은 규약).
+       ⛔`scheduleAutoSave` 를 ★여기서 또 부르지 않는다 — updateGridBlock 이 ★이미 부른다(두 벌 금지). */
+    /* ★★`updateGridBlockRaw` 다 — ⛔`updateGridBlock` 이 아니다.
+       까닭(2026-10-07 ★실측, 내 검사가 잡았다): `window.update*Block` 은 `model-update-history.js`
+       가 ★전부 감싸서 ★호출마다 «끝 표본» 한 칸을 더 쌓는다. 그 래퍼는 내 `noHistory` 를 ★안 본다.
+       ⇒ 끌기 한 번이 히스토리 ★10칸을 먹었고(mousemove 수만큼), ⌘Z 한 번은 ★한 걸음만 되돌렸다.
+       ★Raw 는 그 래퍼를 «안 타는» 원본이고, 선언 자리가 스스로 「자기 히스토리 칸을 직접 쌓는
+       호출자 전용」이라 적어 뒀다 — mousedown 에서 1회 쌓는 ★내가 바로 그 호출자다. */
+    const res = window.updateGridBlockRaw?.(block.id,
+      { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, cols } },
+      { noHistory: true, keepPanel: true });
+    if (!res || res.ok !== true) return;   // 거절(상한 등)이면 조용히 멈춘다 — 화면도 안 바뀐다
+    _updateGridGutterPositions();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    restoreDrag();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 // mousemove 는 여기서 튄 델타만 resizeColBoundary(순수함수, grid-cell-resize.js)에 먹인다.
 function _onGridColMouseDown(e, block, i) {
   if (e.button !== 0) return;
