@@ -1333,6 +1333,46 @@ function _grdImageSectionHtml(anyHit, block) {
    *   이 절의 단추를 «이미지 선택/교체» 하나로 줄였다(grid-img-crop P1 이 잠금). 바꾸기는 캔버스 우클릭
    *   (#bcm-grid-img-circle — 이미지 줄 위에선 「원형으로/사각으로 바꾸기」)에 있다. 숨긴 칸도 «줄은 남는다»(P1 의 줄 수 4). */
   const circle = line.imgShape === 'circle';
+  /* ══ ★★G20 원 «채움색» · 원 «안 글자» (현빈 2026-10-07 · 길은 지디 ⒜「작은 길」 ＋ ㉠-a) ════════════
+   * ★★왜 ★패널이고 ★캔버스가 아닌가 (지디 2026-10-07 ㉠-a 판정 — ⛔되돌리기 전에 이 네 줄을 읽어라)
+   *   원형 줄의 ★더블클릭은 ★이미 ★둘 다 차 있다(실측 js/block-drag.js 2306~2319 ＋ 그 위 가지):
+   *     · ★빈 원   → ★파일 선택기(그림 넣기)
+   *     · 그림 든 원 → ★크롭 편집(enterGridImageEditMode)
+   *   그리고 `_gridEditable` 은 ★넓히면 안 된다고 못 박혀 있다(block-drag.js 134~136 —
+   *   「넓히면 이미지/갭 줄에 contenteditable 이 붙는 부작용」). ⇒ ★글자가 들어갈 제스처가 ★없다.
+   *   ⛔빈 원의 더블클릭을 글자로 돌리는 안(㉠-b)은 ★안 간다 — ★«그림 넣는 길»이 사라진다.
+   *     ★새 기능이 ★옛 동작을 갉아먹는 꼴이라, ★지디가 그 까닭으로 ★기각했다.
+   * ★현빈 2026-09-25 「캔버스에서 다 직관적으로 조작이 가능한거잖아?」와의 관계 — ★부딪치지 않는다.
+   *   그 결정은 ★«크롭 손잡이»에 대한 것이고(그래서 이 절의 단추가 하나로 줄었다), ★«글자 입력»은
+   *   ★그때 없던 요구다. ★이 해석을 지디가 2026-10-07 에 ★확인했다.
+   * ★★줄은 ★원일 때만 는다 — tests/dom/grid-img-crop.dom.spec.js ★P1(「단추 1개 · 줄 4개」)은
+   *   ★사각(크롭) 장면을 재므로 ★초록 그대로다. 「막을 때만 넣는다」는 바로 위 panel-height-disable 의 ★같은 규율.
+   * ⛔`value=` 로 ★사람 글자를 ★안 싣는다 — 따옴표가 속성을 깬다. 배선에서 ★`.value` 로 넣는다(T-049 와 같은 결).
+   * ★글자색·크기는 ★글자가 ★있을 때만 — 없으면 렌더러가 그 둘을 ★안 읽어(입구가 거절한다)
+   *   「눌리는데 아무 일도 안 난다」가 된다. 그게 이 파일 머리말의 고질이다.
+   * ⛔타이포 절(buildTypographySectionHtml)은 ★안 연다 — `gridLineHasText` 가 원형 줄엔 ★false 다(산출 최상위가
+   *   `.grd-img-frame` 이라서). 열면 자간·기울임처럼 ★원이 안 읽는 손잡이가 같이 뜬다. */
+  const cBgRaw  = typeof line.bg === 'string' ? line.bg : '';
+  const cTxtRaw = typeof line.text === 'string' ? line.text : '';
+  const cColRaw = typeof line.color === 'string' ? line.color : '';
+  const cFs     = Number(line.fontSize) || '';
+  const circleRows = !circle ? '' : `
+      <div class="prop-color-row">
+        <span class="prop-label" title="원을 솔리드 색으로 채웁니다 — 그림이 없으면 체커무늬 대신 이 색이 보입니다">채움</span>
+        ${window.colorFieldHTML({ idPrefix: 'grd-img-cbg', hex: swatchHex(cBgRaw, '#e8e8e8'), alpha: parseAlphaFromColor(cBgRaw) })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label" title="원 «안» 가운데에 들어갑니다. 넘치면 원 모양으로 잘립니다">글자</span>
+        <input type="text" class="prop-input" id="grd-img-ctext" placeholder="원 안에 넣을 글자" style="flex:1 1 0;min-width:0;font-size:11px;height:24px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:0 8px;">
+      </div>${cTxtRaw === '' ? '' : `
+      <div class="prop-color-row">
+        <span class="prop-label">글자색</span>
+        ${window.colorFieldHTML({ idPrefix: 'grd-img-ctcol', hex: swatchHex(cColRaw, GRID_ROLES.body.color), alpha: parseAlphaFromColor(cColRaw) })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">글자 크기(px)</span>
+        <input type="number" class="prop-number" id="grd-img-ctsize" min="6" max="200" placeholder="${GRID_ROLES.body.size}" value="${cFs}">
+      </div>`}`;
   /* ★2026-09-25 현빈 — 이 절에 있던 단추 «셋»을 없앴다(「캔버스에서 다 직관적으로 조작이
    *   가능한거잖아?」). ⛔되살리기 전에 «어디로 갔는지»부터 읽어라 — 기능이 죽은 게 아니라
    *   손잡이가 «한 벌»로 합쳐진 것이다. 두 벌이 되면 둘이 따로 늙는다.
@@ -1371,7 +1411,7 @@ function _grdImageSectionHtml(anyHit, block) {
       <div class="prop-row"${circle ? ' style="display:none"' : ''}>
         <span class="prop-label">모서리 반경(px)</span>
         <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="0" value="${rad}">
-      </div>
+      </div>${circleRows}
     </div>`;
 }
 
@@ -1431,6 +1471,51 @@ function _grdWireImageSection(block, addr) {
   numWire('grd-img-height', 'height');
   numWire('grd-img-radius', 'radius');
 
+  /* ══ ★★G20 원 «채움색» · 원 «안 글자» 배선 (현빈 2026-10-07) ═══════════════════════
+   * ★이력은 ★제스처마다 ★«한 걸음»이다 — 이 레포의 두 관용구를 ★그대로 빌린다(새 꼴을 만들지 않는다):
+   *   · 색(연속 input ＋ 끝에 커밋) = `wireColorField` 의 onApply/onCommit — ★_grdWireBlockBgSection(grd-bbg)과 같은 꼴.
+   *     onApply 는 ★이력 없이 모델·화면만 고치고(gridPreviewLine), onCommit 이 ★push-after 한 칸.
+   *   · 숫자·글자(discrete change) = 바로 위 `numWire` 와 같은 꼴 — ★push-before 한 칸 ＋ gridPreviewLine.
+   * ★★수로 쟀다(실측 2026-10-07 · `getHistoryTip().len/pos`) — 「걸음」으로 적는다:
+   *     `updateGridBlock` ★한 문 = 스택 ★칸 ＋2(안의 push-before ＋ 래퍼 끝표본) · ★⌘Z ★한 걸음.
+   *     이 절의 네 손잡이도 ★각각 ★한 걸음이다 — tests/dom/grid-circle-text.dom.spec.js ★G20-5 가 ★수로 단언한다.
+   * ⛔래퍼(js/model-update-history.js)는 ★안 건드린다. ⛔`updateGridBlockRaw` 도 ★안 쓴다 —
+   *   그 길은 ★«한 제스처가 두 칸을 건드릴 때»의 처방이고(grdMoveLineToCell), 이건 ★한 칸 한 문이다.
+   * ★`_grdSyncLineMark` 를 ★같이 부른다 — 재렌더가 줄 마커를 지운다(numWire 와 같은 뒷정리).
+   * ⛔`window.colorFieldHTML`·`window.wireColorField` 를 ★window 로 부른다(import 로 늘리지 마라) —
+   *   unit 하네스가 color-picker.js 를 «필요한 이름만» 대역으로 싣기 때문이다(이 파일 2157행의 그 실측). */
+  const _cLive = (fields) => {
+    gridPreviewLine(block, r, c, li, fields, addr.np);
+    _grdSyncLineMark(block, addr);
+    window.scheduleAutoSave?.();
+  };
+  if (hit.line.imgShape === 'circle') {
+    window.wireColorField?.('grd-img-cbg', {
+      initialAlpha: parseAlphaFromColor(typeof hit.line.bg === 'string' ? hit.line.bg : ''),
+      onApply: (col) => _cLive({ bg: col }),
+      onCommit: () => window.pushHistory?.(),
+    });
+    const tIn = document.getElementById('grd-img-ctext');
+    if (tIn) {
+      tIn.value = typeof hit.line.text === 'string' ? hit.line.text : '';   // ⛔value= 속성으로 안 싣는다(따옴표가 속성을 깬다)
+      tIn.addEventListener('change', () => {
+        const v = tIn.value;
+        window.pushHistory?.();
+        /* ★빈 글자는 «키를 지운다» — `''` 를 남기면 렌더러가 글자칸을 안 그리는데 저장본엔 키가 남고,
+           패널의 「글자색·크기」 줄이 뜨는 조건(cTxtRaw !== '')과 어긋난다. undefined = 키 삭제(그 계약). */
+        _cLive({ text: v === '' ? undefined : v });
+        window.showGridProperties?.(block);   // ★글자가 생기면 「글자색·크기」 줄이 뜨고, 지우면 진다
+      });
+    }
+    if ((typeof hit.line.text === 'string' ? hit.line.text : '') !== '') {
+      window.wireColorField?.('grd-img-ctcol', {
+        initialAlpha: parseAlphaFromColor(typeof hit.line.color === 'string' ? hit.line.color : ''),
+        onApply: (col) => _cLive({ color: col }),
+        onCommit: () => window.pushHistory?.(),
+      });
+      numWire('grd-img-ctsize', 'fontSize', 6, 200);
+    }
+  }
 }
 
 /* ══ 칸 꾸미기 절 — 칸 배경색·안쪽 여백·모서리·«칸 단위» 정렬 ═══════════════

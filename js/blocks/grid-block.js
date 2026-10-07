@@ -122,6 +122,12 @@ export const GRID_GAP_MAX = 200;
 export const GRID_ROW_GAP_MIN = -50;
 /* 원형 이미지 줄의 기본 지름(px) — height 가 없을 때. 우클릭 「원형 이미지 추가」도 이 값으로 넣는다. */
 export const GRID_IMG_CIRCLE_D = 120;
+/* ★G20 — 원 «안 글자»가 차지하는 폭(지름 대비 %) = ★내접 정사각형(1/√2). 둥근 가장자리에 글자가 덜 잘린다.
+ *   ★서클 에셋블럭의 자식 그릇(css/editor-blocks.css `.icb-children { width: 70.71% }`)과 ★같은 기하다.
+ *   ⛔두 자리에 같은 수가 산다 — CSS 를 JS 로 들여올 길이 없다. 그래서 ★경고 주석 대신 ★«재는 자»를 뒀다:
+ *     tests/unit/grid-circle-text-inset.test.mjs 가 그 CSS 를 파싱해 이 상수와 맞춘다(어긋나면 빨강).
+ *   ★리터럴을 안 적고 √2 에서 «뜬다» — 70.71 이라는 수가 어디서 왔는지가 코드에 남는다. */
+export const GRID_CIRCLE_TEXT_INSET_PCT = Math.round(10000 / Math.SQRT2) / 100;   // = 70.71
 
 /* ══ 구분선 줄의 «굵기·색» 한계 — T-? (2026-09-30, 현빈 grd_owr55_gql6n0n) ════════
  * ★값은 원래 아래 `line.type === 'divider'` 가지 안에 손으로 박혀 있었다(1·40·#e0e0e0).
@@ -2021,14 +2027,70 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
      *     줄되 aspect-ratio 1/1 이라 «늘 정원». ⛔widthPct·크롭(imgSizePct/imgPosX/imgPosY)은 원에선 안 읽는다
      *     (_gridUnreadLineFields 가 ignoredProps 로 되돌려준다 — 거짓 성공 없음).
      *   ⛔imgShape 가 없으면 이 갈래를 안 탄다 — 아래 사각 산출은 한 글자도 안 바뀐다(grid-img-frame-noop · 골든). */
+    /* ★★G20 — 원 «채움색»(bg)과 원 «안 글자»(text·color·fontSize) (현빈 2026-10-07
+     *   「그리드 블럭 칸에 원형 이미지에셋을 추가한 뒤, ★서클 에셋블럭처럼 ★색을 솔리드로 바꾸고 ★텍스트 입력이 가능하게」
+     *    · 길은 지디 2026-10-07 ⒜「작은 길」 — ⛔서클 에셋블럭을 순수 함수로 뜯는 ⒝는 안 한다)
+     *
+     * ★★새 줄 필드가 ★0개다 — `bg`·`text`·`color`·`fontSize` 는 ★이미 GRID_LINE_FIELDS 에 있는 이름이다
+     *   (글자 줄이 쓰던 그 넷). 이 가지가 ★그 이름을 ★읽기 시작하는 것뿐이다. 그래서
+     *   ⑴ 입구가 ★자동으로 받는다 — 민감도 탐침(_gridLineFieldIsRead)이 「렌더러를 켜고 끄며」 재므로.
+     *      ★실측(기준 2866df63): 받기 전엔 `patchCell{bg}`·`{text}` 가 ★ok:false/INVALID 로 거절됐다
+     *      (「none of bg is read by the renderer on a type:'image' line」). 그 거절이 ★ok:true 로 뒤집히는 것을
+     *      tests/dom/grid-circle-text.dom.spec.js G20-1 이 ★단언한다.
+     *   ⑵ grid-patchcell-reject P6(상수 == 이 함수가 읽는 줄 필드 «이름»의 uniq 집합)은 ★초록 그대로다 —
+     *      ★집합이 안 변한다. ⇒ ⛔P6 을 이 카드의 양성대조로 ★쓸 수 없다(항등식이라 아무것도 안 잠근다).
+     *      ⚠️★★그런데 ★이 주석이 ★한 번 P6 을 ★빨갛게 만들었다(2026-10-07 실측): 여기에
+     *        ★「점 뒤에 이름을 붙인 꼴」로 예시를 적었더니, P6 의 도출 정규식이 ★주석 속 그 글자를
+     *        ★«렌더러가 읽는 필드»로 뽑아 명부에 없는 이름이 하나 늘었다.
+     *      ⇒ ⛔★이 파일의 주석에 ★`줄객체.필드` 꼴을 ★새로 쓰지 마라 — ★필드 이름은 ★말로 적어라.
+     *        (바로 아래 정렬 가지의 ⛔주석이 ★P8 에 대해 ★같은 함정을 ★같은 말로 적어 뒀다. 나는 그걸
+     *         ★읽고도 ★P6 에서 다시 밟았다 — ★두 자가 ★같은 소스를 ★같은 방식으로 파싱한다.)
+     *        양성대조는 ★전부 DOM 쪽에 세웠다(그 파일 머리말의 명부).
+     *
+     * ★배치는 ★서클 에셋블럭과 «같은 상수»다 — 가운데 · 폭 = 지름 × 1/√2(내접 정사각형).
+     *   정본이 CSS(`.icb-children`)와 여기 ★둘로 갈리므로 ★«재는 자»를 세웠다:
+     *   tests/unit/grid-circle-text-inset.test.mjs 가 css/editor-blocks.css 의 그 %를 파싱해 이 상수와 맞춘다.
+     * ⛔`inset` 단축 금지 — html2canvas(PNG 내보내기)가 못 읽는다. left/top/transform 은 `.icb-children` 이
+     *   이미 쓰는 ★검증된 관용구다(js/icb-children.js 머리말 · css 그 절).
+     * ★꼴은 ★인라인이다 — 내보내기(단독 HTML·캡처 클론)는 에디터 CSS 를 안 싣는 경로가 있다(이 함수의 관례).
+     *
+     * ★체커무늬 — 빈 원은 `.grd-img-empty` 를 ★그대로 단다(클래스를 떼지 «않는다»):
+     *   ⑴ 캔버스 더블클릭 갈래가 `.grd-img-frame[data-line]:not(.grd-img-empty)` 로 ★크롭/파일선택을 가른다
+     *      (js/block-drag.js) — 떼면 ★그림 없는 원에서 크롭 편집기가 열린다.
+     *   ⑵ 무늬는 ★인라인 `background`가 이긴다(CSS 클래스 규칙 < 인라인). ⇒ 색을 칠하면 무늬가 ★알아서 진다.
+     * ⛔bg·text 가 ★둘 다 없으면 산출이 ★예전과 바이트 동일이다 — 그게 음성대조(㉥)가 재는 것이다.
+     * ★★「사각으로 바꾸기」가 bg·text 를 ★안 뗀다(지디 2026-10-07 ㉢ 판정) — ★코드 0줄로 그렇다:
+     *   _gridMergeLine 의 종류 청소는 `fields.type !== undefined` 일 때만 돌고, 그 길은 `{imgShape:undefined}` 만 준다.
+     *   ★두 실패를 견준 결과다 — 「유령 키가 저장본에 남는다」(작은 비용) vs 「★사람이 쓴 글자가 ★말없이 사라진다」(되돌릴 길 없음).
+     *   ★잠그는 자: G20-7(원→사각→원 왕복 뒤 글자 그대로) ＋ grid-img-circle C4(imgShape 키만 빠진다)가 ★같이 초록.
+     * ⛔안 읽는 것(★손잡이가 없는 값을 읽지 않는다 — 「값은 사는데 손잡이가 없어」가 이 파일의 고질이다):
+     *   weight · lineHeight · letterSpacing · italic · strike · padH/padV · radius · widthPct.
+     * ⛔G5 어두운 배경 자동 글자색(useRoleColor)은 ★이 글자에 ★안 걸었다 — 범위 밖이다. 대신 패널이
+     *   「채움」과 「글자색」을 ★나란히 둬서 어두운 원 위 #555 를 사람이 한 번에 고칠 수 있게 했다. */
     if (line.imgShape === 'circle') {
       const d = h > 0 ? h : GRID_IMG_CIRCLE_D;
       const cAlign = _gridAlign(line.align, colAlign);
       const cAlignCss = cAlign === 'center' ? 'margin-left:auto;margin-right:auto;' : cAlign === 'right' ? 'margin-left:auto;' : '';
-      const box = `width:${d}px;max-width:100%;aspect-ratio:1/1;border-radius:50%;${cAlignCss}${mtCss}`;
-      if (!line.imgSrc) return `<div${addrAttr} class="grd-img-frame grd-img-empty grd-img-circle" style="${box}"></div>`;
+      /* ★값 검문은 «글자 줄이 쓰는 그 정규식»을 그대로 쓴다 — 새 잣대를 만들지 않는다(이 파일 GRID_ENUM/잣대 규약). */
+      const cBg = (typeof line.bg === 'string' && _GRID_COLOR_RE.test(line.bg.trim())) ? line.bg.trim() : '';
+      const cBgCss = cBg ? `background:${cBg};` : '';
+      const cText = typeof line.text === 'string' ? line.text : '';
+      let cTextHtml = '';
+      if (cText !== '') {
+        const tRole = _GRID_ROLES.body;   // ★줄의 type 은 'image' 라 역할표에 없다 — 본문 역할을 «빌린다»(새 상수 0)
+        const tSize = Number(line.fontSize) || tRole.size;
+        const tColor = (typeof line.color === 'string' && _GRID_COLOR_RE.test(line.color.trim())) ? line.color.trim() : tRole.color;
+        cTextHtml = `<div class="grd-img-circle-text" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);`
+          + `width:${GRID_CIRCLE_TEXT_INSET_PCT}%;box-sizing:border-box;text-align:center;`
+          + `font-size:${tSize}px;font-weight:${tRole.weight};line-height:${tRole.lh};color:${tColor};`
+          + `white-space:pre-wrap;word-break:keep-all;">${_esc(cText)}</div>`;
+      }
+      const posCss = cTextHtml ? 'position:relative;' : '';   // ⛔글자가 있을 때만 — 없으면 바이트 동일
+      const box = `width:${d}px;max-width:100%;aspect-ratio:1/1;border-radius:50%;${cAlignCss}${cBgCss}${posCss}${mtCss}`;
+      if (!line.imgSrc) return `<div${addrAttr} class="grd-img-frame grd-img-empty grd-img-circle" style="${box}">${cTextHtml}</div>`;
       return `<div${addrAttr} class="grd-img-frame grd-img-circle" style="${box}overflow:hidden;">`
         + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;height:100%;object-fit:cover;">`
+        + cTextHtml
         + `</div>`;
     }
     // ★widthPct(T-C, 코너 리사이즈 핸들) — 없으면 100(기존과 바이트 동일).

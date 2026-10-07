@@ -1148,7 +1148,16 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *       구조로 잠갔다. 그 사실도 그 파일에 적었다. */
 /* 391 → 394 (2026-10-06 · lane-esweep E91): grid-picked-image-entrances.test.mjs 3 개가 grid-* 명부에 들어왔다(더한 것 — 지운 것 0). */
 /* 394 → 402 (2026-10-06 · fix25 E14 · APPROVED_BY: 지디 E14-E157): grid-kind-shed.test.js K0~K7 8 개가 grid-* 명부에 들어왔다(더한 것 — 지운 것 0). */
-const GRID_BASELINE_TESTS = 402;
+/* ★402 → 405 (2026-10-07 · G20 원 «안 글자»·«채움색» · 현빈 발주 / APPROVED_BY: 지디 ㉠-a·㉡·㉢)
+ *   더한 것 = tests/unit/grid-circle-text-inset.test.mjs ★3 개. ⛔지운 것은 ★하나도 없다.
+ *   ⑴세는 자 = `grep -c '^test(' tests/unit/grid-circle-text-inset.test.mjs` → ★3.
+ *   ⑵더한 것 — I1 ★전제(두 자리를 둘 다 찾았다 ＋ 1/√2 를 실제로 만족한다) ·
+ *     I2 주 단언(JS 상수 == CSS `.icb-children` 폭) · I3 ★양성대조(CSS 쪽을 한 글자 바꾸면 I2 빨강).
+ *   ⑶★왜 «재는 자»인가 — 같은 기하가 JS(인라인 style)와 CSS 두 자리에 사는데 ★합칠 길이 없다
+ *     (CSS 를 JS 로 들여올 수 없다). ⛔그럴 때 이 레포의 답은 «경고 주석»이 아니라 ★«재는 자»다.
+ *   ⛔DOM 축(tests/dom/grid-circle-text.dom.spec.js 9개)은 여기 ★안 센다 — 이 래칫의 사각지대다.
+ *     그 아홉의 양성대조는 ★판 7개 × 3회(21런) 실측으로 그 파일 머리말에 표로 적혀 있다. */
+const GRID_BASELINE_TESTS = 405;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
@@ -1227,6 +1236,10 @@ const POSITIVE_CONTROLS = [
   /* ★2026-09-24 gap 자르기(ⓑ 판정) — 렌더러 무접촉 자물쇠의 양성대조 ＋ 구멍이 실재했다는 대조. */
   'grid-gap-clamp.test.js :: G2-b ★양성대조 — 렌더러를 «좁힌» 사본은 같은 저장본을 «다르게» 그린다',
   'grid-gap-clamp.test.js :: G3 ★양성대조 — 기준판은 gap:999 를 «그대로 저장»한다(구멍이 실재했다)',
+  /* ★2026-10-07 G20 원 «안 글자»(현빈) — 내접 정사각형 %가 ★JS 상수와 CSS `.icb-children` ★두 자리에 산다.
+     합칠 길이 없어 ★«재는 자»를 세웠고(경고 주석 대신), 그 자가 ★실제로 어긋남을 잡는지의 대조다.
+     ⛔지운 것 0 — ★더한 것뿐이다. */
+  'grid-circle-text-inset.test.mjs :: I3 ★양성대조 — CSS 쪽 수를 한 글자 바꾸면 I2 가 빨개진다(이 자가 «수»를 실제로 잠근다)',
 ];
 
 function livePositiveControls() {
