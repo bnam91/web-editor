@@ -687,6 +687,13 @@ window.normalizeComparisonRow = normalizeRow;
 window.CMP_PLACEHOLDERS    = CMP_PLACEHOLDERS;
 
 /* ⛔isCmpPlaceholderText 를 여기 더하지 마라 — 위에서 이미 `export function` 이다(중복 export = 문법 오류).
-   ★`node --check` 는 ESM 파일을 ★못 본다(「Cannot use import statement outside a module」로 먼저 죽는다)
-     ⇒ .mjs 사본으로 재야 잡힌다. 2026-10-08 에 내가 실제로 이 줄로 깨뜨렸다. */
+   2026-10-08 에 내가 실제로 이 줄로 깨뜨렸고, ★자가 그걸 ★못 잡았다. 실측(★어느 판인지 같이 적는다 —
+   이 워크트리 · node v24.11.1 · 레포 package.json `"type":"commonjs"`):
+     node --check js/blocks/comparison-block.js            → rc=1 「Cannot use import statement outside a module」
+     node --check <같은 파일에 진짜 문법오류를 더한 사본>   → rc=1 ★같은 메시지
+     ⇒ ★멀쩡한 파일과 깨진 파일이 ★같은 답을 낸다 — ★막힌 빨강이라 ★아무것도 가르지 못한다.
+     node --check <.mjs 사본>                               → rc=1 「Unexpected token ';'」 ★진짜 오류를 짚는다
+   ⇒ ★ESM 파일은 ★.mjs 사본으로 재라. ⛔`node --check <그 .js>` 의 rc 를 근거로 쓰지 마라.
+   ⚠️그리고 ~/.claude/settings.json 의 저장 훅은 ★여기까지 ★닿지도 않는다(까닭은 지디에게 올렸다) —
+     「저장 때 자동으로 잡힌다」를 ★믿지 마라. */
 export { makeComparisonBlock, addComparisonBlock, updateComparisonBlock, renderComparison, getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, normalizeRow };
