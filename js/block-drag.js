@@ -2782,6 +2782,8 @@ function bindFrameDropZone(ss) {
     if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc)) { clearDropIndicators(); dragState.dragSrc = null; return; }
     window.pushHistory();
     const _fromKids = dragState.dragSrc.parentElement;   // G19 — 그리드 밑 그릇에서 끌어냈으면 비었을 때 걷는다(아래 끝에서)
+    /* ★수지③(2026-10-08) — 「들어온 것」을 «정체»로 가린다: 넣기 «전» 프레임 자식의 참조 집합. 아래 자유배치 끝 루프가 이 집합 «밖»만 옮긴다. */
+    const _kidsBeforeDrop = new Set(inner.children);
 
     // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
     const isFreeLayout = ss.dataset.freeLayout === 'true';
@@ -2925,16 +2927,22 @@ function bindFrameDropZone(ss) {
            «이미 중앙에 있던» 형제(left:303)까지 left:0 으로 되돌려 P1 의 중앙배치를 지웠다.
          ⚠️dataset.offsetX 는 여기서 갱신하지 않는다 — 이 루프는 원래부터 안 했고(figma export가
            읽는 값이라 이미 낡아 있다), 이번 변경의 축을 «left 값 하나»로 묶어두기 위해서다. */
+      /* ★수지③(2026-10-08 · 지디 GO) — 이 루프는 «들어온 것»만 옮긴다. 이미 있던 자식은 손대지 않는다.
+         수지 원문: 「기존에 프레임블럭 안에 있던 블럭들의 위치가 바뀌게 된다. 자유배치 모드인데 왜, 오브젝트 블럭이 들어옮에 따라 위치가 영향을 받는가」
+         ⚠️전원을 다시 쌓던 것은 09-05 결정이 «아니다» — 그 재적층(left:'0px' 하드코딩 포함)은 2026-04-11 분리(d62d9875) 때 이미 있었고,
+           09-05(ee4a59e1)는 left 를 0 → 가운데로 바꾸기만 했다. 위 (b) 인용의 주어는 「외부에서 들고 넣을 때」의 그것이다.
+         들어온 것 = _kidsBeforeDrop(넣기 전 참조 집합) «밖»의 absolute 자식 — 표시(클래스)가 아니라 참조로 가린다.
+         세로: 이미 있던 absolute 자식들의 바닥 + 16 부터 DOM 순서로 쌓는다(넣기 전 꼴과 같은 «밑으로 쌓기» · settleRowInFreeFrame 'stack' 과 같은 수). */
       const _fv = frameVisibleSize(inner);
       const _fpad = framePadding(inner);   // F5
-      let _stackY = _fpad.t;
-      [...inner.children].forEach(b => {
-        if (b.classList.contains('drop-indicator')) return;
-        if (b.style.position === 'absolute') {
-          b.style.top  = _stackY + 'px';
-          const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null, _fpad);
-          b.style.left = Math.max(_fpad.l, _off.left) + 'px';
-        }
+      const _incoming = [...inner.children].filter(b => !_kidsBeforeDrop.has(b) && !b.classList.contains('drop-indicator') && b.style.position === 'absolute');
+      const _stayBottom = [...inner.children].filter(b => _kidsBeforeDrop.has(b) && b.style.position === 'absolute')
+        .reduce((m, b) => Math.max(m, (parseInt(b.style.top, 10) || 0) + (b.offsetHeight || 0)), 0);
+      let _stackY = _stayBottom > 0 ? _stayBottom + 16 : _fpad.t;
+      _incoming.forEach(b => {
+        b.style.top  = _stackY + 'px';
+        const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null, _fpad);
+        b.style.left = Math.max(_fpad.l, _off.left) + 'px';
         _stackY += (b.offsetHeight || 60) + 16;
       });
 
