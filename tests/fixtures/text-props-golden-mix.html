@@ -122,6 +122,16 @@
         <button class="prop-style-btn " id="txt-underline-btn" title="밑줄 (⌘U)"><u>U</u></button>
         <button class="prop-style-btn " id="txt-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>
         <button class="prop-style-btn active" id="txt-highlight-btn" title="형광펜 (글자 길이만큼 — 선택이 있으면 그 글자만)">H</button>
+        <!-- ★★단추 ★글자의 text-emphasis 는 ★«미리보기 전용»이다 — ★실제로 점을 그리는 자는
+             ★.tb-dot::before 다(css/editor-layout.css). ⛔★이 주석을 지우지 마라: ★그러면 다음 사람이
+               ★「점 찍기는 text-emphasis 로 구현됐다」고 ★읽는다. ★★실측으로 그 ★반대가 참이다 —
+               text-emphasis 는 ★개수·색만 주고 ★크기(연속)·★xy·★간격을 ★못 줘서 ★배제했다
+               (실측값은 css 쪽 절 머리말에).
+             ★여기서만 쓰는 까닭 = 단추 한 칸에 ★제 효과를 보여 주는 가장 싼 꼴이고 ★손잡이가 필요 없다.
+             (지디 판정 2026-10-08 ④: 「★허용. ★단 ★미리보기 전용임을 ★주석에 적어라」)
+             ⚠️이 절은 ★템플릿 리터럴 ★안이다 — ⛔★백틱을 쓰지 마라. 리터럴이 끊긴다
+               (2026-10-08 실측 ★두 번: 백틱을 썼다가 .mjs rc=1 SyntaxError 가 났고,
+                ★그 경고문 안에 ★또 백틱을 써서 ★다시 났다). -->
         <button class="prop-style-btn " id="txt-dot-btn" title="글자 위 점 찍기 (글자마다 하나 — 선택이 있으면 그 글자만)"><span style="text-emphasis:filled dot;-webkit-text-emphasis:filled dot">점</span></button>
       </div>
 
