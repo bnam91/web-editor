@@ -15,6 +15,7 @@
 
 import { insertAfterSelected, genId, showNoSelectionHint } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
+import { fontChain } from '../props/prop-text-utils.js';
 
 const MODAL_VARIANTS = ['plain', 'titled', 'icon', 'icon-stack', 'grid-2', 'dashed'];
 
@@ -37,6 +38,30 @@ function iconBlockNewColor() {
   catch { c = undefined; }
   _icnNewColorMemo = (typeof c === 'string' && _MDL_COLOR_RE.test(c.trim())) ? c.trim() : MODAL_DEFAULTS.iconColor;
   return _icnNewColorMemo;
+}
+
+/* ★«새로 만드는» 모달의 글꼴 — ★현빈 발주(2026-10-07, 원문):
+     「섹션에 ★신규로 모달블럭을 추가할떄를 말한거임. 우측패널에 기본 서체가 ★기본(시스템)으로 나오거든?
+       … 근데 그냥 섹션에 ★텍스트 블럭을 추가하면 ★프리텐다드로 되어있잖아? ★그렇게 되길 원해」
+   ★★정본은 ★«텍스트 블럭»이다 — 현빈이 ★그것을 기준으로 지목했다. ★실측(2026-10-07 · 하네스 bootApp):
+     새 텍스트블럭 → ★내용 요소 ★인라인 `Pretendard, sans-serif` ⇒ 패널 `#txt-font-name` = ★「Pretendard」
+     새 모달       → dataset.fontFamily ★없음                  ⇒ 패널 `#mdl-typo-font-name` = ★「기본 (시스템)」
+   ⇒ ★그 «같은 값»을 ★같은 출처에서 받는다: `fontChain('Pretendard')` = `'Pretendard', sans-serif`
+     ⛔리터럴로 적지 않는다 — `js/props/_font-picker.js:56` 이 ★`value: fontChain('Pretendard')` 로
+       ★이미 쓰고 있다(= ★피커가 「Pretendard」 항목에 넣는 ★그 값) ⇒ 체인 규약이 바뀌면 ★여기도 따라간다.
+     ★그 자는 ⛔serif 계열엔 Pretendard 를 ★안 끼우는 규율까지 품는다(prop-text-utils.js:30).
+   ★꼴은 ★바로 위 `iconBlockNewColor` 와 ★한 벌 — 「★새것은 새 기본값, 옛것은 저장값」.
+   ⚠️읽기 실패(비브라우저·모듈 미로드)엔 ★`''` ⇒ makeModalBlock 이 ★아무것도 안 박고 ★상속으로 간다
+     = ★지금 화면과 같다. ⛔리터럴 폴백을 두지 않는다(지디 발주 규율).
+   ★한 번만 읽고 기억한다 — 모달을 만들 때마다 체인을 다시 지을 이유가 없다. */
+let _mdlNewFontMemo;
+function modalNewFontFamily() {
+  if (_mdlNewFontMemo !== undefined) return _mdlNewFontMemo;
+  let v;
+  try { v = fontChain('Pretendard'); } catch { v = undefined; }
+  v = (typeof v === 'string') ? v.trim() : '';
+  _mdlNewFontMemo = (v && _MDL_FONT_RE.test(v)) ? v : '';
+  return _mdlNewFontMemo;
 }
 
 const MODAL_DEFAULTS = {
@@ -594,7 +619,16 @@ function makeModalBlock(opts = {}) {
   //   그래서 저장·로드 왕복에서 「줄간격」이라는 개념 자체가 없었다. 기본값이 1.7 이라 화면은 그대로다.
   block.dataset.lineHeight = String(Number.isFinite(Number(opts.lineHeight)) ? Number(opts.lineHeight) : MODAL_DEFAULTS.lineHeight);
   // 나머지 타이포는 «사용자가 정했을 때만» 박는다 — 안 박으면 선언이 안 나가고 현행 화면이 유지된다.
+  /* ★⑵ — «새로 만드는» 모달만 텍스트블럭과 ★같은 글꼴로 태어난다(현빈 2026-10-07).
+       ⛔MODAL_DEFAULTS.fontFamily 는 ★`''` 로 ★그대로 둔다 — 그건 ★옛 블록용 렌더 폴백이다.
+         ★거기를 바꾸는 순간 dataset.fontFamily 가 ★없는 «옛 모달»의 화면이 ★같이 움직인다
+         (★바로 아래 iconColor 주석의 그 병 · 줌블럭 narrow 때와 같은 규약).
+       ★★그래서 ★「옛 모달 불변」이 ★«행위»가 아니라 ★«구조»로 선다:
+         ㉠ 저장된 모달은 dataset 을 ★이미 갖고 있어 ★윗 가지에서 끝난다
+         ㉡ dataset 이 ★없던 옛 모달은 ★이 함수를 ★지나가지도 않는다 — 저장본은 makeModalBlock 이
+            아니라 ★renderModalBlock 으로 되살아난다(save-load.js:1436 「modal: dataset 이 진실」). */
   if (typeof opts.fontFamily === 'string' && opts.fontFamily.trim()) block.dataset.fontFamily = opts.fontFamily.trim();
+  else { const _nf = modalNewFontFamily(); if (_nf) block.dataset.fontFamily = _nf; }
   if (/^[1-9]00$/.test(String(opts.fontWeight || ''))) block.dataset.fontWeight = String(opts.fontWeight);
   if (Number.isFinite(Number(opts.letterSpacing))) block.dataset.letterSpacing = String(Number(opts.letterSpacing));
   for (const k of ['bold', 'italic', 'strike', 'highlight']) if (opts[k]) block.dataset[k] = '1';
