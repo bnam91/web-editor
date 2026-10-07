@@ -101,3 +101,31 @@
 채택, fx-parity 의 `synthetic` 안은 물렸다). `bubble-shortcut-not-in-text` 7칸 전부 ★이 레인에서 초록이다.
 머지 순서: ★태양의 협업 묶음(dev `40179846` · 2744)이 먼저 올라갔고, 이 레인을 ★그 위로 rebase 했다
 (2026-10-06 · 충돌 0). ⇒ 이 레인의 증분 ＋30 은 ★2744 위에 얹힌다.
+
+### 레인 `gd/padviz` ★T-032 거짓음성 — 증분 **＋2** (2026-10-07 · merge-base `4b36eb56` · DEVPIN `64a06566`)
+
+⚠️이 절을 적기 전 이 문서는 **24,225B · mtime 2026-10-07T19:23:00** 이었다(비석이 mtime 을 덮으므로 적어 둔다).
+
+| spec | base | 지금 | 증분 | 무엇 |
+|---|---|---|---|---|
+| `video-pending-warn.dom.spec.js` | 8 | 9 | **＋1** | P9 — 「★같은 영상」을 다시 넣어도 해제가 있으면 다시 알린다 |
+| `video-unapplied-warn.dom.spec.js` | 0 | 1 | **＋1** | `test.fixme` 1건 — ★**skipped 로 돈다** |
+
+두 출처 **일치**: ㉠ git 선언(`test(` ＋ `test.fixme(`) = ＋2 · ㉡ `--list` = ＋2 (`Total: 2940 tests in 342 files`).
+
+⛔**위 `gd/padviz` 두 줄과 ★합치지 마라 — 이중 계산이 된다.** base `4b36eb56` 로 갈랐다:
+`pad-hint-bottom` 9 · `pad-hint` 12 · `video-pending-warn` 8 은 base 에 **이미 있다**(= dev 에 들어갔다) ·
+`inspector-t17` 0 · `video-unapplied-warn` 0 은 **아직**이다. ⇒ 이 레인이 dev 에 얹는 것은 **＋6(T17) ＋ ＋2(이 절) = ＋8**.
+（이 문서의 `marquee-edge-autoscroll +6` 두 줄 교훈과 같은 자리다 — 「어느 판에서 0 이었나」를 물어야 갈린다.）
+
+★`video-unapplied-warn.dom.spec.js` 는 **0바이트였다**(2026-09-22 `4f090665` 부터 15일).
+⇒ `--list` 가 **0건**으로 세어 전수 출력에 아무 흔적이 없었다 — 「표의 빈칸은 «없는 경우»가 아니라
+«안 잰 경우»다」의 물리적 꼴이다. ⇒ `test.fixme` 1건으로 바꿔 **「1 skipped」로 남게** 했다(지디 판정 ㉡).
+★**전수 skipped 기대값이 3 → 4 로 는다.** 그 1건은 「탭 전환 경로 · 두 번째 탭을 만드는 판이 없다」다
+(`js/tab-system.js:297` 이 `warnPendingVideoLossIf` 를 부르는데 DOM 축이 0).
+⛔그 skipped 를 「줄여야 할 빚」으로 읽지 마라 — **안 잰 축을 수로 남긴 것**이고, 몸통 채우기는 별건이다.
+
+⚠️**선언 수를 셀 때의 함정 둘**(2026-10-07 실측 — 둘 다 내가 밟았다):
+- `test.skip(cond, …)` 는 **선언이 아니라 호출**이다. `inspector-t17.dom.spec.js:235`(I7 의 조건부 SKIP)가 그것으로,
+  `^\s*test\.skip\(` 까지 세면 **＋1 거짓양성**이 나서 ㉡ 과 1 어긋난다. ⇒ 선언은 `test(` ＋ `test.fixme(` 만 센다.
+- `test[.(]` 로 넓히면 `test.describe(` · `test.beforeEach(` 까지 세어 **spec 당 ＋2** 가 붙는다.
