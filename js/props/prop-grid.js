@@ -926,7 +926,7 @@ export function grdAddLineToSelectedCell(type) {
   const block = blocks[0];
   const hit = _grdResolveAnyAddr(block, grdGetActiveLine(block));
   if (!hit) return false;
-  const lineSpec = grdNewLineSpec(type === 'gap' ? 'gap' : 'body', 'grid');   // ★spec 은 «한 곳»에서 뜬다 · ★이 문은 `.grid-block.selected` 전용(위 게이트)
+  const lineSpec = grdNewLineSpec(type === 'gap' ? 'gap' : 'body');   // ★spec 은 «한 곳»에서 뜬다(grdNewLineSpec)
   const res = grdAddLine(block, { r: hit.r, c: hit.c }, hit.li, lineSpec);
   return !!(res && res.ok);
 }
@@ -1015,29 +1015,38 @@ function grdNewLineFontFamily() {
  *    ⇒ 글자 역할 ★6 · 그 밖 ★3(image·gap·divider). ⛔사용 자리 grep 으로 세지 않았다.
  *    ⛔gap·divider·image 에 fontFamily 를 박으면 ★렌더러가 ★안 읽는 키가 저장본에 눌러앉고
  *      `_gridInspectLines` 가 「안 그려진다」고 ★되돌려 보낸다.
- *  ★★㉣ ★범위를 ★그리드로 ★잠근다 — ⛔이 문은 ★그리드만 쓰는 문이 ★아니다.
- *    `js/blocks/line-host.js` 의 ★버블(`kind:'bubble'`)·★챗(`kind:'chat'`) 줄이 ★같은 select·
- *    ★같은 `grdAddLine` 을 쓴다(BT2). ★실측(2026-10-07): 가름 없이 박았더니
- *    ★`tests/dom/bt2-lines.dom.spec.js` ★T3 이 빨개졌다 — 버블·챗의 새 캡션 줄에도 ★같이 박혔다.
- *    ★현빈 발주는 ★「모달이나 ★그리드블럭의 텍스트 줄」이다 ⇒ ★버블·챗은 ★안 건드린다.
- *    ★넓힐지는 ★현빈이 고르실 문제다(지디 보고에 ★이름으로 올렸다).
- *  @param {string} kind      `_GRD_KINDS` 의 한 값 (image 는 호출부가 ★먼저 가로챈다 — 피커가 비동기다)
- *  @param {string} hostKind  줄의 ★임자 (`_grdGridHost().kind` = 'grid' · line-host.js = 'bubble'|'chat')
- *                            ⛔기본값을 'grid' 로 두지 않는다 — ★안 적은 호출부가 ★조용히 박게 된다. */
-function grdNewLineSpec(kind, hostKind) {
+ *  ★★㉣ ★임자 가름을 ★«걷었다» — ★현빈 GO (2026-10-07, 지디가 물었고 답이 ★「응, 같이 바꿔라」):
+ *    ★이 문은 ★그리드만 쓰는 문이 ★아니다 — `js/blocks/line-host.js` 의 ★버블(`kind:'bubble'`)·
+ *    ★챗(`kind:'chat'`) 줄이 ★같은 select·★같은 `grdAddLine` 을 쓴다(BT2).
+ *    ~~[폐기 · 2026-10-07] 「★현빈 발주는 「모달이나 ★그리드블럭의 텍스트 줄」이다 ⇒ ★버블·챗은
+ *      ★안 건드린다」~~ ⛔지우지 말고 ★왜 바뀌었는지를 읽어라 — ★그 판단은 ★그 시각까지 옳았고,
+ *      ★현빈이 ★범위를 ★넓혔다. ★갈림(그리드 줄 Pretendard / 버블 캡션 시스템)을 ★없애는 쪽이다.
+ *    ★버블·챗 렌더러도 ★같은 `gridLineHtml` 을 쓴다(`line-host.js` `lnLinesHtml`) ⇒ ★죽은 키가 아니다.
+ *    ★지키는 그물: tests/dom/grid-newline-font.dom.spec.js ★G-KIND(임자 셋) ＋ `bt2-lines` T3
+ *  @param {string} kind  `_GRD_KINDS`(그리드) 또는 `LN_KINDS`(버블·챗)의 한 값.
+ *                        image 는 호출부가 ★먼저 가로챈다(피커가 비동기다) — ⛔`LN_KINDS` 에는 image 가 없다. */
+function grdNewLineSpec(kind) {
   if (kind === 'gap') return { type: 'gap', height: 16 };
   if (kind === 'divider') return { type: 'divider', height: 1 };
   /* ★글자 없는 줄은 «자기 기본값»을 들고 간다 — {text:''} 를 주면 렌더러가 글자 가지로
      읽지는 않지만 저장본에 뜻 없는 빈 필드가 남는다(여백 줄이 이미 그 규약이다). */
   const spec = { type: kind, text: '' };
-  const ff = (hostKind === 'grid' && _GRD_ROLE_KINDS.includes(kind)) ? grdNewLineFontFamily() : '';
+  /* ★★글자 역할 ★«에만» 박는다 — ⛔임자 가름은 걷었지만 ★종류 가름은 ★그대로다.
+     ★`_GRD_ROLE_KINDS = Object.keys(GRID_ROLES)`(정의 자리) · `LN_KINDS` 도 ★같은 역할표에서 뜬다. */
+  const ff = _GRD_ROLE_KINDS.includes(kind) ? grdNewLineFontFamily() : '';
   if (ff) spec.fontFamily = ff;
   return spec;
 }
 /* ★창에 올린다 — 이 파일의 관용구 그대로(window.grdAddLine·grdDuplicateLine …).
-   ★까닭은 ★검사다: `_GRD_ROLE_KINDS` 가름이 «진짜 무엇을 막나»는 ★명부 밖 종류(duo·graph)를
-   ★직접 물어봐야만 잰다 — 패널 select 는 그 둘을 ★만들지 못한다(_GRD_KINDS 머리말 참조).
-   ⛔그 둘을 「만들 수 있게」 한 것이 아니다. 지키는 그물: tests/dom/grid-newline-font.dom.spec.js G-KIND */
+   ★까닭 ★둘:
+     ⑴ ★검사 — `_GRD_ROLE_KINDS` 가름이 «진짜 무엇을 막나»는 ★명부 밖 종류(duo·graph)를
+        ★직접 물어봐야만 잰다. 패널 select 는 그 둘을 ★만들지 못한다(_GRD_KINDS 머리말 참조).
+        ⛔그 둘을 「만들 수 있게」 한 것이 아니다.
+     ⑵ ★★`js/blocks/line-host.js` 의 ★버블·챗 ★T 단축키(`lnAddLineToSelected`)가 ★이 자를 쓴다 —
+        ★전엔 ★거기가 ★spec 을 ★손으로 지어 ★셋째 명부였다(실측 2026-10-07: `{type:'body',text:''}`).
+        ⛔import 가 아니라 ★`window` 로 간다 — 그 파일이 `window.grdAddLine` 에 쓰는 ★같은 관용구다
+          (prop-grid ↔ line-host 순환 import 를 ★일부러 피한 자리다).
+   지키는 그물: tests/dom/grid-newline-font.dom.spec.js G-KIND · tests/dom/bt2-lines.dom.spec.js T3·T9 */
 if (typeof window !== 'undefined') window.grdNewLineSpec = grdNewLineSpec;
 const _grdKindOptsHtml = (kinds, cur, prefix = '') => kinds
   .map(k => `<option value="${k}"${k === cur ? ' selected' : ''}>${prefix}${_grdKindKo(k)}</option>`).join('');
@@ -1132,7 +1141,7 @@ function _grdWireKindSelects(block, r, c, afterLi, host = null) {
       });
       return;
     }
-    const _spec = grdNewLineSpec(kind, H.kind);   // ★①단축키와 «같은 자»에서 뜬다 — 두 벌 금지 · ★임자를 같이 넘긴다(버블·챗 제외)
+    const _spec = grdNewLineSpec(kind);   // ★①단축키·★버블/챗 단축키와 «같은 자»에서 뜬다 — 두 벌 금지
     grdToastImgFail(grdAddLine(block, { r, c }, afterLi, _spec, {}, H));
   });
 
