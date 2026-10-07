@@ -5,7 +5,19 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor,
          wireHexText, parseHex6, formatHex6 } from './color-picker.js';
-import { alignBtn, blockHeaderHTML } from './_helpers.js';
+import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML } from './_helpers.js';
+/* ★오버레이(플로팅) — T3(현빈 섹션메모 `sec_3e0suk0` 「모달 오버레이 기능이 안 보인다」 · 2026-10-07).
+   ★★진입·이탈·드래그를 ★여기서 짜지 않는다 — `js/overlay-float.js` 가 ★정본이고 ★그 파일이
+     「사본을 만들면 ★그 11개(후속 P0 수정)를 ★두 번 더 만든다」고 ★막아 뒀다.
+   ★모달이 ★꽂히는 자리가 ★이미 셋 맞았다(착수 전 실측):
+     ★`posElOf` 가 모달을 어느 갈래에도 안 걸어 ★`return block` 으로 떨어뜨린다 ⇒ ★어댑터 수정 ★0
+     ★`wireFloatToggle` 이 ★이미 매개화됐다(선례 = 텍스트 `prop-text-wireup-overlay.js` · 도형 `prop-shape.js`)
+     ★제외 명부 `_isFlowAnchor` 에 ★모달이 ★없다 ⇒ 안 막힌다
+   ⛔id 는 ★`mdl-float-toggle` 이다 — `_helpers.js` 가 적어 둔 그 함정(에셋이 `asset-overlay-toggle` 을
+     ★못 쓴 까닭 = 이미 「이미지 위 어두운 막」 체크박스가 그 id 를 갖고 있다)을 피해 ★`-float-` 꼴로 간다.
+     ★실측: `mdl-float-toggle`·`mdl-x-number`·`mdl-y-number` 셋 다 레포 안 ★0건이었다. */
+import { wireFloatToggle, wireFloatPosition, floatPositionRowHTML, posElOf, isFloat }
+  from '../overlay-float.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { wireFontPicker } from './_font-picker.js';
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
@@ -79,6 +91,11 @@ export function showModalProperties(block) {
   const letterSpacing = _f('letterSpacing', 0);
   const on = (k) => block.dataset[k] === '1';
 
+  /* ★떠 있나 — ★공용 판정(`isFloat`)을 쓴다. ⛔`dataset.overlayBlock` 을 여기서 다시 읽지 않는다. */
+  const _mdlPosEl   = posElOf(block);
+  const _mdlIsFloat = !!(_mdlPosEl && isFloat(_mdlPosEl));
+  /* ★X/Y 줄도 ★공용 조립기다 — 떠 있지 않으면 ★빈 문자열을 돌려준다(그 함수가 스스로 가른다). */
+  const _mdlFloatRow = floatPositionRowHTML({ prefix: 'mdl', posEl: _mdlPosEl });
   const isIcon = (v === 'icon' || v === 'icon-stack');
   const isGrid = (v === 'grid-2');
   const isRaster = block.dataset.raster === '1';
@@ -150,7 +167,10 @@ ${blockHeaderHTML({
     </div>` : ''}
 
     <div class="prop-section">
-      <div class="prop-section-title">Size</div>
+      <div class="prop-section-title prop-ph-header">
+        <span>Size</span>
+        ${overlayToggleBtnHTML({ id: 'mdl-float-toggle', active: _mdlIsFloat })}
+      </div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
         <div class="prop-type-group">
@@ -167,6 +187,7 @@ ${blockHeaderHTML({
         </div>
         <input type="number" class="prop-number" id="mdl-h-number" min="${L.height.min}" max="${L.height.max}" value="${height}"${hMode === 'fixed' ? '' : ' disabled'}>
       </div>
+      ${_mdlFloatRow ? `<div class="prop-row">${_mdlFloatRow}</div>` : ''}
     </div>
 
     <div class="prop-section">
@@ -513,6 +534,22 @@ ${blockHeaderHTML({
   document.getElementById('mdl-icon-more')?.addEventListener('click', () => {
     showModalIconProperties(block);
   });
+
+  /* ★오버레이 토글 — ★텍스트·도형 패널과 «같은 함수»를 부른다(js/overlay-float.js).
+     ⛔여기서 enter/exit 을 다시 짜지 마라: 그 코드는 ★11개의 후속 P0 수정을 받은 자리다.
+     ★rerender 에 ★손잡이를 같이 넣는 까닭 = 텍스트 선례(prop-text-wireup-overlay.js:30~36)
+       「켜자마자 모서리 손잡이가 «뜬다» / 끄면 «사라진다» — showHandlesFor 가 posEl 의
+        dataset.overlayBlock 으로 스스로 갈라서, 해제 쪽에서는 hide 로 떨어진다」 */
+  wireFloatToggle({
+    block,
+    buttonId: 'mdl-float-toggle',
+    rerender: () => {
+      showModalProperties(block);
+      window.showHandlesFor?.(block);
+    },
+  });
+  /* 떠 있을 때만 나오는 X/Y 두 칸 — 텍스트·도형 Position 절과 «같은 규약»(overlay-float.js). */
+  wireFloatPosition({ block, xId: 'mdl-x-number', yId: 'mdl-y-number' });
 }
 
 /* ═══ ⑶⑷ 모달 아이콘 = «아이콘블럭과 같은 것»으로 다루기 ═══════════════════════════
