@@ -16,6 +16,7 @@ export function buildTextPropsHtml(state) {
     shadow,
     isLiner,
     isStrike,
+    isUnderline,
     isBold,
     isItalic,
     isHighlight,
@@ -120,13 +121,17 @@ ${blockHeaderHTML({
     ${buildTypographySectionHtml({
       p: 'txt',
       font: currentFont, weight: currentWeight, size: currentSize,
-      isBold, isItalic, isStrike, isHighlight,
+      isBold, isItalic, isStrike, isHighlight, isUnderline,
       lh: currentLH, ls: currentLS,
       sizeMin: 8, sizeMax: 800,
       showStyleGroup: !isLiner, showLetterSpacing: !isLiner, showSize: !isLiner,
       /* ★텍스트 패널만 형광펜 색·바 높이 칸을 갖는다 — 배선(wireTextEditSection)이 여기에만 있다.
          ⛔모달(prop-modal.js)·그리드(prop-grid.js)는 기본값 false 라 마크업이 «바이트 동일»이다. */
       showHighlightOpts: !isLiner, hlColorHtml, hlH,
+      /* ★밑줄(U) 단추는 ★텍스트 패널만 — 배선(wireTextEditSection)이 여기에만 있다.
+         ⛔모달·그리드·챗은 기본값 false 라 마크업이 «바이트 동일»이다(형광펜 색 칸과 ★같은 규약).
+         ★켜는 쪽이 배선을 옮기고 ★공유 골든(tests/dom/fixtures/*.json)을 같이 떠야 한다. */
+      showUnderline: true,
       mix: _mix,
     })}
 

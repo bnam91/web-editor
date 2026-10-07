@@ -142,6 +142,11 @@ export function showTextProperties(tb) {
   const isBold        = parseInt(currentWeight, 10) >= 600;
   const isItalic      = contentEl.style.fontStyle  === 'italic';
   const isStrike      = (contentEl.style.textDecorationLine || contentEl.style.textDecoration || '').includes('line-through');
+  /* ★밑줄(⑤ · 2026-10-08 수지 피드백 — ⚠️출처는 2차다, server-manager 가 전한 요약) —
+     ★취소선과 ★같은 CSS 속성(text-decoration-line)에 ★같이 산다. 그래서 「있나」를 ★포함으로 본다
+     (`=== 'underline'` 로 재면 둘이 켜진 'underline line-through' 를 ★꺼짐으로 읽어, 한 번 누를 때
+      밑줄을 켜는 대신 끈다). ★토글 쪽 정본은 prop-text-wireup-text-edit.js 의 _decoTokens 다 — 같은 잣대. */
+  const isUnderline   = (contentEl.style.textDecorationLine || contentEl.style.textDecoration || '').includes('underline');
   /* ★형광펜(2026-10-06 현빈 tb_5bkw8dq) — 정본은 ★.text-block 의 인라인 --tb-hl-color / --tb-hl-h
      ★하나씩이다(사본을 dataset 에 두지 않는다 — 그리는 값과 패널 값이 갈린다). 없으면 CSS 기본값.
      ⛔옛 `tb.dataset.highlight`('none'|'highlight'|'underline')는 ★지웠다 — 레포 전수에 ★쓰는 코드가
@@ -187,6 +192,7 @@ export function showTextProperties(tb) {
     shadow,
     isLiner,
     isStrike,
+    isUnderline,
     isBold,
     isItalic,
     isHighlight,

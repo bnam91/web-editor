@@ -560,48 +560,66 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     hlHNum.addEventListener('change',   () => sync(hlHNum.value, true));
   }
 
-  /* ── 취소선 토글 ──
-   * 부분 선택 시: Cmd+B/I 와 동일한 execCommand 계열('strikeThrough')을 selection 복원 후 실행
-   * 무선택 시: 블록(contentEl) 전체 토글 — 인라인 textDecorationLine 기준, 내부 부분 적용 잔재는 정리 */
-  const strikeBtn = document.getElementById('txt-strike-btn');
-  if (strikeBtn) {
-    strikeBtn.addEventListener('click', () => {
-      const _savedStrikeSel = getSavedTextSelection(ctx.contentEl)?.range || null;
-      if (_savedStrikeSel) {
-        // 부분 선택: 선택 영역만 취소선 토글 (execCommand가 <strike>/<s> 토글 처리)
-        applyExecCmd(_savedStrikeSel, 'strikeThrough');
+  /* ── 장식선 토글 — ★취소선(S)과 ★밑줄(U) ────────────────────────────────────
+   * 규약은 B/I 와 같다: 부분 선택이 있으면 그 영역만(execCommand), 없으면 블록 전체 토글.
+   *
+   * ★★왜 «한 자리»인가 (⑤ · 2026-10-08) — 둘은 ★한 CSS 속성(text-decoration-line)에 ★같이 산다.
+   *   각자 `el.style.textDecorationLine = 'underline'` 로 쓰면 ★다른 하나를 ★조용히 지운다
+   *   (취소선 켠 글에 밑줄을 켜면 취소선이 사라지고, 그 반대도). 옛 취소선 배선이 바로 그 꼴이었다
+   *   — 그땐 이 속성을 ★혼자 썼으니 맞았다. ⇒ 이제 «토큰 집합»으로 읽고 쓴다.
+   *   ⛔한쪽을 다시 `= '…'` 단일 대입으로 되돌리지 마라. 그러면 다른 하나가 사라지는데
+   *     「켜졌다」만 재는 시험은 ★그걸 못 본다(tests/dom/text-underline.dom.spec.js U3 가 그 자다).
+   * ★켜짐 판정은 ★포함으로 — `=== 'line-through'` 는 둘 다 켜진 판을 «꺼짐»으로 읽는다.
+   *   패널의 단추 표시(prop-text.js isStrike·isUnderline)도 ★같은 잣대(포함)를 쓴다 — 갈리면 거꾸로 간다.
+   */
+  const DECO_TOKENS = ['underline', 'line-through'];
+  const _decoTokens = (el) => {
+    const raw = String((el && (el.style.textDecorationLine || el.style.textDecoration)) || '');
+    return new Set(DECO_TOKENS.filter(t => raw.includes(t)));
+  };
+  const _decoWrite = (el, set) => {
+    /* ★순서는 DECO_TOKENS 고정 — Set 순회 순서(=누른 순서)로 쓰면 같은 상태가 두 문자열이 되어
+       저장본·골든이 «같은 뜻인데 다른 바이트»로 갈린다. */
+    const v = DECO_TOKENS.filter(t => set.has(t)).join(' ');
+    if (v) el.style.textDecorationLine = v;
+    else el.style.removeProperty('text-decoration-line');
+    /* 옛 저장본의 ★축약형(text-decoration: line-through)이 남아 있으면 그게 이긴다 — 같이 걷는다. */
+    if (DECO_TOKENS.some(t => (el.style.textDecoration || '').includes(t))) el.style.textDecoration = '';
+  };
+  /* 부분 적용 잔재 정리 — 블록 스타일이 «단일 소스»가 되도록. ⛔내 토큰만 걷는다(다른 하나를 안 건드린다). */
+  const _stripDecoResidue = (el, token, tagSel) => {
+    el.querySelectorAll(tagSel).forEach(_unwrap);
+    el.querySelectorAll(`span[style*="${token}"]`).forEach(sp => {
+      const set = _decoTokens(sp); set.delete(token); _decoWrite(sp, set);
+      const styleStr = sp.getAttribute('style') || '';
+      if (!styleStr.replace(/;|\s/g, '')) _unwrap(sp);
+    });
+  };
+  const wireDecoBtn = ({ btnId, cmd, token, tagSel }) => {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const saved = getSavedTextSelection(ctx.contentEl)?.range || null;
+      if (saved) {
+        // 부분 선택: 선택 영역만 토글 (execCommand 가 <u>/<strike> 토글을 처리한다)
+        applyExecCmd(saved, cmd);
         window.pushHistory?.();
         return;
       }
       const el = ctx.contentEl;
       if (!el) return;
-      const nowOn = !(el.style.textDecorationLine || el.style.textDecoration || '').includes('line-through');
-      if (nowOn) {
-        // 부분 적용 잔재 정리 (applyColorToSel 무선택 분기와 동일 패턴) — 블록 스타일이 단일 소스가 되도록
-        el.querySelectorAll('strike, s').forEach(n => {
-          const parent = n.parentNode;
-          while (n.firstChild) parent.insertBefore(n.firstChild, n);
-          parent.removeChild(n);
-        });
-        el.querySelectorAll('span[style*="line-through"]').forEach(s => {
-          s.style.textDecorationLine = '';
-          if ((s.style.textDecoration || '').includes('line-through')) s.style.textDecoration = '';
-          const styleStr = s.getAttribute('style') || '';
-          if (!styleStr.replace(/;|\s/g, '')) {
-            const parent = s.parentNode;
-            while (s.firstChild) parent.insertBefore(s.firstChild, s);
-            parent.removeChild(s);
-          }
-        });
-        el.style.textDecorationLine = 'line-through';
-      } else {
-        el.style.textDecorationLine = '';
-        if ((el.style.textDecoration || '').includes('line-through')) el.style.textDecoration = '';
-      }
-      strikeBtn.classList.toggle('active', nowOn);
+      const set = _decoTokens(el);
+      const nowOn = !set.has(token);
+      _stripDecoResidue(el, token, tagSel);
+      if (nowOn) set.add(token); else set.delete(token);
+      _decoWrite(el, set);
+      btn.classList.toggle('active', nowOn);
       window.pushHistory?.();
     });
-  }
+  };
+
+  wireDecoBtn({ btnId: 'txt-strike-btn',    cmd: 'strikeThrough', token: 'line-through', tagSel: 'strike, s' });
+  wireDecoBtn({ btnId: 'txt-underline-btn', cmd: 'underline',     token: 'underline',    tagSel: 'u' });
 
   /* ── 컬러 변수 칩 (L3 동적 바인딩) ──
    * 정의된 컬러 변수를 칩으로 노출하고, 클릭 시 글자색을 var(--color-<name>, #hex)로 바인딩한다.

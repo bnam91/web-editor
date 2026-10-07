@@ -35,6 +35,11 @@ const _NO_MIX = { color: { mixed: false }, fontSize: { mixed: false }, fontWeigh
  * @param {string}  o.weight            현재 굵기('100'~'900')
  * @param {number}  o.size              현재 글자 크기
  * @param {boolean} o.isBold|isItalic|isStrike|isHighlight   스타일 버튼 활성
+ * @param {boolean} o.isUnderline     ★밑줄 버튼 활성 (⑤ · 2026-10-08)
+ * @param {boolean} o.showUnderline   ★밑줄(U) 버튼 «표시». ⛔기본 false = 이전과 «바이트 동일»
+ *                                    (텍스트 패널만 true — 배선이 wireTextEditSection 에만 있다.
+ *                                     모달·그리드·챗을 켜려면 그쪽 배선과 골든을 ★같이 손봐야 한다:
+ *                                     tests/dom/fixtures/grid-panel-golden.json 등 ★공유 픽스처가 걸린다)
  * @param {number}  o.lh                줄간격
  * @param {number}  o.ls                자간
  * @param {number}  o.sizeMin|sizeMax   크기 입력 범위 (텍스트 8~800 · 모달 10~60)
@@ -61,12 +66,13 @@ const _NO_MIX = { color: { mixed: false }, fontSize: { mixed: false }, fontWeigh
  */
 export function buildTypographySectionHtml({
   p, font, weight, size,
-  isBold, isItalic, isStrike, isHighlight,
+  isBold, isItalic, isStrike, isHighlight, isUnderline,
   lh, ls,
   sizeMin = 8, sizeMax = 800,
   showStyleGroup = true, showLetterSpacing = true, showSize = true, showHighlight = true,
   showFont = true, showWeight = true, showLineHeight = true,
   showHighlightOpts = false, hlColorHtml = '', hlH = 100,
+  showUnderline = false,
   sizePh, lhPh, lsPh,
   mix,
 } = {}) {
@@ -123,7 +129,8 @@ export function buildTypographySectionHtml({
 
       <div class="prop-style-group" id="${p}-style-group" style="margin-top:6px;display:${showStyleGroup?'flex':'none'}">
         <button class="prop-style-btn ${isBold?'active':''}" id="${p}-bold-btn" title="굵게 (⌘B)"><b>B</b></button>
-        <button class="prop-style-btn ${isItalic?'active':''}" id="${p}-italic-btn" title="기울임 (⌘I)"><i>I</i></button>
+        <button class="prop-style-btn ${isItalic?'active':''}" id="${p}-italic-btn" title="기울임 (⌘I)"><i>I</i></button>${showUnderline ? `
+        <button class="prop-style-btn ${isUnderline?'active':''}" id="${p}-underline-btn" title="밑줄 (⌘U)"><u>U</u></button>` : ''}
         <button class="prop-style-btn ${isStrike?'active':''}" id="${p}-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>${showHighlight ? `
         <button class="prop-style-btn ${isHighlight?'active':''}" id="${p}-highlight-btn" title="형광펜 (글자 길이만큼 — 선택이 있으면 그 글자만)">H</button>` : ''}
       </div>

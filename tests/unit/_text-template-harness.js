@@ -92,6 +92,9 @@ const GOLDEN_STATE = {
   shadow: { enabled: true, x: 3, y: 3, blur: 6, color: '#112233', alpha: 40 },
   isLiner: false,
   isStrike: true, isBold: true, isItalic: false, isHighlight: false,
+  /* ★밑줄(⑤ · 2026-10-08) — 이쪽은 ★켜짐. 취소선도 켜져 있어 ★「둘이 같이 켜진」 판을 골든이 잠근다
+     (한 CSS 속성을 나눠 쓰므로 그 판이 가장 잘 깨진다). MIX 쪽은 ★꺼짐 — 두 갈래를 다 본다. */
+  isUnderline: true,
 };
 
 /* ★두 번째 고정 상태 — «Mix» 와 «isLiner» 가 켜진 쪽.
@@ -105,6 +108,7 @@ const GOLDEN_STATE_MIX = {
   currentWeight: '',
   mix: { color: { mixed: true }, fontSize: { mixed: true }, fontWeight: { mixed: true } },
   isStrike: false, isBold: false, isItalic: true, isHighlight: true,
+  isUnderline: false,
 };
 
 module.exports = { loadTextTemplate, GOLDEN_STATE, GOLDEN_STATE_MIX, ROOT, TEMPLATE_REL, TYPO_REL };
