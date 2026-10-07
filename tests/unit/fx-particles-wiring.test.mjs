@@ -300,6 +300,38 @@ test('W11 ★층을 깔고 거둔다 — 설정이 없으면 «지운다» · �
   } finally { globalThis.window.ParticlesFx = prevP; console.error = prevErr; }
 });
 
+test('W12 ★★크기를 못 믿으면 «거짓 크기»로 안 그린다 — lazy 섹션이 「같은 시드 = 같은 그림」을 깨지 않게 (R3)', () => {
+  const ds = {};
+  W.writeParticles(ds, { preset: 'star', seed: 11, count: 5, glow: 0, spread: 0 });
+  /* ★전제 — 제 크기에서는 그린다(자가 «언제나 false» 가 아니다) */
+  const ok = fakeSection({ w: 860, h: 300, ds });
+  assert.equal(W.applySectionParticles(ok.el), true, '★전제: 멀쩡한 크기에서는 그린다');
+  const drawn = ok.el.children[0].innerHTML;
+  assert.deepEqual(viewBoxOf(drawn), [860, 300]);
+
+  /* ★★높이 0(= lazy 로 내려간 섹션) — ⛔600 으로 때워 그리면 안 된다 */
+  const lazyH = fakeSection({ w: 860, h: 0, ds });
+  assert.equal(W.applySectionParticles(lazyH.el), false, '높이 0 인데 그렸다고 답했다');
+  assert.equal(lazyH.el.children.length, 0, '높이 0 인데 층을 만들었다 — 거짓 크기로 그린 것');
+  /* ★★너비 0 도 같다 */
+  const lazyW = fakeSection({ w: 0, h: 300, ds });
+  assert.equal(W.applySectionParticles(lazyW.el), false, '너비 0 인데 그렸다');
+  assert.equal(lazyW.el.children.length, 0);
+
+  /* ★★이미 층이 있으면 ⛔지우지도 않는다 — 저장본의 그림이라도 보이는 쪽이 낫다 */
+  const had = fakeSection({ w: 860, h: 300, ds });
+  W.applySectionParticles(had.el);
+  const before = had.el.children[0].innerHTML;
+  had.el.offsetHeight = 0;                                  // 섹션이 내려갔다
+  assert.equal(W.applySectionParticles(had.el), false);
+  assert.equal(had.el.children.length, 1, '내려간 섹션에서 층을 지웠다 — 화면에서 사라진다');
+  assert.equal(had.el.children[0].innerHTML, before, '내려간 섹션에서 그림을 바꿨다 — 같은 시드인데 모습이 바뀐다');
+  /* ★다시 올라오면 ★진짜 높이로 그린다 */
+  had.el.offsetHeight = 300;
+  assert.equal(W.applySectionParticles(had.el), true);
+  assert.equal(had.el.children[0].innerHTML, before, '올라온 뒤 그림이 처음과 다르다 — 결정성이 깨졌다');
+});
+
 test('W9 ★필터 id 는 섹션마다 다르다 — 문서 전역 id 가 겹치지 않게', () => {
   assert.equal(W.particlesFilterId('sec_abc'), 'pfx-sec_abc');
   assert.notEqual(W.particlesFilterId('sec_a'), W.particlesFilterId('sec_b'));

@@ -112,22 +112,35 @@ export function applySectionParticles(sec) {
     if (wrap) wrap.innerHTML = '';
     return false;
   }
-  if (!wrap) {
-    wrap = sec.ownerDocument.createElement('div');
-    wrap.className = FX_PARTICLES_WRAP;
-    sec.insertBefore(wrap, sec.firstChild);       // 배경 위 · 내용 아래(자리는 CSS 가 정한다)
-  }
   /* ★크기는 «지금» 잰다 — 저장본에 실린 viewBox 는 ★저장 당시 높이다.
      ★★높이는 ⛔`sec.offsetHeight` 를 ★직접 쓰지 않는다 — ★공용 자 `window.measureSectionHeight` 를 부른다.
        까닭(js/section-height.js 머리말): ★그것이 ★섹션 높이의 ★단일 원본이고, 캔버스 배지·합계·패널이
        ★같은 함수를 쓴다. ★값의 출처가 둘이면 ★어느 날 갈린다 — ★그 파일 실측(2026-10-07)에서
        ★안쪽이 지역 함수를 부르자 ★자를 0 으로 바꿔도 배지가 ★안 변해 ★양성대조가 죽었다.
-       ⇒ ★나는 ★그 자의 ★둘째 소비자다. ★폴백(|| offsetHeight)은 ★로드 순서 보호용이다
-         (그 파일 `ruler()` 와 ★같은 꼴 — ⛔다른 수를 쓰는 길이 아니다).
-     ★너비는 ★섹션이 캔버스 폭을 꽉 채우므로 offsetWidth 가 맞다. 폴백 860 의 출처 = js/io/export-image.js:6 CANVAS_W. */
-  const H = (typeof window !== 'undefined' && window.measureSectionHeight?.(sec)) ?? sec.offsetHeight;
-  wrap.innerHTML = P.svg({ ...cfg, w: Math.round(sec.offsetWidth || 860), h: Math.round(H || 600),
-    filterId: particlesFilterId(sec.id) });
+       ⇒ ★나는 ★그 자의 ★둘째 소비자다. ★폴백(?? offsetHeight)은 ★로드 순서 보호용이다
+         (그 파일 `ruler()` 와 ★같은 꼴 — ⛔다른 수를 쓰는 길이 아니다). */
+  const w_ = Math.round(sec.offsetWidth || 0);
+  const h_ = Math.round(((typeof window !== 'undefined' && window.measureSectionHeight?.(sec)) ?? sec.offsetHeight) || 0);
+  /* ★★★크기를 못 믿으면 ⛔«거짓 크기»로 그리지 않는다 — ★층을 그대로 두고 물러난다. (2026-10-07 R3)
+     ★★까닭이 성능이 아니라 ★★«결정성»이다 — ★크기가 ★그림에 들어간다(viewBox·입자 좌표가 W·H 에서 나온다).
+       ⇒ ★높이를 ★600 으로 «때워» 그리면, 섹션이 올라와 ★진짜 높이(예: 300)로 다시 그릴 때
+         ★같은 seed 인데 ★모습이 ★바뀐다 — ★★그것이 「★같은 시드 = 같은 그림」을 깨는 길이다
+         (지디 설계 전제 ⑶ · js/fx/seeded-random.js:7 「모습의 흔들림은 ★저장된 seed 에서만」).
+     ★언제 0 이 되나: ★`js/io/lazy-sections.js:81` 이 뷰포트 밖 섹션에 `lazy-unloaded` 를 붙여 ★내린다.
+       `watchAllParticles` 는 문서를 연 뒤 ★전 섹션을 도므로 ★아래쪽은 ★이미 내려가 있을 수 있다.
+       (저장 경로는 안전하다 — `js/io/section-serialize.js:180` 이 저장 때 그 클래스를 ★벗긴다. ★문제는 «화면»이다.)
+     ★⛔층을 ★지우지도 않는다: 저장본에 실린 층이 이미 있으면 ★저장 당시 그림이라도 보이는 쪽이 낫고,
+       섹션이 올라오면 ★다시 그려진다. ⇒ ★돌려주는 값은 false(= ★이번엔 안 그렸다).
+     ⚠️★★「섹션이 올라올 때 ★누가 다시 그리나」는 ★★미측정이다(2026-10-07 · DOM 수트 창 대기).
+       ★그 칸의 ★양성대조: ★섹션에 `lazy-unloaded` 를 ★손으로 붙인 판에서 ★이 함수가 ★false 를 주고
+       ★층의 innerHTML 이 ★안 바뀌나 — 그리고 ★벗긴 뒤 다시 부르면 ★진짜 높이로 그려지나. */
+  if (w_ <= 0 || h_ <= 0) return false;
+  if (!wrap) {
+    wrap = sec.ownerDocument.createElement('div');
+    wrap.className = FX_PARTICLES_WRAP;
+    sec.insertBefore(wrap, sec.firstChild);       // 배경 위 · 내용 아래(자리는 CSS 가 정한다)
+  }
+  wrap.innerHTML = P.svg({ ...cfg, w: w_, h: h_, filterId: particlesFilterId(sec.id) });
   return true;
 }
 
