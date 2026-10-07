@@ -184,8 +184,27 @@
    */
   function svg(p) {
     const st = normalize(p);
-    const W = Math.max(1, Math.round(num(p && p.w, 860)));
-    const H = Math.max(1, Math.round(num(p && p.h, 600)));
+    /* ★★w·h 는 ★«필수»다 — ⛔없으면 ★기본값으로 ★때우지 않는다. (2026-10-07 · R3 의 둘째 얼굴)
+       ★★까닭: ★상자 크기는 ★그림에 ★들어간다(viewBox·입자 좌표가 W·H 에서 난다)
+         ⇒ ★860×600 으로 때워 그렸다가 ★진짜 크기로 다시 그리면 ★★같은 seed 인데 모습이 바뀐다
+           = 「★같은 시드 = 같은 그림」이 깨진다(seeded-random.js:7 의 그 계약).
+         ⇒ ★★폴백은 ★「없을 때 메운다」인데 ★메운 값이 ★결과를 정하면
+           ★「없었다」와 ★「다른 값이었다」가 ★구분이 안 된다. ⇒ ★메우지 말고 ★«물러난다».
+       ⚠️⛔`Math.max(1, …)` 로 ★1×1 로 때우는 것도 ★같은 병이다(조각이 1px 안에 뭉친다) — 그래서 뺐다.
+       ★★예외 명부 — ★다른 필드는 ★폴백이 ★맞다(normalize 가 ★프리셋 기본으로 떨어뜨린다):
+         ★w·h 는 ★«상자 크기»라 ★모르면 ★답이 ★없다(어떤 수를 넣어도 틀린다).
+         ★count·colors·glow… 는 ★«프리셋 기본»이 ★정의된 답이다 ⇒ ★떨어져도 ★틀리지 않는다.
+       ★돌려주는 값 = ★빈 문자열 ＋ ★콘솔(글로우 선례 sticker-block.js:156 「빈 상자 ＋ 콘솔」과 같은 결).
+         ⛔조용히 ★다른 그림을 그리지 않는다. ★잠그는 자: tests/unit/fx-particles-render P11. */
+    const W = Math.round(num(p && p.w, 0));
+    const H = Math.round(num(p && p.h, 0));
+    if (W <= 0 || H <= 0) {
+      /* 가드 — 이 모듈은 console 이 없는 판(vm 하네스)에서도 돌아야 한다 */
+      if (typeof console !== 'undefined' && console.error) {
+        console.error('[fx/particles] svg(): w·h 가 없다(받음 ' + W + '×' + H + ') — ⛔기본값으로 때우지 않는다');
+      }
+      return '';
+    }
     const fid = String((p && p.filterId) || 'pfx-tmp').replace(/[^A-Za-z0-9_-]/g, '');
     const rnd = w.FxSeed.mulberry32(st.seed);
     const parts = [];

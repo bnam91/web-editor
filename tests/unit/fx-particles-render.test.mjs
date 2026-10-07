@@ -34,7 +34,7 @@ function load() { return loadWithCap(null); }
 
 /** ★상한을 «다른 값으로» 둔 판을 싣는다 — P0b 가 「프리셋이 상한을 따라오나」를 재는 길.
  *  ⛔사본을 만들지 않는다(글자를 메모리에서 갈아 vm 에 싣는다) · cap=null 이면 ★판 그대로. */
-function loadWithCap(cap) {
+function loadWithCap(cap, errSink) {
   const src = readSrc(REPO, 'js/fx/particles-render.js');
   const ANCHOR = 'const MAX_COUNT = 60;';
   let s = src;
@@ -43,7 +43,12 @@ function loadWithCap(cap) {
     s = src.replace(ANCHOR, `const MAX_COUNT = ${cap};`);
     assert.notEqual(s, src, '⛔치환이 안 먹었다 — 자가 죽었다');
   }
-  const ctx = {}; ctx.window = ctx; vm.createContext(ctx);
+  /* ★console 은 ★errSink 가 있을 때만 넣는다 — ★「조용히 실패했나」를 재는 칸이 ★제 전제를 «세우는» 길이다.
+     ⚠️★이것이 없어서 P11 이 한 번 ★빨갰다 — 제품은 `typeof console !== 'undefined'` 가드를 ★쓰므로
+       ★vm 안에 console 이 없으면 ★진짜로 ★안 부른다. ★호스트 console 을 대역해도 ★vm 은 ★못 본다.
+     ⇒ ★「검사는 ★자기 전제를 ★단언해야 한다」의 자리였다 — 「콘솔을 센다」면 ★「콘솔이 그 판에 있나」부터. */
+  const ctx = errSink ? { console: { error: (...a) => errSink.push(a.map(String).join(' ')) } } : {};
+  ctx.window = ctx; vm.createContext(ctx);
   vm.runInContext(readSrc(REPO, 'js/fx/seeded-random.js'), ctx);
   vm.runInContext(s, ctx);
   assert.equal(typeof ctx.FxSeed?.mulberry32, 'function', '★전제: 공용 부품 FxSeed 를 실제로 실었다');
@@ -264,6 +269,37 @@ test('P8 normalize — 쓰레기 입력에도 그림이 난다(저장본이 낡�
   assert.equal(n.glow, 100, '범위를 넘으면 자른다');
   assert.equal(n.jit, 0);
   assert.ok(F.svg({ ...n, w: 860, h: 600, filterId: 'pfx-z' }).length > 100, '그림이 안 났다');
+});
+
+test('P11 ★★«출력에 들어가는 수»에 폴백이 없다 — w·h 는 필수다 (지디 조건 2026-10-07)', () => {
+  const F = load();
+  /* ★이 칸이 ★그 꼴을 찾는 ★자다 — ★행위로 잰다: ★필수 인자를 빼고 불러 ★«그림이 나나» 본다.
+     ⇒ 그림이 나면 ★폴백이 있다 = ★그 폴백이 ★출력을 정한다 = ★결정성이 깨지는 자리.
+     ★★폴백은 ★「없을 때 메운다」인데 ★메운 값이 ★결과를 정하면 ★「없었다」와 ★「다른 값이었다」가 구분 안 된다. */
+  const said = [];
+  const G = loadWithCap(null, said);          /* ★console 대역을 ★vm 안에 싣고 부른다 */
+  assert.equal(typeof G.svg, 'function', '★전제: console 대역을 가진 판을 실었다');
+  {
+    for (const [name, arg] of [
+      ['w·h 둘 다 없음', { preset: 'star', seed: 1, count: 5, filterId: 'p' }],
+      ['h 만 없음',      { preset: 'star', seed: 1, count: 5, w: 860, filterId: 'p' }],
+      ['w 만 없음',      { preset: 'star', seed: 1, count: 5, h: 600, filterId: 'p' }],
+      ['w·h 가 0',       { preset: 'star', seed: 1, count: 5, w: 0, h: 0, filterId: 'p' }],
+      ['h 가 음수',      { preset: 'star', seed: 1, count: 5, w: 860, h: -5, filterId: 'p' }],
+    ]) {
+      const s = G.svg(arg);
+      assert.equal(s, '', `${name}: 그림이 났다 — 폴백이 출력을 정한다(같은 seed 가 다른 그림을 낸다)`);
+    }
+    assert.equal(said.length, 5, `조용히 실패했다 — 콘솔에 말해야 한다(받음 ${said.length}건)`);
+    assert.ok(said.every((m) => /w·h/.test(m)), `콘솔이 무엇이 없는지 안 말한다: ${said[0]}`);
+  }
+  /* ★음성대조 — 제 크기를 주면 ★그린다(자가 «언제나 빈 문자열» 이 아니다) */
+  const ok = F.svg({ preset: 'star', seed: 1, count: 5, w: 860, h: 600, filterId: 'p' });
+  assert.ok(ok.length > 100 && /viewBox="0 0 860 600"/.test(ok), '★음성대조: 멀쩡한 크기에서는 그린다');
+  /* ★★예외 명부 — ★다른 필드는 ★폴백이 «맞다»(프리셋 기본이 ★정의된 답이다).
+     ⇒ 이 둘을 섞지 않는다: ★w·h 만 필수고, ★나머지는 normalize 가 떨어뜨려도 ★틀리지 않는다. */
+  const bare = F.svg({ w: 860, h: 600, filterId: 'p' });
+  assert.ok(bare.length > 100, 'preset·seed·count 를 안 줘도 그림은 나야 한다(프리셋 기본이 답이다)');
 });
 
 test('P9 lum — 못 읽으면 ★null(「검정」과 구분한다) · 읽히면 0~1', () => {
