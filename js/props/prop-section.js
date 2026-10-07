@@ -280,6 +280,16 @@ ${blockHeaderHTML({
         <span class="prop-label">Preset</span>
         <select class="prop-select" id="sec-preset">${presetSelectHTML}</select>
       </div>
+      <!-- ★(다) 이 섹션의 «지금» 높이 — 현빈 2026-10-07. 읽기 전용(여기서 높이를 «정하지» 않는다).
+           ⛔수를 여기서 다시 계산하지 마라 — 캔버스 배지·합계와 ★같은 함수(window.measureSectionHeight)를
+             부른다. 값의 출처가 둘이면 어느 날 갈린다(js/section-height.js 머리말).
+           갱신은 js/section-height.js 가 #sec-height-value 를 찾아서 한다(섹션 높이가 바뀌는 동안 패널이 열려 있을 수 있다). -->
+      <div class="prop-row" title="내보내기 기준 레이아웃 px — 캔버스 배율에 흔들리지 않습니다">
+        <span class="prop-label">높이</span>
+        <span class="prop-value-text" id="sec-height-value" style="font-variant-numeric:tabular-nums;" data-sec-id="${escHtml(sec.id || '')}">${
+          (() => { const h = window.measureSectionHeight?.(sec); return h == null ? '—' : h + 'px'; })()
+        }</span>
+      </div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Background</div>

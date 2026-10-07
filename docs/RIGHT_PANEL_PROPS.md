@@ -89,11 +89,18 @@
 
 ---
 
+### 3-1-b. 패널 ★맨 위 — 전체 섹션 높이 합계 (`#rp-height-total`)
+
+| 자리 | 컨트롤 | 설명 |
+|------|--------|------|
+| `#panel-right` 맨 위(`#rp-top-row` 아래 · `.panel-header` 위) | 전체 높이 합계 + 섹션 수 | `js/section-height.js`. ⛔`.panel-body`(propPanel) **밖**이다 — 거기는 선택마다 `innerHTML` 이 통째로 갈려서 패널 종류마다 합계를 다시 적는 «둘째 명부»가 생긴다. 합계는 섹션별 값의 ★파생(같은 `measureSectionHeight`) |
+
 ### 3-2. 섹션 프로퍼티 (`prop-section.js`)
 
 | 섹션 | 컨트롤 | 설명 |
 |------|--------|------|
 | 헤더 | 섹션 이름 + ID 배지 | 이름 인라인 편집 가능, ID 클릭 시 복사 |
+| 헤더 | **높이** (읽기 전용) | `#sec-height-value` — `window.measureSectionHeight(sec)` = `sec.offsetHeight`. ★캔버스 배율 무관(내보내기가 쓰는 그 자 — `js/io/export-image.js:444`). 캔버스 섹션 머리의 `.section-height-badge` ·  우측 패널 맨 위 `#rp-height-total` 과 **같은 함수** 하나를 쓴다(값의 출처 1곳). 갱신은 `js/section-height.js` |
 | 배경 | 배경색 picker + hex | `sec.dataset.bg`, `sec.style.backgroundColor` |
 | 배경 | 배경 이미지 선택 버튼 | FileReader → base64 → `sec.style.backgroundImage`, `sec.dataset.bgImg` |
 | 배경 | 위치 편집 버튼 | 배경 이미지 있을 때만 표시. `enterBgPosDragMode(sec)` — 드래그로 `background-position` 조정, `sec.dataset.bgPos` 저장 |

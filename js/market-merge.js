@@ -26,7 +26,7 @@
   // 섹션 1개의 정규화 outerHTML (비교용 안정 문자열)
   function normSection(secEl) {
     const el = secEl.cloneNode(true);
-    el.querySelectorAll('.section-label, .section-toolbar, .variation-badge, .annotation-block, .annot-preview').forEach(n => n.remove());
+    el.querySelectorAll('.section-label, .section-toolbar, .variation-badge, .section-height-badge, .annotation-block, .annot-preview').forEach(n => n.remove());
     _stripRuntime(el);
     el.querySelectorAll('[contenteditable]').forEach(n => n.removeAttribute('contenteditable'));
     // 공백 정규화(직렬화 비결정성 완화)

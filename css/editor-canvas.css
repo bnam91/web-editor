@@ -318,6 +318,39 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
   transform-origin: left bottom;
 }
 
+/* ══ 섹션 높이 배지 (다) — 현빈 2026-10-07 「섹션마다 현재 높이가 몇 px 인지」 ══
+   값의 출처는 js/section-height.js measureSectionHeight ★하나(= offsetHeight = 내보내기가 쓰는 그 자).
+   ★자리 = 라벨 «바로 옆 형제». ⛔라벨 «안»에 넣으면 .section-label.textContent 가 섹션 «이름»으로
+     읽히는 10 자리가 「Section 01 300px」로 오염된다(js/section-height.js 머리말에 명부).
+   ★두 단계 표시(지디 2026-10-07 ⒥) — ★평소엔 흐리게, ★hover·선택이면 또렷하게.
+     흐리기·되돌리기 규칙은 ★css/editor-extra.css 한 곳에 모았다(거기 주석에 ⒤ 복귀법).
+     ⛔배지에 `opacity:1` 을 주는 것만으로는 ★안 됐다 — 부모 `.section-hitzone` 의 opacity:0 은
+       렌더에서 ★곱해져 자식이 빠져나올 수 없다. 그래서 흐림을 ★히트존에서 라벨·배지로 ★내렸다
+       (실측 2026-10-07 — D2 가 ★조상까지 곱해 재서 잡았다. 자식 computed 만 재던 단언은 ★못 봤다).
+   줌 카운터-스케일은 라벨·태그칩과 ★같은 어휘(--ui-scale · origin left bottom) — 새 관용구 0. */
+.section-height-badge {
+  flex: 0 0 auto;
+  margin-left: 6px;
+  /* ★평소 — «글자만». 배경·테두리·패딩 ★없다(지디 ⒥ 조건: 늘 떠 있으니 ★눈에 안 거슬리게).
+     흐리기(opacity .45)는 css/editor-extra.css 에 있다 — ★되돌리는 한 줄을 ★한 곳에 모아 두려고. */
+  color: var(--ui-text-dim);
+  font-size: var(--ui-fs-10, 10px);
+  font-weight: var(--ui-fw-medium);
+  font-variant-numeric: tabular-nums;   /* 수가 바뀌어도 자릿수가 안 흔들린다 */
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: left bottom;
+}
+/* ★글자는 «가상요소»로 그린다 — 값의 자리는 `data-h` 다(js/section-height.js renderOne 머리말).
+   ⛔텍스트 노드로 넣지 마라 — `.section-block` 의 innerText·textContent 에 섞인다. 높이는 효과를
+     켜고 끌 때마다 바뀌므로 「반사를 켰더니 섹션 «글자»가 달라졌다」가 된다
+     (2026-10-07 실측 — tests/dom/effects-reflection.dom.spec.js R5 가 이걸 잡았다). */
+.section-height-badge::after { content: attr(data-h); }
+/* 미리보기에는 안 나간다 — 라벨·툴바와 같은 규칙(css/editor-extra.css:120) */
+#preview-overlay .section-height-badge { display: none !important; }
+
 
 /* (dead .scratch-asset-handle 제거됨 — 우클릭 메뉴로 전환) */
 

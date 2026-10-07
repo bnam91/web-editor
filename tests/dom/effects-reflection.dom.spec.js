@@ -8,6 +8,31 @@
  * ★양성대조: GD1001_ROOT=<6119145c 체크아웃> 에서 R* 빨강 · P0 초록. ⛔HEAD 금지.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/effects-reflection.dom.spec.js */
 const { test, expect } = require('@playwright/test');
+
+/* ★비교 «전»에 «편집이 아닌 것»(UI 장식)을 걷는다 — 2026-10-07 (gd/sec-height).
+   왜 — R2·R9 는 「★효과(reflection)가 섹션 DOM 에 흔적을 남기나」를 재는 ★변경 감지기다. 그런데
+   outerHTML 을 ★통째로 견주므로, 효과와 무관한 ★UI 장식이 섹션 머리에 하나 붙기만 해도 빨개진다
+   (실측: 섹션 높이 배지 `.section-height-badge` 가 붙자 ⑴R2 가 핀 판과 한 줄 달라지고 ⑵R9 는
+    그 배지의 파생값이 비동기로 갱신돼 «켜기 전»과 안 맞았다 — 효과 잔류가 아니라 ★내 장식이었다).
+   ⇒ 「무엇이 콘텐츠가 아닌가」는 이 레포에 ★이미 이름이 있다: js/io/save-load.js 의
+     NON_CONTENT_UI_SELECTOR(계약: 「저장에서 지워지는 것 = 편집이 아닌 것」). ★그 상수 하나를 그대로
+     읽는다 — 여기에 손으로 목록을 적으면 ★둘째 명부가 된다.
+   ★시험의 힘은 안 줄었다 — 저장되는 ★콘텐츠가 한 글자라도 바뀌면 여전히 빨강이다. 걷는 것은
+     「저장에도 안 실리는 것」뿐이다.
+   ⚠️핀 판(옛 판)에는 이 상수가 없을 수도 있다 — 그러면 안 걷는다. 그래도 맞다: 그 판엔 걷을
+     장식 자체가 없다(양쪽 다 배지 없는 꼴로 만나 비교가 성립한다). */
+async function installStripUi(pg) {
+  await pg.addInitScript(() => {
+    window.__fxStripUi = (el) => {
+      if (!el) return '';
+      const sel = window.NON_CONTENT_UI_SELECTOR;
+      if (!sel) return el.outerHTML;
+      const c = el.cloneNode(true);
+      c.querySelectorAll(sel).forEach(n => n.remove());
+      return c.outerHTML;
+    };
+  });
+}
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -30,6 +55,7 @@ async function px(page, pts) {
 /* 장면: 섹션 하나 — [텍스트 '███'(파랑 80px)] [gap 40] [에셋(주황 그림)] [gap 40] [도형 래퍼(100×100 사각 · 초록)] [gap 40] [아래 텍스트 'BELOW'] — 고정 id */
 async function setup(page, boot = bootApp) {
   await page.setViewportSize({ width: 1500, height: 1400 });
+  await installStripUi(page);          // ★goto «전»이라야 addInitScript 가 걸린다(위 머리말)
   const errs = await boot(page);
   await page.evaluate(() => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
@@ -149,7 +175,7 @@ test('R2 ★옛 문서 바이트 동일 — 같은 장면을 «핀 6119145c 파�
   const shot = async (pg) => pg.evaluate(() => {
     for (const [id, fn] of [['eT', 'showTextProperties'], ['eSh', 'showShapeProperties'], ['eA', 'showAssetProperties']]) { try { window[fn]?.(document.getElementById(id)); } catch (_) {} }
     const s = document.getElementById('eS'); s.querySelectorAll('[id]').forEach(e => { if (!/^e/.test(e.id)) e.removeAttribute('id'); });
-    return s.outerHTML; });
+    return window.__fxStripUi(s); });
   const p2 = await page.context().newPage();
   await setup(p2, pinned);
   const pinHtml = await shot(p2); await p2.close();
@@ -304,7 +330,8 @@ test('R8 ★E64 — 도형 회전 여백과 «합» · 말풍선·그리드 패�
 
 test('R9 ★U8 조건⑴ — 켰다가 ✕ 로 지우면 블럭·래퍼·섹션 outerHTML 이 켜기 «전»과 바이트 동일(텍스트·에셋·도형)', async ({ page }) => {
   await setup(page);
-  const snap = () => page.evaluate(() => ({ t: document.getElementById('eTF').outerHTML, a: document.getElementById('eA').outerHTML, s: document.getElementById('eShF').outerHTML, sec: document.getElementById('eS').outerHTML }));
+  const snap = () => page.evaluate(() => ({ t: window.__fxStripUi(document.getElementById('eTF')), a: window.__fxStripUi(document.getElementById('eA')),
+    s: window.__fxStripUi(document.getElementById('eShF')), sec: window.__fxStripUi(document.getElementById('eS')) }));
   const before = await snap();
   for (const id of ['eT', 'eA', 'eSh']) { await fx(page, id, { state: 'on', gap: 12, len: 70, op: 60 }); await fx(page, id, { state: 'off' }); await fx(page, id, { state: 'on' }); }
   expect((await snap()).sec, '전제 — 켠 동안은 다르다').not.toBe(before.sec);

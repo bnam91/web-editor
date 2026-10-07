@@ -572,6 +572,11 @@
         </svg>
       </button>
     </div>
+    <!-- ★(라) 모든 섹션 높이의 합계 — 현빈 2026-10-07. 자리 = 우측 패널 ★맨 위(지디 확정).
+         ⛔.panel-body 안에 두지 마라 — 거기는 선택마다 innerHTML 이 통째로 갈린다(propPanel)
+           ⇒ 패널 종류(섹션·블럭·페이지…)마다 합계를 다시 적는 «둘째 명부»가 생긴다.
+         값은 js/section-height.js 가 ★measureSectionHeight 하나로 채운다(섹션 배지와 같은 자). -->
+    <div id="rp-height-total" title="모든 섹션 높이의 합계"></div>
     <div class="panel-header">
       <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
         <circle cx="8" cy="8" r="2"/>
@@ -1557,6 +1562,7 @@
 <!-- 갭 «감수 패스»의 렌더러 쪽(읽기 + 적용). 규격/판단은 main/claude-pm/services/spacing.js 에 있다. -->
 <script src="js/spacing-normalize.js"></script>
 <script src="js/section-memo.js"></script>
+<script src="js/section-height.js"></script><!-- ★섹션 높이 표시 (다)·(라) — 자 = offsetHeight 하나(머리말에 근거) -->
 <script src="js/section-protection.js"></script>
 <script src="js/section-cleanup.js"></script>
 <script type="module" src="js/annotation-tool.js"></script>

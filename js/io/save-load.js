@@ -597,12 +597,25 @@ function getSerializedCanvas() {
    ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
    ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
 export const NON_CONTENT_UI_SELECTOR =
-  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy, .grd-add-btn';
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy, .grd-add-btn, .section-height-badge';
+/* ★.section-height-badge (2026-10-07 (다)) — 위 ⛔계약대로 «serializeProject 가 실제로 지우는지»를
+   먼저 확인하고 넣었다: js/io/section-serialize.js serializeCleanRoot 의 remove 줄에 같이 올렸다.
+   (그 쌍을 tests/dom/section-height-display.dom.spec.js S1 이 잠근다 — 저장본·히스토리에 배지 0건.) */
 
 if (typeof window !== 'undefined') window.NON_CONTENT_UI_SELECTOR = NON_CONTENT_UI_SELECTOR;   // ★E148 — ⌘C 글자 뽑기(editor.js)가 «같은 목록»으로 UI 를 걷는다
 
 /** 이 mutation 이 «UI 장식»만 건드렸나 — 그렇다면 편집이 아니다. */
 function _isNonContentUiMutation(m) {
+  /* ★childList 뿐 아니라 «그 UI 장식 ★안»의 글자·속성 변화도 편집이 아니다.
+     까닭은 위 계약 그대로다 — 저장에서 지워지는 것은 정의상 콘텐츠가 아니고, 지워질 것의
+     글자가 바뀐 것도 콘텐츠 변화일 수 없다.
+     왜 넓혔나(2026-10-07): 섹션 높이 배지(.section-height-badge)는 높이가 바뀔 때마다
+     제 `data-h` 를 고친다(attributes — 글자는 CSS ::after 가 그린다). 안 걸러내면
+     «블록을 하나 옮길 때마다» 1500ms 뒤 serializeProject 가 또 돌아 자동저장이 두 번 울린다.
+     (characterData 쪽도 같은 한 줄이 덮는다 — 장식 «안»이면 무엇이 바뀌든 편집이 아니다.)
+     ⇒ 옛 꼴(childList 전용)도 그대로 참이다 — 이 줄은 그 위에 «안쪽»을 더한 것이다. */
+  const tgt = m.target?.nodeType === 1 ? m.target : m.target?.parentElement;
+  if (tgt?.closest?.(NON_CONTENT_UI_SELECTOR)) return true;
   if (m.type !== 'childList') return false;
   const nodes = [...m.addedNodes, ...m.removedNodes];
   if (!nodes.length) return false;
