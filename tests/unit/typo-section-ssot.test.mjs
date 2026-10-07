@@ -65,11 +65,11 @@ test('T0 ★하네스가 실제로 HTML 을 낸다 + 골든 픽스처가 둘 다
 
 /* ══ T1 — 뽑기는 «동작 무변경»이었다 ══════════════════════════════════════ */
 
-/* ⛔★이 골든이 «못 보는» 칸이 하나 있다 — 형광펜 «색 칸»(txt-hl-color*) 마크업.
+/* ⛔★이 골든이 «못 보는» 칸이 ★둘 있다 — 형광펜 «색 칸»(txt-hl-color*)과 ★점 «색 칸»(txt-dot-color*) 마크업.
  *   그 칸은 prop-text.js 가 colorFieldHTML 로 만들어 hlColorHtml 로 넘기는데, 이 하네스는 vm 에
  *   prop-text.js 를 안 올리므로 빈 문자열이 들어간다 ⇒ 골든엔 «빈 자리»로 찍힌다.
- *   ★그 칸이 실제로 서는지는 tests/dom/text-highlight-bar.dom.spec.js H3 가 «앱 통째로» 재고,
- *     id 가 안 샜는지는 아래 T1-b 가 본다. ⛔「골든이 초록이니 색 칸도 산다」로 읽지 마라. */
+ *   ★그 칸이 실제로 서는지는 tests/dom/text-highlight-bar.dom.spec.js H3 ＋ tests/dom/text-dot-over.dom.spec.js D6 이
+ *     «앱 통째로» 재고, id 가 안 샜는지는 아래 T1-b 가 본다. ⛔「골든이 초록이니 색 칸도 산다」로 읽지 마라. */
 test('T1 ★텍스트 패널 산출 HTML 이 추출 «전»과 한 글자도 다르지 않다 (골든)', () => {
   // 되돌리면 빨강: _typo-section.js 의 마크업을 한 글자라도 바꾸면(들여쓰기 포함).
   const CASES = [
@@ -207,6 +207,8 @@ test('T2-d ★끈 칸이 «정말» 꺼진다 — 챗이 쓰는 조합에서 ㉠
   assert.equal(/underline-btn/.test(H), false,
     '★밑줄(U) 단추가 챗 조합에 생겼다 — showUnderline 기본값이 false 가 아니다. ' +
     '그러면 모달·그리드·챗 골든(tests/dom/fixtures/grid-panel-golden.json 등 ★공유 픽스처)이 통째로 갈린다');
+  assert.equal(/dot-btn|dot-size-row/.test(H), false,
+    '★점 찍기 단추·칸이 챗 조합에 생겼다 — showDots/showDotOpts 기본값이 false 가 아니다(위와 같은 까닭)');
   /* ㉢ ★음성대조 — 기본 호출(끄는 인자 없음)에서는 그 숨김이 «한 글자도» 안 찍힌다.
      ⛔이게 없으면 위 ㉡ 가 「언제나 숨는다」(= 텍스트·모달·그리드를 망가뜨린 상태)와 구분되지 않는다. */
   const D = buildSection('buildTypographySectionHtml', { p: 'txt', size: 32 });
@@ -225,6 +227,24 @@ test('T2-d ★끈 칸이 «정말» 꺼진다 — 챗이 쓰는 조합에서 ㉠
   const U0 = buildSection('buildTypographySectionHtml', { p: 'mdl-typo', size: 32, showUnderline: true, isUnderline: false });
   assert.match(U0, /<button class="prop-style-btn " id="mdl-typo-underline-btn"/,
     '★isUnderline:false 인데 active 가 붙었다 — 단추 표시가 «늘 켜짐»이면 다음 클릭이 거꾸로 간다');
+  assert.equal(/dot-btn/.test(D), false,
+    '★기본 호출에 점 찍기 단추가 찍혔다 — 이전과 «바이트 동일»이 깨진다(모달·그리드·챗 세 패널)');
+  assert.equal(/dot-size-row/.test(D), false, '★기본 호출에 점 손잡이 칸이 찍혔다');
+  /* ★★양성대조 — 켜면 ★나온다 ＋ ★네 수가 ★제 칸으로 간다(칸이 뒤바뀌면 여기서 빨개진다). */
+  const DT = buildSection('buildTypographySectionHtml', {
+    p: 'mdl-typo', size: 32, showDots: true, showDotOpts: true, isDot: true,
+    dotSize: 7, dotGap: 3, dotX: -2, dotY: 5,
+  });
+  assert.match(DT, /<button class="prop-style-btn active" id="mdl-typo-dot-btn"/,
+    `★showDots:true 인데 점 단추가 «안» 나왔다 — 위 음성대조가 공짜로 참이 된다:\n${(DT.match(/<button[^>]*>/g) || []).join('\n')}`);
+  for (const [id, val] of [['dot-size-num', 7], ['dot-gap-num', 3], ['dot-x', -2], ['dot-y', 5]]) {
+    assert.match(DT, new RegExp(`id="mdl-typo-${id}"[^>]*value="${val}"`),
+      `★«${id}» 칸에 ${val} 가 안 들어갔다 — 네 수가 서로 다른 칸으로 가고 있나:\n${(DT.match(/<input[^>]*dot[^>]*>/g) || []).join('\n')}`);
+  }
+  assert.match(DT, /id="mdl-typo-dot-size-row" style="display:flex"/, '★isDot:true 인데 손잡이 칸이 닫혀 있다');
+  const DT0 = buildSection('buildTypographySectionHtml', { p: 'mdl-typo', size: 32, showDots: true, showDotOpts: true, isDot: false });
+  assert.match(DT0, /id="mdl-typo-dot-size-row" style="display:none"/,
+    '★isDot:false 인데 손잡이 칸이 열려 있다 — 「정할 것이 없는데 칸이 있다」가 된다');
 });
 
 test('T2-c ★챗 패널 범위가 ★모델 경계 표에서 «파생»한다 — 패널이 모델보다 좁으면 빨강', () => {

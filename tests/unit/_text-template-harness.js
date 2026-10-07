@@ -95,6 +95,11 @@ const GOLDEN_STATE = {
   /* ★밑줄(⑤ · 2026-10-08) — 이쪽은 ★켜짐. 취소선도 켜져 있어 ★「둘이 같이 켜진」 판을 골든이 잠근다
      (한 CSS 속성을 나눠 쓰므로 그 판이 가장 잘 깨진다). MIX 쪽은 ★꺼짐 — 두 갈래를 다 본다. */
   isUnderline: true,
+  /* ★점 찍기(⑥ · 2026-10-08) — 이쪽은 ★켜짐 ＋ ★네 수를 «서로 다른 값»으로 준다.
+     ⛔다 0/기본값으로 두면 「값이 그 칸으로 간다」를 안 잠근다(네 칸이 뒤바뀌어도 골든이 같다).
+     ⚠️dotColorHtml 은 ★비어 있다 — hlColorHtml 과 ★같은 사각지대(T1 머리말 참조): 이 하네스는
+       vm 에 prop-text.js 를 안 올려 colorFieldHTML 산출이 안 들어온다. 그 칸은 DOM 시험이 잰다. */
+  isDot: true, dotSize: 7, dotGap: 3, dotX: -2, dotY: 5,
 };
 
 /* ★두 번째 고정 상태 — «Mix» 와 «isLiner» 가 켜진 쪽.
@@ -109,6 +114,9 @@ const GOLDEN_STATE_MIX = {
   mix: { color: { mixed: true }, fontSize: { mixed: true }, fontWeight: { mixed: true } },
   isStrike: false, isBold: false, isItalic: true, isHighlight: true,
   isUnderline: false,
+  /* ★MIX 쪽은 점 ★꺼짐 ＋ isLiner:true ⇒ 손잡이 칸이 ★아예 안 찍힌다(showDotOpts:!isLiner).
+     ⇒ 두 골든이 「켜짐＋칸 있음」과 「꺼짐＋칸 없음」 두 갈래를 다 덮는다. */
+  isDot: false,
 };
 
 module.exports = { loadTextTemplate, GOLDEN_STATE, GOLDEN_STATE_MIX, ROOT, TEMPLATE_REL, TYPO_REL };

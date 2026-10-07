@@ -56,6 +56,15 @@ const _NO_MIX = { color: { mixed: false }, fontSize: { mixed: false }, fontWeigh
  * @param {number}  o.hlH               형광펜 바 높이(%, 5~100)
  *                                      (T1 골든이 그 동일성을 지킨다). 끄는 쪽은 «왜 끄는지»를
  *                                      호출부에 적어야 한다 — 그리드가 그 사례다(prop-grid.js).
+ * @param {boolean} o.isDot           ★점 찍기 버튼 활성 (⑥ · 2026-10-08)
+ * @param {boolean} o.showDots       ★점 찍기 버튼 «표시». ⛔기본 false = 이전과 «바이트 동일»
+ * @param {boolean} o.showDotOpts    ★점 «색·크기·간격·xy» 칸 표시. ⛔기본 false = 모달·그리드·챗은 «바이트 동일»
+ *                                   (텍스트 패널만 true — 그 넷을 쓰는 배선이 wireTextEditSection 에만 있다)
+ * @param {string}  o.dotColorHtml   점 «색 칸» 마크업. ★부르는 쪽이 colorFieldHTML 로 만들어 넘긴다
+ *                                   (⛔hlColorHtml 과 같은 까닭 — 이 파일은 color-picker 를 import 하지 않는다)
+ * @param {number}  o.dotSize|dotGap|dotX|dotY   점 지름·점끼리 간격·x·y (px)
+ *                                   ★참값은 css/editor-layout.css 의 --tb-dot-* 기본값이다 —
+ *                                   부르는 쪽(prop-text.js)이 getComputedStyle 로 ★거기서 뽑아 넘긴다(명부 하나)
  * @param {boolean} o.showFont          Font 피커 표시 · @param {boolean} o.showWeight 굵기 select 표시
  * @param {boolean} o.showLineHeight    줄간격 칸 표시
  *                                      ★셋 다 기본 true = 이전과 «바이트 동일». 끄는 쪽은 «왜 끄는지»를
@@ -66,13 +75,14 @@ const _NO_MIX = { color: { mixed: false }, fontSize: { mixed: false }, fontWeigh
  */
 export function buildTypographySectionHtml({
   p, font, weight, size,
-  isBold, isItalic, isStrike, isHighlight, isUnderline,
+  isBold, isItalic, isStrike, isHighlight, isUnderline, isDot,
   lh, ls,
   sizeMin = 8, sizeMax = 800,
   showStyleGroup = true, showLetterSpacing = true, showSize = true, showHighlight = true,
   showFont = true, showWeight = true, showLineHeight = true,
   showHighlightOpts = false, hlColorHtml = '', hlH = 100,
   showUnderline = false,
+  showDots = false, showDotOpts = false, dotColorHtml = '', dotSize = 4, dotGap = 0, dotX = 0, dotY = 0,
   sizePh, lhPh, lsPh,
   mix,
 } = {}) {
@@ -132,7 +142,8 @@ export function buildTypographySectionHtml({
         <button class="prop-style-btn ${isItalic?'active':''}" id="${p}-italic-btn" title="기울임 (⌘I)"><i>I</i></button>${showUnderline ? `
         <button class="prop-style-btn ${isUnderline?'active':''}" id="${p}-underline-btn" title="밑줄 (⌘U)"><u>U</u></button>` : ''}
         <button class="prop-style-btn ${isStrike?'active':''}" id="${p}-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>${showHighlight ? `
-        <button class="prop-style-btn ${isHighlight?'active':''}" id="${p}-highlight-btn" title="형광펜 (글자 길이만큼 — 선택이 있으면 그 글자만)">H</button>` : ''}
+        <button class="prop-style-btn ${isHighlight?'active':''}" id="${p}-highlight-btn" title="형광펜 (글자 길이만큼 — 선택이 있으면 그 글자만)">H</button>` : ''}${showDots ? `
+        <button class="prop-style-btn ${isDot?'active':''}" id="${p}-dot-btn" title="글자 위 점 찍기 (글자마다 하나 — 선택이 있으면 그 글자만)"><span style="text-emphasis:filled dot;-webkit-text-emphasis:filled dot">점</span></button>` : ''}
       </div>
 ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현빈 tb_5bkw8dq: 「색변경 및 하이라이트 바 높이 조절가능하게」).
            ★H 단추 «바로 아래» — 그 단추가 켜는 것을 고치는 칸이라 같은 자리가 맞다.
@@ -147,6 +158,37 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <span class="prop-label">바 높이</span>
         <input type="range" class="prop-slider" id="${p}-hl-h" min="5" max="100" step="1" value="${hlH}">
         <input type="number" class="prop-number" id="${p}-hl-h-num" min="5" max="100" value="${hlH}">
+      </div>
+` : ''}
+${showDotOpts ? `      <!-- ★점 찍기 손잡이 넷 (2026-10-08 수지 ⑥: 「세 글자 선택→점 3개·★간격·★xy·★크기·★색상 변경」).
+           ★점 단추 «바로 아래» — 그 단추가 켜는 것을 고치는 칸이라 같은 자리가 맞다(형광펜 칸과 같은 규약).
+           ★꺼져 있으면 «없다» — 정할 것이 없다.
+           ⛔칸 꼴을 새로 만들지 않는다: 형광펜(txt-hl-* 쪽)이 쓰는 colorFieldHTML ＋ range/number 쌍,
+             그리고 Position 절의 X/Y 꼴(prop-text-template.js)을 ★그대로 쓴다. -->
+      <div class="prop-color-row" id="${p}-dot-color-row" style="margin-top:6px;display:${isDot?'flex':'none'}">
+        <span class="prop-label">점 색</span>
+        ${dotColorHtml}
+      </div>
+      <div class="prop-row" id="${p}-dot-size-row" style="display:${isDot?'flex':'none'}" title="점 지름(px)">
+        <span class="prop-label">점 크기</span>
+        <input type="range" class="prop-slider" id="${p}-dot-size" min="1" max="24" step="1" value="${dotSize}">
+        <input type="number" class="prop-number" id="${p}-dot-size-num" min="1" max="24" value="${dotSize}">
+      </div>
+      <div class="prop-row" id="${p}-dot-gap-row" style="display:${isDot?'flex':'none'}" title="점끼리 좌우 간격(px). 0 = 글자마다 그 위 · 양수 = 양쪽으로 퍼짐(가운데 점은 제자리 · 글자는 안 움직인다)">
+        <span class="prop-label">점 간격</span>
+        <input type="range" class="prop-slider" id="${p}-dot-gap" min="-20" max="40" step="1" value="${dotGap}">
+        <input type="number" class="prop-number" id="${p}-dot-gap-num" min="-20" max="40" value="${dotGap}">
+      </div>
+      <div class="prop-row" id="${p}-dot-xy-row" style="display:${isDot?'flex':'none'}" title="점 위치 미세조정(px) — 글자 위에서 얼마나 비껴 놓을지">
+        <span class="prop-label">점 위치</span>
+        <div class="prop-icon-input" style="flex:1;min-width:0">
+          <span class="prop-xy-label">X</span>
+          <input type="number" id="${p}-dot-x" min="-40" max="40" value="${dotX}" aria-label="점 X">
+        </div>
+        <div class="prop-icon-input" style="flex:1;min-width:0">
+          <span class="prop-xy-label">Y</span>
+          <input type="number" id="${p}-dot-y" min="-40" max="40" value="${dotY}" aria-label="점 Y">
+        </div>
       </div>
 ` : ''}
       <div class="prop-lhls-row">

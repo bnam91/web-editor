@@ -388,6 +388,51 @@
   border-radius: 2px;
 }
 
+/* ── 텍스트 위 ★점 찍기(방점) (2026-10-08 수지 피드백 ⑥ · ⚠️출처는 ★2차다:
+     「텍스트 위 ★점 찍기(세 글자 선택→점 3개·간격·xy·크기·색상 변경)」) ───────────────────
+   ★★왜 표준 `text-emphasis` 가 아닌가 — 2026-10-08 헤드리스 크로미움에서 ★그려서 셌다:
+     개수 ✅ 글자 수 그대로 · 색 ✅ · over/under ✅
+     ⛔크기 = ★이산만(filled dot 4×3px · filled circle 8×8 · 문자 '●' 8×8 · '·' 2×2)
+     ⛔xy 오프셋 ★없음 · ⛔점끼리 간격 ★없음 · `font-size` 로 키우면 ★글자가 같이 줄어든다
+   ⇒ 발주서의 다섯 손잡이(점 수·간격·xy·크기·색) 중 ★둘만 준다. 그래서 ★글자마다 span ＋ ::before 로 그린다.
+   ★네 값은 «텍스트 블럭»(.text-block)에 ★인라인으로 하나씩 박힌다 — 형광펜(--tb-hl-*)과 ★같은 규약:
+     한 블럭 안에 점이 여럿이라 그 ★전부가 같은 값이어야 「점 설정」이 한 값이다.
+     ⛔사본을 dataset 에 두지 않는다(그리는 값과 패널 값이 갈리는 자리가 된다).
+   ★--tb-dot-i 「만」은 ★span 마다다 — 「양쪽으로 퍼뜨리기」(간격)가 그 글자의 ★자리를 알아야 한다.
+     값 = i − (n−1)/2 (가운데 = 0) ⇒ 간격을 줘도 ★가운데 점은 제자리고, ★글자는 ★안 움직인다
+     (글자를 밀면 그건 «자간»이지 «점 간격»이 아니다 — D5 의 음성대조가 그 자리다).
+   ★기본 색 = currentColor ⇒ 안 고른 블럭의 점은 ★글자색을 따라온다(hex 가 안 굳는다 — 형광펜의 토큰 추종과 같은 뜻).
+   ⛔★이 길의 «대가» — 글자를 ★고쳐서 한 span 안에 두 글자가 들어가면 점 수가 어긋난다.
+     (`text-emphasis` 는 브라우저가 매번 다시 세서 그 병이 없지만 손잡이를 안 준다 ⇒ ★주고받은 것이다.)
+     단추를 끄고 켜면 다시 맞춰진다. tests/dom/text-dot-over.dom.spec.js D9 가 그 축을 잠근다.
+   ⚠️★잘림 — 점은 글자 상자 ★밖(위)에 그려진다. 2026-10-08 실측(computed):
+     ★`.section-inner` = `overflow: clip visible` (= overflow-x:clip · overflow-y:visible)
+       ⇒ ★세로(위)로 나가는 것은 ★안 잘린다. ★가로로 나가는 것은 ★잘린다 —
+         맨 왼쪽 글자의 점을 ★왼쪽으로 밀면(음수 x · 간격) 사라진다(실측: x 76px 의 점이 0건).
+     ★섹션 ★맨 윗줄에서는 점이 ★섹션 상자 위로 나가 ★잘릴 수 있다(실측: 여백 없는 섹션에서
+       20px 점이 ★18×6 으로 잘려 그려졌다. 기본 4px 는 안 잘린다).
+     ⇒ tests/dom/text-dot-over.dom.spec.js D12 가 그 둘을 ★재서 적는다. ⛔「안 잘린다」로 넓히지 마라. */
+.text-block {
+  --tb-dot-color: currentColor;
+  --tb-dot-size: 4px;
+  --tb-dot-x: 0px;
+  --tb-dot-y: 0px;
+  --tb-dot-gap: 0px;
+}
+.tb-dot { position: relative; }
+.tb-dot::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: var(--tb-dot-size);
+  height: var(--tb-dot-size);
+  border-radius: 50%;
+  background: var(--tb-dot-color);
+  transform: translate(calc(-50% + var(--tb-dot-x) + var(--tb-dot-gap) * var(--tb-dot-i, 0)), var(--tb-dot-y));
+  pointer-events: none;
+}
+
 /* ═══════════════════════════════════
    LABEL GROUP BLOCK
 ═══════════════════════════════════ */
