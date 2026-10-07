@@ -86,6 +86,11 @@ const WEIGHT = Object.freeze({
   innercard: 3,     // .innercard-block — 카드 안 카드
   modal: 3,         // .modal-block — 컨테이너 + 텍스트(현빈 발주 2026-09-08). 카드와 같은 «덩어리»다
   coupon: 3,        // .coupon-block — 배경 SVG 그릇 ＋ 글자 다섯(현빈 발주 2026-10-07). 모달과 같은 «덩어리»다
+  /* ★인용구(QT1 · 현빈 발주 2026-10-07) — ⚠️«실측 근거 없음 · 판단»이다(머리말의 다섯과 같은 꼴).
+     까닭: 부호(기본 46px) ＋ 글(21px)이 한 덩이로 서는 «디자인된 단위»라 speech_bubble(3)·modal(3)
+     쪽으로 뒀다. ⛔글줄(body:1)로 두면 양옆 부호가 먹는 높이만큼 여백이 모자란다.
+     ★템플릿 조합 표본이 생기면 ★이 줄부터 고쳐라. */
+  quote: 3,         // .quote-block — 부호·글·부호가 한 덩이
   joker: 3,         // .joker-block(sb_) — 피그마 컴포넌트 자리, 통짜 그림
   // 3 — 덩어리
   table: 3,
