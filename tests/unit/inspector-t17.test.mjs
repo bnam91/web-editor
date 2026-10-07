@@ -197,14 +197,45 @@ test('T4 ★점프 key 가 ★전부 다르다 (⛔겹치면 _jumpTargets 가 �
    ⇒ 「★주석은 ★소스의 ★입력이다」의 ★문법 판이다. ★규약엔 ★재는 자가 있어야 집행된다.
    ⇐ 되돌리면 빨강: 어느 HTML 주석에든 백틱을 하나 넣으면 터진다.
    ───────────────────────────────────────────── */
-test('T5 ★HTML 주석에 ⛔백틱 0건 (★템플릿 리터럴을 닫는다)', () => {
-  const comments = [...RAW.matchAll(/<!--[\s\S]*?-->/g)].map(m => m[0]);
-  /* ★입력이 살아 있다 — 주석을 «실제로» 찾았나. 0 이면 아래가 공회전이다. */
-  assert.ok(comments.length >= 1, `★HTML 주석을 ${comments.length}개 찾았다 — 1 이상이어야 한다(아래가 공회전)`);
-  const bad = comments.filter(c => c.includes('`'));
-  assert.deepStrictEqual(bad.map(c => c.slice(0, 50)), [],
-    `★HTML 주석 ${bad.length}개가 백틱을 품었다 — 템플릿 리터럴 안이면 ★SyntaxError 다`);
+test('T5 ★HTML 주석에 ⛔백틱 0건 — ★js/ ★전수 (★템플릿 리터럴을 닫는다)', () => {
+  /* ★★2026-10-07 — ★범위를 ★«레포 전체»로 넓혔다. ⛔한 파일(js/inspector.js)만 잠갔더니
+     ★★같은 사고가 ★js/effects-reflect.js 에서 ★또 났다(★내가 ★같은 턴에 ★두 번 밟았다).
+     ⇒ ★★「★규율은 ★재는 자가 있어야 집행된다」 ＋ ★「내가 세운 규칙의 ★첫 시험에서 ★내가 예외면
+       ★규칙이 죽는다」 ⇒ ★자를 ★좁게 두면 ★그 밖에서 ★또 난다. */
+  const fs = require('node:fs');
+  const files = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const f = path.join(d, e.name);
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(f); }
+      else if (/\.(js|mjs|cjs)$/.test(e.name)) files.push(f);
+    }
+  };
+  walk(path.join(ROOT, 'js'));
+  /* ★입력이 살아 있다 — 파일을 «실제로» 찾았나. 0 이면 아래가 통째로 공회전이다. */
+  assert.ok(files.length > 50, `★js/ 에서 ${files.length}개를 찾았다 — 50 이상이어야 한다(아래가 공회전)`);
+
+  let commentCount = 0;
+  const bad = [];
+  for (const f of files) {
+    const src = fs.readFileSync(f, 'utf8');
+    for (const m of src.matchAll(/<!--[\s\S]*?-->/g)) {
+      commentCount++;
+      if (m[0].includes('`')) bad.push([path.relative(ROOT, f), m[0].slice(0, 44)]);
+    }
+  }
+  /* ★입력이 살아 있다 ⑵ — HTML 주석을 «실제로» 찾았나. */
+  assert.ok(commentCount >= 1, `★js/ 전체에서 HTML 주석을 ${commentCount}개 찾았다 — 1 이상이어야 한다`);
+  assert.deepStrictEqual(bad, [],
+    `★HTML 주석 ${bad.length}곳이 백틱을 품었다 — ★템플릿 리터럴 안이면 ★SyntaxError 다: ${JSON.stringify(bad.slice(0, 3))}`);
+
+  /* ★★음성대조 — 이 자가 «산다». 백틱을 품은 주석을 만들어 먹이면 ★잡아야 한다. */
+  const probe = 'const x = `<div>\n  <!-- `tick` -->\n</div>`;';
+  const probeBad = [...probe.matchAll(/<!--[\s\S]*?-->/g)].filter(m => m[0].includes('`'));
+  assert.strictEqual(probeBad.length, 1,
+    '★음성대조 실패 — 백틱 든 주석을 만들어도 안 잡힌다(이 검사의 자가 죽었다)');
 });
+
 
 
 /* ⇐ 되돌리면 빨강: statRow 의 서명을 또 바꿔 ★불변식 자(variant-ship-leak)의 닻이 못 찾히면 터진다.
