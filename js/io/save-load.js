@@ -134,7 +134,12 @@ async function captureThumbnail() {
        ⛔이 주석에 그 닻 글자를 그대로 적지 마라 — H4 는 주석을 안 거르고 «첫» 자리를 닻으로 잡는다(닻이 주석에 걸리면 진짜 호출을 안 잰다).
        ★꼴을 바꾸면 H4 가 «빨개진다»(전제 단언 + H5 음성대조가 있는 단단한 시험) — 다음 사람은 «왜 빨간지»를 모른다. 어색해 보여도 고치지 마라.
        0.9.7: H4 가 재려는 것(「푸는 자리가 찍는 자리보다 앞인가」)을 «실행 시점»에 잰다 — 호출 순서를 기록해 html2canvas «전»에 불렸나를 런타임으로(명부 E75 · 2026-10-04 지디). */
-    const canvas = await withGuideOff(async () => await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false }));
+    /* ★라이브 캔버스(#canvas)는 «안 베낀다»(2026-10-07 지디 ㉠) — html2canvas 는 찍을 클론 하나가 아니라 «문서 전체»를 복제한다.
+       썸네일은 첫 섹션 클론(body 에 붙은 것)만 쓰는데, 복제·레이아웃 비용은 캔버스의 «모든» 섹션 몫이었다
+       (실측 20 섹션 × 입자 320: 썸네일 한 번 12.7~34.5 s · 메인스레드 최장 막힘 11.3~31.3 s · 판 2866df63 ×3 — 섹션 20 × 빈 것은 0.4~0.5 s).
+       ⛔이 술어는 «이 호출부의 인자»다 — capture 공용 길(capture-safety · export-image)의 기본값으로 옮기지 마라(내보내기 PNG 는 그대로). */
+    const _skipLiveCanvas = (el) => el === canvasEl;
+    const canvas = await withGuideOff(async () => await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false, ignoreElements: _skipLiveCanvas }));
     document.body.removeChild(clone);
 
     /* 200px 너비로 축소 — ★«빈 그림»이면 null 이다. 그럴듯한 6자를 돌려주지 않는다 (T-87).
