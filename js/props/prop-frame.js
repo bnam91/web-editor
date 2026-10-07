@@ -60,8 +60,11 @@ function _analyzeFreeLayoutChildren(ss) {
   const items = directChildren.map(c => {
     const left   = parseInt(c.style.left)   || 0;
     const top    = parseInt(c.style.top)    || 0;
-    const width  = parseInt(c.style.width)  || c.offsetWidth  || 0;
-    const height = parseInt(c.style.height) || c.offsetHeight || 0;
+    /* ★수지④(2026-10-08) — style 값은 «px 일 때만» 믿는다. 글자 래퍼는 폭이 「100%」라 parseInt 가 100 을 돌려줘
+       스택 변환이 그 글자를 100px 로 박았다(실측: 860→100 · 한 줄→세 줄). %·auto·빈 값이면 그려진 크기(offset*). */
+    const _px = (v) => (/^-?[\d.]+px$/.test(v || '') ? Math.round(parseFloat(v)) : 0);
+    const width  = _px(c.style.width)  || c.offsetWidth  || 0;
+    const height = _px(c.style.height) || c.offsetHeight || 0;
     return { el: c, id: c.id, left, top, width, height, bottom: top + height, right: left + width };
   });
   const rows = [];
