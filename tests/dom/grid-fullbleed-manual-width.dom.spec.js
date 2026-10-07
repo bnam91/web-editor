@@ -152,7 +152,12 @@ test('R1 ★T4④-⒝ — 패널 placeholder 가 ★렌더러 폴백과 ★같�
     return { rendered, placeholder: inp ? inp.getAttribute('placeholder') : null, exists: !!inp };
   });
   expect(r.exists, '전제 — 이미지 줄 패널이 떴다').toBe(true);
-  expect(r.rendered, `전제 — 빈 슬롯이 실제로 둥글게 그려진다(받은 값 ${r.rendered})`).toBe('8px');
-  /* ★핵심 — 패널이 하는 말 == 캔버스가 그리는 것. ⛔둘이 다르면 현빈의 「설정 안 했는데 왜?」가 다시 난다. */
-  expect(r.placeholder, `★패널 placeholder(${r.placeholder}) 가 렌더 폴백(${r.rendered}) 과 다르다`).toBe('8');
+  /* ★전제 — «오늘의 값»을 ★손으로 박는다. ⛔제품 상수를 읽어 와서 견주지 마라:
+       그러면 식이 ★항등식이 되어(「상수 == 상수」) ★아무것도 안 잠근다.
+     ★2026-10-07 현빈 ★직접 결정 「0으로 하자」 ⇒ 폴백이 ★8 → ★0 이 됐다(그의 프로젝트 빈 슬롯 ★20개가 바뀐다). */
+  expect(r.rendered, `전제 — 빈 슬롯의 «오늘» 폴백(받은 값 ${r.rendered})`).toBe('0px');
+  /* ★핵심 — 패널이 하는 말 == 캔버스가 그리는 것. ⛔둘이 다르면 현빈의 「설정 안 했는데 왜?」가 다시 난다.
+     ★그래서 ★둘을 ★나란히 단언한다 — 값이 바뀌면 ★위 전제가 먼저 울려 「따라와라」를 말한다. */
+  expect(r.placeholder, `★패널 placeholder(${r.placeholder}) 가 렌더 폴백(${r.rendered}) 과 다르다`).toBe('0');
+  expect(`${r.placeholder}px`, '★둘이 어긋났다').toBe(r.rendered);
 });
