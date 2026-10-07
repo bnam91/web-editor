@@ -197,27 +197,59 @@ test('L7 ⑤자리 — 섹션이 «골라져» 있어도 새 섹션은 맨 아�
   expect((await refRows(page))[0].id, '★연결은 맨 아래 새 섹션에').toBe(after[2]);
 });
 
-test('L8 ③빈 섹션·기본 높이 — 글자 블럭 0 · gap 둘 · 높이가 스크래치 길이와 «무관»', async ({ page }) => {
+/* ★섹션의 «꼴» — id·이름(Section NN)·연결토큰처럼 «당연히 다른 것»만 벗기고 나머지를 그대로 둔다.
+   ⛔수(글자 블럭 N개·gap 높이)를 손으로 박지 않는다 — 기본 섹션이 나중에 바뀌면 그 수가 조용히 거짓이 된다.
+   ⇒ 「`s` 가 만든 섹션과 ★같은 꼴인가」를 묻는다(지디 조건 ⑵). */
+function shapeOf(page, id) {
+  return page.evaluate((sid) => {
+    const sec = document.getElementById(sid);
+    return sec.innerHTML
+      .replace(/\sid="[^"]*"/g, '')                                               // genId — 매번 다르다
+      /* ⛔`<span class="section-label">` 로 «닫히는 꼴»을 적지 마라 — 실제 라벨엔 bindSectionHitzone 이
+         `draggable="true"` 를 붙여 안 걸린다(실측: 그래서 첫 판 L8 이 ★이름만 달라서 빨갰다). 속성을 허용한다. */
+      .replace(/(<span class="section-label"[^>]*>)[^<]*(<\/span>)/g, '$1§$2')     // Section 03 vs 05 — 자동 번호
+      .replace(/\s+/g, ' ').trim();
+  }, id);
+}
+const heightOf = (page, id) => page.evaluate((sid) =>
+  Math.round(document.getElementById(sid).getBoundingClientRect().height / (window.currentZoom / 100)), id);
+
+test('L8 ③「빈 섹션」＝ `s` 키가 만드는 ★그 섹션 — 꼴이 «같다» · 높이는 스크래치 길이와 «무관»', async ({ page }) => {
   await setup(page);
-  const before = await secIds(page);
-  // 스크래치를 «길게» 키운다 — 높이를 거기에 맞추면 이 검사가 빨개진다
-  await page.evaluate(() => { const el = document.querySelector('.scratch-item[data-scratch-id="sp_solo"]'); el.style.width = '400px'; });
+  /* ★스크래치를 «길게» 키운다 — 높이를 거기에 맞추면(현빈 ③ 위반) 아래 높이 단언이 빨개진다. */
+  await page.evaluate(() => { document.querySelector('.scratch-item[data-scratch-id="sp_solo"]').style.width = '400px'; });
+
+  /* ㉠ 기준 = ★진짜 `s` 키. ⛔addSection() 을 손으로 부르지 않는다 — 「`s` 를 누르면」이 요구의 말이다. */
+  const b0 = await secIds(page);
+  await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); });
+  await page.keyboard.press('s');
+  await page.waitForTimeout(250);
+  const a0 = await secIds(page);
+  expect(a0.length - b0.length, '전제 — `s` 키가 섹션을 하나 만든다(이 키 길이 살아 있다)').toBe(1);
+  const sRef = a0.find(x => !b0.includes(x));
+
+  /* ㉡ ★계측기 대조 — 이 «자»가 두 꼴을 실제로 가르나. 가르지 못하면 아래 「같다」는 ★항등식이다. */
+  const b1 = await secIds(page);
+  await page.evaluate(() => window.addSection({ skipDefaultBlock: true }));
+  const a1 = await secIds(page);
+  const emptyRef = a1.find(x => !b1.includes(x));
+  expect(await shapeOf(page, sRef), '★계측기 — `s` 꼴 ≠ 「빈 섹션 옵션」 꼴(두 꼴을 가른다)')
+    .not.toBe(await shapeOf(page, emptyRef));
+
+  /* ㉢ 본 단언 */
+  const b2 = await secIds(page);
   await clickLinkBtn(page, 'sp_solo', { meta: true });
-  /* ★자기 전제를 단언한다 — ⛔없으면 이 검사가 «장면 섹션»을 재고 초록이 된다(실측: ⌘ 분기를 무력화한
-     변이 M1·M2 에서 L8 만 초록이었다 — 장면 섹션도 skipDefaultBlock 꼴이라 글자 0·gap 둘이 그대로 맞았다). */
-  const after = await secIds(page);
-  expect(after.length - before.length, '전제 — 새 섹션이 생겼다(＋1)').toBe(1);
-  const got = await page.evaluate(() => {
-    const secs = [...document.querySelectorAll('#canvas .section-block:not([data-ghost])')];
-    const s = secs[secs.length - 1];
-    const sc = document.querySelector('.scratch-item[data-scratch-id="sp_solo"]').getBoundingClientRect();
-    return { text: s.querySelectorAll('.text-block').length, gaps: s.querySelectorAll('.gap-block').length,
-             gapH: [...s.querySelectorAll('.gap-block')].map(g => Math.round(g.getBoundingClientRect().height / (window.currentZoom / 100))),
-             scratchH: Math.round(sc.height) };
-  });
-  expect(got.text, '★빈 섹션 — 글자 블럭 0개').toBe(0);
-  expect(got.gaps, 'gap 둘(기본)').toBe(2);
-  expect(got.gapH, '★기본 높이 100+100 — 스크래치 길이(' + got.scratchH + ') 와 무관').toEqual([100, 100]);
+  const a2 = await secIds(page);
+  expect(a2.length - b2.length, '전제 — 새 섹션이 생겼다(＋1)').toBe(1);
+  const mine = a2.find(x => !b2.includes(x));
+
+  expect(await shapeOf(page, mine), '★⌘＋🔗 섹션의 꼴 = `s` 키 섹션의 꼴').toBe(await shapeOf(page, sRef));
+  const hMine = await heightOf(page, mine), hS = await heightOf(page, sRef);
+  const hScratch = await page.evaluate(() => Math.round(
+    document.querySelector('.scratch-item[data-scratch-id="sp_solo"]').getBoundingClientRect().height / (window.currentZoom / 100)));
+  expect(hMine, `★높이도 \`s\` 와 같다(잰 값 ${hMine} vs ${hS})`).toBe(hS);
+  expect(hMine, `★스크래치 길이(${hScratch})에 맞추지 «않았다»`).not.toBe(hScratch);
+  expect((await refRows(page)).map(r => r.id), '★연결은 내 섹션에만').toEqual([mine]);
 });
 
 /* ══ 양성대조 명부 — ★실측(2026-10-07 · 이 레인) ═══════════════════════════════════════
@@ -225,6 +257,7 @@ test('L8 ③빈 섹션·기본 높이 — 글자 블럭 0 · gap 둘 · 높이�
  *       mkdir -p /tmp/cmdlink-before && git archive 2866df63 | tar -x -C /tmp/cmdlink-before
  *       GD1001_ROOT=/tmp/cmdlink-before npx playwright test --config=tests/dom/playwright.dom.config.js cmd-link-new-section
  *     빨강 = L0 L3 L4 L5 L6 L7 L8   초록 = **L1 L2**
+ *     ★요구 정정(2026-10-07 「빈 섹션 = `s` 키가 만드는 그 섹션」) 뒤 ★다시 쟀고 ★같은 결과다(7 빨강 / L1·L2 초록).
  *     ⇒ ★L1·L2 는 «지키는 시험»이다 — 옛 판에서도 초록이라야 「②를 안 바꿨다」의 증인이 된다.
  *        ⛔HEAD 를 판으로 쓰지 마라(고친 뒤엔 HEAD 가 곧 고친 판이라 전부 초록이 된다).
  * ⒝ ★변이(이 판에서 한 자리씩 무력화) — 「무엇을 끄면 어느 검사가 빨강인가」:
@@ -233,9 +266,15 @@ test('L8 ③빈 섹션·기본 높이 — 글자 블럭 0 · gap 둘 · 높이�
  *       M3 pushHistory 노옵 억제 제거 → **L6 만** (1)
  *       M4 afterId(자리 못박기) 제거  → **L7 만** (1)
  *       M5 그룹 번지기 제거           → **L4 만** (1)
- *       M6 skipDefaultBlock 제거      → **L8 만** (1)
+ *       M6′ `skipDefaultBlock: true` 를 ★되돌려 넣음 → **L8 만** (1 · ★요구 정정 뒤 다시 세운 변이)
  *       M7 끝 표본 제거               → **L6 만** (1)
  *     ⇒ 축마다 «재는 자»가 적어도 하나 있다. 0건인 칸은 아래 ⒞.
+ *     ★L8 은 ★설계 흠을 ★두 번 냈다(둘 다 «내 검사»의 흠이지 제품의 흠이 아니었다):
+ *       ㉠ 전제 미단언 — 아래 ⒝ 의 그 이야기(장면 섹션을 재고 초록).
+ *       ㉡ ★라벨 정규식 — `<span class="section-label">` 으로 «닫히는 꼴»을 적었는데 실제 라벨엔
+ *          bindSectionHitzone 이 `draggable="true"` 를 붙여 ★안 걸렸다 ⇒ 「Section 03 vs 05」(자동 번호)
+ *          ★하나만 달라서 L8 이 빨갰다. ★제품은 맞았고(나머지 전부 바이트 동일) ★자가 틀렸다.
+ *          ⇒ ★고친 뒤 M6′ 변이가 ★여전히 L8 을 빨갛게 한다(=자를 느슨하게 해서 통과시킨 것이 아니다).
  *     ★L8 의 역사 — 첫 측정에서 M1·M2 가 L8 을 ★안 빨갛게 했다. 까닭 = L8 이 «자기 전제»(새 섹션이 생겼다)를
  *       안 단언해 «장면 섹션»을 재고 있었다(장면 섹션도 skipDefaultBlock 꼴이라 글자 0·gap 둘이 그대로 맞았다).
  *       ⇒ 전제를 더한 뒤 M1·M2 ★둘 다 다시 쟀고 둘 다 6칸이다. ⛔「같은 꼴이니 같을 것」으로 적지 않았다.

@@ -908,9 +908,15 @@
    *    ⛔ghost 섹션([data-ghost])을 그 명부에서 «뺀다» — addSection 이 자기 머리에서 ghost 를 먼저 지우므로
    *      그 id 를 afterId 로 주면 ref 가 «부모 없는» 노드가 되고 `ref.after(sec)` 는 조용히 아무 일도 안 하는데
    *      placed=true 가 돼 «새 섹션이 DOM 에 안 붙는다».
-   * ⑶ ★높이는 «기본»이다(③) — 스크래치패드 길이에 안 맞춘다. skipDefaultBlock = 레포가 「빈 섹션」이라 부르는 그 꼴
-   *    (block-factory.js:1450 주석 · 선례 = js/canvas-scratch-drop.js:532 의 «스크래치 → 새 섹션» 길).
-   *    paddingY 를 안 주므로 기본 100+100 두 gap 이 선다.
+   * ⑶ ★★「빈 섹션」＝ ★캔버스에서 `s` 를 눌러 생기는 ★그 섹션이다 (현빈 2026-10-07 답 · 원문:
+   *    「캔버스에서 's'를 누르면 섹션이 추가되잖아? 그걸 원하는거야 … [S눌러 섹션추가 > 링크연결] 이 과정을 패스하고 싶은 거야」).
+   *    ⇒ ★`addSection` 에 ★옵션을 «더 주지 않는다» — `s` 의 길이 `window.addSection?.()` 를 ★인자 없이 부르므로
+   *      (js/editor.js:2678~2686 `_isAddSection` · 기본 키 `KeyS` = js/settings/settings-store.js:28 — ★직접 확인),
+   *      여기서도 `skipDefaultBlock` 을 ★주지 않아야 «같은 섹션»이 된다.
+   *    ⛔한때 `skipDefaultBlock: true` 였다(레포가 그 옵션을 「빈 섹션」이라 부르고 — block-factory.js:1450 —
+   *      «스크래치 → 새 섹션» 선례 js/canvas-scratch-drop.js:532 도 그 꼴이라). ★현빈이 ★「s 와 같은 것」으로 정정했다.
+   *      ⇒ ★이 자리를 다시 「빈 섹션 옵션」으로 되돌리지 마라.
+   *    ★높이는 그대로 «기본»이다(③) — ⛔스크래치패드 길이에 ★안 맞춘다. 재는 자 = L8(「`s` 가 만든 섹션과 ★같은 꼴인가」).
    * ⑷ ★★⌘Z 는 «한 걸음»이다(현빈 5). 이 제스처는 입구가 둘(addSection · addLink×N)이고 셋이 각자 pushHistory 를
    *    부르며, 게다가 window.addSection 은 js/insert-history.js 가 감싸 «끝 표본»을 한 칸 더 쌓는다(EXTRA 명부에 있다).
    *    그냥 부르면 ⌘Z 가 «두 걸음»이 되고 첫 걸음이 「섹션은 남고 연결만 풀림」이 된다.
@@ -970,7 +976,7 @@
     window.pushHistory = () => {};                                     // ★안쪽 입구들의 칸을 막는다(위 ⑷)
     let sec = null;
     try {
-      window.addSection({ skipDefaultBlock: true, afterId: tailId || undefined });
+      window.addSection({ afterId: tailId || undefined });
       /* ★새 섹션을 «id 차집합»으로 집는다 — ⛔`sections[length-1]` 로 집지 마라(선례
          js/canvas-scratch-drop.js:530 이 그렇게 집는다). addSection 의 자리 규칙이 바뀌거나 ghost 가
          끼면 그 꼴은 «남의 섹션»을 집는다. 차집합은 어디에 생겨도 맞는다. */
