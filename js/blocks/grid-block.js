@@ -52,6 +52,62 @@ const GRID_DEFAULTS = {
     { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] },
   ],
 };
+
+/* ★★★⛔`GRID_DEFAULTS.cols` 는 ★«창조 기본값»**이자** ★«렌더 폴백»이다 — ★둘 다다(실측 2026-10-07).
+ *   ⑴ 창조: `makeGridBlock` 이 `opts.cols` 를 안 받았을 때
+ *            (앵커 = `let cols = (Array.isArray(opts.cols) && opts.cols.length >= MIN_COLS)`)
+ *   ⑵ ★렌더: `_gridCols(block)` 이 ★`dataset.cols` 가 ★없거나·배열이 아니거나·`length < MIN_COLS` 일 때
+ *            (앵커 = `if (!Array.isArray(cols) || cols.length < MIN_COLS) cols =`)
+ *      ⛔줄번호로 가리키지 않는다 — 이 주석을 넣으며 ★아래가 전부 밀렸다(앵커로 찾아라).
+ *      ⇒ `renderGridBlock`·`getGridModel` 이 ★그 길로 온다.
+ *   ★실측(2026-10-07, 하네스 bootApp): `dataset.cols='[]'` 인 블럭을 `renderGridBlock` 하면
+ *     줄이 `[{"type":"body","text":"내용을 입력하세요."}]` 로 ★되살아나고 패널은 「기본 (시스템)」이었다.
+ * ★★⇒ ⛔**그래서 ★여기에 `fontFamily` 를 ★박으면 «옛 블럭»의 화면이 ★같이 움직인다.**
+ *   ★현빈 GO(2026-10-07 「응, 기본 줄도 바꿔라」)는 ★«새로 만들 때»에 대한 것이다.
+ *   ⇒ ★박는 자리는 ★아래 `gridNewDefaultCols()` 이고, ★부르는 자는 ★`makeGridBlock` ★하나뿐이다.
+ *   ★지키는 그물: tests/dom/grid-newline-font.dom.spec.js ★G-FALLBACK(옛 블럭 불변) ＋ ★G-BLOCK-NEW(새 블럭) */
+
+/* ★«새로 만드는» 그리드의 기본 글꼴 — ★`prop-grid.js grdNewLineSpec` ★한 곳에서 받는다.
+   ★★⛔`fontChain` 을 ★여기로 import 하지 마라 — ★두 가지 때문이다(둘 다 실측 2026-10-07):
+     ⑴ ★구조 — `prop-grid.js` 가 ★이 파일을 import 한다 ⇒ 거꾸로 걸면 ★순환이다.
+     ⑵ ★★하네스 — ★이 파일의 소스를 ★TMP `.mjs` 로 ★얹어 돌리는 unit 하네스가 ★여럿이다.
+        ★import 를 ★하나 늘렸더니 ★`tests/unit` 의 ★grid-block.js 소비자 ★32파일에서
+        ★**277건이 빨개졌다**(ERR_MODULE_NOT_FOUND / 그리고 레포 `package.json` 의
+        `"type":"commonjs"` 탓에 ★레포 안 `.js` 를 그대로 가리키면 named import 가 또 터진다).
+        ⇒ ★그 32곳을 고치는 대신 ★import 그래프를 ★안 건드린다.
+   ⇒ ★`window` 로 간다 — ★`js/blocks/line-host.js` 가 `window.grdAddLine`·`window.grdNewLineSpec` 에
+     쓰는 ★같은 관용구다(그 파일도 ★같은 순환을 피해 그 길을 골랐다).
+   ⚠️★그래서 ★`window` 가 없는 판(unit 하네스)에서는 ★`''` 다 — ★아무것도 안 박고 ★옛 꼴 그대로 간다.
+     ★그 축을 재는 자는 ★`tests/dom/grid-newline-font.dom.spec.js` ★G-BLOCK-NEW 다(앱을 띄워 잰다).
+   ★★«성공한 읽기»만 기억한다 — ⛔실패를 기억하면 ★`prop-grid.js` 가 ★아직 안 얹힌 한 순간에
+     ★영영 `''` 로 잠긴다(「조용히 반쪽만 동작」의 꼴). 실패는 ★다음 부름에 ★다시 묻는다. */
+let _grdDefFontMemo = '';
+function _gridNewFontFamily() {
+  if (_grdDefFontMemo) return _grdDefFontMemo;
+  let v;
+  try { v = (typeof window !== 'undefined' ? window.grdNewLineSpec?.('body') : null)?.fontFamily; } catch (_) { v = undefined; }
+  v = (typeof v === 'string') ? v.trim() : '';
+  if (v && _GRID_FONT_RE.test(v)) _grdDefFontMemo = v;
+  return _grdDefFontMemo;
+}
+
+/** ★«새로 만드는» 블럭이 받는 기본 열 — ★깊은 사본 ＋ ★글자 역할 줄에만 글꼴을 박는다.
+ *  ★★⛔`GRID_DEFAULTS.cols` 자체는 ★한 글자도 안 바꾼다 — 그건 ★렌더 폴백이기도 하다(위 ⛔).
+ *  ★종류 가름은 ★정의 자리에서 뜬다 — `_GRID_ROLES`(이 파일). ⛔손으로 적은 종류 표가 아니다.
+ *  ★부르는 자는 ★`makeGridBlock` ★하나다(⛔`_gridCols` 에서 부르지 마라 — 그 순간 렌더 폴백이 된다). */
+function gridNewDefaultCols() {
+  const cols = JSON.parse(JSON.stringify(GRID_DEFAULTS.cols));
+  const ff = _gridNewFontFamily();
+  if (ff) for (const col of cols) {
+    for (const ln of (Array.isArray(col.lines) ? col.lines : [])) {
+      if (ln && typeof ln === 'object' && Object.prototype.hasOwnProperty.call(_GRID_ROLES, ln.type || 'body') && !ln.fontFamily) {
+        ln.fontFamily = ff;
+      }
+    }
+  }
+  return cols;
+}
+
 const ROW_DEFAULT = { height: 'auto' };
 // ★한도 — 3곳(이 파일의 _gridCols/_gridRows, updateGridBlock 검증)이 «같은 값»을 봐야 한다
 //   (P0 EVAL이 지적한 「열거 자리가 흩어진다」 재발 방지 — 한 곳에 모은다).
@@ -2717,7 +2773,7 @@ function makeGridBlock(opts = {}, drops = []) {
   block.className = 'grid-block';
   block.id = genId('grd');
   block.dataset.type = 'grid';
-  let cols = (Array.isArray(opts.cols) && opts.cols.length >= MIN_COLS) ? opts.cols.slice(0, MAX_COLS) : JSON.parse(JSON.stringify(GRID_DEFAULTS.cols));
+  let cols = (Array.isArray(opts.cols) && opts.cols.length >= MIN_COLS) ? opts.cols.slice(0, MAX_COLS) : gridNewDefaultCols();   // ★㉮ — «만드는» 문만 글꼴을 박는다(⛔_gridCols 폴백 무접촉)
   if (Array.isArray(opts.cols) && opts.cols.length > MAX_COLS) {
     drops.push({ path: `cols[${MAX_COLS}..${opts.cols.length - 1}]`,
       why: `a grid holds ${MIN_COLS}~${MAX_COLS} columns — the rest were dropped (update_grid_block REFUSES the same value; this door clamps it)` });

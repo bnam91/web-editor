@@ -7,16 +7,20 @@
  *     ★모달이나 ★그리드블럭의 텍스트 줄」
  *   ⇒ ㉠ 모달 = tests/dom/modal-font.dom.spec.js · ㉡ ★그리드 줄 = ★이 파일.
  *
- * ★★아홉 칸이 ★각각 ★무엇을 막나 (2026-10-07 지디 조건⑴ 로 ★여섯 → ★아홉 — G-NEW 를 ★넷으로 갈랐다)
- *   G-PRE          ★전제만 모은 칸 — ⛔이 칸이 SKIP/빨강이면 ★아래 여덟의 초록은 ★아무것도 증명 못 한다
+ * ★★열두 칸이 ★각각 ★무엇을 막나 (★여섯 → ★아홉(조건⑴ G-NEW 를 넷으로) → ★열둘(현빈 GO ㉮㉯))
+ *   G-PRE          ★전제만 모은 칸 — ⛔이 칸이 SKIP/빨강이면 ★아래 ★열하나의 초록은 ★아무것도 증명 못 한다
  *   G-NEW          ★T 단축키로 새로 넣은 글자 줄의 ★인라인 값 = 텍스트블럭과 ★같은 판에서 같다
  *   G-NEW-PANEL    ★사람이 보는 ★패널 라벨도 같다
  *   G-NEW-SYMPTOM  ★그 라벨이 ★「기본 (시스템)」이 ★아니다(⛔「둘이 같다」만으로는 둘이 같이 증상인 판도 초록)
  *   G-NEW-COMPUTED ★재렌더를 지난 ★계산된 값까지 같다(그리드는 innerHTML 통째 재생성이다)
- *   G-KIND         ★줄 ★종류별 — ⛔「글자 줄에만」을 ★손으로 적은 표가 아니라 ★렌더러에게 물어 ★견준다 ＋ ★임자 가름
+ *   G-KIND         ★줄 ★종류별 — ⛔「글자 줄에만」을 ★손으로 적은 표가 아니라 ★렌더러에게 물어 ★견준다
+ *                  (★임자 축은 ★G-BUBBLE 로 옮겼다 — 현빈 GO 로 가름이 ★없어졌고, 이제 ★행위로 잰다)
  *   G-OLD          ★음성대조 — ★저장본으로 되살아난 «옛 줄»은 ★한 글자도 안 움직인다
  *   G-GATE         ★박는 값이 ★렌더러의 검문 자(`GRID_FONT_RE`)를 ★통과한다(＋그 자가 ★항등식이 아님)
  *   G-RULER        ★«자»다 — ⛔게이트가 ★아니다(바로 아래)
+ *   ★G-BLOCK-NEW   ★㉮ — ★새 그리드블럭의 ★«기본» 줄과 ★거기 «추가한» 줄이 ★한 블럭 안에서 ★갈리지 않는다
+ *   ★G-FALLBACK    ★㉮ ★음성대조 ★×3 — ★`GRID_DEFAULTS.cols` 는 ★«렌더 폴백»이기도 하다(실측) ⇒ ★옛 블럭 불변
+ *   ★G-BUBBLE      ★㉯ — ★버블의 새 글자 줄도 같은 글꼴. ★패널 문과 ★T 단축키 문 ★«둘 다»(T 쪽은 ★셋째 명부였다)
  *
  * ★★「자」와 「게이트」를 갈라 적는다 (2026-10-07 · 지디 조건⑵ · ⛔다음 사람이 섞어 읽지 않게)
  *   ★G-RULER 는 ★**게이트가 아니라 «자»다** — ★실측: 제품에서 글꼴 박는 줄을 ★떼어내도(MUT-G1)
@@ -274,15 +278,9 @@ test('G-KIND ★종류별 — 박히는 종류 집합 = 렌더러가 fontFamily 
     }
     const allKinds = [...kinds, ...extra];
 
-    /* ★★㉣ ★임자 가름 — ⛔이 문은 그리드만 쓰는 문이 ★아니다. 버블(`kind:'bubble'`)·
-       챗(`kind:'chat'`) 줄이 ★같은 select·★같은 spec 빌더를 쓴다(line-host.js · BT2).
-       ★현빈 발주는 「모달이나 ★그리드블럭의 텍스트 줄」이라 ★그 둘은 ★안 건드린다.
-       ⛔안 재면 다음 사람이 가름을 지우고도 ★이 레인에선 초록을 본다
-         (그 빨강은 ★남의 spec 인 `bt2-lines.dom.spec.js` T3 에서만 난다 — 실측했다). */
-    const hosts = {};
-    for (const hk of ['grid', 'bubble', 'chat']) {
-      hosts[hk] = !!(window.grdNewLineSpec('caption', hk) || {}).fontFamily;
-    }
+    /* ★★㉣ ~~[폐기 · 2026-10-07 현빈 GO] 「임자 가름 — 버블·챗은 ★안 건드린다」~~
+       ⛔지우지 말고 ★왜 바뀌었는지를 읽어라: 현빈이 ★「응, 같이 바꿔라」로 ★범위를 넓혔다.
+       ⇒ ★이제 `grdNewLineSpec` 은 ★임자를 ★안 받는다. ★임자 축은 ★G-BUBBLE 이 ★행위로 잰다. */
 
     /* ㉡ 렌더러가 ★그 종류에서 fontFamily 를 ★읽나 — ★저장본 꼴로 만들어 ★그려 본다 */
     const reads = [];
@@ -298,7 +296,7 @@ test('G-KIND ★종류별 — 박히는 종류 집합 = 렌더러가 fontFamily 
       if (/font-family/.test(css)) reads.push(k);
     }
     probe.remove();
-    return { kinds: allKinds, stamped, reads, hosts };
+    return { kinds: allKinds, stamped, reads };
   });
   if (got.error) throw new Error(`전제 깨짐 — ${got.error}`);
   console.log(`  G-KIND 종류(${got.kinds.length})=${JSON.stringify(got.kinds)}`);
@@ -314,10 +312,6 @@ test('G-KIND ★종류별 — 박히는 종류 집합 = 렌더러가 fontFamily 
     `★박히는 종류 집합이 렌더러가 읽는 종류 집합과 다르다 — 박힘 ${JSON.stringify(got.stamped)} / 읽음 ${JSON.stringify(got.reads)}`)
     .toEqual(got.reads.slice().sort());
 
-  // ★㉣ 임자 — 그리드만 박고 버블·챗은 ★그대로다(발주 범위)
-  expect(got.hosts.grid, '★그리드 임자인데 안 박혔다 — 발주 범위 안에서 기전이 죽었다').toBe(true);
-  expect(got.hosts.bubble, '★버블 줄에도 박혔다 — 발주 범위(모달·그리드) 밖이다. bt2-lines T3 이 같이 빨개진다').toBe(false);
-  expect(got.hosts.chat, '★챗 줄에도 박혔다 — 발주 범위(모달·그리드) 밖이다. bt2-lines T3 이 같이 빨개진다').toBe(false);
   expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
 });
 
@@ -427,5 +421,178 @@ test('G-RULER ★(자 · ⛔게이트 아님) 그 이름이 «진짜 먹나»는
   // ★주 단언 — ★그 글꼴이 ★진짜 그려진다(이름만 맞고 폴백이면 여기서 빨개진다)
   expect(got.line, `★새 줄의 글꼴이 «진짜로 안 먹는다» — 줄 ${got.line} 이 폴백(${got.bogus})과 같다. 스택=${JSON.stringify(got.stack)}`)
     .not.toBe(got.bogus);
+  expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
+});
+
+/* ══ ★㉮ 현빈 GO (2026-10-07 「응, 기본 줄도 바꿔라」) ════════════════════════
+   ★★이 GO 의 ★전부는 ★「한 블럭 안에서 ★갈리지 않는다」다 —
+     ⛔「기본 줄이 Pretendard 가 됐다」만 재면 ★갈림을 ★안 잰다(지디 조건 ㉮⑷). */
+test('G-BLOCK-NEW ★새 그리드블럭의 «기본» 줄과 거기 «추가한» 줄이 한 블럭 안에서 갈리지 않는다', async ({ page }) => {
+  const errs = await setup(page);
+  const got = await page.evaluate(({ panelSrc }) => {
+    const panelFont = eval(panelSrc);
+    const g = window.__g;
+    g.classList.add('selected');
+    const read = (li) => {
+      window.grdSetActiveLine?.(g, { r: 0, c: 0, li });
+      window.showGridProperties?.(g);
+      const el = g.querySelector(`.grd-cell[data-r="0"][data-c="0"] [data-line="${li}"]`);
+      return { inline: el ? el.style.fontFamily : null, panel: panelFont() };
+    };
+    const base = read(0);                                   // ★makeGridBlock 이 지어 준 «기본» 줄
+    const ok = window.grdAddLineToSelectedCell?.('text');    // ★사람이 T 를 눌러 ★더한 줄
+    const lines = window.getGridModel(g).cells[0][0].lines;
+    const added = read(lines.length - 1);
+    return { ok, count: lines.length, baseField: lines[0] ? (lines[0].fontFamily ?? null) : null, base, added };
+  }, { panelSrc: PANEL_FONT });
+  console.log(`  G-BLOCK-NEW 기본 줄 field=${JSON.stringify(got.baseField)} inline=${JSON.stringify(got.base.inline)} panel=${JSON.stringify(got.base.panel)}`);
+  console.log(`  G-BLOCK-NEW 더한 줄        inline=${JSON.stringify(got.added.inline)} panel=${JSON.stringify(got.added.panel)}`);
+
+  expect(got.ok, '전제: 줄을 더하지 못했다').toBe(true);
+  expect(got.count, '전제: 줄이 둘이 아니다 — 기본 줄과 더한 줄을 견줄 수 없다').toBe(2);
+  expect(got.base.panel, '전제: 패널에 폰트 줄이 없다').not.toBeNull();
+  expect(got.added.panel, '전제: 패널에 폰트 줄이 없다').not.toBeNull();
+
+  // ★주 단언 ⑴ — ★갈리지 않는다(지디 조건 ㉮⑷ · ★이것이 현빈이 겪을 자리다)
+  expect(got.base.inline, `★한 블럭 안에서 갈렸다 — 기본 줄 ${JSON.stringify(got.base.inline)} / 더한 줄 ${JSON.stringify(got.added.inline)}`)
+    .toBe(got.added.inline);
+  expect(got.base.panel.label, `★패널 라벨이 갈렸다 — 기본 줄 「${got.base.panel.label}」 / 더한 줄 「${got.added.panel.label}」`)
+    .toBe(got.added.panel.label);
+  /* ★주 단언 ⑵ — ⛔「둘이 같다」만으로는 ★둘이 ★같이 「기본 (시스템)」인 판도 ★초록이다(옛 판이 바로 그랬다). */
+  expect(got.base.panel.label, '★기본 줄이 아직 「기본 (시스템)」이다 — 현빈 GO 가 안 닿았다').not.toBe('기본 (시스템)');
+  expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
+});
+
+test('G-FALLBACK ★(음성대조 ×3) `GRID_DEFAULTS.cols` 는 «렌더 폴백»이기도 하다 — dataset.cols 가 빈 «옛» 블럭은 안 움직인다', async ({ page }) => {
+  /* ★★★이 칸이 ★이 GO 의 ★가장 위험한 자리를 지킨다.
+     ★실측(2026-10-07): `GRID_DEFAULTS.cols` 는 ★두 곳에서 읽힌다 —
+       ⑴ ★창조: `makeGridBlock` 이 `opts.cols` 를 안 받았을 때
+       ⑵ ★렌더: `_gridCols(block)` 이 `dataset.cols` 가 ★없거나 ★`length < MIN_COLS`(=1) 일 때
+          ⇒ `renderGridBlock`·`getGridModel` 이 ★그 길로 온다.
+     ⇒ ★★그래서 기전은 ★`GRID_DEFAULTS.cols` 가 ★아니라 ★`gridNewDefaultCols()`(만드는 문 전용)에 있다.
+       ⛔`GRID_DEFAULTS.cols` 에 박으면 ★이 칸이 ★빨개진다 — ★그것이 ★이 칸의 ★존재 이유다.
+     ★★×3 인 까닭 — ★×1 이면 ★첫 초록이 ★운일 수 있다(지디 조건 ㉮⑶). ★블럭 ★셋을 ★따로 지어 ★셋 다 잰다. */
+  const errs = await setup(page);
+  const got = await page.evaluate(({ panelSrc }) => {
+    const panelFont = eval(panelSrc);
+    const g = window.__g;
+    const out = [];
+    for (let i = 0; i < 3; i++) {
+      const old = document.createElement('div');
+      old.className = 'grid-block';
+      old.id = 'oldfb' + i;
+      old.dataset.type = g.dataset.type; old.dataset.gap = g.dataset.gap; old.dataset.valign = g.dataset.valign;
+      old.dataset.cols = '[]';                              // ★`length < MIN_COLS` ⇒ 렌더 폴백이 걸리는 ★그 꼴
+      document.getElementById('inner1').appendChild(old);
+      window.renderGridBlock(old);                          // ★저장본이 되살아나는 ★그 문
+      const el = old.querySelector('[data-line="0"]');
+      document.querySelectorAll('.grid-block.selected').forEach(b => b.classList.remove('selected'));
+      old.classList.add('selected');
+      window.grdSetActiveLine?.(old, { r: 0, c: 0, li: 0 });
+      window.showGridProperties?.(old);
+      out.push({
+        drew: !!el,
+        hasKey: !!(window.getGridModel(old).cells[0][0].lines[0] || {}).fontFamily,
+        cssHasFont: el ? /font-family/.test(el.style.cssText) : null,
+        inline: el ? el.style.fontFamily : null,
+        panel: panelFont(),
+      });
+    }
+    return out;
+  }, { panelSrc: PANEL_FONT });
+  got.forEach((r, i) => console.log(`  G-FALLBACK #${i + 1} drew=${r.drew} hasKey=${r.hasKey} cssHasFont=${r.cssHasFont} inline=${JSON.stringify(r.inline)} panel=${JSON.stringify(r.panel)}`));
+
+  got.forEach((r, i) => {
+    expect(r.drew, `전제 #${i + 1}: 폴백 블럭이 안 그려졌다 — 그 길을 못 밟았다`).toBe(true);
+    expect(r.panel, `전제 #${i + 1}: 패널에 폰트 줄이 없다`).not.toBeNull();
+    expect(r.hasKey, `★#${i + 1} 폴백으로 되살아난 줄에 fontFamily 가 생겼다 — GRID_DEFAULTS.cols 에 박혔다(렌더 폴백을 움직였다)`).toBe(false);
+    expect(r.cssHasFont, `★#${i + 1} 폴백 줄에 font-family 선언이 나갔다 — 기존 프로젝트의 화면이 움직인다. inline=${JSON.stringify(r.inline)}`).toBe(false);
+    expect(r.panel.label, `★#${i + 1} 폴백 줄의 패널이 바뀌었다 — 「${r.panel.label}」`).toBe('기본 (시스템)');
+  });
+  expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
+});
+
+/* ══ ★㉯ 현빈 GO (2026-10-07 「응, 같이 바꿔라」) ═══════════════════════════ */
+test('G-BUBBLE ★버블의 새 글자 줄도 같은 글꼴 — 패널 「+ 줄 추가」와 T 단축키 «두 문» 다 (★행위로)', async ({ page }) => {
+  /* ★★임자 축을 ★행위로 잰다 — ⛔`grdNewLineSpec` 에 ★인자를 넣어 묻는 꼴은 ★폐기했다(가름이 없어졌다).
+     ★두 문을 ★따로 ★밟는다: ⑴ 패널 select(`_grdWireKindSelects`) ⑵ ★T 단축키(`lnAddLineToSelected`)
+       — ★⑵ 는 ★전에 ★제 spec 을 ★손으로 지었다(셋째 명부). ⛔한 문만 재면 ★그 갈림을 ★못 본다.
+     ★그리고 ★버블 렌더러가 ★그 값을 ★진짜 쓰나까지 — `lnLinesHtml` 이 ★그리드와 ★같은 `gridLineHtml` 을 쓴다. */
+  const errs = await setup(page);
+  const got = await page.evaluate(() => {
+    const out = {};
+    document.getElementById('sec1').classList.add('selected');
+    window.addSpeechBubbleBlock?.('left');
+    const sb = [...document.querySelectorAll('.speech-bubble-block')].pop();
+    out.hasBubble = !!sb;
+    if (!sb) return out;
+    window.updateSpeechBubbleBlock?.(sb.id, { text: '안녕하세요' });
+    out.hostKind = (window.lnHostFor ? window.lnHostFor(sb) : {})?.kind ?? null;
+
+    /* ★버블 렌더러가 fontFamily 를 «쓰나» — ⛔전제부터. 안 쓰면 박는 것이 «죽은 키»가 된다. */
+    sb.dataset.lines = JSON.stringify([{ type: 'body', text: '첫 줄', fontFamily: "'Pretendard', sans-serif" }]);
+    window.lnRenderBubble?.(sb);
+    let row = sb.querySelector('.ln-row');
+    let inner = row ? row.firstElementChild : null;
+    out.bubbleRendersFont = inner ? /font-family/.test(inner.style.cssText) : null;
+    out.bubbleInline = inner ? inner.style.fontFamily : null;
+
+    /* ★판을 맞춘다 — 줄 ★하나만 둔 버블을 고르고 ★그 줄을 고른다(두 문이 모두 «고른 줄»을 본다). */
+    sb.dataset.lines = JSON.stringify([{ type: 'body', text: '첫 줄' }]);
+    window.lnRenderBubble?.(sb);
+    window.deselectAll?.();
+    sb.classList.add('selected');
+    window.grdSetActiveLine?.(sb, { r: 0, c: 0, li: 0 });
+    window.lnHostFor?.(sb)?.show?.(window.grdGetActiveLine?.(sb));
+
+    const linesOf = () => { try { return JSON.parse(sb.dataset.lines || '[]'); } catch (_) { return []; } };
+    const before = linesOf().length;
+
+    // ⑴ ★패널 문 — 「+ 줄 추가」 select 에 caption 을 골라 change 를 낸다
+    const sel = document.getElementById('grd-line-add-kind');
+    out.panelDoorFound = !!sel;
+    out.panelKinds = sel ? [...sel.options].map(o => o.value).filter(Boolean) : null;
+    if (sel) { sel.value = 'caption'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    const afterPanel = linesOf();
+    out.panelAdded = afterPanel.length - before;
+    out.panelLine = JSON.stringify(afterPanel[afterPanel.length - 1] ?? null);
+
+    // ⑵ ★T 단축키 문 — editor.js 가 부르는 ★그 함수(`window.lnAddLineToSelected`)
+    window.grdSetActiveLine?.(sb, { r: 0, c: 0, li: afterPanel.length - 1 });
+    out.shortcutDoorFound = typeof window.lnAddLineToSelected === 'function';
+    out.shortcutOk = window.lnAddLineToSelected?.('body');
+    const afterShort = linesOf();
+    out.shortcutAdded = afterShort.length - afterPanel.length;
+    out.shortcutLine = JSON.stringify(afterShort[afterShort.length - 1] ?? null);
+
+    /* ★그리드 줄이 받는 값과 ★견준다 — ⛔글꼴 값을 손으로 적지 않는다(자를 빌린 수로 두지 않는다). */
+    const g = window.__g;
+    g.classList.add('selected'); sb.classList.remove('selected');
+    window.grdSetActiveLine?.(g, { r: 0, c: 0, li: 0 });
+    window.grdAddLineToSelectedCell?.('text');
+    const gl = window.getGridModel(g).cells[0][0].lines;
+    out.gridLineFont = (gl[gl.length - 1] || {}).fontFamily ?? null;
+    return out;
+  });
+  console.log(`  G-BUBBLE host=${JSON.stringify(got.hostKind)} 렌더러가 글꼴을 쓰나=${got.bubbleRendersFont} inline=${JSON.stringify(got.bubbleInline)}`);
+  console.log(`  G-BUBBLE 종류 명부(${got.panelKinds ? got.panelKinds.length : 'null'})=${JSON.stringify(got.panelKinds)}`);
+  console.log(`  G-BUBBLE ⑴패널문 ＋${got.panelAdded} ${got.panelLine}`);
+  console.log(`  G-BUBBLE ⑵T문     ＋${got.shortcutAdded} ok=${got.shortcutOk} ${got.shortcutLine}`);
+  console.log(`  G-BUBBLE 그리드 줄 글꼴=${JSON.stringify(got.gridLineFont)}`);
+
+  expect(got.hasBubble, '전제: 말풍선 블럭을 못 만들었다').toBe(true);
+  expect(got.hostKind, '전제: lnHostFor 가 버블 임자를 안 돌려줬다 — 임자 축을 못 잰다').toBe('bubble');
+  expect(got.bubbleRendersFont, '전제: 버블 렌더러가 font-family 를 안 낸다 — 박으면 «죽은 키»가 된다').toBe(true);
+  expect(got.panelDoorFound, '전제: 버블 패널에 「+ 줄 추가」가 없다').toBe(true);
+  expect(got.shortcutDoorFound, '전제: window.lnAddLineToSelected 가 없다 — T 단축키 문을 못 밟는다').toBe(true);
+  expect(got.panelAdded, `전제: 패널 문으로 줄이 ＋1 이 아니다 — ${got.panelLine}`).toBe(1);
+  expect(got.shortcutAdded, `전제: T 문으로 줄이 ＋1 이 아니다 — ok=${got.shortcutOk} ${got.shortcutLine}`).toBe(1);
+  expect(got.gridLineFont, '전제: 그리드 줄이 글꼴을 안 받았다 — 견줄 값이 없다').toBeTruthy();
+
+  const panel = JSON.parse(got.panelLine), shortcut = JSON.parse(got.shortcutLine);
+  // ★주 단언 ⑴ — ★패널 문(현빈 GO ㉯)
+  expect(panel.fontFamily, `★버블 «패널 문»의 새 글자 줄에 글꼴이 안 박혔다 — ${got.panelLine}`).toBe(got.gridLineFont);
+  // ★주 단언 ⑵ — ★T 단축키 문(★셋째 명부였던 자리)
+  expect(shortcut.fontFamily, `★버블 «T 단축키 문»의 새 글자 줄에 글꼴이 안 박혔다 — ${got.shortcutLine}. line-host.js 가 제 spec 을 손으로 짓고 있다`).toBe(got.gridLineFont);
   expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
 });
