@@ -1,6 +1,8 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
+/* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
+import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
 
 export function buildTextPropsHtml(state) {
   const {
@@ -64,6 +66,30 @@ ${blockHeaderHTML({
         <button class="prop-type-btn ${currentClass==='tb-bullet'?'active':''}"  data-cls="tb-bullet">List</button>
       </div>
     </div>
+${/* ═══ T7 ★불릿 «글머리» — 현빈 2026-10-07 「불릿의 크기 및, 모양 및 숫자 및 알파벳 등 프리셋 필요」 ═══
+    * ★불릿일 때만 뜬다 — 다른 타입에선 ★절이 아예 없다(바이트 동일). 「눌리는데 아무 일도 안 난다」를 안 만든다.
+    * ★★⛔단추에 `prop-type-btn` 을 ★쓰지 않았다 — ★까닭이 있다(2026-10-07 실측):
+    *   `prop-text-wireup-type.js` 의 `wireTypeSection` 이 ★`propPanel.querySelectorAll('.prop-type-btn')` 으로
+    *   ★패널 ★전역을 잡는다 ⇒ 그 클래스를 붙이면 ★내 단추도 ★타입 전환 핸들러가 물고,
+    *   `btn.dataset.cls` 가 ★undefined 라 ★타입 클래스가 ★지워진다.
+    *   ⇒ 모양은 `prop-preset-group` ＋ `prop-preset-btn` ★한 쌍으로 세운다(css/editor-props.css:230 그 절 ·
+    *     `.prop-type-group:has(.prop-preset-btn)` 선례가 이미 둘을 섞는다) ⇒ ★새 클래스 ★0.
+    *   ⚠️그 ★전역 셀렉터 자체는 ★잠복 결함이다(다음 사람이 그 클래스를 쓰면 조용히 깨진다) —
+    *     ⛔이 카드에서 ★안 고친다(범위 밖). ★별건으로 올렸다. 대신 ★검사가 「내 단추엔 그 클래스가 없다」를 잠근다.
+    * ★「지금 무엇이 골라졌나」 = ★인라인(`bulletListStyleOf`) — ⛔computed 금지(기본 disc 와 못 가른다).
+    *   ★아무것도 안 골랐으면 ★`disc` 단추를 active 로 보인다(화면이 그러하므로) — ★값은 여전히 ★빈 문자열이다. */''}
+    ${currentClass !== 'tb-bullet' ? '' : (() => {
+      const _ul = tb?.querySelector?.('ul.tb-bullet');
+      const _cur = _ul ? bulletListStyleOf(_ul) : '';
+      return `
+    <div class="prop-section" id="bullet-style-section">
+      <div class="prop-section-title">글머리</div>
+      <div class="prop-type-group prop-preset-group">
+        ${BULLET_LIST_STYLES.map(s => `<button class="prop-preset-btn${(_cur || 'disc') === s.v ? ' active' : ''}" data-lst="${s.v}" title="${s.title}">${s.label}</button>`).join('\n        ')}
+      </div>
+      <div class="prop-hint">크기는 Typography 의 글자 크기를 따릅니다</div>
+    </div>`;
+    })()}
 
     <div class="prop-section">
       <!-- ★2026-09-16g 현빈 정정(T-001) — Ignore Auto Layout 토글은 Alignment 줄이 아니라
