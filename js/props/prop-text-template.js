@@ -1,6 +1,8 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
+/* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
+import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
 
 export function buildTextPropsHtml(state) {
   const {
@@ -39,6 +41,29 @@ export function buildTextPropsHtml(state) {
   // Figma "Mix" 정책: 자식들의 스타일이 섞여있으면 input 을 빈 값 + placeholder="Mix" 로 표시
   const _mix = mix || { color:{mixed:false}, fontSize:{mixed:false}, fontWeight:{mixed:false} };
 
+  /* ═══ T7 ★불릿 «글머리» — 현빈 2026-10-07 「불릿의 크기 및, 모양 및 숫자 및 알파벳 등 프리셋 필요」 ═══
+   * ★★«비-불릿이면 ★빈 문자열»이라 ★산출이 ★바이트 동일하다 — ⛔템플릿 «안»에 조건식을 ★줄로 넣지 마라:
+   *   그러면 ★개행·들여쓰기가 ★모든 타입의 산출에 ★더해져 ★`typo-section-ssot` ★T1 골든이 ★빨개진다
+   *   (★2026-10-07 실측 — 내가 ★그렇게 넣어 ★그 골든을 깨뜨렸다. ★선례: G20 의 `${circleRows}` 가 같은 꼴).
+   * ★★⛔단추에 `prop-type-btn` 을 ★쓰지 않는다 — `prop-text-wireup-type.js` 의 `wireTypeSection` 이
+   *   ★`propPanel.querySelectorAll('.prop-type-btn')` 으로 ★패널 ★전역을 잡아, 붙이면 ★내 단추도 물고
+   *   `btn.dataset.cls`=undefined 로 ★타입 클래스가 ★지워진다(★별건으로 올렸다).
+   *   ⇒ 모양은 `prop-preset-group`＋`prop-preset-btn` 한 쌍(css/editor-props.css 그 절) ⇒ ★새 클래스 0.
+   * ★「지금 무엇이 골라졌나」 = ★인라인(`bulletListStyleOf`) — ⛔computed 금지(기본 disc 와 못 가른다).
+   *   ★아무것도 안 골랐으면 ★`disc` 를 active 로 보인다(화면이 그러하므로) — ★값은 여전히 빈 문자열이다. */
+  const _bulletSec = currentClass !== 'tb-bullet' ? '' : (() => {
+    const _ul = tb?.querySelector?.('ul.tb-bullet');
+    const _cur = _ul ? bulletListStyleOf(_ul) : '';
+    return `
+    <div class="prop-section" id="bullet-style-section">
+      <div class="prop-section-title">글머리</div>
+      <div class="prop-type-group prop-preset-group">
+        ${BULLET_LIST_STYLES.map(x => `<button class="prop-preset-btn${(_cur || 'disc') === x.v ? ' active' : ''}" data-lst="${x.v}" title="${x.title}">${x.label}</button>`).join('\n        ')}
+      </div>
+      <div class="prop-hint">크기는 Typography 의 글자 크기를 따릅니다</div>
+    </div>`;
+  })();
+
   return `
     <div class="prop-section">
 ${blockHeaderHTML({
@@ -63,7 +88,7 @@ ${blockHeaderHTML({
         <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Tag</button>
         <button class="prop-type-btn ${currentClass==='tb-bullet'?'active':''}"  data-cls="tb-bullet">List</button>
       </div>
-    </div>
+    </div>${_bulletSec}
 
     <div class="prop-section">
       <!-- ★2026-09-16g 현빈 정정(T-001) — Ignore Auto Layout 토글은 Alignment 줄이 아니라

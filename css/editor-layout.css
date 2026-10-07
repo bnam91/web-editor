@@ -328,6 +328,26 @@
 .text-block .tb-body   { font-size: 36px;  color: var(--preset-body-color);    font-family: var(--preset-body-family);   line-height: 1.6; }
 .text-block .tb-caption { font-size: 26px; color: var(--preset-caption-color); font-family: var(--preset-body-family);   line-height: 1.6; letter-spacing: 0.01em; }
 
+/* ═══ T6 ★「체커 어둡게 → 섹션 «안» 글자 밝기 자동」 — 현빈 2026-10-07 ════════════════════
+   ★클래스는 ★JS 가 «판정해서» 붙인다(js/canvas-contrast.js syncSectionCheckerTextTone) —
+     ★인라인 `style.color` 가 ★있는 요소엔 ★안 붙는다. ★그게 현빈의 「특정 컬러 지정되어있으면 예외」다.
+   ★★값을 ★여기 한 자리에 둔다 — ⛔JS 에 표를 또 만들지 않는다(명부 둘 금지).
+   ★값의 출처: ★이 레포가 ★이미 고른 «어두운 배경 위 역할색» 표와 ★같은 값이다
+     (js/blocks/grid-block.js `_GRID_ROLE_COLOR_ON_DARK` — G5 · 현빈 2026-10-03).
+     ⇒ ★새 값 ★0. ★두 자리가 같은지는 ★tests/unit/tone-auto-light-values.test.mjs 가 ★잰다(경고 주석 대신 재는 자).
+   ★근거(WCAG · 어두운 체커 `#7c7c7c/#949494` 중 ★낮은 쪽 #7c7c7c 기준 — css/editor-base.css 그 절의 표):
+     #fff 3.03 · #f2f2f2 ≈2.8 · #ccc ≈2.0  ⇒ ⚠️작은 글자 4.5 를 ★못 넘는다.
+     ⛔그래도 ★값을 ★새로 만들지 않는다 — ★체커는 ★편집 전용 자리표시이고(내보내기에 안 나간다)
+       ★사람이 원하면 ★인라인으로 고를 수 있다(그때는 이 클래스가 ★안 붙는다). ★범위를 넓히지 않는다.
+   ⛔`tb-bullet` 은 그 표에 ★없다 — ★body 와 같은 폰트 베이스라 ★body 값을 쓴다(아래 bullet 규칙과 같은 결). */
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block .tb-h1.tone-auto-light,
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block .tb-h2.tone-auto-light,
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block .tb-h3.tone-auto-light { color: #ffffff; }
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block .tb-body.tone-auto-light,
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block .tb-label.tone-auto-light,
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block ul.tb-bullet.tone-auto-light { color: #f2f2f2; }
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block .tb-caption.tone-auto-light { color: #cccccc; }
+
 /* tb-bullet — <ul> 변형. 디스크 글머리 + body와 동일한 폰트 베이스 */
 .text-block ul.tb-bullet {
   font-size: 36px;
