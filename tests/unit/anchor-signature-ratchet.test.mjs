@@ -16,8 +16,11 @@
  *   ⑴ ★★닻을 ★«변수»로 넘기는 호출 ★37건 — ★이 자로 ★★못 가른다
  *      (`sliceBlock(src, ANCHOR)` 꼴. ★그 변수가 ★어디서 왔는지 ★따라가야 한다)
  *   ⑵ ★자르개 ★이름을 ★여섯만 안다(CUTTERS) — ★새 이름의 자르개가 생기면 ★안 센다
- *   ⑶ ★주석 거르개가 ★한 파일에서 ★빈 출력을 낸다(실측 ★1건) ⇒ ★그 파일은 ★원본으로 센다
- *      ⇒ ★그 파일에선 ★주석 속 예시가 ★세어질 수 있다
+ *   ⑶ ★출력이 ★빈 파일이 ★1건 있다 ⇒ ★그 파일은 ★원본으로 센다(「0건이 초록」 방지).
+ *      ⚠️★★처음엔 ★이것을 ★「거르개가 ★먹었다」로 ★적었다 — ★★틀렸다. ★재 보니
+ *        `dom/video-unapplied-warn.dom.spec.js` 가 ★★원본부터 ★0바이트다(커밋 4f090665, 2026-09-22).
+ *        ⇒ ★★까닭이 ★다르면 ★실패방식도 다르다 ⇒ ★`emptyKind()` 가 ★그 둘을 ★가른다.
+ *        ★그 파일의 ★닻은 ★0건이므로 ★★기준값에 ★영향은 ★0 이다(세어 확인했다).
  *   ⑷ ★여러 줄에 걸친 닻·백틱 닻·"큰따옴표" 닻은 ★안 센다
  *   ⇒ ★★그래서 ★기준값은 ★★«하한»이다. ★늘면 ★빨강이고, ★★줄면 ★기준을 ★내려라(그게 래칫이다).
  *
@@ -64,16 +67,23 @@ export function anchorKind(a) {
 const _C = 'slice' + 'Block', _R = 'rule' + 'Of';
 const probe = (cut, anchor) => `${cut}(src, '${anchor}');\n`;
 
+/** 출력이 빈 까닭 — ★둘을 ★가른다. ⛔「거르개가 먹었다」로 ★뭉치면 ★처방이 달라진다. */
+export function emptyKind(raw, stripped) {
+  if (stripped.trim()) return null;
+  return raw.trim() ? 'stripperAte' : 'fileEmpty';   /* ★전자만 거르개의 흠이다 */
+}
+
 function censusOne(src, c, sigFiles, rel) {
   let s = stripComments(src);
-  if (!s.trim()) { c.stripEmpty++; s = src; }   /* ⛔거르개가 먹은 파일은 원본으로 — 「0건이 초록」 방지 */
+  const ek = emptyKind(src, s);
+  if (ek) { c[ek]++; (c.emptyList ||= []).push(rel + '(' + ek + ')'); s = src; }
   for (const m of s.matchAll(CALL)) {
     const k = anchorKind(m[1]); c[k]++; c.lit++;
     if (k === 'sig' && sigFiles) sigFiles.add(rel);
   }
   c.var += [...s.matchAll(VARCALL)].length;
 }
-function blank() { return { sig: 0, name: 0, sel: 0, cond: 0, var: 0, lit: 0, stripEmpty: 0 }; }
+function blank() { return { sig: 0, name: 0, sel: 0, cond: 0, var: 0, lit: 0, stripperAte: 0, fileEmpty: 0 }; }
 
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -132,7 +142,8 @@ test('T0 ★입력이 살아 있다 — 파일·거르개·분류기', () => {
 test('R1 ★서명 닻이 ★늘지 않았다 (기준 52 · 파일 19 · 2026-10-07 실측)', () => {
   const c = census();
   console.log(`  R1 ★지금 — 서명 ${c.sig}건 · 파일 ${c.files}개 · 이름 ${c.name} · 선택자 ${c.sel}`
-    + ` · 조건식 ${c.cond} · 리터럴 ${c.lit} · 변수닻 ${c.var}(★못 가른다) · 거르개 빈출력 ${c.stripEmpty}건`);
+    + ` · 조건식 ${c.cond} · 리터럴 ${c.lit} · 변수닻 ${c.var}(★못 가른다) · ★빈 파일 ${c.fileEmpty}건 · ★거르개가 먹은 파일 ${c.stripperAte}건`
+    + (c.emptyList ? ` ${c.emptyList.join(' ')}` : ''));
   assert.ok(c.sig <= BASELINE.sig,
     `★서명 닻이 ${c.sig}건 — 기준 ${BASELINE.sig} 를 넘었다. ★새 검사가 «매개변수가 든 서명»을 닻으로 썼다.\n`
     + `  ⇒ ★처방: 닻에서 ★매개변수 목록을 ★빼라(예: 'const f = (' · 'function f(').\n`
@@ -142,6 +153,11 @@ test('R1 ★서명 닻이 ★늘지 않았다 (기준 52 · 파일 19 · 2026-10
   /* ★★줄었으면 ★기준을 내려라 — ★그게 래칫이다(⛔느슨히 두면 다시 늘 수 있다) */
   if (c.sig < BASELINE.sig)
     console.log(`  R1 ⚠️★${c.sig} 로 ★줄었다(기준 ${BASELINE.sig}) ⇒ ★★BASELINE.sig 를 ${c.sig} 로 내려라`);
+  /* ★★거르개가 ★«내용 있는» 파일을 ★먹으면 ★그 파일의 ★주석 속 예시가 ★세어진다 ⇒ ★자의 흠이다.
+     ⛔빈 파일(fileEmpty)과 ★섞어 세지 않는다 — ★까닭이 다르면 ★처방이 다르다. */
+  assert.strictEqual(c.stripperAte, 0,
+    `★거르개가 ★내용 있는 파일 ${c.stripperAte}건을 ★먹었다 — ★그 파일에선 ★주석 속 예시가 ★세어진다`
+    + ` [${(c.emptyList || []).join(' ')}]`);
 });
 
 /* ─────────────────────────────────────────────
