@@ -475,6 +475,10 @@ body.gdt-grid-on .section-inner {
      켜는 «동안»만 relative 라 그 사이엔 절대배치 자손의 컨테이닝 블록이 여기가 된다.
    ⛔내보내기 전에는 반드시 꺼야 한다(js/io/export-image.js 의 exportSection 가드).
    ═══════════════════════════════════════════════════════════ */
+/* ★띠 색의 ★정본 = css/editor-base.css :root 의 `--gdt-padhint-color` ★한 줄.
+   ⛔여기에 ★폴백 리터럴을 ★되살리지 마라 — 그게 ★명부를 넷으로 갈랐던 자리다(2026-10-07 현빈 00D6FF).
+     :root 정의가 ★항상 있으므로 var() 가 ★무효로 떨어질 길이 없다. 사용자가 고른 색은
+     js/props/prop-page.js applyPadHintColor 가 documentElement 인라인으로 ★덮는다(인라인 > :root). */
 body.gdt-pad-on .section-inner { position: relative; }
 body.gdt-pad-on .section-inner::before,
 body.gdt-pad-on .frame-block:not(.has-bg-opacity)[style*="--gdt-pad-l"]::before {
@@ -482,8 +486,8 @@ body.gdt-pad-on .frame-block:not(.has-bg-opacity)[style*="--gdt-pad-l"]::before 
   position: absolute;
   inset: 0;
   box-sizing: border-box;
-  border-left:  var(--gdt-pad-l, 0px) solid var(--gdt-padhint-color, rgba(255, 0, 128, .10));
-  border-right: var(--gdt-pad-r, 0px) solid var(--gdt-padhint-color, rgba(255, 0, 128, .10));
+  border-left:  var(--gdt-pad-l, 0px) solid var(--gdt-padhint-color);
+  border-right: var(--gdt-pad-r, 0px) solid var(--gdt-padhint-color);
   pointer-events: none;
   /* ★띠는 «풀블리드 에셋 위에도» 얹힌다 (2026-09-08 현빈 승인 — 팀리드가 그림 보고 결정).
        왜: 실측에서 에셋이 띠를 «덮어», 패딩 88px 짜리 줄이 55px 로 «읽혔다».
@@ -523,7 +527,7 @@ body.gdt-pad-on .section-block[style*="--gdt-pad-b"]::before {
   position: absolute;
   inset: 0;
   box-sizing: border-box;
-  border-bottom: var(--gdt-pad-b, 0px) solid var(--gdt-padhint-color, rgba(255, 0, 128, .10));
+  border-bottom: var(--gdt-pad-b, 0px) solid var(--gdt-padhint-color);
   pointer-events: none;
   /* ★z-index 1 — 좌우 띠와 같은 층. 선택 아웃라인(.selected::after, z-index 90)이 그대로 이긴다. */
   z-index: 1;

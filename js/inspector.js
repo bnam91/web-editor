@@ -268,11 +268,25 @@ function renderInspectorPanel() {
    *   개수는 이미 «요소 배열»에서 나오는데 지금까지 length 만 찍고 배열은 버렸다.
    *   그 배열을 들고 있으면 이동은 공짜다. 스크롤은 selectSection 이 쓰는 것과 같은 방식. */
   _jumpTargets = {};
-  const statRow = (key, label, list) => {
+  /* ★`always`(2026-10-07 현빈 T17 · 지디 판정 ㉡) — ★0 이어도 «줄은» 남긴다.
+   *   ★왜 옵션인가 — ⛔기본 동작을 바꾸면 ★기존 소비자 ★11자리(Gap·Icon·Table·Graph·Divider·Tags·
+   *     Icon Text·Step·Card·Shape·Logo ＋ variant 루프)가 ★0 에서 ★줄을 남기게 된다. 그건 ★요구 밖이다.
+   *     ⇒ 그 ★현재 꼴(「0 이면 사라진다」)을 ★그대로 두고, ★부르는 쪽이 ★명시할 때만 남긴다.
+   *   ★쓰는 자리 = ★«머리 통계 넷»(섹션·전체 블록·텍스트·이미지) 중 ★점프가 붙는 ★둘.
+   *     그 넷은 ★한 묶음이라 ★둘만 0 에서 사라지면 ★묶음의 꼴이 ★갈린다(지디 판정의 본체).
+   *   ⛔`always` 일 때 ★점프를 붙이지 마라 — ★갈 곳이 0 인데 손 모양이 뜨면 ★거짓 약속이다.
+   *     (tests/unit/inspector-t17.test.mjs 가 그 둘을 따로 잰다) */
+  const statRow = (key, label, list, { always = false } = {}) => {
     /* ★여기가 「개수 = 갈 곳」의 «보장»이다 — 어떤 목록이 들어와도 같은 술어로 한 번 거른 뒤
-       그 «걸러진 것»을 세고, 그 «같은 배열»을 점프 대상으로 넘긴다. 둘이 갈라질 수가 없다. */
+       그 «걸러진 것»을 세고, 그 «같은 배열»을 점프 대상으로 넘긴다. 둘이 갈라질 수가 없다.
+       ★always 갈래도 그 보장을 깨지 않는다 — ★0 이면 `_jumpTargets` 에 ⛔아무것도 안 넣는다. */
     list = (list || []).filter(isJumpTarget);
-    if (!list.length) return '';
+    if (!list.length) {
+      if (!always) return '';
+      return `<div class="insp-stat-row">`
+           + `<span class="insp-stat-label">${label}</span>`
+           + `<span class="insp-stat-value">0</span></div>`;
+    }
     _jumpTargets[key] = list;
     return `<div class="insp-stat-row insp-jump" data-jump="${key}" title="클릭하면 사용된 곳으로 이동 (${list.length}개)">`
          + `<span class="insp-stat-label">${label}</span>`
@@ -417,14 +431,15 @@ function renderInspectorPanel() {
         <span class="insp-stat-label">전체 블록</span>
         <span class="insp-stat-value">${totalBlocks}</span>
       </div>
-      <div class="insp-stat-row">
-        <span class="insp-stat-label">텍스트</span>
-        <span class="insp-stat-value">${textBlocks.length}</span>
-      </div>
-      <div class="insp-stat-row">
-        <span class="insp-stat-label">이미지</span>
-        <span class="insp-stat-value">${assetBlocks.length}</span>
-      </div>
+      <!-- ★T17(현빈 2026-10-07 「★인스펙터에 갭은 … 순차 이동이 되는데 ★이미지는 ★안되네? ★되게 해줘」)
+           ★«새로 만든 것이 아니라 ★있는 걸 부른다» — 이 둘만 ★손으로 쓴 줄이어서 점프가 빠져 있었다.
+           ★statRow 가 「★셀 것 = 갈 곳」을 ★구조로 보장한다(그 함수 주석) ⇒ 「2/36」 같은 거짓 표시가 불가능하다.
+           ★always:true — 0 이어도 줄을 남긴다(머리 통계 넷의 꼴을 지킨다 · 지디 판정 ㉡).
+           ★★「텍스트」는 ★지디가 넓힌 범위다 — ⛔현빈은 ★이미지만 말했다(:420·:424 가 나란히 빠져 있어 비용이 같다).
+           ★실측(현빈 proj_1791204636612): .asset-block 36/36 · .text-block 136/136 이 ★id 를 갖는다
+             ⇒ 「고르기」(selectBlock)까지 ★된다. 점프 자체는 ★요소로 하므로 id 와 무관하다(jumpToElement). -->
+      ${statRow('textBlocks', '텍스트', textBlocks, { always: true })}
+      ${statRow('assetBlocks', '이미지', assetBlocks, { always: true })}
       ${extraBlockRows}
     </div>
 

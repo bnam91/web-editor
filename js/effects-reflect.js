@@ -6,7 +6,23 @@
        (오늘 ＋ '+' 누출 E65 와 같은 병). 지키는 시험: tests/dom/effects-reflection.dom.spec.js R6(켬/끔 innerText 같음).
      ★PNG 주 경로(CDP 네이티브 캡처)에 나온다(실측) · html2canvas 대체 경로엔 «안 나온다» — 의도됨(시험 R5 가 고정).
    ★컨트롤 셋 = 간격(px) · 길이(페이드 %) · 불투명도(%) — 흐림 없음(box-reflect 는 흐림을 못 한다 · 현빈 원문에 흐림 명시 없음).
-     값 범위·기본값 = 시안 슬라이더 그대로.
+     ★길이·불투명도의 값 범위·기본값 = 시안 슬라이더 그대로.
+   ★★간격의 ★하한은 ★−40 이다 — ⛔「시안 그대로(−20)」가 ★아니다. ★그 까닭이 ★죽었다:
+     ★현빈 2026-10-07 「★반사 ★−20밖에 안되는데 ★더 되게 해주기. ★★슬라이드로 조절가능하게도 해주기」
+     ★★출처 = ★지디 결정 2026-10-07 — ★현빈이 ★−20 에 부딪혔고 ★그 ★두 배로 연다. 까닭 셋:
+       ⑴ 요청이 「−20 한계 ＋ 슬라이더」였다 ⇒ 두 배면 그 불만이 풀린다
+       ⑵ ⛔−100 은 「블럭 ★위를 덮는」 구간을 연다 ⇒ ★요청하지 않은 변화를 덧붙이지 않는다
+       ⑶ ★슬라이더가 있으니 −40 에서 또 부딪히면 그가 다시 말한다 ⇒ ★되돌림이 싸다(작은 쪽에서 시작)
+   ★★★⛔이 수는 ★«기하»가 ★정하지 ★않았다 — ★하한을 넓힐 때 ★★「깨진다」를 ★근거로 쓰지 마라:
+     ★h·len ★28조합 ★전수(2026-10-07 실측): 여백 0 바닥(= gap ≤ −h×len/100)을 넘는 조합이
+       ★−20 에서 ★이미 ★12 · ★−40 에서 ★17 이다. ★최악은 h=20·len=10 → 바닥이 ★−2.0 이다.
+     ★★그것이 ★결함이 아니라 ★이 기능의 ★동작이다 — 아래 `_applyMargin` 의 `Math.max(0, …)` 가
+       ★음수 여백을 막는다 ⇒ ★여백 0 = 「자리를 안 민다」지 ★«레이아웃이 깨진다»가 아니다.
+     ⇒ ★★「h·len 에 ★무관하게 안전한 음수 하한」은 ★★0 뿐이다(그 전수가 그걸 보였다).
+       ⇒ ★그래서 ★하한은 ★★«얼마나 겹치고 싶은가»가 정한다. ⛔한 조합의 꺾임에서 파생하지 마라
+         (★2026-10-07: 「−44(h=80·len=55) 직전 10단위」로 파생했다가 ★17/28 에서 틀렸다)
+     ★지키는 자: tests/unit/effects-reflect-gap.test.mjs (⒜ 정본 한 곳 ⒝ 슬라이더 min ↔ 정본
+       ⒞ 여백이 음수가 안 된다 ⒟ ★−40 에서 여백 0 이 되는 조합이 ★실재한다)
    ★자리(D2 ㉠ 다음 블럭을 민다): box-reflect 는 자리를 안 먹는다 ⇒ 보이는 반사 길이만큼 «아래 여백»을 둔다.
      여백 = max(0, 간격 + 블럭높이 × 길이%) · 여백을 거는 자리(host) = 흐름 안의 상자:
        텍스트 = .text-block(텍스트 래퍼 높이는 auto) · 에셋 = .asset-block · 도형 = 도형 «래퍼» frame-block(높이 고정이라 안쪽 여백이 안 민다)
@@ -25,7 +41,7 @@ import { applyHostMarginY } from './frame-geometry.js';
 
 export const FX_REFLECT_KEYS = ['fxReflect', 'fxReflectGap', 'fxReflectLen', 'fxReflectOp'];
 export const FX_REFLECT_DEFAULTS = { gap: 4, len: 55, op: 35 };
-export const FX_REFLECT_RANGES = { gap: [-20, 40], len: [10, 100], op: [0, 100] };
+export const FX_REFLECT_RANGES = { gap: [-40, 40], len: [10, 100], op: [0, 100] };
 
 const _int = (raw, [lo, hi], d) => {
   const n = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : (typeof raw === 'number' ? raw : NaN);
@@ -151,13 +167,12 @@ function _reflectCardHtml(el, P) {
           <button class="prop-icon-btn" id="${P}-fx-del" title="효과 삭제" aria-label="효과 삭제">×</button>
         </div>
         <div class="prop-cell-card-body" id="${P}-fx-body"${open ? '' : ' hidden'}>
-          <div class="prop-row">
-            <span class="prop-label">간격</span>
-            <div class="prop-icon-input" style="flex:1;min-width:0;" title="블럭과 반사 사이(px)">
-              <span style="font-size:9px;color:#666;padding:0 3px;flex-shrink:0;">Y</span>
-              <input type="number" id="${P}-fx-gap" value="${fx.gap}" min="${R.gap[0]}" max="${R.gap[1]}" step="1">
-            </div>
-          </div>${slider('길이', 'len', fx.len, R.len)}${slider('불투명도', 'op', fx.op, R.op)}
+          <!-- ★간격도 ★슬라이더다(현빈 2026-10-07 「★슬라이드로 조절가능하게도 해주기」).
+               ★★꼴을 ★새로 짓지 않았다 — 바로 아래 「길이」·「불투명도」와 ★같은 slider() 헬퍼를 쓴다.
+               ⚠️옛 꼴의 ★「Y」 접두(.prop-icon-input)는 ★빠진다 — ★세 줄의 꼴이 ★같아지는 쪽을 골랐다.
+                 (그 접두는 ★장식이고, ★라벨 「간격」이 ★이미 무엇인지 말한다.)
+               ★시안(goditor-effects-reflection.html:173)도 ★간격이 ★range 였다 ⇒ ★시안 복귀다. -->
+          ${slider('간격', 'gap', fx.gap, R.gap)}${slider('길이', 'len', fx.len, R.len)}${slider('불투명도', 'op', fx.op, R.op)}
         </div>
       </div>`;
 }
@@ -167,9 +182,9 @@ function _wireReflectCard(el, P, again) {
   $('fx-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxReflect(el, { state: 'none' }); again(); });
   $('fx-eye')?.addEventListener('click', (e) => { e.stopPropagation(); const cur = fxReflectOf(el).state; setFxReflect(el, { state: cur === 'off' ? 'on' : 'off' }); again(); });
   $('fx-head')?.addEventListener('click', () => { const b = $('fx-body'); if (!b) return; const open = b.hidden; b.hidden = !open; fxSetCardOpen(el, 'reflect', open); $('fx-card')?.classList.toggle('expanded', open); });
-  const gap = $('fx-gap');
-  gap?.addEventListener('change', () => { setFxReflect(el, { gap: gap.value }); gap.value = fxReflectOf(el).gap; });
-  for (const key of ['len', 'op']) {
+  /* ★간격을 ★같은 고리에 넣었다(2026-10-07) — 옛 판은 `change` ★하나뿐이라
+     ★끄는 «동안» 미리보기도, ★mousedown 의 pushHistory 도 없었다. ⇒ 셋이 ★같은 배선을 탄다. */
+  for (const key of ['gap', 'len', 'op']) {
     const sl = $(`fx-${key}-slider`), n = $(`fx-${key}-num`);
     if (!sl || !n) continue;
     sl.addEventListener('mousedown', () => window.pushHistory?.('효과'));

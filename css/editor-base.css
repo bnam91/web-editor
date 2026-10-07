@@ -11,6 +11,19 @@
   --goya-checker-big-a:     #d8d8d8;
   --goya-checker-big-b:     #f0f0f0;
   --goya-checker-big-size:  72px;
+  /* ── 패딩 비주얼 띠 색 — ★정본은 여기 «한 곳»이다 (현빈 2026-10-07 「★패딩비쥬얼 ★기본 - ★00D6FF」) ──
+     ★왜 여기인가 — 바로 위 체커 토큰과 ★같은 선례다: 「값의 정본은 css :root 하나 · CSS 는 var() 로 읽고
+       JS 는 ★읽어서 쓴다 · ⛔값을 다른 데 베끼지 마라」(js/checker-tokens.js 머리말).
+     ★고치기 전엔 ★리터럴이 ★넷이었다 — css/editor-canvas.css 폴백 ★3 ＋ js/props/prop-page.js 기본값 ★1.
+       ⇒ 「명부가 둘이면 ★주석으로 못 막는다 — ★파생시켜 하나로」. 그래서 ★그 넷을 ★여기로 모았다.
+     ★★두 토큰이 ★어긋날 수 있다(hex ↔ rgba) ⇒ ★tests/unit/pad-hint.test.js T16 이 ★둘을 견준다.
+       ⛔그 검사를 지우면 ★색이 ★조용히 갈라진다(체커가 census 검사를 둔 것과 같은 까닭).
+     ★알파는 ★.10 «고정»이다 — 불투명해지면 tests/dom/pad-hint.dom.spec.js D11 이 재는
+       「★풀블리드 에셋 ★위에 얹힌다」가 ★뜻을 잃는다. ⛔색상만 바꿔라.
+     ⚠️같은 글자(#ff0080 · rgba(255,0,128,…))가 ★다른 기능에도 있다 — ⛔일괄치환 금지:
+       css/editor-blocks.css:3670 텍스트효과 글로우 · js/fx/glow-render.js:110 글로우 렌더. ★무관하다. */
+  --gdt-padhint-hex:   #00D6FF;
+  --gdt-padhint-color: rgba(0, 214, 255, .10);
   /* ② 작은 쌍 — 배너 이미지칸·그리드 빈 슬롯 (16px 격자) */
   --goya-checker-small-a:    #e3e3e3;
   --goya-checker-small-b:    #efefef;
