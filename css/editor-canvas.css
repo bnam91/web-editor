@@ -313,9 +313,17 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
   /* 줌 카운터-스케일 + 우측 툴바와 안전거리 확보 */
   max-width: calc((100% - 110px) / var(--ui-scale, 1));
   display: inline-block;
-  transform: scale(var(--ui-scale, 1));
-  /* 라벨이 섹션 경계 바로 위에 붙도록 하단 기준 — 스케일 커져도 섹션과 분리되지 않음 */
-  transform-origin: left bottom;
+  /* ★★줌 카운터-스케일을 `zoom` 으로 — ⛔`transform: scale()` 은 «레이아웃 폭»을 안 바꾼다(현빈 2026-10-08
+     「화면 축소/확대하면 ★겹친다」). 히트존이 flex 라 높이 배지는 라벨의 «스케일 전» 폭 바로 뒤에 놓이는데
+     라벨은 scale 배로 그려져 ★배지를 덮었다. 실측(Z1 · 축소할 때만 겹친다 — --ui-scale 이 1 을 넘는 구간):
+       40%  ui=1.6     labelRight 533 · badgeLeft 511 ⇒ ★겹침 ＋22
+       70%  ui=1.1429  labelRight 420 · badgeLeft 414 ⇒ ★겹침 ＋6
+       100·150·200% ui=1 ⇒ −6 / −9 / −12 (겹치지 않는다)
+     ★`zoom` 은 레이아웃에 먹어서 flex 가 «그려진 폭»을 안다 ⇒ 겹침이 ★구조적으로 사라진다.
+     ⛔`transform-origin: left bottom` 을 지웠다 — zoom 엔 그 개념이 없다. 「라벨이 섹션 경계 바로 위에
+       붙는다」는 그 origin 이 지키던 것이라, ★그 성질을 Z2 가 따로 잠근다(배율 넷에서 라벨 하단 ≈ 히트존 하단).
+     ★태그칩(.section-tags)도 같은 어휘를 쓰는데 캔버스에선 display:none 이라 겹침이 안 보인다 — ★별건 명부. */
+  zoom: var(--ui-scale, 1);
 }
 
 /* ══ 섹션 높이 배지 (다) — 현빈 2026-10-07 「섹션마다 현재 높이가 몇 px 인지」 ══

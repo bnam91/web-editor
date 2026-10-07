@@ -20,6 +20,11 @@
  *   U1~U4 ★갱신 — 섹션 추가 · 블록 추가(높이 변화) · 섹션 삭제 · ⌘Z 되돌리기.
  *   S1 ★저장·히스토리에 안 샌다 — getSerializedCanvas 에 배지 0건(＋양성대조: 세척 목록에서 빼면 샌다).
  *   S2 ★비교 키에 안 샌다 — serializeSectionClone(협업 가드)·normSection(버전·병합)에 배지 0건.
+ *   Z1 ★★겹침 — 배율 40·70·100·150·200% 에서 `.section-label` 이 배지를 ★덮지 않는다(현빈 2026-10-08
+ *      「화면 축소/확대하면 겹친다」). ⛔`transform: scale()` 은 «레이아웃 폭»을 안 바꾼다 — 히트존이 flex 라
+ *      배지는 라벨의 «스케일 전» 폭 바로 뒤에 놓이는데 라벨은 scale 배로 그려진다. 라벨의
+ *      `max-width: calc((100% - 110px) / var(--ui-scale))` 는 «상한»이라 라벨이 짧으면 안 걸린다.
+ *      ★전제 단언(그 배율이 섰나) ＋ ★음성대조(라벨 그려진 폭이 배율마다 갈리나)를 같은 시험 안에 둔다.
  *
  * ⛔이 하네스로 «못 재는» 축: Electron 실앱 재기동 · 진짜 파일 저장/불러오기 · 네이티브 PNG 캡처(CDP).
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/section-height-display.dom.spec.js
@@ -534,4 +539,81 @@ test('N2 ★저장 → ★재기동 → 다시 열기 — 배지와 합계가 �
   expect(after.dup, `섹션마다 배지 1개여야 한다 — 실제 ${after.dup.join(',')}`).toEqual([1, 1]);
   expect(after.total, `다시 연 뒤 합계 = ${after.total}`).toBe('440px');
   expect(after.count).toBe('섹션 2');
+});
+const readBoxesAtZoom = (page, z) => page.evaluate((zz) => {
+  const sc = document.getElementById('canvas-scaler');
+  sc.style.transition = 'none';
+  window.applyZoom(zz);
+  void sc.offsetWidth;
+  window.renderSectionHeights();
+  const sec = document.getElementById('hS1');
+  /* ★hover·선택이 아니면 opacity 0 이라 «눈에는» 안 보이지만 rect 는 그대로다 —
+     겹침은 «보이는 동안» 문제니 선택 상태로 둔다(그 상태가 현빈이 본 장면이다). */
+  sec.classList.add('selected');
+  const lb = sec.querySelector('.section-label');
+  const bd = sec.querySelector('.section-height-badge');
+  const L = lb.getBoundingClientRect(), B = bd.getBoundingClientRect();
+  return {
+    zoom: window.currentZoom,
+    uiScale: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-scale')) || 1,
+    labelW: Math.round(L.width), badgeW: Math.round(B.width),
+    labelRight: Math.round(L.right), badgeLeft: Math.round(B.left),
+    overlap: Math.round(L.right - B.left),      // ★>0 이면 겹친다
+    badgeText: bd.dataset.h,
+  };
+}, z);
+
+test('Z1 ★겹침 — 배율 40·70·100·150·200% 에서 라벨이 높이 배지를 «덮지 않는다»', async ({ page }) => {
+  const errs = await bootApp(page);
+  await fixture(page);
+
+  const ZS = [40, 70, 100, 150, 200];
+  const rows = [];
+  for (const z of ZS) rows.push(await readBoxesAtZoom(page, z));
+
+  // ★전제 — 그 배율이 실제로 섰다
+  expect(rows.map(r => r.zoom), `zoom = ${rows.map(r => r.zoom).join('/')}`).toEqual(ZS);
+
+  // ★음성대조 — 배율이 실제로 걸렸다(라벨 그려진 폭이 갈린다). 전부 같으면 아무것도 안 잰 것이다.
+  const ws = rows.map(r => r.labelW);
+  expect(new Set(ws).size, `★음성대조 labelW@${ZS.join('/')} = ${ws.join('/')} — 갈려야 한다`).toBeGreaterThan(1);
+
+  // ★주 단언 — 겹침 0. 잰 값을 메시지에 찍는다(조사가 증거를 지우지 않게).
+  const ov = rows.map(r => r.overlap);
+  const detail = rows.map(r => `${r.zoom}%: ui=${r.uiScale} labelRight=${r.labelRight} badgeLeft=${r.badgeLeft} overlap=${r.overlap}`).join(' | ');
+  expect(ov.filter(v => v > 0), `★겹친 배율이 있다 — ${detail}`).toEqual([]);
+
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+
+/* ★Z2 — `zoom` 으로 바꾸며 ★지운 `transform-origin: left bottom` 이 지키던 성질을 ★여기서 잠근다:
+   「라벨이 ★섹션 경계 바로 위에 붙는다 = ★라벨 하단이 ★히트존 하단과 (거의) 같다」.
+   ⛔이게 없으면 Z1 의 초록이 「겹침은 없는데 ★라벨이 떠 버린 판」과 구분되지 않는다. */
+test('Z2 ★라벨은 섹션 경계 «바로 위»에 붙어 있다 — 배율 40·70·100·200% 에서 하단이 어긋나지 않는다', async ({ page }) => {
+  const errs = await bootApp(page);
+  await fixture(page);
+  const ZS = [40, 70, 100, 200];
+  const rows = [];
+  for (const z of ZS) {
+    rows.push(await page.evaluate((zz) => {
+      const sc = document.getElementById('canvas-scaler');
+      sc.style.transition = 'none';
+      window.applyZoom(zz); void sc.offsetWidth; window.renderSectionHeights();
+      const sec = document.getElementById('hS1'); sec.classList.add('selected');
+      const hz = sec.querySelector('.section-hitzone');
+      const lb = sec.querySelector('.section-label');
+      const H = hz.getBoundingClientRect(), L = lb.getBoundingClientRect();
+      return { zoom: window.currentZoom, gap: Math.round(H.bottom - L.bottom), lbH: Math.round(L.height) };
+    }, z));
+  }
+  expect(rows.map(r => r.zoom), `zoom = ${rows.map(r => r.zoom).join('/')}`).toEqual(ZS);
+  /* ★음성대조 — 라벨 그려진 높이가 배율마다 갈려야 한다(안 갈리면 배율이 안 걸린 판이다). */
+  const hs = rows.map(r => r.lbH);
+  expect(new Set(hs).size, `★음성대조 labelH@${ZS.join('/')} = ${hs.join('/')} — 갈려야 한다`).toBeGreaterThan(1);
+  /* ★주 단언 — 라벨 하단과 히트존 하단의 어긋남이 라벨 높이의 절반을 넘지 않는다(「바로 위에 붙었다」). */
+  const bad = rows.filter(r => Math.abs(r.gap) > Math.max(6, r.lbH / 2));
+  const detail = rows.map(r => `${r.zoom}%: gap=${r.gap} labelH=${r.lbH}`).join(' | ');
+  expect(bad.map(r => r.zoom), `★라벨이 섹션 경계에서 떨어졌다 — ${detail}`).toEqual([]);
+  expect(errs, errs.join('\n')).toEqual([]);
 });
