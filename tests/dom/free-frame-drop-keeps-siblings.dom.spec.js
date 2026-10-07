@@ -104,3 +104,33 @@ test('FD2 ★자유배치 프레임에 밖의 그리드를 끌어 넣어도 — 
   expect(c.pos, '[전제] 들어온 그리드(또는 그 줄)가 absolute 로 섰다').toBe('absolute');
   expect(c.top, `들어온 그리드가 이미 있던 블럭과 겹친다 — top ${c.top} (텍스트 바닥 아래여야) · 폭 ${c.w}/${c.fw}`).toBeGreaterThan(150);
 });
+
+/* FD3 — 「같은 자유배치 프레임 «안에서» HTML5 로 다시 놓기」(지디 ⑷: 동작 변화 자리를 재는 칸).
+ *   그 길이 앱에서 생기나(2026-10-08 실측 · 진짜 손 9 장면): absolute 자식(라벨·텍스트)을 누르면 HTML5 가 아니라 «프레임째» dragstart
+ *   이거나(맨누름) 좌표 끌기(클릭 뒤)라 이 길을 안 탄다. ★생기는 꼴 = 옛 저장본의 «흐름» row(absolute 아님)가 자유배치 프레임 안에 있을 때 —
+ *   그 안 블럭을 누르면 dragstart 가 그 블럭에서 나고 drop 이 같은 프레임에 1 번 온다(3/3).
+ *   예전 판은 이때도 전원을 다시 쌓았다. 이제는 «들어온 것»(row 에서 꺼내져 프레임 직속이 된 것)만 옮긴다. */
+test('FD3 같은 프레임 안 옛 흐름 row 의 블럭을 HTML5 로 다시 놓아도 — 이미 있던 라벨·텍스트 자리는 그대로', async ({ page }) => {
+  const ids = await scene(page);
+  const old = await page.evaluate((ids) => {
+    const fr = document.getElementById(ids.fr);
+    fr.insertAdjacentHTML('beforeend', '<div class="row" id="fdOldRow" style="height:60px"><div class="gap-block" id="fdOldGap" data-type="gap" style="height:60px"></div></div>');
+    window.rebindAll?.(); window.deselectAll?.(); window._activeFrame = null;
+    window.__fd3 = { ds: [], drop: 0 };
+    document.addEventListener('dragstart', e => window.__fd3.ds.push(e.target.id || ''), true);
+    fr.addEventListener('drop', () => { window.__fd3.drop++; }, true);
+    const r = document.getElementById('fdOldRow');
+    return { flow: r.style.position !== 'absolute', parentIsFrame: r.parentElement === fr };
+  }, ids);
+  expect(old, '[전제] 옛 흐름 row 가 자유배치 프레임 직속·흐름이다').toEqual({ flow: true, parentIsFrame: true });
+  const p0 = await pos(page, ids);
+  const g = await box(page, 'fdOldGap');
+  await page.mouse.move(g.x, g.y); await page.mouse.down();
+  for (let i = 1; i <= 15; i++) await page.mouse.move(g.x + i * 6, g.y + i * 4);
+  await page.mouse.up(); await page.waitForTimeout(600);
+  const ev = await page.evaluate(() => window.__fd3);
+  expect(ev.ds, '[전제] HTML5 dragstart 가 그 블럭에서 났다(이 길을 실제로 탔다)').toContain('fdOldGap');
+  expect(ev.drop, '[전제] drop 이 같은 프레임에 왔다').toBe(1);
+  const p1 = await pos(page, ids);
+  expect(p1, `이미 있던 블럭이 움직였다 — 라벨 ${p0.lab}→${p1.lab} · 텍스트 ${p0.tu}→${p1.tu}`).toEqual(p0);
+});
