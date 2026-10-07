@@ -43,7 +43,12 @@
 const { test, expect } = require('@playwright/test');
 const { boot, src } = require('./_root-harness.js');
 
-const REL = 'js/blocks/sticker-block.js';
+/* ★정의 자리 = 2026-10-08 에 ★js/util/sanitize-rich-text.js 로 ★이사했다(지디 판정).
+   ★입구(`window._sanitizeStickerHtml`)는 ★안 바뀌었다 — 그래서 ★S0~S6 의 ★단언과 ★입구가
+   ★이사 전과 ★한 글자도 다르지 않다. ★바뀐 것은 ★«어느 파일에서 명부를 읽나» 하나다.
+   ⇒ ★그게 「이사가 ★동작을 안 바꿨다」의 ★증명 꼴이다. ★S7 이 ★한 벌임을 ★===로 잠근다. */
+const MOD = 'js/util/sanitize-rich-text.js';
+const CONSUMER = 'js/blocks/sticker-block.js';
 const PAGE = '<!doctype html><meta charset="utf-8"><body></body>';
 
 /* ★정의 자리 파싱 — `const _STK_ALLOWED_TAGS = new Set([...])` 한 줄에만 닻을 건다. */
@@ -52,10 +57,17 @@ function parseSet(source, name) {
   if (!m) return null;
   return m[1].split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
 }
+/* ★★런타임 값으로도 읽는다 — ★소스 파싱과 ★두 소스에서 뽑아 ★견준다(pad-hint T12 와 같은 관용구).
+   ⛔소스만 파싱하면 ★내 주석이 ★그 입력이 되고, ⛔런타임만 읽으면 ★선언이 둘로 갈려도 안 보인다. */
+const runtimeSets = (page) => page.evaluate(async (mod) => {
+  const m = await import('/' + mod);
+  return { tags: [...m.RICH_TEXT_ALLOWED_TAGS], props: [...m.RICH_TEXT_ALLOWED_STYLE_PROPS] };
+}, MOD);
 
 async function load(page) {
   const errs = await boot(page, PAGE, { ready: false });
-  await page.evaluate(async (rel) => { await import('/' + rel); }, REL);
+  /* ★소비자를 든다 — 그러면 그것이 ★window 알리아스 둘을 세운다. ★입구는 이사 전과 ★같다. */
+  await page.evaluate(async (rel) => { await import('/' + rel); }, CONSUMER);
   return errs;
 }
 const san = (page, html) => page.evaluate((h) => window._sanitizeStickerHtml(h), html);
@@ -78,20 +90,25 @@ test('S0 ★전제 — 모듈을 들면 입구 둘이 함수다 (잣대가 산�
 });
 
 test('S1 ⒜ ★허용목록 전수 — «정의 자리»에서 읽은 태그가 하나도 빠짐없이 살아남는다', async ({ page }) => {
-  const source = src(REL);
-  const tags = parseSet(source, '_STK_ALLOWED_TAGS');
-  const props = parseSet(source, '_STK_ALLOWED_STYLE_PROPS');
+  const source = src(MOD);
+  const tags = parseSet(source, 'RICH_TEXT_ALLOWED_TAGS');
+  const props = parseSet(source, 'RICH_TEXT_ALLOWED_STYLE_PROPS');
   console.log('  S1 정의 자리:', JSON.stringify({ tags, props }));
   /* ★전제 — 파싱이 ★살아 있다. ⛔못 찾으면 아래 루프가 ★0회 돌고 ★초록이 된다. */
-  expect(tags, '★_STK_ALLOWED_TAGS 를 정의 자리에서 못 읽었다 — 선언 꼴이 바뀌었나. 이 상태로는 아무것도 안 잰다').toBeTruthy();
-  expect(props, '★_STK_ALLOWED_STYLE_PROPS 를 정의 자리에서 못 읽었다').toBeTruthy();
+  expect(tags, '★RICH_TEXT_ALLOWED_TAGS 를 정의 자리에서 못 읽었다 — 선언 꼴이 바뀌었나. 이 상태로는 아무것도 안 잰다').toBeTruthy();
+  expect(props, '★RICH_TEXT_ALLOWED_STYLE_PROPS 를 정의 자리에서 못 읽었다').toBeTruthy();
   expect(tags.length, `★태그 명부가 비었다. 잰 값 ${JSON.stringify(tags)}`).toBeGreaterThan(0);
+  /* ★★두 소스 대조 — ★소스에서 파싱한 명부와 ★런타임 export 가 ★같아야 한다.
+     ⛔갈리면 ★선언이 둘이거나 ★내가 엉뚱한 줄을 파싱한 것이다. */
+  await load(page);
+  const rt = await runtimeSets(page);
+  expect(rt.tags, `★소스 파싱과 ★런타임 export 가 갈렸다. 소스 ${JSON.stringify(tags)} / 런타임 ${JSON.stringify(rt.tags)}`).toEqual(tags);
+  expect(rt.props, `★style prop 이 갈렸다. 소스 ${JSON.stringify(props)} / 런타임 ${JSON.stringify(rt.props)}`).toEqual(props);
   /* ★이름으로 확인 — ⛔수로만 세면 하나가 조용히 바뀌어도 안 보인다 */
   for (const must of ['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'BR', 'SPAN']) {
     expect(tags, `★«${must}» 가 허용목록에서 사라졌다 — 그 서식이 커밋 순간 언랩된다`).toContain(must);
   }
 
-  await load(page);
   const kept = [];
   for (const tag of tags) {
     const lower = tag.toLowerCase();
@@ -145,8 +162,8 @@ test('S2 ⒝ ★★음성대조 — 위험한 것은 하나도 살아남지 않�
 });
 
 test('S3 ⒞ ★★양성대조 — 허용목록에 «없는» 서식 태그는 언랩된다 (명부가 실제로 상의된다)', async ({ page }) => {
-  const source = src(REL);
-  const tags = parseSet(source, '_STK_ALLOWED_TAGS');
+  const source = src(MOD);
+  const tags = parseSet(source, 'RICH_TEXT_ALLOWED_TAGS');
   const NOT = ['mark', 'font', 'big', 'small', 'sub', 'sup', 'code'];
   /* ★전제 — 이 일곱이 ★정말 허용목록 «밖»이다. ⛔허용목록이 늘면 이 검사가 거짓이 되므로 먼저 단언한다. */
   for (const t of NOT) {
@@ -165,8 +182,8 @@ test('S3 ⒞ ★★양성대조 — 허용목록에 «없는» 서식 태그는 
 });
 
 test('S4 ⒟ ★★STRIKE — 선례의 심장. execCommand 가 «실제로 만드는» 태그가 허용목록에 있다', async ({ page }) => {
-  const source = src(REL);
-  const tags = parseSet(source, '_STK_ALLOWED_TAGS');
+  const source = src(MOD);
+  const tags = parseSet(source, 'RICH_TEXT_ALLOWED_TAGS');
   expect(tags, '★STRIKE 가 허용목록에서 빠졌다 — ⌘⇧X 취소선이 커밋 순간 언랩돼 «되는 척»만 하고 사라진다').toContain('STRIKE');
   const errs = await load(page);
   const out = await san(page, 'A<strike>X</strike>B');
@@ -247,5 +264,39 @@ test('S6 ★_stickerHtmlHasFormatting — <br> 만 있으면 false(평문 경로
     expect(got, `★«${name}» 판정이 ${want} 여야 한다. 입력 ${html} → 잰 값 ${got}`).toBe(want);
   }
   console.log('  S6:', JSON.stringify(rows));
+  expect(errs).toEqual([]);
+});
+
+test('S7 ★★한 벌인가 — 알리아스가 «같은 함수»다 ＋ 옛 선언이 레포에 남지 않았다', async ({ page }) => {
+  /* ★★이사의 ★핵이다 — ⛔「합쳤다」는 ★말로는 안 된다.
+     ★사본이면 ★`===` 가 거짓이고, 그러면 ★한쪽만 고쳐도 조용히 갈린다(지디 규율: 명부가 둘이면…).
+     ★그리고 ★옛 선언이 ★소비자 파일에 ★남아 있으면 ★그것이 ★둘째 명부다 — ★그것도 센다. */
+  const errs = await boot(page, PAGE, { ready: false });
+  const same = await page.evaluate(async ([mod, consumer]) => {
+    const m = await import('/' + mod);
+    await import('/' + consumer);
+    return {
+      sanSame: window._sanitizeStickerHtml === m.sanitizeRichTextHtml,
+      fmtSame: window._stickerHtmlHasFormatting === m.richTextHasFormatting,
+      sanType: typeof m.sanitizeRichTextHtml, fmtType: typeof m.richTextHasFormatting,
+      stripType: typeof m.stripCtlChars,
+    };
+  }, [MOD, CONSUMER]);
+  console.log('  S7:', JSON.stringify(same));
+  expect(same.sanType, '★공용 모듈이 sanitizeRichTextHtml 을 안 내놓는다').toBe('function');
+  expect(same.fmtType, '★공용 모듈이 richTextHasFormatting 을 안 내놓는다').toBe('function');
+  expect(same.stripType, '★공용 모듈이 stripCtlChars 를 안 내놓는다').toBe('function');
+  expect(same.sanSame, `★★알리아스가 ★사본이다 — 공용 본문과 ★다른 함수다. 잰 값 ${JSON.stringify(same)}`).toBe(true);
+  expect(same.fmtSame, `★★서식 판정 알리아스가 ★사본이다. 잰 값 ${JSON.stringify(same)}`).toBe(true);
+
+  /* ★옛 선언이 ★소비자 파일에 ★0건 — ⛔남으면 둘째 명부다 */
+  const consumerSrc = src(CONSUMER);
+  for (const dead of ['RICH_TEXT_ALLOWED_TAGS', 'RICH_TEXT_ALLOWED_STYLE_PROPS', '_stkSanitizeInto',
+                      '_stkSanitizeStyle', '_stkSafeStyleValue', '_STK_VAL_HEX']) {
+    expect(consumerSrc.includes(dead), `★옛 선언 «${dead}» 가 ${CONSUMER} 에 남았다 — 둘째 명부다`).toBe(false);
+  }
+  /* ★양성대조 — 이 잣대가 ★산다: 소비자는 ★그 모듈을 ★실제로 import 한다 */
+  expect(consumerSrc, `★${CONSUMER} 가 공용 모듈을 import 하지 않는다 — 위 「0건」이 ★공짜로 참이 된다`)
+    .toMatch(/import\s*\{[^}]*sanitizeRichTextHtml[^}]*\}\s*from\s*['"][^'"]*sanitize-rich-text\.js['"]/);
   expect(errs).toEqual([]);
 });
