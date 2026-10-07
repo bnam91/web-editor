@@ -3065,11 +3065,15 @@ document.addEventListener('keydown', e => {
          updateGridBlock 이 «쓰기 직전에» 스스로 1회 쌓는다. */
     if (moveGridLineFromCanvas({ dir: e.key === 'ArrowUp' ? -1 : 1 })) { e.preventDefault(); return; }
     // 섹션 외 모든 selected 요소를 블록으로 취급 (iconify/shape/sticker/laurel 등 누락 방지)
-    const selBlock = [...document.querySelectorAll('.selected')]
-      .find(el => el !== document.body
+    /* ★수지④(2026-10-08) — 드릴인(프레임 클릭 → 자식 클릭) 상태엔 프레임과 자식이 «둘 다» .selected 다.
+       DOM 첫째를 고르면 프레임이 뽑혀 «자식»이 아니라 «프레임»이 섹션에서 움직였다(실측 SM1). ⇒ 다른 후보를 «안에 품지 않은» 가장 안쪽을 고른다.
+       (안 겹친 다중 선택은 예전과 같다 — 첫째가 곧 가장 안쪽.) */
+    const _selCands = [...document.querySelectorAll('.selected')]
+      .filter(el => el !== document.body
         && !el.classList.contains('section-block')
         && !el.classList.contains('layer-item')
         && el.id);
+    const selBlock = _selCands.find(el => !_selCands.some(o => o !== el && el.contains(o)));
     const selSection = document.querySelector('.section-block.selected');
     const moveTarget = selBlock
       ? (selBlock.classList.contains('gap-block') || selBlock.classList.contains('frame-block')
