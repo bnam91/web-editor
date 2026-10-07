@@ -2063,6 +2063,11 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
      *   _gridMergeLine 의 종류 청소는 `fields.type !== undefined` 일 때만 돌고, 그 길은 `{imgShape:undefined}` 만 준다.
      *   ★두 실패를 견준 결과다 — 「유령 키가 저장본에 남는다」(작은 비용) vs 「★사람이 쓴 글자가 ★말없이 사라진다」(되돌릴 길 없음).
      *   ★잠그는 자: G20-7(원→사각→원 왕복 뒤 글자 그대로) ＋ grid-img-circle C4(imgShape 키만 빠진다)가 ★같이 초록.
+     *   ★★⚠️그러나 ★이 동작은 ★«코드»가 떠받치는 것이 ★아니다 — ★`fields.type !== undefined` 라는
+     *     ★«기존 조건»이 떠받친다. ⇒ ★그 조건이 바뀌면(예: 청소를 「type 이 없어도 돈다」로 넓히면)
+     *     ★이 약속은 ★★«조용히» 깨진다 — ★이 파일엔 ★고칠 자리가 ★한 줄도 없으므로 ★아무 표시도 안 남는다.
+     *     ⇒ ★★`G20-7` 이 ★그 파수꾼이다. ⛔그 검사를 지우거나 느슨하게 만들면 ★이 약속이 ★무방비가 된다.
+     *     (지디 2026-10-07 지시로 적는다 — 「코드 0줄로 성립한다」는 ★장점이자 ★위험이다.)
      * ⛔안 읽는 것(★손잡이가 없는 값을 읽지 않는다 — 「값은 사는데 손잡이가 없어」가 이 파일의 고질이다):
      *   weight · lineHeight · letterSpacing · italic · strike · padH/padV · radius · widthPct.
      * ⛔G5 어두운 배경 자동 글자색(useRoleColor)은 ★이 글자에 ★안 걸었다 — 범위 밖이다. 대신 패널이

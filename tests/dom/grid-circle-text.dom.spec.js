@@ -21,6 +21,16 @@
  *     ㉤ M-PANEL 패널 `${circleRows}` 제거        4·5                               1·2·3·6·7·8·9
  *     ㉥ M-LEAK  `posCss` 를 늘 'position:relative' ★8 «하나만»                      1·2·3·4·5·6·7·9
  *     ㉦ M-EMPTY 빈 원에서 `grd-img-empty` 뗌     2·8·★9                            1·3·4·5·6·7
+ *     ㉧ M-BEFORE  글자 핸들러를 ★push-before 로    ★10 «하나만»                      5·그 밖 전부
+ *     ㉨ M-NOHIST  글자 핸들러의 pushHistory ★제거  ★5·★10                            그 밖 전부
+ *   ★★㉧·㉨ 는 ★2026-10-07 ★머지 ⑤ 에서 더 세웠다 — ★`tests/unit/prop-push-after.test.mjs` ★PA-1 이
+ *     ★소스 모양으로 결함을 잡았고(★「찍고 나서 바꾸는 핸들러」), ★쟀더니 ★참이었다:
+ *       히스토리 ★칸 수 Δ — push-before ★＋0 · pushHistory 없음 ★＋0 · ★push-after ★＋1
+ *     ⛔★그런데 ★⌘Z 는 ★세 꼴 ★전부에서 ★«동작했다»(ensureHistoryCheckpoint 가 구해 준다)
+ *     ⇒ ★★옛 G20-5·G20-10 은 ★pos/len 을 ★읽어 ★메시지에만 썼다 ⇒ ★pushHistory 를 ★빼도 ★초록이었다
+ *        (= ★걸음을 ★안 재고 있었다). ⇒ ★★«칸 수» 단언을 박고서야 ★이 둘이 ★이를 가졌다.
+ *     ★역할이 갈린다 — ★G20-5 = 「그 제스처가 칸을 만드나」(㉨ 가 잡는다) ·
+ *       ★G20-10 = 「★연달아 해도 각자 칸을 갖나」(㉧·㉨ 가 잡는다 — ★앞 편집이 push-after 일 때만 선다)
  *   ★★㉥·㉦ 를 ★나중에 더 세웠다 — ㉠~㉤ 에서 ★G20-8·9 가 ★한 번도 빨강이 아니었다.
  *     ⇒ 「음성대조는 ★죽은 자를 못 잡는다」. ★지키는 자도 ★빨개질 수 있어야 ★재고 있는 것이다.
  *     ⇒ ★지금 ★아홉 자 ★전부가 ★최소 한 판에서 빨강이다(★0건 없음).
@@ -220,12 +230,16 @@ test('G20-5 ★색 한 번 = ⌘Z ★한 걸음 · 글자 한 번 = ★한 걸�
     const t1 = tip();
     const bgNow = () => getComputedStyle(document.querySelector('#gG .grd-cell[data-r="0"][data-c="0"] .grd-img-frame')).backgroundColor;
     const painted = bgNow();
+    const dLen = t1.len - t0.len;
     document.activeElement?.blur?.();
     window.undo();
     await new Promise(r => setTimeout(r, 260));
-    return { t0, t1, painted, afterUndo: bgNow(), posSteps: t1.pos - t0.pos, tip2: tip() };
+    return { t0, t1, painted, afterUndo: bgNow(), dLen, posSteps: t1.pos - t0.pos, tip2: tip() };
   });
   expect(colorStep.painted, '[전제] 색이 실제로 칠해졌다').toBe('rgb(255, 0, 0)');
+  /* ★★칸 «수»를 단언한다 — ⌘Z 만 보면 못 가른다(아래 ⚠️). 색은 push-after 한 칸. */
+  expect(colorStep.dLen, `★색 한 번이 히스토리 칸을 ★1개 안 만들었다(Δlen=${colorStep.dLen}) — ` +
+    '0 이면 그 제스처는 자기 칸이 없다(앞 편집과 묶여 ⌘Z 한 번에 같이 사라질 수 있다)').toBe(1);
   expect(colorStep.afterUndo, `★⌘Z ★한 번으로 색이 안 돌아갔다 — 걸음이 1 이 아니다(pos ${colorStep.t0.pos}→${colorStep.t1.pos}, undo 뒤 ${colorStep.tip2.pos})`).not.toBe('rgb(255, 0, 0)');
 
   // ── ⑵ 글자 한 번
@@ -241,13 +255,81 @@ test('G20-5 ★색 한 번 = ⌘Z ★한 걸음 · 글자 한 번 = ★한 걸�
     const t1 = tip();
     const txt = () => (document.querySelector('#gG .grd-cell[data-r="0"][data-c="0"] .grd-img-circle-text')?.textContent ?? null);
     const typed = txt();
+    const dLen = t1.len - t0.len;
     document.activeElement?.blur?.();
     window.undo();
     await new Promise(r => setTimeout(r, 300));
-    return { t0, t1, typed, afterUndo: txt(), tip2: tip() };
+    return { t0, t1, typed, dLen, afterUndo: txt(), tip2: tip() };
   });
   expect(textStep.typed, '[전제] 글자가 실제로 들어갔다').toBe('글자');
+  /* ★★★여기가 이 검사의 «이가 있는» 자리다 (2026-10-07 실측으로 세웠다)
+   *   ⛔옛 판은 pos/len 을 ★읽어 ★메시지에만 썼다 ⇒ ★`pushHistory` 를 ★아예 빼도 ★초록이었다
+   *     (= ★이 검사가 ★걸음을 ★안 재고 있었다 · 「음성대조는 죽은 자를 못 잡는다」의 한 사례).
+   *   ★쟀더니: push-before ＋0 · pushHistory 없음 ＋0 · ★push-after ★＋1.
+   *   ⇒ ★이 단언 하나가 ★그 셋을 가른다. ⛔지우면 이 자리가 무방비가 된다. */
+  expect(textStep.dLen, `★글자 한 번이 히스토리 칸을 ★1개 안 만들었다(Δlen=${textStep.dLen}) — ` +
+    'prop-grid.js 의 그 핸들러가 push-before 로 되돌아갔거나 pushHistory 가 빠졌다(둘 다 Δlen 0 이다)').toBe(1);
   expect(textStep.afterUndo, `★⌘Z ★한 번으로 글자가 안 사라졌다 — 걸음이 1 이 아니다(pos ${textStep.t0.pos}→${textStep.t1.pos}, undo 뒤 ${textStep.tip2.pos})`).toBeNull();
+});
+
+/* ══ G20-10 ★두 제스처를 «연달아» — 각자 자기 칸을 갖나 ═══════════════════════════════ */
+test('G20-10 ★색 → 글자를 «연달아» 하면 ⌘Z 가 ★두 걸음이다 (각 제스처가 자기 칸을 갖는다)', async ({ page }) => {
+  /* ★★왜 이 자가 생겼나 — ★G20-5 는 색 한 번 / 글자 한 번을 ★«따로만» 쟀다. ★연달아 하는 장면을 ★안 쟀다.
+   *   그 틈을 ★`tests/unit/prop-push-after.test.mjs` ★PA-1 이 ★소스에서 잡았다(2026-10-07):
+   *     「★찍고 나서 바꾸는 핸들러가 생겼다 — ★앞 편집이 ★push-after 면 ★이 변경은 ★자기 칸을 못 갖고
+   *       ★⌘Z 한 번에 ★«두 편집»이 ★같이 사라진다」
+   *   ★이 레인에서 ★그 조건이 ★실제로 섰다: ★색은 push-after(wireColorField onCommit) ·
+   *   ★글자는 push-before 였다 ⇒ ★색 직후 글자의 push-before 가 ★무변화 차단에 먹혀 ★칸을 못 만든다.
+   * ⇒ ★처방은 ★PA-1 이 적은 그대로 — ★적용 먼저, pushHistory 나중(둘 다 push-after 로 맞춘다).
+   * ★이 자는 ★그 결함의 ★«행위» 증인이다 — 소스 검사(PA-1)와 ★짝이다(한쪽만 두면 다음 사람이 한쪽만 본다). */
+  await setup(page, { lines: CIRC() });
+  await openLine(page);
+  expect((await panelIds(page)).has, '[전제] 손잡이 둘이 떴다').toEqual(['grd-img-cbg-hex', 'grd-img-ctext']);
+  const out = await page.evaluate(async () => {
+    const read = () => {
+      const f = document.querySelector('#gG .grd-cell[data-r="0"][data-c="0"] .grd-img-frame');
+      return { bg: getComputedStyle(f).backgroundColor,
+               text: f.querySelector(':scope > .grd-img-circle-text')?.textContent ?? null };
+    };
+    const len0 = window.getHistoryTip().len;
+    // ⑴ 색
+    const p = document.getElementById('grd-img-cbg-color');
+    p.value = '#ff0000';
+    p.dispatchEvent(new Event('input', { bubbles: true }));
+    p.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 280));
+    const afterColor = read();
+    const lenAfterColor = window.getHistoryTip().len;
+    // ⑵ 글자 — ★같은 줄에, ★연달아
+    const t = document.getElementById('grd-img-ctext');
+    t.value = '연달아';
+    t.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 320));
+    const afterText = read();
+    const lenAfterText = window.getHistoryTip().len;
+    document.activeElement?.blur?.();
+    window.undo(); await new Promise(r => setTimeout(r, 300));
+    const z1 = read();
+    window.undo(); await new Promise(r => setTimeout(r, 300));
+    const z2 = read();
+    return { afterColor, afterText, z1, z2, len0, lenAfterColor, lenAfterText };
+  });
+  /* [전제] 두 제스처가 ★둘 다 실제로 먹었다 — 안 먹었으면 아래 걸음 수가 아무것도 안 잰다 */
+  expect(out.afterColor.bg, '[전제] ⑴ 색이 먹었다').toBe('rgb(255, 0, 0)');
+  expect(out.afterText, '[전제] ⑵ 글자가 먹었고 색은 그대로다').toMatchObject({ text: '연달아', bg: 'rgb(255, 0, 0)' });
+  /* ★★주 단언 — ⌘Z ①은 «글자만» 되돌린다(색은 남는다). ⛔둘이 같이 사라지면 그게 PA-1 이 말한 그 결함이다 */
+  expect(out.z1, `★⌘Z ① 이 «글자만» 안 되돌렸다 — 둘이 같이 사라졌으면 글자가 자기 칸을 못 가진 것이다: ${JSON.stringify(out.z1)}`)
+    .toMatchObject({ text: null, bg: 'rgb(255, 0, 0)' });
+  /* ★⌘Z ②가 색까지 */
+  expect(out.z2.bg, `★⌘Z ② 가 색을 안 되돌렸다: ${JSON.stringify(out.z2)}`).not.toBe('rgb(255, 0, 0)');
+  /* ★★★그리고 «칸 수»로도 — ⚠️위 ⌘Z 단언 ★셋만으로는 ★못 잡는다. 실측(2026-10-07):
+   *   ★`pushHistory` 를 ★아예 뺀 판에서도 ★위 ⌘Z 단언이 ★전부 초록이었다
+   *   (`ensureHistoryCheckpoint` 가 첫 되돌리기에서 «현재 상태» 칸을 만들어 ★구해 준다).
+   *   ⇒ ★두 제스처가 ★각각 ★자기 칸을 갖는지는 ★«수»로만 보인다. ⛔이 둘을 지우지 마라. */
+  expect([out.lenAfterColor - out.len0, out.lenAfterText - out.lenAfterColor],
+    `★두 제스처의 히스토리 칸이 [1,1] 이 아니다 — 잰 값 [${out.lenAfterColor - out.len0}, ${out.lenAfterText - out.lenAfterColor}]. ` +
+    '글자 쪽이 0 이면 prop-grid.js 의 그 핸들러가 push-before 다(앞 색 편집과 같은 상태를 찍어 무변화 차단에 먹힌다).')
+    .toEqual([1, 1]);
 });
 
 /* ══ G20-6 ★저장 → 다시 열기 ══════════════════════════════════════════════════════════ */

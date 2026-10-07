@@ -1500,10 +1500,23 @@ function _grdWireImageSection(block, addr) {
       tIn.value = typeof hit.line.text === 'string' ? hit.line.text : '';   // ⛔value= 속성으로 안 싣는다(따옴표가 속성을 깬다)
       tIn.addEventListener('change', () => {
         const v = tIn.value;
-        window.pushHistory?.();
         /* ★빈 글자는 «키를 지운다» — `''` 를 남기면 렌더러가 글자칸을 안 그리는데 저장본엔 키가 남고,
            패널의 「글자색·크기」 줄이 뜨는 조건(cTxtRaw !== '')과 어긋난다. undefined = 키 삭제(그 계약). */
         _cLive({ text: v === '' ? undefined : v });
+        /* ★★★적용 먼저, pushHistory ★나중(= push-after) — ⛔순서를 되돌리지 마라 (2026-10-07 실측)
+         *   ⒜ 소스 게이트 `tests/unit/prop-push-after.test.mjs` ★PA-1 이 ★push-before 꼴을 잡는다:
+         *      「앞 편집이 push-after 면 이 변경은 ★자기 칸을 못 갖고 ⌘Z 한 번에 «두 편집»이 같이 사라진다」
+         *      ★이 절에서 ★그 조건이 ★실제로 선다 — ★바로 위 「채움」 색이 ★push-after 다(wireColorField onCommit).
+         *   ⒝ ★★그리고 ★수로 쟀다 — ★Δ(히스토리 칸 수), 같은 제스처 「색 → 글자」:
+         *        push-before(옛)            : 색 ＋1 · ★글자 ★＋0   ← ★글자가 자기 칸을 ★못 만든다
+         *        pushHistory 를 아예 뺀 판   : 색 ＋1 · ★글자 ★＋0   ← ★옛 꼴과 ★구분이 안 된다(= 죽은 코드였다)
+         *        ★push-after(이 꼴)         : 색 ＋1 · ★글자 ★＋1   ← ★고쳐진다
+         *   ⒞ ⚠️⌘Z 는 ★두 꼴 ★모두에서 «동작했다» — `ensureHistoryCheckpoint` 가 첫 되돌리기에서
+         *      «현재 상태» 칸을 만들어 ★구해 주기 때문이다. ⇒ ★★행위(⌘Z)만 보는 검사로는 ★못 가른다.
+         *      ★그래서 G20-5·G20-10 이 ★«칸 수»를 단언한다 — ⛔그 단언을 지우면 이 자리가 ★무방비가 된다.
+         *   ⛔`numWire`(폭·높이·반경·글자크기)는 ★옛 꼴 그대로다 — ★PA-1 명부에 면제로 올라 있고
+         *     ★이번에 안 쟀다(범위 밖). ★같은 병일 수 있다 ⇒ 고치려면 ★따로 재고 따로 커밋해라. */
+        window.pushHistory?.();
         window.showGridProperties?.(block);   // ★글자가 생기면 「글자색·크기」 줄이 뜨고, 지우면 진다
       });
     }
