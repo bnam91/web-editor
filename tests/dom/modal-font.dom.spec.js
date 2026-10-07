@@ -169,3 +169,83 @@ test('T1-RULER ★폰트 이름이 «진짜 먹나»는 폭으로만 안다 (＋
   console.log(`  T1-RULER ⚠️'Noto Sans KR' == 영점 인가: ${w.noto === w.bogus}  (참이면 ★이 기계엔 Noto 가 없다 ⇒ 그 이름을 기본값으로 쓰면 조용히 generic)`);
   expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
 });
+
+/* ★패널이 «사람에게» 보여주는 글꼴 이름 — ★지디 조건⑶: ⛔dataset 만 재지 마라.
+   `_typo-section.js:98` / `_font-picker.js:194` 가 `.font-picker-current` 에 쓴다.
+   빈 값이면 ★「기본 (시스템)」 — ★현빈이 ★증상으로 지목한 ★그 글자다. */
+const PANEL_FONT = `() => {
+  const el = document.querySelector('.font-picker-current');
+  return el ? { id: el.id, label: el.textContent.trim() } : null;
+}`;
+
+test('T1-NEW ★새 모달은 «텍스트블럭과 같은 글꼴»로 태어난다 (＋패널 라벨까지)', async ({ page }) => {
+  /* ★★자를 «빌린 수»로 두지 않는다 — `'Pretendard', sans-serif` 를 ★손으로 적으면
+       ★체인 규약이 바뀌는 날 ★이 검사가 ★제품보다 먼저 거짓이 된다.
+     ⇒ ★★같은 판에서 ★텍스트블럭을 ★같이 만들어 ★그것이 받는 값과 ★견준다.
+       ★현빈이 ★정본으로 지목한 자리가 ★텍스트블럭이다(2026-10-07):
+       「그냥 섹션에 텍스트 블럭을 추가하면 ★프리텐다드로 되어있잖아? ★그렇게 되길 원해」 */
+  const errs = await setup(page, {});
+  const got = await page.evaluate(({ panelSrc }) => {
+    const panelFont = eval(panelSrc);
+    const mb = window.__b;
+    const modal = { ds: mb.dataset.fontFamily ?? null, inline: mb.style.fontFamily };
+    window.showModalProperties?.(mb);
+    modal.panel = panelFont();
+
+    // ★같은 섹션에 텍스트블럭을 만들어 «그 자리의 값»을 읽는다
+    document.getElementById('sec1').classList.add('selected');
+    window.addTextBlock?.({});
+    const tb = document.querySelector('#inner1 .text-block');
+    const content = tb && (tb.querySelector('[contenteditable]') || tb.firstElementChild);
+    const text = { inline: content ? content.style.fontFamily : null };
+    if (tb) window.showTextProperties?.(tb);
+    text.panel = panelFont();
+    return { modal, text };
+  }, { panelSrc: PANEL_FONT });
+  console.log(`  T1-NEW 모달  ds=${JSON.stringify(got.modal.ds)} inline=${JSON.stringify(got.modal.inline)} panel=${JSON.stringify(got.modal.panel)}`);
+  console.log(`  T1-NEW 텍스트       inline=${JSON.stringify(got.text.inline)} panel=${JSON.stringify(got.text.panel)}`);
+
+  expect(got.text.inline, '전제: 텍스트블럭이 글꼴을 안 갖고 태어난다 — 이 대조는 아무것도 증명하지 못한다').toBeTruthy();
+  expect(got.text.panel, '전제: 텍스트 패널에 폰트 줄이 없다').not.toBeNull();
+  expect(got.modal.panel, '전제: 모달 패널에 폰트 줄이 없다').not.toBeNull();
+
+  // ★주 단언 ⑴ — ★«같은 글꼴»이다(브라우저가 직렬화한 같은 꼴로 견준다)
+  expect(got.modal.inline, `★새 모달이 텍스트블럭과 다른 글꼴로 태어났다 — 모달 ${JSON.stringify(got.modal.inline)} / 텍스트 ${JSON.stringify(got.text.inline)}`)
+    .toBe(got.text.inline);
+  // ★주 단언 ⑵ — ★사람이 보는 라벨도 같다(⛔dataset 만 재지 않는다 · 지디 조건⑶)
+  expect(got.modal.panel.label, `★패널 라벨이 텍스트블럭과 다르다 — 모달 「${got.modal.panel.label}」 / 텍스트 「${got.text.panel.label}」`)
+    .toBe(got.text.panel.label);
+  // ★주 단언 ⑶ — ★그 라벨이 ★현빈이 지목한 ★증상 글자가 ★아니다
+  expect(got.modal.panel.label, '★모달 패널이 아직 「기본 (시스템)」이다 — 현빈이 지목한 그 증상 그대로다').not.toBe('기본 (시스템)');
+  expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
+});
+
+test('T1-OLD ★(음성대조·최고위험) dataset 없이 되살아난 «옛» 모달은 패널이 그대로 「기본 (시스템)」', async ({ page }) => {
+  /* ★★이 칸이 ★기존 프로젝트 ★전부를 지킨다. ★저장본은 `makeModalBlock` 이 아니라
+       ★`renderModalBlock` 으로 되살아난다(save-load.js:1436 「modal: dataset 이 진실」)
+     ⇒ ★그 길을 ★그대로 밟아 «옛 모달»을 만든다. ⛔makeModalBlock 으로 만들면 ★이 칸이 거짓초록이 된다. */
+  const errs = await setup(page, {});
+  const got = await page.evaluate(({ panelSrc }) => {
+    const panelFont = eval(panelSrc);
+    const old = document.createElement('div');
+    old.className = 'modal-block';
+    old.id = 'oldmdl';
+    old.dataset.variant = 'plain';
+    old.dataset.textText = '옛 본문';
+    document.getElementById('inner1').appendChild(old);
+    window.renderModalBlock(old);                       // ★저장본이 되살아나는 ★그 문
+    window.showModalProperties?.(old);
+    return {
+      hasKey: 'fontFamily' in old.dataset,
+      inline: old.style.fontFamily,
+      cssHasFont: /font-family/.test(old.style.cssText),
+      panel: panelFont(),
+    };
+  }, { panelSrc: PANEL_FONT });
+  console.log(`  T1-OLD hasKey=${got.hasKey} inline=${JSON.stringify(got.inline)} panel=${JSON.stringify(got.panel)}`);
+  expect(got.panel, '전제: 패널에 폰트 줄이 없다').not.toBeNull();
+  expect(got.hasKey, '★옛 모달에 dataset.fontFamily 가 생겼다 — 되살리는 길이 새 기본값을 박고 있다').toBe(false);
+  expect(got.cssHasFont, `★옛 모달에 font-family 선언이 나갔다 — 기존 프로젝트의 화면이 움직인다. inline=${JSON.stringify(got.inline)}`).toBe(false);
+  expect(got.panel.label, `★옛 모달 패널이 바뀌었다 — 「${got.panel.label}」. 사용자가 고르지 않은 값을 패널이 말하고 있다`).toBe('기본 (시스템)');
+  expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
+});
