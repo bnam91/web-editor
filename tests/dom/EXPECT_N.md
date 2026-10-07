@@ -113,10 +113,21 @@
 
 두 출처 **일치**: ㉠ git 선언(`test(` ＋ `test.fixme(`) = ＋2 · ㉡ `--list` = ＋2 (`Total: 2940 tests in 342 files`).
 
-⛔**위 `gd/padviz` 두 줄과 ★합치지 마라 — 이중 계산이 된다.** base `4b36eb56` 로 갈랐다:
-`pad-hint-bottom` 9 · `pad-hint` 12 · `video-pending-warn` 8 은 base 에 **이미 있다**(= dev 에 들어갔다) ·
-`inspector-t17` 0 · `video-unapplied-warn` 0 은 **아직**이다. ⇒ 이 레인이 dev 에 얹는 것은 **＋6(T17) ＋ ＋2(이 절) = ＋8**.
-（이 문서의 `marquee-edge-autoscroll +6` 두 줄 교훈과 같은 자리다 — 「어느 판에서 0 이었나」를 물어야 갈린다.）
+⚠️**위 `gd/padviz` 두 줄은 ★상태가 ★서로 다르다 — ⛔한 묶음으로 읽지 마라**(2026-10-07 재측정, ★아래가 참값):
+
+| 이 문서의 줄 | 상태 | ★무엇으로 갈랐나 |
+|---|---|---|
+| `gd/padviz` **＋9**(패딩 띠) | ★**이미 dev** | base `4b36eb56` 에 `pad-hint-bottom` **9건**·`pad-hint` **12건** |
+| `gd/padviz` **＋6**(T17) | ★★**아직 — 이 레인이 얹는다** | base 에 `inspector-t17.dom.spec.js` 파일이 **없다**. ★그 ＋6 줄 자체를 **이 레인 커밋 `29d807cb` 가 썼다**(`git log -S`) |
+| 이 절 **＋2**(T-032) | ★★**아직 — 이 레인이 얹는다** | base 에 `video-pending-warn` 8건·`video-unapplied-warn` 0건 |
+
+⇒ **이 레인이 dev 에 얹는 것 = ＋6 ＋ ＋2 = ★＋8 ★전부다.**
+⛔**＋6 을 「문서에 이미 있으니 반영됨」으로 빼지 마라** — `git show origin/dev:tests/dom/EXPECT_N.md`
+에 `inspector-t17` 은 **0건**이다(2026-10-07 `64a06566` 기준). ★**«문서에 있다» ≠ «dev 에 있다»**:
+이 문서 자체가 레인마다 갈린다(같은 시각 실측 — `gd-padviz` 26,715B / `gd-particles` 24,797B /
+`gd-mergetest` 32,895B, 세 해시가 전부 다르다). ⇒ **줄 번호로 가리키지 마라**(레인마다 다르다).
+（이 문서의 `marquee-edge-autoscroll +6` 두 줄 교훈과 같은 자리다 — 「어느 판에서 0 이었나」를 물어야 갈린다.
+ ★다만 그때는 «base 가 다른 두 줄»이었고, 이번은 «상태가 다른 두 줄»이다.）
 
 ★`video-unapplied-warn.dom.spec.js` 는 **0바이트였다**(2026-09-22 `4f090665` 부터 15일).
 ⇒ `--list` 가 **0건**으로 세어 전수 출력에 아무 흔적이 없었다 — 「표의 빈칸은 «없는 경우»가 아니라
