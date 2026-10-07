@@ -1,4 +1,9 @@
-/* frame-grid-dblclick-parity — 프레임 «자식» 진입이 그리드 «줄» 진입과 같은 움직임이다 (수지④ · 현빈 2026-10-08 「그리드블럭의 줄 블럭과 같은 움직임」).
+/* frame-grid-dblclick-parity — ★«편집 진입 축»에서만: 프레임 «자식» = 그리드 «줄» (클릭·두 번째 클릭·더블클릭 뒤의 «선택 / 편집 켜짐»).
+ *
+ * ⛔★범위(2026-10-08 좁힘): 현빈 정의 「진입이 왜 편집까지인건데? … 프레임블럭 아래에 추가할지, 혹은 내부에 추가할지 포커스의 문제」
+ *   ⇒ 수지④ 의 «진입» = «삽입 포커스»(다음에 넣는 블럭이 어디로 가나)다. ★이 검사는 그 축을 «안» 잰다 — 편집 축만이다.
+ *   삽입 포커스 축은 별도(현빈 2026-10-08 정의 · 피그마 예시 대기). 이 검사의 초록을 「수지④ 진입이 됐다」로 읽지 마라.
+ *
  *
  * 실측(2026-10-08 · dev 04320d84 · 코드 변경 0): 네 동작 모두 같은 끝 상태 ⇒ «이미 같다» — 이 검사가 그 상태를 잠근다.
  *   클릭 = 그릇만 골라짐 · 클릭→(0.7초)→클릭 = 안(줄/자식)이 골라짐·편집 아님 · 더블클릭 = 안 골라짐 + 편집 · 클릭→더블클릭 = 같다.
@@ -61,7 +66,7 @@ const state = (page, target, ids) => page.evaluate(({ target, ids }) => {
 
 for (const target of ['grid', 'frame']) {
   for (const g of Object.keys(EXPECT)) {
-    test(`DP ${target} · ${g} — 끝 상태가 표와 같다(그리드 줄 = 프레임 자식)`, async ({ page }) => {
+    test(`DP ${target} · ${g} — 편집 진입 축의 끝 상태가 표와 같다(그리드 줄 = 프레임 자식)`, async ({ page }) => {
       const ids = await scene(page, target);
       await page.waitForTimeout(800);
       if (g === 'dbl') await press(page, target, ids, 'dbl');
