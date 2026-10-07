@@ -72,6 +72,7 @@
 | `taeyang/fx-glow` (THREE/FOUR 글로우 스티커) | **＋15** | `fx-glow-sticker` +15(F0~F15 · F7·F8 은 ★한 `test(` 를 경로 2개 루프로 — git 선언 수 14 · 러너 `--list` 15) | 새 spec 1개 ⇒ 파일 수 **＋1** · ⚠️루프 감싼 test 1(×2) — 선언 수로 세면 1 모자란다 |
 | `gd/fxmenu` (fx-effectmenu · 이펙트 ＋ 를 고르는 목록으로) | **＋9** | `effects-registry` +9(A0~A8) · `effects-reflection` 11 → 11(R1·P0 을 고쳤지만 ★쪼개지 않았다) | 새 spec 1개 ⇒ 파일 수 **＋1** · 루프 감싼 test 0 ⇒ 위 「루프 spec」 표에 더할 것 ★없다 · ★출처 ㉡ `--list` 도 같다(바뀐 두 파일 Total 11 → 20 = ＋9 · 기준판 dev `116af0c4`) |
 | `gd/dragscroll` (선택상자 자동 스크롤에 ★좌우 · 현빈 2026-10-07) | **＋6** | `marquee-edge-autoscroll` **6 → 12** (M7·M8 ★위아래 무변 증인 · M9 오른쪽 · M10 왼쪽 · M11 모서리 · M12 가로 최대) · ★base = dev **`2866df63`**(다른 줄들과 base 가 ★다르다) | ★새 spec **0개** ⇒ 파일 수 **＋0**(334 → 334) · 루프·`test.each`·describe 반복 **0건** ⇒ 선언 수 = 실행 단위 수 · ★두 출처 일치 — ㉠ git `test(` 6 → 12 / ㉡ `--list` 그 spec Total 6 → 12 · ★기준값을 **직접 떠서** 증분을 다시 쟀다(2026-10-07 10:3x · 같은 작업트리에서 **그 spec 만 base 판으로 갈아끼워** 전체 `--list` 를 두 번: **2864 → 2870** · 복원 sha256 일치 확인) — ⚠️이 두 절대값은 **내 레인 단독 기준**이라 ⛔최종값이 아니다 |
+| `gd/cmdlink` (⌘＋🔗 = 연결된 빈 섹션 · 현빈 2026-10-07) | **＋9** | `cmd-link-new-section` +9(L0~L8) | 새 spec 1개 ⇒ 파일 수 **＋1** · 루프 감싼 test 0 ⇒ 위 「루프 spec」 표에 더할 것 ★없다 · ★두 출처: ㉠ git 선언 수 9(기준판 dev `2866df63` 에 이 파일이 **없다**=0) · ㉡ 러너 `--list` `Total: 9 tests in 1 file` · ⛔바꾼 «다른» 시험 파일 0개(전수: `git status --porcelain` = 변경 2건뿐 — js/scratchpad-link.js · 이 새 spec) |
 
 ★네 spec 모두 «루프로 test 를 감싸지 않았다» ⇒ 선언 수 = 실행 단위 수 ⇒ 위 「루프 spec」 표에 더할 것이 ★없다.
 
