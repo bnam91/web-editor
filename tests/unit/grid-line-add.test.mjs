@@ -114,6 +114,13 @@ before(async () => {
        한 줄 빠진 것이 28건 실패로 보여서 「남의 그물을 끊었다」로 오독하기 딱 좋다. */
   fs.copyFileSync(path.join(ROOT, 'js', 'blocks', 'gap-limits.js'), path.join(TMP, 'blocks', 'gap-limits.js'));
   fs.copyFileSync(path.join(ROOT, 'js', 'grid-cell-resize.js'), path.join(TMP, 'grid-cell-resize.js'));
+  /* ★prop-text-utils.js 가 ★다섯째다 (2026-10-07) — prop-grid.js 가 ★`fontChain` 을 거기서
+     import 하기 시작했다(현빈 「그리드블럭의 텍스트 줄도 프리텐다드로」 · grdNewLineSpec).
+     ⛔스텁으로 두지 않는다 — ★새 글자 줄의 ★글꼴 ★값이 그 함수에서 ★나온다. 가짜를 세우면
+       이 하네스는 ★제품이 아니라 ★내가 적은 값을 재게 된다(T-234 가 쓴 그 병의 다음 얼굴).
+     ⛔안 복사하면 ERR_MODULE_NOT_FOUND 로 이 파일의 검사 ★전부가 빨개진다 —
+       위 gap-limits.js 주석이 적어 둔 ★그 꼴 그대로다(한 줄이 28건으로 보인다). */
+  fs.copyFileSync(path.join(ROOT, 'js', 'props', 'prop-text-utils.js'), path.join(TMP, 'props', 'prop-text-utils.js'));
 
   // ★UI 전용 의존 — grdAddLine 이 안 쓰는 것들만 최소 스텁.
   fs.writeFileSync(path.join(TMP, 'globals.js'),
