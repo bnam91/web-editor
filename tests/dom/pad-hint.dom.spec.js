@@ -126,7 +126,9 @@ test('D1 ★슬라이더를 «진짜로» 움직이면 띠 두께 = 패딩값 (�
   expect(at40.padL, '패딩 자체가 안 먹었다 — 이 검사의 전제가 깨졌다').toBe('40px');
   expect(at40.left,  '★띠 두께가 패딩값과 다르다(왼쪽)').toBe('40px');
   expect(at40.right, '★띠 두께가 패딩값과 다르다(오른쪽)').toBe('40px');
-  expect(at40.color, '★색이 핑크 10% 가 아니다').toBe('rgba(255, 0, 128, 0.1)');
+  /* ★2026-10-07 현빈 「패딩비쥬얼 기본 - 00D6FF」 — ★기본색이 바뀌었다.
+     ★정본 = css/editor-base.css :root `--gdt-padhint-hex` ★한 줄(unit T16 이 그 자리를 잠근다). */
+  expect(at40.color, '★색이 기본색(00D6FF) 10% 가 아니다').toBe('rgba(0, 214, 255, 0.1)');
 
   /* ★«따라온다» — 한 값에서만 맞는 건 우연일 수 있다. 다른 값에서도 같아야 계산이 없다는 뜻. */
   await slide(page, 12);
@@ -539,7 +541,10 @@ test('D11 ★풀블리드 에셋 위에서도 띠가 «보인다» — 화면을
     '★샘플점이 그 에셋 위가 아니다 — 엉뚱한 좌표를 찍고 있다').toEqual(['ab_full', 'ab_full', 'ab_full']);
 
   const BLUE = [51, 85, 255];                  // #3355ff — 에셋 바탕
-  const PINK_ON_BLUE = [71, 77, 242];          // rgba(255,0,128,.10) 을 그 위에 얹은 값
+  /* ★이름을 ★바꿨다(2026-10-07) — 기본색이 ★00D6FF 가 되어 ★「PINK」가 ★거짓이 됐다.
+     ⛔색만 바꾸고 이름을 두면 ★「배포 마커가 썩는다」와 ★같은 병이다(지디 지시).
+     ★값 = rgba(0,214,255,.10) 을 BLUE 위에 얹은 것 — ★계산이 아니라 ★이 하네스에서 ★실측해 박았다. */
+  const HINT_ON_BLUE = [46, 98, 255];
 
   const on = await samplePixels(page, pts);
   expect(on.k, '스크린샷과 CSS px 의 자가 1:1 이 아니다 — 좌표가 어긋난다').toBe(1);
@@ -548,19 +553,23 @@ test('D11 ★풀블리드 에셋 위에서도 띠가 «보인다» — 화면을
      여기가 다르면 좌표든 가림막이든 전제가 깨진 것이고 아래 판정은 헛돈다. */
   expect(near(on.px[2], BLUE),
     `★대조군(띠 밖)이 에셋 색이 아니다 — 얻은 색 ${on.px[2]}, 기대 ${BLUE}`).toBe(true);
+  /* ★두 기대값이 ★구별되나 — 허용오차(tol 4) 안에서 ★겹치면 본 단언이 ★아무것도 안 가른다.
+     ⛔기본색을 BLUE 에 가깝게 바꾸면 ★여기서 먼저 터진다(그게 맞다). */
+  expect(HINT_ON_BLUE.some((v, i) => Math.abs(v - BLUE[i]) > 8),
+    `★기대값 ${HINT_ON_BLUE} 와 대조군 ${BLUE} 가 너무 가깝다 — tol 4 로는 못 가른다`).toBe(true);
 
   /* 본 단언 — 띠 «안»은 에셋 위인데도 핑크가 얹힌다.
      ⇐ CSS 의 z-index 한 줄을 빼면 여기서 «가려져» 순수 파랑이 나온다. */
   for (const [k, nm] of [[0, '왼쪽'], [1, '오른쪽']]) {
-    expect(near(on.px[k], PINK_ON_BLUE),
-      `★${nm} 띠가 에셋에 가려 안 보인다 — 얻은 색 ${on.px[k]}, 기대 ${PINK_ON_BLUE} (가려지면 ${BLUE})`).toBe(true);
+    expect(near(on.px[k], HINT_ON_BLUE),
+      `★${nm} 띠가 에셋에 가려 안 보인다 — 얻은 색 ${on.px[k]}, 기대 ${HINT_ON_BLUE} (가려지면 ${BLUE})`).toBe(true);
   }
 
   /* 음성대조 — 꺼지면 도로 순수 파랑이다(「원래부터 그 색」이 아님을 못 박는다) */
   await page.waitForTimeout(600);
   const off = await samplePixels(page, pts);
-  expect(near(off.px[0], BLUE), `★띠가 걷힌 뒤에도 핑크가 남았다 — ${off.px[0]}`).toBe(true);
-  expect(near(off.px[1], BLUE), `★띠가 걷힌 뒤에도 핑크가 남았다 — ${off.px[1]}`).toBe(true);
+  expect(near(off.px[0], BLUE), `★띠가 걷힌 뒤에도 띠 색이 남았다 — ${off.px[0]}`).toBe(true);
+  expect(near(off.px[1], BLUE), `★띠가 걷힌 뒤에도 띠 색이 남았다 — ${off.px[1]}`).toBe(true);
 
   expect(errs, '콘솔 오류가 났다: ' + errs.join(' | ')).toEqual([]);
 });
@@ -628,24 +637,32 @@ test('D12 ★내보내기가 «도는 동안» gdt-pad-on 이 꺼져 있다 (그
       hasExport: typeof window.exportSection === 'function',
     };
 
-    const countPink = async (dataUrl) => {
+    /* ★2026-10-07 — ★잣대의 ★이름과 ★값을 ★같이 고쳤다(현빈 「패딩비쥬얼 기본 - 00D6FF」).
+       ⛔옛 이름 `countHint` 는 ★거짓이 됐다 — 「★배포 마커가 썩는다」와 ★같은 병이라 ★이름도 바꿨다.
+       ★★이 자리가 ★「검사가 ★자기 전제를 단언한다」가 ★실제로 ★작동한 자리다:
+         제품 기본색만 바꾸고 돌렸더니 ★양성대조 ⑵ 가 ★먼저 터졌다(「가드를 ★안 지난 그림에도 ★없다」).
+         ⇒ ★그 대조가 없었으면 ★본 단언 「가드를 지난 그림에 ★0개」가 ★초록으로 통과해 ★거짓 안심이 됐다.
+       ★합성값을 ★한 자리에서 ★파생한다 — 스와치 칠과 세는 잣대가 ★같은 수를 쓴다(⛔두 벌 금지). */
+    const HINT_ON_WHITE = [230, 251, 255];   // rgba(0,214,255,.10) over #fff — ★이 하네스에서 실측해 박았다
+    const countHint = async (dataUrl) => {
       const img = new Image(); img.src = dataUrl; await img.decode();
       const c = document.createElement('canvas');
       c.width = img.naturalWidth; c.height = img.naturalHeight;
       const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0);
       const d = ctx.getImageData(0, 0, c.width, c.height).data;
+      const [R, G, B] = HINT_ON_WHITE;
       let n = 0;
       for (let i = 0; i < d.length; i += 4) {
-        if (Math.abs(d[i] - 255) <= 8 && Math.abs(d[i + 1] - 230) <= 10 && Math.abs(d[i + 2] - 242) <= 10) n++;
+        if (Math.abs(d[i] - R) <= 8 && Math.abs(d[i + 1] - G) <= 10 && Math.abs(d[i + 2] - B) <= 10) n++;
       }
       return { n, w: c.width, h: c.height };
     };
-    /* 잣대 양성대조 ⑴ — 핑크를 «칠한» 그림에서 세는 코드 자체가 사나. */
+    /* 잣대 양성대조 ⑴ — ★띠 색을 «칠한» 그림에서 세는 코드 자체가 사나. */
     const swatch = document.createElement('canvas');
     swatch.width = swatch.height = 10;
-    swatch.getContext('2d').fillStyle = 'rgb(255,230,242)';       // 핑크10% over 흰색
+    swatch.getContext('2d').fillStyle = `rgb(${HINT_ON_WHITE.join(',')})`;
     swatch.getContext('2d').fillRect(0, 0, 10, 10);
-    const yardstickAlive = (await countPink(swatch.toDataURL('image/png'))).n;
+    const yardstickAlive = (await countHint(swatch.toDataURL('image/png'))).n;
 
     /* ★잣대 양성대조 ⑵ — «가드를 안 지나는» 직행으로 같은 섹션을 같은 엔진으로 찍는다.
        ⛔반드시 가드 내보내기 «앞»에 둔다. 뒤에 두면 이 대조가 «finally 가 클래스를 되돌렸나»에
@@ -654,7 +671,7 @@ test('D12 ★내보내기가 «도는 동안» gdt-pad-on 이 꺼져 있다 (그
     let unguarded = null;
     try {
       const cv = await realH2C(document.getElementById('sec_2'), { backgroundColor: '#ffffff', scale: 1, logging: false });
-      unguarded = await countPink(cv.toDataURL('image/png'));
+      unguarded = await countHint(cv.toDataURL('image/png'));
     } catch (e) { unguarded = { err: String(e && e.message || e).slice(0, 120) }; }
 
     /* 캡처 «도는 순간»의 상태를 잡는 스파이 — 「왜」 를 말해 준다. */
@@ -677,7 +694,7 @@ test('D12 ★내보내기가 «도는 동안» gdt-pad-on 이 꺼져 있다 (그
       isString: typeof url === 'string',
       isPng: typeof url === 'string' && url.startsWith('data:image/png;base64,'),
       len: typeof url === 'string' ? url.length : 0,
-      exported: typeof url === 'string' ? await countPink(url) : null,
+      exported: typeof url === 'string' ? await countHint(url) : null,
       yardstickAlive, unguarded,
       postPad: document.body.classList.contains('gdt-pad-on'),
       postGrid: document.body.classList.contains('gdt-grid-on'),
@@ -696,20 +713,20 @@ test('D12 ★내보내기가 «도는 동안» gdt-pad-on 이 꺼져 있다 (그
     .toBeGreaterThanOrEqual(1);
   expect(r.spy.calls, '캡처가 비정상적으로 여러 번 돌았다 — 엉뚱한 것을 잡았나').toBeLessThan(10);
   expect(r.isPng, `★돌려받은 것이 PNG dataURL 이 아니다 — ${String(r.len)}자`).toBe(true);
-  expect(r.len, '★PNG 가 비어 있다 — 빈 그림에는 핑크가 없는 게 당연하다').toBeGreaterThan(1000);
+  expect(r.len, '★PNG 가 비어 있다 — 빈 그림에는 ★띠 색이 없는 게 당연하다').toBeGreaterThan(1000);
   expect(r.exported.w, '내보낸 그림의 폭이 0 이다').toBeGreaterThan(100);
 
   /* ★잣대 양성대조 — 세는 코드 자체는 살아 있다(핑크를 칠한 그림에서 100개를 센다) */
-  expect(r.yardstickAlive, '★핑크를 칠한 그림에서도 0개다 — countPink 가 죽었다').toBe(100);
+  expect(r.yardstickAlive, '★띠 색을 칠한 그림에서도 0개다 — countHint 가 죽었다').toBe(100);
 
   /* ★★잣대 양성대조 ⑵ — «가드를 안 지난» 그림엔 핑크가 «있다».
      ⛔이게 0 이면 아래 「0개」는 가드가 아니라 잣대가 죽어서 나온 0 이다(내가 실제로 그렇게 속았다).
      하한과 상한을 «둘 다» 박는다 — 하한 없으면 0도 통과, 상한 없으면 「온통 핑크」도 통과. */
   expect(r.unguarded.err, `양성대조 캡처가 던졌다: ${r.unguarded.err}`).toBeUndefined();
   expect(r.unguarded.n,
-    '★가드를 «안» 지난 그림에도 핑크가 없다 — 잣대가 죽었다. 아래 0개는 아무 뜻이 없다')
+    '★가드를 «안» 지난 그림에도 ★띠 색이 없다 — 잣대가 죽었다. 아래 0개는 아무 뜻이 없다')
     .toBeGreaterThan(200);
-  expect(r.unguarded.n, '★온통 핑크다 — 엉뚱한 것을 세고 있다')
+  expect(r.unguarded.n, '★온통 띠 색이다 — 엉뚱한 것을 세고 있다')
     .toBeLessThan(r.unguarded.w * r.unguarded.h * 0.9);
 
   /* ★★본 단언(화소) — 가드를 «지난» 그림엔 핑크가 0 개다.
@@ -717,7 +734,7 @@ test('D12 ★내보내기가 «도는 동안» gdt-pad-on 이 꺼져 있다 (그
      ★스파이보다 «먼저» 둔다 — 사람이 먼저 알아야 할 것은 「결과물이 더럽혀졌다」는 해악이고,
        「가드가 안 돌았다」는 그 원인이다. 바로 아래 스파이가 그 원인을 이어서 말한다. */
   expect(r.exported.n,
-    `★내보낸 PNG 에 핑크가 ${r.exported.n}개 찍혔다 — 가드가 안 돌았다(띠가 결과물에 남는다)`).toBe(0);
+    `★내보낸 PNG 에 ★띠 색이 ${r.exported.n}개 찍혔다 — 가드가 안 돌았다(띠가 결과물에 남는다)`).toBe(0);
 
   /* 「왜」 0 개인가 — 캡처가 «도는 동안» 가드가 클래스를 내려놓았기 때문이다. */
   expect(r.spy.padDuring,
