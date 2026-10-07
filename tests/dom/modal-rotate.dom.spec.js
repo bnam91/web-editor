@@ -98,7 +98,10 @@ test('M-ROT1 ★모달을 고르면 회전 핫존이 «캔버스와 같은 수»
    M-ROT2 — ★★「핫존이 있나」가 아니라 ★«돌면 각도가 남나»
    ★공유 헬퍼(applyRotationDeg)를 썼는지까지 — dataset.rotation ＋ transform 둘
 ═══════════════════════════════════════════════════════════════════════════ */
-test('M-ROT2 ★각도를 주면 dataset.rotation 과 transform 에 «둘 다» 남는다', async ({ page }) => {
+/* ⚠️★이 칸은 ★★«전제»다 — ★«기능 게이트»가 ★아니다(2026-10-07 실측).
+   ★V1·V2·V3 ★어느 변이에도 ★안 빨개진다 ⇒ ★`applyRotationDeg` 가 ★전역이라 ★내 변경 ★전에도 초록이었다.
+   ⇒ ★제목에 ★「(전제)」를 ★박는다 — ⛔게이트처럼 보이면 ★다음 사람이 ★속는다(지디 지시). */
+test('M-ROT2 ★(전제) 공유 헬퍼가 dataset.rotation 과 transform 에 «둘 다» 쓴다', async ({ page }) => {
   // ⇐ 되돌리기: applyDeg 를 _applyRotationDeg 가 아닌 제 벌로 바꾸면 둘 중 하나가 빠져 빨강
   const errs = await setup(page, 'modal');
   const r = await page.evaluate(() => {
@@ -182,5 +185,50 @@ test('M-ROT4 ★재렌더 뒤에도 각도가 산다 (모달은 cssText 를 통�
   /* ★★본단언 — ★화면(transform)이 ★살아 있나. ⛔dataset 만 보면 「저장은 되고 안 보인다」를 놓친다 */
   expect(r.after.tf, `★재렌더가 transform 을 지웠다 — before «${r.before.tf}» → after «${r.after.tf}»`)
     .toMatch(/rotate\(30deg\)/);
+  expect(errs).toEqual([]);
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   M-ROT5 — ★★「모달 블럭의 transform 은 ★rotate ★하나뿐이다」를 ★잠근다
+   ───────────────────────────────────────────────────────────────────────────
+   ★왜 이 칸이 있나 — ★`renderModalBlock` 의 회전 재적용이 ★transform 을 ★«통째로» 쓴다.
+     ★공유 헬퍼(asset-rotate.js:218·:316)는 ★기존 것을 ★★이어받는데 ★이 줄은 ★버린다.
+     ⇒ ★그게 괜찮은 ★유일한 근거 = ★★«모달에 rotate 아닌 transform 이 앉는 판이 ★0건»이다
+       (★다섯 경로 전수 — js/blocks/modal-block.js 의 그 주석에 ★어떻게 쟀나까지 적었다).
+   ⇒ ★★그 0건이 ★깨지는 날 ★이 칸이 ★빨개진다 ⇒ ★그때 ★이어받기 꼴로 고쳐라.
+   ★★그리고 ⛔이 단언이 ★«항등식»이 아님을 ★같이 보인다 — ★translate 를 ★손으로 얹어 ★거짓이 되는지.
+      (★「내가 건 단언이 ★항상 참이라 ★아무것도 안 잠갔다」를 막는 자리)
+═══════════════════════════════════════════════════════════════════════════ */
+test('M-ROT5 ★모달 transform 은 «rotate 하나뿐»이다 (＋그 자가 항등식이 아님을 같이 보인다)', async ({ page }) => {
+  const errs = await setup(page, 'modal');
+  const r = await page.evaluate(async () => {
+    const b = window.__b;
+    window.applyRotationDeg?.(b, 30);
+    window.renderModalBlock?.(b);
+    await new Promise(r => setTimeout(r, 150));
+    const live = (b.style.transform || '').trim();
+    /* ★자 — ★rotate ★하나만. ⛔공백·순서에 느슨하지 않게 ★꼴을 박는다 */
+    const ROTATE_ONLY = /^rotate\(-?[\d.]+deg\)$/;
+    return {
+      live,
+      passes: ROTATE_ONLY.test(live),
+      /* ★★음성대조 — ★같은 자에 ★translate 가 섞인 값을 ★손으로 넣는다. ★거짓이어야 한다 */
+      negTranslate: ROTATE_ONLY.test('translateX(5px) rotate(30deg)'),
+      negScale:     ROTATE_ONLY.test('rotate(30deg) scale(1,-1)'),
+      /* ★양성대조 — ★그 자가 ★맞는 꼴은 ★참이라 해야 한다 */
+      posPlain:     ROTATE_ONLY.test('rotate(30deg)'),
+      posNeg:       ROTATE_ONLY.test('rotate(-12.5deg)'),
+    };
+  });
+  /* ★전제 — 재렌더 뒤에 ★transform 이 ★있나(0 이면 이 칸은 «안 쟀다»다) */
+  expect(r.live, '전제: 재렌더 뒤 transform 이 비었다 — M-ROT4 가 먼저 빨개져야 한다').not.toBe('');
+  /* ★★자가 ★항등식이 아님 — ★먼저 보인다 */
+  expect(r.posPlain, '★자가 맞는 꼴을 거부한다 — 자가 죽었다').toBe(true);
+  expect(r.posNeg,   '★자가 음수 각도를 거부한다').toBe(true);
+  expect(r.negTranslate, '★★자가 translate 섞인 값을 ★통과시킨다 — ★이 단언은 아무것도 안 잠근다').toBe(false);
+  expect(r.negScale,     '★★자가 scale 섞인 값을 ★통과시킨다 — 같은 까닭으로 무의미하다').toBe(false);
+  /* ★★본단언 — ★0건이 ★아직 참인가 */
+  expect(r.passes, `★모달 transform 이 «${r.live}» 다 — ★rotate 아닌 것이 섞였다
+     ⇒ ★★「0건」 전제가 깨졌다. ★js/blocks/modal-block.js 의 그 주석대로 ★이어받기 꼴로 고쳐라`).toBe(true);
   expect(errs).toEqual([]);
 });

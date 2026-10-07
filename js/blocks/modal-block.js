@@ -468,7 +468,28 @@ function renderModalBlock(block) {
        ⇒ ★그 둘은 ★«안 덮어서» 살았고, 모달은 ★덮으므로 ★다시 얹는 수밖에 없다
      ⛔`window.applyRotationDeg` 를 ★부르지 않는다 — 그 함수는 ★scheduleAutoSave 를 ★같이 때린다
        ⇒ 렌더 안에서 부르면 ★저장이 렌더마다 돈다. ★여기서는 ★문자열만 얹는다(부작용 0).
-     ★각도의 출처는 ★dataset.rotation ★하나다(그 헬퍼가 쓰는 그 칸) — ⛔제 칸을 만들지 않는다. */
+     ★각도의 출처는 ★dataset.rotation ★하나다(그 헬퍼가 쓰는 그 칸) — ⛔제 칸을 만들지 않는다.
+     ⛔★`iconRotation`(이 파일 :352 `_modalIconAttrs`)과 ★★다른 칸이다 — ★그건 ★«아이콘»(.mdl-icon) 축이고
+       ★이것은 ★«블럭» 축이다. ★이름이 닮아 ★`grep rotation` 이 ★둘을 ★한 명부로 읽는다 ⇒ ★섞지 마라.
+
+     ══ ⚠️★★여기서 ★transform 을 ★«통째로» 쓰는 까닭 — ★★0건을 ★재고 적는다 ═══════════
+     ★공유 헬퍼는 ★기존 transform 을 ★★이어받는다:
+         asset-rotate.js:218  `stripped ? \`${stripped} rotate(${d}deg)\` : …`
+         asset-rotate.js:316  `existing ? \`${existing} rotate(${d}deg)\` : …`
+     ★★이 줄은 ★그렇게 ★안 한다 — ★★«모달 블럭에 ★rotate 아닌 transform 이 ★앉는 판이 ★0건»이라서다.
+     ★★어떻게 쟀나(2026-10-07 · 다섯 경로 전수):
+       ⑴ `js/**` 의 `style.transform` 쓰기 전수 → ★모달에 닿는 것은 ★rotate 뿐
+          (:87·:181 = ★에셋 전용 · :396 = ★벡터(rotate＋scale) · sticker-select:221 = ★스티커)
+       ⑵ `setProperty('transform')` → ★0건
+       ⑶ `cssText` 에 transform 을 품는 자리 → ★전부 ★«inner/hint» 등 ★다른 요소다(블럭 자신 0건)
+       ⑷ `.modal-block` 에 걸리는 ★CSS 규칙에 transform → ★0건
+          (⚠️`settings-modal.css`·`report-modal.css` 히트는 ★`.settings-toast`·`.report-disc` 다 — ★다른 것)
+       ⑸ `js/effects-*.js` → ★0건 · `overlay-float.js` 는 ★읽기만(:360 getComputedStyle)
+     ⇒ ★★그 0건을 ★검사가 ★잠근다 — tests/dom/modal-rotate M-ROT5
+       「모달 블럭의 transform 은 ★rotate ★하나뿐이다」 ＋ ★그 자가 ★항등식이 아님을 ★같이 보인다.
+     ⇒ ★★≥1 이 되는 날 ★그 칸이 ★빨개진다 ⇒ ★그때 ★헬퍼 꼴(이어받기)로 ★고쳐라.
+       ⛔그때도 ★헬퍼를 ★부르지는 마라 — ★그 함수는 ★scheduleAutoSave 를 ★같이 때려 ★렌더마다 저장이 돈다.
+       ⇒ ★꼴만 베끼고 ★「이어받기 관용구가 ★세 자리」를 ★별건으로 올려라. */
   const _mdlRot = parseInt(block.dataset.rotation, 10);
   if (Number.isFinite(_mdlRot) && _mdlRot !== 0) {
     block.style.transform = `rotate(${_mdlRot}deg)`;
