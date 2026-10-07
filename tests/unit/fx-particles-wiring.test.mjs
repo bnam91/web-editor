@@ -144,7 +144,13 @@ test('W3 ★다시그리기 문이 열렸다 — watchAllFx 가 내 함수를 «
   REG.unregisterFxType('particles');
   asked = 0; REG.watchAllFx(root);
   assert.equal(asked, 0, '⛔★음성대조 실패 — 등록을 뺐는데도 불린다');
-  /* ★되돌린다 — ⛔「원복했다」도 잰다 */
+  /* ★되돌린다 — ⛔「원복했다」도 잰다.
+     ★★⛔이 칸은 ★«제 등록»을 쓴다 ⇒ ★제품의 등록을 ★재지 못한다.
+       ★2026-10-07 양성대조 N4 가 그걸 잡았다: 제품에서 `watchAll:` 줄을 ★떼도 ★여기 원복이
+       ★대신 등록해 ★이 칸은 ★초록이었다(★명부를 재는 자가 ★자기 자신을 센다).
+     ⇒ ★★「제품이 문을 달았나」는 ★W0 의 `PRISTINE_WATCH_CALLS` 가 잰다 — ★오염 전에 떠 둔 수다.
+       ⛔다음 사람은 ★이 칸을 ★그것을 지키는 자로 ★읽지 마라. ★여기가 잠그는 것은
+       ★「watchAllFx 가 ★명부를 돌아 ★watchAll 을 부른다」는 ★명부 쪽 동작뿐이다. */
   REG.registerFxType({ key: 'particles', label: '파티클', supports: () => false, has: () => false, watchAll: W.watchAllParticles });
   asked = 0; REG.watchAllFx(root);
   assert.equal(asked, 1, '★원복 확인 — 문이 다시 열렸다');

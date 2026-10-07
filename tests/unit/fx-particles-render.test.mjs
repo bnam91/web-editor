@@ -7,6 +7,14 @@
  *      ⇒ 그 출력에서 내 자가 ★빨개져야 자가 사는 증인이다. ⛔대조 꼴을 이 파일에 «글자로» 적지 않는다
  *        (적으면 내가 내 글자를 센다 — 명부를 재는 자의 함정).
  * ★«불러서» 잰다 — ⛔소스 정규식으로 판정하지 않는다(엉뚱한 줄에 속는다).
+ *
+ * ★★★이 효과는 «정지 한 장면»이다 — 그래서 ★이 검사도 ★정지 프레임으로 잰다.
+ *   `svg()` 는 ★순수 함수다: (시드 ＋ 설정 ＋ 상자 크기) 하나만 받아 ★글자를 돌려준다. 시간이 안 들어간다.
+ *   ⇒ ⛔`requestAnimationFrame` 을 기다려 재지 마라. ★그런 검사는 ★부하에 «값을 잃는다»
+ *     (2026-10-07 규율: ★부하는 느리게만이 아니라 ★틀리게도 만든다 — 고정 대기 위에 선 검사가 값을 잃었다).
+ *   ⚠️＋현빈이 지디의 패닝 시안을 보고 ★「이건 왜 ★영상으로 나왔니?」라 물었다(2026-10-07)
+ *     ⇒ ★움직이는 미리보기는 ★「영상」으로 읽힌다. ★우리 것은 ★주사위를 굴린 ★한 프레임이다.
+ *     ⇒ ★앞으로 지을 DOM 수트도 ★같다: ★시드를 고정하고 ★좌표·픽셀을 단언하라. ⛔프레임을 기다리지 마라.
  * ⛔앱 0 · 네트워크 0 · DOM 0(vm 안에 window 대역 하나).
  */
 import { test } from 'node:test';
@@ -70,10 +78,25 @@ const MOCK_ST = {
 
 test('P0 전제 — 공용 부품·프리셋·상한이 판에 있다', () => {
   const F = load();
-  assert.equal(F.MAX_COUNT, 320, '상한 320/섹션(지디 판정 2026-10-06 ㉣)');
+  /* ★★이 파일에서 「60」을 ★글자로 적는 자리는 ★여기 ★하나뿐이다 — 그래야 ★값이 잠긴다.
+     (⛔다른 칸까지 60 을 박으면 명부가 둘이고, ⛔전부 F.MAX_COUNT 로 쓰면 ★항등식이라 아무것도 안 잠근다.
+      ⇒ ★여기서 ★값을, 다른 칸에서 ★동작을 잠근다. 지디 2026-10-07 「상수 하나에서 둘이 파생돼야 한다」의 쓰임.) */
+  assert.equal(F.MAX_COUNT, 60, '상한 60/섹션 — 현빈 확정 2026-10-07 「개수는 상한 60개로 하자」(옛 값 320)');
   assert.deepEqual([...F.KINDS], ['star', 'gold', 'party', 'dust']);
   assert.deepEqual([...F.SHAPES], ['rect', 'ribbon', 'circle', 'star4', 'tri']);
   assert.equal(F.RANGES.count.max, F.MAX_COUNT, '범위 표와 상한이 «한 수»다');
+});
+
+test('P0b ★프리셋 넷의 count 가 모두 상한 이하 — 안 그러면 «표»가 거짓말을 한다', () => {
+  const F = load();
+  /* ★패널은 프리셋 count 를 그대로 보여 주는데 normalize 가 조용히 자른다 ⇒ 보여 주는 수 ≠ 그려지는 수.
+     ★상한이 320→60 으로 내려올 때 실제로 셋(90·70·130)이 넘었다 — 그래서 이 칸이 생겼다. */
+  const over = [...F.KINDS].filter((k) => F.PRESETS[k].count > F.MAX_COUNT)
+    .map((k) => `${k}=${F.PRESETS[k].count}`);
+  assert.deepEqual(over, [], `프리셋 count 가 상한(${F.MAX_COUNT})을 넘는다: ${over.join(',')}`);
+  /* ★음성대조 — 자가 「언제나 빈 목록」이 아니다: 상한보다 큰 수를 주면 ★잡는다 */
+  const probe = [...F.KINDS].filter((k) => F.PRESETS[k].count > 0);
+  assert.ok(probe.length === 4, '★전제: 프리셋 넷 다 count 가 0보다 크다(자가 볼 것이 있다)');
 });
 
 test('P1a ★★배경색 계약 — PRESETS 어디에도 bg 가 없다 (프리셋은 파티클 값만 바꾼다)', () => {
@@ -129,14 +152,37 @@ test('P2 ★시드 결정성 — 같은 시드 = 같은 글자 · 다른 시드 
   assert.notEqual(c, a, '다른 시드인데 글자가 같다 — 시드가 그림에 안 닿는다');
 });
 
-test('P3 ★상한 320 — 넘으면 «거절이 아니라 320 까지만 그린다»', () => {
+test('P3 ★상한 — 넘으면 «거절이 아니라 상한까지만 그린다»', () => {
   const F = load();
+  /* ★여기선 수를 ★상수에서 받는다 — ★동작을 잠근다(값은 P0 이 글자로 잠갔다). */
+  const CAP = F.MAX_COUNT;
   const big = F.svg({ preset: 'party', seed: 7, count: 1000, glow: 0, spread: 0, w: 860, h: 600, filterId: 'pfx-c' });
-  assert.equal(countNodes(big), 320, '상한에서 안 잘렸다(또는 거절해 0이 됐다)');
-  assert.equal(F.normalize({ count: 1000 }).count, 320);
+  assert.equal(countNodes(big), CAP, '상한에서 안 잘렸다(또는 거절해 0이 됐다)');
+  assert.equal(F.normalize({ count: 1000 }).count, CAP);
   assert.equal(F.normalize({ count: -5 }).count, 0, '음수는 0 으로');
-  /* ★음성대조 — 상한 아래는 그대로 그린다(자가 «언제나 320» 이 아니다) */
+  /* ★음성대조 — 상한 아래는 그대로 그린다(자가 «언제나 상한» 이 아니다) */
   assert.equal(countNodes(F.svg({ preset: 'party', seed: 7, count: 11, glow: 0, spread: 0, w: 860, h: 600, filterId: 'pfx-c2' })), 11);
+});
+
+test('P10 ★estimateNodes 가 «실제로 나온 요소 수»와 맞다 — 안내 문구의 수가 여기서 나온다', () => {
+  const F = load();
+  /* ⛔공식을 믿지 않는다 — ★svg() 를 돌려 ★여는 태그를 세고 ★견준다(두 독립 경로 · 항등식 아님). */
+  const tags = (s) => (s.match(/<[a-zA-Z]/g) || []).length;
+  const cases = [
+    { name: '후광 켜짐', cfg: { preset: 'star', seed: 1, count: 30, glow: 60, spread: 8 } },
+    { name: '후광 꺼짐(세기 0)', cfg: { preset: 'party', seed: 2, count: 25, glow: 0, spread: 8 } },
+    { name: '후광 꺼짐(퍼짐 0)', cfg: { preset: 'gold', seed: 3, count: 12, glow: 70, spread: 0 } },
+    { name: '갯수 0', cfg: { preset: 'dust', seed: 4, count: 0, glow: 70, spread: 8 } },
+    { name: '상한 넘김', cfg: { preset: 'party', seed: 5, count: 999, glow: 50, spread: 5 } },
+  ];
+  for (const c of cases) {
+    const s = F.svg({ ...c.cfg, w: 860, h: 600, filterId: 'pfx-e' });
+    assert.equal(F.estimateNodes(c.cfg), tags(s), `${c.name}: 어림수가 실제와 다르다(어림 ${F.estimateNodes(c.cfg)} · 실제 ${tags(s)})`);
+  }
+  /* ★「후광을 켜면 약 2배」 — ★패널 안내가 쓸 수. ⛔여기서도 손으로 박지 않는다. */
+  const on  = F.estimateNodes({ preset: 'star', count: F.MAX_COUNT, glow: 60, spread: 8 });
+  const off = F.estimateNodes({ preset: 'star', count: F.MAX_COUNT, glow: 0,  spread: 0 });
+  assert.ok(on > off * 1.8 && on < off * 2.3, `「약 2배」가 깨졌다 — 켜짐 ${on} · 꺼짐 ${off}`);
 });
 
 test('P4 ★필터 id 는 호출자가 준다 — 섹션이 둘이면 안 겹친다(시안의 고정 id 함정)', () => {

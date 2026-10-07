@@ -24,33 +24,43 @@
    ★★필터 id 는 ★호출자가 준다 — 섹션이 여럿이면 한 문서에 필터가 여럿이다.
      ⚠️시안은 id 를 'pglow' 로 ★박았다. ⛔그걸 베끼면 ★둘째 섹션부터 ★첫 섹션의 필터를 쓴다
        (SVG id 는 ★문서 전역). 선례도 호출자가 준다(glow-render.js:13 'fxg-<id>').
-   ★★상한 320/섹션 — ⛔거절이 아니라 ★「320 까지만 그린다」(지디 판정 2026-10-06 ㉣).
-     근거(태양 측정 M4): 20섹션×320 에서 html2canvas 썸네일 8.9~10.7 s · 메인스레드 막힘 7.7~9.2 s.
+   ★★상한 60/섹션 — ⛔거절이 아니라 ★「60 까지만 그린다」.
+     ★현빈 확정 2026-10-07 — 「개수는 ★상한 60개로 하자 컨페티나 파티클」(지디 전달). 옛 값은 320 이었다.
+     ⚠️★태양 M4 표의 `20×320`(썸네일 8.9~10.7 s) 칸은 ★★이제 «범위 밖»이다 — ⛔근거로 쓰지 마라.
+       ★상한 60 에서의 무게는 ★★미측정이다(2026-10-07 — load 가 높아 수트 창이 닫혔다).
+       ★지금 아는 것은 ★노드 수뿐이다 — estimateNodes() 가 그것을 «계산»해 준다(⛔산문에 손으로 박지 않게).
    ═══════════════════════════════════════════════════════════════════════════ */
 (function (w) {
   'use strict';
 
   /** ★섹션 하나에 그리는 입자 수의 상한. ⛔막지 않는다 — 넘으면 자른다. */
-  const MAX_COUNT = 320;
+  const MAX_COUNT = 60;
 
   /* ★모양 다섯 — 이름은 시안과 «같게» 둔다(시안이 사람에게 보여 준 어휘가 그대로 저장본에 들어간다). */
   const SHAPES = Object.freeze(['rect', 'ribbon', 'circle', 'star4', 'tri']);
 
   /* ★프리셋 넷 — ⛔bg 키가 ★없다(위 머리말 ⒜ · 현빈 2026-10-07).
+     ★현빈 확정 2026-10-07: 「프리셋은 넷이면 충분하다 · 알맹이모양도 지금 충분하다. 이대로 유지」 ⇒ ⛔더 늘리지 마라.
      ★기본 색은 «값만» 바꾸면 되게 여기 한 자리에 둔다(글로우 PRESETS 와 같은 결).
      ★fxOpacity — 이름을 ★글로우와 «같게» 쓴다(지디 2026-10-06 · 9f062a5c 로 미리 맞춰 둔 이름).
-       ⛔alpha·opacity 로 갈라 쓰면 다음 사람이 두 벌로 읽는다. */
+       ⛔alpha·opacity 로 갈라 쓰면 다음 사람이 두 벌로 읽는다.
+     ★★count 는 상한이 320→60 이 되며 «비례로» 줄였다(2026-10-07) — 기준은 가장 많던 party 130→60(×60/130):
+       star 90→42 · gold 70→32 · party 130→60 · dust 60→28.
+       ★까닭: 시안이 현빈에게 보여 준 «프리셋 사이의 상대 밀도»를 보존한다(컨페티가 가장 촘촘하고 보케가 가장 성기다).
+       ⚠️★이 네 수는 ★디자인 값이다 — ★지디 판정 대기 중이고, 바꾸라면 ★여기 한 줄만 고치면 된다.
+       ⛔프리셋 count 가 MAX_COUNT 를 넘으면 안 된다: 넘으면 패널이 보여 주는 수와 그려지는 수가 ★갈린다
+         (normalize 가 조용히 자르므로 «동작»은 맞지만 «표»가 거짓말을 한다). 그 금지는 unit 이 잰다. */
   const PRESETS = Object.freeze({
-    star:  Object.freeze({ label: '별 반짝이',   count: 90,  shapes: Object.freeze(['star4', 'star4', 'circle']),
+    star:  Object.freeze({ label: '별 반짝이',   count: 42,  shapes: Object.freeze(['star4', 'star4', 'circle']),
                            colors: Object.freeze(['#FFFFFF', '#FFE9FF', '#C9A8FF', '#8E6BE0']),
                            smin: 3, smax: 14, rot: true,  dist: 'even', glow: 55, spread: 6,  fxOpacity: 100, jit: 60 }),
-    gold:  Object.freeze({ label: '금색 컨페티', count: 70,  shapes: Object.freeze(['rect', 'ribbon']),
+    gold:  Object.freeze({ label: '금색 컨페티', count: 32,  shapes: Object.freeze(['rect', 'ribbon']),
                            colors: Object.freeze(['#F5C542', '#E8B22A', '#FFE9A8', '#C98A14']),
                            smin: 6, smax: 22, rot: true,  dist: 'top',  glow: 0,  spread: 0,  fxOpacity: 100, jit: 25 }),
-    party: Object.freeze({ label: '컬러 컨페티', count: 130, shapes: Object.freeze(['rect', 'tri', 'ribbon']),
+    party: Object.freeze({ label: '컬러 컨페티', count: 60,  shapes: Object.freeze(['rect', 'tri', 'ribbon']),
                            colors: Object.freeze(['#2D6FE8', '#F5C542', '#E0402C', '#28B463', '#FFFFFF']),
                            smin: 5, smax: 18, rot: true,  dist: 'even', glow: 0,  spread: 0,  fxOpacity: 100, jit: 15 }),
-    dust:  Object.freeze({ label: '먼지 / 보케', count: 60,  shapes: Object.freeze(['circle']),
+    dust:  Object.freeze({ label: '먼지 / 보케', count: 28,  shapes: Object.freeze(['circle']),
                            colors: Object.freeze(['#FFFFFF', '#FFE6B8', '#BFD8FF']),
                            smin: 4, smax: 28, rot: false, dist: 'edge', glow: 70, spread: 14, fxOpacity: 80, jit: 85 }),
   });
@@ -74,6 +84,19 @@
   const HEX = /^#[0-9a-fA-F]{3,8}$/;
   const safeColor = (c, fb) => (typeof c === 'string' && (HEX.test(c) || /^rgba?\([0-9.,\s%]+\)$/i.test(c))) ? c : fb;
   const num = (v, fb) => (Number.isFinite(+v) ? +v : fb);
+
+  /** 이 설정이 그릴 ★SVG 요소 수 — ⛔패널 안내 문구에 수를 «손으로» 박지 않게 여기서 «계산»해 준다.
+   *  ★지디 2026-10-07: 「후광을 켜면 그리는 양이 약 2배」를 안내로 두되 ★그 수를 상수에서 끌어내라.
+   *    ⇒ 상한이 또 바뀌어도 문구가 ★조용히 거짓이 되지 않는다(★산문은 말만 쓰고 수는 데이터에서).
+   *  ★후광이 켜지면 조각을 ★두 벌 그린다(번짐 층 + 또렷 층) ＋ 필터 정의가 9 요소.
+   *  ⚠️★태양 표의 공식(갯수×2+14)과 ★1 씩 다르다 — ★시안엔 ★배경 rect 가 하나 더 있었고 ★우리는 그것을 뺐다.
+   *    ⇒ ★이 수가 맞는지는 ⛔공식을 믿지 말고 ★svg() 를 돌려 센 값과 견준다(tests/unit/fx-particles-render P10). */
+  function estimateNodes(p) {
+    const st = normalize(p);
+    const haloOn = st.glow > 0 && st.spread > 0 && st.count > 0;
+    // <svg> + <g layer> + <g 또렷> = 3 · 후광이면 ＋<defs><filter><feGaussianBlur>×3<feMerge><feMergeNode>×3 = 9, ＋<g halo> = 1
+    return haloOn ? (st.count * 2 + 13) : (st.count + 3);
+  }
 
   /** 배경 휘도 0~1 — ⛔배경을 «쓰는» 길이 아니다. «읽어» 기본 팔레트를 고르려는 쪽이 쓴다(판단은 호출자). */
   function lum(color) {
@@ -210,5 +233,5 @@
          + halo + '<g>' + body + '</g></g></svg>';
   }
 
-  w.ParticlesFx = Object.freeze({ PRESETS, KINDS, SHAPES, DISTS, RANGES, MAX_COUNT, svg, normalize, lum });
+  w.ParticlesFx = Object.freeze({ PRESETS, KINDS, SHAPES, DISTS, RANGES, MAX_COUNT, svg, normalize, lum, estimateNodes });
 })(window);
