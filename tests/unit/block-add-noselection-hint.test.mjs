@@ -61,6 +61,7 @@ const SRC_FILES = [
   'js/blocks/comparison-block.js',
   'js/blocks/laurel-block.js',
   'js/blocks/coupon-block.js',   // 2026-10-07 쿠폰 — addCouponBlock 이 showNoSelectionHint 를 쓴다
+  'js/blocks/quote-block.js',    // 2026-10-07 인용구(QT1) — addQuoteBlock 이 showNoSelectionHint 를 쓴다
 ].map(p => ({ p, src: readSrc(REPO, p) }));
 
 /** 함수 «구역»을 잘라낸다 — 정의 줄부터 «다음 최상위 선언» 직전까지.
