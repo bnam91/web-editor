@@ -137,6 +137,11 @@ export function buildTypographySectionHtml({
         <input type="number" class="prop-number prop-number-select" id="${p}-size-number" min="${sizeMin}" max="${sizeMax}" value="${_sizeVal}" placeholder="${_sizePh}"${_sizeEmptyAttr} style="flex:1;min-width:0;display:${showSize?'block':'none'}">
       </div>
 
+      <!-- ★서식 단추 ★순서 = B · I · ★U · S · H · 점 (2026-10-08).
+           ★왜 이 순서인가 — ★발주서(수지 피드백 ⑤⑥)에 ★순서가 ★없었다. ⛔«내가 정했다»가 아니라
+             ★통상 편집기 순서(Word·Figma·Google Docs 가 B I U S)를 ★따랐을 뿐이다.
+           ⇒ ★수지 뜻이 다르면 ★이 줄을 보고 바꿔라 — ★근거가 «관례»이므로 ★싸게 바꿀 수 있다.
+           ⚠️출처는 ★2차다(server-manager 가 전한 요약) — ⛔「원문」이라 적지 마라. -->
       <div class="prop-style-group" id="${p}-style-group" style="margin-top:6px;display:${showStyleGroup?'flex':'none'}">
         <button class="prop-style-btn ${isBold?'active':''}" id="${p}-bold-btn" title="굵게 (⌘B)"><b>B</b></button>
         <button class="prop-style-btn ${isItalic?'active':''}" id="${p}-italic-btn" title="기울임 (⌘I)"><i>I</i></button>${showUnderline ? `
