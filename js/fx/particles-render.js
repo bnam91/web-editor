@@ -44,23 +44,28 @@
      ★기본 색은 «값만» 바꾸면 되게 여기 한 자리에 둔다(글로우 PRESETS 와 같은 결).
      ★fxOpacity — 이름을 ★글로우와 «같게» 쓴다(지디 2026-10-06 · 9f062a5c 로 미리 맞춰 둔 이름).
        ⛔alpha·opacity 로 갈라 쓰면 다음 사람이 두 벌로 읽는다.
-     ★★count 는 상한이 320→60 이 되며 «비례로» 줄였다(2026-10-07) — 기준은 가장 많던 party 130→60(×60/130):
-       star 90→42 · gold 70→32 · party 130→60 · dust 60→28.
-       ★까닭: 시안이 현빈에게 보여 준 «프리셋 사이의 상대 밀도»를 보존한다(컨페티가 가장 촘촘하고 보케가 가장 성기다).
-       ⚠️★이 네 수는 ★디자인 값이다 — ★지디 판정 대기 중이고, 바꾸라면 ★여기 한 줄만 고치면 된다.
-       ⛔프리셋 count 가 MAX_COUNT 를 넘으면 안 된다: 넘으면 패널이 보여 주는 수와 그려지는 수가 ★갈린다
-         (normalize 가 조용히 자르므로 «동작»은 맞지만 «표»가 거짓말을 한다). 그 금지는 unit 이 잰다. */
+     ★★count 는 ★넷 다 ★MAX_COUNT 다 — ★★현빈 확정 2026-10-07 「★다 60 으로」(지디가 후보 셋을 올려 받은 답).
+       ⛔「60」을 네 자리에 ★손으로 박지 않는다 — ★상수를 ★참조한다. ⇒ 상한이 또 바뀌면 ★프리셋이 ★따라온다.
+       ★그것을 ★tests/unit/fx-particles-render P0b 가 ★행위로 잰다(상한을 7 로 둔 판에서 넷이 7 이 되나).
+     ★★⚠️시안과 ★갈렸다 — ⛔「시안대로」로 읽지 마라. 시안은 party 130 · star 90 · gold 70 · dust 60 이었고,
+       제품은 ★60×4 다. ★출처는 ★시안이 아니라 ★위 현빈 결정이다.
+     ★★⚠️남는 위험(2026-10-07 · ⛔「현빈이 정했으니 끝」으로 덮지 않는다):
+       ★party(컨페티)는 ★130 → 60 이라 ★여전히 ★절반 이하다 ⇒ ★★「컨페티가 옛 시안보다 ★옅다」는 신고가 ★올 수 있다.
+       ★★되돌릴 자리 = ★`MAX_COUNT` 다. ⛔프리셋 count 만으로는 ★못 올린다 — normalize 가 ★상한에서 자른다.
+         ⇒ 밀도를 올려야 하면 ★상한을 올려라(그러면 프리셋이 ★참조로 따라온다).
+       ★무게 실측(2026-10-07 · estimateNodes = 실측): ★star 133 · dust 133(후광 켜짐) / ★gold 63 · party 63(꺼짐)
+         ⇒ ★★이제 ★무게를 가르는 것은 ★«후광»뿐이다(count 가 넷 다 같아져 ★밀도 차이가 사라졌다). */
   const PRESETS = Object.freeze({
-    star:  Object.freeze({ label: '별 반짝이',   count: 42,  shapes: Object.freeze(['star4', 'star4', 'circle']),
+    star:  Object.freeze({ label: '별 반짝이',   count: MAX_COUNT, shapes: Object.freeze(['star4', 'star4', 'circle']),
                            colors: Object.freeze(['#FFFFFF', '#FFE9FF', '#C9A8FF', '#8E6BE0']),
                            smin: 3, smax: 14, rot: true,  dist: 'even', glow: 55, spread: 6,  fxOpacity: 100, jit: 60 }),
-    gold:  Object.freeze({ label: '금색 컨페티', count: 32,  shapes: Object.freeze(['rect', 'ribbon']),
+    gold:  Object.freeze({ label: '금색 컨페티', count: MAX_COUNT, shapes: Object.freeze(['rect', 'ribbon']),
                            colors: Object.freeze(['#F5C542', '#E8B22A', '#FFE9A8', '#C98A14']),
                            smin: 6, smax: 22, rot: true,  dist: 'top',  glow: 0,  spread: 0,  fxOpacity: 100, jit: 25 }),
-    party: Object.freeze({ label: '컬러 컨페티', count: 60,  shapes: Object.freeze(['rect', 'tri', 'ribbon']),
+    party: Object.freeze({ label: '컬러 컨페티', count: MAX_COUNT, shapes: Object.freeze(['rect', 'tri', 'ribbon']),
                            colors: Object.freeze(['#2D6FE8', '#F5C542', '#E0402C', '#28B463', '#FFFFFF']),
                            smin: 5, smax: 18, rot: true,  dist: 'even', glow: 0,  spread: 0,  fxOpacity: 100, jit: 15 }),
-    dust:  Object.freeze({ label: '먼지 / 보케', count: 28,  shapes: Object.freeze(['circle']),
+    dust:  Object.freeze({ label: '먼지 / 보케', count: MAX_COUNT, shapes: Object.freeze(['circle']),
                            colors: Object.freeze(['#FFFFFF', '#FFE6B8', '#BFD8FF']),
                            smin: 4, smax: 28, rot: false, dist: 'edge', glow: 70, spread: 14, fxOpacity: 80, jit: 85 }),
   });

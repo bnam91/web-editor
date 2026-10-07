@@ -30,10 +30,22 @@ const { readSrc } = require('./_srcread.js');
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../');
 
 /** 피검 대상 — FxSeed(공용 부품) 위에 ParticlesFx 를 싣는다. 둘 다 고전 스크립트다. */
-function load() {
+function load() { return loadWithCap(null); }
+
+/** ★상한을 «다른 값으로» 둔 판을 싣는다 — P0b 가 「프리셋이 상한을 따라오나」를 재는 길.
+ *  ⛔사본을 만들지 않는다(글자를 메모리에서 갈아 vm 에 싣는다) · cap=null 이면 ★판 그대로. */
+function loadWithCap(cap) {
+  const src = readSrc(REPO, 'js/fx/particles-render.js');
+  const ANCHOR = 'const MAX_COUNT = 60;';
+  let s = src;
+  if (cap != null) {
+    assert.ok(src.includes(ANCHOR), `★전제: 치환 닻을 찾았다 — 「${ANCHOR}」(상한 값이 바뀌면 이 줄도 고쳐라)`);
+    s = src.replace(ANCHOR, `const MAX_COUNT = ${cap};`);
+    assert.notEqual(s, src, '⛔치환이 안 먹었다 — 자가 죽었다');
+  }
   const ctx = {}; ctx.window = ctx; vm.createContext(ctx);
   vm.runInContext(readSrc(REPO, 'js/fx/seeded-random.js'), ctx);
-  vm.runInContext(readSrc(REPO, 'js/fx/particles-render.js'), ctx);
+  vm.runInContext(s, ctx);
   assert.equal(typeof ctx.FxSeed?.mulberry32, 'function', '★전제: 공용 부품 FxSeed 를 실제로 실었다');
   assert.equal(typeof ctx.ParticlesFx?.svg, 'function', '★전제: ParticlesFx 를 실제로 실었다');
   return ctx.ParticlesFx;
@@ -87,16 +99,27 @@ test('P0 전제 — 공용 부품·프리셋·상한이 판에 있다', () => {
   assert.equal(F.RANGES.count.max, F.MAX_COUNT, '범위 표와 상한이 «한 수»다');
 });
 
-test('P0b ★프리셋 넷의 count 가 모두 상한 이하 — 안 그러면 «표»가 거짓말을 한다', () => {
+test('P0b ★★프리셋 count 가 «상한을 참조»한다 — 상한을 바꾼 판에서 ★따라오나', () => {
+  /* ★★이 칸은 한 번 «버려지고» 다시 세워졌다(2026-10-07) — 그 역사를 남긴다:
+       ⑴ 처음: 「프리셋 count ≤ 상한」. ★상한이 320→60 으로 내려오자 셋(90·70·130)이 넘어 ★빨개졌고
+          그래서 이 칸이 생겼다 — ★실제로 사고를 잡았다.
+       ⑵ 현빈 확정 「다 60 으로」(2026-10-07) ⇒ 프리셋 count 를 ★`MAX_COUNT` 참조로 바꿨다.
+          ⇒ ★★그 순간 「≤ 상한」도 「＝ 상한」도 ★★«항상 참»이 됐다 — ★참조라서 갈릴 수가 없다.
+          ⇒ ★내가 건 단언이 ★아무것도 안 잠근다(⛔그대로 두면 ★가짜 초록이다).
+       ⑶ ⇒ ★그 칸을 ★버리고 ★«구조가 섰나»를 잰다: ★★상한을 ★다른 값으로 둔 판에서 ★프리셋이 ★따라오나.
+          ★이건 항등식이 아니다 — ★「참조한다」와 「60 을 박았다」는 ★다른 판이고, 그 둘을 ★갈라 준다.
+     ⇒ ★★「행위로 못 재는 자리는 ★구조로 잠가라」의 짝: ★구조로 잠갔으면 ★그 구조를 ★재라. */
+  const CAP_PROBE = 7;                             // ⛔60 과 겹치지 않는 아무 수
+  const M = loadWithCap(CAP_PROBE);
+  assert.equal(M.MAX_COUNT, CAP_PROBE, '★전제: 치환이 먹어 그 판의 상한이 바뀌었다(자가 살아 있다)');
+  for (const k of M.KINDS) {
+    assert.equal(M.PRESETS[k].count, CAP_PROBE,
+      `${k}: 상한을 ${CAP_PROBE} 로 둔 판에서 프리셋 count 가 안 따라왔다(${M.PRESETS[k].count}) — 수를 손으로 박았다`);
+  }
+  /* ★음성대조 — 원래 판은 ★치환 판과 ★다르다(치환이 «전역으로» 먹은 게 아니다) */
   const F = load();
-  /* ★패널은 프리셋 count 를 그대로 보여 주는데 normalize 가 조용히 자른다 ⇒ 보여 주는 수 ≠ 그려지는 수.
-     ★상한이 320→60 으로 내려올 때 실제로 셋(90·70·130)이 넘었다 — 그래서 이 칸이 생겼다. */
-  const over = [...F.KINDS].filter((k) => F.PRESETS[k].count > F.MAX_COUNT)
-    .map((k) => `${k}=${F.PRESETS[k].count}`);
-  assert.deepEqual(over, [], `프리셋 count 가 상한(${F.MAX_COUNT})을 넘는다: ${over.join(',')}`);
-  /* ★음성대조 — 자가 「언제나 빈 목록」이 아니다: 상한보다 큰 수를 주면 ★잡는다 */
-  const probe = [...F.KINDS].filter((k) => F.PRESETS[k].count > 0);
-  assert.ok(probe.length === 4, '★전제: 프리셋 넷 다 count 가 0보다 크다(자가 볼 것이 있다)');
+  assert.notEqual(F.MAX_COUNT, CAP_PROBE, '⛔음성대조 실패 — 원래 판까지 바뀌었다');
+  for (const k of F.KINDS) assert.equal(F.PRESETS[k].count, F.MAX_COUNT, `${k}: 원래 판에서 상한과 다르다`);
 });
 
 test('P1a ★★배경색 계약 — PRESETS 어디에도 bg 가 없다 (프리셋은 파티클 값만 바꾼다)', () => {
