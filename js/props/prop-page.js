@@ -44,6 +44,78 @@ function savePadHintOn(on) {
 window.readPadHintOn = readPadHintOn;
 window.savePadHintOn = savePadHintOn;
 
+/* ── 패딩 띠 인라인 변수의 «거두기» — ★쓸는 문을 «한 곳»에 ────────────────────
+   ⛔좌우(prop-section.js _showPadXHint)·아래(_showPadBHint)·끔 라디오·세척이 각자
+     변수 «이름 명부»를 적으면 ★네 벌이 된다 — 새 변수가 늘 때 한쪽만 고쳐진다
+     (2026-10-07: --gdt-pad-b 를 더하며 실제로 그 네 자리가 드러났다).
+   ★그래서 «이름»이 아니라 ★접두사로 쓴다. `--gdt-pad-` 로 시작하는 인라인 커스텀
+     속성이면 ★어느 요소에 붙어 있든 걷는다 — 좌우는 .section-inner/.frame-block 에,
+     아래는 ★.section-block 에 붙으므로 «요소 명부»도 같이 없어진다.
+     (js/io/section-serialize.js 의 파생변수 세척이 쓰는 그 꼴 — 「블럭 종류도 묻지 않는다」.)
+   ⚠️★사용자가 고른 «색»은 이 접두사에 ★들어가면 안 된다 — 그래서 이름이
+     `--gdt-padhint-color` 다(⛔`--gdt-pad-color` 가 아니다). ★한 글자 차이라
+     tests/unit/pad-hint.test.js 가 「색이 쓸기를 ★살아남나」를 ★따로 잰다.
+   ⛔라이브 DOM 을 건드린다. 저장 경로(클론)의 몫은 section-serialize.js 가 ★따로 진다 —
+     「거두기가 못 도는 창」을 막는 두 겹이다(그 파일 머리말). */
+export const PAD_HINT_VAR_PREFIX = '--gdt-pad-';
+export function sweepPadHintVars(root = document) {
+  root.querySelectorAll('[style*="' + PAD_HINT_VAR_PREFIX + '"]').forEach(el => {
+    const st = el.style;
+    /* ★뒤에서 앞으로 — removeProperty 가 인덱스를 당기므로 앞에서 돌면 건너뛴다. */
+    for (let i = st.length - 1; i >= 0; i--) {
+      const name = st[i];
+      if (name.startsWith(PAD_HINT_VAR_PREFIX)) st.removeProperty(name);
+    }
+  });
+}
+window.sweepPadHintVars = sweepPadHintVars;
+
+/* ── 띠·그리드의 «색» — 사용자가 고른다 (2026-10-07 현빈 ②) ────────────────────
+   > 「★패딩 조절할때 보이는 영역이 ★그리드 가이드와 ★색이 비슷해서 ★둘의 색을 구분해줘.
+      ★틸계열이어야할까 패딩은? ★혹은 프로퍼티패널에서 ★컬러피커를 넣어서 ★사용자 선택가능하게 해줘.」
+   ★키를 «또 따로» 둔다 — on/off 키(PAD_HINT_KEY·GRID_KEY)에 ⛔섞지 않는다.
+     까닭은 그 두 키를 가른 까닭과 «같다»: savePadHintOn·saveGridPref 는 객체를 ★통째로
+     덮어쓰므로, 색을 그 안에 넣으면 ★토글 한 번이 색을 지운다. ⇒ 축이 다르면 키도 다르다.
+   ★기본값은 «지금 화면 그대로»다(핑크 10% · 빨강 10% — CSS 폴백과 같은 값).
+     ⛔기본을 틸로 바꾸지 ★않았다: tests/dom/pad-hint.dom.spec.js D1(:129)이 색 ★문자열을,
+       D11(:542 PINK_ON_BLUE)이 ★픽셀을 박아 놨다 — 기본을 바꾸면 그 둘이 빨강이다.
+       바꿀 일이면 그 두 기대값을 «같이» 고치는 ★별건이다(2026-10-07 측정).
+   ★알파는 .10 «고정»이다 — 이 기능은 「아래가 보이는 채로」 패딩을 가리키는 것이라,
+     불투명해지면 D11 이 재는 「풀블리드 에셋 ★위에 얹힌다」가 뜻을 잃는다. 사용자는 ★색상만 고른다.
+   ⛔프로젝트에 저장하지 않는다 — 「보기」 설정이다(위 PAD_HINT_KEY·GRID_KEY 와 같은 논리). */
+const PAD_HINT_COLOR_KEY = 'gdt.padHintColor';
+const GRID_COLOR_KEY     = 'gdt.gridColor';
+const PAD_HINT_COLOR_DEFAULT = '#ff0080';
+const GRID_COLOR_DEFAULT     = '#ff0000';
+const HINT_ALPHA = 0.1;   /* ★이 수가 곧 D1 이 기대하는 문자열의 끝자리(`…, 0.1)`)다 */
+
+function _readColorPref(key, dflt) {
+  try { return parseHex6(localStorage.getItem(key)) || dflt; } catch (_) { return dflt; }
+}
+function _saveColorPref(key, hex) {
+  try { localStorage.setItem(key, parseHex6(hex) || ''); } catch (_) {}
+}
+export const readPadHintColor = () => _readColorPref(PAD_HINT_COLOR_KEY, PAD_HINT_COLOR_DEFAULT);
+export const readGridColor    = () => _readColorPref(GRID_COLOR_KEY, GRID_COLOR_DEFAULT);
+
+function _hexToRgba(hex, dflt, a) {
+  const n = parseInt((parseHex6(hex) || dflt).slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+/* ★칠하는 문도 «하나»다 — 쓰는 자리가 둘(패널 열 때 · 피커 만질 때)이라 식이 갈리기 쉽다. */
+export function applyPadHintColor(hex) {
+  document.documentElement.style.setProperty('--gdt-padhint-color',
+    _hexToRgba(hex, PAD_HINT_COLOR_DEFAULT, HINT_ALPHA));
+}
+export function applyGridColor(hex) {
+  document.documentElement.style.setProperty('--gdt-grid-color',
+    _hexToRgba(hex, GRID_COLOR_DEFAULT, HINT_ALPHA));
+}
+/* ★모듈을 ★싣는 순간 칠한다 — 페이지 패널을 «한 번도 안 열어도» 섹션 슬라이더는 띠를 띄운다
+   (바로 위 readPadHintOn 머리말이 같은 까닭으로 모듈 최상위에 있다). */
+applyPadHintColor(readPadHintColor());
+applyGridColor(readGridColor());
+
 /* ── 헬퍼: ab의 «패딩 제외(full-bleed)» 폭 문자열 ──
    패딩제외 상태면 `calc(100% + 2*padX px)`, 아니면 '' (= inline width 제거).
    ⚠️ 리사이즈/슬라이더/MCP가 최대폭에서 width를 ''로 지우면 calc()가 사라져 «패딩제외가 영구히 풀린다»
@@ -214,6 +286,9 @@ export function showPageProperties() {
   const { bg, gap, padX, padY, padXExcludesAsset } = state.pageSettings;
   const bgAlpha = state.pageSettings.bgAlpha ?? 100;
   const bgHexUp = (bg || '#000000').replace('#','').toUpperCase();
+  /* ★보기 설정의 «색» — 정본은 위 모듈 최상위 한 곳(readPadHintColor·readGridColor). */
+  const padHintColorHex = readPadHintColor();
+  const gridColorHex    = readGridColor();
   propPanel.innerHTML = `
     <div class="prop-section">
       <div class="prop-block-label">
@@ -283,6 +358,14 @@ export function showPageProperties() {
           <label class="prop-radio"><input type="radio" name="page-grid" id="page-grid-on" value="on"> 켬</label>
           <label class="prop-radio"><input type="radio" name="page-grid" id="page-grid-off" value="off" checked> 끔</label>
         </div>
+        <!-- ★색 피커 — 현빈 ②「그리드 가이드 켬 라디오 같은 로우에 컬러피커 넣어줘도 될것 같고」.
+             ★폭 실측(2026-10-07): 가용 211px · 라벨 60 + gap 4 + 라디오쌍 자연폭 65 + gap 4 + 스와치 24 = 157
+               ⇒ 여유 54px. 라디오가 눌리지 않는다(주입 후 그룹 119px > 자연폭 65px).
+             ⛔.prop-row 는 overflow:hidden 이라 넘쳐도 «조용히» 잘린다 — 눈으로 재지 마라.
+               tests/dom/pad-hint-bottom.dom.spec.js 가 그 여유를 «수»로 지킨다. -->
+        <div class="prop-color-swatch" style="background:${gridColorHex}" title="그리드 가이드 색">
+          <input type="color" id="page-grid-color" value="${gridColorHex}" aria-label="그리드 가이드 색">
+        </div>
       </div>
       <!-- ★패딩 비주얼 — 그리드 가이드 «바로 아래». 둘 다 「편집 보조」라 같은 절이 맞다.
            ⚠️어휘를 «섞지» 않는다: 이 절은 이미 체크박스를 쓴다. 옆에 라디오를 놓으면 한 절에 두 어휘가 된다.
@@ -293,6 +376,12 @@ export function showPageProperties() {
         <div class="prop-radio-group">
           <label class="prop-radio"><input type="radio" name="page-pad-hint" id="page-pad-hint-on" value="on"> 켬</label>
           <label class="prop-radio"><input type="radio" name="page-pad-hint" id="page-pad-hint-off" value="off" checked> 끔</label>
+        </div>
+        <!-- ★색 피커 — 현빈 ②「혹은 … 패딩비쥬얼 로우에도 넣어도 될듯?」. 여유 64px(위와 같은 자로 실측).
+             ★스와치는 «새 어휘»가 아니다 — 그 라디오가 켜는 ★그것의 색이라, 위 :어휘 주석과 부딪치지 않는다
+               (지디 2026-10-07 판정). -->
+        <div class="prop-color-swatch" style="background:${padHintColorHex}" title="패딩 비주얼 색">
+          <input type="color" id="page-pad-hint-color" value="${padHintColorHex}" aria-label="패딩 비주얼 색">
         </div>
       </div>
       <!-- ★칼럼·거터를 «한 줄»에 둔다 (2026-09-08 현빈: "칼럼과 거터 하나의 로우에 둬도 될듯해").
@@ -387,11 +476,31 @@ export function showPageProperties() {
       savePadHintOn(padHintOn.checked);
       if (!padHintOn.checked) {
         document.body.classList.remove('gdt-pad-on');
-        document.querySelectorAll('.section-inner').forEach(el => {
-          el.style.removeProperty('--gdt-pad-l');
-          el.style.removeProperty('--gdt-pad-r');
-        });
+        /* ★이름·요소 명부를 여기 적지 않는다 — 쓸기 한 벌(sweepPadHintVars)이 접두사로 걷는다.
+           ⚠️예전엔 `.section-inner` 만 돌아서, 아래 패딩 띠가 붙는 .section-block 과
+             프레임(.frame-block)의 변수는 ★이 문으로 안 걷혔다(2026-10-07). */
+        sweepPadHintVars();
       }
+    });
+  }
+
+  /* ── 색 피커 둘 — ★쓰는 식은 applyPadHintColor·applyGridColor «한 곳»에서만 온다 ──
+     ★저장은 즉시다(보기 설정이라 pushHistory·autoSave 대상이 아니다 — 위 키 머리말).
+     ★스와치 배경도 같이 맞춘다 — 안 맞추면 피커를 닫은 뒤 «고른 색이 안 보인다». */
+  for (const [id, read, save, apply, dflt] of [
+    ['page-pad-hint-color', readPadHintColor, (h) => _saveColorPref(PAD_HINT_COLOR_KEY, h), applyPadHintColor, PAD_HINT_COLOR_DEFAULT],
+    ['page-grid-color',     readGridColor,    (h) => _saveColorPref(GRID_COLOR_KEY, h),     applyGridColor,     GRID_COLOR_DEFAULT],
+  ]) {
+    const pick = document.getElementById(id);
+    if (!pick) continue;
+    const sw = pick.closest('.prop-color-swatch');
+    pick.value = read();
+    if (sw) sw.style.background = pick.value;
+    pick.addEventListener('input', () => {
+      const hex = parseHex6(pick.value) || dflt;
+      save(hex);
+      apply(hex);
+      if (sw) sw.style.background = hex;
     });
   }
 

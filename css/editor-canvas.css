@@ -482,8 +482,8 @@ body.gdt-pad-on .frame-block:not(.has-bg-opacity)[style*="--gdt-pad-l"]::before 
   position: absolute;
   inset: 0;
   box-sizing: border-box;
-  border-left:  var(--gdt-pad-l, 0px) solid rgba(255, 0, 128, .10);
-  border-right: var(--gdt-pad-r, 0px) solid rgba(255, 0, 128, .10);
+  border-left:  var(--gdt-pad-l, 0px) solid var(--gdt-padhint-color, rgba(255, 0, 128, .10));
+  border-right: var(--gdt-pad-r, 0px) solid var(--gdt-padhint-color, rgba(255, 0, 128, .10));
   pointer-events: none;
   /* ★띠는 «풀블리드 에셋 위에도» 얹힌다 (2026-09-08 현빈 승인 — 팀리드가 그림 보고 결정).
        왜: 실측에서 에셋이 띠를 «덮어», 패딩 88px 짜리 줄이 55px 로 «읽혔다».
@@ -494,5 +494,37 @@ body.gdt-pad-on .frame-block:not(.has-bg-opacity)[style*="--gdt-pad-l"]::before 
        그대로 이긴다(실측: 아웃라인 파랑과 띠 핑크가 나란히 보인다).
      ⛔이 한 줄을 빼면 다시 «소스는 맞는데 화면에서 가려지는» 모양이 된다 —
        tests/dom/pad-hint.dom.spec.js D11 이 «픽셀로» 그걸 잡는다. */
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   아래 패딩 힌트 (편집 보조) — 2026-10-07 (현빈 ①)
+   > 「섹션선택 > 우측패널 > 아래 패딩 슬라이드 조절 시 좌우패딩하면 색이 보이는데
+      아래 패딩 조절시 안보이는 문제가 있음 / 이걸 조절해도 패딩이 어떻게 줄어드는지 안보임」
+   ★왜 «좌우 규칙에 한 줄 더하기»가 아닌가 — 그릴 «상자»가 다르다.
+     좌우 패딩은 `.section-inner` 의 padding-left/right 다(prop-section.js applyPadX).
+     아래 패딩은 ★`.section-block` 의 padding-bottom 이다(prop-section.js applyPadB → sec.style).
+     ⇒ inner 의 ::before 는 그 띠를 그릴 자리가 «아예 없다». 섹션 쪽에 따로 서야 한다.
+   ★계산이 없다(좌우와 같은 논리) — `inset: 0` 은 .section-block 의 «패딩 박스»에 맞춰지고,
+     box-sizing:border-box 라 border-bottom 두께가 ★정확히 padding-bottom 영역을 덮는다.
+   ★`.section-block` 은 평소에도 position:relative 다(위 :273) — 켜는 «동안»만 relative 로
+     바꾸는 좌우 쪽과 달리 여기선 건드릴 것이 없다.
+   ⛔::after 는 쓸 수 없다 — hover fill(위 :285)과 선택 아웃라인(.selected::after, z-index 90)이
+     이미 ::after 를 쓴다. ⇒ ::before 를 쓴다(센서스: .section-block::before 사용 0건).
+   ★`[style*="--gdt-pad-b"]` 가드 — 변수를 가진 섹션에만 의사요소를 만든다
+     (바로 위 프레임 규칙이 쓰는 그 관용구와 같다). 변수가 없으면 띠도 상자도 생기지 않는다.
+   ★색은 좌우와 «같은 변수»(--gdt-padhint-color)를 쓴다 — 패딩 띠는 하나의 개념이고,
+     사용자가 고른 색이 좌우에만 먹고 아래엔 안 먹으면 그게 결함이다.
+   ⛔내보내기 전에는 반드시 꺼야 한다 — body 클래스 한 곳(gdt-pad-on)에 매달려 있으므로
+     js/io/capture-safety.js withGuideOff 가 이미 «같이» 끈다(새 가드를 만들지 마라).
+   ═══════════════════════════════════════════════════════════ */
+body.gdt-pad-on .section-block[style*="--gdt-pad-b"]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border-bottom: var(--gdt-pad-b, 0px) solid var(--gdt-padhint-color, rgba(255, 0, 128, .10));
+  pointer-events: none;
+  /* ★z-index 1 — 좌우 띠와 같은 층. 선택 아웃라인(.selected::after, z-index 90)이 그대로 이긴다. */
   z-index: 1;
 }

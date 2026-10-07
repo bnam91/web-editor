@@ -5,6 +5,9 @@ import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
 import { alignFlowBlock } from './prop-multisel.js';
 import { collectBulkAlignTargets } from './bulk-align-targets.js';
+/* ★띠 변수의 «거두기»는 prop-page.js 한 벌에서 온다 — 여기서 이름 명부를 다시 적지 않는다.
+   (그 파일이 패딩 비주얼 on/off 의 «단일 진실원»이기도 하다. 순환 없음: prop-page 는 이 파일을 안 부른다.) */
+import { sweepPadHintVars } from './prop-page.js';
 
 /* ═══════════════════════════════════
    SECTION PROPERTIES PANEL
@@ -22,6 +25,19 @@ import { collectBulkAlignTargets } from './bulk-align-targets.js';
      autoSave 디바운스가 1500ms 라 400ms 청소가 «먼저» 끝난다.
 ═══════════════════════════════════ */
 let _padHintTimer = null;
+/* ★띠를 거두는 «문»은 하나다 — 좌우(_showPadXHint)와 아래(_showPadBHint)가 ★같이 쓴다.
+   ⚠️★타이머도 한 벌이어야 한다: 좌우를 만지다 아래를 만지면 ★뒤 타이머가 앞을 이어받는다.
+     따로 두면 앞 타이머가 «둘 다»의 클래스(gdt-pad-on)를 먼저 꺼서 ★뒤 띠가 사라진다.
+   ★400ms — 이 수를 두 군데 적지 않으려고 여기 한 줄로 모았다.
+   ★변수 이름 명부는 ⛔적지 않는다: sweepPadHintVars 가 `--gdt-pad-` 접두사로 걷는다
+     (prop-page.js 그 함수 머리말 — 요소 명부도 같이 없앤 까닭이 적혀 있다). */
+function _schedulePadHintClear() {
+  clearTimeout(_padHintTimer);
+  _padHintTimer = setTimeout(() => {
+    document.body.classList.remove('gdt-pad-on');
+    sweepPadHintVars();
+  }, 400);
+}
 function _showPadXHint(inner, v) {
   /* ★꺼져 있으면 «아예 아무것도 안 한다» — 클래스도, 변수도 안 붙는다.
      ⇒ 끈 상태에서는 거둘 것도 새어나갈 것도 없다(저장 경합 자체가 생기지 않는다).
@@ -33,21 +49,38 @@ function _showPadXHint(inner, v) {
   inner.style.setProperty('--gdt-pad-l', v + 'px');
   inner.style.setProperty('--gdt-pad-r', v + 'px');
   document.body.classList.add('gdt-pad-on');
-  clearTimeout(_padHintTimer);
-  _padHintTimer = setTimeout(() => {
-    document.body.classList.remove('gdt-pad-on');
-    /* 섹션을 빠르게 갈아타며 만졌을 수 있다 — 남은 변수를 «전부» 거둔다. */
-    document.querySelectorAll('.section-inner, .frame-block').forEach(el => {
-      el.style.removeProperty('--gdt-pad-l');
-      el.style.removeProperty('--gdt-pad-r');
-    });
-  }, 400);
+  /* 섹션을 빠르게 갈아타며 만졌을 수 있다 — 거두기는 «남은 변수 전부»를 걷는다(공용 한 벌). */
+  _schedulePadHintClear();
+}
+
+/* ═══════════════════════════════════
+   ★아래 패딩 띠 — 만지는 «동안»만 (2026-10-07 현빈 ①)
+   > 「섹션선택 > 우측패널 > ★아래 패딩 슬라이드 조절 시 ★좌우패딩하면 ★색이 보이는데
+      ★아래 패딩 조절시 ★안보이는 문제가 있음 / ★이걸 조절해도 ★패딩이 어떻게 줄어드는지 ★안보임」
+   ★2026-09-08 당시엔 ★일부러 안 만들었다(그때 범위가 「좌우 하나」였고, 검사 T5 가 그걸 잠갔다).
+     ⇒ 그 ★까닭이 죽었다. T5 는 ★지우지 않고 ★방향을 뒤집었다 — 범위가 ★늘었을 뿐,
+       「범위를 안 넘었다」는 규칙은 살아 있다(같은 파일 T6 이 세운 선례 그대로).
+   ★왜 _showPadXHint 를 그냥 부르지 않나 — ★그릴 상자가 다르다.
+     좌우는 `.section-inner` 의 padding-left/right, 아래는 ★`.section-block` 의 padding-bottom 이다
+     (applyPadB 가 `sec.style.paddingBottom` 에 쓴다). ⇒ 받는 요소도, 변수도 다르다.
+   ★거두기·타이머·on/off 게이트는 ★좌우와 «한 벌»을 쓴다 — 갈라 두면 둘이 서로를 끈다.
+   ★그리는 쪽: css/editor-canvas.css `body.gdt-pad-on .section-block[style*="--gdt-pad-b"]::before`
+═══════════════════════════════════ */
+function _showPadBHint(sec, v) {
+  /* ★게이트는 좌우와 «같은 문»을 본다(prop-page.js readPadHintOn) — 「패딩 비주얼 끔」이면
+     좌우는 안 뜨는데 아래만 뜨는 꼴이 되면 그게 결함이다.
+     ⛔`!window.readPadHintOn?.()` 로 쓰지 마라 — 로드 순서 때문에 기본값이 뒤집힌다(T9 와 같은 까닭). */
+  if (window.readPadHintOn && window.readPadHintOn() === false) return;
+  sec.style.setProperty('--gdt-pad-b', v + 'px');
+  document.body.classList.add('gdt-pad-on');
+  _schedulePadHintClear();
 }
 
 
 /* ★프레임 패널의 「좌우 패딩」도 «같은 띠»를 쓴다(F5) — 사본 없이 이 함수를 그대로 부른다.
    (inner 자리에 프레임을 넘긴다. 그리는 쪽 규칙은 css/editor-canvas.css 에 프레임용 선택자 한 줄이 붙었다.) */
 window._showPadXHint = _showPadXHint;
+window._showPadBHint = _showPadBHint;   /* ★짝을 맞춘다 — 좌우만 노출하면 다음 사람이 「아래는 없다」로 읽는다 */
 
 /**
  * 섹션 배경 적용 헬퍼 — 이미지와 색을 동시에 합성한다.
@@ -435,6 +468,7 @@ ${blockHeaderHTML({
     const applyPadB = v => {
       v = Math.min(200, Math.max(0, isNaN(v) ? 0 : v));
       sec.style.paddingBottom = v ? v + 'px' : '';
+      _showPadBHint(sec, v);                                         // 만지는 «동안»만 아래 패딩 띠를 비춘다
       padBSlider.value = v;
       padBNumber.value = v || '';
     };

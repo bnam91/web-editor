@@ -118,6 +118,10 @@ test('T0 ★입력이 살아 있다 — 훑는 덩이 셋이 비어 있지 않�
   /* ★뜯어낼 덩이가 «실제로» 뜯긴다 — 아래 검사들이 쓰는 자르개의 전제. */
   assert.ok(bodyOf(sec, 'function _showPadXHint', 'T0').length > 50, '_showPadXHint 몸통이 비었다');
   assert.ok(arrowBodyOf(sec, 'const applyPadX =', 'T0').length > 50, 'applyPadX 몸통이 비었다');
+  /* ★2026-10-07 — 아래 패딩 띠(현빈 ①)의 덩이도 «실제로» 뜯기나. */
+  assert.ok(bodyOf(sec, 'function _showPadBHint', 'T0').length > 50, '_showPadBHint 몸통이 비었다');
+  assert.ok(bodyOf(sec, 'function _schedulePadHintClear', 'T0').length > 50, '_schedulePadHintClear 몸통이 비었다');
+  assert.ok(arrowBodyOf(sec, 'const applyPadB =', 'T0').length > 50, 'applyPadB 몸통이 비었다');
   assert.ok(bodyOf(exp, 'async function exportSection(', 'T0').length > 50, 'exportSection 몸통이 비었다');
 });
 
@@ -138,10 +142,13 @@ test('T1 ★띠는 ::before 로 그리고 색은 핑크 10% 다', () => {
 
   const rule = ruleOf(css, 'body.gdt-pad-on .section-inner::before', 'T1');
 
-  assert.match(rule, /border-left:\s*var\(--gdt-pad-l,\s*0px\)\s*solid\s*rgba\(255,\s*0,\s*128,\s*\.10\)/,
-    '★왼쪽 띠가 「--gdt-pad-l 두께 · 핑크 10%」가 아니다');
-  assert.match(rule, /border-right:\s*var\(--gdt-pad-r,\s*0px\)\s*solid\s*rgba\(255,\s*0,\s*128,\s*\.10\)/,
-    '★오른쪽 띠가 「--gdt-pad-r 두께 · 핑크 10%」가 아니다');
+  /* ★2026-10-07 현빈 ② — 색을 «변수로 열었다»(컬러피커). ⛔폴백은 ★여전히 핑크 10% 다:
+       폴백을 바꾸면 D1(:129 색 문자열)·D11(:542 PINK_ON_BLUE 픽셀)이 빨강이다.
+       ⇒ 이 단언은 ⑴변수를 쓰나 ⑵기본값이 그대로인가 ★둘을 같이 잠근다. */
+  assert.match(rule, /border-left:\s*var\(--gdt-pad-l,\s*0px\)\s*solid\s*var\(--gdt-padhint-color,\s*rgba\(255,\s*0,\s*128,\s*\.10\)\)/,
+    '★왼쪽 띠가 「--gdt-pad-l 두께 · var(--gdt-padhint-color, 핑크 10%)」가 아니다');
+  assert.match(rule, /border-right:\s*var\(--gdt-pad-r,\s*0px\)\s*solid\s*var\(--gdt-padhint-color,\s*rgba\(255,\s*0,\s*128,\s*\.10\)\)/,
+    '★오른쪽 띠가 「--gdt-pad-r 두께 · var(--gdt-padhint-color, 핑크 10%)」가 아니다');
 
   /* 테두리 «두께»가 곧 패딩 폭이 되려면 box-sizing:border-box + inset:0 이어야 한다. */
   assert.match(rule, /box-sizing:\s*border-box/, 'box-sizing:border-box 가 없으면 두께가 패딩 폭과 어긋난다');
@@ -220,36 +227,85 @@ test('T3 ★내보내기 직전 gdt-pad-on 도 끄고 finally 로 되돌린다',
 
 /* ─────────────────────────────────────────────────────────────
    T4 ★변수는 «문서에 남지 않는다» — 400ms 뒤 회수한다
-   ⇐ 되돌리면 빨강: removeProperty 두 줄을 빼면 터진다.
-      왜 중요한가: 저장은 getSerializedCanvas(= clone.innerHTML)라 인라인 변수가
-      «프로젝트 파일»에 그대로 실린다. 옆집 그리드 가이드가 DOM 을 안 건드리는 이유.
+   ⇐ 되돌리면 빨강: 거두기(_schedulePadHintClear)의 어느 한 줄을 빼도, 또는
+      ★두 소비자(좌우·아래) 중 하나가 그 문을 안 부르면 터진다.
+   왜 중요한가: 저장은 getSerializedCanvas(= clone.innerHTML)라 인라인 변수가
+   «프로젝트 파일»에 그대로 실린다. 옆집 그리드 가이드가 DOM 을 안 건드리는 이유.
+   ★2026-10-07 구조 변경 — 거두기를 «한 벌»로 모았다(아래 패딩 띠가 생기며 두 벌이 될 자리였다).
+     ⛔그래서 이 검사는 「_showPadXHint 몸통에 removeProperty 가 있나」로 ★재지 않는다 —
+       그 꼴을 요구하면 ★중복이 싼 길이 되어 명부가 둘로 갈린다.
+     ★대신 ⑴공용 본문이 온전한가 ⑵★소비자가 둘 다 그 문을 지나나 를 ★같이 잰다.
    ───────────────────────────────────────────────────────────── */
-test('T4 ★400ms 뒤 클래스와 «변수까지» 거둔다 (프로젝트 파일 오염 방지)', () => {
+test('T4 ★400ms 뒤 클래스와 «변수까지» 거둔다 — 공용 한 벌 ＋ 소비자 둘', () => {
   const sec = codeOnly(SEC);
-  const body = bodyOf(sec, 'function _showPadXHint', 'T4');
+  const clear = bodyOf(sec, 'function _schedulePadHintClear', 'T4');
 
-  assert.match(body, /clearTimeout\(_padHintTimer\)/, '이전 타이머를 안 지우면 디바운스가 아니다');
-  assert.match(body, /setTimeout\([\s\S]*?,\s*400\)/, '★400ms 디바운스가 없다 — 띠가 안 사라지거나 시간이 다르다');
-  assert.match(body, /document\.body\.classList\.remove\('gdt-pad-on'\)/, '★클래스를 안 거둔다 — 띠가 영영 남는다');
-  assert.match(body, /removeProperty\('--gdt-pad-l'\)/, '★--gdt-pad-l 을 안 거둔다 — 인라인 변수가 프로젝트 파일에 실린다');
-  assert.match(body, /removeProperty\('--gdt-pad-r'\)/, '★--gdt-pad-r 을 안 거둔다 — 인라인 변수가 프로젝트 파일에 실린다');
+  assert.match(clear, /clearTimeout\(_padHintTimer\)/, '이전 타이머를 안 지우면 디바운스가 아니다');
+  assert.match(clear, /setTimeout\([\s\S]*?,\s*400\)/, '★400ms 디바운스가 없다 — 띠가 안 사라지거나 시간이 다르다');
+  assert.match(clear, /document\.body\.classList\.remove\('gdt-pad-on'\)/, '★클래스를 안 거둔다 — 띠가 영영 남는다');
+  assert.match(clear, /sweepPadHintVars\(\)/,
+    '★변수를 안 거둔다 — 인라인 변수가 프로젝트 파일에 실린다');
+
+  /* ★「합쳤다」로 끝내지 않는다 — ★합친 것을 쓰는 자가 ★둘 다인지 센다.
+     ⇒ 공용 본문을 무력화하면 ★두 기능이 같이 죽는다(그게 한 벌이라는 뜻이다). */
+  for (const [fn, label] of [['_showPadXHint', '좌우'], ['_showPadBHint', '아래']]) {
+    const body = bodyOf(sec, 'function ' + fn, 'T4');
+    assert.match(body, /_schedulePadHintClear\(\)/,
+      `★${label} 띠(${fn})가 공용 거두기를 안 부른다 — 그 띠의 변수가 영영 남는다`);
+  }
+  /* ★타이머는 «한 벌»이다 — 둘이 각자 타이머를 가지면 앞 타이머가 둘 다의 클래스를 먼저 끈다. */
+  const timers = (sec.match(/_padHintTimer\s*=\s*setTimeout/g) || []).length;
+  assert.strictEqual(timers, 1,
+    `★타이머를 거는 자리가 ${timers}곳 — 1 이어야 한다(2 면 앞 타이머가 뒤 띠를 꺼 버린다)`);
 });
 
 /* ─────────────────────────────────────────────────────────────
-   T5 ★범위를 안 넘었다 — «섹션 패널의 좌우 패딩» 하나만 건드렸다
-   ⇐ 되돌리면 빨강: 아래 패딩(applyPadB)이나 row/모달 패딩에 힌트를 얹으면 터진다.
+   T5 ★범위를 안 넘었다 — «섹션 패널의 좌우 ＋ 아래 패딩» 둘이다
+   ★★T5 는 «뒤집혔다»(2026-10-07). 옛 단언은 「아래 여백(applyPadB)에 힌트가 붙으면 빨강」이었고,
+     그 까닭은 «그때의 범위»(2026-09-08 = 좌우 하나)였다. 현빈이 그걸 콕 집어 무르셨다:
+       「아래 패딩 조절시 안보이는 문제가 있음 / 이걸 조절해도 패딩이 어떻게 줄어드는지 안보임」
+     ⇒ 막아둔 ★까닭이 죽었고 ★문만 남아, 검사가 ★현빈이 시킨 것을 도로 막고 있었다.
+   ⛔그래서 지우는 게 아니라 «★방향을 뒤집어» 그대로 세운다 — 같은 파일 T6 이 세운 선례다.
+     「범위를 안 넘었다」는 ★규칙 자체는 살아 있다: row·모달·프레임 패딩에 섹션용 힌트가
+     새로 얹히면 ★여전히 빨강이다. 조건이 하나 ★늘었지 줄지 않았다.
+   ⇐ 되돌리면 빨강: applyPadB 의 _showPadBHint 호출을 빼면(= 현빈 ① 이전으로 돌리면) 터진다.
    ───────────────────────────────────────────────────────────── */
-test('T5 ★힌트는 «좌우 패딩» 한 곳에서만 불린다', () => {
+test('T5 ★힌트는 «좌우»와 «아래» 두 곳에서 불린다 (그 밖으로는 안 번진다)', () => {
   const sec = codeOnly(SEC);
-  const calls = (sec.match(/_showPadXHint\(/g) || []).length;
-  /* ★하한도 박는다 — 「아무 데서도 안 부른다」가 통과하면 안 된다.
-     선언(1) + applyPadX 호출(1) = 2. */
-  assert.strictEqual(calls, 2,
-    `_showPadXHint 가 ${calls}곳에 나온다 — 선언1+호출1 인 2 여야 한다(0이면 배선이 없고, 3 이상이면 범위를 넘었다)`);
 
-  const padB = arrowBodyOf(sec, 'const applyPadB =', 'T5');
-  assert.doesNotMatch(padB, /gdt-pad-on|_showPadXHint/,
-    '★아래 여백(applyPadB)에까지 힌트가 붙었다 — 이번 범위는 «좌우 패딩» 하나다');
+  /* ★하한도 박는다 — 「아무 데서도 안 부른다」가 통과하면 안 된다. 각 선언(1)+호출(1)=2. */
+  for (const [fn, wire, label] of [
+    ['_showPadXHint', 'const applyPadX =', '좌우'],
+    ['_showPadBHint', 'const applyPadB =', '아래'],
+  ]) {
+    const calls = (sec.match(new RegExp(fn + '\\(', 'g')) || []).length;
+    assert.strictEqual(calls, 2,
+      `${fn} 가 ${calls}곳에 나온다 — 선언1+호출1 인 2 여야 한다(0이면 배선 없음, 3+면 범위를 넘었다)`);
+    const body = arrowBodyOf(sec, wire, 'T5');
+    assert.match(body, new RegExp(fn + '\\('),
+      `★${label} 패딩 핸들러(${wire})가 ${fn} 를 안 부른다 — 슬라이더를 움직여도 띠가 안 뜬다`);
+  }
+
+  /* ★아래 띠는 «섹션 상자»에 박힌다 — inner 에 박으면 그릴 자리가 없다(padding-bottom 은 섹션 것). */
+  const bBody = bodyOf(sec, 'function _showPadBHint', 'T5');
+  const sig = sec.match(/function\s+_showPadBHint\s*\(\s*([A-Za-z_$][\w$]*)\s*,/);
+  assert.ok(sig, '★_showPadBHint 의 매개변수를 못 읽었다');
+  const m = bBody.match(/([\w$.]+)\.style\.setProperty\('--gdt-pad-b'/);
+  assert.ok(m, '★--gdt-pad-b 를 setProperty 하는 곳이 없다');
+  assert.strictEqual(m[1], sig[1],
+    `★--gdt-pad-b 를 «${m[1]}» 에 박고 있다 — 그 섹션(${sig[1]})이 아니면 띠가 엉뚱한 상자에 선다`);
+
+  /* ★게이트를 좌우와 «같은 문»으로 본다 — 「패딩 비주얼 끔」인데 아래만 뜨면 결함이다. */
+  assert.match(bBody, /if\s*\(\s*window\.readPadHintOn\s*&&\s*window\.readPadHintOn\(\)\s*===\s*false\s*\)\s*return;/,
+    '★아래 띠에 on/off 게이트가 없다 — 꺼도 아래 띠만 뜬다');
+
+  /* ⛔범위 밖으로 번지지 않았다 — row/모달 패딩 핸들러엔 섹션 힌트가 없다. */
+  for (const needle of ['const applyPadX =', 'const applyPadB =']) {
+    assert.ok(sec.includes(needle), `★${needle} 가 사라졌다 — 이 검사의 전제가 무너졌다`);
+  }
+  const hintCalls = (sec.match(/_showPad[XB]Hint\(/g) || []).length;
+  assert.strictEqual(hintCalls, 4,
+    `★섹션 힌트 호출/선언이 모두 ${hintCalls}곳 — 좌우2+아래2 인 4 여야 한다(더 많으면 범위를 넘었다)`);
 });
 
 /* ═══════════════════════════════════════════════════════════════
@@ -358,4 +414,130 @@ test('T10 ★세척(serializeCleanRoot)도 --gdt-pad 를 걷는다 — 거두기
   /* ⛔라이브 DOM 이 아니라 «클론(root)» 에만 써야 한다 — 이 함수의 계약이다. */
   assert.match(body, /root\.querySelectorAll\('\.section-inner'\)[\s\S]{0,200}removeProperty\('--gdt-pad-l'\)/,
     '★root(클론)가 아닌 곳에서 걷고 있다 — 라이브 DOM 을 건드리면 안 된다');
+});
+
+
+/* ═══════════════════════════════════════════════════════════════
+   아래 패딩 띠 ＋ 색 피커 (2026-10-07 현빈 ①②)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ⇐ 되돌리면 빨강: 셀렉터를 .section-inner 로 되돌리거나, ::after 로 바꾸거나,
+     border-bottom 을 지우거나, box-sizing/inset/pointer-events/z-index 중 하나를 빼면 터진다. */
+test('T11 ★아래 띠는 «.section-block 의 ::before» 로 그린다 (좌우와 상자가 다르다)', () => {
+  const css = codeOnly(CSS);
+
+  /* ⛔::after 를 «먼저» 본다 — ::after 로 바꾼 변이가 「셀렉터가 없다」라는
+       자르개 쪽 이유로 터져 진짜 원인(hover fill·선택 아웃라인과 충돌)을 못 대는 것을 막는다. */
+  assert.doesNotMatch(css, /body\.gdt-pad-on\s+\.section-block[^{]*::after/,
+    '★아래 띠가 ::after 를 쓴다 — hover fill 과 선택 아웃라인(z-index 90)이 이미 그 의사요소를 쓴다');
+
+  const rule = ruleOf(css, 'body.gdt-pad-on .section-block[style*="--gdt-pad-b"]::before', 'T11');
+
+  assert.match(rule, /border-bottom:\s*var\(--gdt-pad-b,\s*0px\)\s*solid\s*var\(--gdt-padhint-color,\s*rgba\(255,\s*0,\s*128,\s*\.10\)\)/,
+    '★아래 띠가 「--gdt-pad-b 두께 · var(--gdt-padhint-color, 핑크 10%)」가 아니다');
+  /* 테두리 «두께»가 곧 padding-bottom 이 되려면 border-box + inset:0 이어야 한다(계산이 없다). */
+  assert.match(rule, /box-sizing:\s*border-box/, 'box-sizing:border-box 가 없으면 두께가 패딩과 어긋난다');
+  assert.match(rule, /inset:\s*0/, 'inset:0 이 없으면 띠가 섹션 상자에 맞지 않는다');
+  assert.match(rule, /pointer-events:\s*none/, 'pointer-events:none 이 없으면 띠가 클릭을 먹는다');
+  assert.match(rule, /z-index:\s*1\b/, '★z-index 가 없다 — 섹션 안 블록이 띠를 덮어 폭이 «틀리게» 보인다');
+
+  /* ★절대배치의 전제 — .section-block 에 position 이 «평소에도» 있어야 한다.
+     ⚠️좌우 쪽은 켜는 «동안»만 relative 로 바꾼다(.section-inner 는 평소 position 이 없다).
+       여기는 그 보정이 없으므로, 그 전제가 사라지면 띠가 «더 바깥»을 기준으로 잡힌다. */
+  assert.match(css, /^\.section-block\s*\{[^}]*position:\s*relative/m,
+    '★.section-block 에 position:relative 가 없다 — inset:0 이 섹션이 아닌 더 바깥을 기준으로 잡힌다');
+
+  /* ⛔좌우 규칙에 border-bottom 을 끼워 넣는 «형제 구현»이 생기지 않았나 —
+       좌우 띠는 inner 에 서므로 거기에 아래 띠를 그리면 padding-bottom 영역을 못 덮는다. */
+  const leftRule = ruleOf(css, 'body.gdt-pad-on .section-inner::before', 'T11');
+  assert.doesNotMatch(leftRule, /border-bottom/,
+    '★좌우(inner) 규칙에 border-bottom 이 들어갔다 — inner 에는 padding-bottom 이 없어 엉뚱한 자리를 칠한다');
+});
+
+/* ⇐ 되돌리면 빨강: 두 소스의 접두사 문자열이 갈리면 터진다.
+     ★그리고 색 변수를 `--gdt-pad-color` 로 되돌리면(= 접두사에 걸리게 하면) 터진다. */
+test('T12 ★쓸기 접두사는 «두 소스에서 같다» · 사용자 색은 그 접두사에 ⛔안 걸린다', () => {
+  const page = codeOnly(PAGE);
+  const ser  = codeOnly(SER);
+
+  const a = page.match(/PAD_HINT_VAR_PREFIX\s*=\s*'([^']+)'/);
+  const b = ser.match(/PAD_HINT_VAR_PREFIX\s*=\s*'([^']+)'/);
+  /* ★입력이 살아 있다 — 둘 다 찾았나. 한쪽이라도 없으면 비교가 무의미하다. */
+  assert.ok(a, '★prop-page.js 에서 PAD_HINT_VAR_PREFIX 를 못 찾았다 — 쓸기가 사라졌나');
+  assert.ok(b, '★section-serialize.js 에서 PAD_HINT_VAR_PREFIX 를 못 찾았다 — 저장 안전망이 사라졌나');
+  assert.strictEqual(a[1], b[1],
+    `★두 소스의 접두사가 갈렸다(page='${a[1]}' serialize='${b[1]}') — 한쪽이 못 걷는 변수가 생긴다. ` +
+    'section-serialize.js 는 플레인 스크립트라 import 를 못 해서 이 검사가 그 자리의 자다');
+
+  /* ★쓸는 변수들이 «정말» 그 접두사로 시작하나 — 접두사가 맞아도 변수 이름이 어긋나면 안 걷힌다. */
+  for (const v of ['--gdt-pad-l', '--gdt-pad-r', '--gdt-pad-b']) {
+    assert.ok(v.startsWith(a[1]), `★${v} 가 접두사 '${a[1]}' 로 시작하지 않는다 — 쓸기가 이 변수를 못 걷는다`);
+  }
+
+  /* ★★경계 — 사용자가 고른 «색»이 접두사에 걸리면 쓸기가 그 설정을 조용히 지운다.
+       `--gdt-pad-color` 와 `--gdt-padhint-color` 는 ★한 글자 차이다. 그래서 이 줄이 있다. */
+  const css = codeOnly(CSS);
+  const colorVars = [...new Set([...css.matchAll(/var\((--gdt-[A-Za-z-]*color)\s*,/g)].map(m => m[1]))];
+  assert.ok(colorVars.includes('--gdt-padhint-color'),
+    `★CSS 에서 패딩 띠 색 변수를 못 찾았다(찾은 것: ${JSON.stringify(colorVars)})`);
+  for (const v of colorVars) {
+    assert.ok(!v.startsWith(a[1]),
+      `★색 변수 ${v} 가 쓸기 접두사 '${a[1]}' 에 걸린다 — 띠를 거둘 때 사용자가 고른 색까지 지워진다`);
+  }
+});
+
+/* ⇐ 되돌리면 빨강: 두 피커 중 하나를 Grid 절 밖으로 옮기거나, 키를 합치거나,
+     칠하는 식을 두 벌로 만들면 터진다. */
+test('T13 ★색 피커 둘이 Grid 절 «안»에 각자 자기 로우에 있다 · 키 넷이 모두 다르다', () => {
+  const src = codeOnly(PAGE);
+
+  /* ★입력이 살아 있다 — Grid 절을 실제로 떴나(T6 과 같은 자르개). */
+  const gi = src.indexOf('<div class="prop-section-title">Grid</div>');
+  assert.ok(gi > 0, 'Grid 절 제목을 못 찾았다 — 페이지 패널 구조가 바뀌었나');
+  const nx = src.indexOf('<div class="prop-section-title">', gi + 10);
+  const grid = src.slice(gi, nx > 0 ? nx : src.length);
+  assert.ok(grid.length > 200 && grid.length < 6000, `Grid 절을 ${grid.length}자로 떴다`);
+  assert.match(grid, /id="page-grid-on"/, 'Grid 절 안에 그리드 라디오가 없다 — 엉뚱한 덩이를 떴다');
+
+  assert.match(grid, /type="color"[^>]*id="page-grid-color"/,
+    '★그리드 가이드 색 피커가 Grid 절 안에 없다 (현빈 ②「그리드 가이드 켬 라디오 같은 로우에」)');
+  assert.match(grid, /type="color"[^>]*id="page-pad-hint-color"/,
+    '★패딩 비주얼 색 피커가 Grid 절 안에 없다 (현빈 ②「패딩비쥬얼 로우에도」)');
+
+  /* ★각 피커가 «자기 로우» 안에 있나 — 한 로우에 둘이 몰리면 폭이 넘친다(211px 실측). */
+  for (const [pickId, radioId] of [['page-grid-color', 'page-grid-on'], ['page-pad-hint-color', 'page-pad-hint-on']]) {
+    const pi = grid.indexOf('id="' + pickId + '"');
+    const ri = grid.indexOf('id="' + radioId + '"');
+    assert.ok(pi > ri && pi > 0 && ri > 0, `★${pickId} 가 ${radioId} 보다 앞에 있다 — 로우 짝이 어긋났다`);
+    /* 그 사이에 «다음 로우의 시작»이 끼면 다른 로우에 붙은 것이다. */
+    const between = grid.slice(ri, pi);
+    assert.ok(!between.includes('<div class="prop-row">'),
+      `★${pickId} 가 ${radioId} 의 로우가 아니라 «다음 로우»에 붙었다`);
+  }
+
+  /* ★키 넷이 모두 다르다 — 한 키에 섞으면 토글 한 번이 색을 지운다(그 까닭이 코드 주석에 있다). */
+  const keys = {};
+  for (const name of ['PAD_HINT_KEY', 'GRID_KEY', 'PAD_HINT_COLOR_KEY', 'GRID_COLOR_KEY']) {
+    const m = src.match(new RegExp('const ' + name + "\\s*=\\s*'([^']+)'"));
+    assert.ok(m, `★${name} 를 못 찾았다`);
+    keys[name] = m[1];
+  }
+  const vals = Object.values(keys);
+  assert.strictEqual(new Set(vals).size, 4,
+    `★저장 키가 겹친다: ${JSON.stringify(keys)} — 한쪽 저장이 다른 쪽을 지운다`);
+
+  /* ★칠하는 식은 «한 곳»에서만 온다 — 패널 열 때와 피커 만질 때가 갈리면 색이 두 벌이 된다. */
+  for (const fn of ['applyPadHintColor', 'applyGridColor']) {
+    const defs = (src.match(new RegExp('function ' + fn + '\\(', 'g')) || []).length;
+    assert.strictEqual(defs, 1, `★${fn} 의 정의가 ${defs}곳 — 1 이어야 한다`);
+  }
+  /* ★알파는 한 자리에서만 — 좌우/아래/그리드가 같은 투명도를 써야 「아래가 보이는 채로」가 선다. */
+  const alphas = (src.match(/const HINT_ALPHA\s*=/g) || []).length;
+  assert.strictEqual(alphas, 1, `★HINT_ALPHA 가 ${alphas}곳 — 1 이어야 한다`);
+
+  /* ★모듈을 싣는 순간 칠한다 — 페이지 패널을 «한 번도 안 열어도» 섹션 슬라이더가 띠를 띄운다. */
+  assert.match(src, /^applyPadHintColor\(readPadHintColor\(\)\);$/m,
+    '★모듈 최상위에서 패딩 띠 색을 안 칠한다 — 패널을 안 열면 색이 폴백으로만 뜬다');
+  assert.match(src, /^applyGridColor\(readGridColor\(\)\);$/m,
+    '★모듈 최상위에서 그리드 색을 안 칠한다');
 });

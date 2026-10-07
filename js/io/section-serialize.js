@@ -262,6 +262,24 @@
       fb.style.removeProperty('--gdt-pad-l');
       fb.style.removeProperty('--gdt-pad-r');
     });
+    /* ★안전망 — 위 두 덩이는 «이름·요소 명부»다. 띠 변수가 늘 때(2026-10-07 `--gdt-pad-b`)
+         한쪽만 고쳐지면 ★저장본에 영구히 실린다 — 이 함수가 그 ★유일한 영구 경로다.
+       ⇒ 이름을 세지 않고 ★접두사로 한 번 더 쓸어 «빠뜨림»을 구조로 막는다.
+         (바로 아래 파생변수 세척이 쓰는 그 꼴 — 「블럭 종류도 묻지 않는다」.)
+       ★접두사 문자열이 prop-page.js PAD_HINT_VAR_PREFIX 와 ★갈리면 빨강이다 —
+         이 파일은 플레인 스크립트라 import 를 못 해서, 「두 글자가 같은가」를
+         tests/unit/pad-hint.test.js 가 ★두 소스에서 뽑아 견준다.
+       ⚠️사용자가 고른 색(--gdt-padhint-color)은 ★이 접두사에 안 걸린다(한 글자 차이) —
+         걸리면 보기 설정이 조용히 지워진다. 그 경계도 같은 검사가 잰다.
+       ⛔라이브 DOM 이 아니라 «클론(root)» 에만 쓴다 — 이 함수의 계약이다. */
+    const PAD_HINT_VAR_PREFIX = '--gdt-pad-';
+    root.querySelectorAll('[style*="' + PAD_HINT_VAR_PREFIX + '"]').forEach(el => {
+      const st = el.style;
+      for (let i = st.length - 1; i >= 0; i--) {          // ★뒤에서 앞으로 — 지우면 인덱스가 당겨진다
+        const name = st[i];
+        if (name.startsWith(PAD_HINT_VAR_PREFIX)) st.removeProperty(name);
+      }
+    });
     /* ★파생 변수(관찰자가 «바탕»에서 다시 계산하는 자동 색) — 저장에 굳히지 않는다(열면 관찰자가 다시 쓴다).
        E144(표 G6 --tbl-header-fg · 지금까지 저장에 실렸다 — 실측 2026-10-05) + H6(그래프 --grb-auto-*). 한 목록 · 한 고리.
        ⛔라이브 DOM 이 아니라 «클론»에만 쓴다 — 이 함수의 계약이 그렇다. */
