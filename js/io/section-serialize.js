@@ -271,6 +271,13 @@
          tests/unit/pad-hint.test.js 가 ★두 소스에서 뽑아 견준다.
        ⚠️사용자가 고른 색(--gdt-padhint-color)은 ★이 접두사에 안 걸린다(한 글자 차이) —
          걸리면 보기 설정이 조용히 지워진다. 그 경계도 같은 검사가 잰다.
+       ★★이 쓸기는 ★«저장»만 덮는다 — ★라이브 DOM 세척 두 자리는 ★여전히 필요하다:
+           js/props/prop-section.js `_schedulePadHintClear`(400ms 뒤 거두기)
+           js/props/prop-page.js    패딩 비주얼 «끔» 라디오(즉시 거두기)
+         ⇒ ⛔이쪽이 초록이라고 ★그 둘을 지우지 마라 — ★에디터 화면에 ★띠가 그대로 남는다.
+         ★여긴 「경고를 달 자리 = 구조를 합칠 자리」의 ★반례다: 합칠 수 없는 ★두 층이다
+           (★저장 = 클론 · ★화면 = 라이브). ★그래서 쓸기가 두 벌이고, 그 ★두 벌이 갈리지 않게
+           접두사 문자열을 tests/unit/pad-hint.test.js T12 가 ★두 소스에서 뽑아 견준다.
        ⛔라이브 DOM 이 아니라 «클론(root)» 에만 쓴다 — 이 함수의 계약이다. */
     const PAD_HINT_VAR_PREFIX = '--gdt-pad-';
     root.querySelectorAll('[style*="' + PAD_HINT_VAR_PREFIX + '"]').forEach(el => {

@@ -541,3 +541,69 @@ test('T13 ★색 피커 둘이 Grid 절 «안»에 각자 자기 로우에 있�
   assert.match(src, /^applyGridColor\(readGridColor\(\)\);$/m,
     '★모듈 최상위에서 그리드 색을 안 칠한다');
 });
+
+
+/* ⇐ 되돌리면 빨강: 라이브 거두기 두 자리 중 하나가 공용 쓸기를 안 부르거나,
+     section-serialize.js 가 자기 쓸기를 잃으면 터진다.
+   ★왜 «두 층»인가 — 합칠 수 없다(지디 2026-10-07 판정):
+     ★저장 = 클론(root)에만 쓰는 계약 · ★화면 = 라이브 DOM.
+     ⇒ 저장 쪽이 초록이라고 라이브 두 자리를 지우면 ★에디터 화면에 띠가 남는다.
+     ⇒ 여긴 「경고를 달 자리 = 구조를 합칠 자리」의 ★반례다. 그래서 «수»를 박는다. */
+test('T14 ★거두기는 «두 층»이다 — 라이브 2곳 ＋ 저장 1벌, ⛔한쪽으로 합칠 수 없다', () => {
+  const page = codeOnly(PAGE);
+  const sec  = codeOnly(SEC);
+  const ser  = codeOnly(SER);
+
+  /* ★쓸기의 «정의»는 한 곳 — 두 벌이면 식이 갈린다. */
+  const defs = (page.match(/export function sweepPadHintVars\s*\(/g) || []).length;
+  assert.strictEqual(defs, 1, `★sweepPadHintVars 정의가 ${defs}곳 — 1 이어야 한다`);
+
+  /* ★라이브 소비자 = ★2. N 의 출처:
+       ⑴ js/props/prop-section.js `_schedulePadHintClear` — 400ms 뒤 거두기
+       ⑵ js/props/prop-page.js    패딩 비주얼 «끔» 라디오 — 즉시 거두기
+     ⛔하한만 두지 않는다 — 「아무 데서도 안 부른다」도, 「엉뚱한 데 번졌다」도 빨강이어야 한다. */
+  const secCalls  = (sec.match(/sweepPadHintVars\(\)/g) || []).length;
+  const pageCalls = (page.match(/sweepPadHintVars\(\)/g) || []).length;
+  assert.strictEqual(secCalls, 1,
+    `★prop-section.js 의 공용 쓸기 호출이 ${secCalls}곳 — 1(거두기) 이어야 한다`);
+  assert.strictEqual(pageCalls, 1,
+    `★prop-page.js 의 공용 쓸기 호출이 ${pageCalls}곳 — 1(끔 라디오) 이어야 한다`);
+
+  /* ★저장 층은 «자기 벌»을 갖는다 — 이 파일은 플레인 스크립트라 import 를 못 한다.
+     ⇒ 공용 함수 이름을 부르면 그건 «런타임에 없을 수도 있는» 전역 의존이다. */
+  assert.strictEqual((ser.match(/sweepPadHintVars/g) || []).length, 0,
+    '★section-serialize.js 가 공용 쓸기 이름을 부른다 — 플레인 스크립트라 그 이름이 없을 수 있다(조용히 안 걷힌다)');
+  assert.strictEqual((ser.match(/PAD_HINT_VAR_PREFIX\s*=/g) || []).length, 1,
+    '★section-serialize.js 가 자기 접두사 선언을 잃었다 — 저장 안전망이 사라졌다');
+
+  /* ★거두기가 «클래스»도 같이 끄나 — 변수만 걷고 클래스를 남기면 다음 섹션에 띠가 번진다. */
+  assert.match(bodyOf(sec, 'function _schedulePadHintClear', 'T14'),
+    /document\.body\.classList\.remove\('gdt-pad-on'\)/,
+    '★라이브 거두기가 클래스를 안 끈다');
+});
+
+/* ⇐ 되돌리면 빨강: 주석 거르개(_strip-comments.js)가 죽으면 터진다.
+   ★왜 — T5·T14 가 `_showPad[XB]Hint(` · `sweepPadHintVars()` 를 ★정규식으로 «센다».
+     ⇒ 누군가 ★주석에 그 이름을 괄호째 적으면 ★제품 0줄인데 수가 늘어 빨강이 난다
+       (2026-10-07 circletext 레인이 실제로 그 사고를 냈다 — 주석이 소스 파싱 게이트의 입력이다).
+   ⇒ 「주석엔 괄호 없이 적어라」는 ★규약이고, 규약은 ★재는 자가 있어야 집행된다. 이것이 그 자다. */
+test('T15 ★주석은 세어지지 않는다 — 소스 파싱 게이트의 입력에서 주석이 빠진다', () => {
+  /* ★양성대조 — 거르개에 «주석 둘 ＋ 진짜 하나»를 먹여 1 이 나오나. 3 이면 거르개가 죽었다. */
+  const probe = 'const a=1;\n/* _showPadXHint(기만) */\n// _showPadXHint(또기만)\nconst b=_showPadXHint(2);\n';
+  const n = (codeOnly(probe).match(/_showPadXHint\(/g) || []).length;
+  assert.strictEqual(n, 1,
+    `★거르개가 주석 속 이름을 ${n}건 남겼다 — T5·T14 의 수가 «주석»에 따라 흔들린다`);
+  /* ★음성대조 — 거르개가 «코드»까지 먹지는 않았나(0 이면 모든 수가 0 이 되어 전부 초록이 된다). */
+  assert.ok(codeOnly(probe).includes('const b='), '★거르개가 코드까지 먹었다');
+
+  /* ★그리고 지금 소스가 그 규약을 지키나 — 주석 줄에 그 꼴이 0건이어야 한다.
+     ⛔거르개가 막아 주더라도 적지 마라: 거르개가 바뀌면 그날 수가 흔들린다. */
+  const raw = readSrc(ROOT, 'js', 'props', 'prop-section.js');
+  const commentLines = raw.split('\n').filter(l => /^\s*(\/\/|\/\*|\*)/.test(l));
+  const bad = commentLines.filter(l => /_showPad[XB]Hint\(|sweepPadHintVars\(\)/.test(l));
+  assert.strictEqual(bad.length, 0,
+    `★주석 ${bad.length}줄에 세어지는 이름이 괄호째 적혀 있다: ${JSON.stringify(bad.slice(0, 2))}`);
+  /* ★이 검사가 «무언가를 보고 있나» — 주석 줄 자체가 0 이면 위 단언이 공회전이다. */
+  assert.ok(commentLines.length > 20,
+    `★prop-section.js 의 주석 줄이 ${commentLines.length}줄 — 자르개가 주석을 못 찾았다(위 단언이 공회전)`);
+});
