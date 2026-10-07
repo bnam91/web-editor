@@ -7,7 +7,7 @@ import { parseRatio, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHead
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE, GRID_FONT_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
-         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_MAX_BYTES, gridCellsToDataset,
+         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_EMPTY_RADIUS, GRID_BADGE_RADIUS, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES, gridBlockOutline, GRID_OUTLINE_SIDES,
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
@@ -1474,8 +1474,11 @@ function _grdImageSectionHtml(anyHit, block) {
             ⛔까닭 줄은 «막을 때만» 넣는다 — 다른 상태의 패널 바이트는 한 글자도 안 바뀐다. */
          hLocked ? '\n      <div class="prop-hint" id="grd-img-height-hint">자르기 전에는 높이를 정할 수 없습니다 — 그림 비율로 그려집니다</div>' : ''}
       <div class="prop-row"${circle ? ' style="display:none"' : ''}>
-        <span class="prop-label">모서리 반경(px)</span>
-        <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="0" value="${rad}">
+        <span class="prop-label">모서리 반경(px)</span>${/* ★T4④-⒝ — placeholder 는 «렌더러가 실제로 쓰는 폴백»이다. ⛔「0」을 손으로 적지 마라:
+             빈 슬롯은 radius 가 비면 GRID_IMG_EMPTY_RADIUS(8)로 그려지는데 패널만 0 이라 말해서
+             현빈이 「설정 안 했는데 왜 모서리가 있지?」를 물었다. 수는 grid-block.js 한 자리에서 끌어온다.
+             (바로 위 높이 칸이 GRID_IMG_CIRCLE_D 로 같은 꼴을 이미 쓴다 — 새 관용구 0.) */ ''}
+        <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="${line.imgSrc ? 0 : GRID_IMG_EMPTY_RADIUS}" value="${rad}">
       </div>${circleRows}
     </div>`;
 }
@@ -3091,7 +3094,16 @@ ${_grdKindSelectHtml(line, H.kinds)}
             <input type="color" id="grd-badge-color" value="${hex}">
           </div>
           <input type="text" class="prop-color-hex" id="grd-badge-hex" maxlength="7" placeholder="없음" aria-label="알약 배경색" value="${raw ? hex.replace('#', '').toUpperCase() : ''}">
-        </div>` : ''}
+        </div>${raw ? `<div class="prop-row" title="알약의 모서리 둥글기. 0 이면 모난 네모, 큰 값이면 완전 둥근 알약입니다">
+          <span class="prop-label">알약 둥글기</span>
+          <input type="number" class="prop-number" id="grd-badge-radius" min="0" max="${GRID_BADGE_RADIUS}"
+                 placeholder="${GRID_BADGE_RADIUS}" aria-label="알약 모서리 둥글기"
+                 value="${Number.isFinite(Number(line.radius)) ? Number(line.radius) : ''}">
+        </div>` : ''}${/* ★배경이 ★있을 때만 보인다 — :2427 의 span 자체가 `if (bg)` 안이라
+             배경이 없으면 알약이 ★안 생기고, 그러면 이 칸은 ★«아무것도 안 하는 칸»이 된다.
+             ⛔「조용히 아무 일 없음」을 만들지 마라. 선례 = prop-section.js 의 `_bgEmpty` 가지
+             (체커 톤 라디오가 「켜져 있을 때만 보인다」로 같은 꼴). ★새 관용구 0.
+           ★placeholder 는 ★GRID_BADGE_RADIUS 한 자리에서 끌어온다 — ⛔999 를 손으로 적지 마라. */ ''}` : ''}
         <div class="prop-row" style="margin-bottom:0;justify-content:flex-end;">
           <button id="grd-line-reset" class="prop-btn-sm" ${isText ? '' : 'disabled'}
                   title="${isText ? '이 줄에 «손으로 준 값»을 전부 지우고 기본값으로 되돌립니다 (⌘Z 로 복원)' : '이미지·갭 줄엔 타이포 필드가 없습니다'}">↺ 기본</button>
@@ -3201,6 +3213,21 @@ function _grdWireLineSection(block, addr, host = null) {
     H.previewLine(r, c, li, cleared, addr.np);   // ★np — 중첩 안 줄도 같은 길로(T-220)
     window.scheduleAutoSave?.();
     H.show({ r, c, li });
+  });
+
+  /* ★알약 둥글기(현빈 2026-10-07) — 색 입력과 ★같은 길(H.previewLine = gridPreviewLine)을 쓴다.
+     ⛔updateGridBlock 을 쓰지 않는다: 패널을 통째로 다시 그려 포커스가 끊기고 히스토리가 폭주한다
+       (바로 아래 색 배선의 주석이 같은 까닭을 적어 뒀다 — 새 길을 만들지 않는다).
+     ★gridPreviewLine 은 `_gridMergeLine` 을 지난다 = updateGridBlock 과 ★같은 병합 함수
+       ⇒ 「패널로 고친 것」과 「API 로 고친 것」이 갈리지 않는다(grid-block.js 머리말 규율).
+     ★빈 칸 = «미설정»으로 되돌린다(undefined) ⇒ 렌더러가 다시 GRID_BADGE_RADIUS 를 쓴다. */
+  document.getElementById('grd-badge-radius')?.addEventListener('change', (e) => {
+    const t = String(e.target.value).trim();
+    const v = t === '' ? undefined : Math.max(0, Math.min(GRID_BADGE_RADIUS, parseInt(t, 10) || 0));
+    window.pushHistory?.();
+    H.previewLine(r, c, li, { radius: v }, addr.np);
+    H.mark(addr);                    // 재렌더가 마커를 지웠다 — 다시 붙인다
+    window.scheduleAutoSave?.();
   });
 
   const pick = document.getElementById('grd-badge-color');
