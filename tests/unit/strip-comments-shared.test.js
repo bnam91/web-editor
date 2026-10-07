@@ -10,6 +10,8 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { makeStripper, stripComments, stripCommentsTA, templateBalanced } = require('./_strip-comments.js');
+/* 정본 = ./_srcread.js 의 toPosix — 그 규약을 재는 자 = win-portability ④-1·④-2 */
+const { toPosix } = require('./_srcread.js');
 
 const UNIT = __dirname;
 
@@ -201,7 +203,7 @@ test('S-10 ★templateBalanced 가 «열린 채 끝난 것»을 잡는다 — �
       if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
       const q = path.join(d, e.name);
       if (e.isDirectory()) walk(q);
-      else if (/\.js$/.test(e.name) && !templateBalanced(fs.readFileSync(q, 'utf8'))) bad.push(path.relative(js, q));
+      else if (/\.js$/.test(e.name) && !templateBalanced(fs.readFileSync(q, 'utf8'))) bad.push(toPosix(path.relative(js, q)));
     }
   };
   walk(js);
