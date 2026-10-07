@@ -1,15 +1,26 @@
 /* modal-font.dom.spec.js — ★T1 「모달 기본 폰트 = 프리텐다드」의 ★지키는 검사
  *
- * ★★이 파일의 네 칸은 ★「무엇을 기본값으로 쓸 것인가」와 ★무관하다.
+ * ★★이 파일의 ★앞 네 칸(T1-NEG1·NEG2·GATE·RULER)은 ★「무엇을 기본값으로 쓸 것인가」와 ★무관하다.
  *   발주(지디 2026-10-07)는 ⒝ 「디자인시스템의 `--preset-body-family` 를 읽어라」였는데
  *   ★그 토큰을 ★행위로 읽으니 ★부팅 기본이 `'Noto Sans KR', sans-serif` 였다(＝현빈 요구의 반대).
- *   ⇒ ★기전은 지디 판정을 기다린다. ★그 사이에도 ★이 넷은 ★어느 기전이 이겨도 ★같은 검사다.
+ *   ⇒ ★기전은 ⒞ 로 갔다(`fontChain('Pretendard')`). ★그 넷은 ★어느 기전이 이겨도 ★같은 검사다.
  *
- * ★네 칸이 ★각각 ★무엇을 막나
+ * ★★여덟 칸이 ★각각 ★무엇을 막나 (2026-10-07 ⒞ 에서 ★넷 → ★여덟)
  *   T1-NEG1 ★사용자가 고른 폰트를 ★새 기본값이 ★덮지 않는다  ← ★지디 「이게 이 건의 진짜 위험이다」
  *   T1-NEG2 ★dataset 이 ★없는 «옛» 모달은 ★선언이 ★안 나간다(⇒ 상속) — `MODAL_DEFAULTS.fontFamily === ''` 를 ★행위로 잠근다
  *   T1-GATE ★우리가 박으려는 값이 ★검문 자(`_MDL_FONT_RE`)를 ★통과한다 — ⛔거절되면 ★선언이 ★조용히 빠진다
- *   T1-RULER ★폰트 이름이 «진짜 먹나»는 ★폭으로만 안다 — ⛔이름이 틀리면 ★에러 없이 ★폴백한다
+ *   T1-RULER ★«자»다 — ⛔게이트가 ★아니다(아래 ★★「자/게이트」 참조)
+ *   T1-NEW         ★새 모달의 ★인라인 값 = 텍스트블럭과 같다
+ *   T1-NEW-PANEL   ★사람이 보는 ★패널 라벨도 같다
+ *   T1-NEW-SYMPTOM ★그 라벨이 ★「기본 (시스템)」이 ★아니다(⛔「둘이 같다」만으로는 ★둘이 같이 증상인 판도 초록)
+ *   T1-OLD  ★음성대조 — `renderModalBlock` 으로 되살아난 ★옛 모달은 ★한 글자도 안 움직인다
+ *
+ * ★★「자」와 「게이트」를 갈라 적는다 (2026-10-07 · 지디 조건⑵ · ⛔다음 사람이 섞어 읽지 않게)
+ *   ★T1-RULER 는 ★**게이트가 아니라 «자»다** — ★실측: 제품에서 글꼴 박는 줄을 ★떼어내도(MUT-A·MUT-B)
+ *     ★이 칸은 ★**초록이었다**. 캔버스가 Pretendard 를 ★상속하고 있어 ★폭이 안 움직인다.
+ *   ⇒ ★이 칸이 ★잠그는 것은 ★하나뿐이다: ★**「우리가 쓰는 이름이 ★폴백으로 ★죽지 않았나」**
+ *     (근거 = ★`'Noto Sans KR'` 가 ★이 기계에 ★없어 ★778.91 로 ★sans 와 ★같다는 ★아래 실측).
+ *   ⛔「폭이 지킨다」로 ★이 건을 ★닫지 마라 — 기전을 ★재는 자는 ★T1-NEW·T1-NEW-PANEL 이다.
  *
  * ★★T1-RULER 를 둔 까닭(실측 2026-10-07, 100px 같은 글자 폭):
  *     'Pretendard' ★828.33 / 'NoSuchFontXyz123' 778.91 / ★'Noto Sans KR' ★778.91 / sans-serif 778.91
@@ -134,7 +145,7 @@ test('T1-GATE ★박으려는 값이 검문 자를 통과한다 — 거절되면
   expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
 });
 
-test('T1-RULER ★폰트 이름이 «진짜 먹나»는 폭으로만 안다 (＋이 자가 항등식이 아님을 같이 보인다)', async ({ page }) => {
+test('T1-RULER ★(자 · ⛔게이트 아님) 폰트 이름이 «진짜 먹나»는 폭으로만 안다 (＋이 자가 항등식이 아님을 같이 보인다)', async ({ page }) => {
   const errs = await setup(page, {});
   const w = await page.evaluate(async ({ probeSrc }) => {
     const probe = eval(probeSrc);
@@ -178,12 +189,9 @@ const PANEL_FONT = `() => {
   return el ? { id: el.id, label: el.textContent.trim() } : null;
 }`;
 
-test('T1-NEW ★새 모달은 «텍스트블럭과 같은 글꼴»로 태어난다 (＋패널 라벨까지)', async ({ page }) => {
-  /* ★★자를 «빌린 수»로 두지 않는다 — `'Pretendard', sans-serif` 를 ★손으로 적으면
-       ★체인 규약이 바뀌는 날 ★이 검사가 ★제품보다 먼저 거짓이 된다.
-     ⇒ ★★같은 판에서 ★텍스트블럭을 ★같이 만들어 ★그것이 받는 값과 ★견준다.
-       ★현빈이 ★정본으로 지목한 자리가 ★텍스트블럭이다(2026-10-07):
-       「그냥 섹션에 텍스트 블럭을 추가하면 ★프리텐다드로 되어있잖아? ★그렇게 되길 원해」 */
+/** ★모달·텍스트블럭을 ★같은 판에서 만들어 ★둘의 글꼴을 ★같이 읽는다.
+ *  ⛔세 칸이 ★이 함수 하나를 쓴다 — 두 벌로 갈라 두면 「어느 칸이 무엇을 쟀나」가 흐려진다. */
+async function measureNewPair(page) {
   const errs = await setup(page, {});
   const got = await page.evaluate(({ panelSrc }) => {
     const panelFont = eval(panelSrc);
@@ -202,20 +210,60 @@ test('T1-NEW ★새 모달은 «텍스트블럭과 같은 글꼴»로 태어난�
     text.panel = panelFont();
     return { modal, text };
   }, { panelSrc: PANEL_FONT });
-  console.log(`  T1-NEW 모달  ds=${JSON.stringify(got.modal.ds)} inline=${JSON.stringify(got.modal.inline)} panel=${JSON.stringify(got.modal.panel)}`);
-  console.log(`  T1-NEW 텍스트       inline=${JSON.stringify(got.text.inline)} panel=${JSON.stringify(got.text.panel)}`);
+  return { errs, got };
+}
 
+/** ★세 칸이 ★같이 세우는 전제 — ⛔주 단언 앞에 둬야 「무효」와 「실패」가 안 섞인다. */
+function assertPairPremises(got) {
   expect(got.text.inline, '전제: 텍스트블럭이 글꼴을 안 갖고 태어난다 — 이 대조는 아무것도 증명하지 못한다').toBeTruthy();
   expect(got.text.panel, '전제: 텍스트 패널에 폰트 줄이 없다').not.toBeNull();
   expect(got.modal.panel, '전제: 모달 패널에 폰트 줄이 없다').not.toBeNull();
+}
 
-  // ★주 단언 ⑴ — ★«같은 글꼴»이다(브라우저가 직렬화한 같은 꼴로 견준다)
+function logPair(tag, got) {
+  console.log(`  ${tag} 모달  ds=${JSON.stringify(got.modal.ds)} inline=${JSON.stringify(got.modal.inline)} panel=${JSON.stringify(got.modal.panel)}`);
+  console.log(`  ${tag} 텍스트       inline=${JSON.stringify(got.text.inline)} panel=${JSON.stringify(got.text.panel)}`);
+}
+
+/* ★★★한 칸에 주 단언 ★셋을 묶어 뒀던 것을 ★갈랐다 (2026-10-07 · 지디 조건⑴).
+ *   ★무엇이 있었나 — MUT-A(memo 를 '' 로)·MUT-B(else 가지 제거) ★둘 다 ★⑴ 에서 먼저 터져
+ *     ★⑵(패널 라벨)·⑶(증상 글자)이 ★한 번도 «제 소리»를 못 냈다. ★먼저 터진 단언이 ★형제를 먹는다
+ *     (⛔SKIP 만 형제를 먹는 게 아니다 — ★첫 실패도 먹는다).
+ *   ⇒ ★세 칸으로 가른다. ★이제 어느 변이가 ★어느 칸을 빨갛게 하는지 ★이름으로 선다. */
+
+test('T1-NEW ★새 모달은 «텍스트블럭과 같은 글꼴»로 태어난다 (★인라인 값)', async ({ page }) => {
+  /* ★★자를 «빌린 수»로 두지 않는다 — `'Pretendard', sans-serif` 를 ★손으로 적으면
+       ★체인 규약이 바뀌는 날 ★이 검사가 ★제품보다 먼저 거짓이 된다.
+     ⇒ ★★같은 판에서 ★텍스트블럭을 ★같이 만들어 ★그것이 받는 값과 ★견준다.
+       ★현빈이 ★정본으로 지목한 자리가 ★텍스트블럭이다(2026-10-07):
+       「그냥 섹션에 텍스트 블럭을 추가하면 ★프리텐다드로 되어있잖아? ★그렇게 되길 원해」 */
+  const { errs, got } = await measureNewPair(page);
+  logPair('T1-NEW', got);
+  assertPairPremises(got);
   expect(got.modal.inline, `★새 모달이 텍스트블럭과 다른 글꼴로 태어났다 — 모달 ${JSON.stringify(got.modal.inline)} / 텍스트 ${JSON.stringify(got.text.inline)}`)
     .toBe(got.text.inline);
-  // ★주 단언 ⑵ — ★사람이 보는 라벨도 같다(⛔dataset 만 재지 않는다 · 지디 조건⑶)
+  expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
+});
+
+test('T1-NEW-PANEL ★사람이 보는 «패널 라벨»도 텍스트블럭과 같다 (⛔dataset 만 재지 않는다)', async ({ page }) => {
+  /* ★제 칸으로 선다 — ⛔인라인 단언과 한 칸에 두면 ★그것이 ★먼저 터져 ★이 자가 ★침묵한다.
+     ★이 칸이 잠그는 것: 값이 ★dataset 에 들어가도 ★패널이 읽는 문(`getCurrent`)이 ★다른 칸을 보면
+       사용자는 ★여전히 「기본 (시스템)」을 본다 — ★현빈이 지목한 ★그 증상이 ★그대로 남는다. */
+  const { errs, got } = await measureNewPair(page);
+  logPair('T1-NEW-PANEL', got);
+  assertPairPremises(got);
   expect(got.modal.panel.label, `★패널 라벨이 텍스트블럭과 다르다 — 모달 「${got.modal.panel.label}」 / 텍스트 「${got.text.panel.label}」`)
     .toBe(got.text.panel.label);
-  // ★주 단언 ⑶ — ★그 라벨이 ★현빈이 지목한 ★증상 글자가 ★아니다
+  expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
+});
+
+test('T1-NEW-SYMPTOM ★그 라벨이 현빈이 지목한 «그 글자»가 아니다 — 「기본 (시스템)」', async ({ page }) => {
+  /* ★제 칸으로 선다 — ★위 두 칸과 ★다른 것을 잰다.
+     ⛔「둘이 같다」만으로는 ★둘이 ★같이 「기본 (시스템)」인 판도 ★초록이다(항등식의 꼴).
+     ⇒ ★이 칸이 ★그 판을 막는다. ★현빈 원문의 ★증상 글자를 ★그대로 못박는다. */
+  const { errs, got } = await measureNewPair(page);
+  logPair('T1-NEW-SYMPTOM', got);
+  expect(got.modal.panel, '전제: 모달 패널에 폰트 줄이 없다').not.toBeNull();
   expect(got.modal.panel.label, '★모달 패널이 아직 「기본 (시스템)」이다 — 현빈이 지목한 그 증상 그대로다').not.toBe('기본 (시스템)');
   expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
 });

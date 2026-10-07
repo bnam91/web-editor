@@ -7,13 +7,23 @@
  *     ★모달이나 ★그리드블럭의 텍스트 줄」
  *   ⇒ ㉠ 모달 = tests/dom/modal-font.dom.spec.js · ㉡ ★그리드 줄 = ★이 파일.
  *
- * ★여섯 칸이 ★각각 ★무엇을 막나
- *   G-PRE    ★전제만 모은 칸 — ⛔이 칸이 SKIP/빨강이면 ★아래 다섯의 초록은 ★아무것도 증명 못 한다
- *   G-NEW    ★T 단축키로 새로 넣은 글자 줄 = ★텍스트블럭과 ★같은 판에서 ★같은 글꼴 ＋ ★패널 라벨
- *   G-KIND   ★줄 ★종류별 — ⛔「글자 줄에만」을 ★손으로 적은 표가 아니라 ★렌더러에게 물어 ★견준다
- *   G-OLD    ★음성대조 — ★저장본으로 되살아난 «옛 줄»은 ★한 글자도 안 움직인다
- *   G-GATE   ★박는 값이 ★렌더러의 검문 자(`GRID_FONT_RE`)를 ★통과한다(＋그 자가 ★항등식이 아님)
- *   G-RULER  ★그 이름이 «진짜 먹나»는 ★폭으로만 안다 — ⛔이름이 틀리면 ★에러 없이 폴백한다
+ * ★★아홉 칸이 ★각각 ★무엇을 막나 (2026-10-07 지디 조건⑴ 로 ★여섯 → ★아홉 — G-NEW 를 ★넷으로 갈랐다)
+ *   G-PRE          ★전제만 모은 칸 — ⛔이 칸이 SKIP/빨강이면 ★아래 여덟의 초록은 ★아무것도 증명 못 한다
+ *   G-NEW          ★T 단축키로 새로 넣은 글자 줄의 ★인라인 값 = 텍스트블럭과 ★같은 판에서 같다
+ *   G-NEW-PANEL    ★사람이 보는 ★패널 라벨도 같다
+ *   G-NEW-SYMPTOM  ★그 라벨이 ★「기본 (시스템)」이 ★아니다(⛔「둘이 같다」만으로는 둘이 같이 증상인 판도 초록)
+ *   G-NEW-COMPUTED ★재렌더를 지난 ★계산된 값까지 같다(그리드는 innerHTML 통째 재생성이다)
+ *   G-KIND         ★줄 ★종류별 — ⛔「글자 줄에만」을 ★손으로 적은 표가 아니라 ★렌더러에게 물어 ★견준다 ＋ ★임자 가름
+ *   G-OLD          ★음성대조 — ★저장본으로 되살아난 «옛 줄»은 ★한 글자도 안 움직인다
+ *   G-GATE         ★박는 값이 ★렌더러의 검문 자(`GRID_FONT_RE`)를 ★통과한다(＋그 자가 ★항등식이 아님)
+ *   G-RULER        ★«자»다 — ⛔게이트가 ★아니다(바로 아래)
+ *
+ * ★★「자」와 「게이트」를 갈라 적는다 (2026-10-07 · 지디 조건⑵ · ⛔다음 사람이 섞어 읽지 않게)
+ *   ★G-RULER 는 ★**게이트가 아니라 «자»다** — ★실측: 제품에서 글꼴 박는 줄을 ★떼어내도(MUT-G1)
+ *     ★이 칸은 ★**초록이었다**. 캔버스가 Pretendard 를 ★상속하고 있어 ★폭이 안 움직인다.
+ *   ⇒ ★이 칸이 ★잠그는 것은 ★하나뿐이다: ★**「우리가 쓰는 이름이 ★폴백으로 ★죽지 않았나」**
+ *     (근거 = ★`'Noto Sans KR'` 가 ★이 기계에 ★없어 ★778.91 로 ★sans 와 ★같다는 ★아래 실측).
+ *   ⛔「폭이 지킨다」로 ★이 건을 ★닫지 마라 — 기전을 ★재는 자는 ★G-NEW·G-NEW-PANEL·G-KIND 다.
  *
  * ★G-RULER 영점(실측 2026-10-07 · 100px 같은 글자 폭): 'Pretendard' ★828.33 / 가짜 이름 778.91 / sans-serif 778.91
  *   ⛔`'Noto Sans KR'` 은 ★이 기계에 ★없어서 가짜 이름과 ★폭이 같다 — ★단언에 쓰지 않는다(한 환경에서만 참인 검사 금지).
@@ -109,10 +119,9 @@ test('G-PRE ★전제 — 앱·블럭·패널·정본(텍스트블럭)이 선다
 });
 
 /* ══ G-NEW ★주 단언 ══════════════════════════════════════════════════════ */
-test('G-NEW ★T 단축키로 새로 넣은 글자 줄 = 「텍스트블럭과 같은 글꼴」 (＋패널 라벨)', async ({ page }) => {
-  /* ★★자를 «빌린 수»로 두지 않는다 — `'Pretendard', sans-serif` 를 ★손으로 적으면
-       ★체인 규약이 바뀌는 날 ★이 검사가 ★제품보다 먼저 거짓이 된다.
-     ⇒ ★★같은 판에서 ★텍스트블럭을 ★같이 만들어 ★그것이 받는 값과 ★견준다. */
+/** ★그리드 새 글자 줄과 ★텍스트블럭을 ★같은 판에서 만들어 ★둘을 ★같이 읽는다.
+ *  ⛔네 칸이 ★이 함수 하나를 쓴다 — 두 벌로 갈라 두면 「어느 칸이 무엇을 쟀나」가 흐려진다. */
+async function measureNewPair(page) {
   const errs = await setup(page);
   const got = await page.evaluate(({ panelSrc }) => {
     const panelFont = eval(panelSrc);
@@ -145,28 +154,73 @@ test('G-NEW ★T 단축키로 새로 넣은 글자 줄 = 「텍스트블럭과 �
     text.panel = panelFont();
     return { grid, text };
   }, { panelSrc: PANEL_FONT });
-  console.log(`  G-NEW 그리드 줄 field=${JSON.stringify(got.grid.field)} inline=${JSON.stringify(got.grid.inline)} panel=${JSON.stringify(got.grid.panel)}`);
-  console.log(`  G-NEW 텍스트블럭           inline=${JSON.stringify(got.text.inline)} panel=${JSON.stringify(got.text.panel)}`);
+  return { errs, got };
+}
 
+/** ★네 칸이 ★같이 세우는 전제 — ⛔주 단언 앞에 둬야 「무효」와 「실패」가 안 섞인다. */
+function assertPairPremises(got) {
   expect(got.grid.ok, '전제: grdAddLineToSelectedCell 이 false 를 돌려줬다 — 줄이 안 들어갔다').toBe(true);
   expect(got.grid.added, '전제: 줄 수가 ＋1 이 아니다 — 다른 것을 재고 있다').toBe(1);
   expect(got.text.inline, '전제: 텍스트블럭이 글꼴을 안 갖고 태어난다 — 이 대조는 아무것도 증명 못 한다').toBeTruthy();
   expect(got.grid.panel, '전제: 그리드 패널에 폰트 줄이 없다').not.toBeNull();
   expect(got.text.panel, '전제: 텍스트 패널에 폰트 줄이 없다').not.toBeNull();
+}
 
-  // ★주 단언 ⑴ — ★«같은 글꼴»이다(브라우저가 직렬화한 같은 꼴로 견준다)
+function logPair(tag, got) {
+  console.log(`  ${tag} 그리드 줄 field=${JSON.stringify(got.grid.field)} inline=${JSON.stringify(got.grid.inline)} computed=${JSON.stringify(got.grid.computed)} panel=${JSON.stringify(got.grid.panel)}`);
+  console.log(`  ${tag} 텍스트블럭           inline=${JSON.stringify(got.text.inline)} computed=${JSON.stringify(got.text.computed)} panel=${JSON.stringify(got.text.panel)}`);
+}
+
+/* ★★★한 칸에 주 단언 ★넷을 묶어 뒀던 것을 ★갈랐다 (2026-10-07 · 지디 조건⑴).
+ *   ★까닭은 ★모달 쪽에서 ★먼저 드러났다 — 변이 둘이 ★모두 ★첫 단언에서 터져 ★나머지가 ★한 번도
+ *     «제 소리»를 못 냈다. ★먼저 터진 단언이 ★형제를 ★먹는다(⛔SKIP 만 먹는 게 아니다).
+ *   ⇒ ★네 칸으로 가른다. ★이제 어느 변이가 ★어느 칸을 빨갛게 하는지 ★이름으로 선다. */
+
+test('G-NEW ★T 단축키로 새로 넣은 글자 줄 = 「텍스트블럭과 같은 글꼴」 (★인라인 값)', async ({ page }) => {
+  /* ★★자를 «빌린 수»로 두지 않는다 — `'Pretendard', sans-serif` 를 ★손으로 적으면
+       ★체인 규약이 바뀌는 날 ★이 검사가 ★제품보다 먼저 거짓이 된다.
+     ⇒ ★★같은 판에서 ★텍스트블럭을 ★같이 만들어 ★그것이 받는 값과 ★견준다. */
+  const { errs, got } = await measureNewPair(page);
+  logPair('G-NEW', got);
+  assertPairPremises(got);
   expect(got.grid.inline, `★새 그리드 글자 줄이 텍스트블럭과 다른 글꼴로 태어났다 — 줄 ${JSON.stringify(got.grid.inline)} / 텍스트블럭 ${JSON.stringify(got.text.inline)}`)
     .toBe(got.text.inline);
-  // ★주 단언 ⑵ — ★사람이 보는 라벨도 같다(⛔dataset 만 재지 않는다)
+  expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
+});
+
+test('G-NEW-PANEL ★사람이 보는 «패널 라벨»도 텍스트블럭과 같다 (⛔dataset 만 재지 않는다)', async ({ page }) => {
+  /* ★제 칸으로 선다 — ⛔인라인 단언과 한 칸에 두면 ★그것이 ★먼저 터져 ★이 자가 ★침묵한다.
+     ★이 칸이 잠그는 것: 값이 ★줄 데이터에 들어가도 ★패널 읽는 문(`prop-grid.js` `getCurrent`)이
+       ★다른 칸을 보면 사용자는 ★여전히 「기본 (시스템)」을 본다 — ★현빈이 지목한 ★그 증상이다. */
+  const { errs, got } = await measureNewPair(page);
+  logPair('G-NEW-PANEL', got);
+  assertPairPremises(got);
   expect(got.grid.panel.label, `★패널 라벨이 텍스트블럭과 다르다 — 줄 「${got.grid.panel.label}」 / 텍스트블럭 「${got.text.panel.label}」`)
     .toBe(got.text.panel.label);
-  // ★주 단언 ⑶ — ★그 라벨이 ★현빈이 지목한 ★증상 글자가 ★아니다
+  expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
+});
+
+test('G-NEW-SYMPTOM ★그 라벨이 현빈이 지목한 «그 글자»가 아니다 — 「기본 (시스템)」', async ({ page }) => {
+  /* ★제 칸으로 선다 — ⛔「둘이 같다」만으로는 ★둘이 ★같이 「기본 (시스템)」인 판도 ★초록이다. */
+  const { errs, got } = await measureNewPair(page);
+  logPair('G-NEW-SYMPTOM', got);
+  expect(got.grid.panel, '전제: 그리드 패널에 폰트 줄이 없다').not.toBeNull();
   expect(got.grid.panel.label, '★그리드 패널이 아직 「기본 (시스템)」이다 — 현빈이 지목한 그 증상 그대로다').not.toBe('기본 (시스템)');
-  // ★주 단언 ⑷ — ★재렌더를 지난 «계산된» 값까지 같다(그리드는 innerHTML 통째 재생성이라 여기서 죽는 배선이 있다)
+  expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
+});
+
+test('G-NEW-COMPUTED ★재렌더를 지난 «계산된» 값까지 텍스트블럭과 같다', async ({ page }) => {
+  /* ★제 칸으로 선다 — ★그리드는 `block.innerHTML = html` 로 ★통째로 다시 만든다.
+     ⇒ ★인라인에 박혀도 ★재렌더에서 죽는 배선이 ★이 레포에 있었다. ★그 축을 따로 잰다. */
+  const { errs, got } = await measureNewPair(page);
+  logPair('G-NEW-COMPUTED', got);
+  expect(got.grid.ok, '전제: 줄이 안 들어갔다').toBe(true);
+  expect(got.text.computed, '전제: 텍스트블럭의 계산 스타일이 비었다 — 견줄 것이 없다').toBeTruthy();
   expect(got.grid.computed, `★계산 스타일이 텍스트블럭과 다르다 — 줄 ${JSON.stringify(got.grid.computed)} / 텍스트블럭 ${JSON.stringify(got.text.computed)}`)
     .toBe(got.text.computed);
   expect(errs, `pageerror: ${errs[0] || ''}`).toHaveLength(0);
 });
+
 
 /* ══ G-KIND ★「글자 줄에만」을 ★렌더러에게 물어 견준다 ═══════════════════ */
 test('G-KIND ★종류별 — 박히는 종류 집합 = 렌더러가 fontFamily 를 «읽는» 종류 집합', async ({ page }) => {
@@ -344,7 +398,7 @@ test('G-GATE ★박는 값이 렌더러의 검문 자를 통과한다 — 거절
 });
 
 /* ══ G-RULER ★폭 ═════════════════════════════════════════════════════════ */
-test('G-RULER ★그 이름이 «진짜 먹나»는 폭으로만 안다 (＋이 자가 항등식이 아님을 같이 보인다)', async ({ page }) => {
+test('G-RULER ★(자 · ⛔게이트 아님) 그 이름이 «진짜 먹나»는 폭으로만 안다 (＋이 자가 항등식이 아님을 같이 보인다)', async ({ page }) => {
   const errs = await setup(page);
   const got = await page.evaluate(({ probeSrc }) => {
     const widthOf = eval(probeSrc);
