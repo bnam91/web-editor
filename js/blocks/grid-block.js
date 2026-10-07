@@ -941,6 +941,15 @@ const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', '
  *  (거절 메시지가 「width 는 열 필드다」라고 돌려보내는 바로 그 자리). */
 const GRID_COL_FIELDS = new Set(['width', ...GRID_CELL_FIELDS]);
 
+/* ★T12 «독립 칼럼으로 펴기»의 ★손실 명부 둘 — ⛔손으로 적은 열거가 아니라 ★위 두 명부에서 ★파생시킨다.
+ *   (명부가 둘이면 경고 주석으로 못 막는다 — 파생시켜 하나로. 새 칸/줄 필드가 생기면 여기가 ★자동으로 따라온다.)
+ *   ㄹㄱ DROPPED — 칸에만 있고 줄 축에 ★집이 없는 이름. `lines` 는 내용이라 무다(옮겨진다).
+ *   ㄹㄴ NOT_MOVED — 이름은 양쪽에 있으나 ★뜻이 다른 이름. 옮기면 보존이 아니라 ★조용한 변조다.
+ *   ★2026-10-07 런타임 실측값: DROPPED = padding, bgImg, bgFit, bgPos / NOT_MOVED = align, bg, radius, valign
+ *     ⛔그 수를 여기 «상수»로 박지 마라 — 검사가 ★이 파생식과 명부를 견준다. */
+const GRID_CONVERT_DROPPED_CELL_FIELDS = [...GRID_CELL_FIELDS].filter(k => k !== 'lines' && !GRID_LINE_FIELDS.has(k)).sort();
+const GRID_CONVERT_NOT_MOVED_FIELDS    = [...GRID_CELL_FIELDS].filter(k => k !== 'lines' && GRID_LINE_FIELDS.has(k)).sort();
+
 /** 꾸밈 필드 중 «값이 명부로 묶인» 것 — 칸이든 열이든 같다. ⛔이름 말고 «표»로 묶는다. */
 /* ★G4 칸 배경 이미지 맞춤 — 에셋 블럭 fit 명부(block-factory.js _enum('fit',['cover','contain']))와 «같은 두 값». */
 export const GRID_BG_FIT_VALUES = ['cover', 'contain'];
@@ -3701,6 +3710,133 @@ function gridResizeTo(block, nCols, nRows) {
   return true;
 }
 
+/* ═══ ★T12 «독립 칼럼으로 펴기» — 2×2(rows/cells) → 열 스택(cols[c].lines) ★한 방향 문 ═══════
+ *
+ * ★왜 이것이 필요한가 (현빈 2026-10-07 · 「보기엔 2×2 지만 ★칼럼별 높이를 조절」)
+ *   CSS 그리드는 블럭 하나에 `grid-template-rows` 를 ★한 벌만 갖는다 ⇒ 같은 행의 두 열은
+ *   ★언제나 같은 높이다(실측 T12-gridcol-probe ⑴-B: r0c0.h === r0c1.h · r1c0.top === r1c1.top).
+ *   그런데 ★목표 상태는 ★이미 그려진다 — 1행 × N열에서 각 열의 `cols[c].lines` 가
+ *   ★제 높이로 쌓이기 때문이다(실측 ⑷: 좌 482/18/345 · 우 345/18/481 = #sp_cqjuuu 와 ★픽셀 일치).
+ *   ⇒ ★없는 것은 «2×2 를 그 꼴로 접는» ★문 하나뿐이었다. 이 함수가 그 문이다.
+ *   ⛔그래서 ★그리드블럭2 를 ★만들지 않는다 — 새 모델 필드 ★0개로 끝난다.
+ *
+ * ★무엇을 «안» 하나 (지디 2026-10-07 ③)
+ *   ⛔역변환(열 스택 → 2×2)은 ★여기 없다. 안 쟀다.
+ *   ⛔중첩 줄(duo)로 칸을 감싸 칸 꾸밈 9/9 를 보존하는 갈래도 ★v1 밖이다. 안 쟀다.
+ *
+ * ★손실 축 ★셋 — ★이름으로 (런타임 명부 실측 · T12-gridcol-probe ⑶)
+ *   ㉠ ★버린다 — 줄 축에 ★집이 없는 칸 필드 ★넷: padding · bgImg · bgFit · bgPos
+ *   ㉡ ★안 옮긴다 — 이름은 양쪽에 있으나 ★뜻이 다른 넷: align · bg · radius · valign
+ *       (칸 배경 ≠ 줄 배경 · 칸 반경 ≠ 줄 반경. 옮기면 «보존»이 아니라 ★조용한 변조다.)
+ *   ㉢ ★수량 — 합친 줄 수가 MAX_CELL_LINES 를 넘으면 ★거절한다(아래 ★한도 관문).
+ *   ★`lines` 자체는 ★손실 0 이다 — patchCell{lines} 왕복이 6필드를 한 글자도 안 깎는 것을 쟀다(⑵-C).
+ *   ★`.grd-children` 의 자식 블럭은 ★손실 축이 아니다 — 행/열을 줄여도 살아남는다(⑶-B 실측).
+ *
+ * @returns {{ok:true, converted:{cols:number,rows:number}, notice:object}}
+ *        | {{ok:false, code:'NOOP'|'INVALID', message:string}}
+ */
+function gridCollapseToColumns(block) {
+  if (!block || !block.dataset) return { ok: false, code: 'INVALID', message: 'gridCollapseToColumns: not a block' };
+  const model = getGridModel(block);
+  const C = model.cols.length, R = model.rows.length;
+  /* ★「할 게 없다」와 「못 한다」를 가른다 — NOOP 을 INVALID 로 뭉개면 UI 가 까닭을 못 적는다. */
+  if (R < 2) {
+    return { ok: false, code: 'NOOP', message: `already a single-row grid (rows=${R}) — nothing to flatten. Column stacks live in cols[c].lines, which this grid already is.` };
+  }
+
+  /* ── 열마다 «행 순서대로» 줄을 잇는다. 행 0 의 줄은 cols[c].lines 가 갖고,
+   *    행 1~ 의 줄은 cells[r][c].lines 가 갖는다 — getGridModel 이 둘을 한 꼴로 돌려준다. */
+  const merged = [];
+  for (let c = 0; c < C; c++) {
+    const out = [];
+    for (let r = 0; r < R; r++) {
+      const ls = model.cells[r] && model.cells[r][c] && model.cells[r][c].lines;
+      if (Array.isArray(ls)) out.push(...ls);
+    }
+    merged.push(out);
+  }
+
+  /* ── ★한도 관문 (지디 2026-10-07 ①) — 넘으면 ★거절한다. ⛔조용히 자르지 마라.
+   *    ★거절 메시지에 «몇 줄이 몇 줄을 넘었나»를 ★수로 적는다 — 「초과」만으론 못 고친다.
+   *    ⛔한 열이라도 넘으면 ★아무 열도 안 바꾼다(부분 적용 금지 — 반쯤 펴진 그리드는 되돌리기 어렵다). */
+  const over = [];
+  for (let c = 0; c < C; c++) {
+    if (merged[c].length > MAX_CELL_LINES) {
+      over.push(`col ${c}: ${merged[c].length} lines (limit ${MAX_CELL_LINES}, over by ${merged[c].length - MAX_CELL_LINES})`);
+    }
+  }
+  if (over.length) {
+    return {
+      ok: false, code: 'INVALID',
+      message: `cannot flatten — ${over.length} of ${C} column(s) would exceed MAX_CELL_LINES after merging ${R} rows. ${over.join('; ')}. `
+        + `Nothing was changed. Remove lines from those columns (or split the grid) and try again.`,
+    };
+  }
+
+  /* ── ★손실 통지 — `_gridDestructiveNotice` 를 ★그대로 태운다(지디 ②). ⛔새로 만들지 않는다.
+   *    그 함수가 «행 1~ 의 칸이 사라진다»는 ★같은 사실을 이미 센다(droppedCells·줄 수).
+   *    여기서 더하는 것은 ★«무엇이» 사라지나 — 칸 꾸밈을 ★이름으로. */
+  const base = _gridDestructiveNotice(model, 1, C) || { kind: 'truncate', shrank: [`rows ${R}→1`], droppedCells: [], message: '' };
+  /* ★실제로 «값이 걸려 있는» 이름만 센다 — 안 걸린 이름까지 열거하면 다음 사람이 그 표를 명부로 읽는다. */
+  const droppedDeco = [];
+  const movedWouldChange = [];
+  for (let r = 1; r < R; r++) {
+    for (let c = 0; c < C; c++) {
+      const cell = (model.cells[r] && model.cells[r][c]) || {};
+      for (const k of GRID_CONVERT_DROPPED_CELL_FIELDS) {
+        if (cell[k] !== undefined && cell[k] !== '') droppedDeco.push(`cells[${r}][${c}].${k}`);
+      }
+      for (const k of GRID_CONVERT_NOT_MOVED_FIELDS) {
+        if (cell[k] !== undefined && cell[k] !== '') movedWouldChange.push(`cells[${r}][${c}].${k}`);
+      }
+    }
+  }
+  const notice = {
+    kind: 'convert',                       // ★'truncate' 가 아니다 — 읽는 쪽이 「줄이기」와 「펴기」를 가르게
+    shrank: base.shrank,
+    droppedCells: base.droppedCells,
+    linesKept: merged.map(m => m.length),  // ★줄은 ★하나도 안 버린다 — 그 수를 여기 적는다
+    droppedCellFields: droppedDeco,
+    notMovedCellFields: movedWouldChange,
+    message: `CONVERT (flatten to independent columns) — rows ${R}→1, ${C} column(s). `
+      + `All ${merged.reduce((a, b) => a + b.length, 0)} line(s) were KEPT and re-stacked per column (${merged.map((m, i) => `col ${i}:${m.length}`).join(', ')}). `
+      + (droppedDeco.length
+        ? `${droppedDeco.length} cell decoration value(s) were DISCARDED — these cell fields have no home on a line: ${GRID_CONVERT_DROPPED_CELL_FIELDS.join(', ')} (${droppedDeco.join(', ')}). `
+        : `No cell decoration was discarded (none of ${GRID_CONVERT_DROPPED_CELL_FIELDS.join(', ')} was set on rows 1+). `)
+      + (movedWouldChange.length
+        ? `${movedWouldChange.length} value(s) were deliberately NOT moved — ${GRID_CONVERT_NOT_MOVED_FIELDS.join(', ')} exist on a line too but MEAN SOMETHING ELSE there (a cell's background is not a line's background), so moving them would silently alter the design rather than preserve it (${movedWouldChange.join(', ')}). `
+        : `Nothing hit the "same name, different meaning" set (${GRID_CONVERT_NOT_MOVED_FIELDS.join(', ')}). `)
+      + `undo (⌘Z) restores the 2D grid in one step.`,
+  };
+
+  /* ── ★변경 «전»에 히스토리 (gridResizeTo 와 ★같은 규약).
+   *    ★실측(T12 G4): 이 문으로 간 한 수는 히스토리 ★2칸을 먹는데, 그것이 ★이 집의 «한 수 값»이다
+   *      (대조군 patchCell{bg} 도 깨끗한 스택에서 ★2칸 — model-update-history.js 가 window.update*Block 을
+       감싸 «끝 표본» 한 칸을 더 쌓는다). ⌘Z ★한 번에 네 표식이 전부 돌아오는 것을 쟀다. */
+  window.pushHistory?.();
+
+  /* ── 쓰기. 행 0 의 «칸 꾸밈»은 살린다 — 1행 그리드의 칸도 칸이다(T-178 과 같은 까닭).
+   *    ⛔gridResizeTo 의 nRows<=1 가지와 ★같은 모양으로 쓴다(두 벌 금지). */
+  const nextCols = model.cols.map((col, c) => Object.assign({}, col, { lines: merged[c] }));
+  block.dataset.cols = JSON.stringify(nextCols);
+  delete block.dataset.rows;
+  let row0 = [];
+  try { const cur = JSON.parse(block.dataset.cells || '[]'); row0 = Array.isArray(cur[0]) ? cur[0] : []; } catch (_) { row0 = []; }
+  const keep = [];
+  for (let c = 0; c < C; c++) {
+    const cell = row0[c];
+    keep.push((cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell : {});
+  }
+  if (keep.some(cell => Object.keys(cell).length)) block.dataset.cells = _gridCellsToDataset([keep]);
+  else delete block.dataset.cells;
+  /* ★행 경계 괘선도 같이 자른다 — 안 자르면 주인 없는 값이 남는다(rows 가지와 같은 까닭). */
+  block.dataset.rowRuleOn = _gridTrimRuleOn(block.dataset.rowRuleOn, 0);
+
+  renderGridBlock(block);
+  window.scheduleAutoSave?.();
+  return { ok: true, converted: { cols: C, rows: R }, notice, hint: notice.message };
+}
+
 /* ＋ 한 번 = 끝에 열(axis 'col') 또는 행(axis 'row') 하나. 상한이면 아무것도 안 한다. */
 function gridAddAtEnd(block, axis) {
   const nC = _gridCols(block).length, nR = _gridRows(block).length;
@@ -3802,6 +3938,7 @@ function _makeGridAddBtn(block, axis) {
 window.gridAddAtEnd = gridAddAtEnd;
 
 window.renderGridBlock = renderGridBlock;
+window.gridCollapseToColumns = gridCollapseToColumns;
 window.migrateGridIdentity = migrateGridIdentity;
 // ★getGridModel(T-A, 2026-09-16) — block-drag.js 의 _gridAddrAt 이 「진짜 빈 셀」인지(lines.length===0)
 //   판정하려고 window 경유로 부른다(block-drag.js 는 이 파일을 import 하지 않는다 — 기존 관례
@@ -3853,5 +3990,7 @@ export {
      ★실제로 grid-rename-residue.test.mjs S1 이 「코드에 옛 이름을 손으로 적었나」를 재는데,
        이 주석의 첫 판이 «그 이름을 예시로 적는» 바람에 그 그물에 걸렸다. 적지 않는다. */
   GRID_NESTED_LINE_TYPE,
+  gridCollapseToColumns,
+  GRID_CONVERT_DROPPED_CELL_FIELDS, GRID_CONVERT_NOT_MOVED_FIELDS,
   gridResizeTo, gridAddAtEnd,   /* ★G15 — 피커·캔버스 ＋ 가 «같은 길» */
 };
