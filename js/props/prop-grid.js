@@ -7,7 +7,7 @@ import { parseRatio, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHead
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
-         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_MAX_BYTES, gridCellsToDataset,
+         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_EMPTY_RADIUS, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES, gridBlockOutline, GRID_OUTLINE_SIDES,
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
@@ -1409,8 +1409,11 @@ function _grdImageSectionHtml(anyHit, block) {
             ⛔까닭 줄은 «막을 때만» 넣는다 — 다른 상태의 패널 바이트는 한 글자도 안 바뀐다. */
          hLocked ? '\n      <div class="prop-hint" id="grd-img-height-hint">자르기 전에는 높이를 정할 수 없습니다 — 그림 비율로 그려집니다</div>' : ''}
       <div class="prop-row"${circle ? ' style="display:none"' : ''}>
-        <span class="prop-label">모서리 반경(px)</span>
-        <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="0" value="${rad}">
+        <span class="prop-label">모서리 반경(px)</span>${/* ★T4④-⒝ — placeholder 는 «렌더러가 실제로 쓰는 폴백»이다. ⛔「0」을 손으로 적지 마라:
+             빈 슬롯은 radius 가 비면 GRID_IMG_EMPTY_RADIUS(8)로 그려지는데 패널만 0 이라 말해서
+             현빈이 「설정 안 했는데 왜 모서리가 있지?」를 물었다. 수는 grid-block.js 한 자리에서 끌어온다.
+             (바로 위 높이 칸이 GRID_IMG_CIRCLE_D 로 같은 꼴을 이미 쓴다 — 새 관용구 0.) */ ''}
+        <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="${line.imgSrc ? 0 : GRID_IMG_EMPTY_RADIUS}" value="${rad}">
       </div>${circleRows}
     </div>`;
 }
