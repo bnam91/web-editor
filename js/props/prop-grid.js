@@ -12,6 +12,7 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
          GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE, GRID_WIDTH_MIN, GRID_WIDTH_MAX, gridResizeTo,
+         gridCollapseToColumns,   /* ★T12 — 2×2 → 독립 칼럼 */
          gridBlockBg, GRID_BLOCK_BG_PAD_Y_MAX, GRID_BLOCK_BG_PAD_X_MAX, GRID_BG_FIT_VALUES } from '../blocks/grid-block.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
@@ -2076,6 +2077,17 @@ function _ratioRowHtml(cols) {
  *   행별 높이 입력(prop-table.js `.tbl-rowh-item-row`)과 같은 마크업으로 «행마다 하나씩» 받는다.
  * rows 가 1개(옛 파일과 동일 상태)면 아예 렌더하지 않는다 — 「비율은 있는데 높이는 없다」는
  *   행 개념이 아직 없다는 뜻이라 보여줄 게 없다(PLAN §4 "행이 생기면 …rows>1일 때만 노출"). */
+/* ★T12 «독립 칼럼으로 펴기» 단추 — 행이 ★둘 이상일 때만 낸다.
+ *   ★`_rowHeightHtml`·`_ratioRowHtml` 과 «같은 술어»(rows.length < 2 면 빈 문자열) —
+ *   행이 하나면 이미 «열 스택» 이라 보여 줄 게 없다(gridCollapseToColumns 가 NOOP 으로 거절하는 그 상태).
+ *   ⛔끈으면 «빈 문자열» 이라 옆 판 HTML 은 바이트 그대로다. */
+function _flattenRowHtml(rows, cols) {
+  if (!rows || rows.length < 2) return '';
+  return `
+        <button class="prop-btn" id="grd-flatten-cols" style="width:100%;margin-top:6px;">⬚ 독립 칼럼으로 펴기</button>
+        <div class="prop-hint" style="margin-top:2px;">${rows.length}행을 열 ${cols.length}개의 «줄 묶음» 으로 접는다 — 그러면 칼럼마다 높이를 따로 준다 (⌘Z 복원)</div>`;
+}
+
 function _rowHeightHtml(rows) {
   if (rows.length < 2) return '';
   const items = rows.map((r, ri) => `
@@ -3280,6 +3292,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
         <!-- ★적대검수 Q3: 「줄이면 보존」으로 동작을 바꾸는 대신 «사실을 적는다».
              API 경로(grid-block.js)가 이미 «자르고 undo» 정책이라, 피커만 보존하면 정책이 둘로 갈라진다. -->
         <div class="prop-hint" style="margin-top:2px;">줄이면 잘린 칸 내용은 사라진다 (⌘Z 복원)</div>
+${_flattenRowHtml(rows, cols)}
       </div>
     </div>
     <div class="prop-section">
@@ -3390,6 +3403,17 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
   );
   /* ⛔접이식 배선은 innerHTML 이 선 «뒤»라야 한다(getElementById 가 그때 산다).
      칸 꾸미기·줄 꾸미기와 «같은 부품»이다 — 키만 'size' 로 다르다. */
+  /* ★T12 «독립 칼럼으로 펴기» 배선 — 피커와 «같은 뒷정리»(거터 걷기 · 패널 재생성)를 쓴다.
+   *   ⛔pushHistory 는 여기서 안 부른다 — 몸통(gridCollapseToColumns)이 «변경 전»에 부른다(gridResizeTo 와 같은 규약).
+   *   ★거절되면(한도 초과 · 이미 1행) «아무 것도 안 바뀜» 다 — 그 글을 그대로 보여 준다(⛔「실패」만 알리지 마라). */
+  document.getElementById('grd-flatten-cols')?.addEventListener('click', () => {
+    const res = gridCollapseToColumns(block);
+    if (!res.ok) { window.showToast?.(res.message) || console.warn('[grid] flatten rejected —', res.message); return; }
+    console.info('[grid] flatten → columns:', res.notice.message);
+    hideGridGutters();
+    showGridProperties(block, _curAddr);
+    showGridGutters(block);
+  });
   _grdWireDisclosure(block, 'size', 'grd-size-toggle', 'grd-size-body');
 
   const ratioInput = document.getElementById('grd-col-ratio');
