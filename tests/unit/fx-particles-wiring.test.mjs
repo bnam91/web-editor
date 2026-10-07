@@ -237,6 +237,69 @@ test('W8 CSS 는 «자리»만 정한다 — ⛔색·배경 선언 0건', () => 
   assert.deepEqual(bad, [], `층 CSS 가 색·배경을 정한다: ${bad.join(',')} — 섹션 배경은 섹션 것이다`);
 });
 
+/* ── W10 ★★섹션 높이는 «공용 자»에서 온다 ──────────────────────────────
+   ★진짜 DOM 없이도 잰다: `applySectionParticles` 가 쓰는 ★문만 가진 가짜 섹션을 준다.
+   ⇒ ★「무엇을 불렀나」와 ★「그 값이 그림에 닿았나」를 ★행위로 잰다(⛔소스 grep 아님).
+   ⚠️앞서 이 칸을 「DOM 수트 몫」으로 적었는데 ★절반만 맞았다 — ★innerHTML «파싱»은 못 해도
+     ★호출과 ★문자열은 ★여기서 잰다. ★그 정정을 적어 둔다. */
+function fakeSection({ w = 860, h = 600, ds = {}, id = 'sec_fake' } = {}) {
+  const made = [];
+  const el = {
+    id, dataset: { ...ds }, offsetWidth: w, offsetHeight: h, firstChild: null, children: [],
+    classList: { contains: () => true },
+    querySelector: (sel) => el.children.find((c) => sel.includes(c.className)) || null,
+    ownerDocument: { createElement: () => { const n = { className: '', innerHTML: '', remove() { el.children = el.children.filter((x) => x !== n); } }; made.push(n); return n; } },
+    insertBefore: (node) => { el.children.unshift(node); el.firstChild = node; return node; },
+  };
+  return { el, made };
+}
+const viewBoxOf = (s) => (s.match(/viewBox="0 0 (\d+) (\d+)"/) || []).slice(1).map(Number);
+
+test('W10 ★★섹션 높이를 «공용 자»(window.measureSectionHeight)에서 받는다 — ⛔둘째 명부를 만들지 않는다', () => {
+  const prev = globalThis.window.measureSectionHeight;
+  try {
+    const ds = {};
+    W.writeParticles(ds, { preset: 'star', seed: 9, count: 5, glow: 0, spread: 0 });
+    /* ★양성대조 — 공용 자가 «다른 수»를 주면 ★그림이 그 수를 따라온다(section-height.js 가 쓴 그 증명법) */
+    let asked = 0;
+    globalThis.window.measureSectionHeight = (s) => { asked++; return 4321; };
+    const a = fakeSection({ h: 600, ds });
+    assert.equal(W.applySectionParticles(a.el), true, '★전제: 층을 그렸다');
+    assert.equal(asked, 1, '공용 자를 안 불렀다 — offsetHeight 를 직접 읽는다(둘째 명부)');
+    assert.deepEqual(viewBoxOf(a.el.children[0].innerHTML), [860, 4321],
+      '공용 자가 준 높이가 그림에 안 닿았다 — 자를 바꿔도 그림이 안 따라온다');
+    /* ★음성대조 — 자가 없으면(로드 순서) offsetHeight 로 떨어진다. ⛔다른 수를 쓰는 길이 아니다 */
+    globalThis.window.measureSectionHeight = undefined;
+    const b = fakeSection({ h: 777, ds });
+    assert.equal(W.applySectionParticles(b.el), true);
+    assert.deepEqual(viewBoxOf(b.el.children[0].innerHTML), [860, 777], '폴백이 offsetHeight 가 아니다');
+  } finally { globalThis.window.measureSectionHeight = prev; }
+});
+
+test('W11 ★층을 깔고 거둔다 — 설정이 없으면 «지운다» · 그림 모듈이 없으면 «조용히 다른 그림을 안 그린다»', () => {
+  const ds = {};
+  W.writeParticles(ds, { preset: 'dust', seed: 3, count: 4, glow: 0, spread: 0 });
+  const a = fakeSection({ ds });
+  W.applySectionParticles(a.el);
+  assert.equal(a.el.children.length, 1, '★전제: 층이 하나 생겼다');
+  assert.equal(a.el.children[0].className, W.FX_PARTICLES_WRAP);
+  assert.equal(a.el.firstChild, a.el.children[0], '층이 섹션의 «첫 자식»이 아니다 — 내용 위로 올라온다');
+  /* 끄면 층이 사라진다 */
+  W.clearParticles(a.el.dataset);
+  assert.equal(W.applySectionParticles(a.el), false);
+  assert.equal(a.el.children.length, 0, '껐는데 층이 남았다');
+  /* ★그림 모듈이 없으면 — 빈 상자 ＋ 콘솔. ⛔조용히 다른 그림을 그리지 않는다(글로우 선례) */
+  const prevP = globalThis.window.ParticlesFx, prevErr = console.error;
+  let said = 0; console.error = () => { said++; };
+  try {
+    globalThis.window.ParticlesFx = undefined;
+    const b = fakeSection({ ds: { ...ds } });
+    W.writeParticles(b.el.dataset, { preset: 'star', seed: 1, count: 3 });
+    assert.equal(W.applySectionParticles(b.el), false, '모듈이 없는데 그렸다고 답했다');
+    assert.equal(said, 1, '조용히 실패했다 — 콘솔에 말해야 한다');
+  } finally { globalThis.window.ParticlesFx = prevP; console.error = prevErr; }
+});
+
 test('W9 ★필터 id 는 섹션마다 다르다 — 문서 전역 id 가 겹치지 않게', () => {
   assert.equal(W.particlesFilterId('sec_abc'), 'pfx-sec_abc');
   assert.notEqual(W.particlesFilterId('sec_a'), W.particlesFilterId('sec_b'));

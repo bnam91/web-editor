@@ -30,7 +30,22 @@
 
    ★★층은 저장본에 ★남는다(글로우와 같은 결) — ⛔②(section-serialize.js:217)·③(save-load.js:600)
      명부에 ★올리지 마라. 올리면 ★배송 HTML 에서도 사라져 ★내보낸 그림에 파티클이 없다.
+     ★그 두 명부는 «편집기 전용 표시»를 거르는 자리고, 파티클은 «사람이 고른 내용»이다(지디 승인 2026-10-07 R2).
      ⇒ 로드 때 `watchAllParticles` 가 ★현재 섹션 높이로 ★다시 그린다(저장 당시 높이가 아니라).
+
+   ★★⛔`js/section-merge.js` 의 `KEEP_OUT` 에 ★이 층을 ★넣지 마라 (지디 판정 2026-10-07 R1 · 실측 근거)
+     까닭 ⑴ 그 `KEEP_OUT` 은 ★허용목록이 아니라 ★«제외목록»이다(그 자리 주석: 「모르는 블록이 새로 생겨도
+       안 잃는다」) ⇒ ★가만 두면 층이 ★상자(part)로 ★따라간다.
+     까닭 ⑵ ★그것이 ★배경이 겪는 것과 ★같은 동작이다 — `section-merge.js:113~116` 이 source 의
+       배경색을 ★상자로 ★옮겨 ★보존한다. ⇒ ★결이 ★일치한다. ⛔새 규칙을 만들면 사용자가 둘을 외워야 한다.
+     까닭 ⑶ 좌표가 선다 — 층은 `position:absolute; inset:0` 이고 상자가 `position:relative` 라
+       ★상자가 새 기준이 되어 ★정확히 그 상자를 덮는다(그 파일 주석이 스티커로 같은 말을 한다).
+     ★⚠️그러므로 ★이 동작을 ★«검사»로 잠가야 한다 — ㉣-1(합친 뒤 층이 상자 안에 산다 ＋ dataset.mergedOuter)
+       · ㉣-2(음성대조: 배경색도 같은 자리로 간다) · ㉣-3(★양성대조: KEEP_OUT 에 넣으면 ★빨개지나).
+       ★★그 셋은 ★DOM 수트 몫이고 ★2026-10-07 현재 ★★미실시다 — ⛔이 주석을 ★그 검사 대신 읽지 마라.
+   ★★＋변형(A/B안)은 ★병합과 ★안 만난다 — `canMergeSections` 가 거부한다(지디 실측).
+     ⇒ 필터 id 가 변형 사본에서 어긋나는 건(`section-variation.js` 가 모든 [id] 를 다시 짓는데
+       `filter="url(#…)"` 참조는 안 바뀐다)은 ★병합과 무관한 ★별건이고, ★그것도 ★미실시다.
    ═══════════════════════════════════════════════════════════════════════════ */
 import { registerFxType } from './effects-registry.js';
 
@@ -102,8 +117,16 @@ export function applySectionParticles(sec) {
     wrap.className = FX_PARTICLES_WRAP;
     sec.insertBefore(wrap, sec.firstChild);       // 배경 위 · 내용 아래(자리는 CSS 가 정한다)
   }
-  /* ★크기는 «지금» 잰다 — 저장본에 실린 viewBox 는 ★저장 당시 높이다. */
-  wrap.innerHTML = P.svg({ ...cfg, w: Math.round(sec.offsetWidth || 860), h: Math.round(sec.offsetHeight || 600),
+  /* ★크기는 «지금» 잰다 — 저장본에 실린 viewBox 는 ★저장 당시 높이다.
+     ★★높이는 ⛔`sec.offsetHeight` 를 ★직접 쓰지 않는다 — ★공용 자 `window.measureSectionHeight` 를 부른다.
+       까닭(js/section-height.js 머리말): ★그것이 ★섹션 높이의 ★단일 원본이고, 캔버스 배지·합계·패널이
+       ★같은 함수를 쓴다. ★값의 출처가 둘이면 ★어느 날 갈린다 — ★그 파일 실측(2026-10-07)에서
+       ★안쪽이 지역 함수를 부르자 ★자를 0 으로 바꿔도 배지가 ★안 변해 ★양성대조가 죽었다.
+       ⇒ ★나는 ★그 자의 ★둘째 소비자다. ★폴백(|| offsetHeight)은 ★로드 순서 보호용이다
+         (그 파일 `ruler()` 와 ★같은 꼴 — ⛔다른 수를 쓰는 길이 아니다).
+     ★너비는 ★섹션이 캔버스 폭을 꽉 채우므로 offsetWidth 가 맞다. 폴백 860 의 출처 = js/io/export-image.js:6 CANVAS_W. */
+  const H = (typeof window !== 'undefined' && window.measureSectionHeight?.(sec)) ?? sec.offsetHeight;
+  wrap.innerHTML = P.svg({ ...cfg, w: Math.round(sec.offsetWidth || 860), h: Math.round(H || 600),
     filterId: particlesFilterId(sec.id) });
   return true;
 }
