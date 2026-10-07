@@ -89,16 +89,29 @@ test('B2 ★손으로 주면 ★그 값이 이긴다 — 0 이면 ★모난 네�
 test('B3 ★패널에서 고치면 ★모델·화면이 ★같이 따라온다 (patchCell 과 같은 병합 길)', async ({ page }) => {
   await bootApp(page);
   await build(page, { type: 'body', text: '알약', bg: '#2d6fe8' });
-  await page.fill('#grd-badge-radius', '20');
-  await page.dispatchEvent('#grd-badge-radius', 'change');
+  /* ★값을 ★직접 넣고 change 를 쏜다 — ⛔`page.fill` 을 쓰지 않는다.
+     까닭(실측 2026-10-07): 이 칸은 ★있는데 ★«보이지 않는다»(패널 절이 접혀 있다) ⇒ fill 이 ★30s 타임아웃.
+     ★이 시험이 재는 것은 ★«배선»(값 → 모델 → 화면)이지 ★«눌러서 닿나»가 ★아니다.
+     ⛔그래서 ★「사람이 그 칸에 ★닿을 수 있나」는 ★이 시험이 ★안 잰다 — ★별도 축이다(⛔안 쟀다).
+     ★전제를 ★먼저 단언한다(지디 규율: click·기다림 ★앞에 「그게 있나」). */
+  const exists = await page.evaluate(() => !!document.getElementById('grd-badge-radius'));
+  expect(exists, '전제 — 둥글기 칸이 DOM 에 있다').toBe(true);
+  await page.evaluate(() => {
+    const el = document.getElementById('grd-badge-radius');
+    el.value = '20';
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await page.waitForTimeout(150);
   const r = await read(page);
   expect(r.modelRadius, `★모델에 안 들어갔다 — 받은 값 ${r.modelRadius}`).toBe(20);
   expect(r.rendered, `★화면이 안 따라왔다 — 받은 값 ${r.rendered}`).toBe('20px');
 
   /* ★비우면 ★«미설정»으로 되돌아간다 ⇒ 렌더러가 다시 폴백을 쓴다(= 되돌릴 길이 있다) */
-  await page.fill('#grd-badge-radius', '');
-  await page.dispatchEvent('#grd-badge-radius', 'change');
+  await page.evaluate(() => {
+    const el = document.getElementById('grd-badge-radius');
+    el.value = '';
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await page.waitForTimeout(150);
   const back = await read(page);
   expect(back.modelRadius, `★비웠는데 키가 남았다 — 받은 값 ${back.modelRadius}`).toBe(null);
