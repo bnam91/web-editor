@@ -559,6 +559,7 @@ function bindBlock(block) {
   const isInfoCard    = block.classList.contains('infocard-block');
   const isInnerCard   = block.classList.contains('innercard-block');
   const isModal       = block.classList.contains('modal-block');
+  const isCoupon      = block.classList.contains('coupon-block');   // ★쿠폰(2026-10-07 현빈 발주)
   const isJoker      = block.classList.contains('joker-block');
   const isShape      = block.classList.contains('shape-block');
   const isCanvas     = block.classList.contains('canvas-block');
@@ -2175,8 +2176,10 @@ function bindBlock(block) {
     });
   }
 
-  // grid/infocard: bridge와 동일한 클릭-선택 (dataset 모델 정적 블록)
-  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties']]) {
+  /* grid/infocard: bridge와 동일한 클릭-선택 (dataset 모델 정적 블록)
+     ★쿠폰도 ★여기에 얹는다(2026-10-07) — ⛔제 핸들러를 새로 만들지 않는다. 그러면 프레임 안 선택·
+       ⌘/⇧ 다중선택·레이어 하이라이트·showHandlesFor 가 ★한 벌 더 생겨 조용히 갈라진다. */
+  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties'], [isCoupon, 'showCouponProperties']]) {
     if (!flag) continue;
     block.addEventListener('click', e => {
       e.stopPropagation();
@@ -2245,6 +2248,18 @@ function bindBlock(block) {
            여기서는 «어떤 키가 눌렸나»만 넘긴다(두 벌로 갈라 두지 않는다).
            ⛔이 줄이 _grdAddr 을 바꾸지는 «않는다» — 패널이 보는 줄은 종전대로 마지막에 누른 줄이다. */
         window.grdApplyLineSelClick?.(block, _grdAddr, { shift: e.shiftKey, meta: e.metaKey || e.ctrlKey });
+      }
+      /* ★쿠폰 — 누른 «글자 칸»의 이름을 2번째 인자로 넘긴다(현빈: 「우측 패널은 캔버스에서
+         ★고른 칸만 열린다」). 선례 = 바로 위 bn2 의 [data-line-idx] · 그리드의 _grdAddr.
+         ★렌더러가 심어 둔 data-cpn-slot 이 ★정본이다 — ⛔DOM 순서로 역산하지 마라.
+         ★배경(글자 아닌 곳)을 누르면 undefined 를 넘긴다 ⇒ 패널은 «열려 있던 칸을 그대로» 둔다
+           (showCouponProperties 가 slotKey===undefined 를 「바꾸지 말라」로 읽는다).
+         ⛔아래 호출줄의 변수 이름(_grdAddr)을 ★고치지 마라 — tests/unit/grid-active-line-reset.mjs:229
+           와 grid-line-typo.test.js:284 가 ★그 글자를 소스에서 찾는다. 이름이 그리드 꼴인 것은
+           «두 검사를 살려 두기 위해» 일부러 둔 것이다. */
+      if (showFn === 'showCouponProperties') {
+        const _sl = e.target && e.target.closest ? e.target.closest('[data-cpn-slot]') : null;
+        if (_sl && block.contains(_sl)) _grdAddr = _sl.dataset.cpnSlot;
       }
       window[showFn]?.(block, _grdAddr);
       /* ★0922 T-058 — 걸쇠는 showGridProperties «뒤»에 건다. 그 호출이 _grdAddr===null 일 때

@@ -105,7 +105,7 @@ function _assetsBindGlobalKeydown() {
       '.shape-block.selected, .speech-bubble-block.selected, .canvas-block.selected, ' +
       '.banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
       '.icon-block.selected, .vector-block.selected, .step-block.selected, ' +
-      '.laurel-block.selected, .gradient-block.selected, ' +
+      '.laurel-block.selected, .coupon-block.selected, .gradient-block.selected, ' +
       '.sticker-block.selected, .zoom-block.selected, .joker-block.selected, .chat-block.selected, .qa-block.selected');
     // ⚠️ SSOT window.CANVAS_SEL_BLOCKS_AND_SHAPE는 '블럭 전용'이라 섹션/col/frame/group을 포함하지 않는다
     //    (editor.js:1701 블럭 수집 용도). 섹션 선택 상태에서 Backspace 시 자산 삭제 모달이 잘못 뜨고

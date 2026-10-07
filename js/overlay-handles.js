@@ -1167,6 +1167,135 @@ function _onModalResizeHandleMouseDown(e, block, dir) {
 window.showModalResizeHandles = showModalResizeHandles;
 window.hideModalResizeHandles = hideModalResizeHandles;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   COUPON BLOCK RESIZE HANDLES (네 모서리 · ★폭만 쓴다) — 현빈 발주 2026-10-07
+   ───────────────────────────────────────────────────────────────────────────
+   ★뜻 = «폭» 하나다. 높이는 ★쓰지 않고 ★따라온다 — 쿠폰은 16:9 를 스스로 지킨다
+     (js/blocks/coupon-block.js `_cpnBoxH`). ⇒ dy 는 ★안 읽는다.
+     ⓐ 높이를 따로 쓰면 「비율」이 두 벌이 되고(dataset.height vs cw/ch) 한쪽만 고쳐진다.
+     ⓑ 그래서 네 모서리를 다 주지만 ★수평 성분만 센다 — modal 의 ★가운데 고정 산식(Δ=2·dx)을
+        그대로 쓴다(쿠폰도 margin-left/right:auto 로 가운데 선다 — renderCouponBlock 의 cssText).
+   ★★글자는 ★여기서 안 건드린다. ⛔dataset.slot*Size 를 쓰지 마라 —
+     폭이 줄면 renderCouponBlock 이 ★읽는 자리에서 비율을 곱한다(`_cpnEffFontSize`).
+     그래서 ★다시 넓히면 원래 크기가 ★되살아난다(zoom-geometry.js:392 와 같은 규약).
+     ⇒ 이것이 현빈이 말한 「텍스트 스티커처럼 비율이 줄어든다」의 ★앱 쪽 구현이고,
+       식·clamp 는 js/sticker-select.js:320~323 과 ★같다.
+   ★이름이 `-overlay-handle` 로 끝나야 tests/unit/overlay-handle-cursor.test.mjs 의 전수
+     그물에 자동 등록된다(커서 누락을 기계가 잡는다) — 작명에 이유가 있다.
+   ⛔`.mdl-overlay-handle` 을 «빌리면» hideModalResizeHandles 의 일괄 remove 에 쓸려 나간다
+     (아이콘원형·확대블럭이 두 번 밟은 함정).
+═══════════════════════════════════════════════════════════════════════════ */
+let _cpnResizeBlock = null;
+let _cpnResizeRafId = null;
+
+function showCouponResizeHandles(block) {
+  if (_cpnResizeBlock === block) return;
+  hideCouponResizeHandles();
+  _cpnResizeBlock = block;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  CORNER_DIRS.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `cpn-overlay-handle ${dir}`;
+    h.dataset.couponResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onCouponResizeHandleMouseDown(e, block, dir));
+  });
+  _updateCouponResizeHandlePositions();
+  _startCouponResizeRaf();
+}
+
+function hideCouponResizeHandles() {
+  if (_cpnResizeRafId) { cancelAnimationFrame(_cpnResizeRafId); _cpnResizeRafId = null; }
+  _cpnResizeBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.cpn-overlay-handle').forEach(h => h.remove());
+}
+
+function _updateCouponResizeHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_cpnResizeBlock) return;
+  const HALF = 3.5;
+  overlay.querySelectorAll('.cpn-overlay-handle').forEach(h => {
+    const c = _cornerScreen(_cpnResizeBlock, h.dataset.couponResizeDir);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+  });
+}
+
+function _startCouponResizeRaf() {
+  function loop() {
+    if (!_cpnResizeBlock) return;
+    if (!_cpnResizeBlock.isConnected || !_cpnResizeBlock.classList.contains('selected')) {
+      hideCouponResizeHandles();
+      return;
+    }
+    _updateCouponResizeHandlePositions();
+    _cpnResizeRafId = requestAnimationFrame(loop);
+  }
+  _cpnResizeRafId = requestAnimationFrame(loop);
+}
+
+function _onCouponResizeHandleMouseDown(e, block, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX, startY = e.clientY;
+  /* ★시작 폭은 «모델»에서 읽는다 — offsetWidth 는 배율·max-width:100% 가 곱해진 화면 값이라
+     좁은 호스트에서 첫 틱에 폭이 «쪼그라든다»(아이콘 스냅샷이 밟은 그 병과 같은 꼴). */
+  const lim = (typeof window !== 'undefined' && window.COUPON_LIMITS) || { width: { min: 80, max: 860 } };
+  const clamp = (typeof window !== 'undefined' && window.clampCoupon)
+    || ((v, L) => Math.min(L.max, Math.max(L.min, Math.round(Number(v) || 0))));
+  const startW = clamp(Number(block.dataset.width) || Math.round(block.offsetWidth), lim.width);
+  const sx = dir.includes('e') ? 1 : -1;
+  let moved = false;
+  const _hist = window.beginDragHistory?.('쿠폰 크기');
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    if (!moved) {
+      if (Math.hypot(dx, dy) < 1) return;   // ★기존 임계 — 여기 걸리면 이 틱은 «쓰기»도 안 한다
+      /* ★«시작 상태»를 1회 찍는다(끝 상태는 onUp). 드래그는 «양쪽 끝»을 다 남겨야
+         삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm(dx, dy);
+      moved = true;
+    }
+    /* ★Δ = 2·dx — 가운데 고정 상자는 폭이 Δ 늘 때 각 변이 Δ/2 만 움직인다(modal 의 그 산식).
+       ⛔dy 는 ★안 쓴다 — 높이는 비율에서 나온다(이 절의 머리말 ⓐ). */
+    const newW = clamp(startW + sx * dx * 2, lim.width);
+    block.dataset.width = String(newW);     // ★dataset 이 진실
+    /* ⛔mousemove 마다 renderCouponBlock 을 부르지 않는다 — innerHTML 을 통째로 갈아끼운다
+       (프레임 드랍 · 배경 SVG 가 매 프레임 새로 만들어져 깜빡인다).
+       ★드래그 «중»엔 인라인 두 줄만 얹는다 — 글자는 ★손을 뗀 뒤 재렌더가 비율로 맞춘다.
+         그래서 드래그 중에는 글자가 «안 줄고» 상자만 줄어 보인다. 이것이 의도다
+         (modal 도 같은 까닭으로 드래그 중 재렌더를 안 한다). */
+    block.style.width = newW + 'px';
+    const h = window.cpnBoxH ? window.cpnBoxH(block, newW) : null;
+    if (h) block.style.height = h + 'px';
+    const wNum = document.getElementById('cpn-width-number');
+    const wSld = document.getElementById('cpn-width-slider');
+    if (wNum) wNum.value = String(newW);
+    if (wSld) wSld.value = String(newW);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다. 시작 상태는 onMove 의 arm() 이 찍는다. */
+    window.pushHistory?.();
+    if (!moved) return;
+    window.renderCouponBlock?.(block);       // ★dataset 을 «그림»으로 굳힌다(글자 비율도 여기서)
+    window.showCouponProperties?.(block);    // 폭·높이 안내·「지금 화면 크기」가 실제와 맞게
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showCouponResizeHandles = showCouponResizeHandles;
+window.hideCouponResizeHandles = hideCouponResizeHandles;
+
 /* ═══════════════════════════════════
    ICON-CIRCLE BLOCK RESIZE HANDLE (overlay, east-only, square-constrained)
 ═══════════════════════════════════ */
@@ -3508,6 +3637,10 @@ function showHandlesFor(block) {
   } else if (block.classList.contains('modal-block')) {
     showModalRadiusHandles(block);
     showModalResizeHandles(block);
+  } else if (block.classList.contains('coupon-block')) {
+    /* ★폭 하나다 — 모서리 라디우스 손잡이는 ★안 준다(쿠폰의 모서리는 ★배경 SVG 가
+       그리므로 손잡이를 주면 CSS border-radius 와 ★두 벌이 된다. 패널 슬라이더로만). */
+    showCouponResizeHandles(block);
   } else if (block.classList.contains('text-block')
           || block.classList.contains('speech-bubble-block')
           || block.classList.contains('icon-text-block')) {
@@ -3544,6 +3677,8 @@ export {
   showModalRadiusHandles,
   hideModalRadiusHandles,
   showModalResizeHandles,
+  showCouponResizeHandles,
+  hideCouponResizeHandles,
   hideModalResizeHandles,
   showIconCircleResizeHandle,
   hideIconCircleResizeHandle,

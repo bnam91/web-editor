@@ -396,6 +396,9 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * ⛔`.asset-overlay-handle` 을 빌리지 않는다 — hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다. */
 /* ★`.grd-overlay-handle`(떠 있는 그리드의 «폭» 손잡이, G2-b 2026-10-04)도 같은 규칙에 얹는다 — 여섯 번째다.
  * ⛔`.grd-img-overlay-handle`(칸 안 이미지 크기)과 이름이 비슷하지만 «다른 손잡이»다 — 그건 줄 하나, 이건 블럭 폭. */
+/* ★`.cpn-overlay-handle`(쿠폰 «폭» 손잡이, 2026-10-07)도 같은 규칙에 얹는다 — 일곱 번째다.
+ * ⛔`.mdl-overlay-handle` 을 빌리지 않는다 — hideModalResizeHandles() 의 일괄 remove 에 쓸려 나간다. */
+.cpn-overlay-handle,
 .tfo-overlay-handle,
 .grd-img-overlay-handle,
 .grd-overlay-handle {
@@ -462,10 +465,10 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
      (2026-09-09 현빈 실측: 「모달블럭 > 모서리 핸들 마우스 커서 모양 안 바뀜」).
    ⚠️모양 규칙(:253)엔 얹혀 있는데 «커서만» 안 얹혀서, 손잡이는 보이는데 커서가 화살표 그대로였다.
    ⇒ ★다음에 오버레이 손잡이를 가진 블록을 만들면 «여기도» 더해라. 검사가 이 짝을 못박는다. */
-.asset-overlay-handle.nw, .icb-overlay-handle.nw, .zm-overlay-handle.nw, .mdl-overlay-handle.nw, .grd-img-overlay-handle.nw, .tfo-overlay-handle.nw { cursor: nw-resize; }
-.asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne, .mdl-overlay-handle.ne, .grd-img-overlay-handle.ne, .tfo-overlay-handle.ne { cursor: ne-resize; }
-.asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw, .grd-img-overlay-handle.sw, .tfo-overlay-handle.sw { cursor: sw-resize; }
-.asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se, .grd-img-overlay-handle.se, .tfo-overlay-handle.se { cursor: se-resize; }
+.asset-overlay-handle.nw, .icb-overlay-handle.nw, .zm-overlay-handle.nw, .mdl-overlay-handle.nw, .cpn-overlay-handle.nw, .grd-img-overlay-handle.nw, .tfo-overlay-handle.nw { cursor: nw-resize; }
+.asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne, .mdl-overlay-handle.ne, .cpn-overlay-handle.ne, .grd-img-overlay-handle.ne, .tfo-overlay-handle.ne { cursor: ne-resize; }
+.asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw, .cpn-overlay-handle.sw, .grd-img-overlay-handle.sw, .tfo-overlay-handle.sw { cursor: sw-resize; }
+.asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se, .cpn-overlay-handle.se, .grd-img-overlay-handle.se, .tfo-overlay-handle.se { cursor: se-resize; }
 /* ★그리드 폭 손잡이는 네 모서리 «모두» 좌우 화살표 — 폭만 바뀌고 높이는 내용이 정한다(대각 커서는 거짓말이 된다). */
 /* 10-05 제4안으로 높이도 바뀌어 방향별로 — 모서리 = 폭+높이(대각) · e/w = 폭(좌우) · n/s = 높이(칸 위아래 여백 · 위아래). */
 .grd-overlay-handle { cursor: ew-resize; }
@@ -1325,6 +1328,15 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   box-sizing: border-box;
   outline: 2px solid transparent;
 }
+/* ★쿠폰(2026-10-07) — 위 절의 `width:100%` 를 ★물려받으면 안 된다(폭이 dataset.width 다 ·
+   renderCouponBlock 의 cssText 가 px 로 준다). 그래서 «나머지 넷»만 같이 쓴다.
+   ⛔두께·오프셋을 따로 적지 마라 — 아래 .selected 절을 ★모달과 같이 쓴다(CLAUDE.md 체크리스트). */
+.coupon-block {
+  position: relative;
+  cursor: pointer;
+  box-sizing: border-box;
+  outline: 2px solid transparent;
+}
 .grid-block:hover::after,
 .infocard-block:hover::after,
 .modal-block:hover::after,
@@ -1332,7 +1344,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .grid-block.selected,
 .infocard-block.selected,
 .modal-block.selected,
+.coupon-block.selected,
 .innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+/* ★쿠폰의 글자 칸 — 편집 포커스 테두리를 끈다(모달의 .tb-mdl-* 과 같은 까닭).
+   ★줄바꿈은 생성기 쪽에서 white-space:pre 로 준다(렌더가 인라인으로) — 여기선 안 건드린다. */
+.coupon-block .tb-cpn-line { outline: none; }
 /* ★G19 그리드 «밑» 자식 블럭 그릇(.grd-children) — 간격(margin-top·flex gap)은 js/grid-children.js 가 «인라인»으로 건다
    (그래야 PNG·HTML 내보내기가 에디터 CSS 없이도 같은 자리를 낸다). 여기는 두 가지만:
    ⑴ 빈 그릇은 자리를 안 먹는다 — 자식을 지우거나 끌어낸 직후 «다음 렌더 전»까지 남는 빈 그릇(인라인 margin-top)이

@@ -56,6 +56,11 @@ const _PANEL_BY_CLASS = [
   ['infocard-block',    (el) => window.showInfoCardProperties?.(el)],       // :1846
   ['innercard-block',   (el) => window.showInnerCardProperties?.(el)],      // :1846
   ['modal-block',       (el) => window.showModalProperties?.(el)],          // :1846
+  /* ★쿠폰(2026-10-07 · 현빈 발주) — 2번째 인자 없이 부르면 «아무 칸도 안 펼친 목록»이 열린다.
+     ★캔버스에서 «글자»를 누르는 경로는 js/block-drag.js 가 칸 이름을 ★같이 넘긴다
+     (현빈: 「우측 패널은 캔버스에서 고른 칸만 열린다」). ⛔여기서 칸을 고르지 않는다 —
+       이 표는 «블럭을 골랐을 때»의 입구고, 칸을 넘기면 블럭 선택만으로 한 칸이 펼쳐진다. */
+  ['coupon-block',      (el) => window.showCouponProperties?.(el)],
   ['joker-block',       (el) => window.showJokerProperties?.(el)],          // :720
   ['canvas-block',      (el) => ((el.dataset.cardMode === 'simple' && window.showSimpleCardProperties)
                                   ? window.showSimpleCardProperties(el)

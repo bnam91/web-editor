@@ -695,7 +695,7 @@
     </div>
   </div>
   <div class="fp-dropdown" id="fp-component-dropdown">
-    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-component-dropdown')" title="컴포넌트 블록 추가 (Table / Card / Graph / Divider / Gap / Step / Chat / Banner)">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-component-dropdown')" title="컴포넌트 블록 추가 (Table / Card / Graph / Divider / Gap / Step / Chat / Banner / Coupon)">
       <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
         <rect x="1" y="1" width="4" height="4" rx="0.5"/>
         <rect x="6" y="1" width="4" height="4" rx="0.5"/>
@@ -714,6 +714,7 @@
       <button class="fp-menu-item" onclick="addChatBlock();toggleFpDropdown('fp-component-dropdown')">Chat</button>
       <button class="fp-menu-item" onclick="addGridBlock();toggleFpDropdown('fp-component-dropdown')">Grid</button>
       <button class="fp-menu-item" onclick="addModalBlock();toggleFpDropdown('fp-component-dropdown')">Modal</button>
+      <button class="fp-menu-item" onclick="addCouponBlock();toggleFpDropdown('fp-component-dropdown')">Coupon</button>
       <!-- ★[숨김] Info Card · Inner Card — 현빈 2026-09-07 「info카드와 이너카드도 일단 숨김처리해줘」
            ⛔막는 것은 «새로 넣는 입구»뿐이다. 블록 구현·프로퍼티 패널·레이어 패널·저장/로드는
              그대로 둔다 — 이미 이 블록이 들어간 프로젝트는 계속 열리고 편집돼야 한다
@@ -1084,6 +1085,7 @@
 <script src="js/fx/glow-render.js"></script>
 <script type="module" src="js/props/prop-sticker.js"></script>
 <script type="module" src="js/props/prop-laurel.js"></script>
+<script type="module" src="js/props/prop-coupon.js"></script>
 <script type="module" src="js/props/prop-zoom.js"></script>
 <script type="module" src="js/props/prop-gradient.js"></script>
 <script type="module" src="js/props/prop-label-group.js"></script>
@@ -1112,6 +1114,7 @@
 <script type="module" src="js/blocks/line-host.js"></script>  <!-- ★BT2 말풍선·챗 «줄»(그리드 줄 데이터) — 줄바·줄 꾸미기는 prop-grid 와 같은 함수 -->
 <script type="module" src="js/blocks/chat-block.js"></script>
 <script type="module" src="js/blocks/laurel-block.js"></script>
+<script type="module" src="js/blocks/coupon-block.js"></script>
 <script type="module" src="js/blocks/zoom-block.js"></script>
 <script type="module" src="js/blocks/sticker-block.js"></script>
 <script type="module" src="js/blocks/vector-block.js"></script>

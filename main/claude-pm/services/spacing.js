@@ -85,6 +85,7 @@ const WEIGHT = Object.freeze({
   infocard: 3,      // .infocard-block — 카드
   innercard: 3,     // .innercard-block — 카드 안 카드
   modal: 3,         // .modal-block — 컨테이너 + 텍스트(현빈 발주 2026-09-08). 카드와 같은 «덩어리»다
+  coupon: 3,        // .coupon-block — 배경 SVG 그릇 ＋ 글자 다섯(현빈 발주 2026-10-07). 모달과 같은 «덩어리»다
   joker: 3,         // .joker-block(sb_) — 피그마 컴포넌트 자리, 통짜 그림
   // 3 — 덩어리
   table: 3,

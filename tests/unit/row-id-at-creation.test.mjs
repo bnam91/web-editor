@@ -98,6 +98,7 @@ const ROSTER = {
   'js/blocks/canvas-block.js':     ['row'],
   'js/blocks/chat-block.js':       ['row'],
   'js/blocks/comparison-block.js': ['row'],
+  'js/blocks/coupon-block.js':     ['row'],   // 2026-10-07 쿠폰 — makeCouponBlock 이 만들 때 genId('row') 를 준다
   'js/blocks/grid-block.js':       ['row'],
   'js/blocks/iconify-block.js':    ['row'],
   'js/blocks/infocard-block.js':   ['row'],

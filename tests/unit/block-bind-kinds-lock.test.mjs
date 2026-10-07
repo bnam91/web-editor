@@ -45,8 +45,11 @@ const FROZEN = {
   'template-system.js subsection 갈래': { file: 'js/panels/template-system.js', anchor: "ss.querySelectorAll('.text-block, .asset-block", gaps: { 'banner02-block': U, 'canvas-block': U, 'chat-block': U, 'comparison-block': U, 'laurel-block': U, 'mockup-block': U, 'speech-bubble-block': C, 'step-block': U, 'vector-block': U, 'zoom-block': U } },
 };
 
-test('정본 명부가 서 있다(28 종 · 만드는 자리가 있고 bindBlock 으로 묶이는 종류)', () => {
-  assert.equal(ROSTER.size, 28, `정본 ${ROSTER.size} 종`);
+/* ★2026-10-07 — 쿠폰블럭이 들어와 28 → 29.
+   ★손 명부 6 곳에는 «얼린 칸을 늘리지 않고» `.coupon-block` 을 ★넣었다(빚을 늘리지 않는 쪽).
+     ⇒ 아래 FROZEN 의 gaps 에 coupon-block 이 ★한 건도 없는 것이 ★그 증거다. */
+test('정본 명부가 서 있다(29 종 · 만드는 자리가 있고 bindBlock 으로 묶이는 종류)', () => {
+  assert.equal(ROSTER.size, 29, `정본 ${ROSTER.size} 종`);
 });
 
 test('★A/B 변형 사본(section-variation.js createVariation·addVariation)도 정본에서 끌어온다(0.9.6)', () => {
