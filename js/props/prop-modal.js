@@ -187,6 +187,11 @@ ${blockHeaderHTML({
         </div>
         <input type="number" class="prop-number" id="mdl-h-number" min="${L.height.min}" max="${L.height.max}" value="${height}"${hMode === 'fixed' ? '' : ' disabled'}>
       </div>
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="mdl-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
+        <input type="number" class="prop-number" id="mdl-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
+      </div>
       ${_mdlFloatRow ? `<div class="prop-row">${_mdlFloatRow}</div>` : ''}
     </div>
 
@@ -548,6 +553,22 @@ ${blockHeaderHTML({
       window.showHandlesFor?.(block);
     },
   });
+  /* ── 회전 — ★공유 헬퍼(applyRotationDeg · dataset.rotation)로 ★핫존과 ★같은 값을 본다.
+       ★선례 = prop-canvas.js:198~210 (★범위 −180~180 도 ★그 선례의 수다 — ⛔내가 고른 수가 아니다).
+       ⛔두 칸 중 ★하나만 맞추지 마라 — 슬라이더와 숫자가 갈라진다(이 레포 고질). */
+  const _mRotS = document.getElementById('mdl-rot-slider');
+  const _mRotN = document.getElementById('mdl-rot-number');
+  if (_mRotS && _mRotN) {
+    const _mdlRotSet = v => {
+      v = Math.min(180, Math.max(-180, parseInt(v) || 0));
+      window.applyRotationDeg?.(block, v);
+      _mRotS.value = v; _mRotN.value = v;
+    };
+    _mRotS.addEventListener('input',  () => _mdlRotSet(_mRotS.value));
+    _mRotN.addEventListener('input',  () => _mdlRotSet(_mRotN.value));
+    _mRotS.addEventListener('change', () => window.pushHistory?.());
+    _mRotN.addEventListener('change', () => window.pushHistory?.());
+  }
   /* 떠 있을 때만 나오는 X/Y 두 칸 — 텍스트·도형 Position 절과 «같은 규약»(overlay-float.js). */
   wireFloatPosition({ block, xId: 'mdl-x-number', yId: 'mdl-y-number' });
 }

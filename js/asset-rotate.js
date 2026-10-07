@@ -363,6 +363,17 @@ const _CANVAS_ROT = _makeRotateType({
   historyLabel: '캔버스 회전',
   restore: _restoreDatasetRotation,
 });
+/* ★모달 — T11(현빈 2026-10-07). ★공장을 ★그대로 쓴다(⛔새 드래그 코드 0).
+   ★applyDeg/restore 는 ★다른 타입과 ★같은 공유 헬퍼다 — dataset.rotation ★한 칸.
+   ⚠️모달은 ★renderModalBlock 이 ★cssText 를 ★통째로 쓰므로 ★그 함수가 ★회전을 ★다시 얹는다
+      (js/blocks/modal-block.js — ★그 자리 주석에 ★대조 실측이 있다: ★모달만 지워졌다). */
+const _MODAL_ROT = _makeRotateType({
+  zoneClass: 'mdl-rotate-zone',
+  applyDeg: (b, host, deg) => _applyRotationDeg(host, deg),
+  syncUI: (b, host, deg) => _syncNumSlider('mdl-rot', deg),
+  historyLabel: '모달 회전',
+  restore: _restoreDatasetRotation,
+});
 const _ICB_ROT = _makeRotateType({
   zoneClass: 'icb-rotate-zone',
   applyDeg: (b, host, deg) => _applyRotationDeg(host, deg),
@@ -402,6 +413,7 @@ const _ROTATE_HANDLERS = {
   'mockup-block':      _MOCKUP_ROT,
   'canvas-block':      _CANVAS_ROT,
   'icon-circle-block': _ICB_ROT,
+  'modal-block':       _MODAL_ROT,
   'vector-block':      _VECTOR_ROT,
 };
 function _rotateHandlerFor(el) {

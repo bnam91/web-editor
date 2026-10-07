@@ -458,6 +458,22 @@ function renderModalBlock(block) {
        box-shadow 는 다른 어떤 선언과도 같은 자리를 다투지 않으므로 순서에 안 걸린다. */
     + _shadowStyles(block)
     + _alignStyles(v, align, vAlign, hMode);
+  /* ★★회전을 ★여기서 ★다시 얹는다 — T11(현빈 2026-10-07 「모달블럭도 로테이트」).
+     ⛔위 `block.style.cssText = …` 가 ★transform 을 ★통째로 지운다 ⇒ ★회전이 ★조용히 사라진다
+       (★dataset.rotation 은 남아 「저장은 되고 ★안 보인다」가 된다).
+     ★★실측(2026-10-07 · 대조) — ★회전 타입 중 ★모달만 그렇다:
+         modal  rotate(30deg) → ★''        ⛔지워진다   ← ★이 줄이 없으면
+         canvas rotate(30deg) → rotate(30deg)  ★산다    (renderCanvas 가 ★block.style.cssText 를 ★안 쓴다 · 0건)
+         mockup rotate(30deg) → rotate(30deg)  ★산다    (그 cssText 는 ★make 쪽이다 · render 엔 없다)
+       ⇒ ★그 둘은 ★«안 덮어서» 살았고, 모달은 ★덮으므로 ★다시 얹는 수밖에 없다
+     ⛔`window.applyRotationDeg` 를 ★부르지 않는다 — 그 함수는 ★scheduleAutoSave 를 ★같이 때린다
+       ⇒ 렌더 안에서 부르면 ★저장이 렌더마다 돈다. ★여기서는 ★문자열만 얹는다(부작용 0).
+     ★각도의 출처는 ★dataset.rotation ★하나다(그 헬퍼가 쓰는 그 칸) — ⛔제 칸을 만들지 않는다. */
+  const _mdlRot = parseInt(block.dataset.rotation, 10);
+  if (Number.isFinite(_mdlRot) && _mdlRot !== 0) {
+    block.style.transform = `rotate(${_mdlRot}deg)`;
+    block.style.transformOrigin = 'center center';
+  }
 
   const title = block.dataset.titleText;
   const text  = block.dataset.textText;

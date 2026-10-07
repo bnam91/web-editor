@@ -1763,23 +1763,27 @@ test('ⓑ-ROT-6 ★회전 슬라이더는 «남는다» — 그리고 핸들과 
        ⇒ 그러니 아래는 관용구가 아니라 «성질»(syncUI 를 가졌나)을 센다. */
   const registry = sliceBlock(rot, 'const _ROTATE_HANDLERS = {');
   const entries = [...registry.matchAll(/^\s*'([\w-]+)':\s*(.+?),\s*$/gm)].map((m) => [m[1], m[2].trim()]);
-  assert.equal(entries.length, 8, `회전 레지스트리가 ${entries.length}종 — 전제(8종)가 바뀌었다면 근거를 다시 재라`);
+  /* ★2026-10-07 — ★모달이 들어와 ★8 → ★9 (T11 · 현빈 「모달블럭도 로테이트」).
+     ⛔「숫자만 고치지 마라」는 ★아래 두 단언이 ★집행한다 — ★모달을 ★동기하는 쪽에 ★이름으로 넣었다.
+     ★그리고 ★모달은 ★`_syncNumSlider('mdl-rot')` 관용구를 ★쓴다(★txt·mkp·cvb·icb 와 ★같은 꼴)
+       ⇒ ★아래 그 넷을 세는 표에도 ★다섯째로 ★들어간다. ⇒ ★★관용구 쪽 전수도 ★같이 늘렸다. */
+  assert.equal(entries.length, 9, `회전 레지스트리가 ${entries.length}종 — 전제(9종)가 바뀌었다면 근거를 다시 재라`);
   const synced = entries.filter(([, v]) =>
     /syncUI\s*:/.test(v.startsWith('{') ? v : sliceBlock(rot, `const ${v} = _makeRotateType({`, '회전 설정')));
   assert.deepEqual(synced.map(([k]) => k).sort(),
-    ['canvas-block', 'icon-block', 'icon-circle-block', 'mockup-block', 'text-block', 'vector-block'],
+    ['canvas-block', 'icon-block', 'icon-circle-block', 'mockup-block', 'modal-block', 'text-block', 'vector-block'],
     '★동기하는 종류가 바뀌었다 — 근거를 다시 재라(⛔숫자만 고치지 마라)');
   assert.deepEqual(entries.filter(([k]) => !synced.some(([j]) => j === k)).map(([k]) => k).sort(),
     ['asset-block', 'shape-block'],
     '★동기 «안» 하는 둘이 바뀌었다 — 「전부」가 아니라는 사실 자체가 근거의 일부다');
-  /* ⇒ 6/8 이다. 「전부」가 아니므로 슬라이더를 남기는 근거는 «그쪽»이 아니다.
+  /* ⇒ ★7/9 이다(2026-10-07 모달 추가 전엔 6/8). 「전부」가 아니므로 슬라이더를 남기는 근거는 «그쪽»이 아니다.
      ★진짜 근거는 현빈 원문 「회전 슬라이드«로만» 하니까」다 — 고칠 대상은 «로만»이지 슬라이더가 아니다.
        불만은 「슬라이더가 있다」가 아니라 「그것뿐이다」 ⇒ 핸들을 «더하는» 것이 답이다.
      ⚠️그리고 「_syncNumSlider 만 grep 해서 «동기 안 한다»」로 읽어도 틀린다 —
        iconify 는 icn-rot-number, vector 는 vb-rotate-deg 로 «다른 id 관용구»를 쓴다. */
-  for (const [pre, cnt] of [['txt-rot', 1], ['mkp-rot', 1], ['cvb-rot', 1], ['icb-rot', 1]]) {
+  for (const [pre, cnt] of [['txt-rot', 1], ['mkp-rot', 1], ['cvb-rot', 1], ['icb-rot', 1], ['mdl-rot', 1]]) {
     assert.equal((rot.match(new RegExp(`_syncNumSlider\\('${pre}'`, 'g')) || []).length, cnt,
-      `${pre} 가 _syncNumSlider 로 동기하지 않는다 — 이 넷이 그 관용구를 쓰는 «전수»다`);
+      `${pre} 가 _syncNumSlider 로 동기하지 않는다 — 이 ★다섯이 그 관용구를 쓰는 «전수»다(2026-10-07 모달 추가)`);
   }
   for (const id of ['icn-rot-number', 'vb-rotate-deg']) {
     assert.ok(rot.includes(id), `${id} 가 없다 — «다른 id 관용구»로 동기하는 둘이 사라졌다`);
