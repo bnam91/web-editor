@@ -375,3 +375,78 @@ test('P13 ★축 글이 ★RANGES 를 ★양방향으로 덮는다 — ★축이
   assert.deepEqual(dk.filter((k) => !D[k]), [], '★분포에 사람 글이 없다');
   assert.deepEqual(Array.from(Object.keys(D)).filter((k) => !dk.includes(k)), [], '★글 표에 없는 분포가 있다');
 });
+
+/* ═══ P14 ★색 칩의 ★꼴 — ★현빈 2026-10-08 「이것도 너무 커 … 이정도 크기는 어때」 ═════════
+ *  ★이 칸이 ★잠그는 것 ★셋:
+ *    ⒜ ★색 ★하나당 ★자리 ★하나다(✕ 가 ★가로를 ★먹지 않는다) — ★전에는 ★둘이었다
+ *    ⒝ ★`.prop-color-swatch` 가 ★살아 있다 — ⛔빼면 ★네이티브 OS 색 대화상자로 ★퇴행
+ *       (js/props/color-picker.js:1029 가 ★그 클래스로 ★네이티브를 막는다)
+ *    ⒞ ★크기의 ★정본이 ★한 자리다 — 「최근」 칩과 ★파티클 칩이 ★같은 토큰을 읽는다
+ *  ⛔「칸 수 === colors 수」 ★하나로는 ★부족하다 ⇒ ★★colors 를 ★갈아 끼워 ★따라오나를 잰다. */
+
+/** CSS 주석을 ★떼어 낸다 — ★★주석은 ★소스 파싱 게이트의 ★입력이다(2026-10-07 교훈).
+ *  ★이 파일의 ★주석에 ★「20」·★「24px」·★토큰 이름이 ★적혀 있어 ★안 떼면 ★내 글자를 ★센다. */
+function cssNoComments(txt) { return txt.replace(/\/\*[\s\S]*?\*\//g, ' '); }
+/** 선택자 하나의 ★몸(첫 번째 블록)만 — ⛔파일 전체에서 grep 하면 ★딴 줄에 속는다. */
+function cssBody(txt, selector) {
+  const i = txt.indexOf(selector);
+  if (i < 0) return null;
+  const a = txt.indexOf('{', i), b = txt.indexOf('}', a);
+  return (a < 0 || b < 0) ? null : txt.slice(a + 1, b);
+}
+
+test('P14 ★색 칩 — ★색 하나당 자리 하나 ＋ ★피커 손잡이 ＋ ★크기 정본 한 자리', () => {
+  /* ═══ ⒜ ★출처를 갈아 끼운다 — ★colors 수가 바뀌면 ★칩 자리 수가 ★따라오나 ═══════════ */
+  const CASES = [1, 3, 8];
+  for (const n of CASES) {
+    const cs = Array.from({ length: n }, (_, i) => '#' + String(i + 1).repeat(6));
+    const sec = mkSec({ cfg: { preset: P.KINDS[0], seed: 7, colors: cs }, wrapHtml: '<svg></svg>' });
+    assert.equal(WIRING.readParticles(sec.dataset).colors.length, n, `★전제: ${n}색이 저장되지 않았다`);
+    const h = PANEL.secParticlesHTML(sec);
+
+    const wraps = (h.match(/class="fxpart-chip-wrap"/g) || []).length;
+    assert.equal(wraps, n, `★색 ${n}개인데 ★칩 자리가 ${wraps}개다 — ★색 하나당 자리 하나여야 한다`);
+
+    /* ⒝ ★피커 손잡이 — ★스와치 클래스가 ★칩마다 ★살아 있나 */
+    const handles = (h.match(/class="prop-color-swatch fxpart-chip"/g) || []).length;
+    assert.equal(handles, n, `★`
+      + `.prop-color-swatch 를 쥔 칩이 ${handles}/${n} 다 — ⛔빠진 칩은 ★네이티브 OS 색 대화상자를 연다`);
+
+    /* ⒝-2 ★✕ 는 ★스와치 ★«밖»의 ★형제다 — ★안에 넣으면 ★document 델리게이션이 ★피커를 연다 */
+    for (const m of h.matchAll(/class="prop-color-swatch fxpart-chip"/g)) {
+      const close = h.indexOf('</span>', m.index);
+      assert.ok(close > 0, '★스와치가 ★닫히지 않았다');
+      assert.ok(!h.slice(m.index, close).includes('data-fxpart-color-del'),
+        '★✕ 가 ★.prop-color-swatch ★안에 있다 — ★그 클릭에서 ★피커가 ★먼저 열린다');
+    }
+
+    /* ⒜-2 ★✕ 수 — ★하나뿐이면 ★없다(★마지막 색은 못 뺀다는 ★그 규칙의 얼굴) */
+    const dels = (h.match(/data-fxpart-color-del="/g) || []).length;
+    assert.equal(dels, n > 1 ? n : 0, `★색 ${n}개에 ★✕ 가 ${dels}개다`);
+  }
+
+  /* ═══ ⒞ ★크기의 ★정본 — ★한 자리에서만 적고 ★둘이 ★같이 읽나 ════════════════════ */
+  const raw = readSrc(REPO, 'css/editor-props.css');
+  const css = cssNoComments(raw);
+  /* ★양성대조 — ★주석 떼기가 ★정말 도나(⛔안 돌면 ★내 주석의 수를 센다) */
+  assert.ok(raw.includes('이정도 크기는 어때'), '★전제: 현빈 인용이 ★주석에 있다');
+  assert.ok(!css.includes('이정도 크기는 어때'), '★★주석 떼기가 ★안 돈다 — ★아래 수는 ★내 주석일 수 있다');
+  /* ★음성대조 — ★떼고도 ★규칙은 ★남아 있나 */
+  assert.ok(css.includes('.cv-chip.recent'), '★주석 떼기가 ★규칙까지 ★지웠다');
+
+  const TOK = '--cv-chip-recent-size';
+  const decls = (css.match(new RegExp(TOK + '\\s*:', 'g')) || []).length;
+  assert.equal(decls, 1, `★${TOK} 를 ★정의한 자리가 ${decls} 곳이다 — ★정본은 ★한 자리여야 한다`);
+
+  /* ★규칙이 ★있나 — ⛔「있으면 통과」로 ★끝내지 않는다(아래가 ★본 단언) */
+  for (const sel of ['.cv-chip.recent', '#sec-fxpart-colors .prop-color-swatch.fxpart-chip',
+                     '.fxpart-chip-wrap']) {
+    assert.ok(cssBody(css, sel), `★${sel} 규칙이 ★없다`);
+  }
+  /* ★「최근」 칩이 ★그 토큰을 ★폭으로 읽나 — ★현빈이 ★가리킨 그 관계(★토큰을 고치면 ★둘이 같이 움직인다) */
+  assert.ok(cssBody(css, '.cv-chip.recent').includes('var(' + TOK + ')'),
+    `★「최근」 칩이 ★${TOK} 를 ★안 읽는다 — ★그러면 ★파티클 칩과 ★한 몸이 아니다`);
+  /* ★파티클 칩은 ★감싼 자리(.fxpart-chip-wrap)에서 ★그 토큰을 받는다 */
+  assert.ok(cssBody(css, '.fxpart-chip-wrap').includes('var(' + TOK + ')'),
+    `★.fxpart-chip-wrap 이 ★${TOK} 를 ★안 읽는다 — ★크기가 ★둘째 명부에서 왔다`);
+});

@@ -156,21 +156,34 @@ function _pairRow(keys, cfg, R) {
 }
 
 /** ★색 — ★시안 `renderPal`: ★스와치마다 ★color 입력 ＋ ★✕(둘 이상일 때) · ★＋(여덟 미만).
- *  ★상한 8 은 ⛔내 수가 아니다 — ★`normalize` 가 ★`.slice(0, 8)` 한다(particles-render.js:156). */
+ *  ★상한 8 은 ⛔내 수가 아니다 — ★`normalize` 가 ★`.slice(0, 8)` 한다(particles-render.js:156).
+ *
+ *  ★★현빈 2026-10-08 — 「(파티클 색 칸) ★이것도 ★너무 커」 ＋ (「최근」 색 줄을 가리키며) 「★이정도 크기는 어때」
+ *    ⇒ ⒜ ★칩 꼴 = `.cv-chip.recent` 의 ★크기를 ★그대로 읽는다(css `--cv-chip-recent-size` — ★정본 한 자리).
+ *       ⒝ ★✕ 가 ★칸을 ★먹지 않게 ★모서리에 ★겹쳐 두고 ★호버·포커스에만 보인다.
+ *          ★전: 색 ★하나당 ★요소 ★둘(스와치 24px ＋ ✕ 22px) ⇒ ★5색이면 ★가로로 ★열 칸.
+ *          ★후: 색 ★하나당 ★자리 ★하나(20px) — ✕ 는 ★그 위에 ★겹친다.
+ *    ⚠️★★`.prop-color-swatch` ★클래스를 ★빼지 마라 — ★그 클래스가 ★고야 피커를 ★여는 ★손잡이다
+ *      (js/props/color-picker.js:1029 document 델리게이션). ★빼면 ★네이티브 OS 색 대화상자로 ★퇴행한다.
+ *    ⚠️★✕ 는 ★`.prop-color-swatch` ★«밖»의 ★형제여야 한다 — ★안에 넣으면 ★그 델리게이션이
+ *      ★✕ 클릭(mousedown, capture)에서도 ★피커를 ★연다(★우리 click 핸들러보다 ★먼저 돈다). */
 function _colorsRow(cfg, max8) {
   const cs = Array.isArray(cfg.colors) ? cfg.colors : [];
   const sw = cs.map((c, i) => `
-          <span class="prop-color-swatch" style="background:${escHtml(c)}" data-fxpart-color="${i}">
-            <input type="color" value="${escHtml(/^#[0-9a-fA-F]{6}$/.test(c) ? c : '#ffffff')}"
-                   data-fxpart-color-in="${i}" aria-label="파티클 색 ${i + 1}">
-          </span>${cs.length > 1 ? `<button class="prop-icon-btn" data-fxpart-color-del="${i}"
-                   title="이 색 빼기" aria-label="색 빼기">✕</button>` : ''}`).join('');
+          <span class="fxpart-chip-wrap">
+            <span class="prop-color-swatch fxpart-chip" style="background:${escHtml(c)}" data-fxpart-color="${i}"
+                  title="파티클 색 ${i + 1} — 누르면 색을 고른다">
+              <input type="color" value="${escHtml(/^#[0-9a-fA-F]{6}$/.test(c) ? c : '#ffffff')}"
+                     data-fxpart-color-in="${i}" aria-label="파티클 색 ${i + 1}">
+            </span>${cs.length > 1 ? `<button class="prop-icon-btn fxpart-chip-del" data-fxpart-color-del="${i}"
+                     title="이 색 빼기" aria-label="파티클 색 ${i + 1} 빼기">✕</button>` : ''}
+          </span>`).join('');
   const add = cs.length < max8
     ? `<button class="prop-icon-btn" id="sec-fxpart-color-add" title="색 더하기" aria-label="색 더하기">＋</button>`
     : '';
   return `
       <div class="prop-row" style="align-items:flex-start">
-        <span class="prop-label" style="line-height:24px">색</span>
+        <span class="prop-label" style="line-height:20px">색</span>
         <div class="prop-align-group" id="sec-fxpart-colors">${sw}${add}
         </div>
       </div>`;
