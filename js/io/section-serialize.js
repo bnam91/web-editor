@@ -59,6 +59,12 @@
            (★그 양성대조가 ★★「0건」이 ★자의 고장이 ★아님을 ★받친다)
          ⚠️★`js/scratch-pad.js:1077` 의 「`#canvas-scaler` 의 자식」을 ★★«캔버스 안»으로 읽으면 ★틀린다 —
            ★`#canvas-scaler` 와 ★`#canvas` 는 ★★다른 요소다.
+         ★★문이 ★둘이라 ★둘 다 봤다 — ★스크래치는 ★DOM 말고 ★«데이터»로도 저장된다
+           (`proj.pages[].scratchpad` 매니페스트). ★그 꼴의 ★칸 명부는 ★정의 자리 하나다:
+             `js/scratch-pad.js` ★`SCRATCH_ITEM_KEYS = ['src','x','y','w','id','g','linkDy','fx']`
+             ⇒ ★선택 칸이 ★★없다. ★선택은 ★`_selectedItems`(런타임 Set) ＋ ★DOM 클래스에만 산다.
+           ⚠️★★이쪽은 ★★«읽음»이다 — ★★행위로 ★안 쟀다(★스크래치 항목 없이 ★매니페스트를 ★못 띄웠다).
+             ⇒ ★★닫혔다고 ★읽되 ★★«DOM 문»만 ★실측이다.
        ★★`item-selected` ⇒ ★★가드 ★0건(★전부 `remove`→`add`) = ★«꾸밈만».
          ★★단 ★★«세척 명부가 ★넷»의 ★★증인이다 — ★capture-safety 와 ★export-html 은 ★이것을 ★벗기는데
          ★★여기(저장 명부)에는 ★★없다. ⇒ ★그 넷은 ★`js/io/capture-safety.js` ★머리말에 적어 뒀다.
