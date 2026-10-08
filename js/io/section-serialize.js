@@ -49,6 +49,19 @@
          ★★구멍: item-selected · scratch-selected · grd-cell-selected · is-selected ·
                 assets-grid-card--selected · assets-row--selected · ck-item--selected · todo-pin--selected
        ★그 ★8종은 ★★«저장돼야 하나»를 ★종마다 ★따로 재야 한다 — ⛔RE 를 넓혀 ★한꺼번에 묶지 마라.
+     ★★그중 ★셋은 ★★2026-10-09 에 ★★«해당 없음»으로 ★닫혔다 — ⛔다시 쫓지 마라:
+       ★★`scratch-selected` · `todo-pin--selected` ⇒ ★★저장 클론에 ★★애초에 ★안 든다.
+         ★계층(★실앱에서 ★재서 ★확인): `#canvas-wrap > #canvas-scaler > [ #todo-pin-overlay , #canvas ]`
+         ★`.scratch-item` 의 ★부모 = ★`#canvas-scaler`(js/scratch-pad.js:1139 `scaler.appendChild(el)`)
+         ★저장 루트  = ★`canvasEl.cloneNode(true)` = ★`#canvas`(js/io/save-load.js:606)
+         ⇒ ★★둘은 ★`#canvas` 의 ★★«형제»다. ★★양방향 실측:
+             ★제품 자리 그대로 ⇒ 저장 글자에 ★0건 /  ★★일부러 `#canvas` 안에 두면 ⇒ ★★1건
+           (★그 양성대조가 ★★「0건」이 ★자의 고장이 ★아님을 ★받친다)
+         ⚠️★`js/scratch-pad.js:1077` 의 「`#canvas-scaler` 의 자식」을 ★★«캔버스 안»으로 읽으면 ★틀린다 —
+           ★`#canvas-scaler` 와 ★`#canvas` 는 ★★다른 요소다.
+       ★★`item-selected` ⇒ ★★가드 ★0건(★전부 `remove`→`add`) = ★«꾸밈만».
+         ★★단 ★★«세척 명부가 ★넷»의 ★★증인이다 — ★capture-safety 와 ★export-html 은 ★이것을 ★벗기는데
+         ★★여기(저장 명부)에는 ★★없다. ⇒ ★그 넷은 ★`js/io/capture-safety.js` ★머리말에 적어 뒀다.
      ★grd-cell-selected 의 «무게»만 재 뒀다(2026-10-09 · ⛔고치지는 않았다 — 별건 티켓):
        자 = «읽어서 결정하는» 자리 전수(add/clear 제외) ⇒ ★0건. js/editor.js:3938 ·
        js/props/prop-grid.js:142·177 은 전부 clear 고 :194 는 add 다 — 가드로 읽는 자리가 없다.

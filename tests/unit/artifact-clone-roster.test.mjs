@@ -98,3 +98,17 @@ test('A4 ★★세척의 ★임자는 ★하나다 — ★겹이 ★`restParticl
   assert.equal((def.match(/function restParticleMotion\s*\(/g) || []).length, 1,
     '★restParticleMotion 정의가 ★하나가 아니다');
 });
+
+test('A5 ★★세척이 ★거울상보다 ★«앞»에 온다 — ⛔주석만으로는 ★안 지켜진다', () => {
+  /* ★★왜 ★순서인가 — `neutralizeBoxReflectForH2C` 가 ★`el.cloneNode(true)` 로 ★거울상을 ★또 뜬다.
+     ⇒ ★세척이 ★먼저여야 ★거울이 ★★이미 ★쉬는 값을 ★베낀다.
+     ★★그 덕에 ★★「반사가 ★섹션에도 걸리나」를 ★★몰라도 ★닫힌다 — ★그 답은 ★★안 쟀다(★순서로 막았다).
+     ⇒ ★★그러니 ★그 순서가 ★★이 처방의 ★전제다. ★★주석이 아니라 ★이 줄이 ★지킨다. */
+  const src = stripComments(readSrc(REPO, 'js/io/save-load.js'));
+  const rest = src.indexOf('restRuntimeForArtifact(');
+  const mirror = src.indexOf('neutralizeBoxReflectForH2C(');
+  assert.ok(rest > 0, '★전제: 세척 호출이 ★없다');
+  assert.ok(mirror > 0, '★전제: 거울상 호출이 ★없다 — ★이 칸의 뜻이 사라졌다(그 함수가 빠졌나)');
+  assert.ok(rest < mirror,
+    `★★세척(${rest})이 ★거울상(${mirror})보다 ★뒤에 있다 — ★거울이 ★움직인 값을 ★베낀다`);
+});
