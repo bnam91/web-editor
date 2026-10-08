@@ -10,6 +10,35 @@
  * ★양성대조(⛔HEAD 금지): GD1001_ROOT=<기준판 체크아웃> npx playwright test ... thumb-canvas-parity
  *   기준판 = 이 레인의 분기점. ★_root-harness 가 그 ROOT 의 파일을 싣는다.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/thumb-canvas-parity.dom.spec.js
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
+ * ⚠️★★이 자의 ★한계 — ★«24 안에 든다»를 잠그지 ★«같다»를 ★안 잠근다 (2026-10-09 지디 판정)
+ * ──────────────────────────────────────────────────────────────────────────────
+ * ★C2-a 의 bandStats 는 `|Δ| > tol(24)` 인 픽셀을 ★센다. ⇒ 「다른 점 0」은 ★★«전부 24 안»이라는 뜻이고
+ *   ★★«같다»가 ★아니다. ⛔그 0 을 ★「항등」으로 ★읽지 마라 — ★내가 ★한 번 그렇게 적었고 ★틀렸다.
+ *
+ * ★★명부 ⒜ 이름 — ★★`REFLECT-MIRROR-ALPHA`  (★남은 차이 · ⛔결함 아님 · ★원인 ★미규명)
+ *   ⒝ ★★수 ★둘 — ★★«장면에 따라 ★10배 다르다». ⛔한 수로 적지 마라:
+ *        ★이 하네스(에셋 780 · ★visH 429 · dpr 1 · 368,080px):  ★최대 ★2  · 평균 ★0.38 · >8 ★0건
+ *        ★실앱 9415(에셋 200 · ★visH 110 · dpr 2 ·  43,600px):  ★최대 ★20 · 평균 ★10.1 · >24 0 · >16 15.6% · >8 60.1%
+ *        ★둘 다 판 2b34abcc · ★둘 다 >24 ★0건(그래서 C2-a 는 ★양쪽에서 초록이다)
+ *   ⒞ ★꼴 — ★실앱 줄별 y0 19.0 → y20 16 → y40 12 → y60 8 → y80 5 → y100 1.0
+ *        ⇒ ★★델타가 ★α 에 ★비례 = ★★«체계적» 차이다. ⛔잡음이 ★아니다
+ *        ★하네스 줄별은 ★0.0~1.0 로 ★평평하다 ⇒ ★★그 체계적 꼴이 ★거기선 ★안 보인다
+ *   ⒟ ★★기각한 가설 ★둘:
+ *        ⑴ 「dpr2 축소가 ramp 를 치우친다」 — `screenshot({scale:'css'})`(★축소 없음) vs device 가
+ *           ★최대 20 · 평균 10.11 · ★줄별 ★동일 ⇒ ★★내 자가 아니라 ★제품 쪽이다
+ *           (★비교 대상 B 는 ★한 번만 떠서 둘이 ★같은 것을 봤다)
+ *        ⑵ 「dpr 이 갈랐다」 — ⛔아니다. ★하네스(dpr 1)와 실앱(dpr 2)이 ★다른 것은 ★맞지만
+ *           ⑴ 이 ★dpr 을 ★이미 기각했다 ⇒ ★★남은 후보는 ★«visH(페이드 길이)»다
+ *   ⒠ ★뜻 — ★거울이 ★살짝 ★더 진하다(실앱 B 환산 α 차 ≈ ★0.07 · 비 ≈ ★1.12).
+ *        ★★그리고 ★페이드가 ★짧을수록 ★커진다(429→2 · 110→20)
+ *   ⒡ ⛔★안 쟀다 — ★★«visH 가 정말 ★원인인가»를 ★한 환경에서 ★visH 만 바꿔 ★가르지 ★않았다.
+ *        ★지금 수 둘은 ★장면·환경이 ★같이 달라져 ★★교란돼 있다. ⇒ ★★원인은 ★미확정이다
+ *
+ * ★★«전»은 ★100%(순백)였다 ⇒ ★이득 대비 ★비용이 안 맞아 ★더 파지 ★않는다(지디 판정 2026-10-09).
+ * ★그 대신 ★★«수»를 ★C2-c 가 ★잠근다 — ★나빠지면 ★빨개진다. ★0 으로 고쳐지면 ★그 줄을 ★조여라.
+ * ══════════════════════════════════════════════════════════════════════════════
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, ROOT, waitStableRect } = require('./_root-harness.js');
@@ -178,6 +207,36 @@ function colorCount(A, B, band, rgb, tol) {
 }
 const HL_RGB = [255, 235, 59];     /* ★--ui-highlight 정본 = css/editor-base.css:96 `#ffeb3b` */
 
+/** ★최대 채널 델타 ＋ 평균 ＋ 초과 분포. ⛔bandStats 의 「다른 점 0」이 못 보는 것을 ★이것이 본다.
+ *  돌려주는 것 = { max, mean, over8, over16, over24, n, rows } (rows = 줄별 평균, 페이드 프로파일) */
+/** ★흰 바닥 위 ★주황 틴트 픽셀 수 — R−B > 20. ⛔순색 `#ff6600` 과의 ★색거리로 재지 마라:
+ *  반사는 ★배경과 ★섞여 (255,186,141) 꼴이 되고 ★순색에서 ★멀다(실측 2026-10-09 — 내 전제가 그래서 0 이 나왔다). */
+function tintCount(P, band) {
+  const y0 = Math.max(0, Math.round(band.y0)), y1 = Math.min(P.h, Math.round(band.y1));
+  const x0 = Math.max(0, Math.round(band.x0)), x1 = Math.min(P.w, Math.round(band.x1));
+  let n = 0;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * P.w + x) * 4; if (P.data[i] - P.data[i + 2] > 20) n++; }
+  return n;
+}
+
+function deltaProfile(A, B, band) {
+  const y0 = Math.max(0, Math.round(band.y0)), y1 = Math.min(Math.min(A.h, B.h), Math.round(band.y1));
+  const x0 = Math.max(0, Math.round(band.x0)), x1 = Math.min(Math.min(A.w, B.w), Math.round(band.x1));
+  let max = 0, sum = 0, n = 0, o8 = 0, o16 = 0, o24 = 0; const rows = [];
+  for (let y = y0; y < y1; y++) {
+    let rs = 0, rn = 0;
+    for (let x = x0; x < x1; x++) {
+      const i = (y * A.w + x) * 4, j = (y * B.w + x) * 4;
+      const d = Math.max(Math.abs(A.data[i] - B.data[j]), Math.abs(A.data[i + 1] - B.data[j + 1]), Math.abs(A.data[i + 2] - B.data[j + 2]));
+      if (d > max) max = d;
+      sum += d; rs += d; n++; rn++;
+      if (d > 8) o8++; if (d > 16) o16++; if (d > 24) o24++;
+    }
+    if ((y - y0) % 20 === 0) rows.push(`y${y - y0}:${(rs / Math.max(1, rn)).toFixed(1)}`);
+  }
+  return { max, mean: n ? +(sum / n).toFixed(2) : 0, over8: o8, over16: o16, over24: o24, n, rows, box: [x0, y0, x1, y1] };
+}
+
 /* ══════════ 전제 (⑴) — 꾸밈이 ★캔버스에 ★정말 있나 ══════════ */
 test('P1 전제 — 반사·형광펜이 ★라이브 DOM 에 실재한다(없는 것을 「썸네일에도 없다」로 재면 항등식)', async ({ page }) => {
   const errs = await setup(page);
@@ -217,6 +276,37 @@ test('C2-a ★반사 — 썸네일이 캔버스와 ★같다(반사 띠)', async
   const s = bandStats(A, B, band);
   console.log(`[C2-a] 반사띠(정본 gap=${sp.gap} visH=${sp.visH.toFixed(1)} op=${sp.op}) ${JSON.stringify(s.box)} — 다른 점 ${s.diff}/${s.n}(${(s.ratio * 100).toFixed(1)}%) · 캔버스 rgb=${s.a} · 썸네일 rgb=${s.b}`);
   expect(s.ratio, `★반사가 썸네일에서 빠졌다 — 캔버스 rgb=${s.a} / 썸네일 rgb=${s.b} (다른 점 ${s.diff}/${s.n})`).toBeLessThan(0.1);
+  expect(errs).toEqual([]);
+});
+
+/* ══ C2-c ★남은 차이에 ★«수»를 붙인다 — 명부 REFLECT-MIRROR-ALPHA (머리말 ⒜~⒡) ══
+   ★까닭 — C2-a 의 「다른 점 0」은 ★«24 안»이라는 뜻이라 ★«더 진해지는 것»을 ★못 본다.
+     ⇒ ★★최대 델타를 ★따로 잠근다. ★나빠지면 ★여기가 ★빨개진다.
+   ⛔상한을 ★「넉넉히」 두지 마라 — ★그러면 ★아무것도 안 잠근다.
+     ★★상한 = ★«지금 판에서 ★잰 값» ＋ ★작은 여유. ★실측값은 ★단언 메시지에 ★찍는다. */
+test('C2-c ★남은 차이의 ★수 — 최대 채널 델타(명부 REFLECT-MIRROR-ALPHA)', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => window.setFxReflect(document.getElementById('pA'), { state: 'on', gap: 4, len: 55, op: 60 }));
+  await waitStableRect(page, '#pS');
+  const A = await canvasPixels(page);
+  const B = await thumbPixels(page);
+  test.skip(B === null, '[전제] 썸네일 미캡처 = SKIP');
+  const sp = await reflectSpan(page, 'pA');
+  /* ★보이는 반사 ★전 구간 — ⛔C2-a 처럼 ★진한 절반만 보지 않는다(★옅은 쪽이 프로파일을 말해 준다) */
+  const band = await belowBand(page, 'pA', sp.gap + 1, sp.gap + sp.visH);
+  /* ★전제 — 그 띠에 ★반사가 ★있나(없으면 델타 0 이 ★항등식이 된다) */
+  const tA = tintCount(A, band), tB = tintCount(B, band);
+  console.log(`[C2-c] ★전제 — 캔버스 띠 주황 ${tA} · 썸네일 띠 주황 ${tB}`);
+  expect(tA, `★전제 — 캔버스 띠에 반사 틴트가 없다(${JSON.stringify(band)}) ⇒ 델타 0 이 항등식이 된다`).toBeGreaterThan(1000);
+  const d = deltaProfile(A, B, band);
+  console.log(`[C2-c] 띠 ${JSON.stringify(d.box)} ${d.n}px — ★최대 ${d.max} · 평균 ${d.mean} · >24 ${d.over24} · >16 ${d.over16} · >8 ${d.over8}`);
+  console.log(`[C2-c] 줄별(페이드): ${d.rows.join(' | ')}`);
+  /* ★★상한 = ★«이 하네스에서 ★잰 값»(최대 ★2) ＋ 여유 4 = ★6.
+     ⛔★실앱 수 20 을 ★상한으로 쓰지 마라 — ★이 장면에서 ★20 이면 ★10배 나빠진 것인데 ★통과한다
+       (★한 번 그렇게 적었다: 26 ⇒ ★여기선 ★아무것도 ★안 잠갔다).
+     ★올리는 것은 ⛔기준선을 ★조용히 낮추는 것이다. ★내리는 것은 ★좋다 — 그때 머리말 ⒝ 도 같이 고쳐라. */
+  expect(d.max, `★최대 델타 ${d.max} (평균 ${d.mean} · >24 ${d.over24}) — 이 하네스 명부값 ★2 보다 나빠졌다`).toBeLessThanOrEqual(6);
+  expect(d.over24, `★tol 24 를 넘는 픽셀 ${d.over24}건 — C2-a 가 빨개질 자리다`).toBe(0);
   expect(errs).toEqual([]);
 });
 
