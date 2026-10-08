@@ -143,6 +143,11 @@ export function buildTypographySectionHtml({
                     ⑵ ★「글자 ★위」가 ★이 기능의 ★전부다 ⇒ ★글자 자리를 ★같이 그려야 ★뜻이 읽힌다
                     ⑶ ★stroke 1.5·★linecap round·★currentColor = ★이 파일 ★폰트피커 ★꺾쇠와 ★같은 꼴
                        ⇒ ★새 아이콘 ★족을 ★만들지 않는다
+         ★★수(r 1.9 · 꼭짓점 y 6.6)는 ★A/B 를 ★떠서 ★보고 ★골랐다 — ⛔「보기 좋다」로 ★박지 않았다:
+           ★첫 판(r 2.1 · 꼭짓점 6.2)은 ★점이 ★A 의 ★꼭짓점에 ★닿아 ★«사람 형상»으로 읽혔다.
+           ⇒ ★점을 ★줄이고 ★사이를 ★벌려 ★«글자 ★위의 ★점»으로 ★읽히게 했다.
+           ★본 법 = ★소스에서 ★그 svg 를 ★뽑아 ★24px 단추(평·활성) ＋ ★×2.6 ＋ ★×5 를 ★한 그림에 나란히 떠서 봤다.
+           ⚠️★그래도 ★«미감»은 ★사람이 봐야 한다 — ★현빈 눈 ★1건으로 올렸다.
          ⛔★제품의 .tb-dot 클래스를 ★단추에 ★쓰지 ★않았다 — 그 클래스는 ★--tb-dot-* 를 ★.text-block 에서 받고,
            ★패널에 ★그 이름이 ★또 생기면 ★점을 ★세는 자리가 ★속을 수 있다.
 
@@ -202,7 +207,7 @@ export function buildTypographySectionHtml({
         <button class="prop-style-btn ${isUnderline?'active':''}" id="${p}-underline-btn" title="밑줄 (⌘U)"><u>U</u></button>` : ''}
         <button class="prop-style-btn ${isStrike?'active':''}" id="${p}-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>${showHighlight ? `
         <button class="prop-style-btn ${isHighlight?'active':''}" id="${p}-highlight-btn" title="형광펜 (글자 길이만큼 — 선택이 있으면 그 글자만)">H</button>` : ''}${showDots ? `
-        <button class="prop-style-btn ${isDot?'active':''}" id="${p}-dot-btn" title="글자 위 점 찍기 (글자마다 하나 — 선택이 있으면 그 글자만)"><svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true"><circle cx="6.5" cy="2.4" r="2.1" fill="currentColor"/><path d="M2 13.4 6.5 6.2l4.5 7.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 11h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}
+        <button class="prop-style-btn ${isDot?'active':''}" id="${p}-dot-btn" title="글자 위 점 찍기 (글자마다 하나 — 선택이 있으면 그 글자만)"><svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true"><circle cx="6.5" cy="2.1" r="1.9" fill="currentColor"/><path d="M2 13.4 6.5 6.6l4.5 6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.1 11.1h4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}
       </div>
 ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현빈 tb_5bkw8dq: 「색변경 및 하이라이트 바 높이 조절가능하게」).
            ★H 단추 «바로 아래» — 그 단추가 켜는 것을 고치는 칸이라 같은 자리가 맞다.
