@@ -342,6 +342,11 @@ ${blockHeaderHTML({
       </div>
       <span class="prop-field-label" style="margin-top:8px">Background Image</span>
       ${bgImgHTML}
+      <!-- ★파티클 — 섹션 «배경»이라 이 절에 산다(지디 2026-10-07 Q1 판정 ⒞ · js/effects-particles.js:8~15).
+           ★칸의 몸은 js/props/prop-section-particles.js 한 자리다 — 효과가 늘어도 이 줄은 그대로다.
+           ⛔배경색·배경이미지 칸과 «섞이지» 않는다: 그 파일은 sec.style.background* 와 sec.dataset.bg* 를
+             한 번도 쓰지 않는다(현빈 2026-10-07 「배경색이 계속 바뀌면 안되는거 알지?」). -->
+      ${window.secParticlesHTML?.(sec) || ''}
     </div>
     ${colorRows ? `<div class="prop-section"><div class="prop-section-title">Text Color</div>${colorRows}</div>` : ''}
     <div class="prop-section">
@@ -644,6 +649,10 @@ ${blockHeaderHTML({
       showSectionProperties(sec);
     });
   }
+
+  /* ★파티클 배선 — 그리개(위 Background 절의 한 줄)와 ★한 쌍이다. ⛔둘 중 하나만 옮기지 마라.
+     ★다시 그리기로 showSectionProperties 를 넘긴다 — 켜기·프리셋·모양은 ★칸의 «꼴»을 바꾼다. */
+  window.wireSecParticles?.(sec, () => showSectionProperties(sec));
 
   // Preset 드롭다운 이벤트
   const presetSelect = document.getElementById('sec-preset');
