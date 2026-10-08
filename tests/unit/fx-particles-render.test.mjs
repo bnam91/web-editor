@@ -23,6 +23,7 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
@@ -177,7 +178,9 @@ test('P1c ★★프리셋을 바꿔도 «파티클 값만» 바뀐다 — 넷을
   /* ★정본 = normalize 가 내는 칸들. 배경을 가리키는 칸이 ★하나도 없어야 한다. */
   const bgish = [...keys].filter((x) => /^(bg|background)/i.test(x));
   assert.deepEqual(bgish, [], '저장 꼴에 배경 칸이 있다: ' + bgish.join(','));
-  assert.deepEqual([...keys].sort(), ['colors', 'count', 'dist', 'fxOpacity', 'glow', 'jit', 'preset', 'rot', 'seed', 'shapes', 'smax', 'smin', 'spread'],
+  /* ★2026-10-09 ★패닝 1차 — ★speed·blur·spin 이 ★늘었다. ⛔옛 열셋은 ★하나도 ★안 지웠다 */
+  assert.deepEqual([...keys].sort(), ['blur', 'colors', 'count', 'dist', 'fxOpacity', 'glow', 'jit', 'preset',
+                                      'rot', 'seed', 'shapes', 'smax', 'smin', 'speed', 'spin', 'spread'],
     '저장 칸 명부가 바뀌었다 — 패널·직렬화와 같이 보라');
 });
 
@@ -319,4 +322,116 @@ test('P9 lum — 못 읽으면 ★null(「검정」과 구분한다) · 읽히�
   assert.ok(Math.abs(F.lum('#000000') - 0) < 1e-9);
   assert.ok(Math.abs(F.lum('#ffffff') - 1) < 1e-9);
   assert.ok(Math.abs(F.lum('rgba(255,255,255,0.5)') - 1) < 1e-9, 'rgba 도 읽는다(알파는 휘도가 아니다)');
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ★패닝 1차 (2026-10-09 · 현빈 「빠진게 있지않니 파티클 효과에? 시안대로 — ★패닝효과」 · 지디 GO)
+   ★시안 = artifact BcCGv6AJJCp7o4pfNouY9N 「패닝 컨페티 — 네 판 비교」
+   ★★1차에 ★그리는 것은 ★`blur`(방향성 번짐) ★하나뿐이다 —
+     ★`speed`·`spin` 은 ★«저장만» 되고 ★v1.5(rAF)에서 ★그려진다.
+     ⇒ ⛔「시안 기본을 넣으면 그림이 달라진다」로 ★그 둘을 ★재지 마라. ★아래 P16 이 ★그 경계를 ★적는다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** ★소스 한 줄을 갈아 끼운 판 — ★`loadWithCap` 과 ★같은 법(⛔사본 안 만든다).
+ *  ★★닻이 죽으면 ★치환이 ★조용히 ★0 이 되고 ★「측정 0」이 ★결과처럼 생겨 나온다 ⇒ ★전제로 ★단언한다. */
+function loadSwapped(anchor, replacement) {
+  const src = readSrc(REPO, 'js/fx/particles-render.js');
+  assert.ok(src.includes(anchor), `★전제: 치환 닻을 찾았다 — 「${anchor}」`);
+  const s = src.replace(anchor, replacement);
+  assert.notEqual(s, src, `⛔치환이 안 먹었다 — 자가 죽었다(닻 「${anchor}」)`);
+  const ctx = {}; ctx.window = ctx; vm.createContext(ctx);
+  vm.runInContext(readSrc(REPO, 'js/fx/seeded-random.js'), ctx);
+  vm.runInContext(s, ctx, { filename: 'particles-render.js(swapped)' });
+  return ctx.ParticlesFx;
+}
+
+const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
+
+test('P14a ★★inert — ★옛 저장본은 ★그림이 ★한 글자도 ★안 바뀐다 (★양방향 한 쌍)', () => {
+  const F = load();
+  /* ★옛 저장본 = ★새 축 ★셋이 ★«없는» 꼴. ★그것이 ★어제까지 ★저장되던 ★전부다. */
+  const old = { preset: 'star', seed: 7, count: 40, colors: ['#ffffff'], shapes: ['circle'],
+                smin: 3, smax: 14, rot: true, dist: 'even', glow: 55, spread: 6, fxOpacity: 100, jit: 60 };
+  const box = { w: 860, h: 420, filterId: 'pfx-inert' };
+  const a = F.svg({ ...old, ...box });
+  const b = F.svg({ ...old, speed: 0, blur: 0, spin: 0, ...box });
+  const c = F.svg({ ...old, speed: 58, blur: 5, spin: 190, ...box });   // ★시안 기본값 셋
+  assert.ok(a.length > 500, '★전제: 옛 저장본이 ★그림을 낸다');
+
+  /* ⒜ ★inert — ★새 축이 ★0 이면 ★옛 그림 ★그대로 */
+  assert.equal(sha(b), sha(a), '★★inert 가 깨졌다 — 새 축이 0 인데 그림이 달라졌다');
+  /* ⒝ ★★그 단언이 ★항등식이 ★아님을 ★같은 칸에서 보인다 — ⛔⒜ 만 걸면 ★아무것도 안 잠근다
+       (★2026-10-08 바닥 실측: ★축이 ★없을 때는 ★a=b=c 가 ★전부 같았다 — ★그 초록은 ★증거가 아니었다) */
+  assert.notEqual(sha(c), sha(a), '★★자가 죽었다 — 시안 기본을 넣어도 그림이 같다(번짐이 안 그려진다)');
+});
+
+test('P14b ★★`speed` 의 ★min 이 ★0 이어야 ★inert 가 산다 — ★10 으로 둔 판에서 ★0 이 ★10 으로 밀린다', () => {
+  const F = load();
+  assert.equal(F.RANGES.speed.min, 0, '★전제: 지금 min 은 0 이다');
+  assert.equal(F.normalize({ preset: 'star' }).speed, 0, '★전제: 프리셋 기본이 0 이고 clamp 가 안 민다');
+
+  /* ★★출처를 갈아 끼운다 — ★시안의 ★10 을 ★그대로 썼다면 ★무엇이 됐나 */
+  const G = loadSwapped('speed:     Object.freeze({ min: 0, max: 160 }),',
+                        'speed:     Object.freeze({ min: 10, max: 160 }),');
+  assert.equal(G.RANGES.speed.min, 10, '★전제: 갈아 낀 판의 min 이 10 이다');
+  assert.equal(G.normalize({ preset: 'star' }).speed, 10,
+    '★★clamp 가 0 을 10 으로 밀지 않았다 — 이 칸의 까닭(시안 min 10 을 안 쓴 이유)이 사라졌다');
+});
+
+test('P14c ★★PRESETS ★네 벌 × ★패닝 셋 = ★열두 칸이 ★전부 0 — ★한 벌만 빠져도 ★그 프리셋이 ★움직인다', () => {
+  const F = load();
+  /* ★★P14a 로는 ★이것을 ★못 잡는다 — ★1차에서 ★`speed`·`spin` 은 ★그림에 ★안 들어가서
+     ★기본이 ★58 이어도 ★sha 가 ★안 바뀐다. ⇒ ★★그 둘은 ★«값»으로 ★직접 재야 한다.
+     ★그러지 않으면 ★v1.5 에서 ★rAF 를 켜는 ★그날 ★옛 섹션이 ★한꺼번에 ★움직인다. */
+  const AXES = ['speed', 'blur', 'spin'];
+  assert.ok(F.KINDS.length > 1, '★전제: 프리셋이 여럿이다');
+  const bad = [];
+  for (const k of F.KINDS) {
+    const n = F.normalize({ preset: k });        /* ★«없을 때 떨어지는 값»을 ★본다 — ★그게 옛 저장본이 받는 것 */
+    for (const ax of AXES) if (n[ax] !== 0) bad.push(`${k}.${ax}=${n[ax]}`);
+  }
+  assert.deepEqual(bad, [], `★0 이 아닌 칸: ${bad.join(' · ')} — ★그 프리셋의 ★옛 저장본이 ★저절로 움직인다`);
+  /* ★전제 — ★칸 수를 ★세서 ★「돌 게 없어 초록」을 ★막는다(★KINDS×AXES 만큼 ★정말 봤나) */
+  assert.equal(F.KINDS.length * AXES.length, 12, `★전제: 센 칸이 ${F.KINDS.length * AXES.length} 개다(프리셋 ${F.KINDS.length} × 축 ${AXES.length})`);
+});
+
+test('P15 ★방향성 번짐 — ★`blur` 가 ★0 이면 ★없고 ★크면 ★«두 값»으로 난다', () => {
+  const F = load();
+  const box = { preset: 'party', seed: 7, w: 860, h: 420, filterId: 'pfx-pan' };
+  const two = (s) => (s.match(/stdDeviation="0 [0-9.]+"/g) || []).length;
+  const anySd = (s) => (s.match(/stdDeviation="/g) || []).length;
+
+  const off = F.svg({ ...box, blur: 0 });
+  const on  = F.svg({ ...box, blur: 6 });
+  /* ★음성 — ★끄면 ★두 값 꼴이 ★0건. ★단 ★후광의 ★단일 값은 ★있을 수 있다(★그 둘을 ★가린다) */
+  assert.equal(two(off), 0, '★blur=0 인데 방향성 번짐이 났다');
+  /* ★양성 — ★켜면 ★정확히 ★한 벌(★층 통째에 ★한 번) */
+  assert.equal(two(on), 1, `★blur=6 인데 방향성 번짐이 ${two(on)}건이다 — 층 통째에 한 번이어야 한다`);
+  assert.ok(on.includes('stdDeviation="0 6"'), '★세로 번짐 값이 blur 를 안 따라간다');
+  /* ★★가로는 ★0 이어야 한다 — ★그것이 ★「진행 방향으로만 늘어난다」의 전부다 */
+  assert.ok(!/stdDeviation="[1-9][0-9.]* /.test(on), '★가로에 0 이 아닌 값이 들어갔다 — 등방이 된다');
+  /* ★후광이 ★꺼진 판에서도 ★난다 — ⛔후광 필터에 ★묻어 가는 것이 ★아니다 */
+  const noGlow = F.svg({ ...box, blur: 6, glow: 0, spread: 0 });
+  assert.equal(two(noGlow), 1, '★후광을 끄면 방향성 번짐도 같이 죽는다 — 둘은 따로여야 한다');
+  assert.ok(anySd(noGlow) === 1, '★후광이 꺼졌는데 단일 값 번짐이 남아 있다');
+  /* ★필터 id 가 ★후광과 ★갈렸나 — ★한 문서에 섹션이 여럿이다 */
+  assert.ok(on.includes('id="pfx-pan-pan"'), '★번짐 필터 id 가 호출자 id 에서 안 났다');
+  assert.ok(on.includes('filter="url(#pfx-pan-pan)"'), '★층이 번짐 필터를 안 쓴다');
+});
+
+test('P16 ★★1차의 ★경계 — ★`speed`·`spin` 은 ★저장만 되고 ★그림엔 ★안 들어간다 (v1.5)', () => {
+  const F = load();
+  const box = { preset: 'party', seed: 7, w: 860, h: 420, filterId: 'pfx-b' };
+  const base = F.svg({ ...box, speed: 0, spin: 0 });
+  const moved = F.svg({ ...box, speed: 160, spin: 500 });
+  assert.equal(sha(moved), sha(base),
+    '★speed·spin 이 ★그림을 ★바꿨다 — ★1차는 ★저장만이다(움직임은 v1.5 · rAF)');
+  /* ★★그런데 ★저장은 ★되어야 한다 — ⛔「안 그린다」가 ★「안 받는다」가 되면 ★v1.5 가 ★빈손이 된다 */
+  const n = F.normalize({ preset: 'party', speed: 160, spin: 500 });
+  assert.equal(n.speed, 160, '★speed 가 저장 꼴에 안 남는다');
+  assert.equal(n.spin, 500, '★spin 이 저장 꼴에 안 남는다');
+  /* ★정지 한 장면 계약은 ★그대로다 — ★애니메이션 표지 0 (★이 파일 머리말의 그 계약) */
+  for (const mark of ['<animate', '<animateTransform', '@keyframes', 'dur=']) {
+    assert.equal(moved.split(mark).length - 1, 0, `★1차인데 ${mark} 가 났다 — 아직 정지 한 장면이다`);
+  }
 });

@@ -159,7 +159,10 @@ test('P3 ★켠 섹션 — ★★시안의 칸이 ★이름·순서 ★그대로
      ★★현빈 2026-10-08 「시안보여줬던대로 ★안보이는데?? ★조절하는 항목들 ★어디갔냐??」 ⇒ ★이 줄이 ★그걸 잠근다. */
   const labels = (h.match(/class="prop-label"[^>]*>[^<]*/g) || []).map((x) => x.split('>').pop().trim());
   assert.deepEqual(Array.from(labels),
-    ['무늬번호', '갯수', '색', '크기', '불투명도', '흔들림', '회전', '분포', '글로우', '퍼짐', '모양'],
+    ['무늬번호', '갯수', '색', '크기', '불투명도', '흔들림', '회전', '분포', '글로우', '퍼짐', '모양',
+     /* ★2026-10-09 ★패닝 1차 — ★RANGES 에 ★없던 축은 ★`_rows()` 가 ★끝에 ★붙인다(★그 설계 그대로)
+        ⇒ ★여기 ★셋이 ★늘었다. ⛔위 열하나는 ★한 줄도 ★안 지웠다(시안 순서 그대로). */
+     '속도', '번짐', '회전속도'],
     '★★칸의 이름·순서가 ★시안과 다르다');
   /* ★그림이 났으면 ★안내는 ★안 뜬다(아래 P7 이 반대쪽을 잰다) */
   assert.ok(!h.includes('섹션 크기를 아직 못 재서'), '★그림이 났는데 「못 쟀다」 안내가 떴다');
@@ -347,6 +350,10 @@ test('P12 ★★«저장되는 축 전수»가 ★칸을 가진다 — ★normal
     spread:    'data-fxpart-axis="spread"',
     fxOpacity: 'data-fxpart-axis="fxOpacity"',
     jit:       'data-fxpart-axis="jit"',
+    /* ★패닝 1차 — ★셋 다 ★RANGES 축이라 ★슬라이더 칸을 ★저절로 받는다 */
+    speed:     'data-fxpart-axis="speed"',
+    blur:      'data-fxpart-axis="blur"',
+    spin:      'data-fxpart-axis="spin"',
   };
   const stored = Array.from(Object.keys(P.normalize({}))).sort();
   assert.ok(stored.length > 1, '★전제: normalize 가 키를 여럿 돌려준다');
