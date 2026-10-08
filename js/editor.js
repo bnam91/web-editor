@@ -1616,6 +1616,24 @@ function copySelected() {
 
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
 
+  /* ★C④(2026-10-09) — 섹션을 «여러 개» 골라 ⌘C 하면 옛 판은 아래 단건 갈래의
+   *   `document.querySelector('.section-block.selected')` 로 «첫 하나»만 담아, 3·5·7 을
+   *   골라도 언제나 +1 이 붙었다(실측 기준 sha 1fe77e38: 3→+1 · 5→+1 · 7→+1).
+   *   위 MULTI_SEL 은 «블럭» 목록이라 섹션은 애초에 allSel 에 안 들어온다(그래서 길이 0 →
+   *   단건 갈래로 떨어졌다) — 섹션은 복사 «단위»가 달라 그 목록에 넣는 게 답이 아니다.
+   *   ⇒ 섹션 전용 갈래를 둔다. 「섹션만 골랐나」 판정은 ⌘M 과 ★같은 헬퍼(_sectionOnlySelection)
+   *     를 쓴다 — 블럭을 고르면 부모 섹션도 .selected 라, 그걸로 가르면 블럭 복사를 가로챈다.
+   *   ★담는 법은 단건 섹션 복사와 같은 serializeSectionClone (T-031 영상 원본 누수 방지와 같은 경로).
+   *   ★중첩 방어 — 고른 섹션이 다른 고른 섹션 «안»이면 바깥만 담는다(사본 중복 방지). */
+  if (_sectionOnlySelection()) {
+    const secAll = [...document.querySelectorAll('#canvas .section-block.selected')];
+    const secTops = secAll.filter(s => !secAll.some(o => o !== s && o.contains(s)));
+    if (secTops.length > 1) {
+      clipboard = { type: 'multi-section', items: secTops.map(s => ({ html: window.serializeSectionClone(s) })) };
+      return;
+    }
+  }
+
   if (allSel.length > 1) {
     // 멀티셀렉트: DOM 순서대로 고유 항목 수집.
     // ★한 행의 occupant(블록/shape-frame)가 «전부» 선택된 경우에만 행(.row) 전체를 한 덩어리로
@@ -1927,6 +1945,39 @@ function _keepOnlyPastedSelected(roots) {
   window._activeFrame = null;
 }
 
+/* ★섹션 사본 «하나»를 DOM 에 넣는 한 벌 — 단건(type:'section')과 여러 개(type:'multi-section')가
+ *   ★같은 코드를 돈다. 두 갈래가 각자 id 재발급·바인딩 목록을 적으면 그게 둘째 명부가 되고,
+ *   «단건은 되는데 여러 개는 반쪽만 살아있는» 꼴로 갈린다(C④ 를 고치며 구조로 합쳤다).
+ *   refSection 뒤에 넣고, 없으면 캔버스 끝에 붙인다. 넣은 el 과 SPLink 결과를 돌려준다. */
+function _insertPastedSection(el, refSection) {
+  const genIdFn = window.genId || ((p) => p + '_' + Math.random().toString(36).slice(2, 9));
+  el.id = genIdFn('sec');
+  el.querySelectorAll('[id]').forEach(child => {
+    const prefix = child.id.split('_')[0] || 'el';
+    child.id = genIdFn(prefix);
+  });
+  /* [#16-DUP] 링크된 섹션의 사본에는 «스크래치 사본»을 딸려 보낸다(안 그러면 한 이미지를
+     두 섹션이 쥐어 링크체인이 2개가 된다 — 현빈 2026-09-08 발주).
+     ★★반드시 여기 — el 이 아직 temp 안(분리 상태)일 때 부른다. DOM 에 «넣은 뒤» 부르면
+       SPLink.sectionIdOf 가 «사본 자신»을 찾아 복제를 건너뛰고, 그 실패가 refSection 이
+       원본 앞/뒤 어디냐(=사용자의 선택 상태)에 따라 갈린다. ⛔아래로 내리지 마라. */
+  /* ⛔이름을 바꾸지 마라 — tests/unit/scratch-paste-dup.test.js T-U1-1 이 이 «문장 그대로»를 센다. */
+  const _spl = window.SPLink?.rewireClonedSection?.(el) || null;
+  // 선택이 없으면(잘라내기 직후 흔함) DOM 끝이 아니라 지금 화면에 보이는 섹션 옆에 붙인다.
+  if (refSection) {
+    refSection.after(el);
+  } else {
+    canvasEl.appendChild(el);
+  }
+  bindSectionDelete(el);
+  bindSectionOrder(el);
+  bindSectionDrag(el);
+  bindSectionDropZone(el);
+  _bindPastedEl(el);
+  el.addEventListener('click', e2 => { e2.stopPropagation(); selectSectionWithModifier(el, e2); });
+  return { el, spl: _spl };
+}
+
 function pasteClipboard() {
   if (!clipboard) { window.showToast?.('복사한 것이 없어요'); return; }
   /* ★0918r2 T-058 — 붙여넣으면 선택이 «블럭 단위»로 바뀐다(사본이 selected 로 들어와 원본과 함께 잡힌다).
@@ -1998,39 +2049,45 @@ function pasteClipboard() {
   }
 
   const temp = document.createElement('div');
-  temp.innerHTML = clipboard.html;
+  temp.innerHTML = clipboard.html || '';   // ★multi-section 은 html 이 없다(items 로 온다)
   const el = temp.firstElementChild;
 
   /* [#16-DUP] 섹션 붙여넣기가 만든 «스크래치 사본» 결과 — 꼬리의 pushHistory 에 sideEffects 로 싣는다.
      복제가 0건이면 null 이고 그 경우 이 경로는 오늘과 동작이 «같다». */
   let _spl = null;
 
-  if (clipboard.type === 'section') {
-    const genIdFn = window.genId || ((p) => p + '_' + Math.random().toString(36).slice(2, 9));
-    el.id = genIdFn('sec');
-    el.querySelectorAll('[id]').forEach(child => {
-      const prefix = child.id.split('_')[0] || 'el';
-      child.id = genIdFn(prefix);
+  /* ★C④(2026-10-09) 섹션 «여러 개» — 단건과 ★같은 한 벌(_insertPastedSection)을 돈다.
+   *   ★기준점 = «마지막» 고른 섹션 뒤. 그러면 A B C A' B' C' 가 된다 — 위 multi-block 갈래가
+   *     같은 까닭으로 고른 규약(「AABB 가 아니라 ABAB」)과 맞춘다. 사본은 앞 사본 뒤에 이어 붙인다.
+   *   ⛔여기서 «따로» 꼬리(buildLayerPanel·pushHistory·__spLinkRerender)를 만들지 마라 —
+   *     1차 구현이 그랬고, 꼬리가 둘이 되는 순간 tests/unit/scratch-paste-dup.test.js 의
+   *     T-U1-11(「재렌더는 꼬리 pushHistory «뒤»」)이 «첫 재렌더 vs 마지막 pushHistory»를 재므로
+   *     빨개진다. 그 검사가 맞다 — 꼬리가 둘이면 어느 쪽이 규약을 지키는지 기계가 못 센다.
+   *     ⇒ _spl 에 실어 «아래 하나뿐인 꼬리»로 흘려보낸다.
+   *   ★sideEffects 는 묶어 하나로 — 섹션마다 스크래치 사본이 생길 수 있고 꼬리 pushHistory 는
+   *     «하나»만 받는다. ⌘Z 한 번이 전부를 되돌려야 한다. */
+  if (clipboard.type === 'multi-section') {
+    const selSecs = [...document.querySelectorAll('#canvas .section-block.selected')];
+    let anchor = selSecs[selSecs.length - 1] || _pickVisibleSection() || null;
+    const _fx = [];
+    clipboard.items.forEach(item => {
+      const t = document.createElement('div');
+      t.innerHTML = item.html;
+      const secEl = t.firstElementChild;
+      if (!secEl) return;
+      const r = _insertPastedSection(secEl, anchor);
+      anchor = r.el;
+      if (r.spl?.sideEffects) _fx.push(r.spl.sideEffects);
     });
-    /* [#16-DUP] 링크된 섹션의 사본에는 «스크래치 사본»을 딸려 보낸다(안 그러면 한 이미지를
-       두 섹션이 쥐어 링크체인이 2개가 된다 — 현빈 2026-09-08 발주).
-       ★★반드시 여기 — el 이 아직 temp 안(분리 상태)일 때 부른다. DOM 에 «넣은 뒤» 부르면
-         SPLink.sectionIdOf 가 «사본 자신»을 찾아 복제를 건너뛰고, 그 실패가 refSection 이
-         원본 앞/뒤 어디냐(=사용자의 선택 상태)에 따라 갈린다. ⛔아래로 내리지 마라. */
-    _spl = window.SPLink?.rewireClonedSection?.(el) || null;
-    // 선택이 없으면(잘라내기 직후 흔함) DOM 끝이 아니라 지금 화면에 보이는 섹션 옆에 붙인다.
-    const refSection = getSelectedSection() || _pickVisibleSection();
-    if (refSection) {
-      refSection.after(el);
-    } else {
-      canvasEl.appendChild(el);
+    if (_fx.length) {
+      _spl = { sideEffects: {
+        onUndo: () => _fx.forEach(f => { try { f.onUndo?.(); } catch (e) { console.warn('[paste] onUndo err:', e); } }),
+        onRedo: () => _fx.forEach(f => { try { f.onRedo?.(); } catch (e) { console.warn('[paste] onRedo err:', e); } }),
+      } };
     }
-    bindSectionDelete(el);
-    bindSectionOrder(el);
-    bindSectionDrag(el);
-    bindSectionDropZone(el);
-    _bindPastedEl(el);
-    el.addEventListener('click', e2 => { e2.stopPropagation(); selectSectionWithModifier(el, e2); });
+  } else if (clipboard.type === 'section') {
+    const r = _insertPastedSection(el, getSelectedSection() || _pickVisibleSection());
+    _spl = r.spl;
   } else if (clipboard.freeLayout) {
     // free-layout 프레임 내 블록 붙여넣기 — 원본(또는 선택된) free-layout 프레임에 +20px 오프셋 절대배치.
     // duplicateSelected의 freeLayout 분기 미러.

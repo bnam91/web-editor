@@ -25,7 +25,18 @@
      ★성질로 못 묶이는 것만 아래 «현재 목록»에 둔다. 이름에 규칙이 없어서지 원리가 달라서가 아니다.
        ⇒ 늘어날 수 있다. 늘릴 땐 «여기 한 곳만» 고친다 — market-merge·version-diff 도 이걸 읽는다.
      ⚠️'tiny'(스티커)·'lazy-unloaded'(가상화)는 여기 안 넣는다 — 조건부(특정 블록에서만)라
-       전역 sweep 대상이 아니다. 아래 serializeCleanRoot 안에서 따로 걷는다. */
+       전역 sweep 대상이 아니다. 아래 serializeCleanRoot 안에서 따로 걷는다.
+     ★C③(2026-10-09) 'multi-selected' — «여러 개 골랐다» 표식이 'selected' 와 짝인데 목록에
+       없어서 저장물·undo 스냅샷에 샜다(실측 기준 sha 1fe77e38: 섹션 셋을 ⌘클릭하고 저장하면
+       저장물에 3건). 'selected' 는 벗겨지고 'multi-selected' 만 남아 CSS 가 없어 «안 보이는»
+       유령이 되고, 다시 열면 상자선택의 섹션 길(js/scratch-pad.js — 「이미 multi-selected 면
+       건너뛴다」)이 그 섹션을 ★전부 건너뛴다(실측: 두 섹션에서 고른 수 0). js/history.js 의
+       협업 undo 범위 가드(`.multi-selected` 가 있으면 scoped undo 포기)도 영구히 꺼진다.
+     ⚠️여기 RE 를 `/(?:^|-)selected$/` 로 넓히면 이것까지 «성질»로 묶이지만, 그 RE 는
+       item-selected · scratch-selected · grd-cell-selected · is-selected · iconify-selected ·
+       *--selected(패널 UI 4종) 까지 새로 잡는다(전수: 레포의 `*selected` 토큰 24종을 셌다).
+       그 11종은 ★이번에 안 쟀으므로 넓히지 않는다 — 넓히려면 그 종마다 「저장돼야 하나」를
+       먼저 재라. (그중 grd-cell-selected 는 ★같은 꼴의 누수 후보로 보이나 미측정이다.) */
   /* ══ T-031 video-pending 스냅샷 스코프 사이드카 ═══════════════════════════════
      문제: 아래 serializeCleanRoot 의 T-012 안전장치(video-pending → "업로드대기" 빈
      상태로 세척)는 pushHistory 가 쓰는 getSerializedCanvas 스냅샷도 «그대로» 거친다.
@@ -144,7 +155,7 @@
 
   const RUNTIME_MARKER_RE  = /(?:^|-)line-selected$/;
   const RUNTIME_MARKER_CLS = [
-    'selected', 'cell-selected', 'ci-selected', 'ci-active', 'row-active',
+    'selected', 'multi-selected', 'cell-selected', 'ci-selected', 'ci-active', 'row-active',
     'bn2-line-selected', 'grd-line-selected',   // ★RE 가 이미 잡는다. 「현재 무엇이 있나」를 사람이 읽으라고 남긴다
     'bn2-line-empty',                            // 빈 줄 플레이스홀더 (편집 전용)
     'stb-step-selected',                         // 스텝 마커의 «옛 이름» — 규칙 밖 이름이라 저장본에 샜다(2026-09-15). 새 이름 stb-line-selected 는 RE 가 잡는다
