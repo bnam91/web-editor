@@ -21,8 +21,13 @@
  *   ⇒ ★★「겨우 갈리는 문턱」은 ★시험 설계의 흠이다. ★차가 ★큰 자리를 고르고 ★문턱은 ★그 절반 밑으로.
  *   ★지금 값의 ★출처 = ★태양 M1 에서 ★유도한 ★어림이다(⛔실측이 아니다):
  *     태양: party 320 · 540×700(378,000 px) → 입자 px8 ★23,669 (= ★6.3%)
- *     우리: count 60(상한) · 860×300(258,000 px) ⇒ 입자 수가 ★1/5 ⇒ ★≈1.3% ⇒ ★≈3,300 px8
- *     ⇒ 그래서 문턱을 ★그 ★1/10 쯤(수백)에 뒀다 — ★차가 크다면 ★느슨해도 거짓 초록이 안 난다.
+ *     우리: count = ★`MAX_COUNT` · 860×300(258,000 px)
+ *       ★2026-10-07 판(상한 ★60): 입자 수가 태양의 ★1/5 ⇒ ★≈1.3% ⇒ ★≈3,300 px8
+ *       ★★2026-10-08 판(상한 ★120 · 현빈 「120개까지하자 최대」): 입자가 ★2배 ⇒ ★≈2.6% ⇒ ★≈6,600 px8
+ *     ⇒ 그래서 문턱을 ★★60 시절의 ★1/10 쯤(수백)에 뒀다 — ★차가 크다면 ★느슨해도 거짓 초록이 안 난다.
+ *     ★★⚠️그러므로 ★120 에서는 ★문턱이 ★★«더» 느슨하다 — ★문턱은 ★«바닥»이라 ★입자가 늘면
+ *       ★넘기기 ★쉬워진다 ⇒ ★★«거짓 빨강»은 ★안 난다. ⛔그러나 ★★잠그는 힘은 ★그만큼 ★약해졌다.
+ *       ⇒ ★★120 기준으로 ★다시 재서 ★올려야 한다. ★★2026-10-08 현재 ★미측정이다.
  *   ★★⛔그러나 ★느슨한 문턱은 ★「무엇을 잠그나」가 ★약하다 ⇒ ★★첫 실행에서 ★★분포를 찍고
  *     ★그 수로 ★문턱을 ★다시 고른다. ★그 수가 ★이 머리말에 ★적히기 전까지 ★이 칸은 ★«미정»이다.
  *   ★그래서 ★모든 단언이 ★★잰 값을 ★메시지에 ★찍는다(「조사가 증거를 지운다」의 처방) ＋
@@ -132,10 +137,36 @@ test('S0 ★전제 — 배선이 섰다(window 에 셋이 있고 콘솔 오류 0
   const r = await page.evaluate(() => ({
     fx: typeof window.ParticlesFx?.svg, seed: typeof window.FxSeed?.mulberry32,
     apply: typeof window.applySectionParticles, write: typeof window.writeParticles,
-    cap: window.ParticlesFx?.MAX_COUNT, kinds: window.ParticlesFx?.KINDS,
+    kinds: window.ParticlesFx?.KINDS,
   }));
   expect(r).toEqual({ fx: 'function', seed: 'function', apply: 'function', write: 'function',
-    cap: 60, kinds: ['star', 'gold', 'party', 'dust'] });
+    kinds: ['star', 'gold', 'party', 'dust'] });
+
+  /* ★★상한을 ★여기서 ★«값»으로 ★잠그지 ★않는다 — ⛔2026-10-08 ★그것이 ★이 칸을 ★깼다.
+     ★옛 판은 ★`cap: 60` ★맨숫자였다 ⇒ ★현빈이 ★「60개 말고 ★120개까지하자 최대」라 해
+       ★`MAX_COUNT` 가 ★120 이 되자 ★★이 전제가 ★거짓이 됐다(★머지 게이트가 ★새 빨강 1건으로 잡았다).
+       ★★그 spec 은 ★머지 diff 에 ★없었다 — ★★«남이 쓴 검사»가 ★남의 변경에 ★깨진 꼴이다.
+     ★★값의 ★단일 잠금 자리 = ★`tests/unit/fx-particles-render.test.mjs:109` ★하나다.
+       ★그 파일 `:107` 이 ★그 설계를 적어 뒀다: 「이 파일에서 「값」을 ★글자로 적는 자리는 ★여기 하나뿐이다
+        — ⛔다른 칸까지 박으면 ★명부가 ★둘이고, ⛔전부 `F.MAX_COUNT` 로 쓰면 ★★항등식이라 아무것도 안 잠근다」
+     ⇒ ★★그래서 ★여기는 ★«값»이 아니라 ★★«정본 한 줄이 ★세 자리에 ★닿았나»를 ★잠근다.
+       ★셋은 ★★다른 경로로 난다 — `MAX_COUNT`(particles-render.js:37 ★리터럴) ·
+       `RANGES.count.max`(`:78` 이 ★읽는다) · `PRESETS.star.count`(`:59` 가 ★읽는다).
+       ⇒ ★★한 자리라도 ★수를 ★손으로 박으면 ★★여기가 ★빨개진다(⛔항등식이 아니다).
+     ⛔★★다음에 ★상한을 바꾸는 사람에게 — ★이 줄은 ★안 고쳐도 된다. ★★맨숫자를 ★다시 넣지 마라. */
+  const cap = await page.evaluate(() => ({
+    max: window.ParticlesFx?.MAX_COUNT,
+    range: window.ParticlesFx?.RANGES?.count?.max,
+    preset: window.ParticlesFx?.PRESETS?.star?.count,
+  }));
+  /* ★전제 — ★상한이 ★수이고 ★양이다(⛔undefined 끼리 ★같아서 ★통과하는 길을 막는다) */
+  expect(Number.isFinite(cap.max) && cap.max > 0,
+    `★전제: 상한이 ★양의 수가 아니다 (${JSON.stringify(cap)})`).toBe(true);
+  expect(cap.range,
+    `★RANGES.count.max 가 ★상한과 다르다 — ★범위 표가 ★수를 손으로 박았다 ${JSON.stringify(cap)}`).toBe(cap.max);
+  expect(cap.preset,
+    `★PRESETS.star.count 가 ★상한과 다르다 — ★프리셋이 ★수를 손으로 박았다 ${JSON.stringify(cap)}`).toBe(cap.max);
+
   expect(errs, '배선이 콘솔 오류를 냈다').toEqual([]);
 });
 
