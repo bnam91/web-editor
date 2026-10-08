@@ -648,15 +648,19 @@ test('D8 ★색 칩 — ★색 하나당 자리 하나 ＋ ★✕ 는 칩보다 
     const b = document.getElementById('sec-fxpart-colors');
     const g = (e) => { const r = e.getBoundingClientRect(); return { w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10 }; };
     const chip = b.querySelector('.prop-color-swatch.fxpart-chip');
+    const dot = b.querySelector('.fxpart-chip-dot');
     const del = b.querySelector('[data-fxpart-color-del]');
     return {
       colors: b.querySelectorAll('[data-fxpart-color-in]').length,
       kids: b.children.length,
       adds: b.querySelectorAll(':scope > #sec-fxpart-color-add').length,
       chip: chip ? g(chip) : null,
+      dot: dot ? g(dot) : null,
+      dots: b.querySelectorAll('.fxpart-chip-dot').length,
       del: del ? g(del) : null,
       delOp: del ? Number(getComputedStyle(del).opacity) : null,
-      token: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cv-chip-recent-size')),
+      token: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cv-chip-size')),
+      tokenDot: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cv-chip-dot-size')),
       rowH: Math.round(b.getBoundingClientRect().height),
     };
   });
@@ -665,6 +669,7 @@ test('D8 ★색 칩 — ★색 하나당 자리 하나 ＋ ★✕ 는 칩보다 
   /* ★전제 — ★✕ 가 나려면 ★색이 ★둘 이상이어야 한다(★마지막 하나는 못 뺀다) */
   expect(d.colors, '★전제: 이 프리셋의 색이 ★둘 미만이라 ★✕ 를 ★못 잰다').toBeGreaterThan(1);
   expect(d.chip, '★전제: 칩(.prop-color-swatch.fxpart-chip)이 없다').not.toBeNull();
+  expect(d.dot, '★전제: 색 점(.fxpart-chip-dot)이 없다').not.toBeNull();
   expect(d.del, '★전제: ✕([data-fxpart-color-del])가 없다').not.toBeNull();
 
   /* ⑴ ★★색 하나당 ★자리 하나 — ★✕ 가 ★가로를 ★먹지 않는다.
@@ -688,14 +693,20 @@ test('D8 ★색 칩 — ★색 하나당 자리 하나 ＋ ★✕ 는 칩보다 
 
   /* ⑷ ★★출처를 갈아 끼운다 — ★토큰을 바꾸면 ★칩이 ★따라오나 (⛔항등식이 아니다) */
   expect(d.chip.w, `★칩 폭(${d.chip.w})이 ★토큰(${d.token})과 다르다`).toBe(d.token);
+  /* ⑷-2 ★★점 — ★현빈이 가리킨 ★「최근」 칩의 ★점 크기(css :573)와 ★같은가 */
+  expect(d.dots, `★색 ${d.colors}개인데 ★점이 ${d.dots}개다`).toBe(d.colors);
+  expect(d.dot.w, `★점(${d.dot.w}px)이 ★토큰(${d.tokenDot}px)과 다르다`).toBe(d.tokenDot);
+  expect(d.dot.w, `★점(${d.dot.w})이 ★껍질(${d.chip.w}) 보다 ★작지 않다 — ★알약 ＋ 점 꼴이 아니다`)
+    .toBeLessThan(d.chip.w);
+
   const FAKE = 31;                                   /* ★기본값과 ★다른 수 — ⛔20 을 쓰면 ★아무것도 안 바뀐다 */
   expect(FAKE, '★전제: 가짜 수가 ★지금 토큰과 같다 — ★이 대조는 ★뜻이 없다').not.toBe(d.token);
-  await page.evaluate((v) => document.documentElement.style.setProperty('--cv-chip-recent-size', v + 'px'), FAKE);
+  await page.evaluate((v) => document.documentElement.style.setProperty('--cv-chip-size', v + 'px'), FAKE);
   await page.waitForTimeout(120);
   const after = await m();
   expect(after.chip.w, `★토큰을 ${FAKE} 로 갈았는데 ★칩이 ${after.chip.w} 다`
     + ' — ★칩이 ★그 토큰을 ★안 읽는다(★크기가 ★둘째 명부에서 왔다)').toBe(FAKE);
-  await page.evaluate(() => document.documentElement.style.removeProperty('--cv-chip-recent-size'));
+  await page.evaluate(() => document.documentElement.style.removeProperty('--cv-chip-size'));
   await page.waitForTimeout(120);
   expect((await m()).chip.w, '★토큰을 ★되돌렸는데 ★칩이 ★안 돌아왔다').toBe(d.token);
 

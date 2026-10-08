@@ -546,7 +546,7 @@
 }
 .cv-chip {
   display: inline-flex; align-items: center; gap: 4px;
-  height: 20px; padding: 0 7px 0 5px;
+  height: var(--cv-chip-size); padding: 0 7px 0 5px;
   background: var(--ui-bg-input);
   border: 1px solid var(--ui-border-strong);
   border-radius: 10px;
@@ -574,10 +574,10 @@
      ⇒ ★파티클 색 칩이 ★이 두 수를 ★같이 읽는다(`.fxpart-chip` — 아래).
      ⇒ ★「최근」 칩의 크기를 고치면 ★파티클 칩도 ★따라온다. 그것이 현빈이 ★가리킨 바로 그 관계다.
    ⚠️위 줄의 경고가 그대로 산다 — 칩 폭(20)·사이(4)를 바꾸면 한 줄 개수가 바뀐다. */
-:root { --cv-chip-recent-size: 20px; --cv-chip-recent-dot: 13px; }
-.cv-chip.recent { padding: 0; width: var(--cv-chip-recent-size); justify-content: center; }
+:root { --cv-chip-size: 20px; --cv-chip-dot-size: 13px; }
+.cv-chip.recent { padding: 0; width: var(--cv-chip-size); justify-content: center; }
 .cv-chip.recent .cv-chip-dot {
-  width: var(--cv-chip-recent-dot); height: var(--cv-chip-recent-dot);
+  width: var(--cv-chip-dot-size); height: var(--cv-chip-dot-size);
   border-color: rgba(255,255,255,0.38);
 }
 
@@ -595,15 +595,25 @@
        ★opacity 는 ★안 본다 ⇒ `display:none` 으로 두면 ★그 검사가 ★빨개진다. */
 .fxpart-chip-wrap {
   position: relative; display: inline-flex; flex-shrink: 0;
-  width: var(--cv-chip-recent-size); height: var(--cv-chip-recent-size);
+  width: var(--cv-chip-size); height: var(--cv-chip-size);
 }
+/* ★껍질 = `.cv-chip.recent` 와 ★같은 꼴 — ★20 알약 ＋ ★가운데 점.
+   ⛔색을 ★껍질에 ★칠하지 않는다 — ★현빈이 가리킨 「최근」 칩은 ★13 점만 색이다(:573). */
 #sec-fxpart-colors .prop-color-swatch.fxpart-chip {
   width: 100%; height: 100%;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;                      /* 정사각이라 `.cv-chip` 의 10px 과 ★같은 그림 */
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-strong);
+}
+.fxpart-chip-dot {                         /* ★색이 ★여기 있다 */
+  width: var(--cv-chip-dot-size); height: var(--cv-chip-dot-size);
   border-radius: 50%;
-  border-color: rgba(255,255,255,0.38);   /* 「최근」 점과 같은 테두리 — 어두운 색이 패널에 묻히지 않게 */
+  border: 1px solid rgba(255,255,255,0.38);  /* 「최근」 점과 ★같은 테두리(:573) */
+  box-sizing: border-box; flex-shrink: 0; pointer-events: none;
 }
 #sec-fxpart-colors > .prop-icon-btn {     /* ＋ 단추 — 칩과 같은 키 (⛔`>` 라서 ✕ 는 안 걸린다) */
-  width: var(--cv-chip-recent-size); height: var(--cv-chip-recent-size);
+  width: var(--cv-chip-size); height: var(--cv-chip-size);
   font-size: var(--ui-fs-10);
 }
 /* ★선택자가 ★`.fxpart-chip-wrap` 을 ★끼고 있다 — ⛔`.fxpart-chip-del` ★하나로는 ★안 먹는다.

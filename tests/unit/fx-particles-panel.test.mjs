@@ -420,6 +420,10 @@ test('P14 ★색 칩 — ★색 하나당 자리 하나 ＋ ★피커 손잡이 
         '★✕ 가 ★.prop-color-swatch ★안에 있다 — ★그 클릭에서 ★피커가 ★먼저 열린다');
     }
 
+    /* ⒜-3 ★색은 ★점에 있다 — ★점이 ★칩마다 ★하나 (★「최근」 칩과 ★같은 꼴) */
+    const dots = (h.match(/class="fxpart-chip-dot"/g) || []).length;
+    assert.equal(dots, n, `★색 ${n}개인데 ★점이 ${dots}개다 — ★색은 ★점에 칠한다(껍질 아님)`);
+
     /* ⒜-2 ★✕ 수 — ★하나뿐이면 ★없다(★마지막 색은 못 뺀다는 ★그 규칙의 얼굴) */
     const dels = (h.match(/data-fxpart-color-del="/g) || []).length;
     assert.equal(dels, n > 1 ? n : 0, `★색 ${n}개에 ★✕ 가 ${dels}개다`);
@@ -434,13 +438,18 @@ test('P14 ★색 칩 — ★색 하나당 자리 하나 ＋ ★피커 손잡이 
   /* ★음성대조 — ★떼고도 ★규칙은 ★남아 있나 */
   assert.ok(css.includes('.cv-chip.recent'), '★주석 떼기가 ★규칙까지 ★지웠다');
 
-  const TOK = '--cv-chip-recent-size';
-  const decls = (css.match(new RegExp(TOK + '\\s*:', 'g')) || []).length;
-  assert.equal(decls, 1, `★${TOK} 를 ★정의한 자리가 ${decls} 곳이다 — ★정본은 ★한 자리여야 한다`);
+  const TOK = '--cv-chip-size', TOK_DOT = '--cv-chip-dot-size';
+  for (const t of [TOK, TOK_DOT]) {
+    const decls = (css.match(new RegExp(t + '\\s*:', 'g')) || []).length;
+    assert.equal(decls, 1, `★${t} 를 ★정의한 자리가 ${decls} 곳이다 — ★정본은 ★한 자리여야 한다`);
+  }
+  /* ★★셋째 명부 금지 — ★`.cv-chip` 의 ★height 도 ★같은 수다. ★거기도 ★토큰을 읽나 */
+  assert.ok(/height:\s*var\(--cv-chip-size\)/.test(cssBody(css, '.cv-chip {') || ''),
+    '★.cv-chip 의 height 가 ★토큰을 ★안 읽는다 — ★20 이 ★세 자리에 ★흩어진다');
 
   /* ★규칙이 ★있나 — ⛔「있으면 통과」로 ★끝내지 않는다(아래가 ★본 단언) */
   for (const sel of ['.cv-chip.recent', '#sec-fxpart-colors .prop-color-swatch.fxpart-chip',
-                     '.fxpart-chip-wrap']) {
+                     '.fxpart-chip-wrap', '.fxpart-chip-dot']) {
     assert.ok(cssBody(css, sel), `★${sel} 규칙이 ★없다`);
   }
   /* ★「최근」 칩이 ★그 토큰을 ★폭으로 읽나 — ★현빈이 ★가리킨 그 관계(★토큰을 고치면 ★둘이 같이 움직인다) */
@@ -449,4 +458,9 @@ test('P14 ★색 칩 — ★색 하나당 자리 하나 ＋ ★피커 손잡이 
   /* ★파티클 칩은 ★감싼 자리(.fxpart-chip-wrap)에서 ★그 토큰을 받는다 */
   assert.ok(cssBody(css, '.fxpart-chip-wrap').includes('var(' + TOK + ')'),
     `★.fxpart-chip-wrap 이 ★${TOK} 를 ★안 읽는다 — ★크기가 ★둘째 명부에서 왔다`);
+  /* ★★점 — ★「최근」 점과 ★파티클 점이 ★같은 수를 읽나(★현빈이 가리킨 ★13) */
+  for (const sel of ['.cv-chip.recent .cv-chip-dot', '.fxpart-chip-dot']) {
+    assert.ok(cssBody(css, sel).includes('var(' + TOK_DOT + ')'),
+      `★${sel} 가 ★${TOK_DOT} 를 ★안 읽는다 — ★점 크기가 ★둘로 갈린다`);
+  }
 });

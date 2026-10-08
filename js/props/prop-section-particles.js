@@ -59,8 +59,9 @@
      눈·접기·✕ `.prop-icon-btn`                            (★같은 선례)
      프리셋칩  `.prop-align-group` ＋ `.prop-align-btn.active` (★선례 prop-sticker-glow.js:24)
      슬라이더  `.prop-slider` ＋ `.prop-number`             (★선례 prop-sticker-glow.js:88)
-     색 칩    `.fxpart-chip-wrap > .prop-color-swatch.fxpart-chip`(★크기는 css `--cv-chip-recent-size`
-               · 투명 color input · ✕ 는 ★호버 겹침)       (★현빈 2026-10-08 「이정도 크기는 어때」)
+     색 칩    `.fxpart-chip-wrap > .prop-color-swatch.fxpart-chip > .fxpart-chip-dot`
+               (★크기는 css `--cv-chip-size`·`--cv-chip-dot-size` · 투명 color input · ✕ 는 ★호버 겹침)
+                                                           (★현빈 2026-10-08 「이정도 크기는 어때」)
                ⚠️2026-10-08 전에는 ★24px ★네모 ＋ ★✕ 가 ★제 칸을 ★먹었다 — ★그 줄을 ★고친 것이다
      분포      `.prop-select`                              (★선례 sec-bg-size)
      회전      `<input type="checkbox">`                   (★선례 stk-glow-chroma · sec-overflow-visible)
@@ -161,7 +162,10 @@ function _pairRow(keys, cfg, R) {
  *  ★상한 8 은 ⛔내 수가 아니다 — ★`normalize` 가 ★`.slice(0, 8)` 한다(particles-render.js:156).
  *
  *  ★★현빈 2026-10-08 — 「(파티클 색 칸) ★이것도 ★너무 커」 ＋ (「최근」 색 줄을 가리키며) 「★이정도 크기는 어때」
- *    ⇒ ⒜ ★칩 꼴 = `.cv-chip.recent` 의 ★크기를 ★그대로 읽는다(css `--cv-chip-recent-size` — ★정본 한 자리).
+ *    ⇒ ⒜ ★칩 꼴 = `.cv-chip.recent` ★그대로다 — ★20 알약 껍질 ＋ ★가운데 ★13 색 점.
+ *       ★그 두 수는 ★css `--cv-chip-size`·`--cv-chip-dot-size` ★한 자리에서 온다(⛔여기 안 적는다).
+ *       ★참값 출처 = `css/editor-props.css` ★origin/dev `:572`(width 20) · `:573`(dot 13).
+ *       ⚠️★색은 ★점(`.fxpart-chip-dot`)에 칠한다 — ⛔껍질에 칠하면 ★「최근」 칩과 ★다른 그림이 된다.
  *       ⒝ ★✕ 가 ★칸을 ★먹지 않게 ★모서리에 ★겹쳐 두고 ★호버·포커스에만 보인다.
  *          ★전: 색 ★하나당 ★요소 ★둘(스와치 24px ＋ ✕ 22px) ⇒ ★5색이면 ★가로로 ★열 칸.
  *          ★후: 색 ★하나당 ★자리 ★하나(20px) — ✕ 는 ★그 위에 ★겹친다.
@@ -173,8 +177,9 @@ function _colorsRow(cfg, max8) {
   const cs = Array.isArray(cfg.colors) ? cfg.colors : [];
   const sw = cs.map((c, i) => `
           <span class="fxpart-chip-wrap">
-            <span class="prop-color-swatch fxpart-chip" style="background:${escHtml(c)}" data-fxpart-color="${i}"
+            <span class="prop-color-swatch fxpart-chip" data-fxpart-color="${i}"
                   title="파티클 색 ${i + 1} — 누르면 색을 고른다">
+              <span class="fxpart-chip-dot" style="background:${escHtml(c)}"></span>
               <input type="color" value="${escHtml(/^#[0-9a-fA-F]{6}$/.test(c) ? c : '#ffffff')}"
                      data-fxpart-color-in="${i}" aria-label="파티클 색 ${i + 1}">
             </span>${cs.length > 1 ? `<button class="prop-icon-btn fxpart-chip-del" data-fxpart-color-del="${i}"
@@ -413,8 +418,10 @@ export function wireSecParticles(sec, rerender) {
       if (i < 0 || i >= cs.length) return;
       cs[i] = ci.value;
       put({ colors: cs });
-      const host = ci.closest('.prop-color-swatch');
-      if (host) host.style.background = ci.value;     /* ★스와치 색을 ★그 자리에서 — ⛔다시 그리면 피커가 닫힌다 */
+      /* ★색은 ★점에 있다(껍질은 「최근」 칩과 같은 알약이라 ★칠하지 않는다)
+         ⛔다시 그리면 피커가 닫힌다 ⇒ ★그 자리에서 고친다 */
+      const dot = ci.closest('.prop-color-swatch')?.querySelector('.fxpart-chip-dot');
+      if (dot) dot.style.background = ci.value;
     });
     ci.addEventListener('change', () => commit('섹션 파티클 색'));
   });
