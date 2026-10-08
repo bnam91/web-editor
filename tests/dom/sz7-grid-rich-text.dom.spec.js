@@ -510,12 +510,42 @@ test('G8 ★⒢ export — 그리드 줄 글자는 figma export 에 안 실린�
   const st = await state(page, id);
   expect(st.textHtml, `★전제 — ★서식이 ★모델에 없다(G1 이 먼저 서야 한다). 잰 값 ${JSON.stringify(st)}`).toBeTruthy();
 
-  const out = await page.evaluate(() => {
+  /* ★★★2026-10-08 — ★이 자리에서 ★한 번 ★틀렸다. ★적어 둔다(★길이 ★180자).
+   *   ⛔`buildFigmaExportJSON(null)` 만 부르면 ★`sections: []` 가 온다 —
+   *     ★★내보내기는 ★`state.pages`(★직렬화본)를 돌고 ★★라이브 DOM 을 ★안 본다.
+   *   ⇒ ★★`flushCurrentPage()` 가 ★★빠진 단계다. ★선례가 ★그걸 ★먼저 부른다
+   *     (★`tests/dom/T12-gridcol-probe.dom.spec.js:378~380`).
+   *   ★★그 사실은 ★이 레포의 ★구조이고, ★★`tests/dom/rich-text-loss-axes.dom.spec.js:49~56` 이
+   *     ★★이미 ★적어 두었다 — ★★나는 ★그 파일을 ★그날 ★읽었는데 ★★1~34 줄만 읽고 ★★49~56 을 ★놓쳤다.
+   *   ⇒ ★★교훈: ★★«남의 측정 기록»을 ★근거로 쓸 땐 ★머리말을 ★★끝까지 읽어라 —
+   *     ★이 레포는 ★★«내 자가 어디서 거쳤나»를 ★머리말 ★뒤쪽에 적는다.
+   *   ★그리드는 ★비율이 선 ★뒤에 찍어야 한다(★export 파일 `:56` 의 ★그 대기). */
+  const out = await page.evaluate(async () => {
+    await (window.whenGridRatiosSettled?.() ?? Promise.resolve());
+    window.flushCurrentPage?.();
     const j = window.buildFigmaExportJSON?.(null);
     return j == null ? null : JSON.stringify(j);
   });
   expect(out, '★전제 — ★export 가 ★null 이다(그러면 아래 「없다」가 ★공짜로 참이 된다)').toBeTruthy();
-  expect(out.includes(id), `★전제 — ★export 에 ★그 그리드(${id})가 ★없다 — ★엉뚱한 것을 재고 있다. 길이 ${out.length}`).toBe(true);
+  expect(out.includes(id), `★전제 — ★export 에 ★그 그리드(${id})가 ★없다 — ★★장면이 안 섰다(★flushCurrentPage 를 빼면 180자가 온다). 길이 ${out.length}`).toBe(true);
+
+  /* ★★★음성대조 — ★★«장면이 ★사는가»를 ★가른다 (★textfmt ③ 이 ★이 칸으로 ★거짓 보고를 막았다).
+     ★평문 텍스트블럭을 ★앱 입구로 넣고 ★그 글자가 ★export 에 ★실리는지 본다.
+     ⛔이게 ★없으면 ★★«그리드 글자가 안 실린다»와 ★★«내 장면에서 ★아무 글자도 안 실린다»가
+       ★구분되지 ★않는다 — ★★그 둘을 ★섞으면 ★★제품 결함을 ★거짓으로 ★올린다. */
+  const ctl = await page.evaluate(async () => {
+    document.getElementById('sA').classList.add('selected');
+    window.addTextBlock?.('body');
+    const tb = [...document.querySelectorAll('#canvas .text-block')].pop();
+    const inner = tb?.querySelector('[contenteditable], .tb-text, .tb-body') || tb;
+    if (inner) inner.textContent = 'ZZZCTLZZZ';
+    await (window.whenGridRatiosSettled?.() ?? Promise.resolve());
+    window.flushCurrentPage?.();
+    const j = window.buildFigmaExportJSON?.(null);
+    return { len: j == null ? 0 : JSON.stringify(j).length, hasCtl: JSON.stringify(j ?? '').includes('ZZZCTLZZZ') };
+  });
+  console.log('  G8 음성대조(평문 텍스트블럭):', JSON.stringify(ctl));
+  expect(ctl.hasCtl, `★★음성대조 실패 — ★평문 텍스트블럭 글자도 ★export 에 ★안 실린다 ⇒ ★★내 ★장면이 ★죽었다(★제품 판정 ★금지). 잰 값 ${JSON.stringify(ctl)}`).toBe(true);
   console.log('  G8:', JSON.stringify({ len: out.length, hasId: out.includes(id), hasTxt: out.includes(TXT) }));
 
   for (const [name, re] of [['<b>', /<b\b|<\/b>/i], ['<strong>', /<strong\b/i],
