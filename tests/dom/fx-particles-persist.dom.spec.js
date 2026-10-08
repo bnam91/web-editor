@@ -125,10 +125,22 @@ test('㉣-1 ★병합 — source 의 층이 «상자» 안에 살고 mergedOuter
   const ids = await setup(page, [null, CFG]);              // [0]=target(파티클 없음) · [1]=source(파티클)
   const r = await page.evaluate(({ tId, sId, WRAP }) => {
     const target = document.getElementById(tId), source = document.getElementById(sId);
-    /* ★음성대조 심기 — source 에 «배경색»을 준다. 층이 배경과 ★같은 자리로 가야 한다. */
-    source.style.backgroundColor = 'rgb(17, 34, 51)';
+    /* ★음성대조 심기 — source 에 «배경색»을 준다. 층이 배경과 ★같은 자리로 가야 한다.
+       ★⛔2026-10-08 고침: 옛 판은 `source.style.backgroundColor` 를 ★손으로 박았다.
+         그 꼴은 ★앱에서 생기지 않는다 — 섹션 배경색의 ★정본은 `dataset.bg` 이고
+         `prop-section.js:_applySectionBg` 가 ★`sec.style.background=''` 로 ★쓸고 ★dataset 에서 다시 짓는다.
+         `section-merge.js:67` 의 `exitSectionBgEditMode(source)` 가 ★그 함수를 ★무조건 부르므로
+         «인라인만» 심은 값은 ★복사 루프가 돌기 ★전에 사라졌다. ⇒ 상자는 흰색 폴백(:110~116)을 받았다.
+       ★실측으로 갈랐다(2026-10-08 · load=4.25 · 탐침 두 갈래를 ★같은 판에서):
+         ㉠ 앱 경로(dataset.bg ＋ applySectionBg) ⇒ boxBg = ★`rgb(17, 34, 51)` · box.dataset.bg = `#112233`
+         ㉡ 옛 경로(인라인만)                     ⇒ boxBg = ★`rgb(255, 255, 255)`
+       ⇒ ★`section-merge.js` 는 ★맞게 돌고 있었다. ★틀린 것은 ★이 검사의 «장면»이었다.
+         ⛔그래서 ★단언을 흰색으로 ★낮추지 않았다 — ★장면을 ★앱 꼴로 고쳤다. */
+    source.dataset.bg = '#112233';
+    window.applySectionBg(source);
+    const srcBgBefore = window.getComputedStyle(source).backgroundColor;   // ★전제 증인
     const gate = window.canMergeSections(target, source);
-    const before = { wrapInSource: !!source.querySelector(':scope > .' + WRAP), gateOk: gate.ok, gateWhy: gate.reason || null };
+    const before = { wrapInSource: !!source.querySelector(':scope > .' + WRAP), gateOk: gate.ok, gateWhy: gate.reason || null, srcBgBefore };
     if (!gate.ok) return { before, skipped: true };
     const ok = window.mergeSectionInto(target, source);
     /* 합친 뒤 — 상자(part)가 target 안에 생겼다. 그 상자 «안»에 층이 있나? */
@@ -149,6 +161,10 @@ test('㉣-1 ★병합 — source 의 층이 «상자» 안에 살고 mergedOuter
   }, { tId: ids[0], sId: ids[1], WRAP: 'sec-fxpart-wrap' });
 
   expect(r.before.wrapInSource, '★전제: source 에 층이 있다').toBe(true);
+  /* ★★전제 단언 — ⛔「배경색이 보존되나」를 재기 ★전에 ★「배경색이 섰나」를 보여라.
+     이 줄이 없던 탓에 옛 판은 ★«배경이 애초에 안 선 장면»에서 보존을 재고 있었다(2026-10-08). */
+  expect(r.before.srcBgBefore, `★전제: 합치기 ★전 source 의 배경색이 섰다 — 받음 ${r.before.srcBgBefore}`)
+    .toBe('rgb(17, 34, 51)');
   expect(r.before.gateOk, `★전제: 이 둘은 합칠 수 있다(거부 까닭: ${r.before.gateWhy})`).toBe(true);
   expect(r.ok, '★전제: 합쳐졌다').toBe(true);
   expect(r.wrapExists, '합친 뒤 층이 사라졌다 — KEEP_OUT 에 걸렸거나 버려졌다').toBe(true);
