@@ -36,6 +36,13 @@ const _NO_MIX = { color: { mixed: false }, fontSize: { mixed: false }, fontWeigh
  * @param {number}  o.size              현재 글자 크기
  * @param {boolean} o.isBold|isItalic|isStrike|isHighlight   스타일 버튼 활성
  * @param {boolean} o.isUnderline     ★밑줄 버튼 활성 (⑤ · 2026-10-08)
+ * @param {boolean} o.showUnderlineOpts ★밑줄 «색·두께·위치» 칸 표시. ⛔기본 false = 모달·그리드·챗은 «바이트 동일»
+ *                                      (텍스트 패널만 true — 그 셋을 쓰는 배선이 wireTextEditSection 에만 있다)
+ * @param {string}  o.ulColorHtml     밑줄 «색 칸» 마크업. ★부르는 쪽이 colorFieldHTML 로 만들어 넘긴다
+ *                                    (⛔hlColorHtml 과 같은 까닭 — 이 파일은 color-picker 를 import 하지 않는다)
+ * @param {string|number} o.ulThick|o.ulOffset  밑줄 두께·위치(px). ★★''(빈 값) = «아무도 안 정했다»
+ *                                    ⇒ 칸이 비고 placeholder 가 「자동」을 보여 준다. ⛔0 을 기본으로 박지 마라 —
+ *                                      0 은 «정했다»가 되어 CSS 의 auto 를 끈다(그림이 바뀐다).
  * @param {boolean} o.showUnderline   ★밑줄(U) 버튼 «표시». ⛔기본 false = 이전과 «바이트 동일»
  *                                    (텍스트 패널만 true — 배선이 wireTextEditSection 에만 있다.
  *                                     모달·그리드·챗을 켜려면 그쪽 배선과 골든을 ★같이 손봐야 한다:
@@ -54,6 +61,8 @@ const _NO_MIX = { color: { mixed: false }, fontSize: { mixed: false }, fontWeigh
  *                                        tests/unit/_text-template-harness.js 가 vm 에 올리는 의존 목록이 그만큼 늘어난다
  *                                        (2026-10-06 실측: import 를 더했더니 골든 검사가 ReferenceError 로 통째로 빨강).
  * @param {number}  o.hlH               형광펜 바 높이(%, 5~100)
+ * @param {number}  o.hlY               ★형광펜 획 세로 자리(px, -40~40 · 양수=아래). ★기본 0 = 이전과 «바이트 동일»
+ *                                      (2026-10-08 현빈: 「바높이 ★및 y값도 조절」)
  *                                      (T1 골든이 그 동일성을 지킨다). 끄는 쪽은 «왜 끄는지»를
  *                                      호출부에 적어야 한다 — 그리드가 그 사례다(prop-grid.js).
  * @param {boolean} o.isDot           ★점 찍기 버튼 활성 (⑥ · 2026-10-08)
@@ -80,8 +89,9 @@ export function buildTypographySectionHtml({
   sizeMin = 8, sizeMax = 800,
   showStyleGroup = true, showLetterSpacing = true, showSize = true, showHighlight = true,
   showFont = true, showWeight = true, showLineHeight = true,
-  showHighlightOpts = false, hlColorHtml = '', hlH = 100,
+  showHighlightOpts = false, hlColorHtml = '', hlH = 100, hlY = 0,
   showUnderline = false,
+  showUnderlineOpts = false, ulColorHtml = '', ulThick = '', ulOffset = '',
   showDots = false, showDotOpts = false, dotColorHtml = '', dotSize = 4, dotGap = 0, dotX = 0, dotY = 0,
   sizePh, lhPh, lsPh,
   mix,
@@ -154,17 +164,28 @@ export function buildTypographySectionHtml({
         <button class="prop-style-btn ${isUnderline?'active':''}" id="${p}-underline-btn" title="밑줄 (⌘U)"><u>U</u></button>` : ''}
         <button class="prop-style-btn ${isStrike?'active':''}" id="${p}-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>${showHighlight ? `
         <button class="prop-style-btn ${isHighlight?'active':''}" id="${p}-highlight-btn" title="형광펜 (글자 길이만큼 — 선택이 있으면 그 글자만)">H</button>` : ''}${showDots ? `
-        <!-- ★★단추 ★글자의 text-emphasis 는 ★«미리보기 전용»이다 — ★실제로 점을 그리는 자는
-             ★.tb-dot::before 다(css/editor-layout.css). ⛔★이 주석을 지우지 마라: ★그러면 다음 사람이
-               ★「점 찍기는 text-emphasis 로 구현됐다」고 ★읽는다. ★★실측으로 그 ★반대가 참이다 —
-               text-emphasis 는 ★개수·색만 주고 ★크기(연속)·★xy·★간격을 ★못 줘서 ★배제했다
-               (실측값은 css 쪽 절 머리말에).
-             ★여기서만 쓰는 까닭 = 단추 한 칸에 ★제 효과를 보여 주는 가장 싼 꼴이고 ★손잡이가 필요 없다.
-             (지디 판정 2026-10-08 ④: 「★허용. ★단 ★미리보기 전용임을 ★주석에 적어라」)
+        <!-- ★★단추 미리보기는 ★SVG 다 — ★실제로 점을 그리는 자는 ★.tb-dot::before 다(css/editor-layout.css).
+             ⛔★이 주석을 지우지 마라: ★그러면 다음 사람이 ★「점 찍기는 이 단추의 꼴로 구현됐다」고 ★읽는다.
+               ★★실측으로 그 ★반대가 참이다 — ★표준 text-emphasis 는 ★개수·색만 주고
+               ★크기(연속)·★xy·★간격을 ★못 줘서 ★배제했다(실측값은 css 쪽 절 머리말에).
+             ★★2026-10-08 ★갈았다 — 현빈: 「점 효과의 ★SVG가 ★별로다. 고쳐줘.」
+               ★무엇이었나: 단추 글자에 ★text-emphasis:filled dot 을 걸어 ★「점」 ★위에 점을 띄웠다.
+               ★왜 별로인가(재서 적는다 — css 절 머리말의 그 실측):
+                 ★filled dot 은 ★4×3px ★이산 한 꼴뿐이고 ★위치를 ★못 준다
+                 ⇒ ★24px 단추에서 ★한글 「점」 ★위 ★3px 짜리 ★납작한 자국이 된다. ★제품의 ★둥근 점과 ★닮지 않았다.
+               ★무엇으로 갈았나: ★dot-over-glyph 를 ★그린 SVG — ★둥근 ★채운 원 ＋ ★글자 자리의 ★A 획.
+                 ★왜 그 꼴인가 ⑴ ★제품의 점은 ★border-radius:50% 의 ★둥근 원이다 ⇒ ★원으로 그려야 ★닮는다
+                            ⑵ ★「글자 ★위」가 ★이 기능의 ★전부다 ⇒ ★글자 자리를 ★같이 그려야 ★뜻이 읽힌다
+                            ⑶ ★stroke 1.5·★linecap round·★currentColor = ★이 파일 ★폰트피커 ★꺾쇠와 ★같은 꼴
+                               ⇒ ★새 아이콘 ★족을 ★만들지 않는다
+                 ⛔★제품의 .tb-dot 클래스를 ★단추에 ★쓰지 ★않았다 — ★그 클래스는 ★--tb-dot-* 를 ★.text-block 에서
+                   받고, ★패널에 ★그 이름이 ★또 생기면 ★점을 ★세는 자리가 ★속을 수 있다.
              ⚠️이 절은 ★템플릿 리터럴 ★안이다 — ⛔★백틱을 쓰지 마라. 리터럴이 끊긴다
                (2026-10-08 실측 ★두 번: 백틱을 썼다가 .mjs rc=1 SyntaxError 가 났고,
-                ★그 경고문 안에 ★또 백틱을 써서 ★다시 났다). -->
-        <button class="prop-style-btn ${isDot?'active':''}" id="${p}-dot-btn" title="글자 위 점 찍기 (글자마다 하나 — 선택이 있으면 그 글자만)"><span style="text-emphasis:filled dot;-webkit-text-emphasis:filled dot">점</span></button>` : ''}
+                ★그 경고문 안에 ★또 백틱을 써서 ★다시 났다).
+             ⚠️⚠️★★그리고 ★이 주석 안에서 ★★«닫는 자»도 ★쓰지 마라 — ★주석이 ★거기서 ★끊겨
+               ★★아래 글이 ★★«속성 패널에 ★글자로 ★인쇄»된다(2026-10-08 ★아래 블록에서 ★실제로 났다). -->
+        <button class="prop-style-btn ${isDot?'active':''}" id="${p}-dot-btn" title="글자 위 점 찍기 (글자마다 하나 — 선택이 있으면 그 글자만)"><svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true"><circle cx="6.5" cy="2.4" r="2.1" fill="currentColor"/><path d="M2 13.4 6.5 6.2l4.5 7.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 11h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}
       </div>
 ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현빈 tb_5bkw8dq: 「색변경 및 하이라이트 바 높이 조절가능하게」).
            ★H 단추 «바로 아래» — 그 단추가 켜는 것을 고치는 칸이라 같은 자리가 맞다.
@@ -179,6 +200,16 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <span class="prop-label">바 높이</span>
         <input type="range" class="prop-slider" id="${p}-hl-h" min="5" max="100" step="1" value="${hlH}">
         <input type="number" class="prop-number" id="${p}-hl-h-num" min="5" max="100" value="${hlH}">
+      </div>
+      <!-- ★획 «세로 자리» (2026-10-08 현빈: 「하이라이트(형광펜) 기능 ★바높이 ★및 y값도 조절」).
+           ⛔칸 꼴을 ★새로 만들지 않는다 — ★꼴은 ★바로 위 «바 높이» 줄(range/number 쌍)을 ★그대로,
+             ★범위는 ★점 Y(txt-dot-y)의 ★그 수(-40~40)를 ★그대로 쓴다. ★맨숫자를 ★내가 ★정하지 않는다.
+           ★양수 = ★아래로 — ★점 Y 와 ★같은 방향이다(둘이 반대면 쓰는 사람이 매번 헷갈린다).
+           ★그리는 자는 css/editor-layout.css 의 ★--tb-hl-y(background-position) 다. -->
+      <div class="prop-row" id="${p}-hl-y-row" style="display:${isHighlight?'flex':'none'}" title="획을 위아래로 비껴 놓기(px). 양수 = 아래로 · 음수 = 위로">
+        <span class="prop-label">획 위치</span>
+        <input type="range" class="prop-slider" id="${p}-hl-y" min="-40" max="40" step="1" value="${hlY}">
+        <input type="number" class="prop-number" id="${p}-hl-y-num" min="-40" max="40" value="${hlY}">
       </div>
 ` : ''}${showDotOpts ? `      <!-- ★점 찍기 손잡이 넷 (2026-10-08 수지 ⑥: 「세 글자 선택→점 3개·★간격·★xy·★크기·★색상 변경」).
            ★★⛔이 showDotOpts 분기가 ★앞 블록의 ★끝에 ★붙어 있는 것은 ★일부러다 —
@@ -215,6 +246,35 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <div class="prop-icon-input" style="flex:1;min-width:0">
           <span class="prop-xy-label">Y</span>
           <input type="number" id="${p}-dot-y" min="-40" max="40" value="${dotY}" aria-label="점 Y">
+        </div>
+      </div>
+` : ''}${showUnderlineOpts ? `      <!-- ★밑줄 손잡이 ★셋 (2026-10-08 현빈: 「언더라인 기능도 ★두께 조절 및 요청한게 있었을텐데」).
+           ★★⛔이 showUnderlineOpts 분기가 ★앞(점) 블록 ★끝에 ★붙어 있는 것은 ★일부러다 —
+             ★자기 줄에서 시작하면 ★꺼져도 ★줄바꿈 ★하나를 ★남겨 ★모달·그리드·챗의 ★«바이트 동일»이 깨진다
+             (★위 두 블록 머리말의 그 실측 — ★빈 줄 ★하나로 ★bt2-safety T6 이 ★3개 상태에서 빨개졌다).
+           ★U 단추 ★아래 — 그 단추가 켜는 것을 고치는 칸이라 같은 자리가 맞다(형광펜·점 칸과 같은 규약).
+             ⚠️★화면 ★순서는 ★형광펜 → ★점 → ★밑줄이라 ★단추 순서(B I U S H 점)와 ★다르다.
+               ★까닭 = ★앞 블록 끝에 ★이어 붙여야 ★바이트 동일이 지켜진다(위 ⛔). ★꺼져 있으면 ★없는 칸이라
+               ★한 번에 ★둘 이상 보이는 일이 드물다 ⇒ ★그 값을 ★치렀다. ⛔「순서가 맞다」로 ★적지 마라.
+           ★꺼져 있으면 «없다» — 정할 것이 없다.
+           ⛔칸 꼴을 ★새로 만들지 않는다: 색은 ★형광펜의 colorFieldHTML, 수는 ★점 X/Y 의 prop-icon-input 꼴.
+           ★★두께·위치 칸은 ★«비어» 있을 수 있다 — ★빈 값 = ★auto(브라우저가 글자 크기로 정한다)로 ★되돌린다.
+             ★그래서 ★맨숫자를 ★미리 ★박지 않는다(이 절의 _ph 규약과 ★같은 뜻: 안 정한 칸은 ★안 정했다고 보인다).
+           ⚠️★CSS 는 ★장식선 두께·색을 ★선별로 못 준다(한 요소에 ★한 값) ⇒ ★취소선이 같이 켜져 있으면
+             ★그것도 ★같이 바뀐다. ⛔「밑줄만 바뀐다」로 ★넓히지 마라 — ★검사가 그 축을 ★적는다. -->
+      <div class="prop-color-row" id="${p}-ul-color-row" style="margin-top:6px;display:${isUnderline?'flex':'none'}">
+        <span class="prop-label">밑줄 색</span>
+        ${ulColorHtml}
+      </div>
+      <div class="prop-row" id="${p}-ul-row" style="display:${isUnderline?'flex':'none'}" title="밑줄 두께·위치(px). 비우면 자동(글자 크기가 정한다). ⚠️취소선이 같이 켜져 있으면 그것도 같이 바뀐다">
+        <span class="prop-label">밑줄</span>
+        <div class="prop-icon-input" style="flex:1;min-width:0">
+          <span class="prop-xy-label">두께</span>
+          <input type="number" id="${p}-ul-thick" min="1" max="12" step="0.5" value="${ulThick}" placeholder="자동" aria-label="밑줄 두께">
+        </div>
+        <div class="prop-icon-input" style="flex:1;min-width:0">
+          <span class="prop-xy-label">위치</span>
+          <input type="number" id="${p}-ul-offset" min="-10" max="20" step="1" value="${ulOffset}" placeholder="자동" aria-label="밑줄 위치">
         </div>
       </div>
 ` : ''}

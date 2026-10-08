@@ -202,6 +202,7 @@ export function clearTextGradient(contentEl) {
   st.removeProperty('-webkit-background-clip');
   st.removeProperty('-webkit-text-fill-color');
   st.removeProperty('caret-color');
+  st.removeProperty('--tb-grad-fb');   /* ★점 글자의 대체 채움색 — caret-color 와 ★한 쌍으로 두고 걷는다(바로 아래 applyTextGradient 의 그 줄) */
   _stripSpanFill(contentEl);
   syncTextGradShadow(contentEl);   // 0919r3: 그라데이션이 풀리면 원래 text-shadow 로 복귀
   // 0920b textgrad-bar: 그라데이션이 «실제로» 풀렸을 때만 캔버스 바를 내린다.
@@ -250,6 +251,13 @@ export function applyTextGradient(blockEl, g, { commit = false } = {}) {
   //   재선택/재로드 뒤 솔리드 복귀가 그 값으로 돌아가고, 라벨 전환도 «원래 인라인 색이 없었음»을 그대로 본다.
   //   그라데이션을 못 그리는 경로의 대체색은 textGradientFallbackColor(첫 스탑)가 따로 계산한다.
   st.setProperty('caret-color', fb);
+  /* ★★--tb-grad-fb = ★점(.tb-dot) 글자의 ★채움색 (2026-10-08 현빈 tb_64wad_7yqfksr).
+     ★까닭은 css/editor-layout.css 의 .tb-dot 절 머리말에 ★실측값과 함께 적었다 — 요지:
+       점 span 은 ★positioned 라 ★부모의 background-clip:text ★밖이고, 상속된 transparent 채움만 남아
+       ★글자가 ★빈 구멍이 된다(잰 값: 그라✓점✓ 에서 글자 픽셀 2315 → ★354).
+     ★왜 ★여기인가 — ★caret-color 와 ★같은 fb 를 ★같은 줄에서 ★같이 쓰고 ★같은 자리에서 ★같이 걷는다
+       ⇒ ★둘이 ★갈릴 ★자리가 ★없다(파생 사본을 두는 ★유일한 안전 조건). ⛔다른 곳에서 쓰지 마라. */
+  st.setProperty('--tb-grad-fb', fb);
   syncTextGradShadow(contentEl);   // 0919r3: 그림자·네온이 있으면 글자 «뒤»로(기록 «전»에 — 스냅샷에 같이 실린다)
   if (commit) window.pushHistory?.('글자 그라데이션');
   window.scheduleAutoSave?.();

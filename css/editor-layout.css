@@ -408,9 +408,18 @@
 .text-block {
   --tb-hl-color: var(--ui-highlight);
   --tb-hl-h: 100%;
+  --tb-hl-y: 0px;
 }
+/* ★★획 «세로 자리» --tb-hl-y (2026-10-08 현빈: 「하이라이트(형광펜) 기능 ★바높이 ★및 y값도 조절」)
+   ★바 높이(--tb-hl-h)는 «획이 글자 상자의 몇 %를 덮나»이고, 이것은 «그 획을 위아래로 얼마나 비껴 놓나»다.
+   ★한 기전을 ★더 쓰지 않는다 — 같은 그라데이션 ★배경을 ★background-position 으로 ★민다.
+     ⇒ 양수 = ★아래로(점의 --tb-dot-y 와 ★같은 방향. 둘이 반대면 쓰는 사람이 매번 헷갈린다).
+   ⛔no-repeat 가 ★필요하다 — 기본 repeat 면 민 만큼 ★위에 획이 ★또 그려져 「두 줄」이 된다.
+     ★Y=0 에서는 그림이 상자를 꽉 채우므로 repeat/no-repeat 의 ★그림이 같다(검사 U-N2 가 그 동일성을 잰다). */
 .tb-hl {
   background-image: linear-gradient(to top, var(--tb-hl-color) var(--tb-hl-h), transparent var(--tb-hl-h));
+  background-repeat: no-repeat;
+  background-position: 0 var(--tb-hl-y, 0px);
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
   border-radius: 2px;
@@ -451,7 +460,38 @@
   --tb-dot-y: 0px;
   --tb-dot-gap: 0px;
 }
-.tb-dot { position: relative; }
+/* ★★그라데이션 글자와 ★함께 쓸 때 — ★글자가 ★사라지던 자리 (2026-10-08 현빈 tb_64wad_7yqfksr:
+     「그라데이션 색지정과, 점 효과를 같이 주니까 ★텍스트가 안보이던가 버그가 있어 개선해줘」)
+   ★★«어느 쪽이 덮나»를 ★재서 가렸다(DOM 하네스 · .tb-body 상자를 ★찍어 흰색과의 거리 ≥60 픽셀 수):
+     단색·점✗ ★2278 / 그라✓·점✗ ★2315 / ★그라✓·점✓ ★354  ⇒ ★글자가 ★85% 사라진다
+   ★한 변수씩 되돌린 대조 — 셋 다 글자를 ★살린다:
+     .tb-dot 에 채움색을 주면 ★2538 · .tb-dot 을 position:static 으로 두면 ★2478 ·
+     .tb-dot 에 제 그라데이션을 상속시키면 ★2566
+   ★★판정 = ★둘 중 하나가 아니라 ★«한 쌍»이고, ★바뀐 쪽은 ★점이다:
+     ⑴ 그라데이션은 -webkit-text-fill-color:transparent 로 ★글자를 ★지우고, 글자 모양은 ★부모의
+        background-clip:text 가 ★메워 보이게 한다 ⇒ ★transparent ★혼자서는 ★무해하다(그라만 켠 판 2315 가 그 증거).
+     ⑵ 그런데 ★.tb-dot 은 ★positioned 라 ★그 글자가 ★부모의 text-clip ★밖으로 나간다
+        ⇒ ★메울 것이 ★없는 ★transparent 글자 = ★빈 구멍.
+   ⛔position:relative 는 ★버릴 수 없다 — ::before 의 left:50% 가 ★글자 가운데를 잡는 ★유일한 길이고,
+     static 으로 두면 점이 ★한 자리에 몰린다(그래서 ★구조적 긴장이다. 공짜 길은 ★없었다).
+   ⇒ ★그 글자를 ★스스로 칠한다. 색 = ★--tb-grad-fb = ★그라데이션 ★첫 스탑
+     (= js/props/text-block-color.js textGradientFallbackColor — ★html2canvas·Figma 가 ★이미 쓰는 대체색).
+     ★★부수 이득 = ★화면이 ★내보낸 PNG 와 ★같아진다.
+     ★대가 = ★점을 켠 글자는 ★그라데이션이 ★단색으로 보인다. ⛔숨기지 않는다.
+     ⛔«글자마다 제 그라데이션»(background-image:inherit)은 ★안 쓴다 — ★한 글자에 ★램프가 ★처음부터 다시 달려
+       ★«다른 버그»가 된다. ★이어 붙이려면 span 마다 offsetLeft 를 JS 로 박아야 하고 그건 ★resize·줌·글자편집에
+       ★조용히 썩는다(「신규만 적용」이 빚이 되는 그 꼴).
+   ★그라데이션이 ★없으면 --tb-grad-fb 가 ★없다 ⇒ currentColor = ★초기값과 같은 값 ⇒ ★그림이 안 바뀐다
+     (옛 저장본도 그 길로 내려앉는다 — 마이그레이션이 ★필요 없다. 검사 G-N1 이 그 동일성을 잰다). */
+.tb-dot {
+  position: relative;
+  -webkit-text-fill-color: var(--tb-grad-fb, currentColor);
+}
+/* ★부분 단색 span ★안의 점 글자는 ★그 색을 따른다 — 그 span 이 ★제 채움색을 들고 있다
+   (쓰는 자리 js/props/prop-text-wireup-text-edit.js _applyColorSpanToRange: 그라데이션 host 면
+    span 에 -webkit-text-fill-color 를 ★같이 박는다). ★표식 셀렉터는 ★레포가 이미 쓰는 그것이다
+   (같은 파일 text-block-color.js _stripSpanFill 의 [style*="text-fill-color"]) — ★명부를 ★새로 만들지 않는다. */
+span[style*="text-fill-color"] .tb-dot { -webkit-text-fill-color: currentColor; }
 .tb-dot::before {
   content: '';
   position: absolute;
@@ -463,6 +503,31 @@
   background: var(--tb-dot-color);
   transform: translate(calc(-50% + var(--tb-dot-x) + var(--tb-dot-gap) * var(--tb-dot-i, 0)), var(--tb-dot-y));
   pointer-events: none;
+}
+
+/* ── 텍스트 ★밑줄 손잡이 — ★두께·★색·★위치 (2026-10-08 현빈: 「언더라인 기능도 ★두께 조절 및 요청한게 있었을텐데」)
+   ★«요청한게»를 찾았다 — ★지디 notes 의 ★S7 「볼드/이탤릭/취소선/하이라이트 있는 ★로우에 ★기능 추가」 ★하나뿐이고
+     ★그것은 ★이미 집행됐다(그 줄의 U 단추). ⇒ ★두께 요청은 ★오늘 말이 ★유일하다. ⛔다른 과거 요청은 ★0건이다
+     (센 자리 = 지디/notes 전수 · 소스 주석 전수. 명부와 수는 보고에).
+   ★정본은 ★.text-block 의 ★인라인 --tb-ul-* ★하나씩 — ★형광펜(--tb-hl-*)·점(--tb-dot-*)과 ★같은 규약.
+     ⛔값을 «그리는 자»(contentEl·u·부분 span)마다 박지 않는다 — 부분 밑줄이 여럿이면 ★명부가 그 수만큼 늘어난다.
+   ★★왜 `.text-block *` 인가 — text-decoration-thickness·-color 는 ★상속되지 ★않아 ★«선을 그리는 그 요소»에
+     닿아야 한다. 그 요소는 ★contentEl 이거나 ★u·★부분 span 이다. ⇒ 그 명부를 CSS 에 ★다시 적으면
+     js 의 _CONTENT_SEL 과 ★둘째 명부가 되어 ★조용히 갈린다(이 레포가 앓은 그 병) ⇒ ★한 셀렉터로 덮는다.
+     ⛔그래도 ★안전한 까닭 = ★기본값이 ★auto·currentColor 로 ★초기값과 ★같다 ⇒ ★아무것도 안 정하면 ★그림이 안 바뀐다
+     (검사 U-N1 이 그 동일성을 ★픽셀로 잰다).
+   ⚠️★숨기지 않는다 — CSS 는 ★장식선 ★두께·색을 ★선별로 주지 ★못한다(한 요소에 ★한 값).
+     ⇒ ★취소선이 ★같이 켜져 있으면 ★그것도 ★같이 두꺼워지고 ★같은 색이 된다. ★칸 이름은 「밑줄」이지만
+       ★무엇에 닿는지는 ★이것이 참이다. ⛔「밑줄만 바뀐다」로 ★넓히지 마라(검사 U4 가 그 축을 ★적는다). */
+.text-block {
+  --tb-ul-thick: auto;
+  --tb-ul-offset: auto;
+  --tb-ul-color: currentColor;
+}
+.text-block * {
+  text-decoration-thickness: var(--tb-ul-thick, auto);
+  text-decoration-color: var(--tb-ul-color, currentColor);
+  text-underline-offset: var(--tb-ul-offset, auto);
 }
 
 /* ═══════════════════════════════════

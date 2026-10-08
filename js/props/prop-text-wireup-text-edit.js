@@ -501,10 +501,14 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
   };
   const _hlVarsOf = (el) => (el ? el.closest('.text-block') : null) || tb;
   /* 패널의 색·높이 칸을 함께 여닫는다 — 꺼져 있으면 정할 것이 없다. */
+  /* ★줄 명부를 ★한 자리에 둔다 — ⛔요소를 ★하나씩 집어 오지 않는다(칸을 더하는 사람이 ★여기를 ★빠뜨린다.
+     ★점 쪽 DOT_OPT_ROWS 가 ★먼저 그 꼴로 적혀 있다 — ★그것을 ★베낀다). */
+  const HL_OPT_ROWS = ['txt-hl-color-row', 'txt-hl-h-row', 'txt-hl-y-row'];
   const _hlSyncOpts = (on) => {
-    const cr = document.getElementById('txt-hl-color-row'), hr = document.getElementById('txt-hl-h-row');
-    if (cr) cr.style.display = on ? 'flex' : 'none';
-    if (hr) hr.style.display = on ? 'flex' : 'none';
+    for (const k of HL_OPT_ROWS) {
+      const e = document.getElementById(k);
+      if (e) e.style.display = on ? 'flex' : 'none';
+    }
   };
   const hlBtn = document.getElementById('txt-highlight-btn');
   if (hlBtn) {
@@ -570,6 +574,33 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     hlHNum.addEventListener('change',   () => sync(hlHNum.value, true));
   }
 
+  /* ★획 세로자리(px) — 양수 = 아래. ★꼴은 ★바로 위 «바 높이»를 ★그대로, ★단위만 % → px 다.
+     ★정본은 ★--tb-hl-y ★하나(색·높이와 ★같은 규약 — 그리는 자는 css 의 background-position).
+     ⛔min/max 를 ★여기 ★되적지 않는다 — ★칸의 속성을 ★읽어 쓴다(점 쪽 DOT_FIELDS 가 먼저 그 꼴로 적었다.
+       맨숫자를 두 벌 두면 ★마크업과 ★조용히 갈린다). */
+  const hlYRange = document.getElementById('txt-hl-y');
+  const hlYNum   = document.getElementById('txt-hl-y-num');
+  if (hlYRange && hlYNum) {
+    const lo = parseInt(hlYNum.min, 10), hi = parseInt(hlYNum.max, 10);
+    const clampY = (v) => {
+      const n = parseInt(v, 10);
+      const base = Number.isFinite(n) ? n : 0;
+      return Math.min(Number.isFinite(hi) ? hi : base, Math.max(Number.isFinite(lo) ? lo : base, base));
+    };
+    const syncY = (v, commit) => {
+      const host = _hlVarsOf(ctx.contentEl);
+      if (!host) return;
+      const n = clampY(v);
+      host.style.setProperty('--tb-hl-y', n + 'px');
+      hlYRange.value = String(n); hlYNum.value = String(n);
+      if (commit) { window.pushHistory?.('형광펜 획 위치'); window.scheduleAutoSave?.(); }
+    };
+    hlYRange.addEventListener('input',  () => syncY(hlYRange.value, false));
+    hlYRange.addEventListener('change', () => syncY(hlYRange.value, true));
+    hlYNum.addEventListener('input',    () => syncY(hlYNum.value, false));
+    hlYNum.addEventListener('change',   () => syncY(hlYNum.value, true));
+  }
+
   /* ── 장식선 토글 — ★취소선(S)과 ★밑줄(U) ────────────────────────────────────
    * 규약은 B/I 와 같다: 부분 선택이 있으면 그 영역만(execCommand), 없으면 블록 전체 토글.
    *
@@ -605,7 +636,10 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
       if (!styleStr.replace(/;|\s/g, '')) _unwrap(sp);
     });
   };
-  const wireDecoBtn = ({ btnId, cmd, token, tagSel }) => {
+  /* ★onToggle — ★블록 전체 토글 뒤 ★그 단추의 «칸»을 여닫는다(형광펜 _hlSyncOpts·점 _dotSyncOpts 와 같은 일).
+     ⛔부분 선택 갈래에서는 ★안 부른다 — 그 갈래는 ★블록 상태를 ★안 건드리므로 단추도 ★안 끈다(아래 early return).
+     ★왜 ★인자인가 — 이 함수는 ★취소선과 ★밑줄 ★둘이 쓰고, ★칸이 있는 쪽은 ★밑줄 ★하나다. */
+  const wireDecoBtn = ({ btnId, cmd, token, tagSel, onToggle }) => {
     const btn = document.getElementById(btnId);
     if (!btn) return;
     btn.addEventListener('click', () => {
@@ -624,12 +658,61 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
       if (nowOn) set.add(token); else set.delete(token);
       _decoWrite(el, set);
       btn.classList.toggle('active', nowOn);
+      onToggle?.(nowOn);
       window.pushHistory?.();
     });
   };
 
+  /* ★밑줄 칸 셋 (2026-10-08 현빈 「언더라인 기능도 ★두께 조절」) — 꺼져 있으면 «없다»(형광펜·점과 같은 규약). */
+  const UL_OPT_ROWS = ['txt-ul-color-row', 'txt-ul-row'];
+  const _ulSyncOpts = (on) => {
+    for (const k of UL_OPT_ROWS) {
+      const e = document.getElementById(k);
+      if (e) e.style.display = on ? 'flex' : 'none';
+    }
+  };
   wireDecoBtn({ btnId: 'txt-strike-btn',    cmd: 'strikeThrough', token: 'line-through', tagSel: 'strike, s' });
-  wireDecoBtn({ btnId: 'txt-underline-btn', cmd: 'underline',     token: 'underline',    tagSel: 'u' });
+  wireDecoBtn({ btnId: 'txt-underline-btn', cmd: 'underline',     token: 'underline',    tagSel: 'u', onToggle: _ulSyncOpts });
+
+  /* ★밑줄 손잡이 — ★정본은 ★.text-block 의 인라인 --tb-ul-* ★하나씩(형광펜·점과 ★같은 규약).
+     ★★«빈 값»의 뜻 = ★auto 로 ★되돌린다 ⇒ ★인라인을 ★지운다. ⛔0 으로 ★메우지 마라 — 0 은 «정했다»가 되어
+       ★CSS 의 auto 를 끄고, ★두께 0 은 ★선을 ★없애 「켰는데 안 보인다」가 된다.
+     ⚠️CSS 는 장식선 두께·색을 ★선별로 못 준다 ⇒ ★취소선이 같이 켜져 있으면 ★그것도 같이 바뀐다(칸 title 에 적었다). */
+  const _ulVarsOf = (el) => (el ? el.closest('.text-block') : null) || tb;
+  const UL_FIELDS = [
+    { name: '--tb-ul-thick',  id: 'txt-ul-thick',  label: '밑줄 두께' },
+    { name: '--tb-ul-offset', id: 'txt-ul-offset', label: '밑줄 위치' },
+  ];
+  for (const f of UL_FIELDS) {
+    const el = document.getElementById(f.id);
+    if (!el) continue;
+    const lo = parseFloat(el.min), hi = parseFloat(el.max);
+    const sync = (commit) => {
+      const host = _ulVarsOf(ctx.contentEl);
+      if (!host) return;
+      const raw = String(el.value ?? '').trim();
+      if (raw === '') {
+        host.style.removeProperty(f.name);     // ★빈 값 = 자동으로 되돌린다
+      } else {
+        let n = parseFloat(raw);
+        if (!Number.isFinite(n)) { host.style.removeProperty(f.name); el.value = ''; }
+        else {
+          if (Number.isFinite(hi)) n = Math.min(hi, n);
+          if (Number.isFinite(lo)) n = Math.max(lo, n);
+          host.style.setProperty(f.name, n + 'px');
+          el.value = String(n);
+        }
+      }
+      if (commit) { window.pushHistory?.(f.label); window.scheduleAutoSave?.(); }
+    };
+    el.addEventListener('input',  () => sync(false));
+    el.addEventListener('change', () => sync(true));
+  }
+  wireColorField('txt-ul-color', {
+    initialAlpha: 100,
+    onApply: (c) => { const h = _ulVarsOf(ctx.contentEl); if (h) h.style.setProperty('--tb-ul-color', c); },
+    onCommit: () => { window.pushHistory?.('밑줄 색'); window.scheduleAutoSave?.(); },
+  });
 
   /* ── ★점 찍기(방점) — 글자 ★위에 점, ★글자마다 하나 ─────────────────────────────────
    * (2026-10-08 수지 ⑥: 「텍스트 위 ★점 찍기(세 글자 선택→점 3개·간격·xy·크기·색상 변경)」 · ⚠️출처 2차)

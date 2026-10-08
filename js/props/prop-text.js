@@ -154,6 +154,21 @@ export function showTextProperties(tb) {
   const currentHighlightColor = (tb.style.getPropertyValue('--tb-hl-color') || '').trim()
                              || getComputedStyle(document.documentElement).getPropertyValue('--ui-highlight').trim();
   const _hlH = Math.min(100, Math.max(5, parseInt(tb.style.getPropertyValue('--tb-hl-h'), 10) || 100));
+  /* ★획 세로자리(2026-10-08 현빈 「바높이 ★및 y값도」) — ★정본은 ★--tb-hl-y ★하나(색·높이와 ★같은 규약).
+     ★안 정하면 ★0 이다 — ★CSS 기본값도 0px 이라 ★두 값이 ★같다(점 네 값처럼 getComputedStyle 로 끌어올
+     ★까닭이 없다: 0 은 ★숫자 하나고 ★CSS 쪽 기본이 ★바뀔 손잡이가 없다. ⛔점 쪽을 베껴 복잡하게 만들지 마라).
+     ★★그래도 ★둘이 ★갈리면 ★검사 U-Y0 이 ★빨개진다 — 패널 ★초기값과 ★computed --tb-hl-y 를 ★견준다. */
+  const _hlY = Math.min(40, Math.max(-40, parseInt(tb.style.getPropertyValue('--tb-hl-y'), 10) || 0));
+  /* ★밑줄 손잡이 셋(2026-10-08 현빈 「언더라인 기능도 ★두께 조절」) — ★정본은 ★--tb-ul-* ★하나씩.
+     ★★''(빈 문자열)을 ★그대로 넘긴다 = ★«아무도 안 정했다» ⇒ 칸이 비고 placeholder 가 「자동」을 보인다.
+     ⛔`|| 0` 으로 ★메우지 마라 — 0 은 ★«정했다»가 되어 CSS 의 auto 를 ★끈다(안 만진 글에서 그림이 바뀐다). */
+  const _ulRaw = (n) => (tb.style.getPropertyValue(n) || '').trim();
+  const _ulNum = (n) => { const v = _ulRaw(n); if (!v || v === 'auto') return ''; const f = parseFloat(v); return Number.isFinite(f) ? f : ''; };
+  const _ulThick  = _ulNum('--tb-ul-thick');
+  const _ulOffset = _ulNum('--tb-ul-offset');
+  /* ★색은 ★스와치가 «지금 무슨 색인가»(진실)여야 한다 — 안 고르면 CSS 기본이 currentColor 라 ★글자색이 그 답이다
+     (점 색과 ★같은 갈래 · buildFillSectionHtml 머리말의 그 규약). */
+  const _ulColorRaw = _ulRaw('--tb-ul-color');
   // ⑨ 서식 버튼 — 블록 전체에 걸린 인라인 서식 여부(부분 서식은 selection 기준이라 여기서 안 본다)
   /* ★켜짐 판정은 «식»을 여기 두지 않는다 — 정본은 prop-text-wireup-text-edit.js 의 isHighlightOn 하나.
      단추 표시(여기)와 토글 방향(거기)이 갈리면 ★옛 형광펜을 지우고 새로 칠하는 사고가 난다. */
@@ -220,9 +235,14 @@ export function showTextProperties(tb) {
        import 하면 안 된다(단위 하네스가 vm 에 그 모듈을 안 올려 골든이 통째로 빨강이 된다. 2026-10-06 실측). */
     hlColorHtml: colorFieldHTML({ idPrefix: 'txt-hl-color', hex: currentHighlightColor, alpha: parseAlphaFromColor(currentHighlightColor) || 100 }),
     hlH: _hlH,
+    hlY: _hlY,
     /* ★점 «색 칸»도 같은 까닭으로 ★여기서 만든다(⑥) — _typo-section.js 는 color-picker 를 import 하면 안 된다. */
     dotColorHtml: colorFieldHTML({ idPrefix: 'txt-dot-color', hex: dotColor, alpha: parseAlphaFromColor(dotColor) || 100 }),
     dotSize, dotGap, dotX, dotY,
+    /* ★밑줄 «색 칸»도 ★같은 까닭으로 ★여기서 만든다 — _typo-section.js 는 color-picker 를 import 하면 안 된다. */
+    ulColorHtml: colorFieldHTML({ idPrefix: 'txt-ul-color', hex: (/^(#|rgb)/i.test(_ulColorRaw) ? _ulColorRaw : currentColor), alpha: parseAlphaFromColor(/^(#|rgb)/i.test(_ulColorRaw) ? _ulColorRaw : currentColor) || 100 }),
+    ulThick: _ulThick,
+    ulOffset: _ulOffset,
     isOverlayBlock,
   });
 
