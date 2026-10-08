@@ -385,8 +385,24 @@ test('D4 ★프리셋·개수·모양을 ★만지면 ★그림이 ★따라 바
 
 /* ═══ D5 ★★작은 창 — ★오늘 7칸을 죽인 ★그 축 ═══════════════════════════════ */
 
-test(`D5 ★★작은 창(${SMALL_H}) — ★칸이 ★여전히 ★창 안이고 ★눌린다`, async ({ page }) => {
-  /* ★★이 회차는 ★growViewport 를 ★안 부른다 — ★★작은 창이 ★이 시험의 ★대상이다. */
+test(`D5 ★★작은 창(${SMALL_H}) — ★들머리는 ★창 안이고, ★깊은 칸은 ★굴려서 ★닿는다`, async ({ page }) => {
+  /* ★★이 회차는 ★growViewport 를 ★안 부른다 — ★★작은 창이 ★이 시험의 ★대상이다.
+   *
+   * ★★⛔2026-10-08 ★내가 ★여기서 ★틀렸다 — ★★«자»가 ★잘못된 것을 ★재고 있었다.
+   *   ★1차(칸이 ★켜기 단추 하나)에선 ★「켠 뒤 ★모든 칸이 ★창 안이다」가 ★초록이었다.
+   *   ★2차(★축 ★13개)에서 ★카드가 ★길어지자 ★★`#sec-fxpart-rot` 의 ★중심이 ★y=844 가 되어 ★빨갰다.
+   *   ★★그때 ★내가 ★검사를 ★고치기 ★전에 ★★«참값»을 ★쟀다:
+   *     ★★`css/editor-panels.css:281` — `.panel-body { flex: 1; ★overflow-y: auto; padding: 6px; }`
+   *   ⇒ ★★**우측 패널은 ★굴러간다.** ★그러면 ★y=844 는 ★★«못 만진다»가 ★아니다 — ★사람은 ★굴린다.
+   *   ⇒ ★★내 단언이 ★★«사람이 하는 일»이 아니라 ★★«첫 화면에 다 보이나»를 ★재고 있었다.
+   *     ★그리고 ★★축이 ★많은 것은 ★★현빈이 ★요구한 것이다(「조절옵션들 왜 줄여」) ⇒
+   *     ★★«창 안에 다 넣기»를 ★지키려면 ★★축을 ★줄여야 한다 — ★★그건 ★요구와 ★정반대다.
+   *   ⛔그래서 ★★«느슨하게 풀었다»가 ★아니다 — ★★«재는 자리를 ★옮겼다». ★아래 둘로 ★갈랐다:
+   *     ⑴ ★들머리(카드 머리·토글)는 ★★굴리지 ★않고도 ★창 안 — ★★«찾을 수 있나»
+   *     ⑵ ★깊은 칸은 ★★굴린 뒤 ★창 안 ＋ ★맨 위 ＋ ★★진짜 눌림 — ★★«쓸 수 있나»
+   *   ★★＋ ★전제로 ★★«패널이 ★정말 굴러가나»를 ★단언한다 — ⛔안 굴러가면 ⑵가 ★공허하다.
+   *   ★★그리고 ★가장 ★깊은 칸(★끄기)을 ★★진짜 눌러 ★★«되돌릴 길이 있나»까지 ★잰다.
+   *     ★그것이 ★오늘 `text-gradient` 7칸을 죽인 ★`locator.click` 타임아웃을 ★밟아 보는 자리다. */
   const errs = await setup(page, { h: SMALL_H });
 
   const got = await page.evaluate(() => window.innerHeight);
@@ -394,30 +410,57 @@ test(`D5 ★★작은 창(${SMALL_H}) — ★칸이 ★여전히 ★창 안이�
      ⛔720 을 ★리터럴로 둔다 — `SMALL_H` 로 쓰면 ★항등식이다. */
   expect(got, `★전제 깨짐: 창이 ${got} 다 — 이 회차는 ★작은 창을 재야 한다`).toBe(720);
 
+  /* ═══ ⑴ ★들머리 — ★굴리지 ★않고도 ★보이고 ★눌린다 ═══════════════════════ */
   const t = await reach(page, '#sec-fxpart-toggle');
   expect(t.found, '★작은 창에서 ★칸이 ★없다').toBe(true);
-  expect(t.inWindow, `★작은 창에서 ★칸이 ★화면 밖이다 (중심 y=${t.cy} · 창=${t.innerH}) — 오늘 7칸이 죽은 그 병이다`).toBe(true);
+  expect(t.inWindow, `★★들머리가 ★화면 밖이다 (중심 y=${t.cy} · 창=${t.innerH}) — ★굴리기 전에 ★찾을 수조차 없다`).toBe(true);
   expect(t.topTag, `★그 점의 맨 위가 ★null 이다 — ★화면 밖 (y=${t.cy}/${t.innerH})`).not.toBeNull();
   expect(t.hits, `★그 점의 맨 위가 ★남이다 (맨 위=${t.topTag})`).toBe(true);
 
-  /* ★★그리고 ★정말 ★눌리나 — ⛔좌표만 재고 닫지 않는다(그것이 오늘의 교훈이다).
-     ★`click` 이 ★30s 타임아웃으로 죽는 ★그 길을 ★여기서 ★한 번 ★밟아 본다. */
   await page.click('#sec-fxpart-toggle', { timeout: 5000 });
-  await page.waitForTimeout(150);
+  await page.waitForTimeout(200);
   const d = await drawn(page);
   expect(d.on, '★작은 창에서 ★눌렀는데 ★안 켜졌다').toBe(true);
   expect(d.nodes, `★작은 창에서 노드 수(${d.nodes})가 ★공식(${d.est})과 다르다`).toBe(d.est);
 
-  /* ★★켠 ★뒤에도 ★창 안인가 — ★켜면 ★칸이 ★셋 늘어난다(프리셋·개수·모양) ⇒ ★끄는 단추가 ★아래로 밀린다.
-     ★★이것이 ★진짜 위험이다 — ★「켜기」는 되는데 ★「끄기」가 ★화면 밖이면 ★되돌릴 길이 없다. */
-  for (const sel of ['#sec-fxpart-presets', '#sec-fxpart-reroll', '#sec-fxpart-seed',
-                     '[data-fxpart-axis="count"]', '#sec-fxpart-colors', '#sec-fxpart-rot',
-                     '#sec-fxpart-dist', '#sec-fxpart-shapes', '#sec-fxpart-off']) {
+  /* ★켠 ★뒤에도 ★카드 ★머리는 ★창 안이다 — ★★「어디 있는지」를 ★굴리지 않고 ★알 수 있어야 한다 */
+  const head = await reach(page, '#sec-fxpart-head');
+  expect(head.inWindow, `★★카드 머리가 ★화면 밖이다 (y=${head.cy}/${head.innerH}) — 파티클 칸을 ★못 찾는다`).toBe(true);
+
+  /* ═══ ⑵ ★전제 — ★★패널이 ★정말 ★굴러가나 (⛔아니면 아래가 ★공허하다) ═════ */
+  const sc = await page.evaluate(() => {
+    const b = document.querySelector('#panel-right .panel-body');
+    if (!b) return null;
+    return { scrollH: b.scrollHeight, clientH: b.clientHeight, oy: getComputedStyle(b).overflowY };
+  });
+  expect(sc, '★전제: 우측 패널 몸(#panel-right .panel-body)을 못 찾았다').not.toBeNull();
+  expect(sc.oy, `★전제: 패널이 ★안 굴러간다(overflow-y=${sc.oy}) — ★아래 「굴려서 닿는다」가 ★뜻이 없다`).toMatch(/auto|scroll/);
+  expect(sc.scrollH, `★전제: 작은 창인데 ★굴릴 것이 ★없다 (scrollH ${sc.scrollH} ≤ clientH ${sc.clientH})`
+    + ' — ★이 창에서는 ★굴림을 ★못 재므로 ★이 칸의 뜻이 약하다').toBeGreaterThan(sc.clientH);
+
+  /* ═══ ⑶ ★깊은 칸 — ★★굴린 뒤 ★창 안 ＋ ★맨 위 ═════════════════════════ */
+  const DEEP = ['#sec-fxpart-presets', '#sec-fxpart-reroll', '#sec-fxpart-seed',
+                '[data-fxpart-axis="count"]', '[data-fxpart-axis="smin"]', '#sec-fxpart-colors',
+                '[data-fxpart-axis="fxOpacity"]', '[data-fxpart-axis="jit"]', '#sec-fxpart-rot',
+                '#sec-fxpart-dist', '[data-fxpart-axis="glow"]', '[data-fxpart-axis="spread"]',
+                '#sec-fxpart-shapes', '#sec-fxpart-off'];
+  for (const sel of DEEP) {
+    const loc = page.locator(sel).first();
+    await expect(loc, `★켠 뒤 ${sel} 가 없다`).toHaveCount(1);
+    await loc.scrollIntoViewIfNeeded();        /* ★★사람이 하는 그 일 — 패널을 굴린다 */
     const r = await reach(page, sel);
-    expect(r.found, `★켠 뒤 ${sel} 가 없다`).toBe(true);
-    expect(r.inWindow, `★켠 뒤 ★${sel} 가 ★창 밖이다 (중심 y=${r.cy} · 창=${r.innerH}) — 못 만진다`).toBe(true);
-    expect(r.hits, `★켠 뒤 ★${sel} 의 맨 위가 ★남이다 (맨 위=${r.topTag})`).toBe(true);
+    expect(r.inWindow, `★★굴린 뒤에도 ★${sel} 가 ★창 밖이다 (중심 y=${r.cy} · 창=${r.innerH}) — 못 만진다`).toBe(true);
+    expect(r.hits, `★굴린 뒤 ★${sel} 의 맨 위가 ★남이다 (맨 위=${r.topTag}) — 무언가가 덮고 있다`).toBe(true);
   }
+
+  /* ═══ ⑷ ★★가장 ★깊은 칸을 ★진짜 눌러 본다 — ★★«되돌릴 길»이 ★작은 창에도 있나 ═══
+     ★`#sec-fxpart-off` 는 ★카드의 ★맨 끝이다 ⇒ ★그것이 ★눌리면 ★위의 전부가 ★닿는다.
+     ⛔`timeout: 5000` — ★오늘 7칸은 ★30s 타임아웃으로 죽었다. ★짧게 두어 ★빨리 빨개지게. */
+  await page.click('#sec-fxpart-off', { timeout: 5000 });
+  await page.waitForTimeout(200);
+  const off = await drawn(page);
+  expect(off.on, '★★작은 창에서 ★끄기를 ★눌렀는데 ★안 꺼졌다 — 되돌릴 길이 없다').toBe(false);
+  expect(off.leftKeys, `★작은 창에서 끈 뒤 ★키가 남았다 (${off.leftKeys.join(',')})`).toEqual([]);
 
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
@@ -524,6 +567,56 @@ test('D6 ★★시안의 축 전수 — ★이름·순서가 맞고 ★하나하
   await page.click('#sec-fxpart-fold');
   await page.waitForTimeout(120);
   await expect(panel.locator('#sec-fxpart-body'), '★다시 펼쳤는데 몸이 ★안 보인다').toBeVisible();
+
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
+
+/* ═══ D7 ★★상한에서 ★정말 그려지나 — ★★현빈 2026-10-08 「120개까지하자 최대」 ═════ */
+
+test('D7 ★★상한(MAX_COUNT)에서도 ★그려진다 — ★노드 수가 ★공식과 맞고 ★시간을 ★기록한다', async ({ page }) => {
+  /* ★★현빈 2026-10-08 상한을 ★60 → ★120 으로 올렸다. ⇒ ★노드가 ★약 ★1.9배다
+       (★실측 2026-10-08: star 133→253 · gold 63→123 · 바이트 1.92x~2.03x).
+     ⇒ ★★「올렸는데 ★안 그려진다」가 ★가장 큰 위험이다. ★이 칸이 ★그걸 잰다.
+     ★★⛔시간에 ★빡빡한 문턱을 ★걸지 않는다 — ★이 맥은 ★여러 세션이 나눠 쓰고 ★load 가 ★5~85 로 흔든다
+       ⇒ ★★문턱을 ★좁히면 ★그 검사는 ★부하에서 ★흔들리고, ★흔들리는 검사는 ★다음 빨강을 ★가린다.
+       ⇒ ★★그래서 ⑴ ★«맞게 그려졌나»는 ★단단히 ★걸고 ⑵ ★«얼마나 걸렸나»는 ★★수로 ★기록한다
+         ＋ ⑶ ★병이라고 볼 만큼 ★느릴 때만 ★빨개지는 ★너른 천장을 ★둔다.
+     ★★⛔안 재는 것: ★섹션 ★여럿(N개)에 깔릴 때의 ★프레임 — ★★미측정이다(그 수는 ★아무도 안 쟀다). */
+  const errs = await setup(page);
+  await growViewport(page);
+  await page.click('#sec-fxpart-toggle');
+  await page.waitForTimeout(200);
+
+  const max = await page.evaluate(() => window.ParticlesFx.MAX_COUNT);
+  /* ★★전제 — ★개수를 ★상한으로 ★올린다. ⛔「원래 상한이었다」로 지나가지 않게 ★먼저 ★낮춘 뒤 ★올린다 */
+  const sel = '[data-fxpart-axis="count"]';
+  await page.fill(sel, '1');
+  await page.dispatchEvent(sel, 'input');
+  await page.waitForTimeout(120);
+  expect((await drawn(page)).cfg.count, '★전제: 먼저 1 로 내렸다').toBe(1);
+
+  const t0 = Date.now();
+  await page.fill(sel, String(max));
+  await page.dispatchEvent(sel, 'input');
+  await page.waitForTimeout(150);
+  const ms = Date.now() - t0;
+  const d = await drawn(page);
+
+  /* ⑴ ★★맞게 그려졌나 — ★단단히 */
+  expect(d.cfg.count, `★상한 ${max} 로 올렸는데 저장값이 ${d.cfg.count} 다`).toBe(max);
+  expect(d.wraps, '★상한에서 층이 하나가 아니다').toBe(1);
+  expect(d.nodes, `★상한 ${max} 에서 노드(${d.nodes})가 공식(${d.est})과 다르다 — 그림과 계산이 갈렸다`).toBe(d.est);
+  /* ★★노드가 ★개수보다 ★많다 — ⛔「빈 svg」가 초록으로 지나가지 않게. ⛔253 을 ★안 적는다 */
+  expect(d.nodes, `★노드(${d.nodes})가 ★개수(${max}) 이하다 — 껍데기만 났다`).toBeGreaterThan(max);
+
+  /* ⑵ ★★수를 ★기록한다 — ★다음 사람이 ★「얼마였나」를 ★이 메시지에서 읽는다
+     ⛔산문에 손으로 박지 않는다(★잰 값을 ★그대로 단언 메시지에 넣는다). */
+  const note = `★상한 ${max} · 노드 ${d.nodes} · svg ${d.svgLen}글자 · 한 섹션 다시그리기 ${ms}ms`;
+  /* ⑶ ★★너른 천장 — ★병일 때만 빨개진다(★한 섹션 한 장면이 ★3초를 넘으면 ★무언가 잘못됐다) */
+  expect(ms, `⛔★상한에서 ★한 섹션 ★다시그리기가 ★너무 느리다 — ${note}`).toBeLessThan(3000);
+  /* ★★기록을 ★남긴다 — ⛔`console.log` 가 아니라 ★★«참인 단언의 메시지»로(러너가 실패 때만 찍지만
+     ★이 줄이 ★spec 에 ★남아 ★다음 사람이 ★무엇을 쟀는지 ★읽는다). */
+  expect(d.svgLen, `★전제 기록 — ${note}`).toBeGreaterThan(1000);
 
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
