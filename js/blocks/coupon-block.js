@@ -66,6 +66,10 @@
 import { insertAfterSelected, genId, showNoSelectionHint } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import { paint } from './coupon-geometry.js';
+/* ★허용값 명부·프리셋 명부는 ★한 자리다 — ★js/blocks/coupon-presets.js (2026-10-08).
+   ⛔여기에 리터럴 배열을 ★되살리지 마라: 그 순간 명부가 둘이 되고 프리셋이 ★조용히 떨어진다.
+   ★그 합침을 재는 자 = tests/unit/coupon-presets.test.mjs C-P6. */
+import { CPN_PRESETS, CPN_PRESET_KEYS, COUPON_ENUMS } from './coupon-presets.js';
 
 /* ★글자 다섯 — 이름·안내문구·기본 꼴. ★시안 baseState().t (:1147~1151) 에서 왔다.
    ⛔순서를 바꾸지 마라 — 패널 줄 순서이고, 시안의 SLOTS(:1128) 순서다.
@@ -185,7 +189,7 @@ function _cpnState(block) {
   return {
     cw: _num(block, 'cw', D.cw), ch: _num(block, 'ch', D.ch),
     radius: clampCoupon(_num(block, 'radius', D.radius), COUPON_LIMITS.radius),
-    bgKind: ['coupon', 'plain', 'grad'].includes(block?.dataset?.bgKind) ? block.dataset.bgKind : D.bgKind,
+    bgKind: COUPON_ENUMS.bgKind.includes(block?.dataset?.bgKind) ? block.dataset.bgKind : D.bgKind,
     canvasCol: _col(block, 'canvasCol', D.canvasCol),
     bodyCol: _col(block, 'bodyCol', D.bodyCol),
     stubCol: _col(block, 'stubCol', D.stubCol),
@@ -197,21 +201,28 @@ function _cpnState(block) {
     },
     nR: _num(block, 'nR', D.nR), nPos: _num(block, 'nPos', D.nPos),
     perfOn: _bool(block, 'perfOn', D.perfOn),
-    perfDir: block?.dataset?.perfDir === 'h' ? 'h' : D.perfDir,
+    /* ⚠️전엔 `=== 'h' ? 'h' : D.perfDir` 였다 — 목록으로 바꿔도 ★행동이 같다('h'면 'h' · 그 밖은 기본 'v').
+       ★그 동치를 tests/unit/coupon-presets C-P6 이 ★단언한다. */
+    perfDir: COUPON_ENUMS.perfDir.includes(block?.dataset?.perfDir) ? block.dataset.perfDir : D.perfDir,
     perfPos: _num(block, 'perfPos', D.perfPos), perfDash: _num(block, 'perfDash', D.perfDash),
     perfGap: _num(block, 'perfGap', D.perfGap), perfW: _num(block, 'perfW', D.perfW),
     perfCol: _col(block, 'perfCol', D.perfCol), perfEnd: _bool(block, 'perfEnd', D.perfEnd),
-    split: ['none', 'lr', 'tb', 'two'].includes(block?.dataset?.split) ? block.dataset.split : D.split,
+    split: COUPON_ENUMS.split.includes(block?.dataset?.split) ? block.dataset.split : D.split,
     stubPct: _num(block, 'stubPct', D.stubPct), gap: _num(block, 'gap', D.gap),
-    shadow: ['none', 'layer', 'drop'].includes(block?.dataset?.shadow) ? block.dataset.shadow : D.shadow,
+    shadow: COUPON_ENUMS.shadow.includes(block?.dataset?.shadow) ? block.dataset.shadow : D.shadow,
     shDx: _num(block, 'shDx', D.shDx), shDy: _num(block, 'shDy', D.shDy),
     shBlur: _num(block, 'shBlur', D.shBlur), shCol: _col(block, 'shCol', D.shCol),
     shOpa: _num(block, 'shOpa', D.shOpa),
-    /* 배지·장식은 1단계 패널에 없다 — 생성기가 요구하는 칸만 꺼 둔다. */
+    /* 배지·장식은 1단계 패널에 없다 — 생성기가 요구하는 칸만 꺼 둔다.
+       ⚠️★이 두 칸은 dataset 을 ★«아예 안 읽는다»(_bool 을 안 지난다) — `dataset.badgeOn='1'` 을
+         써도 ★영영 무시된다. ★「기본값으로 떨어진다」가 아니라 ★「입력을 안 본다」다.
+       ⇒ ★그래서 시안 ⑥ naverpay 프리셋은 ★2차다(coupon-presets.js 머리말).
+       ★이 자리를 ★이름으로 잠그는 자 = tests/dom/coupon-presets.dom.spec.js C-P7.
+       ⛔여기를 ★지금 고치지 마라 — ★2차 몫이다(고치면 C-P7 이 「Expected to fail」로 알려 준다). */
     badgeOn: false, decoOn: false,
-    align: ['left', 'center', 'right'].includes(block?.dataset?.align) ? block.dataset.align : D.align,
-    valign: ['top', 'center', 'bottom'].includes(block?.dataset?.valign) ? block.dataset.valign : D.valign,
-    order: ['t-n-b', 't-b-n', 'n-t-b'].includes(block?.dataset?.order) ? block.dataset.order : D.order,
+    align: COUPON_ENUMS.align.includes(block?.dataset?.align) ? block.dataset.align : D.align,
+    valign: COUPON_ENUMS.valign.includes(block?.dataset?.valign) ? block.dataset.valign : D.valign,
+    order: COUPON_ENUMS.order.includes(block?.dataset?.order) ? block.dataset.order : D.order,
     inlineUnit: _bool(block, 'inlineUnit', D.inlineUnit),
     pad: _num(block, 'pad', D.pad), gapY: _num(block, 'gapY', D.gapY),
     stubVert: _bool(block, 'stubVert', D.stubVert),
@@ -442,6 +453,98 @@ function commitCouponSlot(block, slot, text) {
   return true;
 }
 
+/* ══ ★프리셋 ★적용 ═══════════════════════════════════════════════════════════
+   ★★⛔이름을 `updateCouponBlock` 으로 ★짓지 마라 — `js/model-update-history.js` 래퍼가
+     `update*Block` 을 ★물어 ★스스로 pushHistory 를 한다 ⇒ ★한 제스처가 ★두 칸이 되고 ⌘Z 가 ★두 번이 된다
+     (★이 파일 머리말의 그 경고 · 이름 검산 임자 = cpn-P 2026-10-08).
+   ★히스토리는 ★안 쌓는다 — ★부르는 쪽(패널)이 ★push-after 로 ★한 번 쌓는다(commitCouponSlot 과 같은 규율).
+
+   ★★⑴ 먼저 ★되돌린다 — ★시안 `:1234 applyPreset` 이 `baseState()` 로 ★전부 리셋한 뒤 덮는 ★그 규율.
+     ⛔리셋을 빼면 ★①의 `perfOn:true` 가 ★②에 ★남는다(②는 그 칸을 명시하므로 괜찮지만,
+       ★어느 프리셋도 ★안 적은 축을 ★사용자가 만졌으면 ★영영 남는다 ⇒ ★같은 칩이 ★다른 그림을 낸다).
+     ⚠️★`width` 는 ★★예외다 — ★시안엔 그 개념이 ★없고(모델 크기 하나), ★제품의 `width` 는
+       ★«사용자가 손잡이로 끈 폭»이다. ⇒ ★프리셋은 ★비율(cw/ch)만 바꾸고 ★폭은 ★그대로 둔다.
+
+   ★★⑵ ★쓰기 «전»에 ★걸러 낸다 — ⛔못 쓰는 값을 ★dataset 에 ★넣지 않는다.
+     ★까닭: `_cpnState` 는 ★순수 읽기라 ★dataset 을 ★고치지 않는다 ⇒ ★벗어난 값은 ★★dataset 에
+       ★그대로 남고 ★화면만 ★기본값이 된다 = ★★저장본과 화면이 ★갈린다(그리고 ★아무 말도 안 난다).
+     ⇒ ★걸러 낸 것은 ★`skipped` 로 ★돌려주고 ★console.warn 으로 ★이름을 ★찍는다.
+   ★★돌려주는 값으로 ★「정말 걸렀나」를 ★잴 수 있다 — ⛔「바꾼 척」을 막는다(cpnResponsiveSvg 와 같은 꼴).
+═══════════════════════════════════════════════════════════════════════════ */
+
+/** 명부 — ★창에 얹힌 것이 있으면 그것(★대조군이 갈아 끼울 수 있게 · coupon-presets.js `_roster` 와 같은 꼴). */
+const _cpnRoster = () => (typeof window !== 'undefined' && window.CouponPresets) || CPN_PRESETS;
+/** 허용값 표 — ★같은 까닭으로 창을 먼저 본다. */
+const _cpnEnums = () => (typeof window !== 'undefined' && window.COUPON_ENUMS) || COUPON_ENUMS;
+
+const _dsPut = (ds, key, val) => {
+  ds[key] = (typeof val === 'boolean') ? (val ? '1' : '0') : String(val);
+};
+
+function applyCouponPreset(block, key) {
+  const R = _cpnRoster();
+  const E = _cpnEnums();
+  if (!block) return { ok: false, key: null, reason: 'no-block', skipped: [] };
+  if (!Object.prototype.hasOwnProperty.call(R, key)) {
+    return { ok: false, key, reason: 'unknown-preset', skipped: [] };
+  }
+  const P = R[key];
+  const ds = block.dataset;
+  const skipped = [];
+
+  /* ⑴ 되돌리기 — COUPON_DEFAULTS 전 축(⛔`width` 제외) ＋ 칸 다섯의 기본 */
+  for (const k of Object.keys(COUPON_DEFAULTS)) {
+    if (k === 'width') continue;
+    _dsPut(ds, k, COUPON_DEFAULTS[k]);
+  }
+  for (const s of COUPON_SLOTS) {
+    _dsPut(ds, _dsKey(s.key, 'On'), s.on);
+    _dsPut(ds, _dsKey(s.key, 'Size'), s.size);
+    _dsPut(ds, _dsKey(s.key, 'Weight'), s.weight);
+    _dsPut(ds, _dsKey(s.key, 'Color'), s.color);
+    ds[_dsKey(s.key, 'Text')] = '';
+  }
+
+  /* ⑵ 덮기 — ★열거형은 표에 ★있는 값만 · ★색은 색 꼴만 · ★글자 크기는 바닥·천장 안만 */
+  const v = (P && P.v) || {};
+  for (const k of Object.keys(v)) {
+    const val = v[k];
+    if (E[k] && !E[k].includes(val)) { skipped.push(`${k}=${String(val)}`); continue; }
+    if (/Col$/.test(k) && !(typeof val === 'string' && _CPN_COLOR_RE.test(val.trim()))) {
+      skipped.push(`${k}=${String(val)}`); continue;
+    }
+    _dsPut(ds, k, val);
+  }
+
+  const slots = (P && P.slots) || {};
+  for (const sk of Object.keys(slots)) {
+    if (!COUPON_SLOT_KEYS.includes(sk)) { skipped.push(`slot:${sk}`); continue; }
+    const s = slots[sk] || {};
+    if (Number.isFinite(s.size)) {
+      if (s.size < CPN_FS_MIN || s.size > CPN_FS_MAX) skipped.push(`${sk}.size=${s.size}`);
+      else _dsPut(ds, _dsKey(sk, 'Size'), s.size);
+    }
+    if (Number.isFinite(s.weight)) _dsPut(ds, _dsKey(sk, 'Weight'), s.weight);
+    if (typeof s.color === 'string') {
+      if (_CPN_COLOR_RE.test(s.color.trim())) _dsPut(ds, _dsKey(sk, 'Color'), s.color.trim());
+      else skipped.push(`${sk}.color=${s.color}`);
+    }
+    if (typeof s.on === 'boolean') _dsPut(ds, _dsKey(sk, 'On'), s.on);
+    if (typeof s.text === 'string') ds[_dsKey(sk, 'Text')] = s.text;
+  }
+
+  /* ⑶ ★어느 칩인가를 ★dataset 에 남긴다 — ⛔안 남기면 save-load.js:1439 의 로드 뒤 재그리기에서
+     ★칩의 «활성»이 ★되살아나지 않는다(그림은 살고 ★칩만 꺼진다). */
+  ds.preset = key;
+
+  if (skipped.length) {
+    console.warn('[coupon-block] 프리셋 「' + key + '」의 값 ' + skipped.length
+      + '개를 제품 축이 못 받아 건너뛰었다 — ' + skipped.join(' · '));
+  }
+  return { ok: true, key, reason: '', skipped };
+}
+
+window.applyCouponPreset = applyCouponPreset;
 window.makeCouponBlock = makeCouponBlock;
 window.addCouponBlock = addCouponBlock;
 window.renderCouponBlock = renderCouponBlock;
@@ -458,6 +561,7 @@ window.cpnEffFontSize = _cpnEffFontSize;
 
 export {
   makeCouponBlock, addCouponBlock, renderCouponBlock, commitCouponSlot, couponStubHasRoom,
+  applyCouponPreset, CPN_PRESETS, CPN_PRESET_KEYS, COUPON_ENUMS,
   cpnResponsiveSvg, _cpnScale, _cpnEffFontSize, _cpnBoxH, _cpnState, _slotOf, _dsKey,
   COUPON_SLOTS, COUPON_SLOT_KEYS, COUPON_DEFAULTS, COUPON_LIMITS, clampCoupon,
   CPN_FS_MIN, CPN_FS_MAX,
