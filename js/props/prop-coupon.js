@@ -26,6 +26,9 @@ import {
   COUPON_SLOTS, COUPON_SLOT_KEYS, COUPON_DEFAULTS, COUPON_LIMITS, clampCoupon,
   _dsKey, _slotOf, _cpnBoxH, couponStubHasRoom,
 } from '../blocks/coupon-block.js';
+/* ★프리셋 칩은 ★«HTML 문자열을 돌려주는 순수 함수» 하나로 온다 — ⛔여기서 수·이름·글을 적지 않는다.
+   ★그 함수의 정본·명부 = js/blocks/coupon-presets.js (★칩이 명부를 읽는가 = unit C-P2·C-P3). */
+import { couponPresetChipsHTML } from '../blocks/coupon-presets.js';
 
 const L = COUPON_LIMITS;
 
@@ -177,6 +180,7 @@ ${blockHeaderHTML({
 
     <div class="prop-section">
       <div class="prop-section-title">Coupon</div>
+${couponPresetChipsHTML(block)}
 ${_pairRow('cpn-width', '폭', width, L.width.min, L.width.max)}
       <div class="prop-hint" style="padding:2px 8px">높이는 <b>${boxH}px</b> — 비율 16:9 를 블럭이 스스로 지킵니다. <span style="opacity:.7">(비율 고르기는 2단계)</span></div>
 ${_pairRow('cpn-radius', '모서리', radius, L.radius.min, L.radius.max)}
@@ -237,6 +241,21 @@ ${openKey ? _slotPanelHTML(block, openKey) : ''}`;
   };
   wireColor('cpn-body', 'bodyCol');
   wireColor('cpn-stub', 'stubCol');
+
+  /* ── 프리셋 칩 ──────────────────────────────────────────────────────────────
+     ★한 번 누름 = ★★push-after ★한 번(commit). ⛔applyCouponPreset 은 히스토리를 ★안 쌓는다.
+     ★다시 그릴 때는 ★`reopen()`(= 인자 없는 showCouponProperties)을 쓴다 —
+       ⛔`showCouponProperties(block, openKey)` 로 부르면 ★:153~156 의 토글이 또 돌아
+         ★열려 있던 칸이 ★조용히 닫힌다(:205 의 그 경고와 ★같은 자리).
+     ★프리셋이 분할·절취선을 바꾸면 ★스텁 칸의 «자리»도 바뀐다 ⇒ ★목록의 회색 처리까지 다시 그려야 한다. */
+  propPanel.querySelectorAll('[data-cpn-preset]').forEach(btn => btn.addEventListener('click', () => {
+    const k = btn.getAttribute('data-cpn-preset');
+    const r = window.applyCouponPreset?.(block, k);
+    if (!r || !r.ok) return;
+    rerender();
+    commit();
+    reopen();
+  }));
 
   // ── 칸 목록: 켜기/끄기 · 열기/닫기 ──
   propPanel.querySelectorAll('[data-cpn-on]').forEach(cb => cb.addEventListener('change', () => {
