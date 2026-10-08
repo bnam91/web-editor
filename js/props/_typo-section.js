@@ -126,6 +126,44 @@ export function buildTypographySectionHtml({
        ★`bt2-safety` ★T6 가 ★빨개졌다(★단추는 ★안 늘었는데 ★주석만 나갔다 —
         가드가 ★「지워진 토막 0 · ★더해진 id ★없음」으로 ★그 꼴을 찍었다).
        ⇒ ★★«설명»은 ★소스에, ★«산출»엔 ★한 글자도. ★이 절의 계약이 그것이다. */
+  /* ★★⑴ ★점 단추 ★미리보기 = ★SVG — ★실제로 점을 그리는 자는 ★.tb-dot::before 다(css/editor-layout.css).
+     ★★⛔이 주석은 ★원래 ★템플릿 리터럴 ★안의 ★HTML 주석이었다 — ★★지운 것이 ★아니라 ★옮겼다.
+       ★까닭 = ★그 자리에 두면 ★«무조건 산출»돼 ★패널 HTML 에 ★글자로 실린다
+         (★실측 2026-10-08: 내 주석 셋을 리터럴 안에 뒀더니 텍스트 패널 산출이 ★22153 → ★25842자).
+       ★이 파일이 ★이미 그 까닭으로 ★바로 위 «단추 순서» 주석을 ★JS 로 옮겨 뒀다 — ★같은 자리에 ★같이 둔다.
+       ⇒ ★★«설명»은 ★소스에, ★«산출»엔 ★한 글자도. ★이 절의 계약이 그것이다.
+     ⛔★다음 사람이 ★「점 찍기는 이 단추의 꼴로 구현됐다」고 ★읽지 않게 ★적어 둔다 — ★실측으로 ★그 반대가 참이다:
+       ★표준 text-emphasis 는 ★개수·색만 주고 ★크기(연속)·★xy·★간격을 ★못 줘서 ★배제했다(실측값은 css 절 머리말).
+     ★★2026-10-08 ★갈았다 — 현빈: 「점 효과의 ★SVG가 ★별로다. 고쳐줘.」
+       ★무엇이었나: 단추 글자에 ★text-emphasis:filled dot 을 걸어 ★「점」 ★위에 점을 띄웠다.
+       ★왜 별로인가(재서 적는다): ★filled dot 은 ★4×3px ★이산 한 꼴뿐이고 ★위치를 ★못 준다
+         ⇒ ★24px 단추에서 ★한글 「점」 ★위 ★3px 짜리 ★납작한 자국이 된다. ★제품의 ★둥근 점과 ★닮지 않았다.
+       ★무엇으로 갈았나: ★둥근 ★채운 원 ＋ ★글자 자리의 ★A 획.
+         ★왜 그 꼴인가 ⑴ 제품의 점은 ★border-radius:50% 의 ★둥근 원이다 ⇒ ★원으로 그려야 ★닮는다
+                    ⑵ ★「글자 ★위」가 ★이 기능의 ★전부다 ⇒ ★글자 자리를 ★같이 그려야 ★뜻이 읽힌다
+                    ⑶ ★stroke 1.5·★linecap round·★currentColor = ★이 파일 ★폰트피커 ★꺾쇠와 ★같은 꼴
+                       ⇒ ★새 아이콘 ★족을 ★만들지 않는다
+         ⛔★제품의 .tb-dot 클래스를 ★단추에 ★쓰지 ★않았다 — 그 클래스는 ★--tb-dot-* 를 ★.text-block 에서 받고,
+           ★패널에 ★그 이름이 ★또 생기면 ★점을 ★세는 자리가 ★속을 수 있다.
+
+     ★★⑵ ★형광펜 ★획 세로자리 — ★p-hl-y 줄 (2026-10-08 현빈: 「하이라이트(형광펜) 기능 ★바높이 ★및 y값도 조절」)
+       ⛔칸 꼴을 ★새로 만들지 않았다 — ★꼴은 ★바로 위 «바 높이» 줄(range/number 쌍)을 ★그대로,
+         ★범위는 ★점 Y(p-dot-y)의 ★그 수(-40~40)를 ★그대로 썼다. ★맨숫자를 ★내가 ★정하지 않았다.
+       ★양수 = ★아래로 — ★점 Y 와 ★같은 방향이다(둘이 반대면 쓰는 사람이 매번 헷갈린다).
+       ★그리는 자는 css/editor-layout.css 의 ★--tb-hl-y(background-position) 다.
+
+     ★★⑷ ★밑줄 손잡이 ★셋 — ★p-ul-color-row ＋ ★p-ul-row (2026-10-08 현빈: 「언더라인 기능도 ★두께 조절 및 요청한게 있었을텐데」)
+       ★★⛔그 showUnderlineOpts 분기가 ★앞(점) 블록 ★끝에 ★붙어 있는 것은 ★일부러다 —
+         ★자기 줄에서 시작하면 ★꺼져도 ★줄바꿈 ★하나를 ★남겨 ★모달·그리드·챗의 ★«바이트 동일»이 깨진다
+         (★앞 블록 머리말의 그 실측 — ★빈 줄 ★하나로 ★bt2-safety T6 이 ★3개 상태에서 빨개졌다).
+       ⚠️★화면 ★순서는 ★형광펜 → ★점 → ★밑줄이라 ★단추 순서(B I U S H 점)와 ★다르다.
+         ★까닭 = ★앞 블록 끝에 ★이어 붙여야 ★바이트 동일이 지켜진다(바로 위 ⛔). ★꺼져 있으면 ★없는 칸이라
+         ★한 번에 ★둘 이상 보이는 일이 드물다 ⇒ ★그 값을 ★치렀다. ⛔「순서가 맞다」로 ★적지 마라.
+       ⛔칸 꼴을 ★새로 만들지 않았다: 색은 ★형광펜의 colorFieldHTML, 수는 ★점 X/Y 의 prop-icon-input 꼴.
+       ★★두께·위치 칸은 ★«비어» 있을 수 있다 — ★빈 값 = ★auto(브라우저가 글자 크기로 정한다)로 ★되돌린다.
+         ★그래서 ★맨숫자를 ★미리 ★박지 않는다(이 절의 _ph 규약과 ★같은 뜻: 안 정한 칸은 ★안 정했다고 보인다).
+       ⚠️★CSS 는 ★장식선 두께·색을 ★선별로 못 준다(한 요소에 ★한 값) ⇒ ★취소선이 같이 켜져 있으면
+         ★그것도 ★같이 바뀐다. ⛔「밑줄만 바뀐다」로 ★넓히지 마라 — ★검사가 그 축을 ★적는다. */
   return `<div class="prop-section">
       <div class="prop-section-title">Typography</div>
 
@@ -164,27 +202,6 @@ export function buildTypographySectionHtml({
         <button class="prop-style-btn ${isUnderline?'active':''}" id="${p}-underline-btn" title="밑줄 (⌘U)"><u>U</u></button>` : ''}
         <button class="prop-style-btn ${isStrike?'active':''}" id="${p}-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>${showHighlight ? `
         <button class="prop-style-btn ${isHighlight?'active':''}" id="${p}-highlight-btn" title="형광펜 (글자 길이만큼 — 선택이 있으면 그 글자만)">H</button>` : ''}${showDots ? `
-        <!-- ★★단추 미리보기는 ★SVG 다 — ★실제로 점을 그리는 자는 ★.tb-dot::before 다(css/editor-layout.css).
-             ⛔★이 주석을 지우지 마라: ★그러면 다음 사람이 ★「점 찍기는 이 단추의 꼴로 구현됐다」고 ★읽는다.
-               ★★실측으로 그 ★반대가 참이다 — ★표준 text-emphasis 는 ★개수·색만 주고
-               ★크기(연속)·★xy·★간격을 ★못 줘서 ★배제했다(실측값은 css 쪽 절 머리말에).
-             ★★2026-10-08 ★갈았다 — 현빈: 「점 효과의 ★SVG가 ★별로다. 고쳐줘.」
-               ★무엇이었나: 단추 글자에 ★text-emphasis:filled dot 을 걸어 ★「점」 ★위에 점을 띄웠다.
-               ★왜 별로인가(재서 적는다 — css 절 머리말의 그 실측):
-                 ★filled dot 은 ★4×3px ★이산 한 꼴뿐이고 ★위치를 ★못 준다
-                 ⇒ ★24px 단추에서 ★한글 「점」 ★위 ★3px 짜리 ★납작한 자국이 된다. ★제품의 ★둥근 점과 ★닮지 않았다.
-               ★무엇으로 갈았나: ★dot-over-glyph 를 ★그린 SVG — ★둥근 ★채운 원 ＋ ★글자 자리의 ★A 획.
-                 ★왜 그 꼴인가 ⑴ ★제품의 점은 ★border-radius:50% 의 ★둥근 원이다 ⇒ ★원으로 그려야 ★닮는다
-                            ⑵ ★「글자 ★위」가 ★이 기능의 ★전부다 ⇒ ★글자 자리를 ★같이 그려야 ★뜻이 읽힌다
-                            ⑶ ★stroke 1.5·★linecap round·★currentColor = ★이 파일 ★폰트피커 ★꺾쇠와 ★같은 꼴
-                               ⇒ ★새 아이콘 ★족을 ★만들지 않는다
-                 ⛔★제품의 .tb-dot 클래스를 ★단추에 ★쓰지 ★않았다 — ★그 클래스는 ★--tb-dot-* 를 ★.text-block 에서
-                   받고, ★패널에 ★그 이름이 ★또 생기면 ★점을 ★세는 자리가 ★속을 수 있다.
-             ⚠️이 절은 ★템플릿 리터럴 ★안이다 — ⛔★백틱을 쓰지 마라. 리터럴이 끊긴다
-               (2026-10-08 실측 ★두 번: 백틱을 썼다가 .mjs rc=1 SyntaxError 가 났고,
-                ★그 경고문 안에 ★또 백틱을 써서 ★다시 났다).
-             ⚠️⚠️★★그리고 ★이 주석 안에서 ★★«닫는 자»도 ★쓰지 마라 — ★주석이 ★거기서 ★끊겨
-               ★★아래 글이 ★★«속성 패널에 ★글자로 ★인쇄»된다(2026-10-08 ★아래 블록에서 ★실제로 났다). -->
         <button class="prop-style-btn ${isDot?'active':''}" id="${p}-dot-btn" title="글자 위 점 찍기 (글자마다 하나 — 선택이 있으면 그 글자만)"><svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true"><circle cx="6.5" cy="2.4" r="2.1" fill="currentColor"/><path d="M2 13.4 6.5 6.2l4.5 7.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 11h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}
       </div>
 ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현빈 tb_5bkw8dq: 「색변경 및 하이라이트 바 높이 조절가능하게」).
@@ -201,11 +218,6 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <input type="range" class="prop-slider" id="${p}-hl-h" min="5" max="100" step="1" value="${hlH}">
         <input type="number" class="prop-number" id="${p}-hl-h-num" min="5" max="100" value="${hlH}">
       </div>
-      <!-- ★획 «세로 자리» (2026-10-08 현빈: 「하이라이트(형광펜) 기능 ★바높이 ★및 y값도 조절」).
-           ⛔칸 꼴을 ★새로 만들지 않는다 — ★꼴은 ★바로 위 «바 높이» 줄(range/number 쌍)을 ★그대로,
-             ★범위는 ★점 Y(txt-dot-y)의 ★그 수(-40~40)를 ★그대로 쓴다. ★맨숫자를 ★내가 ★정하지 않는다.
-           ★양수 = ★아래로 — ★점 Y 와 ★같은 방향이다(둘이 반대면 쓰는 사람이 매번 헷갈린다).
-           ★그리는 자는 css/editor-layout.css 의 ★--tb-hl-y(background-position) 다. -->
       <div class="prop-row" id="${p}-hl-y-row" style="display:${isHighlight?'flex':'none'}" title="획을 위아래로 비껴 놓기(px). 양수 = 아래로 · 음수 = 위로">
         <span class="prop-label">획 위치</span>
         <input type="range" class="prop-slider" id="${p}-hl-y" min="-40" max="40" step="1" value="${hlY}">
@@ -248,21 +260,7 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
           <input type="number" id="${p}-dot-y" min="-40" max="40" value="${dotY}" aria-label="점 Y">
         </div>
       </div>
-` : ''}${showUnderlineOpts ? `      <!-- ★밑줄 손잡이 ★셋 (2026-10-08 현빈: 「언더라인 기능도 ★두께 조절 및 요청한게 있었을텐데」).
-           ★★⛔이 showUnderlineOpts 분기가 ★앞(점) 블록 ★끝에 ★붙어 있는 것은 ★일부러다 —
-             ★자기 줄에서 시작하면 ★꺼져도 ★줄바꿈 ★하나를 ★남겨 ★모달·그리드·챗의 ★«바이트 동일»이 깨진다
-             (★위 두 블록 머리말의 그 실측 — ★빈 줄 ★하나로 ★bt2-safety T6 이 ★3개 상태에서 빨개졌다).
-           ★U 단추 ★아래 — 그 단추가 켜는 것을 고치는 칸이라 같은 자리가 맞다(형광펜·점 칸과 같은 규약).
-             ⚠️★화면 ★순서는 ★형광펜 → ★점 → ★밑줄이라 ★단추 순서(B I U S H 점)와 ★다르다.
-               ★까닭 = ★앞 블록 끝에 ★이어 붙여야 ★바이트 동일이 지켜진다(위 ⛔). ★꺼져 있으면 ★없는 칸이라
-               ★한 번에 ★둘 이상 보이는 일이 드물다 ⇒ ★그 값을 ★치렀다. ⛔「순서가 맞다」로 ★적지 마라.
-           ★꺼져 있으면 «없다» — 정할 것이 없다.
-           ⛔칸 꼴을 ★새로 만들지 않는다: 색은 ★형광펜의 colorFieldHTML, 수는 ★점 X/Y 의 prop-icon-input 꼴.
-           ★★두께·위치 칸은 ★«비어» 있을 수 있다 — ★빈 값 = ★auto(브라우저가 글자 크기로 정한다)로 ★되돌린다.
-             ★그래서 ★맨숫자를 ★미리 ★박지 않는다(이 절의 _ph 규약과 ★같은 뜻: 안 정한 칸은 ★안 정했다고 보인다).
-           ⚠️★CSS 는 ★장식선 두께·색을 ★선별로 못 준다(한 요소에 ★한 값) ⇒ ★취소선이 같이 켜져 있으면
-             ★그것도 ★같이 바뀐다. ⛔「밑줄만 바뀐다」로 ★넓히지 마라 — ★검사가 그 축을 ★적는다. -->
-      <div class="prop-color-row" id="${p}-ul-color-row" style="margin-top:6px;display:${isUnderline?'flex':'none'}">
+` : ''}${showUnderlineOpts ? `      <div class="prop-color-row" id="${p}-ul-color-row" style="margin-top:6px;display:${isUnderline?'flex':'none'}">
         <span class="prop-label">밑줄 색</span>
         ${ulColorHtml}
       </div>
