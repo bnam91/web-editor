@@ -288,3 +288,27 @@ test('OV-j (R4 무변) Esc → 선택 전부 해제 ＋ _enteredFrame 비움 ＋
     expect(r, `${how}: Esc 뒤 «전부 해제 · 진입 표시 없음 · 덮개 복귀»가 아니다`).toEqual({ sel: 0, entered: null, pe: 'none' });
   }
 });
+
+/* ── ⒠ 도구막대 길(지디 2026-10-08 「t 와 다를 수 있다 · 사용자는 둘 다 쓴다」) — 떠 있는 도구막대 Asset ▾ → Standard 를 «진짜 클릭» ── */
+async function pressToolbarAsset(page, ids) {
+  const before = await page.evaluate(() => [...document.querySelectorAll('#canvas .asset-block')].map(e => e.id));
+  await page.click('button.fp-dropdown-trigger[onclick*="fp-asset-dropdown"]'); await page.waitForTimeout(250);
+  await page.click('button.fp-menu-item[onclick*="addAssetBlock(\'standard\')"]'); await page.waitForTimeout(500);
+  return page.evaluate(({ before, ids }) => {
+    const nb = [...document.querySelectorAll('#canvas .asset-block')].find(e => !before.includes(e.id));
+    if (!nb) return 'none';
+    return document.getElementById(ids.fr).contains(nb) ? 'inside' : 'outside';
+  }, { before, ids });
+}
+test('OV-t1 ⒠ 자식 더블(진입＋선택) 뒤 도구막대 Asset → 프레임 «안»', async ({ page }) => {
+  const ids = await scene(page);
+  await gesture(page, ids.kids[0].tu, 0.3, 0.5, true, ids.fr);
+  expect((await state(page, ids)).childSel, '[전제] 글1 이 골라졌다').toEqual([true, false]);
+  expect(await pressToolbarAsset(page, ids)).toBe('inside');
+});
+test('OV-t2 ⒠ 여백 더블(진입) 뒤 도구막대 Asset → 프레임 «안»', async ({ page }) => {
+  const ids = await scene(page);
+  await gesture(page, ids.fr, 0.9, 0.92, true, ids.fr);
+  expect(await page.evaluate(() => window._enteredFrame?.id || null), '[전제] 여백으로 들어갔다').toBe(ids.fr);
+  expect(await pressToolbarAsset(page, ids)).toBe('inside');
+});
