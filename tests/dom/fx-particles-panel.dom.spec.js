@@ -104,6 +104,14 @@ const drawn = (page) => page.evaluate(() => {
     wraps: sec.querySelectorAll(':scope > .' + window.FX_PARTICLES_WRAP).length,
     nodes: wrap ? wrap.querySelectorAll('*').length : 0,
     svgLen: wrap ? wrap.innerHTML.length : 0,
+    /* ★★«쉬는 꼴»의 길이 — ⛔`svgLen` 은 ★v1.5 부터 ★«시각»이 들어간다.
+       ★움직이개가 매 프레임 `transform` 을 덮으므로 ★살아있는 innerHTML 의 ★길이가 ★흔들린다
+         (★실측 2026-10-09: D6 ⑹ 결정성 줄이 ★6회 중 ★2회 빨강 · 24279 ↔ 24549 · load 5.71).
+       ⇒ ★★«같은 시드 = 같은 그림»은 ★★«저장되는 꼴»에서 재야 한다 —
+         ★`serializeSectionClone` 이 ★제품의 ★세척 한 자리를 ★타고 나온다(restParticleMotion).
+       ★그 꼴이 ★시각에 ★안 흔들린다는 것은 ★tests/dom/fx-particles-anim ★V5 가 ★따로 잠근다
+         (0초·4초·97초 저장 글자가 ★전부 같다) ⇒ ⛔여기서 ★그것까지 ★다시 재지 않는다. */
+    restLen: (() => { try { return (window.serializeSectionClone(sec) || '').length; } catch (_) { return -1; } })(),
     on: !!window.hasParticles(sec.dataset),
     cfg,
     /* ★공식 — ★제품이 ★제 입으로 내는 수(⛔검사가 손으로 세지 않는다) */
@@ -537,15 +545,22 @@ test('D6 ★★시안의 축 전수 — ★이름·순서가 맞고 ★하나하
   await page.waitForTimeout(120);
   const afterSeed = await drawn(page);
   expect(afterSeed.cfg.seed, `★무늬번호가 ${seedWas} → 12345 로 안 바뀌었다`).toBe(12345);
-  const svgAt12345 = afterSeed.svgLen;
+  const svgAt12345 = afterSeed.restLen;
+  expect(svgAt12345, '★전제: ★쉬는 꼴 길이를 ★못 쟀다(serializeSectionClone 이 없다)').toBeGreaterThan(500);
   /* ★다른 번호 → ★다른 그림 · ★돌아오면 ★같은 그림 (★결정성) */
   await page.fill('#sec-fxpart-seed', '999');
   await page.dispatchEvent('#sec-fxpart-seed', 'change');
   await page.waitForTimeout(120);
+  /* ★★자가 ★살아 있나 — ★다른 번호면 ★수가 ★정말 달라지나.
+     ⛔이 줄이 없으면 ★아래 「같다」가 ★★항등식일 수 있다(★restLen 이 ★시드에 ★둔하면
+       ★「돌아왔더니 같다」가 ★언제나 참이다 ⇒ ★아무것도 안 잠근다). */
+  const at999 = (await drawn(page)).restLen;
+  expect(at999, '★★다른 무늬번호인데 ★쉬는 꼴 길이가 ★같다 — 이 자는 시드를 ★안 재고 있다')
+    .not.toBe(svgAt12345);
   await page.fill('#sec-fxpart-seed', '12345');
   await page.dispatchEvent('#sec-fxpart-seed', 'change');
   await page.waitForTimeout(120);
-  expect((await drawn(page)).svgLen, '★같은 무늬번호로 돌아왔는데 ★그림 길이가 다르다 — 결정성이 깨졌다').toBe(svgAt12345);
+  expect((await drawn(page)).restLen, '★같은 무늬번호로 돌아왔는데 ★그림 길이가 다르다 — 결정성이 깨졌다').toBe(svgAt12345);
 
   /* ★★⑺ ★다시 뿌리기 — ★seed 가 ★바뀐다 */
   const beforeRoll = (await drawn(page)).cfg.seed;
