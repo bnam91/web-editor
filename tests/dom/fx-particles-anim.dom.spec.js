@@ -313,68 +313,85 @@ test('V5 ★★저장본에 ★«시각»이 ★안 들어간다 — ★언제 �
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 
-test('V6 ★★움직임이 ★자동저장을 ★깨우지 않는다 — ★문서가 ★영원히 dirty 가 되면 안 된다 (★양·음 한 쌍)', async ({ page }) => {
-  /* ★★실측(2026-10-09 · 고치기 전): 움직이는 ★1.5초에 ★«의미 있는» mutation ★21,724건 · 멈추면 ★0건.
-     ⇒ ★문서가 ★영원히 dirty ⇒ ★자동저장이 ★1.5초마다 ★프로젝트를 ★통째로 다시 쓴다.
-     ★이 칸은 ★제품의 감시자를 ★가로채지 않는다 — ★★«같은 조건»의 관찰자를 ★따로 달아 ★센다. */
+/* ═══ V6 — ★자동저장 ════════════════════════════════════════════════════════
+ *  ⚠️⛔이 칸은 ★위 수트와 ★다른 하네스를 쓴다. ★까닭:
+ *    ★`bootApp` 판에는 ★`activeProjectId` 가 ★없어 ★`scheduleAutoSave` 가 ★첫 줄에서 ★물러난다
+ *      (save-load.js: 「activeProjectId 없음, 저장 건너뜀」)
+ *    ⇒ ★★거기서는 ★★«진짜 편집»도 ★자동저장을 ★안 건다 ⇒ ★★내 「0」이 ★공짜가 된다.
+ *    ★실제로 ★첫 판이 ★그래서 ★양성대조에서 ★빨갰다(2026-10-09). ★그 자가 ★나를 ★막았다.
+ *  ⇒ ★★`tests/dom/drag-move-autosave.dom.spec.js` 의 ★boot 를 ★같은 꼴로 쓴다(★실물에서 뽑은 이름). */
+const fs = require('fs');
+const path = require('path');
+const { ROOT, ORIGIN } = require('./_root-harness.js');
+const AS_PID = 'proj_1700000000778';
+const AS_MIME = { '.js': 'application/javascript', '.mjs': 'application/javascript', '.css': 'text/css',
+                  '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png' };
+
+async function bootWithProject(page) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
-  await page.setViewportSize({ width: VIEW_W, height: VIEW_H });
-  await bootApp(page);
-  const r = await page.evaluate(async () => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  await page.addInitScript(() => { window.electronAPI = new Proxy({}, { get: () => (() => Promise.resolve(null)) }); });
+  await page.route(`${ORIGIN}/**`, async (r) => {
+    const u = new URL(r.request().url());
+    const f = path.join(ROOT, decodeURIComponent(u.pathname));
+    if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return r.fulfill({ status: 404, body: '' });
+    return r.fulfill({ contentType: AS_MIME[path.extname(f)] || 'application/octet-stream', body: fs.readFileSync(f) });
+  });
+  await page.goto(`${ORIGIN}/index.html?project=${AS_PID}`);
+  await page.waitForFunction(() => typeof window.rebindAll === 'function' && typeof window.hasUnsavedChanges === 'function',
+    null, { timeout: 20000 });
+  await page.waitForTimeout(2500);
+  return errs;
+}
+
+test('V6 ★★움직임이 ★자동저장을 ★깨우지 않는다 — ★★저장본이 ★바뀌나로 잰다 (★양·음 한 쌍)', async ({ page }) => {
+  /* ★★실측(2026-10-09 · 고치기 전): 움직이는 ★1.5초에 ★«의미 있는» mutation ★21,724건 · 멈추면 ★0건.
+     ⇒ ★문서가 ★영원히 dirty ⇒ ★자동저장이 ★1.5초마다 ★프로젝트를 ★통째로 다시 쓴다.
+     ★처방 = `js/io/save-load.js` 의 ★`_isParticleMotionMutation`.
+
+     ⚠️★★첫 판은 ★틀린 자였다 — ★그 규칙을 ★★검사 안에 ★베껴 두고 ★사본을 셌다
+       ⇒ ★제품 줄을 ★죽여도 ★★초록이었다(무력화 rc 0). ★★「명부를 재는 자의 함정」.
+     ⇒ ★★지금은 ★★제품이 ★실제로 ★쓰는 것을 본다 — ★localStorage 의 ★자동저장본.
+       (★그 자는 ★drag-move-autosave 수트가 ★이미 쓰던 ★그 자다.) */
+  const errs = await bootWithProject(page);
+  const KEY = 'web-editor-autosave__' + AS_PID;
+  const snap = () => page.evaluate((k) => localStorage.getItem(k) || '', KEY);
+
+  await page.evaluate(() => {
     const canvas = document.getElementById('canvas');
     canvas.querySelectorAll('.section-block').forEach((s) => s.remove());
     canvas.insertAdjacentHTML('beforeend',
-      '<div class="section-block" id="pS" data-section="1" style="background:#0A0A0C">'
+      '<div class="section-block" id="pS" data-section="1" data-name="pS" style="background:#0A0A0C">'
       + '<div class="section-hitzone"></div><div class="section-inner" style="padding-left:40px">'
       + '<div class="gap-block" data-type="gap" style="height:300px"></div></div></div>');
     window.rebindAll?.();
     const sec = document.getElementById('pS');
-
-    let meaningful = 0, raw = 0;
-    const isUi = (m) => {
-      const t = m.target?.nodeType === 1 ? m.target : m.target?.parentElement;
-      return !!(t?.closest?.(window.NON_CONTENT_UI_SELECTOR));
-    };
-    /* ★제품의 그 판정과 ★같은 꼴 — ★`transform` ＋ `data-fxp` */
-    const isParticleMotion = (m) => m.type === 'attributes' && m.attributeName === 'transform'
-      && m.target?.nodeType === 1 && m.target.hasAttribute?.('data-fxp');
-    const obs = new MutationObserver((ms) => {
-      for (const m of ms) {
-        raw++;
-        if (m.type === 'attributes' && m.attributeName === 'class') continue;
-        if (isUi(m)) continue;
-        if (isParticleMotion(m)) continue;
-        meaningful++;
-      }
-    });
-    obs.observe(canvas, { childList: true, subtree: true, attributes: true, characterData: true });
-
     window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
     window.applySectionParticles(sec);
-    await new Promise((res) => setTimeout(res, 300));
-    raw = 0; meaningful = 0;                       /* ★다시그리기(진짜 편집)는 ★안 센다 — ★움직임만 */
-    await new Promise((res) => setTimeout(res, 1200));
-    const moveRaw = raw, moveMeaningful = meaningful;
-
-    /* ★★양성대조 — ★같은 관찰자가 ★«진짜 편집»은 ★잡나. ⛔없으면 ★「늘 0 인 죽은 자」다 */
-    raw = 0; meaningful = 0;
-    sec.querySelector('.gap-block').style.height = '301px';
-    await new Promise((res) => setTimeout(res, 200));
-    const editMeaningful = meaningful;
-
-    obs.disconnect();
-    window.ParticlesAnim.stop();
-    return { moveRaw, moveMeaningful, editMeaningful };
   });
+  /* ★다시그리기(진짜 편집)가 ★건 저장이 ★끝나게 둔다 — ⛔그것까지 세면 ★내 수가 아니다 */
+  await page.waitForTimeout(3000);
 
-  /* ★전제 — ★그 1.2초에 ★움직임이 ★정말 있었나(⛔없으면 ★0 이 ★공짜다) */
-  expect(r.moveRaw, '★전제: 1.2초 동안 ★DOM 쓰기가 ★0건이다 — 루프가 안 돌았다').toBeGreaterThan(100);
-  /* ★★본 단언 */
-  expect(r.moveMeaningful, `★★움직임이 ★편집으로 세어졌다 (${r.moveMeaningful}건 / 날것 ${r.moveRaw}건)`
-    + ' — ★문서가 ★영원히 dirty 가 되어 ★자동저장이 ★멈추지 않는다').toBe(0);
-  /* ★★양성대조 — ★진짜 편집은 ★여전히 잡힌다 */
-  expect(r.editMeaningful, '★★진짜 편집(높이 변경)을 ★못 잡았다 — 이 자는 ★아무것도 안 재고 있다')
-    .toBeGreaterThan(0);
+  const before = await snap();
+  expect(before.length, '★전제: 자동저장본이 ★아직 없다 — 이 자로는 못 잰다').toBeGreaterThan(100);
+
+  /* ★전제 — ★그 사이 ★루프가 ★정말 쓰고 있나 */
+  const t0 = await page.evaluate(() => document.querySelector('.sec-fxpart-wrap [data-fxp]').getAttribute('transform'));
+  await page.waitForTimeout(3000);                 /* ★debounce 1500ms 의 ★두 배 */
+  const t1 = await page.evaluate(() => document.querySelector('.sec-fxpart-wrap [data-fxp]').getAttribute('transform'));
+  expect(t1, '★전제: 3초 동안 ★루프가 ★안 썼다 — ★아래 「안 바뀌었다」가 ★공짜다').not.toBe(t0);
+
+  /* ★★본 단언 — ★움직이기만 했는데 ★저장본이 ★다시 쓰였나 */
+  const afterMove = await snap();
+  expect(afterMove === before, '★★움직임만으로 ★자동저장본이 ★다시 쓰였다'
+    + ' — ★문서가 ★영원히 dirty 가 되어 ★자동저장이 ★멈추지 않는다').toBe(true);
+
+  /* ★★양성대조 — ★같은 자가 ★«진짜 편집»은 ★잡나. ⛔없으면 ★「늘 안 바뀜」과 ★구분이 안 된다 */
+  await page.evaluate(() => { document.querySelector('#pS .gap-block').style.height = '301px'; });
+  await expect.poll(async () => (await snap()) !== before, { timeout: 8000,
+    message: '★★진짜 편집(높이 변경)인데 ★저장본이 ★안 바뀌었다 — 이 자는 아무것도 안 재고 있다' }).toBe(true);
+
+  await page.evaluate(() => window.ParticlesAnim.stop());
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
