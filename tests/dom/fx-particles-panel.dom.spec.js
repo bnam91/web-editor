@@ -27,7 +27,8 @@
  * ★★안 재는 것(⛔「닫았다」로 적지 않는다):
  *   · ★진짜 Electron 창·파일 저장 — 이 하네스는 `electronAPI` 가 가짜다(_root-harness 머리말의 그 명부)
  *   · ★사람 눈에 ★예쁜가 — ★QA 몫
- *   · ★상한 60 의 ★무게(프레임) — ★미측정(ParticlesFx 머리말 :30 이 그 말을 한다)
+ *   · ★상한에서의 ★«프레임» 무게 — ★★미측정. ★노드·바이트는 ★쟀다(particles-render.js PRESETS 머리말의 표)
+ *     ⚠️★2026-10-08 상한이 ★60 → ★120 이 되어 ★노드가 ★약 ★1.9배다 ⇒ ★★프레임 위험은 ★더 커졌는데 ★여전히 안 쟀다
  *
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/fx-particles-panel.dom.spec.js
  */

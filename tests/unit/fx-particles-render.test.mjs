@@ -36,12 +36,20 @@ function load() { return loadWithCap(null); }
  *  ⛔사본을 만들지 않는다(글자를 메모리에서 갈아 vm 에 싣는다) · cap=null 이면 ★판 그대로. */
 function loadWithCap(cap, errSink) {
   const src = readSrc(REPO, 'js/fx/particles-render.js');
-  const ANCHOR = 'const MAX_COUNT = 60;';
+  /* ★★닻 — ⛔제품의 상한 값이 바뀌면 ★이 줄도 ★같이 고쳐야 한다(아래 전제 단언이 그 말을 한다).
+     ★2026-10-07 `= 60;` → ★★2026-10-08 `= 120;`(현빈 「120개까지하자 최대」).
+     ★★왜 이 줄이 위험한가: ★닻이 ★죽으면 ★치환이 ★전부 실패하고 ★★«측정 0» 이
+       ★★«결과처럼 생긴 출력»로 ★나온다(★2026-10-08 다른 레인이 ★정확히 그 사고를 냈다). */
+  const ANCHOR = 'const MAX_COUNT = 120;';
   let s = src;
   if (cap != null) {
     assert.ok(src.includes(ANCHOR), `★전제: 치환 닻을 찾았다 — 「${ANCHOR}」(상한 값이 바뀌면 이 줄도 고쳐라)`);
     s = src.replace(ANCHOR, `const MAX_COUNT = ${cap};`);
-    assert.notEqual(s, src, '⛔치환이 안 먹었다 — 자가 죽었다');
+    /* ★★«치환이 ★안 먹었다»와 ★«치환할 ★필요가 없었다»를 ★가린다 (★지디 2026-10-08 실측 교훈).
+       ★그가 이 자를 베껴 쓰며 `cap` 에 ★제품과 ★같은 수를 넣었더니 ★`s === src` 가 ★참이 되어
+       ★★«거짓 경보»가 났다. ⇒ ★«이미 그 값이면» ★치환이 ★필요 없었던 것이라 ★정상이다. */
+    assert.ok(s !== src || src.includes(`const MAX_COUNT = ${cap};`),
+      `⛔치환이 안 먹었다 — 자가 죽었다(닻 「${ANCHOR}」 · cap ${cap})`);
   }
   /* ★console 은 ★errSink 가 있을 때만 넣는다 — ★「조용히 실패했나」를 재는 칸이 ★제 전제를 «세우는» 길이다.
      ⚠️★이것이 없어서 P11 이 한 번 ★빨갰다 — 제품은 `typeof console !== 'undefined'` 가드를 ★쓰므로
@@ -98,7 +106,9 @@ test('P0 전제 — 공용 부품·프리셋·상한이 판에 있다', () => {
   /* ★★이 파일에서 「60」을 ★글자로 적는 자리는 ★여기 ★하나뿐이다 — 그래야 ★값이 잠긴다.
      (⛔다른 칸까지 60 을 박으면 명부가 둘이고, ⛔전부 F.MAX_COUNT 로 쓰면 ★항등식이라 아무것도 안 잠근다.
       ⇒ ★여기서 ★값을, 다른 칸에서 ★동작을 잠근다. 지디 2026-10-07 「상수 하나에서 둘이 파생돼야 한다」의 쓰임.) */
-  assert.equal(F.MAX_COUNT, 60, '상한 60/섹션 — 현빈 확정 2026-10-07 「개수는 상한 60개로 하자」(옛 값 320)');
+  assert.equal(F.MAX_COUNT, 120,
+    '상한 120/섹션 — ★현빈 2026-10-08 「60개 말고 ★120개까지하자 최대」'
+    + ' (★옛 값: 320 → 60(2026-10-07 「개수는 상한 60개로 하자」) → ★120)');
   assert.deepEqual([...F.KINDS], ['star', 'gold', 'party', 'dust']);
   assert.deepEqual([...F.SHAPES], ['rect', 'ribbon', 'circle', 'star4', 'tri']);
   assert.equal(F.RANGES.count.max, F.MAX_COUNT, '범위 표와 상한이 «한 수»다');
