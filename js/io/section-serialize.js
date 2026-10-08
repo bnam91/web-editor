@@ -184,6 +184,36 @@
     return el;
   }
 
+  /** ★★파티클 ★움직임을 ★«쉬는 자리»로 되돌린다 (v1.5 ⑴ · 2026-10-09).
+   *
+   *  ★★왜 여기인가 — ★움직이개(js/fx/particles-animate.js)는 ★매 프레임 ★알맹이의 `transform` 을
+   *    ★`translate(0,dy) rotate(…)` 로 ★덮는다. ★그 `dy` 는 ★★«시각»이다.
+   *    ⇒ ★세척 없이 저장하면 ★★«움직이던 한 프레임»이 ★저장본에 ★박힌다.
+   *  ★★실측(2026-10-09 · DOM 하네스): ★`serializeSectionClone` 결과에
+   *    ★`translate(0,-N) rotate(…)` 가 ★그대로 들어 있었다.
+   *  ★★왜 그것이 ★나쁜가 — ★셋이 ★한꺼번에 깨진다:
+   *    ⒜ ★「같은 시드 = 같은 그림」 — ★저장본이 ★언제 저장했냐에 따라 ★달라진다
+   *    ⒝ ★히스토리 스냅샷(js/history.js)이 ★이 자를 쓴다 ⇒ ★프레임마다 ★다른 글자
+   *    ⒞ ★비교 채널(market-merge·version-diff)이 ★이 자를 ★«비교 키»로 쓴다
+   *       ⇒ ★★「★손도 안 댔는데 ★변경됨」 ★오탐 — ★위 RUNTIME_MARKER_CLS 머리말이 ★경고한 ★바로 그 병이다.
+   *  ★★되돌릴 값은 ★★«꼬리표 안»에 있다 — `data-fxp="x,y,vj,dir,rot0"` 의 ★x·y·rot0.
+   *    ⇒ ⛔시드를 ★다시 돌리지 않는다(★명부가 둘이 된다). ★그리개가 ★적어 둔 값을 ★그대로 쓴다.
+   *    ★그리개의 꼴 그대로: ★`rot0` 이 ★0 이면 ★속성 ★자체가 ★없다(particles-render shapeSVG 의 `tr`).
+   *  ⚠️★`data-fxp` 꼬리표 ★자체는 ★여기서 ★안 벗긴다 — ★움직이개가 ★다시 그린 뒤 ★그것을 읽는다.
+   *    ★그 꼬리표는 ★시드에서 ★난 ★결정적 값이라 ★비교 키를 ★흔들지 않는다(⛔시각이 안 들어간다).
+   *    ★★다만 ★저장 용량은 ★는다 — ★그 수와 ★판정은 ★지디에게 올렸다(2026-10-09). */
+  function restParticleMotion(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('[data-fxp]').forEach((el) => {
+      const a = String(el.getAttribute('data-fxp') || '').split(',');
+      if (a.length !== 5) return;                     /* ★꼴이 틀리면 ★손대지 않는다 */
+      const x = Number(a[0]), y = Number(a[1]), rot0 = Number(a[4]);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(rot0)) return;
+      if (rot0) el.setAttribute('transform', 'rotate(' + rot0 + ' ' + x + ' ' + y + ')');
+      else el.removeAttribute('transform');
+    });
+  }
+
   /* 캔버스(또는 섹션 래퍼) 클론 root 를 «제자리»에서 세척한다. getSerializedCanvas 의
    * clone 생성 이후 return 직전까지의 연산을 «그대로»(순서 포함) 옮긴 것. root 를 반환한다. */
   function serializeCleanRoot(root) {
@@ -197,6 +227,7 @@
       el.removeAttribute('data-lazy-bg');
     });
     root.querySelectorAll('.section-block.lazy-unloaded').forEach(el => el.classList.remove('lazy-unloaded'));
+    restParticleMotion(root);
     /* T-012 안전장치: video-pending(트림 확정 «전» 임시 상태, js/image-handling.js
        setAssetVideoFromSrc 참고)은 저장 대상이 아니다 — "GIF로 적용"을 안 누른 채 저장하면
        원본 영상 data URL(최대 ~50MB×1.33 팽창)이 proj.json «과» 모든 undo 스냅샷(트림 핸들

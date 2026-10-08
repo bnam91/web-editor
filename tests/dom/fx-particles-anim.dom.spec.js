@@ -245,3 +245,70 @@ test('V1b ★★낡은 꼬리표 ＋ 축 0 — ★`scan` 의 ★0 판정이 ★�
   expect(after, '★★축이 0 인데 ★자리가 바뀌었다 — ★낡은 꼬리표가 알맹이를 ★튀게 했다').toEqual(before);
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
+
+test('V5 ★★저장본에 ★«시각»이 ★안 들어간다 — ★언제 저장해도 ★같은 글자 (★양·음 한 쌍)', async ({ page }) => {
+  /* ★★2026-10-09 ★내가 ★낸 회귀를 ★잡는 자리다.
+     ★움직이개가 ★매 프레임 `transform` 을 ★덮는데, ★그 `dy` 는 ★★«시각»이다.
+     ★실측: 세척 전 `serializeSectionClone` 에 ★`translate(0,-N) rotate(…)` 가 ★그대로 있었다.
+     ⇒ ⒜ 「같은 시드 = 같은 그림」이 깨지고 ⒝ 히스토리 스냅샷이 프레임마다 다르고
+       ⒞ ★비교 채널이 ★「손도 안 댔는데 변경됨」 ★오탐을 낸다.
+     ★처방 = `js/io/section-serialize.js` 의 ★`restParticleMotion`(세척 한 자리). */
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e)));
+  await page.setViewportSize({ width: VIEW_W, height: VIEW_H });
+  await bootApp(page);
+  await page.evaluate(() => {
+    const canvas = document.getElementById('canvas');
+    canvas.querySelectorAll('.section-block').forEach((s) => s.remove());
+    canvas.insertAdjacentHTML('beforeend',
+      '<div class="section-block" id="pS" data-section="1" style="background:#0A0A0C">'
+      + '<div class="section-hitzone"></div><div class="section-inner" style="padding-left:40px">'
+      + '<div class="gap-block" data-type="gap" style="height:300px"></div></div></div>');
+    window.rebindAll?.();
+    const sec = document.getElementById('pS');
+    window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
+    window.applySectionParticles(sec);
+    window.ParticlesAnim.stop();
+  });
+
+  const save = (t) => page.evaluate((tt) => {
+    window.ParticlesAnim.step(tt);
+    return window.serializeSectionClone(document.getElementById('pS'));
+  }, t);
+
+  /* ★전제 — ★그 시각에 ★정말 움직였나(⛔안 움직이면 ★아래가 ★공짜로 초록이다) */
+  const moved = await page.evaluate(() => {
+    window.ParticlesAnim.step(4000);
+    const e = document.querySelector('.sec-fxpart-wrap [data-fxp]');
+    return e.getAttribute('transform') || '';
+  });
+  expect(moved, `★전제: ★step 뒤에도 ★안 움직였다 (${moved})`).toMatch(/^translate\(0,[-0-9.]+\) rotate\(/);
+
+  /* ⒜ ★★본 단언 — ★다른 시각에 저장해도 ★★글자가 ★같다 */
+  const s0 = await save(0);
+  const s1 = await save(4000);
+  const s2 = await save(97531);
+  expect(s0.length, '★전제: 저장 글자가 비었다').toBeGreaterThan(500);
+  expect(s1, '★★4초에 저장한 글자가 0초와 ★다르다 — ★저장본에 ★시각이 들어갔다').toBe(s0);
+  expect(s2, '★★97초에 저장한 글자가 0초와 ★다르다 — ★저장본에 ★시각이 들어갔다').toBe(s0);
+
+  /* ⒝ ★★«움직인 꼴»이 ★저장본에 ★없다 */
+  expect(/translate\(0,[-0-9.]+\) rotate\(/.test(s1),
+    '★★저장본에 ★translate(움직임)이 ★박혔다').toBe(false);
+
+  /* ⒞ ★★그런데 ★화면은 ★그대로 움직이고 있어야 한다 — ⛔세척이 ★살아있는 DOM 을 ★건드리면 안 된다
+     (★클론을 씻는 것이지 ★제자리를 ★멈추는 것이 ★아니다) */
+  const live = await page.evaluate(() =>
+    document.querySelector('.sec-fxpart-wrap [data-fxp]').getAttribute('transform') || '');
+  expect(live, '★★세척이 ★살아있는 층을 ★멈췄다 — 클론만 씻어야 한다').toMatch(/^translate\(0,/);
+
+  /* ⒟ ★★음성대조 — ★정지 섹션(축 0)의 저장본과 ★꼴이 같은가(★rotate 만) */
+  const stillSave = await page.evaluate(() => {
+    const sec = document.getElementById('pS');
+    window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 0, spin: 0 });
+    window.applySectionParticles(sec);
+    return window.serializeSectionClone(sec);
+  });
+  expect(/translate\(0,/.test(stillSave), '★정지 섹션 저장본에 translate 가 있다').toBe(false);
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
