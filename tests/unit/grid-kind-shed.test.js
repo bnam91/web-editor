@@ -42,10 +42,18 @@ const STUB = "const insertAfterSelected = () => {};\nconst genId = (p) => `${p}_
   assert.notEqual(src, before_, '소스에서 drag-utils/drag-drop import 2줄을 못 찾음 — 리팩터링됐나?');
 }
 const gcrAliasPath = path.join(os.tmpdir(), `grid-cell-resize-alias-kindshed-${process.pid}.mjs`);
+/* ★공용 sanitizer(수지⑦ 2026-10-08) — ★그리드가 ★세 번째 소비자가 되며 ★새 import 가 생겼다.
+   ★위 gcr 별칭과 ★같은 스코프에 둔다 — ⛔안쪽 함수에 선언하면 ★바깥 `unlinkSync` 에서
+     ★`ReferenceError` 가 난다(★2026-10-08 에 ★내가 ★그렇게 ★5파일을 깼다). */
+const srtAlias = path.join(os.tmpdir(), `srt-alias-kindshed-${process.pid}.mjs`);
 {
   const before_ = src;
   src = src.replace("from '../grid-cell-resize.js'", 'from ' + JSON.stringify(pathToFileURL(gcrAliasPath).href));
   assert.notEqual(src, before_, "grid-cell-resize.js import 를 못 찾음");
+  const beforeSrt = src;
+  src = src.replace("from '../util/sanitize-rich-text.js'", 'from ' + JSON.stringify(pathToFileURL(srtAlias).href));
+  assert.notEqual(src, beforeSrt, '★sanitize-rich-text.js import 를 못 찾았다 — 부분 서식 공용 모듈이 끊겼나?');
+  fs.copyFileSync(path.join(ROOT, 'js/util/sanitize-rich-text.js'), srtAlias);
 }
 
 function makeFakeDom() {
@@ -81,7 +89,7 @@ before(async () => {
   globalThis.document = makeFakeDom();
   globalThis.window = {};
   const mod = await import(pathToFileURL(aliasPath).href);
-  fs.unlinkSync(aliasPath); fs.unlinkSync(gcrAliasPath);
+  fs.unlinkSync(aliasPath); fs.unlinkSync(gcrAliasPath); fs.unlinkSync(srtAlias);
   ({ gridLineHtml, GRID_ROLES, makeGridBlock, updateGridBlock, getGridModel, gridPreviewLine, gridLineHasText } = mod);
 });
 
@@ -173,8 +181,14 @@ async function loadVariant(tag, edit) {
   const gcr2 = path.join(os.tmpdir(), `gcr-kindshed-${tag}-${process.pid}.mjs`);
   const ali = path.join(os.tmpdir(), `grid-kindshed-${tag}-${process.pid}.mjs`);
   fs.copyFileSync(path.join(ROOT, 'js/grid-cell-resize.js'), gcr2);
-  fs.writeFileSync(ali, v.replace(pathToFileURL(gcrAliasPath).href, pathToFileURL(gcr2).href));
-  try { return await import(pathToFileURL(ali).href); } finally { fs.unlinkSync(ali); fs.unlinkSync(gcr2); }
+  /* ★공용 sanitizer(수지⑦ 2026-10-08) — ★gcr2 와 ★같은 꼴로 ★제 사본을 ★따로 뜬다.
+     ⛔위 `src` 에 박힌 `srtAlias` 를 ★그대로 쓰면 ★안 된다 — ★그 파일은 ★맨 위 로더가 ★이미 unlink 했다
+       (★실측: K6·K7 이 `ERR_MODULE_NOT_FOUND srt-alias-kindshed-*.mjs` 로 죽었다). */
+  const srt2 = path.join(os.tmpdir(), `srt-kindshed-${tag}-${process.pid}.mjs`);
+  fs.copyFileSync(path.join(ROOT, 'js/util/sanitize-rich-text.js'), srt2);
+  fs.writeFileSync(ali, v.replace(pathToFileURL(gcrAliasPath).href, pathToFileURL(gcr2).href)
+                         .replace(pathToFileURL(srtAlias).href, pathToFileURL(srt2).href));
+  try { return await import(pathToFileURL(ali).href); } finally { fs.unlinkSync(ali); fs.unlinkSync(gcr2); fs.unlinkSync(srt2); }
 }
 const hasTable = () => src.includes('function _gridTypeCanRead(');
 const GRID_LINE_FIELDS_OF = (m) => m.__GLF;

@@ -36,9 +36,33 @@
 import { ROW_H_MAX } from '../grid-cell-resize.js';   // ★행 높이 상한은 한 곳에서만 온다
 import { insertAfterSelected, genId } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
+/* ⚠️★위 두 줄(drag-utils · drag-drop)은 ★붙어 있어야 한다 — `tests/unit/grid-patchcell-reject.test.js`
+ *   의 `loadGrid` 가 ★그 ★2줄을 ★한 덩이로 ★치환해 스텁한다(:81~85). ⛔사이에 ★끼우지 마라.
+ *   ★2026-10-08 수지⑦ 에서 ★내가 사이에 끼워 ★그 하네스가 ★「리팩터링됐나?」로 ★죽었다. */
+/* ★«부분 서식 HTML» 한 벌 = js/util/sanitize-rich-text.js — ★그리드가 ★세 번째 소비자다
+ *   (스티커 1 · 모달 2 · ★여기 3 · 2026-10-08 수지⑦).
+ *   ⛔베끼지 않는다 — 베끼면 ★명부가 둘이 되고 ★허용목록이 ★조용히 갈린다.
+ *   ⇒ ★허용 태그·style 명부는 ★그 모듈의 ★정의 자리 ★하나뿐이고, ★다음에 꼴이 하나 늘면
+ *     ★거기만 고치면 ★세 소비자가 ★같이 따라온다. */
+import { sanitizeRichTextHtml, richTextHasFormatting } from '../util/sanitize-rich-text.js';
 
 /* ★[M41] 새 칸의 기본 내용 — «한 줄». 열 추가(prop-grid.js)·행 추가도 이 값을 쓴다. */
 export const GRID_CELL_DEFAULT_TEXT = '내용을 입력하세요.';
+
+/* ★★«줄 부분 서식»에서 ★그리드가 ★공용 sanitizer 에게 ★주는 ★허용목록 (수지⑦ 2026-10-08 · 지디 판정 ㉠).
+ *   ⛔공용 필터를 ★전부에게 넓히지 ★않는다 — ★스티커·모달은 ★`opts` 를 ★안 주므로 ★무변이다.
+ *   ★왜 ★class 와 ★`--tb-dot-i` 뿐인가:
+ *     ★형광펜 = `span.tb-hl` · ★점 = `span.tb-dot`(＋`.tb-dot::before` 가 그린다)
+ *     ★★색·높이·크기·간격·xy ★7 개는 ★여기 ★안 온다 — ★지디 판정 ⑴ 로 ★«줄마다»(모델 필드)에 산다
+ *       ⇒ ★줄 그릇(`.grd-line`)의 ★인라인 스타일로 나가고 ★sanitize 를 ★지나지 않는다.
+ *     ★`--tb-dot-i` 만 ★span 마다다 — ★「양쪽으로 퍼뜨리기」가 ★그 글자의 자리를 알아야 한다.
+ *   ⛔`class` 를 ★통째로 열지 ★않았다 — ★이름 ★둘만. `class="tb-hl evil"` 은 `tb-hl` 만 남는다.
+ *   ⚠️★이 목록을 ★쓰는 자 = ★`_gridLineHtml`(렌더) ＋ ★`block-drag.js _gridEndEdit`(커밋) ★둘.
+ *     ★둘이 ★갈리면 ★「커밋은 됐는데 ★렌더에서 사라진다」가 된다 ⇒ ★★그래서 ★여기 ★하나만 둔다. */
+export const GRID_RICH_TEXT_OPTS = Object.freeze({
+  classes: Object.freeze(['tb-hl', 'tb-dot']),
+  styleProps: Object.freeze(['--tb-dot-i']),
+});
 
 const GRID_DEFAULTS = {
   gap: 24,
@@ -991,7 +1015,7 @@ const GRID_LINE_FIELDS = new Set([
   'align', 'barColor', 'bg', 'color', 'cols', 'content', 'fontFamily', 'fontSize',
   'gap', 'height', 'imgPosX', 'imgPosY', 'imgShape', 'imgSizePct', 'imgSrc', 'italic', 'items',
   'labelColor', 'labelSize', 'letterSpacing', 'lineHeight', 'marginTop', 'padH', 'padV',
-  'radius', 'strike', 'text', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize',
+  'radius', 'strike', 'text', 'textHtml', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize',
   'weight', 'widthPct',
 ]);
 
@@ -1930,6 +1954,14 @@ function _gridMergeLine(curLines, li, fields) {
   const next = lines.slice();
   const prev = next[i];
   const merged = Object.assign({}, prev, fields);
+  /* ★★빈 `textHtml` 은 ★«키를 지운다»(수지⑦ 2026-10-08) — ⛔`''` 를 ★저장하지 않는다.
+   *   ★왜 ★여기냐 — `Object.assign` 은 ★지우지 못한다. ★부르는 쪽이 ★서식을 ★없앴을 때
+   *     (굵게를 ★다시 눌러 끈 경우) ★묵은 HTML 이 ★남으면 ★그게 ★다시 그려져 ★«안 꺼진다».
+   *   ★스티커 선례가 ★같은 일을 ★그 자리에서 한다: `else delete block.dataset.textHtml`
+   *     (js/sticker-select.js:553).
+   *   ★★줄 쓰기의 ★choke point 가 ★이 함수 ★하나라서 ★여기 두면 ★패널 미리보기(gridPreviewLine)까지
+   *     ★같은 규약을 ★타고, ★「빈 textHtml 은 ★절대 저장되지 않는다」가 ★모든 writer 에게 참이 된다. */
+  if (merged.textHtml !== undefined && !merged.textHtml) delete merged.textHtml;
   /* ★종류가 «바뀌면» 앞 종류가 쓰던 짐을 턴다 (2026-09-23).
    *   무엇이 있었나 — `patchCell{lineIndex, type:'body', text:'…'}` 로 image 줄을 글자 줄로
    *   바꾸면 `imgSrc`·`height` 가 «그대로 남았다». imgSrc 는 dataURL 이라 수백 KB 가 저장본에
@@ -2492,6 +2524,20 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
   const effColor = color || (useRoleColor
     ? (useRoleColor === 'light' ? (_GRID_ROLE_COLOR_ON_DARK[line.type] || _GRID_ROLE_COLOR_ON_DARK.body) : useRoleColor === 'hex' ? role.color : _gridRoleColorCss(line.type, role.color))
     : '');
+  /* ★★부분 서식(수지⑦ 2026-10-08) — ★줄 알맹이는 ★여기 ★한 곳에서만 만든다.
+   *   ★규약은 ★스티커 선례 그대로다: ★`line.textHtml` 이 ★있고 ★«서식이 실제로 있으면» 그것을,
+   *   ★없으면 ★옛 평문 경로(`_esc`)를 쓴다 ⇒ ★옛 저장본은 ★한 바이트도 안 바뀐다(무회귀).
+   *   ★★렌더마다 ★다시 sanitize 한다 — ★저장본·.gdt 가 ★변조될 수 있고, ★그게 ★그 모듈이
+   *     ★«렌더·로드마다 돌는» ★존재 이유다(⛔한 번 걸렀으니 됐다로 두지 않는다).
+   *   ★판정은 ★내 기대가 아니라 ★그 모듈의 ★`richTextHasFormatting` ★그 식으로 한다 —
+   *     ★커밋 경로(block-drag.js `_gridEndEdit`)가 ★쓰는 ★같은 자다.
+   *   ⚠️★이 함수 ★안에서 ★`line.textHtml` 을 ★읽어야 한다 — ★`tests/unit/grid-patchcell-reject.test.js`
+   *     ★P6 가 ★이 함수 ★본문을 ★파싱해 `GRID_LINE_FIELDS` 와 ★양방향 대조한다.
+   *     ⛔도우미 함수로 빼면 ★P6 가 ★못 보고 ★명부와 ★어긋나 ★빨개진다. */
+  const _rawHtml = typeof line.textHtml === 'string' ? line.textHtml : '';
+  const _cleanHtml = _rawHtml ? sanitizeRichTextHtml(_rawHtml, GRID_RICH_TEXT_OPTS) : '';
+  const inner = (_cleanHtml && richTextHasFormatting(_cleanHtml, GRID_RICH_TEXT_OPTS)) ? _cleanHtml : _esc(line.text ?? '');
+
   // 뱃지/필: line.bg 지정 시 inline-block 필로 렌더 — 지정 bg가 조용히 탈락해
   // 카드 위 무배경 텍스트(색 반전처럼 보임)로 뭉개지던 케이스 방지 (2026-07-04 제니 발주)
   const bg = (typeof line.bg === 'string' && _GRID_COLOR_RE.test(line.bg.trim())) ? line.bg.trim() : '';
@@ -2501,7 +2547,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
     const rad = Number.isFinite(Number(line.radius)) ? Number(line.radius) : GRID_BADGE_RADIUS;
     return `<div${addrAttr} style="text-align:${align};${mtCss}"><span class="grd-badge" style="display:inline-block;background:${bg};` +
       `font-size:${size}px;font-weight:${weight};line-height:1.2;letter-spacing:${role.ls};${color ? `color:${color};` : ''}` +
-      `padding:${padV}px ${padH}px;border-radius:${rad}px;white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</span></div>`;
+      `padding:${padV}px ${padH}px;border-radius:${rad}px;white-space:pre-wrap;word-break:keep-all;">${inner}</span></div>`;
   }
   /* ★안내문구 표식 (T-085, 2026-09-22 검수 실측).
      무엇이 있었나 — 이 기본 문구가 «내보낸 PNG 에 그대로 찍혔다».
@@ -2518,7 +2564,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
        없으면 「견줄 원문이 없다」로 보고 그냥 숨긴다(기존 동작). */
   const _isPh = (line.text ?? '') === GRID_CELL_DEFAULT_TEXT;
   const phAttr = _isPh ? ` data-is-placeholder="true" data-placeholder="${_esc(GRID_CELL_DEFAULT_TEXT)}"` : '';
-  return `<div${addrAttr}${phAttr} class="grd-line grd-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${lh};letter-spacing:${ls};text-align:${align};${effColor ? `color:${effColor};` : ''}${ffCss}${italicCss}${strikeCss}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
+  return `<div${addrAttr}${phAttr} class="grd-line grd-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${lh};letter-spacing:${ls};text-align:${align};${effColor ? `color:${effColor};` : ''}${ffCss}${italicCss}${strikeCss}${mtCss}white-space:pre-wrap;word-break:keep-all;">${inner}</div>`;
 }
 
 // ★2026-09-04 P1: flex → CSS grid(PLAN §3-A) — 행 축을 넣으려면 열끼리 «경계가 맞아야»

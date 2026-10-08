@@ -76,6 +76,9 @@ test('C2 ★`_gridBeginEdit` 이 np 를 «패널»과 «커밋 주소»에 싣�
   assert.match(fn, /const addr = np \?/, '★커밋 주소에 np 를 안 싣는다');
 });
 
+/* ★허용목록 «표식» — ⛔내용을 베끼지 않는다. ★「넘겼나」만 재는 자다. */
+const OPTS_MARK = Object.freeze({ __optsMark: 'sz7' });
+
 /** 실물 `_gridEndEdit` 을 가짜 이웃으로 돌린다. @returns 보낸 patchCell */
 function runEndEdit(addr, text, before) {
   const sent = [];
@@ -86,11 +89,40 @@ function runEndEdit(addr, text, before) {
     removeAttribute(k) { delete this._attrs[k]; },
     textContent: text,
     _gridBefore: before,
+    /* ★부분 서식(수지⑦ 2026-10-08) — `_gridEndEdit` 이 ★HTML 쪽도 읽고 견준다.
+       ★이 장면은 ★평문뿐이다 ⇒ `textHtml` 은 ★`''` 로 나가고 ★모델 입구가 ★키를 지운다. */
+    innerHTML: text,
+    _gridBeforeHtml: before,
   };
   const block = { id: 'blk1', classList: { remove() {}, add() {} } };
   const scope = {
     window: { updateGridBlock: (id, partial) => { sent.push(partial); return { ok: true }; }, showToast: () => {} },
     _gridReadText: (h) => h.textContent,
+    _gridReadHtml: (h) => h.innerHTML || '',
+    /* ⛔판정자를 ★베껴 적지 ★않는다 — ★베끼면 ★명부가 둘이 되고 ★허용목록이 갈려도 ★여기가 ★안 빨개진다.
+       ★실물을 ★정적 import 할 수도 ★없다: `sanitize-rich-text.js` 는 ★`.js` 인데 ★ESM 문법이라
+         ★Node 가 ★CJS 로 읽어 ★`Named export not found` 로 ★죽는다(★실측 — 그래서 ★이 레포의
+         ★그리드 하네스들이 ★전부 ★`.mjs` 사본을 ★떠서 ★올린다).
+       ⇒ ★이 장면은 ★평문 전용이다. ★그 ★전제를 ★이 자리에서 ★단언한다 —
+         ★서식이 들어오면 ★조용히 false 를 내지 ★않고 ★크게 운다(⛔거짓 통과 금지).
+       ★서식 장면을 ★더하려면 ★실물을 ★`.mjs` 사본으로 올려 ★여기 꽂아라. */
+    /* ★★커밋 경로가 ★허용목록을 ★«넘기는가»를 ★이 자리에서 ★같이 잰다(수지⑦ 2026-10-08).
+       ⛔목록 ★내용을 ★베끼지 ★않는다 — ★«표식»을 ★넣고 ★그 표식이 ★판정자까지 ★닿는지만 본다.
+       ★그러면 ★`_gridEndEdit` 이 ★opts 를 ★빼먹는 날 ★이 검사가 ★빨개진다
+         (★빼먹으면 ★`span.tb-hl` 이 ★서식으로 ★안 보여 ★형광펜이 ★커밋되지 않는다). */
+    GRID_RICH_TEXT_OPTS: OPTS_MARK,
+    richTextHasFormatting: (html, opts) => {
+      assert.equal(opts, OPTS_MARK,
+        '★★커밋 경로가 ★허용목록(GRID_RICH_TEXT_OPTS)을 ★판정자에 ★안 넘겼다 — '
+        + '★그러면 `span.tb-hl`·`span.tb-dot` 이 ★«서식»으로 ★안 보여 ★형광펜·점이 ★커밋되지 않는다');
+      /* ★가름은 ★«마크업이 있나» ★하나뿐이다 — ⛔실물의 판정 규칙(어느 태그 · style 달린 span)을
+         ★베끼지 ★않는다. ★평문이면 ★서식이 ★없는 것이 ★자명하고, ★마크업이 보이면 ★이 장면이
+         ★판정할 자격이 ★없으므로 ★크게 운다. */
+      if (/[<>]/.test(String(html || ''))) {
+        throw new Error('★이 장면은 «평문 전용»이다 — 마크업이 들어왔다. 실물 판정자를 .mjs 사본으로 올려 꽂아라: ' + html);
+      }
+      return false;
+    },
   };
   const names = Object.keys(scope);
   const fn = new Function(...names, `${extractFn(SRC, '_gridEndEdit')}; return _gridEndEdit;`)(...names.map(n => scope[n]));
@@ -101,11 +133,11 @@ function runEndEdit(addr, text, before) {
 test('C3 ★★np 가 «있을 때만» patchCell 에 실린다 — 실물을 돌려 잰다', () => {
   const nested = runEndEdit({ r: 1, c: 1, li: 2, np: '0.0' }, '새글자', '옛글자');
   assert.equal(nested.length, 1, '★중첩 줄인데 커밋이 안 나갔다');
-  assert.deepEqual(nested[0].patchCell, { r: 1, c: 1, lineIndex: 2, np: '0.0', text: '새글자' });
+  assert.deepEqual(nested[0].patchCell, { r: 1, c: 1, lineIndex: 2, np: '0.0', text: '새글자', textHtml: '' });
 
   const outer = runEndEdit({ r: 0, c: 0, li: 1 }, '새글자', '옛글자');
   assert.equal(outer.length, 1, '★바깥 줄 커밋이 안 나갔다');
-  assert.deepEqual(outer[0].patchCell, { r: 0, c: 0, lineIndex: 1, text: '새글자' });
+  assert.deepEqual(outer[0].patchCell, { r: 0, c: 0, lineIndex: 1, text: '새글자', textHtml: '' });
   assert.ok(!('np' in outer[0].patchCell),
     '★★바깥 줄인데 np 를 실었다 — 모델 입구가 「np 는 lineIndex 와 같이 와야 한다」를 다시 재게 된다');
 
