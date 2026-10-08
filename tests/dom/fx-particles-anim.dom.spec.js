@@ -197,3 +197,51 @@ test('V4 ★★살아 있는 루프가 ★정말 돈다 — ★`step` 을 손으
 
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
+
+test('V1b ★★낡은 꼬리표 ＋ 축 0 — ★`scan` 의 ★0 판정이 ★홀로 막는 ★유일한 자리', async ({ page }) => {
+  /* ★★왜 이 칸이 ★따로 있나 (2026-10-09 ★무력화 대조가 ★가르쳐 줬다):
+     ★`scan` 의 ★`if (speed <= 0 && spin <= 0) continue;` ★한 줄을 ★죽였더니 ★★V1 이 ★그대로 ★초록이었다.
+     ★까닭: ★축이 0 이면 ★그리개가 ★꼬리표를 ★안 붙이고, ★꼬리표가 없으면 ★`readLayer` 가 ★0개를 돌려줘
+       ★`scan` 이 ★어차피 ★건너뛴다 ⇒ ★★방어가 ★둘이고 ★V1 은 ★뒤엣것만 재고 있었다.
+     ⇒ ★★이 칸은 ★★«꼬리표는 있는데 축이 0 인» 판을 ★만들어 ★앞엣것을 ★홀로 세운다.
+     ★그 판이 ★실제로 나는 자리 = ★★움직이던 섹션의 ★축을 ★0 으로 ★되돌렸는데 ★층이 ★아직 ★안 그려졌을 때
+       (★저장본 왕복·undo·외부 쓰기). ⇒ ★그때 ★알맹이가 ★튀면 ★안 된다. */
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e)));
+  await page.setViewportSize({ width: VIEW_W, height: VIEW_H });
+  await bootApp(page);
+  await page.evaluate(() => {
+    const canvas = document.getElementById('canvas');
+    canvas.querySelectorAll('.section-block').forEach((s) => s.remove());
+    canvas.insertAdjacentHTML('beforeend',
+      '<div class="section-block" id="pS" data-section="1" style="background:#0A0A0C">'
+      + '<div class="section-hitzone"></div>'
+      + '<div class="section-inner" style="padding-left:40px;padding-right:40px">'
+      + '<div class="gap-block" data-type="gap" style="height:300px"></div></div></div>');
+    window.rebindAll?.();
+    const sec = document.getElementById('pS');
+    /* ⑴ ★움직이는 판으로 ★그린다 ⇒ ★꼬리표가 ★붙는다 */
+    window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
+    window.applySectionParticles(sec);
+    window.ParticlesAnim.stop();
+    /* ⑵ ★축만 ★0 으로 ★되돌린다 — ⛔다시 ★안 그린다. ★그래서 ★꼬리표가 ★남는다 */
+    window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 0, spin: 0 });
+  });
+  await page.waitForTimeout(120);
+
+  const n = await page.evaluate(() => document.querySelectorAll('.sec-fxpart-wrap [data-fxp]').length);
+  expect(n, '★전제: ★낡은 꼬리표가 ★안 남았다 — 이 칸이 재려는 판이 ★아니다').toBeGreaterThan(0);
+  const cfg = await page.evaluate(() => window.readParticles(document.getElementById('pS').dataset));
+  expect(cfg.speed, '★전제: 축이 0 으로 안 돌아갔다').toBe(0);
+  expect(cfg.spin, '★전제: 축이 0 으로 안 돌아갔다').toBe(0);
+
+  const before = await page.evaluate(() =>
+    [...document.querySelectorAll('.sec-fxpart-wrap [data-fxp]')].slice(0, 8).map((e) => e.getAttribute('transform') || ''));
+  const moved = await page.evaluate(() => window.ParticlesAnim.step(5000));
+  const after = await page.evaluate(() =>
+    [...document.querySelectorAll('.sec-fxpart-wrap [data-fxp]')].slice(0, 8).map((e) => e.getAttribute('transform') || ''));
+
+  expect(moved, '★★꼬리표는 남았지만 ★축이 0 이다 — ★루프가 ★건드리면 ★알맹이가 튄다').toBe(0);
+  expect(after, '★★축이 0 인데 ★자리가 바뀌었다 — ★낡은 꼬리표가 알맹이를 ★튀게 했다').toEqual(before);
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
