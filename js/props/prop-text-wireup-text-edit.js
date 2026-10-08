@@ -13,6 +13,8 @@
  */
 
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
+import { captureTextStyle, applyTextStyleVars } from './text-style-kinds.js';   /* ★«한 벌이 무슨 값인가»의 명부 하나 */
+import { wireAllTextStyleChips } from './text-style-chips.js';                     /* ★「최근 효과」 줄 — 컬러의 최근 줄 꼴 그대로 */
 import { wireHexText, parseHex6, formatHex6, wireColorField } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { detectMix } from './prop-text-mix-detect.js';
@@ -178,6 +180,18 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
   /* ★선택 저장·복원 = js/props/_text-selection.js 한 벌. 여기엔 저장 변수가 «없다». */
   const hasSel = () => !!getSavedTextSelection(ctx.contentEl);
 
+  /* ★★「최근 효과」에 ★한 벌을 쌓는다 (2026-10-08 현빈 「저장한 스타일도 ★복사할수 있게」).
+     ★부르는 자리 = ★그 효과의 ★commit 지점 ★뿐이다(input 중에는 ★안 쌓는다 — 끄는 중의 값이 큐를 채운다).
+     ★«무엇이 한 벌인가»는 ★여기가 ★모른다 — text-style-kinds.js 가 ★그 명부다.
+     ★«같으면 쓰기 없음»·«창 안이면 맨 앞을 덮는다»는 ★저장소가 한다(design-system.js).
+       ⇒ ★여기서 ★조건을 ★또 걸지 않는다(걸면 ★명부가 둘이 된다). */
+  const _pushStyle = (k) => {
+    try {
+      const v = captureTextStyle(k, tb, ctx.contentEl);
+      if (v) window.DesignSystem?.pushTextStyleHistory?.(k, v);
+    } catch (e) { console.warn('[text-style] 쌓기 실패:', k, e); }
+  };
+
   const applyExecCmd = (savedSel, cmd, val = null) => {
     if (!savedSel) return false;
     const wasEditable = ctx.contentEl.contentEditable;
@@ -335,6 +349,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     const d = e.detail;
     if (!d || !d.css) return;
     if (!applyTextGradient(ctx.contentEl, d, { commit })) return;
+    if (commit) _pushStyle('grad');
     clearTextSelection();   // 그라데이션은 블럭 전체 — 이후 솔리드 복귀도 전체
     try {
       colorPicker.dataset.cpGradient = JSON.stringify({ type: d.type, angle: d.angle, stops: d.stops });
@@ -529,6 +544,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
         hlBtn.classList.toggle('active', nowOn);
         _hlSyncOpts(nowOn);
       }
+      if (_hlIsOn(ctx.contentEl)) _pushStyle('hl');
       window.pushHistory?.();
       window.scheduleAutoSave?.();
     });
@@ -547,7 +563,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
   wireColorField('txt-hl-color', {
     initialAlpha: 100,
     onApply: (c) => _hlApplyColor(c),
-    onCommit: () => { window.pushHistory?.('형광펜 색'); window.scheduleAutoSave?.(); },
+    onCommit: () => { _pushStyle('hl'); window.pushHistory?.('형광펜 색'); window.scheduleAutoSave?.(); },
   });
 
   /* ★바 높이(%) — 100 = 글자를 다 덮는다 · 40 = 아래 40%만. 슬라이더와 숫자칸이 «같은 값»을 쓴다. */
@@ -566,7 +582,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
       const n = _hlApplyH(v);
       if (n == null) return;
       hlHRange.value = String(n); hlHNum.value = String(n);
-      if (commit) { window.pushHistory?.('형광펜 바 높이'); window.scheduleAutoSave?.(); }
+      if (commit) { _pushStyle('hl'); window.pushHistory?.('형광펜 바 높이'); window.scheduleAutoSave?.(); }
     };
     hlHRange.addEventListener('input',  () => sync(hlHRange.value, false));
     hlHRange.addEventListener('change', () => sync(hlHRange.value, true));
@@ -593,7 +609,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
       const n = clampY(v);
       host.style.setProperty('--tb-hl-y', n + 'px');
       hlYRange.value = String(n); hlYNum.value = String(n);
-      if (commit) { window.pushHistory?.('형광펜 획 위치'); window.scheduleAutoSave?.(); }
+      if (commit) { _pushStyle('hl'); window.pushHistory?.('형광펜 획 위치'); window.scheduleAutoSave?.(); }
     };
     hlYRange.addEventListener('input',  () => syncY(hlYRange.value, false));
     hlYRange.addEventListener('change', () => syncY(hlYRange.value, true));
@@ -672,7 +688,8 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     }
   };
   wireDecoBtn({ btnId: 'txt-strike-btn',    cmd: 'strikeThrough', token: 'line-through', tagSel: 'strike, s' });
-  wireDecoBtn({ btnId: 'txt-underline-btn', cmd: 'underline',     token: 'underline',    tagSel: 'u', onToggle: _ulSyncOpts });
+  wireDecoBtn({ btnId: 'txt-underline-btn', cmd: 'underline',     token: 'underline',    tagSel: 'u',
+    onToggle: (on) => { _ulSyncOpts(on); if (on) _pushStyle('ul'); } });
 
   /* ★밑줄 손잡이 — ★정본은 ★.text-block 의 인라인 --tb-ul-* ★하나씩(형광펜·점과 ★같은 규약).
      ★★«빈 값»의 뜻 = ★auto 로 ★되돌린다 ⇒ ★인라인을 ★지운다. ⛔0 으로 ★메우지 마라 — 0 은 «정했다»가 되어
@@ -703,7 +720,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
           el.value = String(n);
         }
       }
-      if (commit) { window.pushHistory?.(f.label); window.scheduleAutoSave?.(); }
+      if (commit) { _pushStyle('ul'); window.pushHistory?.(f.label); window.scheduleAutoSave?.(); }
     };
     el.addEventListener('input',  () => sync(false));
     el.addEventListener('change', () => sync(true));
@@ -711,8 +728,50 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
   wireColorField('txt-ul-color', {
     initialAlpha: 100,
     onApply: (c) => { const h = _ulVarsOf(ctx.contentEl); if (h) h.style.setProperty('--tb-ul-color', c); },
-    onCommit: () => { window.pushHistory?.('밑줄 색'); window.scheduleAutoSave?.(); },
+    onCommit: () => { _pushStyle('ul'); window.pushHistory?.('밑줄 색'); window.scheduleAutoSave?.(); },
   });
+
+  /* ── ★★「최근 효과」 줄 — ★누르면 ★이 글에 ★그대로 입힌다 ────────────────────────────────
+   * (2026-10-08 현빈 「★저장한 스타일도 ★복사할수 있게 … ★최근 스타일을 선택할 수 있게」
+   *  ＋ 지디 notes ★T14 「★그 형광펜 스타일로 ★다른 텍스트에 … ★매번 설정을 ★복붙하기가 ★귀찮아」
+   *    ★T15 「★마찬가지 ★최근 효과 뜨게」 ⇒ ★T14 와 ★★같은 기계여야 한다)
+   *
+   * ★★«다른 텍스트에»가 ★어떻게 되나 — ★패널은 ★언제나 ★고른 블럭의 것이다.
+   *   블럭 B 를 고르면 ★wireTextEditSection 이 ★B 로 ★다시 돈다 ⇒ ★여기 tb·ctx 가 ★B 다
+   *   ⇒ ★칩을 누르면 ★B 에 입힌다. ⛔블럭을 가로지르는 기계가 ★따로 필요 ★없다.
+   *   ★그 축은 tests/dom/text-style-recent.dom.spec.js ★C3 가 ★잰다(A 에서 쓰고 B 에 입힌다).
+   *
+   * ★★«켜고 → 입힌다»의 ★순서가 ★여기 ★한 곳에만 있다.
+   *   ⛔text-style-kinds.js 로 ★옮기지 마라 — ★켜기는 ★DOM 쪼개기(span 두르기)라
+   *     ★이 클로저가 ★가진 자다(_hlWrapWhole·_dotWrapWhole·_decoWrite). ★그 머리말에 같은 말을 적었다.
+   * ★끝에 ★패널을 ★다시 그린다 — 칸 값(바 높이·Y·점 넷·밑줄 둘)이 ★입힌 값과 ★어긋나지 않게.
+   *   ⛔칸을 ★하나씩 ★손으로 ★맞추지 않는다(그 목록이 ★둘째 명부가 된다).
+   */
+  const _applyRecentStyle = (k, v) => {
+    const el = ctx.contentEl;
+    if (!el) return;
+    if (k === 'grad') {
+      if (!v || typeof v.css !== 'string') return;
+      if (!applyTextGradient(el, { css: v.css }, { commit: true })) return;
+    } else if (k === 'hl') {
+      if (!_hlIsOn(el)) { _hlStripAll(el); _hlWrapWhole(el); _hlSyncOpts(true); }
+      applyTextStyleVars(k, _hlVarsOf(el), v);
+      window.pushHistory?.('최근 형광펜');
+    } else if (k === 'dot') {
+      if (!isDotOn(el)) { _dotStripAll(el); _dotWrapWhole(el); _dotPrune(el); _dotSyncOpts(true); }
+      applyTextStyleVars(k, _dotVarsOf(el), v);
+      window.pushHistory?.('최근 점');
+    } else if (k === 'ul') {
+      const set = _decoTokens(el);
+      if (!set.has('underline')) { _stripDecoResidue(el, 'underline', 'u'); set.add('underline'); _decoWrite(el, set); _ulSyncOpts(true); }
+      applyTextStyleVars(k, _ulVarsOf(el), v);
+      window.pushHistory?.('최근 밑줄');
+    } else return;
+    window.scheduleAutoSave?.();
+    /* ★칸 값을 ★입힌 값으로 ★다시 세운다 — 패널을 ★통째로 다시 그린다(앱의 ★제 길). */
+    try { window.showTextProperties?.(tb); } catch (_) {}
+  };
+  wireAllTextStyleChips({ p: 'txt', onPick: _applyRecentStyle });
 
   /* ── ★점 찍기(방점) — 글자 ★위에 점, ★글자마다 하나 ─────────────────────────────────
    * (2026-10-08 수지 ⑥: 「텍스트 위 ★점 찍기(세 글자 선택→점 3개·간격·xy·크기·색상 변경)」 · ⚠️출처 2차)
@@ -817,6 +876,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
         dotBtn.classList.toggle('active', nowOn);
         _dotSyncOpts(nowOn);
       }
+      if (isDotOn(ctx.contentEl)) _pushStyle('dot');
       window.pushHistory?.();
       window.scheduleAutoSave?.();
     });
@@ -832,7 +892,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
   wireColorField('txt-dot-color', {
     initialAlpha: 100,
     onApply: (c) => _dotApplyVar('--tb-dot-color', c),
-    onCommit: () => { window.pushHistory?.('점 색'); window.scheduleAutoSave?.(); },
+    onCommit: () => { _pushStyle('dot'); window.pushHistory?.('점 색'); window.scheduleAutoSave?.(); },
   });
   /* ★칸 표 — ★한 자리. ⛔배선마다 min/max 를 되적지 않는다(마크업과 두 벌이 되어 갈린다 —
      이 레포가 챗 블럭에서 이미 앓은 병이다. 여기선 ★칸의 min/max 속성을 ★읽어서 쓴다). */
@@ -857,7 +917,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
       _dotApplyVar(f.name, n + 'px');
       numEl.value = String(n);
       if (rangeEl) rangeEl.value = String(n);
-      if (commit) { window.pushHistory?.(f.label); window.scheduleAutoSave?.(); }
+      if (commit) { _pushStyle('dot'); window.pushHistory?.(f.label); window.scheduleAutoSave?.(); }
     };
     numEl.addEventListener('input',  () => sync(numEl.value, false));
     numEl.addEventListener('change', () => sync(numEl.value, true));

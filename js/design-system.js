@@ -18,6 +18,24 @@ const DesignSystem = (() => {
      (margin-left 8 + padding-left 8 + 선 2 를 먹는다) — 칩(20)+사이(4)를 하나씩 더해 «둘째 줄 직전까지» 실측 = 7 · 2026-10-02 태양.
      ⚠️시안의 8 은 패널 여백을 흉내 낸 판에서 잰 수다(실제 패널이 아님). 폭·칩 크기가 바뀌면 같은 법으로 다시 재서 바꿔라. */
   const COLOR_HISTORY_MAX = 7;
+  const STORAGE_TEXTSTYLE_KEY = 'we_text_style_history_v1';   // 텍스트 «효과» 히스토리 작업 캐시 — 정본은 meta.textStyleHistory
+  /* ★최근 «효과» 한 줄의 개수 — 컬러(위 7)와 ★같은 법으로, ★다시 ★재서 넣었다.
+       법 = floor((줄 가용폭 − 라벨폭 − gap) ÷ (칩폭 + gap))
+       ★잰 값 2026-10-08 (DOM 하네스 · 패널 폭 240 고정 — css/editor-panels.css:62):
+         ★줄 가용폭 ★193 · ★라벨(「최근」)폭 ★18.28 · ★칩폭 ★26 · ★gap ★4(css .cv-chips)
+         ⇒ floor((193 − 18.28 − 4) ÷ 30) = ★5
+       ⛔컬러의 ★7 을 ★베끼면 틀린다 — 그 칩은 ★점(20px)이고 이것은 ★스타일 입힌 ★글자(26px)다.
+       ★★그리고 ★내가 ★처음에 ★안 재고 ★6 으로 박았다가 ★검사에 ★잡혔다
+         (tests/dom/text-style-recent.dom.spec.js ★M 이 ★잰 수와 ★이 상수를 ★견준다).
+         ⇒ ★칩 폭·패널 폭을 바꾸면 ★그 검사가 ★빨개진다. ★거기 찍힌 세 수로 ★다시 세워라. */
+  const TEXT_STYLE_HISTORY_MAX = 5;
+  /* ★같은 kind 의 ★연속 손질을 ★한 벌로 묶는 창(ms).
+     ★왜 필요한가(실측 2026-10-08): 슬라이더 ★한 번 끌기 = commit ★1회라 ★드래그는 큐를 안 채운다.
+       큐를 채우는 것은 ★«다른 칸»이다 — 색 → 높이 → Y 를 한 번씩 손보면 ★3회 commit 이 나고
+       그 셋은 ★«하나의 스타일을 다듬는 중»이다. ⇒ 창 안이면 ★맨 앞을 ★덮는다(새로 안 쌓는다).
+     ⚠️★이 수는 ★«사람 손 속도»라 ★기계로 못 잰다 — ★UX 선택이다. ⛔「쟀다」로 적지 마라.
+       ★검사가 ★이 상수를 ★읽는다(⛔맨숫자를 검사에 박지 않는다 · A6 가 창 안/밖을 ★둘 다 잰다). */
+  const TEXT_STYLE_COALESCE_MS = 4000;
 
   // 시맨틱 컬러 변수 기본값 (피그마 Variables 유사 — 메인/보조/강조)
   // --preset-* 계열과 충돌하지 않도록 별도 네임스페이스(--color-*) 사용.
@@ -544,6 +562,112 @@ const DesignSystem = (() => {
     return list;
   }
 
+  /* ── 텍스트 «효과» 히스토리 (최근 형광펜·점·밑줄·그라데이션 · 현빈 2026-10-08) ─────────────────
+   *   현빈: 「★저장한 스타일도 ★복사할수 있게 … ★프리셋을 추가할 수 있게 ★하든 ★혹은 ★최근 스타일을 선택할 수 있게」
+   *   ＋ 지디 notes T14 「★그 형광펜 스타일로 ★다른 텍스트에 하려는데 ★매번 설정을 ★복붙하기가 ★귀찮아」
+   *     T15 「★최근 형광펜처럼 … 네온글로우 / 그라데이션 … ★마찬가지 ★최근 효과 뜨게」
+   *
+   * ★★컬러 히스토리와 ★같은 자리·★같은 길이다 — 정본 = meta.textStyleHistory · 작업 캐시 = localStorage.
+   *   ⛔새 저장 기계를 ★만들지 않았다. 위 네 함수를 ★그대로 베껴 ★«큐가 kind 별로 여럿»인 것만 다르다.
+   * ★★이 자리는 ★«무엇이 ★형광펜인가»를 ★모른다 — ★그 명부는 ★js/props/text-style-kinds.js ★하나다.
+   *   ⇒ 여기서는 ★«꼴»만 본다(평평한 객체 · 문자열/수/참거짓). ★그래야 ★kind 를 늘려도 ★이 파일이 안 바뀐다.
+   * ★레코드 = { v: {...}, t: <epoch ms> }   ⛔kind 를 레코드 안에 ★또 적지 않는다(큐의 ★키가 그것이다 — 명부 둘 방지).
+   * ⚠️T15 의 ★네온글로우는 ★여기 ★없다 — ★그 정본 자리를 ★안 쟀다. ⛔빈 큐를 ★미리 열어 두지 않는다
+   *   (「표의 ★빈칸은 ★«없는 경우»가 아니라 ★«안 잰 경우»」 — 빈 큐가 「기능 없음」으로 읽힌다. 지디 판정 2026-10-08 ⒟).
+   * ★★「네 kind 가 ★한 기계인가」는 tests/dom/text-style-recent.dom.spec.js ★D1 이 잰다 —
+   *   ★무력화 실측: 아래 _setTextStyleAll 의 ★쓰기 ★한 줄을 죽이면 ★네 kind 가 ★전부(4/4) 죽는다.
+   */
+  function _normStyleValue(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+    const out = {};
+    for (const k of Object.keys(v)) {
+      if (!k || typeof k !== 'string' || k.length > 64) continue;
+      const val = v[k];
+      if (typeof val === 'string') { if (val.length <= 400) out[k] = val; }
+      else if (typeof val === 'number' && Number.isFinite(val)) out[k] = val;
+      else if (typeof val === 'boolean') out[k] = val;
+      /* ⛔그 밖(중첩 객체·배열·함수·NaN)은 ★버린다 — 저장본이 ★미래 꼴을 들고 와도 ★안 깨지게. */
+    }
+    return Object.keys(out).length ? out : null;
+  }
+  /** 키 순서와 무관하게 같은 값인가 — 「맨 앞과 같으면 쓰기 없음」이 ★키 순서로 ★틀리지 않게. */
+  function _sameStyle(a, b) {
+    if (!a || !b) return false;
+    const ka = Object.keys(a).sort(), kb = Object.keys(b).sort();
+    if (ka.length !== kb.length) return false;
+    return ka.every((k, i) => k === kb[i] && a[k] === b[k]);
+  }
+  function _readTextStyleAll() {
+    try {
+      const o = JSON.parse(localStorage.getItem(STORAGE_TEXTSTYLE_KEY) || '{}');
+      if (!o || typeof o !== 'object' || Array.isArray(o)) return {};
+      const out = {};
+      for (const k of Object.keys(o)) {
+        if (!Array.isArray(o[k])) continue;
+        const q = o[k].map(r => {
+          const v = _normStyleValue(r && r.v);
+          if (!v) return null;
+          const t = Number(r && r.t);
+          return { v, t: Number.isFinite(t) ? t : 0 };
+        }).filter(Boolean).slice(0, TEXT_STYLE_HISTORY_MAX);
+        if (q.length) out[k] = q;
+      }
+      return out;
+    } catch { return {}; }
+  }
+  /** kind 의 최근 목록(새 것이 앞). kind 를 안 주면 ★전부. */
+  function getTextStyleHistory(kind) {
+    const all = _readTextStyleAll();
+    if (kind === undefined || kind === null) return all;
+    return all[kind] || [];
+  }
+  function _setTextStyleAll(all, { persist = true } = {}) {
+    try { localStorage.setItem(STORAGE_TEXTSTYLE_KEY, JSON.stringify(all)); } catch {}
+    if (persist) _mergeProjectMeta({ textStyleHistory: all });
+    document.dispatchEvent(new CustomEvent('textstylehistory-changed', { detail: { all } }));
+  }
+  /**
+   * 같은 값은 ★맨 앞으로(중복 제거) · MAX 넘으면 뒤에서 버린다 — ★컬러의 그 규약 그대로.
+   * ＋ ★같은 kind 를 ★창 안에 ★연달아 넣으면 ★맨 앞을 ★«덮는다»(하나의 스타일을 다듬는 중이므로).
+   * @param {string} kind  'hl'|'dot'|'ul'|'grad' — ★그 명부는 text-style-kinds.js 다(여기서는 ★문자열 키일 뿐)
+   */
+  function pushTextStyleHistory(kind, value, { now = Date.now() } = {}) {
+    if (!kind || typeof kind !== 'string') return [];
+    const v = _normStyleValue(value);
+    if (!v) return getTextStyleHistory(kind);
+    const all = _readTextStyleAll();
+    const prev = all[kind] || [];
+    if (prev[0] && _sameStyle(prev[0].v, v)) return prev;             // 이미 맨 앞 — ★쓰기 없음
+    const rec = { v, t: now };
+    let next;
+    if (prev[0] && now - prev[0].t < TEXT_STYLE_COALESCE_MS) {
+      next = [rec, ...prev.slice(1).filter(r => !_sameStyle(r.v, v))];   // ★맨 앞을 덮는다
+    } else {
+      next = [rec, ...prev.filter(r => !_sameStyle(r.v, v))];
+    }
+    all[kind] = next.slice(0, TEXT_STYLE_HISTORY_MAX);
+    _setTextStyleAll(all);
+    return all[kind];
+  }
+  /* ⚠️컬러 히스토리와 ★같은 점: meta 에 없으면 ★빈 목록이다(⛔직전 프로젝트 것이 ★안 남는다).
+     ★컬러 «변수» 쪽이 앓는 그 병을 ★여기도 ★물려받지 않는다. */
+  async function restoreTextStyleHistoryFromMeta(projectId) {
+    const pid = projectId || window.activeProjectId;
+    let all = {};
+    try {
+      if (pid && window.electronAPI?.loadProjectMeta) {
+        const meta = await window.electronAPI.loadProjectMeta(pid).catch(() => null);
+        const raw = meta && meta.textStyleHistory;
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+          try { localStorage.setItem(STORAGE_TEXTSTYLE_KEY, JSON.stringify(raw)); } catch {}
+          all = _readTextStyleAll();                                  // ★정규화를 ★한 자리로 태운다
+        }
+      }
+    } catch (e) { console.warn('[DesignSystem] restoreTextStyleHistoryFromMeta 실패:', e); }
+    _setTextStyleAll(all, { persist: false });                        // 열 때 읽기만 — 다시 쓰지 않는다
+    return all;
+  }
+
   async function restoreColorVarsFromMeta(projectId) {
     const pid = projectId || window.activeProjectId;
     try {
@@ -711,6 +835,9 @@ const DesignSystem = (() => {
     getColorVars, setColorVar, removeColorVar, applyColorVars, restoreColorVarsFromMeta,
     // 컬러 히스토리(최근 쓴 색) — color-picker 가 쌓고, color-var-chips 가 그린다. 인라인 이름 폼은 「변수로 만들기」가 재사용.
     getColorHistory, pushColorHistory, restoreColorHistoryFromMeta, COLOR_HISTORY_MAX,
+    // 텍스트 «효과» 히스토리 — prop-text-wireup-text-edit 가 쌓고, text-style-chips 가 그린다(컬러와 같은 꼴)
+    getTextStyleHistory, pushTextStyleHistory, restoreTextStyleHistoryFromMeta,
+    TEXT_STYLE_HISTORY_MAX, TEXT_STYLE_COALESCE_MS,
     openInlineNameForm: (...a) => _openInlineNameForm(...a),
     addColorVarFromPanel, renderColorVars,
   };

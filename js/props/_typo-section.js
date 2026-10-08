@@ -228,6 +228,7 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <input type="range" class="prop-slider" id="${p}-hl-y" min="-40" max="40" step="1" value="${hlY}">
         <input type="number" class="prop-number" id="${p}-hl-y-num" min="-40" max="40" value="${hlY}">
       </div>
+      <div class="cv-chips ts-recent-row" id="${p}-hl-recent-row" hidden></div>
 ` : ''}${showDotOpts ? `      <!-- ★점 찍기 손잡이 넷 (2026-10-08 수지 ⑥: 「세 글자 선택→점 3개·★간격·★xy·★크기·★색상 변경」).
            ★★⛔이 showDotOpts 분기가 ★앞 블록의 ★끝에 ★붙어 있는 것은 ★일부러다 —
              ★자기 줄에서 시작하면 ★꺼져도 ★줄바꿈 ★하나를 ★남겨 ★모달·그리드·챗의 ★«바이트 동일»이 깨진다.
@@ -269,6 +270,7 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
           <input type="number" id="${p}-dot-y" min="-40" max="40" value="${dotY}" aria-label="점 Y">
         </div>
       </div>
+      <div class="cv-chips ts-recent-row" id="${p}-dot-recent-row" hidden></div>
 ` : ''}${showUnderlineOpts ? `      <div class="prop-color-row" id="${p}-ul-color-row" style="margin-top:6px;display:${isUnderline?'flex':'none'}">
         <span class="prop-label">밑줄 색</span>
         ${ulColorHtml}
@@ -284,6 +286,7 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
           <input type="number" id="${p}-ul-offset" min="-10" max="20" step="1" value="${ulOffset}" placeholder="자동" aria-label="밑줄 위치">
         </div>
       </div>
+      <div class="cv-chips ts-recent-row" id="${p}-ul-recent-row" hidden></div>
 ` : ''}
       <div class="prop-lhls-row">
         <div class="prop-lhls-col"${_hide(showLineHeight)}>
@@ -315,8 +318,10 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
  * @param {string} o.colorHexVal ★hex 칸의 value 를 스와치와 «따로» 준다(''=아무도 안 정했다)
  * @param {string} o.colorHexPh  ★hex 칸의 회색 안내값(역할 기본색 HEX)
  * @param {object} o.mix       섞였으면 체커보드 스와치 + placeholder="Mix"
+ * @param {boolean} o.showGradRecent ★「최근 그라데이션」 줄 표시. ⛔기본 false = 이전과 «바이트 동일»
+ *                              (텍스트 패널만 true — 글자 그라데이션 배선이 wireTextEditSection 에만 있다)
  */
-export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHexPh, mix } = {}) {
+export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHexPh, mix, showGradRecent = false } = {}) {
   const _mix = mix || _NO_MIX;
   /* ★스와치(colorHex)와 hex 칸(colorHexVal)이 «다른 것»을 말할 수 있다 — 층이 다르기 때문이다:
      스와치는 「지금 무슨 색인가」(진실), hex 칸은 「누가 그 색을 정했나」(명시/역할 기본).
@@ -341,6 +346,7 @@ export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHex
           </label>
         </div>
       </div>
-      <div class="cv-chips" id="${p}-color-chips" hidden></div>
+      <div class="cv-chips" id="${p}-color-chips" hidden></div>${showGradRecent ? `
+      <div class="cv-chips ts-recent-row" id="${p}-grad-recent-row" hidden></div>` : ''}
     </div>`;
 }

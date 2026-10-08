@@ -169,7 +169,10 @@ ${blockHeaderHTML({
       mix: _mix,
     })}
 
-    ${buildFillSectionHtml({ p: 'txt', colorHex: currentColor, alpha: currentColorAlpha, mix: _mix })}
+    ${buildFillSectionHtml({ p: 'txt', colorHex: currentColor, alpha: currentColorAlpha, mix: _mix,
+      /* ★「최근 그라데이션」 줄도 ★텍스트 패널만 — 글자 그라데이션 배선이 wireTextEditSection 에만 있다.
+         ⛔모달은 기본 false 라 마크업이 «바이트 동일»이다(형광펜 칸·밑줄 칸과 ★같은 규약). */
+      showGradRecent: true })}
 
     <div class="prop-section" id="txt-shadow-section">
       <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">

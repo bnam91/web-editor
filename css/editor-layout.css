@@ -524,10 +524,39 @@ span[style*="text-fill-color"] .tb-dot { -webkit-text-fill-color: currentColor; 
   --tb-ul-offset: auto;
   --tb-ul-color: currentColor;
 }
-.text-block * {
+/* ★★`.ts-chip-prev` 를 ★같은 선언에 ★얹는다 — ⛔칩용으로 ★또 적지 않는다.
+   ★까닭 = 「최근 밑줄」 칩은 ★글 블럭 ★밖(패널)이라 `.text-block *` 에 ★안 걸리는데,
+     ★두께·색·위치를 ★칩 쪽에 ★다시 적으면 ★그 순간 ★명부가 ★둘이 되어 ★조용히 갈린다.
+   ⇒ ★셀렉터만 ★늘리고 ★선언은 ★하나로 둔다(「경고를 달 자리 = 구조를 합칠 자리」). */
+.text-block *,
+.ts-chip-prev {
   text-decoration-thickness: var(--tb-ul-thick, auto);
   text-decoration-color: var(--tb-ul-color, currentColor);
   text-underline-offset: var(--tb-ul-offset, auto);
+}
+
+/* ── 「★최근 효과」 줄 — 최근 형광펜·점·밑줄·그라데이션 (2026-10-08 현빈 「저장한 스타일도 복사할수 있게」) ──
+   ★꼴은 ★컬러의 «최근 쓴 색 줄»(css/editor-props.css:568 절)을 ★그대로 쓴다 — 줄 `.cv-chips`, 칩 `.cv-chip`.
+     ⛔그 파일에 ★안 쓴다(다른 레인이 쥐고 있다) ⇒ ★여기(내 파일)에 ★덧댄다.
+   ★★칩 ★속은 ★«그 스타일을 입힌 글자»다 — ⛔점 하나로는 ★못 가른다
+     (형광펜 한 벌은 ★색＋높이＋Y ★셋이라 ★「높이 40·Y−8」과 ★「높이 100·Y0」이 ★같은 점이 된다).
+   ★높이를 ★24 로 둔 까닭 = ★점이 ★글자 ★위에 그려져(.tb-dot::before 는 bottom:100%)
+     ★20 짜리 알약에선 ★칩 밖으로 ★나간다. ★글자를 ★아래로 붙이고 ★위를 비워 ★점 자리를 만든다.
+   ★칩 폭은 ★고정이다 — ★그래야 「한 줄에 몇 개」가 ★계산되는 수가 된다
+     (design-system.js TEXT_STYLE_HISTORY_MAX 머리말의 그 법). ⚠️폭을 바꾸면 ★그 수를 ★다시 재라. */
+.ts-recent-row { margin-top: 4px; }
+.ts-chip {
+  padding: 0 0 3px;
+  width: 26px;
+  height: 24px;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: visible;
+}
+.ts-chip-prev {
+  font-size: var(--ui-fs-base, 12px);
+  line-height: 1;
+  color: var(--ui-text);
 }
 
 /* ═══════════════════════════════════
