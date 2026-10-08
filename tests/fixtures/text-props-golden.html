@@ -125,17 +125,7 @@
         <button class="prop-style-btn active" id="txt-underline-btn" title="밑줄 (⌘U)"><u>U</u></button>
         <button class="prop-style-btn active" id="txt-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>
         <button class="prop-style-btn " id="txt-highlight-btn" title="형광펜 (글자 길이만큼 — 선택이 있으면 그 글자만)">H</button>
-        <!-- ★★단추 ★글자의 text-emphasis 는 ★«미리보기 전용»이다 — ★실제로 점을 그리는 자는
-             ★.tb-dot::before 다(css/editor-layout.css). ⛔★이 주석을 지우지 마라: ★그러면 다음 사람이
-               ★「점 찍기는 text-emphasis 로 구현됐다」고 ★읽는다. ★★실측으로 그 ★반대가 참이다 —
-               text-emphasis 는 ★개수·색만 주고 ★크기(연속)·★xy·★간격을 ★못 줘서 ★배제했다
-               (실측값은 css 쪽 절 머리말에).
-             ★여기서만 쓰는 까닭 = 단추 한 칸에 ★제 효과를 보여 주는 가장 싼 꼴이고 ★손잡이가 필요 없다.
-             (지디 판정 2026-10-08 ④: 「★허용. ★단 ★미리보기 전용임을 ★주석에 적어라」)
-             ⚠️이 절은 ★템플릿 리터럴 ★안이다 — ⛔★백틱을 쓰지 마라. 리터럴이 끊긴다
-               (2026-10-08 실측 ★두 번: 백틱을 썼다가 .mjs rc=1 SyntaxError 가 났고,
-                ★그 경고문 안에 ★또 백틱을 써서 ★다시 났다). -->
-        <button class="prop-style-btn active" id="txt-dot-btn" title="글자 위 점 찍기 (글자마다 하나 — 선택이 있으면 그 글자만)"><span style="text-emphasis:filled dot;-webkit-text-emphasis:filled dot">점</span></button>
+        <button class="prop-style-btn active" id="txt-dot-btn" title="글자 위 점 찍기 (글자마다 하나 — 선택이 있으면 그 글자만)"><svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true"><circle cx="6.5" cy="2.4" r="2.1" fill="currentColor"/><path d="M2 13.4 6.5 6.2l4.5 7.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 11h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       </div>
       <!-- ★형광펜 색·바 높이 (2026-10-06 현빈 tb_5bkw8dq: 「색변경 및 하이라이트 바 높이 조절가능하게」).
            ★H 단추 «바로 아래» — 그 단추가 켜는 것을 고치는 칸이라 같은 자리가 맞다.
@@ -150,6 +140,11 @@
         <span class="prop-label">바 높이</span>
         <input type="range" class="prop-slider" id="txt-hl-h" min="5" max="100" step="1" value="100">
         <input type="number" class="prop-number" id="txt-hl-h-num" min="5" max="100" value="100">
+      </div>
+      <div class="prop-row" id="txt-hl-y-row" style="display:none" title="획을 위아래로 비껴 놓기(px). 양수 = 아래로 · 음수 = 위로">
+        <span class="prop-label">획 위치</span>
+        <input type="range" class="prop-slider" id="txt-hl-y" min="-40" max="40" step="1" value="0">
+        <input type="number" class="prop-number" id="txt-hl-y-num" min="-40" max="40" value="0">
       </div>
       <!-- ★점 찍기 손잡이 넷 (2026-10-08 수지 ⑥: 「세 글자 선택→점 3개·★간격·★xy·★크기·★색상 변경」).
            ★★⛔이 showDotOpts 분기가 ★앞 블록의 ★끝에 ★붙어 있는 것은 ★일부러다 —
@@ -186,6 +181,21 @@
         <div class="prop-icon-input" style="flex:1;min-width:0">
           <span class="prop-xy-label">Y</span>
           <input type="number" id="txt-dot-y" min="-40" max="40" value="5" aria-label="점 Y">
+        </div>
+      </div>
+      <div class="prop-color-row" id="txt-ul-color-row" style="margin-top:6px;display:flex">
+        <span class="prop-label">밑줄 색</span>
+        
+      </div>
+      <div class="prop-row" id="txt-ul-row" style="display:flex" title="밑줄 두께·위치(px). 비우면 자동(글자 크기가 정한다). ⚠️취소선이 같이 켜져 있으면 그것도 같이 바뀐다">
+        <span class="prop-label">밑줄</span>
+        <div class="prop-icon-input" style="flex:1;min-width:0">
+          <span class="prop-xy-label">두께</span>
+          <input type="number" id="txt-ul-thick" min="1" max="12" step="0.5" value="" placeholder="자동" aria-label="밑줄 두께">
+        </div>
+        <div class="prop-icon-input" style="flex:1;min-width:0">
+          <span class="prop-xy-label">위치</span>
+          <input type="number" id="txt-ul-offset" min="-10" max="20" step="1" value="" placeholder="자동" aria-label="밑줄 위치">
         </div>
       </div>
 

@@ -257,7 +257,12 @@ export function applyTextGradient(blockEl, g, { commit = false } = {}) {
        ★글자가 ★빈 구멍이 된다(잰 값: 그라✓점✓ 에서 글자 픽셀 2315 → ★354).
      ★왜 ★여기인가 — ★caret-color 와 ★같은 fb 를 ★같은 줄에서 ★같이 쓰고 ★같은 자리에서 ★같이 걷는다
        ⇒ ★둘이 ★갈릴 ★자리가 ★없다(파생 사본을 두는 ★유일한 안전 조건). ⛔다른 곳에서 쓰지 마라. */
-  st.setProperty('--tb-grad-fb', fb);
+  /* ★★값을 ★«읽어서» 쓴다 — ★textGradientFallbackColor 는 ★html2canvas·design-json·Figma 가 ★대체색으로
+     ★이미 부르는 ★그 함수다(js/io/capture-safety.js neutralizeTextGradForH2C · js/io/save-load.js:100).
+     ⇒ ★★화면의 점 글자와 ★내보낸 PNG 가 ★«한 명부»에서 나온다. ⛔맨색을 박지 마라(지디 판정 2026-10-08).
+     ★아래 fb(지역 첫 스탑)는 ★대비용 바닥일 뿐이다 — 둘은 ★같은 값이어야 하고, ★어긋나면
+     tests/dom/text-grad-dot-ul.dom.spec.js G0 이 ★그 동일성을 ★잰다. */
+  st.setProperty('--tb-grad-fb', textGradientFallbackColor(contentEl) || fb);
   syncTextGradShadow(contentEl);   // 0919r3: 그림자·네온이 있으면 글자 «뒤»로(기록 «전»에 — 스냅샷에 같이 실린다)
   if (commit) window.pushHistory?.('글자 그라데이션');
   window.scheduleAutoSave?.();

@@ -65,11 +65,15 @@ test('T0 ★하네스가 실제로 HTML 을 낸다 + 골든 픽스처가 둘 다
 
 /* ══ T1 — 뽑기는 «동작 무변경»이었다 ══════════════════════════════════════ */
 
-/* ⛔★이 골든이 «못 보는» 칸이 ★둘 있다 — 형광펜 «색 칸»(txt-hl-color*)과 ★점 «색 칸»(txt-dot-color*) 마크업.
- *   그 칸은 prop-text.js 가 colorFieldHTML 로 만들어 hlColorHtml 로 넘기는데, 이 하네스는 vm 에
- *   prop-text.js 를 안 올리므로 빈 문자열이 들어간다 ⇒ 골든엔 «빈 자리»로 찍힌다.
- *   ★그 칸이 실제로 서는지는 tests/dom/text-highlight-bar.dom.spec.js H3 ＋ tests/dom/text-dot-over.dom.spec.js D6 이
- *     «앱 통째로» 재고, id 가 안 샜는지는 아래 T1-b 가 본다. ⛔「골든이 초록이니 색 칸도 산다」로 읽지 마라. */
+/* ⛔★이 골든이 «못 보는» 칸이 ★★셋 있다 (★2026-10-08 ★둘 → ★셋 — ★밑줄 «색 칸»이 늘었다) —
+ *   형광펜 «색 칸»(txt-hl-color*) · ★점 «색 칸»(txt-dot-color*) · ★★밑줄 «색 칸»(txt-ul-color*) 마크업.
+ *   그 칸은 prop-text.js 가 colorFieldHTML 로 만들어 hlColorHtml·dotColorHtml·★ulColorHtml 로 넘기는데,
+ *   이 하네스는 vm 에 prop-text.js 를 안 올리므로 빈 문자열이 들어간다 ⇒ 골든엔 «빈 자리»로 찍힌다.
+ *   ★그 칸이 실제로 서는지는 tests/dom/text-highlight-bar.dom.spec.js H3 ＋ tests/dom/text-dot-over.dom.spec.js D6
+ *     ＋ ★tests/dom/text-grad-dot-ul.dom.spec.js ★U-C1 이 «앱 통째로» 재고, id 가 안 샜는지는 아래 T1-b 가 본다.
+ *   ⛔「골든이 초록이니 색 칸도 산다」로 읽지 마라.
+ *   ★★그리고 ★이 수(셋)는 ★손으로 센 것이다 ⇒ ★아래 T1-c 가 ★«골든의 빈 색칸 자리 수»를 ★세서 ★이 수와 견준다
+ *     — ⛔칸을 ★더 늘리는 사람이 ★이 주석을 ★안 고치면 ★그 검사가 ★빨개진다. */
 test('T1 ★텍스트 패널 산출 HTML 이 추출 «전»과 한 글자도 다르지 않다 (골든)', () => {
   // 되돌리면 빨강: _typo-section.js 의 마크업을 한 글자라도 바꾸면(들여쓰기 포함).
   const CASES = [
@@ -90,6 +94,47 @@ test('T1 ★텍스트 패널 산출 HTML 이 추출 «전»과 한 글자도 다
       `★이 픽스처는 «추출 직전»의 코드가 낸 실물이다. 텍스트 패널을 일부러 바꾼 것이 아니라면 ` +
       `_typo-section.js 가 원문과 어긋난 것이다. 일부러 바꿨다면 픽스처를 같은 커밋에서 다시 떠라.`);
   }
+});
+
+test('T1-c ★골든이 «못 보는» 색 칸 ★수가 ★머리말의 수와 ★같다', () => {
+  /* ★되돌리면 빨강: ★색 칸을 ★하나 더 늘리고 ★위 머리말을 ★안 고치면.
+     ★★이 단언이 ★«항상 참»이 ★아님을 ★확인했다 — ★고치기 «전» 판(origin/dev)의 골든에서 이 식은
+       ★둘(txt-dot-color-row · txt-hl-color-row)을 내고 ★셋과 ★어긋난다 ⇒ ★그 판에서 ★빨강이다.
+     ★왜 ★«빈 자리»로 세나 — 이 하네스는 vm 에 prop-text.js 를 ★안 올려 colorFieldHTML 산출이
+       ★빈 문자열이다 ⇒ ★그 줄에 ★input 이 ★없다. ★그 «없음»이 ★곧 ★골든의 사각지대 ★표식이다. */
+  const BLIND_DOC = ['txt-dot-color-row', 'txt-hl-color-row', 'txt-ul-color-row'];   // ★위 머리말이 적은 셋
+  const want = fs.readFileSync(path.join(FIXDIR, 'text-props-golden.html'), 'utf8');
+  const rows = [...want.matchAll(/id="(txt-[a-z0-9-]*?-color-row)"([\s\S]*?)<\/div>/g)];
+  assert.ok(rows.length > 0, '★전제 — 골든에 color-row 가 ★0건이다. 자(정규식)가 고장났거나 골든이 비었다');
+  const blind = rows.filter(r => !/<input/.test(r[2])).map(r => r[1]).sort();
+  assert.deepEqual(blind, [...BLIND_DOC].sort(),
+    `★골든의 «빈 색 칸» 명부가 머리말과 다르다.\n  잰 것: ${blind.join(' · ') || '(0건)'}\n  머리말: ${BLIND_DOC.join(' · ')}\n` +
+    '⇒ 칸을 늘렸으면 ★위 머리말의 수와 ★DOM 검사 이름을 ★같이 고쳐라(이 검사가 그 짝이다).');
+});
+
+test('T1-d ★밑줄 칸·형광펜 Y 는 ★기본 인자에서 «한 글자도» 안 나온다 (모달·그리드·챗 바이트 동일)', () => {
+  /* ★되돌리면 빨강: showUnderlineOpts·showHighlightOpts 의 ★기본값을 true 로 바꾸거나,
+     ★분기 밖에 칸을 ★내놓으면. ⇒ 그러면 모달·그리드·챗의 ★공유 골든(tests/dom/fixtures/*.json)이 갈린다.
+     ★hlY 는 ★분기 안이라 ★안 나와야 하고, ★그 분기를 켜면 ★나와야 한다 — ★둘 다 잰다(음성＋양성). */
+  const bare = buildSection('buildTypographySectionHtml', {
+    p: 'mdl-typo', font: '', weight: '400', size: 16,
+    isBold: false, isItalic: false, isStrike: false, isHighlight: false,
+    lh: 1.6, ls: 0,
+  });
+  for (const id of ['-ul-color-row', '-ul-row', '-ul-thick', '-ul-offset', '-hl-y', '-hl-y-num']) {
+    assert.ok(!bare.includes(id), `기본 인자 산출에 ★${id} 가 나왔다 — 모달·그리드·챗의 «바이트 동일»이 깨진다`);
+  }
+  // ★양성대조 — 켜면 ★나온다(위 음성이 「그냥 아무것도 안 나온다」가 아님을 보인다)
+  const on = buildSection('buildTypographySectionHtml', {
+    p: 'mdl-typo', font: '', weight: '400', size: 16,
+    isBold: false, isItalic: false, isStrike: false, isHighlight: false,
+    lh: 1.6, ls: 0, showHighlightOpts: true, showUnderlineOpts: true, hlY: 7,
+  });
+  for (const id of ['mdl-typo-ul-thick', 'mdl-typo-ul-offset', 'mdl-typo-hl-y']) {
+    assert.ok(on.includes(`id="${id}"`), `★켰는데 ★${id} 가 ★안 나왔다 — 위 음성대조가 아무것도 안 잠근다`);
+  }
+  assert.ok(/id="mdl-typo-hl-y" min="-40" max="40" step="1" value="7"/.test(on),
+    '★hlY 가 ★칸에 ★안 꽂혔다 — 「칸이 뜬다」와 「맞게 돈다」는 다르다');
 });
 
 test('T1-b ★id 접두사만 갈아끼우면 «모달용» 마크업이 나온다 (txt- 가 안 샌다)', () => {
