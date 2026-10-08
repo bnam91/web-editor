@@ -129,6 +129,15 @@
     spin:      Object.freeze({ min: 0, max: 500 }),
   });
 
+  /** ★★«1배가 되는» 기준 속도 — ⒟(번짐을 속도에 묶기)의 ★분모.
+   *  ★★출처 = ★시안 `S.speed` 의 ★기본값이다 — `<input type="range" id="speed" … value="58">` ＋
+   *    `var S = { … speed:58, … }` ⇒ ★★«요소»에서 뽑았다(⛔산문 아님).
+   *    ★시안 식(그 파일 `frame()`): `var mag = v.link ? S.blur * (S.speed / 58) : S.blur;`
+   *  ★★⛔«우리 기본값»이 ★아니다 — ★우리 `speed` 기본은 ★★0 이다(★inert 때문에 · RANGES 머리말).
+   *    ⇒ ★그래서 ★이 수를 ★`PRESETS` 에서 ★끌어올 ★수가 ★없다. ★시안에서 ★빌려 온 ★상수다.
+   *    ⛔「우리 기본값인데 왜 58?」로 ★고치지 마라 — ★그 둘은 ★다른 수다. */
+  const BLUR_LINK_REF_SPEED = 58;
+
   const r1 = (n) => Math.round(n * 10) / 10;       // 문자열이 기계·판마다 같게(결정성) — 시안과 같은 자리수
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const HEX = /^#[0-9a-fA-F]{3,8}$/;
@@ -147,7 +156,9 @@
     // <svg> + <g layer> + <g 또렷> = 3 · 후광이면 ＋<defs><filter><feGaussianBlur>×3<feMerge><feMergeNode>×3 = 9, ＋<g halo> = 1
     const base = haloOn ? (st.count * 2 + 13) : (st.count + 3);
     /* ★방향성 번짐 — ＋<filter><feGaussianBlur> = 2 · <defs> 가 아직 없으면 ＋1(후광이 지었으면 같이 쓴다) */
-    const panCounts = st.blur > 0 && st.count > 0;
+    /* ★svg() 의 `panOn` 과 ★★같은 판정이어야 한다 — ⛔둘이 갈리면 ★노드 수가 틀린다(P10 이 잡는다) */
+    const panMag = (st.speed > 0) ? (st.blur * st.speed) / BLUR_LINK_REF_SPEED : st.blur;
+    const panCounts = panMag > 0 && st.count > 0;
     return base + (panCounts ? (haloOn ? 2 : 3) : 0);
   }
 
@@ -332,14 +343,32 @@
              (★glow-render.js:9 가 적어 둔 그대로) ⇒ ★내 자는 ★「죽음」을 ★잡는다.
        ★필터 영역 — ★세로로만 번지니 ★세로 여유만 넓게. ⛔기본 영역(-10%~110%)은 ★번짐을 ★자른다.
        ★★id 는 ★후광과 ★갈라야 한다 — ★한 문서에 ★섹션이 여럿이고 ★SVG id 는 ★문서 전역이다. */
-    const panOn = st.blur > 0 && st.count > 0;
+    /* ★★⒟ — ★번짐을 ★속도에 ★묶는다 (v1.5 ⒟ · 2026-10-09 · 지디 GO).
+       ★시안 식 그대로: `blur × (speed / 58)`.
+       ★★`speed` 가 ★0 이면 ★묶지 ★않는다 — ★★1차의 ★「고정 번짐」을 ★그대로 둔다
+         (★움직이지 ★않는 섹션에 ★진행 방향 ★번짐을 ★속도로 ★줄이면 ★★0 이 되어 ★1차가 ★사라진다.
+          ★잠그는 자 = P15 — ★`speed` 기본 0 에서 `blur=6` ⇒ `"0 6"`).
+       ★★기준 속도 58 에서 ★배수가 ★정확히 ★1 이다 ⇒ ★그 점에서 ★1차와 ★같은 그림이다.
+
+       ★★⛔«매 프레임 ★고치지» ★않는다 — ★★시안은 ★`frame()` 안에서 ★매번 ★다시 썼지만
+         ★그 식의 ★입력(`S.blur`·`S.speed`)은 ★★슬라이더를 ★움직일 때만 ★바뀌는 ★«상수»다.
+         ⇒ ★★설정 ★하나당 ★★한 값이다 ⇒ ★`svg()` 에서 ★한 번 ★계산한다.
+       ★★그래서 ★«무겁다»는 ★시안의 경고가 ★우리에겐 ★해당 없다 — ★필터 쓰기가 ★0회/프레임이다.
+       ★★그리고 ★★그 선택이 ★★더 중요한 것을 ★막는다:
+         ★실측(2026-10-09 · html2canvas): ★`stdDeviation` 을 ★★매 프레임 ★흔들며 ★찍으면
+           ★그 순간 DOM 값이 ★`"0 2.91"` / `"0 10.79"` 로 ★★분명히 달랐는데
+           ★★캡처는 ★★둘 다 ★40×18 — ★★따라오지 ★않았고 ★★«흔들림의 ★최대값»에 ★굳었다.
+           (★자는 산다: ★정적 값 0/2/12 는 ★8/14/18 로 ★갈렸고 ★같은 값 ×2 는 ★같았다)
+         ⇒ ★★매 프레임 꼴이었다면 ★★썸네일·HTML 이 ★화면과 ★다른 번짐을 ★담았을 것이다. */
+    const panBlur = (st.speed > 0) ? (st.blur * st.speed) / BLUR_LINK_REF_SPEED : st.blur;
+    const panOn = panBlur > 0 && st.count > 0;
     let panAttr = '';
     if (panOn) {
-      const PM = Math.ceil(3 * st.blur) + 8;
+      const PM = Math.ceil(3 * panBlur) + 8;
       defs += '<filter id="' + fid + '-pan" filterUnits="userSpaceOnUse"'
             + ' x="0" y="' + (-PM) + '" width="' + W + '" height="' + (H + 2 * PM) + '"'
             + ' color-interpolation-filters="sRGB">'
-            + '<feGaussianBlur in="SourceGraphic" stdDeviation="0 ' + r1(st.blur) + '"/>'
+            + '<feGaussianBlur in="SourceGraphic" stdDeviation="0 ' + r1(panBlur) + '"/>'
             + '</filter>';
       panAttr = ' filter="url(#' + fid + '-pan)"';
     }

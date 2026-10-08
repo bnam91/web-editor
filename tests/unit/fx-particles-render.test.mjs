@@ -459,3 +459,53 @@ test('P16 ★★v1.5 ⑴ 의 ★경계 — ★`speed`·`spin` 이 ★더하는 �
     assert.equal(moving.split(mark).length - 1, 0, `★${mark} 가 났다 — 움직임은 ★rAF 가 준다`);
   }
 });
+
+test('P17 ★★⒟ 속도 연동 번짐 — ★시안 식 `blur × speed/58` ＋ ★speed 0 은 ★1차 보존', () => {
+  const F = load();
+  const box = { preset: 'party', seed: 7, w: 860, h: 420, filterId: 'pfx-d' };
+  const sd = (o) => {
+    const m = F.svg({ ...box, ...o }).match(/stdDeviation="0 ([0-9.]+)"/);
+    return m ? Number(m[1]) : null;
+  };
+  /* ⒜ ★★`speed` 0 ⇒ ★1차 그대로(고정 번짐). ⛔여기서 0 이 되면 ★1차가 ★사라진다 */
+  assert.equal(sd({ blur: 6 }), 6, '★speed 기본(0)에서 ★고정 번짐이 ★안 난다 — 1차가 깨졌다');
+  /* ⒝ ★기준 속도에서 ★배수가 ★정확히 1 ⇒ ★그 점에서 ★1차와 ★같은 그림 */
+  assert.equal(sd({ blur: 6, speed: 58 }), 6, '★기준 속도에서 ★1배가 아니다');
+  /* ⒞ ★★두 배 속도 ⇒ ★두 배 번짐 (★시안 식) */
+  assert.equal(sd({ blur: 6, speed: 116 }), 12, '★속도 두 배인데 ★번짐이 ★두 배가 아니다');
+  assert.equal(sd({ blur: 6, speed: 29 }), 3, '★속도 반인데 ★번짐이 ★반이 아니다');
+  /* ⒟ ★번짐 0 이면 ★속도가 ★아무리 커도 ★없다(★끌 수 있다 — 시안의 그 성질) */
+  assert.equal(sd({ blur: 0, speed: 160 }), null, '★blur 0 인데 ★번짐이 났다 — ★못 끈다');
+});
+
+test('P17b ★★기준 속도 58 을 ★«읽는다» — ★출처를 갈아 끼우면 ★배수가 따라온다', () => {
+  const F = load();
+  const box = { preset: 'party', seed: 7, w: 860, h: 420, filterId: 'pfx-d2' };
+  const sd = (G, o) => {
+    const m = G.svg({ ...box, ...o }).match(/stdDeviation="0 ([0-9.]+)"/);
+    return m ? Number(m[1]) : null;
+  };
+  assert.equal(sd(F, { blur: 6, speed: 58 }), 6, '★전제: 지금 판에서 58 이 ★1배다');
+
+  /* ★★출처를 갈아 끼운다 — ★기준을 ★29 로 두면 ★같은 speed 58 이 ★★2배가 된다.
+     ⛔`sd === blur*speed/58` 꼴 ★하나로는 ★항등식이다(★둘이 ★같은 상수를 읽는다). */
+  const G = loadSwapped('const BLUR_LINK_REF_SPEED = 58;', 'const BLUR_LINK_REF_SPEED = 29;');
+  assert.equal(sd(G, { blur: 6, speed: 58 }), 12,
+    '★★기준을 29 로 갈았는데 ★배수가 ★안 따라온다 — ★그 수를 ★안 읽고 있다');
+  /* ★음성대조 — ★speed 0 은 ★기준과 ★무관해야 한다(★나누지 ★않는다) */
+  assert.equal(sd(G, { blur: 6 }), 6, '★speed 0 인데 ★기준이 ★끼어들었다');
+});
+
+test('P17c ★★필터 영역이 ★«묶인 번짐»을 따라온다 — ⛔날 blur 로 재면 ★잘린다', () => {
+  const F = load();
+  const box = { preset: 'party', seed: 7, w: 860, h: 420, filterId: 'pfx-d3' };
+  const yOf = (o) => {
+    const m = F.svg({ ...box, ...o }).match(/id="pfx-d3-pan"[^>]*\sy="(-?[0-9.]+)"/);
+    return m ? Number(m[1]) : null;
+  };
+  const slow = yOf({ blur: 6, speed: 58 });     /* 묶인 번짐 6  */
+  const fast = yOf({ blur: 6, speed: 116 });    /* 묶인 번짐 12 */
+  assert.ok(slow !== null && fast !== null, '★전제: 필터 영역을 ★못 읽었다');
+  assert.ok(Math.abs(fast) > Math.abs(slow),
+    `★★속도를 올려 ★번짐이 커졌는데 ★필터 영역이 ★안 넓어졌다 (${slow} → ${fast}) — ★번짐이 ★잘린다`);
+});
