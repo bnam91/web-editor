@@ -90,13 +90,25 @@ async function loadGrid(src = RAW) {
   src = src.replace("from '../grid-cell-resize.js'", 'from ' + JSON.stringify(pathToFileURL(gcrAlias).href));
   assert.notEqual(src, before2, '★grid-cell-resize.js import 를 못 찾았다 — 행높이 상한 SSOT 가 끊겼나?');
 
+  /* ★공용 sanitizer(수지⑦ 2026-10-08) — ★그리드가 ★세 번째 소비자가 되며 ★새 import 가 생겼다.
+     ★소스를 ★임시 디렉터리로 ★옮겨 얹으므로 ★상대 import 가 ★안 풀린다 ⇒ ★grid-cell-resize 와
+     ★★똑같은 방식으로 ★실물을 ★복사해 ★별칭을 ★꽂는다(⛔스텁이 아니다 — ★실물이라야
+     ★허용목록이 ★진짜 그 값이고, ★사본을 ★따로 적으면 ★명부가 둘이 된다).
+     ★`assert.notEqual` 을 ★같이 둔다 — ★그 import 가 ★사라지면 ★이 하네스가 ★조용히 통과하지 않고
+     ★「리팩터링됐나?」로 ★죽어야 한다(★grid-cell-resize 줄과 ★같은 규약). */
+  const srtAlias = path.join(os.tmpdir(), `srt-pcr-${tag}.mjs`);
+  const before3 = src;
+  src = src.replace("from '../util/sanitize-rich-text.js'", 'from ' + JSON.stringify(pathToFileURL(srtAlias).href));
+  assert.notEqual(src, before3, '★sanitize-rich-text.js import 를 못 찾았다 — 부분 서식 공용 모듈이 끊겼나?');
+  fs.copyFileSync(path.join(ROOT, 'js', 'util', 'sanitize-rich-text.js'), srtAlias);
+
   fs.copyFileSync(path.join(ROOT, 'js', 'grid-cell-resize.js'), gcrAlias);
   const alias = path.join(os.tmpdir(), `grid-pcr-${tag}.mjs`);
   fs.writeFileSync(alias, src);
   globalThis.document = makeFakeDom();
   globalThis.window = {};
   const mod = await import(pathToFileURL(alias).href);
-  fs.unlinkSync(alias); fs.unlinkSync(gcrAlias);
+  fs.unlinkSync(alias); fs.unlinkSync(gcrAlias); fs.unlinkSync(srtAlias);
   return mod;
 }
 

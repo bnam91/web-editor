@@ -3,10 +3,19 @@
  *   수지⑦ 「그리드 블럭 칸 추가 줄도 영역선택 텍스트 스타일 변경(일반 텍스트블럭처럼)」
  *   ⚠️출처는 ★2차다(server-manager → 지디 전달문) — ⛔「원문」이 아니다.
  *
- * ★★이 파일은 ★«측정 기록»이다. ★고치는 일이 ★아니다.
- *   ⛔그래서 ★전부 `test.skip` 이다 — ★돌면 ★지금의 «깨진 동작»을 ★잠가 버린다(고치면 빨개진다).
- *   ★★고치는 사람은 ⒜ skip 을 떼고 ⒝ 아래 ★단언을 ★뒤집어라(「사라진다」 → 「산다」).
+ * ★★이 파일은 ★«측정 기록»으로 ★태어났다. ★고치는 일이 ★아니었다.
  *   ★머리말의 수는 ★2026-10-08 03시 실측이다(판 = origin/dev 91b93612 이전, 커밋 9429f9ae).
+ *
+ * ══ ★★★스스로 ★한 번 바뀌었다 — ★2026-10-08 (수지⑦ 레인 `gd/suzy7` · 판 a2664a00) ═════
+ *   ★W-⑦ 는 ★더 이상 ★기록이 ★아니다 — ★skip 을 떼고 ★단언을 ★뒤집었다(「사라진다」 → ★「산다」).
+ *     ★★이 파일 ★자신의 머리말이 ★고치는 사람에게 ★그러라고 적어 두었다 ⇒ ★그대로 했다.
+ *     ⇒ ★그래서 ★구현 «전»에 ★빨강이다 — ★그게 ★이 레인의 ★양성대조다.
+ *     ★뒤집기 «전»의 기록: ★재렌더 뒤 `b=0`(서식이 ★사라졌다) · ★지금 단언: ★`fmt===true`.
+ *     ★판정자를 ★`<b>` 수에서 ★«앱 자신의 판정자»로 ★갈았다(아래 그 자리의 주석).
+ *   ★W-② 모달은 ★그대로 ★기록(skip)이다 — ⛔★내 레인(⑦)이 ★아니다. ★그 레인이 뒤집는다.
+ *   ⛔그래서 「★전부 skip 이다」는 ★이제 ★거짓이다 — ★W-② ★하나만 남았다.
+ *   ★나머지 칸(저장·무회귀·변조·꼴 B/I/U/S)은 ★`sz7-grid-rich-text.dom.spec.js` 가 잰다
+ *     (⛔★명부를 둘로 만들지 않으려고 ★「재렌더를 견디나」는 ★여기 ★한 자리에만 둔다).
  *
  * ══ ★★무엇을 쟀나 — ★전제 ★셋을 ★단언하고 ★진짜 마우스·키로 ════════════════════════
  *   ⑴ 글자를 넣고 ★모델/dataset 에 들어간 것을 확인(전제A)
@@ -105,7 +114,7 @@ async function selectTail3(page, sel) {
     return { rc: s.rangeCount, col: s.isCollapsed, str: s.toString() }; });
 }
 
-test.skip('W-⑦ 그리드 칸 — 부분 서식이 ★재렌더에서 사라진다 (2026-10-08 측정 기록)', async ({ page }) => {
+test('W-⑦ ★그리드 칸 — 부분 서식이 ★재렌더를 ★견딘다 (수지⑦ · sz7 이 ★단언을 뒤집었다 2026-10-08)', async ({ page }) => {
   const errs = await setup(page);
   const id = await page.evaluate(() => {
     const before = new Set([...document.querySelectorAll('#canvas [id]')].map(e => e.id));
@@ -133,10 +142,17 @@ test.skip('W-⑦ 그리드 칸 — 부분 서식이 ★재렌더에서 사라진
   const afterRender = await page.evaluate((i) => {
     window.renderGridBlock?.(document.getElementById(i));
     const l = document.getElementById(i).querySelector('.grd-line');
-    return { html: l.innerHTML, b: l.querySelectorAll('b,strong').length }; }, id);
+    return { html: l.innerHTML, b: l.querySelectorAll('b,strong').length,
+             /* ★판정은 ★«앱 자신의 판정자»로 — ⛔`<b>` 수로 걸지 않는다(스티커에서 ★그 전제가 틀렸다).
+                `window._stickerHtmlHasFormatting` 는 ★공용 모듈의 `richTextHasFormatting`
+                ★그 자체다(sticker-block.js:34) ⇒ ★공용 본문 무력화가 ★여기로 닿는다. */
+             fmt: window._stickerHtmlHasFormatting?.(l.innerHTML) ?? null }; }, id);
   console.log('  W-⑦ 재렌더 뒤:', JSON.stringify(afterRender));
-  /* ★★지금의 «깨진» 동작을 ★기록한다. ★고치는 사람은 ★이 단언을 ★뒤집어라(toBe(1) 로). */
-  expect(afterRender.b, `★★부분 서식이 재렌더를 ★견딘다면 이 기록이 낡았다 — 단언을 뒤집어라. 잰 값 ${JSON.stringify(afterRender)}`).toBe(0);
+  /* ★전제 — ★판정자가 ★살아 있나(양성). ⛔없으면 아래 「산다」가 ★«판정자 없음»과 ★구분되지 않는다. */
+  const judgeAlive = await page.evaluate(() => window._stickerHtmlHasFormatting?.('<b>x</b>') ?? null);
+  expect(judgeAlive, '★★공용 판정자가 ★없다 — 아래는 아무것도 안 잰다').toBe(true);
+  /* ★★2026-10-08 sz7 이 ★뒤집은 단언 — ★머리말이 ★고치는 사람에게 ★그렇게 하라고 적어 두었다. */
+  expect(afterRender.fmt, `★★부분 서식이 ★재렌더에서 ★사라졌다 — 수지⑦ 의 ★그 증상 그대로다. 잰 값 ${JSON.stringify(afterRender)}`).toBe(true);
   expect(errs).toEqual([]);
 });
 

@@ -73,9 +73,17 @@ async function loadGrid(src = RAW) {
 
   const tag = `${process.pid}-${++_seq}`;
   const gcrAlias = path.join(os.tmpdir(), `gcr-cbv-${tag}.mjs`);
+  /* ★공용 sanitizer(수지⑦ 2026-10-08) — ★그리드가 ★세 번째 소비자가 되며 ★새 import 가 생겼다.
+     ★위 gcr 별칭과 ★같은 스코프에 둔다 — ⛔안쪽 함수에 선언하면 ★바깥 `unlinkSync` 에서
+       ★`ReferenceError` 가 난다(★2026-10-08 에 ★내가 ★그렇게 ★5파일을 깼다). */
+  const srtAlias = path.join(os.tmpdir(), `srt-cbv-${tag}.mjs`);
   const before2 = src;
   src = src.replace("from '../grid-cell-resize.js'", 'from ' + JSON.stringify(pathToFileURL(gcrAlias).href));
   assert.notEqual(src, before2, '★grid-cell-resize.js import 를 못 찾았다 — 행높이 상한 SSOT 가 끊겼나?');
+  const beforeSrt = src;
+  src = src.replace("from '../util/sanitize-rich-text.js'", 'from ' + JSON.stringify(pathToFileURL(srtAlias).href));
+  assert.notEqual(src, beforeSrt, '★sanitize-rich-text.js import 를 못 찾았다 — 부분 서식 공용 모듈이 끊겼나?');
+  fs.copyFileSync(path.join(ROOT, 'js', 'util', 'sanitize-rich-text.js'), srtAlias);
 
   fs.copyFileSync(path.join(ROOT, 'js', 'grid-cell-resize.js'), gcrAlias);
   const alias = path.join(os.tmpdir(), `grid-cbv-${tag}.mjs`);
@@ -83,7 +91,7 @@ async function loadGrid(src = RAW) {
   globalThis.document = makeFakeDom();
   globalThis.window = {};
   const mod = await import(pathToFileURL(alias).href);
-  fs.unlinkSync(alias); fs.unlinkSync(gcrAlias);
+  fs.unlinkSync(alias); fs.unlinkSync(gcrAlias); fs.unlinkSync(srtAlias);
   return mod;
 }
 

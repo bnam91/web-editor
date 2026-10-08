@@ -17,10 +17,19 @@ import {
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
 import { isBlurIntoPanel, parkEditing } from './props/_text-selection.js';
-/* ★수지② 부분 서식 — ★sanitize 는 ★공용 한 벌 · ★슬롯 키 표는 ★modal-block.js 에서 ★파생한다.
-   ⛔여기에 `{title:'titleText',…}` 를 ★되적지 마라 — 그게 ★둘째 명부였다(2026-10-08 합쳤다). */
+/* ★«부분 서식 HTML» 한 벌 = js/util/sanitize-rich-text.js — ★이 파일의 ★소비자가 ★둘이다:
+ *   ★수지②(모달 슬롯) ＋ ★수지⑦(그리드 줄) — ★2026-10-08 에 ★둘이 ★같은 날 ★들어왔다.
+ *   ⛔둘 다 ★`window._sanitizeStickerHtml` 전역을 ★부르지 않는다 — ★그 모듈 머리말이 ★금지한다
+ *     (★이름이 ★거짓말을 하지 않게 ★직접 import 한다).
+ *   ⚠️★모달은 ★`opts` 를 ★안 준다(★기본 허용목록) · ★그리드는 ★`GRID_RICH_TEXT_OPTS` 를 ★준다.
+ *     ★그 가름이 ★★«남의 소비자 공격면을 안 넓힌다»의 자리다 — ⛔모달 호출에 ★그리드 목록을 ★넘기지 마라. */
 import { sanitizeRichTextHtml, richTextHasFormatting } from './util/sanitize-rich-text.js';
+/* ★수지② — ★슬롯 키 표는 ★modal-block.js 에서 ★파생한다.
+   ⛔여기에 `{title:'titleText',…}` 를 ★되적지 마라 — 그게 ★둘째 명부였다(2026-10-08 합쳤다). */
 import { MODAL_SLOT_KEYS } from './blocks/modal-block.js';
+/* ★수지⑦ — ★그리드 허용목록은 ★그리드가 들고 있다(★렌더와 ★커밋이 ★같은 한 벌을 써야 한다).
+   ⛔여기 ★사본을 적지 마라 — ★갈리면 「★커밋은 됐는데 ★렌더에서 사라진다」가 된다. */
+import { GRID_RICH_TEXT_OPTS } from './blocks/grid-block.js';
 import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth } from './frame-geometry.js';
 import {
   dragState,
@@ -205,6 +214,16 @@ function _gridReadText(host) {
   return String(host.innerText == null ? '' : host.innerText).replace(/\r\n?/g, '\n');
 }
 
+/* 화면 글자 → ★«부분 서식 HTML»(수지⑦ 2026-10-08). ★평문을 읽는 위 함수와 ★나란히 산다 —
+   ⛔평문 경로를 ★대체하지 않는다(그걸 지우면 ★옛 저장본이 ★갈린다).
+   ★여기서 ★바로 sanitize 한다 — ★커밋 경로가 ★«걸러진 것»만 들고 다니게 해서
+     「어디선가 한 번은 걸렀겠지」를 ★없앤다. ★렌더도 ★다시 거른다(저장본 변조 대비).
+   ★판정(서식이 ★실제로 있나)은 ★부르는 쪽이 ★`richTextHasFormatting` 으로 한다. */
+function _gridReadHtml(host) {
+  const raw = host.innerHTML == null ? '' : String(host.innerHTML);
+  return raw ? sanitizeRichTextHtml(raw, GRID_RICH_TEXT_OPTS) : '';
+}
+
 /* 편집 세션 종료 = «단일 커밋 choke point» (image-handling.js 편집 세션과 같은 형태).
    blur / Escape / 다른 곳 클릭이 전부 여기 하나로 모인다.
    ★pushHistory 는 여기서 «따로 부르지 않는다» — updateGridBlock 이 dataset 을 바꾸기 «직전»에
@@ -219,15 +238,33 @@ function _gridEndEdit(block, host, addr, opts = {}) {
   block.classList.remove('editing');
   const before = host._gridBefore;
   const text = _gridReadText(host);
+  /* ★★부분 서식(수지⑦ 2026-10-08) — ★서식만 바뀐 경우도 ★«바뀐 것»이다.
+     ★`textHtml` 은 ★서식이 ★실제로 있을 때만 싣는다. ★없으면 ★빈 문자열을 보내고,
+       `_gridMergeLine` 이 ★그걸 ★«키 삭제»로 읽어 ★옛 평문 경로로 ★돌아간다(스티커 선례의 delete 와 같은 뜻).
+     ⇒ ★굵게를 ★다시 눌러 ★끄면 ★묵은 HTML 이 ★안 남는다. */
+  const html = _gridReadHtml(host);
+  const beforeHtml = host._gridBeforeHtml;
+  const textHtml = richTextHasFormatting(html, GRID_RICH_TEXT_OPTS) ? html : '';
+  /* ★견주는 것은 ★«저장할 값»이다 — ⛔날 HTML 로 견주지 마라.
+     까닭: 편집 중 브라우저가 ★제멋대로 끼운 마크업(div 래퍼 등)은 ★sanitize 가 ★언랩해도
+       ★«문자열»로는 갈릴 수 있다. ★그걸 ★「바뀌었다」로 읽으면 ★글자도 서식도 ★그대로인데
+       ★커밋이 나가 ★★히스토리에 ★빈 항목이 쌓인다 — ★옛 규약(「안 바뀌면 아무것도 안 한다」)이 깨진다.
+     ⇒ ★양쪽 다 ★같은 식(`richTextHasFormatting`)을 ★통과시킨 ★뒤에 견준다. */
+  const beforeTextHtml = richTextHasFormatting(beforeHtml || '', GRID_RICH_TEXT_OPTS) ? beforeHtml : '';
   // 안 바뀌었으면 «아무것도» 하지 않는다 — 재렌더가 없어야 바로 옆 줄을 이어서 더블클릭할 때
   // DOM 이 갈리지 않고, 히스토리에 빈 항목도 안 쌓인다.
   // (before 가 없다 = 편집 진입을 안 거친 상태 → 'undefined' 를 데이터에 쓰지 않고 그냥 나간다)
-  if (before == null || text === before) return;
+  // ★평문이 같아도 ★«저장할 서식»이 갈렸으면 ★커밋한다(= 굵게만 눌렀다 / 굵게를 껐다).
+  if (before == null || (text === before && textHtml === beforeTextHtml)) return;
   /* ★DOM 을 편집 «전»으로 되돌린 뒤 커밋한다.
      updateGridBlock 안의 pushHistory 는 «직렬화된 캔버스»를 통째로 찍는다 — 타이핑된 글자가
      DOM 에 남은 채 찍히면 그 스냅샷이 「옛 dataset + 새 글자」로 어긋난다.
      되돌린 직후 updateGridBlock 이 renderGridBlock 으로 새 글자를 다시 그리므로 깜빡임은 없다. */
-  host.textContent = before;
+  /* ★편집 «전»에 ★서식이 있었으면 ★그 꼴로 되돌린다 — ★평문으로 되돌리면 그 스냅샷이
+     ★「옛 dataset(textHtml 있음) + 평문 DOM」으로 ★어긋난다(되돌리기로 ★자정되긴 하지만
+     ★스냅샷 자체가 ★거짓이 되는 것을 ★둘 까닭이 없다). ★없으면 ★옛 경로 그대로. */
+  if (beforeTextHtml) host.innerHTML = beforeTextHtml;
+  else host.textContent = before;
   /* ★중첩 «안» 줄이면 `np` 를 같이 보낸다 — T-220 ① 이 낸 쓰기 길(patchCell{lineIndex, np}).
      ⛔`np` 를 «항상» 싣지 마라: 바깥 줄 커밋의 뜻이 바뀌고, 모델 입구가 「np 는 lineIndex 와
        같이 와야 한다」를 다른 자리에서 다시 재게 된다. 있을 때만 싣는다. */
@@ -235,8 +272,8 @@ function _gridEndEdit(block, host, addr, opts = {}) {
      그 순간 패널을 다시 그리면 지금 눌린 칸이 DOM 에서 떨어져 그 조작이 «먹힌다»(TX1 측정: 그리드 크기 칸 첫 클릭). */
   const res = window.updateGridBlock?.(block.id, {
     patchCell: addr.np
-      ? { r: addr.r, c: addr.c, lineIndex: addr.li, np: addr.np, text }
-      : { r: addr.r, c: addr.c, lineIndex: addr.li, text },
+      ? { r: addr.r, c: addr.c, lineIndex: addr.li, np: addr.np, text, textHtml }
+      : { r: addr.r, c: addr.c, lineIndex: addr.li, text, textHtml },
   }, opts.keepPanel ? { keepPanel: true } : undefined);
   // 실패(좌표가 범위 밖 등)면 화면은 이미 «편집 전»이라 화면·데이터가 갈라진 채 남지 않는다.
   if (res && res.ok === false) window.showToast?.(`줄 수정 실패: ${res.message || res.code}`);
@@ -330,6 +367,10 @@ function _gridBeginEdit(hit, e) {
   // (텍스트 블록도 같은 이유로 contenteditable 요소에 draggable=false 를 박는다 — 이 파일의 dragTarget 배선).
   host.setAttribute('draggable', 'false');
   host._gridBefore = _gridReadText(host);
+  /* ★★부분 서식(수지⑦) — ★HTML 도 ★같이 기억한다.
+     ⛔평문만 기억하면 ★«글자는 그대로고 ★서식만 바뀐» 경우(굵게만 눌렀다)를 ★«안 바뀌었다»로 읽어
+       ★아래 _gridEndEdit 가 ★그냥 나가고 ★★서식이 ★영영 커밋되지 않는다. */
+  host._gridBeforeHtml = _gridReadHtml(host);
   const addr = np ? { r, c, li, np } : { r, c, li };
   // 라인 요소는 렌더마다 새로 만들어진다 → 이 요소에 처음 한 번만 붙이면 된다(누수 없음).
   if (!host._gridEditBound) {

@@ -44,6 +44,15 @@ const beforeGcr = src;
 src = src.replace(GCR_SPEC, 'from ' + JSON.stringify(pathToFileURL(gcrAliasPath).href));
 assert.notEqual(src, beforeGcr, "소스에서 grid-cell-resize.js import 를 못 찾음 — 행높이 상한 SSOT 가 끊겼나?");
 
+/* ★공용 sanitizer(수지⑦ 2026-10-08) — ★그리드가 ★세 번째 소비자가 되며 ★새 import 가 생겼다.
+   ★위 gcr 와 ★같은 까닭·같은 꼴이다(사본이 tmpdir 로 가면 상대경로가 레포 밖을 가리킨다).
+   ⛔스텁 금지 — ★허용목록이 ★진짜 그 값이라야 한다. */
+const SRT_SPEC = "from '../util/sanitize-rich-text.js'";
+const srtAliasPath = path.join(os.tmpdir(), `srt-alias-p1-${process.pid}.mjs`);
+const beforeSrt = src;
+src = src.replace(SRT_SPEC, 'from ' + JSON.stringify(pathToFileURL(srtAliasPath).href));
+assert.notEqual(src, beforeSrt, "소스에서 sanitize-rich-text.js import 를 못 찾음 — 부분 서식 공용 모듈이 끊겼나?");
+
 /* ── 미니 DOM(이 파일이 실제로 쓰는 API 표면만) ── */
 function makeFakeDom() {
   const registry = new Map();
@@ -86,6 +95,7 @@ before(async () => {
   // ★grid-cell-resize 도 «바이트 그대로» .mjs 사본으로 둔다 — package.json 이 type:commonjs 라
   //   레포의 .js 를 그대로 import 하면 CJS 로 읽혀 named export(ROW_H_MAX)가 안 나온다.
   fs.copyFileSync(path.join(__dirname, '../../js/grid-cell-resize.js'), gcrAliasPath);
+  fs.copyFileSync(path.join(__dirname, '../../js/util/sanitize-rich-text.js'), srtAliasPath);
   fs.writeFileSync(aliasPath, src);
   globalThis.document = makeFakeDom();
   globalThis.window = {}; // updateGridBlock/makeGridBlock 은 window.* 를 전부 옵셔널 체이닝(?.)으로 부른다
@@ -700,7 +710,6 @@ test('중첩/innercard 회귀 — 중첩 duo 안쪽 줄에는 좌표가 «0건»
   assert.equal((block.innerHTML.match(/data-line="/g) || []).length, 1, '주소는 최상위 줄 1개뿐 — 안쪽 2줄엔 0건');
   assert.ok(block.innerHTML.includes('>IN0<') && block.innerHTML.includes('>IN1<'), '안쪽 줄은 그대로 렌더된다');
 });
-
 
 /* ═══ ⑧ 셸 정체성 승격 (2026-09-05 개명) ═══
  * ★이 절이 지키는 것 = 「옛 저장본을 열면 새 이름이 되고, id 는 그대로다」.

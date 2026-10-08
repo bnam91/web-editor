@@ -2847,6 +2847,12 @@ function _grdTypoSectionsHtml(hit, block) {
          inline-block + padding + border-radius:999px, 즉 형광펜이 «알약»이 된다.
          형광펜을 원하면 line.bg 를 넓히는 별건 발주다. 다음 사람이 「빠졌네」 하고
          true 로 되돌리면 tests/unit/grid-line-typo.test.js U1-c 가 빨강을 낸다. */
+      /* ★★2026-10-08 수지⑦ — ★부분/전체 형광펜은 ★`tb-hl` span 으로 ★따로 간다(★이 false 를 ★안 건드린다).
+       *   ★왜 ★그렇게 갈랐나: ★위 까닭(line.bg → 뱃지 → ★알약)은 ★★여전히 ★참이다.
+       *     ★`line.bg` 를 ★넓히면 ★알약 문제를 ★정면으로 만나고 ★U1-c 도 ★같이 갈아야 한다.
+       *     ★`span.tb-hl` 은 ★`line.bg` 를 ★안 건드리니 ★뱃지 분기로 ★안 가고 ★알약이 ★안 된다.
+       *   ⇒ ★★그래서 ★이 `false` 와 ★위 주석은 ★★그대로 둔다 — ★«글자 배경»의 명부가 ★둘이 되지 않게.
+       *   ⚠️현빈 「다 하자」(2026-10-08)는 ★«범위»를 넓힌 것이고 ★★이 설계 판단을 ★무효로 한 것이 ★아니다. */
       showHighlight: false,
     })}
     ${buildFillSectionHtml({

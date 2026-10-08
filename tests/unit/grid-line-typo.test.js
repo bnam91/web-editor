@@ -45,10 +45,18 @@ const STUB = "const insertAfterSelected = () => {};\nconst genId = (p) => `${p}_
   assert.notEqual(src, before_, '소스에서 drag-utils/drag-drop import 2줄을 못 찾음 — 리팩터링됐나?');
 }
 const gcrAliasPath = path.join(os.tmpdir(), `grid-cell-resize-alias-typo-${process.pid}.mjs`);
+/* ★공용 sanitizer(수지⑦ 2026-10-08) — ★그리드가 ★세 번째 소비자가 되며 ★새 import 가 생겼다.
+   ★위 gcr 별칭과 ★같은 스코프에 둔다 — ⛔안쪽 함수에 선언하면 ★바깥 `unlinkSync` 에서
+     ★`ReferenceError` 가 난다(★2026-10-08 에 ★내가 ★그렇게 ★5파일을 깼다). */
+const srtAlias = path.join(os.tmpdir(), `srt-alias-typo-${process.pid}.mjs`);
 {
   const before_ = src;
   src = src.replace("from '../grid-cell-resize.js'", 'from ' + JSON.stringify(pathToFileURL(gcrAliasPath).href));
   assert.notEqual(src, before_, "grid-cell-resize.js import 를 못 찾음");
+  const beforeSrt = src;
+  src = src.replace("from '../util/sanitize-rich-text.js'", 'from ' + JSON.stringify(pathToFileURL(srtAlias).href));
+  assert.notEqual(src, beforeSrt, '★sanitize-rich-text.js import 를 못 찾았다 — 부분 서식 공용 모듈이 끊겼나?');
+  fs.copyFileSync(path.join(ROOT, 'js/util/sanitize-rich-text.js'), srtAlias);
 }
 
 function makeFakeDom() {
@@ -84,7 +92,7 @@ before(async () => {
   globalThis.document = makeFakeDom();
   globalThis.window = {};
   const mod = await import(pathToFileURL(aliasPath).href);
-  fs.unlinkSync(aliasPath); fs.unlinkSync(gcrAliasPath);
+  fs.unlinkSync(aliasPath); fs.unlinkSync(gcrAliasPath); fs.unlinkSync(srtAlias);
   ({ gridLineHtml, GRID_ROLES, makeGridBlock, updateGridBlock, getGridModel, gridPreviewLine, gridLineHasText } = mod);
 });
 

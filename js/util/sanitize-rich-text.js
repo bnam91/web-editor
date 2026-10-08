@@ -80,6 +80,12 @@ const VAL_HEX  = /^#[0-9a-fA-F]{3,8}$/;
 const VAL_FUNC = /^(?:rgb|rgba|hsl|hsla)\(\s*[0-9.,\s%/]+\)$/i;
 const VAL_WORD = /^[a-z]+(?:[ -][a-z]+)*$/i;
 const VAL_NUM  = /^[0-9]{1,3}$/;
+/* ★부호 있는 수 — ★소비자가 더한 style prop «전용»(아래 `opts.styleProps`).
+   ★왜 필요한가: 점 찍기의 `--tb-dot-i` 는 ★`-1`·`-0.5`·`0.5` 처럼 ★음수·소수다
+     (`prop-text-wireup-text-edit.js:655` `String(i - (n - 1) / 2)`).
+   ⛔기본 명부(RICH_TEXT_ALLOWED_STYLE_PROPS)의 값 검사는 ★한 글자도 안 바꿨다 —
+     ★이 패턴은 ★«소비자가 명시한 prop»에만 ★추가로 열린다. */
+const VAL_SNUM = /^-?(?:[0-9]{1,4})(?:\.[0-9]{1,4})?$/;
 
 function safeStyleValue(rawVal) {
   const v = String(rawVal).trim();
@@ -88,7 +94,38 @@ function safeStyleValue(rawVal) {
   return null; // url(...)·expression(...)·javascript:·기타 함수/특수문자 = 그 선언 제거 (#4 교훈)
 }
 
-function sanitizeStyle(styleStr) {
+/* ★«소비자가 허용목록을 준다»(수지⑦ 2026-10-08 · 지디 판정) ────────────────────
+ * ⛔공용 필터를 ★전부에게 ★넓히지 않는다 — 넓히면 ★스티커·모달의 ★공격면이 ★같이 는다.
+ *   ⇒ ★본문(이 모듈)은 ★하나로 두고, ★«어디까지 허용하나»만 ★소비자가 ★인자로 준다.
+ * ★`opts` 를 ★안 주면 ★★지금 동작 그대로다 — ★그 무변을 ★검사가 잠근다
+ *   (`rich-text-consumer-sticker.dom.spec.js` 5칸 ＋ `sz7-grid-rich-text` 의 ★무변 칸).
+ * ★모양: `{ classes: ['tb-hl','tb-dot'], styleProps: ['--tb-dot-i'] }`
+ *   ⛔둘 다 ★«화이트리스트»다 — ★`class` 를 ★통째로 열지 않는다(★이름을 ★하나씩 적는다).
+ */
+function normOpts(opts) {
+  if (!opts) return null;
+  const classes = new Set();
+  const styleProps = new Set();
+  for (const c of (opts.classes || [])) {
+    const t = String(c).trim();
+    if (t) classes.add(t);
+  }
+  for (const p of (opts.styleProps || [])) {
+    const t = String(p).trim().toLowerCase();
+    if (t) styleProps.add(t);
+  }
+  if (!classes.size && !styleProps.size) return null;
+  return { classes, styleProps };
+}
+
+/* 허용된 class 토큰만 남긴다 — `class="tb-hl evil"` → `class="tb-hl"` · `class="evil"` → 없음. */
+function safeClass(raw, cfg) {
+  if (!raw || !cfg || !cfg.classes.size) return '';
+  const kept = String(raw).split(/\s+/).filter((t) => t && cfg.classes.has(t));
+  return kept.join(' ');
+}
+
+function sanitizeStyle(styleStr, cfg) {
   if (!styleStr) return '';
   const kept = [];
   for (const decl of String(styleStr).split(';')) {
@@ -96,15 +133,19 @@ function sanitizeStyle(styleStr) {
     if (idx < 0) continue;
     const prop = decl.slice(0, idx).trim().toLowerCase();
     const val  = decl.slice(idx + 1).trim();
-    if (!RICH_TEXT_ALLOWED_STYLE_PROPS.has(prop)) continue;
-    const safe = safeStyleValue(val);
+    const isBase = RICH_TEXT_ALLOWED_STYLE_PROPS.has(prop);
+    const isExtra = !!(cfg && cfg.styleProps.has(prop));
+    if (!isBase && !isExtra) continue;
+    /* ★기본 명부의 값 검사는 ★그대로. ★소비자가 더한 prop 만 ★부호 있는 수도 받는다.
+       ⛔그래도 ★화이트리스트다 — `url(`·`javascript:` 는 ★두 패턴 ★어느 쪽도 ★통과 못 한다. */
+    const safe = safeStyleValue(val) ?? (isExtra && VAL_SNUM.test(val) ? val : null);
     if (safe == null) continue;
     kept.push(`${prop}:${safe}`);
   }
   return kept.join(';');
 }
 
-function sanitizeInto(srcParent, dstParent) {
+function sanitizeInto(srcParent, dstParent, cfg) {
   const doc = dstParent.ownerDocument || document;
   srcParent.childNodes.forEach((node) => {
     if (node.nodeType === 3) { // 텍스트 — 제어문자만 정화(\t·\n 보존), esc는 innerHTML 직렬화가 담당
@@ -117,35 +158,45 @@ function sanitizeInto(srcParent, dstParent) {
     if (RICH_TEXT_ALLOWED_TAGS.has(tag)) {
       const clean = doc.createElement(tag.toLowerCase());
       if (tag === 'SPAN') {
-        const safeStyle = sanitizeStyle(node.getAttribute('style'));
+        /* ★소비자가 ★이름을 ★적은 class 만 ★살린다(없으면 ★옛 동작 = ★전부 제거).
+           ★`class` 를 ★`style` ★«앞»에 둔다 — ★직렬화 순서가 ★그대로 산출이 되므로
+             ★`<span class="tb-dot" style="--tb-dot-i:…">` 로 ★읽는 순서와 ★같게 둔다
+             (★2026-10-08 실측: 뒤에 두면 `<span style="…" class="…">` 로 나와 ★바이트 대조가 ★헛돈다). */
+        const safeCls = safeClass(node.getAttribute('class'), cfg);
+        if (safeCls) clean.setAttribute('class', safeCls);
+        const safeStyle = sanitizeStyle(node.getAttribute('style'), cfg);
         if (safeStyle) clean.setAttribute('style', safeStyle);
       }
-      if (tag !== 'BR') sanitizeInto(node, clean); // 그 외 속성(on*/href/src/class/id/data-*)은 미복사=제거
+      if (tag !== 'BR') sanitizeInto(node, clean, cfg); // 그 외 속성(on*/href/src/id/data-*)은 미복사=제거
       dstParent.appendChild(clean);
     } else {
-      sanitizeInto(node, dstParent); // 비허용 태그 = 언랩(자식만 재귀 편입)
+      sanitizeInto(node, dstParent, cfg); // 비허용 태그 = 언랩(자식만 재귀 편입)
     }
   });
 }
 
 // 문자열 HTML → sanitize된 문자열 HTML. template.content(inert DocumentFragment)에서 파싱.
-export function sanitizeRichTextHtml(html) {
+export function sanitizeRichTextHtml(html, opts) {
   const tpl = document.createElement('template');
   tpl.innerHTML = String(html == null ? '' : html);
   const out = document.createElement('div');
-  sanitizeInto(tpl.content, out);
+  sanitizeInto(tpl.content, out, normOpts(opts));
   return out.innerHTML;
 }
 
 // sanitize된 html에 «실제 인라인 서식»이 있는지 판정 — 서식 태그(b/strong/i/em/u/s)나 style 달린 span.
 //   <br>(줄바꿈)만 있는 건 서식 아님(평문 경로 유지). finish()의 textHtml 생성 여부 판정에 사용.
-export function richTextHasFormatting(html) {
+export function richTextHasFormatting(html, opts) {
   if (!html) return false;
   const tpl = document.createElement('template');
   tpl.innerHTML = String(html);
   if (tpl.content.querySelector('b,strong,i,em,u,s,strike')) return true;
+  const cfg = normOpts(opts);
   for (const s of tpl.content.querySelectorAll('span')) {
     if (s.getAttribute('style')) return true;
+    /* ★형광펜·점은 ★`class` 로 산다(style 이 없을 수 있다) ⇒ ★허용된 class 가 붙었으면 ★서식이다.
+       ⛔`opts` 를 ★안 주면 ★이 줄은 ★한 번도 ★참이 되지 않는다 = ★옛 판정 그대로. */
+    if (cfg && safeClass(s.getAttribute('class'), cfg)) return true;
   }
   return false;
 }
