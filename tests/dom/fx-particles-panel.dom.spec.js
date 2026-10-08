@@ -334,7 +334,7 @@ test('D4 ★프리셋·개수·모양을 ★만지면 ★그림이 ★따라 바
   const kinds = await page.evaluate(() => window.ParticlesFx.KINDS);
   expect(kinds.length, '★전제: 프리셋이 둘 이상이다 — 아니면 「바꿨다」를 못 만든다').toBeGreaterThan(1);
   const before = await drawn(page);
-  await page.selectOption('#sec-fxpart-preset', kinds[1]);
+  await page.click(`#sec-fxpart-presets [data-fxpart-preset="${kinds[1]}"]`);
   await page.waitForTimeout(150);
   const afterPreset = await drawn(page);
   expect(afterPreset.cfg.preset, '★프리셋을 골랐는데 ★저장값이 ★안 바뀌었다').toBe(kinds[1]);
@@ -343,8 +343,8 @@ test('D4 ★프리셋·개수·모양을 ★만지면 ★그림이 ★따라 바
   expect(afterPreset.cfg.seed, '★프리셋을 바꿨더니 ★seed 가 바뀌었다 — 무늬 번호는 그대로여야 한다').toBe(before.cfg.seed);
 
   /* ⑵ ★개수 — ★슬라이더가 아니라 ★수 칸으로(결정적이다) */
-  await page.fill('#sec-fxpart-count-num', '12');
-  await page.dispatchEvent('#sec-fxpart-count-num', 'input');
+  await page.fill('[data-fxpart-axis="count"]', '12');
+  await page.dispatchEvent('[data-fxpart-axis="count"]', 'input');
   await page.waitForTimeout(150);
   const afterCount = await drawn(page);
   expect(afterCount.cfg.count, '★개수를 12 로 쳤는데 ★저장값이 ★안 따라왔다').toBe(12);
@@ -353,8 +353,8 @@ test('D4 ★프리셋·개수·모양을 ★만지면 ★그림이 ★따라 바
 
   /* ⑶ ★상한 — ⛔거절이 아니라 ★«자른다»(particles-render.js:164) */
   const max = await page.evaluate(() => window.ParticlesFx.MAX_COUNT);
-  await page.fill('#sec-fxpart-count-num', String(max + 500));
-  await page.dispatchEvent('#sec-fxpart-count-num', 'input');
+  await page.fill('[data-fxpart-axis="count"]', String(max + 500));
+  await page.dispatchEvent('[data-fxpart-axis="count"]', 'input');
   await page.waitForTimeout(150);
   expect((await drawn(page)).cfg.count, `★상한(${max})을 넘겨 쳤는데 ★안 잘렸다`).toBe(max);
 
@@ -409,12 +409,120 @@ test(`D5 ★★작은 창(${SMALL_H}) — ★칸이 ★여전히 ★창 안이�
 
   /* ★★켠 ★뒤에도 ★창 안인가 — ★켜면 ★칸이 ★셋 늘어난다(프리셋·개수·모양) ⇒ ★끄는 단추가 ★아래로 밀린다.
      ★★이것이 ★진짜 위험이다 — ★「켜기」는 되는데 ★「끄기」가 ★화면 밖이면 ★되돌릴 길이 없다. */
-  for (const sel of ['#sec-fxpart-preset', '#sec-fxpart-count', '#sec-fxpart-shapes', '#sec-fxpart-toggle']) {
+  for (const sel of ['#sec-fxpart-presets', '#sec-fxpart-reroll', '#sec-fxpart-seed',
+                     '[data-fxpart-axis="count"]', '#sec-fxpart-colors', '#sec-fxpart-rot',
+                     '#sec-fxpart-dist', '#sec-fxpart-shapes', '#sec-fxpart-off']) {
     const r = await reach(page, sel);
     expect(r.found, `★켠 뒤 ${sel} 가 없다`).toBe(true);
     expect(r.inWindow, `★켠 뒤 ★${sel} 가 ★창 밖이다 (중심 y=${r.cy} · 창=${r.innerH}) — 못 만진다`).toBe(true);
     expect(r.hits, `★켠 뒤 ★${sel} 의 맨 위가 ★남이다 (맨 위=${r.topTag})`).toBe(true);
   }
+
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
+
+/* ═══ D6 ★★«축 전수»를 ★사람처럼 ★만진다 — ★★현빈이 「어디갔냐」 한 ★그 축들 ═════ */
+
+test('D6 ★★시안의 축 전수 — ★이름·순서가 맞고 ★하나하나 ★만지면 ★값이 ★따라온다', async ({ page }) => {
+  /* ★★현빈 2026-10-08 「파티클 ★시안보여줬던대로 ★안보이는데?? ★조절하는 항목들 ★어디갔냐??
+       ★아티팩트에 있던것들 말야 ★조절옵션들 ★왜 줄여」
+     ⇒ ★1차는 ★축이 ★`count` ★하나였다. ★이 칸이 ★«다시 줄어드는 것»을 ★행위로 막는다.
+     ★★단위(P11·P12·P13)는 ★«칸이 나는가»를 재고, ★여기는 ★«눌러서 ★값이 바뀌는가»를 잰다. */
+  const errs = await setup(page);
+  await growViewport(page);
+  await page.click('#sec-fxpart-toggle');
+  await page.waitForTimeout(200);
+
+  const panel = page.locator('#panel-right');
+
+  /* ★★⑴ ★칸 이름·순서 — ★★앱에서도 ★시안 그대로인가(★단위가 아니라 ★실제 패널에서) */
+  const labels = await page.evaluate(() =>
+    [...document.querySelectorAll('#sec-fxpart-card .prop-label')].map((e) => e.textContent.trim()));
+  expect(labels, '★★앱 패널의 칸 이름·순서가 ★시안과 다르다').toEqual(
+    ['무늬번호', '갯수', '색', '크기', '불투명도', '흔들림', '회전', '분포', '글로우', '퍼짐', '모양']);
+
+  /* ★★⑵ ★RANGES 축 전수가 ★칸을 가졌나 — ⛔7 을 적지 않는다. ★앱에서 ★센다 */
+  const axes = await page.evaluate(() => ({
+    ranges: Object.keys(window.ParticlesFx.RANGES).sort(),
+    cells: [...document.querySelectorAll('[data-fxpart-axis]')].map((e) => e.dataset.fxpartAxis).sort(),
+  }));
+  expect(axes.cells, `★축 칸과 RANGES 키가 다르다 (칸 ${axes.cells} · RANGES ${axes.ranges})`).toEqual(axes.ranges);
+
+  /* ★★⑶ ★축마다 ★눌러 본다 — ★★«중간값»을 넣어 ★저장값이 ★그 수가 되나.
+     ⛔어느 축도 ★건너뛰지 않는다(★`for` 가 ★RANGES 를 돈다 ⇒ ★축이 늘면 ★여기도 ★같이 돈다). */
+  for (const key of axes.ranges) {
+    const r = await page.evaluate((k) => window.ParticlesFx.RANGES[k], key);
+    /* ★중간값 — ★⛔min 이나 max 를 쓰면 ★「원래 그 값이었다」와 ★구분이 안 된다 */
+    const mid = Math.round((r.min + r.max) / 2);
+    const sel = `[data-fxpart-axis="${key}"]`;
+    const was = (await drawn(page)).cfg[key];
+    await page.fill(sel, String(mid));
+    await page.dispatchEvent(sel, 'input');
+    await page.waitForTimeout(90);
+    const now = (await drawn(page)).cfg[key];
+    /* ★★crop·min/max 뒤바뀜 보정이 있어 ★«정확히 mid»가 아닐 수 있다(smin>smax 면 swap)
+       ⇒ ★★그래서 ★«칸이 보여 주는 수»와 ★«저장값»이 ★같은지로 잰다 — ★그것이 ★거짓말 안 하는 조건이다 */
+    const shown = await page.inputValue(sel);
+    expect(Number(shown), `★${key}: 칸에 보이는 수(${shown})와 저장값(${now})이 다르다 — 칸이 거짓말한다`).toBe(now);
+    expect(now, `★${key}: ${was} → ${mid} 로 쳤는데 저장값이 ${now} 다 — 안 먹었다`).not.toBe(was);
+  }
+
+  /* ★★⑷ ★회전(참거짓) — ★RANGES 에 ★없는 축. ⇒ ★따로 잰다 */
+  const rotWas = (await drawn(page)).cfg.rot;
+  await page.click('#sec-fxpart-rot');
+  await page.waitForTimeout(120);
+  expect((await drawn(page)).cfg.rot, `★회전이 ${rotWas} 에서 안 바뀌었다`).toBe(!rotWas);
+
+  /* ★★⑸ ★분포 — `DISTS` 에서 ★«지금 아닌 값»을 골라야 ★바뀜을 잰다 */
+  const dists = await page.evaluate(() => window.ParticlesFx.DISTS);
+  expect(dists.length, '★전제: 분포가 둘 이상이다').toBeGreaterThan(1);
+  const distWas = (await drawn(page)).cfg.dist;
+  const other = dists.find((d) => d !== distWas);
+  await page.selectOption('#sec-fxpart-dist', other);
+  await page.waitForTimeout(120);
+  expect((await drawn(page)).cfg.dist, `★분포가 ${distWas} → ${other} 로 안 바뀌었다`).toBe(other);
+
+  /* ★★⑹ ★무늬번호 — ★사람이 적는 수. ★같은 번호면 ★같은 그림이라는 계약도 ★같이 잰다 */
+  const seedWas = (await drawn(page)).cfg.seed;
+  await page.fill('#sec-fxpart-seed', '12345');
+  await page.dispatchEvent('#sec-fxpart-seed', 'change');
+  await page.waitForTimeout(120);
+  const afterSeed = await drawn(page);
+  expect(afterSeed.cfg.seed, `★무늬번호가 ${seedWas} → 12345 로 안 바뀌었다`).toBe(12345);
+  const svgAt12345 = afterSeed.svgLen;
+  /* ★다른 번호 → ★다른 그림 · ★돌아오면 ★같은 그림 (★결정성) */
+  await page.fill('#sec-fxpart-seed', '999');
+  await page.dispatchEvent('#sec-fxpart-seed', 'change');
+  await page.waitForTimeout(120);
+  await page.fill('#sec-fxpart-seed', '12345');
+  await page.dispatchEvent('#sec-fxpart-seed', 'change');
+  await page.waitForTimeout(120);
+  expect((await drawn(page)).svgLen, '★같은 무늬번호로 돌아왔는데 ★그림 길이가 다르다 — 결정성이 깨졌다').toBe(svgAt12345);
+
+  /* ★★⑺ ★다시 뿌리기 — ★seed 가 ★바뀐다 */
+  const beforeRoll = (await drawn(page)).cfg.seed;
+  await page.click('#sec-fxpart-reroll');
+  await page.waitForTimeout(120);
+  expect((await drawn(page)).cfg.seed, '★다시 뿌리기를 눌렀는데 ★무늬번호가 그대로다').not.toBe(beforeRoll);
+
+  /* ★★⑻ ★색 — ★더하기 / ★빼기. ★상한 8 은 ★normalize 의 수다 */
+  const csWas = (await drawn(page)).cfg.colors.length;
+  await page.click('#sec-fxpart-color-add');
+  await page.waitForTimeout(150);
+  expect((await drawn(page)).cfg.colors.length, `★색 더하기를 눌렀는데 ${csWas} 에서 안 늘었다`).toBe(csWas + 1);
+  await page.click('[data-fxpart-color-del="0"]');
+  await page.waitForTimeout(150);
+  expect((await drawn(page)).cfg.colors.length, '★색 빼기를 눌렀는데 안 줄었다').toBe(csWas);
+
+  /* ★★⑼ ★접기 — ★패널 «표시»만. ⛔데이터는 ★안 변한다 */
+  const cfgBeforeFold = JSON.stringify((await drawn(page)).cfg);
+  await page.click('#sec-fxpart-fold');
+  await page.waitForTimeout(120);
+  await expect(panel.locator('#sec-fxpart-body'), '★접었는데 몸이 ★안 숨었다').toBeHidden();
+  expect(JSON.stringify((await drawn(page)).cfg), '★접었더니 ★데이터가 바뀌었다 — 접기는 표시만이다').toBe(cfgBeforeFold);
+  await page.click('#sec-fxpart-fold');
+  await page.waitForTimeout(120);
+  await expect(panel.locator('#sec-fxpart-body'), '★다시 펼쳤는데 몸이 ★안 보인다').toBeVisible();
 
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
