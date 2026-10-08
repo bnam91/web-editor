@@ -71,6 +71,14 @@ test('V1 ★★패닝 축이 ★전부 0 이면 ★루프가 ★건드리지 않
   const before = await marks(page);
   expect(before.n, '★전제: 축이 0 인데 ★꼬리표가 붙었다 — inert 가 깨졌다').toBe(0);
 
+  /* ★★잡음대조 — ★★«움직임 0» 의 ★바닥을 ★먼저 잰다.
+     ⛔없으면 ★★«1px 떨림»을 ★★«안 움직임»으로 ★읽는다. ★참 Δ 가 ★구조적으로 ★0 인 자리다:
+       ★아무도 ★안 썼는데 ★두 번 읽으면 ★같아야 한다. ★여기서 ★0 이 안 나오면 ★아래 수는 ★못 쓴다. */
+  const z0 = await marks(page);
+  await page.waitForTimeout(300);
+  const z1 = await marks(page);
+  expect(z1.t, '★★잡음 바닥: ★아무도 안 썼는데 ★자리가 바뀐다 — ★아래 「0」은 ★뜻이 없다').toEqual(z0.t);
+
   const movedZero = await page.evaluate(() => window.ParticlesAnim.step(2000));
   expect(movedZero, '★★축이 전부 0 인데 ★루프가 ★알맹이를 건드렸다 — 옛 섹션이 움직인다').toBe(0);
 
@@ -86,6 +94,13 @@ test('V1 ★★패닝 축이 ★전부 0 이면 ★루프가 ★건드리지 않
   const movedSome = await page.evaluate(() => window.ParticlesAnim.step(2000));
   expect(movedSome, '★★축을 줬는데도 ★루프가 ★0개를 움직였다 — 이 자는 아무것도 안 재고 있다')
     .toBeGreaterThan(0);
+
+  /* ⒞ ★★«행위»가 ★«설정»과 ★갈리는 자리 — ★자리가 ★정말 바뀌었나(★수가 아니라 ★글자로).
+     ★★P14c(unit)는 ★«PRESETS 기본»을 잰다 ⇒ ★★«설정이 0»까지다.
+     ★이 줄이 ★★«행위가 0»을 잰다 — ★그 둘은 ★다른 것이다. */
+  const after = await marks(page);
+  expect(after.t.some((t) => /^translate\(0,[-0-9.]+\) rotate\(/.test(t)),
+    '★움직였다는데 ★transform 꼴이 안 났다').toBe(true);
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 
