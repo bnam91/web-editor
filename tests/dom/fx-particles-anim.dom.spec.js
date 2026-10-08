@@ -485,3 +485,89 @@ test('V7 ★★모션 감소 — ★켜면 ★멈추고 ★끄면 ★다시 돈�
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
+
+/* ═══ V8 — ★뷰포트 컬링 (v1.5 ⑶) ═══════════════════════════════════════════
+ *  ★왜 — ★실측(섹션 20 · 노드 5,060): ★전부 돌림 ★프레임중앙 ★16.7ms vs ★보이는 것만 ★8.3ms
+ *    (★둘 다 ★같은 조건 ×3 에서 ★퍼짐 ★0ms). ★JS 는 ★2.1ms 였다 ⇒ ★값은 ★재렌더에 있다.
+ *  ★칸 넷(지디 2026-10-09 ④⑶): ⒜켜고 끈 두 수 ⒝잡음대조 ⒞굴려 들어오면 돈다(양·음) ⒟제자리인가
+ *    ⒜⒝(성능)는 ★앱에서 ★따로 잰다 — ★이 칸은 ★★«행위»다. */
+async function twoSections(page) {
+  await page.evaluate(() => {
+    const canvas = document.getElementById('canvas');
+    canvas.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const mk = (id) => '<div class="section-block" id="' + id + '" data-section="1" style="background:#0A0A0C">'
+      + '<div class="section-hitzone"></div><div class="section-inner" style="padding-left:40px">'
+      + '<div class="gap-block" data-type="gap" style="height:4000px"></div></div></div>';
+    /* ★★4000 인 까닭 — ★앱 기본 줌이 ★40% 라 ★1400 짜리는 ★560px 로 줄어 ★둘 다 ★화면에 들어온다
+       (★실측 2026-10-09: secA 84~644 · secB 684~1244 · innerH 1000 · CULL_MARGIN 200 ⇒ ★둘 다 ★보임).
+       ⇒ ★★전제 단언이 ★그것을 ★잡았다. ★수를 ★키워 ★장면을 ★세운다. */
+    canvas.insertAdjacentHTML('beforeend', mk('secA') + mk('secB'));
+    window.rebindAll?.();
+    for (const id of ['secA', 'secB']) {
+      const sec = document.getElementById(id);
+      /* ★같은 씨값·같은 설정 — ★두 섹션이 ★같은 그림이어야 ⒟ 가 ★뜻을 갖는다 */
+      window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
+      window.applySectionParticles(sec);
+    }
+    window.ParticlesAnim.stop();                   /* ★쓰는 자를 ★나 하나로 */
+    /* ★★굴리는 것은 ★`window` 가 ★아니라 ★`#canvas-wrap` 이다(실측: overflowY auto).
+       ★★그리고 ★`scrollTop = 0` 으로는 ★안 된다 — ★캔버스가 ★아래로 치우쳐 있어
+         ★실측(2026-10-09)에 ★secA.top 이 ★1996 이었다(★둘 다 ★화면 밖).
+       ⇒ ★★첫 섹션을 ★«실제로 보이게» 굴린다 — ★그래야 ★A 는 보이고 ★B 는 안 보인다.
+         ★그 둘을 ★아래 ★전제 단언이 ★다시 잰다(⛔여기서 ★믿고 넘어가지 않는다). */
+    document.getElementById('secA').scrollIntoView({ block: 'start' });
+  });
+  await page.waitForTimeout(200);
+}
+const seen = (page, id) => page.evaluate((i) =>
+  window.ParticlesAnim.onScreen(document.querySelector('#' + i + ' > .sec-fxpart-wrap')), id);
+const tfOf = (page, id) => page.evaluate((i) =>
+  document.querySelector('#' + i + ' .sec-fxpart-wrap [data-fxp]')?.getAttribute('transform') ?? null, id);
+
+test('V8 ★★뷰포트 컬링 — ★화면 밖은 ★안 돌리고, ★굴려 들어오면 ★돈다 (★양·음 ＋ ★제자리)', async ({ page }) => {
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e)));
+  await page.setViewportSize({ width: VIEW_W, height: VIEW_H });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await bootApp(page);
+  await twoSections(page);
+
+  /* ★★전제 — ★하나는 ★보이고 ★하나는 ★안 보인다. ⛔이게 안 서면 ★아래가 ★전부 뜻이 없다 */
+  expect(await seen(page, 'secA'), '★전제: 첫 섹션이 ★화면 밖이다 — 장면이 안 섰다').toBe(true);
+  expect(await seen(page, 'secB'), '★전제: 둘째 섹션이 ★화면 안이다 — ★컬링을 ★못 잰다').toBe(false);
+
+  /* ⒞ ★★음성 — ★화면 밖 섹션은 ★안 움직인다 · ★★양성 — ★화면 안 섹션은 ★움직인다 */
+  const a0 = await tfOf(page, 'secA'), b0 = await tfOf(page, 'secB');
+  expect(b0, '★전제: 둘째 섹션에 ★잴 알맹이가 없다').not.toBeNull();
+  const movedN = await page.evaluate(() => window.ParticlesAnim.step(5000));
+  const a1 = await tfOf(page, 'secA'), b1 = await tfOf(page, 'secB');
+  expect(a1, '★★화면 안 섹션이 ★안 움직였다 — ★컬링이 ★전부를 껐다').not.toBe(a0);
+  expect(b1, '★★화면 밖 섹션을 ★돌렸다 — ★컬링이 ★안 먹는다').toBe(b0);
+  expect(movedN, '★움직인 수가 0 이다').toBeGreaterThan(0);
+
+  /* ★★그리고 ★움직인 수가 ★★«한 섹션 몫»이다 — ⛔둘 다 돌았으면 ★두 배다 */
+  const bits = await page.evaluate(() =>
+    document.querySelectorAll('#secA .sec-fxpart-wrap [data-fxp]').length);
+  expect(movedN, `★움직인 수 ${movedN} 가 ★한 섹션 몫(${bits}) 이 아니다`).toBe(bits);
+
+  /* ⒞-2 ★★굴려 들어오면 ★돈다 */
+  await page.evaluate(() => document.getElementById('secB').scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(250);
+  expect(await seen(page, 'secB'), '★굴렸는데 ★여전히 ★화면 밖으로 읽힌다').toBe(true);
+  await page.evaluate(() => window.ParticlesAnim.step(5000));
+  const b2 = await tfOf(page, 'secB');
+  expect(b2, '★★굴려 들어왔는데 ★안 움직인다 — ★컬링이 ★다시 안 켜 준다').not.toBe(b0);
+
+  /* ⒟ ★★제자리인가 — ★★«건너뛴 프레임»이 ★어긋남을 ★안 남긴다.
+     ★같은 씨값·같은 시각이면 ★한 번도 ★안 꺼진 섹션과 ★★같은 값이어야 한다
+     (★`offsetY`·`angleAt` 가 ★★«절대 시각»의 함수라 ★누적이 ★아니다). */
+  const aAt5000 = await tfOf(page, 'secA');
+  expect(b2, `★★나갔다 들어온 섹션이 ★제자리가 ★아니다 — ★A=${aAt5000} · ★B=${b2}`).toBe(aAt5000);
+
+  /* ⒟-2 ★★꼬리표가 ★안 지워졌다 — ★컬링은 ★«건너뛰기»지 ★«지우기»가 아니다 */
+  const tags = await page.evaluate(() =>
+    document.querySelectorAll('#secB .sec-fxpart-wrap [data-fxp]').length);
+  expect(tags, '★컬링이 ★꼬리표를 ★지웠다').toBe(bits);
+
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});

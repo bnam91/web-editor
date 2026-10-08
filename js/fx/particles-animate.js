@@ -48,6 +48,30 @@
        ★「★같은 시드 = 같은 그림」과 ★다른 그림이 ★화면에 ★남는다.
        ★그 되돌리개의 ★임자는 ★`js/io/section-serialize.js` ★하나다(window.restParticleMotion).
        ⛔여기에 ★사본을 ★짓지 않는다 — ★꼬리표 꼴을 ★두 곳이 ★읽으면 ★명부가 ★둘이다. */
+  /* ══ 뷰포트 컬링 (v1.5 ⑶ · 2026-10-09) ═════════════════════════════════════
+     ★★실측(2026-10-08 · 섹션 20 · 노드 5,060 · 상한 120):
+       ★전부 돌림   → ★프레임중앙 ★16.7ms
+       ★보이는 것만 → ★프레임중앙 ★★8.3ms        (★둘 다 ★같은 조건 ×3 에서 ★퍼짐 ★0ms)
+       ★n=80(노드 20,240)에서도 ★보이는 것만 돌리면 ★8.3ms 를 ★지켰다.
+     ★★값이 ★어디서 났나 — ★그때 ★JS 는 ★겨우 ★2.1ms 였는데 ★프레임이 ★16.7ms 였다
+       ⇒ ★비용은 ★JS 가 ★아니라 ★★«무효화된 SVG 의 ★재렌더»다.
+       ⇒ ★그래서 ★★«안 보이는 섹션을 ★안 더럽히는 것»이 ★유일한 레버다.
+     ★여유(CULL_MARGIN) — ★화면 밖에서도 ★조금은 돌려 둬야 ★굴려 들어올 때 ★튀지 않는다.
+     ★★다시 들어올 때 ★이어지는 까닭: ★`offsetY`·`angleAt` 가 ★★«절대 시각»의 함수다
+       (⛔누적이 ★아니다) ⇒ ★건너뛴 프레임이 ★있어도 ★제자리가 ★어긋나지 ★않는다.
+       ★그 성질을 ★V8 ⒟ 가 ★잠근다.
+     ⚠️★못 재면 ★★«돌린다» — ⛔조용히 ★끄지 않는다(★안 보이는 것으로 ★오판하면 ★기능이 ★죽는다). */
+  const CULL_MARGIN = 200;
+  function onScreen(el) {
+    try {
+      if (!el || !el.getBoundingClientRect) return true;
+      const r = el.getBoundingClientRect();
+      const vh = w.innerHeight || 0;
+      if (!(vh > 0)) return true;                      /* 창 높이를 못 읽으면 ★돌린다 */
+      return r.bottom > -CULL_MARGIN && r.top < vh + CULL_MARGIN;
+    } catch (_) { return true; }
+  }
+
   const REDUCE_MQ = '(prefers-reduced-motion: reduce)';
   function prefersReduced() {
     try { return !!(w.matchMedia && w.matchMedia(REDUCE_MQ).matches); } catch (_) { return false; }
@@ -121,6 +145,7 @@
       if (!cfg) continue;
       const speed = +cfg.speed || 0, spin = +cfg.spin || 0;
       if (speed <= 0 && spin <= 0) continue;        /* ★축이 전부 0 = ★옛 저장본 ⇒ ★건드리지 않는다 */
+      if (!onScreen(wrap)) continue;                 /* ★★화면 밖 — ★더럽히지 ★않는다(위 머리말의 그 레버) */
       const lay = readLayer(svg);
       if (!lay.bits.length || !(lay.H > 0)) continue;
       out.push({ svg, speed, spin, H: lay.H, bits: lay.bits });
@@ -201,5 +226,6 @@
   } catch (_) { /* matchMedia 가 없는 판 */ }
 
   w.ParticlesAnim = Object.freeze({ offsetY, angleAt, scan, step, start, stop, kick,
-                                   prefersReduced, restNow, MARGIN, IDLE_RECHECK_MS, REDUCE_MQ });
+                                   prefersReduced, restNow, onScreen,
+                                   MARGIN, IDLE_RECHECK_MS, REDUCE_MQ, CULL_MARGIN });
 })(window);
