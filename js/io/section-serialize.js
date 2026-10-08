@@ -400,4 +400,8 @@
      그쪽은 결과물이 아니라 «비교 키»를 만들지만, 마커가 남으면 「줄을 골랐을 뿐인데 변경됨」
      오탐이 난다. 목록이 두 벌이면 한쪽만 고쳐지는 날이 온다 — 그래서 여기가 유일한 원본이다. */
   window.runtimeMarkers = { isRuntimeMarker, stripRuntimeMarkers, LIST: RUNTIME_MARKER_CLS, RE: RUNTIME_MARKER_RE };
+  /* ★★움직이개(js/fx/particles-animate.js)가 ★«쉬는 꼴로 되돌리기»를 ★같이 쓴다 —
+     ★모션 감소에서 ★멈출 때 ★제자리로 ★돌려놓아야 한다. ⛔거기에 ★사본을 지으면 ★명부가 ★둘이다
+     (★꼬리표 꼴 `x,y,vj,dir,rot0` 을 ★두 곳이 ★읽게 된다). ⇒ ★임자는 ★여기 하나다. */
+  window.restParticleMotion = restParticleMotion;
 })();

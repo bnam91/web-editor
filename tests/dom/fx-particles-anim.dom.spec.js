@@ -402,3 +402,86 @@ test('V6 ★★움직임이 ★자동저장을 ★깨우지 않는다 — ★★
   await page.evaluate(() => window.ParticlesAnim.stop());
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
+
+/* ═══ V7 — ★모션 감소 (v1.5 ⑵) ═══════════════════════════════════════════════
+ *  ★★★CSS `@media` 로는 ★못 멈춘다 — ★우리는 ★CSS animation 이 아니라 ★★«속성»을 쓴다.
+ *    ★레포 선례 ★셋이 ★전부 CSS 라 ★베끼면 ★★조용히 ★안 먹는다 ⇒ ★JS 가 ★직접 본다.
+ *  ★네 칸(지디 2026-10-09 ④):
+ *    ⒜ reduce ⇒ ★두 프레임이 ★같다   ⒝ ★평소엔 ★다르다(⛔한쪽만 걸면 「애초에 안 움직인다」와 구분 안 됨)
+ *    ⒞ ★중간 전환 — 켜면 멈추고 ★끄면 ★다시 돈다   ⒟ ★가드가 ★루프를 ★영구히 ★죽이지는 않나 */
+async function mkMoving(page) {
+  await page.evaluate(() => {
+    const canvas = document.getElementById('canvas');
+    canvas.querySelectorAll('.section-block').forEach((s) => s.remove());
+    canvas.insertAdjacentHTML('beforeend',
+      '<div class="section-block" id="pS" data-section="1" style="background:#0A0A0C">'
+      + '<div class="section-hitzone"></div><div class="section-inner" style="padding-left:40px">'
+      + '<div class="gap-block" data-type="gap" style="height:300px"></div></div></div>');
+    window.rebindAll?.();
+    const sec = document.getElementById('pS');
+    window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
+    window.applySectionParticles(sec);
+  });
+  await page.waitForTimeout(150);
+}
+const tf = (page) => page.evaluate(() =>
+  document.querySelector('.sec-fxpart-wrap [data-fxp]')?.getAttribute('transform') ?? null);
+/** ★「안 움직인다」 — ★두 번 떠서 ★같나. ★«참 Δ 가 0 인 자리»가 ★이 칸의 바닥이다. */
+async function assertStill(page, msg) {
+  const a = await tf(page);
+  await page.waitForTimeout(500);
+  const b = await tf(page);
+  expect(b, msg).toBe(a);
+}
+/** ★「움직인다」 — ⛔고정 대기가 아니라 ★★물어본다(부하에서 값을 안 잃는다). */
+async function assertMoves(page, msg) {
+  const a = await tf(page);
+  await page.waitForFunction((t0) => {
+    const e = document.querySelector('.sec-fxpart-wrap [data-fxp]');
+    return !!e && e.getAttribute('transform') !== t0;
+  }, a, { timeout: 5000 }).catch(() => { throw new Error(msg); });
+}
+
+test('V7 ★★모션 감소 — ★켜면 ★멈추고 ★끄면 ★다시 돈다 (★양·음 ＋ ★중간 전환 ＋ ★영구사망 아님)', async ({ page }) => {
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e)));
+  await page.setViewportSize({ width: VIEW_W, height: VIEW_H });
+
+  /* ⒝ ★★먼저 ★음성대조 — ★평소 판에서는 ★움직인다. ⛔이게 없으면 ★아래 「같다」가 ★공짜다 */
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await bootApp(page);
+  await mkMoving(page);
+  expect(await page.evaluate(() => window.ParticlesAnim.prefersReduced()), '★전제: 평소 판인데 reduce 로 읽힌다').toBe(false);
+  await assertMoves(page, '★★평소 판인데 ★안 움직인다 — ★아래 「멈춘다」가 ★뜻이 없다');
+
+  /* ⒞ ★★중간 전환 — ★켜면 ★멈춘다 */
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForTimeout(400);                       /* change 고리가 돌 틈 */
+  expect(await page.evaluate(() => window.ParticlesAnim.prefersReduced()), '★전제: reduce 로 안 바뀌었다').toBe(true);
+  await assertStill(page, '★★모션 감소를 켰는데 ★계속 움직인다 — ★CSS @media 로는 ★안 멈춘다(그래서 JS 가 본다)');
+
+  /* ★★멈출 때 ★제자리로 — ⛔떨어지던 ★한 프레임에 ★굳으면 ★시드의 그림과 ★다른 것이 ★남는다 */
+  const resting = await tf(page);
+  expect(resting, `★모션 감소인데 ★움직인 꼴이 ★남아 있다 (${resting})`).not.toMatch(/^translate\(0,/);
+
+  /* ⒞-2 ★★끄면 ★다시 돈다 — ★★가드가 ★루프를 ★영구히 ★죽이지 ★않는다(⒟) */
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.waitForTimeout(400);
+  await assertMoves(page, '★★모션 감소를 ★껐는데 ★안 깨어난다 — ★가드가 ★루프를 ★영구히 죽였다');
+
+  /* ⒜ ★★처음부터 ★켜진 판 — ★★한 번도 ★안 움직여야 한다(★위는 ★전환, ★이건 ★시작) */
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await bootApp(page);
+  await mkMoving(page);
+  const started = await page.evaluate(() => window.ParticlesAnim.start());
+  expect(started, '★★모션 감소인데 ★루프가 ★섰다').toBe(false);
+  await assertStill(page, '★★처음부터 ★모션 감소인데 ★움직였다');
+
+  /* ★★그래도 ★`step()` 은 ★돈다 — ★그것은 ★저수준 손잡이고, ★가드는 ★«루프»에 있다.
+     ⇒ ★위 V2·V3 가 ★이 판에서도 ★뜻을 갖는다(⛔가드가 ★셈까지 ★죽이면 ★그 칸들이 ★거짓 초록이 된다) */
+  const moved = await page.evaluate(() => window.ParticlesAnim.step(3000));
+  expect(moved, '★★`step()` 까지 죽었다 — 가드는 ★«루프»에만 걸려야 한다').toBeGreaterThan(0);
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});

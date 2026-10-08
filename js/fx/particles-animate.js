@@ -36,6 +36,23 @@
   /** 움직일 것이 0 일 때 ★다시 볼 주기(ms) — ★루프를 ★세우고 ★이 간격으로만 깨운다. */
   const IDLE_RECHECK_MS = 1000;
 
+  /* ══ 모션 감소 (v1.5 ⑵ · 2026-10-09) ═══════════════════════════════════════
+     ★★★CSS `@media (prefers-reduced-motion: reduce)` 로는 ★이 움직임을 ★못 멈춘다.
+       ★까닭: ★우리는 ★CSS animation 이 ★아니라 ★★«속성(transform)»을 ★쓴다.
+       ★레포 선례 ★셋(css/editor-canvas.css:398·:423 · css/export-result.css:59)이 ★전부 ★CSS 다
+       ⇒ ★★그것을 ★베끼면 ★★조용히 ★안 먹는다. ★그래서 ★JS 가 ★직접 본다.
+       (⚠️`.design/` 리포트의 「prefers-reduced-motion 0회」는 ★2026-06-11 판이라 ★낡았다 —
+         ★행위로 다시 세어 ★선례 ★셋을 찾았다.)
+     ★★«켜면 멈추고 ★끄면 다시 돈다» — ★중간 전환도 ★따라간다(`change`).
+     ★★멈출 때 ★제자리로 ★돌려놓는다 — ⛔떨어지던 ★한 프레임에 ★굳으면
+       ★「★같은 시드 = 같은 그림」과 ★다른 그림이 ★화면에 ★남는다.
+       ★그 되돌리개의 ★임자는 ★`js/io/section-serialize.js` ★하나다(window.restParticleMotion).
+       ⛔여기에 ★사본을 ★짓지 않는다 — ★꼬리표 꼴을 ★두 곳이 ★읽으면 ★명부가 ★둘이다. */
+  const REDUCE_MQ = '(prefers-reduced-motion: reduce)';
+  function prefersReduced() {
+    try { return !!(w.matchMedia && w.matchMedia(REDUCE_MQ).matches); } catch (_) { return false; }
+  }
+
   /** 한 알맹이의 ★세로 어긋남. ★★순수 함수다 — ★검사가 ★이것만 따로 잴 수 있다.
    *  ★`y0` 에서 출발해 ★아래로 흐르고 ★상자를 지나면 ★위로 되돌아온다(감싸기).
    *  ★★`speed` 가 0 이면 ★언제나 0 을 돌려준다 — ★「안 움직인다」가 ★이 함수의 성질이지
@@ -148,6 +165,9 @@
   function start() {
     if (rafId || !w.requestAnimationFrame) return false;
     if (idleId) { w.clearTimeout(idleId); idleId = 0; }
+    /* ★★모션 감소 — ★루프를 ★아예 ★안 건다. ⛔느린 주기로도 ★안 깨운다(★그래야 ★정말 멈춘다).
+       ★다시 켜지는 길 = ★아래 `change` 고리 ★하나다. */
+    if (prefersReduced()) { restNow(); return false; }
     if (!scan().length) {                         /* ★없으면 ★굳이 ★프레임을 ★안 잡는다 */
       idleId = w.setTimeout(() => { idleId = 0; start(); }, IDLE_RECHECK_MS);
       return false;
@@ -165,5 +185,21 @@
   /** 다시 그린 뒤 부르면 ★바로 깨어난다(★느린 주기를 ★안 기다린다). */
   function kick() { stop(); return start(); }
 
-  w.ParticlesAnim = Object.freeze({ offsetY, angleAt, scan, step, start, stop, kick, MARGIN, IDLE_RECHECK_MS });
+  /** ★움직이던 알맹이를 ★«쉬는 꼴»로 — ★임자는 ★세척 쪽이다(⛔여기 사본 없음). */
+  function restNow(root) {
+    try { w.restParticleMotion?.(root || w.document); } catch (_) { /* 세척이 아직 안 실렸다 */ }
+  }
+
+  /* ★중간 전환 — ★켜면 멈추고 ★끄면 ★다시 돈다. ★한 번만 건다. */
+  try {
+    const mq = w.matchMedia && w.matchMedia(REDUCE_MQ);
+    if (mq) {
+      const onChange = () => { if (prefersReduced()) { stop(); restNow(); } else { kick(); } };
+      if (mq.addEventListener) mq.addEventListener('change', onChange);
+      else if (mq.addListener) mq.addListener(onChange);          /* 옛 꼴 */
+    }
+  } catch (_) { /* matchMedia 가 없는 판 */ }
+
+  w.ParticlesAnim = Object.freeze({ offsetY, angleAt, scan, step, start, stop, kick,
+                                   prefersReduced, restNow, MARGIN, IDLE_RECHECK_MS, REDUCE_MQ });
 })(window);
