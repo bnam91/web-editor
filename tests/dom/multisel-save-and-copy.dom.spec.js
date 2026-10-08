@@ -138,7 +138,12 @@ test('C3c ★★«이미 샌» 저장물을 열어도 ⌘클릭 길이 산다 �
       + `<div class="section-inner"><div class="gap-block" data-type="gap" style="height:60px"></div></div></div>`).join('');
 
   const r = await page.evaluate((html) => {
+    /* ⚠️`version: 2` ★필수 — 없으면 applyProjectData 가 «v1 하위호환» 갈래로 떨어져
+       `data.pages` 를 ★안 보고 `data.canvas` 를 읽는다(그 갈래는 pages 를 새로 만든다).
+       ★1차 구현이 그래서 섹션 0개였고, ★전제 단언(secCount===3)이 그걸 잡았다 —
+       ★그 칸이 없었으면 「유령 0건」이 ★항등식으로 초록이 됐을 것이다(0개에서 0건). */
     window.applyProjectData({
+      version: 2,
       pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: {}, canvas: html }],
       currentPageId: 'page_1',
     });
