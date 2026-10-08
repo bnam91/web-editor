@@ -2160,6 +2160,26 @@ function _gridNestAddr(addr, naddr, ci, ni) {
 //   GRID_LINE_FIELDS 에 아무 것도 안 넣었다(넣으면 patchCell 이 받아 dataset 에 실린다).
 // ★addr=null && naddr=null 이면 이 함수는 여전히 «예전과 같은 문자열»을 낸다 — innercard 경로
 //   (gridLineHtml 2-인자)와 민감도 탐침(_gridUnreadLineFields)이 정확히 그 조합이다.
+/* ★★★이 함수를 ★부르는 자는 ★★셋이다 — ★2026-10-08 실측(⛔«정의 자리»만 세지 마라) ═══════
+ *   ⑴ ★이 파일 자신            — ★7 호출
+ *   ⑵ ★`js/blocks/innercard-block.js:61`  `lines.map(l => gridLineHtml(l, align))`
+ *   ⑶ ★`js/blocks/line-host.js:60`        `gridLineHtml(l, 'left')`  ← ★BT2 버블·챗이 ★이걸 쓴다
+ *   ★★⇒ ★여기를 고치면 ★★셋이 ★같이 바뀐다.
+ *
+ *   ⚠️★★그 수를 ★«어떻게 세다 틀렸나» — ★발주서(2026-10-08)는 ★`_esc(line.text)` 가 ★이 파일에
+ *     ★2건뿐이라는 것만 세고 ★★「⑦ 은 ★그리드에만 걸린다」고 적었다. ★★틀렸다.
+ *     ★`_esc(line.text)` 는 ★«정의 자리»의 수이고, ★★«누가 ★이 함수를 ★부르나»는 ★안 센 것이다.
+ *     ⇒ ★★분모를 적을 땐 ★★`grep -rn 'gridLineHtml('` 로 ★★호출자를 ★전수해라.
+ *   ⚠️★★그리고 ★이건 ★★두 번째다 — ★2026-10-03 ★G7 에서 ★「0줄」이라 센 것이 ★★innercard ★18줄이었다.
+ *     ★★같은 파일이 ★같은 까닭으로 ★두 번 빠졌다. ★★세 번째를 ★막으려고 ★여기 적는다.
+ *
+ *   ★2026-10-08 ★수지⑦ — ★`line.textHtml`(부분 서식) 길이 ★열렸다. ★지금 ★그 필드를 ★쓰는 자는
+ *     ★그리드 ★인라인 편집기 ★하나다 ⇒ ★innercard·BT2 는 ★모델에 ★그 필드가 ★없어 ★옛 평문 경로
+ *     ★그대로다. ★★그 무변을 ★«말»로 두지 않고 ★검사가 ★잠근다
+ *     (`tests/dom/sz7-rich-text-other-consumers.dom.spec.js` — ★무변 ＋ ★능력 양성대조).
+ *   ⛔그 셋 중 ★하나만 ★다르게 하려면 ★`opts` 를 ★인자로 받는 꼴이고, ★그건 ★이 파일 내부
+ *     ★7 호출을 ★다 고친다 ⇒ ★★그 7 자리가 ★«새 명부»가 된다. ★그래서 ★안 골랐다(지디 판정 ㉮).
+ */
 function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = false, naddr = null) {
   if (!line || typeof line !== 'object') return '';
   // ★필드 별칭 정규화 (2026-07-04 bench2 근본픽스): planner/generator는 텍스트블록 어휘(content)를
