@@ -59,7 +59,9 @@
      눈·접기·✕ `.prop-icon-btn`                            (★같은 선례)
      프리셋칩  `.prop-align-group` ＋ `.prop-align-btn.active` (★선례 prop-sticker-glow.js:24)
      슬라이더  `.prop-slider` ＋ `.prop-number`             (★선례 prop-sticker-glow.js:88)
-     색 스와치 `.prop-color-swatch`(24px · 투명 color input) (★선례 prop-section.js 배경색)
+     색 칩    `.fxpart-chip-wrap > .prop-color-swatch.fxpart-chip`(★크기는 css `--cv-chip-recent-size`
+               · 투명 color input · ✕ 는 ★호버 겹침)       (★현빈 2026-10-08 「이정도 크기는 어때」)
+               ⚠️2026-10-08 전에는 ★24px ★네모 ＋ ★✕ 가 ★제 칸을 ★먹었다 — ★그 줄을 ★고친 것이다
      분포      `.prop-select`                              (★선례 sec-bg-size)
      회전      `<input type="checkbox">`                   (★선례 stk-glow-chroma · sec-overflow-visible)
      단추      `.prop-action-btn`                          (★선례 sec-bg-img-empty)
