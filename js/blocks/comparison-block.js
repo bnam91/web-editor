@@ -6,14 +6,28 @@ import { bindBlock } from '../drag-drop.js';
 // ── cmp 셀 placeholder(기본문구) 식별 ───────────────────────────────────────
 // comparison 셀은 일반 텍스트블럭과 달리 cols 모델에 텍스트가 들어있어 data-isPlaceholder
 // 플래그를 못 단다. 그래서 '기본문구와 동일 비교'(간단·저위험)로 placeholder를 식별한다.
-// 신규 칼럼/행 추가(prop-comparison.js)도 같은 상수를 import해서 일관성 유지.
-// 헤더 기본문구·행 기본문구를 한 묶음으로 둔다(편집 진입 시 전체선택, 빈 셀 blur 시 복원 판정용).
-export const CMP_PLACEHOLDER_TITLE = '새 칼럼';      // 신규 칼럼 헤더 기본문구
-export const CMP_PLACEHOLDER_ROW   = '내용 입력';    // 신규 행 기본문구
+// ★★2026-10-08 ⒜⒝ 로 «쓰는 자리»가 바뀌었다 — 아래 둘을 같이 고쳤으니 따로 늙지 않는다:
+//   ~~「신규 칼럼/행 추가도 같은 상수를 import해서 일관성 유지」~~
+//      ⇒ 이제 신규 칼럼/행은 ★빈 칸(cmpEmptyRow/cmpEmptyRows)이다. 상수를 import 하지 «않는다».
+//   ~~「빈 셀 blur 시 복원 판정용」~~
+//      ⇒ ★복원을 걷었다(⒝). 명부가 남은 까닭은 ★«편집 진입 시 전체선택» ★하나뿐이고,
+//        그 대상은 ★이미 저장된 옛 프로젝트의 칸이다(그 글자가 모델에 그대로 있다).
+// ★이 둘은 이제 «넣는 값»이 아니라 «옛 기본문구의 이름»이다(2026-10-08 ⒜⒝ — 아래 머리말).
+//   ⛔지우지 마라: 이미 저장된 프로젝트의 모델엔 이 글자가 그대로 남아 있고,
+//   CMP_PLACEHOLDERS 가 그걸 식별해 「더블클릭=전체선택」을 살려 준다.
+export const CMP_PLACEHOLDER_TITLE = '새 칼럼';      // 옛 신규-칼럼 헤더 기본문구
+export const CMP_PLACEHOLDER_ROW   = '내용 입력';    // 옛 신규-행 기본문구
+// ★같은 글자를 세 벌로 적지 않는다 — 위 두 상수를 «참조»한다(값·순서는 그대로).
 export const CMP_PLACEHOLDERS = [
-  '강점 키워드 입력', '경쟁사 내용', '내용 입력', '새 칼럼',
+  '강점 키워드 입력', '경쟁사 내용', CMP_PLACEHOLDER_ROW, CMP_PLACEHOLDER_TITLE,
   '일반 제품', '브랜드 명·상품 명',
 ];
+/* ★⒜ 새로 만드는 칸은 «빈 칸»으로 둔다 (현빈 2026-10-08 — 「캔버스 직접 입력 가능하니 불필요」).
+   꼴은 ★객체행 ★한 벌로 모은다 — prop-comparison.js 「+ 행 추가」가 쓰던 꼴과 같다.
+   ⚠️예전엔 makeComparisonBlock 이 rows 를 ★문자열 배열로, 패널은 ★객체로 써서 두 꼴이 갈려 있었다
+     (normalizeRow 가 읽을 때 객체로 바꿔 주지만 dataset 에는 문자열로 남았다). */
+export const cmpEmptyRow  = () => ({ type: 'text', text: '' });
+export const cmpEmptyRows = (n) => Array.from({ length: Math.max(0, n) }, cmpEmptyRow);
 // 셀 텍스트가 기본문구와 동일하거나 비어있으면 placeholder로 간주.
 export function isCmpPlaceholderText(t) {
   const s = (t == null ? '' : String(t)).trim();
@@ -56,7 +70,14 @@ const _colsParse = s => { try { const a = JSON.parse(s || 'null'); return Array.
 // per-row 높이 오버라이드 배열 (행 인덱스→px, null/0이면 기본 rowH). data-rowHeights JSON.
 function _rowHeights(d) { try { const a = JSON.parse(d.rowHeights || 'null'); return Array.isArray(a) ? a : []; } catch { return []; } }
 
-// cols 배열 획득 (없으면 구버전 left/right dataset → 배열로 마이그레이션). rows는 객체로 정규화.
+/* cols 배열 획득 (없으면 구버전 left/right dataset → 배열로 마이그레이션). rows는 객체로 정규화.
+ *
+ * ★★아래 '일반 제품'·'브랜드 명·상품 명' 은 ⒜(기본문구 제거)에서 ★«일부러» 안 바꿨다
+ *   — ⛔다음 사람이 「빠뜨렸다」고 읽지 않게 적어 둔다 (지디 판정 2026-10-08 ⑵ = ★제외).
+ *   까닭: 이 줄은 «새로 만드는 자리»가 아니라 ★이미 저장된 옛 블럭(cols 가 없고 left/right 만 있는 판)을
+ *   ★읽는 자리다. leftTitle 이 없던 옛 블럭은 ★그동안 화면에 '일반 제품'으로 ★보여 왔고,
+ *   여기를 '' 로 바꾸면 ★현빈이 만든 옛 문서의 «보이던 제목»이 조용히 사라진다.
+ *   ⇒ 「재생성 가능」≠「지워도 되는」. 바꾸려면 ★현빈 게이트다(쿠폰에서 같은 자리를 그렇게 올렸다). */
 function getComparisonCols(d) {
   const parsed = _colsParse(d.cols);
   // ...c 보존: titleBg/titleColor(헤더 밴드 색) 등 확장 필드가 재직렬화에서 소실되지 않게
@@ -191,8 +212,18 @@ function renderComparison(block) {
       const capIn = document.createElement('div');
       capIn.className = 'cmp-hd'; capIn.dataset.colIdx = idx;   // _editableTitle 규약 유지 (blur → cols[idx].title)
       capIn.textContent = c.title || '';
+      /* ★⒟ 빈 제목에 «누를 면적»을 준다 (2026-10-08 ⒜의 ★전제조건).
+         ★무엇이 있었나 — capIn 엔 height 가 ★없다. 글자가 있을 때만 줄상자가 생긴다.
+           ⇒ ⒜로 제목을 비우면 ★0×0 이 되어 더블클릭이 ★안 닿는다
+             (실측: header 모드 .cmp-hd = 331×70 / 397×83 · 캡션 모드 = ★0×0 / ★0×0).
+           그 꼴이 바로 「★«선택이 안 된다»는 규칙이 아니라 ★«면적»일 수 있다」(1px 줄, 260930)의 재발이다.
+         ★«빈 제목일 때만» 준다 — 글자가 있는 칸의 그림은 ★한 픽셀도 안 바뀐다
+           (hdBg 알약이 칸 폭으로 늘어나는 부수효과를 막는다).
+         ★자는 capH 를 ★그대로 쓴다(캡션 존 높이) — ⛔새 수를 발명하지 않는다. */
+      const capEmpty = !(c.title || '').trim();
       capIn.style.cssText = `font-size:${tFont}px;font-weight:${isFeat ? 800 : 700};color:${hdColor};line-height:1.2;` +
         `white-space:pre-wrap;word-break:keep-all;` +
+        (capEmpty ? `min-width:100%;min-height:${capH}px;box-sizing:border-box;` : '') +
         (hdBg ? `background:${hdBg};padding:${Math.round(tFont * 0.35)}px ${Math.round(tFont * 0.9)}px;border-radius:999px;` : '');
       _editableTitle(capIn, block, idx);
       cap.appendChild(capIn);
@@ -269,13 +300,23 @@ function _editableTitle(el, block, colIdx) {
     el.setAttribute('contenteditable', 'false');
     const cols = getComparisonCols(block.dataset);
     if (cols[colIdx]) {
-      // 빈 셀로 굳으면 레이아웃 빈칸 → 헤더 기본문구 복원(MEMORY: cmp 텍스트 placeholder 필수)
-      let val = el.textContent;
-      if (val.trim() === '') { val = CMP_PLACEHOLDER_TITLE; el.textContent = val; }
-      cols[colIdx].title = val;
+      /* ★⒝ 빈 칸을 기본문구로 ★«되돌리지 않는다» (현빈 2026-10-08).
+         ~~예전: `if (val.trim()==='') { val = CMP_PLACEHOLDER_TITLE; el.textContent = val; }`~~
+         ★그 한 줄이 현빈이 불편해한 «지워도 되살아난다»의 ★바로 그 자리다
+           (실측 — 비우고 blur → DOM·모델 둘 다 '새 칼럼'으로 돌아왔다).
+         ⛔「빈 칸이 레이아웃 빈칸이 된다」는 ★여기서 막지 않는다 — 면적은 renderComparison 이 준다:
+           header 모드 = hd 의 `height:${hH}px` · 캡션 모드 = capIn 의 ⒟ 최소 면적. */
+      cols[colIdx].title = el.textContent;
       setComparisonCols(block, cols);
     }
     window.pushHistory?.(); window.scheduleAutoSave?.();
+    /* ★⒟ 과 한 쌍 — 캡션 모드에서 제목을 ★비웠으면 ★다시 그린다.
+       까닭: capIn 의 «빈 칸 최소 면적»은 ★그릴 때 정해진다. 안 그리면 방금 비운 그 칸이
+       옛 인라인 style 을 쥔 채 ★0×0 이 되어 ★다시 눌러 쓸 길이 사라진다(되돌릴 수 없는 소실).
+       ⛔header 모드는 height 가 박혀 있어 해당 없다 — 조건을 좁혀 둔다. */
+    if (block.dataset.captionPos === 'top' && el.textContent.trim() === '') {
+      try { renderComparison(block); } catch (_) {}
+    }
     if (block.classList.contains('selected')) window.showComparisonProperties?.(block);
   });
 }
@@ -295,10 +336,11 @@ function _editableRow(el, block, colIdx, rowIdx) {
     // 객체행이면 .text만 갱신(이미지행 imgSrc 유실 방지). getComparisonCols가 항상 객체로 정규화하므로 항상 객체.
     if (row && typeof row === 'object') {
       if (row.type !== 'image') {
-        // 빈 셀로 굳으면 레이아웃 빈칸 → 행 기본문구 복원(MEMORY: cmp 텍스트 placeholder 필수)
-        let val = el.textContent;
-        if (val.trim() === '') { val = CMP_PLACEHOLDER_ROW; el.textContent = val; }
-        row.text = val;
+        /* ★⒝ 빈 칸을 기본문구로 ★«되돌리지 않는다» (현빈 2026-10-08).
+           ~~예전: `if (val.trim()==='') { val = CMP_PLACEHOLDER_ROW; el.textContent = val; }`~~
+           ★실측 — 비우고 blur → DOM·모델 둘 다 '내용 입력'으로 돌아왔다.
+           ⛔행은 ★면적을 잃지 않는다 — r 의 `height:${effRowH}px` 가 늘 박혀 있다(캡션 모드에서도). */
+        row.text = el.textContent;
       }
       setComparisonCols(block, cols);
     }
@@ -327,9 +369,11 @@ function makeComparisonBlock(data = {}) {
   block.dataset.rowGap    = data.rowGap ?? 8;
   if (data.captionPos === 'top') block.dataset.captionPos = 'top';      // 캡션 카드 밖 상단 (2026-07-04)
   if (Number(data.stagger) > 0) block.dataset.stagger = String(Math.min(400, Math.round(Number(data.stagger))));
+  /* ★⒜ 새 블럭은 ★빈 칸으로 난다(2026-10-08). 칸 «수»(2칼럼 × 4행)는 ★그대로 둔다 —
+     구조가 보여야 어디에 쓸지 알 수 있고, 면적도 거기서 나온다(renderComparison 이 height 를 박는다). */
   const defaultCols = [
-    { title: data.leftTitle  ?? '일반 제품',        bg: data.leftBg  || '#e9ebef', text: data.leftText  || '#9aa0a8', rows: data.leftRows  || ['경쟁사 내용', '경쟁사 내용', '경쟁사 내용', '경쟁사 내용'] },
-    { title: data.rightTitle ?? '브랜드 명·상품 명', bg: data.rightBg || '#ffffff', text: data.rightText || '#1a1a1a', rows: data.rightRows || ['강점 키워드 입력', '강점 키워드 입력', '강점 키워드 입력', '강점 키워드 입력'] },
+    { title: data.leftTitle  ?? '', bg: data.leftBg  || '#e9ebef', text: data.leftText  || '#9aa0a8', rows: data.leftRows  || cmpEmptyRows(4) },
+    { title: data.rightTitle ?? '', bg: data.rightBg || '#ffffff', text: data.rightText || '#1a1a1a', rows: data.rightRows || cmpEmptyRows(4) },
   ];
   const cols0 = data.cols || defaultCols;
   block.dataset.cols = JSON.stringify(cols0);
@@ -638,5 +682,18 @@ window.getComparisonCols   = getComparisonCols;
 window.getComparisonFeaturedIdx = getComparisonFeaturedIdx;
 window.setComparisonCols   = setComparisonCols;
 window.normalizeComparisonRow = normalizeRow;
+/* ★식별 명부의 ★정본 한 자리를 검사가 «런타임»으로 읽게 둔다 (선례: window.GRID_CELL_DEFAULT_TEXT).
+   ⛔검사가 이 파일을 ★소스 파싱해 리터럴을 뽑던 것을 걷었다 — 주석·상수 참조로 적는 순간 그 자가 조용히 줄어든다. */
+window.CMP_PLACEHOLDERS    = CMP_PLACEHOLDERS;
 
+/* ⛔isCmpPlaceholderText 를 여기 더하지 마라 — 위에서 이미 `export function` 이다(중복 export = 문법 오류).
+   2026-10-08 에 내가 실제로 이 줄로 깨뜨렸고, ★자가 그걸 ★못 잡았다. 실측(★어느 판인지 같이 적는다 —
+   이 워크트리 · node v24.11.1 · 레포 package.json `"type":"commonjs"`):
+     node --check js/blocks/comparison-block.js            → rc=1 「Cannot use import statement outside a module」
+     node --check <같은 파일에 진짜 문법오류를 더한 사본>   → rc=1 ★같은 메시지
+     ⇒ ★멀쩡한 파일과 깨진 파일이 ★같은 답을 낸다 — ★막힌 빨강이라 ★아무것도 가르지 못한다.
+     node --check <.mjs 사본>                               → rc=1 「Unexpected token ';'」 ★진짜 오류를 짚는다
+   ⇒ ★ESM 파일은 ★.mjs 사본으로 재라. ⛔`node --check <그 .js>` 의 rc 를 근거로 쓰지 마라.
+   ⚠️그리고 ~/.claude/settings.json 의 저장 훅은 ★여기까지 ★닿지도 않는다(까닭은 지디에게 올렸다) —
+     「저장 때 자동으로 잡힌다」를 ★믿지 마라. */
 export { makeComparisonBlock, addComparisonBlock, updateComparisonBlock, renderComparison, getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, normalizeRow };

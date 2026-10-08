@@ -17,6 +17,10 @@ import {
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
 import { isBlurIntoPanel, parkEditing } from './props/_text-selection.js';
+/* ★수지② 부분 서식 — ★sanitize 는 ★공용 한 벌 · ★슬롯 키 표는 ★modal-block.js 에서 ★파생한다.
+   ⛔여기에 `{title:'titleText',…}` 를 ★되적지 마라 — 그게 ★둘째 명부였다(2026-10-08 합쳤다). */
+import { sanitizeRichTextHtml, richTextHasFormatting } from './util/sanitize-rich-text.js';
+import { MODAL_SLOT_KEYS } from './blocks/modal-block.js';
 import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth } from './frame-geometry.js';
 import {
   dragState,
@@ -288,15 +292,26 @@ function _modalEndEdit(block, host) {
   if (before == null || !slot) return;
   const isPh = text.trim() === '' || text.trim() === ph.trim();
   const next = isPh ? '' : text;
-  // 값이 그대로면 아무것도 하지 않는다 — 재렌더도 히스토리도 없다
-  // ★편집 «전» 읽은 값과 같아도 안 쓴다 — 저장된 \n 블록을 dblclick→blur 만 해도 데이터가 덮이던 것(옛 판)을 막는다
-  if (next === before || (block.dataset[{ title: 'titleText', text: 'textText', cell1: 'cell1', cell2: 'cell2' }[slot]] || '') === next) {
+  /* ★★수지② 부분 서식 — ★«평문 옆에» Html 을 같이 커밋한다(스티커 «U6b» 와 ★같은 꼴).
+     ★서식이 ★없으면 ★빈 문자열 ⇒ commitModalSlot 이 ★키를 ★지운다(★옛 평문 경로 유지 = ★무회귀).
+     ★안내문구 상태(isPh)면 ★Html 도 ★없다 — 흐린 안내문구가 서식을 입으면 안 된다. */
+  const sanitized = (!isPh && typeof sanitizeRichTextHtml === 'function')
+    ? sanitizeRichTextHtml(host.innerHTML) : '';
+  const nextHtml = (sanitized && richTextHasFormatting(sanitized)) ? sanitized : '';
+  const K = MODAL_SLOT_KEYS[slot];
+  const curPlain = K ? (block.dataset[K.plain] || '') : '';
+  const curHtml  = K ? (block.dataset[K.html]  || '') : '';
+  /* 값이 그대로면 아무것도 하지 않는다 — 재렌더도 히스토리도 없다
+     ★편집 «전» 읽은 값과 같아도 안 쓴다 — 저장된 \n 블록을 dblclick→blur 만 해도 데이터가 덮이던 것(옛 판)을 막는다
+     ★★⛔그 비교에 ★Html 을 ★같이 넣어야 한다 — ★⌘B 는 ★글자를 ★안 바꾼다.
+       ★빼면 ★서식만 바뀐 커밋이 ★영영 ★삼켜진다(실측: tests/dom/rich-text-consumer-modal ★M6 이 그 자리다). */
+  if ((next === before || curPlain === next) && curHtml === nextHtml) {
     if (isPh) window.renderModalBlock?.(block);   // 안내문구 복원(흐린 상태)만 다시 그린다
     return;
   }
   host.innerText = before;                        // 커밋 전 DOM 을 편집 «전»으로
   window.pushHistory?.();
-  window.commitModalSlot?.(block, slot, next);
+  window.commitModalSlot?.(block, slot, next, nextHtml);
   window.renderModalBlock?.(block);
   window.scheduleAutoSave?.();
 }
@@ -560,6 +575,7 @@ function bindBlock(block) {
   const isInnerCard   = block.classList.contains('innercard-block');
   const isModal       = block.classList.contains('modal-block');
   const isCoupon      = block.classList.contains('coupon-block');   // ★쿠폰(2026-10-07 현빈 발주)
+  const isQuote       = block.classList.contains('quote-block');    // ★인용구(2026-10-07 · QT1)
   const isJoker      = block.classList.contains('joker-block');
   const isShape      = block.classList.contains('shape-block');
   const isCanvas     = block.classList.contains('canvas-block');
@@ -2179,7 +2195,7 @@ function bindBlock(block) {
   /* grid/infocard: bridge와 동일한 클릭-선택 (dataset 모델 정적 블록)
      ★쿠폰도 ★여기에 얹는다(2026-10-07) — ⛔제 핸들러를 새로 만들지 않는다. 그러면 프레임 안 선택·
        ⌘/⇧ 다중선택·레이어 하이라이트·showHandlesFor 가 ★한 벌 더 생겨 조용히 갈라진다. */
-  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties'], [isCoupon, 'showCouponProperties']]) {
+  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties'], [isCoupon, 'showCouponProperties'], [isQuote, 'showQuoteProperties']]) {
     if (!flag) continue;
     block.addEventListener('click', e => {
       e.stopPropagation();
@@ -2781,6 +2797,13 @@ function bindFrameDropZone(ss) {
     if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc)) { clearDropIndicators(); dragState.dragSrc = null; return; }
     window.pushHistory();
     const _fromKids = dragState.dragSrc.parentElement;   // G19 — 그리드 밑 그릇에서 끌어냈으면 비었을 때 걷는다(아래 끝에서)
+    /* ★수지③(2026-10-08 · 지디 GO) — 「들어온 것」을 «정체»로 가린다: 넣기 «전» 프레임 자식의 참조 집합(클래스·표시 아님).
+       아래 자유배치 끝 루프(「DOM 순서 변경 후 …」)가 이 집합 «밖»의 absolute 자식만 가운데·기존 바닥+16 아래로 옮기고, 이미 있던 자식은 손대지 않는다.
+       수지 원문: 「기존에 프레임블럭 안에 있던 블럭들의 위치가 바뀌게 된다. 자유배치 모드인데 왜, 오브젝트 블럭이 들어옮에 따라 위치가 영향을 받는가」
+       ⚠️전원 재적층은 09-05 결정이 «아니다» — 그 재적층(left:'0px' 하드코딩 포함)은 2026-04-11 분리(d62d9875) 때 이미 있었고,
+         09-05(ee4a59e1)는 left 를 0 → 가운데로 바꾸기만 했다. (b) 인용의 주어는 「외부에서 들고 넣을 때」의 그것이다.
+       ⛔이 설명을 아래 루프 주석으로 옮기지 마라 — tests/unit/frame-textcenter ④-e 가 그 주석부터 «1400자 창»을 읽는다(넘치면 빨강 · 2026-10-08 실측). */
+    const _kidsBeforeDrop = new Set(inner.children);
 
     // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
     const isFreeLayout = ss.dataset.freeLayout === 'true';
@@ -2912,6 +2935,10 @@ function bindFrameDropZone(ss) {
         }
       }
 
+      // ★수지③ — 들어온 것/이미 있던 것 가르기(_kidsBeforeDrop 선언 주석). 넣기가 다 끝난 «뒤»라 여기서 센다.
+      const _incoming = [...inner.children].filter(b => !_kidsBeforeDrop.has(b) && !b.classList.contains('drop-indicator') && b.style.position === 'absolute');
+      const _stayBottom = [...inner.children].filter(b => _kidsBeforeDrop.has(b) && b.style.position === 'absolute')
+        .reduce((m, b) => Math.max(m, (parseInt(b.style.top, 10) || 0) + (b.offsetHeight || 0)), 0);
       /* DOM 순서 변경 후 absolute 블록의 top 재계산 + ★가로 중앙 배치.
          ★(b) 「외부에서 들고 넣을 때는 좌표만 중앙값에 위치시켜주면 된다.
               중앙값이란 프레임블럭의 «보여지는 가로너비»를 기준」 (현빈 2026-09-05).
@@ -2924,16 +2951,14 @@ function bindFrameDropZone(ss) {
            «이미 중앙에 있던» 형제(left:303)까지 left:0 으로 되돌려 P1 의 중앙배치를 지웠다.
          ⚠️dataset.offsetX 는 여기서 갱신하지 않는다 — 이 루프는 원래부터 안 했고(figma export가
            읽는 값이라 이미 낡아 있다), 이번 변경의 축을 «left 값 하나»로 묶어두기 위해서다. */
+      /* ★수지③ — «들어온 것»(_kidsBeforeDrop 밖)만 옮긴다 · 기존 자식 무변. 까닭·근거는 _kidsBeforeDrop 선언 주석. */
       const _fv = frameVisibleSize(inner);
       const _fpad = framePadding(inner);   // F5
-      let _stackY = _fpad.t;
-      [...inner.children].forEach(b => {
-        if (b.classList.contains('drop-indicator')) return;
-        if (b.style.position === 'absolute') {
-          b.style.top  = _stackY + 'px';
-          const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null, _fpad);
-          b.style.left = Math.max(_fpad.l, _off.left) + 'px';
-        }
+      let _stackY = _stayBottom > 0 ? _stayBottom + 16 : _fpad.t;
+      _incoming.forEach(b => {
+        b.style.top  = _stackY + 'px';
+        const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null, _fpad);
+        b.style.left = Math.max(_fpad.l, _off.left) + 'px';
         _stackY += (b.offsetHeight || 60) + 16;
       });
 

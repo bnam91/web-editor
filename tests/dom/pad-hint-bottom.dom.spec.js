@@ -117,7 +117,7 @@ test('B1 ★아래 패딩 슬라이더가 띠를 띄운다 (양성대조: 좌우
   const x = await bands(page, 'sec_1');
   expect(x.on, '★양성대조 실패 — 좌우를 움직였는데 gdt-pad-on 이 안 붙었다').toBe(true);
   expect(x.left, '★양성대조 실패 — 좌우 띠 두께가 40px 이 아니다').toBe('40px');
-  expect(x.leftColor, '★양성대조 실패 — 좌우 띠 색이 기본 핑크 10% 가 아니다').toBe('rgba(255, 0, 128, 0.1)');
+  expect(x.leftColor, '★양성대조 실패 — 좌우 띠 색이 ★기본색(00D6FF) 10% 가 아니다').toBe('rgba(0, 214, 255, 0.1)');
 
   /* 띠를 걷고(400ms) 본 측정 — 앞 상태가 남으면 「아래가 떴다」가 좌우 덕일 수 있다. */
   await page.waitForTimeout(700);
@@ -133,7 +133,7 @@ test('B1 ★아래 패딩 슬라이더가 띠를 띄운다 (양성대조: 좌우
   expect(b.varB, '★--gdt-pad-b 가 섹션 상자에 안 박혔다').toBe('80px');
   expect(b.secContent, '★.section-block 의 ::before 가 안 생겼다 — [style*="--gdt-pad-b"] 가드가 안 맞나').toBe('""');
   expect(b.bottom, '★아래 띠 두께가 패딩값(80px)과 다르다').toBe('80px');
-  expect(b.bottomColor, '★아래 띠 색이 좌우와 같은 핑크 10% 가 아니다').toBe('rgba(255, 0, 128, 0.1)');
+  expect(b.bottomColor, '★아래 띠 색이 좌우와 같은 ★기본색 10% 가 아니다').toBe('rgba(0, 214, 255, 0.1)');
 
   /* ★음성대조 — 만지지 «않은» 섹션엔 띠가 없다(변수를 body 에 박았다면 둘 다 떴을 것이다). */
   const other = await bands(page, 'sec_2');
@@ -268,7 +268,7 @@ test('B5 ★그리드 색을 고르면 그리드만 바뀌고 ★패딩 띠는 �
   await openSection(page, 'sec_1');
   await fire(page, 'sec-padb-slider', 80);
   expect((await bands(page, 'sec_1')).bottomColor,
-    '★그리드 색을 골랐더니 패딩 띠까지 바뀌었다 — 변수가 섞였다').toBe('rgba(255, 0, 128, 0.1)');
+    '★그리드 색을 골랐더니 패딩 띠까지 바뀌었다 — 변수가 섞였다').toBe('rgba(0, 214, 255, 0.1)');
   expect(await page.evaluate(() => localStorage.getItem('gdt.gridColor'))).toBe('#0000ff');
 
   expect(errs, '★페이지 에러: ' + errs.join(' | ')).toEqual([]);

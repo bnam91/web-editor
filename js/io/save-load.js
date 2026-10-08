@@ -7,7 +7,7 @@ import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 import { applyFrameTransform } from '../frame-geometry.js';
 import { checkerBg } from '../checker-tokens.js';
-import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
+import { applyCanvasBackground, syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) · T6 섹션 안 글자 밝기 */
 import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, withGuideOff } from './capture-safety.js';
 import { prepareGoyaAssetsForClone } from './goya-asset-inline.js';   /* 썸네일 클론에서 goya-asset 을 data: 로 (T-149) */
 import { ejectShapeFrameIntruders } from '../shape-frame.js';
@@ -597,7 +597,16 @@ function getSerializedCanvas() {
    ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
    ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
 export const NON_CONTENT_UI_SELECTOR =
-  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy, .grd-add-btn, .section-height-badge';
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .sec-bg-proxy, .grd-add-btn, .section-height-badge';
+/* ★.mdl-rotate-zone (2026-10-08 지디) — ★모달 블럭의 회전 손잡이. ⛔빠져 있었다.
+   ★증상: modal-frameify U1·U3 가 ★origin/dev 에서 빨강이었다 — 「프레임화 → ⌘Z 한 번 = 앞 직렬화와
+     글자 단위로 같다」가 ★앞 1,245자 vs ★뒤 4,373자로 갈렸고, 갈린 자리가 바로
+     `<div class="mdl-rotate-zone tl" data-corner="tl" style="position: absolute; …`였다.
+   ★전수로 확인했다 — `zoneClass:` ★정의 자리 7개(cvb·icb·icn·★mdl·mkp·tb·vb) 중 ★이 명부에 없는 것이
+     ★★mdl 하나뿐이었다(⛔사용 자리 grep 이 아니라 정의 자리에서 셌다).
+   ★위 ⛔계약대로 section-serialize.js serializeCleanRoot 의 remove 줄에도 ★같이 올렸다 —
+     그쪽에도 0건이었다. ⇒ 두 자리를 한 커밋에.
+   ★그 쌍은 S3(「NON_CONTENT_UI_SELECTOR 의 모든 항목이 저장에서 0건」)가 ★자동으로 잠근다. */
 /* ★.section-height-badge (2026-10-07 (다)) — 위 ⛔계약대로 «serializeProject 가 실제로 지우는지»를
    먼저 확인하고 넣었다: js/io/section-serialize.js serializeCleanRoot 의 remove 줄에 같이 올렸다.
    (그 쌍을 tests/dom/section-height-display.dom.spec.js S1 이 잠근다 — 저장본·히스토리에 배지 0건.) */
@@ -1098,6 +1107,10 @@ function rebindAll(opts = {}) {
          자리가 여럿이고(클린 클론·배송본), 그러면 새로고침 한 번에 조용히 꺼진다.
        ⇒ 정본은 dataset 이고, 클래스는 «여기서 다시 세운다». 무늬 값은 CSS 한 자리(.sec-bg-empty). */
     sec.classList.toggle('sec-bg-empty', sec.dataset.bgImgEmpty === '1' && !sec.dataset.bgImg);
+    /* ★T6 — 체커 톤이 dark 로 저장돼 있으면 섹션 «안» 글자 밝기를 다시 맞춘다(현빈 2026-10-07).
+       ★여기가 두 호출 자리 중 하나다(다른 하나 = 토글 js/props/prop-section.js).
+       ⛔클래스가 «살아 돌아온다»에 기대지 않는다 — 바로 위 주석이 같은 말을 한다. 다시 세운다. */
+    syncSectionCheckerTextTone(sec);
     // 배경 이미지 복원
     if (sec.dataset.bgImg && !sec.style.backgroundImage) {
       sec.style.backgroundImage = `url(${sec.dataset.bgImg})`;
@@ -1390,7 +1403,7 @@ function rebindAll(opts = {}) {
     window.bindGradientSelect?.(block);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .qa-block, .coupon-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .qa-block, .coupon-block, .quote-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -1415,6 +1428,7 @@ function rebindAll(opts = {}) {
         : b.classList.contains('infocard-block') ? 'ifc'
         : b.classList.contains('innercard-block') ? 'icd'
         : b.classList.contains('coupon-block') ? 'cpn'   /* ★쿠폰 — genId('cpn') 과 ★같은 토큰이어야 한다(js/blocks/coupon-block.js) */
+        : b.classList.contains('quote-block') ? 'qt'     /* ★인용구 — genId('qt') 과 ★같은 토큰이어야 한다(js/blocks/quote-block.js) */
         : b.classList.contains('qa-block') ? 'qa' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
@@ -1423,6 +1437,7 @@ function rebindAll(opts = {}) {
        dataset ＋ 폭 비율에서 다시 나온다. ⛔재렌더를 빼면 로드 뒤 «옛 폭으로 그린 그림»이
        새 dataset 과 어긋난다(laurel/zoom 과 같은 패턴). V4 변이가 이 줄을 잰다. */
     if (b.classList.contains('coupon-block')) window.renderCouponBlock?.(b);
+    if (b.classList.contains('quote-block')) window.renderQuoteBlock?.(b);
     /* zoom(확대블럭): 저장본은 SVG 스냅샷이라 «그림은 맞지만» a·b 핸들 드래그 위임이 없다
        (_bindZoomHandleDrag 는 renderZoomBlock 안에서 건다) → laurel/chat 과 같은 패턴으로 재렌더. */
     if (b.classList.contains('zoom-block')) window.renderZoomBlock?.(b);

@@ -85,7 +85,18 @@ window.sweepPadHintVars = sweepPadHintVars;
    ⛔프로젝트에 저장하지 않는다 — 「보기」 설정이다(위 PAD_HINT_KEY·GRID_KEY 와 같은 논리). */
 const PAD_HINT_COLOR_KEY = 'gdt.padHintColor';
 const GRID_COLOR_KEY     = 'gdt.gridColor';
-const PAD_HINT_COLOR_DEFAULT = '#ff0080';
+/* ★패딩 띠 기본색 — ★정본은 ★CSS 다(css/editor-base.css :root `--gdt-padhint-hex`).
+   ★왜 읽는가 — 같은 색이 CSS 와 JS 두 곳에 있으면 ★조용히 갈라진다(js/checker-tokens.js 머리말의 그 까닭).
+   ⚠️아래 상수는 ★«읽기 실패 폴백»이고 ★사본이 아니다 — 그래서 ★tests/unit/pad-hint.test.js T16 이
+     ★「CSS 토큰 == 이 폴백」을 ★견준다(T12 가 두 접두사를 견주는 것과 ★같은 꼴).
+     ⛔이 둘이 갈리면 ★빨강이다. 고칠 때 ★둘을 같이 고쳐라. */
+const PAD_HINT_HEX_TOKEN = '--gdt-padhint-hex';
+const PAD_HINT_COLOR_FALLBACK = '#00d6ff';
+function _cssTokenHex(name) {
+  if (typeof document === 'undefined' || !document.documentElement || typeof getComputedStyle !== 'function') return null;
+  try { return parseHex6(getComputedStyle(document.documentElement).getPropertyValue(name).trim()); } catch (_) { return null; }
+}
+const PAD_HINT_COLOR_DEFAULT = () => _cssTokenHex(PAD_HINT_HEX_TOKEN) || PAD_HINT_COLOR_FALLBACK;
 const GRID_COLOR_DEFAULT     = '#ff0000';
 const HINT_ALPHA = 0.1;   /* ★이 수가 곧 D1 이 기대하는 문자열의 끝자리(`…, 0.1)`)다 */
 
@@ -95,7 +106,7 @@ function _readColorPref(key, dflt) {
 function _saveColorPref(key, hex) {
   try { localStorage.setItem(key, parseHex6(hex) || ''); } catch (_) {}
 }
-export const readPadHintColor = () => _readColorPref(PAD_HINT_COLOR_KEY, PAD_HINT_COLOR_DEFAULT);
+export const readPadHintColor = () => _readColorPref(PAD_HINT_COLOR_KEY, PAD_HINT_COLOR_DEFAULT());
 export const readGridColor    = () => _readColorPref(GRID_COLOR_KEY, GRID_COLOR_DEFAULT);
 
 function _hexToRgba(hex, dflt, a) {
@@ -105,7 +116,7 @@ function _hexToRgba(hex, dflt, a) {
 /* ★칠하는 문도 «하나»다 — 쓰는 자리가 둘(패널 열 때 · 피커 만질 때)이라 식이 갈리기 쉽다. */
 export function applyPadHintColor(hex) {
   document.documentElement.style.setProperty('--gdt-padhint-color',
-    _hexToRgba(hex, PAD_HINT_COLOR_DEFAULT, HINT_ALPHA));
+    _hexToRgba(hex, PAD_HINT_COLOR_DEFAULT(), HINT_ALPHA));
 }
 export function applyGridColor(hex) {
   document.documentElement.style.setProperty('--gdt-grid-color',
@@ -488,7 +499,7 @@ export function showPageProperties() {
      ★저장은 즉시다(보기 설정이라 pushHistory·autoSave 대상이 아니다 — 위 키 머리말).
      ★스와치 배경도 같이 맞춘다 — 안 맞추면 피커를 닫은 뒤 «고른 색이 안 보인다». */
   for (const [id, read, save, apply, dflt] of [
-    ['page-pad-hint-color', readPadHintColor, (h) => _saveColorPref(PAD_HINT_COLOR_KEY, h), applyPadHintColor, PAD_HINT_COLOR_DEFAULT],
+    ['page-pad-hint-color', readPadHintColor, (h) => _saveColorPref(PAD_HINT_COLOR_KEY, h), applyPadHintColor, PAD_HINT_COLOR_DEFAULT()],
     ['page-grid-color',     readGridColor,    (h) => _saveColorPref(GRID_COLOR_KEY, h),     applyGridColor,     GRID_COLOR_DEFAULT],
   ]) {
     const pick = document.getElementById(id);

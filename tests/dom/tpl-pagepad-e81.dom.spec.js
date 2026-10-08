@@ -18,6 +18,7 @@ const { bootApp } = require('./_root-harness.js');
 /* ★시험 커밋에는 고침이 없다 — 고침을 재는 시험은 «빨강이 정상»(test.fail). 고침 커밋에서 false. */
 const FIX = false;
 const GOLD = path.join(__dirname, 'fixtures', 'tpl-pagepad-e81-golden.json');
+const { tokensBack } = require('./_golden-tokens.js');
 const UPDATE = process.env.E81_GOLDEN === 'update';
 /* ★gradient 는 T1 에서 «뺀다»: 섹션 길에선 gradient-block 이 .section-block «직속»(section-inner 밖)에 서고, 블럭 길에선 row 안에 선다
    (실측 2026-10-04 판 DBG3 — 「gradient@section-block」). 둘의 left 차이는 padX 가 아니라 «자리» 차이다 → 같은 자로 못 견준다(E81 아님). */
@@ -147,7 +148,20 @@ test('T3 전폭 아님 8 — 블럭 길로 넣은 블럭 outerHTML 이 핀(4df20
   }
   if (UPDATE) { fs.mkdirSync(path.dirname(GOLD), { recursive: true }); fs.writeFileSync(GOLD, JSON.stringify(out, null, 1) + '\n'); return; }
   const gold = JSON.parse(fs.readFileSync(GOLD, 'utf8'));
-  for (const k of PLAIN) expect(out[k], `T3 ${k}`).toBe(gold[k]);
+  /* ★«뜻한 바뀜» 토큰은 옛 꼴로 되돌려 견준다 — 정본 = tests/dom/_golden-tokens.js.
+     ⛔골든을 갱신하지 마라: 핀 4df20f78 과 견주는 것이 이 검사의 뜻이다(2026-10-08 에 내가 한 번 갱신했다가 되돌렸다). */
+  const WANT = ['FONT'];
+  const rc = {};
+  for (const k of PLAIN) {
+    const bk = tokensBack(out[k], WANT);
+    for (const t of WANT) rc[t] = (rc[t] || 0) + (bk.counts[t] || 0);
+    expect(bk.s, `T3 ${k} (뜻한 바뀜 토큰만 되돌린 뒤)`).toBe(gold[k]);
+  }
+  console.log(`T3 토큰 되돌림 ${JSON.stringify(rc)} / ${PLAIN.length} 꼴`);
+  for (const t of WANT) expect(rc[t] || 0, `영수증 — ${t} 토큰을 실제로 되돌렸다(잰 값 ${rc[t] || 0})`).toBeGreaterThan(0);
+  const _k0 = PLAIN.find(k => String(out[k]).includes('grd-cell')) || PLAIN[0];
+  expect(tokensBack(String(out[_k0]).replace('grd-cell', 'grd-cellX'), WANT).s,
+    `[양성대조] 토큰 아닌 바이트를 바꾸면 되돌려도 핀과 다르다 (${_k0})`).not.toBe(gold[_k0]);
 });
 
 // ─────────── T4 override 섹션 ───────────

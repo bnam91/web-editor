@@ -569,7 +569,14 @@ export function lnAddLineToSelected(type) {
   const addr = _lnPickedLine(block);   // ★«사람이 고른 줄»만 — 줄 없는 말풍선의 기본 주소는 «없음»(위 주석)
   if (!addr) return false;
   const host = lnHostFor(block);
-  const spec = type === 'gap' ? { type: 'gap', height: 16 } : { type: 'body', text: '' };
+  /* ★★spec 을 ★손으로 짓지 않는다 — ★`prop-grid.js grdNewLineSpec` ★한 곳에서 뜬다(2026-10-07).
+     ★왜: 현빈 GO 로 ★버블·챗 새 글자 줄도 ★Pretendard 로 태어나야 한다. ★전엔 ★여기가 ★제 표를 들어
+       ★패널 「+ 줄 추가」와 ★두 벌이었다 — ★「패널로는 되는데 ★T 로는 안 되는」 갈림이 ★생긴다.
+     ⛔import 가 아니라 ★`window` 로 간다 — ★바로 아래 `window.grdAddLine` 과 ★같은 관용구다
+       (prop-grid ↔ line-host 순환 import 를 ★일부러 피한 자리다).
+     ⛔리터럴 폴백을 ★두지 않는다 — 두면 ★그게 다시 ★둘째 명부다. 못 읽으면 ★grdAddLine 과 ★같이 false. */
+  const spec = window.grdNewLineSpec?.(type === 'gap' ? 'gap' : 'body');
+  if (!spec) return false;
   const res = window.grdAddLine?.(block, { r: addr.r, c: 0 }, addr.li === null ? null : addr.li, spec, {}, host);
   if (res && res.ok) host.show(grdGetActiveLine(block));
   return !!(res && res.ok);

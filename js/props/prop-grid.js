@@ -5,18 +5,21 @@ import { parseRatio, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHead
 /* ★상·하한은 한 곳에서만 온다 — IMG_MIN_PCT 는 캔버스 코너 드래그(resizeGridImage)가 쓰는
    «그» 하한이다. 패널의 폭(%) 칸이 같은 수를 쓰게 import 한다(손으로 5 를 적지 않는다). */
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
-import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE,
+import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE, GRID_FONT_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
-         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_MAX_BYTES, gridCellsToDataset,
+         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_EMPTY_RADIUS, GRID_BADGE_RADIUS, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES, gridBlockOutline, GRID_OUTLINE_SIDES,
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
          GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE, GRID_WIDTH_MIN, GRID_WIDTH_MAX, gridResizeTo,
+         gridCollapseToColumns,   /* ★T12 — 2×2 → 독립 칼럼 */
          gridBlockBg, GRID_BLOCK_BG_PAD_Y_MAX, GRID_BLOCK_BG_PAD_X_MAX, GRID_BG_FIT_VALUES } from '../blocks/grid-block.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { wireFontPicker } from './_font-picker.js';
+/* ★⑵ — 새 글자 줄의 글꼴을 «모달 ㉠ 과 같은 출처»에서 받는다(아래 grdNewLineFontFamily). */
+import { fontChain } from './prop-text-utils.js';
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 import { parseAlphaFromColor, swatchHex, wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 
@@ -923,7 +926,7 @@ export function grdAddLineToSelectedCell(type) {
   const block = blocks[0];
   const hit = _grdResolveAnyAddr(block, grdGetActiveLine(block));
   if (!hit) return false;
-  const lineSpec = type === 'gap' ? { type: 'gap', height: 16 } : { type: 'body', text: '' };
+  const lineSpec = grdNewLineSpec(type === 'gap' ? 'gap' : 'body');   // ★spec 은 «한 곳»에서 뜬다(grdNewLineSpec)
   const res = grdAddLine(block, { r: hit.r, c: hit.c }, hit.li, lineSpec);
   return !!(res && res.ok);
 }
@@ -969,6 +972,82 @@ const _GRD_ROLE_KINDS = Object.keys(GRID_ROLES);
  *  ⛔둘로 가르지 마라 — 「추가로는 되는데 바꾸기로는 안 되는 종류」가 생기고, 종류가 하나 늘 때
  *    한쪽만 늙는다(이 레포의 고질: 비율 상한이 한 곳만 4로 올라가 4열 입력이 조용히 무시됐다). */
 const _GRD_KINDS = [..._GRD_ROLE_KINDS, 'image', 'gap', 'divider'];
+
+/* ★«새로 추가하는» 글자 줄의 글꼴 — ★현빈 발주(2026-10-07, 원문):
+     「… ★이외 그리드 블럭에 텍스트 줄을 추가해도 기본(시스템)으로 나온다.
+       근데 그냥 섹션에 ★텍스트 블럭을 추가하면 ★프리텐다드로 되어있잖아? ★그렇게 되길 원해
+       ★모달이나 ★그리드블럭의 텍스트 줄」
+   ★★정본은 ★«텍스트 블럭»이다 — 현빈이 ★그것을 기준으로 지목했다. ★모달 ㉠ 과 ★같은 출처를 쓴다:
+     `fontChain('Pretendard')` = `'Pretendard', sans-serif` (modal-block.js modalNewFontFamily 와 ★한 벌).
+   ⛔리터럴로 적지 않는다 — `./_font-picker.js:56` 이 ★`value: fontChain('Pretendard')` 로 이미 쓰고 있다
+     (= 피커가 「Pretendard」 항목에 넣는 ★그 값) ⇒ 체인 규약이 바뀌면 ★여기도 따라간다.
+     ★그 자는 ⛔serif 계열엔 Pretendard 를 ★안 끼우는 규율까지 품는다(prop-text-utils.js:30).
+   ★`GRID_FONT_RE` 는 ★렌더러가 쓰는 ★그 검문 자다 — 거절되는 값을 박으면 ★선언이 ★조용히 빠진다.
+   ⚠️읽기 실패엔 ★`''` ⇒ 아래 spec 빌더가 ★아무것도 안 박고 ★지금 화면 그대로 간다.
+     ⛔리터럴 폴백을 두지 않는다(지디 발주 규율).
+   ★한 번만 읽고 기억한다. */
+let _grdNewFontMemo;
+function grdNewLineFontFamily() {
+  if (_grdNewFontMemo !== undefined) return _grdNewFontMemo;
+  let v;
+  try { v = fontChain('Pretendard'); } catch (_) { v = undefined; }
+  v = (typeof v === 'string') ? v.trim() : '';
+  _grdNewFontMemo = (v && GRID_FONT_RE.test(v)) ? v : '';
+  return _grdNewFontMemo;
+}
+
+/** ★«새로 넣을» 줄 ★하나의 spec — ⛔명부를 둘로 가르지 마라.
+ *  ★전에는 ★두 자리가 ★같은 표를 ★따로 들고 있었다(① T/G 단축키 `grdAddLineToSelectedCell`
+ *    ② 패널 「+ 줄 추가」 select). 「gap 은 height 16」이 ★두 곳에 적혀 있었고, divider 는
+ *    ★②에만 있었다 — 한쪽만 늙는 ★그 꼴이다(이 파일 _GRD_KINDS 머리말의 M7 규약과 같은 이유).
+ *  ⇒ ★여기 ★한 곳에서 ★뜬다. 새 종류가 생기면 ★이 함수만 는다.
+ *
+ *  ★★「옛 줄 불변」은 ★«행위»가 아니라 ★«구조»로 선다(모달 ㉠ 주석의 ㉠㉡ 꼴 그대로):
+ *    ㉠ ★저장된 줄은 ★이 함수를 ★지나가지도 않는다 — 저장본은 `dataset.cols/cells` 로 되살아나
+ *       `renderGridBlock` 이 그린다. 줄을 ★만드는 길만 여기로 온다.
+ *    ㉡ ★이미 fontFamily 를 ★가진 줄도 안 건드린다 — ⛔`GRID_DEFAULTS`·렌더 폴백을 ★한 글자도
+ *       안 바꿨다. 그 자리를 바꾸면 ★dataset 에 fontFamily 가 ★없는 «옛 줄»의 화면이 ★같이 움직인다.
+ *    ㉢ ★복사(`grdDuplicateLine`)·★글자블럭 떨구기(`grdDropTextBlockOnCell`)는 ★자기 spec 을
+ *       ★스스로 만든다 — ★여기로 안 온다. ⇒ 옛 줄의 ★사본은 ★옛 줄 그대로다.
+ *
+ *  ★★글자 줄 ★«에만» 박는다 — 종류 수는 ★정의 자리에서 센다:
+ *    `_GRD_ROLE_KINDS = Object.keys(GRID_ROLES)` (grid-block.js `_GRID_ROLES` ★한 곳에서 뜬다)
+ *    ⇒ 글자 역할 ★6 · 그 밖 ★3(image·gap·divider). ⛔사용 자리 grep 으로 세지 않았다.
+ *    ⛔gap·divider·image 에 fontFamily 를 박으면 ★렌더러가 ★안 읽는 키가 저장본에 눌러앉고
+ *      `_gridInspectLines` 가 「안 그려진다」고 ★되돌려 보낸다.
+ *  ★★㉣ ★임자 가름을 ★«걷었다» — ★현빈 GO (2026-10-07, 지디가 물었고 답이 ★「응, 같이 바꿔라」):
+ *    ★이 문은 ★그리드만 쓰는 문이 ★아니다 — `js/blocks/line-host.js` 의 ★버블(`kind:'bubble'`)·
+ *    ★챗(`kind:'chat'`) 줄이 ★같은 select·★같은 `grdAddLine` 을 쓴다(BT2).
+ *    ~~[폐기 · 2026-10-07] 「★현빈 발주는 「모달이나 ★그리드블럭의 텍스트 줄」이다 ⇒ ★버블·챗은
+ *      ★안 건드린다」~~ ⛔지우지 말고 ★왜 바뀌었는지를 읽어라 — ★그 판단은 ★그 시각까지 옳았고,
+ *      ★현빈이 ★범위를 ★넓혔다. ★갈림(그리드 줄 Pretendard / 버블 캡션 시스템)을 ★없애는 쪽이다.
+ *    ★버블·챗 렌더러도 ★같은 `gridLineHtml` 을 쓴다(`line-host.js` `lnLinesHtml`) ⇒ ★죽은 키가 아니다.
+ *    ★지키는 그물: tests/dom/grid-newline-font.dom.spec.js ★G-KIND(임자 셋) ＋ `bt2-lines` T3
+ *  @param {string} kind  `_GRD_KINDS`(그리드) 또는 `LN_KINDS`(버블·챗)의 한 값.
+ *                        image 는 호출부가 ★먼저 가로챈다(피커가 비동기다) — ⛔`LN_KINDS` 에는 image 가 없다. */
+function grdNewLineSpec(kind) {
+  if (kind === 'gap') return { type: 'gap', height: 16 };
+  if (kind === 'divider') return { type: 'divider', height: 1 };
+  /* ★글자 없는 줄은 «자기 기본값»을 들고 간다 — {text:''} 를 주면 렌더러가 글자 가지로
+     읽지는 않지만 저장본에 뜻 없는 빈 필드가 남는다(여백 줄이 이미 그 규약이다). */
+  const spec = { type: kind, text: '' };
+  /* ★★글자 역할 ★«에만» 박는다 — ⛔임자 가름은 걷었지만 ★종류 가름은 ★그대로다.
+     ★`_GRD_ROLE_KINDS = Object.keys(GRID_ROLES)`(정의 자리) · `LN_KINDS` 도 ★같은 역할표에서 뜬다. */
+  const ff = _GRD_ROLE_KINDS.includes(kind) ? grdNewLineFontFamily() : '';
+  if (ff) spec.fontFamily = ff;
+  return spec;
+}
+/* ★창에 올린다 — 이 파일의 관용구 그대로(window.grdAddLine·grdDuplicateLine …).
+   ★까닭 ★둘:
+     ⑴ ★검사 — `_GRD_ROLE_KINDS` 가름이 «진짜 무엇을 막나»는 ★명부 밖 종류(duo·graph)를
+        ★직접 물어봐야만 잰다. 패널 select 는 그 둘을 ★만들지 못한다(_GRD_KINDS 머리말 참조).
+        ⛔그 둘을 「만들 수 있게」 한 것이 아니다.
+     ⑵ ★★`js/blocks/line-host.js` 의 ★버블·챗 ★T 단축키(`lnAddLineToSelected`)가 ★이 자를 쓴다 —
+        ★전엔 ★거기가 ★spec 을 ★손으로 지어 ★셋째 명부였다(실측 2026-10-07: `{type:'body',text:''}`).
+        ⛔import 가 아니라 ★`window` 로 간다 — 그 파일이 `window.grdAddLine` 에 쓰는 ★같은 관용구다
+          (prop-grid ↔ line-host 순환 import 를 ★일부러 피한 자리다).
+   지키는 그물: tests/dom/grid-newline-font.dom.spec.js G-KIND · tests/dom/bt2-lines.dom.spec.js T3·T9 */
+if (typeof window !== 'undefined') window.grdNewLineSpec = grdNewLineSpec;
 const _grdKindOptsHtml = (kinds, cur, prefix = '') => kinds
   .map(k => `<option value="${k}"${k === cur ? ' selected' : ''}>${prefix}${_grdKindKo(k)}</option>`).join('');
 
@@ -1062,11 +1141,7 @@ function _grdWireKindSelects(block, r, c, afterLi, host = null) {
       });
       return;
     }
-    /* ★글자 없는 줄은 «자기 기본값»을 들고 간다 — {text:''} 를 주면 렌더러가 글자 가지로
-       읽지는 않지만 저장본에 뜻 없는 빈 필드가 남는다(여백 줄이 이미 그 규약이다). */
-    const _spec = kind === 'gap'     ? { type: 'gap', height: 16 }
-                : kind === 'divider' ? { type: 'divider', height: 1 }
-                : { type: kind, text: '' };
+    const _spec = grdNewLineSpec(kind);   // ★①단축키·★버블/챗 단축키와 «같은 자»에서 뜬다 — 두 벌 금지
     grdToastImgFail(grdAddLine(block, { r, c }, afterLi, _spec, {}, H));
   });
 
@@ -1409,8 +1484,11 @@ function _grdImageSectionHtml(anyHit, block) {
             ⛔까닭 줄은 «막을 때만» 넣는다 — 다른 상태의 패널 바이트는 한 글자도 안 바뀐다. */
          hLocked ? '\n      <div class="prop-hint" id="grd-img-height-hint">자르기 전에는 높이를 정할 수 없습니다 — 그림 비율로 그려집니다</div>' : ''}
       <div class="prop-row"${circle ? ' style="display:none"' : ''}>
-        <span class="prop-label">모서리 반경(px)</span>
-        <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="0" value="${rad}">
+        <span class="prop-label">모서리 반경(px)</span>${/* ★T4④-⒝ — placeholder 는 «렌더러가 실제로 쓰는 폴백»이다. ⛔「0」을 손으로 적지 마라:
+             빈 슬롯은 radius 가 비면 GRID_IMG_EMPTY_RADIUS(8)로 그려지는데 패널만 0 이라 말해서
+             현빈이 「설정 안 했는데 왜 모서리가 있지?」를 물었다. 수는 grid-block.js 한 자리에서 끌어온다.
+             (바로 위 높이 칸이 GRID_IMG_CIRCLE_D 로 같은 꼴을 이미 쓴다 — 새 관용구 0.) */ ''}
+        <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="${line.imgSrc ? 0 : GRID_IMG_EMPTY_RADIUS}" value="${rad}">
       </div>${circleRows}
     </div>`;
 }
@@ -2076,6 +2154,17 @@ function _ratioRowHtml(cols) {
  *   행별 높이 입력(prop-table.js `.tbl-rowh-item-row`)과 같은 마크업으로 «행마다 하나씩» 받는다.
  * rows 가 1개(옛 파일과 동일 상태)면 아예 렌더하지 않는다 — 「비율은 있는데 높이는 없다」는
  *   행 개념이 아직 없다는 뜻이라 보여줄 게 없다(PLAN §4 "행이 생기면 …rows>1일 때만 노출"). */
+/* ★T12 «독립 칼럼으로 펴기» 단추 — 행이 ★둘 이상일 때만 낸다.
+ *   ★`_rowHeightHtml`·`_ratioRowHtml` 과 «같은 술어»(rows.length < 2 면 빈 문자열) —
+ *   행이 하나면 이미 «열 스택» 이라 보여 줄 게 없다(gridCollapseToColumns 가 NOOP 으로 거절하는 그 상태).
+ *   ⛔끈으면 «빈 문자열» 이라 옆 판 HTML 은 바이트 그대로다. */
+function _flattenRowHtml(rows, cols) {
+  if (!rows || rows.length < 2) return '';
+  return `
+        <button class="prop-btn" id="grd-flatten-cols" style="width:100%;margin-top:6px;">⬚ 독립 칼럼으로 펴기</button>
+        <div class="prop-hint" style="margin-top:2px;">${rows.length}행을 열 ${cols.length}개의 «줄 묶음» 으로 접는다 — 그러면 칼럼마다 높이를 따로 준다 (⌘Z 복원)</div>`;
+}
+
 function _rowHeightHtml(rows) {
   if (rows.length < 2) return '';
   const items = rows.map((r, ri) => `
@@ -3026,7 +3115,16 @@ ${_grdKindSelectHtml(line, H.kinds)}
             <input type="color" id="grd-badge-color" value="${hex}">
           </div>
           <input type="text" class="prop-color-hex" id="grd-badge-hex" maxlength="7" placeholder="없음" aria-label="알약 배경색" value="${raw ? hex.replace('#', '').toUpperCase() : ''}">
-        </div>` : ''}
+        </div>${raw ? `<div class="prop-row" title="알약의 모서리 둥글기. 0 이면 모난 네모, 큰 값이면 완전 둥근 알약입니다">
+          <span class="prop-label">알약 둥글기</span>
+          <input type="number" class="prop-number" id="grd-badge-radius" min="0" max="${GRID_BADGE_RADIUS}"
+                 placeholder="${GRID_BADGE_RADIUS}" aria-label="알약 모서리 둥글기"
+                 value="${Number.isFinite(Number(line.radius)) ? Number(line.radius) : ''}">
+        </div>` : ''}${/* ★배경이 ★있을 때만 보인다 — :2427 의 span 자체가 `if (bg)` 안이라
+             배경이 없으면 알약이 ★안 생기고, 그러면 이 칸은 ★«아무것도 안 하는 칸»이 된다.
+             ⛔「조용히 아무 일 없음」을 만들지 마라. 선례 = prop-section.js 의 `_bgEmpty` 가지
+             (체커 톤 라디오가 「켜져 있을 때만 보인다」로 같은 꼴). ★새 관용구 0.
+           ★placeholder 는 ★GRID_BADGE_RADIUS 한 자리에서 끌어온다 — ⛔999 를 손으로 적지 마라. */ ''}` : ''}
         <div class="prop-row" style="margin-bottom:0;justify-content:flex-end;">
           <button id="grd-line-reset" class="prop-btn-sm" ${isText ? '' : 'disabled'}
                   title="${isText ? '이 줄에 «손으로 준 값»을 전부 지우고 기본값으로 되돌립니다 (⌘Z 로 복원)' : '이미지·갭 줄엔 타이포 필드가 없습니다'}">↺ 기본</button>
@@ -3136,6 +3234,21 @@ function _grdWireLineSection(block, addr, host = null) {
     H.previewLine(r, c, li, cleared, addr.np);   // ★np — 중첩 안 줄도 같은 길로(T-220)
     window.scheduleAutoSave?.();
     H.show({ r, c, li });
+  });
+
+  /* ★알약 둥글기(현빈 2026-10-07) — 색 입력과 ★같은 길(H.previewLine = gridPreviewLine)을 쓴다.
+     ⛔updateGridBlock 을 쓰지 않는다: 패널을 통째로 다시 그려 포커스가 끊기고 히스토리가 폭주한다
+       (바로 아래 색 배선의 주석이 같은 까닭을 적어 뒀다 — 새 길을 만들지 않는다).
+     ★gridPreviewLine 은 `_gridMergeLine` 을 지난다 = updateGridBlock 과 ★같은 병합 함수
+       ⇒ 「패널로 고친 것」과 「API 로 고친 것」이 갈리지 않는다(grid-block.js 머리말 규율).
+     ★빈 칸 = «미설정»으로 되돌린다(undefined) ⇒ 렌더러가 다시 GRID_BADGE_RADIUS 를 쓴다. */
+  document.getElementById('grd-badge-radius')?.addEventListener('change', (e) => {
+    const t = String(e.target.value).trim();
+    const v = t === '' ? undefined : Math.max(0, Math.min(GRID_BADGE_RADIUS, parseInt(t, 10) || 0));
+    window.pushHistory?.();
+    H.previewLine(r, c, li, { radius: v }, addr.np);
+    H.mark(addr);                    // 재렌더가 마커를 지웠다 — 다시 붙인다
+    window.scheduleAutoSave?.();
   });
 
   const pick = document.getElementById('grd-badge-color');
@@ -3280,6 +3393,7 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
         <!-- ★적대검수 Q3: 「줄이면 보존」으로 동작을 바꾸는 대신 «사실을 적는다».
              API 경로(grid-block.js)가 이미 «자르고 undo» 정책이라, 피커만 보존하면 정책이 둘로 갈라진다. -->
         <div class="prop-hint" style="margin-top:2px;">줄이면 잘린 칸 내용은 사라진다 (⌘Z 복원)</div>
+${_flattenRowHtml(rows, cols)}
       </div>
     </div>
     <div class="prop-section">
@@ -3390,6 +3504,17 @@ ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) �
   );
   /* ⛔접이식 배선은 innerHTML 이 선 «뒤»라야 한다(getElementById 가 그때 산다).
      칸 꾸미기·줄 꾸미기와 «같은 부품»이다 — 키만 'size' 로 다르다. */
+  /* ★T12 «독립 칼럼으로 펴기» 배선 — 피커와 «같은 뒷정리»(거터 걷기 · 패널 재생성)를 쓴다.
+   *   ⛔pushHistory 는 여기서 안 부른다 — 몸통(gridCollapseToColumns)이 «변경 전»에 부른다(gridResizeTo 와 같은 규약).
+   *   ★거절되면(한도 초과 · 이미 1행) «아무 것도 안 바뀜» 다 — 그 글을 그대로 보여 준다(⛔「실패」만 알리지 마라). */
+  document.getElementById('grd-flatten-cols')?.addEventListener('click', () => {
+    const res = gridCollapseToColumns(block);
+    if (!res.ok) { window.showToast?.(res.message) || console.warn('[grid] flatten rejected —', res.message); return; }
+    console.info('[grid] flatten → columns:', res.notice.message);
+    hideGridGutters();
+    showGridProperties(block, _curAddr);
+    showGridGutters(block);
+  });
   _grdWireDisclosure(block, 'size', 'grd-size-toggle', 'grd-size-body');
 
   const ratioInput = document.getElementById('grd-col-ratio');

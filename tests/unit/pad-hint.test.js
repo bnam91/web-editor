@@ -145,10 +145,16 @@ test('T1 ★띠는 ::before 로 그리고 색은 핑크 10% 다', () => {
   /* ★2026-10-07 현빈 ② — 색을 «변수로 열었다»(컬러피커). ⛔폴백은 ★여전히 핑크 10% 다:
        폴백을 바꾸면 D1(:129 색 문자열)·D11(:542 PINK_ON_BLUE 픽셀)이 빨강이다.
        ⇒ 이 단언은 ⑴변수를 쓰나 ⑵기본값이 그대로인가 ★둘을 같이 잠근다. */
-  assert.match(rule, /border-left:\s*var\(--gdt-pad-l,\s*0px\)\s*solid\s*var\(--gdt-padhint-color,\s*rgba\(255,\s*0,\s*128,\s*\.10\)\)/,
-    '★왼쪽 띠가 「--gdt-pad-l 두께 · var(--gdt-padhint-color, 핑크 10%)」가 아니다');
-  assert.match(rule, /border-right:\s*var\(--gdt-pad-r,\s*0px\)\s*solid\s*var\(--gdt-padhint-color,\s*rgba\(255,\s*0,\s*128,\s*\.10\)\)/,
-    '★오른쪽 띠가 「--gdt-pad-r 두께 · var(--gdt-padhint-color, 핑크 10%)」가 아니다');
+  /* ★2026-10-07 현빈 「패딩비쥬얼 기본 - 00D6FF」 — ★폴백 리터럴을 ★걷었다.
+       ★까닭: 폴백이 ★셋이면 색 명부가 ★셋이다(＋JS 기본값 1 = ★넷). ⇒ 정본을 css/editor-base.css
+       :root 의 `--gdt-padhint-color` ★한 줄로 모았다. ⇒ 여기선 ★「폴백이 ★없다」를 잠근다.
+       ⛔폴백을 되살리면 ★빨강이다 — 그게 명부를 넷으로 갈랐던 자리다. */
+  assert.match(rule, /border-left:\s*var\(--gdt-pad-l,\s*0px\)\s*solid\s*var\(--gdt-padhint-color\)/,
+    '★왼쪽 띠가 「--gdt-pad-l 두께 · var(--gdt-padhint-color) ★폴백 없이」가 아니다');
+  assert.match(rule, /border-right:\s*var\(--gdt-pad-r,\s*0px\)\s*solid\s*var\(--gdt-padhint-color\)/,
+    '★오른쪽 띠가 「--gdt-pad-r 두께 · var(--gdt-padhint-color) ★폴백 없이」가 아니다');
+  assert.doesNotMatch(rule, /--gdt-padhint-color\s*,/,
+    '★폴백 리터럴이 돌아왔다 — 색 명부가 다시 갈라진다(정본은 editor-base.css :root 한 줄)');
 
   /* 테두리 «두께»가 곧 패딩 폭이 되려면 box-sizing:border-box + inset:0 이어야 한다. */
   assert.match(rule, /box-sizing:\s*border-box/, 'box-sizing:border-box 가 없으면 두께가 패딩 폭과 어긋난다');
@@ -433,8 +439,9 @@ test('T11 ★아래 띠는 «.section-block 의 ::before» 로 그린다 (좌우
 
   const rule = ruleOf(css, 'body.gdt-pad-on .section-block[style*="--gdt-pad-b"]::before', 'T11');
 
-  assert.match(rule, /border-bottom:\s*var\(--gdt-pad-b,\s*0px\)\s*solid\s*var\(--gdt-padhint-color,\s*rgba\(255,\s*0,\s*128,\s*\.10\)\)/,
-    '★아래 띠가 「--gdt-pad-b 두께 · var(--gdt-padhint-color, 핑크 10%)」가 아니다');
+  assert.match(rule, /border-bottom:\s*var\(--gdt-pad-b,\s*0px\)\s*solid\s*var\(--gdt-padhint-color\)/,
+    '★아래 띠가 「--gdt-pad-b 두께 · var(--gdt-padhint-color) ★폴백 없이」가 아니다');
+  assert.doesNotMatch(rule, /--gdt-padhint-color\s*,/, '★아래 띠에 폴백 리터럴이 돌아왔다');
   /* 테두리 «두께»가 곧 padding-bottom 이 되려면 border-box + inset:0 이어야 한다(계산이 없다). */
   assert.match(rule, /box-sizing:\s*border-box/, 'box-sizing:border-box 가 없으면 두께가 패딩과 어긋난다');
   assert.match(rule, /inset:\s*0/, 'inset:0 이 없으면 띠가 섹션 상자에 맞지 않는다');
@@ -477,7 +484,9 @@ test('T12 ★쓸기 접두사는 «두 소스에서 같다» · 사용자 색은
   /* ★★경계 — 사용자가 고른 «색»이 접두사에 걸리면 쓸기가 그 설정을 조용히 지운다.
        `--gdt-pad-color` 와 `--gdt-padhint-color` 는 ★한 글자 차이다. 그래서 이 줄이 있다. */
   const css = codeOnly(CSS);
-  const colorVars = [...new Set([...css.matchAll(/var\((--gdt-[A-Za-z-]*color)\s*,/g)].map(m => m[1]))];
+  /* ⚠️2026-10-07 — 폴백을 걷어서 `var(--x,` 꼴이 사라졌다. ⇒ 쉼표를 요구하지 않는 자로 바꾼다.
+     ⛔옛 자를 그대로 두면 ★0건이 잡혀 ★「색 변수가 없다」로 읽힌다(그 0 은 ★안 쟀다는 뜻이다). */
+  const colorVars = [...new Set([...css.matchAll(/var\((--gdt-[A-Za-z-]*color)[,)]/g)].map(m => m[1]))];
   assert.ok(colorVars.includes('--gdt-padhint-color'),
     `★CSS 에서 패딩 띠 색 변수를 못 찾았다(찾은 것: ${JSON.stringify(colorVars)})`);
   for (const v of colorVars) {
@@ -606,4 +615,63 @@ test('T15 ★주석은 세어지지 않는다 — 소스 파싱 게이트의 입
   /* ★이 검사가 «무언가를 보고 있나» — 주석 줄 자체가 0 이면 위 단언이 공회전이다. */
   assert.ok(commentLines.length > 20,
     `★prop-section.js 의 주석 줄이 ${commentLines.length}줄 — 자르개가 주석을 못 찾았다(위 단언이 공회전)`);
+});
+
+
+/* ⇐ 되돌리면 빨강: :root 의 두 토큰이 갈리거나, JS 폴백이 어긋나거나, CSS 에 색 리터럴이 돌아오면 터진다.
+   ★현빈 2026-10-07 「★패딩비쥬얼 ★기본 - ★00D6FF」
+   ★고치기 전 실측: 색 리터럴이 ★넷이었다 — editor-canvas.css 폴백 ★3 ＋ prop-page.js 기본값 ★1.
+     ⇒ 「★명부가 둘이면 경고 주석으로 못 막는다 — ★파생시켜 하나로」 ⇒ :root 한 줄로 모았다.
+   ★그리고 ★합친 것을 ★잰다 — 아래가 그 짝이다(⛔「합쳤다」만 적지 않는다). */
+test('T16 ★패딩 띠 기본색 = 00D6FF · 정본은 :root ★한 자리 · ★소비자 셋이 그걸 쓴다', () => {
+  const base = codeOnly(readSrc(ROOT, 'css', 'editor-base.css'));
+  const canvas = codeOnly(CSS);
+  const page = codeOnly(PAGE);
+
+  /* ★① 정본 토큰 ★둘이 :root 에 있다 */
+  const hex = base.match(/--gdt-padhint-hex:\s*(#[0-9a-fA-F]{6})\s*;/);
+  const rgba = base.match(/--gdt-padhint-color:\s*rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\.?\d+)\s*\)\s*;/);
+  assert.ok(hex,  '★--gdt-padhint-hex 토큰이 editor-base.css :root 에 없다');
+  assert.ok(rgba, '★--gdt-padhint-color 토큰이 editor-base.css :root 에 없다');
+  assert.strictEqual(hex[1].toLowerCase(), '#00d6ff',
+    `★기본색이 ${hex[1]} 다 — 현빈 지정은 #00D6FF`);
+
+  /* ★② 두 토큰이 ★서로 맞나 — hex → rgb 환산이 ★같은 수인가 (⛔둘은 갈릴 수 있다) */
+  const n = parseInt(hex[1].slice(1), 16);
+  const want = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const got = [Number(rgba[1]), Number(rgba[2]), Number(rgba[3])];
+  assert.deepStrictEqual(got, want,
+    `★두 토큰이 갈렸다 — hex ${hex[1]} → rgb ${want} 인데 rgba 토큰은 ${got}`);
+
+  /* ★③ 알파는 .10 «고정» — 불투명해지면 D11 이 재는 「에셋 위에 얹힌다」가 뜻을 잃는다 */
+  assert.strictEqual(parseFloat(rgba[4]), 0.1, `★알파가 ${rgba[4]} 다 — .10 이어야 한다`);
+
+  /* ★④ JS 폴백이 ★그 토큰과 맞나 — 「읽기 실패 폴백」이고 ★사본이 아니다(T12 와 같은 꼴) */
+  const jsTok = page.match(/const PAD_HINT_HEX_TOKEN\s*=\s*'([^']+)'/);
+  const jsFb  = page.match(/const PAD_HINT_COLOR_FALLBACK\s*=\s*'(#[0-9a-fA-F]{6})'/);
+  assert.ok(jsTok, '★PAD_HINT_HEX_TOKEN 이 없다 — JS 가 CSS 토큰을 안 읽는다');
+  assert.ok(jsFb,  '★PAD_HINT_COLOR_FALLBACK 이 없다');
+  assert.strictEqual(jsTok[1], '--gdt-padhint-hex',
+    `★JS 가 읽는 토큰 이름이 ${jsTok[1]} 다 — :root 의 이름과 달라 ★항상 폴백으로 떨어진다`);
+  assert.strictEqual(jsFb[1].toLowerCase(), hex[1].toLowerCase(),
+    `★JS 폴백(${jsFb[1]})과 CSS 토큰(${hex[1]})이 갈렸다 — 토큰을 못 읽는 판에서 ★다른 색이 뜬다`);
+
+  /* ★⑤ ★소비자 ★셋이 ★그 변수를 쓴다 — ★그리고 ★폴백 리터럴은 ★0건이다
+     (★이게 「공용 본문 무력화 → 소비자 수만큼 빨강」의 ★수 쪽이다) */
+  const users = (canvas.match(/var\(--gdt-padhint-color\)/g) || []).length;
+  assert.strictEqual(users, 3,
+    `★editor-canvas.css 에서 그 변수를 쓰는 곳이 ${users} — 좌·우·아래 ★3 이어야 한다`);
+  assert.doesNotMatch(canvas, /--gdt-padhint-color\s*,/,
+    '★폴백 리터럴이 돌아왔다 — 명부가 다시 갈라진다');
+  assert.doesNotMatch(canvas, /rgba\(\s*255\s*,\s*0\s*,\s*128/,
+    '★editor-canvas.css 에 옛 핑크 리터럴이 남아 있다');
+
+  /* ★⑥ ⛔일괄치환 ★음성대조 — ★같은 글자를 쓰는 ★무관한 기능 ★둘은 ★그대로여야 한다.
+       (2026-10-07 센서스: 텍스트효과 글로우 · 글로우 렌더 — ★패딩 띠와 ★아무 상관 없다) */
+  const blocks = readSrc(ROOT, 'css', 'editor-blocks.css');
+  const glow   = readSrc(ROOT, 'js', 'fx', 'glow-render.js');
+  assert.match(blocks, /rgba\(255,0,128,0\.6\)/,
+    '★텍스트효과 글로우의 핑크가 사라졌다 — ★일괄치환으로 ★무관한 기능을 건드렸다');
+  assert.match(glow, /fill="#ff0080"/,
+    '★글로우 렌더의 핑크가 사라졌다 — ★일괄치환으로 ★무관한 기능을 건드렸다');
 });

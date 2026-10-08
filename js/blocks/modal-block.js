@@ -9,12 +9,15 @@
 //   인라인 스타일만 쓰면 저장→로드 왕복에서 값이 증발한다.
 //   글자도 dataset(titleText/textText/cell1/cell2)에 산다 — 재렌더가 타이핑을 지우지 않게.
 //
+import { sanitizeRichTextHtml, richTextHasFormatting } from '../util/sanitize-rich-text.js';
+
 // ★텍스트 요소 클래스가 `tb-mdl-*` 인 이유 = «내보내기 보험».
 //   export-figma-json 의 generic 폴백이 [class^="tb-"] 만 텍스트로 수집한다.
 //   전용 분기가 미래에 깨져도 글자는 살아남는다.
 
 import { insertAfterSelected, genId, showNoSelectionHint } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
+import { fontChain } from '../props/prop-text-utils.js';
 
 const MODAL_VARIANTS = ['plain', 'titled', 'icon', 'icon-stack', 'grid-2', 'dashed'];
 
@@ -37,6 +40,30 @@ function iconBlockNewColor() {
   catch { c = undefined; }
   _icnNewColorMemo = (typeof c === 'string' && _MDL_COLOR_RE.test(c.trim())) ? c.trim() : MODAL_DEFAULTS.iconColor;
   return _icnNewColorMemo;
+}
+
+/* ★«새로 만드는» 모달의 글꼴 — ★현빈 발주(2026-10-07, 원문):
+     「섹션에 ★신규로 모달블럭을 추가할떄를 말한거임. 우측패널에 기본 서체가 ★기본(시스템)으로 나오거든?
+       … 근데 그냥 섹션에 ★텍스트 블럭을 추가하면 ★프리텐다드로 되어있잖아? ★그렇게 되길 원해」
+   ★★정본은 ★«텍스트 블럭»이다 — 현빈이 ★그것을 기준으로 지목했다. ★실측(2026-10-07 · 하네스 bootApp):
+     새 텍스트블럭 → ★내용 요소 ★인라인 `Pretendard, sans-serif` ⇒ 패널 `#txt-font-name` = ★「Pretendard」
+     새 모달       → dataset.fontFamily ★없음                  ⇒ 패널 `#mdl-typo-font-name` = ★「기본 (시스템)」
+   ⇒ ★그 «같은 값»을 ★같은 출처에서 받는다: `fontChain('Pretendard')` = `'Pretendard', sans-serif`
+     ⛔리터럴로 적지 않는다 — `js/props/_font-picker.js:56` 이 ★`value: fontChain('Pretendard')` 로
+       ★이미 쓰고 있다(= ★피커가 「Pretendard」 항목에 넣는 ★그 값) ⇒ 체인 규약이 바뀌면 ★여기도 따라간다.
+     ★그 자는 ⛔serif 계열엔 Pretendard 를 ★안 끼우는 규율까지 품는다(prop-text-utils.js:30).
+   ★꼴은 ★바로 위 `iconBlockNewColor` 와 ★한 벌 — 「★새것은 새 기본값, 옛것은 저장값」.
+   ⚠️읽기 실패(비브라우저·모듈 미로드)엔 ★`''` ⇒ makeModalBlock 이 ★아무것도 안 박고 ★상속으로 간다
+     = ★지금 화면과 같다. ⛔리터럴 폴백을 두지 않는다(지디 발주 규율).
+   ★한 번만 읽고 기억한다 — 모달을 만들 때마다 체인을 다시 지을 이유가 없다. */
+let _mdlNewFontMemo;
+function modalNewFontFamily() {
+  if (_mdlNewFontMemo !== undefined) return _mdlNewFontMemo;
+  let v;
+  try { v = fontChain('Pretendard'); } catch { v = undefined; }
+  v = (typeof v === 'string') ? v.trim() : '';
+  _mdlNewFontMemo = (v && _MDL_FONT_RE.test(v)) ? v : '';
+  return _mdlNewFontMemo;
 }
 
 const MODAL_DEFAULTS = {
@@ -411,13 +438,41 @@ function openModalIconPicker(block) {
   }, { favorites: true });
 }
 
-function _textHtml(cls, slot, value, ph, extraCss = '') {
+/* ★★슬롯 → dataset 키 ★한 자리 (2026-10-08 · 수지②).
+   ⛔전엔 ★이 표가 ★두 벌이었다(여기 commitModalSlot ＋ js/block-drag.js 의 조기 반환 비교).
+     ★Html 키가 늘면서 ★세 벌이 될 자리였다 ⇒ ★파생시켜 ★하나로(지디 규율).
+   ★`html` 키는 ★부분 서식 HTML — ★평문(`plain`) ★옆에 산다. ★없으면 ★옛 평문 경로다(무회귀).
+   ★스티커 선례와 ★같은 꼴(dataset.text ＋ dataset.textHtml · js/blocks/sticker-block.js «U6b»). */
+export const MODAL_SLOT_KEYS = Object.freeze({
+  title: Object.freeze({ plain: 'titleText', html: 'titleHtml' }),
+  text:  Object.freeze({ plain: 'textText',  html: 'textHtml'  }),
+  cell1: Object.freeze({ plain: 'cell1',     html: 'cell1Html' }),
+  cell2: Object.freeze({ plain: 'cell2',     html: 'cell2Html' }),
+});
+if (typeof window !== 'undefined') window.MODAL_SLOT_KEYS = MODAL_SLOT_KEYS;
+
+/* ★평문을 ★프로그램적으로 쓸 때 ★묵은 Html 을 ★지운다.
+   ⛔안 지우면 ★새 글자가 ★옛 서식 HTML 에 ★가려진다 — ★스티커가 그 교훈을 적어 뒀다
+     (sticker-block.js: 「MCP 텍스트 수정은 평문 → 잔존 textHtml이 새 text를 가리지 않도록 제거」).
+   ★tests/dom/rich-text-consumer-modal.dom.spec.js ★M7 이 그 자리다. */
+function _setSlotPlain(block, slot, value) {
+  const K = MODAL_SLOT_KEYS[slot];
+  if (!K) return;
+  block.dataset[K.plain] = value;
+  delete block.dataset[K.html];
+}
+
+/* ★슬롯 한 칸의 마크업. ★htmlValue 가 있으면 ★재-sanitize 한 HTML 을, 없으면 ★옛 평문 경로(`_esc`).
+   ★«렌더·로드마다 ★다시 sanitize» 가 규약이다 — 저장본·.gdt 변조 대비(스티커와 같은 까닭).
+   ⛔안내문구(placeholder)는 ★언제나 ★평문이다 — Html 이 끼어들면 흐린 안내문구가 서식을 입는다. */
+function _textHtml(cls, slot, value, ph, extraCss = '', htmlValue = '') {
   const empty = String(value ?? '').trim() === '';
   const shown = empty ? ph : value;
+  const inner = (!empty && htmlValue) ? sanitizeRichTextHtml(htmlValue) : _esc(shown);
   return `<div class="${cls}" data-mdl-slot="${slot}" contenteditable="false"`
        + ` data-placeholder="${_esc(ph)}"${empty ? ' data-is-placeholder="true"' : ''}`
        + (extraCss ? ` style="${extraCss}"` : '')
-       + `>${_esc(shown)}</div>`;
+       + `>${inner}</div>`;
 }
 
 function renderModalBlock(block) {
@@ -515,8 +570,8 @@ function renderModalBlock(block) {
     // ★현빈 조정⑴ — 칼럼은 «투명 배경». 위치만 잡는 용도라 배경/테두리를 주지 않는다.
     //   셀은 «텍스트 전용»이다(드롭존 미등록) → 모달 안 모달이 안 생긴다.
     html = `<div class="mdl-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:${gap}px;">`
-         + _textHtml('tb-mdl-cell', 'cell1', block.dataset.cell1, MODAL_PH.cell, _highlightCss(block.dataset))
-         + _textHtml('tb-mdl-cell', 'cell2', block.dataset.cell2, MODAL_PH.cell, _highlightCss(block.dataset))
+         + _textHtml('tb-mdl-cell', 'cell1', block.dataset.cell1, MODAL_PH.cell, _highlightCss(block.dataset), block.dataset.cell1Html)
+         + _textHtml('tb-mdl-cell', 'cell2', block.dataset.cell2, MODAL_PH.cell, _highlightCss(block.dataset), block.dataset.cell2Html)
          + `</div>`;
   } else if (v === 'icon' || v === 'icon-stack') {
     /* ★display/flex-direction/align-items/gap/text-align 은 _alignStyles 가 cssText «안»에서 준다(핸들 단위).
@@ -530,7 +585,8 @@ function renderModalBlock(block) {
       : 0;
     const _inner = _modalIconHtml(block, v)
                  + _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text,
-                     _highlightCss(block.dataset) + (_tlo > 0 ? `margin-top:${_tlo}px;` : ''));
+                     _highlightCss(block.dataset) + (_tlo > 0 ? `margin-top:${_tlo}px;` : ''),
+                     block.dataset.textHtml);
     /* ★icon 변형만 «가로 한 줄»을 래퍼로 만든다 (2026-09-20)
          루트는 _alignStyles 가 세로쌓기로 돌려놨다 ⇒ vAlign 은 「상자 안 세로 위치」,
          여기 래퍼는 「아이콘과 글자가 서로 어떻게 맞느냐」 — 두 축이 갈라졌다.
@@ -543,7 +599,7 @@ function renderModalBlock(block) {
       : _inner;
   } else {
     // plain · dashed
-    html = _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text, _highlightCss(block.dataset));
+    html = _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text, _highlightCss(block.dataset), block.dataset.textHtml);
   }
   block.innerHTML = html;
 
@@ -594,7 +650,16 @@ function makeModalBlock(opts = {}) {
   //   그래서 저장·로드 왕복에서 「줄간격」이라는 개념 자체가 없었다. 기본값이 1.7 이라 화면은 그대로다.
   block.dataset.lineHeight = String(Number.isFinite(Number(opts.lineHeight)) ? Number(opts.lineHeight) : MODAL_DEFAULTS.lineHeight);
   // 나머지 타이포는 «사용자가 정했을 때만» 박는다 — 안 박으면 선언이 안 나가고 현행 화면이 유지된다.
+  /* ★⑵ — «새로 만드는» 모달만 텍스트블럭과 ★같은 글꼴로 태어난다(현빈 2026-10-07).
+       ⛔MODAL_DEFAULTS.fontFamily 는 ★`''` 로 ★그대로 둔다 — 그건 ★옛 블록용 렌더 폴백이다.
+         ★거기를 바꾸는 순간 dataset.fontFamily 가 ★없는 «옛 모달»의 화면이 ★같이 움직인다
+         (★바로 아래 iconColor 주석의 그 병 · 줌블럭 narrow 때와 같은 규약).
+       ★★그래서 ★「옛 모달 불변」이 ★«행위»가 아니라 ★«구조»로 선다:
+         ㉠ 저장된 모달은 dataset 을 ★이미 갖고 있어 ★윗 가지에서 끝난다
+         ㉡ dataset 이 ★없던 옛 모달은 ★이 함수를 ★지나가지도 않는다 — 저장본은 makeModalBlock 이
+            아니라 ★renderModalBlock 으로 되살아난다(save-load.js:1436 「modal: dataset 이 진실」). */
   if (typeof opts.fontFamily === 'string' && opts.fontFamily.trim()) block.dataset.fontFamily = opts.fontFamily.trim();
+  else { const _nf = modalNewFontFamily(); if (_nf) block.dataset.fontFamily = _nf; }
   if (/^[1-9]00$/.test(String(opts.fontWeight || ''))) block.dataset.fontWeight = String(opts.fontWeight);
   if (Number.isFinite(Number(opts.letterSpacing))) block.dataset.letterSpacing = String(Number(opts.letterSpacing));
   for (const k of ['bold', 'italic', 'strike', 'highlight']) if (opts[k]) block.dataset[k] = '1';
@@ -604,10 +669,11 @@ function makeModalBlock(opts = {}) {
      저장된 모달은 dataset.iconColor 를 이미 갖고 있어 이 줄을 «지나가지도» 않는다 ⇒ 안 바뀐다. */
   block.dataset.iconColor = (typeof opts.iconColor === 'string' && _MDL_COLOR_RE.test(opts.iconColor.trim())) ? opts.iconColor.trim() : iconBlockNewColor();
   // 글자는 비워 둔다 → render 가 placeholder 를 그린다(새로 추가하면 흐린 안내문구가 보인다)
-  if (typeof opts.title === 'string') block.dataset.titleText = opts.title;
-  if (typeof opts.text === 'string') block.dataset.textText = opts.text;
-  if (typeof opts.cell1 === 'string') block.dataset.cell1 = opts.cell1;
-  if (typeof opts.cell2 === 'string') block.dataset.cell2 = opts.cell2;
+  /* ★_setSlotPlain — ★평문을 쓰면서 ★묵은 Html 을 ★같이 지운다(위 머리말 · M7) */
+  if (typeof opts.title === 'string') _setSlotPlain(block, 'title', opts.title);
+  if (typeof opts.text === 'string') _setSlotPlain(block, 'text', opts.text);
+  if (typeof opts.cell1 === 'string') _setSlotPlain(block, 'cell1', opts.cell1);
+  if (typeof opts.cell2 === 'string') _setSlotPlain(block, 'cell2', opts.cell2);
 
   renderModalBlock(block);
 
@@ -672,13 +738,21 @@ function addModalBlock(opts = {}) {
 
 /* 슬롯 글자 커밋 — 편집이 끝나면 DOM 이 아니라 «dataset» 에 쓴다.
    그래야 재렌더·저장·로드가 같은 값을 본다(grid 의 _gridEndEdit 과 같은 규율). */
-function commitModalSlot(block, slot, text) {
+/* ★html 은 ★이미 sanitize 된 문자열이거나 ★빈 값이다(빈 값 = ★서식 없음 ⇒ ★키를 ★지운다).
+   ★⛔«평문이 같다»만으로 ★거짓을 돌려주면 ★서식만 바뀐 커밋이 ★삼켜진다(⌘B 는 글자를 안 바꾼다) —
+     ★tests/dom/rich-text-consumer-modal.dom.spec.js ★M6 이 그 자리다. ⇒ ★둘을 ★같이 본다. */
+function commitModalSlot(block, slot, text, html = '') {
   if (!block || !slot) return false;
-  const key = { title: 'titleText', text: 'textText', cell1: 'cell1', cell2: 'cell2' }[slot];
-  if (!key) return false;
+  const K = MODAL_SLOT_KEYS[slot];
+  if (!K) return false;
   const next = String(text ?? '');
-  if ((block.dataset[key] || '') === next) return false;
-  block.dataset[key] = next;
+  const nextHtml = String(html ?? '');
+  const curPlain = block.dataset[K.plain] || '';
+  const curHtml  = block.dataset[K.html]  || '';
+  if (curPlain === next && curHtml === nextHtml) return false;
+  block.dataset[K.plain] = next;
+  if (nextHtml) block.dataset[K.html] = nextHtml;
+  else delete block.dataset[K.html];
   return true;
 }
 

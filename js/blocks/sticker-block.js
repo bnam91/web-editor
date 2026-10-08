@@ -22,101 +22,16 @@ const STICKER_DEFAULTS = {
   y: 40,
 };
 
-const _CTL_CHARS_RE = /[\u0000-\u0008\u000B-\u001F\u007F]/g;
-// 제어문자 정화 — \b(U+0008) 등 보이지 않는 제어문자가 렌더에 잔존하면
-// contenteditable 캐럿 오프셋을 어지럽힘 (실데이터 stk_p4wfa0 선두 \b 사례).
-// \t(U+0009)·\n(U+000A)은 보존 (텍스트 스티커 Enter 줄바꿈 기능 유지). 렌더는 비파괴(dataset 불변),
-// dataset 자체는 편집 커밋(sticker-select.js finish) 시 자연 치유됨.
-function _stripCtlChars(s) {
-  return String(s).replace(_CTL_CHARS_RE, '');
-}
-
-// ── U6b: 스티커 리치텍스트 sanitizer ──────────────────────────────────────
-// dataset.textHtml(부분 서식 HTML)을 렌더·로드 때마다 재-sanitize한다(저장본/.gdt 변조 대비).
-// ★정규식 아님 — DOM 순회. template 파싱이라 실행 컨텍스트 없음(img 로드·이벤트 미발생).
-//   허용 태그만 재구성, span은 style만·style도 프로퍼티/값 화이트리스트, 그 외 전부 제거.
-// ⚠️STRIKE 는 «레거시지만 execCommand 가 실제로 만드는» 태그다 — Chrome 의
-//   execCommand('strikeThrough') 산출물이 <strike> 라, 허용목록에 없으면 ⌘⇧X 로 그은 취소선이
-//   커밋(sanitize) 순간 언랩돼 «되는 척»만 하고 사라진다(실측: live 엔 <strike>, textHtml 엔 없음).
-const _STK_ALLOWED_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'BR', 'SPAN']);
-const _STK_ALLOWED_STYLE_PROPS = new Set(['color', 'font-weight', 'font-style', 'text-decoration', 'background-color']);
-// 값 화이트리스트 — hex / 함수형색(rgb·hsl, 내부 charset 잠금) / 명명색·키워드(bold·italic·underline·line-through·normal) / 정수(font-weight).
-//   함수형색 내부는 [0-9.,\s%/]만 허용 → url(·javascript: 등 침투 불가.
-const _STK_VAL_HEX  = /^#[0-9a-fA-F]{3,8}$/;
-const _STK_VAL_FUNC = /^(?:rgb|rgba|hsl|hsla)\(\s*[0-9.,\s%/]+\)$/i;
-const _STK_VAL_WORD = /^[a-z]+(?:[ -][a-z]+)*$/i;
-const _STK_VAL_NUM  = /^[0-9]{1,3}$/;
-
-function _stkSafeStyleValue(rawVal) {
-  const v = String(rawVal).trim();
-  if (!v) return null;
-  if (_STK_VAL_HEX.test(v) || _STK_VAL_FUNC.test(v) || _STK_VAL_WORD.test(v) || _STK_VAL_NUM.test(v)) return v;
-  return null; // url(...)·expression(...)·javascript:·기타 함수/특수문자 = 그 선언 제거 (#4 교훈)
-}
-
-function _stkSanitizeStyle(styleStr) {
-  if (!styleStr) return '';
-  const kept = [];
-  for (const decl of String(styleStr).split(';')) {
-    const idx = decl.indexOf(':');
-    if (idx < 0) continue;
-    const prop = decl.slice(0, idx).trim().toLowerCase();
-    const val  = decl.slice(idx + 1).trim();
-    if (!_STK_ALLOWED_STYLE_PROPS.has(prop)) continue;
-    const safe = _stkSafeStyleValue(val);
-    if (safe == null) continue;
-    kept.push(`${prop}:${safe}`);
-  }
-  return kept.join(';');
-}
-
-function _stkSanitizeInto(srcParent, dstParent) {
-  const doc = dstParent.ownerDocument || document;
-  srcParent.childNodes.forEach((node) => {
-    if (node.nodeType === 3) { // 텍스트 — 제어문자만 정화(\t·\n 보존), esc는 innerHTML 직렬화가 담당
-      dstParent.appendChild(doc.createTextNode(_stripCtlChars(node.nodeValue)));
-      return;
-    }
-    if (node.nodeType !== 1) return; // 주석/기타 노드 제거
-    const tag = node.tagName ? node.tagName.toUpperCase() : '';
-    if (tag === 'SCRIPT' || tag === 'STYLE') return; // 자식까지 통째 제거
-    if (_STK_ALLOWED_TAGS.has(tag)) {
-      const clean = doc.createElement(tag.toLowerCase());
-      if (tag === 'SPAN') {
-        const safeStyle = _stkSanitizeStyle(node.getAttribute('style'));
-        if (safeStyle) clean.setAttribute('style', safeStyle);
-      }
-      if (tag !== 'BR') _stkSanitizeInto(node, clean); // 그 외 속성(on*/href/src/class/id/data-*)은 미복사=제거
-      dstParent.appendChild(clean);
-    } else {
-      _stkSanitizeInto(node, dstParent); // 비허용 태그 = 언랩(자식만 재귀 편입)
-    }
-  });
-}
-
-// 문자열 HTML → sanitize된 문자열 HTML. template.content(inert DocumentFragment)에서 파싱.
-function _sanitizeStickerHtml(html) {
-  const tpl = document.createElement('template');
-  tpl.innerHTML = String(html == null ? '' : html);
-  const out = document.createElement('div');
-  _stkSanitizeInto(tpl.content, out);
-  return out.innerHTML;
-}
-window._sanitizeStickerHtml = _sanitizeStickerHtml;
-
-// sanitize된 html에 «실제 인라인 서식»이 있는지 판정 — 서식 태그(b/strong/i/em/u/s)나 style 달린 span.
-//   <br>(줄바꿈)만 있는 건 서식 아님(평문 경로 유지). finish()의 textHtml 생성 여부 판정에 사용.
-function _stickerHtmlHasFormatting(html) {
-  if (!html) return false;
-  const tpl = document.createElement('template');
-  tpl.innerHTML = String(html);
-  if (tpl.content.querySelector('b,strong,i,em,u,s,strike')) return true;
-  for (const s of tpl.content.querySelectorAll('span')) {
-    if (s.getAttribute('style')) return true;
-  }
-  return false;
-}
-window._stickerHtmlHasFormatting = _stickerHtmlHasFormatting;
+/* ★«부분 서식 HTML» 한 벌 = js/util/sanitize-rich-text.js (2026-10-08 · 지디 판정으로 ★이사했다).
+ *   ★왜 — ★모달 슬롯(수지②)이 ★같은 일을 해야 한다. 베끼면 ★명부가 둘이 되고 조용히 갈린다.
+ *   ★본문 로직은 ★한 글자도 안 바뀌었다(이름만). ★그 무변을 ★tests/dom/rich-text-sanitize.dom.spec.js 가 잰다 —
+ *     ★이사 ★전에 ★먼저 세워 ★7/7 초록을 받아 두었고, ★이사 뒤 ★같은 입구로 ★다시 초록이어야 한다.
+ *   ★★window 알리아스 ★둘은 ★여기 ★그대로 둔다 — ★기존 호출자(js/sticker-select.js)가 그걸 부른다.
+ *     ⛔모달은 ★이 전역을 부르지 «않는다» — ★그 모듈을 ★직접 import 한다(이름이 거짓말을 하지 않게).
+ *     ★S7 이 ★`window._sanitizeStickerHtml === sanitizeRichTextHtml` 을 잠근다(★사본이 아니라 한 벌). */
+import { stripCtlChars, sanitizeRichTextHtml, richTextHasFormatting } from '../util/sanitize-rich-text.js';
+window._sanitizeStickerHtml     = sanitizeRichTextHtml;
+window._stickerHtmlHasFormatting = richTextHasFormatting;
 
 function renderStickerBlock(block) {
   _renderStickerBlockInner(block);
@@ -132,7 +47,7 @@ function _renderStickerBlockInner(block) {
   // 모서리 핸들 리사이즈 시 W/H 독립 (sizeW/sizeH 우선, 없으면 size로 정사각)
   const sizeW      = parseInt(block.dataset.sizeW) || size;
   const sizeH      = parseInt(block.dataset.sizeH) || size;
-  const text       = _stripCtlChars(block.dataset.text ?? STICKER_DEFAULTS.text);
+  const text       = stripCtlChars(block.dataset.text ?? STICKER_DEFAULTS.text);
   const bgColor    = block.dataset.bgColor    || STICKER_DEFAULTS.bgColor;
   const textColor  = block.dataset.textColor  || STICKER_DEFAULTS.textColor;
   const fontSize   = parseInt(block.dataset.fontSize)   || STICKER_DEFAULTS.fontSize;
@@ -221,7 +136,7 @@ function _renderStickerBlockInner(block) {
       ? `-webkit-text-stroke:${tStrokeWidth * 2}px ${tStrokeColor};paint-order:stroke fill;`
       : '';
     const rotCss = tRotation !== 0 ? `transform:rotate(${tRotation}deg);transform-origin:center center;` : '';
-    const safeText = _stripCtlChars(tText).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const safeText = stripCtlChars(tText).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     // 박스 너비 — 'auto'(또는 미지정) = 내용맞춤, 고정 px = 그 폭 안에서 줄바꿈(원치 않는
     // 자동 줄바꿈 해소용으로 넓힘). box-sizing:border-box로 지정 폭이 padding 포함 총 박스폭이 되게 함
     // (패널 토글 시 offsetWidth로 seed하는 값과 일치).

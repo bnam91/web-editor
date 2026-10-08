@@ -130,7 +130,15 @@ test('T3 버블과 챗이 «같은» 줄 기능 — 종류 목록·줄 손잡이
   await selectBlock(page, ch, '.ln-row[data-ln-m="0"][data-ln="0"]'); await click(page, `#${ch} .ln-row[data-ln-m="0"][data-ln="1"]`); await seq(ch);
   const lb = (await linesOf(page, sb)).slice(1), lc = (await msgOf(page, ch, 0)).lines.slice(1);
   expect(lb, '조작 결과(굽힌 첫 줄 뺀 나머지)가 같다').toEqual(lc);
-  expect(lb).toEqual([{ type: 'caption', text: '', align: 'center' }, { type: 'caption', text: '', align: 'center' }]);
+  /* ★★`fontFamily` 를 더했다 (2026-10-07 · 현빈 GO 「응, 같이 바꿔라」 — 버블·챗의 ★새 글자 줄도 Pretendard).
+     ★무엇을 고쳤나 — ★이 줄 ★하나다. ⛔위 줄(:132 「조작 결과가 같다」 = ★버블 ≡ 챗)은 ★한 글자도 안 건드렸고
+       ★그 자는 ★이 패치에서도 ★초록이었다(실측) ⇒ ★T3 이 지키려던 ★«같은 기능»은 ★그대로 선다.
+     ★이 줄의 성질 — ★«꼴 스냅샷»(어떤 키가 있고 type·align·text 가 무엇인가)이다. ⛔메시지가 없던 것이 그 표시다.
+     ⛔★글꼴 «값»의 권위는 ★여기가 아니다 — `tests/dom/grid-newline-font.dom.spec.js` 의 G-NEW·G-BUBBLE 이
+       ★텍스트블럭(독립 출처)과 ★견줘 잠근다. 여기 적힌 값은 ★그 값의 ★사본일 뿐이니
+       ★체인 규약이 바뀌면 ★저쪽을 먼저 보고 ★이 줄을 ★따라 고쳐라. */
+  const _FF = "'Pretendard', sans-serif";
+  expect(lb).toEqual([{ type: 'caption', text: '', align: 'center', fontFamily: _FF }, { type: 'caption', text: '', align: 'center', fontFamily: _FF }]);
 });
 
 // ─────────── T4 ───────────

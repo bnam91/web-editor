@@ -720,6 +720,7 @@
       <button class="fp-menu-item" onclick="addGridBlock();toggleFpDropdown('fp-component-dropdown')">Grid</button>
       <button class="fp-menu-item" onclick="addModalBlock();toggleFpDropdown('fp-component-dropdown')">Modal</button>
       <button class="fp-menu-item" onclick="addCouponBlock();toggleFpDropdown('fp-component-dropdown')">Coupon</button>
+      <button class="fp-menu-item" onclick="addQuoteBlock();toggleFpDropdown('fp-component-dropdown')" title="인용구(쉼표) — 글 양옆에 부호가 서는 블럭">Quote</button>
       <!-- ★[숨김] Info Card · Inner Card — 현빈 2026-09-07 「info카드와 이너카드도 일단 숨김처리해줘」
            ⛔막는 것은 «새로 넣는 입구»뿐이다. 블록 구현·프로퍼티 패널·레이어 패널·저장/로드는
              그대로 둔다 — 이미 이 블록이 들어간 프로젝트는 계속 열리고 편집돼야 한다
@@ -1091,6 +1092,7 @@
 <script type="module" src="js/props/prop-sticker.js"></script>
 <script type="module" src="js/props/prop-laurel.js"></script>
 <script type="module" src="js/props/prop-coupon.js"></script>
+<script type="module" src="js/props/prop-quote.js"></script>
 <script type="module" src="js/props/prop-zoom.js"></script>
 <script type="module" src="js/props/prop-gradient.js"></script>
 <script type="module" src="js/props/prop-label-group.js"></script>
@@ -1120,6 +1122,7 @@
 <script type="module" src="js/blocks/chat-block.js"></script>
 <script type="module" src="js/blocks/laurel-block.js"></script>
 <script type="module" src="js/blocks/coupon-block.js"></script>
+<script type="module" src="js/blocks/quote-block.js"></script>
 <script type="module" src="js/blocks/zoom-block.js"></script>
 <script type="module" src="js/blocks/sticker-block.js"></script>
 <script type="module" src="js/blocks/vector-block.js"></script>
@@ -1651,6 +1654,32 @@
     <span id="bcm-grid-img-circle-label">원형 이미지 추가</span>
   </div>
   <div class="bcm-item" id="bcm-grid-img-del" style="display:none;">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+      <path d="M2.5 3.5h7M4.5 3.5v-1a1 1 0 011-1h1a1 1 0 011 1v1M3.5 3.5l.5 6.5a1 1 0 001 1h2a1 1 0 001-1l.5-6.5"/>
+    </svg>
+    이미지 삭제
+  </div>
+  <!-- ★비교(comparison) 셀의 «칸 종류» (현빈 2026-10-08 — 「컴패리전 셀에 텍스트/이미지를 우클릭으로 선택 입력」)
+       ★바로 위 bcm-grid-img 계열을 ★그대로 베꼈다(그림·이름·display:none 시작). 보이는 조건 = block-factory.js openMenu
+         의 `_targetCmpAddr` ★하나 — 두 벌로 가르면 한쪽만 늙는다(그리드가 그 까닭을 적어 뒀다).
+       ★모델은 ★이미 있다 — row.type('text'|'image') · imgSrc · imgFit (comparison-block.js normalizeRow) ⇒ 새 필드 0.
+       ⛔「이미지 교체」(파일 선택창)는 ★여기 두지 않았다 — ★패널에 이미 있다(prop-comparison.js `.cmp-row-img`).
+         까닭은 block-factory.js 의 bcm-cmp-img 핸들러 머리말. -->
+  <div class="bcm-item" id="bcm-cmp-img" style="display:none;">
+    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="1.5" y="2.5" width="11" height="9" rx="1.3"/>
+      <circle cx="5" cy="5.5" r="1"/>
+      <path d="M12.5 9L9.5 6.5 4 11.5"/>
+    </svg>
+    이미지 칸으로
+  </div>
+  <div class="bcm-item" id="bcm-cmp-text" style="display:none;">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+      <path d="M2 2.5h8M6 2.5v7M4 9.5h4"/>
+    </svg>
+    텍스트 칸으로
+  </div>
+  <div class="bcm-item" id="bcm-cmp-img-del" style="display:none;">
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
       <path d="M2.5 3.5h7M4.5 3.5v-1a1 1 0 011-1h1a1 1 0 011 1v1M3.5 3.5l.5 6.5a1 1 0 001 1h2a1 1 0 001-1l.5-6.5"/>
     </svg>

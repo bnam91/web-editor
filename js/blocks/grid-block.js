@@ -52,6 +52,62 @@ const GRID_DEFAULTS = {
     { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] },
   ],
 };
+
+/* ★★★⛔`GRID_DEFAULTS.cols` 는 ★«창조 기본값»**이자** ★«렌더 폴백»이다 — ★둘 다다(실측 2026-10-07).
+ *   ⑴ 창조: `makeGridBlock` 이 `opts.cols` 를 안 받았을 때
+ *            (앵커 = `let cols = (Array.isArray(opts.cols) && opts.cols.length >= MIN_COLS)`)
+ *   ⑵ ★렌더: `_gridCols(block)` 이 ★`dataset.cols` 가 ★없거나·배열이 아니거나·`length < MIN_COLS` 일 때
+ *            (앵커 = `if (!Array.isArray(cols) || cols.length < MIN_COLS) cols =`)
+ *      ⛔줄번호로 가리키지 않는다 — 이 주석을 넣으며 ★아래가 전부 밀렸다(앵커로 찾아라).
+ *      ⇒ `renderGridBlock`·`getGridModel` 이 ★그 길로 온다.
+ *   ★실측(2026-10-07, 하네스 bootApp): `dataset.cols='[]'` 인 블럭을 `renderGridBlock` 하면
+ *     줄이 `[{"type":"body","text":"내용을 입력하세요."}]` 로 ★되살아나고 패널은 「기본 (시스템)」이었다.
+ * ★★⇒ ⛔**그래서 ★여기에 `fontFamily` 를 ★박으면 «옛 블럭»의 화면이 ★같이 움직인다.**
+ *   ★현빈 GO(2026-10-07 「응, 기본 줄도 바꿔라」)는 ★«새로 만들 때»에 대한 것이다.
+ *   ⇒ ★박는 자리는 ★아래 `gridNewDefaultCols()` 이고, ★부르는 자는 ★`makeGridBlock` ★하나뿐이다.
+ *   ★지키는 그물: tests/dom/grid-newline-font.dom.spec.js ★G-FALLBACK(옛 블럭 불변) ＋ ★G-BLOCK-NEW(새 블럭) */
+
+/* ★«새로 만드는» 그리드의 기본 글꼴 — ★`prop-grid.js grdNewLineSpec` ★한 곳에서 받는다.
+   ★★⛔`fontChain` 을 ★여기로 import 하지 마라 — ★두 가지 때문이다(둘 다 실측 2026-10-07):
+     ⑴ ★구조 — `prop-grid.js` 가 ★이 파일을 import 한다 ⇒ 거꾸로 걸면 ★순환이다.
+     ⑵ ★★하네스 — ★이 파일의 소스를 ★TMP `.mjs` 로 ★얹어 돌리는 unit 하네스가 ★여럿이다.
+        ★import 를 ★하나 늘렸더니 ★`tests/unit` 의 ★grid-block.js 소비자 ★32파일에서
+        ★**277건이 빨개졌다**(ERR_MODULE_NOT_FOUND / 그리고 레포 `package.json` 의
+        `"type":"commonjs"` 탓에 ★레포 안 `.js` 를 그대로 가리키면 named import 가 또 터진다).
+        ⇒ ★그 32곳을 고치는 대신 ★import 그래프를 ★안 건드린다.
+   ⇒ ★`window` 로 간다 — ★`js/blocks/line-host.js` 가 `window.grdAddLine`·`window.grdNewLineSpec` 에
+     쓰는 ★같은 관용구다(그 파일도 ★같은 순환을 피해 그 길을 골랐다).
+   ⚠️★그래서 ★`window` 가 없는 판(unit 하네스)에서는 ★`''` 다 — ★아무것도 안 박고 ★옛 꼴 그대로 간다.
+     ★그 축을 재는 자는 ★`tests/dom/grid-newline-font.dom.spec.js` ★G-BLOCK-NEW 다(앱을 띄워 잰다).
+   ★★«성공한 읽기»만 기억한다 — ⛔실패를 기억하면 ★`prop-grid.js` 가 ★아직 안 얹힌 한 순간에
+     ★영영 `''` 로 잠긴다(「조용히 반쪽만 동작」의 꼴). 실패는 ★다음 부름에 ★다시 묻는다. */
+let _grdDefFontMemo = '';
+function _gridNewFontFamily() {
+  if (_grdDefFontMemo) return _grdDefFontMemo;
+  let v;
+  try { v = (typeof window !== 'undefined' ? window.grdNewLineSpec?.('body') : null)?.fontFamily; } catch (_) { v = undefined; }
+  v = (typeof v === 'string') ? v.trim() : '';
+  if (v && _GRID_FONT_RE.test(v)) _grdDefFontMemo = v;
+  return _grdDefFontMemo;
+}
+
+/** ★«새로 만드는» 블럭이 받는 기본 열 — ★깊은 사본 ＋ ★글자 역할 줄에만 글꼴을 박는다.
+ *  ★★⛔`GRID_DEFAULTS.cols` 자체는 ★한 글자도 안 바꾼다 — 그건 ★렌더 폴백이기도 하다(위 ⛔).
+ *  ★종류 가름은 ★정의 자리에서 뜬다 — `_GRID_ROLES`(이 파일). ⛔손으로 적은 종류 표가 아니다.
+ *  ★부르는 자는 ★`makeGridBlock` ★하나다(⛔`_gridCols` 에서 부르지 마라 — 그 순간 렌더 폴백이 된다). */
+function gridNewDefaultCols() {
+  const cols = JSON.parse(JSON.stringify(GRID_DEFAULTS.cols));
+  const ff = _gridNewFontFamily();
+  if (ff) for (const col of cols) {
+    for (const ln of (Array.isArray(col.lines) ? col.lines : [])) {
+      if (ln && typeof ln === 'object' && Object.prototype.hasOwnProperty.call(_GRID_ROLES, ln.type || 'body') && !ln.fontFamily) {
+        ln.fontFamily = ff;
+      }
+    }
+  }
+  return cols;
+}
+
 const ROW_DEFAULT = { height: 'auto' };
 // ★한도 — 3곳(이 파일의 _gridCols/_gridRows, updateGridBlock 검증)이 «같은 값»을 봐야 한다
 //   (P0 EVAL이 지적한 「열거 자리가 흩어진다」 재발 방지 — 한 곳에 모은다).
@@ -122,6 +178,43 @@ export const GRID_GAP_MAX = 200;
 export const GRID_ROW_GAP_MIN = -50;
 /* 원형 이미지 줄의 기본 지름(px) — height 가 없을 때. 우클릭 「원형 이미지 추가」도 이 값으로 넣는다. */
 export const GRID_IMG_CIRCLE_D = 120;
+/* ★T4④-⒝ (현빈 2026-10-07 「설정 안 했는데 모서리 코너가 들어가 있다 — 왜?」 · 지디 판정 ⒝)
+ *  ★원인은 «데이터»가 아니었다 — GRID_DEFAULTS 에 radius 키가 없고 저장본(.gdt)에도 안 남는다.
+ *    ⇒ «렌더 폴백»이다: 빈 이미지 슬롯은 radius 가 비면 이 수로 그려진다.
+ *  ⛔그런데 패널 입력칸 placeholder 는 「0」이라 적고 있었다 ⇒ 패널이 하는 말 ≠ 캔버스가 그리는 것.
+ *    ⇒ 현빈이 「왜?」를 묻고 ★「0으로 하자」로 정했다(2026-10-07) ⇒ ★상수를 0 으로 내렸다.
+ *      ★실측 영향: 그의 proj_1791204636612 의 ★빈 슬롯 ★20개 ★전부(★20/20 이 radius 미설정)가 모난 꼴이 된다.
+ *  ⇒ ~~[틀렸다 · 2026-10-07 정정]「그 거짓말만 없앤다(픽셀은 한 점도 안 바꾼다 — 기존 프로젝트 무이동)」~~
+ *    ★★이 문장은 ★거짓이다. ★상수를 0 으로 내리는 순간 ★기존 프로젝트의 빈 슬롯이 ★전부 모나진다
+ *    (바로 아래 줄이 ★그 수를 ★스스로 적어 뒀다 — ★20/20). ⇒ ★한 주석이 ★「무이동」과
+ *    ★「20/20 이 바뀐다」를 ★같이 말하고 있었다. ★지우지 않고 ★무엇이 틀렸는지만 적는다.
+ *  ★그래서 수를 ★여기 한 자리에 두고 패널이 ★그걸 읽는다(js/props/prop-grid.js) —
+ *    명부를 둘로 두면 다음에 이 수를 바꿀 때 placeholder 가 조용히 뒤처진다.
+ *    (같은 파일 GRID_IMG_CIRCLE_D 가 이미 그 꼴로 쓰이고 있다 — 높이 칸 placeholder.)
+ *  ⇒ ~~[철회 · 2026-10-07]「⛔상수를 0 으로 바꾸는 것은 ★별건이다(기존 프로젝트 빈 슬롯 모양이
+ *    전부 바뀐다 — 시각 마이그레이션)」~~ — ★별건이 ★아니다. ★현빈에게 ★그 범위를 ★그대로 물었고
+ *    ★답이 ★범위를 ★품었다:
+ *      1차 「아니, 새로 만들 때만」 → ★정정 ★「기존것도 해 잘못말했네」
+ *    ⇒ ★★시각 마이그레이션이 ★주문에 ★들어 있다. ⇒ ★이 상수 0 이 ★맞는 값이다.
+ *  ★그래서 ★골든도 ★같이 재촬영했다 — tests/unit/grid-render-gaps.test.js 의 D 표
+ *    「★세 번째 이동」 ＋ ★D0-c(갱신 판정: 지워진 칸 0 · img 줄 무접촉 · 모서리 토큰만). */
+export const GRID_IMG_EMPTY_RADIUS = 0;   /* ★8 → 0 (현빈 2026-10-07 ★직접 결정 「0으로 하자」) */
+/* ★알약(배경색을 준 글자 줄)의 «미설정» 모서리 — 완전 둥근 알약. (현빈 2026-10-07 「만들라고 했어」)
+ *  ★여기 한 자리에 두는 까닭 = 패널 placeholder 가 ★이 수를 끌어다 쓴다(js/props/prop-grid.js).
+ *    ⛔패널에 999 를 손으로 적으면 명부가 둘이 되어, 이 수를 바꾸는 날 placeholder 가 조용히 뒤처진다.
+ *    (같은 꼴: GRID_IMG_EMPTY_RADIUS · GRID_IMG_CIRCLE_D — 새 관용구 0.)
+ *  ⚠️`line.radius` 는 ★두 뜻으로 쓰인다 — 이미지 줄(폴백 0 · :2082)과 알약(폴백 999 · 아래).
+ *    ★다만 패널 입력칸은 ★따로다(이미지 절 `grd-img-radius` ↔ 글자 절 `grd-badge-radius`)
+ *    ⇒ 그래서 placeholder 를 «상태 의존»으로 만들 필요가 ★없다(절이 이미 갈라져 있다). */
+export const GRID_BADGE_RADIUS = 999;
+/* ★T4② (현빈 2026-10-07 「높이·너비 ★100% 가 디폴트여야지 · 개별로 추가 조절했으면 그때만 별개 적용」)
+ *  ★옛 뜻: 빈 이미지 슬롯의 «고정 높이» 180px.  ★새 뜻: «바닥»(min-height)이다.
+ *  까닭 — 미설정이면 칸을 ★채운다(height:100%). 그런데 칸 높이가 ★그 슬롯으로만 정해지는 판
+ *  (옆에 아무 내용이 없는 칸)에서는 100% 가 ★순환이라 0 으로 꺼진다. ⇒ 바닥을 같이 깔아
+ *  «짧은 칸에서는 옛날과 같은 180 · 긴 칸에서는 꽉 채움»이 된다.
+ *  ★실측 2026-10-07(probe A): `.grd-cell` 은 display:flex 라 인라인 height:180px 이 ★안 지켜지고
+ *    ★72px 로 눌려 있었다. height:100% 로 바꾸니 ★칸 높이(120)에 ★정확히 찼다. */
+export const GRID_IMG_EMPTY_MIN_H = 180;
 /* ★G20 — 원 «안 글자»가 차지하는 폭(지름 대비 %) = ★내접 정사각형(1/√2). 둥근 가장자리에 글자가 덜 잘린다.
  *   ★서클 에셋블럭의 자식 그릇(css/editor-blocks.css `.icb-children { width: 70.71% }`)과 ★같은 기하다.
  *   ⛔두 자리에 같은 수가 산다 — CSS 를 JS 로 들여올 길이 없다. 그래서 ★경고 주석 대신 ★«재는 자»를 뒀다:
@@ -612,6 +705,45 @@ function _gridSetFrozenWidth(block, v) {
   block.style.width = v + 'px';
   if (block.dataset.overlayFrozenWidth) block.dataset.overlayFrozenWidth = v + 'px';
 }
+/* ══ ★T5-⒜ — 「패딩제외를 했는데 모서리 핸들 조작했더니 풀려버린다」 (현빈 2026-10-07 · 지디 판정 ⒜) ══
+ *  ⛔설계는 ★안 바꾼다 — :2488 의 「명시 폭이 이긴다 · 둘은 같이 설 수 없다」는 그대로다.
+ *    그 배타는 까닭이 ★살아 있다: 그걸 느슨하게 하면 현빈 2026-10-01 사고(grd_ts0he_lvy913j ·
+ *    「왼쪽은 붙고 오른쪽만 패딩」)가 돌아온다. 그래서 «공존»으로 풀지 않는다.
+ *  ★고치는 것은 «안 알려 준 것»이다. 고치기 ★전 실측(2026-10-07, 하네스):
+ *      패딩제외 ON → 리사이즈(500px) 뒤
+ *      dataset.fullBleed  true → ★true      ·  패널 체크 checked → ★true
+ *      음수마진 -32px → ★(없음)             ·  폭 calc(100%+64px) → 500px
+ *    ⇒ 효과는 사라졌는데 ★표식과 패널은 켜진 채였다 = 패널이 ★거짓말을 했다.
+ *  ⇒ 사람이 폭을 정하는 자리에서 ★표식도 같이 끈다. 그러면 패널이 «지금 상태»를 말한다.
+ *
+ *  ⛔★자동 폭에서는 부르지 «않는다» — fitGridWidthToFreeFrame 의 auto 가지(gridWidthAuto='1').
+ *    그건 사람이 한 일이 아니라 «프레임에 맞춘» 것이고, 그 폭은 나중에 통째로 지워져(:713~714)
+ *    ownW===null 로 돌아가 패딩제외가 «되살아난다». 거기서 표식을 끄면 ★사용자 것을 소리 없이 뺏는다.
+ *    ⇒ 부르는 자리의 공통 표식 = 「gridWidthAuto 를 지운다」(= 사람이 정한 폭)인 ★그 세 곳뿐이다. */
+function _gridDropFullBleedForManualWidth(block) {
+  if (!block || !block.dataset || block.dataset.fullBleed !== 'true') return false;
+  /* ⚠️★흔적을 ★먼저 걷고 ★그다음에 표식을 끈다 — ★순서가 중요하다.
+     renderGridBlock 의 걷는 줄은 `dataset.fullBleed === 'true'` 일 때만 돈다. 표식을 ★먼저 끄면
+     ★그 줄이 ★안 돌아 ★음수마진이 ★그대로 남는다(= 폭은 명시 500px 인데 마진은 -32px 인 ★반쪽 세트).
+     ★실측 2026-10-07: 먼저 껐더니 F1 의 마진 단언이 ★빨강이었다 — ★내가 더한 것이 ★이미 있던 것을 껐다. */
+  window.clearBlockFullBleed?.(block);
+  block.dataset.fullBleed = 'false';
+  /* 패널이 «이 블럭»을 보여주는 중이면 체크도 같이 내린다.
+     ⛔안 내리면 「DOM 은 껐는데 패널만 켜진」 ★새 거짓말이 생긴다(둘을 같이 재는 단언이 그걸 잡는다). */
+  try {
+    const cb = document.getElementById('grd-use-padx');
+    /* ★«패널이 지금 어느 블럭을 보여주나»는 ★머리말 배지로 안다 — `blockHeaderHTML`(js/props/_helpers.js:483)
+       이 그리는 `.prop-block-id[data-copy-id]` 가 ★그 자리다.
+       ⚠️실측 2026-10-07: 처음엔 `#rp-block-id-badge` 로 찾았다가 ★한 번도 안 걸렸다 —
+         그 id 로 ★찾는 코드는 있는데(js/props/prop-section.js:170) ★그 요소가 ★DOM 에 없다.
+         ⇒ 조건이 영영 거짓이라 이 동기화가 ★장식이었다(F1 이 빨강으로 그걸 잡았다).
+       ⇒ ★있는 이름이 아니라 ★그리는 자리를 봐라. */
+    const badge = document.querySelector('.prop-block-id[data-copy-id]');
+    if (cb && badge && block.id && badge.getAttribute('data-copy-id') === block.id) cb.checked = false;
+  } catch (_) { /* 패널이 없는 판(단독 렌더·내보내기)에서는 할 일이 없다 */ }
+  return true;
+}
+
 function applyGridOwnWidth(block, px) {
   if (!block || !block.classList || !block.classList.contains('grid-block')) return null;
   const n = Number(px);
@@ -619,6 +751,7 @@ function applyGridOwnWidth(block, px) {
   const v = Math.min(GRID_WIDTH_MAX, Math.max(GRID_WIDTH_MIN, Math.round(n)));
   block.dataset.gridWidth = String(v);
   delete block.dataset.gridWidthAuto;                      // 사람이 정한 폭 — 자동 출처 표시를 뗀다(updateGridBlock 과 같은 규칙)
+  _gridDropFullBleedForManualWidth(block);                 // ★T5-⒜ 사람이 정한 폭 ⇒ 패딩제외 표식도 같이 끈다
   if (block.dataset.overlayBlock === 'true') _gridSetFrozenWidth(block, v);
   renderGridBlock(block);
   return v;
@@ -652,6 +785,7 @@ function fitGridWidthToFreeFrame(block, frame, want) {
     delete block.dataset.gridWidthAuto;                              // 명시 요청 = 사용자 폭
     if (getGridWidth(block) === wantPx) return had;
     block.dataset.gridWidth = String(wantPx);
+    _gridDropFullBleedForManualWidth(block);                         // ★T5-⒜ — 여긴 «명시 요청 = 사용자 폭»(바로 위 줄이 그렇게 적었다)
     renderGridBlock(block);
     return true;
   }
@@ -871,6 +1005,15 @@ const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', '
  *  칸이 받는 것과 «같은 명부»다. 다른 것은 `width` 하나뿐이고 그건 열에만 있다
  *  (거절 메시지가 「width 는 열 필드다」라고 돌려보내는 바로 그 자리). */
 const GRID_COL_FIELDS = new Set(['width', ...GRID_CELL_FIELDS]);
+
+/* ★T12 «독립 칼럼으로 펴기»의 ★손실 명부 둘 — ⛔손으로 적은 열거가 아니라 ★위 두 명부에서 ★파생시킨다.
+ *   (명부가 둘이면 경고 주석으로 못 막는다 — 파생시켜 하나로. 새 칸/줄 필드가 생기면 여기가 ★자동으로 따라온다.)
+ *   ㄹㄱ DROPPED — 칸에만 있고 줄 축에 ★집이 없는 이름. `lines` 는 내용이라 무다(옮겨진다).
+ *   ㄹㄴ NOT_MOVED — 이름은 양쪽에 있으나 ★뜻이 다른 이름. 옮기면 보존이 아니라 ★조용한 변조다.
+ *   ★2026-10-07 런타임 실측값: DROPPED = padding, bgImg, bgFit, bgPos / NOT_MOVED = align, bg, radius, valign
+ *     ⛔그 수를 여기 «상수»로 박지 마라 — 검사가 ★이 파생식과 명부를 견준다. */
+const GRID_CONVERT_DROPPED_CELL_FIELDS = [...GRID_CELL_FIELDS].filter(k => k !== 'lines' && !GRID_LINE_FIELDS.has(k)).sort();
+const GRID_CONVERT_NOT_MOVED_FIELDS    = [...GRID_CELL_FIELDS].filter(k => k !== 'lines' && GRID_LINE_FIELDS.has(k)).sort();
 
 /** 꾸밈 필드 중 «값이 명부로 묶인» 것 — 칸이든 열이든 같다. ⛔이름 말고 «표»로 묶는다. */
 /* ★G4 칸 배경 이미지 맞춤 — 에셋 블럭 fit 명부(block-factory.js _enum('fit',['cover','contain']))와 «같은 두 값». */
@@ -2091,7 +2234,12 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
           + `white-space:pre-wrap;word-break:keep-all;">${_esc(cText)}</div>`;
       }
       const posCss = cTextHtml ? 'position:relative;' : '';   // ⛔글자가 있을 때만 — 없으면 바이트 동일
-      const box = `width:${d}px;max-width:100%;aspect-ratio:1/1;border-radius:50%;${cAlignCss}${cBgCss}${posCss}${mtCss}`;
+      /* ★T4② — 원도 같은 규칙: 지름 ★미설정이면 칸을 채운다(높이 100% ＋ 바닥 · aspect-ratio 가 정원을 지킨다).
+         ⚠️다만 ★새로 만드는 원은 ★언제나 height 를 ★박고 태어난다(js/block-factory.js:5797·:5808 이
+           GRID_IMG_CIRCLE_D 를 명시로 넣는다) ⇒ ★이 가지는 «그 키를 지운 원»에서만 보인다.
+           ⇒ ★「원도 100% 가 디폴트」를 ★눈에 보이게 하려면 ★그 두 자리가 ★안 박아야 한다 — ★별건·현빈 자리. */
+      const dCss = h > 0 ? `width:${d}px;` : `height:100%;min-height:${GRID_IMG_CIRCLE_D}px;`;
+      const box = `${dCss}max-width:100%;aspect-ratio:1/1;border-radius:50%;${cAlignCss}${cBgCss}${posCss}${mtCss}`;
       if (!line.imgSrc) return `<div${addrAttr} class="grd-img-frame grd-img-empty grd-img-circle" style="${box}">${cTextHtml}</div>`;
       return `<div${addrAttr} class="grd-img-frame grd-img-circle" style="${box}overflow:hidden;">`
         + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;height:100%;object-fit:cover;">`
@@ -2138,9 +2286,16 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
              export-css-collect.js — 둘 다 /repeating-conic-gradient/ 같은 서명).
          ★«상자»는 그대로 인라인이다 — 높이·모서리·폭은 빈 셀이 «자리를 차지한다»는 뜻
            그 자체라 배송본에도 남아야 한다. 빠지는 것은 «무늬»뿐이다. */
-      const ph = h > 0 ? h : 180;
-      return `<div${addrAttr} class="grd-img-frame grd-img-empty" style="${widthCss}height:${ph}px;` +
-        `border-radius:${r > 0 ? r : 8}px;${alignCss}${mtCss}"></div>`;
+      /* ★T4② — 높이 ★미설정 = «칸을 채운다»(100% ＋ 바닥). ★명시값이면 ★그 값이 이긴다.
+         ⇒ 「기본은 꽉 채움 · 손으로 만지면 그때만 고정」(현빈 원문 두 문장이 한 요구다). */
+      /* ⚠️★«명시 높이가 ★화면에서도 지켜지나»는 ★이 변경의 범위 ★밖이다 — ★안 고쳤다.
+         ★실측 2026-10-07: height:240px 을 줘도 ★96~103px 로 그려진다(옛 판의 180 폴백도 ★72px 였다).
+         ⇒ ★명시 높이는 ★지금까지도 ★안 지켜지고 있었다. `flex-shrink:0` 을 붙여 봤지만 ★안 먹었다
+           ⇒ ★원인은 flex-shrink 가 ★아니다. ★★«무엇이 누르나»는 ★안 쟀다(별건).
+         ⇒ 그래서 이 줄은 ★«모델이 뭘 말하나»만 고친다: 명시값이면 ★그 값을 적고 채움을 ★안 붙인다. */
+      const hCss = h > 0 ? `height:${h}px;` : `height:100%;min-height:${GRID_IMG_EMPTY_MIN_H}px;`;
+      return `<div${addrAttr} class="grd-img-frame grd-img-empty" style="${widthCss}${hCss}` +
+        `border-radius:${r > 0 ? r : GRID_IMG_EMPTY_RADIUS}px;${alignCss}${mtCss}"></div>`;
     }
     /* ═══ ★프레임(컨테이너) + 콘텐츠(이미지) — 에셋 블록과 «같은 구조» (2026-09-25, 커밋 ①) ═══
      *   현빈 2026-09-25: 「에셋블럭의 경우 프레임(컨테이너) 안에 콘텐츠(이미지)가 있잖아. …
@@ -2343,7 +2498,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
   if (bg) {
     const padV = Number(line.padV) || Math.max(6, Math.round(size * 0.4));
     const padH = Number(line.padH) || Math.max(14, Math.round(size * 1.0));
-    const rad = Number.isFinite(Number(line.radius)) ? Number(line.radius) : 999;
+    const rad = Number.isFinite(Number(line.radius)) ? Number(line.radius) : GRID_BADGE_RADIUS;
     return `<div${addrAttr} style="text-align:${align};${mtCss}"><span class="grd-badge" style="display:inline-block;background:${bg};` +
       `font-size:${size}px;font-weight:${weight};line-height:1.2;letter-spacing:${role.ls};${color ? `color:${color};` : ''}` +
       `padding:${padV}px ${padH}px;border-radius:${rad}px;white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</span></div>`;
@@ -2717,7 +2872,7 @@ function makeGridBlock(opts = {}, drops = []) {
   block.className = 'grid-block';
   block.id = genId('grd');
   block.dataset.type = 'grid';
-  let cols = (Array.isArray(opts.cols) && opts.cols.length >= MIN_COLS) ? opts.cols.slice(0, MAX_COLS) : JSON.parse(JSON.stringify(GRID_DEFAULTS.cols));
+  let cols = (Array.isArray(opts.cols) && opts.cols.length >= MIN_COLS) ? opts.cols.slice(0, MAX_COLS) : gridNewDefaultCols();   // ★㉮ — «만드는» 문만 글꼴을 박는다(⛔_gridCols 폴백 무접촉)
   if (Array.isArray(opts.cols) && opts.cols.length > MAX_COLS) {
     drops.push({ path: `cols[${MAX_COLS}..${opts.cols.length - 1}]`,
       why: `a grid holds ${MIN_COLS}~${MAX_COLS} columns — the rest were dropped (update_grid_block REFUSES the same value; this door clamps it)` });
@@ -3325,6 +3480,9 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   if (outlineUnset) delete block.dataset.blockOutline;
   bgDel.forEach(k => { delete block.dataset[k]; });
   if (partial.width !== undefined) delete block.dataset.gridWidthAuto;   // 사람이 정한 폭 — 자동 출처 표시를 뗀다
+  /* ★T5-⒜ — 폭을 «세울» 때만. ⛔widthUnset(width:null = 자동으로 되돌리기)은 제외한다 —
+     그때는 ownW===null 로 가 패딩제외가 되살아나야 맞다(그 되살림이 :2508 의 일이다). */
+  if (partial.width !== undefined && !widthUnset) _gridDropFullBleedForManualWidth(block);
   try {
     renderGridBlock(block);
   } catch (e) {
@@ -3617,6 +3775,133 @@ function gridResizeTo(block, nCols, nRows) {
   return true;
 }
 
+/* ═══ ★T12 «독립 칼럼으로 펴기» — 2×2(rows/cells) → 열 스택(cols[c].lines) ★한 방향 문 ═══════
+ *
+ * ★왜 이것이 필요한가 (현빈 2026-10-07 · 「보기엔 2×2 지만 ★칼럼별 높이를 조절」)
+ *   CSS 그리드는 블럭 하나에 `grid-template-rows` 를 ★한 벌만 갖는다 ⇒ 같은 행의 두 열은
+ *   ★언제나 같은 높이다(실측 T12-gridcol-probe ⑴-B: r0c0.h === r0c1.h · r1c0.top === r1c1.top).
+ *   그런데 ★목표 상태는 ★이미 그려진다 — 1행 × N열에서 각 열의 `cols[c].lines` 가
+ *   ★제 높이로 쌓이기 때문이다(실측 ⑷: 좌 482/18/345 · 우 345/18/481 = #sp_cqjuuu 와 ★픽셀 일치).
+ *   ⇒ ★없는 것은 «2×2 를 그 꼴로 접는» ★문 하나뿐이었다. 이 함수가 그 문이다.
+ *   ⛔그래서 ★그리드블럭2 를 ★만들지 않는다 — 새 모델 필드 ★0개로 끝난다.
+ *
+ * ★무엇을 «안» 하나 (지디 2026-10-07 ③)
+ *   ⛔역변환(열 스택 → 2×2)은 ★여기 없다. 안 쟀다.
+ *   ⛔중첩 줄(duo)로 칸을 감싸 칸 꾸밈 9/9 를 보존하는 갈래도 ★v1 밖이다. 안 쟀다.
+ *
+ * ★손실 축 ★셋 — ★이름으로 (런타임 명부 실측 · T12-gridcol-probe ⑶)
+ *   ㉠ ★버린다 — 줄 축에 ★집이 없는 칸 필드 ★넷: padding · bgImg · bgFit · bgPos
+ *   ㉡ ★안 옮긴다 — 이름은 양쪽에 있으나 ★뜻이 다른 넷: align · bg · radius · valign
+ *       (칸 배경 ≠ 줄 배경 · 칸 반경 ≠ 줄 반경. 옮기면 «보존»이 아니라 ★조용한 변조다.)
+ *   ㉢ ★수량 — 합친 줄 수가 MAX_CELL_LINES 를 넘으면 ★거절한다(아래 ★한도 관문).
+ *   ★`lines` 자체는 ★손실 0 이다 — patchCell{lines} 왕복이 6필드를 한 글자도 안 깎는 것을 쟀다(⑵-C).
+ *   ★`.grd-children` 의 자식 블럭은 ★손실 축이 아니다 — 행/열을 줄여도 살아남는다(⑶-B 실측).
+ *
+ * @returns {{ok:true, converted:{cols:number,rows:number}, notice:object}}
+ *        | {{ok:false, code:'NOOP'|'INVALID', message:string}}
+ */
+function gridCollapseToColumns(block) {
+  if (!block || !block.dataset) return { ok: false, code: 'INVALID', message: 'gridCollapseToColumns: not a block' };
+  const model = getGridModel(block);
+  const C = model.cols.length, R = model.rows.length;
+  /* ★「할 게 없다」와 「못 한다」를 가른다 — NOOP 을 INVALID 로 뭉개면 UI 가 까닭을 못 적는다. */
+  if (R < 2) {
+    return { ok: false, code: 'NOOP', message: `already a single-row grid (rows=${R}) — nothing to flatten. Column stacks live in cols[c].lines, which this grid already is.` };
+  }
+
+  /* ── 열마다 «행 순서대로» 줄을 잇는다. 행 0 의 줄은 cols[c].lines 가 갖고,
+   *    행 1~ 의 줄은 cells[r][c].lines 가 갖는다 — getGridModel 이 둘을 한 꼴로 돌려준다. */
+  const merged = [];
+  for (let c = 0; c < C; c++) {
+    const out = [];
+    for (let r = 0; r < R; r++) {
+      const ls = model.cells[r] && model.cells[r][c] && model.cells[r][c].lines;
+      if (Array.isArray(ls)) out.push(...ls);
+    }
+    merged.push(out);
+  }
+
+  /* ── ★한도 관문 (지디 2026-10-07 ①) — 넘으면 ★거절한다. ⛔조용히 자르지 마라.
+   *    ★거절 메시지에 «몇 줄이 몇 줄을 넘었나»를 ★수로 적는다 — 「초과」만으론 못 고친다.
+   *    ⛔한 열이라도 넘으면 ★아무 열도 안 바꾼다(부분 적용 금지 — 반쯤 펴진 그리드는 되돌리기 어렵다). */
+  const over = [];
+  for (let c = 0; c < C; c++) {
+    if (merged[c].length > MAX_CELL_LINES) {
+      over.push(`col ${c}: ${merged[c].length} lines (limit ${MAX_CELL_LINES}, over by ${merged[c].length - MAX_CELL_LINES})`);
+    }
+  }
+  if (over.length) {
+    return {
+      ok: false, code: 'INVALID',
+      message: `cannot flatten — ${over.length} of ${C} column(s) would exceed MAX_CELL_LINES after merging ${R} rows. ${over.join('; ')}. `
+        + `Nothing was changed. Remove lines from those columns (or split the grid) and try again.`,
+    };
+  }
+
+  /* ── ★손실 통지 — `_gridDestructiveNotice` 를 ★그대로 태운다(지디 ②). ⛔새로 만들지 않는다.
+   *    그 함수가 «행 1~ 의 칸이 사라진다»는 ★같은 사실을 이미 센다(droppedCells·줄 수).
+   *    여기서 더하는 것은 ★«무엇이» 사라지나 — 칸 꾸밈을 ★이름으로. */
+  const base = _gridDestructiveNotice(model, 1, C) || { kind: 'truncate', shrank: [`rows ${R}→1`], droppedCells: [], message: '' };
+  /* ★실제로 «값이 걸려 있는» 이름만 센다 — 안 걸린 이름까지 열거하면 다음 사람이 그 표를 명부로 읽는다. */
+  const droppedDeco = [];
+  const movedWouldChange = [];
+  for (let r = 1; r < R; r++) {
+    for (let c = 0; c < C; c++) {
+      const cell = (model.cells[r] && model.cells[r][c]) || {};
+      for (const k of GRID_CONVERT_DROPPED_CELL_FIELDS) {
+        if (cell[k] !== undefined && cell[k] !== '') droppedDeco.push(`cells[${r}][${c}].${k}`);
+      }
+      for (const k of GRID_CONVERT_NOT_MOVED_FIELDS) {
+        if (cell[k] !== undefined && cell[k] !== '') movedWouldChange.push(`cells[${r}][${c}].${k}`);
+      }
+    }
+  }
+  const notice = {
+    kind: 'convert',                       // ★'truncate' 가 아니다 — 읽는 쪽이 「줄이기」와 「펴기」를 가르게
+    shrank: base.shrank,
+    droppedCells: base.droppedCells,
+    linesKept: merged.map(m => m.length),  // ★줄은 ★하나도 안 버린다 — 그 수를 여기 적는다
+    droppedCellFields: droppedDeco,
+    notMovedCellFields: movedWouldChange,
+    message: `CONVERT (flatten to independent columns) — rows ${R}→1, ${C} column(s). `
+      + `All ${merged.reduce((a, b) => a + b.length, 0)} line(s) were KEPT and re-stacked per column (${merged.map((m, i) => `col ${i}:${m.length}`).join(', ')}). `
+      + (droppedDeco.length
+        ? `${droppedDeco.length} cell decoration value(s) were DISCARDED — these cell fields have no home on a line: ${GRID_CONVERT_DROPPED_CELL_FIELDS.join(', ')} (${droppedDeco.join(', ')}). `
+        : `No cell decoration was discarded (none of ${GRID_CONVERT_DROPPED_CELL_FIELDS.join(', ')} was set on rows 1+). `)
+      + (movedWouldChange.length
+        ? `${movedWouldChange.length} value(s) were deliberately NOT moved — ${GRID_CONVERT_NOT_MOVED_FIELDS.join(', ')} exist on a line too but MEAN SOMETHING ELSE there (a cell's background is not a line's background), so moving them would silently alter the design rather than preserve it (${movedWouldChange.join(', ')}). `
+        : `Nothing hit the "same name, different meaning" set (${GRID_CONVERT_NOT_MOVED_FIELDS.join(', ')}). `)
+      + `undo (⌘Z) restores the 2D grid in one step.`,
+  };
+
+  /* ── ★변경 «전»에 히스토리 (gridResizeTo 와 ★같은 규약).
+   *    ★실측(T12 G4): 이 문으로 간 한 수는 히스토리 ★2칸을 먹는데, 그것이 ★이 집의 «한 수 값»이다
+   *      (대조군 patchCell{bg} 도 깨끗한 스택에서 ★2칸 — model-update-history.js 가 window.update*Block 을
+       감싸 «끝 표본» 한 칸을 더 쌓는다). ⌘Z ★한 번에 네 표식이 전부 돌아오는 것을 쟀다. */
+  window.pushHistory?.();
+
+  /* ── 쓰기. 행 0 의 «칸 꾸밈»은 살린다 — 1행 그리드의 칸도 칸이다(T-178 과 같은 까닭).
+   *    ⛔gridResizeTo 의 nRows<=1 가지와 ★같은 모양으로 쓴다(두 벌 금지). */
+  const nextCols = model.cols.map((col, c) => Object.assign({}, col, { lines: merged[c] }));
+  block.dataset.cols = JSON.stringify(nextCols);
+  delete block.dataset.rows;
+  let row0 = [];
+  try { const cur = JSON.parse(block.dataset.cells || '[]'); row0 = Array.isArray(cur[0]) ? cur[0] : []; } catch (_) { row0 = []; }
+  const keep = [];
+  for (let c = 0; c < C; c++) {
+    const cell = row0[c];
+    keep.push((cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell : {});
+  }
+  if (keep.some(cell => Object.keys(cell).length)) block.dataset.cells = _gridCellsToDataset([keep]);
+  else delete block.dataset.cells;
+  /* ★행 경계 괘선도 같이 자른다 — 안 자르면 주인 없는 값이 남는다(rows 가지와 같은 까닭). */
+  block.dataset.rowRuleOn = _gridTrimRuleOn(block.dataset.rowRuleOn, 0);
+
+  renderGridBlock(block);
+  window.scheduleAutoSave?.();
+  return { ok: true, converted: { cols: C, rows: R }, notice, hint: notice.message };
+}
+
 /* ＋ 한 번 = 끝에 열(axis 'col') 또는 행(axis 'row') 하나. 상한이면 아무것도 안 한다. */
 function gridAddAtEnd(block, axis) {
   const nC = _gridCols(block).length, nR = _gridRows(block).length;
@@ -3718,6 +4003,7 @@ function _makeGridAddBtn(block, axis) {
 window.gridAddAtEnd = gridAddAtEnd;
 
 window.renderGridBlock = renderGridBlock;
+window.gridCollapseToColumns = gridCollapseToColumns;
 window.migrateGridIdentity = migrateGridIdentity;
 // ★getGridModel(T-A, 2026-09-16) — block-drag.js 의 _gridAddrAt 이 「진짜 빈 셀」인지(lines.length===0)
 //   판정하려고 window 경유로 부른다(block-drag.js 는 이 파일을 import 하지 않는다 — 기존 관례
@@ -3769,5 +4055,7 @@ export {
      ★실제로 grid-rename-residue.test.mjs S1 이 「코드에 옛 이름을 손으로 적었나」를 재는데,
        이 주석의 첫 판이 «그 이름을 예시로 적는» 바람에 그 그물에 걸렸다. 적지 않는다. */
   GRID_NESTED_LINE_TYPE,
+  gridCollapseToColumns,
+  GRID_CONVERT_DROPPED_CELL_FIELDS, GRID_CONVERT_NOT_MOVED_FIELDS,
   gridResizeTo, gridAddAtEnd,   /* ★G15 — 피커·캔버스 ＋ 가 «같은 길» */
 };

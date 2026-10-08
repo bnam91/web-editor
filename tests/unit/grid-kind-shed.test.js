@@ -140,7 +140,32 @@ test('K5 [회귀 지킴] 이번 호출이 «명시»한 키는 안 턴다 — im
  * 테스트 대역: 같은 소스를 한 번 더 얹되 렌더러의 «빈 그림 틀» 모드에서 height 를 «안 읽게» 한 줄만 바꾼다.
  * 파생이면 → 대역의 image 표에서 height 가 빠지고 K1 의 길이 다시 빨개진다. 손으로 적은 표면 → 그대로 초록(거짓 파생).
  * ★대역은 이 파일 안에서만 산다(제품 소스 무변). 표 함수가 없는 판(a8f60da1)에선 K6·K7 은 [전제]에서 멈춘다. */
-const EMPTY_FRAME_H = 'const ph = h > 0 ? h : 180;';
+/* ★★닻 — ⛔「식」이 아니라 ★«이름» 하나다(2026-10-07 교체).
+ *  ★왜 갈았나 — 옛 닻은 ★식 ★전체를 베낀 문자열이었다: `const ph = h > 0 ? h : 180;`
+ *    `gd/grid-t4t5` 의 `7dc54091`(T4② — 빈 슬롯이 칸을 ★채운다)이 ★그 식을 고치자
+ *    K6 은 ★[전제]에서 멈췄다. ★식을 베낀 닻은 ★그 식을 고치는 날 ★반드시 깨진다.
+ *  ★그래서 ★이름으로 간다 — ★`hCss` ★선언 ★한 줄을 찾아 ★그 줄을 ★상수로 갈아친다.
+ *    ⇒ ★식이 어떻게 바뀌어도(삼항이든 함수 호출이든) ★이름이 그대로면 ★닻은 산다.
+ *  ⛔그래도 ★«이름이 바뀌는» 날은 온다 — 그때 ★조용히 눈먼지 ★않게 아래 셋을 같이 건다:
+ *    ⑴ ★딱 ★한 줄만 맞아야 한다(0 이면 [전제] 빨강 · 2 이상이면 ★어느 줄인지 모른다 = 빨강)
+ *    ⑵ ★갈아친 뒤 소스가 ★실제로 달라졌나(`assert.notEqual`)
+ *    ⑶ ★양성대조 — 이름을 ★일부러 틀리면 ★[전제]가 ★빨개지나(K6-pre 가 ×3 으로 센다)
+ *  ⛔이 주석에 ★그 식을 ★그대로 적지 않는다 — 소스 파싱 게이트가 ★주석을 입력으로 먹는 선례가
+ *    이 레포에 있다(바로 아래 prop-grid 알약 주석이 name-axes X5 를 빨갛게 만든 자리다). */
+const EMPTY_FRAME_DECL = 'hCss';
+
+/** 「`const <name> = …;`」 ★선언 ★한 줄을 찾아 ★`replacement` 로 갈아친다.
+ *  ★닻이 ★«이름»이라 식이 바뀌어도 산다. ⛔맞는 줄이 ★하나가 아니면 ★던진다 —
+ *    「어느 줄을 갈았는지 모르는 채 초록」을 ★만들지 않는다. */
+function replaceDeclLine(src, name, replacement) {
+  const re = new RegExp(`^[ \\t]*const ${name}\\s*=.*$`, 'gm');
+  const hits = src.match(re) || [];
+  if (hits.length !== 1) {
+    throw new Error(`[전제] 선언 닻 «const ${name}» 이 ${hits.length} 줄 맞았다(1 이어야 한다) — `
+      + '이름이 바뀌었거나 같은 이름이 둘이다. ★이 검사를 끄지 말고 닻 이름을 고쳐라');
+  }
+  return src.replace(re, replacement);
+}
 async function loadVariant(tag, edit) {
   let v = src;
   if (edit) { const b = v; v = edit(v); assert.notEqual(v, b, `[전제] 대역 «${tag}» 닻을 못 찾았다`); }
@@ -154,10 +179,32 @@ async function loadVariant(tag, edit) {
 const hasTable = () => src.includes('function _gridTypeCanRead(');
 const GRID_LINE_FIELDS_OF = (m) => m.__GLF;
 
+/* ★K6-pre ★양성대조 — ★닻이 ★죽었을 때 ★K6 이 ★«조용히 초록»이 되지 ★않는가.
+ *  ⛔1회로 안 닫는다 — ★×3. 까닭: 이 자리의 바닥이 ★«문자열 맞추기»라 ★한 번의 빨강은
+ *    ★운일 수 있고(내 별건 명부: 양성대조도 1회로는 안 선다), ★세 꼴을 따로 묻는다:
+ *    ㉠ 없는 이름 · ㉡ 옛 이름(실제로 사라진 그 이름) · ㉢ 여럿에 맞는 이름.
+ *  ★이게 초록이면 「닻이 깨지면 ★[전제]가 ★운다」가 참이다 ⇒ K6 의 초록을 믿을 수 있다. */
+test('K6-pre ★양성대조 ×3 — 선언 닻이 깨지면 «전제»가 크게 운다(조용한 초록 금지)', () => {
+  const cases = [
+    ['없는 이름',            '__nope_no_such_decl__'],
+    ['옛 이름(T4② 가 지움)', 'ph'],
+    ['여럿에 맞는 이름',      'h'],
+  ];
+  for (const [why, name] of cases) {
+    assert.throws(() => replaceDeclLine(src, name, 'const x = 1;'),
+      /\[전제\] 선언 닻/,
+      `★«${why}» 로도 조용히 지나간다 — 닻이 깨져도 K6 이 초록이 된다`);
+  }
+  /* ★음성대조 — 살아 있는 이름은 ★통과해야 한다(자가 너무 넓으면 늘 빨강이다). */
+  const out = replaceDeclLine(src, EMPTY_FRAME_DECL, "  const hCss = 'height:180px;';");
+  assert.notEqual(out, src, '★살아 있는 닻으로도 소스가 안 바뀐다 — 갈아치기가 죽었다');
+});
+
 test('K6 ★파생 증명 — 렌더러의 «빈 틀 높이» 모드를 끈 대역에선 image 표에서 height 가 빠지고 K1 길이 빨개진다', async () => {
   assert.ok(hasTable(), '[전제] 종류 표(_gridTypeCanRead)가 없는 판 — 이 검사는 고친 판 전용');
   const real = await loadVariant('real');
-  const dbl = await loadVariant('noEmptyH', s => s.replace(EMPTY_FRAME_H, 'const ph = 180;'));
+  const dbl = await loadVariant('noEmptyH',
+    s => replaceDeclLine(s, EMPTY_FRAME_DECL, "  const hCss = 'height:180px;';"));
   assert.equal(real.__typeCanRead('image', 'height'), true, '[전제] 진짜 렌더러에선 image 가 height 를 읽을 수 있다');
   assert.equal(dbl.__typeCanRead('image', 'height'), false, '★렌더러 모드를 껐는데 표가 안 바뀌었다 — 표가 렌더러에서 파생된 게 아니다');
   assert.equal(dbl.__typeCanRead('image', 'radius'), true, '[음성대조] 끈 모드와 무관한 키(radius)는 그대로');

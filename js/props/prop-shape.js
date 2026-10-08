@@ -4,7 +4,9 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { svgStopRemap } from './gradient-model.js';
 import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
 import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
-         starPointsList, starViewBox, clampStarCount, STAR_COUNT_MIN, STAR_COUNT_MAX } from '../shape-star.js';
+         starPointsList, starViewBox, clampStarCount, STAR_COUNT_MIN, STAR_COUNT_MAX,
+         clampStarInner, STAR_INNER_MIN, STAR_INNER_MAX, STAR_INNER_DISPLAY,
+         clampStarGap, STAR_GAP_MIN, STAR_GAP_MAX } from '../shape-star.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
@@ -84,6 +86,8 @@ export function showShapeProperties(block) {
   const h           = _shapeFrameSize(ss || block, 'h');
   const starN       = clampStarN(block.dataset.starPoints);
   const starCount   = clampStarCount(block.dataset.starCount);   // ★별 «갯수»(현빈 2026-10-06) — 없으면 1 = 옛 별
+  const starInner   = clampStarInner(block.dataset.starInner);   // ★null = ★미설정 = ★옛 별(특례)
+  const starGap     = clampStarGap(block.dataset.starGap);       // ★없으면 0 = 옛 간격(틀 폭 그대로)
   const iconSvg     = SHAPE_ICONS[shapeType] || SHAPE_ICONS.rectangle;
   const shapeName   = SHAPE_NAMES[shapeType] || shapeType;
   const id          = block.id || '';
@@ -217,6 +221,23 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="shape-star-count-slider" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" step="1" value="${starCount}">
         <input type="number" class="prop-number" id="shape-star-count-num" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" value="${starCount}">
       </div>
+      <!-- 별 «통통함»(현빈 2026-10-07 「별이 너무 뾰족해서 … 살짝 통통한 별로도」).
+           꼴은 새로 짓지 않았다 — 위 「꼭짓점」·「갯수」와 같은 slider+number 쌍이다.
+           ★미설정 = 옛 별이다(shape-star.js 머리말) ⇒ 초기 표시는 STAR_INNER_DISPLAY 지만
+             ★dataset 에는 안 쓴다. 사람이 그 칸을 만진 뒤부터 비로 계산한다. -->
+      <div class="prop-row">
+        <span class="prop-label">통통함</span>
+        <input type="range" class="prop-slider" id="shape-star-inner-slider" min="${STAR_INNER_MIN}" max="${STAR_INNER_MAX}" step="1" value="${starInner ?? STAR_INNER_DISPLAY}">
+        <input type="number" class="prop-number" id="shape-star-inner-num" min="${STAR_INNER_MIN}" max="${STAR_INNER_MAX}" value="${starInner ?? STAR_INNER_DISPLAY}">
+      </div>
+      ${starCount > 1 ? `<!-- 별 «간격»(현빈 2026-10-07 「별 간격 조절되면 좋겠고」).
+           ★갯수가 1 이면 이 줄을 안 그린다 — dx=0 이라 ★조용히 아무 일도 안 일어난다
+             (「조용히 아무 일 없음」을 만들지 않는다). 갯수를 2 이상으로 올리면 나타난다. -->
+      <div class="prop-row">
+        <span class="prop-label">간격</span>
+        <input type="range" class="prop-slider" id="shape-star-gap-slider" min="${STAR_GAP_MIN}" max="${STAR_GAP_MAX}" step="1" value="${starGap}">
+        <input type="number" class="prop-number" id="shape-star-gap-num" min="${STAR_GAP_MIN}" max="${STAR_GAP_MAX}" value="${starGap}">
+      </div>` : ''}
       ${starCount > 1 ? `<div class="prop-hint" id="shape-star-count-hint" style="margin-top:4px;">별이 여러 개면 이미지 채우기를 쓸 수 없습니다.</div>` : ''}` : ''}
       ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
     </div>
@@ -637,12 +658,22 @@ ${blockHeaderHTML({
   const starCSlider = document.getElementById('shape-star-count-slider');
   const starCNum    = document.getElementById('shape-star-count-num');
 
-  /** 지금 dataset 에서 읽은 (꼭짓점, 갯수) 로 SVG 기하를 맞춘다. 멱등. */
-  const _applyStarGeom = (n, count) => {
+  /** ★지금 dataset 에서 ★«네 값»(꼭짓점·갯수·간격·통통함)을 ★스스로 읽어 SVG 기하를 맞춘다. 멱등.
+   *  ★★2026-10-07 — 간격·통통함이 늘었을 때 ★서명을 ★안 늘렸다. ★까닭 둘:
+   *    ⑴ ★호출부가 ★dataset 을 ★먼저 쓰고 ★그 다음 부른다 ⇒ ★인자로 받던 값과 ★같다
+   *    ⑵ ★★서명을 늘리면 ★그걸 ★닻으로 쓰는 검사가 ★조용히 눈이 먼다 — ★오늘 실제로 났다
+   *       (`variant-ship-leak` 의 `sliceBlock('const statRow = (key, label, list) =>')`)
+   *       ⇒ ★★`shape-star` 쪽 닻은 ★0건으로 확인했지만, ★늘리지 ★않는 쪽이 ★더 안전하다
+   *  ★인자 둘은 ★호환으로 ★남겼다(옛 호출부가 그대로 돈다) — ⛔쓰지 않는다. dataset 이 ★정본이다. */
+  const _applyStarGeom = () => {
     const svg = block.querySelector('svg');
     if (!svg) return;
-    const list = starPointsList(n, count);
-    const vb = starViewBox(count);
+    const n     = clampStarN(block.dataset.starPoints);
+    const count = clampStarCount(block.dataset.starCount);
+    const gap   = clampStarGap(block.dataset.starGap);
+    const inner = clampStarInner(block.dataset.starInner);
+    const list = starPointsList(n, count, gap, inner);
+    const vb = starViewBox(count, gap);
     if (svg.getAttribute('viewBox') !== vb) svg.setAttribute('viewBox', vb);
     const polys = [...svg.querySelectorAll('polygon')];
     /* 갯수가 줄면 남는 polygon 을 지우고, 늘면 첫 polygon 을 ★복제해서 더한다
@@ -666,7 +697,7 @@ ${blockHeaderHTML({
       const n = clampStarN(raw);
       starSlider.value = n; starNum.value = n;
       if (block.dataset.starPoints !== String(n)) block.dataset.starPoints = String(n);
-      _applyStarGeom(n, clampStarCount(block.dataset.starCount));
+      _applyStarGeom();   // ★dataset 이 정본 — 위에서 이미 썼다
       _syncShapeImageClip(block);
       window.scheduleAutoSave?.();
     };
@@ -689,7 +720,7 @@ ${blockHeaderHTML({
       const curW = _shapeFrameSize(ss || block, 'w');
       const wantW = Math.max(10, Math.min(860, Math.round(curW * c / prev)));
       if (block.dataset.starCount !== String(c)) block.dataset.starCount = String(c);
-      _applyStarGeom(clampStarN(block.dataset.starPoints), c);
+      _applyStarGeom();   // ★dataset 이 정본 — 위에서 이미 썼다
       if (wantW !== curW) applySize(wantW, null);
       /* 이미지 채우기는 갯수>1 에서 못 쓴다(위 cpModes 주석) — 이미 걸려 있으면 «여기서» 푼다.
          ⛔그냥 두면 사진이 첫 별 모양으로만 잘린 채 나머지 별이 투명해진다(조용한 반쪽 동작). */
@@ -707,6 +738,46 @@ ${blockHeaderHTML({
     starCSlider.addEventListener('change', () => window.pushHistory?.());
     starCNum.addEventListener('input',  () => { if (starCNum.value !== '') applyStarCount(starCNum.value); });
     starCNum.addEventListener('change', () => { applyStarCount(starCNum.value); window.pushHistory?.(); });
+  }
+
+  /* ── 별 «통통함»(현빈 2026-10-07) ＋ 별 «간격»(현빈 2026-10-07) ──
+   * ★꼴을 새로 짓지 않았다 — 위 꼭짓점·갯수와 ★같은 배선이다.
+   * ★★통통함은 ★«미설정 = 옛 별»이라 ★사람이 만지는 ★순간 dataset 에 ★처음 쓰인다
+   *   ⇒ ★그 전에는 ★dataset 에 ★키가 ★없다 ⇒ ★저장본도 ★옛 바이트 그대로다. */
+  const starInSlider = document.getElementById('shape-star-inner-slider');
+  const starInNum    = document.getElementById('shape-star-inner-num');
+  if (starInSlider && starInNum) {
+    const applyStarInner = (raw) => {
+      const v = clampStarInner(raw);
+      if (v === null) return;                       // 빈 칸은 「지우는 중」 — 아무것도 안 한다
+      starInSlider.value = v; starInNum.value = v;
+      if (block.dataset.starInner !== String(v)) block.dataset.starInner = String(v);
+      _applyStarGeom();
+      _syncShapeImageClip(block);                   // 이미지 채우기 clip 도 같은 비를 탄다
+      window.scheduleAutoSave?.();
+    };
+    starInSlider.addEventListener('input',  () => applyStarInner(starInSlider.value));
+    starInSlider.addEventListener('change', () => window.pushHistory?.());
+    starInNum.addEventListener('input',  () => { if (starInNum.value !== '') applyStarInner(starInNum.value); });
+    starInNum.addEventListener('change', () => { applyStarInner(starInNum.value); window.pushHistory?.(); });
+  }
+
+  const starGSlider = document.getElementById('shape-star-gap-slider');
+  const starGNum    = document.getElementById('shape-star-gap-num');
+  if (starGSlider && starGNum) {
+    const applyStarGap = (raw) => {
+      const g = clampStarGap(raw);
+      starGSlider.value = g; starGNum.value = g;
+      /* ★0 이면 키를 ★지운다 — 옛 저장본과 ★바이트 동일하게(간격을 안 쓴 문서는 그대로). */
+      if (g === 0) { if (block.dataset.starGap !== undefined) delete block.dataset.starGap; }
+      else if (block.dataset.starGap !== String(g)) block.dataset.starGap = String(g);
+      _applyStarGeom();
+      window.scheduleAutoSave?.();
+    };
+    starGSlider.addEventListener('input',  () => applyStarGap(starGSlider.value));
+    starGSlider.addEventListener('change', () => window.pushHistory?.());
+    starGNum.addEventListener('input',  () => { if (starGNum.value !== '') applyStarGap(starGNum.value); });
+    starGNum.addEventListener('change', () => { applyStarGap(starGNum.value); window.pushHistory?.(); });
   }
 
   // ── 회전 ──
@@ -1007,7 +1078,7 @@ function _syncShapeImageClip(block) {
      올릴 때 이미 풀지만(prop-shape applyStarCount), 저장본·다른 입구로 둘이 함께 들어와도
      «조용한 반쪽 동작»이 되지 않게 여기서도 막는다. */
   if (type === 'star' && clampStarCount(block.dataset.starCount) > 1) { _clearShapeImage(block); return; }
-  const clip = type === 'star' ? starClipPath(block.dataset.starPoints) : (SHAPE_IMG_CLIP[type] || '');
+  const clip = type === 'star' ? starClipPath(block.dataset.starPoints, block.dataset.starInner) : (SHAPE_IMG_CLIP[type] || '');
   if (clip) img.style.clipPath = clip; else img.style.removeProperty('clip-path');
 }
 

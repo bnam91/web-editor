@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* T6 — 섹션 안 글자 밝기 자동(판정은 그 파일 한 자리) */
 import { blockHeaderHTML, escHtml, sliderRowHTML } from './_helpers.js';
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
@@ -612,6 +613,11 @@ ${blockHeaderHTML({
     const applyTone = (dark) => {
       window.pushHistory?.(dark ? '섹션 체커 어둡게' : '섹션 체커 밝게');
       if (dark) sec.dataset.checkerTone = 'dark'; else delete sec.dataset.checkerTone;
+      /* ★T6 — 섹션 «안» 글자 밝기를 같이 맞춘다(현빈 2026-10-07).
+         ⛔관측자(installTextToneObserver)를 넓히지 않았다 — 그 자의 attributeFilter 엔 `data-checker-tone` 이
+           없고 대상도 grid·table·graph 셋뿐이라, 넓히면 그 셋이 체커에서 깨어나 ★별건(⒝)을 건드린다.
+         ⇒ 켜고 끄는 문이 ★이 하나뿐이므로(실측) ★여기서 직접 부른다. 로드 쪽은 js/io/save-load.js. */
+      syncSectionCheckerTextTone(sec);
       window.scheduleAutoSave?.();
     };
     toneOn.addEventListener('change',  () => { if (toneOn.checked)  applyTone(true);  });

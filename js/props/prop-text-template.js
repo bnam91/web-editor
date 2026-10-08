@@ -1,6 +1,8 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
+/* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
+import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
 
 export function buildTextPropsHtml(state) {
   const {
@@ -16,10 +18,13 @@ export function buildTextPropsHtml(state) {
     shadow,
     isLiner,
     isStrike,
+    isUnderline,
+    isDot,
     isBold,
     isItalic,
     isHighlight,
     hlColorHtml, hlH,               /* ★형광펜 «색 칸 마크업»·바 높이 (2026-10-06). 마크업은 prop-text.js 가 만들어 준다 */
+    dotColorHtml, dotSize, dotGap, dotX, dotY,   /* ★점 찍기 «색 칸 마크업»·네 수 (⑥ · 2026-10-08). 같은 까닭으로 prop-text.js 가 만든다 */
     isOverlayBlock,
   } = state;
 
@@ -38,6 +43,29 @@ export function buildTextPropsHtml(state) {
 
   // Figma "Mix" 정책: 자식들의 스타일이 섞여있으면 input 을 빈 값 + placeholder="Mix" 로 표시
   const _mix = mix || { color:{mixed:false}, fontSize:{mixed:false}, fontWeight:{mixed:false} };
+
+  /* ═══ T7 ★불릿 «글머리» — 현빈 2026-10-07 「불릿의 크기 및, 모양 및 숫자 및 알파벳 등 프리셋 필요」 ═══
+   * ★★«비-불릿이면 ★빈 문자열»이라 ★산출이 ★바이트 동일하다 — ⛔템플릿 «안»에 조건식을 ★줄로 넣지 마라:
+   *   그러면 ★개행·들여쓰기가 ★모든 타입의 산출에 ★더해져 ★`typo-section-ssot` ★T1 골든이 ★빨개진다
+   *   (★2026-10-07 실측 — 내가 ★그렇게 넣어 ★그 골든을 깨뜨렸다. ★선례: G20 의 `${circleRows}` 가 같은 꼴).
+   * ★★⛔단추에 `prop-type-btn` 을 ★쓰지 않는다 — `prop-text-wireup-type.js` 의 `wireTypeSection` 이
+   *   ★`propPanel.querySelectorAll('.prop-type-btn')` 으로 ★패널 ★전역을 잡아, 붙이면 ★내 단추도 물고
+   *   `btn.dataset.cls`=undefined 로 ★타입 클래스가 ★지워진다(★별건으로 올렸다).
+   *   ⇒ 모양은 `prop-preset-group`＋`prop-preset-btn` 한 쌍(css/editor-props.css 그 절) ⇒ ★새 클래스 0.
+   * ★「지금 무엇이 골라졌나」 = ★인라인(`bulletListStyleOf`) — ⛔computed 금지(기본 disc 와 못 가른다).
+   *   ★아무것도 안 골랐으면 ★`disc` 를 active 로 보인다(화면이 그러하므로) — ★값은 여전히 빈 문자열이다. */
+  const _bulletSec = currentClass !== 'tb-bullet' ? '' : (() => {
+    const _ul = tb?.querySelector?.('ul.tb-bullet');
+    const _cur = _ul ? bulletListStyleOf(_ul) : '';
+    return `
+    <div class="prop-section" id="bullet-style-section">
+      <div class="prop-section-title">글머리</div>
+      <div class="prop-type-group prop-preset-group">
+        ${BULLET_LIST_STYLES.map(x => `<button class="prop-preset-btn${(_cur || 'disc') === x.v ? ' active' : ''}" data-lst="${x.v}" title="${x.title}">${x.label}</button>`).join('\n        ')}
+      </div>
+      <div class="prop-hint">크기는 Typography 의 글자 크기를 따릅니다</div>
+    </div>`;
+  })();
 
   return `
     <div class="prop-section">
@@ -63,7 +91,7 @@ ${blockHeaderHTML({
         <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Tag</button>
         <button class="prop-type-btn ${currentClass==='tb-bullet'?'active':''}"  data-cls="tb-bullet">List</button>
       </div>
-    </div>
+    </div>${_bulletSec}
 
     <div class="prop-section">
       <!-- ★2026-09-16g 현빈 정정(T-001) — Ignore Auto Layout 토글은 Alignment 줄이 아니라
@@ -120,13 +148,20 @@ ${blockHeaderHTML({
     ${buildTypographySectionHtml({
       p: 'txt',
       font: currentFont, weight: currentWeight, size: currentSize,
-      isBold, isItalic, isStrike, isHighlight,
+      isBold, isItalic, isStrike, isHighlight, isUnderline,
       lh: currentLH, ls: currentLS,
       sizeMin: 8, sizeMax: 800,
       showStyleGroup: !isLiner, showLetterSpacing: !isLiner, showSize: !isLiner,
       /* ★텍스트 패널만 형광펜 색·바 높이 칸을 갖는다 — 배선(wireTextEditSection)이 여기에만 있다.
          ⛔모달(prop-modal.js)·그리드(prop-grid.js)는 기본값 false 라 마크업이 «바이트 동일»이다. */
       showHighlightOpts: !isLiner, hlColorHtml, hlH,
+      /* ★밑줄(U) 단추는 ★텍스트 패널만 — 배선(wireTextEditSection)이 여기에만 있다.
+         ⛔모달·그리드·챗은 기본값 false 라 마크업이 «바이트 동일»이다(형광펜 색 칸과 ★같은 규약).
+         ★켜는 쪽이 배선을 옮기고 ★공유 골든(tests/dom/fixtures/*.json)을 같이 떠야 한다. */
+      showUnderline: true,
+      /* ★점 찍기(⑥)도 ★텍스트 패널만 — 배선(wireTextEditSection)이 여기에만 있다. 모달·그리드·챗은 기본 false ⇒ «바이트 동일».
+         ★isLiner(곡선 텍스트)는 손잡이 칸을 안 준다 — 서식 그룹 자체가 숨는 판이라 칸만 떠 있으면 「눌리는데 아무 일 없음」이 된다. */
+      showDots: true, showDotOpts: !isLiner, isDot, dotColorHtml, dotSize, dotGap, dotX, dotY,
       mix: _mix,
     })}
 

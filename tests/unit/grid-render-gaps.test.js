@@ -430,33 +430,101 @@ test('B-중첩 ★중첩(type:\'duo\') 안의 이미지도 같은 자리다', ()
  *      ⇒ 그래서 산출에서 빠지는 것은 «무늬 한 선언»뿐이고, 상자(높이·모서리·폭)는 그대로다.
  *    ★새 값이 «어디 있나»와 «배송본에 안 실리나»는 여기가 아니라 다음 둘이 잰다:
  *      tests/unit/card-empty-export.test.mjs (값·자리·되돌아오는 문)
- *      tests/dom/grid-cell-empty-slot.dom.spec.js (화면에 그려지나 · 네 내보내기 경로) */
+ *      tests/dom/grid-cell-empty-slot.dom.spec.js (화면에 그려지나 · 네 내보내기 경로)
+ *
+ *  ★★★세 번째 이동 — 「빈 슬롯 모서리 0」 (2026-10-07, ★현빈). 여섯 `empty` 줄에서
+ *    모서리가 `border-radius:8px;` → `border-radius:0px;` 로 갔다.
+ *    `img` 여섯 줄은 ★한 글자도 안 건드렸다(★D0-c 가 ★그것을 기계로 판정한다).
+ *    ⛔이것도 골든을 «느슨하게 푼» 것이 아니라 ★«의도한 산출 변경»이다 — ★위 둘째 이동과 같은 꼴.
+ *    ★까닭 — 폴백 수가 `js/blocks/grid-block.js` 의 `GRID_IMG_EMPTY_RADIUS` 한 자리에 살고,
+ *      그 수가 ★8 → 0 으로 내려갔다(커밋 `e39c0de6`). ★패널 입력칸 placeholder 는 「0」이라
+ *      적고 있었는데 캔버스는 8 로 그려서, 현빈이 「설정 안 했는데 왜 모서리가 있지?」를 물었다.
+ *    ★★«기존 프로젝트도 바뀌나»를 ★물었고 ★현빈이 ★「기존것도 해」로 ★정했다(2026-10-07).
+ *      ⇒ ★이미 저장된 빈 슬롯도 ★모난 꼴로 그려진다. ★그것이 ★주문이다.
+ *      ⚠️저장본(.gdt) 바이트는 ★안 바뀐다 — `GRID_DEFAULTS` 에 radius 키가 ★없고 저장도 안 된다.
+ *        바뀌는 것은 ★«렌더 폴백»이라 ★같은 저장본이 ★다르게 그려진다(그래서 이 골든이 울었다).
+ *    ★이 자가 ★여전히 지키는 것은 그대로다 — 「★안 준 줄의 산출이 ★«덩달아» 바뀌지 않는다」.
+ *      ⇒ ★이번에 바뀐 여섯은 ★«겨냥한» 것이고, ★안 겨냥한 여섯은 ★초록으로 남았다. */
 const D_GOLDEN = {
   'left|50|img':
     '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:50%;">',
   'left|50|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;border-radius:8px;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;border-radius:0px;">',
   'left|100|img':
     '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:100%;">',
   'left|100|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;border-radius:8px;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;border-radius:0px;">',
   'center|50|img':
     '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:50%;margin-left:auto;margin-right:auto;">',
   'center|50|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;border-radius:8px;margin-left:auto;margin-right:auto;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;border-radius:0px;margin-left:auto;margin-right:auto;">',
   'center|100|img':
     '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:100%;">',
   'center|100|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;border-radius:8px;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;border-radius:0px;">',
   'right|50|img':
     '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:50%;margin-left:auto;">',
   'right|50|empty':
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;border-radius:8px;margin-left:auto;">',
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;border-radius:0px;margin-left:auto;">',
   'right|100|img':
     '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame" style="width:100%;">',
   'right|100|empty':
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;border-radius:0px;">',
+};
+
+/** ★★[재촬영 기록 · 2026-10-07] 옛 여섯 `empty` 줄 — ⛔지우지 않는다.
+ *  ★이 파일의 관용구다: 「지우지 않고 ★무엇이 바뀌었는지만 적는다 — 그 문장들은 ★그날까지 참이었다」.
+ *  ★그리고 ★기록으로만 두지 ★않는다 — 아래 D0-c 가 ★이 표와 새 표를 ★견주어
+ *    「★지워진 칸 0 · ★바뀐 것은 ★모서리 한 토큰뿐」을 ★기계로 판정한다(⛔눈 diff 금지). */
+const D_GOLDEN_PREV_EMPTY = {
+  'left|50|empty':
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;border-radius:8px;">',
+  'left|100|empty':
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;border-radius:8px;">',
+  'center|50|empty':
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;border-radius:8px;margin-left:auto;margin-right:auto;">',
+  'center|100|empty':
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;border-radius:8px;">',
+  'right|50|empty':
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:50%;height:120px;border-radius:8px;margin-left:auto;">',
+  'right|100|empty':
     '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty" style="width:100%;height:120px;border-radius:8px;">',
 };
+
+/* ★D0-c — ★«갱신 판정». ⛔재촬영을 ★눈으로 닫지 않는다.
+ *  ★내 별건 명부: 「골든 바이트 비교는 ★변경 감지기지 결함 감지기가 아니다 ⇒ ★갱신 판정 =
+ *    «지워진 줄 0 · added 전부 이번 id» ★단언, ⛔눈 diff 금지」. ★그 자를 ★여기 세운다.
+ *  ★이번 id = ★모서리 폴백 `GRID_IMG_EMPTY_RADIUS` 8 → 0 (`e39c0de6` · 현빈 2026-10-07 「기존것도 해」).
+ *  ⇒ ★판정 셋: ⑴ 칸이 ★하나도 안 사라졌다 ⑵ `img` 여섯은 ★한 글자도 안 바뀌었다
+ *     ⑶ `empty` 여섯은 ★«모서리 토큰 하나»만 바뀌었다(그 토큰을 되돌리면 ★옛 표와 ★바이트 동일). */
+test('D0-c ★갱신 판정 — 재촬영이 «모서리 한 토큰»만 바꿨다(지워진 칸 0 · img 줄 무접촉)', () => {
+  /* ⑴ 사라진 칸 0 — ★수가 아니라 ★이름으로 */
+  const gone = Object.keys(D_GOLDEN_PREV_EMPTY).filter(k => !(k in D_GOLDEN));
+  assert.deepEqual(gone, [], '★옛 `empty` 칸이 새 표에서 사라졌다 — 재촬영이 아니라 «지운 것»이다');
+  assert.equal(Object.keys(D_GOLDEN).length, 12, '★골든 칸 수가 12 가 아니다 — 교차 명부가 바뀌었다');
+
+  /* ⑵ `img` 여섯 — ★이 변경의 범위 ★밖이다. ★행위로 센다(열거하지 않는다). */
+  const imgKeys = Object.keys(D_GOLDEN).filter(k => k.endsWith('|img'));
+  assert.equal(imgKeys.length, 6, `★img 칸이 6 이 아니다(${imgKeys.length}) — 명부가 바뀌었다`);
+  assert.deepEqual(imgKeys.filter(k => /border-radius/.test(D_GOLDEN[k])), [],
+    '★img 줄에 모서리 선언이 생겼다 — 이 변경은 «빈 슬롯»만 건드려야 한다');
+
+  /* ⑶ `empty` 여섯 — ★모서리 토큰 하나를 ★되돌리면 ★옛 표와 ★바이트 동일해야 한다.
+     ⛔이게 ★이 검사의 알맹이다: 「바뀐 것이 ★그 토큰뿐」을 ★한 줄도 안 빼고 센다. */
+  const drift = [];
+  for (const [k, was] of Object.entries(D_GOLDEN_PREV_EMPTY)) {
+    const now = D_GOLDEN[k];
+    if (now.replace('border-radius:0px;', 'border-radius:8px;') !== was) drift.push(`${k}\n    was: ${was}\n    now: ${now}`);
+  }
+  assert.deepEqual(drift, [],
+    '★`empty` 줄이 «모서리 토큰» 말고도 바뀌었다 — 재촬영에 ★다른 변경이 섞였다.\n  ' + drift.join('\n  '));
+
+  /* ⑷ ★전제 — 새 표가 ★실제로 0px 를 들고 있나(⛔8px 가 남아 있으면 이 검사는 ★항등식이 된다). */
+  const stillEight = Object.keys(D_GOLDEN).filter(k => /border-radius:8px;/.test(D_GOLDEN[k]));
+  assert.deepEqual(stillEight, [], '★새 표에 옛 모서리(8px)가 남았다 — 재촬영이 반쪽이다');
+  const zero = Object.keys(D_GOLDEN).filter(k => /border-radius:0px;/.test(D_GOLDEN[k]));
+  assert.equal(zero.length, 6, `★0px 를 든 칸이 6 이 아니다(${zero.length})`);
+});
 
 const dKey = ({ ca, wp, kind }) => `${ca}|${wp}|${kind}`;
 
@@ -1157,7 +1225,23 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *     (CSS 를 JS 로 들여올 수 없다). ⛔그럴 때 이 레포의 답은 «경고 주석»이 아니라 ★«재는 자»다.
  *   ⛔DOM 축(tests/dom/grid-circle-text.dom.spec.js 9개)은 여기 ★안 센다 — 이 래칫의 사각지대다.
  *     그 아홉의 양성대조는 ★판 7개 × 3회(21런) 실측으로 그 파일 머리말에 표로 적혀 있다. */
-const GRID_BASELINE_TESTS = 405;
+/* ★405 → 409 (2026-10-07 · 머지 빨강 처방 ⑵⑶ · 레인 `gd/merge-red-fix`)
+ *   더한 것 = ★4. ⛔지운 것은 ★하나도 없다 — ★G1 명부도 「사라짐(0)」으로 ★같이 센다.
+ *   ⑴★세는 자 = ★이 자(G5)가 ★하위 프로세스에서 읽는 `ℹ tests` 다. ⛔`grep -c '^test('` 가 ★아니다 —
+ *     그 자로 세면 ★437 → 440 이 나오는데, 이 래칫의 분모는 ★`GRID_TESTS`(= grid-*.test.{js,mjs}
+ *     중 ★자기 자신을 뺀 것 · 위 `f !== SELF`)라 ★수가 다르다. ★델타만 ★둘이 같다(＋4 / ＋4).
+ *   ⑵더한 것 —
+ *     · grid-rename-residue.test.mjs ★＋3 : S0 전제(거르개가 훑는 전수에서 보간이 닫힌다) ·
+ *       S0 양성대조(열어 둔 보간을 거짓으로 읽는다) · S0 양성대조(옛 지역 제거기를 빨갛게
+ *       만들던 두 꼴이 공용 부품에서는 걷힌다).
+ *     · grid-kind-shed.test.js ★＋1 : K6-pre 양성대조 ×3(선언 닻이 깨지면 «전제»가 크게 운다).
+ *   ⑶★왜 — 그 두 파일의 빨강(S1·K6)은 ★제품이 아니라 ★«재는 자»의 흠이었다:
+ *     S1 의 지역 주석 거르개가 ★base 에서 ★이미 100줄 눈멀어 있었고(첫 줄 grid-block.js:3407),
+ *     K6 의 닻은 ★«식»을 베낀 문자열이라 ★그 식을 고친 커밋에 ★깨졌다.
+ *     ⇒ ★고치면서 ★«눈을 떴음»과 ★«닻이 깨지면 운다»를 ★대조로 잠갔다 — 그게 더한 ★4 다.
+ *   ⛔이 파일에 더한 D0-c(갱신 판정) ★1 개는 ★여기 ★안 센다 — ★자기 자신은 분모 밖이다(위 SELF).
+ *     ⇒ `grep` 델타(＋5)와 이 수의 델타(＋4)가 ★갈리는 까닭이 ★그것이다. */
+const GRID_BASELINE_TESTS = 409;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
@@ -1240,6 +1324,17 @@ const POSITIVE_CONTROLS = [
      합칠 길이 없어 ★«재는 자»를 세웠고(경고 주석 대신), 그 자가 ★실제로 어긋남을 잡는지의 대조다.
      ⛔지운 것 0 — ★더한 것뿐이다. */
   'grid-circle-text-inset.test.mjs :: I3 ★양성대조 — CSS 쪽 수를 한 글자 바꾸면 I2 가 빨개진다(이 자가 «수»를 실제로 잠근다)',
+  /* ★2026-10-07 — S1 의 ★주석 거르개를 ★공용 부품(`_strip-comments.js`)으로 갈면서 세운 대조 ★둘.
+     ★까닭: 그 지역 거르개가 ★base 에서 ★이미 ★100줄 눈멀어 있었고(실측 · 첫 줄 grid-block.js:3407),
+       S1 의 초록은 ★「괜찮다」가 아니라 ★「안 봤다」였다. ⇒ ★갈면서 ★«눈을 떴음»을 ★대조로 잠근다.
+     ⛔지운 것 ★0 — ★더한 것뿐이다(G1 이 그 둘을 ★같이 센다). */
+  'grid-rename-residue.test.mjs :: S0 ★양성대조 — 일부러 열어 둔 보간을 templateBalanced 가 거짓으로 읽는다',
+  'grid-rename-residue.test.mjs :: S0 ★양성대조 — 옛 지역 제거기를 빨갛게 만들던 두 꼴이 공용 부품에서는 걷힌다',
+  /* ★2026-10-07 — K6 의 ★닻을 «식»에서 «이름»으로 갈면서 세운 대조.
+     ★까닭: 옛 닻은 ★식을 베낀 문자열이라 ★그 식을 고친 커밋(`7dc54091` T4②)에 ★깨졌고,
+       K6 은 ★[전제]에서 멈췄다. ⇒ ★이름 닻으로 갈되 ★「닻이 깨지면 크게 운다」를 ★대조로 잠근다.
+     ⛔지운 것 ★0 — ★더한 것뿐이다. */
+  'grid-kind-shed.test.js :: K6-pre ★양성대조 ×3 — 선언 닻이 깨지면 «전제»가 크게 운다(조용한 초록 금지)',
 ];
 
 function livePositiveControls() {

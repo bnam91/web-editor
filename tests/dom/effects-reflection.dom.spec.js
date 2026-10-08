@@ -39,8 +39,13 @@ const path = require('path');
 const { bootApp, ROOT, ORIGIN } = require('./_root-harness.js');
 
 const PIN = '6119145c';
-/* 시안(지디 goditor-effects-reflection.html) 슬라이더 값 — 범위·기본값을 «그대로» 빌린다(지디 판정). 흐림은 뺐다. */
-const MOCK = { gap: { min: -20, max: 40, def: 4 }, len: { min: 10, max: 100, def: 55 }, op: { min: 0, max: 100, def: 35 } };
+/* ★길이·불투명도 = 시안(지디 goditor-effects-reflection.html) 슬라이더 값 «그대로». 흐림은 뺐다.
+   ★★간격의 하한은 ★더는 ★시안 값(−20)이 ★아니다 — ★현빈 2026-10-07 「★−20밖에 안되는데 ★더 되게」
+     ⇒ ★★−40 (지디 결정 · ★현빈 −20 의 ★두 배). ★그 수의 까닭은 js/effects-reflect.js 머리말에.
+   ⛔「시안 그대로」를 ★간격의 까닭으로 ★되살리지 마라 — ★그 까닭은 ★현빈이 ★물렀다.
+   ★★그리고 ⛔이 수를 ★손으로 ★고치지 마라 — 아래가 ★정본에서 ★읽는다(⛔두 벌 금지).
+     ★정본 = js/effects-reflect.js 의 `FX_REFLECT_RANGES` · 지키는 자 = tests/unit/effects-reflect-gap.test.mjs ⒜ */
+const MOCK = { gap: { min: -40, max: 40, def: 4 }, len: { min: 10, max: 100, def: 55 }, op: { min: 0, max: 100, def: 35 } };
 
 async function px(page, pts) {
   const buf = await page.screenshot();
@@ -128,7 +133,11 @@ test('R1 ★패널(진짜 마우스) — 텍스트·도형·에셋 셋 다 「Ef
     await page.waitForTimeout(250);
     expect(await ds(page, id), '★고른 것만 붙는다').toEqual({ fxReflect: 'on' });
     const card = await page.evaluate((P) => ({ rows: [...document.querySelectorAll(`#${P}-fx-body .prop-label`)].map(e => e.textContent.trim()),
-      gap: document.getElementById(`${P}-fx-gap`).value, gmin: document.getElementById(`${P}-fx-gap`).min, gmax: document.getElementById(`${P}-fx-gap`).max,
+      /* ★2026-10-07 — ★간격이 ★slider+number 쌍이 됐다(현빈 「슬라이드로 조절가능하게도」).
+         ⛔옛 id `${P}-fx-gap`(number 하나)은 ★사라졌다 ⇒ ★길이·불투명도와 ★같은 꼴로 읽는다.
+         ★★이 줄이 ★내 변경을 ★«요란하게» 잡았다 — `Cannot read properties of null` 로 ★즉시 빨강이었다
+           (⇒ ★조용히 눈먼 꼴보다 ★낫다. ★그 대조를 ★여기 남긴다). */
+      gap: document.getElementById(`${P}-fx-gap-num`).value, gmin: document.getElementById(`${P}-fx-gap-slider`).min, gmax: document.getElementById(`${P}-fx-gap-slider`).max,
       len: document.getElementById(`${P}-fx-len-num`).value, lmin: document.getElementById(`${P}-fx-len-slider`).min, lmax: document.getElementById(`${P}-fx-len-slider`).max,
       op: document.getElementById(`${P}-fx-op-num`).value, omin: document.getElementById(`${P}-fx-op-slider`).min, omax: document.getElementById(`${P}-fx-op-slider`).max,
       cls: document.getElementById(`${P}-fx-card`).className }), P);

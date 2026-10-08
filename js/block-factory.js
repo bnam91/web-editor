@@ -1550,7 +1550,7 @@ function addSection(opts = {}) {
   // 반드시 bindSectionHitzone 이후에 bindSectionDrag를 호출해야 함 (FIX-SD-01)
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .qa-block, .coupon-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .qa-block, .coupon-block, .quote-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
   /* ★🔓 보호 단추를 «만들 때» 심는다 (T-094 ⒜⒝ · 2026-09-22 실앱 실측).
@@ -2017,7 +2017,7 @@ function _nextGroupName() {
 function wrapSelectedBlocksInFrame(opts = {}) {
   const asGroup = opts.asGroup === true;
   // 그룹은 freeLayout 절대블록 전부 대상 (joker/shape/vector/frame-block 서브섹션·중첩그룹 포함)
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .zoom-block, .step-block, .frame-block, .qa-block, .coupon-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .zoom-block, .step-block, .frame-block, .qa-block, .coupon-block, .quote-block';
   let selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];
@@ -5382,6 +5382,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
   let _targetBlock = null;
   let _targetCell = null; // #5-b: 우클릭한 테이블 바디셀 (병합/해제 대상)
   let _targetGridAddr = null; // 그리드 블록: 우클릭한 셀 {r,c,li} — li는 «기존 이미지 줄»이 있을 때만 숫자
+  let _targetCmpAddr = null;  // 비교 블록: 우클릭한 «행 셀» {colIdx,rowIdx} — 헤더·여백이면 null
 
   // 메뉴 닫기
   function closeMenu() {
@@ -5389,6 +5390,64 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     _targetBlock = null;
     _targetCell = null;
     _targetGridAddr = null;
+    _targetCmpAddr = null;
+  }
+
+  /* 비교 블록 우클릭 → 「어느 ★행 셀인가」. 헤더(.cmp-hd)·카드 여백·캡션이면 null.
+     ★_gridCellAddrAt 과 ★같은 꼴이다 — 베낀 것이고 발명이 아니다:
+       ⑴ elementsFromPoint(★복수) 먼저. 선택된 블럭 위엔 «블록 바깥» 요소가 pointer-events:auto 로
+          덮일 수 있다(#ss-handles-overlay 소속). 단수는 그걸 집어 와 block.contains 가 false 가 된다.
+          ★실측(5f177748): 지금 cmp 엔 거터·손잡이가 없어 ★단수로도 닿는다. ⛔그래도 복수를 쓴다 —
+          cmp 에 오버레이가 붙는 날 그리드가 2026-09-20 에 겪은 「항목이 조용히 사라진다」가 똑같이 난다.
+       ⑵ ⛔DOM 순서 역산 금지 — renderComparison 이 심은 data-col-idx / data-row-idx 가 ★정본이다.
+     ★헤더를 ★일부러 뺀다: 렌더러가 .cmp-hd 엔 data-row-idx 를 ★안 심고(comparison-block.js:202·192),
+       모델에도 그 자리가 ★없다(col.title 은 문자열뿐) ⇒ 「이미지로」가 뜻이 없다. 검사 R5 가 이걸 잠근다. */
+  function _cmpCellAddrAt(e, block) {
+    if (!block.classList.contains('comparison-block')) return null;
+    let node = null;
+    if (typeof document.elementsFromPoint === 'function') {
+      const stack = document.elementsFromPoint(e.clientX, e.clientY) || [];
+      for (const el of stack) { if (block.contains(el)) { node = el; break; } }
+    }
+    if (!node) {
+      const atPoint = document.elementFromPoint(e.clientX, e.clientY);
+      node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
+    }
+    /* ⚠️선례와 ★다른 한 칸 — 그리드엔 ★기하 폴백(gridPickCellByPoint)이 있고 ★여기엔 ★없다.
+       그리드가 그걸 왜 뒀나: 「칸 ★밖(패딩·gap)」이거나 「선택 안 된 프레임 안이라 pointer-events:none 이어서
+       elementsFromPoint 가 자식을 ★반환조차 안 하는」 경우.
+       ★cmp 에서 그 두 경우가 어떻게 끝나나 — ★조용히 틀리지 않고 ★항목이 숨는다:
+         · 칸 밖(카드 여백·그림자 여유) → 여기서 null ⇒ 셋 다 숨음. ★그게 맞는 동작이다(검사 R7).
+         · 선택 안 된 프레임 안 → 이벤트가 cmp 블럭에 ★닿지도 않아 openMenu 가 ★프레임을 block 으로 받는다
+           ⇒ `classList.contains('comparison-block')` 이 거짓 ⇒ 셋 다 숨음.
+       ⇒ ★「프레임 안 cmp 는 드릴인해야 쓴다」가 ★지금의 한계다. ⛔기하 폴백을 ★추측으로 만들지 않았다 —
+         만들면 ★그 갈래를 재는 검사를 ★같이 세워야 하고, 그건 이 묶음 밖이다(지디에게 이름으로 올렸다). */
+    const rowEl = node && node.closest ? node.closest('.cmp-row[data-row-idx]') : null;
+    if (!rowEl || !block.contains(rowEl)) return null;
+    const colIdx = Number(rowEl.dataset.colIdx), rowIdx = Number(rowEl.dataset.rowIdx);
+    if (!Number.isInteger(colIdx) || !Number.isInteger(rowIdx)) return null;
+    return { colIdx, rowIdx };
+  }
+  /* 비교 주소 → 그 행(모델). 없으면 null.
+     ⛔import 가 아니라 ★`window` 로 간다 — ★js/blocks/line-host.js:575 · grid-block.js:78 과 ★같은 관용구다
+       (comparison-block.js 는 drag-drop.js 를 들여오므로 여기서 import 하면 순환이 된다). */
+  function _cmpRowAt(block, addr) {
+    try { return window.getComparisonCols?.(block.dataset)?.[addr.colIdx]?.rows?.[addr.rowIdx] || null; }
+    catch (_) { return null; }
+  }
+  /* 비교 행 하나를 고쳐 쓴다 — ★패널과 ★같은 길(getComparisonCols → 고침 → setComparisonCols →
+     renderComparison → pushHistory/scheduleAutoSave). prop-comparison.js 의 `commit()` 이 push-after 라
+     ★여기도 push-after 다(⛔규약을 여기서 바꾸지 않는다 — 그건 «이음매를 옮기는 것»이다). */
+  function _cmpPatchRow(block, addr, mutate) {
+    const cols = window.getComparisonCols?.(block.dataset);
+    const row = cols?.[addr.colIdx]?.rows?.[addr.rowIdx];
+    if (!row) return false;
+    mutate(row);
+    window.setComparisonCols?.(block, cols);
+    try { window.renderComparison?.(block); } catch (_) { return false; }
+    window.pushHistory?.(); window.scheduleAutoSave?.();
+    if (block.classList.contains('selected')) { try { window.showComparisonProperties?.(block); } catch (_) {} }
+    return true;
   }
 
   /* 그리드 블록 우클릭 → 「어느 셀인가」(및 그 셀에 이미 이미지 줄이 있는가).
@@ -5574,6 +5633,24 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       const lbl = document.getElementById('bcm-grid-img-circle-label');
       const ln = _targetGridAddr ? _gridLineAt(block, _targetGridAddr) : null;
       if (lbl) lbl.textContent = ln?.type === 'image' ? (ln.imgShape === 'circle' ? '사각으로 바꾸기' : '원형으로 바꾸기') : '원형 이미지 추가';
+    }
+
+    /* ★비교 셀의 «칸 종류» (현빈 2026-10-08) — 그리드가 `_targetGridAddr` 하나로 네 항목을 가르는 ★그 꼴.
+       ★판정은 `_targetCmpAddr` ★하나다. 갈래는 «누른 행이 그림이냐»로 가른다(그리드 T-168 과 같은 축):
+         · 글자 행을 눌렀다 → 「이미지 칸으로」만        (빈 슬롯으로 바꾼다 · ⛔파일창 안 열린다)
+         · 그림 행을 눌렀다 → 「텍스트 칸으로」 ＋ 그림이 ★있으면 「이미지 삭제」
+       ⛔헤더·카드 여백에선 `_cmpCellAddrAt` 이 null 이라 ★셋 다 숨는다(검사 R5·R7). */
+    _targetCmpAddr = block.classList.contains('comparison-block') ? _cmpCellAddrAt(e, block) : null;
+    {
+      const cmpRow = _targetCmpAddr ? _cmpRowAt(block, _targetCmpAddr) : null;
+      const isImg = !!cmpRow && cmpRow.type === 'image';
+      const hasSrc = isImg && !!String(cmpRow.imgSrc || '');
+      const imgItem = document.getElementById('bcm-cmp-img');
+      const textItem = document.getElementById('bcm-cmp-text');
+      const delItem = document.getElementById('bcm-cmp-img-del');
+      if (imgItem)  imgItem.style.display  = (cmpRow && !isImg) ? 'flex' : 'none';
+      if (textItem) textItem.style.display = isImg ? 'flex' : 'none';
+      if (delItem)  delItem.style.display  = hasSrc ? 'flex' : 'none';
     }
 
     // 보일 항목이 하나도 없으면 빈 상자를 띄우지 않는다(자유배치 프레임 안 프레임 = 저장·갭 둘 다 숨김)
@@ -5897,6 +5974,53 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     if (!block || !addr || addr.li == null) return;
     grdToastImgFail(window.updateGridBlock?.(block.id,
       { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc: '' } }));
+  });
+
+  /* ── 비교(comparison) 셀의 «칸 종류» (현빈 2026-10-08) ────────────────────────────────
+   * ★이미 있던 것 — ⛔새로 안 만든다:
+   *   · 모델 필드 `row.type('text'|'image')` · `imgSrc` · `imgFit` — comparison-block.js normalizeRow 가
+   *     ★이미 정규화하고 renderComparison 이 ★이미 그린다(빈 imgSrc = .cmp-img-empty 체커보드).
+   *   · 같은 전환이 ★패널에도 있다 — prop-comparison.js `.cmp-row-type` / `.cmp-row-img-clear`.
+   *   ⇒ ★없던 것은 «우클릭이라는 손» 하나뿐이다. 이 아래가 그 손이고, 쓰는 길은 `_cmpPatchRow` ★한 벌이다.
+   *
+   * ★★⛔「이미지 교체」(파일 선택창)를 ★여기 두지 않았다 — ★선례 bcm-grid-img 는 두는데 왜 안 뒀나:
+   *   ⑴ 이 레인 금지선에 ★「파일 선택창·저장창 열지 마라」가 있어 ★내가 그 갈래를 ★«재지 못한다».
+   *      세워만 둔 방어가 장식이듯, ★못 재는 손잡이도 장식이다(한 번도 발동을 확인 못 한다).
+   *   ⑵ ★파일 고르기는 ★패널에 ★이미 있다 — prop-comparison.js `.cmp-row-img`(「+ 이미지」/「교체」).
+   *      여기 또 두면 ★같은 일을 하는 길이 두 벌이 되고 ★한쪽만 늙는다.
+   *   ⇒ 메뉴는 «칸의 ★종류»만 고르고, 「그림 ★고르기」는 패널이 맡는다.
+   *   ⚠️넣기로 결정하면 ★패널 핸들러를 ★공용 함수로 떼서 ★두 길이 그걸 부르게 해라(사본 금지).
+   *
+   * ★「이미지 삭제」의 규약은 ★그리드와 ★같다 — 그림만 비우고 ★자리(행)는 남긴다(빈 슬롯).
+   *   ⇒ 「행을 아예 빼고 싶다」는 ★패널 「×」(.cmp-row-del)가 맡는다. 손잡이 ★이름대로 가른다. */
+  document.getElementById('bcm-cmp-img')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock; const addr = _targetCmpAddr;
+    closeMenu();
+    if (!block || !addr) return;
+    /* 빈 슬롯으로 바꾼다. imgSrc/imgFit 은 ★이미 있던 값을 보존한다 —
+       패널 토글(prop-comparison.js:220)이 그렇게 한다(다시 이미지로 돌아올 때 복원되게). */
+    _cmpPatchRow(block, addr, row => {
+      row.type = 'image';
+      row.imgSrc = row.imgSrc || '';
+      row.imgFit = row.imgFit || 'cover';
+    });
+  });
+  document.getElementById('bcm-cmp-text')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock; const addr = _targetCmpAddr;
+    closeMenu();
+    if (!block || !addr) return;
+    // imgSrc/imgFit 는 ⛔안 턴다 — 패널 토글과 ★같다(다시 이미지로 전환하면 그림이 돌아온다).
+    _cmpPatchRow(block, addr, row => { row.type = 'text'; });
+  });
+  document.getElementById('bcm-cmp-img-del')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock; const addr = _targetCmpAddr;
+    closeMenu();
+    if (!block || !addr) return;
+    // 그림만 비운다. type 은 'image' 로 ★남긴다 ⇒ 자리가 빈 슬롯으로 남는다(그리드와 같은 규약).
+    _cmpPatchRow(block, addr, row => { row.imgSrc = ''; });
   });
 
   nameConfirm?.addEventListener('click', e => {

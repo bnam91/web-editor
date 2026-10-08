@@ -521,7 +521,7 @@ async function insertTemplate(tpl) {
     // 내부 블록 이벤트 핸들러 재등록 (Section 삽입과 동일 수준)
     // ★rebindAll 비경유 문 — 승격을 직접 한다(2026-09-05 개명).
     window.migrateGridIdentity?.(ss);
-    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .qa-block, .coupon-block').forEach(b => {
+    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .qa-block, .coupon-block, .quote-block').forEach(b => {
       window.bindBlock?.(b);
       if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
     });

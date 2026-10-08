@@ -63,6 +63,13 @@ const IMG = 'data:image/svg+xml;base64,' + Buffer.from(
 
 /* ══ 옛 것 — ★ed74f65 의 `_gridLineHtml` 이미지 가지를 «그대로» 얼린다 ═══════════
    ⛔한 글자도 새 구조 쪽으로 옮기지 마라. 이 함수가 곧 «2026-09-25 이전의 화면»이다. */
+/* ⚠️★이 안의 수(180 · 8 …)는 ★«옛 렌더러의 ★복제»다 — ★제품 상수를 ★잠그지 ★않는다.
+ *   ★실측 2026-10-07: 제품의 빈 슬롯 폴백을 ★180 → 181 로 바꾸고 ★그리드 spec ★62개 ★608 test 를
+ *   돌렸더니 ★★608 passed · 0 failed — ★이 파일도 ★안 빨개졌다.
+ *   ⇒ ★★«소스에 수가 적혀 있다» ≠ ★★«그 수를 잰다». ★복제본은 ★«잠근 척»을 해서 더 위험하다.
+ *   ⇒ ⛔이 수를 ★제품에 맞춰 고치지 ★마라 — ★«옛 판 그대로»가 ★이 복제의 ★목적이다.
+ *     ★제품 상수를 잠그려면 ★«지금 렌더러»를 재는 ★새 검사를 세워라
+ *     (그렇게 세운 것: tests/dom/grid-empty-slot-fill.dom.spec.js · grid-fullbleed-manual-width.dom.spec.js). */
 function OLD_IMAGE_LINE({ imgSrc, height = 0, radius = 0, widthPct = 100, align = 'left' }) {
   const h = Number(height) || 0;
   const r = Number(radius) || 0;
