@@ -633,6 +633,18 @@ function _rgbTriple(css) {
  *  ★★이름을 ★`restRuntimeForArtifact`(⛔`restParticles…` 가 아니다)로 ★둔 까닭이 ★그것이다 —
  *    ★★넓힐 자리를 ★이름이 ★미리 ★열어 둔다.
  *
+ *  ★★⛔«⒟(번짐을 속도에 묶기) 때문에 ★이 겹을 ★`stdDeviation` 까지 ★넓혀라»는 ★★지시를 받았고,
+ *    ★★재어 보니 ★★«넓힐 것이 ★없다». ★★근거(2026-10-09 · 행위로 셌다):
+ *      ★`setAttribute('stdDeviation'…)` 을 ★하는 자리 = ★★js/ 전수 ★★0건
+ *        (★양성대조: ★같은 자가 ★`setAttribute('transform'…)` 는 ★움직이개에서 ★1건 ★잡는다)
+ *      ★까닭 = ⒟ 의 식 `blur × speed / 58` 의 ★입력이 ★★«설정»이지 ★«시각»이 ★아니다
+ *        ⇒ ★`svg()` 가 ★★한 번 ★계산해 ★글자에 ★굳힌다 ⇒ ★★런타임에 ★안 바뀐다
+ *        ⇒ ★★되돌릴 ★«움직인 값»이 ★애초에 ★없다.
+ *    ⇒ ★★지금 넓히면 ★★«죽은 코드»가 된다 — ★무엇을 막는지 ★모르는 채 ★남는다.
+ *    ★★★그러나 ★언젠가 ★`stdDeviation` 을 ★★«매 프레임» 쓰게 되면 ★★그때는 ★여기를 ★넓혀라.
+ *      ★그 순서(세척이 ★거울상보다 ★앞)는 ★★이미 ★잠겨 있다 —
+ *      ★★`tests/unit/artifact-clone-roster` ★★A5 가 ★그 자리를 ★잰다. ⛔새 칸을 ★또 세우지 ★마라.
+ *
  *  ★★임자는 ★여기가 ★아니다 — ★되돌리는 ★법은 ★`js/io/section-serialize.js` ★`restParticleMotion`
  *    ★하나다(★꼬리표 꼴 `data-fxp="x,y,vj,dir,rot0"` 을 ★읽는 자리). ★여기는 ★★«부르는 겹»이다. */
 export function restRuntimeForArtifact(clone) {
