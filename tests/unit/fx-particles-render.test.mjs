@@ -419,19 +419,43 @@ test('P15 ★방향성 번짐 — ★`blur` 가 ★0 이면 ★없고 ★크면 
   assert.ok(on.includes('filter="url(#pfx-pan-pan)"'), '★층이 번짐 필터를 안 쓴다');
 });
 
-test('P16 ★★1차의 ★경계 — ★`speed`·`spin` 은 ★저장만 되고 ★그림엔 ★안 들어간다 (v1.5)', () => {
+test('P16 ★★v1.5 ⑴ 의 ★경계 — ★`speed`·`spin` 이 ★더하는 것은 ★«꼬리표 하나»뿐이다', () => {
   const F = load();
   const box = { preset: 'party', seed: 7, w: 860, h: 420, filterId: 'pfx-b' };
-  const base = F.svg({ ...box, speed: 0, spin: 0 });
-  const moved = F.svg({ ...box, speed: 160, spin: 500 });
-  assert.equal(sha(moved), sha(base),
-    '★speed·spin 이 ★그림을 ★바꿨다 — ★1차는 ★저장만이다(움직임은 v1.5 · rAF)');
-  /* ★★그런데 ★저장은 ★되어야 한다 — ⛔「안 그린다」가 ★「안 받는다」가 되면 ★v1.5 가 ★빈손이 된다 */
+  const still = F.svg({ ...box, speed: 0, spin: 0 });
+  const moving = F.svg({ ...box, speed: 160, spin: 500 });
+
+  /* ★★2026-10-09 ★이 칸의 ★뜻이 ★바뀌었다 — ⛔지우지 않고 ★적어 둔다.
+     ★1차에서는 ★「speed·spin 이 ★그림을 ★한 글자도 ★안 바꾼다」였다(★sha 가 같았다).
+     ★★v1.5 ⑴ 에서 ★그리개가 ★`data-fxp` 꼬리표를 ★붙이기 시작했다 —
+       ★움직이개가 ★좌표를 ★«다시 계산»하면 ★★명부가 ★둘이 되기 때문이다.
+     ⇒ ★★이제 재는 것: ★★«꼬리표 ★말고는 ★아무것도 ★안 바뀌었나». ★그게 ★더 센 단언이다. */
+  const strip = (x) => x.replace(/ data-fxp="[^"]*"/g, '');
+  assert.notEqual(moving, still, '★전제: 움직이는 판이 ★정지 판과 ★같다 — 꼬리표가 안 붙었다');
+  assert.equal(sha(strip(moving)), sha(strip(still)),
+    '★★꼬리표를 떼었는데도 ★그림이 다르다 — speed·spin 이 ★모양·색·자리를 ★건드렸다');
+
+  /* ★꼬리표는 ★알맹이마다 ★하나 — ⛔더도 덜도 아니다 */
+  const tags = (moving.match(/data-fxp="/g) || []).length;
+  assert.equal(tags, F.normalize(box).count, `★꼬리표가 ${tags}개다 — 알맹이 수와 같아야 한다`);
+
+  /* ★★꼬리표 ★꼴 — ★수 ★다섯(중심 x,y · 속도치우침 · 회전방향 · 처음각).
+     ⛔움직이개가 ★이 꼴을 ★읽는다 ⇒ ★여기서 ★갈리면 ★그쪽이 ★조용히 ★버린다. */
+  for (const m of moving.matchAll(/data-fxp="([^"]*)"/g)) {
+    const n = m[1].split(',');
+    assert.equal(n.length, 5, `★꼬리표에 수가 ${n.length}개다 — 다섯이어야 한다 (${m[1]})`);
+    assert.ok(n.every((v) => Number.isFinite(Number(v))), `★꼬리표에 수가 아닌 것이 있다 (${m[1]})`);
+    assert.ok(Math.abs(Number(n[3])) === 1, `★회전 방향이 ±1 이 아니다 (${n[3]})`);
+  }
+
+  /* ★★저장은 ★그대로 되어야 한다 — ⛔「안 그린다」가 「안 받는다」가 되면 v1.5 가 빈손이 된다 */
   const n = F.normalize({ preset: 'party', speed: 160, spin: 500 });
   assert.equal(n.speed, 160, '★speed 가 저장 꼴에 안 남는다');
   assert.equal(n.spin, 500, '★spin 이 저장 꼴에 안 남는다');
-  /* ★정지 한 장면 계약은 ★그대로다 — ★애니메이션 표지 0 (★이 파일 머리말의 그 계약) */
+
+  /* ★★여전히 ★«정지 한 장면»이다 — ★움직임은 ★JS 가 준다(⛔SMIL·CSS 가 아니다).
+     ★그 까닭 = ★html2canvas 가 ★SMIL 을 ★t=0 으로 찍는다(2026-10-08 실측). */
   for (const mark of ['<animate', '<animateTransform', '@keyframes', 'dur=']) {
-    assert.equal(moved.split(mark).length - 1, 0, `★1차인데 ${mark} 가 났다 — 아직 정지 한 장면이다`);
+    assert.equal(moving.split(mark).length - 1, 0, `★${mark} 가 났다 — 움직임은 ★rAF 가 준다`);
   }
 });

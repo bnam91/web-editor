@@ -141,7 +141,17 @@ export function applySectionParticles(sec) {
     sec.insertBefore(wrap, sec.firstChild);       // 배경 위 · 내용 아래(자리는 CSS 가 정한다)
   }
   wrap.innerHTML = P.svg({ ...cfg, w: w_, h: h_, filterId: particlesFilterId(sec.id) });
+  /* ★★움직이개를 ★깨운다 (v1.5 ⑴ · 2026-10-09) — ★다시 그리면 ★svg 요소가 ★새것이라
+     ★움직이개의 ★읽어 둔 명부가 ★빗나간다. ⛔안 깨우면 ★최대 1초(IDLE_RECHECK_MS)를 ★멈춰 있다.
+     ★★없어도 ★죽지 않는다 — ★움직이개는 ★따로 실리는 파일이고, ★안 실린 판(검사 하네스)이 ★있다. */
+  try { w_doc_anim(sec)?.kick?.(); } catch (_) { /* 움직이개가 없는 판 — 그림은 이미 났다 */ }
   return true;
+}
+
+/** 움직이개 손잡이 — ⛔전역을 ★직접 읽지 않는다(검사 하네스가 ★창을 갈아 끼운다). */
+function w_doc_anim(sec) {
+  const win = sec?.ownerDocument?.defaultView || (typeof window !== 'undefined' ? window : null);
+  return win && win.ParticlesAnim;
 }
 
 /** 문서를 연 뒤·붙여넣은 뒤 — 걸린 섹션을 ★다시 그린다. 돌려주는 수 = 다시 그린 섹션 수.

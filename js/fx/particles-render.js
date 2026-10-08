@@ -168,8 +168,16 @@
   }
 
   /** 도형 한 개를 SVG 글자로 — 시안 shapeSVG 와 «같은 그림»(지디 시안이 현빈에게 보여 준 그 모양). */
-  function shapeSVG(kind, x, y, s, rot, c, op) {
-    const o = ' fill="' + c + '"' + (op < 0.999 ? ' opacity="' + (Math.round(op * 100) / 100) + '"' : '');
+  /** 알맹이 하나의 글자.
+   *  ★`mv` — ★★«움직이는 판»에서만 붙는 꼬리표(`data-fxp`). ⛔없으면 ★한 글자도 ★안 붙는다.
+   *    ★★까닭: ★움직이개(js/fx/particles-animate.js)가 ★알맹이의 ★«중심·속도치우침·회전방향·처음각»을
+   *      ★알아야 하는데, ★그것을 ★움직이개가 ★다시 계산하면 ★★«같은 시드 흐름»을 ★두 곳에서 뽑는 꼴이다
+   *      = ★★명부가 ★둘. ⇒ ★★뽑은 자(여기)가 ★적어 준다.
+   *    ★★그리고 ★패닝 축이 ★전부 0 이면 ★★안 붙인다 — ★그래야 ★옛 저장본의 글자가 ★한 자도 ★안 바뀐다
+   *      (★inert · 잠그는 자 = P14a). */
+  function shapeSVG(kind, x, y, s, rot, c, op, mv) {
+    const o = ' fill="' + c + '"' + (op < 0.999 ? ' opacity="' + (Math.round(op * 100) / 100) + '"' : '')
+            + (mv ? ' data-fxp="' + mv + '"' : '');
     const tr = rot ? ' transform="rotate(' + r1(rot) + ' ' + r1(x) + ' ' + r1(y) + ')"' : '';
     if (kind === 'circle') return '<circle cx="' + r1(x) + '" cy="' + r1(y) + '" r="' + r1(s / 2) + '"' + o + '/>';
     if (kind === 'rect') {
@@ -261,10 +269,16 @@
     const rnd = w.FxSeed.mulberry32(st.seed);
     const parts = [];
     const cols = st.colors, shs = st.shapes;
+    /* ★★«움직이는 판»인가 — ★`speed`·`spin` 중 ★하나라도 ★0 이 아니면.
+       ⛔`blur` 는 ★여기 안 넣는다 — ★번짐은 ★정지 그림에도 ★있다(1차에 들어갔다). */
+    const moves = st.speed > 0 || st.spin > 0;
     for (let i = 0; i < st.count; i++) {
       /* ★난수는 입자마다 «항상 10번» 뽑는다 — 회전을 끄거나 분포를 바꿔도 다음 입자의 값이 안 밀린다.
          (시안 buildSVG 와 같은 흐름이어야 같은 seed 가 같은 그림을 낸다) */
-      const q1 = rnd(), q2 = rnd(), q3 = rnd(), q4 = rnd(), qs = rnd(), qr = rnd(), qc = rnd(), qo = rnd(), qk = rnd(); rnd();
+      /* ★★열 번째를 ★이름 붙여 쓴다 — ★지금까지 ★`rnd();` 로 ★버리던 ★그 값이다.
+         ★★«뽑는 횟수»가 ★안 바뀌므로 ★다음 입자의 값이 ★한 칸도 ★안 밀린다
+         ⇒ ★★「같은 시드 = 같은 그림」이 ★그대로다(★P2 가 그 자리를 잠근다). */
+      const q1 = rnd(), q2 = rnd(), q3 = rnd(), q4 = rnd(), qs = rnd(), qr = rnd(), qc = rnd(), qo = rnd(), qk = rnd(), qv = rnd();
       let x, y; const bw = 0.26;
       if (st.dist === 'top') { x = q1 * W; y = Math.pow(q2, 2.1) * H; }
       else if (st.dist === 'edge') {
@@ -277,7 +291,11 @@
       const col = cols[Math.floor(qc * cols.length) % cols.length];
       const op = 1 - (st.jit / 100) * qo;               // ★흔들림도 «같은 시드 흐름»(qo)에서 뽑는다
       const kind = shs[Math.floor(qk * shs.length) % shs.length];
-      parts.push(shapeSVG(kind, x, y, size, rot, col, op));
+      /* ★움직이는 판에서만 — ★중심(x,y) · ★속도 치우침(vj) · ★회전 방향(dir) · ★처음 각(rot) */
+      const mv = moves
+        ? r1(x) + ',' + r1(y) + ',' + r1(0.55 + qv * 0.9) + ',' + (q4 < 0.5 ? -1 : 1) + ',' + r1(rot)
+        : '';
+      parts.push(shapeSVG(kind, x, y, size, rot, col, op, mv));
     }
     const body = parts.join('');
     let defs = '', halo = '';
