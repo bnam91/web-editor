@@ -1,10 +1,15 @@
 /* rich-text-loss-axes.dom.spec.js — ★«부분 서식이 ★다른 길로 나갈 때 ★사는가»를 ★재서 ★적어 둔 것.
  *
- * ★★이 파일은 ★«측정 기록»이다. ⛔고치는 것이 ★아니다 — ★전부 `test.skip` 이다.
- *   ★돌면 ★지금을 ★잠근다(고치면 빨개진다) ⇒ ★★그래서 ★skip 이다.
+ * ★★이 파일은 ★«측정 기록»이다. ⛔고치는 것이 ★아니다 — ★X1 은 `test.fixme` · ★X2 는 `test.skip` 이다.
+ *   ★돌면 ★지금을 ★잠근다(고치면 빨개진다) ⇒ ★★그래서 ★둘 다 ★돌지 않는다.
  *   ⛔★두 줄기를 ★한 낱말로 ★묶지 마라 — ★X1 = ★«손실»(★고칠 것) · ★X2 = ★«한계»(⛔고칠 것이 아니다).
  *     ★지디 2026-10-08: 「⛔L1(프레임화)과 ★L2(피그마)를 ★한 칸에 섞지 마라」 ⇒ ★이 줄이 그 칸이었다.
- *   ★★고치는 사람은 ⒜ skip 을 ★떼고 ⒝ 단언을 ★뒤집어라. ★단언 메시지에 그렇게 적었다.
+ *   ★★고치는 사람은 ⒜ ★X1 은 `fixme` 를 · ★X2 는 `skip` 을 ★떼고 ⒝ 단언을 ★뒤집어라. ★단언 메시지에 그렇게 적었다.
+ *   ★★⛔꼴이 ★다른 것은 ★★일부러다 — ★X1 = `fixme`(★고칠 것) · ★X2 = `skip`(⛔고칠 것이 ★아니다).
+ *     ★까닭이 ★둘이다. ㉠ ★뜻: `fixme` 는 ★«고쳐야 한다»는 말이고 ★X2 는 ★«채널 한계»라 ★그 말이 ★거짓이 된다.
+ *     ㉡ ★자: EXPECT_N 의 ★출처㉠ 은 ★선언을 ★`test(` ＋ `test.fixme(` ★만 센다(그 문서 :157) ⇒
+ *       ★★X1 의 ＋1 은 ★자가 ★잡고, ★★X2 의 ＋1 은 ★★아무 자도 ★못 봐서 ★★장부 줄이 ★유일한 자다(그 문서 :36).
+ *     ⇒ ★★꼴을 ★되돌리면 ★그 둘이 ★같이 ★깨진다. ★지디 2026-10-08 판정.
  *   ⇒ ★선례 = tests/dom/sz27-partial-format-wall.dom.spec.js (★같은 양식 · 지디 2026-10-08 판정 ③).
  *
  * ★★⛔이것은 ★«오늘 그랬다»를 ★잠그는 것이고 ★«처방»이 ★아니다 — 지디가 요구한 ★그 구분이다.
@@ -51,7 +56,7 @@
  *      ★평문 텍스트블럭을 ★앱 입구로 넣어도 ★안 실렸다 ⇒ ★★제품이 아니라 ★★내 ★장면이었다.
  *   ⇒ ★그래서 ★아래 두 벌은 ★전제를 ★단언한다(★모달 노드가 payload 에 있나 · ★글자가 있나).
  *
- * 실행(일부러 skip 이다): npx playwright test --config=tests/dom/playwright.dom.config.js rich-text-loss-axes
+ * 실행(일부러 ★안 돈다 — ★X1 fixme · ★X2 skip): npx playwright test --config=tests/dom/playwright.dom.config.js rich-text-loss-axes
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
@@ -109,7 +114,7 @@ async function makeFormattedModal(page) {
 
 /* ══════════════════════════════════════════════════════════════════ */
 
-test.skip('X1 ★프레임화 — 부분 서식이 ★사라진다 (2026-10-08 측정 기록 · 지디 판정 = ★별건)', async ({ page }) => {
+test.fixme('X1 ★프레임화 — 부분 서식이 ★사라진다 (2026-10-08 측정 기록 · 지디 판정 = ★별건)', async ({ page }) => {
   const errs = await setup(page);
   const { id, st } = await makeFormattedModal(page);
   console.log('  X1 전제:', JSON.stringify(st));
