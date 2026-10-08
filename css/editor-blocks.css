@@ -140,6 +140,10 @@
   z-index: 100;
 }
 /* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제 (shape-block, text-frame 제외) */
+/* ★2026-10-08 실측(태양 · frame-dblclick-overlay OV-x1 · 고치기 전 판 ee614986 도 같은 값): «진짜 프레임 안» 도형에서는
+     아래 shape-block 예외가 효력이 없다 — 도형 래퍼(frame-block)가 덮개를 받고 pointer-events 가 상속되기 때문이다(도형 pointer-events = none).
+   ⛔섹션 직속 도형 래퍼에서는 미측정 — 거기선 뜻이 있을 수 있어 «지우지 않았다». 까닭은 원 커밋(512de5b3 · 2026-04-08)에도 없다.
+   ★이 덮개가 곧 현빈의 «오버레이»다(2026-10-08 「1번클릭은 … 오버레이된것 처럼 내부수정이 안되게」) — 더블클릭 진입은 js/drag-utils.js R1 머리말. */
 /* text-frame은 항상 .selected 없음 (투명 래퍼) → 별도 규칙으로 제외 */
 /* :not(:has(.selected)) — 자손 중 selected가 있으면 차단하지 않음 (nested frame drill-in 지원) */
 .frame-block:not(.selected):not([data-text-frame]):not(:has(.selected)) *:not(.shape-block):not(.shape-handle) {

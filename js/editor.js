@@ -3901,6 +3901,7 @@ window.clearSelectionMarks = clearSelectionMarks;
 
 function deselectAll() {
   clearMultiSel();
+  window._enteredFrame = null;   // ★프레임 더블클릭 «들어간 프레임» 표시도 같이 푼다(R4 나가기 = 지금 동작 그대로 · drag-utils.js R1 머리말)
   _lastClickedBlock = null;
   // 텍스트 편집 중인 블록이 있으면 편집 종료 전 현재 상태 히스토리에 저장
   // (입력한 텍스트가 undo 복원 대상이 되도록)

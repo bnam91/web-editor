@@ -320,7 +320,43 @@ function frameSelectedAsObject(section) {
   /* 자식을 골라 둔 것 = 안쪽. ★흐름 앵커(isFlowAnchorBlock)로 세지 않는다 — 그건 절대배치를 제외해서, 자유 프레임의 절대배치 자식(그리드·에셋)을
    *   골라도 «프레임을 골랐다»로 읽혔다(적대QA). 프레임에 .selected 가 남은 채 «자손이 하나라도» 골라져 있으면 오브젝트 선택이 아니다. */
   if (frame.querySelector('.selected')) return null;
+  if (window._enteredFrame === frame) return null;   // ★여백 더블클릭으로 «들어간» 프레임 = 오브젝트 선택이 아니다(아래 R1 · 현빈 2026-10-08)
   return frame;
+}
+
+/* ★프레임 더블클릭 = «한 겹 내려간다»(R1 · 현빈 2026-10-08 · 지디 발주 ORDER-frame-dblclick-focus 「최종 확정」).
+ *   현빈: 「1번클릭은 프레임블럭위에 마치 오버레이된것 처럼 내부수정이 안되게 되는거고, 두번클릭하면 편집모드로 들어가지는거지」
+ *        「프레임블럭 내부에 자식블럭위에서 더블클릭하면 그걸 선택할수 있는거야. (내부진입 및 자식 선택을 하나로)」
+ *   «오버레이»는 이미 있다 — css/editor-blocks.css :145(고르지 않은 프레임의 자손은 클릭을 못 받는다). 두 번째 클릭이 자식을 고르는 것(R2)도 이미 돈다.
+ *   빠져 있던 것 하나: 그 더블클릭이 자식의 «편집» 처리기까지 내려가 «진입 ＋ 선택»이 아니라 «편집»이 됐다(실측 OV-c).
+ *   ⇒ 제스처 «시작»(첫 mousedown) 때 포인터 밑 가장 안쪽 프레임이 «아직 안 들어간» 상태였으면, 그 제스처의 dblclick 을 capture 에서 멈춘다.
+ *     자식 위였으면 클릭이 이미 그 자식을 골랐다(= 진입 ＋ 선택) · 여백이었으면 그 프레임을 «들어간 프레임»으로 적는다(삽입이 안으로).
+ *     이미 들어간 프레임(자손이 골라져 있거나 여백으로 들어감)에서의 더블클릭은 그대로 흘린다 = 자식 처리기가 편집한다(R3).
+ *   ★번지는 범위: 판정 대상은 «진짜 프레임»(도형 래퍼·글자 래퍼·배너 외곽·그룹 제외) 안의 더블클릭뿐 — 프레임 밖 블럭은 이 처리기를 안 탄다
+ *     (잠금: tests/dom/dblclick-outside-frame-unchanged · 처리기 18 종 정의 자리 수는 그 머리말).
+ *   나가기(R4)는 안 바꾼다 — deselectAll 이 «들어간 프레임» 표시를 같이 지운다(editor.js). */
+function _isEntryFrame(f) {
+  return !!f && f.classList?.contains('frame-block') && !f.dataset?.textFrame && !f.dataset?.bannerPreset
+    && f.dataset?.group !== 'true' && !isShapeFrame(f);
+}
+function _innermostEntryFrame(node) {
+  for (let f = node?.closest?.('.frame-block'); f; f = f.parentElement?.closest('.frame-block')) if (_isEntryFrame(f)) return f;
+  return null;
+}
+let _dblGesture = null;   // { frame, entered } — 제스처 첫 mousedown 때 찍는다
+if (typeof document !== 'undefined') {
+  document.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.detail !== 1) return;
+    const f = _innermostEntryFrame(e.target);
+    _dblGesture = f ? { frame: f, entered: !!f.querySelector('.selected') || window._enteredFrame === f } : null;
+  }, true);
+  document.addEventListener('dblclick', (e) => {
+    const g = _dblGesture;
+    if (!g || g.entered || !g.frame.isConnected || !g.frame.contains(e.target)) return;
+    e.stopPropagation();   // 자식의 편집 처리기로 안 내려간다 — 이 더블클릭은 «한 겹 내려가기»다
+    if (!g.frame.querySelector('.selected')) window._enteredFrame = g.frame;   // 여백이었다 — 그 프레임 «안»이 삽입 자리
+    _dblGesture = null;
+  }, true);
 }
 
 /* 고른 프레임의 «다음 형제» 자리에 el 을 놓는다. 부모가 자유 프레임이면 좌표를 세운다(settleRowInFreeFrame 은 부르기만 한다). */
