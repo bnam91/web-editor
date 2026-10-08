@@ -374,7 +374,14 @@ test('V6 ★★움직임이 ★자동저장을 ★깨우지 않는다 — ★★
   await page.waitForTimeout(3000);
 
   const before = await snap();
-  expect(before.length, '★전제: 자동저장본이 ★아직 없다 — 이 자로는 못 잰다').toBeGreaterThan(100);
+  /* ★★이 줄이 ★무력화에서 ★가장 먼저 빨개진다 — ★그리고 ★그 빨강이 ★이 결함의 ★참 얼굴이다.
+     ★`scheduleAutoSave` 는 ★`clearTimeout` ＋ ★1500ms 디바운스다.
+     ⇒ ★움직임이 ★편집으로 세어지면 ★매 프레임(≈8ms) ★타이머가 ★다시 걸린다
+     ⇒ ★★타이머가 ★★영영 ★안 터진다 ⇒ ★★«자주 저장»이 아니라 ★★«아예 저장 안 됨»이다.
+     ★★실측(2026-10-09 · 필터를 뺀 판): ★3초 뒤에도 ★저장본이 ★★0바이트.
+     ⇒ ★★그래서 이것은 ★디스크 churn 이 아니라 ★★«저장 굶김(starvation)» = ★데이터 손실이다. */
+  expect(before.length, '★★자동저장본이 ★0바이트다 — ★움직임이 ★편집으로 세어져'
+    + ' ★디바운스가 ★매 프레임 ★다시 걸리고 ★타이머가 ★영영 ★안 터진다(★저장 굶김)').toBeGreaterThan(100);
 
   /* ★전제 — ★그 사이 ★루프가 ★정말 쓰고 있나 */
   const t0 = await page.evaluate(() => document.querySelector('.sec-fxpart-wrap [data-fxp]').getAttribute('transform'));
