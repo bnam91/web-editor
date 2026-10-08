@@ -83,16 +83,20 @@
   const PRESETS = Object.freeze({
     star:  Object.freeze({ label: '별 반짝이',   count: MAX_COUNT, shapes: Object.freeze(['star4', 'star4', 'circle']),
                            colors: Object.freeze(['#FFFFFF', '#FFE9FF', '#C9A8FF', '#8E6BE0']),
-                           smin: 3, smax: 14, rot: true,  dist: 'even', glow: 55, spread: 6,  fxOpacity: 100, jit: 60 }),
+                           smin: 3, smax: 14, rot: true,  dist: 'even', glow: 55, spread: 6,  fxOpacity: 100, jit: 60,
+                           speed: 0, blur: 0, spin: 0 }),
     gold:  Object.freeze({ label: '금색 컨페티', count: MAX_COUNT, shapes: Object.freeze(['rect', 'ribbon']),
                            colors: Object.freeze(['#F5C542', '#E8B22A', '#FFE9A8', '#C98A14']),
-                           smin: 6, smax: 22, rot: true,  dist: 'top',  glow: 0,  spread: 0,  fxOpacity: 100, jit: 25 }),
+                           smin: 6, smax: 22, rot: true,  dist: 'top',  glow: 0,  spread: 0,  fxOpacity: 100, jit: 25,
+                           speed: 0, blur: 0, spin: 0 }),
     party: Object.freeze({ label: '컬러 컨페티', count: MAX_COUNT, shapes: Object.freeze(['rect', 'tri', 'ribbon']),
                            colors: Object.freeze(['#2D6FE8', '#F5C542', '#E0402C', '#28B463', '#FFFFFF']),
-                           smin: 5, smax: 18, rot: true,  dist: 'even', glow: 0,  spread: 0,  fxOpacity: 100, jit: 15 }),
+                           smin: 5, smax: 18, rot: true,  dist: 'even', glow: 0,  spread: 0,  fxOpacity: 100, jit: 15,
+                           speed: 0, blur: 0, spin: 0 }),
     dust:  Object.freeze({ label: '먼지 / 보케', count: MAX_COUNT, shapes: Object.freeze(['circle']),
                            colors: Object.freeze(['#FFFFFF', '#FFE6B8', '#BFD8FF']),
-                           smin: 4, smax: 28, rot: false, dist: 'edge', glow: 70, spread: 14, fxOpacity: 80, jit: 85 }),
+                           smin: 4, smax: 28, rot: false, dist: 'edge', glow: 70, spread: 14, fxOpacity: 80, jit: 85,
+                           speed: 0, blur: 0, spin: 0 }),
   });
   const KINDS = Object.freeze(Object.keys(PRESETS));
   const DISTS = Object.freeze(['even', 'top', 'edge']);
@@ -107,6 +111,22 @@
     spread:    Object.freeze({ min: 0, max: 20 }),
     fxOpacity: Object.freeze({ min: 0, max: 100 }),
     jit:       Object.freeze({ min: 0, max: 100 }),
+    /* ★★패닝 축 셋 (현빈 2026-10-08 「빠진게 있지않니 파티클 효과에? 시안대로 — ★패닝효과」)
+       ★시안 = artifact BcCGv6AJJCp7o4pfNouY9N 「패닝 컨페티 — 네 판 비교」
+         ★★그 수는 ★산문이 아니라 ★`<input type=range>` ★요소에서 뽑았다(★시안 산문은 ★틀린 적이 있다).
+       ★★`speed` 의 ★min 만 ★시안과 ★다르다 — ★시안 ★10, ★우리 ★★0. ⛔눈대중이 아니라 ★까닭이 있다:
+         ★`normalize` 가 ★`clamp(…, RANGES.min, RANGES.max)` 를 ★건다
+         ⇒ ★min 이 ★10 이면 ★PRESETS 의 ★0 이 ★★10 으로 ★밀려 올라간다
+         ⇒ ★★옛 저장본이 ★저절로 ★움직인다 = ★inert 가 ★깨진다.
+         ★시안의 ★10 은 ★「멈춤이 뜻 없는 ★데모 슬라이더」의 바닥이고, ★제품에선 ★0 = 끔이다
+         (★레포 선례와 같은 결 — `glow:[0,…]`·`spread:[0,…]` 도 ★0 이 ★끔이다).
+         ★잠그는 자 = tests/unit/fx-particles-render ★P14b.
+       ★★1차에서 ★`speed`·`spin` 은 ★«저장만» 된다 — ★그림에 ★안 들어간다(움직임은 v1.5 · rAF).
+         ⇒ ⛔「시안 기본을 넣으면 그림이 달라진다」로 ★그 둘을 ★재지 마라 — ★P16 이 ★그 경계다.
+         ⇒ ★그 둘의 ★기본이 ★0 인지는 ★★P14c 가 ★«값»으로 ★따로 잰다(★sha 로는 ★안 잡힌다). */
+    speed:     Object.freeze({ min: 0, max: 160 }),
+    blur:      Object.freeze({ min: 0, max: 14 }),
+    spin:      Object.freeze({ min: 0, max: 500 }),
   });
 
   const r1 = (n) => Math.round(n * 10) / 10;       // 문자열이 기계·판마다 같게(결정성) — 시안과 같은 자리수
@@ -125,7 +145,10 @@
     const st = normalize(p);
     const haloOn = st.glow > 0 && st.spread > 0 && st.count > 0;
     // <svg> + <g layer> + <g 또렷> = 3 · 후광이면 ＋<defs><filter><feGaussianBlur>×3<feMerge><feMergeNode>×3 = 9, ＋<g halo> = 1
-    return haloOn ? (st.count * 2 + 13) : (st.count + 3);
+    const base = haloOn ? (st.count * 2 + 13) : (st.count + 3);
+    /* ★방향성 번짐 — ＋<filter><feGaussianBlur> = 2 · <defs> 가 아직 없으면 ＋1(후광이 지었으면 같이 쓴다) */
+    const panCounts = st.blur > 0 && st.count > 0;
+    return base + (panCounts ? (haloOn ? 2 : 3) : 0);
   }
 
   /** 배경 휘도 0~1 — ⛔배경을 «쓰는» 길이 아니다. «읽어» 기본 팔레트를 고르려는 쪽이 쓴다(판단은 호출자). */
@@ -196,6 +219,10 @@
       spread: clamp(Math.round(num(o.spread, pre.spread)), RANGES.spread.min, RANGES.spread.max),
       fxOpacity: clamp(Math.round(num(o.fxOpacity, pre.fxOpacity)), RANGES.fxOpacity.min, RANGES.fxOpacity.max),
       jit: clamp(Math.round(num(o.jit, pre.jit)), RANGES.jit.min, RANGES.jit.max),
+      /* ★패닝 셋 — ★없으면 ★프리셋 기본(=★0)으로 떨어진다 ⇒ ★옛 저장본은 ★그림이 ★안 바뀐다 */
+      speed: clamp(Math.round(num(o.speed, pre.speed)), RANGES.speed.min, RANGES.speed.max),
+      blur: clamp(Math.round(num(o.blur, pre.blur)), RANGES.blur.min, RANGES.blur.max),
+      spin: clamp(Math.round(num(o.spin, pre.spin)), RANGES.spin.min, RANGES.spin.max),
     };
   }
 
@@ -264,21 +291,46 @@
          ★입자 색이 여럿이라 ★SourceGraphic 을 그대로 흐린다 — 글로우(feFlood 로 한 색)와 ★다른 자리다. */
       const sd = (k) => r1(Math.max(0.3, k * st.spread));
       const M = Math.ceil(3 * 2 * st.spread) + 12;
-      defs = '<defs><filter id="' + fid + '" filterUnits="userSpaceOnUse"'
+      defs = '<filter id="' + fid + '" filterUnits="userSpaceOnUse"'
            + ' x="' + (-M) + '" y="' + (-M) + '" width="' + (W + 2 * M) + '" height="' + (H + 2 * M) + '"'
            + ' color-interpolation-filters="sRGB">'
            + '<feGaussianBlur in="SourceGraphic" stdDeviation="' + sd(0.43) + '" result="b1"/>'
            + '<feGaussianBlur in="SourceGraphic" stdDeviation="' + sd(1) + '" result="b2"/>'
            + '<feGaussianBlur in="SourceGraphic" stdDeviation="' + sd(2) + '" result="b3"/>'
            + '<feMerge><feMergeNode in="b3"/><feMergeNode in="b2"/><feMergeNode in="b1"/></feMerge>'
-           + '</filter></defs>';
+           + '</filter>';
       halo = '<g class="sec-fxpart-halo" filter="url(#' + fid + ')" opacity="' + (Math.round(st.glow) / 100) + '">' + body + '</g>';
     }
+
+    /* ★★방향성 번짐 — ★「패닝」의 ★절반이다(나머지 절반 = 회전 속도, ★v1.5).
+       ★★`stdDeviation` 에 ★값을 ★둘 준다 — ★앞이 가로, ★뒤가 세로. ★가로는 ★0 이라 ★또렷하고
+         ★세로만 늘어난다 = ★「진행 방향으로 늘어난다」. ★컨페티는 ★떨어지는 것이 본질이라 ★세로다.
+       ★★레포 선례 ★0건이었다 — ★`stdDeviation` ★8자리를 ★전부 읽었고 ★모두 ★단일 값이었다(2026-10-08 실측).
+         ⇒ ★새 길이라 ★★html2canvas 에서 ★사는지를 ★먼저 쟀다(⛔추측 아님):
+           ★원본 40×8 조각이 ★`"0 6"` 에서 ★★40×16(가로 그대로·세로만) ·
+                              ★`"6 0"` 에서 ★★58×8(세로 그대로·가로만) 으로 캡처됐다.
+           ★그 자가 ★제대로 도는지는 ★먼저 ★음성으로 확인했다 —
+             ★`mix-blend-mode:screen` 과 ★`filter:drop-shadow`(div) 는 ★둘 다 ★죽는 것이 재졌다
+             (★glow-render.js:9 가 적어 둔 그대로) ⇒ ★내 자는 ★「죽음」을 ★잡는다.
+       ★필터 영역 — ★세로로만 번지니 ★세로 여유만 넓게. ⛔기본 영역(-10%~110%)은 ★번짐을 ★자른다.
+       ★★id 는 ★후광과 ★갈라야 한다 — ★한 문서에 ★섹션이 여럿이고 ★SVG id 는 ★문서 전역이다. */
+    const panOn = st.blur > 0 && st.count > 0;
+    let panAttr = '';
+    if (panOn) {
+      const PM = Math.ceil(3 * st.blur) + 8;
+      defs += '<filter id="' + fid + '-pan" filterUnits="userSpaceOnUse"'
+            + ' x="0" y="' + (-PM) + '" width="' + W + '" height="' + (H + 2 * PM) + '"'
+            + ' color-interpolation-filters="sRGB">'
+            + '<feGaussianBlur in="SourceGraphic" stdDeviation="0 ' + r1(st.blur) + '"/>'
+            + '</filter>';
+      panAttr = ' filter="url(#' + fid + '-pan)"';
+    }
+    const defsTag = defs ? '<defs>' + defs + '</defs>' : '';
     /* ★전체 불투명도는 파티클 «층 통째»에 건다. ⛔배경은 건드리지 않는다(머리말 ⒝ — 애초에 없다). */
     return '<svg class="sec-fxpart-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '"'
          + ' width="100%" height="100%" style="display:block;pointer-events:none;">'
-         + defs
-         + '<g class="sec-fxpart-layer" opacity="' + (Math.round(st.fxOpacity) / 100) + '">'
+         + defsTag
+         + '<g class="sec-fxpart-layer"' + panAttr + ' opacity="' + (Math.round(st.fxOpacity) / 100) + '">'
          + halo + '<g>' + body + '</g></g></svg>';
   }
 

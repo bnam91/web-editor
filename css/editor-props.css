@@ -546,7 +546,7 @@
 }
 .cv-chip {
   display: inline-flex; align-items: center; gap: 4px;
-  height: 20px; padding: 0 7px 0 5px;
+  height: var(--cv-chip-size); padding: 0 7px 0 5px;
   background: var(--ui-bg-input);
   border: 1px solid var(--ui-border-strong);
   border-radius: 10px;
@@ -569,8 +569,70 @@
    ★점 테두리를 밝게: 최근 칩은 알약 테두리 없이 점뿐이라 어두운 색(#1b1b1b 등)이 어두운 패널에 묻힌다(시안에서 눈으로 찾음).
    ⚠️칩 폭(20)·사이(4)를 바꾸면 한 줄 개수가 바뀐다 — design-system.js COLOR_HISTORY_MAX 를 같은 법으로 다시 재라. */
 .cv-recent-row { margin-top: 4px; }
-.cv-chip.recent { padding: 0; width: 20px; justify-content: center; }
-.cv-chip.recent .cv-chip-dot { width: 13px; height: 13px; border-color: rgba(255,255,255,0.38); }
+/* ★★꼴의 «정본 한 자리» — 「최근」 칩의 크기. ⛔아래 두 수를 다른 자리에 ★또 적지 마라.
+   ★까닭: 현빈 2026-10-08 「(파티클 색 칸) ★이것도 너무 커 … (「최근」 줄을 가리키며) ★이정도 크기는 어때」
+     ⇒ ★파티클 색 칩이 ★이 두 수를 ★같이 읽는다(`.fxpart-chip` — 아래).
+     ⇒ ★「최근」 칩의 크기를 고치면 ★파티클 칩도 ★따라온다. 그것이 현빈이 ★가리킨 바로 그 관계다.
+   ⚠️위 줄의 경고가 그대로 산다 — 칩 폭(20)·사이(4)를 바꾸면 한 줄 개수가 바뀐다. */
+:root { --cv-chip-size: 20px; --cv-chip-dot-size: 13px; }
+.cv-chip.recent { padding: 0; width: var(--cv-chip-size); justify-content: center; }
+.cv-chip.recent .cv-chip-dot {
+  width: var(--cv-chip-dot-size); height: var(--cv-chip-dot-size);
+  border-color: rgba(255,255,255,0.38);
+}
+
+/* ── 파티클 색 칩 (현빈 2026-10-08) — ★「최근」 칩의 ★꼴만 ★베낀다 ──────────────────
+   ⛔`.prop-color-swatch` 의 ★공용 규칙(:396 ~)은 ★무접촉이다 — ★js/·css/ 23파일 77건이 그것을 쓴다.
+     ⇒ ★여기는 ★`#sec-fxpart-colors` ★안에서만 ★덮어쓴다(선택자에 그 id 를 달아 ★새는 것을 막는다).
+   ★★`.prop-color-swatch` ★클래스는 ★남긴다 — ⛔빼면 ★네이티브 OS 색 대화상자로 ★퇴행한다.
+     까닭: js/props/color-picker.js:1029 가 ★document 에서 ★`.prop-color-swatch` 를 잡아
+       ★네이티브 피커를 ★막고 ★고야 피커를 연다(:1043 이 둘째 길을 막는다 · :1013 이 바깥클릭 판정).
+   ★★누르면 하는 일이 「최근」과 ★다르다 — 최근 = ★글자색 한 번 / 파티클 = ★이 섹션의 ★팔레트 한 칸.
+     ⇒ ★data 속성·title·aria 는 ★파티클 것으로 ★따로 둔다(color-var-chips.js:63 의 그 경고).
+   ★✕ 는 ★칸을 먹지 않게 ★모서리에 겹쳐 두고 ★호버·포커스에만 보인다.
+     ⚠️`display:none` 이 ★아니라 `opacity:0` 이다 — ★tests/dom/fx-particles-panel.dom.spec.js:557 이
+       `[data-fxpart-color-del="0"]` 를 ★누른다. ★Playwright 의 보임 판정은 ★상자 크기·visibility 이고
+       ★opacity 는 ★안 본다 ⇒ `display:none` 으로 두면 ★그 검사가 ★빨개진다. */
+.fxpart-chip-wrap {
+  position: relative; display: inline-flex; flex-shrink: 0;
+  width: var(--cv-chip-size); height: var(--cv-chip-size);
+}
+/* ★껍질 = `.cv-chip.recent` 와 ★같은 꼴 — ★20 알약 ＋ ★가운데 점.
+   ⛔색을 ★껍질에 ★칠하지 않는다 — ★현빈이 가리킨 「최근」 칩은 ★13 점만 색이다(:573). */
+#sec-fxpart-colors .prop-color-swatch.fxpart-chip {
+  width: 100%; height: 100%;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;                      /* 정사각이라 `.cv-chip` 의 10px 과 ★같은 그림 */
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-strong);
+}
+.fxpart-chip-dot {                         /* ★색이 ★여기 있다 */
+  width: var(--cv-chip-dot-size); height: var(--cv-chip-dot-size);
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.38);  /* 「최근」 점과 ★같은 테두리(:573) */
+  box-sizing: border-box; flex-shrink: 0; pointer-events: none;
+}
+#sec-fxpart-colors > .prop-icon-btn {     /* ＋ 단추 — 칩과 같은 키 (⛔`>` 라서 ✕ 는 안 걸린다) */
+  width: var(--cv-chip-size); height: var(--cv-chip-size);
+  font-size: var(--ui-fs-10);
+}
+/* ★선택자가 ★`.fxpart-chip-wrap` 을 ★끼고 있다 — ⛔`.fxpart-chip-del` ★하나로는 ★안 먹는다.
+   ★실측(2026-10-08 · 9406 앱): `.prop-icon-btn`(22×22)이 ★같은 특이도인데 ★이 블록 ★뒤에 있어 ★이긴다
+     ⇒ ★내가 적은 ★14px 가 ★조용히 ★22px 로 ★그려졌다. ★앱에서 ★재서 ★잡았다
+     ⇒ ⛔CSS 는 ★소스로 ★못 닫는다 — ★잠그는 자 = tests/dom/fx-particles-panel D8(★그려진 상자를 잰다). */
+.fxpart-chip-wrap .fxpart-chip-del {
+  position: absolute; top: -5px; right: -5px;
+  width: 14px; height: 14px; min-width: 0; padding: 0;
+  border-radius: 50%; font-size: 9px;
+  background: var(--ui-bg-input); border: 1px solid var(--ui-border-strong);
+  opacity: 0; transition: opacity 0.1s, background 0.1s, color 0.1s, border-color 0.1s;
+}
+.fxpart-chip-wrap:hover .fxpart-chip-del,
+.fxpart-chip-wrap:focus-within .fxpart-chip-del,
+.fxpart-chip-wrap .fxpart-chip-del:focus-visible { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .fxpart-chip-wrap .fxpart-chip-del { transition: none; }
+}
 
 /* 공통 버튼 */
 .prop-btn {

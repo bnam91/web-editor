@@ -59,7 +59,10 @@
      눈·접기·✕ `.prop-icon-btn`                            (★같은 선례)
      프리셋칩  `.prop-align-group` ＋ `.prop-align-btn.active` (★선례 prop-sticker-glow.js:24)
      슬라이더  `.prop-slider` ＋ `.prop-number`             (★선례 prop-sticker-glow.js:88)
-     색 스와치 `.prop-color-swatch`(24px · 투명 color input) (★선례 prop-section.js 배경색)
+     색 칩    `.fxpart-chip-wrap > .prop-color-swatch.fxpart-chip > .fxpart-chip-dot`
+               (★크기는 css `--cv-chip-size`·`--cv-chip-dot-size` · 투명 color input · ✕ 는 ★호버 겹침)
+                                                           (★현빈 2026-10-08 「이정도 크기는 어때」)
+               ⚠️2026-10-08 전에는 ★24px ★네모 ＋ ★✕ 가 ★제 칸을 ★먹었다 — ★그 줄을 ★고친 것이다
      분포      `.prop-select`                              (★선례 sec-bg-size)
      회전      `<input type="checkbox">`                   (★선례 stk-glow-chroma · sec-overflow-visible)
      단추      `.prop-action-btn`                          (★선례 sec-bg-img-empty)
@@ -74,6 +77,11 @@ import { escHtml } from './_helpers.js';
 const AXIS_LABEL = {
   count: '갯수', smin: '크기', smax: '크기',
   fxOpacity: '불투명도', jit: '흔들림', glow: '글로우', spread: '퍼짐',
+  /* ★패닝 셋 — ★글도 ★시안의 ★그 말이다(「떨어지는 속도」·「번짐 세기」·「회전 속도」).
+     ★240px 패널이라 ★짧은 쪽을 쓴다 — 위 일곱과 ★같은 결(「불투명도」·「흔들림」).
+     ⚠️`rot` 의 글이 ★이미 「회전」이다(참거짓 — ★무작위 각도) ⇒ ★`spin` 은 ★「회전속도」로 ★갈라 적는다.
+       ⛔둘을 ★같은 말로 두면 ★현빈이 ★어느 칸인지 ★못 가린다. */
+  speed: '속도', blur: '번짐', spin: '회전속도',
 };
 
 /* ★모양 글 — ★★짧은 쪽(`s`)은 ★240px 패널용, ★긴 쪽(`t`)은 ★★시안 `:454 SHAPE_KO` ★그대로를 ★title 로.
@@ -156,21 +164,38 @@ function _pairRow(keys, cfg, R) {
 }
 
 /** ★색 — ★시안 `renderPal`: ★스와치마다 ★color 입력 ＋ ★✕(둘 이상일 때) · ★＋(여덟 미만).
- *  ★상한 8 은 ⛔내 수가 아니다 — ★`normalize` 가 ★`.slice(0, 8)` 한다(particles-render.js:156). */
+ *  ★상한 8 은 ⛔내 수가 아니다 — ★`normalize` 가 ★`.slice(0, 8)` 한다(particles-render.js:156).
+ *
+ *  ★★현빈 2026-10-08 — 「(파티클 색 칸) ★이것도 ★너무 커」 ＋ (「최근」 색 줄을 가리키며) 「★이정도 크기는 어때」
+ *    ⇒ ⒜ ★칩 꼴 = `.cv-chip.recent` ★그대로다 — ★20 알약 껍질 ＋ ★가운데 ★13 색 점.
+ *       ★그 두 수는 ★css `--cv-chip-size`·`--cv-chip-dot-size` ★한 자리에서 온다(⛔여기 안 적는다).
+ *       ★참값 출처 = `css/editor-props.css` ★origin/dev `:572`(width 20) · `:573`(dot 13).
+ *       ⚠️★색은 ★점(`.fxpart-chip-dot`)에 칠한다 — ⛔껍질에 칠하면 ★「최근」 칩과 ★다른 그림이 된다.
+ *       ⒝ ★✕ 가 ★칸을 ★먹지 않게 ★모서리에 ★겹쳐 두고 ★호버·포커스에만 보인다.
+ *          ★전: 색 ★하나당 ★요소 ★둘(스와치 24px ＋ ✕ 22px) ⇒ ★5색이면 ★가로로 ★열 칸.
+ *          ★후: 색 ★하나당 ★자리 ★하나(20px) — ✕ 는 ★그 위에 ★겹친다.
+ *    ⚠️★★`.prop-color-swatch` ★클래스를 ★빼지 마라 — ★그 클래스가 ★고야 피커를 ★여는 ★손잡이다
+ *      (js/props/color-picker.js:1029 document 델리게이션). ★빼면 ★네이티브 OS 색 대화상자로 ★퇴행한다.
+ *    ⚠️★✕ 는 ★`.prop-color-swatch` ★«밖»의 ★형제여야 한다 — ★안에 넣으면 ★그 델리게이션이
+ *      ★✕ 클릭(mousedown, capture)에서도 ★피커를 ★연다(★우리 click 핸들러보다 ★먼저 돈다). */
 function _colorsRow(cfg, max8) {
   const cs = Array.isArray(cfg.colors) ? cfg.colors : [];
   const sw = cs.map((c, i) => `
-          <span class="prop-color-swatch" style="background:${escHtml(c)}" data-fxpart-color="${i}">
-            <input type="color" value="${escHtml(/^#[0-9a-fA-F]{6}$/.test(c) ? c : '#ffffff')}"
-                   data-fxpart-color-in="${i}" aria-label="파티클 색 ${i + 1}">
-          </span>${cs.length > 1 ? `<button class="prop-icon-btn" data-fxpart-color-del="${i}"
-                   title="이 색 빼기" aria-label="색 빼기">✕</button>` : ''}`).join('');
+          <span class="fxpart-chip-wrap">
+            <span class="prop-color-swatch fxpart-chip" data-fxpart-color="${i}"
+                  title="파티클 색 ${i + 1} — 누르면 색을 고른다">
+              <span class="fxpart-chip-dot" style="background:${escHtml(c)}"></span>
+              <input type="color" value="${escHtml(/^#[0-9a-fA-F]{6}$/.test(c) ? c : '#ffffff')}"
+                     data-fxpart-color-in="${i}" aria-label="파티클 색 ${i + 1}">
+            </span>${cs.length > 1 ? `<button class="prop-icon-btn fxpart-chip-del" data-fxpart-color-del="${i}"
+                     title="이 색 빼기" aria-label="파티클 색 ${i + 1} 빼기">✕</button>` : ''}
+          </span>`).join('');
   const add = cs.length < max8
     ? `<button class="prop-icon-btn" id="sec-fxpart-color-add" title="색 더하기" aria-label="색 더하기">＋</button>`
     : '';
   return `
       <div class="prop-row" style="align-items:flex-start">
-        <span class="prop-label" style="line-height:24px">색</span>
+        <span class="prop-label" style="line-height:20px">색</span>
         <div class="prop-align-group" id="sec-fxpart-colors">${sw}${add}
         </div>
       </div>`;
@@ -398,8 +423,10 @@ export function wireSecParticles(sec, rerender) {
       if (i < 0 || i >= cs.length) return;
       cs[i] = ci.value;
       put({ colors: cs });
-      const host = ci.closest('.prop-color-swatch');
-      if (host) host.style.background = ci.value;     /* ★스와치 색을 ★그 자리에서 — ⛔다시 그리면 피커가 닫힌다 */
+      /* ★색은 ★점에 있다(껍질은 「최근」 칩과 같은 알약이라 ★칠하지 않는다)
+         ⛔다시 그리면 피커가 닫힌다 ⇒ ★그 자리에서 고친다 */
+      const dot = ci.closest('.prop-color-swatch')?.querySelector('.fxpart-chip-dot');
+      if (dot) dot.style.background = ci.value;
     });
     ci.addEventListener('change', () => commit('섹션 파티클 색'));
   });
