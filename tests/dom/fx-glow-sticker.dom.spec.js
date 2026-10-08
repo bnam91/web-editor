@@ -1,7 +1,7 @@
 /* fx-glow-sticker — 글로우 이펙트 스티커(shape:'glow', 2026-10-06 지디 발주 FOUR).
  *
  * ★무엇을 잠그나
- *   F1 그리기(sticker-block.js glow 갈래) · F2 만들기(seed·프리셋) · F3 seed 결정성(공용 부품 js/fx/seeded-random.js — 소비자 1)
+ *   F1 그리기(sticker-block.js glow 갈래) · F2 만들기(seed·프리셋) · F3 seed 결정성(공용 부품 js/fx/seeded-random.js — ★소비자 수는 ⛔여기 적지 않는다: ★정본은 그 파일 머리말의 «소비자» 줄이다(2026-10-08 파티클이 ②로 올라와 이 줄의 「1」이 낡았다))
  *   F4 다시 그려도 같은 모습(리로드·undo 경로 = renderStickerBlock 재호출) · F5 패널 · F6 마지막 스타일 기억(__last 는 안 건드림)
  *   F7·F8 ★내보내기 두 경로에 후광이 «산다» — PNG(CDP Page.captureScreenshot · 오프스크린 fixed = export-image.js:249 와 같은 꼴)
  *         · 썸네일(html2canvas · save-load.js captureThumbnail 과 같은 옵션). ★모자이크가 죽은 자리를 «구조»로 막는 칸이다 — 빼지 마라.

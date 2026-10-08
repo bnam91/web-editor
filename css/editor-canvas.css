@@ -540,3 +540,23 @@ body.gdt-pad-on .section-block[style*="--gdt-pad-b"]::before {
   /* ★z-index 1 — 좌우 띠와 같은 층. 선택 아웃라인(.selected::after, z-index 90)이 그대로 이긴다. */
   z-index: 1;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   ★섹션 배경 파티클의 «층» — 2026-10-07 현빈 발주 · 지디 판정 ⒞
+   그림(SVG)은 js/fx/particles-render.js 가 짓고, 깔고 거두는 것은 js/effects-particles.js 다.
+   ★여기 있는 것은 «자리»뿐이다 — ⛔색도 배경도 여기서 정하지 않는다.
+     (섹션 배경색은 «섹션 것»이다 — js/props/prop-section.js:138. 현빈 2026-10-07
+      「배경색이 계속 바뀌면 안되는거 알지?」 ⇒ 이 층은 ★투명하고 배경이 그대로 비친다.)
+   ★층은 섹션의 «첫 자식»이라 z-index 없이도 내용 아래다 — 0 은 그 뜻을 «적어 두는» 것이다.
+   ★overflow:hidden — 후광이 섹션 밖으로 번지지 않게(섹션 배경이니 경계에서 끊긴다).
+   ⛔이 선택자의 이름은 js/io/export-css-collect.js EDITOR_ONLY_SEL 의 «조각 54개» 어디에도
+     걸리면 안 된다 — 걸리면 에디터에선 맞고 ★내보낸 배송본에서 이 규칙이 빠진다(층이 상자를 못 채운다).
+     ★그 자는 tests/unit/fx-particles-wiring.test.mjs 에 «심어 뒀다»(양성대조 포함) — 이름을 바꾸면 빨개진다.
+   ═══════════════════════════════════════════════════════════ */
+.section-block > .sec-fxpart-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
