@@ -621,6 +621,18 @@ function _rgbTriple(css) {
  *      ⇒ ★먼저 되돌려 두면 ★거울이 ★★이미 쉬는 값을 ★베낀다.
  *      ⇒ ★★「반사가 ★섹션에도 걸리나」를 ★★몰라도 ★닫힌다(★그 답은 ★★안 쟀다 — ★순서로 ★막았다).
  *
+ *  ★★⚠️«세척 명부»가 ★지금 ★★넷이다 (★지디 2026-10-09 전수 · ⛔이 커밋에서 ★안 합쳤다):
+ *    ⒜ `js/io/section-serialize.js`  — ★저장 (`RUNTIME_MARKER_CLS` ＋ RE · ★4건)
+ *    ⒝ `js/io/capture-safety.js:456·459` — ★PNG·썸네일 공용 걷기 (★제 명부를 ★따로 든다 · ★8건)
+ *    ⒞ `js/io/export-html.js:127`    — ★HTML (`item-selected` 를 ★손으로 벗긴다 · ★2건)
+ *    ⒟ `js/io/export-css-collect.js:34` — ★CSS 수집 (★또 따로 · ★3건)
+ *  ★★그 넷을 ★이 겹으로 ★모으는 것이 ★★다음 커밋이다 — ★이번엔 ★파티클만 든다.
+ *    ★까닭: ★넷을 ★지금 합치면 ★★PNG 가 ★섞인다(★PNG 는 ★이 겹을 ★안 부른다 ⇒ ★걷기가 ★갈린다).
+ *    ⇒ ★합칠 때는 ★`window.runtimeMarkers.stripRuntimeMarkers` 를 ★여기서 ★같이 부르고,
+ *      ★★그 전에 ★★«PNG 도 ★그 걷기가 ★필요한가»를 ★먼저 재야 한다.
+ *  ★★이름을 ★`restRuntimeForArtifact`(⛔`restParticles…` 가 아니다)로 ★둔 까닭이 ★그것이다 —
+ *    ★★넓힐 자리를 ★이름이 ★미리 ★열어 둔다.
+ *
  *  ★★임자는 ★여기가 ★아니다 — ★되돌리는 ★법은 ★`js/io/section-serialize.js` ★`restParticleMotion`
  *    ★하나다(★꼬리표 꼴 `data-fxp="x,y,vj,dir,rot0"` 을 ★읽는 자리). ★여기는 ★★«부르는 겹»이다. */
 export function restRuntimeForArtifact(clone) {

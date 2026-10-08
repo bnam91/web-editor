@@ -33,10 +33,22 @@
        건너뛴다」)이 그 섹션을 ★전부 건너뛴다(실측: 두 섹션에서 고른 수 0). js/history.js 의
        협업 undo 범위 가드(`.multi-selected` 가 있으면 scoped undo 포기)도 영구히 꺼진다.
      ⚠️여기 RE 를 `/(?:^|-)selected$/` 로 넓히면 이것까지 «성질»로 묶이지만, 그 RE 는
-       item-selected · scratch-selected · grd-cell-selected · is-selected · iconify-selected ·
-       *--selected(패널 UI 4종) 까지 새로 잡는다(전수: 레포의 `*selected` 토큰 24종을 셌다).
-       그 11종은 ★이번에 안 쟀으므로 넓히지 않는다 — 넓히려면 그 종마다 「저장돼야 하나」를
-       먼저 재라.
+       item-selected · scratch-selected · grd-cell-selected · is-selected ·
+       *--selected(패널 UI 4종) 까지 새로 잡는다.
+     ⚠️★★2026-10-09 ★정정 — ★윗줄의 「★24종」은 ★★미확인 수였다.
+       ★그 수는 ★«사용 자리» grep 이 ★조각(`-line-selected`·`_selected`)까지 ★잡은 ★날것이다
+         (★다시 재니 ★날것은 ★정확히 ★24 — ★그래서 ★맞아 보였다).
+       ★★다시 센 법: ★★«정의 자리» ★둘의 ★합집합 —
+         ⒜ `grep -rhoE '\.[A-Za-z0-9_-]*selected\b' css/*.css`            ⇒ ★15종
+         ⒝ `grep -rhoE "classList\.(add|remove|toggle|contains)\('…'" js/` ⇒ ★15종
+         ⇒ ★★합집합 ★★16종  (⛔`git grep -o` 는 ★이 자리에서 ★0건을 내 ★자가 ★죽은 줄 알았다 —
+            ★양성대조로 ★잡았다. ★`grep -rhoE` 로 ★바꿔 쟀다.)
+       ★★그중 ★이 명부(RUNTIME_MARKER_CLS ＋ RE)가 ★덮는 것 ★★8종 ·  ★★구멍 ★★8종:
+         ★덮임: selected · multi-selected · cell-selected · group-selected ·
+                bn2-line-selected · grd-line-selected · stb-line-selected · ln-line-selected
+         ★★구멍: item-selected · scratch-selected · grd-cell-selected · is-selected ·
+                assets-grid-card--selected · assets-row--selected · ck-item--selected · todo-pin--selected
+       ★그 ★8종은 ★★«저장돼야 하나»를 ★종마다 ★따로 재야 한다 — ⛔RE 를 넓혀 ★한꺼번에 묶지 마라.
      ★grd-cell-selected 의 «무게»만 재 뒀다(2026-10-09 · ⛔고치지는 않았다 — 별건 티켓):
        자 = «읽어서 결정하는» 자리 전수(add/clear 제외) ⇒ ★0건. js/editor.js:3938 ·
        js/props/prop-grid.js:142·177 은 전부 clear 고 :194 는 add 다 — 가드로 읽는 자리가 없다.
