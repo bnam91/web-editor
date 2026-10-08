@@ -312,3 +312,69 @@ test('V5 ★★저장본에 ★«시각»이 ★안 들어간다 — ★언제 �
   expect(/translate\(0,/.test(stillSave), '★정지 섹션 저장본에 translate 가 있다').toBe(false);
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
+
+test('V6 ★★움직임이 ★자동저장을 ★깨우지 않는다 — ★문서가 ★영원히 dirty 가 되면 안 된다 (★양·음 한 쌍)', async ({ page }) => {
+  /* ★★실측(2026-10-09 · 고치기 전): 움직이는 ★1.5초에 ★«의미 있는» mutation ★21,724건 · 멈추면 ★0건.
+     ⇒ ★문서가 ★영원히 dirty ⇒ ★자동저장이 ★1.5초마다 ★프로젝트를 ★통째로 다시 쓴다.
+     ★이 칸은 ★제품의 감시자를 ★가로채지 않는다 — ★★«같은 조건»의 관찰자를 ★따로 달아 ★센다. */
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e)));
+  await page.setViewportSize({ width: VIEW_W, height: VIEW_H });
+  await bootApp(page);
+  const r = await page.evaluate(async () => {
+    const canvas = document.getElementById('canvas');
+    canvas.querySelectorAll('.section-block').forEach((s) => s.remove());
+    canvas.insertAdjacentHTML('beforeend',
+      '<div class="section-block" id="pS" data-section="1" style="background:#0A0A0C">'
+      + '<div class="section-hitzone"></div><div class="section-inner" style="padding-left:40px">'
+      + '<div class="gap-block" data-type="gap" style="height:300px"></div></div></div>');
+    window.rebindAll?.();
+    const sec = document.getElementById('pS');
+
+    let meaningful = 0, raw = 0;
+    const isUi = (m) => {
+      const t = m.target?.nodeType === 1 ? m.target : m.target?.parentElement;
+      return !!(t?.closest?.(window.NON_CONTENT_UI_SELECTOR));
+    };
+    /* ★제품의 그 판정과 ★같은 꼴 — ★`transform` ＋ `data-fxp` */
+    const isParticleMotion = (m) => m.type === 'attributes' && m.attributeName === 'transform'
+      && m.target?.nodeType === 1 && m.target.hasAttribute?.('data-fxp');
+    const obs = new MutationObserver((ms) => {
+      for (const m of ms) {
+        raw++;
+        if (m.type === 'attributes' && m.attributeName === 'class') continue;
+        if (isUi(m)) continue;
+        if (isParticleMotion(m)) continue;
+        meaningful++;
+      }
+    });
+    obs.observe(canvas, { childList: true, subtree: true, attributes: true, characterData: true });
+
+    window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
+    window.applySectionParticles(sec);
+    await new Promise((res) => setTimeout(res, 300));
+    raw = 0; meaningful = 0;                       /* ★다시그리기(진짜 편집)는 ★안 센다 — ★움직임만 */
+    await new Promise((res) => setTimeout(res, 1200));
+    const moveRaw = raw, moveMeaningful = meaningful;
+
+    /* ★★양성대조 — ★같은 관찰자가 ★«진짜 편집»은 ★잡나. ⛔없으면 ★「늘 0 인 죽은 자」다 */
+    raw = 0; meaningful = 0;
+    sec.querySelector('.gap-block').style.height = '301px';
+    await new Promise((res) => setTimeout(res, 200));
+    const editMeaningful = meaningful;
+
+    obs.disconnect();
+    window.ParticlesAnim.stop();
+    return { moveRaw, moveMeaningful, editMeaningful };
+  });
+
+  /* ★전제 — ★그 1.2초에 ★움직임이 ★정말 있었나(⛔없으면 ★0 이 ★공짜다) */
+  expect(r.moveRaw, '★전제: 1.2초 동안 ★DOM 쓰기가 ★0건이다 — 루프가 안 돌았다').toBeGreaterThan(100);
+  /* ★★본 단언 */
+  expect(r.moveMeaningful, `★★움직임이 ★편집으로 세어졌다 (${r.moveMeaningful}건 / 날것 ${r.moveRaw}건)`
+    + ' — ★문서가 ★영원히 dirty 가 되어 ★자동저장이 ★멈추지 않는다').toBe(0);
+  /* ★★양성대조 — ★진짜 편집은 ★여전히 잡힌다 */
+  expect(r.editMeaningful, '★★진짜 편집(높이 변경)을 ★못 잡았다 — 이 자는 ★아무것도 안 재고 있다')
+    .toBeGreaterThan(0);
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});

@@ -2107,11 +2107,35 @@ if (IS_ELECTRON) {
 // 변경 감지 — canvas MutationObserver
 // class 속성 변경만 제외 (드래그 UI 상태 토글 spam 방지, DBG-11)
 // data-* 속성 변경(prop 패널 값)은 감지해야 하므로 attributes:true 포함
+/** ★★움직이는 파티클의 `transform` 쓰기인가 — ★그렇다면 ★«편집»이 아니다 (v1.5 ⑴ · 2026-10-09).
+ *
+ *  ★★왜 걸러야 하나 — ★실측(DOM 하네스 · 2026-10-09):
+ *    ★파티클이 ★움직이는 ★1.5초 동안 ★«의미 있는» mutation 이 ★★21,724건 · ★멈추면 ★★0건.
+ *    ⇒ ★안 거르면 ★문서가 ★★«영원히 dirty» 가 되어 ★자동저장이 ★1.5초마다 ★프로젝트를 통째로
+ *      ★다시 쓴다(★updatedAt 오염 ＋ ★디스크 churn). ★위 DEF-03 이 ★막으려던 ★바로 그 병이다.
+ *  ★★왜 ★«편집이 아닌가»가 ★참인가 — ★그 값은 ★★저장되지 않기 때문이다:
+ *    `js/io/section-serialize.js` 의 ★`restParticleMotion` 이 ★세척에서 ★«쉬는 꼴»로 되돌린다.
+ *    ⇒ ★★이 파일 ★NON_CONTENT_UI_SELECTOR 머리말의 ★⛔계약과 ★같은 결이다 —
+ *      ★「저장에서 ★지워지는 것은 ★정의상 ★콘텐츠가 ★아니다」. ★여기선 ★«지운다»가 아니라 ★«되돌린다»다.
+ *    ⇒ ★그 쌍이 ★깨지면(세척이 사라지면) ★tests/dom/fx-particles-anim ★V5 가 ★빨개진다.
+ *  ★★좁게 잡는다 — ★`transform` ★하나 · ★`data-fxp` 를 ★쥔 요소 ★하나.
+ *    ⛔층 통째(`.sec-fxpart-wrap` 안 전부)를 ★거르지 ★않는다. ★그러면 ★«진짜 다시그리기»
+ *      (프리셋·개수를 바꿔 ★층이 ★새로 난 것)까지 ★조용히 ★안 저장된다. */
+function _isParticleMotionMutation(m) {
+  return m.type === 'attributes'
+      && m.attributeName === 'transform'
+      && m.target?.nodeType === 1
+      && typeof m.target.hasAttribute === 'function'
+      && m.target.hasAttribute('data-fxp');
+}
+
 const autoSaveObserver = new MutationObserver(mutations => {
   const meaningful = mutations.some(m => {
     if (m.type === 'attributes' && m.attributeName === 'class') return false;
     // [P-A1″] 저장에서 지워지는 «UI 장식»의 생성/제거는 편집이 아니다 — 같은 목록을 본다.
     if (_isNonContentUiMutation(m)) return false;
+    // ★★파티클 «움직임»은 편집이 아니다 (v1.5 ⑴ · 2026-10-09).
+    if (_isParticleMotionMutation(m)) return false;
     // lazy 렌더 패스(뷰포트 밖 배경 언로드/복원)가 «자기 mutation 만» 무시하게 한다.
     //   예전엔 lazy-sections 가 _suppressAutoSave 를 통째로 켜서, 그 창에 들어온 «진짜 편집»까지
     //   조용히 버려졌다(저장 예약조차 안 됨). lazy 가 만지는 건 style / data-lazy-bg / class 뿐이라
