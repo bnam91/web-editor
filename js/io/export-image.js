@@ -236,6 +236,16 @@ export async function prepareCloneForCapture(sec, w, useNative) {
   /* ★E157 공용 대기(whenGridRatiosSettled · grid-block.js) — 칸 배경 비율이 서고 그 그리드가 다시 그려진 «뒤»에 찍는다(틀린 행 높이가 산출물로 굳지 않게).
      반환 none(기다릴 것 없음) / settled / cap(상한 — 함수가 수·주소를 찍음). ⛔그 결과로 막지 않는다 — 찍기는 그대로 간다. */
   await window.whenGridRatiosSettled?.();
+  /* ★★⛔여기엔 ★`restRuntimeForArtifact`(capture-safety.js)를 ★★«일부러» ★안 부른다 (2026-10-09 · 지디 판정).
+     ★까닭 — ★★계약이 ★다르다: ★PNG 는 ★★«스냅샷»이다. ★사람이 ★«누른 그 순간 화면»이 ★맞는 그림이다.
+       (★HTML 은 ★★«문서»라 ★같은 입력에 ★같은 출력이어야 한다 ⇒ ★그쪽은 ★부른다.
+        ★썸네일도 ★부른다 — ★사람이 ★「지금 이 모습」을 ★고른 적이 ★없고 ★저절로 찍히기 때문이다.)
+     ★실측(2026-10-09 · 실앱 9406 · 네이티브 CDP 캡처 · `window.__exportGate.captureTruth` ×2):
+       ★★멈춘 판 ×2 : 픽셀차 ★0 · ★0%          ← ★★음성대조(★자의 바닥)
+       ★도는 판 ×2 : ★15,463(5.99%) · ★13,938(5.40%)
+       ⇒ ★그 ★0 이 ★5.4~6.0% 가 ★잡음이 ★아님을 ★증명한다. ★PNG 는 ★화면을 ★따라간다 = ★계약대로다.
+     ⛔★«빠뜨렸다»로 읽고 ★넣지 ★마라. ★넣으면 ★사용자가 ★본 화면과 ★다른 PNG 가 나간다.
+     ★이 판정을 ★잠그는 자 = tests/unit/artifact-clone-roster (★이 파일은 ★rest:false 로 ★명부에 있다). */
   const clone = sec.cloneNode(true);
   /* ★편집 전용 DOM·상태 걷기는 «한 벌»이다 — js/io/capture-safety.js stripEditorOnlyForCapture.
      썸네일 경로(js/io/save-load.js captureThumbnail)와 같은 명부를 쓴다. 두 벌로 두었더니

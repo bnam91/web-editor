@@ -604,6 +604,33 @@ function _rgbTriple(css) {
   return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
 }
 
+/** ★★«산출물»을 만들 클론에서 ★★«런타임 값»을 ★쉬는 꼴로 되돌린다 (2026-10-09 · 지디 ⑷ 판정).
+ *
+ *  ★★왜 ★한 겹인가 — ⛔`restParticleMotion` 을 ★날로 ★두 곳에서 ★부르면
+ *    ★★«무엇을 세척해야 하나»가 ★두 자리에 ★퍼진다. ★⒟(번짐을 속도에 묶기)가 ★`stdDeviation` 을
+ *    ★더하는 날 ★두 곳을 ★다 고쳐야 하고, ★한 곳을 잊으면 ★★조용히 ★반쪽이 된다.
+ *    ⇒ ★★넓힐 때는 ★★이 함수 ★하나만 넓힌다.
+ *
+ *  ★★누가 부르나 (★2026-10-09 전수 · ★게이트 = tests/unit/artifact-clone-roster):
+ *    ✅ `js/io/save-load.js` captureThumbnail  — ★썸네일 → `_meta.json`
+ *    ✅ `js/io/export-html.js`                 — ★HTML 내보내기
+ *    ⛔ `js/io/export-image.js`                — ★★«일부러 ★안 부른다». ★그 파일에 ★까닭을 적었다
+ *
+ *  ★★부르는 ★자리 — ★`stripEditorOnlyForCapture` ★바로 뒤(★«맨 앞»)에 둔다.
+ *    ★까닭: ★`neutralizeBoxReflectForH2C` 가 ★뒤에서 ★`el.cloneNode(true)` 로 ★거울상을 ★또 뜬다.
+ *      ⇒ ★먼저 되돌려 두면 ★거울이 ★★이미 쉬는 값을 ★베낀다.
+ *      ⇒ ★★「반사가 ★섹션에도 걸리나」를 ★★몰라도 ★닫힌다(★그 답은 ★★안 쟀다 — ★순서로 ★막았다).
+ *
+ *  ★★임자는 ★여기가 ★아니다 — ★되돌리는 ★법은 ★`js/io/section-serialize.js` ★`restParticleMotion`
+ *    ★하나다(★꼬리표 꼴 `data-fxp="x,y,vj,dir,rot0"` 을 ★읽는 자리). ★여기는 ★★«부르는 겹»이다. */
+export function restRuntimeForArtifact(clone) {
+  if (!clone) return clone;
+  /* ⛔없으면 ★조용히 지나간다 — ★움직이개가 ★안 실린 판에는 ★움직인 값도 ★없다
+     (★그 값을 ★쓰는 자가 ★js/fx/particles-animate.js ★하나뿐이다). */
+  try { (typeof window !== 'undefined' ? window.restParticleMotion : null)?.(clone); } catch (_) {}
+  return clone;
+}
+
 export function neutralizeBoxReflectForH2C(root, bgColor) {
   if (!root) return 0;
   const sel = '[style*="box-reflect"]';

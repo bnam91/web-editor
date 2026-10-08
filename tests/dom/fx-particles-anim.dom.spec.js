@@ -571,3 +571,68 @@ test('V8 ★★뷰포트 컬링 — ★화면 밖은 ★안 돌리고, ★굴려
 
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
+
+/* ═══ V9 — ★산출물 셋의 ★계약 (2026-10-09 · 지디 ⑷ 판정) ════════════════════
+ *  ★썸네일 = ★사람이 ★고른 적 없다 ⇒ ★쉬는 꼴  ·  ★HTML = ★문서 ⇒ ★쉬는 꼴
+ *  ★PNG    = ★스냅샷 ⇒ ★★화면 그대로 (⛔세척하면 ★안 된다)
+ *  ★이 칸은 ★★«HTML» 을 잰다 — ★썸네일·PNG 는 ★하네스에 ★네이티브 캡처가 ★없어 ★실앱 몫이다
+ *    (★2026-10-09 실측: electronAPI 가 가짜라 captureTruth 가 ★ERR · 썸네일은 ★실앱에서 쟀다). */
+test('V9 ★★HTML 내보내기는 ★언제 해도 ★같은 글자 — ★움직임이 ★안 박힌다 (★양·음 한 쌍)', async ({ page }) => {
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e)));
+  await page.setViewportSize({ width: VIEW_W, height: VIEW_H });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await bootApp(page);
+  await page.evaluate(() => {
+    const canvas = document.getElementById('canvas');
+    canvas.querySelectorAll('.section-block').forEach((s) => s.remove());
+    canvas.insertAdjacentHTML('beforeend',
+      '<div class="section-block" id="pS" data-section="1" style="background:#0A0A0C">'
+      + '<div class="section-hitzone"></div><div class="section-inner" style="padding-left:40px">'
+      + '<div class="gap-block" data-type="gap" style="height:300px"></div></div></div>');
+    window.rebindAll?.();
+    const sec = document.getElementById('pS');
+    window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
+    window.applySectionParticles(sec);
+    /* ⛔`stop()` 을 ★안 부른다 — ★사람이 쓰는 그 꼴(★루프가 ★돌고 있다)에서 내보낸다 */
+    window.__blobs = [];
+    const oc = URL.createObjectURL;
+    URL.createObjectURL = function (b) { window.__blobs.push(b); return oc.call(URL, b); };
+    HTMLAnchorElement.prototype.click = function () { /* ★받기만 막는다 */ };
+  });
+  const grab = () => page.evaluate(async () => {
+    window.__blobs.length = 0;
+    await window.exportHTMLFile();
+    return window.__blobs.length ? await window.__blobs[window.__blobs.length - 1].text() : null;
+  });
+  const live = () => page.evaluate(() =>
+    document.querySelector('.sec-fxpart-wrap [data-fxp]')?.getAttribute('transform') || '');
+
+  const l1 = await live();
+  const h1 = await grab();
+  await page.waitForTimeout(1300);
+  const l2 = await live();
+  const h2 = await grab();
+
+  /* ★★전제 — ★그 사이 ★화면이 ★정말 움직였나. ⛔안 움직였으면 ★「같다」가 ★공짜다 */
+  expect(l2, `★전제: 1.3초 동안 ★화면이 ★안 움직였다 (${l1})`).not.toBe(l1);
+  expect(h1, '★전제: 내보낸 글자를 ★못 떴다').not.toBeNull();
+  expect(h1.length, '★전제: 내보낸 글자가 ★너무 짧다').toBeGreaterThan(1000);
+
+  /* ⒜ ★★본 단언 — ★언제 내보내도 ★같은 글자 */
+  expect(h2, `★★내보낸 글자가 ★다르다 (${h1.length}자 vs ${h2.length}자)`
+    + ' — ★HTML 은 ★문서다. ★언제 내보냈냐가 ★그림을 정하면 안 된다').toBe(h1);
+
+  /* ⒝ ★★움직인 꼴이 ★안 박혔다 */
+  expect(/translate\(0,[-0-9.]+\) rotate\(/.test(h1), '★★내보낸 HTML 에 ★translate(움직임)이 ★박혔다').toBe(false);
+
+  /* ⒞ ★★그런데 ★화면은 ★계속 움직인다 — ⛔세척이 ★라이브를 ★멈추면 안 된다(★클론만 씻는다) */
+  const l3 = await live();
+  expect(l3, '★★세척이 ★살아있는 층을 ★멈췄다').toMatch(/^translate\(0,/);
+
+  /* ⒟ ★★음성대조 — ★파티클 층은 ★여전히 ★실린다(★세척이 ★층을 ★지운 것이 아니다) */
+  expect(h1.includes('sec-fxpart-wrap'), '★세척이 ★파티클 층을 ★통째로 지웠다').toBe(true);
+  expect(h1.includes('data-fxp'), '★세척이 ★꼬리표를 지웠다').toBe(true);
+
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});

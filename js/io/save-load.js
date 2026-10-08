@@ -8,7 +8,7 @@ import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../dat
 import { applyFrameTransform } from '../frame-geometry.js';
 import { checkerBg } from '../checker-tokens.js';
 import { applyCanvasBackground, syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) · T6 섹션 안 글자 밝기 */
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, withGuideOff, neutralizeBoxReflectForH2C } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, withGuideOff, neutralizeBoxReflectForH2C, restRuntimeForArtifact } from './capture-safety.js';
 import { prepareGoyaAssetsForClone } from './goya-asset-inline.js';   /* 썸네일 클론에서 goya-asset 을 data: 로 (T-149) */
 import { ejectShapeFrameIntruders } from '../shape-frame.js';
 import { warnPendingVideoLossIf } from './pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원 */
@@ -117,6 +117,15 @@ async function captureThumbnail() {
        「내용을 입력하세요」 안내문구, 자식 블록의 .selected/.img-editing/.row-active 테두리.
        (2026-09-21 최종통합 QA medium, 실측 EXPORT-D: 주석 200px·편집전용프록시 100px 이 찍힘) */
     stripEditorOnlyForCapture(clone);
+    /* ★★움직이는 파티클을 ★«쉬는 꼴»로 — ★★썸네일은 ★사람이 ★「지금 이 모습」을 ★고른 것이 ★아니다.
+       ★저절로 찍혀 ★`_meta.json` 에 박히고 ★프로젝트 목록 카드에 ★뜬다
+       ⇒ ★★안 되돌리면 ★★«내가 ★안 건드렸는데 ★카드 그림이 ★바뀐다»가 ★사용자 체감이 된다.
+       ★실측(2026-10-09 · 실앱 9406 · 제품의 saveProjectToFile 길):
+         ★멈춘 판 ×3 ⇒ 썸네일 ★a84564fc/3547 ★셋 다 ★같다(★바닥 0)
+         ★도는 판 ×3 ⇒ ★d23afaea/3723 · ★49546356/3695 · ★89b515b8/4023 ★전부 ★다르다
+       ★★`stripEditorOnlyForCapture` ★바로 뒤다 — ★뒤의 `neutralizeBoxReflectForH2C` 가
+         ★거울상을 ★또 뜨므로 ★먼저 되돌려야 ★거울도 ★쉬는 값을 ★베낀다. */
+    restRuntimeForArtifact(clone);
     clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;';
     document.body.appendChild(clone);
     neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
