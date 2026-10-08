@@ -53,6 +53,29 @@ function sanitizeCanvasHtml(html) {
 }
 if (typeof window !== 'undefined') window.sanitizeCanvasHtml = sanitizeCanvasHtml;
 
+/* ★C③(2026-10-09) «열 때»도 런타임 UI 상태를 벗긴다. 세 가지가 이 한 자리로 모인다.
+   ⑴ ★이미 샌 저장물은 ★열어도 안 나았다. serializeCleanRoot 는 «클론»에만 도는 계약이라
+     라이브 DOM 은 그 세션 내내 마커를 쥔다 ⇒ 저장 쪽(section-serialize.js 목록)만 고치면
+     ★«새로 저장한 파일»만 낫고 현빈의 기존 프로젝트는 그대로다(= 「신규만 적용」 빚).
+     실측된 결과: `multi-selected` 가 남으면 상자선택의 섹션 길(js/scratch-pad.js — 「이미
+     multi-selected 면 건너뛴다」)이 그 섹션을 ★그 세션 내내 건너뛴다. 자동저장이 돌아도
+     세척은 «클론»으로만 가므로 라이브는 안 고쳐진다.
+   ⑵ ★이 세 자리가 ★갈려 있었다 — switchPage 쪽은 `img-editing`·`sec-bg-editing` 을 «손으로»
+     벗겼고 나머지 둘은 ★안 벗겼다. 손 명부가 셋으로 갈린 꼴이다(어느 문으로 열었나에 따라
+     남는 마커가 달랐다).
+   ⑶ ⇒ 목록을 ★베끼지 않는다. js/io/section-serialize.js 의 ★단일 진실원
+     (window.runtimeMarkers)에서 ★파생한다 — 거기 목록이 늘면 여기도 자동으로 늘어난다.
+     ⛔여기에 클래스 이름을 ★손으로 적지 마라. 그러면 넷째 명부가 된다.
+   ⛔sanitizeCanvasHtml 에 ★합치지 마라 — 그건 «비신뢰 입력»의 보안 세척(script·on*·javascript:)
+     이고 이건 «우리 UI 상태» 세척이다. 까닭이 다르면 자리도 다르다(한쪽을 끄고 싶은 날이 온다).
+   ★로드 계약은 위 serializeCleanRoot 호출과 ★같다 — section-serialize.js 는 플레인 스크립트라
+     모듈(이 파일)보다 «먼저» 돈다. 그래서 폴백을 ★안 둔다(없으면 저장 경로가 이미 죽어 있다). */
+function stripLoadedRuntimeState(root) {
+  if (!root) return;
+  root.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+  root.querySelectorAll('[class]').forEach(window.runtimeMarkers.stripRuntimeMarkers);
+}
+
 /** 현재 activeProjectId 기준 localStorage 키 반환 */
 function getSaveKey() {
   return activeProjectId ? `${SAVE_KEY_PREFIX}__${activeProjectId}` : SAVE_KEY_PREFIX;
@@ -501,9 +524,7 @@ async function switchPage(pageId) {
     const page = getCurrentPage();
     if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
     canvasEl.innerHTML = sanitizeCanvasHtml(page.canvas || '');
-    canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
-    canvasEl.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
-    canvasEl.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
+    stripLoadedRuntimeState(canvasEl);
     document.querySelectorAll('.sec-bg-ghost-wrap, .sec-bg-ghost').forEach(el => el.remove());
     canvasEl.querySelectorAll(NON_CONTENT_UI_SELECTOR).forEach(el => el.remove());
     // (마이그레이션은 rebindAll 내부에서 처리)
@@ -563,7 +584,7 @@ function deletePage(pageId) {
       state.currentPageId = next.id;
       if (next.pageSettings) Object.assign(state.pageSettings, next.pageSettings);
       canvasEl.innerHTML = sanitizeCanvasHtml(next.canvas || '');
-      canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+      stripLoadedRuntimeState(canvasEl);
       // ★T-031 3차: next 페이지 자신의 sidecar만 쓴다(_pageVideoPendingSidecars Map, 위 switchPage와 같은 이유).
       rebindAll({ videoPendingSidecar: _pageVideoPendingSidecars.get(next.id) });
       applyPageSettings();
@@ -733,7 +754,7 @@ function applyProjectData(data) {
     if (!page) return; // S8: 여전히 undefined면 안전하게 종료
     if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
     canvasEl.innerHTML = sanitizeCanvasHtml(page.canvas || '');
-    canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+    stripLoadedRuntimeState(canvasEl);
     rebindAll();
     initLazySections();       // 멱등 — 최초 1회만 IntersectionObserver 생성
     refreshLazyObservation(); // innerHTML 교체 후 새 section-block 관찰 등록

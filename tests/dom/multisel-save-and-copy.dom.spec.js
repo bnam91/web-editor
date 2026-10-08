@@ -21,9 +21,14 @@ function secsHTML(n) {
   return out;
 }
 
+/* ★앱이 «뜬다»를 단언한다 — 2026-10-09 지디 경고: 순환 import(text-style-kinds ↔
+ *   prop-text-wireup-text-edit)가 «모듈 평가 시점»에 읽히면 TDZ 로 앱이 안 뜬다.
+ *   그러면 아래 모든 측정이 «0개에서 0건»이 돼 조용히 초록으로 보일 수 있다.
+ *   ⇒ 장면을 만들기 «전»에 pageerror 0건을 건다. errs 는 bootApp 이 모으는 그 배열 그대로. */
 async function setup(page, n) {
   await page.setViewportSize({ width: 1500, height: 1000 });
   const errs = await bootApp(page);
+  expect(errs, `★앱 부팅에 pageerror ${errs.length}건 — 아래 측정은 전부 무효다:\n${errs.join('\n')}`).toEqual([]);
   await page.evaluate((html) => {
     const c = document.getElementById('canvas');
     c.querySelectorAll('.section-block').forEach(s => s.remove());
@@ -118,6 +123,50 @@ test('C3b ★저장물을 다시 열면 상자선택(⌘클릭 길)이 그 섹�
   });
   expect(got.picked.sort()).toEqual(['ms1', 'ms2']);   // 가드가 건너뛰지 않았다
   expect(got.model.sort()).toEqual(['ms1', 'ms2']);
+});
+
+test('C3c ★★«이미 샌» 저장물을 열어도 ⌘클릭 길이 산다 — 저장 쪽만 고치면 기존 파일은 안 낫는다', async ({ page }) => {
+  await setup(page, 1);
+  /* ★손으로 만든 장면이 아니다 — C3 가 «옛 판에서 실제로 나온» 그 꼴이다(저장물에 그 낱말 3건).
+     여기선 그 «이미 오염된 proj.json» 을 ★제품의 열기 문(window.applyProjectData)으로 넣는다.
+     ⛔canvas.innerHTML 에 직접 꽂지 않는다 — 그러면 sanitize·strip·rebindAll 을 건너뛰어
+       「앱에서 정말 이렇게 되나」를 안 재는 장면이 된다. */
+  const polluted =
+    ['p1', 'p2', 'p3'].map((id, i) =>
+      `<div class="section-block multi-selected" id="${id}" data-section="${i + 1}" data-name="P${i + 1}" data-bg="#ffffff" style="background:#fff;">`
+      + `<div class="section-hitzone" style="height:28px"><span class="section-label">P${i + 1}</span></div>`
+      + `<div class="section-inner"><div class="gap-block" data-type="gap" style="height:60px"></div></div></div>`).join('');
+
+  const r = await page.evaluate((html) => {
+    window.applyProjectData({
+      pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: {}, canvas: html }],
+      currentPageId: 'page_1',
+    });
+    return {
+      secCount: document.querySelectorAll('#canvas .section-block').length,
+      ghosts: document.querySelectorAll('#canvas .multi-selected').length,
+    };
+  }, polluted);
+
+  /* ⑴ 전제 — 열기 문이 ★정말 세 섹션을 들였다(0개에서 「유령 0건」은 항등식) */
+  expect(r.secCount).toBe(3);
+  /* ⑵ 본 단언 — 라이브 DOM 에 유령이 0건 */
+  expect(r.ghosts).toBe(0);
+
+  /* ⑶ ★행위로 — 상자선택의 섹션 길이 그 셋을 «건너뛰지 않는다» */
+  const got = await page.evaluate(() => {
+    const picked = [];
+    ['p1', 'p2', 'p3'].forEach(id => {
+      const sec = document.getElementById(id);
+      if (!sec.classList.contains('multi-selected')) {
+        window.selectSectionWithModifier?.(sec, { metaKey: true });
+        picked.push(id);
+      }
+    });
+    return { picked, model: [...(window.multiSel?.sections || [])].map(s => s.id) };
+  });
+  expect(got.picked.sort()).toEqual(['p1', 'p2', 'p3']);
+  expect(got.model.sort()).toEqual(['p1', 'p2', 'p3']);
 });
 
 /* ══════════════════════════════════════════════════════════════════
