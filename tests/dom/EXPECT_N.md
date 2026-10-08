@@ -127,7 +127,7 @@
 |---|---|---|---|---|
 | `video-pending-warn.dom.spec.js` | 8 | 9 | **＋1** | P9 — 「★같은 영상」을 다시 넣어도 해제가 있으면 다시 알린다 |
 | `video-unapplied-warn.dom.spec.js` | 0 | 1 | **＋1** | `test.fixme` 1건 — ★**skipped 로 돈다** |
-| `taeyang/frame-dblclick` R1 (프레임 더블클릭 = 한 겹 진입 ＋ 자식 선택 · 현빈 2026-10-08 「최종 확정」) | **＋29** | `frame-dblclick-overlay` **0 → 13**(OV-a~g · x1·x3 · h·i·j) · `dblclick-outside-frame-unchanged` **0 → 16**(프레임 밖 16 종) · `frame-grid-dblclick-parity` 8 → 8(프레임 두 칸 단언 뒤집기 · 수 무변) · ★base = dev **`ee614986`** | 새 spec **2개** ⇒ 파일 수 **＋2** · ★⚠️루프 감싼 test 1(`dblclick-outside-frame-unchanged` — `for ROWS` 16) ⇒ ㉠ git `test(` 선언 13+1 = **14** / ㉡ 러너 `--list` 전체 **3104 → 3133**(파일 366 → 368) · ★기준값을 직접 떠서(두 spec 만 치워 `--list` · 복원 sha 일치) · 「루프 spec」 표에 **+15** 한 줄 필요 — 머지 때 지디 | ⚠️내 레인 기준이라 ⛔최종값 아님 |
+| `taeyang/frame-dblclick` R1 (프레임 더블클릭 = 한 겹 진입 ＋ 자식 선택 · 현빈 2026-10-08 「최종 확정」) | **＋31** | `frame-dblclick-overlay` **0 → 15**(OV-a~g · x1·x3 · h·i·j · t1·t2 도구막대) · `dblclick-outside-frame-unchanged` **0 → 16**(프레임 밖 16 종) · `frame-grid-dblclick-parity` 8 → 8(프레임 두 칸 단언 뒤집기 · 수 무변) · ★base = dev **`032218d6`** | 새 spec **2개** ⇒ 파일 수 **＋2** · ★⚠️루프 감싼 test 1(`dblclick-outside-frame-unchanged` — `for ROWS` 16) ⇒ ㉠ git `test(` 선언 15+1 = **16** / ㉡ 러너 `--list` 전체 **3126 → 3157**(파일 370 → 372) · ★기준값을 직접 떠서(작업트리 무접촉 · rsync 별 트리 둘 — 두 spec 만 뺀 판 / 그대로 판) · 「루프 spec」 표에 **+15** 한 줄 필요 — 머지 때 지디 | ⚠️내 레인 기준이라 ⛔최종값 아님 |
 
 두 출처 **일치**: ㉠ git 선언(`test(` ＋ `test.fixme(`) = ＋2 · ㉡ `--list` = ＋2 (`Total: 2940 tests in 342 files`).
 
