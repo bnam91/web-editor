@@ -36,7 +36,15 @@
        item-selected · scratch-selected · grd-cell-selected · is-selected · iconify-selected ·
        *--selected(패널 UI 4종) 까지 새로 잡는다(전수: 레포의 `*selected` 토큰 24종을 셌다).
        그 11종은 ★이번에 안 쟀으므로 넓히지 않는다 — 넓히려면 그 종마다 「저장돼야 하나」를
-       먼저 재라. (그중 grd-cell-selected 는 ★같은 꼴의 누수 후보로 보이나 미측정이다.) */
+       먼저 재라.
+     ★grd-cell-selected 의 «무게»만 재 뒀다(2026-10-09 · ⛔고치지는 않았다 — 별건 티켓):
+       자 = «읽어서 결정하는» 자리 전수(add/clear 제외) ⇒ ★0건. js/editor.js:3938 ·
+       js/props/prop-grid.js:142·177 은 전부 clear 고 :194 는 add 다 — 가드로 읽는 자리가 없다.
+       ⇒ 새도 ★죽는 기능 0개. CSS 는 있어서(css/editor-blocks.css:1799) ★꾸밈만 샌다
+       (유령 셀 하이라이트 · 다음 그리드 조작의 clear 가 지운다).
+       ⚠️대조 — 'multi-selected' 는 ★≥4기능이 죽었다(상자선택 · scoped undo ·
+       ★자산패널 ⌫ 양보(js/panels/assets-panel.js:100·114) · ★화살표 미세이동
+       (js/editor.js _freeNudgeTargets)). ★그래서 그건 고쳤고 이건 티켓이다. */
   /* ══ T-031 video-pending 스냅샷 스코프 사이드카 ═══════════════════════════════
      문제: 아래 serializeCleanRoot 의 T-012 안전장치(video-pending → "업로드대기" 빈
      상태로 세척)는 pushHistory 가 쓰는 getSerializedCanvas 스냅샷도 «그대로» 거친다.
