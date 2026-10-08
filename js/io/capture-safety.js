@@ -561,3 +561,98 @@ export async function captureSectionImage(sec) {
     clone?.remove();
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ★반사(-webkit-box-reflect)의 html2canvas 대체 — ★썸네일 전용 (C 버그 ② · 2026-10-08 지디 레인 gd/thumb)
+   ─────────────────────────────────────────────────────────────────────────────
+   ★병 — 동봉 html2canvas 1.4.1 은 `-webkit-box-reflect` 를 «모른다»(vendor 바이트 전수 0건:
+     `boxReflect`·`box-reflect` 둘 다). 그래서 반사가 그림에서 ★통째로 빠진다.
+   ★PNG 는 괜찮다 — 주 경로가 CDP 네이티브 캡처라 브라우저 합성이 반사를 그려 준다
+     (tests/dom/effects-reflection R4 가 그 둘을 픽셀로 갈라 둔다: 주 경로 = 주황 틴트 · h2c = 흰색).
+     ★그 R4 의 「의도됨」은 ★PNG 의 ★대체 경로 이야기다 — ★썸네일엔 ★대체가 ★없다.
+     썸네일은 html2canvas 가 ★유일한 길이므로, 프로젝트 카드가 ★언제나 화면과 다른 그림이 된다.
+   ⇒ ★클론에만 «DOM 거울»을 세운다.
+     ⛔R5(effects-reflection)가 DOM 거울을 금한 것은 ★«라이브 DOM» 이야기다 — innerText/textContent
+       35+459 곳이 글자를 «두 번» 읽는다. ★이 클론은 찍고 바로 removeChild 되고 ★직렬화되지 않는다.
+       그래도 거울에 `aria-hidden` 을 달고 ★id 를 전부 지운다(읽는 자가 와도 두 번 세지 않게).
+   ★페이드는 ★mask 로 못 한다(html2canvas 는 mask 도 모른다) ⇒ ★배경색 막(scrim)으로 «같은 그림»을 만든다.
+     ★이것은 근사가 아니라 ★항등이다 — 반사가 ★단색 배경 위에 앉을 때:
+        참:  bg(1−α) + M·α                      (α = 그 자리의 반사 알파)
+        내:  거울을 op 로 깔고 → bg(1−op) + M·op  그 위에 rgba(bg, a) 막을 덮으면
+             bg(1−op(1−a)) + M·op(1−a)         ⇒ α = op(1−a) 로 ★같다.
+     ⇒ a(y) 만 맞추면 된다.
+   ★α(y) 의 꼴 — effects-reflect.js 가 거는 마스크는
+       `linear-gradient(to bottom, rgba(0,0,0,0) (100−len)%, rgba(0,0,0,op))` 이고
+     크로미움은 그 마스크를 ★반사와 ★같이 뒤집는다(그래서 그 파일 주석의 실측이 「near 틴트 · far 흰」이다).
+     ⇒ 블럭 바닥에서 아래로 d, u = d/h 라 하면
+        보이는 길이 = h·len/100 · α(u) = (op/100)·(len/100 − u)/(len/100)  — ★선형, 위가 진하고 끝에서 0.
+     ⇒ a(u) = 1 − α/(op/100) = u/(len/100) ⇒ 막 = ★위 rgba(bg,0) → ★아래 rgba(bg,1) 선형 ★하나.
+   ★값은 ★정본에서 ★읽는다 — js/effects-reflect.js `fxReflectOf`(패널·렌더·시험이 보는 ★그 함수).
+     ⛔인라인 webkitBoxReflect 문자열을 파싱하지 마라 — 그러면 명부가 ★둘이 된다.
+   ⛔CDP 네이티브 경로에서 부르지 마라 — 브라우저가 반사를 ★제대로 그린다(거울이 ★두 겹이 된다).
+   ★돌려주는 것 = 거울을 ★세운 수(0 이면 반사 켠 블럭이 ★없었다).
+   ══════════════════════════════════════════════════════════════════════════════ */
+const H2C_REFLECT_CLASS = 'h2c-reflect-mirror';
+
+/** '#rgb'·'#rrggbb'·'rgb()'·'rgba()' → [r,g,b]. 못 읽으면 null(그러면 거울을 안 세운다 — 안전실패). */
+function _rgbTriple(css) {
+  const c = String(css || '').trim();
+  const m = c.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  if (m) return [m[1], m[2], m[3]].map(n => Math.max(0, Math.min(255, Math.round(+n))));
+  let h = c.match(/^#([0-9a-f]{3})$/i) ? c.slice(1).split('').map(x => x + x).join('') : (c.match(/^#([0-9a-f]{6})$/i) ? c.slice(1) : null);
+  if (!h) return null;
+  return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+}
+
+export function neutralizeBoxReflectForH2C(root, bgColor) {
+  if (!root) return 0;
+  const sel = '[style*="box-reflect"]';
+  const targets = [...(root.matches?.(sel) ? [root] : []), ...root.querySelectorAll(sel)];
+  if (!targets.length) return 0;
+  const bg = _rgbTriple(bgColor) || _rgbTriple(getComputedStyle(root).backgroundColor) || [255, 255, 255];
+  let n = 0;
+  for (const el of targets) {
+    const raw = el.style.webkitBoxReflect || el.style.getPropertyValue('-webkit-box-reflect') || '';
+    /* ⛔`below` 가 아닌 꼴은 ★우리 것이 아니다 — 걷기만 하고 거울을 안 세운다(모르는 꼴을 흉내내지 않는다). */
+    if (!/^\s*below\b/i.test(raw)) { el.style.webkitBoxReflect = ''; continue; }
+    const fx = _fxReflectOf(el);
+    el.style.webkitBoxReflect = '';          // h2c 가 못 그리는 속성은 걷는다(의도를 분명히)
+    if (!fx || fx.state !== 'on') continue;
+    const h = el.offsetHeight || 0, w = el.offsetWidth || 0;
+    const visH = Math.round(h * fx.len / 100);
+    if (!h || !w || visH <= 0 || fx.op <= 0) continue;
+    const parent = el.parentNode;
+    if (!parent || !parent.insertBefore) continue;
+
+    const mir = el.cloneNode(true);
+    mir.removeAttribute('id');
+    mir.querySelectorAll?.('[id]').forEach(q => q.removeAttribute('id'));
+    mir.style.webkitBoxReflect = '';
+    mir.style.cssText += `;position:absolute;left:0;top:0;width:${w}px;height:${h}px;margin:0;transform:scaleY(-1);opacity:${fx.op / 100};`;
+
+    const scrim = document.createElement('div');
+    scrim.style.cssText = `position:absolute;left:0;top:0;width:${w}px;height:${visH}px;`
+      + `background-image:linear-gradient(to bottom, rgba(${bg[0]},${bg[1]},${bg[2]},0) 0%, rgba(${bg[0]},${bg[1]},${bg[2]},1) 100%);`;
+
+    const box = document.createElement('div');
+    box.className = H2C_REFLECT_CLASS;
+    box.setAttribute('aria-hidden', 'true');
+    /* ★자리 — 거울 상자를 el 의 ★형제로 넣으므로 둘의 «담는 상자»(가장 가까운 positioned 조상)가 ★같다
+       ⇒ offsetTop/offsetLeft 를 그대로 absolute 좌표로 쓸 수 있다. */
+    box.style.cssText = `position:absolute;left:${el.offsetLeft}px;top:${el.offsetTop + h + fx.gap}px;`
+      + `width:${w}px;height:${visH}px;overflow:hidden;pointer-events:none;`;
+    box.appendChild(mir);
+    box.appendChild(scrim);
+    parent.insertBefore(box, el.nextSibling);
+    n++;
+  }
+  return n;
+}
+
+/* ★정본을 ★늦게 받는다 — capture-safety 는 ★io 층이고 effects-reflect 는 ★블럭 층이다.
+   정적 import 로 묶으면 단위 하네스가 io 하나를 실을 때 효과 층까지 끌고 온다(PLUS_ICON_SVG 와 같은 까닭).
+   ⇒ ★같은 함수를 ★window 다리로 받는다. ⛔여기에 꼴을 ★다시 적지 마라(그러면 명부가 둘이다). */
+function _fxReflectOf(el) {
+  const f = (typeof window !== 'undefined') && window.fxReflectOf;
+  return typeof f === 'function' ? f(el) : null;
+}

@@ -8,7 +8,7 @@ import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../dat
 import { applyFrameTransform } from '../frame-geometry.js';
 import { checkerBg } from '../checker-tokens.js';
 import { applyCanvasBackground, syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) · T6 섹션 안 글자 밝기 */
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, withGuideOff } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, withGuideOff, neutralizeBoxReflectForH2C } from './capture-safety.js';
 import { prepareGoyaAssetsForClone } from './goya-asset-inline.js';   /* 썸네일 클론에서 goya-asset 을 data: 로 (T-149) */
 import { ejectShapeFrameIntruders } from '../shape-frame.js';
 import { warnPendingVideoLossIf } from './pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원 */
@@ -128,6 +128,15 @@ async function captureThumbnail() {
     } catch (e) { console.warn('[thumb] goya-asset 클론 준비 실패:', e); }
 
     const bgColor = firstSec.style.background || firstSec.style.backgroundColor || '#ffffff';
+    /* ★반사(-webkit-box-reflect)를 ★클론에서 «그릴 수 있는 꼴»로 바꾼다 (C 버그 ② · 2026-10-08).
+       html2canvas 1.4.1 은 그 속성을 ★모른다(vendor 전수 0건) ⇒ 지금까지 카드 그림에서 반사가 ★통째로 빠졌다.
+       ★PNG 와 ★다른 자리다 — PNG 는 주 경로가 CDP 네이티브라 브라우저가 반사를 그려 준다(그래서
+         tests/dom/effects-reflection R4 가 h2c 쪽을 「의도됨」으로 고정했다. ★그 「의도됨」은 ★대체 경로 이야기다).
+         ★썸네일엔 ★대체가 ★없다 ⇒ 여기서는 ★고친다.
+       ★자리 — ★모든 레이아웃 손질이 ★끝난 «뒤»여야 한다(거울 자리를 offsetTop/offsetHeight 로 읽는다).
+       ⛔capture 공용 길(export-image)의 ★기본값으로 옮기지 마라 — PNG 는 그대로 둔다(라이브 캔버스 인자와 ★같은 규약).
+       ⛔실패해도 찍기를 멈추지 않는다 — 반사 하나 때문에 그림을 ★아예 잃는 쪽이 더 나쁘다. */
+    try { neutralizeBoxReflectForH2C(clone, bgColor); } catch (e) { console.warn('[thumb] 반사 대체 실패:', e); }
     /* ★L1(2026-10-04) — 편집 보조(그리드 가이드·패딩 비주얼)는 «캡처 동안» 끈다 — PNG(exportSection)와 «같은 함수» withGuideOff(capture-safety.js).
        지금까지 썸네일에 안 샌 것은 html2canvas 가 반복 그라데이션을 못 그려서일 뿐이었다(tests/dom/l1-guide-align L1-X). */
     /* ⚠️바로 아래 html2canvas 호출의 글자 꼴(await · 첫 인자 clone)을 지킨다 — tests/dom/thumb-goya-asset H4 가 그 글자를 «찍는 자리» 닻으로 쓴다(goya 풀기가 그 앞인지 본다).
