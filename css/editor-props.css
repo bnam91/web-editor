@@ -606,17 +606,23 @@
   width: var(--cv-chip-recent-size); height: var(--cv-chip-recent-size);
   font-size: var(--ui-fs-10);
 }
-.fxpart-chip-del {
+/* ★선택자가 ★`.fxpart-chip-wrap` 을 ★끼고 있다 — ⛔`.fxpart-chip-del` ★하나로는 ★안 먹는다.
+   ★실측(2026-10-08 · 9406 앱): `.prop-icon-btn`(22×22)이 ★같은 특이도인데 ★이 블록 ★뒤에 있어 ★이긴다
+     ⇒ ★내가 적은 ★14px 가 ★조용히 ★22px 로 ★그려졌다. ★앱에서 ★재서 ★잡았다
+     ⇒ ⛔CSS 는 ★소스로 ★못 닫는다 — ★잠그는 자 = tests/dom/fx-particles-panel D8(★그려진 상자를 잰다). */
+.fxpart-chip-wrap .fxpart-chip-del {
   position: absolute; top: -5px; right: -5px;
-  width: 14px; height: 14px; padding: 0;
+  width: 14px; height: 14px; min-width: 0; padding: 0;
   border-radius: 50%; font-size: 9px;
   background: var(--ui-bg-input); border: 1px solid var(--ui-border-strong);
   opacity: 0; transition: opacity 0.1s, background 0.1s, color 0.1s, border-color 0.1s;
 }
 .fxpart-chip-wrap:hover .fxpart-chip-del,
 .fxpart-chip-wrap:focus-within .fxpart-chip-del,
-.fxpart-chip-del:focus-visible { opacity: 1; }
-@media (prefers-reduced-motion: reduce) { .fxpart-chip-del { transition: none; } }
+.fxpart-chip-wrap .fxpart-chip-del:focus-visible { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .fxpart-chip-wrap .fxpart-chip-del { transition: none; }
+}
 
 /* 공통 버튼 */
 .prop-btn {

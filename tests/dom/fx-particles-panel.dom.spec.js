@@ -620,3 +620,84 @@ test('D7 ★★상한(MAX_COUNT)에서도 ★그려진다 — ★노드 수가 �
 
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
+
+/* ═══ D8 ★색 칸의 ★크기 — ★★«그려진 상자»를 잰다 (현빈 2026-10-08) ════════════════
+ *  ★현빈 원문 — 「(파티클 색 칸) ★이것도 ★너무 커 … (「최근」 색 줄을 가리키며) ★이정도 크기는 어때」
+ *
+ *  ★★왜 ★DOM 이 ★이것을 재나 — ⛔CSS 는 ★소스로 ★못 닫는다.
+ *    ★실측(2026-10-08 · 9406 앱): 내가 `.fxpart-chip-del { width:14px }` 라 ★적었는데
+ *      ★`.prop-color-swatch` 계열의 ★`.prop-icon-btn { width:22px }` 가 ★같은 특이도인데 ★뒤에 있어
+ *      ★이겼다 ⇒ ★★적은 14 가 ★그려진 22 였다. ★unit(소스 읽기)은 ★그것을 ★못 봤다.
+ *    ⇒ ★★그래서 이 칸은 ★`getBoundingClientRect` 로 ★★«그려진 수»를 잰다.
+ *
+ *  ★★양성대조 = ★★«출처를 갈아 끼운다» — ★토큰(`--cv-chip-recent-size`)을 ★런타임에 ★바꿔
+ *    ★칩 폭이 ★따라오나를 잰다. ⛔`chipW === token` ★하나로는 ★항등식이다.
+ *
+ *  ★★안 재는 것: ★사람 눈에 ★예쁜가(★QA 몫) · ★「최근」 줄과 ★나란히 ★보이나
+ *    (★그 줄은 ★색 이력이 ★쌓여야 뜬다 — ★이 하네스에서 ★그 길은 ★안 밟았다 ⇒ ★★미측정). */
+test('D8 ★색 칩 — ★색 하나당 자리 하나 ＋ ★✕ 는 칩보다 작고 쉴 때 안 보인다 ＋ ★토큰을 따라온다', async ({ page }) => {
+  const errs = await setup(page);
+  await growViewport(page);
+  await page.click('#sec-fxpart-toggle');
+  await page.waitForTimeout(200);
+
+  const box = page.locator('#sec-fxpart-colors');
+  await expect(box, '★전제: 색 칸이 없다').toHaveCount(1);
+
+  const m = () => page.evaluate(() => {
+    const b = document.getElementById('sec-fxpart-colors');
+    const g = (e) => { const r = e.getBoundingClientRect(); return { w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10 }; };
+    const chip = b.querySelector('.prop-color-swatch.fxpart-chip');
+    const del = b.querySelector('[data-fxpart-color-del]');
+    return {
+      colors: b.querySelectorAll('[data-fxpart-color-in]').length,
+      kids: b.children.length,
+      adds: b.querySelectorAll(':scope > #sec-fxpart-color-add').length,
+      chip: chip ? g(chip) : null,
+      del: del ? g(del) : null,
+      delOp: del ? Number(getComputedStyle(del).opacity) : null,
+      token: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cv-chip-recent-size')),
+      rowH: Math.round(b.getBoundingClientRect().height),
+    };
+  });
+
+  let d = await m();
+  /* ★전제 — ★✕ 가 나려면 ★색이 ★둘 이상이어야 한다(★마지막 하나는 못 뺀다) */
+  expect(d.colors, '★전제: 이 프리셋의 색이 ★둘 미만이라 ★✕ 를 ★못 잰다').toBeGreaterThan(1);
+  expect(d.chip, '★전제: 칩(.prop-color-swatch.fxpart-chip)이 없다').not.toBeNull();
+  expect(d.del, '★전제: ✕([data-fxpart-color-del])가 없다').not.toBeNull();
+
+  /* ⑴ ★★색 하나당 ★자리 하나 — ★✕ 가 ★가로를 ★먹지 않는다.
+     ⛔`kids === colors + adds` 는 ★항등식이 아니다: ★전 판에서 ★참값이 ★colors*2 - 1 + adds 였다
+       (★실측 2026-10-08 · 4색 ⇒ ★9). */
+  expect(d.kids, `★색 ${d.colors}개 ＋ ＋단추 ${d.adds}개인데 ★자리가 ${d.kids}개다`
+    + ' — ★✕ 가 ★제 칸을 ★먹고 있다').toBe(d.colors + d.adds);
+
+  /* ⑵ ★★✕ 가 ★칩보다 ★작다 — ★이 줄이 ★그 특이도 결함을 잡는 자다(★전: ✕ 22 > 칩 20) */
+  expect(d.del.w, `★✕(${d.del.w}px)가 ★칩(${d.chip.w}px)보다 ★작지 않다`
+    + ' — ★CSS 특이도에서 ★졌을 수 있다(.prop-icon-btn 22px)').toBeLessThan(d.chip.w);
+
+  /* ⑶ ★★쉴 때는 ★안 보이고 ★호버하면 ★보인다 — ★행위로 잰다
+     ⚠️`display:none` 이 ⛔아니어야 한다 — ★위 D6 가 ★이 단추를 ★누른다(Playwright 는 opacity 를 안 본다) */
+  expect(d.delOp, '★쉬고 있는데 ★✕ 가 ★보인다 — ★칸이 다시 시끄러워진다').toBe(0);
+  await page.locator('#sec-fxpart-colors .fxpart-chip-wrap').first().hover();
+  await page.waitForTimeout(250);                    /* ★transition 0.1s ＋ 넉넉히 */
+  const hov = await page.evaluate(() =>
+    Number(getComputedStyle(document.querySelector('[data-fxpart-color-del]')).opacity));
+  expect(hov, '★호버했는데 ★✕ 가 ★안 보인다 — ★뺄 길이 ★없다').toBe(1);
+
+  /* ⑷ ★★출처를 갈아 끼운다 — ★토큰을 바꾸면 ★칩이 ★따라오나 (⛔항등식이 아니다) */
+  expect(d.chip.w, `★칩 폭(${d.chip.w})이 ★토큰(${d.token})과 다르다`).toBe(d.token);
+  const FAKE = 31;                                   /* ★기본값과 ★다른 수 — ⛔20 을 쓰면 ★아무것도 안 바뀐다 */
+  expect(FAKE, '★전제: 가짜 수가 ★지금 토큰과 같다 — ★이 대조는 ★뜻이 없다').not.toBe(d.token);
+  await page.evaluate((v) => document.documentElement.style.setProperty('--cv-chip-recent-size', v + 'px'), FAKE);
+  await page.waitForTimeout(120);
+  const after = await m();
+  expect(after.chip.w, `★토큰을 ${FAKE} 로 갈았는데 ★칩이 ${after.chip.w} 다`
+    + ' — ★칩이 ★그 토큰을 ★안 읽는다(★크기가 ★둘째 명부에서 왔다)').toBe(FAKE);
+  await page.evaluate(() => document.documentElement.style.removeProperty('--cv-chip-recent-size'));
+  await page.waitForTimeout(120);
+  expect((await m()).chip.w, '★토큰을 ★되돌렸는데 ★칩이 ★안 돌아왔다').toBe(d.token);
+
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
