@@ -17,6 +17,10 @@ import {
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
 import { isBlurIntoPanel, parkEditing } from './props/_text-selection.js';
+/* ★수지② 부분 서식 — ★sanitize 는 ★공용 한 벌 · ★슬롯 키 표는 ★modal-block.js 에서 ★파생한다.
+   ⛔여기에 `{title:'titleText',…}` 를 ★되적지 마라 — 그게 ★둘째 명부였다(2026-10-08 합쳤다). */
+import { sanitizeRichTextHtml, richTextHasFormatting } from './util/sanitize-rich-text.js';
+import { MODAL_SLOT_KEYS } from './blocks/modal-block.js';
 import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth } from './frame-geometry.js';
 import {
   dragState,
@@ -288,15 +292,26 @@ function _modalEndEdit(block, host) {
   if (before == null || !slot) return;
   const isPh = text.trim() === '' || text.trim() === ph.trim();
   const next = isPh ? '' : text;
-  // 값이 그대로면 아무것도 하지 않는다 — 재렌더도 히스토리도 없다
-  // ★편집 «전» 읽은 값과 같아도 안 쓴다 — 저장된 \n 블록을 dblclick→blur 만 해도 데이터가 덮이던 것(옛 판)을 막는다
-  if (next === before || (block.dataset[{ title: 'titleText', text: 'textText', cell1: 'cell1', cell2: 'cell2' }[slot]] || '') === next) {
+  /* ★★수지② 부분 서식 — ★«평문 옆에» Html 을 같이 커밋한다(스티커 «U6b» 와 ★같은 꼴).
+     ★서식이 ★없으면 ★빈 문자열 ⇒ commitModalSlot 이 ★키를 ★지운다(★옛 평문 경로 유지 = ★무회귀).
+     ★안내문구 상태(isPh)면 ★Html 도 ★없다 — 흐린 안내문구가 서식을 입으면 안 된다. */
+  const sanitized = (!isPh && typeof sanitizeRichTextHtml === 'function')
+    ? sanitizeRichTextHtml(host.innerHTML) : '';
+  const nextHtml = (sanitized && richTextHasFormatting(sanitized)) ? sanitized : '';
+  const K = MODAL_SLOT_KEYS[slot];
+  const curPlain = K ? (block.dataset[K.plain] || '') : '';
+  const curHtml  = K ? (block.dataset[K.html]  || '') : '';
+  /* 값이 그대로면 아무것도 하지 않는다 — 재렌더도 히스토리도 없다
+     ★편집 «전» 읽은 값과 같아도 안 쓴다 — 저장된 \n 블록을 dblclick→blur 만 해도 데이터가 덮이던 것(옛 판)을 막는다
+     ★★⛔그 비교에 ★Html 을 ★같이 넣어야 한다 — ★⌘B 는 ★글자를 ★안 바꾼다.
+       ★빼면 ★서식만 바뀐 커밋이 ★영영 ★삼켜진다(실측: tests/dom/rich-text-consumer-modal ★M6 이 그 자리다). */
+  if ((next === before || curPlain === next) && curHtml === nextHtml) {
     if (isPh) window.renderModalBlock?.(block);   // 안내문구 복원(흐린 상태)만 다시 그린다
     return;
   }
   host.innerText = before;                        // 커밋 전 DOM 을 편집 «전»으로
   window.pushHistory?.();
-  window.commitModalSlot?.(block, slot, next);
+  window.commitModalSlot?.(block, slot, next, nextHtml);
   window.renderModalBlock?.(block);
   window.scheduleAutoSave?.();
 }

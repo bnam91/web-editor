@@ -105,6 +105,17 @@ export function buildTypographySectionHtml({
   const _hide = (show) => (show ? '' : ' style="display:none"');
   const _weightMixed = _mix.fontWeight.mixed;
 
+  /* ★★서식 단추 ★순서 = B · I · ★U · S · H · 점 (2026-10-08) — ★아래 `${p}-style-group` 의 그 줄.
+     ★왜 이 순서인가 — ★발주서(수지 피드백 ⑤⑥)에 ★순서가 ★없었다. ⛔«내가 정했다»가 아니라
+       ★통상 편집기 순서(Word·Figma·Google Docs 가 B I U S)를 ★따랐을 뿐이다.
+     ⇒ ★수지 뜻이 다르면 ★그 줄을 보고 바꿔라 — ★근거가 «관례»이므로 ★싸게 바꿀 수 있다.
+     ⚠️출처는 ★2차다(server-manager 가 전한 요약) — ⛔「원문」이라 적지 마라.
+     ★★⛔그리고 ★이것이 ★JS 주석인 ★까닭: ★처음엔 ★HTML 주석으로 템플릿 ★안에 뒀는데
+       ★그것이 ★«무조건» 산출돼 ★모달·그리드·챗의 ★«바이트 동일»을 ★깼다 —
+       ★실측(2026-10-08): `tests/dom/fixtures/bt2-grid-panel-golden.json` 이 ★+1,794B 로 갈려
+       ★`bt2-safety` ★T6 가 ★빨개졌다(★단추는 ★안 늘었는데 ★주석만 나갔다 —
+        가드가 ★「지워진 토막 0 · ★더해진 id ★없음」으로 ★그 꼴을 찍었다).
+       ⇒ ★★«설명»은 ★소스에, ★«산출»엔 ★한 글자도. ★이 절의 계약이 그것이다. */
   return `<div class="prop-section">
       <div class="prop-section-title">Typography</div>
 
@@ -137,11 +148,6 @@ export function buildTypographySectionHtml({
         <input type="number" class="prop-number prop-number-select" id="${p}-size-number" min="${sizeMin}" max="${sizeMax}" value="${_sizeVal}" placeholder="${_sizePh}"${_sizeEmptyAttr} style="flex:1;min-width:0;display:${showSize?'block':'none'}">
       </div>
 
-      <!-- ★서식 단추 ★순서 = B · I · ★U · S · H · 점 (2026-10-08).
-           ★왜 이 순서인가 — ★발주서(수지 피드백 ⑤⑥)에 ★순서가 ★없었다. ⛔«내가 정했다»가 아니라
-             ★통상 편집기 순서(Word·Figma·Google Docs 가 B I U S)를 ★따랐을 뿐이다.
-           ⇒ ★수지 뜻이 다르면 ★이 줄을 보고 바꿔라 — ★근거가 «관례»이므로 ★싸게 바꿀 수 있다.
-           ⚠️출처는 ★2차다(server-manager 가 전한 요약) — ⛔「원문」이라 적지 마라. -->
       <div class="prop-style-group" id="${p}-style-group" style="margin-top:6px;display:${showStyleGroup?'flex':'none'}">
         <button class="prop-style-btn ${isBold?'active':''}" id="${p}-bold-btn" title="굵게 (⌘B)"><b>B</b></button>
         <button class="prop-style-btn ${isItalic?'active':''}" id="${p}-italic-btn" title="기울임 (⌘I)"><i>I</i></button>${showUnderline ? `
@@ -174,8 +180,14 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <input type="range" class="prop-slider" id="${p}-hl-h" min="5" max="100" step="1" value="${hlH}">
         <input type="number" class="prop-number" id="${p}-hl-h-num" min="5" max="100" value="${hlH}">
       </div>
-` : ''}
-${showDotOpts ? `      <!-- ★점 찍기 손잡이 넷 (2026-10-08 수지 ⑥: 「세 글자 선택→점 3개·★간격·★xy·★크기·★색상 변경」).
+` : ''}${showDotOpts ? `      <!-- ★점 찍기 손잡이 넷 (2026-10-08 수지 ⑥: 「세 글자 선택→점 3개·★간격·★xy·★크기·★색상 변경」).
+           ★★⛔이 showDotOpts 분기가 ★앞 블록의 ★끝에 ★붙어 있는 것은 ★일부러다 —
+             ★자기 줄에서 시작하면 ★꺼져도 ★줄바꿈 ★하나를 ★남겨 ★모달·그리드·챗의 ★«바이트 동일»이 깨진다.
+             ★실측(2026-10-08): 그 ★빈 줄 ★하나 때문에 ★bt2-safety ★T6 이 ★7개 상태 중 ★3개에서 빨개졌다
+               (차이는 ★그 빈 줄 ★하나뿐이었다 — ★단추는 ★안 늘었다).
+             ⇒ ★★블록을 ★더 붙일 사람은 ★★앞 블록 ★끝에 ★이어 붙여라. ⛔새 줄에서 시작하지 마라.
+             ⚠️그리고 ★이 주석 안에서 ★백틱도 ★달러-중괄호도 쓰지 마라 — ★리터럴이 끊기거나 ★값이 끼어든다
+               (★위 ⚠️ 와 ★같은 함정이고 ★내가 ★바로 거기서 ★또 밟았다). -->
            ★점 단추 «바로 아래» — 그 단추가 켜는 것을 고치는 칸이라 같은 자리가 맞다(형광펜 칸과 같은 규약).
            ★꺼져 있으면 «없다» — 정할 것이 없다.
            ⛔칸 꼴을 새로 만들지 않는다: 형광펜(txt-hl-* 쪽)이 쓰는 colorFieldHTML ＋ range/number 쌍,
