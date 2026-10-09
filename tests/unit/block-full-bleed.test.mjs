@@ -46,13 +46,13 @@ function sliceFn(src, head, what) {
 }
 
 /* ★★2026-10-09 — ★`effectiveSectionPadX` 가 ★★«이 프레임이 정말 자르나»를 ★제 벌로 세지 않고
-   ★`js/frame-geometry.js` 의 ★`frameClipsChildren` 를 ★부른다(★명부 ★하나). ⇒ ★★그 술어도 ★같이 싣는다.
-   ⛔안 실으면 ★`ReferenceError: frameClipsChildren is not defined` 로 ★★P1d 셋이 ★빨개진다
+   ★`js/frame-geometry.js` 의 ★`frameClipsPaint` 를 ★부른다(★명부 ★하나). ⇒ ★★그 술어도 ★같이 싣는다.
+   ⛔안 실으면 ★`ReferenceError: frameClipsPaint is not defined` 로 ★★P1d 셋이 ★빨개진다
      — ★2026-10-09 ★실제로 그랬고, ★★그것이 ★「★import 를 늘리면 ★하네스가 ★조용히(또는 요란히) 빈다」의 자리다.
    ★★그리고 ★이렇게 ★진짜 술어를 ★실어야 ★아래 P1d 셋이 ★★«제품이 쓰는 그 판정»을 ★잰다
      — ⛔사본을 ★여기 적으면 ★이 검사가 ★★제 사본만 잰다. */
 const GEOM = strip(readSrc(ROOT, 'js/frame-geometry.js'));
-const CLIPS_SRC = sliceFn(GEOM, 'export function frameClipsChildren(', 'frame-geometry')
+const CLIPS_SRC = sliceFn(GEOM, 'export function frameClipsPaint(', 'frame-geometry')
   .replace(/^export\s+/, '');
 const EFF_SRC   = sliceFn(DRAG, 'function effectiveSectionPadX(', 'drag-utils');
 const APPLY_SRC = sliceFn(DRAG, 'function applyBlockFullBleed(', 'drag-utils');
@@ -61,10 +61,10 @@ const CLEAR_SRC = sliceFn(DRAG, 'function clearBlockFullBleed(', 'drag-utils');
 /* state.pageSettings.padX 는 모듈 import 라 vm 에 «주입»한다 — 검사가 전역 기본값을 흔들 수 있어야 한다. */
 const ctx = vm.createContext({ state: { pageSettings: { padX: 32 } } });
 vm.runInContext(`${CLIPS_SRC}\n${EFF_SRC}\n${APPLY_SRC}\n${CLEAR_SRC}`, ctx);
-const { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, frameClipsChildren } = ctx;
+const { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, frameClipsPaint } = ctx;
 /* ★전제 — ★공용 술어가 ★정말 실렸다. ⛔이게 안 서면 ★아래 P1d 셋이 ★«무엇을 쟀는지» 모른다 */
-assert.equal(typeof frameClipsChildren, 'function',
-  '★frameClipsChildren 가 ★하네스에 ★안 실렸다 — ★effectiveSectionPadX 가 ★그것을 부른다');
+assert.equal(typeof frameClipsPaint, 'function',
+  '★frameClipsPaint 가 ★하네스에 ★안 실렸다 — ★effectiveSectionPadX 가 ★그것을 부른다');
 
 /* ── 최소 DOM 흉내 ── «스타일 쓰기»를 세기 위해 style 을 Proxy 로 감싼다. */
 function makeEl({ cls = [], dataset = {}, style = {}, parent = null } = {}) {

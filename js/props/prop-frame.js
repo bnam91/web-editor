@@ -361,7 +361,7 @@ function _renderAutoPanel(ss) {
       <div class="prop-row">
         <span class="prop-label">내용 자르기</span>
         <label class="prop-toggle">
-          <input type="checkbox" id="ss-clip-toggle" ${ss.dataset.clipContent === 'true' ? 'checked' : ''}>
+          <input type="checkbox" id="ss-clip-toggle" ${ss.dataset.clipContent !== 'false' ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
       </div>
@@ -890,8 +890,12 @@ function _renderAutoPanel(ss) {
   // 내용 자르기 — 값은 data-clip-content 한 칸, 그리기는 CSS 한 줄(css/editor-blocks.css).
   //   저장·복사·내보내기(PNG 클론·HTML CSS 수집)가 모두 이 속성을 그대로 따라간다. push-after.
   document.getElementById('ss-clip-toggle')?.addEventListener('change', e => {
+    /* ★★2026-10-10 — ★끔이 ★★«속성 삭제»였다. ★★기본이 ★`hidden` 이 된 뒤로는 ★그 꼴이면
+       ★★토글을 ★끄는 것이 ★★아무 일도 ★안 한다(= ★조용한 무효화) ⇒ ★★끔을 ★★명시 `'false'` 로 쓴다.
+       ★그리는 쪽: `css/editor-blocks.css` 의 `[data-clip-content="false"]` → visible
+       ★판정:     `js/frame-geometry.js` `frameClipsPaint` (★`!== 'false'`) — ★셋이 ★한 쌍이다. */
     if (e.target.checked) ss.dataset.clipContent = 'true';
-    else delete ss.dataset.clipContent;
+    else ss.dataset.clipContent = 'false';
     window.pushHistory?.('프레임 내용 자르기');
     window.scheduleAutoSave?.();
   });

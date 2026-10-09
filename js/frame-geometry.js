@@ -203,12 +203,63 @@ export function clampLeftIntoFrame(left, frameW, elW) {
      (`tests/unit/block-full-bleed.test.mjs` 의 makeEl). ★dataset 은 ★거기서도 산다.
      ★그리고 ★★위 ★예외 5건(:has(...selected) 등)은 ★★«고르는 동안만» 참이라 ★★죔의 조건으로
      ★쓰면 ★★고를 때마다 ★가둠이 ★흔들린다 — ⛔일부러 ★안 본다. */
-export function frameClipsChildren(frameEl) {
+/* ══ ★★★술어를 ★«둘»로 갈랐다 (2026-10-10 · 지디 판정) ══════════════════════════
+   ★★왜 — ★예전엔 ★`frameClipsChildren` ★한 함수가 ★★«자르나(그림)»와 ★★«죄나(끌기 제한)»를
+     ★★겸했다. ★★그 겸직이 ★★세 날짜가 ★서로를 ★깨 온 ★뿌리다 — ★이름이 ★하나라 ★둘을 ★따로 ★못 정했다:
+       ★09-28 현빈 「밑변 너머로 나가면 ★사라진다」      ⇒ ★자르기를 ★껐다(＋죔도 같이 꺼졌다)
+       ★10-09 현빈 「★안 잘려 보인다 — 잘려야 하는데」   ⇒ ★죔을 ★조건부로(＋자르기는 ★안 켰다)
+       ★10-10 현빈 「프레임 밖은 ★안 보여야」            ⇒ ★자르기를 ★켠다(＋죔은 ★켜면 10-09 가 부활)
+     ★★⇒ ★★«자르기 켬 ＋ 죔 끔»이 ★★셋을 ★동시에 ★세우는 ★유일한 조합이다. ★그러려면 ★이름이 ★둘이어야 한다.
+   ★★⛔한 쪽을 ★다른 쪽에서 ★파생시키지 ★마라 — ★그게 ★겸직의 ★재발이다(지디 2026-10-10).
+   ★잠그는 자: `tests/unit/frame-clips-predicate.test.mjs` — ★⒜는 ★CSS 와 ★견주고, ★⒝는 ★«안 죈다»를 단언한다.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ⒜ ★★«그림을 ★자르나» — ★CSS 와 ★한 쌍이다(css/editor-blocks.css).
+   ★★2026-10-10 부터 ★`.frame-block` ★기본이 ★`overflow: hidden` 이다 ⇒ ★★기본이 ★«자른다».
+   ★★푸는 자리는 ★★하나뿐 — ★「내용 자르기」를 ★사람이 ★★끈 프레임(`data-clip-content="false"`).
+     ⚠️★«속성 없음»은 ★★끔이 ★아니다(★기본=자름). ★★끔은 ★★명시 `'false'` 다 —
+       ★예전엔 ★기본이 visible 이라 ★«끔 = 속성 삭제»였고, ★그 꼴을 그대로 두면 ★★토글이 ★먹통이 된다.
+       ★실측(2026-10-10 · 현빈 proj_1791316848083): frame-block ★18개 중 ★`data-clip-content` ★1개 · 값 ★`"true"`
+         ⇒ ★★현빈이 ★그 토글을 ★쓰고 계신다. ⇒ ★죽이지 ★않았다.
+   ⛔computed 스타일로 ★재지 않는다 — ★가짜 DOM 검사에서도 불린다(이 파일 머리말의 그 까닭). */
+export function frameClipsPaint(frameEl) {
   const d = frameEl && frameEl.dataset;
   if (!d) return false;
-  if (d.clipContent === 'true') return true;                 /* 「내용 자르기」 켬 */
-  const r = d.radius;
-  return r !== undefined && r !== '' && String(r) !== '0';    /* 둥근 모서리 */
+  return d.clipContent !== 'false';
+}
+
+/* ⒝ ★★«죄나» — ★★`phase` 를 ★인자로 받는다(지디 2026-10-10). ★★«언제 죄나»가 ★호출 자리에 ★드러나게.
+     ★`'move'`(끌는 동안) → ★★언제나 ★거짓   ·   ★`'drop'`(놓는 순간) → ★기본 ★참
+   ★★⛔«끌는 ★동안»에는 ★★누구도 ★죄지 ★않는다 — ★그 자리에 ★죔이 ★걸리면 ★★10-09 가 ★그대로 ★부활한다.
+   ★★왜 ★함수로 ★두나(상수가 아니고) — ★★부르는 자리가 ★★«죔을 거는 ★유일한 문»이고,
+     ★나중에 ★누군가 ★다시 ★참으로 만들려면 ★★여기 ★한 자리를 ★고쳐야 ★하게 묶어 둔다.
+     ⇒ ★그 순간 ★`frame-clips-predicate` 의 ★⒝ 칸이 ★★빨개진다(★그게 ★10-09 의 ★지키는 자다).
+   ★★까닭(현빈 10-09 실측): ★죔이 걸리면 ★「오른쪽 170px 끌어도 ★`style.left` 가 ★378px 에 ★물려 ★안 움직였다」
+     (★프레임 폭 716 − 자식 338). ★음성대조로 ★왼쪽 150px 은 ★정확히 움직였다 ⇒ ★끌기가 죽은 게 아니라 ★죔이었다.
+   ★★그래서 ★세 날짜가 ★★동시에 선다 — ★이 조합이 ★유일하다:
+     ★끌는 동안 : ★안 죈다 ＋ ★CSS 가 자르기를 푼다(`:has(> .frame-child-dragging)`)  ⇒ ★★10-09 ＋ ★위치가 보인다
+     ★★놓는 순간 : ★★안으로 ★되돌린다(이 술어)                                        ⇒ ★★09-28 / ★T-088
+     ★놓은 뒤   : ★상시 자른다(CSS 기본 hidden)                                      ⇒ ★★10-10
+   ★되돌리는 ★자리 = `js/block-drag.js` ★onUp 의 ★`if (moved)` 갈래 ★한 곳(★끌어내기 갈래는 ★★제외 — 그건 ★의도된 탈출이다).
+   ★어디로 = ★★«가장 가까운 ★프레임 안 자리»(`clampChildIntoFrame` 이 ★축마다 ★최소 거리로 민다 · 지디 기본값). */
+export const FRAME_DRAG_PHASES = Object.freeze(['move', 'drop']);
+export function frameClampsDrag(frameEl, phase) {
+  /* ★★⛔모르는 phase 는 ★★던진다(지디 2026-10-10) — ★새 호출자가 ★조용히 ★거짓을 받으면
+     ★★죔이 ★안 걸린 것을 ★아무도 ★모른다. ★「영은 ★답이 아니다」의 ★그 자리. */
+  if (!FRAME_DRAG_PHASES.includes(phase)) {
+    throw new Error(`frameClampsDrag: 모르는 phase '${String(phase)}' — ${FRAME_DRAG_PHASES.join('|')} 중 하나여야 한다`);
+  }
+  /* ★★«끌는 ★동안»에는 ★★아무도 ★죄지 ★않는다 — ★현빈 10-09 「170px 끌어도 378 에 물린다」 */
+  if (phase === 'move') return false;
+  const d = frameEl && frameEl.dataset;
+  if (!d) return false;
+  /* ⚠️★지디 ⒝ 는 ★「항상 참」이었다. ★★여기 ★조건 ★하나를 ★더 걸었다 — ★까닭을 적는다:
+     ★「내용 자르기」를 ★사람이 ★★명시로 ★끈 프레임은 ★★밖이 ★보인다. ★★보이는 것을 ★되돌리면
+     ★★«멀쩡한 것을 ★움직이는» 사고다(★지디가 ★음성대조로 ★요구한 바로 그 꼴).
+     ⛔`frameClipsPaint` 를 ★★부르지 ★않았다(★파생 금지) — ★★같은 ★속성을 ★읽되 ★★«뜻»이 ★다르다:
+       ★위는 ★「그려질 때 ★잘리나」, ★여기는 ★「놓을 때 ★되돌릴 ★까닭이 ★있나」.
+     ★이 조정이 ★틀렸다면 ★이 두 줄을 ★지우고 ★`return true` 로 두면 된다. */
+  return d.clipContent !== 'false';
 }
 
 export function clampChildIntoFrame(left, top, elW, elH, frameW, frameH, pad) {

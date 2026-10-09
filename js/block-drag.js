@@ -30,7 +30,7 @@ import { MODAL_SLOT_KEYS } from './blocks/modal-block.js';
 /* ★수지⑦ — ★그리드 허용목록은 ★그리드가 들고 있다(★렌더와 ★커밋이 ★같은 한 벌을 써야 한다).
    ⛔여기 ★사본을 적지 마라 — ★갈리면 「★커밋은 됐는데 ★렌더에서 사라진다」가 된다. */
 import { GRID_RICH_TEXT_OPTS } from './blocks/grid-block.js';
-import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth, frameClipsChildren, fitContentWidthPx } from './frame-geometry.js';
+import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth, frameClampsDrag, fitContentWidthPx } from './frame-geometry.js';
 import {
   dragState,
   _suppressDragSave,
@@ -773,6 +773,13 @@ function bindBlock(block) {
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
       if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
       moved = true;
+      /* ★★끌는 ★동안만 ★프레임 자르기를 ★푼다 (현빈 2026-10-10 ㄴ 「자르되 ★끌 때는 ★보인다」).
+         ★그리는 쪽은 ★CSS ★한 줄 — `css/editor-blocks.css` `.frame-block:has(> .frame-child-dragging)`.
+         ★이름을 ★`dragging` 처럼 ★흔한 전역 낱말로 ★두지 ★않았다(★전역 이름 충돌 교훈 2026-10-06).
+         ★★떼는 자리는 ★`onUp` ★첫 줄이다 — ⛔안 떼지면 ★영구히 ★visible 이 되고 ★그건 ★★«고치기 전과 같다»
+           (= ★조용한 무효화). ★`dragend` 도 ★onUp 에 ★묶여 있어 ★그 길로도 ★떼진다.
+         ★_dragOutParentFrame 가 ★없으면(=자유배치 프레임 안이 아니면) ★걸 ★필요가 없다. */
+      if (_dragOutParentFrame) dragEl.classList.add('frame-child-dragging');
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
       /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
@@ -852,23 +859,17 @@ function bindBlock(block) {
            (0,0) 에 못 박힌다. 형제 경로(bindFrameDropZone 의 「absolute 셀 프레임 mousemove
            드래그」, `const parentFreeFrame = ss.parentElement?.closest(…)`)도 parentElement
            부터 찾고 거기서 clamp 한다 — 같은 식으로 맞춘다. */
-      const _clampParent = dragEl.parentElement?.closest('.frame-block[data-free-layout]') || null;
-      /* ★★2026-10-09 — ★죔을 ★★«정말 자르는 프레임»일 때만 건다(현빈 「★안 잘려 보인다 — 잘려야 하는데」).
-         ★위 T-088 주석의 까닭(「`.frame-block` 은 overflow:hidden」)은 ★★2026-09-28 에 ★죽었다 —
-           ★그 줄은 지금 ★`overflow: visible` 이다. ⇒ ★안 자르는 프레임을 ★가두면
-           ★자식이 ★★«넘칠 수가 없고», ★넘칠 수 없으니 ★★«내용 자르기» 토글이 ★켜도 ★보여 줄 것이 ★없다.
-         ★실측(2026-10-09 · 앱 9430 · 배율 100% · 진짜 마우스): 오른쪽으로 170px 끌어도
-           `style.left` 가 ★378px 에 ★물려 ★안 움직였다(= 프레임 폭 716 − 자식 338).
-           ★음성대조로 ★왼쪽 150px 은 ★378→228 로 ★정확히 움직였다 ⇒ ★끌기가 죽은 게 아니라 ★죔이었다.
-         ★★판정은 ★`frameClipsChildren` ★하나다(js/frame-geometry.js) — ⛔여기서 ★또 세지 않는다.
-         ⚠️★자르는 프레임에서는 ★T-088 의 까닭이 ★여전히 산다 ⇒ ★그 판은 ★그대로 ★죈다. */
-      if (_clampParent && frameClipsChildren(_clampParent)) {
-        const _c = clampChildIntoFrame(
-          newLeft, newTop, dragEl.offsetWidth, dragEl.offsetHeight,
-          _clampParent.offsetWidth, _clampParent.offsetHeight, framePadding(_clampParent));
-        newLeft = _c.left;
-        newTop  = _c.top;
-      }
+      /* ══ ★★죔의 ★역사 — ★이 자리에서 ★세 번 ★바뀌었다. ★다음 사람이 ★네 번째로 ★되돌리기 전에 ★읽어라 ══
+         ★T-088(2026-09-22) : ★죔을 ★★«무조건» 걸었다. 까닭 = ★프레임이 ★자르고(그때 overflow:hidden) ★안 커져서
+            ★자식을 ★밑변 너머로 끌면 ★★화면에서 ★사라졌다(실측: 그룹 120 안 제목이 top:148 → ★안 보이고 값만 남음).
+         ★2026-10-09       : ★죔을 ★«정말 자르는 프레임»일 때만 — 까닭 = ★기본이 ★visible 이 돼 ★전제가 죽었다.
+            ★실측(앱 9430 · 진짜 마우스): ★오른쪽 170px 끌어도 ★`style.left` 가 ★★378px 에 ★물려 ★안 움직였다
+            (프레임 716 − 자식 338) · ★음성대조로 ★왼쪽 150px 은 ★378→228 로 ★정확히 움직였다 ⇒ ★죔이었다.
+         ★★2026-10-10(여기) : ★★«끌는 ★동안»에는 ★★아무도 ★죄지 ★않는다. ★죔은 ★★«놓는 ★순간»으로 ★옮겼다.
+            ⇒ ★★10-09 의 ★물림이 ★안 나고(끌 때 자유) · ★T-088·09-28 의 ★사라짐도 ★안 난다(놓을 때 되돌림).
+            ★옮긴 자리 = ★이 함수 아래 ★`onUp` 의 ★`if (moved)` 갈래 ★한 곳 · ★술어 ★`frameClampsDrag(el, 'drop')`.
+         ★★⛔여기에 ★다시 ★죔을 ★넣지 ★마라 — ★넣으면 ★10-09 가 ★부활하고,
+            ★`tests/unit/frame-clips-predicate.test.mjs` 의 ⒝ 칸이 ★그것을 ★잡는다. */
 
       dragEl.style.left = `${newLeft}px`;
       dragEl.style.top  = `${newTop}px`;
@@ -900,6 +901,10 @@ function bindBlock(block) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.removeEventListener('dragend', onUp);
+      /* ★★★맨 앞에서 ★떼낸다 — ★아래에 ★갈래가 여럿이라 ★뒤에 두면 ★어떤 길이 ★빠뜨린다.
+         ★남으면 ★그 프레임은 ★영구 `overflow: visible` = ★현빈 10-10 이 ★조용히 ★되돌아간다.
+         ★지키는 자: tests/dom/frame-clip-drag.dom.spec.js 「놓으면 표식이 떼진다」(돌연변이로 세웠다). */
+      dragEl.classList.remove('frame-child-dragging');
       hideGuides();
 
       // 드래그아웃: freeLayout 프레임 밖에서 마우스업 → 섹션 레벨로 추출
@@ -957,6 +962,28 @@ function bindBlock(block) {
       }
 
       if (moved) {
+        /* ★★★놓을 때 ★안으로 ★되돌린다 (현빈 ㄴ ＋ 지디 2026-10-10 · T-088·09-28 의 ★지키는 자리).
+           ★★여기가 ★«끌어내기»(위 갈래 · return 했다) ★다음이라 ★★«프레임 안에 ★머문» 제스처만 온다.
+           ★★불변식: ★놓은 뒤 ★그 자식의 사각형이 ★★프레임 사각형에 ★★완전히 든다.
+           ★★⛔멀쩡한 것을 ★움직이지 ★않는다 — `clampChildIntoFrame` 은 ★이미 안이면 ★같은 값을 돌려준다
+             (★그 음성대조가 ★검사에 있다). ★다중선택 ★피어도 ★같이 ★되돌린다(안 하면 ★한 쪽만 들어간다). */
+        const _dropParent = dragEl.parentElement?.closest('.frame-block[data-free-layout]') || null;
+        if (_dropParent && frameClampsDrag(_dropParent, 'drop')) {
+          const _pad = framePadding(_dropParent);
+          const _snap = (el) => {
+            if (!el || el.style.position !== 'absolute') return;
+            const c = clampChildIntoFrame(
+              parseFloat(el.style.left) || 0, parseFloat(el.style.top) || 0,
+              el.offsetWidth, el.offsetHeight,
+              _dropParent.offsetWidth, _dropParent.offsetHeight, _pad);
+            el.style.left = `${c.left}px`;
+            el.style.top  = `${c.top}px`;
+            el.dataset.offsetX = String(c.left);
+            el.dataset.offsetY = String(c.top);
+          };
+          _snap(dragEl);
+          multiPeers.forEach(p => _snap(p.el));
+        }
         _resizeFrameToFitChildren(dragEl);
         multiPeers.forEach(p => _resizeFrameToFitChildren(p.el));
         window.pushHistory?.();
@@ -2757,14 +2784,12 @@ function bindFrameDropZone(ss) {
         const cdy = (ev.shiftKey && _shiftAxisF === 'h') ? 0 : dy;
         let newLeft = Math.round(origLeft + cdx / scale);
         let newTop  = Math.round(origTop  + cdy / scale);
-        // 섹션/부모 프레임 경계 클램핑
-        const _clampParent = parentFreeFrame || ss.parentElement;
-        if (_clampParent) {
-          const _maxL = _clampParent.offsetWidth  - ss.offsetWidth;
-          const _maxT = _clampParent.offsetHeight - ss.offsetHeight;
-          newLeft = Math.max(0, Math.min(_maxL, newLeft));
-          newTop  = Math.max(0, Math.min(_maxT,  newTop));
-        }
+        /* ★★2026-10-10 — ★★«끌는 ★동안»의 ★죔을 ★걷었다(★위 일반 블록 끌기와 ★같은 까닭 · 현빈 10-09).
+           ★★⛔그리고 ★이 자리는 ★★«제 벌 명부»였다 — ★`clampChildIntoFrame` 을 ★★안 쓰고
+             ★`Math.max(0, Math.min(_max, …))` 를 ★손으로 ★다시 셌다(★★프레임 ★안쪽 여백도 ★안 봤다).
+             ⇒ ★일반 경로와 ★조용히 ★갈려 있었다: ★저쪽은 ★술어로 ★조건부였고 ★★이쪽은 ★★무조건이었다.
+           ★★⇒ ★죔은 ★아래 ★`onUp` ★한 곳으로 ★모았고, ★★공용 `clampChildIntoFrame` ＋ `framePadding` 을 ★쓴다.
+           ⛔여기에 ★다시 ★넣지 ★마라. */
         ss.style.left = newLeft + 'px';
         ss.style.top  = newTop  + 'px';
         ss.dataset.offsetX = String(newLeft);
@@ -2786,7 +2811,22 @@ function bindFrameDropZone(ss) {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         hideGuides();
-        if (moved) { window.pushHistory?.(); window.triggerAutoSave?.(); }
+        if (moved) {
+          /* ★★놓을 때 ★안으로 ★되돌린다 — ★위 일반 블록 끌기 갈래와 ★★«같은 술어·같은 함수»다.
+             ⛔여기서 ★제 벌로 ★다시 세지 ★않는다(★이 자리의 ★옛 흠이 ★그것이었다). */
+          const _dropParent = parentFreeFrame || ss.parentElement;
+          if (_dropParent && _dropParent.classList?.contains('frame-block') && frameClampsDrag(_dropParent, 'drop')) {
+            const c = clampChildIntoFrame(
+              parseFloat(ss.style.left) || 0, parseFloat(ss.style.top) || 0,
+              ss.offsetWidth, ss.offsetHeight,
+              _dropParent.offsetWidth, _dropParent.offsetHeight, framePadding(_dropParent));
+            ss.style.left = `${c.left}px`;
+            ss.style.top  = `${c.top}px`;
+            ss.dataset.offsetX = String(c.left);
+            ss.dataset.offsetY = String(c.top);
+          }
+          window.pushHistory?.(); window.triggerAutoSave?.();
+        }
       };
 
       document.addEventListener('mousemove', onMove);
