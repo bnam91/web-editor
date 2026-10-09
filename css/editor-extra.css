@@ -2004,3 +2004,9 @@ body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed);
 /* 연결선 출발점 dot */
 /* 점은 «선과 같은 변수»를 읽는다(검사 B3). ⛔알파를 붙이지 않는다 — α=1 유지가 §5 의 min(선,점) 전제다. */
 .spl-edges .spl-edge-dot { fill: var(--spl-edge-color, var(--ui-accent, #4f6bed)); }
+/* ★묶음(그룹) 테두리 — «선이 무엇을 가리키나»를 닫는 자(js/scratchpad-link.js _drawEdges 의 그 자리).
+   ★선과 ★같은 변수·같은 점선 꼴을 쓴다 — 새 색·새 토큰을 만들지 않는다.
+   ★선보다 ★약하다(선 .70 → 여기 .45 · stroke-width 2 → 1). ⛔fill·filter 금지 — 상자가 «면»이 되면 카드를 덮는다.
+   ⚠️현빈 기본 배율 40% 에서 화면상 0.4px 이다(선은 0.8px) — «있는 줄 아는 사람에게만 보이는» 굵기다.
+     ★그게 의도다(가장 약하게). 더 진하게 하려면 현빈 눈 판정을 받아라. */
+.spl-edges .spl-edge-group { fill: none; stroke: var(--spl-edge-color, var(--ui-accent, #4f6bed)); stroke-width: 1; stroke-dasharray: 5 5; opacity: .45; }

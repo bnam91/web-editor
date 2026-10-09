@@ -357,6 +357,7 @@
   // ═══════════════════════════════════════════════════════════════════
   let _showEdges = true;              // 기어 토글(연결선 표시)
   let _relayoutRAF = null;
+  const GROUP_PAD = 6;                // 묶음 테두리를 카드 바깥으로 미는 거리(scaler-local px)
 
   function _wrap()    { return document.getElementById('canvas-wrap'); }
   function _scaler()  { return document.getElementById('canvas-scaler'); }
@@ -739,6 +740,21 @@
         const sx = toLocalX(_e.sx), sy = toLocalY(_e.sy);
         s += '<line x1="' + ix.toFixed(1) + '" y1="' + iy.toFixed(1) + '" x2="' + sx.toFixed(1) + '" y2="' + sy.toFixed(1) + '"/>' +
              '<circle cx="' + ix.toFixed(1) + '" cy="' + iy.toFixed(1) + '" r="3.5" class="spl-edge-dot"/>';
+        /* ★[#16-G] «선이 무엇을 가리키나» — 묶음이 둘 이상이면 그 겉상자를 ★한 겹 두른다.
+         * ⛔이것은 ★「그룹을 보이게 하는 기능」이 ★아니다(그건 별 건 N1 — 링크 없는 그룹은 여전히
+         *   화면에서 비그룹과 구분되지 않는다. ★손대지 않았다). 여기서 닫는 것은 ★«선의 대상»이다:
+         *   세로로 쌓인 다섯이면 붙는 점이 «가운데 장 옆»이라 「3번 장과 연결」로 읽힌다(실측 사진).
+         *   현빈 2026-10-09 ①「선이 ★그룹과 섹션이 연결」의 문자 그대로. 지디 판정 2026-10-09.
+         * ★조건 — ⑴ «링크된» 묶음에만(_units 가 링크에서 나오므로 구조로 보장) ⑵ 보이는 멤버 ★2 이상
+         *   ⑶ 선과 ★같은 색 1px ★점선, ⛔채우기·그림자 ★없음(CSS .spl-edge-group).
+         * ★상자는 조금 바깥으로 민다(GROUP_PAD) — 카드 테두리 «위»에 그리면 카드 외곽선으로 읽힌다. */
+        if (item.splMembers > 1) {
+          const br = item.getBoundingClientRect();
+          const gx = toLocalX(br.left) - GROUP_PAD, gy = toLocalY(br.top) - GROUP_PAD;
+          const gw = br.width / scale + GROUP_PAD * 2, gh = br.height / scale + GROUP_PAD * 2;
+          s += '<rect class="spl-edge-group" x="' + gx.toFixed(1) + '" y="' + gy.toFixed(1) +
+               '" width="' + gw.toFixed(1) + '" height="' + gh.toFixed(1) + '" rx="4"/>';
+        }
       }
     }
     const sizeKey = W.toFixed(0) + 'x' + H.toFixed(0);

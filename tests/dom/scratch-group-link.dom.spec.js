@@ -42,6 +42,7 @@ const ITEMS = [
 const SNAP = () => ({
   lines: document.querySelectorAll('#link-edges line').length,
   dots: document.querySelectorAll('#link-edges .spl-edge-dot').length,
+  boxes: document.querySelectorAll('#link-edges .spl-edge-group').length,
   tokens: [...document.querySelectorAll('#canvas .section-block')]
     .reduce((n, s) => n + (s.dataset.refLinks || '').split(',').filter(Boolean).length, 0),
   tokenIds: [...document.querySelectorAll('#canvas .section-block')]
@@ -369,6 +370,56 @@ test('G8 ★그룹 연결은 ⌘Z «한 걸음» (잰 값 5걸음)', async ({ pa
   const s = await snap(page);
   expect(s.tokens, '★⌘Z 한 번에 토큰 다섯이 통째로 사라져야 한다(5걸음이면 4가 남는다)').toBe(0);
   expect(s.lines, '선도 0').toBe(0);
+});
+
+test('G9 ★묶음 테두리 — «링크된» 그룹에만 하나 · 끊으면 0 · ★단독엔 안 그린다', async ({ page }) => {
+  /* 지디 판정 2026-10-09(앞 판정 뒤집음): ⛔이것은 N1(그룹이 안 보인다)을 고치는 것이 ★아니다.
+     닫는 것은 «선이 ★무엇을 가리키나»다 — 세로로 쌓인 다섯이면 붙는 점이 가운데 장 옆이라
+     「3번 장과 연결」로 읽힌다. ⇒ ★링크가 있을 때만 그린다(링크 없는 그룹은 그대로 안 보인다). */
+  const { errs, secIds } = await setup(page);
+  expect((await snap(page)).boxes, '★전제 — 연결 0 이면 상자도 0(그룹은 이미 있다)').toBe(0);
+
+  await linkVia(page, 'sp_g3', secIds[0]);
+  let s = await snap(page);
+  expect(errs).toEqual([]);
+  expect(s.boxes, '★연결된 그룹에 상자 하나').toBe(1);
+  expect(s.lines, '선은 여전히 하나').toBe(1);
+
+  /* ★★음성대조 — 그룹 아닌 단독을 연결해도 상자는 ★안 는다(1 그대로) */
+  await linkVia(page, 'sp_s1', secIds[1]);
+  s = await snap(page);
+  expect(s.lines, '선은 둘(그룹 1 ＋ 단독 1)').toBe(2);
+  expect(s.boxes, '★단독에도 상자를 그렸다 — 묶음이 아닌 것에 두르면 안 된다').toBe(1);
+
+  /* ★끊으면 0 — 「상자는 링크를 따라 산다」 */
+  await page.evaluate(() => window.deselectAll?.());
+  await clickBtn(page, 'sp_g1', 'spl-btn-cut');
+  await page.waitForTimeout(400);
+  s = await snap(page);
+  expect(s.boxes, '★그룹 링크를 끊었는데 상자가 남았다').toBe(0);
+  expect(s.lines, '단독 선 하나만 남는다').toBe(1);
+
+  /* ★상자가 «묶음 겉상자»를 두른다 — 다섯 장을 다 품고, 한 장만 두르지 않는다 */
+  await linkVia(page, 'sp_g3', secIds[0]);
+  const geo = await page.evaluate(() => {
+    const sc = document.getElementById('canvas-scaler').getBoundingClientRect();
+    const k = (window.currentZoom || 100) / 100 || 1;
+    const toL = (v) => (v - sc.left) / k, toT = (v) => (v - sc.top) / k;
+    const r = [...document.querySelectorAll('.scratch-item[data-scratch-group]')].map(c => c.getBoundingClientRect());
+    const b = document.querySelector('#link-edges .spl-edge-group');
+    return {
+      x: +b.getAttribute('x'), y: +b.getAttribute('y'),
+      w: +b.getAttribute('width'), h: +b.getAttribute('height'),
+      left: toL(Math.min(...r.map(q => q.left))), top: toT(Math.min(...r.map(q => q.top))),
+      right: toL(Math.max(...r.map(q => q.right))), bottom: toT(Math.max(...r.map(q => q.bottom))),
+      oneH: (r[0].bottom - r[0].top) / k,
+    };
+  });
+  expect(geo.x, '★상자 왼쪽이 묶음보다 안쪽이다').toBeLessThanOrEqual(geo.left);
+  expect(geo.y, '★상자 위가 묶음보다 안쪽이다').toBeLessThanOrEqual(geo.top);
+  expect(geo.x + geo.w, '★상자 오른쪽이 묶음을 못 덮는다').toBeGreaterThanOrEqual(geo.right);
+  expect(geo.y + geo.h, '★상자 아래가 묶음을 못 덮는다').toBeGreaterThanOrEqual(geo.bottom);
+  expect(geo.h, `★상자 높이가 한 장 높이(${geo.oneH}) 수준이다 — 다섯을 안 품었다`).toBeGreaterThan(geo.oneH * 2);
 });
 
 /* ══ 양성대조 명부 — ★핀 판에서 ★무엇이 빨강인가 (⛔HEAD 를 판으로 쓰지 마라) ═══════════
