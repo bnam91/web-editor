@@ -87,6 +87,27 @@ async function mount(page) {
     bn.className = 'banner02-block';
     bn.innerHTML = '<div data-line-idx="0" class="bn2-line-selected">bn</div>';
     document.getElementById('host').appendChild(bn);
+
+    /* ★★2026-10-10 (1009t3 A4) — `MARKER_TOKENS` 가 ★2종 늘었다(grd-cell-selected · item-selected).
+       ★★이 검사의 ★분모는 ★그 명부에서 ★파생되므로(위 require), ★★장면도 ★같이 늘려야 한다 —
+       ★안 늘리면 ★D4 의 ★전제 단언이 ★「라이브 0건」으로 ★빨개진다. ★실제로 ★그렇게 났다.
+       ★★⇒ ★교훈: ★★«분모를 늘렸으면 ★장면도 늘려라». ★그 자는 ★제 일을 했다.
+
+       ★★⛔`grd-cell-selected` 는 ★앱의 길(`__open(block,{…li:null})`)로 ★★심을 수 ★없다 —
+         `js/props/prop-grid.js` `_grdSyncLineMark` 가 ★머리에서 ★★`document` ★전역으로
+         `.grd-line-selected` 와 `.grd-cell-selected` 를 ★★둘 다 지운다(:176·:177).
+         ⇒ ★★두 그리드 마커는 ★★«상호배제»다. ★한 장면에 ★둘을 ★같이 세울 ★방법이 ★없다.
+       ★★⇒ ★그래서 ★`bn2-line-selected` 와 ★같은 꼴로 ★★손으로 심는다. ★이 검사가 ★재는 것은
+         ★★«채널이 ★그 토큰을 ★벗기나»이고, ★«앱이 ★그 토큰을 ★붙이나»는 ★아니다.
+       ★★⇒ ★★«앱의 길»로 재는 자리는 ★따로 있다 — `tests/dom/grid-cell-selected-leak.dom.spec.js`
+         (★진짜 마우스로 ★빈 칸을 ★두 번 눌러 심고, ★배송본을 ★★렌더해 ★computed 까지 잰다).
+         ⛔이 손 심기를 ★「앱 경로도 쟀다」로 ★읽지 마라. ★두 자리가 ★다른 것을 ★잠근다. */
+    const cell = block.querySelector('.grd-cell');
+    if (cell) cell.classList.add('grd-cell-selected');
+    const lg = document.createElement('div');
+    lg.className = 'label-group-block';
+    lg.innerHTML = '<div class="label-item item-selected">lb</div>';
+    document.getElementById('host').appendChild(lg);
   }, FIXTURE);
 }
 
@@ -164,8 +185,25 @@ test('D4-b ★artifact 명부가 이 검사가 «돌린» 갈래와 맞는다 (�
   expect(arts, '★artifact 채널 명부가 바뀌었다 — 위 D4 가 «안 돌리는» 갈래가 생겼을 수 있다. ' +
     '새 채널을 여기서 실제로 돌리거나, serializeCleanRoot 위임임을 확인해라 ' +
     '(tests/unit/export-channel-roster.test.mjs U6 가 명부 자체를 지킨다).')
-    .toEqual(['js/io/export-html.js', 'js/io/export-image.js',
-              'js/io/section-serialize.js', 'js/panels/template-system.js']);
+    .toEqual(['js/io/capture-safety.js', 'js/io/export-html.js', 'js/io/export-image.js',
+              'js/io/save-load.js', 'js/io/section-serialize.js', 'js/panels/template-system.js']);
+
+  /* ★★2026-10-10 (1009t3 A4) — ★기대 배열이 ★4 → ★6 이 됐다. ⛔«이름만 더해 끈» 것이 ★아니다 —
+     ★이 머리말이 요구하는 ★★«그 갈래를 ★이 검사가 ★정말 돌리나»를 ★각각 적는다.
+     ⒜ ★`js/io/capture-safety.js` — ★★돌린다. ★위 D4 의 ★채널 ③(PNG 클론)이 ★`__prep` =
+        `prepareCloneForCapture` 를 부르고, ★그 함수가 ★`stripEditorOnlyForCapture(clone)` 를
+        부른다(`js/io/export-image.js:256`). ⇒ ★★«실제로 도는» 갈래다.
+        ★왜 명부에 늦게 올랐나 — ★그 파일이 ★★`transient` 로 적혀 있었다. ★그런데 ★그것이
+        ★PNG·썸네일·단독 HTML ★★세 산출물의 ★마커를 걷는 ★★«공용 겹»이다(2026-10-10 advqa).
+     ⒝ ★`js/io/save-load.js` — ★★여기서 ★직접 ★안 돌린다. ★`js/panels/template-system.js` 와
+        ★★같은 꼴로 ★두 겹으로 덮는다:
+          ⑴ ★`U6-c` 가 ★「그 파일이 ★`stripEditorOnlyForCapture` 를 ★실제로 부른다」를 단언
+             (★`delegates` 선언 ＋ ★호출 수 ★>0)
+          ⑵ ★위 D4 의 ★채널 ③ 이 ★「그 겹이 ★마커를 ★0건으로 만든다」를 ★★실제로 돌려 증명
+        ⇒ ★「안 쟀다」가 ★아니라 ★«위임 ＋ 위임받는 쪽»을 ★각각 쟀다.
+        ★★⛔그러나 ★그 파일의 ★진짜 산출물(썸네일 → `_meta.json` → 프로젝트 목록 카드)을
+          ★★«픽셀로» 잰 자는 ★★없다. ★그 칸은 ★열려 있다(html2canvas 를 이 하네스에서 안 돌린다).
+     ★★⇒ ★다음에 ★이 배열이 ★또 늘면 ★★같은 꼴로 ★★«돌리나/위임인가»를 ★적어라. ⛔수만 고치지 마라. */
 
   /* ★template-system.js 는 여기서 «직접 안 돌린다» — 그 파일을 이 하네스에 띄우려면
      에디터 전역(electronAPI·패널·캔버스 상태)이 통째로 필요하다. 대신 두 겹으로 덮는다:

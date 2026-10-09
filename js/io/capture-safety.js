@@ -487,17 +487,32 @@ export function stripEditorOnlyForCapture(clone) {
      ★★⛔그 사이에 ★이 명부와 ★뿌리가 ★다시 갈리지 않게 ★`tests/_export-channels.js`
        `MARKER_TOKENS` 가 ★두 자리를 ★같은 토큰으로 ★동시에 잰다. */
   // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 오염 방지)
-  // ★row-active/col-active(2026-09-15 a1-a3 지적): editor-blocks.css가 이 둘에 z-index:1을
-  //   줘서(활성 줄/칸 강조용) .row/.col이 스태킹 컨텍스트가 된다 — 벗기기 목록에 없으면
-  //   클론에 그대로 남아, 그 안의 redact 도형이 z-index:3을 받아도(:has() 규칙)
-  //   «줄 전체»가 z-index:1에 갇혀 겹치는 다른 줄의 글자(z-index:2)보다 아래일 수 있다.
-  clone.querySelectorAll(
-    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over, .item-selected, .bn2-line-selected, .bn2-line-empty, .grd-line-selected, .grd-cell-selected, .stb-line-selected, .stb-step-selected, .row-active, .col-active'
-  ).forEach(el => {
-    el.classList.remove('selected', 'img-editing', 'editing', 'dragging',
-      'group-selected', 'group-editing', 'ss-drag-over', 'drag-over', 'item-selected', 'bn2-line-selected', 'bn2-line-empty',
-      'grd-line-selected', 'grd-cell-selected', 'stb-line-selected', 'stb-step-selected', 'row-active', 'col-active');
-  });
+  /* ★★명부는 ★«한 벌»이다 — ★선택자와 ★`remove` 인자를 ★★같은 배열에서 ★파생시킨다.
+     ★★왜 (2026-10-10 · advqa 가 ★실물로 심어 증명):
+       ★예전 꼴은 ★명부를 ★★«두 벌» 들었다 — ⒜어느 요소를 ★돌까(선택자) ⒝무엇을 ★벗길까(remove 인자).
+       ★★둘 다 있어야 ★벗겨지는데, ★★한쪽만 지운 변이가 ★★«검사 9/9 초록 · rc 0»으로 ★지나갔다:
+         ★M1 = ⒝ 에서만 뺌 ⇒ 요소는 돌지만 ★안 벗긴다 ⇒ ★누수 부활 ★★거짓초록
+         ★M3 = ⒜ 에서만 뺌 ⇒ 그 요소를 ★아예 안 돈다 ⇒ ★누수 부활 ★★거짓초록
+         ★M2 = ★둘 다 뺌   ⇒ ★fail 1 · rc 1 ✅ (★자는 ★죽지 않았다 — ★★반쪽을 ★못 봤을 뿐)
+     ★★⇒ ★경고 주석으로는 ★못 막는다. ★★«파생시켜 ★하나로» 둔다 ⇒ ★M1·M3 은 ★★지을 수 ★없는 변이가 된다.
+     ⛔이 배열을 ★★다시 ★두 벌로 ★풀지 ★마라. ★늘릴 때는 ★★여기 ★한 줄만 보탠다.
+     ★row-active/col-active(2026-09-15 a1-a3 지적): editor-blocks.css 가 이 둘에 z-index:1 을
+       줘서(활성 줄/칸 강조용) .row/.col 이 스태킹 컨텍스트가 된다 — 벗기기 목록에 없으면
+       클론에 그대로 남아, 그 안의 redact 도형이 z-index:3 을 받아도(:has() 규칙)
+       «줄 전체»가 z-index:1 에 갇혀 겹치는 다른 줄의 글자(z-index:2)보다 아래일 수 있다.
+     ★grd-cell-selected(2026-10-10 · 1009t3 A4) — ★빈 그리드 «칸» 선택 표시. ★이것이 ★★«배송본에
+       ★그려진» ★유일한 마커였다(실측 computed `rgb(45,111,232) 0 0 0 2px inset`).
+     ★★잠그는 자 = `tests/unit/export-channel-roster.test.mjs` U6-c (★MARKER_TOKENS 4종) ＋
+       `tests/dom/grid-cell-selected-leak.dom.spec.js` L4. */
+  const EDITOR_STATE_CLS = [
+    'selected', 'img-editing', 'editing', 'dragging',
+    'group-selected', 'group-editing', 'ss-drag-over', 'drag-over',
+    'item-selected', 'bn2-line-selected', 'bn2-line-empty',
+    'grd-line-selected', 'grd-cell-selected', 'stb-line-selected', 'stb-step-selected',
+    'row-active', 'col-active',
+  ];
+  clone.querySelectorAll(EDITOR_STATE_CLS.map(c => '.' + c).join(','))
+    .forEach(el => el.classList.remove(...EDITOR_STATE_CLS));
   /* ★프라이버시(2026-09-15, a1-a3 지적+elementFromPoint 실측 확인 — T-027 z-index 수정
    * (editor-blocks.css .shape-block.shape-redact z-index:3)의 잔여 구멍): transform이
    * 걸린 조상은 «새 스태킹 컨텍스트»를 만든다 — 그 안의 redact 도형은 z-index:3이어도

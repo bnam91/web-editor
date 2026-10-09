@@ -61,10 +61,21 @@ function runtimeMarkersOf(root) {
   _rmCache = rm;
   return rm;
 }
-/** 그 파일이 그 토큰을 «덮나». ⑴주석 뗀 코드에 리터럴이 있나 ⑵진실원이면 자에 물어본다. */
+/** 그 파일이 그 토큰을 «덮나».
+ *  ⑴ ★«인용된 토큰»(`'xxx'`)이 주석 뗀 코드에 있나 — classList 인자든 ★한 벌 명부의 원소든
+ *  ⑵ ★진실원이면 ★«실행해» 자에 물어본다(RE 로 성질 묶인 것은 리터럴이 ★없다)
+ *
+ *  ★★⛔`.${tok}`(선택자 문자열) 갈래는 ★★2026-10-10 에 ★없앴다 — ★advqa 가 ★실물로 잡았다.
+ *    ★그 갈래가 있으면 ★`querySelectorAll('.item-selected')…classList.remove('item-selected')` 꼴에서
+ *    ★★«remove 인자만» 지운 변이를 ★★거짓초록으로 ★통과시킨다
+ *    (★선택자 `'.item-selected'` 안에 ★`.item-selected` 가 ★부분문자열로 ★남는다).
+ *  ★★⇒ ★★그리고 ★더 깊은 흠이 ★있었다: ★★`||` 로 ★★«선택자 vs remove 인자»(★한 함수 ★안의 ★두 반쪽)를
+ *    ★묶은 것. ★★`||` 가 맞는 자리는 ★«제 손 명부 ★vs ★위임 겹»(★파일 ★둘)이다.
+ *    ⇒ ★★한 함수 안의 ★두 반쪽은 ★★«검사»로 못 막는다 — ★★«구조»로 막는다:
+ *      ★`js/io/capture-safety.js` 의 ★`EDITOR_STATE_CLS` ★한 벌에서 ★선택자와 ★remove 인자를 ★파생시켰다
+ *      ⇒ ★★M1(remove 만 뺌)·M3(선택자만 뺌)이 ★★«지을 수 없는 변이»가 됐다. */
 function fileCoversToken(root, file, tok) {
-  if (countOf(codeOf(file), `'${tok}'`) > 0) return true;        // 손 열거(주석 떼고)
-  if (countOf(codeOf(file), `.${tok}`) > 0) return true;         // 선택자 문자열
+  if (countOf(codeOf(file), `'${tok}'`) > 0) return true;        // 인용된 토큰(주석 떼고)
   if (toPosix(file) === SRC_OF_TRUTH) return runtimeMarkersOf(root).isRuntimeMarker(tok);
   return false;
 }
@@ -172,6 +183,11 @@ test('U6-c ★artifact 채널은 마커를 «전부» 벗긴다 (손 열거든 �
      ⛔대신 그런 채널은 «자기 축»(drop)으로 U6-g 가 잰다 — 축 없이 지나가는 채널은 없다. */
   const arts = CHANNELS.filter(c => c.kind === 'artifact' && c.axes.includes('marker'));
   assert.ok(arts.length >= 4, `artifact 채널이 ${arts.length}건이다 — 명부가 낡았거나 잣대가 죽었다`);
+  /* ★분모 단언 — ★«위임 갈래»가 ★적어도 한 번은 ★돈다. ⛔0 이면 아래 위임 검사가 ★항등식이다. */
+  const withDeleg = arts.filter(c => (c.delegates || []).length > 0);
+  assert.ok(withDeleg.length > 0,
+    '★delegates 를 선언한 artifact 채널이 ★0건이다 — 위임 검사가 아무것도 안 돌린다');
+  const needDeleg = [], brokenDeleg = [], uncovered = [];
   for (const c of arts) {
     const src = readSrc(ROOT, c.file);
     if (c.strips === CLEAN_FN) {
@@ -221,19 +237,39 @@ test('U6-c ★artifact 채널은 마커를 «전부» 벗긴다 (손 열거든 �
         `${clones - cleans}곳이 «안 씻긴 채» 산출물이 된다. 클론마다 붙여라.\n  (${c.why})`);
       continue;
     }
-    /* ★위임을 선언했으면 ★«그 겹을 정말 부르나»를 먼저 본다 — ⛔이름만 있으면 배선이 아니다. */
-    for (const d of c.delegates || []) {
-      assert.ok(countOf(codeOf(c.file), `${d.entry}(`) > 0,
-        `★${c.file} 이 delegates 로 «${d.file} ${d.entry}» 를 선언했는데 ★그 함수를 «안 부른다» — 위임이 허공이다`);
+    /* ★★«안 돌 수도 있는 자리»를 ★없앴다 (2026-10-10 · `tools/assert-strength` 가 ★잡았다).
+       ★옛 꼴은 ★`for (const d of c.delegates || [])` ★안에만 단언이 있었다 ⇒ ★`delegates` 를
+       ★지우면 ★★단언이 ★조용히 ★0회가 됐다(★그 자가 ★「0→5」로 ★적발).
+       ★★⇒ ★이제 ★★«제 손으로 다 못 벗기면 ★delegates 가 ★반드시 있어야 한다»를
+          ★채널마다 ★★무조건 ★단언한다 — ★0회가 ★구조적으로 ★불가하다. */
+    const delegFiles = (c.delegates || []).map(d => d.file);
+    const miss = MARKER_TOKENS.filter(t => !fileCoversToken(ROOT, c.file, t));
+    if (miss.length && !delegFiles.length) needDeleg.push(`${c.file}  ∌ ${miss.join(' · ')}`);
+    for (const d of (c.delegates || [])) {
+      if (countOf(codeOf(c.file), `${d.entry}(`) === 0) brokenDeleg.push(`${c.file} → ${d.file} ${d.entry}`);
     }
     for (const tok of MARKER_TOKENS) {
-      const where = [c.file, ...(c.delegates || []).map(d => d.file)]
-        .filter(f => fileCoversToken(ROOT, f, tok));
-      assert.ok(where.length > 0,
-        `${c.file} 이 «${tok}» 을 안 벗긴다 — 그 마커가 이 경로의 결과물에 박힌다.\n` +
-        `  ⇒ 제 손 명부에 올리거나, 공용 겹(delegates)에 올려라.\n  (${c.why})`);
+      const covered = [c.file, ...delegFiles].some(f => fileCoversToken(ROOT, f, tok));
+      if (!covered) uncovered.push(`${c.file}  ∌ ${tok}   (${c.why.slice(0, 60)}…)`);
     }
   }
+  /* ★★세 단언이 ★«무조건» 돈다 — ★루프·조건 ★안이 ★아니다 (2026-10-10 · `tools/assert-strength` 가
+     「★«안 돌 수도 있는 자리»의 단언 0→5」로 ★적발했다).
+     ★옛 꼴은 ★`for (const d of c.delegates || [])` 와 ★`if (…) assert` ★안에 단언이 있었다
+     ⇒ ★`delegates` 를 지우거나 ★조건이 거짓이면 ★★단언이 ★조용히 ★0회가 됐다.
+     ★★⇒ ★꼴을 ★★«명부 ⊇ 실패집합»으로 바꿨다 — ★실패를 ★모아 ★한 번에 ★견준다.
+       ⇒ ★단언 횟수가 ★입력에 ★안 매인다. ⛔다시 ★루프 안으로 ★넣지 마라. */
+  assert.deepEqual(brokenDeleg, [],
+    `★delegates 를 선언했는데 ★그 겹을 «안 부르는» 채널이 ${brokenDeleg.length}건 — 위임이 허공이다:\n  ` +
+    brokenDeleg.join('\n  '));
+  assert.deepEqual(needDeleg, [],
+    `★제 손으로 마커를 다 안 벗기는데 ★delegates 가 «없는» 채널이 ${needDeleg.length}건:\n  ` +
+    needDeleg.join('\n  ') +
+    '\n  ⇒ 공용 겹에 위임하면 그 겹을 delegates 로 ★선언해라 — 안 적으면 이 자가 그 갈래를 못 본다');
+  assert.deepEqual(uncovered, [],
+    `★마커가 ${uncovered.length}자리에서 «안 벗겨진다» — 그 경로의 결과물에 박힌다:\n  ` +
+    uncovered.join('\n  ') +
+    '\n  ⇒ 제 손 명부에 올리거나, 공용 겹(delegates)에 올려라');
 });
 
 test('U6-c-전제 ★위임 대상(serializeCleanRoot/Self)이 실제로 그 토큰들을 벗긴다', () => {
@@ -279,13 +315,64 @@ test('U6-e ★compare 채널이 자기 마커 명단을 «따로» 들고 있지
 });
 
 test('U6-d ★transient 라고 적은 파일이 «결과물»을 만들지 않는다', () => {
-  // 「transient 라고 적어 두면 검사를 빠져나간다」를 막는 잣대.
+  /* 「transient 라고 적어 두면 검사를 빠져나간다」를 막는 잣대.
+   *
+   * ★★2026-10-10 — ★축을 ★하나 더 뒀다. ★이 잣대가 ★`js/io/save-load.js` 를 ★★놓쳤다:
+   *   그 파일의 `captureThumbnail` 은 ★썸네일을 ★`saveProjectMeta` 로 ★`_meta.json` 에 굳혀
+   *   ★프로젝트 목록 ★카드에 띄운다 = ★★«사용자가 보는 산출물»인데 ★`transient` 로 적혀 있었고
+   *   ★이 잣대는 ★초록이었다.
+   * ★★왜 못 봤나 — ★수로 쟀다(2026-10-10 · 그 파일 실측):
+   *     outerHTML ★1 · ★`new Blob(` ★0 · saveTemplate ★0 · exportHTML ★0   ⇒ ★초록
+   *     ★진짜 산출 경로는 ★`toDataURL` ★1 · ★`html2canvas` ★15
+   *   ⇒ ★★옛 잣대는 ★★«HTML 을 굳히는 ★꼴»만 보고 ★★«이미지 산출물»을 ★★구조적으로 ★못 봤다.
+   * ★★⇒ ★교훈: ★★★«꼴을 ★열거하는 자는 ★★마지막 사고까지만 ★덮는다».
+   *   ⛔그래서 ★이 축을 더해도 ★「이제 전부 덮었다」가 ★아니다 — ★다음 산출 꼴(예: OffscreenCanvas·
+   *   `convertToBlob`·WebCodecs)이 생기면 ★여기도 ★또 눈먼다. ★늘 때 ★이 머리말에 ★수로 적어라. */
+  const HTML_OUT  = /saveTemplate|exportHTML|new Blob\(/;
+  /* ★2026-10-10 추가 축 — ★«이미지를 ★굳히는» 꼴.
+     ⚠️★처음엔 ★`saveProjectMeta` 도 ★넣었다가 ★★뺐다 — ★★자가 ★너무 넓었다.
+       ★실측: ★`js/branch-system.js:39` 이 ★`saveProjectMeta(activeProjectId, meta)` 를 부르는데
+       ★그 meta 는 ★`{branches, currentBranch, updatedAt}` = ★★«브랜치 장부»이고 ★이미지가 ★아니다.
+       ⇒ ★★거짓 양성으로 ★★멀쩡한 transient 를 ★빨갛게 했다.
+     ★★그리고 ★그 흠을 ★내 ★음성대조(block-factory 하나)가 ★★못 잡았다 —
+       ★★«분모 전수»(transient 채널 전부)를 ★먹여서야 ★나왔다.
+     ★★⇒ ★교훈: ★자를 ★넓힐 때는 ★★«분모의 ★모든 원소»를 ★먹여라. ★손으로 고른 ★음성 하나로는 ★부족하다.
+     ★`toDataURL`·`html2canvas` 는 ★★«그림을 만드는» 자리라 ★이 축에 ★맞다
+       (실측: `js/io/save-load.js` 에 ★toDataURL 1 · html2canvas 15). */
+  const IMAGE_OUT = /toDataURL|html2canvas/;
   for (const c of CHANNELS.filter(x => x.kind === 'transient')) {
     const src = readSrc(ROOT, c.file);
-    const looksLikeExport = /\.outerHTML\s*\)?\s*;?\s*$/m.test(src) && /saveTemplate|exportHTML|new Blob\(/.test(src);
-    assert.equal(looksLikeExport, false,
-      `${c.file} 은 transient 인데 산출물을 굳히는 모양이다 — 분류가 틀렸다.\n  (${c.why})`);
+    const htmlish  = /\.outerHTML\s*\)?\s*;?\s*$/m.test(src) && HTML_OUT.test(src);
+    const imageish = IMAGE_OUT.test(src);
+    assert.equal(htmlish || imageish, false,
+      `${c.file} 은 transient 인데 산출물을 굳히는 모양이다 — 분류가 틀렸다.\n` +
+      `  ★HTML 꼴 ${htmlish} · ★이미지 꼴 ${imageish}\n` +
+      `  ⇒ 산출물이면 kind:'artifact' ＋ delegates 를 «한 쌍»으로 달아라` +
+      `(⛔artifact 만 바꾸면 U6-c 가 4토큰 리터럴을 요구해 «옳은데 빨강»이 된다).\n  (${c.why})`);
   }
+});
+
+test('U6-d-전제 ★그 잣대가 «산다» — 알려진 양성을 먹여 본다', () => {
+  /* ⛔「transient 0건이 초록」은 ★항등식일 수 있다. ★분모와 ★자를 ★따로 단언한다. */
+  const trans = CHANNELS.filter(x => x.kind === 'transient');
+  assert.ok(trans.length > 0, '★transient 채널이 0건이다 — U6-d 는 아무것도 안 잰다');
+  const IMAGE_OUT = /toDataURL|html2canvas/;
+  const HTML_OUT  = /saveTemplate|exportHTML|new Blob\(/;
+  /* ★양성대조 — ★artifact 로 옮긴 그 파일을 ★이 자에 먹이면 ★«산출물 꼴»로 ★잡혀야 한다. */
+  const saveLoad = readSrc(ROOT, 'js/io/save-load.js');
+  assert.equal(IMAGE_OUT.test(saveLoad), true,
+    '★양성대조 실패 — js/io/save-load.js 가 «이미지 산출 꼴»로 안 잡힌다(그 축이 죽었다)');
+  /* ★음성대조 ★둘 — ⛔하나로는 ★부족했다(2026-10-10 에 ★그래서 거짓 양성을 냈다). */
+  const factory = readSrc(ROOT, 'js/block-factory.js');
+  assert.equal(HTML_OUT.test(factory) || IMAGE_OUT.test(factory), false,
+    '★음성대조 실패 — js/block-factory.js(히트존 노드 교체뿐)가 산출물로 잡힌다 = 자가 너무 넓다');
+  /* ★★음성대조 ⑵ — ★`js/branch-system.js` 는 ★`saveProjectMeta` 를 부르지만 ★그 meta 는
+     ★«브랜치 장부»(branches·currentBranch·updatedAt)이고 ★이미지가 ★아니다.
+     ★★이 한 줄이 ★★내 축이 ★다시 넓어지는 것을 ★막는다 — ★`saveProjectMeta` 를 ★축에 ★되넣으면 ★빨강. */
+  const branch = readSrc(ROOT, 'js/branch-system.js');
+  assert.equal(IMAGE_OUT.test(branch), false,
+    '★음성대조 실패 — js/branch-system.js(브랜치 장부 meta 저장뿐)가 «이미지 산출»로 잡힌다. ' +
+    '★`saveProjectMeta` 를 축에 되넣지 마라 — 그건 «그림을 만드는» 자리가 아니다');
 });
 
 /* ══ U6-f — «빠짐» 축의 분모. cloneNode 분모가 구조적으로 못 보던 자리 ════════════

@@ -116,9 +116,19 @@ const CHANNELS = [
          '— 두 벌 명단이면 한쪽만 고쳐지는 날이 온다(백로그 F2)' },
 
   // ── transient — 라이브/일시. 결과물이 아니다 ───────────────────────────
-  { file: 'js/io/save-load.js', kind: 'transient', axes: ['marker'], strips: null,
-    why: '⑴ 썸네일 클론은 document.body 로 나가 #canvas 스코프 밖이라 마커가 «안 그려진다» ' +
-         '⑵ 캔버스 직렬화는 serializeCleanRoot 에 위임한다 ⑶ 히트존 리스너 교체' },
+  { file: 'js/io/save-load.js', kind: 'artifact', axes: ['marker'], strips: 'inline',
+    delegates: [{ file: 'js/io/capture-safety.js', entry: 'stripEditorOnlyForCapture' }],
+    why: '★2026-10-10 에 transient → artifact 로 고쳤다(advqa 가 잡았다). ' +
+         '★옛 why 는 「⑴썸네일 클론은 body 로 나가 #canvas 스코프 밖이라 마커가 안 그려진다 ' +
+         '⑵캔버스 직렬화는 serializeCleanRoot 에 위임 ⑶히트존 리스너 교체」였고 ★⑴⑵⑶ 은 ★지금도 참이다. ' +
+         '★그러나 captureThumbnail 이 만드는 썸네일은 saveProjectMeta 로 ★_meta.json 에 굳고 ' +
+         '★프로젝트 목록 ★카드에 뜬다 = ★★«사용자가 보는 산출물»이다. ' +
+         '⇒ 「그려지나」로는 transient 지만 「무엇을 굳히나」로는 ★artifact 다. ' +
+         '★그래서 이 파일은 stripEditorOnlyForCapture 에 위임한다(save-load.js:120). ' +
+         '★★이 칸이 transient 였던 동안 U6-c 의 MARKER_TOKENS 순회가 ★이 문을 안 돌았고, ' +
+         'delegates 도 없어 ★그 한 줄을 지워도 ★아무것도 빨개지지 않았다. ' +
+         '★★그리고 내 제 문구가 스스로 어긋나 있었다 — 아래 capture-safety 칸이 ' +
+         '「세 산출물(PNG·★썸네일·단독 HTML)」이라 적어 놓고 ★그 썸네일을 만드는 파일을 transient 로 뒀다' },
   /* 10-05 G11 ① 로 옮김 · 옛 자리 = js/props/prop-mockup.js(같은 «왜») — 클론하는 찍기가 공용 captureSectionImage 로 갔다 */
   { file: 'js/io/capture-safety.js', kind: 'artifact', axes: ['marker'], strips: 'inline',
     why: '★2026-10-10 에 transient → artifact 로 고쳤다. 옛 why 는 「목업 이미지 클론을 body 에 붙여 찍으니 ' +

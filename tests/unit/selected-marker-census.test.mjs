@@ -28,6 +28,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+const { makeStripper } = createRequire(import.meta.url)('./_strip-comments.js');
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -124,4 +126,139 @@ test('A4-C3 ★A4 당사자 둘이 «덮였다» — 되돌리면 이 칸이 빨
     assert.equal(rm.isRuntimeMarker(tok), false,
       `★RE 가 너무 넓어졌다 — «${tok}»(캔버스 밖 · 저장돼도 무해)까지 벗긴다. 그 8종은 종마다 따로 재야 한다`);
   }
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   A4-G5 — ★«산출물 전용» 명부. ⛔명부 합치기를 «합집합»으로 하면 ★멀쩡한 것이 깨진다.
+   ───────────────────────────────────────────────────────────────────────────
+   ★왜 있나 (2026-10-10 · 1009t3 A4)
+     ★A4 를 고치며 ★「세척 명부가 ★둘이면 ★파생시켜 하나로」를 ★따르려 했다. ★그런데 재 보니
+     ★★`A ⊇ B` 가 ★★거짓이었다 — ★B(산출물 겹)에만 있는 토큰 중 ★다수가 ★★«저장본에 ★남아야»
+     ★하는 것이었다. ★A 가 그것을 삼키면 ★`tests/dom/grid-cell-emptied.dom.spec.js` ★E
+     (「★저장·재열기 왕복에서 ★빈 칸이 ★머문다」)가 ★빨개진다 = ★★데이터/상태 손실이다.
+   ★★⇒ ★방향은 ★하나뿐이다:  ★★B(산출물) = A(저장 뿌리) ＋ ARTIFACT_ONLY
+     ⛔역(A 가 B 를 삼키기)은 ★금지다.
+   ★★⇒ ★교훈: ★★「파생시켜 하나로」의 ★«파생»은 ★★«합집합»이 ★아니다 —
+     ★★★파생시키기 ★전에 ★«포함관계»를 ★재라.
+
+   ★이 칸이 ★막는 것 ★둘
+     ⑴ ★다음 사람이 ★「합집합으로 모으자」를 ★★반복하는 것 — ★그 토큰이 ★A 에 ★들어오면 ★빨강
+     ⑵ ★산출물 겹에만 ★새 토큰이 ★조용히 생기는 것 — ★명부 밖이면 ★빨강
+   ★그리고 ★이 명부가 ★나중 ★모으기의 ★★설계도다(★ARTIFACT_ONLY 가 ★그때 ★남길 목록이다).
+
+   ⛔명부를 ★베껴 적지 않는다 — ★★«함수 몸통»에서 ★주석 떼고 ★떠서 ★`isRuntimeMarker` 에 ★묻는다.
+     ⚠️★«파일 전체»로 세면 ★틀린다(실측: 파일 전체 10종 vs ★함수 몸통 ★참값). ★그래서 몸통만 본다.
+     ⚠️★`export-image.js` 의 명부는 ★`prepareCloneForCapture` 가 ★아니라 ★`renderComponentsInClone`
+       에 있다 — ★★«재렌더 뒤»여야 하기 때문이다(그 파일 주석). ★엉뚱한 함수를 보면 ★0종이 나온다.
+═══════════════════════════════════════════════════════════════════════════ */
+
+/** 산출물 겹의 명부 — «함수 몸통»에서 뜬다. [파일, 함수 선언, 이름] */
+const ARTIFACT_LAYERS = [
+  ['js/io/capture-safety.js', 'export function stripEditorOnlyForCapture', 'B 공용 겹(PNG·썸네일·단독HTML)'],
+  ['js/io/export-html.js',    'async function exportHTMLFile',             'C 단독 HTML 전용'],
+  ['js/io/export-image.js',   'export function renderComponentsInClone',   'D PNG 재렌더 뒤'],
+];
+
+/* ★A 에 ★들어가면 ★안 되는 것 — ★까닭을 ★이름 옆에 적는다. ⛔까닭 없이 늘려 빨강을 끄지 마라.
+   ★㉠영구 = ★저장본에 ★남아야 한다(A 가 삼키면 ★손실)  ·  ★㉡미측정 = ★재야 한다 */
+const ARTIFACT_ONLY = {
+  'sec-bg-empty':        '㉠영구 · 섹션 «체크 배경» 자리표시 — 저장본에 남아야 다시 열 때 그 섹션이 «빈 배경»임이 보인다',
+  'bn2-img-empty':       '㉠영구 · 배너02 «빈 이미지 칸» 체커 — 같은 성격(편집 화면에만 그리고, 상태는 저장본에 남는다)',
+  'cvb-img-empty':       '㉠영구 · 커버 «빈 이미지 칸» 체커',
+  'cvb-img-empty-plain': '㉠영구 · 그 평면 판',
+  'grd-img-empty':       '㉠영구 · 그리드 «빈 이미지 칸» 체커(2026-09-25 현빈 주문으로 회색 단색 → 체크패턴)',
+  'col-active':          '㉡미측정 · 활성 «열» 표시. ★row-active 는 A 에 있는데 ★이것만 없다 — ' +
+                         '«저장돼야 하나»를 ★안 쟀다. ⇒ 별건으로 지디 명부에(2026-10-10). ' +
+                         '★재서 «아니다»가 나오면 ★A 로 옮기고 이 칸을 지워라',
+};
+
+/** 함수 몸통에서 ★«클래스 토큰 명부»를 뜬다 — ★두 꼴을 ★다 읽는다.
+ *  ⑴ `classList.remove('a','b',…)`  — ★손 열거 꼴
+ *  ⑵ `const X = ['a','b',…];` ＋ `classList.remove(...X)` — ★★한 벌로 ★파생시킨 꼴
+ *     ★2026-10-10 에 ★`js/io/capture-safety.js` 가 ★⑵ 로 바뀌었다(★거짓초록을 ★구조로 막으려고).
+ *     ⛔⑴만 읽으면 ★그 파일에서 ★0종이 나와 ★이 자가 ★장님이 된다.
+ *  ⚠️⑵ 는 ★«그 몸통 안의» 배열만 읽는다 — ★모듈 최상위로 올리면 ★또 눈먼다.
+ *     ⇒ ★그때는 ★이 자를 ★같이 넓혀라(★분모 0 가드가 ★먼저 빨개질 것이다). */
+function collectTokens(body) {
+  const out = new Set();
+  for (const m of body.matchAll(/classList\s*\.\s*remove\s*\(([^)]*)\)/g))
+    for (const q of m[1].matchAll(/'([A-Za-z0-9_-]+)'/g)) out.add(q[1]);
+  for (const m of body.matchAll(/const\s+[A-Za-z0-9_$]+\s*=\s*\[([\s\S]*?)\]\s*;/g))
+    for (const q of m[1].matchAll(/'([A-Za-z0-9_-]+)'/g)) out.add(q[1]);
+  return out;
+}
+
+/** 그 겹들의 ∖A — 즉 «산출물 전용»으로 남아야 하는 실제 집합. */
+function artifactOnlyMeasured(rm) {
+  const strip = () => makeStripper();
+  const out = new Map();                           // token → [겹 이름…]
+  for (const [file, sig, label] of ARTIFACT_LAYERS) {
+    const s = strip();
+    const code = read(file).split('\n').map((l) => s(l)).join('\n');
+    const i = code.indexOf(sig);
+    assert.ok(i >= 0, `★${file} 에서 «${sig}» 를 못 찾았다 — 이 자가 ${label} 를 ★안 재고 있다(이름이 바뀌었나)`);
+    let j = code.indexOf('{', i), d = 0, k = j;
+    for (; k < code.length; k++) { const c = code[k]; if (c === '{') d++; else if (c === '}') { d--; if (!d) break; } }
+    const body = code.slice(j, k + 1);
+    const toks = collectTokens(body);
+    /* ★양성대조 — 분모가 0 이면 아래 「0건」이 ★항등식이다.
+       ★★2026-10-10 에 ★이 가드가 ★★제 일을 했다: ★`capture-safety` 의 명부를 ★한 벌로 파생시키자
+         (`classList.remove(...EDITOR_STATE_CLS)`) ★인용 토큰이 ★0건이 되어 ★이 칸이 ★빨개졌다.
+         ⇒ ★자를 ★넓혔다(아래 `collectTokens` — ★배열 리터럴도 읽는다). ⛔가드를 끄지 않았다. */
+    assert.ok(toks.size > 0,
+      `★${label}(${file} ${sig}) 의 명부가 ★0종이다 — 자가 ★엉뚱한 함수를 보거나 ★명부 꼴이 바뀌었다` +
+      `(그러면 아래 0건은 ★거짓 초록이다). ⇒ collectTokens 를 ★그 꼴까지 넓혀라`);
+    for (const t of toks) if (!rm.isRuntimeMarker(t)) {
+      if (!out.has(t)) out.set(t, []);
+      out.get(t).push(label);
+    }
+  }
+  return out;
+}
+
+test('A4-G5 ★«산출물 전용» 명부가 실물과 맞는다 — 양방향(⛔수를 박지 않는다)', () => {
+  const rm = runtimeMarkers();
+  const measured = artifactOnlyMeasured(rm);
+  const roster = Object.keys(ARTIFACT_ONLY);
+  const unlisted = [...measured.keys()].filter((t) => !roster.includes(t)).sort();
+  assert.deepEqual(unlisted, [],
+    `★산출물 겹에만 있고 ★명부 밖인 토큰이 ${unlisted.length}종이다:\n`
+    + unlisted.map((t) => `  · ${t}  (${measured.get(t).join(' · ')})`).join('\n')
+    + '\n  ⇒ 저장본에 «남아야» 하면 이 파일 ARTIFACT_ONLY 에 ★까닭과 함께 올려라.'
+    + '\n  ⇒ 저장에서도 «벗겨야» 하면 js/io/section-serialize.js 의 뿌리로 옮겨라(그러면 겹에서 지워도 된다).');
+  const stale = roster.filter((t) => !measured.has(t)).sort();
+  assert.deepEqual(stale, [],
+    `★ARTIFACT_ONLY 에 ★실물이 없는 칸이 ${stale.length}종 남았다 — 명부가 낡아 다음 것을 가린다: ${stale.join(' ')}`);
+});
+
+test('A4-G5-⛔ ★이 6종이 ★A(저장 뿌리)에 ★들어오면 ★빨강 — 「합집합으로 모으기」를 막는다', () => {
+  const rm = runtimeMarkers();
+  for (const [tok, why] of Object.entries(ARTIFACT_ONLY)) {
+    assert.equal(rm.isRuntimeMarker(tok), false,
+      `★«${tok}» 이 ★저장 뿌리(RUNTIME_MARKER_CLS/RE)에 ★들어왔다.\n`
+      + `  ★까닭: ${why}\n`
+      + '  ⇒ ㉠영구면 ★저장본에서 벗겨져 ★다시 열 때 그 상태가 ★사라진다'
+      + '(tests/dom/grid-cell-emptied.dom.spec.js E 가 그 자리를 잰다).\n'
+      + '  ⇒ ★「명부가 둘이면 파생시켜 하나로」의 ★«파생»은 ★합집합이 아니다 —'
+      + ' ★★`B = A ＋ ARTIFACT_ONLY` 한 방향뿐이다.\n'
+      + '  ⇒ ㉡미측정이면 ★먼저 재라. 재서 「저장에서 벗겨도 된다」가 나오면 ★이 칸을 지우고 옮겨라.');
+  }
+});
+
+test('A4-G5-D ★PNG 재렌더 뒤 명부는 ★전부 뿌리가 덮는다 — 그 자리는 ★위임만 남았다', () => {
+  const rm = runtimeMarkers();
+  const strip = makeStripper();
+  const code = read('js/io/export-image.js').split('\n').map((l) => strip(l)).join('\n');
+  const sig = 'export function renderComponentsInClone';
+  const i = code.indexOf(sig);
+  assert.ok(i >= 0, `★${sig} 를 못 찾았다 — 이 칸이 아무것도 안 잰다`);
+  let j = code.indexOf('{', i), d = 0, k = j;
+  for (; k < code.length; k++) { const c = code[k]; if (c === '{') d++; else if (c === '}') { d--; if (!d) break; } }
+  const toks = collectTokens(code.slice(j, k + 1));
+  assert.ok(toks.size > 0, '★그 함수의 명부가 0종이다 — 자가 엉뚱한 곳을 본다(아래 0건이 항등식이 된다)');
+  const hole = [...toks].filter((t) => !rm.isRuntimeMarker(t)).sort();
+  assert.deepEqual(hole, [],
+    `★PNG 재렌더 뒤 명부에 뿌리가 안 덮는 토큰이 ${hole.length}종: ${hole.join(' ')}\n`
+    + '  ⇒ 이 칸이 초록인 동안 그 자리는 ★`stripRuntimeMarkers` 위임으로 ★그대로 바꿀 수 있다'
+    + '(⛔단 ★«자리»는 재렌더 «뒤»에 남겨야 한다 — 그 파일 주석).');
 });
