@@ -1,19 +1,23 @@
-/* cmd-link-shortcut.dom.spec.js — ★② ⌘L = «섹션링크» 단축키. ★⌘＋🔗 버튼과 ★«같은 일»을 한다
+/* cmd-link-shortcut.dom.spec.js — ★② ⌘L = «섹션링크» 단축키 ＋ ★③ «단위마다 한 섹션» 일괄
  *
- * 현빈 2026-10-09 (1009t2-② · 지디 발주) — 원문:
+ * 현빈 2026-10-09 (1009t2 ②③ · 지디 발주) — 원문:
  *   ② 「스크래치패드 선택 후 커맨드+링크버튼=링크연결 섹션 나타나는데 → ★커맨드L 단축키로도 되게」
+ *   ③ 「스크래치패드 복수 선택 후 섹션링크 단축키(커맨드L) → ★각 스크래치패드
+ *      (★그룹설정된 스크래치그룹도 ★하나로 침)와 연결된 섹션 ★일괄 생성」
  *
- * ★★★이 파일이 ★재는 것 = ★«입구가 하나 늘었다» ★하나다. ⛔«수»는 ★안 바꾼다.
- *   ⇒ 섹션은 ★«하나»다(그룹이든 여러 장을 따로 골랐든) — ★2026-10-07 승인 ④⑤ ★그대로.
- *   ★재는 자리 = cmd-link-new-section.dom.spec.js 의 L3·L4·L5 와 ★같은 수. ⇒ K2·K5 가 그 둘을 ★나란히 놓는다.
+ * ★★★확정 규칙 (현빈 2026-10-09 · 지디가 받아 적었다) — ★한 줄이다:
+ *   ★★「선택 집합에서 ★★그룹 ★하나당 섹션 ★1 ＋ ★★비그룹 패드 ★하나당 섹션 ★1」
+ *     그룹 설정된 패드(= 한 그룹)  → 섹션 ★1개   (★K3·K3b)
+ *     일반 패드 N개 따로 선택      → 섹션 ★N개   (★K4·K8n)
+ *     ★★혼합: 그룹 1 ＋ 일반 2     → 섹션 ★3개   (★합산 · ★K9)
  *
- * ★★★⚠️보류 중인 요구가 ★하나 있다 — ★이 파일의 ★K4 가 ★그 자리다:
- *   현빈 2026-10-09 ③ 「★각 스크래치패드(★그룹설정된 스크래치그룹도 ★하나로 침)와 연결된 섹션 ★일괄 생성」
- *   ⇒ ★따로 고른 3장이면 섹션 ★3개가 된다 = ★2026-10-07 승인 ⑤(「섹션 하나」)를 ★뒤집는다.
- *   ⇒ ★★«현빈 결정 둘이 부딪친다» ⇒ ★지디가 현빈께 ★올렸고 ★답을 ★기다린다(2026-10-09).
- *   ★그래서 ③ 은 ★이 묶음에 ★없다. ★K4 는 ★★«오늘의 계약»(섹션 1개)을 ★물고 있다.
- *   ⇒ ★★답이 「③ 으로 간다」면 ★K4 와 L5 를 ★⚰️로 ★같이 갱신해라(⛔지우지 말고 ★이어 적어라).
- *     그때 쓸 ★검사·제품은 ★이미 서 있다 — 지디에게 ★보류분을 물어라(⌘L 쪽 N개 단언 ＋ 단위 쪼개기).
+ * ★★★⚰️«누가 무엇을 정했나» — ⛔여기를 틀리게 읽지 마라(한 번 틀리게 적었다):
+ *   ★2026-10-07 현빈 승인 ⑤의 ★원문(지디/notes/TODO-hyunbin-20261006.md:237)은
+ *     「(가)⌘＋🔗 → 연결된 빈 섹션 ★하나 (높이=기본 · ★★그룹이어도 하나)」 — ★★«그룹» 칸이다.
+ *   ⇒ ★★「★따로 고른 ★복수도 ★하나」는 ★그 줄에 ★★없다. ★그 칸은 ★구현할 때 ★지디가 ★넓힌 것이고
+ *     ★L5 의 제목이 「⑤」라 적어 ★그것을 ★덮었다.
+ *   ⇒ ★★★따라서 ③ 은 ★«현빈 승인 뒤집기»가 ★아니라 ★★«넓혀진 칸 되돌리기»다.
+ *   ★★그리고 ★⑤의 «그룹=하나» 칸은 ★★안 바뀐다 — ★K3·K3b·L4 가 ★그것을 ★계속 문다.
  *
  * ★무엇으로 재나 — 앱 통째로 헤드리스(bootApp). ⛔addSection 스텁 금지(cmd-link-new-section 머리말의 그 까닭:
  *   js/insert-history.js 의 «끝 표본» 래퍼를 안 지나면 ⌘Z 축이 ★조용히 초록이 된다).
@@ -180,20 +184,26 @@ test('K3 ② 그룹 — 멤버 ★한 장만 골라도 ⌘L 이 ★그룹 전원
   expect(rows[0].ids, `★그룹 ${GROUP_N}장 ★전부가 그 한 섹션에`).toEqual(['sp_f1', 'sp_f2', 'sp_f3', 'sp_f4', 'sp_f5']);
 });
 
-/* ★★⚠️K4 — ★이 수(섹션 ★1개)는 ★★«2026-10-07 승인 ⑤»의 계약이다. ★현빈 ③(2026-10-09)이
-   ★이것을 ★3개로 뒤집으려 하고 ★답을 ★기다리는 중이다(파일 머리말 ⚠️ 블록).
-   ⇒ ★답이 ③ 이면 ★여기와 L5 를 ★⚰️로 ★같이 갱신한다. ⛔그때까지는 ★이것이 ★참값이다. */
-test('K4 ② 복수 선택 3장 ＋ ⌘L — 섹션은 ★«1개»(⚠️2026-10-07 ⑤ 계약 · ③ 답 대기 중)·셋 전부가 그 하나에', async ({ page }) => {
+/* ★★⚰️K4 — ★이 수가 ★2026-10-09 ③ 으로 ★바뀐 자리다. ⛔옛 것을 ★지우지 않고 ★적어 둔다:
+     ⚰️옛 단언(2026-10-09 ② 묶음) : `expect(after.length - before.length).toBe(1)` · `rows.length` **1**
+                                    · `rows[0].ids` = ['sp_m1','sp_m2','sp_m3'] (★한 섹션에 셋)
+     ⚰️옛 수(실측 · 핀 a3556b93 ＋ ②커밋 46d35308) : 따로 고른 3장 → 섹션 ★＋1 · 링크 3 · 연결 가진 섹션 ★1
+     ★새 수(현빈 2026-10-09 ③)   : 섹션 ★＋3 · 각 섹션에 ★1개씩
+     ★★«누가 정했나» = 머리말 ⚰️ 블록 — ★이것은 ★«현빈 ⑤ 뒤집기»가 ★아니다. */
+test('K4 ③ 복수 선택 3장 ＋ ⌘L — 섹션이 ★«정확히 3개»·각자 제 짝 하나씩 (⚰️옛 단언 = ＋1·한 섹션)', async ({ page }) => {
   await setup(page);
   const before = await secIds(page);
   await selectMany(page, ['sp_m1', 'sp_m2', 'sp_m3']);
   await pressCmdL(page);
   const after = await secIds(page);
-  expect(after.length - before.length, '★섹션 ＋1 (⚠️③ 승인되면 ＋3 으로 ⚰️ 갱신)').toBe(1);
+  expect(after.length - before.length, '★★섹션 ＋★3 (⚰️옛 수 = ＋1)').toBe(3);
+  expect(after.slice(0, before.length), '기존 섹션은 그대로(새 것은 전부 맨 아래)').toEqual(before);
   const rows = await refRows(page);
-  expect(rows.length, '★연결 가진 섹션 1개').toBe(1);
-  expect(rows[0].id, '★맨 아래(마지막 섹션)').toBe(after[after.length - 1]);
-  expect(rows[0].ids, '★셋 전부가 그 하나에').toEqual(['sp_m1', 'sp_m2', 'sp_m3']);
+  expect(rows.length, '★연결 가진 섹션 ★3개 (⚰️옛 수 = 1)').toBe(3);
+  expect(rows.map(r => r.ids.length), '★각 섹션에 ★하나씩(⛔한 섹션에 셋 몰리지 않았다)').toEqual([1, 1, 1]);
+  expect(rows.map(r => r.ids[0]).sort(), '★셋이 ★각자 연결됐다').toEqual(['sp_m1', 'sp_m2', 'sp_m3']);
+  expect(rows.map(r => r.id).sort(), '★그 셋이 ★새로 생긴 섹션들이다')
+    .toEqual(after.filter(x => !before.includes(x)).sort());
 });
 
 /* ★★K3b — ★이 파일에서 ★`_cmdLinkTargets` 의 ★«그룹 번짐»을 ★★재는 ★유일한 자리다.
@@ -225,22 +235,24 @@ test('K5 ★②의 본 단언 — ⌘L 과 ⌘＋🔗 가 ★«같은 일»을 �
     await selectMany(page, ['sp_m1', 'sp_m2', 'sp_m3']); await clickLinkBtn(page, 'sp_m1', { meta: true });
   });
   expect(viaKey, `★두 입구가 ★같은 결과\n  키  =${JSON.stringify(viaKey)}\n  버튼=${JSON.stringify(viaBtn)}`).toEqual(viaBtn);
-  expect(viaKey.dSections, '★그 결과는 ＋1 이다(⛔둘 다 0 이 아니다)').toBe(1);
-  expect(viaKey.rows, '★한 섹션에 셋').toEqual([['sp_m1', 'sp_m2', 'sp_m3']]);
+  /* ⚰️옛 단언(② 묶음) : `.toBe(1)` · `rows` = [['sp_m1','sp_m2','sp_m3']] (★한 섹션에 셋) */
+  expect(viaKey.dSections, '★그 결과는 ★＋3 이다(⚰️옛 수 = ＋1 · ⛔둘 다 0 이 아니다)').toBe(3);
+  expect(viaKey.rows.map(r => r.length), '★세 섹션에 ★하나씩').toEqual([1, 1, 1]);
 });
 
 test('K6 ② ★⌘Z «한 걸음» — ⌘L 로 생긴 섹션과 연결이 ★한 번에 사라진다', async ({ page }) => {
   await setup(page);
   const before = await secIds(page);
   await selectMany(page, ['sp_m1', 'sp_m2', 'sp_m3']);
-  const r = await expectOneUndoStep(page, async () => { await pressCmdL(page); }, '⌘L — 빈 섹션 ＋ 연결');
-  expect(await secIds(page), '★⌘Z 한 번 뒤 섹션이 원래대로').toEqual(before);
+  /* ⚰️옛 수(② 묶음) : 섹션 ＋1 이 한 걸음 · ⌘⇧Z 로 `before.length + 1` · 연결 1 */
+  const r = await expectOneUndoStep(page, async () => { await pressCmdL(page); }, '⌘L 일괄 — 빈 섹션 3 ＋ 연결 3');
+  expect(await secIds(page), '★⌘Z ★한 번 뒤 섹션이 원래대로(★3개가 ★같이 사라졌다)').toEqual(before);
   expect(await refRows(page), '★연결도 같이 사라졌다').toEqual([]);
   console.log('[K6] dPos=' + r.dPos + ' undoDPos=' + r.undoDPos + ' undoDLen=' + r.undoDLen + ' top=' + r.topAction);
   await page.keyboard.press('Meta+Shift+z');
   await page.waitForTimeout(350);
-  expect((await secIds(page)).length, '★⌘⇧Z 한 번에 섹션이 돌아온다').toBe(before.length + 1);
-  expect((await refRows(page)).length, '★연결도 돌아온다').toBe(1);
+  expect((await secIds(page)).length, '★⌘⇧Z ★한 번에 ★3개가 돌아온다').toBe(before.length + 3);
+  expect((await refRows(page)).length, '★연결도 셋 다 돌아온다').toBe(3);
 });
 
 /* ★K7a~K7c 는 ★«지키는 시험»이다 — ★핀에서도 ★초록이라야 한다(⌘L 이 ★없던 판에서도 참).
@@ -319,38 +331,75 @@ test('K8 ② ★Ctrl+L 도 ★같이 먹는다 — ★윈도·리눅스 길(★�
   expect(await refRows(page), `★그 새 섹션에 연결됐다`).toEqual([{ id: after[after.length - 1], ids: ['sp_solo'] }]);
 });
 
-/* ══ 양성대조·변이 명부 — ★실측(이 레인 · 2026-10-09 · load 4~11) ════════════════════════
- * ⒜ ★핀 판(기준판 dev `a3556b936f8f` — 이 일 «전») — ★제품을 ★원복해 ★다시 쟀다(⛔HEAD 를 판으로 쓰지 않았다):
- *       python3 <적용기> revert   # sha 가 `git show a3556b93:js/scratchpad-link.js` 와 ★일치함을 확인
- *     ★빨강 **6** / 초록 2  —  빨강 = K1 K2 K3 K3b K4 K5 K6 중 그 판에 있던 것 · 초록 = **K0 · K7a~K7c**
- *     ★★×3 으로 쟀고 ★세 번 ★같은 집합이었다(rc=1 ×3). ⛔1회로는 안 선다(부하 아래 첫 빨강은 운일 수 있다).
- *     ⇒ ★K0(전제)·K7a~K7c(음성대조)는 ★«지키는 시험»이다 — ★핀에서도 초록이라야 증인이 된다.
- *     ⚠️K3b·K7d·K8 은 ★핀 ×3 ★뒤에 더했다 ⇒ ★그 셋의 「핀 빨강」은 ★위 수에 ★안 들어 있다.
- *       대신 ★각각을 ★변이로 ★잠갔다(아래 M5·M7·M8) — ★그것이 ★그 셋의 양성대조다.
- * ⒝ ★변이(이 판에서 한 자리씩 무력화) — 「무엇을 끄면 어느 검사가 빨강인가」· ★전부 ★실측:
- *       M1 ⌘L 분기 통째 제거        → K1 K2 K3 K3b K4 K5 K6   (**7**)
- *       M2 키를 `KeyK` 로           → K1 K2 K3 K3b K4 K5 K6   (**7** · 같은 집합)
- *       M3 입력란 가드 제거          → **K7c 만** (1)
- *       M4 「선택 0」 가드 제거       → **K7b 만** (1)
- *       M5 `_cmdLinkTargets` → 맨 `sel`(그룹 번짐 제거) → **K3b 만** (1)
- *       M7 `⇧·⌥` 정확일치 제거      → **K7d 만** (1)
- *       M8 `metaKey||ctrlKey` → `metaKey`(Ctrl 길 제거) → **K8 만** (1)
- *     ⇒ ★축마다 «재는 자»가 ★정확히 하나씩 있다.
- *     ★★M3·M4 는 ★처음엔 ★둘 다 「K7 빨강」으로만 나왔다(K7 이 ★한 덩어리였다) ⇒ ★★어느 가드가 깨졌는지
- *       ★구분이 안 됐다. ⇒ ★K7 을 ★K7a·K7b·K7c 로 ★쪼갠 뒤 ★다시 쟀고 ★각각 1칸이 됐다.
- *     ★★M5 는 ★처음 ★**0건**이었다 — ★K3 가 그것을 ★안 재고 있었다. 까닭(실측): ★그냥 클릭은
- *       ★선택 자체가 그룹 전원으로 번져(js/scratch-pad.js 「★비shift 클릭 시」) `_cmdLinkTargets(sel[0])` 와
- *       맨 `sel` 이 ★같은 답을 낸다 ⇒ ★★항등식이었다. ⇒ ★⇧클릭(번짐 안 켜짐)으로 ★K3b 를 세워 ★닫았다.
- *     ★★M7·M8 도 ★처음 ★**0건**이었다 — ★★제품 ★주석이 「윈도/리눅스에서도 먹는다」를 ★주장하는데
- *       ★그것을 ★재는 자가 ★없었다(★내 산문이 ★안 재는 것을 ★주장한 자리). ⇒ ★K7d·K8 로 ★닫았다.
+/* ★★★K9 — ★지디가 ★이 수를 ★직접 ★요구했다(2026-10-09): 「★그룹 1 ＋ 일반 2 ⇒ ★섹션 ★몇 · ★링크 ★몇」.
+   ★확정 규칙의 ★«합산» 칸이다 — ★그룹은 ★1, 일반은 ★각 1 ⇒ ★3개.
+   ★장면 만들기 = ★첫 장은 ★그냥 클릭(일반 m1) · ★나머지는 ⇧ ⇒ ★그룹으로 ★안 번진다(선택 ★3장).
+     ⛔순서를 ★바꿔 그룹 멤버를 ★먼저 ★그냥 클릭하면 ★선택이 ★5장으로 ★번져 ★다른 장면이 된다. */
+test('K9 ③ ★★혼합 — 일반 2 ＋ 그룹 1장(⇧) = ★단위 3 ⇒ 섹션 ★«3개» · 링크 ★1·1·5', async ({ page }) => {
+  await setup(page);
+  const before = await secIds(page);
+  await selectMany(page, ['sp_m1', 'sp_m2', 'sp_f1'], 3);
+  const after0 = await secIds(page);
+  expect(after0, '전제 — 아직 섹션 안 생겼다').toEqual(before);
+  await pressCmdL(page);
+  const after = await secIds(page);
+  expect(after.length - before.length, '★★섹션 ★＋3 (⛔7개가 아니다 — 그룹은 ★하나로 친다)').toBe(3);
+  const rows = await refRows(page);
+  expect(rows.length, '★연결 가진 섹션 ★3개').toBe(3);
+  expect(rows.map(r => r.ids.length).sort((a, b) => a - b),
+    `★링크 수 = 1·1·${GROUP_N} (★그룹 단위가 ★전원을 끌어왔다)`).toEqual([1, 1, GROUP_N]);
+  const all = rows.flatMap(r => r.ids).sort();
+  expect(all.length, `★총 링크 = 2 ＋ ${GROUP_N}`).toBe(2 + GROUP_N);
+  expect(all.includes('sp_m1') && all.includes('sp_m2'), '★일반 둘 다 연결됐다').toBe(true);
+  expect(all.filter(x => x.startsWith('sp_f')).length, `★그룹 ${GROUP_N}장 전원`).toBe(GROUP_N);
+  /* ★잰 값을 ★찍는다 — ⛔「통과」만으로는 ★수가 보고에 안 남는다(지디가 ★이 수를 ★요구했다). */
+  console.log('[K9 혼합] 선택=3(일반2＋그룹멤버1) → 섹션 ＋' + (after.length - before.length)
+    + ' · 링크 총 ' + all.length + ' · 섹션별 ' + JSON.stringify(rows.map(r => r.ids.length))
+    + ' · 링크 명부 ' + JSON.stringify(all));
+});
+
+test('K8n ③ ★수는 «단위 수»를 따른다 — 일반 1·2·3 단위에서 섹션 수가 ★그 수다', async ({ page }) => {
+  for (const [sel, units] of [[['sp_m1'], 1], [['sp_m1', 'sp_m2'], 2], [['sp_m1', 'sp_m2', 'sp_m3'], 3]]) {
+    await setup(page);
+    const before = await secIds(page);
+    await selectMany(page, sel);
+    await pressCmdL(page);
+    const d = (await secIds(page)).length - before.length;
+    expect(d, `★단위 ${units} ⇒ 섹션 ${units}개 (잰 값 ${d})`).toBe(units);
+    expect((await refRows(page)).length, `★연결 가진 섹션도 ${units}개`).toBe(units);
+  }
+});
+
+/* ══ 양성대조·변이 명부 — ★실측(이 레인 · 2026-10-09 · load 5~9 · ⛔전부 ★행위로) ═══════════
+ * ⒜ ★판을 ★둘 두고 ★각각 쟀다 — ⛔HEAD 를 판으로 쓰지 않았다(고친 뒤엔 HEAD 가 곧 고친 판이다):
+ *     ㉠ ★핀 `a3556b936f8f` (②③ ★둘 다 없다) : ★빨강 **11** / 초록 13
+ *        빨강 = K1 K2 K3 K3b K4 K5 K6 K8 K8n K9 ＋ L5
+ *        초록 = **K0 · K7a~K7d** ＋ L0~L4 L6~L8   ⇒ ★그 다섯이 «지키는 시험»이다
+ *     ㉡ ★②커밋 `46d35308` (★③ ★만 없다) : ★빨강 **6** / 초록 18 · ★★×3 ★같은 집합 · rc=1 ×3
+ *        빨강 = **K4 K5 K6 K8n K9** ＋ L5   ⇒ ★★이것이 ③ 을 ★«따로» 재는 자다(②와 ★안 섞인다)
+ *     ⇒ ③ 적용 뒤 : **24 passed · rc=0 ×3** (★이 티켓 ★첫 rc=0)
+ *     ★원복도 쟀다 — 핀 판으로 갈아끼운 뒤 sha 가 `git show a3556b93:` 와 ★일치함을 확인하고 돌렸다.
+ * ⒝ ★변이 — 「무엇을 끄면 어느 검사가 빨강인가」· ★★0건 ★없다:
+ *       N1 그룹 접기 무력화(`key` 를 `'#'+id` 로) → K3 K3b L4 L6        (4)
+ *       N2 ★«버튼만» 옛 꼴로(`linkToNewSection`)  → **K5 L5**            (2)
+ *       N3 ★«⌘L 만» 옛 꼴로                      → K4 K5 K6 K8n K9      (5)
+ *       N4 히스토리 노옵 제거                      → K6 L6                (2)
+ *       N5 끝 표본 제거                           → K6 L6                (2)
+ *       N6 한 단위에서 ★첫 장만 연결               → K3 K3b K9 L4         (4)
+ *       N7 ★중복 접기(`seen`) 제거                 → K3 K3b L4 L6         (4)
+ *     ★★N2 가 ★이 설계의 ★증인이다 — ★«버튼만» 되돌리면 ★K5(두 입구 대조)와 ★L5 가 ★같이 빨개진다
+ *       ⇒ ★★「입구 둘이 ★조용히 갈린다」를 ★실제로 ★잡는다. ★«정본 하나»가 ★말이 아니라 ★재어졌다.
+ *     ★★N7 은 ★내 ★예상이 ★틀린 자리다 — 「중복 입력이 없으니 0건」이라 ★생각했는데 ★4칸이 물었다.
+ *       까닭: `seen` 이 ★없으면 ★그룹 5장이 ★5단위가 된다(멤버마다 한 번씩 돈다) ⇒ ★★그 한 줄이
+ *       「★그룹 = 하나」를 ★떠받치는 자였다. ⛔예상으로 0건을 적지 말고 ★돌려 보라는 ★실례.
  * ⒞ ⛔양성대조 ★0건인 자리(=이 파일이 «안 재는» 것) — ★이름으로 남긴다:
- *     · ★**M6 `e.preventDefault(); e.stopPropagation();` 제거 → 0건.** 까닭: 이 레포에서 ⌘L 을 처리하는
- *       자가 ★달리 없고(2026-10-09 실측 0건), 헤드리스엔 ★주소창이 없어 ★막을 ★기본동작이 없다.
- *       ⇒ ★★«지금은» 안 새지만 ★나중에 ⌘L 을 쓰는 자가 생기면 ★이 칸이 ★조용히 무너진다. ★그때 재라.
- *     · ★**진짜 윈도/리눅스 실기** — 0건. K8 은 ★맥 헤드리스에서 ★Ctrl 수식어를 ★보낸 것이다.
- *     · ★**배포(packaged) Electron 앱** — 0건. ⌘L 이 ★OS·앱 메뉴에 ★먹히나는 ★소스로만 쟀다
- *       (가속기 2개 `CmdOrCtrl+Shift+O`·`CmdOrCtrl+Shift+E` · ⌘L ★0건). ★행위로는 ★안 쟀다.
- *     · ★**섹션이 0개인 캔버스**에서의 ⌘L — 0건(미측정 · cmd-link-new-section ⒞ 와 같은 구멍).
- *     · ★**이미 다른 섹션에 연결된 스크래치**를 ⌘L 로 다시 거는 갈래 — 0건(미측정).
- *     · ★**③(단위마다 한 섹션)** — ★이 파일은 ★안 잰다. ★보류 중이다(머리말 ⚠️ 블록).
+ *     · ★**M6 `e.preventDefault(); e.stopPropagation();` 제거 → 0건**(②에서 쟀다). 까닭: 이 레포에서
+ *       ⌘L 을 처리하는 자가 ★달리 없고(실측 0건), 헤드리스엔 ★주소창이 없어 ★막을 기본동작이 없다.
+ *       ⇒ ★나중에 ⌘L 을 쓰는 자가 생기면 ★이 칸이 ★조용히 무너진다. ★그때 재라.
+ *     · ★**새 섹션의 «순서»** — 0건. `_mkLinkedSection` 이 tail 을 ★매번 다시 읽어 ★받은 순서로 쌓이는데,
+ *       K4·K9 는 ★정렬해서 견주므로 ★순서를 ★안 잠근다. ⇒ ★순서가 요구가 되면 ★그때 자를 세워라.
+ *     · ★**진짜 윈도/리눅스 실기** 0건(K8 은 맥 헤드리스에서 Ctrl 수식어) · ★**배포 Electron** 0건.
+ *     · ★**섹션 0개 캔버스**에서의 ⌘L · ★**이미 다른 섹션에 연결된 스크래치**를 다시 거는 갈래 — 0건.
+ *     · ★**그룹 ★둘 이상**을 한 번에 고른 경우(그룹A＋그룹B ⇒ 2단위) — ★0건(미측정). ★규칙상 2개일 참인데
+ *       ★장면에 그룹이 ★하나뿐이라 ★안 쟀다. ⇒ ★★「합산」의 ★그 칸은 ★«일반＋그룹»만 쟀다(K9).
  */
