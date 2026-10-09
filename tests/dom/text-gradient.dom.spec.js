@@ -958,12 +958,27 @@ test('G31-pre ★음성대조 — «인라인만» 고르던 옛 꼴은 이 배�
   const j = src.indexOf('  // 0919r3 textshadow:', i);
   expect(j).toBeGreaterThan(i);
   const inlineOnly = src.slice(0, i) + src.slice(j);
+  /* ★상대 import «전부»를 절대경로로 — 인라인 모듈은 기준 URL 이 하네스 페이지라 상대 경로가 안 풀린다.
+     ★★꼴마다 ★가리키는 디렉터리가 ★다르다 — ⛔한 정규식으로 묶지 마라. 이 파일은 `js/io/` 에 있다:
+       `from '../x'` → `/js/x`      (한 칸 위 = js/)
+       `from './x'`  → `/js/io/x`   (제 자리 = js/io/)
+     ★★이 사고는 ★두 번 났다 — ⛔줄 단위로 적지 않는다:
+       ㉠ 2026-09-30 : 옛 판은 gradient-model 한 줄만 바꿨는데 capture-safety 가 import 를
+          하나 더 들이자(`../image-memo.js`) 모듈이 ★조용히 못 실려 ★30초 대기로 죽었다.
+       ㉡ ★★2026-10-09 : ★그 처방이 ★★반쪽이었다 — 치환식이 ★`../` ★만 덮었다. capture-safety 가
+          ★★«제 자리» import 를 들이자(`./h2c-prep.js`) ★★또 ★같은 30초 죽음이 났다(머지 게이트가 잡았다).
+     ⇒ ★그래서 ★꼴을 늘리는 대신 ★★아래에서 ★«상대 경로가 ★남았나»를 ★단언한다 —
+       ★다음에 ★새 꼴(`../../`·`#alias`)이 와도 ★★조용히 죽지 않고 ★그 자리에서 ★이름을 대고 터진다. */
+  const rebased = inlineOnly
+    .replace(/from '\.\.\//g, "from '/js/")
+    .replace(/from '\.\//g,   "from '/js/io/");
+  /* ★★심기 «전»에 — ⛔남으면 `__inlineReady` 가 안 되고 waitForFunction 이 30초 뒤 죽는다(원인을 안 말해 준다). */
+  const specs = [...rebased.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
+  const relLeft = specs.filter((x) => x.startsWith('.') || x.includes('/../'));
+  expect(relLeft, '⛔상대 import 가 남았다 — 치환식이 ★새 꼴을 못 덮는다: ' + JSON.stringify(relLeft)).toEqual([]);
   await page.addScriptTag({
     type: 'module',
-    /* ★상대 import «전부»를 절대경로로 — 인라인 모듈은 기준 URL 이 하네스 페이지라 '../' 가 안 풀린다.
-       옛 판은 gradient-model 한 줄만 바꿨는데, capture-safety 가 import 를 하나 더 들이자
-       (2026-09-30 image-memo.js) 모듈이 조용히 못 실려 30초 대기로 죽었다. 줄 단위로 적지 않는다. */
-    content: inlineOnly.replace(/from '\.\.\//g, "from '/js/")
+    content: rebased
            + '\nwindow.__h2cInlineOnly = neutralizeTextGradForH2C;\nwindow.__inlineReady = true;\n',
   });
   await page.waitForFunction(() => window.__inlineReady === true);
