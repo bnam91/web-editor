@@ -17,8 +17,13 @@
         전체 css/*.css 에는 hex 1,110건 · px 3,723건이 있다(2026-10-10 실측).
    ⒝ 커스텀 프로퍼티 «정의» 줄(`--x: #d8d8d8;`) — 토큰 값은 리터럴로 쓸 수밖에 없다.
       ⇒ 범위 안 hex 23건 중 13건이 이 꼴이라, 안 거르면 이 자는 즉시 소음이 된다.
-   ⒞ `var(--x, #fff)` 의 «대체값» — 이미 토큰을 먼저 쓰는 꼴이라 건드리지 않는다.
-      (var( … ) 괄호 안은 통째로 면제한다.)
+   ⒞ `var(--x, #fff)` 의 «대체값» — ★`--x` 가 ★정의돼 있을 때만 면제한다(⒊-① 2026-10-10).
+      ★정의된 이름이면 ★렌더에서 토큰이 이기므로 그 리터럴은 ★안 그려진다 ⇒ 우회로가 아니다.
+      ★`--x` 가 ★어디에도 없으면(css ∪ js/html) ★대체값을 ★잰다 — 그 꼴은 ★렌더가
+      ★순수 하드코딩과 ★한 픽셀도 다르지 않고 ★토큰 사용이 ★0 이다.
+      ★실측 341건을 출처로 가르면 ⑴css정의 284 · ⑵js런타임 48 · ⑶어디에도없음 ★8.
+      ⛔「모든 대체값을 재라」로 하면 ★441→594(＋153) 이고 ★그 중 144가 ★거짓양성이다.
+      ⛔명부를 못 만들면 ★전부 면제로 돌아가고(★소음보다 침묵) ★그 사실을 출력에 찍는다.
    ⒟ `url( … )` 안 — data:image/svg+xml 의 `%23666` 같은 자리.
    ⒠ 주석 안 — 파일 전체를 CSS 문법으로 훑어 주석·문자열을 먼저 «빈칸»으로 만든다.
       (범위 안 hex 42건 중 19건이 주석이었다. 줄 단위로 벗기면 여러 줄 주석을 놓친다.)
@@ -34,8 +39,12 @@
       산 트리의 건수(기본 4 · --all 445)도 ★하나도 안 움직였다(2026-10-10 실측).
       ⇒ 지금은 ★«재는 자가 없는» 가드다. 고치려면 그 가드를 ★무력화했을 때 빨개지는
         표본을 ★먼저 만들어라. ⛔「있으니 돈다」로 믿지 마라.
-      ★★같은 꼴이 ★하나 더 있다(2026-10-10) — `refSource` 의 「0바이트면 터뜨린다」 가드.
-        끄고 돌려도(n3) ★검사 28칸이 ★전부 초록이었다. ⇒ ★역시 ★재는 자가 없다.
+      ★★같은 꼴이 ★둘 더 있다(2026-10-10):
+        · `refSource` 의 「0바이트면 터뜨린다」 가드 — 끄고 돌려도(n3) ★전부 초록
+        · `collectKnownVarNames` 의 ★«따옴표 안 `'--x'`» 긁기 — 끄고 돌려도(c3)
+          ★검사 41칸 초록 ＋ `--all` ★449 그대로. (★그 꼴이 잡던 `--grb-dot-hole` 을
+          ★다른 꼴(`--x:`)이 ★같이 잡아서다 — ★겹쳐 있다는 것은 ★확인했다)
+      ⇒ ★둘 다 ★재는 자가 ★없다. ⛔「있으니 돈다」로 믿지 마라.
 
    ══ 범위 — 왜 「바뀐 줄」만 보나 ═══════════════════════════════════════════
    전체를 보면 hex 1,110 + px 3,723 = 4,833건이 쏟아진다. 그 수로는 아무도 안 쓴다
@@ -360,8 +369,8 @@ export function scanDeclarations(blanked) {
 
 /* ── 값에서 «면제 구간»을 빈칸으로 ─────────────────────────────────────────
  * url( … ) 과 var( … ) — ⒞⒟. 괄호 짝을 세며 걷는다. */
-export function blankExemptSpans(value) {
-  const out = Array.from(value);
+export function blankExemptSpans(value, known) {
+  const out = value.split('');          // ★UTF-16 단위 — blankCssNoise 와 같은 까닭
   const re = /\b(url|var)\s*\(/gi;
   let m;
   while ((m = re.exec(value))) {
@@ -371,7 +380,25 @@ export function blankExemptSpans(value) {
       else if (value[i] === ')') d--;
       i++;
     }
-    for (let k = m.index; k < i; k++) if (out[k] !== '\n') out[k] = ' ';
+    let stop = i;
+    if (known && m[1].toLowerCase() === 'var') {
+      const nm = /^\s*(--[A-Za-z0-9_-]+)/.exec(value.slice(m.index + m[0].length));
+      /* ★이름이 ★어디에도 없으면 ★대체값을 ★드러낸다 — `var(` ＋ 이름 ＋ `,` 까지만 면제.
+       * ⛔`known` 이 없으면(=명부를 못 만들었으면) ★옛 꼴로 ★전부 면제한다 —
+       *   ★소음보다 ★침묵이 낫다. 단 ★그 사실을 ★출력에 찍는다(main). */
+      if (nm && !known.has(nm[1])) {
+        let k = m.index + m[0].length, dd = 1;
+        while (k < i) {
+          const ch = value[k];
+          if (ch === '(') dd++;
+          else if (ch === ')') { dd--; if (dd === 0) break; }
+          else if (ch === ',' && dd === 1) break;
+          k++;
+        }
+        stop = k;
+      }
+    }
+    for (let k = m.index; k < stop; k++) if (out[k] !== '\n') out[k] = ' ';
     re.lastIndex = i;
   }
   return out.join('');
@@ -468,6 +495,42 @@ export function resolveTokens(defs) {
   return resolved;
 }
 
+/* ── ⒊-① ★«이름 명부» — `var(--x, 리터럴)` 의 대체값을 ★언제 재나 ──────────
+ * ★적대적 QA(advqa)가 열었다: `var(--totally-not-a-token, #2a2a2a)` 는 ★렌더가
+ *   ★순수 하드코딩과 ★한 픽셀도 다르지 않은데 ★토큰 사용은 ★0 이다 ⇒ ★우회로다.
+ * ⛔그런데 ★«모든 대체값을 재라»는 ★처방은 ★거짓양성을 쏟는다 — ★실측 2026-10-10:
+ *   리터럴 대체값을 가진 `var(--x, lit)` ★341건을 ★출처로 가르니
+ *     ⑴ `--x` 가 ★CSS 에 정의됨        ★284건 ⇒ ★렌더에서 ★토큰이 이긴다. ⛔우회로 아니다
+ *     ⑵ `--x` 를 ★js 가 ★런타임에 박음  ★48건 ⇒ ★사용자 설정값의 ★기본값. ⛔못 바꾼다
+ *     ⑶ `--x` 가 ★어디에도 ★없음        ★★8건 ⇒ ★★진짜 우회로
+ *   ★전면 좁히면 `--all` 441 → 594(＋153) 이고 ★그 중 ★144 가 ★거짓양성이었다.
+ *   ⇒ ★자가 ★거짓양성을 쏟으면 ★사람이 ★그 자를 ★끈다. ★그래서 ⑶ 만 잰다.
+ * ★★그 8건의 정체 = `css/report-modal.css` 의 `var(--ui-fs-11, 11px)` — ★`--ui-fs-11` 은
+ *   ★없는 이름이고 ★참 이름은 `--ui-fs-base`(11px). ⇒ ★이 자는 ★«오타 탐지기»가 된다.
+ * ⛔이 명부를 만드는 자의 ★«못 보는 꼴» — ★출력에 ★찍는다:
+ *   js 쪽은 `setProperty('--x'` 와 ★소스 안의 `--x:` 글자만 본다. ★배열·변수 경유로
+ *   조립되는 이름은 ★안 센다 — ★실제로 한 번 틀렸다(`--grb-dot-hole` 이
+ *   `js/canvas-contrast.js:272` 의 ★배열 리터럴에 있어 ★9건으로 과대 계산했다 ⇒ 참값 8).
+ *   ⇒ ★그래서 ⑶ 은 ★손으로 하나씩 확인한 뒤 ★8 로 확정했다. */
+export function collectKnownVarNames(cssFiles, readCss, codeFiles, readCode) {
+  const known = new Set();
+  for (const f of cssFiles) {
+    for (const m of blankCssNoise(readCss(f)).matchAll(/(--[A-Za-z0-9_-]+)\s*:/g)) known.add(m[1]);
+  }
+  let codeHits = 0;
+  for (const f of codeFiles) {
+    const src = readCode(f);
+    if (src == null) continue;
+    /* ⛔두 꼴만 본다 — 위 「못 보는 꼴」 */
+    for (const m of src.matchAll(/setProperty\(\s*['"`](--[A-Za-z0-9_-]+)/g)) { known.add(m[1]); codeHits++; }
+    for (const m of src.matchAll(/(--[A-Za-z0-9_-]+)\s*:/g)) { known.add(m[1]); codeHits++; }
+    /* ★배열·목록 리터럴 안의 이름도 ★긁는다 — `['--a','--b']` 꼴.
+     * ★실측으로 ★놓쳤던 자리다(--grb-dot-hole). ⛔그래도 ★변수 경유 조립은 ★못 본다. */
+    for (const m of src.matchAll(/['"`](--[A-Za-z0-9_-]+)['"`]/g)) { known.add(m[1]); codeHits++; }
+  }
+  return { known, codeHits, codeFiles: codeFiles.length };
+}
+
 /* ── 제안 대상 패밀리 (머리말 「무엇을 쓰라고 하나」와 ★한 자리) ──────────── */
 const SUGGESTABLE = [/^--ui-/, /^--color-/, /^--bg-/, /^--border-/, /^--text-/];
 export function isSuggestable(name) { return SUGGESTABLE.some((re) => re.test(name)); }
@@ -528,6 +591,24 @@ export function buildMaps(resolved) {
 
 function normPx(numText) { return String(parseFloat(numText)) + 'px'; }
 
+/** 그 리터럴이 ★«정의 없는 var()» 의 대체값인가 — 맞으면 그 이름을 돌려준다. */
+export function unknownVarAt(value, idx, known) {
+  if (!known) return null;
+  const re = /\bvar\s*\(\s*(--[A-Za-z0-9_-]+)/gi;
+  let m, found = null;
+  while ((m = re.exec(value))) {
+    let i = m.index + m[0].length, d = 1;
+    while (i < value.length && d > 0) {
+      if (value[i] === '(') d++;
+      else if (value[i] === ')') d--;
+      i++;
+    }
+    if (idx > m.index && idx < i && !known.has(m[1])) found = m[1];   // ★가장 ★안쪽이 이긴다
+    re.lastIndex = m.index + m[0].length;
+  }
+  return found;
+}
+
 /* ── 한 파일 훑기 ──────────────────────────────────────────────────────────── */
 const HEX_RE = /#[0-9a-fA-F]{3,8}\b/g;
 const PX_RE = /(?<![\w.#-])(\d*\.?\d+)px\b/g;
@@ -544,27 +625,27 @@ export function lintCss(src, scopeLines, maps) {
   const findings = [];
   for (const d of scanDeclarations(blanked)) {
     if (d.isCustomProp) continue;                       // ⒝
-    const val = blankExemptSpans(d.value);              // ⒞⒟
+    const val = blankExemptSpans(d.value, maps.knownVars);   // ⒞⒟ ＋ ⒊-①
     let m;
     HEX_RE.lastIndex = 0;
     while ((m = HEX_RE.exec(val))) {
       const key = normHex(m[0]);
       const names = maps.color.get(key);
       if (!names || !names.length) continue;            // ⒢ 토큰 없음 — 조용히
-      push(d, m.index, m[0], names, 'hex');
+      push(d, m.index, m[0], names, 'hex', unknownVarAt(d.value, m.index, maps.knownVars));
     }
     PX_RE.lastIndex = 0;
     while ((m = PX_RE.exec(val))) {
       const names = maps.length.get(`${d.prop}|${normPx(m[1])}`);
       if (!names || !names.length) continue;            // ⒢⒣
-      push(d, m.index, m[0], names, 'px');
+      push(d, m.index, m[0], names, 'px', unknownVarAt(d.value, m.index, maps.knownVars));
     }
   }
-  function push(d, rel, literal, names, kind) {
+  function push(d, rel, literal, names, kind, unknownVar) {
     const off = d.valueStart + rel;
     const { line, col } = at(off);
     if (scopeLines && !scopeLines.has(line)) return;    // ⒜ ★이 자의 핵심 단언
-    findings.push({ line, col, prop: d.prop, literal, tokens: rankTokens(names), kind });
+    findings.push({ line, col, prop: d.prop, literal, tokens: rankTokens(names), kind, unknownVar });
   }
   return findings.sort((a, b) => a.line - b.line || a.col - b.col);
 }
@@ -740,6 +821,26 @@ function refSource(rev) {
   };
 }
 
+/** js·html 파일 목록 — ⒊-① 이름 명부용. 작업트리 또는 ref. */
+function codeFiles(rev) {
+  if (rev) {
+    const r = git(['ls-tree', '-r', '--name-only', rev]);
+    if (r.status !== 0) harness(`ref '${rev}' 의 파일 목록을 못 읽는다`);
+    return r.stdout.split('\n').filter((f) => /\.(js|mjs|html)$/.test(f) && !f.startsWith('node_modules/'));
+  }
+  const out = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const rel = path.relative(ROOT, path.join(d, e.name));
+      if (e.isDirectory()) { if (!/^(node_modules|\.git|dist|out)$/.test(e.name)) walk(path.join(d, e.name)); }
+      else if (/\.(js|mjs|html)$/.test(e.name)) out.push(rel);
+    }
+  };
+  for (const d of ['js', 'pages']) { const p2 = path.join(ROOT, d); if (fs.existsSync(p2)) walk(p2); }
+  for (const f of ['index.html']) if (fs.existsSync(path.join(ROOT, f))) out.push(f);
+  return out;
+}
+
 function treeSource() {
   const dir = path.join(ROOT, CSS_DIR);
   if (!fs.existsSync(dir)) harness(`${CSS_DIR}/ 가 없다`);
@@ -826,7 +927,11 @@ export function selfCheck(maps, resolved) {
     /* 5 */ '.e { background: #ff00ff; font-size: 37px; }',
     /* 6 */ '.f { background: ' + bgInput + '; }',
     /* 7 */ '--z: ' + bgInput + ';',
-    /* 8 */ '.g { color: var(--nope, ' + bgInput + '); }',
+    /* 8 */ '.g { color: var(--ui-bg-input, ' + bgInput + '); }',
+    /* ★★8행이 원래 `var(--nope, …)` 였다 — ★없는 이름이다. ⒊-① 고침 뒤 ★잡히는 것이 ★맞고,
+     *   그러자 ⑸ 칸이 ★빨개졌다 ⇒ ★그 칸이 ★«우회로»를 ★「있어야 한다」로 ★잠그고 있었다
+     *   (「막아둔 까닭이 먼저 죽고 문만 남는다」). ⇒ ★정의된 이름으로 바꿨다 —
+     *   ⑸ 는 이제 ★«정의된 이름의 대체값은 면제»를 재고, ★없는 이름 축은 ★⑿⒀ 가 잰다. */
     /* 9 */ '.h { background: url("data:image/svg+xml,%3Csvg fill=\'' + bgInput + '\'/%3E"); }',
     /* 10*/ '/* 주석 안: background: ' + bgInput + ' 와 border-radius: ' + radiusSm + ' */',
     /* 11*/ '#canvas .i { padding: 0; }',
@@ -870,7 +975,7 @@ export function selfCheck(maps, resolved) {
   results.push({ name: '⑷ 토큰없음 — #ff00ff·37px(5행)은 조용히 지나가나', ok: !keys.some((k) => k.startsWith('5:')),
     note: `5행 적발 ${keys.filter((k) => k.startsWith('5:')).length}건` });
 
-  results.push({ name: '⑸ 면제 — 토큰 정의(:root --z)·var() 대체값(8행)·url()(9행)을 안 잡는가',
+  results.push({ name: '⑸ 면제 — 토큰 정의(:root --z)·★정의된 이름의 var() 대체값(8행)·url()(9행)을 안 잡는가',
     ok: !keys.some((k) => /^(7|8|9):/.test(k)) && !all.some((k) => /^(7|8|9):/.test(k)),
     note: `해당 줄 적발 ${all.filter((k) => /^(7|8|9):/.test(k)).length}건(거르개 off 기준)` });
 
@@ -920,12 +1025,44 @@ export function selfCheck(maps, resolved) {
     note: `갈리는 이름 [${[...conf].join(',')}] · resolved 에 --x-dup ${cres.has('--x-dup') ? '⛔있다' : '없다'}`
         + ` · 갈리지 않는 --ui-bg-card 는 ★남는다(${cres.get('--ui-bg-card')})` });
 
+  /* ⑿⒀ ★⒊-① 축 — var() 대체값. ★한 쌍으로: ★정의된 이름은 ★안 잡고, ★없는 이름은 ★잡는다.
+   *   ⛔한쪽만 두면 ★죽은 자가 된다(「없는 이름을 잡는다」만 재면 ★전부 잡아도 초록). */
+  const KNOWN = new Set(['--ui-bg-input', '--ui-radius-sm']);
+  const vmaps = { color: maps.color, length: maps.length, knownVars: KNOWN };
+  const vsrc = [
+    `.a{background:var(--ui-bg-input, ${bgInput})}`,            // 1 ★정의됨 ⇒ 안 잡는다
+    `.b{background:var(--nope-not-defined, ${bgInput})}`,       // 2 ★없음 ⇒ 잡는다
+    `.c{border-radius:var(--ui-radius-sm, ${radiusSm})}`,       // 3 ★정의됨 ⇒ 안 잡는다
+    `.d{border-radius:var(--nope2, ${radiusSm})}`,              // 4 ★없음 ⇒ 잡는다
+  ].join('\n');
+  const vgot = lintCss(vsrc, null, vmaps);
+  const vlines = vgot.map((f) => f.line);
+  results.push({ name: '⑿ var() — ★정의된 이름의 대체값은 ★안 잡는다 (⛔284건을 거짓양성으로 켜지 않는다)',
+    ok: !vlines.includes(1) && !vlines.includes(3),
+    note: `1·3행 적발 ${vlines.filter((l) => l === 1 || l === 3).length}건 — 렌더에서 ★토큰이 이기므로 우회로가 아니다` });
+  results.push({ name: '⒀ var() — ★정의 없는 이름의 대체값은 ★잡고, 문구가 ★«없는 토큰 이름»이라 말한다',
+    ok: vlines.includes(2) && vlines.includes(4)
+        && vgot.filter((f) => f.line === 2 || f.line === 4).every((f) => f.unknownVar)
+        && /없는 토큰 이름/.test(renderFinding('s.css', vgot.find((f) => f.line === 2))),
+    note: `2·4행 적발 ${vlines.filter((l) => l === 2 || l === 4).length}건 · `
+        + (vgot.find((f) => f.line === 2) ? renderFinding('s.css', vgot.find((f) => f.line === 2)).slice(0, 110) : '(없다)') });
+  results.push({ name: '⒀b var() — ★명부가 없으면(knownVars null) ★옛 꼴로 ★전부 면제한다 (★소음보다 침묵)',
+    ok: lintCss(vsrc, null, { color: maps.color, length: maps.length, knownVars: null }).length === 0,
+    note: `명부 null 에서 적발 ${lintCss(vsrc, null, { color: maps.color, length: maps.length, knownVars: null }).length}건 (0이어야 한다)` });
+
   return results;
 }
 
 /* ── 출력 ──────────────────────────────────────────────────────────────────── */
 export function renderFinding(file, f) {
   const use = f.tokens.map((t) => `var(${t})`).join(' 또는 ');
+  if (f.unknownVar) {
+    /* ⒊-① ★이 꼴은 ★「하드코딩」이 아니라 ★«없는 토큰 이름»이다 — ★문구가 달라야
+     *   고치는 쪽이 ★맞게 고친다(실측 8건이 전부 ★`--ui-fs-11` 오타였다). */
+    return `${file}:${f.line}:${f.col}  ★없는 토큰 이름 \`var(${f.unknownVar}, ${f.literal})\``
+      + ` — 그 이름은 ★어디에도 정의돼 있지 않다(css ∪ js/html) ⇒ ★대체값 ${f.literal} 로 그려진다.`
+      + `  ⇒ ★${use} 를 쓰라`;
+  }
   const what = f.kind === 'hex' ? '하드코딩 색' : '하드코딩 길이';
   return `${file}:${f.line}:${f.col}  ${what} \`${f.prop}: ${f.literal}\`  ⇒ ★${use} 를 쓰라`;
 }
@@ -975,6 +1112,12 @@ function main() {
   const resolved = resolveTokens(defs);
   const maps = buildMaps(resolved);
   if (maps.color.size === 0) harness('«값→토큰» 색 표가 비었다 — 자가 장님이다');
+
+  /* ── ⒊-① ★이름 명부 — 없으면 ★옛 꼴(전부 면제)로 돌고 ★그 사실을 출력에 찍는다 ── */
+  const cf = codeFiles(opt.rev);
+  const census = collectKnownVarNames(files, src.read, cf,
+    (f) => { try { return opt.rev ? git(['show', `${opt.rev}:${f}`]).stdout : fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch { return null; } });
+  maps.knownVars = census.known.size ? census.known : null;
 
   if (opt.census) {
     process.stdout.write(`토큰 정의 — :root ${defs.length}건 (${src.label} · 파일 ${files.length}개) · :root 아닌 자리 ${nonRootCount}건(안 쓴다)`
@@ -1035,6 +1178,13 @@ function main() {
   process.stdout.write(`토큰 명부 :root ${defs.length}건 → 제안 표 색 ${maps.color.size}값 · 길이 ${maps.length.size}짝`
     + (scopedRootCount ? ` · ⚠️@media 안 :root ${scopedRootCount}건은 ★안 쓴다(문맥 모름)` : '')
     + (dropped.size ? ` · ⚠️값이 갈려 ★뺀 토큰 ${dropped.size}종 [${[...dropped].join(',')}]` : '') + '\n');
+  if (maps.knownVars) {
+    process.stdout.write(`var() 이름 명부 ${maps.knownVars.size}종 (css ${files.length}파일 ＋ 코드 ${census.codeFiles}파일)`
+      + ` — ★정의 없는 이름의 ★대체값만 잰다.`
+      + ` ⛔코드쪽은 \`setProperty('--x'\` · \`--x:\` · 따옴표 안 \`'--x'\` 세 꼴만 본다 — ★변수 경유 조립은 ★안 센다\n`);
+  } else {
+    process.stdout.write('⚠️var() 이름 명부를 ★못 만들었다 — ★대체값 검사 ★off(옛 꼴로 전부 면제). ★「우회로 0건」을 참으로 읽지 마라\n');
+  }
 
   /* ── Ⓐ ★거르개 정합 — ⛔「적발 0건」 옆에 ★«안 본 자리»를 같이 찍는다 ──────── */
   const bad = integrityReport(files, src.read);

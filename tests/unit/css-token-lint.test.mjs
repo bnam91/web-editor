@@ -28,6 +28,7 @@ import {
   blankCssNoise, blankExemptSpans, scanDeclarations, makeLineIndex,
   collectRootTokens, resolveTokens, buildMaps, isSuggestable, normHex,
   lintCss, renderFinding, selfCheck, deriveBase, scanIntegrity, integrityReport,
+  collectKnownVarNames, unknownVarAt,
 } from '../../tools/css-token-lint.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -186,7 +187,7 @@ const MUTANTS = [
   { name: '`--x:` 정의 면제 off', find: 'if (d.isCustomProp) continue;', repl: 'if (false) continue;' },
   { name: '제안 패밀리 거르개 off', find: 'if (!isSuggestable(name)) continue;', repl: 'if (false) continue;' },
   { name: '주석 벗기기 off', find: 'export function blankCssNoise(src) {', repl: 'export function blankCssNoise(src) { return src;' },
-  { name: 'url/var 면제 off', find: 'export function blankExemptSpans(value) {', repl: 'export function blankExemptSpans(value) { return value;' },
+  { name: 'url/var 면제 off', find: 'export function blankExemptSpans(value, known) {', repl: 'export function blankExemptSpans(value, known) { return value;' },
 ];
 
 test('★무력화: 가드 5개를 하나씩 끄면 --self 가 ★각각 빨개진다', async (t) => {
@@ -664,3 +665,28 @@ test('Ⓑ 폭주 가드 — 짝 없는 `(` 가 있어도 ★그 뒤를 ★본다
  *   ⇒ 지금은 ★fallback 11px 로 그려지고, `--ui-fs-base` 가 바뀌는 날 ★그 8곳만 안 따라간다.
  *   ⛔고치면 ★그 자가 ★«자기 발견»을 지워 ★다시 증명할 수 없게 된다 ⇒ ★별건으로 올렸다.
  *   ★여기선 ★«그 결함이 아직 있다»를 ★단언하지 ★않는다 — 그러면 ★고치는 날 빨개진다. */
+
+/* ══ ⒊-① ★CLI 배선 — ⛔`--self` 가 ★못 보는 자리다 ════════════════════════
+ * ★무력화 실측(2026-10-10): `maps.knownVars = null` 로 ★배선을 끊으면
+ *   ★`--self` 19칸이 ★전부 초록이었다(⒀ 는 ★자기 KNOWN 집합을 쓰니 안 걸린다).
+ *   ⇒ ★배선은 ★CLI 출력으로만 잴 수 있다. ★그래서 이 칸이 있다. */
+test('⒊-① 배선 — ★CLI 가 var() 이름 명부를 ★실제로 만든다 (끊기면 ⚠️ 줄이 뜬다)', () => {
+  const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs')], { encoding: 'utf8', cwd: REPO });
+  assert.notEqual(r.status, 3, `HARNESS_ERROR\n${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /var\(\) 이름 명부 \d+종/, '★명부 줄이 없다 — 배선이 끊겼다(그러면 대체값 검사가 off 다)');
+  assert.doesNotMatch(r.stdout, /이름 명부를 ★못 만들었다/, '★명부를 못 만들었다 — 대체값 검사가 off 로 돈다');
+  /* ★«못 보는 꼴»을 ★출력에 ★찍는가 — ⛔안 찍으면 다음 사람이 이 명부를 ★완전하다고 믿는다 */
+  assert.match(r.stdout, /변수 경유 조립은 ★안 센다/, '★스캐너의 못 보는 꼴이 출력에 없다');
+});
+
+test('⒊-① 명부 — ★없는 이름은 ★없고, ★css·★js 양쪽에서 ★있는 이름은 ★있다', () => {
+  const cssList = fs.readdirSync(path.join(REPO, 'css')).filter((f) => f.endsWith('.css')).sort().map((f) => `css/${f}`);
+  const code = ['js/canvas-contrast.js', 'css/editor-base.css'].filter((f) => fs.existsSync(path.join(REPO, f)));
+  const { known } = collectKnownVarNames(cssList, read, code, (f) => read(f));
+  assert.ok(known.size > 100, `명부 ${known.size}종 — 100 아래면 파싱이 깨진 것이다`);
+  assert.ok(known.has('--ui-fs-base'), 'css 에 있는 이름(--ui-fs-base)이 명부에 없다');
+  assert.ok(known.has('--grb-dot-hole'),
+    'js 의 ★배열 리터럴에 있는 이름(--grb-dot-hole)을 못 본다 — ★이 자리를 한 번 틀렸다(9건 → 참값 8건)');
+  assert.ok(!known.has('--ui-fs-11'),
+    '★없는 이름(--ui-fs-11)이 명부에 있다 — 그러면 report-modal.css 의 ★8곳을 ★영원히 못 잡는다');
+});
