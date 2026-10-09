@@ -731,3 +731,84 @@ test('D8 ★색 칩 — ★색 하나당 자리 하나 ＋ ★✕ 는 칩보다 
 
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
+
+/* ═══ D9 — ★★멈춤 단추가 ★★«만지는 동안» ★닿나 (2026-10-09 · 지디 GO) ════════
+ *  ★★이것이 ★★현빈 신고의 ★★«그 장면» 이다 — 「파티클 ★회전/속도 ★만지니 ★계속 움직이는데
+ *    ★★멈출 수 없나」. ★멈춤 단추는 ★카드 ★머리에 있고, ★속도·회전속도 칸은 ★카드 ★아래쪽이다.
+ *  ★★실측(2026-10-09 · ★실앱 9422 · 창 1440×900 · 배율 40%): ★「속도」 칸이 ★화면 중앙(top=441)일 때
+ *    ★`#sec-fxpart-pause` 의 ★bottom 이 ★★창 위로 ★★144px ★밖이었다 ⇒ ★★그때는 ★못 누른다.
+ *    ⇒ ★처방 = ★★«이 카드의 ★머리만» `position:sticky`(css/editor-props.css · 그 주석의 ⛔ 셋).
+ *  ★★⛔「보인다」로 ★묻지 않는다 — ★★«창 안 ★좌표» ＋ ★★«그 점의 ★맨 위가 ★나인가»로 잰다.
+ *  ★★＋ ★같은 칸에 ★★양성대조를 ★붙인다 — ★`position` 을 ★`static` 으로 ★되돌리면 ★★창 밖이어야 한다.
+ *    ⛔없으면 ★「창 안이다」가 ★★«애초에 ★굴릴 것이 ★없었다»와 ★구분이 ★안 된다.
+ *
+ *  ★★안 재는 것: ★★«다른 `.prop-cell-card` 와 ★꼴이 ★갈린다» ⇒ ★★현빈 ★눈 판정(★지디가 명부에 올렸다). */
+test('D9 ★★속도 칸을 ★만지는 동안에도 ★멈춤 단추가 ★창 안이다 (★양성대조 ＋ ★굴림 전제)', async ({ page }) => {
+  const errs = await setup(page);
+  await growViewport(page);
+
+  /* ★켠다 — ⛔손으로 dataset 을 ★안 쓴다. ★사람이 누르는 ★그 단추다 */
+  await page.click('#sec-fxpart-toggle', { timeout: 5000 });
+  await page.waitForTimeout(250);
+  expect((await drawn(page)).on, '★전제: ★안 켜졌다').toBe(true);
+
+  /* ★★전제 ⑴ — ★「속도」 칸이 ★있다(★`RANGES` 밖 축이 아니라 ★패널에 ★난 칸인가) */
+  const hasSpeed = await page.evaluate(() => !!document.querySelector('[data-fxpart-axis="speed"]'));
+  expect(hasSpeed, '★전제: ★「속도」 칸이 ★패널에 ★없다 — ★이 장면이 ★안 선다').toBe(true);
+
+  /* ★★전제 ⑵ — ★패널이 ★정말 ★굴러간다. ⛔아니면 ★아래 「창 안」이 ★공짜다 */
+  const sc = await page.evaluate(() => {
+    const b = document.querySelector('#panel-right .panel-body');
+    return b ? { scrollH: b.scrollHeight, clientH: b.clientHeight, oy: getComputedStyle(b).overflowY } : null;
+  });
+  expect(sc, '★전제: 우측 패널 몸을 ★못 찾았다').not.toBeNull();
+  expect(sc.oy, `★전제: 패널이 ★안 굴러간다(${sc.oy})`).toMatch(/auto|scroll/);
+  expect(sc.scrollH, `★전제: ★굴릴 것이 ★없다 (scrollH ${sc.scrollH} ≤ clientH ${sc.clientH})`).toBeGreaterThan(sc.clientH);
+
+  /* ★★장면 — ★「속도」 칸을 ★화면 ★중앙으로. ★★현빈이 ★그 칸을 ★만지는 ★그 자리다 */
+  await page.evaluate(() => document.querySelector('[data-fxpart-axis="speed"]').scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(250);
+
+  /* ★★전제 ⑶ — ★그 칸이 ★정말 ★화면 ★가운데쯤 왔나(⛔「굴렸다」와 「왔다」는 다르다) */
+  const sp = await reach(page, '[data-fxpart-axis="speed"]');
+  expect(sp.found, '★전제: 속도 칸을 ★못 찾았다').toBe(true);
+  expect(sp.inWindow, `★전제: 속도 칸이 ★창 밖이다 (y=${sp.cy}/${sp.innerH})`).toBe(true);
+
+  /* ═══ ★★본 단언 — ★그때 ★멈춤 단추가 ★★창 안이고 ★★그 점의 ★맨 위가 ★나다 ═══ */
+  const pz = await reach(page, '#sec-fxpart-pause');
+  expect(pz.found, '★멈춤 단추가 ★없다').toBe(true);
+  expect(pz.inWindow,
+    `★★속도 칸(y=${sp.cy})을 ★만지는 동안 ★★멈춤 단추가 ★창 밖이다 (y=${pz.cy}/${pz.innerH})`
+    + ' — ★★현빈 신고의 ★그 장면에서 ★★못 누른다').toBe(true);
+  expect(pz.hits, `★★단추 자리의 ★맨 위가 ★남이다 (맨 위=${pz.topTag}) — ★sticky 가 ★덮였다`).toBe(true);
+  /* ★★굴림통 ★맨 위에 ★붙어 있나 — ★★`top:0` 이 ★먹었다는 ★수. ★머리 높이만큼의 ★여유를 둔다 */
+  const bodyTop = await page.evaluate(() => Math.round(document.querySelector('#panel-right .panel-body').getBoundingClientRect().top));
+  expect(pz.cy, `★단추가 ★굴림통 ★맨 위(${bodyTop})에서 ★너무 멀다 (y=${pz.cy})`).toBeLessThan(bodyTop + 120);
+
+  /* ═══ ★★양성대조 — ★★sticky 를 ★끄면 ★★창 밖이어야 한다 ═══════════════════
+     ⛔이것이 없으면 ★위 「창 안」이 ★★«애초에 ★안 밀려났다»와 ★구분이 ★안 된다.
+     ★★같은 장면에서 ★`position` 만 ★`static` 으로 ★되돌린다(★CSS 규칙을 ★이긴다). */
+  const posNow = await page.evaluate(() => getComputedStyle(document.querySelector('#sec-fxpart-card > .prop-cell-card-header')).position);
+  expect(posNow, '★전제: ★sticky 가 ★안 먹고 있다 — ★아래 대조가 ★뜻이 없다').toBe('sticky');
+  await page.evaluate(() => { document.querySelector('#sec-fxpart-card > .prop-cell-card-header').style.position = 'static'; });
+  await page.evaluate(() => document.querySelector('[data-fxpart-axis="speed"]').scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(200);
+  const off = await reach(page, '#sec-fxpart-pause');
+  expect(off.inWindow,
+    `★★양성대조: ★sticky 를 ★껐는데도 ★단추가 ★창 안이다 (y=${off.cy}/${off.innerH})`
+    + ' — ★이 창에서는 ★그 병이 ★안 난다 ⇒ ★★위 초록은 ★sticky 덕이 ★아닐 수 있다').toBe(false);
+  /* ★★그리고 ★★얼마나 ★밖인가를 ★찍는다 — ★실앱에서 ★144px 이었다(머리말의 그 수) */
+  const above = await page.evaluate(() => {
+    const b = document.getElementById('sec-fxpart-pause').getBoundingClientRect();
+    return Math.round(0 - b.bottom);
+  });
+  expect(above, `★양성대조: ★창 위로 ${above}px — ★0 이하면 ★밖이 ★아니다`).toBeGreaterThan(0);
+  console.log(`D9 ★양성대조 — sticky 끈 판에서 ★멈춤 단추가 ★창 위로 ★${above}px 밖 (실앱 9422 에선 144px)`);
+
+  /* ★되돌린다 — ⛔다음 줄이 ★내 조치를 ★물려받지 않게 */
+  await page.evaluate(() => { document.querySelector('#sec-fxpart-card > .prop-cell-card-header').style.position = ''; });
+  await page.waitForTimeout(150);
+  expect((await reach(page, '#sec-fxpart-pause')).inWindow, '★원복했는데 ★단추가 ★창 밖이다').toBe(true);
+
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
