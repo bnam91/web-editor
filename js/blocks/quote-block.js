@@ -203,11 +203,37 @@ function _lineEl(block, st, text) {
   return e;
 }
 
+/* ★가로 자리 ★한 벌 — ⛔`flex-start`/`start` 두 어휘를 ★두 자리에 적지 않는다.
+   ★`start`·`end` 는 flex 와 grid 가 ★둘 다 읽는다(CSS Box Alignment). */
+const _qtSide = (align) => (align === 'left' ? 'start' : (align === 'right' ? 'end' : 'center'));
+
+/* 글 덩이 — ★inline 의 가운데 칸이자 ★stack 의 가운데 ★행이다(★한 벌). */
+function _bodyEl(block, st, lines) {
+  const body = document.createElement('div');
+  body.className = 'tb-qt-body';
+  body.style.cssText = 'min-width:0;display:flex;flex-direction:column;row-gap:2px;'
+    + `align-items:${_qtSide(st.align)};`;
+  for (const t of lines) body.appendChild(_lineEl(block, st, t));
+  return body;
+}
+
 /* ══ 렌더 ═══════════════════════════════════════════════════════════════════
    ★inline — ★현빈의 「3×1 그리드에 들어가 있는 ★느낌」을 ★블럭이 스스로 낸다.
      `grid-template-columns: auto minmax(0,1fr) auto` ⇒ 가운데만 글이 흐르고 양옆은 부호 폭만 먹는다.
      ★끈 쪽은 ★칸째 빠진다 — ⛔빈 칸으로 남기지 마라(시안 ⒟ 「끈 쪽은 칸째 빠져 글이 그만큼 넓어진다」).
-   ★stack — 줄마다 부호가 따라붙는다. ★빈 줄은 quoteLines 가 이미 걸러 냈다. */
+
+   ★★stack — ★★«축을 돌린다». ★inline 이 ★3열×1행이면 stack 은 ★★1열×3행이다:
+     `grid-template-rows: auto minmax(0,auto) auto` ⇒ [앞부호] / [글] / [뒤부호] · ★부호는 ★한 쌍.
+     ★끈 쪽이 ★행째 빠지는 것도 ★inline 과 ★같다(같은 `filter(Boolean)` 꼴).
+
+   ★★⚰️2026-10-09 — ★옛 stack 은 ★★«줄마다 부호가 따라붙는» 꼴이었다(flex column · 줄마다 `.tb-qt-row`).
+     ★그 꼴에서 나온 불변식이 ★「★그려진 줄 수 == ★부호 쌍 수」였고 ★Q4 가 그것을 잠갔다.
+     ★★현빈이 ★2026-10-09 에 ★「★지금 ★스택모드 ★이해가 ★틀렸다. ★3×1 이 스택모드서 ★1×3 으로
+       바뀌어야 한다(★현재 안 그럼)」고 말했다 ⇒ ★★그 꼴 ★자체가 틀린 것이었다.
+     ⇒ ★★그 불변식은 ★«뒤집힌» 것이 아니라 ★★«까닭이 죽었다». ★문장을 ★지우지 않고 ★여기 남긴다 —
+       ★다음 사람이 「왜 줄마다 부호가 없나」를 물을 때 ★이 줄이 답이다.
+     ★실측(2026-10-09 · 좌표로): 옛 판에서 ★한 줄 글은 inline 도 stack 도 ★둘 다 ★3열×1행이었다
+       (cx 329/717/1105 → 675/717/759 — ★간격만 좁아지고 ★축이 ★안 돌았다). ⇒ 현빈 말 그대로다. */
 function renderQuoteBlock(block) {
   if (!block) return;
   const st = _qtState(block);
@@ -215,18 +241,12 @@ function renderQuoteBlock(block) {
 
   block.innerHTML = '';
   if (st.layout === 'stack') {
-    block.style.cssText = 'box-sizing:border-box;position:relative;display:flex;flex-direction:column;'
-      + `align-items:${st.align === 'left' ? 'flex-start' : (st.align === 'right' ? 'flex-end' : 'center')};`
-      + `row-gap:${Math.round(st.gap * 0.42)}px;`;
-    for (const t of lines) {
-      const row = document.createElement('div');
-      row.className = 'tb-qt-row';
-      row.style.cssText = `display:flex;align-items:center;column-gap:${st.gap}px;min-width:0;`;
-      if (st.preOn) row.appendChild(_markEl(st, 'pre'));
-      row.appendChild(_lineEl(block, st, t));
-      if (st.postOn) row.appendChild(_markEl(st, 'post'));
-      block.appendChild(row);
-    }
+    const rows = [st.preOn ? 'auto' : null, 'minmax(0,auto)', st.postOn ? 'auto' : null].filter(Boolean).join(' ');
+    block.style.cssText = 'box-sizing:border-box;position:relative;display:grid;'
+      + `justify-items:${_qtSide(st.align)};grid-template-rows:${rows};row-gap:${st.gap}px;`;
+    if (st.preOn) block.appendChild(_markEl(st, 'pre'));
+    block.appendChild(_bodyEl(block, st, lines));
+    if (st.postOn) block.appendChild(_markEl(st, 'post'));
     return;
   }
 
@@ -235,12 +255,7 @@ function renderQuoteBlock(block) {
   block.style.cssText = 'box-sizing:border-box;position:relative;display:grid;align-items:center;'
     + `grid-template-columns:${cols};column-gap:${st.gap}px;`;
   if (st.preOn) block.appendChild(_markEl(st, 'pre'));
-  const body = document.createElement('div');
-  body.className = 'tb-qt-body';
-  body.style.cssText = 'min-width:0;display:flex;flex-direction:column;row-gap:2px;'
-    + `align-items:${st.align === 'left' ? 'flex-start' : (st.align === 'right' ? 'flex-end' : 'center')};`;
-  for (const t of lines) body.appendChild(_lineEl(block, st, t));
-  block.appendChild(body);
+  block.appendChild(_bodyEl(block, st, lines));
   if (st.postOn) block.appendChild(_markEl(st, 'post'));
 }
 
