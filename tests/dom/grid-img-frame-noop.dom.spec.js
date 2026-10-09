@@ -134,7 +134,12 @@ async function loadGrid() {
    *       → $TMPDIR/util/sanitize-rich-text.js  ⇒ Cannot find module
    *   ★이 사고가 실제로 났다 — `34db28d8`(2026-10-08)이 :47 에 `../util/sanitize-rich-text.js`
    *     를 넣은 날부터 ★N0-a 가 빨갛고, ★그 바람에 이 파일의 ★나머지 52개가 «did not run»으로
-   *     덮여 ★12일간 아무것도 안 쟀다(2026-10-10 전수에서 잡았다).
+   *     덮여 ★★1일간(★1.17~1.89일 — 아래 ★날짜 칸) 아무것도 안 쟀다(2026-10-10 전수에서 잡았다).
+   *   ★★⛔「12일」이라 적었다가 ★고쳤다(2026-10-10) — ★★두 양을 ★섞었다:
+   *     ★이 파일이 ★태어난 날 e4024302 ★2026-09-25 ⇒ ★★깨진 날까지 ★13일은 ★★살아 있었다
+   *     ★깨진 날 34db28d8 ⇒ ★고친 날 ⇒ ★★죽어 있던 기간은 ★★1일대다
+   *   ★★★34db28d8 은 ★author ★2026-10-08 10:10:45 · ★committer ★2026-10-09 02:26:23 — ★★16시간 ★다르다.
+   *     ★네 조합(깨짐 author/committer × 고침 author/committer) ★전부 ★floor ★1 ⇒ ★★「1일」은 ★날짜 칸 선택에 ★안 흔들린다.
    *   ★★⛔꼴을 «열거»하지 않는다 — `../x` `./x` `../util/x` `../../x` 무엇이 와도 같은 자로 푼다.
    *     (옛 처방은 이름을 하나씩 짚었고, 그래서 import 가 하나 늘자 조용히 깨졌다.)
    *   ★기준 = «원본 파일의 디렉터리»(js/blocks/) — $TMPDIR 이 아니다.
@@ -154,9 +159,11 @@ async function loadGrid() {
   /* ★치환은 ★«선언 줄»에만 — ⛔주석·문자열은 ★손대지 않는다.
    *   ★실측 근거: 이 파일 :3720 은 ★주석인데 `export * from './block-drag.js'` 를 ★품고 있고,
    *     :1449 는 ★템플릿 문자열에 「absent from 'applied'」가 있다. ★둘 다 import 가 ★아니다.
-   * ★★★그리고 ★«진짜 .js 경로»를 가리키면 ★안 된다 — ★`package.json` 에 `"type":"module"` 이 ★없어서
+   * ★★★그리고 ★«진짜 .js 경로»를 가리키면 ★안 된다 — ★`package.json` 이 ★★`"type": "commonjs"` 라서
    *   ★Node 가 ★`.js` 를 ★★CommonJS 로 읽는다 ⇒ ★실측(2026-10-10):
    *     SyntaxError: Named export 'richTextHasFormatting' not found … is a CommonJS module
+   *   ★★⛔처음에 「`"type":"module"` 이 ★없다」로 적었다 — ★맞지만 ★★«부재»로 근거를 세웠다.
+   *     ★참값은 ★★`"type": "commonjs"` 가 ★★명시돼 있다(★base :125 · ★dev :127) ⇒ ★근거가 ★더 세다.
    *   ⇒ ★★`.mjs` ★사본으로 ★건넨다. ★이 파일이 `grid-cell-resize` 를 ★.mjs 로 ★복사해 온 것이
    *     ★바로 ★그 까닭이고(:126), ★★같은 수를 ★«남은 전부»에 ★쓴다. */
   const depCopies = [];
