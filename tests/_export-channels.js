@@ -40,8 +40,17 @@
  */
 'use strict';
 
-/** 편집 전용 마커 — artifact 채널에서 «반드시» 벗겨져야 하는 클래스 토큰. */
-const MARKER_TOKENS = ['bn2-line-selected', 'grd-line-selected'];
+/** 편집 전용 마커 — artifact 채널에서 «반드시» 벗겨져야 하는 클래스 토큰.
+ *  ★늘릴 때 — ★«그 토큰이 ★산출물에 ★실제로 실렸다»를 ★행위로 재고서 올려라(아래 둘이 그렇다).
+ *  ★★2026-10-10 (1009t3 A4) ＋2종:
+ *    ★`grd-cell-selected` — ★빈 그리드 «칸» 선택 표시. ★다섯 명부 ★전부에 없었다.
+ *      ★실측: 저장본 1건 · ⌘C 1건 · 템플릿 1건 · PNG 클론 1건 ·
+ *        섹션 비교 해시 `b8315380`→`805b8dc8` ·
+ *        ★★HTML 배송본을 ★렌더해 computed `rgb(45,111,232) 0 0 0 2px inset` ⇒ ★★그려졌다.
+ *    ★`item-selected`     — ★라벨 항목. ★저장 뿌리에만 ★없었다(= ★저장 쪽이 ★더 허술한 방향).
+ *      ★실측: 저장본 1건 · 섹션 비교 해시 `a1ad09e8`→`b4189398`.
+ *      ⇒ ★그 비대칭이 ★★「명부가 둘이면 한쪽만 고쳐진다」의 ★실물이다. */
+const MARKER_TOKENS = ['bn2-line-selected', 'grd-line-selected', 'grd-cell-selected', 'item-selected'];
 
 /** compare 채널의 정규화 단일 진실원 — market-merge 가 갖고 있고, 나머지는 «위임»한다.
  *  ⛔위임을 「자기 명단 없음」으로만 재면 안 된다 — 아무것도 안 씻어도 초록이다.
@@ -65,9 +74,17 @@ const CHANNELS = [
   { file: 'js/io/section-serialize.js', kind: 'artifact', axes: ['marker'], strips: 'inline',
     why: '저장본 — 캔버스 클론을 세척해 innerHTML 로 굳힌다. ★이 파일이 «세척의 단일 진실원»이다' },
   { file: 'js/io/export-html.js', kind: 'artifact', axes: ['marker'], strips: 'inline',
-    why: 'HTML 내보내기 — 라이브 클론을 그대로 문서로 만든다(serializeCleanRoot 를 안 거친다)' },
+    delegates: [{ file: 'js/io/capture-safety.js', entry: 'stripEditorOnlyForCapture' }],
+    why: 'HTML 내보내기 — 라이브 클론을 그대로 문서로 만든다(serializeCleanRoot 를 안 거친다). ' +
+         '★마커 걷기는 «제 손 명부» ＋ ★공용 겹(capture-safety stripEditorOnlyForCapture)을 «둘 다» 쓴다 — ' +
+         '그래서 delegates 를 선언한다. ★U6-c 는 토큰이 ★어느 쪽에 있든 덮였다고 보되, ' +
+         '★«그 겹을 정말 부르나»를 코드에서 같이 본다(⛔주석은 떼고)' },
   { file: 'js/io/export-image.js', kind: 'artifact', axes: ['marker'], strips: 'inline',
-    why: 'PNG 내보내기 — 라이브 DOM 클론을 캡처한다(재렌더가 마커를 되붙이는 자리도 여기)' },
+    delegates: [{ file: 'js/io/capture-safety.js', entry: 'stripEditorOnlyForCapture' }],
+    why: 'PNG 내보내기 — 라이브 DOM 클론을 캡처한다(재렌더가 마커를 되붙이는 자리도 여기). ' +
+         '★제 손 명부는 «재렌더 뒤»(renderComponentsInClone)에만 있다 — 그 순서가 필요한 자리다. ' +
+         '★나머지는 공용 겹(capture-safety)에 위임한다. ' +
+         '⛔restRuntimeForArtifact 에 마커를 얹지 마라 — 이 파일은 그 겹을 «일부러» 안 부른다(PNG = 스냅샷 계약)' },
   { file: 'js/panels/template-system.js', kind: 'artifact', axes: ['marker'], strips: CLEAN_FN, via: '_cleanTemplateClone',
     why: '★템플릿 저장 3곳(섹션·덮어쓰기·블록) — 2026-09-09 까지 마커를 «안» 벗기던 7번째 문. ' +
          '손 열거 대신 세척에 위임한다. ★클론 3곳이 «파일 안의 문 하나»(_cleanTemplateClone)를 ' +
@@ -103,8 +120,15 @@ const CHANNELS = [
     why: '⑴ 썸네일 클론은 document.body 로 나가 #canvas 스코프 밖이라 마커가 «안 그려진다» ' +
          '⑵ 캔버스 직렬화는 serializeCleanRoot 에 위임한다 ⑶ 히트존 리스너 교체' },
   /* 10-05 G11 ① 로 옮김 · 옛 자리 = js/props/prop-mockup.js(같은 «왜») — 클론하는 찍기가 공용 captureSectionImage 로 갔다 */
-  { file: 'js/io/capture-safety.js', kind: 'transient', axes: ['marker'], strips: null,
-    why: '목업 이미지(captureSectionImage) — 클론을 document.body 에 붙여 찍는다. 마커 CSS 가 «#canvas .grid-block» 스코프라 안 그려진다' },
+  { file: 'js/io/capture-safety.js', kind: 'artifact', axes: ['marker'], strips: 'inline',
+    why: '★2026-10-10 에 transient → artifact 로 고쳤다. 옛 why 는 「목업 이미지 클론을 body 에 붙여 찍으니 ' +
+         '마커 CSS 가 #canvas 스코프라 안 그려진다」였고 ★그 문장은 지금도 참이다 — 그러나 ★이 파일은 ' +
+         '★stripEditorOnlyForCapture 로 ★세 산출물(PNG·썸네일·단독 HTML)의 ★마커를 걷는 ★공용 겹이다. ' +
+         '★즉 «그려지나»로는 transient 지만 «무엇을 걷나»로는 ★artifact 의 임자다. ' +
+         '★A4(2026-10-10)에서 ★grd-cell-selected 가 ★이 겹에 없어 ★배송본에 실렸다 — ' +
+         '명부가 ★여기에 있다는 사실이 ★안 적혀 있어 ★자의 분모 밖이었다. ' +
+         '⚠️★이 명부는 «둘째»다(임자 = section-serialize.js runtimeMarkers). ★모으기는 지디 명부로 올렸다 — ' +
+         '까닭: 이 함수를 «실행하는» DOM 검사 9벌이 부분 하네스라 section-serialize.js 를 안 싣는다' },
   { file: 'js/editor.js', kind: 'transient', axes: ['marker'], strips: null,
     why: '⑴ 절대배치 블록 «복제»(라이브 캔버스로 들어간다) ⑵ 히트존 노드 교체(리스너 초기화)' },
   { file: 'js/block-factory.js', kind: 'transient', axes: ['marker'], strips: null,

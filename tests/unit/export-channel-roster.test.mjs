@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
 const _req = createRequire(import.meta.url);
 const { readSrc, toPosix } = _req('./_srcread.js');
@@ -32,6 +33,41 @@ function codeOf(rel) {
   return readSrc(ROOT, rel).split('\n').map(l => strip(l)).join('\n');
 }
 const countOf = (src, needle) => src.split(needle).length - 1;
+
+/* ══ ★마커 «덮였나» 판정 — ⛔`readSrc(...).includes(tok)` 를 ★쓰지 마라 ═══════════════
+ * ★★2026-10-10 에 ★이 자의 ★흠 ★둘을 고쳤다.
+ *   ⒜ ★★«주석만 있어도 초록»이었다 — 날 소스(readSrc)를 봤다. ⇒ ★`codeOf`(주석 떼기)로 바꿨다.
+ *      ★★이 레포에서 ★★«주석이 ★소스 파싱 게이트를 ★먹인» 것이 ★★★네 번이다(수로 적는다):
+ *        ① html2canvas 세기 ★6→4  ② `!important` 세기 ★1→0  ③ CSS 주석  ④ ★이 자(2026-10-10)
+ *      ⇒ ★다음 사람이 ★「왜 주석을 벗기나」를 ★한 줄에 알게 ★여기 적어 둔다.
+ *   ⒝ ★★«성질로 묶인 것»을 ★못 봤다 — `grd-cell-selected` 는 `section-serialize.js` 에
+ *      ★리터럴로 ★없다. ★RE `/(?:^|-)(?:line|cell)-selected$/` 가 ★잡는다.
+ *      ⇒ ★문자열로 묻지 말고 ★★«그 파일을 실행해» `isRuntimeMarker` 에 ★먹인다.
+ *        ★★그게 ★이 자리에서 ★유일하게 ★거짓초록·거짓빨강이 ★동시에 없는 ★자다.
+ * ⛔`includes` 로 되돌리지 마라 — ⒜ 는 주석 한 줄로, ⒝ 는 성질 묶음 하나로 각각 깨진다. */
+const SRC_OF_TRUTH = 'js/io/section-serialize.js';
+let _rmCache = null;
+/** section-serialize.js 를 «실행해» 세척 자를 꺼낸다(플레인 스크립트 — import 가 없다). */
+function runtimeMarkersOf(root) {
+  if (_rmCache) return _rmCache;
+  const win = {};
+  vm.runInNewContext(readSrc(root, SRC_OF_TRUTH), { window: win, document: {} });
+  const rm = win.runtimeMarkers;
+  assert.ok(rm && typeof rm.isRuntimeMarker === 'function',
+    `★${SRC_OF_TRUTH} 가 window.runtimeMarkers 를 안 내놨다 — 아래 마커 판정이 전부 무효다`);
+  /* ★자가 살아있나 — 양성·음성 둘 다. ⛔이게 없으면 「전부 덮였다」가 항등식이 된다. */
+  assert.equal(rm.isRuntimeMarker('selected'), true, '★양성대조 실패 — 세척 자가 죽었다');
+  assert.equal(rm.isRuntimeMarker('zz-not-a-marker-xyz'), false, '★음성대조 실패 — 자가 전부 참을 낸다');
+  _rmCache = rm;
+  return rm;
+}
+/** 그 파일이 그 토큰을 «덮나». ⑴주석 뗀 코드에 리터럴이 있나 ⑵진실원이면 자에 물어본다. */
+function fileCoversToken(root, file, tok) {
+  if (countOf(codeOf(file), `'${tok}'`) > 0) return true;        // 손 열거(주석 떼고)
+  if (countOf(codeOf(file), `.${tok}`) > 0) return true;         // 선택자 문자열
+  if (toPosix(file) === SRC_OF_TRUTH) return runtimeMarkersOf(root).isRuntimeMarker(tok);
+  return false;
+}
 
 /** 함수 «전체»(선언 포함)를 떠낸다 — 그대로 평가해 돌려 볼 수 있게.
  *  ⚠️f(opts = {}) 의 «기본값 중괄호»를 몸통으로 오인하지 않도록 매개변수 괄호를 먼저 닫는다. */
@@ -185,9 +221,17 @@ test('U6-c ★artifact 채널은 마커를 «전부» 벗긴다 (손 열거든 �
         `${clones - cleans}곳이 «안 씻긴 채» 산출물이 된다. 클론마다 붙여라.\n  (${c.why})`);
       continue;
     }
+    /* ★위임을 선언했으면 ★«그 겹을 정말 부르나»를 먼저 본다 — ⛔이름만 있으면 배선이 아니다. */
+    for (const d of c.delegates || []) {
+      assert.ok(countOf(codeOf(c.file), `${d.entry}(`) > 0,
+        `★${c.file} 이 delegates 로 «${d.file} ${d.entry}» 를 선언했는데 ★그 함수를 «안 부른다» — 위임이 허공이다`);
+    }
     for (const tok of MARKER_TOKENS) {
-      assert.ok(src.includes(tok),
-        `${c.file} 이 «${tok}» 을 안 벗긴다 — 그 마커가 이 경로의 결과물에 박힌다.\n  (${c.why})`);
+      const where = [c.file, ...(c.delegates || []).map(d => d.file)]
+        .filter(f => fileCoversToken(ROOT, f, tok));
+      assert.ok(where.length > 0,
+        `${c.file} 이 «${tok}» 을 안 벗긴다 — 그 마커가 이 경로의 결과물에 박힌다.\n` +
+        `  ⇒ 제 손 명부에 올리거나, 공용 겹(delegates)에 올려라.\n  (${c.why})`);
     }
   }
 });
@@ -199,7 +243,9 @@ test('U6-c-전제 ★위임 대상(serializeCleanRoot/Self)이 실제로 그 토
     assert.match(src, new RegExp(`function ${fn}`), `${fn} 이 거기 없다 — 위임이 허공을 가리킨다`);
   }
   for (const tok of MARKER_TOKENS) {
-    assert.ok(src.includes(tok), `★${CLEAN_FN} 이 «${tok}» 을 안 벗긴다 — 위임한 채널이 전부 새고 있다`);
+    /* ⛔`src.includes(tok)` 가 ★아니다 — ★RE 로 ★성질 묶인 토큰은 ★리터럴이 ★없다(2026-10-10 A4). */
+    assert.ok(fileCoversToken(ROOT, SRC_OF_TRUTH, tok),
+      `★${CLEAN_FN} 이 «${tok}» 을 안 벗긴다 — 위임한 채널이 전부 새고 있다`);
   }
   /* ★root «자신»까지 씻는 판이 정말 root 를 본다 — Root 판은 querySelectorAll 만 써서
      구조적으로 root 자신을 못 본다. Self 판이 그걸 «래퍼»로 뒤집는 게 요점이다. */
