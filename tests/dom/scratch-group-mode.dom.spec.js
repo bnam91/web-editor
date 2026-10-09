@@ -187,27 +187,33 @@ test('G7b ★★진입 배타 ★★«반대 방향» — ✂ 가 선 채로 그
   expect(s1.slice, '★★✂ 모드가 ★풀렸다(동시에 못 선다 — ★반대 방향)').toBe(0);
 });
 
-test('G8 ★진입 중 ★마퀴가 ★안 뜬다 — 선택이 그룹 밖으로 샐 길을 막는다', async ({ page }) => {
+test('G8 ★모드에서 ★그룹 밖을 ★끌면 — ★모드가 ★풀리고 ★마퀴가 ★뜬다(★제품이 ★참으로 하는 일)', async ({ page }) => {
+  /* ★★⚰️2026-10-10 — 이 칸은 ★처음 「★진입 중엔 ★마퀴가 ★안 뜬다」였다. ★★그 단언은 ★★거짓이다.
+     ★실측(양성대조 포함): ★모드 ★밖 끌기 = 마퀴 ★1 · ★모드 ★진입 중 끌기 = ★★1 ⇒ ★★억제가 ★안 된다.
+     ★변이 `M-MARQUEE`(게이트를 true 로) → ★★순 빨강 ★0건 ⇒ ★그 게이트는 ★★닿지 않는 코드였다.
+     ★★까닭 = `_enterGroupMode` 가 `onOutsideMousedown` 을 ★★capture 로 단다 ⇒ 빈 영역 mousedown 이
+       ★★먼저 ★모드를 ★내린다 ⇒ 마퀴 게이트가 읽을 때 `_groupMode` 는 ★이미 null.
+     ⇒ ★제품에서 ★그 게이트를 ★지웠고, ★이 칸을 ★★«제품이 ★참으로 하는 일»로 ★다시 썼다.
+     ★★선택이 ★그룹 밖으로 ★샐 수 ★없는 ★참 까닭 = ★★«모드가 ★이미 끝났기 때문»이다 — ★그걸 ★잰다.
+     ⛔「마퀴가 안 뜬다」로 ★되돌리지 마라 — ★그건 ★3일 안에 ★또 ★거짓 단언이 된다. */
   await scene(page);
-  /* ★★⒜ ★양성대조가 ★먼저다 — ★「그 자리에서 ★모드 ★밖이면 ★마퀴가 ★뜨나」.
-     ⛔이것이 없으면 ★이 칸은 ★★항등식이다: (300,880)이 ★스케일러 밖이거나 ★마퀴가 ★어차피 안 뜨는
-     자리면 ★「0」은 ★★모드와 ★무관하게 ★참이고, ★`!_groupMode` 를 ★지워도 ★초록이다(= 재는 자가 없다). */
-  await page.mouse.move(300, 880); await page.mouse.down();
-  await page.mouse.move(600, 940, { steps: 6 });
-  const ctl = await page.evaluate(() => document.querySelectorAll('.scratch-marquee').length);
-  await page.mouse.up(); await page.waitForTimeout(150);
-  console.log('[G8 양성대조] 모드 ★밖에서 끌 때 마퀴 DOM = ' + ctl);
-  expect(ctl, '★★양성대조 — ★모드 ★밖에서는 ★마퀴가 ★뜬다(★이게 0 이면 ★자가 ★눈이 먼 것이다)').toBeGreaterThan(0);
-
-  /* ★⒝ 이제 ★진입해서 ★같은 끌기 */
   await clickItem(page, 'sp_c', { dbl: true });
-  expect((await st(page)).mode, '전제 — 진입').toBeTruthy();
+  expect((await st(page)).mode, '★전제 — 진입했다').toBeTruthy();
+
   await page.mouse.move(300, 880); await page.mouse.down();
   await page.mouse.move(600, 940, { steps: 6 });
-  const mid = await page.evaluate(() => document.querySelectorAll('.scratch-marquee').length);
+  const mid = await page.evaluate(() => ({
+    marquee: document.querySelectorAll('.scratch-marquee').length,
+    mode: window._scratchGroupMode?.() ?? null,
+    marked: document.querySelectorAll('.scratch-item.scratch-group-mode').length,
+  }));
   await page.mouse.up(); await page.waitForTimeout(150);
-  console.log('[G8] 진입 중 마퀴 DOM = ' + mid);
-  expect(mid, '★★마퀴가 안 뜬다').toBe(0);
+  console.log('[G8] 끄는 중 = ' + JSON.stringify(mid));
+  /* ⒜ ★모드가 ★풀렸다 — ★이것이 ★안전의 ★참 근거다(capture 가 ★선택보다 먼저 돈다) */
+  expect(mid.mode, '★★모드가 ★풀렸다 — ★빈 영역 mousedown 이 capture 로 ★먼저 내린다').toBeNull();
+  expect(mid.marked, '★점선 표시도 ★같이 거뒀다').toBe(0);
+  /* ⒝ ★그리고 ★마퀴는 ★제 일을 한다 — ⛔모드가 ★마퀴를 ★죽이지 ★않는다 */
+  expect(mid.marquee, '★마퀴가 ★뜬다(모드는 이미 끝났다)').toBeGreaterThan(0);
 });
 
 test('G9 ★1장만 남으면 그룹이 ★자동으로 풀린다 (★지디 기본값 · 현빈 미정)', async ({ page }) => {

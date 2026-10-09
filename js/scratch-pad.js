@@ -1386,7 +1386,15 @@ async function initScratchPad(projectId, pageId) {
     const isEmptyArea = e.button === 0
       && ['canvas-wrap', 'canvas-scaler', 'canvas'].includes(e.target.id)
       && !_sliceMode
-      && !_groupMode                       // ★⑦ 그룹 진입 중엔 마퀴를 끈다(선택이 그룹 밖으로 새지 않게)
+      /* ★★⚰️2026-10-10 — 여기 `&& !_groupMode` 가 있었다. ★★«닿지 않는 코드»여서 ★지웠다.
+         ★실측(tests/dom/scratch-group-mode G8 · 양성대조 포함):
+           ★모드 ★밖에서 끌 때  마퀴 DOM = ★1   ← ★자의 눈은 ★떴다(자리도 맞다)
+           ★모드 ★진입 중 끌 때 마퀴 DOM = ★★1  ← ★★억제가 ★안 됐다
+         ★변이 `M-MARQUEE`(그 줄을 `true` 로) → ★★순 빨강 ★0건 ⇒ ★있으나 없으나 ★같았다.
+         ★까닭 = `_enterGroupMode` 가 `onOutsideMousedown` 을 ★★capture 로 단다(:643) ⇒
+           ★캔버스 빈 영역 ★mousedown 이 ★★먼저 ★모드를 ★내린다 ⇒ 여기서 `_groupMode` 는 ★★이미 null.
+         ★곁증거 = ★G6(「그룹 밖 클릭으로 나간다」)가 ★초록이다.
+         ⇒ ★선택이 ★그룹 밖으로 ★샐 수 ★없는 ★참 까닭은 ★★«모드가 ★이미 끝났기 때문»이다. */
       && !document.body.classList.contains('pen-mode')
       && !document.body.classList.contains('vpen-mode');
     // 네이티브 스크롤바 클릭은 마퀴 제외 (preventDefault가 스크롤바 드래그를 막음)
