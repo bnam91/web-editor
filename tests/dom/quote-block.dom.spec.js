@@ -558,7 +558,16 @@ test('Q11 ★사용자 부호 더하기 — ★한 명부에 들고 ★블럭에
 
 test('Q12 ★★저장 왕복 — ★meta 에 실리고 ★캐시를 비워도 ★다시 열면 산다 (⛔localStorage 단독이면 빨강)', async ({ page }) => {
   /* ★★이 칸이 ★«왜 localStorage 단독을 안 쓰나»를 ★잠근다 — 그 까닭은 ★「앱 닫고 열면 사라진다」다.
-     ★C6(text-style-recent) 와 ★같은 꼴: ⒜ meta 에 실렸나 ⒝ ★캐시를 비우고 ★전제 단언 ⒞ meta 에서만 복원. */
+     ★C6(text-style-recent) 와 ★같은 꼴: ⒜ meta 에 실렸나 ⒝ ★캐시를 비우고 ★전제 단언 ⒞ meta 에서만 복원.
+   * ★★⚠️이 칸은 ★«한 환경에서만» 참일 수 있다 — ★여기서는 `window.electronAPI` 를 ★가짜로 ★덮는다.
+   *   ★실앱에서는 ★그 자리가 ★★frozen 이다(2026-10-09 실측: `Object.isFrozen(window.electronAPI) === true` ·
+   *   `writable:false, configurable:false` ⇒ ★대입이 ★조용히 ★안 먹는다). ⇒ ★이 하네스의 초록만으로는 ★못 닫는다.
+   * ★★그래서 ★실기로 ★메웠다(2026-10-09 · CDP 9432 · 진짜 마우스·키 · ★가짜 없이 ★진짜 IPC 로):
+   *   「＋」→ `<< >>` 입력 → 「더하기」 ⇒ 단추 8→9 · 블럭에 `<<`/`>>` 가 ★그려졌고,
+   *   ★디스크의 `…/projects/p-live/proj_meta.json`(1,683B)에 ★`quoteShapes` 가 ★실렸다.
+   *   ★그 파일의 ★기존 칸 ★일곱(name·type·createdAt·updatedAt·marketRef·listMetaV·thumbnail)이 ★그대로였다
+   *   ⇒ ★`_mergeProjectMeta` 의 ★patch-only 가 ★실제로 돈다(남의 필드를 ★안 덮었다).
+   *   그 뒤 ★캐시를 비우고 `restoreQuoteShapesFromMeta` ⇒ ★되살아났다. */
   const errs = await setup(page);
   await fakeMeta(page, 'p-q12');
   await page.evaluate(() => window.DesignSystem.addQuoteShape({ pre: '◆', post: '◆' }));

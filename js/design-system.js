@@ -82,7 +82,10 @@ const DesignSystem = (() => {
   }
 
   // ── 시맨틱 컬러 변수 저장/로드 ───────────────────────
-  // 저장 위치 2곳:
+  /* 저장 위치:
+     ⛔★수를 ★적지 않는다 — ★목록이 ★제 수를 말한다. 2026-10-09 까지 「저장 위치 ★2곳:」이라 적혀 있었는데
+     ★바로 아래가 ★1)2)3) ★셋이었다(언제 어긋났는지는 ★안 쟀다). ★수를 세는 자가 ★그 주석을 읽으면 ★2 가 나온다.
+     ⇒ ★「3곳」으로 ★갈지 않고 ★★수를 ★지웠다 — ★항목이 또 늘면 ★또 어긋난다(지디 판정 2026-10-09). */
   //   1) localStorage(STORAGE_COLORS_KEY) — 단일 출처(source of truth)
   //   2) localStorage(STORAGE_KEY).colorVars — 스펙 요구(기존 토큰과 공존). applyTokens는 이 키를 건너뜀.
   //   3) project.meta.json.colorVars — Electron 프로젝트 저장 경로(saveProjectMeta)로 동기화
