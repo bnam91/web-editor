@@ -27,6 +27,12 @@ let _currentPageId = null;
 let _scratchItems = [];   // { el, src, x, y, w, id, g? } — g = 그룹 id (선택 그룹화)
 let _selectedItems = new Set();  // 다중 선택 집합
 let _sliceMode = null;    // 슬라이스 모드 활성 item (또는 null)
+/* ★⑦ 그룹 진입 모드 — 활성 «그룹 id»(또는 null). 현빈 2026-10-10:
+     「더블클릭 → 그룹 진입 → 멤버 단독 선택 · 그 상태에서 Delete/Backspace/삭제버튼 = 그 한 장만 ★빼기」
+   ★꼴은 `_sliceMode` 를 ★그대로 본떴다(진입 배타·단독 선택 강제·밖 클릭 나가기·마퀴 억제).
+   ⛔둘을 따로 고치지 마라 — 같은 관용구다. */
+let _groupMode = null;
+let _groupModeHandlers = null;
 // ★탭 고속 전환(A→B→C) race 가드 (Codex 리뷰) —
 // _scratchLoadGen: 로드 세대 토큰. flush/새 로드가 bump → 늦게 도착한 IndexedDB read가
 //                  새 컨텍스트에 이전 프로젝트 아이템을 섞거나 엉뚱한 키에 저장하는 것 차단.
@@ -464,6 +470,9 @@ async function _sliceItem(item, ratio, vert) {
 // 슬라이스 모드 진입 — 마우스로 가로 절단선 위치 미리보기 + 클릭 시 확정
 function _enterSliceMode(item) {
   if (_sliceMode) _exitSliceMode();
+  /* ★진입 배타 — 두 모드가 ★동시에 서면 Delete 핸들러가 ★어느 쪽인지 못 가린다.
+     ⇒ ★순서 가드를 두는 대신 ★«동시에 못 서게» 한다(구조로 잠근다). 재는 자 = tests/dom/scratch-group-mode. */
+  if (_groupMode) _exitGroupMode();
 
   // 단독 선택 강제
   _clearSelection();
@@ -574,6 +583,122 @@ function _exitSliceMode() {
   _sliceMode = null;
 }
 
+/* ══ ⑦ 그룹 진입 모드 ══════════════════════════════════════════════════════════
+ * ★무엇을 푸나 — 「3장 그룹에서 ★마지막 한 장만 ★빼고 싶을 때」(현빈 2026-10-10).
+ *   ★고치기 전 실측(tests 로 잰 값): 멤버를 ★그냥 클릭 → 선택 ★3 · Delete → ★3장이 ★0장(전원 삭제)
+ *   · ⌘⇧G → 그룹이 ★통째로 풀림 · ⇧클릭 → ★1장(★고르는 길은 ★이미 있었다) ⇒ ★없던 것은 ★«빼는 길»이다.
+ * ★왜 모드인가 — Delete 는 ★선택 전체를 향한 동사라 ★「한 장만」을 ★말할 수 없다.
+ *   ⇒ 현빈이 지정한 ★표준 동작(더블클릭 진입)을 ★문맥으로 쓴다.
+ * ⛔모드 ★밖 동작은 ★한 글자도 안 바꾼다 — 전원 삭제·통째 풀림 ★그대로(회귀 0).
+ *
+ * ★★누가 ★무엇을 ★정했나 — ⛔«남의 권위»를 ★내 문장에 ★빌리지 않으려 ★갈라 적는다
+ *   ─ ★현빈(2026-10-10) ─
+ *     ⒤ ★요구 자체: 「그룹에서 ★한 장만 빼고 싶다」
+ *     ⒥ ★진입 제스처 = ★★더블클릭(★현빈이 ★지정한 표준 동작)
+ *     ⒦ ★A안 채택 ＋ ★★«진입 중임을 ★표시»는 ★필수 조건
+ *   ─ ★지디(조정자 판정) ─
+ *     ⒧ ★진입 ★배타 — 두 모드가 ★동시에 못 선다(:475·:613 ★두 방향)
+ *     ⒨ ★✕ → ★⊘ ＋ title 교체(★위 _markGroupMode 의 그 줄)
+ *     ⒩ ★✂(슬라이스)는 ★ⅰ안 = ★그대로 둔다 — ⛔모드 중 ✂ 를 막지 ★않는다
+ *     ⒪ ★★1장 그룹 ★자동 해제 = ★지디 ★기본값 (★★현빈 ★미정 — ★노트에 적어 ★뒤집을 수 있게 둔다)
+ *   ─ ★★⚰️ ★사라진 안 ─
+ *     ⚰️ ★지디 ⒜ 「★모드 ★안에서는 ★Delete 를 ★막는다」 = ★★폐기됐다.
+ *        ★까닭 = ★⒧ 진입 배타가 ★그 물음을 ★없앴다(두 모드가 ★동시에 못 서니 ★Delete 가 ★어느 쪽인지 ★헷갈릴 ★판이 ★없다).
+ *        ⛔★이 ⚰️ 를 ★선례로 ★되살리지 마라 — ★폐기된 안이다. ★단 ★⒧ 이 ★뒤집히면 ★이 물음이 ★같이 ★되살아난다. */
+function _groupMembers(gid) { return _scratchItems.filter((s) => s.g === gid); }
+
+function _markGroupMode(on) {
+  for (const s of _scratchItems) {
+    if (!s.el) continue;
+    const inMode = !!on && !!_groupMode && s.g === _groupMode;
+    s.el.classList.toggle('scratch-group-mode', inMode);
+    /* ★진입 중엔 ✕ 가 ★«빼기»다 — ★모양으로 말한다(지디 ③).
+       ⛔같은 손잡이가 ★모드에 따라 ★다른 일을 하는데 ★겉모습이 같으면 ★사용자가 ★지우려다 ★뺀다.
+       ⇒ 글자와 title 을 ★같이 바꾼다. 재는 자 = tests/dom/scratch-group-mode (G5). */
+    const btn = s.el.querySelector('.scratch-close');
+    if (btn) {
+      btn.textContent = inMode ? '⊘' : '✕';
+      btn.title = inMode ? '그룹에서 빼기' : '제거';
+    }
+  }
+}
+
+function _enterGroupMode(item) {
+  if (!item || !item.g) return false;
+  if (_groupMode === item.g) { _clearSelection(); _selectItem(item, false); return true; }
+  if (_sliceMode) _exitSliceMode();            // ★진입 배타(반대쪽은 _enterSliceMode 머리)
+  if (_groupMode) _exitGroupMode();
+  _clearSelection();
+  _selectItem(item, false);                    // ★단독 선택 강제 — 선례 :468 과 같은 줄
+  _groupMode = item.g;
+  _markGroupMode(true);
+  const onKeyEsc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); _exitGroupMode(); } };
+  /* ★밖 클릭 = 나가기. ★capture 로 건다 — ★선택이 바뀌기 «전»에 모드가 풀려야
+     ★모드 중 선택이 ★그룹 밖으로 샐 길이 없다(선례 :543·:554 와 같은 꼴). */
+  const onOutsideMousedown = (e) => {
+    const el = e.target.closest && e.target.closest('.scratch-item');
+    if (!el || el.dataset.scratchGroup !== _groupMode) _exitGroupMode();
+  };
+  _groupModeHandlers = { onKeyEsc, onOutsideMousedown };
+  setTimeout(() => document.addEventListener('mousedown', onOutsideMousedown, true), 0);
+  document.addEventListener('keydown', onKeyEsc);
+  return true;
+}
+
+function _exitGroupMode() {
+  if (!_groupMode) return;
+  _markGroupMode(false);
+  _groupMode = null;
+  const h = _groupModeHandlers;
+  if (h) {
+    document.removeEventListener('mousedown', h.onOutsideMousedown, true);
+    document.removeEventListener('keydown', h.onKeyEsc);
+  }
+  _groupModeHandlers = null;
+}
+
+/* ★그 한 장만 ★그룹에서 ★뺀다 — ⛔지우지 않는다(이미지는 남는다).
+   ★1장만 남으면 ★그룹을 ★푼다 — ★지디 기본값(현빈 미정 · 노트에 적어 뒤집을 수 있게 둔다).
+     까닭: 「그룹」은 ★둘 이상을 묶는 말이고, 1장 그룹은 공동 선택·공동 이동이 ★무의미하다. */
+function _detachFromGroup(item) {
+  if (!item || !item.g) return { ok: false, reason: 'NO_GROUP' };
+  const gid = item.g;
+  const rest = _groupMembers(gid).filter((s) => s !== item);
+  const touched = [item, ...rest];
+  const before = _scratchGeomSnapshot(touched);
+  delete item.g;
+  if (item.el) delete item.el.dataset.scratchGroup;
+  let dissolved = false;
+  if (rest.length === 1) {
+    delete rest[0].g;
+    if (rest[0].el) delete rest[0].el.dataset.scratchGroup;
+    dissolved = true;
+  }
+  _saveScratch();
+  const after = _scratchGeomSnapshot(touched);
+  try {
+    window.pushHistory?.('스크래치 그룹에서 빼기', {
+      onUndo: () => { _applyScratchGeomSnapshot(before); },
+      onRedo: () => { _applyScratchGeomSnapshot(after); },
+    });
+  } catch (_) {}
+  /* 선은 «묶음당 하나»라 멤버가 줄면 다시 그려야 한다(해제 쪽과 같은 까닭). */
+  try { window.SPLink && window.SPLink.rerender && window.SPLink.rerender(); } catch (_) {}
+  _clearSelection();
+  if (dissolved || rest.length < 2) _exitGroupMode(); else _markGroupMode(true);
+  window.showToast?.(dissolved
+    ? '🧩 그룹에서 뺐습니다 — 1장만 남아 그룹도 풀렸습니다'
+    : `🧩 그룹에서 뺐습니다 (남은 ${rest.length}장은 그대로 그룹)`);
+  return { ok: true, dissolved, remaining: dissolved ? 0 : rest.length };
+}
+
+/* 검사·프로그램용 — ⛔상태를 ★밖에서 ★바꾸지 않는다(읽기만). */
+window._scratchGroupMode = () => _groupMode;
+window._scratchDetachFromGroup = (id) => {
+  const it = _scratchItems.find((s) => s.id === id);
+  return it ? _detachFromGroup(it) : { ok: false, reason: 'NO_ITEM' };
+};
+
 // dataURL → PNG Blob (Chromium 클립보드는 image/png만 허용하므로 canvas 거쳐 변환)
 function _dataUrlToPngBlob(dataUrl) {
   return new Promise((resolve, reject) => {
@@ -635,6 +760,9 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
   closeBtn.title = '제거';
   closeBtn.addEventListener('click', e => {
     e.stopPropagation();
+    /* ★⑦ 그룹 진입 중이고 ★이 그룹의 멤버면 ★«빼기»다 — 현빈 2026-10-10 「삭제버튼 누르면 그 한 장만 빼게」.
+       ⛔모드 밖에서는 ★지금 그대로 ★삭제다(_removeItem 의 그룹 갈래도 그대로). */
+    if (_groupMode && item.g === _groupMode) { _detachFromGroup(item); return; }
     _removeItem(item);
   });
   el.appendChild(closeBtn);
@@ -772,6 +900,14 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
   el.appendChild(resizeH);
 
   // 우클릭 → 자산 폴더로 보내기 메뉴
+  /* ★⑦ 더블클릭 = ★그룹 진입(현빈 2026-10-10). ⛔그룹이 아니면 ★아무 일도 안 한다 —
+     그 경우 더블클릭은 ★지금처럼 ★두 번의 클릭으로 남는다(실측: 선택 0 → 3). */
+  el.addEventListener('dblclick', e => {
+    if (!item.g) return;
+    e.preventDefault(); e.stopPropagation();
+    _enterGroupMode(item);
+  });
+
   el.addEventListener('contextmenu', e => {
     e.preventDefault();
     e.stopPropagation();
@@ -1250,6 +1386,7 @@ async function initScratchPad(projectId, pageId) {
     const isEmptyArea = e.button === 0
       && ['canvas-wrap', 'canvas-scaler', 'canvas'].includes(e.target.id)
       && !_sliceMode
+      && !_groupMode                       // ★⑦ 그룹 진입 중엔 마퀴를 끈다(선택이 그룹 밖으로 새지 않게)
       && !document.body.classList.contains('pen-mode')
       && !document.body.classList.contains('vpen-mode');
     // 네이티브 스크롤바 클릭은 마퀴 제외 (preventDefault가 스크롤바 드래그를 막음)
@@ -1453,6 +1590,12 @@ async function initScratchPad(projectId, pageId) {
   document.addEventListener('keydown', e => {
     if (e.key !== 'Delete' && e.key !== 'Backspace') return;
     if (_sliceMode) { _exitSliceMode(); return; }
+    /* ★⑦ 그룹 진입 중 — ★고른 한 장을 ★뺀다(⛔지우지 않는다). 현빈 2026-10-10.
+       ★진입 배타 덕에 위 slice 가드와 ★동시에 참일 수 없다 — 순서는 뜻이 없다. */
+    if (_groupMode) {
+      const picked = [..._selectedItems].filter((s) => s.g === _groupMode);
+      if (picked.length === 1) { _detachFromGroup(picked[0]); return; }
+    }
     if (_selectedItems.size === 0) return;
     const active = document.activeElement;
     if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
