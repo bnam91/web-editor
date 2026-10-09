@@ -10,6 +10,7 @@
 // 경로에서만» 호출해야 한다. 네이티브 경로의 clone에 걸면 정상 블러까지 망가진다.
 import { parseGradient } from '../props/gradient-model.js';
 import { stripImageMemoForCapture } from '../image-memo.js';
+import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★svg 의 CSS transform 을 감싸는 쪽으로 — h2c 는 svg 쪽을 안 그린다 */
 
 const REDACT_OPAQUE_FILL = '#4a4a4a';
 
@@ -532,6 +533,10 @@ export async function captureSectionImage(sec) {
     neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
     await neutralizeObjectFitForH2C(clone); // html2canvas는 object-fit 미지원 → 상자에 «늘려» 그린다. 상자 크기대로 미리 잘라 끼운다(썸네일이 화면과 다른 그림이 되던 자리)
     if (window.finalizeMosaicForClone) { try { await window.finalizeMosaicForClone(sec, clone); } catch (_) {} }
+    /* ★svg 에 닿는 CSS transform 을 «감싸는 span»으로 올린다 — html2canvas 는 svg 쪽 것을 ★안 그린다
+       (월계수 오른 잎 거울이 ★썸네일에서 사라지던 자리 · 현빈 2026-10-09). ★까닭·실측은 h2c-prep.js 머리말.
+       ⛔클론이 ★document 에 ★붙은 «뒤»라야 한다 — detached 면 computed transform 이 ★빈 문자열이다. */
+    try { liftSvgTransformsForH2C(clone); } catch (e) { console.warn('[capture] svg transform 올리기 실패:', e); }
 
     const bgColor = sec.style.backgroundColor || sec.style.background || '#ffffff';
     const canvas = await html2canvas(clone, {

@@ -1,6 +1,7 @@
 import { canvasEl, state, PAGE_LABELS } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기만 쓴다(직접 대입 재유입 방지) */
 import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
 import { buildProjForSave } from './proj-merge.js';   /* ★저장 병합은 «한 벌»(T-232 ⓑ) */
+import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★svg 의 CSS transform 을 감싸는 쪽으로 — h2c 는 svg 쪽을 안 그린다 */
 import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제는 «켠 쪽»이 닫는다
@@ -169,6 +170,10 @@ async function captureThumbnail() {
        ⛔capture 공용 길(export-image)의 ★기본값으로 옮기지 마라 — PNG 는 그대로 둔다(라이브 캔버스 인자와 ★같은 규약).
        ⛔실패해도 찍기를 멈추지 않는다 — 반사 하나 때문에 그림을 ★아예 잃는 쪽이 더 나쁘다. */
     try { neutralizeBoxReflectForH2C(clone, bgColor); } catch (e) { console.warn('[thumb] 반사 대체 실패:', e); }
+    /* ★svg 에 닿는 CSS transform 을 «감싸는 span»으로 올린다 — html2canvas 는 svg 쪽 것을 ★안 그린다
+       (월계수 오른 잎 거울이 ★썸네일에서 사라지던 자리 · 현빈 2026-10-09). ★까닭·실측은 h2c-prep.js 머리말.
+       ⛔클론이 ★document 에 ★붙은 «뒤»라야 한다 — detached 면 computed transform 이 ★빈 문자열이다. */
+    try { liftSvgTransformsForH2C(clone); } catch (e) { console.warn('[thumb] svg transform 올리기 실패:', e); }
     /* ★L1(2026-10-04) — 편집 보조(그리드 가이드·패딩 비주얼)는 «캡처 동안» 끈다 — PNG(exportSection)와 «같은 함수» withGuideOff(capture-safety.js).
        지금까지 썸네일에 안 샌 것은 html2canvas 가 반복 그라데이션을 못 그려서일 뿐이었다(tests/dom/l1-guide-align L1-X). */
     /* ⚠️바로 아래 html2canvas 호출의 글자 꼴(await · 첫 인자 clone)을 지킨다 — tests/dom/thumb-goya-asset H4 가 그 글자를 «찍는 자리» 닻으로 쓴다(goya 풀기가 그 앞인지 본다).
