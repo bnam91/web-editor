@@ -176,11 +176,24 @@ export function isDotOn(contentEl) {
   return !!(contentEl && contentEl.querySelector('span.' + DOT_CLASS));
 }
 
-/* ── ★점 span 을 ★다루는 ★한 벌 (쪼개기 · 자리번호 · 껍데기 걷기) ───────────────────────
- * ★여기(모듈 바닥)로 ★올렸다 — ⛔동작은 ★안 바꿨다(wireTextEditSection 클로저에 ★사본이 있었다).
- * ★까닭: 이것을 쓸 자리가 ★곧 ★둘이 된다(단추 핸들러 ＋ 글자 편집 뒤 다시 세우는 자).
- *   ★사본을 두면 ★공백 규약(점은 공백에 안 찍는다)과 ★자리번호 식이 ★조용히 갈린다.
- * ★이 커밋이 ★동작을 안 바꿨다는 자 = tests/dom/text-dot-over.dom.spec.js ★D1~D13 ★전부 초록.
+/* ── ★점 span 의 «불변식»과 그것을 지키는 ★한 자 ────────────────────────────────────────
+ * ★불변식 = «span.tb-dot ★하나 = 점 찍힌 글자 ★하나». 그리는 자가 `.tb-dot::before` ★하나뿐이라
+ *   한 span 에 두 글자가 들어가면 ★점이 안 늘어난다.
+ *
+ * ★★왜 ★점에만 이 자가 필요한가 — ★형광펜과 ★갈리는 자리다(2026-10-09 실측, CDP 실앱·진짜 키):
+ *   'AAA BBB CCC' 의 "BBB" 에 효과를 걸고 ★둘째·셋째 B 사이에 'X' 한 자를 ★쳤다.
+ *     형광펜: `span.tb-hl` ★1개 "BBB" → ★1개 ★"BBXB"  ⇒ 획이 새 글자까지 덮는다 ✅
+ *             («한 span 이 여러 글자»를 덮는 꼴이라 ★브라우저가 span 안에 글자를 꽂으면 ★공짜로 상속한다)
+ *     점    : span ★3개(B·B·B) → ★3개(B·★"BX"·B) · ★그려진 점 ★3개 / 점 찍힌 글자 ★4자  ❌
+ *   ⇒ 갈린 것은 «한 줄»이 아니라 ★「없는 한 자」였다 — 쪼개기(_dotWrapRange)가 ★단추 누른 그 순간에만
+ *     돌고, ★글자가 바뀐 뒤 불변식을 ★다시 세우는 자가 없었다
+ *     (그 대가는 tests/dom/text-dot-over.dom.spec.js 머리말이 ★이미 적어 뒀다 — 이제 ★갚는다).
+ * ⛔형광펜 꼴로 ★바꾸지 않았다 — 점은 «글자마다 하나»여야 수가 맞고, 간격(--tb-dot-i)이 ★그 자리를 쓴다.
+ * ★누가 점을 받나는 ★브라우저가 정한다(글자가 span ★안에 들어갔나) — ★형광펜과 ★같은 규약이다.
+ *   이 자는 ★그 뒤에 «수»만 맞춘다. ⇒ 두 효과가 ★같은 판정을 쓴다(명부가 둘이 안 된다).
+ *
+ * ★자리 — ★여기(모듈 바닥)다. ⛔block-drag.js 의 텍스트블럭 배선에 두면 ★그리드 칸·모달 안의
+ *   리치텍스트가 ★빠져 명부가 둘이 된다. ⇒ `document` 위임 ★하나로 ★모든 글자칸을 덮는다.
  */
 const _unwrap = (n) => { const p = n.parentNode; if (!p) return; while (n.firstChild) p.insertBefore(n.firstChild, n); p.removeChild(n); };
 const _dotSpans = (el) => (el ? [...el.querySelectorAll('span.' + DOT_CLASS)] : []);
@@ -189,8 +202,8 @@ const _dotReindex = (spans) => {
   const n = spans.length;
   spans.forEach((sp, i) => sp.style.setProperty('--tb-dot-i', String(i - (n - 1) / 2)));
 };
-/* 텍스트 노드 ★하나를 글자마다 span 으로 쪼갠다 — ★두르는 자(_dotWrapRange)가 쓴다.
-   ⛔두 자리에 베껴 적으면 공백 규약이 갈린다.
+/* 텍스트 노드 ★하나를 글자마다 span 으로 쪼갠다 — ★두르는 자(_dotWrapRange)와 ★지키는 자
+   (normalizeDotSpans)가 ★이 한 벌을 쓴다. ⛔두 자리에 베껴 적으면 공백 규약이 갈린다.
    ★공백엔 점을 ★안 찍는다(「세 글자 선택 → 점 3개」가 발주의 말이고, 공백은 글자가 아니다).
    ★코드포인트 단위로 돈다(for…of) — 한글·이모지가 반 토막 나지 않는다. */
 const _dotSplitTextNode = (t, made) => {
@@ -226,6 +239,96 @@ const _dotPrune = (el) => {
   return n;
 };
 
+/* ★불변식을 ★다시 세운다. 돌려주는 값 = ★DOM 을 건드린 횟수(0 이면 아무것도 안 했다).
+   ★손볼 span 의 꼴 ★둘뿐이다:
+     ⒜ 글자가 ★둘 이상 든 span   — 타자가 span ★안으로 들어간 자리(이 결함의 본체)
+     ⒝ ★공백만 든 span          — 점은 공백에 안 찍는다(쪼개는 자의 규약) ⇒ 껍데기를 벗긴다
+   ★요소를 품은 span(<br> 등)은 ★안 건드린다 — 그건 _dotPrune 몫이다. */
+export function normalizeDotSpans(contentEl) {
+  if (!contentEl) return 0;
+  const needs = (sp) => {
+    if (sp.children.length) return false;
+    const s = sp.textContent || '';
+    if (!s) return false;                       // 빈 껍데기 = _dotPrune 몫
+    return [...s].length > 1 || !s.trim();
+  };
+  const over = _dotSpans(contentEl).filter(needs);
+  const had = _dotSpans(contentEl).length;
+  for (const sp of over) {
+    const t = document.createTextNode(sp.textContent);
+    sp.parentNode.replaceChild(t, sp);          // 껍데기를 벗겨 글자만 남기고
+    _dotSplitTextNode(t, null);                 // ★쪼개는 자 한 벌로 다시 두른다
+  }
+  const pruned = _dotPrune(contentEl);
+  const spans = _dotSpans(contentEl);
+  if (over.length || pruned || spans.length !== had) _dotReindex(spans);
+  return over.length + pruned;
+}
+
+/* ── 캐럿을 «글자 수»로 적어 두고 되살린다 ───────────────────────────────────────────
+ * ★노드로 적으면 ★못 쓴다 — 우리가 그 노드를 ★바로 지운다(span 을 쪼개니까).
+ * ★`Range.toString().length` 와 ★텍스트 노드 길이 합은 ★같은 자다(둘 다 텍스트만 잇는다). */
+function _caretCharOffset(root) {
+  const s = (typeof window !== 'undefined') ? window.getSelection() : null;
+  if (!s || !s.rangeCount || !s.isCollapsed) return null;
+  const n = s.focusNode;
+  if (!n || !root || !root.contains(n)) return null;
+  try {
+    const r = document.createRange();
+    r.setStart(root, 0);
+    r.setEnd(n, s.focusOffset);
+    return r.toString().length;
+  } catch (_) { return null; }
+}
+function _putCaret(node, off) {
+  try {
+    const r = document.createRange();
+    r.setStart(node, off); r.collapse(true);
+    const s = window.getSelection();
+    s.removeAllRanges(); s.addRange(r);
+    return true;
+  } catch (_) { return false; }
+}
+function _restoreCaretAtCharOffset(root, want) {
+  if (want == null || !root) return false;
+  let seen = 0, last = null;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let t;
+  while ((t = w.nextNode())) {
+    const len = t.nodeValue.length;
+    if (want <= seen + len) return _putCaret(t, want - seen);
+    seen += len; last = t;
+  }
+  return last ? _putCaret(last, last.nodeValue.length) : false;
+}
+
+/* 위임 — 글자칸(contenteditable) 안에 점이 ★있을 때만 돈다. ⛔패널 숫자칸은 contentEditable 이 아니다.
+   ★IME 조립 중(`isComposing`)엔 ★손대지 않는다 — 한글 조립 중 span 을 쪼개면 조립이 깨진다.
+     ⇒ 조립이 ★끝난 뒤(`compositionend`) 같은 자로 다시 센다(두 번 돌아도 ★같은 결과다 — ★멱등).
+   ★★`paste` 도 ★같이 듣는다 — 2026-10-09 실측: 붙여넣기는 ★`input` 이 ★안 온다.
+     block-drag.js 의 글자칸 paste 핸들러가 `preventDefault()` 뒤 ★제 손으로 텍스트 노드를 꽂기 때문이다
+     (잰 값: 점 span 에 'PQ' 를 붙여 span 이 ★'가PQ' ⇒ 글자 7 / 그려진 점 ★5).
+     ⇒ ★위임이 ★버블에서 돌아 그 꽂기 ★뒤에 센다(`preventDefault` 는 전파를 ★안 막는다).
+     ⛔합성 `input` 을 ★되쏘지 않았다 — 남의 input 리스너를 ★내가 부르는 꼴이 된다. */
+const _dotHostOf = (t) => {
+  const el = (t && t.nodeType === 1) ? t : (t && t.parentElement) || null;
+  if (!el || !el.isContentEditable) return null;
+  return el.closest('[contenteditable="true"], [contenteditable=""]') || el;
+};
+export function keepDotSpansOnEdit(ev) {
+  if (ev && ev.isComposing) return 0;
+  const host = _dotHostOf(ev && ev.target);
+  if (!host || !host.querySelector('span.' + DOT_CLASS)) return 0;
+  const want = _caretCharOffset(host);
+  const touched = normalizeDotSpans(host);
+  if (touched) _restoreCaretAtCharOffset(host, want);
+  return touched;
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('input', keepDotSpansOnEdit);
+  document.addEventListener('compositionend', keepDotSpansOnEdit);
+  document.addEventListener('paste', keepDotSpansOnEdit);
+}
 
 export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
   /* ★선택 저장·복원 = js/props/_text-selection.js 한 벌. 여기엔 저장 변수가 «없다». */
@@ -834,7 +937,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
    *   ★--tb-dot-i 「만」 span 마다다(「양쪽으로 퍼뜨리기」가 그 글자의 자리를 알아야 한다).
    * ⛔wireInlineStyleBtn·wireDecoBtn 으로 되돌리지 마라 — 이것은 «스타일 한 줄»이 아니라 ★DOM 쪼개기다.
    */
-  /* ★★쪼개기·자리번호·껍데기 걷기는 ★모듈 바닥 ★한 벌이다.
+  /* ★★쪼개기·자리번호·껍데기 걷기는 ★모듈 바닥 ★한 벌이다(normalizeDotSpans 와 ★같은 자를 쓴다).
      ⛔여기에 ★사본을 다시 두지 마라 — 공백 규약·자리번호가 ★조용히 갈린다(명부가 둘이 된다). */
   /* 걷기 — 쪼갠 글자를 ★다시 하나로 합친다(normalize). 안 합치면 다음에 켤 때 토막이 쌓인다. */
   const _dotStripAll = (el) => {

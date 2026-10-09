@@ -32,6 +32,19 @@
  *   D9 ★다시 켜기 — 겹 span 이 ★안 쌓인다(끄고 켜도 점 수가 그대로).
  *   D10 ★배송본 — 단독 HTML CSS 에 `.tb-dot` 규칙이 실리고, 세척이 인라인을 안 걷는다.
  *   D11 ★다른 패널엔 «없다» — showDots 기본 false(모달·그리드·챗 마크업 «바이트 동일»).
+ *   D12 ★섹션 맨 윗줄 — 기본 크기의 점은 섹션 «안»에 들어온다(큰 점은 나갈 수 있다).
+ *   D13 ★★겹치는 부분 선택 — 이미 점 찍힌 글자를 ★포함해 다시 고르면 겹 span 이 안 생긴다.
+ *     (⚠️D12·D13 은 ★머리말 명부에 ★빠져 있었다 — 2026-10-09 에 ★메웠다. ★시험을 더하면 ★여기도 같이 더해라.)
+ *
+ *   ★★2026-10-09 현빈 「점을 적용하고, ★글자를 ★사이에 추가 입력하면 ★하이라이트 기능은 잘 추가가 되는데,
+ *      ★점은 안된다.」 ⇒ 위 머리말이 「이 길의 대가」라 적어 둔 ★그 병이다. ★갚는다.
+ *   D14 ★글자 ★사이 끼워넣기 — 점 수가 ★따라온다(1자 ＋ ★이어서 1자 = 캐럿이 살아 있나)
+ *   D15 ★★형광펜 ★대조 — ★같은 짓에서 획은 새 글자를 ★덮는다. ★이것이 ★기준선이다
+ *       (⛔「점이 형광펜처럼 되게」가 아니다 — ★«누가 효과를 받나»를 ★브라우저가 정하고,
+ *        점 쪽은 ★그 뒤에 ★«수»만 맞춘다. ★두 효과가 ★같은 판정을 쓰는지를 ★여기서 견준다.)
+ *   D16 ★붙여넣기 — ★`input` 이 ★안 오는 길(앱 paste 핸들러가 preventDefault 뒤 제 손으로 꽂는다)
+ *   D17 ★★음성대조 — ★공백을 끼우면 점이 ★안 늘어난다(공백엔 점을 안 찍는다는 규약이 ★살아 있나)
+ *   D18 ★한글 IME — ★조립 ★중엔 ★손대지 않고(음성대조) ★확정 뒤에 센다
  *
  * ⛔이 하네스로 «못 재는» 축: Electron 재기동 · 네이티브 메뉴 · 파일로 쓰인 export.html 바이트.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js text-dot-over
@@ -114,6 +127,37 @@ async function assertPremiseSel(page, hostSel, want) {
     .toEqual({ rc: 1, col: false, str: want, inHost: true });
 }
 const assertPremiseBBB = (page, hostSel) => assertPremiseSel(page, hostSel, 'BBB');
+
+/* ★글자 ★사이에 캐럿을 둔다 — 'AAA BBB CCC' 에서 (back 5) = ★둘째·셋째 B 사이.
+   ⛔선택을 두지 ★않는다(collapsed) — 「사이에 ★추가 입력」이 그 뜻이다.
+   ★editAndSelectTail 과 ★같은 길로 들어간다(멈춘 뒤 좌표 · 진짜 더블클릭) — ⇧← 만 안 누른다. */
+async function caretBetween(page, hostSel, back) {
+  await page.locator(hostSel).first().scrollIntoViewIfNeeded();
+  const r = await waitStableRect(page, hostSel);
+  await page.mouse.dblclick(r.left + r.width - 4, r.top + r.height / 2);
+  await page.waitForTimeout(300);
+  await page.keyboard.press('End');
+  for (let i = 0; i < back; i++) await page.keyboard.press('ArrowLeft');
+  await page.waitForTimeout(150);
+}
+/* ★전제 — 캐럿이 ★그 효과 span ★안에 ★collapsed 로, ★글자 수로 ★몇 번째에 있나.
+   ⛔「점이 안 늘었다」를 ★캐럿이 ★딴 데 있어서 생긴 일과 ★가르는 자다(자가 흔들린 것을 결함으로 읽지 않게). */
+async function assertPremiseCaret(page, hostSel, cls, wantOff) {
+  const p = await page.evaluate(({ hs, c }) => {
+    const s = getSelection(); const host = document.querySelector(hs); const n = s.focusNode;
+    let off = null;
+    try { const r = document.createRange(); r.setStart(host, 0); r.setEnd(n, s.focusOffset); off = r.toString().length; } catch (_) {}
+    return { col: s.isCollapsed, inHost: !!host && !!n && host.contains(n),
+             inSpan: !!(n && n.parentElement && n.parentElement.classList.contains(c)), off };
+  }, { hs: hostSel, c: cls });
+  expect(p, `★전제 — 캐럿이 span.${cls} 안 ${wantOff}번째 글자 자리에 collapsed 로 있어야 한다. 잰 값 ${JSON.stringify(p)}`)
+    .toEqual({ col: true, inHost: true, inSpan: true, off: wantOff });
+}
+/* 점 찍힌 ★글자들을 이어 돌려준다 — ★span 수와 ★따로 센다(한 span 에 두 글자가 들어가면 둘이 갈린다). */
+const dottedChars = (page, id) => page.evaluate((i) => [...document.getElementById(i)
+  .querySelectorAll('span.tb-dot')].map(x => x.textContent).join(''), id);
+const hlChars = (page, id) => page.evaluate((i) => [...document.getElementById(i)
+  .querySelectorAll('span.tb-hl')].map(x => x.textContent).join('|'), id);
 
 /* ★점을 «그려서» 센다 — ⛔span 수를 세는 것은 «견주는 것»이 아니다.
    DOT_HEX 색 덩이만 flood-fill 로 골라 중심·지름을 돌려준다. 글자(#1c1c1e 계열)는 안 걸린다. */
@@ -598,5 +642,204 @@ test('D13 ★★겹치는 부분 선택 — 이미 점 찍힌 글자를 ★포�
   /* ★자리번호도 ★다시 매겨졌다 — 4개면 −1.5 … 1.5 (안 매기면 간격이 통째로 밀린다) */
   expect(got.idx, `★자리번호가 4개짜리로 다시 안 매겨졌다. 잰 값 ${JSON.stringify(got.idx)}`).toEqual(['-1.5', '-0.5', '0.5', '1.5']);
   expect(got.text, '★글자가 바뀌었다').toBe('AAA BBB CCC');
+  expect(errs).toEqual([]);
+});
+
+
+/* ══════════════ 2026-10-09 현빈 — 「글자를 사이에 추가 입력」 ══════════════ */
+
+test('D14 ★글자 ★사이 끼워넣기 — 점 수가 ★따라온다 (＋이어서 한 자 = 캐럿이 살아 있나)', async ({ page }) => {
+  const errs = await setup(page);
+  const id = await insertText(page);                 // 'AAA BBB CCC'
+  await openPanel(page, id);
+  await centerText(page, id);
+  const host = `#${id} [contenteditable]`;
+
+  await editAndSelectTail(page, host, 4, 3);         // "BBB"
+  await assertPremiseBBB(page, host);
+  await clickBtn(page, '#txt-dot-btn');
+  await pickDotColor(page);          // ★켠 ★뒤에 — 색 칸은 꺼져 있으면 display:none 이다
+
+  const s0 = await state(page, id);
+  const p0 = await paintedDots(page, BOX);
+  expect(s0.nSpan, `★전제 — 켜자마자 span 이 3개가 아니다. 잰 값 ${s0.nSpan}`).toBe(3);
+  expect(p0.pts.length, `★전제 — ★그려진 점이 3개가 아니다. 잰 값 ${p0.pts.length}`).toBe(3);
+
+  /* 'AAA BB|B CCC' — 둘째·셋째 B ★사이 */
+  await caretBetween(page, host, 5);
+  await assertPremiseCaret(page, host, 'tb-dot', 6);
+
+  await page.keyboard.type('X');
+  await page.waitForTimeout(250);
+  const s1 = await state(page, id);
+  const d1 = await dottedChars(page, id);
+  const p1 = await paintedDots(page, BOX);
+  console.log('  D14 한 자:', JSON.stringify({ text: s1.text, nSpan: s1.nSpan, dotted: d1, painted: p1.pts.length, idx: s1.idx }));
+  expect(s1.text, `★글자가 'AAA BBXB CCC' 가 아니다. 잰 값 ${JSON.stringify(s1.text)}`).toBe('AAA BBXB CCC');
+  expect(d1, `★점 달린 글자가 'BBXB' 가 아니다 — 끼운 글자가 점을 ★못 받았다. 잰 값 ${JSON.stringify(d1)}`).toBe('BBXB');
+  expect(s1.nSpan, `★점 span 수가 글자 수(4)와 다르다 — 한 span 에 두 글자가 들었다. 잰 값 ${s1.nSpan}`).toBe(4);
+  expect(p1.pts.length, `★★★그려진 점이 4개가 아니다 — ★이것이 현빈이 본 것이다. 잰 값 ${p1.pts.length}`).toBe(4);
+  expect(s1.idx, `★자리번호가 4개짜리로 다시 안 매겨졌다(안 매기면 간격이 통째로 밀린다). 잰 값 ${JSON.stringify(s1.idx)}`)
+    .toEqual(['-1.5', '-0.5', '0.5', '1.5']);
+
+  /* ★이어서 한 자 더 — ★캐럿이 ★그 자리에 살아 있어야 'Y' 가 ★X 뒤로 간다.
+     ⛔span 을 쪼개면 캐럿이 들었던 ★텍스트 노드가 ★없어진다 ⇒ 되살리지 않으면 'Y' 가 ★딴 데 간다. */
+  await page.keyboard.type('Y');
+  await page.waitForTimeout(250);
+  const s2 = await state(page, id);
+  const d2 = await dottedChars(page, id);
+  const p2 = await paintedDots(page, BOX);
+  console.log('  D14 이어서:', JSON.stringify({ text: s2.text, nSpan: s2.nSpan, dotted: d2, painted: p2.pts.length }));
+  expect(s2.text, `★이어 친 글자가 ★제자리에 안 갔다(캐럿이 안 살았다). 잰 값 ${JSON.stringify(s2.text)}`).toBe('AAA BBXYB CCC');
+  expect(d2, `★점 달린 글자가 'BBXYB' 가 아니다. 잰 값 ${JSON.stringify(d2)}`).toBe('BBXYB');
+  expect(s2.nSpan, `★점 span 수가 5가 아니다. 잰 값 ${s2.nSpan}`).toBe(5);
+  expect(p2.pts.length, `★그려진 점이 5개가 아니다. 잰 값 ${p2.pts.length}`).toBe(5);
+  expect(errs).toEqual([]);
+});
+
+test('D15 ★★형광펜 ★대조 — 같은 짓에서 획은 ★새 글자를 덮는다 (★기준선)', async ({ page }) => {
+  /* ★★이 칸이 ★점 spec 에 사는 까닭 — ★D14 의 ★기대값이 ★어디서 왔나를 ★여기가 적는다.
+     현빈의 말이 「★하이라이트는 잘 되는데 점은 안된다」였다 ⇒ ★형광펜이 ★참값의 출처다.
+     ⛔형광펜 쪽이 ★바뀌면 ★이 칸이 빨개진다 — 그때 ★점의 기대값도 ★다시 봐야 한다는 뜻이다. */
+  const errs = await setup(page);
+  const id = await insertText(page);
+  await openPanel(page, id);
+  const host = `#${id} [contenteditable]`;
+
+  await editAndSelectTail(page, host, 4, 3);
+  await assertPremiseBBB(page, host);
+  await clickBtn(page, '#txt-highlight-btn');
+
+  const h0 = await hlChars(page, id);
+  expect(h0, `★전제 — 획이 "BBB" 하나가 아니다. 잰 값 ${JSON.stringify(h0)}`).toBe('BBB');
+
+  await caretBetween(page, host, 5);
+  await assertPremiseCaret(page, host, 'tb-hl', 6);
+  await page.keyboard.type('X');
+  await page.waitForTimeout(250);
+
+  const h1 = await hlChars(page, id);
+  const nHl = await page.evaluate((i) => document.getElementById(i).querySelectorAll('span.tb-hl').length, id);
+  const text = await page.evaluate((i) => document.getElementById(i).querySelector('[contenteditable]').innerText, id);
+  console.log('  D15:', JSON.stringify({ text, nHl, hl: h1 }));
+  expect(text, `★글자가 'AAA BBXB CCC' 가 아니다. 잰 값 ${JSON.stringify(text)}`).toBe('AAA BBXB CCC');
+  expect(nHl, `★획 span 이 ★하나가 아니다 — 형광펜 쪽 꼴이 바뀌었다. 잰 값 ${nHl}`).toBe(1);
+  expect(h1, `★획이 새 글자를 ★안 덮는다 — ★기준선이 무너졌다(점의 기대값도 다시 봐야 한다). 잰 값 ${JSON.stringify(h1)}`).toBe('BBXB');
+  expect(errs).toEqual([]);
+});
+
+test('D16 ★붙여넣기 — `input` 이 안 오는 길에서도 점 수가 따라온다', async ({ page }) => {
+  /* ★★2026-10-09 실측: 글자칸의 paste 핸들러(js/block-drag.js)가 `preventDefault()` 뒤
+     ★제 손으로 텍스트 노드를 꽂는다 ⇒ ★`input` 이벤트가 ★오지 않는다.
+     고치기 전 잰 값: 점 span 에 'PQ' 를 붙여 span 이 ★'가PQ' — 글자 7 / ★그려진 점 5.
+     ⇒ 위임이 ★`paste` 도 ★듣는다(버블이라 꽂기 ★뒤에 돈다). */
+  const errs = await setup(page);
+  const id = await insertText(page);
+  await openPanel(page, id);
+  await centerText(page, id);
+  const host = `#${id} [contenteditable]`;
+
+  await editAndSelectTail(page, host, 4, 3);
+  await assertPremiseBBB(page, host);
+  await clickBtn(page, '#txt-dot-btn');
+  await pickDotColor(page);          // ★켠 ★뒤에 — 색 칸은 꺼져 있으면 display:none 이다
+  const s0 = await state(page, id);
+  expect(s0.nSpan, `★전제 — 켜자마자 3개가 아니다. 잰 값 ${s0.nSpan}`).toBe(3);
+
+  await caretBetween(page, host, 5);
+  await assertPremiseCaret(page, host, 'tb-dot', 6);
+  /* ★앱의 paste 핸들러를 ★그대로 탄다 — ⛔DOM 을 내 손으로 고치지 않는다. */
+  await page.evaluate((i) => {
+    const ce = document.getElementById(i).querySelector('[contenteditable]');
+    const dt = new DataTransfer(); dt.setData('text/plain', 'PQ');
+    ce.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, id);
+  await page.waitForTimeout(300);
+
+  const s1 = await state(page, id);
+  const d1 = await dottedChars(page, id);
+  const p1 = await paintedDots(page, BOX);
+  console.log('  D16:', JSON.stringify({ text: s1.text, nSpan: s1.nSpan, dotted: d1, painted: p1.pts.length }));
+  expect(s1.text, `★붙여넣은 글자가 제자리에 안 갔다. 잰 값 ${JSON.stringify(s1.text)}`).toBe('AAA BBPQB CCC');
+  expect(d1, `★점 달린 글자가 'BBPQB' 가 아니다. 잰 값 ${JSON.stringify(d1)}`).toBe('BBPQB');
+  expect(s1.nSpan, `★점 span 수가 5가 아니다 — 붙여넣기는 input 이벤트가 안 온다. 잰 값 ${s1.nSpan}`).toBe(5);
+  expect(p1.pts.length, `★그려진 점이 5개가 아니다. 잰 값 ${p1.pts.length}`).toBe(5);
+  expect(errs).toEqual([]);
+});
+
+test('D17 ★★음성대조 — ★공백을 끼우면 점이 ★안 늘어난다', async ({ page }) => {
+  /* ★이 칸이 없으면 ★「끼운 글자마다 무조건 두른다」로 고쳐도 ★초록이 난다 —
+     그러면 ★D2 의 「공백엔 안 찍는다」와 ★조용히 갈린다(쪼개는 자가 ★한 벌인지를 여기서 잰다). */
+  const errs = await setup(page);
+  const id = await insertText(page);
+  await openPanel(page, id);
+  await centerText(page, id);
+  const host = `#${id} [contenteditable]`;
+
+  await editAndSelectTail(page, host, 4, 3);
+  await assertPremiseBBB(page, host);
+  await clickBtn(page, '#txt-dot-btn');
+  await pickDotColor(page);          // ★켠 ★뒤에 — 색 칸은 꺼져 있으면 display:none 이다
+  const s0 = await state(page, id);
+  expect(s0.nSpan, `★전제 — 켜자마자 3개가 아니다. 잰 값 ${s0.nSpan}`).toBe(3);
+
+  await caretBetween(page, host, 5);
+  await assertPremiseCaret(page, host, 'tb-dot', 6);
+  await page.keyboard.type(' ');
+  await page.waitForTimeout(250);
+
+  const s1 = await state(page, id);
+  const d1 = await dottedChars(page, id);
+  const p1 = await paintedDots(page, BOX);
+  console.log('  D17:', JSON.stringify({ text: JSON.stringify(s1.text), nSpan: s1.nSpan, dotted: d1, painted: p1.pts.length }));
+  expect(d1, `★공백에 점이 찍혔다(점 달린 글자에 공백이 들었다). 잰 값 ${JSON.stringify(d1)}`).toBe('BBB');
+  expect(s1.nSpan, `★점 span 수가 ★3에서 변했다 — 공백이 span 을 하나 더 만들었다. 잰 값 ${s1.nSpan}`).toBe(3);
+  expect(p1.pts.length, `★그려진 점이 3개가 아니다. 잰 값 ${p1.pts.length}`).toBe(3);
+  expect(errs).toEqual([]);
+});
+
+test('D18 ★한글 IME — ★조립 중엔 손대지 않고(음성대조) ★확정 뒤에 센다', async ({ page }) => {
+  /* ★조립 중에 span 을 쪼개면 ★조립이 깨진다(글자가 토막난다) ⇒ `isComposing` 이면 ★물러선다.
+     ★그러면 ★조립 중 한 칸은 ★«틀린 채»가 ★맞다 — ★그걸 ★음성대조로 ★박아 둔다
+     (안 박아 두면 다음 사람이 「조립 중에도 맞춰야 한다」로 읽고 ★IME 를 깬다). */
+  const errs = await setup(page);
+  const id = await insertText(page);
+  await openPanel(page, id);
+  await centerText(page, id);
+  const host = `#${id} [contenteditable]`;
+
+  await editAndSelectTail(page, host, 4, 3);
+  await assertPremiseBBB(page, host);
+  await clickBtn(page, '#txt-dot-btn');
+  await pickDotColor(page);          // ★켠 ★뒤에 — 색 칸은 꺼져 있으면 display:none 이다
+  const s0 = await state(page, id);
+  expect(s0.nSpan, `★전제 — 켜자마자 3개가 아니다. 잰 값 ${s0.nSpan}`).toBe(3);
+
+  await caretBetween(page, host, 5);
+  await assertPremiseCaret(page, host, 'tb-dot', 6);
+
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.imeSetComposition', { text: 'ㄱ', selectionStart: 1, selectionEnd: 1 });
+  await page.waitForTimeout(250);
+  const mid = await state(page, id);
+  const dMid = await dottedChars(page, id);
+  console.log('  D18 조립중:', JSON.stringify({ text: mid.text, nSpan: mid.nSpan, dotted: dMid }));
+  expect(mid.text, `★전제 — 조립 글자가 ★그 자리에 안 들어갔다. 잰 값 ${JSON.stringify(mid.text)}`).toBe('AAA BBㄱB CCC');
+  expect(mid.nSpan, `★★조립 ★중에 span 을 쪼갰다 — IME 가 깨진다. 잰 값 ${mid.nSpan}`).toBe(3);
+  expect(dMid, `★조립 중 span 이 'BBㄱB' 로 안 남았다(한 span 에 조립 글자가 든 채여야 한다). 잰 값 ${JSON.stringify(dMid)}`).toBe('BBㄱB');
+
+  await cdp.send('Input.imeSetComposition', { text: '가', selectionStart: 1, selectionEnd: 1 });
+  await page.waitForTimeout(150);
+  await cdp.send('Input.insertText', { text: '가' });
+  await page.waitForTimeout(350);
+
+  const s1 = await state(page, id);
+  const d1 = await dottedChars(page, id);
+  const p1 = await paintedDots(page, BOX);
+  console.log('  D18 확정:', JSON.stringify({ text: s1.text, nSpan: s1.nSpan, dotted: d1, painted: p1.pts.length }));
+  expect(s1.text, `★확정된 글자가 제자리에 안 갔다. 잰 값 ${JSON.stringify(s1.text)}`).toBe('AAA BB가B CCC');
+  expect(d1, `★점 달린 글자가 'BB가B' 가 아니다. 잰 값 ${JSON.stringify(d1)}`).toBe('BB가B');
+  expect(s1.nSpan, `★확정 뒤에도 점 span 이 4개가 아니다 — compositionend 를 안 듣는다. 잰 값 ${s1.nSpan}`).toBe(4);
+  expect(p1.pts.length, `★그려진 점이 4개가 아니다. 잰 값 ${p1.pts.length}`).toBe(4);
   expect(errs).toEqual([]);
 });
