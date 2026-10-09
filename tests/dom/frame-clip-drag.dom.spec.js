@@ -181,6 +181,29 @@ async function pushChildOut(page, frameId, childId, by = 60) {
   }, [frameId, childId, by]);
 }
 
+/** ★세로 넘침 계획 — ★`overflowPlan` 의 ★밑변 짝. ⛔거리를 ★spec 에 ★박지 않는다. */
+async function overflowPlanY(page, frameId, childId) {
+  return page.evaluate(([f, c]) => {
+    const fr = document.getElementById(f), ch = document.getElementById(c);
+    const maxTop = Math.max(0, fr.clientHeight - ch.offsetHeight);
+    const dragOutTop = Math.round(fr.offsetHeight + 60 - ch.offsetHeight / 2);
+    return { top: parseInt(ch.style.top || '0', 10), childH: ch.offsetHeight, frameH: fr.clientHeight,
+             maxTop, dragOutTop,
+             target: Math.round(maxTop + Math.min(40, Math.max(8, (dragOutTop - maxTop) / 2))) };
+  }, [frameId, childId]);
+}
+
+/** ★그 띠에 ★이 자식의 ★잉크가 ★있나 — ★같은 띠를 ★자식만 ★숨겨 ★다시 찍어 ★견준다.
+ *  ★★이 자가 ★맞는지는 ★같은 칸의 ★`'false'` 다리가 ★증명한다(★그쪽은 ★달라야 한다) — ⛔양성대조 ★없이 쓰지 마라. */
+async function inkInBand(page, childId, band) {
+  const h = (buf) => crypto.createHash('md5').update(buf).digest('hex');
+  const shown = h(await page.screenshot({ clip: band }));
+  await page.evaluate((id) => { document.getElementById(id).style.visibility = 'hidden'; }, childId);
+  const hidden = h(await page.screenshot({ clip: band }));
+  await page.evaluate((id) => { document.getElementById(id).style.visibility = ''; }, childId);
+  return { ink: shown !== hidden, shown, hidden };
+}
+
 /* ═══ ㉠ ★그림/히트 축 — ★한 장면 · ★속성 ★한 값만 다르다 (K1 ↔ K1f) ═══════════ */
 
 test('K1 ★★기본(속성 없음) = ★자르는 프레임 — ★손으로 ★넘겨 둔 자식이 ★프레임 밖 점에서 ★안 잡힌다 (현빈 t1-②)', async ({ page }) => {
@@ -231,24 +254,92 @@ test('K1f ★★`clipContent="false"`(현빈 09-28 의 끔) — ★끌면 ★놓
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 
-/* ═══ ㉡ ★자르는 프레임 — ★여전히 ★가둬야 한다 (T-088 의 까닭은 ★여기서 산다) ═══════════
- *  ⚠️★★2026-10-10 — ★이 칸은 ★위 ⒜(★기본 뒤집기)의 ★하네스 변경에 ★맞춰 ★축 값만 ★갈았다.
- *    ★★이 칸 ★자체의 ★흠(★`mid` 와 ★`after` 를 ★한 칸에 ★같이 단언한다)은 ★★아직 ★안 고쳤다
- *    — ★그것은 ★★별 까닭이고 ★별 커밋이다. ⇒ ★이 커밋에서 ★이 칸은 ★★빨강이다(★숨기지 않는다). */
+/* ═══ ㉡ ★★«단계»로 쪼갠 축 — ★옛 K2 하나를 ★★둘로 ★다시 세웠다 (2026-10-10) ═════════
+ *  ⚰️★옛 K2 = 「★많이 끌어도 ★가둬진다」 ★한 칸에 ★`mid`(끄는 중)와 ★`after`(놓은 뒤)를 ★같이 단언했다.
+ *  ★★그 둘은 ★이제 ★★반대다 — ★세 날짜가 ★한 칸 안에서 ★부딪친다:
+ *     ★2026-09-28 — `T-088` 이 ★열렸다(죔이 ★없어 자식이 ★프레임 밖으로 ★사라지는 띠)
+ *     ★2026-10-09 — ★현빈이 「★끄는 ★동안에는 ★죄지 ★마라」를 ★요구했다(끌 때는 ★보여야 한다)
+ *     ★2026-10-10 — ★그래서 ★죔을 ★★«단계»로 갈랐다(`frameClampsDrag(el, 'move'|'drop')`)
+ *  ⇒ ★한 칸으론 ★★둘 중 하나가 ★반드시 ★거짓이 된다. ⛔하나를 ★옮긴 것이 ★아니라 ★★둘을 ★세웠다. */
 
-test('K2 ★★「내용 자르기」 켠 프레임 — ★많이 끌어도 ★가둬진다 (T-088 회귀 자)', async ({ page }) => {
+test('K2-move ★★「내용 자르기」 켠 프레임 — ★★끄는 ★동안에는 ★안 죈다 ＋ ★그 동안 ★보인다 (현빈 2026-10-09 의 파수꾼)', async ({ page }) => {
   const { errs, frameId, childId } = await scene(page, { clipAttr: 'true' });
   const before = await geom(page, frameId, childId);
   expect(before.clipAttr, '★전제: 토글을 ★켰는데 ★속성이 ★안 붙었다').toBe('true');
-  expect(before.ov, '★전제: 토글을 켰는데 computed overflow 가 ★hidden 이 아니다').toBe('hidden');
+  expect(before.ov, '★전제: 토글을 켰는데 computed overflow 가 ★hidden 이 ★아니다').toBe('hidden');
 
-  const { plan, mid, after } = await dragToOverflow(page, frameId, childId);
-  console.log(`K2 ★잰 계획 — maxLeft ${plan.maxLeft} · target ${plan.target}(= ★K1f 와 ★같은 거리를 끈다)`);
-  expect(after.parentIsFrame, '★추출됐다 — 이 칸은 ★안에 남은 채를 잰다').toBe(true);
-  expect(after.over, `★★자르는 프레임인데 ★자식이 ★넘쳤다 (${after.over}px) — ★T-088 이 막던 ★「사라지는 띠」가 ★돌아온다`)
-    .toBeLessThanOrEqual(0);
-  expect(mid.over, `★★끄는 중에 ★넘쳤다 (${mid.over}px)`).toBeLessThanOrEqual(0);
+  const { plan, mid } = await dragToOverflow(page, frameId, childId);
+  console.log(`K2-move ★잰 계획 — maxLeft ${plan.maxLeft} · target ${plan.target}`);
+  expect(mid.over, `★★끄는 ★중에 ★죄었다 (넘침 ${mid.over}px) — ★현빈 ★2026-10-09 요구가 ★죽었다`
+    + ' (「끌 때는 보여야 한다」)').toBeGreaterThan(0);
+  expect(mid.ov, '★★끄는 ★동안 ★overflow 가 ★안 풀렸다 — `.frame-child-dragging` 마커 또는 ★그 CSS 가 ★죽었다'
+    + ` (overflow ${mid.ov})`).toBe('visible');
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
+
+test('K2-drop ★★「내용 자르기」 켠 프레임 — ★★놓은 ★뒤에는 ★가둬진다 ＋ ★마커가 ★떼어졌다 (T-088 의 파수꾼)', async ({ page }) => {
+  const { errs, frameId, childId } = await scene(page, { clipAttr: 'true' });
+  const before = await geom(page, frameId, childId);
+  expect(before.clipAttr, '★전제: 토글을 ★켰는데 ★속성이 ★안 붙었다').toBe('true');
+  expect(before.ov, '★전제: 토글을 켰는데 computed overflow 가 ★hidden 이 ★아니다').toBe('hidden');
+
+  const { plan, after } = await dragToOverflow(page, frameId, childId);
+  console.log(`K2-drop ★잰 계획 — maxLeft ${plan.maxLeft} · target ${plan.target}(= ★K2-move 와 ★같은 거리)`);
+  expect(after.parentIsFrame, '★추출됐다 — 이 칸은 ★«안에 남은 채»를 잰다').toBe(true);
+  expect(after.over, `★★자르는 프레임인데 ★놓은 뒤에도 ★넘쳤다 (${after.over}px) — ★T-088 이 막던 ★「사라지는 띠」가 ★돌아온다`)
+    .toBeLessThanOrEqual(0);
+  expect(after.ov, '★★놓았는데 overflow 가 ★visible 그대로다 — ★`.frame-child-dragging` 을 ★안 뗐다'
+    + ' ⇒ ★영구 visible = ★고치기 ★전과 ★같다').toBe('hidden');
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
+
+/* ⒝ ★★`T-088` 증상을 ★★«놓은 뒤»에 ★행위로 잰다 — ★값만이 ★아니라 ★★화면까지.
+ *  ★지디 지시 — 「밑변 너머로 끌었다 → 놓았다 → ★값과 ★화면이 ★둘 다 프레임 안이다」.
+ *  ★★두 다리로 세운다 — `'true'`(가둬진다)와 `'false'`(안 가둬진다). ★후자는 ★★잉크 자의 ★양성대조다:
+ *    ⛔없으면 「★띠에 ★잉크가 ★없다」가 ★자가 ★먹통일 때도 ★참이 되어 ★아무것도 ★안 잠근다. */
+test('K2b ★★밑변 너머로 끌었다 → ★놓았다 ⇒ ★★값도 ★화면도 ★프레임 ★안이다 (T-088 증상 · 양·음 한 쌍)', async ({ page }) => {
+  const got = {};
+  for (const clipAttr of ['true', 'false']) {
+    const { errs, frameId, childId } = await scene(page, { clipAttr });
+    expect((await geom(page, frameId, childId)).clipAttr, `★전제: ${clipAttr} 가 ★안 붙었다`).toBe(clipAttr);
+
+    /* ⑴ ★가로로 ★조금 — ★D3(`_fitFullWidthTextFrame`)의 ★폭 변신을 ★먼저 끝낸다 */
+    await selectFrameThenDrag(page, frameId, childId, 24, 0);
+    const planY = await overflowPlanY(page, frameId, childId);
+    expect(planY.dragOutTop, `★전제: ★밑변을 ★넘되 ★안 빠지는 ★창이 ★없다 (maxTop ${planY.maxTop} · dragOutTop ${planY.dragOutTop})`)
+      .toBeGreaterThan(planY.maxTop);
+    const need = planY.target - planY.top;
+    expect(need, `★전제: 더 끌 거리가 ★0 이하다 (top ${planY.top} · target ${planY.target})`).toBeGreaterThan(0);
+    /* ⑵ ★★밑변 ★너머로 */
+    await selectFrameThenDrag(page, frameId, childId, 0, need);
+
+    const v = await page.evaluate(([f, c]) => {
+      const fr = document.getElementById(f), ch = document.getElementById(c);
+      const r = fr.getBoundingClientRect();
+      window.deselectAll?.();   /* ⛔손잡이·테두리가 ★띠에 ★찍히면 ★잉크 자가 ★더럽다 */
+      return { parentIsFrame: ch.parentElement === fr,
+               bottomOver: Math.round((parseInt(ch.style.top || '0', 10) + ch.offsetHeight) - fr.clientHeight),
+               band: { x: Math.round(r.left), y: Math.round(r.bottom + 1), width: Math.round(r.width), height: 40 } };
+    }, [frameId, childId]);
+    await page.waitForTimeout(150);
+    expect(v.parentIsFrame, `[${clipAttr}] ★추출됐다 — 이 칸은 ★«안에 남은 채»를 잰다`).toBe(true);
+    expect(v.band.y + v.band.height, `[${clipAttr}] ★전제: ★프레임 ★아래 띠가 ★보는 창 ★밖이다 (y ${v.band.y})`)
+      .toBeLessThanOrEqual(VIEW_H);
+    got[clipAttr] = { ...v, ...(await inkInBand(page, childId, v.band)), errs };
+  }
+
+  /* ★★`'true'` — ★값과 ★화면이 ★둘 다 ★안이다 */
+  expect(got['true'].bottomOver, `★★값: ★자르는데 ★자식 ★밑변이 ★프레임 밑변을 ★넘었다 (${got['true'].bottomOver}px)`)
+    .toBeLessThanOrEqual(0);
+  expect(got['true'].ink, '★★화면: ★자르는데 ★프레임 ★아래 띠에 ★자식의 ★잉크가 ★있다'
+    + ` (보인 md5 ${got['true'].shown} / 숨긴 md5 ${got['true'].hidden}) — ★값은 안인데 ★그림이 ★밖이다`).toBe(false);
+  /* ★★`'false'` — ★★잉크 자의 ★양성대조. ⛔이 쪽이 ★초록이면 ★위의 ★`false` 는 ★«안 재고 있다» */
+  expect(got['false'].bottomOver, `★★양성대조(값): ★끔인데 ★밑변이 ★안 넘었다 (${got['false'].bottomOver}px) — ★죔이 ★끔까지 가둔다`)
+    .toBeGreaterThan(0);
+  expect(got['false'].ink, '★★양성대조(화면): ★끔인데 ★프레임 ★아래 띠에 ★잉크가 ★없다'
+    + ` (보인 md5 ${got['false'].shown} / 숨긴 md5 ${got['false'].hidden})`
+    + ' — ★★이 자가 ★아무것도 ★못 재는 ★먹통이라는 뜻이다. ⛔위 칸의 ★초록을 ★믿지 마라').toBe(true);
+  expect([...got['true'].errs, ...got['false'].errs], '★앱이 오류를 냈다').toEqual([]);
 });
 
 test('K3 ★★둥근 모서리 프레임 — ★CSS 가 ★hidden 으로 두는 자리라 ★같이 가둬진다', async ({ page }) => {
