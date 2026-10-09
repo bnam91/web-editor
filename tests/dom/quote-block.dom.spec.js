@@ -638,3 +638,304 @@ test('Q13 ★★음성대조 셋 — ⛔제품 8종은 못 지운다 · ⛔meta 
     .toEqual(lost.fallback);
   expect(errs).toEqual([]);
 });
+
+/* ══════ 2026-10-09 현빈 ④ — 「★quote 블럭 ★SVG 높이(y값) ★슬라이드로 우측에서 조절
+          ＋ 텍스트와 ★수직·수평 정렬」 (티켓 `1009t2-④` · 레인 gd/cpnpreset) ═════════
+ *
+ * ★★이 티켓은 ★«두 조각»이고 ★둘이 ★다른 결함이다 — ★Q14 가 ⒜, ★Q15 가 ⒝ 다.
+ *   ⇒ ★커밋도 ★갈랐다(⒜ `d5b967eb` · ⒝ 는 ★이 커밋) — ★⒜ 하나만으로도 요구 하나가 닫힌다.
+ *
+ * ══ ★⒜ ★«수평(가로) 정렬» = ★모델은 ★돈다 · ★★패널에 ★칸이 ★없다 ═════════════
+ *   ★★이 자리를 ★한 번 ★잘못 닫았다 — `prop-quote.js` 의 `align` 8건이 ★전부
+ *     ★CSS 클래스명(`prop-align-btn` 1 · `prop-align-group` 3 ＋ 주석 4)이고 ★그것은
+ *     ★«모양 단추 줄»의 클래스지 ★정렬과 ★무관하다. ⇒ ★낱말로 닫으면 ★「이미 있다」가 된다.
+ *   ★★그래서 ★«행위로» 쟀다(핀 `a3556b936f8f` · `_probe-qt4-y` P2 · 패널을 ★진짜 클릭으로 열고
+ *     ★조종칸 ★전수 명부를 떴다 · 2026-10-09):
+ *       `[data-al]` **0** · `[data-align]` **0** · `[data-qt-align],#qt-align-group` **0**
+ *       `.prop-label` 전수 = ★[모양 · 부호 크기 · 부호 색 · 간격 · 꼴 · 부호 켜기 · 내용 ·
+ *                             글자 크기 · 글자 색] ⇒ ★★「정렬」이 ★없다
+ *       `input[type=range]` 전수 = [qt-marksize · qt-gap · qt-fontsize] ⇒ ★y 칸도 ★없다
+ *   ★모델은 ★이미 돈다 — ★그 자리를 ★Q10 이 ★벌써 잠갔다(stack·inline 둘 다 · 비율 자).
+ *     ★내 손으로 ★다시 쟀다(P1 · `dataset.align` 을 손으로): ★inline 글줄 비율 ★0 / 0.5 / 1
+ *     ⚠️그리고 ★자의 ★한계를 ★같이 쟀다 — ★stack 에서는 ★글덩이가 ★제 폭으로 줄어 ★`slack=0`
+ *       ⇒ ★«글줄이 제 칸 안에서 어디냐» 자가 ★null 을 낸다. ★stack 은 ★블럭 폭 대비 ★비율(`rat`)로 재야 한다.
+ *   ⇒ ★★Q14 가 ★재는 것은 ★«모델»이 아니라 ★★«패널에 그 칸이 서서 ★사람이 ★눌러 ★모델에 닿는가»다.
+ *
+ * ══ ★⒝ ★«SVG 높이(y값)» — ★★이 블럭에 ★SVG 는 ★0건이다 ══════════════════════
+ *   ★★현빈이 ★「SVG」라 부른 것은 ★★«부호 글리프»다. ★실측(P3 · 핀):
+ *       블럭 안 `svg` **0** · `img` **0** · 부호 = ★`SPAN` · textContent `“`
+ *       `transform: none` · `position: static` · `top: auto` · `vertical-align: baseline`
+ *     ⇒ ★v1 이 ★부호를 ★«글꼴 글리프»로 ★일부러 고른 것이다(`quote-block.js` 머리말
+ *        「★v1 부호 = 글꼴 글리프 8종만 (⛔SVG·이미지 아니다)」 — 까닭은 ★피그마 내보내기).
+ *     ⇒ ⛔「SVG 가 없으니 못 한다」로 ★닫지 않는다. ★y 를 ★움직일 자리는 ★있다.
+ *   ★★어느 자가 ★무엇을 움직이나 — ★★«축이 도니까» ★따로 쟀다(P4 · 핀 · inline·stack 둘 다):
+ *     ┌ 자 ────────────────┬ inline ─────────────┬ stack ──────────────────────┐
+ *     │ 격자 `align-items` │ ★먹는다 (−26.5/0/+26.5) │ ★★전부 −76.6 = ★★안 움직인다 │
+ *     │ 부호 `translateY`  │ ★먹는다 (±17.4)      │ ★먹는다 (±18.7)              │
+ *     └────────────────────┴─────────────────────┴──────────────────────────────┘
+ *     ⇒ ★`vAlign`(세로 정렬)은 ★★inline ★에서만 뜻이 있다 — ★stack 은 ★1열×3행이라
+ *       ★세로가 ★«차례»(앞부호/글/뒤부호)로 ★이미 정해져 ★밀 ★틈(slack)이 ★없다.
+ *       ⇒ ★★패널도 ★그대로 — ★stack 에서는 ★그 줄을 ★내지 않고 ★까닭을 ★글로 적는다.
+ *       ⛔「칸은 있는데 눌러도 ★조용히 아무 일 없음」을 ★만들지 않는다.
+ *     ⇒ ★`markDy`(부호 y)는 ★★두 꼴 ★모두에서 먹는다 ⇒ ★★항상 ★낸다. ★이것이 현빈의 「y값 슬라이드」다.
+ *   ⚠️★★절대 px 로 ★재지 마라 — ★이 하네스는 ★setup 마다 ★섹션 배율이 달라(위 `axisOf` 머리말:
+ *     블럭 폭 344/796/835) ★`translateY(20px)` 이 ★화면에선 ★17.4px 로 왔다. ⇒ ★판정은
+ *     ㉠ ★`getComputedStyle(…).transform` 의 ★행렬(그 요소 ★자신의 CSS px · ★조상 배율과 무관)
+ *     ㉡ ★방향·단조성(내려갔나) ★둘로. ⛔화면 px 의 ★절대값을 ★기대값으로 박지 마라.
+ *
+ * ══ ★양성대조 = ★변이표 (★새 기능은 「없어서 빨강」이라 ★약하다) ═══════════════
+ *   ★M12 `prop-quote.js` 의 ★정렬 줄(`qt-align-group`)을 ★뺀다          ⇒ ★Q14 빨강 기대
+ *   ★M13 정렬 단추 배선(`[data-al]` 핸들러)만 ★뺀다(줄은 ★남긴다)       ⇒ ★Q14 ★주 단언만 빨강 기대
+ *        ★★이것이 ★진짜 양성대조다 — ★칸이 ★서 있는데 ★안 닿는 자리를 ★잡나
+ *   ★M14 `_markEl` 의 `translateY` 를 ★뺀다                             ⇒ ★Q15 빨강 기대
+ *   ★M15 `vAlign` 을 `'middle'` 상수로 ★고정(칸은 ★남긴다)              ⇒ ★Q15 ★세로 단언만 빨강 기대
+ *   ★N2(음성대조) `prop-quote.js` ★주석 한 줄을 고친다(무해)             ⇒ ★전부 초록 기대
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/** 패널 조종칸 ★전수 명부 — ⛔「없다」를 ★낱말로 세지 않는다(위 머리말의 그 까닭). */
+const panelCensus = (page) => page.evaluate(() => {
+  const p = document.getElementById('panel-right') || document.body;
+  return {
+    alignGroup: p.querySelectorAll('#qt-align-group').length,
+    alignBtns: [...p.querySelectorAll('#qt-align-group [data-al]')].map(e => e.getAttribute('data-al')),
+    valignGroup: p.querySelectorAll('#qt-valign-group').length,
+    valignBtns: [...p.querySelectorAll('#qt-valign-group [data-qv]')].map(e => e.getAttribute('data-qv')),
+    markDySlider: p.querySelectorAll('#qt-markdy-slider').length,
+    markDyNumber: p.querySelectorAll('#qt-markdy-number').length,
+    labels: [...p.querySelectorAll('.prop-label')].map(e => e.textContent.trim()),
+    sliders: [...p.querySelectorAll('input[type=range]')].map(e => e.id),
+  };
+});
+
+/** 부호·글의 ★세로 자리 ＋ ★부호가 ★제 CSS 로 ★얼마나 밀렸나(★배율과 무관한 자). */
+const vOf = (page) => page.evaluate(() => {
+  const b = window.__qt;
+  const pre = b.querySelector('[data-qt-mark="pre"]');
+  const body = b.querySelector('.tb-qt-body');
+  const R = (e) => { const r = e.getBoundingClientRect(); return r.top + r.height / 2; };
+  const h = b.getBoundingClientRect().height || 1;
+  /* ★`matrix(a,b,c,d,tx,ty)` 의 ★ty — ★그 요소 ★자신의 CSS px 다(조상 scale 과 ★무관). */
+  const m = getComputedStyle(pre).transform;
+  const ty = m && m !== 'none' ? Number(m.replace(/^matrix\(|\)$/g, '').split(',')[5]) : 0;
+  return {
+    cssTy: Number.isFinite(ty) ? ty : 0,
+    markDy: b.dataset.markDy ?? '(없다)',
+    vAlign: b.dataset.vAlign ?? '(없다)',
+    blockAlignItems: getComputedStyle(b).alignItems,
+    /* ★비율 — ★블럭 높이에 대한 ★부호/글 중심. ⛔절대 px 금지(배율이 setup 마다 다르다). */
+    markRat: (R(pre) - b.getBoundingClientRect().top) / h,
+    bodyRat: (R(body) - b.getBoundingClientRect().top) / h,
+  };
+});
+
+/* ── Q14 ★⒜ ★패널에 «수평 정렬» 칸이 ★서고 ★눌러서 ★모델에 닿는다 ───────────── */
+test('Q14 ★★⒜ 패널 «정렬» 칸 — ★서 있고(명부) ★닿고(자 ㉢) ★눌러서 ★모델을 움직인다(inline·stack)', async ({ page }) => {
+  const errs = await setup(page, { text: '안녕' });
+  await openPanel(page);
+
+  /* ★★전제 ★셋 — ⛔이것부터 세운다(「패널이 안 열렸다」를 「칸이 없다」로 읽지 않게). */
+  const pre0 = await page.evaluate(() => ({
+    panel: !!document.getElementById('qt-shape-group'),
+    align: window.__qt.dataset.align,
+    type: window.__qt.dataset.type,
+  }));
+  expect(pre0.panel, '★전제: ★인용구 패널이 열렸다(qt-shape-group)').toBe(true);
+  expect(pre0.type, '★전제: 이 블럭은 quote 다').toBe('quote');
+  expect(pre0.align, '★전제: ★기본 정렬 = center (모델이 그 칸을 ★이미 갖고 있다)').toBe('center');
+
+  /* ㉠ ★명부 — ★칸이 ★서 있나. ⛔낱말 grep 이 아니라 ★조종칸 전수다. */
+  const c = await panelCensus(page);
+  expect(c.alignGroup, `★★«정렬» 줄(#qt-align-group)이 ★패널에 ★있어야 한다.\n` +
+    `  ⚰️핀 a3556b936f8f 실측 = ★0 (그래서 이 검사가 생겼다)\n` +
+    `  잰 조종칸 명부: 라벨 ${JSON.stringify(c.labels)} · 슬라이더 ${JSON.stringify(c.sliders)}`).toBe(1);
+  expect(c.alignBtns, '★단추 ★셋 = left/center/right ★그 순서').toEqual(['left', 'center', 'right']);
+  expect(c.labels.includes('정렬'), `★사람이 읽는 라벨 「정렬」이 있어야 한다. 잰 명부 ${JSON.stringify(c.labels)}`).toBe(true);
+
+  /* ㉡ ★자 ㉢ «닿나» — Q6 과 ★같은 자(기하 ＋ elementFromPoint). ⛔「있다」≠「닿는다」 */
+  const reach = await page.evaluate(() => {
+    const g = document.getElementById('qt-align-group');
+    const row = g.closest('.prop-row');
+    const rowR = row.getBoundingClientRect();
+    return [...g.querySelectorAll('[data-al]')].map(btn => {
+      const r = btn.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return {
+        al: btn.getAttribute('data-al'),
+        over: Math.max(0, Math.round(r.right - rowR.right)),
+        reached: !!(hit && (hit === btn || btn.contains(hit) || hit.closest('[data-al]') === btn)),
+        w: Math.round(r.width), h: Math.round(r.height),
+      };
+    });
+  });
+  for (const r of reach) {
+    expect(r.over, `★단추 ${r.al} 가 줄 오른끝을 ★${r.over}px 넘쳤다 — ★잘려서 ★안 눌린다`).toBe(0);
+    expect(r.reached, `★단추 ${r.al} 의 ★가운데를 ★elementFromPoint 가 ★그 단추로 ★안 돌려줬다 ⇒ ★안 눌린다. 잰 값 ${JSON.stringify(r)}`).toBe(true);
+    expect(r.w > 0 && r.h > 0, `★단추 ${r.al} 의 ★면적이 ★0 이다(${r.w}×${r.h}) — ★규칙이 아니라 ★면적 문제다`).toBe(true);
+  }
+
+  /* ㉢ ★★«불리나 ＋ 맞는 갈래인가» — ★진짜 클릭으로. ★inline·stack ★둘 다. */
+  for (const layout of ['inline', 'stack']) {
+    await setup(page, { layout, text: '안녕' });
+    await openPanel(page);
+    const seen = {};
+    for (const al of ['right', 'left', 'center']) {     /* ⛔기본값 center 를 ★먼저 누르지 않는다(안 움직여도 통과한다) */
+      const r = await page.evaluate((a) => {
+        const btn = document.querySelector(`#qt-align-group [data-al="${a}"]`);
+        const b = btn.getBoundingClientRect();
+        return { cx: b.left + b.width / 2, cy: b.top + b.height / 2 };
+      }, al);
+      await clickAt(page, r.cx, r.cy, { sel: '[data-al]' }, { label: `Q14 정렬 ${al}(${layout})` });
+      const a = await axisOf(page);
+      seen[al] = { ds: await page.evaluate(() => window.__qt.dataset.align), lineRat: rat(a, a.pieces.find(p => p.k === 'line'), 'cx') };
+    }
+    for (const al of ['left', 'center', 'right']) {
+      expect(seen[al].ds, `★[${layout}] ★단추 ${al} 를 ★눌렀는데 ★모델(dataset.align)이 ★안 바뀌었다 — ★칸은 섰는데 ★배선이 없다. 잰 값 ${seen[al].ds}`).toBe(al);
+    }
+    /* ★★그려지기까지 갔나 — ★세 자리가 ★서로 다르다(⛔모델만 바뀌고 렌더가 안 따라오면 여기서 빨강). */
+    const v = ['left', 'center', 'right'].map(a2 => seen[a2].lineRat);
+    expect(Math.max(...v) - Math.min(...v) >= 0.3,
+      `★[${layout}] ★세 값이 ★같은 자리를 낸다 = ★눌러도 ★안 그려진다. 글 중심 비율 ${JSON.stringify(v.map(x => +x.toFixed(3)))}`).toBe(true);
+    expect(v[0] < v[1] && v[1] < v[2],
+      `★[${layout}] ★왼→가운데→오른 ★순서가 ★단조로워야 한다(갈래가 ★섞였다). 잰 값 ${JSON.stringify(v.map(x => +x.toFixed(3)))}`).toBe(true);
+  }
+
+  /* ㉣ ★active 가 ★모델을 비춘다 — ★다시 열어도(reopen) ★하나만 켜져 있다. */
+  const act = await page.evaluate(() => {
+    window.showQuoteProperties(window.__qt);
+    const on = [...document.querySelectorAll('#qt-align-group [data-al]')].filter(b => b.classList.contains('active'));
+    return { n: on.length, which: on.map(b => b.getAttribute('data-al')), ds: window.__qt.dataset.align };
+  });
+  expect(act.n, `★active 는 ★정확히 ★하나여야 한다. 잰 값 ${JSON.stringify(act)}`).toBe(1);
+  expect(act.which[0], '★켜진 단추가 ★모델과 ★같아야 한다').toBe(act.ds);
+
+  /* ★★음성대조 — ★모양 단추를 눌러도 ★정렬은 ★안 바뀐다(두 줄이 ★같은 클래스를 쓴다). */
+  const neg = await page.evaluate(() => {
+    const before = window.__qt.dataset.align;
+    document.querySelector('#qt-shape-group [data-qt-shape="slash"]').click();
+    return { before, after: window.__qt.dataset.align, shape: window.__qt.dataset.shape };
+  });
+  expect(neg.shape, '★음성대조 전제: 모양 단추는 ★제 일을 했다').toBe('slash');
+  expect(neg.after, `★★모양 단추가 ★정렬을 ★건드렸다(${neg.before} → ${neg.after}) — ★`
+    + `prop-align-btn 은 ★정렬 전용 클래스가 ★아니다`).toBe(neg.before);
+
+  expect(errs).toEqual([]);
+});
+
+/* ── Q15 ★⒝ ★부호 y 슬라이더 ＋ ★수직 정렬 ───────────────────────────────────── */
+test('Q15 ★★⒝ 부호 ★y 슬라이더(두 꼴 ★모두) ＋ ★세로 정렬(★inline · ★stack 은 ★칸째 없다)', async ({ page }) => {
+  const errs = await setup(page, { text: '안녕' });
+  await openPanel(page);
+
+  /* ★★전제 — ⒝ 의 「SVG」는 ★글자다. ★그 사실을 ★검사가 ★들고 있어야 한다. */
+  const pre0 = await page.evaluate(() => {
+    const b = window.__qt;
+    const pre = b.querySelector('[data-qt-mark="pre"]');
+    return { svg: b.querySelectorAll('svg').length, img: b.querySelectorAll('img').length, tag: pre.tagName, txt: pre.textContent };
+  });
+  expect(pre0.svg, '★전제: ★이 블럭에 ★SVG 는 ★0건이다(현빈이 「SVG」라 부른 것 = ★글리프)').toBe(0);
+  expect(pre0.img, '★전제: 이미지도 ★0건').toBe(0);
+  expect(pre0.tag, '★전제: 부호는 ★SPAN(글자)이다').toBe('SPAN');
+
+  /* ㉠ ★명부 — ★y 슬라이더가 ★«쌍»으로 서 있나(`_pairRow` 꼴). */
+  const c = await panelCensus(page);
+  expect(c.markDySlider, `★★부호 ★y 슬라이더(#qt-markdy-slider)가 ★있어야 한다.\n` +
+    `  ⚰️핀 a3556b936f8f 실측 = ★0 · 그때 슬라이더 전수 = [qt-marksize · qt-gap · qt-fontsize]\n` +
+    `  지금 잰 슬라이더 명부: ${JSON.stringify(c.sliders)}`).toBe(1);
+  expect(c.markDyNumber, '★숫자칸도 ★같이 있어야 한다(이 패널의 ★슬라이더＋숫자 «쌍» 관례)').toBe(1);
+
+  /* ㉡ ★★슬라이더를 ★움직이면 ★부호가 ★내려간다 — ★inline·stack ★둘 다(P4 실측대로). */
+  for (const layout of ['inline', 'stack']) {
+    await setup(page, { layout, text: '안녕' });
+    await openPanel(page);
+    const got = {};
+    for (const val of [-30, 0, 30]) {
+      got[val] = await page.evaluate((v) => {
+        const s = document.getElementById('qt-markdy-slider');
+        s.value = String(v);
+        s.dispatchEvent(new Event('input', { bubbles: true }));   /* ★슬라이더의 ★진짜 경로 */
+        return null;
+      }, val).then(() => vOf(page));
+      const n = await page.evaluate(() => document.getElementById('qt-markdy-number').value);
+      expect(Number(n), `★[${layout}] ★숫자칸이 ★슬라이더를 ★따라와야 한다(«쌍»). 잰 값 ${n}`).toBe(val);
+    }
+    for (const val of [-30, 0, 30]) {
+      expect(got[val].markDy, `★[${layout}] ★모델(dataset.markDy)에 ★안 써졌다. 잰 값 ${got[val].markDy}`).toBe(String(val));
+      /* ★★배율과 ★무관한 자 — ★그 요소 ★자신의 CSS px. ⛔화면 px 절대값 금지. */
+      expect(got[val].cssTy, `★[${layout}] ★부호의 ★제 CSS 이동(translateY)이 ★${val}px 이어야 한다. 잰 값 ${got[val].cssTy}`).toBe(val);
+    }
+    /* ★방향·단조 — ★실제로 ★내려가나(⛔CSS 만 보고 닫지 않는다). */
+    expect(got[-30].markRat < got[0].markRat && got[0].markRat < got[30].markRat,
+      `★[${layout}] ★y 를 키우면 ★부호가 ★아래로 ★내려가야 한다. 잰 비율 ` +
+      `${JSON.stringify([got[-30].markRat, got[0].markRat, got[30].markRat].map(x => +x.toFixed(3)))}`).toBe(true);
+    /* ★★음성대조 — ★글은 ★안 움직인다(부호 ★만 미는 칸이다). */
+    const bodyMove = Math.max(got[-30].bodyRat, got[0].bodyRat, got[30].bodyRat)
+                   - Math.min(got[-30].bodyRat, got[0].bodyRat, got[30].bodyRat);
+    expect(bodyMove <= 0.02, `★[${layout}] ★y 칸이 ★글까지 움직였다 — ★부호 ★만 밀어야 한다. 글 중심 비율 폭 ${bodyMove.toFixed(3)}`).toBe(true);
+  }
+
+  /* ㉢ ★★세로 정렬 — ★inline 에서 ★칸이 서고 ★부호가 ★위/가운데/아래로 간다. */
+  await setup(page, { layout: 'inline', text: '안녕' });
+  await openPanel(page);
+  const ci = await panelCensus(page);
+  expect(ci.valignGroup, `★★inline 에서 ★«세로 정렬» 줄(#qt-valign-group)이 ★있어야 한다.\n` +
+    `  ⚰️핀 실측 = ★0 · 그때 라벨 전수 = [모양·부호 크기·부호 색·간격·꼴·부호 켜기·내용·글자 크기·글자 색]\n` +
+    `  지금 잰 라벨: ${JSON.stringify(ci.labels)}`).toBe(1);
+  expect(ci.valignBtns, '★단추 ★셋 = top/middle/bottom ★그 순서').toEqual(['top', 'middle', 'bottom']);
+
+  const vseen = {};
+  for (const qv of ['top', 'bottom', 'middle']) {   /* ⛔기본값 middle 을 ★먼저 누르지 않는다 */
+    const r = await page.evaluate((k) => {
+      const b2 = document.querySelector(`#qt-valign-group [data-qv="${k}"]`).getBoundingClientRect();
+      return { cx: b2.left + b2.width / 2, cy: b2.top + b2.height / 2 };
+    }, qv);
+    await clickAt(page, r.cx, r.cy, { sel: '[data-qv]' }, { label: `Q15 세로정렬 ${qv}` });
+    vseen[qv] = await vOf(page);
+  }
+  for (const qv of ['top', 'middle', 'bottom']) {
+    expect(vseen[qv].vAlign, `★단추 ${qv} 를 ★눌렀는데 ★모델(dataset.vAlign)이 ★안 바뀌었다. 잰 값 ${vseen[qv].vAlign}`).toBe(qv);
+  }
+  /* ★부호가 ★위 → 가운데 → 아래 ★순서로 ★내려간다(★글 세 줄이라 ★틈이 있다). */
+  await setup(page, { layout: 'inline', text: '한 줄\n두 줄\n세 줄' });
+  await openPanel(page);
+  const vr = {};
+  for (const qv of ['top', 'middle', 'bottom']) {
+    await page.evaluate((k) => document.querySelector(`#qt-valign-group [data-qv="${k}"]`).click(), qv);
+    vr[qv] = await vOf(page);
+  }
+  const vv = [vr.top.markRat, vr.middle.markRat, vr.bottom.markRat];
+  expect(vv[0] < vv[1] && vv[1] < vv[2],
+    `★세로 정렬 ★세 값이 ★위→가운데→아래로 ★가야 한다. 잰 부호 비율 ${JSON.stringify(vv.map(x => +x.toFixed(3)))}`).toBe(true);
+  expect(Math.max(...vv) - Math.min(...vv) >= 0.3,
+    `★세 값이 ★같은 자리다 = ★세로 칸이 ★안 먹는다. 잰 값 ${JSON.stringify(vv.map(x => +x.toFixed(3)))}`).toBe(true);
+  expect(vr.top.blockAlignItems, '★inline 격자의 align-items 가 ★start 로 가야 한다').toBe('start');
+  expect(vr.bottom.blockAlignItems, '★… end 로').toBe('end');
+
+  /* ㉣ ★★stack — ★그 줄을 ★내지 ★않는다. ★★«칸은 있는데 조용히 아무 일 없음»을 ★막는 자리다.
+     ★까닭은 ★실측이다(P4 · 핀): stack 에서 `align-items` 를 start/center/end 로 ★몰아도
+     ★부호 중심이 ★−76.6 으로 ★세 번 ★같았다 = ★★안 움직인다(1열×3행이라 ★밀 틈이 없다). */
+  await setup(page, { layout: 'stack', text: '안녕' });
+  await openPanel(page);
+  const cs2 = await panelCensus(page);
+  expect(cs2.valignGroup, `★★stack 에서는 ★«세로 정렬» 줄이 ★없어야 한다 — ★눌러도 ★안 움직이는 칸을 ★내지 않는다(P4 실측). 잰 값 ${cs2.valignGroup}`).toBe(0);
+  expect(cs2.markDySlider, '★★그런데 ★y 슬라이더는 ★stack 에도 ★있어야 한다(P4: translateY 는 ★두 꼴 모두 먹는다)').toBe(1);
+  const hint = await page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-hint')].map(e => e.textContent).join(' '));
+  expect(/세로/.test(hint), `★★그 자리에 ★까닭이 ★글로 적혀 있어야 한다(⛔없는 칸을 ★말 없이 ★지우지 않는다). 잰 안내문 「${hint.slice(0, 200)}」`).toBe(true);
+
+  /* ㉤ ★왕복 — ★두 칸이 ★저장 왕복(rebindAll 재렌더)을 ★산다. */
+  const rt = await page.evaluate(() => {
+    const b = window.__qt;
+    b.dataset.markDy = '18'; b.dataset.vAlign = 'top'; b.dataset.layout = 'inline';
+    const html = b.outerHTML;
+    const host = b.closest('.row');
+    host.innerHTML = html;
+    window.rebindAll && window.rebindAll();
+    const nb = host.querySelector('.quote-block');
+    window.__qt = nb;
+    return { markDy: nb.dataset.markDy, vAlign: nb.dataset.vAlign, ty: getComputedStyle(nb.querySelector('[data-qt-mark="pre"]')).transform };
+  });
+  expect(rt.markDy, '★왕복 뒤에도 markDy 가 산다').toBe('18');
+  expect(rt.vAlign, '★왕복 뒤에도 vAlign 이 산다').toBe('top');
+  expect(/matrix\(1, 0, 0, 1, 0, 18\)/.test(rt.ty), `★왕복 뒤 ★다시 그려져 ★부호가 ★18px 밀려 있어야 한다. 잰 값 ${rt.ty}`).toBe(true);
+
+  expect(errs).toEqual([]);
+});
