@@ -623,7 +623,7 @@
 .fxpart-chip-wrap .fxpart-chip-del {
   position: absolute; top: -5px; right: -5px;
   width: 14px; height: 14px; min-width: 0; padding: 0;
-  border-radius: 50%; font-size: 9px;
+  border-radius: 50%; font-size: var(--ui-fs-9);
   background: var(--ui-bg-input); border: 1px solid var(--ui-border-strong);
   opacity: 0; transition: opacity 0.1s, background 0.1s, color 0.1s, border-color 0.1s;
 }
