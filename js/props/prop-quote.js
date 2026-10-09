@@ -41,7 +41,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { blockHeaderHTML, escHtml as _esc } from './_helpers.js';
 import {
   QUOTE_SHAPES, QUOTE_SHAPE_KEYS, QUOTE_DEFAULTS, QUOTE_LIMITS, clampQuote,
-  quoteLines, quoteShapeOf, quoteIsPlaceholder,
+  quoteLines, quoteShapeOf, quoteIsPlaceholder, quoteShapesAll,
 } from '../blocks/quote-block.js';
 
 const L = QUOTE_LIMITS;
@@ -96,11 +96,20 @@ export function showQuoteProperties(block) {
   const lines = quoteLines(block);
   const isPh = quoteIsPlaceholder(block);
 
-  /* ★모양 8종 — ★`.prop-align-group`(wrap · 2줄). ⛔`.prop-type-group` 으로 바꾸지 마라
-     (머리말의 실측: 8번째 단추가 ★안 눌린다). 꼴은 prop-annotation.js:209~213 선례. */
-  const shapeBtns = QUOTE_SHAPES.map(s => `
+  /* ★모양 — ★`.prop-align-group`(wrap · 여러 줄). ⛔`.prop-type-group` 으로 바꾸지 마라
+     (머리말의 실측: 8번째 단추가 ★안 눌린다). 꼴은 prop-annotation.js:209~213 선례.
+     ★★목록은 ★`quoteShapesAll()` ★하나에서 온다 — ★제품 8종 ＋ ★사용자가 더한 것(현빈 2026-10-09 ⒝).
+       ⛔여기서 ★QUOTE_SHAPES 를 ★직접 돌지 마라 — ★사용자 것이 ★조용히 빠진다(명부가 둘이 된다).
+     ★사용자 것에만 ★지우는 자(×)를 단다 — ⛔제품 8종은 ★못 지운다. */
+  const _shapes = quoteShapesAll();
+  const shapeBtns = _shapes.map(s => `
         <button class="prop-align-btn${s.key === shape.key ? ' active' : ''}" data-qt-shape="${s.key}"
-                title="${_esc(s.label)}" aria-pressed="${s.key === shape.key ? 'true' : 'false'}">${_esc(s.label)}</button>`).join('');
+                title="${_esc(s.label)}${s.user ? ' (내가 더한 것 — 길게 눌러 지우기)' : ''}"
+                ${s.user ? `data-qt-user="1"` : ''}
+                aria-pressed="${s.key === shape.key ? 'true' : 'false'}">${_esc(s.label)}</button>`).join('')
+    + `
+        <button class="prop-align-btn" id="qt-shape-add" title="부호 직접 더하기"
+                aria-label="부호 더하기">＋</button>`;
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -201,11 +210,51 @@ ${_pairRow('qt-fontsize', '글자 크기', fontSize, L.fontSize.min, L.fontSize.
   wireColor('qt-markcol', 'markColor');
   wireColor('qt-textcol', 'textColor');
 
-  // ── 모양 8종 ──
+  // ── 모양 — ★제품 8종 ＋ ★사용자가 더한 것 ──
+  /* ⛔옛 판은 `QUOTE_SHAPE_KEYS.includes(k)` 로 ★제품 8종만 통과시켰다 — ★사용자 것을 누르면
+     ★조용히 ★아무 일도 안 난다(「먹통」이 아니라 ★«해당 없음»). ⇒ ★명부를 ★quoteShapesAll 로 ★넓힌다.
+     ★여전히 ★«명부에 있는 키»만 받는다(저장본이 손상돼도 엉뚱한 키가 안 박힌다). */
+  const _shapeKeys = new Set(quoteShapesAll().map(s => s.key));
   propPanel.querySelectorAll('[data-qt-shape]').forEach(btn => btn.addEventListener('click', () => {
     const k = btn.getAttribute('data-qt-shape');
-    if (!QUOTE_SHAPE_KEYS.includes(k)) return;
+    if (!_shapeKeys.has(k)) return;
     block.dataset.shape = k;
+    rerender(); commit(); reopen();
+  }));
+
+  /* ── ★부호 ★직접 더하기 (현빈 2026-10-09 ⒝ 「별도로 ★사용자가 추가 가능하게」) ──────────
+   * ★인라인 이름 폼은 ★DesignSystem._openInlineNameForm ★한 벌이다(컬러 변수 「변수로 만들기」가 쓰는 그것).
+   *   ⛔여기서 ★제 폼을 ★또 만들지 않는다 — 꼴·스타일·취소 규약이 ★갈린다.
+   * ★입력은 ★한 칸이고 ★«앞 뒤»를 ★공백으로 가른다(예: `< >` · `[ ]`). ★한 글자만 주면 ★앞뒤 ★같은 것으로 읽는다.
+   * ★저장은 ★DesignSystem 이 한다(정본 `meta.quoteShapes` · 캐시 localStorage) — ⛔여기서 localStorage 를 ★안 만진다. */
+  document.getElementById('qt-shape-add')?.addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    window.DesignSystem?.openInlineNameForm?.(btn.closest('.prop-row') || btn.parentElement, {
+      id: 'qt-shape-add',
+      placeholder: '앞 뒤  (예: < >)',
+      submitLabel: '더하기',
+      hint: '앞·뒤 부호를 공백으로 갈라 적으세요. 한 글자만 적으면 앞뒤가 같아집니다.\n이 프로젝트에 저장됩니다.',
+      onSubmit: (raw) => {
+        const t = String(raw || '').trim();
+        if (!t) return;
+        const parts = t.split(/\s+/);
+        const pre = parts[0] || '';
+        const post = parts.length > 1 ? parts[parts.length - 1] : pre;
+        const list = window.DesignSystem?.addQuoteShape?.({ pre, post }) || [];
+        const made = list.find(r => r.pre === pre && r.post === post);
+        if (made) block.dataset.shape = made.key;     // ★더한 것을 ★바로 입힌다(누르러 다시 찾지 않게)
+        rerender(); commit(); reopen();
+      },
+    });
+  });
+
+  /* ★사용자 것 ★지우기 — ★길게 누르기(contextmenu)로. ⛔제품 8종에는 ★안 단다(위 마크업의 data-qt-user). */
+  propPanel.querySelectorAll('[data-qt-user="1"]').forEach(btn => btn.addEventListener('contextmenu', (ev) => {
+    ev.preventDefault();
+    const k = btn.getAttribute('data-qt-shape');
+    window.DesignSystem?.removeQuoteShape?.(k);
+    /* ★지운 부호를 ★쓰고 있던 블럭은 ★기본값으로 떨어진다 — ⛔조용히 두지 않고 ★여기서 ★되돌려 적는다. */
+    if (block.dataset.shape === k) block.dataset.shape = QUOTE_DEFAULTS.shape;
     rerender(); commit(); reopen();
   }));
 

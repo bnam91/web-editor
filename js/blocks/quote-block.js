@@ -89,6 +89,33 @@ const QUOTE_SHAPES = Object.freeze([
 ]);
 const QUOTE_SHAPE_KEYS = Object.freeze(QUOTE_SHAPES.map(s => s.key));
 
+/* ── ★사용자가 더한 부호 (현빈 2026-10-09 ⒝) ────────────────────────────────────────
+ * ★★«무엇이 부호인가»의 명부는 ★여기 ★하나다 — ★제품 8종 ＋ ★사용자 것을 ★이 함수가 ★합친다.
+ *   ⛔패널(prop-quote.js)이 ★제 목록을 ★또 만들지 않는다. ⛔`quoteShapeOf` 도 ★이것만 본다.
+ * ★저장은 ★여기가 ★안 한다 — `DesignSystem`(정본 `meta.quoteShapes` · 캐시 localStorage)이 한다.
+ *   ⇒ ★이 파일은 ★«무엇이 목록인가»를, ★그 파일은 ★«어디에 사나»를 가진다.
+ * ★`label` 은 ★짓는다(`pre + ' ' + post`) — ⛔저장본에 ★또 적지 않는다(명부 둘 방지).
+ *   ★제품 8종은 ★제 label 을 가진다(「“ ”」처럼 ★사람이 고른 표기라 ★유도식과 다를 수 있다).
+ * ⚠️★DesignSystem 이 ★없는 판(단독 HTML·검사 하네스)에서도 ★죽지 않아야 한다 ⇒ ★`?.` 와 빈 배열.
+ */
+export function quoteUserShapes() {
+  try {
+    const list = (typeof window !== 'undefined' && window.DesignSystem?.getQuoteShapes?.()) || [];
+    return Array.isArray(list) ? list : [];
+  } catch (_) { return []; }
+}
+/** ★부호 ★한 명부 — 제품 8종이 ★앞, 사용자 것이 ★뒤. ⛔키가 겹치면 ★제품이 이긴다. */
+export function quoteShapesAll() {
+  const out = QUOTE_SHAPES.slice();
+  const seen = new Set(QUOTE_SHAPE_KEYS);
+  for (const u of quoteUserShapes()) {
+    if (!u || typeof u.key !== 'string' || seen.has(u.key)) continue;
+    seen.add(u.key);
+    out.push(Object.freeze({ key: u.key, label: `${u.pre} ${u.post}`.trim(), pre: u.pre || '', post: u.post || '', user: true }));
+  }
+  return out;
+}
+
 const QUOTE_DEFAULTS = Object.freeze({
   text: '',
   ph: '빠르게 입는 하루',          /* 안내문구 — 비면 이것을 그린다(coupon placeholder 규약) */
@@ -132,7 +159,10 @@ function _col(block, key, def) {
 /** 지금 고른 부호 한 벌. 모르는 key 는 기본으로 떨어진다(저장본이 손상돼도 안 죽는다). */
 function quoteShapeOf(block) {
   const k = block?.dataset?.shape;
-  return QUOTE_SHAPES.find(s => s.key === k) || QUOTE_SHAPES[0];
+  /* ★명부는 ★quoteShapesAll ★하나다(제품 8종 ＋ 사용자 것).
+     ⚠️★못 찾으면 ★기본값으로 ★조용히 떨어진다 — ★사용자 부호를 쓴 블럭을 ★그 부호가 ★없는 판
+       (다른 프로젝트 · meta 유실)에서 열면 ★모양이 ★바뀐다. ★그 자리를 ★검사가 ★이름으로 잡는다. */
+  return quoteShapesAll().find(s => s.key === k) || QUOTE_SHAPES[0];
 }
 
 /* ══ ★줄 쪼개기 — ★한 자리 ════════════════════════════════════════════════════
@@ -346,6 +376,8 @@ window.quoteLines = quoteLines;
 window.quoteShapeOf = quoteShapeOf;
 window.quoteIsPlaceholder = quoteIsPlaceholder;
 window.QUOTE_SHAPES = QUOTE_SHAPES;
+window.quoteShapesAll = quoteShapesAll;   // ★부호 ★한 명부(제품 8종 ＋ 사용자 것) — 검사·패널이 같이 본다
+window.quoteUserShapes = quoteUserShapes;
 window.QUOTE_SHAPE_KEYS = QUOTE_SHAPE_KEYS;
 window.QUOTE_DEFAULTS = QUOTE_DEFAULTS;
 window.QUOTE_LIMITS = QUOTE_LIMITS;
@@ -354,5 +386,6 @@ window.clampQuote = clampQuote;
 export {
   makeQuoteBlock, addQuoteBlock, renderQuoteBlock, commitQuoteText,
   quoteLines, quoteShapeOf, quoteIsPlaceholder, _qtState,
+  /* ★quoteShapesAll·quoteUserShapes 는 ★선언 자리에서 `export function` 으로 나간다 — ⛔여기 또 적으면 중복 export 다 */
   QUOTE_SHAPES, QUOTE_SHAPE_KEYS, QUOTE_DEFAULTS, QUOTE_LIMITS, clampQuote,
 };

@@ -19,6 +19,12 @@ const DesignSystem = (() => {
      ⚠️시안의 8 은 패널 여백을 흉내 낸 판에서 잰 수다(실제 패널이 아님). 폭·칩 크기가 바뀌면 같은 법으로 다시 재서 바꿔라. */
   const COLOR_HISTORY_MAX = 7;
   const STORAGE_TEXTSTYLE_KEY = 'we_text_style_history_v1';   // 텍스트 «효과» 히스토리 작업 캐시 — 정본은 meta.textStyleHistory
+  const STORAGE_QUOTE_SHAPES_KEY = 'we_quote_shapes_v1';   // 인용구 ★사용자 부호 작업 캐시 — 정본은 meta.quoteShapes
+  /* ★사용자가 더한 부호의 ★개수 상한 — ⚠️★안 쟀다. 위 둘(7·5)은 ★줄 폭을 ★재서 넣은 수인데
+     이 목록은 ★제품 8종과 ★같은 `.prop-align-group`(wrap · 여러 줄)에 ★같이 서므로 ★한 줄 법이 ★안 맞는다.
+     ⇒ ★지금은 ★«저장본이 무한정 커지지 않게» 하는 ★울타리일 뿐이다(⛔UI 가 잰 수가 ★아니다).
+        ★줄 수가 문제가 되면 ★그때 ★패널에서 ★재서 바꿔라. */
+  const QUOTE_SHAPES_MAX = 12;
   /* ★최근 «효과» 한 줄의 개수 — 컬러(위 7)와 ★같은 법으로, ★다시 ★재서 넣었다.
        법 = floor((줄 가용폭 − 라벨폭 − gap) ÷ (칩폭 + gap))
        ★잰 값 2026-10-08 (DOM 하네스 · 패널 폭 240 고정 — css/editor-panels.css:62):
@@ -668,6 +674,92 @@ const DesignSystem = (() => {
     return all;
   }
 
+  /* ── 인용구 ★사용자 부호 (현빈 2026-10-09 ⒝ 「에셋에 ★프리셋이 있는데 ★별도로 ★사용자가 추가 가능하게」) ──
+   * ★★`textStyleHistory` 와 ★같은 자리·★같은 길이다 — 정본 = `meta.quoteShapes` · 작업 캐시 = localStorage.
+   *   ⛔새 저장 기계를 ★만들지 않았다. ★네 함수를 ★그대로 베꼈고 ★«큐가 아니라 한 배열»인 것만 다르다.
+   * ★★⛔`colorVars` 꼴을 ★베끼지 ★않았다 — ★그쪽은 ★이 파일이 스스로 적어 둔 결함이 있다:
+   *   「meta 에 없으면 ★캐시를 그대로 둬서 ★«직전 프로젝트 것»이 남는다」(위 restoreColorHistoryFromMeta 머리말).
+   *   ⇒ ★부호도 ★프로젝트의 것이라 ★그 병을 물려받으면 ★남의 프로젝트 부호가 ★남는다.
+   * ★★이 자리는 ★«무엇이 부호인가»를 ★모른다 — ★그 명부는 `js/blocks/quote-block.js` ★하나다.
+   *   ⇒ 여기서는 ★«꼴»만 본다(문자열 pre/post 가 ★비지 않았나). ★그래야 ★부호 어휘가 늘어도 ★이 파일이 안 바뀐다.
+   * ★레코드 = { key, pre, post } · ★key 는 ★이 자리가 짓는다(`u_` 접두 — ★제품 8종 키와 ★안 겹치게).
+   */
+  const _QS_PREFIX = 'u_';
+  function _normQuoteShape(r) {
+    if (!r || typeof r !== 'object' || Array.isArray(r)) return null;
+    const pre = typeof r.pre === 'string' ? r.pre.trim() : '';
+    const post = typeof r.post === 'string' ? r.post.trim() : '';
+    if (!pre && !post) return null;                                   /* ★둘 다 비면 부호가 아니다 */
+    const key = (typeof r.key === 'string' && r.key.startsWith(_QS_PREFIX)) ? r.key : '';
+    return { key, pre, post };
+  }
+  function _readQuoteShapes() {
+    try {
+      const a = JSON.parse(localStorage.getItem(STORAGE_QUOTE_SHAPES_KEY) || '[]');
+      if (!Array.isArray(a)) return [];
+      const out = [];
+      const seen = new Set();
+      for (const r of a) {
+        const n = _normQuoteShape(r);
+        if (!n) continue;
+        const sig = n.pre + '\u0000' + n.post;
+        if (seen.has(sig)) continue;                                  /* ★같은 쌍은 ★하나만 */
+        seen.add(sig);
+        out.push({ key: n.key || (_QS_PREFIX + (out.length + 1) + '_' + Math.abs(_hashStr(sig)).toString(36)), pre: n.pre, post: n.post });
+        if (out.length >= QUOTE_SHAPES_MAX) break;
+      }
+      return out;
+    } catch { return []; }
+  }
+  function _hashStr(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) { h = (h * 31 + str.charCodeAt(i)) | 0; }
+    return h;
+  }
+  function _setQuoteShapes(list, { persist = true } = {}) {
+    try { localStorage.setItem(STORAGE_QUOTE_SHAPES_KEY, JSON.stringify(list)); } catch {}
+    if (persist) _mergeProjectMeta({ quoteShapes: list });
+    document.dispatchEvent(new CustomEvent('quoteshapes-changed', { detail: { list } }));
+  }
+  /** 사용자가 더한 부호 목록(새 것이 ★앞). ⛔제품 8종은 ★여기 없다(그 명부는 quote-block.js). */
+  function getQuoteShapes() { return _readQuoteShapes(); }
+  /** 더하기 — ★같은 쌍이면 ★맨 앞으로 올리고 ★키를 지킨다(컬러 히스토리의 그 규약). */
+  function addQuoteShape(shape) {
+    const n = _normQuoteShape(shape);
+    if (!n) return getQuoteShapes();
+    const prev = _readQuoteShapes();
+    const sig = n.pre + '\u0000' + n.post;
+    const hit = prev.find(r => r.pre + '\u0000' + r.post === sig);
+    const rec = { key: hit ? hit.key : (_QS_PREFIX + Date.now().toString(36) + Math.abs(_hashStr(sig)).toString(36)), pre: n.pre, post: n.post };
+    const next = [rec, ...prev.filter(r => r.key !== rec.key)].slice(0, QUOTE_SHAPES_MAX);
+    _setQuoteShapes(next);
+    return next;
+  }
+  function removeQuoteShape(key) {
+    const prev = _readQuoteShapes();
+    if (!key || !prev.some(r => r.key === key)) return prev;
+    const next = prev.filter(r => r.key !== key);
+    _setQuoteShapes(next);
+    return next;
+  }
+  /* ⚠️컬러·효과 히스토리와 ★같은 점: meta 에 없으면 ★빈 목록이다(⛔직전 프로젝트 것이 ★안 남는다). */
+  async function restoreQuoteShapesFromMeta(projectId) {
+    const pid = projectId || window.activeProjectId;
+    let list = [];
+    try {
+      if (pid && window.electronAPI?.loadProjectMeta) {
+        const meta = await window.electronAPI.loadProjectMeta(pid).catch(() => null);
+        const raw = meta && meta.quoteShapes;
+        if (Array.isArray(raw)) {
+          try { localStorage.setItem(STORAGE_QUOTE_SHAPES_KEY, JSON.stringify(raw)); } catch {}
+          list = _readQuoteShapes();                                  /* ★정규화를 ★한 자리로 태운다 */
+        }
+      }
+    } catch (e) { console.warn('[DesignSystem] restoreQuoteShapesFromMeta 실패:', e); }
+    _setQuoteShapes(list, { persist: false });                        /* 열 때 읽기만 — 다시 쓰지 않는다 */
+    return list;
+  }
+
   async function restoreColorVarsFromMeta(projectId) {
     const pid = projectId || window.activeProjectId;
     try {
@@ -838,6 +930,8 @@ const DesignSystem = (() => {
     // 텍스트 «효과» 히스토리 — prop-text-wireup-text-edit 가 쌓고, text-style-chips 가 그린다(컬러와 같은 꼴)
     getTextStyleHistory, pushTextStyleHistory, restoreTextStyleHistoryFromMeta,
     TEXT_STYLE_HISTORY_MAX, TEXT_STYLE_COALESCE_MS,
+    // 인용구 ★사용자 부호 — prop-quote 가 더하고, quote-block 의 명부가 제품 8종과 ★합친다(효과 히스토리와 같은 꼴)
+    getQuoteShapes, addQuoteShape, removeQuoteShape, restoreQuoteShapesFromMeta, QUOTE_SHAPES_MAX,
     openInlineNameForm: (...a) => _openInlineNameForm(...a),
     addColorVarFromPanel, renderColorVars,
   };

@@ -223,7 +223,12 @@ test('Q5 ★부호 크기를 키워도 ★글자 크기는 ★안 움직인다(�
 });
 
 /* ── Q6 ★패널 「모양」 8종이 ★211 줄에서 ★읽힌다 — ★자 ★셋을 ★같이 건다 ─────────── */
-test('Q6 ★패널 모양 8종 — ★전부 ★닿는다(자 ㉢) · ⛔눌림 0(㉠) · ⛔쪼갬 0(㉡)', async ({ page }) => {
+test('Q6 ★패널 모양 — ★전부 ★닿는다(자 ㉢) · ⛔눌림 0(㉠) · ⛔쪼갬 0(㉡)', async ({ page }) => {
+  /* ★★⚰️옛 제목 = 「★패널 모양 ★8종 …」이고 ★단언도 ★`toBe(8)` 이었다.
+     ★2026-10-09 ⒝ 로 ★「＋」(부호 직접 더하기) 단추가 ★그 줄에 ★같이 서서 ★9개가 됐다.
+     ⇒ ★★수를 ★다시 박지 ★않는다 — ★★«명부에서 끌어온다»(`quoteShapesAll().length + 1`).
+        ⛔8 이든 9 든 ★손으로 적으면 ★사용자가 부호를 더하는 ★순간 ★이 칸이 ★거짓이 된다.
+     ★살아남은 것 = ★자 셋(닿나·눌렸나·쪼개졌나)과 ★`.prop-align-group` 규약이다 — ★그건 ★그대로다. */
   await setup(page);
   await openPanel(page);
 
@@ -274,6 +279,7 @@ test('Q6 ★패널 모양 8종 — ★전부 ★닿는다(자 ㉢) · ⛔눌림 
     });
     return {
       rowW: row.clientWidth, grpClass: grp.className, natural, btnCount: btns.length,
+      flexWrap: getComputedStyle(grp).flexWrap,
       btnRows: new Set([...grp.children].map(b => Math.round(b.getBoundingClientRect().y))).size,
       splits, btns,
     };
@@ -286,7 +292,13 @@ test('Q6 ★패널 모양 8종 — ★전부 ★닿는다(자 ㉢) · ⛔눌림 
   }));
 
   expect(m.rowW, `★그 줄의 내용폭 = 211 (실측 ${m.rowW})`).toBe(211);
-  expect(m.btnCount, '★모양 단추 8개').toBe(8);
+  /* ★★수를 ★명부에서 끌어온다 — ★제품 8종 ＋ ★사용자가 더한 것 ＋ ★「＋」 하나. */
+  const wantBtns = await page.evaluate(() => (window.quoteShapesAll ? window.quoteShapesAll().length : 0) + 1);
+  expect(wantBtns, '★전제 — 명부를 못 읽었다(quoteShapesAll 이 window 에 없다)').toBeGreaterThan(1);
+  expect(m.btnCount, `★모양 단추 = 명부 ${wantBtns - 1}개 ＋ 더하기 1 = ${wantBtns} (실측 ${m.btnCount})`).toBe(wantBtns);
+  /* ★「＋」가 ★그 줄의 ★마지막이고 ★`data-qt-shape` 가 ★없다(모양이 아니라 ★행위다) */
+  const plus = m.btns[m.btns.length - 1];
+  expect(plus.key, `★마지막 단추는 ★모양이 아니라 「＋」여야 한다(key 가 없어야 한다). 잰 값 ${JSON.stringify(plus)}`).toBe(null);
   /* ★꼴이 .prop-align-group 이어야 한다 — ⛔.prop-type-group 으로 되돌리면 8번째가 안 닿는다 */
   expect(m.grpClass, '★`.prop-align-group`(wrap) 이다 — ⛔세그먼트로 되돌리지 마라').toContain('prop-align-group');
   /* ★★자 ㉢ — ★전부 닿는다. ★이것이 M4 변이에서 ★빨개지는 단언이다 */
@@ -297,8 +309,14 @@ test('Q6 ★패널 모양 8종 — ★전부 ★닿는다(자 ㉢) · ⛔눌림 
   /* ㉠ 눌림 0 · ㉡ 쪼갬 0 */
   expect(m.btns.filter(b => b.w < b.natural).map(b => b.t), '★눌린 단추 0(자 ㉠)').toEqual([]);
   expect(m.splits, '★쪼개진 글자 0(자 ㉡)').toEqual([]);
-  /* ★2줄로 접혔다 — 8종이 155px 에 한 줄로는 안 들어간다(자연폭 252) */
-  expect(m.btnRows, `★wrap 으로 ★2줄 (실측 ${m.btnRows}줄 · 자연폭 ${m.natural})`).toBe(2);
+  /* ★★⚰️옛 단언 = `expect(m.btnRows).toBe(2)` 「★wrap 으로 ★2줄 — 8종이 155px 에 한 줄로는 안 들어간다(자연폭 252)」.
+     ★그 2 는 ★«단추가 8개일 때»의 수였다. ★2026-10-09 ⒝ 로 ★「＋」가 서서 ★3줄(자연폭 284)이 됐고,
+     ★사용자가 부호를 ★더 더하면 ★4줄·5줄이 된다. ⇒ ★★수를 박으면 ★쓸수록 ★거짓이 되는 칸이다.
+     ★잠가야 하는 것은 ★«줄 수»가 아니라 ★«접힌다»(⛔한 줄에 밀어 넣어 넘치거나 안 닿게 되지 않는다):
+       ㉠ `flex-wrap: wrap` 이 ★켜져 있다   ㉡ ★실제로 ★2줄 이상으로 ★접혔다(안 접히면 위 over/unreach 가 잡는다)
+     ★위 세 자(닿나·넘나·쪼개지나)가 ★진짜 요구이고 ★이 둘은 ★그 까닭이다. */
+  expect(m.flexWrap, `★prop-align-group 이 ★wrap 이어야 한다 (실측 ${m.flexWrap})`).toBe('wrap');
+  expect(m.btnRows >= 2, `★실제로 ★접혀야 한다 (실측 ${m.btnRows}줄 · 자연폭 ${m.natural} · 단추 ${m.btnCount}개)`).toBe(true);
 });
 
 /* ── Q7 ★로드 경로(rebindAll)를 ★행위로 지난다 — ★save-load 세 자리를 ★한꺼번에 잠근다 ──
@@ -478,4 +496,136 @@ test('Q10 ★⒜ 중앙정렬 — ★`align` 칸이 ★이미 한다(새 칸 ★
   const lineRat2 = ['left', 'center', 'right'].map(a => rat(inl[a], inl[a].pieces[1], 'cx'));
   expect(spread(preRat) <= 0.01, `★inline 의 ★앞부호는 ★안 움직여야 한다(왼쪽 모서리 비율). 잰 값 ${JSON.stringify(preRat.map(v => +v.toFixed(3)))}`).toBe(true);
   expect(spread(lineRat2) >= 0.5, `★inline 의 ★글은 ★움직여야 한다(안 움직이면 align 이 죽은 것). 잰 값 ${JSON.stringify(lineRat2.map(v => +v.toFixed(3)))}`).toBe(true);
+});
+
+
+/* ══════ 2026-10-09 현빈 ⒝ — 「에셋에 ★프리셋이 있는데 ★별도로 ★사용자가 추가 가능하게」 ══════
+   ★저장 자리 = `DesignSystem` 의 ★`quoteShapes`(정본 `meta.quoteShapes` · 작업 캐시 localStorage) —
+   ★`textStyleHistory` 와 ★같은 자리·★같은 길이다(⛔새 저장 기계를 안 만들었다).
+   ⛔`colorVars` 꼴은 ★안 베꼈다 — 그쪽은 「meta 에 없으면 ★직전 프로젝트 것이 남는다」는
+     ★결함을 `design-system.js` 가 ★스스로 적어 뒀다. ★Q13 이 ★그 병이 ★안 옮았음을 잰다. */
+
+/** 가짜 Electron meta 저장소 — C6(text-style-recent) 의 그 꼴 그대로. */
+const fakeMeta = (page, pid) => page.evaluate((p) => {
+  window.activeProjectId = p;
+  window.__metaStore = {};
+  window.electronAPI = {
+    loadProjectMeta: async () => window.__metaStore,
+    saveProjectMeta: async (_pid, patch) => { Object.assign(window.__metaStore, patch); return true; },
+  };
+}, pid);
+const clearShapeCache = (page) => page.evaluate(() => {
+  try { localStorage.removeItem('we_quote_shapes_v1'); } catch (_) {}
+});
+
+test('Q11 ★사용자 부호 더하기 — ★한 명부에 들고 ★블럭에 입히면 ★그 글자가 그려진다', async ({ page }) => {
+  const errs = await setup(page, { text: '안녕' });
+  const before = await page.evaluate(() => ({
+    all: window.quoteShapesAll().length,
+    user: window.quoteUserShapes().length,
+  }));
+  expect(before.user, '★전제 — 시작은 사용자 부호 0건이어야 한다').toBe(0);
+
+  const m = await page.evaluate(() => {
+    const list = window.DesignSystem.addQuoteShape({ pre: '<<', post: '>>' });
+    const all = window.quoteShapesAll();
+    const made = all.find(s => s.key === list[0].key);
+    /* ★블럭에 입혀 ★그려 본다 — ⛔명부에 들었다는 것만으로 ★닫지 않는다 */
+    window.__qt.dataset.shape = made.key;
+    window.renderQuoteBlock(window.__qt);
+    const marks = [...window.__qt.querySelectorAll('[data-qt-mark]')].map(e => e.textContent);
+    return {
+      userN: window.quoteUserShapes().length, allN: all.length,
+      key: made.key, label: made.label, user: made.user === true,
+      marks,
+      /* ★제품 8종이 ★앞이고 ★사용자 것이 ★뒤 */
+      tail: all[all.length - 1].key,
+      builtinsIntact: window.QUOTE_SHAPE_KEYS.every((k, i) => all[i].key === k),
+    };
+  });
+  console.log('  Q11:', JSON.stringify(m));
+  expect(m.userN, '★사용자 부호 1건').toBe(1);
+  expect(m.allN, `★한 명부 = 제품 ${before.all} ＋ 1`).toBe(before.all + 1);
+  expect(m.key.startsWith('u_'), `★키는 ★u_ 접두여야 한다(제품 8종과 ★안 겹치게). 잰 값 ${m.key}`).toBe(true);
+  expect(m.builtinsIntact, '★제품 8종이 ★앞 차례 그대로').toBe(true);
+  expect(m.tail, '★사용자 것이 ★뒤에 붙는다').toBe(m.key);
+  expect(m.label, `★label 은 ★짓는다(pre + ' ' + post). 잰 값 ${JSON.stringify(m.label)}`).toBe('<< >>');
+  expect(m.user, '★사용자 것이라는 표가 선다(패널이 ×를 달 자리)').toBe(true);
+  /* ★★주 단언 — ★그려진 글자가 ★내가 더한 그것이다 */
+  expect(m.marks, `★★그려진 부호가 내가 더한 것이어야 한다. 잰 값 ${JSON.stringify(m.marks)}`).toEqual(['<<', '>>']);
+  expect(errs).toEqual([]);
+});
+
+test('Q12 ★★저장 왕복 — ★meta 에 실리고 ★캐시를 비워도 ★다시 열면 산다 (⛔localStorage 단독이면 빨강)', async ({ page }) => {
+  /* ★★이 칸이 ★«왜 localStorage 단독을 안 쓰나»를 ★잠근다 — 그 까닭은 ★「앱 닫고 열면 사라진다」다.
+     ★C6(text-style-recent) 와 ★같은 꼴: ⒜ meta 에 실렸나 ⒝ ★캐시를 비우고 ★전제 단언 ⒞ meta 에서만 복원. */
+  const errs = await setup(page);
+  await fakeMeta(page, 'p-q12');
+  await page.evaluate(() => window.DesignSystem.addQuoteShape({ pre: '◆', post: '◆' }));
+  await page.waitForTimeout(120);
+
+  const saved = await page.evaluate(() => window.__metaStore.quoteShapes || null);
+  expect(Array.isArray(saved) && saved.length, '★저장본(meta)에 ★안 실렸다 — localStorage 단독이면 여기서 죽는다').toBeTruthy();
+  expect(saved[0].pre, '★meta 에 실린 그 부호').toBe('◆');
+
+  const after = await page.evaluate(async () => {
+    try { localStorage.removeItem('we_quote_shapes_v1'); } catch (_) {}
+    const emptied = window.quoteUserShapes().length;
+    await window.DesignSystem.restoreQuoteShapesFromMeta('p-q12');
+    return { emptied, restored: window.quoteUserShapes().map(r => r.pre + r.post) };
+  });
+  console.log('  Q12:', JSON.stringify(after));
+  expect(after.emptied, '★전제 — 캐시를 비웠는데 ★안 비었다').toBe(0);
+  expect(after.restored, '★★다시 열었더니 ★사용자 부호가 ★사라졌다').toEqual(['◆◆']);
+  expect(errs).toEqual([]);
+});
+
+test('Q13 ★★음성대조 셋 — ⛔제품 8종은 못 지운다 · ⛔meta 없으면 ★빈 목록 · ★잃는 자리를 ★이름으로 적는다', async ({ page }) => {
+  const errs = await setup(page);
+  await fakeMeta(page, 'p-q13');
+
+  /* ㉠ ★제품 8종은 ★못 지운다 — `removeQuoteShape` 에 제품 키를 줘도 ★명부가 안 줄어든다 */
+  const guard = await page.evaluate(() => {
+    const before = window.quoteShapesAll().length;
+    window.DesignSystem.removeQuoteShape('curly');
+    window.DesignSystem.removeQuoteShape('slash');
+    return { before, after: window.quoteShapesAll().length, keys: window.QUOTE_SHAPE_KEYS.length };
+  });
+  expect(guard.after, `★★제품 부호가 ★지워졌다. ${guard.before} → ${guard.after}`).toBe(guard.before);
+
+  /* ㉡ ★meta 에 ★없으면 ★빈 목록 — ⛔`colorVars` 가 앓는 「직전 프로젝트 것이 남는다」를 ★안 물려받는다 */
+  const carry = await page.evaluate(async () => {
+    window.DesignSystem.addQuoteShape({ pre: '※', post: '※' });      // p-q13 의 부호
+    const mine = window.quoteUserShapes().length;
+    window.__metaStore = {};                                          // ★다른 프로젝트 = meta 에 quoteShapes 가 없다
+    await window.DesignSystem.restoreQuoteShapesFromMeta('p-other');
+    return { mine, afterOpenOther: window.quoteUserShapes().map(r => r.pre) };
+  });
+  expect(carry.mine, '★전제 — 내 프로젝트엔 1건이 있었다').toBe(1);
+  expect(carry.afterOpenOther, '★★다른 프로젝트를 열었는데 ★앞 프로젝트 부호가 ★남았다').toEqual([]);
+
+  /* ㉢ ★★잃는 자리 — ★사용자 부호를 쓰던 블럭을 ★그 부호가 ★없는 판에서 열면 ★기본값으로 떨어진다.
+        ⛔이건 ★「고쳤다」가 아니라 ★「재서 적었다」다. ★v1 의 ★알려진 한계이고 ★여기가 그 이름이다.
+        ★고치려면 ★블럭이 ★제 글자를 ★자기 dataset 에 들고 있어야 한다(= ★새 키 둘) — ★지디 판정 대기. */
+  const lost = await page.evaluate(async () => {
+    const list = window.DesignSystem.addQuoteShape({ pre: '◀', post: '▶' });
+    window.__qt.dataset.shape = list[0].key;
+    window.renderQuoteBlock(window.__qt);
+    const withShape = [...window.__qt.querySelectorAll('[data-qt-mark]')].map(e => e.textContent);
+    window.__metaStore = {};                                          // ★부호를 잃은 판
+    await window.DesignSystem.restoreQuoteShapesFromMeta('p-lost');
+    window.renderQuoteBlock(window.__qt);
+    return {
+      withShape,
+      afterLoss: [...window.__qt.querySelectorAll('[data-qt-mark]')].map(e => e.textContent),
+      keyStillOnBlock: window.__qt.dataset.shape,
+      fallback: [window.QUOTE_SHAPES[0].pre, window.QUOTE_SHAPES[0].post],
+    };
+  });
+  console.log('  Q13 ㉢ 잃는 자리:', JSON.stringify(lost));
+  expect(lost.withShape, '★전제 — 더한 부호가 그려지고 있었다').toEqual(['◀', '▶']);
+  expect(lost.keyStillOnBlock.startsWith('u_'), '★블럭은 ★제 키를 ★그대로 들고 있다(데이터는 안 날아갔다)').toBe(true);
+  expect(lost.afterLoss, `★★부호를 잃으면 ★기본값으로 떨어진다 — ★v1 의 ★알려진 한계. 잰 값 ${JSON.stringify(lost.afterLoss)}`)
+    .toEqual(lost.fallback);
+  expect(errs).toEqual([]);
 });
