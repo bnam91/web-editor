@@ -269,6 +269,95 @@ test('H6 ★소비자 ★셋이 헬퍼를 ★부른다 — ⛔하나라도 빠�
     .toMatch(/REDACT_MOSAIC_ENABLED\s*=\s*false/);
 });
 
+test('H7 ★★«두 번 걸림»을 막는 자 — 헬퍼 뒤 svg 의 ★computed transform 이 `none` 이다', async ({ page }) => {
+  /* ★★왜 재나(지디 2026-10-09) — 이 고침의 ★선 전제는 「h2c 는 svg 의 transform 을 ★어떤 꼴이든 안 그린다」다.
+     ★만약 어떤 조건에서 ★존중하면 ★거울이 ★두 번 걸려(−1 × −1 = ＋1) ★원래대로 돌아오고,
+     ★그 초록을 ★「원래 맞았다」로 ★읽을 참이다. ⇒ ★★그 길을 ★구조로 막는다: svg 쪽을 ★확실히 끈다.
+     ⛔`svg.style.transform` ★만 보지 마라 — ★클래스가 이기는 판이 있을 수 있다 ⇒ ★computed 로 잰다.
+     ★★그리고 `!important` 가 CSS 에 있으면 ★인라인 `none` 이 ★진다 ⇒ ★그 0건을 ★여기서 ★같이 문다. */
+  await scene(page);
+  const r = await page.evaluate(async () => {
+    const mod = await import('/js/io/h2c-prep.js');
+    const sec = document.querySelector('#canvas .section-block:not([data-ghost])');
+    const clone = sec.cloneNode(true);
+    clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;';
+    document.body.appendChild(clone);
+    const lifted = mod.liftSvgTransformsForH2C(clone);
+    const out = [...clone.querySelectorAll('svg')].map((sv) => ({
+      cls: (sv.getAttribute('class') || '').slice(0, 24),
+      computed: getComputedStyle(sv).transform,
+      inline: sv.style.transform,
+      wrapped: sv.parentElement?.dataset?.h2cLift === '1',
+    })).filter((x) => x.wrapped);
+    clone.remove();
+    return { lifted, wrapped: out };
+  });
+  console.log('[H7] ' + JSON.stringify(r));
+  expect(r.lifted, '전제 — 올린 것이 있다(0 이면 이 검사가 아무것도 잠그지 않는다)').toBeGreaterThan(0);
+  expect(r.wrapped.length, '전제 — 감싸진 svg 수 = 올린 수').toBe(r.lifted);
+  for (const x of r.wrapped) {
+    /* ★★본 단언 — ★computed 가 `none` 이면 ★h2c 가 ★무엇을 하든 ★두 번 걸릴 길이 ★없다 */
+    expect(x.computed, `★${x.cls || '(무클래스)'}: svg 의 ★computed transform 이 none`).toBe('none');
+  }
+  /* ★★`!important` 0건 — ★이게 깨지면 위 단언이 ★거짓이 될 수 있다. ★그 시한을 ★여기서 문다.
+     ★★⛔주석을 ★먼저 ★벗겨라 — ★안 벗기면 ★거짓양성이 난다(실측 2026-10-09: `css/editor-blocks.css:101`
+       ★주석 산문에 「transform:scale() … !important」가 들어 있어 ★이 게이트가 ★한 번 빨개졌다.
+       ★참값은 ★0건이다). ★「주석은 ★소스 파싱 게이트의 ★입력」의 자리. */
+  const cssAll = fs.readdirSync(path.join(ROOT, 'css')).filter((f) => f.endsWith('.css'))
+    .map((f) => read('css', f)).join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ');          // ★주석 제거(줄은 안 센다 — 개수만 본다)
+  const bang = cssAll.match(/transform\s*:[^;}]*!important/g) || [];
+  expect(bang, '★CSS 에 `transform: … !important` 선언이 ★0건이다(있으면 인라인 none 이 진다)').toEqual([]);
+});
+
+test('H8 ★★«정확히 한 번» — ⛔거울로는 1회와 2회를 ★못 가른다(−1×−1=＋1) ⇒ ★translateX 로 잰다', async ({ page }) => {
+  /* ★★지디 ⒝ 를 ★고쳐 세운다 — ★거울은 ★제곱이 ★항등이라 「안 걸림」과 「두 번 걸림」이 ★★같은 값이다.
+     ⇒ ★부호로는 ★홀·짝만 갈린다. ★★«정확히 한 번»을 재려면 ★★제곱이 항등이 ★아닌 변환이 필요하다.
+     ★translateX: 0 / ★20 / ★40 ⇒ ★★세 값이 ★다르다. ⇒ ★무게중심 ★이동량을 ★픽셀로 잰다. */
+  await bootApp(page);
+  const r = await page.evaluate(async (ink) => {
+    eval(ink);
+    const mod = await import('/js/io/h2c-prep.js');
+    const st = document.createElement('style');
+    st.textContent = '.h8-t20{transform:translateX(20px);} .h8-t40{transform:translateX(40px);}';
+    document.head.appendChild(st);
+    /* ★가로로 좁은 막대 — 가운데가 뚜렷해 이동량을 ★픽셀로 읽기 쉽다 */
+    const mk = (cls) => {
+      const d = document.createElement('div');
+      d.style.cssText = 'position:fixed;top:-9999px;left:0;width:200px;height:40px;background:#fff;';
+      d.innerHTML = '<svg width="200" height="40" viewBox="0 0 200 40"' + (cls ? ' class="' + cls + '"' : '')
+        + '><rect x="20" y="10" width="20" height="20" fill="#111"/></svg>';
+      document.body.appendChild(d); return d;
+    };
+    const shoot = async (cls, lift) => {
+      const el = mk(cls);
+      const lifted = lift ? mod.liftSvgTransformsForH2C(el) : 0;
+      const cv = await html2canvas(el, { scale: 1, useCORS: true, backgroundColor: '#ffffff', logging: false });
+      const m = inkOff(cv.getContext('2d'), cv.width, cv.height, { x: 0, y: 0, w: cv.width, h: cv.height });
+      /* ★절대 무게중심 x(px) — 이동량을 ★픽셀로 보려면 정규화를 ★풀어야 한다 */
+      const cx = m.off === null ? null : +((m.off + 0.5) * cv.width).toFixed(2);
+      el.remove();
+      return { lifted, ink: m.ink, cx, w: cv.width };
+    };
+    const base = await shoot(null, true);        // transform 없음 ⇒ lifted 0
+    const once = await shoot('h8-t20', true);    // ★헬퍼가 20px 를 올린다
+    const twice = await shoot('h8-t40', true);   // ★«두 번 걸렸다면» 이 값일 참(40px)
+    st.remove();
+    return { base, once, twice };
+  }, INK);
+  console.log('[H8] ' + JSON.stringify(r));
+  expect(r.base.lifted, '전제 — transform 없는 판은 ★0 을 올린다').toBe(0);
+  expect(r.once.lifted, '전제 — 20px 판은 ★1 을 올린다').toBe(1);
+  expect(r.base.cx, '전제 — 기준 무게중심이 잡혔다').not.toBeNull();
+  const d1 = r.once.cx - r.base.cx;
+  const d2 = r.twice.cx - r.base.cx;
+  console.log('[H8 판정] 이동량 — 한 번=' + d1.toFixed(2) + 'px (기대 ≈20) · 두 번 기준=' + d2.toFixed(2) + 'px (기대 ≈40)');
+  /* ★★본 단언 — ★한 번만 걸렸다: ★0 도 아니고 ★40(두 번)도 아니다 */
+  expect(Math.abs(d1 - 20), `★★«정확히 한 번» — 이동량이 ★20px (잰 값 ${d1.toFixed(2)})`).toBeLessThan(3);
+  expect(Math.abs(d1), '⛔「안 걸림」이 아니다').toBeGreaterThan(10);
+  expect(Math.abs(d1 - d2), `⛔「두 번 걸림」이 아니다(두 번이면 ${d2.toFixed(2)}px)`).toBeGreaterThan(10);
+});
+
 /* ══ 양성대조·변이·0건 명부 — ★실측(2026-10-09 · 이 레인) ═════════════════════════════════
  * ⒜ ★판 = `origin/dev` `7c3b6cb7366a`. ★헬퍼를 ★끄고/켜고를 ★같은 판에서 ★같은 자로 견줬다
  *     (⛔live↔h2c 대조는 ★쓰지 않았다 — ★다른 렌더러라 ★transform 없는 갈래에서도 어긋난다).
