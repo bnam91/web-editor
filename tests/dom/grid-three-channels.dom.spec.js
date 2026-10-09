@@ -180,13 +180,34 @@ test('D4-b ★artifact 명부가 이 검사가 «돌린» 갈래와 맞는다 (�
      — tests/dom/figma-export-coverage.dom.spec.js, 그리고 U6-g 가 그 «연결»을 지킨다.
      ⛔축으로 거르지 않으면 축이 늘 때마다 여기가 «거짓 빨강»이 되고, 사람은 기대값에
        이름만 더해 끄게 된다 — 그러면 이 단언이 아무것도 안 지킨다. */
+  /* ★★2026-10-10 — ★손으로 박은 ★평평한 배열을 ★★«뜻으로 갈라» 둘로 나눴다.
+     ⛔예전 꼴(이름 넷을 ★한 배열에)은 ★명부가 늘 때 ★사람이 ★★«이름만 더해 끄게» 한다.
+     ★★이 검사의 머리말이 요구하는 것은 ★★«늘린 갈래를 ★이 검사가 ★정말 돌리나»다.
+     ⇒ ★그래서 ★★두 칸으로 가른다. ★새 채널이 생기면 ★★둘 중 ★어디인지 ★사람이 ★골라야 하고,
+       ★그 고름이 ★곧 ★«돌리나 / 위임인가»의 ★판정이다.
+     ★★⛔기대값을 ★`CHANNELS` 에서 ★그대로 파생시키면 ★★항등식이 되어 ★아무것도 ★안 잠근다.
+       ⇒ ★그래서 ★★두 명부는 ★★손으로 든다 — ★★단 ★★«뜻»이 붙어 있다.
+       ★★한 쌍: ★명부에 ★가짜 채널을 더하면 ★★이 검사가 ★빨강이다(둘 중 어디에도 없으므로). */
+  const RUN_HERE = [
+    'js/io/section-serialize.js',   // ★채널 ① — serializeCleanRoot 를 ★이 검사가 직접 부른다
+    'js/io/export-html.js',         // ★채널 ② — exportHTMLFile 을 ★실제로 부르고 Blob 을 가로챈다
+    'js/io/export-image.js',        // ★채널 ③ — prepareCloneForCapture 를 ★실제로 부른다
+    'js/io/capture-safety.js',      // ★채널 ③ ★안에서 ★같이 돈다(export-image.js:256 이 stripEditorOnlyForCapture)
+  ];
+  const TWO_LAYER = [
+    /* ★여기서 ★직접 안 돌린다 — ★에디터 전역이 통째로 필요하다. ★대신 ★두 겹으로 덮는다:
+       ⑴ U6-c 가 ★「그 파일이 공용 겹/세척을 ★실제로 부른다」를 단언
+       ⑵ 위 D4 의 ★채널 ①·③ 이 ★「그 겹이 마커를 0건으로 만든다」를 ★실제로 돌려 증명 */
+    'js/panels/template-system.js', // serializeCleanRoot/Self 위임
+    'js/io/save-load.js',           // stripEditorOnlyForCapture 위임(썸네일 → _meta.json → 목록 카드)
+                                    // ⛔그 산출물을 ★«픽셀로» 잰 자는 ★없다 — ★열린 칸
+  ];
   const arts = CHANNELS.filter(c => c.kind === 'artifact' && c.axes.includes('marker'))
     .map(c => c.file).sort();
   expect(arts, '★artifact 채널 명부가 바뀌었다 — 위 D4 가 «안 돌리는» 갈래가 생겼을 수 있다. ' +
     '새 채널을 여기서 실제로 돌리거나, serializeCleanRoot 위임임을 확인해라 ' +
     '(tests/unit/export-channel-roster.test.mjs U6 가 명부 자체를 지킨다).')
-    .toEqual(['js/io/capture-safety.js', 'js/io/export-html.js', 'js/io/export-image.js',
-              'js/io/save-load.js', 'js/io/section-serialize.js', 'js/panels/template-system.js']);
+    .toEqual([...RUN_HERE, ...TWO_LAYER].sort());
 
   /* ★★2026-10-10 (1009t3 A4) — ★기대 배열이 ★4 → ★6 이 됐다. ⛔«이름만 더해 끈» 것이 ★아니다 —
      ★이 머리말이 요구하는 ★★«그 갈래를 ★이 검사가 ★정말 돌리나»를 ★각각 적는다.

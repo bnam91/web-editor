@@ -262,3 +262,48 @@ test('A4-G5-D ★PNG 재렌더 뒤 명부는 ★전부 뿌리가 덮는다 — �
     + '  ⇒ 이 칸이 초록인 동안 그 자리는 ★`stripRuntimeMarkers` 위임으로 ★그대로 바꿀 수 있다'
     + '(⛔단 ★«자리»는 재렌더 «뒤»에 남겨야 한다 — 그 파일 주석).');
 });
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   A4-S1 — ★«분모를 늘리면 ★장면도 늘려야 한다»를 ★자가 센다. (2026-10-10 · 1009t3 A4)
+   ★까닭 = `tests/_export-channels.js` MARKER_SCENES 머리말에 적었다(내가 밟은 그 자리).
+   ⛔이 칸이 ★DOM 을 돌리지는 ★않는다 — ★«장면을 내는 자리가 ★있나»만 ★소스로 센다.
+     ★«정말 돌았나»는 ★그 spec 의 ★전제 단언(D4)이 ★DOM 에서 잰다. ★두 겹이다.
+═══════════════════════════════════════════════════════════════════════════ */
+const { MARKER_TOKENS, MARKER_SCENES } = createRequire(import.meta.url)('../_export-channels.js');
+
+test('A4-S1 ★MARKER_TOKENS 마다 «장면을 내는 자리»가 있다 — 양방향', () => {
+  assert.ok(MARKER_TOKENS.length >= 4,
+    `★MARKER_TOKENS 가 ${MARKER_TOKENS.length}종이다 — 분모가 줄었으면 왜 줄었는지 적어라`);
+  const listed = Object.keys(MARKER_SCENES);
+  const noScene = MARKER_TOKENS.filter((t) => !listed.includes(t));
+  assert.deepEqual(noScene, [],
+    `★토큰 ${noScene.length}종에 «장면을 내는 자리»가 안 적혀 있다: ${noScene.join(' · ')}\n` +
+    '  ⇒ MARKER_TOKENS 를 늘렸으면 MARKER_SCENES 도 늘려라. ⛔안 늘리면 그 토큰을 쓰는 검사의\n' +
+    '    «전제 단언»이 「라이브 0건」으로 빨개진다(2026-10-10 에 실제로 그랬다).');
+  const stale = listed.filter((t) => !MARKER_TOKENS.includes(t));
+  assert.deepEqual(stale, [],
+    `★MARKER_SCENES 에 «분모 밖» 토큰이 ${stale.length}종 남았다 — 명부가 낡았다: ${stale.join(' · ')}`);
+});
+
+test('A4-S1-b ★그 장면 파일이 «실재»하고 «그 토큰을 실제로 언급»한다', () => {
+  const miss = [], silent = [], noApp = [];
+  for (const [tok, sc] of Object.entries(MARKER_SCENES)) {
+    for (const key of ['spec', 'appPath']) {
+      const rel = sc[key];
+      if (!rel) continue;
+      if (!fs.existsSync(path.join(ROOT, rel))) { miss.push(`${tok} ${key}=${rel}`); continue; }
+      if (!read(rel).includes(tok)) silent.push(`${tok} ${key}=${rel}`);
+    }
+    /* ⛔「손으로 심는다」면 ★앱의 길로 재는 자리를 ★같이 적어야 한다 — ★안 적으면
+       ★다음 사람이 ★「앱 경로도 쟀다」로 읽는다(그 까닭은 MARKER_SCENES 머리말). */
+    if (/손으로 심는다/.test(sc.how) && !sc.appPath && tok !== 'bn2-line-selected') noApp.push(tok);
+  }
+  assert.deepEqual(miss, [], `★장면 파일이 «없다» ${miss.length}건:\n  ${miss.join('\n  ')}`);
+  assert.deepEqual(silent, [],
+    `★장면 파일이 그 토큰을 «한 번도 언급하지 않는다» ${silent.length}건 — 장면이 사라졌다:\n  ${silent.join('\n  ')}`);
+  assert.deepEqual(noApp, [],
+    `★«손으로 심는다»인데 appPath(앱의 길로 재는 자리)가 안 적힌 토큰 ${noApp.length}종: ${noApp.join(' · ')}\n` +
+    '  ⇒ 적어라. ⛔안 적으면 손 심기가 「앱 경로도 쟀다」로 읽힌다.\n' +
+    '  ★예외 = bn2-line-selected (이 명부가 생길 때부터 «이웃 토큰» 역할로 손 심기였다 — 그 축은 별건)');
+});

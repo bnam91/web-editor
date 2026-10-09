@@ -52,6 +52,46 @@
  *      ⇒ ★그 비대칭이 ★★「명부가 둘이면 한쪽만 고쳐진다」의 ★실물이다. */
 const MARKER_TOKENS = ['bn2-line-selected', 'grd-line-selected', 'grd-cell-selected', 'item-selected'];
 
+/* ★★⛔이 배열을 ★늘리면 ★★«장면을 ★내는 자리»도 ★같이 늘려야 한다 — ★그 수를 ★★검사가 센다.
+ *
+ * ★★왜 이 주석이 있나 (2026-10-10 · ★내가 밟았다)
+ *   ★`grd-cell-selected`·`item-selected` ★2종을 ★이 배열에 ★더했다. ★그런데
+ *   ★`tests/dom/grid-three-channels.dom.spec.js` ★D4 는 ★이 배열을 ★★«파생»해 ★토큰마다
+ *   ★「라이브 DOM 에 ★1건 있었다」를 ★전제로 단언한다. ★그 spec 의 ★장면은 ★«그리드 ★줄 선택»만
+ *   만들었으므로 ★새 2종은 ★★0건이었고 ★★전수에서 ★빨강이 났다.
+ *   ★★⇒ ★★«분모를 늘렸는데 ★장면을 ★안 늘렸다». ★그 자는 ★제 일을 했다.
+ *   ★★⇒ ★이것이 ★★«enum 을 늘리면 ★판정하는 ★모든 표에 ★칸이 생겼는지 ★세라»의 ★그 자리다.
+ *
+ * ★그래서 ★명부를 ★★«여기» 둔다 — ★토큰마다 ★★«어느 spec 이 ★그 장면을 ★내나».
+ *   ★`tests/unit/selected-marker-census.test.mjs` ★A4-S1 이 ★★양방향으로 견준다:
+ *     ㉠ MARKER_TOKENS 에 ★있는데 ★여기 ★없으면 ★빨강(= ★장면을 ★안 늘렸다)
+ *     ㉡ ★여기 있는데 ★MARKER_TOKENS 에 ★없으면 ★빨강(= ★명부가 ★낡았다)
+ *   ＋ ★그 spec 파일이 ★실재하고 ★★그 토큰을 ★실제로 ★언급하나까지 ★본다.
+ * ⛔`how` 를 ★「손으로 심는다」로 적을 때는 ★★`appPath`(앱의 길로 재는 자리)를 ★같이 적어라 —
+ *   ★안 적으면 ★다음 사람이 ★「앱 경로도 쟀다」로 ★읽는다. */
+const MARKER_SCENES = {
+  'bn2-line-selected': {
+    spec: 'tests/dom/grid-three-channels.dom.spec.js',
+    how:  '손으로 심는다 — banner02 div 에 class 를 박는다(이 spec 의 «이웃 토큰» 선례)',
+  },
+  'grd-line-selected': {
+    spec: 'tests/dom/grid-three-channels.dom.spec.js',
+    how:  '★앱의 길 — showGridProperties(block, {r,c,li:2}) 가 붙인다',
+  },
+  'grd-cell-selected': {
+    spec: 'tests/dom/grid-three-channels.dom.spec.js',
+    how:  '손으로 심는다 — ⛔앱의 길로는 «이 장면에» 못 심는다: js/props/prop-grid.js 의 ' +
+          '_grdSyncLineMark 가 머리에서 document 전역으로 .grd-line-selected 와 ' +
+          '.grd-cell-selected 를 둘 다 지운다(:176·:177) ⇒ 두 그리드 마커는 «상호배제»다',
+    appPath: 'tests/dom/grid-cell-selected-leak.dom.spec.js',   // ★진짜 마우스 ＋ 배송본 렌더 computed
+  },
+  'item-selected': {
+    spec: 'tests/dom/grid-three-channels.dom.spec.js',
+    how:  '손으로 심는다 — label-group-block 안 .label-item 에 박는다',
+    appPath: 'tests/dom/grid-cell-selected-leak.dom.spec.js',   // ★L6 가 라벨 항목을 진짜로 클릭한다
+  },
+};
+
 /** compare 채널의 정규화 단일 진실원 — market-merge 가 갖고 있고, 나머지는 «위임»한다.
  *  ⛔위임을 「자기 명단 없음」으로만 재면 안 된다 — 아무것도 안 씻어도 초록이다.
  *    그래서 U6-e 는 「이 이름을 부르는가」까지 본다. */
@@ -165,4 +205,4 @@ const CHANNELS = [
 
 const AXES = ['marker', 'drop'];
 
-module.exports = { CHANNELS, MARKER_TOKENS, CLEAN_FN, CLEAN_SELF_FN, AXES, NORM_FN };
+module.exports = { CHANNELS, MARKER_TOKENS, MARKER_SCENES, CLEAN_FN, CLEAN_SELF_FN, AXES, NORM_FN };
