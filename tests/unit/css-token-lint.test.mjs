@@ -27,7 +27,7 @@ import { fileURLToPath } from 'url';
 import {
   blankCssNoise, blankExemptSpans, scanDeclarations, makeLineIndex,
   collectRootTokens, resolveTokens, buildMaps, isSuggestable, normHex,
-  lintCss, renderFinding, selfCheck,
+  lintCss, renderFinding, selfCheck, deriveBase,
 } from '../../tools/css-token-lint.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -296,28 +296,46 @@ test('치환 잠금 ⑶ 전제 — index.html 이 토큰 파일과 네 파일을
  *   ⛔「skipped」만 찍으면 다음 사람이 ★«돌았다»로 읽는다 ⇒ ★까닭을 ★stdout 에 박는다.
  *   ★그리고 ★그 SKIP 이 ★«늘 SKIP»이 아님을 ★아래 두 칸이 ★양쪽에서 잠근다.
  */
-const GATE_BASE = 'v0.9.5';
+/* ⛔기준판을 ★여기에도 박지 않는다 — 박으면 ★이 검사가 ★둘째 명부가 된다.
+ *   ★자와 ★같은 `deriveBase()` 를 쓴다(명부 ★하나). */
+const STALE_BASE = 'v0.9.5';   // ★단언 ⒝ 전용 — 「낡은 기준판을 넣으면 창이 달라진다」를 재는 자리
 
 /** 게이트를 돌릴 ★전제. {ok, reason} — reason 은 ★SKIP 할 때 찍을 말이다. */
+const G = (...a) => cp.spawnSync('git', ['-C', REPO, ...a], { encoding: 'utf8' });
+
 function gatePremise(baseRef) {
-  const g = (...a) => cp.spawnSync('git', ['-C', REPO, ...a], { encoding: 'utf8' });
-  const wt = g('rev-parse', '--is-inside-work-tree');
+  const wt = G('rev-parse', '--is-inside-work-tree');
   if (wt.status !== 0 || wt.stdout.trim() !== 'true') {
     return { ok: false, reason: `git 작업트리가 아니다 (rev-parse rc=${wt.status}) — 범위를 뽑을 수 없다` };
   }
-  const base = g('rev-parse', '--verify', '--quiet', `${baseRef}^{commit}`);
+  let ref = baseRef;
+  if (!ref) {                       // ★파생 — 자와 ★같은 함수를 쓴다(명부 하나)
+    const d = deriveBase((...a) => G(...a));
+    if (!d.ok) return { ok: false, reason: `기준판을 못 뽑는다 — ${d.reason}` };
+    ref = d.base;
+  }
+  const base = G('rev-parse', '--verify', '--quiet', `${ref}^{commit}`);
   if (base.status !== 0 || !base.stdout.trim()) {
-    return { ok: false, reason: `기준판 '${baseRef}' 가 안 보인다 — 얕은 checkout(fetch-depth 1)이면 태그가 없다` };
+    return { ok: false, reason: `기준판 '${ref}' 가 안 보인다 — 얕은 checkout(fetch-depth 1)이면 태그가 없다` };
   }
-  const mb = g('merge-base', baseRef, 'HEAD');
+  const mb = G('merge-base', ref, 'HEAD');
   if (mb.status !== 0 || !mb.stdout.trim()) {
-    return { ok: false, reason: `merge-base(${baseRef}, HEAD) 가 없다 — 공통 조상이 안 당겨졌다` };
+    return { ok: false, reason: `merge-base(${ref}, HEAD) 가 없다 — 공통 조상이 안 당겨졌다` };
   }
-  return { ok: true, reason: `base=${baseRef} ${base.stdout.trim().slice(0, 12)} · merge-base ${mb.stdout.trim().slice(0, 12)}` };
+  return { ok: true, base: ref, reason: `base=${ref} ${base.stdout.trim().slice(0, 12)} · merge-base ${mb.stdout.trim().slice(0, 12)}` };
+}
+
+/** 범위 줄 수 — ⛔자의 수를 ★되받지 않는다. git 만으로 ★따로 센다. */
+function scopeLineCount(baseRef) {
+  const mb = G('merge-base', baseRef, 'HEAD');
+  if (mb.status !== 0 || !mb.stdout.trim()) return null;
+  const d = G('diff', '-U0', '--no-color', mb.stdout.trim(), '--', 'css/*.css');
+  if (d.status !== 0) return null;
+  return d.stdout.split('\n').filter((l) => l.startsWith('+') && !l.startsWith('+++')).length;
 }
 
 test('★게이트 — 바뀐 CSS 줄에 «토큰이 있는» 하드코딩이 0건인가  [빨강이면: npm run gate:css-token]', (t) => {
-  const pre = gatePremise(GATE_BASE);
+  const pre = gatePremise(null);
   if (!pre.ok) {
     // ⛔조용한 통과 금지 — 까닭을 찍는다
     process.stdout.write(`\n⚠️ css-token 게이트 ★SKIP — ★안 쟀다(통과가 아니다): ${pre.reason}\n`
@@ -325,12 +343,13 @@ test('★게이트 — 바뀐 CSS 줄에 «토큰이 있는» 하드코딩이 0�
     t.skip(`안 쟀다: ${pre.reason}`);
     return;
   }
-  const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs'), '--base', GATE_BASE],
+  const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs')],   // ⛔--base 안 준다 — ★자가 ★스스로 파생하는지도 같이 잰다
     { encoding: 'utf8', cwd: REPO });
   // ⛔3(HARNESS_ERROR)을 1 이나 0 으로 접지 마라 — 전제는 위에서 이미 봤으니 3 은 ★자가 고장난 것이다
   assert.notEqual(r.status, 3, `자가 고장났다(HARNESS_ERROR) — 전제는 섰는데 3 이 났다\n${r.stdout}${r.stderr}`);
   assert.equal(r.status, 0,
-    `바뀐 CSS 줄에 토큰이 있는 하드코딩이 남았다 (${pre.reason})\n`
+    '★고치는 법 ⇒ ★npm run gate:css-token   (자리를 다시 보려면 이것만 돌려라)\n'
+    + `바뀐 CSS 줄에 토큰이 있는 하드코딩이 남았다 (${pre.reason})\n`
     + '★아래 문구의 `var(--…)` 로 그 리터럴을 그 자리에서 바꿔라:\n'
     + r.stdout + r.stderr);
 });
@@ -339,7 +358,7 @@ test('★게이트 — 바뀐 CSS 줄에 «토큰이 있는» 하드코딩이 0�
  * ⛔하나만 두면 안 된다: ok:true 만 재면 「못 재는 판」을 못 보고,
  *   ok:false 만 재면 「여기선 도나」를 못 본다. */
 /* ★⑴a 는 ★환경에 안 의존한다 — `HEAD` 는 어느 checkout 에서도 풀린다.
- *   ⛔여기서 `GATE_BASE` 를 쓰면 ★얕은 checkout(CI) 에서 ★릴리스가 빨개진다.
+ *   ⛔여기서 ★파생 기준판(릴리스 태그)을 쓰면 ★얕은 checkout(CI) 에서 ★릴리스가 빨개진다.
  *   그건 CSS 와 ★무관한 빨강이고, ★내가 가로챌 자리가 아니다(워크플로 = 현빈 게이트). */
 test('게이트 전제 ⑴a — 풀리는 ref 에는 전제가 ★선다 (⇒ ok 갈래가 ★닿는 자리다 · 환경 무관)', () => {
   const pre = gatePremise('HEAD');
@@ -348,14 +367,14 @@ test('게이트 전제 ⑴a — 풀리는 ref 에는 전제가 ★선다 (⇒ ok
 });
 
 /* ★⑴b 는 ★이 판을 잰다 — 다만 ★못 재는 판에서는 ★FAIL 이 아니라 ★SKIP(까닭 찍고). */
-test('게이트 전제 ⑴b — ★이 판에서 ★기준판으로 실제로 쟀나 (못 쟀으면 ★까닭을 남긴다)', (t) => {
-  const pre = gatePremise(GATE_BASE);
+test('게이트 전제 ⑴b — ★이 판에서 ★파생된 기준판으로 실제로 쟀나 (못 쟀으면 ★까닭을 남긴다)', (t) => {
+  const pre = gatePremise(null);
   if (!pre.ok) {
     process.stdout.write(`\n⚠️ css-token 게이트가 ★이 판에서 ★안 돌았다(통과가 아니다): ${pre.reason}\n\n`);
     t.skip(`안 쟀다: ${pre.reason}`);
     return;
   }
-  assert.match(pre.reason, new RegExp(`^base=${GATE_BASE} [0-9a-f]{12} · merge-base [0-9a-f]{12}$`),
+  assert.match(pre.reason, /^base=v[0-9][0-9.]* [0-9a-f]{12} · merge-base [0-9a-f]{12}$/,
     `전제 문구가 «어느 판으로 쟀나»를 안 말한다: ${pre.reason}`);
 });
 
@@ -363,4 +382,117 @@ test('게이트 전제 ⑵ — ★없는 기준판에는 전제가 ★안 선다
   const pre = gatePremise('nope-this-ref-does-not-exist-1009t3');
   assert.equal(pre.ok, false, '없는 ref 에도 전제가 섰다 — 그러면 얕은 checkout 에서 ★3 으로 터진다');
   assert.match(pre.reason, /안 보인다/, 'SKIP 까닭이 비어 있으면 ★조용한 통과가 된다');
+});
+
+/* ══ ① 기준판 ★파생 — ⒜값 ⒝창 ⒞실패갈래 를 ★한 쌍으로 ══════════════════
+ * ★왜 = 2026-10-10 실측으로 ★이미 한 칸 낡아 있었다. origin/main = 9de05e189791
+ *   = ★v0.9.6 ★그 자체(GitHub 릴리스 0.9.6 Latest · package.json 0.9.6)인데
+ *   자에 박힌 값은 ★v0.9.5 였다. ⇒ 박은 문자열이 ★둘째 명부였다.
+ * ⛔①만 하면 ★안 잠긴다 — 파생이 ★엉뚱한 값을 내도 초록일 수 있다. 그래서 셋이다.
+ */
+test('기준판 ⒜ — 파생된 값이 «판번호 최댓값»이다 (★자가 쓴 길과 ★다른 길로 센다)', () => {
+  const d = deriveBase((...a) => G(...a));
+  if (!d.ok) { process.stdout.write(`\n⚠️ 기준판 파생 ★실패 — ★안 쟀다: ${d.reason}\n\n`); return; }
+  // ⛔`--sort=-v:refname` 을 ★되받지 않는다 — ★JS 로 ★직접 수를 비교한다
+  const r = G('tag', '--list', 'v[0-9]*', '--merged', d.mainRef);
+  assert.equal(r.status, 0, 'tag --merged 가 죽었다');
+  const tags = r.stdout.trim().split('\n').filter(Boolean);
+  assert.ok(tags.includes(d.base), `파생값 ${d.base} 이 ${d.mainRef} 에 머지된 태그 명부에 ★없다`);
+  const num = (t) => (t.replace(/^v/, '').split('.').map(Number).concat([0, 0, 0]).slice(0, 3));
+  const cmp = (a, b) => (a[0] - b[0]) || (a[1] - b[1]) || (a[2] - b[2]);
+  const max = tags.reduce((m, t) => (cmp(num(t), num(m)) > 0 ? t : m), tags[0]);
+  assert.equal(d.base, max,
+    `파생=${d.base} 인데 ${d.mainRef} 에 머지된 ★가장 높은 판은 ${max} 다 — 기준판이 ★낡았거나 ★앞질렀다`);
+  // ⒜2 매니페스트와 견준다 — ⛔태그가 매니페스트보다 ★높을 수는 없다
+  const ver = JSON.parse(read('package.json')).version;
+  assert.ok(cmp(num(`v${ver}`), num(d.base)) >= 0,
+    `package.json=${ver} 이 태그 ${d.base} 보다 ★낮다 — 둘 중 하나가 틀렸다(릴리스 꼬임)`);
+  process.stdout.write(`   기준판 ⒜ 실측: 파생=${d.base} · 판번호 최댓값=${max} · package.json=${ver} · ${d.mainRef}=${G('rev-parse', '--short=12', d.mainRef).stdout.trim()}\n`);
+});
+
+test('기준판 ⒝ — ★낡은 판(v0.9.5)을 억지로 넣으면 ★창이 달라진다 (⇒ 「0건」이 ★항등식이 아니다)', (t) => {
+  const d = deriveBase((...a) => G(...a));
+  const stale = G('rev-parse', '--verify', '--quiet', `${STALE_BASE}^{commit}`);
+  if (!d.ok || stale.status !== 0) {
+    process.stdout.write(`\n⚠️ 기준판 ⒝ ★SKIP — ★안 쟀다: ${d.ok ? `${STALE_BASE} 태그가 없다` : d.reason}\n\n`);
+    t.skip('안 쟀다 — 태그가 없다');
+    return;
+  }
+  const now = scopeLineCount(d.base);
+  const old = scopeLineCount(STALE_BASE);
+  assert.ok(now !== null && old !== null, 'git 만으로 센 범위가 null 이다');
+  assert.notEqual(now, old,
+    `두 기준판의 창이 ★같다(${now}줄) — 그러면 「기준판을 올렸다」가 ★아무것도 안 바꿨다는 뜻이고, ⒜ 가 ★헛돈 것이다`);
+  assert.ok(old > now,
+    `낡은 판이 ★더 좁다(${STALE_BASE} ${old}줄 < ${d.base} ${now}줄) — 방향이 뒤집혔다. merge-base 를 의심하라`);
+  process.stdout.write(`   기준판 ⒝ 실측: ${STALE_BASE} ${old}줄 → ${d.base} ${now}줄 (${now - old}줄) ⇒ ★낡은 판은 «덜» 보는 게 아니라 «더» 본다(노이즈)\n`);
+});
+
+/* ⒞ 실패 갈래 — ★git 을 ★가짜로 넣어 ★세 갈래를 ★전부 밟는다.
+ * ⛔이것이 없으면 「못 뽑으면 SKIP」은 ★한 번도 안 돈 코드다. */
+test('기준판 ⒞ — 못 뽑는 세 갈래가 ★전부 {ok:false} ＋ ★까닭을 낸다 (가짜 git)', () => {
+  const stub = (map) => (...a) => {
+    const key = a.join(' ');
+    for (const [pat, out] of map) if (key.startsWith(pat)) return { status: 0, stdout: out, stderr: '' };
+    return { status: 1, stdout: '', stderr: '' };
+  };
+  const noMain = deriveBase(stub([]));
+  assert.equal(noMain.ok, false);
+  assert.match(noMain.reason, /main 줄기를 못 찾는다/, `까닭이 비었다: ${noMain.reason}`);
+
+  const noTag = deriveBase(stub([['rev-parse --verify --quiet origin/main', 'abc123\n']]));
+  assert.equal(noTag.ok, false);
+  assert.match(noTag.reason, /태그가 0건/, `까닭이 비었다: ${noTag.reason}`);
+
+  const split = deriveBase(stub([
+    ['rev-parse --verify --quiet origin/main', 'abc123\n'],
+    ['describe --tags --abbrev=0', 'v0.9.6\n'],
+    ['tag --list v[0-9]* --merged origin/main --sort=-v:refname', 'v0.9.9\nv0.9.6\n'],
+  ]));
+  assert.equal(split.ok, false, '두 길이 갈렸는데 ★골라 썼다 — ⛔고르면 안 된다');
+  assert.match(split.reason, /두 길이 갈린다/, `까닭이 비었다: ${split.reason}`);
+
+  // ★양성 — 가짜 git 으로도 ★성공 갈래가 ★닿는다(⇒ 위 셋이 ★「늘 false」가 아니다)
+  const good = deriveBase(stub([
+    ['rev-parse --verify --quiet origin/main', 'abc123\n'],
+    ['describe --tags --abbrev=0', 'v0.9.6\n'],
+    ['tag --list v[0-9]* --merged origin/main --sort=-v:refname', 'v0.9.6\nv0.9.5\n'],
+  ]));
+  assert.deepEqual([good.ok, good.base, good.mainRef], [true, 'v0.9.6', 'origin/main']);
+});
+
+test('② --rev — ★체크아웃 없이 ref 를 잰다 · ⛔빈 블롭을 「0건」으로 접지 않는다', () => {
+  const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs'), '--rev', 'HEAD'],
+    { encoding: 'utf8', cwd: REPO });
+  assert.notEqual(r.status, 3, `--rev HEAD 가 HARNESS_ERROR 를 냈다\n${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /잰 것=HEAD/, '무엇을 쟀는지 출력에 안 적힌다');
+  assert.match(r.stdout, /토큰 명부 :root \d+건/, 'ref 에서 토큰 명부를 못 읽었다');
+  // ★없는 ref 는 ★조용히 0 이 아니라 ★3 이어야 한다
+  const bad = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs'), '--rev', 'nope-ref-1009t3'],
+    { encoding: 'utf8', cwd: REPO });
+  assert.equal(bad.status, 3, `없는 ref 에 rc=${bad.status} — ⛔0 으로 접으면 「0건」이 거짓이 된다`);
+
+  /* ★★--rev 가 ★정말 ★그 ref 를 읽나 — ⛔안 읽고 작업트리를 재면 ★둘이 ★같은 수가 된다.
+   * ★닻 = `417d220e133f`(내 첫 커밋 · 고치기 ★전 판 · ★불변).
+   *   ★이 「2」는 ★자가 아니라 ★git 만으로 ★따로 세서 나온 수다(파생 기준판 v0.9.6 에서
+   *   적발 4건 중 ★2건이 창 안 — editor-panels:140 · editor-props:626).
+   * ⇒ 작업트리는 ★0건(고쳤다) · 그 ref 는 ★2건 ⇒ ★두 수가 ★달라야 --rev 가 산다. */
+  const PRE_FIX = '417d220e133f';
+  const atRef = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs'), '--rev', PRE_FIX],
+    { encoding: 'utf8', cwd: REPO });
+  assert.notEqual(atRef.status, 3, `--rev ${PRE_FIX} 가 HARNESS_ERROR\n${atRef.stdout}${atRef.stderr}`);
+  const n = (out) => { const m = /적발 (\d+)건/.exec(out); return m ? Number(m[1]) : (/적발 0건\./.test(out) ? 0 : null); };
+  assert.equal(n(atRef.stdout), 2,
+    `--rev ${PRE_FIX} 에서 2건이 아니다 — --rev 가 ref 를 ★안 읽고 작업트리를 재는 것일 수 있다\n${atRef.stdout}`);
+  assert.equal(n(r.stdout), 0, `작업트리가 0건이 아니다 — 두 수가 같으면 --rev 를 ★못 믿는다\n${r.stdout}`);
+  assert.match(atRef.stdout, /editor-panels\.css:140/, '기대한 자리가 안 나온다');
+  assert.match(atRef.stdout, /editor-props\.css:626/, '기대한 자리가 안 나온다');
+});
+
+test('③ 단언 ★본문에 명령이 들어 있다 — ⛔제목만으로는 «본문을 복사해 가는 사람»에게 안 간다', () => {
+  const src = read('tests/unit/css-token-lint.test.mjs');
+  const i = src.indexOf('assert.equal(r.status, 0,');
+  assert.ok(i > 0, '게이트 단언을 못 찾는다');
+  const body = src.slice(i, i + 400);
+  assert.match(body, /npm run gate:css-token/, '단언 ★본문에 명령이 없다');
 });
