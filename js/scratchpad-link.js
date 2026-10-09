@@ -1062,7 +1062,9 @@
         mk('spl-btn-link', '🔗', '섹션에 연결', (ev) => {
           /* ★⌘(Meta)＋클릭 = «연결된 빈 섹션»을 바로 만든다(연결 모드를 안 켠다) — 현빈 2026-10-07 시안 ①.
              ⛔«그냥» 클릭의 두 줄은 한 글자도 안 바뀌었다(현빈 ②) — 아래 그대로다. 그걸 무는 검사 = tests/dom/cmd-link-new-section L1·L2. */
-          if (ev && ev.metaKey) { linkToNewSection(_cmdLinkTargets(id)); return; }
+          /* ★2026-10-09 ③ — 「★단위마다 한 섹션」으로 바뀌었다(⚰️옛 동작 = «섹션 하나»에 전부).
+             ★⌘L 과 ★같은 입구를 탄다 — ⛔명부를 둘로 만들지 마라(현빈 ②가 「버튼과 같게」를 요구한다). */
+          if (ev && ev.metaKey) { linkEachToNewSection(_cmdLinkTargets(id)); return; }
           const selIds = [...document.querySelectorAll('.scratch-item.scratch-selected')].map(x => x.dataset.scratchId);
           const ids = (selIds.length > 1 && selIds.includes(id)) ? selIds : [id];
           startLinkMode(ids);
@@ -1154,46 +1156,101 @@
     return [id];
   }
 
+  /* ★«단위(unit)» 쪼개기 — ③의 「★그룹설정된 스크래치그룹도 ★하나로 침」이 ★여기 산다.
+     ★받은 id 묶음을 «섹션 하나가 될 덩어리»들로 가른다: 그룹은 ★한 덩어리 · 그룹 없는 장은 ★제각기.
+     ★키 이름공간은 `_units()` 의 ★그것을 ★그대로 쓴다('g:'+그룹 / '#'+id) — ⛔새 규칙을 발명하지 마라.
+       까닭(그 자리 주석): 그룹 id 와 scratchId 가 ★같은 문자열이면 둘이 한 묶음이 된다.
+     ★그룹은 «번진다» — 멤버 한 장만 와도 ★DOM 에서 전원을 끌어온다(`_cmdLinkTargets` 와 ★같은 출처·같은 CSS.escape).
+       ⇒ 그룹 5장 중 1장을 골라 ⌘L 해도 섹션은 ★1개·연결은 ★5개다(재는 자 = cmd-link-shortcut K3b).
+     ★순서는 받은 순서다 — 섹션이 그 순서로 «맨 아래»에 쌓인다. */
+  function _groupMembers(g) {
+    const gSel = (window.CSS && CSS.escape) ? CSS.escape(g) : g;
+    return [...document.querySelectorAll('.scratch-item[data-scratch-group="' + gSel + '"]')]
+      .map((x) => x.dataset.scratchId).filter(Boolean);
+  }
+  function _cmdLinkUnits(ids) {
+    const seen = new Set(); const units = [];
+    for (const id of (ids || [])) {
+      if (!id) continue;
+      const g = _groupOf(id);
+      const key = g ? 'g:' + g : '#' + id;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      /* ⛔그룹인데 DOM 에서 0장이 나오면 «없다»로 삼키지 말고 ★나 혼자인 단위로 둔다
+         (사라진 멤버 때문에 ★선택한 장이 조용히 빠지는 것을 막는다). */
+      const mem = g ? _groupMembers(g) : [];
+      units.push(mem.length ? mem : [id]);
+    }
+    return units;
+  }
+
   /* ★돌려주는 것은 «뜻»을 갖는다 — {ok:false,code} 어휘는 js/scratch-pad.js _scratchDuplicateItem 의 것을 빌린다.
      (검사가 「왜 안 됐나」를 이름으로 물을 수 있어야 한다 — 조용한 false 하나로 뭉치지 않는다.) */
-  function linkToNewSection(ids) {
-    if (!Array.isArray(ids) || !ids.length) return { ok: false, code: 'NO_IDS' };
+  /* ★«한 벌» — 섹션 하나를 맨 아래에 세우고 그 자리에서 ids 를 연결한다. ⛔히스토리는 ★안 만진다
+       (부르는 쪽이 ★한 걸음을 감싼다 — 위 ⑷). ★자리(tail)는 ★부를 때마다 다시 읽는다 ⇒ N번 불러도
+       ★받은 순서대로 «맨 아래»에 쌓인다(⛔tailId 를 바깥에서 한 번 잡으면 ★전부 같은 자리에 끼어 ★순서가 뒤집힌다). */
+  function _mkLinkedSection(canvas, ids) {
+    const before = new Set(_allSecs().map(s => s.id));
+    const tails = canvas.querySelectorAll('.section-block:not([data-ghost])');   // ⛔ghost 제외 — 위 ⑵
+    const tailId = tails.length ? tails[tails.length - 1].id : null;
+    window.addSection({ afterId: tailId || undefined });
+    /* ★새 섹션을 «id 차집합»으로 집는다 — ⛔`sections[length-1]` 로 집지 마라(선례
+       js/canvas-scratch-drop.js:530 이 그렇게 집는다). addSection 의 자리 규칙이 바뀌거나 ghost 가
+       끼면 그 꼴은 «남의 섹션»을 집는다. 차집합은 어디에 생겨도 맞는다. */
+    const sec = _allSecs().find(s => !before.has(s.id)) || null;
+    /* ★`addLinks` 를 쓴다 — 바깥이 이미 pushHistory 를 노옵으로 막아 두었으므로
+       그 안쪽의 「변경 전」 한 칸도 같이 삼켜진다(두 겹이지만 ★한 걸음은 그대로다). */
+    if (sec) addLinks(sec.id, ids);
+    return sec;
+  }
+
+  /* ★«히스토리 한 걸음» — 단위 명부를 받아 그 수만큼 섹션을 세운다. ★⌘Z 는 ★한 번이다(위 ⑷).
+     ⛔pushHistory 를 미리 변수로 잡지 마라(규약 ① — «부를 때» 읽는다). ★선례 = js/ai-section-fill.js:441. */
+  function _runLinkedUnits(unitList, label) {
     if (typeof window.addSection !== 'function') {
-      console.warn('[spl] addSection 누락 — ⌘＋🔗 스킵');
+      console.warn('[spl] addSection 누락 — ⌘＋🔗/⌘L 스킵');
       return { ok: false, code: 'NO_ADD_SECTION' };
     }
     const canvas = document.getElementById('canvas');
     if (!canvas) return { ok: false, code: 'NO_CANVAS' };
-    const before = new Set(_allSecs().map(s => s.id));
-    const tails = canvas.querySelectorAll('.section-block:not([data-ghost])');   // ⛔ghost 제외 — 위 ⑵
-    const tailId = tails.length ? tails[tails.length - 1].id : null;
 
-    window.pushHistory && window.pushHistory('참고이미지 → 새 섹션');   // ★「변경 전」 = 이 제스처의 ⌘Z 과녁
+    window.pushHistory && window.pushHistory(label);                   // ★「변경 전」 = 이 제스처의 ⌘Z 과녁
     const origPush = window.pushHistory;
     window.pushHistory = () => {};                                     // ★안쪽 입구들의 칸을 막는다(위 ⑷)
-    let sec = null;
+    const made = [];
     try {
-      window.addSection({ afterId: tailId || undefined });
-      /* ★새 섹션을 «id 차집합»으로 집는다 — ⛔`sections[length-1]` 로 집지 마라(선례
-         js/canvas-scratch-drop.js:530 이 그렇게 집는다). addSection 의 자리 규칙이 바뀌거나 ghost 가
-         끼면 그 꼴은 «남의 섹션»을 집는다. 차집합은 어디에 생겨도 맞는다. */
-      sec = _allSecs().find(s => !before.has(s.id)) || null;
-      /* ★`addLinks` 를 쓴다 — 여기선 바깥이 이미 pushHistory 를 노옵으로 막아 두었으므로
-         그 안쪽의 「변경 전」 한 칸도 같이 삼켜진다(두 겹이지만 ★한 걸음은 그대로다). */
-      if (sec) addLinks(sec.id, ids);
+      for (const ids of unitList) { const sec = _mkLinkedSection(canvas, ids); if (sec) made.push(sec); }
     } finally {
       window.pushHistory = origPush;                                   // 규약 ② — 던져도 되돌린다
     }
-    if (!sec) {
+    if (!made.length) {
       /* ⚠️여기로 오면 위 「변경 전」 칸 하나가 «헛돈다»(화면이 안 바뀐 칸). 새로 생긴 성질이 아니다 —
          js/props/prop-grid.js grdMoveLineToCell 이 같은 성질을 같은 말로 적어 뒀다(첫 문만 쌓인 실패). */
       console.warn('[spl] 새 섹션을 못 찾았다 — 연결 스킵');
       return { ok: false, code: 'NO_SECTION' };
     }
-    window.pushHistory && window.pushHistory('참고이미지 → 새 섹션 완료');   // ★「끝 표본」(위 ⑷ 선례)
-    const n = _parse(sec).length;
-    window.showToast?.('🔗 빈 섹션을 만들고 참고이미지 ' + n + '개를 연결했습니다');
-    return { ok: true, sectionId: sec.id, linked: n };
+    window.pushHistory && window.pushHistory(label + ' 완료');          // ★「끝 표본」(위 ⑷ 선례)
+    /* ★수는 «센다» — ⛔unitList 길이로 적지 마라(한 벌이 실패하면 거짓이 된다). */
+    const n = made.reduce((a, sec) => a + _parse(sec).length, 0);
+    window.showToast?.(made.length === 1
+      ? '🔗 빈 섹션을 만들고 참고이미지 ' + n + '개를 연결했습니다'
+      : '🔗 빈 섹션 ' + made.length + '개를 만들고 참고이미지 ' + n + '개를 연결했습니다');
+    return { ok: true, sectionId: made[0].id, sectionIds: made.map(s => s.id), sections: made.length, linked: n };
+  }
+
+  /* ★«섹션 하나»에 ids 전부 — ⛔단위로 안 가른다. 프로그램·검사 호출용 ★원시 입구로 ★남긴다
+     (⚰️2026-10-07~10-09 사이에는 ★이것이 ⌘＋🔗 의 길이었다). */
+  function linkToNewSection(ids) {
+    if (!Array.isArray(ids) || !ids.length) return { ok: false, code: 'NO_IDS' };
+    return _runLinkedUnits([ids], '참고이미지 → 새 섹션');
+  }
+
+  /* ★③ — «단위마다 한 섹션»을 ★일괄로 만든다(현빈 2026-10-09). ⌘L 과 ⌘＋🔗 가 ★같이 타는 길. */
+  function linkEachToNewSection(ids) {
+    if (!Array.isArray(ids) || !ids.length) return { ok: false, code: 'NO_IDS' };
+    const units = _cmdLinkUnits(ids);
+    if (!units.length) return { ok: false, code: 'NO_IDS' };
+    return _runLinkedUnits(units, '참고이미지 → 새 섹션 일괄');
   }
 
   // 링크 모드 중 섹션 클릭 가로채기(capture) → 연결. 다른 클릭=취소.
@@ -1211,7 +1268,50 @@
       if (!e.target.closest('#spl-banner') && !e.target.closest('.spl-btns')) endLinkMode();
     }
   }
-  function _onKeyDown(e) { if (e.key === 'Escape' && _linkMode) { e.stopPropagation(); endLinkMode(); } }
+  /* ★② ⌘L = «섹션링크» 단축키 (현빈 2026-10-09 · 1009t2-②).
+   *   원문: 「스크래치패드 선택 후 커맨드+링크버튼=링크연결 섹션 나타나는데 → ★커맨드L 단축키로도 되게」
+   *
+   * ★★★«정본 하나» — ⌘L 은 ★자기 길을 ★안 만든다. ⌘＋🔗 버튼이 타는 ★그 두 함수를 ★그대로 탄다
+   *   (`_cmdLinkTargets` → `linkEachToNewSection`). ★이것이 ★왜 중요한가:
+   *   ⚰️2026-10-09 ②에서는 ★`linkToNewSection`(섹션 ★하나)이었다 — ③ 으로 ★그 ★한 낱말만 갈았다.
+   *   ⇒ ★«수»(섹션이 몇 개 생기나)가 ★★한 자리에서만 결정된다. 2026-10-09 현빈 ③(「각 ⋯ 일괄 생성」)이
+   *     ★그 수를 바꾸려 하고 ★답을 기다리는 중인데, ★입구가 둘이면 그 바꿈을 ★두 곳에 해야 하고
+   *     ★한쪽만 바뀌어 ★조용히 갈린다. ⇒ ★이 꼴이면 ★그 한 줄만 갈아끼우면 ★둘이 같이 바뀐다.
+   *   ⛔그래서 여기에 「선택을 단위로 쪼개는」 코드를 ★두지 마라 — 그것은 `linkToNewSection` 쪽 일이다.
+   *
+   * ★왜 이 파일·이 함수인가 — `linkToNewSection` 이 여기 있고, 이 파일은 ★이미 document 캡처단계
+   *   keydown 하나를 갖고 있다(Escape). ⛔새 리스너를 더 달지 않는다.
+   * ★왜 `e.code === 'KeyL'` 인가 — 자판 배열이 바뀌어도 ★같은 ★물리 키다(`e.key` 는 바뀐다).
+   *   이 레포의 단축키 정본 `_matchShortcut` 도 ★code 로 견준다(js/settings/settings-store.js).
+   * ★왜 `metaKey || ctrlKey` 인가 — 이 레포에서 둘 다 보는 꼴은 ★전부 «키보드» 단축키다
+   *   (⌘C·⌘X = js/scratch-pad.js · ⌘G = js/io/save-load.js:2448). ⛔«마우스» 수식어(⌘＋클릭)는
+   *   metaKey 단독이 관례라 ★거기는 안 넓혔다(맥에서 Ctrl+클릭 = 보조 클릭이라 샌다 — 위 ⑸).
+   *   ⇒ ★이 키 길은 윈도/리눅스에서도 먹는다(위 ⑸가 적어 둔 «아는 구멍»을 ★이 입구에서는 메운다).
+   * ★⇧·⌥ 는 ★받지 않는다 — 정확 일치가 이 레포 관례(`_matchShortcut` 이 그 꼴이다).
+   * ★⌘L 충돌 ★0건을 ★재고 들어왔다(2026-10-09 실측): js·main·html·tests 전수에서 `KeyL`·`.key==='l'`·
+   *   `keyCode 76`·`CmdOrCtrl+L` ★0건(★같은 정규식 꼴로 D=3·S=7·G=15·Z=9·V=11·A=8 ⇒ ★산 자가 낸 0),
+   *   Electron 메뉴 가속기는 `CmdOrCtrl+Shift+O`·`CmdOrCtrl+Shift+E` ★둘뿐.
+   * ★선택이 ★비면 아무 일도 안 한다 — 「스크래치패드 ★선택 후」가 현빈 원문이다.
+   *   ⛔토스트로 꾸짖지도 않는다(⌘L 은 다른 앱에서 흔한 키다 — 조용히 지나가야 한다).
+   * ★입력란·편집 중에는 ★안 먹는다 — 잣대는 js/scratch-pad.js `_scratchKeyGuardOk` 의 ★그것이다.
+   *   ⛔그 함수를 못 부른다(그 파일의 모듈 사유다) ⇒ ★같은 조건을 ★같은 순서로 적고 이 주석으로 묶는다.
+   * ★대상은 `_cmdLinkTargets(sel[0])` — 그 함수가 ★선택>그룹>단독을 ★이미 가린다. 고른 장이 여럿이면
+   *   `sel.length > 1 && sel.includes(id)` 가 참이라 ★선택 전부를 돌려주고, 한 장이면 ★그 장의 그룹을 번지게 한다.
+   *   ⇒ ★버튼이 「그 장의 🔗 를 눌렀을 때」와 ★같은 답이 된다. ⛔여기서 새 순서를 발명하지 마라.
+   * 재는 자 = tests/dom/cmd-link-shortcut.dom.spec.js (K1 ★K2 K3 K4 ★K5 K6 ★K7 음성대조). */
+  function _onKeyDown(e) {
+    if (e.key === 'Escape' && _linkMode) { e.stopPropagation(); endLinkMode(); return; }
+    if (e.code !== 'KeyL' || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+    const active = document.activeElement;
+    if (active && (active.isContentEditable || active.tagName === 'INPUT'
+      || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) return;
+    if (document.querySelector('.text-block.editing')) return;
+    const sel = [...document.querySelectorAll('.scratch-item.scratch-selected')]
+      .map((x) => x.dataset.scratchId).filter(Boolean);
+    if (!sel.length) return;                      // ★선택 0 = 조용히 지나간다
+    e.preventDefault(); e.stopPropagation();
+    linkEachToNewSection(_cmdLinkTargets(sel[0]));  // ★버튼과 ★같은 두 함수(위 «정본 하나»)
+  }
 
   function _installLinkUX() {
     if (window.__splLinkUX) return;
@@ -1249,8 +1349,10 @@
     linksForSection, sectionIdOf, isLinked, linkedScratchIds, allLinks,
     addLink, addLinks, removeLink, setCollapsed, setCollapsedAll, setShowEdges,
     startLinkMode, endLinkMode,
-    linkToNewSection,     // ⌘＋🔗 — «빈 섹션 하나»를 만들어 전부 거기에 연결(검사·프로그램 호출용)
+    linkToNewSection,     // «빈 섹션 하나»를 만들어 전부 거기에 연결(원시 입구 · 검사·프로그램 호출용)
+    linkEachToNewSection, // ★③ ⌘L·⌘＋🔗 — «단위마다 한 섹션»을 일괄로(그룹은 ★하나로 친다)
     _cmdLinkTargets,      // 그 제스처의 대상 결정(선택>그룹>단독) — 검사용
+    _cmdLinkUnits,        // ★그 대상을 «단위»로 가른다(그룹=한 덩어리) — 검사용
     /* [#16-DUP] 「임의의 «분리 상태» 섹션 요소」를 받는 공개 API — 붙여넣기가 부른다.
        ⛔반드시 DOM 삽입 «전»에 부를 것(윗 주석 참조). §7-A 형제 경로 배선은 이번 범위 밖. */
     rewireClonedSection,

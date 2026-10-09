@@ -7,6 +7,31 @@
  *   ④ 그룹이어도 섹션은 «하나» · 그룹 전부가 그 한 섹션에
  *   ⑤ 여러 장을 따로 골랐을 때도 섹션 «하나» · 새 섹션은 캔버스 «맨 아래»
  *
+ * ⚰️★★★2026-10-09 (1009t2-③ · 현빈 확정) — ★위 ⑤ 줄의 «섹션 하나»가 ★«복수 선택» 칸에서 ★바뀐다.
+ *   ⛔윗줄을 지우지 않는다(그때 적은 그대로 둔다). ★아래가 ★무엇이 ★어떻게 바뀌었나다.
+ *
+ *   ★★★⛔먼저 — ★«누가 정했나»를 ★틀리게 읽지 마라. ★한 번 ★틀리게 적었고 ★지디가 ★원문으로 ★정정했다:
+ *     ★2026-10-07 ★현빈 ★원문(지디/notes/TODO-hyunbin-20261006.md:237) =
+ *       「(가)⌘＋🔗 → 연결된 빈 섹션 ★하나 (높이=기본 · ★★그룹이어도 하나)」
+ *     ⇒ ★★현빈이 정한 것은 ★★«그룹이어도 하나» ★하나다. ★★「★따로 고른 ★복수도 ★하나」는 ★그 줄에 ★★없다.
+ *     ⇒ ★★그 칸은 ★구현할 때 ★★지디가 ★넓힌 것이고, ★위 ⑤ 줄과 ★옛 L5 제목이 ★그것을 ★덮었다.
+ *   ★★⇒ ★★★따라서 이 ⚰️ 는 ★★«현빈 승인 뒤집기»가 ★★아니라 ★★★«넓혀진 칸 되돌리기»다.
+ *     ⛔다음 사람이 「현빈 승인을 깼다」로 읽지 않게 ★이 문단을 ★지우지 마라.
+ *   ★★그리고 ★«그룹=하나» 칸은 ★★안 바뀐다 — ★L4 가 ★그것을 ★계속 문다(초록 유지).
+ *
+ *   ⚰️옛 단언(이 파일 L5): `expect(after.length-before.length,'★섹션 ＋1').toBe(1)`
+ *                        `expect(rows.length,'★섹션 하나').toBe(1)`
+ *                        `expect(ids,'★셋 전부').toEqual(['sp_m1','sp_m2','sp_m3'])`  ← ★한 섹션에 셋
+ *   ⚰️옛 수(실측 · 핀 `a3556b93` ＋ ②커밋 `46d35308`): 따로 고른 3장 ＋ ⌘＋🔗
+ *                        → 섹션 ★＋1개 · 링크 3개 · 연결 가진 섹션 ★1개
+ *   ★새 규칙(현빈 2026-10-09 확정) : 「선택 집합에서 ★그룹 ★하나당 섹션 ★1 ＋ ★비그룹 패드 ★하나당 섹션 ★1」
+ *                        ⇒ 따로 고른 3장 → 섹션 ★3개 · 그룹 → ★1개(★⑤ 그대로) · ★혼합은 ★합산
+ *   ★안 바뀐 것         : L1 L2(②무변) · L3(단독 ＋1) · ★L4(그룹 ＋1 = ⑤의 그 칸) · L6(⌘Z 한 걸음)
+ *                        · L7(맨 아래) · L8(꼴)
+ *   ★왜 이 파일도 바뀌나 : 현빈 ②가 「⌘L = ⌘＋🔗 와 ★같게」를 요구한다 ⇒ ★정본은 하나(공용 경로)다.
+ *                        ⛔버튼만 옛 수로 두면 ★명부가 둘이 되어 조용히 갈린다.
+ *   ★새 자는 tests/dom/cmd-link-shortcut.dom.spec.js (K0~K9 · ★혼합 = K9).
+ *
  * ★무엇으로 재나 — 앱 통째로 헤드리스(bootApp = 실제 모듈·실제 마우스·실제 ⌘Z).
  *   ⛔addSection 을 스텁으로 두면 이 일의 «가장 중요한 축»(⌘Z 한 걸음)을 못 잰다 —
  *     그 한 걸음을 깨는 자가 js/insert-history.js 의 «끝 표본»(addSection 을 감싼다)이라,
@@ -152,7 +177,9 @@ test('L4 ④그룹 3장 — 한 장만 ⌘＋🔗 해도 섹션은 «하나»(�
   expect(ids, '★개수까지 — 그룹 셋 전부').toEqual(['sp_g1', 'sp_g2', 'sp_g3']);
 });
 
-test('L5 ⑤따로 고른 3장 — 섹션 «하나»(＋1)에 셋 전부, 새 섹션은 «맨 아래»', async ({ page }) => {
+/* ⚰️L5 — ★2026-10-09 ③ 으로 ★수가 바뀐 ★그 자리. 옛 단언은 파일 머리말 ⚰️ 블록에 ★그대로 적어 뒀다.
+   ★바뀐 것은 «몇 개냐» ★하나다 — 「맨 아래」·「셋 전부가 연결된다」는 ★그대로 잰다. */
+test('L5 ③따로 고른 3장 — 섹션이 ★«3개»(비그룹 패드 ★하나당 ★1) · ⚰️옛 단언 = ＋1·한 섹션(★현빈 ⑤가 아니라 ★넓혀진 칸이었다)', async ({ page }) => {
   await setup(page);
   const before = await secIds(page);
   await clickItem(page, 'sp_m1');
@@ -161,12 +188,15 @@ test('L5 ⑤따로 고른 3장 — 섹션 «하나»(＋1)에 셋 전부, 새 �
   expect(await page.evaluate(() => document.querySelectorAll('.scratch-item.scratch-selected').length), '전제 — 셋이 골라졌다').toBe(3);
   await clickLinkBtn(page, 'sp_m1', { meta: true });
   const after = await secIds(page);
-  expect(after.length - before.length, '★섹션 ＋1').toBe(1);
+  expect(after.length - before.length, '★★섹션 ＋★3 (⚰️옛 수 = ＋1)').toBe(3);
   const rows = await refRows(page);
-  expect(rows.length, '★섹션 하나').toBe(1);
-  expect(rows[0].id, '★맨 아래(마지막 섹션)').toBe(after[after.length - 1]);
-  const ids = rows[0].refs.split(',').map(t => t.split(':')[0]).sort();
-  expect(ids, '★셋 전부').toEqual(['sp_m1', 'sp_m2', 'sp_m3']);
+  expect(rows.length, '★연결 가진 섹션 ★3개 (⚰️옛 수 = 1)').toBe(3);
+  expect(rows.map(r => r.refs.split(',').filter(Boolean).length), '★각 섹션에 ★하나씩 (⚰️옛 꼴 = 한 섹션에 셋)').toEqual([1, 1, 1]);
+  const ids = rows.map(r => r.refs.split(',')[0].split(':')[0]).sort();
+  expect(ids, '★셋 전부가 ★각자 연결됐다(이건 안 바뀐다)').toEqual(['sp_m1', 'sp_m2', 'sp_m3']);
+  const made = after.filter(x => !before.includes(x));
+  expect(rows.map(r => r.id).sort(), '★그 셋이 새로 생긴 섹션들이다').toEqual([...made].sort());
+  expect(after.slice(0, before.length), '★새 섹션은 전부 «맨 아래»(기존 둘이 머리에 그대로)').toEqual(before);
 });
 
 test('L6 ★⌘Z «한 걸음» — 섹션도 연결도 같이 사라진다(히스토리 스택으로 잰다)', async ({ page }) => {
