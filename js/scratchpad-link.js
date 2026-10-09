@@ -1184,7 +1184,49 @@
       if (!e.target.closest('#spl-banner') && !e.target.closest('.spl-btns')) endLinkMode();
     }
   }
-  function _onKeyDown(e) { if (e.key === 'Escape' && _linkMode) { e.stopPropagation(); endLinkMode(); } }
+  /* ★② ⌘L = «섹션링크» 단축키 (현빈 2026-10-09 · 1009t2-②).
+   *   원문: 「스크래치패드 선택 후 커맨드+링크버튼=링크연결 섹션 나타나는데 → ★커맨드L 단축키로도 되게」
+   *
+   * ★★★«정본 하나» — ⌘L 은 ★자기 길을 ★안 만든다. ⌘＋🔗 버튼이 타는 ★그 두 함수를 ★그대로 탄다
+   *   (`_cmdLinkTargets` → `linkToNewSection`). ★이것이 ★왜 중요한가:
+   *   ⇒ ★«수»(섹션이 몇 개 생기나)가 ★★한 자리에서만 결정된다. 2026-10-09 현빈 ③(「각 ⋯ 일괄 생성」)이
+   *     ★그 수를 바꾸려 하고 ★답을 기다리는 중인데, ★입구가 둘이면 그 바꿈을 ★두 곳에 해야 하고
+   *     ★한쪽만 바뀌어 ★조용히 갈린다. ⇒ ★이 꼴이면 ★그 한 줄만 갈아끼우면 ★둘이 같이 바뀐다.
+   *   ⛔그래서 여기에 「선택을 단위로 쪼개는」 코드를 ★두지 마라 — 그것은 `linkToNewSection` 쪽 일이다.
+   *
+   * ★왜 이 파일·이 함수인가 — `linkToNewSection` 이 여기 있고, 이 파일은 ★이미 document 캡처단계
+   *   keydown 하나를 갖고 있다(Escape). ⛔새 리스너를 더 달지 않는다.
+   * ★왜 `e.code === 'KeyL'` 인가 — 자판 배열이 바뀌어도 ★같은 ★물리 키다(`e.key` 는 바뀐다).
+   *   이 레포의 단축키 정본 `_matchShortcut` 도 ★code 로 견준다(js/settings/settings-store.js).
+   * ★왜 `metaKey || ctrlKey` 인가 — 이 레포에서 둘 다 보는 꼴은 ★전부 «키보드» 단축키다
+   *   (⌘C·⌘X = js/scratch-pad.js · ⌘G = js/io/save-load.js:2448). ⛔«마우스» 수식어(⌘＋클릭)는
+   *   metaKey 단독이 관례라 ★거기는 안 넓혔다(맥에서 Ctrl+클릭 = 보조 클릭이라 샌다 — 위 ⑸).
+   *   ⇒ ★이 키 길은 윈도/리눅스에서도 먹는다(위 ⑸가 적어 둔 «아는 구멍»을 ★이 입구에서는 메운다).
+   * ★⇧·⌥ 는 ★받지 않는다 — 정확 일치가 이 레포 관례(`_matchShortcut` 이 그 꼴이다).
+   * ★⌘L 충돌 ★0건을 ★재고 들어왔다(2026-10-09 실측): js·main·html·tests 전수에서 `KeyL`·`.key==='l'`·
+   *   `keyCode 76`·`CmdOrCtrl+L` ★0건(★같은 정규식 꼴로 D=3·S=7·G=15·Z=9·V=11·A=8 ⇒ ★산 자가 낸 0),
+   *   Electron 메뉴 가속기는 `CmdOrCtrl+Shift+O`·`CmdOrCtrl+Shift+E` ★둘뿐.
+   * ★선택이 ★비면 아무 일도 안 한다 — 「스크래치패드 ★선택 후」가 현빈 원문이다.
+   *   ⛔토스트로 꾸짖지도 않는다(⌘L 은 다른 앱에서 흔한 키다 — 조용히 지나가야 한다).
+   * ★입력란·편집 중에는 ★안 먹는다 — 잣대는 js/scratch-pad.js `_scratchKeyGuardOk` 의 ★그것이다.
+   *   ⛔그 함수를 못 부른다(그 파일의 모듈 사유다) ⇒ ★같은 조건을 ★같은 순서로 적고 이 주석으로 묶는다.
+   * ★대상은 `_cmdLinkTargets(sel[0])` — 그 함수가 ★선택>그룹>단독을 ★이미 가린다. 고른 장이 여럿이면
+   *   `sel.length > 1 && sel.includes(id)` 가 참이라 ★선택 전부를 돌려주고, 한 장이면 ★그 장의 그룹을 번지게 한다.
+   *   ⇒ ★버튼이 「그 장의 🔗 를 눌렀을 때」와 ★같은 답이 된다. ⛔여기서 새 순서를 발명하지 마라.
+   * 재는 자 = tests/dom/cmd-link-shortcut.dom.spec.js (K1 ★K2 K3 K4 ★K5 K6 ★K7 음성대조). */
+  function _onKeyDown(e) {
+    if (e.key === 'Escape' && _linkMode) { e.stopPropagation(); endLinkMode(); return; }
+    if (e.code !== 'KeyL' || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+    const active = document.activeElement;
+    if (active && (active.isContentEditable || active.tagName === 'INPUT'
+      || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) return;
+    if (document.querySelector('.text-block.editing')) return;
+    const sel = [...document.querySelectorAll('.scratch-item.scratch-selected')]
+      .map((x) => x.dataset.scratchId).filter(Boolean);
+    if (!sel.length) return;                      // ★선택 0 = 조용히 지나간다
+    e.preventDefault(); e.stopPropagation();
+    linkToNewSection(_cmdLinkTargets(sel[0]));    // ★버튼과 ★같은 두 함수(위 «정본 하나»)
+  }
 
   function _installLinkUX() {
     if (window.__splLinkUX) return;
