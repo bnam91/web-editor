@@ -333,8 +333,11 @@ test('N5 ★막는 것이 없으면 자리가 «한 픽셀도» 안 바뀐다 (�
  *   ★옛 길은 비켜 앉을 자리가 ★하나도 없으면 ★막힌 제자리로 돌아가 ★★겹쳐 앉았다(①의 «겹침＜멀어짐» 선택).
  * ★★규칙 = ★«막는 것 ★하나를 지나간다». ⛔맨숫자 상한이 ★아니다 —
  *   ★상한을 200 으로 뒀더니 ★기본 패드 폭(220)에서 ★한 번도 안 섰다(gap = 폭＋36 = 256). 그 사고를 피한 꼴이다.
- * ⛔단언에 ★구현의 식(`PULL_GAP+STACK_GAP+b.w`)을 ★그대로 쓰지 않는다 — ★항등식이 된다.
- *   ⇒ ★«자리를 얻었나 · ★몇 칸인가»로 잰다. */
+ * ⛔단언에 ★구현의 식을 ★그대로 쓰지 않는다 — ★항등식이 된다.
+ *   ⇒ ★«자리를 얻었나 · ★몇 칸인가»로 잰다.
+ * ★★⚰️2026-10-10 — 이 줄은 옛 구현식 `PULL_GAP+STACK_GAP+b.w` 를 가리켰다. ★그 식은 ★지워졌다:
+ *   ★★«한 칸»을 ★거리로 재면 ★막는 것이 ★칼럼에 ★딱 붙은 경우(d=0)만 맞았다 ⇒ ★★수(지나간 칼럼)로 ★바꿨다.
+ *   ★★그 흠을 ★★X0~X4 가 ★못 봤다 — ★표본이 ★전부 ★d=0 이었다. ⇒ ★★X5 가 ★그 축을 ★흔든다. */
 const XGAP = 12;        // STACK_GAP — 장면이 쓰는 값(⛔구현에서 끌어오지 않는다)
 const XCOL0 = 424;      // 섹션 오른쪽 변(400) ＋ PULL_GAP(24) = 당기는 칼럼
 const XPULL = 24;       // PULL_GAP — 장면이 쓰는 값(⛔구현에서 끌어오지 않는다)
@@ -434,6 +437,34 @@ test('X3 ⒞★폭주 천장 — ★경계에서 ★뽑은 ★두 표본: ★안
   const s2 = xSteps(g2, XB_OVER);
   console.log(`[X3 바깥 bw=${XB_OVER}] left=${g2.pos.s1[0]} steps=${s2} gap=${g2.gap}`);
   expect(s2, `★경계 ★바깥(bw ${XB_OVER})은 ★한 칸을 ★못 얻는다(천장) — 잰 left=${g2.pos.s1[0]}`).not.toBe(1);
+});
+
+/** 막는 칼럼을 ★칼럼에서 ★d 만큼 ★오른쪽으로 ★밀어 둔 장면 — ★실제 앱에서 ★흔한 꼴이다. */
+const XCOLD = (bw, d, n = 5) => ({
+  secTop: 0, secH: 200,
+  items: [
+    { id: 's1', x: Math.max(900, XCOL0 + d + bw + 40), y: 40, w: XPAD_W, h: 120, link: true },
+    ...Array.from({ length: n }, (_, i) => ({ id: 'b' + i, x: XCOL0 + d, y: i * 112, w: bw, h: 100 })),
+  ],
+});
+
+test('X5 ⒡★★막는 것이 ★칼럼에 ★딱 붙어 있지 ★않아도 ★한 칸은 ★선다 — d 를 ★흔든다', async ({ page }) => {
+  /* ★★왜 이 칸이 ★있나 — ★X0~X4 표본은 ★★전부 ★d=0(막는 것이 ★당기는 칼럼에 ★딱 붙음)이었다.
+     ★옛 구현(거리로 잰 「한 칸」)은 ★★d=0 에서만 ★통과했고 ★d≥1 에서 ★전부 ★거절했다 —
+     ★그런데 ★d=1~199 에서도 ★그 막는 것은 ★집 자리를 ★여전히 ★막는다.
+     ⇒ ★★옛 꼴은 ★실제 앱에서 ★거의 ★안 섰다. ★★이 칸이 ★그 축(d)을 ★흔들어 ★그 흠을 ★잡는다.
+     ⛔「여러 d 에서 참」을 ★한 d 로 ★줄이지 마라 — ★그게 ★이 칸의 ★존재 이유다. */
+  const bw = 220;
+  for (const d of [0, 1, 20, 76, 150]) {
+    const state = { errs: [], routed: false };
+    const got = await pullAndMeasure(page, state, XCOLD(bw, d), ['s1']);
+    expect(state.errs, `d ${d}`).toEqual([]);
+    const left = got.pos.s1[0];
+    const want = XCOL0 + d + bw + XGAP;          // ★그 칼럼 ★오른쪽 변 ＋ 틈 = ★한 칸
+    console.log(`[X5 d=${d}] left=${left} 바라는자리=${want} dyGap=${got.dyGap} gap=${got.gap}`);
+    expect(Math.abs(left - want) <= 2, `★d ${d} — ★한 칸 옆에 앉았다(잰 left=${left} · 바라는 ${want})`).toBe(true);
+    expect(got.dyGap, `★d ${d} — ①: 섹션 «옆»을 지킨다`).toBe(0);
+  }
 });
 
 test('X4 ⒠★음성대조 — 막는 것이 ★없으면 x 는 ★한 픽셀도 ★안 움직인다', async ({ page }) => {

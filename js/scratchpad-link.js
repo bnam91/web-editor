@@ -939,6 +939,25 @@
       .sort((a, b) => a.y - b.y);
     const blockersAt = (xc) => blockers0.filter(b => xc < b.x + b.w && b.x < xc + w);
     const hitsAt = (xc, y) => blockersAt(xc).some(b => y < b.y + b.h + STACK_GAP && y + h > b.y);
+    /* ★★«지나간 막는 것»의 ★수 — ★★«한 칸 규칙»을 ★거리가 아니라 ★수로 센다(위 ⚰️ 의 그 고침).
+       ★센다 = ⑴ 섹션 변 ★바깥이고 ⑵ 후보보다 ★앞에 ★온전히 놓였고 ⑶ ★후보 높이 띠와 ★세로로 겹치는 것.
+       ⑶ 이 있어야 ★«옆으로 지나갈 때 ★실제로 비켜야 하는 것»만 센다 — ⛔딴 줄의 장을 세면 과대계상이다. */
+    const edgeL = attachRight ? toLX(sr.right) : toLX(sr.left);
+    const passedCount = (xc) => {
+      /* ⛔«장 수»를 세면 ★과대계상이다 — ★세로로 쌓인 ★한 칼럼(5장)은 ★★«지나는 것 하나»다.
+         ★실측(모사): 띠가 b0·b1 둘을 ★같이 품어 ★수가 ★2 로 나왔다 ⇒ ★★가로 구간을 ★합쳐 ★센다. */
+      const iv = blockers0
+        .filter((b) => y0 < b.y + b.h + STACK_GAP && y0 + h > b.y)       // 띠와 겹치는 것만
+        .filter((b) => (attachRight ? (b.x + b.w <= xc && b.x + b.w > edgeL)
+                                    : (b.x >= xc + w && b.x < edgeL)))
+        .map((b) => [b.x, b.x + b.w])
+        .sort((m, n) => m[0] - n[0]);
+      let cnt = 0, end = -Infinity;
+      for (const [s0, e0] of iv) {
+        if (s0 > end) { cnt += 1; end = e0; } else if (e0 > end) { end = e0; }
+      }
+      return cnt;
+    };
     const blockers = blockersAt(x);                            // 가로가 겹치는 것만 «막는다»
     /* 막는 것과 겹치나 — ★옛 스카이라인과 ★같은 술어다(아래로만 STACK_GAP 을 둔다). */
     const hits = (y) => blockers.some(b => y < b.y + b.h + STACK_GAP && y + h > b.y);
@@ -990,9 +1009,20 @@
     for (const b of blockers0) {
       for (const xc of [b.x + b.w + STACK_GAP, b.x - STACK_GAP - w]) {
         if (attachRight ? (xc < x) : (xc > x)) continue;      // ⛔섹션 쪽으로 파고들지 않는다
-        /* ★★«한 칸 규칙» — ★지나는 것은 ★«이 막는 것 ★하나»뿐이다. ★두 칸은 ★절대 안 간다.
-           ⇒ 상한이 ★맨숫자가 아니라 ★★«그 막는 것의 폭»에서 ★나온다 — bw 가 얼마든 ★한 칸은 늘 된다. */
-        if (gapAt(xc) > PULL_GAP + STACK_GAP + b.w) continue;
+        /* ★★«한 칸 규칙» — ★지나는 것은 ★«막는 것 ★하나»뿐이다. ★두 칸은 ★절대 안 간다.
+           ★★⚰️2026-10-10 ★고쳤다 — ★옛 꼴은 ★«거리»로 쟀다: `gapAt(xc) > PULL_GAP + STACK_GAP + b.w`.
+             ★★그 식은 ★★«막는 것이 ★당기는 칼럼에 ★딱 붙어 있을 때»(d=0)만 ★맞았다. ★산수로 잡았다:
+               ★d=0 이면 ★gapAt = PULL_GAP ＋ b.w ＋ STACK_GAP ★이고 ★문턱도 ★같은 합이다
+               ⇒ ★★둘이 ★★항등으로 ★같아서(bw 120·220·400·588·1000 ★전부) ★`>` 가 ★늘 거짓 = ★★여유 ★0
+               ⇒ ★★d ≥ 1 이면 ★gapAt 이 ★d 만큼 ★커져 ★★문턱을 ★넘어 ★거절된다.
+             ★★그런데 ★d = 1~199 에서도 ★그 막는 것은 ★★집 자리를 ★여전히 ★막는다(겹침 실측).
+             ⇒ ★★즉 ★옛 꼴은 ★★«칼럼에 딱 붙은 경우»에만 ★작동하고 ★★실제 앱에서 ★거의 ★안 섰다
+                — ★★내 옛 ★상한 200(기본 폭 220 에서 ★한 번도 안 섰다)과 ★★똑같은 병의 ★둘째 얼굴이다.
+             ⛔내 X0~X4 ★표본은 ★★전부 ★d=0 이라 ★이 흠을 ★★못 봤다(★한 축만 흔든 표본).
+           ★★고친 꼴 = ★★«거리»가 아니라 ★★«수»로 센다 — ★섹션 변과 후보 ★사이에 놓인 막는 것이 ★★하나까지.
+             ★그러면 ★막는 것이 ★어디 붙어 있든(d 가 얼마든) ★★한 칸은 ★늘 되고 ★두 칸은 ★절대 안 된다.
+             ★거리 쪽 자는 ★★폭주 천장이 ★따로 든다(아래 줄) — ★★두 자가 ★각각 ★제 일을 한다. */
+        if (passedCount(xc) > 1) continue;
         if (gapAt(xc) > X_RUNAWAY_W * w) continue;            // ★폭주 천장(위 상수의 까닭)
         if (hitsAt(xc, y0)) continue;
         /* ★★⛔`CAP` 을 ★x 후보에 ★걸지 ★않는다 — ★까닭이 ★세로 전용이다:
