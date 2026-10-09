@@ -38,7 +38,12 @@ import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 /* ★HTML 이스케이프는 ★정본 하나다 — ⛔제 사본을 만들지 마라
    (tests/unit/name-axes-to-markup X9 가 사본 수를 센다). */
-import { blockHeaderHTML, escHtml as _esc } from './_helpers.js';
+/* ★정렬 단추는 ★`alignBtn` ★한 곳에서 나온다 — ⛔SVG 를 ★여기 적지 마라
+   (tests/unit/align-btn-ssot.test.mjs T1·T2 가 ★이 파일을 ★MIGRATED 로 ★끌어들여 센다).
+   ★`attrs` 는 ★`data-al` 이다 — ⛔`data-align` 을 ★쓰지 마라: prop-text-wireup-align.js:8 이
+     `.prop-align-btn` 을 ★전부 잡아 `dataset.align` ★유무로만 거른다 ⇒ ★엉뚱한 블럭이
+     ★조용히 정렬된다. ★prop-modal.js:263~265 가 ★같은 까닭으로 `data-al` 을 쓴다(그 선례를 베꼈다). */
+import { blockHeaderHTML, escHtml as _esc, alignBtn } from './_helpers.js';
 import {
   QUOTE_SHAPES, QUOTE_SHAPE_KEYS, QUOTE_DEFAULTS, QUOTE_LIMITS, clampQuote,
   quoteLines, quoteShapeOf, quoteIsPlaceholder, quoteShapesAll,
@@ -90,6 +95,9 @@ export function showQuoteProperties(block) {
   const fontSize = clampQuote(Number(block.dataset.fontSize) ?? QUOTE_DEFAULTS.fontSize, L.fontSize);
   const markColor = block.dataset.markColor || QUOTE_DEFAULTS.markColor;
   const textColor = block.dataset.textColor || QUOTE_DEFAULTS.textColor;
+  /* ★가로 정렬 — ★모델은 ★이미 있었다(quote-block.js `_qtState.align`). ★없던 것은 ★이 칸이다.
+     ⛔기본값을 ★여기 리터럴로 적지 마라 — ★QUOTE_DEFAULTS ★한 표에서 온다. */
+  const align = ['left', 'center', 'right'].includes(block.dataset.align) ? block.dataset.align : QUOTE_DEFAULTS.align;
   const preOn = block.dataset.preOn !== '0';
   const postOn = block.dataset.postOn !== '0';
   const raw = block.dataset.text ?? '';
@@ -140,6 +148,14 @@ ${_pairRow('qt-gap', '간격', gap, L.gap.min, L.gap.max)}
         <div class="prop-type-group" id="qt-layout-group">
           <button class="prop-type-btn${layout === 'inline' ? ' active' : ''}" data-qt-layout="inline">한 줄</button>
           <button class="prop-type-btn${layout === 'stack' ? ' active' : ''}" data-qt-layout="stack">스택</button>
+        </div>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">정렬</span>
+        <div class="prop-align-group" id="qt-align-group">
+          ${alignBtn('text', 'left',   { label: '왼쪽 정렬',   title: '왼쪽 정렬',   active: align === 'left',   attrs: { 'data-al': 'left' } })}
+          ${alignBtn('text', 'center', { label: '가운데 정렬', title: '가운데 정렬', active: align === 'center', attrs: { 'data-al': 'center' } })}
+          ${alignBtn('text', 'right',  { label: '오른쪽 정렬', title: '오른쪽 정렬', active: align === 'right',  attrs: { 'data-al': 'right' } })}
         </div>
       </div>
       <div class="prop-row">
@@ -209,6 +225,27 @@ ${_pairRow('qt-fontsize', '글자 크기', fontSize, L.fontSize.min, L.fontSize.
   };
   wireColor('qt-markcol', 'markColor');
   wireColor('qt-textcol', 'textColor');
+
+  /* ── ★가로 정렬 (현빈 2026-10-09 ④ 「수평 정렬」 · 티켓 1009t2-④ ⒜) ──────────────
+     ★모델(`dataset.align`)은 ★이미 돌고 있었다 — ★없던 것은 ★이 ★칸 하나다.
+     ★★한 번 ★잘못 닫힌 자리다: 이 파일의 `align` 8건이 ★전부 ★CSS 클래스명이라
+       ★낱말로 세면 ★「이미 있다」가 된다. ⇒ ★판정은 ★«패널 조종칸 전수»로(Q14 가 그 자로 잰다).
+     ★`#qt-align-group` «안»으로 ★좁힌다 — ⛔패널 전체의 `[data-al]` 을 잡지 마라
+       (같은 속성을 ★prop-modal.js 도 쓴다 · 지금은 패널이 ★하나지만 ★범위를 ★좁혀 두는 쪽이 맞다).
+     ⛔`reopen()` 을 ★부르지 않는다 — 정렬은 ★안내문을 ★안 바꾸고, ★다시 그리면 ★이 핸들러가
+       ★새 노드에 ★다시 달리는 동안 ★연이은 클릭이 ★끊긴다(모양·꼴 단추와 ★다른 갈래다).
+     ⇒ ★`active` 는 ★여기서 ★손으로 옮긴다(prop-text-wireup-align.js:49 와 ★같은 꼴). */
+  propPanel.querySelectorAll('#qt-align-group [data-al]').forEach(btn => btn.addEventListener('click', () => {
+    const a = btn.getAttribute('data-al');
+    if (!['left', 'center', 'right'].includes(a)) return;
+    block.dataset.align = a;
+    rerender(); commit();
+    propPanel.querySelectorAll('#qt-align-group [data-al]').forEach(b => {
+      const on = b === btn;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }));
 
   // ── 모양 — ★제품 8종 ＋ ★사용자가 더한 것 ──
   /* ⛔옛 판은 `QUOTE_SHAPE_KEYS.includes(k)` 로 ★제품 8종만 통과시켰다 — ★사용자 것을 누르면
