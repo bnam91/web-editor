@@ -30,7 +30,7 @@ import { MODAL_SLOT_KEYS } from './blocks/modal-block.js';
 /* ★수지⑦ — ★그리드 허용목록은 ★그리드가 들고 있다(★렌더와 ★커밋이 ★같은 한 벌을 써야 한다).
    ⛔여기 ★사본을 적지 마라 — ★갈리면 「★커밋은 됐는데 ★렌더에서 사라진다」가 된다. */
 import { GRID_RICH_TEXT_OPTS } from './blocks/grid-block.js';
-import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth, frameClipsChildren } from './frame-geometry.js';
+import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth, frameClipsChildren, fitContentWidthPx } from './frame-geometry.js';
 import {
   dragState,
   _suppressDragSave,
@@ -93,10 +93,9 @@ function _isInsideUnselectedFrame(block) {
    못 재거나(≤1px) 줄일 게 없으면(내용이 이미 꽉 참) 아무것도 안 바꾸고 0. */
 function _fitFullWidthTextFrame(tf) {
   const oldW = tf.offsetWidth;
-  const prevW = tf.style.width;
-  tf.style.width = 'fit-content';
-  const fitW = Math.round(tf.offsetWidth);
-  tf.style.width = prevW;
+  /* ★2026-10-10 — ★재는 자를 ★`fitContentWidthPx`(frame-geometry.js) ★하나로 모았다.
+     ★예전엔 ★여기서 ★«offsetWidth 를 정수로 반올림한 값» 로 ★직접 쟀고, ★그 ★내림이 ★★현빈의 「1줄 → 2줄」이었다. */
+  const fitW = fitContentWidthPx(tf);
   if (!(fitW > 1) || fitW >= oldW) return 0;
   const contentEl = tf.querySelector('[class^="tb-"]');
   const tb = tf.querySelector('.text-block');

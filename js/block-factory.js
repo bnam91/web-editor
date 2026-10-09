@@ -23,7 +23,7 @@ import {
 } from './drag-drop.js';
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame, framePadding, innerFullWidth,
-         growFrameToFitChildren, applyFrameHAlignToChild } from './frame-geometry.js';
+         growFrameToFitChildren, applyFrameHAlignToChild, fitContentWidthPx } from './frame-geometry.js';
 import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
 import { GRID_CIRCLE_ICON_INNER, GRID_CIRCLE_ICON_STROKE_WIDTH } from './blocks/grid-circle-icon.js';
@@ -1724,16 +1724,18 @@ function _clampTextFrameWidth(tf, frameEl) {
   const frameW = ((frameEl && frameEl.clientWidth) || 860) - _fp.l - _fp.r;
   // 콘텐츠 실측: 측정 동안 width를 fit-content로 잠시 풀어 자연 폭 산출
   const prevWidth = tf.style.width;
-  tf.style.width = 'fit-content';
-  // tb 자식이 inline-block이 아니어도 tf가 fit-content면 콘텐츠 폭으로 수축
-  let contentW = tf.offsetWidth || (tb && tb.offsetWidth) || 0;
+  /* ★2026-10-10 — ★재는 자를 ★`fitContentWidthPx`(frame-geometry.js) ★하나로 모았다(★block-drag 의 D3 와 ★같은 자).
+     ★예전엔 ★«offsetWidth 를 정수로 반올림한 값» 였고, ★그 ★내림이 ★「1줄 → 2줄」을 ★만들었다.
+     ★`tf` 로 못 재면(0) ★예전처럼 ★`tb` 로 떨어진다 — ★그 폴백은 ★그대로 둔다. */
+  let contentW = fitContentWidthPx(tf);
+  if (!contentW) contentW = (tb && tb.offsetWidth) || 0;
   // box-sizing:border-box이므로 패딩 포함 offsetWidth가 곧 프레임 폭
   if (!contentW || contentW <= 1) {
     // 측정 실패 시 안전하게 원복
     tf.style.width = prevWidth || innerFullWidth(frameEl);
     return tf.style.width;
   }
-  const w = Math.min(Math.round(contentW), frameW);
+  const w = Math.min(contentW, frameW);
   tf.style.width = w + 'px';
   tf.dataset.width = String(w);
   return tf.style.width;

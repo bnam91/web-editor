@@ -434,3 +434,32 @@ export function followHostFrameHAlign(el) {
   if (ai === 'flex-start' || ai === 'center' || ai === 'flex-end') applyFrameHAlignToChild(el, ai);
 }
 if (typeof window !== 'undefined') window.followHostFrameHAlign = followHostFrameHAlign;
+
+/* ══ ★글자틀의 «내용 폭»을 ★px 로 — ★★「1줄이 ★2줄로 바뀐다」의 ★정본 ★한 자리 (2026-10-10) ══
+   ★★왜 생겼나 — ★부르는 ★두 자리가 ★«offsetWidth 를 정수로 반올림한 값» 로 쟀다. ★`offsetWidth` 는 ★★정수다:
+     ★자연폭이 ★357.34 인데 ★357 을 박으면 ★★0.34px ★모자라 ★★글자가 ★한 줄에 ★안 들어간다.
+   ★★실측(2026-10-10 · 표본 8×3=24 · 크로미움 ★진짜 마우스 끌기):
+     ★«버린양»(자연폭 − offsetWidth)의 ★★부호가 ★★완벽히 갈랐다 — ★양수 ★6/6 → ★2줄 · ★음수 ★18/18 → ★1줄
+     ★현빈 원문 「본문 내용을 입력하세요.」 ★357.34→357(+0.34) ⇒ ★2줄 · 「…입력하세요」 ★347.33→347(+0.33) ⇒ ★2줄
+   ★★⛔`getBoundingClientRect().width` 로 ★소수를 재지 ★마라 — ★그 값은 ★★`#canvas-scaler` 의
+     ★`transform: scale()` 이 ★★곱해진 ★뷰포트 값이다(★배율 40% 면 ★357 이 ★143 로 온다).
+     ★그 길로 가려면 ★`_canvasScaleNow()`(js/overlay-handles.js)로 ★나눠야 하고 ★틀릴 자리가 ★하나 는다.
+   ★★⇒ ★그래서 ★★«증상»을 ★직접 잰다 — ★정수로 ★내려 박았을 때 ★★높이가 ★늘었나(= ★줄이 ★늘었나).
+     ★높이는 ★`offsetHeight`(★레이아웃 px · ★★배율 무관 · ★박스모델 무관)라 ★위 함정을 ★안 밟는다.
+   ★★⇒ ★늘었을 ★때만 ★1px 더한다. ★⛔아니면 ★한 픽셀도 ★안 건드린다 — ★실측 24표본 중 ★18은 ★예전과 ★같은 값이다.
+   ⚠️★이 파일의 ★다른 함수와 ★달리 ★★«진짜 DOM»이 ★필요하다(offsetWidth/offsetHeight 를 읽는다).
+     ★⛔가짜 DOM 검사에서 ★부르지 마라(이 파일 머리말의 그 까닭).
+   ★★부르는 자 ★둘 — `js/block-drag.js` `_fitFullWidthTextFrame` · `js/block-factory.js` `_clampTextFrameWidth`
+     ★⛔세 번째 ★사본을 ★짓지 마라. ★★이 본문을 ★무력화하면 ★그 ★둘이 ★다 빨개져야 한다(검사가 그 쌍을 잠근다). */
+export function fitContentWidthPx(tf) {
+  if (!tf || !tf.style) return 0;
+  const prev = tf.style.width;
+  tf.style.width = 'fit-content';
+  const w0 = Math.round(tf.offsetWidth);
+  const h0 = tf.offsetHeight;                    /* ★자연폭에서의 높이 = ★줄 수의 대리자 */
+  if (!(w0 > 1)) { tf.style.width = prev; return 0; }
+  tf.style.width = w0 + 'px';
+  const grew = tf.offsetHeight > h0;             /* ★내림 때문에 ★줄이 늘었다 */
+  tf.style.width = prev;
+  return grew ? w0 + 1 : w0;
+}
