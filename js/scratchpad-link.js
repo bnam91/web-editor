@@ -890,8 +890,10 @@
    *   ⛔「세로로 한 칸씩 쌓기」로 하지 않는다 — 현빈 지적대로 그러면 «밑에 있던 다른 것»과
    *     또 겹친다. 그래서 매번 «지금 화면에 있는 모든» 스크래치 아이템을 보고 계산한다
    *     (그 섹션 것이든 남의 섹션 것이든 연결 안 된 것이든 전부).
-   *   방식 = 스카이라인 한 줄: 세로로 겹칠 수 있는 것들(가로가 겹치는 것)을 위에서부터
-   *     훑어 내려가며 y 를 «밀어 내린다». y 는 단조 증가라 한 번 지난 것과 다시 겹치지 않는다.
+   *   ⚰️옛 방식(2026-09-30 ~ 10-09) = 스카이라인 한 줄: 가로가 겹치는 것들을 위에서부터 훑어
+   *     내려가며 y 를 «밀어 내렸다». ★그 길은 ★끝없이 밀렸다 — 현빈 ①(아래 [#16-NEAR])로 ★바뀌었다.
+   *   ★지금 방식 = ⑴ 제자리(섹션 위변 맞춤)가 비었으면 거기. ⑵ 막혔으면 «막는 것들의 위·아래»를
+   *     후보로 모아 ★선이 가장 짧은 것. ⑶ 상한을 넘으면 비켜 앉기를 ★포기하고 제자리로.
    *   ⛔가로가 안 겹치면 세로가 겹쳐도 상관없다 — 나란히 놓이는 것은 겹침이 아니다.
    *   ⚠️0×0(숨김·접힘) 아이템은 «피하지 못한다» — 높이를 «잴 수가 없어서»다(저장본에 폭만
    *     있고 높이는 그림 비율에서 나온다). 숨긴 것을 다시 켜면 겹칠 수 있고, 그때는 다시
@@ -913,7 +915,8 @@
     const w = (size && size.w) || item?.offsetWidth || 0, h = (size && size.h) || item?.offsetHeight || 0;
     const skip = exclude || new Set(item ? [item] : []);
     const x = attachRight ? toLX(sr.right) + PULL_GAP : toLX(sr.left) - PULL_GAP - w;
-    let y = toLY(sr.top);
+    const secTop = toLY(sr.top), secH = sr.height / scale;
+    const y0 = secTop;                                         // 섹션 위변 맞춤 = «제자리»
     const blockers = [...document.querySelectorAll('.scratch-item')]
       .filter(el => !skip.has(el))
       .map(el => ({
@@ -923,10 +926,34 @@
       .filter(b => b.w > 0 && b.h > 0)                         // 숨김은 잴 수 없다(위 ⚠️)
       .filter(b => x < b.x + b.w && b.x < x + w)               // 가로가 겹치는 것만 «막는다»
       .sort((a, b) => a.y - b.y);
+    /* 막는 것과 겹치나 — ★옛 스카이라인과 ★같은 술어다(아래로만 STACK_GAP 을 둔다). */
+    const hits = (y) => blockers.some(b => y < b.y + b.h + STACK_GAP && y + h > b.y);
+    if (!hits(y0)) return { x: Math.round(x), y: Math.round(y0) };   // ★제자리가 비었으면 ★옛 길 그대로
+
+    /* ★★[#16-NEAR] 현빈 2026-10-09 ①: 「원래 좌표에 다른 스크래치패드 있거나 높이 문제로 밀려
+         다른 위치로 가 이상해지는 이슈 있어도 ★섹션에서는 안 멀어져야 한다」
+       ⛔옛 길은 스카이라인을 «끝없이» 아래로 밀었다 — 막는 것이 줄줄이 서 있거나 당기는 장이
+         섹션보다 키가 크면 섹션 ★한참 아래에 가 앉는다(핀 판 실측: 세로 빈틈 360 · 272 · 136px,
+         tests/dom/scratch-pull-near-section 의 머리말에 수를 적어 뒀다).
+       ⇒ 비켜 앉을 자리를 «후보»로 모아 ★선이 짧은 쪽을 고르고, ★상한을 넘으면 비켜 앉기를
+         ★포기하고 제자리로 돌아온다. 현빈 문장 그대로 — «겹쳐서 이상해지는 것»보다 «멀어지는 것»이 나쁘다.
+       ★상한 = 제자리 선 길이 ＋ ★섹션 한 키. 섹션은 세로로 쌓이므로 한 키를 넘어서면 그 선은
+         «이웃 섹션»의 것으로 읽힌다. ⛔배수·픽셀 상수를 새로 만들지 않는다(장면의 secH 가 자를 준다). */
+    const dx = PULL_GAP + (size ? 0 : w / 2);   // 선의 가로 성분 — _edgeEnds 와 같은 셈(묶음은 가까운 변)
+    const len = (y) => Math.hypot(dx, (y + h / 2) - (secTop + secH / 2));
+    const CAP = len(y0) + secH;
+    let best = null;
     for (const b of blockers) {
-      if (y < b.y + b.h + STACK_GAP && y + h > b.y) y = b.y + b.h + STACK_GAP;
+      for (const y of [b.y + b.h + STACK_GAP, b.y - STACK_GAP - h]) {
+        if (y < 0) continue;                    // ⛔스케일러 위쪽 «밖» — 거기 두면 화면에서 사라진다
+        if (hits(y)) continue;
+        const L = len(y);
+        if (L > CAP) continue;
+        // 같은 길이면 «아래»를 고른다 — 옛 길이 늘 아래로 밀었으므로 눈에 덜 낯설다
+        if (!best || L < best.L - 0.5 || (Math.abs(L - best.L) <= 0.5 && y > best.y)) best = { y, L };
+      }
     }
-    return { x: Math.round(x), y: Math.round(y) };
+    return { x: Math.round(x), y: Math.round(best ? best.y : y0) };
   }
 
   /** 연결 하나를 당긴다. 자리·저장·되돌리기는 스크래치가 맡는다(window._scratchAnimateItemTo).
