@@ -301,6 +301,28 @@ function _deleteScratchItemsWithHistory(items) {
     _scratchItems = _scratchItems.filter(i => i !== s);
     _selectedItems.delete(s);
   });
+
+  /* ★★⑧ — ★1장만 남은 그룹은 ★푼다 (현빈 2026-10-10 동의 · 지디 ⒞)
+   *   ★까닭: 「그룹」은 ★둘 이상을 묶는 말이고, ★1장 그룹은 ★공동 선택·공동 이동이 ★무의미하다.
+   *   ★★왜 ★여기도 ★필요한가 — ★★«두 길»이 있다(지디 ⒞ 「두 길이 ★같이 서야 한다」):
+   *     ⒜ ⊘ 길 = `_detachFromGroup` — ★거기선 ★이미 푼다(G9·C6 가 ★잰다)
+   *     ⒝ ★★이 길 = ★지우기(✕ · Delete · ★★⌘X 잘라내기) — ★★여기엔 ★★없었다
+   *   ★실측(고치기 전 · `tests/dom/scratch-cut-paste-group` ★C5):
+   *     ★2장 그룹에서 ★한 장 ⌘X ⇒ ★남은 1장이 ★그룹 `g_tm13a4` 를 ★★그대로 쥐었다(모드도 ★살아 있었다)
+   *     ★같은 상황 ⊘ 길(C6)은 ★★풀렸다 ⇒ ★★두 길이 ★갈려 있었다
+   *   ★★«언제 세나» — ★★«지우고 ★난 뒤»다(지디 ⒞ 의 그 물음).
+   *     ★위 `forEach` 가 `_scratchItems` 에서 ★뺀 ★뒤에 ★세므로 ★남은 수가 ★참값이다.
+   *     ⛔«지우는 순간»에 세면 ★자기 자신이 ★아직 들어 있어 ★한 장 더 센다.
+   *   ★음성대조 = ★C7(3장에서 하나 빼면 ★2장 그룹이 ★남는다 — ⛔풀리지 않는다). */
+  const touchedGroups = [...new Set(items.map(s => s.g).filter(Boolean))];
+  for (const gid of touchedGroups) {
+    const rest = _scratchItems.filter(s => s.g === gid);
+    if (rest.length === 1) {
+      delete rest[0].g;
+      if (rest[0].el) delete rest[0].el.dataset.scratchGroup;
+      if (_groupMode === gid) _exitGroupMode();
+    }
+  }
   _saveScratch();
 
   // 글로벌 history에 sideEffects entry 추가 — 캔버스 스냅샷은 동일 상태로 push되어
