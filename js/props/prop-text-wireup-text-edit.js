@@ -176,6 +176,57 @@ export function isDotOn(contentEl) {
   return !!(contentEl && contentEl.querySelector('span.' + DOT_CLASS));
 }
 
+/* ── ★점 span 을 ★다루는 ★한 벌 (쪼개기 · 자리번호 · 껍데기 걷기) ───────────────────────
+ * ★여기(모듈 바닥)로 ★올렸다 — ⛔동작은 ★안 바꿨다(wireTextEditSection 클로저에 ★사본이 있었다).
+ * ★까닭: 이것을 쓸 자리가 ★곧 ★둘이 된다(단추 핸들러 ＋ 글자 편집 뒤 다시 세우는 자).
+ *   ★사본을 두면 ★공백 규약(점은 공백에 안 찍는다)과 ★자리번호 식이 ★조용히 갈린다.
+ * ★이 커밋이 ★동작을 안 바꿨다는 자 = tests/dom/text-dot-over.dom.spec.js ★D1~D13 ★전부 초록.
+ */
+const _unwrap = (n) => { const p = n.parentNode; if (!p) return; while (n.firstChild) p.insertBefore(n.firstChild, n); p.removeChild(n); };
+const _dotSpans = (el) => (el ? [...el.querySelectorAll('span.' + DOT_CLASS)] : []);
+/* 자리 번호 — 가운데가 0 이 되게. ⇒ 간격을 줘도 ★가운데 점은 제자리고 양쪽으로 퍼진다. */
+const _dotReindex = (spans) => {
+  const n = spans.length;
+  spans.forEach((sp, i) => sp.style.setProperty('--tb-dot-i', String(i - (n - 1) / 2)));
+};
+/* 텍스트 노드 ★하나를 글자마다 span 으로 쪼갠다 — ★두르는 자(_dotWrapRange)가 쓴다.
+   ⛔두 자리에 베껴 적으면 공백 규약이 갈린다.
+   ★공백엔 점을 ★안 찍는다(「세 글자 선택 → 점 3개」가 발주의 말이고, 공백은 글자가 아니다).
+   ★코드포인트 단위로 돈다(for…of) — 한글·이모지가 반 토막 나지 않는다. */
+const _dotSplitTextNode = (t, made) => {
+  const parent = t.parentNode;
+  if (!parent) return;
+  const seq = document.createDocumentFragment();
+  for (const ch of t.nodeValue) {
+    if (!ch.trim()) { seq.appendChild(document.createTextNode(ch)); continue; }
+    const sp = document.createElement('span');
+    sp.className = DOT_CLASS;
+    sp.textContent = ch;
+    seq.appendChild(sp);
+    if (made) made.push(sp);
+  }
+  parent.replaceChild(seq, t);
+};
+/* ★★빈 껍데기 걷기 — `Range.extractContents()` 는 «반쯤 걸친» 요소를 쪼개면서 ★빈 복제를 ★남긴다.
+ *   점 span 은 글자 ★하나만 담으므로 쪼개진 쪽은 ★반드시 비는데, ★빈 .tb-dot 도 ::before 를 ★그린다
+ *   ⇒ ★글자 없는 «유령 점»이 생긴다.
+ *   2026-10-08 실측(D13, 'BBB' 에 점 → "A BBB" 로 겹쳐 다시 두르기):
+ *     점 span ★5개 / 점 달린 글자 ★4자("ABBB") · 남은 자리번호 ["-1.5","-0.5","0.5","1.5",★"1"]
+ *     — 마지막 "1" 이 첫 두르기에서 살아남은 ★빈 껍데기였다.
+ *   ⛔「글자 수 = 점 수」만 세는 검사는 이걸 ★못 본다(글자는 4자로 맞다). span 수를 ★같이 세라.
+ * ★★걷은 수를 ★돌려준다 — 부른 쪽이 「DOM 이 바뀌었나」로 캐럿 되살리기를 판정한다. */
+const _dotPrune = (el) => {
+  if (!el) return 0;
+  let n = 0;
+  for (const sp of _dotSpans(el)) {
+    if ((sp.textContent || '').length) continue;
+    if (!sp.firstChild) { sp.remove(); n++; }   // 아무것도 안 들었다 → 지운다
+    else { _unwrap(sp); n++; }                  // <br> 등이 들었다 → 껍데기만 벗긴다(내용은 지키고)
+  }
+  return n;
+};
+
+
 export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
   /* ★선택 저장·복원 = js/props/_text-selection.js 한 벌. 여기엔 저장 변수가 «없다». */
   const hasSel = () => !!getSavedTextSelection(ctx.contentEl);
@@ -491,7 +542,6 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
    * ⛔wireInlineStyleBtn 으로 되돌리지 마라 — 그 규약의 「무선택=블럭 인라인」이 바로 이 결함이다. */
   const _hlSpans = (el) => (el ? [...el.querySelectorAll('span.' + HL_CLASS)] : []);
   const _hlIsOn = isHighlightOn;   // ★판정은 이 파일 맨 위 «한 자리»에서만 온다(prop-text.js 도 그걸 쓴다)
-  const _unwrap = (n) => { const p = n.parentNode; if (!p) return; while (n.firstChild) p.insertBefore(n.firstChild, n); p.removeChild(n); };
   /* 새 꼴·옛 꼴·블럭 인라인을 «다» 걷는다 — 걷고 다시 두르므로 겹 span 이 안 쌓인다. */
   const _hlStripAll = (el) => {
     if (!el) return;
@@ -784,21 +834,15 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
    *   ★--tb-dot-i 「만」 span 마다다(「양쪽으로 퍼뜨리기」가 그 글자의 자리를 알아야 한다).
    * ⛔wireInlineStyleBtn·wireDecoBtn 으로 되돌리지 마라 — 이것은 «스타일 한 줄»이 아니라 ★DOM 쪼개기다.
    */
-  const _dotSpans = (el) => (el ? [...el.querySelectorAll('span.' + DOT_CLASS)] : []);
+  /* ★★쪼개기·자리번호·껍데기 걷기는 ★모듈 바닥 ★한 벌이다.
+     ⛔여기에 ★사본을 다시 두지 마라 — 공백 규약·자리번호가 ★조용히 갈린다(명부가 둘이 된다). */
   /* 걷기 — 쪼갠 글자를 ★다시 하나로 합친다(normalize). 안 합치면 다음에 켤 때 토막이 쌓인다. */
   const _dotStripAll = (el) => {
     if (!el) return;
     _dotSpans(el).forEach(_unwrap);
     el.normalize?.();
   };
-  /* 자리 번호 — 가운데가 0 이 되게. ⇒ 간격을 줘도 ★가운데 점은 제자리고 양쪽으로 퍼진다. */
-  const _dotReindex = (spans) => {
-    const n = spans.length;
-    spans.forEach((sp, i) => sp.style.setProperty('--tb-dot-i', String(i - (n - 1) / 2)));
-  };
   /* 범위를 ★글자마다 span 으로 쪼갠다.
-     ★공백엔 점을 ★안 찍는다 — 「세 글자 선택 → 점 3개」가 발주의 말이고, 공백은 글자가 아니다.
-     ★코드포인트 단위로 돈다(for…of) — 한글·이모지가 반 토막 나지 않는다.
      ⛔이미 점이 있는 자리를 다시 두르면 ★겹친다 ⇒ 꺼낸 조각 안의 옛 점을 ★먼저 걷는다(D9). */
   const _dotWrapRange = (range) => {
     const frag = range.extractContents();
@@ -808,20 +852,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     const w = document.createTreeWalker(frag, NodeFilter.SHOW_TEXT);
     let n; while ((n = w.nextNode())) texts.push(n);
     const made = [];
-    for (const t of texts) {
-      const parent = t.parentNode;
-      if (!parent) continue;
-      const seq = document.createDocumentFragment();
-      for (const ch of t.nodeValue) {
-        if (!ch.trim()) { seq.appendChild(document.createTextNode(ch)); continue; }
-        const sp = document.createElement('span');
-        sp.className = DOT_CLASS;
-        sp.textContent = ch;
-        seq.appendChild(sp);
-        made.push(sp);
-      }
-      parent.replaceChild(seq, t);
-    }
+    for (const t of texts) _dotSplitTextNode(t, made);
     _dotReindex(made);
     range.insertNode(frag);
     return made;
@@ -833,21 +864,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     r.selectNodeContents(el);
     return _dotWrapRange(r);
   };
-  /* ★★빈 껍데기 걷기 — `Range.extractContents()` 는 «반쯤 걸친» 요소를 쪼개면서 ★빈 복제를 ★남긴다.
-   *   점 span 은 글자 ★하나만 담으므로 쪼개진 쪽은 ★반드시 비는데, ★빈 .tb-dot 도 ::before 를 ★그린다
-   *   ⇒ ★글자 없는 «유령 점»이 생긴다.
-   *   2026-10-08 실측(D13, 'BBB' 에 점 → "A BBB" 로 겹쳐 다시 두르기):
-   *     점 span ★5개 / 점 달린 글자 ★4자("ABBB") · 남은 자리번호 ["-1.5","-0.5","0.5","1.5",★"1"]
-   *     — 마지막 "1" 이 첫 두르기에서 살아남은 ★빈 껍데기였다.
-   *   ⛔「글자 수 = 점 수」만 세는 검사는 이걸 ★못 본다(글자는 4자로 맞다). span 수를 ★같이 세라. */
-  const _dotPrune = (el) => {
-    if (!el) return;
-    for (const sp of _dotSpans(el)) {
-      if ((sp.textContent || '').length) continue;
-      if (!sp.firstChild) sp.remove();   // 아무것도 안 들었다 → 지운다
-      else _unwrap(sp);                  // <br> 등이 들었다 → 껍데기만 벗긴다(내용은 지키고)
-    }
-  };
+  /* (빈 껍데기 걷기 _dotPrune = ★모듈 바닥 한 벌 — 그 머리말에 D13 실측값이 있다.) */
   const _dotVarsOf = (el) => (el ? el.closest('.text-block') : null) || tb;
   const DOT_OPT_ROWS = ['txt-dot-color-row', 'txt-dot-size-row', 'txt-dot-gap-row', 'txt-dot-xy-row'];
   const _dotSyncOpts = (on) => {
