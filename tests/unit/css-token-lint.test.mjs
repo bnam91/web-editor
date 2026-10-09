@@ -22,6 +22,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
+import cp from 'child_process';
 import { fileURLToPath } from 'url';
 import {
   blankCssNoise, blankExemptSpans, scanDeclarations, makeLineIndex,
@@ -273,4 +274,93 @@ test('치환 잠금 ⑶ 전제 — index.html 이 토큰 파일과 네 파일을
     const base = s.file.replace('css/', '').replace(/\./g, '\\.');
     assert.match(html, new RegExp(`href="css/${base}"`), `${s.file} 을 index.html 이 안 읽는다 — 이 잠금의 전제가 틀렸다`);
   }
+});
+
+/* ══ 게이트를 ★부르는 칸 (지디 GO 2026-10-10) ══════════════════════════════
+ * ★★★★빨개졌으면 ★이것만 하면 된다:
+ *       npm run gate:css-token
+ *   ⇒ 적발 자리가 `file:line:col` 로 나오고, ★문구가 ★쓸 토큰 이름을 대 준다.
+ *     그 `var(--…)` 로 그 리터럴을 ★그 자리에서 바꿔라. 끝이다.
+ *     (토큰이 여럿이면 그 줄의 뜻에 맞는 것을 골라라 — `--ui-*` 가 정본이다.)
+ *   ★이 칸이 ★왜 있나 = ⛔「자를 만들었다」로 끝나면 ★그 자는 ★안 돈다.
+ *     이 레포의 `gate:assert-strength` 가 ★부르는 자 없이 ★보름을 죽어 있었고,
+ *     `.github/workflows/*.yml` 주석에 「npm test 를 부르는 자리가 훅·CI·배포
+ *     어디에도 없었다(T-144)」가 ★이미 적혀 있다.
+ *   ★어디가 ★자동으로 도나(2026-10-10 실측) — `pre-push` 훅은 `exit 0` 고정이라
+ *     아무것도 못 막고, CI 는 release-mac/win 이 ★`npm test` 를 부른다.
+ *     ⇒ ★`npm test` 가 ★이 레포에서 ★유일한 자동 경로다. 그래서 ★여기 둔다.
+ *   ⛔CI step 추가는 ★안 했다 — `.github/workflows/` 수정은 ★현빈 게이트다.
+ *
+ * ★★SKIP 규율 — 「범위 밖 검사는 FAIL 이 아니라 SKIP」, 단 ★조용한 통과는 ★금지.
+ *   git 이 없거나 기준판 태그가 안 보이면(얕은 checkout) ★SKIP 하는데,
+ *   ⛔「skipped」만 찍으면 다음 사람이 ★«돌았다»로 읽는다 ⇒ ★까닭을 ★stdout 에 박는다.
+ *   ★그리고 ★그 SKIP 이 ★«늘 SKIP»이 아님을 ★아래 두 칸이 ★양쪽에서 잠근다.
+ */
+const GATE_BASE = 'v0.9.5';
+
+/** 게이트를 돌릴 ★전제. {ok, reason} — reason 은 ★SKIP 할 때 찍을 말이다. */
+function gatePremise(baseRef) {
+  const g = (...a) => cp.spawnSync('git', ['-C', REPO, ...a], { encoding: 'utf8' });
+  const wt = g('rev-parse', '--is-inside-work-tree');
+  if (wt.status !== 0 || wt.stdout.trim() !== 'true') {
+    return { ok: false, reason: `git 작업트리가 아니다 (rev-parse rc=${wt.status}) — 범위를 뽑을 수 없다` };
+  }
+  const base = g('rev-parse', '--verify', '--quiet', `${baseRef}^{commit}`);
+  if (base.status !== 0 || !base.stdout.trim()) {
+    return { ok: false, reason: `기준판 '${baseRef}' 가 안 보인다 — 얕은 checkout(fetch-depth 1)이면 태그가 없다` };
+  }
+  const mb = g('merge-base', baseRef, 'HEAD');
+  if (mb.status !== 0 || !mb.stdout.trim()) {
+    return { ok: false, reason: `merge-base(${baseRef}, HEAD) 가 없다 — 공통 조상이 안 당겨졌다` };
+  }
+  return { ok: true, reason: `base=${baseRef} ${base.stdout.trim().slice(0, 12)} · merge-base ${mb.stdout.trim().slice(0, 12)}` };
+}
+
+test('★게이트 — 바뀐 CSS 줄에 «토큰이 있는» 하드코딩이 0건인가  [빨강이면: npm run gate:css-token]', (t) => {
+  const pre = gatePremise(GATE_BASE);
+  if (!pre.ok) {
+    // ⛔조용한 통과 금지 — 까닭을 찍는다
+    process.stdout.write(`\n⚠️ css-token 게이트 ★SKIP — ★안 쟀다(통과가 아니다): ${pre.reason}\n`
+      + '   ⇒ 재려면 태그까지 받아라: actions/checkout 은 fetch-depth: 0 ＋ tags 필요.\n\n');
+    t.skip(`안 쟀다: ${pre.reason}`);
+    return;
+  }
+  const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs'), '--base', GATE_BASE],
+    { encoding: 'utf8', cwd: REPO });
+  // ⛔3(HARNESS_ERROR)을 1 이나 0 으로 접지 마라 — 전제는 위에서 이미 봤으니 3 은 ★자가 고장난 것이다
+  assert.notEqual(r.status, 3, `자가 고장났다(HARNESS_ERROR) — 전제는 섰는데 3 이 났다\n${r.stdout}${r.stderr}`);
+  assert.equal(r.status, 0,
+    `바뀐 CSS 줄에 토큰이 있는 하드코딩이 남았다 (${pre.reason})\n`
+    + '★아래 문구의 `var(--…)` 로 그 리터럴을 그 자리에서 바꿔라:\n'
+    + r.stdout + r.stderr);
+});
+
+/* ★양쪽 잠금 — 위 칸이 ★«늘 SKIP»이 아님을 증명한다.
+ * ⛔하나만 두면 안 된다: ok:true 만 재면 「못 재는 판」을 못 보고,
+ *   ok:false 만 재면 「여기선 도나」를 못 본다. */
+/* ★⑴a 는 ★환경에 안 의존한다 — `HEAD` 는 어느 checkout 에서도 풀린다.
+ *   ⛔여기서 `GATE_BASE` 를 쓰면 ★얕은 checkout(CI) 에서 ★릴리스가 빨개진다.
+ *   그건 CSS 와 ★무관한 빨강이고, ★내가 가로챌 자리가 아니다(워크플로 = 현빈 게이트). */
+test('게이트 전제 ⑴a — 풀리는 ref 에는 전제가 ★선다 (⇒ ok 갈래가 ★닿는 자리다 · 환경 무관)', () => {
+  const pre = gatePremise('HEAD');
+  assert.equal(pre.ok, true, `HEAD 로도 전제가 안 섰다 — gatePremise 가 ★늘 거짓이면 게이트는 ★영원히 SKIP 이다: ${pre.reason}`);
+  assert.match(pre.reason, /merge-base [0-9a-f]{12}/, '전제가 «무엇으로 섰나»를 말하지 않는다');
+});
+
+/* ★⑴b 는 ★이 판을 잰다 — 다만 ★못 재는 판에서는 ★FAIL 이 아니라 ★SKIP(까닭 찍고). */
+test('게이트 전제 ⑴b — ★이 판에서 ★기준판으로 실제로 쟀나 (못 쟀으면 ★까닭을 남긴다)', (t) => {
+  const pre = gatePremise(GATE_BASE);
+  if (!pre.ok) {
+    process.stdout.write(`\n⚠️ css-token 게이트가 ★이 판에서 ★안 돌았다(통과가 아니다): ${pre.reason}\n\n`);
+    t.skip(`안 쟀다: ${pre.reason}`);
+    return;
+  }
+  assert.match(pre.reason, new RegExp(`^base=${GATE_BASE} [0-9a-f]{12} · merge-base [0-9a-f]{12}$`),
+    `전제 문구가 «어느 판으로 쟀나»를 안 말한다: ${pre.reason}`);
+});
+
+test('게이트 전제 ⑵ — ★없는 기준판에는 전제가 ★안 선다 (⇒ SKIP 갈래가 ★죽은 자가 아니다)', () => {
+  const pre = gatePremise('nope-this-ref-does-not-exist-1009t3');
+  assert.equal(pre.ok, false, '없는 ref 에도 전제가 섰다 — 그러면 얕은 checkout 에서 ★3 으로 터진다');
+  assert.match(pre.reason, /안 보인다/, 'SKIP 까닭이 비어 있으면 ★조용한 통과가 된다');
 });
