@@ -164,6 +164,14 @@ const DIST = (ids) => {
       o[id] = [parseFloat(e.style.left), parseFloat(e.style.top)]; return o;
     }, {}),
     secH: Math.round(s.height),
+    /* ★★겹침 수 — ★«당기는 것»을 뺀 나머지 스크래치와 ★상자가 ★겹치나.
+       ★2026-10-10 현빈 ㉡ 판정 뒤 ★이것이 ★N1~N3 의 ★주 단언이 된다(옛 주 단언은 ★gap 이었다). */
+    ovl: (() => {
+      const others = [...document.querySelectorAll('.scratch-item')]
+        .filter((e) => !ids.includes(e.dataset.scratchId));
+      return others.filter((e) => { const r = R(e);
+        return r.left < box.right && box.left < r.right && r.top < box.bottom && box.top < r.bottom; }).length;
+    })(),
   };
 };
 
@@ -230,45 +238,56 @@ const GROUP = (withBlockers) => ({
 
 /* ─── 시험 ──────────────────────────────────────────────────────────── */
 
-function expectNear(got, base, what) {
-  /* ★상한의 근거 = «같은 장면에서 막는 것을 뺀 채» 잰 값(base). ⛔손으로 박은 수가 아니다. */
-  expect(got.dyGap, `★${what}: 세로로 섹션에서 ${got.dyGap}px 떨어졌다 — 「섹션 옆」이 아니다`
-    + ` (base dyGap=${base.dyGap} · got=${JSON.stringify(got)})`).toBe(base.dyGap);
-  expect(got.gap, `★${what}: 섹션과의 최단거리 ${got.gap}px — 막는 것이 없을 때(${base.gap}px)보다 멀어졌다`)
-    .toBeLessThanOrEqual(base.gap + 1);
-  /* ★그려지는 선 길이의 상한 — 「옛 자리 + ★섹션 한 키」. 섹션은 세로로 쌓이므로 한 키를 넘어가면
-     그 선은 «이웃 섹션»의 것으로 읽힌다. secH 도 ★장면에서 재서 쓴다. */
-  expect(got.lineLen, `★${what}: 연결선이 ${got.lineLen}px — 상한 ${base.lineLen}+${base.secH} 를 넘었다`)
-    .toBeLessThanOrEqual(base.lineLen + base.secH);
-  /* ★「멀어지지 않게」 고치면서 ★위쪽으로 내보내는 길이 열렸다 — 스케일러 ★밖(음수 top)은
-     화면에서 ★사라지는 자리다. ⛔이 칸이 없으면 「후보에서 음수 제외」를 지워도 조용히 초록이다(M4). */
-  for (const [id, p] of Object.entries(got.pos)) {
-    expect(p[1], `★${what}: ${id} 가 스케일러 ★위쪽 밖(top=${p[1]})으로 갔다 — 화면에서 사라진다`)
-      .toBeGreaterThanOrEqual(0);
+/** ★막는 것이 ★있을 때 ★무엇을 ★재나 — ★★2026-10-10 현빈 ㉡ 판정으로 ★★«재는 양»이 ★바뀌었다.
+ *  ⚰️★★옛 꼴(이 자리에 있던 `expectNear`)은 ★★«섹션과의 ★최단거리»를 쟀다:
+ *      `expect(got.gap).toBeLessThanOrEqual(base.gap + 1)`  ⇒ ★gap 24px 를 ★못 넘게 ★잠갔다
+ *      ★그 잠금의 출처 = ★현빈 ★2026-10-09 ① — ★★«겹쳐 앉더라도 ★가까이»를 ★고르셨다.
+ *  ★★그래서 ★⑤(x 축 비켜 앉기)가 ★그 잠금을 ★깼다(실측 ★gap ★★236px vs ★24px · post ×3 ★전부 빨강).
+ *  ★★⇒ ★현빈께 ★두 칸으로 올렸다: ★㉠겹침(24px · 어제 그대로) / ★★㉡옆으로 한 칸(236px · 어제를 뒤집는다)
+ *  ★★⇒ ★★2026-10-10 아침 ★현빈이 ★★㉡ 를 ★골랐다 ⇒ ★★어제 결정이 ★★뒤집혔다.
+ *  ⇒ ★그래서 ★단언을 ★★«느슨하게» 하지 ★않고(⛔25 → 236 으로 ★늘리지 ★않았다) ★★★«다시 적었다»:
+ *      ★주 단언 = ★★«겹치지 ★않는다(ovl 0)» ＋ ★★«옆으로 ★한 칸만 간다»
+ *      ★지키는 것 = ★세로는 ★그대로(dyGap 무변) · ★스케일러 ★위쪽 밖으로 ★안 나간다
+ *  ⛔`gap` 상한은 ★★«뒤집힌 결정»이라 ★없다 — ★그 수를 ★다시 걸면 ★★현빈 판정을 ★되돌리는 것이다.
+ *  ⛔`lineLen` 상한(옛 `base.lineLen + secH`)도 ★뺐다 — ★그 까닭은 ★★«섹션은 ★세로로 쌓인다»라
+ *     ★세로 전용이다(제품의 CAP 과 ★같은 까닭). ★가로로 비키면 ★이웃 섹션의 선으로 ★읽힐 위험이 ★없다. */
+function expectSidestep(got, base, what, stepLeft) {
+  expect(got.ovl, `★${what}: ★막는 것과 ★${got.ovl}개 ★겹쳤다 — ★★㉡ 는 ★겹치지 ★않기로 한 것이다`
+    + ` (got=${JSON.stringify(got)})`).toBe(0);
+  const lefts = Object.values(got.pos).map((p) => p[0]);
+  const minLeft = Math.min(...lefts);
+  expect(Math.abs(minLeft - stepLeft) <= 2,
+    `★${what}: ★한 칸(${stepLeft}) 자리가 ★아니다 — ★잰 left=${minLeft}`).toBe(true);
+  expect(got.dyGap, `★${what}: ★세로로 ${got.dyGap}px 멀어졌다 — ★x 로 비켜도 ★«섹션 옆»은 ★지킨다`
+    + ` (base dyGap=${base.dyGap})`).toBe(base.dyGap);
+  for (const [id, pt] of Object.entries(got.pos)) {
+    expect(pt[1], `★${what}: ${id} 가 스케일러 ★위쪽 밖(top=${pt[1]})으로 갔다`).toBeGreaterThanOrEqual(0);
   }
 }
+/** ★한 칸 자리 = ★막는 칼럼 ★오른쪽 변 ＋ STACK_GAP. ⛔구현에서 끌어오지 않는다 — ★★장면이 쓰는 수다. */
+const NSTEP = 424 + 200 + 12;
 
-test('N1 ★막힌 칼럼 다섯 — 밀려도 섹션에서 «안 멀어진다»', async ({ page }) => {
+test('N1 ★막힌 칼럼 다섯 — ★옆으로 ★한 칸 비켜 앉고 ★겹치지 않는다 (현빈 2026-10-10 ㉡)', async ({ page }) => {
   const state = { errs: [], routed: false };
   const base = await pullAndMeasure(page, state, COLUMN(false), ['s1']);
   expect(base.dyGap, '전제 — 막는 것이 없으면 섹션 «옆»에 붙는다').toBe(0);
   const got = await pullAndMeasure(page, state, COLUMN(true), ['s1']);
   expect(state.errs).toEqual([]);
   console.log(`[N1] base=${JSON.stringify(base)}\n[N1] got =${JSON.stringify(got)}`);
-  expectNear(got, base, '막힌 칼럼');
+  expectSidestep(got, base, '막힌 칼럼', NSTEP);
 });
 
-test('N2 ★키 큰 장 — 「높이 문제로 밀려」도 섹션에서 «안 멀어진다» (현빈 ① 둘째 까닭)', async ({ page }) => {
+test('N2 ★키 큰 장 — ★옆으로 ★한 칸 비켜 앉고 ★겹치지 않는다 (현빈 2026-10-10 ㉡)', async ({ page }) => {
   const state = { errs: [], routed: false };
   const base = await pullAndMeasure(page, state, TALL(false), ['s1']);
   expect(base.dyGap, '전제 — 막는 것이 없으면 섹션 «옆»에 붙는다').toBe(0);
   const got = await pullAndMeasure(page, state, TALL(true), ['s1']);
   expect(state.errs).toEqual([]);
   console.log(`[N2] base=${JSON.stringify(base)}\n[N2] got =${JSON.stringify(got)}`);
-  expectNear(got, base, '키 큰 장');
+  expectSidestep(got, base, '키 큰 장', NSTEP);
 });
 
-test('N3 ★그룹 묶음도 — 선 하나로 전원이 오고, 섹션에서 «안 멀어진다»', async ({ page }) => {
+test('N3 ★그룹 묶음도 — 선 하나로 전원이 오고, ★옆으로 ★한 칸 ★겹치지 않는다 (현빈 2026-10-10 ㉡)', async ({ page }) => {
   const state = { errs: [], routed: false };
   const ids = ['g1', 'g2', 'g3'];
   const base = await pullAndMeasure(page, state, GROUP(false), ids);
@@ -279,7 +298,7 @@ test('N3 ★그룹 묶음도 — 선 하나로 전원이 오고, 섹션에서 «
   /* 전제 — 묶음은 ★선 하나로 ★전원이 왔다(그러지 않으면 아래 거리는 «다른 것»을 잰다) */
   const rel = (p) => ids.map(id => [p[id][0] - p[ids[0]][0], p[id][1] - p[ids[0]][1]]);
   expect(rel(got.pos), '★묶음이 흩어졌다 — 상대 배치가 안 지켜졌다').toEqual(rel(base.pos));
-  expectNear(got, base, '그룹 묶음');
+  expectSidestep(got, base, '그룹 묶음', NSTEP);
 });
 
 /* ★★음성대조 둘 — 「상한」을 넣은 자가 ★비켜 앉기를 ★끄지 않았음을 문다.
