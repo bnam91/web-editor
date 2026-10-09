@@ -170,13 +170,18 @@ test('G7b ★★진입 배타 ★★«반대 방향» — ✂ 가 선 채로 그
   expect(await btn.count(), '전제 — ✂ 손잡이가 있다').toBe(1);
   await btn.click({ force: true }); await page.waitForTimeout(250);
   const p0 = await page.evaluate(() => ({ group: window._scratchGroupMode?.() ?? null,
-    slice: document.querySelectorAll('.scratch-item.scratch-slice-mode').length }));
+    slice: document.querySelectorAll('.scratch-item.scratch-slice-mode').length,
+    pads: document.querySelectorAll('.scratch-item').length }));
   console.log('[G7b 전제] ' + JSON.stringify(p0));
   expect(p0.slice, '★전제 — ✂ 모드가 ★먼저 섰다').toBe(1);
   expect(p0.group, '★전제 — 그룹 모드는 ★아직 아니다').toBeNull();
   await clickItem(page, 'sp_a', { dbl: true }); await page.waitForTimeout(250);
   const s1 = await page.evaluate(() => ({ group: window._scratchGroupMode?.() ?? null,
-    slice: document.querySelectorAll('.scratch-item.scratch-slice-mode').length }));
+    slice: document.querySelectorAll('.scratch-item.scratch-slice-mode').length,
+    pads: document.querySelectorAll('.scratch-item').length }));
+  /* ★★전제 — ★장 수가 ★안 변했다. ★✂ 모드는 ★«클릭하면 ★자른다»라서 ★이 더블클릭이
+     ★슬라이스를 ★확정해 ★장을 ★늘릴 수 있다 ⇒ ★그러면 ★아래 단언은 ★★딴 장면을 재고도 ★초록이다. */
+  expect(s1.pads, `★★전제 — ★장 수 무변(전 ${p0.pads} → 후 ${s1.pads}) · ⛔늘었다면 ✂ 가 ★잘린 것이다`).toBe(p0.pads);
   console.log('[G7b 뒤] ' + JSON.stringify(s1));
   expect(s1.group, '★그룹 모드가 섰다').toBeTruthy();
   expect(s1.slice, '★★✂ 모드가 ★풀렸다(동시에 못 선다 — ★반대 방향)').toBe(0);
@@ -184,14 +189,24 @@ test('G7b ★★진입 배타 ★★«반대 방향» — ✂ 가 선 채로 그
 
 test('G8 ★진입 중 ★마퀴가 ★안 뜬다 — 선택이 그룹 밖으로 샐 길을 막는다', async ({ page }) => {
   await scene(page);
+  /* ★★⒜ ★양성대조가 ★먼저다 — ★「그 자리에서 ★모드 ★밖이면 ★마퀴가 ★뜨나」.
+     ⛔이것이 없으면 ★이 칸은 ★★항등식이다: (300,880)이 ★스케일러 밖이거나 ★마퀴가 ★어차피 안 뜨는
+     자리면 ★「0」은 ★★모드와 ★무관하게 ★참이고, ★`!_groupMode` 를 ★지워도 ★초록이다(= 재는 자가 없다). */
+  await page.mouse.move(300, 880); await page.mouse.down();
+  await page.mouse.move(600, 940, { steps: 6 });
+  const ctl = await page.evaluate(() => document.querySelectorAll('.scratch-marquee').length);
+  await page.mouse.up(); await page.waitForTimeout(150);
+  console.log('[G8 양성대조] 모드 ★밖에서 끌 때 마퀴 DOM = ' + ctl);
+  expect(ctl, '★★양성대조 — ★모드 ★밖에서는 ★마퀴가 ★뜬다(★이게 0 이면 ★자가 ★눈이 먼 것이다)').toBeGreaterThan(0);
+
+  /* ★⒝ 이제 ★진입해서 ★같은 끌기 */
   await clickItem(page, 'sp_c', { dbl: true });
   expect((await st(page)).mode, '전제 — 진입').toBeTruthy();
-  /* 빈 바닥에서 끌어 본다 — ⛔모드가 ★밖 클릭으로 풀리므로 ★마퀴 DOM 이 ★뜨나만 본다 */
   await page.mouse.move(300, 880); await page.mouse.down();
   await page.mouse.move(600, 940, { steps: 6 });
   const mid = await page.evaluate(() => document.querySelectorAll('.scratch-marquee').length);
   await page.mouse.up(); await page.waitForTimeout(150);
-  console.log('[G8] 끄는 중 마퀴 DOM = ' + mid);
+  console.log('[G8] 진입 중 마퀴 DOM = ' + mid);
   expect(mid, '★★마퀴가 안 뜬다').toBe(0);
 });
 
