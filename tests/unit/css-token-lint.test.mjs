@@ -243,6 +243,9 @@ const SUBSTITUTIONS = [
   { file: 'css/editor-graph.css', token: '--ui-row-gap', was: '4px', what: '.grb-data-item gap' },
   { file: 'css/editor-panels.css', token: '--ui-radius-md', was: '6px', what: '#rp-height-total border-radius' },
   { file: 'css/editor-props.css', token: '--ui-fs-9', was: '9px', what: '.fxpart-chip-del font-size' },
+  /* ★이 자가 ★처음 찾아낸 제품 결함을 고친 자리 — `var(--ui-fs-11, 11px)` ★8곳.
+   *   ★이제 그 8곳이 ★`--ui-fs-base` 에 ★달려 있다 ⇒ ★그 값을 ★여기 못박는다. */
+  { file: 'css/report-modal.css', token: '--ui-fs-base', was: '11px', what: '8곳 font-size (옛 var(--ui-fs-11, 11px))' },
 ];
 
 test('치환 잠금 ⑴ 바꿔 넣은 토큰의 «지금 값»이 ★바꾸기 전 리터럴과 같다', () => {
@@ -689,4 +692,43 @@ test('⒊-① 명부 — ★없는 이름은 ★없고, ★css·★js 양쪽에�
     'js 의 ★배열 리터럴에 있는 이름(--grb-dot-hole)을 못 본다 — ★이 자리를 한 번 틀렸다(9건 → 참값 8건)');
   assert.ok(!known.has('--ui-fs-11'),
     '★없는 이름(--ui-fs-11)이 명부에 있다 — 그러면 report-modal.css 의 ★8곳을 ★영원히 못 잡는다');
+});
+
+/* ══ ★이 자가 ★처음 찾아낸 ★제품 결함을 ★고친 자리 — ★발견을 ★검사로 남긴다 ══════
+ * ★결함: `css/report-modal.css` 의 `var(--ui-fs-11, 11px)` ★8곳.
+ *   `--ui-fs-11` 은 ★어디에도 없었고(css 0 · js/html 0) ★참 이름은 `--ui-fs-base`(11px).
+ *   ⇒ ★fallback 11px 로 그려지고 ★`--ui-fs-base` 가 바뀌는 날 ★그 8곳만 안 따라갔다.
+ * ★고침: `var(--ui-fs-base)` (★레포 관용 — 대체값 없는 꼴 166건 vs 있는 꼴 1건).
+ *   ★그림은 ★오늘 동일하다(대체값 11px ＝ 토큰 11px · 실측).
+ * ★★⛔「고치면 ★그 자가 ★제 발견을 지운다」 — ★그래서 ★셋으로 잠근다:
+ *   ① `--ui-fs-11` 이 ★명부에 ★없다            ← ⛔「`--ui-fs-11: 11px` 를 ★정의해서» 끄는 길을 막는다
+ *                                                  (★위 「⒊-① 명부」 칸이 이미 건다)
+ *   ② 그 파일에 `--ui-fs-11` 사용이 ★0건        ← ★되돌리면 빨강
+ *   ③ ★자가 그 파일에서 «없는 토큰 이름» ★0건   ← ★계측기로 잠근다(★②가 놓치는 꼴까지)
+ *   ＋ `--ui-fs-base` = 11px 를 ★치환 잠금 표에 올렸다(위 SUBSTITUTIONS).
+ */
+test('발견 잠금 ② — css/report-modal.css 에 `--ui-fs-11` 사용이 ★0건 (★되돌리면 빨강)', () => {
+  const src = read('css/report-modal.css');
+  const hits = [...src.matchAll(/--ui-fs-11\b/g)].length;
+  assert.equal(hits, 0,
+    `★없는 토큰 이름 --ui-fs-11 이 ${hits}곳 돌아왔다 — 참 이름은 --ui-fs-base(11px). `
+    + '⛔--ui-fs-11 을 ★정의해서 끄지 마라(11px 토큰이 둘이 된다 · 위 「⒊-① 명부」 칸이 막는다)');
+  // ★음성대조 — 이 자가 ★글자를 ★정말 세는가(0 을 ★항등식으로 두지 않는다)
+  assert.equal([...('x var(--ui-fs-11, 11px) y'.matchAll(/--ui-fs-11\b/g))].length, 1,
+    '이 단언의 ★자가 글자를 못 센다 — 그러면 위 0 은 ★「안 봤다」다');
+});
+
+test('발견 잠금 ③ — ★자가 그 파일에서 «없는 토큰 이름» ★0건이라 한다 (★계측기로)', () => {
+  const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs'), '--all'],
+    { encoding: 'utf8', cwd: REPO });
+  assert.notEqual(r.status, 3, `HARNESS_ERROR\n${r.stdout}${r.stderr}`);
+  const bad = r.stdout.split('\n').filter((l) => /없는 토큰 이름/.test(l) && /report-modal\.css/.test(l));
+  assert.deepEqual(bad, [], `report-modal.css 에 «없는 토큰 이름»이 돌아왔다:\n${bad.join('\n')}`);
+  /* ★전제 — ★그 자가 ★그 꼴을 ★여전히 ★찾을 수 있나(⛔못 찾으면 위 0 은 ★「안 봤다」다).
+   *   ★합성으로 ★한 번 먹여 본다 — ⛔레포에 그 꼴이 남아 있기를 ★전제하지 않는다. */
+  const known = new Set(['--real']);
+  const got = lintCss('.z{font-size:var(--gone-name, 12px)}\n', null,
+    { color: new Map(), length: new Map([['font-size|12px', ['--ui-fs-12']]]), knownVars: known });
+  assert.equal(got.length, 1, '★자가 «없는 토큰 이름» 꼴을 ★더는 못 찾는다 — 위 0 은 거짓이다');
+  assert.equal(got[0].unknownVar, '--gone-name');
 });
