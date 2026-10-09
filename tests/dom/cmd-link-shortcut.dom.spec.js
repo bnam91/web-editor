@@ -43,9 +43,15 @@ const ITEMS = [
   ['sp_m1',   1500, 640, undefined],
   ['sp_m2',   1700, 640, undefined],
   ['sp_m3',   1900, 640, undefined],
+  /* ★둘째 그룹 — ★K10 용(「그룹 ★하나당 섹션 1」의 ★«하나당»이 ★복수를 품는지). ★멤버 수를 ★다르게(2) 둔다:
+     ★같은 수면 ★두 섹션이 ★바뀌어도 ★수가 맞아 ★안 드러난다. */
+  ['sp_b1',   1500, 820, 'g_two'],
+  ['sp_b2',   1700, 820, 'g_two'],
 ];
-const GROUP_ID = 'g_five';                                            // ★이름 하나 — ⛔문자열을 두 곳에 적지 않는다
-const GROUP_N  = ITEMS.filter(([, , , g]) => g === GROUP_ID).length;   // ★5 — ⛔손으로 안 박는다
+const GROUP_ID  = 'g_five';                                           // ★이름 하나 — ⛔문자열을 두 곳에 적지 않는다
+const GROUP_N   = ITEMS.filter(([, , , g]) => g === GROUP_ID).length;
+const GROUP_B_ID = 'g_two';
+const GROUP_B_N  = ITEMS.filter(([, , , g]) => g === GROUP_B_ID).length;   // ★5 — ⛔손으로 안 박는다
 
 /* ★장면을 «앱 자신의 입구»로 세운다 — 손으로 쓴 섹션 HTML 은 ⌘Z 복원이 좌우여백을 «채워» 넣어
    「복원 뒤 ≠ 조작 전」이 된다(cmd-link-new-section 의 그 실측). */
@@ -370,36 +376,112 @@ test('K8n ③ ★수는 «단위 수»를 따른다 — 일반 1·2·3 단위에
   }
 });
 
+/* ★★★K10 — ★「그룹 ★★하나당 섹션 ★1」의 ★«하나당»은 ★★복수를 품는 말이다 ⇒ ★그룹이 ★둘이면 섹션도 ★둘.
+   ★지디 발주 정정 둘(2026-10-09):
+     ㉠ ★앞 명부에서 ★이 칸을 「0건」으로 적었는데 ★그것은 ★★«구조상 못 잰다»가 ★아니라
+        ★★«내가 장면을 ★그룹 하나로 ★좁혔다»였다 ⇒ ★장면을 ★넓혀 ★채운다.
+     ㉡ ★★그리고 ★그룹마다 ★★«멤버가 ★여럿»이어야 한다 — ★아래 ⛔경고를 보라.
+   ★★★⛔다음 사람에게 — ★`n`(그룹A 멤버)·`m`(그룹B 멤버)을 ★★1로 ★줄이지 ★마라:
+     ★멤버가 ★하나면 ★★같은 키가 ★안 겹쳐 `_cmdLinkUnits` 의 ★`seen`(중복 접기)이 ★★무관해지고
+     ★★변이 ★N7(`seen` 제거)이 ★이 검사를 ★★안 문다 ⇒ ★★이 검사가 ★★조용히 ★약해진다.
+     ★지금 값: ★A=5 · ★B=2 · ★일반 k=2 ⇒ ★선택 ★9장 · ★단위 ★4 · ★섹션 ★4 · ★링크 ★9.
+   ★★★수만 세면 ★모자란다 — ★섹션 수가 ★4 로 ★맞으면서 ★★A 의 멤버가 ★B 의 섹션에 ★섞여도 ★초록이 된다.
+     ⇒ ★★«어느 그룹이 ★어느 섹션인가»를 ★★정체로 ★재라(아래 ㉣). ★두 그룹의 멤버 수를 ★다르게 뒀다(5 vs 2). */
+test('K10 ③ ★★그룹 ★둘(5·2) ＋ 일반 2 = ★단위 4 ⇒ 섹션 ★«4개» · ★어느 그룹이 ★어느 섹션인지까지', async ({ page }) => {
+  await setup(page);
+  const before = await secIds(page);
+  const LOOSE = ['sp_m1', 'sp_m2'];
+
+  /* ㉠ ★전제 — 두 그룹이 ★정말 ★다른 그룹이고 ★멤버 수가 ★그 수인가(지디 조건 ⒜⒝) */
+  const gm = await page.evaluate(([ga, gb, loose]) => ({
+    a: [...document.querySelectorAll('.scratch-item[data-scratch-group="' + ga + '"]')].map(x => x.dataset.scratchId).sort(),
+    b: [...document.querySelectorAll('.scratch-item[data-scratch-group="' + gb + '"]')].map(x => x.dataset.scratchId).sort(),
+    looseGroups: loose.map((id) => document.querySelector('.scratch-item[data-scratch-id="' + id + '"]').dataset.scratchGroup ?? null),
+  }), [GROUP_ID, GROUP_B_ID, LOOSE]);
+  expect(GROUP_ID, '㉠⒜ 두 그룹 id 가 ★다르다').not.toBe(GROUP_B_ID);
+  expect(gm.a.length, `㉠⒝ 그룹A ★${GROUP_N}장 (⛔1이면 N7 이 이 검사를 안 문다)`).toBe(GROUP_N);
+  expect(gm.b.length, `㉠⒝ 그룹B ★${GROUP_B_N}장 (⛔1이면 같은 이유로 약해진다)`).toBe(GROUP_B_N);
+  expect(GROUP_N > 1 && GROUP_B_N > 1, '㉠⒝ ★★둘 다 ★2 이상이다 = ★`seen` 이 ★일하는 장면이다').toBe(true);
+  expect(gm.a.filter(x => gm.b.includes(x)), '㉠ ★두 그룹이 ★멤버를 ★안 겹친다').toEqual([]);
+  expect(GROUP_N, '㉠ ★멤버 수가 ★서로 달라야 정체를 수로도 가른다').not.toBe(GROUP_B_N);
+  expect(gm.looseGroups, '㉠⒞ ★일반 둘은 ★어느 그룹에도 ★안 들었다').toEqual([null, null]);
+
+  /* ㉡ 장면 — ★그룹A 는 ★그냥 클릭(전원 번짐) · ★그룹B 2장과 일반 2장은 ⇧ */
+  await clickItem(page, 'sp_f1');                       // 비shift ⇒ 그룹A 전원
+  for (const id of ['sp_b1', 'sp_b2', ...LOOSE]) await clickItem(page, id, { shift: true });
+  const want = GROUP_N + GROUP_B_N + LOOSE.length;      // 5 ＋ 2 ＋ 2 = 9
+  const nSel = await page.evaluate(() => document.querySelectorAll('.scratch-item.scratch-selected').length);
+  expect(nSel, `전제 — 선택 ★${want}장(A ${GROUP_N} ＋ B ${GROUP_B_N} ＋ 일반 ${LOOSE.length})`).toBe(want);
+
+  /* ㉢ 수 */
+  await pressCmdL(page);
+  const after = await secIds(page);
+  const rows = await refRows(page);
+  const UNITS = 2 + LOOSE.length;                       // 그룹 둘 ＋ 일반 각 1 = 4
+  expect(after.length - before.length, `★★섹션 ★＋${UNITS} (⛔${want}개가 아니다 — 그룹은 ★하나로 친다)`).toBe(UNITS);
+  expect(rows.length, `★연결 가진 섹션 ★${UNITS}개`).toBe(UNITS);
+  const total = rows.reduce((a, r) => a + r.ids.length, 0);
+  expect(total, `★링크 총 ${GROUP_N} ＋ ${GROUP_B_N} ＋ ${LOOSE.length}`).toBe(want);
+  expect(rows.map(r => r.ids.length).sort((a, b) => a - b), `★섹션별 링크 수`)
+    .toEqual([1, 1, GROUP_B_N, GROUP_N].sort((a, b) => a - b));
+
+  /* ㉣ ★★정체 — ★어느 그룹이 ★어느 섹션인가. ⛔수로만 세면 ★섞여도 초록이 된다.
+     ★일반이 ★둘이라 ★«길이로 집기»가 ★안 통한다(1짝이 ★둘) ⇒ ★갈래마다 ★수와 명부를 ★따로 단언한다. */
+  const aRows = rows.filter(r => r.ids.length === GROUP_N);
+  const bRows = rows.filter(r => r.ids.length === GROUP_B_N);
+  const oneRows = rows.filter(r => r.ids.length === 1);
+  expect(aRows.length, `㉣ ${GROUP_N}짝 섹션은 ★하나`).toBe(1);
+  expect(bRows.length, `㉣ ${GROUP_B_N}짝 섹션은 ★하나`).toBe(1);
+  expect(oneRows.length, `㉣ 1짝 섹션은 ★${LOOSE.length}개`).toBe(LOOSE.length);
+  expect(aRows[0].ids, '㉣ ★그 섹션 = ★그룹A ★멤버 ★그대로(⛔B 가 섞이지 않았다)').toEqual(gm.a);
+  expect(bRows[0].ids, '㉣ ★그 섹션 = ★그룹B ★멤버 ★그대로').toEqual(gm.b);
+  expect(oneRows.flatMap(r => r.ids).sort(), '㉣ ★1짝 둘 = ★일반 그 둘').toEqual([...LOOSE].sort());
+  expect(new Set(rows.map(r => r.id)).size, `㉣ ★${UNITS} 섹션이 ★서로 다르다`).toBe(UNITS);
+  expect(rows.map(r => r.id).sort(), '㉣ ★그것들이 ★새로 생긴 섹션들이다')
+    .toEqual(after.filter(x => !before.includes(x)).sort());
+
+  console.log('[K10 그룹둘] 선택=' + nSel + ' → 섹션 ＋' + (after.length - before.length)
+    + ' · 링크 총 ' + total + ' · 섹션별 ' + JSON.stringify(rows.map(r => r.ids.length))
+    + ' · A=' + JSON.stringify(aRows[0].ids) + ' B=' + JSON.stringify(bRows[0].ids)
+    + ' 일반=' + JSON.stringify(oneRows.flatMap(r => r.ids).sort()));
+});
+
 /* ══ 양성대조·변이 명부 — ★실측(이 레인 · 2026-10-09 · load 5~9 · ⛔전부 ★행위로) ═══════════
- * ⒜ ★판을 ★둘 두고 ★각각 쟀다 — ⛔HEAD 를 판으로 쓰지 않았다(고친 뒤엔 HEAD 가 곧 고친 판이다):
+ * ⒜ ★판을 ★셋 두고 쟀다 — ⛔HEAD 를 판으로 쓰지 않았다(고친 뒤엔 HEAD 가 곧 고친 판이다):
  *     ㉠ ★핀 `a3556b936f8f` (②③ ★둘 다 없다) : ★빨강 **11** / 초록 13
- *        빨강 = K1 K2 K3 K3b K4 K5 K6 K8 K8n K9 ＋ L5
- *        초록 = **K0 · K7a~K7d** ＋ L0~L4 L6~L8   ⇒ ★그 다섯이 «지키는 시험»이다
- *     ㉡ ★②커밋 `46d35308` (★③ ★만 없다) : ★빨강 **6** / 초록 18 · ★★×3 ★같은 집합 · rc=1 ×3
- *        빨강 = **K4 K5 K6 K8n K9** ＋ L5   ⇒ ★★이것이 ③ 을 ★«따로» 재는 자다(②와 ★안 섞인다)
- *     ⇒ ③ 적용 뒤 : **24 passed · rc=0 ×3** (★이 티켓 ★첫 rc=0)
- *     ★원복도 쟀다 — 핀 판으로 갈아끼운 뒤 sha 가 `git show a3556b93:` 와 ★일치함을 확인하고 돌렸다.
+ *        빨강 = K1 K2 K3 K3b K4 K5 K6 K8 K8n K9 ＋ L5 · 초록 = **K0 · K7a~K7d** ＋ L 여덟
+ *        ⇒ ★그 다섯이 «지키는 시험»이다(⌘L 이 ★없던 판에서도 참이라야 증인이 된다)
+ *     ㉡ ★②커밋 `46d35308` (★③ ★만 없다) : ★빨강 **7** / 초록 18 · ★★×3 ★같은 집합 · rc=1 ×3
+ *        빨강 = **K4 K5 K6 K8n K9 ★K10** ＋ L5  ⇒ ★★③ 을 ★«따로» 재는 자다(②와 ★안 섞인다)
+ *     ㉢ ★③커밋 `0e0bbf8b` : **25 passed · rc=0 ×2**
+ *        ⚠️★K10 은 ★이 판에서 ★★초록이다 — ★제품이 ★이미 ③ 이라 ★«없어서 빨강»이 ★★아니다.
+ *          ⇒ ★★그래서 ★K10 의 ★이 초록은 ★★아무것도 ★증명하지 ★않는다. ★참 대조는 ★위 ㉡ 과 ★아래 N6·N7 이다.
+ *     ★원복도 쟀다 — 판을 갈아끼운 뒤 sha 가 `git show <그 판>:` 와 ★일치함을 확인하고 돌렸다.
  * ⒝ ★변이 — 「무엇을 끄면 어느 검사가 빨강인가」· ★★0건 ★없다:
- *       N1 그룹 접기 무력화(`key` 를 `'#'+id` 로) → K3 K3b L4 L6        (4)
- *       N2 ★«버튼만» 옛 꼴로(`linkToNewSection`)  → **K5 L5**            (2)
- *       N3 ★«⌘L 만» 옛 꼴로                      → K4 K5 K6 K8n K9      (5)
- *       N4 히스토리 노옵 제거                      → K6 L6                (2)
- *       N5 끝 표본 제거                           → K6 L6                (2)
- *       N6 한 단위에서 ★첫 장만 연결               → K3 K3b K9 L4         (4)
- *       N7 ★중복 접기(`seen`) 제거                 → K3 K3b L4 L6         (4)
- *     ★★N2 가 ★이 설계의 ★증인이다 — ★«버튼만» 되돌리면 ★K5(두 입구 대조)와 ★L5 가 ★같이 빨개진다
- *       ⇒ ★★「입구 둘이 ★조용히 갈린다」를 ★실제로 ★잡는다. ★«정본 하나»가 ★말이 아니라 ★재어졌다.
- *     ★★N7 은 ★내 ★예상이 ★틀린 자리다 — 「중복 입력이 없으니 0건」이라 ★생각했는데 ★4칸이 물었다.
- *       까닭: `seen` 이 ★없으면 ★그룹 5장이 ★5단위가 된다(멤버마다 한 번씩 돈다) ⇒ ★★그 한 줄이
- *       「★그룹 = 하나」를 ★떠받치는 자였다. ⛔예상으로 0건을 적지 말고 ★돌려 보라는 ★실례.
- * ⒞ ⛔양성대조 ★0건인 자리(=이 파일이 «안 재는» 것) — ★이름으로 남긴다:
+ *       N1 그룹 접기 무력화(`key`→`'#'+id`) → ★K10 K3 K3b L4 L6    (5)
+ *       N2 ★«버튼만» 옛 꼴로               → **K5 L5**              (2) ⛔K10 ★안 뭄(K10 은 ⌘L 쪽이다)
+ *       N3 ★«⌘L 만» 옛 꼴로                → ★K10 K4 K5 K6 K8n K9  (6)
+ *       N4 히스토리 노옵 제거                → K6 L6                 (2) ⛔K10 ★안 뭄(K10 은 ⌘Z 를 안 잰다)
+ *       N5 끝 표본 제거                     → K6 L6                 (2) ⛔같은 까닭
+ *       N6 한 단위에서 ★첫 장만 연결         → ★K10 K3 K3b K9 L4     (5) ★★지디 조건 — ★물었다
+ *       N7 ★중복 접기(`seen`) 제거           → ★K10 K3 K3b L4 L6     (5) ★★지디 조건 — ★물었다
+ *     ★★N2 가 ★이 설계의 증인이다 — «버튼만» 되돌리면 ★K5(두 입구 대조)와 ★L5 가 ★같이 빨개진다
+ *       ⇒ ★★「입구 둘이 ★조용히 갈린다」를 ★실제로 잡는다. ★«정본 하나»가 ★말이 아니라 ★재어졌다.
+ *     ★★N7 은 ★내 ★예상이 ★틀린 자리다 — 「중복 입력이 없으니 0건」이라 봤는데 ★5칸이 물었다.
+ *       까닭: `seen` 이 없으면 ★그룹 N장이 ★N단위가 된다 ⇒ ★★그 한 줄이 「그룹=하나」를 ★떠받치는 자였다.
+ *       ⛔예상으로 0건을 적지 말고 ★돌려 보라는 ★실례. ⇒ ★K10 의 장면을 ★그래서 「그룹당 ★멤버 ★여럿」으로 뒀다.
+ * ⒞ ⛔양성대조 ★0건인 자리 — ★★«까닭이 ★두 종류»다. ★갈라 적는다(지디 조건):
+ *   ㉠ ★★«구조상 ★못 잰다» — ★이 하네스/판에서 ★잴 길이 없다:
  *     · ★**M6 `e.preventDefault(); e.stopPropagation();` 제거 → 0건**(②에서 쟀다). 까닭: 이 레포에서
  *       ⌘L 을 처리하는 자가 ★달리 없고(실측 0건), 헤드리스엔 ★주소창이 없어 ★막을 기본동작이 없다.
  *       ⇒ ★나중에 ⌘L 을 쓰는 자가 생기면 ★이 칸이 ★조용히 무너진다. ★그때 재라.
- *     · ★**새 섹션의 «순서»** — 0건. `_mkLinkedSection` 이 tail 을 ★매번 다시 읽어 ★받은 순서로 쌓이는데,
- *       K4·K9 는 ★정렬해서 견주므로 ★순서를 ★안 잠근다. ⇒ ★순서가 요구가 되면 ★그때 자를 세워라.
- *     · ★**진짜 윈도/리눅스 실기** 0건(K8 은 맥 헤드리스에서 Ctrl 수식어) · ★**배포 Electron** 0건.
- *     · ★**섹션 0개 캔버스**에서의 ⌘L · ★**이미 다른 섹션에 연결된 스크래치**를 다시 거는 갈래 — 0건.
- *     · ★**그룹 ★둘 이상**을 한 번에 고른 경우(그룹A＋그룹B ⇒ 2단위) — ★0건(미측정). ★규칙상 2개일 참인데
- *       ★장면에 그룹이 ★하나뿐이라 ★안 쟀다. ⇒ ★★「합산」의 ★그 칸은 ★«일반＋그룹»만 쟀다(K9).
+ *     · ★**진짜 윈도/리눅스 실기** — K8 은 ★맥 헤드리스에서 Ctrl 수식어를 보낸 것이다.
+ *     · ★**배포(packaged) Electron 앱** — ⌘L 이 ★OS·앱 메뉴에 먹히나는 ★소스로만 쟀다.
+ *   ㉡ ★★«내가 ★장면/자를 ★좁혔다» — ⛔구조가 아니라 ★내 선택이다. ★넓히면 ★잴 수 있다:
+ *     · ✅**그룹 ★둘 이상** — ★앞 판에서 0건이었다(장면에 그룹이 하나뿐). ⇒ ★★K10 으로 ★채웠다(A=5·B=2·일반2).
+ *     · ⛔**새 섹션의 «순서»** — `_mkLinkedSection` 이 tail 을 ★매번 다시 읽어 ★받은 순서로 쌓이는데
+ *       K4·K9·K10 이 ★★정렬해서 견준다 ⇒ ★순서를 ★안 잠근다. ★«자»를 내가 좁혔다. 순서가 요구가 되면 그때 세워라.
+ *     · ⛔**섹션 ★0개 캔버스**에서의 ⌘L — 장면이 섹션 둘로 시작한다.
+ *     · ⛔**이미 다른 섹션에 연결된 스크래치**를 다시 거는 갈래 — 장면이 ★연결 0건에서 시작한다.
+ *     · ⛔**그룹 ★셋 이상** · **빈 그룹** — K10 이 ★둘까지만 잰다.
  */
