@@ -504,15 +504,34 @@ test('③ 단언 ★본문에 명령이 들어 있다 — ⛔제목만으로는 
  * ⛔「지금 editor-layout.css 가 ★실명이다」를 ★단언으로 걸지 않는다 —
  *   그러면 ★고치는 날 ★빨개진다(「일부러 빨간 검사가 다음 빨강을 가린다」).
  *   ⇒ ⑴ 계측기가 ★잡을 수 있나(합성 양성/음성) ⑵ 그 줄이 ★출력에 ★늘 찍히나 — 둘만 건다. */
-test('Ⓐ 정합 ⑴ — astral 문자가 있으면 ★색인 어긋남을 ★잡는다 (＋없으면 ★0 : 음성대조)', () => {
+/* ★★이 칸은 ★Ⓑ 고침 뒤 ★고쳤다 — ⛔원래는 ★«결함»을 재고 있었다.
+ *   옛 단언: 「astral 이 있으면 ★lenDrift ≠ 0」 ⇒ ★그건 ★버그의 ★증상이었다.
+ *   ★Ⓑ 가 그 버그를 없애자 ★이 칸이 ★빨개졌다 — ★계측기가 아니라 ★결함을 잠근 칸이었다.
+ *   ⇒ ★지금은 ⑴ astral 을 ★세는가 ⑵ 어긋남이 ★0 인가(＝★계약)만 건다.
+ * ⛔그러면 ★`lenDrift ≠ 0` 갈래는 ★«안 재는 자»가 된다 — ★안 숨긴다:
+ *   ★그 갈래를 재는 것은 ★무력화 묶음이다(거르개를 깨뜨려 ★어긋남을 만들어 본다, 아래). */
+test('Ⓐ 정합 ⑴ — astral 을 ★세고, 어긋남은 ★0 이다 (Ⓑ 뒤 ★계약)', () => {
   const plain = '.a{color:red}\n.b{color:blue}\n';
   const withAstral = '/* 📝 */\n.a{color:red}\n.b{color:blue}\n';
   const a = scanIntegrity(plain);
   const b = scanIntegrity(withAstral);
-  assert.equal(a.astral, 0);
-  assert.equal(a.lenDrift, 0, '멀쩡한 소스에 어긋남이 있다고 한다(거짓양성)');
+  assert.equal(a.astral, 0, 'astral 이 없는데 있다고 한다');
   assert.equal(b.astral, 1, 'astral 문자를 못 센다');
-  assert.notEqual(b.lenDrift, 0, '★astral 이 있는데 어긋남을 ★0 으로 본다 — 이 계측기가 ★장님이다');
+  assert.equal(a.lenDrift, 0, '멀쩡한 소스에 어긋남이 있다고 한다');
+  assert.equal(b.lenDrift, 0, '★astral 이 있는데 어긋났다 — ★Ⓑ 고침이 되돌아갔다');
+  assert.equal(b.decls, a.decls, 'astral 하나 때문에 선언 수가 달라진다 — ★Ⓑ 고침이 되돌아갔다');
+});
+
+test('Ⓐ 정합 ⑴b — 거르개를 ★깨뜨리면 ★어긋남을 ★잡는다 (⇒ lenDrift 갈래가 ★죽은 자가 아니다)', () => {
+  /* ★계측기 쪽을 ★직접 먹인다 — ⛔제품 거르개를 되돌리지 않고 ★같은 산식을 ★손으로 흉내 낸다.
+   *   `lenDrift = blanked.length - src.length` 이므로, ★코드포인트 배열로 만든 출력은
+   *   astral 이 있을 때 ★반드시 짧아진다. ★그게 ★옛 꼴(Array.from)이 낸 수다. */
+  const src = '/* 📝 */\n.a{color:red}\n';
+  const cpJoin = Array.from(src).join('');          // 길이는 같다(join 은 복원한다)
+  assert.equal(cpJoin.length, src.length);
+  const cpLen = Array.from(src).length;             // ★이 수가 ★옛 꼴이 쓰던 n 이다
+  assert.ok(cpLen < src.length, 'astral 이 있는데 코드포인트 수가 UTF-16 길이와 같다 — 표본이 죽었다');
+  assert.equal(cpLen - src.length, -1, `옛 꼴이 낼 어긋남이 -1 이 아니다: ${cpLen - src.length}`);
 });
 
 test('Ⓐ 정합 ⑵ — 짝 없는 `(` 를 ★잡는다 (＋짝이 맞으면 ★0 : 음성대조)', () => {
@@ -533,12 +552,13 @@ test('Ⓐ 정합 ⑵b — 문자열 안의 `)` ★만으로는 ★폭주가 ★�
   assert.deepEqual(r.runaway, [], `문자열 안의 ) 때문에 폭주했다고 한다: ${JSON.stringify(r)}`);
   assert.equal(r.lenDrift, 0, 'astral 이 없는데 색인이 어긋났다');
   assert.equal(r.decls, 2, `그 뒤를 못 봤다 — 선언 ${r.decls}개`);
-  /* ★같은 표본에 astral 하나만 더하면 ★색인이 어긋난다 — ★그것이 ★원인 쪽이다.
-   * ⛔「어긋나면 ★반드시 폭주한다」는 ★참이 아니다(작은 표본에서 재 보니 안 났다) —
-   *   어긋난 빈칸이 ★무엇을 덮느냐에 달렸다. ⇒ ★여기선 ★어긋남까지만 단언한다. */
+  /* ★★Ⓑ 뒤 — astral 을 더해도 ★이제 아무 일이 없다. ★그게 ★고침의 ★뜻이다.
+   *   ⛔옛 단언(「astral 을 더하면 ★어긋난다」)은 ★결함의 증상이라 ★지웠다. */
   const r2 = scanIntegrity('/* 📝 */\n' + sample);
-  assert.notEqual(r2.lenDrift, 0, 'astral 을 더했는데 어긋남이 0 이다');
-  assert.equal(r2.astral, 1);
+  assert.equal(r2.astral, 1, 'astral 을 못 센다');
+  assert.equal(r2.lenDrift, 0, 'astral 을 더하니 어긋났다 — ★Ⓑ 고침이 되돌아갔다');
+  assert.deepEqual(r2.runaway, [], 'astral 을 더하니 폭주했다 — ★Ⓑ 고침이 되돌아갔다');
+  assert.equal(r2.decls, r.decls, `astral 때문에 선언 수가 ${r.decls} → ${r2.decls} 로 달라졌다`);
 });
 
 /* ★★Ⓑ 가 ★되돌릴 ★계약을 ★여기 적어 둔다(⛔아직 단언으로 걸지 않는다 —
@@ -563,3 +583,84 @@ test('Ⓐ 정합 ⑷ — 꼬리 빈 줄·@import 전용 파일을 ★거짓양�
   const rep = integrityReport(['t.css', 'a.css'], (f) => (f === 't.css' ? tail : atOnly));
   assert.deepEqual(rep.map((x) => x.file), [], `멀쩡한 둘을 실명으로 올렸다: ${JSON.stringify(rep)}`);
 });
+
+/* ══ Ⓑ ★실명 고침의 ★계약 — ⛔이 칸이 ★이 고침의 ★본체다 ══════════════════
+ * ★없으면 ★다음 사람이 ★또 `Array.from(src)` 로 ★되돌린다(그게 ★원래 꼴이었다).
+ * ★계약: `blankCssNoise(src).length === src.length`
+ *   ★거르개는 ★길이와 ★줄 구조를 ★보존해야 한다 — 안 그러면 `makeLineIndex(src)` 의
+ *   오프셋이 ★blanked 와 ★안 맞고, ★빈칸이 ★«밀린 자리»에 찍힌다.
+ * ★반례(이 단언이 거짓이 되는 판) = `src.split('')` 를 `Array.from(src)` 로 ★되돌리는 판.
+ *   ★실측 2026-10-10: 그 판에서 editor-layout.css 는 ★38970 vs 38972 로 ★어긋났다.
+ */
+test('Ⓑ 계약 ⑴ — 거르개가 ★길이를 보존한다 (★astral 합성 ＋ ★레포 전 파일)', () => {
+  // ★합성 — astral 이 있어도 길이가 같아야 한다
+  for (const src of ['/* 📝 */\n.a{color:red}\n', '.a{content:"🔗"}\n', '🔗🔗🔗\n.b{color:blue}\n']) {
+    assert.equal(blankCssNoise(src).length, src.length, `길이가 달라졌다: ${JSON.stringify(src)}`);
+  }
+  // ★레포 전 파일 — ⛔한 파일만 재면 「한 환경에서만 참」이 된다
+  const files = fs.readdirSync(path.join(REPO, 'css')).filter((f) => f.endsWith('.css')).sort();
+  const bad = files.filter((f) => { const s = read(`css/${f}`); return blankCssNoise(s).length !== s.length; });
+  assert.deepEqual(bad, [], `길이가 어긋난 파일 — ⛔Array.from 으로 되돌아갔나: ${bad.join(', ')}`);
+});
+
+/* ★⒝ ★«astral 이 든 ★실제 파일»을 ★입력으로 박는다 — ⛔합성 미끼로 두지 않는다.
+ * ★합성 미끼는 ★그 이모지가 ★소스에서 사라지면 ★조용히 ★항등식이 된다.
+ *   ⇒ ★그래서 ★«그 파일에 ★astral 이 ★아직 있나»를 ★전제로 ★먼저 건다.
+ *   ★전제가 깨지면(이모지가 지워지면) ★이 칸이 ★빨개져 ★다음 사람이 ★표본을 옮긴다. */
+const ASTRAL_FILES = [
+  { file: 'css/editor-layout.css', minDecls: 558 },   // ★고침 전 479 (★실측 2026-10-10)
+  { file: 'css/editor-extra.css', minDecls: 1513 },   // ★고침 전 1512
+];
+
+test('Ⓑ 계약 ⑵ 전제 — 그 두 파일에 ★astral 문자가 ★아직 있다 (없으면 ★이 표본이 죽는다)', () => {
+  for (const { file } of ASTRAL_FILES) {
+    const r = scanIntegrity(read(file));
+    assert.ok(r.astral > 0,
+      `${file} 에 astral 문자가 ★0개다 — ★이 표본은 ★더 이상 색인 섞임을 ★안 잰다. `
+      + 'ASTRAL_FILES 를 ★astral 이 든 다른 파일로 옮겨라(⛔칸을 지우지 마라)');
+  }
+});
+
+test('Ⓑ 계약 ⑶ — astral 이 든 ★실제 파일을 ★끝까지 본다 (선언 ≥ 실측값 · 어긋남 0 · 폭주 0)', () => {
+  for (const { file, minDecls } of ASTRAL_FILES) {
+    const r = scanIntegrity(read(file));
+    assert.equal(r.lenDrift, 0, `${file} 색인이 어긋났다(${r.lenDrift}) — 실명이 돌아왔다`);
+    assert.deepEqual(r.runaway, [], `${file} 에 짝 없는 ( 가 남았다: ${r.runaway.join(',')}행`);
+    assert.ok(r.lastSeen >= r.lastCandidate,
+      `${file} 가 ${r.lastSeen}행까지만 본다 (선언 가능한 마지막 ${r.lastCandidate})`);
+    /* ⛔맨숫자 금지 — `≥` 로 건다. 파일이 ★자라는 것은 정상이고, ★줄면 사람이 봐야 한다. */
+    assert.ok(r.decls >= minDecls,
+      `${file} 선언 ${r.decls}개 — 실측 기준 ${minDecls} 아래다. ★실명이 돌아왔거나 ★CSS 가 줄었다`);
+  }
+});
+
+test('Ⓑ 계약 ⑷ 한 쌍 — astral 을 ★BMP 로 바꿔도 ★수가 ★안 변한다 (고친 뒤엔 ★그래야 맞다)', () => {
+  for (const { file } of ASTRAL_FILES) {
+    const src = read(file);
+    /* ★같은 UTF-16 길이의 BMP 둘로 바꾼다 — 구조는 ★한 글자도 안 건드린다 */
+    const swapped = src.replace(/[\u{10000}-\u{10FFFF}]/gu, '··');
+    assert.equal(swapped.length, src.length, '치환이 길이를 바꿨다 — 이 대조가 성립 안 한다');
+    const a = scanIntegrity(src);
+    const b = scanIntegrity(swapped);
+    assert.equal(a.decls, b.decls,
+      `${file}: astral 이 있을 때 ${a.decls}개, BMP 로 바꾸면 ${b.decls}개 — ★아직 astral 에 반응한다`);
+    assert.equal(a.lastSeen, b.lastSeen, `${file}: 마지막 본 줄이 ${a.lastSeen} vs ${b.lastSeen}`);
+  }
+});
+
+test('Ⓑ 폭주 가드 — 짝 없는 `(` 가 있어도 ★그 뒤를 ★본다 (⛔EOF 까지 먹지 않는다)', () => {
+  // ★진짜 짝 없는 괄호 — 색인 섞임과 ★다른 것을 막는 가드다
+  const src = '.a{color:rgb(1,2}\n.b{color:blue}\n.c{font-size:12px}\n';
+  const d = scanDeclarations(blankCssNoise(src));
+  const props = d.map((x) => x.prop);
+  assert.ok(props.includes('color') && props.includes('font-size'),
+    `짝 없는 ( 뒤를 안 봤다 — 집은 선언 [${props.join(',')}]`);
+  assert.ok(d.length >= 3, `선언 ${d.length}개 — 3개 이상이어야 한다`);
+});
+
+/* ★★이 자가 ★처음 찾아낸 ★제품 결함 — ⛔이 레인에서 ★고치지 않는다(지디 판정).
+ *   css/report-modal.css 의 `var(--ui-fs-11, 11px)` ★8곳.
+ *   `--ui-fs-11` 은 ★존재하지 않는다(css 0건 · js/html 0건). 참 이름 = `--ui-fs-base: 11px`.
+ *   ⇒ 지금은 ★fallback 11px 로 그려지고, `--ui-fs-base` 가 바뀌는 날 ★그 8곳만 안 따라간다.
+ *   ⛔고치면 ★그 자가 ★«자기 발견»을 지워 ★다시 증명할 수 없게 된다 ⇒ ★별건으로 올렸다.
+ *   ★여기선 ★«그 결함이 아직 있다»를 ★단언하지 ★않는다 — 그러면 ★고치는 날 빨개진다. */
