@@ -626,6 +626,14 @@ function _markGroupMode(on) {
 function _enterGroupMode(item) {
   if (!item || !item.g) return false;
   if (_groupMode === item.g) { _clearSelection(); _selectItem(item, false); return true; }
+  /* ★★«잠든 가드»다 — ⛔«죽은 가드»와 ★가려 적는다(지디 판정 2026-10-10).
+     ★실측: 변이 `M-EXCL-B`(이 줄 제거) → ★★순 빨강 ★★0건. ★즉 ★지금은 ★★안 선다.
+     ★까닭: ✂ 모드가 ★★제 길로 ★이미 끝난다(그 클릭이 ★확정/취소로 ★모드를 닫는다) ⇒ 여기 오면 `_sliceMode` 가 ★null.
+     ★★★가름 자 = ★★«그 조건이 ★참이 되는 판이 ★있나»:
+       ㉢ 마퀴 `!_groupMode` → ★★없다(capture 가 ★구조적으로 ★먼저 돈다) ⇒ ★★죽었다 ⇒ ★★지웠다
+       ㉣ ★이 줄            → ★★있다(✂ 의 닫는 길·등록 순서는 ★★코드가 정한다 · 바뀌면 ★살아난다) ⇒ ★★둔다
+     ⛔그러니 ★이 줄을 ★«0건이니 죽었다»로 ★지우지 마라 — ★그 0건은 ★★«지금 판에서만» 참이다.
+     ★재는 자 = `M-EXCL-B` · ★★명부에 ★★«기대 0건»으로 ★올려 뒀다(⛔「0건이 비정상」이 ★아니다). */
   if (_sliceMode) _exitSliceMode();            // ★진입 배타(반대쪽은 _enterSliceMode 머리)
   if (_groupMode) _exitGroupMode();
   _clearSelection();
