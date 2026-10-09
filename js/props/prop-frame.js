@@ -2,6 +2,7 @@
    PROP-FRAME — Frame 속성 패널 (frame-block)
 ══════════════════════════════════════ */
 import { propPanel } from '../globals.js';
+import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline } from '../frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
@@ -218,6 +219,9 @@ function _renderAutoPanel(ss) {
   const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
   const minWidth = isShapeFrame ? Math.min(width, 20) : 200;
   const hasBgImg = ss.style.backgroundImage && ss.style.backgroundImage !== 'none';
+  /* ★2026-10-10 ③ — ★배경 크기 칸. ★값은 ★dataset 이 정본(공용 `frameBgSize`)이고 ★여기선 ★그릴 때만 읽는다 */
+  const _bgSizeNow = frameBgSize(ss);
+  const _bgSizeCustom = /px/.test(_bgSizeNow);
   const borderWidth = Math.round(panelRenderedPx(ss, 'borderTopWidth'));   // 묶음 B E114 — 그려진 테두리(쓰기 키는 dataset.borderW · 옛 표시는 dataset.borderWidth 를 읽어 늘 0)
   const borderStyle = ss.dataset.borderStyle || 'solid';
   const rawBorderColor = ss.style.borderColor || ss.dataset.borderColor || '#888888';
@@ -300,6 +304,20 @@ function _renderAutoPanel(ss) {
       <button class="prop-action-btn secondary" id="ss-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
       <input type="file" id="ss-bg-img-input" accept="image/*" style="display:none">
       ${hasBgImg ? `
+        <!-- ★★2026-10-10 (현빈 ③ 「프레임블럭의 배경도 ★면 프레임안에서 ★이미지 위치나 ★크기 조절되게」)
+             ★섹션 패널의 sec-bg-size 와 ★★같은 꼴·같은 값»을 쓴다 — ⛔새 이름·새 값 ★금지.
+             ★값은 ★dataset.bgSize ★한 칸이고 ★그리기는 ★공용 한 자리가 한다(수입 줄 참조).
+             ⚠️★직접 조절»은 ★위치 편집이 ★px 쌍을 ★박았을 때만 ★뜬다 — ★안 넣으면 ★select 가
+               ★★Cover 로 ★거짓말을 한다(섹션 패널이 ★같은 사고를 ★먼저 겪고 ★그렇게 고쳤다). -->
+        <div class="prop-row">
+          <span class="prop-label">사이즈</span>
+          <select class="prop-select" id="ss-bg-size">
+            <option value="cover"   ${_bgSizeNow === 'cover'   ? 'selected' : ''}>Cover</option>
+            <option value="contain" ${_bgSizeNow === 'contain' ? 'selected' : ''}>Contain</option>
+            <option value="auto"    ${_bgSizeNow === 'auto'    ? 'selected' : ''}>Auto</option>
+            ${_bgSizeCustom ? `<option value="${_bgSizeNow}" selected>직접 조절</option>` : ''}
+          </select>
+        </div>
         <button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="margin-top:4px;">위치 편집</button>
         <button class="prop-action-btn danger" id="ss-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
       ` : ''}
@@ -615,28 +633,11 @@ function _renderAutoPanel(ss) {
   // ── 배경 CSS변수 동기화 (I2) ──
   // has-bg-opacity 프레임은 배경을 ::before가 그리므로 --frame-bg / --frame-bg-img로 전달.
   // 색(--frame-bg) / 이미지·그라데이션(--frame-bg-img) / 위치(--frame-bg-pos) 3분기 모두 반영.
-  const _syncFrameBgVars = () => {
-    if (!ss.classList.contains('has-bg-opacity')) return;
-    const bgVal = ss.dataset.bg || ss.style.backgroundColor || 'transparent';
-    const isGradient = /gradient\s*\(/i.test(bgVal);
-    if (isGradient) {
-      // 그라데이션: 색은 비우고 이미지 슬롯에 gradient css
-      ss.style.setProperty('--frame-bg', 'transparent');
-      ss.style.setProperty('--frame-bg-img', bgVal);
-    } else {
-      ss.style.setProperty('--frame-bg', bgVal);
-      if (ss.dataset.bgImg) {
-        ss.style.setProperty('--frame-bg-img', `url("${ss.dataset.bgImg}")`);
-      } else {
-        ss.style.setProperty('--frame-bg-img', 'none');
-      }
-    }
-    ss.style.setProperty('--frame-bg-pos', ss.dataset.bgPos || 'center');
-    // 본체 배경은 ::before가 대신 그리므로 비워 이중 배경 방지
-    ss.style.backgroundColor = '';
-    ss.style.backgroundImage = '';
-    ss.style.background = '';
-  };
+  /* ★★2026-10-10 (현빈 ③) — ★이 몸통을 ★공용 한 자리로 옮겼다(파일명은 아래 수입 줄).
+     ★예전엔 ★같은 일을 하는 빌더가 ★★세 벌이었고(여기 · block-factory `_syncBgVars` · save-load `rebindAll`),
+     ★★그 셋이 ★전부 ★«크기»를 ★안 보냈다 ⇒ ★★현빈 ③ 의 그 증상(크기를 손댈 수단이 0).
+     ⛔여기에 ★제 벌을 ★다시 짓지 ★마라 — 소비자 명부 검사가 잡는다. */
+  const _syncFrameBgVars = () => { syncFrameBgVars(ss); };
 
   // ── 배경 투명도(bgOpacity) 슬라이더 (I2) ──
   const bgOpaSlider = document.getElementById('ss-bgopa-slider');
@@ -660,7 +661,7 @@ function _renderAutoPanel(ss) {
         ss.style.background = bgVal;
       } else if (ss.dataset.bgImg) {
         ss.style.backgroundImage = `url("${ss.dataset.bgImg}")`;
-        ss.style.backgroundSize = 'cover';
+        ss.style.backgroundSize = frameBgSize(ss);
         ss.style.backgroundPosition = ss.dataset.bgPos || 'center';
       } else if (bgVal) {
         ss.style.backgroundColor = bgVal;
@@ -682,7 +683,7 @@ function _renderAutoPanel(ss) {
     const reader = new FileReader();
     reader.onload = e => {
       ss.style.backgroundImage = `url('${e.target.result}')`;
-      ss.style.backgroundSize = 'cover';
+      ss.style.backgroundSize = frameBgSize(ss);
       ss.style.backgroundPosition = 'center';
       ss.dataset.bgImg = e.target.result;
       _syncFrameBgVars();
@@ -723,6 +724,20 @@ function _renderAutoPanel(ss) {
     window.pushHistory?.();
   }
   if (bgImgClear) bgImgClear.addEventListener('click', removeBgImg);
+  /* ★★2026-10-10 (현빈 ③) — ★배경 크기 칸 배선. ★섹션(prop-section.js bgSizeEl)과 ★★같은 꼴:
+       ⑴ pushHistory ★먼저(push-before — js/CLAUDE.md 규약 · 이 패널의 다른 칸들과 ★같은 쪽)
+       ⑵ dataset 에 ★쓰고(★정본 한 칸)  ⑶ ★두 그리는 길을 ★공용으로 ★다시 먹인다  ⑷ autosave
+     ⚠️★키워드로 되돌리면 ★px 위치는 ★뜻이 ★달라진다 ⇒ ★섹션과 ★같이 ★위치를 ★버린다.
+       ⛔이 한 줄을 ★빼면 ★「Cover 로 바꿨는데 ★그림이 ★엉뚱한 자리」가 된다(섹션이 ★먼저 겪은 사고). */
+  const bgSizeSel = document.getElementById('ss-bg-size');
+  if (bgSizeSel) bgSizeSel.addEventListener('change', () => {
+    window.pushHistory?.('프레임 배경 크기');
+    ss.dataset.bgSize = bgSizeSel.value;
+    if (!/px/.test(bgSizeSel.value)) delete ss.dataset.bgPos;
+    _syncFrameBgVars();                 /* ::before 경로 */
+    applyFrameBgImageInline(ss);        /* 본체 경로 */
+    window.scheduleAutoSave?.();
+  });
   if (bgPosBtn)   bgPosBtn.addEventListener('click', () => window.enterBgPosDragMode?.(ss));
 
   // 배경색 (solid + gradient)

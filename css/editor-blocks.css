@@ -46,7 +46,8 @@
   overflow: visible;
 }
 /* ★★끌는 ★동안만 ★푼다 (현빈 ㄴ 「자르되 ★끌 때는 ★보인다」).
-   ★선례 = 이 파일 아래 `.frame-block:has(.shape-block.selected)` — ★조상 overflow 해제를 ★`:has` 로.
+   ★선례 = 이 파일 아래 «도형을 고르는 동안 조상 프레임의 overflow 를 푸는» 규칙 — 같은 :has 꼴이다.
+     ⛔여기에 그 선택자를 ★글자로 적지 마라 — 이 파일을 indexOf 로 훑는 검사가 ★주석을 ★규칙으로 읽는다(실측 2회).
    ★표식 이름을 ★`dragging` 처럼 ★흔한 전역 낱말로 ★두지 않았다(★전역 이름 충돌 교훈, 2026-10-06).
    ★★`> ` 직속 자식이다 — ★손자까지 열면 ★먼 조상 프레임들이 ★같이 풀린다.
    ★★거는·떼는 자리 = `js/block-drag.js` onMove/onUp ★한 쌍. ⛔onUp 에서 ★안 떼면 ★영구 visible = ★고치기 전과 같다. */
@@ -232,7 +233,10 @@
   pointer-events: none;
   background-color: var(--frame-bg, transparent);
   background-image: var(--frame-bg-img, none);
-  background-size: cover;
+  /* ★★2026-10-10 (현빈 ③) — ★하드코딩 `cover` 를 ★변수로. ★이 줄만 ★변수가 아니어서
+     ★프레임 배경은 ★★크기를 ★손댈 ★수단이 ★없었다(★같은 규칙의 ★나머지 네 줄은 ★이미 변수다).
+     ★먹이는 자: `js/frame-bg.js` `syncFrameBgVars` ★한 자리. */
+  background-size: var(--frame-bg-size, cover);
   background-position: var(--frame-bg-pos, center);
   opacity: var(--frame-bg-opacity, 1);
   border-radius: inherit;

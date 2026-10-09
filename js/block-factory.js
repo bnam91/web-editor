@@ -1,4 +1,5 @@
 import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
+import { syncFrameBgVars, frameBgSize } from './frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { state } from './globals.js';
 import {
   genId,
@@ -6127,21 +6128,10 @@ function updateFrameBlock(blockId, partial = {}) {
 
   // ── 배경 CSS변수 동기화 (I2, prop-frame _syncFrameBgVars 미러) ──
   //    has-bg-opacity 프레임만: 배경을 ::before가 그리므로 --frame-bg/--frame-bg-img로 전달하고 본체 배경 비움.
-  const _syncBgVars = () => {
-    if (!block.classList.contains('has-bg-opacity')) return;
-    const bgVal = block.dataset.bg || block.style.backgroundColor || 'transparent';
-    if (/gradient\s*\(/i.test(bgVal)) {
-      block.style.setProperty('--frame-bg', 'transparent');
-      block.style.setProperty('--frame-bg-img', bgVal);
-    } else {
-      block.style.setProperty('--frame-bg', bgVal);
-      block.style.setProperty('--frame-bg-img', block.dataset.bgImg ? `url("${block.dataset.bgImg}")` : 'none');
-    }
-    block.style.setProperty('--frame-bg-pos', block.dataset.bgPos || 'center');
-    block.style.backgroundColor = '';
-    block.style.backgroundImage = '';
-    block.style.background = '';
-  };
+  /* ★★2026-10-10 (현빈 ③) — ★몸통을 ★공용 한 자리로 옮겼다(파일명은 수입 줄).
+     ★이 자리 옛 주석이 ★스스로 「prop-frame `_syncFrameBgVars` ★미러」라 적고 있었다 —
+     ★★그 «미러»가 ★곧 ★명부가 ★둘이라는 ★자백이었다. ★이제 ★하나다. */
+  const _syncBgVars = () => { syncFrameBgVars(block); };
 
   // 1) bg — solid / gradient(css) 둘 다 허용. prop-frame.js wireColorField onApply/onGradient 패턴 미러.
   //    string으로 들어오는 색상값을 그대로 backgroundColor에 (gradient면 backgroundImage로 분리해야 정상 표시).
@@ -6196,7 +6186,7 @@ function updateFrameBlock(blockId, partial = {}) {
         return { ok: false, code: 'INVALID', message: 'bgImage scheme not allowed (http/https/file/relative only)' };
       }
       block.style.backgroundImage = `url("${src}")`;
-      block.style.backgroundSize = 'cover';
+      block.style.backgroundSize = frameBgSize(block);
       block.style.backgroundPosition = 'center';
       block.dataset.bgImg = src;
       _syncBgVars();
@@ -6394,7 +6384,7 @@ function updateFrameBlock(blockId, partial = {}) {
         block.style.background = bgVal;
       } else if (block.dataset.bgImg) {
         block.style.backgroundImage = `url("${block.dataset.bgImg}")`;
-        block.style.backgroundSize = 'cover';
+        block.style.backgroundSize = frameBgSize(block);
         block.style.backgroundPosition = block.dataset.bgPos || 'center';
       } else if (bgVal) {
         block.style.backgroundColor = bgVal;
