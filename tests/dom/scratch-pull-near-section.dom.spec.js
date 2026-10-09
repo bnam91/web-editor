@@ -325,3 +325,123 @@ test('N5 ★막는 것이 없으면 자리가 «한 픽셀도» 안 바뀐다 (�
   expect(r.itTop, '★막는 것이 없는데 섹션 위변 맞춤이 아니다').toBe(r.secTop);
   expect(r.itLeft, '★섹션 오른쪽 변 바깥 PULL_GAP 자리가 아니다').toBeGreaterThan(r.secRight);
 });
+
+/* ══ ⑤ 옆으로도 겨룬다 — 현빈 2026-10-10 ════════════════════════════════════════════
+ * 원문: 「★이미 당겨지는 자리에 다른 스크래치패드가 있으면 ★y값이 내려가는 게 나을지
+ *        ★x값이 조절되는 게 나을지 ★비교를 해서 당겨지면 좋겠다」
+ * ★★이 기능의 뜻 = ★「아래 대신 옆」이 ★아니라 ★★«겹친 채 앉는 일을 줄인다»다.
+ *   ★옛 길은 비켜 앉을 자리가 ★하나도 없으면 ★막힌 제자리로 돌아가 ★★겹쳐 앉았다(①의 «겹침＜멀어짐» 선택).
+ * ★★규칙 = ★«막는 것 ★하나를 지나간다». ⛔맨숫자 상한이 ★아니다 —
+ *   ★상한을 200 으로 뒀더니 ★기본 패드 폭(220)에서 ★한 번도 안 섰다(gap = 폭＋36 = 256). 그 사고를 피한 꼴이다.
+ * ⛔단언에 ★구현의 식(`PULL_GAP+STACK_GAP+b.w`)을 ★그대로 쓰지 않는다 — ★항등식이 된다.
+ *   ⇒ ★«자리를 얻었나 · ★몇 칸인가»로 잰다. */
+const XGAP = 12;        // STACK_GAP — 장면이 쓰는 값(⛔구현에서 끌어오지 않는다)
+const XCOL0 = 424;      // 섹션 오른쪽 변(400) ＋ PULL_GAP(24) = 당기는 칼럼
+const XPULL = 24;       // PULL_GAP — 장면이 쓰는 값(⛔구현에서 끌어오지 않는다)
+const XPAD_W = 200;     // 당기는 패드 s1 의 폭 — ★아래 장면이 ★그렇게 짓는다
+/* ★★⒞ 의 표본을 ★★«선에서 뽑는다» — ⛔`600` 같은 ★맨숫자를 ★박지 않는다(지디 판정 2026-10-10).
+   ★까닭 = ★오늘 ★맨숫자 상한을 ★두 번 틀렸다(★내 200 · ★지디의 2×) ⇒ ★표본도 ★같은 병에 걸린다.
+   ★★한 칸의 gap = 막는것폭 ＋ (PULL_GAP ＋ STACK_GAP) ⇒ ★천장 걸리는 ★경계폭 = 배수×패드폭 − 그 합.
+   ⚠️★★이 식은 ★«표본을 ★고르는» 데만 쓴다 — ★★단언은 ★«자리를 얻었나»로만 한다(★항등식 피하기).
+   ★★그리고 ★이 배수(3)가 ★제품과 ★갈리면 ★★아래 ★두 표본 중 ★하나가 ★빨개진다 = ★자가 ★제 전제를 ★잰다. */
+const X_CEIL_MULT = 3;
+const XBOUND = X_CEIL_MULT * XPAD_W - (XPULL + XGAP);   // 경계폭 — 이보다 넓으면 천장이 막는다
+const XB_SEAT = XBOUND - 24;    // 경계 ★안쪽 — ★앉아야 한다
+const XB_OVER = XBOUND + 24;    // 경계 ★바깥 — ★앉지 못해야 한다
+
+/** 막는 것 다섯을 ★세로로 빽빽이 — ★y 로 비킬 자리를 ★없앤다(그래야 x 가 재어진다). */
+const XCOL = (bw, n = 5) => ({
+  secTop: 0, secH: 200,
+  items: [
+    /* ★s1 의 ★처음 자리는 ★막는 칼럼 ★바깥에 둔다 — ⛔넓은 표본(경계 쌍)에서 ★겹치면
+       ★「원래 겹쳐 있었다」가 ★결과에 섞인 것인지 ★가릴 수 없다. ★좁은 표본의 자리(900)는
+       ★그대로 둔다(★X0·X1·X2 장면 ★무변 — bw 400 까지는 424＋bw＋40 < 900). */
+    { id: 's1', x: Math.max(900, XCOL0 + bw + 40), y: 40, w: XPAD_W, h: 120, link: true },
+    ...Array.from({ length: n }, (_, i) => ({ id: 'b' + i, x: XCOL0, y: i * 112, w: bw, h: 100 })),
+  ],
+});
+/** 몇 «칸» 옆으로 갔나 — 0=칼럼 그대로 · 1=막는 것 하나를 지남 · 2 이상=그 너머 */
+function xSteps(got, bw) {
+  const left = got.pos.s1[0];
+  const one = XCOL0 + bw + XGAP;
+  if (left <= XCOL0 + 2) return 0;
+  if (Math.abs(left - one) <= 2) return 1;
+  return left > one ? 2 : -1;
+}
+
+test('X0 ⒟전제 — 그 장면에서 막는 것이 ★정말 막는다(★안 그러면 아래 단언이 헛돈다)', async ({ page }) => {
+  const state = { errs: [], routed: false };
+  const got = await pullAndMeasure(page, state, XCOL(220), ['s1']);
+  expect(state.errs).toEqual([]);
+  const r = await page.evaluate(() => {
+    const q = (id) => { const e = document.querySelector(`.scratch-item[data-scratch-id="${id}"]`);
+      return { x: parseFloat(e.style.left), y: parseFloat(e.style.top), w: e.offsetWidth, h: e.offsetHeight }; };
+    return { b0: q('b0'), b4: q('b4') };
+  });
+  console.log(`[X0] got=${JSON.stringify(got)} b0=${JSON.stringify(r.b0)}`);
+  /* 제자리(칼럼 · 섹션 위변)가 ★막는 것에 ★덮여 있다 — 그래야 «비켜 앉기»가 돌 장면이다 */
+  expect(r.b0.x <= XCOL0 && XCOL0 < r.b0.x + r.b0.w, '★b0 가 칼럼을 덮는다').toBe(true);
+  expect(r.b0.y <= 0 && 0 < r.b0.y + r.b0.h, '★b0 가 섹션 위변 높이를 덮는다').toBe(true);
+  expect(got.dyGap, '★그래도 섹션 «옆»이다(①)').toBe(0);
+});
+
+test('X1 ⒜★★한 칸은 ★막는 것 폭이 얼마든 ★선다 — 120·220·400 (⛔한 폭에서만 참이면 안 잰 것이다)', async ({ page }) => {
+  for (const bw of [120, 220, 400]) {
+    const state = { errs: [], routed: false };
+    const got = await pullAndMeasure(page, state, XCOL(bw), ['s1']);
+    expect(state.errs, `bw ${bw}`).toEqual([]);
+    const steps = xSteps(got, bw);
+    console.log(`[X1 bw=${bw}] left=${got.pos.s1[0]} steps=${steps} dyGap=${got.dyGap} gap=${got.gap}`);
+    expect(steps, `★bw ${bw} — ★한 칸 옆에 앉았다(잰 left=${got.pos.s1[0]})`).toBe(1);
+    expect(got.dyGap, `★bw ${bw} — ①: 섹션 «옆»을 지킨다(세로로 안 멀어졌다)`).toBe(0);
+  }
+});
+
+test('X2 ⒝★두 칸은 ★절대 안 간다 — 막는 것을 ★나란히 둘', async ({ page }) => {
+  const bw = 200;
+  const sc = {
+    secTop: 0, secH: 200,
+    items: [
+      { id: 's1', x: 900, y: 40, w: 200, h: 120, link: true },
+      ...Array.from({ length: 5 }, (_, i) => ({ id: 'a' + i, x: XCOL0, y: i * 112, w: bw, h: 100 })),
+      ...Array.from({ length: 5 }, (_, i) => ({ id: 'c' + i, x: XCOL0 + bw + XGAP, y: i * 112, w: bw, h: 100 })),
+    ],
+  };
+  const state = { errs: [], routed: false };
+  const got = await pullAndMeasure(page, state, sc, ['s1']);
+  expect(state.errs).toEqual([]);
+  const steps = xSteps(got, bw);
+  console.log(`[X2] left=${got.pos.s1[0]} steps=${steps}`);
+  expect(steps, `★두 칸(${XCOL0 + 2 * (bw + XGAP)} 쯤)으로 ★안 간다 — 잰 left=${got.pos.s1[0]}`).not.toBe(2);
+});
+
+test('X3 ⒞★폭주 천장 — ★경계에서 ★뽑은 ★두 표본: ★안쪽은 앉고 ★바깥은 ★못 앉는다', async ({ page }) => {
+  /* ★★왜 ★한 쌍인가 — ★표본 ★하나(옛 `bw=600`)는 ★★«천장이 ★더 높아진 판»만 잡고
+     ★★«천장이 ★더 낮아진 판»은 ★★못 잡았다. ⇒ ★경계를 ★양쪽에서 ★집는다.
+     ★이 쌍은 ★천장이 ★★«있나»가 아니라 ★★«어디 있나»를 잰다 — 2× 로 내려도, 4× 로 올려도 ★빨개진다. */
+  console.log(`[X3] 경계폭=${XBOUND} 안쪽=${XB_SEAT} 바깥=${XB_OVER} (배수 ${X_CEIL_MULT} · 패드폭 ${XPAD_W})`);
+  const st1 = { errs: [], routed: false };
+  const g1 = await pullAndMeasure(page, st1, XCOL(XB_SEAT), ['s1']);
+  expect(st1.errs, `bw ${XB_SEAT}`).toEqual([]);
+  const s1 = xSteps(g1, XB_SEAT);
+  console.log(`[X3 안쪽 bw=${XB_SEAT}] left=${g1.pos.s1[0]} steps=${s1} gap=${g1.gap}`);
+  expect(s1, `★경계 ★안쪽(bw ${XB_SEAT})은 ★한 칸 앉는다 — 잰 left=${g1.pos.s1[0]}`).toBe(1);
+  expect(g1.dyGap, '★①: 섹션 «옆»을 지킨다').toBe(0);
+
+  const st2 = { errs: [], routed: false };
+  const g2 = await pullAndMeasure(page, st2, XCOL(XB_OVER), ['s1']);
+  expect(st2.errs, `bw ${XB_OVER}`).toEqual([]);
+  const s2 = xSteps(g2, XB_OVER);
+  console.log(`[X3 바깥 bw=${XB_OVER}] left=${g2.pos.s1[0]} steps=${s2} gap=${g2.gap}`);
+  expect(s2, `★경계 ★바깥(bw ${XB_OVER})은 ★한 칸을 ★못 얻는다(천장) — 잰 left=${g2.pos.s1[0]}`).not.toBe(1);
+});
+
+test('X4 ⒠★음성대조 — 막는 것이 ★없으면 x 는 ★한 픽셀도 ★안 움직인다', async ({ page }) => {
+  const state = { errs: [], routed: false };
+  const got = await pullAndMeasure(page, state, { secTop: 0, secH: 200,
+    items: [{ id: 's1', x: 900, y: 40, w: 200, h: 120, link: true }] }, ['s1']);
+  expect(state.errs).toEqual([]);
+  console.log(`[X4] left=${got.pos.s1[0]} (칼럼 ${XCOL0})`);
+  expect(Math.abs(got.pos.s1[0] - XCOL0) <= 1, `★칼럼 그대로 — 잰 left=${got.pos.s1[0]}`).toBe(true);
+  expect(got.dyGap, '★섹션 옆').toBe(0);
+});
