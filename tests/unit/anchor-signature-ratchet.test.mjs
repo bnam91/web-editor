@@ -54,7 +54,13 @@ const SELF = 'unit/anchor-signature-ratchet.test.mjs';
 /* ★★기준값 — ★«버전관리 안»에 둔다(지디 조건 ① · ⛔스크래치패드 금지).
    ★2026-10-07 ★아래 자로 ★직접 떠서 박았다(⛔남이 준 수를 베끼지 않았다 — 지디 조건 ②).
    ⚠️내 자가 ★두 번 틀렸던 뒤(TAP 파서 · argv 자리) ★고친 자로 ★다시 뜬 수다. */
-const BASELINE = { sig: 52, files: 19, name: 189, sel: 4, cond: 1, lit: 246, var: 37 };
+/* ★2026-10-09 ★내렸다 — ★«⑴ 닻이 늘었다»가 ★아니라 ★«닻 하나를 고쳤다»다(위 두 길 중 어느 쪽도 아닌 ★세 번째 길).
+   무엇을 했나: tests/unit/scratch-animate-move.test.mjs 의 닻
+     'window._scratchAnimateItemTo = (id, x, y, opts = {}) =>'  ← ★매개변수가 든 서명(sig)
+   를 ★'window._scratchAnimateItemTo = ('  로 줄이고, 새 닻도 ★같은 꼴로 적었다.
+   ⇒ sig 52→★51 · files 19→★18 (그 파일이 명부에서 빠졌다) · sel 4→★6 · lit 246→★247(닻이 하나 늘었다).
+   ★R1 이 「줄었으면 내려라」라 했고 ★R2(양성대조)가 ★안 내리면 빨개진다 — 그 둘이 이 줄을 시킨 자다. */
+const BASELINE = { sig: 51, files: 18, name: 189, sel: 6, cond: 1, lit: 247, var: 37 };
 
 const CUTTERS = ['sliceBlock', 'bodyOf', 'arrowBodyOf', 'arrowBody', 'ruleOf', 'balanced'];
 const CALL = new RegExp(`(?:${CUTTERS.join('|')})\\(\\s*[A-Za-z_$][\\w$]*\\s*,\\s*'([^']+)'`, 'g');
@@ -147,7 +153,7 @@ test('T0 ★입력이 살아 있다 — 파일·거르개·분류기', () => {
 /* ─────────────────────────────────────────────
    R1 ★래칫 — ★서명 닻이 ★늘지 않았다
    ───────────────────────────────────────────── */
-test('R1 ★서명 닻이 ★늘지 않았다 (기준 52 · 파일 19 · 2026-10-07 실측)', () => {
+test('R1 ★서명 닻이 ★늘지 않았다 (기준 51 · 파일 18 · 2026-10-09 실측)', () => {
   const c = census();
   console.log(`  R1 ★지금 — 서명 ${c.sig}건 · 파일 ${c.files}개 · 이름 ${c.name} · 선택자 ${c.sel}`
     + ` · 조건식 ${c.cond} · 리터럴 ${c.lit} · 변수닻 ${c.var}(★못 가른다) · ★빈 파일 ${c.fileEmpty}건 · ★거르개가 먹은 파일 ${c.stripperAte}건`

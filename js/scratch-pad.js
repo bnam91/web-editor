@@ -245,9 +245,22 @@ function _genScratchId() {
 
 function _removeItem(item) {
   if (_sliceMode) _exitSliceMode();
-  // 다중 선택 중이고 item이 선택에 포함된 경우 → 선택 전체 삭제
+  /* ★★그룹 멤버의 ✕ 는 «그 한 장»만 지운다 (현빈 2026-10-09 ③
+   *   「5번째 스크래치패드를 삭제하면 4개가 되니 4개인 그룹이 계속 유지되어야해」).
+   *   무엇이 문제였나(실측): 멤버를 누르면 바로 아래 mousedown 핸들러가 «그룹 전원»을 선택에
+   *   끼워 넣는다(「그룹 공동 선택」). ✕ 는 «사용자가 고른 선택»과 «앱이 끼워 넣은 선택»을
+   *   구분할 수 없으므로 그 선택을 그대로 지우면 ✕ 한 번에 그룹이 통째로 사라진다
+   *   (잰 값: 5장 그룹에서 한 장의 ✕ → 남은 장 0).
+   * ★판정 = 「선택이 ★전부 이 그룹 안에 있나」. 그렇다면 그 선택은 공동 선택으로 생겼을 수 있고,
+   *   «그룹 하나를 통째로 지우고 싶다»는 뜻은 Delete/Backspace 가 이미 받는다(아래 키 핸들러).
+   *   ⛔그룹 밖의 것이 같이 잡혀 있으면(마퀴로 여럿) 옛 동작 그대로 «선택 전체»를 지운다. */
   let removedItems;
-  if (_selectedItems.size > 0 && _selectedItems.has(item)) {
+  const inSameGroup = item.g && _selectedItems.has(item)
+    && [..._selectedItems].every(s => s.g === item.g);
+  if (inSameGroup) {
+    removedItems = [item];
+  } else if (_selectedItems.size > 0 && _selectedItems.has(item)) {
+    // 다중 선택 중이고 item이 선택에 포함된 경우 → 선택 전체 삭제
     removedItems = [..._selectedItems];
     _clearSelection();
   } else {
@@ -263,6 +276,18 @@ function _deleteScratchItemsWithHistory(items) {
   // 삭제 전 정보 캡쳐 (복원용) — src/x/y/w/id/g 보존
   // ⚠️linkDy 는 빼 왔다(옛 동작 그대로). fx 는 담는다 — 지운 항목을 ⌘Z 로 되살릴 때 효과도 돌아와야 한다.
   const snapshots = items.map(s => _pickScratch(s, ['linkDy']));
+
+  /* ★지우는 이미지가 섹션에 «연결»돼 있으면 그 토큰도 같이 치운다 (2026-10-09 실측 결함).
+   *   무엇이 문제였나: `refLinks` 는 섹션 data-* 인데 이 길이 그걸 ★한 번도 안 건드렸다.
+   *   ⇒ 참고이미지를 ✕ 로 지우면 섹션엔 `sp_c:0` 이 남아 `SPLink.allLinks()` 가 1 을 세는데
+   *     그릴 그림이 없어 선은 0 이다 — 화면은 「연결 0」, 데이터는 「연결 1」(死참조).
+   *     그 토큰은 저장·내보내기를 타고 다음 세션까지 간다.
+   *   ★`_severLinks` 를 쓴다(아래 정의) — `SPLink.removeLink()` 가 아니다. 그건 호출마다
+   *     pushHistory 를 따로 쌓고 ★이제는 «그룹 묶음 전체»를 끊는다(2026-10-09 ④). 여기선
+   *     «지우는 그 장들»만 끊어야 하므로 dataset 을 직접 고치는 쪽이 맞다.
+   *   ⛔섹션 삭제 경로(releaseSectionsForDelete)와 겹치지 않는다 — 저긴 «섹션»이 사라지는 길이고
+   *     여긴 «이미지»가 사라지는 길이다. 둘 다 있어야 양쪽이 닫힌다. */
+  const severed = _severLinks(items.map(s => s.id));
 
   // 실제 삭제
   items.forEach(s => {
@@ -282,12 +307,15 @@ function _deleteScratchItemsWithHistory(items) {
         for (const s of snapshots) {
           try { await window._scratchAddAndSaveFx?.(s.src, s.x, s.y, s.w, s.g, s.id, s.fx); } catch (_) {}
         }
+        // ★이미지를 되살렸으면 «연결»도 되살린다 — 안 하면 ⌘Z 가 그림만 돌려주고 선은 영영 안 돌아온다
+        try { _restoreLinks(severed); } catch (_) {}
       },
       onRedo: async () => {
         // 복원했던 item들을 다시 제거 (id 보존이므로 원본 id로 직접 제거)
         for (const s of snapshots) {
           try { await window._scratchRemoveById?.(s.id); } catch (_) {}
         }
+        try { _severLinks(severed.map(r => r.link.scratchId)); } catch (_) {}
       },
     });
   } catch (_) {}
@@ -2189,24 +2217,50 @@ window._scratchGroupAndAlign = () => {
  * @returns {{ok:boolean, moved?:boolean, reason?:string}}
  */
 window._scratchAnimateItemTo = (id, x, y, opts = {}) => {
-  const it = _scratchItems.find(i => i.id === id);
-  if (!it || !it.el) return { ok: false, reason: 'NOT_FOUND' };
-  /* ⛔`it.x || parseFloat(...)` 금지 — x=0 은 «유효한 자리»다(왼쪽 끝). ?? 로 가른다. */
-  const x0 = it.x ?? (parseFloat(it.el.style.left) || 0);
-  const y0 = it.y ?? (parseFloat(it.el.style.top) || 0);
-  const nx = Math.round(x), ny = Math.round(y);
-  if (Math.abs(nx - x0) < 1 && Math.abs(ny - y0) < 1) return { ok: true, moved: false };
+  /* ★2026-10-09 — 본체가 «여러 장»판(_scratchAnimateItemsTo)으로 옮겨 갔다. 이 자리는 그 겉면이다.
+     ⛔여기에 사본을 다시 만들지 마라 — 되돌리기 규약(linkDy 를 같이 담는 스냅샷)이 두 벌이 된다. */
+  return window._scratchAnimateItemsTo([{ id, x, y, linkDy: opts.linkDy }], opts);
+};
 
-  const before = _scratchGeomSnapshot([it]);
-  const stop = () => { if (it._tweenRAF) { cancelAnimationFrame(it._tweenRAF); it._tweenRAF = null; } };
+/* ══ 여러 장을 «한 걸음»으로 옮긴다 (2026-10-09, 그룹 링크선 당기기) ══════════════════
+ * ★왜 본체가 여기냐 — 위 머리말이 적은 그대로다: 자리·저장·되돌리기는 «스크래치의 것»이고,
+ *   되돌리기 규약(_scratchGeomSnapshot 이 linkDy 까지 담는다)은 이 집에 ★하나만 있어야 한다.
+ *   ⇒ `_scratchAnimateItemTo` 는 이제 ★이 함수의 한 줄짜리 겉면이다(사본이 아니다).
+ * ★N장이어도 pushHistory 는 ★한 번 — 그래야 그룹을 당겨도 ⌘Z 한 번에 통째로 돌아온다.
+ * ★이미 전부 제자리면 «아무 일도 안 한다» — 히스토리도 안 쌓는다(현빈 「또 더블클릭하면 아무 일 없음」).
+ *   ⛔일부만 제자리인 경우에 그 장을 «빼고» 찍지 마라: 빠진 장은 undo 때 복원 대상에서 사라진다.
+ *     한 장이라도 움직이면 ★전원을 스냅샷에 담는다.
+ * @param {Array<{id:string,x:number,y:number,linkDy?:number}>} moves
+ * @param {{label?:string, ms?:number}} [opts]
+ * @returns {{ok:boolean, moved?:boolean, reason?:string, count?:number}}
+ */
+window._scratchAnimateItemsTo = (moves, opts = {}) => {
+  const rows = (moves || []).map(m => {
+    const it = _scratchItems.find(i => i.id === m.id);
+    if (!it || !it.el) return null;
+    /* ⛔`it.x || parseFloat(...)` 금지 — x=0 은 «유효한 자리»다(왼쪽 끝). ?? 로 가른다. */
+    const x0 = it.x ?? (parseFloat(it.el.style.left) || 0);
+    const y0 = it.y ?? (parseFloat(it.el.style.top) || 0);
+    return { it, x0, y0, nx: Math.round(m.x), ny: Math.round(m.y), linkDy: m.linkDy };
+  }).filter(Boolean);
+  if (!rows.length) return { ok: false, reason: 'NOT_FOUND' };
+  if (rows.every(r => Math.abs(r.nx - r.x0) < 1 && Math.abs(r.ny - r.y0) < 1)) return { ok: true, moved: false };
+
+  const items = rows.map(r => r.it);
+  const before = _scratchGeomSnapshot(items);
+  const stop = () => rows.forEach(r => {
+    if (r.it._tweenRAF) { cancelAnimationFrame(r.it._tweenRAF); r.it._tweenRAF = null; }
+  });
   stop();                                  // 연달아 부르면 «마지막 목표»로 간다
   const ms = Number.isFinite(opts.ms) ? Math.max(0, opts.ms) : 220;
   const t0 = performance.now();
   const ease = (p) => 1 - Math.pow(1 - p, 3);          // ease-out cubic
   const settle = () => {
-    it.x = nx; it.y = ny;
-    it.el.style.left = nx + 'px'; it.el.style.top = ny + 'px';
-    if (Number.isFinite(opts.linkDy)) it.linkDy = opts.linkDy;
+    rows.forEach(r => {
+      r.it.x = r.nx; r.it.y = r.ny;
+      r.it.el.style.left = r.nx + 'px'; r.it.el.style.top = r.ny + 'px';
+      if (Number.isFinite(r.linkDy)) r.it.linkDy = r.linkDy;
+    });
     _saveScratch();
     // #16 follow — 추종루프가 이 이동을 «사용자 드래그»로 오인해 재앵커하지 않게 기준선을 맞춘다
     try { window.SPLink && window.SPLink.resyncFollow && window.SPLink.resyncFollow(); } catch (_) {}
@@ -2214,26 +2268,34 @@ window._scratchAnimateItemTo = (id, x, y, opts = {}) => {
   const step = () => {
     const p = ms === 0 ? 1 : Math.min(1, (performance.now() - t0) / ms);
     const k = ease(p);
-    it.x = Math.round(x0 + (nx - x0) * k);
-    it.y = Math.round(y0 + (ny - y0) * k);
-    it.el.style.left = it.x + 'px'; it.el.style.top = it.y + 'px';
-    if (p < 1) { it._tweenRAF = requestAnimationFrame(step); return; }
-    it._tweenRAF = null;
+    rows.forEach(r => {
+      r.it.x = Math.round(r.x0 + (r.nx - r.x0) * k);
+      r.it.y = Math.round(r.y0 + (r.ny - r.y0) * k);
+      r.it.el.style.left = r.it.x + 'px'; r.it.el.style.top = r.it.y + 'px';
+    });
+    /* ★핸들은 «전원»에게 박는다 — 겹치는 다른 묶음이 나중에 불려도 stop() 이 이 트윈을 찾아 세운다
+       (rows[0] 한 곳에만 두면 그 장이 안 낀 다음 호출이 이 루프를 못 세워 두 트윈이 서로를 덮는다). */
+    if (p < 1) { const h = requestAnimationFrame(step); rows.forEach(r => { r.it._tweenRAF = h; }); return; }
+    rows.forEach(r => { r.it._tweenRAF = null; });
     settle();
   };
   if (ms === 0) settle(); else step();
 
   /* 히스토리는 «목표값»으로 찍는다 — 트윈 중간값이 아니다(중간에 ⌘Z 해도 목표로 redo 된다). */
-  const after = _scratchGeomSnapshot([it]).map(sn => ({
-    ...sn, x: nx, y: ny,
-    ...(Number.isFinite(opts.linkDy) ? { linkDy: opts.linkDy } : {}),
-  }));
+  const byId = new Map(rows.map(r => [r.it.id, r]));
+  const after = _scratchGeomSnapshot(items).map(sn => {
+    const r = byId.get(sn.id);
+    return { ...sn, x: r.nx, y: r.ny, ...(Number.isFinite(r.linkDy) ? { linkDy: r.linkDy } : {}) };
+  });
   try {
     window.pushHistory?.(opts.label || '스크래치 이동', {
       onUndo: () => { stop(); _applyScratchGeomSnapshot(before); },
       onRedo: () => { stop(); _applyScratchGeomSnapshot(after); },
     });
   } catch (_) {}
+  /* ⛔`count` 를 더하지 마라 — `_scratchAnimateItemTo` 가 이 값을 그대로 돌려주고,
+     tests/unit/scratch-animate-move M2·M5 가 그 «꼴»을 통째로 비교한다(실측: 더했더니 둘이 빨갰다).
+     「몇 장이 함께 왔나」는 화면(자리)으로 재는 것이 맞다 — 반환값에 숨기지 않는다. */
   return { ok: true, moved: true };
 };
 
@@ -2243,10 +2305,15 @@ window._scratchHasGroupSelection = () =>
 
 // 스크래치 언그룹 — 선택된 아이템들의 그룹 해제 (Cmd+Shift+G)
 /* ── 링크(섹션 연결) 끊기 헬퍼 ───────────────────────────────────────────
- * ⚠️SPLink.removeLink() 를 쓰지 «않는다». 그건 호출마다 pushHistory 를 따로 쌓고
- *   앵커(linkDy)를 버려서, 여러 개를 한꺼번에 끊으면 undo 가 N번으로 쪼개지고
- *   되돌려도 오프셋이 사라진다. 여기선 dataset 을 직접 고쳐 «한 번의» undo 로 묶는다.
- *   linkDy 복원은 _applyScratchGeomSnapshot 이 이미 해준다. */
+ * ★쓰는 곳 = «참고이미지 삭제»(_deleteScratchItemsWithHistory) ★하나다.
+ *   ⛔2026-10-09 이전엔 그룹 해제(_scratchUngroup)도 이걸 불렀다 — 현빈 ②로 ★뺐다(그 자리 주석 참조).
+ * ⚠️SPLink.removeLink() 를 쓰지 «않는다». 까닭 ★셋:
+ *   ⑴ 호출마다 pushHistory 를 따로 쌓아, 여러 개를 한꺼번에 끊으면 undo 가 N번으로 쪼개진다.
+ *   ⑵ 앵커(linkDy)를 버려서 되돌려도 오프셋이 사라진다. 여기선 dataset 을 직접 고쳐 «한 번의»
+ *      undo 로 묶는다 — linkDy 복원은 _applyScratchGeomSnapshot 이 이미 해준다.
+ *   ⑶ ★2026-10-09부터 removeLink 는 «그룹 묶음 ★전체»를 끊는다(현빈 ④). 여기서 부르면
+ *      ★한 장을 지웠는데 그룹 ★전원의 연결이 날아간다 — 이 자리는 «지우는 그 장»만 끊어야 한다.
+ *   ⇒ ★여기를 removeLink 로 «단순화»하지 마라. 셋 다 되살아난다. */
 function _severLinks(ids) {
   const SP = window.SPLink;
   if (!SP || !SP._parse || !SP._write || !SP.sectionIdOf) return [];
@@ -2287,23 +2354,33 @@ window._scratchUngroup = () => {
     delete it.g;
     if (it.el) delete it.el.dataset.scratchGroup;
   });
-  /* ★그룹을 풀면 «섹션 연결»도 같이 끊는다.
-   * 안 그러면 그룹만 풀리고 refLinks 는 남아 _applyFollow 의 rAF 루프가
-   * 계속 y = secTop + linkDy 를 다시 먹여, 「해제했는데 여전히 같이 움직인다」가 된다.
-   * 그룹(6~7월)과 링크(#16, 8월)가 7주 시차로 따로 만들어져 서로를 몰랐다. */
-  const severed = _severLinks(items.map(it => it.id));
+  /* ★★2026-10-09 — 「그룹을 풀면 섹션 연결도 같이 끊는다」를 ★뺐다 (현빈 지시).
+   *   현빈 원문: 「만약 링크 연결된 상태에서 그룹해제를 하면 ★그제서야 각각의 링크들이 연결되던가 해야되지 않겠어?」
+   *   ⇒ 해제는 «묶음을 푸는 일»이지 «연결을 버리는 일»이 아니다. 연결은 각자 그대로 남는다.
+   * ★왜 전에는 끊었나(그 판의 까닭을 지우지 않고 적어 둔다): 그때는 refLinks 가 남으면
+   *   _applyFollow 의 rAF 루프가 계속 y = secTop + linkDy 를 먹여 「해제했는데 여전히 같이 움직인다」로
+   *   보였다. ★그건 «그룹이라서 같이 움직인 것»이 아니라 «각자 제 섹션을 따라간 것»이었는데,
+   *   선이 «멤버마다 하나»씩 있어 둘이 구분되지 않았다. 이제 선은 묶음당 하나라 그룹을 풀면
+   *   선이 눈앞에서 N개로 «갈라진다» — 무슨 일이 일어났는지 화면이 말해 준다.
+   * ⛔「같이 끊기」를 되살리지 마라. 되살리면 현빈 ②가 그대로 돌아온다. 끊고 싶으면 ⛓ 를 쓴다.
+   * ★`_severLinks`/`_restoreLinks` 는 ★버리지 않았다 — 이제 «이미지 삭제»(_deleteScratchItemsWithHistory)가
+   *   쓴다(死참조 치우기). 그 둘을 지우면 그쪽이 조용히 깨진다. */
   _saveScratch();
   const after = _scratchGeomSnapshot(items);
   try {
     window.pushHistory?.('스크래치 그룹 해제', {
-      onUndo: () => { _restoreLinks(severed); _applyScratchGeomSnapshot(before); },
-      onRedo: () => { _severLinks(severed.map(r => r.link.scratchId)); _applyScratchGeomSnapshot(after); },
+      onUndo: () => { _applyScratchGeomSnapshot(before); },
+      onRedo: () => { _applyScratchGeomSnapshot(after); },
     });
   } catch (_) {}
-  window.showToast?.(severed.length
-    ? `🧩 스크래치 그룹 해제 (${items.length}개) · 섹션 연결 ${severed.length}개도 끊음`
+  /* 해제 뒤 선이 «몇 개로 갈라졌나»를 바로 다시 그린다 — rAF 루프가 다음 프레임에 하지만,
+     창이 가려져 있으면(visibilityState=hidden) 그 루프가 멈춰 있다(이 파일이 이미 아는 함정). */
+  try { window.SPLink && window.SPLink.rerender && window.SPLink.rerender(); } catch (_) {}
+  const linked = items.filter(it => { try { return window.SPLink?.isLinked(it.id); } catch (_) { return false; } }).length;
+  window.showToast?.(linked
+    ? `🧩 스크래치 그룹 해제 (${items.length}개) · 섹션 연결 ${linked}개는 각자 유지`
     : `🧩 스크래치 그룹 해제 (${items.length}개)`);
-  return { ok: true, count: items.length, unlinked: severed.length };
+  return { ok: true, count: items.length, unlinked: 0, keptLinks: linked };
 };
 
 // ── Claude PM MCP 노출: 스크래치 아이템 메타데이터 조회 ──

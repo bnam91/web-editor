@@ -108,16 +108,52 @@
     _emitSplChanged();
     return true;
   }
-  // 해제: refLinks 에서 제거(이미지는 스크래치에 그대로 → pane 자동복귀).
+  /* ★[#16-G] 여러 장을 «한 걸음»으로 연결한다 — 그룹을 연결하면 ⌘Z 가 멤버 수만큼 쌓이던 것을 닫는다
+   *   (실측 2026-10-09: 5장 그룹을 🔗→섹션 클릭으로 걸면 ⌘Z 가 ★5걸음이었다).
+   * ★꼴은 `linkToNewSection` 이 이미 쓰는 그것이다 — 「변경 전」을 ★한 번 찍고, 안쪽 입구의 칸을
+   *   노옵으로 막고, 끝에 되돌린다(규약 ①「pushHistory 는 «부를 때» 읽는다」가 이 자리를 보장한다).
+   *   ⛔pushHistory 를 미리 변수로 잡지 마라(같은 규약).
+   * ⚠️하나도 안 바뀌면 그 한 칸은 «헛돈다» — `linkToNewSection` 이 같은 성질을 같은 말로 적어 뒀다.
+   *   ⇒ ★먼저 «바뀔 것이 있나»를 보고 없으면 칸을 아예 안 찍는다(여긴 쌀 수 있다).
+   * @returns {number} 실제로 연결된 개수 */
+  function addLinks(sectionId, scratchIds) {
+    const target = _secEl(sectionId);
+    if (!target) return 0;
+    const list = (scratchIds || []).filter(Boolean).filter(id => sectionIdOf(id) !== target.id);
+    if (!list.length) return 0;
+    window.pushHistory && window.pushHistory('참고이미지 연결');   // ★「변경 전」 = 이 제스처의 ⌘Z 과녁
+    const origPush = window.pushHistory;
+    window.pushHistory = () => {};                                 // ★안쪽 입구들의 칸을 막는다
+    let n = 0;
+    try { for (const id of list) if (addLink(target.id, id)) n++; }
+    finally { window.pushHistory = origPush; }                     // 규약 ② — 던져도 되돌린다
+    /* ★★「끝 표본」 — ⛔빼면 «이음매»가 뚫린다(js/CLAUDE.md 의 ⑴ before→after).
+       실측 2026-10-09: 이 줄이 없으면 ㉠ 앞 표본이 «무변화 중복 차단»에 걸려 아예 안 쌓이고
+       (직전 조작이 끝 표본을 찍어 꼭대기 = 지금 화면), ㉡ 연결한 상태가 ★한 번도 스택에 안 남아
+       ㉢ «다음 조작»의 ⌘Z 가 연결까지 같이 먹는다. 잰 값: 당기고 ⌘Z 한 번에 토큰 5→★0,
+       지웠다 되살린 뒤 선 2→★1. ⇒ 연결이 «일어났다»를 스택에 적는다.
+       ★선례 = `linkToNewSection` 의 「참고이미지 → 새 섹션 완료」· js/insert-history.js 의 끝 표본. */
+    if (n) window.pushHistory && window.pushHistory('참고이미지 연결 완료');
+    return n;
+  }
+  /* 해제: refLinks 에서 제거(이미지는 스크래치에 그대로 → pane 자동복귀).
+   * ★[#16-G] 그룹이면 ★묶음 전부를 «한 번에·한 걸음으로» 끊는다 — 현빈 2026-10-09 ④
+   *   「지금은 링크선을 각각 모두 언링크해줘야되는데 이게 잘못된듯해」(실측: 5장 그룹에 ⛓ 5번).
+   *   선이 하나인데 끊기가 다섯 번이면 ★보이는 것과 할 일이 어긋난다.
+   * ⛔한 장일 때는 토큰 하나만 지운다 = 오늘과 같다(묶음이 곧 자기 하나). */
   function removeLink(scratchId) {
-    const secId = sectionIdOf(scratchId);
-    if (!secId) return false;
+    const unit = _unitOf(scratchId);
+    if (!unit) return false;
     window.pushHistory && window.pushHistory('참고이미지 연결 해제');
-    const sec = _secEl(secId);
-    _write(sec, _parse(sec).filter(l => l.scratchId !== scratchId));
-    _clearAnchor(scratchId); // 해제 = 다시 완전 자유(오프셋 폐기)
+    const sec = _secEl(unit.sectionId);
+    const kill = new Set(unit.ids);
+    _write(sec, _parse(sec).filter(l => !kill.has(l.scratchId)));
+    unit.ids.forEach(_clearAnchor); // 해제 = 다시 완전 자유(오프셋 폐기)
     _rerender(); _save();
     _emitSplChanged();
+    /* ★「끝 표본」 — addLinks 와 ★같은 까닭이다(위 주석). 한쪽만 찍으면 끊기는 다음 조작의
+       ⌘Z 에 같이 먹힌다. ⛔「연결만 고치고 해제는 두자」로 반쪽만 고치지 마라. */
+    window.pushHistory && window.pushHistory('참고이미지 연결 해제 완료');
     return true;
   }
   /* ★링크 «상태»가 바뀌었다고 알린다 — 개수(연결/해제)든 접힘이든 «둘 다» 이 하나로 쏜다.
@@ -137,15 +173,19 @@
   function _emitSplChanged() {
     try { window.dispatchEvent(new CustomEvent('gdt:spl-changed')); } catch (_) {}
   }
-  // 접기/펼치기(경량 — history 없이 상태만·저장은 함; reload 는 dataset 로 유지)
+  /* 접기/펼치기(경량 — history 없이 상태만·저장은 함; reload 는 dataset 로 유지)
+   * ★[#16-G] 그룹이면 ★묶음 전부를 같이 접고 편다 — 선이 하나인데 접히는 것이 한 장뿐이면
+   *   그 손잡이는 «어느 장의 것인지» 화면에서 알 수 없다(실측: 5장 그룹에서 － 한 번 = 1장만 접힘). */
   function setCollapsed(scratchId, val) {
-    const secId = sectionIdOf(scratchId);
-    if (!secId) return false;
-    const sec = _secEl(secId);
+    const unit = _unitOf(scratchId);
+    if (!unit) return false;
+    const sec = _secEl(unit.sectionId);
     const arr = _parse(sec);
-    const l = arr.find(x => x.scratchId === scratchId);
-    if (!l || l.collapsed === !!val) return false;
-    l.collapsed = !!val;
+    const want = !!val;
+    const mine = new Set(unit.ids);
+    let hit = 0;
+    for (const l of arr) if (mine.has(l.scratchId) && l.collapsed !== want) { l.collapsed = want; hit++; }
+    if (!hit) return false;
     _write(sec, arr);
     _rerender(); _save();
     _emitSplChanged();
@@ -343,6 +383,74 @@
 
   function _scEl(scratchId) {
     return document.querySelector('.scratch-item[data-scratch-id="' + (window.CSS && CSS.escape ? CSS.escape(scratchId) : scratchId) + '"]');
+  }
+
+  /* ═══ [#16-G] 「연결의 단위는 ★묶음이다」 (현빈 2026-10-09) ══════════════════════════
+   * 현빈 원문: 「그룹설정을 한 상태에서 섹션에 링크를 연결하면 선이 그룹과 섹션이 연결되니
+   *   ★1개만 생겨야되는데 그룹안의 스크래치패드마다 모두 선이 연결이 되어버려 …
+   *   ★링크도 그룹인 경우 섹션과 링크가 1개의 선만 보이면 되는데 지금은 링크선을 각각 모두
+   *   언링크해줘야되는데 이게 잘못된듯해 … ★그룹설정이 됐는데도 링크 선을 만지면 각각 당겨지는 문제」
+   *
+   * ★★토큰(refLinks)은 ★그대로 «아이템 하나당 하나»다 — 바꾸지 않는다. 까닭 셋:
+   *   ⑴ `_parse` 가 `lastIndexOf(':')` 로 자르므로 토큰에 칸을 더하면 id 가 깨진다(이 파일 머리말의 ⛔무변경).
+   *   ⑵ `linkDy`(섹션 추종 앵커)는 ★아이템마다 다르다 — 묶어 버리면 5장이 한 자리에 포개진다.
+   *   ⑶ ★현빈 ②「링크 연결된 상태에서 그룹해제를 하면 그제서야 각각의 링크들이 연결되던가」가
+   *      ★공짜로 성립한다: 토큰이 원래 N개라, 그룹만 풀면 묶음이 N개로 «갈라지고» 선도 N개가 된다.
+   *      ⇒ 그래서 `_scratchUngroup` 의 「링크도 같이 끊기」를 ★뺐다(js/scratch-pad.js 그 자리에 까닭을 적어 뒀다).
+   * ⇒ 바꾸는 것은 «그리는·잡는·조작하는 ★단위» 하나다. 그것을 여기서 «묶음(unit)»이라 부른다.
+   *
+   * ★묶음 = «섹션 하나 × 그룹 하나». 그룹이 없는 아이템은 «자기 혼자인 묶음»이다 ⇒ 오늘 동작 그대로.
+   *   같은 그룹이라도 ★섹션이 다르면 다른 묶음이다(한 그룹을 두 섹션에 나눠 걸 수 있다 — 그 경우 선은 둘).
+   * ★그룹은 DOM 에서 읽는다(`el.dataset.scratchGroup`) — `_cmdLinkTargets` 가 쓰는 ★같은 출처다.
+   *   이 파일은 플레인 스크립트라 scratch-pad.js 의 모듈 상태(_scratchItems)를 못 본다.
+   * ⛔묶음 키에 그냥 `g` 를 쓰지 마라 — 그룹 id 와 scratchId 가 ★같은 문자열이면 둘이 한 묶음이 된다.
+   *   그룹 없는 쪽은 `'#'+id` 로 ★다른 이름공간에 둔다.
+   */
+  function _groupOf(scratchId) {
+    const el = _scEl(scratchId);
+    return (el && el.dataset.scratchGroup) || null;
+  }
+  function _units() {
+    const map = new Map();
+    for (const { sectionId, scratchId, collapsed } of allLinks()) {
+      const g = _groupOf(scratchId);
+      /* ⛔구분자를 날 NUL(\u0000) 문자로 두지 마라 — 소스에 제어문자가 날것대로 들어간다(실측: 한 번 밟았다).
+           '|' 로 충분하다 — 섹션 id(`sec_…`)와 그룹 id(`g_…`)에는 그 글자가 안 든다. */
+      const key = sectionId + '|' + (g ? 'g:' + g : '#' + scratchId);
+      let u = map.get(key);
+      if (!u) { u = { sectionId, group: g, ids: [], collapsed: true }; map.set(key, u); }
+      u.ids.push(scratchId);
+      /* 묶음의 접힘 = «전부 접혔을 때만» 접힘. 손잡이(＋/－)가 「다음에 무엇을 할까」를 이것으로 고른다.
+         ⇒ 섞여 있으면 «펼침»으로 읽혀 한 번 누르면 ★전부 접힌다(한 번에 가지런해진다). */
+      if (!collapsed) u.collapsed = false;
+    }
+    return [...map.values()];
+  }
+  function _unitOf(scratchId) {
+    for (const u of _units()) if (u.ids.includes(scratchId)) return u;
+    return null;
+  }
+  /* 묶음의 «겉 상자» — `_edgeEnds` 에 ★요소 대신 넘기는 자다(getBoundingClientRect 만 있으면 된다).
+     ★0×0(숨김·접힘) 멤버는 ★안 센다 — 「없다」가 아니라 「안 보인다」이고, 안 보이는 것을 상자에
+       넣으면 선이 허공으로 뻗는다. 전원이 0×0 이면 상자도 0×0 ⇒ `_edgeEnds` 의 가드가 null 을 준다.
+     splMembers = «보이는» 멤버 수. 1 이면 _edgeEnds 가 오늘처럼 «중심»에 붙인다. */
+  function _unitBox(unit) {
+    let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity, n = 0;
+    for (const id of unit.ids) {
+      const el = _scEl(id);
+      if (!el) continue;
+      const q = el.getBoundingClientRect();
+      if (q.width === 0 && q.height === 0) continue;
+      if (q.left < l) l = q.left;
+      if (q.top < t) t = q.top;
+      if (q.right > r) r = q.right;
+      if (q.bottom > b) b = q.bottom;
+      n++;
+    }
+    const box = n
+      ? { left: l, top: t, right: r, bottom: b, width: r - l, height: b - t }
+      : { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
+    return { splMembers: n, getBoundingClientRect: () => box };
   }
 
   // 연결된 스크래치 아이템에 접힘(spl-collapsed) 적용(refLinks의 collapsed). 선은 유지(아이템 위치 존재).
@@ -582,7 +690,12 @@
     if ((ir.width === 0 && ir.height === 0) || (sr.width === 0 && sr.height === 0)) return null;
     const icx = ir.left + ir.width / 2, icy = ir.top + ir.height / 2;
     const attachRight = icx > (sr.left + sr.width / 2);
-    return { ix: icx, iy: icy, sx: attachRight ? sr.right : sr.left, sy: sr.top + sr.height / 2, attachRight };
+    /* ★`item` 은 요소일 수도 있고 «묶음의 겉 상자»(_unitBox)일 수도 있다 — 둘 다 rect 만 준다.
+       한 장(splMembers 없음 또는 1)이면 «중심»에 붙인다 = 2026-09-30 부터의 동작 ★그대로.
+       여럿이면 «상자의 가까운 세로변 중앙»에 붙인다 — 중심에 붙이면 선이 가운데 한 장을 가리켜
+       「★그룹과 연결」이 아니라 「그 한 장과 연결」로 읽힌다(현빈 2026-10-09 ①). */
+    const ix = (item.splMembers > 1) ? (attachRight ? ir.left : ir.right) : icx;
+    return { ix, iy: icy, sx: attachRight ? sr.right : sr.left, sy: sr.top + sr.height / 2, attachRight };
   }
 
   /* 점 → 선분 거리. ⛔직선(무한) 거리로 재지 마라 — 선분 «밖»의 먼 점이 가깝다고 나온다. */
@@ -607,10 +720,12 @@
     const toLocalY = (clientY) => (clientY - scRect.top) / scale;
     let s = '';
     if (_showEdges) {
-      for (const { sectionId, scratchId } of allLinks()) {
-        const sec = document.getElementById(sectionId);
-        const item = _scEl(scratchId);
-        if (!sec || !item) continue;
+      /* ★[#16-G] «링크»가 아니라 «묶음»을 돈다 — 그룹 하나에 선 하나(현빈 2026-10-09 ①).
+         그룹이 없으면 묶음이 곧 아이템 하나라 오늘과 같은 선이 나온다. */
+      for (const unit of _units()) {
+        const sec = document.getElementById(unit.sectionId);
+        const item = _unitBox(unit);
+        if (!sec) continue;
         /* [#16-C] 안 그려진 쪽으로는 선을 긋지 않는다 — display:none 인 요소의 rect 는 «전부 0» 이라
          *   그대로 두면 선이 캔버스 좌상단(0,0)으로 뻗는 «허공 선»이 된다.
          *   ★스크래치 일괄 숨기기(window.toggleScratchHideAll)가 바로 이 상태를 만든다.
@@ -620,7 +735,7 @@
          *   ★그 판정은 이제 _edgeEnds 안에 있다(null = 안 그려졌다) — 맞추는 자도 같은 문을 쓴다. */
         const _e = _edgeEnds(sec, item);
         if (!_e) continue;
-        const ix = toLocalX(_e.ix), iy = toLocalY(_e.iy);   // 스크래치 중심
+        const ix = toLocalX(_e.ix), iy = toLocalY(_e.iy);   // 묶음이 붙는 점(한 장이면 중심)
         const sx = toLocalX(_e.sx), sy = toLocalY(_e.sy);
         s += '<line x1="' + ix.toFixed(1) + '" y1="' + iy.toFixed(1) + '" x2="' + sx.toFixed(1) + '" y2="' + sy.toFixed(1) + '"/>' +
              '<circle cx="' + ix.toFixed(1) + '" cy="' + iy.toFixed(1) + '" r="3.5" class="spl-edge-dot"/>';
@@ -736,17 +851,21 @@
   const DBL_HIT_PX = 8;     // 선에서 이만큼(화면 px) 안이면 「선을 눌렀다」
   const PULL_GAP   = 24;    // 섹션 세로변에서 바깥으로 띄울 거리(scaler-local px)
 
-  /** 화면 한 점에 «가장 가까운» 연결선. 없으면 null. */
+  /** 화면 한 점에 «가장 가까운» 연결선. 없으면 null.
+   *  ★[#16-G] 도는 것이 «묶음»이라 _drawEdges 와 ★같은 선을 본다 — 보이는 선과 눌리는 선이 갈리지 않는다.
+   *  ⚠️돌려주는 `link` 는 «대표 한 장»이다(호환용). 조작은 `unit` 으로 해야 그룹 전원에 간다. */
   function _linkAtPoint(cx, cy) {
     let best = null;
-    for (const link of allLinks()) {
-      const sec = document.getElementById(link.sectionId);
-      const item = _scEl(link.scratchId);
-      if (!sec || !item) continue;
+    for (const unit of _units()) {
+      const sec = document.getElementById(unit.sectionId);
+      const item = _unitBox(unit);
+      if (!sec) continue;
       const e = _edgeEnds(sec, item);
       if (!e) continue;                                  // 안 그려진 선은 «없는 선»이다
       const d = _distToSeg(cx, cy, e.ix, e.iy, e.sx, e.sy);
-      if (d <= DBL_HIT_PX && (!best || d < best.d)) best = { d, link, sec, item, ends: e };
+      if (d <= DBL_HIT_PX && (!best || d < best.d)) {
+        best = { d, unit, link: { sectionId: unit.sectionId, scratchId: unit.ids[0] }, sec, item, ends: e };
+      }
     }
     return best;
   }
@@ -763,18 +882,24 @@
    *     당기면 된다. ★모르는 값을 지어내 자리를 비우지 않는다.
    *   ★섹션은 막는 것에 안 넣는다 — 놓는 x 는 «모든 섹션의 가로 범위 밖»이다(같은 칼럼).
    *   @returns {{x:number,y:number}} scaler-local px */
-  function _pullDest(sec, item, attachRight) {
+  /* ★[#16-G] 두 번째·세 번째 인자가 늘었다 — 그룹을 통째로 당길 때 «묶음의 겉 크기»로 자리를 잡고
+     «묶음 전원»을 막는 것에서 뺀다(자기 자신과 겹치는 자리를 피하느라 끝없이 밀려나지 않게).
+     ⛔한 장일 때의 길은 그대로다 — size 를 안 주면 item.offsetWidth/Height 를 쓰고 exclude 는 자기 하나다. */
+  function _pullDest(sec, item, attachRight, size, exclude) {
     const scaler = _scaler();
     const scale = (window.currentZoom || 100) / 100 || 1;
     const scRect = scaler.getBoundingClientRect();
     const sr = sec.getBoundingClientRect();
     const toLX = (v) => (v - scRect.left) / scale;
     const toLY = (v) => (v - scRect.top) / scale;
-    const w = item.offsetWidth || 0, h = item.offsetHeight || 0;
+    /* ⛔`item` 이 null 일 수 있다(묶음 호출은 size·exclude 로 다 준다) — 옵셔널로 읽는다.
+       「size 를 줬으니 item 은 안 본다」를 전제로 두면 size.w 가 0 인 판에서 조용히 터진다. */
+    const w = (size && size.w) || item?.offsetWidth || 0, h = (size && size.h) || item?.offsetHeight || 0;
+    const skip = exclude || new Set(item ? [item] : []);
     const x = attachRight ? toLX(sr.right) + PULL_GAP : toLX(sr.left) - PULL_GAP - w;
     let y = toLY(sr.top);
     const blockers = [...document.querySelectorAll('.scratch-item')]
-      .filter(el => el !== item)
+      .filter(el => !skip.has(el))
       .map(el => ({
         x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0,
         w: el.offsetWidth || 0, h: el.offsetHeight || 0,
@@ -789,24 +914,53 @@
   }
 
   /** 연결 하나를 당긴다. 자리·저장·되돌리기는 스크래치가 맡는다(window._scratchAnimateItemTo).
+   *  ★[#16-G] 그룹이면 ★묶음 전원이 «상대 배치를 그대로 쥔 채» 함께 온다(현빈 2026-10-09 ⑤
+   *    「그룹설정이 됐는데도 링크 선을 만지면 각각 당겨지는 문제」). 되돌리기는 ⌘Z ★한 번이다.
+   *  ⛔한 장일 때는 길이 ★한 글자도 안 바뀐다 — `_scratchAnimateItemTo` 를 그대로 부른다
+   *    (tests/dom/scratch-link-pull 의 하네스가 그 함수 하나를 가로채 「한 번만 불렸나」를 잰다).
    *  @returns {{ok:boolean, moved?:boolean, reason?:string}} */
   function pullLink(scratchId) {
-    const link = allLinks().find(l => l.scratchId === scratchId);
-    if (!link) return { ok: false, reason: 'NO_LINK' };
-    const sec = document.getElementById(link.sectionId);
-    const item = _scEl(scratchId);
-    if (!sec || !item) return { ok: false, reason: 'NO_EL' };
-    const e = _edgeEnds(sec, item);
+    const unit = _unitOf(scratchId);
+    if (!unit) return { ok: false, reason: 'NO_LINK' };
+    const sec = document.getElementById(unit.sectionId);
+    const box = _unitBox(unit);
+    if (!sec || !box.splMembers) return { ok: false, reason: 'NO_EL' };
+    const e = _edgeEnds(sec, box);
     if (!e) return { ok: false, reason: 'HIDDEN' };
-    const dest = _pullDest(sec, item, e.attachRight);
-    /* 섹션 기준 세로 간격을 «목표 자리»로 다시 잡아 준다 — 안 하면 추종루프가 다음 프레임에
-       옛 linkDy 로 되돌려 당긴 것이 «튕겨» 나간다. */
+
     const scale = (window.currentZoom || 100) / 100 || 1;
     const scRect = _scaler().getBoundingClientRect();
     const secTop = (sec.getBoundingClientRect().top - scRect.top) / scale;
-    if (typeof window._scratchAnimateItemTo !== 'function') return { ok: false, reason: 'NO_API' };
-    return window._scratchAnimateItemTo(scratchId, dest.x, dest.y,
-      { label: '참고이미지 당기기', linkDy: dest.y - secTop });
+    /* 섹션 기준 세로 간격을 «목표 자리»로 다시 잡아 준다 — 안 하면 추종루프가 다음 프레임에
+       옛 linkDy 로 되돌려 당긴 것이 «튕겨» 나간다. */
+
+    if (unit.ids.length === 1) {
+      const item = _scEl(scratchId);
+      if (!item) return { ok: false, reason: 'NO_EL' };
+      const dest = _pullDest(sec, item, e.attachRight);
+      if (typeof window._scratchAnimateItemTo !== 'function') return { ok: false, reason: 'NO_API' };
+      return window._scratchAnimateItemTo(scratchId, dest.x, dest.y,
+        { label: '참고이미지 당기기', linkDy: dest.y - secTop });
+    }
+
+    if (typeof window._scratchAnimateItemsTo !== 'function') return { ok: false, reason: 'NO_API' };
+    /* 묶음의 겉 상자를 scaler-local 로 옮긴다 — `_pullDest` 는 그 좌표계로 자리를 잡는다. */
+    const br = box.getBoundingClientRect();
+    const boxX = (br.left - scRect.left) / scale, boxY = (br.top - scRect.top) / scale;
+    const size = { w: br.width / scale, h: br.height / scale };
+    const members = unit.ids.map(id => _scEl(id)).filter(Boolean);
+    const visible = members.filter(el => { const q = el.getBoundingClientRect(); return !(q.width === 0 && q.height === 0); });
+    const dest = _pullDest(sec, null, e.attachRight, size, new Set(members));
+    /* ★«상대 배치»는 묶음 겉 상자의 좌상단을 기준으로 잰다 — 각자 제 오프셋을 그대로 들고 간다.
+       ⛔0×0(숨김·접힘) 멤버는 ★안 옮긴다: 상자에도 안 들어갔으니 기준이 없다(지어내지 않는다). */
+    const moves = visible.map(el => {
+      const q = el.getBoundingClientRect();
+      const ox = (q.left - scRect.left) / scale - boxX;
+      const oy = (q.top - scRect.top) / scale - boxY;
+      const y = dest.y + oy;
+      return { id: el.dataset.scratchId, x: Math.round(dest.x + ox), y: Math.round(y), linkDy: y - secTop };
+    });
+    return window._scratchAnimateItemsTo(moves, { label: '참고이미지 당기기' });
   }
 
   /* 더블클릭 — «바깥틀»에서 듣는다. ⛔블록·섹션·스크래치 아이템 위에서는 손을 떼라:
@@ -822,7 +976,7 @@
       const hit = _linkAtPoint(e.clientX, e.clientY);
       if (!hit) return;
       e.preventDefault(); e.stopPropagation();
-      pullLink(hit.link.scratchId);
+      pullLink(hit.unit.ids[0]);   // ★묶음의 아무 멤버나 — pullLink 가 묶음으로 되살려 전원을 옮긴다
     });
     return true;
   }
@@ -981,7 +1135,9 @@
          js/canvas-scratch-drop.js:530 이 그렇게 집는다). addSection 의 자리 규칙이 바뀌거나 ghost 가
          끼면 그 꼴은 «남의 섹션»을 집는다. 차집합은 어디에 생겨도 맞는다. */
       sec = _allSecs().find(s => !before.has(s.id)) || null;
-      if (sec) ids.forEach(sid => addLink(sec.id, sid));
+      /* ★`addLinks` 를 쓴다 — 여기선 바깥이 이미 pushHistory 를 노옵으로 막아 두었으므로
+         그 안쪽의 「변경 전」 한 칸도 같이 삼켜진다(두 겹이지만 ★한 걸음은 그대로다). */
+      if (sec) addLinks(sec.id, ids);
     } finally {
       window.pushHistory = origPush;                                   // 규약 ② — 던져도 되돌린다
     }
@@ -1004,9 +1160,9 @@
     if (sec) {
       e.preventDefault(); e.stopPropagation();  // 일반 섹션 선택 차단
       const ids = _linkMode; endLinkMode();
-      let any = false;
-      ids.forEach(id => { if (addLink(sec.id, id)) any = true; });
-      if (any) window.showToast?.('🔗 참고이미지 ' + ids.length + '개 연결됨');
+      /* ★[#16-G] `addLink` 를 N번이 아니라 `addLinks` 한 번 — ⌘Z 가 «한 걸음»이 된다. */
+      const n = addLinks(sec.id, ids);
+      if (n) window.showToast?.('🔗 참고이미지 ' + n + '개 연결됨');
     } else {
       // 배너/링크버튼 클릭이 아니면 취소
       if (!e.target.closest('#spl-banner') && !e.target.closest('.spl-btns')) endLinkMode();
@@ -1048,7 +1204,7 @@
   window.SPLink = {
     stripTokens,
     linksForSection, sectionIdOf, isLinked, linkedScratchIds, allLinks,
-    addLink, removeLink, setCollapsed, setCollapsedAll, setShowEdges,
+    addLink, addLinks, removeLink, setCollapsed, setCollapsedAll, setShowEdges,
     startLinkMode, endLinkMode,
     linkToNewSection,     // ⌘＋🔗 — «빈 섹션 하나»를 만들어 전부 거기에 연결(검사·프로그램 호출용)
     _cmdLinkTargets,      // 그 제스처의 대상 결정(선택>그룹>단독) — 검사용
@@ -1064,5 +1220,8 @@
     pullLink,              // [P4] 연결선 더블클릭 = 이 함수(프로그램 호출·검사용)
     // 내부 유틸(P2 렌더/테스트용 · P4 판정)
     _parse, _write, _edgeEnds, _distToSeg, _linkAtPoint, _pullDest,
+    /* [#16-G] 연결의 «단위» — 검사가 「선이 몇 개여야 하나」를 소스 말고 ★여기로 물을 수 있게 연다.
+       ⛔그룹 id 값을 기대하지 마라(`'g_'+Math.random()`) — 존재/개수로 재라. */
+    _units, _unitOf, _unitBox, _groupOf,
   };
 })();
