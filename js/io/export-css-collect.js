@@ -32,7 +32,13 @@
 const EDITOR_ONLY_SEL = new RegExp([
   '\\.selected\\b', '\\.editing\\b', '\\.dragging\\b', '\\.group-selected', '\\.group-editing',
   '\\.ss-drag-over', '\\.drag-over', '\\.item-selected', '\\.cell-selected', '\\.row-active', '\\.col-active',
-  '-line-selected', '-step-selected', '\\.sec-bg-editing', '\\.sec-bg-proxy',
+  '-line-selected', '-cell-selected', '-step-selected', '\\.sec-bg-editing', '\\.sec-bg-proxy',
+  /* ★`-cell-selected`(2026-10-10 · 1009t3 A4) — ★`#canvas .grid-block .grd-cell-selected`
+     (css/editor-blocks.css:1799) 가 ★이 정규식을 ★★통과해 ★배송본 <style> 에 ★실렸다.
+     ★위의 `\\.cell-selected`(★표 셀)은 ★「점 다음에 cell」이라 ★`.grd-cell-selected` 를 ★못 잡는다
+       (앞 글자가 `-` 다). ★그래서 ★조각으로 둔다 — ★위 `-line-selected` 와 같은 꼴.
+     ★★증상은 ★클래스만 벗기면(capture-safety) ★안 보이지만, ★이 레포의 원칙은
+       「★숨기는 CSS 한 줄로 ★때우지 마라 · ★있을 이유 없는 것은 ★버린다」이다. */
   '\\.img-editing', '\\.img-edit-hint', '\\.img-boundary', '\\.img-corner-handle', '\\.img-edge-handle', '\\.img-rotate-zone',
   '\\.section-label', '\\.section-toolbar', '\\.section-hitzone', '\\.variation-badge', '\\.section-height-badge',
   '\\.annotation', '\\.annot-', '\\.qa-block', '\\.todo-pin', '\\.pen-',

@@ -43,12 +43,22 @@
          ⒝ `grep -rhoE "classList\.(add|remove|toggle|contains)\('…'" js/` ⇒ ★15종
          ⇒ ★★합집합 ★★16종  (⛔`git grep -o` 는 ★이 자리에서 ★0건을 내 ★자가 ★죽은 줄 알았다 —
             ★양성대조로 ★잡았다. ★`grep -rhoE` 로 ★바꿔 쟀다.)
-       ★★그중 ★이 명부(RUNTIME_MARKER_CLS ＋ RE)가 ★덮는 것 ★★8종 ·  ★★구멍 ★★8종:
-         ★덮임: selected · multi-selected · cell-selected · group-selected ·
-                bn2-line-selected · grd-line-selected · stb-line-selected · ln-line-selected
-         ★★구멍: item-selected · scratch-selected · grd-cell-selected · is-selected ·
-                assets-grid-card--selected · assets-row--selected · ck-item--selected · todo-pin--selected
-       ★그 ★8종은 ★★«저장돼야 하나»를 ★종마다 ★따로 재야 한다 — ⛔RE 를 넓혀 ★한꺼번에 묶지 마라.
+       ⚰️★★2026-10-10 ★정정 — ★위 ★「16」도 ★틀린 수였다. ★참값은 ★★17 이다(`stb-step-selected` ★누락).
+         ★그래서 ★이제 ★이 수를 ★주석이 ★들지 ★않는다 — ★`tests/unit/selected-marker-census.test.mjs` 가
+         ★«정의 자리»에서 ★떠서 ★★«이름 명부»로 ★양방향 단언한다(⛔수를 ★박지 ★않는다).
+         ★★「수를 적으면 ★그 수가 ★틀린다」가 ★이 머리말에서 ★★두 번 ★났다.
+       ★★2026-10-10 기준 — ★덮임 ★11 · ★구멍 ★6 (★그 6은 ★전부 ★저장 루트 ★밖이다 · 명부는 ★그 검사 파일에):
+         ★★구멍: scratch-selected · todo-pin--selected · is-selected ·
+                assets-grid-card--selected · assets-row--selected · ck-item--selected
+       ★★⛔금지의 ★«범위»를 ★갈라 적는다 (★2026-10-10 · ★다음 사람이 ★넓게 ★읽지 ★않게):
+         ★★⛔금지 = ★RE 를 ★`/(?:^|-)selected$/` 로 ★넓혀 ★★«여덟 종을 ★한꺼번에» 묶는 것.
+            ★까닭 — ★그 여덟은 ★«저장돼야 하나»가 ★종마다 ★다르고, ★여섯은 ★저장 루트 ★밖이라
+            ★묶으면 ★«무해한 것»까지 ★벗겨 ★무엇을 ★막는지 ★모르는 ★죽은 규칙이 된다.
+         ★★✅금지가 ★아닌 것 = ★★«한 갈래»를 ★성질로 ★묶는 것. ★2026-10-10 에 ★`cell` 갈래를 ★더했다
+            (`/(?:^|-)(?:line|cell)-selected$/`). ★근거 — ★그 갈래에 드는 것은 ★census 17종 중
+            ★`cell-selected`(표 셀 · ★이미 명부에 있었다)와 ★`grd-cell-selected` ★둘뿐이고,
+            ★둘 다 ★저장 루트 ★안이며 ★둘 다 ★벗겨야 한다. ★음성대조는 ★그 검사 파일 ★A4-C3 가 든다
+            (★여섯 구멍이 ★이 RE 에 ★안 걸리는지를 ★종마다 ★단언한다).
      ★★그중 ★셋은 ★★2026-10-09 에 ★★«해당 없음»으로 ★닫혔다 — ⛔다시 쫓지 마라:
        ★★`scratch-selected` · `todo-pin--selected` ⇒ ★★저장 클론에 ★★애초에 ★안 든다.
          ★계층(★실앱에서 ★재서 ★확인): `#canvas-wrap > #canvas-scaler > [ #todo-pin-overlay , #canvas ]`
@@ -68,11 +78,31 @@
        ★★`item-selected` ⇒ ★★가드 ★0건(★전부 `remove`→`add`) = ★«꾸밈만».
          ★★단 ★★«세척 명부가 ★넷»의 ★★증인이다 — ★capture-safety 와 ★export-html 은 ★이것을 ★벗기는데
          ★★여기(저장 명부)에는 ★★없다. ⇒ ★그 넷은 ★`js/io/capture-safety.js` ★머리말에 적어 뒀다.
-     ★grd-cell-selected 의 «무게»만 재 뒀다(2026-10-09 · ⛔고치지는 않았다 — 별건 티켓):
-       자 = «읽어서 결정하는» 자리 전수(add/clear 제외) ⇒ ★0건. js/editor.js:3938 ·
-       js/props/prop-grid.js:142·177 은 전부 clear 고 :194 는 add 다 — 가드로 읽는 자리가 없다.
-       ⇒ 새도 ★죽는 기능 0개. CSS 는 있어서(css/editor-blocks.css:1799) ★꾸밈만 샌다
-       (유령 셀 하이라이트 · 다음 그리드 조작의 clear 가 지운다).
+     ⚰️★★★`grd-cell-selected` — ★2026-10-10 에 ★고쳤다. ★그리고 ★★2026-10-09 의 ★«무게 0» 판정이
+       ★★틀렸다. ★★«자가 ★맞게 돌았는데도 ★틀린» 판이라 ★그 까닭을 ★남긴다.
+       ★어제 적은 것: 「자 = «읽어서 결정하는» 자리 전수(add/clear 제외) ⇒ ★0건 ⇒ 새도 ★죽는 기능
+         0개 · ★꾸밈만 샌다(유령 셀 하이라이트 · 다음 그리드 조작의 clear 가 지운다)」
+       ★★그 자는 ★★맞게 돌았다 — ★2026-10-10 에 ★다시 세어도 ★읽는 자리는 ★0건이다
+         (★add 1 = prop-grid.js:194 · ★clear 3 = editor.js:3938 · prop-grid.js:142·177).
+       ★★★그런데 ★자가 ★좁았다. ★이 누수는 ★«클래스를 ★읽어서»가 ★아니라 ★★두 길로 ★기능을 깬다:
+         ⒤ ★★«문자열을 ★해시해서» — ★비교 키. ★실측: 섹션 해시 `b8315380`(선택 전) →
+            `805b8dc8`(빈 칸을 ★고르기만 했을 때). ★협업 라이브 가드(js/history-diff.js
+            planScopedUndo)가 ★「체크포인트 후 ★원격 변경」으로 ★읽는 자리다.
+            ★고친 뒤 ★같은 장면에서 ★해시가 ★★`b8315380` 으로 ★돌아왔다(= 선택 전 값).
+         ⅱ) ★★«CSS 규칙이 ★같이 ★수확되어» — ★배송본. `css/editor-blocks.css:1799` 의
+            `#canvas .grid-block .grd-cell-selected` 가 ★`js/io/export-css-collect.js` 의
+            ★배제 정규식을 ★★통과했고, ★내보낸 HTML 에는 ★`<div id="canvas">` 래퍼가 ★있다.
+            ⇒ ★★배송본을 ★★렌더해 재니 ★★computed `rgb(45,111,232) 0 0 0 2px inset` —
+              ★★«고르지도 않은 칸»에 ★테두리가 ★★그려졌다. ★★«꾸밈»이 ★아니다.
+       ★★⇒ ★교훈: ★★«한 축의 ★0건 ≠ ★결함 0». ★자를 적을 때 ★★«그 자가 ★못 보는 길»을 ★같이 적어라.
+         ★이 자가 ★못 본 길이 ★바로 ★★«해시»와 ★«CSS 수확»이었다.
+       ★★⇒ ★그리고 ★★«다시 열면 ★테두리가 ★남는다»는 ★★거짓이었다(2026-10-10 · 행위로 쪼갰다):
+         ★저장본 1건 → innerHTML 주입 후 1건 → ★★이 명부의 세척 통과 후 ★★여전히 1건 →
+         ★`rebindAll` 후 ★0건. ⇒ ★가려 준 것은 ★세척이 ★아니라 ★★«그리드 재렌더»다 = ★★«우연한 방어».
+         ★그래서 ★`tests/dom/grid-cell-selected-leak.dom.spec.js` ★L2 는 ★★«열기 세척» ★그 연산만
+         ★따로 잰다 — ⛔재렌더에 ★가려지지 ★않게.
+       ★★잠그는 자: ★`tests/dom/grid-cell-selected-leak.dom.spec.js`(L1~L6 · ★핀 `be4ebbc10c77`
+         에서 ★여섯 ★전부 빨강 ×3) ＋ ★`tests/unit/selected-marker-census.test.mjs`.
        ⚠️대조 — 'multi-selected' 는 ★≥4기능이 죽었다(상자선택 · scoped undo ·
        ★자산패널 ⌫ 양보(js/panels/assets-panel.js:100·114) · ★화살표 미세이동
        (js/editor.js _freeNudgeTargets)). ★그래서 그건 고쳤고 이건 티켓이다. */
@@ -192,9 +222,11 @@
     });
   }
 
-  const RUNTIME_MARKER_RE  = /(?:^|-)line-selected$/;
+  const RUNTIME_MARKER_RE  = /(?:^|-)(?:line|cell)-selected$/;
   const RUNTIME_MARKER_CLS = [
-    'selected', 'multi-selected', 'cell-selected', 'ci-selected', 'ci-active', 'row-active',
+    'selected', 'multi-selected', 'ci-selected', 'ci-active', 'row-active',
+    'cell-selected',                             // ★RE 가 이미 잡는다(`-cell-selected`). 「지금 무엇이 있나」를 사람이 읽으라고 남긴다
+    'item-selected',                             // ★라벨 항목(2026-10-10 A4) — 저장본 1건 · 섹션 해시 `a1ad09e8`→`b4189398` 실측
     'bn2-line-selected', 'grd-line-selected',   // ★RE 가 이미 잡는다. 「현재 무엇이 있나」를 사람이 읽으라고 남긴다
     'bn2-line-empty',                            // 빈 줄 플레이스홀더 (편집 전용)
     'stb-step-selected',                         // 스텝 마커의 «옛 이름» — 규칙 밖 이름이라 저장본에 샜다(2026-09-15). 새 이름 stb-line-selected 는 RE 가 잡는다

@@ -448,18 +448,71 @@ export function stripEditorOnlyForCapture(clone) {
   clone.classList?.remove('selected', 'sec-bg-editing');
   // 캔버스 전체 클론에서는 «루트»가 아니라 자식 섹션이 sec-bg-editing 을 달고 있다.
   clone.querySelectorAll?.('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
+  /* ★★.grd-cell-selected (2026-10-10 · 1009t3 A4) — ★빈 그리드 «칸» 선택 표시.
+     ★증상 — ★이것이 ★★«배송본에 ★그려진» ★유일한 마커였다: 클래스가 단독 HTML 클론에 실리고
+       (`js/io/export-html.js` 가 ★이 함수를 부른다), ★`css/editor-blocks.css:1799` 의
+       `#canvas .grid-block .grd-cell-selected` 가 ★`export-css-collect.js` 의 ★배제 정규식을
+       ★통과해 ★같이 수확되고, ★내보낸 HTML 엔 `<div id="canvas">` 래퍼가 ★있다.
+       ⇒ ★배송본을 ★렌더해 잰 computed = `rgb(45,111,232) 0 0 0 2px inset`(2026-10-10 실측).
+     ★★⚠️그런데 ★이 명부는 ★★«둘째 명부»다 — ★임자는 `js/io/section-serialize.js` 의
+       `window.runtimeMarkers` 다. ★2026-10-10 에 ★두 명부를 ★함수 몸통으로 좁혀 견주니
+       ★이 명부 ∖ 그 뿌리 = ★★3종(`col-active` · `item-selected` · `sec-bg-empty`)뿐이었다
+       (`item-selected` 는 ★그 커밋에서 ★뿌리로 ★옮겼다 ⇒ 남는 것은 ★둘).
+       ⇒ ★★그러니 ★여기는 ★`stripRuntimeMarkers` 위임 ＋ ★«산출물 전용 2종»으로 ★모을 수 있다.
+       ★★⛔이번에 ★안 모았다. ★까닭을 ★수로 적는다: ★이 함수를 ★«실행하는» DOM 검사 ★9벌이
+         ★부분 하네스(`boot`)라 ★`section-serialize.js` 를 ★안 싣는다 ⇒ `window.runtimeMarkers`
+         가 ★undefined 다. ★위임하면 ★그 9벌이 ★한꺼번에 빨강이거나(명시 실패) ★★조용히
+         안 씻는다(폴백을 두면). ★★둘 다 ★이번 티켓보다 ★크다.
+       ★★★⛔그리고 ★모을 때 ★★«합집합»으로 ★하지 ★마라 — ★★`A ⊇ B` 는 ★★★거짓이다(2026-10-10 실측).
+         ★자 = ★두 명부를 ★★«함수 몸통»으로 좁혀(⛔파일 전체가 아니다) ★주석 떼고 ★뜬 뒤
+           ★`isRuntimeMarker` 를 ★실행해 물었다. ★결과:
+             ★B(이 함수) ∖ A = ★3종  col-active · item-selected · sec-bg-empty
+             ★C(export-html exportHTMLFile) ∖ A = ★6종  bn2-img-empty · cvb-img-empty ·
+                cvb-img-empty-plain · grd-img-empty · item-selected · sec-bg-empty
+             ★D(export-image renderComponentsInClone) ∖ A = ★0종
+           ⇒ ★`item-selected` 를 ★A 로 옮긴 뒤 ★남는 ★«산출물 전용» 후보 = ★★6종
+         ★★그 6종 중 ★★5종(`sec-bg-empty`·`bn2-img-empty`·`cvb-img-empty`·`cvb-img-empty-plain`·
+           `grd-img-empty`)은 ★★«빈 이미지/배경 ★자리표시»다 ⇒ ★★★저장본에 ★남아야 한다.
+           ★★A 가 그것을 ★삼키면 ★`tests/dom/grid-cell-emptied.dom.spec.js` ★E
+           (「★저장·재열기 왕복에서 ★빈 칸이 ★머문다」)가 ★빨개진다 = ★★멀쩡한 것을 ★깬다.
+         ★★⇒ ★★★방향은 ★하나뿐이다: ★★`B(산출물) = A(저장 뿌리) ＋ ARTIFACT_ONLY[6종]`.
+           ⛔그 반대(A 가 B 를 삼키기)는 ★데이터 손실이다.
+         ★★⇒ ★★교훈: ★★「명부가 둘이면 ★파생시켜 하나로」의 ★«파생»은 ★★«합집합»이 ★아니다 —
+           ★★★파생시키기 ★전에 ★★«포함관계»를 ★재라.
+         ★★⇒ ★그 6종 명부와 ★「그중 하나가 ★A 에 ★들어오면 ★빨강」은
+           ★`tests/unit/selected-marker-census.test.mjs` 가 든다.
+       ★★⇒ ★모으기는 ★지디 명부로 올렸다(2026-10-10). ★그때 ★같이 고칠 것 =
+         ★그 9벌 하네스에 `js/io/section-serialize.js` 한 줄 ＋ ★`col-active` 가 ★저장에도
+         ★필요한가(★안 쟀다 — `row-active` 는 뿌리에 있는데 ★그것만 없다).
+     ★★⛔그 사이에 ★이 명부와 ★뿌리가 ★다시 갈리지 않게 ★`tests/_export-channels.js`
+       `MARKER_TOKENS` 가 ★두 자리를 ★같은 토큰으로 ★동시에 잰다. */
   // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 오염 방지)
-  // ★row-active/col-active(2026-09-15 a1-a3 지적): editor-blocks.css가 이 둘에 z-index:1을
-  //   줘서(활성 줄/칸 강조용) .row/.col이 스태킹 컨텍스트가 된다 — 벗기기 목록에 없으면
-  //   클론에 그대로 남아, 그 안의 redact 도형이 z-index:3을 받아도(:has() 규칙)
-  //   «줄 전체»가 z-index:1에 갇혀 겹치는 다른 줄의 글자(z-index:2)보다 아래일 수 있다.
-  clone.querySelectorAll(
-    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over, .item-selected, .bn2-line-selected, .bn2-line-empty, .grd-line-selected, .stb-line-selected, .stb-step-selected, .row-active, .col-active'
-  ).forEach(el => {
-    el.classList.remove('selected', 'img-editing', 'editing', 'dragging',
-      'group-selected', 'group-editing', 'ss-drag-over', 'drag-over', 'item-selected', 'bn2-line-selected', 'bn2-line-empty',
-      'grd-line-selected', 'stb-line-selected', 'stb-step-selected', 'row-active', 'col-active');
-  });
+  /* ★★명부는 ★«한 벌»이다 — ★선택자와 ★`remove` 인자를 ★★같은 배열에서 ★파생시킨다.
+     ★★왜 (2026-10-10 · advqa 가 ★실물로 심어 증명):
+       ★예전 꼴은 ★명부를 ★★«두 벌» 들었다 — ⒜어느 요소를 ★돌까(선택자) ⒝무엇을 ★벗길까(remove 인자).
+       ★★둘 다 있어야 ★벗겨지는데, ★★한쪽만 지운 변이가 ★★«검사 9/9 초록 · rc 0»으로 ★지나갔다:
+         ★M1 = ⒝ 에서만 뺌 ⇒ 요소는 돌지만 ★안 벗긴다 ⇒ ★누수 부활 ★★거짓초록
+         ★M3 = ⒜ 에서만 뺌 ⇒ 그 요소를 ★아예 안 돈다 ⇒ ★누수 부활 ★★거짓초록
+         ★M2 = ★둘 다 뺌   ⇒ ★fail 1 · rc 1 ✅ (★자는 ★죽지 않았다 — ★★반쪽을 ★못 봤을 뿐)
+     ★★⇒ ★경고 주석으로는 ★못 막는다. ★★«파생시켜 ★하나로» 둔다 ⇒ ★M1·M3 은 ★★지을 수 ★없는 변이가 된다.
+     ⛔이 배열을 ★★다시 ★두 벌로 ★풀지 ★마라. ★늘릴 때는 ★★여기 ★한 줄만 보탠다.
+     ★row-active/col-active(2026-09-15 a1-a3 지적): editor-blocks.css 가 이 둘에 z-index:1 을
+       줘서(활성 줄/칸 강조용) .row/.col 이 스태킹 컨텍스트가 된다 — 벗기기 목록에 없으면
+       클론에 그대로 남아, 그 안의 redact 도형이 z-index:3 을 받아도(:has() 규칙)
+       «줄 전체»가 z-index:1 에 갇혀 겹치는 다른 줄의 글자(z-index:2)보다 아래일 수 있다.
+     ★grd-cell-selected(2026-10-10 · 1009t3 A4) — ★빈 그리드 «칸» 선택 표시. ★이것이 ★★«배송본에
+       ★그려진» ★유일한 마커였다(실측 computed `rgb(45,111,232) 0 0 0 2px inset`).
+     ★★잠그는 자 = `tests/unit/export-channel-roster.test.mjs` U6-c (★MARKER_TOKENS 4종) ＋
+       `tests/dom/grid-cell-selected-leak.dom.spec.js` L4. */
+  const EDITOR_STATE_CLS = [
+    'selected', 'img-editing', 'editing', 'dragging',
+    'group-selected', 'group-editing', 'ss-drag-over', 'drag-over',
+    'item-selected', 'bn2-line-selected', 'bn2-line-empty',
+    'grd-line-selected', 'grd-cell-selected', 'stb-line-selected', 'stb-step-selected',
+    'row-active', 'col-active',
+  ];
+  clone.querySelectorAll(EDITOR_STATE_CLS.map(c => '.' + c).join(','))
+    .forEach(el => el.classList.remove(...EDITOR_STATE_CLS));
   /* ★프라이버시(2026-09-15, a1-a3 지적+elementFromPoint 실측 확인 — T-027 z-index 수정
    * (editor-blocks.css .shape-block.shape-redact z-index:3)의 잔여 구멍): transform이
    * 걸린 조상은 «새 스태킹 컨텍스트»를 만든다 — 그 안의 redact 도형은 z-index:3이어도
