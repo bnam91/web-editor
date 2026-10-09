@@ -54,8 +54,32 @@ async function dragBy(page, id, dx, dy) {
   await page.waitForTimeout(120);
 }
 
-/* 공통 판정: 넣은 직후 전제 → (+100,+50) Δx>0 → (+900,0) 프레임 안 */
-async function judge(page, id, label) {
+/* 공통 판정: 넣은 직후 전제 → (+100,+50) Δx>0 → 오른끝 50px 넘겨 끌기 → ★죔 판정
+ *
+ * ★★`side` = ★이 칸이 ★★«제 손으로 ★선언하는» 축 값이다. ⛔제품의 ★지금 상태에서 ★끌어오지 ★않는다.
+ *   `'clip'` = ★자른다(★속성 ★없음 = ★기본 · 또는 `'true'`) ⇒ ★넘긴 50px 을 ★죔이 ★먹는다
+ *   `'free'` = ★안 자른다(`clipContent="false"`)                ⇒ ★넘긴 ★50px 이 ★그대로 ★남는다
+ * ⚰️★옛 꼴(2026-10-09): ★`if (clips)` 로 ★★제품 dataset 을 ★읽어 ★갈래를 ★골랐다.
+ *   ★★그 꼴은 ★거의 ★항등식이다 — ★CSS·기본값이 ★뒤집혀도 ★★맞는 갈래가 ★골라져 ★빨강이 ★안 난다.
+ *   ★실제로 ★2026-10-10 에 ★기본이 ★뒤집히자 ★이 파일 ★네 칸이 ★한꺼번에 ★빨개졌다 — ★그 갈래가
+ *   ★★잡아 준 것이 ★아니라, ★else 쪽 ★단언이 ★기본에 ★안 맞아 ★빨개진 것이다(★자가 아니라 ★사고였다).
+ * ⇒ ★칸이 ★선언하고, ⑴dataset 값 ⑵computed overflow 를 ★★전제로 ★단언한 뒤, ★행위는 ★★갈래 ★없이 잰다. */
+async function judge(page, id, label, { side } = {}) {
+  expect(['clip', 'free'], `[${label}] ★이 칸이 ★축 값을 ★안 선언했다 — ⛔제품에서 ★끌어오지 않는다`).toContain(side);
+  const axis = await page.evaluate(() => {
+    const fr = document.getElementById('frF');
+    return { attr: fr.dataset.clipContent ?? null, radius: fr.dataset.radius ?? null, ov: getComputedStyle(fr).overflow };
+  });
+  expect(axis.radius, `[${label}] ★전제: `+'`data-radius`'+` 가 붙어 있다 — ★radius 규칙(0,3,0)이 ★끔(0,2,0)을 ★이겨 ★축을 ★못 잰다`).toBe(null);
+  if (side === 'free') {
+    expect(axis.attr, `[${label}] ★전제: `+'`free`'+` 라 선언했는데 ★속성이 `+'`false`'+` 가 ★아니다 (${axis.attr})`).toBe('false');
+    expect(axis.ov, `[${label}] ★★전제: ★끔인데 computed overflow 가 ★visible 이 ★아니다 — ★끔이 ★안 먹는다`).toBe('visible');
+  } else {
+    expect(axis.attr === null || axis.attr === 'true',
+      `[${label}] ★전제: `+'`clip`'+` 라 선언했는데 ★속성이 ${axis.attr} 다`).toBe(true);
+    expect(axis.ov, `[${label}] ★★전제: ★속성 ${axis.attr === null ? '없음(기본)' : axis.attr} 인데 ★안 자른다`
+      + ' — ★2026-10-10 의 ★«기본 = 자름»이 ★죽었다').toBe('hidden');
+  }
   const g0 = await geo(page, id);
   expect(g0 && g0.inFrame, `[${label}] 전제 — 프레임 안에 들어갔다`).toBe(true);
   expect(g0.abs, `[${label}] 전제 — 끌리는 단위가 absolute`).toBe('absolute');
@@ -72,34 +96,27 @@ async function judge(page, id, label) {
   const g2 = await geo(page, id);
   expect(g2.inFrame, `[${label}] 전제 — 끌어내기가 안 났다(프레임 안 그대로)`).toBe(true);
 
-  /* ══ ★울타리 — ★★«자르는 프레임일 때만» (2026-10-09 · 현빈 t1-① · 지디 판정 ㉮) ══════
-     ⚰️★옛 단언(2026-09-22 T-088): ★★`g2.left + g2.uw === g2.fw` ★조건 ★없이.
-        ★글: 「오른쪽 끝에 «딱» 붙었다(넘긴 50px 은 클램프가 먹었다)」 · 「오른쪽이 프레임 밖(T-088 울타리)」
-        ★그때 센 수(2026-10-09 실측): ★`fw 764` · ★클램프가 먹은 뒤 ★`764`.
-     ⚰️★그 단언의 ★까닭 = 「`.frame-block` 은 ★overflow:hidden」 ⇒ ★★2026-09-28 ★현빈 지시로
-        ★기본이 ★`overflow: visible` 이 되어 ★★그 까닭이 ★죽었다. ★문만 남아 있었다.
-     ★★그래서 ★지우지 ★않고 ★★«조건»을 ★더한다 — ★★양쪽을 ★다 적는다:
-        ★자르는 프레임  ⇒ ★여전히 ★`fw` 에 ★딱 (★울타리 ★선다)
-        ★안 자르는 프레임 ⇒ ★★넘긴 ★50px 이 ★★그대로 남는다(★실측 ★`814` = 764＋50)
-     ⛔한쪽만 적으면 ★그 자리가 ★또 ★빈다(지디 ㉠).
-     ★판정은 ★제품의 ★술어를 ★그대로 ★부른다 — ⛔spec 이 ★제 벌로 ★다시 세지 않는다. */
-  const clips = await page.evaluate(() => {
-    const d = document.getElementById('frF').dataset;
-    return d.clipContent === 'true' || !!(d.radius && d.radius !== '0');
-  });
-  if (clips) {
+  /* ══ ★울타리 — ★★«이 칸이 ★선언한 쪽»으로만 잰다 (2026-10-10 재서술 · 지디 ㉠)
+     ⚰️★옛 단언(2026-09-22 T-088): `g2.left + g2.uw === g2.fw` ★조건 ★없이.
+        ★글: 「오른쪽 끝에 «딱» 붙었다(넘긴 50px 은 클램프가 먹었다)」 · ★그때 센 수 `fw 764` → `764`.
+     ⚰️★그 단언의 까닭 = 「`.frame-block` 은 ★overflow:hidden」 ⇒ ★2026-09-28 현빈 지시로 ★기본이
+        `visible` 이 되어 ★그 까닭이 ★죽었고(문만 남았다), ★★2026-10-10 에 ★다시 ★살아났다.
+     ★★그래서 ★조건을 ★다시 적는다 — ★양쪽을 ★다 적고, ★★쪽은 ★칸이 ★고른다:
+        ★`clip` ⇒ ★`fw` 에 ★딱 (★울타리 ★선다 · ★실측 `764`)
+        ★`free` ⇒ ★넘긴 ★50px 이 ★그대로 (★실측 `814` = 764＋50)
+     ⛔한쪽만 ★돌면 ★그 자리가 ★또 ★빈다 — ★`free` 쪽은 ★`E1f` 가 ★돌린다. */
+  if (side === 'clip') {
     expect(g2.left + g2.uw, `[${label}] ★자르는 프레임인데 ★울타리가 ★안 섰다 — 넘긴 50px 이 남았다`).toBe(g2.fw);
-    expect(g2.left + g2.uw, `[${label}] 오른쪽이 프레임 밖`).toBeLessThanOrEqual(g2.fw);
   } else {
     expect(g2.left + g2.uw - g2.fw,
-      `[${label}] ★★안 자르는 프레임인데 ★넘긴 50px 이 ★사라졌다 — ★죔이 ★또 ★전부를 가둔다`
+      `[${label}] ★★끔인데 ★넘긴 50px 이 ★사라졌다 — ★죔이 ★또 ★전부를 가둔다`
       + ` (fw ${g2.fw} · 오른끝 ${g2.left + g2.uw})`).toBe(50);
   }
   expect(g2.left, `[${label}] 왼쪽이 프레임 밖`).toBeGreaterThanOrEqual(0);
   return { g0, g1, g2 };
 }
 
-test('E1 ★패널 삽입 — 프레임 고른 채 addGridBlock → 좌우로도 움직인다 ＋ ★울타리는 «자르는 프레임일 때만»', async ({ page }) => {
+test('E1 ★패널 삽입 — 프레임 고른 채 addGridBlock → 좌우로도 움직인다 ＋ ★★기본(속성 없음)이라 ★울타리가 ★선다', async ({ page }) => {
   const errs = await setup(page);
   const id = await page.evaluate(() => {
     const fr = document.getElementById('frF'), sec = document.getElementById('sF');
@@ -107,15 +124,17 @@ test('E1 ★패널 삽입 — 프레임 고른 채 addGridBlock → 좌우로도
     return window.addGridBlock({}).block.id;
   });
   await page.waitForTimeout(300);
-  const r = await judge(page, id, '패널 삽입');
+  const r = await judge(page, id, '패널 삽입', { side: 'clip' });
   expect(r.g0.key, '폭은 모델 키로 들어간다(프레임 보이는 폭 × 0.8)').toBe(String(Math.round(r.g0.fcw * 0.8)));
   expect(errs).toEqual([]);
 });
 
-/* ★★위 `judge()` 의 ★★«자르는 프레임» 갈래를 ★★실제로 ★돌리는 칸 (2026-10-09 · 지디 ㉠).
-   ⛔안 두면 ★그 갈래가 ★★한 번도 ★안 돌아 ★★«적었지만 ★안 잰 조건»이 된다.
-   ★장면은 ★E1 과 ★한 글자도 안 다르다 — ★★「내용 자르기」만 ★켠다. */
-test('E1c ★★「내용 자르기」 켠 프레임 — ★같은 삽입·같은 끌기인데 ★울타리가 ★선다 (E1 과 ★토글만 다르다)', async ({ page }) => {
+/* ⚠️★★2026-10-10 재서술 — ★이 칸의 ★옛 제목 「E1 과 ★토글만 다른데 ★울타리가 ★선다」는 ★★거짓이 되었다:
+     ★기본이 ★자름으로 ★뒤집혀 ★★E1 도 ★울타리가 ★선다 ⇒ ★이 칸은 ★더 이상 ★E1 의 ★«짝»이 아니라 ★★«사본»이다.
+   ⛔지우지 ★않았다 — ★켬(`'true'`)이 ★기본과 ★같은 결과를 ★내는지는 ★여전히 ★물을 값이 있다
+     (★`!important` 라 ★조상 해제까지 ★이긴다 ⇒ ★기본과 ★갈릴 수 있는 자리다).
+   ★★E1 의 ★참 짝은 ★이제 ★아래 `E1f`(`clipContent="false"`) 다. */
+test('E1c ★★「내용 자르기」 ★켬(`true`) — ★★기본과 ★같은 결과인지 (★울타리가 ★선다 · ⚠️E1 의 짝이 아니라 ★사본)', async ({ page }) => {
   const errs = await setup(page);
   const id = await page.evaluate(() => {
     const fr = document.getElementById('frF'), sec = document.getElementById('sF');
@@ -126,8 +145,27 @@ test('E1c ★★「내용 자르기」 켠 프레임 — ★같은 삽입·같�
   await page.waitForTimeout(300);
   expect(await page.evaluate(() => getComputedStyle(document.getElementById('frF')).overflow),
     '★전제: 토글을 켰는데 computed overflow 가 ★hidden 이 아니다 — CSS 가 바뀌었다').toBe('hidden');
-  const r = await judge(page, id, '패널 삽입(자르는 프레임)');
-  expect(r.g2.left + r.g2.uw, '★자르는 프레임인데 ★오른끝이 ★프레임 폭과 다르다').toBe(r.g2.fw);
+  const r = await judge(page, id, '패널 삽입(켬)', { side: 'clip' });
+  expect(r.g2.left + r.g2.uw, '★켠 프레임인데 ★오른끝이 ★프레임 폭과 다르다').toBe(r.g2.fw);
+  expect(errs).toEqual([]);
+});
+
+/* ★★`judge()` 의 ★★`free` 갈래를 ★★실제로 ★돌리는 ★단 ★하나의 칸 (2026-10-10 · 지디 ㉠).
+   ⛔안 두면 ★그 갈래가 ★★한 번도 ★안 돌아 ★★«적었지만 ★안 잰 조건»이 된다 — ★2026-10-10 전까지
+     ★이 파일에 `clipContent="false"` 를 쓰는 칸이 ★★0건이었다(전수로 셌다).
+   ★장면은 ★E1 과 ★한 줄만 다르다 — ★★「내용 자르기」를 ★끈다.
+   ★★여기에 ★옛 E1~E4 가 ★들고 있던 ★단언(「넘긴 50px 이 ★그대로 남는다」·★실측 814)이 ★산다. */
+test('E1f ★★`clipContent="false"`(현빈 09-28 의 끔) — ★같은 삽입·같은 끌기인데 ★★넘긴 50px 이 ★그대로 남는다', async ({ page }) => {
+  const errs = await setup(page);
+  const id = await page.evaluate(() => {
+    const fr = document.getElementById('frF'), sec = document.getElementById('sF');
+    fr.dataset.clipContent = 'false';                      /* ★이 한 줄만 ★E1 과 다르다 */
+    window.deselectAll?.(); sec.classList.add('selected'); fr.classList.add('selected'); window._activeFrame = fr;
+    return window.addGridBlock({}).block.id;
+  });
+  await page.waitForTimeout(300);
+  const r = await judge(page, id, '패널 삽입(끔)', { side: 'free' });
+  expect(r.g2.left + r.g2.uw - r.g2.fw, '★끔인데 ★오른끝이 ★프레임 폭을 ★안 넘었다 — ★죔이 ★끔까지 가둔다').toBe(50);
   expect(errs).toEqual([]);
 });
 
@@ -147,7 +185,7 @@ test('E2 ★드롭 — 섹션 흐름 그리드를 진짜 마우스로 프레임�
   for (let i = 1; i <= 16; i++) await page.mouse.move(src[0] + (dst[0] - src[0]) * i / 16, src[1] + (dst[1] - src[1]) * i / 16);
   await page.waitForTimeout(100); await page.mouse.up(); await page.waitForTimeout(400);
   expect(await page.evaluate((id) => document.getElementById(id).parentElement.id, id), '전제 — 드롭 경로(makeAbsolute: row 를 벗기고 블럭이 프레임 직계)').toBe('frF');
-  const r = await judge(page, id, '드롭');
+  const r = await judge(page, id, '드롭', { side: 'clip' });
   expect(r.g0.key, '폭은 모델 키로(프레임 보이는 폭 × 0.8)').toBe(String(Math.round(r.g0.fcw * 0.8)));
   expect(errs).toEqual([]);
 });
@@ -163,7 +201,7 @@ test('E3 ★픽스처 — 프레임 안 «흐름 row» 째 들어 있던 폭 100
   expect(pre, '전제 — 옛 꼴: 흐름 row · 그리드 폭 = 프레임 폭').toEqual({ rowPos: '', w: pre.fw, fw: pre.fw });
   /* 첫 끌기가 세운다(settleRowInFreeFrame 'inplace') — judge 의 첫 끌기가 그것이다. 세운 뒤 전제는 judge 안에서 다시 잰다. */
   await dragBy(page, id, 0, 1);
-  await judge(page, id, '픽스처(옛 꼴)');
+  await judge(page, id, '픽스처(옛 꼴)', { side: 'clip' });
   expect(errs).toEqual([]);
 });
 
@@ -176,7 +214,7 @@ test('E4 _insertToFlowFrame 의 \'100%\' 기본 — 그리드를 그 길로 넣�
     return ok ? made.block.id : null;
   });
   expect(id, '전제 — 그 길로 들어갔다').toBeTruthy();
-  const r = await judge(page, id, '_insertToFlowFrame');
+  const r = await judge(page, id, '_insertToFlowFrame', { side: 'clip' });
   expect(r.g0.key, '폭은 모델 키로(프레임 보이는 폭 × 0.8)').toBe(String(Math.round(r.g0.fcw * 0.8)));
   expect(errs).toEqual([]);
 });

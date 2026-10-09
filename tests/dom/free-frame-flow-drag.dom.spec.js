@@ -118,7 +118,7 @@ const PAGE_GRID = PAGE.replace(
   '<div class="row" id="rowOld" draggable="true"><div class="grid-block" id="grdOld" data-type="grid" style="background:#ccd"></div></div>',
 );
 
-test('F6 ★폭 100% 그리드(실물 렌더)도 처음 끌 때 좌우로 움직인다 ＋ ★울타리는 «자르는 프레임일 때만»', async ({ page }) => {
+test('F6 ★폭 100% 그리드(실물 렌더)도 처음 끌 때 좌우로 움직인다 ＋ ★★기본(속성 없음)이라 ★울타리가 ★선다', async ({ page }) => {
   await boot(page, PAGE_GRID);
   expect(PAGE_GRID.includes('grid-block.js') && !PAGE_GRID.includes('width:400px;height:120px'), '전제 — 픽스처 치환이 «먹었다»').toBe(true);
   const pre = await page.evaluate(() => {
@@ -134,27 +134,30 @@ test('F6 ★폭 100% 그리드(실물 렌더)도 처음 끌 때 좌우로 움직
   await dragBy(page, 'grdOld', 400, 0);
   const box = await page.evaluate(() => { const r = document.getElementById('rowOld'), f = document.getElementById('fr1');
     return { l: parseInt(r.style.left, 10), w: r.offsetWidth, fw: f.offsetWidth, p: r.parentElement.id,
-             clips: f.dataset.clipContent === 'true' || !!(f.dataset.radius && f.dataset.radius !== '0'),
+             attr: f.dataset.clipContent ?? null, radius: f.dataset.radius ?? null,
              ov: getComputedStyle(f).overflow }; });
   expect(box.p, '전제 — 끌어내기 안 났다').toBe('fr1');
-  /* ══ ★울타리 — ★★«자르는 프레임일 때만» (2026-10-09 · 현빈 t1-① · 지디 판정 ㉮) ══════
-     ⚰️★옛 단언(T-088 · 2026-09-22): ★★`box.l + box.w <= box.fw` ★조건 ★없이.
-        ★글: 「프레임 오른쪽 밖으로 나갔다(T-088)」 · ★그때 센 수(2026-10-09 실측) ★`fw 860` · ★받은 값 ★`1188`.
-     ⚰️★그 까닭 「`.frame-block` 은 ★overflow:hidden」은 ★★2026-09-28 ★현빈 지시로 ★죽었다(기본 `visible`).
-     ⇒ ★단언을 ★지우지 ★않고 ★★«조건»을 ★더한다 — ★양쪽을 ★다 적는다(지디 ㉠). */
-  expect(box.ov, '★전제: 이 프레임의 computed overflow 를 못 읽었다').toBeTruthy();
-  if (box.clips) {
-    expect(box.l + box.w, `★자르는 프레임인데 ★프레임 오른쪽 밖으로 나갔다 (오른끝 ${box.l + box.w} · fw ${box.fw})`)
-      .toBeLessThanOrEqual(box.fw);
-  } else {
-    expect(box.l + box.w, `★★안 자르는 프레임인데 ★오른쪽 끝에 ★물렸다 — ★죔이 ★또 ★전부를 가둔다`
-      + ` (오른끝 ${box.l + box.w} · fw ${box.fw} · overflow ${box.ov})`).toBeGreaterThan(box.fw);
-  }
+  /* ══ ★울타리 — ★★«이 칸이 ★선언한 쪽»으로만 잰다 (2026-10-10 재서술 · 지디 ㉠)
+     ⚰️★옛 단언(T-088 · 2026-09-22): `box.l + box.w <= box.fw` ★조건 ★없이.
+        ★글: 「프레임 오른쪽 밖으로 나갔다(T-088)」 · ★그때 센 수 `fw 860` · ★받은 값 `1188`.
+     ⚰️★그 까닭 「`.frame-block` 은 ★overflow:hidden」은 ★2026-09-28 현빈 지시로 ★죽었고,
+        ★★2026-10-10 에 ★다시 ★살아났다(기본 = ★자름).
+     ⚰️★그 사이(2026-10-09)의 꼴: ★`if (box.clips)` — ★★제품 dataset 을 ★읽어 ★갈래를 ★골랐다.
+        ★★그 꼴은 ★거의 ★항등식이다 — ★기본이 ★뒤집혀도 ★맞는 갈래가 ★골라져 ★빨강이 ★안 난다.
+     ⇒ ★★이 칸은 ★«기본(속성 없음) = ★자름»을 ★선언하고 ★그것을 ★전제로 ★단언한다.
+        ★`free` 쪽은 ★아래 ★`F6f` 가 ★돌린다. */
+  expect(box.attr, '★전제: 이 칸은 ★★«속성 없음»을 잰다 — ★속성이 ★붙어 있다').toBe(null);
+  expect(box.radius, '★전제: `data-radius` 가 붙어 있다 — ★radius 규칙(0,3,0)이 ★축을 ★먹는다').toBe(null);
+  expect(box.ov, '★★전제: ★속성이 ★없는데 ★안 자른다 — ★2026-10-10 의 ★«기본 = 자름»이 ★죽었다').toBe('hidden');
+  expect(box.l + box.w, `★★기본(자르는) 프레임인데 ★프레임 오른쪽 ★밖으로 나갔다 (오른끝 ${box.l + box.w} · fw ${box.fw})`)
+    .toBeLessThanOrEqual(box.fw);
 });
 
-/* ★★위 F6 의 ★★«자르는 프레임» 갈래를 ★실제로 ★돌리는 칸 — ⛔안 두면 ★적었지만 ★안 잰 조건이 된다.
-   ★F6 과 ★한 글자도 안 다르다. ★★「내용 자르기」만 ★켠다. */
-test('F6c ★★「내용 자르기」 켠 프레임 — ★같은 끌기인데 ★울타리가 ★선다 (F6 과 ★토글만 다르다)', async ({ page }) => {
+/* ⚠️★★2026-10-10 재서술 — ★옛 제목 「F6 과 ★토글만 다른데 ★울타리가 ★선다」는 ★★거짓이 되었다:
+     ★기본이 ★자름으로 ★뒤집혀 ★★F6 도 ★울타리가 ★선다 ⇒ ★이 칸은 ★F6 의 ★«짝»이 아니라 ★★«사본»이다.
+   ⛔지우지 ★않았다 — ★켬(`'true'`)은 `!important` 라 ★조상 해제까지 ★이기므로 ★기본과 ★갈릴 수 있다.
+   ★★F6 의 ★참 짝은 ★이제 ★아래 `F6f`(`clipContent="false"`) 다. */
+test('F6c ★★「내용 자르기」 ★켬(`true`) — ★★기본과 ★같은 결과인지 (★울타리가 ★선다 · ⚠️F6 의 짝이 아니라 ★사본)', async ({ page }) => {
   await boot(page, PAGE_GRID);
   await page.evaluate(() => {
     document.getElementById('fr1').dataset.clipContent = 'true';   /* ★이 한 줄만 ★F6 과 다르다 */
@@ -166,7 +169,28 @@ test('F6c ★★「내용 자르기」 켠 프레임 — ★같은 끌기인데 
   await dragBy(page, 'grdOld', 400, 0);
   const box = await page.evaluate(() => { const r = document.getElementById('rowOld'); return { l: parseInt(r.style.left, 10), w: r.offsetWidth, fw: document.getElementById('fr1').offsetWidth, p: r.parentElement.id }; });
   expect(box.p, '전제 — 끌어내기 안 났다').toBe('fr1');
-  expect(box.l + box.w, `★자르는 프레임인데 ★밖으로 나갔다 (오른끝 ${box.l + box.w} · fw ${box.fw})`).toBeLessThanOrEqual(box.fw);
+  expect(box.l + box.w, `★켠 프레임인데 ★밖으로 나갔다 (오른끝 ${box.l + box.w} · fw ${box.fw})`).toBeLessThanOrEqual(box.fw);
+});
+
+/* ★★F6 의 ★반대쪽 — ★`clipContent="false"` 를 ★실제로 ★돌리는 ★단 ★하나의 칸 (2026-10-10 · 지디 ㉠).
+   ⛔안 두면 ★현빈 ★2026-09-28 의 ★「끔」이 ★★한 번도 ★안 돌아 ★★«적었지만 ★안 잰 조건»이 된다
+     — ★2026-10-10 전까지 ★이 파일에 `'false'` 를 쓰는 칸이 ★★0건이었다(전수로 셌다).
+   ★★여기에 ★옛 F6 의 ★단언(「★오른쪽 밖으로 ★나간다」·★실측 `1188` ＞ `fw 860`)이 ★산다. ⛔지운 것이 아니다. */
+test('F6f ★★`clipContent="false"`(현빈 09-28 의 끔) — ★같은 끌기인데 ★★프레임 오른쪽 ★밖으로 ★나간 채 남는다', async ({ page }) => {
+  await boot(page, PAGE_GRID);
+  await page.evaluate(() => {
+    document.getElementById('fr1').dataset.clipContent = 'false';  /* ★이 한 줄만 ★F6 과 다르다 */
+    const g = document.getElementById('grdOld'); window.renderGridBlock(g); window.bindBlock(g); g.classList.add('selected');
+  });
+  const ov = await page.evaluate(() => getComputedStyle(document.getElementById('fr1')).overflow);
+  expect(ov, '★★전제: ★끔인데 computed overflow 가 ★visible 이 ★아니다 — ★끔이 ★안 먹는다').toBe('visible');
+  await dragBy(page, 'grdOld', 100, 50);
+  await dragBy(page, 'grdOld', 400, 0);
+  const box = await page.evaluate(() => { const r = document.getElementById('rowOld');
+    return { l: parseInt(r.style.left, 10), w: r.offsetWidth, fw: document.getElementById('fr1').offsetWidth, p: r.parentElement.id }; });
+  expect(box.p, '전제 — 끌어내기 안 났다').toBe('fr1');
+  expect(box.l + box.w, `★★끔인데 ★오른끝이 ★프레임 ★안에 ★물렸다 (오른끝 ${box.l + box.w} · fw ${box.fw})`
+    + ' — ★죔이 ★끔까지 ★가둔다').toBeGreaterThan(box.fw);
 });
 
 test('F7 지키는 시험 — 같은 실물 모듈 판에서 400px 꼴은 Δx 100 그대로(F6 과 «폭»만 다르다)', async ({ page }) => {
