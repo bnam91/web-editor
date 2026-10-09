@@ -62,11 +62,11 @@ const CLEAN_SELF_FN = 'serializeCleanSelf';
  */
 const CHANNELS = [
   // ── artifact — 마커가 새면 결과물에 박힌다 ─────────────────────────────
-  { file: 'js/io/section-serialize.js', kind: 'artifact', axes: ['marker'], strips: 'inline',
+  { file: 'js/io/section-serialize.js', kind: 'artifact', axes: ['marker', 'carry'], strips: 'inline',
     why: '저장본 — 캔버스 클론을 세척해 innerHTML 로 굳힌다. ★이 파일이 «세척의 단일 진실원»이다' },
-  { file: 'js/io/export-html.js', kind: 'artifact', axes: ['marker'], strips: 'inline',
+  { file: 'js/io/export-html.js', kind: 'artifact', axes: ['marker', 'carry'], strips: 'inline',
     why: 'HTML 내보내기 — 라이브 클론을 그대로 문서로 만든다(serializeCleanRoot 를 안 거친다)' },
-  { file: 'js/io/export-image.js', kind: 'artifact', axes: ['marker'], strips: 'inline',
+  { file: 'js/io/export-image.js', kind: 'artifact', axes: ['marker', 'carry'], strips: 'inline',
     why: 'PNG 내보내기 — 라이브 DOM 클론을 캡처한다(재렌더가 마커를 되붙이는 자리도 여기)' },
   { file: 'js/panels/template-system.js', kind: 'artifact', axes: ['marker'], strips: CLEAN_FN, via: '_cleanTemplateClone',
     why: '★템플릿 저장 3곳(섹션·덮어쓰기·블록) — 2026-09-09 까지 마커를 «안» 벗기던 7번째 문. ' +
@@ -129,6 +129,28 @@ const CHANNELS = [
          `(빠짐 축 해당 없음). 해시를 낼 때만 market-merge 의 ${NORM_FN} 에 위임한다` },
 ];
 
-const AXES = ['marker', 'drop'];
+/* ★★2026-10-10 신설 — ★★`carry` 축 (현빈 1009t3-③ · t3frame)
+   ★★왜 — ★이 명부의 축이 ★`marker`(마커가 ★새나) · ★`drop`(블록이 ★빠지나) ★둘이었는데,
+     ★★«새 속성·새 CSS 변수가 ★배송물에 ★실리나»는 ★★어느 축에도 ★안 걸렸다.
+     ★이 파일 ★머리말이 ★스스로 경고한 자리다 — 「★결함이 하필 ★명부 밖 · ★★축 밖에 있던 게 ★우연이 아니다」.
+   ★★무엇을 재나 — ★★«지워지지 ★않는가»다. ★실측(2026-10-10): 배송 경로는 ★data-* 와 ★custom property 를
+     ★★«이름으로만» 뗀다(★와일드카드 ★0건 — `data-ref-links` · `data-lazy-bg` · `data-shape-fill` ·
+     `--tgs-src` · `--tgs-filter`). ⇒ ★위험은 ★★«누가 ★이름을 ★그 명단에 ★더하는 날»이다.
+   ⛔이 축이 ★안 재는 것 ★셋 (★출력·머리말 ★양쪽에 ★적는다):
+     ⒤ ★★«실제로 ★실렸나»를 ★행위로 ★안 잰다 — ★소스에서 ★«떼는 자리»가 ★없음까지다
+     ⅱ) ★Figma(`export-figma-json.js`)는 ★★애초에 ★프레임 배경 크기를 ★★0건 읽는다 ⇒ ★★기존 공백이고
+        ★이 축으로 ★안 덮인다(★JSON 모델을 ★손으로 ★짓는 채널이라 ★«안 지움»이 ★«실림»을 ★뜻하지 않는다)
+     ⅲ) ★`js/io/lazy-sections.js` 는 ★명부 ★밖이다 — ★clone·DOMParser 를 ★안 쓴다(★라이브 왕복).
+        ★★실측해 ★봤다: ★그것은 ★`style.backgroundImage` ★하나만 ★`data-lazy-bg` 로 ★옮기고
+        ★★`backgroundSize` 는 ★★안 건드린다 ⇒ ★이 키들은 ★그 왕복을 ★살아남는다. ★그래서 ★안 넣었다
+   ★★한 쌍: ★★«이 키를 ★어느 배송 경로의 ★떼는 명단에 ★넣으면 ★U6-h 가 ★빨강» */
+const CARRY_KEYS = [
+  'data-bg-size',        /* 프레임·섹션 배경 «크기» — dataset.bgSize 의 속성 꼴 */
+  'data-bg-pos',         /* 그 짝(위치) — 둘이 갈리면 한쪽만 지워지는 날이 온다 */
+  '--frame-bg-size',     /* ::before 경로가 읽는 변수 */
+  '--frame-bg-pos',
+];
 
-module.exports = { CHANNELS, MARKER_TOKENS, CLEAN_FN, CLEAN_SELF_FN, AXES, NORM_FN };
+const AXES = ['marker', 'drop', 'carry'];
+
+module.exports = { CHANNELS, MARKER_TOKENS, CLEAN_FN, CLEAN_SELF_FN, AXES, NORM_FN, CARRY_KEYS };
