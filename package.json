@@ -24,7 +24,9 @@
     "test:cdp:t173": "node tests/e2e/check-t173.mjs",
     "test:cdp:small5": "node tests/e2e/run-all.mjs",
     "figma": "bun run figma-plugin/socket.js",
-    "gate:assert-strength": "node tools/assert-strength.mjs"
+    "gate:assert-strength": "node tools/assert-strength.mjs",
+    "gate:css-token": "node tools/css-token-lint.mjs",
+    "gate:css-token:self": "node tools/css-token-lint.mjs --self"
   },
   "build": {
     "appId": "com.goyamkt.sangpe-editor",

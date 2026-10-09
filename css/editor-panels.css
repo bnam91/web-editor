@@ -137,7 +137,7 @@ body.right-panel-collapsed #tb-toggle-right-panel .pg-fill { opacity: 0; }
   padding: 6px 9px;
   background: var(--ui-bg-input);
   border: 1px solid var(--ui-border);
-  border-radius: 6px;
+  border-radius: var(--ui-radius-md);
   font-size: var(--ui-fs-10);
   /* ★line-height 는 ★px 로 못박는다(배수 금지) — 이 줄이 «패널 전체»의 세로 정렬을 정한다.
      왜(2026-10-07 실측): `1.2` 배수로 두면 자식 중 제일 큰 글자(.rp-ht-val 11px)가 line box 를

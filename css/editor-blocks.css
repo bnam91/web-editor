@@ -1456,7 +1456,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   padding: 0; margin: 0; box-sizing: border-box;
   border-radius: 50%;
   border: 1.5px dashed var(--ui-divider);
-  font-size: 20px;
+  font-size: var(--ui-fs-20);   /* ★토큰화(css-token-lint 1009t3) — 값 동일 20px, editor-base.css:180 :root 유일 정의 */
   background: var(--ui-bg-elevated);
   color: var(--ui-text-muted);
   line-height: 0;
