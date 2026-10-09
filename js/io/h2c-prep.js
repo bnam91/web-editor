@@ -78,7 +78,14 @@ export function liftSvgTransformsForH2C(root) {
     }
     svg.parentNode.insertBefore(w, svg);
     w.appendChild(svg);
-    svg.style.transform = 'none';                // ★svg 쪽은 끈다(클래스가 걸려 있어도 인라인이 이긴다)
+    /* ★svg 쪽은 끈다 — ★클래스가 걸려 있어도 ★인라인이 이긴다.
+       ★★⚠️이 한 줄의 ★«지금 참인 전제» — ★2026-10-09 ★실측: 이 레포 ★`css/` 전수에
+         ★`transform: … !important` ★선언이 ★★0건이다(⛔주석을 벗기고 센 값 — 안 벗기면 editor-blocks.css:101
+         의 ★주석 산문이 ★거짓양성 1건을 낸다). ⇒ ★그래서 ★인라인 `none` 이 ★이긴다.
+       ★★⇒ ⛔누가 ★`transform: … !important` 를 ★붙이면 ★이 줄이 ★조용히 ★진다 —
+         ★거울이 ★두 번 걸려(−1×−1=＋1) ★「고친 적 없는 것」처럼 보인다.
+       ★재는 자 = tests/dom/h2c-svg-transform.dom.spec.js ★H7(computed 가 none 인가 ＋ !important 0건). */
+    svg.style.transform = 'none';
     lifted++;
   }
   return lifted;

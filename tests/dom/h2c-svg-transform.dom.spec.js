@@ -358,6 +358,87 @@ test('H8 ★★«정확히 한 번» — ⛔거울로는 1회와 2회를 ★못 
   expect(Math.abs(d1 - d2), `⛔「두 번 걸림」이 아니다(두 번이면 ${d2.toFixed(2)}px)`).toBeGreaterThan(10);
 });
 
+test('H9 ★★두 번 불러도 ★한 번만 감싼다 — ★잠그는 것은 `transform:none` ★짧은회로다', async ({ page }) => {
+  /* ★★⚠️이 검사의 ★«임자»를 ★틀리게 적지 마라 — ★실측(2026-10-09)으로 ★갈랐다:
+     ★둘째 호출에서 svg 의 ★computed transform 이 ★이미 `none` 이라(첫 패스가 껐다)
+     ★위 `if (!t || t === 'none') continue;` 가 ★★먼저 ★끊는다.
+     ⇒ ★★`dataset.h2cLift` 가드를 ★★제거해도 ★이 검사는 ★★초록이다(변이 M-GUARD = ★0건).
+     ⇒ ★★★그러니 ★이 검사가 잠그는 것은 ★★«transform:none 짧은회로»이고,
+       ★`dataset` 가드를 재는 자는 ★★아래 ★H10 이다(그 가드가 ★실제로 ★필요한 ★판을 ★만들어 잰다).
+     ⇒ ★★헬퍼를 ★두 번 부르고 ★둘째가 ★0 을 올리는지, ★감싸는 span 이 ★하나만 생기는지 ★잰다.
+     ★왜 두 번 불릴 수 있나 — ★소비자가 ★셋이고 ★클론을 ★물려 쓰는 길이 ★생기면(지금은 각자 만든다)
+       ★★같은 클론에 ★두 번 닿는다. ⇒ ★그때 ★거울이 ★두 번 걸려 ★원래대로 돌아간다(−1×−1=＋1).
+     ★재는 자가 ★없으면 ★그 사고가 ★조용히 일어난다. */
+  await scene(page);
+  const r = await page.evaluate(async () => {
+    const mod = await import('/js/io/h2c-prep.js');
+    const sec = document.querySelector('#canvas .section-block:not([data-ghost])');
+    const clone = sec.cloneNode(true);
+    clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;';
+    document.body.appendChild(clone);
+    const first  = mod.liftSvgTransformsForH2C(clone);
+    const wraps1 = clone.querySelectorAll('[data-h2c-lift="1"]').length;
+    const second = mod.liftSvgTransformsForH2C(clone);     // ★★두 번째
+    const wraps2 = clone.querySelectorAll('[data-h2c-lift="1"]').length;
+    /* ★감싸는 span 안에 ★또 span 이 들었나 — ★이중 포장을 ★구조로도 본다 */
+    const nested = clone.querySelectorAll('[data-h2c-lift="1"] [data-h2c-lift="1"]').length;
+    const computed = [...clone.querySelectorAll('[data-h2c-lift="1"] > svg')]
+      .map((sv) => getComputedStyle(sv).transform);
+    clone.remove();
+    return { first, second, wraps1, wraps2, nested, computed };
+  });
+  console.log('[H9] ' + JSON.stringify(r));
+  expect(r.first, '전제 — 첫 번째가 올렸다(0 이면 이 검사가 아무것도 잠그지 않는다)').toBeGreaterThan(0);
+  /* ★★본 단언 ★셋 */
+  expect(r.second, '★★두 번째 호출은 ★0 을 올린다(가드가 ★발동했다)').toBe(0);
+  expect(r.wraps2, '★★감싸는 span 수가 ★안 늘었다').toBe(r.wraps1);
+  expect(r.nested, '★★감싸는 span 안에 ★또 span 이 ★없다(이중 포장 0)').toBe(0);
+  /* ★그리고 ★두 번 불린 뒤에도 svg 쪽은 ★여전히 none — ★«두 번 걸림»의 길이 닫혀 있다 */
+  for (const t of r.computed) expect(t, '★두 번 부른 뒤에도 svg computed transform = none').toBe('none');
+});
+
+test('H10 ★★`data-h2c-lift` 가드 — ★그 가드가 ★★«발동하는 ★유일한 판»을 ★만들어 잰다', async ({ page }) => {
+  /* ★★★왜 이 꼴인가 — 지디가 「그 가드를 재는 검사가 없다」고 짚었고, ★세우려다 ★알아냈다:
+     ★평소엔 ★★그 가드가 ★★닿지 않는다. 첫 패스가 `svg.style.transform='none'` 을 박으므로
+     ★둘째 호출은 ★`t === 'none'` 에서 ★먼저 끊긴다(★H9 · ★변이 M-GUARD 가 ★0건인 까닭).
+     ★★⇒ ★그 가드가 ★필요한 판은 ★★★«인라인 none 이 ★지는 판» ★하나다 — 곧 ★`transform: … !important`.
+       ★이 레포엔 ★2026-10-09 현재 ★그 선언이 ★0건이다(H7 이 문다) ⇒ ★★여기서 ★만들어 ★잰다.
+     ★★⇒ ★그러면 ★컴퓨티드가 ★여전히 ★거울이라 ★헬퍼가 ★또 감싸려 하고,
+       ★★`dataset` 가드만이 ★★이중 포장을 ★막는다. ⇒ ★★그 가드를 ★떼면 ★이 검사가 ★빨개진다. */
+  await bootApp(page);
+  const r = await page.evaluate(async () => {
+    const mod = await import('/js/io/h2c-prep.js');
+    const st = document.createElement('style');
+    /* ★★인라인 `none` 을 ★이기는 선언 — ★이 레포엔 없다. ★여기서만 만든다. */
+    st.textContent = '.h10-bang{transform:scaleX(-1) !important;}';
+    document.head.appendChild(st);
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;top:-9999px;left:0;width:100px;height:100px;background:#fff;';
+    host.innerHTML = '<svg class="h10-bang" width="100" height="100" viewBox="0 0 100 100">'
+      + '<rect x="10" y="40" width="30" height="20" fill="#111"/></svg>';
+    document.body.appendChild(host);
+    const svg = host.querySelector('svg');
+    const first  = mod.liftSvgTransformsForH2C(host);
+    const afterFirst = { computed: getComputedStyle(svg).transform, inline: svg.style.transform,
+                         wraps: host.querySelectorAll('[data-h2c-lift="1"]').length };
+    const second = mod.liftSvgTransformsForH2C(host);
+    const afterSecond = { wraps: host.querySelectorAll('[data-h2c-lift="1"]').length,
+                          nested: host.querySelectorAll('[data-h2c-lift="1"] [data-h2c-lift="1"]').length };
+    host.remove(); st.remove();
+    return { first, afterFirst, second, afterSecond };
+  });
+  console.log('[H10] ' + JSON.stringify(r));
+  /* ★★전제 ★둘 — ★이 판이 ★정말 ★«가드가 필요한 판»인가. ⛔이게 거짓이면 아래 초록이 뜻이 없다 */
+  expect(r.first, '전제⒜ — 첫 패스가 올렸다').toBe(1);
+  expect(r.afterFirst.inline, '전제⒝ — 인라인에 none 을 박았다').toBe('none');
+  expect(r.afterFirst.computed, '★★전제⒞ — ★그런데도 computed 가 ★여전히 거울이다(!important 가 이겼다) ⇒ ★가드가 ★필요한 판')
+    .toMatch(/matrix\(-1/);
+  /* ★★본 단언 — ★dataset 가드가 ★이중 포장을 막는다 */
+  expect(r.second, '★★둘째 호출이 ★0 을 올린다(★dataset 가드가 ★발동했다)').toBe(0);
+  expect(r.afterSecond.wraps, '★감싸는 span 이 ★하나뿐').toBe(1);
+  expect(r.afterSecond.nested, '★★이중 포장 ★0(⛔이게 1 이면 거울이 두 번 걸린다)').toBe(0);
+});
+
 /* ══ 양성대조·변이·0건 명부 — ★실측(2026-10-09 · 이 레인) ═════════════════════════════════
  * ⒜ ★판 = `origin/dev` `7c3b6cb7366a`. ★헬퍼를 ★끄고/켜고를 ★같은 판에서 ★같은 자로 견줬다
  *     (⛔live↔h2c 대조는 ★쓰지 않았다 — ★다른 렌더러라 ★transform 없는 갈래에서도 어긋난다).
