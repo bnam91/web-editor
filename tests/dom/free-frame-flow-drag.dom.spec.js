@@ -118,7 +118,7 @@ const PAGE_GRID = PAGE.replace(
   '<div class="row" id="rowOld" draggable="true"><div class="grid-block" id="grdOld" data-type="grid" style="background:#ccd"></div></div>',
 );
 
-test('F6 ★폭 100% 그리드(실물 렌더)도 처음 끌 때 좌우로 움직이고, 프레임 밖엔 안 나간다', async ({ page }) => {
+test('F6 ★폭 100% 그리드(실물 렌더)도 처음 끌 때 좌우로 움직인다 ＋ ★울타리는 «자르는 프레임일 때만»', async ({ page }) => {
   await boot(page, PAGE_GRID);
   expect(PAGE_GRID.includes('grid-block.js') && !PAGE_GRID.includes('width:400px;height:120px'), '전제 — 픽스처 치환이 «먹었다»').toBe(true);
   const pre = await page.evaluate(() => {
@@ -132,9 +132,41 @@ test('F6 ★폭 100% 그리드(실물 렌더)도 처음 끌 때 좌우로 움직
   expect(after[1] - before[1], '전제 — 끌기가 먹었다(세로)').toBe(50);
   expect(after[0] - before[0], '★폭 100% 그리드가 수직으로만 움직였다').toBeGreaterThan(0);
   await dragBy(page, 'grdOld', 400, 0);
+  const box = await page.evaluate(() => { const r = document.getElementById('rowOld'), f = document.getElementById('fr1');
+    return { l: parseInt(r.style.left, 10), w: r.offsetWidth, fw: f.offsetWidth, p: r.parentElement.id,
+             clips: f.dataset.clipContent === 'true' || !!(f.dataset.radius && f.dataset.radius !== '0'),
+             ov: getComputedStyle(f).overflow }; });
+  expect(box.p, '전제 — 끌어내기 안 났다').toBe('fr1');
+  /* ══ ★울타리 — ★★«자르는 프레임일 때만» (2026-10-09 · 현빈 t1-① · 지디 판정 ㉮) ══════
+     ⚰️★옛 단언(T-088 · 2026-09-22): ★★`box.l + box.w <= box.fw` ★조건 ★없이.
+        ★글: 「프레임 오른쪽 밖으로 나갔다(T-088)」 · ★그때 센 수(2026-10-09 실측) ★`fw 860` · ★받은 값 ★`1188`.
+     ⚰️★그 까닭 「`.frame-block` 은 ★overflow:hidden」은 ★★2026-09-28 ★현빈 지시로 ★죽었다(기본 `visible`).
+     ⇒ ★단언을 ★지우지 ★않고 ★★«조건»을 ★더한다 — ★양쪽을 ★다 적는다(지디 ㉠). */
+  expect(box.ov, '★전제: 이 프레임의 computed overflow 를 못 읽었다').toBeTruthy();
+  if (box.clips) {
+    expect(box.l + box.w, `★자르는 프레임인데 ★프레임 오른쪽 밖으로 나갔다 (오른끝 ${box.l + box.w} · fw ${box.fw})`)
+      .toBeLessThanOrEqual(box.fw);
+  } else {
+    expect(box.l + box.w, `★★안 자르는 프레임인데 ★오른쪽 끝에 ★물렸다 — ★죔이 ★또 ★전부를 가둔다`
+      + ` (오른끝 ${box.l + box.w} · fw ${box.fw} · overflow ${box.ov})`).toBeGreaterThan(box.fw);
+  }
+});
+
+/* ★★위 F6 의 ★★«자르는 프레임» 갈래를 ★실제로 ★돌리는 칸 — ⛔안 두면 ★적었지만 ★안 잰 조건이 된다.
+   ★F6 과 ★한 글자도 안 다르다. ★★「내용 자르기」만 ★켠다. */
+test('F6c ★★「내용 자르기」 켠 프레임 — ★같은 끌기인데 ★울타리가 ★선다 (F6 과 ★토글만 다르다)', async ({ page }) => {
+  await boot(page, PAGE_GRID);
+  await page.evaluate(() => {
+    document.getElementById('fr1').dataset.clipContent = 'true';   /* ★이 한 줄만 ★F6 과 다르다 */
+    const g = document.getElementById('grdOld'); window.renderGridBlock(g); window.bindBlock(g); g.classList.add('selected');
+  });
+  expect(await page.evaluate(() => getComputedStyle(document.getElementById('fr1')).overflow),
+    '★전제: 토글을 켰는데 computed overflow 가 ★hidden 이 아니다 — CSS 가 바뀌었다').toBe('hidden');
+  await dragBy(page, 'grdOld', 100, 50);
+  await dragBy(page, 'grdOld', 400, 0);
   const box = await page.evaluate(() => { const r = document.getElementById('rowOld'); return { l: parseInt(r.style.left, 10), w: r.offsetWidth, fw: document.getElementById('fr1').offsetWidth, p: r.parentElement.id }; });
   expect(box.p, '전제 — 끌어내기 안 났다').toBe('fr1');
-  expect(box.l + box.w, '프레임 오른쪽 밖으로 나갔다(T-088)').toBeLessThanOrEqual(box.fw);
+  expect(box.l + box.w, `★자르는 프레임인데 ★밖으로 나갔다 (오른끝 ${box.l + box.w} · fw ${box.fw})`).toBeLessThanOrEqual(box.fw);
 });
 
 test('F7 지키는 시험 — 같은 실물 모듈 판에서 400px 꼴은 Δx 100 그대로(F6 과 «폭»만 다르다)', async ({ page }) => {

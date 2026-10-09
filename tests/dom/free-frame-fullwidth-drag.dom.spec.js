@@ -71,13 +71,35 @@ async function judge(page, id, label) {
   await dragBy(page, id, over, 0);
   const g2 = await geo(page, id);
   expect(g2.inFrame, `[${label}] 전제 — 끌어내기가 안 났다(프레임 안 그대로)`).toBe(true);
-  expect(g2.left + g2.uw, `[${label}] 오른쪽 끝에 «딱» 붙었다(넘긴 50px 은 클램프가 먹었다)`).toBe(g2.fw);
+
+  /* ══ ★울타리 — ★★«자르는 프레임일 때만» (2026-10-09 · 현빈 t1-① · 지디 판정 ㉮) ══════
+     ⚰️★옛 단언(2026-09-22 T-088): ★★`g2.left + g2.uw === g2.fw` ★조건 ★없이.
+        ★글: 「오른쪽 끝에 «딱» 붙었다(넘긴 50px 은 클램프가 먹었다)」 · 「오른쪽이 프레임 밖(T-088 울타리)」
+        ★그때 센 수(2026-10-09 실측): ★`fw 764` · ★클램프가 먹은 뒤 ★`764`.
+     ⚰️★그 단언의 ★까닭 = 「`.frame-block` 은 ★overflow:hidden」 ⇒ ★★2026-09-28 ★현빈 지시로
+        ★기본이 ★`overflow: visible` 이 되어 ★★그 까닭이 ★죽었다. ★문만 남아 있었다.
+     ★★그래서 ★지우지 ★않고 ★★«조건»을 ★더한다 — ★★양쪽을 ★다 적는다:
+        ★자르는 프레임  ⇒ ★여전히 ★`fw` 에 ★딱 (★울타리 ★선다)
+        ★안 자르는 프레임 ⇒ ★★넘긴 ★50px 이 ★★그대로 남는다(★실측 ★`814` = 764＋50)
+     ⛔한쪽만 적으면 ★그 자리가 ★또 ★빈다(지디 ㉠).
+     ★판정은 ★제품의 ★술어를 ★그대로 ★부른다 — ⛔spec 이 ★제 벌로 ★다시 세지 않는다. */
+  const clips = await page.evaluate(() => {
+    const d = document.getElementById('frF').dataset;
+    return d.clipContent === 'true' || !!(d.radius && d.radius !== '0');
+  });
+  if (clips) {
+    expect(g2.left + g2.uw, `[${label}] ★자르는 프레임인데 ★울타리가 ★안 섰다 — 넘긴 50px 이 남았다`).toBe(g2.fw);
+    expect(g2.left + g2.uw, `[${label}] 오른쪽이 프레임 밖`).toBeLessThanOrEqual(g2.fw);
+  } else {
+    expect(g2.left + g2.uw - g2.fw,
+      `[${label}] ★★안 자르는 프레임인데 ★넘긴 50px 이 ★사라졌다 — ★죔이 ★또 ★전부를 가둔다`
+      + ` (fw ${g2.fw} · 오른끝 ${g2.left + g2.uw})`).toBe(50);
+  }
   expect(g2.left, `[${label}] 왼쪽이 프레임 밖`).toBeGreaterThanOrEqual(0);
-  expect(g2.left + g2.uw, `[${label}] 오른쪽이 프레임 밖(T-088 울타리)`).toBeLessThanOrEqual(g2.fw);
   return { g0, g1, g2 };
 }
 
-test('E1 ★패널 삽입 — 프레임 고른 채 addGridBlock → 좌우로도 움직이고 프레임 밖엔 안 나간다', async ({ page }) => {
+test('E1 ★패널 삽입 — 프레임 고른 채 addGridBlock → 좌우로도 움직인다 ＋ ★울타리는 «자르는 프레임일 때만»', async ({ page }) => {
   const errs = await setup(page);
   const id = await page.evaluate(() => {
     const fr = document.getElementById('frF'), sec = document.getElementById('sF');
@@ -87,6 +109,25 @@ test('E1 ★패널 삽입 — 프레임 고른 채 addGridBlock → 좌우로도
   await page.waitForTimeout(300);
   const r = await judge(page, id, '패널 삽입');
   expect(r.g0.key, '폭은 모델 키로 들어간다(프레임 보이는 폭 × 0.8)').toBe(String(Math.round(r.g0.fcw * 0.8)));
+  expect(errs).toEqual([]);
+});
+
+/* ★★위 `judge()` 의 ★★«자르는 프레임» 갈래를 ★★실제로 ★돌리는 칸 (2026-10-09 · 지디 ㉠).
+   ⛔안 두면 ★그 갈래가 ★★한 번도 ★안 돌아 ★★«적었지만 ★안 잰 조건»이 된다.
+   ★장면은 ★E1 과 ★한 글자도 안 다르다 — ★★「내용 자르기」만 ★켠다. */
+test('E1c ★★「내용 자르기」 켠 프레임 — ★같은 삽입·같은 끌기인데 ★울타리가 ★선다 (E1 과 ★토글만 다르다)', async ({ page }) => {
+  const errs = await setup(page);
+  const id = await page.evaluate(() => {
+    const fr = document.getElementById('frF'), sec = document.getElementById('sF');
+    fr.dataset.clipContent = 'true';                       /* ★이 한 줄만 ★E1 과 다르다 */
+    window.deselectAll?.(); sec.classList.add('selected'); fr.classList.add('selected'); window._activeFrame = fr;
+    return window.addGridBlock({}).block.id;
+  });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => getComputedStyle(document.getElementById('frF')).overflow),
+    '★전제: 토글을 켰는데 computed overflow 가 ★hidden 이 아니다 — CSS 가 바뀌었다').toBe('hidden');
+  const r = await judge(page, id, '패널 삽입(자르는 프레임)');
+  expect(r.g2.left + r.g2.uw, '★자르는 프레임인데 ★오른끝이 ★프레임 폭과 다르다').toBe(r.g2.fw);
   expect(errs).toEqual([]);
 });
 
