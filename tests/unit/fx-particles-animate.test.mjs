@@ -9,8 +9,11 @@
  *
  * ★★안 재는 것(⛔「닫았다」로 적지 않는다):
  *   · ★루프가 ★정말 도나 · ★다시 그린 뒤 ★깨어나나 ⇒ ★DOM 수트
- *   · ★`prefers-reduced-motion` ⇒ ★★v1.5 ⑵ ★미착수
- *   · ★뷰포트 컬링 ⇒ ★★v1.5 ⑶ ★미착수 (★지금 루프는 ★안 보이는 섹션도 ★돈다)
+ *   · ★`prefers-reduced-motion`(v1.5 ⑵) · ★뷰포트 컬링(v1.5 ⑶) ⇒ ★★제품은 ★★했다(2026-10-09).
+ *     ★★그 ★«행위»는 ★DOM 수트 ★V7·V8 이 잰다 — ★여기선 ★창(matchMedia·getBoundingClientRect)이 ★없다.
+ *     ⚠️★2026-10-09 ★정정: ★윗줄은 ★전에 ★「미착수」라 적혀 있었다 — ★제품이 ★먼저 가고 ★이 글이 ★늙었다.
+ *   · ★★사람 멈춤(v1.5 ⑷)의 ★★«루프 가드가 ★정말 먹나» ⇒ ★DOM 수트 ★V10.
+ *     ★여기 ★A7 이 재는 것은 ★★«명부(WeakSet)가 ★섹션마다 ★따로 서나»까지다 — ★`scan` 은 ★창이 필요하다.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,7 +28,9 @@ const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../');
 
 /** ★창 대역 — ⛔DOM 을 ★안 만든다. ★이 파일은 ★셈만 잰다. */
 function load() {
-  const ctx = { console, Math, Number, Object, String, WeakMap,
+  /* ★`WeakSet` — ★★사람 멈춤 명부가 ★그것이다(v1.5 ⑷). ⛔빼면 ★실리는 자리에서 ★ReferenceError 다
+     (★그게 ★A0 의 ★양성대조다 — ★이 줄을 지우면 ★A0 부터 ★빨개진다). */
+  const ctx = { console, Math, Number, Object, String, WeakMap, WeakSet,
                 requestAnimationFrame: () => 0, cancelAnimationFrame: () => {},
                 setTimeout: () => 0, clearTimeout: () => {}, document: null };
   ctx.window = ctx; vm.createContext(ctx);
@@ -36,7 +41,8 @@ function load() {
 test('A0 ★전제 — 움직이개가 실렸고 ★손잡이가 다 있다', () => {
   const A = load();
   assert.ok(A, '★ParticlesAnim 이 창에 없다');
-  for (const k of ['offsetY', 'angleAt', 'scan', 'step', 'start', 'stop', 'kick']) {
+  for (const k of ['offsetY', 'angleAt', 'scan', 'step', 'start', 'stop', 'kick',
+                   'isPaused', 'setPaused', 'togglePaused']) {
     assert.equal(typeof A[k], 'function', `★${k} 가 함수가 아니다`);
   }
 });
@@ -119,4 +125,47 @@ test('A6 ★★`scan` 은 ★문서가 없으면 ★빈 명부 — ⛔터지지 
      ⇒ ★★길이로 잰다. ★이것은 ★제품의 흠이 아니라 ★★내 자의 흠이었다. */
   assert.equal(A.scan(null).length, 0, '★문서가 없는데 안 비었다');
   assert.equal(A.step(1000, null), 0, '★문서가 없는데 ★움직인 수가 0 이 아니다');
+});
+
+/* ═══ A7 — ★사람 멈춤 (v1.5 ⑷ · 2026-10-09 현빈 발주) ═══════════════════════
+ *  ★이 칸이 재는 것 = ★★«명부가 ★섹션마다 ★따로 서나» ＋ ★★«저장물을 ★안 건드리나».
+ *  ⛔«루프가 ★정말 건너뛰나»는 ★여기서 ★못 잰다(★`scan` 이 ★창을 읽는다) ⇒ ★DOM ★V10.
+ */
+test('A7 ★★사람 멈춤은 ★섹션마다 ★따로 선다 — ★★한 섹션을 세워도 ★남은 섹션은 ★안 멈춘다', () => {
+  const A = load();
+  /* ★가짜 섹션 — ★제품이 ★섹션에서 ★읽는 것은 ★`dataset` 뿐이다(⛔이름을 지어내지 않았다) */
+  const a = { dataset: {} }, b = { dataset: {} };
+
+  /* ★★전제 — ★아무도 ★안 세운 판에서 ★둘 다 ★false. ⛔이게 안 서면 ★아래가 ★공짜다 */
+  assert.equal(A.isPaused(a), false, '★전제: 안 세웠는데 ★멈춤으로 읽힌다');
+  assert.equal(A.isPaused(b), false, '★전제: 안 세웠는데 ★멈춤으로 읽힌다');
+
+  /* ⒜ ★하나만 세운다 */
+  assert.equal(A.setPaused(a, true), true, '★`setPaused` 가 ★세운 뒤 상태를 ★안 돌려준다');
+  assert.equal(A.isPaused(a), true, '★세웠는데 ★안 세워졌다');
+  /* ★★음성대조 — ★★«옆 섹션»은 ★그대로다. ⛔전역 참거짓 하나로 두면 ★이 줄이 ★빨개진다 */
+  assert.equal(A.isPaused(b), false, '★★한 섹션을 세웠는데 ★옆 섹션도 ★멈췄다 — ★명부가 ★섹션별이 아니다');
+
+  /* ⒝ ★푼다 */
+  assert.equal(A.setPaused(a, false), false, '★`setPaused(false)` 가 ★false 를 ★안 돌려준다');
+  assert.equal(A.isPaused(a), false, '★풀었는데 ★여전히 ★멈춤이다');
+
+  /* ⒞ ★토글 — ★두 번 누르면 ★제자리 */
+  assert.equal(A.togglePaused(a), true, '★한 번 눌러도 ★안 멈춘다');
+  assert.equal(A.togglePaused(a), false, '★두 번 눌렀는데 ★안 풀린다');
+
+  /* ⒟ ★★저장물 무접촉 — ★★이것이 ★이 칸의 ★계약이다(지디 ②).
+     ★세우고 토글하고 푼 ★뒤에도 ★`dataset` 이 ★★빈 채여야 한다. */
+  A.setPaused(a, true); A.togglePaused(a); A.setPaused(a, true);
+  assert.equal(Object.keys(a.dataset).length, 0,
+    `★★멈춤이 ★dataset 에 ★샜다 (${JSON.stringify(a.dataset)}) — ★남이 열면 ★멈춘 채로 보인다`);
+  assert.equal(Object.keys(b.dataset).length, 0, '★★안 건드린 섹션의 dataset 이 ★바뀌었다');
+});
+
+test('A7b ★★섹션이 ★없으면 ★안 터진다 — ★null·undefined 에서 ★false', () => {
+  const A = load();
+  for (const bad of [null, undefined, 0, '']) {
+    assert.equal(A.isPaused(bad), false, `★${String(bad)} 가 ★멈춤으로 읽힌다`);
+    assert.equal(A.setPaused(bad, true), false, `★${String(bad)} 를 ★세웠다고 한다`);
+  }
 });

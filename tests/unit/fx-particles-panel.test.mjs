@@ -67,6 +67,17 @@ Object.assign(globalThis.window, {
   FX_PARTICLES_WRAP: WIRING.FX_PARTICLES_WRAP,
 });
 
+/* ★★움직이개 대역 — ★★제품은 ★멈춤 상태를 ★`window.ParticlesAnim` ★하나에게 ★묻는다
+   (★`js/fx/particles-animate.js` 「사람 멈춤」 절 · ★패널은 ★제 변수를 ★안 들고 있다).
+   ⇒ ★이 대역이 ★그 ★«물음의 답»을 ★검사가 ★정하게 해 준다. ★실앱에선 ★고전 스크립트가 ★싣는다.
+   ⚠️★`_pausedSet` 은 ★★이 ★대역의 것이다 — ★제품의 ★WeakSet 이 ★아니다(★그건 ★A7 이 잰다). */
+const _pausedSet = new Set();
+globalThis.window.ParticlesAnim = {
+  isPaused: (sec) => _pausedSet.has(sec),
+  setPaused: (sec, on) => { if (on) _pausedSet.add(sec); else _pausedSet.delete(sec); return !!on; },
+  togglePaused: (sec) => globalThis.window.ParticlesAnim.setPaused(sec, !_pausedSet.has(sec)),
+};
+
 const P = globalThis.window.ParticlesFx;
 
 /** ★가짜 섹션 — ⛔이름을 ★지어내지 않았다. `dataset`·`querySelector` 는 ★그리개가 ★실제로 부르는 둘이다. */
@@ -126,7 +137,8 @@ test('P2 ★끈 섹션 — ★켜는 단추 하나뿐이고 ★조절 칸은 ★
   const h = PANEL.secParticlesHTML(sec);
   assert.ok(h.includes('id="sec-fxpart-toggle"'), '켜는 단추가 없다 — ★켤 길이 없으면 발주를 못 지킨다');
   assert.ok(h.includes('파티클 켜기'), '단추 글이 「켜기」가 아니다');
-  for (const id of ['sec-fxpart-card', 'sec-fxpart-presets', 'sec-fxpart-shapes', 'sec-fxpart-seed']) {
+  for (const id of ['sec-fxpart-card', 'sec-fxpart-presets', 'sec-fxpart-shapes', 'sec-fxpart-seed',
+                    'sec-fxpart-pause']) {
     assert.ok(!h.includes(`id="${id}"`), `★꺼진 섹션에 ${id} 가 떴다 — 끈 상태에 조절 칸이 보인다`);
   }
   assert.equal((h.match(/data-fxpart-axis=/g) || []).length, 0, '★꺼진 섹션에 ★조절 축이 떴다');
@@ -139,7 +151,8 @@ test('P3 ★켠 섹션 — ★★시안의 칸이 ★이름·순서 ★그대로
   const h = PANEL.secParticlesHTML(sec);
   for (const id of ['sec-fxpart-card', 'sec-fxpart-toggle', 'sec-fxpart-fold', 'sec-fxpart-presets',
                     'sec-fxpart-reroll', 'sec-fxpart-seed', 'sec-fxpart-redraw', 'sec-fxpart-colors',
-                    'sec-fxpart-rot', 'sec-fxpart-dist', 'sec-fxpart-shapes', 'sec-fxpart-off']) {
+                    'sec-fxpart-rot', 'sec-fxpart-dist', 'sec-fxpart-shapes', 'sec-fxpart-off',
+                    'sec-fxpart-pause']) {
     assert.ok(h.includes(`id="${id}"`), `★켠 섹션에 ${id} 가 없다 — 현빈이 만질 칸이 빠졌다`);
   }
   assert.ok(h.includes('파티클 끄기'), '단추 글이 「끄기」로 안 바뀌었다');
@@ -470,4 +483,56 @@ test('P14 ★색 칩 — ★색 하나당 자리 하나 ＋ ★피커 손잡이 
     assert.ok(cssBody(css, sel).includes('var(' + TOK_DOT + ')'),
       `★${sel} 가 ★${TOK_DOT} 를 ★안 읽는다 — ★점 크기가 ★둘로 갈린다`);
   }
+});
+
+/* ═══ P15 — ★일시정지/재생 단추 (2026-10-09 현빈 발주) ══════════════════════
+ *  ★현빈 확정 「★★그냥 일시정지 버튼/재생버튼만 있으면 되겠는데?」
+ *  ★★이 칸이 재는 것 = ★★«단추 꼴이 ★움직이개의 ★답을 ★따라오나» ＋ ★★«저장물 무접촉».
+ *  ⛔«누르면 ★정말 멈추나»는 ★DOM ★V10 몫이다(★document 가 필요하다).
+ */
+test('P15 ★★멈춤 단추의 꼴이 ★★움직이개의 ★답을 ★따라온다 — ⛔패널이 ★제 상태를 ★안 들고 있다', () => {
+  const sec = mkSec({ cfg: { preset: P.KINDS[0], seed: 7 }, wrapHtml: '<svg></svg>' });
+
+  /* ⒜ ★★안 멈춘 판 — ★「일시정지」를 ★내민다(★누르면 ★멈춘다) */
+  _pausedSet.delete(sec);
+  const run = PANEL.secParticlesHTML(sec);
+  assert.ok(run.includes('id="sec-fxpart-pause"'), '★멈춤 단추가 ★없다 — ★현빈이 ★멈출 길이 없다');
+  const runBtn = (run.match(/id="sec-fxpart-pause"[\s\S]*?<\/button>/) || [])[0] || '';
+  assert.ok(runBtn.includes('aria-pressed="false"'), `★안 멈췄는데 ★aria-pressed 가 ★true 다 (${runBtn})`);
+  assert.ok(runBtn.includes('일시정지'), `★안 멈춘 판의 단추가 ★「일시정지」라 ★안 한다 (${runBtn})`);
+
+  /* ⒝ ★★멈춘 판 — ★★같은 그리개가 ★「재생」을 ★내민다.
+     ★★이것이 ★★«따라오나»의 ★자다 — ⛔한쪽만 재면 ★★「늘 같은 글자」와 ★구분이 안 된다. */
+  _pausedSet.add(sec);
+  const held = PANEL.secParticlesHTML(sec);
+  const heldBtn = (held.match(/id="sec-fxpart-pause"[\s\S]*?<\/button>/) || [])[0] || '';
+  assert.ok(heldBtn.includes('aria-pressed="true"'), `★멈췄는데 ★aria-pressed 가 ★false 다 (${heldBtn})`);
+  assert.ok(heldBtn.includes('재생'), `★멈춘 판의 단추가 ★「재생」이라 ★안 한다 (${heldBtn})`);
+  assert.notEqual(heldBtn, runBtn, '★★두 판의 단추가 ★★같은 글자다 — ★움직이개의 답을 ★안 읽는다');
+
+  /* ⒞ ★★저장물 무접촉 — ★★그리개가 ★dataset 을 ★한 자도 ★안 건드린다.
+     ★자 = ★★«우리 이름의 키 전수» ＋ ★★«멈춤을 뜻하는 글자». */
+  const keys = Object.keys(sec.dataset);
+  assert.equal(keys.filter((k) => /paus/i.test(k)).length, 0,
+    `★★멈춤이 ★dataset 에 ★샜다 (${keys.join(',')}) — ★남이 열면 ★멈춘 채로 보인다`);
+  assert.equal(held.includes('fxParticlesPaused') || held.includes('data-fx-paused'), false,
+    '★★그리개가 ★멈춤을 ★꼬리표로 ★내뱉는다 — ★저장본에 ★샌다');
+
+  _pausedSet.delete(sec);
+});
+
+test('P15b ★★움직이개가 ★안 실린 판에서는 ★단추를 ★안 낸다 — ⛔못 먹는 단추를 ★보이지 않게', () => {
+  const sec = mkSec({ cfg: { preset: P.KINDS[0], seed: 7 }, wrapHtml: '<svg></svg>' });
+  /* ★★양성대조 — ★실린 판에서는 ★나온다(★위 P15 와 ★같은 입력) */
+  assert.ok(PANEL.secParticlesHTML(sec).includes('id="sec-fxpart-pause"'),
+    '★전제: 실린 판에서도 ★단추가 ★없다 — ★아래 「없다」가 ★뜻이 없다');
+
+  const keep = globalThis.window.ParticlesAnim;
+  globalThis.window.ParticlesAnim = null;
+  try {
+    const h = PANEL.secParticlesHTML(sec);
+    assert.ok(!h.includes('id="sec-fxpart-pause"'), '★움직이개가 없는데 ★멈춤 단추를 ★냈다');
+    /* ★★그리고 ★나머지 칸은 ★그대로다 — ⛔단추 하나가 ★패널을 ★죽이지 않는다 */
+    assert.ok(h.includes('id="sec-fxpart-off"'), '★움직이개가 없으니 ★패널이 ★통째로 죽었다');
+  } finally { globalThis.window.ParticlesAnim = keep; }
 });

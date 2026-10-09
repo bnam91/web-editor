@@ -22,11 +22,15 @@
      ★★까닭: ★같은 시드 흐름을 ★두 곳에서 뽑으면 ★★명부가 ★둘이고, ★어느 날 ★갈린다.
      ★그 꼬리표는 ★★«움직이는 판»에서만 붙는다 ⇒ ★옛 저장본은 ★글자가 ★한 자도 ★안 바뀐다(★inert).
 
-   ⛔★아직 ★안 한 것(★v1.5 ⑵⑶ · ★이 파일의 ★다음 두 칸):
-     ⑵ `prefers-reduced-motion` ★JS 가드 — ★★CSS `@media` 로는 ★안 멈춘다(★우리는 ★속성을 ★쓴다)
-     ⑶ ★뷰포트 컬링 — ★실측: ★섹션 20에서 ★전부 돌리면 ★프레임중앙 ★16.7ms,
-        ★보이는 것만 돌리면 ★8.3ms(★둘 다 ★퍼짐 0ms · 같은 조건 ×3).
-        ⇒ ★★그때까지 ★이 루프는 ★★«안 보이는 섹션까지» 돈다. ★그게 ★지금의 ★한계다.
+   ★★v1.5 ⑵⑶ 은 ★★했다(2026-10-09) — ★아래 「모션 감소」·「뷰포트 컬링」 절이 ★그것이다.
+     ⇒ ⛔이 머리말의 ★옛 「안 한 것」 명부는 ★지웠다. ★안 지우면 ★★다음 사람이 ★또 짓는다.
+
+   ★★⑷ ★사람이 ★세우는 ★멈춤 (2026-10-09 · 현빈 발주) — ★아래 「사람 멈춤」 절.
+     ★현빈 원문 「파티클 회전/속도 만지니 ★계속 움직이는데 ★★멈출 수 없나 ·
+       ★작업하는 동안 ★계속 돌면 ★메모리 부담 아닌가」 ⇒ ★확정 「★★그냥 일시정지/재생 버튼만」
+     ★★그 멈춤은 ★★«작업 편의»다 — ⛔«작품 속성»이 ★아니다. ⇒ ★★저장물에 ★안 넣는다
+       (★`writeParticles`·`dataset` ★무접촉 · ★이 파일의 ★런타임 WeakSet 하나).
+     ⚠️⛔「편집 중 ★저절로 멈춤」은 ★★안 한다 — ★현빈 ★기각(★경계가 애매해 ★왜 멈췄는지 모른다).
    ═══════════════════════════════════════════════════════════════════════════ */
 (function (w) {
   'use strict';
@@ -83,6 +87,50 @@
   function prefersReduced() {
     try { return !!(w.matchMedia && w.matchMedia(REDUCE_MQ).matches); } catch (_) { return false; }
   }
+
+  /* ══ 사람 멈춤 (v1.5 ⑷ · 2026-10-09 · 현빈 발주) ═════════════════════════════
+     ★★«루프를 ★멈추는 ★조건»은 ★이제 ★★셋이고 ★★서로 ★따로 선다 — ⛔겹치지 않는다:
+       ㉠ ★뷰포트 컬링(`onScreen`)  — ★★«지금 안 보이니» 안 돌린다. ★기계가 정한다.
+       ㉡ ★모션 감소(`REDUCE_MQ`)   — ★★«OS 설정»이 ★전 문서를 ★한꺼번에 끈다.
+       ㉢ ★★사람 멈춤(여기)         — ★★«이 섹션 하나»를 ★사람이 ★손으로 세운다.
+     ★★그러니 ★한 섹션이 ★돌 조건은 ★★「㉠ 보이고 ＋ ㉡ 아니고 ＋ ㉢ 안 세웠다」 ★전부다.
+
+     ★★★저장하지 않는다 — ★이것이 ★이 칸의 ★계약이다(지디 2026-10-09 ②).
+       ★까닭: ★「멈춤」은 ★★«작업 편의»지 ★★«작품 속성»이 ★아니다. ★저장되면 ★남이 열었을 때
+         ★멈춘 채로 ★보인다 ⇒ ★★`writeParticles`·`sec.dataset` 에 ★★한 자도 ★안 쓴다.
+       ★★이 세션이 ★고친 ★병과 ★★같은 결이다 — ★`multi-selected`·`transform` 이 ★런타임 표식인데
+         ★저장물에 ★샜다(★그 전례와 ★그 처방은 ★`js/io/section-serialize.js` ★머리말에 있다).
+       ⇒ ★★그래서 ★여기 ★하나뿐인 ★자리는 ★★«런타임 WeakSet»이다.
+         ★`WeakSet` 인 까닭: ★키가 ★★섹션 ★요소다 ⇒ ★그 섹션이 ★사라지면(문서 다시 열기·페이지 전환)
+           ★표식도 ★같이 사라진다 ⇒ ★★«다시 열면 ★다시 돈다»가 ★저절로 선다(⛔손으로 안 비운다).
+
+     ★★멈출 때 ★«쉬는 꼴»로 ★돌려놓는다 — ⛔떨어지던 ★한 프레임에 ★굳으면 ★시드의 그림이 ★아니다.
+       ★그 되돌리개의 ★임자는 ★여기가 ★아니다 — ★`restNow()`(아래) ★한 다리로만 부른다.
+       ⛔사본을 ★짓지 않는다(★위 「모션 감소」 절의 ★그 계약 ★그대로).
+
+     ⚠️⛔「편집 중 ★저절로 멈춤」은 ★★안 한다 — ★현빈 ★기각. ★사람이 ★누른 것만 ★멈춘다. */
+  const pausedSecs = new WeakSet();
+
+  /** 이 섹션을 ★사람이 ★세웠나. ⛔못 읽으면 ★«안 세웠다»로 — ★기능이 ★조용히 죽지 않게. */
+  function isPaused(sec) {
+    try { return !!(sec && pausedSecs.has(sec)); } catch (_) { return false; }
+  }
+
+  /** 이 섹션의 ★멈춤을 ★세우거나 ★푼다. @returns {boolean} ★세운 뒤의 상태.
+   *  ★세우면 ★그 섹션만 ★«쉬는 꼴»로 ★되돌린다(★`root` 를 ★섹션으로 좁혀 부른다).
+   *  ★풀면 ★루프를 ★바로 ★깨운다 — ⛔최대 1초(IDLE_RECHECK_MS)를 ★기다리게 하지 않는다. */
+  function setPaused(sec, on) {
+    if (!sec) return false;
+    const next = !!on;
+    try {
+      if (next) { pausedSecs.add(sec); restNow(sec); }
+      else { pausedSecs.delete(sec); kick(); }
+    } catch (_) { /* WeakSet 이 없는 판 — ★아래 상태만 돌려준다 */ }
+    return next;
+  }
+
+  /** 눌렀다 — ★지금 상태의 ★반대로. @returns {boolean} ★세운 뒤의 상태 */
+  function togglePaused(sec) { return setPaused(sec, !isPaused(sec)); }
 
   /** 한 알맹이의 ★세로 어긋남. ★★순수 함수다 — ★검사가 ★이것만 따로 잴 수 있다.
    *  ★`y0` 에서 출발해 ★아래로 흐르고 ★상자를 지나면 ★위로 되돌아온다(감싸기).
@@ -153,6 +201,7 @@
       const speed = +cfg.speed || 0, spin = +cfg.spin || 0;
       if (speed <= 0 && spin <= 0) continue;        /* ★축이 전부 0 = ★옛 저장본 ⇒ ★건드리지 않는다 */
       if (!onScreen(wrap)) continue;                 /* ★★화면 밖 — ★더럽히지 ★않는다(위 머리말의 그 레버) */
+      if (isPaused(sec)) continue;                   /* ★★사람이 ★세웠다 — ★위 ㉢ (⛔㉠·㉡ 과 ★따로 선 ★셋째 조건) */
       const lay = readLayer(svg);
       if (!lay.bits.length || !(lay.H > 0)) continue;
       out.push({ svg, speed, spin, H: lay.H, bits: lay.bits });
@@ -234,5 +283,6 @@
 
   w.ParticlesAnim = Object.freeze({ offsetY, angleAt, scan, step, start, stop, kick,
                                    prefersReduced, restNow, onScreen,
+                                   isPaused, setPaused, togglePaused,
                                    MARGIN, IDLE_RECHECK_MS, REDUCE_MQ, CULL_MARGIN });
 })(window);

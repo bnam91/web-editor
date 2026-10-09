@@ -115,6 +115,32 @@ const SHEET_ORDER = [
 
 const _fx = () => (typeof window !== 'undefined' && window.ParticlesFx) || null;
 const _isOn = (sec) => !!(typeof window !== 'undefined' && window.hasParticles?.(sec?.dataset));
+
+/* ══ ★일시정지/재생 (2026-10-09 · 현빈 발주) ═════════════════════════════════
+   ★현빈 「파티클 회전/속도 만지니 ★계속 움직이는데 ★★멈출 수 없나」
+     ⇒ ★확정 「★★그냥 일시정지 버튼/재생버튼만 있으면 되겠는데?」
+   ★★★상태의 ★임자는 ★여기가 ★아니다 — ★`window.ParticlesAnim`(js/fx/particles-animate.js) ★하나다.
+     ⛔패널이 ★제 변수에 ★들고 있으면 ★★패널이 ★다시 그려질 때마다(★`rerender`) ★잊는다.
+     ⇒ ★그릴 때마다 ★★«움직이개에게 물어» ★단추 꼴을 ★정한다.
+   ★★★⛔`writeParticles`·`sec.dataset` 에 ★★한 자도 ★안 쓴다 — ★저장물에 ★안 넣는 것이 ★계약이다
+     (★까닭·전례는 ★`js/fx/particles-animate.js` 「사람 멈춤」 절 ＋
+       ★`js/io/section-serialize.js` 머리말의 ★`multi-selected` 전례).
+   ⇒ ★그래서 ★이 단추는 ★`commit()`(pushHistory·scheduleAutoSave)도 ★★안 부른다 —
+     ★문서가 ★안 바뀌므로 ★되돌릴 것도 ★저장할 것도 ★없다.
+   ★★움직이개가 ★안 실린 판(검사 하네스)에서는 ★★단추를 ★안 낸다 — ⛔못 먹는 단추를 ★보이지 않게. */
+/* ★★꼴 — ★글자 ★정본 ★한 자리. ★검사도 ★이것을 ★읽는다(⛔spec 에 ★글자를 ★박지 마라 — ★명부가 둘).
+   ★★2026-10-09 ★실측(앱 9422 · ★마우스를 ★치우고 ★다섯 꼴을 ★한 줄에 ★나란히 ★찍어 봤다):
+     ★`\u23F8` · `\u25B6` · `\u23F8\uFE0E` · `\u25B6\uFE0E` · `\u25BA` ⇒ ★★다섯 ★전부 ★회색(한빛)이다.
+   ⚠️★★내 ★첫 판정은 ★틀렸다 — ★「이모지라 ★빨갛다」로 읽고 ★VS15·`\u25BA` 로 ★바꿨었다.
+     ★참 까닭은 ★★«마우스가 ★단추 위에 있었던 것»이다(★호버 색 `rgb(224,108,108)`).
+     ★같은 자로 ★치우고 다시 재니 ★`rgb(158,158,158)` — ★옆 `◉`·`⌄` 와 ★같다.
+     ⇒ ★★스샷은 ★«찍는 것»과 ★«보는 것»이 ★다르고, ★★«내 손이 만든 상태»를 ★원인에서 ★안 뺐다. */
+const PAUSE_GLYPH = '\u23F8';           /* ⏸ 일시정지 */
+const PLAY_GLYPH  = '\u25B6';           /* ▶ 재생 */
+if (typeof window !== 'undefined') { window.SEC_PARTICLES_GLYPH = { pause: PAUSE_GLYPH, play: PLAY_GLYPH }; }
+
+const _anim = () => (typeof window !== 'undefined' && window.ParticlesAnim) || null;
+const _isPaused = (sec) => { try { return !!_anim()?.isPaused?.(sec); } catch (_) { return false; } };
 const _lbl = (k) => AXIS_LABEL[k] || k;
 
 /** ★그릴 줄 전수 — ★시안 순서 ＋ ★★«명부에 없던 RANGES 키»를 ★끝에 붙인다.
@@ -258,6 +284,8 @@ export function secParticlesHTML(sec) {
   const dists  = Array.isArray(P.DISTS) ? P.DISTS : [];
   const R      = P.RANGES || {};
   const open   = window.fxIsCardOpen ? window.fxIsCardOpen(sec, 'particles') : true;
+  /* ★★런타임 상태다 — ⛔`cfg` 에서 읽지 않는다(★`cfg` 는 ★저장되는 것이다) */
+  const paused = _isPaused(sec);
 
   /* ★그림이 ★정말 났나 — ⛔「켰다」와 「그려졌다」는 ★다르다(effects-particles.js:124~137 · R3). */
   const wrap = sec.querySelector?.(':scope > .' + (window.FX_PARTICLES_WRAP || 'sec-fxpart-wrap'));
@@ -280,7 +308,11 @@ export function secParticlesHTML(sec) {
         <div class="prop-cell-card-header" id="sec-fxpart-head">
           <button class="prop-icon-btn" id="sec-fxpart-toggle" title="파티클 끄기"
                   aria-label="파티클 끄기" aria-pressed="true">◉</button>
-          <span class="prop-cell-card-title" style="flex:1">파티클</span>
+          <span class="prop-cell-card-title" style="flex:1">파티클</span>${!_anim() ? '' : `
+          <button class="prop-icon-btn" id="sec-fxpart-pause"
+                  title="${paused ? '재생 — 다시 움직입니다' : '일시정지 — 작업하는 동안 멈춥니다(저장되지 않습니다)'}"
+                  aria-label="${paused ? '파티클 재생' : '파티클 일시정지'}"
+                  aria-pressed="${paused}">${paused ? PLAY_GLYPH : PAUSE_GLYPH}</button>`}
           <button class="prop-icon-btn" id="sec-fxpart-fold" title="${open ? '접기' : '펼치기'}"
                   aria-label="접기/펼치기" aria-expanded="${open}">${open ? '⌄' : '›'}</button>
         </div>
@@ -359,6 +391,21 @@ export function wireSecParticles(sec, rerender) {
   $('sec-fxpart-fold')?.addEventListener('click', (e) => {
     e.stopPropagation();
     foldTo(!!$('sec-fxpart-body')?.hidden);
+  });
+
+  /* ★★일시정지/재생 — ★★런타임만. ⛔`commit()`·`put()`·`writeParticles` ★어느 것도 ★안 부른다.
+     ★★단추 꼴은 ★★«움직이개가 돌려준 값»으로 고친다 — ⛔내가 ★예상한 값으로 ★안 적는다
+       (★움직이개가 ★거절할 수도 있다 — ★그러면 ★단추가 ★거짓을 보인다).
+     ★★그리고 ★패널을 ★다시 그리지 ★않는다(`again()` ⛔) — ★포커스와 ★굴림 자리를 ★안 잃게
+       (★선례: ★위 ★「다시 뿌리기」가 ★같은 까닭으로 ★칸만 되읽는다). */
+  const pauseBtn = $('sec-fxpart-pause');
+  pauseBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const now = !!_anim()?.togglePaused?.(sec);
+    pauseBtn.textContent = now ? PLAY_GLYPH : PAUSE_GLYPH;
+    pauseBtn.setAttribute('aria-pressed', String(now));
+    pauseBtn.setAttribute('aria-label', now ? '파티클 재생' : '파티클 일시정지');
+    pauseBtn.title = now ? '재생 — 다시 움직입니다' : '일시정지 — 작업하는 동안 멈춥니다(저장되지 않습니다)';
   });
 
   /* ★프리셋 — ★고른 프리셋을 ★통째로 깐다(★seed 는 그대로).

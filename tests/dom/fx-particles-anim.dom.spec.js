@@ -663,3 +663,203 @@ test('V9 ★★HTML 내보내기는 ★언제 해도 ★같은 글자 — ★움
 
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
+
+/* ═══ V10 — ★사람 멈춤 (v1.5 ⑷ · 2026-10-09 현빈 발주) ══════════════════════
+ *  ★현빈 「파티클 회전/속도 만지니 ★계속 움직이는데 ★★멈출 수 없나 ·
+ *    ★작업하는 동안 ★계속 돌면 ★메모리 부담 아닌가」 ⇒ ★확정 「★★그냥 일시정지/재생 버튼만」
+ *
+ *  ★★이 칸이 ★«루프를 멈추는 셋째 조건»이다 — ⛔앞의 둘과 ★따로 선다:
+ *    ㉠ ★컬링(V8)      = ★기계가 ★「안 보이니」 끈다
+ *    ㉡ ★모션감소(V7)  = ★OS 가 ★문서 ★전체를 끈다
+ *    ㉢ ★★사람 멈춤(여기) = ★사람이 ★★«섹션 ★하나»를 ★손으로 세운다
+ *  ⇒ ★그래서 ★★«옆 섹션은 ★계속 돈다»가 ★이 칸의 ★음성대조다(⒞). ★㉡ 로 ★때우면 ★그 줄이 ★빨개진다.
+ *
+ *  ★★⑷ ★저장물 무접촉이 ★★이 칸의 ★계약이다(지디 ②) — ★「멈춤」은 ★작업 편의지 ★작품 속성이 ★아니다.
+ *    ★자 = ★⑴ `sec.dataset` 에 ★`paus` 꼴 키 ★0개 · ★⑵ ★저장 글자에 ★★0건 ·
+ *          ★⑶ ★★«같은 자가 ★정말 잡나»(★양성대조 — ★손으로 ★키를 넣으면 ★★빨개진다).
+ *    ⛔⑶ 이 없으면 ★「0건」이 ★★«자가 죽은 것»과 ★구분이 안 된다.
+ *
+ *  ★★안 재는 것(⛔「닫았다」로 적지 않는다):
+ *    · ★멈춘 동안 ★★메모리가 ★정말 줄나 — ★★안 쟀다(★현빈의 둘째 물음). ★프레임 수는 ★실앱에서 쟀다.
+ *    · ★썸네일·PNG — ★V9 머리말의 ★그 한계 ★그대로(★하네스에 ★네이티브 캡처가 ★없다).
+ */
+async function twoVisible(page) {
+  await page.evaluate(() => {
+    const canvas = document.getElementById('canvas');
+    canvas.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const mk = (id) => '<div class="section-block" id="' + id + '" data-section="1" style="background:#0A0A0C">'
+      + '<div class="section-hitzone"></div><div class="section-inner" style="padding-left:40px">'
+      + '<div class="gap-block" data-type="gap" style="height:300px"></div></div></div>';
+    canvas.insertAdjacentHTML('beforeend', mk('pA') + mk('pB'));
+    window.rebindAll?.();
+    for (const id of ['pA', 'pB']) {
+      const sec = document.getElementById(id);
+      /* ★같은 씨값·설정 — ★두 섹션이 ★같은 그림이어야 ★「한쪽만 멈췄다」가 ★뜻을 갖는다 */
+      window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
+      window.applySectionParticles(sec);
+    }
+    document.getElementById('pA').scrollIntoView({ block: 'start' });
+  });
+  await page.waitForTimeout(250);
+}
+/** 섹션 패널을 ★사람이 ★여는 그 길로 연다 — ⛔패널 HTML 을 ★손으로 만들지 않는다. */
+async function openSecPanel(page, id) {
+  await page.evaluate((i) => {
+    window.deselectAll?.();
+    const s = document.getElementById(i);
+    s.classList.add('selected');
+    return window.showSectionProperties(s);
+  }, id);
+  await page.waitForTimeout(300);
+}
+const tfIn = (page, id) => page.evaluate((i) =>
+  document.querySelector('#' + i + ' .sec-fxpart-wrap [data-fxp]')?.getAttribute('transform') ?? null, id);
+/** ★「안 움직인다」 — ★두 번 떠서 ★같나(섹션 지정판) */
+async function stillIn(page, id, msg) {
+  const a = await tfIn(page, id);
+  await page.waitForTimeout(600);
+  const b = await tfIn(page, id);
+  expect(b, msg + ` (${a} → ${b})`).toBe(a);
+}
+/** ★「움직인다」 — ⛔고정 대기가 아니라 ★물어본다(부하에서 값을 안 잃는다) */
+async function movesIn(page, id, msg) {
+  const a = await tfIn(page, id);
+  await page.waitForFunction(([i, t0]) => {
+    const e = document.querySelector('#' + i + ' .sec-fxpart-wrap [data-fxp]');
+    return !!e && e.getAttribute('transform') !== t0;
+  }, [id, a], { timeout: 5000 }).catch(() => { throw new Error(msg + ` (멈춘 값=${a})`); });
+}
+/** ★저장 글자 ＋ ★dataset 에서 ★«멈춤 꼴»을 ★센다 — ★★자 하나다(⛔회차마다 손으로 적지 않는다). */
+const pauseLeak = (page, id) => page.evaluate((i) => {
+  const sec = document.getElementById(i);
+  const html = String(window.getSerializedCanvas?.() || '');
+  const clone = String(window.serializeSectionClone?.(sec) || '');
+  const keys = Object.keys(sec.dataset);
+  const RE = /paus|frozen|stopped/i;
+  return {
+    htmlLen: html.length,
+    dsKeys: keys.filter((k) => RE.test(k)),
+    /* ★저장 글자에서 ★`data-*="..."` 꼴의 ★이름만 떠 센다 — ⛔본문 글자를 ★안 훑는다 */
+    htmlAttrs: (html.match(/data-[a-z0-9-]+/g) || []).filter((a) => RE.test(a)),
+    cloneAttrs: (clone.match(/data-[a-z0-9-]+/g) || []).filter((a) => RE.test(a)),
+    html, clone,
+  };
+}, id);
+
+test('V10 ★★사람 멈춤 — ★누르면 ★멈추고 ★다시 누르면 ★돈다 · ★★옆 섹션은 ★그대로 · ★★저장물에 ★안 들어간다',
+  async ({ page }) => {
+    const errs = [];
+    page.on('pageerror', (e) => errs.push(String(e)));
+    await page.setViewportSize({ width: VIEW_W, height: VIEW_H });
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await bootApp(page);
+    await twoVisible(page);
+
+    /* ═══ ⒜ ★★전제 ═════════════════════════════════════════════════════════
+       ⛔이 넷이 안 서면 ★아래가 ★전부 뜻이 없다. */
+    expect(await page.evaluate(() => typeof window.ParticlesAnim?.togglePaused),
+      '★전제: 움직이개에 ★멈춤 손잡이가 ★없다 — ★앱에 ★안 실렸다').toBe('function');
+    expect(await page.evaluate(() => window.ParticlesAnim.prefersReduced()),
+      '★전제: ★모션 감소 판이다 — ★㉡ 가 ★이미 멈춰 ★㉢ 를 ★못 가린다').toBe(false);
+    for (const id of ['pA', 'pB']) {
+      expect(await page.evaluate((i) =>
+        window.ParticlesAnim.onScreen(document.querySelector('#' + i + ' > .sec-fxpart-wrap')), id),
+        `★전제: ${id} 가 ★화면 밖이다 — ★㉠(컬링)이 ★이미 멈춰 ★㉢ 를 ★못 가린다`).toBe(true);
+      expect(await tfIn(page, id), `★전제: ${id} 에 ★잴 알맹이가 ★없다`).not.toBeNull();
+    }
+    /* ★★그리고 ★★둘 다 ★정말 움직인다 — ⛔안 움직이면 ★아래 「멈췄다」가 ★공짜다 */
+    await movesIn(page, 'pA', '★★전제: pA 가 ★애초에 ★안 움직인다');
+    await movesIn(page, 'pB', '★★전제: pB 가 ★애초에 ★안 움직인다');
+
+    /* ═══ ⒝ ★★패널에 ★단추가 ★있고 ★닿는다 ══════════════════════════════ */
+    await openSecPanel(page, 'pA');
+    const btn = await page.evaluate(() => {
+      const el = document.getElementById('sec-fxpart-pause');
+      if (!el) return { found: false };
+      const b = el.getBoundingClientRect();
+      const cx = Math.round(b.left + b.width / 2), cy = Math.round(b.top + b.height / 2);
+      const top = document.elementFromPoint(cx, cy);
+      return { found: true, cx, cy, innerH: window.innerHeight, label: el.textContent.trim(),
+               pressed: el.getAttribute('aria-pressed'),
+               hits: !!(top && (top === el || el.contains(top) || top.contains(el))) };
+    });
+    expect(btn.found, '★★파티클 패널에 ★일시정지 단추(#sec-fxpart-pause)가 ★없다 — ★현빈이 ★멈출 길이 없다').toBe(true);
+    expect(btn.hits, `★★단추가 ★안 닿는다 (y=${btn.cy}/${btn.innerH}) — ★있어도 ★못 누른다`).toBe(true);
+    /* ★★글자는 ★제품에서 ★읽는다 — ⛔spec 에 ★박으면 ★명부가 ★둘이 된다
+       (★`js/props/prop-section-particles.js` 의 ★`PAUSE_GLYPH`/`PLAY_GLYPH` · ★VS15 가 붙어 있다). */
+    const G = await page.evaluate(() => window.SEC_PARTICLES_GLYPH);
+    expect(G && G.pause && G.play, '★전제: 제품이 ★글자 정본을 ★창으로 ★안 냈다').toBeTruthy();
+    expect(G.pause, '★전제: 두 글자가 ★같다 — ★아래 꼴 대조가 ★뜻이 없다').not.toBe(G.play);
+    expect(btn.label, '★돌고 있는데 ★단추가 ★「일시정지」 꼴이 ★아니다').toBe(G.pause);
+    expect(btn.pressed, '★돌고 있는데 ★aria-pressed 가 ★true 다').toBe('false');
+
+    /* ═══ ⒞ ★★눌렀다 — ★★그 섹션만 ★멈춘다 (★양·음 한 쌍) ═══════════════ */
+    await page.click('#sec-fxpart-pause', { timeout: 5000 });
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() =>
+      window.ParticlesAnim.isPaused(document.getElementById('pA'))), '★눌렀는데 ★멈춤으로 ★안 섰다').toBe(true);
+    await stillIn(page, 'pA', '★★일시정지를 눌렀는데 ★계속 움직인다');
+    /* ★★음성대조 — ★★«옆 섹션»은 ★그대로 돈다. ⛔전역으로 끄면 ★이 줄이 ★빨개진다 */
+    await movesIn(page, 'pB', '★★한 섹션을 멈췄는데 ★★옆 섹션도 ★멈췄다 — ★㉢ 가 ★전역으로 끈다');
+
+    /* ★★멈춘 ★그림이 ★«쉬는 꼴»인가 — ⛔떨어지던 ★한 프레임에 ★굳으면 ★시드의 그림이 ★아니다 */
+    const restA = await tfIn(page, 'pA');
+    expect(restA, `★★멈췄는데 ★움직인 꼴이 ★남아 있다 (${restA}) — ★restParticleMotion 을 ★안 탔다`)
+      .not.toMatch(/^translate\(0,/);
+
+    /* ★★단추 꼴이 ★따라왔나 — ⛔패널을 ★다시 안 그리고도 ★★참을 보여야 한다 */
+    const after = await page.evaluate(() => {
+      const el = document.getElementById('sec-fxpart-pause');
+      return { label: el.textContent.trim(), pressed: el.getAttribute('aria-pressed') };
+    });
+    expect(after.label, '★멈췄는데 ★단추가 ★「재생」 꼴이 ★아니다').toBe(G.play);
+    expect(after.pressed, '★멈췄는데 ★aria-pressed 가 ★false 다').toBe('true');
+
+    /* ═══ ⒟ ★★`step()` 은 ★살아 있다 — ★★가드는 ★«그 섹션»에만 걸린다 ══════
+       ⛔`step()` 까지 죽으면 ★위 V2·V3 가 ★거짓 초록이 된다(지디 지시 ②).
+       ★자 = ★움직인 수가 ★★«안 멈춘 섹션 ★한 몫»이다(★V8 과 ★같은 결의 자). */
+    const bitsB = await page.evaluate(() => document.querySelectorAll('#pB .sec-fxpart-wrap [data-fxp]').length);
+    const movedN = await page.evaluate(() => window.ParticlesAnim.step(5000));
+    expect(bitsB, '★전제: pB 의 알맹이 수가 0 이다').toBeGreaterThan(0);
+    expect(movedN, `★★움직인 수 ${movedN} 가 ★★«안 멈춘 한 섹션 몫»(${bitsB}) 이 ★아니다`
+      + ' — ⛔0 이면 ★step 까지 죽었고, ★두 배면 ★멈춤이 ★안 먹었다').toBe(bitsB);
+
+    /* ═══ ⒠ ★★저장물 무접촉 — ★★이 칸의 ★계약 (★양성대조 ★한 쌍) ═════════ */
+    const leak1 = await pauseLeak(page, 'pA');
+    expect(leak1.htmlLen, '★전제: 저장 글자를 ★못 떴다').toBeGreaterThan(1000);
+    expect(leak1.dsKeys, `★★멈춤이 ★dataset 에 ★샜다 (${leak1.dsKeys.join(',')})`).toEqual([]);
+    expect(leak1.htmlAttrs, `★★멈춤이 ★저장 글자에 ★샜다 (${leak1.htmlAttrs.join(',')})`
+      + ' — ★남이 열면 ★멈춘 채로 보인다').toEqual([]);
+    expect(leak1.cloneAttrs, `★★멈춤이 ★섹션 클론에 ★샜다 (${leak1.cloneAttrs.join(',')})`).toEqual([]);
+
+    /* ★★양성대조 — ★★«같은 자»가 ★정말 ★잡나. ⛔없으면 ★위 「0건」이 ★죽은 자와 ★구분이 안 된다 */
+    await page.evaluate(() => { document.getElementById('pA').dataset.fxParticlesPaused = '1'; });
+    const leak2 = await pauseLeak(page, 'pA');
+    expect(leak2.dsKeys.length, '★★양성대조: ★손으로 넣은 키를 ★자가 ★못 잡는다 — ★위 「0건」은 ★뜻이 없다')
+      .toBeGreaterThan(0);
+    expect(leak2.htmlAttrs.length, '★★양성대조: ★손으로 넣은 키가 ★저장 글자에 ★안 나타난다'
+      + ' — ★저장 자가 ★이 자리를 ★안 본다').toBeGreaterThan(0);
+    await page.evaluate(() => { delete document.getElementById('pA').dataset.fxParticlesPaused; });
+    const leak3 = await pauseLeak(page, 'pA');
+    expect(leak3.dsKeys, '★양성대조를 ★치웠는데 ★자가 ★아직 잡는다').toEqual([]);
+
+    /* ★★멈춘 동안 ★저장은 ★시각에 ★안 흔들린다 — ★두 번 떠서 ★같은 글자 */
+    const s1 = (await pauseLeak(page, 'pA')).html;
+    await page.waitForTimeout(1200);
+    const s2 = (await pauseLeak(page, 'pA')).html;
+    expect(s2.length, `★★멈춘 동안 ★저장 글자가 ★흔들린다 (${s1.length} vs ${s2.length})`).toBe(s1.length);
+    expect(s2, '★★멈춘 동안 ★저장 글자가 ★바뀐다').toBe(s1);
+
+    /* ═══ ⒡ ★★다시 누르면 ★돈다 — ⛔가드가 ★영구히 ★죽이지 ★않는다 ════════ */
+    await page.click('#sec-fxpart-pause', { timeout: 5000 });
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() =>
+      window.ParticlesAnim.isPaused(document.getElementById('pA'))), '★다시 눌렀는데 ★안 풀렸다').toBe(false);
+    await movesIn(page, 'pA', '★★재생을 눌렀는데 ★안 깨어난다 — ★가드가 ★루프를 ★영구히 죽였다');
+    const back = await page.evaluate(() =>
+      document.getElementById('sec-fxpart-pause').textContent.trim());
+    expect(back, '★풀었는데 ★단추가 ★「일시정지」로 ★안 돌아왔다').toBe(G.pause);
+
+    expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+  });
+
