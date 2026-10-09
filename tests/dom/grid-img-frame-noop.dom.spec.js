@@ -128,12 +128,71 @@ async function loadGrid() {
   src = src.replace("from '../grid-cell-resize.js'", 'from ' + JSON.stringify(pathToFileURL(gcr).href));
   expect(src, '★grid-cell-resize.js import 를 못 찾았다').not.toBe(before);
   fs.copyFileSync(path.join(REPO, 'js', 'grid-cell-resize.js'), gcr);
+  /* ★★남은 상대 import «전수»를 절대 file:// URL 로 바꾼다.
+   *   ★까닭 — 이 임시 모듈은 $TMPDIR 에 산다. 그래서 `../x` 가 «레포 밖»으로 풀린다:
+   *     $TMPDIR/T/grid-noop-*.mjs 에서 `../util/sanitize-rich-text.js`
+   *       → $TMPDIR/util/sanitize-rich-text.js  ⇒ Cannot find module
+   *   ★이 사고가 실제로 났다 — `34db28d8`(2026-10-08)이 :47 에 `../util/sanitize-rich-text.js`
+   *     를 넣은 날부터 ★N0-a 가 빨갛고, ★그 바람에 이 파일의 ★나머지 52개가 «did not run»으로
+   *     덮여 ★12일간 아무것도 안 쟀다(2026-10-10 전수에서 잡았다).
+   *   ★★⛔꼴을 «열거»하지 않는다 — `../x` `./x` `../util/x` `../../x` 무엇이 와도 같은 자로 푼다.
+   *     (옛 처방은 이름을 하나씩 짚었고, 그래서 import 가 하나 늘자 조용히 깨졌다.)
+   *   ★기준 = «원본 파일의 디렉터리»(js/blocks/) — $TMPDIR 이 아니다.
+   *   ⚠️`./` `../` 로 시작하는 것만 손댄다. 이 파일 :1449 의 템플릿 문자열
+   *     「… absent from 'applied' …」처럼 ★import 가 아닌 `from '…'` 이 있다. */
+  const SRC_DIR = path.join(REPO, 'js', 'blocks');
+  const isImportDecl = (l) => /^\s*(?:import|export)\b/.test(l);
+  const srcLines = src.split('\n');
+  /* ★★⛔이 자가 ★못 푸는 꼴을 ★이름 대고 ★터뜨린다 — ⛔조용히 지나가면 ★그 사각지대가 ★다음 사고다.
+   *   ★이 자는 ★«한 줄 꼴» import 만 푼다. `import {` 로 열고 ★다음 줄에 `from` 이 오는
+   *   ★여러 줄 꼴이 생기면 ★치환도 ★단언도 ★둘 다 ★놓친다 ⇒ ★그 꼴을 ★먼저 거절한다. */
+  const multiLine = srcLines
+    .map((l, i2) => ({ l, n: i2 + 1 }))
+    .filter(({ l }) => /^\s*import\b/.test(l) && !/\bfrom\b/.test(l) && !/['"]\s*;?\s*$/.test(l))
+    .map(({ n }) => n);
+  expect(multiLine, '⛔여러 줄에 걸친 import 를 찾았다 — 이 자는 «한 줄 꼴»만 푼다(줄번호): ' + JSON.stringify(multiLine)).toEqual([]);
+  /* ★치환은 ★«선언 줄»에만 — ⛔주석·문자열은 ★손대지 않는다.
+   *   ★실측 근거: 이 파일 :3720 은 ★주석인데 `export * from './block-drag.js'` 를 ★품고 있고,
+   *     :1449 는 ★템플릿 문자열에 「absent from 'applied'」가 있다. ★둘 다 import 가 ★아니다.
+   * ★★★그리고 ★«진짜 .js 경로»를 가리키면 ★안 된다 — ★`package.json` 에 `"type":"module"` 이 ★없어서
+   *   ★Node 가 ★`.js` 를 ★★CommonJS 로 읽는다 ⇒ ★실측(2026-10-10):
+   *     SyntaxError: Named export 'richTextHasFormatting' not found … is a CommonJS module
+   *   ⇒ ★★`.mjs` ★사본으로 ★건넨다. ★이 파일이 `grid-cell-resize` 를 ★.mjs 로 ★복사해 온 것이
+   *     ★바로 ★그 까닭이고(:126), ★★같은 수를 ★«남은 전부»에 ★쓴다. */
+  const depCopies = [];
+  src = srcLines
+    .map((l) => (isImportDecl(l)
+      ? l.replace(/(\bfrom\s*)(['"])(\.\.?\/[^'"]*)\2/g, (_m, kw, _q, spec) => {
+          const abs = path.resolve(SRC_DIR, spec);
+          expect(fs.existsSync(abs), `⛔import 가 가리키는 파일이 없다 — ${spec} → ${abs}`).toBe(true);
+          const body = fs.readFileSync(abs, 'utf8');
+          /* ★★사본이 ★또 상대 import 를 품으면 ★같은 병이 ★한 겹 더 생긴다.
+             ⇒ ★이 자는 ★«잎 모듈»만 복사한다 — ★그 밖의 꼴은 ★조용히 통과시키지 말고 ★이름 대고 거절한다. */
+          const nested = body.split('\n').filter(isImportDecl)
+            .flatMap((x) => [...x.matchAll(/\bfrom\s*(['"])([^'"]*)\1/g)].map((mm) => mm[2]))
+            .filter((x) => x.startsWith('.'));
+          expect(nested, `⛔사본이 또 상대 import 를 품는다 — 이 자는 «잎 모듈»만 복사한다: ${spec} → ` + JSON.stringify(nested)).toEqual([]);
+          const cp = path.join(os.tmpdir(), `noopdep-${path.basename(abs, '.js')}-${tag}.mjs`);
+          fs.writeFileSync(cp, body);
+          depCopies.push(cp);
+          return kw + JSON.stringify(pathToFileURL(cp).href);
+        })
+      : l))
+    .join('\n');
+  /* ★★★심기 «전»에 «상대 경로가 남았나»를 단언한다 — ★이게 «꼴 열거»를 «구조»로 닫는 자리다.
+   *   ⇒ 다음에 새 꼴(`../../x` · `./x`)이 와도 ★30초/0ms 조용한 죽음이 아니라
+   *     ★그 자리에서 ★이름을 대고 터진다. */
+  const relLeft = src.split('\n').filter(isImportDecl)
+    .flatMap((l) => [...l.matchAll(/\bfrom\s*(['"])([^'"]*)\1/g)].map((m) => m[2]))
+    .filter((x) => x.startsWith('.'));
+  expect(relLeft, '⛔상대 import 가 남았다 — 치환이 ★새 꼴을 못 덮는다: ' + JSON.stringify(relLeft)).toEqual([]);
   const alias = path.join(os.tmpdir(), `grid-noop-${tag}.mjs`);
   fs.writeFileSync(alias, src);
   globalThis.document = makeFakeDom();
   globalThis.window = {};
   const mod = await import(pathToFileURL(alias).href);
   fs.unlinkSync(alias); fs.unlinkSync(gcr);
+  for (const c of depCopies) { try { fs.unlinkSync(c); } catch { /* 이미 지워졌다 */ } }
   return mod;
 }
 
