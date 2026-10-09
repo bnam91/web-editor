@@ -44,6 +44,9 @@
    ⛔「릴리스가 이 게이트를 통과했다」 — ★거짓일 수 있다. CI 가 얕은 checkout 이면
      태그가 없어 ★SKIP 한다. ★참이려면 로그에서 ★SKIP 두 줄이 ★없음을 봐야 한다.
    ⛔「이 레포에 하드코딩이 없다」 — 이 자는 ⑴범위 안 ⑵토큰이 있는 자리만 본다.
+   ⛔★★「범위 안 하드코딩 0건」 — ★출력의 ★「거르개 정합」 줄을 ★같이 봐야 참이다.
+     ★2026-10-10 실측: css/editor-layout.css 는 ★669행까지만 본다(790줄 중 · 선언 479/558).
+     ★그 구간에 하드코딩을 ★새로 넣으면 ★조용히 ★rc 0 으로 통과한다(지금 ★진짜 위반은 0건).
    ⛔「색 하드코딩을 잡는다」 — ★hex 만 본다. rgba «만»인 :root 토큰 15종엔 안 닿는다.
    ⛔「px 하드코딩을 잡는다」 — ★font-size·border-radius·gap ★세 property 의 px 만.
      ★넓히려면 ★코드가 아니라 ★«표»를 넓혀라(아래 「px 판정 기준」).
@@ -493,6 +496,84 @@ export function lintCss(src, scopeLines, maps) {
   return findings.sort((a, b) => a.line - b.line || a.col - b.col);
 }
 
+/* ── Ⓐ ★거르개 정합 — ⛔「적발 0건」을 ★믿기 전에 ★«본 줄»을 보라 ────────────
+ * ★2026-10-10 적대적 QA(advqa)가 ★실명을 찾았고, ★내가 ★뿌리를 다시 쟀다:
+ *   css/editor-layout.css (790줄) — ★선언 479개만 보고 ★★669행에서 멈춘다.
+ *   css/editor-extra.css (2013줄) — ★선언 1512개(1 모자람).
+ * ★★뿌리 = ★`blankCssNoise` 가 `Array.from(src)`(★코드포인트)로 쓰고
+ *   `src[i]`·`src.length`(★UTF-16 단위)로 읽는다 ⇒ ★서러게이트 쌍 하나당 ★2유닛 어긋나고,
+ *   그 뒤 ★빈칸이 ★밀린 자리에 찍힌다. 두 파일에 ★astral 이모지가 있다
+ *   (editor-layout.css:65 `📝` · editor-extra.css:1983 `🔗`).
+ *   ★대조(2026-10-10) — astral 문자만 ★같은 UTF-16 길이의 BMP 로 바꾸면:
+ *       editor-layout  선언 479 → ★558 · 마지막 본 줄 669 → ★787/790
+ *       editor-extra   선언 1512 → ★1513
+ *     ★음성대조(무관한 한 글자 변경)는 ★안 변한다 ⇒ astral 이 ★주범이다.
+ *   ⛔advqa 가 지목한 ★`:677 $=",0)"` ＋ `:723 base64 url()` 은 ★원인이 ★아니다
+ *     — 그 줄만 중화해도 ★479/669 가 ★그대로였다(내 실측). 그 두 줄은 ★드리프트가
+ *     ★하필 깨뜨리는 자리일 뿐이다. ★처방을 그 줄에 걸면 ★다음 파일에서 또 난다.
+ * ★★지금 ★숨겨진 «진짜 위반» = ★0건 — ★고친 판으로 재 봤다(적발 0→0 · --all 441→441 ·
+ *   레인 10벌 전부 동일). ⇒ ★★«오늘 새는 위반»이 아니라 ★«자의 잠복 실명»이다.
+ * ⇒ ★그래서 이 절은 ★동작을 ★안 바꾼다. ★재서 ★출력에 ★찍는다.
+ *   ★사람이 ★「적발 0건」 옆에서 ★실명을 ★보게 하는 것이 ★구조적 처방이다. */
+export function scanIntegrity(src) {
+  const blanked = blankCssNoise(src);
+  const at = makeLineIndex(src);
+  const decls = scanDeclarations(blanked);
+  const lines = src.split('\n');
+  const totalLines = lines.length;
+  const lastSeen = decls.length ? at(decls[decls.length - 1].valueStart).line : 0;
+  /* ★자를 «전체 줄»로 잡으면 ★꼬리 빈 줄·`}` 만 있는 파일이 ★거짓양성으로 뜬다
+   *   (실측: notice.css 55/57 · pen-tool.css 31/33 — 둘 다 ★멀쩡하다).
+   * ⇒ ★«선언이 ★있을 수 있는 마지막 줄»(`;` 가 있는 마지막 줄)로 견준다. */
+  let lastCandidate = 0;
+  for (let i = lines.length - 1; i >= 0; i--) { if (lines[i].includes(';')) { lastCandidate = i + 1; break; } }
+  return {
+    decls: decls.length,
+    lastSeen,
+    totalLines,
+    lastCandidate,
+    /* ⑴ 거르개 출력 길이가 원본과 다르면 ★색인이 어긋난 것이다(드리프트) */
+    lenDrift: blanked.length - src.length,
+    /* ⑵ astral(서러게이트 쌍) 수 — 드리프트의 ★원천 */
+    astral: Array.from(src).filter((c) => c.codePointAt(0) > 0xFFFF).length,
+    /* ⑶ 짝을 못 찾아 끝까지 먹은 `(` 자리 */
+    runaway: runawayParens(blanked, at),
+  };
+}
+
+/** 짝 없는 `(` — 있으면 그 뒤 ★전부를 안 본다. */
+export function runawayParens(blanked, at) {
+  const out = [];
+  let i = 0;
+  const n = blanked.length;
+  while (i < n) {
+    if (blanked[i] === '(') {
+      const start = i;
+      let d = 1; i++;
+      while (i < n && d > 0) { if (blanked[i] === '(') d++; else if (blanked[i] === ')') d--; i++; }
+      if (d > 0) out.push(at(start).line);
+      continue;
+    }
+    i++;
+  }
+  return out;
+}
+
+/** 못 본 자리가 있는 파일만 돌려준다. ⛔25파일을 매번 쏟지 않는다(소음이 자를 죽인다). */
+export function integrityReport(files, read) {
+  const bad = [];
+  for (const f of files) {
+    const r = scanIntegrity(read(f));
+    /* ★`decls > 0` 을 ★같이 거는 까닭 = 블록 ★밖의 at-rule(`@charset "UTF-8";`)도 `;` 를
+     *   가져서 lastCandidate 를 올린다. 선언이 ★0인 파일(editor.css = @import 뿐)은
+     *   ★멀쩡한데 거짓양성으로 뜬다(실측). ★진짜 전면 실명은 ★lenDrift·runaway 가 잡는다. */
+    const blind = r.lenDrift !== 0 || r.runaway.length > 0
+      || (r.decls > 0 && r.lastSeen < r.lastCandidate);
+    if (blind) bad.push({ file: f, ...r });
+  }
+  return bad;
+}
+
 /* ── 범위 ──────────────────────────────────────────────────────────────────── */
 function git(args, opts = {}) {
   const r = cp.spawnSync('git', ['-C', ROOT, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...opts });
@@ -829,6 +910,23 @@ function main() {
 
   process.stdout.write(`css-token-lint — ${head}\n`);
   process.stdout.write(`토큰 명부 :root ${defs.length}건 → 제안 표 색 ${maps.color.size}값 · 길이 ${maps.length.size}짝\n`);
+
+  /* ── Ⓐ ★거르개 정합 — ⛔「적발 0건」 옆에 ★«안 본 자리»를 같이 찍는다 ──────── */
+  const bad = integrityReport(files, src.read);
+  if (!bad.length) {
+    process.stdout.write(`거르개 정합 ${files.length}/${files.length} — ★안 본 자리 0건\n`);
+  } else {
+    process.stdout.write(`⛔거르개 정합 ${files.length - bad.length}/${files.length} — ★${bad.length}파일에서 ★«그 뒤를 안 본다»:\n`);
+    for (const b of bad) {
+      process.stdout.write(`   ${b.file}  선언 ${b.decls}개 · ★마지막 본 줄 ${b.lastSeen}`
+        + ` (선언 가능한 마지막 ${b.lastCandidate} / 전체 ${b.totalLines})`
+        + (b.lenDrift ? ` · ★색인 어긋남 ${b.lenDrift} (astral ${b.astral}자)` : '')
+        + (b.runaway.length ? ` · 짝 없는 ( ${b.runaway.join(',')}행` : '') + '\n');
+    }
+    process.stdout.write('   ⇒ ★그 구간의 하드코딩은 ★조용히 ★rc 0 으로 통과한다.'
+      + ' ⛔「범위 안 하드코딩 0건」을 ★참으로 읽지 마라.\n');
+  }
+
   if (!all.length) {
     process.stdout.write('적발 0건.\n');
     process.stdout.write('⛔「이 레포에 하드코딩이 없다」가 아니다 — 이 자는 ⑴범위 안 ⑵토큰이 있는 자리만 본다(머리말 「무엇을 안 재나」).\n');

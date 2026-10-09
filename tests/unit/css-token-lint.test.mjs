@@ -27,7 +27,7 @@ import { fileURLToPath } from 'url';
 import {
   blankCssNoise, blankExemptSpans, scanDeclarations, makeLineIndex,
   collectRootTokens, resolveTokens, buildMaps, isSuggestable, normHex,
-  lintCss, renderFinding, selfCheck, deriveBase,
+  lintCss, renderFinding, selfCheck, deriveBase, scanIntegrity, integrityReport,
 } from '../../tools/css-token-lint.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -495,4 +495,71 @@ test('③ 단언 ★본문에 명령이 들어 있다 — ⛔제목만으로는 
   assert.ok(i > 0, '게이트 단언을 못 찾는다');
   const body = src.slice(i, i + 400);
   assert.match(body, /npm run gate:css-token/, '단언 ★본문에 명령이 없다');
+});
+
+/* ══ Ⓐ ★거르개 정합 — ⛔「적발 0건」을 믿기 전에 ★«본 줄»을 보라 ═══════════
+ * ★왜 = 적대적 QA(advqa)가 ★실명을 찾았다(2026-10-10). 내가 ★뿌리를 다시 쟀고,
+ *   ★advqa 가 지목한 자리(677·723)가 ★아니었다 — 뿌리는 ★`blankCssNoise` 의
+ *   ★`Array.from`(코드포인트) ↔ `src[i]`(UTF-16) ★색인 섞임이다.
+ * ⛔「지금 editor-layout.css 가 ★실명이다」를 ★단언으로 걸지 않는다 —
+ *   그러면 ★고치는 날 ★빨개진다(「일부러 빨간 검사가 다음 빨강을 가린다」).
+ *   ⇒ ⑴ 계측기가 ★잡을 수 있나(합성 양성/음성) ⑵ 그 줄이 ★출력에 ★늘 찍히나 — 둘만 건다. */
+test('Ⓐ 정합 ⑴ — astral 문자가 있으면 ★색인 어긋남을 ★잡는다 (＋없으면 ★0 : 음성대조)', () => {
+  const plain = '.a{color:red}\n.b{color:blue}\n';
+  const withAstral = '/* 📝 */\n.a{color:red}\n.b{color:blue}\n';
+  const a = scanIntegrity(plain);
+  const b = scanIntegrity(withAstral);
+  assert.equal(a.astral, 0);
+  assert.equal(a.lenDrift, 0, '멀쩡한 소스에 어긋남이 있다고 한다(거짓양성)');
+  assert.equal(b.astral, 1, 'astral 문자를 못 센다');
+  assert.notEqual(b.lenDrift, 0, '★astral 이 있는데 어긋남을 ★0 으로 본다 — 이 계측기가 ★장님이다');
+});
+
+test('Ⓐ 정합 ⑵ — 짝 없는 `(` 를 ★잡는다 (＋짝이 맞으면 ★0 : 음성대조)', () => {
+  assert.deepEqual(scanIntegrity('.a{color:rgb(1,2,3)}\n').runaway, [], '짝이 맞는데 짝 없다고 한다');
+  // ★진짜 짝 없는 `(` — 그 뒤 전부를 안 보게 만드는 꼴
+  const r = scanIntegrity('.a{color:rgb(1,2}\n.b{color:blue}\n');
+  assert.deepEqual(r.runaway, [1], `짝 없는 ( 를 못 잡는다: ${JSON.stringify(r)}`);
+});
+
+/* ★★advqa 가 지목한 ★기전의 ★반증 — ★문자열 안의 `)` ★만으로는 ★폭주가 ★안 난다.
+ * ⛔「문자열을 빈칸으로 만들며 그 `)` 도 지운다 ⇒ `:not(` 가 짝을 잃는다」는 ★틀렸다:
+ *   그 `)` 는 ★애초에 ★짝이 아니었다. 진짜 짝은 ★그대로 남는다.
+ * ⇒ editor-layout.css:677 이 `runaway` 로 뜨는 것은 ★결과이고, ★원인은 ★색인 어긋남이다.
+ *   ★이 칸이 있으면 ★다음 사람이 ★677 행을 ★고치려 들지 않는다(증상 가리기 방지). */
+test('Ⓐ 정합 ⑵b — 문자열 안의 `)` ★만으로는 ★폭주가 ★안 난다 (★advqa 기전의 반증)', () => {
+  const sample = '.a:not([x=")"]):not([y=", 0)"]){color:red}\n.b{color:blue}\n';
+  const r = scanIntegrity(sample);
+  assert.deepEqual(r.runaway, [], `문자열 안의 ) 때문에 폭주했다고 한다: ${JSON.stringify(r)}`);
+  assert.equal(r.lenDrift, 0, 'astral 이 없는데 색인이 어긋났다');
+  assert.equal(r.decls, 2, `그 뒤를 못 봤다 — 선언 ${r.decls}개`);
+  /* ★같은 표본에 astral 하나만 더하면 ★색인이 어긋난다 — ★그것이 ★원인 쪽이다.
+   * ⛔「어긋나면 ★반드시 폭주한다」는 ★참이 아니다(작은 표본에서 재 보니 안 났다) —
+   *   어긋난 빈칸이 ★무엇을 덮느냐에 달렸다. ⇒ ★여기선 ★어긋남까지만 단언한다. */
+  const r2 = scanIntegrity('/* 📝 */\n' + sample);
+  assert.notEqual(r2.lenDrift, 0, 'astral 을 더했는데 어긋남이 0 이다');
+  assert.equal(r2.astral, 1);
+});
+
+/* ★★Ⓑ 가 ★되돌릴 ★계약을 ★여기 적어 둔다(⛔아직 단언으로 걸지 않는다 —
+ *   지금 걸면 ★일부러 빨간 검사가 되고, 그게 ★다음 빨강을 가린다):
+ *     ★`blankCssNoise(src).length === src.length` 는 ★항상 참이어야 한다.
+ *   ★지금은 astral 입력에서 ★거짓이다(실측 -2). ★Ⓑ 에서 ★이 줄을 ★단언으로 올린다. */
+
+test('Ⓐ 정합 ⑶ — ★CLI 출력에 「거르개 정합」 줄이 ★늘 찍힌다 (⛔조용히 빠지면 의미가 없다)', () => {
+  const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs')], { encoding: 'utf8', cwd: REPO });
+  assert.notEqual(r.status, 3, `HARNESS_ERROR\n${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /거르개 정합 \d+\/\d+/, '★정합 줄이 출력에서 ★빠졌다 — 사람이 실명을 ★못 본다');
+  // ★지금 이 레포는 ★실명이 있다 ⇒ ⛔로 찍히고 ★까닭(색인 어긋남/짝없는 괄호)이 같이 나온다.
+  //   ★고쳐지면 「안 본 자리 0건」으로 바뀐다 — ★둘 다 ★참으로 받는다(단언은 「찍힌다」까지).
+  assert.ok(/안 본 자리 0건/.test(r.stdout) || /그 뒤를 안 본다/.test(r.stdout),
+    `정합 줄이 ★둘 중 어느 꼴도 아니다:\n${r.stdout}`);
+});
+
+test('Ⓐ 정합 ⑷ — 꼬리 빈 줄·@import 전용 파일을 ★거짓양성으로 올리지 않는다', () => {
+  // ★실측 거짓양성 둘을 ★합성으로 못박는다: 꼬리 빈 줄 · 블록 밖 at-rule
+  const tail = '.a{color:red}\n\n\n';
+  const atOnly = '@charset "UTF-8";\n@import "./x.css";\n\n';
+  const rep = integrityReport(['t.css', 'a.css'], (f) => (f === 't.css' ? tail : atOnly));
+  assert.deepEqual(rep.map((x) => x.file), [], `멀쩡한 둘을 실명으로 올렸다: ${JSON.stringify(rep)}`);
 });
