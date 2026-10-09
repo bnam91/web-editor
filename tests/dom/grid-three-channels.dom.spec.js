@@ -102,13 +102,24 @@ async function mount(page) {
        ★★⇒ ★★«앱의 길»로 재는 자리는 ★따로 있다 — `tests/dom/grid-cell-selected-leak.dom.spec.js`
          (★진짜 마우스로 ★빈 칸을 ★두 번 눌러 심고, ★배송본을 ★★렌더해 ★computed 까지 잰다).
          ⛔이 손 심기를 ★「앱 경로도 쟀다」로 ★읽지 마라. ★두 자리가 ★다른 것을 ★잠근다. */
-    const cell = block.querySelector('.grd-cell');
+  }, FIXTURE);
+}
+
+/** ★★패널을 ★연 ★«뒤»에 심어야 하는 장면 — ⛔순서가 ★계약이다.
+ *  ★까닭: `showGridProperties` → `_grdSyncLineMark`(js/props/prop-grid.js:176·177)가 ★머리에서
+ *    ★★`document` 전역으로 `.grd-line-selected` 와 `.grd-cell-selected` 를 ★★둘 다 지운다.
+ *    ⇒ ★`mount()` 에서 심으면 ★그 패널 호출이 ★★지워 버린다.
+ *    ★★2026-10-10 에 ★내가 ★그 순서를 ★틀려 ★D4 가 ★또 빨갰다(「라이브 0건」) — ★그 자가 ★두 번 잡았다.
+ *  ⛔`mount()` 로 ★되돌리지 마라. ★★여기 두는 것이 ★그 상호배제의 ★처방이다. */
+async function plantAfterPanel(page) {
+  await page.evaluate(() => {
+    const cell = window.__block.querySelector('.grd-cell');
     if (cell) cell.classList.add('grd-cell-selected');
     const lg = document.createElement('div');
     lg.className = 'label-group-block';
     lg.innerHTML = '<div class="label-item item-selected">lb</div>';
     document.getElementById('host').appendChild(lg);
-  }, FIXTURE);
+  });
 }
 
 /** 같은 계수기 — 어떤 «문자열»에서든 토큰을 센다. 라이브 DOM 도 같은 함수로 잰다. */
@@ -122,6 +133,7 @@ test('D4 ★편집용 마커가 저장본·HTML·PNG «어디에도» 안 샌다
   const errs = await boot(page);
   await mount(page);
   await page.evaluate(() => window.__open(window.__block, { r: 0, c: 1, li: 2 }));
+  await plantAfterPanel(page);        // ★★패널 «뒤» — 위 함수 머리말의 상호배제 때문이다
 
   const out = await page.evaluate(async () => {
     const live = document.getElementById('canvas').innerHTML;
