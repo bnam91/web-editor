@@ -106,6 +106,26 @@
    그것들은 «그 선택자 안에서만» 사는 지역 변수라, 다른 자리에 「이걸 쓰라」고 할 수 없다.
    `var(--a)` 사슬은 리터럴까지 풀어 둔다(--bg-app → --p-gray-950 → #1a1a1a).
 
+   ══ ★문맥 — ★모르면 ★권하지 않는다 (적대적 QA ⒊-② · 2026-10-10) ═══════════
+   ★advqa 가 심었다:
+       :root { --ui-bg-card: #ffffff; }
+       @media (prefers-color-scheme: dark) { :root { --ui-bg-card: #111111; } }
+       .light-only { background: #111111; }   ← ★「var(--ui-bg-card) 를 쓰라」로 ★적발됐다
+       .a          { background: #ffffff; }   ← ★적발 0건 (★거짓음성이 ★한 쌍으로 왔다)
+     ★그 지시를 따르면 ★라이트에서 `--ui-bg-card` 는 ★#ffffff ⇒ ★★검정이 ★흰색이 된다.
+     ★까닭 = ⑴ @media 안의 `:root` 도 ★진짜 :root 로 셌다 ⑵ resolve 가 ★last-wins 라
+       ★다크 값이 표를 덮었다 ⇒ ★표에 ★«문맥»이 ★없었다.
+   ⇒ ★두 가드:
+     ⒜ `:root` 는 ★«at-rule 깊이 0»일 때만 ★명부에 넣는다. @media 안의 것은 ★세기만 하고
+        ★출력에 ★「@media 안 :root N건은 ★안 쓴다(문맥 모름)」로 ★찍는다.
+     ⒝ 이름이 ★중복인데 ★값이 ★갈리면 ★`resolveTokens` 가 ★그 이름을 ★떨군다.
+        ⛔`buildMaps` 에 ★인자로 넘기지 않았다 — 넘기면 ★안 넘긴 호출자가 ★조용히 ★가드 없이
+        돈다. ★구조로 잠갔다(모든 소비자가 ★자동으로 받는다). ★떨군 수는 출력에 찍힌다.
+   ★지금 이 레포 = @media 안 :root ★0건 · 이름 중복 ★0종 · 값 갈림 ★0종 ⇒ ★수가 ★안 바뀐다
+     (실측: :root 166 · 색 35 · 길이 26 · 기본 0건 · --all 441건 ★전부 동일) ⇒ ★들이기 싼 때였다.
+   ⛔그래도 ★이 자는 ★테마를 ★모른다 — ★라이트 테마가 생기면(지금은 0건, design-tokens.css
+     머리말 실측) ★다크/라이트 ★둘 다 참인 토큰만 권할 수 있다. ★그때 다시 재라.
+
    ══ 무엇을 «쓰라»고 하나 — 제안 대상 패밀리 ════════════════════════════════
    같은 값을 여러 토큰이 가질 수 있다(#1a1a1a = --p-gray-950 · --ui-bg-app · --preset-h2-color).
    그래서 제안은 ★다음 패밀리만 한다:
@@ -350,38 +370,76 @@ export function collectRootTokens(files, readFile) {
   /* ⛔Set 으로 센다 — 중첩 블록(@media { … })은 바깥 블록 본문에도 같은 선언이
    *   들려 있어, 자리로 안 묶으면 ★같은 줄을 두 번 센다(실측 70 vs 참값 59). */
   const nonRoot = new Set();           // 안 쓰는 것 — 수만 보고한다
+  let scopedRoot = 0;                  // ⒜ @media 등 ★안의 :root — 세기만 하고 ★안 쓴다
   for (const f of files) {
     const src = readFile(f);
     const blanked = blankCssNoise(src);
     const at = makeLineIndex(src);
-    // 블록 하나씩: 선택자는 `{` 앞의 마지막 세그먼트
-    let i = 0, n = blanked.length;
+    /* ★블록을 ★깊이와 함께 걷는다 — ⛔indexOf 로 `{` 만 주워 모으면 ★깊이를 잃는다.
+     * ★왜 깊이가 필요한가(2026-10-10 적대적 QA ⒊-②) =
+     *   `@media (prefers-color-scheme: dark) { :root { --ui-bg-card: #111111 } }`
+     *   를 ★진짜 :root 로 세면, last-wins 로 ★다크 값이 표를 덮고
+     *   ★라이트에서 쓰는 #ffffff 자리엔 ★거짓음성, ★#111111 자리엔
+     *   ★「--ui-bg-card 를 쓰라」는 ★거짓양성이 난다 ⇒ ★따르면 ★검정이 흰색이 된다.
+     * ⇒ ★문맥(media query)에 ★딸린 정의는 ★«어느 테마에서 참인지»를 이 자가 모른다.
+     *   ★모르면 ★권하지 않는다. */
+    const stack = [];                  // 열려 있는 블록의 선택자
+    let i = 0;
+    const n = blanked.length;
+    let segStart = 0;
     while (i < n) {
-      const open = blanked.indexOf('{', i);
-      if (open < 0) break;
-      const prevBound = Math.max(blanked.lastIndexOf('}', open), blanked.lastIndexOf('{', open - 1), blanked.lastIndexOf(';', open));
-      const sel = blanked.slice(prevBound + 1, open).trim();
-      // 짝 맞는 `}` 찾기
-      let j = open + 1, d = 1;
-      while (j < n && d > 0) { if (blanked[j] === '{') d++; else if (blanked[j] === '}') d--; j++; }
-      const body = blanked.slice(open + 1, j - 1);
-      const isRoot = sel === ROOT_SEL;
-      const re = /(--[A-Za-z0-9_-]+)\s*:\s*([^;}]*)/g;
-      let m;
-      while ((m = re.exec(body))) {
-        const rec = { name: m[1], raw: m[2].trim(), file: f, line: at(open + 1 + m.index).line };
-        if (isRoot) defs.push(rec); else nonRoot.add(`${f}:${rec.line}:${rec.name}`);
+      const c = blanked[i];
+      if (c === '{') {
+        const sel = blanked.slice(segStart, i).trim().split('\n').pop().trim();
+        stack.push(sel);
+        segStart = i + 1;
+        /* 이 블록의 본문(중첩 블록 제외)에서 선언을 긁는다 */
+        let j = i + 1, d = 1;
+        while (j < n && d > 0) { if (blanked[j] === '{') d++; else if (blanked[j] === '}') d--; j++; }
+        const body = blanked.slice(i + 1, j - 1).replace(/\{[^{}]*\}/g, '');
+        const isRoot = sel === ROOT_SEL;
+        const atDepth = stack.length - 1;        // 이 :root 를 감싼 블록 수
+        const re = /(--[A-Za-z0-9_-]+)\s*:\s*([^;}]*)/g;
+        let m;
+        while ((m = re.exec(body))) {
+          const rec = { name: m[1], raw: m[2].trim(), file: f, line: at(i + 1 + m.index).line };
+          if (isRoot && atDepth === 0) defs.push(rec);
+          else if (isRoot) scopedRoot++;         // ⒜ ★@media 안의 :root — 안 쓴다
+          else nonRoot.add(`${f}:${rec.line}:${rec.name}`);
+        }
+        i++;
+        continue;
       }
-      i = open + 1;                    // 중첩 블록(@media 안의 :root)도 다음 바퀴에 잡힌다
+      if (c === '}') { stack.pop(); segStart = i + 1; i++; continue; }
+      if (c === ';') { segStart = i + 1; i++; continue; }
+      i++;
     }
   }
-  return { defs, nonRootCount: nonRoot.size };
+  return { defs, nonRootCount: nonRoot.size, scopedRootCount: scopedRoot };
+}
+
+/* ── ⒝ 이름이 ★중복인데 ★값이 갈리는 토큰 — ★제안표에서 빼라 ───────────────
+ * ★「모르면 ★권하지 마라」. 같은 이름이 두 값을 가지면 ★어느 쪽이 그 줄에서
+ *   참인지 이 자가 ★모른다(문맥·순서·특이도). ⇒ ★빼는 쪽이 ★틀린 제안보다 낫다.
+ * ★같은 값으로 두 번 적힌 것은 ★갈림이 아니다(그대로 둔다). */
+export function conflictingNames(defs) {
+  const byName = new Map();
+  for (const d of defs) {
+    if (!byName.has(d.name)) byName.set(d.name, new Set());
+    byName.get(d.name).add(d.raw);
+  }
+  const out = new Set();
+  for (const [n, vals] of byName) if (vals.size > 1) out.add(n);
+  return out;
 }
 
 /** var(--a) 사슬을 리터럴까지 푼다. 같은 이름이 여럿이면 «마지막 정의»가 이긴다(CSS 순서). */
 export function resolveTokens(defs) {
+  /* ⒝ ★갈리는 이름은 ★여기서 떨군다 — ⛔buildMaps 에 ★인자로 넘기면 ★안 넘긴 호출자가
+   *   ★조용히 가드 없이 돈다. ★구조로 잠근다(모든 소비자가 ★자동으로 받는다). */
+  const conflict = conflictingNames(defs);
   const raw = new Map();
-  for (const d of defs) raw.set(d.name, d.raw);
+  for (const d of defs) { if (conflict.has(d.name)) continue; raw.set(d.name, d.raw); }
   const resolved = new Map();
   for (const [name] of raw) {
     let v = raw.get(name);
@@ -799,6 +857,33 @@ export function selfCheck(maps, resolved) {
     ok: !all.some((k) => k.startsWith('13:')),
     note: `13행 적발 ${all.filter((k) => k.startsWith('13:')).length}건 / 블록 밖 주석(10행) ${all.filter((k) => k.startsWith('10:')).length}건` });
 
+  /* ⑽⑾ ★문맥 축 — 2026-10-10 적대적 QA(advqa) ⒊-② 가 열었다.
+   *   ⛔산 레포의 maps 로는 못 잰다(지금 ★0건이라 ★항등식이 된다) ⇒ ★합성 명부로 잰다.
+   *   ★그리고 ★양성·음성을 ★한 쌍으로 — 「안 권한다」만 재면 ★죽은 자가 된다. */
+  const DARK = ':root { --ui-bg-card: #ffffff; }\n'
+    + '@media (prefers-color-scheme: dark) { :root { --ui-bg-card: #111111; } }\n';
+  const dc = collectRootTokens(['syn.css'], () => DARK);
+  const dres = resolveTokens(dc.defs);
+  const dmaps = buildMaps(dres);
+  const dgot = lintCss('.light-only{background:#111111}\n.a{background:#ffffff}\n', null, dmaps)
+    .map((f) => `${f.line}:${f.literal}`);
+  results.push({ name: '⑽ 문맥 — @media 안의 :root 를 ★제안표에 안 넣는다 (★검정에 흰 토큰을 권하지 않는다)',
+    ok: dc.defs.length === 1 && dc.scopedRootCount === 1 && dres.get('--ui-bg-card') === '#ffffff'
+        && !dgot.includes('1:#111111') && dgot.includes('2:#ffffff'),
+    note: `깊이0 :root ${dc.defs.length}건 · @media 안 ${dc.scopedRootCount}건 · --ui-bg-card=${dres.get('--ui-bg-card')}`
+        + ` · 적발 [${dgot.join(' , ')}]  (기대: 2:#ffffff 만 — 1행을 잡으면 ★라이트에서 검정이 흰색이 된다)` });
+
+  const CONF = ':root{--x-dup:#111111}\n:root{--x-dup:#222222}\n:root{--ui-bg-card:#2a2a2a}\n';
+  const cc = collectRootTokens(['syn2.css'], () => CONF);
+  const conf = conflictingNames(cc.defs);
+  const cres = resolveTokens(cc.defs);
+  const cmaps = buildMaps(cres);
+  results.push({ name: '⑾ 문맥 — 이름이 ★중복인데 ★값이 갈리면 ★제안표에서 뺀다 (★모르면 권하지 마라)',
+    ok: conf.has('--x-dup') && !cres.has('--x-dup') && !cmaps.color.has('#111111') && !cmaps.color.has('#222222')
+        && cres.get('--ui-bg-card') === '#2a2a2a' && cmaps.color.has('#2a2a2a'),
+    note: `갈리는 이름 [${[...conf].join(',')}] · resolved 에 --x-dup ${cres.has('--x-dup') ? '⛔있다' : '없다'}`
+        + ` · 갈리지 않는 --ui-bg-card 는 ★남는다(${cres.get('--ui-bg-card')})` });
+
   return results;
 }
 
@@ -849,14 +934,15 @@ function main() {
 
   const src = opt.rev ? refSource(opt.rev) : treeSource();
   const files = src.files();
-  const { defs, nonRootCount } = collectRootTokens(files, src.read);
+  const { defs, nonRootCount, scopedRootCount } = collectRootTokens(files, src.read);
   if (defs.length === 0) harness(`:root 토큰 정의가 0건 (${src.label}) — 명부가 비면 이 자는 아무것도 못 잰다`);
   const resolved = resolveTokens(defs);
   const maps = buildMaps(resolved);
   if (maps.color.size === 0) harness('«값→토큰» 색 표가 비었다 — 자가 장님이다');
 
   if (opt.census) {
-    process.stdout.write(`토큰 정의 — :root ${defs.length}건 (${src.label} · 파일 ${files.length}개) · :root 아닌 자리 ${nonRootCount}건(안 쓴다)\n`);
+    process.stdout.write(`토큰 정의 — :root ${defs.length}건 (${src.label} · 파일 ${files.length}개) · :root 아닌 자리 ${nonRootCount}건(안 쓴다)`
+      + ` · @media 등 ★안의 :root ${scopedRootCount}건(★문맥을 몰라 안 쓴다)\n`);
     process.stdout.write(`제안 대상 패밀리로 걸러진 표 — 색 ${maps.color.size}값 · 길이 ${maps.length.size}짝\n\n`);
     process.stdout.write('── 값 → 토큰 (색) ──\n');
     for (const k of [...maps.color.keys()].sort()) process.stdout.write(`  ${k}  →  ${rankTokens(maps.color.get(k)).join(' , ')}\n`);
@@ -909,7 +995,10 @@ function main() {
   }
 
   process.stdout.write(`css-token-lint — ${head}\n`);
-  process.stdout.write(`토큰 명부 :root ${defs.length}건 → 제안 표 색 ${maps.color.size}값 · 길이 ${maps.length.size}짝\n`);
+  const dropped = conflictingNames(defs);
+  process.stdout.write(`토큰 명부 :root ${defs.length}건 → 제안 표 색 ${maps.color.size}값 · 길이 ${maps.length.size}짝`
+    + (scopedRootCount ? ` · ⚠️@media 안 :root ${scopedRootCount}건은 ★안 쓴다(문맥 모름)` : '')
+    + (dropped.size ? ` · ⚠️값이 갈려 ★뺀 토큰 ${dropped.size}종 [${[...dropped].join(',')}]` : '') + '\n');
 
   /* ── Ⓐ ★거르개 정합 — ⛔「적발 0건」 옆에 ★«안 본 자리»를 같이 찍는다 ──────── */
   const bad = integrityReport(files, src.read);
