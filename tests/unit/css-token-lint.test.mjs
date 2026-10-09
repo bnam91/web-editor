@@ -227,3 +227,50 @@ test('산 레포에서도 돈다 — 명부가 비거나 표가 비면 HARNESS �
   assert.ok(maps.color.size > 20, `색 표 ${maps.color.size}값`);
   assert.ok(maps.length.size > 10, `길이 표 ${maps.length.size}짝`);
 });
+
+/* ══ 이 자의 ★첫 적발 4건을 ★토큰으로 바꾼 자리를 잠근다 (2026-10-10) ═══════
+ * ★왜 검사가 필요한가 = 리터럴을 토큰으로 바꾸면 그 줄은 ★더 이상 «못박힌 값»이
+ *   아니다. 토큰이 바뀌는 날 ★네 자리의 그림이 같이 바뀐다. 그게 토큰의 ★뜻이지만,
+ *   ★«모르고» 바뀌면 안 된다 ⇒ 바꾼 시점의 값을 ★여기 적어 두고, 달라지면 ★빨개진다.
+ * ★반례(이 단언이 거짓이 되는 판) = `--ui-fs-20: 21px` 로 고치는 판. 실측으로 확인했다.
+ * ⛔「값이 같다」만으로는 못 닫는다 — 그래서 ⑵정의가 ★하나뿐인가 ⑶문서가 토큰 파일을
+ *   ★읽는가 까지 같이 건다. 셋 중 하나라도 깨지면 var() 가 ★조용히 안 먹는다.
+ */
+const SUBSTITUTIONS = [
+  { file: 'css/editor-blocks.css', token: '--ui-fs-20', was: '20px', what: '#grd-plus-layer > .grd-add-btn font-size' },
+  { file: 'css/editor-graph.css', token: '--ui-row-gap', was: '4px', what: '.grb-data-item gap' },
+  { file: 'css/editor-panels.css', token: '--ui-radius-md', was: '6px', what: '#rp-height-total border-radius' },
+  { file: 'css/editor-props.css', token: '--ui-fs-9', was: '9px', what: '.fxpart-chip-del font-size' },
+];
+
+test('치환 잠금 ⑴ 바꿔 넣은 토큰의 «지금 값»이 ★바꾸기 전 리터럴과 같다', () => {
+  const files = fs.readdirSync(path.join(REPO, 'css')).filter((f) => f.endsWith('.css')).sort().map((f) => `css/${f}`);
+  const resolved = resolveTokens(collectRootTokens(files, read).defs);
+  for (const s of SUBSTITUTIONS) {
+    assert.equal(resolved.get(s.token), s.was,
+      `${s.token} 이 ${s.was} → ${resolved.get(s.token)} 로 바뀌었다. ${s.file} 의 ${s.what} 그림이 ★같이 바뀐다 — `
+      + '의도한 변경이면 이 표의 was 를 고치고, 아니면 토큰을 되돌려라');
+  }
+});
+
+test('치환 잠금 ⑵ 그 토큰이 css 전체에서 ★한 번만 정의된다 (덮이면 var() 가 딴 값이 된다)', () => {
+  const files = fs.readdirSync(path.join(REPO, 'css')).filter((f) => f.endsWith('.css')).sort().map((f) => `css/${f}`);
+  const all = [];
+  for (const f of files) {
+    const blanked = blankCssNoise(read(f));
+    for (const m of blanked.matchAll(/(--[A-Za-z0-9_-]+)\s*:/g)) all.push(m[1]);
+  }
+  for (const s of SUBSTITUTIONS) {
+    assert.equal(all.filter((n) => n === s.token).length, 1,
+      `${s.token} 정의가 1곳이 아니다 — 어느 것이 이기는지 이 검사가 모른다`);
+  }
+});
+
+test('치환 잠금 ⑶ 전제 — index.html 이 토큰 파일과 네 파일을 ★같이 읽는다', () => {
+  const html = read('index.html');
+  assert.match(html, /href="css\/editor-base\.css"/, 'editor-base.css 를 안 읽으면 --ui-* 가 ★하나도 안 먹는다');
+  for (const s of SUBSTITUTIONS) {
+    const base = s.file.replace('css/', '').replace(/\./g, '\\.');
+    assert.match(html, new RegExp(`href="css/${base}"`), `${s.file} 을 index.html 이 안 읽는다 — 이 잠금의 전제가 틀렸다`);
+  }
+});
