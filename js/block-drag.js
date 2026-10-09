@@ -30,7 +30,7 @@ import { MODAL_SLOT_KEYS } from './blocks/modal-block.js';
 /* ★수지⑦ — ★그리드 허용목록은 ★그리드가 들고 있다(★렌더와 ★커밋이 ★같은 한 벌을 써야 한다).
    ⛔여기 ★사본을 적지 마라 — ★갈리면 「★커밋은 됐는데 ★렌더에서 사라진다」가 된다. */
 import { GRID_RICH_TEXT_OPTS } from './blocks/grid-block.js';
-import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth } from './frame-geometry.js';
+import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth, frameClipsChildren } from './frame-geometry.js';
 import {
   dragState,
   _suppressDragSave,
@@ -854,7 +854,16 @@ function bindBlock(block) {
            드래그」, `const parentFreeFrame = ss.parentElement?.closest(…)`)도 parentElement
            부터 찾고 거기서 clamp 한다 — 같은 식으로 맞춘다. */
       const _clampParent = dragEl.parentElement?.closest('.frame-block[data-free-layout]') || null;
-      if (_clampParent) {
+      /* ★★2026-10-09 — ★죔을 ★★«정말 자르는 프레임»일 때만 건다(현빈 「★안 잘려 보인다 — 잘려야 하는데」).
+         ★위 T-088 주석의 까닭(「`.frame-block` 은 overflow:hidden」)은 ★★2026-09-28 에 ★죽었다 —
+           ★그 줄은 지금 ★`overflow: visible` 이다. ⇒ ★안 자르는 프레임을 ★가두면
+           ★자식이 ★★«넘칠 수가 없고», ★넘칠 수 없으니 ★★«내용 자르기» 토글이 ★켜도 ★보여 줄 것이 ★없다.
+         ★실측(2026-10-09 · 앱 9430 · 배율 100% · 진짜 마우스): 오른쪽으로 170px 끌어도
+           `style.left` 가 ★378px 에 ★물려 ★안 움직였다(= 프레임 폭 716 − 자식 338).
+           ★음성대조로 ★왼쪽 150px 은 ★378→228 로 ★정확히 움직였다 ⇒ ★끌기가 죽은 게 아니라 ★죔이었다.
+         ★★판정은 ★`frameClipsChildren` ★하나다(js/frame-geometry.js) — ⛔여기서 ★또 세지 않는다.
+         ⚠️★자르는 프레임에서는 ★T-088 의 까닭이 ★여전히 산다 ⇒ ★그 판은 ★그대로 ★죈다. */
+      if (_clampParent && frameClipsChildren(_clampParent)) {
         const _c = clampChildIntoFrame(
           newLeft, newTop, dragEl.offsetWidth, dragEl.offsetHeight,
           _clampParent.offsetWidth, _clampParent.offsetHeight, framePadding(_clampParent));

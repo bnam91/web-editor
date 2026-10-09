@@ -128,7 +128,7 @@ async function boot(page, opts = {}) {
     if (url.pathname === '/overlay-float.js') return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_FLOAT_JS });
     if (url.pathname === '/frame-geometry.js') return route.fulfill({ contentType: 'application/javascript', body: FRAME_GEOMETRY_JS });
     if (url.pathname === '/shape-frame.js') return route.fulfill({ contentType: 'application/javascript', body: SHAPE_FRAME_JS });
-    { const d = dragUtilsDep(url.pathname, '/'); if (d) return route.fulfill(d); }
+    { const d = dragUtilsDep(url.pathname, '/', ['globals.js', 'shape-frame.js']); if (d) return route.fulfill(d); }
     if (url.pathname === '/drag-utils.js') return route.fulfill({ contentType: 'application/javascript', body: DRAG_UTILS_JS });
     if (url.pathname === '/props/prop-page.js') return route.fulfill({ contentType: 'application/javascript', body: PROP_PAGE_JS });
     if (url.pathname === '/globals.js') return route.fulfill({ contentType: 'application/javascript', body: GLOBALS_STUB });

@@ -31,6 +31,8 @@ function _escGraphHtml(v) {
 import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS(막대 두께 기본·한계의 한 자리)를 «이 모듈보다 먼저»
 import { state } from './globals.js';
 import { isShapeFrame, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
+/* ★「이 프레임이 ★정말 자르나」의 ★정본 — ⛔여기 ★사본을 ★짓지 않는다(아래 effectiveSectionPadX) */
+import { frameClipsChildren } from './frame-geometry.js';
 
 /* ── actorId — «누가 만든 블록인가» ────────────────────────────────────────
  * 원격 동시협업에서는 두 사람의 앱이 «같은 문서»에 블록을 만든다. 기존 ID 는
@@ -158,12 +160,13 @@ function effectiveSectionPadX(el) {
        아래 판정은 그 선택자를 «그대로» 옮긴 것이다(두 곳이 갈리면 여기부터 의심하라).
      ⛔computed 스타일로 재지 않는다 — 이 함수는 검사에서 «가짜 DOM»으로도 불린다
        (tests/unit/block-full-bleed.test.mjs 의 makeEl). dataset 은 거기서도 산다. */
+  /* ★★2026-10-09 — ★「이 프레임이 ★정말 자르나」의 ★판정을 ★★공용 한 자리로 옮겼다
+       (`js/frame-geometry.js` ★`frameClipsChildren`). ⛔여기 ★제 벌을 ★두면 ★명부가 ★둘이다 —
+       ★실제로 ★갈려 있었다: ★여기는 ★`radius` 만 봤고 ★「내용 자르기」(`data-clip-content`)는
+       ★★안 봤다 ⇒ ★자르는 프레임인데 ★뚫을 수 있다고 ★답했다(★그 판에서 ★뚫은 폭은 ★잘린다).
+     ★★위 옛 주석의 「★지금 자르는 것은 ★둥근 프레임뿐」은 ★그래서 ★★낡았다 — ★★둘이다. */
   const _fr = parent.closest?.('.frame-block');
-  if (_fr) {
-    const _r = _fr.dataset?.radius;
-    const _clips = _r !== undefined && _r !== '' && String(_r) !== '0';
-    if (_clips) return 0;
-  }
+  if (_fr && frameClipsChildren(_fr)) return 0;
   /* ⚠️row 의 패딩 키가 «두 가지»다: 생성 경로는 `paddingX`, 패널 슬라이더는 `padX`.
      하나만 보면 조용히 글로벌로 샌다 — assetFullBleedWidth 와 같은 함정. */
   if (parent.classList?.contains('row')) {

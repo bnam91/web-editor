@@ -180,6 +180,37 @@ export function clampLeftIntoFrame(left, frameW, elW) {
    ⚠️위아래 «둘 다» 죈다 — 0 아래로도 못 간다(위로 밀어 넣어도 똑같이 잘린다).
    ⚠️자식이 프레임보다 «크면» max 가 음수가 된다 — 그땐 0(왼쪽·위 맞춤)이다.
      그래야 적어도 머리는 보인다. 음수를 그대로 쓰면 반대쪽으로 잘린다. */
+/* ══ ④-3 «이 프레임이 ★정말 자르나» — ★죔을 걸 ★조건의 ★정본 한 자리 (2026-10-09) ══
+   ★★왜 생겼나 — ★위 `clampChildIntoFrame` 의 머리말이 ★적은 까닭이 ★★죽었다:
+     「`.frame-block` 은 `overflow:hidden`(css/editor-blocks.css:11)」 ⇒ ★★그 줄은 ★지금
+     ★★`overflow: visible` 이다(2026-09-28 현빈 지시로 풀었다). ⇒ ★죔의 ★전제가 ★거짓이 됐다.
+   ★★그 죽음을 ★레포가 ★★이미 ★두 자리에 적어 뒀다 —
+     `js/drag-utils.js`(effectiveSectionPadX) · `js/props/prop-page.js`(assetFullBleedWidth).
+     ★★세 번째 자리(`js/block-drag.js` 의 T-088 죔)만 ★안 고쳐져서 ★★현빈이 ★걸렸다
+     (2026-10-09 「프레임 블럭 안에 텍스트 블럭들 넣고 ★이동하면 ★프레임 안에서만 있고
+       ★★안 잘려 보인다 — ★잘려야 하는데」).
+   ⇒ ★★그래서 ★판정을 ★★«여기 하나»로 모은다. ⛔부르는 쪽이 ★제 벌을 ★또 짓지 않게.
+
+   ★★자르는 꼴은 ★★둘뿐이다 — ★`css/editor-blocks.css` 를 ★파싱해 ★전수로 셌다
+     (2026-10-09 · 선택자에 frame ＋ 본문에 overflow 인 규칙 ★8건 · 양성대조 통과):
+       ★`.frame-block { overflow: visible }`                        ← ★기본은 ★안 자른다
+       ★`.frame-block[data-radius]:not([data-radius="0"])`  → hidden
+       ★`.frame-block[data-clip-content="true"]`            → hidden !important
+       ★나머지 5건은 ★visible 로 ★푸는 ★예외(도형선택·회전자식·그라데이션바·말풍선·텍스트선택)
+     ⇒ ★아래 두 줄이 ★그 두 선택자를 ★«그대로» 옮긴 것이다. ★★CSS 가 바뀌면 ★여기부터 의심하라.
+     ★그 쌍을 ★잠그는 자 = `tests/unit/frame-clips-predicate.test.mjs`(★CSS 를 ★읽어 ★견준다).
+   ⛔computed 스타일로 ★재지 않는다 — ★이 함수는 ★검사에서 ★«가짜 DOM»으로도 불린다
+     (`tests/unit/block-full-bleed.test.mjs` 의 makeEl). ★dataset 은 ★거기서도 산다.
+     ★그리고 ★★위 ★예외 5건(:has(...selected) 등)은 ★★«고르는 동안만» 참이라 ★★죔의 조건으로
+     ★쓰면 ★★고를 때마다 ★가둠이 ★흔들린다 — ⛔일부러 ★안 본다. */
+export function frameClipsChildren(frameEl) {
+  const d = frameEl && frameEl.dataset;
+  if (!d) return false;
+  if (d.clipContent === 'true') return true;                 /* 「내용 자르기」 켬 */
+  const r = d.radius;
+  return r !== undefined && r !== '' && String(r) !== '0';    /* 둥근 모서리 */
+}
+
 export function clampChildIntoFrame(left, top, elW, elH, frameW, frameH, pad) {
   const P = Object.assign({ l: 0, r: 0, t: 0, b: 0 }, pad || {});
   const one = (v, extent, size, lo, hi) => {

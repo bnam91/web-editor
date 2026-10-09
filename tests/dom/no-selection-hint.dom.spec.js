@@ -36,7 +36,7 @@ async function boot(page, bodyHtml) {
       });
     }
     if (url.pathname === '/js/shape-frame.js') return route.fulfill({ contentType: 'application/javascript', body: SHAPE_FRAME_JS });
-    { const d = dragUtilsDep(url.pathname, '/js/'); if (d) return route.fulfill(d); }
+    { const d = dragUtilsDep(url.pathname, '/js/', ['globals.js', 'shape-frame.js']); if (d) return route.fulfill(d); }
     if (url.pathname === '/js/drag-utils.js') return route.fulfill({ contentType: 'application/javascript', body: DRAG_UTILS_JS });
     if (url.pathname === '/js/globals.js') return route.fulfill({ contentType: 'application/javascript', body: 'export const state = {};' });
     return route.fulfill({ status: 404, body: '' });
