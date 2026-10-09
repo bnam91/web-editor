@@ -98,6 +98,10 @@ export function showQuoteProperties(block) {
   /* ★가로 정렬 — ★모델은 ★이미 있었다(quote-block.js `_qtState.align`). ★없던 것은 ★이 칸이다.
      ⛔기본값을 ★여기 리터럴로 적지 마라 — ★QUOTE_DEFAULTS ★한 표에서 온다. */
   const align = ['left', 'center', 'right'].includes(block.dataset.align) ? block.dataset.align : QUOTE_DEFAULTS.align;
+  /* ★★부호 ★y ＋ ★세로 정렬 (현빈 2026-10-09 ④⒝) — ⛔한도·기본값을 ★여기 리터럴로 적지 마라
+     (QUOTE_LIMITS·QUOTE_DEFAULTS ★한 표에서 온다 · 머리말의 그 규약). */
+  const markDy = clampQuote(Number(block.dataset.markDy ?? QUOTE_DEFAULTS.markDy), L.markDy);
+  const vAlign = ['top', 'middle', 'bottom'].includes(block.dataset.vAlign) ? block.dataset.vAlign : QUOTE_DEFAULTS.vAlign;
   const preOn = block.dataset.preOn !== '0';
   const postOn = block.dataset.postOn !== '0';
   const raw = block.dataset.text ?? '';
@@ -142,6 +146,8 @@ ${_pairRow('qt-marksize', '부호 크기', markSize, L.markSize.min, L.markSize.
         <span class="prop-label">부호 색</span>
         ${colorFieldHTML({ idPrefix: 'qt-markcol', hex: _swatchHex(markColor, QUOTE_DEFAULTS.markColor), alpha: parseAlphaFromColor(markColor) })}
       </div>
+${_pairRow('qt-markdy', '부호 y', markDy, L.markDy.min, L.markDy.max)}
+      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">부호만 위아래로 밀립니다 — <b>글은 제자리</b>입니다. 한 줄·스택 <b>둘 다</b> 먹습니다.</div>
 ${_pairRow('qt-gap', '간격', gap, L.gap.min, L.gap.max)}
       <div class="prop-row">
         <span class="prop-label">꼴</span>
@@ -158,6 +164,16 @@ ${_pairRow('qt-gap', '간격', gap, L.gap.min, L.gap.max)}
           ${alignBtn('text', 'right',  { label: '오른쪽 정렬', title: '오른쪽 정렬', active: align === 'right',  attrs: { 'data-al': 'right' } })}
         </div>
       </div>
+${layout === 'inline' ? `
+      <div class="prop-row">
+        <span class="prop-label">세로 정렬</span>
+        <div class="prop-align-group" id="qt-valign-group">
+          ${alignBtn('object-v', 'top',    { label: '위쪽 정렬',          title: '위쪽 정렬',          active: vAlign === 'top',    attrs: { 'data-qv': 'top' } })}
+          ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', active: vAlign === 'middle', attrs: { 'data-qv': 'middle' } })}
+          ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬',        title: '아래쪽 정렬',        active: vAlign === 'bottom', attrs: { 'data-qv': 'bottom' } })}
+        </div>
+      </div>` : `
+      <div class="prop-hint" style="padding:2px 8px;line-height:1.5"><b>세로 정렬</b>은 스택에서 쓰지 않습니다 — 축이 돌아 부호가 글 <b>위·아래</b>에 차례로 서므로 밀 틈이 없습니다. 세로로 밀려면 위의 <b>부호 y</b>를 쓰세요.</div>`}
       <div class="prop-row">
         <span class="prop-label">부호 켜기</span>
         <label class="prop-none-check" title="앞쪽 부호를 보일지">
@@ -178,7 +194,7 @@ ${_pairRow('qt-gap', '간격', gap, L.gap.min, L.gap.max)}
       </div>
       <div class="prop-hint" style="padding:2px 8px;line-height:1.5">${
         layout === 'stack'
-          ? `<b>엔터</b>로 줄을 나눕니다 — 줄마다 부호가 따라붙습니다. 지금 <b>${lines.length}줄</b>입니다. <span style="opacity:.7">빈 줄은 건너뜁니다.</span>`
+          ? `<b>엔터</b>로 줄을 나눕니다. 지금 <b>${lines.length}줄</b>이고 부호는 글 <b>위·아래에 한 쌍</b>입니다. <span style="opacity:.7">빈 줄은 건너뜁니다.</span>`
           : `<b>한 줄</b> 꼴에서는 부호가 <b>한 쌍</b>입니다. 엔터로 나눈 글은 가운데 칸에서 줄로 쌓입니다(지금 <b>${lines.length}줄</b>).`
       }${isPh ? ' <span style="opacity:.7">지금은 안내문구를 그리고 있습니다.</span>' : ''}</div>
 ${_pairRow('qt-fontsize', '글자 크기', fontSize, L.fontSize.min, L.fontSize.max)}
@@ -211,6 +227,7 @@ ${_pairRow('qt-fontsize', '글자 크기', fontSize, L.fontSize.min, L.fontSize.
     n.addEventListener('change', () => { apply(parseInt(n.value, 10)); commit(); });
   };
   wireNum('qt-marksize', 'markSize', L.markSize.min, L.markSize.max);
+  wireNum('qt-markdy', 'markDy', L.markDy.min, L.markDy.max);
   wireNum('qt-gap', 'gap', L.gap.min, L.gap.max);
   wireNum('qt-fontsize', 'fontSize', L.fontSize.min, L.fontSize.max);
 
@@ -241,6 +258,21 @@ ${_pairRow('qt-fontsize', '글자 크기', fontSize, L.fontSize.min, L.fontSize.
     block.dataset.align = a;
     rerender(); commit();
     propPanel.querySelectorAll('#qt-align-group [data-al]').forEach(b => {
+      const on = b === btn;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }));
+
+  /* ── ★세로 정렬 (④⒝) ── ★inline 에서만 ★이 줄이 있다 ⇒ `forEach` 가 ★0바퀴면 ★그냥 안 돈다.
+     ⛔「없으면 만들어 주기」를 ★하지 마라 — ★stack 에서 ★눌러도 안 움직이는 칸이 된다(실측 근거는
+       quote-block.js `QUOTE_DEFAULTS.vAlign` 머리말). ★판정은 ★한 곳(`layout === 'inline'`)이다. */
+  propPanel.querySelectorAll('#qt-valign-group [data-qv]').forEach(btn => btn.addEventListener('click', () => {
+    const v = btn.getAttribute('data-qv');
+    if (!['top', 'middle', 'bottom'].includes(v)) return;
+    block.dataset.vAlign = v;
+    rerender(); commit();
+    propPanel.querySelectorAll('#qt-valign-group [data-qv]').forEach(b => {
       const on = b === btn;
       b.classList.toggle('active', on);
       b.setAttribute('aria-pressed', on ? 'true' : 'false');

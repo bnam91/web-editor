@@ -125,6 +125,30 @@ const QUOTE_DEFAULTS = Object.freeze({
   markSize: 46, markColor: '#C9CDD4',
   gap: 14,
   preOn: true, postOn: true,
+  /* ★★부호 ★y (현빈 2026-10-09 ④⒝ 「★SVG 높이(y값) ★슬라이드로 우측에서 조절」)
+     ⚠️★현빈이 「SVG」라 부른 것은 ★«부호 글리프»다 — ★이 블럭에 ★SVG 는 ★0건이다
+       (머리말 「★v1 부호 = 글꼴 글리프 8종만」 · 실측: 블럭 안 svg 0 · img 0 · 부호 = SPAN).
+       ⇒ ⛔「SVG 가 없으니 못 한다」로 ★닫지 않는다. ★밀 자리는 ★있다 = `translateY`.
+     ★`markDy` 는 ★부호 ★만 민다(글은 ★안 움직인다) · ★inline·stack ★두 꼴 ★모두에서 먹는다
+       (실측 2026-10-09 · 핀 a3556b936f8f: translateY ±20px ⇒ 부호가 ±17.4(inline)·±18.7(stack) 움직였다
+        ★화면 px 가 ★20 이 아닌 까닭 = ★섹션 ★배율 — ⇒ ★판정은 ★그 요소 제 CSS 로 해야 한다). */
+  markDy: 0,
+  /* ★★세로 정렬 — ★★`inline` ★에서만 ★뜻이 있다(⛔stack 은 ★아니다).
+     ★까닭은 ★실측이다(같은 날 · 같은 핀): stack 에서 `align-items` 를 start/center/end 로 ★몰아도
+       ★부호 중심이 ★−76.6 으로 ★세 번 ★같았다 = ★★안 움직인다.
+       ★stack 은 ★1열×3행이라 ★세로가 ★«차례»(앞부호/글/뒤부호)로 ★이미 정해져 ★밀 틈이 ★없다.
+     ⇒ ★패널도 ★그대로 — stack 에서는 ★그 줄을 ★내지 않는다(prop-quote.js 가 그 판정을 들고 있다).
+       ⛔「칸은 있는데 눌러도 ★조용히 아무 일 없음」을 ★만들지 않는다. */
+  vAlign: 'middle',
+  /* ★★⚠️`vAlign` 이라는 ★dataset 키는 ★이 레포에 ★이미 있다 — `modal-block.js:213,498` 이
+       ★`'top'|'center'|'bottom'`(MODAL_VALIGNS)을 쓴다. ★나는 ★`'middle'` 을 쓴다.
+     ★왜 ★안 맞췄나 — ⒈ dataset 은 ★요소마다라 ★섞이지 않는다(⛔generic 독자 ★0건: 실측으로
+       `prop-multisel.js` 의 한 건은 ★`ovAlign` 이었고 `feature-flags.js` 둘은 ★주석이었다)
+       ⒉ ★`top/middle/bottom` 은 ★`ALIGN_ICONS['object-v']` 의 ★키 그대로다 — ★단추를 고르는
+         어휘와 ★모델의 어휘가 ★같아야 호출부에서 ★번역표가 안 생긴다
+       ⒊ `center` 를 ★세로에도 쓰면 ★이 블럭 안에서 `align:'center'`(가로)와 ★같은 낱말이 ★두 축을 뜻한다
+     ⇒ ★★그래도 ★«갈렸다»는 사실은 ★적어 둔다 — ★합칠 때는 ★두 블럭을 ★같이 옮기고
+       ★«합친 것을 재는 검사»를 ★같이 세워라(⛔한쪽만 바꾸면 ★저장본이 조용히 기본값으로 떨어진다). */
   /* ★글 */
   fontSize: 21, textColor: '#1B1D22', weight: 400, align: 'center',
 });
@@ -135,6 +159,10 @@ const QUOTE_LIMITS = Object.freeze({
   markSize: { min: 8,  max: 200 },
   gap:      { min: 0,  max: 80  },
   fontSize: { min: 10, max: 96  },
+  /* ★±60 — ★부호 크기 천장(200)보다 ★작게 잡았다. ⚠️⛔이 수는 ★«줄 폭»을 잰 수가 ★아니다
+     (`markSize` 의 8~200 과 달리 ★UI 에서 ★안 쟀다) — ★밀어낼 수 있는 ★범위의 ★울타리일 뿐이다.
+     ★그 까닭을 ★여기 적어 둔다: 다음 사람이 ★「실측값」으로 ★읽지 않게. */
+  markDy:   { min: -60, max: 60 },
 });
 const clampQuote = (v, lim) => Math.min(lim.max, Math.max(lim.min, Math.round(Number(v) || 0)));
 
@@ -199,6 +227,8 @@ function _qtState(block) {
     textColor: _col(block, 'textColor', D.textColor),
     weight: _num(block, 'weight', D.weight),
     align: ['left', 'center', 'right'].includes(block?.dataset?.align) ? block.dataset.align : D.align,
+    markDy: clampQuote(_num(block, 'markDy', D.markDy), QUOTE_LIMITS.markDy),
+    vAlign: ['top', 'middle', 'bottom'].includes(block?.dataset?.vAlign) ? block.dataset.vAlign : D.vAlign,
   };
 }
 
@@ -216,6 +246,10 @@ function _markEl(st, which) {
   e.style.userSelect = 'none';
   e.style.whiteSpace = 'pre';
   e.style.flex = '0 0 auto';
+  /* ★★부호 ★y — ⛔`position`·`top` 으로 밀지 마라(격자 칸에서 ★빠져 ★폭 계산이 틀어진다).
+     ★`transform` 은 ★레이아웃을 ★안 건드리고 ★그림만 민다 ⇒ ★글은 ★제자리다(Q15 음성대조가 그걸 잰다).
+     ★0 일 때도 ★적는다 — ★`none` 과 `matrix(…,0)` 이 갈리면 ★재는 쪽이 ★두 갈래를 봐야 한다. */
+  e.style.transform = `translateY(${st.markDy}px)`;
   return e;
 }
 
@@ -236,6 +270,10 @@ function _lineEl(block, st, text) {
 /* ★가로 자리 ★한 벌 — ⛔`flex-start`/`start` 두 어휘를 ★두 자리에 적지 않는다.
    ★`start`·`end` 는 flex 와 grid 가 ★둘 다 읽는다(CSS Box Alignment). */
 const _qtSide = (align) => (align === 'left' ? 'start' : (align === 'right' ? 'end' : 'center'));
+
+/* ★세로 자리 ★한 벌 — ★`_qtSide` 와 ★같은 꼴. ★`start`·`end` 는 flex·grid 가 ★둘 다 읽는다.
+   ⛔`inline` ★에서만 부른다(위 QUOTE_DEFAULTS.vAlign 의 그 실측). */
+const _qtVSide = (v) => (v === 'top' ? 'start' : (v === 'bottom' ? 'end' : 'center'));
 
 /* 글 덩이 — ★inline 의 가운데 칸이자 ★stack 의 가운데 ★행이다(★한 벌). */
 function _bodyEl(block, st, lines) {
@@ -282,8 +320,8 @@ function renderQuoteBlock(block) {
 
   /* inline — 여러 줄이면 가운데 칸 안에서 줄로 쌓는다(부호는 ★한 쌍이다). */
   const cols = [st.preOn ? 'auto' : null, 'minmax(0,1fr)', st.postOn ? 'auto' : null].filter(Boolean).join(' ');
-  block.style.cssText = 'box-sizing:border-box;position:relative;display:grid;align-items:center;'
-    + `grid-template-columns:${cols};column-gap:${st.gap}px;`;
+  block.style.cssText = 'box-sizing:border-box;position:relative;display:grid;'
+    + `align-items:${_qtVSide(st.vAlign)};grid-template-columns:${cols};column-gap:${st.gap}px;`;
   if (st.preOn) block.appendChild(_markEl(st, 'pre'));
   block.appendChild(_bodyEl(block, st, lines));
   if (st.postOn) block.appendChild(_markEl(st, 'post'));
@@ -312,6 +350,9 @@ function makeQuoteBlock(opts = {}) {
     ? opts.textColor.trim() : QUOTE_DEFAULTS.textColor;
   block.dataset.weight = String(Number.isFinite(Number(opts.weight)) ? Number(opts.weight) : QUOTE_DEFAULTS.weight);
   block.dataset.align = ['left', 'center', 'right'].includes(opts.align) ? opts.align : QUOTE_DEFAULTS.align;
+  block.dataset.markDy = String(clampQuote(
+    Number.isFinite(Number(opts.markDy)) ? Number(opts.markDy) : QUOTE_DEFAULTS.markDy, QUOTE_LIMITS.markDy));
+  block.dataset.vAlign = ['top', 'middle', 'bottom'].includes(opts.vAlign) ? opts.vAlign : QUOTE_DEFAULTS.vAlign;
   if (typeof opts.text === 'string') block.dataset.text = opts.text;
 
   renderQuoteBlock(block);

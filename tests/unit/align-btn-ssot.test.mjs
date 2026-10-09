@@ -38,7 +38,7 @@ const HELPERS = 'js/props/_helpers.js';
 /* ★이관 진행도 래칫 — 이관 커밋과 «같은 커밋»에서 올린다. 안 올리면 빨강이 뜬다.
  *   ⛔하한(≥)이 아니라 «등호»다. 하한은 까먹어도 초록이고, 등호는 까먹으면 빨강이다.
  *     그게 의도다 — 이 숫자를 고치는 손이 「내가 몇 개를 옮겼는지」를 한 번은 세게 만든다. */
-const RATCHET = { calls: 61, files: 8 };   // ← ★61·★파일 8: 2026-10-09 1009t2-④ ⒜ 「인용구 ★수평 정렬」 3곳(prop-quote.js · ★text 계열 · attrs 는 `data-al` — prop-modal 선례) · ⚰️58·파일 7: 2026-10-04 G4 「칸 배경 이미지」 위치 단추 6곳(prop-grid.js · 이름은 정본 6개) · 52: 2026-10-04 G12 「블럭 배경」 위치 단추 6곳(prop-grid.js · object-h/object-v · 이름은 정본 6개) · 46: 2026-10-01 A2 오버레이 «서로 맞춤» 패널 6곳(prop-multisel.js showOverlayMultiSelPanel) · 40: 모달 텍스트정렬 3곳 추가 직후 값
+const RATCHET = { calls: 64, files: 8 };   // ← ★64: 2026-10-09 1009t2-④ ⒝ 「인용구 ★세로 정렬」 3곳(prop-quote.js · ★object-v 계열 · attrs 는 `data-qv` · ⛔파일 수는 ★그대로 8 — ★같은 파일이다) · ⚰️61·파일 8: 2026-10-09 1009t2-④ ⒜ 「인용구 ★수평 정렬」 3곳(prop-quote.js · ★text 계열 · attrs 는 `data-al` — prop-modal 선례) · ⚰️58·파일 7: 2026-10-04 G4 「칸 배경 이미지」 위치 단추 6곳(prop-grid.js · 이름은 정본 6개) · 52: 2026-10-04 G12 「블럭 배경」 위치 단추 6곳(prop-grid.js · object-h/object-v · 이름은 정본 6개) · 46: 2026-10-01 A2 오버레이 «서로 맞춤» 패널 6곳(prop-multisel.js showOverlayMultiSelPanel) · 40: 모달 텍스트정렬 3곳 추가 직후 값
 /* ★합계가 146 → 149 로 «늘어난다». 이건 이관이 아니라 «새로 편입»이다 —
    모달 정렬 3개는 원래 class="prop-type-btn" 이라 LITERAL_BTN(align-btn) 정규식에
    «애초에 안 걸려 있었다». 즉 146 인구조사에 든 적이 없다. 리터럴이 줄지 않고 호출만
