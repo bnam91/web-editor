@@ -15,6 +15,17 @@
  * ★★이 길의 «대가»를 숨기지 않는다 — 글자를 ★고치면(한 span 안에 두 글자가 들어가면) 점 수가 어긋난다.
  *   `text-emphasis` 는 브라우저가 매번 다시 세므로 그 병이 없다. ⇒ ★주고받은 것이다, 공짜가 아니다.
  *   D9 가 「끄고 켜면 다시 맞는다」와 「다시 켜도 겹 span 이 안 쌓인다」를 잠근다.
+ *   ★★⚰️2026-10-09 — ★위 문장은 ★그날의 사실로 ★남긴다. ★★그 대가는 ★갚았다(`94e24190`).
+ *     ★★무엇이었나 — 「한 span 안에 두 글자가 들어가면 점 수가 어긋난다」가 ★그대로 ★현빈 신고가 됐다:
+ *       「점을 적용하고, ★글자를 ★사이에 추가 입력하면 ★하이라이트 기능은 잘 추가가 되는데, ★점은 안된다.」
+ *       ★실측(실앱 CDP · 진짜 키 · ★그려서 셈): 'AAA BBB CCC' 의 "BBB" 에 점 → 둘째·셋째 B 사이에 'X'
+ *       ⇒ span ★3(B·★"BX"·B) / 점 찍힌 글자 ★4 / ★★그려진 점 ★3.  형광펜은 같은 짓에서 ★"BBXB" 를 덮었다.
+ *     ★★무엇으로 갚았나 — `normalizeDotSpans()`(불변식 수립자 ★한 자) ＋ `document` 위임 하나.
+ *       「글자가 ★둘 이상 든 ★그 span 하나만」 다시 쪼갠다(전수 아님) · 자리번호 다시 매김 · 캐럿은 «글자 수»로 되살림
+ *       · ★IME 조립 중엔 물러서고 `compositionend` 가 받는다 · `paste` 도 듣는다(그 길엔 `input` 이 안 온다).
+ *     ★★D9 는 ★이 축을 ★못 쟀다 — 「끄고 켜면 다시 맞는다」는 ★사람이 ★끄고 켤 때의 말이고,
+ *       ★글자를 ★치는 동안은 ★아무도 안 껐다. ⇒ ★D14~D18 이 ★그 자리를 잠근다.
+ *     ⛔이 문장을 ★지우지 마라 — 「주고받은 것이다」는 ★여전히 참이다(⒝ `text-emphasis` 를 안 고른 까닭이 거기 있다).
  *
  * ★「간격」의 뜻 — ★점끼리 좌우 간격으로 읽었다(xy 가 이미 오프셋이라 그게 아니면 y 와 겹친다).
  *   ⛔이건 ★내 판독이다(발주서가 안 말했다). 지디에게 물었고 답이 오면 바뀔 수 있다.
@@ -675,10 +686,13 @@ test('D14 ★글자 ★사이 끼워넣기 — 점 수가 ★따라온다 (＋�
   const d1 = await dottedChars(page, id);
   const p1 = await paintedDots(page, BOX);
   console.log('  D14 한 자:', JSON.stringify({ text: s1.text, nSpan: s1.nSpan, dotted: d1, painted: p1.pts.length, idx: s1.idx }));
+  /* ★★★«그려진 점» 을 ★맨 앞에 둔다 — ★이 칸의 ★주 단언이다(현빈이 ★본 것이 ★이것이다).
+     ⛔뒤에 두면 ★무력화 대조의 ★빨강이 ★앞의 span·글자 단언에서 ★먼저 터져 ★«그린 자»가
+     ★제 몫을 하는 것을 ★한 번도 ★못 본다(2026-10-09 M1 에서 ★실제로 그랬다 — ★순서를 고쳤다). */
+  expect(p1.pts.length, `★★★그려진 점이 4개가 아니다 — ★이것이 현빈이 본 것이다. 잰 값 ${p1.pts.length}`).toBe(4);
   expect(s1.text, `★글자가 'AAA BBXB CCC' 가 아니다. 잰 값 ${JSON.stringify(s1.text)}`).toBe('AAA BBXB CCC');
   expect(d1, `★점 달린 글자가 'BBXB' 가 아니다 — 끼운 글자가 점을 ★못 받았다. 잰 값 ${JSON.stringify(d1)}`).toBe('BBXB');
   expect(s1.nSpan, `★점 span 수가 글자 수(4)와 다르다 — 한 span 에 두 글자가 들었다. 잰 값 ${s1.nSpan}`).toBe(4);
-  expect(p1.pts.length, `★★★그려진 점이 4개가 아니다 — ★이것이 현빈이 본 것이다. 잰 값 ${p1.pts.length}`).toBe(4);
   expect(s1.idx, `★자리번호가 4개짜리로 다시 안 매겨졌다(안 매기면 간격이 통째로 밀린다). 잰 값 ${JSON.stringify(s1.idx)}`)
     .toEqual(['-1.5', '-0.5', '0.5', '1.5']);
 
@@ -690,10 +704,10 @@ test('D14 ★글자 ★사이 끼워넣기 — 점 수가 ★따라온다 (＋�
   const d2 = await dottedChars(page, id);
   const p2 = await paintedDots(page, BOX);
   console.log('  D14 이어서:', JSON.stringify({ text: s2.text, nSpan: s2.nSpan, dotted: d2, painted: p2.pts.length }));
+  expect(p2.pts.length, `★그려진 점이 5개가 아니다. 잰 값 ${p2.pts.length}`).toBe(5);
   expect(s2.text, `★이어 친 글자가 ★제자리에 안 갔다(캐럿이 안 살았다). 잰 값 ${JSON.stringify(s2.text)}`).toBe('AAA BBXYB CCC');
   expect(d2, `★점 달린 글자가 'BBXYB' 가 아니다. 잰 값 ${JSON.stringify(d2)}`).toBe('BBXYB');
   expect(s2.nSpan, `★점 span 수가 5가 아니다. 잰 값 ${s2.nSpan}`).toBe(5);
-  expect(p2.pts.length, `★그려진 점이 5개가 아니다. 잰 값 ${p2.pts.length}`).toBe(5);
   expect(errs).toEqual([]);
 });
 
@@ -760,10 +774,10 @@ test('D16 ★붙여넣기 — `input` 이 안 오는 길에서도 점 수가 따
   const d1 = await dottedChars(page, id);
   const p1 = await paintedDots(page, BOX);
   console.log('  D16:', JSON.stringify({ text: s1.text, nSpan: s1.nSpan, dotted: d1, painted: p1.pts.length }));
+  expect(p1.pts.length, `★그려진 점이 5개가 아니다. 잰 값 ${p1.pts.length}`).toBe(5);
   expect(s1.text, `★붙여넣은 글자가 제자리에 안 갔다. 잰 값 ${JSON.stringify(s1.text)}`).toBe('AAA BBPQB CCC');
   expect(d1, `★점 달린 글자가 'BBPQB' 가 아니다. 잰 값 ${JSON.stringify(d1)}`).toBe('BBPQB');
   expect(s1.nSpan, `★점 span 수가 5가 아니다 — 붙여넣기는 input 이벤트가 안 온다. 잰 값 ${s1.nSpan}`).toBe(5);
-  expect(p1.pts.length, `★그려진 점이 5개가 아니다. 잰 값 ${p1.pts.length}`).toBe(5);
   expect(errs).toEqual([]);
 });
 
@@ -837,9 +851,9 @@ test('D18 ★한글 IME — ★조립 중엔 손대지 않고(음성대조) ★�
   const d1 = await dottedChars(page, id);
   const p1 = await paintedDots(page, BOX);
   console.log('  D18 확정:', JSON.stringify({ text: s1.text, nSpan: s1.nSpan, dotted: d1, painted: p1.pts.length }));
+  expect(p1.pts.length, `★그려진 점이 4개가 아니다 — compositionend 를 안 들으면 3이다. 잰 값 ${p1.pts.length}`).toBe(4);
   expect(s1.text, `★확정된 글자가 제자리에 안 갔다. 잰 값 ${JSON.stringify(s1.text)}`).toBe('AAA BB가B CCC');
   expect(d1, `★점 달린 글자가 'BB가B' 가 아니다. 잰 값 ${JSON.stringify(d1)}`).toBe('BB가B');
   expect(s1.nSpan, `★확정 뒤에도 점 span 이 4개가 아니다 — compositionend 를 안 듣는다. 잰 값 ${s1.nSpan}`).toBe(4);
-  expect(p1.pts.length, `★그려진 점이 4개가 아니다. 잰 값 ${p1.pts.length}`).toBe(4);
   expect(errs).toEqual([]);
 });
