@@ -31,6 +31,7 @@
  * ⛔앱을 «안» 띄운다. 실행: npm run test:dom -- grid-nested-inline-edit
  */
 const { test, expect } = require('@playwright/test');
+const { assertAnchorsAlive } = require('./_mutation-anchor.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -86,6 +87,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 /** ★양성대조용: 서빙하는 «소스»를 갈아친다. ⛔닻을 못 찾으면 «조용히 원본»을 주지 않는다. */
 async function boot(page, mutate) {
   const muts = !mutate ? [] : (Array.isArray(mutate) ? mutate : [mutate]);
+  assertAnchorsAlive(REPO, mutate);   /* ★심기 «전» · Node 쪽 — ⛔페이지로 던지면 30초 조용한 죽음이 된다 */
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/__harness.html') return route.fulfill({ contentType: 'text/html', body: HARNESS });
@@ -168,10 +170,16 @@ const KILL_BRANCH = {
   from: 'if (nestEl && block.contains(nestEl)) {\n        const nr = ',
   to:   'if (false && nestEl && block.contains(nestEl)) {\n        const nr = ',
 };
+/* ★변이 — 커밋 경로에서 `np`(중첩 경로)를 떼면 중첩 «안»에 안 닿아야 한다.
+ *   ★★이 닻은 ★어긋나 있었다 — `34db28d8`(2026-10-08)이 그 줄에 ★`textHtml` 을 더하면서
+ *     옛 닻 `… np: addr.np, text }` 이 ★안 맞게 됐다. 그러면 boot() 가 모듈 자리에
+ *     `throw MUTATION_ANCHOR_MISSING` 을 내려보내 ★window.__ready 가 영영 안 서고
+ *     ⇒ ★30초 타임아웃. ★사람은 그걸 「느리다/흔들린다」로 읽는다(실제로 그렇게 읽혔다).
+ *   ⇒ ★그래서 아래 boot() 가 ★심기 «전»에 ★닻을 «1회 정확히» 단언한다. ⛔닻만 고치면 또 어긋난다. */
 const DROP_NP = {
   path: '/js/block-drag.js',
-  from: '? { r: addr.r, c: addr.c, lineIndex: addr.li, np: addr.np, text }',
-  to:   '? { r: addr.r, c: addr.c, lineIndex: addr.li, text }',
+  from: '? { r: addr.r, c: addr.c, lineIndex: addr.li, np: addr.np, text, textHtml }',
+  to:   '? { r: addr.r, c: addr.c, lineIndex: addr.li, text, textHtml }',
 };
 
 test.describe('중첩(duo) 안 줄 인라인 편집 (T-238)', () => {
