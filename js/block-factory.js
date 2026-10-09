@@ -5742,12 +5742,13 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     window.applySectionBg?.(sec);
     window.pushHistory?.('에셋 → 섹션 배경');
     window.scheduleAutoSave?.();
-    /* ★섹션 «색»은 안 건드린다 — applySectionBg 규약상 색 층이 그림 «위»라 불투명 색이면 그림이 가려진다
-       (업로드 길과 같은 «의도된 동작», prop-section.js _applySectionBg 머리말). 그대로 두면 「눌렀는데 안 된다」로
-       읽히므로 «왜 안 보이는지와 푸는 법»을 같이 말한다(2026-10-01 실측: data-bg #ffffff 섹션에서 그림이 안 보였다). */
-    const _opaque = !!window.isOpaqueSectionColor?.(sec.dataset.bg);   // 판정은 prop-section.js 한 곳
-    window.showToast?.('섹션 배경으로 넣었어요 — 블럭은 그대로 남습니다. 배경은 크기·위치만 가져서 크롭·색보정 같은 이미지 효과는 배경에 실리지 않아요.'
-      + (_opaque ? ' ⚠️지금 섹션 배경색이 불투명해서 그림을 덮고 있어요 — 배경색 투명도를 낮추면 보입니다.' : ''));
+    /* ★섹션 «색»은 안 건드린다 — ★그래도 ★그림이 ★보인다.
+       ★★2026-10-10 변경 — ★예전엔 ★applySectionBg 가 ★색 층을 ★그림 «위»에 깔아 ★불투명 색이면 ★그림이
+         ★가려졌고, ★그래서 ★여기에 ★«왜 안 보이는지» 안내를 ★붙여 뒀다(2026-10-01).
+       ★★이제 ★그 규약이 ★바뀌었다 — ★불투명 색은 ★그림 «아래»로 간다(prop-section.js `_applySectionBg`).
+         ⇒ ★★그 안내는 ★거짓이 됐다. ★그래서 ★걷었다. ★`isOpaqueSectionColor` 는 ★이제 ★«판정»에만 쓰인다.
+       ⛔되살리지 마라 — 되살리려면 ★그 분기부터 되돌려야 한다(둘은 한 쌍이다). */
+    window.showToast?.('섹션 배경으로 넣었어요 — 블럭은 그대로 남습니다. 배경은 크기·위치만 가져서 크롭·색보정 같은 이미지 효과는 배경에 실리지 않아요.');
   });
 
   // STICKERUX(3): 아이콘 블록 → 스티커 변환(복제 — 원본 .icon-block 유지)

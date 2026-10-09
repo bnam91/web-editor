@@ -85,10 +85,10 @@ window._showPadBHint = _showPadBHint;   /* ★짝을 맞춘다 — 좌우만 노
 
 /**
  * 섹션 배경 적용 헬퍼 — 이미지와 색을 동시에 합성한다.
- * 우선순위(위→아래): 색(overlay) > 이미지 > 투명
- * - 이미지 + 색 둘 다: `background: linear-gradient(<color>,<color>), url(<img>)`
- *   (첫 layer가 위. 색이 반투명이면 이미지에 tint, 불투명이면 이미지 가림 — 의도된 동작)
- * - 이미지만: backgroundImage = url(...), backgroundColor = transparent
+ * ★2026-10-10 갱신 — 「불투명이면 이미지 가림 = 의도된 동작」은 ★더는 참이 아니다(현빈 지적).
+ * - 이미지 + ★«반투명» 색: `background: linear-gradient(<color>,<color>), url(<img>)` → 이미지에 tint(기능)
+ * - 이미지 + ★«불투명» 색: ★★이미지가 이긴다. 색은 dataset 에 남고 그림 «아래» 받침으로만 쓰인다
+ * - 이미지만: backgroundImage = url(...), backgroundColor = (색 있으면 그 색, 없으면 transparent)
  * - 색만: backgroundColor = <color>, backgroundImage = none
  * - 둘 다 없음: 모두 클리어
  *
@@ -120,8 +120,18 @@ function _applySectionBg(sec) {
   // 항상 shorthand는 초기화 후 개별 속성으로 재설정 (이전 multi-layer 잔재 제거)
   sec.style.background = '';
 
-  if (img && color) {
-    // multi-background: gradient(색) 위, url(이미지) 아래
+  /* ★★2026-10-10 (현빈 「솔리드배경에서 ★즉각 바껴야지」) — ★«불투명» 색은 ★★그림 위에 ★안 깐다.
+     ★★왜 — ★예전엔 ★색·그림이 ★둘 다 있으면 ★언제나 ★`linear-gradient(색,색), url(그림)` 로 합성했고,
+       ★색 층이 ★첫째(=★위)라 ★★불투명 색이면 ★그림이 ★★0픽셀도 ★안 보였다.
+       ★실측(2026-10-10 · 픽셀): ★«불투명 솔리드＋이미지» 가 ★«솔리드만»과 ★★픽셀 ★완전 동일했다.
+     ★★그런데 ★«반투명» 색은 ★그림에 ★물을 들이는 ★★기능이다(★같은 실측의 ★양성대조: ★반투명이면 ★달라진다).
+       ⇒ ★★그래서 ★★«불투명일 때만» 갈라낸다. ⛔반투명 합성을 ★없애지 ★마라.
+     ★★색을 ★«치우지»는 ★않는다(지디 기본값) — ★`dataset.bg` 에 ★그대로 두고 ★★그리기만 ★양보한다.
+       ⇒ ★그림을 ★지우면 ★아래 `else if (color)` 가 ★그 색을 ★★다시 그린다 = ★사용자가 ★안 잃는다.
+     ★그리고 ★그림만 그릴 때 ★`backgroundColor` 를 ★★`transparent` 가 아니라 ★★그 색으로 둔다 —
+       ★배경색은 ★언제나 ★그림 ★«아래»라 ★가릴 일이 없고, ★그림이 ★못 뜨면 ★그 색이 ★받쳐 준다. */
+  if (img && color && !isOpaqueSectionColor(color)) {
+    // multi-background: gradient(색) 위, url(이미지) 아래 — ★반투명 색의 ★물들임
     sec.style.background = `linear-gradient(${color}, ${color}), url(${img})`;
     // 색 layer 는 gradient — 고유 크기가 없어 어떤 키워드든 박스 전체다. 'cover' 로 고정해야
     // 이미지 layer 가 px 값(위치 편집 결과)일 때 색이 박스 일부만 덮는 사고가 없다.
@@ -130,7 +140,7 @@ function _applySectionBg(sec) {
     sec.style.backgroundRepeat = 'no-repeat, no-repeat';
   } else if (img) {
     sec.style.backgroundImage = `url(${img})`;
-    sec.style.backgroundColor = 'transparent';
+    sec.style.backgroundColor = color || 'transparent';   /* ★그림 «아래» 받침 — 불투명 색도 여기서는 안 가린다 */
     sec.style.backgroundSize = size;
     sec.style.backgroundPosition = pos;
     sec.style.backgroundRepeat = 'no-repeat';
@@ -232,8 +242,11 @@ async function showSectionProperties(sec) {
       </select>
     </div>
     <button class="prop-action-btn secondary" id="sec-bg-pos-btn" style="margin-top:6px;">${sec._secBgEditing ? '위치 편집 완료' : '위치 편집'}</button>
-    ${isOpaqueSectionColor(sec.dataset.bg) ? `<!-- ★상시 한 줄(지디 2026-10-01) — 토스트는 «방금 한 일»의 답, 이 줄은 «지금 상태»의 답. 증상이 아니라 «까닭»을 말한다. -->
-    <div class="prop-hint" style="font-size:11px;color:#888;margin-top:6px;">배경색이 불투명해서 이 이미지를 덮고 있습니다 — 배경색 투명도를 낮추면 보입니다.</div>` : ''}
+    <!-- ★2026-10-10 — ★«배경색이 불투명하다»고 알리던 ★안내 한 줄을 ★걷었다.
+         ★까닭: ★_applySectionBg 가 ★더는 ★덮지 않는다(불투명 색은 그림 «아래»로 간다) ⇒ ★안내할 것이 ★없다.
+         ★실측(2026-10-10 · t3frame): 고치기 «전» 판에서 그 줄은 ★정말 떴고 ★보였다(211×51 · 11px · #888) —
+           ★즉 ★«안 뜨는 버그»가 아니라 ★«뜨는데도 현빈이 바꾸라 하신 것»이었다. ⇒ 규약을 바꿨으니 ★줄도 간다.
+         ⛔되살리지 마라 — 되살리려면 ★위 분기부터 되돌려야 한다(둘은 한 쌍이다). -->
     <!-- C2 역방향(2026-10-01) — 배경 이미지를 스크래치패드로 «복사». 배경은 그대로 남는다. -->
     <button class="prop-action-btn secondary" id="sec-bg-to-scratch" style="margin-top:4px;">스크래치로 보내기</button>
     <button class="prop-action-btn danger" id="sec-bg-img-remove" style="margin-top:4px;">이미지 제거</button>
