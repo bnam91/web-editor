@@ -33,31 +33,51 @@ const RM_RE = () => /\brmSync\s*\(/g;
 /* ★★명부 — ★★«아직 ★손으로 ★치우는» 파일. ★이름으로 든다(⛔수를 박지 않는다).
    ★★옮길 때마다 ★여기서 ★뺀다. ★★그 수가 ★이 일의 ★남은 분량이다.
    ⛔까닭 없이 ★이름을 ★늘려 ★빨강을 ★끄지 ★마라 — ★늘릴 땐 ★«왜 공용 자를 못 쓰나»를 적어라. */
+/* ★★★명부를 ★★«둘»로 갈랐다 (2026-10-10 · ★이전 ★2/5 뒤 ★실측)
+ * ★★까닭: ★처음엔 ★★한 이름(`PENDING`)으로 ★★36벌을 ★묶었다 ⇒ ★★★그 수가 ★«무엇의 수»를 ★안 들었다
+ *   ★★실측해 보니 ★★둘이 ★★전혀 다른 일이었다:
+ *     ㉠ ★`mkdtempSync` 로 ★★«임시 루트»를 만들고 ★제 손으로 치운다  ⇒ ★★이전 ★대상이다
+ *     ㉡ ★★`rmSync` 가 ★★«그 검사의 ★일 자체»다 — ★임시 루트가 ★아니다 ⇒ ★★★이전 대상이 ★아니다
+ *        ★예: ★`history-ipc` 의 ★대상은 ★★«진짜 영구삭제»다(★그게 ★그 검사의 ★주제다)
+ *            ★`recovery-collect` 는 ★★«사본이 ★없을 때»를 만들려 ★픽스처를 ★지운다
+ *            ★`quit-save-window-gone` 의 ★`reset()` 은 ★시험 사이 ★★상태 파일을 ★씻는다
+ *            ★e2e 셋은 ★★크롬 ★프로필 폴더(★`PROFILE`)를 ★치운다 — ★테스트 수명이 ★아니다
+ *   ⇒ ★★★㉡ 를 ★«미이전»으로 ★세면 ★★★영원히 ★0 이 ★안 되는 수를 ★쫓는다
+ *   ⇒ ★★그리고 ★★㉡ 를 ★`mkTmpRoot` 로 ★바꾸면 ★★★그 검사가 ★재던 것을 ★★부순다
+ * ⚠️★㉡ 의 ★일부는 ★★`trackTmp` 로 ★갈 수 ★있을지도 ★모른다 — ★★그건 ★★파일별 판정이고
+ *   ★★임자가 ★★내가 ★아니다. ⇒ ★★★조정자에게 ★올렸다. ⛔내가 ★고르지 ★않는다. */
+
+/** ㉠ ★★이전 ★대상 — ★`mkdtempSync` 로 ★임시 루트를 ★만들고 ★제 손으로 ★치우는 자. */
 const PENDING = {
-  'tests/unit/_tmproot.js':                        '★공용 자 ★자신 — ★치우기의 ★임자다(★영구 예외)',
-  'tests/dom/scratch-folder-columns.dom.spec.js':  'DOM spec — 임자 다름',
-  'tests/e2e/12-insert-seam-settle.spec.js':       'e2e — 임자 다름',
-  'tests/e2e/13-undo-family.spec.js':              'e2e — 임자 다름',
-  'tests/e2e/14-undo-depth.spec.js':               'e2e — 임자 다름',
-  'tests/unit/account-projects-root.test.js':      '미이전',
-  'tests/unit/destructive-ipc.test.js':            '미이전',
-  'tests/unit/grid-gap-clamp.test.js':             '미이전',
-  'tests/unit/grid-line-add.test.mjs':             '미이전',
-  'tests/unit/history-ipc.test.js':                '미이전',
-  'tests/unit/history-restart.test.js':            '미이전',
+  'tests/dom/scratch-folder-columns.dom.spec.js':  '★DOM — ★창 차례(지디 가름) · ★`npm test` 로 ★못 잰다',
+  'tests/unit/account-projects-root.test.js':      '미이전 (★rmSync 셋 — ★repo·mine·dir)',
+  'tests/unit/grid-line-add.test.mjs':             '미이전 (★`after()` 안에서 치운다)',
   'tests/unit/mcp-auth-gate.test.js':              '미이전',
-  'tests/unit/mcp-project-crud.test.js':           '미이전',
-  'tests/unit/migrate-files-vanish.test.js':       '미이전',
-  'tests/unit/migrator-vanish.test.js':            '미이전',
-  'tests/unit/name-axes-to-markup.test.mjs':       '미이전',
-  'tests/unit/operator-allow-cli.test.mjs':        '미이전',
+  'tests/unit/name-axes-to-markup.test.mjs':       '미이전 (★시험 ★안에서 ★둘)',
+  'tests/unit/operator-allow-cli.test.mjs':        '미이전 (★rmSync 셋 — ★HOME·inRepo·bad)',
   'tests/unit/put-image-path.test.js':             '미이전',
-  'tests/unit/quit-save-window-gone.test.mjs':     '미이전',
-  'tests/unit/recovery-collect.test.mjs':          '미이전',
-  'tests/unit/renderer-js-parses.test.mjs':        '미이전',
+  'tests/unit/renderer-js-parses.test.mjs':        '미이전 (★시험 ★안에서 ★둘)',
   'tests/unit/save-dirty-after-failure.test.mjs':  '미이전',
-  'tests/unit/tmproot.test.js':                    '★공용 자를 ★재는 검사 — ★그 자의 ★회수를 ★직접 잰다(★영구 예외)',
-  'tests/unit/win-portability.test.mjs':           '미이전',
+  'tests/unit/win-portability.test.mjs':           '미이전 (★rmSync 셋)',
+};
+
+/** ㉡ ★★이전 ★대상이 ★아니다 — ★`rmSync` 가 ★★«그 검사의 일»이다. ★까닭을 ★이름 옆에.
+ *  ⛔여기 올리려면 ★★«그 rmSync 가 ★무엇을 ★지우나»를 ★읽고 ★적어라. ★«미이전»과 ★섞지 ★마라. */
+const NOT_TMPROOT = {
+  'tests/unit/_tmproot.js':                   '★공용 자 ★자신 — ★치우기의 ★임자다',
+  'tests/unit/tmproot.test.js':               '★그 자의 ★회수를 ★직접 재는 검사',
+  'tests/e2e/12-insert-seam-settle.spec.js':  '★크롬 ★프로필 폴더(PROFILE) — ★테스트 수명이 아니다 · ★e2e',
+  'tests/e2e/13-undo-family.spec.js':         '★크롬 ★프로필 폴더(PROFILE) · ★e2e',
+  'tests/e2e/14-undo-depth.spec.js':          '★크롬 ★프로필 폴더(PROFILE) · ★e2e',
+  'tests/unit/destructive-ipc.test.js':       '★`copy` — ★파괴적 IPC 가 ★무엇을 지우나가 ★주제다',
+  'tests/unit/grid-gap-clamp.test.js':        '★`srtAlias` — ★별칭 파일을 ★지우는 것이 ★장면이다',
+  'tests/unit/history-ipc.test.js':           '★★«진짜 영구삭제» — ★그게 ★이 검사의 ★주제다',
+  'tests/unit/history-restart.test.js':       '★`ud`(userData) — ★재시작 장면을 ★만든다',
+  'tests/unit/mcp-project-crud.test.js':      '★프로젝트 ★삭제 CRUD — ★그게 ★주제다',
+  'tests/unit/migrate-files-vanish.test.js':  '★파일이 ★사라지는 장면을 ★만든다 — ★주제다',
+  'tests/unit/migrator-vanish.test.js':       '★같은 축 — ★사라짐이 ★주제다',
+  'tests/unit/quit-save-window-gone.test.mjs':'★`reset()` — ★시험 사이 ★상태 파일 씻기',
+  'tests/unit/recovery-collect.test.mjs':     '★★«사본이 없을 때»를 만들려 ★픽스처를 지운다 — ★주제다',
 };
 
 /** tests/ 안에서 ★손으로 ★`rmSync` 를 쓰는 파일 — ★주석은 ★뗀다(★주석의 예시가 ★측정값이 되는 것 방지). */
@@ -98,7 +118,8 @@ test('T1 ★자가 살아있다 — ★양성·음성 대조 (⛔이것 없으�
 
 test('T2 ㉠ ★위반은 ★«명부 안»에만 있다 — ★새 위반이 생기면 ★빨강', () => {
   const v = violations();
-  const unlisted = Object.keys(v).filter((f) => !(f in PENDING)).sort();
+  const LISTED = { ...PENDING, ...NOT_TMPROOT };
+  const unlisted = Object.keys(v).filter((f) => !(f in LISTED)).sort();
   assert.deepEqual(unlisted, [],
     `★★명부 ★밖에서 ★손으로 ★임시물을 ★치우는 파일이 ★${unlisted.length}개 있다:\n  ` +
     unlisted.map((f) => `· ${f} (${v[f]}건)`).join('\n  ') +
@@ -108,7 +129,8 @@ test('T2 ㉠ ★위반은 ★«명부 안»에만 있다 — ★새 위반이 �
 
 test('T3 ㉡ ★명부가 ★낡지 않았다 — ★이미 옮긴 칸이 ★남아 있으면 ★빨강', () => {
   const v = violations();
-  const stale = Object.keys(PENDING).filter((f) => !(f in v)).sort();
+  const LISTED = { ...PENDING, ...NOT_TMPROOT };
+  const stale = Object.keys(LISTED).filter((f) => !(f in v)).sort();
   assert.deepEqual(stale, [],
     `★PENDING 에 ★«이제 ★안 치우는» 파일이 ★${stale.length}개 ★남았다 — ★낡은 명부가 ★다음 위반을 ★가린다:\n  ` +
     stale.map((f) => `· ${f}`).join('\n  ') +
@@ -117,16 +139,25 @@ test('T3 ㉡ ★명부가 ★낡지 않았다 — ★이미 옮긴 칸이 ★남
 
 test('T4 ★★남은 분량을 ★자가 찍는다 — ⛔사람이 세지 않는다', () => {
   const v = violations();
-  const PERMANENT = ['tests/unit/_tmproot.js', 'tests/unit/tmproot.test.js'];
-  const left = Object.keys(v).filter((f) => !PERMANENT.includes(f));
-  const calls = left.reduce((a, f) => a + v[f], 0);
-  /* ★이 줄은 ★«실패»가 아니라 ★★«보고»다 — ★남은 수를 ★로그에 ★박는다 */
-  console.log(`    ★★남은 미이전 = ★파일 ${left.length} · ★호출 ${calls}  (★영구 예외 ${PERMANENT.length}개 제외)`);
+  /* ★★★«남은 수»를 ★★두 갈래로 ★따로 찍는다 — ⛔한 수로 묶으면 ★«무엇의 수»를 ★안 든다 */
+  const pend = Object.keys(PENDING).filter((f) => f in v);
+  const pendCalls = pend.reduce((a, f) => a + v[f], 0);
+  const notTmp = Object.keys(NOT_TMPROOT).filter((f) => f in v);
+  console.log(`    ★★㉠ 이전 대상 ★남음 = ★파일 ${pend.length} · ★호출 ${pendCalls}`);
+  console.log(`    ★★㉡ 이전 대상 ★아님  = ★파일 ${notTmp.length} (★`.concat('rmSync 가 ★그 검사의 ★일이다)'));
   /* ★★내 네 파일은 ★★이미 ★옮겼다 — ★그것만은 ★★단언으로 ★못박는다(★되돌아가면 ★빨강) */
   for (const f of ['tests/unit/shape-star-rating.test.mjs', 'tests/unit/shape-star-colors.test.mjs',
                    'tests/unit/shape-star-scales.test.mjs', 'tests/unit/shape-star-frame-width.test.mjs']) {
     assert.ok(!(f in v), `★${f} 가 ★다시 ★손으로 치운다 — ★이미 ★`.concat("mkTmpRoot` 로 옮긴 파일이다"));
     assert.ok(!(f in PENDING), `★${f} 가 ★PENDING 에 ★남아 있다 — ★옮겼으니 ★빼야 한다`);
   }
-  assert.ok(left.length >= 0, '산술 불변');
+  /* ★★★두 명부가 ★겹치지 ★않는다 — ⛔겹치면 ★같은 파일이 ★«이전 대상»이면서 ★«아니다»가 된다.
+     ★★앞서 여기 ★`left.length >= 0` 이라 ★적었다가 ★지웠다 — ★★그건 ★★항등이라 ★아무것도 ★안 잠갔다. */
+  const both = Object.keys(PENDING).filter((f) => f in NOT_TMPROOT);
+  assert.deepEqual(both, [], `★두 명부에 ★같이 든 파일이 있다 — ★갈래가 ★하나여야 한다: ${both.join(' ')}`);
+  /* ★★그리고 ★모든 위반이 ★★어느 한 갈래에 ★든다(★T2 가 ★명부 밖 0 을 보장하므로 ★이건 ★그 짝이다) */
+  for (const f of Object.keys(v)) {
+    const inP = f in PENDING, inN = f in NOT_TMPROOT;
+    assert.ok(inP !== inN, `★${f} 가 ★두 갈래 ★어디에도 ★없거나 ★양쪽에 있다(P=${inP} N=${inN})`);
+  }
 });
