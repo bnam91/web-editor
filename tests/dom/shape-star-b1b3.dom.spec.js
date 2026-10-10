@@ -15,7 +15,7 @@
  * ★★★전제 — ★이 파일은 ★`#canvas` 에 ★별 블록을 ★심고 ★우측 패널로 ★만진다. ★심은 입력으로만 잰다.
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const SEC = `<div class="section-block" id="sA" data-section="1" data-name="A" data-bg="#ffffff" style="background:#fff;">
   <div class="section-hitzone"><span class="section-label">A</span></div><div class="section-inner"></div></div>`;
@@ -31,9 +31,9 @@ async function setup(page) {
     window.selectSection?.(document.getElementById('sA'));
     window.addShapeBlock?.('star');
   }, SEC);
-  await page.waitForTimeout(400);
+  await waitBlocks(page, 1);
   await page.evaluate(() => window.showShapeProperties?.(document.querySelector('#canvas .shape-block')));
-  await page.waitForTimeout(150);
+  await waitPanel(page);
 }
 
 /** 숫자칸에 값을 넣고 input＋change 를 둘 다 때린다(제품 배선이 둘을 쓴다). */
@@ -44,6 +44,73 @@ const setNum = (page, id, v) => page.evaluate(([i, val]) => {
   n.dispatchEvent(new Event('input', { bubbles: true }));
   n.dispatchEvent(new Event('change', { bubbles: true }));
 }, [id, v]);
+
+/* ══ ★★★«고정 대기» → ★«조건 대기» ═══════════════════════════════════════════
+ * ★★까닭(261010 머지 18): ★load 106 에서 ★이 파일의 ★E3 가 ★★빨개졌다 — ★★그런데 ★제품이 ★아니라
+ *   ★★★«내 고정 대기»가 ★원인이었다(★같은 판 · ★코드 무변 · ★load 5.35 ⇒ ★80 passed · ★두 번 ★확증).
+ * ★★관용구를 ★내가 ★고르지 ★않았다 — ★★레포가 ★이미 ★쓴다: ★`page.waitForFunction` ★202벌/334곳.
+ * ★★좌표는 ★★하네스의 ★`waitStableRect` — ★★★그 머리말에 ★같은 병이 ★★셋 적혀 있다(★내 E3 가 ★넷째다).
+ *   ⇒ ★★★즉 ★약은 ★★이미 ★레포에 ★있었고 ★★★내가 ★안 읽었다.
+ * ⛔★수를 ★키우지 ★않는다(250 → 1000) — ★더 느린 판에서 ★또 ★깨진다.
+ * ★★★그리고 ★이게 ★핵이다: ★조건이 ★안 서면 ★★여기서 ★★제 이름으로 ★던진다
+ *   ⇒ ★★«전제 미달»과 ★★«본 단언 실패»가 ★★★구분된다 ⇒ ★★★증거 사본이 ★없어도 ★갈린다. */
+const COND_MS = 15000;   /* ★조건이 ★서기까지의 ★상한 — ⛔«기다리는 시간»이 아니라 ★«포기하는 선»이다 */
+
+const waitCount = (page, n) => page.waitForFunction((k) => {
+  const b = document.querySelector('#canvas .shape-block');
+  return !!b && b.dataset.starCount === String(k) && b.querySelectorAll('svg polygon').length === k;
+}, n, { timeout: COND_MS }).catch(() => {
+  throw new Error('★★전제 미달 — ★별 갯수가 ' + n + ' 로 ★서지 ★않았다(★dataset·polygon ★둘 다). ⛔본 단언까지 ★가지 ★못했다');
+});
+
+const waitMode = (page, { idx = 0, want = true } = {}) => page.waitForFunction(([i, w]) => {
+  const b = document.querySelectorAll('#canvas .shape-block')[i];
+  return !!b && b.classList.contains('star-mode') === w;
+}, [idx, want], { timeout: COND_MS }).catch(() => {
+  throw new Error('★★전제 미달 — ★블록 ' + idx + ' 의 ★별 모드가 ★' + (want ? '서지' : '내려가지') + ' ★않았다. ⛔본 단언까지 ★가지 ★못했다');
+});
+
+const waitGap = (page, g) => page.waitForFunction((k) => {
+  const b = document.querySelector('#canvas .shape-block');
+  return !!b && b.dataset.starGap === String(k);
+}, g, { timeout: COND_MS }).catch(() => {
+  throw new Error('★★전제 미달 — ★간격이 ' + g + ' 로 ★서지 ★않았다. ⛔본 단언까지 ★가지 ★못했다');
+});
+
+const waitRating = (page, r) => page.waitForFunction((k) => {
+  const b = document.querySelector('#canvas .shape-block');
+  return !!b && (k === null ? b.dataset.starRating === undefined : b.dataset.starRating === String(k));
+}, r, { timeout: COND_MS }).catch(() => {
+  throw new Error('★★전제 미달 — ★평점이 ' + (r === null ? '«없음»' : r) + ' 로 ★서지 ★않았다. ⛔본 단언까지 ★가지 ★못했다');
+});
+
+/** ★블록이 ★N벌 ★생겼나 — ★`addShapeBlock` 은 ★비동기로 ★칠한다 */
+const waitBlocks = (page, n) => page.waitForFunction((k) => (
+  document.querySelectorAll('#canvas .shape-block').length === k
+), n, { timeout: COND_MS }).catch(() => {
+  throw new Error('★★전제 미달 — ★별 블록이 ' + n + '벌이 ★되지 ★않았다. ⛔본 단언까지 ★가지 ★못했다');
+});
+
+/** ★★별을 ★★«멈춘 뒤»에 ★더블클릭한다 — ★좌표를 ★먼저 재고 누르면 ★그 사이 ★움직인다(하네스 머리말). */
+async function dblclickStar(page, starIdx, { blockIdx = 0 } = {}) {
+  /* ★블록이 ★여럿일 때 ★몇째의 ★몇번 별인가 — ★좌표는 ★하네스가 ★«멈춘 뒤»로 ★준다.
+     ★★`index` 로 ★세는 까닭: ★블록마다 ★고유 선택자가 ★없다(★`graph-label-edit` 가 ★같은 까닭으로 ★제 자를 ★지었다) */
+  const n = await page.evaluate(() => document.querySelectorAll('#canvas .shape-block').length);
+  const per = await page.evaluate((k) => document.querySelectorAll('#canvas .shape-block')[k]
+    .querySelectorAll('svg polygon').length, blockIdx);
+  if (!(blockIdx < n)) throw new Error('★블록 ' + blockIdx + ' 이 ★없다(★' + n + '벌)');
+  const r = await waitStableRect(page, '#canvas .shape-block svg polygon',
+    { index: blockIdx * per + starIdx });
+  await page.mouse.dblclick(r.cx, r.cy);
+  return r;
+}
+
+/** ★패널이 ★참으로 ★떴나 — ★별 칸이 ★생길 때까지 */
+const waitPanel = (page) => page.waitForFunction(() => (
+  !!document.getElementById('shape-star-count-num') && !!document.getElementById('shape-star-gap-num')
+), undefined, { timeout: COND_MS }).catch(() => {
+  throw new Error('★★전제 미달 — ★별 패널(갯수·간격 칸)이 ★뜨지 ★않았다. ⛔본 단언까지 ★가지 ★못했다');
+});
 
 const snap = (page) => page.evaluate(() => {
   const blk = document.querySelector('#canvas .shape-block');
@@ -70,14 +137,14 @@ const snap = (page) => page.evaluate(() => {
 test('D1 ★b1 — ★간격을 올리면 ★프레임 폭이 ★늘어난다 (★유닛은 ★식만 쟀다)', async ({ page }) => {
   await setup(page);
   await setNum(page, 'shape-star-count-num', 5);
-  await page.waitForTimeout(250);
+  await waitCount(page, 5);
   const a = await snap(page);
   expect(a.starCount, '전제 — 갯수 5').toBe('5');
   const w0 = a.frameW;
   expect(w0, `전제 — 갯수 5 뒤 폭이 0 이 아니다 (잰 값: ${w0})`).toBeGreaterThan(0);
 
   await setNum(page, 'shape-star-gap-num', 100);
-  await page.waitForTimeout(250);
+  await waitGap(page, 100);
   const b = await snap(page);
   expect(b.starGap, 'dataset.starGap').toBe('100');
   /* ★★고치기 전이라면 ★폭이 ★그대로였다 — ★그게 ★b1 의 흠이었다 */
@@ -99,7 +166,7 @@ test('D2 ★★① 후속 — ★상한 ★아래서는 ★비가 ★유지되�
    *   ⇒ ★★이 꼴이 ★★판정 ③ 의 ★«대가»를 ★★행위로 ★잠근다(★W9 는 ★산술로 잠근다) */
   await setup(page);
   await setNum(page, 'shape-star-count-num', 5);
-  await page.waitForTimeout(250);
+  await waitCount(page, 5);
   const rect = () => page.evaluate(() => {
     const p = document.querySelector('#canvas .shape-block svg polygon');
     const b = p.getBoundingClientRect();
@@ -114,7 +181,7 @@ test('D2 ★★① 후속 — ★상한 ★아래서는 ★비가 ★유지되�
   /* ⒜ ★상한 ★아래 — ★요구 폭이 ★860 이하라 ★비가 ★지켜진다 */
   for (const g of [50, 100]) {
     await setNum(page, 'shape-star-gap-num', g);
-    await page.waitForTimeout(250);
+    await waitGap(page, g);
     const r = await rect();
     const s = await snap(page);
     const need = Math.round(w0 * (1000 + g * 4) / 1000);
@@ -126,7 +193,7 @@ test('D2 ★★① 후속 — ★상한 ★아래서는 ★비가 ★유지되�
 
   /* ⒝ ★★상한 — ★★여기서는 ★깨지는 것이 ★맞다. ★★얼마나 깨지나를 ★못박는다 */
   await setNum(page, 'shape-star-gap-num', 200);
-  await page.waitForTimeout(250);
+  await waitGap(page, 200);
   const sCap = await snap(page);
   const needCap = Math.round(w0 * 1800 / 1000);
   expect(needCap, `★전제 — gap 200 은 ★상한을 ★넘어야 한다 (요구 ${needCap})`).toBeGreaterThan(860);
@@ -149,7 +216,7 @@ test('D3 ★b3 — ★평점을 켜면 ★칠이 ★두 색으로 갈리고 ★�
     t.checked = true;
     t.dispatchEvent(new Event('change', { bubbles: true }));
   });
-  await page.waitForTimeout(350);
+  await waitRating(page, 5);
   const s = await snap(page);
   expect(s.starRating, '★평점 dataset').toBe('5');
   expect(s.starCount, '★「별이 5개로 구성」 — 갯수가 5 로 맞춰졌다').toBe('5');
@@ -163,7 +230,7 @@ test('D3 ★b3 — ★평점을 켜면 ★칠이 ★두 색으로 갈리고 ★�
 
   /* ★평점 3 — ★앞 셋만 채운 색 */
   await setNum(page, 'shape-star-rating-num', 3);
-  await page.waitForTimeout(300);
+  await waitRating(page, 3);
   const t = await snap(page);
   expect(t.fills, `★평점 3 의 칠 (잰 값: ${JSON.stringify(t.fills)})`).toEqual(
     ['#ff8a00', '#ff8a00', '#ff8a00', '#d6d6d6', '#d6d6d6']);
@@ -178,7 +245,7 @@ test('D4 ★b3 — ★평점을 끄면 ★칠이 ★물러나고 ★갯수 잠�
       t.checked = v;
       t.dispatchEvent(new Event('change', { bubbles: true }));
     }, on);
-    await page.waitForTimeout(350);
+    await waitRating(page, on ? 5 : null);
   };
   await tog(true);
   expect((await snap(page)).starRating, '전제 — 켜졌다').toBe('5');
@@ -199,7 +266,7 @@ test('D5 ★★⒩ ⌘Z — ★평점 토글이 ★한 칸이다 (지디 ＋지�
     const t = document.getElementById('shape-star-rating-toggle');
     t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true }));
   });
-  await page.waitForTimeout(350);
+  await waitRating(page, 5);
   const d1 = await depth();
   expect(d1 - d0, `★평점 토글이 ★히스토리를 ★${d1 - d0} 칸 ★먹었다 — ★1 이어야 한다`).toBe(1);
 });
@@ -230,7 +297,7 @@ test('D6 ★★⒧ ★그라데이션 별 — ★평점 켜고 ★끄면 ★그�
       const t = document.getElementById('shape-star-rating-toggle');
       t.checked = on; t.dispatchEvent(new Event('change', { bubbles: true }));
     }, v);
-    await page.waitForTimeout(350);
+    await waitRating(page, v ? 5 : null);
   };
   await tog(true);
   const on = await snap(page);
@@ -246,7 +313,7 @@ test('D6 ★★⒧ ★그라데이션 별 — ★평점 켜고 ★끄면 ★그�
 test('D7 ★★⒨ ★저장 왕복 — ★개별 색·배율이 ★저장 → ★불러오기 → ★다시 꺼내 쓰기까지 ★산다', async ({ page }) => {
   await setup(page);
   await setNum(page, 'shape-star-count-num', 5);
-  await page.waitForTimeout(250);
+  await waitCount(page, 5);
   /* ★상태를 ★심는다 — ★입구(UI)가 ★아직 없으니 ★dataset 에 ★직접 심고 ★제품 길로 ★그리게 한다 */
   await page.evaluate(() => {
     const blk = document.querySelector('#canvas .shape-block');
@@ -264,7 +331,7 @@ test('D7 ★★⒨ ★저장 왕복 — ★개별 색·배율이 ★저장 → �
        ★★★단 ★보통 저장본은 ★★polygon 의 ★fill·points 가 ★같이 저장되므로 ★그 길은 ★안 탄다.
        ⇒ ★★이 수를 ★지디에 ★올렸다. ⛔이 칸에서 ★그것을 ★고치지는 ★않는다(범위 밖). */
   await setNum(page, 'shape-star-gap-num', 10);
-  await page.waitForTimeout(300);
+  await waitGap(page, 10);
   const before = await snap(page);
   expect(before.fills[0], '★0번 별 색').toBe('#ff0000');
   expect(before.fills[2], '★2번 별 색').toBe('#00ff00');
@@ -295,7 +362,9 @@ test('D7 ★★⒨ ★저장 왕복 — ★개별 색·배율이 ★저장 → �
     c.insertAdjacentHTML('beforeend', html);
     window.rebindAll?.();
   }, saved);
-  await page.waitForTimeout(400);
+  /* ⛔★여기서 ★«값»을 ★기다리지 ★않는다 — ★그러면 ★제품 흠이 ★«전제 미달»로 ★둔갑한다.
+     ★구조(★블록 ＋ polygon 5개)만 ★기다리고 ★값은 ★아래 ★expect 가 ★잰다 */
+  await waitCount(page, 5);
   const after = await snap(page);
   expect(after.starColors, '★불러온 뒤 ★개별 색 dataset').toBe('#ff0000,,#00ff00');
   expect(after.starScales, '★불러온 뒤 ★배율 dataset').toBe(',50');
@@ -304,9 +373,9 @@ test('D7 ★★⒨ ★저장 왕복 — ★개별 색·배율이 ★저장 → �
 
   /* ★★★«다시 꺼내 쓰기» — ★지디 ㉠ 의 그 칸. ★패널을 ★만져서 ★_applyStarGeom 을 ★다시 돌린다 */
   await page.evaluate(() => window.showShapeProperties?.(document.querySelector('#canvas .shape-block')));
-  await page.waitForTimeout(150);
+  await waitPanel(page);
   await setNum(page, 'shape-star-gap-num', 30);
-  await page.waitForTimeout(300);
+  await waitGap(page, 30);
   const reuse = await snap(page);
   expect(reuse.starColors, '★★패널을 만진 뒤 ★개별 색이 ★사라졌다').toBe('#ff0000,,#00ff00');
   expect(reuse.starScales, '★★패널을 만진 뒤 ★배율이 ★사라졌다').toBe(',50');
@@ -330,14 +399,12 @@ test('D8 ★★⒪ ★별 더블클릭의 ★임자 — ★★지금은 ★«별
    *     ★★그 한 줄이 ★E1·E2·E3 를 ★같이 ★빨갛게 만들고 있었다. ★★그래서 ★예외 단언을 ★★남긴다. */
   await setup(page);
   await setNum(page, 'shape-star-count-num', 5);
-  await page.waitForTimeout(250);
+  await waitCount(page, 5);
   const before = await snap(page);
   const errs = [];
   page.on('pageerror', e => errs.push(String(e)));
-  const box = await page.locator('#canvas .shape-block svg polygon').first().boundingBox();
-  expect(box, '★별을 ★화면에서 ★못 찾았다').not.toBeNull();
-  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
-  await page.waitForTimeout(400);
+  await dblclickStar(page, 0);
+  await waitMode(page, { want: true });
   const after = await snap(page);
   /* ★★예외 0 — ★이 단언이 ★★네 칸을 ★한꺼번에 ★설명한 ★그 자다 */
   expect(errs, `★더블클릭이 ★예외를 던졌다: ${errs.join(' / ')}`).toEqual([]);
@@ -364,16 +431,14 @@ test('D8 ★★⒪ ★별 더블클릭의 ★임자 — ★★지금은 ★«별
 test('E1 ★★★사람이 ★줄 수 있다 — ★더블클릭 → ★색 고르기 → ★`data-star-colors` 가 ★생긴다 (지디 ⑷)', async ({ page }) => {
   await setup(page);
   await setNum(page, 'shape-star-count-num', 5);
-  await page.waitForTimeout(250);
+  await waitCount(page, 5);
   const a = await snap(page);
   expect(a.starColors, '★전제 — ★시작엔 ★개별 색 키가 ★없다(옛 바이트)').toBeNull();
   expect(a.polys.length, '전제 — 별 5개').toBe(5);
 
   /* ⑴ ★★3번째 별(index 2)을 ★★진짜 ★더블클릭 — ⛔API 를 ★안 부른다 */
-  const box = await page.locator('#canvas .shape-block svg polygon').nth(2).boundingBox();
-  expect(box, '★3번째 별을 ★화면에서 ★못 찾았다').not.toBeNull();
-  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
-  await page.waitForTimeout(400);
+  await dblclickStar(page, 2);
+  await waitMode(page, { want: true });
 
   /* ⑵ ★모드가 ★섰고 ★★«입구»가 ★떴나 — ★그 줄이 ★없으면 ★사람이 ★줄 ★길이 ★없다 */
   const ui = await page.evaluate(() => {
@@ -402,11 +467,16 @@ test('E1 ★★★사람이 ★줄 수 있다 — ★더블클릭 → ★색 고
     hex.dispatchEvent(new Event('input', { bubbles: true }));
     hex.dispatchEvent(new Event('change', { bubbles: true }));
   });
-  await page.waitForTimeout(400);
-
-  /* ⑷ ★★★그 dataset 이 ★생겼나 — ★★이것이 ★★«입구가 0건»을 ★지울 ★자격이다 */
+  /* ⑷ ★★★그 dataset 이 ★생겼나 — ★★이것이 ★★«입구가 0건»을 ★지울 ★자격이다
+   * ⛔★여기는 ★`waitForFunction` 으로 ★기다리지 ★않는다 — ★★그러면 ★★제품이 ★안 쓴 ★경우가
+   *   ★★«전제 미달»로 ★둔갑해 ★★이 칸이 ★★재려던 것을 ★★안 재게 ★된다.
+   * ⇒ ★★★«기다린 뒤 ★단언»이 아니라 ★★★«다시 재는 ★단언»으로 — ★레포 관용구 ★`expect.poll`(49벌/126곳) */
+  await expect.poll(
+    () => page.evaluate(() => document.querySelector('#canvas .shape-block').dataset.starColors ?? null),
+    { timeout: COND_MS, message: '★★data-star-colors 가 ★안 생겼다 — ★사람이 ★준 것이 ★안 남았다' },
+  ).not.toBeNull();
   const b = await snap(page);
-  expect(b.starColors, `★★`.concat('data-star-colors 가 ★안 생겼다 — ★사람이 ★준 것이 ★안 남았다'))
+  expect(b.starColors, '★★data-star-colors 가 ★안 생겼다 — ★사람이 ★준 것이 ★안 남았다')
     .not.toBeNull();
   const parts = String(b.starColors).split(',');
   expect(parts[2]?.toLowerCase(), `★3번째 칸에 ★안 들어갔다 (잰 값: ${b.starColors})`).toBe('#00ff00');
@@ -420,11 +490,16 @@ test('E1 ★★★사람이 ★줄 수 있다 — ★더블클릭 → ★색 고
 test('E2 ★진입 배타 ★양방향 ＋ ★나가기 — ★Esc·밖 클릭이 ★모드를 ★푼다', async ({ page }) => {
   await setup(page);
   await setNum(page, 'shape-star-count-num', 5);
-  await page.waitForTimeout(250);
+  await waitCount(page, 5);
+  /* ★★이 칸의 ★«다른 별로 옮긴다»는 ★★모드가 ★선 ★채로 ★고른 별만 ★바뀐다 ⇒ ★★`_starSel` 로 ★기다린다 */
   const dbl = async (n) => {
-    const b = await page.locator('#canvas .shape-block svg polygon').nth(n).boundingBox();
-    await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
-    await page.waitForTimeout(350);
+    await dblclickStar(page, n);
+    await page.waitForFunction((k) => {
+      const b = document.querySelector('#canvas .shape-block');
+      return !!b && b.classList.contains('star-mode') && b._starSel === k;
+    }, n, { timeout: COND_MS }).catch(() => {
+      throw new Error('★★전제 미달 — ★' + n + '번 별이 ★골라지지 ★않았다(★모드·`_starSel` 둘 다). ⛔본 단언까지 ★가지 ★못했다');
+    });
   };
   const inMode = () => page.evaluate(() => ({
     cls: document.querySelector('#canvas .shape-block').classList.contains('star-mode'),
@@ -439,7 +514,7 @@ test('E2 ★진입 배타 ★양방향 ＋ ★나가기 — ★Esc·밖 클릭�
   expect((await inMode()).sel, '★다른 별로 ★안 옮겼다').toBe(3);
   /* ★Esc 로 ★나간다 */
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await waitMode(page, { want: false });
   const out = await inMode();
   expect(out.cls, '★Esc 뒤에도 ★모드 표시가 ★남았다').toBe(false);
   expect(out.row, '★Esc 뒤에도 ★입구 줄이 ★남았다').toBe(false);
@@ -463,10 +538,10 @@ test('E2 ★진입 배타 ★양방향 ＋ ★나가기 — ★Esc·밖 클릭�
 test('E3 ★★모드·표시가 ★저장본에 ★안 샌다 (★명부 둘에 ★등록한 그 까닭)', async ({ page }) => {
   await setup(page);
   await setNum(page, 'shape-star-count-num', 5);
-  await page.waitForTimeout(250);
-  const b = await page.locator('#canvas .shape-block svg polygon').nth(1).boundingBox();
-  await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
-  await page.waitForTimeout(350);
+  await waitCount(page, 5);
+  await dblclickStar(page, 1);
+  await waitMode(page, { want: true });
+  /* ★위 `waitMode` 가 ★이미 ★전제다 — ★★이 줄은 ★그 전제를 ★★이름으로 ★남긴다 */
   expect(await page.evaluate(() => document.querySelector('#canvas .shape-block').classList.contains('star-mode')),
     '전제 — 모드가 섰다(표시가 라이브에 있다)').toBe(true);
   /* ★★모드가 ★선 ★채로 ★저장한다 — ★그게 ★이 칸의 핵이다(★사람은 ★아무 때나 저장한다) */
@@ -496,7 +571,7 @@ test('E4 ★★⒦ ★별 블록 ★둘 — ★모드·표시·입구가 ★★�
     window.selectSection?.(document.getElementById('sA'));
     window.addShapeBlock?.('star');
   });
-  await page.waitForTimeout(400);
+  await waitBlocks(page, 2);
   const n = await page.evaluate(() => document.querySelectorAll('#canvas .shape-block').length);
   expect(n, `★전제 — ★별 블록이 ★둘이어야 한다 (잰 값: ${n})`).toBe(2);
 
@@ -506,19 +581,22 @@ test('E4 ★★⒦ ★별 블록 ★둘 — ★모드·표시·입구가 ★★�
       const b = document.querySelectorAll('#canvas .shape-block')[k];
       window.showShapeProperties?.(b);
     }, i);
-    await page.waitForTimeout(150);
+    await waitPanel(page);
     await setNum(page, 'shape-star-count-num', 5);
-    await page.waitForTimeout(250);
+    await page.waitForFunction((k) => {
+      const b = document.querySelectorAll('#canvas .shape-block')[k];
+      return !!b && b.dataset.starCount === '5' && b.querySelectorAll('svg polygon').length === 5;
+    }, i, { timeout: COND_MS }).catch(() => {
+      throw new Error('★★전제 미달 — ★블록 ' + i + ' 의 ★갯수가 ★5 로 ★서지 ★않았다. ⛔본 단언까지 ★가지 ★못했다');
+    });
   }
   const counts = await page.evaluate(() => [...document.querySelectorAll('#canvas .shape-block')]
     .map((b) => b.dataset.starCount));
   expect(counts, `★전제 — ★둘 다 ★갯수 5 (잰 값: ${JSON.stringify(counts)})`).toEqual(['5', '5']);
 
   /* ★★첫째 블록의 ★3번 별을 ★★진짜 ★더블클릭 */
-  const box = await page.locator('#canvas .shape-block').nth(0).locator('svg polygon').nth(2).boundingBox();
-  expect(box, '★첫째 블록의 ★별을 ★못 찾았다').not.toBeNull();
-  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
-  await page.waitForTimeout(400);
+  await dblclickStar(page, 2, { blockIdx: 0 });
+  await waitMode(page, { idx: 0, want: true });
 
   const st = await page.evaluate(() => {
     const bs = [...document.querySelectorAll('#canvas .shape-block')];
@@ -541,10 +619,8 @@ test('E4 ★★⒦ ★별 블록 ★둘 — ★모드·표시·입구가 ★★�
   expect(rows, `★입구 줄이 ★${rows}개다 — ★하나여야 한다`).toBe(1);
 
   /* ★★★둘째 블록의 별을 ★더블클릭하면 ★★모드가 ★그쪽으로 ★옮겨지고 ★첫째는 ★풀린다 */
-  const box2 = await page.locator('#canvas .shape-block').nth(1).locator('svg polygon').nth(0).boundingBox();
-  expect(box2, '★둘째 블록의 ★별을 ★못 찾았다').not.toBeNull();
-  await page.mouse.dblclick(box2.x + box2.width / 2, box2.y + box2.height / 2);
-  await page.waitForTimeout(400);
+  await dblclickStar(page, 0, { blockIdx: 1 });
+  await waitMode(page, { idx: 1, want: true });
   const st2 = await page.evaluate(() => {
     const bs = [...document.querySelectorAll('#canvas .shape-block')];
     return bs.map((b) => ({ mode: b.classList.contains('star-mode'), sel: b._starSel ?? null,
