@@ -2,7 +2,13 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { buildTypographySectionHtml } from './_typo-section.js';   // ⛔글자 크기 칸을 «손으로» 만들지 마라 — 정본은 여기 하나다(tests/unit/typo-section-ssot.test.mjs T2)
-import { CHAT_NUM_BOUNDS } from '../blocks/chat-bounds.js';   /* ⛔chat-block.js 에서 끌지 마라 — number-field-contract 하네스의 모듈 그래프를 통째로 키워 __ready 가 안 켜진다(그 파일 머리말) */
+import { CHAT_NUM_BOUNDS } from '../blocks/chat-bounds.js';
+/* ★★별점 ★채운 색의 ★임자는 ★`shape-star.js` ★한 자리다(1010t2a — ★★값이 아니라 ★«자리»를 합쳤다).
+ * ⛔여기에 ★`#ff8a00` 을 ★손으로 ★다시 적지 ★마라 — ★★그러면 ★여섯째 자리가 ★생긴다.
+ * ★들이기가 ★안전한 ★까닭(★실측): ★`shape-star.js` 는 ★★import 가 ★0 인 ★잎 모듈이고,
+ *   ★`number-field-contract` 하네스는 ★★이미 ★`prop-shape.js` 를 ★들이며 ★그것을 ★같이 ★띄운다
+ *   ⇒ ★★모듈 그래프가 ★★한 개도 ★안 늘어난다(★위 ★chat-bounds 경고와 ★다른 자리다). */
+import { STAR_FILL_ON } from '../shape-star.js';   /* ⛔chat-block.js 에서 끌지 마라 — number-field-contract 하네스의 모듈 그래프를 통째로 키워 __ready 가 안 켜진다(그 파일 머리말) */
 /* ★⒝(2026-10-06) — 숫자 손잡이의 min/max 는 ★모델의 경계 표에서 «파생»한다. ⛔여기 숫자를 적지 마라.
  *   무엇이 있었나(실측): 패널이 모델보다 좁아 ★일곱 자리에서 사람이 못 넣는 값이 있었다 —
  *     fontSize 10~60(모델 4~400) · gap 0~40(0~400) · radius 0~40(0~400) · padding 0~60(0~400) ·
@@ -114,7 +120,7 @@ export function showChatProperties(block) {
             <span>별점</span>
           </label>
           <input type="number" class="chb-stars-num prop-number" data-idx="${i}" min="0" max="5" value="${starsVal}" ${hasStars ? '' : 'disabled'} style="width:48px">
-          <span class="chb-stars-preview" data-idx="${i}" style="color:#ff8a00;letter-spacing:1px;${hasStars ? '' : 'opacity:0.3'}">${starsPreview}</span>
+          <span class="chb-stars-preview" data-idx="${i}" style="color:${STAR_FILL_ON};letter-spacing:1px;${hasStars ? '' : 'opacity:0.3'}">${starsPreview}</span>
         </div>`;
       const profileFieldsHtml = showProfileFields ? `
         <div class="chb-prop-profile-row" data-idx="${i}" style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px dashed #333;font-size:11px;white-space:nowrap">

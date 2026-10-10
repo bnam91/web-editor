@@ -264,7 +264,7 @@ ${blockHeaderHTML({
           <span>별점</span>
         </label>
         <input type="number" class="prop-number" id="shape-star-rating-num" min="${STAR_RATING_MIN}" max="${STAR_RATING_MAX}" value="${starRating ?? STAR_RATING_MAX}" ${ratingOn ? '' : 'disabled'} style="width:48px">
-        <span id="shape-star-rating-preview" style="color:#ff8a00;letter-spacing:1px;${ratingOn ? '' : 'opacity:0.3'}">${starRatingPreview(starRating)}</span>
+        <span id="shape-star-rating-preview" style="color:${STAR_FILL_ON};letter-spacing:1px;${ratingOn ? '' : 'opacity:0.3'}">${starRatingPreview(starRating)}</span>
       </div>
       ${ratingOn ? `<div class="prop-hint" id="shape-star-rating-hint" style="margin-top:4px;">별점은 별 ${STAR_RATING_COUNT}개로 구성됩니다 — 갯수는 별점을 끄면 다시 바꿀 수 있습니다.</div>` : ''}
       ${starSel !== null ? `<!-- ★★«이 별» 색 (현빈 2026-10-10 1010t1b2 「★개별 별모양 블럭을 선택하고 ★색 지정」)
