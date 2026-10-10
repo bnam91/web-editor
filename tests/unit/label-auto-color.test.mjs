@@ -8,15 +8,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` — ★만들기·치우기를 ★그 자가 쥔다.
+      ⇒ ★부르는 쪽은 ★지울 필요가 ★없다(★pid 우산 ＋ 종료훅 ＋ 디스크 사전게이트).
+      ★잠그는 자 = ★`tests/unit/tmproot-sole-owner.test.mjs` */
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // package.json "type":"commonjs" 라 .js 를 직접 import 하면 CJS 로 잡힌다 → 원문을 임시 .mjs 로 복사해 로드
 //   (선례: tests/unit/text-shadow-filter.test.mjs).
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'lac-'));
+const TMP = mkTmpRoot('lac-');
 const MOD = path.join(TMP, 'label-auto-color.mjs');
 fs.writeFileSync(MOD, fs.readFileSync(path.join(REPO, 'js/props/label-auto-color.js'), 'utf8'));
 const { markLabelAutoColor, forgetLabelAutoColor, dropLabelAutoColor } = await import(pathToFileURL(MOD).href);
-fs.rmSync(TMP, { recursive: true, force: true });
 // 브라우저처럼 «정규화된» 값이 style.color 에 남는 상황을 그대로 쓴다(문자열 비교가 규칙의 전부).
 const el = (color = '') => ({ style: { color }, dataset: {} });
 

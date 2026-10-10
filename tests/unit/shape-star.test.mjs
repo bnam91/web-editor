@@ -5,16 +5,19 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` — ★만들기·치우기를 ★그 자가 쥔다.
+      ⇒ ★부르는 쪽은 ★지울 필요가 ★없다(★pid 우산 ＋ 종료훅 ＋ 디스크 사전게이트).
+      ★잠그는 자 = ★`tests/unit/tmproot-sole-owner.test.mjs` */
 
 /* js/*.js 는 브라우저 ESM 이지만 package.json 에 type:module 이 없다 — 선례(bulk-align-targets.test.mjs)대로 임시 폴더에 얹어 싣는다. */
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const { starPoints, starClipPath, clampStarN, STAR_VB_W, STAR_VB_H,
         starViewBox, starPointsAt, starPointsList, clampStarCount, STAR_COUNT_MAX } = await (async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gd-star-'));
+  const tmp = mkTmpRoot('gd-star-');
   fs.writeFileSync(path.join(tmp, 'package.json'), '{"type":"module"}');
   fs.copyFileSync(path.join(ROOT, 'js/shape-star.js'), path.join(tmp, 'm.js'));
   const m = await import(pathToFileURL(path.join(tmp, 'm.js')).href);
-  fs.rmSync(tmp, { recursive: true, force: true });
   return m;
 })();
 

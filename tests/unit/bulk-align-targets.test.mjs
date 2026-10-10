@@ -23,6 +23,10 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` — ★만들기·치우기를 ★그 자가 쥔다.
+      ⇒ ★부르는 쪽은 ★지울 필요가 ★없다(★pid 우산 ＋ 종료훅 ＋ 디스크 사전게이트).
+      ★잠그는 자 = ★`tests/unit/tmproot-sole-owner.test.mjs` */
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../');
 
@@ -61,11 +65,10 @@ function withFakeDom(fn) {
 /* ★js/*.js 는 브라우저에선 ESM 이지만 package.json 에 type:module 이 없어 Node 가 CJS 로 읽는다.
    선례(save-dirty-after-failure.test.mjs)와 «같은 벌»로 — 임시 폴더에 type:module 을 얹고 싣는다. */
 const { collectBulkAlignTargets } = await (async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gd-bulkalign-'));
+  const tmp = mkTmpRoot('gd-bulkalign-');
   fs.writeFileSync(path.join(tmp, 'package.json'), '{"type":"module"}');
   fs.copyFileSync(path.join(ROOT, 'js/props/bulk-align-targets.js'), path.join(tmp, 'm.js'));
   const m = await import(pathToFileURL(path.join(tmp, 'm.js')).href);
-  fs.rmSync(tmp, { recursive: true, force: true });
   return m;
 })();
 

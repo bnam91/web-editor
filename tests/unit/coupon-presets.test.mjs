@@ -26,6 +26,9 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` — ★만들기·치우기를 ★그 자가 쥔다.
+      ⇒ ★부르는 쪽은 ★지울 필요가 ★없다(★pid 우산 ＋ 종료훅 ＋ 디스크 사전게이트).
+      ★잠그는 자 = ★`tests/unit/tmproot-sole-owner.test.mjs` */
 const { readSrc } = require('./_srcread.js');
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../');
 
@@ -33,7 +36,7 @@ const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../');
 if (typeof globalThis.window === 'undefined') globalThis.window = globalThis;
 
 const PRESETS_MOD = await (async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gd-cpnpreset-'));
+  const tmp = mkTmpRoot('gd-cpnpreset-');
   fs.writeFileSync(path.join(tmp, 'package.json'), '{"type":"module"}');
   fs.mkdirSync(path.join(tmp, 'blocks'));
   fs.mkdirSync(path.join(tmp, 'props'));
@@ -41,7 +44,6 @@ const PRESETS_MOD = await (async () => {
   fs.copyFileSync(path.join(REPO, 'js/blocks/coupon-presets.js'), path.join(tmp, 'blocks/coupon-presets.js'));
   const m = await import(pathToFileURL(path.join(tmp, 'blocks/coupon-presets.js')).href);
   /* ★사본은 ★여기서 «동기로» 치운다 — ⛔exit 핸들러에 맡기면 ★남는다(파티클 선례의 실측). */
-  fs.rmSync(tmp, { recursive: true, force: true });
   return m;
 })();
 

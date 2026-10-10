@@ -20,18 +20,21 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` — ★만들기·치우기를 ★그 자가 쥔다.
+      ⇒ ★부르는 쪽은 ★지울 필요가 ★없다(★pid 우산 ＋ 종료훅 ＋ 디스크 사전게이트).
+      ★잠그는 자 = ★`tests/unit/tmproot-sole-owner.test.mjs` */
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const { flowDropIndex } = await (async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gd-flowdrop-'));
+  const tmp = mkTmpRoot('gd-flowdrop-');
   fs.writeFileSync(path.join(tmp, 'package.json'), '{"type":"module"}');
   // overlay-float.js 는 같은 폴더의 두 모듈을 import 한다 — 이름 그대로 같이 옮겨야 풀린다.
   for (const f of ['overlay-float.js', 'frame-geometry.js', 'shape-frame.js']) {
     fs.copyFileSync(path.join(ROOT, 'js', f), path.join(tmp, f));
   }
   const m = await import(pathToFileURL(path.join(tmp, 'overlay-float.js')).href);
-  fs.rmSync(tmp, { recursive: true, force: true });
   return m;
 })();
 

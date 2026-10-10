@@ -19,6 +19,9 @@ import assert from 'node:assert';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` — ★만들기·치우기를 ★그 자가 쥔다.
+      ⇒ ★부르는 쪽은 ★지울 필요가 ★없다(★pid 우산 ＋ 종료훅 ＋ 디스크 사전게이트).
+      ★잠그는 자 = ★`tests/unit/tmproot-sole-owner.test.mjs` */
 const { readSrc } = require('./_srcread.js');
 const { stripComments } = require('./_strip-comments.js');
 
@@ -31,11 +34,10 @@ const { clampStarInner, clampStarGap, starPoints, starPointsAt, starViewBox } = 
   const fs = (await import('node:fs')).default;
   const os = (await import('node:os')).default;
   const { pathToFileURL } = await import('node:url');
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gd-star-ig-'));
+  const tmp = mkTmpRoot('gd-star-ig-');
   fs.writeFileSync(path.join(tmp, 'package.json'), '{"type":"module"}');
   fs.copyFileSync(path.join(ROOT, 'js/shape-star.js'), path.join(tmp, 'm.js'));
   const m = await import(pathToFileURL(path.join(tmp, 'm.js')).href);
-  fs.rmSync(tmp, { recursive: true, force: true });
   return m;
 })();
 const RAW = readSrc(ROOT, 'js', 'shape-star.js');
