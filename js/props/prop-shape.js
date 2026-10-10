@@ -9,7 +9,8 @@ import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          clampStarGap, STAR_GAP_MIN, STAR_GAP_MAX,
          clampStarRating, starRatingFills, starRatingPreview,
          STAR_RATING_MIN, STAR_RATING_MAX, STAR_RATING_COUNT,
-         STAR_FILL_ON, STAR_FILL_OFF } from '../shape-star.js';
+         STAR_FILL_ON, STAR_FILL_OFF,
+         starViewBoxWidth, starFrameWidthFor } from '../shape-star.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
@@ -739,6 +740,20 @@ ${blockHeaderHTML({
     starNum.addEventListener('change', () => { applyStar(starNum.value); window.pushHistory?.(); });
   }
 
+  /* ══ ★«별 하나의 비»를 지키는 ★폭 — ★★갯수와 ★간격이 ★쓰는 ★단 ★하나의 자 (1010t1b1 · 지디 ②③) ══
+   * ★★«W/vbW 를 붙든다»는 ★식 자체는 ★`starFrameWidthFor`(shape-star.js) 에 있다 — ★여기는 ★클램프만.
+   * ★클램프 수(10·860)는 ★★W 슬라이더와 ★같은 수다 — ⛔딴 수를 쓰면 ★패널과 ★어긋난다.
+   * ★★상한에 닿으면 ★거기서 ★멈춘다(= 별이 작아진다) — ★갯수와 ★간격이 ★★같게 멈춘다(지디 판정 ③).
+   *   ⛔한쪽만 다르게 ★분기하지 마라. ★그 분기가 ★곧 ★b1 의 ★흠이었다.
+   * ★★★prev 는 ★«지금 dataset»에서 읽는다 ⇒ ★★부르는 쪽은 ★dataset 을 ★쓰기 ★«전»에 ★이 함수를 불러야 한다. */
+  const _starWantW = (nextCount, nextGap) => {
+    const curW = _shapeFrameSize(ss || block, 'w');
+    const raw = starFrameWidthFor(curW,
+      block.dataset.starCount, block.dataset.starGap, nextCount, nextGap);
+    if (raw === null) return null;
+    return { curW, wantW: Math.max(10, Math.min(860, Math.round(raw))) };
+  };
+
   /* ★★밖으로 뺐다(1010t1b3) — ★평점을 켜면 ★갯수를 ★5 로 맞춰야 하고, ★그 «갯수→폭» 규칙의
      ★임자는 ★이 함수 ★하나여야 한다. ⛔평점 쪽에 ★폭 계산을 ★다시 쓰면 ★명부가 ★둘이 된다. */
   let applyStarCount = null;
@@ -752,11 +767,12 @@ ${blockHeaderHTML({
          ⛔W 를 그대로 두면 viewBox 만 N배라 preserveAspectRatio="none" 때문에 별이 1/N 로 납작해진다.
          ★폭은 «읽는 곳과 쓰는 곳이 같은 객체»(래퍼 frame)로 간다 — applySize 가 그 자리다.
          ★W 상한 860 에 닿으면 거기서 멈춘다(= 별이 작아진다). 슬라이더 상한과 같은 수를 쓴다. */
-      const curW = _shapeFrameSize(ss || block, 'w');
-      const wantW = Math.max(10, Math.min(860, Math.round(curW * c / prev)));
+      /* ★★공용 자를 쓴다(1010t1b1) — ★옛 식은 ★`curW * c / prev` 였고 ★★gap 을 ★안 셌다.
+         ★실측 오차(gap 15): prev 1→5 ★−5.66%. ★gap 0 에서는 ★항등이라 ★안 잡혔다. */
+      const _w = _starWantW(c, block.dataset.starGap);   // ⚠️dataset 쓰기 «전»에 — prev 를 거기서 읽는다
       if (block.dataset.starCount !== String(c)) block.dataset.starCount = String(c);
       _applyStarGeom();   // ★dataset 이 정본 — 위에서 이미 썼다
-      if (wantW !== curW) applySize(wantW, null);
+      if (_w && _w.wantW !== _w.curW) applySize(_w.wantW, null);
       /* 이미지 채우기는 갯수>1 에서 못 쓴다(위 cpModes 주석) — 이미 걸려 있으면 «여기서» 푼다.
          ⛔그냥 두면 사진이 첫 별 모양으로만 잘린 채 나머지 별이 투명해진다(조용한 반쪽 동작). */
       if (c > 1 && block.dataset.shapeFill === 'image') {
@@ -802,11 +818,20 @@ ${blockHeaderHTML({
   if (starGSlider && starGNum) {
     const applyStarGap = (raw) => {
       const g = clampStarGap(raw);
+      const prevG = clampStarGap(block.dataset.starGap);
       starGSlider.value = g; starGNum.value = g;
+      if (g === prevG) return;
+      /* ★★★b1 (현빈 2026-10-10) — ★간격도 ★폭을 ★키운다.
+         ★고치기 전: ★여기가 ★폭을 ★안 건드려 ★viewBox 만 넓어졌다 ⇒ ★`preserveAspectRatio="none"`
+           때문에 ★별이 ★가로로만 ★납작해졌다. ★실측(W 500 · count 5): ★gap 15 에서 비 ★0.9423,
+           ★gap 200 에서 ★0.5549 (★44.5% 납작) — ★세로는 ★불변이었다.
+         ⇒ ★갯수와 ★★같은 자(`_starWantW`)를 쓴다. ⛔여기 ★제 식을 ★두면 ★명부가 ★둘이 된다. */
+      const _w = _starWantW(block.dataset.starCount, g);   // ⚠️dataset 쓰기 «전»에
       /* ★0 이면 키를 ★지운다 — 옛 저장본과 ★바이트 동일하게(간격을 안 쓴 문서는 그대로). */
       if (g === 0) { if (block.dataset.starGap !== undefined) delete block.dataset.starGap; }
       else if (block.dataset.starGap !== String(g)) block.dataset.starGap = String(g);
       _applyStarGeom();
+      if (_w && _w.wantW !== _w.curW) applySize(_w.wantW, null);
       window.scheduleAutoSave?.();
     };
     starGSlider.addEventListener('input',  () => applyStarGap(starGSlider.value));

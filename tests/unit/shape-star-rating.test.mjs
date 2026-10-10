@@ -160,10 +160,14 @@ test('R8 ★배선 — ★켤 때 ★갯수를 ★5 로 맞추고 ★그 임자�
   /* ⛔평점 쪽에 ★폭 계산을 ★다시 쓰면 ★명부가 둘이다 — ★그 함수를 ★부르는지 본다 */
   assert.match(PANEL, /applyStarCount\?\.\(STAR_RATING_COUNT\)/,
     '★평점을 켤 때 ★applyStarCount 를 ★안 부른다 — ★폭 규칙의 ★명부가 ★둘이 될 자리다');
-  /* ★★폭 계산식이 ★평점 배선 안에 ★복제되지 ★않았나 — ★`curW *` 는 ★한 군데뿐이어야 한다 */
-  const widthFormula = (PANEL.match(/curW \*/g) || []).length;
-  assert.strictEqual(widthFormula, 1,
-    `★폭 계산식이 ★${widthFormula} 군데다 — ★하나여야 한다(명부 하나)`);
+  /* ★★폭 계산식이 ★평점 배선 안에 ★복제되지 ★않았나.
+     ★★이 단언은 ★★b1(1010t1b1)에서 ★한 번 ★빨개졌고 ★★그게 ★맞는 빨강이었다 — ★★닻을 갈았다:
+       ★옛 닻 = `curW *`(패널에 ★1 군데). ★b1 이 ★그 식을 ★`starFrameWidthFor`(shape-star.js)로 ★옮겼다
+       ⇒ ★패널의 ★`curW *` 가 ★0 이 됐다 ⇒ ★★「0 군데」로 ★정직하게 ★빨개졌다.
+     ⇒ ★지금 ★참값: ★식은 ★★순수 모듈에 ★하나, ★패널은 ★★클램프만 가진 ★자 `_starWantW` ★하나. */
+  const dup = (PANEL.match(/curW \* [a-zA-Z]/g) || []).length;
+  assert.strictEqual(dup, 0,
+    `★패널에 ★폭 계산식이 ★${dup} 군데 ★남았다 — ★식은 ★순수 모듈(starFrameWidthFor)에 ★있어야 한다`);
   /* ★끄면 ★키를 지운다 — ★옛 저장본 ★바이트 보존(starGap 0 과 같은 규율) */
   assert.match(PANEL, /delete block\.dataset\.starRating;/,
     '★평점을 끌 때 ★키를 ★지우지 않는다 — ★옛 바이트가 ★안 지켜진다');

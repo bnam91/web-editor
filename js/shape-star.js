@@ -174,12 +174,43 @@ export function clampStarCount(c) {
   return Math.min(STAR_COUNT_MAX, Math.max(STAR_COUNT_MIN, v));
 }
 
-/** 별 count 개를 담는 viewBox 문자열. count=1 이면 SHAPE_DEFS.star.vb 와 ★바이트 동일. */
-export function starViewBox(count, gap) {
+/* ★viewBox 의 ★«가로»만 — ★`starViewBox` 와 ★★같은 식을 ★한 자리에서 낸다.
+ * ★★왜 뽑았나(1010t1b1) — ★폭 연동이 ★이 수를 ★필요로 한다. ⛔부르는 쪽에서 ★식을 ★다시 쓰면
+ *   ★★명부가 ★둘이 되고, ★그 둘이 ★어긋나면 ★★별이 ★조용히 ★납작해진다(★그게 ★b1 의 ★흠이었다).
+ * ⇒ ★`starViewBox` 도 ★이 함수를 ★쓴다 — ★★식은 ★여기 ★하나뿐이다. */
+export function starViewBoxWidth(count, gap) {
   const c = clampStarCount(count);
   const g = clampStarGap(gap);
-  /* ★간격은 ★별 «사이»에만 든다 ⇒ (c−1) 번. ★c=1 이면 ★0 ⇒ 옛 문자열과 ★바이트 동일. */
-  return `0 0 ${STAR_VB_W * c + g * (c - 1)} ${STAR_VB_H}`;
+  /* ★간격은 ★별 «사이»에만 든다 ⇒ (c−1) 번. ★c=1 이면 ★0 ⇒ 옛 폭과 ★같다. */
+  return STAR_VB_W * c + g * (c - 1);
+}
+
+/** 별 count 개를 담는 viewBox 문자열. count=1 이면 SHAPE_DEFS.star.vb 와 ★바이트 동일. */
+export function starViewBox(count, gap) {
+  return `0 0 ${starViewBoxWidth(count, gap)} ${STAR_VB_H}`;
+}
+
+/* ══ ★«별 하나의 비»를 ★지키는 ★프레임 폭 (현빈 2026-10-10 · 1010t1b1) ════════════
+ * ★현빈 원문: 「★너비고정에, ★간격이 넓어지면 ★별모양 ★비율까지 영향을 끼치게 되더라.
+ *               ★별모양 블럭의 ★너비가 조절되게함으로써 ★별모양 영향을 ★안 끼치는 선에서」
+ * ★★무엇이 흠이었나 — ★이 파일의 ★간격 머리말이 ★이미 ★임자를 ★이름으로 지목해 뒀다:
+ *   ★`applyStarCount` 는 ★폭을 ★키웠고 ★`applyStarGap` 은 ★★안 키웠다 ⇒ ★★현빈 판정
+ *   「별 크기 유지」(2026-10-06)를 ★★한쪽만 ★지키고 있었다.
+ * ★★식 — ★`preserveAspectRatio="none"` 이라 ★가로 배율 = ★W / vbW 다.
+ *   ⇒ ★별 하나의 ★비를 ★지키려면 ★★그 배율을 ★붙들어야 한다 ⇒ ★W' = ★W · vbW' / vbW
+ *   ★★이 식은 ★count 든 ★gap 이든 ★★같다 — ★그래서 ★★둘이 ★이 함수 ★하나를 ★쓴다(지디 판정 ③).
+ *     ⛔따로 분기하지 마라 — ★분기하면 ★★명부가 ★둘이 된다.
+ * ★★★그리고 ★그게 ★옛 식의 ★흠도 ★같이 고친다 — ★옛 `c/prev` 는 ★★gap 을 ★안 셌다.
+ *   ★실측(t1bstar 2026-10-10 · gap 15): prev 1→5 에서 ★−5.66% · 5→6 −0.24% · 5→10 −0.70%
+ *   ★★gap 0 에서는 ★`c/prev` 와 ★★항등이다 ⇒ ★그래서 ★기존 검사(전부 gap 0)가 ★초록이었고 ★안 잡혔다.
+ * ⚠️★클램프는 ★여기 ★없다 — ★W 의 ★상·하한은 ★패널의 것이고(슬라이더와 ★같은 수) ★부르는 쪽이 ★쥔다.
+ *   ★까닭: ★이 파일은 ★«별의 기하»만 안다. ★860 은 ★★도형 패널의 수다. */
+export function starFrameWidthFor(curW, prevCount, prevGap, nextCount, nextGap) {
+  const w = Number(curW);
+  const prevVb = starViewBoxWidth(prevCount, prevGap);
+  const nextVb = starViewBoxWidth(nextCount, nextGap);
+  if (!Number.isFinite(w) || w <= 0 || prevVb <= 0 || nextVb <= 0) return null;
+  return w * nextVb / prevVb;
 }
 
 /** i 번째(0부터) 별의 points — 별 하나의 좌표를 가로로 i·200 만큼 옮긴 것. */
