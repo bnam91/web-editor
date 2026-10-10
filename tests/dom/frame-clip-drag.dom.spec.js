@@ -453,6 +453,128 @@ test('K4 ★★같은 끌기 · 같은 장면 — ★★«끔»과 ★«기본»
     .not.toBe(shots['false']);
 });
 
+/* ═══ K6 — ★★현빈 ★1010t1c1 의 ★★«그 프레임»을 ★그대로 ★베껴 ★잠근다 (2026-10-10) ═══════
+ *
+ * ★현빈 원문 — 「★특정 프레임블럭이 ★내용자르기가 ★되질 않는다.
+ *   (`ss_ts0he_wzaxygz` 이건 ‘내용자르기’ ★해도 ★★안되고, `ss_ts0he_tdmjl99` 이건 ★하면된다.)」
+ *
+ * ★★장면을 ★지어내지 ★않았다 — ★속성·인라인을 ★★현빈 저장본에서 ★읽어 왔다(⛔읽기만 · 2026-10-10 09:21 판):
+ *   ★`data-clip-content="true"` ＋ ★`data-radius="36"` ＋ `position:relative` ＋ `transform` ★항등 ＋
+ *   `border-radius:36px` ＋ `border 3px` ＋ `data-free-layout="true"` ＋ 배경 `url(...) 30.41% 0% / cover`
+ *   ★자식 ★둘은 ★`.frame-block[data-text-frame]` · `position:absolute` · ★`left:30px` / ★★`left:-102px`
+ *   ⚠️★★인라인에 ★`overflow` 가 ★★없다 ⇒ ★CSS 가 정한다
+ *
+ * ★★이 칸이 ★잠그는 것 — ★★★«그 판에서 ★자른다». ★2026-10-10 ★실측(탐침)에서 ★★네 후보가 ★다 기각됐다:
+ *   ㈀ overflow 가 ★안 걸렸다      ⇒ ★★기각 (computed `hidden`)
+ *   ㈁ 자식이 ★다른 containing block ⇒ ★★기각 (`offsetParent` = 그 프레임)
+ *   ㈂ ★배경이 ★모서리 밖으로 샌다  ⇒ ★★기각 (곡선 밖 4×4 · ★양성대조 곡선 안 8×8 섰다)
+ *   ㈃ ★선택 손잡이가 ★밖에 그려진다 ⇒ ★★기각 (★안쪽 자식 ★0건 ★양성대조 섰고 ★밖 자식도 ★0건)
+ *   ⇒ ★★그러니 ★c1 의 ★참 까닭은 ★★아직 ★모른다. ★★★이 칸은 ★«원인»이 ★아니라
+ *     ★★★«이 조합에서는 ★자른다»를 ★★못 잊게 ★박는 자다 — ⛔다음 사람이 ★같은 길을 ★다시 걷지 않게.
+ *
+ * ★★가장 ★값진 자 = ★★«닿는 규칙 전수»다. ⛔명시도를 ★손으로 ★계산하지 ★않는다 —
+ *   ★살아 있는 스타일시트에서 ★`el.matches()` 로 ★고른다. ★★오늘 ★코드 독해로 ★네 번 틀렸다. */
+const HB_BG = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="800"><rect width="900" height="800" fill="#2255cc"/></svg>');
+const HB_CHILD = (id, left) => '<div class="frame-block" id="' + id + '" data-text-frame="true" data-bg="transparent"'
+  + ' style="background: transparent; width: 338px; box-sizing: border-box; position: absolute; left: ' + left + 'px; top: 231px;"'
+  + ' data-width="338" data-offset-x="' + left + '" data-offset-y="231">'
+  + '<div class="text-block" data-type="body" id="tb_' + id + '">'
+  + '<div class="tb-body" style="font-family: Pretendard, sans-serif; text-align: center;"'
+  + ' data-placeholder="본문 내용을 입력하세요." data-is-placeholder="true" draggable="false"></div></div></div>';
+
+test('K6 ★★현빈 1010t1c1 의 ★그 프레임(켬 ＋ 둥근 ＋ 밖으로 나간 absolute 자식) — ★★자른다 ＋ ★닿는 규칙 ★전수', async ({ page }) => {
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e)));
+  await page.setViewportSize({ width: 1400, height: 1100 });
+  await bootApp(page);
+  const r = await page.evaluate(async ({ bg, kids }) => {
+    const c = document.getElementById('canvas');
+    c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    window.rebindAll?.(); window.deselectAll?.(); window.addSection();
+    const fr = document.createElement('div');
+    fr.className = 'frame-block'; fr.id = 'HB';
+    Object.assign(fr.dataset, { freeLayout: 'true', width: '804', height: '718', padY: '0',
+      borderWidth: '3', borderStyle: 'solid', borderColor: '#888888', radius: '36',
+      clipContent: 'true', bg: '#ffffff' });
+    fr.setAttribute('style', 'background: url("' + bg + '") 30.4104% 0% / cover rgb(255,255,255);'
+      + ' padding: 0px; max-width: 100%; margin: 0px auto; min-height: 718px; height: 718px;'
+      + ' align-self: center; width: 804px; transform: translate(0px, 0px) rotate(0deg) scale(1, 1);'
+      + ' border: 3px solid rgb(136,136,136); border-radius: 36px; position: relative;');
+    fr.innerHTML = kids;
+    document.querySelector('.section-block .section-inner').appendChild(fr);
+    window.rebindAll?.();
+    /* ★★배율 100% — ⛔빼면 ★40% 라 ★모든 수가 ★0.4배가 되고 ★띠가 ★좁아 ★잉크 자가 ★죽는다
+       (2026-10-10 ★1차 탐침이 ★실제로 ★그랬다 — ★전제 단언이 ★잡았다) */
+    window.applyZoom?.(100);
+    await new Promise((q) => setTimeout(q, 600));
+    fr.scrollIntoView({ block: 'center' });
+    await new Promise((q) => setTimeout(q, 300));
+
+    /* ★★닿는 overflow 규칙 ★전수 — ★★이것이 ★이 칸의 ★핵이다 */
+    const matched = [];
+    for (const sh of Array.from(document.styleSheets)) {
+      let rules; try { rules = sh.cssRules; } catch (e) { continue; }
+      for (const rl of Array.from(rules || [])) {
+        if (!rl.selectorText || !/overflow/.test(rl.cssText || '')) continue;
+        for (const one of rl.selectorText.split(',').map((x) => x.trim())) {
+          let hit = false; try { hit = fr.matches(one); } catch (e) { continue; }
+          if (hit) matched.push({ sel: one, ov: rl.style.getPropertyValue('overflow') || null,
+                                  imp: rl.style.getPropertyPriority('overflow') || '' });
+        }
+      }
+    }
+    const ch = document.getElementById('HB_OUT');
+    const pr = fr.getBoundingClientRect(), cr = ch.getBoundingClientRect();
+    return { zoom: window.currentZoom, ov: getComputedStyle(fr).overflow, ovInline: fr.style.overflow || null,
+             clipAttr: fr.dataset.clipContent, radiusAttr: fr.dataset.radius,
+             childDirect: ch.parentElement === fr, offsetParentIsFrame: ch.offsetParent === fr,
+             frameW: Math.round(pr.width), stickOutLeft: Math.round(pr.left - cr.left), matched,
+             band: { x: Math.round(cr.left + 1), y: Math.round(cr.top + 2),
+                     width: Math.max(4, Math.round(pr.left - cr.left) - 2),
+                     height: Math.max(4, Math.round(cr.height) - 4) } };
+  }, { bg: HB_BG, kids: HB_CHILD('HB_IN', 30) + HB_CHILD('HB_OUT', -102) });
+
+  /* ★★전제 ★다섯 — ⛔하나라도 무너지면 ★아래 수가 ★뜻이 없다 */
+  expect(r.zoom, '★전제: 배율이 100% 가 아니다 — 모델 px ≠ 화면 px').toBe(100);
+  expect(r.frameW, '★전제: 프레임 폭이 현빈 판(804)과 다르다').toBeGreaterThan(780);
+  expect(r.clipAttr, '★전제: 「내용 자르기」 켬이 안 걸렸다').toBe('true');
+  expect(r.radiusAttr, '★전제: radius 36 이 안 걸렸다').toBe('36');
+  expect(r.stickOutLeft, '★전제: 자식이 프레임 왼쪽으로 102px 만큼 안 나갔다').toBeGreaterThan(90);
+  expect(r.ovInline, '★전제: 인라인 overflow 가 생겼다 — 이 칸은 ★CSS 가 정하는 자리를 잰다').toBe(null);
+
+  /* ★★㈀ — ★닿는 규칙이 ★★전부 ★자르는 쪽인가 */
+  console.log(`K6 ★닿는 overflow 규칙 ${r.matched.length}건 — ${JSON.stringify(r.matched)}`);
+  expect(r.matched.length, '★★이 조합에 ★닿는 overflow 규칙이 ★0 이다 — ★자가 ★죽었거나 CSS 가 ★안 실렸다')
+    .toBeGreaterThan(0);
+  const notHidden = r.matched.filter((m) => m.ov !== 'hidden');
+  expect(notHidden, '★★닿는 규칙 중 ★자르지 ★않는 것이 ★생겼다 — ★★현빈 1010t1c1 의 ★그 조합에서'
+    + ' ★★자름이 ★풀렸다는 뜻이다 (★그 규칙을 ★누가 넣었나부터 보라)').toEqual([]);
+  expect(r.ov, '★★★켬 ＋ 둥근 인데 computed overflow 가 ★hidden 이 ★아니다').toBe('hidden');
+  /* ★★㈁ */
+  expect(r.childDirect, '★전제: 자식이 직계가 아니다').toBe(true);
+  expect(r.offsetParentIsFrame, '★★자식의 ★containing block 이 ★그 프레임이 ★아니다 — ★그러면 ★안 잘린다').toBe(true);
+
+  /* ★★내용이 ★프레임 밖에 ★안 그려지나 ＋ ★★양성대조 */
+  const main = await inkInBand(page, 'HB_OUT', r.band);
+  const pos = await page.evaluate(async () => {
+    const fr = document.getElementById('HB');
+    fr.dataset.clipContent = 'false'; delete fr.dataset.radius;   /* ★두 판에서 다 서는 꼴 */
+    await new Promise((q) => setTimeout(q, 250));
+    return getComputedStyle(fr).overflow;
+  });
+  const ctrl = await inkInBand(page, 'HB_OUT', r.band);
+  await page.evaluate(() => { const fr = document.getElementById('HB');
+    fr.dataset.clipContent = 'true'; fr.dataset.radius = '36'; });
+  console.log(`K6 ★잉크 — 본측정 ${main.ink} · 양성대조(끔＋radius제거 ⇒ ${pos}) ${ctrl.ink}`);
+  expect(pos, '★★양성대조 전제: ★끔으로 뒤집었는데 ★visible 이 ★아니다').toBe('visible');
+  expect(ctrl.ink, '★★★양성대조 ★죽었다 — ★끔으로 뒤집어도 ★띠에 ★잉크가 ★없다'
+    + ' ⇒ ★자리표시자가 ★글자를 ★안 그리는 것이고 ★★아래 `false` 는 ★«안 재고 있다»다').toBe(true);
+  expect(main.ink, '★★★켬 ＋ 둥근 인데 ★프레임 ★밖에 ★자식의 ★잉크가 ★있다'
+    + ' — ★★현빈 1010t1c1 의 ★그 증상이 ★★재현됐다는 뜻이다(★2026-10-10 에는 ★재현되지 ★않았다)').toBe(false);
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
+
 /* ═══ K5 — ★★«더 끌면 밖으로 빠진다»는 ★별 기능이다. ★문턱이 ★안 바뀌었나 ════════
  *  ★지디 지시 — 「⛔건드리지 마라. ★단 ★넘치게 두면 ★추출 문턱이 ★어떻게 되나를 ★한 번 재서 적어라」.
  *  ★★구조로 보면 ★안 바뀐다 — ★끌어내기 판정은 ★`rawLeft/rawTop`(★죔 ★전 좌표)로 서고,

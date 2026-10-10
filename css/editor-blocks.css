@@ -695,7 +695,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   box-sizing: border-box;
   pointer-events: auto;
 }
-/* ── 섹션 배경 «위치 편집» (image-handling.js: enterSectionBgEditMode) ──
+/* ── 섹션 «배경이미지 편집» (★2026-10-10 이름 변경 · image-handling.js: enterSectionBgEditMode) ──
    프록시 = 섹션 padding-box 를 덮는 «에셋 블록 대역». 편집 중에만 존재하고
    직렬화·내보내기에서 제거된다(section-serialize / save-load / export-image).
    보이는 건 «진짜 배경 + 고스트»뿐이라 프록시 img 는 opacity:0 이다. */
