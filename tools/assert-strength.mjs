@@ -49,7 +49,12 @@
    ══ 쓰는 법 ═══════════════════════════════════════════════════════════════
      node tools/assert-strength.mjs --base origin/dev          # 게이트(머지 앞)
      node tools/assert-strength.mjs --census tests/dom/x.js    # 한 파일의 명세를 눈으로
-     node tools/assert-strength.mjs --self                     # 자기 자신을 깨뜨려 본다
+   ★★⚰️`--self` 는 ★★없다 — ★이 자리에 ★「자기 자신을 깨뜨려 본다」로 ★적혀 있었다.
+     ★실측 2026-10-11: ★`node tools/assert-strength.mjs --self` ⇒ ★★rc ★3 「HARNESS_ERROR —
+       쓰는 법: --base <git ref>」 ⇒ ★★★구현한 적이 ★없다. ★★문서가 ★거짓이었다.
+     ⇒ ★★구현 ★대신 ★★이 줄을 남긴다(지디 조건 ⒠ — ★싼 쪽으로 닫는다).
+     ★그 일(자기 자신을 깨뜨려 보기)은 ★★`tests/unit/assert-strength.test.mjs` 가 ★이미 한다
+       (★합성 표본에 ★변이 아홉을 ★하나씩 꽂아 ★전부 빨간지 본다 · ★T1).
    종료코드  0 통과 · 1 «느슨해짐» 발견 · 3 HARNESS_ERROR(판정 자체가 성립 안 함).
    ⛔3 을 1 로 접지 마라 — 접는 순간 「자가 고장난 것」이 「검사가 멀쩡한 것」으로 읽힌다.
 
@@ -413,6 +418,22 @@ function main(argv) {
   fs.rmSync(tmp, { recursive: true, force: true });
   /* ⛔「못 읽었다」를 「없다」로 읽지 않는다 — 기준판 파일이 절반도 안 열리면 판정이 성립 안 한다 */
   if (baseRead < baseFiles.length) return die(`기준판 파일 ${baseFiles.length}개 중 ${baseRead}개만 열렸다 — 판정이 성립 안 한다`);
+  /* ══ ★★바닥 — ★★«0건이 ★초록»을 ★막는다 (2026-10-11) ═══════════════════════════
+     ★위 두 바닥은 ★«파일»을 센다. ★그런데 ★파일을 ★다 찾아도 ★★`census` 가 ★죽으면
+       ★★rows 가 ★0 이 되고 ★★diff 가 ★«약해진 것 0건»을 돌려줘 ★★✅초록이 된다.
+     ★★실측(★이 자를 ★무력화해 재 봤다 · `census` 가 `[]` 를 돌려주게):
+       ★`tests/unit/assert-strength.test.mjs` = ★★rc 1(5칸 중 4 빨강) ✅ 잡힌다
+       ★★이 CLI 게이트            = ★★★rc 0 · ★「검사 0개 / 지금 0개」 ⇒ ★★★✅초록이었다
+     ⇒ ★★머지 앞 게이트가 ★★죽은 채로 ★통과한다. ★한 번 있었던 일이다 —
+       `tests/unit/css-token-lint.test.mjs:290` 이 ★「이 레포의 `gate:assert-strength` 가
+        ★부르는 자 없이 ★보름을 ★죽어 있었다」고 ★적어 뒀다.
+     ⛔★수(핀 대비 N%)를 ★박지 않는다 — ★그 수가 ★둘째 명부가 되고 ★썩는다(지디 조건 ⒝).
+       ★★여기는 ★«0 이냐»만 본다. */
+  const headAsserts = headRows.reduce((a, r) => a + r.n, 0);
+  if (!headRows.length || headAsserts === 0) {
+    return die(`검사 ${headRows.length}개 · 단언 ${headAsserts}개를 셌다 — ★0건을 «통과»로 읽지 않는다`
+      + `(★이 자가 죽었거나 ★파서가 깨졌다 · 검사 파일은 ${headFiles.length}개를 찾았다)`);
+  }
 
   const { weakened, gone, born } = diffCensus(baseRows, headRows);
 
