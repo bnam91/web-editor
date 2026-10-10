@@ -18,27 +18,23 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { readSrc } = require('./_srcread.js');
 const { stripComments } = require('./_strip-comments.js');
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 — ★만들기·치우기를 ★그 자가 쥔다 */
 
 const ROOT = path.join(import.meta.dirname, '..', '..');
 const M = await (async () => {
   const fs = (await import('node:fs')).default;
   const os = (await import('node:os')).default;
   const { pathToFileURL } = await import('node:url');
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gd-star-sc-'));
+  /* ★★임시 루트는 ★★레포의 ★공용 자가 ★만든다 — ★`tests/unit/_tmproot.js` ★`mkTmpRoot`
+     ⇒ ★★그 자가 ★pid 우산 ＋ ★죽은 실행 회수 ＋ ★디스크 사전게이트 ＋ ★종료훅을 ★다 쥔다
+     ⇒ ★★★그래서 ★부르는 쪽이 ★지울 필요가 ★★없다. ⛔`rmSync` 를 ★여기 ★두지 ★마라 */
+  const tmp = mkTmpRoot('gd-star-sc-');
   fs.writeFileSync(path.join(tmp, 'package.json'), '{"type":"module"}');
   fs.copyFileSync(path.join(ROOT, 'js/shape-star.js'), path.join(tmp, 'm.js'));
   const m = await import(pathToFileURL(path.join(tmp, 'm.js')).href);
-  /* ⛔★★변수 경로 ★rm ★가드 (지디 2026-10-10 ★14:24 — ★이 세션의 ★안전 훅이 ★`"$D/$f"` 꼴을 ★막았다).
-     ★★JS 에는 ★셸의 ★`: "${VAR:?}"` 가 ★없으니 ★★단언으로 ★같은 일을 한다:
-       ★빈 값·★tmpdir 밖·★엉뚱한 이름이면 ★★지우지 ★않고 ★★던진다.
-     ★★이 꼴은 ★★내가 ★지은 것이 ★아니라 ★★이 레포의 ★관례다(★`rmSync(tmp, {recursive})` 가 ★20여 파일)
-       ⇒ ★★그래서 ★★내 파일에만 ★가드를 ★더했다. ⛔남의 파일은 ★안 건드렸다(★지디 판정 자리) */
-  if (!tmp || typeof tmp !== 'string'
-      || !tmp.startsWith(os.tmpdir())
-      || !path.basename(tmp).startsWith('gd-star')) {
-    throw new Error('★임시폴더 경로가 수상하다 — ⛔지우지 않는다: ' + JSON.stringify(tmp));
-  }
-  fs.rmSync(tmp, { recursive: true, force: true });
+  /* ⛔★여기 있던 ★`fs.rmSync(tmp, …)` 와 ★그 ★변수경로 가드를 ★★둘 다 ★뺐다(2026-10-10 지디 ⑴⑵).
+     ★까닭: ★`mkTmpRoot` 가 ★★치우기를 ★쥔다 ⇒ ★★★지울 일이 ★없으니 ★가드도 ★뜻이 없다.
+     ★★«가드를 더하는 것»보다 ★★«지우는 줄을 ★없애는 것»이 ★낫다 — ★지디 ⒝「백업은 더하기다」와 같은 결. */
   return m;
 })();
 const { clampStarScale, starScaleList, starScalesAttr, starPointsAt, starPointsList,
