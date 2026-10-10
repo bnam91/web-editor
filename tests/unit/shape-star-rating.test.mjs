@@ -44,7 +44,7 @@ const M = await (async () => {
      ★★«가드를 더하는 것»보다 ★★«지우는 줄을 ★없애는 것»이 ★낫다 — ★지디 ⒝「백업은 더하기다」와 같은 결. */
   return m;
 })();
-const { clampStarRating, starRatingFills, starRatingPreview,
+const { clampStarRating, starRatingFills, starRatingPreview, STAR_FILL_CHOICES,
         STAR_RATING_MIN, STAR_RATING_MAX, STAR_RATING_COUNT,
         STAR_FILL_ON, STAR_FILL_OFF } = M;
 
@@ -192,11 +192,28 @@ test('R9 ★★그라데이션 별을 ★죽이지 않는다 — ★뗄 때 ★�
      ★★교훈(적어 둔다): ★★소스 문자열 닻은 ★제품이 ★세질 때마다 ★썩는다.
        ⇒ ★★그때 ★«빨강»을 ★제품 결함으로 ★읽지 ★마라 — ★★둘을 ★나란히 놓고 ★어느 쪽이 ★세졌나를 보라.
        ⇒ ★★이 꼴의 ★참 처방은 ★★DOM 으로 ★행위를 재는 것이다(★창 차례 · ★여기선 ★못 한다). */
-  /* ⒜ ★«내 칠» 명부가 ★있다 */
+  /* ⒜ ★«내 칠» 명부가 ★있다
+     ★★★닻을 ★네 번째로 ★갈았다(2026-10-11 · 1010t2a ⒠) — ★★또 ★«제품이 ★세진 것»이었다:
+       ⑷ `new Set([...STAR_FILL_CHOICES, STAR_FILL_OFF])`   (＋★고를 수 있는 ★색 ★전부)
+         ★까닭 = ★`data-star-fill` 로 ★채운 색이 ★★주황만이 ★아니게 됐다(★회색 `#9e9e9e`)
+           ⇒ ★★명부에 ★그 색이 ★없으면 ★평점을 ★꺼도 ★칠이 ★안 떨어진다.
+       ⇒ ★★`STAR_FILL_ON` 이라는 ★★«이름»이 ★그 줄에서 ★사라진 것은 ★★결함이 ★아니다.
+     ★★그래서 ★★«이름»으로 재던 것을 ★★«덮나»로 ★바꾼다 — ★두 꼴을 ★★둘 다 ★받고,
+       ★★그 꼴이 ★★정말 ★평점 두 색을 ★품는지는 ★★모듈에서 ★행위로 ★잰다.
+       ⛔이름만 ★받으면 ★`STAR_FILL_CHOICES` 에서 ★주황을 ★빼도 ★초록이 된다(그 구멍을 ★아래가 ★막는다). */
   const roster = PANEL.match(/const _mineFills = new Set\(\[[^\]]*\]\);/);
   assert.ok(roster, '★«내 칠» 명부가 ★없다 — ★무조건 떼면 ★그라데이션이 죽는다');
-  assert.match(roster[0], /STAR_FILL_ON/, '★명부에 ★평점 ★채운 색이 없다');
+  assert.match(roster[0], /STAR_FILL_ON|\.\.\.STAR_FILL_CHOICES/,
+    `★명부가 ★평점 ★채운 색을 ★못 덮는다 (잰 줄: ${roster[0]})`);
   assert.match(roster[0], /STAR_FILL_OFF/, '★명부에 ★평점 ★빈 색이 없다');
+  /* ★★★행위로 — ★그 줄이 ★`STAR_FILL_CHOICES` 를 ★펼친다면 ★★그 안에 ★주황이 ★들어 있어야 한다.
+     ★이게 ★★«이름 단언»을 ★항등식으로 만들지 ★않는 ★자리다. */
+  if (/\.\.\.STAR_FILL_CHOICES/.test(roster[0])) {
+    assert.ok(Array.isArray(STAR_FILL_CHOICES) && STAR_FILL_CHOICES.includes(STAR_FILL_ON),
+      `★★명부가 ★고를 수 있는 색을 ★펼치는데 ★그 안에 ★평점 ★채운 색이 ★없다 (잰 값: ${JSON.stringify(STAR_FILL_CHOICES)})`);
+    assert.ok(!STAR_FILL_CHOICES.includes(STAR_FILL_OFF),
+      '★★고를 수 있는 색에 ★«빈 별 색»이 ★들었다 ⇒ ★채움과 ★빔이 ★같아질 수 있다');
+  }
   /* ⒝ ★개별 색 ★전부가 ★그 명부에 ★든다 — ⛔index 별로만 보면 ★번진 색을 ★놓친다 */
   assert.match(PANEL, /starColorList\(block\.dataset\.starColors, count\) \|\| \[\]\)\.forEach\(v => \{ if \(v\) _mineFills\.add\(v\); \}\)/,
     '★개별 색을 ★명부에 ★안 넣는다 — ★번진 색을 ★«내 것»으로 ★못 알아본다');
