@@ -85,6 +85,12 @@ const probe = (page) => page.evaluate(() => {
     nmIsSibling: !!(nm && bub && nm.parentElement === bub.parentElement),
     nmText: nm ? nm.textContent.trim().slice(0, 20) : null,
     bubTextRect: textRect(bub), nmTextRect: textRect(nm),
+    /* ★★★레이아웃 px — ⛔`getBoundingClientRect()` 는 ★★배율(`scale()`)을 ★★먹는다.
+       ★실측(★r14 8벌 판): ★배율이 ★★40% 였다 ⇒ ★layout 307px 가 ★화면 ★123px 로 ★보였다
+       ⇒ ★★그래서 ★«폭 >300」을 ★★화면 px 로 ★재면 ★★★영영 ★안 선다 */
+    bubOffsetW: bub ? bub.offsetWidth : null,
+    blkOffsetW: blk ? blk.offsetWidth : null,
+    zoom: (() => { try { return Math.round((window.currentZoom ?? 100)); } catch (_) { return null; } })(),
   };
 });
 
@@ -166,10 +172,28 @@ async function widen(page) {
     b.textContent = t;
     b.dataset.isPlaceholder = 'false';
   }, LONG);
-  await waitFor(page, () => {
-    const b = document.querySelector('#canvas .speech-bubble-block .tb-bubble');
-    return !!b && b.getBoundingClientRect().width > 300;
-  }, undefined, '긴 글을 넣었는데 ★풍선 폭이 ★300 을 ★안 넘었다(★이 판의 ★전제다)');
+  /* ★★★배율에 ★안 매달리는 ★자로 ★기다린다 — ★`offsetWidth` 는 ★★레이아웃 px 다.
+     ⛔★앞 판은 ★`getBoundingClientRect().width`(★화면 px)로 ★쟀다 ⇒ ★★r14 의 ★8벌 판에서
+       ★★배율이 ★40% 라 ★★★전제가 ★영영 ★안 섰다(★★부하가 ★아니다 — ★load 는 ★더 ★낮았다) */
+  try {
+    await page.waitForFunction(() => {
+      const b = document.querySelector('#canvas .speech-bubble-block .tb-bubble');
+      return !!b && b.offsetWidth > 300;
+    }, undefined, { timeout: COND_MS });
+  } catch (e) {
+    /* ★★실패하면 ★★잰 값을 ★전부 ★찍는다 — ★★«왜 ★안 섰나»가 ★로그에 ★남게(지디 ⒜) */
+    const m = await page.evaluate(() => {
+      const b = document.querySelector('#canvas .speech-bubble-block .tb-bubble');
+      const blk = document.querySelector('#canvas .speech-bubble-block');
+      return b ? {
+        offsetW: b.offsetWidth, screenW: Math.round(b.getBoundingClientRect().width),
+        blkOffsetW: blk ? blk.offsetWidth : null, zoom: window.currentZoom ?? null,
+        len: (b.textContent || '').length,
+      } : null;
+    }).catch(() => null);
+    throw new Error('★★전제 미달 — ★풍선 ★레이아웃 폭이 ★300 을 ★안 넘었다. ★잰 값: '
+      + JSON.stringify(m) + '. ⛔본 단언까지 ★가지 ★못했다', { cause: e });
+  }
 }
 
 test('⒧ ★★넓은 풍선 — ★★★«글자»가 ★움직이나 (★★좁은 판과 ★나란히 본다)', async ({ page }) => {
@@ -186,7 +210,10 @@ test('⒧ ★★넓은 풍선 — ★★★«글자»가 ★움직이나 (★★
   console.log('    ⒧ ★★이름표 ★글자(Range): ' + JSON.stringify(d('nmTextRect')));
   console.log('    ⒧ ★계산값: ' + JSON.stringify({ bub: d('bubTA'), nm: d('nmTA') }));
   expect(after.bubInline, '★전제 — ★눌린 뒤 ★`.tb-bubble` 인라인이 ★center').toBe('center');
-  expect(before.bubRect.w, `★전제 — ★풍선이 ★넓어졌다 (잰 값: ${before.bubRect.w})`).toBeGreaterThan(300);
+  /* ⛔★화면 px(`bubRect.w`)로 ★걸지 ★마라 — ★★배율 40% 판에서 ★★거짓 빨강이 ★난다(★r14 실측) */
+  expect(before.bubOffsetW, `★전제 — ★풍선 ★레이아웃 폭이 ★넓어졌다 `
+    + `(잰 값: offsetW ${before.bubOffsetW} · 화면 ${before.bubRect.w} · 배율 ${before.zoom}%)`)
+    .toBeGreaterThan(300);
 });
 
 /* ══ ★★★⒨ ★처방을 ★잠근다 — ★★⒝(★이름표에 ★따로) ★판정 2026-10-10(지디) ═══════════════
