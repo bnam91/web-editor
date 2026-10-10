@@ -272,3 +272,63 @@ export function starRatingPreview(rating) {
   const r = clampStarRating(rating) ?? STAR_RATING_MAX;
   return '★'.repeat(r) + '☆'.repeat(STAR_RATING_MAX - r);
 }
+
+/* ══ 별 «개별 색» (현빈 2026-10-10 · 1010t1b2 의 ★색 축) ═══════════════════════════
+ * ★현빈 원문: 「캔버스에서 별모양의 쉐이프블럭을 ★더블클릭하면, ★개별 별모양 블럭을 선택하고
+ *               ★색 지정 및 ★모서리 핸들로 크기조절이 ★개별로 가능하게 해줄 것」
+ * ★★이 자리는 ★그 중 ★«색»뿐이다 — ★«크기»(starScales)는 ★★아직 ★안 만들었다(지디 판정 ⑧ 대기).
+ *
+ * ★★꼴 = ★index keyed ★목록. ★빈 칸 = ★«물려받는다»(그 별만 블록 색을 따른다).
+ *   예: "#ff0000,,#00ff00"  ⇒ 0번 빨강 · ★1번 물려받음 · 2번 초록 · 그 뒤 전부 물려받음
+ * ★★★미설정(키 없음) = ★«전부 물려받음» ⇒ ★옛 저장본과 ★바이트 동일하다.
+ *   ★이 꼴은 ★`starInner`·`starGap`·`starRating` 의 ★특례와 ★★같은 규율이다. ⛔null 을 색으로 바꾸지 마라.
+ *
+ * ★★왜 ★dataset 인가 — ★★points 에 ★못 녹인다. ★색은 ★기하가 ★아니다.
+ *   ＋ ★`_applyStarGeom` 이 ★사람이 ★패널을 ★만질 때마다 ★polygon 을 ★다시 쓴다
+ *     ⇒ ★★DOM 의 fill 만 믿으면 ★★한 번 만지면 ★사라진다. ★★dataset 이 ★정본이다(그 파일의 그 문장).
+ *
+ * ★★★평점과 ★겹칠 때 — ★★«개별 색이 ★이긴다»로 두었다. ★★이것은 ★내 기본값이다(지디 판정 대기).
+ *   ★까닭 = ★개별 색은 ★사람이 ★그 별 ★하나에 ★직접 한 일이고, ★평점 칠은 ★★평점에서 ★파생된 것이다.
+ *     ⇒ ★«명시»가 ★«파생»을 ★이긴다.
+ *   ★★그리고 ★둘은 ★★다른 dataset 에 ★따로 산다 ⇒ ★★어느 쪽도 ★남의 ★데이터를 ★지우지 ★않는다
+ *     ⇒ ★★가역이다(★그라데이션 칸에서 ★배운 그 자). ⇒ ★뒤집어도 ★싸다.
+ * ★★★그리고 ★칠의 ★임자는 ★★이 파일의 ★`starFillsFor` ★하나다 — ⛔부르는 쪽에서 ★섞지 마라.
+ *   ★까닭: ★평점·개별색이 ★★각자 ★polygon 에 ★쓰면 ★★«누가 마지막에 썼나»가 ★칠을 정한다(순서 의존). */
+export const STAR_COLORS_SEP = ',';
+
+/** `data-star-colors` → (색|null) 배열 길이 count. ★미설정이면 ★null(=전부 물려받음). */
+export function starColorList(raw, count) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+  const c = clampStarCount(count);
+  const parts = String(raw).split(STAR_COLORS_SEP);
+  const out = Array.from({ length: c }, (_, i) => {
+    const v = (parts[i] === undefined ? '' : String(parts[i]).trim());
+    return v === '' ? null : v;
+  });
+  /* ★★칸이 ★전부 ★비었으면 ★미설정과 ★같다 — ⛔",",",,," 가 ★«설정»으로 ★보이면 ★옛 바이트가 ★깨진다 */
+  return out.some(v => v !== null) ? out : null;
+}
+
+/** (색|null) 배열 → `data-star-colors` 문자열. ★전부 null 이면 ★null(=키를 ★지우라는 뜻). */
+export function starColorsAttr(list) {
+  if (!Array.isArray(list) || !list.some(v => v)) return null;
+  /* ★꼬리의 ★빈 칸은 ★버린다 — ★같은 뜻이면 ★짧은 쪽이 ★정본이다(직렬화가 ★흔들리지 않게) */
+  const trimmed = list.slice();
+  while (trimmed.length && !trimmed[trimmed.length - 1]) trimmed.pop();
+  return trimmed.map(v => (v ? String(v) : '')).join(STAR_COLORS_SEP);
+}
+
+/* ★★★polygon 의 ★fill 을 정하는 ★★단 ★하나의 자.
+ * ★돌려주는 배열의 ★null = ★★«fill 속성을 ★쓰지 ★말라»(=블록 색·그라데이션을 ★물려받는다).
+ * ★우선순위: ★개별 색 ＞ ★평점 칠 ＞ ★물려받기. (★위 머리말의 그 까닭) */
+export function starFillsFor({ rating, colors, count } = {}) {
+  const c = clampStarCount(count);
+  const rate = starRatingFills(rating, c);
+  const cols = starColorList(colors, c);
+  if (!rate && !cols) return null;                 // ★둘 다 미설정 = ★옛 별 그대로
+  return Array.from({ length: c }, (_, i) => {
+    const own = cols ? cols[i] : null;
+    if (own) return own;                           // ★명시가 ★파생을 ★이긴다
+    return rate ? rate[i] : null;
+  });
+}

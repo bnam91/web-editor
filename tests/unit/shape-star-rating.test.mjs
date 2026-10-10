@@ -178,8 +178,19 @@ test('R9 ★★그라데이션 별을 ★죽이지 않는다 — ★뗄 때 ★�
      ★그라데이션(`url(#…)`)이 ★polygon 속성에 사는 별의 ★칠이 ★사라진다. */
   /* ⛔★여기 ★`!regex` ★단언을 ★뒀다가 ★★지웠다 — ★`A || B` 꼴이라 ★B 가 참인 동안 ★★항상 참이었다.
      ⇒ ★★아무것도 ★안 잠그는 단언이 ★«덮었다»로 ★읽힌다. ★아래 ★한 줄이 ★참으로 ★재는 자다. */
-  assert.match(PANEL, /cur === STAR_FILL_ON \|\| cur === STAR_FILL_OFF/,
-    '★★«내가 칠한 두 색일 때만» 떼는 ★가드가 ★없다');
+  /* ★★이 닻은 ★1010t1b2(개별 색)에서 ★한 번 ★빨개졌고 ★★맞는 빨강이었다 — ★가드가 ★★세졌다:
+     ★옛 꼴 = `cur === STAR_FILL_ON || cur === STAR_FILL_OFF` (평점 두 색만)
+     ★새 꼴 = ★`isMine(cur, i)` — ★평점 두 색 ★＋ ★사람이 ★그 별에 ★직접 준 색까지 ★«내 것»으로 센다
+     ⇒ ★★닻을 ★그 술어로 갈았다. ⛔제품이 ★약해진 것이 ★아니다 — ★덮는 범위가 ★늘었다. */
+  const own = PANEL.match(/const isMine = [\s\S]*?;/);
+  assert.ok(own, '★«내 것인가»를 가리는 술어가 ★없다 — ★무조건 떼면 ★그라데이션이 죽는다');
+  assert.match(own[0], /STAR_FILL_ON/, '★술어가 ★평점 ★채운 색을 ★안 센다');
+  assert.match(own[0], /STAR_FILL_OFF/, '★술어가 ★평점 ★빈 색을 ★안 센다');
+  /* ★★그리고 ★떼는 자리가 ★★그 술어에 ★매여 있나 — ⛔술어만 있고 ★안 쓰면 ★장식이다 */
+  const removes = (PANEL.match(/poly\.removeAttribute\('fill'\)/g) || []).length;
+  assert.strictEqual(removes, 1, `★fill 을 떼는 자리가 ★${removes} 군데다 — ★하나여야 한다`);
+  assert.match(PANEL, /isMine\(cur, i\)\) \{\s*\n\s*poly\.removeAttribute\('fill'\);/,
+    '★떼는 자리가 ★★«내 것인가» 술어에 ★안 매여 있다 — ★그라데이션 별이 ★조용히 하얘진다');
 });
 
 test('R10 ★★«평점이 그라데이션을 덮는다»가 ★★가역이다 — ★끄면 ★참조가 ★되돌아온다 (지디 요청 실측)', () => {

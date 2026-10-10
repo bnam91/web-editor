@@ -10,7 +10,8 @@ import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          clampStarRating, starRatingFills, starRatingPreview,
          STAR_RATING_MIN, STAR_RATING_MAX, STAR_RATING_COUNT,
          STAR_FILL_ON, STAR_FILL_OFF,
-         starViewBoxWidth, starFrameWidthFor } from '../shape-star.js';
+         starViewBoxWidth, starFrameWidthFor,
+         starFillsFor, starColorList, starColorsAttr } from '../shape-star.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
@@ -713,14 +714,26 @@ ${blockHeaderHTML({
        ★fill 을 ★속성으로 쓰는 것은 ★이 파일의 선례다(위 cloneNode 주석의 그 까닭 — 그라데이션이 polygon 속성에 산다).
        ⛔★그래서 ★끌 때 ★`removeAttribute('fill')` 를 ★무조건 ★부르면 ★★그라데이션 별의 ★칠을 ★죽인다.
          ⇒ ★★«내가 칠한 두 색일 때만» 뗀다. ★실측 근거 = 그 cloneNode 주석이 ★url(#…) 을 ★이름으로 적어 뒀다. */
-    const fills = starRatingFills(block.dataset.starRating, count);
+    /* ★★칠의 임자는 ★`starFillsFor` ★하나다(1010t1b2) — ★평점 ＋ ★개별 색을 ★거기서 ★합친다.
+       ⛔여기서 ★둘을 ★섞지 마라 — ★각자 쓰면 ★«누가 마지막에 썼나»가 ★칠을 정한다(순서 의존).
+       ★null 칸 = ★«fill 속성을 ★쓰지 ★말라» = ★블록 색·그라데이션을 ★물려받는다. */
+    const fills = starFillsFor({
+      rating: block.dataset.starRating, colors: block.dataset.starColors, count,
+    });
+    /* ★내가 ★칠한 것인지 ★가리는 자 — ⛔무조건 ★떼면 ★그라데이션 `url(#…)` 이 ★죽는다
+       (그 까닭은 ★`_restoreShapeGradientFill` 머리말에 ★한 벌로 적혀 있다).
+       ★평점 두 색 ＋ ★사람이 ★그 별에 ★직접 준 색까지가 ★«내 것»이다. */
+    const mineNow = starColorList(block.dataset.starColors, count);
+    const isMine = (v, i) => v === STAR_FILL_ON || v === STAR_FILL_OFF
+      || (mineNow && mineNow[i] && v === mineNow[i]);
     polys.forEach((poly, i) => {
       if (poly.getAttribute('points') !== list[i]) poly.setAttribute('points', list[i]);
-      if (fills) {
-        if (poly.getAttribute('fill') !== fills[i]) poly.setAttribute('fill', fills[i]);
-      } else {
-        const cur = poly.getAttribute('fill');
-        if (cur === STAR_FILL_ON || cur === STAR_FILL_OFF) poly.removeAttribute('fill');
+      const want = fills ? fills[i] : null;
+      const cur = poly.getAttribute('fill');
+      if (want) {
+        if (cur !== want) poly.setAttribute('fill', want);
+      } else if (cur !== null && isMine(cur, i)) {
+        poly.removeAttribute('fill');
       }
     });
   };
