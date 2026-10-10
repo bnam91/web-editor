@@ -11,7 +11,9 @@ import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          STAR_RATING_MIN, STAR_RATING_MAX, STAR_RATING_COUNT,
          STAR_FILL_ON, STAR_FILL_OFF,
          starViewBoxWidth, starFrameWidthFor,
-         starFillsFor, starColorList, starColorsAttr } from '../shape-star.js';
+         starFillsFor, starColorList, starColorsAttr,
+         starScaleList, starScalesAttr, clampStarScale,
+         STAR_SCALE_MIN, STAR_SCALE_MAX, STAR_SCALE_DEFAULT } from '../shape-star.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
@@ -695,10 +697,19 @@ ${blockHeaderHTML({
     const count = clampStarCount(block.dataset.starCount);
     const gap   = clampStarGap(block.dataset.starGap);
     const inner = clampStarInner(block.dataset.starInner);
-    const list = starPointsList(n, count, gap, inner);
+    /* ★★`starColors`·`starScales` 를 ★읽는 자는 ★★이 함수 ★하나다(지디 ⑧ 의 ★조건).
+       ⇒ ★읽는 자가 ★둘이 되면 ★그때 ★명부가 ★참으로 ★둘이 된다. ⛔다른 곳에서 ★읽지 ★마라. */
+    const list = starPointsList(n, count, gap, inner, block.dataset.starScales);
     const vb = starViewBox(count, gap);
     if (svg.getAttribute('viewBox') !== vb) svg.setAttribute('viewBox', vb);
     const polys = [...svg.querySelectorAll('polygon')];
+    /* ★★«이 칠은 ★내가 한 것인가»를 가리는 ★명부 — ⛔무조건 ★떼면 ★그라데이션 `url(#…)` 이 ★죽는다
+       (그 까닭은 ★`_restoreShapeGradientFill` 머리말에 ★한 벌로 적혀 있다).
+       ★든 것 = ★평점 두 색 ＋ ★사람이 ★어느 별에든 ★직접 준 색 ★전부.
+       ★★«어느 별에든»인 까닭 = ★복제가 ★첫 별의 색을 ★다른 index 로 ★옮겨 놓기 때문이다(⒜ 함정).
+         ⇒ ★index 별로만 보면 ★번진 색을 ★«내 것»으로 ★못 알아본다. */
+    const _mineFills = new Set([STAR_FILL_ON, STAR_FILL_OFF]);
+    (starColorList(block.dataset.starColors, count) || []).forEach(v => { if (v) _mineFills.add(v); });
     /* 갯수가 줄면 남는 polygon 을 지우고, 늘면 첫 polygon 을 ★복제해서 더한다
        (fill·stroke 는 svg 의 style 상속 ＋ 그라데이션 url(#…) 이 polygon 속성에 있을 수 있어
         ⛔createElementNS 로 새로 만들지 않는다 — 그러면 그라데이션이 걸린 별만 색이 샌다). */
@@ -707,6 +718,11 @@ ${blockHeaderHTML({
       const seed = polys[0];
       if (!seed) break;
       const cl = seed.cloneNode(false);
+      /* ★★★⒜ 함정(1010t1b2) — ★복제는 ★첫 별의 ★칠을 ★물고 온다 ⇒ ★개별 색이 ★새 별로 ★번진다.
+         ★칠은 ★아래 fills 루프가 ★제 index 로 ★다시 정하므로 ★여기서는 ★«내 칠»만 ★떼어 둔다.
+         ⛔무조건 떼면 ★그라데이션 `url(#…)` 이 ★떨어진다 — ★그게 ★이 복제를 ★쓰는 ★본래 까닭이다
+           (위 cloneNode 주석) ⇒ ★★`_mineFills` 에 든 것만 ★뗀다. */
+      if (_mineFills.has(cl.getAttribute('fill'))) cl.removeAttribute('fill');
       seed.parentNode.appendChild(cl);
       polys.push(cl);
     }
@@ -720,19 +736,13 @@ ${blockHeaderHTML({
     const fills = starFillsFor({
       rating: block.dataset.starRating, colors: block.dataset.starColors, count,
     });
-    /* ★내가 ★칠한 것인지 ★가리는 자 — ⛔무조건 ★떼면 ★그라데이션 `url(#…)` 이 ★죽는다
-       (그 까닭은 ★`_restoreShapeGradientFill` 머리말에 ★한 벌로 적혀 있다).
-       ★평점 두 색 ＋ ★사람이 ★그 별에 ★직접 준 색까지가 ★«내 것»이다. */
-    const mineNow = starColorList(block.dataset.starColors, count);
-    const isMine = (v, i) => v === STAR_FILL_ON || v === STAR_FILL_OFF
-      || (mineNow && mineNow[i] && v === mineNow[i]);
     polys.forEach((poly, i) => {
       if (poly.getAttribute('points') !== list[i]) poly.setAttribute('points', list[i]);
       const want = fills ? fills[i] : null;
       const cur = poly.getAttribute('fill');
       if (want) {
         if (cur !== want) poly.setAttribute('fill', want);
-      } else if (cur !== null && isMine(cur, i)) {
+      } else if (cur !== null && _mineFills.has(cur)) {
         poly.removeAttribute('fill');
       }
     });

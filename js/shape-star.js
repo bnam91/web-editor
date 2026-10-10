@@ -213,20 +213,37 @@ export function starFrameWidthFor(curW, prevCount, prevGap, nextCount, nextGap) 
   return w * nextVb / prevVb;
 }
 
-/** i 번째(0부터) 별의 points — 별 하나의 좌표를 가로로 i·200 만큼 옮긴 것. */
-export function starPointsAt(n, i = 0, gap, inner) {
+/** i 번째(0부터) 별의 points — 별 하나의 좌표를 가로로 i·(200＋간격) 만큼 옮긴 것.
+ *  ★`scale`(1010t1b2 · ％)이 있으면 ★«그 별의 중심»에서 ★배율을 ★points 에 ★녹인다.
+ *  ★★배율 미설정·100 이면 ★★옛 길을 ★그대로 탄다 — ★계산을 ★안 타므로 ★바이트가 ★동일하다. */
+export function starPointsAt(n, i = 0, gap, inner, scale) {
   const base = starPoints(n, inner);
   const dx = (STAR_VB_W + clampStarGap(gap)) * Math.max(0, Math.round(Number(i)) || 0);
-  if (!dx) return base;
+  const s = clampStarScale(scale);
+  /* ★★옛 길 — ⛔배율이 없으면 ★한 글자도 ★다른 계산을 ★타지 않는다(바이트 보존의 자리) */
+  if (s === null || s === STAR_SCALE_DEFAULT) {
+    if (!dx) return base;
+    return base.trim().split(/\s+/)
+      .map(pair => { const [x, y] = pair.split(','); return (r2(Number(x) + dx)) + ',' + y; })
+      .join(' ');
+  }
+  /* ★배율은 ★«그 별의 중심»(CX＋dx, CY)에서 — ⛔틀 원점에서 주면 ★별이 ★옆으로 ★밀린다 */
+  const k = s / 100;
+  const cx = CX + dx;
   return base.trim().split(/\s+/)
-    .map(pair => { const [x, y] = pair.split(','); return (r2(Number(x) + dx)) + ',' + y; })
+    .map(pair => {
+      const [x, y] = pair.split(',').map(Number);
+      return r2(cx + (x - CX) * k) + ',' + r2(CY + (y - CY) * k);
+    })
     .join(' ');
 }
 
-/** 별 count 개의 polygon points 배열. count=1 이면 [starPoints(n)] — 옛 한 벌 그대로. */
-export function starPointsList(n, count, gap, inner) {
+/** 별 count 개의 polygon points 배열. count=1 이면 [starPoints(n)] — 옛 한 벌 그대로.
+ *  ★`scales` = `data-star-scales` 문자열(1010t1b2) — ★미설정이면 ★전부 옛 길이다. */
+export function starPointsList(n, count, gap, inner, scales) {
   const k = clampStarCount(count);
-  return Array.from({ length: k }, (_, i) => starPointsAt(n, i, gap, inner));
+  const sl = starScaleList(scales, k);
+  return Array.from({ length: k }, (_, i) => starPointsAt(n, i, gap, inner, sl ? sl[i] : null));
 }
 
 /* ══ 별 «평점»(별점) (현빈 2026-10-10 · 1010t1b3) ═══════════════════════════════
@@ -331,4 +348,62 @@ export function starFillsFor({ rating, colors, count } = {}) {
     if (own) return own;                           // ★명시가 ★파생을 ★이긴다
     return rate ? rate[i] : null;
   });
+}
+
+/* ══ 별 «개별 크기» (현빈 2026-10-10 · 1010t1b2 의 ★크기 축 · 지디 판정 ⑧) ═══════════
+ * ★현빈 원문: 「…★모서리 핸들로 ★크기조절이 ★개별로 가능하게 해줄 것」
+ * ★★상태는 ★dataset 에 산다(지디 판정 ⑧ · 2026-10-10) — ⛔points 에 ★«녹이기만» 하면 ★사라진다:
+ *   ★`_applyStarGeom` 이 ★사람이 ★아무 칸을 만질 때마다 ★points 를 ★dataset 에서 ★다시 만든다.
+ *   ★실측: points 는 ★저장·복원은 ★된다(proj.json 에 글자로 있고 star 는 dynamic 이 아니라 canon 에 안 덮인다)
+ *     ★★그러나 ★«패널 한 번 만지면» ★죽는다 ⇒ ★★저장되는 것과 ★살아남는 것은 ★다른 물음이다.
+ * ★★«기하를 어디에 쓰나» = ★★points (지디 판정 · 유효) · ★★«상태가 어디 사나» = ★★dataset (이 자리)
+ *
+ * ★★★상한 ★100 — ★★기하에서 ★나왔다(⛔내가 고른 수가 ★아니다). ★실측 2026-10-10:
+ *   ★배율을 ★«그 별의 중심»에서 ★올릴 때 ★y 가 ★viewBox(0~190)를 ★안 넘는 ★최대 배율
+ *     = ★★1.0075 (★최악 = ★n=4 · inner 미설정 — ★짝수 n 은 ★꼭지가 ★아래를 ★곧장 가리킨다)
+ *     ★손검산: 위 꼭지 s ≤ CY/R_OUT = 1.0882 · 아래 s ≤ (190−CY)/(R_OUT·cos36°) = 1.2453
+ *     ⇒ ★n 에 따라 ★여유가 ★다르지만(n=5 는 ★1.088) ★★전수 최악의 ★내림이 ★100 이다.
+ *   ★★왜 ★n 별 표를 ★안 만드나 — ★★그 표가 ★★«둘째 명부»다(n 을 키로 하는 수의 집합).
+ *     ⇒ ★`starInner` 의 선례와 ★같은 꼴로 ★★전수에서 ★안전한 ★한 수를 ★쓴다.
+ *   ★★★그래서 ★★«키우기»는 ★안 된다 — ★줄이기만 된다. ★★이건 ★★기능의 한계이고 ★지디·현빈께 ★올렸다.
+ *     ★까닭 = ★별 하나의 ★틀이 ★200×190 이고 ★svg 는 ★viewBox 밖을 ★자른다
+ *       (★`.shape-block .shape-svg` 에 ★overflow 선언이 ★0건 ⇒ ★바깥 svg 의 ★UA 기본값 = ★자른다)
+ *     ⇒ ★키우려면 ★틀을 ★키워야 하고 ★그러면 ★★모든 별이 ★같이 작아진다(preserveAspectRatio=none)
+ * ★하한 ★10 — ★★기하 제약이 ★없다. ★★내가 고른 수다(10％ 면 아직 보인다). ⇒ ★★넓혀도 ★싸다.
+ * ★★★미설정(키 없음) = ★★전부 100 = ★옛 바이트 ★그대로. ⛔null 을 100 으로 ★바꾸지 마라. */
+export const STAR_SCALE_MIN = 10;
+export const STAR_SCALE_MAX = 100;
+export const STAR_SCALE_DEFAULT = 100;
+
+/** 배율 ％ → 10~100 정수, 또는 ★null(미설정). */
+export function clampStarScale(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const k = Math.round(Number(v));
+  if (!Number.isFinite(k)) return null;
+  return Math.min(STAR_SCALE_MAX, Math.max(STAR_SCALE_MIN, k));
+}
+
+/** `data-star-scales` → (％|null) 배열 길이 count. ★미설정이면 ★null. ★빈 칸·100 은 ★null(=배율 없음). */
+export function starScaleList(raw, count) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+  const c = clampStarCount(count);
+  const parts = String(raw).split(STAR_COLORS_SEP);
+  const out = Array.from({ length: c }, (_, i) => {
+    const v = clampStarScale(parts[i] === undefined ? '' : String(parts[i]).trim());
+    /* ★100 은 ★«배율 없음»과 ★같다 ⇒ ★null 로 접는다 — ★옛 길(바이트 동일)을 ★타게 한다 */
+    return (v === null || v === STAR_SCALE_DEFAULT) ? null : v;
+  });
+  return out.some(v => v !== null) ? out : null;
+}
+
+/** (％|null) 배열 → `data-star-scales` 문자열. ★전부 null 이면 ★null(=키를 ★지우라는 뜻). */
+export function starScalesAttr(list) {
+  if (!Array.isArray(list)) return null;
+  const norm = list.map(v => {
+    const k = clampStarScale(v);
+    return (k === null || k === STAR_SCALE_DEFAULT) ? null : k;
+  });
+  if (!norm.some(v => v !== null)) return null;
+  while (norm.length && norm[norm.length - 1] === null) norm.pop();
+  return norm.map(v => (v === null ? '' : String(v))).join(STAR_COLORS_SEP);
 }

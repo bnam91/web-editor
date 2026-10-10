@@ -173,24 +173,35 @@ test('R8 ★배선 — ★켤 때 ★갯수를 ★5 로 맞추고 ★그 임자�
     '★평점을 끌 때 ★키를 ★지우지 않는다 — ★옛 바이트가 ★안 지켜진다');
 });
 
-test('R9 ★★그라데이션 별을 ★죽이지 않는다 — ★뗄 때 ★«내가 칠한 두 색일 때만»', () => {
-  /* ★이 파일 ★머리말의 그 함정이다: `_applyStarGeom` 이 ★polygon 의 fill 을 ★무조건 떼면
-     ★그라데이션(`url(#…)`)이 ★polygon 속성에 사는 별의 ★칠이 ★사라진다. */
-  /* ⛔★여기 ★`!regex` ★단언을 ★뒀다가 ★★지웠다 — ★`A || B` 꼴이라 ★B 가 참인 동안 ★★항상 참이었다.
-     ⇒ ★★아무것도 ★안 잠그는 단언이 ★«덮었다»로 ★읽힌다. ★아래 ★한 줄이 ★참으로 ★재는 자다. */
-  /* ★★이 닻은 ★1010t1b2(개별 색)에서 ★한 번 ★빨개졌고 ★★맞는 빨강이었다 — ★가드가 ★★세졌다:
-     ★옛 꼴 = `cur === STAR_FILL_ON || cur === STAR_FILL_OFF` (평점 두 색만)
-     ★새 꼴 = ★`isMine(cur, i)` — ★평점 두 색 ★＋ ★사람이 ★그 별에 ★직접 준 색까지 ★«내 것»으로 센다
-     ⇒ ★★닻을 ★그 술어로 갈았다. ⛔제품이 ★약해진 것이 ★아니다 — ★덮는 범위가 ★늘었다. */
-  const own = PANEL.match(/const isMine = [\s\S]*?;/);
-  assert.ok(own, '★«내 것인가»를 가리는 술어가 ★없다 — ★무조건 떼면 ★그라데이션이 죽는다');
-  assert.match(own[0], /STAR_FILL_ON/, '★술어가 ★평점 ★채운 색을 ★안 센다');
-  assert.match(own[0], /STAR_FILL_OFF/, '★술어가 ★평점 ★빈 색을 ★안 센다');
-  /* ★★그리고 ★떼는 자리가 ★★그 술어에 ★매여 있나 — ⛔술어만 있고 ★안 쓰면 ★장식이다 */
+test('R9 ★★그라데이션 별을 ★죽이지 않는다 — ★뗄 때 ★«내 칠일 때만» (명부로 가린다)', () => {
+  /* ★이 파일 머리말의 그 함정: `_applyStarGeom` 이 ★polygon 의 fill 을 ★무조건 떼면
+     ★그라데이션(`url(#…)`)이 ★polygon 속성에 사는 별의 ★칠이 ★사라진다.
+
+     ★★★이 칸은 ★닻을 ★세 번 갈았다 — ★★세 번 ★다 ★«제품이 ★세진 것»이었다:
+       ⑴ `cur === STAR_FILL_ON || cur === STAR_FILL_OFF`     (평점 두 색만)
+       ⑵ `isMine(cur, i)`                                     (＋그 index 의 개별 색)
+       ⑶ ★`_mineFills` ★명부(Set)                              (＋★어느 별의 개별 색이든)
+         ★⑶ 이 된 까닭 = ★복제가 ★첫 별의 색을 ★다른 index 로 ★옮긴다(⒜ 함정)
+           ⇒ ★index 별로만 보면 ★번진 색을 ★«내 것»으로 ★못 알아본다.
+     ★★교훈(적어 둔다): ★★소스 문자열 닻은 ★제품이 ★세질 때마다 ★썩는다.
+       ⇒ ★★그때 ★«빨강»을 ★제품 결함으로 ★읽지 ★마라 — ★★둘을 ★나란히 놓고 ★어느 쪽이 ★세졌나를 보라.
+       ⇒ ★★이 꼴의 ★참 처방은 ★★DOM 으로 ★행위를 재는 것이다(★창 차례 · ★여기선 ★못 한다). */
+  /* ⒜ ★«내 칠» 명부가 ★있다 */
+  const roster = PANEL.match(/const _mineFills = new Set\(\[[^\]]*\]\);/);
+  assert.ok(roster, '★«내 칠» 명부가 ★없다 — ★무조건 떼면 ★그라데이션이 죽는다');
+  assert.match(roster[0], /STAR_FILL_ON/, '★명부에 ★평점 ★채운 색이 없다');
+  assert.match(roster[0], /STAR_FILL_OFF/, '★명부에 ★평점 ★빈 색이 없다');
+  /* ⒝ ★개별 색 ★전부가 ★그 명부에 ★든다 — ⛔index 별로만 보면 ★번진 색을 ★놓친다 */
+  assert.match(PANEL, /starColorList\(block\.dataset\.starColors, count\) \|\| \[\]\)\.forEach\(v => \{ if \(v\) _mineFills\.add\(v\); \}\)/,
+    '★개별 색을 ★명부에 ★안 넣는다 — ★번진 색을 ★«내 것»으로 ★못 알아본다');
+  /* ⒞ ★떼는 자리가 ★★그 명부에 ★매여 있나 — ⛔명부만 있고 ★안 쓰면 ★장식이다 */
   const removes = (PANEL.match(/poly\.removeAttribute\('fill'\)/g) || []).length;
   assert.strictEqual(removes, 1, `★fill 을 떼는 자리가 ★${removes} 군데다 — ★하나여야 한다`);
-  assert.match(PANEL, /isMine\(cur, i\)\) \{\s*\n\s*poly\.removeAttribute\('fill'\);/,
-    '★떼는 자리가 ★★«내 것인가» 술어에 ★안 매여 있다 — ★그라데이션 별이 ★조용히 하얘진다');
+  assert.match(PANEL, /_mineFills\.has\(cur\)\) \{\s*\n\s*poly\.removeAttribute\('fill'\);/,
+    '★떼는 자리가 ★명부에 ★안 매여 있다 — ★그라데이션 별이 ★조용히 하얘진다');
+  /* ⒟ ★★★⒜ 함정 — ★복제도 ★그 명부로 ★가려 ★떼나 (⛔무조건 떼면 ★그라데이션이 ★복제에서 ★떨어진다) */
+  assert.match(PANEL, /_mineFills\.has\(cl\.getAttribute\('fill'\)\)\) cl\.removeAttribute\('fill'\);/,
+    '★복제가 ★첫 별의 ★칠을 ★물고 온다 — ★개별 색이 ★새 별로 ★번진다(⒜ 함정)');
 });
 
 test('R10 ★★«평점이 그라데이션을 덮는다»가 ★★가역이다 — ★끄면 ★참조가 ★되돌아온다 (지디 요청 실측)', () => {
