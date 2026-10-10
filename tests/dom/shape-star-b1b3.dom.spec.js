@@ -105,12 +105,36 @@ async function dblclickStar(page, starIdx, { blockIdx = 0 } = {}) {
   return r;
 }
 
-/** ★패널이 ★참으로 ★떴나 — ★별 칸이 ★생길 때까지 */
-const waitPanel = (page) => page.waitForFunction(() => (
-  !!document.getElementById('shape-star-count-num') && !!document.getElementById('shape-star-gap-num')
-), undefined, { timeout: COND_MS }).catch(() => {
-  throw new Error('★★전제 미달 — ★별 패널(갯수·간격 칸)이 ★뜨지 ★않았다. ⛔본 단언까지 ★가지 ★못했다');
-});
+/** ★★★«어느 칸이 ★없는지»를 ★찍는다 — ⛔AND 로 묶어 ★«둘 다 없다»로 ★적지 ★않는다.
+ *  ★★까닭(261010 머지 19 · ★빨강 12건): ★내가 ★`waitPanel` 에 ★갯수 칸 ★AND ★간격 칸을 ★걸었다.
+ *    ★★그런데 ★`prop-shape.js:246` 은 ★★`starCount > 1` 일 때만 ★간격 줄을 ★렌더하고,
+ *    ★`STAR_COUNT_DEFAULT = 1` 이라 ★★갓 만든 별 블록엔 ★★간격 칸이 ★★없다.
+ *  ⇒ ★★★setup 에서 ★영원히 ★안 섰고, ★★내 문구는 ★「패널이 ★안 떴다」라고 ★★거짓을 ★말했다
+ *    (★지디가 ★뜬 ★스냅샷에 ★★갯수 슬라이더와 ★별점 체크박스가 ★★있었다 — ★패널은 ★떴다)
+ *  ⇒ ★★★그래서 ★★«문구도 ★측정이다» — ★★없는 ★이름을 ★★그대로 ★찍는다.
+ *  ★★＋ ★★원인을 ★버리지 ★않는다(`cause`) — ⛔`.catch(() => { throw new Error(…) })` 는
+ *    ★타임아웃·컨텍스트 소멸·네비게이션을 ★★전부 ★내 문구로 ★★덮는다(★지디 ⒞). */
+async function waitIds(page, ids, what) {
+  try {
+    await page.waitForFunction((list) => list.every((id) => !!document.getElementById(id)),
+      ids, { timeout: COND_MS });
+  } catch (e) {
+    const missing = await page.evaluate((list) => list.filter((id) => !document.getElementById(id)), ids)
+      .catch(() => ids);
+    throw new Error(`★★전제 미달 — ${what}: ★★없는 칸 = ${JSON.stringify(missing)}`
+      + ` (★찾은 칸 = ${JSON.stringify(ids.filter((i) => !missing.includes(i)))})`
+      + '. ⛔본 단언까지 ★가지 ★못했다', { cause: e });
+  }
+}
+
+/** ★패널이 ★참으로 ★떴나 — ★★«갯수 칸»만 ★요구한다.
+ *  ⛔★간격 칸을 ★여기서 ★요구하면 ★안 된다: ★갯수 1 에서는 ★★없는 게 ★맞다(★제품 설계). */
+const waitPanel = (page) => waitIds(page, ['shape-star-count-num'], '별 패널의 ★갯수 칸');
+
+/** ★간격 칸은 ★★갯수 > 1 이 ★된 ★뒤에 ★생긴다 — ★만지기 ★전에 ★그걸 ★따로 ★기다린다. */
+const waitGapInput = (page) => waitIds(page, ['shape-star-gap-num'],
+  '별 ★간격 칸(★갯수 > 1 이어야 ★생긴다 — `prop-shape.js:246`)');
+
 
 const snap = (page) => page.evaluate(() => {
   const blk = document.querySelector('#canvas .shape-block');
@@ -142,6 +166,8 @@ test('D1 ★b1 — ★간격을 올리면 ★프레임 폭이 ★늘어난다 (�
   expect(a.starCount, '전제 — 갯수 5').toBe('5');
   const w0 = a.frameW;
   expect(w0, `전제 — 갯수 5 뒤 폭이 0 이 아니다 (잰 값: ${w0})`).toBeGreaterThan(0);
+
+  await waitGapInput(page);
 
   await setNum(page, 'shape-star-gap-num', 100);
   await waitGap(page, 100);
@@ -180,6 +206,7 @@ test('D2 ★★① 후속 — ★상한 ★아래서는 ★비가 ★유지되�
 
   /* ⒜ ★상한 ★아래 — ★요구 폭이 ★860 이하라 ★비가 ★지켜진다 */
   for (const g of [50, 100]) {
+    await waitGapInput(page);
     await setNum(page, 'shape-star-gap-num', g);
     await waitGap(page, g);
     const r = await rect();
@@ -192,6 +219,7 @@ test('D2 ★★① 후속 — ★상한 ★아래서는 ★비가 ★유지되�
   }
 
   /* ⒝ ★★상한 — ★★여기서는 ★깨지는 것이 ★맞다. ★★얼마나 깨지나를 ★못박는다 */
+  await waitGapInput(page);
   await setNum(page, 'shape-star-gap-num', 200);
   await waitGap(page, 200);
   const sCap = await snap(page);
@@ -330,6 +358,7 @@ test('D7 ★★⒨ ★저장 왕복 — ★개별 색·배율이 ★저장 → �
        마이그레이션)은 ★★사람이 ★패널을 ★만질 때까지 ★★안 칠해진다.
        ★★★단 ★보통 저장본은 ★★polygon 의 ★fill·points 가 ★같이 저장되므로 ★그 길은 ★안 탄다.
        ⇒ ★★이 수를 ★지디에 ★올렸다. ⛔이 칸에서 ★그것을 ★고치지는 ★않는다(범위 밖). */
+  await waitGapInput(page);
   await setNum(page, 'shape-star-gap-num', 10);
   await waitGap(page, 10);
   const before = await snap(page);
@@ -374,6 +403,7 @@ test('D7 ★★⒨ ★저장 왕복 — ★개별 색·배율이 ★저장 → �
   /* ★★★«다시 꺼내 쓰기» — ★지디 ㉠ 의 그 칸. ★패널을 ★만져서 ★_applyStarGeom 을 ★다시 돌린다 */
   await page.evaluate(() => window.showShapeProperties?.(document.querySelector('#canvas .shape-block')));
   await waitPanel(page);
+  await waitGapInput(page);
   await setNum(page, 'shape-star-gap-num', 30);
   await waitGap(page, 30);
   const reuse = await snap(page);
