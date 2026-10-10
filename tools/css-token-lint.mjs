@@ -17,8 +17,26 @@
         전체 css/*.css 에는 hex 1,110건 · px 3,723건이 있다(2026-10-10 실측).
    ⒝ 커스텀 프로퍼티 «정의» 줄(`--x: #d8d8d8;`) — 토큰 값은 리터럴로 쓸 수밖에 없다.
       ⇒ 범위 안 hex 23건 중 13건이 이 꼴이라, 안 거르면 이 자는 즉시 소음이 된다.
-   ⒞ `var(--x, #fff)` 의 «대체값» — 이미 토큰을 먼저 쓰는 꼴이라 건드리지 않는다.
-      (var( … ) 괄호 안은 통째로 면제한다.)
+   ⒞ `var(--x, #fff)` 의 «대체값» — ★★거의 전부 ★안 잰다. ★단 하나만 잰다:
+      ★`--x` 가 ★★«어디에도(css ∪ js/html) 정의되지 않았을 때»만 ★그 대체값을 잰다.
+      ★그건 ★하드코딩 적발이 아니라 ★★«없는 토큰 이름»(오타) 적발이고, ★문구도 다르다.
+      ★★⛔「모든 대체값을 재라」는 ★★들이면 안 된다 — ★두 쪽이 ★수로 보였다:
+        · 내 실측(2026-10-10): 그 꼴로 하면 `--all` ★441 → ★594(＋153) 이고 ★144가 거짓양성.
+          출처로 가르면 ⑴css정의 ★284 ⑵js런타임 ★48 ⑶어디에도없음 ★8.
+        · advqa 실측(2026-10-10 · 분모를 ★`:root` 166 토큰 표로): ★IDIOMATIC(토큰 있고 값 같다)
+          ★99 ＋ ★UNKNOWN(:root 토큰 아님) ★50 = ★최소 ★149건이 ★빨개진다. 그 149 는
+          ★152개 CSS 레인이 ★공유하는 파일에 산다.
+        ⇒ ★두 수가 ★다른 까닭 = ★★«분모가 다르다». advqa 의 UNKNOWN 50 은 ★지역 커스텀
+          프로퍼티·JS 가 박는 이름이라 ★★이 자의 명부(css ∪ js/html ★244종)에는 ★★있다.
+      ★★⇒ ★그래서 ★이 자가 ★오늘 ★이 꼴로 ★더하는 건수는 ★★0건이다(무력화로 쟀다:
+        좁히기 ★켜짐 `--all` 441 · ★꺼짐 441). ★표본으로도 갈랐다 —
+          `var(--ui-accent-primary, #2d6fe8)` IDIOMATIC  ⇒ ★안 잡는다
+          `var(--ui-text, #ddd)`             MISMATCH   ⇒ ★안 잡는다
+          `var(--tbl-line-color, #ccc)`      지역/JS     ⇒ ★안 잡는다
+          `var(--ui-fs-11, 11px)`            ★★오타      ⇒ ★잡는다
+      ★★⛔그러므로 ★이 면제를 ★더 ★좁히지 마라 — ★그 149 는 ★«정당한 꼴»이고
+        ★«우회»와 ★모양으로 ★구분되지 않는다. ⇒ ★★범위다, ★구멍이 아니다(★`rgb()` 와 같은 칸).
+      ⛔명부를 못 만들면 ★전부 면제로 돌아가고(★소음보다 침묵) ★그 사실을 출력에 찍는다.
    ⒟ `url( … )` 안 — data:image/svg+xml 의 `%23666` 같은 자리.
    ⒠ 주석 안 — 파일 전체를 CSS 문법으로 훑어 주석·문자열을 먼저 «빈칸»으로 만든다.
       (범위 안 hex 42건 중 19건이 주석이었다. 줄 단위로 벗기면 여러 줄 주석을 놓친다.)
@@ -34,15 +52,63 @@
       산 트리의 건수(기본 4 · --all 445)도 ★하나도 안 움직였다(2026-10-10 실측).
       ⇒ 지금은 ★«재는 자가 없는» 가드다. 고치려면 그 가드를 ★무력화했을 때 빨개지는
         표본을 ★먼저 만들어라. ⛔「있으니 돈다」로 믿지 마라.
+      ★★같은 꼴이 ★둘 더 있다(2026-10-10):
+        · `refSource` 의 「0바이트면 터뜨린다」 가드 — 끄고 돌려도(n3) ★전부 초록
+        · `collectKnownVarNames` 의 ★«따옴표 안 `'--x'`» 긁기 — 끄고 돌려도(c3)
+          ★검사 41칸 초록 ＋ `--all` ★449 그대로. (★그 꼴이 잡던 `--grb-dot-hole` 을
+          ★다른 꼴(`--x:`)이 ★같이 잡아서다 — ★겹쳐 있다는 것은 ★확인했다)
+      ⇒ ★둘 다 ★재는 자가 ★없다. ⛔「있으니 돈다」로 믿지 마라.
+   ⒦ ★`blankExemptSpans` 의 색인도 ★UTF-16 로 맞춰 뒀다(⒊-① 때 같이) — ★★그 자리는
+      ★★«잠복»이다. ⛔「live 였다」로 적지 마라: advqa 실측(2026-10-10) — 선언 ★11,369개의
+      ★값을 전수로 훑어 ★astral ★0건이고, ★그 자가 ★살아 있음을 ★양성으로 확인했다.
+      ★까닭 = astral 은 ★주석·`content:"…"` 에만 살고 ★그 둘은 `blankCssNoise` 가 ★먼저 지운다.
+   ⒧ ★«실명»은 ★★1파일뿐이었다 — `css/editor-layout.css`(선언 479→558 · 669→787행).
+      `css/editor-extra.css` 는 ★길이 어긋남 −2 ＋ 선언 ★1 모자람이었다(실명 아님).
+      ⛔`css/editor-base.css` 는 ★영향 없었다 — ★더 넓게 적지 마라.
 
    ══ 범위 — 왜 「바뀐 줄」만 보나 ═══════════════════════════════════════════
    전체를 보면 hex 1,110 + px 3,723 = 4,833건이 쏟아진다. 그 수로는 아무도 안 쓴다
    (현빈 지시 2026-10-10: 「범위: 0.9.5 이후 바뀐 CSS 줄만」).
-   기준판 = `v0.9.5`(1c3beb8931c7). ⛔v0.9.5 는 HEAD 의 «조상이 아니다»(main 쪽 머지
-   커밋) — 그래서 이 자는 항상 `git merge-base <base> HEAD` 를 먼저 잡는다.
-     merge-base(v0.9.5, origin/dev=be4ebbc10c77) = 68f56937e0f9
-     ★그 둘의 css/*.css 트리는 한 줄도 다르지 않다(실측 numstat 0줄) — 그래서
-       「v0.9.5 이후」와 「merge-base 이후」가 이 파일들에서는 같은 범위다.
+   ══ ⛔이 자에 대해 ★말하면 안 되는 문장들 (★한 번씩 다 틀렸다) ═══════════════
+   ⛔「릴리스가 이 게이트를 통과했다」 — ★거짓일 수 있다. CI 가 얕은 checkout 이면
+     태그가 없어 ★SKIP 한다. ★참이려면 로그에서 ★SKIP 두 줄이 ★없음을 봐야 한다.
+   ⛔「이 레포에 하드코딩이 없다」 — 이 자는 ⑴범위 안 ⑵토큰이 있는 자리만 본다.
+   ⛔★★「범위 안 하드코딩 0건」 — ★출력의 ★「거르개 정합」 줄을 ★같이 봐야 참이다.
+     ★2026-10-10 ★한 번 그 일이 났다: css/editor-layout.css 를 ★669행까지만 봤다
+     (790줄 중 · 선언 479/558). ★Ⓑ 로 고쳤고 ★지금은 ★25/25 · 안 본 자리 0건이다.
+     ⇒ ★그래도 ★그 줄을 ★먼저 보라 — ★다음 실명은 ★다른 꼴로 온다.
+   ⛔「색 하드코딩을 잡는다」 — ★hex 만 본다. rgba «만»인 :root 토큰 15종엔 안 닿는다.
+   ⛔「px 하드코딩을 잡는다」 — ★font-size·border-radius·gap ★세 property 의 px 만.
+     ★넓히려면 ★코드가 아니라 ★«표»를 넓혀라(아래 「px 판정 기준」).
+   ⛔`--all` 의 수를 «결함 수»로 ★읽지 마라 — 범위 밖까지 센 수다(출력에도 박아 뒀다).
+   ⛔「0건이라 싸다」를 ★팀 전체로 말하지 마라 — ★레인마다 다르다(아래 「폭발 반경」).
+
+   ══ 기준판 — ⛔박지 않는다. ★파생한다 ═══════════════════════════════════════
+   ★처음엔 `DEFAULT_BASE = 'v0.9.5'` 로 ★박아 뒀고, ★★하루 만에 낡았다(2026-10-10):
+     origin/main = 9de05e189791 = ★v0.9.6 ★그 자체 · GitHub 릴리스 0.9.6 Latest ·
+     package.json 0.9.6 ★인데 자는 ★v0.9.5 를 보고 있었다.
+   ⇒ ★그 문자열이 ★둘째 명부였다(「명부가 둘이면 경고 주석으로 못 막는다 — 파생시켜 하나로」).
+   ★지금은 `deriveBase()` 가 ★origin/main(없으면 main)의 ★최신 릴리스 태그를 뽑는다.
+     ★★«두 길»로 구해 ★견준다 — `describe --abbrev=0` 와 `tag --merged --sort=-v:refname`.
+     ⛔둘이 ★갈리면 ★고르지 않는다 — {ok:false} 로 ★사람이 보게 한다.
+     ⛔못 뽑으면 ★박아둔 값으로 ★폴백하지 ★않는다 — 폴백하면 「기준판이 낡았다」가
+       ★영영 안 보인다(★실제로 그 일이 났다). CLI=HARNESS_ERROR(3) · 검사=SKIP(까닭 찍고).
+     `--base <ref>` 는 override 이고, ★쓰면 출력에 ★「--base 로 손으로 줬다」가 박힌다.
+   ★★⚠️이 창은 ★릴리스마다 ★좁아진다 — 그래서 매 실행마다 ★직전 태그 기준 범위를
+     ★같이 찍는다(「직전 태그 v0.9.5 기준 818줄 → 지금 547줄 (-271줄)」).
+     ⛔조용히 좁아지면 「조용히 낮아진 기준선」이 되고, 그건 빨간 검사보다 나쁘다.
+   ★v0.9.5 는 HEAD 의 «조상이 아니었다»(main 쪽 머지 커밋) — 그래서 이 자는 ★항상
+     `git merge-base <base> <잴 것>` 을 먼저 잡는다. ⛔두-점 diff 는 양방향이라 안 쓴다.
+
+   ★★«낡은 기준판»이 어느 쪽으로 틀리나 — ★수로 (2026-10-10 · 내 레인):
+       base=v0.9.4  범위 995줄 → 적발 11건
+       base=v0.9.5  범위 818줄 → 적발  0건   ← 박아 뒀던 값
+       base=v0.9.6  범위 547줄 → 적발  0건   ← 파생되는 값
+     ⇒ ★★낡은 기준판은 «덜» 보는 게 아니라 ★«더» 본다 ⇒ 해는 ★눈먼 것이 아니라 ★소음이다.
+     ★고치기 전 판(417d220e)에서 재면: 적발 4건 중 ★v0.9.6 창 안은 ★2건뿐이었다
+       (editor-blocks:1426 · editor-graph:213 은 ★0.9.6 에 이미 실려 나간 줄이었다).
+     ⇒ ★★그래서 ★반대 위험도 참이다 — 릴리스가 나면 ★그 전에 쓴 하드코딩은 ★창 밖으로
+       나간다. ★이 자는 「릴리스 뒤에 쓴 줄」만 본다. ★그게 설계이고, ★한계다.
 
    ★「바뀐 줄」을 잡는 법 — `git diff -U0 <merge-base> -- css/*.css` 의 `+` 줄.
      ⛔「고른 것」이지 「유일한 답」이 아니다. 네 가지로 재 봤고 수가 갈렸다(2026-10-10):
@@ -69,6 +135,26 @@
    `:root` 가 아닌 자리의 정의 59건(.text-block 11 · .grid-block … )은 ★안 쓴다:
    그것들은 «그 선택자 안에서만» 사는 지역 변수라, 다른 자리에 「이걸 쓰라」고 할 수 없다.
    `var(--a)` 사슬은 리터럴까지 풀어 둔다(--bg-app → --p-gray-950 → #1a1a1a).
+
+   ══ ★문맥 — ★모르면 ★권하지 않는다 (적대적 QA ⒊-② · 2026-10-10) ═══════════
+   ★advqa 가 심었다:
+       :root { --ui-bg-card: #ffffff; }
+       @media (prefers-color-scheme: dark) { :root { --ui-bg-card: #111111; } }
+       .light-only { background: #111111; }   ← ★「var(--ui-bg-card) 를 쓰라」로 ★적발됐다
+       .a          { background: #ffffff; }   ← ★적발 0건 (★거짓음성이 ★한 쌍으로 왔다)
+     ★그 지시를 따르면 ★라이트에서 `--ui-bg-card` 는 ★#ffffff ⇒ ★★검정이 ★흰색이 된다.
+     ★까닭 = ⑴ @media 안의 `:root` 도 ★진짜 :root 로 셌다 ⑵ resolve 가 ★last-wins 라
+       ★다크 값이 표를 덮었다 ⇒ ★표에 ★«문맥»이 ★없었다.
+   ⇒ ★두 가드:
+     ⒜ `:root` 는 ★«at-rule 깊이 0»일 때만 ★명부에 넣는다. @media 안의 것은 ★세기만 하고
+        ★출력에 ★「@media 안 :root N건은 ★안 쓴다(문맥 모름)」로 ★찍는다.
+     ⒝ 이름이 ★중복인데 ★값이 ★갈리면 ★`resolveTokens` 가 ★그 이름을 ★떨군다.
+        ⛔`buildMaps` 에 ★인자로 넘기지 않았다 — 넘기면 ★안 넘긴 호출자가 ★조용히 ★가드 없이
+        돈다. ★구조로 잠갔다(모든 소비자가 ★자동으로 받는다). ★떨군 수는 출력에 찍힌다.
+   ★지금 이 레포 = @media 안 :root ★0건 · 이름 중복 ★0종 · 값 갈림 ★0종 ⇒ ★수가 ★안 바뀐다
+     (실측: :root 166 · 색 35 · 길이 26 · 기본 0건 · --all 441건 ★전부 동일) ⇒ ★들이기 싼 때였다.
+   ⛔그래도 ★이 자는 ★테마를 ★모른다 — ★라이트 테마가 생기면(지금은 0건, design-tokens.css
+     머리말 실측) ★다크/라이트 ★둘 다 참인 토큰만 권할 수 있다. ★그때 다시 재라.
 
    ══ 무엇을 «쓰라»고 하나 — 제안 대상 패밀리 ════════════════════════════════
    같은 값을 여러 토큰이 가질 수 있다(#1a1a1a = --p-gray-950 · --ui-bg-app · --preset-h2-color).
@@ -136,6 +222,31 @@
        토큰이 ★없다(흰색 토큰은 --preset-* 밖에 없다 ⇒ ⒢ 조용히 통과). ★토큰을
        만들면 그날부터 이 자가 그 자리를 잡는다 — 그때까지는 ★안 잡는 것이 맞다.
 
+   ══ ② `--rev <ref>` 와 ★폭발 반경 — ★소비자를 세고 들여라 ══════════════════
+   ★이 자는 ★공용 본문이다. 「0건이라 싸다」를 ★내 레인 하나로 말할 수 없다
+   (「합쳐라만 말하고 합친 것을 재라를 안 말했다」 ⇒ ★소비자 수만큼 재야 한다).
+   ⇒ `--rev <ref>` 로 ★체크아웃 없이(＝★남의 트리 무접촉) 임의 레인을 잰다.
+     `git ls-tree`／`git show <ref>:css/x.css` 로 ★블롭을 읽는다. ⛔빈 것을 받으면
+     ★0바이트에서 터뜨린다 — 「0건」이 ★「안 봤다」가 되지 않게.
+   ★★전수 실측 (2026-10-10 · 레인 233개 중 ＋CSS 인 것 · load 5~8 · 각 98·110초):
+       ┌──────────────────┬ base=v0.9.5 ┬ base=v0.9.6 ┐  ← 박았던 값 / 파생되는 값
+       │ ＋CSS 레인       │        163  │         70  │
+       │ 빨강 레인(지금)  │        147  │         42  │
+       │ 적발 합          │       304건 │        71건 │
+       │ 서로 다른 자리   │         32  │         24  │
+       └──────────────────┴─────────────┴─────────────┘
+     ★적발 71건 중 ★47건이 ★같은 두 줄이었다(editor-panels:140 ×38 · editor-props:626 ×9)
+       — ★그 둘은 ★이 자가 ★처음 잡아 ★그날 고친 자리다(bdd0ceb6).
+     ⇒ ★★그 고침이 dev 에 들어가면: ★빨강 레인 ★42 → ★4 · 적발 ★71 → ★24건
+       묶음별 머지 후 — ★gd/* ★0건 · ★taeyang/*·lane-* ★0건 · 나머지 24건
+       ★남는 4 레인은 ★전부 ★묵은 가지다: feature/qa-block-admin(20건·09-16) ·
+       backup/verhist-* 둘(3건·08-28) · integ7-assembly(1건·10-04).
+       (대조 — origin/dev 10-09 · 이 레인 10-10)
+     ⇒ ★★결론: ★기준판을 ★파생시키는 것 하나가 ★반경을 147 → 42 로, ★그 위에
+       ★네 줄 고침이 42 → 4 로 줄였다. ★★「0건이라 싸다」는 ★이제 ★수로 받쳐진다.
+   ⛔위 「머지 후」 수는 ★`file:line` 으로 맞춘 ★추정이다 — 레인마다 줄번호가 다르면
+     ★과대/과소가 된다. ★머지한 뒤 ★다시 재라(`--rev` 로 ★한 번에 돈다, 레인 70개 35초).
+
    ══ 누가 ★부르나 (⛔「만들었다」로 끝나면 이 자는 ★안 돈다) ═════════════════
    ★2026-10-10 실측 — 이 레포에서 ★자동으로 도는 경로는 ★`npm test` ★하나뿐이다:
      · `pre-push` 훅(공유 .git/hooks) — ★`exit 0` 고정. 대시보드 갱신 ★알림만. 못 막는다.
@@ -170,7 +281,10 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 const CSS_DIR = 'css';
-const DEFAULT_BASE = 'v0.9.5';
+/* ⛔기준판을 ★문자열로 박지 않는다 — 박으면 그 문자열이 ★둘째 명부가 되고,
+ *   ★릴리스가 나는 날 ★조용히 낡는다. 실제로 그 일이 났다(아래 「기준판」). */
+const MAIN_REFS = ['origin/main', 'main'];
+const TAG_GLOB = 'v[0-9]*';
 
 /* ── 주석·문자열을 «빈칸»으로 — 길이와 줄 구조를 그대로 둔다 ─────────────────
  * ★왜 길이를 보존하나 = 적발 자리를 file:line:col 로 돌려주려면 원본 offset 이
@@ -180,7 +294,14 @@ const DEFAULT_BASE = 'v0.9.5';
  *   리터럴·정규식 리터럴 상태를 든다). CSS 엔 그 문법이 없고, 대신 CSS 에만 있는
  *   `url(` 비인용 토큰이 있다. 언어가 다르면 거르개도 다르다. */
 export function blankCssNoise(src) {
-  const out = Array.from(src);
+  /* ★★⛔`Array.from(src)` 로 되돌리지 마라 — 그것은 ★코드포인트 배열이고,
+   *   아래 걸음은 `src[i]`·`src.length`(★UTF-16 단위)로 읽는다. ★섞으면 ★서러게이트 쌍
+   *   하나당 ★2유닛 어긋나고, 그 뒤 ★빈칸이 ★«밀린 자리»에 찍힌다.
+   *   ★2026-10-10 실측: astral 이모지 둘(editor-layout.css:65 `📝` ·
+   *   editor-extra.css:1983 `🔗`) 때문에 ★editor-layout.css 는 ★669행까지만 봤다
+   *   (선언 479/558 · 790줄 중). ★계약 `blankCssNoise(src).length === src.length` 를
+   *   ★검사가 ★전 파일에 걸어 두었다 — 되돌리면 ★그 자리에서 빨개진다. */
+  const out = src.split('');          // ★UTF-16 단위 — 아래 색인과 ★같은 단위
   let i = 0;
   const n = src.length;
   while (i < n) {
@@ -236,8 +357,15 @@ export function scanDeclarations(blanked) {
     if (c === '}') { pushDecl(i); depth = Math.max(0, depth - 1); declStart = i + 1; i++; continue; }
     if (c === ';') { pushDecl(i); declStart = i + 1; i++; continue; }
     if (c === '(') {                        // 괄호 안의 ; 는 선언 끝이 아니다
+      const open = i;
       let d = 1; i++;
       while (i < n && d > 0) { if (blanked[i] === '(') d++; else if (blanked[i] === ')') d--; i++; }
+      /* ★짝을 못 찾으면 ⛔EOF 까지 먹지 않는다 — 먹으면 ★그 뒤 ★전부를 안 본다.
+       * ⇒ ★`(` 다음 한 글자로 돌아가 ★보통 걸음을 잇는다(`;`·`}` 가 다시 경계가 된다).
+       * ★이 가드는 ★위 색인 고침과 ★다른 것을 막는다 — ★사람이 쓴 ★진짜 짝 없는 괄호.
+       *   ⛔그래서 ★둘 중 하나로 다른 하나를 ★대신하지 마라(실측: 색인만 고치면
+       *   editor-layout 은 ★787행까지 보지만, 짝 없는 괄호가 ★새로 들어오면 또 먹는다). */
+      if (d > 0) i = open + 1;
       continue;
     }
     i++;
@@ -261,8 +389,8 @@ export function scanDeclarations(blanked) {
 
 /* ── 값에서 «면제 구간»을 빈칸으로 ─────────────────────────────────────────
  * url( … ) 과 var( … ) — ⒞⒟. 괄호 짝을 세며 걷는다. */
-export function blankExemptSpans(value) {
-  const out = Array.from(value);
+export function blankExemptSpans(value, known) {
+  const out = value.split('');          // ★UTF-16 단위 — blankCssNoise 와 같은 까닭
   const re = /\b(url|var)\s*\(/gi;
   let m;
   while ((m = re.exec(value))) {
@@ -272,7 +400,25 @@ export function blankExemptSpans(value) {
       else if (value[i] === ')') d--;
       i++;
     }
-    for (let k = m.index; k < i; k++) if (out[k] !== '\n') out[k] = ' ';
+    let stop = i;
+    if (known && m[1].toLowerCase() === 'var') {
+      const nm = /^\s*(--[A-Za-z0-9_-]+)/.exec(value.slice(m.index + m[0].length));
+      /* ★이름이 ★어디에도 없으면 ★대체값을 ★드러낸다 — `var(` ＋ 이름 ＋ `,` 까지만 면제.
+       * ⛔`known` 이 없으면(=명부를 못 만들었으면) ★옛 꼴로 ★전부 면제한다 —
+       *   ★소음보다 ★침묵이 낫다. 단 ★그 사실을 ★출력에 찍는다(main). */
+      if (nm && !known.has(nm[1])) {
+        let k = m.index + m[0].length, dd = 1;
+        while (k < i) {
+          const ch = value[k];
+          if (ch === '(') dd++;
+          else if (ch === ')') { dd--; if (dd === 0) break; }
+          else if (ch === ',' && dd === 1) break;
+          k++;
+        }
+        stop = k;
+      }
+    }
+    for (let k = m.index; k < stop; k++) if (out[k] !== '\n') out[k] = ' ';
     re.lastIndex = i;
   }
   return out.join('');
@@ -286,38 +432,76 @@ export function collectRootTokens(files, readFile) {
   /* ⛔Set 으로 센다 — 중첩 블록(@media { … })은 바깥 블록 본문에도 같은 선언이
    *   들려 있어, 자리로 안 묶으면 ★같은 줄을 두 번 센다(실측 70 vs 참값 59). */
   const nonRoot = new Set();           // 안 쓰는 것 — 수만 보고한다
+  let scopedRoot = 0;                  // ⒜ @media 등 ★안의 :root — 세기만 하고 ★안 쓴다
   for (const f of files) {
     const src = readFile(f);
     const blanked = blankCssNoise(src);
     const at = makeLineIndex(src);
-    // 블록 하나씩: 선택자는 `{` 앞의 마지막 세그먼트
-    let i = 0, n = blanked.length;
+    /* ★블록을 ★깊이와 함께 걷는다 — ⛔indexOf 로 `{` 만 주워 모으면 ★깊이를 잃는다.
+     * ★왜 깊이가 필요한가(2026-10-10 적대적 QA ⒊-②) =
+     *   `@media (prefers-color-scheme: dark) { :root { --ui-bg-card: #111111 } }`
+     *   를 ★진짜 :root 로 세면, last-wins 로 ★다크 값이 표를 덮고
+     *   ★라이트에서 쓰는 #ffffff 자리엔 ★거짓음성, ★#111111 자리엔
+     *   ★「--ui-bg-card 를 쓰라」는 ★거짓양성이 난다 ⇒ ★따르면 ★검정이 흰색이 된다.
+     * ⇒ ★문맥(media query)에 ★딸린 정의는 ★«어느 테마에서 참인지»를 이 자가 모른다.
+     *   ★모르면 ★권하지 않는다. */
+    const stack = [];                  // 열려 있는 블록의 선택자
+    let i = 0;
+    const n = blanked.length;
+    let segStart = 0;
     while (i < n) {
-      const open = blanked.indexOf('{', i);
-      if (open < 0) break;
-      const prevBound = Math.max(blanked.lastIndexOf('}', open), blanked.lastIndexOf('{', open - 1), blanked.lastIndexOf(';', open));
-      const sel = blanked.slice(prevBound + 1, open).trim();
-      // 짝 맞는 `}` 찾기
-      let j = open + 1, d = 1;
-      while (j < n && d > 0) { if (blanked[j] === '{') d++; else if (blanked[j] === '}') d--; j++; }
-      const body = blanked.slice(open + 1, j - 1);
-      const isRoot = sel === ROOT_SEL;
-      const re = /(--[A-Za-z0-9_-]+)\s*:\s*([^;}]*)/g;
-      let m;
-      while ((m = re.exec(body))) {
-        const rec = { name: m[1], raw: m[2].trim(), file: f, line: at(open + 1 + m.index).line };
-        if (isRoot) defs.push(rec); else nonRoot.add(`${f}:${rec.line}:${rec.name}`);
+      const c = blanked[i];
+      if (c === '{') {
+        const sel = blanked.slice(segStart, i).trim().split('\n').pop().trim();
+        stack.push(sel);
+        segStart = i + 1;
+        /* 이 블록의 본문(중첩 블록 제외)에서 선언을 긁는다 */
+        let j = i + 1, d = 1;
+        while (j < n && d > 0) { if (blanked[j] === '{') d++; else if (blanked[j] === '}') d--; j++; }
+        const body = blanked.slice(i + 1, j - 1).replace(/\{[^{}]*\}/g, '');
+        const isRoot = sel === ROOT_SEL;
+        const atDepth = stack.length - 1;        // 이 :root 를 감싼 블록 수
+        const re = /(--[A-Za-z0-9_-]+)\s*:\s*([^;}]*)/g;
+        let m;
+        while ((m = re.exec(body))) {
+          const rec = { name: m[1], raw: m[2].trim(), file: f, line: at(i + 1 + m.index).line };
+          if (isRoot && atDepth === 0) defs.push(rec);
+          else if (isRoot) scopedRoot++;         // ⒜ ★@media 안의 :root — 안 쓴다
+          else nonRoot.add(`${f}:${rec.line}:${rec.name}`);
+        }
+        i++;
+        continue;
       }
-      i = open + 1;                    // 중첩 블록(@media 안의 :root)도 다음 바퀴에 잡힌다
+      if (c === '}') { stack.pop(); segStart = i + 1; i++; continue; }
+      if (c === ';') { segStart = i + 1; i++; continue; }
+      i++;
     }
   }
-  return { defs, nonRootCount: nonRoot.size };
+  return { defs, nonRootCount: nonRoot.size, scopedRootCount: scopedRoot };
+}
+
+/* ── ⒝ 이름이 ★중복인데 ★값이 갈리는 토큰 — ★제안표에서 빼라 ───────────────
+ * ★「모르면 ★권하지 마라」. 같은 이름이 두 값을 가지면 ★어느 쪽이 그 줄에서
+ *   참인지 이 자가 ★모른다(문맥·순서·특이도). ⇒ ★빼는 쪽이 ★틀린 제안보다 낫다.
+ * ★같은 값으로 두 번 적힌 것은 ★갈림이 아니다(그대로 둔다). */
+export function conflictingNames(defs) {
+  const byName = new Map();
+  for (const d of defs) {
+    if (!byName.has(d.name)) byName.set(d.name, new Set());
+    byName.get(d.name).add(d.raw);
+  }
+  const out = new Set();
+  for (const [n, vals] of byName) if (vals.size > 1) out.add(n);
+  return out;
 }
 
 /** var(--a) 사슬을 리터럴까지 푼다. 같은 이름이 여럿이면 «마지막 정의»가 이긴다(CSS 순서). */
 export function resolveTokens(defs) {
+  /* ⒝ ★갈리는 이름은 ★여기서 떨군다 — ⛔buildMaps 에 ★인자로 넘기면 ★안 넘긴 호출자가
+   *   ★조용히 가드 없이 돈다. ★구조로 잠근다(모든 소비자가 ★자동으로 받는다). */
+  const conflict = conflictingNames(defs);
   const raw = new Map();
-  for (const d of defs) raw.set(d.name, d.raw);
+  for (const d of defs) { if (conflict.has(d.name)) continue; raw.set(d.name, d.raw); }
   const resolved = new Map();
   for (const [name] of raw) {
     let v = raw.get(name);
@@ -329,6 +513,42 @@ export function resolveTokens(defs) {
     resolved.set(name, v.trim());
   }
   return resolved;
+}
+
+/* ── ⒊-① ★«이름 명부» — `var(--x, 리터럴)` 의 대체값을 ★언제 재나 ──────────
+ * ★적대적 QA(advqa)가 열었다: `var(--totally-not-a-token, #2a2a2a)` 는 ★렌더가
+ *   ★순수 하드코딩과 ★한 픽셀도 다르지 않은데 ★토큰 사용은 ★0 이다 ⇒ ★우회로다.
+ * ⛔그런데 ★«모든 대체값을 재라»는 ★처방은 ★거짓양성을 쏟는다 — ★실측 2026-10-10:
+ *   리터럴 대체값을 가진 `var(--x, lit)` ★341건을 ★출처로 가르니
+ *     ⑴ `--x` 가 ★CSS 에 정의됨        ★284건 ⇒ ★렌더에서 ★토큰이 이긴다. ⛔우회로 아니다
+ *     ⑵ `--x` 를 ★js 가 ★런타임에 박음  ★48건 ⇒ ★사용자 설정값의 ★기본값. ⛔못 바꾼다
+ *     ⑶ `--x` 가 ★어디에도 ★없음        ★★8건 ⇒ ★★진짜 우회로
+ *   ★전면 좁히면 `--all` 441 → 594(＋153) 이고 ★그 중 ★144 가 ★거짓양성이었다.
+ *   ⇒ ★자가 ★거짓양성을 쏟으면 ★사람이 ★그 자를 ★끈다. ★그래서 ⑶ 만 잰다.
+ * ★★그 8건의 정체 = `css/report-modal.css` 의 `var(--ui-fs-11, 11px)` — ★`--ui-fs-11` 은
+ *   ★없는 이름이고 ★참 이름은 `--ui-fs-base`(11px). ⇒ ★이 자는 ★«오타 탐지기»가 된다.
+ * ⛔이 명부를 만드는 자의 ★«못 보는 꼴» — ★출력에 ★찍는다:
+ *   js 쪽은 `setProperty('--x'` 와 ★소스 안의 `--x:` 글자만 본다. ★배열·변수 경유로
+ *   조립되는 이름은 ★안 센다 — ★실제로 한 번 틀렸다(`--grb-dot-hole` 이
+ *   `js/canvas-contrast.js:272` 의 ★배열 리터럴에 있어 ★9건으로 과대 계산했다 ⇒ 참값 8).
+ *   ⇒ ★그래서 ⑶ 은 ★손으로 하나씩 확인한 뒤 ★8 로 확정했다. */
+export function collectKnownVarNames(cssFiles, readCss, codeFiles, readCode) {
+  const known = new Set();
+  for (const f of cssFiles) {
+    for (const m of blankCssNoise(readCss(f)).matchAll(/(--[A-Za-z0-9_-]+)\s*:/g)) known.add(m[1]);
+  }
+  let codeHits = 0;
+  for (const f of codeFiles) {
+    const src = readCode(f);
+    if (src == null) continue;
+    /* ⛔두 꼴만 본다 — 위 「못 보는 꼴」 */
+    for (const m of src.matchAll(/setProperty\(\s*['"`](--[A-Za-z0-9_-]+)/g)) { known.add(m[1]); codeHits++; }
+    for (const m of src.matchAll(/(--[A-Za-z0-9_-]+)\s*:/g)) { known.add(m[1]); codeHits++; }
+    /* ★배열·목록 리터럴 안의 이름도 ★긁는다 — `['--a','--b']` 꼴.
+     * ★실측으로 ★놓쳤던 자리다(--grb-dot-hole). ⛔그래도 ★변수 경유 조립은 ★못 본다. */
+    for (const m of src.matchAll(/['"`](--[A-Za-z0-9_-]+)['"`]/g)) { known.add(m[1]); codeHits++; }
+  }
+  return { known, codeHits, codeFiles: codeFiles.length };
 }
 
 /* ── 제안 대상 패밀리 (머리말 「무엇을 쓰라고 하나」와 ★한 자리) ──────────── */
@@ -391,6 +611,24 @@ export function buildMaps(resolved) {
 
 function normPx(numText) { return String(parseFloat(numText)) + 'px'; }
 
+/** 그 리터럴이 ★«정의 없는 var()» 의 대체값인가 — 맞으면 그 이름을 돌려준다. */
+export function unknownVarAt(value, idx, known) {
+  if (!known) return null;
+  const re = /\bvar\s*\(\s*(--[A-Za-z0-9_-]+)/gi;
+  let m, found = null;
+  while ((m = re.exec(value))) {
+    let i = m.index + m[0].length, d = 1;
+    while (i < value.length && d > 0) {
+      if (value[i] === '(') d++;
+      else if (value[i] === ')') d--;
+      i++;
+    }
+    if (idx > m.index && idx < i && !known.has(m[1])) found = m[1];   // ★가장 ★안쪽이 이긴다
+    re.lastIndex = m.index + m[0].length;
+  }
+  return found;
+}
+
 /* ── 한 파일 훑기 ──────────────────────────────────────────────────────────── */
 const HEX_RE = /#[0-9a-fA-F]{3,8}\b/g;
 const PX_RE = /(?<![\w.#-])(\d*\.?\d+)px\b/g;
@@ -407,29 +645,128 @@ export function lintCss(src, scopeLines, maps) {
   const findings = [];
   for (const d of scanDeclarations(blanked)) {
     if (d.isCustomProp) continue;                       // ⒝
-    const val = blankExemptSpans(d.value);              // ⒞⒟
+    const val = blankExemptSpans(d.value, maps.knownVars);   // ⒞⒟ ＋ ⒊-①
     let m;
     HEX_RE.lastIndex = 0;
     while ((m = HEX_RE.exec(val))) {
       const key = normHex(m[0]);
       const names = maps.color.get(key);
       if (!names || !names.length) continue;            // ⒢ 토큰 없음 — 조용히
-      push(d, m.index, m[0], names, 'hex');
+      push(d, m.index, m[0], names, 'hex', unknownVarAt(d.value, m.index, maps.knownVars));
     }
     PX_RE.lastIndex = 0;
     while ((m = PX_RE.exec(val))) {
       const names = maps.length.get(`${d.prop}|${normPx(m[1])}`);
       if (!names || !names.length) continue;            // ⒢⒣
-      push(d, m.index, m[0], names, 'px');
+      push(d, m.index, m[0], names, 'px', unknownVarAt(d.value, m.index, maps.knownVars));
     }
   }
-  function push(d, rel, literal, names, kind) {
+  function push(d, rel, literal, names, kind, unknownVar) {
     const off = d.valueStart + rel;
     const { line, col } = at(off);
     if (scopeLines && !scopeLines.has(line)) return;    // ⒜ ★이 자의 핵심 단언
-    findings.push({ line, col, prop: d.prop, literal, tokens: rankTokens(names), kind });
+    findings.push({ line, col, prop: d.prop, literal, tokens: rankTokens(names), kind, unknownVar });
   }
   return findings.sort((a, b) => a.line - b.line || a.col - b.col);
+}
+
+/* ── Ⓐ ★거르개 정합 — ⛔「적발 0건」을 ★믿기 전에 ★«본 줄»을 보라 ────────────
+ * ★2026-10-10 적대적 QA(advqa)가 ★실명을 찾았고, ★내가 ★뿌리를 다시 쟀다:
+ *   css/editor-layout.css (790줄) — ★선언 479개만 보고 ★★669행에서 멈춘다.
+ *   css/editor-extra.css (2013줄) — ★선언 1512개(1 모자람).
+ * ★★뿌리 = ★`blankCssNoise` 가 `Array.from(src)`(★코드포인트)로 쓰고
+ *   `src[i]`·`src.length`(★UTF-16 단위)로 읽는다 ⇒ ★서러게이트 쌍 하나당 ★2유닛 어긋나고,
+ *   그 뒤 ★빈칸이 ★밀린 자리에 찍힌다. 두 파일에 ★astral 이모지가 있다
+ *   (editor-layout.css:65 `📝` · editor-extra.css:1983 `🔗`).
+ *   ★대조(2026-10-10) — astral 문자만 ★같은 UTF-16 길이의 BMP 로 바꾸면:
+ *       editor-layout  선언 479 → ★558 · 마지막 본 줄 669 → ★787/790
+ *       editor-extra   선언 1512 → ★1513
+ *     ★음성대조(무관한 한 글자 변경)는 ★안 변한다 ⇒ astral 이 ★주범이다.
+ *   ⛔advqa 가 지목한 ★`:677 $=",0)"` ＋ `:723 base64 url()` 은 ★원인이 ★아니다
+ *     — 그 줄만 중화해도 ★479/669 가 ★그대로였다(내 실측). 그 두 줄은 ★드리프트가
+ *     ★하필 깨뜨리는 자리일 뿐이다. ★처방을 그 줄에 걸면 ★다음 파일에서 또 난다.
+ * ★★지금 ★숨겨진 «진짜 위반» = ★0건 — ★고친 판으로 재 봤다(적발 0→0 · --all 441→441 ·
+ *   레인 10벌 전부 동일). ⇒ ★★«오늘 새는 위반»이 아니라 ★«자의 잠복 실명»이다.
+ * ⇒ ★그래서 이 절은 ★동작을 ★안 바꾼다. ★재서 ★출력에 ★찍는다.
+ *   ★사람이 ★「적발 0건」 옆에서 ★실명을 ★보게 하는 것이 ★구조적 처방이다.
+ *
+ * ★★Ⓑ (2026-10-10, 이어서) — ★그 실명을 ★고쳤다. ★전/후 ★수:
+ *     거르개 정합      ★23/25 → ★25/25 (안 본 자리 0건)
+ *     editor-layout    선언 479 · 669행 → ★선언 558 · ★787/790행 · 어긋남 0 · 폭주 0
+ *     editor-extra     선언 1512 → ★1513 · 어긋남 0
+ *     ★적발 수         기본 ★0 → ★0 · --all ★441 → ★441 (색 115 · 길이 326) ⇒ ★안 바뀐다
+ *   ★고침 ★둘 — ⛔하나로 다른 하나를 ★대신하지 마라(막는 것이 ★다르다):
+ *     ⒜ `src.split('')` — ★색인 단위를 ★UTF-16 로 맞춘다(★이 실명의 ★뿌리)
+ *     ⒝ 짝 없는 `(` 에서 ★EOF 까지 먹지 않고 ★`(` 다음으로 돌아간다
+ *        (★사람이 쓴 ★진짜 짝 없는 괄호 — ★색인을 고쳐도 ★그건 남는다)
+ *   ★★계약 `blankCssNoise(src).length === src.length` 를 ★검사가 ★전 파일에 걸었다
+ *     (tests/unit/css-token-lint.test.mjs · 「Ⓑ 계약 ⑴」) — ⛔`Array.from` 으로 되돌리면
+ *     ★그 자리에서 빨개진다. ★무력화 실측: b1(되돌리기) → ★5칸 빨강 · b2(⒝ off) → ★1칸.
+ *   ⛔677·723 행은 ★건드리지 않았다 — ★그건 ★결과다(위 반증).
+ *
+ * ★★★이 자가 ★처음 찾아낸 ★제품 결함 (⛔이 레인에서 ★안 고친다 — 지디 판정):
+ *   `css/report-modal.css` 의 ★`var(--ui-fs-11, 11px)` ★8곳.
+ *   ★`--ui-fs-11` 은 ★존재하지 않는다(css 0건 · js/html 0건). 참 이름 = `--ui-fs-base: 11px`
+ *   (editor-base.css:175). ⇒ 지금은 ★fallback 11px 로 그려지고, `--ui-fs-base` 가
+ *   바뀌는 날 ★그 8곳만 ★안 따라간다. ★별건으로 올렸다.
+ *   ⛔여기서 고치면 ★이 자가 ★«자기 발견»을 지워 ★다시 증명할 수 없게 된다. */
+export function scanIntegrity(src) {
+  const blanked = blankCssNoise(src);
+  const at = makeLineIndex(src);
+  const decls = scanDeclarations(blanked);
+  const lines = src.split('\n');
+  const totalLines = lines.length;
+  const lastSeen = decls.length ? at(decls[decls.length - 1].valueStart).line : 0;
+  /* ★자를 «전체 줄»로 잡으면 ★꼬리 빈 줄·`}` 만 있는 파일이 ★거짓양성으로 뜬다
+   *   (실측: notice.css 55/57 · pen-tool.css 31/33 — 둘 다 ★멀쩡하다).
+   * ⇒ ★«선언이 ★있을 수 있는 마지막 줄»(`;` 가 있는 마지막 줄)로 견준다. */
+  let lastCandidate = 0;
+  for (let i = lines.length - 1; i >= 0; i--) { if (lines[i].includes(';')) { lastCandidate = i + 1; break; } }
+  return {
+    decls: decls.length,
+    lastSeen,
+    totalLines,
+    lastCandidate,
+    /* ⑴ 거르개 출력 길이가 원본과 다르면 ★색인이 어긋난 것이다(드리프트) */
+    lenDrift: blanked.length - src.length,
+    /* ⑵ astral(서러게이트 쌍) 수 — 드리프트의 ★원천 */
+    astral: Array.from(src).filter((c) => c.codePointAt(0) > 0xFFFF).length,
+    /* ⑶ 짝을 못 찾아 끝까지 먹은 `(` 자리 */
+    runaway: runawayParens(blanked, at),
+  };
+}
+
+/** 짝 없는 `(` — 있으면 그 뒤 ★전부를 안 본다. */
+export function runawayParens(blanked, at) {
+  const out = [];
+  let i = 0;
+  const n = blanked.length;
+  while (i < n) {
+    if (blanked[i] === '(') {
+      const start = i;
+      let d = 1; i++;
+      while (i < n && d > 0) { if (blanked[i] === '(') d++; else if (blanked[i] === ')') d--; i++; }
+      if (d > 0) out.push(at(start).line);
+      continue;
+    }
+    i++;
+  }
+  return out;
+}
+
+/** 못 본 자리가 있는 파일만 돌려준다. ⛔25파일을 매번 쏟지 않는다(소음이 자를 죽인다). */
+export function integrityReport(files, read) {
+  const bad = [];
+  for (const f of files) {
+    const r = scanIntegrity(read(f));
+    /* ★`decls > 0` 을 ★같이 거는 까닭 = 블록 ★밖의 at-rule(`@charset "UTF-8";`)도 `;` 를
+     *   가져서 lastCandidate 를 올린다. 선언이 ★0인 파일(editor.css = @import 뿐)은
+     *   ★멀쩡한데 거짓양성으로 뜬다(실측). ★진짜 전면 실명은 ★lenDrift·runaway 가 잡는다. */
+    const blind = r.lenDrift !== 0 || r.runaway.length > 0
+      || (r.decls > 0 && r.lastSeen < r.lastCandidate);
+    if (blind) bad.push({ file: f, ...r });
+  }
+  return bad;
 }
 
 /* ── 범위 ──────────────────────────────────────────────────────────────────── */
@@ -444,18 +781,120 @@ function harness(msg) {
   process.exit(3);
 }
 
+/* ── ① 기준판을 ★파생시킨다 ────────────────────────────────────────────────
+ * ★「명부가 둘이면 경고 주석으로 못 막는다 — 파생시켜 하나로」.
+ *   둘째 명부였던 것 = `DEFAULT_BASE = 'v0.9.5'` ★그 문자열. ★실제로 낡았다:
+ *   2026-10-10 실측 — origin/main = 9de05e189791 = ★v0.9.6 ★그 자체(GitHub 릴리스
+ *   0.9.6 Latest · package.json 0.9.6). ★그런데 박아 둔 값은 ★v0.9.5 였다.
+ * ★★«두 길»로 구해 ★견준다 — 한 길만 쓰면 그 길이 틀렸을 때 ★모른다:
+ *   ⒜ `describe --abbrev=0`      — 역사 거리로 ★가장 가까운 태그
+ *   ⒝ `tag --merged --sort=-v:refname` — 머지된 것 중 ★가장 높은 판번호
+ *   ⛔둘이 갈리면 ★고르지 않는다 — {ok:false} 로 돌려 ★사람이 보게 한다
+ *     (갈리는 판 = hotfix 태그가 가지에 달렸거나, main 이 태그를 지나쳐 갔을 때)
+ * ⛔못 뽑으면 ★박아둔 값으로 ★폴백하지 않는다 — 폴백하면 ★「기준판이 낡았다」가
+ *   ★영영 안 보인다. CLI 는 ★HARNESS_ERROR(3), 검사는 ★SKIP(까닭 찍고)으로 간다. */
+export function deriveBase(gitFn) {
+  const g = gitFn || ((...a) => git(a));
+  let mainRef = null;
+  for (const r of MAIN_REFS) {
+    const v = g('rev-parse', '--verify', '--quiet', `${r}^{commit}`);
+    if (v.status === 0 && v.stdout.trim()) { mainRef = r; break; }
+  }
+  if (!mainRef) {
+    return { ok: false, reason: `main 줄기를 못 찾는다 (${MAIN_REFS.join(' · ')} 전부 안 보인다) — 얕은 checkout 이면 원격 가지가 없다` };
+  }
+  const a = g('describe', '--tags', '--abbrev=0', '--match', TAG_GLOB, mainRef);
+  const b = g('tag', '--list', TAG_GLOB, '--merged', mainRef, '--sort=-v:refname');
+  const viaDescribe = a.status === 0 ? a.stdout.trim() : '';
+  const viaSort = b.status === 0 ? (b.stdout.trim().split('\n')[0] || '') : '';
+  if (!viaDescribe && !viaSort) {
+    return { ok: false, reason: `${mainRef} 에 '${TAG_GLOB}' 태그가 0건 — 얕은 checkout 은 태그를 안 받는다(fetch-depth: 0 ＋ tags 필요)` };
+  }
+  if (viaDescribe !== viaSort) {
+    return { ok: false, reason: `두 길이 갈린다 — describe=${viaDescribe || '(없다)'} · 판번호순=${viaSort || '(없다)'} ⇒ ⛔골라 쓰지 않는다. 사람이 보라` };
+  }
+  return { ok: true, base: viaDescribe, mainRef, how: `${mainRef} 의 최신 릴리스 태그(describe ＝ 판번호순 ★두 길 일치)` };
+}
+
+/* ── ② `--rev <ref>` — ★체크아웃 없이 ★임의 레인을 잰다 ─────────────────────
+ * ★왜 = 이 게이트는 ★공용 본문이다. 「0건이라 싸다」를 ★내 레인 하나로 말할 수 없다.
+ *   레인마다 재려면 ★체크아웃이 필요한데, 그건 ★남의 트리를 건드리는 일이다.
+ *   ⇒ `git show <ref>:css/x.css` 로 ★블롭을 읽어 ★무접촉으로 잰다.
+ * ⛔`git show` 가 ★조용히 빈 것을 주면 ★「0건」이 ★거짓이 된다 ⇒ ★rc 와 ★길이를 ★같이 본다. */
+function refSource(rev) {
+  const ls = git(['ls-tree', '-r', '--name-only', rev, '--', `${CSS_DIR}/`]);
+  if (ls.status !== 0) harness(`ref '${rev}' 의 ${CSS_DIR}/ 를 못 읽는다: ${(ls.stderr || '').trim()}`);
+  const files = ls.stdout.split('\n').filter((f) => f.endsWith('.css')).sort();
+  if (!files.length) harness(`ref '${rev}' 에 ${CSS_DIR}/*.css 가 0개다 — 자가 ★빈 자리를 재고 있다`);
+  const cache = new Map();
+  return {
+    label: `ref ${rev}`,
+    files: () => files,
+    read: (rel) => {
+      if (cache.has(rel)) return cache.get(rel);
+      const r = git(['show', `${rev}:${rel}`]);
+      if (r.status !== 0) harness(`git show ${rev}:${rel} 가 ${r.status} 로 죽었다: ${(r.stderr || '').trim()}`);
+      if (!r.stdout.length) harness(`${rev}:${rel} 이 ★0바이트다 — ⛔「0건」으로 접지 마라(빈 것을 받은 것이다)`);
+      cache.set(rel, r.stdout);
+      return r.stdout;
+    },
+  };
+}
+
+/** js·html 파일 목록 — ⒊-① 이름 명부용. 작업트리 또는 ref. */
+function codeFiles(rev) {
+  if (rev) {
+    const r = git(['ls-tree', '-r', '--name-only', rev]);
+    if (r.status !== 0) harness(`ref '${rev}' 의 파일 목록을 못 읽는다`);
+    return r.stdout.split('\n').filter((f) => /\.(js|mjs|html)$/.test(f) && !f.startsWith('node_modules/'));
+  }
+  const out = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const rel = path.relative(ROOT, path.join(d, e.name));
+      if (e.isDirectory()) { if (!/^(node_modules|\.git|dist|out)$/.test(e.name)) walk(path.join(d, e.name)); }
+      else if (/\.(js|mjs|html)$/.test(e.name)) out.push(rel);
+    }
+  };
+  for (const d of ['js', 'pages']) { const p2 = path.join(ROOT, d); if (fs.existsSync(p2)) walk(p2); }
+  for (const f of ['index.html']) if (fs.existsSync(path.join(ROOT, f))) out.push(f);
+  return out;
+}
+
+function treeSource() {
+  const dir = path.join(ROOT, CSS_DIR);
+  if (!fs.existsSync(dir)) harness(`${CSS_DIR}/ 가 없다`);
+  const list = fs.readdirSync(dir).filter((f) => f.endsWith('.css')).sort().map((f) => `${CSS_DIR}/${f}`);
+  if (!list.length) harness(`${CSS_DIR}/*.css 가 0개다 — 자가 빈 자리를 재고 있다`);
+  return { label: '작업트리', files: () => list, read: (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8') };
+}
+
 /** base 를 merge-base 로 바꿔 돌려준다. ⛔두-점 diff 는 양방향이라 쓰지 않는다. */
-export function resolveBase(baseRef) {
+export function resolveBase(baseRef, rev) {
+  const tip = rev || 'HEAD';
   const a = git(['rev-parse', '--verify', '--quiet', `${baseRef}^{commit}`]);
   if (a.status !== 0 || !a.stdout.trim()) harness(`기준판 '${baseRef}' 를 못 찾는다`);
-  const mb = git(['merge-base', baseRef, 'HEAD']);
-  if (mb.status !== 0 || !mb.stdout.trim()) harness(`merge-base(${baseRef}, HEAD) 가 없다`);
+  const mb = git(['merge-base', baseRef, tip]);
+  if (mb.status !== 0 || !mb.stdout.trim()) harness(`merge-base(${baseRef}, ${tip}) 가 없다`);
   return { baseSha: a.stdout.trim(), mergeBase: mb.stdout.trim() };
 }
 
+/** 직전 릴리스 태그 — ★창이 릴리스마다 «좁아지는» 것을 ★수로 보이게 하려고 쓴다. */
+function prevReleaseTag(baseRef, mainRef) {
+  const b = git(['tag', '--list', TAG_GLOB, '--merged', mainRef, '--sort=-v:refname']);
+  if (b.status !== 0) return null;
+  const tags = b.stdout.trim().split('\n').filter(Boolean);
+  const i = tags.indexOf(baseRef);
+  return (i >= 0 && tags[i + 1]) ? tags[i + 1] : null;
+}
+
 /** file → Set(새 줄 번호). `git diff -U0 <mergeBase> -- css/*.css` 의 `+` 줄. */
-export function scopeLinesFromDiff(mergeBase) {
-  const r = git(['diff', '-U0', '--no-color', '--no-ext-diff', mergeBase, '--', `${CSS_DIR}/*.css`]);
+export function scopeLinesFromDiff(mergeBase, rev) {
+  /* rev 를 주면 ★그 ref 의 트리와 견준다(⛔체크아웃 없이) · 안 주면 ★작업트리 */
+  const args = ['diff', '-U0', '--no-color', '--no-ext-diff', mergeBase];
+  if (rev) args.push(rev);
+  args.push('--', `${CSS_DIR}/*.css`);
+  const r = git(args);
   if (r.status !== 0) harness(`git diff 가 ${r.status} 로 죽었다: ${(r.stderr || '').trim()}`);
   const map = new Map();
   let file = null, ln = 0;
@@ -475,15 +914,6 @@ export function scopeLinesFromDiff(mergeBase) {
   return map;
 }
 
-function cssFiles() {
-  const dir = path.join(ROOT, CSS_DIR);
-  if (!fs.existsSync(dir)) harness(`${CSS_DIR}/ 가 없다`);
-  const list = fs.readdirSync(dir).filter((f) => f.endsWith('.css')).sort().map((f) => `${CSS_DIR}/${f}`);
-  if (!list.length) harness(`${CSS_DIR}/*.css 가 0개다 — 자가 빈 자리를 재고 있다`);
-  return list;
-}
-
-const readRepoFile = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 /* ── 양성·음성·범위밖·토큰없음 대조 ────────────────────────────────────────
  * ⛔합성 표본이다 — 「레포에 이런 꼴이 있어야 한다」를 전제로 걸지 않는다.
@@ -517,7 +947,11 @@ export function selfCheck(maps, resolved) {
     /* 5 */ '.e { background: #ff00ff; font-size: 37px; }',
     /* 6 */ '.f { background: ' + bgInput + '; }',
     /* 7 */ '--z: ' + bgInput + ';',
-    /* 8 */ '.g { color: var(--nope, ' + bgInput + '); }',
+    /* 8 */ '.g { color: var(--ui-bg-input, ' + bgInput + '); }',
+    /* ★★8행이 원래 `var(--nope, …)` 였다 — ★없는 이름이다. ⒊-① 고침 뒤 ★잡히는 것이 ★맞고,
+     *   그러자 ⑸ 칸이 ★빨개졌다 ⇒ ★그 칸이 ★«우회로»를 ★「있어야 한다」로 ★잠그고 있었다
+     *   (「막아둔 까닭이 먼저 죽고 문만 남는다」). ⇒ ★정의된 이름으로 바꿨다 —
+     *   ⑸ 는 이제 ★«정의된 이름의 대체값은 면제»를 재고, ★없는 이름 축은 ★⑿⒀ 가 잰다. */
     /* 9 */ '.h { background: url("data:image/svg+xml,%3Csvg fill=\'' + bgInput + '\'/%3E"); }',
     /* 10*/ '/* 주석 안: background: ' + bgInput + ' 와 border-radius: ' + radiusSm + ' */',
     /* 11*/ '#canvas .i { padding: 0; }',
@@ -561,7 +995,7 @@ export function selfCheck(maps, resolved) {
   results.push({ name: '⑷ 토큰없음 — #ff00ff·37px(5행)은 조용히 지나가나', ok: !keys.some((k) => k.startsWith('5:')),
     note: `5행 적발 ${keys.filter((k) => k.startsWith('5:')).length}건` });
 
-  results.push({ name: '⑸ 면제 — 토큰 정의(:root --z)·var() 대체값(8행)·url()(9행)을 안 잡는가',
+  results.push({ name: '⑸ 면제 — 토큰 정의(:root --z)·★정의된 이름의 var() 대체값(8행)·url()(9행)을 안 잡는가',
     ok: !keys.some((k) => /^(7|8|9):/.test(k)) && !all.some((k) => /^(7|8|9):/.test(k)),
     note: `해당 줄 적발 ${all.filter((k) => /^(7|8|9):/.test(k)).length}건(거르개 off 기준)` });
 
@@ -584,26 +1018,87 @@ export function selfCheck(maps, resolved) {
     ok: !all.some((k) => k.startsWith('13:')),
     note: `13행 적발 ${all.filter((k) => k.startsWith('13:')).length}건 / 블록 밖 주석(10행) ${all.filter((k) => k.startsWith('10:')).length}건` });
 
+  /* ⑽⑾ ★문맥 축 — 2026-10-10 적대적 QA(advqa) ⒊-② 가 열었다.
+   *   ⛔산 레포의 maps 로는 못 잰다(지금 ★0건이라 ★항등식이 된다) ⇒ ★합성 명부로 잰다.
+   *   ★그리고 ★양성·음성을 ★한 쌍으로 — 「안 권한다」만 재면 ★죽은 자가 된다. */
+  const DARK = ':root { --ui-bg-card: #ffffff; }\n'
+    + '@media (prefers-color-scheme: dark) { :root { --ui-bg-card: #111111; } }\n';
+  const dc = collectRootTokens(['syn.css'], () => DARK);
+  const dres = resolveTokens(dc.defs);
+  const dmaps = buildMaps(dres);
+  const dgot = lintCss('.light-only{background:#111111}\n.a{background:#ffffff}\n', null, dmaps)
+    .map((f) => `${f.line}:${f.literal}`);
+  results.push({ name: '⑽ 문맥 — @media 안의 :root 를 ★제안표에 안 넣는다 (★검정에 흰 토큰을 권하지 않는다)',
+    ok: dc.defs.length === 1 && dc.scopedRootCount === 1 && dres.get('--ui-bg-card') === '#ffffff'
+        && !dgot.includes('1:#111111') && dgot.includes('2:#ffffff'),
+    note: `깊이0 :root ${dc.defs.length}건 · @media 안 ${dc.scopedRootCount}건 · --ui-bg-card=${dres.get('--ui-bg-card')}`
+        + ` · 적발 [${dgot.join(' , ')}]  (기대: 2:#ffffff 만 — 1행을 잡으면 ★라이트에서 검정이 흰색이 된다)` });
+
+  const CONF = ':root{--x-dup:#111111}\n:root{--x-dup:#222222}\n:root{--ui-bg-card:#2a2a2a}\n';
+  const cc = collectRootTokens(['syn2.css'], () => CONF);
+  const conf = conflictingNames(cc.defs);
+  const cres = resolveTokens(cc.defs);
+  const cmaps = buildMaps(cres);
+  results.push({ name: '⑾ 문맥 — 이름이 ★중복인데 ★값이 갈리면 ★제안표에서 뺀다 (★모르면 권하지 마라)',
+    ok: conf.has('--x-dup') && !cres.has('--x-dup') && !cmaps.color.has('#111111') && !cmaps.color.has('#222222')
+        && cres.get('--ui-bg-card') === '#2a2a2a' && cmaps.color.has('#2a2a2a'),
+    note: `갈리는 이름 [${[...conf].join(',')}] · resolved 에 --x-dup ${cres.has('--x-dup') ? '⛔있다' : '없다'}`
+        + ` · 갈리지 않는 --ui-bg-card 는 ★남는다(${cres.get('--ui-bg-card')})` });
+
+  /* ⑿⒀ ★⒊-① 축 — var() 대체값. ★한 쌍으로: ★정의된 이름은 ★안 잡고, ★없는 이름은 ★잡는다.
+   *   ⛔한쪽만 두면 ★죽은 자가 된다(「없는 이름을 잡는다」만 재면 ★전부 잡아도 초록). */
+  const KNOWN = new Set(['--ui-bg-input', '--ui-radius-sm']);
+  const vmaps = { color: maps.color, length: maps.length, knownVars: KNOWN };
+  const vsrc = [
+    `.a{background:var(--ui-bg-input, ${bgInput})}`,            // 1 ★정의됨 ⇒ 안 잡는다
+    `.b{background:var(--nope-not-defined, ${bgInput})}`,       // 2 ★없음 ⇒ 잡는다
+    `.c{border-radius:var(--ui-radius-sm, ${radiusSm})}`,       // 3 ★정의됨 ⇒ 안 잡는다
+    `.d{border-radius:var(--nope2, ${radiusSm})}`,              // 4 ★없음 ⇒ 잡는다
+  ].join('\n');
+  const vgot = lintCss(vsrc, null, vmaps);
+  const vlines = vgot.map((f) => f.line);
+  results.push({ name: '⑿ var() — ★정의된 이름의 대체값은 ★안 잡는다 (⛔284건을 거짓양성으로 켜지 않는다)',
+    ok: !vlines.includes(1) && !vlines.includes(3),
+    note: `1·3행 적발 ${vlines.filter((l) => l === 1 || l === 3).length}건 — 렌더에서 ★토큰이 이기므로 우회로가 아니다` });
+  results.push({ name: '⒀ var() — ★정의 없는 이름의 대체값은 ★잡고, 문구가 ★«없는 토큰 이름»이라 말한다',
+    ok: vlines.includes(2) && vlines.includes(4)
+        && vgot.filter((f) => f.line === 2 || f.line === 4).every((f) => f.unknownVar)
+        && /없는 토큰 이름/.test(renderFinding('s.css', vgot.find((f) => f.line === 2))),
+    note: `2·4행 적발 ${vlines.filter((l) => l === 2 || l === 4).length}건 · `
+        + (vgot.find((f) => f.line === 2) ? renderFinding('s.css', vgot.find((f) => f.line === 2)).slice(0, 110) : '(없다)') });
+  results.push({ name: '⒀b var() — ★명부가 없으면(knownVars null) ★옛 꼴로 ★전부 면제한다 (★소음보다 침묵)',
+    ok: lintCss(vsrc, null, { color: maps.color, length: maps.length, knownVars: null }).length === 0,
+    note: `명부 null 에서 적발 ${lintCss(vsrc, null, { color: maps.color, length: maps.length, knownVars: null }).length}건 (0이어야 한다)` });
+
   return results;
 }
 
 /* ── 출력 ──────────────────────────────────────────────────────────────────── */
 export function renderFinding(file, f) {
   const use = f.tokens.map((t) => `var(${t})`).join(' 또는 ');
+  if (f.unknownVar) {
+    /* ⒊-① ★이 꼴은 ★「하드코딩」이 아니라 ★«없는 토큰 이름»이다 — ★문구가 달라야
+     *   고치는 쪽이 ★맞게 고친다(실측 8건이 전부 ★`--ui-fs-11` 오타였다). */
+    return `${file}:${f.line}:${f.col}  ★없는 토큰 이름 \`var(${f.unknownVar}, ${f.literal})\``
+      + ` — 그 이름은 ★어디에도 정의돼 있지 않다(css ∪ js/html) ⇒ ★대체값 ${f.literal} 로 그려진다.`
+      + `  ⇒ ★${use} 를 쓰라`;
+  }
   const what = f.kind === 'hex' ? '하드코딩 색' : '하드코딩 길이';
   return `${file}:${f.line}:${f.col}  ${what} \`${f.prop}: ${f.literal}\`  ⇒ ★${use} 를 쓰라`;
 }
 
 /* ── main ──────────────────────────────────────────────────────────────────── */
 function parseArgs(argv) {
-  const o = { base: DEFAULT_BASE, all: false, census: false, self: false };
+  const o = { base: null, baseFrom: null, rev: null, all: false, census: false, self: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--all') o.all = true;
     else if (a === '--census') o.census = true;
     else if (a === '--self') o.self = true;
-    else if (a === '--base') { o.base = argv[++i]; if (!o.base) harness('--base 뒤에 값이 없다'); }
-    else if (a.startsWith('--base=')) o.base = a.slice(7);
+    else if (a === '--base') { o.base = argv[++i]; if (!o.base) harness('--base 뒤에 값이 없다'); o.baseFrom = '--base 로 ★손으로 줬다'; }
+    else if (a.startsWith('--base=')) { o.base = a.slice(7); o.baseFrom = '--base 로 ★손으로 줬다'; }
+    else if (a === '--rev') { o.rev = argv[++i]; if (!o.rev) harness('--rev 뒤에 값이 없다'); }
+    else if (a.startsWith('--rev=')) o.rev = a.slice(6);
     else if (a === '-h' || a === '--help') { process.stdout.write(HELP); process.exit(0); }
     else harness(`모르는 인자: ${a}`);
   }
@@ -611,21 +1106,42 @@ function parseArgs(argv) {
 }
 
 const HELP = `css-token-lint — 바뀐 CSS 줄의 하드코딩 hex/px 를, «토큰이 있을 때만» 잡는다.
-  node tools/css-token-lint.mjs [--base <ref>] [--all] [--census] [--self]
-  기본 base = ${DEFAULT_BASE} (인자 없이 돌아간다 — ⛔HARNESS_ERROR 를 내지 않는다)
+  node tools/css-token-lint.mjs [--base <ref>] [--rev <ref>] [--all] [--census] [--self]
+  ★기준판은 ⛔박혀 있지 않다 — origin/main 의 ★최신 릴리스 태그에서 ★파생한다.
+    못 뽑으면 ★HARNESS_ERROR(3). ⛔박아둔 값으로 ★조용히 폴백하지 않는다.
+  --rev <ref>  ★체크아웃 없이 ★그 ref 를 잰다(남의 레인 ★무접촉 측정).
 `;
 
 function main() {
   const opt = parseArgs(process.argv.slice(2));
-  const files = cssFiles();
-  const { defs, nonRootCount } = collectRootTokens(files, readRepoFile);
-  if (defs.length === 0) harness(':root 토큰 정의가 0건 — 명부가 비면 이 자는 아무것도 못 잰다');
+
+  /* ── ① 기준판 — ★파생이 먼저, ★--base 는 override 이고 ★출력에 박는다 ── */
+  let baseRef = opt.base, baseHow = opt.baseFrom, mainRef = null;
+  if (!baseRef && !opt.all) {
+    const d = deriveBase();
+    if (!d.ok) harness(`기준판을 못 뽑는다 — ${d.reason}\n`
+      + '              ⛔박아둔 값으로 폴백하지 않는다(폴백하면 「기준판이 낡았다」가 영영 안 보인다).\n'
+      + '              ⇒ 태그까지 받아라: actions/checkout 은 fetch-depth: 0 ＋ tags 필요.');
+    baseRef = d.base; baseHow = d.how; mainRef = d.mainRef;
+  }
+
+  const src = opt.rev ? refSource(opt.rev) : treeSource();
+  const files = src.files();
+  const { defs, nonRootCount, scopedRootCount } = collectRootTokens(files, src.read);
+  if (defs.length === 0) harness(`:root 토큰 정의가 0건 (${src.label}) — 명부가 비면 이 자는 아무것도 못 잰다`);
   const resolved = resolveTokens(defs);
   const maps = buildMaps(resolved);
   if (maps.color.size === 0) harness('«값→토큰» 색 표가 비었다 — 자가 장님이다');
 
+  /* ── ⒊-① ★이름 명부 — 없으면 ★옛 꼴(전부 면제)로 돌고 ★그 사실을 출력에 찍는다 ── */
+  const cf = codeFiles(opt.rev);
+  const census = collectKnownVarNames(files, src.read, cf,
+    (f) => { try { return opt.rev ? git(['show', `${opt.rev}:${f}`]).stdout : fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch { return null; } });
+  maps.knownVars = census.known.size ? census.known : null;
+
   if (opt.census) {
-    process.stdout.write(`토큰 정의 — :root ${defs.length}건 (파일 ${files.length}개) · :root 아닌 자리 ${nonRootCount}건(안 쓴다)\n`);
+    process.stdout.write(`토큰 정의 — :root ${defs.length}건 (${src.label} · 파일 ${files.length}개) · :root 아닌 자리 ${nonRootCount}건(안 쓴다)`
+      + ` · @media 등 ★안의 :root ${scopedRootCount}건(★문맥을 몰라 안 쓴다)\n`);
     process.stdout.write(`제안 대상 패밀리로 걸러진 표 — 색 ${maps.color.size}값 · 길이 ${maps.length.size}짝\n\n`);
     process.stdout.write('── 값 → 토큰 (색) ──\n');
     for (const k of [...maps.color.keys()].sort()) process.stdout.write(`  ${k}  →  ${rankTokens(maps.color.get(k)).join(' , ')}\n`);
@@ -643,28 +1159,69 @@ function main() {
     process.exit(0);
   }
 
-  let scope = null, baseInfo = '(범위 거르개 off — --all)';
+  let scope = null, lines = 0, head = '(범위 거르개 off — --all)';
   if (!opt.all) {
-    const { baseSha, mergeBase } = resolveBase(opt.base);
-    scope = scopeLinesFromDiff(mergeBase);
-    const lines = [...scope.values()].reduce((s, v) => s + v.size, 0);
+    const { baseSha, mergeBase } = resolveBase(baseRef, opt.rev);
+    scope = scopeLinesFromDiff(mergeBase, opt.rev);
+    lines = [...scope.values()].reduce((a, v) => a + v.size, 0);
+    head = `base=${baseRef} ${baseSha.slice(0, 12)} (${baseHow}) · 잰 것=${opt.rev || 'HEAD/작업트리'}`
+         + ` · merge-base ${mergeBase.slice(0, 12)} · 범위 ${scope.size}파일 ${lines}줄`;
+    /* ★★창이 ★릴리스마다 ★좁아진다 — ⛔조용히 좁아지면 「조용히 낮아진 기준선」이 된다.
+     *   ⇒ ★직전 태그 기준 범위를 ★같이 찍어 ★그 좁아짐을 ★수로 보인다. */
+    if (mainRef) {
+      const prev = prevReleaseTag(baseRef, mainRef);
+      if (prev) {
+        const pm = git(['merge-base', prev, opt.rev || 'HEAD']);
+        if (pm.status === 0 && pm.stdout.trim()) {
+          const ps = scopeLinesFromDiff(pm.stdout.trim(), opt.rev);
+          const pl = [...ps.values()].reduce((a, v) => a + v.size, 0);
+          head += `\n⚠️창은 릴리스마다 ★좁아진다 — 직전 태그 ${prev} 기준 ${pl}줄 → 지금 ${lines}줄 (${lines - pl}줄)`;
+        }
+      }
+    }
     if (lines === 0) {
-      process.stdout.write(`범위 안 CSS 줄이 0줄이다 (base=${opt.base} ${baseSha.slice(0, 12)} · merge-base ${mergeBase.slice(0, 12)})\n`);
+      process.stdout.write(`css-token-lint — ${head}\n범위 안 CSS 줄이 0줄이다.\n`);
       process.stdout.write('⇒ 0건은 「깨끗하다」가 아니라 「볼 것이 없다」다.\n');
       process.exit(0);
     }
-    baseInfo = `base=${opt.base} ${baseSha.slice(0, 12)} · merge-base ${mergeBase.slice(0, 12)} · 범위 ${scope.size}파일 ${lines}줄`;
   }
 
   const all = [];
   for (const f of files) {
-    const lines = opt.all ? null : (scope.get(f) || new Set());
-    if (lines && lines.size === 0) continue;
-    for (const fd of lintCss(readRepoFile(f), lines, maps)) all.push({ file: f, ...fd });
+    const ls = opt.all ? null : (scope.get(f) || new Set());
+    if (ls && ls.size === 0) continue;
+    for (const fd of lintCss(src.read(f), ls, maps)) all.push({ file: f, ...fd });
   }
 
-  process.stdout.write(`css-token-lint — ${baseInfo}\n`);
-  process.stdout.write(`토큰 명부 :root ${defs.length}건 → 제안 표 색 ${maps.color.size}값 · 길이 ${maps.length.size}짝\n`);
+  process.stdout.write(`css-token-lint — ${head}\n`);
+  const dropped = conflictingNames(defs);
+  process.stdout.write(`토큰 명부 :root ${defs.length}건 → 제안 표 색 ${maps.color.size}값 · 길이 ${maps.length.size}짝`
+    + (scopedRootCount ? ` · ⚠️@media 안 :root ${scopedRootCount}건은 ★안 쓴다(문맥 모름)` : '')
+    + (dropped.size ? ` · ⚠️값이 갈려 ★뺀 토큰 ${dropped.size}종 [${[...dropped].join(',')}]` : '') + '\n');
+  if (maps.knownVars) {
+    process.stdout.write(`var() 이름 명부 ${maps.knownVars.size}종 (css ${files.length}파일 ＋ 코드 ${census.codeFiles}파일)`
+      + ` — ★정의 없는 이름의 ★대체값만 잰다.`
+      + ` ⛔코드쪽은 \`setProperty('--x'\` · \`--x:\` · 따옴표 안 \`'--x'\` 세 꼴만 본다 — ★변수 경유 조립은 ★안 센다\n`);
+  } else {
+    process.stdout.write('⚠️var() 이름 명부를 ★못 만들었다 — ★대체값 검사 ★off(옛 꼴로 전부 면제). ★「우회로 0건」을 참으로 읽지 마라\n');
+  }
+
+  /* ── Ⓐ ★거르개 정합 — ⛔「적발 0건」 옆에 ★«안 본 자리»를 같이 찍는다 ──────── */
+  const bad = integrityReport(files, src.read);
+  if (!bad.length) {
+    process.stdout.write(`거르개 정합 ${files.length}/${files.length} — ★안 본 자리 0건\n`);
+  } else {
+    process.stdout.write(`⛔거르개 정합 ${files.length - bad.length}/${files.length} — ★${bad.length}파일에서 ★«그 뒤를 안 본다»:\n`);
+    for (const b of bad) {
+      process.stdout.write(`   ${b.file}  선언 ${b.decls}개 · ★마지막 본 줄 ${b.lastSeen}`
+        + ` (선언 가능한 마지막 ${b.lastCandidate} / 전체 ${b.totalLines})`
+        + (b.lenDrift ? ` · ★색인 어긋남 ${b.lenDrift} (astral ${b.astral}자)` : '')
+        + (b.runaway.length ? ` · 짝 없는 ( ${b.runaway.join(',')}행` : '') + '\n');
+    }
+    process.stdout.write('   ⇒ ★그 구간의 하드코딩은 ★조용히 ★rc 0 으로 통과한다.'
+      + ' ⛔「범위 안 하드코딩 0건」을 ★참으로 읽지 마라.\n');
+  }
+
   if (!all.length) {
     process.stdout.write('적발 0건.\n');
     process.stdout.write('⛔「이 레포에 하드코딩이 없다」가 아니다 — 이 자는 ⑴범위 안 ⑵토큰이 있는 자리만 본다(머리말 「무엇을 안 재나」).\n');
@@ -673,6 +1230,10 @@ function main() {
   for (const f of all) process.stdout.write(renderFinding(f.file, f) + '\n');
   const hex = all.filter((f) => f.kind === 'hex').length;
   process.stdout.write(`\n적발 ${all.length}건 — 색 ${hex} · 길이 ${all.length - hex}\n`);
+  if (opt.all) {
+    process.stdout.write('⛔이 수는 「고쳐야 할 결함」이 아니다 — ★범위 밖까지 센 수다(--all). 판정에 쓰지 마라.\n');
+  }
+  process.stdout.write('⇒ npm run gate:css-token   (자리를 다시 보려면)\n');
   process.stdout.write('고치는 법: 위 문구의 `var(--…)` 로 그 리터럴을 ★그 자리에서 바꿔라. 토큰이 여럿이면 그 줄의 뜻에 맞는 것을 골라라.\n');
   process.exit(1);
 }
