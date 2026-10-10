@@ -6,7 +6,10 @@ import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
 import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          starPointsList, starViewBox, clampStarCount, STAR_COUNT_MIN, STAR_COUNT_MAX,
          clampStarInner, STAR_INNER_MIN, STAR_INNER_MAX, STAR_INNER_DISPLAY,
-         clampStarGap, STAR_GAP_MIN, STAR_GAP_MAX } from '../shape-star.js';
+         clampStarGap, STAR_GAP_MIN, STAR_GAP_MAX,
+         clampStarRating, starRatingFills, starRatingPreview,
+         STAR_RATING_MIN, STAR_RATING_MAX, STAR_RATING_COUNT,
+         STAR_FILL_ON, STAR_FILL_OFF } from '../shape-star.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
@@ -88,6 +91,8 @@ export function showShapeProperties(block) {
   const starCount   = clampStarCount(block.dataset.starCount);   // ★별 «갯수»(현빈 2026-10-06) — 없으면 1 = 옛 별
   const starInner   = clampStarInner(block.dataset.starInner);   // ★null = ★미설정 = ★옛 별(특례)
   const starGap     = clampStarGap(block.dataset.starGap);       // ★없으면 0 = 옛 간격(틀 폭 그대로)
+  const starRating  = clampStarRating(block.dataset.starRating); // ★null = ★미설정 = ★평점 아님(1010t1b3)
+  const ratingOn    = starRating !== null;                       // ★켜져 있으면 ★갯수가 ★5 로 ★잠긴다
   const iconSvg     = SHAPE_ICONS[shapeType] || SHAPE_ICONS.rectangle;
   const shapeName   = SHAPE_NAMES[shapeType] || shapeType;
   const id          = block.id || '';
@@ -218,8 +223,8 @@ ${blockHeaderHTML({
            ★갯수를 늘리면 블록이 «옆으로» 넓어진다(별 크기 유지 — 현빈 판정). -->
       <div class="prop-row">
         <span class="prop-label">갯수</span>
-        <input type="range" class="prop-slider" id="shape-star-count-slider" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" step="1" value="${starCount}">
-        <input type="number" class="prop-number" id="shape-star-count-num" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" value="${starCount}">
+        <input type="range" class="prop-slider" id="shape-star-count-slider" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" step="1" value="${starCount}"${ratingOn ? ' disabled' : ''}>
+        <input type="number" class="prop-number" id="shape-star-count-num" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" value="${starCount}"${ratingOn ? ' disabled' : ''}>
       </div>
       <!-- 별 «통통함»(현빈 2026-10-07 「별이 너무 뾰족해서 … 살짝 통통한 별로도」).
            꼴은 새로 짓지 않았다 — 위 「꼭짓점」·「갯수」와 같은 slider+number 쌍이다.
@@ -238,6 +243,22 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="shape-star-gap-slider" min="${STAR_GAP_MIN}" max="${STAR_GAP_MAX}" step="1" value="${starGap}">
         <input type="number" class="prop-number" id="shape-star-gap-num" min="${STAR_GAP_MIN}" max="${STAR_GAP_MAX}" value="${starGap}">
       </div>` : ''}
+      <!-- ★별 «평점»(별점) — 현빈 2026-10-10 1010t1b3 「★별점기능이 들어가야함 ★챗블럭에 ★이미 있는 기능인데
+           ★참고 (★별점기능을 하면 ★별이 ★5개로 구성)」 ⇒ ★꼴을 ★챗블럭에서 ★빌렸다(js/props/prop-chat.js
+           의 ★chb-prop-stars-row — ★체크박스 ＋ ★0~5 숫자칸 ＋ ★★ 미리보기 ★세 쪼가리 그대로).
+           ⛔슬라이더를 ★안 둔다 — ★챗이 ★숫자칸만 쓴다. ★「참고」의 뜻을 ★꼴에서도 지킨다.
+           ★★켜면 ★갯수가 ★5 로 ★잠긴다(지디 판정 ⑤) ⇒ ★위 ★갯수 두 칸에 ★disabled 가 붙고
+             ★아래 ★까닭 줄이 ★나타난다 — ★★«잠겼다»를 ★겉모습으로 ★말한다(t2cmdl ㉣).
+           ★끄면 ★잠금이 ★풀린다(되돌릴 수 있게 · 지디 판정 ⑤). -->
+      <div class="prop-row" id="shape-star-rating-row" style="gap:6px;font-size:11px;white-space:nowrap">
+        <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:#aaa;flex-shrink:0" title="별 도형을 평점으로 — 채운 별과 빈 별을 색으로 가른다">
+          <input type="checkbox" id="shape-star-rating-toggle" ${ratingOn ? 'checked' : ''}>
+          <span>별점</span>
+        </label>
+        <input type="number" class="prop-number" id="shape-star-rating-num" min="${STAR_RATING_MIN}" max="${STAR_RATING_MAX}" value="${starRating ?? STAR_RATING_MAX}" ${ratingOn ? '' : 'disabled'} style="width:48px">
+        <span id="shape-star-rating-preview" style="color:#ff8a00;letter-spacing:1px;${ratingOn ? '' : 'opacity:0.3'}">${starRatingPreview(starRating)}</span>
+      </div>
+      ${ratingOn ? `<div class="prop-hint" id="shape-star-rating-hint" style="margin-top:4px;">별점은 별 ${STAR_RATING_COUNT}개로 구성됩니다 — 갯수는 별점을 끄면 다시 바꿀 수 있습니다.</div>` : ''}
       ${starCount > 1 ? `<div class="prop-hint" id="shape-star-count-hint" style="margin-top:4px;">별이 여러 개면 이미지 채우기를 쓸 수 없습니다.</div>` : ''}` : ''}
       ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
     </div>
@@ -687,8 +708,19 @@ ${blockHeaderHTML({
       seed.parentNode.appendChild(cl);
       polys.push(cl);
     }
+    /* ★평점(1010t1b3) — ★별마다 ★fill 을 준다. ★미설정이면 ★null = ★«칠하지 않는다».
+       ★fill 을 ★속성으로 쓰는 것은 ★이 파일의 선례다(위 cloneNode 주석의 그 까닭 — 그라데이션이 polygon 속성에 산다).
+       ⛔★그래서 ★끌 때 ★`removeAttribute('fill')` 를 ★무조건 ★부르면 ★★그라데이션 별의 ★칠을 ★죽인다.
+         ⇒ ★★«내가 칠한 두 색일 때만» 뗀다. ★실측 근거 = 그 cloneNode 주석이 ★url(#…) 을 ★이름으로 적어 뒀다. */
+    const fills = starRatingFills(block.dataset.starRating, count);
     polys.forEach((poly, i) => {
       if (poly.getAttribute('points') !== list[i]) poly.setAttribute('points', list[i]);
+      if (fills) {
+        if (poly.getAttribute('fill') !== fills[i]) poly.setAttribute('fill', fills[i]);
+      } else {
+        const cur = poly.getAttribute('fill');
+        if (cur === STAR_FILL_ON || cur === STAR_FILL_OFF) poly.removeAttribute('fill');
+      }
     });
   };
 
@@ -707,8 +739,11 @@ ${blockHeaderHTML({
     starNum.addEventListener('change', () => { applyStar(starNum.value); window.pushHistory?.(); });
   }
 
+  /* ★★밖으로 뺐다(1010t1b3) — ★평점을 켜면 ★갯수를 ★5 로 맞춰야 하고, ★그 «갯수→폭» 규칙의
+     ★임자는 ★이 함수 ★하나여야 한다. ⛔평점 쪽에 ★폭 계산을 ★다시 쓰면 ★명부가 ★둘이 된다. */
+  let applyStarCount = null;
   if (starCSlider && starCNum) {
-    const applyStarCount = (raw) => {
+    applyStarCount = (raw) => {
       const prev = clampStarCount(block.dataset.starCount);
       const c = clampStarCount(raw);
       starCSlider.value = c; starCNum.value = c;
@@ -778,6 +813,43 @@ ${blockHeaderHTML({
     starGSlider.addEventListener('change', () => window.pushHistory?.());
     starGNum.addEventListener('input',  () => { if (starGNum.value !== '') applyStarGap(starGNum.value); });
     starGNum.addEventListener('change', () => { applyStarGap(starGNum.value); window.pushHistory?.(); });
+  }
+
+  /* ── 별 «평점»(별점 · 현빈 2026-10-10 · 1010t1b3) ──
+   * ★꼴은 ★챗블럭 배선과 ★같다 — ★토글은 change, ★숫자칸은 input＋change(prop-chat.js 의 그 두 쌍).
+   * ★★켜면 ★갯수를 ★5 로 맞춘다 — ⛔폭 계산을 ★여기 ★다시 쓰지 ★않고 ★applyStarCount 를 ★부른다.
+   *   ⇒ ★«갯수→폭» 규칙의 ★임자가 ★하나다(지디 판정 ③ 의 그 뜻).
+   * ★★끄면 ★키를 ★지운다 — ★옛 저장본과 ★바이트 동일(starGap 0 의 그 규율과 ★같다). */
+  const starRatToggle = document.getElementById('shape-star-rating-toggle');
+  const starRatNum    = document.getElementById('shape-star-rating-num');
+  if (starRatToggle && starRatNum) {
+    const applyStarRating = (raw) => {
+      const r = clampStarRating(raw);
+      if (r === null) return;                        // 빈 칸은 「지우는 중」 — 아무것도 안 한다
+      if (block.dataset.starRating !== String(r)) block.dataset.starRating = String(r);
+      _applyStarGeom();
+      const pv = document.getElementById('shape-star-rating-preview');
+      if (pv) pv.textContent = starRatingPreview(r);
+      window.scheduleAutoSave?.();
+    };
+    starRatToggle.addEventListener('change', () => {
+      if (starRatToggle.checked) {
+        const r = clampStarRating(starRatNum.value) ?? STAR_RATING_MAX;
+        block.dataset.starRating = String(r);
+        /* ★「별점기능을 하면 ★별이 ★5개로 구성」 — ★갯수를 ★5 로. ★폭은 ★그 함수가 쥔다.
+           ★이미 5 면 ★그 함수가 ★제 머리에서 ★되돌아 나가므로(c === prev) ★기하만 ★직접 맞춘다. */
+        if (clampStarCount(block.dataset.starCount) !== STAR_RATING_COUNT) applyStarCount?.(STAR_RATING_COUNT);
+        else _applyStarGeom();
+      } else {
+        delete block.dataset.starRating;
+        _applyStarGeom();                            // ★칠을 되돌린다 — ★내가 칠한 두 색만
+      }
+      window.pushHistory?.('별점 토글');
+      window.scheduleAutoSave?.();
+      showShapeProperties(block);                    // ★갯수 잠금·까닭 줄이 바뀐다 → 패널 다시
+    });
+    starRatNum.addEventListener('input',  () => { if (starRatNum.value !== '') applyStarRating(starRatNum.value); });
+    starRatNum.addEventListener('change', () => { applyStarRating(starRatNum.value); window.pushHistory?.('별점'); });
   }
 
   // ── 회전 ──

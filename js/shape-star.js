@@ -190,3 +190,47 @@ export function starPointsList(n, count, gap, inner) {
   const k = clampStarCount(count);
   return Array.from({ length: k }, (_, i) => starPointsAt(n, i, gap, inner));
 }
+
+/* ══ 별 «평점»(별점) (현빈 2026-10-10 · 1010t1b3) ═══════════════════════════════
+ * ★현빈 원문: 「★별점기능이 들어가야함 ★챗블럭에 ★이미 있는 기능인데 ★참고
+ *               (★별점기능을 하면 ★별이 ★5개로 구성)」
+ *   ＋ `data-memo` 의 그 줄: 「우측패널에서 ★평점입력가능했으면 좋겠거든」
+ * ★★꼴을 ★새로 짓지 않았다 — ★챗블럭에서 ★빌렸다. ★정본 = `js/blocks/chat-block.js`
+ *   그 줄이 ★채운 별과 ★빈 별을 ★두 색으로 ★가른다(0~5 ★정수 · 미설정이면 ★키가 없다).
+ * ★★색을 ★여기 ★다시 적는 까닭 — ⛔명부를 ★둘로 ★만드는 것이 ★아니다:
+ *   챗은 ★«글자»(`<span>★`)에 ★color 를 주고 ★별 도형은 ★«polygon»에 ★fill 을 준다 ⇒ ★쓰는 자리가 ★다르다.
+ *   ⇒ ★그래서 ★값을 ★빌리고, ★★«두 값이 ★챗과 ★같다»를 ★★검사로 ★잠근다
+ *     (★이 파일의 ★선례와 ★같은 규율: 「SHAPE_DEFS.star 의 옛 문자열 == starPoints(5) — 명부가 둘이라 ★대조로 잠근다」)
+ * ★★미설정 = ★«평점 아님»이다 — `dataset.starRating` 이 ★없으면 ★칠을 ★안 한다(옛 별 그대로 · 바이트 보존).
+ *   ★이 꼴은 ★`starInner`·`starGap` 의 ★특례와 ★같다.
+ * ★★분모는 ★5 ★고정이다(지디 판정 ⑤ 2026-10-10) — 「★구성」이 ★고정을 뜻하고,
+ *   ★3/5 를 ★그리려면 ★분모가 ★5 여야 ★뜻이 선다. ⇒ ★켜면 ★갯수가 ★5 로 ★잠긴다(★끄면 ★풀린다).
+ * ★★반쪽 별(3.5)은 ★안 받는다(지디 판정 ④) — ★챗이 ★0~5 ★정수고 ★현빈이 ★「챗블럭 참고」라 하셨다.
+ *   ⇒ ★범위를 ★넓히는 것은 ★★현빈 건이다. ⛔여기서 ★넓히지 ★않는다. */
+export const STAR_RATING_MIN = 0;
+export const STAR_RATING_MAX = 5;
+export const STAR_RATING_COUNT = 5;      // ★「별이 5개로 구성」 — ★평점의 ★분모
+export const STAR_FILL_ON  = '#ff8a00';  // ★채운 별 — ★챗과 ★같다(검사로 잠근다)
+export const STAR_FILL_OFF = '#d6d6d6';  // ★빈 별 — ★챗과 ★같다(검사로 잠근다)
+
+/** 평점 → 0~5 정수, 또는 ★null(미설정 = 평점 아님). ⛔null 을 숫자로 바꾸지 마라. */
+export function clampStarRating(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const k = Math.round(Number(v));
+  if (!Number.isFinite(k)) return null;
+  return Math.min(STAR_RATING_MAX, Math.max(STAR_RATING_MIN, k));
+}
+
+/** 별 count 개의 fill 배열. ★평점 미설정이면 ★null — ⛔«칠하지 않는다»는 뜻이다(빈 배열이 아니다). */
+export function starRatingFills(rating, count) {
+  const r = clampStarRating(rating);
+  if (r === null) return null;
+  const c = clampStarCount(count);
+  return Array.from({ length: c }, (_, i) => (i < r ? STAR_FILL_ON : STAR_FILL_OFF));
+}
+
+/** 패널 미리보기 문자열 — 챗(prop-chat.js)의 그 꼴 그대로. */
+export function starRatingPreview(rating) {
+  const r = clampStarRating(rating) ?? STAR_RATING_MAX;
+  return '★'.repeat(r) + '☆'.repeat(STAR_RATING_MAX - r);
+}
