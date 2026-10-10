@@ -181,3 +181,31 @@ test('R9 ★★그라데이션 별을 ★죽이지 않는다 — ★뗄 때 ★�
   assert.match(PANEL, /cur === STAR_FILL_ON \|\| cur === STAR_FILL_OFF/,
     '★★«내가 칠한 두 색일 때만» 떼는 ★가드가 ★없다');
 });
+
+test('R10 ★★«평점이 그라데이션을 덮는다»가 ★★가역이다 — ★끄면 ★참조가 ★되돌아온다 (지디 요청 실측)', () => {
+  /* ★★지디가 ★막은 칸이다: 「★평점이 이긴다는 ★네 기본값이다 ⇒ ★★«끄면 돌아오나»를 ★재서 올려라.
+   *   ★돌아오면 ★비가역이 아니니 ★가도 된다. ★안 돌아오면 ★데이터 손실 ⇒ ★현빈 결정」
+   * ★★★쟀다 — ★★별은 ★`refreshShapeInnerSVG`(block-factory.js)가 ★★안 지나간다:
+   *   ★그 함수 머리 = `if (!def || !def.dynamic) return;` · ★★`SHAPE_DEFS.star` 에 ★`dynamic` ★없음
+   *   ★실측: ★dynamic 을 가진 타입은 ★rectangle·ellipse ★둘뿐이다(★star·line·arrow·polygon 은 ★없다)
+   *   ⇒ ★rect/ellipse 는 ★⌘Z·페이지전환에서 ★다시 칠해지는데 ★★별은 ★★아무도 ★안 칠해 준다
+   *   ⇒ ★★그래서 ★★«스스로는 ★안 돌아왔다» (★`dataset.shapeGradient` 는 ★살아 있으니 ★데이터 손실은 ★아니다)
+   * ⇒ ★★★그래서 ★★고쳤다 — ★평점을 ★끌 때 ★`_restoreShapeGradientFill` 이 ★참조를 ★되돌린다.
+   *   ⇒ ★★이 칸은 ★그 ★가역성을 ★잠근다. ★★이게 빨개지면 ★★그 결정이 ★다시 ★현빈 건이 된다. */
+  /* ⒜ ★끄는 길에 ★되돌리는 자가 ★있다 */
+  const offBranch = PANEL.match(/delete block\.dataset\.starRating;[\s\S]{0,600}?\n      \}/);
+  assert.ok(offBranch, '★평점 끄는 갈래를 ★못 떴다 — ★닻이 썩었다');
+  assert.match(offBranch[0], /_restoreShapeGradientFill\(block\)/,
+    '★★평점을 끌 때 ★그라데이션을 ★되돌리지 않는다 — ★★사용자가 ★칠한 것이 ★사라진다');
+  /* ⒝ ★그 함수가 ★★id·선택자를 ★다시 쓰지 ★않는다(명부 하나) */
+  const fn = PANEL.match(/function _restoreShapeGradientFill\(block\) \{[\s\S]*?\n\}/);
+  assert.ok(fn, '★_restoreShapeGradientFill 몸통을 ★못 떴다');
+  assert.match(fn[0], /_gradIdFor\(block\)/, '★id 를 ★제 손으로 짓는다 — ★`_gradIdFor` 를 써야 한다');
+  assert.match(fn[0], /FILLABLE_SEL/, '★선택자를 ★제 손으로 적는다 — ★`FILLABLE_SEL` 을 써야 한다');
+  assert.ok(!/grad-\$\{/.test(fn[0]), '★id 문자열을 ★다시 지었다(명부 둘)');
+  /* ⒞ ★★def 가 ★없으면 ★칠하지 ★않는다 — ⛔없는 id 를 가리키면 ★도형이 ★투명해진다 */
+  assert.match(fn[0], /if \(!svg\.querySelector\([\s\S]*?\) return false;/,
+    '★def 존재 가드가 ★없다 — ★없는 id 를 ★가리키면 ★별이 ★투명해진다');
+  /* ⒟ ★테두리 전용(fill="none")은 ★건드리지 않는다 */
+  assert.match(fn[0], /getAttribute\('fill'\) === 'none'/, "★fill=none 가드가 ★없다");
+});

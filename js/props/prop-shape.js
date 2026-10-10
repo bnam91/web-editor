@@ -868,6 +868,10 @@ ${blockHeaderHTML({
       } else {
         delete block.dataset.starRating;
         _applyStarGeom();                            // ★칠을 되돌린다 — ★내가 칠한 두 색만
+        /* ★★그라데이션이 걸려 있던 별이면 ★그 참조도 ★되돌린다 — ★★별은 아무도 다시 칠해 주지 않는다
+           (위 `_restoreShapeGradientFill` 머리말: SHAPE_DEFS.star 에 ★dynamic 이 없다)
+           ⇒ ★★이 한 줄이 ★«평점이 그라데이션을 덮는다»를 ★★비가역에서 ★가역으로 ★바꾼다. */
+        _restoreShapeGradientFill(block);
       }
       window.pushHistory?.('별점 토글');
       window.scheduleAutoSave?.();
@@ -1009,6 +1013,33 @@ function _clearShapeGradient(block) {
   });
   delete block.dataset.shapeGradient;
 }
+
+/* ★★그라데이션 ★참조를 ★되돌린다 (1010t1b3 · 지디 요청으로 ★재고 ★고친 자리)
+ * ★★왜 필요한가 — ★★별은 ★`refreshShapeInnerSVG`(block-factory.js)가 ★★안 지나간다:
+ *   ★그 함수 머리가 ★`if (!def || !def.dynamic) return;` 이고 ★★`SHAPE_DEFS.star` 에 ★`dynamic` 이 ★없다
+ *   (★실측: dynamic 은 ★rectangle·ellipse ★둘뿐이다) ⇒ ★★rect/ellipse 는 ★⌘Z·페이지전환에서 ★그라데이션
+ *   fill 을 ★다시 칠해 주는데 ★★별은 ★★아무도 ★다시 칠해 주지 않는다.
+ * ⇒ ★평점이 ★polygon 의 ★fill 을 ★덮었다가 ★물러나면 ★★별만 ★`currentColor` 로 ★주저앉는다.
+ *   ★★`dataset.shapeGradient` 와 ★`<defs>` 는 ★살아 있으니 ★★데이터 손실은 ★아니지만
+ *   ★★«스스로 돌아오지는 않는다» ⇒ ★★사용자 눈에는 ★사라진 것이다.
+ * ⇒ ★★그래서 ★평점을 ★끌 때 ★여기서 ★되돌린다 — ★★비가역을 ★«없앤다».
+ * ★id·선택자를 ★다시 쓰지 ★않았다: ★`_gradIdFor` ＋ ★`FILLABLE_SEL` ★그대로 쓴다(명부 안 늘린다). */
+function _restoreShapeGradientFill(block) {
+  if (!block || !block.dataset.shapeGradient) return false;
+  const svg = block.querySelector('svg.shape-svg') || block.querySelector('svg');
+  if (!svg) return false;
+  const id = _gradIdFor(block);
+  /* ★def 가 ★없으면 ★칠하지 않는다 — ⛔없는 id 를 가리키면 ★도형이 ★★투명해진다(조용한 더 큰 손실) */
+  if (!svg.querySelector(`#${CSS.escape(id)}`)) return false;
+  let n = 0;
+  svg.querySelectorAll(FILLABLE_SEL).forEach(el => {
+    if (el.getAttribute('fill') === 'none') return;   // 테두리 전용은 건드리지 않는다
+    el.setAttribute('fill', `url(#${id})`);
+    n++;
+  });
+  return n > 0;
+}
+window._restoreShapeGradientFill = _restoreShapeGradientFill;
 
 // perf: 그라데이션 라이브 업데이트는 매 프레임 일어남. 기존 코드는 매번
 // <linearGradient> 노드를 통째로 제거→재생성하고 모든 fillable에 setAttribute 호출.
