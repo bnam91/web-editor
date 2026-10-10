@@ -921,7 +921,8 @@ function _renderAutoPanel(ss) {
     /* ★★2026-10-10 — ★끔이 ★★«속성 삭제»였다. ★★기본이 ★`hidden` 이 된 뒤로는 ★그 꼴이면
        ★★토글을 ★끄는 것이 ★★아무 일도 ★안 한다(= ★조용한 무효화) ⇒ ★★끔을 ★★명시 `'false'` 로 쓴다.
        ★그리는 쪽: `css/editor-blocks.css` 의 `[data-clip-content="false"]` → visible
-       ★판정:     `js/frame-geometry.js` `frameClipsPaint` (★`!== 'false'`) — ★셋이 ★한 쌍이다. */
+       ★판정:     ★★`js/clip-content.js` ★`clipsContent` (★계열 기본값 ＋ ★속성이 ★있을 때만 ★이긴다)
+                  — ★셋이 ★한 쌍이다. ★★2026-10-10 ㈄ 에 ★`frame-geometry.js` ★`frameClipsPaint` 를 ★거기로 ★합쳤다. */
     if (e.target.checked) ss.dataset.clipContent = 'true';
     else ss.dataset.clipContent = 'false';
     window.pushHistory?.('프레임 내용 자르기');
