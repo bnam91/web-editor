@@ -9,7 +9,7 @@ import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          clampStarGap, STAR_GAP_MIN, STAR_GAP_MAX,
          clampStarRating, starRatingFills, starRatingPreview,
          STAR_RATING_MIN, STAR_RATING_MAX, STAR_RATING_COUNT,
-         STAR_FILL_ON, STAR_FILL_OFF,
+         STAR_FILL_ON, STAR_FILL_OFF, STAR_FILL_CHOICES,
          starViewBoxWidth, starFrameWidthFor,
          starFillsFor, starColorList, starColorsAttr,
          starScaleList, starScalesAttr, clampStarScale,
@@ -724,7 +724,10 @@ ${blockHeaderHTML({
        ★든 것 = ★평점 두 색 ＋ ★사람이 ★어느 별에든 ★직접 준 색 ★전부.
        ★★«어느 별에든»인 까닭 = ★복제가 ★첫 별의 색을 ★다른 index 로 ★옮겨 놓기 때문이다(⒜ 함정).
          ⇒ ★index 별로만 보면 ★번진 색을 ★«내 것»으로 ★못 알아본다. */
-    const _mineFills = new Set([STAR_FILL_ON, STAR_FILL_OFF]);
+    /* ★★★명부를 ★★끌어다 쓴다 — ⛔`[STAR_FILL_ON, STAR_FILL_OFF]` 로 ★손으로 ★적지 ★마라.
+       ★까닭(1010t2a ⒠): ★`data-star-fill` 이 ★회색이면 ★칠이 ★`#9e9e9e` 다
+         ⇒ ★★이 집합에 ★없으면 ★평점을 ★꺼도 ★★그 칠이 ★안 떨어진다(★행위로 ★재는 자리). */
+    const _mineFills = new Set([...STAR_FILL_CHOICES, STAR_FILL_OFF]);
     (starColorList(block.dataset.starColors, count) || []).forEach(v => { if (v) _mineFills.add(v); });
     /* 갯수가 줄면 남는 polygon 을 지우고, 늘면 첫 polygon 을 ★복제해서 더한다
        (fill·stroke 는 svg 의 style 상속 ＋ 그라데이션 url(#…) 이 polygon 속성에 있을 수 있어
@@ -751,6 +754,7 @@ ${blockHeaderHTML({
        ★null 칸 = ★«fill 속성을 ★쓰지 ★말라» = ★블록 색·그라데이션을 ★물려받는다. */
     const fills = starFillsFor({
       rating: block.dataset.starRating, colors: block.dataset.starColors, count,
+      fill: block.dataset.starFill,
     });
     polys.forEach((poly, i) => {
       if (poly.getAttribute('points') !== list[i]) poly.setAttribute('points', list[i]);
