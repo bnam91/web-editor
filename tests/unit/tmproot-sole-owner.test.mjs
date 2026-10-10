@@ -133,17 +133,11 @@ const LEAKING = {
   'tests/unit/recovery-account-scope.test.js':       'Δ2 · recov-acct- · recov-legacy-',
   'tests/unit/zoom-narrow-limit.test.mjs':           'Δ2 · zoom-narrow- · zoom-narrow-mut-',
   'tests/unit/zoom-tangent.test.mjs':                'Δ2 · zoom-tangent- · zoom-mutant-',
-  'tests/unit/color-picker-reopen-seed.test.mjs':    'Δ1 · gd-gmstrict-',
-  'tests/unit/edge-contrast.test.js':                'Δ1 · gd-edgec-',
   'tests/unit/env-collab-pin.test.mjs':              'Δ1 · e2c-${tag}- (★★템플릿 리터럴 — ★변수를 품었다)',
-  'tests/unit/export-failure-report.test.mjs':       'Δ1 · exrep-',
-  'tests/unit/folders-list-integration.test.js':     'Δ1 · gdt-list-folderid-',
-  'tests/unit/list-plan-projects.test.js':           'Δ1 · gdt-planlist-',
   'tests/unit/project-trash.test.js':                'Δ1 · gdt-trash- (★★지디 16벌에 ★없었다 — ★그 rmSync 는 ★★주석 안이다)',
   'tests/unit/recovery-heal-toast-e169.test.js':     'Δ1 · gdt-e169h-',
   'tests/unit/recovery-notice-once-e170.test.js':    'Δ1 · gdt-e170-',
   'tests/unit/rolling-backup-e169.test.js':          'Δ1 · gdt-e169-',
-  'tests/unit/zoom-panel-slim.test.mjs':             'Δ1 · zoom-panel-slim-',
   'tests/unit/zoom-spread-outline.test.mjs':         'Δ1 · zoom-spread-',
 };
 
@@ -398,6 +392,8 @@ test('T6 ★★★둘째 축 — ★«아예 안 치우는» 파일이 ★★명
   /* ⒠ ★★★Δ 합계를 ★★자가 ★찍는다 — ⛔파일 수만 세지 ★마라(지디 ⒜) */
   const dsum = L.reduce((a, x) => a + x.delta, 0);
   console.log(`    ★★누수 = ★파일 ${L.length} · ★★Δ 합계 ${dsum}`);
+  /* ★★«남은 일»을 ★자가 ★뱉게 한다 — ⛔별도 스캐너를 지어 ★★«명부가 둘»이 되면 없던 차가 생긴다 */
+  for (const x of L) console.log(`      · Δ${x.delta} ${x.file}  [${x.prefixes.join(' ')}]`);
   console.log(`    ★★접두사(디스크에서 ★찾을 이름) = ${[...new Set(L.flatMap((x) => x.prefixes))].sort().join(' ')}`);
   /* ⒡ ★★명부의 Δ 표기가 ★자와 ★맞나 — ⛔산문이 ★수와 ★어긋나면 ★다음 사람이 ★산문을 믿는다 */
   for (const x of L) {

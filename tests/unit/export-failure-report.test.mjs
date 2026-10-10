@@ -14,6 +14,8 @@ import os from 'os';
 import path from 'path';
 import vm from 'vm';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const srcPath = path.join(__dirname, '../../js/io/export-report.js');
@@ -83,7 +85,7 @@ test('C7 게이트를 «안 건» 경로는 기록 대상이 아니다 (returnDa
 /* ── ⑵ 세척 — ★«실제» Error.stack 으로 «잰다» ────────────────────────── */
 /** 홈 비슷한 경로에 모듈을 만들어 «진짜» 예외를 던지게 한다. 손으로 쓴 스택 문자열이 아니다. */
 async function realErrorFrom(userDirName) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'exrep-'));
+  const root = mkTmpRoot('exrep-');
   const dir = path.join(root, 'Users', userDirName, '작업', '여름세일');
   fs.mkdirSync(dir, { recursive: true });
   const f = path.join(dir, 'boom.mjs');

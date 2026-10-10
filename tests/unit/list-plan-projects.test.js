@@ -24,6 +24,7 @@ const os = require('os');
 const path = require('path');
 const { readSrc } = require('./_srcread.js');
 const { sliceBlock } = require('./_slice-block.js');
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const REPO = path.join(__dirname, '..', '..');
 const MAIN_SRC = readSrc(REPO, 'main.js');
@@ -49,7 +50,7 @@ function loadRealImpls(projectsDir) {
   return factory(fs, path, projectsDir, req, { log() {}, warn() {}, error() {} });
 }
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-planlist-')); }
+function tmp() { return mkTmpRoot('gdt-planlist-'); }
 
 /** 신 레이아웃(디렉터리) — 갤러리의 saveProject 가 남기는 모양과 같다. */
 function seedDir(dir, id, name, extra = {}) {

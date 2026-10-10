@@ -29,6 +29,7 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const { readSrc } = require('./_srcread.js');
 const { makeStripper } = require('./_strip-comments.js');
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const ROOT = path.join(__dirname, '..', '..');
 
@@ -40,7 +41,7 @@ const ROOT = path.join(__dirname, '..', '..');
 let _mod = null;
 async function M() {
   if (_mod) return _mod;
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gd-edgec-'));
+  const tmp = mkTmpRoot('gd-edgec-');
   fs.cpSync(path.join(ROOT, 'js'), path.join(tmp, 'js'), { recursive: true });
   fs.writeFileSync(path.join(tmp, 'package.json'), '{"type":"module"}');
   _mod = await import(pathToFileURL(path.join(tmp, 'js', 'canvas-contrast.js')).href);
