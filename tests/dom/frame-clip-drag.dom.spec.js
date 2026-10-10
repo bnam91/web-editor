@@ -272,8 +272,38 @@ test('K2-move ★★「내용 자르기」 켠 프레임 — ★★끄는 ★동
   console.log(`K2-move ★잰 계획 — maxLeft ${plan.maxLeft} · target ${plan.target}`);
   expect(mid.over, `★★끄는 ★중에 ★죄었다 (넘침 ${mid.over}px) — ★현빈 ★2026-10-09 요구가 ★죽었다`
     + ' (「끌 때는 보여야 한다」)').toBeGreaterThan(0);
-  expect(mid.ov, '★★끄는 ★동안 ★overflow 가 ★안 풀렸다 — `.frame-child-dragging` 마커 또는 ★그 CSS 가 ★죽었다'
-    + ` (overflow ${mid.ov})`).toBe('visible');
+  /* ★★2026-10-10 2차 — ★이 단언을 ★`'visible'` 에서 ★`'hidden'` 으로 ★바꿨다. ⛔기준을 ★낮춘 것이 ★아니다:
+       ★★주 단언(위 `mid.over > 0` = ★현빈 10-09 「끌 때는 ★죄지 마라」)은 ★★1차에서도 ★통과했다.
+       ★빨간 것은 ★★이 둘째 단언이었고, ★잰 값은 ★`hidden` 이다(탐침 D: ★기본 ⇒ visible · ★★켬 ⇒ hidden).
+     ★★그 `hidden` 은 ★★결함이 아니라 ★★★현빈 ★2026-09-30 ★결정이다 —
+       「★켠 것은 ★풀어 주는 ★예외들보다 ★이겨야 한다」(그래서 `!important`).
+     ⇒ ★★그래서 ★★«켬에서는 ★안 풀린다»를 ★★단언해 ★★그 결정을 ★잠근다. ★풀리면 ★★이 칸이 ★빨개져
+       ★「현빈 09-30 을 ★누가 ★뒤집었나」를 ★묻게 한다.
+     ★★그리고 ★「기본 프레임에서는 ★풀린다」는 ★★아래 `K2-move-default` 가 ★따로 잠근다 —
+       ⛔한 칸에 ★두 축을 ★다시 넣지 ★마라(★그것이 ★옛 K2 의 흠이었다).
+     ⚠️★★10-09(끌 때는 보인다)와 ★09-30(켬이 이긴다)은 ★★다른 ★단계를 말하는 ★두 지시다
+       ⇒ ★★어느 쪽이 ★이기나는 ★★현빈 판정 ★대기다. ⛔내가 ★고르지 ★않았다. */
+  expect(mid.ov, '★★켬 프레임인데 ★끌는 중 overflow 가 ★풀렸다 — ★★현빈 2026-09-30 결정(`!important` 로'
+    + ' ★예외들을 ★이긴다)이 ★뒤집혔다. ★뒤집은 것이 ★뜻이었다면 ★★이 칸과 ★그 CSS 주석을 ★같이 고쳐라'
+    + ` (overflow ${mid.ov})`).toBe('hidden');
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
+
+/* ★★`K2-move` 의 ★반대쪽 ★축 — ★★«해제가 ★먹는 자리»를 ★잠근다 (2026-10-10 2차 · 지디 ㉡).
+   ⛔없으면 ★`K2-move` 의 ★`hidden` 단언만 남아 ★★«해제 규칙이 ★아예 ★죽어도» ★초록이 된다
+     = ★★양성대조 ★없는 ★음성 단언이다. ★그 꼴을 ★이 팀은 ★여러 번 ★밟았다. */
+test('K2-move-default ★★기본(속성 없음) 프레임 — ★★끌는 ★동안 ★overflow 가 ★풀린다 (해제 규칙의 ★양성대조)', async ({ page }) => {
+  const { errs, frameId, childId } = await scene(page);
+  const before = await geom(page, frameId, childId);
+  expect(before.clipAttr, '★전제: 이 칸은 ★«속성 없음»을 잰다').toBe(null);
+  expect(before.radiusAttr, '★전제: radius 가 붙어 있다 — ★다른 규칙이 ★자름을 정한다').toBe(null);
+  expect(before.ov, '★전제: 기본이 ★hidden 이 ★아니다').toBe('hidden');
+
+  const { mid, after } = await dragToOverflow(page, frameId, childId);
+  expect(mid.ov, '★★기본 프레임인데 ★끌는 중 ★overflow 가 ★안 풀렸다 — ★`.frame-child-dragging` 마커 또는'
+    + ` ★그 CSS 규칙이 ★죽었다 (overflow ${mid.ov}) ⇒ ★현빈 2026-10-09 「끌 때는 ★보인다」가 ★죽는다`).toBe('visible');
+  expect(mid.over, `★★끌는 중에 ★죄었다 (${mid.over}px)`).toBeGreaterThan(0);
+  expect(after.ov, '★★놓았는데 ★overflow 가 ★visible 그대로다 — ★마커를 ★안 뗐다 ⇒ ★영구 visible').toBe('hidden');
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 
@@ -351,6 +381,49 @@ test('K3 ★★둥근 모서리 프레임 — ★CSS 가 ★hidden 으로 두는
   expect(after.parentIsFrame, '★추출됐다').toBe(true);
   expect(after.over, `★★둥근 프레임인데 ★넘쳤다 (${after.over}px)`).toBeLessThanOrEqual(0);
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
+
+/* ★★`K3` 가 ★못 보던 자리를 ★메운다 (2026-10-10 2차 · 지디 ㉡⒞).
+   ★★까닭 — ★`K3` 는 ★둥근 프레임에서 ★★«갇히는 쪽»만 ★단언한다 ⇒ ★★«끔이 ★먹나»에 ★눈이 ★가려져 있었다.
+     ⇒ ★그래서 ★2026-09-29~10-10 내내 ★★둥근 프레임에서 ★현빈의 ★끔이 ★안 먹는 것을 ★아무도 ★안 봤다.
+   ★★잰 값(탐침 · 고치기 ★전): ★radius 없음 ⇒ visible · 잉크 ★있다 / ★★radius 24 ⇒ ★hidden · 잉크 ★★없다.
+   ★★이 칸은 ★그 ★두 다리를 ★같이 세운다 — ⛔한쪽만 두면 ★자가 ★먹통일 때도 ★초록이다. */
+test('K3f ★★둥근 프레임 ＋ ★「내용 자르기」 ★끔 — ★★끔이 ★이긴다 (★radius 유무 ★양·음 한 쌍 · ★픽셀)', async ({ page }) => {
+  const got = {};
+  for (const radius of [null, 24]) {
+    const key = radius == null ? '모서리없음' : '둥근';
+    const { frameId, childId } = await scene(page, { clipAttr: 'false', radius });
+    const g0 = await geom(page, frameId, childId);
+    expect(g0.clipAttr, `[${key}] ★전제: 끔이 ★안 걸렸다`).toBe('false');
+    expect(g0.radiusAttr, `[${key}] ★전제: radius 축이 ★안 걸렸다`).toBe(radius == null ? null : String(radius));
+
+    await selectFrame(page, frameId);
+    const by = await pushChildOut(page, frameId, childId);
+    /* ★자식에 ★단색을 깐다 — ⛔글자는 ★왼쪽에 몰려 ★넘친 폭이 ★빈칸이 되어 ★★양성대조가 ★죽는다
+       (2026-10-10 ★1차 탐침에서 ★실제로 ★죽었다: ink false/false) */
+    const v = await page.evaluate(([f, c]) => {
+      const fr = document.getElementById(f), ch = document.getElementById(c);
+      ch.style.background = '#0000ff';
+      window.deselectAll?.();
+      const rf = fr.getBoundingClientRect(), rt = ch.getBoundingClientRect();
+      const over = Math.round(rt.right - rf.right);
+      return { ov: getComputedStyle(fr).overflow, over,
+               band: { x: Math.round(rf.right + 1), y: Math.round(rt.top + 2),
+                       width: Math.max(4, over - 2), height: Math.max(4, Math.round(rt.height) - 4) } };
+    }, [frameId, childId]);
+    await page.waitForTimeout(150);
+    expect(v.over, `[${key}] ★전제: ★손으로 넘겼는데 ★안 넘쳤다 (${v.over}px · 잰 값 ${by}px)`).toBeGreaterThan(4);
+    got[key] = { ...v, ...(await inkInBand(page, childId, v.band)) };
+  }
+  console.log(`K3f ★잰 값 — ${JSON.stringify(got)}`);
+  /* ★★양성대조 먼저 — ⛔이쪽이 빨강이면 ★아래 ★본 단언은 ★뜻이 ★없다 */
+  expect(got['모서리없음'].ov, '★★양성대조: radius 없는데 ★끔이 ★안 먹는다 — ★끔 규칙 ★자체가 ★죽었다').toBe('visible');
+  expect(got['모서리없음'].ink, '★★양성대조(픽셀): radius 없는데 ★프레임 밖에 ★잉크가 ★없다 — ★★잉크 자가 ★먹통이다').toBe(true);
+  /* ★★본 단언 — ★모서리 규칙(★속성 둘 = ★명시도 한 칸 높다)을 ★끔이 ★이겨야 한다 */
+  expect(got['둥근'].ov, '★★★둥근 프레임에서 ★현빈의 ★「내용 자르기 ★끔」이 ★안 먹는다'
+    + ' — ★모서리 규칙이 ★명시도로 ★이긴다(★순서와 ★무관) ⇒ ★토글이 ★거짓이 된다').toBe('visible');
+  expect(got['둥근'].ink, '★★★둥근 프레임에서 ★프레임 밖에 ★잉크가 ★없다 = ★끔이 ★안 먹는다 (★값은 ★위에서 ★쟀고'
+    + ' ★이 줄은 ★★그림을 ★잰다 — ★둘이 ★갈리면 ★«자리는 넘었는데 ★안 그려진다»다)').toBe(true);
 });
 
 /* ═══ ★★한 쌍이 ★같은 장면에서 ★갈리나 — ★그림으로도 ═══════════════════════ */

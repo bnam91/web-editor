@@ -317,7 +317,7 @@ function _renderAutoPanel(ss) {
         <!-- ★★2026-10-10 (현빈 ③ 「프레임블럭의 배경도 ★면 프레임안에서 ★이미지 위치나 ★크기 조절되게」)
              ★섹션 패널의 sec-bg-size 와 ★★같은 꼴·같은 값»을 쓴다 — ⛔새 이름·새 값 ★금지.
              ★값은 ★dataset.bgSize ★한 칸이고 ★그리기는 ★공용 한 자리가 한다(수입 줄 참조).
-             ⚠️★직접 조절»은 ★위치 편집이 ★px 쌍을 ★박았을 때만 ★뜬다 — ★안 넣으면 ★select 가
+             ⚠️★직접 조절»은 ★「배경이미지 편집」이 ★px 쌍을 ★박았을 때만 ★뜬다 — ★안 넣으면 ★select 가
                ★★Cover 로 ★거짓말을 한다(섹션 패널이 ★같은 사고를 ★먼저 겪고 ★그렇게 고쳤다). -->
         <div class="prop-row">
           <span class="prop-label">사이즈</span>
@@ -328,7 +328,7 @@ function _renderAutoPanel(ss) {
             ${_bgSizeCustom ? `<option value="${_bgSizeNow}" selected>직접 조절</option>` : ''}
           </select>
         </div>
-        <button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="margin-top:4px;">위치 편집</button>
+        <button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="margin-top:4px;">배경이미지 편집</button>
         <button class="prop-action-btn danger" id="ss-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
       ` : ''}
     </div>
@@ -704,7 +704,7 @@ function _renderAutoPanel(ss) {
         posBtn.id = 'ss-bg-pos-btn';
         posBtn.className = 'prop-action-btn secondary';
         posBtn.style.cssText = 'margin-top:4px;';
-        posBtn.textContent = '위치 편집';
+        posBtn.textContent = '배경이미지 편집';
         posBtn.addEventListener('click', () => _frameBgEdit(ss));
         bgImgBtn.after(posBtn);
       }

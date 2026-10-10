@@ -111,10 +111,21 @@ test('C3 ★★CSS 의 ★기본이 ★hidden 이고 ★«푸는 자리»가 ★
        ★이 검사가 ★잠그는 것은 ★★«기본과 ★토글» ★두 칸이다. ⇒ ★선택자 꼴로 ★추려 센다. */
   const released = rules.filter((r) => r.ov === 'visible'
       && /data-clip-content|frame-child-dragging/.test(r.sel)).map((r) => r.sel).sort();
+  /* ⚠️★★2026-10-10 2차 — ★끌는 중 해제 선택자가 ★★좁아졌다. ★수는 ★그대로 ★둘이다.
+       ★★`:not([data-clip-content="true"])` 를 ★★더한 까닭 = ★★현빈 ★09-30 결정을 ★보존한다:
+         「★켠 것은 ★풀어 주는 ★예외들보다 ★이겨야 한다」(그래서 ★그 규칙이 ★`!important`).
+       ★★실측(탐침 D · 2026-10-10): ★기본 ⇒ hidden→★visible · ★★켬 ⇒ hidden→★★hidden.
+       ⇒ ★★어차피 ★★켬에서는 ★안 풀렸다 ⇒ ★★그 ★«안 풀림»을 ★선택자에 ★★보이게 ★적은 것이다
+         (⛔명시도로만 ★지고 있으면 ★읽는 사람이 ★«풀린다»로 ★읽는다).
+       ★★그 결정이 ★뒤집히면(★현빈 판정) ★이 `:not` 을 ★떼고 ★`!important` 를 ★주면 된다 —
+         ★그때 ★이 칸과 ★`K2-move` ＋ ★`frame-bg-edit-wiring` 의 ★B10 이 ★★같이 ★빨개진다. */
   assert.deepEqual(released, [
-    '.frame-block:has(> .frame-child-dragging)',
+    '.frame-block:has(> .frame-child-dragging):not([data-clip-content="true"])',
     '.frame-block[data-clip-content="false"]',
-  ].sort(), `★★CSS 가 ★«푸는» 자리가 ★바뀌었다 — ★술어(frameClipsPaint)도 ★같이 고쳐라\n  본 것: ${released.join(' | ')}`);
+  ].sort(), '★★CSS 가 ★«푸는» 자리가 ★바뀌었다 — ★★무엇이 ★바뀌었나를 ★갈라 적어라:\n'
+    + '  ⑴ ★명부(★어느 선택자가 ★푸나) 가 ★바뀌었나 ⇒ ★이 배열을 ★고치고 ★★까닭을 ★위 주석에 ★남겨라\n'
+    + '  ⑵ ★★술어(frameClipsPaint)가 ★답해야 할 것이 ★바뀌었나 ⇒ ★★그 함수를 ★고쳐라\n'
+    + `  ⛔둘을 ★섞어 ★고치지 ★마라. 본 것: ${released.join(' | ')}`);
 
   /* ★★그리고 ★그 둘을 ★술어가 ★같은 답으로 ★왕복한다 */
   const f = loadFn('frameClipsPaint');

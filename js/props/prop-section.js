@@ -241,7 +241,7 @@ async function showSectionProperties(sec) {
         ${_bgSizeCustom ? `<option value="${bgSize}" selected>직접 조절</option>` : ''}
       </select>
     </div>
-    <button class="prop-action-btn secondary" id="sec-bg-pos-btn" style="margin-top:6px;">${sec._secBgEditing ? '위치 편집 완료' : '위치 편집'}</button>
+    <button class="prop-action-btn secondary" id="sec-bg-pos-btn" style="margin-top:6px;">${sec._secBgEditing ? '배경이미지 편집 완료' : '배경이미지 편집'}</button>
     <!-- ★2026-10-10 — ★«배경색이 불투명하다»고 알리던 ★안내 한 줄을 ★걷었다.
          ★까닭: ★_applySectionBg 가 ★더는 ★덮지 않는다(불투명 색은 그림 «아래»로 간다) ⇒ ★안내할 것이 ★없다.
          ★실측(2026-10-10 · t3frame): 고치기 «전» 판에서 그 줄은 ★정말 떴고 ★보였다(211×51 · 11px · #888) —
@@ -570,7 +570,8 @@ ${blockHeaderHTML({
     }
   });
   const bgPosBtnEl  = document.getElementById('sec-bg-pos-btn');
-  // 「위치 편집」 = 에셋 더블클릭 편집기를 섹션 배경에 붙인 모드(토글).
+  // 「배경이미지 편집」(2026-10-10 현빈 지시로 ★이름 변경 · 옛 이름 「위치 편집」)
+  //   = 에셋 더블클릭 편집기를 섹션 배경에 붙인 모드(토글).
   // ★★2026-10-10 (현빈 ③) — ★이 줄이 ★거짓이 되었다. ⛔지우지 않고 ★다시 적는다:
   //   ★옛 `enterBgPosDragMode`(%-기반 ★위치만 · ★크기 축 없음)는 ★프레임 쪽에 ★★더 이상 ★안 쓰인다.
   //   ★프레임도 ★이제 ★같은 본문을 탄다 — `window.enterFrameBgEditMode` (`js/image-handling.js`).

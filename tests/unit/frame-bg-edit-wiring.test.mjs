@@ -139,6 +139,105 @@ test('B6 ★★내가 ★더한 `position` 을 ★되돌린다 — ⛔안 되돌
   assert.match(c, /restore\s*\?\?\s*host\._secBgRestore/, '★철거가 ★숙주의 ★되돌리개를 ★안 쓴다');
 });
 
+test('B8 ★★물러난 모드를 ★부르는 자가 ★0 이다 — ★★«언제 지울 수 있나»를 ★이 칸이 ★들고 있다', () => {
+  /* ★★지디 판정(2026-10-10): ⛔`enterBgPosDragMode` 를 ★지우지 ★마라 — ★프레임 쪽이 ★DOM 으로 ★덜
+     검증됐으니 ★되돌릴 자리를 ★남긴다. ★대신 ★★«부르는 자 0»을 ★검사로 ★잠근다.
+     ★★★지울 조건(★이것이 ★이 칸의 ★본문이다):
+       ⑴ `tests/dom/frame-clip-drag.dom.spec.js` ★전 칸 ★초록 ＋
+       ⑵ ★프레임 「배경이미지 편집」이 ★DOM 에서 ★섹션과 ★같은 꼴로 ★선 것이 ★쟀고 ＋
+       ⑶ ★현빈이 ★그 동작을 ★한 번 ★써 본 뒤
+     ⇒ ★그 셋이 ★서면 ★그 함수와 ★그 짝(exit)·`window` 노출을 ★지워라.
+       ★★그때 ★이 칸이 ★«대상이 없다»로 ★★빨개져 ★스스로 ★다음 할 일을 ★알려 준다. */
+  const files = [];
+  const walk = (d) => {
+    for (const e of readdirSync(new URL(d + '/', R), { withFileTypes: true })) {
+      if (e.isDirectory()) walk(d + '/' + e.name);
+      else if (/\.(js|mjs)$/.test(e.name)) files.push(d + '/' + e.name);
+    }
+  };
+  ['js'].forEach(walk);
+  const NAME = 'enterBgPosDragMode';
+  let defined = 0;
+  const callers = [];
+  for (const f of files) {
+    stripCommentsTA(read(f)).split('\n').forEach((l, i) => {
+      if (new RegExp('function\\s+' + NAME + '\\s*\\(').test(l)) { defined++; return; }
+      if (new RegExp('window\\.' + NAME + '\\s*=').test(l)) return;          /* 노출은 ★호출이 ★아니다 */
+      if (l.includes(NAME)) callers.push(`${f}:${i + 1} ${l.trim().slice(0, 80)}`);
+    });
+  }
+  console.log(`B8 ★정의 ${defined} · ★부르는 자 ${callers.length}`);
+  assert.equal(defined, 1, `★★대상이 ★사라졌다(정의 ${defined}) — ★지웠다면 ★이 칸도 ★같이 지워라`);
+  assert.deepEqual(callers, [],
+    '★★물러난 모드를 ★누가 ★다시 부른다 — ★그 모드엔 ★★크기 축이 ★없어 ★현빈 ③ 이 ★다시 열린다');
+});
+
+test('B9 ★★버튼 이름이 ★「배경이미지 편집」이다 (현빈 2026-10-10) — ★옛 라벨 ★0 건', () => {
+  /* ★현빈 원문 — 「★그리고 ★위치편집이 아니라 ★★버튼이름도 ★'배경이미지 편집'이 ★적절할것 같아」
+     ★★전수를 ★내가 ★다시 셌다(⛔받은 수 ★2＋1 을 ★그대로 ★안 썼다):
+       ★「위치 편집」 글자 = ★24 행 / ★12 벌 — ★그중 ★★사용자에게 ★보이는 ★라벨은 ★★4 자리 ★5 문자열
+       (＋`prop-frame.js:320` 의 ★★HTML 주석 ★1 — ★그것은 ★라벨이 ★아니라 ★★안 센다):
+         `js/props/prop-frame.js` ★2 (★패널 HTML ＋ ★동적 생성)
+         `js/props/prop-section.js` ★1 줄에 ★2 (★토글 ★켬/끔 라벨)
+         `js/image-handling.js` ★1 (★공용 편집기의 ★완료 버튼 — ★★두 숙주가 ★같이 쓴다)
+       ★나머지 ★18 은 ★주석·검사 글이다.
+     ⛔`id` 는 ★안 바꿨다(`ss-bg-pos-btn`·`sec-bg-pos-btn`·`…-pos-done`) — ★소비자가 ★그 이름을 쓴다.
+       ★`sec-bg-proxy` 를 ★안 바꾼 것과 ★같은 까닭이다. */
+  /* ⚠️★★1차에서 ★이 자가 ★★6 을 셌고 ★전수는 ★5 였다 — ★차이 ★하나는 ★★HTML 주석이었다
+       (`prop-frame.js:320` · ★★템플릿 리터럴 ★«본문»이라 ★주석 거르개가 ★못 걷는다 — ★그게 ★맞다,
+        ★그 글자는 ★문자열의 ★일부다). ⇒ ★★그대로 두면 ★실 라벨 ★하나가 ★되돌아가도 ★6→5 로 ★초록이다
+       = ★★조용히 ★낮아진 기준선. ⇒ ★★«라벨 꼴»만 ★센다(★꺾쇠 안 또는 ★따옴표 안). */
+  const LABEL_SITES = ['js/props/prop-frame.js', 'js/props/prop-section.js', 'js/image-handling.js'];
+  const bad = [];
+  let newLabels = 0;
+  const per = {};
+  for (const f of LABEL_SITES) {
+    const c = stripCommentsTA(read(f));
+    const n = (c.match(/>\s*배경이미지 편집[^<]*<|'배경이미지 편집[^']*'/g) || []).length;
+    per[f.split('/').pop()] = n; newLabels += n;
+    /* ★옛 라벨이 ★★«버튼 글자»로 ★남아 있나 — ★`>위치 편집<` 또는 ★따옴표로 감싼 것 */
+    for (const m of c.matchAll(/>\s*위치 편집[^<]*<|'위치 편집[^']*'/g)) bad.push(`${f}: ${m[0].slice(0, 40)}`);
+  }
+  console.log(`B9 ★새 라벨 ${newLabels} 건 ${JSON.stringify(per)} · ★옛 라벨 ${bad.length} 건`);
+  assert.deepEqual(bad, [], '★★버튼에 ★옛 라벨 「위치 편집」이 ★남아 있다 — ★현빈이 ★고쳐 달라 한 ★그 글자다');
+  assert.ok(newLabels >= 5,
+    `★새 라벨이 ${newLabels} 건 — ★★5(전수로 센 수) 보다 적다. ★어딘가 ★되돌아갔다`);
+});
+
+test('B10 ★★자름 ★세 규칙의 ★명시도·순서·범위 — ★★잰 값으로 ★정한 것을 ★구조로 잠근다', () => {
+  /* ★★2026-10-10 탐침으로 ★잰 것(★양성대조 ★한 쌍 ＋ ★픽셀 ＋ computed):
+       ★둥근 프레임 ＋ 끔  ⇒ ★고치기 ★전 overflow ★hidden · ★잉크 ★없다 (★끔이 ★졌다)
+       ★켬 프레임 ＋ 끌는 중 ⇒ ★overflow ★hidden (★해제가 ★졌다 — ★★현빈 09-30 결정이 ★이긴다)
+     ⇒ ★★처방 ★둘:
+       ⑴ ★끔에 ★`!important` — ★사용자가 ★★명시로 ★끈 것이 ★부수효과(모서리)에 ★지면 ★토글이 ★거짓이다
+       ⑵ ★끌는 중 해제를 ★★모서리 규칙 ★«뒤»로 (★명시도 동률 ⇒ ★나중이 이긴다) ＋
+          ★★«켬»을 ★선택자에서 ★★일부러 ★제외 — ⛔현빈 09-30 을 ★내가 ★뒤집지 ★않는다
+     ★★이 셋은 ★★«행위로 재기 어려운» 자리다(★순서·명시도) ⇒ ★★구조로 ★잠근다.
+     ★★행위 쪽 짝 = `tests/dom/frame-clip-drag.dom.spec.js` 의 ★`K3f`(픽셀) ·`K2-move`·`K2-move-default`. */
+  const css = read('css/editor-blocks.css');
+  const iOff    = css.indexOf('.frame-block[data-clip-content="false"]');
+  const iRadius = css.indexOf('.frame-block[data-radius]:not([data-radius="0"])');
+  const iDrag   = css.indexOf('.frame-block:has(> .frame-child-dragging)');
+  for (const [n, i] of [['끔', iOff], ['모서리', iRadius], ['끌는 중 해제', iDrag]]) {
+    assert.ok(i >= 0, `★${n} 규칙이 ★사라졌다`);
+  }
+  /* ⑴ ★끔이 ★모서리를 ★이기나 — ★`!important` 로 */
+  assert.match(css.slice(iOff, iOff + 900), /overflow:\s*visible\s*!important/,
+    '★★끔 규칙에 ★`!important` 가 ★없다 — ★모서리 규칙(★속성 ★둘 = ★명시도 한 칸 높다)에 ★★진다'
+    + ' ⇒ ★★둥근 프레임에서 ★현빈의 ★토글이 ★거짓이 된다(2026-10-10 ★픽셀로 ★쟀다)');
+  /* ⑵ ★해제가 ★모서리 ★뒤인가 — ★동률은 ★나중이 이긴다 */
+  assert.ok(iDrag > iRadius,
+    `★★끌는 중 해제(${iDrag})가 ★모서리 규칙(${iRadius})보다 ★앞이다 — ★명시도가 ★같으므로`
+    + ' ★★조용히 ★진다(★빨강 없이 ★「끌 때는 보인다」만 ★죽는다)');
+  /* ⑶ ★★«켬»을 ★제외했나 — ★그 결정이 ★선택자에 ★보여야 한다 */
+  assert.match(css.slice(iDrag, iDrag + 120), /:not\(\[data-clip-content="true"\]\)/,
+    '★★끌는 중 해제가 ★★«켬»을 ★제외하지 ★않는다 — ★★현빈 2026-09-30 결정(★켬이 ★예외들을 ★이긴다)을'
+    + ' ★누가 ★뒤집었다. ★뒤집은 것이 ★뜻이었다면 ★`K2-move` 와 ★그 CSS 주석도 ★같이 고쳐라');
+  /* ⛔그리고 ★해제에 ★`!important` 를 ★주면 ★위 ⑶ 의 ★제외가 ★뜻을 잃는다 — ★같이 잠근다 */
+  assert.ok(!/overflow:\s*visible\s*!important/.test(css.slice(iDrag, iDrag + 120)),
+    '★★끌는 중 해제에 ★`!important` 가 ★붙었다 — ★그러면 ★★«켬»도 ★같이 풀려 ★⑶ 의 ★제외가 ★뜻이 없다');
+});
+
 test('B7 ★★양성대조 — ★이 자들이 ★정말 ★빨개질 수 있나 (＋주석은 ★안 센다)', () => {
   /* ⛔없으면 ★위 여섯 칸의 ★초록이 ★「안 재고 있다」와 ★구분이 ★안 된다. */
   const asCode = (s) => stripCommentsTA(s);

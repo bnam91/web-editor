@@ -919,6 +919,22 @@ window.exitImageEditMode  = exitImageEditMode;
 /* ══════════════════════════════════════
    배경 이미지 위치 드래그 모드 (섹션 / 서브섹션 공용)
 ══════════════════════════════════════ */
+/* ⚰️★★2026-10-10 — ★이 모드는 ★★`_enterBgEditMode` 로 ★갈렸다. ★★부르는 자 ★★0 (★행위로 셌다).
+ *
+ * ★★무엇으로 ★갈렸나 — ★`window.enterFrameBgEditMode` (★대리 → 에셋 편집기 · ★위치 px ＋ ★★크기 px).
+ *   ★이 모드가 ★주던 것은 ★★«위치 %» ★하나뿐이고 ★★크기 축이 ★아예 ★없었다 —
+ *   ★그것이 ★현빈 1009t3-③ 의 ★증상이었다(「에셋블럭처럼 … ★위치나 ★크기」).
+ *
+ * ★★⛔그런데 ★지우지 ★않았다. ★까닭(★지디 판정 2026-10-10):
+ *   ⒜ ★새 길(프레임 쪽)이 ★★DOM 으로 ★아직 ★덜 검증됐다 ⇒ ★★되돌릴 자리를 ★남긴다
+ *   ⒝ ★「`window` 에 남아 ★누가 ★되배선할 수 있다」는 ★걱정은 ★★«지우는 ★까닭»이 아니라 ★★«재는 ★까닭»이다
+ *
+ * ★★★언제 ★지울 수 있나 — ★★산문이 ★아니라 ★★검사에 ★적혀 있다:
+ *   `tests/unit/frame-bg-edit-wiring.test.mjs` 의 ★`B8` 이 ★★«부르는 자 0»을 ★잠근다.
+ *   ★그 칸의 ★머리말에 ★★«지울 조건»이 ★적혀 있고, ★조건이 ★서면 ★★이 함수를 ★지워라 —
+ *   ★그때 ★`B8` 이 ★★빨개져(★대상이 ★없다) ★★«다음 할 일»을 ★스스로 ★알려 준다.
+ * ⛔이 머리말에 ★★그 함수 이름을 ★★더 적지 ★마라 — ★`B8` 이 ★주석을 ★걷고 ★세지만,
+ *   ★★걷는 자가 ★바뀌면 ★★내 산문이 ★측정값이 된다(2026-10-07 선례). */
 function enterBgPosDragMode(el) {
   if (el._bgPosDragging) return;
   if (!el.style.backgroundImage || el.style.backgroundImage === 'none') return;
@@ -1333,7 +1349,7 @@ function _enterBgEditMode(host, ad) {
     if (pp) {
       const box = document.createElement('div');
       box.className = ad.boxClass;
-      box.innerHTML = '<button class="prop-action-btn secondary" id="' + ad.doneId + '">위치 편집 완료</button>';
+      box.innerHTML = '<button class="prop-action-btn secondary" id="' + ad.doneId + '">배경이미지 편집 완료</button>';
       pp.appendChild(box);
       box.querySelector('#' + ad.doneId).addEventListener('click', () => _exitBgEditMode(host, ad, _restore));
     }
