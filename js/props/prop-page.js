@@ -2,6 +2,7 @@
    PROPERTIES PANEL
 ═══════════════════════════════════ */
 import { propPanel, canvasEl, state } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기(applyCanvasBackground)만 쓰므로 «바인딩 자체»를 없앤다(직접 대입 재유입 방지) */
+import { applyBubbleSenderAlign } from './prop-text-wireup-align.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 /* 색 코드 칸 배선은 «한 자리»에서만 온다(유닛 colorhex) */
@@ -676,6 +677,10 @@ export function showPageProperties() {
         else {
           const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
           if (contentEl) contentEl.style.textAlign = align;
+          /* ★★말풍선 ★이름표 — ★★쪽 전체 ★일괄 정렬도 ★★같은 자를 ★부른다.
+             ★★실측(2026-10-10): ★이 자리도 ★`.tb-label`/`contentEl` ★규칙의 ★★둘째 사본이었다
+             ⇒ ★★한쪽만 고치면 ★★★일괄 정렬에서 ★이름표가 ★안 따라온다(★반쪽 고침) */
+          applyBubbleSenderAlign(tb, align);
         }
       });
       document.querySelectorAll('.label-group-block').forEach(block => {

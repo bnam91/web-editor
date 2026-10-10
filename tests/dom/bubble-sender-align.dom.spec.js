@@ -188,3 +188,42 @@ test('⒧ ★★넓은 풍선 — ★★★«글자»가 ★움직이나 (★★
   expect(after.bubInline, '★전제 — ★눌린 뒤 ★`.tb-bubble` 인라인이 ★center').toBe('center');
   expect(before.bubRect.w, `★전제 — ★풍선이 ★넓어졌다 (잰 값: ${before.bubRect.w})`).toBeGreaterThan(300);
 });
+
+/* ══ ★★★⒨ ★처방을 ★잠근다 — ★★⒝(★이름표에 ★따로) ★판정 2026-10-10(지디) ═══════════════
+ * ★★처방: ★`applyBubbleSenderAlign`(★`js/props/prop-text-wireup-align.js`) ★한 자리
+ *   ⇒ ★★호출자 ★둘: ⒜ ★그 파일의 ★정렬 단추 ⒝ ★`prop-page.js` 의 ★쪽 전체 ★일괄 정렬
+ *   ⇒ ★★★사본을 ★두지 ★않았다 — ★★그 규칙이 ★★두 자리에 ★있었다(★실측)
+ *
+ * ★★★⒥ ★음성대조의 ★★참 꼴 — ⛔«말꼬리는 ★안 움직인다»로 ★걸 수 ★없다:
+ *   ★★실측(★⒥ 칸): ★고치기 ★전에도 ★★말꼬리가 ★움직였다(★svg cx ★546 → ★558)
+ *   ⇒ ★★그건 ★★`.tb-bubble` ★자신의 ★정렬이 ★레이아웃을 ★바꿔서다 — ★★내 처방과 ★무관하다
+ *   ⇒ ★★★그래서 ★★«움직임»으로는 ★⒜ 와 ⒝ 를 ★못 가른다
+ *   ⇒ ★★★참 ★판별자 = ★★★«블록(`tb`)에 ★인라인 ★textAlign 이 ★붙었나»
+ *        ⒜(★블록에 걸기)면 ★★붙는다 · ★★⒝(★이름표에 걸기)면 ★★안 붙는다
+ *   ⇒ ★★★즉 ★누가 ★나중에 ★⒜ 로 ★바꾸면 ★★이 칸이 ★빨개진다 ⇒ ★★판정이 ★★구조로 ★남는다 */
+test('⒨ ★처방 — ★이름표가 ★따라오고, ★★블록엔 ★★인라인 정렬이 ★★안 붙는다 (★⒜/⒝ 판별자)', async ({ page }) => {
+  await setup(page);
+  await showSender(page);
+  await widen(page);
+  const before = await probe(page);
+  await clickCenter(page);
+  const after = await probe(page);
+  /* ★★제 상자 기준 — ⛔절대 cx 는 ★판 밀림에 ★속는다(★이 파일 머리말) */
+  const rel = (p) => (p.nmTextRect && p.nmRect ? p.nmTextRect.cx - p.nmRect.cx : null);
+  console.log('    ⒨ ★이름표 ★글자(★제 상자 기준): ' + JSON.stringify({ before: rel(before), after: rel(after) }));
+  console.log('    ⒨ ★이름표 계산값: ' + JSON.stringify({ before: before.nmTA, after: after.nmTA }));
+  console.log('    ⒨ ★블록 ★인라인: ' + JSON.stringify({ before: before.blkInline, after: after.blkInline }));
+  console.log('    ⒨ ★말꼬리 cx: ' + JSON.stringify({ before: before.svgRect, after: after.svgRect }));
+
+  /* ⒜ ★★본 단언 — ★이름표가 ★따라온다 */
+  expect(after.nmTA, '★★이름표가 ★안 따라왔다 — ★★`applyBubbleSenderAlign` 이 ★안 불렸거나 ★죽었다').toBe('center');
+  const r0 = rel(before), r1 = rel(after);
+  expect(Math.abs(r1), `★★이름표 ★글자가 ★제 상자 ★가운데로 ★안 왔다 (★전 ${r0} → ★후 ${r1})`)
+    .toBeLessThan(Math.abs(r0));
+
+  /* ⒝ ★★★음성대조 = ★★판별자 — ★★블록엔 ★인라인 정렬이 ★★붙지 ★않는다(⛔그게 ⒜ 다) */
+  expect(after.blkInline, '★★블록에 ★인라인 ★textAlign 이 ★붙었다 — ★★그건 ★⒜(블록에 걸기)다. '
+    + '★★판정 2026-10-10(지디)은 ★★⒝(이름표에 따로)다: ★★⒜ 는 ★말꼬리까지 ★움직여 '
+    + '★★★현빈이 ★요청하지 ★않은 ★변화를 ★만든다').toBe('');
+  expect(after.blkTA, '★★블록의 ★계산값이 ★center 가 ★됐다 — ★★위와 ★같은 까닭').not.toBe('center');
+});
