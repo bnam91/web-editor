@@ -571,7 +571,9 @@ ${blockHeaderHTML({
   });
   const bgPosBtnEl  = document.getElementById('sec-bg-pos-btn');
   // 「위치 편집」 = 에셋 더블클릭 편집기를 섹션 배경에 붙인 모드(토글).
-  // 예전 enterBgPosDragMode(%-기반 위치만 드래그)는 프레임(.frame-block) 쪽에 그대로 남아 있다.
+  // ★★2026-10-10 (현빈 ③) — ★이 줄이 ★거짓이 되었다. ⛔지우지 않고 ★다시 적는다:
+  //   ★옛 `enterBgPosDragMode`(%-기반 ★위치만 · ★크기 축 없음)는 ★프레임 쪽에 ★★더 이상 ★안 쓰인다.
+  //   ★프레임도 ★이제 ★같은 본문을 탄다 — `window.enterFrameBgEditMode` (`js/image-handling.js`).
   if (bgPosBtnEl) bgPosBtnEl.addEventListener('click', () => {
     if (sec._secBgEditing) window.exitSectionBgEditMode?.(sec);
     else                   window.enterSectionBgEditMode?.(sec);

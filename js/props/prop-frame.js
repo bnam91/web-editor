@@ -11,6 +11,16 @@ import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed } from '../drag-utils.js';
 import { panelRenderedPx } from './_panel-rendered.js';
 
+/* ★★2026-10-10 (현빈 ③) — ★★옛 `enterBgPosDragMode`(%-기반 ★위치만 · ★크기 축 ★없음)에서
+     ★★`enterFrameBgEditMode`(대리 → 에셋 편집기 · ★위치 px ＋ ★★크기 px)로 ★갈았다.
+   ★현빈 원문 「★에셋블럭처럼 프레임블럭의 배경도 ★면 프레임안에서 이미지 ★위치나 ★크기 조절되게」
+   ★★섹션과 ★같은 꼴로 ★토글이다 — ★선례 = `js/props/prop-section.js:574~577`.
+   ⛔`enterBgPosDragMode` 로 ★되돌리지 ★마라: ★그 모드엔 ★★크기 축이 ★아예 ★없어 ★③ 이 ★다시 열린다. */
+const _frameBgEdit = (el) => {
+  if (el._secBgEditing) window.exitFrameBgEditMode?.(el);
+  else                  window.enterFrameBgEditMode?.(el);
+};
+
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#ffffff';
   if (/^#/.test(rgb)) return rgb;
@@ -695,7 +705,7 @@ function _renderAutoPanel(ss) {
         posBtn.className = 'prop-action-btn secondary';
         posBtn.style.cssText = 'margin-top:4px;';
         posBtn.textContent = '위치 편집';
-        posBtn.addEventListener('click', () => window.enterBgPosDragMode?.(ss));
+        posBtn.addEventListener('click', () => _frameBgEdit(ss));
         bgImgBtn.after(posBtn);
       }
       if (!document.getElementById('ss-bg-img-clear')) {
@@ -738,7 +748,7 @@ function _renderAutoPanel(ss) {
     applyFrameBgImageInline(ss);        /* 본체 경로 */
     window.scheduleAutoSave?.();
   });
-  if (bgPosBtn)   bgPosBtn.addEventListener('click', () => window.enterBgPosDragMode?.(ss));
+  if (bgPosBtn)   bgPosBtn.addEventListener('click', () => _frameBgEdit(ss));
 
   // 배경색 (solid + gradient)
   wireColorField('ss-bg', {
