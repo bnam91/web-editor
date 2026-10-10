@@ -175,6 +175,19 @@ async function widen(page) {
   /* ★★★배율에 ★안 매달리는 ★자로 ★기다린다 — ★`offsetWidth` 는 ★★레이아웃 px 다.
      ⛔★앞 판은 ★`getBoundingClientRect().width`(★화면 px)로 ★쟀다 ⇒ ★★r14 의 ★8벌 판에서
        ★★배율이 ★40% 라 ★★★전제가 ★영영 ★안 섰다(★★부하가 ★아니다 — ★load 는 ★더 ★낮았다) */
+  /* ★★★«실패할 때만» 이 ★아니라 ★★★«항상» 찍는다 (★지디 판정 2026-10-11).
+   *   ★★까닭: ★★배율은 ★★회차마다 ★다르다 — ★1벌 판에서 ★100% · ★8벌 판에서 ★★40% 였다
+   *   ⇒ ★★★그 수가 ★로그에 ★★남아야 ★★«누가 ★남겼나»를 ★다음 회차가 ★스스로 ★답한다
+   *   ⇒ ★★그리고 ★★★내 spec 은 ★★zoom 을 ★안 만진다(★census: ★배율 만지는 ★160벌에 ★안 든다)
+   *     ⇒ ★★★그러니 ★★회차 ★시작 값이 ★40 이면 ★★★남이 ★남긴 것이거나 ★앱의 ★자동 맞춤이다
+   *   ⛔★`globalSetup/Teardown` 은 ★안 쓴다 — ★88 레인 ★공유(★TK-L22 와 ★같은 자리) */
+  const z0 = await page.evaluate(() => ({
+    zoom: window.currentZoom ?? null,
+    bubOffsetW: document.querySelector('#canvas .speech-bubble-block .tb-bubble')?.offsetWidth ?? null,
+    bubScreenW: Math.round(document.querySelector('#canvas .speech-bubble-block .tb-bubble')
+      ?.getBoundingClientRect().width ?? 0),
+  })).catch(() => null);
+  console.log('    ★★배율·폭(★항상): ' + JSON.stringify(z0));
   try {
     await page.waitForFunction(() => {
       const b = document.querySelector('#canvas .speech-bubble-block .tb-bubble');
