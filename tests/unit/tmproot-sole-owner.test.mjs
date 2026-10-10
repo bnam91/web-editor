@@ -220,7 +220,11 @@ function leakers(root = path.join(ROOT, 'tests'), base = ROOT) {
 }
 
 /** tests/ 안에서 ★손으로 ★`rmSync` 를 쓰는 파일 — ★주석은 ★뗀다(★주석의 예시가 ★측정값이 되는 것 방지). */
-function violations() {
+function violations(root = path.join(ROOT, 'tests')) {
+  /* ★★뿌리를 ★주입받는다 — ★`leakers()` 와 ★같은 까닭(★T9 가 ★다른 뿌리를 ★잰다).
+   * ⛔★★한 번 ★틀렸다: ★인자를 ★안 받는데 ★`violations(TOOLS)` 로 ★불러 ★★tests/ 수를
+   *   ★★«tools/» 라고 ★찍었다 — ★★출력의 ★파일 경로가 ★전부 `tests/…` 라 ★들켰다
+   *   ⇒ ★★«말이 안 되는 출력»이 ★자가 깨졌다는 ★가장 싼 신호다(지디) */
   const out = {};
   const walk = (d) => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
@@ -231,7 +235,7 @@ function violations() {
       if (n) out[path.relative(ROOT, p)] = n;
     }
   };
-  walk(path.join(ROOT, 'tests'));
+  walk(root);
   return out;
 }
 
@@ -484,6 +488,32 @@ test('T7 ★★★이 파일 ★자신이 ★★가장 오염시키는 파일이
   assert.equal(cnt(stripComments(REAL), ALL()), 1,
     '★음성대조 실패 — ★★참 호출을 ★★못 센다 ⇒ ★자가 ★죽었다');
 });
+test('T9 ★★`tools/` 를 ★★«같은 자»로 ★재서 ★찍는다 — ⛔★판정은 ★하지 ★않는다 (★범위 미정)', () => {
+  /* ★★범위가 ★아직 ★안 섰다 — ★`tools/` 가 ★이 일에 ★드는지는 ★★지디 판정이다(★2026-10-10 ★요청, ★미회신).
+   *   ⇒ ★★⛔여기서 ★단언하지 ★않는다 — ★범위 밖을 ★FAIL 로 ★만들면 ★★남의 레인이 ★내 빨강을 ★본다
+   *   ⇒ ★★그렇다고 ★«안 재고» ★두지도 ★않는다 — ★★판정에 ★필요한 것은 ★★수다
+   *   ★★★판정이 ★서면 ★이 칸은 ★둘 중 ★하나가 ★된다:
+   *     ⒜ ★범위에 ★든다 ⇒ ★★`LEAKING_TOOLS` 명부 ＋ ★«명부 밖 0» ★단언으로 ★올린다
+   *     ⒝ ★범위 ★밖이다 ⇒ ★★이 칸을 ★★지운다(⛔«영원히 찍기만 하는 칸»으로 ★남기지 ★않는다)
+   *   ⛔★수를 ★이 주석에 ★박지 ★않는다 — ★아래가 ★매 회차 ★찍는다 */
+  const TOOLS = path.join(ROOT, 'tools');
+  if (!fs.existsSync(TOOLS)) { console.log('    ★`tools/` 가 ★없다 — ★잴 것이 ★없다'); return; }
+  const L = leakers(TOOLS, ROOT);
+  const dsum = L.reduce((a, x) => a + x.delta, 0);
+  const V = violations(TOOLS);
+  const vfiles = Object.keys(V).sort();
+  const vcalls = vfiles.reduce((a, f) => a + V[f], 0);
+  console.log(`    ★★\`tools/\` — ★손으로 rmSync: ★파일 ${vfiles.length} · ★호출 ${vcalls}  |  ★누수: ★파일 ${L.length} · ★Δ ${dsum}`);
+  for (const f of vfiles) console.log(`      · rmSync ${V[f]}건  ${f}`);
+  for (const x of L) console.log(`      · Δ${x.delta} ${x.file}  [${x.prefixes.join(' ')}]`);
+  /* ★★★단 ★하나는 ★단언한다 — ★★«자가 ★그 뿌리에 ★닿나».
+   *   ⛔★«0건 0건» 이 ★★«깨끗하다»인지 ★★«안 걸어봤다»인지 ★구분이 ★안 되면 ★이 칸은 ★거짓이다 */
+  const walked = (() => { let n = 0; const w = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+    if (e.isDirectory()) w(path.join(d, e.name)); else if (/\.(js|mjs|cjs)$/.test(e.name)) n += 1; } }; w(TOOLS); return n; })();
+  console.log(`      ★그 뿌리에서 ★자가 ★읽은 ★파일 수 = ${walked}`);
+  assert.ok(walked > 0, '★★`tools/` 에서 ★읽은 ★js 파일이 ★0개다 ⇒ ★★위 ★«0건»은 ★«깨끗하다»가 ★아니라 ★★«안 쟀다»다');
+});
+
 test('T8 ★★«공용자불가» 표시 — ★그 표시를 ★든 파일이 ★전부 ★(㉠ ∪ ㉡) 안인가 (지디 ⑷)', () => {
   /* ★★지디: 「★그 표시 이름을 ★★전수로 ★grep 할 수 있게 ★한 자리에 ★모아 적어라
    *   ＋ ★T5 에 ★한 칸: ★그 표시를 ★든 파일이 ★★전부 ★(㉠∪㉡) 안인가」
