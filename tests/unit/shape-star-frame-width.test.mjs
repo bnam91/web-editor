@@ -191,3 +191,52 @@ test('W8 ★★dataset 을 ★쓰기 «전»에 ★폭을 잰다 — ⛔뒤면 �
       `★${name}: ★폭을 ★dataset 쓰기 ★«뒤»에 잰다(자 ${iWant} · 쓰기 ${iWrite}) — ★prev 가 ★새 값이 된다`);
   }
 });
+
+test('W9 ★★상한 860 이 ★무는 ★자리 — ★거기서 ★비 보장이 ★끊긴다(판정 ③ 의 ★대가를 ★못박는다)', () => {
+  /* ★★판정 ③(지디) = 「★상한에 닿으면 ★거기서 ★멈춘다(= 별이 작아진다)」.
+   * ★★그 «대가»를 ★수로 적어 둔다 — ⛔「멈춘다」만 적으면 ★다음 사람이 ★«비는 늘 지켜진다»로 읽는다.
+   * ★★실측(t1bstar 2026-10-10 · 지디 ① 후속 요청에 답한 수):
+   *   ★현빈 블록(W 500 · count 5 · gap 15 에서 출발)은 ★gap 200 에서 ★폭 ★849 ⇒ ★★상한 ★안 닿는다(여유 10.9px)
+   *     ⇒ ★비가 ★gap 0~200 ★전 구간에서 ★지켜진다(0.9418~0.9429 · 흔들림은 ★폭 정수 반올림뿐)
+   *   ★★그러나 ★gap 0 에서 ★출발하면 ★gap 200 이 ★폭 ★900 을 요구한다 ⇒ ★860 으로 ★잘리고 ★비가 ★−4.44% 깨진다
+   *   ★★경계 = ★W0 ≥ ★479 (식: W0 · vbW(5,200)/vbW(5,0) > 860 ⇒ W0 > 477.78)
+   * ⇒ ★★이 칸은 ★«결함»이 아니라 ★★«판정 ③ 의 ★알려진 대가»를 ★잠그는 자다.
+   *   ★★그 경계가 ★조용히 움직이면(상한·범위·틀폭이 갈리면) ★여기가 ★빨개진다. */
+  /* ★★★먼저 ★«내 CLAMP 가 ★제품의 ★그 수인가»를 ★잰다 — ⛔안 재면 ★이 칸은 ★산술만 ★잠근다.
+     ★★실측으로 드러났다: ★변이 N8(제품 상한 860→900)에서 ★★이 칸이 ★fail 0 이었다.
+       ★까닭 = ★아래 CLAMP 가 ★860 을 ★손에 들고 있어 ★제품이 ★움직여도 ★★안 보였다.
+     ⇒ ★★상한을 ★제품 소스에서 ★뽑아 ★견준다. (★「기대값을 ★제품과 ★같이 ★흔들리게 두지 마라」의 ★반대편 — 
+        ★여기선 ★제품 수를 ★★«읽어 ★단언»한다. ★뽑아서 ★계산에 ★쓰면 ★또 ★항등식이 된다) */
+  const capM = PANEL.match(/Math\.max\(10, Math\.min\((\d+), Math\.round\(raw\)\)\)/);
+  assert.ok(capM, '★패널의 ★클램프 줄을 ★못 떴다 — ★닻이 썩었다(제품이 ★딴 꼴로 조이고 있다)');
+  assert.strictEqual(Number(capM[1]), 860,
+    `★제품의 ★상한이 ★860 이 아니다(잰 값: ${capM[1]}) — ★아래 수(849·479·−4.44%)가 ★전부 ★그 860 에서 나온다`);
+  assert.match(PANEL, /Math\.max\(10, Math\.min\(860/, '★하한 10 ＋ 상한 860 꼴이 아니다');
+
+  const CLAMP = (w) => Math.max(10, Math.min(860, Math.round(w)));
+  const H = 100, C = 5, IN = 48;
+  const aspectAt = (W, g) => {
+    const b = bbox(starPointsList(5, C, g, IN)[0]);
+    return (b.w * (W / starViewBoxWidth(C, g))) / (b.h * (H / STAR_VB_H));
+  };
+  /* ⒜ ★현빈 블록은 ★상한에 ★안 닿는다 — ★★그래서 ★판정 ①(상한 200 유지)이 ★그 블록엔 ★무해하다 */
+  const need = starFrameWidthFor(500, C, 15, C, STAR_GAP_MAX);
+  assert.ok(Math.round(need) <= 860,
+    `★현빈 블록이 ★상한에 ★닿는다 — ★요구 폭 ${need.toFixed(1)} > 860`);
+  assert.strictEqual(CLAMP(need), 849, `★gap 200 에서의 폭 (잰 값: ${CLAMP(need)})`);
+  assert.ok(Math.abs(aspectAt(CLAMP(need), STAR_GAP_MAX) - aspectAt(500, 15)) < 0.002,
+    '★현빈 블록의 ★비가 ★gap 200 에서 ★깨졌다 — ★상한에 안 닿는데 깨지면 ★식이 틀렸다');
+  /* ⒝ ★★그러나 ★넓은 블록은 ★잘린다 — ★그 경계를 ★못박는다 */
+  const edge = 860 * starViewBoxWidth(C, 0) / starViewBoxWidth(C, STAR_GAP_MAX);
+  assert.ok(Math.abs(edge - 477.78) < 0.01, `★경계 식 (잰 값: ${edge.toFixed(2)})`);
+  assert.ok(Math.round(starFrameWidthFor(479, C, 0, C, STAR_GAP_MAX)) > 860,
+    '★W0 479 가 ★상한을 ★안 넘는다 — ★경계가 움직였다');
+  assert.ok(Math.round(starFrameWidthFor(478, C, 0, C, STAR_GAP_MAX)) <= 860,
+    '★W0 478 이 ★벌써 ★상한을 넘는다 — ★경계가 움직였다');
+  /* ⒞ ★★잘린 자리에서는 ★비가 ★참으로 ★깨진다 — ⛔「멈춘다」가 ★«비 보장»을 ★안 지킨다는 ★그 사실 */
+  const capped = CLAMP(starFrameWidthFor(500, C, 0, C, STAR_GAP_MAX));
+  assert.strictEqual(capped, 860, `★잘린 폭 (잰 값: ${capped})`);
+  const drop = (aspectAt(capped, STAR_GAP_MAX) / aspectAt(500, 0) - 1) * 100;
+  assert.ok(drop < -4 && drop > -5,
+    `★잘린 자리의 ★비 손실이 ★−4~−5% 밖이다 (잰 값: ${drop.toFixed(2)}%)`);
+});
