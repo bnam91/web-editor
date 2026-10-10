@@ -307,7 +307,12 @@ test('K2-move-default ★★기본(속성 없음) 프레임 — ★★끌는 ★
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 
-test('K2-drop ★★「내용 자르기」 켠 프레임 — ★★놓은 ★뒤에는 ★가둬진다 ＋ ★마커가 ★떼어졌다 (T-088 의 파수꾼)', async ({ page }) => {
+/* ⚰️★2026-10-10 2차까지: ★「★놓은 ★뒤에는 ★가둬진다 (T-088 의 파수꾼)」 ⇒ `after.over <= 0`
+   ★★★현빈 1010t1c1 로 ★뒤집혔다 — 「★걸치게 두면 ★★제자리로 ★돌아온다 … ★이동이 ★안 되는 ★문제」
+   ⇒ ★★죔을 ★껐다(지디 판정 ㉮ · `frame-geometry.js` 의 그 머리말에 ★까닭 전수).
+   ★★★그래서 ★이 칸은 ★이제 ★★«죔이 ★꺼져 ★있음»을 ★잠그는 자다 — ⛔지우지 ★않았다, ★뒤집었다.
+   ★★T-088 의 ★까닭(★밖이 ★보인다)은 ★★죽지 ★않았다 — ★★이제 ★★«자름»이 ★그것을 ★막는다(★K2b ⒝ 가 ★그 자다). */
+test('K2-drop ★★「내용 자르기」 켠 프레임 — ★★놓은 ★뒤에도 ★★그 자리에 ★남는다 ＋ ★마커가 ★떼어졌다 (현빈 1010t1c1)', async ({ page }) => {
   const { errs, frameId, childId } = await scene(page, { clipAttr: 'true' });
   const before = await geom(page, frameId, childId);
   expect(before.clipAttr, '★전제: 토글을 ★켰는데 ★속성이 ★안 붙었다').toBe('true');
@@ -316,8 +321,8 @@ test('K2-drop ★★「내용 자르기」 켠 프레임 — ★★놓은 ★뒤
   const { plan, after } = await dragToOverflow(page, frameId, childId);
   console.log(`K2-drop ★잰 계획 — maxLeft ${plan.maxLeft} · target ${plan.target}(= ★K2-move 와 ★같은 거리)`);
   expect(after.parentIsFrame, '★추출됐다 — 이 칸은 ★«안에 남은 채»를 잰다').toBe(true);
-  expect(after.over, `★★자르는 프레임인데 ★놓은 뒤에도 ★넘쳤다 (${after.over}px) — ★T-088 이 막던 ★「사라지는 띠」가 ★돌아온다`)
-    .toBeLessThanOrEqual(0);
+  expect(after.over, `★★놓으니 ★★제자리로 ★돌아갔다 (넘침 ${after.over}px) — ★★현빈 1010t1c1 의 ★그 증상이다`
+    + ' (「걸치게 두면 ★제자리로 ★돌아온다」) ⇒ ★`frameClampsDrag` 가 ★다시 ★죈다').toBeGreaterThan(0);
   expect(after.ov, '★★놓았는데 overflow 가 ★visible 그대로다 — ★`.frame-child-dragging` 을 ★안 뗐다'
     + ' ⇒ ★영구 visible = ★고치기 ★전과 ★같다').toBe('hidden');
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
@@ -359,12 +364,14 @@ test('K2b ★★밑변 너머로 끌었다 → ★놓았다 ⇒ ★★값도 ★
   }
 
   /* ★★`'true'` — ★값과 ★화면이 ★둘 다 ★안이다 */
-  expect(got['true'].bottomOver, `★★값: ★자르는데 ★자식 ★밑변이 ★프레임 밑변을 ★넘었다 (${got['true'].bottomOver}px)`)
-    .toBeLessThanOrEqual(0);
+  /* ⚰️★2026-10-10 2차: ★「값: ★밑변을 ★안 넘는다」 ⇒ `<= 0` ★였다. ★★현빈 1010t1c1 로 ★뒤집혔다.
+     ★★★단 ★★⒝ ★«화면» 단언은 ★★그대로 둔다 — ★★죔이 ★꺼져도 ★★자름은 ★선다(★그게 ★이 고침의 ★전제다). */
+  expect(got['true'].bottomOver, `★★값: ★놓으니 ★★제자리로 ★돌아갔다 (${got['true'].bottomOver}px)`
+    + ' — ★★현빈 1010t1c1 의 ★그 증상이다').toBeGreaterThan(0);
   expect(got['true'].ink, '★★화면: ★자르는데 ★프레임 ★아래 띠에 ★자식의 ★잉크가 ★있다'
     + ` (보인 md5 ${got['true'].shown} / 숨긴 md5 ${got['true'].hidden}) — ★값은 안인데 ★그림이 ★밖이다`).toBe(false);
   /* ★★`'false'` — ★★잉크 자의 ★양성대조. ⛔이 쪽이 ★초록이면 ★위의 ★`false` 는 ★«안 재고 있다» */
-  expect(got['false'].bottomOver, `★★양성대조(값): ★끔인데 ★밑변이 ★안 넘었다 (${got['false'].bottomOver}px) — ★죔이 ★끔까지 가둔다`)
+  expect(got['false'].bottomOver, `★★끔에서도 ★밑변이 ★안 넘었다 (${got['false'].bottomOver}px) — ★죔이 ★남아 있다`)
     .toBeGreaterThan(0);
   expect(got['false'].ink, '★★양성대조(화면): ★끔인데 ★프레임 ★아래 띠에 ★잉크가 ★없다'
     + ` (보인 md5 ${got['false'].shown} / 숨긴 md5 ${got['false'].hidden})`
@@ -372,14 +379,18 @@ test('K2b ★★밑변 너머로 끌었다 → ★놓았다 ⇒ ★★값도 ★
   expect([...got['true'].errs, ...got['false'].errs], '★앱이 오류를 냈다').toEqual([]);
 });
 
-test('K3 ★★둥근 모서리 프레임 — ★CSS 가 ★hidden 으로 두는 자리라 ★같이 가둬진다', async ({ page }) => {
+/* ⚰️★2026-10-10 2차까지: 「★CSS 가 hidden 으로 두는 자리라 ★★같이 ★가둬진다」 ⇒ `after.over <= 0`
+   ★★그 제목이 ★★«자름»과 ★«죔»을 ★섞었다 — ★★hidden 은 ★★가리는 것이고 ★미는 것이 ★아니다.
+   ⇒ ★★현빈 1010t1c1 뒤: ★둥근 프레임에서도 ★★그 자리에 ★남고 ★★걸친 부분은 ★안 보인다. */
+test('K3 ★★둥근 모서리 프레임 — ★★그 자리에 ★남는다(★안 가둔다) · ★가리는 것은 ★CSS 가 한다', async ({ page }) => {
   const { errs, frameId, childId } = await scene(page, { radius: 24 });
   const before = await geom(page, frameId, childId);
   expect(before.ov, '★전제: 둥근 프레임인데 computed overflow 가 ★hidden 이 아니다 — CSS 가 바뀌었다').toBe('hidden');
 
   const { after } = await dragToOverflow(page, frameId, childId);
   expect(after.parentIsFrame, '★추출됐다').toBe(true);
-  expect(after.over, `★★둥근 프레임인데 ★넘쳤다 (${after.over}px)`).toBeLessThanOrEqual(0);
+  expect(after.over, `★★둥근 프레임에서 ★놓으니 ★★제자리로 ★돌아갔다 (${after.over}px) — ★죔이 ★남아 있다`)
+    .toBeGreaterThan(0);
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 
@@ -447,7 +458,10 @@ test('K4 ★★같은 끌기 · 같은 장면 — ★★«끔»과 ★«기본»
       .update(await page.screenshot({ clip: g.band })).digest('hex');
   }
   expect(overs['false'], `★★끔인데 ★안 넘쳤다 (${overs['false']}px)`).toBeGreaterThan(0);
-  expect(overs['기본'], `★★기본(속성 없음)인데 ★넘쳤다 (${overs['기본']}px)`).toBeLessThanOrEqual(0);
+  /* ⚰️★2026-10-10 2차: 「★기본인데 ★넘쳤다」 ⇒ `<= 0` 였다(★죔이 ★가뒀다). ★★1010t1c1 로 ★뒤집혔다.
+     ★★★그림(md5) 단언은 ★★그대로다 — ★★둘 다 ★넘치지만 ★★한쪽만 ★그려진다. ★그게 ★이 칸의 ★본뜻이다. */
+  expect(overs['기본'], `★★기본(속성 없음)에서 ★놓으니 ★★제자리로 ★돌아갔다 (${overs['기본']}px)`)
+    .toBeGreaterThan(0);
   expect(shots['기본'], '★★끔과 ★기본인데 ★프레임 밖 띠의 ★그림이 ★같다'
     + ` (md5 ${shots['false']} vs ${shots['기본']}) — ★자리는 갈렸는데 ★그림이 안 갈리면 ★사용자는 ★차이를 못 본다`)
     .not.toBe(shots['false']);
@@ -468,7 +482,27 @@ test('K4 ★★같은 끌기 · 같은 장면 — ★★«끔»과 ★«기본»
  *   ㈀ overflow 가 ★안 걸렸다      ⇒ ★★기각 (computed `hidden`)
  *   ㈁ 자식이 ★다른 containing block ⇒ ★★기각 (`offsetParent` = 그 프레임)
  *   ㈂ ★배경이 ★모서리 밖으로 샌다  ⇒ ★★기각 (곡선 밖 4×4 · ★양성대조 곡선 안 8×8 섰다)
- *   ㈃ ★선택 손잡이가 ★밖에 그려진다 ⇒ ★★기각 (★안쪽 자식 ★0건 ★양성대조 섰고 ★밖 자식도 ★0건)
+ *   ㈃ ★선택 손잡이가 ★밖에 그려진다 ⇒ ★★기각 — ★단 ★★«처음 적은 까닭은 ★틀렸다». ★그어서 ★다시 적는다:
+ *     ⚰️★처음 적은 것: 「★안쪽 자식 ★0건 ★★양성대조 섰고 ★밖 자식도 ★0건」
+ *       ⛔★★그 「안쪽 자식 0건」은 ★★★음성대조다 — ★★«0 이어야 하는 판»에서 ★0 이 나온 것이다.
+ *       ⇒ ★★그 꼴로는 ★★«손잡이가 ★밖에 ★없다»와 ★★«내 자가 ★아무것도 ★못 집는다»가 ★★구분이 ★안 된다.
+ *       ★선례: ★★«음성대조는 ★«죽은 자»를 ★못 잡는다 — ★★양성부터»(★지디 지적 2026-10-10).
+ *     ★★그래서 ★★양성 ★둘을 ★세웠고, ★처음엔 ★★둘 다 ★죽었다(★손잡이 총수 ★0 · ★부모 선택 ★false).
+ *       ★★까닭도 ★★내 측정이 ★댔다 — ★클릭을 ★`+8,+8` 에 했고 ★이 프레임은 ★`border-radius:36px` 라
+ *       ★★그 점은 ★★곡선 ★밖이다(★★㈂ 에서 ★«꼭지 4×4 에 ★프레임 잉크 ★없음»을 ★이미 쟀다) ⇒ ★섹션을 눌렀다.
+ *     ★★★고친 뒤 ★실측(2026-10-10 10:23 · ★두 판 모두):
+ *       ★양성1 ★손잡이 총수 — ★부모 선택시 ★★12 (★살았다) · ★안쪽 자식 ★0 · ★밖 자식 ★0
+ *       ★양성2 ★그 자가 ★밖을 ★잴 수 있나 — ★부모를 골랐고 ★★밖으로 ★나간 수 ★★2 (★살았다)
+ *       ★음성 ★안쪽 자식 ⇒ ★0 · ★★본측정 ★밖 자식 ⇒ ★★0  ⇒ ★★★그래서 ★★기각이다
+ *     ★★그리고 ★기작은 ★소스에 ★있다 — `js/overlay-handles.js:171`
+ *       `if (!_hasShape && !_isTextFrame)` ⇒ ★★`data-text-frame` 프레임엔 ★★회전 손잡이를 ★★안 붙인다.
+ *       ★현빈 자식 ★둘이 ★★`data-text-frame="true"` 다 ⇒ ★★★애초에 ★나갈 손잡이가 ★없다.
+ *     ★＋ ★★부모 ★자신의 ★회전 손잡이는 ★★프레임 밖에 ★앉는다(★위 ★2건) — ★선택된 요소의 ★정상 크롬이다.
+ *       ⚠️★나는 ★★그것을 ★한때 ★c1 후보로 ★올렸다. ★★그것도 ★여기 ★적어 둔다.
+ *   ★★★그리고 ★교훈 ★하나 — ★★«자를 ★좁히는 것»이 ★★«눈을 ★감기는 것»일 수 있다:
+ *     ★`document.body` 전수가 ★거짓양성(좌측 패널 BUTTON)을 내서 ★★`#ss-handles-overlay` 로 ★좁혔고,
+ *     ★★그 좁히기 ★자체는 ★맞았다(★손잡이는 ★거기 ★붙는다 — `overlay-handles.js:166,180`).
+ *     ★★★틀린 것은 ★★«좁힌 뒤 ★양성이 ★서나»를 ★★안 댄 것이다. ⇒ ★★좁힐 때마다 ★양성을 ★다시 세워라.
  *   ⇒ ★★그러니 ★c1 의 ★참 까닭은 ★★아직 ★모른다. ★★★이 칸은 ★«원인»이 ★아니라
  *     ★★★«이 조합에서는 ★자른다»를 ★★못 잊게 ★박는 자다 — ⛔다음 사람이 ★같은 길을 ★다시 걷지 않게.
  *
