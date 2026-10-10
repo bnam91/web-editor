@@ -215,14 +215,30 @@ test("D1 ★`frameClampsDrag(el, phase)` 의 ★진리표 — ★★«어느 pha
   assert.ok(iA >= 0, '★전제: `frameClampsDrag` 정의를 ★못 찾았다 — ★이름이 ★바뀠다');
   assert.ok(iB > iA, `★전제: 다음 함수(clampChildIntoFrame)가 ★뒤에 ★없다 (iA ${iA} · iB ${iB})`);
   const body = geom.slice(iA, iB);
-  const code = body.replace(/\/\*[\s\S]*?\*\//g, '');
+  /* ⛔`//` 줄 주석도 ★뗀다 — ★안 떼면 ★주석에 적은 ★이름이 ★★측정값이 된다(★그 교훈의 ★그 자리) */
+  const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
   assert.ok(code.length > 0, '★전제: ★주석을 떼니 ★본문이 ★비었다 — ★자가 ★아무것도 ★안 잰다');
-  const FORBIDDEN = /clips?Content|clipFamily|CLIP_DEFAULTS/;
+  /* ★★★2026-10-10 ㈄ ⒟ (지디 조건) — ★★★이름 ★셋을 ★«열거»하지 ★않는다. ★★계열 ★전체를 ★금지한다.
+     ★★까닭 ⑴ — ★열거는 ★★«넷째 이름»이 ★생기는 날 ★또 ★통과한다. ★그게 ★오늘 ★이 자가 ★진 ★방식이다
+       (★옛 자 `/clipContent/` 가 ★★`clipsContent` 를 ★★`s` ★한 글자로 ★놓쳤다).
+     ★★까닭 ⑵ — ★★실측: ★`clip`·`CLIP` 으로 ★시작하는 ★★«구별되는 식별자»가 ★이 레포에 ★★33개다
+       (★js ＋ css ＋ tests ＋ tools · 2026-10-10). ⛔그러니 ★★«이 셋이 ★전부»라 ★적을 수 ★없다.
+       ⇒ ★★그 ★33 이 ★★다음 사람의 ★분모다. ⛔등호(==)로 ★명부를 ★닫지 ★마라.
+     ★★그리고 ★★죔 본문에는 ★그 계열이 ★★0개다(★실측) ⇒ ★★계열 ★전체 금지가 ★★지금 ★선다.
+       ★★`clamp*`·`frame*`·`FRAME_DRAG_PHASES` 는 ★★안 걸린다(★아래 음성대조가 ★그것을 ★잰다) */
+  const FORBIDDEN = /\b(?:clip|CLIP)[A-Za-z0-9_]*/;
   /* ★★★반례 단언 — ★`!regex` 는 ★★항등식이 ★될 수 있다. ★★자가 ★사는지 ★먼저 ★증명한다 */
   assert.ok(FORBIDDEN.test('clipsContent(el)'), '★★자가 ★죽었다 — ★공용 술어 이름을 ★못 잡는다');
   assert.ok(FORBIDDEN.test('d.clipContent'), '★★자가 ★죽었다 — ★옛 속성 이름을 ★못 잡는다');
   assert.ok(FORBIDDEN.test('CLIP_DEFAULTS.frame'), '★★자가 ★죽었다 — ★기본값 표를 ★못 잡는다');
+  assert.ok(FORBIDDEN.test('clipFamily(el)'), '★★자가 ★죽었다 — ★계열 판정을 ★못 잡는다');
+  /* ★★★이 한 줄이 ★★«열거가 ★아님»을 ★증명한다 — ★★아직 ★없는 이름도 ★잡아야 한다 */
+  assert.ok(FORBIDDEN.test('clipWhateverNew(el)'),
+    '★★★자가 ★★«열거»다 — ★★넷째 이름이 ★생기는 날 ★또 ★통과한다');
+  /* ★★음성대조 ★셋 — ★자가 ★★너무 ★넓으면 ★죔 본문이 ★★영구 빨강이 된다 */
   assert.ok(!FORBIDDEN.test('framePadding(frameEl)'), '★★자가 ★너무 ★넓다 — ★멀쩡한 이름을 ★잡는다');
+  assert.ok(!FORBIDDEN.test('clampChildIntoFrame(l, t)'), '★★자가 ★`clamp` 를 ★`clip` 으로 ★읽는다');
+  assert.ok(!FORBIDDEN.test('FRAME_DRAG_PHASES'), '★★자가 ★phase 명부를 ★잡는다');
   assert.ok(!FORBIDDEN.test(code),
     `★★★죔 술어가 ★다시 ★★«자르나»를 ★읽는다 — ★★그것이 ★현빈 1010t1c1 의 ★그 자리다 (본문 ${code.length}자)`);
 });
@@ -320,7 +336,8 @@ test('C4 ★★판정의 ★임자는 ★하나다 — ★소비자가 ★제 �
     `★공용 술어 정의가 ★한 자리가 ★아니다 (본 것: ${alive.join(' | ')})`);
   /* ★★둘이 ★같은 몸통이면 ★겸직이 ★돌아온 것이다 — ⛔한 쪽을 다른 쪽에서 ★파생시키지 마라(지디 2026-10-10)
      ★★★자를 ★넓혔다: ★옛 자는 ★`frameClipsPaint` 만 ★봤고 ★★공용 이름 ★`clipsContent` 를 ★★놓쳤다 */
-  assert.ok(!/function frameClampsDrag[\s\S]{0,400}(clips?Content|clipFamily|CLIP_DEFAULTS)\s*[\(.]/.test(geom),
+  /* ★★㈄ ⒟ — ★여기도 ★★계열 ★전체다(⛔열거 금지 · ★위 D1 과 ★같은 까닭 · ★구별되는 이름 ★33개) */
+  assert.ok(!/function frameClampsDrag[\s\S]{0,400}\b(?:clip|CLIP)[A-Za-z0-9_]*\s*[\(.]/.test(geom),
     '★★`frameClampsDrag` 이 ★★«자르나»를 ★불러 ★파생된다 — ★그게 ★겸직의 ★재발이다');
 
   /* ★소비자 전수 — ★뜻에 맞는 술어를 ★쓰나 */

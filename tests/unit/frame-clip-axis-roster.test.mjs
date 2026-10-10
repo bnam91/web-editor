@@ -26,16 +26,33 @@ const read = (f) => readFileSync(new URL(f, DOM), 'utf8');
 /** ★★「끔 쪽 칸」을 ★세는 ★단 하나의 자. ⛔명부를 ★손으로 ★적지 않는다 — ★꼴로 ★찾는다.
  *  ⚠️한계(★단언하지 않고 적는다): ★아래 ★꼴 ★밖의 ★새 표기는 ★안 보인다
  *    ⇒ ★그래서 ★R3 이 ★양성대조로 ★「이 자가 ★정말 ★0 을 낼 수 있나」를 ★같이 잰다. */
+/* ★★꼴을 ★★«이름과 한 쌍»으로 둔다 — ⛔수만 세면 ★«어느 꼴이 ★잡았나»를 ★모른다(지디 조건 ⒝ 2026-10-10).
+   ★★그리고 ★★패턴을 ★늘릴 땐 ★★★«그 패턴이 ★잡는 spec 이름»을 ★같이 찍는다 — ★R2 가 ★그걸 한다. */
 const FREE_FORMS = [
-  /clipContent\s*=\s*'false'/,          /* dataset 직접 */
-  /clipAttr\s*:\s*'false'/,             /* scene() 축 */
-  /\[\s*'false'\s*,/,                   /* 두 다리 루프 */
-  /side\s*:\s*'free'/,                  /* judge() 선언 */
+  ['dataset 직접',   /clipContent\s*=\s*'false'/],
+  ['scene() 축',     /clipAttr\s*:\s*'false'/],
+  ['두 다리 루프',    /\[\s*'false'\s*,/],
+  ['judge() 선언',   /side\s*:\s*'free'/],
+  /* ★★★2026-10-10 — ★★«측정» 꼴을 ★더했다. ⛔정규식을 ★지어내지 ★않았다:
+       ★`tests/dom/frame-clip-toggle.dom.spec.js:250` 의 ★★실제 줄에서 ★뽑았다 —
+       ★`expect(g1.attr, '…').toBe('false');`
+     ★★까닭: ★그 spec 은 ★★속성을 ★손으로 ★안 쓴다. ★★★패널 토글을 ★눌러 ★그 값을 ★만든다
+       ⇒ ★위 ★네 꼴은 ★★«선언»을 ★세는데 ★그 길은 ★★선언이 ★없다 ⇒ ★★R2 가 ★거짓 빨강을 냈다(★실측)
+     ★★★그리고 ★★«측정»이 ★★«선언»보다 ★센 증거다 — ★★그 값이 ★★«됐음»을 ★재니까.
+     ⚠️★★다만 ★이 꼴은 ★★넓다(★`toBe('false')` 는 ★다른 값에도 쓰인다) ⇒ ★★ROSTER 안에서만 ★쓴다
+       (★ROSTER = ★`clipContent` 를 ★코드로 ★만지는 spec ★전수) ＋ ★R3 에 ★반례를 ★걸었다. */
+  ['그 값이 false 가 됐음을 단언', /\.toBe\('false'\)/],
 ];
 /** 칸 단위로 쪼갠다 — ★주석을 ★걷은 ★뒤에. ⛔안 걷으면 ★내 산문이 ★측정값이 된다(2026-10-07). */
 function freeCells(src) {
   const code = stripCommentsTA(src);
-  return code.split(/\btest\s*\(/).slice(1).filter((b) => FREE_FORMS.some((re) => re.test(b)));
+  return code.split(/\btest\s*\(/).slice(1).filter((b) => FREE_FORMS.some(([, re]) => re.test(b)));
+}
+/** ★★«어느 꼴이 ★잡았나» — ⛔수만으로는 ★패턴이 ★죽었는지 ★모른다 */
+function freeFormsHit(src) {
+  const code = stripCommentsTA(src);
+  const cells = code.split(/\btest\s*\(/).slice(1);
+  return FREE_FORMS.filter(([, re]) => cells.some((b) => re.test(b))).map(([n]) => n);
 }
 
 /* ★명부를 ★파생시킨다 — ⛔파일 이름을 ★손으로 ★적지 않는다(둘째 명부가 된다). */
@@ -56,6 +73,15 @@ test('R2 ★★축을 만지는 spec ★전부가 ★«끔(false)» 쪽 칸을 �
   const got = {};
   for (const f of ROSTER) { const n = freeCells(read(f)).length; got[f] = n; if (n === 0) miss.push(f); }
   console.log('R2 ★끔 쪽 칸 — ' + ROSTER.map((f) => `${f.replace('.dom.spec.js', '')} ${got[f]}`).join(' · '));
+  /* ★★★어느 ★꼴이 ★어느 벌을 ★잡았나 — ⛔수만 찍으면 ★죽은 꼴을 ★못 본다 */
+  for (const f of ROSTER) {
+    console.log(`   ${f.replace('.dom.spec.js', '')} ⇐ ${freeFormsHit(read(f)).join(' · ') || '(없음)'}`);
+  }
+  /* ★★★죽은 꼴 — ★어느 벌도 ★안 잡는 패턴이 ★있나. ⛔«있다»로 ★빨갛게 ★하지 ★않는다(★쓰일 날이 온다)
+     ⇒ ★★대신 ★이름으로 ★찍는다 — ★그게 ★다음 사람의 ★분모다 */
+  const used = new Set(ROSTER.flatMap((f) => freeFormsHit(read(f))));
+  const dead = FREE_FORMS.map(([n]) => n).filter((n) => !used.has(n));
+  console.log(`R2 ★꼴 ${FREE_FORMS.length} 중 ★안 쓰인 꼴 ${dead.length}: ${dead.join(' · ') || '(없음)'}`);
   assert.deepEqual(miss, [],
     '★★이 spec 들이 ★`clipContent="false"`(현빈 2026-09-28 의 ★끔) 쪽을 ★★한 번도 ★안 돌린다'
     + ' ⇒ ★그쪽 단언은 ★«적었지만 ★안 잰 조건»이다. ★2026-10-10 전에 ★이 수가 ★0·0·0 이었다.');
@@ -71,6 +97,16 @@ test('R3 ★★양성대조 — ★끔 쪽 칸을 ★지우면 ★이 자가 ★
   const inComment = "/* clipContent = 'false' 라고 ★적어만 둔다 */\ntest('a', () => { x; });";
   assert.equal(freeCells(inComment).length, 0,
     '★★주석에 ★적은 꼴을 ★«진짜 칸»으로 셌다 — ★내 산문이 ★측정값이 되었다');
+  /* ★★★2026-10-10 — ★«측정» 꼴(`.toBe('false')`)의 ★양·음대조 ★한 쌍 (지디 조건 ⒜) */
+  const measured = "test('a', () => { expect(g.attr).toBe('false'); });\ntest('b', () => { y; });";
+  assert.equal(freeCells(measured).length, 1,
+    '★★★«그 값이 false 가 됐음을 단언»하는 칸을 ★못 센다 — ★패널을 ★누르는 spec 이 ★또 ★빠진다');
+  const notFalse = "test('a', () => { expect(s).toBe('falsey'); });";
+  assert.equal(freeCells(notFalse).length, 0,
+    '★★그 꼴이 ★너무 ★넓다 — ★`falsey` 까지 ★센다');
+  const measuredInComment = "/* expect(g.attr).toBe('false') 라고 ★적어만 둔다 */\ntest('a', () => { x; });";
+  assert.equal(freeCells(measuredInComment).length, 0,
+    '★★주석의 ★«측정» 꼴을 ★진짜 칸으로 센다');
 });
 
 test('R4 ★★각 spec 이 ★«축 값이 ★먹었나»를 ★제품의 computed overflow 로 ★전제 단언한다', () => {

@@ -64,15 +64,20 @@ const CLIP_SRC = strip(readSrc(ROOT, 'js/clip-content.js'))
      ⛔줄 ★맨 앞만 ★바꾼다 — ★함수 ★안의 ★`const` 는 ★그대로 둔다(★얼기 유지) */
   .replace(/^const /gm, 'var ');
 const CLIPS_SRC = CLIP_SRC;
+/* ★★★2026-10-10 — ★`effectiveSectionPadX` 가 ★★`sectionPadX` 를 ★부른다(★물음을 ★갈랐다) ⇒ ★★둘 다 ★싣는다.
+   ⛔하나만 실으면 ★`ReferenceError: sectionPadX is not defined` 로 ★★여덟 칸이 ★빨개진다(★실측 2026-10-10). */
+const SPX_SRC   = sliceFn(DRAG, 'function sectionPadX(', 'drag-utils');
 const EFF_SRC   = sliceFn(DRAG, 'function effectiveSectionPadX(', 'drag-utils');
 const APPLY_SRC = sliceFn(DRAG, 'function applyBlockFullBleed(', 'drag-utils');
 const CLEAR_SRC = sliceFn(DRAG, 'function clearBlockFullBleed(', 'drag-utils');
 
 /* state.pageSettings.padX 는 모듈 import 라 vm 에 «주입»한다 — 검사가 전역 기본값을 흔들 수 있어야 한다. */
 const ctx = vm.createContext({ state: { pageSettings: { padX: 32 } } });
-vm.runInContext(`${CLIPS_SRC}\n${EFF_SRC}\n${APPLY_SRC}\n${CLEAR_SRC}`, ctx);
-const { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed,
+vm.runInContext(`${CLIPS_SRC}\n${SPX_SRC}\n${EFF_SRC}\n${APPLY_SRC}\n${CLEAR_SRC}`, ctx);
+const { effectiveSectionPadX, sectionPadX, applyBlockFullBleed, clearBlockFullBleed,
         clipsContent, clipFamily, CLIP_DEFAULTS } = ctx;
+assert.equal(typeof sectionPadX, 'function',
+  '★sectionPadX 가 ★하네스에 ★안 실렸다 — ★effectiveSectionPadX 가 ★그것을 ★부른다');
 /* ★전제 — ★공용 술어가 ★정말 실렸다. ⛔이게 안 서면 ★아래 P1d 셋이 ★«무엇을 쟀는지» 모른다
    ★★한 벌이 ★★셋이라 ★★셋 다 ★단언한다 — ★하나만 비어도 ★★조용히 ★undefined 가 돈다 */
 assert.equal(typeof clipsContent, 'function',
@@ -240,6 +245,32 @@ test('P1d-3 ★★«안 자르는» 프레임 안에서는 ★뚫린다 — ★�
   assert.equal(clipsContent(frame), false, '★전제 — 그래서 ★안 자른다');
   assert.equal(effectiveSectionPadX(block), 40, '★안 자르니 ★뚫어도 ★안 잘린다 ⇒ 40');
   assert.equal(applyBlockFullBleed(block), 40);
+});
+
+/* ══ ★★★P1g — ★★«두 물음이 ★갈렸다»를 ★잠근다 (2026-10-10 · ★지디 조건 ⒜) ═════════
+   ★★왜 ★있나 — ★한 함수가 ★★두 물음을 ★답하고 있었다:
+     ★㉠ ★«이 자리의 ★패딩이 ★얼마냐»(조회)   ★㉡ ★«el 이 ★그걸 ★뚫을 수 ★있나»(full-bleed)
+   ★`js/panels/template-system.js` 의 ★`_tplReapplyPagePad` 는 ★★㉠ 만 ★물었는데 ★★㉡ 까지 ★받아
+     ★★서브섹션 길에서 ★★0 을 ★받았다 ⇒ ★★`tpl-pagepad-e81` ★T2·T5 가 ★빨갰다(★실측 2026-10-10).
+   ⇒ ★★★그래서 ★★이 칸은 ★★«같은 장면에서 ★두 자가 ★다른 수를 ★준다»를 ★잠근다.
+   ★★⛔«같아졌다»로 ★닫지 ★않는다 — ★★★«그 값이 ★됐다»를 ★잰다(★수를 ★박는다). */
+test('P1g ★★두 물음이 ★갈렸다 — ★조회(sectionPadX) ↔ ★뚫기(effectiveSectionPadX)', () => {
+  /* ★★⑴ ★자르는 프레임 ★«안» — ★★둘이 ★달라야 한다 */
+  const inFr = scene({ innerPadX: 40, wrapFrame: true, blockDataset: { fullBleed: 'true' } });
+  assert.equal(clipsContent(inFr.frame), true, '★전제 — 그 프레임은 ★자른다(기본값)');
+  assert.equal(sectionPadX(inFr.block), 40,
+    '★★조회가 ★프레임을 ★본다 — ★★그러면 ★template-system 이 ★또 ★0 을 받는다');
+  assert.equal(effectiveSectionPadX(inFr.block), 0,
+    '★★뚫기가 ★자르는 프레임 안에서 ★0 이 ★아니다 — ★★②(현빈 1009t3-②)의 뜻이 ★죽었다');
+  /* ★★⑵ ★★음성대조 — ★프레임 ★«밖»에서는 ★둘이 ★같아야 한다
+       ⛔안 같으면 ★조회가 ★★무언가를 ★더 하거나 ★덜 한다 */
+  const out = scene({ innerPadX: 40 });
+  assert.equal(sectionPadX(out.block), 40, '★프레임 밖 — ★조회');
+  assert.equal(effectiveSectionPadX(out.block), 40, '★프레임 밖 — ★뚫기도 ★같은 수여야 한다');
+  /* ★★⑶ ★조회의 ★우선순위 ★두 칸 — ★override ?? ★문서 padX · ★row 가 ★이긴다 */
+  assert.equal(sectionPadX(scene({}).block), 32, '★override 없으면 ★문서 padX(32)');
+  assert.equal(sectionPadX(scene({ innerPadX: 40, rowPadX: 12 }).block), 12, '★row padX 가 ★이긴다');
+  assert.equal(sectionPadX(scene({ innerPadX: 40, rowPaddingX: 8 }).block), 8, '★row paddingX 도 ★읽는다');
 });
 
 test('P1e section-inner 밖(플로팅/떠 있는 자리)이면 0', () => {

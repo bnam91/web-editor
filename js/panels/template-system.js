@@ -385,14 +385,29 @@ async function deleteTemplate(id) {
      → 낡은 값이 그 pushHistory 표본·저장 파일에 남았다(실측: $S/reports/E81-MEASURE.md · 등급 «저장에 남는 꼴 어긋남»).
    ★«넣은 섹션만» — 사용자 행동이 «이 섹션에 넣기»라 범위를 최소로(문서 전체 :603 꼴이 아니다).
    ★부품은 «이미 있는 것»만 부른다 — 새 벌 0: applyPadXToSection(prop-page.js · applyPagePadX 가 섹션마다 부르는 그것) ·
-     실효 padX = window.effectiveSectionPadX(inner)(drag-utils.js — section override ?? 페이지 padX). section-inner 를 넘기면
-     parent 가 .section-block 이라 프레임·행 갈래를 안 타고 그 inner 의 값을 돌려준다(override 섹션 시험 T4 가 잠근다).
+     실효 padX = ★★window.sectionPadX(inner) (drag-utils.js — ★row padX ?? ★section override ?? ★문서 padX).
+     ⚰️★★★2026-10-10 — ★옛 주석은 ★window.effectiveSectionPadX (inner) 였고 ★이렇게 ★적혀 있었다:
+       ★★★⚠️괄호를 ★한 칸 ★띄웠다 — ⛔소비자 ★전수 grep(★이름＋여는 괄호)에 ★안 걸리게.
+         ★까닭(★지디 2026-10-10 실측): ★안 띄우면 ★★이 ★비석이 ★★여섯째 호출로 ★세어진다
+         ⇒ ★★그리고 ★★읽는 사람이 ★★«여기가 ★아직 ★effective 를 ★부른다»로 ★거꾸로 ★읽는다
+         ⇒ ★★★«기록을 ★남기는 ★행위»가 ★★«그 기록을 ★재는 ★자»를 ★망친다 — ★비석은 ★★계측기의 ★입력이다
+       「★section-inner 를 넘기면 ★parent 가 .section-block 이라 ★★프레임·행 갈래를 ★안 타고 그 inner 의 값을 돌려준다」
+     ★★★그 가정은 ★★★«최상위 섹션에서만» ★참이다 (★지디 2026-10-10 — ⛔지우지 말고 ★조건을 붙여라)
+       ★까닭: ★그 함수는 ★`parent.closest('.frame-block')` 로 ★찾고 ★★`closest` 는 ★★★위로 ★걷는다
+       ⇒ ★★«서브섹션 길»이면 ★조상 사슬에 ★프레임이 ★있어 ★★★그 갈래를 ★★탄다
+       ⇒ ★★★그래서 ★여기는 ★★`sectionPadX`(★★조회 ★전용)를 ★부른다 — ★그 가정이 ★안 서는 ★자리이므로.
+     ★★★2026-10-10 ② (현빈 1009t3-②) ★전에는 ★그 갈래가 ★«둥근 프레임»에서만 ★터져 ★★조용했다
+       ⇒ ★★②가 ★기본을 ★자름으로 ★뒤집자 ★★모든 프레임에서 ★터져 ★★서브섹션만 ★padX ★0 을 받았다
+       ⇒ ★실측(T2): ★섹션 길 100% vs ★서브섹션 길 calc(100% + 96px) · ★cw ★820 vs ★916 (★차 96 = 2×48)
+     ⇒ ★★★이 자리가 ★묻는 것은 ★★«이 섹션의 ★패딩이 ★얼마냐»(조회)다 — ⛔«뚫을 수 ★있나»가 ★아니다
+       ★그래서 ★두 물음을 ★갈라 ★★sectionPadX 를 ★부른다(★drag-utils.js ★그 머리말에 ★까닭이 있다).
+     ⛔다시 ★effectiveSectionPadX 로 ★되돌리지 ★마라 — ★★T2·T5 가 ★빨개진다.
    ⛔applyPadXToSection 은 section-inner «직속» 에셋만 덮는다 — 행 안 에셋은 안 덮인다 → E92(별건 · integ16).
    ⛔pushHistory «앞»에서 부른다 — 뒤에 부르면 표본·저장에 낡은 값이 남는다(시험 T5 · T13). */
 function _tplReapplyPagePad(sec) {
   const inner = sec && (sec.querySelector('.section-inner') || null);
-  if (!inner || typeof window.applyPadXToSection !== 'function' || typeof window.effectiveSectionPadX !== 'function') return;
-  window.applyPadXToSection(inner, window.effectiveSectionPadX(inner));
+  if (!inner || typeof window.applyPadXToSection !== 'function' || typeof window.sectionPadX !== 'function') return;
+  window.applyPadXToSection(inner, window.sectionPadX(inner));
 }
 
 /* ★넣은 나무를 «묶는» 한 곳 (2026-10-06 lane-drag · R7 · R7b · ② · block 갈래 — section 갈래와 block 갈래가 같이 쓴다).
