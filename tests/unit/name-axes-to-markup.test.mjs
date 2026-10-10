@@ -27,6 +27,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const _req = createRequire(import.meta.url);
 const { stripComments, makeStripper } = _req('./_strip-comments.js');
@@ -346,7 +348,7 @@ test('X7 ★면제가 살아 있다 — 죽은 면제 줄은 «지워야» 한�
 /* ── 싱크 계측기 자체 검사 — 「검사가 있다」와 「그 자리를 잰다」는 다른 말이다 ── */
 
 test('XS1 ★싱크 계측기 — 막힌 자리·안 막힌 자리·안전한 길을 가려낸다', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'namesink-'));
+  const dir = mkTmpRoot('namesink-');
   fs.mkdirSync(path.join(dir, 'js'));
   fs.writeFileSync(path.join(dir, 'js', 'probe.js'), `
     const _escHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -363,12 +365,11 @@ test('XS1 ★싱크 계측기 — 막힌 자리·안 막힌 자리·안전한 �
   assert.equal(hits.filter(h => !h.escaped).length, 1, '안 막힌 자리는 1건이어야 한다');
   assert.equal(hits.filter(h => h.escaped).length, 2, '막힌 자리는 2건이어야 한다(직접·별칭)');
   assert.equal(hits.length, 3, 'textContent 로 넣는 «안전한 길»과 «숫자 칸»은 아예 안 걸려야 한다');
-  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('XS2 ★싱크 계측기 — «새로 생긴» 자리가 손 안 대고 걸린다', () => {
   /* 오늘 레포에 «없는» 모양 — 파일명도 클래스도 dataset 키도 처음 보는 것 */
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'namesink-new-'));
+  const dir = mkTmpRoot('namesink-new-');
   fs.mkdirSync(path.join(dir, 'js'), { recursive: true });
   fs.mkdirSync(path.join(dir, 'js', 'props'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'js', 'props', 'prop-future.js'), `
@@ -380,7 +381,6 @@ test('XS2 ★싱크 계측기 — «새로 생긴» 자리가 손 안 대고 걸
   assert.equal(hits.length, 1, '새 자리가 저절로 걸려야 한다');
   assert.equal(hits[0].escaped, false);
   assert.equal(hits[0].rules, 'SP', '규칙 S·P 가 둘 다 걸려야 한다');
-  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('XS3 ★싱크 대조군 — 초록이 부르는 esc 함수는 «진짜로» 꺾쇠를 막는다', () => {

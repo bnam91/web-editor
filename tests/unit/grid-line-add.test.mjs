@@ -31,6 +31,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..', '..');
@@ -109,7 +111,7 @@ let GB;    // grid-block.js (실물, TMP 트리 경유)
 let PG;    // prop-grid.js (실물, TMP 트리 경유 — UI 전용 의존만 스텁)
 
 before(async () => {
-  TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'grid-line-add-'));
+  TMP = mkTmpRoot('grid-line-add-');
   fs.mkdirSync(path.join(TMP, 'props'));
   fs.mkdirSync(path.join(TMP, 'blocks'));
   /* ★공용 sanitizer(수지⑦ 2026-10-08) — grid-block.js 가 `../util/sanitize-rich-text.js` 를 ★읽는다.
@@ -179,7 +181,7 @@ before(async () => {
   PG = await import(pathToFileURL(path.join(TMP, 'props', 'prop-grid.js')).href);
 });
 
-after(() => { try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (_) {} });
+/* ⛔★여기 있던 ★`after(() => rmSync(TMP))` 를 ★뺐다 — ★`mkTmpRoot` 가 ★치우기를 ★쥔다 */
 
 /** 2열 그리드 — col0 은 빈 셀, col1 은 줄 하나. */
 function fixture() {

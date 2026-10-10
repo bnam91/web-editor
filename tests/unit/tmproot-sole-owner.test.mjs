@@ -51,19 +51,20 @@ const RM_RE = () => /\brmSync\s*\(/g;
 const PENDING = {
   'tests/dom/scratch-folder-columns.dom.spec.js':  '★DOM — ★창 차례(지디 가름) · ★`npm test` 로 ★못 잰다',
   'tests/unit/account-projects-root.test.js':      '미이전 (★rmSync 셋 — ★repo·mine·dir)',
-  'tests/unit/grid-line-add.test.mjs':             '미이전 (★`after()` 안에서 치운다)',
-  'tests/unit/mcp-auth-gate.test.js':              '미이전',
-  'tests/unit/name-axes-to-markup.test.mjs':       '미이전 (★시험 ★안에서 ★둘)',
-  'tests/unit/operator-allow-cli.test.mjs':        '미이전 (★rmSync 셋 — ★HOME·inRepo·bad)',
-  'tests/unit/put-image-path.test.js':             '미이전',
-  'tests/unit/renderer-js-parses.test.mjs':        '미이전 (★시험 ★안에서 ★둘)',
-  'tests/unit/save-dirty-after-failure.test.mjs':  '미이전',
-  'tests/unit/win-portability.test.mjs':           '미이전 (★rmSync 셋)',
+  'tests/unit/operator-allow-cli.test.mjs':
+    '미이전 — ⚠️★`HOME` 을 ★만들어 ★CLI 에 ★주입한다(★개인키가 ★거기 산다). ★머리말이 '
+    + '★★«끝나면 지운다»를 ★약속한다 ⇒ ★★옮기더라도 ★그 ★즉시치움은 ★★남겨야 한다(⇒ ★㉢ 로 간다)',
+  'tests/unit/win-portability.test.mjs':
+    '미이전 — ⚠️★`goya-run-1` 을 ★★단언 문자열로 ★든다(:358) ＋ ★`os.homedir()` 경로를 ★잰다(:354~357) '
+    + '⇒ ★★자리에 ★의존한다. ★★읽고 ★옮겨야 한다',
 };
 
 /** ㉡ ★★이전 ★대상이 ★아니다 — ★`rmSync` 가 ★★«그 검사의 일»이다. ★까닭을 ★이름 옆에.
  *  ⛔여기 올리려면 ★★«그 rmSync 가 ★무엇을 ★지우나»를 ★읽고 ★적어라. ★«미이전»과 ★섞지 ★마라. */
 const NOT_TMPROOT = {
+  'tests/unit/put-image-path.test.js':
+    '★★`os.homedir()` ★아래여야 한다 — ★이 검사의 ★주제가 ★«홈 ★밖은 ★막힌다»다(:93·:107). '
+    + '★`mkTmpRoot` 는 ★tmpdir 아래라 ★★옮기면 ★그 전제가 ★깨진다(★:69 가 ★homedir 길이로 ★자른다)',
   'tests/unit/_tmproot.js':                   '★공용 자 ★자신 — ★치우기의 ★임자다',
   'tests/unit/tmproot.test.js':               '★그 자의 ★회수를 ★직접 재는 검사',
   'tests/e2e/12-insert-seam-settle.spec.js':  '★크롬 ★프로필 폴더(PROFILE) — ★테스트 수명이 아니다 · ★e2e',
