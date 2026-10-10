@@ -153,7 +153,46 @@ function insertBeforeBottomGap(section, el) {
  * ⚠️width 만 키우면 위치가 안 밀려 우측이 잘린다(`.section-inner{overflow-x:hidden}`).
  *   그래서 width + marginLeft + marginRight 를 «항상 세트로» 쓴다 — 정본 세 곳과 같은 규약. */
 
-/** el 이 뚫고 나가야 할 좌우 패딩(px). 뚫을 수 없는 자리면 0. */
+/** ★★★«이 자리의 ★실효 좌우 패딩(px)»만 ★답한다 — ★★«조회» 물음이다.
+ *  ★우선순위: ★row 의 padX/paddingX  ⇒  ★section-inner 의 override  ⇒  ★문서 padX
+ *  ★★⛔«el 이 ★그것을 ★뚫을 수 ★있나»는 ★★★안 묻는다 — ★그건 ★아래 `effectiveSectionPadX` 다.
+ *
+ *  ★★★왜 ★갈랐나 (2026-10-10 · ★지디 승인 · ★실측으로 ★찾았다)
+ *    ★한 함수가 ★★두 물음을 ★답하고 있었다: ★㉠«패딩이 ★얼마냐» ＋ ★㉡«뚫을 수 ★있나(자르는 프레임 안이면 0)».
+ *    ★★`js/panels/template-system.js` 의 ★`_tplReapplyPagePad` 는 ★★㉠ 만 ★물었는데 ★★㉡ 까지 ★받았다.
+ *    ★그 파일 주석이 ★★제 가정을 ★적어 뒀다: 「section-inner 를 넘기면 ★프레임 갈래를 ★안 탄다」
+ *      ⇒ ★★★`closest` 는 ★★위로 ★걷는다 ⇒ ★★서브섹션이면 ★조상에 ★프레임이 ★있어 ★★탄다 ⇒ ★가정이 ★거짓이다.
+ *    ★★★2026-10-10 ② ★전에는 ★그 갈래가 ★«둥근 프레임»에서만 ★터져 ★조용했다.
+ *      ⇒ ★★②가 ★기본을 ★자름으로 ★뒤집자 ★★모든 프레임에서 ★터졌다 ⇒ ★★서브섹션만 ★padX 0.
+ *    ⇒ ★★★«막아둔 ★까닭이 ★죽고 ★문만 ★남는다»의 ★★거울상이다 —
+ *      ★★★«문이 ★거의 ★안 열려서 ★아무도 ★몰랐고, ★②가 ★활짝 ★열었다».
+ *    ★실측: ★`tests/dom/tpl-pagepad-e81` ★T2 — ★섹션 길 `100%` vs ★서브섹션 길 `calc(100% + 96px)`
+ *           (★cw ★820 vs ★916 · ★차 ★96 = ★2×48)
+ *  ★★⛔다시 ★합치지 ★마라 — ★★두 물음이 ★다르다. ★★합치면 ★그 사고가 ★그대로 ★돌아온다. */
+function sectionPadX(el) {
+  const parent = el?.parentElement;
+  if (!parent) return 0;
+  /* ⚠️row 의 패딩 키가 «두 가지»다: 생성 경로는 `paddingX`, 패널 슬라이더는 `padX`.
+     하나만 보면 조용히 글로벌로 샌다 — assetFullBleedWidth 와 같은 함정. */
+  if (parent.classList?.contains('row')) {
+    const d = parent.dataset || {};
+    const v = (d.padX !== undefined && d.padX !== '') ? d.padX
+            : (d.paddingX !== undefined && d.paddingX !== '') ? d.paddingX : undefined;
+    if (v !== undefined) return parseInt(v) || 0;
+  }
+  const inner = el.closest?.('.section-inner');
+  if (!inner) return 0;
+  const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
+  const padX = hasOverride ? parseInt(inner.dataset.paddingX) : parseInt(state?.pageSettings?.padX);
+  return padX || 0;
+}
+
+/** ★el 이 ★«뚫고 나가야 할» 좌우 패딩(px). ★★뚫을 수 ★없는 자리면 ★0 — ★★«full-bleed» 물음이다.
+ *  ★★= ★`sectionPadX(el)` ＋ ★★앞에 ★«자르는 프레임 안이면 0» ★한 갈래.
+ *  ★★부르는 쪽 ★넷이 ★★이 물음을 ★묻는다(★소스에 적혀 있다):
+ *    ★`applyBlockFullBleed`(아래) · ★`prop-page.js assetFullBleedWidth`
+ *    ★`prop-banner02.js _bn2CanFullBleed` · ★`prop-frame.js canFullBleed`
+ *  ★★⛔«이 섹션의 ★패딩이 ★얼마냐»를 ★묻는 쪽은 ★★`sectionPadX` 를 ★불러라(★위 머리말의 ★그 까닭). */
 function effectiveSectionPadX(el) {
   const parent = el?.parentElement;
   if (!parent) return 0;
@@ -174,19 +213,7 @@ function effectiveSectionPadX(el) {
      ★★위 옛 주석의 「★지금 자르는 것은 ★둥근 프레임뿐」은 ★그래서 ★★낡았다 — ★★둘이다. */
   const _fr = parent.closest?.('.frame-block');
   if (_fr && clipsContent(_fr) === true) return 0;   /* ★2026-10-10 — ★여기는 ★«그림» 쪽 물음이다(full-bleed 가 잘리나) · ⛔`=== true` 는 ★`null` 을 ★참으로 ★안 읽겠다는 ★뜻이다 */
-  /* ⚠️row 의 패딩 키가 «두 가지»다: 생성 경로는 `paddingX`, 패널 슬라이더는 `padX`.
-     하나만 보면 조용히 글로벌로 샌다 — assetFullBleedWidth 와 같은 함정. */
-  if (parent.classList?.contains('row')) {
-    const d = parent.dataset || {};
-    const v = (d.padX !== undefined && d.padX !== '') ? d.padX
-            : (d.paddingX !== undefined && d.paddingX !== '') ? d.paddingX : undefined;
-    if (v !== undefined) return parseInt(v) || 0;
-  }
-  const inner = el.closest?.('.section-inner');
-  if (!inner) return 0;
-  const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
-  const padX = hasOverride ? parseInt(inner.dataset.paddingX) : parseInt(state?.pageSettings?.padX);
-  return padX || 0;
+  return sectionPadX(el);
 }
 
 /** dataset.fullBleed 가 'true' 일 때만 폭·마진 세트를 «덮어쓴다». 적용한 padX 를 돌려준다(껐으면 0). */
@@ -1142,6 +1169,7 @@ export {
   frameSelectedAsObject,
   settleRowInFreeFrame,
   effectiveSectionPadX,
+  sectionPadX,
   applyBlockFullBleed,
   clearBlockFullBleed,
   isFlowAnchorBlock,
@@ -1172,6 +1200,7 @@ window.frameSelectedAsObject      = frameSelectedAsObject;
 window.insertAfterSelectedAsSibling = insertAfterSelectedAsSibling;
 window.settleRowInFreeFrame       = settleRowInFreeFrame;
 window.effectiveSectionPadX       = effectiveSectionPadX;
+window.sectionPadX               = sectionPadX;        /* ★«조회» 물음 — ★template-system 이 쓴다 */
 window.applyBlockFullBleed        = applyBlockFullBleed;
 window.clearBlockFullBleed        = clearBlockFullBleed;
 window.isFlowAnchorBlock          = isFlowAnchorBlock;
