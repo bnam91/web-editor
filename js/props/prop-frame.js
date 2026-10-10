@@ -2,7 +2,8 @@
    PROP-FRAME — Frame 속성 패널 (frame-block)
 ══════════════════════════════════════ */
 import { propPanel } from '../globals.js';
-import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline } from '../frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
+import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline } from '../frame-bg.js';
+import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
@@ -385,11 +386,13 @@ function _renderAutoPanel(ss) {
       </div>
       ` : ''}
       <!-- ★내용 자르기(현빈 2026-09-30 「피그마처럼 프레임마다 켬/끔, 기본은 끔」).
-           기본이 «안 자름»인 까닭은 css/editor-blocks.css 맨 위 .frame-block 주석(09-28 지시). -->
+           ⚰️★2026-10-10 — ★이 줄은 「기본이 «안 자름»」이었고 ★★거짓이 되었다:
+             ★현빈 1009t3-② 로 ★★기본이 ★★«자름»이 되었다(css/editor-blocks.css 맨 위 .frame-block).
+           ⇒ ★★켬 판정의 ★참값은 ★★js/clip-content.js 의 ★술어 ★하나다(2026-10-10 c2 에서 ★한 자리로 모았다). -->
       <div class="prop-row">
         <span class="prop-label">내용 자르기</span>
         <label class="prop-toggle">
-          <input type="checkbox" id="ss-clip-toggle" ${ss.dataset.clipContent !== 'false' ? 'checked' : ''}>
+          <input type="checkbox" id="ss-clip-toggle" ${clipsContent(ss) ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
       </div>
