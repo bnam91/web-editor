@@ -151,15 +151,32 @@ test('C3b ★★양성대조 — ★CSS 에 ★셋째 «푸는» 자리가 생�
 
 /* ══ ⒝ ★★«끌는 동안에는 ★죄지 않는다» — ★10-09 의 ★지키는 자 ═══════════════ */
 
-test("D1 ★`frameClampsDrag(el, phase)` 의 ★진리표 — ★`'move'` 는 ★언제나 ★거짓", () => {
+test("D1 ★`frameClampsDrag(el, phase)` 의 ★진리표 — ★★«어느 phase 에서도 ★안 죈다» (현빈 1010t1c1)", () => {
+  /* ⚰️★2026-10-10 2차까지의 진리표: ★`'move'` ⇒ 거짓 · ★`'drop'` ⇒ ★`clipContent !== 'false'`
+       ⇒ ★★속성 ★없거나 ★`'true'` 면 ★★죄었다.
+     ★★★현빈 1010t1c1 이 ★그것을 ★★«문제»라 ★부르셨다 — 「★내용자르기 ★켜면 ★★이동이 ★안 된다 ·
+       ★제자리로 ★돌아온다 · ★오프시키면 ★제대로 된다」 ⇒ ★★지디 판정으로 ★★죔을 ★★껐다(후보 ㉮).
+     ★★그리고 ★★«제자리»가 ★★`left: 0` 임을 ★쟀다(그 자식의 감싸는 프레임이 ★offset-x 0).
+     ★★★부딪치는 결정이 ★없음도 ★쟀다 — ★09-30 커밋은 ★이 파일을 ★★0 줄 건드렸다.
+     ⇒ ★★이제 ★★★이 술어는 ★★«항상 거짓»이다. ⛔그래도 ★★지우지 ★않는다:
+        ⑴ ★phase 검증이 ★여기 산다(★D1b) ⑵ ★★되돌릴 자리가 ★★한 곳으로 ★남는다 */
   const f = loadFn('frameClampsDrag');
-  /* ★★이 한 줄이 ★★현빈 10-09 의 ★지키는 자다 — ★끌는 동안 ★죄면 ★「170px 끌어도 378 에 물린다」가 ★부활한다 */
-  assert.equal(f(el({}), 'move'), false, "★★'move' 에서 ★죄면 ★10-09 가 ★부활한다");
-  assert.equal(f(el({ clipContent: 'true' }), 'move'), false, "★★켠 프레임도 ★'move' 에서는 ★안 죈다");
-  assert.equal(f(el({}), 'drop'), true, "★기본 프레임은 ★'drop' 에서 ★안으로 되돌린다(T-088·09-28)");
-  assert.equal(f(el({ clipContent: 'false' }), 'drop'), false,
-    '★★자르지 ★않는 프레임은 ★밖이 ★보인다 ⇒ ★★되돌릴 ★까닭이 ★없다(멀쩡한 것을 움직이면 사고)');
+  for (const [ds, label] of [[{}, '기본(속성 없음)'], [{ clipContent: 'true' }, '켬'],
+                             [{ clipContent: 'false' }, '끔'], [{ radius: '36' }, '둥근']]) {
+    for (const ph of ['move', 'drop']) {
+      assert.equal(f(el(ds), ph), false,
+        `★★[${label}] ★'${ph}' 에서 ★죈다 — ★★현빈 1010t1c1 의 ★「이동이 ★안 된다」가 ★부활한다`);
+    }
+  }
   assert.equal(f(null, 'drop'), false, '★없는 것에서 던지지 말고 거짓');
+  /* ★★★그리고 ★★«이 술어가 ★`clipContent` 를 ★읽지 ★않는다»를 ★★소스로 ★잠근다 —
+     ⛔값 단언만으론 ★★«읽고도 ★우연히 ★false» 를 ★구분 ★못 한다(★지금은 ★항상 거짓이라 ★더욱) */
+  const geom = readSrc(ROOT, 'js/frame-geometry.js');
+  const body = geom.slice(geom.indexOf('export function frameClampsDrag'),
+                          geom.indexOf('export function clampChildIntoFrame'));
+  const code = body.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(!/clipContent/.test(code),
+    '★★★죔 술어가 ★다시 ★`clipContent` 를 ★읽는다 — ★★그것이 ★현빈 1010t1c1 의 ★그 자리다');
 });
 
 test('D1b ★★모르는 phase 는 ★★던진다 — ⛔조용히 ★거짓을 주지 ★않는다 (지디 2026-10-10)', () => {
@@ -174,14 +191,17 @@ test('D1b ★★모르는 phase 는 ★★던진다 — ⛔조용히 ★거짓�
   assert.doesNotThrow(() => f(el({}), 'drop'));
 });
 
-test("D1c ★★「내용 자르기」 ★켠 프레임 — ★★«안 보이지만 ★움직인다» (★이 예외의 ★정의 · 지디 2026-10-10)", () => {
+test("D1c ★★「내용 자르기」 ★켠 프레임 — ★★«안 보이지만 ★움직이고 ★★그 자리에 ★남는다» (현빈 1010t1c1)", () => {
   /* ★현빈이 ★09-30 에 ★스스로 만들라 하고 ★스스로 ★켠 토글이다 ⇒ ★★«켠 사람이 ★고른 것».
      ★그 프레임은 ★`!important` 라 ★★끌 때도 ★안 풀린다(= ★안 보인다).
      ★★그래도 ★★죔은 ★'move' 에서 ★거짓이라 ★★움직이기는 ★한다 — ★그 둘을 ★같이 박는다.
      ⛔이 칸이 ★없으면 ★다음 사람이 ★「켠 프레임이 ★끌 때 ★안 보인다」를 ★결함으로 읽고 ★뒤집는다. */
   const f = loadFn('frameClampsDrag');
   assert.equal(f(el({ clipContent: 'true' }), 'move'), false, '★★켠 프레임도 ★끌 때 ★안 물린다(움직인다)');
-  assert.equal(f(el({ clipContent: 'true' }), 'drop'), true, '★놓으면 ★안으로 되돌린다');
+  /* ⚰️★2026-10-10 2차: 「★놓으면 ★안으로 되돌린다」 ⇒ ★`true` 였다.
+     ★★★현빈 1010t1c1 로 ★뒤집혔다 — ★★놓은 뒤에도 ★★그 자리에 ★있다(★걸친 부분은 ★안 보인다). */
+  assert.equal(f(el({ clipContent: 'true' }), 'drop'), false,
+    '★★놓으면 ★되돌린다 — ★★현빈 1010t1c1 의 ★「제자리로 ★돌아온다」가 ★부활한다');
   const css = readSrc(ROOT, 'css/editor-blocks.css').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.ok(/\.frame-block\[data-clip-content="true"\]\s*\{[^}]*overflow:\s*hidden\s*!important/.test(css),
     '★★켠 프레임의 ★`!important` 가 ★사라졌다 — ★그러면 ★끌 때 ★풀려서 ★«켠 사람의 선택»이 ★깨진다');

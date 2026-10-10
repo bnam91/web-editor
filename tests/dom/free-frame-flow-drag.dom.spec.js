@@ -118,7 +118,7 @@ const PAGE_GRID = PAGE.replace(
   '<div class="row" id="rowOld" draggable="true"><div class="grid-block" id="grdOld" data-type="grid" style="background:#ccd"></div></div>',
 );
 
-test('F6 ★폭 100% 그리드(실물 렌더)도 처음 끌 때 좌우로 움직인다 ＋ ★★기본(속성 없음)이라 ★울타리가 ★선다', async ({ page }) => {
+test('F6 ★폭 100% 그리드(실물 렌더)도 처음 끌 때 좌우로 움직인다 ＋ ★★나간 채 ★남는다(죔 ★꺼짐)', async ({ page }) => {
   await boot(page, PAGE_GRID);
   expect(PAGE_GRID.includes('grid-block.js') && !PAGE_GRID.includes('width:400px;height:120px'), '전제 — 픽스처 치환이 «먹었다»').toBe(true);
   const pre = await page.evaluate(() => {
@@ -149,15 +149,17 @@ test('F6 ★폭 100% 그리드(실물 렌더)도 처음 끌 때 좌우로 움직
   expect(box.attr, '★전제: 이 칸은 ★★«속성 없음»을 잰다 — ★속성이 ★붙어 있다').toBe(null);
   expect(box.radius, '★전제: `data-radius` 가 붙어 있다 — ★radius 규칙(0,3,0)이 ★축을 ★먹는다').toBe(null);
   expect(box.ov, '★★전제: ★속성이 ★없는데 ★안 자른다 — ★2026-10-10 의 ★«기본 = 자름»이 ★죽었다').toBe('hidden');
-  expect(box.l + box.w, `★★기본(자르는) 프레임인데 ★프레임 오른쪽 ★밖으로 나갔다 (오른끝 ${box.l + box.w} · fw ${box.fw})`)
-    .toBeLessThanOrEqual(box.fw);
+  /* ⚰️★2026-10-10 2차: 「★기본(자르는) 프레임인데 ★밖으로 나갔다」 ⇒ `<= fw` 였다(★죔이 ★가뒀다).
+     ★★★현빈 1010t1c1 로 ★뒤집혔다 — ★나간 채 ★남고 ★나간 부분은 ★CSS 가 ★가린다. */
+  expect(box.l + box.w, `★★놓으니 ★★제자리로 ★돌아갔다 (오른끝 ${box.l + box.w} · fw ${box.fw})`
+    + ' — ★★현빈 1010t1c1 의 ★그 증상이다').toBeGreaterThan(box.fw);
 });
 
 /* ⚠️★★2026-10-10 재서술 — ★옛 제목 「F6 과 ★토글만 다른데 ★울타리가 ★선다」는 ★★거짓이 되었다:
      ★기본이 ★자름으로 ★뒤집혀 ★★F6 도 ★울타리가 ★선다 ⇒ ★이 칸은 ★F6 의 ★«짝»이 아니라 ★★«사본»이다.
    ⛔지우지 ★않았다 — ★켬(`'true'`)은 `!important` 라 ★조상 해제까지 ★이기므로 ★기본과 ★갈릴 수 있다.
    ★★F6 의 ★참 짝은 ★이제 ★아래 `F6f`(`clipContent="false"`) 다. */
-test('F6c ★★「내용 자르기」 ★켬(`true`) — ★★기본과 ★같은 결과인지 (★울타리가 ★선다 · ⚠️F6 의 짝이 아니라 ★사본)', async ({ page }) => {
+test('F6c ★★「내용 자르기」 ★켬(`true`) — ★★기본과 ★같은 결과인지 (★죔 ★꺼짐 · ⚠️F6 의 짝이 아니라 ★사본)', async ({ page }) => {
   await boot(page, PAGE_GRID);
   await page.evaluate(() => {
     document.getElementById('fr1').dataset.clipContent = 'true';   /* ★이 한 줄만 ★F6 과 다르다 */
@@ -169,7 +171,8 @@ test('F6c ★★「내용 자르기」 ★켬(`true`) — ★★기본과 ★같
   await dragBy(page, 'grdOld', 400, 0);
   const box = await page.evaluate(() => { const r = document.getElementById('rowOld'); return { l: parseInt(r.style.left, 10), w: r.offsetWidth, fw: document.getElementById('fr1').offsetWidth, p: r.parentElement.id }; });
   expect(box.p, '전제 — 끌어내기 안 났다').toBe('fr1');
-  expect(box.l + box.w, `★켠 프레임인데 ★밖으로 나갔다 (오른끝 ${box.l + box.w} · fw ${box.fw})`).toBeLessThanOrEqual(box.fw);
+  expect(box.l + box.w, `★켬에서도 ★나간 채 ★남아야 한다 — ★죔은 ★꺼졌다 (오른끝 ${box.l + box.w} · fw ${box.fw})`)
+    .toBeGreaterThan(box.fw);
 });
 
 /* ★★F6 의 ★반대쪽 — ★`clipContent="false"` 를 ★실제로 ★돌리는 ★단 ★하나의 칸 (2026-10-10 · 지디 ㉠).

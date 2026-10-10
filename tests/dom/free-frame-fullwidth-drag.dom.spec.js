@@ -105,18 +105,20 @@ async function judge(page, id, label, { side } = {}) {
         ★`clip` ⇒ ★`fw` 에 ★딱 (★울타리 ★선다 · ★실측 `764`)
         ★`free` ⇒ ★넘긴 ★50px 이 ★그대로 (★실측 `814` = 764＋50)
      ⛔한쪽만 ★돌면 ★그 자리가 ★또 ★빈다 — ★`free` 쪽은 ★`E1f` 가 ★돌린다. */
-  if (side === 'clip') {
-    expect(g2.left + g2.uw, `[${label}] ★자르는 프레임인데 ★울타리가 ★안 섰다 — 넘긴 50px 이 남았다`).toBe(g2.fw);
-  } else {
-    expect(g2.left + g2.uw - g2.fw,
-      `[${label}] ★★끔인데 ★넘긴 50px 이 ★사라졌다 — ★죔이 ★또 ★전부를 가둔다`
-      + ` (fw ${g2.fw} · 오른끝 ${g2.left + g2.uw})`).toBe(50);
-  }
+  /* ⚰️★2026-10-10 3차 — ★★`side` 로 ★갈리던 ★죔 단언을 ★★★합쳤다. ★★까닭:
+       ★현빈 ★1010t1c1 로 ★★죔을 ★껐다(지디 판정 ㉮) ⇒ ★★`clip` 쪽도 ★`free` 쪽도 ★★넘긴 50px 이 ★남는다
+       ⇒ ★★★갈래가 ★★같아졌다 ⇒ ⛔갈래를 ★남겨 두면 ★★«적었지만 ★같은 것을 ★두 번 ★재는» 꼴이 된다.
+     ★★`side` 는 ★★이제 ★★«전제»만 ★가른다 — ★위의 ★dataset ＋ ★computed overflow ★단언이 ★그것이다.
+       ⇒ ★★즉 ★★«자름은 ★서 있고(전제) ★죔은 ★꺼져 있다(아래)»를 ★한 칸이 ★같이 잠근다.
+     ⚰️★옛 수: ★`clip` ⇒ `fw 764` 에 ★딱 · ★`free` ⇒ `814`(=764＋50). ★★이제 ★★둘 다 ★814 다. */
+  expect(g2.left + g2.uw - g2.fw,
+    `[${label}] ★★넘긴 50px 이 ★사라졌다 — ★★★죔이 ★돌아왔다(현빈 1010t1c1)`
+    + ` (fw ${g2.fw} · 오른끝 ${g2.left + g2.uw} · side ${side})`).toBe(50);
   expect(g2.left, `[${label}] 왼쪽이 프레임 밖`).toBeGreaterThanOrEqual(0);
   return { g0, g1, g2 };
 }
 
-test('E1 ★패널 삽입 — 프레임 고른 채 addGridBlock → 좌우로도 움직인다 ＋ ★★기본(속성 없음)이라 ★울타리가 ★선다', async ({ page }) => {
+test('E1 ★패널 삽입 — 프레임 고른 채 addGridBlock → 좌우로도 움직인다 ＋ ★★넘긴 50px 이 ★그대로 남는다(죔 ★꺼짐)', async ({ page }) => {
   const errs = await setup(page);
   const id = await page.evaluate(() => {
     const fr = document.getElementById('frF'), sec = document.getElementById('sF');
@@ -134,7 +136,7 @@ test('E1 ★패널 삽입 — 프레임 고른 채 addGridBlock → 좌우로도
    ⛔지우지 ★않았다 — ★켬(`'true'`)이 ★기본과 ★같은 결과를 ★내는지는 ★여전히 ★물을 값이 있다
      (★`!important` 라 ★조상 해제까지 ★이긴다 ⇒ ★기본과 ★갈릴 수 있는 자리다).
    ★★E1 의 ★참 짝은 ★이제 ★아래 `E1f`(`clipContent="false"`) 다. */
-test('E1c ★★「내용 자르기」 ★켬(`true`) — ★★기본과 ★같은 결과인지 (★울타리가 ★선다 · ⚠️E1 의 짝이 아니라 ★사본)', async ({ page }) => {
+test('E1c ★★「내용 자르기」 ★켬(`true`) — ★★기본과 ★같은 결과인지 (★죔 ★꺼짐 · ⚠️E1 의 짝이 아니라 ★사본)', async ({ page }) => {
   const errs = await setup(page);
   const id = await page.evaluate(() => {
     const fr = document.getElementById('frF'), sec = document.getElementById('sF');
@@ -146,7 +148,7 @@ test('E1c ★★「내용 자르기」 ★켬(`true`) — ★★기본과 ★같
   expect(await page.evaluate(() => getComputedStyle(document.getElementById('frF')).overflow),
     '★전제: 토글을 켰는데 computed overflow 가 ★hidden 이 아니다 — CSS 가 바뀌었다').toBe('hidden');
   const r = await judge(page, id, '패널 삽입(켬)', { side: 'clip' });
-  expect(r.g2.left + r.g2.uw, '★켠 프레임인데 ★오른끝이 ★프레임 폭과 다르다').toBe(r.g2.fw);
+  expect(r.g2.left + r.g2.uw - r.g2.fw, '★켬에서도 ★넘긴 50px 이 ★남아야 한다 — ★죔은 ★꺼졌다').toBe(50);
   expect(errs).toEqual([]);
 });
 
