@@ -2248,6 +2248,33 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
   box-sizing: border-box;
 }
 .shape-block.selected .shape-handle { display: block; }
+
+/* ★별 ★한 개 고르기 모드 (현빈 2026-10-10 · 1010t1b2) — ★js/star-select.js
+   ★★«진입 중임을 ★표시»는 ★현빈의 ★필수 조건이었다(★⑦ 그룹 모드 때 ★그가 ★그렇게 지정했다).
+   ★모드 중에는 ★별마다 ★손가락 커서 — ★«고를 수 있다»를 ★겉모습으로 ★말한다.
+   ★★두 클래스는 ★★런타임 전용이다 — ★벗기는 자:
+     ★`star-mode`         → `js/io/section-serialize.js` ★RUNTIME_MARKER_CLS (★규칙 밖 이름이라 손으로)
+     ★`star-cell-selected`→ ★같은 파일 ★RUNTIME_MARKER_RE `/(?:^|-)(?:line|cell)-selected$/` 가 ★잡는다
+     ★＋ ★`js/io/export-html.js` 는 ★제 명부라 ★둘 다 ★거기 ★또 있다 */
+/* ★★★«블록 ★테두리»를 ★안 쓴다 — ★★`tests/unit/selection-overlay-scope.test.mjs` 의
+     ★「★상태 동거」 칸이 ★내 ★첫 안(`.shape-block.star-mode { outline: … }`)을 ★★빨갛게 잡았다.
+   ★그 자의 뜻: ★`.selected` 와 ★★같은 요소에 ★붙을 수 있는 ★`outline` 상태는
+     ★중화 절(`body.sel-ov #canvas .selected:not(…)`)이 ★★삼켜 ★★표시가 ★사라진다
+     ⇒ ★「삼킬지 / 남길지」를 ★★사람이 ★정하라고 ★빨개진다.
+   ★★★정했다 — ★★«남긴다»가 아니라 ★★«블록에 안 그린다»다. ★까닭 둘:
+     ⒜ ★별 모드는 ★★«별»에 대한 모드다 ⇒ ★표시도 ★별에 ★붙는 것이 ★더 많이 말한다
+     ⒝ ★그 블록은 ★이미 ★`.selected` 다(더블클릭으로 들어왔다) ⇒ ★블록 테두리를 ★또 그리면 ★★두 겹이다
+   ⛔★`box-shadow` 로 ★바꿔 ★그 자를 ★피하지 ★않았다 — ★그건 ★★«싼 쪽(증상 가리기)»이다.
+     ★자가 ★연 ★두 길 중 ★싼 쪽을 ★고르면 ★다음 사람이 ★같은 함정에 ★빠진다.
+   ★★그래서 ★«모드가 섰다»는 ★★세 가지로 ★말한다:
+     ⑴ ★고른 별의 ★테두리(아래) ⑵ ★별마다 ★손가락 커서 ⑶ ★우측 패널의 ★«이 별» 색 줄 ＋ ★까닭 한 줄 */
+.shape-block.star-mode .shape-svg polygon { cursor: pointer; }
+.shape-block.star-mode .shape-svg polygon.star-cell-selected {
+  stroke: var(--sel-color, #2d6fe8);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;   /* ★배율·틀 폭에 안 휘둘리게 — 1px 줄이 0.4px 되는 그 병(260930) */
+  paint-order: stroke;                 /* ★칠 위에 테두리 — ★칠이 밝아도 보이게 */
+}
 .shape-handle.nw { top:    calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
 .shape-handle.ne { top:    calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
 .shape-handle.sw { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }

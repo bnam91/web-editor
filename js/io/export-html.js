@@ -162,6 +162,11 @@ async function exportHTMLFile() {
   clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
   clone.querySelectorAll('.cell-selected').forEach(el => el.classList.remove('cell-selected')); // #5-b 테이블 셀 선택 마킹 (UI 상태 — export 유출 방지). rowspan/colspan은 HTML 속성이라 그대로 보존.
   clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+  /* ★별 한 개 고르기(1010t1b2) — ★★이 파일은 ★`runtimeMarkers` 를 ★안 쓰고 ★제 명부를 든다
+     ⇒ ★★그래서 ★둘 다 ★여기 ★또 적는다(★`star-cell-selected` 는 section-serialize 에서는 ★RE 가 잡는다).
+     ⛔«명부 둘을 합치기»는 ★범위 밖이다 — ★지디 판정 · ★티켓은 지디가 든다. */
+  clone.querySelectorAll('.star-mode').forEach(el => el.classList.remove('star-mode'));
+  clone.querySelectorAll('.star-cell-selected').forEach(el => el.classList.remove('star-cell-selected'));
 
   /* ★가림막(Redact)을 «설계로» 불투명하게 만든다 (2026-09-21 최종통합 QA medium)
      이 파일의 <style> 은 앱 CSS 를 «안» 싣는다 — .shape-block/.shape-redact/.shape-svg 규칙이

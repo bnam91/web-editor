@@ -319,86 +319,165 @@ test('D7 ★★⒨ ★저장 왕복 — ★개별 색·배율이 ★저장 → �
 });
 
 /* ══ ⒪ 제스처 임자 — ★내 어림자(44곳 중 0건)를 ★행위로 ★대체한다 ══════════════ */
-test('D8 ★★⒪ ★별 더블클릭에 ★오늘 ★임자가 ★있나 (★어림자 ★대체 · b2 진입 전 ★기준선)', async ({ page }) => {
+test('D8 ★★⒪ ★별 더블클릭의 ★임자 — ★★지금은 ★«별 모드»다 (⚰️전엔 ★0 이었다)', async ({ page }) => {
+  /* ★★★⚰️ ★이 칸의 ★옛 뜻 — ★★«임자가 ★0 이다»였고, ★★2026-10-10 ★창 1·2·3회차에서 ★초록이었다.
+   *   ★그 수가 ★★b2 가 ★그 제스처를 ★가져도 된다는 ★근거였다(★내 ★어림자 44곳/0건을 ★대체했다).
+   * ★★★이제 ★임자가 ★있다 — ★`js/star-select.js` 다. ⇒ ★★옛 단언은 ★★역사가 됐다.
+   *   ⛔그 문장을 ★지우지 ★않고 ★여기 ★남긴다 — ★★«왜 가져도 됐나»의 ★근거이기 때문이다.
+   * ★★그래서 ★이 칸은 ★이제 ★★«임자가 ★참으로 ★별 모드인가 ＋ ★그것 ★말고는 ★안 바뀌나»를 ★잰다.
+   *   ⇒ ★★기하·갯수는 ★★그대로여야 한다(★모드는 ★«보기»지 ★«데이터»가 아니다)
+   *   ⇒ ★★예외 ★0 — ★★실측(2026-10-10): ★이 칸이 ★`_imgEditing` ★null 예외를 ★★잡아냈고
+   *     ★★그 한 줄이 ★E1·E2·E3 를 ★같이 ★빨갛게 만들고 있었다. ★★그래서 ★예외 단언을 ★★남긴다. */
   await setup(page);
   await setNum(page, 'shape-star-count-num', 5);
   await page.waitForTimeout(250);
   const before = await snap(page);
   const errs = [];
   page.on('pageerror', e => errs.push(String(e)));
-  /* ★별 하나를 ★더블클릭한다 — ★제품 길(실제 마우스 이벤트) */
   const box = await page.locator('#canvas .shape-block svg polygon').first().boundingBox();
   expect(box, '★별을 ★화면에서 ★못 찾았다').not.toBeNull();
   await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
   await page.waitForTimeout(400);
   const after = await snap(page);
-  /* ★★기준선 — ★오늘은 ★«아무 일도 안 일어난다»가 ★참이어야 한다(그러면 ★b2 가 ★그 자리를 ★가져도 된다) */
+  /* ★★예외 0 — ★이 단언이 ★★네 칸을 ★한꺼번에 ★설명한 ★그 자다 */
+  expect(errs, `★더블클릭이 ★예외를 던졌다: ${errs.join(' / ')}`).toEqual([]);
+  /* ★모드는 ★데이터를 ★안 바꾼다 */
   expect(after.starCount, '★더블클릭이 ★갯수를 바꿨다').toBe(before.starCount);
   expect(after.polys, '★더블클릭이 ★기하를 바꿨다').toEqual(before.polys);
-  expect(errs, `★더블클릭이 ★예외를 던졌다: ${errs.join(' / ')}`).toEqual([]);
-  /* ★★그리고 ★«진입 표시»가 ★생기나 — ★b2 가 ★쓸 이름이 ★이미 쓰이고 있으면 ★여기서 ★드러난다 */
-  const marks = await page.evaluate(() => {
+  expect(after.starColors, '★더블클릭만으로 ★색 dataset 이 ★생겼다').toBeNull();
+  expect(after.starScales, '★더블클릭만으로 ★배율 dataset 이 ★생겼다').toBeNull();
+  /* ★★★그리고 ★임자가 ★참으로 ★별 모드다 */
+  const owned = await page.evaluate(() => {
     const blk = document.querySelector('#canvas .shape-block');
-    return { cls: blk.getAttribute('class') || '', sel: blk.dataset.starSel ?? null,
-             polyCls: [...blk.querySelectorAll('polygon')].map(p => p.getAttribute('class') || '').join('|') };
+    return { mode: blk.classList.contains('star-mode'), sel: blk._starSel ?? null };
   });
-  expect(marks.sel, '★`data-star-sel` 이 ★이미 쓰이고 있다 — ★b2 가 ★그 이름을 ★못 쓴다').toBeNull();
+  expect(owned.mode, '★★더블클릭이 ★별 모드를 ★안 세웠다 — ★임자가 ★없다').toBe(true);
+  expect(owned.sel, '★첫 별이 ★안 골라졌다').toBe(0);
 });
 
-/* ══ ⒫ ★«자르는 자»를 ★★computed ＋ ★행위로 — ★상한 100 의 ★근거를 ★올린다 ════════
- * ★★지디(t3frame 발견 2026-10-10): 「★★«자르는 자가 ★없다»를 ★★CSS 전수로 ★말하지 ★마라 —
- *   ★자름은 ★★세 자리에 산다: ⑴ CSS 규칙 ⑵ ★렌더러가 ★박는 ★인라인 ⑶ ★앱이 ★나중에 쓰는 ★인라인」
- * ★★내가 ★`starScales` 상한 ★100 의 ★근거로 ★★«`.shape-block .shape-svg` 에 ★`overflow` 선언 ★0건
- *   ⇒ ★바깥 svg 의 ★UA 기본값이 ★자른다»를 ★★CSS ★독해로 ★댔다.
- * ⇒ ★★결론은 ★안 바뀐다(지디도 그렇게 적었다). ★★그러나 ★근거를 ★★독해 → ★★행위로 ★올린다.
- *   ⇒ ★★그러면 ★★상한 100 이 ★★«내가 읽은 것»이 아니라 ★★«이 판이 ★하는 일»에 ★선다. */
-test('D9 ★★⒫ ★svg 가 ★참으로 ★자른다 — ★computed ＋ ★행위 (★상한 100 의 ★근거)', async ({ page }) => {
+/* ══ ★★★b2 ★진입 모드 — ★★«사람이 ★줄 수 ★있나»가 ★★첫 칸이다 (지디 조건 ⑷) ══════════
+ * ★★지디: 「★★«사람이 ★줄 수 ★있나»를 ★★그 커밋의 ★첫 칸으로.
+ *   ⇒ ★지금 ★D7 은 ★상태를 ★★심어 ★잰다 ⇒ ★★«사람이 ★더블클릭 → ★색 고르기 → ★그 dataset 이 ★생기나»
+ *   ⇒ ★★그게 ★★«입구가 ★0건»을 ★지울 ★자격이다. ⛔UI 가 ★떴다로는 ★안 된다」
+ * ⇒ ★★★그래서 ★E1 이 ★★제품 길만 쓴다: ★진짜 ★마우스 ★더블클릭 ＋ ★진짜 ★색 입력 ★이벤트.
+ *   ⛔`dataset` 을 ★손으로 ★심지 ★않는다. ⛔`enterStarMode` 를 ★직접 ★부르지도 ★않는다. */
+test('E1 ★★★사람이 ★줄 수 있다 — ★더블클릭 → ★색 고르기 → ★`data-star-colors` 가 ★생긴다 (지디 ⑷)', async ({ page }) => {
   await setup(page);
-  /* ⒜ ★★computed — ⛔CSS 파일 독해가 ★아니다. ★★이 판이 ★계산한 값이다 */
-  const comp = await page.evaluate(() => {
-    const svg = document.querySelector('#canvas .shape-block svg.shape-svg');
-    const cs = getComputedStyle(svg);
-    return { overflow: cs.overflow, overflowX: cs.overflowX, overflowY: cs.overflowY,
-             inlineOverflow: svg.style.overflow || null,
-             attrOverflow: svg.getAttribute('overflow') };
-  });
-  /* ★자르는 값 = hidden · clip · (일부 판에서) auto 가 아닌 것 */
-  expect(['hidden', 'clip'], `★★computed overflow 가 ★자르는 값이 ★아니다 — ${JSON.stringify(comp)}`)
-    .toContain(comp.overflowY);
-  /* ⒝ ★★세 자리 중 ★어디서 왔나를 ★같이 적는다 — ★인라인·속성이 ★비면 ★UA/CSS 다 */
-  expect(comp.inlineOverflow, `★인라인 overflow 가 ★있다(렌더러·앱이 ★박았다): ${comp.inlineOverflow}`).toBeNull();
+  await setNum(page, 'shape-star-count-num', 5);
+  await page.waitForTimeout(250);
+  const a = await snap(page);
+  expect(a.starColors, '★전제 — ★시작엔 ★개별 색 키가 ★없다(옛 바이트)').toBeNull();
+  expect(a.polys.length, '전제 — 별 5개').toBe(5);
 
-  /* ⒞ ★★★행위 — ★틀 ★밖으로 ★나간 점이 ★★참으로 ★안 보이나.
-     ★viewBox 위로 ★한참 ★나가는 ★임시 polygon 을 ★넣고, ★그 자리를 ★`elementFromPoint` 로 ★짚는다.
-     ⇒ ★자르면 ★그 점에서 ★★그 polygon 이 ★★안 잡힌다. ⛔getBoundingClientRect 로는 ★못 잰다
-       (★SVG 의 rect 는 ★기하 bbox 라 ★«잘렸나»를 ★말하지 ★않는다 — ★그래서 ★점을 ★짚는다). */
-  const probe = await page.evaluate(() => {
-    const svg = document.querySelector('#canvas .shape-block svg.shape-svg');
-    const box = svg.getBoundingClientRect();
-    const NS = 'http://www.w3.org/2000/svg';
-    const p = document.createElementNS(NS, 'polygon');
-    /* ★viewBox 세로는 0~190. ★−400 ~ −10 은 ★틀 ★위로 ★완전히 ★나간 자리다 */
-    p.setAttribute('points', '0,-400 2000,-400 2000,-10 0,-10');
-    p.setAttribute('fill', '#ff00ff');
-    p.setAttribute('id', 'probe-outside');
-    svg.appendChild(p);
-    /* ★틀 ★위쪽 ★바깥의 ★한 점 — ★svg 상단보다 ★위다 */
-    const x = Math.round(box.left + box.width / 2);
-    const y = Math.round(box.top - Math.min(20, box.top / 2));
-    const hit = document.elementFromPoint(x, y);
-    const hitId = hit ? (hit.id || hit.tagName) : null;
-    /* ★그리고 ★틀 ★안의 ★한 점은 ★★잡혀야 한다(★음성대조 — ★짚는 자가 ★참으로 ★도는지) */
-    const inX = Math.round(box.left + box.width / 2);
-    const inY = Math.round(box.top + box.height / 2);
-    const inHit = document.elementFromPoint(inX, inY);
-    p.remove();
-    return { hitId, insideTag: inHit ? inHit.tagName : null,
-             boxTop: Math.round(box.top), probeY: y, probedAbove: y < box.top };
+  /* ⑴ ★★3번째 별(index 2)을 ★★진짜 ★더블클릭 — ⛔API 를 ★안 부른다 */
+  const box = await page.locator('#canvas .shape-block svg polygon').nth(2).boundingBox();
+  expect(box, '★3번째 별을 ★화면에서 ★못 찾았다').not.toBeNull();
+  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(400);
+
+  /* ⑵ ★모드가 ★섰고 ★★«입구»가 ★떴나 — ★그 줄이 ★없으면 ★사람이 ★줄 ★길이 ★없다 */
+  const ui = await page.evaluate(() => {
+    const blk = document.querySelector('#canvas .shape-block');
+    return {
+      modeCls: blk.classList.contains('star-mode'),
+      markedPolys: [...blk.querySelectorAll('svg polygon')].map(p => p.classList.contains('star-cell-selected')),
+      hasRow: !!document.getElementById('shape-star-one-row'),
+      label: document.getElementById('shape-star-one-label')?.textContent || null,
+      hasHex: !!document.getElementById('shape-star-one-hex'),
+      hint: document.getElementById('shape-star-one-hint')?.textContent || null,
+    };
   });
-  expect(probe.probedAbove, `★짚은 점이 ★틀 ★위가 ★아니다 — ${JSON.stringify(probe)}`).toBe(true);
-  /* ★★음성대조 — ★틀 ★안을 짚으면 ★무언가 ★잡힌다(★짚는 자가 ★죽어 있지 ★않다) */
-  expect(probe.insideTag, `★틀 ★안에서 ★아무것도 ★안 잡혔다 — ★짚는 자가 ★죽었다 ${JSON.stringify(probe)}`).not.toBeNull();
-  /* ★★★본 단언 — ★틀 밖으로 나간 ★그 polygon 이 ★★안 잡힌다 = ★★잘린다 */
-  expect(probe.hitId, `★★틀 ★밖으로 ★나간 점이 ★★보인다(★안 자른다) — ${JSON.stringify(probe)}`)
-    .not.toBe('probe-outside');
+  expect(ui.modeCls, '★모드 표시가 ★안 붙었다').toBe(true);
+  expect(ui.markedPolys, `★고른 별 표시가 ★3번째가 ★아니다 (잰 값: ${JSON.stringify(ui.markedPolys)})`)
+    .toEqual([false, false, true, false, false]);
+  expect(ui.hasRow, '★★«입구» 줄이 ★없다 — ★사람이 ★색을 ★줄 ★길이 ★없다').toBe(true);
+  expect(ui.label, '★몇 번 별인지 ★화면에 ★안 적힌다').toContain('3');
+  expect(ui.hasHex, '★색 입력칸이 ★없다').toBe(true);
+  expect(ui.hint, '★까닭 줄이 ★없다').toContain('3');
+
+  /* ⑶ ★★★사람이 ★색을 ★넣는다 — ★hex 칸에 ★치고 ★change (★제품 배선이 ★그것을 ★듣는다) */
+  await page.evaluate(() => {
+    const hex = document.getElementById('shape-star-one-hex');
+    hex.value = '00FF00';
+    hex.dispatchEvent(new Event('input', { bubbles: true }));
+    hex.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForTimeout(400);
+
+  /* ⑷ ★★★그 dataset 이 ★생겼나 — ★★이것이 ★★«입구가 0건»을 ★지울 ★자격이다 */
+  const b = await snap(page);
+  expect(b.starColors, `★★`.concat('data-star-colors 가 ★안 생겼다 — ★사람이 ★준 것이 ★안 남았다'))
+    .not.toBeNull();
+  const parts = String(b.starColors).split(',');
+  expect(parts[2]?.toLowerCase(), `★3번째 칸에 ★안 들어갔다 (잰 값: ${b.starColors})`).toBe('#00ff00');
+  expect(parts[0] || '', '★0번 칸은 ★비어 있어야 한다(물려받음)').toBe('');
+  /* ★★그리고 ★화면이 ★참으로 ★그 색인가 — ⛔dataset 만 보지 않는다 */
+  expect(b.fills[2]?.toLowerCase(), `★3번째 별이 ★그 색으로 ★안 칠해졌다 (잰 값: ${JSON.stringify(b.fills)})`)
+    .toBe('#00ff00');
+  expect(b.fills[0], '★0번 별은 ★안 칠해져야 한다(물려받음)').toBeNull();
+});
+
+test('E2 ★진입 배타 ★양방향 ＋ ★나가기 — ★Esc·밖 클릭이 ★모드를 ★푼다', async ({ page }) => {
+  await setup(page);
+  await setNum(page, 'shape-star-count-num', 5);
+  await page.waitForTimeout(250);
+  const dbl = async (n) => {
+    const b = await page.locator('#canvas .shape-block svg polygon').nth(n).boundingBox();
+    await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
+    await page.waitForTimeout(350);
+  };
+  const inMode = () => page.evaluate(() => ({
+    cls: document.querySelector('#canvas .shape-block').classList.contains('star-mode'),
+    row: !!document.getElementById('shape-star-one-row'),
+    sel: document.querySelector('#canvas .shape-block')._starSel ?? null,
+  }));
+  await dbl(1);
+  expect((await inMode()).cls, '전제 — 모드가 섰다').toBe(true);
+  expect((await inMode()).sel, '1번(index 1)이 골라졌다').toBe(1);
+  /* ★모드 안에서 ★다른 별을 ★더블클릭하면 ★그 별로 ★옮긴다(★나가지 않는다) */
+  await dbl(3);
+  expect((await inMode()).sel, '★다른 별로 ★안 옮겼다').toBe(3);
+  /* ★Esc 로 ★나간다 */
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  const out = await inMode();
+  expect(out.cls, '★Esc 뒤에도 ★모드 표시가 ★남았다').toBe(false);
+  expect(out.row, '★Esc 뒤에도 ★입구 줄이 ★남았다').toBe(false);
+  expect(out.sel, '★Esc 뒤에도 ★고른 별이 ★남았다').toBeNull();
+  /* ★★그리고 ★★고른 색은 ★★안 지워진다 — ★모드는 ★«보기»지 ★«데이터»가 아니다 */
+  const s = await snap(page);
+  expect(s.starColors, '★모드를 나갔는데 ★색 dataset 이 ★생겼다(모드가 데이터를 만들었다)').toBeNull();
+  /* ★★진입 배타 ★반대 방향 — ★`enterImageEditMode` 머리가 ★별 모드를 ★내린다 */
+  await dbl(2);
+  expect((await inMode()).cls, '전제 — 다시 모드').toBe(true);
+  const killed = await page.evaluate(() => {
+    if (!window.enterImageEditMode) return 'NO_FN';
+    window.enterImageEditMode(document.createElement('div'));   // ★요구가 안 맞아 금방 되돌아 나가도 ★머리 한 줄은 돈다
+    return document.querySelector('#canvas .shape-block').classList.contains('star-mode');
+  });
+  if (killed !== 'NO_FN') {
+    expect(killed, '★★`enterImageEditMode` 가 ★별 모드를 ★안 내렸다 — ★배타가 ★한 방향뿐이다').toBe(false);
+  }
+});
+
+test('E3 ★★모드·표시가 ★저장본에 ★안 샌다 (★명부 둘에 ★등록한 그 까닭)', async ({ page }) => {
+  await setup(page);
+  await setNum(page, 'shape-star-count-num', 5);
+  await page.waitForTimeout(250);
+  const b = await page.locator('#canvas .shape-block svg polygon').nth(1).boundingBox();
+  await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
+  await page.waitForTimeout(350);
+  expect(await page.evaluate(() => document.querySelector('#canvas .shape-block').classList.contains('star-mode')),
+    '전제 — 모드가 섰다(표시가 라이브에 있다)').toBe(true);
+  /* ★★모드가 ★선 ★채로 ★저장한다 — ★그게 ★이 칸의 핵이다(★사람은 ★아무 때나 저장한다) */
+  const saved = await page.evaluate(() => {
+    const sec = document.getElementById('sA');
+    const out = window.serializeSectionClone ? window.serializeSectionClone(sec) : sec.outerHTML;
+    return typeof out === 'string' ? out : (out && out.outerHTML) || '';
+  });
+  expect(saved.length, '★저장본이 비었다').toBeGreaterThan(100);
+  expect(saved, '★★`star-mode` 가 ★저장본에 ★샜다 — `RUNTIME_MARKER_CLS` 등록이 ★안 먹는다').not.toContain('star-mode');
+  expect(saved, '★★`star-cell-selected` 가 ★저장본에 ★샜다 — RE 가 ★안 잡는다').not.toContain('star-cell-selected');
+  /* ★★`_starSel` 은 ★JS 프로퍼티라 ★애초에 ★직렬화 대상이 ★아니다 — ★그것도 ★확인한다 */
+  expect(saved, '★`_starSel` 이 ★저장본에 있다 — ★프로퍼티가 ★속성이 됐다').not.toContain('_starSel');
 });

@@ -14,6 +14,7 @@ import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          starFillsFor, starColorList, starColorsAttr,
          starScaleList, starScalesAttr, clampStarScale,
          STAR_SCALE_MIN, STAR_SCALE_MAX, STAR_SCALE_DEFAULT } from '../shape-star.js';
+import { starSelectedIndex, starModeBlock, exitStarMode } from '../star-select.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
@@ -97,6 +98,9 @@ export function showShapeProperties(block) {
   const starGap     = clampStarGap(block.dataset.starGap);       // ★없으면 0 = 옛 간격(틀 폭 그대로)
   const starRating  = clampStarRating(block.dataset.starRating); // ★null = ★미설정 = ★평점 아님(1010t1b3)
   const ratingOn    = starRating !== null;                       // ★켜져 있으면 ★갯수가 ★5 로 ★잠긴다
+  /* ★★«고른 별»(1010t1b2) — ★`js/star-select.js` 가 ★JS 프로퍼티에 들고 있다(⛔속성이 아니다 = ★직렬화 안 탄다) */
+  const starSel     = (starModeBlock() === block) ? starSelectedIndex(block) : null;
+  const starSelColors = starColorList(block.dataset.starColors, starCount) || [];
   const iconSvg     = SHAPE_ICONS[shapeType] || SHAPE_ICONS.rectangle;
   const shapeName   = SHAPE_NAMES[shapeType] || shapeType;
   const id          = block.id || '';
@@ -263,6 +267,18 @@ ${blockHeaderHTML({
         <span id="shape-star-rating-preview" style="color:#ff8a00;letter-spacing:1px;${ratingOn ? '' : 'opacity:0.3'}">${starRatingPreview(starRating)}</span>
       </div>
       ${ratingOn ? `<div class="prop-hint" id="shape-star-rating-hint" style="margin-top:4px;">별점은 별 ${STAR_RATING_COUNT}개로 구성됩니다 — 갯수는 별점을 끄면 다시 바꿀 수 있습니다.</div>` : ''}
+      ${starSel !== null ? `<!-- ★★«이 별» 색 (현빈 2026-10-10 1010t1b2 「★개별 별모양 블럭을 선택하고 ★색 지정」)
+           ★★이 줄이 ★★«입구»다 — ★이 줄이 ★생기기 전까지 ★data-star-colors 를 ★쓰는 ★자가 ★0건이었다.
+           ★더블클릭으로 ★모드에 들어와 ★별을 고르면 ★나타난다. ★Esc·밖 클릭이면 ★사라진다. -->
+      <div class="prop-row" id="shape-star-one-row" style="gap:6px;font-size:11px;white-space:nowrap">
+        <span class="prop-label" id="shape-star-one-label">${starSel + 1}번 별</span>
+        ${colorFieldHTML({ idPrefix: 'shape-star-one', hex: starSelColors[starSel] || (block.dataset.shapeColor || '#cccccc') })}
+      </div>
+      <div class="prop-row" style="gap:6px;">
+        <button type="button" class="prop-btn" id="shape-star-one-reset">이 별 색 지우기</button>
+        <button type="button" class="prop-btn" id="shape-star-one-done">개별 선택 끝내기</button>
+      </div>
+      <div class="prop-hint" id="shape-star-one-hint" style="margin-top:4px;">${starSel + 1}번 별만 색이 바뀝니다 — 지우면 블록 색을 따릅니다. (Esc 로 끝내기)</div>` : ''}
       ${starCount > 1 ? `<div class="prop-hint" id="shape-star-count-hint" style="margin-top:4px;">별이 여러 개면 이미지 채우기를 쓸 수 없습니다.</div>` : ''}` : ''}
       ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
     </div>
@@ -902,6 +918,39 @@ ${blockHeaderHTML({
     });
     starRatNum.addEventListener('input',  () => { if (starRatNum.value !== '') applyStarRating(starRatNum.value); });
     starRatNum.addEventListener('change', () => { applyStarRating(starRatNum.value); window.pushHistory?.('별점'); });
+  }
+
+  /* ── ★★«이 별» 색 — ★★1010t1b2 의 ★«입구» (현빈 「개별 별모양 블럭을 선택하고 ★색 지정」) ──
+   * ★★여기 ★배선한 까닭 = ★`_applyStarGeom` 이 ★이 닫힘(closure) 안에 있다.
+   *   ⛔모듈 밖(`star-select.js`)에서 ★색을 쓰면 ★★다시 그릴 자가 ★없다 — ★그 함수가 ★유일한 ★그리개다
+   *   ★실측 근거: ★`_applyStarGeom()` 호출 ★7곳이 ★★전부 ★이 파일의 ★손잡이 ★안이다(★D7 이 ★그래서 ★두 번 빨갰다)
+   * ★★쓰는 꼴 = ★`starColorList` 로 ★읽고 ★그 index 만 갈고 ★`starColorsAttr` 로 ★되돌려 쓴다
+   *   ⇒ ★전부 비면 ★★키를 ★지운다(★옛 바이트 보존 — ★`starGap` 0 의 그 규율) */
+  const starOneSel = (starModeBlock() === block) ? starSelectedIndex(block) : null;
+  if (starOneSel !== null && document.getElementById('shape-star-one-color')) {
+    const writeOne = (hex) => {
+      const count = clampStarCount(block.dataset.starCount);
+      const list = (starColorList(block.dataset.starColors, count) || new Array(count).fill(null)).slice(0, count);
+      while (list.length < count) list.push(null);
+      list[starOneSel] = hex || null;
+      const attr = starColorsAttr(list);
+      if (attr === null) { if (block.dataset.starColors !== undefined) delete block.dataset.starColors; }
+      else if (block.dataset.starColors !== attr) block.dataset.starColors = attr;
+      _applyStarGeom();                 // ★이 파일의 ★그리개 — ★유일하다
+      window.scheduleAutoSave?.();
+    };
+    wireColorField('shape-star-one', {
+      onApply:  (hex) => writeOne(hex),
+      onCommit: () => window.pushHistory?.('별 하나 색'),
+    });
+    document.getElementById('shape-star-one-reset')?.addEventListener('click', () => {
+      writeOne(null);
+      window.pushHistory?.('별 하나 색 지우기');
+      showShapeProperties(block);       // 스와치가 블록 색으로 돌아가야 한다
+    });
+    document.getElementById('shape-star-one-done')?.addEventListener('click', () => {
+      exitStarMode();                   // ★그 함수가 ★패널을 ★다시 그린다
+    });
   }
 
   // ── 회전 ──

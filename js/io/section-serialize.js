@@ -231,6 +231,9 @@
     'bn2-line-empty',                            // 빈 줄 플레이스홀더 (편집 전용)
     'stb-step-selected',                         // 스텝 마커의 «옛 이름» — 규칙 밖 이름이라 저장본에 샜다(2026-09-15). 새 이름 stb-line-selected 는 RE 가 잡는다
     'editing', 'img-editing', 'sec-bg-editing', 'group-selected', 'group-editing',
+    'star-mode',                                 // ★별 한 개 고르기 모드(1010t1b2) — ★규칙 밖 이름이라 ★손으로 든다.
+                                                 //   ★짝 `star-cell-selected` 는 ★RE 가 잡는다(`-cell-selected`) ⇒ ★여기 안 적는다.
+                                                 //   ★선례이자 경고: `stb-step-selected` 가 규칙 밖 이름이라 ★저장본에 샜다(2026-09-15).
     'dragging', 'ss-drag-over', 'drag-over', 'hovered',
   ];
   /** 클래스 토큰 하나가 «런타임 전용»인가. */

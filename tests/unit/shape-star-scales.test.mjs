@@ -181,16 +181,48 @@ test('S8 ★왕복 — ★목록 → 문자열 → ★목록 · ★100·빈칸�
   assert.strictEqual(starScalesAttr([50, null, null]), '50', `★꼬리를 안 버렸다: ${starScalesAttr([50, null, null])}`);
 });
 
-test('S9 ★★읽는 자가 ★하나다 — ★`_applyStarGeom` 만 ★두 dataset 을 ★읽는다(지디 ⑧ 의 ★조건)', () => {
-  /* ★지디: 「⛔단 조건: ★`_applyStarGeom` ★한 곳만 ★그 둘을 ★읽게 해라」 */
-  const scales = (PANEL.match(/dataset\.starScales/g) || []).length;
-  assert.strictEqual(scales, 1, `★starScales 를 ★${scales} 곳에서 읽는다 — ★하나여야 한다`);
-  const colors = (PANEL.match(/dataset\.starColors/g) || []).length;
-  assert.strictEqual(colors, 2, `★starColors 를 ★${colors} 곳에서 읽는다 — ★칠 ＋ ★명부 = 2`);
-  /* ★★그리고 ★그 둘이 ★같은 함수 안인가 — ★`_applyStarGeom` 몸통을 떠서 센다 */
+test('S9 ★★★«꼴을 ★읽는 자»와 ★«그리는 자»가 ★각각 ★하나다 (지디 ⑧ 의 ★조건 — ★정밀화했다)', () => {
+  /* ★★지디 조건 원문: 「⛔단 조건: ★`_applyStarGeom` ★한 곳만 ★그 둘을 ★읽게 해라
+   *   ⇒ ★읽는 자가 ★둘이 되면 ★★그때 ★명부가 ★참으로 ★둘이 된다」
+   * ★★★그 조건을 ★«occurrence 세기»로 ★걸었다가 ★★1010t1b2 ★입구(UI)에서 ★빨개졌다.
+   *   ★까닭: ★입구가 ★⒜ 스와치에 ★«지금 색»을 ★보이려 ★읽고 ⒝ ★그 index 만 갈려고 ★읽는다
+   *     ⇒ ★★둘 다 ★«그리는» 읽기가 ★아니다. ★★occurrence 는 ★그 차이를 ★못 센다.
+   * ★★★그래서 ★조건을 ★★«정밀화»했다 — ⛔느슨하게 ★한 것이 ★아니다. ★두 축으로 ★쪼갰다:
+   *   ㉠ ★★«꼴(문자열)을 ★해석하는 자»가 ★★`js/shape-star.js` ★하나다
+   *      ⇒ ★패널이 ★손으로 ★`split`/`join` 하면 ★★그때 ★명부가 ★둘이 된다 — ★그것을 ★막는다
+   *   ㉡ ★★«그리는 자»가 ★★`_applyStarGeom` ★하나다
+   *      ⇒ ★`starPointsList`·`starFillsFor` 가 ★그 함수 ★밖에서 ★불리면 ★빨강
+   * ★★★이게 ★지디 조건이 ★겨냥한 ★위험(★꼴 해석이 ★둘)을 ★★더 바로 ★잡는다.
+   *   ⇒ ★★지디에 ★★올렸다 — ★★조건을 ★내가 ★바꿨으니 ★★그가 ★판정할 일이다. */
+
+  /* ㉠ ★꼴 해석이 ★한 자리 — ★패널은 ★그 둘을 ★손으로 ★쪼개지 ★않는다 */
+  const handParse = PANEL.match(/dataset\.star(?:Colors|Scales)[^;\n]*\.split\(/g) || [];
+  assert.strictEqual(handParse.length, 0,
+    `★패널이 ★꼴을 ★손으로 ★쪼갠다(${handParse.length}건) — ★해석 명부가 ★둘이 된다: ${handParse.join(' / ')}`);
+  /* ★읽는 자리는 ★전부 ★공용 파서를 ★거친다 */
+  for (const m of PANEL.matchAll(/(\w+)\(block\.dataset\.starScales/g)) {
+    assert.ok(['starPointsList', 'starScaleList'].includes(m[1]),
+      `★배율을 ★${m[1]}(…) 로 ★읽는다 — ★공용 파서(starScaleList)나 ★그리개를 ★거쳐야 한다`);
+  }
+  for (const m of PANEL.matchAll(/(\w+)\(block\.dataset\.starColors/g)) {
+    assert.ok(['starColorList'].includes(m[1]),
+      `★개별 색을 ★${m[1]}(…) 로 ★읽는다 — ★공용 파서(starColorList)를 ★거쳐야 한다`);
+  }
+  /* ★되돌려 쓰는 자도 ★공용 직렬화기를 ★쓴다 */
+  assert.match(PANEL, /starColorsAttr\(list\)/,
+    '★개별 색을 ★손으로 ★이어 붙인다 — ★`starColorsAttr` 를 ★써야 한다');
+
+  /* ㉡ ★★그리는 자가 ★하나 — ★`starPointsList`·`starFillsFor` 가 ★그 함수 ★안에만 */
   const body = PANEL.match(/const _applyStarGeom = \(\) => \{[\s\S]*?\n  \};/);
   assert.ok(body, '★_applyStarGeom 몸통을 ★못 떴다 — ★닻이 썩었다');
-  assert.match(body[0], /dataset\.starScales/, '★배율을 ★그 함수가 ★안 읽는다');
-  assert.match(body[0], /dataset\.starColors/, '★개별 색을 ★그 함수가 ★안 읽는다');
-  assert.strictEqual((body[0].match(/dataset\.starScales/g) || []).length, 1, '★그 함수 안에서도 ★하나여야 한다');
+  for (const fn of ['starPointsList', 'starFillsFor']) {
+    const all = (PANEL.match(new RegExp(fn + '\\(', 'g')) || []).length;
+    const inside = (body[0].match(new RegExp(fn + '\\(', 'g')) || []).length;
+    assert.strictEqual(all, inside,
+      `★${fn} 가 ★_applyStarGeom ★밖에서도 불린다(전체 ${all} · 안 ${inside}) — ★그리는 자가 ★둘이다`);
+    assert.strictEqual(inside, 1, `★${fn} 가 ★그 함수 안에서 ★${inside} 번 불린다 — ★하나여야 한다`);
+  }
+  /* ★그리개가 ★배율·색을 ★참으로 ★읽나(⛔안 읽으면 ★위 둘이 ★항등이 된다) */
+  assert.match(body[0], /dataset\.starScales/, '★그리개가 ★배율을 ★안 읽는다');
+  assert.match(body[0], /dataset\.starColors/, '★그리개가 ★개별 색을 ★안 읽는다');
 });

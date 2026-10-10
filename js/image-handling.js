@@ -54,6 +54,10 @@ function applyImageTransform(ab) {
  *   afterExit(ab)   : 모든 정리 후.
  */
 function enterImageEditMode(ab, opts = {}) {
+  /* ★★진입 배타 ★양방향 ⒝ (1010t1b2) — ★별 ★한 개 고르기 모드를 ★내린다.
+     ⛔반대쪽(★내가 ★남을 내리는 줄)은 ★`js/star-select.js` 의 ★`enterStarMode` ★머리에 있다.
+     ★★한 방향만 두면 ★★반대쪽 줄을 ★지워도 ★초록이다 — ★t2cmdl ㉠ 이 ★그것을 ★실측했다. */
+  window.exitStarMode?.();
   if (ab._imgEditing) return;
   const img = ab.querySelector('.asset-img');
   if (!img) return;
