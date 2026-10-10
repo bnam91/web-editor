@@ -189,3 +189,68 @@ test('C8 ★★★별점 색의 ★«자리»가 ★하나다 — ★패널 ★�
   assert.equal(('style="color:${STAR_FILL' + '_ON}"').match(LIT()), null,
     '★음성대조 실패 — ★상수를 ★읽는 줄을 ★위반으로 ★센다 ⇒ ★★고친 자리가 ★전부 ★빨개진다');
 });
+
+/* ══ C9 ★★«R4 의 ★이어받을 자» — ★★골든이 ★챗 별색의 ★«값»을 ★잠근다 ════════════════════
+ * ★★왜 ★이 칸이 ★생겼나(2026-10-11):
+ *   ★나는 ★C8 에 ★「★챗 색을 ★행위로 재는 자 ★0 ⇒ ★★R4 를 놓으면 ★★이어받을 자가 ★없다」라 ★적었다.
+ *   ★★앞 문장은 ★참이었고 ★★뒤 ★추론이 ★★거짓이었다 — ★내가 ★틀렸다.
+ *   ★실측(지디 GO · DOM 1벌 2026-10-11):
+ *     ★`tests/dom/bt-bubble-chat.dom.spec.js` 의 ★`BT-CLOCK` 이 ★`innerHTML` 을 ★`toEqual` ★전체 동치로 견주고,
+ *     ★그 장면의 ★`LOCK_MSGS[0]` 에 ★★`stars: 4` 가 ★박혀 있다.
+ *     ⇒ ★양성대조 `#ff8a00`→`#ff8a01` ★★빨강 · ★★음성대조(★이 장면이 ★안 타는 갈래) ★★초록
+ *     ⇒ ★★즉 ★★«그 값»을 ★정말 ★잠그고 ★★«무엇을 고쳐도 빨강»은 ★아니다.
+ *
+ * ★★그래서 ★이 칸은 ★그 ★잠금을 ★★«유닛»으로 ★끌어온다 — ★★DOM 을 ★안 돌리고도 ★매 회차 ★재게.
+ *   ★★두 소스 = ⑴ ★`js/shape-star.js` 의 ★상수 ⑵ ★★골든 ★fixture 의 ★바이트
+ *   ⇒ ★★챗이 ★리터럴을 ★놓아도(③ 상수화) ★★«값 대조»는 ★★살아남는다.
+ *
+ * ⚠️★★이 자의 ★★한계를 ★적는다(⛔«R4 와 ★같다»고 ★주장하지 ★않는다):
+ *   ★골든은 ★★제품에서 ★파생된 ★fixture 다 ⇒ ★★누가 ★상수를 ★바꾸고 ★`BT_CHAT_GOLDEN=update` 로
+ *     ★골든을 ★★다시 뜨면 ★★두 소스가 ★★같이 ★움직여 ★★이 대조가 ★조용해진다.
+ *   ⇒ ★★그 자리를 ★막는 것은 ★★골든 갱신 ★규율이다(지디: ★«지워진 줄 0 · added 전부 이번 id» · ⛔눈 diff 금지).
+ *   ⇒ ★★R4(★사람이 ★따로 ★박은 ★리터럴)보다 ★★엄격히 ★약하다. ★★그래도 ★«참조하나»보다는 ★세다. */
+const GOLDENS = ['bt-chat-render-golden.json', 'bt2-chat-render-golden.json'];
+
+/** ★골든 ★JSON ★어디에 ★묻혀 있든 ★`chb-stars` 묶음의 ★색 차례를 ★뽑는다.
+ *  ★★꼴을 ★손으로 ★가정하지 ★않는다 — ★bt2 는 ★장면별 ★키로 ★한 겹 ★더 ★깊다(★실측). */
+function starGroups(fixture) {
+  const fs = require('node:fs');
+  const raw = fs.readFileSync(path.join(ROOT, 'tests', 'dom', 'fixtures', fixture), 'utf8');
+  const out = [];
+  for (const blk of raw.match(/chb-stars[\s\S]*?(?=<\\\/div>|<\/div>)/g) || []) {
+    const cols = [...blk.matchAll(/color:(#[0-9a-fA-F]{6})/g)].map((m) => m[1].toLowerCase());
+    if (cols.length) out.push(cols);
+  }
+  return out;
+}
+
+test('C9 ★★★골든이 ★챗 별색 ★«값»을 ★잠근다 — ★★R4 를 놓아도 ★이어받을 자가 ★있다 (실측 2026-10-11)', () => {
+  const groups = GOLDENS.flatMap(starGroups);
+  /* ⒜ ★★전제 — ⛔«0 묶음»에서 ★아래가 ★전부 ★참이 되면 ★★«안 쟀다»다 */
+  assert.ok(groups.length >= 2,
+    `★전제 미달 — ★골든에서 ★별 묶음을 ★${groups.length}개 ★찾았다(2개 이상이어야)\\n`
+    + '  ⇒ ★골든 꼴이 ★바뀌었거나 ★`stars` 가 ★든 장면이 ★빠졌다 ⇒ ★★이 칸은 ★«안 쟀다»다');
+  /* ⒝ ★★본 단언 — ★★거기 쓰인 색은 ★★내 두 상수 ★뿐이다(★★값 ★대조) */
+  const seen = [...new Set(groups.flat())].sort();
+  const mine = [STAR_FILL_ON, STAR_FILL_OFF].map((c) => c.toLowerCase()).sort();
+  assert.deepEqual(seen, mine,
+    `★★골든의 ★별 색이 ★상수와 ★다르다 — ★★챗과 ★별이 ★갈렸다\\n`
+    + `  ★골든: ${seen.join(' ')}\\n  ★상수: ${mine.join(' ')}\\n`
+    + '  ⇒ ★★상수를 ★고쳤으면 ★★골든도 ★같이 떠야 한다(★갱신 판정: ★지워진 줄 0 · added 전부 이번 id)\\n'
+    + '  ⇒ ★★골든만 ★틀렸으면 ★★제품이 ★조용히 ★갈린 것이다');
+  /* ⒞ ★★★«채운 쪽»에 ★그 색이 ★있나 — ⛔이게 없으면 ⒝ 는 ★★«전부 ★빈 별»인 판에서도 ★초록이다
+     ★★즉 ⒝ 만으로는 ★★`STAR_FILL_ON` 을 ★★안 잠근다(★내 교훈: ★항상 참인 단언은 ★0을 잠근다) */
+  const onFirst = groups.filter((g) => g[0] === STAR_FILL_ON.toLowerCase());
+  assert.ok(onFirst.length >= 1,
+    `★★«채운 별»이 ★★한 묶음도 ★없다 — ★★그러면 ★위 ⒝ 는 ★`
+    + `★«빈 별 색»만으로도 ★참이 된다(잰 묶음: ${JSON.stringify(groups)})`);
+  /* ⒟ ★★평점의 ★꼴까지 — ★★«채운 것들 ★뒤에 ★빈 것들»이어야 한다(★섞이면 ★차례가 ★깨진 것) */
+  for (const g of groups) {
+    const firstOff = g.indexOf(STAR_FILL_OFF.toLowerCase());
+    if (firstOff === -1) continue;
+    assert.ok(g.slice(firstOff).every((c) => c === STAR_FILL_OFF.toLowerCase()),
+      `★★빈 별 ★뒤에 ★채운 별이 ★다시 ★나온다 — ★평점 차례가 ★깨졌다 (잰 값: ${g.join(' ')})`);
+  }
+  console.log(`    ★골든 ${GOLDENS.length}벌 · ★별 묶음 ${groups.length}개 · ★쓰인 색 ${seen.join(' ')}`
+    + ` · ★채운 묶음 ${onFirst.length}개`);
+});
