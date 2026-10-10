@@ -40,6 +40,9 @@ const M = await (async () => {
 const { starColorList, starColorsAttr, starFillsFor,
         STAR_FILL_ON, STAR_FILL_OFF, STAR_RATING_MAX } = M;
 const PANEL = stripComments(readSrc(ROOT, 'js', 'props', 'prop-shape.js'));
+/* ★1010t2a ⑴ — ★«자리 통일»의 ★분모. ★★주석은 ★뗀다(★주석의 예시가 ★측정값이 되는 것 방지) */
+const CHATPANEL = stripComments(readSrc(ROOT, 'js', 'props', 'prop-chat.js'));
+const CHATBLOCK = stripComments(readSrc(ROOT, 'js', 'blocks', 'chat-block.js'));
 
 test('C0 ★전제 — ★평점 두 색이 ★서로 다르고 ★분모가 5 다 (⛔재기 전에 단언)', () => {
   assert.notStrictEqual(STAR_FILL_ON, STAR_FILL_OFF, '★두 색이 같으면 ★아래 대조가 ★뜻이 없다');
@@ -127,4 +130,62 @@ test('C7 ★칠의 ★임자가 ★하나다 — ★패널은 ★`starFillsFor` 
   const direct = (PANEL.match(/starRatingFills\(/g) || []).length;
   assert.strictEqual(direct, 0,
     `★패널이 ★starRatingFills 를 ★직접 ★${direct} 번 부른다 — ★칠은 ★starFillsFor ★한 자로만`);
+});
+
+test('C8 ★★★별점 색의 ★«자리»가 ★하나다 — ★패널 ★미리보기 ★둘이 ★상수를 ★읽는다 (1010t2a ⑴ · 지디 ⒝)', () => {
+  /* ★★★왜 ★이 칸이 ★생겼나 — ★t3frame 의 ★실측이 ★찾았다:
+   *   ★별점 주황이 ★★다섯 자리에 ★흩어져 ★있었고, ★그중 ★★★둘(★패널 미리보기)은
+   *   ★★`R4`(shape-star-rating.test.mjs)가 ★★안 보는 자리였다
+   *   ⇒ ★★★즉 ★★«반쪽만 고치면 ★조용히 ★남는» 자리였다. ★★이 칸이 ★그 분모를 ★메운다
+   * ★★그리고 ★★★«값 통일»이 ★아니라 ★★«자리 통일»이다 — ★`#f59e0b` 설은 ★기각됐다(★css 의 ★qa·todo 색이었다)
+   *
+   * ⛔★★★검사 파일의 ★손으로 ★박힌 값은 ★★건드리지 ★않는다 — ★★★그게 ★★이 자의 ★«독립된 눈»이다:
+   *   ★`R4` 는 ★`chat-block.js` 의 ★삼항에서 ★정규식으로 ★뽑아 ★상수와 ★견준다
+   *   ★`tests/dom/shape-star-b1b3.dom.spec.js` 는 ★`'#ff8a00'` 을 ★손으로 ★적어 ★화면 칠을 ★잰다
+   *   ⇒ ★★★그 둘을 ★상수를 ★읽게 ★고치면 ★★★항등식이 ★되어 ★아무것도 ★안 잠근다(★지디 경고) */
+  const LIT = () => /#ff8a00|#d6d6d6/gi;
+
+  /* ⒜ ★★상수를 ★읽어야 ★하는 자리 — ★리터럴이 ★0 이어야 ★한다 */
+  const MUST_IMPORT = { 'js/props/prop-shape.js': PANEL, 'js/props/prop-chat.js': CHATPANEL };
+  for (const [name, src] of Object.entries(MUST_IMPORT)) {
+    const hits = src.match(LIT()) || [];
+    assert.deepEqual(hits, [],
+      `★★${name} 에 ★별점 색이 ★손으로 ★박혀 ★있다(★${hits.length}건: ${JSON.stringify(hits)}) — `
+      + '★★`STAR_FILL_ON` 을 ★읽어라. ⛔여기에 ★값을 ★다시 ★적으면 ★자리가 ★또 ★갈린다');
+    assert.match(src, /STAR_FILL_ON/,
+      `★★${name} 이 ★`.concat('STAR_FILL_ON 을 ★안 읽는다 — ★★미리보기 색의 ★출처가 ★사라졌다'));
+  }
+
+  /* ⒝ ★★★`chat-block.js:134` 는 ★★★«일부러» ★리터럴이다 — ⛔합치지 ★마라
+   *   ★★★판정 ★2026-10-10 (★지디): ★★★③ 은 ★★합치지 ★않는다. ★★④⑤ 만 ★합쳤다
+   *   ★★까닭 — ★★«구조 통일»은 ★★목적이 ★아니라 ★★수단이다. ★★참 목적은 ★★★«조용히 ★갈리지 ★않는다»:
+   *     ⒤ ★`R4`(`shape-star-rating.test.mjs`)가 ★★«두 ★소스의 ★값 ★대조»를 ★한다 —
+   *        ★챗이 ★★«따로» ★박았기 ★때문에 ★★참 ★대조다
+   *     ⒥ ★★그래서 ★상수만 ★고치고 ★챗을 ★안 고치면 ★★R4 가 ★★빨개진다
+   *        ⇒ ★★★«조용히 ★갈리는 일»이 ★★이미 ★★불가능하다 ⇒ ★★합치기가 ★★살 ★것이 ★없다
+   *     ⒦ ★★그런데 ★★상수로 ★바꾸면 ★R4 는 ★★«챗이 ★그 상수를 ★참조하나»로 ★떨어진다
+   *        ⇒ ★★★엄격히 ★★약하다(★값을 ★안 잠근다) ⇒ ★★★순손실이다
+   *     ⒧ ★★반면 ★★④⑤ 는 ★★★R4 의 ★★분모 ★밖이었다 ⇒ ★★거기엔 ★합칠 ★값이 ★있었다
+   *   ★★★한 줄: ★★★«합칠 ★값은 ★★«잠기지 ★않은 ★자리»에만 ★있다»
+   *   ⇒ ★★그리고 ★★★챗 색을 ★«행위»로 ★재는 자는 ★★★0 이다(★실측: ★`chb-stars` 를 ★보는
+   *      ★DOM spec ★0벌 · ★유닛 ★0벌) ⇒ ★★R4 를 ★놓으면 ★★이어받을 자가 ★★없다
+   *   ⇒ ★★그래서 ★★아래는 ★★그 닻이 ★★살아 있는지 ★★지킨다 — ⛔«옮겨라»가 ★아니라 ★★«두어라»다 */
+  const anchor = CHATBLOCK.match(/\?\s*'(#[0-9a-fA-F]{6})'\s*:\s*'(#[0-9a-fA-F]{6})'/);
+  assert.ok(anchor,
+    '★★`chat-block.js` 의 ★삼항 ★닻이 ★사라졌다 — ★★`R4` 가 ★대조할 ★정본을 ★잃는다.\n'
+    + '  ⛔★그 자리를 ★★상수로 ★바꾸지 ★마라 — ★★판정 2026-10-10(지디): ★★합치지 ★않는다.\n'
+    + '  ★까닭: ★★그 ★리터럴이 ★★«두 소스 값 대조»를 ★가능하게 ★한다. ★상수로 바꾸면 ★참조 단언으로 ★떨어진다.\n'
+    + '  ★그리고 ★★챗 색을 ★«행위»로 ★재는 자가 ★★0 이다 ⇒ ★★R4 를 ★놓으면 ★이어받을 자가 ★없다.\n'
+    + '  ⇒ ★★합치고 싶으면 ★★먼저 ★`chb-stars` 의 ★color 를 ★★DOM 에서 ★재는 자를 ★세워라');
+  assert.strictEqual(anchor[1], STAR_FILL_ON, `★닻의 ★채운 색이 ★상수와 ★다르다 (잰 값: ${anchor[1]})`);
+  assert.strictEqual(anchor[2], STAR_FILL_OFF, `★닻의 ★빈 색이 ★상수와 ★다르다 (잰 값: ${anchor[2]})`);
+
+  /* ⒞ ★★양성대조 — ★★이 자가 ★참으로 ★리터럴을 ★잡나(⛔«0건»이 ★«안 걸어봤다»인지 ★가른다)
+   *   ★★글자는 ★조립한다 — ★★이 파일이 ★제 자의 ★입력이 ★되지 ★않게 */
+  const FAKE = 'style="color:' + '#ff' + '8a00"';
+  assert.equal((FAKE.match(LIT()) || []).length, 1,
+    '★양성대조 실패 — ★심어 놓은 ★리터럴을 ★못 잡는다 ⇒ ★★위 ★«0건»은 ★★«안 쟀다»다');
+  /* ⒟ ★음성대조 — ★상수를 ★읽는 꼴은 ★걸리면 ★안 된다 */
+  assert.equal(('style="color:${STAR_FILL' + '_ON}"').match(LIT()), null,
+    '★음성대조 실패 — ★상수를 ★읽는 줄을 ★위반으로 ★센다 ⇒ ★★고친 자리가 ★전부 ★빨개진다');
 });
