@@ -7,7 +7,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { readSrc } = require('./_srcread.js');   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
+const { readSrc } = require('./_srcread.js');
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
 const { sliceBlock } = require('./_slice-block.js');   // ★구간 떠내기는 «공용 부품»(_slice-block.js) 하나로 — ⛔여기서 자를 새로 만들지 마라(끝은 «균형괄호»로 찾는다)
 const SRC = readSrc(__dirname, '..', '..', 'main.js');
 
@@ -30,7 +31,7 @@ function extractBlock(src = SRC) {
 
 /* 떼어낸 블록을 «진짜 fs»와 임시 userData 위에서 실행한다. */
 function load({ email = null, block = extractBlock(), userData = null, authThrows = false } = {}) {
-  const ud = userData || fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const ud = userData || mkTmpRoot('gdt-acct-');
   /* ★readAuthOrThrow 를 흉내낸다 — «파일 없음(null)»과 «못 읽음(throw)»을 가르는 함수다.
      그게 이 판의 핵심이라, 하네스가 그 둘을 «따로» 만들 수 있어야 한다. */
   const readAuthOrThrow = () => { if (authThrows) throw new Error('auth.json 깨짐'); return email ? { email } : null; };
@@ -95,7 +96,7 @@ test('M4 로그아웃 = 레거시 풀로 복귀 (계정 것이 안 보이는 게
 
 /* ── M5 ★기존 데이터가 «사라지지 않는다» — 첫 계정이 물려받는다 ─────────── */
 test('M5 ★업데이트 전 프로젝트는 첫 로그인 계정이 물려받는다 (갤러리가 비지 않는다)', () => {
-  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const ud = mkTmpRoot('gdt-acct-');
   const legacy = path.join(ud, 'projects');
   mkproj(legacy, 'proj_9001'); mkproj(legacy, 'proj_9002');   // 업데이트 이전 데이터
 
@@ -111,7 +112,7 @@ test('M5 ★업데이트 전 프로젝트는 첫 로그인 계정이 물려받�
 
 /* ── M6 ★두 번째 계정은 물려받지 못한다 (남의 것일 수 있다) ─────────────── */
 test('M6 ★계정 폴더가 이미 있으면 레거시를 «가져가지 않는다»', () => {
-  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const ud = mkTmpRoot('gdt-acct-');
   const legacy = path.join(ud, 'projects');
 
   const h = load({ email: 'chulsoo@example.com', userData: ud });   // 철수가 먼저(레거시 빈 상태)
@@ -292,7 +293,7 @@ test('M12 ★주입이 «끊기면» 조용히 공용 폴더로 가지 않는다
      ★양성대조의 «세기»는 한 톨도 안 준다 — 같은 파일·같은 표현식·같은 폴백 조건이고,
      아래에서 「플래그를 켜면 실제로 읽힌다」로 «조준이 안 빗나갔다»까지 같이 잰다. */
 function loadMcpServerInTmpRepo(env = {}) {
-  const repo = fs.mkdtempSync(path.join(os2.tmpdir(), 'gdt-repo-'));
+  const repo = mkTmpRoot('gdt-repo-');
   const dst = path.join(repo, 'main', 'claude-pm');
   fs.mkdirSync(path.dirname(dst), { recursive: true });
   fs.cpSync(path.join(__dirname, '..', '..', 'main', 'claude-pm'), dst, { recursive: true });
@@ -306,7 +307,6 @@ function loadMcpServerInTmpRepo(env = {}) {
   const undo = () => {
     for (const k of Object.keys(saved)) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
     delete require.cache[p];
-    fs.rmSync(repo, { recursive: true, force: true });
   };
   try { return { mod: require(p), sharedRoot: path.join(repo, 'projects'), restore: undo }; }
   catch (e) { undo(); throw e; }
@@ -315,7 +315,7 @@ function loadMcpServerInTmpRepo(env = {}) {
 test('M13 ★두 번째 뿌리에 «남의 프로젝트»를 심어도 안 읽힌다 (양성대조)', () => {
   const { mod, sharedRoot, restore } = loadMcpServerInTmpRepo({ GODITOR_MCP_ALLOW_SHARED_ROOT: undefined });
   const victim = 'proj_9999001';
-  const mine = fs.mkdtempSync(path.join(os2.tmpdir(), 'gdt-mine-'));
+  const mine = mkTmpRoot('gdt-mine-');
   const planted = path.join(sharedRoot, victim);                    // 코드가 뒤지던 두 번째 뿌리
   try {
     /* ★심는 자리가 «레포 트리 밖»이어야 한다 — 안이면 위 주석의 교차오염 경합이 되살아난다. */
@@ -347,7 +347,6 @@ test('M13 ★두 번째 뿌리에 «남의 프로젝트»를 심어도 안 읽�
     assert.strictEqual(read('proj_9999002').name, '내것');
   } finally {
     restore();
-    fs.rmSync(mine, { recursive: true, force: true });
   }
 });
 
@@ -443,7 +442,7 @@ test('M17 ★★입양이 «던져도» 뿌리는 계정 폴더에 서 있다 (�
        ⇒ adopt 안의 «감싸지지 않은» fs.existsSync 를 던지게 해서 진짜 상황을 만든다.
        ⇒ 그리고 adopt 가 «실제로 루프까지 도달»하도록 «첫 계정»으로 놓는다
           (다른 계정 폴더가 있으면 adopt 는 루프 전에 반환한다 — M6). */
-  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const ud = mkTmpRoot('gdt-acct-');
   const legacy = path.join(ud, 'projects');
   fs.mkdirSync(path.join(legacy, 'proj_5001'), { recursive: true });
 
@@ -517,7 +516,7 @@ test('M20 ★readAuthOrThrow «진짜 함수»가 「없음」과 「손상」�
      ★「흉내낸 것」을 재고 「진짜 것」을 안 잰 것 — 오늘 두 번째다.
      ⇒ 함수 몸통을 «떼어» 실제 파일 위에서 돌린다. */
   const body = bodyOf('readAuthOrThrow');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-auth-'));
+  const dir = mkTmpRoot('gdt-auth-');
   const authPath = path.join(dir, 'auth.json');
   const f = new Function('path', 'fs', 'getAuthPath', body + '\n; return readAuthOrThrow;')(path, fs, () => authPath);
 
@@ -541,7 +540,6 @@ test('M20 ★readAuthOrThrow «진짜 함수»가 「없음」과 「손상」�
   fs.writeFileSync(authPath, JSON.stringify({ plan: 'x' }));
   assert.strictEqual(f(), null);
 
-  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('M20b ★readAuth(자격증명 SSOT)는 «안 건드렸다»', () => {
@@ -625,7 +623,7 @@ test('M22c ★_unresolved 를 «읽는» 코드가 0곳이다 (교환의 근거�
    ──────────────────────────────────────────────────────────────────────────── */
 
 test('M23 ★입양이 일어나면 «고지할 것»이 생기고, 한 번 보여준 뒤엔 안 생긴다', () => {
-  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const ud = mkTmpRoot('gdt-acct-');
   const legacy = path.join(ud, 'projects');
   fs.mkdirSync(path.join(legacy, 'proj_6001'), { recursive: true });
   fs.mkdirSync(path.join(legacy, 'proj_6002'), { recursive: true });
@@ -749,7 +747,7 @@ test('M26 ★게이트를 «여는 자리»와 «닫는 자리»의 수가 맞�
    ──────────────────────────────────────────────────────────────────────────── */
 
 test('T-A1 ★첫 로그인 입양 때 legacy folders.json 도 같이 옮긴다', () => {
-  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const ud = mkTmpRoot('gdt-acct-');
   const legacy = path.join(ud, 'projects');
   mkproj(legacy, 'proj_7001');
   fs.writeFileSync(path.join(legacy, 'folders.json'),
@@ -767,14 +765,14 @@ test('T-A1 ★첫 로그인 입양 때 legacy folders.json 도 같이 옮긴다'
 });
 
 test('T-A2 대상에 이미 folders.json 이 있으면 «덮지 않는다»', () => {
-  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const ud = mkTmpRoot('gdt-acct-');
   const legacy = path.join(ud, 'projects');
   mkproj(legacy, 'proj_7002');
   fs.writeFileSync(path.join(legacy, 'folders.json'), JSON.stringify({ version: 1, folders: [{ id: 'fold_legacy', name: '레거시폴더' }] }));
 
   // 대상 계정 폴더를 미리 만들어 두고 자기 folders.json 을 심어둔다(먼저 로그인해 만든 자기 것)
   // ★키 산식을 여기서 다시 구현하지 않는다 — load() 로 한 번 «비파괴» 접근해 실제 키를 얻는다.
-  const probe = load({ email: 'chulsoo@example.com', userData: fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-probe-')) });
+  const probe = load({ email: 'chulsoo@example.com', userData: mkTmpRoot('gdt-acct-probe-') });
   const realKey = probe.api._accountKeyFor('chulsoo@example.com');
   const destDir = path.join(ud, 'accounts', realKey, 'projects');
   fs.mkdirSync(destDir, { recursive: true });
@@ -787,7 +785,7 @@ test('T-A2 대상에 이미 folders.json 이 있으면 «덮지 않는다»', ()
 
 test('T-A3 ⛔folders.json 이동이 실패해도 입양(proj_*) 자체는 막지 않는다', () => {
   /* ★던지지 않는다 — 실패하면 폴더 «이름»만 잃고 프로젝트는 자가치유(미분류)로 그대로 뜨면 된다. */
-  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-acct-'));
+  const ud = mkTmpRoot('gdt-acct-');
   const legacy = path.join(ud, 'projects');
   mkproj(legacy, 'proj_7003');
   fs.writeFileSync(path.join(legacy, 'folders.json'), '{}');

@@ -50,10 +50,6 @@ const RM_RE = () => /\brmSync\s*\(/g;
 /** ㉠ ★★이전 ★대상 — ★`mkdtempSync` 로 ★임시 루트를 ★만들고 ★제 손으로 ★치우는 자. */
 const PENDING = {
   'tests/dom/scratch-folder-columns.dom.spec.js':  '★DOM — ★창 차례(지디 가름) · ★`npm test` 로 ★못 잰다',
-  'tests/unit/account-projects-root.test.js':      '미이전 (★rmSync 셋 — ★repo·mine·dir)',
-  'tests/unit/operator-allow-cli.test.mjs':
-    '미이전 — ⚠️★`HOME` 을 ★만들어 ★CLI 에 ★주입한다(★개인키가 ★거기 산다). ★머리말이 '
-    + '★★«끝나면 지운다»를 ★약속한다 ⇒ ★★옮기더라도 ★그 ★즉시치움은 ★★남겨야 한다(⇒ ★㉢ 로 간다)',
   'tests/unit/win-portability.test.mjs':
     '미이전 — ⚠️★`goya-run-1` 을 ★★단언 문자열로 ★든다(:358) ＋ ★`os.homedir()` 경로를 ★잰다(:354~357) '
     + '⇒ ★★자리에 ★의존한다. ★★읽고 ★옮겨야 한다',
@@ -89,6 +85,10 @@ const NOT_TMPROOT = {
  *    ⇒ ★★그래서 ★★«동기로» 치운다. ★`coupon-presets` 주석이 ★그 까닭을 ★이미 말한다.
  *  ⇒ ★★★즉 ★이 칸은 ★★결함이 ★아니다. ⛔여기 것을 ★`PENDING` 으로 ★옮기지 ★마라. */
 const DONE_EAGER = {
+  'tests/unit/operator-allow-cli.test.mjs':
+    '★★섞였다 — ★HOME = mkTmpRoot(goditor-opallow-) 의 ★즉시치움 ★3 ＋ ★inRepo·bad(그 검사의 주제) ★2. '
+    + '★★왜 ★즉시치움인가 = ★★그 폴더에 ★★개인키가 ★산다 ⇒ ★종료훅(★SIGKILL 에서 ★안 돈다)에 ★못 맡긴다. '
+    + '★★그 약속을 ★★잠그는 칸 = ★★C-KEYGONE(★그 파일) — ⛔머리말 ★선언으로 ★안 닫았다',
   'tests/unit/history-restart.test.js':
     '★`ud` = mkTmpRoot(goya-restart{,2,3}-) ★셋 — ★rmSync ★3/3 이 ★그 임시루트의 ★즉시 치움이다',
   'tests/unit/history-ipc.test.js':
