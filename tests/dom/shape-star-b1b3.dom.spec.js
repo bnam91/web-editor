@@ -87,11 +87,19 @@ test('D1 ★b1 — ★간격을 올리면 ★프레임 폭이 ★늘어난다 (�
   expect(b.frameW, `★식이 낸 수와 ★화면값이 다르다 (기대 ${want} · 잰 값 ${b.frameW})`).toBe(want);
 });
 
-test('D2 ★★① 후속 — ★별 하나의 ★가로:세로 비가 ★간격을 바꿔도 ★유지된다', async ({ page }) => {
+test('D2 ★★① 후속 — ★상한 ★아래서는 ★비가 ★유지되고 · ★★상한에서는 ★W9 가 ★예측한 만큼만 ★깨진다', async ({ page }) => {
+  /* ★★★첫 판에서 ★이 칸이 ★빨갰고 ★★제품이 ★아니라 ★★내 ★문턱이 ★틀렸다 — ★적어 둔다:
+   *   ★잰 값 ★gap 200 에서 ★비 ★−4.4443% · ★내 문턱은 ★3% 였다.
+   *   ★★★그런데 ★★`W9`(유닛)이 ★이미 ★★−4.44% 를 ★예측해 뒀다 — ★★내가 ★그 수를 ★손수 적었다.
+   *   ★까닭: ★이 판의 ★W0 = ★500(갯수 5 뒤) ⇒ ★★W0 ≥ 479 ⇒ ★gap 200 은 ★900px 을 요구 ⇒ ★★860 으로 ★잘린다
+   *     ⇒ ★★860/900 − 1 = ★★−4.44%. ★★DOM 이 ★유닛 예측을 ★★세 자리까지 ★재현했다.
+   * ⇒ ★★★그래서 ★문턱을 ★고치는 대신 ★★«두 구간»으로 ★갈라 ★★둘 다 ★단언한다.
+   *   ⒜ ★상한 ★아래(gap 50·100) = ★비가 ★지켜진다
+   *   ⒝ ★★상한(gap 200) = ★★폭이 ★860 이고 ★손실이 ★★예측값 ★−4.44% 다
+   *   ⇒ ★★이 꼴이 ★★판정 ③ 의 ★«대가»를 ★★행위로 ★잠근다(★W9 는 ★산술로 잠근다) */
   await setup(page);
   await setNum(page, 'shape-star-count-num', 5);
   await page.waitForTimeout(250);
-  /* ★화면에서 ★별 하나의 ★실제 px 를 잰다 — ⛔식이 아니라 ★getBoundingClientRect */
   const rect = () => page.evaluate(() => {
     const p = document.querySelector('#canvas .shape-block svg polygon');
     const b = p.getBoundingClientRect();
@@ -99,22 +107,37 @@ test('D2 ★★① 후속 — ★별 하나의 ★가로:세로 비가 ★간격
   });
   const r0 = await rect();
   expect(r0.w, `전제 — 별 하나가 보인다 (잰 값: ${JSON.stringify(r0)})`).toBeGreaterThan(1);
+  const w0 = (await snap(page)).frameW;
+  expect(w0, `전제 — 갯수 5 뒤 폭 (잰 값: ${w0})`).toBe(500);
   const aspect0 = r0.w / r0.h;
 
-  for (const g of [50, 100, 200]) {
+  /* ⒜ ★상한 ★아래 — ★요구 폭이 ★860 이하라 ★비가 ★지켜진다 */
+  for (const g of [50, 100]) {
     await setNum(page, 'shape-star-gap-num', g);
     await page.waitForTimeout(250);
     const r = await rect();
-    const aspect = r.w / r.h;
-    /* ★반올림(폭 정수) 때문에 ★완전 동일은 아니다 — ★유닛에서 잰 흔들림 폭이 0.9418~0.9429 였다 */
-    expect(Math.abs(aspect / aspect0 - 1),
-      `★gap ${g} 에서 ★비가 ★깨졌다 — ${aspect0.toFixed(4)} → ${aspect.toFixed(4)} (폭 ${JSON.stringify(r)})`)
-      .toBeLessThan(0.03);
+    const s = await snap(page);
+    const need = Math.round(w0 * (1000 + g * 4) / 1000);
+    expect(s.frameW, `★gap ${g}: ★폭이 ★식과 다르다`).toBe(need);
+    expect(need, `★gap ${g}: ★전제 — ★상한에 ★안 닿아야 한다 (요구 ${need})`).toBeLessThanOrEqual(860);
+    expect(Math.abs(r.w / r.h / aspect0 - 1),
+      `★gap ${g} 에서 ★비가 ★깨졌다 — ${aspect0.toFixed(4)} → ${(r.w / r.h).toFixed(4)}`).toBeLessThan(0.01);
   }
-  /* ★★gap 200 의 ★폭이 ★849 인가 — ★유닛이 ★계산으로 낸 그 수(W0 500 기준이 아니라 ★이 판의 W0 기준) */
-  const s = await snap(page);
-  expect(s.starGap, 'gap 200').toBe('200');
-  expect(s.viewBox, 'viewBox = 200·5＋200·4').toBe('0 0 1800 190');
+
+  /* ⒝ ★★상한 — ★★여기서는 ★깨지는 것이 ★맞다. ★★얼마나 깨지나를 ★못박는다 */
+  await setNum(page, 'shape-star-gap-num', 200);
+  await page.waitForTimeout(250);
+  const sCap = await snap(page);
+  const needCap = Math.round(w0 * 1800 / 1000);
+  expect(needCap, `★전제 — gap 200 은 ★상한을 ★넘어야 한다 (요구 ${needCap})`).toBeGreaterThan(860);
+  expect(sCap.frameW, `★★상한에서 ★폭이 ★860 이 아니다 (잰 값: ${sCap.frameW})`).toBe(860);
+  expect(sCap.viewBox, 'viewBox = 200·5＋200·4').toBe('0 0 1800 190');
+  const rCap = await rect();
+  const loss = (rCap.w / rCap.h / aspect0 - 1) * 100;
+  const predicted = (860 / needCap - 1) * 100;
+  expect(Math.abs(loss - predicted),
+    `★★상한의 ★손실이 ★예측과 다르다 — ★잰 값 ${loss.toFixed(2)}% · ★예측 ${predicted.toFixed(2)}% (★W9 가 −4.44% 라 적었다)`)
+    .toBeLessThan(0.6);
 });
 
 /* ══ ⒦⒩ b3 — ★평점 ══════════════════════════════════════════════════════════ */
@@ -229,8 +252,18 @@ test('D7 ★★⒨ ★저장 왕복 — ★개별 색·배율이 ★저장 → �
     const blk = document.querySelector('#canvas .shape-block');
     blk.dataset.starColors = '#ff0000,,#00ff00';
     blk.dataset.starScales = ',50';
-    window.showShapeProperties?.(blk);           // 패널 재배선 → _applyStarGeom 이 다시 돈다
   });
+  /* ★★★첫 판에서 ★이 칸이 ★빨갰고 ★★제품이 ★아니라 ★★내 ★준비가 ★틀렸다 — ★적어 둔다:
+     ★나는 ★`showShapeProperties`(패널 ★재배선)가 ★다시 ★그린다고 ★★가정했다. ★★틀렸다.
+     ★★실측: ★`_applyStarGeom()` 호출은 ★★7 곳이고 ★★전부 ★`apply*` ★«손잡이 안»이다
+       (applyStar · applyStarCount · applyStarInner · applyStarGap · applyStarRating ×3)
+       ⇒ ★★배선만으로는 ★★한 번도 ★안 그린다.
+     ★★★그래서 ★제품 길을 ★★때린다 — ★간격 칸을 ★만져 ★`_applyStarGeom` 을 ★돌린다.
+     ⚠️★★그리고 ★그 사실이 ★★제품에 ★뜻을 갖는다: ★★dataset 만 ★든 저장본(손으로 쓴 것·템플릿·
+       마이그레이션)은 ★★사람이 ★패널을 ★만질 때까지 ★★안 칠해진다.
+       ★★★단 ★보통 저장본은 ★★polygon 의 ★fill·points 가 ★같이 저장되므로 ★그 길은 ★안 탄다.
+       ⇒ ★★이 수를 ★지디에 ★올렸다. ⛔이 칸에서 ★그것을 ★고치지는 ★않는다(범위 밖). */
+  await setNum(page, 'shape-star-gap-num', 10);
   await page.waitForTimeout(300);
   const before = await snap(page);
   expect(before.fills[0], '★0번 별 색').toBe('#ff0000');
