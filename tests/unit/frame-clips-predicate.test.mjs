@@ -20,6 +20,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { readdirSync } from 'node:fs';   /* ㈄ 2026-10-10 — ★js/ 전수로 ★부활을 ★재려고 */
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -50,30 +51,56 @@ function loadFn(name) {
   vm.runInContext(src.slice(i, j).replace(/^export\s+/, ''), ctx);
   return ctx[name];
 }
+/** ★`js/` 아래 ★`.js` ★전부 — ★★«치운 것이 ★다른 파일에 ★부활했나»를 ★전수로 재기 위해. */
+function walkJs(rel) {
+  const out = [];
+  const walk = (d) => {
+    for (const e of readdirSync(path.join(ROOT, d), { withFileTypes: true })) {
+      if (e.name.startsWith('.')) continue;
+      if (e.isDirectory()) walk(`${d}/${e.name}`);
+      else if (e.name.endsWith('.js')) out.push(`${d}/${e.name}`);
+    }
+  };
+  walk(rel);
+  assert.ok(out.length > 20, `★전제: ${rel} 아래 .js 가 ${out.length}개다 — ★걷는 자가 ★죽었다`);
+  return out;
+}
 const el = (dataset) => ({ dataset });
+
+/** ★★공용 술어를 ★★그 파일에서 ★불러 싣는다 (㈄ 2026-10-10) — ⛔사본을 ★적지 않는다.
+ *  ★`js/clip-content.js` 는 ★★import 가 ★0 이라(★실측) ★모듈 ★통째로 ★실린다.
+ *  ★★`vm` 에서 ★최상위 ★`const` 는 ★전역 ★«속성»이 ★안 되므로 ★`var` 로 ★바꿔 ★내보낸다
+ *    (★★같은 함정을 ★block-full-bleed 하네스에서 ★실측으로 ★먼저 ★밟았다). */
+function loadClip() {
+  const src = strip(readSrc(ROOT, 'js/clip-content.js'))
+    .replace(/^\s*export\s+/gm, '')
+    .replace(/^if \(typeof window[\s\S]*$/m, '')
+    .replace(/^const /gm, 'var ');
+  const ctx = vm.createContext({});
+  vm.runInContext(src, ctx);
+  assert.equal(typeof ctx.clipsContent, 'function', '★전제: `clipsContent` 가 ★안 실렸다');
+  assert.equal(typeof ctx.clipFamily, 'function', '★전제: `clipFamily` 가 ★안 실렸다');
+  assert.equal(typeof ctx.CLIP_DEFAULTS, 'object', '★전제: `CLIP_DEFAULTS` 표가 ★안 실렸다');
+  return ctx;
+}
+/** ★프레임 계열로 ★보이는 ★가짜 요소 — ★공용 술어는 ★★계열을 ★본다(⛔`el()` 로는 ★`null` 이 나온다) */
+const fel = (dataset) => ({ classList: { contains: (c) => c === 'frame-block' }, dataset: dataset || {} });
 
 /* ══ ⒜-1 ★`frameClipsPaint` 의 ★진리표 ════════════════════════════════════ */
 
-test('P1 ★기본은 ★자른다 — ★속성이 ★없어도 ★참이다 (★2026-10-10 에 ★뒤집힌 ★바로 그 칸)', () => {
-  const f = loadFn('frameClipsPaint');
-  assert.equal(f(el({})), true, '★★빈 프레임이 ★안 자른다고 한다 — ★10-10 부터 ★기본은 ★자름이다');
-  assert.equal(f(el({ clipContent: 'true' })), true, '★명시로 켠 것도 ★자른다');
-  assert.equal(f(el({ radius: '8' })), true, '★둥근 모서리도 ★자른다(기본이 자름이니 ★당연히)');
-});
-
-test('P2 ★★푸는 길은 ★하나다 — ★사람이 ★★명시로 ★끈 것(`data-clip-content="false"`)', () => {
-  const f = loadFn('frameClipsPaint');
-  assert.equal(f(el({ clipContent: 'false' })), false, '★명시로 끈 프레임은 ★안 자른다');
-  /* ★★음성대조 — ★★«속성 없음»을 ★끔으로 ★읽으면 ★안 된다.
-     ★예전엔 ★기본이 visible 이라 ★«끔 = 속성 삭제»였다 ⇒ ★그 꼴을 그대로 두고 ★기본만 바꾸면
-     ★★토글을 ★끄는 것이 ★아무 일도 안 한다 = ★★조용한 무효화. */
-  assert.equal(f(el({})), true, '★★«속성 없음»은 ★끔이 ★아니다');
-  assert.equal(f(el({ clipContent: '' })), true, '★빈 값도 ★끔이 아니다');
-  assert.equal(f(el({ clipContent: 'FALSE' })), true, '★대문자는 ★끔이 아니다(값은 정확히 `false`)');
-  for (const bad of [null, undefined, 0, '']) {
-    assert.equal(loadFn('frameClipsPaint')(bad), false, `★${String(bad)} 에서 ★던지지 말고 거짓`);
-  }
-});
+/* ⚰️★★★2026-10-10 ㈄ — ★`P1`·`P2`(★`frameClipsPaint` 의 ★진리표)를 ★★여기서 ★★치웠다.
+     ★★어디로 — ★`tests/unit/clip-content-roster.test.mjs` ★`A2` 안이다(★⚰️ 표시로 ★찾을 수 있다).
+     ★★왜 — ★그 술어가 ★★`js/clip-content.js` ★`clipsContent` 로 ★합쳐졌다.
+       ★★여기 두면 ★★같은 물음을 ★★두 자리에서 ★센다 ⇒ ★★명부가 ★둘이다.
+     ★★★⛔«지웠다»가 ★아니라 ★«옮겼다» — ★옮긴 ★고유 다리를 ★세어 둔다(★덮개를 ★잃지 ★않았다):
+       ⑴ ★빈 값(`''`)도 ★끔이 ★아니다            ← ★옛 P2
+       ⑵ ★대문자(`'FALSE'`)도 ★끔이 ★아니다       ← ★옛 P2
+       ⑶ ★`radius` 는 ★판정과 ★무관하다           ← ★옛 P1
+       ⑷ ★나쁜 입력에 ★던지지 ★않는다             ← ★옛 P2
+          ★★★단 ★값이 ★갈렸다: ★옛 `false` → ★새 ★`null`(★「영은 ★답이 ★아니다」)
+            ⇒ ★그 차이를 ★★A2 에 ★박아 뒀다
+       ★★＋ ★겹치던 셋(★속성 없음 ⇒ 기본 · `'true'` ⇒ 참 · `'false'` ⇒ 거짓)은 ★★A2 에 ★이미 있었다
+     ★★이 파일에 ★남은 것 = ★★죔(`D*`) ＋ ★★술어 ≡ CSS(`C*`) — ★★그 둘이 ★이 파일의 ★본론이다. */
 
 /* ══ ⒜-2 ★★술어 ≡ CSS — ★이 쌍이 ★이 파일의 ★본론이다 ═══════════════════════ */
 
@@ -128,9 +155,13 @@ test('C3 ★★CSS 의 ★기본이 ★hidden 이고 ★«푸는 자리»가 ★
     + `  ⛔둘을 ★섞어 ★고치지 ★마라. 본 것: ${released.join(' | ')}`);
 
   /* ★★그리고 ★그 둘을 ★술어가 ★같은 답으로 ★왕복한다 */
-  const f = loadFn('frameClipsPaint');
-  assert.equal(f(el({})), true, '★기본 = CSS 기본 hidden 과 같다');
-  assert.equal(f(el({ clipContent: 'false' })), false, '★토글 끔 = CSS 가 푸는 자리와 같다');
+  /* ★★㈄ 2026-10-10 — ★술어가 ★`js/clip-content.js` 로 ★합쳐졌다. ★★묻는 것은 ★그대로다:
+     ★★«CSS 가 ★기본으로 ★자르고, ★푸는 자리가 ★하나»인지를 ★★술어 쪽에서도 ★같이 ★확인한다. */
+  const { clipsContent: f } = loadClip();
+  assert.equal(f(fel({})), true, '★기본 = CSS 기본 hidden 과 같다');
+  assert.equal(f(fel({ clipContent: 'false' })), false, '★토글 끔 = CSS 가 푸는 자리와 같다');
+  /* ★★음성대조 — ★★계열을 ★안 보면 ★이 쌍은 ★아무 요소에나 ★참이 된다(★옛 술어가 ★그랬다) */
+  assert.equal(f(el({})), null, '★★계열이 ★없는 요소에 ★답을 준다 — ★술어가 ★계열을 ★안 본다');
 });
 
 test('C3b ★★양성대조 — ★CSS 에 ★셋째 «푸는» 자리가 생기면 ★위 자가 ★잡는다', () => {
@@ -270,17 +301,31 @@ test('E1 ★★끌기 표식은 ★달리고 ★★반드시 ★뗀다 — ★�
 
 test('C4 ★★판정의 ★임자는 ★하나다 — ★소비자가 ★제 벌로 ★다시 세지 않는다', () => {
   const geom = strip(readSrc(ROOT, 'js/frame-geometry.js'));
-  for (const n of ['frameClipsPaint', 'frameClampsDrag']) {
-    assert.equal((geom.match(new RegExp(`function ${n}\\s*\\(`, 'g')) || []).length, 1,
-      `★${n} 정의가 ★하나가 아니다`);
+  assert.equal((geom.match(/function frameClampsDrag\s*\(/g) || []).length, 1,
+    '★frameClampsDrag 정의가 ★하나가 아니다');
+  /* ★★★㈄ 2026-10-10 — ★`frameClipsPaint` 는 ★★치웠다. ★★«치운 것이 ★다시 안 생기나»를 ★잰다.
+     ★★전수로 ★본다(★한 파일이 ★아니라 ★`js/` ★전체) — ★다른 파일에 ★부활하면 ★거기가 ★둘째 명부다. */
+  const resurrected = [];
+  for (const f of walkJs('js')) {
+    if (/function frameClipsPaint\s*\(/.test(strip(readSrc(ROOT, f)))) resurrected.push(f);
   }
-  /* ★★둘이 ★같은 몸통이면 ★겸직이 ★돌아온 것이다 — ⛔한 쪽을 다른 쪽에서 ★파생시키지 마라(지디 2026-10-10) */
-  assert.ok(!/function frameClampsDrag[\s\S]{0,400}frameClipsPaint\s*\(/.test(geom),
-    '★★`frameClampsDrag` 이 ★`frameClipsPaint` 를 ★불러 ★파생된다 — ★그게 ★겸직의 ★재발이다');
+  assert.deepEqual(resurrected, [],
+    '★★`frameClipsPaint` 가 ★되살아났다 — ★정본은 ★`js/clip-content.js` ★`clipsContent` 다(㈄ 2026-10-10)');
+  /* ★★양성대조 — ★위 자가 ★★«아무것도 ★못 찾는 자»가 ★아님을 ★증명한다 */
+  const alive = [];
+  for (const f of walkJs('js')) {
+    if (/function clipsContent\s*\(/.test(strip(readSrc(ROOT, f)))) alive.push(f);
+  }
+  assert.deepEqual(alive, ['js/clip-content.js'],
+    `★공용 술어 정의가 ★한 자리가 ★아니다 (본 것: ${alive.join(' | ')})`);
+  /* ★★둘이 ★같은 몸통이면 ★겸직이 ★돌아온 것이다 — ⛔한 쪽을 다른 쪽에서 ★파생시키지 마라(지디 2026-10-10)
+     ★★★자를 ★넓혔다: ★옛 자는 ★`frameClipsPaint` 만 ★봤고 ★★공용 이름 ★`clipsContent` 를 ★★놓쳤다 */
+  assert.ok(!/function frameClampsDrag[\s\S]{0,400}(clips?Content|clipFamily|CLIP_DEFAULTS)\s*[\(.]/.test(geom),
+    '★★`frameClampsDrag` 이 ★★«자르나»를 ★불러 ★파생된다 — ★그게 ★겸직의 ★재발이다');
 
   /* ★소비자 전수 — ★뜻에 맞는 술어를 ★쓰나 */
   const byFile = {
-    'js/drag-utils.js': 'frameClipsPaint',     /* full-bleed 가 잘리나 = ★그림 쪽 */
+    'js/drag-utils.js': 'clipsContent',        /* full-bleed 가 잘리나 = ★그림 쪽 (㈄ 2026-10-10 에 ★공용으로) */
     'js/block-drag.js': 'frameClampsDrag',     /* 언제 죄나 = ★끌기 쪽 */
   };
   for (const [f, want] of Object.entries(byFile)) {

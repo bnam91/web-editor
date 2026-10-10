@@ -56,6 +56,28 @@ test('A2 ★★★«속성이 ★있을 때만» 이긴다 — ★★기본값�
   /* ★★계열을 ★모르면 ★★`null` — ⛔`false` 가 ★아니다(★「영은 ★답이 ★아니다」) */
   assert.equal(clipsContent(el(['text-block'], {})), null, '★모르는 계열은 ★null — ⛔false 로 ★때우지 않는다');
   assert.equal(clipsContent(null), null, '★없는 것도 ★null');
+
+  /* ⚰️★★★2026-10-10 ㈄ — ★`tests/unit/frame-clips-predicate.test.mjs` 의 ★`P1`·`P2` 에서 ★★옮겨 왔다.
+       ★까닭: ★그 둘은 ★★`frameClipsPaint` 의 진리표였고, ★★그 술어가 ★★이 파일의 ★`clipsContent` 로
+         ★합쳐졌다 ⇒ ★★거기 두면 ★★명부가 ★★둘이 된다(★같은 물음을 ★두 자리에서 ★센다).
+       ⇒ ★★그래서 ★★«지우고 ★옮긴» 것이고 ⛔«지운» 것이 ★아니다. ★아래 넷이 ★그 고유 다리다. */
+  /* ⑴ ★★«정확히 `'false'`» 만 ★끔이다 — ★그 밖의 값은 ★★계열 기본값으로 ★돌아간다 */
+  assert.equal(clipsContent(el(['frame-block'], { clipContent: '' })), true,
+    '★빈 값도 ★끔이 ★아니다 (★옛 P2 — ★예전엔 ★«끔 = 속성 삭제»였고 ★그 꼴이 ★남으면 ★토글이 ★먹통이 된다)');
+  assert.equal(clipsContent(el(['frame-block'], { clipContent: 'FALSE' })), true,
+    '★대문자는 ★끔이 ★아니다 (★값은 ★정확히 `false` · ★옛 P2)');
+  /* ⑵ ★★`radius` 는 ★이 판정과 ★★무관하다 — ★★2026-10-10 부터 ★기준이 ★아니다 (★옛 P1) */
+  assert.equal(clipsContent(el(['frame-block'], { radius: '8' })), true,
+    '★둥근 모서리가 ★판정을 ★바꿨다 — ★기본이 ★자름이라 ★radius 는 ★무관해야 한다');
+  assert.equal(clipsContent(el(['frame-block'], { radius: '0', clipContent: 'false' })), false,
+    '★radius 0 ＋ ★명시 끔 ⇒ ★끔이 ★이긴다');
+  /* ⑶ ★★나쁜 입력 — ⛔던지지 ★않는다. ★★★단 ★뜻이 ★갈렸다:
+       ★옛 `frameClipsPaint(bad)` ⇒ ★★`false` · ★새 `clipsContent(bad)` ⇒ ★★`null`
+       ⇒ ★★그 차이를 ★★여기 ★박아 둔다(★다음 사람이 ★`false` 를 ★기대하면 ★이 줄이 ★말해 준다) */
+  for (const bad of [null, undefined, 0, '', 'frame-block']) {
+    assert.equal(clipsContent(bad), null,
+      `★${String(bad)} 에서 ★던지지 ★말고 ★★null (⛔`+"`false`"+` 가 ★아니다 — ★옛 술어와 ★갈리는 ★그 자리)`);
+  }
 });
 
 test('A3 ★★소비자가 ★제 벌로 ★다시 세지 ★않는다 — ★★명부 ★하나 (지디 조건 ㉠)', () => {
