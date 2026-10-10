@@ -270,12 +270,21 @@ test('D7 ★★⒨ ★저장 왕복 — ★개별 색·배율이 ★저장 → �
   expect(before.fills[2], '★2번 별 색').toBe('#00ff00');
   const poly1Before = before.polys[1];
 
-  /* ★★저장 — ★제품의 ★직렬화를 ★쓴다(⛔내 사본 금지) */
+  /* ★★저장 — ★제품의 ★직렬화를 ★쓴다(⛔내 사본 금지)
+     ★★★서명을 ★★읽고 ★쓴다 — ⛔추측하지 ★않는다. ★이 칸에서 ★★두 번 ★틀렸다:
+       ⑴ ★`showShapeProperties` 가 ★다시 그린다고 ★가정했다 ⇒ ★★틀렸다(손잡이 안에서만 그린다)
+       ⑵ ★`serializeSectionClone(sec).outerHTML` 로 ★썼다 ⇒ ★★틀렸다 —
+          ★실측(`js/io/section-serialize.js:447~455`): ★★«문자열»을 돌려준다(`…outerHTML : ''`)
+     ⇒ ★★그래서 ★이번엔 ★그 함수와 ★`serializeCleanRoot` 를 ★먼저 ★읽었다:
+       ★`data-star-*` 를 ★벗기는 줄이 ★★0건이다(★벗기는 것 = `data-lazy-bg` · video-pending 뿐)
+       ⇒ ★★그래서 ★dataset 이 ★저장본에 ★살아야 한다. ★아래가 ★그것을 ★잰다. */
   const saved = await page.evaluate(() => {
     const sec = document.getElementById('sA');
-    if (window.serializeSectionClone) return window.serializeSectionClone(sec).outerHTML;
-    return sec.outerHTML;
+    const out = window.serializeSectionClone ? window.serializeSectionClone(sec) : sec.outerHTML;
+    return typeof out === 'string' ? out : (out && out.outerHTML) || '';
   });
+  expect(typeof saved, '★저장본이 ★문자열이 ★아니다').toBe('string');
+  expect(saved.length, `★저장본이 ★비었다 (길이 ${saved.length})`).toBeGreaterThan(100);
   expect(saved, '★저장본에 ★개별 색 키가 ★없다').toContain('star-colors');
   expect(saved, '★저장본에 ★배율 키가 ★없다').toContain('star-scales');
 
@@ -334,4 +343,62 @@ test('D8 ★★⒪ ★별 더블클릭에 ★오늘 ★임자가 ★있나 (★�
              polyCls: [...blk.querySelectorAll('polygon')].map(p => p.getAttribute('class') || '').join('|') };
   });
   expect(marks.sel, '★`data-star-sel` 이 ★이미 쓰이고 있다 — ★b2 가 ★그 이름을 ★못 쓴다').toBeNull();
+});
+
+/* ══ ⒫ ★«자르는 자»를 ★★computed ＋ ★행위로 — ★상한 100 의 ★근거를 ★올린다 ════════
+ * ★★지디(t3frame 발견 2026-10-10): 「★★«자르는 자가 ★없다»를 ★★CSS 전수로 ★말하지 ★마라 —
+ *   ★자름은 ★★세 자리에 산다: ⑴ CSS 규칙 ⑵ ★렌더러가 ★박는 ★인라인 ⑶ ★앱이 ★나중에 쓰는 ★인라인」
+ * ★★내가 ★`starScales` 상한 ★100 의 ★근거로 ★★«`.shape-block .shape-svg` 에 ★`overflow` 선언 ★0건
+ *   ⇒ ★바깥 svg 의 ★UA 기본값이 ★자른다»를 ★★CSS ★독해로 ★댔다.
+ * ⇒ ★★결론은 ★안 바뀐다(지디도 그렇게 적었다). ★★그러나 ★근거를 ★★독해 → ★★행위로 ★올린다.
+ *   ⇒ ★★그러면 ★★상한 100 이 ★★«내가 읽은 것»이 아니라 ★★«이 판이 ★하는 일»에 ★선다. */
+test('D9 ★★⒫ ★svg 가 ★참으로 ★자른다 — ★computed ＋ ★행위 (★상한 100 의 ★근거)', async ({ page }) => {
+  await setup(page);
+  /* ⒜ ★★computed — ⛔CSS 파일 독해가 ★아니다. ★★이 판이 ★계산한 값이다 */
+  const comp = await page.evaluate(() => {
+    const svg = document.querySelector('#canvas .shape-block svg.shape-svg');
+    const cs = getComputedStyle(svg);
+    return { overflow: cs.overflow, overflowX: cs.overflowX, overflowY: cs.overflowY,
+             inlineOverflow: svg.style.overflow || null,
+             attrOverflow: svg.getAttribute('overflow') };
+  });
+  /* ★자르는 값 = hidden · clip · (일부 판에서) auto 가 아닌 것 */
+  expect(['hidden', 'clip'], `★★computed overflow 가 ★자르는 값이 ★아니다 — ${JSON.stringify(comp)}`)
+    .toContain(comp.overflowY);
+  /* ⒝ ★★세 자리 중 ★어디서 왔나를 ★같이 적는다 — ★인라인·속성이 ★비면 ★UA/CSS 다 */
+  expect(comp.inlineOverflow, `★인라인 overflow 가 ★있다(렌더러·앱이 ★박았다): ${comp.inlineOverflow}`).toBeNull();
+
+  /* ⒞ ★★★행위 — ★틀 ★밖으로 ★나간 점이 ★★참으로 ★안 보이나.
+     ★viewBox 위로 ★한참 ★나가는 ★임시 polygon 을 ★넣고, ★그 자리를 ★`elementFromPoint` 로 ★짚는다.
+     ⇒ ★자르면 ★그 점에서 ★★그 polygon 이 ★★안 잡힌다. ⛔getBoundingClientRect 로는 ★못 잰다
+       (★SVG 의 rect 는 ★기하 bbox 라 ★«잘렸나»를 ★말하지 ★않는다 — ★그래서 ★점을 ★짚는다). */
+  const probe = await page.evaluate(() => {
+    const svg = document.querySelector('#canvas .shape-block svg.shape-svg');
+    const box = svg.getBoundingClientRect();
+    const NS = 'http://www.w3.org/2000/svg';
+    const p = document.createElementNS(NS, 'polygon');
+    /* ★viewBox 세로는 0~190. ★−400 ~ −10 은 ★틀 ★위로 ★완전히 ★나간 자리다 */
+    p.setAttribute('points', '0,-400 2000,-400 2000,-10 0,-10');
+    p.setAttribute('fill', '#ff00ff');
+    p.setAttribute('id', 'probe-outside');
+    svg.appendChild(p);
+    /* ★틀 ★위쪽 ★바깥의 ★한 점 — ★svg 상단보다 ★위다 */
+    const x = Math.round(box.left + box.width / 2);
+    const y = Math.round(box.top - Math.min(20, box.top / 2));
+    const hit = document.elementFromPoint(x, y);
+    const hitId = hit ? (hit.id || hit.tagName) : null;
+    /* ★그리고 ★틀 ★안의 ★한 점은 ★★잡혀야 한다(★음성대조 — ★짚는 자가 ★참으로 ★도는지) */
+    const inX = Math.round(box.left + box.width / 2);
+    const inY = Math.round(box.top + box.height / 2);
+    const inHit = document.elementFromPoint(inX, inY);
+    p.remove();
+    return { hitId, insideTag: inHit ? inHit.tagName : null,
+             boxTop: Math.round(box.top), probeY: y, probedAbove: y < box.top };
+  });
+  expect(probe.probedAbove, `★짚은 점이 ★틀 ★위가 ★아니다 — ${JSON.stringify(probe)}`).toBe(true);
+  /* ★★음성대조 — ★틀 ★안을 짚으면 ★무언가 ★잡힌다(★짚는 자가 ★죽어 있지 ★않다) */
+  expect(probe.insideTag, `★틀 ★안에서 ★아무것도 ★안 잡혔다 — ★짚는 자가 ★죽었다 ${JSON.stringify(probe)}`).not.toBeNull();
+  /* ★★★본 단언 — ★틀 밖으로 나간 ★그 polygon 이 ★★안 잡힌다 = ★★잘린다 */
+  expect(probe.hitId, `★★틀 ★밖으로 ★나간 점이 ★★보인다(★안 자른다) — ${JSON.stringify(probe)}`)
+    .not.toBe('probe-outside');
 });
