@@ -9,6 +9,19 @@
  *     ★그 자는 ★pid 우산 ＋ ★죽은 실행 회수 ＋ ★디스크 사전게이트 ＋ ★종료훅을 ★다 쥔다
  *     ⇒ ★★★부르는 쪽은 ★★지울 필요가 ★없다. ⇒ ★★«가드를 더하기»보다 ★★«지우는 줄을 없애기»가 ★낫다
  *
+ * ★★★단위가 ★둘이다 — ★섞지 ★마라 (2026-10-10 · 지디가 ★제 처방을 ★고쳐 준 자리)
+ *   ★★«칸»(PENDING·NOT_TMPROOT·DONE_EAGER)은 ★★«파일» 단위다 ⇒ ★「정확히 ★한 칸」 불변이 ★선다
+ *   ★★«자»(아래 ★pairs())는 ★★★«rmSync ★한 줄» 단위다 ⇒ ★한 파일이 ★여러 쌍을 ★가질 수 ★있다
+ * ★★★왜 갈라야 하나 — ★`operator-allow-cli.test.mjs` 가 ★★«섞였다»(★자가 ★찍는 ★참값):
+ *   ★`rmSync(HOME)` ×2 = ★그 임시루트의 ★즉시치움(㉢) · ★`rmSync(inRepo)`·`rmSync(bad)` = ★그 검사의 ★주제(㉡)
+ * ⚰️★★★내가 ★처음 ★이 자리에 ★`history-ipc` 를 ★적었고 ★★★틀렸다 — ★그 파일의 ★rmSync 는 ★★1건(eager)뿐이다.
+ *   ★까닭: ★내 ★첫 걷기가 ★★주석을 ★떼지 ★않아 ★★주석 속 낱말(«진짜 영구삭제»)을 ★★rmSync ★대상으로 ★읽었다
+ *   ⇒ ★★★「주석은 ★소스 파싱 게이트의 ★입력」 ★그 자리다. ★★그래서 ★`pairs()` 는 ★`stripComments` 를 ★먼저 쓴다
+ *   ⇒ ★★그 파일을 ★★«파일 단위»로 ★⊇ 견주면 ★★㉢ 이기도 ㉡ 이기도 해서
+ *     ★★「정확히 한 칸」과 ★그 ⊇ 견줌이 ★★서로 ★싸운다 ⇒ ★★★거짓 빨강이 ★난다
+ * ⇒ ★★★칸은 ★파일로, ★자는 ★rmSync 줄로. ★★섞인 파일은 ★그 칸의 ★까닭에 ★★양쪽을 ★적는다
+ *   (★★그게 ★「수가 갈리면 ★★단위부터」의 ★그 자리다 — ★T5 의 ⒡ 가 ★그것까지 ★잠근다)
+ *
  * ★★이 자가 ★재는 것 — ★두 축
  *   ㉠ ★★위반 집합 ⊆ ★★명부 (★새 위반이 ★생기면 ★빨강)
  *   ㉡ ★★명부에 ★★«이미 옮긴» 칸이 ★남아 있으면 ★빨강 (★명부가 ★낡으면 ★다음 위반을 ★가린다)
@@ -38,7 +51,7 @@ const RM_RE = () => /\brmSync\s*\(/g;
  *   ★★실측해 보니 ★★둘이 ★★전혀 다른 일이었다:
  *     ㉠ ★`mkdtempSync` 로 ★★«임시 루트»를 만들고 ★제 손으로 치운다  ⇒ ★★이전 ★대상이다
  *     ㉡ ★★`rmSync` 가 ★★«그 검사의 ★일 자체»다 — ★임시 루트가 ★아니다 ⇒ ★★★이전 대상이 ★아니다
- *        ★예: ★`history-ipc` 의 ★대상은 ★★«진짜 영구삭제»다(★그게 ★그 검사의 ★주제다)
+ *        ★예: ★`recovery-collect` · ★`quit-save-window-gone` · ★e2e 셋 (★아래 ㉡ 칸의 ★까닭들)
  *            ★`recovery-collect` 는 ★★«사본이 ★없을 때»를 만들려 ★픽스처를 ★지운다
  *            ★`quit-save-window-gone` 의 ★`reset()` 은 ★시험 사이 ★★상태 파일을 ★씻는다
  *            ★e2e 셋은 ★★크롬 ★프로필 폴더(★`PROFILE`)를 ★치운다 — ★테스트 수명이 ★아니다
@@ -59,8 +72,9 @@ const PENDING = {
  *  ⛔여기 올리려면 ★★«그 rmSync 가 ★무엇을 ★지우나»를 ★읽고 ★적어라. ★«미이전»과 ★섞지 ★마라. */
 const NOT_TMPROOT = {
   'tests/unit/put-image-path.test.js':
-    '★★`os.homedir()` ★아래여야 한다 — ★이 검사의 ★주제가 ★«홈 ★밖은 ★막힌다»다(:93·:107). '
-    + '★`mkTmpRoot` 는 ★tmpdir 아래라 ★★옮기면 ★그 전제가 ★깨진다(★:69 가 ★homedir 길이로 ★자른다)',
+    '★★공용자불가 — ★그 루트가 ★`os.homedir()` ★아래여야 한다. ★이 검사의 ★주제가 ★«홈 ★밖은 ★막힌다»다(:93·:107). '
+    + '★`mkTmpRoot` 는 ★tmpdir 아래라 ★★옮기면 ★그 전제가 ★깨진다(★:69 가 ★homedir 길이로 ★자른다). '
+    + '★★꼴은 ㉠(mkdtempSync 루트를 ★손으로 치움)이지만 ★★뜻은 ㉡ 이다',
   'tests/unit/_tmproot.js':                   '★공용 자 ★자신 — ★치우기의 ★임자다',
   'tests/unit/tmproot.test.js':               '★그 자의 ★회수를 ★직접 재는 검사',
   'tests/e2e/12-insert-seam-settle.spec.js':  '★크롬 ★프로필 폴더(PROFILE) — ★테스트 수명이 아니다 · ★e2e',
@@ -92,8 +106,39 @@ const DONE_EAGER = {
   'tests/unit/history-restart.test.js':
     '★`ud` = mkTmpRoot(goya-restart{,2,3}-) ★셋 — ★rmSync ★3/3 이 ★그 임시루트의 ★즉시 치움이다',
   'tests/unit/history-ipc.test.js':
-    '★★섞였다 — ★`outside` = mkTmpRoot(goya-outside-) 의 ★즉시 치움 ★1 ＋ ★★«진짜 영구삭제»(그 검사의 주제) ★1',
+    '★`outside` = mkTmpRoot(goya-outside-) 의 ★즉시치움 ★1 — ★★그것뿐이다(★자가 ★쟀다). '
+    + '⚰️★내가 ★처음 ★«섞였다»로 적었고 ★★틀렸다 — ★주석을 ★안 뗀 ★걷기가 ★주석 낱말을 ★대상으로 ★읽었다',
 };
+
+/** ★★«rmSync ★한 줄» 단위의 ★자 — ★{file, line, kind} ★쌍을 ★돌려준다.
+ *  ★갈래 셋: ★`eager`(대상이 ★mkTmpRoot 결과) · ★`pending`(대상이 ★mkdtempSync 결과) · ★`subject`(그 밖)
+ *  ⛔«파일이 ★mkTmpRoot 를 ★쓴다»만으로 ★판정하지 ★않는다 — ★`recovery-collect` 가 ★그 함정이다
+ *    (★`mkTmpRoot` 를 쓰면서 ★`rmSync(em)` 으로 ★픽스처를 지운다 ⇒ ★★`subject`) */
+function pairs() {
+  const out = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const q = path.join(d, e.name);
+      if (e.isDirectory()) { walk(q); continue; }
+      if (!/\.(js|mjs|cjs)$/.test(e.name)) continue;
+      const src = stripComments(fs.readFileSync(q, 'utf8'));
+      if (!RM_RE().test(src)) continue;
+      const rel = path.relative(ROOT, q);
+      const eagerVars = new Set(), pendVars = new Set();
+      for (const m of src.matchAll(/(\w+)\s*=\s*mkTmpRoot\s*\(/g)) eagerVars.add(m[1]);
+      for (const m of src.matchAll(/(\w+)\s*=\s*[\w.]*mkdtempSync\s*\(/g)) pendVars.add(m[1]);
+      src.split('\n').forEach((ln, i) => {
+        for (const m of ln.matchAll(/rmSync\(\s*([^,)]+)/g)) {
+          const base = (m[1].trim().match(/^(\w+)/) || [])[1] || '';
+          const kind = eagerVars.has(base) ? 'eager' : (pendVars.has(base) ? 'pending' : 'subject');
+          out.push({ file: rel, line: i + 1, kind, target: m[1].trim().slice(0, 40) });
+        }
+      });
+    }
+  };
+  walk(path.join(ROOT, 'tests'));
+  return out;
+}
 
 /** tests/ 안에서 ★손으로 ★`rmSync` 를 쓰는 파일 — ★주석은 ★뗀다(★주석의 예시가 ★측정값이 되는 것 방지). */
 function violations() {
@@ -185,5 +230,58 @@ test('T4 ★★남은 분량을 ★자가 찍는다 — ⛔사람이 세지 않�
     const hits = names.filter((n) => f in MAPS[n]);
     assert.equal(hits.length, 1,
       `★${f} 가 ★${hits.length} 칸에 든다(${hits.join(',') || '없음'}) — ★정확히 ★하나여야 한다`);
+  }
+});
+
+test('T5 ★★★자(rmSync 단위)와 ★명부(파일 단위)가 ★맞물린다 — ⛔등호 ★금지 (지디 ⑵ 정정)', () => {
+  /* ★★지디가 ★제 처방을 ★★고쳤다: 「★그 ⊇ 견줌을 ★★«rmSync 단위»로 돌려라 —
+   *   ★단위 = (파일, rmSync 줄) ★쌍 ⇒ ★한 파일이 ★두 쌍을 ★가질 수 있다」
+   * ★★까닭: ★★파일 단위로 ★돌리면 ★★섞인 파일(★history-ipc)에서 ★★거짓 빨강이 ★난다
+   * ⛔등호로 ★수를 ★박지 ★않는다 — ★★«⊇ ＋ ★밖 0건» 꼴이다 */
+  const P = pairs();
+  /* ⒜ ★★자가 ★살아있나 — ★세 갈래가 ★다 ★한 번은 ★나와야 한다(⛔하나라도 0 이면 ★못 가른다) */
+  const kinds = new Set(P.map((x) => x.kind));
+  for (const k of ['eager', 'pending', 'subject']) {
+    assert.ok(kinds.has(k), `★갈래 «${k}» 가 ★0건 — ★자가 ★그 축을 ★못 가른다(★전체 ${P.length} 쌍)`);
+  }
+  /* ⒝ ★`eager` 쌍을 ★가진 파일 ⊆ ★`DONE_EAGER` */
+  const eagerFiles = [...new Set(P.filter((x) => x.kind === 'eager').map((x) => x.file))].sort();
+  const eagerOutside = eagerFiles.filter((f) => !(f in DONE_EAGER));
+  assert.deepEqual(eagerOutside, [],
+    `★임시루트를 ★즉시 치우는데 ★㉢ 명부 ★밖이다:\n  ` + eagerOutside.join('\n  '));
+  /* ⒞ ★`DONE_EAGER` 에 ★`eager` 쌍이 ★없는 파일이 ★남으면 ★명부가 ★낡았다 */
+  const eagerStale = Object.keys(DONE_EAGER).filter((f) => !eagerFiles.includes(f));
+  assert.deepEqual(eagerStale, [], `★㉢ 명부가 ★낡았다: ${eagerStale.join(' ')}`);
+  /* ⒟ ★`pending` 쌍을 ★가진 파일 ⊆ ★(`PENDING` ∪ `NOT_TMPROOT`)
+     ★★★이 칸이 ★처음엔 ★`⊆ PENDING` 이었고 ★★`put-image-path` 에서 ★★빨개졌다 — ★★그게 ★맞는 빨강이었다:
+       ★그 파일은 ★`mkdtempSync` 루트를 ★손으로 치운다(★꼴은 ★㉠) ★★그러나 ★★★옮기면 ★안 된다
+         ⇒ ★그 루트가 ★★`os.homedir()` ★아래여야 ★한다(★이 검사의 ★주제가 ★«홈 밖은 막힌다»다)
+       ⇒ ★★즉 ★★«꼴은 ㉠ · ★뜻은 ㉡» 인 ★자리가 ★★실재한다
+     ⇒ ★★그래서 ★★㉡ 도 ★받는다. ⛔단 ★★«왜 공용 자를 ★못 쓰나»를 ★★그 칸에 ★적어야 한다
+       ★★규약: ★그 까닭에 ★★`공용자불가` 를 ★한 번 ★적는다 — ★★그러면 ★grep 으로 ★찾을 수 있고
+         ★★새 사례가 ★그 표시 ★없이 ★들어오면 ★★이 칸이 ★빨개져 ★사람이 ★정하게 된다 */
+  const pendFiles = [...new Set(P.filter((x) => x.kind === 'pending').map((x) => x.file))].sort();
+  const pendOutside = pendFiles.filter((f) => !(f in PENDING) && !(f in NOT_TMPROOT));
+  assert.deepEqual(pendOutside, [],
+    `★mkdtempSync 루트를 ★손으로 치우는데 ★두 명부 ★밖이다:\n  ` + pendOutside.join('\n  '));
+  /* ⒟-b ★★㉡ 에 ★앉은 ★`pending` 파일은 ★★«공용자불가» 까닭을 ★들어야 한다 */
+  for (const f of pendFiles.filter((x) => x in NOT_TMPROOT)) {
+    assert.match(NOT_TMPROOT[f], /공용자불가/,
+      `★${f} 는 ★꼴이 ★㉠(mkdtempSync 루트를 손으로 치움)인데 ★㉡ 에 있다 — `
+      + `★★«왜 공용 자를 ★못 쓰나»를 ★그 칸에 ★`.concat('«공용자불가» 와 함께 적어라'));
+  }
+  /* ⒠ ★★섞인 파일 수를 ★찍는다 — ⛔단언이 아니라 ★보고다(★있어도 ★정상이다) */
+  const byFile = {};
+  for (const x of P) (byFile[x.file] = byFile[x.file] || new Set()).add(x.kind);
+  const mixed = Object.keys(byFile).filter((f) => byFile[f].size > 1).sort();
+  console.log(`    ★★쌍 ${P.length} — eager ${P.filter((x) => x.kind === 'eager').length}`
+    + ` · pending ${P.filter((x) => x.kind === 'pending').length}`
+    + ` · subject ${P.filter((x) => x.kind === 'subject').length}`);
+  console.log(`    ★★섞인 파일 ${mixed.length}: ${mixed.map((f) => f.split('/').pop()).join(' ') || '없음'}`);
+  /* ⒡ ★★섞인 파일은 ★그 칸의 ★까닭에 ★★양쪽이 ★적혀 있어야 한다 — ⛔반쪽 진실 금지 */
+  const ALL = { ...PENDING, ...NOT_TMPROOT, ...DONE_EAGER };
+  for (const f of mixed) {
+    assert.match(ALL[f] || '', /섞였다/,
+      `★${f} 는 ★섞였는데 ★칸의 ★까닭이 ★«섞였다»를 ★안 말한다 — ★반쪽 진실이 된다`);
   }
 });
