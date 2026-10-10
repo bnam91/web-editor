@@ -14,6 +14,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SRC = path.resolve(ROOT, 'js/blocks/zoom-geometry.js');
@@ -21,7 +23,7 @@ const SRC = path.resolve(ROOT, 'js/blocks/zoom-geometry.js');
 let _modP = null;
 function loadGeom() {
   if (!_modP) {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zoom-narrow-'));
+    const dir = mkTmpRoot('zoom-narrow-');
     const mjs = path.join(dir, 'zoom-geometry.mjs');
     fs.copyFileSync(SRC, mjs);
     _modP = import(pathToFileURL(mjs).href);
@@ -39,7 +41,7 @@ async function loadMutant(...args) {
       `★하네스가 부서졌다(계약이 문 것이 아니다) — 앵커를 못 찾았다: ${from}`);
     out = next;
   }
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zoom-narrow-mut-'));
+  const dir = mkTmpRoot('zoom-narrow-mut-');
   const mjs = path.join(dir, 'zoom-geometry.mjs');
   fs.writeFileSync(mjs, out, 'utf8');
   return import(pathToFileURL(mjs).href);

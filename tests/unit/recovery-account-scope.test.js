@@ -6,13 +6,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs'); const os = require('os'); const path = require('path');
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const R = path.join(__dirname, '..', '..');
 const sg = require(path.join(R, 'main/quit/save-guard.js'));
 const rec = require(path.join(R, 'main/recovery/index.js'));
 
 function setup() {
-  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'recov-acct-'));
+  const ud = mkTmpRoot('recov-acct-');
   const A = path.join(ud, 'accounts', 'acct_chulsoo');
   const B = path.join(ud, 'accounts', 'acct_minsoo');
   fs.mkdirSync(path.join(A, 'projects'), { recursive: true });
@@ -60,7 +61,7 @@ test('R2 ★★다음 계정에게 «안 보인다» — 그리고 「0건」이
 test('R3 ★비로그인은 «오늘과 바이트 동일» (지금 되던 것이 안 되게 되지 않는다)', () => {
   /* 계정 작업공간 = 프로젝트 뿌리의 «부모». 비로그인이면 <userData>/projects 의 부모 = <userData>
      ⇒ 예전 자리와 «같다». 이 판이 비로그인 사용자의 복구를 깨지 않는다. */
-  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'recov-legacy-'));
+  const ud = mkTmpRoot('recov-legacy-');
   sg._reset && sg._reset();
   sg.init({ userDataDir: ud, workspaceDir: () => ud, appVersion: '0.9.2', log: () => {} });
   sg.recordSyncSaveFailure({ projectId: 'proj_2222', projectName: '비로그인 것', snapshot: '{}' });

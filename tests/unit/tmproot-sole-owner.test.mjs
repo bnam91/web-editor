@@ -49,9 +49,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 const { stripComments } = createRequire(import.meta.url)('./_strip-comments.js');
+/* ★★이 파일도 ★합성 표본 ★뿌리가 ★필요하다(★T6 ⒜) — ★★그 뿌리마저 ★공용 자가 ★쥔다.
+ * ★들이는 줄은 ★★호출 꼴이 ★아니다(`mkTmpRoot }` 뒤에 `(` 가 ★없다) ⇒ ★T7 의 ★자에 ★안 걸린다 */
+const { mkTmpRoot } = createRequire(import.meta.url)('./_tmproot.js');
 
 const ROOT = path.join(import.meta.dirname, '..', '..');
+const SELF = fileURLToPath(import.meta.url);   /* ★이 파일 자신 — ★T7 이 ★제 오염을 ★잰다.
+ * ⛔`new URL(import.meta.url).pathname` 은 ★★`win-portability` ②-5 가 ★막는다(★윈도우에서 `/C:/…`) */   /* ★이 파일 자신 — ★T7 이 ★제 오염을 ★잰다 */
 const RM_RE = () => /\brmSync\s*\(/g;
 
 /* ★★명부 — ★★«아직 ★손으로 ★치우는» 파일. ★이름으로 든다(⛔수를 박지 않는다).
@@ -128,11 +134,10 @@ const DONE_EAGER = {
  *  ⇒ ★★이전이 ★끝나면 ★★그 접두사들이 ★★0 이 되어야 한다 — ★★그게 ★완주 판정이다.
  *  ⛔수를 ★손으로 ★고치지 ★마라 — ★★`T6` 가 ★★이 명부와 ★자를 ★견준다. */
 const LEAKING = {
-  'tests/unit/folders-crud.test.js':                 'Δ2 · gdt-folders- · gdt-folders-flat-',
-  'tests/unit/project-list-fallback-e168.test.js':   'Δ2 · gdt-e168- · gdt-e168n-',
-  'tests/unit/recovery-account-scope.test.js':       'Δ2 · recov-acct- · recov-legacy-',
-  'tests/unit/zoom-narrow-limit.test.mjs':           'Δ2 · zoom-narrow- · zoom-narrow-mut-',
-  'tests/unit/zoom-tangent.test.mjs':                'Δ2 · zoom-tangent- · zoom-mutant-',
+  /* ★★★비었다 — ★★이 축의 ★일이 ★끝났다(★17 → ★0 · ★Δ22 → ★0).
+   *   ⛔★«비었으니 ★안 재도 된다»가 ★아니다 — ★★진짜 뿌리가 ★0 이면 ★진짜 파일로는 ★양성대조를 ★못 세운다
+   *   ⇒ ★★T6 ⒜ 가 ★`mkTmpRoot` 로 ★합성 표본 ★뿌리를 ★만들어 ★자가 ★살아있음을 ★매 회차 ★증명한다
+   *   ★새로 ★`mkdtempSync` 를 ★손으로 쓰는 자가 ★생기면 ★★여기 ★적지 말고 ★★`mkTmpRoot` 로 ★옮겨라 */
 };
 
 /** ★★«rmSync ★한 줄» 단위의 ★자 — ★{file, line, kind} ★쌍을 ★돌려준다.
@@ -184,7 +189,10 @@ function pairs() {
  *  ★★자 = ★`mkdtempSync` 수 > (`rmSync` ＋ `mkTmpRoot` ＋ `trackTmp`) 수
  *  ★★＋ ★★«접두사»도 ★같이 돌려준다 — ★★그게 ★★디스크에서 ★그것을 ★찾을 ★수단이다
  *    (⛔지금은 ★찾을 ★이름을 ★모른다 ⇒ ★★지디의 ★`goya*`·`goditor*` 겨냥에 ★★20/20 이 ★안 걸렸다) */
-function leakers() {
+function leakers(root = path.join(ROOT, 'tests'), base = ROOT) {
+  /* ★★★뿌리를 ★주입받는다 — ★까닭: ★누수가 ★0 이 되면 ★★«진짜 파일»로는 ★양성대조를 ★세울 수 ★없다.
+   *   ⛔그때 ★«0건 초록»을 ★«잠겼다»로 ★읽으면 ★★«안 재고 있다»와 ★구분이 ★안 된다
+   *   ⇒ ★★합성 표본 ★뿌리를 ★`mkTmpRoot` 로 ★만들어 ★그쪽으로 ★자를 ★돌린다(★T6 ⒜) */
   const out = [];
   const walk = (d) => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
@@ -204,10 +212,10 @@ function leakers() {
       const pref = new Set();
       for (const m of src.matchAll(/mkdtempSync\(\s*path\.join\([^,]+,\s*(['"`])([^'"`]*)\1/g)) pref.add(m[2]);
       for (const m of src.matchAll(/mkdtempSync\(\s*(['"`])([^'"`]*)\1/g)) pref.add(m[2]);
-      out.push({ file: path.relative(ROOT, q), mk, rm, mt, tt, delta, prefixes: [...pref].sort() });
+      out.push({ file: path.relative(base, q), mk, rm, mt, tt, delta, prefixes: [...pref].sort() });
     }
   };
-  walk(path.join(ROOT, 'tests'));
+  walk(root);
   return out.sort((a, b) => b.delta - a.delta || a.file.localeCompare(b.file));
 }
 
@@ -362,19 +370,44 @@ test('T6 ★★★둘째 축 — ★«아예 안 치우는» 파일이 ★★명
    *   ★★그게 ★★「25,102개」의 ★참 원천 꼴이다 ⇒ ★★둘째 축을 ★세워라 ＋ ★★그 축의 ★양성대조도」
    * ★★★그리고 ★까닭은 ★★«관측 가능성»이다 — ⛔«위생»으로 ★적지 ★마라(★`leakers()` 머리말) */
   const L = leakers();
-  /* ⒜ ★★★양성대조 — ★자가 ★★참으로 ★잡나. ★이름을 ★박는다(⛔«N건 나왔다»로 안 닫는다) */
   const names = L.map((x) => x.file);
-  assert.ok(names.includes('tests/unit/zoom-tangent.test.mjs'),
-    '★양성대조 실패 — ★`zoom-tangent.test.mjs`(★mkdtemp 2 · ★치움 0)를 ★못 잡는다 ⇒ ★★자가 ★죽었다');
-  assert.ok(names.includes('tests/unit/folders-crud.test.js'),
-    '★양성대조 실패 — ★`folders-crud.test.js`(★mkdtemp 2 · ★치움 0)를 ★못 잡는다 ⇒ ★★자가 ★죽었다');
-  /* ★★《양성대조 하나는 ★내가 ★직접 ★죽였다》 — `project-trash.test.js` 를 ★이전했다(뭆음 B).
-   *   ⇒ ★그 파일이 ★원래 ★쟡던 것은 《★rmSync 가 ★★주석 속에 있다》는 ★성질이었다
-   *   ⇒ ★★그 ★성질은 ★아래 ★ⓡ 에서 ★따로 잡긴다 — ⛔★대조를 ★조용히 ★잃지 않는다 */
+  /* ⒜ ★★★양성대조 — ★★누수가 ★0 이 된 ★지금은 ★★진짜 파일로 ★세울 수 ★없다(★그게 ★이 일의 ★끝이다).
+   *   ★앞 회차의 ★양성대조 둘(★`zoom-tangent` · ★`folders-crud`)은 ★★내가 ★이전해서 ★★내 손으로 ★죽였다
+   *   ⇒ ★★`mkTmpRoot` 로 ★★합성 표본 ★뿌리를 ★만들어 ★자를 ★그쪽으로 ★돌린다 — ★★양성·음성을 ★한 자리에서
+   *   ⛔★표본 글자는 ★★조립해서 쓴다 — ★이 파일 ★본문이 ★오염되면 ★★T7 이 ★빨개진다 */
+  const fx = mkTmpRoot('tmproot-fixture-');
+  const MKD = 'mkdtemp' + 'Sync';
+  fs.writeFileSync(path.join(fx, 'leaks.test.js'),
+    'const fs = require(\'fs\');\nconst d = fs.' + MKD + '(\'/tmp/fixture-leak-\');\n');
+  /* ★★음성 표본은 ★★`mkdtempSync` ＋ `trackTmp` 꼴로 ★둔다 — ⛔`mkTmpRoot` ★단독이면 ★mk 0 이라
+   *   ★★`if (!mk) continue` 에서 ★먼저 ★걸러져 ★★«빼기»가 ★하는 일이 ★0 이 된다(★무력화해도 ★안 빨개진다).
+   *   ★이 꼴이면 ★mk 1 · tt 1 ⇒ ★Δ 0 ⇒ ★★빼기가 ★참으로 ★일한다 (★아래 ★변이 M-C5 가 ★그걸 잰다)
+   *   ⛔★토큰은 ★★조립한다 — ★`trackTmp` 는 ★T7 의 ★하드 꼴이다 */
+  const TTR = 'track' + 'Tmp';
+  fs.writeFileSync(path.join(fx, 'clean.test.js'),
+    'const fs = require(\'fs\');\nconst { ' + TTR + ' } = require(\'./_tmproot.js\');\n'
+    + 'const d = ' + TTR + '(fs.' + MKD + '(\'/tmp/fixture-clean-\'));\n');
+  /* ★★★셋째 표본 — ★호출이 ★★«주석 속에만» 있는 파일.
+   *   ★스트리핑이 ★살아있으면 mk 0 ⇒ ★안 걸린다 / ★죽으면 mk 1 · 빼는 자 0 ⇒ ★Δ1 ⇒ ★★걸린다
+   *   ★까닭: ★★`leakers()` 안의 ★`stripComments` 를 ★끄는 변이(M-C4)가 ★★fail 0 이었다
+   *     ⇒ ★★그 자리를 ★재는 ★단언이 ★하나도 ★없었다는 ★뜻이다(⛔«이미 잠겼다»로 ★읽지 않았다).
+   *   ★이게 ★원래 ★`project-trash` 가 ★쥐던 ★성질이다 — ★이제 ★합성 표본이 ★쥔다 */
+  fs.writeFileSync(path.join(fx, 'commented.test.js'),
+    '/* const d = fs.' + MKD + '(\'/tmp/fixture-comment-\'); */\nconst a = 1;\n');
+  const FX = leakers(fx, fx);
+  assert.deepEqual(FX.map((x) => x.file), ['leaks.test.js'],
+    '★★양성·음성 대조 ★동시 실패 — ★합성 표본에서 ★잡아야 할 것은 ★leaks.test.js ★하나다. ★잡은 것: '
+    + JSON.stringify(FX.map((x) => x.file))
+    + ' ⇒ ★자가 ★죽었거나(★빈 명부) ★★이미 옮긴 꼴을 ★누수로 센다');
+  assert.deepEqual(FX[0].prefixes, ['/tmp/fixture-leak-'],
+    '★★접두사를 ★못 읽는다 — ★★그게 ★디스크에서 ★그것을 ★찾는 ★유일한 수단이다(지디). ★읽은 것: '
+    + JSON.stringify(FX[0].prefixes));
+  /* ⒜-2 ★★그 자로 ★진짜 뿌리를 ★재면 ★0 이어야 한다 — ★★위 ⒜ 가 ★섰기에 ★이 ★0 은 ★«안 쟀다»가 ★아니다 */
+  assert.deepEqual(names, [], '★★누수 ★0 이 ★목표였다 — ★남은 것: ' + JSON.stringify(names));
   /* ⒝ ★★★음성대조 — ★★이미 옮긴 파일은 ★★안 걸려야 한다(★mkdtemp 0 · mkTmpRoot 1) */
   for (const f of ['tests/unit/shape-star-rating.test.mjs', 'tests/unit/account-projects-root.test.js',
                    'tests/unit/grid-line-add.test.mjs',
-                   /* ★아래 두 벌은 ★★뭆음 A·B 에서 ★내가 ★지금 ★옮긴 것 — ★이전이 ★참으로 ★먹었는지 */
+                   /* ★아래 두 벌은 ★★묶음 A·B 에서 ★내가 ★지금 ★옮긴 것 — ★이전이 ★참으로 ★먹었는지 */
                    'tests/unit/project-trash.test.js', 'tests/unit/zoom-panel-slim.test.mjs']) {
     assert.ok(!names.includes(f),
       `★음성대조 실패 — ★이미 ★`.concat(`mkTmpRoot 로 옮긴 ${f} 를 ★누수로 센다`));
@@ -386,7 +419,7 @@ test('T6 ★★★둘째 축 — ★«아예 안 치우는» 파일이 ★★명
     + outside.map((f) => `· ${f} (${L.find((x) => x.file === f).delta} · ${L.find((x) => x.file === f).prefixes.join(' ')})`).join('\n  ')
     + '\n  ⇒ ★`mkTmpRoot`/`trackTmp` 로 옮기거나, ★★못 옮기는 까닭을 ★이 파일 ★`LEAKING` 에 ★적어 올려라');
   /* ⒟ ★★명부가 ★낡지 않았나 — ★옮겼는데 ★명부에 ★남아 있으면 ★빨강 */
-  /* ⓡ ★★《주석 속 rmSync》를 ★자가 ★참으로 ★떼내나 — ★원래 `project-trash` 가 ★쟡던 ★성질이다.
+  /* ⒡ ★★«주석 속 rmSync»를 ★자가 ★참으로 ★떼내나 — ★원래 `project-trash` 가 ★쥐던 ★성질이다.
    *   ★그 파일은 ★이제 ★내가 ★이전해서 ★더 이상 ★날 새지 ★않는다 — ★★그러나 ★그 rmSync 는 ★여전히 ★주석 속에 ★있다
    *   ⇒ ★★`stripComments` 가 ★죽으면 ★그 파일은 ★★«손으로 rmSync 를 쓰는 자»로 ★보여 ★★㉠ 명부 밖에 ★나타나 ★T2 가 ★빨개진다 */
   const PT = 'tests/unit/project-trash.test.js';
@@ -411,32 +444,46 @@ test('T6 ★★★둘째 축 — ★«아예 안 치우는» 파일이 ★★명
   }
 });
 
-test('T7 ★★★이 파일 ★자신이 ★★가장 오염시키는 파일이다 — ★본문 ★0건을 ★못박는다 (지디 ⑶)', () => {
-  /* ★★지디: 「★★«잘 설명한 파일»이 ★★«가장 오염시키는 파일»이 ★된다.
-   *   ★★그리고 ★★네 명부 파일은 ★★★자가 ★걷는 곳에 ★있다」
-   * ⇒ ★★그래서 ★★두 수를 ★나란히 ★찍고, ★★본문 ★0건을 ★단언한다. */
-  const SELF = path.join(ROOT, 'tests/unit/tmproot-sole-owner.test.mjs');
+test('T7 ★★★이 파일 ★자신이 ★★가장 오염시키는 파일이다 — ★★어느 꼴이 ★0 이고 ★어느 꼴이 ★몇인지 (지디 ⑶)', () => {
+  /* ★★지디 ⑶: 「★주석 속 호출 꼴 ★7 vs ★본문 ★3 ⇒ ★★주석 안 떼는 자가 ★10 을 센다 ⇒ ★★칸 하나로 ★잠가라」
+   * ★★★앞 회차엔 ★«본문 ★0» 이었다. ★★이제는 ★아니다 — ★T6 ⒜ 의 ★합성 표본 ★뿌리를 ★★`mkTmpRoot` 로 만든다.
+   *   ⇒ ★★«0 이라 적고 ★1 을 쓰는» ★거짓 대신 ★★꼴을 ★갈라 ★적는다:
+   *     ⒜ ★★`rmSync` · `mkdtempSync` · `trackTmp` = ★★★본문 0 (★하드)
+   *        ★까닭: ★이 셋이 ★본문에 ★있으면 ★★제 자가 ★★자기를 ★위반자(㉠)·누수로 ★센다
+   *     ⒝ ★★`mkTmpRoot` = ★본문 ★★정확히 ★1 (★합성 표본 ★한 줄) — ★늘면 ★빨강
+   *   ⛔★수를 ★산문에 ★박지 ★않는다 — ★아래가 ★매 회차 ★찍는다 */
   const raw = fs.readFileSync(SELF, 'utf8');
-  const CALLS = () => /\b(rmSync|mkdtempSync|mkTmpRoot|trackTmp)\s*\(/g;
-  const withC = (raw.match(CALLS()) || []).length;
-  const noC = (stripComments(raw).match(CALLS()) || []).length;
+  const body = stripComments(raw);
+  const cnt = (src, re) => (src.match(re) || []).length;
+  const HARD = /\b(rmSync|mkdtempSync|trackTmp)\s*\(/g;
+  const SOFT = /\bmkTmpRoot\s*\(/g;
+  const ALL  = () => /\b(rmSync|mkdtempSync|mkTmpRoot|trackTmp)\s*\(/g;
+  const hardBody = cnt(body, HARD);
+  const softBody = cnt(body, SOFT);
+  const withC = cnt(raw, ALL());
+  const noC = cnt(body, ALL());
   console.log(`    ★★이 파일 — ★주석 포함 ${withC}건 · ★★주석 뗀 뒤 ${noC}건 (★차이 ${withC - noC} = ★주석 속)`);
-  /* ⒜ ★★본문에 ★호출 꼴이 ★★0 — ★★그래서 ★이 파일은 ★★제 자에 ★안 걸린다 */
-  assert.equal(noC, 0,
-    `★이 파일 ★본문에 ★호출 꼴이 ★${noC}건 생겼다 — ★★제 자가 ★★자기를 ★세기 시작한다`);
-  /* ⒝ ★★★그리고 ★주석 속은 ★★0 이 ★아니어야 한다 — ⛔0 이면 ★★이 칸이 ★★«아무것도 안 재는» 칸이 된다
-     ★★즉 ★이 파일이 ★★참으로 ★위험한 파일임을 ★★그 수가 ★증명해야 한다 */
+  console.log(`      ★본문 ★하드 꼴(rmSync·mkdtempSync·trackTmp) = ${hardBody} (★0 이어야 한다) · ★mkTmpRoot = ${softBody} (★1)`);
+  /* ⒜ ★하드 — ★★0 */
+  assert.equal(hardBody, 0,
+    '★이 파일 ★본문에 ★★위반자 꼴이 ★' + hardBody + '건 생겼다 — ★★제 자가 ★★자기를 ★㉠·누수로 ★세기 시작한다');
+  /* ⒝ ★소프트 — ★★정확히 1, ★그리고 ★★그 1 이 ★합성 표본 ★줄인가 */
+  assert.equal(softBody, 1,
+    '★★`mkTmpRoot` ★본문 호출이 ★' + softBody + '건이다 — ★★T6 ⒜ 의 ★합성 표본 ★한 줄만 ★허용한다');
+  assert.ok(/mkTmpRoot\('tmproot-fixture-'\)/.test(body),
+    '★★그 ★1건이 ★★합성 표본 줄이 ★아니다 — ★★다른 곳에서 ★임시 루트를 ★만들고 있다');
+  /* ⒞ ★★전제 단언 — ★이 파일은 ★참으로 ★오염원인가(⛔아니면 ★이 칸은 ★아무것도 ★안 잠근다) */
   assert.ok(withC - noC >= 5,
-    `★주석 속 호출 꼴이 ★${withC - noC}건뿐이다 — ★★이 칸의 ★전제(«여긴 오염원이다»)가 ★무너졌다`);
-  /* ⒞ ★★★양성대조 — ★`stripComments` 가 ★참으로 ★떼나. ⛔이게 없으면 ⒜ 가 ★죽어도 ★모른다 */
+    '★전제 깨짐 — ★주석 속 호출 꼴이 ★' + (withC - noC) + '건뿐이다 ⇒ ★★이 파일은 ★더 이상 ★«가장 오염시키는 파일»이 ★아니다');
+  /* ⒟ ★★양성대조 — ★주석 속 꼴을 ★참으로 ★떼나. ★토큰은 ★조립한다(⛔표본이 ★이 파일을 ★다시 오염시키면 안 된다) */
   const FAKE = '/* ' + 'rm' + 'Sync(FAKE) */ const a = 1;';
-  assert.equal((stripComments(FAKE).match(CALLS()) || []).length, 0,
+  assert.equal(cnt(stripComments(FAKE), ALL()), 0,
     '★양성대조 실패 — ★★주석 속 ★가짜 호출을 ★★세고 있다 ⇒ ★`stripComments` 가 ★안 뗀다');
+  /* ⒠ ★★음성대조 — ★본문 꼴은 ★★살아야 한다(⛔안 그러면 ★«전부 떼는 자»가 ★초록을 ★만든다) */
   const REAL = 'fs.' + 'rm' + 'Sync(x);';
-  assert.equal((stripComments(REAL).match(CALLS()) || []).length, 1,
+  assert.equal(cnt(stripComments(REAL), ALL()), 1,
     '★음성대조 실패 — ★★참 호출을 ★★못 센다 ⇒ ★자가 ★죽었다');
 });
-
 test('T8 ★★«공용자불가» 표시 — ★그 표시를 ★든 파일이 ★전부 ★(㉠ ∪ ㉡) 안인가 (지디 ⑷)', () => {
   /* ★★지디: 「★그 표시 이름을 ★★전수로 ★grep 할 수 있게 ★한 자리에 ★모아 적어라
    *   ＋ ★T5 에 ★한 칸: ★그 표시를 ★든 파일이 ★★전부 ★(㉠∪㉡) 안인가」

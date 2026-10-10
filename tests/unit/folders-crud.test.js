@@ -12,11 +12,12 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 const path = require('path');
 const F = require('../../main/folders');
 
 function makeProjectsDir(ids = ['proj_1000']) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-folders-'));
+  const dir = mkTmpRoot('gdt-folders-');
   for (const id of ids) {
     fs.mkdirSync(path.join(dir, id), { recursive: true });
     fs.writeFileSync(path.join(dir, id, 'proj.json'), JSON.stringify({ id, name: `이름-${id}` }));
@@ -171,7 +172,7 @@ test('F16 ★FOLDERS_FILE 상수 값 — main.js _adoptLegacyIfSoleAccount 가 �
 });
 
 test('F15 flat 레거시 meta(<id>_meta.json) 도 assign/delete 가 다룬다', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-folders-flat-'));
+  const dir = mkTmpRoot('gdt-folders-flat-');
   fs.writeFileSync(path.join(dir, 'proj_1000.json'), JSON.stringify({ id: 'proj_1000', name: 'flat' }));
   fs.writeFileSync(path.join(dir, 'proj_1000_meta.json'), JSON.stringify({ id: 'proj_1000' }));
   const f = F.createFolder({ projectsDir: dir, name: '폴더' }).folder;
