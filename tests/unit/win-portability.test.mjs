@@ -24,6 +24,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 import { createRequire } from 'node:module';
 
 const require_ = createRequire(import.meta.url);
@@ -217,6 +219,14 @@ test('③-1 freeBytes 는 «양쪽 플랫폼에서 도는 자»를 쓴다 — �
 
 test('③-2 쓰기 거부는 플랫폼별 «동등한 동작»이고, ★읽기는 «살아남는다»', () => {
   const D = require_('../../tools/hardening/lib/denywrite.cjs');
+  /* ⛔★★이 하나는 ★★`mkTmpRoot` 로 ★★옮기지 ★않았다(★지디 판정 2026-10-10) — ★까닭을 ★적는다:
+     ★`denyWrite(dir)` 의 ★★복구가 ★★`catch (_) {}` 로 ★삼킨다
+     ⇒ ★복구가 ★실패하면 ★그 폴더가 ★★`0500` 으로 ★남는다
+     ⇒ ★★★우산(`goya-run-<pid>`)의 ★`rmSync(recursive)` 가 ★★그 안에서 ★실패한다 ⇒ ★★조용히 ★우산이 ★남는다
+     ⇒ ★★즉 ★이 공용 자가 ★막으려던 ★★바로 그 ★누수를 ★★이 한 벌이 ★만들 수 있다
+     ★★★`denywrite.cjs` 는 ★★부모를 ★안 건드린다 — ★지디 ★실측(★POSIX `chmodSync(dir)` ·
+       ★WIN `icacls <dir> /deny` · ★그 소스가 ★제 입으로 ★「⛔`(OI)(CI)` 도 ★안 붙인다」 ⇒ ★상속 ★없다)
+     ⛔★★그러니 ★★«부모 사슬에 닿는다»로 ★적지 ★마라 — ★★그건 ★내 ★추측이었고 ★★기각됐다 */
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-wp-deny-'));
   try {
     fs.writeFileSync(path.join(dir, 'pre.txt'), 'hello');       // ★미리 있던 파일 = 읽기 확인용
@@ -404,7 +414,7 @@ test('Ⓓ-4 ★「원본 userData 인가」 규약이 «한 곳»에만 있다 �
 
 test('Ⓒ-1 링크가 «밖»을 가리킨다 — 재려던 성질이 그대로다 (realpath 가 대상 밖으로 나간다)', () => {
   const { linkToDirOutside, unlinkDirLink } = require_('./_link.js');
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-wp-link-'));
+  const base = mkTmpRoot('goya-wp-link-');
   try {
     const inside = path.join(base, 'assets'); fs.mkdirSync(inside);
     const outside = path.join(base, 'outside_dir'); fs.mkdirSync(outside);
@@ -416,18 +426,18 @@ test('Ⓒ-1 링크가 «밖»을 가리킨다 — 재려던 성질이 그대로�
     assert.equal(real, fs.realpathSync(outside));
     assert.equal(unlinkDirLink(link), true, '링크를 못 지운다 — 뒷 검사를 오염시킨다');
     assert.equal(fs.existsSync(path.join(base, 'outside_dir')), true, '★링크를 지우며 «대상»까지 지웠다');
-  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+  } finally { /* ★치움은 ★`mkTmpRoot` 가 쥔다 */ }
 });
 
 test('Ⓒ-2 [양성대조] 하드링크로 바꾸면 «다른 것»을 재게 된다 (그래서 안 쓴다)', () => {
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'goya-wp-hard-'));
+  const base = mkTmpRoot('goya-wp-hard-');
   try {
     const inside = path.join(base, 'assets'); fs.mkdirSync(inside);
     const target = path.join(base, 'outside.png'); fs.writeFileSync(target, 'x');
     const hard = path.join(inside, 'h.png'); fs.linkSync(target, hard);
     assert.equal(fs.realpathSync(hard).startsWith(fs.realpathSync(inside) + path.sep), true,
       '★하드링크의 realpath 는 «자기 자신»이다 — 「밖을 가리킨다」가 성립 안 해 가드를 통과해 버린다');
-  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+  } finally { /* ★치움은 ★`mkTmpRoot` 가 쥔다 */ }
 });
 
 test('Ⓒ-3 ★링크 실패를 «조용히 건너뛰는» 자리가 0건이다', () => {

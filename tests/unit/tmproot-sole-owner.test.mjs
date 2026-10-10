@@ -63,14 +63,16 @@ const RM_RE = () => /\brmSync\s*\(/g;
 /** ㉠ ★★이전 ★대상 — ★`mkdtempSync` 로 ★임시 루트를 ★만들고 ★제 손으로 ★치우는 자. */
 const PENDING = {
   'tests/dom/scratch-folder-columns.dom.spec.js':  '★DOM — ★창 차례(지디 가름) · ★`npm test` 로 ★못 잰다',
-  'tests/unit/win-portability.test.mjs':
-    '미이전 — ⚠️★`goya-run-1` 을 ★★단언 문자열로 ★든다(:358) ＋ ★`os.homedir()` 경로를 ★잰다(:354~357) '
-    + '⇒ ★★자리에 ★의존한다. ★★읽고 ★옮겨야 한다',
 };
 
 /** ㉡ ★★이전 ★대상이 ★아니다 — ★`rmSync` 가 ★★«그 검사의 일»이다. ★까닭을 ★이름 옆에.
  *  ⛔여기 올리려면 ★★«그 rmSync 가 ★무엇을 ★지우나»를 ★읽고 ★적어라. ★«미이전»과 ★섞지 ★마라. */
 const NOT_TMPROOT = {
+  'tests/unit/win-portability.test.mjs':
+    '★★공용자불가(★`goya-wp-deny-` ★하나만 — ★나머지 둘은 ★옮겼다) — ★`denyWrite(dir)` 의 ★복구가 '
+    + '★`catch (_) {}` 로 ★삼킨다 ⇒ ★복구 실패 시 ★0500 이 ★남고 ★★우산의 ★recursive 치움이 ★그 안에서 ★실패한다 '
+    + '⇒ ★★이 공용 자가 ★막으려던 ★그 누수를 ★이 한 벌이 ★만들 수 있다. '
+    + '★★`denywrite.cjs` 는 ★부모를 ★안 건드린다(★지디 실측 — ★상속 ★없다) ⇒ ⛔«부모 사슬»로 ★적지 마라',
   'tests/unit/put-image-path.test.js':
     '★★공용자불가 — ★그 루트가 ★`os.homedir()` ★아래여야 한다. ★이 검사의 ★주제가 ★«홈 ★밖은 ★막힌다»다(:93·:107). '
     + '★`mkTmpRoot` 는 ★tmpdir 아래라 ★★옮기면 ★그 전제가 ★깨진다(★:69 가 ★homedir 길이로 ★자른다). '
