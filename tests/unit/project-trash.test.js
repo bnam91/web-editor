@@ -9,6 +9,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 const path = require('path');
 const T = require('../../main/trash');
 const F = require('../../main/folders');
@@ -16,7 +17,7 @@ const F = require('../../main/folders');
 const DAY = 24 * 60 * 60 * 1000;
 
 function makeProjectsDir(ids = ['proj_1000'], opts = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-trash-'));
+  const dir = mkTmpRoot('gdt-trash-');
   for (const id of ids) {
     fs.mkdirSync(path.join(dir, id), { recursive: true });
     fs.writeFileSync(path.join(dir, id, 'proj.json'), JSON.stringify({ id, name: `이름-${id}`, pages: [{ id: 'page_1' }] }));

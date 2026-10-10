@@ -21,6 +21,7 @@ const os = require('os');
 const path = require('path');
 const { readSrc } = require('./_srcread.js');
 const { sliceBlock } = require('./_slice-block.js');
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const REPO = path.join(__dirname, '..', '..');
 const MAIN_SRC = readSrc(REPO, 'main.js');
@@ -72,7 +73,7 @@ const doc = (n, tag) => ({ id: ID, name: '이름', createdAt: '2026-01-01T00:00:
 const sha = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex').slice(0, 16);
 /** 실앱 장면: proj.json 깨짐(잘림) · 백업 성함(20 섹션) */
 function scene({ broken = true } = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-e169-')); const p = path.join(dir, ID);
+  const dir = mkTmpRoot('gdt-e169-'); const p = path.join(dir, ID);
   fs.mkdirSync(p, { recursive: true });
   const good = JSON.stringify(doc(20, '백업'), null, 2);
   fs.writeFileSync(path.join(p, 'proj_backup.json'), good);

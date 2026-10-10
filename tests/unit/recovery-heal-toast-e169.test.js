@@ -14,6 +14,7 @@ const os = require('os');
 const path = require('path');
 const { readSrc } = require('./_srcread.js');
 const { sliceBlock } = require('./_slice-block.js');
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const REPO = path.join(__dirname, '..', '..');
 const MAIN_SRC = readSrc(REPO, 'main.js');
@@ -47,7 +48,7 @@ function loader(projectsDir) {
 
 const ID = 'proj_1775644888754';
 function scene({ readOnly }) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-e169h-')); const p = path.join(dir, ID);
+  const dir = mkTmpRoot('gdt-e169h-'); const p = path.join(dir, ID);
   fs.mkdirSync(p, { recursive: true });
   const good = JSON.stringify({ id: ID, name: 'n', pages: [{ id: 'page_1', canvas: '<div class="section-block"></div>' }] }, null, 2);
   fs.writeFileSync(path.join(p, 'proj_backup.json'), good);

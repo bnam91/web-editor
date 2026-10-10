@@ -19,6 +19,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readSrc } from './_srcread.js';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -27,7 +29,7 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 let _modP = null;
 function loadGeom() {
   if (!_modP) {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zoom-spread-'));
+    const dir = mkTmpRoot('zoom-spread-');
     const mjs = path.join(dir, 'zoom-geometry.mjs');
     fs.copyFileSync(path.resolve(ROOT, 'js/blocks/zoom-geometry.js'), mjs);
     _modP = import(pathToFileURL(mjs).href);

@@ -133,12 +133,6 @@ const LEAKING = {
   'tests/unit/recovery-account-scope.test.js':       'Δ2 · recov-acct- · recov-legacy-',
   'tests/unit/zoom-narrow-limit.test.mjs':           'Δ2 · zoom-narrow- · zoom-narrow-mut-',
   'tests/unit/zoom-tangent.test.mjs':                'Δ2 · zoom-tangent- · zoom-mutant-',
-  'tests/unit/env-collab-pin.test.mjs':              'Δ1 · e2c-${tag}- (★★템플릿 리터럴 — ★변수를 품었다)',
-  'tests/unit/project-trash.test.js':                'Δ1 · gdt-trash- (★★지디 16벌에 ★없었다 — ★그 rmSync 는 ★★주석 안이다)',
-  'tests/unit/recovery-heal-toast-e169.test.js':     'Δ1 · gdt-e169h-',
-  'tests/unit/recovery-notice-once-e170.test.js':    'Δ1 · gdt-e170-',
-  'tests/unit/rolling-backup-e169.test.js':          'Δ1 · gdt-e169-',
-  'tests/unit/zoom-spread-outline.test.mjs':         'Δ1 · zoom-spread-',
 };
 
 /** ★★«rmSync ★한 줄» 단위의 ★자 — ★{file, line, kind} ★쌍을 ★돌려준다.
@@ -372,11 +366,16 @@ test('T6 ★★★둘째 축 — ★«아예 안 치우는» 파일이 ★★명
   const names = L.map((x) => x.file);
   assert.ok(names.includes('tests/unit/zoom-tangent.test.mjs'),
     '★양성대조 실패 — ★`zoom-tangent.test.mjs`(★mkdtemp 2 · ★치움 0)를 ★못 잡는다 ⇒ ★★자가 ★죽었다');
-  assert.ok(names.includes('tests/unit/project-trash.test.js'),
-    '★양성대조 실패 — ★`project-trash.test.js`(★그 rmSync 는 ★★주석 안이다)를 ★못 잡는다');
+  assert.ok(names.includes('tests/unit/folders-crud.test.js'),
+    '★양성대조 실패 — ★`folders-crud.test.js`(★mkdtemp 2 · ★치움 0)를 ★못 잡는다 ⇒ ★★자가 ★죽었다');
+  /* ★★《양성대조 하나는 ★내가 ★직접 ★죽였다》 — `project-trash.test.js` 를 ★이전했다(뭆음 B).
+   *   ⇒ ★그 파일이 ★원래 ★쟡던 것은 《★rmSync 가 ★★주석 속에 있다》는 ★성질이었다
+   *   ⇒ ★★그 ★성질은 ★아래 ★ⓡ 에서 ★따로 잡긴다 — ⛔★대조를 ★조용히 ★잃지 않는다 */
   /* ⒝ ★★★음성대조 — ★★이미 옮긴 파일은 ★★안 걸려야 한다(★mkdtemp 0 · mkTmpRoot 1) */
   for (const f of ['tests/unit/shape-star-rating.test.mjs', 'tests/unit/account-projects-root.test.js',
-                   'tests/unit/grid-line-add.test.mjs']) {
+                   'tests/unit/grid-line-add.test.mjs',
+                   /* ★아래 두 벌은 ★★뭆음 A·B 에서 ★내가 ★지금 ★옮긴 것 — ★이전이 ★참으로 ★먹었는지 */
+                   'tests/unit/project-trash.test.js', 'tests/unit/zoom-panel-slim.test.mjs']) {
     assert.ok(!names.includes(f),
       `★음성대조 실패 — ★이미 ★`.concat(`mkTmpRoot 로 옮긴 ${f} 를 ★누수로 센다`));
   }
@@ -387,6 +386,16 @@ test('T6 ★★★둘째 축 — ★«아예 안 치우는» 파일이 ★★명
     + outside.map((f) => `· ${f} (${L.find((x) => x.file === f).delta} · ${L.find((x) => x.file === f).prefixes.join(' ')})`).join('\n  ')
     + '\n  ⇒ ★`mkTmpRoot`/`trackTmp` 로 옮기거나, ★★못 옮기는 까닭을 ★이 파일 ★`LEAKING` 에 ★적어 올려라');
   /* ⒟ ★★명부가 ★낡지 않았나 — ★옮겼는데 ★명부에 ★남아 있으면 ★빨강 */
+  /* ⓡ ★★《주석 속 rmSync》를 ★자가 ★참으로 ★떼내나 — ★원래 `project-trash` 가 ★쟡던 ★성질이다.
+   *   ★그 파일은 ★이제 ★내가 ★이전해서 ★더 이상 ★날 새지 ★않는다 — ★★그러나 ★그 rmSync 는 ★여전히 ★주석 속에 ★있다
+   *   ⇒ ★★`stripComments` 가 ★죽으면 ★그 파일은 ★★«손으로 rmSync 를 쓰는 자»로 ★보여 ★★㉠ 명부 밖에 ★나타나 ★T2 가 ★빨개진다 */
+  const PT = 'tests/unit/project-trash.test.js';
+  const ptRaw = fs.readFileSync(path.join(ROOT, PT), 'utf8');
+  assert.ok((ptRaw.match(/\brmSync\s*\(/g) || []).length >= 1,
+    '★전제 깨짐 — ' + PT + ' 에서 «rmSync 가 ★주석 속에 있다»는 ★성질이 ★사라졌다 ⇒ ★이 ★대조는 ★이제 ★아무것도 ★잠그지 ★않는다');
+  assert.equal((stripComments(ptRaw).match(/\brmSync\s*\(/g) || []).length, 0,
+    '★★' + PT + ' 의 rmSync 는 ★주석 속이다 — ★주석을 떼면 ★★0 이어야 한다(★아니면 stripComments 가 ★제 일을 ★안 한다)');
+
   const stale = Object.keys(LEAKING).filter((f) => !names.includes(f)).sort();
   assert.deepEqual(stale, [], `★LEAKING 에 ★«이제 ★안 새는» 파일이 ★남았다: ${stale.join(' ')}`);
   /* ⒠ ★★★Δ 합계를 ★★자가 ★찍는다 — ⛔파일 수만 세지 ★마라(지디 ⒜) */
