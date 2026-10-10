@@ -169,14 +169,31 @@ test("D1 ★`frameClampsDrag(el, phase)` 의 ★진리표 — ★★«어느 pha
     }
   }
   assert.equal(f(null, 'drop'), false, '★없는 것에서 던지지 말고 거짓');
-  /* ★★★그리고 ★★«이 술어가 ★`clipContent` 를 ★읽지 ★않는다»를 ★★소스로 ★잠근다 —
-     ⛔값 단언만으론 ★★«읽고도 ★우연히 ★false» 를 ★구분 ★못 한다(★지금은 ★항상 거짓이라 ★더욱) */
+  /* ★★★그리고 ★★«이 술어가 ★★«자르나»를 ★읽지 ★않는다»를 ★★소스로 ★잠근다 —
+     ⛔값 단언만으론 ★★«읽고도 ★우연히 ★false» 를 ★구분 ★못 한다(★지금은 ★항상 거짓이라 ★더욱)
+     ★★★2026-10-10 ㈄ — ★★금지 자를 ★★넓혔다. ★까닭을 ★적는다:
+       ★옛 자 ★`/clipContent/` 는 ★★공용 술어 이름 ★`clipsContent` 를 ★★★`s` ★한 글자 때문에
+       ★★못 잡았다(★node 로 ★눌러 쟀다: ★`/clipContent/.test('clipsContent')` ⇒ ★★false).
+       ⇒ ★★누가 ★죔 본문에 ★`clipsContent(el)` 을 ★써 넣으면 ★★이 칸이 ★★초록이었다
+       ⇒ ★★★현빈 1010t1c1(「켜면 ★이동이 ★안 된다」)이 ★★조용히 ★부활할 ★문이 ★열려 있었다.
+       ★★㈄ 가 ★그 이름을 ★«집에서 ★유일한 술어»로 ★만들기 ★★전에 ★막는다. */
   const geom = readSrc(ROOT, 'js/frame-geometry.js');
-  const body = geom.slice(geom.indexOf('export function frameClampsDrag'),
-                          geom.indexOf('export function clampChildIntoFrame'));
+  const iA = geom.indexOf('export function frameClampsDrag');
+  const iB = geom.indexOf('export function clampChildIntoFrame');
+  /* ★★전제 — ★`slice` 가 ★`-1` 을 받으면 ★몸통이 ★조용히 ★엉뚱해지고 ★아래 단언이 ★★항등식이 된다 */
+  assert.ok(iA >= 0, '★전제: `frameClampsDrag` 정의를 ★못 찾았다 — ★이름이 ★바뀠다');
+  assert.ok(iB > iA, `★전제: 다음 함수(clampChildIntoFrame)가 ★뒤에 ★없다 (iA ${iA} · iB ${iB})`);
+  const body = geom.slice(iA, iB);
   const code = body.replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.ok(!/clipContent/.test(code),
-    '★★★죔 술어가 ★다시 ★`clipContent` 를 ★읽는다 — ★★그것이 ★현빈 1010t1c1 의 ★그 자리다');
+  assert.ok(code.length > 0, '★전제: ★주석을 떼니 ★본문이 ★비었다 — ★자가 ★아무것도 ★안 잰다');
+  const FORBIDDEN = /clips?Content|clipFamily|CLIP_DEFAULTS/;
+  /* ★★★반례 단언 — ★`!regex` 는 ★★항등식이 ★될 수 있다. ★★자가 ★사는지 ★먼저 ★증명한다 */
+  assert.ok(FORBIDDEN.test('clipsContent(el)'), '★★자가 ★죽었다 — ★공용 술어 이름을 ★못 잡는다');
+  assert.ok(FORBIDDEN.test('d.clipContent'), '★★자가 ★죽었다 — ★옛 속성 이름을 ★못 잡는다');
+  assert.ok(FORBIDDEN.test('CLIP_DEFAULTS.frame'), '★★자가 ★죽었다 — ★기본값 표를 ★못 잡는다');
+  assert.ok(!FORBIDDEN.test('framePadding(frameEl)'), '★★자가 ★너무 ★넓다 — ★멀쩡한 이름을 ★잡는다');
+  assert.ok(!FORBIDDEN.test(code),
+    `★★★죔 술어가 ★다시 ★★«자르나»를 ★읽는다 — ★★그것이 ★현빈 1010t1c1 의 ★그 자리다 (본문 ${code.length}자)`);
 });
 
 test('D1b ★★모르는 phase 는 ★★던진다 — ⛔조용히 ★거짓을 주지 ★않는다 (지디 2026-10-10)', () => {
