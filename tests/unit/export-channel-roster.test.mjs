@@ -21,7 +21,7 @@ import vm from 'node:vm';
 const _req = createRequire(import.meta.url);
 const { readSrc, toPosix } = _req('./_srcread.js');
 const { makeStripper } = _req('./_strip-comments.js');
-const { CHANNELS, MARKER_TOKENS, CLEAN_FN, CLEAN_SELF_FN, AXES, NORM_FN } = _req('../_export-channels.js');
+const { CHANNELS, MARKER_TOKENS, CLEAN_FN, CLEAN_SELF_FN, AXES, NORM_FN, CARRY_KEYS } = _req('../_export-channels.js');
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const JSDIR = path.join(ROOT, 'js');
@@ -415,4 +415,37 @@ test('U6-g ★drop 축 채널마다 «실제로 재는 검사»가 있다', () =
     assert.ok(typeof c.dropDenominator === 'string' && c.dropDenominator.length > 10,
       `★${c.file} 에 dropDenominator(무엇을 분모로 세는가)가 안 적혀 있다`);
   }
+});
+
+/* ══ ★★U6-h — ★`carry` 축 (2026-10-10 신설 · 현빈 1009t3-③) ═══════════════════
+   ★★왜 — ★이 명부의 축이 ★`marker`·`drop` ★둘이어서 ★★«새 속성·새 CSS 변수가 ★배송물에 ★실리나»가
+     ★★어느 축에도 ★안 걸렸다. ★이 파일의 ★명부 머리말이 ★스스로 ★경고한 그 자리다.
+   ★★무엇을 재나 = ★★«지워지지 ★않는가». ★실측(2026-10-10): 배송 경로는 ★이름으로만 ★뗀다(★와일드카드 0건)
+     ⇒ ★위험은 ★★«누가 ★그 이름을 ★떼는 명단에 ★더하는 날»이다. ★그걸 ★이 칸이 ★잡는다.
+   ⛔안 재는 것은 ★`CARRY_KEYS` 머리말에 ★셋으로 적어 뒀다(★행위 미측정 · Figma 공백 · lazy 경로).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+test('U6-h ★★carry 축 — ★배송 경로가 ★그 키를 ★떼지 ★않는다', () => {
+  const carriers = CHANNELS.filter((c) => c.axes.includes('carry'));
+  /* ★★전제 — ★분모가 ★0 이면 ★아래가 ★공회전한다(★그게 ★이 레포가 ★Figma 에서 ★겪은 병이다) */
+  assert.ok(carriers.length >= 3, `★carry 채널이 ${carriers.length}건이다 — 명부가 낡았다`);
+  assert.ok(CARRY_KEYS.length >= 2, '★CARRY_KEYS 가 비었다 — 잴 것이 없다');
+  for (const c of carriers) {
+    const code = codeOf(c.file);   /* ★주석을 ★벗긴 뒤 센다 — ⛔주석 속 이름이 ★측정값이 되지 않게 */
+    for (const k of CARRY_KEYS) {
+      const re = new RegExp(`(removeAttribute|removeProperty)\\(\\s*['"\`]${k.replace(/[-]/g, '\\-')}['"\`]`);
+      assert.ok(!re.test(code),
+        `★★${c.file} 이 ★«${k}» 를 ★뗀다 — ★그 값은 ★배송물까지 ★가야 한다(carry 축)`);
+    }
+  }
+});
+
+test('U6-h-양성대조 ★★지어낸 «떼는 줄»을 ★자가 ★잡는다 — ⛔없으면 위 초록은 «안 재고 있다»와 같다', () => {
+  const k = CARRY_KEYS[0];
+  const fake = `  el.removeAttribute('${k}');\n`;
+  const re = new RegExp(`(removeAttribute|removeProperty)\\(\\s*['"\`]${k.replace(/[-]/g, '\\-')}['"\`]`);
+  assert.ok(re.test(fake), `★자가 ★지어낸 줄을 ★못 잡는다 — ★정규식이 ★죽었다 (${k})`);
+  /* ★★음성대조 — ★비슷하지만 ★다른 이름은 ★안 잡아야 한다(★거짓양성이면 ★멀쩡한 코드를 ★막는다) */
+  assert.ok(!re.test(`  el.removeAttribute('${k}-other');\n`.replace("'"+k+"-other'", "'"+k+"X'")),
+    '★자가 ★다른 이름까지 ★잡는다 — 거짓양성');
 });

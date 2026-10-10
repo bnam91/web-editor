@@ -74,25 +74,53 @@ test('C2-4 ★섹션 배경 → 「스크래치로 보내기」 — lazy 로 sty
   expect(await page.evaluate(() => window.__sent)).toEqual([expect.stringContaining('data:image/png')]);
 });
 
-test('C2-5 ★섹션 색이 불투명이면 색은 안 건드리고(업로드 길과 같은 규약) «덮고 있다·푸는 법»을 알린다', async ({ page }) => {
+/* ★★2026-10-10 — ★★방향을 ★뒤집었다(⛔지우지 않았다 · 선례 = 같은 레포 pad-hint T5/T6).
+   ★옛 C2-5 는 ★「불투명 색이면 ★그림이 ★가려지니 ★«덮고 있다»를 ★알린다」를 ★잠그고 있었다.
+   ★★현빈 2026-10-10 「솔리드배경에서 ★즉각 바껴야지」로 ★그 규약이 ★바뀌었다 —
+     ★불투명 색은 ★이제 ★그림 «아래»로 간다(prop-section.js `_applySectionBg`).
+   ⇒ ★★잠글 것이 ★«반대»가 됐다: ★색은 ★여전히 ★남고(안 잃는다), ★★그림이 ★보이고, ★안내는 ★없다. */
+test('C2-5 ★섹션 색이 불투명이어도 ★색은 그대로 남고 ★그림이 ★이긴다 — ★«덮고 있다» 안내는 ★없다', async ({ page }) => {
   await setup(page);
   await page.evaluate(() => { const s = document.getElementById('sG'); s.dataset.bg = '#ffffff'; window.applySectionBg?.(s);
     window.__t = []; const o = window.showToast; window.showToast = (m, ...a) => { window.__t.push(String(m)); return o?.(m, ...a); }; });
   const it = await rclickMenu(page, 'abG', 'bcm-asset-to-secbg');
   await page.mouse.click(it.xy[0], it.xy[1]);
-  const r = await page.evaluate(() => ({ bg: document.getElementById('sG').dataset.bg, img: !!document.getElementById('sG').dataset.bgImg, t: window.__t.join('|') }));
-  expect(r.bg, '색은 그대로').toBe('#ffffff');
+  const r = await page.evaluate(() => {
+    const s = document.getElementById('sG');
+    const cs = getComputedStyle(s);
+    return { bg: s.dataset.bg, img: !!s.dataset.bgImg, t: window.__t.join('|'),
+             bgImg: cs.backgroundImage, bgColor: cs.backgroundColor };
+  });
+  expect(r.bg, '★색은 그대로 — ★치우지 않는다(지우면 그림을 지웠을 때 색을 잃는다)').toBe('#ffffff');
   expect(r.img).toBe(true);
-  expect(r.t).toContain('덮고 있어요');
+  expect(r.bgImg, `★그림이 ★그려진다(합성 아님) — 잰값 ${r.bgImg}`).toMatch(/url\(/);
+  expect(r.bgImg, '★★불투명 색 층이 ★그림 «위»에 ★안 깔린다').not.toMatch(/gradient/);
+  expect(r.t, '★덮는 일이 없으니 ★그 안내도 없다').not.toContain('덮고 있어요');
 });
 
-test('C2-6 ★섹션 패널 «상시 한 줄» — 배경색이 불투명하면 «덮고 있다(까닭)»가 보이고, 투명하면 없다', async ({ page }) => {
+/* ★★2026-10-10 — ★여기도 ★방향을 ★뒤집었다. ★옛 C2-6 은 ★패널 ★«상시 한 줄»이 ★뜨는 것을 잠갔다.
+   ⚠️★그 줄은 ★정말 ★뜨고 ★보였다(t3frame 측정: 211×51 · 11px · #888) — ★«안 뜨는 버그»가 ★아니었다.
+     ★그래도 ★현빈이 ★바꾸라 하셨다 ⇒ ★규약을 바꿨고 ⇒ ★안내할 것이 ★없어 ★줄도 걷었다.
+   ★★이제 잠그는 것 = ★★«그 줄이 ★없다» ＋ ★★«그림이 ★실제로 보인다»(불투명이든 반투명이든).
+   ★반투명은 ★여전히 ★물들임 합성이다 — ★★그 기능을 ★같이 잠근다(⛔없애면 빨개진다). */
+test('C2-6 ★섹션 패널 — ★«덮고 있다» 한 줄은 ★더 없다 ＋ ★불투명은 그림만·★반투명은 ★물들임 합성', async ({ page }) => {
   await setup(page);
-  const hint = (bg) => page.evaluate(async ([bg, px]) => {
+  const probe = (bg) => page.evaluate(async ([bg, px]) => {
     const s = document.getElementById('sG'); s.dataset.bg = bg; s.dataset.bgImg = px; window.applySectionBg?.(s);
     window.deselectAll?.(); window.selectSection?.(s); await new Promise(r => setTimeout(r, 400));
-    return [...document.querySelectorAll('#panel-right .prop-hint')].map(e => e.textContent).find(t => t.includes('덮고 있습니다')) || null;
+    const cs = getComputedStyle(s);
+    return {
+      hint: [...document.querySelectorAll('#panel-right .prop-hint')].map(e => e.textContent).find(t => t.includes('덮고')) || null,
+      panel: !!document.getElementById('sec-bg-size'),          /* ★전제 — 섹션 배경 칸이 그려졌다 */
+      bgImg: cs.backgroundImage,
+    };
   }, [bg, PX]);
-  expect(await hint('#ffffff')).toContain('배경색이 불투명해서');
-  expect(await hint('rgba(255,255,255,0.5)')).toBeNull();
+  const op = await probe('#ffffff');
+  const tr = await probe('rgba(255,255,255,0.5)');
+  expect(op.panel, '★전제 — 패널 배경 칸이 그려졌다(안 그려지면 아래 단언이 공회전한다)').toBe(true);
+  expect(op.hint, '★불투명 — 「덮고 있다」 줄이 ★없다').toBeNull();
+  expect(tr.hint, '★반투명 — 원래도 없었다').toBeNull();
+  expect(op.bgImg, `★불투명 — ★그림만 그린다(잰값 ${op.bgImg})`).not.toMatch(/gradient/);
+  expect(op.bgImg, '★불투명 — 그림은 ★있다').toMatch(/url\(/);
+  expect(tr.bgImg, `★★반투명 — ★물들임 합성은 ★그대로다(잰값 ${tr.bgImg})`).toMatch(/gradient.*url\(/);
 });

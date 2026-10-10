@@ -1,4 +1,5 @@
 import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
+import { syncFrameBgVars, frameBgSize } from './frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { state } from './globals.js';
 import {
   genId,
@@ -23,7 +24,7 @@ import {
 } from './drag-drop.js';
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame, framePadding, innerFullWidth,
-         growFrameToFitChildren, applyFrameHAlignToChild } from './frame-geometry.js';
+         growFrameToFitChildren, applyFrameHAlignToChild, fitContentWidthPx } from './frame-geometry.js';
 import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
 import { GRID_CIRCLE_ICON_INNER, GRID_CIRCLE_ICON_STROKE_WIDTH } from './blocks/grid-circle-icon.js';
@@ -1724,16 +1725,18 @@ function _clampTextFrameWidth(tf, frameEl) {
   const frameW = ((frameEl && frameEl.clientWidth) || 860) - _fp.l - _fp.r;
   // 콘텐츠 실측: 측정 동안 width를 fit-content로 잠시 풀어 자연 폭 산출
   const prevWidth = tf.style.width;
-  tf.style.width = 'fit-content';
-  // tb 자식이 inline-block이 아니어도 tf가 fit-content면 콘텐츠 폭으로 수축
-  let contentW = tf.offsetWidth || (tb && tb.offsetWidth) || 0;
+  /* ★2026-10-10 — ★재는 자를 ★`fitContentWidthPx`(frame-geometry.js) ★하나로 모았다(★block-drag 의 D3 와 ★같은 자).
+     ★예전엔 ★«offsetWidth 를 정수로 반올림한 값» 였고, ★그 ★내림이 ★「1줄 → 2줄」을 ★만들었다.
+     ★`tf` 로 못 재면(0) ★예전처럼 ★`tb` 로 떨어진다 — ★그 폴백은 ★그대로 둔다. */
+  let contentW = fitContentWidthPx(tf);
+  if (!contentW) contentW = (tb && tb.offsetWidth) || 0;
   // box-sizing:border-box이므로 패딩 포함 offsetWidth가 곧 프레임 폭
   if (!contentW || contentW <= 1) {
     // 측정 실패 시 안전하게 원복
     tf.style.width = prevWidth || innerFullWidth(frameEl);
     return tf.style.width;
   }
-  const w = Math.min(Math.round(contentW), frameW);
+  const w = Math.min(contentW, frameW);
   tf.style.width = w + 'px';
   tf.dataset.width = String(w);
   return tf.style.width;
@@ -5740,12 +5743,13 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     window.applySectionBg?.(sec);
     window.pushHistory?.('에셋 → 섹션 배경');
     window.scheduleAutoSave?.();
-    /* ★섹션 «색»은 안 건드린다 — applySectionBg 규약상 색 층이 그림 «위»라 불투명 색이면 그림이 가려진다
-       (업로드 길과 같은 «의도된 동작», prop-section.js _applySectionBg 머리말). 그대로 두면 「눌렀는데 안 된다」로
-       읽히므로 «왜 안 보이는지와 푸는 법»을 같이 말한다(2026-10-01 실측: data-bg #ffffff 섹션에서 그림이 안 보였다). */
-    const _opaque = !!window.isOpaqueSectionColor?.(sec.dataset.bg);   // 판정은 prop-section.js 한 곳
-    window.showToast?.('섹션 배경으로 넣었어요 — 블럭은 그대로 남습니다. 배경은 크기·위치만 가져서 크롭·색보정 같은 이미지 효과는 배경에 실리지 않아요.'
-      + (_opaque ? ' ⚠️지금 섹션 배경색이 불투명해서 그림을 덮고 있어요 — 배경색 투명도를 낮추면 보입니다.' : ''));
+    /* ★섹션 «색»은 안 건드린다 — ★그래도 ★그림이 ★보인다.
+       ★★2026-10-10 변경 — ★예전엔 ★applySectionBg 가 ★색 층을 ★그림 «위»에 깔아 ★불투명 색이면 ★그림이
+         ★가려졌고, ★그래서 ★여기에 ★«왜 안 보이는지» 안내를 ★붙여 뒀다(2026-10-01).
+       ★★이제 ★그 규약이 ★바뀌었다 — ★불투명 색은 ★그림 «아래»로 간다(prop-section.js `_applySectionBg`).
+         ⇒ ★★그 안내는 ★거짓이 됐다. ★그래서 ★걷었다. ★`isOpaqueSectionColor` 는 ★이제 ★«판정»에만 쓰인다.
+       ⛔되살리지 마라 — 되살리려면 ★그 분기부터 되돌려야 한다(둘은 한 쌍이다). */
+    window.showToast?.('섹션 배경으로 넣었어요 — 블럭은 그대로 남습니다. 배경은 크기·위치만 가져서 크롭·색보정 같은 이미지 효과는 배경에 실리지 않아요.');
   });
 
   // STICKERUX(3): 아이콘 블록 → 스티커 변환(복제 — 원본 .icon-block 유지)
@@ -6124,21 +6128,10 @@ function updateFrameBlock(blockId, partial = {}) {
 
   // ── 배경 CSS변수 동기화 (I2, prop-frame _syncFrameBgVars 미러) ──
   //    has-bg-opacity 프레임만: 배경을 ::before가 그리므로 --frame-bg/--frame-bg-img로 전달하고 본체 배경 비움.
-  const _syncBgVars = () => {
-    if (!block.classList.contains('has-bg-opacity')) return;
-    const bgVal = block.dataset.bg || block.style.backgroundColor || 'transparent';
-    if (/gradient\s*\(/i.test(bgVal)) {
-      block.style.setProperty('--frame-bg', 'transparent');
-      block.style.setProperty('--frame-bg-img', bgVal);
-    } else {
-      block.style.setProperty('--frame-bg', bgVal);
-      block.style.setProperty('--frame-bg-img', block.dataset.bgImg ? `url("${block.dataset.bgImg}")` : 'none');
-    }
-    block.style.setProperty('--frame-bg-pos', block.dataset.bgPos || 'center');
-    block.style.backgroundColor = '';
-    block.style.backgroundImage = '';
-    block.style.background = '';
-  };
+  /* ★★2026-10-10 (현빈 ③) — ★몸통을 ★공용 한 자리로 옮겼다(파일명은 수입 줄).
+     ★이 자리 옛 주석이 ★스스로 「prop-frame `_syncFrameBgVars` ★미러」라 적고 있었다 —
+     ★★그 «미러»가 ★곧 ★명부가 ★둘이라는 ★자백이었다. ★이제 ★하나다. */
+  const _syncBgVars = () => { syncFrameBgVars(block); };
 
   // 1) bg — solid / gradient(css) 둘 다 허용. prop-frame.js wireColorField onApply/onGradient 패턴 미러.
   //    string으로 들어오는 색상값을 그대로 backgroundColor에 (gradient면 backgroundImage로 분리해야 정상 표시).
@@ -6193,7 +6186,7 @@ function updateFrameBlock(blockId, partial = {}) {
         return { ok: false, code: 'INVALID', message: 'bgImage scheme not allowed (http/https/file/relative only)' };
       }
       block.style.backgroundImage = `url("${src}")`;
-      block.style.backgroundSize = 'cover';
+      block.style.backgroundSize = frameBgSize(block);
       block.style.backgroundPosition = 'center';
       block.dataset.bgImg = src;
       _syncBgVars();
@@ -6391,7 +6384,7 @@ function updateFrameBlock(blockId, partial = {}) {
         block.style.background = bgVal;
       } else if (block.dataset.bgImg) {
         block.style.backgroundImage = `url("${block.dataset.bgImg}")`;
-        block.style.backgroundSize = 'cover';
+        block.style.backgroundSize = frameBgSize(block);
         block.style.backgroundPosition = block.dataset.bgPos || 'center';
       } else if (bgVal) {
         block.style.backgroundColor = bgVal;

@@ -919,6 +919,22 @@ window.exitImageEditMode  = exitImageEditMode;
 /* ══════════════════════════════════════
    배경 이미지 위치 드래그 모드 (섹션 / 서브섹션 공용)
 ══════════════════════════════════════ */
+/* ⚰️★★2026-10-10 — ★이 모드는 ★★`_enterBgEditMode` 로 ★갈렸다. ★★부르는 자 ★★0 (★행위로 셌다).
+ *
+ * ★★무엇으로 ★갈렸나 — ★`window.enterFrameBgEditMode` (★대리 → 에셋 편집기 · ★위치 px ＋ ★★크기 px).
+ *   ★이 모드가 ★주던 것은 ★★«위치 %» ★하나뿐이고 ★★크기 축이 ★아예 ★없었다 —
+ *   ★그것이 ★현빈 1009t3-③ 의 ★증상이었다(「에셋블럭처럼 … ★위치나 ★크기」).
+ *
+ * ★★⛔그런데 ★지우지 ★않았다. ★까닭(★지디 판정 2026-10-10):
+ *   ⒜ ★새 길(프레임 쪽)이 ★★DOM 으로 ★아직 ★덜 검증됐다 ⇒ ★★되돌릴 자리를 ★남긴다
+ *   ⒝ ★「`window` 에 남아 ★누가 ★되배선할 수 있다」는 ★걱정은 ★★«지우는 ★까닭»이 아니라 ★★«재는 ★까닭»이다
+ *
+ * ★★★언제 ★지울 수 있나 — ★★산문이 ★아니라 ★★검사에 ★적혀 있다:
+ *   `tests/unit/frame-bg-edit-wiring.test.mjs` 의 ★`B8` 이 ★★«부르는 자 0»을 ★잠근다.
+ *   ★그 칸의 ★머리말에 ★★«지울 조건»이 ★적혀 있고, ★조건이 ★서면 ★★이 함수를 ★지워라 —
+ *   ★그때 ★`B8` 이 ★★빨개져(★대상이 ★없다) ★★«다음 할 일»을 ★스스로 ★알려 준다.
+ * ⛔이 머리말에 ★★그 함수 이름을 ★★더 적지 ★마라 — ★`B8` 이 ★주석을 ★걷고 ★세지만,
+ *   ★★걷는 자가 ★바뀌면 ★★내 산문이 ★측정값이 된다(2026-10-07 선례). */
 function enterBgPosDragMode(el) {
   if (el._bgPosDragging) return;
   if (!el.style.backgroundImage || el.style.backgroundImage === 'none') return;
@@ -1093,13 +1109,101 @@ function _punchOutPolygon(w, h, hx, hy, hw, hh) {
   ].join(', ') + ')';
 }
 
-function enterSectionBgEditMode(sec) {
-  if (!sec || sec._secBgEditing) return;
-  const src = sec.dataset.bgImg;
+/* ══════════════════════════════════════════════════════════════════════════
+   ★★배경 «프레임 안 위치·크기» 편집 — ★★«한 벌»이고 ★숙주만 ★다르다 (2026-10-10 · 현빈 1009t3-③)
+
+   ★현빈 원문 ③ — 「프레임블럭에 배경을 넣고 위치를 움직이고 하는게, ★일반 에셋블럭에 이미지
+     넣었을때처럼 되어야되는데 ★다르네 동작이. ★에셋블럭처럼 프레임블럭의 배경도 ★면 프레임안에서
+     이미지 ★위치나 ★크기 조절되게 해줘」
+
+   ★★그 「에셋블럭처럼」이 ★이미 ★여기 있었다 — ★아래 본문은 ★제 벌로 편집기를 ★짓지 ★않는다.
+     ★`.sec-bg-proxy` 라는 ★대리 요소를 지어 ★★«에셋블럭의 그 편집기»(`enterImageEditMode`)를
+     ★그대로 ★돌리고, ★결과를 ★배경의 ★px 크기·위치로 ★되돌려 적는다.
+   ⇒ ★★현빈의 「에셋블럭처럼」과 ★지디의 「`enterSectionBgEditMode` 일반화」는 ★같은 자였다.
+
+   ★★네 편집기를 ★두 축으로 ★쟀다(2026-10-10 · ★이 설계의 근거):
+     ★에셋블럭      `enterImageEditMode`      ★위치 px(`imgX/Y`) · ★크기 px(`imgW`) · 정본 = 진짜 `<img>`
+     ★에셋블럭(간이) `enterPosDragMode`        ★위치 %            · ★크기 ★★없음
+     ★섹션          `enterSectionBgEditMode`  ★위치 px(`bgPos`)   · ★크기 px(`bgSize`) · ★★대리 → CSS 배경
+     ★★프레임        `enterBgPosDragMode`      ★위치 %            · ★크기 ★★★없음   ← ★여기가 ③ 의 자리
+   ⇒ ★현빈의 「★위치★나 ★크기」가 ★정확했다. ★`js/props/prop-section.js:574` 가 ★이미 적어 뒀다:
+     「예전 `enterBgPosDragMode`(%-기반 위치만)는 ★프레임 쪽에 ★그대로 ★남아 있다」.
+
+   ★★⛔클래스·상태키에 ★«프레임용 새 이름»을 ★만들지 ★마라 — ★이것이 ★이 설계의 ★제일 ★중요한 제약이다.
+     ★`sec-bg-proxy`·`sec-bg-ghost(-wrap)`·`sec-bg-editing` 이름을 ★★쓰는 자가
+     ★★`js/`＋`css/` 판으로 ★11 벌, ★`tests/`·`pages/`·`main/` 까지 넣으면 ★18 벌이다
+     (2026-10-10 ★행위로 셌다 — ⛔맨숫자로 적지 않는다: ★같은 질문에 ★판이 ★둘이고
+      ★내가 ★처음 적은 「19 벌 83 행」은 ★★상태키까지 넣고 ★«행»으로 센 ★또 다른 판이었다).
+     ★그 11 중 ★★여섯이 ★«저장·내보내기에서 ★대리를 ★지우는 ★소독기»다:
+       `js/io/save-load.js` · `js/io/export-html.js:129` · `js/io/capture-safety.js:437`
+       `js/io/section-serialize.js` · `js/io/export-image.js` · `js/panels/layer-panel.js` …
+     ⇒ ★새 이름을 ★지으면 ★그 19 벌이 ★★눈이 ★멀고, ★임시 대리가 ★★현빈 프로젝트에 ★저장되거나
+       ★내보낸 HTML 에 ★섞인다. ★이름이 ★조금 ★어긋나는 값(「sec-」)보다 ★★그 사고가 ★비싸다.
+     ★그 수를 ★잠그는 자 = `tests/unit/frame-bg-edit-wiring.test.mjs`
+   ⚠️★상태키(`_secBgEditing`·`_secBgProxy`·`_secBgGhost`·`_secBgSyncStop`)도 ★★같이 쓴다 —
+     ★요소마다 ★따로 사는 속성이라 ★섞이지 ★않고, ★명부를 ★하나로 둔다.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** ★숙주마다 ★다른 것 ★«만». ⛔「전체 선언 플래그」로 ★두지 ★않는다 — ★예외가 ★생기면 ★여기 칸을 ★늘린다. */
+const BG_EDIT_HOSTS = {
+  section: {
+    historyLabel: '섹션 배경 위치/크기',
+    boxClass: 'prop-section',
+    doneId: 'sec-bg-pos-done',
+    /* ★솔리드 ＋ 이미지를 ★★두 «배경 레이어»로 겹쳐 그리는 꼴 ⇒ longhand 를 ★둘씩 쓴다 */
+    twoLayer: (el) => !!(el.dataset.bg && el.dataset.bgImg),
+    writeLive: (el, which, v) => {
+      if (which === 'size') el.style.backgroundSize = v; else el.style.backgroundPosition = v;
+    },
+    commit: (el) => window.applySectionBg?.(el),
+    panel:  (el) => window.showSectionProperties?.(el),
+  },
+  frame: {
+    historyLabel: '프레임 배경 위치/크기',
+    boxClass: 'prop-frame',
+    doneId: 'frame-bg-pos-done',
+    /* ★★프레임은 ★false 다 — ⛔섹션에서 ★베껴 ★true 로 두지 ★마라.
+       ★까닭(실측 2026-10-10 · `js/frame-bg.js`): 프레임의 ★색과 ★그림은 ★★«두 배경 레이어»가 ★아니라
+         ★★따로 사는 ★속성이다 — `--frame-bg`(색) ＋ `--frame-bg-img`(그림), 또는 본체 인라인 한 벌.
+       ⇒ ★`cover, {w}px {h}px` 꼴로 ★둘씩 쓰면 ★★첫 레이어가 ★없어 ★그림이 ★엉뚱한 칸을 ★먹는다. */
+    twoLayer: () => false,
+    /* ★★그리는 자가 ★둘이라 ★쓰는 자리도 ★둘이다 (`js/frame-bg.js` 머리말의 그 ㉠·㉡):
+         ㉠ `has-bg-opacity` ⇒ `::before` 가 그린다 ⇒ ★CSS 변수에 쓴다
+            ⛔여기서 ★`syncFrameBgVars()` 를 ★부르지 ★마라 — ★그 함수는 ★본체 인라인 배경을 ★«비운다»
+              ⇒ ★RAF 루프에서 부르면 ★미리보기를 ★제가 ★지운다(★변수만 ★직접 쓴다)
+         ㉡ ★본체 ⇒ ★인라인 longhand (섹션과 ★같은 자리) */
+    writeLive: (el, which, v) => {
+      if (el.classList.contains('has-bg-opacity')) {
+        el.style.setProperty(which === 'size' ? '--frame-bg-size' : '--frame-bg-pos', v);
+      } else if (which === 'size') el.style.backgroundSize = v;
+      else el.style.backgroundPosition = v;
+    },
+    commit: (el) => { window.syncFrameBgVars?.(el); window.applyFrameBgImageInline?.(el); },
+    panel:  (el) => window.showFrameProperties?.(el),
+    /* ★★대리는 `position:absolute; inset:0` 이라 ★숙주가 ★«자리 잡힌 조상»이어야 한다.
+       ★자유배치 프레임은 ★인라인 `position:relative` 지만 ★흐름 프레임은 ★그렇지 ★않을 수 있다
+       ⇒ ★`static` 이면 ★잠깐 세우고 ★★반드시 ★되돌린다.
+       ⛔되돌리지 ★않으면 ★내가 ★더한 것이 ★저장본에 ★남아 ★다음 판의 ★레이아웃을 ★조용히 바꾼다. */
+    prepare: (el) => {
+      if (getComputedStyle(el).position !== 'static') return null;
+      const had = el.style.position;
+      el.style.position = 'relative';
+      return () => { el.style.position = had; };
+    },
+  },
+};
+
+function _enterBgEditMode(host, ad) {
+  if (!host || host._secBgEditing) return;
+  const _restore = ad.prepare ? ad.prepare(host) : null;
+  /* ★되돌리개를 ★숙주에도 ★매단다 — ⛔클로저에만 두면 ★공개 `exit…` 경로(인자 null)에서 ★샌다.
+     ★「지금은 ★안 샌다」가 ★참이어도 ★그 참은 ★다른 사람이 ★못 읽는다 ⇒ ★구조로 잠근다. */
+  host._secBgRestore = _restore;
+  const src = host.dataset.bgImg;
   if (!src) return;
 
-  const origSize = sec.dataset.bgSize || '';
-  const origPos  = sec.dataset.bgPos  || '';
+  const origSize = host.dataset.bgSize || '';
+  const origPos  = host.dataset.bgPos  || '';
 
   // ── 프록시(임시) — 섹션 padding-box 를 덮는 에셋 블록 대역
   const proxy = document.createElement('div');
@@ -1110,13 +1214,13 @@ function enterSectionBgEditMode(sec) {
   proxy.dataset.secBgProxy = '1';
   proxy.innerHTML = '<div class="asset-img-clip"><img class="asset-img" draggable="false"></div>';
   const img = proxy.querySelector('.asset-img');
-  sec.appendChild(proxy);
-  sec.classList.add('sec-bg-editing');
-  sec._secBgEditing = true;
-  sec._secBgProxy   = proxy;
+  host.appendChild(proxy);
+  host.classList.add('sec-bg-editing');
+  host._secBgEditing = true;
+  host._secBgProxy   = proxy;
 
   const start = () => {
-    if (!sec._secBgEditing || !proxy.isConnected) return;
+    if (!host._secBgEditing || !proxy.isConnected) return;
     const W = proxy.offsetWidth, H = proxy.offsetHeight;
     const nw = img.naturalWidth || W, nh = img.naturalHeight || H;
     const { dw, dh } = _bgSizeToPx(origSize, W, H, nw, nh);
@@ -1139,9 +1243,9 @@ function enterSectionBgEditMode(sec) {
     ghost.src = src;
     ghostWrap.appendChild(ghost);
     if (overlay) overlay.appendChild(ghostWrap);
-    sec._secBgGhost = ghostWrap;
+    host._secBgGhost = ghostWrap;
 
-    const twoLayer = !!(sec.dataset.bg && sec.dataset.bgImg);
+    const twoLayer = ad.twoLayer(host);
 
     /* 프레임 «안» = 진짜 배경 갱신 · 프레임 «밖» = 고스트 갱신 */
     const ratio = (nw && nh) ? nh / nw : 1;   // 높이 = 너비 × ratio
@@ -1158,15 +1262,15 @@ function enterSectionBgEditMode(sec) {
       // ★값이 같으면 «쓰지 않는다» — style 속성 변경은 autoSaveObserver 가 유의미 변경으로 읽어
       //   RAF 루프가 60fps 로 scheduleAutoSave 를 두들기게 된다(디바운스가 영영 안 끝남).
       if (nextSize !== _lastSize) {
-        sec.style.backgroundSize = nextSize;
+        ad.writeLive(host, 'size', nextSize);
         // dataset 도 같이 — 편집 «중»에 자동저장이 돌면 인라인 style 만 px 로 저장되고
         // data-bg-size 는 'cover' 로 남아 다음 _applySectionBg 한 번에 되돌아간다.
-        sec.dataset.bgSize = `${_r1(w)}px ${_r1(h)}px`;
+        host.dataset.bgSize = `${_r1(w)}px ${_r1(h)}px`;
         _lastSize = nextSize;
       }
       if (nextPos !== _lastPos) {
-        sec.style.backgroundPosition = nextPos;
-        sec.dataset.bgPos = `${_r1(px)}px ${_r1(py)}px`;
+        ad.writeLive(host, 'pos', nextPos);
+        host.dataset.bgPos = `${_r1(px)}px ${_r1(py)}px`;
         _lastPos = nextPos;
       }
       if (!overlay || !ghostWrap.isConnected) return;
@@ -1194,7 +1298,7 @@ function enterSectionBgEditMode(sec) {
       if (clip !== _lastClip) { ghost.style.clipPath = clip; _lastClip = clip; }  // 긴 문자열 재파싱 회피
     }
     let _bgRaf = requestAnimationFrame(function loop() { syncBg(); _bgRaf = requestAnimationFrame(loop); });
-    sec._secBgSyncStop = () => { if (_bgRaf) { cancelAnimationFrame(_bgRaf); _bgRaf = null; } };
+    host._secBgSyncStop = () => { if (_bgRaf) { cancelAnimationFrame(_bgRaf); _bgRaf = null; } };
 
     /* ★고스트를 잡아도 이동이 시작되게 — 공용 편집기(enterImageEditMode)는 프록시 안 <img> 에만
        mousedown 을 건다(image-handling.js:452). 프록시는 섹션 padding-box 뿐이라 프레임 «밖»을
@@ -1214,7 +1318,7 @@ function enterSectionBgEditMode(sec) {
       noRotate: true,          // background-image 는 CSS 로 회전 불가 → 회전존 자체를 만들지 않는다
       noColorAdjust: true,     // 색보정은 <img> 필터 기반 — 배경엔 적용 경로가 없다
       keepAliveSel: '#panel-right',
-      historyLabel: '섹션 배경 위치/크기',
+      historyLabel: ad.historyLabel,
       beforeCommit: () => {
         // style.width 가 정본 (dataset.imgW 는 exitImageEditMode 가 offsetWidth 로 반올림해 둔 값)
         const w  = parseFloat(img.style.width) || parseFloat(proxy.dataset.imgW) || 0;
@@ -1225,18 +1329,18 @@ function enterSectionBgEditMode(sec) {
         // 사이즈 표기가 px 로 바뀌면 우측 패널이 «직접 조절» 로 보이는 부작용이 생긴다.
         const changed = Math.abs(w - dw) > 0.25 || Math.abs(x - x0) > 0.25 || Math.abs(y - y0) > 0.25;
         if (changed) {
-          sec.dataset.bgSize = `${_r1(w)}px ${_r1(h)}px`;
-          sec.dataset.bgPos  = `${_r1(x)}px ${_r1(y)}px`;
+          host.dataset.bgSize = `${_r1(w)}px ${_r1(h)}px`;
+          host.dataset.bgPos  = `${_r1(x)}px ${_r1(y)}px`;
         } else {
-          if (origSize) sec.dataset.bgSize = origSize; else delete sec.dataset.bgSize;
-          if (origPos)  sec.dataset.bgPos  = origPos;  else delete sec.dataset.bgPos;
+          if (origSize) host.dataset.bgSize = origSize; else delete host.dataset.bgSize;
+          if (origPos)  host.dataset.bgPos  = origPos;  else delete host.dataset.bgPos;
         }
-        _teardownSectionBgEdit(sec);            // ★pushHistory 전에 임시 DOM 을 0 으로
-        window.applySectionBg?.(sec);
+        _teardownBgEdit(host, _restore);         // ★pushHistory 전에 임시 DOM 을 0 으로
+        ad.commit(host);
       },
       afterExit: () => {
-        _teardownSectionBgEdit(sec);            // 멱등 — beforeCommit 이 실패해도 잔여 0
-        window.showSectionProperties?.(sec);
+        _teardownBgEdit(host, _restore);         // 멱등 — beforeCommit 이 실패해도 잔여 0
+        ad.panel(host);
       },
     });
 
@@ -1244,42 +1348,56 @@ function enterSectionBgEditMode(sec) {
     const pp = document.querySelector('#panel-right .panel-body');
     if (pp) {
       const box = document.createElement('div');
-      box.className = 'prop-section';
-      box.innerHTML = '<button class="prop-action-btn secondary" id="sec-bg-pos-done">위치 편집 완료</button>';
+      box.className = ad.boxClass;
+      box.innerHTML = '<button class="prop-action-btn secondary" id="' + ad.doneId + '">배경이미지 편집 완료</button>';
       pp.appendChild(box);
-      box.querySelector('#sec-bg-pos-done').addEventListener('click', () => exitSectionBgEditMode(sec));
+      box.querySelector('#' + ad.doneId).addEventListener('click', () => _exitBgEditMode(host, ad, _restore));
     }
   };
 
   img.src = src;
   if (img.complete && img.naturalWidth) start();
   else img.addEventListener('load', start, { once: true });
-  img.addEventListener('error', () => { console.warn('[secBg] 배경 이미지 로드 실패'); _teardownSectionBgEdit(sec); }, { once: true });
+  img.addEventListener('error', () => { console.warn('[bgEdit] 배경 이미지 로드 실패'); _teardownBgEdit(host, _restore); }, { once: true });
 }
 
-/** 임시 DOM·상태를 «완전히» 되돌린다. 여러 번 불러도 안전(멱등). */
-function _teardownSectionBgEdit(sec) {
-  if (!sec) return;
-  sec._secBgSyncStop?.(); sec._secBgSyncStop = null;
-  sec._secBgProxy?.remove(); sec._secBgProxy = null;
-  sec._secBgGhost?.remove(); sec._secBgGhost = null;
+/** 임시 DOM·상태를 «완전히» 되돌린다. 여러 번 불러도 안전(멱등).
+ *  ★`restore` = `ad.prepare` 가 내준 되돌리개(없으면 null). ⛔빼먹으면 ★내가 더한 `position` 이 ★남는다. */
+function _teardownBgEdit(host, restore) {
+  if (!host) return;
+  const _r = restore ?? host._secBgRestore ?? null;
+  host._secBgRestore = null;
+  host._secBgSyncStop?.(); host._secBgSyncStop = null;
+  host._secBgProxy?.remove(); host._secBgProxy = null;
+  host._secBgGhost?.remove(); host._secBgGhost = null;
   // 방어: 어떤 경로로든 남은 프록시/고스트 전수 제거
   document.querySelectorAll('.sec-bg-proxy, .sec-bg-ghost-wrap, .sec-bg-ghost').forEach(el => el.remove());
-  sec.classList.remove('sec-bg-editing');
-  sec._secBgEditing = false;
+  host.classList.remove('sec-bg-editing');
+  host._secBgEditing = false;
+  try { _r?.(); } catch (e) { console.warn('[bgEdit] 되돌리기 실패', e); }
 }
 
-function exitSectionBgEditMode(sec) {
-  if (!sec) return;
-  const proxy = sec._secBgProxy;
+function _exitBgEditMode(host, ad, restore) {
+  if (!host) return;
+  const proxy = host._secBgProxy;
   if (proxy && proxy._imgEditing) { exitImageEditMode(proxy); return; } // beforeCommit/afterExit 경유
-  _teardownSectionBgEdit(sec);
-  window.applySectionBg?.(sec);
-  window.showSectionProperties?.(sec);
+  _teardownBgEdit(host, restore);
+  ad.commit(host);
+  ad.panel(host);
 }
+
+/* ★공개 이름은 ★그대로 둔다 — ★`window.exitSectionBgEditMode` 를 ★부르는 자가 ★따로 있다
+   (`js/section-merge.js:67,68,280` · `js/block-factory.js:5738` · `js/props/prop-section.js:576`). */
+function enterSectionBgEditMode(sec) { return _enterBgEditMode(sec, BG_EDIT_HOSTS.section); }
+function exitSectionBgEditMode(sec)  { return _exitBgEditMode(sec, BG_EDIT_HOSTS.section, null); }
+/* ★★2026-10-10 신설 (현빈 ③) — ★프레임도 ★같은 본문을 ★탄다. ⛔사본이 ★아니다. */
+function enterFrameBgEditMode(fr) { return _enterBgEditMode(fr, BG_EDIT_HOSTS.frame); }
+function exitFrameBgEditMode(fr)  { return _exitBgEditMode(fr, BG_EDIT_HOSTS.frame, null); }
 
 window.enterSectionBgEditMode = enterSectionBgEditMode;
 window.exitSectionBgEditMode  = exitSectionBgEditMode;
+window.enterFrameBgEditMode   = enterFrameBgEditMode;
+window.exitFrameBgEditMode    = exitFrameBgEditMode;
 
 /* ══════════════════════════════════════════════════════════════════════════
    그리드 칸 이미지 «프레임 안 크롭» — 에셋 더블클릭 편집기를 그대로 빌려 쓴다.
