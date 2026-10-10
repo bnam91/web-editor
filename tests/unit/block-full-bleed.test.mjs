@@ -46,14 +46,24 @@ function sliceFn(src, head, what) {
 }
 
 /* ★★2026-10-09 — ★`effectiveSectionPadX` 가 ★★«이 프레임이 정말 자르나»를 ★제 벌로 세지 않고
-   ★`js/frame-geometry.js` 의 ★`frameClipsPaint` 를 ★부른다(★명부 ★하나). ⇒ ★★그 술어도 ★같이 싣는다.
-   ⛔안 실으면 ★`ReferenceError: frameClipsPaint is not defined` 로 ★★P1d 셋이 ★빨개진다
+   ★★공용 술어를 ★부른다(★명부 ★하나). ⇒ ★★그 술어도 ★같이 싣는다.
+   ⛔안 실으면 ★`ReferenceError: clipsContent is not defined` 로 ★★P1d 셋이 ★빨개진다
      — ★2026-10-09 ★실제로 그랬고, ★★그것이 ★「★import 를 늘리면 ★하네스가 ★조용히(또는 요란히) 빈다」의 자리다.
    ★★그리고 ★이렇게 ★진짜 술어를 ★실어야 ★아래 P1d 셋이 ★★«제품이 쓰는 그 판정»을 ★잰다
-     — ⛔사본을 ★여기 적으면 ★이 검사가 ★★제 사본만 잰다. */
-const GEOM = strip(readSrc(ROOT, 'js/frame-geometry.js'));
-const CLIPS_SRC = sliceFn(GEOM, 'export function frameClipsPaint(', 'frame-geometry')
-  .replace(/^export\s+/, '');
+     — ⛔사본을 ★여기 적으면 ★이 검사가 ★★제 사본만 잰다.
+   ★★★2026-10-10 ㈄ — ★싣는 ★조각이 ★★1 → ★★여럿이 됐다. ★까닭:
+     ★옛 `clipsContent` 는 ★★한 함수로 ★자립했지만, ★공용 `clipsContent` 는
+     ★★`clipFamily` ＋ ★`CLIP_DEFAULTS` 와 ★★한 벌이다 ⇒ ★★함수 하나만 떠내면 ★ReferenceError 다.
+     ⇒ ★★`js/clip-content.js` 는 ★★import 가 ★★0 이라(★실측) ★★모듈 ★통째로 ★실을 수 있다
+       — ★조각을 ★세 번 ★떠내는 것보다 ★★덜 ★부서진다(★이름을 ★하나 바꿔도 ★여기가 ★안 깨진다). */
+const CLIP_SRC = strip(readSrc(ROOT, 'js/clip-content.js'))
+  .replace(/^\s*export\s+/gm, '')
+  .replace(/^if \(typeof window[\s\S]*$/m, '')    /* ★window 노출 꼬리는 ★vm 에 ★필요 없다 */
+  /* ★★★`vm` 에서 ★최상위 ★`const` 는 ★★전역 ★«속성»이 ★안 된다(★함수 선언만 된다) ⇒ ★`ctx.CLIP_DEFAULTS`
+     ★가 ★★undefined 였다(★실측 2026-10-10: ★표 단언이 ★빨개져 ★잡았다). ★★`var` 로 ★바꿔 ★내보낸다.
+     ⛔줄 ★맨 앞만 ★바꾼다 — ★함수 ★안의 ★`const` 는 ★그대로 둔다(★얼기 유지) */
+  .replace(/^const /gm, 'var ');
+const CLIPS_SRC = CLIP_SRC;
 const EFF_SRC   = sliceFn(DRAG, 'function effectiveSectionPadX(', 'drag-utils');
 const APPLY_SRC = sliceFn(DRAG, 'function applyBlockFullBleed(', 'drag-utils');
 const CLEAR_SRC = sliceFn(DRAG, 'function clearBlockFullBleed(', 'drag-utils');
@@ -61,10 +71,19 @@ const CLEAR_SRC = sliceFn(DRAG, 'function clearBlockFullBleed(', 'drag-utils');
 /* state.pageSettings.padX 는 모듈 import 라 vm 에 «주입»한다 — 검사가 전역 기본값을 흔들 수 있어야 한다. */
 const ctx = vm.createContext({ state: { pageSettings: { padX: 32 } } });
 vm.runInContext(`${CLIPS_SRC}\n${EFF_SRC}\n${APPLY_SRC}\n${CLEAR_SRC}`, ctx);
-const { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, frameClipsPaint } = ctx;
-/* ★전제 — ★공용 술어가 ★정말 실렸다. ⛔이게 안 서면 ★아래 P1d 셋이 ★«무엇을 쟀는지» 모른다 */
-assert.equal(typeof frameClipsPaint, 'function',
-  '★frameClipsPaint 가 ★하네스에 ★안 실렸다 — ★effectiveSectionPadX 가 ★그것을 부른다');
+const { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed,
+        clipsContent, clipFamily, CLIP_DEFAULTS } = ctx;
+/* ★전제 — ★공용 술어가 ★정말 실렸다. ⛔이게 안 서면 ★아래 P1d 셋이 ★«무엇을 쟀는지» 모른다
+   ★★한 벌이 ★★셋이라 ★★셋 다 ★단언한다 — ★하나만 비어도 ★★조용히 ★undefined 가 돈다 */
+assert.equal(typeof clipsContent, 'function',
+  '★clipsContent 가 ★하네스에 ★안 실렸다 — ★effectiveSectionPadX 가 ★그것을 부른다');
+assert.equal(typeof clipFamily, 'function', '★clipFamily 가 ★안 실렸다 — ★clipsContent 가 ★그것을 부른다');
+assert.equal(typeof CLIP_DEFAULTS, 'object', '★CLIP_DEFAULTS 표가 ★안 실렸다 — ★계열 기본값이 ★undefined 가 된다');
+/* ★★★그리고 ★★«이 하네스가 ★제품과 ★같은 답을 내나»를 ★한 번 ★눌러 본다 —
+   ⛔typeof 만으론 ★★«실렸다»지 ★★«맞게 돈다»가 ★아니다 */
+assert.equal(clipFamily({ classList: { contains: (c) => c === 'frame-block' } }), 'frame',
+  '★하네스에서 ★계열 판정이 ★안 돈다');
+assert.equal(CLIP_DEFAULTS.frame, true, '★프레임 기본값이 ★자름이 ★아니다 — ★표가 ★바뀠다');
 
 /* ── 최소 DOM 흉내 ── «스타일 쓰기»를 세기 위해 style 을 Proxy 로 감싼다. */
 function makeEl({ cls = [], dataset = {}, style = {}, parent = null } = {}) {
@@ -189,13 +208,13 @@ test('P1c padX 가 0 이면 «뚫을 게 없다» — 켜져 있어도 아무것
      ★2026-10-10  현빈 「프레임 밖은 ★안 보여야」 ⇒ ★★기본을 ★다시 ★hidden 으로 ★닫았다
        ⇒ ★★★죽은 ★까닭이 ★되살아나면 ★★문도 ★되살아난다 — ★그 가드가 ★다시 ★일한다
          ⇒ ★★그래서 ★이 둘의 ★조건이 ★또 ★바뀌었다. ★같은 꼴로 ★다시 적는다
-   ★★판정은 ★★`frameClipsPaint` ★하나다 — ⛔`radius` 로 ★세지 ★마라(★2026-10-10 부터 ★기준이 ★아니다) ══ */
+   ★★판정은 ★★`clipsContent` ★하나다 — ⛔`radius` 로 ★세지 ★마라(★2026-10-10 부터 ★기준이 ★아니다) ══ */
 
 test('P1d ★★«자르는» 프레임 안은 ★못 뚫는다 — ★기본이 ★자름이다 (2026-10-10 · 옛 조건: data-radius)', () => {
   const { block, frame } = scene({ innerPadX: 40, wrapFrame: true, blockDataset: { fullBleed: 'true' } });
   /* ★★★전제 — ★제목이 ★«자르는»이라 ★말하므로 ★재기 ★전에 ★그것을 ★단언한다
      (⛔안 걸면 ★제목째 ★거짓이 될 수 있다 — ★기본이 ★또 뒤집히는 날) */
-  assert.equal(frameClipsPaint(frame), true, '★전제 — 이 프레임은 ★자른다(기본값)');
+  assert.equal(clipsContent(frame), true, '★전제 — 이 프레임은 ★자른다(기본값)');
   assert.equal(effectiveSectionPadX(block), 0, '★자르는 프레임 안에서는 ★뚫어 봐야 ★잘린다 ⇒ 0');
   assert.equal(applyBlockFullBleed(block), 0);
   assert.deepEqual(block._writes, [], '★한 픽셀도 ★안 쓴다');
@@ -203,11 +222,11 @@ test('P1d ★★«자르는» 프레임 안은 ★못 뚫는다 — ★기본이
 
 test('P1d-2 ★★«둥근» 프레임도 ★같다 — ⛔이제 ★radius 가 ★기준이 ★아니다 (★기본이 자름이라 ★어차피 0)', () => {
   const { block, frame } = scene({ innerPadX: 40, wrapFrame: true, frameRadius: 12, blockDataset: { fullBleed: 'true' } });
-  assert.equal(frameClipsPaint(frame), true, '★전제 — 자른다');
+  assert.equal(clipsContent(frame), true, '★전제 — 자른다');
   assert.equal(effectiveSectionPadX(block), 0);
   /* ★★음성대조 — ★radius ★0 이어도 ★★같다(⛔옛 조건은 ★여기서 ★40 을 기대했다) */
   const z = scene({ innerPadX: 40, wrapFrame: true, frameRadius: 0, blockDataset: { fullBleed: 'true' } });
-  assert.equal(frameClipsPaint(z.frame), true, '★전제 — radius 0 도 ★자른다(기본값이 자름이다)');
+  assert.equal(clipsContent(z.frame), true, '★전제 — radius 0 도 ★자른다(기본값이 자름이다)');
   assert.equal(effectiveSectionPadX(z.block), 0, '★radius 로 ★갈리지 ★않는다');
 });
 
@@ -218,7 +237,7 @@ test('P1d-3 ★★«안 자르는» 프레임 안에서는 ★뚫린다 — ★�
   /* ★★★전제 둘 — ★제목이 ★«안 자르는»이라 ★말하므로 ★둘 다 ★재기 ★전에 ★단언한다
      (★지디 2026-10-10: ★한쪽만 전제를 걸면 ★★비대칭이 되고 ★그 비대칭이 ★이 칸을 ★조용히 ★거짓으로 만든다) */
   assert.equal(frame.dataset.clipContent, 'false', '★전제 — 토글이 ★명시로 ★꺼져 있다');
-  assert.equal(frameClipsPaint(frame), false, '★전제 — 그래서 ★안 자른다');
+  assert.equal(clipsContent(frame), false, '★전제 — 그래서 ★안 자른다');
   assert.equal(effectiveSectionPadX(block), 40, '★안 자르니 ★뚫어도 ★안 잘린다 ⇒ 40');
   assert.equal(applyBlockFullBleed(block), 40);
 });

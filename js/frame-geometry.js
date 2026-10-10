@@ -214,19 +214,21 @@ export function clampLeftIntoFrame(left, frameW, elW) {
    ★잠그는 자: `tests/unit/frame-clips-predicate.test.mjs` — ★⒜는 ★CSS 와 ★견주고, ★⒝는 ★«안 죈다»를 단언한다.
    ══════════════════════════════════════════════════════════════════════════════ */
 
-/* ⒜ ★★«그림을 ★자르나» — ★CSS 와 ★한 쌍이다(css/editor-blocks.css).
-   ★★2026-10-10 부터 ★`.frame-block` ★기본이 ★`overflow: hidden` 이다 ⇒ ★★기본이 ★«자른다».
-   ★★푸는 자리는 ★★하나뿐 — ★「내용 자르기」를 ★사람이 ★★끈 프레임(`data-clip-content="false"`).
-     ⚠️★«속성 없음»은 ★★끔이 ★아니다(★기본=자름). ★★끔은 ★★명시 `'false'` 다 —
-       ★예전엔 ★기본이 visible 이라 ★«끔 = 속성 삭제»였고, ★그 꼴을 그대로 두면 ★★토글이 ★먹통이 된다.
-       ★실측(2026-10-10 · 현빈 proj_1791316848083): frame-block ★18개 중 ★`data-clip-content` ★1개 · 값 ★`"true"`
-         ⇒ ★★현빈이 ★그 토글을 ★쓰고 계신다. ⇒ ★죽이지 ★않았다.
-   ⛔computed 스타일로 ★재지 않는다 — ★가짜 DOM 검사에서도 불린다(이 파일 머리말의 그 까닭). */
-export function frameClipsPaint(frameEl) {
-  const d = frameEl && frameEl.dataset;
-  if (!d) return false;
-  return d.clipContent !== 'false';
-}
+/* ⚰️★★★2026-10-10 ㈄ — ★`frameClipsPaint` 를 ★★여기서 ★★치웠다. ★정본은 ★★`js/clip-content.js` ★`clipsContent`.
+     ★★왜 ★합쳤나 — ★이 술어와 ★그 술어는 ★★«같은 물음»이었다: ★「★이 요소가 ★내용을 ★자르나」.
+       ★프레임(★여기) · ★에셋 · ★그리드가 ★그것을 ★★각자 ★세고 있었고, ★계열 기본값도 ★★제각각이었다.
+     ★★★단 ★뜻이 ★한 군데 ★갈렸다 — ★★적어 둔다(★다음 사람이 ★되돌리지 ★않게):
+       ★옛 `frameClipsPaint(el)` : ★계열을 ★★안 봤다 ⇒ ★아무 요소에도 ★`clipContent !== 'false'` 를 줬다
+                                   ⇒ ★★텍스트 블록에도 ★`true` · ★`null` 에는 ★`false`
+       ★새 `clipsContent(el)`    : ★★모르는 계열이면 ★★`null` (★「영은 ★답이 ★아니다」)
+     ⇒ ★★유일한 제품 소비자였던 ★`js/drag-utils.js`(effectiveSectionPadX)는
+        ★`parent.closest('.frame-block')` 로 ★계열이 ★★확정이라 ★★두 술어가 ★동값이다(★실측 2026-10-10).
+        ★그 자리는 ★`clipsContent(_fr) === true` 로 ★★명시해 ★`null` 을 ★참으로 ★안 읽는다.
+     ⛔★되살리지 ★마라 — ★되살리면 ★★명부가 ★다시 ★둘이 된다. ★CSS 쪽 짝은 ★그대로다:
+        ★`css/editor-blocks.css` 가 ★★«자름»의 ★다른 ★절반이고, ★`tests/unit/frame-clips-predicate.test.mjs`
+        ★C3 가 ★★그 둘이 ★어긋나지 ★않나를 ★잰다.
+     ★★그리고 ★★죔(`frameClampsDrag`)은 ★★이 명부에 ★★없다 — ★D1 이 ★★소스로 ★그것을 ★잠근다
+       (★2026-10-10 에 ★그 자를 ★`/clips?Content|clipFamily|CLIP_DEFAULTS/` 로 ★넓혔다). */
 
 /* ⒝ ★★«죄나» — ★★`phase` 를 ★인자로 받는다(지디 2026-10-10). ★★«언제 죄나»가 ★호출 자리에 ★드러나게.
      ★`'move'`(끌는 동안) → ★★언제나 ★거짓   ·   ★`'drop'`(놓는 순간) → ★기본 ★참
