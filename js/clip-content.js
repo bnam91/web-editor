@@ -30,10 +30,19 @@
 
 /* ★★계열 표 — ★★★이 객체가 ★★유일한 명부다. ⛔부르는 자가 ★제 기본값을 ★들지 ★마라. */
 export const CLIP_DEFAULTS = Object.freeze({
-  frame: true,       /* `.frame-block`                              */
-  asset: true,       /* `.asset-block`                              */
-  gridCircle: true,  /* `.grd-img-frame.grd-img-circle`             */
-  gridPlain: false,  /* `.grd-img-frame`(원형 아님) — ★일부러 ★false */
+  /* ★★★«왜 ★이 계열이 ★이 기본값인가»를 ★★한 줄씩 적는다 (지디 조건 2026-10-10).
+     ⛔까닭을 ★안 적으면 ★★다음 사람이 ★★«하나로 ★통일하자»를 ★한다 — ★★그 셋은 ★★까닭이 ★다르다. */
+  frame: true,       /* `.frame-block` — ★현빈 1009t3-② 로 ★기본이 ★자름이 됐다(★CSS 맨 위) */
+  asset: true,       /* `.asset-block` — ★`.asset-img-clip { overflow: hidden }` 래퍼가 ★자른다
+                        ★＋ `io/save-load.js` 가 ★옛 데이터에 ★그 래퍼를 ★마이그레이션으로 ★붙인다 */
+  gridCircle: true,  /* `.grd-img-frame.grd-img-circle` — ★렌더러가 ★인라인으로 ★박는다(grid-block.js:2296)
+                        ★까닭(그 파일 ㈏): ★CSS 에 두면 ★★내보낸 HTML·캡처 클론이 ★그 규칙을 ★못 들고 간다 */
+  gridPlain: false,  /* `.grd-img-frame`(원형 아님) — ★★★일부러 ★false 다. ⛔«빠뜨린 것»이 ★아니다.
+                        ★까닭(그 파일 ㈐ · ★실측으로 ★두 번 ★고쳐 세운 자리):
+                          ★`overflow:hidden` 을 붙이면 ★★flex 항목의 `min-height:auto` 가 ★★통째로 ★0 이 된다
+                          (★★내 실측 2026-10-10: ★상자 ★[386, ★0])
+                        ⇒ ★★그래서 ★★c2 ㈁ 는 ★★«토글 하나 추가»가 ★아니라 ★★«flex 가 ★무엇을 ★누르나»가 ★먼저다
+                          — ★그 물음은 ★★그 파일에 ★★«별건»으로 ★이미 ★기록돼 있다 */
 });
 
 /** ★그 요소가 ★★어느 계열인가. ⛔부르는 자가 ★손으로 ★가르지 ★마라. */
