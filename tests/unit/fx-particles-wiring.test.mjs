@@ -28,6 +28,8 @@ import vm from 'node:vm';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` — ★만들기·치우기를 ★그 자가 쥔다.
+      ★잠그는 자 = ★`tests/unit/tmproot-sole-owner.test.mjs` */
 const { readSrc } = require('./_srcread.js');
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../');
 
@@ -53,7 +55,7 @@ if (typeof globalThis.window.addEventListener !== 'function') {
    ★의존은 «effects-registry.js 하나»다(행위로 센 값 — 그 파일 자신은 import 0) ⇒ 둘만 복사한다.
    ⚠️★명부 인스턴스는 ★이 tmp 에 사는 한 벌이다 ⇒ REG 도 ★같은 tmp 에서 싣는다(아니면 두 명부를 본다). */
 const { W, REG, TMP } = await (async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gd-fxpart-'));
+  const tmp = mkTmpRoot('gd-fxpart-');
   fs.writeFileSync(path.join(tmp, 'package.json'), '{"type":"module"}');
   for (const f of ['effects-registry.js', 'effects-particles.js']) {
     fs.copyFileSync(path.join(REPO, 'js', f), path.join(tmp, f));
@@ -63,7 +65,6 @@ const { W, REG, TMP } = await (async () => {
   /* ★사본은 ★여기서 «동기로» 치운다(만든 1 / 치운 1) — import 가 이미 평가를 마치다.
      ⚠️★process.on('exit') 로 둡다가 ★사본이 ★남은 것을 잡았다(2026-10-07 실제로 T/gd-fxpart-2lEaXk 남아 있었다)
        ⇒ ⛔exit 핸들러에 치우기를 맡기지 마라. ★선례(tests/unit/fit-scale.test.mjs)도 import 뒤 동기로 지운다. */
-  fs.rmSync(tmp, { recursive: true, force: true });
   return { W: w, REG: reg, TMP: tmp };
 })();
 

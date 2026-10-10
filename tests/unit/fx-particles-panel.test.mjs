@@ -27,6 +27,8 @@ import vm from 'node:vm';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` — ★만들기·치우기를 ★그 자가 쥔다.
+      ★잠그는 자 = ★`tests/unit/tmproot-sole-owner.test.mjs` */
 const { readSrc } = require('./_srcread.js');
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../');
 
@@ -47,7 +49,7 @@ if (typeof globalThis.window.addEventListener !== 'function') globalThis.window.
      ⇒ ★그 파일은 ★import 가 ★0 이라 ★사본 하나로 끝난다(★행위로 센 값 — 그 파일에 `^import` 0줄).
    ⚠️★이름은 ★`_helpers.js` 그대로 둔다 — ⛔`panel.js` 처럼 ★바꾸면 ★import 가 ★안 풀린다. */
 const { PANEL, WIRING } = await (async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gd-fxpanel-'));
+  const tmp = mkTmpRoot('gd-fxpanel-');
   fs.writeFileSync(path.join(tmp, 'package.json'), '{"type":"module"}');
   fs.copyFileSync(path.join(REPO, 'js/effects-registry.js'), path.join(tmp, 'effects-registry.js'));
   fs.copyFileSync(path.join(REPO, 'js/effects-particles.js'), path.join(tmp, 'effects-particles.js'));
@@ -56,7 +58,6 @@ const { PANEL, WIRING } = await (async () => {
   const wiring = await import(pathToFileURL(path.join(tmp, 'effects-particles.js')).href);
   const panel  = await import(pathToFileURL(path.join(tmp, 'panel.js')).href);
   /* ★사본은 ★여기서 «동기로» 치운다 — ⛔exit 핸들러에 맡기면 ★남는다(그 선례의 실측). */
-  fs.rmSync(tmp, { recursive: true, force: true });
   return { PANEL: panel, WIRING: wiring };
 })();
 
