@@ -279,11 +279,11 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <span class="prop-label">밑줄</span>
         <div class="prop-icon-input" style="flex:1;min-width:0">
           <span class="prop-xy-label">두께</span>
-          <input type="number" id="${p}-ul-thick" min="1" max="12" step="0.5" value="${ulThick}" placeholder="자동" aria-label="밑줄 두께">
+          <input type="number" id="${p}-ul-thick" min="1" max="12" step="0.5" value="${ulThick}" placeholder="auto" aria-label="밑줄 두께">
         </div>
         <div class="prop-icon-input" style="flex:1;min-width:0">
           <span class="prop-xy-label">위치</span>
-          <input type="number" id="${p}-ul-offset" min="-10" max="20" step="1" value="${ulOffset}" placeholder="자동" aria-label="밑줄 위치">
+          <input type="number" id="${p}-ul-offset" min="-10" max="20" step="1" value="${ulOffset}" placeholder="auto" aria-label="밑줄 위치">
         </div>
       </div>
       <div class="cv-chips ts-recent-row" id="${p}-ul-recent-row" hidden></div>
