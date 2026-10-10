@@ -71,13 +71,27 @@ const NOT_TMPROOT = {
   'tests/e2e/14-undo-depth.spec.js':          '★크롬 ★프로필 폴더(PROFILE) · ★e2e',
   'tests/unit/destructive-ipc.test.js':       '★`copy` — ★파괴적 IPC 가 ★무엇을 지우나가 ★주제다',
   'tests/unit/grid-gap-clamp.test.js':        '★`srtAlias` — ★별칭 파일을 ★지우는 것이 ★장면이다',
-  'tests/unit/history-ipc.test.js':           '★★«진짜 영구삭제» — ★그게 ★이 검사의 ★주제다',
-  'tests/unit/history-restart.test.js':       '★`ud`(userData) — ★재시작 장면을 ★만든다',
   'tests/unit/mcp-project-crud.test.js':      '★프로젝트 ★삭제 CRUD — ★그게 ★주제다',
   'tests/unit/migrate-files-vanish.test.js':  '★파일이 ★사라지는 장면을 ★만든다 — ★주제다',
   'tests/unit/migrator-vanish.test.js':       '★같은 축 — ★사라짐이 ★주제다',
   'tests/unit/quit-save-window-gone.test.mjs':'★`reset()` — ★시험 사이 ★상태 파일 씻기',
   'tests/unit/recovery-collect.test.mjs':     '★★«사본이 없을 때»를 만들려 ★픽스처를 지운다 — ★주제다',
+};
+
+/** ㉢ ★★이미 ★공용 자를 ★쓴다 — ★그 위에 ★★«즉시 치움»을 ★얹었다. ★★그게 ★의도다.
+ *  ★★★이 칸이 ★★없어서 ★이 둘이 ★★㉡ 에 ★★«틀린 까닭»으로 ★앉아 있었다(2026-10-10 · 지디가 ★재서 잡았다).
+ *    ★내가 적었던 까닭: ★`history-restart` → 「★`ud`(userData) — ★재시작 장면을 만든다」
+ *    ★★참값: ★그 `ud` 는 ★★`mkTmpRoot('goya-restart-')` 다 ⇒ ★★★이미 ★공용 자다
+ *    ⇒ ★★수는 ★안 틀렸다(★둘 다 ★«안 옮길 것») ★★그러나 ★★«무엇의 수인가»를 ★흐렸다
+ *  ★★왜 ★즉시 치우나 — ★★`mkTmpRoot` 는 ★★종료훅에 ★맡긴다. ★그 사이 ★임시물이 ★남는다.
+ *    ★한 파일이 ★★여러 벌을 ★연달아 만들면(★`history-restart` 는 ★셋) ★★그 사이에 ★쌓인다
+ *    ⇒ ★★그래서 ★★«동기로» 치운다. ★`coupon-presets` 주석이 ★그 까닭을 ★이미 말한다.
+ *  ⇒ ★★★즉 ★이 칸은 ★★결함이 ★아니다. ⛔여기 것을 ★`PENDING` 으로 ★옮기지 ★마라. */
+const DONE_EAGER = {
+  'tests/unit/history-restart.test.js':
+    '★`ud` = mkTmpRoot(goya-restart{,2,3}-) ★셋 — ★rmSync ★3/3 이 ★그 임시루트의 ★즉시 치움이다',
+  'tests/unit/history-ipc.test.js':
+    '★★섞였다 — ★`outside` = mkTmpRoot(goya-outside-) 의 ★즉시 치움 ★1 ＋ ★★«진짜 영구삭제»(그 검사의 주제) ★1',
 };
 
 /** tests/ 안에서 ★손으로 ★`rmSync` 를 쓰는 파일 — ★주석은 ★뗀다(★주석의 예시가 ★측정값이 되는 것 방지). */
@@ -118,7 +132,7 @@ test('T1 ★자가 살아있다 — ★양성·음성 대조 (⛔이것 없으�
 
 test('T2 ㉠ ★위반은 ★«명부 안»에만 있다 — ★새 위반이 생기면 ★빨강', () => {
   const v = violations();
-  const LISTED = { ...PENDING, ...NOT_TMPROOT };
+  const LISTED = { ...PENDING, ...NOT_TMPROOT, ...DONE_EAGER };
   const unlisted = Object.keys(v).filter((f) => !(f in LISTED)).sort();
   assert.deepEqual(unlisted, [],
     `★★명부 ★밖에서 ★손으로 ★임시물을 ★치우는 파일이 ★${unlisted.length}개 있다:\n  ` +
@@ -129,7 +143,7 @@ test('T2 ㉠ ★위반은 ★«명부 안»에만 있다 — ★새 위반이 �
 
 test('T3 ㉡ ★명부가 ★낡지 않았다 — ★이미 옮긴 칸이 ★남아 있으면 ★빨강', () => {
   const v = violations();
-  const LISTED = { ...PENDING, ...NOT_TMPROOT };
+  const LISTED = { ...PENDING, ...NOT_TMPROOT, ...DONE_EAGER };
   const stale = Object.keys(LISTED).filter((f) => !(f in v)).sort();
   assert.deepEqual(stale, [],
     `★PENDING 에 ★«이제 ★안 치우는» 파일이 ★${stale.length}개 ★남았다 — ★낡은 명부가 ★다음 위반을 ★가린다:\n  ` +
@@ -143,8 +157,10 @@ test('T4 ★★남은 분량을 ★자가 찍는다 — ⛔사람이 세지 않�
   const pend = Object.keys(PENDING).filter((f) => f in v);
   const pendCalls = pend.reduce((a, f) => a + v[f], 0);
   const notTmp = Object.keys(NOT_TMPROOT).filter((f) => f in v);
+  const doneE = Object.keys(DONE_EAGER).filter((f) => f in v);
   console.log(`    ★★㉠ 이전 대상 ★남음 = ★파일 ${pend.length} · ★호출 ${pendCalls}`);
   console.log(`    ★★㉡ 이전 대상 ★아님  = ★파일 ${notTmp.length} (★`.concat('rmSync 가 ★그 검사의 ★일이다)'));
+  console.log(`    ★★㉢ 이미 ★공용 자 ＋ 즉시치움 = ★파일 ${doneE.length} (★의도다)`);
   /* ★★내 네 파일은 ★★이미 ★옮겼다 — ★그것만은 ★★단언으로 ★못박는다(★되돌아가면 ★빨강) */
   for (const f of ['tests/unit/shape-star-rating.test.mjs', 'tests/unit/shape-star-colors.test.mjs',
                    'tests/unit/shape-star-scales.test.mjs', 'tests/unit/shape-star-frame-width.test.mjs']) {
@@ -153,11 +169,20 @@ test('T4 ★★남은 분량을 ★자가 찍는다 — ⛔사람이 세지 않�
   }
   /* ★★★두 명부가 ★겹치지 ★않는다 — ⛔겹치면 ★같은 파일이 ★«이전 대상»이면서 ★«아니다»가 된다.
      ★★앞서 여기 ★`left.length >= 0` 이라 ★적었다가 ★지웠다 — ★★그건 ★★항등이라 ★아무것도 ★안 잠갔다. */
-  const both = Object.keys(PENDING).filter((f) => f in NOT_TMPROOT);
-  assert.deepEqual(both, [], `★두 명부에 ★같이 든 파일이 있다 — ★갈래가 ★하나여야 한다: ${both.join(' ')}`);
-  /* ★★그리고 ★모든 위반이 ★★어느 한 갈래에 ★든다(★T2 가 ★명부 밖 0 을 보장하므로 ★이건 ★그 짝이다) */
+  /* ★★★세 칸이 ★서로 ★겹치지 ★않는다 — ⛔겹치면 ★한 파일이 ★두 뜻을 ★갖는다 (지디 ⑶ 의 ★그 불변) */
+  const MAPS = { PENDING, NOT_TMPROOT, DONE_EAGER };
+  const names = Object.keys(MAPS);
+  for (let i = 0; i < names.length; i++) {
+    for (let j = i + 1; j < names.length; j++) {
+      const dup = Object.keys(MAPS[names[i]]).filter((f) => f in MAPS[names[j]]);
+      assert.deepEqual(dup, [],
+        `★${names[i]} 와 ★${names[j]} 에 ★같이 든 파일: ${dup.join(' ')}`);
+    }
+  }
+  /* ★★그리고 ★모든 위반이 ★★정확히 ★한 칸에 ★든다 */
   for (const f of Object.keys(v)) {
-    const inP = f in PENDING, inN = f in NOT_TMPROOT;
-    assert.ok(inP !== inN, `★${f} 가 ★두 갈래 ★어디에도 ★없거나 ★양쪽에 있다(P=${inP} N=${inN})`);
+    const hits = names.filter((n) => f in MAPS[n]);
+    assert.equal(hits.length, 1,
+      `★${f} 가 ★${hits.length} 칸에 든다(${hits.join(',') || '없음'}) — ★정확히 ★하나여야 한다`);
   }
 });
