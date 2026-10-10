@@ -46,13 +46,13 @@ function sliceFn(src, head, what) {
 }
 
 /* ★★2026-10-09 — ★`effectiveSectionPadX` 가 ★★«이 프레임이 정말 자르나»를 ★제 벌로 세지 않고
-   ★`js/frame-geometry.js` 의 ★`frameClipsChildren` 를 ★부른다(★명부 ★하나). ⇒ ★★그 술어도 ★같이 싣는다.
-   ⛔안 실으면 ★`ReferenceError: frameClipsChildren is not defined` 로 ★★P1d 셋이 ★빨개진다
+   ★`js/frame-geometry.js` 의 ★`frameClipsPaint` 를 ★부른다(★명부 ★하나). ⇒ ★★그 술어도 ★같이 싣는다.
+   ⛔안 실으면 ★`ReferenceError: frameClipsPaint is not defined` 로 ★★P1d 셋이 ★빨개진다
      — ★2026-10-09 ★실제로 그랬고, ★★그것이 ★「★import 를 늘리면 ★하네스가 ★조용히(또는 요란히) 빈다」의 자리다.
    ★★그리고 ★이렇게 ★진짜 술어를 ★실어야 ★아래 P1d 셋이 ★★«제품이 쓰는 그 판정»을 ★잰다
      — ⛔사본을 ★여기 적으면 ★이 검사가 ★★제 사본만 잰다. */
 const GEOM = strip(readSrc(ROOT, 'js/frame-geometry.js'));
-const CLIPS_SRC = sliceFn(GEOM, 'export function frameClipsChildren(', 'frame-geometry')
+const CLIPS_SRC = sliceFn(GEOM, 'export function frameClipsPaint(', 'frame-geometry')
   .replace(/^export\s+/, '');
 const EFF_SRC   = sliceFn(DRAG, 'function effectiveSectionPadX(', 'drag-utils');
 const APPLY_SRC = sliceFn(DRAG, 'function applyBlockFullBleed(', 'drag-utils');
@@ -61,10 +61,10 @@ const CLEAR_SRC = sliceFn(DRAG, 'function clearBlockFullBleed(', 'drag-utils');
 /* state.pageSettings.padX 는 모듈 import 라 vm 에 «주입»한다 — 검사가 전역 기본값을 흔들 수 있어야 한다. */
 const ctx = vm.createContext({ state: { pageSettings: { padX: 32 } } });
 vm.runInContext(`${CLIPS_SRC}\n${EFF_SRC}\n${APPLY_SRC}\n${CLEAR_SRC}`, ctx);
-const { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, frameClipsChildren } = ctx;
+const { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, frameClipsPaint } = ctx;
 /* ★전제 — ★공용 술어가 ★정말 실렸다. ⛔이게 안 서면 ★아래 P1d 셋이 ★«무엇을 쟀는지» 모른다 */
-assert.equal(typeof frameClipsChildren, 'function',
-  '★frameClipsChildren 가 ★하네스에 ★안 실렸다 — ★effectiveSectionPadX 가 ★그것을 부른다');
+assert.equal(typeof frameClipsPaint, 'function',
+  '★frameClipsPaint 가 ★하네스에 ★안 실렸다 — ★effectiveSectionPadX 가 ★그것을 부른다');
 
 /* ── 최소 DOM 흉내 ── «스타일 쓰기»를 세기 위해 style 을 Proxy 로 감싼다. */
 function makeEl({ cls = [], dataset = {}, style = {}, parent = null } = {}) {
@@ -103,10 +103,18 @@ function makeEl({ cls = [], dataset = {}, style = {}, parent = null } = {}) {
 }
 
 /** section-inner > (row?) > block 사슬을 만든다. */
-function scene({ innerPadX, rowPadX, rowPaddingX, blockDataset = {}, blockStyle = {}, wrapFrame = false, frameRadius } = {}) {
+function scene({ innerPadX, rowPadX, rowPaddingX, blockDataset = {}, blockStyle = {}, wrapFrame = false, frameRadius, frameClip } = {}) {
   const inner = makeEl({ cls: ['section-inner'], dataset: innerPadX === undefined ? {} : { paddingX: String(innerPadX) } });
   let parent = inner;
-  if (wrapFrame) parent = makeEl({ cls: ['frame-block'], parent, dataset: frameRadius === undefined ? {} : { radius: String(frameRadius) } });
+  let frame = null;
+  if (wrapFrame) {
+    /* ★2026-10-10 — ★`frameClip` 칸을 더했다. ★★«안 자르는 프레임»을 ★지을 수 있어야 ★양쪽으로 잰다 */
+    const fd = {};
+    if (frameRadius !== undefined) fd.radius = String(frameRadius);
+    if (frameClip !== undefined) fd.clipContent = String(frameClip);
+    frame = makeEl({ cls: ['frame-block'], parent, dataset: fd });
+    parent = frame;
+  }
   if (rowPadX !== undefined || rowPaddingX !== undefined) {
     const d = {};
     if (rowPadX !== undefined) d.padX = String(rowPadX);
@@ -114,7 +122,7 @@ function scene({ innerPadX, rowPadX, rowPaddingX, blockDataset = {}, blockStyle 
     parent = makeEl({ cls: ['row'], dataset: d, parent });
   }
   const block = makeEl({ cls: ['banner02-block'], dataset: blockDataset, style: blockStyle, parent });
-  return { inner, block };
+  return { inner, block, frame };
 }
 
 test('U0 공용 부품 셋을 «소스에서» 실제로 떠냈다', () => {
@@ -172,22 +180,47 @@ test('P1c padX 가 0 이면 «뚫을 게 없다» — 켜져 있어도 아무것
      ⇒ 이제 자르는 것은 «모서리를 둥글린 프레임»뿐이고, 판정도 그것으로 옮겼다.
      ⛔제목이 «조건»을 말하면 조건이 바뀔 때 제목째 거짓이 된다 — 그래서 조건을 제목에 적고
        그 조건을 «양쪽으로» 잰다(둥글면 0, 안 둥글면 뚫린다). */
-test('P1d ⛔«둥근» 프레임 안은 못 뚫는다 — data-radius 가 있으면 overflow:hidden 이라 잘린다', () => {
-  const { block } = scene({ innerPadX: 40, wrapFrame: true, frameRadius: 12, blockDataset: { fullBleed: 'true' } });
-  assert.equal(effectiveSectionPadX(block), 0);
+/* ══ ★★P1d — ★★«조건»이 ★세 번 ★바뀐 자리다. ★제목에 ★조건을 ★다시 적고 ★★양쪽으로 ★잰다 ══
+   ★★★이 두 칸 중 ★★«하나만» 서면 ★★전과 ★같다 — ⛔한 칸만 고치고 ★닫지 ★마라.
+   ★★날짜 셋을 ★나란히 둔다(★다음 사람이 ★네 번째로 ★뒤집기 ★전에 ★읽게):
+     ★2026-09-28  현빈 지시로 ★`.frame-block` 의 ★overflow 를 ★visible 로 ★풀었다
+       ⇒ ★★`fc1da73c`(09-29)가 ★「★막아둔 ★까닭이 ★죽었는데 ★문만 남아 있었다」며 ★가드를 ★고쳤고
+         ★★P1d 를 ★★«조건을 ★제목에 ★다시 적고 ★양쪽으로 재게» ★바꿨다 — ★그때 ★이 둘이 ★생겼다
+     ★2026-10-10  현빈 「프레임 밖은 ★안 보여야」 ⇒ ★★기본을 ★다시 ★hidden 으로 ★닫았다
+       ⇒ ★★★죽은 ★까닭이 ★되살아나면 ★★문도 ★되살아난다 — ★그 가드가 ★다시 ★일한다
+         ⇒ ★★그래서 ★이 둘의 ★조건이 ★또 ★바뀌었다. ★같은 꼴로 ★다시 적는다
+   ★★판정은 ★★`frameClipsPaint` ★하나다 — ⛔`radius` 로 ★세지 ★마라(★2026-10-10 부터 ★기준이 ★아니다) ══ */
+
+test('P1d ★★«자르는» 프레임 안은 ★못 뚫는다 — ★기본이 ★자름이다 (2026-10-10 · 옛 조건: data-radius)', () => {
+  const { block, frame } = scene({ innerPadX: 40, wrapFrame: true, blockDataset: { fullBleed: 'true' } });
+  /* ★★★전제 — ★제목이 ★«자르는»이라 ★말하므로 ★재기 ★전에 ★그것을 ★단언한다
+     (⛔안 걸면 ★제목째 ★거짓이 될 수 있다 — ★기본이 ★또 뒤집히는 날) */
+  assert.equal(frameClipsPaint(frame), true, '★전제 — 이 프레임은 ★자른다(기본값)');
+  assert.equal(effectiveSectionPadX(block), 0, '★자르는 프레임 안에서는 ★뚫어 봐야 ★잘린다 ⇒ 0');
   assert.equal(applyBlockFullBleed(block), 0);
-  assert.deepEqual(block._writes, []);
+  assert.deepEqual(block._writes, [], '★한 픽셀도 ★안 쓴다');
 });
 
-test('P1d-2 ★반대쪽 — 둥글지 «않은» 프레임 안에서는 뚫린다 (0928 overflow 해제의 귀결)', () => {
-  const { block } = scene({ innerPadX: 40, wrapFrame: true, blockDataset: { fullBleed: 'true' } });
-  assert.equal(effectiveSectionPadX(block), 40, '평범한 프레임은 이제 안 자른다');
+test('P1d-2 ★★«둥근» 프레임도 ★같다 — ⛔이제 ★radius 가 ★기준이 ★아니다 (★기본이 자름이라 ★어차피 0)', () => {
+  const { block, frame } = scene({ innerPadX: 40, wrapFrame: true, frameRadius: 12, blockDataset: { fullBleed: 'true' } });
+  assert.equal(frameClipsPaint(frame), true, '★전제 — 자른다');
+  assert.equal(effectiveSectionPadX(block), 0);
+  /* ★★음성대조 — ★radius ★0 이어도 ★★같다(⛔옛 조건은 ★여기서 ★40 을 기대했다) */
+  const z = scene({ innerPadX: 40, wrapFrame: true, frameRadius: 0, blockDataset: { fullBleed: 'true' } });
+  assert.equal(frameClipsPaint(z.frame), true, '★전제 — radius 0 도 ★자른다(기본값이 자름이다)');
+  assert.equal(effectiveSectionPadX(z.block), 0, '★radius 로 ★갈리지 ★않는다');
+});
+
+test('P1d-3 ★★«안 자르는» 프레임 안에서는 ★뚫린다 — ★사람이 ★「내용 자르기」를 ★★끈 판 (★이 칸이 ★전엔 없었다)', () => {
+  /* ★★★이 칸이 ★★«양쪽»의 ★나머지 ★반쪽이다. ⛔없으면 ★위 둘이 ★전부 ★0 을 재서 ★★항등식이 된다
+     — ★「언제나 0」과 ★「조건이 0 을 만든다」가 ★구분 ★안 된다. */
+  const { block, frame } = scene({ innerPadX: 40, wrapFrame: true, frameClip: 'false', blockDataset: { fullBleed: 'true' } });
+  /* ★★★전제 둘 — ★제목이 ★«안 자르는»이라 ★말하므로 ★둘 다 ★재기 ★전에 ★단언한다
+     (★지디 2026-10-10: ★한쪽만 전제를 걸면 ★★비대칭이 되고 ★그 비대칭이 ★이 칸을 ★조용히 ★거짓으로 만든다) */
+  assert.equal(frame.dataset.clipContent, 'false', '★전제 — 토글이 ★명시로 ★꺼져 있다');
+  assert.equal(frameClipsPaint(frame), false, '★전제 — 그래서 ★안 자른다');
+  assert.equal(effectiveSectionPadX(block), 40, '★안 자르니 ★뚫어도 ★안 잘린다 ⇒ 40');
   assert.equal(applyBlockFullBleed(block), 40);
-});
-
-test('P1d-3 ★radius 0 은 «둥글지 않다» — 0 을 넣어 끈 것도 뚫려야 한다', () => {
-  const { block } = scene({ innerPadX: 40, wrapFrame: true, frameRadius: 0, blockDataset: { fullBleed: 'true' } });
-  assert.equal(effectiveSectionPadX(block), 40);
 });
 
 test('P1e section-inner 밖(플로팅/떠 있는 자리)이면 0', () => {

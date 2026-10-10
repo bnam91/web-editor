@@ -203,12 +203,63 @@ export function clampLeftIntoFrame(left, frameW, elW) {
      (`tests/unit/block-full-bleed.test.mjs` 의 makeEl). ★dataset 은 ★거기서도 산다.
      ★그리고 ★★위 ★예외 5건(:has(...selected) 등)은 ★★«고르는 동안만» 참이라 ★★죔의 조건으로
      ★쓰면 ★★고를 때마다 ★가둠이 ★흔들린다 — ⛔일부러 ★안 본다. */
-export function frameClipsChildren(frameEl) {
+/* ══ ★★★술어를 ★«둘»로 갈랐다 (2026-10-10 · 지디 판정) ══════════════════════════
+   ★★왜 — ★예전엔 ★`frameClipsChildren` ★한 함수가 ★★«자르나(그림)»와 ★★«죄나(끌기 제한)»를
+     ★★겸했다. ★★그 겸직이 ★★세 날짜가 ★서로를 ★깨 온 ★뿌리다 — ★이름이 ★하나라 ★둘을 ★따로 ★못 정했다:
+       ★09-28 현빈 「밑변 너머로 나가면 ★사라진다」      ⇒ ★자르기를 ★껐다(＋죔도 같이 꺼졌다)
+       ★10-09 현빈 「★안 잘려 보인다 — 잘려야 하는데」   ⇒ ★죔을 ★조건부로(＋자르기는 ★안 켰다)
+       ★10-10 현빈 「프레임 밖은 ★안 보여야」            ⇒ ★자르기를 ★켠다(＋죔은 ★켜면 10-09 가 부활)
+     ★★⇒ ★★«자르기 켬 ＋ 죔 끔»이 ★★셋을 ★동시에 ★세우는 ★유일한 조합이다. ★그러려면 ★이름이 ★둘이어야 한다.
+   ★★⛔한 쪽을 ★다른 쪽에서 ★파생시키지 ★마라 — ★그게 ★겸직의 ★재발이다(지디 2026-10-10).
+   ★잠그는 자: `tests/unit/frame-clips-predicate.test.mjs` — ★⒜는 ★CSS 와 ★견주고, ★⒝는 ★«안 죈다»를 단언한다.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ⒜ ★★«그림을 ★자르나» — ★CSS 와 ★한 쌍이다(css/editor-blocks.css).
+   ★★2026-10-10 부터 ★`.frame-block` ★기본이 ★`overflow: hidden` 이다 ⇒ ★★기본이 ★«자른다».
+   ★★푸는 자리는 ★★하나뿐 — ★「내용 자르기」를 ★사람이 ★★끈 프레임(`data-clip-content="false"`).
+     ⚠️★«속성 없음»은 ★★끔이 ★아니다(★기본=자름). ★★끔은 ★★명시 `'false'` 다 —
+       ★예전엔 ★기본이 visible 이라 ★«끔 = 속성 삭제»였고, ★그 꼴을 그대로 두면 ★★토글이 ★먹통이 된다.
+       ★실측(2026-10-10 · 현빈 proj_1791316848083): frame-block ★18개 중 ★`data-clip-content` ★1개 · 값 ★`"true"`
+         ⇒ ★★현빈이 ★그 토글을 ★쓰고 계신다. ⇒ ★죽이지 ★않았다.
+   ⛔computed 스타일로 ★재지 않는다 — ★가짜 DOM 검사에서도 불린다(이 파일 머리말의 그 까닭). */
+export function frameClipsPaint(frameEl) {
   const d = frameEl && frameEl.dataset;
   if (!d) return false;
-  if (d.clipContent === 'true') return true;                 /* 「내용 자르기」 켬 */
-  const r = d.radius;
-  return r !== undefined && r !== '' && String(r) !== '0';    /* 둥근 모서리 */
+  return d.clipContent !== 'false';
+}
+
+/* ⒝ ★★«죄나» — ★★`phase` 를 ★인자로 받는다(지디 2026-10-10). ★★«언제 죄나»가 ★호출 자리에 ★드러나게.
+     ★`'move'`(끌는 동안) → ★★언제나 ★거짓   ·   ★`'drop'`(놓는 순간) → ★기본 ★참
+   ★★⛔«끌는 ★동안»에는 ★★누구도 ★죄지 ★않는다 — ★그 자리에 ★죔이 ★걸리면 ★★10-09 가 ★그대로 ★부활한다.
+   ★★왜 ★함수로 ★두나(상수가 아니고) — ★★부르는 자리가 ★★«죔을 거는 ★유일한 문»이고,
+     ★나중에 ★누군가 ★다시 ★참으로 만들려면 ★★여기 ★한 자리를 ★고쳐야 ★하게 묶어 둔다.
+     ⇒ ★그 순간 ★`frame-clips-predicate` 의 ★⒝ 칸이 ★★빨개진다(★그게 ★10-09 의 ★지키는 자다).
+   ★★까닭(현빈 10-09 실측): ★죔이 걸리면 ★「오른쪽 170px 끌어도 ★`style.left` 가 ★378px 에 ★물려 ★안 움직였다」
+     (★프레임 폭 716 − 자식 338). ★음성대조로 ★왼쪽 150px 은 ★정확히 움직였다 ⇒ ★끌기가 죽은 게 아니라 ★죔이었다.
+   ★★그래서 ★세 날짜가 ★★동시에 선다 — ★이 조합이 ★유일하다:
+     ★끌는 동안 : ★안 죈다 ＋ ★CSS 가 자르기를 푼다(`:has(> .frame-child-dragging)`)  ⇒ ★★10-09 ＋ ★위치가 보인다
+     ★★놓는 순간 : ★★안으로 ★되돌린다(이 술어)                                        ⇒ ★★09-28 / ★T-088
+     ★놓은 뒤   : ★상시 자른다(CSS 기본 hidden)                                      ⇒ ★★10-10
+   ★되돌리는 ★자리 = `js/block-drag.js` ★onUp 의 ★`if (moved)` 갈래 ★한 곳(★끌어내기 갈래는 ★★제외 — 그건 ★의도된 탈출이다).
+   ★어디로 = ★★«가장 가까운 ★프레임 안 자리»(`clampChildIntoFrame` 이 ★축마다 ★최소 거리로 민다 · 지디 기본값). */
+export const FRAME_DRAG_PHASES = Object.freeze(['move', 'drop']);
+export function frameClampsDrag(frameEl, phase) {
+  /* ★★⛔모르는 phase 는 ★★던진다(지디 2026-10-10) — ★새 호출자가 ★조용히 ★거짓을 받으면
+     ★★죔이 ★안 걸린 것을 ★아무도 ★모른다. ★「영은 ★답이 아니다」의 ★그 자리. */
+  if (!FRAME_DRAG_PHASES.includes(phase)) {
+    throw new Error(`frameClampsDrag: 모르는 phase '${String(phase)}' — ${FRAME_DRAG_PHASES.join('|')} 중 하나여야 한다`);
+  }
+  /* ★★«끌는 ★동안»에는 ★★아무도 ★죄지 ★않는다 — ★현빈 10-09 「170px 끌어도 378 에 물린다」 */
+  if (phase === 'move') return false;
+  const d = frameEl && frameEl.dataset;
+  if (!d) return false;
+  /* ⚠️★지디 ⒝ 는 ★「항상 참」이었다. ★★여기 ★조건 ★하나를 ★더 걸었다 — ★까닭을 적는다:
+     ★「내용 자르기」를 ★사람이 ★★명시로 ★끈 프레임은 ★★밖이 ★보인다. ★★보이는 것을 ★되돌리면
+     ★★«멀쩡한 것을 ★움직이는» 사고다(★지디가 ★음성대조로 ★요구한 바로 그 꼴).
+     ⛔`frameClipsPaint` 를 ★★부르지 ★않았다(★파생 금지) — ★★같은 ★속성을 ★읽되 ★★«뜻»이 ★다르다:
+       ★위는 ★「그려질 때 ★잘리나」, ★여기는 ★「놓을 때 ★되돌릴 ★까닭이 ★있나」.
+     ★이 조정이 ★틀렸다면 ★이 두 줄을 ★지우고 ★`return true` 로 두면 된다. */
+  return d.clipContent !== 'false';
 }
 
 export function clampChildIntoFrame(left, top, elW, elH, frameW, frameH, pad) {
@@ -434,3 +485,32 @@ export function followHostFrameHAlign(el) {
   if (ai === 'flex-start' || ai === 'center' || ai === 'flex-end') applyFrameHAlignToChild(el, ai);
 }
 if (typeof window !== 'undefined') window.followHostFrameHAlign = followHostFrameHAlign;
+
+/* ══ ★글자틀의 «내용 폭»을 ★px 로 — ★★「1줄이 ★2줄로 바뀐다」의 ★정본 ★한 자리 (2026-10-10) ══
+   ★★왜 생겼나 — ★부르는 ★두 자리가 ★«offsetWidth 를 정수로 반올림한 값» 로 쟀다. ★`offsetWidth` 는 ★★정수다:
+     ★자연폭이 ★357.34 인데 ★357 을 박으면 ★★0.34px ★모자라 ★★글자가 ★한 줄에 ★안 들어간다.
+   ★★실측(2026-10-10 · 표본 8×3=24 · 크로미움 ★진짜 마우스 끌기):
+     ★«버린양»(자연폭 − offsetWidth)의 ★★부호가 ★★완벽히 갈랐다 — ★양수 ★6/6 → ★2줄 · ★음수 ★18/18 → ★1줄
+     ★현빈 원문 「본문 내용을 입력하세요.」 ★357.34→357(+0.34) ⇒ ★2줄 · 「…입력하세요」 ★347.33→347(+0.33) ⇒ ★2줄
+   ★★⛔`getBoundingClientRect().width` 로 ★소수를 재지 ★마라 — ★그 값은 ★★`#canvas-scaler` 의
+     ★`transform: scale()` 이 ★★곱해진 ★뷰포트 값이다(★배율 40% 면 ★357 이 ★143 로 온다).
+     ★그 길로 가려면 ★`_canvasScaleNow()`(js/overlay-handles.js)로 ★나눠야 하고 ★틀릴 자리가 ★하나 는다.
+   ★★⇒ ★그래서 ★★«증상»을 ★직접 잰다 — ★정수로 ★내려 박았을 때 ★★높이가 ★늘었나(= ★줄이 ★늘었나).
+     ★높이는 ★`offsetHeight`(★레이아웃 px · ★★배율 무관 · ★박스모델 무관)라 ★위 함정을 ★안 밟는다.
+   ★★⇒ ★늘었을 ★때만 ★1px 더한다. ★⛔아니면 ★한 픽셀도 ★안 건드린다 — ★실측 24표본 중 ★18은 ★예전과 ★같은 값이다.
+   ⚠️★이 파일의 ★다른 함수와 ★달리 ★★«진짜 DOM»이 ★필요하다(offsetWidth/offsetHeight 를 읽는다).
+     ★⛔가짜 DOM 검사에서 ★부르지 마라(이 파일 머리말의 그 까닭).
+   ★★부르는 자 ★둘 — `js/block-drag.js` `_fitFullWidthTextFrame` · `js/block-factory.js` `_clampTextFrameWidth`
+     ★⛔세 번째 ★사본을 ★짓지 마라. ★★이 본문을 ★무력화하면 ★그 ★둘이 ★다 빨개져야 한다(검사가 그 쌍을 잠근다). */
+export function fitContentWidthPx(tf) {
+  if (!tf || !tf.style) return 0;
+  const prev = tf.style.width;
+  tf.style.width = 'fit-content';
+  const w0 = Math.round(tf.offsetWidth);
+  const h0 = tf.offsetHeight;                    /* ★자연폭에서의 높이 = ★줄 수의 대리자 */
+  if (!(w0 > 1)) { tf.style.width = prev; return 0; }
+  tf.style.width = w0 + 'px';
+  const grew = tf.offsetHeight > h0;             /* ★내림 때문에 ★줄이 늘었다 */
+  tf.style.width = prev;
+  return grew ? w0 + 1 : w0;
+}
