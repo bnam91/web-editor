@@ -171,6 +171,48 @@ export function tsDecode(roster, str, kinds = TS_CODE_V1_KINDS) {
   return { ok: true, kinds: kinds.slice(), vals };
 }
 
+/* ── ★★«빈 조각»의 뜻 — ★★★미확정. ⛔두 갈래를 ★미리 짓지 않는다 ──────────────
+ * ★갈림: ⒤ ★그 kind 를 ★손대지 않는다(㉠)  /  ⅱ) ★그 kind 를 ★끈다(㉡)
+ * ★★지디 판정(2026-10-10) = ★★㉡ ★조건부 — ★★조건은 ★★«⌘Z ★한 번으로 ★돌아오나»다:
+ *     ★돌아오면 ⇒ ★비가역이 ★아니다 ⇒ ★★㉡ (붙여넣기가 ★그 블럭의 모습을 ★온전히 싣는다)
+ *     ★안 돌아오면 ⇒ ★★데이터 손실 ⇒ ★★㉠ (⛔끄기 배선을 ★안 만든다)
+ * ★★★그 수를 ★재는 법 (⛔유닛으로는 ★못 닫는다 — 히스토리는 ★DOM·앱 자리) — ★조건 ★셋:
+ *   ㉠ ★창 차례의 ★첫 칸으로
+ *   ㉡ ★★양성대조 — ★★«⌘Z 가 ★무언가는 ★되돌린다»를 ★먼저 보여라(★무관한 변경 하나로)
+ *      ⛔그게 ★죽어 있으면 ★본측정이 ★뜻이 ★없다
+ *   ㉢ ★★깊이 — 붙여넣기가 히스토리에 ★«한 칸»인가 ★«N 칸»인가
+ *      ⇒ ★N 칸이면 ★«⌘Z 한 번»으로 ★안 돌아온다 ⇒ ★그것도 ★㉠ 쪽 근거다
+ *      ⇒ ★그러면 ★★«한 칸으로 묶기»가 ★제3의 길이다 — ★그건 ★지디가 정한다
+ * ★★왜 ㉡ 이 ★기본 기움인가(지디): 「★이 기능의 이름이 ★«스타일 ★번호»다 —
+ *   ★받는 쪽에 따라 결과가 다르면 ★⒝버전도 ⒞체크섬도 ★뜻이 없다(★«같은 글자면 같은 그림»이
+ *   ★그 둘이 지키려는 것이다)」 ＋ 현빈 원문도 ★「복사해서 붙여넣기」다
+ * ★★왜 ㉡ 가 ★비싼가(실측): ★끄기는 ★DOM 을 쪼개는 일이고 `applyTextStyleVars` 가 ★안 한다
+ *   — 그 배선(`wireTextEditSection`)이 가진 자이고, 「켜고 → 입힌다」 순서는
+ *   ★`text-style-chips` 의 `onPick` ★한 곳에만 있다(text-style-kinds.js:100~106).
+ *   ⇒ ★붙여넣기도 ★그 길을 타야 한다 — ★다른 길로 가면 ★그 순서가 ★둘이 된다 = ★둘째 명부.
+ */
+export const TS_EMPTY_MEANS = 'UNDECIDED';
+
+/**
+ * 붙여넣기 ★계획을 ★만든다 — ⛔입히지 ★않는다(값만 ★갈라 준다).
+ * ★여기가 ★★갈림이 ★사는 ★한 자리다. ★⌘Z 수가 오면 ★★`TS_EMPTY_MEANS` ★한 줄만 바꾼다.
+ * @returns {{ok:boolean, why?:string, set:Object, empty:string[], emptyMeans:string}}
+ *   set        — ★그 kind 에 ★입힐 값 (★켜기는 ★부르는 쪽 · `onPick` 길)
+ *   empty      — ★빈 조각이던 kind 들
+ *   emptyMeans — ★`'UNDECIDED'` 인 동안 ★부르는 쪽은 ★★멈춰야 한다
+ */
+export function tsApplyPlan(roster, str, kinds = TS_CODE_V1_KINDS) {
+  const d = tsDecode(roster, str, kinds);
+  if (!d.ok) return { ok: false, why: d.why, set: {}, empty: [], emptyMeans: TS_EMPTY_MEANS };
+  const set = {};
+  const empty = [];
+  for (const k of d.kinds) {
+    if (d.vals[k] === null) empty.push(k);
+    else set[k] = d.vals[k];
+  }
+  return { ok: true, set, empty, emptyMeans: TS_EMPTY_MEANS };
+}
+
 /** ★복합에서 ★개별 조각을 ★자른다 — ★개별 칸이 ★이것과 ★한 글자도 달라선 안 된다. */
 export function tsSliceOne(roster, composite, k, kinds = TS_CODE_V1_KINDS) {
   const r = tsDecode(roster, composite, kinds);

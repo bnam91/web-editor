@@ -133,3 +133,36 @@ test('A10 ★escape — ★구분자가 ★값 안에 있어도 ★왕복한다 
     assert.ok(!/[,.\-:]/.test(M.tsEsc(s).replace(/%[0-9A-Fa-f]{2}/g, '')), `★구분자가 ★남았다: ${s}`);
   }
 });
+
+/* ══ ★★«빈 조각»의 뜻 — ★미확정을 ★«검사로» 잠근다 ═══════════════════════════
+ * ⛔「나중에」로 두면 ★다음 사람이 ★⌘Z 를 ★안 재고 ★한 갈래를 ★채운다.
+ * ⇒ ★`TS_EMPTY_MEANS` 가 ★`'UNDECIDED'` 임을 ★단언한다 — ★채우려면 ★이 칸이 ★빨개지고,
+ *   ★그 메시지가 ★★«무엇을 재야 하는지»(⌘Z 세 조건)를 ★그 자리에서 말한다.
+ */
+test('B1 ★갈림이 ★한 자리에 ★모여 있고 ★아직 ★미확정이다 (⛔가정으로 짓지 않았다)', () => {
+  assert.equal(M.TS_EMPTY_MEANS, 'UNDECIDED',
+    '★«빈 조각»의 뜻이 ★채워졌다 — ★채우기 ★전에 ★★«⌘Z 한 번으로 돌아오나»를 ★재야 한다:\n'
+    + '  ㉠ 창 차례의 ★첫 칸  ㉡ ★양성대조(⌘Z 가 ★무언가는 되돌린다를 ★먼저)\n'
+    + '  ㉢ ★깊이 — 붙여넣기가 ★한 칸인가 ★N 칸인가 (N 칸이면 ★한 번으로 안 돌아온다)\n'
+    + '  ⇒ 돌아오면 ★㉡(끈다) · 안 돌아오면 ★㉠(손대지 않는다) · N 칸이면 ★한 칸 묶기는 ★지디 판정');
+});
+
+test('B2 ★계획 — ★입힐 것과 ★빈 조각을 ★갈라 주고, ⛔입히지는 ★않는다', () => {
+  const p = M.tsApplyPlan(R, WANT_HL_OFF);
+  assert.equal(p.ok, true, p.why);
+  assert.deepEqual(p.empty, ['hl'], '★빈 조각을 ★안 골라냈다');
+  assert.deepEqual(Object.keys(p.set).sort(), ['dot', 'ul']);
+  assert.deepEqual(p.set.dot, VALS.dot);
+  assert.equal(p.emptyMeans, 'UNDECIDED', '★부르는 쪽이 ★멈출 근거가 없다');
+  /* ★음성 — 빈 조각이 ★없으면 empty 가 ★빈 배열 */
+  const q = M.tsApplyPlan(R, WANT_COMPOSITE);
+  assert.deepEqual(q.empty, [], '★빈 조각이 없는데 ★있다고 한다');
+  assert.deepEqual(Object.keys(q.set).sort(), ['dot', 'hl', 'ul']);
+});
+
+test('B3 ★나쁜 번호 — 계획이 ★ok:false 와 ★까닭을 준다 (⛔조용히 빈 계획을 주지 않는다)', () => {
+  const p = M.tsApplyPlan(R, 'T2-x-aa');
+  assert.equal(p.ok, false);
+  assert.match(p.why, /버전/);
+  assert.deepEqual(p.set, {}, '★실패인데 ★입힐 것을 줬다');
+});

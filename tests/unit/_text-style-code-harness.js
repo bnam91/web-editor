@@ -24,7 +24,8 @@ function stripEsm(src, what) {
 function loadTextStyleCode() {
   const body = stripEsm(readSrc(ROOT, REL), REL);
   const names = ['TS_CODE_PREFIX', 'TS_CODE_VERSION', 'TS_CODE_V1_KINDS', 'tsEsc', 'tsUnesc',
-    'tsChecksum', 'tsShape', 'tsEncode', 'tsEncodeOne', 'tsDecode', 'tsSliceOne'];
+    'tsChecksum', 'tsShape', 'tsEncode', 'tsEncodeOne', 'tsDecode', 'tsSliceOne',
+    'TS_EMPTY_MEANS', 'tsApplyPlan'];
   // eslint-disable-next-line no-new-func
   const fn = new Function(`${body}\n;return {${names.join(',')}};`);
   const mod = fn();
