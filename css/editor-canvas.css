@@ -189,6 +189,10 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
 .scratch-ai-btn:hover { background: #a855f7; border-color: #a855f7; }
 
 .scratch-item.scratch-slice-mode { cursor: crosshair; }
+/* ★⑦ 그룹 진입 모드(현빈 2026-10-10) — 그 그룹의 멤버를 «한 겹» 두른다.
+   ★왜 보여야 하나: 진입 중에는 Delete·✕ 가 ★«빼기»다. 겉이 같으면 ★지우려다 ★뺀다.
+   ⛔점선으로 둔다 — `.scratch-selected` 의 ★실선(outline)과 ★겹쳐 보여도 ★구분된다. */
+.scratch-item.scratch-group-mode { outline: 2px dashed var(--sel-color, #4a9eff); outline-offset: 4px; }
 .scratch-item.scratch-slice-mode .scratch-close,
 .scratch-item.scratch-slice-mode .scratch-slice-btn,
 .scratch-item.scratch-slice-mode .scratch-ai-btn,

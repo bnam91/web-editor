@@ -866,6 +866,16 @@
   // ═══════════════════════════════════════════════════════════════════
   const DBL_HIT_PX = 8;     // 선에서 이만큼(화면 px) 안이면 「선을 눌렀다」
   const PULL_GAP   = 24;    // 섹션 세로변에서 바깥으로 띄울 거리(scaler-local px)
+  /* ★[#16-X] 옆으로 비켜 앉을 때의 ★«폭주 천장» — ★당기는 패드 ★제 폭의 ★몇 배까지 멀어져도 되나.
+     ⚠️★이것은 ★«한 칸 규칙»의 ★상한이 ★아니다. ★상한은 ★★«지나는 그 막는 것의 폭»에서 ★나온다(아래 `_pullDest`).
+       ⛔옛 판은 ★상한을 ★맨숫자(200)로 뒀다 — ★그러면 ★«무엇과 맞물리는지»를 ★안 적게 된다.
+       ★실측 산수: 한 칸의 gap = PULL_GAP ＋ 막는것폭 ＋ STACK_GAP = ★bw ＋ 36.
+         ★스크래치 패드 ★기본 폭이 ★220 이라 ★gap 236 ⇒ ★★상한 200 이면 ★기본 폭에서 ★한 번도 ★안 선다.
+     ★★3 인 까닭 — ★«한 칸»은 늘 되고 ★«말도 안 되게 넓은 것»은 거절해야 한다. w=200 에서:
+         bw 120→156 · bw 220→256 · bw 400→★436 (★여기까지 ★서야 한다)  ·  bw 600→636 (★거절해야 한다)
+       ⇒ ★×2(400)는 ★436 을 ★막아 ★「한 칸」을 ★깬다. ★×3(600)이 ★둘을 ★같이 세우는 ★가장 작은 라운드 값이다.
+     ⛔이 수를 ★단언에 ★그대로 ★박지 마라 — ★구현과 같은 식이면 ★항등식이다(자리를 ★얻었나로 재라). */
+  const X_RUNAWAY_W = 3;      // × 당기는 패드 폭
 
   /** 화면 한 점에 «가장 가까운» 연결선. 없으면 null.
    *  ★[#16-G] 도는 것이 «묶음»이라 _drawEdges 와 ★같은 선을 본다 — 보이는 선과 눌리는 선이 갈리지 않는다.
@@ -917,15 +927,38 @@
     const x = attachRight ? toLX(sr.right) + PULL_GAP : toLX(sr.left) - PULL_GAP - w;
     const secTop = toLY(sr.top), secH = sr.height / scale;
     const y0 = secTop;                                         // 섹션 위변 맞춤 = «제자리»
-    const blockers = [...document.querySelectorAll('.scratch-item')]
+    /* ★막는 것 «전부» — ⚠️x 를 벌리면 «가로가 겹치는가»가 ★후보마다 달라지므로
+       ★거르기 전 명부를 따로 쥔다(`blockers0`). 옛 길의 `blockers` 는 ★x0 기준 그대로다. */
+    const blockers0 = [...document.querySelectorAll('.scratch-item')]
       .filter(el => !skip.has(el))
       .map(el => ({
         x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0,
         w: el.offsetWidth || 0, h: el.offsetHeight || 0,
       }))
       .filter(b => b.w > 0 && b.h > 0)                         // 숨김은 잴 수 없다(위 ⚠️)
-      .filter(b => x < b.x + b.w && b.x < x + w)               // 가로가 겹치는 것만 «막는다»
       .sort((a, b) => a.y - b.y);
+    const blockersAt = (xc) => blockers0.filter(b => xc < b.x + b.w && b.x < xc + w);
+    const hitsAt = (xc, y) => blockersAt(xc).some(b => y < b.y + b.h + STACK_GAP && y + h > b.y);
+    /* ★★«지나간 막는 것»의 ★수 — ★★«한 칸 규칙»을 ★거리가 아니라 ★수로 센다(위 ⚰️ 의 그 고침).
+       ★센다 = ⑴ 섹션 변 ★바깥이고 ⑵ 후보보다 ★앞에 ★온전히 놓였고 ⑶ ★후보 높이 띠와 ★세로로 겹치는 것.
+       ⑶ 이 있어야 ★«옆으로 지나갈 때 ★실제로 비켜야 하는 것»만 센다 — ⛔딴 줄의 장을 세면 과대계상이다. */
+    const edgeL = attachRight ? toLX(sr.right) : toLX(sr.left);
+    const passedCount = (xc) => {
+      /* ⛔«장 수»를 세면 ★과대계상이다 — ★세로로 쌓인 ★한 칼럼(5장)은 ★★«지나는 것 하나»다.
+         ★실측(모사): 띠가 b0·b1 둘을 ★같이 품어 ★수가 ★2 로 나왔다 ⇒ ★★가로 구간을 ★합쳐 ★센다. */
+      const iv = blockers0
+        .filter((b) => y0 < b.y + b.h + STACK_GAP && y0 + h > b.y)       // 띠와 겹치는 것만
+        .filter((b) => (attachRight ? (b.x + b.w <= xc && b.x + b.w > edgeL)
+                                    : (b.x >= xc + w && b.x < edgeL)))
+        .map((b) => [b.x, b.x + b.w])
+        .sort((m, n) => m[0] - n[0]);
+      let cnt = 0, end = -Infinity;
+      for (const [s0, e0] of iv) {
+        if (s0 > end) { cnt += 1; end = e0; } else if (e0 > end) { end = e0; }
+      }
+      return cnt;
+    };
+    const blockers = blockersAt(x);                            // 가로가 겹치는 것만 «막는다»
     /* 막는 것과 겹치나 — ★옛 스카이라인과 ★같은 술어다(아래로만 STACK_GAP 을 둔다). */
     const hits = (y) => blockers.some(b => y < b.y + b.h + STACK_GAP && y + h > b.y);
     if (!hits(y0)) return { x: Math.round(x), y: Math.round(y0) };   // ★제자리가 비었으면 ★옛 길 그대로
@@ -939,8 +972,11 @@
          ★포기하고 제자리로 돌아온다. 현빈 문장 그대로 — «겹쳐서 이상해지는 것»보다 «멀어지는 것»이 나쁘다.
        ★상한 = 제자리 선 길이 ＋ ★섹션 한 키. 섹션은 세로로 쌓이므로 한 키를 넘어서면 그 선은
          «이웃 섹션»의 것으로 읽힌다. ⛔배수·픽셀 상수를 새로 만들지 않는다(장면의 secH 가 자를 준다). */
-    const dx = PULL_GAP + (size ? 0 : w / 2);   // 선의 가로 성분 — _edgeEnds 와 같은 셈(묶음은 가까운 변)
-    const len = (y) => Math.hypot(dx, (y + h / 2) - (secTop + secH / 2));
+    /* ★선의 가로 성분. ⚠️x 를 벌리면 이 값이 «후보마다» 달라진다 — 아래 `lenAt` 가 그것을 받는다.
+       ⛔옛 판은 x 가 고정이라 dx 가 상수였고, 그래서 「선 길이」는 사실상 «세로 거리»였다. */
+    const dxAt = (xc) => (attachRight ? (xc - toLX(sr.right)) : (toLX(sr.left) - (xc + w))) + (size ? 0 : w / 2);
+    const lenAt = (xc, y) => Math.hypot(dxAt(xc), (y + h / 2) - (secTop + secH / 2));
+    const len = (y) => lenAt(x, y);
     const CAP = len(y0) + secH;
     let best = null;
     for (const b of blockers) {
@@ -950,10 +986,57 @@
         const L = len(y);
         if (L > CAP) continue;
         // 같은 길이면 «아래»를 고른다 — 옛 길이 늘 아래로 밀었으므로 눈에 덜 낯설다
-        if (!best || L < best.L - 0.5 || (Math.abs(L - best.L) <= 0.5 && y > best.y)) best = { y, L };
+        if (!best || L < best.L - 0.5 || (Math.abs(L - best.L) <= 0.5 && y > best.y)) best = { x, y, L };
       }
     }
-    return { x: Math.round(x), y: Math.round(best ? best.y : y0) };
+
+    /* ★★[#16-X] 현빈 2026-10-10 ⑤: 「★이미 당겨지는 자리에 다른 스크래치패드가 있으면
+         ★y값이 내려가는 게 나을지 ★x값이 조절되는 게 나을지 ★비교를 해서 당겨지면 좋겠다」
+       ⇒ ★옆으로 비켜 앉는 자리도 ★후보로 만들고 ★같은 자(선 길이)로 ★겨룬다.
+       ★★이 기능의 뜻은 ★「아래 대신 옆」이 ★아니라 ★★«겹친 채 앉는 일을 ★줄인다»다 —
+         후보가 하나도 없으면 옛 길은 ★막힌 제자리로 돌아가 ★★겹쳐 앉는다(①이 고른 «겹침＜멀어짐»).
+         ★모사(알고리즘만 · 324 장면 · 막는 것 다섯)에서 ★그 겹침이 ★285 → ★214(상한 200) 였다.
+         ⛔그 수는 ★모사다 — ★DOM 으로 다시 잰다(tests/dom/scratch-pull-near-section ★X0~X4).
+         ★★⚰️이 줄은 ★처음 `tests/dom/scratch-pull-x-axis` 라 적혀 있었다 — ★★그런 파일은 ★없다(내가 지어낸 이름).
+           ★행위로 셌다: `ls tests/dom/*pull*` = `scratch-link-pull` · `scratch-pull-near-section` ★둘뿐 ·
+           그 낱말은 ★레포 전체에서 ★이 줄 ★하나였다. ⇒ ★주석은 ★소스 파싱 게이트의 ★입력이므로 ★고친다.
+       ★★가로로 얼마나 가나 = ★★«막는 것 ★하나를 지나간다»까지. ★①(2026-10-09 「섹션에서 안 멀어진다」)을
+         ★안 깨려고 ★그렇게 묶는다 — ★한 칸은 ★막는 것 ★하나 너비이고, ★두 칸은 ★절대 안 간다.
+         ⛔상한을 ★맨숫자로 두지 마라(옛 판 200) — ★★막는 것 폭과 ★맞물려서 ★기본 폭(220)에서 ★죽는다.
+         ★세로 상한(CAP)은 ★그대로 같이 건다 — ★두 축에 ★각각 자가 있다.
+       ★x 후보는 ★y 를 ★안 움직인다(y0 = 섹션 위변) ⇒ ★`dyGap` 은 ★여전히 0 이다(①의 본뜻이 산다). */
+    const gapAt = (xc) => (attachRight ? (xc - toLX(sr.right)) : (toLX(sr.left) - (xc + w)));
+    for (const b of blockers0) {
+      for (const xc of [b.x + b.w + STACK_GAP, b.x - STACK_GAP - w]) {
+        if (attachRight ? (xc < x) : (xc > x)) continue;      // ⛔섹션 쪽으로 파고들지 않는다
+        /* ★★«한 칸 규칙» — ★지나는 것은 ★«막는 것 ★하나»뿐이다. ★두 칸은 ★절대 안 간다.
+           ★★⚰️2026-10-10 ★고쳤다 — ★옛 꼴은 ★«거리»로 쟀다: `gapAt(xc) > PULL_GAP + STACK_GAP + b.w`.
+             ★★그 식은 ★★«막는 것이 ★당기는 칼럼에 ★딱 붙어 있을 때»(d=0)만 ★맞았다. ★산수로 잡았다:
+               ★d=0 이면 ★gapAt = PULL_GAP ＋ b.w ＋ STACK_GAP ★이고 ★문턱도 ★같은 합이다
+               ⇒ ★★둘이 ★★항등으로 ★같아서(bw 120·220·400·588·1000 ★전부) ★`>` 가 ★늘 거짓 = ★★여유 ★0
+               ⇒ ★★d ≥ 1 이면 ★gapAt 이 ★d 만큼 ★커져 ★★문턱을 ★넘어 ★거절된다.
+             ★★그런데 ★d = 1~199 에서도 ★그 막는 것은 ★★집 자리를 ★여전히 ★막는다(겹침 실측).
+             ⇒ ★★즉 ★옛 꼴은 ★★«칼럼에 딱 붙은 경우»에만 ★작동하고 ★★실제 앱에서 ★거의 ★안 섰다
+                — ★★내 옛 ★상한 200(기본 폭 220 에서 ★한 번도 안 섰다)과 ★★똑같은 병의 ★둘째 얼굴이다.
+             ⛔내 X0~X4 ★표본은 ★★전부 ★d=0 이라 ★이 흠을 ★★못 봤다(★한 축만 흔든 표본).
+           ★★고친 꼴 = ★★«거리»가 아니라 ★★«수»로 센다 — ★섹션 변과 후보 ★사이에 놓인 막는 것이 ★★하나까지.
+             ★그러면 ★막는 것이 ★어디 붙어 있든(d 가 얼마든) ★★한 칸은 ★늘 되고 ★두 칸은 ★절대 안 된다.
+             ★거리 쪽 자는 ★★폭주 천장이 ★따로 든다(아래 줄) — ★★두 자가 ★각각 ★제 일을 한다. */
+        if (passedCount(xc) > 1) continue;
+        if (gapAt(xc) > X_RUNAWAY_W * w) continue;            // ★폭주 천장(위 상수의 까닭)
+        if (hitsAt(xc, y0)) continue;
+        /* ★★⛔`CAP` 을 ★x 후보에 ★걸지 ★않는다 — ★까닭이 ★세로 전용이다:
+             CAP 의 뜻은 「★섹션 ★한 키를 넘으면 그 선이 ★★«이웃 섹션»의 것으로 읽힌다」인데
+             ★섹션은 ★세로로 쌓이므로 ★옆에는 ★이웃이 ★없다. ⇒ ★가로엔 ★그 위험이 ★없다.
+           ★실측 산수(w=200·secH=200): CAP=330 이면 ★막는것폭 ★192 까지만 통과 ⇒ ★★기본 폭 220 이 ★거절된다
+             ⇒ ★CAP 을 그대로 걸면 ★★한 칸 규칙을 ★세워도 ★여전히 ★「있으나 마나」가 된다.
+           ★가로는 ★제 자가 ★따로 있다 — ★위 ★«한 칸 규칙» ＋ ★폭주 천장. ★두 축에 ★각각 자를 둔다.
+           ★①(「섹션에서 안 멀어진다」)은 ★여전히 선다: ★x 후보는 ★y 를 ★안 움직여 ★`dyGap` 이 ★0 이다. */
+        const L = lenAt(xc, y0);
+        if (!best || L < best.L - 0.5) best = { x: xc, y: y0, L };
+      }
+    }
+    return { x: Math.round(best ? best.x : x), y: Math.round(best ? best.y : y0) };
   }
 
   /** 연결 하나를 당긴다. 자리·저장·되돌리기는 스크래치가 맡는다(window._scratchAnimateItemTo).
