@@ -68,7 +68,24 @@
    ══ v1 에 ★없는 것 (⛔「나중에」가 아니라 ★이름으로) ═══════════════════════════
    SVG·이미지 부호(＋피그마 renderBlock 분기) · 줄마다 따로 꾸밈(lines[]) · 좌우반전 이미지 ·
    프레임·그리드 칸 끌어넣기 · 부호 앞뒤 ★다른 모양 섞기 · 프리셋 · 세로쓰기 ·
-   MCP BLOCK_TYPES · ai-section-fill 슬롯 · 인라인 더블클릭 편집(글은 우측 패널로 넣는다).
+   MCP BLOCK_TYPES · ai-section-fill 슬롯.
+
+   ══ ★★⚰️2026-10-10 — ★이 명부에서 ★★«빠진 것» ＋ ★★«들어온 것» ════════════════════
+   ★★⚰️빠짐: 「★인라인 더블클릭 편집(글은 ★우측 패널로 넣는다)」 — ★★★현빈이 ★뒤집었다.
+     ★누가·언제 = ★현빈 ★2026-10-10 ★티켓 ★`1010t2c1-①` ★원문 그대로:
+       「qt_ts0he_hhbu8oo - 우측 프로퍼티에서 글내용 입력하게 되는데, ★텍스트를 ★캔버스에서
+         ★수정 바로 할수 있게 해주고 …」
+     ⇒ ★★⛔이 줄을 ★지우지 ★않는다 — ★★「★v1 에 없다」로 ★적혀 있던 자리라, ★안 적어 두면
+       ★다음 사람이 ★★«결정대로» ★되돌린다(★그게 ★「안 하기로 한 것」이 ★살아남는 꼴이다).
+     ★지금 ★어디 사나 = ★`js/block-drag.js` 의 ★`isQuote` dblclick ＋ ★`_quoteEndEdit`
+       (★모달 `_modalEndEdit` 과 ★한 벌의 규율 · ★편집 host 는 ★`.tb-qt-body` ★하나).
+     ★아직 ★없는 것(★이름으로) = ★부분 서식(선택한 글자만) ⇒ ★`sanitizeRichTextHtml` 커밋이 ★전제다.
+   ★★들어옴: ★타이포그래피 절(글꼴·굵기·크기·B·I·S·줄간격·자간) — ★현빈 ★`1010t2c1-②`
+     「우측에서는 ★타이포그래피 ★동적으로 ★다른 텍스트블럭처럼 수정되게해줘」.
+     ★★«다른 텍스트블럭»의 ★참값 = ★`js/props/_typo-section.js` ★`buildTypographySectionHtml`.
+     ★기준판 = ★★모달(`p='mdl-typo'`) — ★지디 판정 2026-10-10 ⇒ ⛔★«최종»이 아니라 ★«지금 집행선»이다
+       (★현빈이 ★텍스트블럭 34칸을 뜻했다면 ★되돌릴 수 있게 ★지디가 ★노트에 적었다).
+     ★안 켠 칸 ★3 = ★형광펜 H(★색 명부가 ★이미 둘 — 아래 QUOTE_DEFAULTS 의 그 주석) · ★밑줄 U · ★점.
 ═══════════════════════════════════════════════════════════════════════════ */
 
 import { insertAfterSelected, genId, showNoSelectionHint } from '../drag-utils.js';
@@ -151,6 +168,25 @@ const QUOTE_DEFAULTS = Object.freeze({
        ★«합친 것을 재는 검사»를 ★같이 세워라(⛔한쪽만 바꾸면 ★저장본이 조용히 기본값으로 떨어진다). */
   /* ★글 */
   fontSize: 21, textColor: '#1B1D22', weight: 400, align: 'center',
+  /* ★★타이포 — 현빈 2026-10-10 `1010t2c1-②` 「우측에서는 ★타이포그래피 ★동적으로
+       ★다른 텍스트블럭처럼 수정되게해줘」 ⇒ ★«다른 텍스트블럭»의 ★참값 명세 =
+       `js/props/_typo-section.js` 의 ★`buildTypographySectionHtml`(소비자 13파일 ·
+       `tests/unit/typo-section-ssot.test.mjs` 가 그 정본을 잠근다).
+     ★기준판은 ★★모달(`p='mdl-typo'`)로 잡았다 — ★dataset 이 진실인 ★같은 꼴이라
+       ★«실제로 켤 수 있는 범위»가 그쪽이다(실측: 텍스트블럭 Typography 조종칸 ★34 중
+       ★23 은 ★부분 서식 전제 · 모달은 ★11 — 앱에서 ★전수로 셌다).
+     ★`lineHeight` 는 ★무조건 박는다(모달 `:649` 와 ★같은 까닭) — 전엔 `_lineEl` 에 ★1.5 가
+       ★리터럴이라 ★dataset 이 비어 있었다. ★그 값을 ★그대로 기본값으로 둬 ★화면을 안 바꾼다.
+     ⚠️★★`weight` 는 ★이 블럭이 ★이미 쓰던 키다(모달은 `fontWeight`). ⛔새 키를 ★만들지 않았다 —
+       ★굵기 명부가 ★둘이 되면 ★저장본이 ★조용히 ★한쪽만 산다. ★그 갈림을 ★여기 적어 둔다. */
+  fontFamily: '', lineHeight: 1.5, letterSpacing: 0,
+  bold: false, italic: false, strike: false,
+  /* ⛔★형광펜(H)은 ★v1 에 ★없다 — ★「나중에」가 아니라 ★까닭으로 적는다:
+       ★형광펜 ★색의 명부가 ★이 레포에 ★★이미 ★둘이다(`modal-block.js:326` ＋ `modal-frameify.js:42`)
+       ★그리고 `tests/unit/modal-frameify-gates.test.mjs` ★G1 이 ★그 둘만 대조한다
+       ⇒ ★내가 ★세 번째 사본을 만들면 ★그 게이트 ★밖에서 ★조용히 갈라진다.
+       ★그리고 ★이 블럭은 ★내보내기 보험 때문에 ★색을 ★인라인 리터럴로 줘야 해 ★`var()` 로도 못 피한다.
+     ⇒ ★합치는 일은 ★모달 파일을 ★건드리는 일이라 ★이 레인 밖이다 ⇒ ★지디 판정 대기. */
 });
 
 /* ★바닥·천장 — 패널과 손잡이가 ★같은 표를 본다(coupon 의 COUPON_LIMITS 규약).
@@ -182,6 +218,22 @@ function _bool(block, key, def) {
 function _col(block, key, def) {
   const v = block?.dataset?.[key];
   return (typeof v === 'string' && _QT_COLOR_RE.test(v.trim())) ? v.trim() : def;
+}
+/* ★글꼴 이름 — ★모달 `_MDL_FONT_RE`(modal-block.js:283)와 ★같은 꼴을 쓴다.
+   ⚠️★사본이다 — ★그 파일은 ★제 상수를 ★안 내보낸다(export 0). ★합치려면 ★모달 파일을 건드려야 하고
+     ★그건 ★이 레인 밖이다 ⇒ ★갈림을 ★여기 적어 둔다(형광펜 색과 ★같은 자리의 ★같은 병). */
+const _QT_FONT_RE = /^[\w\s,'"\-().가-힣]+$/;
+function _font(block, def) {
+  const v = String(block?.dataset?.fontFamily ?? '').trim();
+  return (v && _QT_FONT_RE.test(v)) ? v : def;
+}
+function _lh(block, def) {
+  const v = parseFloat(block?.dataset?.lineHeight);
+  return Number.isFinite(v) ? Math.min(3, Math.max(1, v)) : def;
+}
+function _ls(block, def) {
+  const v = parseFloat(block?.dataset?.letterSpacing);
+  return Number.isFinite(v) ? Math.min(40, Math.max(-10, v)) : def;
 }
 
 /** 지금 고른 부호 한 벌. 모르는 key 는 기본으로 떨어진다(저장본이 손상돼도 안 죽는다). */
@@ -229,7 +281,32 @@ function _qtState(block) {
     align: ['left', 'center', 'right'].includes(block?.dataset?.align) ? block.dataset.align : D.align,
     markDy: clampQuote(_num(block, 'markDy', D.markDy), QUOTE_LIMITS.markDy),
     vAlign: ['top', 'middle', 'bottom'].includes(block?.dataset?.vAlign) ? block.dataset.vAlign : D.vAlign,
+    /* ★타이포(c1-②) — ⛔여기서 ★리터럴을 다시 적지 않는다(QUOTE_DEFAULTS ★한 표에서 온다) */
+    fontFamily: _font(block, D.fontFamily),
+    lineHeight: _lh(block, D.lineHeight),
+    letterSpacing: _ls(block, D.letterSpacing),
+    bold: _bool(block, 'bold', D.bold),
+    italic: _bool(block, 'italic', D.italic),
+    strike: _bool(block, 'strike', D.strike),
   };
+}
+
+/* ★★타이포 선언은 ★«이 함수 하나»에서만 나온다 — ★모달 `_typoStyles`(modal-block.js:297)와 ★같은 규율.
+   ⛔`_lineEl` 안에 ★여러 줄로 흩지 마라(같은 자리를 ★정렬·크기가 ★동시에 만진다).
+   ★「아무것도 안 정한 블럭」은 ★★예전과 ★같은 화면을 내야 한다 ⇒
+     ★`line-height` 는 ★항상(기본 1.5 = ★옛 리터럴) · ★나머지는 ★정했을 때만 ★선언을 낸다. */
+function _qtTypoCss(st) {
+  return (st.fontFamily ? `font-family:${st.fontFamily};` : '')
+       + `font-weight:${_effQtWeight(st)};`
+       + `line-height:${st.lineHeight};`
+       + (st.letterSpacing !== 0 ? `letter-spacing:${st.letterSpacing}px;` : '')
+       + (st.italic ? 'font-style:italic;' : '')
+       + (st.strike ? 'text-decoration:line-through;' : '');
+}
+
+/** ★유효 굵기 — ★B 단추가 켜져 있으면 ★그게 이긴다(모달 `_effWeight` 와 ★같은 관례). */
+function _effQtWeight(st) {
+  return st.bold ? '700' : String(st.weight);
 }
 
 /* ══ 조각 만들기 ════════════════════════════════════════════════════════════
@@ -260,10 +337,11 @@ function _lineEl(block, st, text) {
   e.textContent = text;
   e.style.fontSize = st.fontSize + 'px';
   e.style.color = st.textColor;
-  e.style.fontWeight = String(st.weight);
-  e.style.lineHeight = '1.5';
   e.style.textAlign = st.align;
   e.style.minWidth = '0';
+  /* ★★타이포 — ★`_qtTypoCss` ★한 자리에서 온다(굵기·줄간격·자간·기울임·취소선).
+     ⛔`fontWeight`·`lineHeight` 를 ★여기 ★다시 적지 마라 — ★그 둘이 ★거기로 ★옮겨갔다. */
+  e.style.cssText += _qtTypoCss(st);
   return e;
 }
 
@@ -318,10 +396,26 @@ function renderQuoteBlock(block) {
     return;
   }
 
-  /* inline — 여러 줄이면 가운데 칸 안에서 줄로 쌓는다(부호는 ★한 쌍이다). */
-  const cols = [st.preOn ? 'auto' : null, 'minmax(0,1fr)', st.postOn ? 'auto' : null].filter(Boolean).join(' ');
+  /* inline — 여러 줄이면 가운데 칸 안에서 줄로 쌓는다(부호는 ★한 쌍이다).
+     ★★2026-10-10 현빈 1010t2c2 — 「★슬라이드를 움직여도 ★실제론 ★간격조절이 ★안 된다」 ⇒ ★여기를 갈았다.
+     ★무엇이었나: 가운데 칸이 ★`minmax(0,1fr)` 이라 ★블럭이 ★섹션 폭 ★전부를 먹고
+       ★부호가 ★양 끝에 ★박혔다. 그러면 `column-gap` 은 ★가운데 칸만 좁히고 ★글은 ★그 칸의
+       가운데에 그대로 서서 — ★★사람 눈의 거리에서 ★gap 이 ★★약분된다:
+         거리 = gap + (블럭폭 − 2·부호폭 − 2·gap − 글폭)/2 = (블럭폭 − 2·부호폭 − 글폭)/2
+     ★실측(핀 ★f69c307e · tests/dom/quote-block.dom.spec.js ★Q16 이 ★그 판에서 ★빨강 ×3):
+       ★gap 0 → 40 에서 ★앞부호↔글 거리 ★391.6 → ★391.6 CSS px = ★★«0.0px 움직였다».
+       ★대조(같은 판 · 조건만 바꿈): ★align=left ✅먹는다 · ★stack ✅먹는다 · ★align=center(★기본값) ⛔안 먹는다.
+     ★무엇으로 갈았나 ⑴ 가운데 칸 ★`minmax(0,auto)` — ★stack 의 가운데 ★행과 ★같은 사이징이다
+       (⇒ 글폭만 먹고, ★길면 ★available 까지만 자라 ★줄바꿈한다. ⛔`max-content` 는 ★넘친다)
+                      ⑵ ★`justify-content` 를 ★`_qtSide(align)` 으로 ★박는다 — ★★이 줄이 ★없으면
+       ★grid 의 기본 `normal`(=stretch)이 ★`auto` ★최대 트랙을 ★다시 ★늘려 ★★옛 항등식이 ★되살아난다.
+     ★★이 변경이 ★두 단언의 ★까닭을 ★죽였다(⛔몰래 바꾸지 않았다 — 그 자리에 ⚰️로 적어 뒀다):
+       ⚰️Q3 「끈 쪽은 칸째 빠져 ★글 칸이 그만큼 ★넓어진다」(시안 ⒟) — ★글 칸은 이제 ★글폭이다
+       ⚰️Q10 inline 음성대조 「★앞부호는 ★안 움직인다」 — ★이제 ★셋이 ★같이 움직인다(그래야 gap 이 뜻을 가진다) */
+  const cols = [st.preOn ? 'auto' : null, 'minmax(0,auto)', st.postOn ? 'auto' : null].filter(Boolean).join(' ');
   block.style.cssText = 'box-sizing:border-box;position:relative;display:grid;'
-    + `align-items:${_qtVSide(st.vAlign)};grid-template-columns:${cols};column-gap:${st.gap}px;`;
+    + `align-items:${_qtVSide(st.vAlign)};justify-content:${_qtSide(st.align)};`
+    + `grid-template-columns:${cols};column-gap:${st.gap}px;`;
   if (st.preOn) block.appendChild(_markEl(st, 'pre'));
   block.appendChild(_bodyEl(block, st, lines));
   if (st.postOn) block.appendChild(_markEl(st, 'post'));
@@ -353,6 +447,13 @@ function makeQuoteBlock(opts = {}) {
   block.dataset.markDy = String(clampQuote(
     Number.isFinite(Number(opts.markDy)) ? Number(opts.markDy) : QUOTE_DEFAULTS.markDy, QUOTE_LIMITS.markDy));
   block.dataset.vAlign = ['top', 'middle', 'bottom'].includes(opts.vAlign) ? opts.vAlign : QUOTE_DEFAULTS.vAlign;
+  /* ★★타이포(c1-②) — ★`lineHeight` 는 ★무조건 박는다(모달 `:649` 와 ★같은 까닭: 렌더에 리터럴로
+     살면 ★dataset 이 비고, ★나중에 기본값을 바꿀 때 ★이미 만든 블럭이 ★같이 움직인다).
+     ★나머지는 ★«정했을 때만» 박는다 — ⛔빈 값을 박으면 ★`fontFamily:;` 같은 ★죽은 선언이 ★저장본에 쌓인다. */
+  block.dataset.lineHeight = String(Number.isFinite(Number(opts.lineHeight)) ? Number(opts.lineHeight) : QUOTE_DEFAULTS.lineHeight);
+  if (typeof opts.fontFamily === 'string' && opts.fontFamily.trim()) block.dataset.fontFamily = opts.fontFamily.trim();
+  if (Number.isFinite(Number(opts.letterSpacing))) block.dataset.letterSpacing = String(Number(opts.letterSpacing));
+  for (const k of ['bold', 'italic', 'strike']) if (opts[k]) block.dataset[k] = '1';
   if (typeof opts.text === 'string') block.dataset.text = opts.text;
 
   renderQuoteBlock(block);

@@ -44,6 +44,11 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
      `.prop-align-btn` 을 ★전부 잡아 `dataset.align` ★유무로만 거른다 ⇒ ★엉뚱한 블럭이
      ★조용히 정렬된다. ★prop-modal.js:263~265 가 ★같은 까닭으로 `data-al` 을 쓴다(그 선례를 베꼈다). */
 import { blockHeaderHTML, escHtml as _esc, alignBtn } from './_helpers.js';
+/* ★★Typography 절은 ★정본 ★하나에서 온다 — ⛔글꼴·굵기·크기·줄간격·자간 칸을 ★손으로 만들지 마라
+   (`js/props/_typo-section.js` 머리말 · `tests/unit/typo-section-ssot.test.mjs` 가 그 정본을 잠근다).
+   ★폰트 ★위젯도 ★같은 벌이다(`_font-picker.js` `wireFontPicker`) — 우리는 ★«적용»만 준다. */
+import { buildTypographySectionHtml } from './_typo-section.js';
+import { wireFontPicker } from './_font-picker.js';
 import {
   QUOTE_SHAPES, QUOTE_SHAPE_KEYS, QUOTE_DEFAULTS, QUOTE_LIMITS, clampQuote,
   quoteLines, quoteShapeOf, quoteIsPlaceholder, quoteShapesAll,
@@ -104,6 +109,18 @@ export function showQuoteProperties(block) {
   const vAlign = ['top', 'middle', 'bottom'].includes(block.dataset.vAlign) ? block.dataset.vAlign : QUOTE_DEFAULTS.vAlign;
   const preOn = block.dataset.preOn !== '0';
   const postOn = block.dataset.postOn !== '0';
+  /* ★★타이포 (현빈 2026-10-10 `1010t2c1-②`) — ⛔기본값을 ★여기 리터럴로 적지 마라.
+     ★`weight` 는 ★이 블럭이 ★이미 쓰던 키다(모달은 `fontWeight`) — ⛔새 키를 ★만들지 않았다.
+       ★그 갈림의 까닭은 `quote-block.js` QUOTE_DEFAULTS 의 그 주석에 있다. */
+  const fontFamily = block.dataset.fontFamily || QUOTE_DEFAULTS.fontFamily;
+  const weight = /^[1-9]00$/.test(String(block.dataset.weight || '')) ? String(block.dataset.weight) : String(QUOTE_DEFAULTS.weight);
+  const _lhRaw = parseFloat(block.dataset.lineHeight);
+  const lineHeight = Number.isFinite(_lhRaw) ? _lhRaw : QUOTE_DEFAULTS.lineHeight;
+  const _lsRaw = parseFloat(block.dataset.letterSpacing);
+  const letterSpacing = Number.isFinite(_lsRaw) ? _lsRaw : QUOTE_DEFAULTS.letterSpacing;
+  const bold = block.dataset.bold === '1';
+  const italic = block.dataset.italic === '1';
+  const strike = block.dataset.strike === '1';
   const raw = block.dataset.text ?? '';
   const lines = quoteLines(block);
   const isPh = quoteIsPlaceholder(block);
@@ -197,12 +214,26 @@ ${layout === 'inline' ? `
           ? `<b>엔터</b>로 줄을 나눕니다. 지금 <b>${lines.length}줄</b>이고 부호는 글 <b>위·아래에 한 쌍</b>입니다. <span style="opacity:.7">빈 줄은 건너뜁니다.</span>`
           : `<b>한 줄</b> 꼴에서는 부호가 <b>한 쌍</b>입니다. 엔터로 나눈 글은 가운데 칸에서 줄로 쌓입니다(지금 <b>${lines.length}줄</b>).`
       }${isPh ? ' <span style="opacity:.7">지금은 안내문구를 그리고 있습니다.</span>' : ''}</div>
-${_pairRow('qt-fontsize', '글자 크기', fontSize, L.fontSize.min, L.fontSize.max)}
       <div class="prop-row">
         <span class="prop-label">글자 색</span>
         ${colorFieldHTML({ idPrefix: 'qt-textcol', hex: _swatchHex(textColor, QUOTE_DEFAULTS.textColor), alpha: parseAlphaFromColor(textColor) })}
       </div>
-    </div>`;
+    </div>
+
+${buildTypographySectionHtml({
+    p: 'qt-typo',
+    font: fontFamily, weight: String(weight), size: fontSize,
+    isBold: bold, isItalic: italic, isStrike: strike,
+    lh: lineHeight, ls: letterSpacing,
+    /* ★범위는 ★리터럴이 ★아니다 — `QUOTE_LIMITS` ★한 표에서 온다(이 파일 머리말의 그 규약) */
+    sizeMin: L.fontSize.min, sizeMax: L.fontSize.max,
+    /* ⛔★형광펜(H)을 ★끈 까닭 — ★«끄는 쪽은 왜 끄는지를 호출부에 적어야 한다»(_typo-section.js 머리말):
+       ★형광펜 ★색의 명부가 ★이미 ★둘이고(`modal-block.js:326` ＋ `modal-frameify.js:42`)
+       `tests/unit/modal-frameify-gates.test.mjs` ★G1 이 ★그 둘만 대조한다 ⇒ ★세 번째 사본은
+       ★그 게이트 ★밖에서 조용히 갈라진다. ★합치는 일은 ★모달 파일을 건드리는 일이라 ★이 레인 밖이다.
+       ⇒ ★칸을 ★내지 않는다 — ⛔「눌러도 조용히 아무 일 없음」을 ★만들지 않는다(이 파일의 그 규율). */
+    showHighlight: false,
+  })}`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
@@ -229,7 +260,67 @@ ${_pairRow('qt-fontsize', '글자 크기', fontSize, L.fontSize.min, L.fontSize.
   wireNum('qt-marksize', 'markSize', L.markSize.min, L.markSize.max);
   wireNum('qt-markdy', 'markDy', L.markDy.min, L.markDy.max);
   wireNum('qt-gap', 'gap', L.gap.min, L.gap.max);
-  wireNum('qt-fontsize', 'fontSize', L.fontSize.min, L.fontSize.max);
+
+  /* ── ★★Typography 절 ★배선 (현빈 `1010t2c1-②`) ─────────────────────────────────
+     ★마크업은 ★정본(`_typo-section.js`)이 낸다 · ★«적용»은 ★여기서 준다 — ★모달과 ★같은 가름
+       (그 파일 머리말: 「⛔여기엔 «배선»이 없다 … 적용은 패널마다 다르다」).
+     ★id 는 ★«통짜로» 적는다 — ⛔템플릿으로 조립하면 ★grep 도 ★검사도 ★그 배선을 ★못 본다
+       (prop-modal.js:353 이 ★그 까닭을 적어 뒀다).
+     ★`setDs(key, null)` = ★그 키를 ★지운다 ⇒ ★`_qtState` 가 ★기본값으로 떨어진다(★모델 한 표). */
+  const setDs = (key, val) => {
+    if (val === null || val === '') delete block.dataset[key];
+    else block.dataset[key] = String(val);
+    rerender();
+  };
+
+  // 글꼴 — 위젯은 텍스트·모달 패널과 «같은 벌»(_font-picker.js)
+  wireFontPicker({
+    root: propPanel,
+    p: 'qt-typo',
+    getCurrent: () => block.dataset.fontFamily || '',
+    onPick: (rawVal) => { setDs('fontFamily', rawVal); commit(); },
+  });
+
+  /* 굵기 select — ★`weight` ★그 키에 쓴다(⛔`fontWeight` 라는 둘째 키를 만들지 않는다) */
+  document.getElementById('qt-typo-font-weight')?.addEventListener('change', (e) => {
+    setDs('weight', e.target.value); commit();
+  });
+
+  /* 글자 크기 — ★★이 칸이 ★옛 `qt-fontsize` 슬라이더＋숫자 ★쌍을 ★대신한다.
+     ★왜 ★옮겼나 = 현빈 「★다른 텍스트블럭처럼」 — ★그 블럭들은 ★이 절 ★안에 ★크기 칸을 둔다.
+     ⇒ ⛔두 벌로 두지 ★않았다(한 값에 ★조종칸이 둘이면 ★어느 쪽이 참인지 ★사람이 못 안다).
+     ★범위는 ★`QUOTE_LIMITS` ★한 표에서 온다(마크업의 min/max 도 ★거기서 나갔다). */
+  const _fsNum = document.getElementById('qt-typo-size-number');
+  _fsNum?.addEventListener('change', () => {
+    const x = clampQuote(parseInt(_fsNum.value, 10), L.fontSize);
+    _fsNum.value = x; setDs('fontSize', x); commit();
+  });
+
+  /* B / I / S — ⚠️★블럭 ★«전체»에만 걸린다. ★글은 `textContent` 평문으로 dataset 에 사니
+     ★«부분 선택 서식»은 ★원리적으로 불가하다(모달 슬롯과 ★같은 한계 · 텍스트블럭과 ★다른 점).
+     ⇒ ★그래서 ★U(밑줄)·점·형광펜 ★손잡이도 ★안 켰다 — ★그 셋은 ★부분 서식을 전제한다. */
+  for (const [id, key] of [['qt-typo-bold-btn', 'bold'], ['qt-typo-italic-btn', 'italic'],
+                           ['qt-typo-strike-btn', 'strike']]) {
+    const btn = document.getElementById(id);
+    btn?.addEventListener('click', () => {
+      const next = block.dataset[key] !== '1';
+      btn.classList.toggle('active', next);
+      btn.setAttribute('aria-pressed', next ? 'true' : 'false');
+      setDs(key, next ? '1' : null); commit();
+    });
+  }
+
+  // 줄간격 / 자간 — ★범위는 ★칸의 min/max 그대로(_typo-section 이 낸 그 수)
+  const _lhNum = document.getElementById('qt-typo-lh-number');
+  _lhNum?.addEventListener('change', () => {
+    const x = Math.min(3, Math.max(1, parseFloat(_lhNum.value) || QUOTE_DEFAULTS.lineHeight));
+    _lhNum.value = x; setDs('lineHeight', x); commit();
+  });
+  const _lsNum = document.getElementById('qt-typo-ls-number');
+  _lsNum?.addEventListener('change', () => {
+    const x = Math.min(40, Math.max(-10, parseFloat(_lsNum.value) || 0));
+    _lsNum.value = x; setDs('letterSpacing', x); commit();
+  });
 
   // ── 색 (raw input[type=color] 금지 — 공용 컴포넌트) ──
   const wireColor = (prefix, key) => {

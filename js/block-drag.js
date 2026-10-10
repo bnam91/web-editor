@@ -352,6 +352,41 @@ function _modalEndEdit(block, host) {
   window.scheduleAutoSave?.();
 }
 
+/* ★quote 글 편집 종료 — ★모달과 ★한 벌의 규율이다(dataset 에 커밋하고 재렌더).
+   ★현빈 2026-10-10 `1010t2c1-①` 「텍스트를 캔버스에서 수정 바로 할수 있게 해주고」.
+   ★★`quote-block.js:71` 의 v1 머리말이 ★「v1 에 없는 것 … ★인라인 더블클릭 편집(글은 우측 패널로 넣는다)」
+     이라 ★이름으로 적어 뒀다 ⇒ ★이 자는 ★그 결정을 ★뒤집는 것이고, ★근거는 ★현빈 원문이다.
+   ★안내문구 지뢰 방지 — ★모달과 ★같은 까닭: 흐린 안내문구를 ★그대로 두고 나가면 ★아무것도 쓰지 않는다.
+     ★그 문구를 데이터로 굳히면 ★그 블럭은 ★영영 「본문이 안내문구인」 블럭이 된다.
+   ★글자 읽기는 ★`_mdlReadText` ★한 벌을 ★그대로 쓴다 — ⛔제 사본을 만들지 않는다
+     (인용구 글덩이는 ★줄당 `<div class="tb-qt-line">` 이라 ★모달 슬롯과 ★같은 꼴 = 블록 경계가 `\n`).
+   ⛔부분 서식(HTML)은 ★여기서 ★안 다룬다 — ★그건 `c1-②` 범위다(모달은 `nextHtml` 을 같이 커밋한다). */
+function _quoteEndEdit(block, host) {
+  if (host.getAttribute('contenteditable') !== 'true') return;
+  host.setAttribute('contenteditable', 'false');
+  host.removeAttribute('draggable');
+  block.classList.remove('editing');
+  const before = host._qtBefore;
+  if (before == null) return;
+  const text = _mdlReadText(host);
+  /* ★안내문구를 ★손 안 대고 나갔나 — ★그러면 dataset 은 ★빈 채로 둔다(render 가 다시 흐리게 그린다) */
+  const isPh = !!host._qtWasPh && text.trim() === String(before).trim();
+  const next = isPh ? '' : text;
+  if (text === before || (block.dataset.text || '') === next) {
+    if (isPh) window.renderQuoteBlock?.(block);      // 안내문구 복원만 다시 그린다
+    return;
+  }
+  host.innerText = before;                           // 커밋 «전» DOM 을 편집 전으로
+  window.pushHistory?.();                            // ⇒ ⌘Z ★한 걸음(commitQuoteText 는 /^update.*Block$/ 가 아니다)
+  if (window.commitQuoteText?.(block, next)) {
+    window.renderQuoteBlock?.(block);
+    /* ★고른 블럭이면 ★우측 패널도 ★따라온다 — ★`#qt-text` 와 ★줄 수 안내가 ★캔버스와 ★갈리지 않게.
+       ⛔안 고른 블럭에서 부르지 마라 — ★남의 패널을 ★덮는다. */
+    if (block.classList.contains('selected')) window.showQuoteProperties?.(block);
+    window.scheduleAutoSave?.();
+  }
+}
+
 function _gridBeginEdit(hit, e) {
   const { block, host, r, c, li, np } = hit;   // ★np = 중첩 «안» 줄의 주소(없으면 undefined)
   if (host.getAttribute('contenteditable') === 'true') return;
@@ -2492,6 +2527,54 @@ function bindBlock(block) {
         sel.removeAllRanges();
         const r = document.createRange();
         if (host._mdlWasPh) r.selectNodeContents(host);   // 안내문구면 전체 선택 → 타이핑으로 즉시 교체
+        else {
+          const cr = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
+          if (cr) { sel.addRange(cr); return; }
+          r.selectNodeContents(host); r.collapse(false);
+        }
+        sel.addRange(r);
+      }
+    });
+  }
+
+  /* ── ★quote: 글 ★인라인 편집 (현빈 2026-10-10 `1010t2c1-①`) ──
+     ★★편집 host 는 ★`.tb-qt-body` ★하나다 — ⛔줄(`.tb-qt-line`)마다 열지 마라:
+       ★v1 모델은 ★글이 ★한 덩이(`dataset.text`)이고 ★줄은 ★렌더가 쪼갠다(quote-block.js 머리말 「v1 스택 = 엔터로 나눈다」)
+       ⇒ ★줄마다 열면 ★★«엔터로 줄을 나누는 길»이 ★막힌다.
+     ★두 후보를 ★둘 다 본다 — ★모달 dblclick 과 ★같은 규약(앞 커밋이 innerHTML 을 갈아끼웠으면
+       첫 클릭 타깃이 detach 돼 `elementFromPoint` 가 엉뚱한 요소를 준다).
+     ⛔`RETAIN_ON_PANEL_BLUR_SEL`·`KEEP_FOCUS_HOST_SEL`(`js/props/_text-selection.js:74,80`)에
+       ★`.quote-block` 을 ★더하지 ★않았다 — ★패널 적용이 ★블럭을 ★통째로 다시 그리는 꼴이라
+       ★포커스를 붙잡으면 ★아직 커밋 안 된 글자가 ★사라진다. ★그 파일이 ★그 가름을 ★이미 적어 뒀다. */
+  if (isQuote) {
+    block.addEventListener('dblclick', e => {
+      const _body = (n) => {
+        const b = n && n.closest ? n.closest('.tb-qt-body') : null;
+        return (b && block.contains(b)) ? b : null;
+      };
+      const host = _body(document.elementFromPoint(e.clientX, e.clientY)) || _body(e.target);
+      if (!host) return;
+      e.stopPropagation();
+      if (host.getAttribute('contenteditable') === 'true') return;
+      block.classList.add('editing');          // 드래그·삭제키 가드가 이걸 본다
+      host.setAttribute('contenteditable', 'true');
+      host.setAttribute('draggable', 'false'); // 부모 row 가 draggable — 안 끄면 글자 드래그 선택이 블록 드래그가 된다
+      host._qtBefore = _mdlReadText(host);
+      /* ★안내문구인가 — ★`_lineEl` 이 그때만 ★`data-is-placeholder` 를 박는다(quote-block.js:259) */
+      host._qtWasPh = !!host.querySelector('[data-is-placeholder="true"]');
+      if (!host._qtEditBound) {
+        host._qtEditBound = true;
+        host.addEventListener('blur', () => _quoteEndEdit(block, host));
+        host.addEventListener('keydown', ev => {
+          if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); host.blur(); }
+        });
+      }
+      host.focus();
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        const r = document.createRange();
+        if (host._qtWasPh) r.selectNodeContents(host);   // 안내문구면 전체 선택 → 타이핑으로 즉시 교체
         else {
           const cr = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
           if (cr) { sel.addRange(cr); return; }
