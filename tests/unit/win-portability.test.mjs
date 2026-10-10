@@ -231,8 +231,32 @@ test('③-2 쓰기 거부는 플랫폼별 «동등한 동작»이고, ★읽기�
   try {
     fs.writeFileSync(path.join(dir, 'pre.txt'), 'hello');       // ★미리 있던 파일 = 읽기 확인용
     assert.equal(D.probeAccess(dir).write, true, '전제 미달 — 막기 전부터 못 쓴다');
+    /* ★★★복구를 ★★«내 쪽에서» 잰다 — ★지디 판정 2026-10-10.
+       ⛔★`denywrite.cjs` 에 ★한 글자도 ★대지 ★않는다(★검사 편의로 ★제품 모듈의 ★반환 꼴을 ★바꾸지 ★않는다)
+       ★★그래서 ★★«남의 `beforeMode` 를 ★꺼내는» 것이 ★아니라 ★★★«내가 ★같은 것을 ★따로 ★재는» 것이다
+       ⇒ ★★그게 ★더 ★세다: ★★그 모듈이 ★`beforeMode` 를 ★★틀리게 ★들고 있어도 ★★이 칸이 ★잡는다
+       ★★상태 꼴은 ★플랫폼마다 ★다르다 — ⛔그러나 ★★어느 쪽도 ★«건너뛰지» ★않는다(★③-3) */
+    const stateOf = (d) => (process.platform === 'win32'
+      ? { probe: D.probeAccess(d) }                               /* ★win: ★권한 비트가 ★뜻이 없다 ⇒ ★행동으로 */
+      : { probe: D.probeAccess(d), mode: fs.statSync(d).mode & 0o777 });
+    /* ★★★권한 비트를 ★★«눈에 띄는» 값으로 ★먼저 ★바꾼다 — ★실측으로 ★까닭이 ★생겼다:
+       ★`mkdtempSync` 는 ★★`0700` 을 ★만든다 ⇒ ★★`restore` 가 ★★`0700` 으로 ★되돌리는 ★변이(⒧)를
+       ★★★«원래대로»와 ★구분할 수 ★없다 ⇒ ★★그 변이에서 ★이 칸이 ★초록이었다
+       ⇒ ★★`0750` 으로 ★두면 ★★«원래 모드를 ★참으로 ★기억했나»가 ★비로소 ★재진다
+       (★소유자는 ★rwx 그대로 ⇒ ★읽기·쓰기·나열 ★검사는 ★영향 ★없다) */
+    fs.chmodSync(dir, 0o750);
+    const st0 = stateOf(dir);
+    assert.equal(st0.mode === undefined || st0.mode === 0o750, true,
+      '★전제 — ★눈에 띄는 모드(0750)가 ★안 걸렸다: 0o' + (st0.mode || 0).toString(8));
     const h = D.denyWrite(dir);
     try {
+      /* ★★★전제 — ★★«걸렸나». ⛔이게 ★없으면 ★아래 ★복구 단언이 ★★항등일 수 ★있다
+         (★안 걸렸으면 ★복구 ★뒤 상태가 ★★당연히 ★`st0` 와 ★같다)
+         ★★★자리가 ★★`try` ★안이어야 ★한다 — ⛔★밖에 두면 ★★여기서 ★던질 때 ★`restore()` 가 ★안 돌아
+           ★그 폴더가 ★★`0500` 으로 ★남고 ★★바깥 `rmSync` 가 ★★`ENOTEMPTY` 로 ★터져
+           ★★★내 단언의 ★메시지를 ★★덮는다(★내가 ★한 번 ★그렇게 ★뒀다) */
+      assert.notDeepEqual(stateOf(dir), st0,
+        '★★`denyWrite` 가 ★★아무것도 ★안 바꿨다 — ★★그러면 ★아래 ★«복구됐다»는 ★★항등이고 ★아무것도 ★안 잠근다');
       if (process.platform === 'win32') {
         assert.match(h.how, new RegExp(`^icacls /deny .+:\\(${D.WIN_DENY_RIGHTS.replace(/,/g, ',')}\\)$`), h.how);
       } else {
@@ -246,7 +270,20 @@ test('③-2 쓰기 거부는 플랫폼별 «동등한 동작»이고, ★읽기�
       assert.ok(/EACCES|EPERM/.test(h.errCode), `거부 코드가 없다: ${h.errCode}`);
     } finally { h.restore(); }
     assert.equal(D.probeAccess(dir).write, true, '되돌리지 못했다 — 뒷 검사를 오염시킨다');
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+    /* ★★★그리고 ★★«쓸 수 있다»만으로는 ★부족하다 — ★★0700 으로 ★남아도 ★쓸 수는 ★있다
+       ⇒ ★★★잰 상태 ★전부가 ★★처음과 ★같아야 ★한다(★POSIX 면 ★권한 비트까지) */
+    assert.deepEqual(stateOf(dir), st0,
+      '★★복구가 ★★안 됐다 — ★`restore()` 뒤 상태가 ★처음과 ★다르다. '
+      + '★★`denyWrite` 의 ★복구는 ★★`catch (_) {}` 로 ★삼키니 ★★«조용히» ★남는다');
+  } finally {
+    /* ★★★치우기가 ★★증거를 ★지운다 — ★실측으로 ★잡았다.
+       ★`restore()` 가 ★안 돌면 ★이 폴더가 ★★`0500` 으로 ★남고 ★★`rmSync` 가 ★★`ENOTEMPTY` 로 ★던진다
+       ⇒ ★★그 던짐이 ★★★«진짜로 ★터진 ★단언»의 ★메시지를 ★★덮는다(★변이 ⒤ 가 ★그렇게 ★보였다)
+       ⇒ ★★그래서 ★치우기 ★전에 ★권한을 ★★되돌린다 — ★★실패 ★경로에서만 ★뜻이 ★있다
+       ⛔★단언을 ★무르게 하는 것이 ★아니다: ★★빨강은 ★그대로 ★빨강이고, ★★까닭만 ★읽힌다 */
+    try { fs.chmodSync(dir, 0o700); } catch (_) { /* ★이미 ★복구됐으면 ★할 일 ★없다 */ }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('Ⓑ-1 ★판정 자가 «가짜 초록»과 «가짜 빨강»을 «둘 다» 잡는다 (윈도우 없이 잰다)', () => {
