@@ -481,3 +481,86 @@ test('E3 ★★모드·표시가 ★저장본에 ★안 샌다 (★명부 둘에
   /* ★★`_starSel` 은 ★JS 프로퍼티라 ★애초에 ★직렬화 대상이 ★아니다 — ★그것도 ★확인한다 */
   expect(saved, '★`_starSel` 이 ★저장본에 있다 — ★프로퍼티가 ★속성이 됐다').not.toContain('_starSel');
 });
+
+/* ══ ⒦ ★★별 블록이 ★★«둘 이상»일 때 — ★모드가 ★블록 ★단위인가 ═════════════════
+ * ★★내가 ★먼저 ★올린 칸이다(⛔«설계가 그렇다»를 ★안 믿는다 · 지디 접수).
+ * ★★`js/star-select.js` 는 ★모듈 수준 ★`_mode` ★하나를 ★든다 ⇒ ★★설계상 ★블록 ★하나만 ★선다
+ *   ⇒ ★★그런데 ★★«표시»·«고른 별»·«입구»가 ★참으로 ★한 블록에만 ★머무나는 ★★안 쟀다
+ * ★★★그리고 ★여기가 ★위험한 까닭: ★`_markStarMode` 류가 ★★선택자를 ★문서 전역으로 ★쓰면
+ *   ★★둘째 블록의 ★polygon 까지 ★표시가 ★번진다 — ★★그건 ★«조용한» 흠이다(★예외 ★없다) */
+test('E4 ★★⒦ ★별 블록 ★둘 — ★모드·표시·입구가 ★★한 블록에만 ★머문다', async ({ page }) => {
+  await setup(page);
+  /* ★둘째 별 블록을 ★★제품 길로 ★더한다 — ★`addShapeBlock` 이 ★그 길이다 */
+  await page.evaluate(() => {
+    window.deselectAll?.();
+    window.selectSection?.(document.getElementById('sA'));
+    window.addShapeBlock?.('star');
+  });
+  await page.waitForTimeout(400);
+  const n = await page.evaluate(() => document.querySelectorAll('#canvas .shape-block').length);
+  expect(n, `★전제 — ★별 블록이 ★둘이어야 한다 (잰 값: ${n})`).toBe(2);
+
+  /* ★둘 다 ★갯수 5 로 — ★각자 ★패널을 열어 ★만진다(⛔dataset 을 ★손으로 심지 않는다) */
+  for (const i of [0, 1]) {
+    await page.evaluate((k) => {
+      const b = document.querySelectorAll('#canvas .shape-block')[k];
+      window.showShapeProperties?.(b);
+    }, i);
+    await page.waitForTimeout(150);
+    await setNum(page, 'shape-star-count-num', 5);
+    await page.waitForTimeout(250);
+  }
+  const counts = await page.evaluate(() => [...document.querySelectorAll('#canvas .shape-block')]
+    .map((b) => b.dataset.starCount));
+  expect(counts, `★전제 — ★둘 다 ★갯수 5 (잰 값: ${JSON.stringify(counts)})`).toEqual(['5', '5']);
+
+  /* ★★첫째 블록의 ★3번 별을 ★★진짜 ★더블클릭 */
+  const box = await page.locator('#canvas .shape-block').nth(0).locator('svg polygon').nth(2).boundingBox();
+  expect(box, '★첫째 블록의 ★별을 ★못 찾았다').not.toBeNull();
+  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(400);
+
+  const st = await page.evaluate(() => {
+    const bs = [...document.querySelectorAll('#canvas .shape-block')];
+    return bs.map((b) => ({
+      mode: b.classList.contains('star-mode'),
+      sel: b._starSel ?? null,
+      marked: [...b.querySelectorAll('svg polygon')].filter((p) => p.classList.contains('star-cell-selected')).length,
+    }));
+  });
+  /* ★★★첫째에만 ★모드·표시가 ★있어야 한다 */
+  expect(st[0].mode, '★첫째 블록에 ★모드가 ★안 섰다').toBe(true);
+  expect(st[0].sel, '★첫째 블록에서 ★3번째(index 2)가 ★안 골라졌다').toBe(2);
+  expect(st[0].marked, '★첫째 블록의 ★표시가 ★하나가 ★아니다').toBe(1);
+  expect(st[1].mode, '★★둘째 블록에 ★모드가 ★번졌다').toBe(false);
+  expect(st[1].sel, '★★둘째 블록에 ★고른 별이 ★번졌다').toBeNull();
+  expect(st[1].marked, '★★둘째 블록의 ★polygon 에 ★표시가 ★번졌다').toBe(0);
+
+  /* ★★그리고 ★★입구(«이 별» 색 줄)가 ★★하나만 ★뜬다 */
+  const rows = await page.evaluate(() => document.querySelectorAll('#shape-star-one-row').length);
+  expect(rows, `★입구 줄이 ★${rows}개다 — ★하나여야 한다`).toBe(1);
+
+  /* ★★★둘째 블록의 별을 ★더블클릭하면 ★★모드가 ★그쪽으로 ★옮겨지고 ★첫째는 ★풀린다 */
+  const box2 = await page.locator('#canvas .shape-block').nth(1).locator('svg polygon').nth(0).boundingBox();
+  expect(box2, '★둘째 블록의 ★별을 ★못 찾았다').not.toBeNull();
+  await page.mouse.dblclick(box2.x + box2.width / 2, box2.y + box2.height / 2);
+  await page.waitForTimeout(400);
+  const st2 = await page.evaluate(() => {
+    const bs = [...document.querySelectorAll('#canvas .shape-block')];
+    return bs.map((b) => ({ mode: b.classList.contains('star-mode'), sel: b._starSel ?? null,
+      marked: [...b.querySelectorAll('svg polygon')].filter((p) => p.classList.contains('star-cell-selected')).length }));
+  });
+  expect(st2[1].mode, '★둘째 블록에 ★모드가 ★안 섰다').toBe(true);
+  expect(st2[1].sel, '★둘째 블록에서 ★0번이 ★안 골라졌다').toBe(0);
+  expect(st2[0].mode, '★★첫째 블록의 ★모드가 ★안 풀렸다 — ★둘이 ★같이 섰다').toBe(false);
+  expect(st2[0].sel, '★★첫째 블록의 ★고른 별이 ★남았다').toBeNull();
+  expect(st2[0].marked, '★★첫째 블록의 ★표시가 ★남았다').toBe(0);
+  /* ★★그리고 ★★저장본에 ★어느 쪽 흔적도 ★안 샌다 */
+  const saved = await page.evaluate(() => {
+    const sec = document.getElementById('sA');
+    const out = window.serializeSectionClone ? window.serializeSectionClone(sec) : sec.outerHTML;
+    return typeof out === 'string' ? out : (out && out.outerHTML) || '';
+  });
+  expect(saved, '★`star-mode` 가 ★저장본에 ★샜다').not.toContain('star-mode');
+  expect(saved, '★`star-cell-selected` 가 ★저장본에 ★샜다').not.toContain('star-cell-selected');
+});

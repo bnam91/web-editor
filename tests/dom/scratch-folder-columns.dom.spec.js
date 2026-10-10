@@ -18,6 +18,8 @@ const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
 const { bootApp } = require('./_root-harness.js');
+const { mkTmpRoot } = require('../unit/_tmproot.js');   /* ★임시 루트의 ★임자 — ★만들기·치우기를 ★그 자가 쥔다.
+      ★잠그는 자 = ★`tests/unit/tmproot-sole-owner.test.mjs` (★`tests/` 전수를 ★걷는다) */
 
 const WIDTH = 860, GAP_Y = 100, START_X = 960, GAP_X = 100;   // js/scratch-pad.js SCRATCH_PLACE
 /* 폴더별 비율 → 표시높이. 쌓인 순서를 y 간격에서 역산하는 «표식»이다. */
@@ -58,8 +60,8 @@ function makeTree(root, specs) {
 }
 
 let TMP;
-test.beforeAll(() => { TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'gd-reffolder-')); });
-test.afterAll(() => { try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (_) {} });
+test.beforeAll(() => { TMP = mkTmpRoot('gd-reffolder-'); });
+/* ⛔★여기 있던 ★afterAll 치움을 ★뺐다 — ★`mkTmpRoot` 가 ★치우기를 ★쥔다 */
 
 async function setup(page, projectId) {
   await page.setViewportSize({ width: 1500, height: 800 });

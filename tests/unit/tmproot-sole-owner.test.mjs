@@ -22,6 +22,17 @@
  * ⇒ ★★★칸은 ★파일로, ★자는 ★rmSync 줄로. ★★섞인 파일은 ★그 칸의 ★까닭에 ★★양쪽을 ★적는다
  *   (★★그게 ★「수가 갈리면 ★★단위부터」의 ★그 자리다 — ★T5 의 ⒡ 가 ★그것까지 ★잠근다)
  *
+ * ⛔⛔★★★이 파일을 ★걷는 자는 ★★`stripComments` 를 ★★반드시 ★쓴다 (2026-10-10 실측 · 지디가 찾았다)
+ *   ★까닭: ★여긴 ★★«까닭»을 ★많이 적는 파일이다 ⇒ ★★주석에 ★호출 이름이 ★자주 ★나온다
+ *   ⛔★수를 ★여기 ★박지 ★않는다 — ★★`T7` 이 ★매 회차 ★찍는다(★주석 포함 · ★주석 뗀 뒤 · ★차이)
+ *     ★까닭: ★★그 수는 ★이 파일을 ★고칠 때마다 ★움직인다 ⇒ ★★박으면 ★★산문이 ★먼저 ★썩는다
+ *     (★실제로 ★★한 번 ★썩었다 — ★★본문 3건을 ★없앴더니 ★★머리말의 ★10 이 ★거짓이 됐다)
+ *   ⇒ ★★주석을 ★안 떼는 자는 ★★★«참값 0» 대신 ★★«주석 속 전부» 를 ★센다
+ *   ⇒ ★★★그게 ★★내가 ★오늘 ★두 번 ★밟은 ★길이다 — ★첫 걷기가 ★주석 낱말을 ★★대상으로 ★읽었다
+ *     (★그 출력이 ★★«말이 안 되는 꼴»이었다 ⇒ ★★★그게 ★자가 ★깨졌다는 ★가장 ★싼 신호다. ★읽어라)
+ *   ⇒ ★★★그래서 ★★`T7` 이 ★★그 두 수를 ★나란히 ★찍고 ★★본문 ★0건을 ★못박는다
+ *   ★★＋ ★까닭 문자열에서도 ★★호출 꼴을 ★없앴다(★`name 접두사 …` 로) — ★★본문 ★0건을 ★만들려고
+ *
  * ★★이 자가 ★재는 것 — ★두 축
  *   ㉠ ★★위반 집합 ⊆ ★★명부 (★새 위반이 ★생기면 ★빨강)
  *   ㉡ ★★명부에 ★★«이미 옮긴» 칸이 ★남아 있으면 ★빨강 (★명부가 ★낡으면 ★다음 위반을 ★가린다)
@@ -62,7 +73,6 @@ const RM_RE = () => /\brmSync\s*\(/g;
 
 /** ㉠ ★★이전 ★대상 — ★`mkdtempSync` 로 ★임시 루트를 ★만들고 ★제 손으로 ★치우는 자. */
 const PENDING = {
-  'tests/dom/scratch-folder-columns.dom.spec.js':  '★DOM — ★창 차례(지디 가름) · ★`npm test` 로 ★못 잰다',
 };
 
 /** ㉡ ★★이전 ★대상이 ★아니다 — ★`rmSync` 가 ★★«그 검사의 일»이다. ★까닭을 ★이름 옆에.
@@ -102,13 +112,13 @@ const NOT_TMPROOT = {
  *  ⇒ ★★★즉 ★이 칸은 ★★결함이 ★아니다. ⛔여기 것을 ★`PENDING` 으로 ★옮기지 ★마라. */
 const DONE_EAGER = {
   'tests/unit/operator-allow-cli.test.mjs':
-    '★★섞였다 — ★HOME = mkTmpRoot(goditor-opallow-) 의 ★즉시치움 ★3 ＋ ★inRepo·bad(그 검사의 주제) ★2. '
+    '★★섞였다 — ★HOME = mkTmpRoot 접두사 goditor-opallow- 의 ★즉시치움 ★3 ＋ ★inRepo·bad(그 검사의 주제) ★2. '
     + '★★왜 ★즉시치움인가 = ★★그 폴더에 ★★개인키가 ★산다 ⇒ ★종료훅(★SIGKILL 에서 ★안 돈다)에 ★못 맡긴다. '
     + '★★그 약속을 ★★잠그는 칸 = ★★C-KEYGONE(★그 파일) — ⛔머리말 ★선언으로 ★안 닫았다',
   'tests/unit/history-restart.test.js':
-    '★`ud` = mkTmpRoot(goya-restart{,2,3}-) ★셋 — ★rmSync ★3/3 이 ★그 임시루트의 ★즉시 치움이다',
+    '★`ud` = mkTmpRoot 접두사 goya-restart{,2,3}- ★셋 — ★rmSync ★3/3 이 ★그 임시루트의 ★즉시 치움이다',
   'tests/unit/history-ipc.test.js':
-    '★`outside` = mkTmpRoot(goya-outside-) 의 ★즉시치움 ★1 — ★★그것뿐이다(★자가 ★쟀다). '
+    '★`outside` = mkTmpRoot 접두사 goya-outside- 의 ★즉시치움 ★1 — ★★그것뿐이다(★자가 ★쟀다). '
     + '⚰️★내가 ★처음 ★«섞였다»로 적었고 ★★틀렸다 — ★주석을 ★안 뗀 ★걷기가 ★주석 낱말을 ★대상으로 ★읽었다',
 };
 
@@ -394,4 +404,48 @@ test('T6 ★★★둘째 축 — ★«아예 안 치우는» 파일이 ★★명
     assert.match(LEAKING[x.file], new RegExp('Δ' + x.delta + '(?![0-9])'),
       `★${x.file} 의 ★명부 Δ 표기가 ★자(Δ${x.delta})와 ★다르다: ${LEAKING[x.file]}`);
   }
+});
+
+test('T7 ★★★이 파일 ★자신이 ★★가장 오염시키는 파일이다 — ★본문 ★0건을 ★못박는다 (지디 ⑶)', () => {
+  /* ★★지디: 「★★«잘 설명한 파일»이 ★★«가장 오염시키는 파일»이 ★된다.
+   *   ★★그리고 ★★네 명부 파일은 ★★★자가 ★걷는 곳에 ★있다」
+   * ⇒ ★★그래서 ★★두 수를 ★나란히 ★찍고, ★★본문 ★0건을 ★단언한다. */
+  const SELF = path.join(ROOT, 'tests/unit/tmproot-sole-owner.test.mjs');
+  const raw = fs.readFileSync(SELF, 'utf8');
+  const CALLS = () => /\b(rmSync|mkdtempSync|mkTmpRoot|trackTmp)\s*\(/g;
+  const withC = (raw.match(CALLS()) || []).length;
+  const noC = (stripComments(raw).match(CALLS()) || []).length;
+  console.log(`    ★★이 파일 — ★주석 포함 ${withC}건 · ★★주석 뗀 뒤 ${noC}건 (★차이 ${withC - noC} = ★주석 속)`);
+  /* ⒜ ★★본문에 ★호출 꼴이 ★★0 — ★★그래서 ★이 파일은 ★★제 자에 ★안 걸린다 */
+  assert.equal(noC, 0,
+    `★이 파일 ★본문에 ★호출 꼴이 ★${noC}건 생겼다 — ★★제 자가 ★★자기를 ★세기 시작한다`);
+  /* ⒝ ★★★그리고 ★주석 속은 ★★0 이 ★아니어야 한다 — ⛔0 이면 ★★이 칸이 ★★«아무것도 안 재는» 칸이 된다
+     ★★즉 ★이 파일이 ★★참으로 ★위험한 파일임을 ★★그 수가 ★증명해야 한다 */
+  assert.ok(withC - noC >= 5,
+    `★주석 속 호출 꼴이 ★${withC - noC}건뿐이다 — ★★이 칸의 ★전제(«여긴 오염원이다»)가 ★무너졌다`);
+  /* ⒞ ★★★양성대조 — ★`stripComments` 가 ★참으로 ★떼나. ⛔이게 없으면 ⒜ 가 ★죽어도 ★모른다 */
+  const FAKE = '/* ' + 'rm' + 'Sync(FAKE) */ const a = 1;';
+  assert.equal((stripComments(FAKE).match(CALLS()) || []).length, 0,
+    '★양성대조 실패 — ★★주석 속 ★가짜 호출을 ★★세고 있다 ⇒ ★`stripComments` 가 ★안 뗀다');
+  const REAL = 'fs.' + 'rm' + 'Sync(x);';
+  assert.equal((stripComments(REAL).match(CALLS()) || []).length, 1,
+    '★음성대조 실패 — ★★참 호출을 ★★못 센다 ⇒ ★자가 ★죽었다');
+});
+
+test('T8 ★★«공용자불가» 표시 — ★그 표시를 ★든 파일이 ★전부 ★(㉠ ∪ ㉡) 안인가 (지디 ⑷)', () => {
+  /* ★★지디: 「★그 표시 이름을 ★★전수로 ★grep 할 수 있게 ★한 자리에 ★모아 적어라
+   *   ＋ ★T5 에 ★한 칸: ★그 표시를 ★든 파일이 ★★전부 ★(㉠∪㉡) 안인가」
+   * ★★왜 — ★★그 표시는 ★★«넓혔지만 ★안 느슨해졌다»의 ★근거다(★T5 ⒟-b 가 ★요구한다)
+   *   ⇒ ★★그 표시가 ★★엉뚱한 칸(㉢)에 ★붙으면 ★★그 뜻이 ★흐려진다 */
+  const MARK = '공용자불가';
+  const inP = Object.keys(PENDING).filter((f) => PENDING[f].includes(MARK));
+  const inN = Object.keys(NOT_TMPROOT).filter((f) => NOT_TMPROOT[f].includes(MARK));
+  const inD = Object.keys(DONE_EAGER).filter((f) => DONE_EAGER[f].includes(MARK));
+  const inL = Object.keys(LEAKING).filter((f) => LEAKING[f].includes(MARK));
+  console.log(`    ★★«${MARK}» 표시 — ㉠ ${inP.length} · ㉡ ${inN.length} · ㉢ ${inD.length} · 누수 ${inL.length}`);
+  assert.deepEqual(inD, [], `★㉢(이미 공용 자)에 ★«${MARK}» 가 붙었다 — ★뜻이 ★어긋난다: ${inD.join(' ')}`);
+  assert.deepEqual(inL, [], `★누수 명부에 ★«${MARK}» 가 붙었다 — ★거긴 ★치우는 자가 ★아예 없는 칸이다: ${inL.join(' ')}`);
+  /* ★★★그리고 ★그 표시가 ★★한 건이라도 ★있어야 한다 — ⛔0 이면 ★이 칸이 ★아무것도 안 잠근다 */
+  assert.ok(inP.length + inN.length >= 1,
+    `★«${MARK}» 표시가 ★★0건이다 — ★★T5 ⒟-b 가 ★잠글 대상이 ★없다(★자가 ★죽었거나 ★표시가 ★바뀌었다)`);
 });
