@@ -105,7 +105,8 @@ test('B4 ★★패널이 ★옛 %-전용 모드를 ★더 안 부른다 ＋ ★�
     '★★패널이 ★아직 ★옛 모드를 ★부른다 — ★그 모드엔 ★★크기 축이 ★없어 ★③ 이 ★다시 열린다');
   const uses = [...c.matchAll(/_frameBgEdit\(/g)].map((m) => m.index);
   const def = c.indexOf('const _frameBgEdit');
-  assert.equal(uses.length, 2, `★토글을 부르는 자리가 ${uses.length} 곳 — ★두 곳이어야 한다(「위치 편집」 버튼이 ★둘)`);
+  assert.equal(uses.length, 2, `★토글을 부르는 자리가 ${uses.length} 곳 — ★두 곳이어야 한다`
+    + ' (「배경이미지 편집」 버튼이 ★둘 — ★패널 HTML ＋ ★동적 생성)');
   assert.ok(def >= 0, '★토글 정의가 ★없다');
   assert.ok(def < Math.min(...uses),
     `★★정의(${def})가 ★첫 사용(${Math.min(...uses)})보다 ★뒤다 — `
@@ -198,6 +199,25 @@ test('B9 ★★버튼 이름이 ★「배경이미지 편집」이다 (현빈 20
     /* ★옛 라벨이 ★★«버튼 글자»로 ★남아 있나 — ★`>위치 편집<` 또는 ★따옴표로 감싼 것 */
     for (const m of c.matchAll(/>\s*위치 편집[^<]*<|'위치 편집[^']*'/g)) bad.push(`${f}: ${m[0].slice(0, 40)}`);
   }
+  /* ★★2026-10-10 2차 — ★배지·토스트까지 ★넓혔다(지디 GO). ★★전수를 ★다시 셌다:
+       ★「위치 편집/위치편집」 = ★★js＋css 에서 ★★«사용자에게 ★보이는 글» ★★2 행
+         (`js/canvas-scratch-drop.js` ★배지 ＋ ★토스트) ⇒ ★둘 다 ★갈았다
+       ★＋ ★★«현재 모드를 ★부르는 주석» ★9 행도 ★갈았다(★이름이 ★거짓이 되니까)
+       ★★＋ ⛔★★«역사 문장» ★1 행은 ★★그대로 ★뒀다 — ★예외를 ★★이름으로 ★적는다:
+         `js/props/prop-section.js` 의 ★「위치 편집으로 잡은 위치가 … 되돌아갔다」
+         ★★그때의 ★이름이라 ★바꾸면 ★★그때 일을 ★거짓으로 적게 된다. ★★그 줄 아래에 ★까닭을 박았다.
+       ⛔식별자(`sec-bg-pos-btn`·`ss-bg-pos-btn`·`…-pos-done`)는 ★안 바꿨다 — ★전수에서 ★0 행이었다. */
+  const SHOWN_SITES = ['js/canvas-scratch-drop.js'];
+  for (const f of SHOWN_SITES) {
+    const c = stripCommentsTA(read(f));
+    for (const m of c.matchAll(/['"`][^'"`]*위치\s?편집[^'"`]*['"`]/g)) bad.push(`${f}: ${m[0].slice(0, 46)}`);
+  }
+  /* ★★★역사 문장은 ★살아 있어야 한다 — ⛔«전부 갈아라»가 ★되면 ★기록이 ★거짓이 된다 */
+  const hist = read('js/props/prop-section.js');
+  assert.ok(/「위치 편집」으로 잡은 위치가/.test(hist),
+    '★★역사 문장이 ★사라졌다 — ★그 줄은 ★★«그때의 이름»이라 ★★바꾸거나 ★지우면 ★안 된다');
+  assert.ok(/«그때의 이름»/.test(hist),
+    '★역사 문장 아래의 ⛔까닭 표시가 ★사라졌다 — ★다음 사람이 ★그 줄을 ★갈아 버린다');
   console.log(`B9 ★새 라벨 ${newLabels} 건 ${JSON.stringify(per)} · ★옛 라벨 ${bad.length} 건`);
   assert.deepEqual(bad, [], '★★버튼에 ★옛 라벨 「위치 편집」이 ★남아 있다 — ★현빈이 ★고쳐 달라 한 ★그 글자다');
   assert.ok(newLabels >= 5,

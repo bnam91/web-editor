@@ -338,7 +338,7 @@
          생길 때마다 사람이 «기억해서» 한 줄을 더해야 하고, 안 더한 날 조용히 샌다. */
     root.querySelectorAll('[class]').forEach(stripRuntimeMarkers);
     root.querySelectorAll('.sticker-block.tiny').forEach(s => s.classList.remove('tiny'));  // 조건부 — 스티커에서만 UI 상태
-    /* 섹션 배경 «위치 편집» 임시 상태 — .sec-bg-proxy 는 위 remove 목록에서 이미 사라졌고,
+    /* 섹션 «배경이미지 편집» 임시 상태(★2026-10-10 이름 변경) — .sec-bg-proxy 는 위 remove 목록에서 이미 사라졌고,
        마킹 클래스(sec-bg-editing)는 위 성질 sweep 이 걷었다. ci-selected · ci-active ·
        editing · dragging · ss-drag-over · group-selected/editing 도 마찬가지다.
        (고스트 .sec-bg-ghost 는 #canvas 밖 오버레이라 애초에 클론에 없다) */

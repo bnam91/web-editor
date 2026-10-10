@@ -115,6 +115,8 @@ function _applySectionBg(sec) {
   const size  = sec.dataset.bgSize || 'cover';
   // ★bgPos 는 dataset 이 정본(save-load.js 복원과 동일). 예전엔 여기서 'center' 로 덮어써서
   //   「위치 편집」으로 잡은 위치가 사이즈 변경·색 변경 한 번에 되돌아갔다.
+  //   ⚠️★★이 줄의 ★「위치 편집」은 ★★«그때의 이름»이다 — ⛔2026-10-10 의 ★이름 변경으로
+  //     ★★바꾸지 ★마라. ★바꾸면 ★★그때 ★일어난 일을 ★★거짓으로 적게 된다(★역사 문장).
   const pos   = sec.dataset.bgPos || 'center';
 
   // 항상 shorthand는 초기화 후 개별 속성으로 재설정 (이전 multi-layer 잔재 제거)
@@ -134,7 +136,7 @@ function _applySectionBg(sec) {
     // multi-background: gradient(색) 위, url(이미지) 아래 — ★반투명 색의 ★물들임
     sec.style.background = `linear-gradient(${color}, ${color}), url(${img})`;
     // 색 layer 는 gradient — 고유 크기가 없어 어떤 키워드든 박스 전체다. 'cover' 로 고정해야
-    // 이미지 layer 가 px 값(위치 편집 결과)일 때 색이 박스 일부만 덮는 사고가 없다.
+    // 이미지 layer 가 px 값(「배경이미지 편집」 결과)일 때 색이 박스 일부만 덮는 사고가 없다.
     sec.style.backgroundSize = `cover, ${size}`;
     sec.style.backgroundPosition = `center, ${pos}`;
     sec.style.backgroundRepeat = 'no-repeat, no-repeat';
@@ -223,7 +225,7 @@ async function showSectionProperties(sec) {
     ? parseInt(inner.dataset.paddingX)
     : (parseInt(inner?.style.paddingLeft) || 0);
   const secPadXAsset   = inner?.dataset.padXExcludesAsset || '';
-  // 「위치 편집」으로 잡은 크기는 px 값이라 3개 키워드 어디에도 안 맞는다 —
+  // 「배경이미지 편집」으로 잡은 크기는 px 값이라 3개 키워드 어디에도 안 맞는다 —
   // 옵션을 안 넣으면 select 가 «Cover» 로 보이는 거짓말을 한다.
   const _bgEmpty = sec.dataset.bgImgEmpty === '1';
   /* ★S1 섹션 체커 톤(2026-10-06 현빈 「일괄이 아니라 섹션마다」 · R1 = 섹션 «배경» 체커만).
@@ -847,5 +849,5 @@ export { applyPreset, setRpIdBadge, showSectionProperties, syncSection };
 window.applyPreset           = applyPreset;
 window.setRpIdBadge          = setRpIdBadge;
 window.showSectionProperties = showSectionProperties;
-window.applySectionBg = _applySectionBg;   // image-handling.js(섹션 배경 위치 편집) 커밋용
+window.applySectionBg = _applySectionBg;   // image-handling.js(섹션 배경이미지 편집) 커밋용
 window.syncSection           = syncSection;
