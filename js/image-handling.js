@@ -4,6 +4,7 @@
 import { propPanel } from './globals.js';
 import { alignBtn } from './props/_helpers.js';
 import { decodeGifFrames } from './io/export-image.js';
+import { applyAssetClip } from './clip-content.js';   /* ★「내용 자르기」 ★술어·표의 ★단 한 자리(2026-10-10 c2) */
 
 /* ── 이미지 업로드 로딩 오버레이 헬퍼 ── */
 export function showAssetLoading(block) {
@@ -684,6 +685,11 @@ function setAssetVideoFromSrc(ab, src) {
     <button class="asset-overlay-clear" title="영상 제거">✕</button>
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
   restoreAssetGrain(ab, prevGrainSnap);
+  /* ★★★«내용 자르기» — ★★렌더러가 ★읽는다(지디 판정 2026-10-10 · ⛔`!important` 로 ★CSS 가 ★이기게 ★안 한다).
+     ★★★속성이 ★없으면 ★★인라인을 ★안 쓴다 ⇒ ★CSS `.asset-img-clip { overflow: hidden }` 이 ★그대로 ★자른다
+     ⇒ ★★옛 바이트 ★보존(지디 조건 ㉢). ★★표와 ★술어는 ★`js/clip-content.js` ★★한 자리다.
+     ★★여기가 ★두 번 나온다 — ★영상 갈래 ＋ ★그림 갈래. ★★둘 다 ★먹여야 ★«꼴마다 다름»이 ★안 생긴다. */
+  applyAssetClip(ab);
   ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
     e.stopPropagation();
     clearAssetImageFromButton(ab);
@@ -744,6 +750,11 @@ function setAssetImageFromSrc(ab, src, motionSrc) {
     ${isGif ? '<button class="asset-gif-toggle" title="GIF 재생">▶ GIF 재생</button>' : ''}
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
   restoreAssetGrain(ab, prevGrainSnap);
+  /* ★★★«내용 자르기» — ★★렌더러가 ★읽는다(지디 판정 2026-10-10 · ⛔`!important` 로 ★CSS 가 ★이기게 ★안 한다).
+     ★★★속성이 ★없으면 ★★인라인을 ★안 쓴다 ⇒ ★CSS `.asset-img-clip { overflow: hidden }` 이 ★그대로 ★자른다
+     ⇒ ★★옛 바이트 ★보존(지디 조건 ㉢). ★★표와 ★술어는 ★`js/clip-content.js` ★★한 자리다.
+     ★★여기가 ★두 번 나온다 — ★영상 갈래 ＋ ★그림 갈래. ★★둘 다 ★먹여야 ★«꼴마다 다름»이 ★안 생긴다. */
+  applyAssetClip(ab);
   ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
     e.stopPropagation();
     clearAssetImageFromButton(ab);

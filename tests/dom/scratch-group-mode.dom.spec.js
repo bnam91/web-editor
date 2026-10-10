@@ -52,6 +52,24 @@ const st = (page) => page.evaluate(() => ({
   mode: window._scratchGroupMode?.() ?? null,
   marquee: document.querySelectorAll('.scratch-marquee').length,
   closeGlyphs: [...document.querySelectorAll('.scratch-item .scratch-close')].map((b) => b.textContent),
+  /* ★★⒠ ★«표시»를 ★클래스 수가 아니라 ★★«그려진 꼴»로 센다(지디 2026-10-10).
+     ⛔`marked`(클래스 수)만으로는 ★★«보이나»를 ★못 잰다 — ★특이도로 ★덮일 수 있다. */
+  outline: (() => {
+    const q = [...document.querySelectorAll('.scratch-item')].map((e) => {
+      const c = getComputedStyle(e);
+      return { style: c.outlineStyle, w: c.outlineWidth, off: c.outlineOffset, color: c.outlineColor };
+    });
+    return {
+      dashed: q.filter((x) => x.style === 'dashed').length,
+      solid: q.filter((x) => x.style === 'solid').length,
+      dashedW: [...new Set(q.filter((x) => x.style === 'dashed').map((x) => x.w))],
+      dashedOff: [...new Set(q.filter((x) => x.style === 'dashed').map((x) => x.off))],
+      colorsSame: (() => {
+        const cs = [...new Set(q.filter((x) => x.style !== 'none').map((x) => x.color))];
+        return cs.length <= 1;
+      })(),
+    };
+  })(),
 }));
 
 test('G0 전제 — 3장이 ★진짜 길로 ★한 그룹 · zoom 100 · 모드 입구가 있다', async ({ page }) => {
@@ -94,6 +112,17 @@ test('G2 ★★더블클릭 → 그룹 진입 ＋ 그 멤버 ★단독 선택 �
   expect(s.sel, '★★단독 선택 강제 — 1장').toBe(1);
   expect(s.marked, '★그룹 3장에 표시가 붙었다').toBe(3);
   expect(s.pads, '★아무것도 안 지워졌다').toBe(3);
+  /* ★★⒠ — ★«표시»를 ★★«그려진 꼴»로 잰다. ⛔클래스 수(marked)로는 ★«보이나»를 ★못 잰다.
+     ★★소스에서 끌어온 참값: `:195` group-mode = ★2px dashed, offset 4px
+                            `:243` selected   = ★solid (★토큰 폭)
+     ★★두 선택자 ★특이도가 ★같아(0,2,0) ★★뒤 줄(:243)이 ★이긴다 ⇒ ★진입 멤버는 ★단독 선택이라 ★solid
+     ⇒ ★★★«대상은 ★셋 · ★보이는 꼴은 ★둘». ★그 구분을 ★여기 박는다. */
+  expect(s.outline.dashed, '★★점선으로 ★보이는 장 — 진입 멤버는 solid 가 이기므로 ★나머지 둘').toBe(2);
+  expect(s.outline.solid, '★★진입 멤버 ★하나는 solid(.scratch-selected 가 뒤에 선언됐다)').toBe(1);
+  expect(s.outline.dashedW, '★점선 굵기 2px').toEqual(['2px']);
+  expect(s.outline.dashedOff, '★점선 띄움 4px').toEqual(['4px']);
+  /* ⛔색 ★리터럴을 ★박지 ★않는다 — ★★«서로 같은가»로 잰다(토큰이 바뀌면 ★같이 바뀐다) */
+  expect(s.outline.colorsSame, '★★두 꼴이 ★같은 색 토큰을 쓴다(⛔리터럴로 안 잠근다)').toBe(true);
 });
 
 test('G3 ★★본 단언 — 진입 중 ★Delete 는 ★그 한 장만 ★뺀다(⛔지우지 않는다)', async ({ page }) => {
@@ -158,6 +187,11 @@ test('G7 ★★진입 배타 — 두 모드가 ★동시에 못 선다(✂ 를 �
   console.log('[G7] ' + JSON.stringify(s));
   expect(s.slice, '★슬라이스 모드가 섰다').toBe(1);
   expect(s.group, '★★그룹 모드는 ★풀렸다(동시에 못 선다)').toBeNull();
+  /* ★★⒠⒝ — ★거두기를 ★★«그려진 꼴»로도 잰다(⛔클래스만 보지 않는다) */
+  const after = await st(page);
+  console.log('[G7 ⒠] ' + JSON.stringify(after.outline) + ' marked=' + after.marked);
+  expect(after.marked, '★★`.scratch-group-mode` 클래스가 ★0개').toBe(0);
+  expect(after.outline.dashed, '★★점선이 ★0개 — ★거뒀다').toBe(0);
 });
 
 test('G7b ★★진입 배타 ★★«반대 방향» — ✂ 가 선 채로 그룹에 들어가면 ✂ 가 ★풀린다', async ({ page }) => {

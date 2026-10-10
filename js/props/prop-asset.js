@@ -3,6 +3,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
+import { clipsContent, CLIP_DEFAULTS, applyAssetClip } from '../clip-content.js';   /* ★「내용 자르기」 한 자리(2026-10-10 c2) */
 /* ★폭 하한은 «리터럴로 쓰지 않는다» — asset-width-limits.js 한 자리에서 온다.
    패널(슬라이더·숫자칸·커밋 clamp)과 모서리 핸들이 «같은 수»를 봐야 갈라지지 않는다.
    (선례: prop-modal.js 가 MODAL_LIMITS 를, prop-gap.js 가 GAP_MIN/MAX 를 그렇게 쓴다.) */
@@ -203,6 +204,18 @@ ${blockHeaderHTML({
           <span class="prop-toggle-track"></span>
         </label>
       </div>
+      <!-- ★★2026-10-10 (현빈 1010t1c2 「이미지 삽입할 수 있는 상황에서 ‘내용자르기’ 기능이 있으면 좋겠다」)
+           ★★이름·값꼴은 ★프레임과 ★★같다(★data-clip-content) — ⛔새 이름 ★금지.
+           ★★켬 판정은 ★js/clip-content.js 의 ★★술어 ★하나가 한다 — ⛔여기서 ★다시 세지 ★않는다.
+           ⛔★★이 주석에 ★★백틱을 ★쓰지 ★마라 — ★★여기는 ★★템플릿 리터럴 ★안이고 ★백틱이 ★리터럴을 ★끊는다
+             (★2026-10-10 에 ★실제로 ★끊었다 · ★내 명부의 ★「in-template 주석이 ★JS 를 깨뜨렸다」 그 자리) -->
+      <div class="prop-row">
+        <span class="prop-label">내용 자르기</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="asset-clip-toggle" ${clipsContent(ab) ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
       ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl })}
     </div>
     <div class="prop-section">
@@ -303,6 +316,20 @@ ${blockHeaderHTML({
 
   const hSlider = document.getElementById('asset-h-slider');
   const hNumber = document.getElementById('asset-h-number');
+
+  /* ★★★«내용 자르기» — ★★★기본값과 ★같아지면 ★★속성을 ★★지운다(지디 조건 ㉢ · ★옛 바이트 보존)
+     ★★까닭: ★`'true'` 를 ★늘 쓰면 ★★기존 문서에 ★★없던 글자가 ★생겨 ★저장 바이트가 ★달라진다.
+       ⇒ ★★미설정 ≡ ★계열 기본값 이므로 ★★지우는 것이 ★★«같은 뜻 ＋ 같은 바이트»다.
+     ★★선례(프레임)는 ★늘 쓰지만(`'true'`/`'false'`) ★★그쪽은 ★이미 그 글자가 ★문서에 있다.
+     ★그리기는 ★★렌더러가 한다 — ★`applyAssetClip` ★한 자리(⛔여기서 ★style 을 ★직접 ★만지지 ★않는다). */
+  document.getElementById('asset-clip-toggle')?.addEventListener('change', e => {
+    window.pushHistory?.('에셋 내용 자르기');
+    const want = !!e.target.checked;
+    if (want === CLIP_DEFAULTS.asset) delete ab.dataset.clipContent;
+    else ab.dataset.clipContent = want ? 'true' : 'false';
+    applyAssetClip(ab);
+    window.scheduleAutoSave?.();
+  });
 
   document.getElementById('asset-padx-toggle').addEventListener('change', e => {
     ab.dataset.usePadx = e.target.checked ? 'true' : 'false';

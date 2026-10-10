@@ -22,3 +22,9 @@ goditor-operator-*.pem
 # playwright json 리포터 찌꺼기 — playwright.config.js 의 outputFile 이 «검사 폴더 안»에 쓴다.
 # ⛔추적되면 남의 실행 결과가 저장소에 들어가고, 대상을 git ls-files 로 고르는 게이트가 그걸 «소스»로 읽는다.
 tests/e2e/results.json
+
+# ★python 바이트코드 — ★레포에 ★추적되는 .py 가 ★9건 있고(tools/·build/·scripts/·debug/)
+#   ★그 중 하나라도 ★import 하면 ★`__pycache__/` 가 ★untracked 로 ★남는다.
+#   ★실측 2026-10-10: `tools/dom-scratch-mutate.py` 를 ★자가 시험에서 import 하니 ★생겼다.
+__pycache__/
+*.pyc
