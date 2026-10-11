@@ -268,31 +268,39 @@ export const STAR_RATING_COUNT = 5;      // ★「별이 5개로 구성」 — �
 export const STAR_FILL_ON  = '#ff8a00';  // ★채운 별 — ★챗과 ★같다(검사로 잠근다)
 export const STAR_FILL_OFF = '#d6d6d6';  // ★빈 별 — ★챗과 ★같다(검사로 잠근다)
 
-/* ══ ★채운 별의 ★«색 고르기» — `data-star-fill` (현빈 1010t2a ⑵ · 지디 판정 2026-10-11) ════
- * ★지디 원문의 ★두 칸: ★★«모르는 값 ⇒ ★주황» · ★★«블록당 ★한 키».
- *   ★회색 값 ★`#9e9e9e` 는 ★지디가 ★정했다(「★한 줄 되돌리기 · 메모에 남긴다」) — ⛔내가 고른 수가 ★아니다.
+/* ══ ★별점의 ★«두 색» — `data-star-fill-on` · `data-star-fill-off` ════════════════════
+ * ★현빈 원문(2026-10-11): 「★주황/회색인데 ★각각 내가 ★다른 색으로 ★빨강/회색 , ★파랑/연파랑
+ *   ★이런식으로 하고 싶을 수도 있으니 ★★내가 컨트롤 가능하게 해달라는것」
+ *   ⇒ ★★«채운 색»과 ★★«빈 색» ★★두 칸 · ★★임의의 색.
  *
- * ★★★«블록당 한 키»인 까닭 — ★챗은 ★메시지마다 별이 ★따로지만 ★«메시지별 색»은 ★요구에 ★없었다.
- *   ⇒ ★요구 ★그대로 ★한 칸만 ★연다. ★넓히는 것은 ★현빈 건이다.
+ * ★★앞 판(⒠ · f4cd889f)은 ★★2택(주황·회색)이었고 ★★그 요구의 ★부분집합이었다.
+ *   ⇒ ★지디 판정 ㉠: ★2택을 ★버리고 ★자유색으로. ★★단 ★★폴백은 ★★그대로 ★산다 —
+ *     ★★「모르는 값 ⇒ 주황」의 ★★참 몫은 ★★«쓰레기 값이 와도 ★화면이 안 깨진다»이고,
+ *     ★바뀌는 것은 ★★«무엇이 ★모르는 값인가»라는 ★★술어 ★하나다(2택인가 → ★★유효한 #RRGGBB 인가).
  *
- * ★★★이 명부가 ★★«고를 수 있는 것»의 ★유일한 자리다 — ⛔두 벌로 ★만들지 ★마라.
- *   ★`prop-shape.js` 의 ★`_mineFills`(=«이 칠은 ★내가 한 것인가»)가 ★★이것에서 ★파생된다.
- *   ★★왜 ★파생이어야 하나(★실측으로 ★찾은 ★물림): ★`_mineFills` 가 ★주황·회색 ★둘만 ★들고 있으면
- *     ★`#9e9e9e` 로 칠한 별을 ★★끌 때 ★`removeAttribute('fill')` 가 ★★안 불린다
- *     ⇒ ★★평점을 ★꺼도 ★회색이 ★남는다. ⇒ ★명부를 ★주석으로 ★맞추지 ★않고 ★★끌어다 쓴다
- *       (★내 교훈: 「명부가 ★둘이면 ★경고 주석으로 ★못 막는다 — ★★파생시켜 ★하나로」).
+ * ★★★«명부가 하나인가» — ⛔이 레포엔 ★6자리 hex 를 ★재는 자가 ★★45곳쯤 ★흩어져 있다(★실측).
+ *   ★`gradient-block.js:208` 의 ★`_HEX6` 는 ★★함수 안 지역 상수고 ★★export 가 ★아니다.
+ *   ★`color-picker.js` 의 ★`formatHex6` 는 ★export 지만 ★★그 파일은 ★무겁다 —
+ *     ★이 파일은 ★★`import` 출처가 ★★0 인 ★★잎 모듈이고, ★★그 잎성이 ★하네스 그래프를 ★지킨다(★실측).
+ *   ⇒ ★★그래서 ★★«별 축의 ★명부»를 ★★여기 ★한 번만 ★두고 ★소비자가 ★끌어다 쓴다.
+ *     ⛔`prop-shape.js` 에 ★또 ★적지 ★마라 — ★그러면 ★46번째가 ★된다.
  *
- * ★★미설정(키 없음) = ★주황 ⇒ ★★옛 저장본과 ★바이트 ★동일하다(`starRating` 의 ★그 특례와 ★같은 꼴). */
+ * ★★미설정(키 없음) = ★★기본 두 색 ⇒ ★★옛 저장본과 ★바이트 ★동일하다. */
 export const STAR_FILL_GREY = '#9e9e9e';
-export const STAR_FILL_CHOICES = Object.freeze([STAR_FILL_ON, STAR_FILL_GREY]);
+/** ★UI 가 ★★«권하는» 견본 — ⛔«허용되는 것의 ★전부»가 ★아니다(★자유색이 ★기본이다).
+ *  ★이름을 ★`CHOICES`→`SWATCHES` 로 ★갈았다: ★`choices` 는 ★★«이것만 된다»로 ★읽혀 ★★이제 ★거짓이다. */
+export const STAR_FILL_SWATCHES = Object.freeze([STAR_FILL_ON, STAR_FILL_GREY, STAR_FILL_OFF]);
 
-/** `data-star-fill` → ★고를 수 있는 색 ★하나. ★★모르는 값·미설정은 ★★주황이다(지디 조건).
+/** ★6자리 hex 하나 — ★★별 축의 ★유일한 자리(위 머리말의 그 까닭). */
+export const STAR_FILL_HEX6 = /^#[0-9a-fA-F]{6}$/;
+
+/** ★색 하나를 ★받는다. ★★유효한 `#RRGGBB` 면 ★★소문자로 ★돌려주고, ★그 밖(미설정·빈 값·쓰레기)은 ★★`fallback`.
  *  ⛔null 을 돌려주지 ★마라 — ★부르는 쪽이 ★«칠하지 말라»로 ★읽는다(그건 ★`starFillsFor` 의 ★뜻이다). */
-export function starFillChoice(raw) {
-  if (raw === undefined || raw === null) return STAR_FILL_ON;
-  const v = String(raw).trim().toLowerCase();
-  if (v === '') return STAR_FILL_ON;
-  return STAR_FILL_CHOICES.find(c => c.toLowerCase() === v) || STAR_FILL_ON;
+export function starFillColor(raw, fallback) {
+  if (raw === undefined || raw === null) return fallback;
+  const v = String(raw).trim();
+  if (v === '') return fallback;
+  return STAR_FILL_HEX6.test(v) ? v.toLowerCase() : fallback;
 }
 
 /** 평점 → 0~5 정수, 또는 ★null(미설정 = 평점 아님). ⛔null 을 숫자로 바꾸지 마라. */
@@ -304,15 +312,17 @@ export function clampStarRating(v) {
 }
 
 /** 별 count 개의 fill 배열. ★평점 미설정이면 ★null — ⛔«칠하지 않는다»는 뜻이다(빈 배열이 아니다). */
-export function starRatingFills(rating, count, fill) {
+export function starRatingFills(rating, count, fill, fillOff) {
   const r = clampStarRating(rating);
   if (r === null) return null;
   const c = clampStarCount(count);
-  /* ★★채운 쪽 색만 ★고를 수 있다 — ★빈 별은 ★`STAR_FILL_OFF` ★그대로다.
-     ★까닭: ★«몇 점인가»가 ★읽히려면 ★★채운 쪽과 ★빈 쪽이 ★★달라야 한다.
-       ⇒ ★회색을 ★고르면 ★`#9e9e9e`(채움) vs ★`#d6d6d6`(빔) — ★★검사로 ★둘이 ★다름을 ★잠근다. */
-  const on = starFillChoice(fill);
-  return Array.from({ length: c }, (_, i) => (i < r ? on : STAR_FILL_OFF));
+  /* ★★두 색 ★다 ★고를 수 있다(현빈 2026-10-11). ★각자 ★제 ★기본값으로 ★폴백한다.
+     ⚠️★★둘이 ★같아도 ★막지 ★않는다 — ★★사람이 ★그렇게 ★고를 수 있다.
+       ★그러면 ★«몇 점인가»가 ★안 읽히지만 ★★그건 ★사람의 ★선택이고, ★★여기서 ★되돌리면
+       ★★«내가 ★고른 색이 ★안 들어간다»가 ★된다(★더 나쁜 고장). ⇒ ★판정은 ★패널이 ★말로 ★돕는다. */
+  const on  = starFillColor(fill, STAR_FILL_ON);
+  const off = starFillColor(fillOff, STAR_FILL_OFF);
+  return Array.from({ length: c }, (_, i) => (i < r ? on : off));
 }
 
 /** 패널 미리보기 문자열 — 챗(prop-chat.js)의 그 꼴 그대로. */
@@ -369,9 +379,9 @@ export function starColorsAttr(list) {
 /* ★★★polygon 의 ★fill 을 정하는 ★★단 ★하나의 자.
  * ★돌려주는 배열의 ★null = ★★«fill 속성을 ★쓰지 ★말라»(=블록 색·그라데이션을 ★물려받는다).
  * ★우선순위: ★개별 색 ＞ ★평점 칠 ＞ ★물려받기. (★위 머리말의 그 까닭) */
-export function starFillsFor({ rating, colors, count, fill } = {}) {
+export function starFillsFor({ rating, colors, count, fill, fillOff } = {}) {
   const c = clampStarCount(count);
-  const rate = starRatingFills(rating, c, fill);
+  const rate = starRatingFills(rating, c, fill, fillOff);
   const cols = starColorList(colors, c);
   if (!rate && !cols) return null;                 // ★둘 다 미설정 = ★옛 별 그대로
   return Array.from({ length: c }, (_, i) => {

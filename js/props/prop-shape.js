@@ -9,7 +9,7 @@ import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          clampStarGap, STAR_GAP_MIN, STAR_GAP_MAX,
          clampStarRating, starRatingFills, starRatingPreview,
          STAR_RATING_MIN, STAR_RATING_MAX, STAR_RATING_COUNT,
-         STAR_FILL_ON, STAR_FILL_OFF, STAR_FILL_CHOICES,
+         STAR_FILL_ON, STAR_FILL_OFF, STAR_FILL_SWATCHES, starFillColor,
          starViewBoxWidth, starFrameWidthFor,
          starFillsFor, starColorList, starColorsAttr,
          starScaleList, starScalesAttr, clampStarScale,
@@ -98,6 +98,10 @@ export function showShapeProperties(block) {
   const starGap     = clampStarGap(block.dataset.starGap);       // ★없으면 0 = 옛 간격(틀 폭 그대로)
   const starRating  = clampStarRating(block.dataset.starRating); // ★null = ★미설정 = ★평점 아님(1010t1b3)
   const ratingOn    = starRating !== null;                       // ★켜져 있으면 ★갯수가 ★5 로 ★잠긴다
+  /* ★★별점의 ★두 색 — ★★«해석한» 값이다(★무효·미설정이면 ★기본으로 ★폴백).
+     ⇒ ★패널·미리보기·칠이 ★★같은 자(`starFillColor`)를 ★쓴다 — ⛔각자 ★읽어 ★접으면 ★명부가 ★둘이 된다. */
+  const ratingOnColor  = starFillColor(block.dataset.starFillOn,  STAR_FILL_ON);
+  const ratingOffColor = starFillColor(block.dataset.starFillOff, STAR_FILL_OFF);
   /* ★★«고른 별»(1010t1b2) — ★`js/star-select.js` 가 ★JS 프로퍼티에 들고 있다(⛔속성이 아니다 = ★직렬화 안 탄다) */
   const starSel     = (starModeBlock() === block) ? starSelectedIndex(block) : null;
   const starSelColors = starColorList(block.dataset.starColors, starCount) || [];
@@ -264,9 +268,21 @@ ${blockHeaderHTML({
           <span>별점</span>
         </label>
         <input type="number" class="prop-number" id="shape-star-rating-num" min="${STAR_RATING_MIN}" max="${STAR_RATING_MAX}" value="${starRating ?? STAR_RATING_MAX}" ${ratingOn ? '' : 'disabled'} style="width:48px">
-        <span id="shape-star-rating-preview" style="color:${STAR_FILL_ON};letter-spacing:1px;${ratingOn ? '' : 'opacity:0.3'}">${starRatingPreview(starRating)}</span>
+        <span id="shape-star-rating-preview" style="color:${ratingOnColor};letter-spacing:1px;${ratingOn ? '' : 'opacity:0.3'}">${starRatingPreview(starRating)}</span>
       </div>
-      ${ratingOn ? `<div class="prop-hint" id="shape-star-rating-hint" style="margin-top:4px;">별점은 별 ${STAR_RATING_COUNT}개로 구성됩니다 — 갯수는 별점을 끄면 다시 바꿀 수 있습니다.</div>` : ''}
+      ${ratingOn ? `<!-- ★★별점의 ★«두 색» (현빈 2026-10-11 「★빨강/회색 , ★파랑/연파랑 … ★내가 컨트롤 가능하게」)
+           ★★자유색이다 — ⛔2택이 ★아니다. ★무효·빈 값이면 ★기본 두 색으로 ★폴백한다(starFillColor).
+           ★꼴은 ★이 파일의 ★선례 ★그대로 — colorFieldHTML ＋ wireColorField (shape-star-one 과 ★같다).
+           ⛔★★이 주석 안에 ★★역따옴표를 ★쓰지 ★마라 — ★★여기는 ★★템플릿 리터럴 ★안이고
+             ★역따옴표 ★하나가 ★★문자열을 ★끝낸다(★2026-10-11 ★실측: ★패널이 ★통째로 ★안 떴다). -->
+      <div class="prop-row" id="shape-star-fill-row" style="gap:6px;font-size:11px;white-space:nowrap">
+        <span class="prop-label" id="shape-star-fill-on-label">채운 별</span>
+        ${colorFieldHTML({ idPrefix: 'shape-star-fill-on', hex: ratingOnColor })}
+      </div>
+      <div class="prop-row" id="shape-star-fill-off-row" style="gap:6px;font-size:11px;white-space:nowrap">
+        <span class="prop-label" id="shape-star-fill-off-label">빈 별</span>
+        ${colorFieldHTML({ idPrefix: 'shape-star-fill-off', hex: ratingOffColor })}
+      </div>` : ''}
       ${starSel !== null ? `<!-- ★★«이 별» 색 (현빈 2026-10-10 1010t1b2 「★개별 별모양 블럭을 선택하고 ★색 지정」)
            ★★이 줄이 ★★«입구»다 — ★이 줄이 ★생기기 전까지 ★data-star-colors 를 ★쓰는 ★자가 ★0건이었다.
            ★더블클릭으로 ★모드에 들어와 ★별을 고르면 ★나타난다. ★Esc·밖 클릭이면 ★사라진다. -->
@@ -279,7 +295,7 @@ ${blockHeaderHTML({
         <button type="button" class="prop-btn" id="shape-star-one-done">개별 선택 끝내기</button>
       </div>
       <div class="prop-hint" id="shape-star-one-hint" style="margin-top:4px;">${starSel + 1}번 별만 색이 바뀝니다 — 지우면 블록 색을 따릅니다. (Esc 로 끝내기)</div>` : ''}
-      ${starCount > 1 ? `<div class="prop-hint" id="shape-star-count-hint" style="margin-top:4px;">별이 여러 개면 이미지 채우기를 쓸 수 없습니다.</div>` : ''}` : ''}
+      ` : ''}
       ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
     </div>
 
@@ -727,7 +743,12 @@ ${blockHeaderHTML({
     /* ★★★명부를 ★★끌어다 쓴다 — ⛔`[STAR_FILL_ON, STAR_FILL_OFF]` 로 ★손으로 ★적지 ★마라.
        ★까닭(1010t2a ⒠): ★`data-star-fill` 이 ★회색이면 ★칠이 ★`#9e9e9e` 다
          ⇒ ★★이 집합에 ★없으면 ★평점을 ★꺼도 ★★그 칠이 ★안 떨어진다(★행위로 ★재는 자리). */
-    const _mineFills = new Set([...STAR_FILL_CHOICES, STAR_FILL_OFF]);
+    /* ★★★자유색이 되어 ★★정적 명부로는 ★못 덮는다 — ★★«지금 이 블록이 ★쓰는 ★두 색»을 ★넣어야 한다.
+       ★까닭(⒠ 때 ★실측한 ★그 물림): ★이 집합에 ★없으면 ★평점을 ★꺼도 ★그 칠이 ★안 떨어진다.
+       ★견본(SWATCHES)도 ★같이 넣는다 — ★사람이 ★견본으로 칠한 뒤 ★키를 ★지운 판을 ★치우려면 ★필요하다. */
+    const _mineFills = new Set([...STAR_FILL_SWATCHES, STAR_FILL_ON, STAR_FILL_OFF,
+      starFillColor(block.dataset.starFillOn, STAR_FILL_ON),
+      starFillColor(block.dataset.starFillOff, STAR_FILL_OFF)]);
     (starColorList(block.dataset.starColors, count) || []).forEach(v => { if (v) _mineFills.add(v); });
     /* 갯수가 줄면 남는 polygon 을 지우고, 늘면 첫 polygon 을 ★복제해서 더한다
        (fill·stroke 는 svg 의 style 상속 ＋ 그라데이션 url(#…) 이 polygon 속성에 있을 수 있어
@@ -754,7 +775,7 @@ ${blockHeaderHTML({
        ★null 칸 = ★«fill 속성을 ★쓰지 ★말라» = ★블록 색·그라데이션을 ★물려받는다. */
     const fills = starFillsFor({
       rating: block.dataset.starRating, colors: block.dataset.starColors, count,
-      fill: block.dataset.starFill,
+      fill: block.dataset.starFillOn, fillOff: block.dataset.starFillOff,
     });
     polys.forEach((poly, i) => {
       if (poly.getAttribute('points') !== list[i]) poly.setAttribute('points', list[i]);
@@ -954,6 +975,29 @@ ${blockHeaderHTML({
     });
     document.getElementById('shape-star-one-done')?.addEventListener('click', () => {
       exitStarMode();                   // ★그 함수가 ★패널을 ★다시 그린다
+    });
+  }
+
+  /* ★★별점의 ★두 색 ★배선 (현빈 2026-10-11) — ★꼴은 ★위 `shape-star-one` ★선례 ★그대로.
+     ★★«사람 경로»다 — ★`wireColorField` 가 ★native `<input type=color>` 와 ★hex 칸을 ★둘 다 ★쥔다.
+     ★★키를 ★쓰는 ★꼴: ★기본값과 ★같으면 ★★키를 ★지운다 ⇒ ★★옛 저장본과 ★바이트가 ★같아진다
+       (★`starInner`·`starRating`·`starColors` 의 ★그 특례와 ★★같은 규율). */
+  if (document.getElementById('shape-star-fill-on-color')) {
+    const writeFill = (key, hex, dflt) => {
+      const v = starFillColor(hex, null);
+      if (v === null || v === dflt) { if (block.dataset[key] !== undefined) delete block.dataset[key]; }
+      else if (block.dataset[key] !== v) block.dataset[key] = v;
+      _applyStarGeom?.();
+      const pv = document.getElementById('shape-star-rating-preview');
+      if (pv && key === 'starFillOn') pv.style.color = starFillColor(block.dataset.starFillOn, STAR_FILL_ON);
+    };
+    wireColorField('shape-star-fill-on', {
+      onApply:  (hex) => writeFill('starFillOn', hex, STAR_FILL_ON),
+      onCommit: () => window.pushHistory?.('채운 별 색'),
+    });
+    wireColorField('shape-star-fill-off', {
+      onApply:  (hex) => writeFill('starFillOff', hex, STAR_FILL_OFF),
+      onCommit: () => window.pushHistory?.('빈 별 색'),
     });
   }
 

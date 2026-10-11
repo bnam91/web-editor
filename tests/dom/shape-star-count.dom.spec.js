@@ -172,13 +172,19 @@ test('S5 ★갯수>1 이면 이미지 채우기가 닫히고 ★까닭이 화면
   const s1 = await snap(page);
   // ★전제 단언 — 별 1개에선 이미지 채우기가 열려 있다
   expect(s1.cpModes, `갯수 1 의 cpModes (잰 값: ${s1.cpModes})`).toBe('solid,gradient,image');
-  expect(s1.hint, '갯수 1 엔 안내문구 없음').toBeNull();
+  /* ★★2026-10-11(현빈 「힌트 두 줄 삭제」 · 지디 조건 ⒜·⒞) — ★패널 ★힌트 줄은 ★지웠다.
+     ★★설명은 ★사라지지 ★않았다: ★`cpModesNote`(★위 :180 이 ★잠근다)와 ★`showToast` 가 ★떠맡는다
+     ⇒ ★★그래서 ★이 단언의 ★과녁을 ★★«이제 ★항상 ★없다»로 ★옮긴다(⛔지우지 ★않는다). */
+  expect(s1.hint, '★패널 힌트는 ★지웠다 — ★갯수 1 에서도 ★없다').toBeNull();
 
   await setCount(page, 3);
   const s3 = await snap(page);
   expect(s3.cpModes, `갯수 3 의 cpModes (잰 값: ${s3.cpModes})`).toBe('solid,gradient');
   expect(s3.cpNote, `까닭 (잰 값: ${s3.cpNote})`).toBe('별이 여러 개면 이미지 채우기를 쓸 수 없습니다.');
-  expect(s3.hint, '패널에 적힌 안내문구').toBe('별이 여러 개면 이미지 채우기를 쓸 수 없습니다.');
+  /* ★★여기가 ★★이 작업의 ★핵이다 — ★옛 단언은 ★「★패널에 ★그 글이 ★적혔나」였다.
+     ★★그 글을 ★지웠으므로 ★★«없다»로 ★겨눈다. ★★그런데 ★★«설명이 ★사라졌나»는 ★★다른 물음이고,
+     ★★그건 ★★바로 ★위 줄(`cpNote`)이 ★★여전히 ★잠근다 ⇒ ★★둘을 ★나란히 ★둬야 ★뜻이 선다. */
+  expect(s3.hint, '★패널 힌트는 ★지웠다 — ★설명은 ★위 cpNote 가 ★떠맡는다').toBeNull();
 
   // ★갯수 1 로 되돌리면 다시 열린다(한 방향으로만 닫히지 않는다)
   await setCount(page, 1);

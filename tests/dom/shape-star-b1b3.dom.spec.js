@@ -254,7 +254,23 @@ test('D3 ★b3 — ★평점을 켜면 ★칠이 ★두 색으로 갈리고 ★�
   /* ★판정 ⑤ — ★두 칸이 ★다 잠긴다 ＋ ★까닭이 ★화면에 적힌다 */
   expect(s.cntDisabled, '★갯수 숫자칸이 ★안 잠겼다').toBe(true);
   expect(s.cntSliderDisabled, '★갯수 슬라이더가 ★안 잠겼다').toBe(true);
-  expect(s.ratingHint, '★잠금 ★까닭 줄이 ★화면에 없다').toContain('5');
+  /* ★★★과녁 이동(2026-10-11 · 현빈 「힌트 두 줄 삭제」 · 지디 조건 ⒜) — ⛔단언을 ★지운 것이 ★아니다.
+     ★옛 단언 = ★「★까닭 ★글이 ★화면에 ★있나(★'5' 를 ★품나)」 ⇒ ★★그 글을 ★지웠다.
+     ★★이 칸이 ★원래 ★재려던 것 = ★★«잠겼다를 ★사람이 ★알 수 있나».
+     ★★실측(2026-10-11 · DOM 1벌): ★평점 ★켜면 ★갯수 ★두 칸이 ★`disabled` ＋ ★opacity ★0.5 ＋
+        ★cursor ★not-allowed ＋ ★손 입력이 ★막힌다(`locator.fill` 2s ★timeout · 값 5 유지)
+     ⇒ ★★글 ★없이도 ★보인다 ⇒ ★★그 ★«보임»을 ★★여기서 ★잰다. */
+  expect(s.ratingHint, '★힌트 줄은 ★지웠다 — ★이제 ★화면에 ★없다').toBeNull();
+  /* ⛔`disabled` ★둘은 ★★바로 ★위 두 줄이 ★이미 ★잠근다 — ★여기 ★다시 적으면 ★명부가 ★둘이 된다.
+     ⇒ ★★여기선 ★★«글 대신 ★무엇이 ★말해 주나»만 ★더한다: ★★흐림·커서(★계산된 값). */
+  const dim = await page.evaluate(() => {
+    const n = document.getElementById('shape-star-count-num');
+    const cs = n && getComputedStyle(n);
+    return { opacity: cs?.opacity ?? null, cursor: cs?.cursor ?? null };
+  });
+  expect(Number(dim.opacity), `★흐려지지 ★않았다 — ★글을 지웠는데 ★«막혔다»가 ★안 보인다 (잰 값: ${JSON.stringify(dim)})`)
+    .toBeLessThan(1);
+  expect(dim.cursor, `★커서가 ★막힘을 ★말하지 ★않는다 (잰 값: ${dim.cursor})`).toBe('not-allowed');
 
   /* ★평점 3 — ★앞 셋만 채운 색 */
   await setNum(page, 'shape-star-rating-num', 3);

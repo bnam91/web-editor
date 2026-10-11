@@ -143,7 +143,7 @@ test('R6 ★패널 — ★평점 칸 ★세 쪼가리가 ★있다(토글·숫�
     '★숫자칸의 max 가 ★상수에서 안 온다');
 });
 
-test('R7 ★판정 ⑤ — ★켜면 ★갯수 두 칸이 ★잠기고 ★까닭이 ★화면에 ★적힌다', () => {
+test('R7 ★판정 ⑤ — ★켜면 ★갯수 두 칸이 ★★«보이게» 잠긴다 (★까닭 줄은 ★군더더기라 ★사라졌다)', () => {
   /* ★갯수 ★슬라이더와 ★숫자칸 ★둘 다 — ⛔한쪽만 잠그면 ★다른 쪽으로 ★샌다 */
   const cnt = PANEL.match(/id="shape-star-count-slider"[^>]*>/);
   assert.ok(cnt, '★갯수 슬라이더 줄을 못 찾았다');
@@ -153,10 +153,24 @@ test('R7 ★판정 ⑤ — ★켜면 ★갯수 두 칸이 ★잠기고 ★까닭
   assert.ok(cntN, '★갯수 숫자칸 줄을 못 찾았다');
   assert.match(cntN[0], /ratingOn \? ' disabled' : ''/,
     '★갯수 ★숫자칸이 ★평점에서 ★안 잠긴다 — ★슬라이더만 막으면 ★여기로 ★샌다');
-  /* ★★«잠겼다»를 ★겉모습으로 ★말한다(t2cmdl ㉣) — ★까닭 줄이 ★조건부로 ★뜬다 */
-  assert.ok(PANEL.includes('shape-star-rating-hint'), '★잠금 ★까닭 줄이 ★없다');
-  assert.match(PANEL, /ratingOn \? `<div class="prop-hint" id="shape-star-rating-hint"/,
-    '★까닭 줄이 ★평점 켜짐에 ★안 매여 있다');
+  /* ★★★과녁을 ★옮겼다(2026-10-11 · 현빈 「힌트 두 줄 삭제」 · 지디 조건 ⒜) — ⛔단언을 ★지운 것이 ★아니다.
+     ★옛 단언 = ★「`shape-star-rating-hint` ★글이 ★있나」
+     ★★그 글이 ★사라졌다 ⇒ ★★그 단언은 ★더 이상 ★잴 것이 ★없다.
+     ★★그런데 ★★이 칸이 ★★원래 ★재려던 것은 ★「★★잠겼다를 ★사람이 ★알 수 있나」였다.
+     ⇒ ★★그래서 ★★«아직 ★참인 것»으로 ★다시 ★겨눈다 — ★★«보이게 ★잠긴다»를 ★★행위로 ★쟀다:
+         ★실측(DOM 1벌 · 2026-10-11): ★평점 ★끔 → disabled ★false · opacity ★1 · cursor ★text
+                                      ★평점 ★켬 → ★disabled ★★true(두 칸) · opacity ★★0.5 · cursor ★★not-allowed
+                                      ★손으로 ★3 을 ★넣으면 ★★`locator.fill` 이 ★★막힌다(2s timeout) · 값 ★5 ★유지
+     ⇒ ★★즉 ★★글 ★없이도 ★★«막혔다»가 ★보인다 ⇒ ★★힌트는 ★군더더기였다.
+     ⛔그리고 ★이 칸은 ★★이제 ★그 ★id 를 ★★한 번도 ★말하지 ★않는다 — ★★사라진 글에 ★매이지 ★않게. */
+  assert.ok(!PANEL.includes('shape-star-rating-hint'),
+    '★★`shape-star-rating-hint` 가 ★★되살아났다 — ★현빈이 ★지우라 한 ★줄이다(2026-10-11)');
+  /* ★★그 대신 ★★«흐림»이 ★★제품에 ★있나 — ★`disabled` 가 ★곧 ★그것이다(★위 두 단언이 ★그걸 ★잠근다).
+     ★★여기서 ★★한 칸 ★더: ★★평점 ★숫자칸은 ★★거꾸로 ★꺼져 있어야 ★한다(★끄면 ★못 넣는다) */
+  const ratN = PANEL.match(/id="shape-star-rating-num"[^>]*>/);
+  assert.ok(ratN, '★평점 숫자칸 줄을 못 찾았다');
+  assert.match(ratN[0], /ratingOn \? '' : 'disabled'/,
+    '★★평점 ★숫자칸이 ★★꺼진 상태에서 ★안 잠긴다 — ★★두 방향이 ★같이 서야 ★«파생»이다');
   /* ★끄면 ★풀린다 = ★잠금이 ★dataset 에서 ★파생된다(★손으로 ★박은 상태가 ★아니다) */
   assert.match(PANEL, /const ratingOn\s*=\s*starRating !== null;/,
     '★잠금이 ★평점값에서 ★파생되지 않는다 — ★끄면 ★풀린다를 ★보장 못 한다');
