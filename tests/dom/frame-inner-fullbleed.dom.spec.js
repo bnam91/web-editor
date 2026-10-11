@@ -343,6 +343,10 @@ test('FI5 ★★★«자유(free) 프레임» 안 — ★칸은 ★★꺼진 채
   expect(r.toggleDisabled, `★★꺼져 있어야 한다. 잰 값 ${JSON.stringify(r)}`).toBe(true);
   expect(r.why && r.why.includes('stack'),
     `★★까닭이 ★★«stack»을 ★가리켜야 한다 — ⛔«좌우 패딩을 ★올려라»는 ★★여기선 ★거짓이다. 잰 값 ${JSON.stringify(r.why)}`).toBe(true);
+  /* ★★★그 권유가 ★★«손실»을 ★같이 ★말해야 한다(★지디 2026-10-12 ⒝) — ★★그 손실은 ★★아래 ★FI6 이 ★행위로 ★잰다.
+     ⛔«있는 입구»를 ★가리키는데 ★그 입구가 ★손실을 ★내면 ★★모르고 ★잃는다. */
+  expect(r.why && r.why.includes('좌표'),
+    `★★권유가 ★★«좌표를 ★잃는다»를 ★같이 ★말해야 한다. 잰 값 ${JSON.stringify(r.why)}`).toBe(true);
   /* ★★그리고 ★그 입구가 ★★«정말 ★있다» — ⛔없는 입구를 ★가리키지 ★않았다(지디 ⒞) */
   const outerBtn = await page.evaluate(() => {
     window.deselectAll && window.deselectAll();
@@ -351,5 +355,61 @@ test('FI5 ★★★«자유(free) 프레임» 안 — ★칸은 ★★꺼진 채
     return { btn: !!document.getElementById('ss-to-stack-btn') };
   });
   expect(outerBtn.btn, `★★까닭이 ★가리킨 ★«stack» 버튼이 ★★겉 프레임 패널에 ★정말 ★있다. 잰 값 ${JSON.stringify(outerBtn)}`).toBe(true);
+  expect(errs.map((e) => String(e)), '★오류 0').toEqual([]);
+});
+
+/* ══════ FI6 ★★★그 권유가 ★말하는 ★«손실»을 ★★행위로 ★잰다 (지디 2026-10-12 ⒝) ══════ */
+test('FI6 ★★★«stack 으로 바꾸면 ★좌표를 ★잃는다» — ★★FI5 의 ★권유 문장이 ★말하는 ★그 손실을 ★★눌러 ★잰다', async ({ page }) => {
+  /* ★★★왜 ★있나 — ★★FI5 의 ★까닭 줄이 ★사람에게 ★★«stack 으로 ★바꾸라»고 ★권한다.
+       ⇒ ★★그 권유가 ★말하는 ★손실이 ★★«참»이어야 하고, ★★«그것만»이어야 한다.
+       ⛔«소스에 적혀 있다»로 ★닫지 ★않는다 — ★★행위로 ★잰다(★내 교훈: ★「없다」는 ★행위로 ★찾아라).
+     ★★재서 ★거짓이면 ★★더 좋다 — ★그러면 ★권유가 ★안전하다는 ★수가 ★생긴다(★지디). ★★실측은 ★참이었다. */
+  const errs = await boot(page);
+  await makeOuter(page);
+  const r = await page.evaluate(() => {
+    const f = document.getElementById('outerF');
+    /* ★자식 ★둘 — ★★«하나»면 ★가운데 정렬과 ★제 자리가 ★같아 보일 수 ★있다(★내 교훈: ★픽스처 하나로 재면 ★셋이 ★통과로 ★보였다) */
+    /* ⛔«id 가 ★없는 것»으로 ★고르지 ★마라 — ★블럭은 ★★자동 id 를 ★받는다(★실측 2026-10-12: ★★`A:null` 이 나왔다).
+       ⇒ ★★«내가 ★이미 ★이름 붙인 것»만 ★빼고 ★★마지막 자식을 ★집는다(★내 탐침 `fi-loss.spec.js` 와 ★같은 꼴). */
+    const DONE = new Set();
+    const mk = (id, left, top, w) => {
+      f.classList.add('selected'); window.selectBlock && window.selectBlock(f);
+      window.addTextBlock && window.addTextBlock('body');
+      const k = [...f.querySelectorAll(':scope > *')]
+        .filter((x) => /-block/.test(String(x.className)) && !DONE.has(x)).pop();
+      if (!k) return null;
+      DONE.add(k);
+      k.id = id; k.style.position = 'absolute'; k.style.left = left; k.style.top = top; k.style.width = w;
+      return k;
+    };
+    mk('kidA', '120px', '40px', '200px');
+    mk('kidB', '30px', '180px', '260px');
+    const snap = (id) => { const e = document.getElementById(id); if (!e) return null;
+      return { pos: e.style.position, left: e.style.left, top: e.style.top, w: e.style.width,
+               stackW: e.dataset.stackW ?? null, alignSelf: e.style.alignSelf || '' }; };
+    const before = { A: snap('kidA'), B: snap('kidB'), free: f.dataset.freeLayout ?? null };
+    const ok = window.__convertFreeLayoutToStack ? window.__convertFreeLayoutToStack(f) : '(함수 없다)';
+    return { before, after: { A: snap('kidA'), B: snap('kidB'), free: f.dataset.freeLayout ?? null, ok } };
+  });
+  console.log('★FI6 잰 것 = ' + JSON.stringify(r));
+  /* ★전제 — ★★두 자식이 ★★서로 ★다른 좌표로 ★섰고, ★겉이 ★자유였고, ★변환이 ★★정말 ★돌았다 */
+  expect({ aPos: r.before.A?.pos, bPos: r.before.B?.pos, free: r.before.free },
+    `★전제 — ★자식 ★둘이 ★절대배치로 ★섰고 ★겉이 ★자유다. 잰 값 ${JSON.stringify(r.before)}`)
+    .toEqual({ aPos: 'absolute', bPos: 'absolute', free: 'true' });
+  expect(r.before.A.left !== r.before.B.left, '★전제 — ★두 자식의 ★가로 좌표가 ★다르다').toBe(true);
+  expect({ ok: r.after.ok, free: r.after.free },
+    `★전제 — ★변환이 ★돌았다(⛔거짓이면 ★알림창에 ★막힌 것이다). 잰 값 ${JSON.stringify(r.after)} · ★창 ${JSON.stringify(errs._dialogs)}`)
+    .toEqual({ ok: true, free: null });
+  expect(errs._dialogs, '★전제 — ★알림창 ★0건').toEqual([]);
+  /* ★★★주 단언 ⑴ — ★★«잃는다»가 ★참이다: ★`left`·`top`·`position` 이 ★★비었다 */
+  expect({ aLeft: r.after.A.left, aTop: r.after.A.top, aPos: r.after.A.pos,
+           bLeft: r.after.B.left, bTop: r.after.B.top, bPos: r.after.B.pos },
+    `★★좌표를 ★잃는다 — ★그게 ★FI5 의 ★문장이 ★말하는 ★손실이다. 잰 값 ${JSON.stringify(r.after)}`)
+    .toEqual({ aLeft: '', aTop: '', aPos: '', bLeft: '', bTop: '', bPos: '' });
+  expect({ a: r.after.A.alignSelf, b: r.after.B.alignSelf },
+    `★★그리고 ★가운데로 ★정렬된다. 잰 값 ${JSON.stringify(r.after)}`).toEqual({ a: 'center', b: 'center' });
+  /* ★★★주 단언 ⑵ — ★★«그것만» 잃는다: ★폭은 ★지킨다. ⛔이게 ★없으면 ★문장의 ★«폭은 지킵니다»가 ★미확인이다 */
+  expect({ aW: r.after.A.stackW, bW: r.after.B.stackW },
+    `★★폭은 ★지킨다(stackW). 잰 값 ${JSON.stringify(r.after)}`).toEqual({ aW: '200', bW: '260' });
   expect(errs.map((e) => String(e)), '★오류 0').toEqual([]);
 });
