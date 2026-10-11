@@ -49,7 +49,12 @@
    ══ 쓰는 법 ═══════════════════════════════════════════════════════════════
      node tools/assert-strength.mjs --base origin/dev          # 게이트(머지 앞)
      node tools/assert-strength.mjs --census tests/dom/x.js    # 한 파일의 명세를 눈으로
-     node tools/assert-strength.mjs --self                     # 자기 자신을 깨뜨려 본다
+   ★★⚰️`--self` 는 ★★없다 — ★이 자리에 ★「자기 자신을 깨뜨려 본다」로 ★적혀 있었다.
+     ★실측 2026-10-11: ★`node tools/assert-strength.mjs --self` ⇒ ★★rc ★3 「HARNESS_ERROR —
+       쓰는 법: --base <git ref>」 ⇒ ★★★구현한 적이 ★없다. ★★문서가 ★거짓이었다.
+     ⇒ ★★구현 ★대신 ★★이 줄을 남긴다(지디 조건 ⒠ — ★싼 쪽으로 닫는다).
+     ★그 일(자기 자신을 깨뜨려 보기)은 ★★`tests/unit/assert-strength.test.mjs` 가 ★이미 한다
+       (★합성 표본에 ★변이 아홉을 ★하나씩 꽂아 ★전부 빨간지 본다 · ★T1).
    종료코드  0 통과 · 1 «느슨해짐» 발견 · 3 HARNESS_ERROR(판정 자체가 성립 안 함).
    ⛔3 을 1 로 접지 마라 — 접는 순간 「자가 고장난 것」이 「검사가 멀쩡한 것」으로 읽힌다.
 
@@ -195,11 +200,54 @@ export function census(src, file = '<mem>') {
     if (close < 0) continue;
     const title = firstStringArg(src, open);
     if (title == null) { re.lastIndex = open + 1; continue; }
-    /* 본문 — 인자 안에서 «마지막» 화살표/함수의 `{` 를 찾는다 */
+    /* ══ 본문 — ★★«인자의 ★맨 위 자리»에 선 ★첫 화살표/함수의 `{` 를 찾는다 ══════════
+       ★★⚰️옛 꼴: `seg.lastIndexOf('=>')` = ★«마지막» 화살표 ⇒ ★그 뒤 첫 `{`.
+       ★★그것이 ★이 레포 spec 의 ★«표준 꼴»에서 ★틀렸다 —
+         `test('t', async ({ page }) => { … await page.evaluate(() => { … }); expect(a).toBe(1); })`
+         ⇒ ★마지막 화살표가 ★`page.evaluate` 의 ★콜백이고, ★그 뒤 첫 `{` 가 ★그 콜백 본문이다
+         ⇒ ★★본문을 ★그 토막으로 읽어 ★뒤의 `expect` 를 ★★하나도 ★안 센다.
+       ★★실측(2026-10-11 · 핀 `28782596` · 이 파일 ★무변경 판):
+         ★tests/dom ★2,815칸 중 ★★n=0 이 ★★1,177 (★41.8%) · ★tests/unit 3,722 중 ★372 (10.0%)
+         ★그중 ★★1,080 은 ★«단언이 ★있는데» 0 으로 세어졌다(★둘째 자로 갈랐다 — 파일 단위 합 비교).
+         ★맨눈 증인 ★둘: `tests/dom/overlay-extend-asset.dom.spec.js` ★0/66 ·
+                       `tests/dom/grid-cell-emptied.dom.spec.js` ★0/57.
+       ★★왜 ★«첫 ★맨 위» 인가 — ★`test(…)` 의 ★콜백은 ★★인자 자리에 ★선다(깊이 1).
+         ★`page.evaluate(() => …)` 의 화살표는 ★★그 콜백 ★«안»이라 ★깊이가 ★더 깊다.
+         ⇒ ★깊이 1 에서 ★처음 만나는 화살표/함수가 ★★곧 ★그 검사의 ★콜백이다.
+         ★옵션 객체(`test('t', { timeout: 1 }, fn)`)가 ★앞에 와도 ★괜찮다 — ★`{` 가 아니라
+           ★★«화살표/함수»를 ★먼저 찾고 ★그 ★뒤의 `{` 를 ★잡는다.
+       ⛔못 찾으면 ★옛 ★폴백 그대로(★호출 전체) — ★그건 ★참 본문의 ★상위집합이라 ★덜 틀린다.
+       ★★음성대조(★전수 6,537칸 · ★핀 ↔ 고친 판) — ★★내가 ★먼저 적은 ★불변식은 ★★틀렸다:
+         ⛔「넓히기만 하므로 ★n 은 ★안 줄어든다」 ⇒ ★★★줄어든 칸이 ★★1 ★있다.
+         ★`tests/unit/tmproot.test.js` ★T4 — ★★4 → ★★3.
+         ★까닭이 ★섰다: ★옛 본문이 ★`assert.throws(…, (e) => { … })` 의 ★★«그 콜백»이었고
+           ★그 안의 ★`assert.equal`＋`assert.match`×3 = ★4 를 ★본문으로 셌다.
+           ★이 자는 ★`assert(` 를 만나면 ★★그 괄호 ★안을 ★★건너뛴다(아래 scanBody `i = close - 1`)
+           ⇒ ★참 본문에서는 ★`assert.ok` ＋ ★`assert.throws` ＋ ★`assert.equal` = ★★3 이 맞다.
+         ⇒ ★★즉 ★그 ★−1 은 ★★«맞아진 것»이고, ★그 밖의 ★6,536칸은 ★안 줄었다(★늘어난 칸 ★1,605).
+       ★★그리고 ★이 고침이 ★★«덤으로» 고친 것 — ★★`describe` 사슬이다:
+         ★옛 꼴에서는 ★`describe` 의 ★본문도 ★안쪽 `test` 의 콜백으로 ★좁게 읽혀
+         ★그 안의 ★시험이 ★★제 describe 이름을 ★못 달았다(★`t.bodyEnd <= d.bodyEnd` 가 거짓).
+         ★실측: ★이름이 바뀐 칸 ★★128 · ★이름 깊이(` » ` 수) ★평균 ★1.00 → ★★2.00.
+       ★★전체 실측(핀 `28782596` → 이 고침): ★n=0 ★1,549 → ★★19 · ★단언 합 ★16,772 → ★★23,810. */
     const seg = code.slice(open, close);
-    const arrow = Math.max(seg.lastIndexOf('=>'), seg.lastIndexOf('function'));
     let bodyStart = -1;
-    if (arrow >= 0) { const b = seg.indexOf('{', arrow); if (b >= 0) bodyStart = open + b; }
+    {
+      let depth = 0;
+      for (let k = 0; k < seg.length; k++) {
+        const ch = seg[k];
+        if (ch === '(' || ch === '[' || ch === '{') { depth++; continue; }
+        if (ch === ')' || ch === ']' || ch === '}') { depth--; continue; }
+        if (depth !== 1) continue;                       /* ★인자 자리(깊이 1)만 본다 */
+        const isArrow = ch === '=' && seg[k + 1] === '>';
+        const isFn = ch === 'f' && seg.startsWith('function', k)
+          && !/[\w$]/.test(seg[k - 1] || '') && !/[\w$]/.test(seg[k + 8] || '');
+        if (!isArrow && !isFn) continue;
+        const b = seg.indexOf('{', k);
+        if (b >= 0) bodyStart = open + b;
+        break;                                           /* ★첫 것만 — ⛔마지막이 아니다 */
+      }
+    }
     let bodyEnd = bodyStart >= 0 ? matchBrace(code, bodyStart) : -1;
     if (bodyStart < 0 || bodyEnd < 0) { bodyStart = open; bodyEnd = close; }
     const mods = (m[2] || '').split('.').filter(Boolean);
@@ -370,6 +418,22 @@ function main(argv) {
   fs.rmSync(tmp, { recursive: true, force: true });
   /* ⛔「못 읽었다」를 「없다」로 읽지 않는다 — 기준판 파일이 절반도 안 열리면 판정이 성립 안 한다 */
   if (baseRead < baseFiles.length) return die(`기준판 파일 ${baseFiles.length}개 중 ${baseRead}개만 열렸다 — 판정이 성립 안 한다`);
+  /* ══ ★★바닥 — ★★«0건이 ★초록»을 ★막는다 (2026-10-11) ═══════════════════════════
+     ★위 두 바닥은 ★«파일»을 센다. ★그런데 ★파일을 ★다 찾아도 ★★`census` 가 ★죽으면
+       ★★rows 가 ★0 이 되고 ★★diff 가 ★«약해진 것 0건»을 돌려줘 ★★✅초록이 된다.
+     ★★실측(★이 자를 ★무력화해 재 봤다 · `census` 가 `[]` 를 돌려주게):
+       ★`tests/unit/assert-strength.test.mjs` = ★★rc 1(5칸 중 4 빨강) ✅ 잡힌다
+       ★★이 CLI 게이트            = ★★★rc 0 · ★「검사 0개 / 지금 0개」 ⇒ ★★★✅초록이었다
+     ⇒ ★★머지 앞 게이트가 ★★죽은 채로 ★통과한다. ★한 번 있었던 일이다 —
+       `tests/unit/css-token-lint.test.mjs:290` 이 ★「이 레포의 `gate:assert-strength` 가
+        ★부르는 자 없이 ★보름을 ★죽어 있었다」고 ★적어 뒀다.
+     ⛔★수(핀 대비 N%)를 ★박지 않는다 — ★그 수가 ★둘째 명부가 되고 ★썩는다(지디 조건 ⒝).
+       ★★여기는 ★«0 이냐»만 본다. */
+  const headAsserts = headRows.reduce((a, r) => a + r.n, 0);
+  if (!headRows.length || headAsserts === 0) {
+    return die(`검사 ${headRows.length}개 · 단언 ${headAsserts}개를 셌다 — ★0건을 «통과»로 읽지 않는다`
+      + `(★이 자가 죽었거나 ★파서가 깨졌다 · 검사 파일은 ${headFiles.length}개를 찾았다)`);
+  }
 
   const { weakened, gone, born } = diffCensus(baseRows, headRows);
 
