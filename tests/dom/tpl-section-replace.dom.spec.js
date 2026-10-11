@@ -282,3 +282,71 @@ test('H6 ★★교체 뒤 ★★선택이 ★★새 섹션으로 ★옮겨 간�
   expect(r.selId, `★선택이 ★★새 섹션이 ★아니다 — 선택 ${r.selId} · 첫 섹션 ${r.firstId}`).toBe(r.firstId);
   expect(r.selCount, `★★골라진 섹션이 ★하나가 ★아니다(잰 값 ${r.selCount})`).toBe(1);
 });
+
+test('H5 ★★«섹션 변경» ★단추가 ★★`Shift+Enter` 와 ★★★같은 일을 ★한다 (★원문의 ★«혹은»)', async ({ page }) => {
+  /* ★★현빈 원문: 「★쉬프트 엔터를 치거나 ★★혹은 ★신규로 ★섹션변경 버튼을 만들어서 …」
+     ⇒ ★★★«혹은»이 ★★둘을 ★★같은 일로 ★묶었다 ⇒ ★★판정하는 자리도 ★★한 자리여야 ★한다.
+     ⇒ ★★그래서 ★★단추는 ★★`_applySelectedBrowserTemplate({ replace: true })` ★하나만 ★부른다.
+     ★★이 칸은 ★★«결과가 ★같나»를 ★★행위로 ★잰다 — ⛔«같은 함수를 ★부른다»를 ★소스로 ★읽는 것이 ★아니다. */
+  const s = await scene(page);
+  expect(s.ok, `전제 — ★장면: ${s.why || ''}`).toBe(true);
+  expect(s.canvasLen, '전제 — ★더블이 ★html 을 ★준다').toBeGreaterThan(10);
+  const a = await pickAnchor(page);
+  expect(a.same, '전제 — ★첫 섹션이 ★골라졌다').toBe(true);
+  await pickCard(page, s.tplId);
+
+  /* ★★★전제 — ★단추가 ★★«쓸 수 있게» 섰나. ⛔disabled 면 ★아래 클릭이 ★조용히 ★아무 일도 ★안 한다 */
+  const btn = await page.evaluate(() => {
+    const b = document.getElementById('tpl-browser-replace-btn');
+    if (!b) return { exists: false };
+    const r = b.getBoundingClientRect();
+    return { exists: true, disabled: b.disabled, w: Math.round(r.width), h: Math.round(r.height), title: b.title };
+  });
+  expect(btn.exists, '전제 — ★단추가 ★DOM 에 ★있다').toBe(true);
+  expect(btn.disabled, `전제 — ★단추가 ★★열려 ★있다(★섹션1 ＋ ★카드1) — ★잰 값 ${JSON.stringify(btn)}`).toBe(false);
+  expect(btn.w, `전제 — ★면적이 ★있다(${btn.w}×${btn.h})`).toBeGreaterThan(0);
+
+  const before = await page.evaluate(() => ({
+    n: document.querySelectorAll('#canvas .section-block').length,
+    firstId: document.querySelector('#canvas .section-block').id,
+    firstIdx: document.querySelector('#canvas .section-block').dataset.section,
+  }));
+  /* ★★진짜 ★클릭 — ⛔`dispatchEvent` 가 ★아니다 */
+  await page.click('#tpl-browser-replace-btn', { timeout: 5000 });
+  await settled(page, { n: before.n, firstId: before.firstId });
+  const after = await page.evaluate(() => ({
+    n: document.querySelectorAll('#canvas .section-block').length,
+    firstId: document.querySelector('#canvas .section-block').id,
+    firstIdx: document.querySelector('#canvas .section-block').dataset.section,
+  }));
+  expect(after.n, `★★단추가 ★«추가»를 했다 — ★전 ${before.n} → 후 ${after.n} (★같아야 한다)`).toBe(before.n);
+  expect(after.firstId, `★★단추가 ★교체를 ★안 했다(${before.firstId})`).not.toBe(before.firstId);
+  expect(after.firstIdx, `★번호가 ★변했다 — 전 ${before.firstIdx} 후 ${after.firstIdx}`).toBe(before.firstIdx);
+});
+
+test('H5b ★★단추가 ★★«섹션이 ★없거나 ★여럿»이면 ★★★`disabled` 다 (★지디 판정 ①②)', async ({ page }) => {
+  /* ★★★키는 ★막을 ★수 ★없고(★사람이 ★언제든 ★누른다) ★★단추는 ★막을 ★수 ★있다 ⇒ ★★입구마다 ★제 꼴.
+     ⇒ ★★키 쪽은 ★`alert`(★제품에 ★있다) · ★★단추 쪽은 ★★이 칸이 ★잰다. */
+  const s = await scene(page);
+  expect(s.ok, '전제 — ★장면').toBe(true);
+  await pickCard(page, s.tplId);
+
+  /* ⒜ ★섹션 ★0개 */
+  const none = await page.evaluate(() => {
+    window.deselectAll?.();
+    window.__syncReplace?.();
+    const b = document.getElementById('tpl-browser-replace-btn');
+    return { n: document.querySelectorAll('#canvas .section-block.selected').length, disabled: b ? b.disabled : null, title: b ? b.title : null };
+  });
+  /* ⒝ ★섹션 ★둘 */
+  const many = await page.evaluate(() => {
+    document.querySelectorAll('#canvas .section-block').forEach(x => x.classList.add('selected'));
+    window.__syncReplace?.();
+    const b = document.getElementById('tpl-browser-replace-btn');
+    return { n: document.querySelectorAll('#canvas .section-block.selected').length, disabled: b ? b.disabled : null, title: b ? b.title : null };
+  });
+  expect(none.n, '전제 — ★0개로 만들었다').toBe(0);
+  expect(many.n, '전제 — ★둘로 만들었다').toBeGreaterThan(1);
+  expect(none.disabled, `★섹션 0 인데 ★단추가 ★열려 ★있다 — ${JSON.stringify(none)}`).toBe(true);
+  expect(many.disabled, `★섹션 ${many.n} 인데 ★단추가 ★열려 ★있다 — ${JSON.stringify(many)}`).toBe(true);
+});

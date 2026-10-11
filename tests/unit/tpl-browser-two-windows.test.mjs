@@ -7,6 +7,10 @@
  *   ⇒ ★b4·b2 처럼 ★마크업을 ★더하는 일이 ★★한쪽만 ★고치는 ★사고를 ★내기 ★쉽다.
  *
  * ★★★명부 갱신 ★이력 — ⛔«수»만 ★고치지 ★않는다. ★★«왜»를 ★같이 ★적는다:
+ *   ★2026-10-11 ★★16 → ★★17 — ★★`tpl-browser-replace-btn` ★하나가 ★늘었다(★b2 ⒝ · ★«섹션 변경» 단추).
+ *     ★★★또 ★이 검사가 ★제 일을 ★했다 — ★단추를 ★넣자 ★★B1 이 ★빨개졌고 ★그래서 ★여기를 ★고쳤다.
+ *     ★★갱신 ★판정(⛔«눈 diff» 아님): ★★지워진 이름 ★★0 · ★★더해진 이름 = ★«이번 변경 ★하나»뿐
+ *     ⇒ ★★B2·B3 는 ★★안 건드렸다 — ★★단추를 ★★두 창에 ★★다 ★넣었으니 ★★비대칭이 ★안 변한다
  *   ★2026-10-11 ★★15 → ★★16 — ★★`tpl-browser-sort` ★하나가 ★늘었다(★설계 F · b4 ★정렬 select).
  *     ★★★이 검사가 ★★제 일을 ★했다 — ★F 를 ★넣자 ★★B1 이 ★★빨개졌고, ★그래서 ★★여기를 ★고쳤다.
  *     ★★갱신 ★판정(⛔«눈 diff» 아님 · ★단언으로 ★쟀다):
@@ -38,8 +42,8 @@ const { readSrc } = require('./_srcread.js');
 const ROOT = path.join(import.meta.dirname, '..', '..');
 
 /* ★★★접두사 — ★★«끝 하이픈 ★없이»다. ★★이 한 글자가 ★★수를 ★가른다:
-     ★`tpl-browser`  ⇒ ★맨 `tpl-browser`(★패널 ★뿌리 ★그 자체)를 ★★포함 ⇒ ★공통 ★16
-     ★`tpl-browser-` ⇒ ★그 ★뿌리를 ★★빼먹는다        ⇒ ★공통 ★15
+     ★`tpl-browser`  ⇒ ★맨 `tpl-browser`(★패널 ★뿌리 ★그 자체)를 ★★포함 ⇒ ★공통 ★17
+     ★`tpl-browser-` ⇒ ★그 ★뿌리를 ★★빼먹는다        ⇒ ★공통 ★16
    ⇒ ★★그래서 ★★정의를 ★★여기 ★한 자리에 ★두고 ★★B0 가 ★그 ★정의를 ★단언한다. */
 const PREFIX = 'tpl-browser';
 
@@ -61,6 +65,7 @@ const COMMON = Object.freeze([
   'tpl-browser-preview-name',
   'tpl-browser-search',
   'tpl-browser-search-mode',
+  'tpl-browser-replace-btn',
   'tpl-browser-sort',
   'tpl-browser-tag-chips',
   'tpl-browser-tree',
@@ -86,14 +91,14 @@ test('B0 ★전제 — ★★접두사 ★정의가 ★★이 수를 ★가른�
      ⛔누가 ★`PREFIX` 를 ★`'tpl-browser-'` 로 ★고치면 ★★공통이 ★★14 가 되어 ★B1 이 ★거짓말을 한다 */
   assert.ok(INLINE.has('tpl-browser'),
     '★맨 `tpl-browser`(패널 뿌리)가 ★안 잡혔다 — ★★접두사에 ★끝 하이픈이 ★붙었나?');
-  assert.strictEqual(PREFIX, 'tpl-browser', '★★접두사가 바뀌었다 — ★B1 의 16 은 ★이 정의에서만 ★참이다');
+  assert.strictEqual(PREFIX, 'tpl-browser', '★★접두사가 바뀌었다 — ★B1 의 17 은 ★이 정의에서만 ★참이다');
 });
 
-test('B1 ★공통 = ★★16종이고 ★★명부와 ★★이름까지 ★같다', () => {
+test('B1 ★공통 = ★★17종이고 ★★명부와 ★★이름까지 ★같다', () => {
   const common = sorted(new Set([...INLINE].filter(i => POPOUT.has(i))));
   assert.deepStrictEqual(common, [...COMMON].sort(),
     `★공통 명부가 ★어긋났다 — ★잰 값(${common.length}): ${common.join(' · ')}`);
-  assert.strictEqual(common.length, 16, `★공통이 ★16종이 ★아니다(잰 값: ${common.length})`);
+  assert.strictEqual(common.length, 17, `★공통이 ★17종이 ★아니다(잰 값: ${common.length})`);
 });
 
 test('B2 ★`index.html` ★단독 = ★★정확히 ★`[tpl-browser-popout]` — ★떼어내기는 ★인라인에만', () => {

@@ -131,6 +131,11 @@ function _tplNavEnter() {
 
 /* ★★시험 이음새 — ★★읽기 전용. ★선례: `window.__autoSaveDeferState` 등 (★레포에 ★여럿 있다).
    ⇒ ★★DOM 검사가 ★★«무엇이 ★섰나»를 ★★눈이 ★아니라 ★★수로 ★읽게 ★한다. */
+/* ★★시험 이음새 — ★★선택이 ★★패널 ★밖에서 ★바뀌면 ★★단추 상태를 ★다시 ★맞춘다.
+   ★★앱에서는 ★`_syncInsertBtn()` 이 ★★카드 고를 때·열 때 ★불린다(★`:198`·`:586`·`:853`)
+   ⇒ ★★검사가 ★★선택만 ★바꾸는 장면을 ★세울 때 ★★이 문이 ★필요하다. ★★읽기 전용이 ★아니라 ★★«다시 맞추기»다. */
+window.__syncReplace = () => _syncInsertBtn();
+
 window.__tplNavState = () => ({
   depth: _depth,
   cursor: _treeCursor,
@@ -841,10 +846,26 @@ function _renderTagChips(filteredTemplates) {
 
 function _syncInsertBtn() {
   const btn = document.getElementById('tpl-browser-insert-btn');
-  if (!btn) return;
-  btn.disabled = !_browserSelected;
-  btn.style.opacity = _browserSelected ? '1' : '0.4';
-  btn.style.cursor  = _browserSelected ? 'pointer' : 'default';
+  if (btn) {
+    btn.disabled = !_browserSelected;
+    btn.style.opacity = _browserSelected ? '1' : '0.4';
+    btn.style.cursor  = _browserSelected ? 'pointer' : 'default';
+  }
+  /* ★★★«섹션 변경»(b2) — ★★★카드 ★＋ ★★섹션이 ★★둘 다 ★있어야 ★쓸 수 ★있다.
+     ★★지디 판정 ①: ★★«키는 ★막을 ★수 ★없고 ★★단추는 ★막을 ★수 ★있다» ⇒ ★★입구마다 ★제 꼴.
+       ★키(`Shift+Enter`) ⇒ ★`alert` · ★★단추 ⇒ ★★`disabled`
+     ★★섹션이 ★★둘 이상 골라졌어도 ★막는다 — ★지디 판정 ②(★거절). ⇒ ★★★딱 ★하나일 때만 ★연다. */
+  const rbtn = document.getElementById('tpl-browser-replace-btn');
+  if (rbtn) {
+    const secN = document.querySelectorAll('#canvas .section-block.selected').length;
+    const ok = !!_browserSelected && secN === 1;
+    rbtn.disabled = !ok;
+    rbtn.style.opacity = ok ? '1' : '0.4';
+    rbtn.style.cursor  = ok ? 'pointer' : 'default';
+    rbtn.title = ok
+      ? '선택한 섹션을 이 템플릿으로 변경 (Shift+Enter)'
+      : (secN === 0 ? '바꿀 섹션을 먼저 선택하세요' : '섹션 하나만 선택하세요');
+  }
 }
 
 /* ── 미리보기 ── */
@@ -1247,6 +1268,14 @@ function initTemplateBrowser() {
     if (!_browserSelected) return;
     const t = loadTemplates().find(x => x.id === _browserSelected);
     if (t) { closeTemplateBrowser(); await insertTemplate(t); }
+  });
+
+  /* ★★★«섹션 변경» 단추(b2) — ★★현빈 원문의 ★★«혹은»이다 ⇒ ★★`Shift+Enter` 와 ★★★같은 일.
+     ⇒ ★★★그래서 ★★판정하는 자리를 ★★★한 자리로 ★둔다: ★`_applySelectedBrowserTemplate({ replace: true })`
+       ⛔여기서 ★`insertTemplate` 를 ★직접 ★부르지 ★마라 — ★★그러면 ★가드 ★둘이 ★★이 입구를 ★안 지난다
+       (★위 ★«추가» 단추는 ★★기존 꼴을 ★그대로 ★둔다 — ★★무회귀) */
+  document.getElementById('tpl-browser-replace-btn')?.addEventListener('click', () => {
+    _applySelectedBrowserTemplate({ replace: true });
   });
 
   // 좌측 패널 Templates 헤더 → 브라우저 토글 (기존 collapsible 대신)

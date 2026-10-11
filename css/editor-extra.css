@@ -1000,6 +1000,17 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   margin-left: auto;
 }
 .tpl-browser-insert-btn:hover { background: var(--ui-accent-primary-hover); }
+/* ★★«섹션 변경»(b2) — ★★«추가»와 ★★한눈에 ★갈리게 ★색만 ★다르다.
+   ★★꼴·여백은 ★`.tpl-browser-insert-btn` 을 ★★그대로 ★물려받는다(⛔새 레이아웃을 ★만들지 ★않는다).
+   ⛔선택자 ★없는 ★고아 블록을 ★만들지 ★마라 — ★261011 에 ★그 흠으로 ★커서 규칙이 ★삼켜졌다.
+     ★★잠그는 자 = ★`tests/unit/css-no-orphan-block.test.mjs`(★O1·O2). */
+.tpl-browser-replace-btn {
+  background: var(--ui-bg-card);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  margin-left: 4px;
+}
+.tpl-browser-replace-btn:hover { background: var(--ui-bg-hover); }
 
 /* 카드 리스트 */
 .tpl-browser-cards {

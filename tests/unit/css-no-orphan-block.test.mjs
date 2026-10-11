@@ -37,6 +37,29 @@ const ROOT = path.join(import.meta.dirname, '..', '..');
    ⇒ ★★넓히려면 ★★별 칸이고 ★★조정자 판단이다. */
 const TARGETS = ['css/editor-extra.css'];
 
+/* ★★★261011 ⒝ — ★★★«범위»를 ★★넓혔다. ★★★까닭을 ★적는다:
+ *   ★★내가 ★★지디에게 ★「★CSS/HTML ★★3개 ★파일이 ★걸렸다」라 ★적었다. ★★★그 수는 ★★틀렸다 —
+ *   ★★그때 ★★이 자의 ★범위는 ★★★1개(★`css/editor-extra.css`)였다.
+ *   ⇒ ★★★두 길이 ★있었다: ㉠ ★수를 ★「1」로 ★고친다  ㉡ ★★범위를 ★★참말 ★3으로 ★넓힌다
+ *   ⇒ ★★★㉡ 를 ★골랐다. ★★까닭: ★★b2 가 ★손댄 ★파일이 ★★바로 ★★이 둘(★두 HTML)이고,
+ *     ★★★둘 다 ★★인라인 `<style>` 을 ★품는다 ⇒ ★★★같은 병(★고아 블록)이 ★★살 수 ★있는 ★자리다.
+ *     ★★그리고 ★★미리 ★쟀다: ★둘 다 ★고아 ★0 ⇒ ★★넓혀도 ★★남의 ★빨강을 ★★안 끌어온다.
+ * ⛔⛔그런데 ★★★«넓혔다»가 ★★곧 ★«잰다»는 ★★아니다 —
+ *   ★★뽑기(`<style>` ★긁기)가 ★★빗나가면 ★★빈 글이 ★들어와 ★★★조용히 ★초록이 ★된다(★0건이 ★초록).
+ *   ⇒ ★★★그래서 ★★아래 ★O1h 가 ★★«뽑힌 ★규칙 수»를 ★★★먼저 ★단언한다. */
+const HTML_TARGETS = ['index.html', 'pages/template-browser.html'];
+
+/** ★HTML 에서 ★★인라인 ★`<style>` ★속을 ★긁는다 — ★★★«몇 덩이·몇 줄»까지 ★돌려준다.
+ *  ⇒ ★★부르는 쪽이 ★★«뽑혔나»를 ★★수로 ★잴 수 ★있게. */
+function inlineStyles(rel) {
+  const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  const out = [];
+  for (const m of src.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)) {
+    out.push({ css: m[1], startLine: src.slice(0, m.index).split('\n').length });
+  }
+  return out;
+}
+
 /** ★주석을 ★걷는다 — ★CSS 의 ★주석은 ★★한 꼴뿐이다(⛔`//` 는 ★CSS 주석이 ★아니다). */
 const stripCss = (s) => String(s).replace(/\/\*[\s\S]*?\*\//g, '');
 
@@ -82,6 +105,32 @@ for (const rel of TARGETS) {
   });
 }
 
+for (const rel of HTML_TARGETS) {
+  test(`O1h ★${rel} — ★★★«뽑혔나»부터: ★인라인 ★규칙 수 ＋ ★중괄호 ★짝`, () => {
+    const blocks = inlineStyles(rel);
+    /* ★★★전제 ★하나 — ⛔0덩이면 ★«고아가 ★없다»가 ★아니라 ★★«안 쟀다»다 */
+    assert.ok(blocks.length >= 1, `★<style> 덩이가 ★0 이다 — ★★뽑기가 ★빗나갔나? (${rel})`);
+    let o = 0, c = 0;
+    for (const b of blocks) {
+      const code = stripCss(b.css);
+      o += (code.match(/\{/g) || []).length;
+      c += (code.match(/\}/g) || []).length;
+    }
+    /* ★★★전제 ★둘 — ★★뽑힌 ★속이 ★★빈 글이 ★아닌가 */
+    assert.ok(o >= 3, `★뽑힌 ★규칙이 ★3 미만이다(잰 값 ${o}) — ★★빈 글을 ★재고 ★있다`);
+    assert.strictEqual(o, c, `★★짝이 ★안 맞는다 — ★{ ${o} · } ${c} (차 ${o - c})`);
+  });
+
+  test(`O2h ★★★${rel} — ★★인라인 ★`+`<style>` + ` 안에 ★★«선택자 없는 ★선언»이 ★없다`, () => {
+    const bad = [];
+    for (const b of inlineStyles(rel)) {
+      for (const o of orphanDeclarations(b.css)) bad.push(`:${b.startLine + o.line - 1} ${o.text}`);
+    }
+    assert.deepStrictEqual(bad, [],
+      `★★★고아 선언이 ★있다 — ★★CSS 파서가 ★★다음 규칙을 ★삼킨다:\n     ` + bad.join('\n     '));
+  });
+}
+
 test('O3 ★★★이 자가 ★★실제로 ★무나 — ★★★그날의 ★깨진 글을 ★먹여 ★본다', () => {
   /* ★★★양성대조 — ★★«그 블록»을 ★★손으로 ★만들어 ★먹인다.
      ⛔「지금 파일이 ★초록이다」만으로는 ★★이 자가 ★★산 것인지 ★모른다(★0건이 ★초록). */
@@ -107,4 +156,31 @@ test('O3 ★★★이 자가 ★★실제로 ★무나 — ★★★그날의 �
   /* ★★★`@media` 를 ★★고아로 ★읽지 ★않나 — ★★거짓 양성의 ★가장 ★흔한 꼴 */
   const MEDIA = '@media (prefers-color-scheme: dark) {\n  .a { color: red; }\n}\n@import url("x.css");\n';
   assert.deepStrictEqual(orphanDeclarations(MEDIA), [], '★`@media`·`@import` 를 ★고아로 ★읽는다');
+});
+
+test('O4 ★★★HTML 길도 ★★무나 — ★★★깨진 ★인라인 `<style>` 을 ★먹여 ★본다', () => {
+  /* ⛔O1h·O2h 가 ★★지금 ★초록인 것은 ★★«파일이 ★온전하다»와 ★★«이 길이 ★죽었다»를 ★★★구분하지 ★못한다.
+     ⇒ ★★★뽑기＋찾기를 ★★이어 ★돌려 ★★빨강을 ★★★손으로 ★만든다.
+     ★★그리고 ★★★«실물에서 ★뽑은 ★꼴»로 ★만든다 — ★★그날 ★내가 ★낸 ★고아가 ★★바로 ★이 꼴이었다. */
+  const BROKEN_HTML = [
+    '<html><head><style>',
+    '  .x { color: red; }',
+    '/* ★선택자가 ★빠졌다 */',
+    '  outline: 1.5px solid var(--sel-color);',
+    '}',
+    '  .y { color: blue; }',
+    '</style></head><body></body></html>',
+  ].join('\n');
+  /* ★뽑기와 ★같은 ★식 — ⛔다른 식을 ★쓰면 ★★이 대조는 ★«뽑기»를 ★★안 잰다 */
+  const got = [...BROKEN_HTML.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)];
+  assert.strictEqual(got.length, 1, `★덩이를 ★★1개 ★못 뽑았다(잰 값 ${got.length})`);
+  const found = orphanDeclarations(got[0][1]);
+  assert.ok(found.some(f => /outline/.test(f.text)),
+    `★★깨진 ★인라인 ★글에서 ★고아를 ★★못 찾았다 — ★★HTML 길은 ★★아무것도 ★안 잡는다. ★잰 값: ${JSON.stringify(found)}`);
+
+  /* ★★음성대조 — ★온전한 ★인라인 글에서는 ★0 */
+  const OK_HTML = '<style>\n  .x { color: red; }\n  .y { outline: 1px solid red; }\n</style>';
+  const ok = [...OK_HTML.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)];
+  assert.strictEqual(ok.length, 1);
+  assert.deepStrictEqual(orphanDeclarations(ok[0][1]), [], '★온전한 ★인라인 글에서 ★고아를 ★찾았다 — ★거짓 양성');
 });
