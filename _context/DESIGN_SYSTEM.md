@@ -833,3 +833,35 @@ DOM 하네스로 한 배치를 재면 **그 한 배치만** 답이 나오고, �
 > (출처= `git rev-parse HEAD:_context/DESIGN_SYSTEM.md` · ⛔mtime 은 워크트리 체크아웃이 덮는다)
 > ⛔**이 절을 쓰며 `CLAUDE.md`·`AGENTS.md`·`.claude/rules/css-blocks.md` 는 한 글자도 안 고쳤다**
 > (`git status` 로 확인 — 그 셋 0건).
+
+#### 14-F-1. ⚠️⚠️ 그리고 `AGENTS.md` 는 «없는 경로» 넷을 가리킨다 — 더 나쁘다
+
+`AGENTS.md` 는 `CLAUDE.md` 의 **Codex 판 사본**이다(둘 다 146행 · 다른 줄 **14개** ·
+그 14줄은 **전부 «Claude↔Codex» 치환** — 2026-10-11 **지디가 전수 읽어 쟀다**).
+⛔**그 치환이 «경로»까지 먹었다.** 다음 넷은 **존재하지 않는다**(2026-10-11 내가 `cat-file -e` 로
+하나씩 쟀다 · `.Codex/` 아래 추적 파일 **0건** ↔ `.claude/` 아래 **3건**):
+
+| `AGENTS.md` 가 가리키는 것 | 실재 | 짝(있는 것) |
+|---|---|---|
+| `.Codex/rules/css-blocks.md` | ⛔없다 | `.claude/rules/css-blocks.md` ★있다 |
+| `.Codex/rules/js-structure.md` | ⛔없다 | `.claude/rules/js-structure.md` ★있다 |
+| `js/AGENTS.md` | ⛔없다 | `js/CLAUDE.md` ★있다 |
+| `debug/AGENTS.md` | ⛔없다 | `debug/CLAUDE.md` ★있다 |
+
+**인용 자리는 5곳이다**(경로는 넷, `.Codex/rules/css-blocks.md` 가 두 번 — 내가 셌다):
+`AGENTS.md:61` · `:119` · `:135` · `:145` · `:146`.
+⇒ `:145`·`:146` 은 **「경로별 자동 로드 규칙」 표 전체**다 ⇒ **Codex 세션은 그 표를 받고
+아무것도 못 연다.**
+
+⛔**이중 실패가 한 자리에 겹친다** — `AGENTS.md:135` 는 「`data-xxx-preset` 패턴은 outline
+override 를 잊기 쉬움 — `.Codex/rules/css-blocks.md` **"컴포넌트 vs 컨테이너 outline" 섹션
+필독**」이라 적는다. 그 **파일이 없고**, 가리키는 **내용(컨테이너 3px)도 거짓**이다.
+
+⇒ **뿌리 = 「이름」과 「경로」를 같은 일괄 치환으로 갈았다.** ⛔일괄 `sed` 의 예외는
+«역사 문장»만이 아니다 — **«경로»도 예외였어야 했다**(2026-10-11 지디 판정).
+
+⛔**고치지 않았다.** 넷 다 **지시 파일**이고 사람·모든 세션의 행동을 바꾼다 ⇒ **현빈 칸**이다.
+
+> ★손대기 전 이 파일 = blob `d86daaf2` · 48509바이트 · 835행
+> (출처= `git rev-parse HEAD:_context/DESIGN_SYSTEM.md` · ⛔mtime 은 워크트리가 덮는다)
+> ⛔이 절을 쓰며 `AGENTS.md`·`CLAUDE.md`·`.claude/**` 는 **한 글자도 안 고쳤다**(`git status` 0건).
