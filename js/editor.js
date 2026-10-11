@@ -2399,21 +2399,23 @@ document.addEventListener('keydown', e => {
      ★꼴은 위 ⌘, 갈래를 그대로 베꼈다: (meta||ctrl) ＋ e.code(IME 안전) ＋ shift·alt 배제.
      ★«토글»이 아니라 «열기»다 — 현빈 문장이 「열리게」이고, 닫는 길이 이미 셋이다:
        #tpl-browser-close 단추 · Escape(template-browser.js 의 capture keydown) · 캔버스 mousedown.
-     ⚠️한 칸이 위 선례와 «다르다» — 입력칸에서는 «안» 연다(지디 발주 조건 ⑶ 「타이핑을 가로챈다」).
-       ⌘, 는 위 :2387 가드(`!e.metaKey`)를 통과해 입력칸에서도 열린다. ⇒ 어느 쪽이 맞나는 지디에게 올렸다.
-       ⛔입력칸이면 return 하지 않고 «흘려보낸다» — 아래 다른 갈래와 기본 동작을 끄지 않으려고.
+     ★입력칸(INPUT·TEXTAREA·SELECT·contenteditable)에서도 «연다» — 위 ⌘, 선례와 «같은» 꼴이다.
+       ⛔초판(d1de2c43)은 입력칸에서 «안» 열었다. 그 조건의 까닭은 「타이핑을 가로챈다」였는데
+         ⌘T 는 글자를 넣지 않으므로 그 까닭이 서지 않는다. 그리고 더 나쁜 것 —
+         «글자를 쓰다가 ⌘T 를 눌렀는데 아무 일도 안 난다»가 되어 이 레포가 열두 자리에 걸쳐
+         막아 둔 「눌리는데 아무 일도 안 난다」를 새로 만든다. ⇒ 그래서 떼고 선례로 돌아왔다.
+       ★타이핑은 `e.preventDefault()` 가 지킨다 — 그 입력칸에 t 가 들어가지 않는다(검사 T3 의 둘째 단언).
      ★충돌 실측(2026-10-11): 렌더러에서 KeyT 는 「글자 블럭 추가」지만 그 블록이 `!e.metaKey && !e.ctrlKey && !e.shiftKey`
        안이라 이 조합에 닿지 않는다. main.js 는 Menu 를 import 조차 하지 않아 우리가 가속기를 등록하는 자리는 0 이다.
-       ⛔Electron 기본 메뉴가 스스로 ⌘T 를 잡나는 실앱에서만 서고 아직 미확정이다. */
+       ★Electron 은 ⌘T 를 «등록하지 않는다» — Framework 바이너리의 가속기 문자열 전수에서 `+T`/`+t` 0건
+         (지디 실측 2026-10-11 · CommandOrControl+Z/V/X/W/Q/M/C/A/Plus · CmdOrCtrl+R · Command+I/H/F 는 있다).
+       ⛔그런데 macOS AppKit 이 «창 탭»으로 ⌘T 를 잡나는 아직 미확정이다 — 같은 바이너리에
+         toggleTabBar·showAllTabs 역할이 살아 있고, 그 가로채기는 AppKit 이 하는 일이라
+         바이너리 문자열로도 DOM 하네스로도 «영영» 안 드러난다. 앱에서만 선다. */
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyT' && !e.shiftKey && !e.altKey) {
-    const _tplT = e.target;
-    const _tplInField = !!(_tplT && (_tplT.tagName === 'INPUT' || _tplT.tagName === 'TEXTAREA'
-      || _tplT.tagName === 'SELECT' || _tplT.isContentEditable));
-    if (!_tplInField) {
-      e.preventDefault();
-      window.openTemplateBrowser?.();
-      return;
-    }
+    e.preventDefault();
+    window.openTemplateBrowser?.();
+    return;
   }
 
   // 패널 접기/펼치기 — Figma 키 의미에 맞춘 배치.

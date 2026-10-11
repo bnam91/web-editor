@@ -59,29 +59,49 @@ test('T2 ★윈도 축 — ★Control+t 도 ★열린다', async ({ page }) => {
   expect(d, 'Control+t 로도 열린다').toBe('flex');
 });
 
-test('T3 ★★음성 ⒜ — ★입력칸에 포커스가 있으면 ★★안 열린다 (INPUT · contenteditable)', async ({ page }) => {
+/* ★★T3 를 ★★두 test 로 ★갈랐다 — ★앞 칸이 ★패널을 ★열어 두면 ★뒤 칸의 ★전제(닫혀 있다)가 ★안 선다.
+   ★★그리고 ★★`closeTemplateBrowser()` 로는 ★이 하네스에서 ★★안 닫힌다 —
+     ★그 함수가 ★★`transitionend` 를 ★기다려 ★`display='none'` 을 쓰고(`template-browser.js:57~59`, `{ once: true }`)
+     ★하네스에서 ★그 이벤트가 ★★안 왔다(★실측: `display=flex` 로 ★남았다).
+   ⇒ ★★그래서 ★★«장면을 ★되돌리는» 대신 ★★«새 페이지»로 ★간다(★Playwright 가 test 마다 ★새 page 를 준다).
+   ⚠️★그 `transitionend` 가 ★★앱에서도 ★안 올 수 있나는 ★★별건으로 ★따로 쟀다(★지디에게 ★올린다).
+
+   ⛔★★★그리고 ★아래 ★둘째 단언(「t 가 ★안 들어간다」)은 ★★«잠그는 자»가 ★아니다 — ★★실측으로 ★확인했다:
+     ★`e.preventDefault()` ★한 줄만 ★죽인 ★무력화 회차에서 ★★5칸이 ★★전부 ★초록이었다(cmdt-1011-MUT3.txt).
+     ★까닭: ★★수식키 조합(`Meta+t`)은 ★브라우저가 ★애초에 ★글자로 ★안 넣는다 ⇒ ★그 단언은 ★★«항상 참»이다.
+   ⇒ ★★그래도 ★★지우지 ★않는다 — ★★«타이핑이 깨지면 ★그때 ★빨개지는» 방어로는 ★뜻이 있다.
+     ⛔단 ★★«이 단언이 ★무언가를 ★잠갔다»로 ★읽지 ★마라. ★★타이핑 쪽을 ★실제로 ★잠그는 자는 ★★T4(맨 t ⇒ 글자 블럭)다. */
+
+test('T3a ★★입력칸(INPUT)에서도 ★열린다 ＋ ★★그 칸에 ★t 가 ★★안 들어간다', async ({ page }) => {
   const { pre } = await scene(page);
   expect(pre.display, '전제: 닫혀 있다').toBe('none');
-  /* ⒜-1 INPUT — ★가드의 네 갈래 중 하나. ⚠️이 입력칸은 ★검사가 ★만든 것이다(★앱 꼴이 아니다) */
+  /* ★★초판(d1de2c43)은 ★입력칸에서 ★«안» 열었다 — ★그 조건의 까닭(「타이핑을 가로챈다」)이
+     ★⌘T 에는 ★서지 않고, ★★«글자를 쓰다가 ★눌렀는데 ★아무 일도 ★안 난다»를 ★새로 만든다.
+     ⇒ ★선례(⌘, 는 입력칸에서도 열린다)로 ★돌아왔고 ★이 칸이 ★그것을 ★잠근다.
+     ⚠️이 입력칸은 ★검사가 ★만든 것이다(★앱 꼴이 ★아니다) — ★가드의 ★네 갈래 중 ★INPUT 하나를 ★겨냥한다. */
   const a1 = await page.evaluate(() => {
     const i = document.createElement('input');
-    i.id = 'probeInput'; i.type = 'text';
+    i.id = 'probeInput'; i.type = 'text'; i.value = '';
     document.body.appendChild(i);
     i.focus();
-    return { active: document.activeElement?.id, tag: document.activeElement?.tagName };
+    return { active: document.activeElement?.id, before: i.value };
   });
-  console.log(`[T3 ⒜-1] 포커스=${a1.active}(${a1.tag}) · ★누름 꼴 = ${PRESS} · 키 = Meta+t`);
+  console.log(`[T3a] 포커스=${a1.active} · 전 value=[${a1.before}] · ★누름 꼴 = ${PRESS} · 키 = Meta+t`);
+  expect(a1.active, '전제: 그 입력칸에 포커스가 섰다').toBe('probeInput');
   await page.keyboard.press('Meta+t');
-  const d1 = await page.evaluate(() => getComputedStyle(document.getElementById('tpl-browser')).display);
-  console.log(`[T3 ⒜-1] 누른 뒤 display=${d1} (★none 이어야 한다)`);
-  expect(d1, '입력칸(INPUT)에서는 안 열린다').toBe('none');
+  const r1 = await page.evaluate(() => ({
+    display: getComputedStyle(document.getElementById('tpl-browser')).display,
+    value: document.getElementById('probeInput').value,
+  }));
+  console.log(`[T3a] 누른 뒤 display=${r1.display} (★flex 여야) · value=[${r1.value}] (★빈칸이어야)`);
+  expect(r1.display, '⒤ 입력칸에서도 열린다').toBe('flex');
+  expect(r1.value, '⒥ 그 입력칸에 t 가 안 들어간다(preventDefault)').toBe('');
+});
 
-  /* ⒜-2 ★★앱이 만든 contenteditable — ★글자 블럭을 ★★«사람 경로»로 ★편집 진입(더블클릭)
-     ⚠️첫 회차에 ★`ce.focus()` 만 썼더니 ★★`isContentEditable=false` 였다(★포커스가 ★안 갔다)
-       ⇒ ★★그 상태에서 ★패널이 ★열린 것은 ★★«정상»이었고 ★제 단언이 ★★전제를 ★안 걸어 ★거짓 빨강을 냈다.
-       ⇒ ★★그래서 ★전제를 ★★먼저 ★단언하고, ★안 서면 ★★«측정 불가»로 ★찍고 ★★skip 한다(⛔FAIL 이 ★아니다). */
+test('T3b ★★앱이 만든 contenteditable 에서도 ★열린다 ＋ ★글자가 ★★안 들어간다', async ({ page }) => {
+  const { pre } = await scene(page);
+  expect(pre.display, '전제: 닫혀 있다').toBe('none');
   await page.evaluate(() => {
-    document.getElementById('probeInput')?.remove();
     const c = document.getElementById('canvas');
     c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend',
@@ -93,23 +113,31 @@ test('T3 ★★음성 ⒜ — ★입력칸에 포커스가 있으면 ★★안 �
     const tb = document.querySelector('#cS .text-block');
     if (tb) tb.id = 'probeTB';
   });
+  /* ★★사람 경로로 ★편집 진입 — ★`page.dblclick` */
   let dblErr = null;
   try { await page.dblclick('#probeTB', { timeout: 2500 }); } catch (e) { dblErr = String(e).split('\n')[0].slice(0, 90); }
   const a2 = await page.evaluate(() => {
     const ae = document.activeElement;
+    const tb = document.getElementById('probeTB');
     return { active: ae ? (ae.id || ae.className.split(' ')[0] || ae.tagName) : '(null)',
-             isCE: !!(ae && ae.isContentEditable), editing: !!document.querySelector('.text-block.editing') };
+             isCE: !!(ae && ae.isContentEditable), editing: !!document.querySelector('.text-block.editing'),
+             before: (tb.textContent || '').trim() };
   });
-  console.log(`[T3 ⒜-2] ★더블클릭(page.dblclick) ⇒ ${dblErr ? '⛔' + dblErr : '★성공'} · 포커스=${a2.active} isContentEditable=${a2.isCE} .editing=${a2.editing}`);
+  console.log(`[T3b] ★더블클릭(page.dblclick) ⇒ ${dblErr ? '⛔' + dblErr : '★성공'} · 포커스=${a2.active} isContentEditable=${a2.isCE} .editing=${a2.editing} · 전 글자=[${a2.before}]`);
+  /* ★★전제가 ★안 서면 ★★FAIL 이 ★아니라 ★SKIP 이다(★범위 밖) */
   if (!a2.isCE) {
-    console.log('[T3 ⒜-2] ⛔★★측정 ★불가 — ★전제(contenteditable 에 포커스)가 ★★안 섰다 ⇒ ★★SKIP(⛔FAIL 아님). ★까닭: 편집 진입이 이 하네스에서 안 섰다');
+    console.log('[T3b] ⛔★★측정 ★불가 — ★전제(contenteditable 포커스)가 ★안 섰다 ⇒ ★★SKIP');
     test.skip(true, '전제 미성립: contenteditable 포커스가 안 섰다');
   }
-  console.log(`[T3 ⒜-2] 키 = Meta+t`);
+  console.log(`[T3b] ★누름 꼴 = ${PRESS} · 키 = Meta+t`);
   await page.keyboard.press('Meta+t');
-  const d2 = await page.evaluate(() => getComputedStyle(document.getElementById('tpl-browser')).display);
-  console.log(`[T3 ⒜-2] 누른 뒤 display=${d2} (★none 이어야 한다)`);
-  expect(d2, 'contenteditable 에서는 안 열린다').toBe('none');
+  const r2 = await page.evaluate(() => ({
+    display: getComputedStyle(document.getElementById('tpl-browser')).display,
+    after: (document.getElementById('probeTB').textContent || '').trim(),
+  }));
+  console.log(`[T3b] 누른 뒤 display=${r2.display} (★flex 여야) · 글자 [${a2.before}] → [${r2.after}] (★같아야)`);
+  expect(r2.display, '⒤ contenteditable 에서도 열린다').toBe('flex');
+  expect(r2.after, '⒥ 그 글자 블럭에 t 가 안 들어간다').toBe(a2.before);
 });
 
 test('T4 ★★음성 ⒝ — ★맨 t 는 ★패널을 ★안 열고 ★«글자 블럭 추가»가 ★그대로 돈다', async ({ page }) => {
