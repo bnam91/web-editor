@@ -41,6 +41,28 @@ const _TPL_PATH_ATTR  = 'data-tpl-path';
 const _TPL_KIND_ALIAS = { 'sub-section': 'frame' };
 
 /* 이 엘리먼트가 «경로 한 칸»을 차지하는가 — 아니면 null(투명) */
+/* ★★템플릿 ★id 를 ★만드는 ★★«한 자리» (C · 2026-10-11)
+ *
+ * ★★왜 ★생겼나 — ★같은 ms 에 ★둘을 ★저장하면 ★★id 가 ★겹친다(★t4quote 실측:
+ *   ★`.tb-card.selected` 가 ★★2개가 된다). ★`Date.now()` 는 ★ms 라 ★★사람이 ★빠르면 ★부딪친다.
+ *
+ * ★★꼴은 ★★지어내지 ★않았다 — ★★이 파일에 ★★이미 ★있던 ★선례다:
+ *   ★옛 `:1093` ★`'btpl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)`
+ *   ⇒ ★★그 꼴을 ★★그대로 ★쓴다. ★바뀐 것은 ★★«한 자리에서 ★부른다»뿐이다.
+ *
+ * ⚠️★★★지디·t4quote 의 ★처방은 ★★«`:343` 을 ★`:1093` 꼴로»였다(★복사).
+ *   ★★내가 ★★한 칸 ★다르게 ★했다 — ★★★복사하면 ★★같은 식이 ★★두 벌이 ★된다.
+ *   ★★그건 ★★오늘 ★A(C11)에서 ★★고친 ★바로 ★그 병이다(★명부가 ★둘) ⇒ ★★파생시켜 ★하나로.
+ *   ⇒ ★★되돌리라면 ★★한 줄이다(★두 자리에 ★식을 ★다시 적으면 된다). ★★지디 칸으로 ★올렸다.
+ *
+ * ★★`_safeSeg`(main.js:1838) 가 ★★`[^\w.-]` 를 ★`_` 로 ★바꾼다 ⇒ ★★이 꼴은 ★그대로 ★살아남는다
+ *   (★`\w` = ★[A-Za-z0-9_]) ⇒ ★★파일명으로 ★써도 ★안전하다(★내가 ★쟀다).
+ * ★★그리고 ★id 를 ★★«파싱»하는 자는 ★★0곳이다 — ★전부 ★`t.id === id` ★동치 비교다(★내가 ★전수했다)
+ *   ⇒ ★★꼴을 ★늘려도 ★찾기가 ★안 깨진다. */
+function _mkTplId(prefix) {
+  return prefix + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+}
+
 function _tplKindOf(el) {
   const cl = el && el.classList;
   if (!cl || !cl.length) return null;
@@ -340,7 +362,7 @@ async function saveAsTemplate(el, name, folder, category, tags, type = 'section'
   _tplStampPath(clone);
   _tplStripLinks(clone);   // ★클론에만 — 캔버스의 원본 섹션은 링크를 그대로 쥔다
 
-  const id  = 'tpl_' + Date.now();
+  const id  = _mkTplId('tpl_');     /* ★id 만들기의 ★«한 자리» — ⛔여기 ★식을 ★다시 적지 ★마라(C) */
   const html = clone.outerHTML;
   const tagsArr = Array.isArray(tags) ? tags : [];
 
@@ -1090,7 +1112,7 @@ export async function saveBlockAsTemplate(block, name, folder = '블록', tagsSt
   _tplStripLinks(clone);   // ★클론에만 — 캔버스의 원본 블록(과 그 섹션)은 링크를 그대로 쥔다
   const html = clone.outerHTML;
 
-  const id = 'btpl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  const id = _mkTplId('btpl_');     /* ★같은 자를 ★쓴다 — ★옛 꼴이 ★이 자의 ★선례였다(C) */
   const blockType = block.dataset.type || block.className.split(' ')[0];
 
   // canvas 저장
