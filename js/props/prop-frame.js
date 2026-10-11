@@ -9,7 +9,7 @@ import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML } from './_helpers
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
-import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed } from '../drag-utils.js';
+import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, framePadXData, isInlineAbsolute } from '../drag-utils.js';
 import { panelRenderedPx } from './_panel-rendered.js';
 
 /* ★★2026-10-10 (현빈 ③) — ★★옛 `enterBgPosDragMode`(%-기반 ★위치만 · ★크기 축 ★없음)에서
@@ -317,7 +317,11 @@ function _renderAutoPanel(ss) {
   const hexBg  = bgGradCss ? '#ffffff' : rgbToHex(rawBg);   // 그라데이션이면 wireColorField 가 첫 스탑 색으로 덮는다
   const bgAlpha = bgGradCss ? 100 : parseAlphaFromColor(rawBg);
   const padY   = Math.round(panelRenderedPx(ss, 'paddingTop'));   // 묶음 B E115 — 그려진 위 여백(_frameDecorCss 는 dataset.padding+인라인 padding 으로 그린다 · 옛 표시는 dataset.padY 만 → 0)
-  const padX   = parseInt(ss.dataset.padX) || parseInt(ss.style.paddingLeft) || 0;   // F5: 좌우 패딩(데이터 칸이 없던 옛 프레임은 인라인 padding 을 읽는다)
+  /* ★★2026-10-11 — ★여기 ★있던 식을 ★★`js/drag-utils.js` ★`framePadXData` 로 ★★파생시켰다.
+     ⚰️★옛 줄: ★`parseInt(ss.dataset.padX) || parseInt(ss.style.paddingLeft) || 0`   // F5: 데이터 칸이 없던 옛 프레임은 인라인 padding 을 읽는다
+     ★★까닭: ★`effectiveSectionPadX` 가 ★★«자르는 프레임 안»에서 ★★그 값을 ★★뚫을 패딩으로 ★쓰게 됐다(★현빈 ①)
+       ⇒ ★★같은 수를 ★★두 자리가 ★따로 읽으면 ★★명부가 ★둘이다. ⇒ ★★한 자리에서 ★가져온다. */
+  const padX   = framePadXData(ss);
   const width  = parseInt(ss.dataset.width)  || (isShapeFrame ? 100 : 780);
   const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
   const minWidth = minVisibleWidth(ss, width);   /* ★그 술어 하나에서 — ⛔여기 수를 적지 않는다 */
@@ -341,12 +345,49 @@ function _renderAutoPanel(ss) {
 
   /* ── 「패딩 제외(full-bleed)」 — 에셋블럭 패턴 미러 (2026-09-10 현빈 지시) ──
      ★기본 «끔»: dataset.fullBleed 가 없으면 지금 동작 그대로다(옛 프레임 무변화).
-     ⛔뚫을 수 없는 자리에서는 «토글 자체를 안 보여준다» — 켜도 아무 일이 안 일어나는
-       스위치는 「고장」으로 읽힌다. 판정은 공용 부품(effectiveSectionPadX)에 맡긴다:
-         · 프레임 «안»의 프레임 = `.frame-block{overflow:hidden}` 이라 잘리기만 한다
-         · 섹션 밖(자유배치 등) = 기준이 없다  ⇒ 둘 다 0 을 돌려준다. */
+     ⚰️★2026-10-11 — ★옛 주석은 ★이렇게 ★적혀 있었고 ★★절반이 ★거짓이 됐다:
+       「⛔뚫을 수 없는 자리에서는 «토글 자체를 안 보여준다» — 켜도 아무 일이 안 일어나는
+         스위치는 「고장」으로 읽힌다. … · 프레임 «안»의 프레임 = `.frame-block{overflow:hidden}` 이라 잘리기만 한다」
+     ★★어디가 ★거짓이 됐나 ★둘:
+       ⑴ ★`.frame-block{overflow:hidden}` — ★★2026-09-28 현빈 지시로 ★`visible` 로 ★풀렸다(★자름은 ★조건부다)
+       ⑵ ★★«안 보여준다» — ★★그게 ★★현빈 ①의 ★증상 ★자체였다(2026-10-11):
+          ★★«사라진 칸»은 ★「고장」보다 ★더 ★나쁘다 — ★★사용자가 ★★«기능이 ★없어졌다»고 ★읽는다.
+          ★현빈 원문: 「★프레임블럭의 ★패딩제외기능 ★★원래됐잖아? … ★뭐가 문제야?」
+     ⇒ ★★★그래서 ★이제 ★★«언제나 ★보여주고», ★뚫을 게 ★없으면 ★★«꺼진 채» ＋ ★★까닭 ★한 줄을 ★같이 ★낸다.
+       ★★까닭 줄은 ★★«있는 입구»만 ★가리킨다 — ★이 패널의 ★★«좌우 패딩» 칸(`#ss-padx-num`)이다.
+         ⛔«없는 입구»를 ★가리키지 ★마라(★2026-10-11 에 ★그 꼴이 ★하루 ★셋 났다 · ★지디 ⒞).
+     ★판정은 ★여전히 ★공용 부품(★`effectiveSectionPadX`)에 ★맡긴다 — ★그 자가 ★★갈래 ㉡ 을 ★안다.
+     ★잠그는 자: ★`tests/dom/frame-inner-fullbleed.dom.spec.js` ★FI4. */
   const isFullBleed  = ss.dataset.fullBleed === 'true';
-  const canFullBleed = isFullBleed || effectiveSectionPadX(ss) > 0;
+  const _fbPadX      = effectiveSectionPadX(ss);
+  const canFullBleed = isFullBleed || _fbPadX > 0;
+  /* ★왜 ★꺼지나 — ★두 갈래뿐이다(★`effectiveSectionPadX` 의 ★머리말이 ★정본): ★자르는 프레임 안인데 ★그 프레임의
+     ★패딩이 ★0 이거나, ★섹션 ★밖이다. ★★앞쪽이면 ★«무엇을 ★하면 ★되나»를 ★말해 줄 수 ★있다. */
+  const _outerFrame  = ss.parentElement?.closest?.('.frame-block') || null;
+  /* ★★★까닭이 ★셋이다 — ★★내가 ★실측으로 ★가렸다(2026-10-11 · `fi-box.log`). ⛔하나로 ★뭉치지 ★마라:
+       ⑴ ★자유(free) 프레임 안 = ★자식이 ★`position:absolute` ⇒ ★★`100%` 가 ★★이미 ★끝까지 ★닿는다
+          ⇒ ★★뚫을 것이 ★«없다»가 ★아니라 ★★«이미 ★다 뚫려 있다». ★사람이 ★할 일이 ★★다르다(★stack 으로 ★바꾸면 ★칸이 ★선다)
+       ⑵ ★스택 프레임 안인데 ★그 프레임의 ★«좌우 패딩»이 ★0 ⇒ ★그 칸을 ★올리면 ★된다
+       ⑶ ★섹션 ★밖 ⇒ ★기준이 ★없다
+     ★★★가리키는 입구는 ★★«있는 것»만 쓴다 — ★`stack` 버튼(`#ss-to-stack-btn`)과 ★이 패널의 ★«좌우 패딩» 칸이다.
+       ⛔«없는 입구»를 ★가리키지 ★마라(★2026-10-11 에 ★그 꼴이 ★하루 ★셋 났다 · ★지디 ⒞). */
+  /* ⚰️★★★2026-10-12 — ★여기 ★첫 갈래를 ★★`isFreeLayout` 으로 ★썼다가 ★★틀렸다. ★내 검사(★FI4)가 ★잡았다:
+       ★`isFreeLayout` = ★★«이 프레임이 ★제 ★자식들을 ★자유로 ★두나» 다 — ★★«이 프레임 ★자신이 ★절대배치냐»가 ★아니다.
+       ★실측: ★겉을 ★stack 으로 ★바꾼 뒤에도 ★속 프레임의 ★`dataset.freeLayout` 은 ★★`"true"` 로 ★남았고
+         ⇒ ★★stack 장면에 ★★«자유 배치라…»는 ★★거짓 까닭이 ★떴다.
+     ⇒ ★★참 원인은 ★★«이 블럭이 ★인라인 절대배치냐»다 — ★그게 ★담는 상자를 ★패딩 상자로 ★만든다.
+       ⇒ ★★`effectiveSectionPadX` 가 ★★0 을 ★돌려주는 ★그 ★조건과 ★★«같은 술어»를 ★쓴다(★`isInlineAbsolute`). */
+  const _fbWhy = canFullBleed ? ''
+    /* ★★★2026-10-12 ★지디 판정 ⒝ — ★권유를 ★두되 ★★«잃는 것»을 ★★같은 문장에 ★적는다.
+         ⛔«있는 입구»를 ★가리키는데 ★그 입구가 ★손실을 ★내면 ★★«없는 입구»보다 ★더 ★나쁘다(★지디).
+       ★★★그 손실을 ★★«소스에 적혀 있다»로 ★닫지 ★않고 ★★행위로 ★쟀다(★`run-logs/fi-loss.log`):
+         ★자식 둘을 ★`left:120px/top:40px` ＋ ★`left:30px/top:180px` 로 두고 ★변환했더니
+         ⇒ ★★`left`·`top` 이 ★★둘 다 ★★`""` 가 되고 ★`alignSelf:center` 가 ★붙었다(★가운데 정렬)
+         ⇒ ★★폭은 ★지켰다(★`dataset.stackW` ★200·260). ⇒ ★★그래서 ★문장이 ★★«좌표만» 잃는다고 ★말한다.
+       ★잠그는 자: ★`tests/dom/frame-inner-fullbleed.dom.spec.js` ★FI6(★행위로 잰다) ＋ ★FI5(★문장이 ★그걸 ★말하나). */
+    : isInlineAbsolute(ss) ? '자유(free) 배치의 자식이라 이미 프레임 끝까지 닿아 있습니다 — 바깥 프레임을 «stack» 으로 바꾸면 이 칸이 켜지지만, 자식의 가로·세로 좌표를 잃고 가운데 정렬됩니다(폭은 지킵니다).'
+    : _outerFrame          ? '바깥 프레임의 «좌우 패딩»이 0 이라 뚫을 것이 없습니다 — 그 프레임을 고르고 «좌우 패딩»을 올리세요.'
+                           : '섹션 안이 아니라 뚫을 기준이 없습니다.';
 
   const bannerPreset = ss.dataset.bannerPreset || '';
   const isBanner = !!bannerPreset;
@@ -468,15 +509,18 @@ function _renderAutoPanel(ss) {
         <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
       </div>
       ${sliderRowHTML('좌우 패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}
-      ${canFullBleed ? `
-      <div class="prop-row">
+      <div class="prop-row"${canFullBleed ? '' : ' style="opacity:.55"'}>
         <span class="prop-label">패딩 제외</span>
         <label class="prop-toggle">
-          <input type="checkbox" id="ss-fullbleed-toggle" ${isFullBleed ? 'checked' : ''}>
+          <input type="checkbox" id="ss-fullbleed-toggle" ${isFullBleed ? 'checked' : ''}${canFullBleed ? '' : ' disabled'}>
           <span class="prop-toggle-track"></span>
         </label>
       </div>
-      ` : ''}
+      ${canFullBleed ? '' : `
+      <div class="prop-row" style="align-items:flex-start">
+        <span class="prop-hint" id="ss-fullbleed-why" style="font-size:10px;line-height:1.4;color:#8a8a8a">${_fbWhy}</span>
+      </div>
+      `}
       <!-- ★내용 자르기(현빈 2026-09-30 「피그마처럼 프레임마다 켬/끔, 기본은 끔」).
            ⚰️★2026-10-10 — ★이 줄은 「기본이 «안 자름»」이었고 ★★거짓이 되었다:
              ★현빈 1009t3-② 로 ★★기본이 ★★«자름»이 되었다(css/editor-blocks.css 맨 위 .frame-block).
