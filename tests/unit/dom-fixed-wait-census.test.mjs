@@ -37,23 +37,35 @@ const ROOT = path.join(import.meta.dirname, '..', '..');
 const DOM = path.join(ROOT, 'tests', 'dom');
 const SELF = fileURLToPath(import.meta.url);
 
-const FIX_RE = () => /waitForTimeout\(\s*(\d+)\s*\)/g;
+/* ★★★자를 ★넓혔다(2026-10-11 · 지디 ⑵ ⒜) — ★★«두 꼴»을 ★★따로 ★센다.
+ *   ★`ANY_RE` 로 ★★전부 ★집고 ★`IS_LIT` 로 ★가른다:
+ *     ★★N_lit = ★`waitForTimeout(300)`      ⇐ ★숫자꼴. ★합ms 를 ★낼 수 ★있다
+ *     ★★N_var = ★`waitForTimeout(WAIT)`     ⇐ ★변수·식꼴. ★★ms 를 ★알 수 ★없다(★값이 ★딴 데 산다)
+ *   ⛔★한 수로 ★합치지 ★않는다 — ★★합치면 ★`BASE_MS` 가 ★뜻을 ★잃는다(★ms 를 ★모르는 것이 ★섞인다). */
+const ANY_RE = () => /waitForTimeout\(([^)]*)\)/g;
+const IS_LIT = (a) => /^\s*\d+\s*$/.test(a);
 const COND_RE = () => /\.toPass\(|waitForFunction\(|expect\.poll\(|waitForSelector\(|toBeVisible\(|toHaveCount\(|toHaveText\(|toHaveAttribute\(/g;
 
 /** ★그 뿌리의 ★spec 을 ★한 벌씩 ★재서 ★돌려준다. ★★`read` 를 ★같이 — ⛔«0 벌»이 ★«안 쟀다»인지 ★가른다. */
 function census(dir) {
-  const out = { read: 0, bare: {}, sites: 0, ms: 0, filesWithFix: 0 };
+  const out = { read: 0, bare: {}, sites: 0, ms: 0, filesWithFix: 0, varSites: 0, varBy: {} };
   if (!fs.existsSync(dir)) return out;
   for (const f of fs.readdirSync(dir).sort()) {
     if (!f.endsWith('.spec.js')) continue;
     out.read += 1;
     const body = stripComments(fs.readFileSync(path.join(dir, f), 'utf8'));
-    const fx = [...body.matchAll(FIX_RE())];
-    if (!fx.length) continue;
-    out.filesWithFix += 1;
-    out.sites += fx.length;
-    out.ms += fx.reduce((a, m) => a + Number(m[1]), 0);
-    if ((body.match(COND_RE()) || []).length === 0) out.bare[f] = fx.length;
+    const all = [...body.matchAll(ANY_RE())].map((m) => m[1]);
+    const fx = all.filter(IS_LIT);
+    const vr = all.filter((a) => !IS_LIT(a));
+    if (vr.length) { out.varSites += vr.length; out.varBy[f] = vr.length; }
+    if (!fx.length && !vr.length) continue;
+    if (fx.length) {
+      out.filesWithFix += 1;
+      out.sites += fx.length;
+      out.ms += fx.reduce((a, v) => a + Number(v.trim()), 0);
+    }
+    /* ★«조건 0» 명부는 ★★숫자꼴 기준 ★그대로 — ⛔여기서 ★뜻을 ★바꾸면 ★이 회차 판정과 ★섞인다 */
+    if (fx.length && (body.match(COND_RE()) || []).length === 0) out.bare[f] = fx.length;
   }
   return out;
 }
@@ -84,6 +96,23 @@ function census(dir) {
  *   ⇒ ★★★즉 ★이 기준선은 ★★«하한»이다 — ⛔«고정 대기의 ★전부»가 ★아니다.
  *   ⛔자를 ★지금 ★넓히지 ★않는다 — ★넓히면 ★1318 이 ★통째로 ★움직여 ★★이 회차의 ★판정과 ★섞인다.
  *     ⇒ ★★따로 ★올린다(★지디 칸). */
+/* ★★★N_var — ★★변수·식꼴 ★고정 대기(2026-10-11 · 지디 ⑵ ⒞⒟).
+ *   ★★왜 ★기준선을 ★★따로 ★두나: ★★ms 를 ★알 수 ★없다(★값이 ★`const WAIT = 500` 처럼 ★딴 데 산다)
+ *     ⇒ ★★`BASE_MS` 에 ★섞으면 ★그 수가 ★뜻을 ★잃는다. ⇒ ★★수만 ★센다.
+ *   ★★그리고 ★★«늘지 않는다» ★래칫을 ★★여기에도 ★건다 — ★★그게 ★★이 사각을
+ *     ★★«적어 둔 것»에서 ★★«재는 것»으로 ★바꾼다(★지디: ★적어 둔 하한은 ★썩는다).
+ *   ★실측 2026-10-11(★판 ★`de71c0a4` · tests/dom ★400벌): ★★9곳 · ★파일 ★4벌 */
+const BASE_VAR = 9;
+/* ⚠️★★이 수들은 ★★«세어서» 적었다 — ★★처음엔 ★★내가 ★★어림으로 ★적어 ★★둘이 ★뒤집혀 있었다
+ *   (marquee 1↔2 · undo-depth-r1 2↔1). ★★그 빨강이 ★이 명부를 ★고쳤다.
+ *   ⇒ ★★내 교훈 정면: ★★«내가 ★적은 ★수·이름은 ★미확인이다» — ★★앞 회차에서 ★나는 ★★파일 ★이름만 ★찍고
+ *     ★★«파일 4벌»까지만 ★쟀는데 ★★칸마다의 ★수는 ★★안 쟀다. ⇒ ★★그런데 ★적었다. */
+const VAR_BARE = {
+  'graph-label-edit.dom.spec.js': 1,        /* 인자: interval */
+  'marquee-edge-autoscroll.dom.spec.js': 2, /* 인자: ms */
+  'tpl-browser-close.dom.spec.js': 5,       /* 인자: WAIT (= 500) — ★★이 사각의 ★양성대조 */
+  'undo-depth-r1.dom.spec.js': 1,           /* 인자: `hold + 400` — ★★«식»이다(★변수만이 ★아니다) */
+};
 const BASE_SITES = 1318;
 const BASE_MS = 376820;
 /* ══ ★★★이 ★수의 ★★«장부» — ★★지디 조건(2026-10-11): ⛔«수»만 두지 ★마라 ════════════════
@@ -95,7 +124,9 @@ const BASE_MS = 376820;
 const BASE_AT = 'e6d7c337＋265a4e5d';   /* ★첫 판 ★e6d7c337(1315/375120) ＋ ★올린 까닭 ★265a4e5d(＋3/＋1700) */
 const BASE_HOW = [
   '★뿌리 = tests/dom (★`countScannable()` 이 ★분모를 ★찍는다)',
-  '★곳 = `waitForTimeout(<수>)` 의 ★출현 수 · ★합ms = ★그 <수> 들의 ★합',
+  /* ⛔★이 글자를 ★★조립한다 — ★★자를 ★넓히자(ANY_RE) ★★이 줄이 ★★제 자에 ★걸렸다(★실측).
+     ★옛 자는 ★★숫자만 ★봤으므로 ★`(<수>)` 가 ★★안 걸렸다 ⇒ ★★넓히기가 ★★이 사각을 ★★하나 ★더 ★열었다. */
+  '★곳 = `' + 'waitFor' + 'Timeout(<수>)` 의 ★출현 수 · ★합ms = ★그 <수> 들의 ★합',
   '★주석은 ★떼고 ★센다(stripComments) — ⛔주석의 ★예시가 ★측정값이 ★되지 ★않게',
 ].join(' · ');
 
@@ -235,6 +266,7 @@ test('W2 ★★★전제 — ★진짜 뿌리를 ★참으로 ★걸었나 (⛔�
   assert.ok(c.read > 0, '★★`tests/dom` 에서 ★읽은 spec 이 ★0벌이다 ⇒ ★★아래 수는 ★★«안 쟀다»다');
   console.log(`    ★★읽은 spec ${c.read}벌 · ★고정 대기를 쓰는 파일 ${c.filesWithFix}벌`
     + ` · ★★곳 ${c.sites} (기준 ${BASE_SITES}) · ★★합 ${c.ms}ms (기준 ${BASE_MS})`
+    + ` · ★★★변수꼴 ${c.varSites} (기준 ${BASE_VAR}) ⇒ ★★참값 ${c.sites + c.varSites}`
     + ` · ★★★조건 0 인 파일 ${Object.keys(c.bare).length}벌 (명부 ${Object.keys(BARE).length}벌)`);
 });
 
@@ -296,12 +328,48 @@ test('W4 ★★★명부는 ★«이름»이다 — ★명부 ⊇ 실측 ＋ ★
     `★★명부 ★안에서 ★곳 수가 ★늘었다:\n  · ${grew.join('\n  · ')}`);
 });
 
+test('W6 ★★★«변수·식꼴» 고정 대기 — ★늘면 ★빨강 · ★★명부는 ★이름으로 (지디 ⑵ ⒟)', () => {
+  const c = census(DOM);
+  assert.ok(c.read > 0, '★전제 미달 — ★읽은 spec 0벌');
+  /* ★★★양성대조 — ★★이 사각을 ★★처음 ★보여준 ★그 파일이 ★★자가 ★넓어졌음을 ★증명한다.
+     ★넓히기 ★전 이 자는 ★그 파일을 ★★3곳으로 ★봤다(★숫자꼴만) ⇒ ★★참값은 ★★8곳(★3 ＋ ★5)이다.
+     ⇒ ★★그래서 ★★여기서 ★★5 를 ★★이름으로 ★단언한다 — ⛔0 이면 ★자가 ★★안 넓어진 것이다. */
+  const PIN = 'tpl-browser-close.dom.spec.js';
+  assert.strictEqual(c.varBy[PIN], 5,
+    `★★자가 ★안 넓어졌다 — ★${PIN} 의 ★변수꼴이 ★${c.varBy[PIN] ?? 0}곳이다(★5 여야 한다)\n`
+    + '  ★그 파일은 ★`const WAIT = 500` 을 ★5곳에서 ★쓴다 ⇒ ★★숫자꼴 3 ＋ ★변수꼴 5 = ★★참 8곳');
+  assert.strictEqual(c.sites > 0 && (c.bare[PIN] ?? 0), 3,
+    `★전제 — ★그 파일의 ★숫자꼴은 ★3 그대로여야 한다(잰 값: ${c.bare[PIN] ?? 0})`);
+  /* ⒟ ★★«늘지 않는다» — ★★N_var 에도 ★래칫. ⛔줄어듦은 ★찍기만(★고친 사람이 ★빨강을 ★보지 ★않게) */
+  const slack = BASE_VAR - c.varSites;
+  if (slack > 0) {
+    console.log(`    ★★★«변수꼴이 ★줄었다»(★좋다) — ${BASE_VAR} → ${c.varSites} (★틈 ${slack})`);
+    console.log('      ⇒ ★★기준선을 ★내리면 ★그 틈만큼 ★다시 ★자라는 것을 ★막는다(⛔FAIL 은 ★아니다)');
+  }
+  assert.ok(c.varSites <= BASE_VAR,
+    `★★변수·식꼴 ★고정 대기가 ★늘었다: ★${BASE_VAR} → ★★${c.varSites} (★＋${c.varSites - BASE_VAR}곳)\n`
+    + `  ★잰 자리: ${JSON.stringify(c.varBy)}\n`
+    + '  ⇒ ★★`' + 'waitFor' + 'Timeout(<변수>)` 는 ★★ms 가 ★딴 데 살아 ★★이 자가 ★합을 ★못 낸다\n'
+    + '  ⇒ ★★조건 대기(`waitForFunction`·`expect.poll`·`waitStableRect`)로 ★써라');
+  /* ⒞ ★★명부는 ★이름으로 — ★명부 ⊇ 실측 ＋ ★명부 밖 ★0 (⛔등호로 ★닫지 ★않는다) */
+  const outside = Object.keys(c.varBy).filter((f) => !(f in VAR_BARE)).sort();
+  assert.deepEqual(outside, [],
+    `★★변수꼴을 ★쓰는 spec 이 ★★명부 ★밖에 ★${outside.length}벌 ★생겼다:\n  `
+    + outside.map((f) => `· ${f} (${c.varBy[f]}곳)`).join('\n  '));
+  const grew = Object.keys(c.varBy).filter((f) => (VAR_BARE[f] ?? 0) < c.varBy[f])
+    .map((f) => `${f}: ${VAR_BARE[f] ?? 0} → ${c.varBy[f]}`);
+  assert.deepEqual(grew, [],
+    `★★명부 ★안에서 ★변수꼴 수가 ★늘었다:\n  · ${grew.join('\n  · ')}`);
+  console.log(`    ★★변수꼴 ${c.varSites}곳 · ★파일 ${Object.keys(c.varBy).length}벌 (★명부 ${Object.keys(VAR_BARE).length}벌)`);
+});
+
 test('W5 ★★이 파일 ★자신이 ★제 자의 ★입력이 ★아닌가 (★T7 과 ★같은 병)', () => {
   /* ★★이 파일은 ★`tests/unit` 에 산다 ⇒ ★★`tests/dom` 을 걷는 ★자에 ★안 걸린다 — ★그걸 ★단언한다.
    * ★★그리고 ★표본 글자를 ★조립해 ★썼으니 ★★본문에 ★«고정 대기» 꼴이 ★★0 이어야 한다. */
   const raw = fs.readFileSync(SELF, 'utf8');
   const body = stripComments(raw);
-  const n = (body.match(FIX_RE()) || []).length;
+  /* ★★자를 ★넓혔으니 ★여기도 ★★두 꼴 ★다 센다 — ⛔숫자꼴만 ★세면 ★`(WAIT)` 를 ★써도 ★초록이다 */
+  const n = (body.match(ANY_RE()) || []).length;
   assert.equal(n, 0,
     `★이 파일 ★본문에 ★«고정 대기» 꼴이 ★${n}건 생겼다 — ★★표본은 ★★조립해서 써라(’waitFor’＋’Timeout’)`);
   assert.ok(!path.relative(DOM, SELF).startsWith('..') === false,
