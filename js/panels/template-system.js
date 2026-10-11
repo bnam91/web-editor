@@ -651,6 +651,32 @@ async function insertTemplate(tpl, opts = {}) {
        ⛔`after` ＋ `remove` ★두 걸음으로 ★나누지 ★마라 — ★★중간 상태가 ★히스토리에 ★샌다(t4quote).
        ★★섹션 ★번호는 ★★아래 ★재번호 루프가 ★★자리로 ★다시 ★매긴다 ⇒ ★★여기서 ★물려받지 ★않는다
          (★t4quote 는 ★«물려받아라»라 ★적었는데 ★★그 결함은 ★★★이미 ★처리돼 ★있다 — ★실측). */
+    /* ════════════════════════════════════════════════════════════════════
+       ★★★C1 — ★★«잠긴 섹션»은 ★★교체하지 ★않는다 (★0.9.7 차단 ② · ★지디 판정)
+
+       ★★★왜 ★여기 ★한 자리인가 — ★★★내가 ★셌다(★주석을 ★걷고 · `js/panels/*.js` ★전수):
+         ★★«섹션을 ★★통째로 ★지우거나 ★덮는» 길 = ★★★1곳 — ★★바로 ★아래 ★`replaceWith` ★그것.
+         (★★같은 파일의 ★`.remove()` 들은 ★★`.section-tags` 같은 ★★«자식»이다 — ★섹션이 ★아니다)
+       ⇒ ★★★그러니 ★가드 ★한 자리가 ★★전수를 ★덮는다. ⛔둘째 명부가 ★생기지 ★않는다.
+
+       ★★★왜 ★★이 지점인가(★`anchorSec` ★바로 ★뒤) — ★★★이것도 ★쟀다:
+         ★`insertTemplate` ★머리부터 ★여기까지 ★★«살아 있는 ★캔버스»를 ★바꾸는 자리 = ★★0.
+         ★그 사이의 ★`innerHTML`·`appendChild` 는 ★★전부 ★★떼어 둔(detached) ★`wrapper`·`tmp`·`row` 것이고,
+         ★`pushHistory` ★둘은 ★★블럭·서브섹션 ★가지에 ★있어 ★★그 가지는 ★★먼저 ★return 한다.
+       ⇒ ★★★그래서 ★여기서 ★return 하면 ★★★흔적이 ★남지 ★않는다(★`sec` 은 ★아직 ★안 붙었다).
+
+       ★★★그리고 ★★«이어 불러라» — ★★`window.isSectionProtected` 를 ★쓴다. ⛔다시 ★짜지 ★않는다.
+         ★정의 = ★`js/section-protection.js` · ★선례 = ★`js/editor.js` ★3곳의 ★`|| (() => false)` 꼴.
+       ★★그리고 ★★★조용히 ★거절하지 ★않는다 — ★★«왜 ★안 되나»를 ★말한다.
+         ★★까닭(★지디): ★★«복구는 ★사용자가 ★알아챈 ★뒤에만 ★쓸 수 ★있다» ⇒ ★★알림이 ★없으면
+         ★★★`⌘Z` 가 ★있어도 ★위안이 ★안 된다. ★★실측: ★★알림 ★★`[]` 였다.
+       ★잠그는 자 = ★`tests/dom/tpl-protect-replace.dom.spec.js` ★L1(주) · ★★L2(★음성대조 — ★b2⒜ 가 ★산다)
+       ════════════════════════════════════════════════════════════════════ */
+    const _isProtected = window.isSectionProtected || (() => false);
+    if (opts && opts.replace && _isProtected(anchorSec)) {
+      window.alert('이 섹션은 보호되어 있어 바꿀 수 없습니다 — 자물쇠를 먼저 풀어 주세요.');
+      return;
+    }
     if (opts && opts.replace) anchorSec.replaceWith(sec);
     else anchorSec.after(sec);
   } else {
