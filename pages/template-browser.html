@@ -87,6 +87,9 @@
   </div>
   <!-- 검색 바 + 섹션 추가 버튼 (중간) -->
   <div class="tpl-browser-search-wrap">
+    <select class="tpl-browser-search-mode" id="tpl-browser-sort" title="정렬 기준">
+      <!-- ★★비어 있다 — ★★`<option>` 은 ★`_tpl-sort.js` 의 ★명부에서 ★그린다(⛔두 벌로 두지 않는다) -->
+    </select>
     <select class="tpl-browser-search-mode" id="tpl-browser-search-mode" title="검색 기준">
       <option value="all">전체</option>
       <option value="name">파일명</option>
@@ -199,6 +202,14 @@ window.insertTemplate = async (tpl) => {
 </script>
 
 <!-- ★원본을 «그대로» 싣는다(복사 아님) — 이게 「기존 레이아웃 그대로」의 실체다. -->
+<!-- ⛔⛔★이 줄을 ★지우지 ★마라 — ★★★이 창에선 ★★C11 부터 ★★0건이었고 ★★증상이 ★★없었다(★기본 경로가 ★안 부른다).
+     ★★`recent`·`name` 을 ★고르면 ★★`byCreatedAtDesc` 가 ★없어 ★★던진다 ⇒ ★★★카드 그리기가 ★통째로 ★죽는다.
+     ★★2026-10-11 ★격리 앱 실측: ★이 줄이 ★있으면 ★★별창 ★카드 ★22건 · ★오류 ★0건.
+     ★잠그는 자 = ★tests/unit/tpl-two-windows-scripts.test.mjs ★S3·S2 -->
+<script src="../js/panels/_gallery-sort.js"></script><!-- ★★`_tpl-sort.js` 가 ★이 자의 ★`byCreatedAtDesc` 를 ★부른다 — ⛔빠지면 ★별창의 ★기본 정렬이 ★던진다(★261011 실측) -->
+<script src="../js/panels/_tpl-nav.js"></script><!-- ★방향키 순수 핵(D·b1) — ★원본을 그대로 싣는다 -->
+<script src="../js/panels/_tpl-sort.js"></script><!-- ★정렬 명부 한 자리(F) — ★원본을 그대로 싣는다 -->
+<script src="../js/panels/_tpl-search.js"></script><!-- ★검색 식 한 자리 — ★원본과 ★같은 자를 ★그대로 싣는다(복사 아님) -->
 <script src="../js/panels/template-browser.js"></script>
 
 <script>

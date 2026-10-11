@@ -6,6 +6,140 @@ let _browserOpen      = false;
 let _browserFilter    = { folder: '전체', category: '전체', tag: null, starred: false };
 let _browserSelected  = null;   // 현재 선택된 tpl id
 let _browserSearchQ   = '';
+/* ★★검색 ★«기준» — ★`tpl-browser-search-mode` 가 ★고른 값. ★'all' | 'name' | 'tag'.
+   ★★이 칸이 ★생기기 ★전까지 ★그 select 는 ★★«보이고 ★눌리는데 ★아무 일도 ★안 나는» 자리였다
+   (★t4quote 가 ★자 ★여섯으로 ★쟀다: ★읽는 JS ★0건 · ★CSS 2건 · ★tests 0벌 · ★2026-04-04 `5d36470f` 부터).
+   ★★기본은 ★`'all'` — ★★옛 동작(★넷 ★전부를 ★본다)과 ★★같은 답이다 ⇒ ★★기본 쓰임이 ★안 바뀐다. */
+let _browserSearchMode = 'all';
+
+/* ★★정렬 ★열쇠 — ★★`_browserFilter` ★★«옆»이다. ⛔★그 안에 ★넣지 ★마라.
+   ★★★까닭(t4quote 가 ★짚은 ★이 설계의 ★가장 ★숨은 ★함정): ★트리 클릭이 ★`_browserFilter` 를
+     ★★통째로 ★갈아친다(`:217`·`:233`·`:205` 의 ★`_browserFilter = { ... }`)
+   ⇒ ★★안에 ★넣으면 ★★폴더를 ★고를 때마다 ★정렬이 ★★조용히 ★초기화된다.
+   ⇒ ★★검사 ★F4 가 ★바로 ★그걸 ★잰다.
+   ★★기본 열쇠 = ★★`'default'` = ★★«정렬 자를 ★안 거친 ★그 차례»(★지디 ⒝ · 2026-10-11).
+     ⚠️★글자로 ★적은 ★까닭 — ★★이 줄은 ★★모듈 ★평가 ★시점에 ★돈다 ⇒
+       ★★`window.tplSortDefault` 를 ★여기서 ★읽으면 ★★싣는 ★차례에 ★매달린다.
+     ⇒ ★★대신 ★★검사가 ★★«이 글자 == `tplSortDefault`»를 ★잠근다 —
+       ★★★`tests/unit/tpl-browser-sort.test.mjs` 의 ★★F10. ⛔그 칸 ★없이 ★이 글자를 ★믿지 ★마라
+       (★★261011: ★기본이 ★`recent`→`default` 로 ★바뀌자 ★★이 세 자리가 ★★다 ★거짓이 ★됐다). */
+let _browserSort = 'default';
+
+/* ★★뎁스1 ★커서 — ★★«지금 ★가리키는 곳». ⛔`active`(=★«무엇으로 ★거르나»)와 ★★다른 것이다.
+   ★★★이 칸이 ★★아예 ★없던 것이 ★설계 D 의 ★핵이다 — ★뎁스1 의 상태는 ★`_browserFilter` ★하나뿐이었다.
+   ★`_depth` : ★1 = ★트리 · ★2 = ★카드. ★★처음은 ★2 다(★열면 ★첫 카드가 ★자동 선택된다 — ★그 거동은 ★그대로). */
+let _treeCursor = -1;
+let _depth = 2;
+
+/* ★★★뎁스1 ★항목 ★명부 — ★★«한 자리». ⛔키 처리와 ★렌더가 ★각자 ★세면 ★갈라진다(t4quote).
+   ★★★DOM 에서 ★뽑는 ★까닭(⛔모델에서 ★뽑지 ★않는다):
+     ★폴더 ★헤더 ★클릭이 ★★`folderEl.classList.toggle('expanded')` 로 ★★DOM 을 ★직접 ★건드리고
+     ★★트리를 ★다시 ★그리지 ★않는다(`:259~268`) ⇒ ★★펴짐 상태가 ★★`_browserFilter` 와 ★★어긋날 수 ★있다.
+   ⇒ ★★그래서 ★★«화면에 ★보이는 것»이 ★참값이고, ★★그게 ★곧 ★단언 ★D7 이 ★요구하는 것이다.
+   ★★`.expanded` 를 ★보는 ★까닭: ★★CSS 가 ★★같은 class 로 ★감춘다
+     (`css/editor-extra.css:876~877` — ★`.tb-tree-cats{display:none}` · ★`.expanded .tb-tree-cats{display:block}`)
+   ⇒ ★★즉 ★★CSS 와 ★★같은 ★열쇠를 ★본다. ⛔`getComputedStyle` 로 ★재지 ★않는다(★느리고, ★레이아웃에 ★매달린다). */
+function _treeItems() {
+  const tree = document.getElementById('tpl-browser-tree');
+  if (!tree) return [];
+  const out = [];
+  /* ★`querySelectorAll` 은 ★★문서 차례로 ★준다 ⇒ ★★그게 ★곧 ★보이는 차례다 */
+  tree.querySelectorAll('.tb-tree-starred, .tb-tree-all, .tb-tree-folder-header, .tb-tree-cat').forEach(el => {
+    if (el.classList.contains('tb-tree-cat')) {
+      const f = el.closest('.tb-tree-folder');
+      if (!f || !f.classList.contains('expanded')) return;   // ★★접힌 폴더의 ★범주는 ★안 든다(D7)
+    }
+    out.push(el);
+  });
+  return out;
+}
+
+/* ★★한 항목이 ★뜻하는 ★«거름» — ★★클릭 핸들러들이 ★쓰는 ★꼴과 ★★같게 ★맞춘다(`:232`·`:244`·`:259`). */
+function _treeItemFilter(el) {
+  if (!el) return null;
+  if (el.classList.contains('tb-tree-starred')) {
+    return { folder: '전체', category: '전체', tag: null, starred: true };
+  }
+  return { folder: el.dataset.folder, category: el.dataset.cat, tag: null, starred: false };
+}
+
+/* ★커서 ★표시 — ⛔`active` 를 ★쓰지 ★마라(★그건 ★«거름»이다). ★★제 class 를 ★둔다. */
+function _paintTreeCursor() {
+  const items = _treeItems();
+  items.forEach(el => el.classList.remove('tb-tree-cursor'));
+  if (_depth !== 1) return;
+  const el = items[_treeCursor];
+  if (!el) return;
+  el.classList.add('tb-tree-cursor');
+  el.scrollIntoView?.({ block: 'nearest' });
+}
+
+/* ★★«지금 거르는 항목»이 ★명부에서 ★몇 번째인가 — ★단언 ★D1 이 ★요구하는 ★시작 자리. */
+function _treeIndexOfCurrentFilter() {
+  const items = _treeItems();
+  for (let i = 0; i < items.length; i++) {
+    if (window.tplNavSameFilter(_treeItemFilter(items[i]), _browserFilter)) return i;
+  }
+  return items.length ? 0 : -1;
+}
+
+/* ★★★뎁스2 → ★뎁스1 (`←`) — ⛔검색어를 ★★안 지운다(★M1) · ⛔선택도 ★★안 버린다(★M2) */
+function _tplNavToTree() {
+  if (!_browserOpen) return false;
+  const items = _treeItems();
+  if (!items.length) return false;
+  _depth = 1;
+  if (_treeCursor < 0 || _treeCursor >= items.length) _treeCursor = _treeIndexOfCurrentFilter();
+  _paintTreeCursor();
+  return true;
+}
+
+/* ★★★뎁스1 에서 ★↑↓ — ★★양 끝에서 ★멈춘다(★순수 핵이 ★판정한다) */
+function _tplNavTreeMove(dir) {
+  if (!_browserOpen || _depth !== 1) return false;
+  const items = _treeItems();
+  const next = window.tplNavMove(_treeCursor, items.length, dir);
+  if (next < 0) return false;
+  const moved = next !== _treeCursor;
+  _treeCursor = next;
+  _paintTreeCursor();
+  return moved || true;   // ★★양 끝에서도 ★«처리했다» — ⛔캐럿으로 ★새지 ★않게(D4)
+}
+
+/* ★★★뎁스1 → ★뎁스2 (`→`·`Enter`·`⌘↓`) — ★★거름이 ★바뀔 때만 ★해제·선택버림 */
+function _tplNavEnter() {
+  if (!_browserOpen || _depth !== 1) return false;
+  const items = _treeItems();
+  const el = items[_treeCursor];
+  if (!el) return false;
+  const next = _treeItemFilter(el);
+  const changed = !window.tplNavSameFilter(_browserFilter, next);
+  if (window.tplNavShouldClearSearch('enter', _browserFilter, next)) _clearBrowserSearch();
+  if (window.tplNavShouldDropSelection('enter', _browserFilter, next)) {
+    _browserSelected = null;
+    _hidePreview();
+  }
+  if (changed) {
+    _browserFilter = next;
+    _renderBrowserTree();     // ★거름이 바뀌면 ★`active`·펴짐이 ★다시 서야 한다
+  }
+  _depth = 2;
+  _treeItems().forEach(x => x.classList.remove('tb-tree-cursor'));
+  _renderBrowserCards();
+  return true;
+}
+
+/* ★★시험 이음새 — ★★읽기 전용. ★선례: `window.__autoSaveDeferState` 등 (★레포에 ★여럿 있다).
+   ⇒ ★★DOM 검사가 ★★«무엇이 ★섰나»를 ★★눈이 ★아니라 ★★수로 ★읽게 ★한다. */
+window.__tplNavState = () => ({
+  depth: _depth,
+  cursor: _treeCursor,
+  itemCount: _treeItems().length,
+  itemLabels: _treeItems().map(el => (el.querySelector('.tb-tree-label')?.textContent || '').trim()),
+  filter: { ..._browserFilter },
+  selected: _browserSelected,
+  searchQ: _browserSearchQ,
+});
 
 /* ── 패널 크기 한계 ── ★리사이즈 핸들과 「창에서 되돌아온 크기」가 «같은» 한계를 써야 한다.
    따로 두면 떼었다 붙일 때마다 서로 다른 값으로 잘려 크기가 야금야금 어긋난다. */
@@ -43,6 +177,22 @@ function openTemplateBrowser() {
   _browserSearchQ = '';
   const _searchInput = document.getElementById('tpl-browser-search');
   if (_searchInput) _searchInput.value = '';
+  /* ★★모드도 ★★같이 ★되돌린다 — ★★`_browserSearchMode` 도 ★★모듈 전역이라 ★닫아도 ★살아남는다.
+     ⛔안 되돌리면 ★★위 주석의 ★그 증상이 ★★모드로 ★★다시 생긴다:
+       ★★select 는 ★「태그」로 ★보이는데(★DOM 은 ★살아 있다) ★★검색어는 ★비어 ★★사람은 ★까닭을 ★못 본다.
+     ★★그래서 ★★«변수»와 ★«보이는 칸» ★★둘을 ★★같이 ★맞춘다 — ★★검색어 쪽과 ★꼴이 ★같다. */
+  _browserSearchMode = 'all';
+  const _searchMode = document.getElementById('tpl-browser-search-mode');
+  if (_searchMode) _searchMode.value = 'all';
+  /* ★★정렬 ★열쇠도 ★같이 ★되돌린다 ＋ ★★`<option>` 을 ★★명부에서 ★그린다.
+     ⇒ ★★HTML 엔 ★빈 `<select>` 만 두고 ★★목록은 ★★`_tpl-sort.js` 가 ★쥔다
+       ⇒ ★★두 창의 ★마크업이 ★★명부와 ★갈라질 ★수가 ★없다. */
+  /* ★★뎁스·커서도 ★되돌린다 — ★열면 ★★뎁스2(첫 카드 자동선택)가 ★기존 거동이다 */
+  _depth = 2;
+  _treeCursor = -1;
+  _browserSort = window.tplSortDefault || 'default';
+  const _sortSel = document.getElementById('tpl-browser-sort');
+  if (_sortSel) _sortSel.innerHTML = window.tplSortOptionsHtml(_browserSort);
   _renderBrowserTree();
   _renderBrowserCards();
   _syncInsertBtn();
@@ -112,7 +262,17 @@ function toggleTemplateBrowser() {
    트리 카운트는 «전체 재고» 기준이고 카드만 검색으로 걸러진다. 검색 중이라는 사실이
    화면에 없으면 그 차이가 「트리 14인데 목록 0」이라는 버그로 읽힌다.
    → ⑴검색 중임을 카드 영역 맨 위에 명시 ⑵트리 항목을 고르면 검색을 자동 해제.
-   (트리 카운트 산출 방식 자체는 바꾸지 않는다 — 타이핑마다 트리가 흔들리는 UX 회피.) */
+   (트리 카운트 산출 방식 자체는 바꾸지 않는다 — 타이핑마다 트리가 흔들리는 UX 회피.)
+
+   ★★★⑵ 의 «고르면»은 «거름이 바뀌는 진입»이다 (2026-10-11 · b1 키보드 이동 신설).
+     ⛔위 줄을 지우지 않았다 — ⑵ 는 «폐기»가 아니라 ★날카로워졌다.
+     ★커서 이동(←·↑·↓)은 «고르는» 것이 아니므로 해제하지 않는다 —
+       현빈 원문이 «키워드 입력 후 방향키 좌측»이라, 그 흐름에서 검색이 살아 있어야 한다.
+     ★같은 항목으로 재진입할 때도 해제하지 않는다(거름이 안 바뀌면 새로 0 이 될 수 없다).
+     ⇒ ★규약의 목적(0건 방지)은 그대로 지켜진다.
+     ⇒ ★그 «살려 둔 대가»는 «검색 중» 배지가 갚는다(이 파일의 _searchBadge) — 단언 D5 가 그 칸을 잰다.
+     ⛔클릭 경로(:232·:244·:259)의 _clearBrowserSearch() 는 ★한 줄도 안 건드렸다 —
+       그건 «다른 요구»다(지디 M1 까닭 ⒥). 판정하는 자리는 _tpl-nav.js 한 자리다. */
 function _clearBrowserSearch() {
   if (!_browserSearchQ) return false;
   _browserSearchQ = '';
@@ -373,16 +533,12 @@ function _renderBrowserCards() {
     templates = templates.filter(t => (t.category || '기타') === _browserFilter.category);
   }
 
-  // 검색 필터 (이름·폴더·카테고리·태그)
-  if (_browserSearchQ.trim()) {
-    const q = _browserSearchQ.toLowerCase();
-    templates = templates.filter(t =>
-      t.name.toLowerCase().includes(q) ||
-      (t.folder || '').toLowerCase().includes(q) ||
-      (t.category || '').toLowerCase().includes(q) ||
-      (t.tags || []).some(tag => tag.toLowerCase().includes(q))
-    );
-  }
+  // ★★검색 필터 — ★★식은 ★★`_tpl-search.js` ★한 자리에 ★산다. ⛔여기서 ★다시 적지 ★마라.
+  //   ★★두 축이 ★★직교로 ★선다: ★★모드(어느 칸에 대보나) × ★★AND(낱말이 여럿이면 전부 만족).
+  //   ★★옛 줄은 ★★낱말 ★하나를 ★★넷에 ★OR 로 ★댔다 ⇒ ★★`qna demo` 가 ★★«그 문자열 그대로»를 ★찾아 ★0건이었다.
+  //   ⚠️★`.trim()` 게이트를 ★★뗐다 — ★★`tplSearchFilter` 가 ★★«구분자만»도 ★★∅ 로 ★가른다(★`&`·`,,`·공백).
+  //      ⇒ ★★그게 ★★「낱말 0개면 ★전체가 ★보인다」의 ★집행 자리다.
+  templates = window.tplSearchFilter(templates, _browserSearchQ, _browserSearchMode);
 
   // 태그 칩 목록 렌더링 (태그 필터 적용 전 — 모든 가용 태그를 보여주기 위함)
   _renderTagChips(templates);
@@ -391,6 +547,22 @@ function _renderBrowserCards() {
   if (_browserFilter.tag) {
     templates = templates.filter(t => (t.tags || []).includes(_browserFilter.tag));
   }
+
+  /* ★★정렬 — ★★«거르기가 ★전부 ★끝난 ★뒤», ★배지·그리기 ★앞. ★식은 ★`_tpl-sort.js` ★한 자리.
+     ★★★기본 열쇠는 ★★`'default'` 이고 ★★★`cmp` 가 ★`null` 이라 ★★`sort` 를 ★★아예 ★안 부른다
+       ⇒ ★★그래서 ★★«보이는 차례»가 ★★구조적으로 ★안 바뀐다 — ⛔«데이터가 ★협조해서»가 ★아니다.
+     ★★잠그는 자 = ★★`tests/unit/tpl-browser-sort.test.mjs` 의 ★★`F1`·`F1a`(★sort 호출 ★0회를 ★행위로 센다).
+
+     ⛔⛔★이 자리에 ★있던 ★옛 주석은 ★★★거짓이었다 — ★지디가 ★F4 에서 ★잡았다(2026-10-11):
+       ★옛 글: 「★기본 `recent` 는 ★«지금 차례»와 ★같은 뜻이다 … ⇒ ★보이는 차례를 ★안 바꾼다(★검사 F1)」
+       ⑴ 「★기본 ★`recent`」      ⇒ ★★거짓. ★★이 파일 ★`:26` 이 ★★`let _browserSort = 'default'` 다
+       ⑵ 「★`unshift` 한다」      ⇒ ★★참 (★아래 ★실측)
+       ⑶ 「★(검사 F1)」           ⇒ ★★거짓. ★★F1 은 ★그 사이 ★★«다른 것»을 ★잠그도록 ★다시 써졌다
+       ⇒ ★★★한 주석에 ★참 하나 · ★거짓 둘. ★★★그리고 ★그 거짓이 ★★«무엇이 ★잠그나»를 ★가리켰다
+         ⇒ ★★다음 사람이 ★★그 이름을 ★믿는다. ⇒ ★★★«약속한 ★단언»은 ★★쓰기 ★전까진 ★★없는 것이다.
+       ⇒ ★★그래서 ★★`tpl-nav-keys`·`tpl-browser-sort` 에 ★★★«주석이 ★부르는 ★검사 이름이 ★실재하나»를
+         ★★전수로 ★재는 칸을 ★세웠다(★`tests/unit/comment-test-names.test.mjs`). */
+  templates = window.tplSortApply(templates, _browserSort);
 
   // 검색 중 배지 — 트리 카운트(전수)와 카드 개수가 왜 다른지 화면에 글자로 남긴다.
   // 기존 태그칩 바(.tpl-browser-tag-chips)와 칩(.tb-tag-chip)을 그대로 재사용 — 새 CSS 없음.
@@ -946,8 +1118,16 @@ function initTemplateBrowser() {
   // 작동시키지 않고 무조건 템플릿 적용. 다른 editable / contenteditable 영역에서는 비활성.
   document.addEventListener('keydown', e => {
     if (!_browserOpen) return;
-    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'Enter') return;
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    /* ★★★설계 D(b1) — ★★`←`·`→` 를 ★★새로 ★받는다. ★옛 꼴은 ★★셋만 ★통과시켰다
+       ⇒ ★★그래서 ★`←`·`→` 가 ★★검색창 ★캐럿만 ★움직이고 ★★«아무 일도 ★안 났다»(t4quote 회차52 실측: 캐럿 3→2→3).
+       ⇒ ★★단언 ★D4 가 ★★그 캐럿이 ★★더 이상 ★안 움직이는지를 ★잰다. */
+    const _navKey = e.key === 'ArrowUp' || e.key === 'ArrowDown'
+                 || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Enter';
+    if (!_navKey) return;
+    /* ★★★수식키 — ★옛 꼴은 ★★전부 ★막았다. ★★이제 ★★`⌘↓`(진입) ★하나만 ★열어 준다.
+       ⛔그 밖의 ★수식키 조합은 ★그대로 ★막는다 — ★★앱의 ★다른 단축키를 ★★안 먹는다. */
+    const _cmdDown = (e.metaKey || e.ctrlKey) && e.key === 'ArrowDown' && !e.altKey && !e.shiftKey;
+    if ((e.metaKey || e.ctrlKey || e.altKey) && !_cmdDown) return;
 
     const ae = document.activeElement;
     const panel = document.getElementById('tpl-browser');
@@ -958,6 +1138,35 @@ function initTemplateBrowser() {
     if (ae && (ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
     // 검색 input 외 다른 input(예: 인라인 편집)에서는 비활성
     if (ae && ae.tagName === 'INPUT' && ae.id !== 'tpl-browser-search') return;
+
+    /* ★★★⌘↓ = ★진입 — ★★뎁스1 에서만 ★뜻이 있다(★현빈 원문: ★Enter·⌘↓·→ 가 ★같은 일) */
+    if (_cmdDown) {
+      if (_depth === 1 && _tplNavEnter()) { e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+
+    /* ★★★← = ★뎁스2 → ★뎁스1 · ★→ = ★뎁스1 → ★뎁스2
+       ★★★`preventDefault` 를 ★★반드시 ★한다 — ★그게 ★★«캐럿이 ★안 움직인다»(D4)의 ★집행이다. */
+    if (e.key === 'ArrowLeft') {
+      if (_depth === 2 && _tplNavToTree()) { e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+    if (e.key === 'ArrowRight') {
+      if (_depth === 1 && _tplNavEnter()) { e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+
+    /* ★★뎁스1 의 ↑↓ — ★★트리 커서를 ★걷는다(★뎁스2 면 ★아래 ★카드 이동으로 ★간다) */
+    if (_depth === 1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      if (_tplNavTreeMove(e.key === 'ArrowDown' ? 1 : -1)) { e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+    /* ★★뎁스1 의 ★Enter — ★★진입이다(⛔템플릿 ★적용이 ★아니다) */
+    if (_depth === 1 && e.key === 'Enter') {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (_tplNavEnter()) { e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
 
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       const dir = e.key === 'ArrowDown' ? 1 : -1;
@@ -988,6 +1197,28 @@ function initTemplateBrowser() {
   // 검색
   document.getElementById('tpl-browser-search')?.addEventListener('input', e => {
     _browserSearchQ = e.target.value;
+    _renderBrowserCards();
+  });
+
+  /* ★★검색 ★기준(select) — ★★이 줄이 ★★그 칸을 ★★«살린다».
+     ★★`change` 로 ★잡는다 — ★`<select>` 는 ★`input` 도 ★쏘지만 ★★이 레포의 ★선례가 ★`change` 다.
+       ★★★«선례»를 ★★세고 ★적는다(⛔「관례대로」로 ★닫지 ★않는다 · ★2026-10-11 실측):
+         ★js/ 전체 ★`addEventListener('change'` ★★538건 vs ★`'input'` ★★328건
+         ★`<select>` 를 ★`change` 로 ★잡는 ★자리 — ★`prop-text-wireup-bubble.js:18`(bubble-style-select)
+           · ★`prop-sticker.js:994`(stk-preset-select) · ★`prop-grid.js:3153` · ★`ai-image-gen.js:397`
+       ⚠️★처음 ★센 자는 ★★거짓 ★0 을 냈다 — ★★`getElementById('id')` 와 ★`addEventListener` 가
+         ★★«같은 줄»에 있어야 ★세는 자였다. ★★이 레포는 ★변수·`querySelector` 로 ★잡는 꼴이 ★많다.
+         ⇒ ★★내 교훈 「★«없다»를 ★고장난 계측기로 ★재지 ★마라」의 ★또 한 판.
+     ★★검색어가 ★비어 있어도 ★★다시 그린다 — ⛔「비었으니 ★같은 화면」은 ★★거짓이다:
+        ★모드를 ★바꾸면 ★★배지·태그칩이 ★★다시 서야 한다. */
+  /* ★★정렬 ★고르기 — ★`change` ★한 자리. ⛔`_browserFilter` 를 ★건드리지 ★않는다(★F4) */
+  document.getElementById('tpl-browser-sort')?.addEventListener('change', e => {
+    _browserSort = e.target.value || (window.tplSortDefault || 'default');
+    _renderBrowserCards();
+  });
+
+  document.getElementById('tpl-browser-search-mode')?.addEventListener('change', e => {
+    _browserSearchMode = e.target.value || 'all';
     _renderBrowserCards();
   });
 
