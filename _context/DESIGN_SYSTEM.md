@@ -219,7 +219,9 @@ body (#1a1a1a) → 패널 (#1e1e1e) → topbar (#242424) → 팝업 (#252525) �
 - `frame-block` (data-banner-preset 없는 일반 frame)
 
 **컴포넌트** (1px / -1px):
-- `text-block`, `asset-block`, `card-block`, `table-block`, `graph-block`, `divider-block`
+- `text-block`, `asset-block`, ~~`card-block`~~⚠️**반쪽**, `table-block`, `graph-block`, `divider-block`
+  > ⚠️**`card-block` 에 이 「1px / -1px」을 걸 규칙이 없다.** `css/` 안 `.card-block` 선택자 **0건**
+  > (2026-10-11 내가 쟀다). 아래 §4-D 참조 — 이 줄이 그 모순의 한쪽이다.
 - `step-block`, `icon-circle-block`, `icon-text-block`, `label-group-block`
 - `frame-block[data-banner-preset]` (frame-block 구조 재사용 + 컴포넌트 단위 시각 표준)
 
@@ -347,12 +349,51 @@ section-block
 | Icon Text | `.icon-text-block` | `addIconTextBlock()` | 아이콘+텍스트 인라인 |
 | Table | `.table-block` | `addTableBlock()` | 비교표/데이터 테이블 |
 | Label Group | `.label-group-block` | `addLabelGroupBlock()` | 태그/뱃지 그룹 |
-| Card | `.card-block` | — | 이미지+제목+설명 카드 (border-radius: 12px) |
-| Strip Banner | `.strip-banner-block` | — | 좌우 분할 배너 |
+| ~~Card~~ | `.card-block` ⚠️**반쪽**(CSS 0 · js 93) | — | §4-D 참조 — CSS 규칙 0건 |
+| ~~Strip Banner~~ | `.strip-banner-block` ⛔**없음**(레포 0건) | — | §4-D 참조 |
 | Graph | `.graph-block` | `addGraphBlock()` | 막대 그래프 |
 | Speech Bubble | `.speech-bubble-block` | `addSpeechBubbleBlock(tail)` | 말풍선 (tail: top/bottom/left/right) |
 | Shape | `.shape-block` | `addShapeBlock(type)` | 도형 (rectangle/ellipse 등) |
 | Group | `.group-block` | — | 블록 묶음 (다중 선택 후 그룹화) |
+
+### 4-D. ⚠️ 이 문서가 든 «없는 블록» — 실패 방식이 둘이다
+
+> ⛔**두 칸을 한 칸에 두지 마라.** 아래 ㉠과 ㉡은 고치는 길이 다르다.
+> 센 날 = 2026-10-11 · 자 = 정의 자리(`css/` 선택자)와 사용 자리(`js/`)를 **둘 다** 봤다.
+> ★손대기 전 이 파일 = blob `33c0132f` · 27186바이트 · 551행
+> (출처= `git rev-parse 23e5ac7f:_context/DESIGN_SYSTEM.md` · ⛔워크트리 체크아웃이 파일 mtime 을
+> 덮으므로 정체는 blob 으로 적는다)
+
+#### ㉠ `.strip-banner-block` — **온전한 유령** (고칠 길: 이 행을 지운다)
+
+`css/` **0건** · `js/` **0건** · `index.html`＋`pages/` **0건** ⇒ 레포 전체 **0건**.
+⇒ 이 이름으로 된 물건은 **존재한 적이 없거나 흔적 없이 사라졌다**. 이 문서만 그것을 든다.
+
+#### ㉡ `.card-block` — **반쪽**(스타일만 없다) (고칠 길: ㉠과 **다르다**)
+
+`css/` 선택자 **0건** ↔ `js/` 언급 **93건**. ⇒ **코드는 이 이름을 아직 참조하고, 스타일은 없다.**
+⇒ 지우면 안 된다. 「무엇이 남아 있나」를 먼저 세야 한다.
+
+**코드가 제 입으로 적어 뒀다** — `js/block-bind-kinds.js:7` 원문:
+> 「… `card-block` 은 만드는 자리 0 이라 뺐다(**옛 꼴 · 미확인**).」
+
+⛔그 줄이 스스로 **「미확인」**이라 적었으므로 **여기서도 미확인으로 옮긴다.**
+즉 「card-block 은 폐기됐다」는 **확정이 아니다** — 「만드는 자리가 0 이고, 왜인지는 안 쟀다」다.
+(`js/goditor-api.js:134` 는 「중앙패널에서 제거됨」이라 적었다 — 이것도 그 파일의 주장이다.)
+
+**⇒ 이 문서 안의 모순을 줄번호로 박는다** (아래 두 줄은 **지금 판**의 번호다):
+- **§2 블록 분류 `:222`** — `card-block` 에 「컴포넌트 = 1px / -1px」을 **주라고 시킨다**
+- **§4-B 표 `:350`** — `card-block` 을 「구현된 블록」으로 **들고 border-radius 12px 까지 적는다**
+- **그런데 `css/` 에 `.card-block` 규칙이 0건** ⇒ **걸 자리가 없다.** 두 줄 다 집행 불가다.
+
+⚠️**줄번호 주의** — 이 번호는 2026-10-11 의 이 판(551행)에서 쟀다. 위 절들에 ⚠️ 를 더하며
+문서가 512 → 551 행으로 **밀렸다**(지디가 준 「§2:195 · §4-B:323」은 그 전 판의 번호다).
+⇒ 다음 사람은 **번호를 믿지 말고 이름으로 찾아라**.
+
+**자의 양성·음성 대조** — 같은 자로 `.text-block`·`.asset-block`·`.table-block` 은 CSS 정의
+**있음**으로, `.zzz-block`(없는 이름)은 **없음**으로 잡힌다 ⇒ 그 0 은 「안 쟀다」가 아니다.
+
+---
 
 ### 4-C. 고급/특수 블록
 
