@@ -685,7 +685,7 @@ function appendFlowChildrenToLayer(containerEl, out, sec, appendRowFn, depth) {
       }
     } else if (child.classList.contains('row')) {
       appendRowFn(child, out, depth);
-    } else if (child.classList.contains('grid-block') || child.classList.contains('icon-circle-block')) {   // G14 서클도 자식을 펼친다
+    } else if (layerHasKidsBox(child)) {   // ★표 한 자리에서 — G19 그리드 · G14 서클 · 1011t1C 인용구
       out.appendChild(makeLayerGridItem(child, child, sec, depth, appendRowFn));
     } else if (window.hasPanelForBlock?.(child)) {
       /* ★「이 자식이 블럭인가」는 정본 표(js/panel-dispatch.js _PANEL_BY_CLASS) 한 곳이 답한다.
@@ -701,11 +701,43 @@ function appendFlowChildrenToLayer(containerEl, out, sec, appendRowFn, depth) {
    ★0개면 «지금과 똑같은 말단 줄»을 그대로 돌려준다(makeLayerBlockItem 그 자체).
    ★머리 줄은 말단 줄을 «그대로» 품는다 — 선택·이름바꾸기·패널은 말단 줄의 처리기가 한다(새로 안 만든다).
      꼴은 makeLayerRowGroup 의 머리(.layer-row-header > .layer-item, editor-panels.css 의 그 규칙)와 같다. */
+/* ★★★«자식 그릇을 ★가진 블럭»의 ★★표 ★한 자리 — ⛔삼항을 ★늘리지 ★마라(★지디 판정 2026-10-11).
+   ★★손님이 ★★셋이다: ★G19 그리드 · ★G14 서클 · ★★`1011t1C` 인용구.
+   ★★★까닭: ★옛 판은 ★`_isCircle ? icbKidsBox : gridKidsBox` ★삼항이었고, ★셋째가 오면 ★★또 늘어난다.
+     ★그리고 ★★«어느 클래스가 ★자식을 ★펼치나»를 ★★네 자리가 ★따로 들고 있었다
+       (★이 파일 ★하나 ＋ ★`js/panels/layer-panel.js` ★셋) ⇒ ★★명부가 ★넷이다.
+     ⇒ ★★표를 ★여기 ★하나 두고 ★★그 넷이 ★★이 표에서 ★파생한다.
+   ⛔그릇 ★찾는 ★함수를 ★★제 벌로 ★적지 ★마라 — ★각 블럭 모듈이 ★`window` 로 ★낸 ★그 자를 ★쓴다.
+   ⚠️★★이 표 ★밖의 ★★다섯째 자리가 ★있다: ★`js/io/export-figma-json.js` 의 ★`_gridKidsBoxOf`(★제 사본).
+     ★★그건 ★이 레인에서 ★안 건드렸다 — ★이름으로 ★올렸다. */
+export const LAYER_KIDS_BOX_BY_CLASS = Object.freeze([
+  /* [블럭 클래스, ★그릇 찾는 window 함수, ★머리 줄의 `dataset.type`] */
+  ['icon-circle-block', 'icbKidsBox',   'icon-circle'],   /* G14 — 원 «안» (js/icb-children.js) */
+  ['grid-block',        'gridKidsBox',  'grid'],          /* G19 — 그리드 «밑» (js/grid-children.js) */
+  ['quote-block',       'quoteKidsBox', 'quote'],         /* 1011t1C — 인용구 «밑» (js/blocks/quote-block.js) */
+]);
+/** ★머리 줄의 ★`dataset.type` — ★★그 표에서 ★파생한다. ⛔삼항으로 ★적지 ★마라(★2026-10-11 ★실측: ★그 삼항의
+ *  ★변수를 ★지우고 ★★한 자리를 ★빼먹어 ★`ReferenceError: _isCircle` 로 ★★레이어가 ★터졌다 — ★그래서 ★표로 ★옮긴다). */
+export const layerKidsTypeOf = (el) => {
+  for (const [cls, , type] of LAYER_KIDS_BOX_BY_CLASS) if (el?.classList?.contains(cls)) return type;
+  return 'grid';   /* ★옛 기본값 — ⛔뜻이 ★없으면 ★그대로 둔다(★읽는 자가 ★0건이라 ★안전하다 · ★실측) */
+};
+/** ★그 표로 ★«자식을 ★펼치는 블럭인가»를 ★답한다 — ★분기하는 ★네 자리가 ★이걸 ★쓴다. */
+export const layerHasKidsBox = (el) =>
+  !!el && LAYER_KIDS_BOX_BY_CLASS.some(([cls]) => el.classList?.contains(cls));
+/** ★그 표로 ★그릇을 ★찾는다 — ★없으면 ★`null`. */
+export const layerKidsBoxOf = (el) => {
+  if (!el) return null;
+  for (const [cls, fn] of LAYER_KIDS_BOX_BY_CLASS) {
+    if (el.classList?.contains(cls)) return (typeof window !== 'undefined' ? window[fn]?.(el) : null) ?? null;
+  }
+  return null;
+};
+
 function makeLayerGridItem(block, dragTarget, sec, depth = 1, appendRowFn) {
   const item = makeLayerBlockItem(block, dragTarget, sec, depth);
-  /* ★G14 — 서클 에셋블럭의 «원 안» 그릇(.icb-children)도 같은 꼴로 펼친다(그릇 해석만 다르다 — js/icb-children.js). */
-  const _isCircle = block.classList.contains('icon-circle-block');
-  const box = _isCircle ? window.icbKidsBox?.(block) : window.gridKidsBox?.(block);
+  /* ★그릇 해석은 ★★위 ★표 ★한 자리에서 — ⛔삼항으로 ★늘리지 ★마라(★그 표의 머리말). */
+  const box = layerKidsBoxOf(block);
   if (!box || !appendRowFn) return item;
   const kidsOut = document.createElement('div');
   kidsOut.className = 'layer-row-children';
@@ -713,7 +745,7 @@ function makeLayerGridItem(block, dragTarget, sec, depth = 1, appendRowFn) {
   if (!kidsOut.children.length) return item;
   const group = document.createElement('div');
   group.className = 'layer-row-group';
-  group.dataset.type = _isCircle ? 'icon-circle' : 'grid';
+  group.dataset.type = layerKidsTypeOf(block);   /* ★표 한 자리에서 — ⛔삼항 금지(위 머리말의 그 실측) */
   group._dragTarget = dragTarget;
   const header = document.createElement('div');
   header.className = 'layer-row-header';
