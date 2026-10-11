@@ -49,14 +49,42 @@ function openTemplateBrowser() {
   document.getElementById('tpl-browser-search')?.focus();
 }
 
+/* ★★닫기는 ★«끝내는 길»을 ★★둘로 둔다 — ★transitionend ＋ ★여유 타이머. ★★멱등이다(먼저 온 쪽만 한 번).
+ *  ★★왜 (실측 2026-10-11 · t3frame):
+ *    초판은 `transitionend` ＋ `{ once: true }` «하나»에 `display='none'` 을 매달았다. 그런데
+ *    openTemplateBrowser 가 `requestAnimationFrame` 으로 `.open` 을 붙이므로(아래 그 줄),
+ *    ★★«열자마자 닫으면» opacity 가 아직 0 근처라 ★변화가 없고 ⇒ ★transitionend 가 ★안 온다
+ *    ⇒ ★그 리스너는 ★★영영 안 깨어나고 `display` 가 ★★`flex` 로 ★남는다.
+ *    ★잰 값: 열자마자 닫기 ⇒ 500ms 뒤에도 display=flex · opacity=0 · _browserOpen=false
+ *            열고 500ms(전환 끝) 뒤 닫기 ⇒ display=none  (Esc·닫는 단추·reduced-motion 모두 같다)
+ *    ⇒ ★★«reduced-motion 탓»이 ★아니다 — 그 축은 따로 재서 ★무죄로 가렸다(그 회차 C6).
+ *  ★★사람이 겪는 해악 = ★`pointer-events:none` 은 ★★«탭 순서»를 ★안 뺀다 ⇒ 보이지 않는 패널의
+ *    검색칸·단추로 ★★키보드 포커스가 ★사라진다. 그래서 `display:none` 까지 ★반드시 가야 한다.
+ *  ⛔CSS 의 `transition` 을 지우는 쪽으로 풀지 않았다(꾸밈을 죽이는 처방) · ⛔여는 쪽 rAF 도 무죄라 안 건드렸다.
+ *  ★리스너를 ★이름 있는 자로 두고 ★★두 길 ★모두에서 ★뗀다 — `{ once: true }` 가 안 깨어나면 ★리스너가 ★쌓인다.
+ *  ★`transitionend` 는 ★자식에서도 ★올라온다 ⇒ ★`target`·`propertyName` 을 ★가려 ★조기 종료를 막는다. */
+const TPL_CLOSE_FALLBACK_MS = 260;   /* CSS opacity 0.2s ＋ 여유 (css/editor-extra.css #tpl-browser) */
+
 function closeTemplateBrowser() {
   const panel = document.getElementById('tpl-browser');
   if (!panel) return;
   panel.classList.remove('open');
   document.getElementById('templates-section-header')?.classList.remove('browser-open');
-  panel.addEventListener('transitionend', () => {
+  let _fin = false;
+  let _timer = 0;
+  const _onEnd = (ev) => {
+    if (ev.target !== panel || ev.propertyName !== 'opacity') return;
+    _finish();
+  };
+  function _finish() {
+    if (_fin) return;
+    _fin = true;
+    panel.removeEventListener('transitionend', _onEnd);
+    if (_timer) clearTimeout(_timer);
     if (!_browserOpen) panel.style.display = 'none';
-  }, { once: true });
+  }
+  panel.addEventListener('transitionend', _onEnd);
+  _timer = setTimeout(_finish, TPL_CLOSE_FALLBACK_MS);
   _browserOpen = false;
 }
 
