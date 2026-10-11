@@ -83,6 +83,93 @@ function _treeIndexOfCurrentFilter() {
   return items.length ? 0 : -1;
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   ★★★1011t1d — ★★«펴짐»의 ★★★단일 참값. (★현빈: 「좌측을 누르면 토글이 닫히게」)
+
+   ★★★고치기 ★전: ★`:331` ★★`const isExpanded = folderActive;`
+     ⇒ ★★«펴짐»에 ★★★모델이 ★없었다. ★★«거름이 ★그 폴더인가»로 ★★만 ★정해졌다.
+     ⇒ ★그래서 ★`←` 에서 ★★`classList.remove` 만 ★하면 ★★다시 그릴 때 ★되돌아온다
+       (★`_renderBrowserTree()` 호출 ★자리가 ★★10곳이다 — ★내가 ★셌다).
+     ⇒ ★★그리고 ★`:395` ★클릭 토글도 ★★같은 병이었다 — ★★«전부터 ★있던 ★흠».
+       ★★실측(★고치기 ★전 판 · ★E5): ★★★빨강. ⇒ ★★이 고침이 ★★그것도 ★같이 ★고친다.
+
+   ★★★왜 ★★«Set 하나»인가 — ★★`folderActive || has(folder)` 로 ★두면 ★★«거름인 ★폴더»를
+     ★★★못 닫는다(★거름이 ★그 폴더면 ★언제나 ★참). ⇒ ★★★`has(folder)` ★하나로 ★둔다.
+
+   ★★★그러면 ★★«진입하면 ★펴진다»는 ★어디서 ★유지하나 — ⛔거름을 ★넣는 ★자리마다 ★`add` 하면
+     ★★★그게 ★★여섯 벌 ★명부다. ★★수는 ★★이렇게 ★쟀다(★261011 · ★지디가 ★내 ★첫 ★셈을 ★반려했다):
+       ⛔첫 셈은 ★★`_browserFilter = {` ★★한 꼴로만 ★세고 ★★★`= next` 를 ★놓쳤다 ⇒ ★★손으로 ★★＋1 해
+         ★★「6」을 ★맞췄다. ⇒ ★★★수는 ★맞췄고 ★★«자»는 ★못 맞췄다.
+       ⛔그리고 ★★첫 셈의 ★★줄번호를 ★★★주석에 ★박았는데 ★★그 뒤 ★내 변경이 ★줄을 ★밀어 ★★★썩었다.
+       ⇒ ★★★처방 ★둘: ⑴ ★★«할당하는 ★모든 꼴»로 ★★먼저 ★넓혀 ★세고 ★그 뒤 ★좁힌다
+                     ⑵ ★★★주석을 ★★걷고 ★센다(★내 주석이 ★그 글자를 ★★인용한다)
+       ★★잰 값(★주석 걷은 뒤 · ★`_browserFilter\s*=` ★전수 ★7줄):
+         ★선언 ★1 ＋ ★★★재대입 ★★6 = ★`= next` ★1(★`_tplNavEnter`) ＋ ★`= { … }` ★5
+       ⛔줄번호는 ★★여기 ★적지 ★않는다 — ★★썩는다. ★★«수»와 ★★«꼴»만 ★적는다(★`= next` 가 ★그 ★꼴이다).
+     (★내 명부: ★「★명부가 ★둘이면 ★경고 주석으로 ★못 막는다 — ★★파생시켜 ★하나로」)
+   ⇒ ★★★그래서 ★★★«다시 그리는 ★그 자리»에서 ★★한 번만 ★가린다:
+       ★★`_lastRenderedFolder` 와 ★★다르면 ★★«진입»이다 ⇒ ★`add`
+       ★★같으면 ★★«그냥 ★다시 그리기»다 ⇒ ★★★손대지 ★않는다 ⇒ ★★명시적 ★닫기가 ★살아남는다
+   ⇒ ★★더하는 ★자리가 ★★★하나다. ★★그리고 ★그 ★하나가 ★★`isExpanded` 의 ★바로 ★위에 ★있다.
+   ════════════════════════════════════════════════════════════════════════ */
+let _expandedFolders = new Set();
+/* ★★«진입»과 ★«그냥 ★다시 그리기»를 ★가르는 ★★단 ★하나의 ★자.
+   ★★★이름이 ★뜻이다 — ★★«마지막으로 ★그린 ★폴더»가 ★★아니라 ★★★«펴짐을 ★이미 ★정한 ★폴더»다.
+   ⛔첫 꼴은 ★`_lastRenderedFolder` 였고 ★★그 이름이 ★★나를 ★속였다(★261011 ★E5 ★빨강):
+     ★★클릭 갈래는 ★★거름을 ★바꾸면서 ★★★트리를 ★다시 ★안 그린다(★`:402` ★「트리 재렌더 없이」).
+     ⇒ ★★그래서 ★★그 자가 ★★묵고, ★★★다음 ★다시 그리기가 ★★«진입»으로 ★오해된다
+     ⇒ ★★클릭으로 ★접은 것이 ★★되살아났다.
+   ⇒ ★★★그러니 ★★«펴짐을 ★정한 ★자»는 ★★누구든 ★★이 값을 ★★같이 ★맞춰야 한다.
+     ★★그게 ★★두 자리다: ⑴ ★`_renderBrowserTree` ⑵ ★클릭 갈래(★★스스로 ★토글했으니 ★이미 ★정했다). */
+let _expansionDecidedFor = null;
+
+/* ★★★뎁스1 에서 ★`←` — ★★★갈래 ★넷. (★지디 ㉯ · ★★⒝ 갈래는 ★내가 ★골랐다)
+     ⑴ ★폴더 헤더 ＋ ★펴짐   ⇒ ★★접는다. ★★커서는 ★그 폴더에 ★남는다(★파인더)
+     ⑵ ★폴더 헤더 ＋ ★접힘   ⇒ ★★아무것도 ★안 한다 — ★★다만 ★★«처리했다»로 ★돌려준다
+          ★까닭: ★`_tplNavTreeMove` 의 ★선례(`return moved || true`)와 ★★같은 ★뜻이다 —
+            ★★«양 끝에서도 ★처리했다» ⇒ ⛔캐럿으로 ★새지 ★않게(★D4). ★★여기도 ★같은 ★자리다.
+     ⑶ ★범주            ⇒ ★★★«커서만» ★부모 ★폴더로. ⛔같이 ★접지 ★않는다.
+          ★까닭 ★셋: ㉠ ★파인더가 ★그렇다(★접기는 ★그 ★다음 ★`←`)
+                    ㉡ ★한 키가 ★두 일을 ★하면 ★★되돌릴 ★길이 ★없다
+                    ㉢ ★★현빈 요구는 ★«닫기»다 — ★«닫기＋커서이동»은 ★★요구보다 ★넓다
+          ⇒ ★★두 번 ★누르면 ★같은 끝에 ★닿는다. ★★그 길이 ★★사용자 ★손에 ★있다.
+     ⑷ ★전체·즐겨찾기    ⇒ ★★아무것도 (★⑵ 와 ★같은 꼴로 ★처리했다로 ★돌려준다)
+   ⛔`→` 는 ★★건드리지 ★않는다 — ★★현빈이 ★요구한 것은 ★«닫기»뿐이고 ★★`→` 는 ★이미 ★만족한다.
+     ★그 ★대칭(★접힌 폴더에서 ★`→` = ★펴기만)은 ★★`1011t1d-b` 로 ★남긴다 ⇒ ★★E6 가 ★그 ★선을 ★잠근다. */
+function _tplNavCollapse() {
+  if (!_browserOpen || _depth !== 1) return false;
+  const items = _treeItems();
+  const el = items[_treeCursor];
+  if (!el) return false;
+
+  /* ⑶ ★범주 — ★★커서만 ★부모로 */
+  if (el.classList.contains('tb-tree-cat')) {
+    const header = el.closest('.tb-tree-folder')?.querySelector('.tb-tree-folder-header');
+    const i = header ? items.indexOf(header) : -1;
+    if (i < 0) return true;              /* ★부모를 ★못 찾아도 ★★키는 ★먹는다(★D4) */
+    _treeCursor = i;
+    _paintTreeCursor();
+    return true;
+  }
+
+  /* ⑷ ★전체·즐겨찾기 — ★★접을 ★것이 ★없다 */
+  if (!el.classList.contains('tb-tree-folder-header')) return true;
+
+  const folder = el.dataset.folder;
+  /* ⑵ ★이미 ★접혀 ★있다 — ★★아무것도 ★안 바꾼다 */
+  if (!_expandedFolders.has(folder)) return true;
+
+  /* ⑴ ★접는다 — ★★모델을 ★고치고 ★다시 ★그린다(⛔`classList` 만 ★고치지 ★않는다) */
+  _expandedFolders.delete(folder);
+  _renderBrowserTree();
+  /* ★★다시 그린 ★뒤 ★커서를 ★★그 폴더 헤더로 ★되돌린다 — ★★항목 수가 ★줄었으니 ★★자리가 ★밀린다 */
+  const after = _treeItems();
+  const j = after.findIndex(x => x.classList.contains('tb-tree-folder-header') && x.dataset.folder === folder);
+  if (j >= 0) _treeCursor = j;
+  _paintTreeCursor();
+  return true;
+}
+
 /* ★★★뎁스2 → ★뎁스1 (`←`) — ⛔검색어를 ★★안 지운다(★M1) · ⛔선택도 ★★안 버린다(★M2) */
 function _tplNavToTree() {
   if (!_browserOpen) return false;
@@ -144,6 +231,26 @@ window.__tplNavState = () => ({
   filter: { ..._browserFilter },
   selected: _browserSelected,
   searchQ: _browserSearchQ,
+  /* ★★★1011t1d — ★★«펴짐»을 ★★«눈»이 ★아니라 ★★«수»로 ★읽게 ★한다(★지디 ＋).
+     ★★★두 칸을 ★★따로 ★낸다 — ★★그게 ★이 이음새의 ★값이다:
+       ★`expanded`      = ★★★화면(DOM)의 ★참값   ★`.tb-tree-folder.expanded` 의 ★`data-folder`
+       ★`expandedModel` = ★★★모델의 ★참값       ★`_expandedFolders` (★★없으면 ★`null`)
+     ⇒ ★★검사가 ★★★«둘이 ★같나»를 ★걸 수 ★있다 ⇒ ★★★«DOM 만 ★고친 ★처방»이 ★★통과하지 ★못한다.
+     ★★그리고 ★★`null` 은 ★★«모델이 ★아직 ★없다»다 — ⛔«비었다(빈 배열)»와 ★섞지 ★마라. */
+  expanded: [...document.querySelectorAll('.tb-tree-folder.expanded')].map(el => el.dataset.folder),
+  expandedModel: (typeof _expandedFolders === 'undefined' || !_expandedFolders)
+    ? null : [..._expandedFolders],
+  /* ★커서가 ★★«무엇»에 ★서 있나 — ★★`←` 의 ★갈래가 ★이것으로 ★갈린다.
+     ⛔«몇 번째»(cursor)만으로는 ★★폴더 헤더인지 ★범주인지 ★모른다. */
+  cursorClass: (() => {
+    const el = _treeItems()[_treeCursor];
+    if (!el) return null;
+    for (const k of ['tb-tree-starred', 'tb-tree-all', 'tb-tree-folder-header', 'tb-tree-cat']) {
+      if (el.classList.contains(k)) return k;
+    }
+    return el.className || '(알 수 없음)';
+  })(),
+  cursorFolder: (_treeItems()[_treeCursor]?.dataset.folder) ?? null,
 });
 
 /* ── 패널 크기 한계 ── ★리사이즈 핸들과 「창에서 되돌아온 크기」가 «같은» 한계를 써야 한다.
@@ -325,10 +432,28 @@ function _renderBrowserTree() {
       <span class="tb-tree-count">${totalCount}</span>
     </div>`;
 
+  /* ★★★«진입하면 ★펴진다»를 ★★★여기 ★한 자리에서만 ★유지한다 — ★위 ★1011t1d 주석 ★참조.
+     ⛔거름을 ★넣는 ★여섯 자리에 ★흩으면 ★★그게 ★여섯 벌 ★명부가 된다. */
+  const _entered = _browserFilter.folder !== _expansionDecidedFor;
+  /* ⛔★★`'전체'`·`즐겨찾기` 는 ★★★«폴더»가 ★아니다 — ★`folderMap` 에 ★없다.
+     ★★넣으면 ★★모델에만 ★있고 ★★DOM 엔 ★없는 ★이름이 ★생긴다(★261011 ★E2 ★빨강: ★DOM [] · ★모델 ["전체"]).
+     ⇒ ★★★모델의 ★★«영역»을 ★★진짜 ★폴더로 ★묶는다. */
+  if (_entered && _browserFilter.folder
+      && Object.prototype.hasOwnProperty.call(folderMap, _browserFilter.folder)) {
+    _expandedFolders.add(_browserFilter.folder);
+  }
+  /* ★★★묵은 이름을 ★솎는다 — ★폴더를 ★지우거나 ★이름을 ★바꾸면 ★★모델에 ★유령이 ★남는다.
+     ⇒ ★★이 한 줄이 ★★«모델 == DOM» 을 ★★항상 ★참으로 ★만든다(★검사가 ★그걸 ★단언한다). */
+  for (const f of [..._expandedFolders]) {
+    if (!Object.prototype.hasOwnProperty.call(folderMap, f)) _expandedFolders.delete(f);
+  }
+  _expansionDecidedFor = _browserFilter.folder;
+
   Object.entries(folderMap).forEach(([folder, cats]) => {
     const folderTotal = Object.values(cats).reduce((a, b) => a + b, 0);
     const folderActive = _browserFilter.folder === folder;
-    const isExpanded = folderActive;
+    /* ★★★단일 참값 — ⛔`folderActive ||` 를 ★★붙이지 ★마라(★«거름인 폴더»를 ★못 닫는다) */
+    const isExpanded = _expandedFolders.has(folder);
 
     html += `
     <div class="tb-tree-folder ${isExpanded ? 'expanded' : ''}" data-folder="${_esc(folder)}">
@@ -391,11 +516,19 @@ function _renderBrowserTree() {
   tree.querySelectorAll('.tb-tree-folder-header').forEach(header => {
     header.addEventListener('click', e => {
       e.stopPropagation();
+      /* ★★★클릭 토글도 ★★★같은 Set 을 ★고친다 — ⛔DOM 만 ★고치면 ★★다음 ★다시 그리기가 ★덮는다.
+         ★★그게 ★★«전부터 ★있던 ★흠»이었다(★E5 가 ★★고치기 ★전 판에서 ★★빨강이었다). */
       const folderEl = header.closest('.tb-tree-folder');
-      folderEl?.classList.toggle('expanded');
+      const _f = header.dataset.folder;
+      if (_expandedFolders.has(_f)) _expandedFolders.delete(_f); else _expandedFolders.add(_f);
+      folderEl?.classList.toggle('expanded', _expandedFolders.has(_f));
       _clearBrowserSearch();
       // 폴더 선택도 적용
       _browserFilter = { folder: header.dataset.folder, category: '전체', tag: null, starred: false };
+      /* ★★★이 갈래는 ★★펴짐을 ★★★스스로 ★정했다(★바로 위 ★토글) ⇒ ★★그렇다고 ★알린다.
+         ⛔안 알리면 ★★다음 ★다시 그리기가 ★★이 거름 변화를 ★★«진입»으로 ★읽어 ★★다시 ★펴 버린다.
+         ★★이 갈래가 ★★트리를 ★다시 ★안 그리기 때문에(★아래 ★「트리 재렌더 없이」) ★★여기서 ★맞춘다. */
+      _expansionDecidedFor = _browserFilter.folder;
       _browserSelected = null;
       _hidePreview();
       _renderBrowserCards();
@@ -1185,7 +1318,9 @@ function initTemplateBrowser() {
     /* ★★★← = ★뎁스2 → ★뎁스1 · ★→ = ★뎁스1 → ★뎁스2
        ★★★`preventDefault` 를 ★★반드시 ★한다 — ★그게 ★★«캐럿이 ★안 움직인다»(D4)의 ★집행이다. */
     if (e.key === 'ArrowLeft') {
-      if (_depth === 2 && _tplNavToTree()) { e.preventDefault(); e.stopPropagation(); }
+      if (_depth === 2 && _tplNavToTree()) { e.preventDefault(); e.stopPropagation(); return; }
+      /* ★★★1011t1d — ★뎁스1 의 ★`←` 는 ★★«토글 닫기»다(★위 ★`_tplNavCollapse` 의 ★갈래 ★넷) */
+      if (_depth === 1 && _tplNavCollapse()) { e.preventDefault(); e.stopPropagation(); }
       return;
     }
     if (e.key === 'ArrowRight') {
