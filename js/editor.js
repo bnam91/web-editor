@@ -2393,6 +2393,29 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  /* ⌘T / Ctrl+T — 템플릿 브라우저 «열기» (현빈 2026-10-11 「커맨드t 누르면 템플릿 패널 열리게해줘」)
+     ★여는 자는 이미 있다 — js/panels/template-browser.js openTemplateBrowser()
+       (docs/TEMPLATE_SYSTEM.md 4절 「공개 API」가 그 셋을 「브라우저 패널 여닫기」로 적어 뒀다) ⇒ 새로 짜지 않는다.
+     ★꼴은 위 ⌘, 갈래를 그대로 베꼈다: (meta||ctrl) ＋ e.code(IME 안전) ＋ shift·alt 배제.
+     ★«토글»이 아니라 «열기»다 — 현빈 문장이 「열리게」이고, 닫는 길이 이미 셋이다:
+       #tpl-browser-close 단추 · Escape(template-browser.js 의 capture keydown) · 캔버스 mousedown.
+     ⚠️한 칸이 위 선례와 «다르다» — 입력칸에서는 «안» 연다(지디 발주 조건 ⑶ 「타이핑을 가로챈다」).
+       ⌘, 는 위 :2387 가드(`!e.metaKey`)를 통과해 입력칸에서도 열린다. ⇒ 어느 쪽이 맞나는 지디에게 올렸다.
+       ⛔입력칸이면 return 하지 않고 «흘려보낸다» — 아래 다른 갈래와 기본 동작을 끄지 않으려고.
+     ★충돌 실측(2026-10-11): 렌더러에서 KeyT 는 「글자 블럭 추가」지만 그 블록이 `!e.metaKey && !e.ctrlKey && !e.shiftKey`
+       안이라 이 조합에 닿지 않는다. main.js 는 Menu 를 import 조차 하지 않아 우리가 가속기를 등록하는 자리는 0 이다.
+       ⛔Electron 기본 메뉴가 스스로 ⌘T 를 잡나는 실앱에서만 서고 아직 미확정이다. */
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyT' && !e.shiftKey && !e.altKey) {
+    const _tplT = e.target;
+    const _tplInField = !!(_tplT && (_tplT.tagName === 'INPUT' || _tplT.tagName === 'TEXTAREA'
+      || _tplT.tagName === 'SELECT' || _tplT.isContentEditable));
+    if (!_tplInField) {
+      e.preventDefault();
+      window.openTemplateBrowser?.();
+      return;
+    }
+  }
+
   // 패널 접기/펼치기 — Figma 키 의미에 맞춘 배치.
   //   ⌘\   좌측 패널      ⌘⌥\  우측(속성) 패널
   //   ⌘⇧\  좌우 동시 = Figma의 "Minimize UI"(⌘⇧\)와 같은 의미. 우측 단독에 ⇧를 쓰면
