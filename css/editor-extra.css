@@ -839,12 +839,6 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 /* ★★뎁스1 ★«커서» — ⛔`.active`(=«무엇으로 거르나»)와 ★★다른 것이다(★설계 D · b1).
    ★★그래서 ★★색이 ★아니라 ★★테두리로 ★보인다 — ★★둘이 ★★한 항목에 ★같이 ★설 수 ★있다
    (★«지금 거르는 폴더»에 ★커서가 ★서는 것이 ★★단언 D1 이다). */
-  outline: 1.5px solid var(--sel-color);
-  outline-offset: -1.5px;
-}
-/* ★★뎁스1 ★«커서» — ⛔`.active`(=«무엇으로 거르나»)와 ★★다른 것이다(★설계 D · b1).
-   ★★그래서 ★★색이 ★아니라 ★★테두리로 ★보인다 — ★★둘이 ★★한 항목에 ★같이 ★설 수 ★있다
-   (★«지금 거르는 폴더»에 ★커서가 ★서는 것이 ★★단언 D1 이다). */
 .tb-tree-starred.tb-tree-cursor,
 .tb-tree-all.tb-tree-cursor,
 .tb-tree-folder-header.tb-tree-cursor,

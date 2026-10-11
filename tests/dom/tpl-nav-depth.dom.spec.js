@@ -157,6 +157,48 @@ for (const [label, key] of [['→', 'ArrowRight'], ['Enter', 'Enter'], ['⌘↓'
   });
 }
 
+test('D10 ★★★커서가 ★★«보이나» — ⛔클래스가 ★붙었나가 ★아니다 (★CSS 가 ★살았나)', async ({ page }) => {
+  /* ★★★왜 ★이 칸이 ★생겼나 — ★★261011 ★실물:
+     ★`css/editor-extra.css` 에 ★★선택자 없는 ★고아 블록이 ★들어가 ★★★진짜 커서 규칙을 ★삼켰다.
+     ⇒ ★★현빈 앱에서 ★★커서가 ★★안 보였다. ★★그런데 ★★★이 파일의 ★아홉 칸이 ★★전부 ★초록이었다.
+     ★★까닭: ★★아홉 칸은 ★★«`tb-tree-cursor` 가 ★붙었나»만 ★쟀다 ⇒ ★★★«보이나»는 ★★0칸.
+     ⇒ ★★그래서 ★★★«그려진 값»을 ★잰다 — ★`getComputedStyle` ＋ ★`document.styleSheets`.
+     ⇒ ★★구조 쪽 자는 ★★`tests/unit/css-no-orphan-block.test.mjs`(★O1·O2)가 ★따로 ★선다. */
+  await open(page);
+  await page.keyboard.press('ArrowLeft');
+  const st = await ST(page);
+  expect(st.depth, '전제 — ★뎁스1 이다').toBe(1);
+
+  const seen = await page.evaluate(() => {
+    const el = document.querySelector('.tb-tree-cursor');
+    if (!el) return { el: false };
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    /* ★★★그 규칙이 ★★실린 ★스타일시트에 ★있나 — ★★«파일에 ★글자가 ★있나»와 ★★다른 물음이다 */
+    let ruleCount = 0;
+    for (const sh of document.styleSheets) {
+      let rules = null;
+      try { rules = sh.cssRules; } catch (e) { continue; }   // ★cross-origin 은 ★건너뛴다
+      if (!rules) continue;
+      for (const ru of rules) {
+        if (ru.selectorText && ru.selectorText.includes('tb-tree-cursor')) ruleCount++;
+      }
+    }
+    return { el: true, outlineStyle: cs.outlineStyle, outlineWidth: cs.outlineWidth,
+             w: Math.round(r.width), h: Math.round(r.height), ruleCount };
+  });
+  expect(seen.el, '전제 — ★커서 요소가 ★DOM 에 ★있다').toBe(true);
+  expect(seen.w, `전제 — ★면적이 ★있다(잰 값 ${seen.w}×${seen.h})`).toBeGreaterThan(0);
+  /* ★★★⑴ ★규칙이 ★★실렸나 — ★★0 이면 ★★CSS 가 ★삼켜졌다 */
+  expect(seen.ruleCount,
+    '★★★tb-tree-cursor 규칙이 ★★styleSheets 에 ★★없다(잰 값 ' + seen.ruleCount + ') — ★★CSS 가 ★안 실렸다')
+    .toBeGreaterThan(0);
+  /* ★★★⑵ ★그려진 값 — ★★`none`·`0px` 이면 ★★사람 눈에 ★안 보인다 */
+  expect(seen.outlineStyle,
+    `★★outlineStyle 이 ★none 이다 — ★★커서가 ★안 보인다(잰 값 ${JSON.stringify(seen)})`).not.toBe('none');
+  expect(seen.outlineWidth, `★★outlineWidth 가 ★0px 다(잰 값 ${seen.outlineWidth})`).not.toBe('0px');
+});
+
 test('D7 ★★`_treeItems()` 차례 == ★★화면에 ★보이는 차례 (★폴더를 ★접고 ★세어 ★확인)', async ({ page }) => {
   await open(page);
   await page.keyboard.press('ArrowLeft');
