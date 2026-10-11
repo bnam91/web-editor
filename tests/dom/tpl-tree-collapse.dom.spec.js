@@ -400,7 +400,7 @@ test('E7 ★★★«전체»·«즐겨찾기»는 ★★모델에 ★★안 든�
      ⇒ ★★★그래서 ★★«왜 ★초록인가»를 ★★무력화로 ★가렸다 — ★★솎기를 ★떼면 ★★★이 칸이 ★빨개진다.
      ⇒ ★★그 수를 ★★커밋 글에 ★적었다. ⛔«세웠다»가 ★아니라 ★★«문다»로.
    ══════════════════════════════════════════════════════════════════════════ */
-test('E8 ★★★폴더가 ★사라지면 ★★모델에서 ★유령이 ★솎인다 — ★삭제 ＋ ★이름변경 (★G6 예외의 ★귀결)', async ({ page }) => {
+test('E8 ★★★이름을 ★바꾸면 ★★옛 이름이 ★모델에서 ★솎인다 (★이름변경 쪽 · ★G6 예외의 ★귀결)', async ({ page }) => {
   const { seeded } = await open(page);
   expect(seeded.ok, `전제: 장면 — ${seeded.why || ''}`).toBe(true);
 
@@ -468,28 +468,80 @@ test('E8 ★★★폴더가 ★사라지면 ★★모델에서 ★유령이 ★�
     `★★DOM 과 ★모델이 ★갈렸다 — ★DOM ${JSON.stringify(afterRen.expanded)} · ★모델 ${JSON.stringify(afterRen.expandedModel)}`)
     .toEqual([...afterRen.expanded].sort());
 
-  /* ⑶ ★★★삭제 — ★새 이름을 ★★펴 두고 ★★지운다 */
-  const hdr = await page.$(`.tb-tree-folder-header[data-folder="${NEWNAME}"]`);
-  expect(hdr, `전제: ★새 이름 ★`+`${NEWNAME}` + ` 의 ★헤더가 ★있어야 한다 — ★잰 값 `
-    + `${JSON.stringify(await page.$$eval('.tb-tree-folder-header', a => a.map(e => e.dataset.folder)))}`).toBeTruthy();
-  await hdr.click();                               /* ★★클릭 = ★진입 ＋ ★펴짐 */
-  const reopenedModel = (await ST(page)).expandedModel;
-  expect(reopenedModel, `전제: ★새 이름이 ★모델에 ★들었다 — ★잰 값 ${JSON.stringify(reopenedModel)}`)
-    .toContain(NEWNAME);
+  /* ⑶ ★★★삭제 ★절은 ★★★여기서 ★끊고 ★★다음 칸(E8b)으로 ★옮겼다 — ★★까닭을 ★수로 ★적는다.
+     ★★이 장면의 ★폴더는 ★★템플릿을 ★★들고 ★있다 ⇒ ★★★제품이 ★삭제를 ★★거절한다(★그게 ★맞는 거동이다):
+       `template-system.js` ★`deleteTemplateFolder` — ★★`cnt > 0` 이면 ★★`{ok:false, reason:…}`
+       (★문구: 「'<이름>' 에 ★템플릿 N개가 ★들어 ★있어 ★지울 수 ★없습니다」)
+     ⇒ ★★그래서 ★★여기서 ★«지워졌을 것»을 ★★재면 ★★★제품이 ★아니라 ★★내 장면이 ★틀린다.
+     ⇒ ★★★솎기(★삭제 쪽)는 ★★★«빈 폴더»에서만 ★★장면이 ★선다 — ★★E8b 가 ★그것을 ★잰다. */
+});
 
-  const deleted = await ctxAct(NEWNAME, 'delete');
-  expect(deleted.ok, `전제: ★삭제 ★메뉴 — ${deleted.why || ''}`).toBe(true);
+test('E8b ★★★빈 폴더를 ★지우면 ★★모델에서 ★유령이 ★솎인다 (★★삭제 쪽 · ★E8 에서 ★갈라냈다)', async ({ page }) => {
+  /* ★★★왜 ★갈랐나 — ★★261012 에 ★★이 자리에서 ★★★세 번 ★틀렸고 ★★셋 다 ★★«장면 ★가정»이었다:
+       ⒜ ★헤더 ★클릭으로 ★펴려 ★했다 ⇒ ★★이미 ★펴져 ★있어 ★★★접었다(★클릭 = ★토글 · ★E5)
+       ⒝ ★`cursorToFolderHeader` ＋ ★`→`·`←` 로 ★펴려 ★했다 ⇒ ★★그 자의 ★첫 ★`←` 가 ★★또 ★접었다
+          (★★전제에 ★★«들어가기 ★전 ★모델»을 ★찍어 ★뒀더니 ★★`["<새이름>"]` 이 ★나와 ★★한 회차에 ★갈렸다)
+       ⒞ ★그래서 ★★아무것도 ★안 누르고 ★지웠다 ⇒ ★★★이번엔 ★★삭제가 ★★거절됐다(★폴더에 ★템플릿이 ★있다)
+     ⇒ ★★★즉 ★★★«내 장면»이 ★세 번 ★틀렸고 ★★제품은 ★★세 번 ★맞았다.
+     ⇒ ★★처방: ★★★`window.createTemplateFolder` 로 ★★★빈 폴더를 ★★★만들어 ★쓴다.
+       ★★빈 폴더도 ★★트리에 ★뜬다 — ★`_renderBrowserTree` 가 ★★`listTemplateFolders()`(★★등록부)에서
+       ★★`folderMap` 을 ★★먼저 ★채운다 ⇒ ★★템플릿이 ★0개여도 ★★헤더가 ★있다.
+     ⛔각 단계의 ★모델을 ★★전제 메시지에 ★찍는다 — ★★그게 ★★세 번째 회차에 ★★답을 ★줬다. */
+  const { seeded } = await open(page);
+  expect(seeded.ok, `전제: 장면 — ${seeded.why || ''}`).toBe(true);
+
+  const EMPTY = 'QA빈폴더';
+  const made = await page.evaluate((nm) => {
+    if (typeof window.createTemplateFolder !== 'function') return { ok: false, why: '★createTemplateFolder 가 ★없다' };
+    const r = window.createTemplateFolder(nm);
+    if (typeof window._renderBrowserTree === 'function') window._renderBrowserTree();
+    const hdrs = [...document.querySelectorAll('.tb-tree-folder-header')].map((e) => e.dataset.folder);
+    const cnt = (window.loadTemplates() || []).filter((t) => (t.folder || '기타') === nm).length;
+    return { ok: true, r: r && r.ok, hdrs, cnt };
+  }, EMPTY);
+  expect(made.ok, `전제: ★만들 문 — ${made.why || ''}`).toBe(true);
+  /* ★★★전제 — ★★«빈»이 ★★정말 ★비었나 ＋ ★★헤더가 ★떴나. ⛔둘 중 ★하나만 ★참이면 ★아래가 ★무효다 */
+  expect({ empty: made.cnt === 0, shown: made.hdrs.includes(EMPTY) },
+    `전제: ★빈 폴더가 ★섰나 — ★템플릿 ${made.cnt}개 · ★헤더 ${JSON.stringify(made.hdrs)}`)
+    .toEqual({ empty: true, shown: true });
+
+  /* ★★모델에 ★넣는다 — ★★⑴ 과 ★★같은 길(★커서 ⇒ ★`→` ⇒ ★`←`) */
+  const got = await cursorToFolderHeader(page, EMPTY);
+  expect(got.ok, `전제: ★빈 폴더 ★헤더에 ★커서 — ★본 것 ${got.seen.join(' → ')}`).toBe(true);
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowLeft');
+  const mid = await ST(page);
+  expect(mid.expandedModel, `전제: ★모델에 ★들었나 — ★잰 값 ${JSON.stringify(mid.expandedModel)} · ★뎁스 ${mid.depth}`)
+    .toContain(EMPTY);
+
+  /* ★★지운다 — ★★사람 경로(★우클릭 ⇒ ★메뉴) */
+  const sel = `.tb-tree-folder-header[data-folder="${EMPTY}"]`;
+  const el = await page.$(sel);
+  expect(el, `전제: ★헤더가 ★있다 — ${sel}`).toBeTruthy();
+  await el.click({ button: 'right' });
+  const item = await page.$('[data-tree-act="delete"]');
+  expect(item, '전제: ★삭제 ★메뉴 항목').toBeTruthy();
+  await item.click();
   await page.waitForFunction((nm) => {
-    const s = window.__tplNavState();
-    return !(s.expandedModel || []).includes(nm);
-  }, NEWNAME, { timeout: 4000 }).catch(() => {});
+    const st = window.__tplNavState();
+    return !(st.expandedModel || []).includes(nm);
+  }, EMPTY, { timeout: 4000 }).catch(() => {});
 
-  const afterDel = await ST(page);
-  expect(afterDel.expandedModel,
-    `★★★지운 ★`+`${NEWNAME}` + ` 이 ★★모델에 ★★남았다 — ★★솎기가 ★★안 돌았다. `
-    + `★잰 값 ${JSON.stringify(afterDel.expandedModel)}`)
-    .not.toContain(NEWNAME);
-  expect([...(afterDel.expandedModel || [])].sort(),
-    `★★삭제 뒤 ★DOM 과 ★모델이 ★갈렸다 — ★DOM ${JSON.stringify(afterDel.expanded)} · ★모델 ${JSON.stringify(afterDel.expandedModel)}`)
-    .toEqual([...afterDel.expanded].sort());
+  /* ★★★그리고 ★★«정말 ★지워졌나»를 ★★따로 ★잰다 — ⛔거절돼도 ★모델은 ★그대로니 ★★두 축을 ★갈라라 */
+  const after = await page.evaluate((nm) => ({
+    st: window.__tplNavState(),
+    hdrs: [...document.querySelectorAll('.tb-tree-folder-header')].map((e) => e.dataset.folder),
+    registered: (window.listTemplateFolders?.() || []).includes(nm),
+  }), EMPTY);
+  expect(after.registered,
+    `전제: ★★삭제가 ★거절됐다 — ★★등록부에 ★★아직 ★있다. ★헤더 ${JSON.stringify(after.hdrs)}`)
+    .toBe(false);
+  expect(after.st.expandedModel,
+    `★★★지운 ★${EMPTY} 이 ★★모델에 ★★남았다 — ★★솎기가 ★★안 돌았다. `
+    + `★잰 값 ${JSON.stringify(after.st.expandedModel)}`)
+    .not.toContain(EMPTY);
+  expect([...(after.st.expandedModel || [])].sort(),
+    `★★삭제 뒤 ★DOM 과 ★모델이 ★갈렸다 — ★DOM ${JSON.stringify(after.st.expanded)} · `
+    + `★모델 ${JSON.stringify(after.st.expandedModel)}`)
+    .toEqual([...after.st.expanded].sort());
 });
