@@ -384,3 +384,112 @@ test('E7 ★★★«전체»·«즐겨찾기»는 ★★모델에 ★★안 든�
       .toEqual([...st.expanded].sort());
   }
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ★★★E8 — ★★★«솎기 ★단독 구역»: ★★폴더가 ★사라진 ★뒤 ★★모델에서 ★유령이 ★솎이나 (★지디 ⑶ ★판정)
+
+   ★★★왜 ★이 칸이 ★따로 ★필요한가 — ★★★두 자가 ★★이 구역을 ★★안 잰다:
+     ★`G7`(unit) 은 ★★「★접어 둔 것을 ★안 펴나」를 ★잰다 — ★★«사라진 뒤»는 ★★안 잰다.
+     ★`E7`(DOM) 은 ★★「★`전체`·`즐겨찾기` 가 ★모델에 ★안 드나」를 ★잰다 — ★★«폴더 소멸»은 ★★안 잰다.
+   ⇒ ★★그 ★공백에 ★★★`_startRenameFolder` 가 ★★앉아 있다 —
+     ★★그 자리는 ★★`G6` 의 ★★★예외 명부에 ★올라가 ★있다(★재렌더가 ★호출자에 ★있어 ★창으로 ★안 보인다).
+   ⇒ ★★★그래서 ★★이 칸이 ★★그 ★예외의 ★★«귀결»을 ★잰다.
+     ⇒ ★★★이로써 ★그 예외는 ★★«영구»가 ★아니라 ★★★«조건부»가 된다 — ★★두 자가 ★서로를 ★가리킨다.
+
+   ★★★그리고 ★이 칸은 ★★★«고치기 ★전에도 ★초록»이다(★솎기가 ★이미 ★있다) ⇒ ★★그것만으로는 ★뜻이 ★없다.
+     ⇒ ★★★그래서 ★★«왜 ★초록인가»를 ★★무력화로 ★가렸다 — ★★솎기를 ★떼면 ★★★이 칸이 ★빨개진다.
+     ⇒ ★★그 수를 ★★커밋 글에 ★적었다. ⛔«세웠다»가 ★아니라 ★★«문다»로.
+   ══════════════════════════════════════════════════════════════════════════ */
+test('E8 ★★★폴더가 ★사라지면 ★★모델에서 ★유령이 ★솎인다 — ★삭제 ＋ ★이름변경 (★G6 예외의 ★귀결)', async ({ page }) => {
+  const { seeded } = await open(page);
+  expect(seeded.ok, `전제: 장면 — ${seeded.why || ''}`).toBe(true);
+
+  /* ★★★앱의 ★제 문이 ★있나 — ⛔없으면 ★★«안 쟀다»다.
+     ★★★★첫 꼴은 ★★`window._deleteFolder` / `window._startRenameFolder` 를 ★불렀고 ★★★빨개졌다(261011):
+       ★`index.html:1060` 이 ★★`template-browser.js` 를 ★★★`type="module"` 로 ★싣는다
+       ⇒ ★★★최상위 ★`function` ★36개가 ★★★모듈 스코프다 — ★★`window` 에 ★안 달린다.
+       ★★`window` 에 ★달린 것은 ★★아홉뿐이고(★`:224`·`:226`·`:1474~1481`) ★★그중에 ★★`_renderBrowserTree` 가
+       ★★있어서 ★★E2·E5 는 ★돌았다. ⇒ ★★★그래서 ★«어떤 건 되고 어떤 건 안 되는» 꼴이었다.
+     ⇒ ★★★처방: ⛔제품에 ★★`window._deleteFolder` 를 ★★더하지 ★않는다 — ★★검사 편의로 ★★«표면»을 ★넓히는 일이다.
+       ⇒ ★★대신 ★★★«사람 경로»를 ★★그대로 ★밟는다: ★★★트리에서 ★★우클릭 ⇒ ★메뉴 항목 ★클릭.
+         ★`_wireTreeContextMenu`(`:618`) 가 ★★`[data-tree-act="rename"|"delete"]` 를 ★그린다.
+     (★내 명부: ★「★검사 장면이 ★«사람이 ★하는 ★순서»를 ★안 밟는다」 ＋ ★「★자를 ★위해 ★제품을 ★고치지 ★마라」) */
+  const doors = await page.evaluate(() => ({
+    del: typeof window.deleteTemplateFolder === 'function',
+    ren: typeof window.renameTemplateFolder === 'function',
+    tree: !!document.getElementById('tpl-browser-tree'),
+  }));
+  expect(doors, `전제: ★앱의 ★제 문 — ★잰 값 ${JSON.stringify(doors)}`)
+    .toEqual({ del: true, ren: true, tree: true });
+
+  /** ★★폴더 헤더에 ★우클릭하고 ★메뉴 항목을 ★누른다 — ★★사람 경로. */
+  const ctxAct = async (folderName, act) => {
+    const sel = `.tb-tree-folder-header[data-folder="${folderName}"]`;
+    const el = await page.$(sel);
+    if (!el) return { ok: false, why: `★헤더가 ★없다: ${folderName}`,
+                      seen: await page.$$eval('.tb-tree-folder-header', a => a.map(e => e.dataset.folder)) };
+    await el.click({ button: 'right' });
+    const item = await page.$(`[data-tree-act="${act}"]`);
+    if (!item) return { ok: false, why: `★메뉴 항목이 ★없다: ${act}` };
+    await item.click();
+    return { ok: true };
+  };
+
+  /* ⑴ ★폴더 ★하나를 ★★펴 둔다 — ★모델에 ★든다 */
+  const got = await cursorToFolderHeader(page);
+  expect(got.ok, `전제: ★커서 — ${got.seen.join(' → ')}`).toBe(true);
+  const folder = got.st.cursorFolder;
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowLeft');
+  const mid = await ST(page);
+  expect(mid.expandedModel, '전제: ★모델이 ★있다').not.toBeNull();
+  expect(mid.expandedModel, `전제: ★`+`${folder}` + ` 가 ★모델에 ★있다`).toContain(folder);
+
+  /* ⑵ ★★★이름변경 — ★★사람 ★경로로(★`_startRenameFolder` ⇒ ★인라인 입력 ⇒ ★Enter).
+     ⇒ ★★그 콜백이 ★★`:605` 의 ★거름 갱신을 ★타고 ★★`finish()` 가 ★다시 그린다 */
+  const NEWNAME = folder + '-ren';
+  const renamed = await ctxAct(folder, 'rename');
+  expect(renamed.ok, `전제: ★이름변경 ★메뉴 — ${renamed.why || ''} ${JSON.stringify(renamed.seen || [])}`).toBe(true);
+  await page.waitForSelector('.tb-tree-editing input', { timeout: 4000 });
+  await page.fill('.tb-tree-editing input', NEWNAME);
+  await page.keyboard.press('Enter');
+  await page.waitForFunction((old) => {
+    const s = window.__tplNavState();
+    return !(s.expandedModel || []).includes(old);
+  }, folder, { timeout: 4000 }).catch(() => {});
+
+  const afterRen = await ST(page);
+  expect(afterRen.expandedModel,
+    `★★★옛 이름 ★`+`${folder}` + ` 이 ★★모델에 ★★남았다 — ★★솎기가 ★★안 돌았다. `
+    + `★잰 값 ${JSON.stringify(afterRen.expandedModel)}`)
+    .not.toContain(folder);
+  /* ★★★그리고 ★★DOM 과 ★모델이 ★★여전히 ★같은 말을 ★한다 */
+  expect([...(afterRen.expandedModel || [])].sort(),
+    `★★DOM 과 ★모델이 ★갈렸다 — ★DOM ${JSON.stringify(afterRen.expanded)} · ★모델 ${JSON.stringify(afterRen.expandedModel)}`)
+    .toEqual([...afterRen.expanded].sort());
+
+  /* ⑶ ★★★삭제 — ★새 이름을 ★★펴 두고 ★★지운다 */
+  const hdr = await page.$(`.tb-tree-folder-header[data-folder="${NEWNAME}"]`);
+  expect(hdr, `전제: ★새 이름 ★`+`${NEWNAME}` + ` 의 ★헤더가 ★있어야 한다 — ★잰 값 `
+    + `${JSON.stringify(await page.$$eval('.tb-tree-folder-header', a => a.map(e => e.dataset.folder)))}`).toBeTruthy();
+  await hdr.click();                               /* ★★클릭 = ★진입 ＋ ★펴짐 */
+  const reopenedModel = (await ST(page)).expandedModel;
+  expect(reopenedModel, `전제: ★새 이름이 ★모델에 ★들었다 — ★잰 값 ${JSON.stringify(reopenedModel)}`)
+    .toContain(NEWNAME);
+
+  const deleted = await ctxAct(NEWNAME, 'delete');
+  expect(deleted.ok, `전제: ★삭제 ★메뉴 — ${deleted.why || ''}`).toBe(true);
+  await page.waitForFunction((nm) => {
+    const s = window.__tplNavState();
+    return !(s.expandedModel || []).includes(nm);
+  }, NEWNAME, { timeout: 4000 }).catch(() => {});
+
+  const afterDel = await ST(page);
+  expect(afterDel.expandedModel,
+    `★★★지운 ★`+`${NEWNAME}` + ` 이 ★★모델에 ★★남았다 — ★★솎기가 ★★안 돌았다. `
+    + `★잰 값 ${JSON.stringify(afterDel.expandedModel)}`)
+    .not.toContain(NEWNAME);
+  expect([...(afterDel.expandedModel || [])].sort(),
+    `★★삭제 뒤 ★DOM 과 ★모델이 ★갈렸다 — ★DOM ${JSON.stringify(afterDel.expanded)} · ★모델 ${JSON.stringify(afterDel.expandedModel)}`)
+    .toEqual([...afterDel.expanded].sort());
+});
