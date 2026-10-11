@@ -772,6 +772,9 @@ function _renderBrowserCards() {
   container.querySelectorAll('.tb-card').forEach(card => {
     card.addEventListener('click', e => {
       if (e.target.closest('.tb-card-edit-btn') || e.target.closest('.tb-card-del-btn') || e.target.closest('.tb-card-star-btn')) return;
+      /* ★★★마우스로 ★골랐으면 ★★«카드 층»이 ★현재 층이다 — ⛔안 되돌리면 ★그 뒤 ★Enter 가
+         ★★트리 길로 ★삼켜진다(★0.9.7 차단 ④ · ★먹통이고 ★손실이 ★아니다). */
+      _depth = 2;
       _selectBrowserTemplate(card.dataset.tplId);
     });
 
@@ -1220,6 +1223,21 @@ function applyTemplatePanelSize(w, h) {
 }
 
 /* ── 초기화: 이벤트 바인딩 ── */
+/* ★★★템플릿 패널 ★키 ★거름 ★명부 — ★★★«쓰는 자»가 ★★하나다.
+   ★★여기 ★든 ★꼴에 ★포커스가 ★있으면 ★패널의 ★↑↓←→·Enter 를 ★★안 먹는다(★그 꼴이 ★제 키를 ★쓴다).
+   ★★★`SELECT` 가 ★★빠져 있었다 ⇒ ★★정렬 select 에서 ★★Enter 가 ★★캔버스에 ★넣고
+     ★★↑↓ 가 ★★옵션에 ★못 닿았다(★0.9.7 차단 ③ ★㉠㉡ — ★둘이 ★★한 뿌리다).
+   ★★★예외 = ★★검색창. ★거기선 ★★↑↓·Enter 가 ★카드를 ★움직이고 ★넣는다(★T7 부터의 ★거동).
+   ⛔이 명부를 ★★두 곳에 ★적지 ★마라 — ★★그래서 ★★이게 ★생겼다. */
+const TPL_KEY_INERT_TAGS   = ['TEXTAREA', 'SELECT', 'INPUT'];
+const TPL_KEY_INERT_EXEMPT = ['tpl-browser-search'];
+function _tplKeyInert(ae) {
+  if (!ae) return false;
+  if (ae.isContentEditable) return true;
+  if (!TPL_KEY_INERT_TAGS.includes(ae.tagName)) return false;
+  return !TPL_KEY_INERT_EXEMPT.includes(ae.id);
+}
+
 function initTemplateBrowser() {
   document.getElementById('tpl-browser-close')?.addEventListener('click', closeTemplateBrowser);
   /* 새 창으로 보기 — 뷰어 전용 창을 main 이 띄운다.
@@ -1285,7 +1303,8 @@ function initTemplateBrowser() {
   // ── 키보드 navigation (T7): ↑/↓ 선택 이동 + Enter 적용 ──
   // 패널이 열린 상태에서만 활성. 검색 input 포커스 중에도 ↑/↓는 카드 navigation 으로 사용
   // (텍스트 input 내부 캐럿 이동은 좌/우만 의미 있음). Enter 는 input 안이면 검색 컨펌으로
-  // 작동시키지 않고 무조건 템플릿 적용. 다른 editable / contenteditable 영역에서는 비활성.
+  // 작동시키지 않고 무조건 템플릿 적용.
+  // ★★어느 꼴에서 ★죽나 = ★★`_tplKeyInert` ★하나가 ★쥔다(★정렬 select 포함).
   document.addEventListener('keydown', e => {
     if (!_browserOpen) return;
     /* ★★★설계 D(b1) — ★★`←`·`→` 를 ★★새로 ★받는다. ★옛 꼴은 ★★셋만 ★통과시켰다
@@ -1304,10 +1323,9 @@ function initTemplateBrowser() {
     const inPanel = panel && (panel === ae || panel.contains(ae));
     // 패널 밖에 포커스 있으면 캔버스/다른 패널 키 단축키 보호 — 무시
     if (ae && ae !== document.body && !inPanel) return;
-    // contenteditable / textarea (제목 인라인 편집 등) 안에서는 비활성
-    if (ae && (ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
-    // 검색 input 외 다른 input(예: 인라인 편집)에서는 비활성
-    if (ae && ae.tagName === 'INPUT' && ae.id !== 'tpl-browser-search') return;
+    /* ★★★거름은 ★★★한 자리에서만 ★판정한다 — ★★`_tplKeyInert` (★위 ★명부 ★하나에서 ★파생).
+       ⛔옛 꼴은 ★★두 줄에 ★따로 ★적어 ★★`SELECT` 를 ★★아무도 ★안 적었다(★0.9.7 차단 ③). */
+    if (_tplKeyInert(ae)) return;
 
     /* ★★★⌘↓ = ★진입 — ★★뎁스1 에서만 ★뜻이 있다(★현빈 원문: ★Enter·⌘↓·→ 가 ★같은 일) */
     if (_cmdDown) {
