@@ -60,7 +60,7 @@ function buildAIImageGallery() {
     return;
   }
   // createdAt desc — 최신이 좌상단
-  const sorted = [...gallery].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  const sorted = [...gallery].sort(window.galleryByCreatedAtDesc);   /* ★정렬식의 ★«한 자리» = ★`js/panels/_gallery-sort.js` (C11) — ⛔여기 ★다시 적지 ★마라 */
   sorted.forEach(item => {
     const cell = document.createElement('div');
     cell.className = 'ai-img-cell ai-img-cell-loading';
