@@ -267,3 +267,58 @@ test('⒨ ★처방 — ★이름표가 ★따라오고, ★★블록엔 ★★�
     + '★★★현빈이 ★요청하지 ★않은 ★변화를 ★만든다').toBe('');
   expect(after.blkTA, '★★블록의 ★계산값이 ★center 가 ★됐다 — ★★위와 ★같은 까닭').not.toBe('center');
 });
+
+/* ══ ⒩ ★★«여러 개 고르고 ★정렬» 경로 (현빈 1010t2b ★재부상 · 지디 GO 2026-10-11) ═══════════
+ * ★★왜 ★생겼나 — ★위 ⒨ 는 ★★«한 개 고르고 ★정렬 버튼»만 ★잠근다.
+ *   ★실측 2026-10-11(★배율 ★40%): ★★그 경로는 ★고쳐져 있었다(nmAlign start→center · ★글자 ★159px)
+ *   ★★그런데 ★★«여러 개»를 ★고르고 ★정렬하면 ★★이름이 ★★안 따라왔다(nmAlign ★start · ★글자 ★★0px)
+ *   ★까닭: ★`prop-multisel.js` 의 ★`alignFlowBlock` 이 ★`contentEl`·`b` 만 ★쓰고
+ *     ★★`.tb-sender-name` 을 ★★한 번도 ★안 봤다 ⇒ ★★그 자를 ★부르게 ★엮었다.
+ *
+ * ★★«사람 경로»다 — ★선택은 ★`#canvas .selected` 로 ★살고(`prop-multisel.js:356`),
+ *   ★패널은 ★`showFlowMultiSelPanel()` 이 ★그리고, ★★그 패널의 ★`.prop-align-btn[data-align]` 을
+ *   ★★진짜 ★click 하면 ★`_applyFlowAlign` → ★`alignFlowBlock` 이 ★돈다(:668~669).
+ *   ⛔`alignFlowBlock` 을 ★직접 ★부르지 ★않는다 — ★★그러면 ★버튼 배선이 ★안 재진다.
+ */
+test('⒩ ★★여러 개 고르고 ★정렬해도 ★이름표가 ★따라온다 (★다중선택 경로)', async ({ page }) => {
+  const errs = await setup(page);
+  await showSender(page);
+  /* ★둘째 말풍선을 ★하나 ★더 — ★★«여러 개»가 ★참으로 ★서게 */
+  await page.evaluate(() => window.addSpeechBubbleBlock?.('left'));
+  await waitFor(page, () => document.querySelectorAll('#canvas .speech-bubble-block').length === 2,
+    undefined, '★말풍선이 ★2개가 ★안 됐다');
+  await page.evaluate(() => {
+    document.querySelectorAll('#canvas .speech-bubble-block').forEach((b) => {
+      b.classList.add('selected');
+      const nm = b.querySelector('.tb-sender-name');
+      if (nm) { nm.style.display = ''; nm.textContent = '홍길동'; nm.style.textAlign = ''; }
+      const bub = b.querySelector('.tb-bubble');
+      if (bub) bub.style.textAlign = '';
+    });
+    window.showFlowMultiSelPanel?.();
+  });
+  /* ★★전제 ⑴ — ★★«여러 개»가 ★참으로 ★골라졌나(지디 조건) */
+  const selN = await page.evaluate(() => document.querySelectorAll('#canvas .selected').length);
+  expect(selN, `★전제 — ★고른 블록이 ★2개여야 한다 (잰 값: ${selN})`).toBe(2);
+  /* ★★전제 ⑵ — ★★다중선택 ★패널의 ★정렬 단추가 ★떴나 */
+  const btnN = await page.evaluate(() =>
+    document.querySelectorAll('.prop-align-btn[data-align="center"]').length);
+  expect(btnN, `★전제 — ★정렬 단추가 ★패널에 ★있다 (잰 값: ${btnN})`).toBeGreaterThan(0);
+
+  const before = await page.evaluate(() => [...document.querySelectorAll('#canvas .speech-bubble-block')]
+    .map((b) => getComputedStyle(b.querySelector('.tb-sender-name')).textAlign));
+  /* ★★사람처럼 — ★그 단추를 ★진짜 ★누른다 */
+  await page.locator('.prop-align-btn[data-align="center"]').last().click();
+  const after = await page.evaluate(() => [...document.querySelectorAll('#canvas .speech-bubble-block')]
+    .map((b) => ({
+      nmAlign: getComputedStyle(b.querySelector('.tb-sender-name')).textAlign,
+      blkInline: b.style.textAlign || '',
+    })));
+  console.log(`    ★이름 textAlign — ★전 ${JSON.stringify(before)} → ★후 ${JSON.stringify(after.map((x) => x.nmAlign))}`);
+  for (const [i, x] of after.entries()) {
+    expect(x.nmAlign, `★${i}번 말풍선의 ★이름표가 ★안 따라왔다 (잰 값: ${x.nmAlign})`).toBe('center');
+    /* ★⒜/⒝ ★판별자 — ★★블록엔 ★인라인 정렬이 ★안 붙어야 한다(★⒨ 와 ★같은 자) */
+    expect(x.blkInline, `★${i}번 블록에 ★인라인 정렬이 ★붙었다 (잰 값: ${x.blkInline})`).toBe('');
+  }
+  expect(errs, `★pageerror (잰 값: ${JSON.stringify(errs.slice(0, 2))})`).toEqual([]);
+});
