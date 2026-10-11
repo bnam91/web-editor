@@ -49,8 +49,14 @@ async function toStack(page, ids) {
   await page.waitForFunction((id) => document.getElementById(id).dataset.freeLayout !== 'true', ids.fr, { timeout: 5000 });
 }
 
+/* ★★2026-10-11 (①-나 · t3frame) — ★이 칸의 ★장면을 ★«손으로 100%»로 ★박았다. ⛔전제를 ★낮춘 게 ★아니다:
+     ★그날은 ★`addTextBlock` 이 ★자유배치에서 ★폭 `100%` 를 ★주었으므로 ★`[null, null]` 이 ★곧 ★100% 였다.
+     ★현빈 ①-나 로 ★그 기본이 ★«글자 길이 폭»이 되었다(`block-factory.js _clampTextFrameWidth` 의 `fitWhenCentered`).
+     ⇒ ★`[null,null]` 을 ★그대로 두면 ★이 칸은 ★★수지④가 ★잠그려던 ★«폭 100% 장면»을 ★더 이상 ★안 재게 된다.
+       ★그 장면은 ★여전히 ★생긴다(의도적 빈 줄 · 좌표를 받은 임포트 · ★옛 저장본) ⇒ ★★장면을 ★명시해 ★살린다.
+     ★새 기본(글자 길이 폭)이 ★같은 병에 ★걸리나는 ★★아래 ST3 에서 ★따로 잰다. */
 test('ST1 ★한 줄 글자(폭 100%)를 스택으로 바꿔도 — 폭이 줄지 않고 한 줄 그대로', async ({ page }) => {
-  const ids = await scene(page, [null, null]);
+  const ids = await scene(page, ['100%', '100%']);
   const b = await measure(page, ids);
   expect(b.map(x => [x.pos, x.styleW, x.lines]), '[전제] 자유배치의 한 줄 글자 둘(폭 100%)').toEqual([['absolute', '100%', 1], ['absolute', '100%', 1]]);
   await toStack(page, ids);
@@ -69,4 +75,24 @@ test('ST2 [지킴·음성대조] px 폭 글자(300px)는 스택으로 바꿔도 
   await toStack(page, ids);
   const a = await measure(page, ids);
   expect(a.map(x => x.w), `px 폭이 바뀌었다 — ${a.map(x => x.styleW)}`).toEqual([300, 300]);
+});
+
+/* ★★ST3 [새 것 · ①-나] — ★새 기본(★글자 길이 폭)으로 넣은 글자도 ★스택 변환에서 ★한 줄 그대로다.
+   ★ST1 이 ★«100% 장면»을 재고, ★이 칸이 ★«기본 장면»을 ★잰다 ⇒ ★두 장면이 ★둘 다 ★덮인다.
+   ★전제를 ★단언한다 — ★폭이 ★100% 가 ★아니고(=①-나 가 섰다) ★한 줄이다. */
+test('ST3 ★새 기본(글자 길이 폭)으로 넣은 글자도 — 스택 변환에서 한 줄 그대로', async ({ page }) => {
+  const ids = await scene(page, [null, null]);
+  const b = await measure(page, ids);
+  console.log(`[ST3 전제] ${JSON.stringify(b.map(x => [x.pos, x.styleW, x.w, x.lines]))}`);
+  expect(b.map(x => x.pos), '[전제] 자유배치 절대배치 둘').toEqual(['absolute', 'absolute']);
+  for (const x of b) {
+    expect(x.styleW, '[전제] ①-나 — 기본 폭이 100% 가 아니다(글자 길이 폭)').not.toBe('100%');
+    expect(x.lines, '[전제] 한 줄에서 시작한다').toBe(1);
+  }
+  await toStack(page, ids);
+  const a = await measure(page, ids);
+  for (let i = 0; i < a.length; i++) {
+    expect(a[i].lines, `글자 ${i + 1} 이 여러 줄이 됐다 — 폭 ${b[i].w}→${a[i].w} (style ${a[i].styleW}) · 높이 ${b[i].h}→${a[i].h}`).toBe(1);
+    expect(a[i].w, `글자 ${i + 1} 폭이 줄었다 — ${b[i].w}→${a[i].w}`).toBeGreaterThanOrEqual(b[i].w - 2);
+  }
 });

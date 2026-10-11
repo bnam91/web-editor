@@ -526,7 +526,11 @@ function addTextBlock(type, opts = {}) {
         tf.style.width = opts.width + 'px';
         tf.dataset.width = String(opts.width);
       } else {
-        _clampTextFrameWidth(tf, activeSS);
+        /* ★①-나 — ★«글자 길이 폭»으로 ★넣는다(끌고 난 뒤와 ★같은 꼴).
+           ★켜는 조건은 ★`!hasAbsCoords` ★하나 — ★★아래 `_placeAtFrameCenter` 가 ★자리를 ★다시 잡아 주는
+           ★그 경우에만 ★폭을 ★좁힌다. ⛔좌표를 ★받은 길(MCP·Figma 임포트)은 ★자리를 ★안 고치므로
+           ★폭만 좁히면 ★보이는 글자가 ★옆으로 ★튄다 ⇒ ★★한 술어로 ★묶어 ★둘이 ★갈릴 수 없게 둔다. */
+        _clampTextFrameWidth(tf, activeSS, { fitWhenCentered: !hasAbsCoords });
       }
       // #2 «프레임 안 텍스트가 가운데 안 온다» — 좌표를 «안 준» 경우의 기본값을 프레임 중앙으로.
       // ★opts.x/y/width 를 명시한 경로(MCP·드롭)는 사용자가 지정한 좌표라 손대지 않는다.
@@ -1706,7 +1710,14 @@ function makeFrameBlock(opts = {}) {
    - 그 외 좌측정렬/기본은 콘텐츠 실측 폭을 min(content, 프레임폭)px로 클램프
    - inline style.width와 dataset.width를 함께 동기화(HTML outerHTML 영속 + 로드 반영)
    반환: 적용한 width 문자열('100%' 또는 'NNNpx') */
-function _clampTextFrameWidth(tf, frameEl) {
+/* ★3번째 칸 `opts.fitWhenCentered` (①-나 · 현빈 2026-10-11):
+     「자유배치 프레임에 ★처음 넣은 텍스트의 폭」과 「★끌고 난 뒤의 폭」이 달라서, ★★후자(글자 길이 폭)로 통일해 달라.
+   ★실측(두 끝):  넣을 때 ★860(`width:100%`) · ★끌고 난 뒤 ★183px(`dataset.width='183'`) — 같은 글자인데 ★아웃라인만 677px 넓었다.
+   ★★후자를 만드는 자는 `js/block-drag.js` `_fitFullWidthTextFrame` 이고, ★재는 자는 ★이미 ★하나다(`fitContentWidthPx`).
+     ⇒ ★그래서 ★새 함수를 ★만들지 않는다. ★아래 center 갈래를 ★이 칸으로 ★건너뛰게만 해, ★폭을 ★한 자리에서 ★센다.
+   ⛔기본은 ★거짓이다 — ★정렬이 center/right 면 ★100% 가 ★기존 뜻이고, ★그 뜻을 ★읽는 자가 ★있다
+     (`block-drag.js:770` `_fullWidthTf` · `props/prop-text.js:89`). ★켜는 자는 ★★한 자리(자유배치 «추가» 길)뿐이다. */
+function _clampTextFrameWidth(tf, frameEl, opts = {}) {
   if (!tf || tf.dataset.textFrame !== 'true') return tf && tf.style.width;
   // 정렬 확인 — text-block 또는 내부 콘텐츠 요소의 textAlign
   const tb = tf.querySelector('.text-block, [class^="tb-"]');
@@ -1715,11 +1726,14 @@ function _clampTextFrameWidth(tf, frameEl) {
     || (tb && tb.style.textAlign)
     || tf.style.textAlign
     || 'left';
-  if (align === 'center' || align === 'right' || align === 'justify') {
+  if ((align === 'center' || align === 'right' || align === 'justify') && !opts.fitWhenCentered) {
     tf.style.width = innerFullWidth(frameEl);   // F5: 여백이 있으면 안쪽 상자 폭(dataset 은 '100%' 의미 그대로)
     tf.dataset.width = '100%';
     return tf.style.width;
   }
+  /* ★`fitWhenCentered` 면 ★여기로 ★떨어져 ★아래 ★내용폭 측정을 ★그대로 ★탄다 —
+     ★글자 ★정렬값은 ★★안 건드린다(현빈 2026-09-05 의 center 는 ★그대로 살아 있고,
+     ★자리는 ★부르는 쪽의 `_placeAtFrameCenter` 가 ★정한다). */
   // 프레임 가용 폭(클램프 상한)
   const _fp = framePadding(frameEl);   // F5: 안쪽 여백 안에서만 자란다
   const frameW = ((frameEl && frameEl.clientWidth) || 860) - _fp.l - _fp.r;
