@@ -174,14 +174,28 @@ function _swapBannerChildren(ss) {
  *  ★★정렬은 ★안 건드린다 — ★`alignSelf: center` 는 ★그대로다. ★실측(그 회차):
  *    ★네 패딩 ★전부에서 ★★틈이 ★대칭이고 ★`_renderedHAlign`(아래)의 ★답이 ★★`ss-align-hcenter` ★유지였다.
  *    ＋ ★정렬 단추를 ★진짜 눌러도 ★`applyFrameHAlignToChild` 는 ★`alignSelf` 만 바꾸고 ★이 폭을 ★안 덮었다. */
+/* ★★식이 ★«계수 1」(base − 2·pad)에서 ★★«비율」로 ★바뀌었다 — ★★2026-10-11 지디 판정. ★까닭 둘:
+   ⑴ ★★계수 1 은 ★★★구조적으로 ★불가능하다 — ★`stackW < 2·pad` 면 ★어떤 하한을 써도 ★깨진다.
+      ★실측(이 레포 · 프레임 860 · 패딩칸 상한 100): ★도형 기본 ★100px 자식이 ★pad 48 에서 ★4px,
+      ★pad 50 에서 ★★760px 로 ★«튀었다»(폭을 포기해 칸을 채운다) — ★★상한의 ★절반 자리다.
+   ⑵ ★★그리고 ★★«계수 1」은 ★★요구가 ★아니었다. ★현빈 원문은 ★「좌우패딩이 ★먹히게」 ★하나뿐이고,
+      ★«틈이 pad 만큼 ★정확히 늘어야 한다»는 ★★우리가 ★표를 만들며 ★세운 칸이었다(지디 자기 기록).
+   ⇒ ★비율이면 ★★0 이하가 ★★영영 없다(★`stackW ≤ frameW` 이므로 ★`w ≤ frameW − 2·pad`) ⇒ ★★경계 갈래가
+     ★★«안쪽 폭이 0 이하」 ★하나로 ★줄고, ★★튐이 ★구조적으로 ★불가능해진다.
+   ★대가: ★계수가 ★종마다 ★`stackW/frameW` 다(그리드 688/860 = ★0.8). ⇒ ★★«덜 먹는다»가 아니라 ★★«비율만큼 먹는다».
+   ⛔`frameW` 를 ★변환 시점 값으로 ★굳히지 ★않는다 — ★굳히면 ★프레임 폭이 바뀔 때 ★★둘째 명부가 된다.
+     ★그래서 ★«지금» 값을 ★읽는다. ★꼴은 ★`_analyzeFreeLayoutChildren` 의 ★그 줄과 ★같다(★`:100`). */
 function _applyStackChildWidths(ss) {
   if (!ss || ss.dataset.freeLayout === 'true') return 0;
   const pad = parseFloat(getComputedStyle(ss).paddingLeft) || 0;
+  const frameW = parseInt(ss.style.width) || ss.offsetWidth || parseInt(ss.dataset.width) || 0;
+  const inner = frameW - 2 * pad;
   let n = 0;
   for (const c of ss.children) {
     const base = parseFloat(c.dataset && c.dataset.stackW);
     if (!Number.isFinite(base)) continue;
-    const w = base - 2 * pad;
+    /* ★안쪽 폭이 ★0 이하면 ★그릴 칸이 ★없다 ⇒ ★보존을 포기한다(거기서는 ★그것이 ★뜻이다) */
+    const w = frameW > 0 && inner > 0 ? Math.round(base * inner / frameW) : 0;
     c.style.width = w > 0 ? w + 'px' : '';
     n++;
   }
