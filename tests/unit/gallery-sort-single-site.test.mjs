@@ -96,15 +96,52 @@ test('G4 ⒜ ★★«한 자리»인가 — ★소비자 ★둘이 ★식을 ★
     assert.match(body, /sort\(\s*window\.galleryByCreatedAtDesc\s*\)/,
       `★★${f} 가 ★그 자를 ★★안 쓴다`);
   }
-  /* ★★★싣는 ★순서가 ★뜻을 ★가른다 — ★그 자가 ★소비자 ★뒤에 ★실리면 ★`undefined` 로 ★죽는다 */
+  /* ★★★싣는 ★순서 — ⚠️★★이것은 ★★«방어»이고 ★★«정확성의 ★요구»가 ★아니다.
+     ★★실측(2026-10-11 · 지디가 ★물어 ★내가 ★쟀다):
+       ★소비자를 ★★먼저 ★싣고 ★그 자를 ★★나중에 ★실어도 ★★안 깨진다 —
+       ★그 참조는 ★★«부를 때» ★풀리고(★`sort(window.…)` 가 ★★render 함수 ★안에 있다)
+       ★★두 script 는 ★★어느 render 보다 ★먼저 ★다 ★실린다.
+     ⇒ ★★그래서 ★★이 단언은 ★★«지금 깨지는 것»을 ★막는 자가 ★아니라
+       ★★★«앞으로 ★적재 중에 ★정렬하는 소비자가 ★생기면»을 ★막는 ★싼 자다. ★그 값으로 ★둔다.
+     ⛔«이것이 ★없으면 ★앱이 ★죽는다»로 ★읽지 ★마라 — ★★그건 ★★거짓이다. */
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const at = (s) => html.indexOf(s);
   const helper = at('js/panels/_gallery-sort.js');
-  assert.ok(helper > 0, '★★`index.html` 이 ★그 자를 ★안 싣는다 ⇒ ★★`window.galleryByCreatedAtDesc` 가 ★undefined 다');
+  assert.ok(helper > 0, '★★`index.html` 이 ★그 자를 ★★아예 ★안 싣는다 ⇒ ★★부를 때도 ★undefined 다');
   for (const f of CONSUMERS) {
     const c = at('js/panels/' + f);
     assert.ok(c > 0, `★★index.html 이 ★${f} 를 ★안 싣는다`);
     assert.ok(helper < c,
       `★★싣는 ★순서가 ★뒤집혔다 — ★그 자(${helper}) 가 ★${f}(${c}) ★뒤에 ★있다`);
+  }
+});
+
+test('G5 ★★★«그 자가 ★없으면 ★조용히 ★틀린다» — ★`sort(undefined)` 는 ★★안 던진다 (★참 ★실패 꼴)', () => {
+  /* ★★★지디가 ★물은 ★칸: ★«앱이 ★실제로 ★뜨나 · ★소비자가 ★그것을 ★찾나».
+     ★★내가 ★쟀고 ★★답이 ★두 갈래다:
+       ⑴ ★싣는 ★순서는 ★★상관 없다(★G4 의 ★그 주석) — ★참조가 ★«부를 때» ★풀린다
+       ⑵ ★★★그런데 ★★참으로 ★없을 때가 ★★더 ★나쁘다: ★`Array.prototype.sort(undefined)` 는
+          ★★★던지지 ★않고 ★★«기본 ★문자열 ★비교»로 ★떨어진다 ⇒ ★★조용히 ★틀린 순서가 ★나온다
+     ⇒ ★★그래서 ★★그 ★조용한 꼴을 ★★여기서 ★이름으로 ★잠근다. */
+  const A = { id: 'z', createdAt: '2026-05-20T09:00:00.85Z' };
+  const B = { id: 'a', createdAt: '2026-05-20T09:00:00.850066Z' };
+  /* ★전제 — ★★`sort(undefined)` 가 ★★안 던진다(⛔던지면 ★이 칸의 ★까닭이 ★틀렸다) */
+  let threw = null;
+  let bad;
+  try { bad = [A, B].slice().sort(undefined).map((x) => x.id); }
+  catch (e) { threw = String(e); }
+  assert.strictEqual(threw, null,
+    `★전제 깨짐 — ★`.concat(`sort(undefined) 가 ★던졌다(${threw}) ⇒ ★조용한 실패가 ★아니다`));
+  /* ★★그 기본 비교는 ★★우리가 ★원하는 순서가 ★★아니다 — ★★그게 ★이 칸의 ★본 단언 */
+  const good = [A, B].slice().sort(W.galleryByCreatedAtDesc).map((x) => x.id);
+  assert.deepStrictEqual(good, ['a', 'z'], `★전제 — ★제 자의 ★답 (잰 값: ${JSON.stringify(good)})`);
+  assert.notDeepStrictEqual(bad, good,
+    `★★`.concat(`sort(undefined) 가 ★제 자와 ★같은 답을 ★낸다 (잰 값: ${JSON.stringify(bad)})\n`)
+    + '  ⇒ ★★그러면 ★★«그 자가 ★사라져도» ★아무도 ★모른다 ⇒ ★★이 칸이 ★뜻을 ★잃는다');
+  /* ★★그리고 ★소비자가 ★★그 이름을 ★참으로 ★부르나 — ★G4 와 ★겹치지 ★않게 ★«이름»만 */
+  for (const f of ['ai-image-gallery.js', 'assets-panel.js']) {
+    const body = stripComments(readSrc(ROOT, 'js', 'panels', f));
+    assert.match(body, /window\.galleryByCreatedAtDesc/,
+      `★★${f} 가 ★그 이름을 ★안 부른다 ⇒ ★★`.concat(`sort(undefined) 로 ★조용히 ★떨어진다`));
   }
 });
