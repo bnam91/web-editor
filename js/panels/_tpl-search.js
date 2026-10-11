@@ -38,7 +38,23 @@ function tplSearchFields(t, mode) {
 /* ★★낱말 쪼개기 — ★구분자 ★셋이 ★★같은 결과를 ★내야 한다(★정본 ⒟).
    ★★`filter(Boolean)` 이 ★★«구분자만»을 ★★`[]` 로 ★만든다 ⇒ ★★그 ∅ 가 ★★⒡ 의 ★자리다. */
 function tplSearchTerms(s) {
-  return String(s == null ? '' : s).split(/[&,\s]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
+  /* ★★★구분자 ★다섯 — ★`&` · `,` · 공백 · ★★`\` · ★★`_`  (★★뒤 둘이 ★1011t1e · 현빈)
+     ★★현빈 원문: 「'demo\event', 'demo_event' … demo폴더에 event 섹션을 찾기위함이거든?」
+
+     ★★★`_` 를 ★더해도 ★★`banner_event` 를 ★★«이름으로 ★찾던 ★사람»이 ★안 깨진다 — ★★쟀다:
+       ★★`X_Y` 를 ★쪼개면 ★★부분이 ★★둘 다 ★★`X_Y` 의 ★★부분문자열이고,
+       ★★`tplSearchMatch` 는 ★★`includes` 로 ★★부분문자열을 ★본다
+       ⇒ ★★`banner ∧ event` 가 ★★★이름 ★하나로 ★★둘 다 ★만족된다.
+     ⇒ ★★★대가는 ★★«못 찾음»이 ★아니라 ★★★«더 나옴»이다(★정밀도) —
+       ★★폴더가 ★`banner` 이고 ★태그가 ★`event` 인 ★★남의 벌도 ★같이 ★온다.
+       ★★★그런데 ★그건 ★★`&`·`,`·공백이 ★★이미 ★가진 ★성질이다 ⇒ ★★새 병이 ★아니다.
+       ★★`tests/unit/tpl-search-separators.test.mjs` ★★K3(★무회귀) ＋ ★★K7(★의도된 ★넓어짐)이 ★★둘 다 ★박아 둔다.
+
+     ⛔★★★«AND 가 ★0건이면 ★통째 이름으로 ★다시 찾기»(★지디 ㉡)는 ★★★안 넣었다:
+       ★★위 구조 때문에 ★★그 ★fallback 은 ★★★한 번도 ★★탈 수 ★없다(★이름의 벌이 ★있으면 ★AND ★≥1).
+       ⇒ ★★«발동 ★0회»인 ★가지는 ★★장식이다. ★★판정은 ★★★지디·현빈 자리이고 ★★K7 이 ★그 선을 ★지킨다.
+     ★★대소문자는 ★★★전부터 ★무관이다 — ★이 줄과 ★`tplSearchFields` 가 ★★둘 다 ★`toLowerCase()` 한다. */
+  return String(s == null ? '' : s).split(/[&,\\_\s]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
 }
 
 /* ★★한 벌이 ★맞나 — ★★`every`(AND) × ★`some`(모드가 고른 칸 중 어디든).

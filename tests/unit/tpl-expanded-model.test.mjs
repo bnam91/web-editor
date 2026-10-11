@@ -164,3 +164,128 @@ test('G5 ★★★이 자가 ★실제로 ★무나 — ★★★옛 꼴을 ★�
   assert.match(m2[0][1], /_expandedFolders\.has\(/, '★새 꼴을 ★거절한다 — ★거짓 양성');
   assert.ok(!/folderActive/.test(m2[0][1]), '★새 꼴에서 ★`folderActive` 를 ★봤다');
 });
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ★★★G6 — ★★«쓰는 자가 ★둘»은 ★★«명부가 ★둘»의 ★사촌이다 (★지디 ⑸)
+
+   ★`_expansionDecidedFor` 에 ★쓰는 ★자리가 ★★둘이다(★다시 그리기 ＋ ★클릭 갈래).
+   ★★읽는 자가 ★하나니 ★★단일 참값은 ★맞다. ★★★그런데 ★참 위험은 ★★«셋째 ★쓰기 경로»다 —
+   ★★거름을 ★바꾸는데 ★★그 마커도 ★안 쓰고 ★★다시 그리지도 ★않는 ★길.
+   ⇒ ★★그런 길이 ★생기면 ★★마커가 ★묵고 ★★다음 ★다시 그리기가 ★★«진입»으로 ★오해한다
+     — ★★★261011 ★E5 ★빨강이 ★★바로 ★그 꼴이었다.
+
+   ★★★그래서 ★★«거름에 ★쓰는 ★모든 자리»를 ★★전수로 ★세고, ★★각각이 ★★셋 중 ★하나를 ★★만족해야 한다:
+     ⒜ ★★마커를 ★★같이 ★쓴다        ⒝ ★★그 뒤에 ★★`_renderBrowserTree()` 가 ★온다
+     ⒞ ★★★«예외 명부»에 ★이름이 ★있다(★까닭과 ★함께)
+   ⛔등호로 ★세지 ★않는다 — ★★「명부 ⊇ ★실패집합」 ＋ ★★「명부 ★밖 ★0건」으로 ★건다(★지디).
+     (★내 명부: ★「★흔들리는 것이 ★든 ★명부에 ⛔등호 ★금지 — ★∅ 를 ★불일치로 ★거절한다」)
+
+   ⛔⛔★★★그리고 ★★★창을 ★★좁게 ★두면 ★★거짓 ★실패가 ★난다 — ★★내가 ★★여기서 ★밟았다(261011):
+     ★`_startRenameFolder` 의 ★할당은 ★★★`_treeInlineInput` 에 ★넘긴 ★★콜백 ★안에 ★있고,
+     ★★`_renderBrowserTree()` 는 ★★★그 ★호출자(★`finish()`)에 ★있다.
+     ⇒ ★★★내 ★첫 ★셈이 ★★그 자리를 ★★«재렌더 ★없음»으로 ★읽었다 — ★★이웃의 ★부재를 ★★제 것으로 ★읽은 것이다.
+     ⇒ ★★그래서 ★★그 자리는 ★★★⒞ ★예외 명부에 ★★까닭과 ★함께 ★둔다. ⛔창을 ★넓혀 ★★덮지 ★않는다.
+       (★★창을 ★넓히면 ★★★다른 자리의 ★재렌더를 ★★제 것으로 ★세게 된다 — ★★그게 ★더 ★나쁘다)
+     (★내 명부: ★「★부재를 ★잴 때 ★틀리는 건 ★«자»가 ★아니라 ★«창»이다」)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/** ★★예외 명부 — ★★★«이름»으로 ★둔다. ⛔수로 ★두지 ★마라.
+ *  ★★각 칸 = [★그 자리를 ★가리키는 ★글자, ★까닭, ★★«안 쟀다»]. */
+const MARKER_EXEMPT = Object.freeze([
+  Object.freeze({
+    needle: '{ ..._browserFilter, folder: r.name }',
+    why: '★★폴더 ★이름변경 — ★할당이 ★`_treeInlineInput` 에 ★넘긴 ★콜백 ★안에 ★있고, '
+       + '★★`_renderBrowserTree()` 는 ★★그 ★호출자 ★`finish()` 에 ★있다 ⇒ ★★★창으로는 ★안 보인다',
+    unmeasured: '★★이름변경 ★뒤 ★★«펴짐»이 ★어떻게 ★되나 — ★★안 쟀다. '
+       + '★★옛 이름은 ★솎기가 ★지우고 ★새 이름은 ★다음 ★다시 그리기가 ★더할 ★것으로 ★보이나 ★★행위로 ★안 쟀다',
+  }),
+]);
+
+/** ★★그 자리에서 ★★«이 갈래가 ★끝나는 ★곳»까지 — ★★중괄호를 ★세어 ★★한 겹 ★닫힐 때 ★멈춘다.
+ *  ⇒ ★★그래서 ★★이웃 ★함수의 ★줄을 ★★제 것으로 ★안 읽는다.
+ *  ⛔문자열·정규식 ★안의 ★중괄호는 ★★안 가린다 — ★★이 파일이 ★재는 ★구역엔 ★그런 것이 ★없다(★실측).
+ *    ⇒ ★★생기면 ★★이 자가 ★★★짧게 ★끊어 ★★거짓 ★실패를 ★낸다 ⇒ ★★그때 ★★여기를 ★고쳐라. */
+function enclosingTail(src, idx) {
+  let depth = 0;
+  for (let i = idx; i < src.length; i++) {
+    const c = src[i];
+    if (c === '{') depth++;
+    else if (c === '}') {
+      if (depth === 0) return src.slice(idx, i);
+      depth--;
+    }
+  }
+  return src.slice(idx);
+}
+
+test('G6 ★★★거름에 ★쓰는 ★모든 자리가 ★★마커·재렌더·예외 ★셋 중 ★하나를 ★만족한다', () => {
+  const DECL = /(?:let|const|var)\s+_browserFilter\s*=/;
+  const all = [...SRC.matchAll(/_browserFilter\s*=/g)];
+  /* ★★★전제 — ★★전수가 ★★비지 ★않았나(★∅ 위의 ★참을 ★피한다) */
+  assert.ok(all.length >= 7,
+    `★전제: ★거름 ★할당 ★전수가 ★★7 이상이어야 한다(잰 값 ${all.length}) — ★★자가 ★깨졌나`);
+
+  const sites = [];
+  for (const m of all) {
+    const pre = SRC.slice(Math.max(0, m.index - 12), m.index + 20);
+    if (DECL.test(pre)) continue;                      /* ★선언은 ★«쓰는 자»가 ★아니다 */
+    /* ★★★창 = ★★«이 갈래가 ★끝나는 ★곳»까지 — ★★중괄호를 ★세어 ★★한 겹 ★닫힐 때.
+       ⛔⛔첫 꼴은 ★★«다음 ★거름 할당»까지였고 ★★★그건 ★★너무 ★넓었다(261011 ★실측):
+         ★`:210` 의 ★재렌더를 ★떼도 ★★G6 이 ★★초록이었다 — ★★창이 ★★★이웃 ★함수의
+         ★`_renderBrowserTree()` 를 ★★제 것으로 ★읽었다. ★`:527` 도 ★같았다.
+       ⇒ ★★★그래서 ★★중괄호로 ★조인다. ★★선례 = ★`tpl-nav-keys.test.mjs` 의 ★`branchBody()`.
+       (★내 명부: ★「★부재를 ★잴 때 ★틀리는 건 ★«자»가 ★아니라 ★★«창»이다」
+                 ＋ ★「★고정 글자 창이 ★★이웃의 ★증거를 ★읽는다 ⇒ ★★중괄호를 ★세어 ★조여라」) */
+    const win = enclosingTail(SRC, m.index);
+    sites.push({
+      line: SRC.slice(0, m.index).split('\n').length,
+      win,
+      marker: /_expansionDecidedFor\s*=/.test(win),
+      render: /_renderBrowserTree\(\)/.test(win),
+    });
+  }
+  assert.ok(sites.length >= 6,
+    `★전제: ★★재대입 자리가 ★★6 이상이어야 한다(잰 값 ${sites.length})`);
+
+  /* ★★실패집합 = ★★⒜⒝ 둘 다 ★아닌 자리 */
+  const failed = sites.filter(s => !s.marker && !s.render);
+  /* ★★★그 각각이 ★★예외 명부에 ★있나 — ★★「명부 ⊇ ★실패집합」 */
+  const uncovered = failed.filter(s => !MARKER_EXEMPT.some(e => s.win.includes(e.needle)));
+  assert.deepStrictEqual(uncovered.map(s => `:${s.line} ${s.win.slice(0, 70).replace(/\n/g, ' ')}`), [],
+    '★★★거름을 ★바꾸면서 ★★마커도 ★안 쓰고 ★재렌더도 ★없는 ★자리가 ★있다 — '
+    + '★★그 자리는 ★★마커를 ★묵게 ★만든다(★E5 가 ★그 꼴이었다). '
+    + '★★고치거나 ★★`MARKER_EXEMPT` 에 ★까닭과 ★함께 ★올려라');
+
+  /* ★★★「명부 ★밖 ★0건」의 ★거울 — ★★명부의 ★각 칸이 ★★아직 ★실재하나(⛔명부가 ★썩지 ★않게) */
+  for (const e of MARKER_EXEMPT) {
+    assert.ok(SRC.includes(e.needle),
+      `★★예외 명부의 ★칸이 ★★소스에 ★없다: ★`+`${e.needle}` + ` — ★★그 자리가 ★사라졌으면 ★★명부에서 ★빼라`);
+    /* ★★예외엔 ★★«까닭»과 ★★«안 쟀다»가 ★★글자로 ★있어야 한다 */
+    assert.ok(e.why && e.why.length > 20, '★예외에 ★까닭이 ★없다');
+    assert.ok(e.unmeasured && e.unmeasured.length > 10, '★예외에 ★«안 쟀다» 칸이 ★없다');
+  }
+});
+
+test('G7 ★★솎기는 ★★★«지울 것»만 ★지운다 — ⛔접어 둔 것을 ★펴지 ★않는다 (★지디 ⑶ ★음성대조)', () => {
+  /* ★★★지디의 ★겨눔: 「★접어 둔 폴더가 ★prune 에 ★같이 ★쓸려 ★나가면 ★★사용자가 ★접은 것이 ★조용히 ★펴진다」
+     ⇒ ★★★먼저 ★구조로 ★답한다: ★★솎기는 ★★`delete` ★만 ★한다 ⇒ ★★★«펴는» 쪽으로는 ★★움직일 ★수가 ★없다.
+       ★★그리고 ★★«접힘»은 ★★«Set 에 ★없음»이다 ⇒ ★★솎기가 ★쓸어 갈 ★것이 ★★애초에 ★없다.
+     ⇒ ★★그 다음 ★★식으로 ★★같이 ★잰다(★같은 식을 ★손으로 ★만들어 ★먹인다). */
+  const pruneBody = SRC.match(/for \(const f of \[\.\.\._expandedFolders\]\) \{([\s\S]{0,220}?)\n  \}/);
+  assert.ok(pruneBody, '★솎기 몸통을 ★못 찾았다 — ★이 칸을 ★다시 ★맞춰라');
+  assert.ok(!/_expandedFolders\.add\(/.test(pruneBody[1]),
+    `★★★솎기 ★안에 ★`+`add(` + ` 가 ★있다 — ★★솎기가 ★★«펴는» 일을 ★한다. ★잰 값: ${pruneBody[1].trim()}`);
+  assert.match(pruneBody[1], /_expandedFolders\.delete\(f\)/, '★솎기가 ★`delete` 를 ★안 한다');
+
+  /* ★★★같은 식을 ★손으로 — ★★펴진 ★참 폴더는 ★살고 · ★유령은 ★죽고 · ★★접힌 것은 ★★그대로 ★접힌다 */
+  const folderMap = { 'QA알파': {}, 'QA베타': {} };
+  const set = new Set(['QA알파', '전체', '사라진폴더']);     /* ★`QA베타` 는 ★★접힌 상태(★Set 에 ★없다) */
+  for (const f of [...set]) {
+    if (!Object.prototype.hasOwnProperty.call(folderMap, f)) set.delete(f);
+  }
+  assert.deepStrictEqual([...set].sort(), ['QA알파'],
+    `★솎기 ★뒤 ★남은 것이 ★어긋났다 — ★잰 값 ${JSON.stringify([...set])}`);
+  /* ★★★그리고 ★★접혀 ★있던 ★`QA베타` 가 ★★★안 펴졌다 — ★★그게 ★지디가 ★겨눈 ★그 칸이다 */
+  assert.ok(!set.has('QA베타'),
+    '★★★솎기가 ★★접혀 ★있던 ★폴더를 ★★펴 ★버렸다 — ★★`delete` 만 ★하는데 ★★어떻게? ★★식을 ★다시 ★보라');
+});
