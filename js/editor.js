@@ -2393,6 +2393,38 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  /* ⌘T / Ctrl+T — 템플릿 브라우저 «열기» (현빈 2026-10-11 「커맨드t 누르면 템플릿 패널 열리게해줘」)
+     ★여는 자는 이미 있다 — js/panels/template-browser.js openTemplateBrowser()
+       (docs/TEMPLATE_SYSTEM.md 4절 「공개 API」가 그 셋을 「브라우저 패널 여닫기」로 적어 뒀다) ⇒ 새로 짜지 않는다.
+     ★꼴은 위 ⌘, 갈래를 그대로 베꼈다: (meta||ctrl) ＋ e.code(IME 안전) ＋ shift·alt 배제.
+     ★«토글»이 아니라 «열기»다 — 현빈 문장이 「열리게」이고, 닫는 길이 이미 셋이다:
+       #tpl-browser-close 단추 · Escape(template-browser.js 의 capture keydown) · 캔버스 mousedown.
+     ★입력칸(INPUT·TEXTAREA·SELECT·contenteditable)에서도 «연다» — 위 ⌘, 선례와 «같은» 꼴이다.
+       ⛔초판(d1de2c43)은 입력칸에서 «안» 열었다. 그 조건의 까닭은 「타이핑을 가로챈다」였는데
+         ⌘T 는 글자를 넣지 않으므로 그 까닭이 서지 않는다. 그리고 더 나쁜 것 —
+         «글자를 쓰다가 ⌘T 를 눌렀는데 아무 일도 안 난다»가 되어 이 레포가 열두 자리에 걸쳐
+         막아 둔 「눌리는데 아무 일도 안 난다」를 새로 만든다. ⇒ 그래서 떼고 선례로 돌아왔다.
+       ⛔«타이핑은 preventDefault 가 지킨다»라 적었는데 ★★그 까닭이 거짓이었다(2026-10-11 실측):
+         `e.preventDefault()` «만» 죽인 무력화 회차에서 ★5칸이 전부 초록이었다 ⇒ 그 줄이 한 일이 아니다.
+         참 까닭 = ★수식키 조합은 브라우저가 애초에 글자를 안 넣는다. ⇒ 결과는 참이고 까닭이 거짓이었다.
+       ★`preventDefault` 의 참 몫 = ★«기본 동작(브라우저·AppKit 가속기)이 돌지 않게» 하는 것이다.
+         ⛔그 몫을 잠그는 칸은 이 레포에 ★0 이다 — 그 줄을 죽여도 검사 5벌이 초록이다(그 회차 로그).
+         ⇒ ★AppKit 창 탭을 실제로 막나는 아래 «미확정» 칸과 ★같은 자리다. 앱에서만 선다.
+       ★타이핑을 ★실제로 잠그는 자 = ★T4(맨 t 는 패널을 안 열고 글자 블럭이 늘어난다) ★하나다.
+         ⛔검사 T3 의 둘째 단언(「t 가 안 들어간다」)을 근거로 대지 마라 — ★항상 참이라 아무것도 안 잠근다.
+     ★충돌 실측(2026-10-11): 렌더러에서 KeyT 는 「글자 블럭 추가」지만 그 블록이 `!e.metaKey && !e.ctrlKey && !e.shiftKey`
+       안이라 이 조합에 닿지 않는다. main.js 는 Menu 를 import 조차 하지 않아 우리가 가속기를 등록하는 자리는 0 이다.
+       ★Electron 은 ⌘T 를 «등록하지 않는다» — Framework 바이너리의 가속기 문자열 전수에서 `+T`/`+t` 0건
+         (지디 실측 2026-10-11 · CommandOrControl+Z/V/X/W/Q/M/C/A/Plus · CmdOrCtrl+R · Command+I/H/F 는 있다).
+       ⛔그런데 macOS AppKit 이 «창 탭»으로 ⌘T 를 잡나는 아직 미확정이다 — 같은 바이너리에
+         toggleTabBar·showAllTabs 역할이 살아 있고, 그 가로채기는 AppKit 이 하는 일이라
+         바이너리 문자열로도 DOM 하네스로도 «영영» 안 드러난다. 앱에서만 선다. */
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyT' && !e.shiftKey && !e.altKey) {
+    e.preventDefault();
+    window.openTemplateBrowser?.();
+    return;
+  }
+
   // 패널 접기/펼치기 — Figma 키 의미에 맞춘 배치.
   //   ⌘\   좌측 패널      ⌘⌥\  우측(속성) 패널
   //   ⌘⇧\  좌우 동시 = Figma의 "Minimize UI"(⌘⇧\)와 같은 의미. 우측 단독에 ⇧를 쓰면

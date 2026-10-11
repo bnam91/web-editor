@@ -152,14 +152,73 @@ test('Q3 ★앞·뒤 부호 끄기 — 끈 쪽은 ★칸째 빠지고 글이 그
   const noPost = await read();
   expect(noPost.cols, '★뒤를 끄면 ★2칸 — ⛔빈 칸이 남지 않는다').toBe(2);
   expect(noPost.marks, '★앞 부호만 남는다').toEqual(['pre']);
-  expect(noPost.bodyW, `★글 칸이 ★넓어진다 (${both.bodyW} → ${noPost.bodyW})`).toBeGreaterThan(both.bodyW);
 
   /* 앞 부호도 끄기 — 부호 0, 1칸 */
   await page.evaluate(() => { window.__qt.dataset.preOn = '0'; window.renderQuoteBlock(window.__qt); });
   const none = await read();
   expect(none.cols, '★둘 다 끄면 1칸').toBe(1);
   expect(none.marks, '★부호 0').toEqual([]);
-  expect(none.bodyW, `★글 칸이 ★더 넓어진다 (${noPost.bodyW} → ${none.bodyW})`).toBeGreaterThan(noPost.bodyW);
+
+  /* ══ ★★⚰️2026-10-10 — ★옛 단언 ★둘의 ★까닭이 ★죽었다 (⛔지우지 않고 ★여기 남긴다) ═══════
+     ★옛 문장: `expect(noPost.bodyW).toBeGreaterThan(both.bodyW)` ＋ `none.bodyW > noPost.bodyW`
+       「★끈 쪽은 ★칸째 빠져 ★글이 ★그만큼 ★넓어진다」(★근거 = 시안 ⒟).
+     ★그 까닭 = ★옛 inline 가운데 칸이 ★`minmax(0,1fr)` 이라 ★글 칸이 ★남는 폭을 ★전부 먹었다
+       ⇒ ★부호 칸이 빠지면 ★글 칸의 ★실제 폭이 ★그만큼 늘었다.
+     ★★그런데 ★바로 그 `1fr` 이 ★현빈 1010t2c2(「간격조절이 안 된다」)의 ★참 원인이었다 —
+       ★가운데 칸이 ★남는 폭을 다 먹으면 `column-gap` 이 ★사람 눈의 거리에서 ★★약분된다
+       (실측 핀 ★f69c307e: gap 0→40 에서 거리 ★391.6 → ★391.6 = ★0.0px · ★Q16 머리말).
+     ⇒ ★가운데 칸을 ★`minmax(0,auto)` 로 갈았다 ⇒ ★글 칸 폭 = ★★글폭이다
+       (실측: 짧은 글에서 ★119 → ★119 — ★«안 넓어진다»).
+     ★★★그래서 ★«넓어진다»를 ★★«쓸 수 있는 폭이 넓어진다»로 ★다시 적는다 — ★시안 ⒟ 의 뜻은
+       ★살아 있고(부호를 끄면 ★글이 더 쓸 수 있다) ★잴 자리만 ★바뀐 것이다.
+       ⇒ ★짧은 글로는 ★안 보인다(★글폭이 천장이라) ⇒ ★★긴 글로 잰다.
+
+     ══ ★★⚰️ ★세 칸 (★지디 2026-10-10 요구 — ⛔「문」만 남기고 「까닭」을 잃지 않게) ════════
+     ★★⒜ ★누가·언제 — ★판정 ★2026-10-10 ★지디(팀장) · ★근거 = ★현빈 ★`1010t2c2` ★원문
+          「그리고 우측 패널에서 슬라이드를 움직여도 ★실제론 ★간격조절이 안되는 ★문제가 있어」
+          ⇒ ★현빈이 ★★«문제»라 ★불렀고 ★그 말이 ★시안 메모보다 ★★더 ★새 말이다.
+          ⇒ ★지디가 ★★현빈 노트 `p9909` 에 ★올렸다 — ★★그가 ★되돌릴 수 ★있게.
+     ★★⒝ ★무엇을 ★놓았나(=★이름) — ★★시안 ⒟ 의 ★「★끈 쪽은 ★칸째 ★빠져 ★글이 ★그만큼 ★넓어진다」
+          ⇒ ⛔★그 줄을 ★★«폐기된 선례»로 ★읽지 ★마라 — ★★«글이 ★더 ★쓸 수 있다»는 ★뜻은 ★★살아 있고
+            ★★잴 ★자리만 ★옮겼다(★짧은 글 ⇒ ★긴 글). ★★되살릴 ★조건 = ★★현빈이 ★「칸이 ★전폭을 먹어야
+            한다」를 ★★다시 ★말하면 — ★그때는 ★★간격 슬라이더를 ★★치워야 ★한다(★둘은 ★동시에 ★참이 ★못 된다).
+     ★★⒞ ★되돌리는 ★법(=★자리) — ★★`js/blocks/quote-block.js` `renderQuoteBlock` inline 가지의 ★★두 줄:
+          ① 가운데 칸 ★`minmax(0,auto)` → ★`minmax(0,1fr)`   ② ★`justify-content:${_qtSide(st.align)}` ★제거
+          ⇒ ★그 둘을 ★되돌리면 ★★Q16 ★하나가 ★빨개지고 ★여기 ⚰️ ★둘을 ★옛 문장으로 ★되돌리면 된다.
+          ⇒ ★★그 둘이 ★★«각각» ★지탱하는 자리는 ★양성대조 ★M17·M18 이 ★가렸다(spec 머리말의 그 표).
+  */
+  const readLong = () => page.evaluate(() => {
+    const b = window.__qt;
+    const body = b.querySelector('.tb-qt-body');
+    return {
+      cols: getComputedStyle(b).gridTemplateColumns.trim().split(/\s+/).length,
+      bodyW: body ? Math.round(body.getBoundingClientRect().width) : 0,
+      lines: b.querySelectorAll('.tb-qt-line').length,
+      blockW: Math.round(b.getBoundingClientRect().width),
+    };
+  });
+  /* ★긴 글 — ★가운데 칸이 ★천장(available)에 ★닿아야 ★«쓸 수 있는 폭»이 ★보인다 */
+  await page.evaluate(() => {
+    const b = window.__qt;
+    b.dataset.preOn = '1'; b.dataset.postOn = '1';
+    b.dataset.text = '처음 입어도 내 옷 같은 핏 ' .repeat(8);
+    window.renderQuoteBlock(b);
+  });
+  const lBoth = await readLong();
+  expect(lBoth.cols, '★전제 — 긴 글에서도 ★둘 다 켜면 3칸').toBe(3);
+  expect(lBoth.bodyW < lBoth.blockW, `★전제 — 긴 글의 글 칸이 ★천장에 닿았다(글 칸 ${lBoth.bodyW} < 블럭 ${lBoth.blockW})`).toBe(true);
+
+  await page.evaluate(() => { window.__qt.dataset.postOn = '0'; window.renderQuoteBlock(window.__qt); });
+  const lNoPost = await readLong();
+  expect(lNoPost.cols, '★뒤를 끄면 2칸(긴 글에서도)').toBe(2);
+  expect(lNoPost.bodyW, `★★글이 ★쓸 수 있는 폭이 ★넓어진다 — 뒤 부호를 끈 뒤 (${lBoth.bodyW} → ${lNoPost.bodyW})`)
+    .toBeGreaterThan(lBoth.bodyW);
+
+  await page.evaluate(() => { window.__qt.dataset.preOn = '0'; window.renderQuoteBlock(window.__qt); });
+  const lNone = await readLong();
+  expect(lNone.cols, '★둘 다 끄면 1칸(긴 글에서도)').toBe(1);
+  expect(lNone.bodyW, `★★더 넓어진다 — 앞 부호까지 끈 뒤 (${lNoPost.bodyW} → ${lNone.bodyW})`)
+    .toBeGreaterThan(lNoPost.bodyW);
 });
 
 /* ── Q4 ★스택 — ★부호는 ★한 쌍 ＋ ★빈 줄은 건너뛴다 ────────────────────────────
@@ -485,8 +544,36 @@ test('Q10 ★⒜ 중앙정렬 — ★`align` 칸이 ★이미 한다(새 칸 ★
   expect(spread(lineRat) >= 0.5,
     `★★align 세 값이 ★같은 자리를 낸다 = ★칸이 ★안 먹는다. 글 중심 비율 ${JSON.stringify(lineRat.map(v => +v.toFixed(3)))}`).toBe(true);
 
-  /* ★★음성대조 — ★inline 에서는 ★부호가 ★안 움직인다(양 끝 칸에 붙어 있고 ★글만 민다).
-     ⇒ ⒜ 는 ★stack 의 이야기지 ★inline 을 바꾸는 이야기가 ★아니다. */
+  /* ══ ★★⚰️2026-10-10 — ★inline 음성대조의 ★까닭이 ★죽었다 (⛔문장을 ★지우지 않는다) ════════
+     ★옛 문장: 「★inline 에서는 ★부호가 ★안 움직인다(양 끝 칸에 붙어 있고 ★글만 민다)
+                ⇒ ⒜ 는 ★stack 의 이야기지 ★inline 을 바꾸는 이야기가 ★아니다」
+       ★단언 = `expect(spread(preRat) <= 0.01)`  (앞부호 왼쪽 모서리 비율이 ★align 셋에서 ★같다)
+     ★그 까닭 = ★옛 inline 이 ★`auto minmax(0,1fr) auto` ＋ ★`justify-content` ★없음이라
+       ★부호가 ★블럭 ★양 끝에 ★박혀 있었다.
+     ★★그런데 ★그 «박혀 있음»이 ★현빈 1010t2c2 의 ★참 원인이었다 — ★부호가 끝에 박히면
+       ★`column-gap` 이 ★가운데 칸만 좁혀 ★사람 눈의 거리에서 ★★약분된다(핀 f69c307e: 0.0px · Q16).
+     ⇒ ★inline 을 ★`minmax(0,auto)` ＋ `justify-content:<align>` 으로 갈았다 ⇒ ★세 조각이 ★★같이 움직인다
+       (실측 2026-10-10: 앞부호 왼쪽 비율 ★[0, 0.438, 0.878] — ★옛 단언이 ★여기서 빨개졌다).
+     ★★살아남은 요구는 ★둘이고, ★그 둘을 ★아래가 ★다시 잰다:
+       ㉠ ★글은 ★움직인다(align 이 ★죽지 않았다) — ★옛 단언 ★그대로 ★유지
+       ㉡ ★★«세 조각이 ★한 덩이로» 움직인다 = ★부호가 ★글에 ★붙어 있다
+          (⇒ ★그래서 ★간격 슬라이더가 ★뜻을 가진다 · ★이것이 ★새 음성대조다:
+             ★부호만 혹은 ★글만 따로 튀면 ★여기서 빨강)
+
+     ══ ★★⚰️ ★세 칸 (★지디 2026-10-10 요구 — ⛔「문」만 남기고 「까닭」을 잃지 않게) ════════
+     ★★⒜ ★누가·언제 — ★판정 ★2026-10-10 ★지디(팀장) · ★근거 = ★현빈 ★`1010t2c2` ★원문
+          「그리고 우측 패널에서 슬라이드를 움직여도 ★실제론 ★간격조절이 안되는 ★문제가 있어」
+          ⇒ ★현빈이 ★★«문제»라 ★불렀고 ★그 말이 ★시안 메모보다 ★★더 ★새 말이다.
+          ⇒ ★지디가 ★★현빈 노트 `p9909` 에 ★올렸다 — ★★그가 ★되돌릴 수 ★있게.
+     ★★⒝ ★무엇을 ★놓았나(=★이름) — ★★시안 ⒟ 의 ★「★끈 쪽은 ★칸째 ★빠져 ★글이 ★그만큼 ★넓어진다」
+          ⇒ ⛔★그 줄을 ★★«폐기된 선례»로 ★읽지 ★마라 — ★★«글이 ★더 ★쓸 수 있다»는 ★뜻은 ★★살아 있고
+            ★★잴 ★자리만 ★옮겼다(★짧은 글 ⇒ ★긴 글). ★★되살릴 ★조건 = ★★현빈이 ★「칸이 ★전폭을 먹어야
+            한다」를 ★★다시 ★말하면 — ★그때는 ★★간격 슬라이더를 ★★치워야 ★한다(★둘은 ★동시에 ★참이 ★못 된다).
+     ★★⒞ ★되돌리는 ★법(=★자리) — ★★`js/blocks/quote-block.js` `renderQuoteBlock` inline 가지의 ★★두 줄:
+          ① 가운데 칸 ★`minmax(0,auto)` → ★`minmax(0,1fr)`   ② ★`justify-content:${_qtSide(st.align)}` ★제거
+          ⇒ ★그 둘을 ★되돌리면 ★★Q16 ★하나가 ★빨개지고 ★여기 ⚰️ ★둘을 ★옛 문장으로 ★되돌리면 된다.
+          ⇒ ★★그 둘이 ★★«각각» ★지탱하는 자리는 ★양성대조 ★M17·M18 이 ★가렸다(spec 머리말의 그 표).
+  */
   const inl = {};
   for (const align of ['left', 'center', 'right']) {
     await setup(page, { layout: 'inline', text: '안녕', align });
@@ -494,8 +581,28 @@ test('Q10 ★⒜ 중앙정렬 — ★`align` 칸이 ★이미 한다(새 칸 ★
   }
   const preRat = ['left', 'center', 'right'].map(a => rat(inl[a], inl[a].pieces[0], 'l'));
   const lineRat2 = ['left', 'center', 'right'].map(a => rat(inl[a], inl[a].pieces[1], 'cx'));
-  expect(spread(preRat) <= 0.01, `★inline 의 ★앞부호는 ★안 움직여야 한다(왼쪽 모서리 비율). 잰 값 ${JSON.stringify(preRat.map(v => +v.toFixed(3)))}`).toBe(true);
+  /* ㉠ 글은 움직인다 — ⚰️옛 판에서도 참이었고 ★그대로 둔다 */
   expect(spread(lineRat2) >= 0.5, `★inline 의 ★글은 ★움직여야 한다(안 움직이면 align 이 죽은 것). 잰 값 ${JSON.stringify(lineRat2.map(v => +v.toFixed(3)))}`).toBe(true);
+  /* ㉡ ★새 음성대조 — ★부호도 ★같이 움직이고, ★그 움직인 ★양이 ★글과 ★같다(한 덩이) */
+  expect(spread(preRat) >= 0.5,
+    `★★inline 의 ★앞부호도 ★글과 ★같이 움직여야 한다(⚰️옛 판에서는 ★0 이었다 — ★그게 gap 을 죽인 꼴이다).`
+    + ` 잰 값 ${JSON.stringify(preRat.map(v => +v.toFixed(3)))}`).toBe(true);
+  /* ★★«한 덩이»의 자 — ★앞부호↔글 ★거리(비율)가 ★align 셋에서 ★같아야 한다.
+     ⛔「둘 다 움직였다」로는 ★모자라다: ★서로 ★다른 양으로 움직이면 ★부호가 ★글에서 ★떨어진다. */
+  /* ⚠️⛔★★이 시험의 ★★«마지막 ★진짜 화살표» ★뒤에 ★★진짜 `{` 를 ★두지 ★마라(블록 본문·객체 리터럴·for/if 블록).
+     ★까닭 = ★`tools/assert-strength.mjs:199~203` 이 ★본문 시작을 ★«인자 안 ★마지막 화살표 뒤의 ★첫 `{`»로 잡는다
+       ⇒ ★그 뒤에 ★블록이 ★하나라도 있으면 ★본문을 ★그 토막으로 읽어 ★★단언 수가 ★0 이 된다.
+     ★★실측(2026-10-10 · ★내가 ★두 번 틀렸다 — ★추정 대신 ★`--census` 로 재서 알았다):
+       이 칸이 ★「단언 수 ★10→0 · 세기 합 ★40→0」으로 ★그 게이트에 ★빨강이 떴다.
+       ⇒ ★제자리에서 ★약해진 것이 ★아니라 ★★«내 코드 꼴»이 ★자를 ★속인 것이다.
+       ⚠️틀린 추정 ⑴ 「`.map(a => { … })` 블록 화살표」 — ★for 로 펴도 ★그대로 빨강이었다.
+       ⚠️틀린 추정 ⑵ 「메시지 속 `${…}` 의 `{`」 — ★이어붙이기로 바꿔도 ★그대로였다
+         (★문자열·템플릿 ★속은 ★그 자가 ★이미 ★blank 로 지운다 ⇒ ★`${}` 는 ★무해하다. ★Q16 이 19 로 세어진 것이 ★그 증거다).
+       ✅★참 원인 = ★★«마지막 화살표 뒤의 ★`for (…) {`» ★하나였다.
+     ⇒ ★그래서 ★여기를 ★★블록 없는 ★식 화살표로 ★편다. ⛔다음 사람도 ★이 시험 ★끝에 ★블록을 ★붙이지 마라. */
+  const gapRat = ['left', 'center', 'right'].map(a => Math.round(((inl[a].pieces[1].l - inl[a].pieces[0].r) / inl[a].box.w) * 10000) / 10000);
+  expect(spread(gapRat) <= 0.01,
+    `★★부호와 글 사이 ★거리가 ★align 셋에서 ★같아야 한다(= ★한 덩이로 움직인다). 잰 값 ${JSON.stringify(gapRat)}`).toBe(true);
 });
 
 
@@ -938,4 +1045,518 @@ test('Q15 ★★⒝ 부호 ★y 슬라이더(두 꼴 ★모두) ＋ ★세로 �
   expect(/matrix\(1, 0, 0, 1, 0, 18\)/.test(rt.ty), `★왕복 뒤 ★다시 그려져 ★부호가 ★18px 밀려 있어야 한다. 잰 값 ${rt.ty}`).toBe(true);
 
   expect(errs).toEqual([]);
+});
+
+/* ══════ 2026-10-10 현빈 1010t2c2 — 「★우측 패널에서 ★슬라이드를 움직여도 ★실제론 ★간격조절이 ★안 된다」 ══════
+   ★★먼저 ★세 갈래로 ★갈라 쟀다(탐침 원본 = ~/.gd-work/t4quote/run-logs/, 핀 f69c307e):
+     ① ★닿는가   ✅ — `.prop-slider` 상자는 ★3px(css/editor-props.css:69)인데 ★손잡이 그림은 ★12px(:75).
+                      ★dy 를 비껴 가며 ★전수로 쟀다: ★먹는 dy = [-6..+5] ⇒ ★눌리는 띠 ≈ ★12px. ⇒ ⛔면적 ★아니다.
+     ② ★불리는가 ✅ — 진짜 끌기로 ★슬라이더 ★4개 전수: input ★12회·change ★1회 · dataset ＋ computed ★둘 다 따라왔다.
+     ③ ★맞는 갈래 ⛔ — ★★여기가 끊긴다. ★gap 0→80 이 ★사람 눈의 거리를 ★157→164(7px)만 바꿨고
+                      ★연속도 아니었다(0=20 · 40=60=80).
+   ★★까닭 = ★★항등식이다. inline 격자는 `auto minmax(0,1fr) auto` 이고 ★블럭이 ★섹션 폭 ★전부를 먹는다
+     ⇒ ★부호는 ★양 끝에 ★박히고 `column-gap` 은 ★★«가운데 칸만» 좁힌다. 글이 ★가운데면
+        거리 = gap + (블럭폭 − 2·부호폭 − 2·gap − 글폭)/2 = (블럭폭 − 2·부호폭 − 글폭)/2
+        ⇒ ★★gap 이 ★약분돼 ★사라진다. ★실측이 그 식을 확인했다(gap 0: 0+(819.56−글폭)/2 · gap 80: 80+(659.56−글폭)/2 = ★같다).
+   ★★대조(같은 판 · ★조건만 바꿨다): align=left ★0→34 ✅ · stack ★14→48 ✅ · ★align=center ⛔.
+     ⇒ ★★c2 는 ★★«inline ＋ 가운데 정렬(= ★제품 ★기본값)에서만» 나는 ★해당 없음이었다.
+   ⛔「먹통」으로 적지 마라 — ★핸들러는 ★돌고 있었다. */
+
+/** ★블럭의 ★배율 — ★섹션 transform 때문에 ★화면 px ≠ CSS px 다(axisOf 머리말의 그 까닭).
+ *  ★offsetWidth 는 ★transform 을 ★안 받는다 ⇒ ★둘의 비가 ★배율이다. */
+const QT_GEO = `(() => {
+  const b = window.__qt;
+  const r = b.getBoundingClientRect();
+  const scale = b.offsetWidth ? (r.width / b.offsetWidth) : 1;
+  const pre = b.querySelector('[data-qt-mark="pre"]');
+  const post = b.querySelector('[data-qt-mark="post"]');
+  const line = b.querySelector('.tb-qt-line');
+  const R = (e) => e.getBoundingClientRect();
+  const cs = getComputedStyle(b);
+  return {
+    scale,
+    /* ★사람이 보는 ★거리를 ★CSS px 로 되돌린다 — ⛔화면 px 를 ★gap 과 ★바로 견주지 마라 */
+    dPre: (pre && line) ? (R(line).left - R(pre).right) / scale : null,
+    dPost: (post && line) ? (R(post).left - R(line).right) / scale : null,
+    dPreV: (pre && line) ? (R(line).top - R(pre).bottom) / scale : null,
+    colGap: cs.columnGap, rowGap: cs.rowGap,
+    gridCols: cs.gridTemplateColumns.trim().split(/\\s+/).length,
+    preL: R(pre).left, lineCx: (R(line).left + R(line).right) / 2, blockL: r.left, blockW: r.width,
+  };
+})()`;
+
+test('Q16 ★★간격 슬라이더가 ★그림을 바꾼다 — ★inline ＋ ★가운데 정렬(★제품 기본값)에서도 (현빈 1010t2c2)', async ({ page }) => {
+  const errs = await setup(page, { text: '안녕' });
+
+  /* ★★전제를 ★먼저 ★단언한다 — ★이 칸의 이름이 「inline ＋ 가운데」이므로.
+     ⛔전제가 깨지면 ★본 단언까지 ★못 갔다는 것을 ★여기서 찍는다(AND 를 ★한 덩이로 찍지 않는다). */
+  const pre = await page.evaluate(() => ({
+    layout: window.__qt.dataset.layout, align: window.__qt.dataset.align,
+    preOn: window.__qt.dataset.preOn, postOn: window.__qt.dataset.postOn,
+    marks: window.__qt.querySelectorAll('.tb-qt-mark').length,
+    lines: window.__qt.querySelectorAll('.tb-qt-line').length,
+  }));
+  expect(pre.layout, '★전제 ㉠ — 꼴 = inline(기본값)').toBe('inline');
+  expect(pre.align, '★전제 ㉡ — 정렬 = center(기본값 · ★이 칸이 재는 ★그 조건)').toBe('center');
+  expect(pre.preOn, '★전제 ㉢ — 앞 부호 켜짐').toBe('1');
+  expect(pre.postOn, '★전제 ㉣ — 뒤 부호 켜짐').toBe('1');
+  expect(pre.marks, '★전제 ㉤ — 부호 둘이 ★그려졌다').toBe(2);
+  expect(pre.lines, '★전제 ㉥ — 글줄 하나').toBe(1);
+
+  /* ── ㉠ ★모델 → ★그림 : gap 을 키우면 ★사람 눈의 거리가 ★그만큼 벌어진다 ───────────── */
+  const at = {};
+  for (const g of [0, 40, 80]) {
+    at[g] = await page.evaluate((code) => { return eval(code); },
+      `(() => { window.__qt.dataset.gap = '${g}'; window.renderQuoteBlock(window.__qt); return ${QT_GEO}; })()`);
+  }
+  expect(at[0].scale > 0, `★전제 ㉦ — 배율을 쟀다 (실측 ${at[0].scale})`).toBe(true);
+  expect(at[80].colGap, '★전제 ㉧ — computed column-gap 은 ★이미 따라왔다(② 갈래는 ★살아 있다)').toBe('80px');
+
+  /* ★★주 단언 — ★거리 ★차이가 ★gap ★차이와 ★같아야 한다(CSS px · ±2px).
+     ★핀 f69c307e 실측 = ★0→80 에서 ★거리 차 ★+17.5 CSS px(화면 7px / 배율 0.4) ⇒ ★여기서 ★빨강이다. */
+  const d40 = at[40].dPre - at[0].dPre;
+  const d80 = at[80].dPre - at[0].dPre;
+  expect(Math.abs(d40 - 40) <= 2,
+    `★★gap 0→40 이 ★앞부호↔글 거리를 ★40px 벌려야 한다. 잰 값 ${d40.toFixed(1)}px`
+    + ` (거리 ${at[0].dPre.toFixed(1)} → ${at[40].dPre.toFixed(1)} · 배율 ${at[40].scale.toFixed(3)})`).toBe(true);
+  expect(Math.abs(d80 - 80) <= 2,
+    `★★gap 0→80 이 ★앞부호↔글 거리를 ★80px 벌려야 한다. 잰 값 ${d80.toFixed(1)}px`
+    + ` (거리 ${at[0].dPre.toFixed(1)} → ${at[80].dPre.toFixed(1)} · ⚰️핀 f69c307e 에서는 ★+17.5 였다)`).toBe(true);
+  /* ★뒤쪽도 ★같이 — ★한쪽만 고치면 ★부호가 ★짝이 안 맞는다 */
+  const p80 = at[80].dPost - at[0].dPost;
+  expect(Math.abs(p80 - 80) <= 2,
+    `★★글↔뒤부호도 ★80px 벌어져야 한다. 잰 값 ${p80.toFixed(1)}px (${at[0].dPost.toFixed(1)} → ${at[80].dPost.toFixed(1)})`).toBe(true);
+  /* ★★연속인가 — ⛔계단이면 ★「움직이는데 안 바뀐다」가 ★남아 있다(핀에서는 0=20·40=60=80 이었다) */
+  expect(d40 > 2 && d80 > d40 + 2,
+    `★★단조로워야 한다(0 < 40 < 80). 잰 거리 ${[at[0].dPre, at[40].dPre, at[80].dPre].map(v => v.toFixed(1)).join(' → ')}`).toBe(true);
+  /* ★3칸 격자는 ★그대로 — ⛔고치면서 ★꼴을 ★바꾸지 않았다(Q2·Q9 와 ★한 쌍) */
+  expect(at[80].gridCols, `★inline 열 트랙은 ★그대로 3 이어야 한다. 잰 값 ${at[80].gridCols}`).toBe(3);
+
+  /* ── ㉡ ★★음성대조 — ★`markDy`(부호 y)는 ★가로 거리를 ★안 건드린다 ────────────────
+     ★이 줄이 없으면 ★「아무 수나 키우면 거리가 벌어진다」는 자가 ★통과한다. */
+  const negBefore = await page.evaluate((code) => eval(code), QT_GEO);
+  const negAfter = await page.evaluate((code) => eval(code),
+    `(() => { window.__qt.dataset.markDy = '40'; window.renderQuoteBlock(window.__qt); return ${QT_GEO}; })()`);
+  expect(Math.abs(negAfter.dPre - negBefore.dPre) <= 2,
+    `★★음성대조 — ★부호 y 는 ★가로 거리를 ★안 바꿔야 한다. 잰 값 ${negBefore.dPre.toFixed(1)} → ${negAfter.dPre.toFixed(1)}`).toBe(true);
+  await page.evaluate(() => { window.__qt.dataset.markDy = '0'; window.renderQuoteBlock(window.__qt); });
+
+  /* ── ㉢ ★패널 → ★모델 → ★그림 : ★사람이 하는 순서로 ★진짜 슬라이더를 ★끈다 ──────────
+     ⛔dataset 을 손으로 박는 것만으로 ★닫지 마라 — 현빈이 ★만진 것은 ★슬라이더다. */
+  await openPanel(page);
+  const s0 = await page.evaluate((code) => {
+    window.__qt.dataset.gap = '0'; window.renderQuoteBlock(window.__qt); window.showQuoteProperties(window.__qt);
+    return eval(code);
+  }, QT_GEO);
+  const sld = await page.evaluate(() => {
+    const s = document.getElementById('qt-gap-slider');
+    if (!s) return null;
+    const r = s.getBoundingClientRect();
+    return { x: r.left + 6, y: r.top + r.height / 2, right: r.right - 4, min: s.min, max: s.max, value: s.value };
+  });
+  expect(sld, '★전제 — `#qt-gap-slider` 가 패널에 ★있다').not.toBe(null);
+  expect(sld.value, '★전제 — 끌기 ★전 슬라이더 값 = 0').toBe('0');
+  await page.mouse.move(sld.x, sld.y);
+  await page.mouse.down();
+  await page.mouse.move(sld.right, sld.y, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForFunction(() => document.getElementById('qt-gap-slider')?.value === '80', null, { timeout: 3000 })
+    .catch(() => { throw new Error('★끌었는데 ★슬라이더 값이 ★최대(80)로 ★안 갔다 — ★① 닿는가 갈래가 ★깨졌다'); });
+  const s1 = await page.evaluate((code) => eval(code), QT_GEO);
+  const sd = s1.dPre - s0.dPre;
+  expect(Math.abs(sd - 80) <= 3,
+    `★★슬라이더를 ★끝까지 끌었더니 ★거리가 ★80px 벌어져야 한다. 잰 값 ${sd.toFixed(1)}px`
+    + ` (${s0.dPre.toFixed(1)} → ${s1.dPre.toFixed(1)} · dataset ${await page.evaluate(() => window.__qt.dataset.gap)})`).toBe(true);
+
+  /* ── ㉣ ★stack 도 ★같이 잠근다 — ★여기는 ★핀에서도 ★먹었다(14→48 화면 = ★배율 적용 전) ── */
+  await setup(page, { layout: 'stack', text: '안녕' });
+  const v0 = await page.evaluate((code) => eval(code),
+    `(() => { window.__qt.dataset.gap = '0'; window.renderQuoteBlock(window.__qt); return ${QT_GEO}; })()`);
+  const v80 = await page.evaluate((code) => eval(code),
+    `(() => { window.__qt.dataset.gap = '80'; window.renderQuoteBlock(window.__qt); return ${QT_GEO}; })()`);
+  const vd = v80.dPreV - v0.dPreV;
+  expect(Math.abs(vd - 80) <= 2,
+    `★stack 에서 ★부호↔글 ★세로 거리가 ★80px 벌어져야 한다. 잰 값 ${vd.toFixed(1)}px (${v0.dPreV.toFixed(1)} → ${v80.dPreV.toFixed(1)})`).toBe(true);
+
+  expect(errs, '★오류 0').toEqual([]);
+});
+
+/* ══════ 2026-10-10 현빈 1010t2c1-① — 「★텍스트를 ★캔버스에서 ★수정 바로 할수 있게 해주고」 ══════
+   ★★v1 은 ★이것을 ★«없는 것»으로 ★이름까지 적어 뒀다 — `quote-block.js:71`
+     「v1 에 없는 것 … ★인라인 더블클릭 편집(★글은 우측 패널로 넣는다)」
+   ⇒ ★이 칸은 ★★그 결정을 ★뒤집은 것을 ★잠근다. ★근거는 ★현빈 원문 ★하나다.
+   ★★핀 실측(f69c307e · 고치기 전): 글줄 가운데를 ★진짜 더블클릭 ⇒
+     `blockCE=null · lineCE=null · activeInBlock=false · selInBlock=false · 콘솔오류 0`
+     = ★★«아무 일도 안 난다»(⛔먹통이 아니라 ★그 길이 ★없었다).
+   ★선례 = ★모달(block-drag.js `_modalEndEdit`) — ★dataset 이 진실인 블럭의 ★그 규율 한 벌.
+   ★★편집 host 는 ★`.tb-qt-body` ★하나다(줄마다 열면 ★엔터로 줄 나누기가 막힌다). */
+test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클릭 ⇒ ★타이핑 ⇒ ★dataset 커밋 ＋ ★패널 동기 (현빈 1010t2c1-①)', async ({ page }) => {
+  const errs = await setup(page, { text: '안녕' });
+  await openPanel(page);                         /* ★사람이 하는 순서 — ★고르고(패널 열고) ★나서 더블클릭 */
+
+  /* ★전제 — ⛔편집이 ★이미 열려 있으면 ★이 칸은 ★아무것도 안 잰다 */
+  const pre = await page.evaluate(() => ({
+    panel: !!document.getElementById('qt-shape-group'),
+    selected: window.__qt.classList.contains('selected'),
+    ce: window.__qt.querySelectorAll('[contenteditable="true"]').length,
+    body: !!window.__qt.querySelector('.tb-qt-body'),
+    text: window.__qt.dataset.text,
+    taVal: document.getElementById('qt-text')?.value ?? null,
+  }));
+  expect(pre.panel, '★전제 ㉠ — 인용구 패널이 열렸다').toBe(true);
+  expect(pre.selected, '★전제 ㉡ — 블럭이 ★고른 상태다(사람이 하는 순서)').toBe(true);
+  expect(pre.ce, '★전제 ㉢ — ★편집이 ★아직 안 열렸다(contenteditable=true 0건)').toBe(0);
+  expect(pre.body, '★전제 ㉣ — 글덩이(.tb-qt-body)가 ★그려져 있다').toBe(true);
+  expect(pre.text, '★전제 ㉤ — 지금 글 = 「안녕」').toBe('안녕');
+  expect(pre.taVal, '★전제 ㉥ — 패널 textarea 도 「안녕」').toBe('안녕');
+
+  /* ── ㉠ ★더블클릭이 ★편집을 ★연다 ────────────────────────────────────────── */
+  const lr = await waitStableRect(page, '#sQ .quote-block .tb-qt-line');
+  await page.mouse.dblclick(lr.cx, lr.cy);
+  const open = await page.evaluate(() => {
+    const b = window.__qt;
+    const body = b.querySelector('.tb-qt-body');
+    return {
+      bodyCE: body?.getAttribute('contenteditable') ?? null,
+      editing: b.classList.contains('editing'),
+      activeIsBody: document.activeElement === body,
+      /* ⛔편집은 ★한 자리만 열려야 한다 — ★줄마다 열리면 ★엔터로 줄 나누기가 막힌다 */
+      ceCount: b.querySelectorAll('[contenteditable="true"]').length,
+      markCE: [...b.querySelectorAll('.tb-qt-mark')].map(e => e.getAttribute('contenteditable')),
+      draggable: body?.getAttribute('draggable') ?? null,
+    };
+  });
+  expect(open.bodyCE, `★★더블클릭이 ★글덩이를 ★편집으로 열어야 한다(⚰️핀 f69c307e 실측 = ★null). 잰 값 ${open.bodyCE}`).toBe('true');
+  expect(open.activeIsBody, '★★포커스가 ★그 글덩이에 가 있다(⚰️핀 실측 = ★false)').toBe(true);
+  expect(open.editing, '★`editing` 클래스 — 드래그·삭제키 가드가 이걸 본다').toBe(true);
+  expect(open.ceCount, `★편집은 ★한 자리만 열린다. 잰 값 ${open.ceCount}`).toBe(1);
+  expect(open.draggable, '★`draggable=false` — ⛔안 끄면 글자 드래그 선택이 ★블록 드래그가 된다').toBe('false');
+  /* ★★음성대조 — ★부호는 ★편집 대상이 ★아니다 */
+  expect(open.markCE.filter(v => v === 'true'), `★★부호(.tb-qt-mark)는 ★편집이 ★안 열려야 한다. 잰 값 ${JSON.stringify(open.markCE)}`).toEqual([]);
+
+  /* ── ㉡ ★타이핑이 ★dataset 에 ★커밋된다 ＋ ★패널이 ★따라온다 ───────────────── */
+  await page.evaluate(() => {
+    const body = window.__qt.querySelector('.tb-qt-body');
+    const sel = window.getSelection(); sel.removeAllRanges();
+    const r = document.createRange(); r.selectNodeContents(body); sel.addRange(r);   // ★다 지우고 새로 쓴다
+  });
+  await page.keyboard.insertText('처음 입어도');
+  await page.evaluate(() => window.__qt.querySelector('.tb-qt-body').blur());        // ★떠난다 = 커밋
+  await page.waitForFunction(() => window.__qt.dataset.text === '처음 입어도', null, { timeout: 3000 })
+    .catch(() => { throw new Error('★타이핑 뒤 ★blur 가 ★dataset.text 에 ★커밋하지 않았다'); });
+  const after = await page.evaluate(() => {
+    const b = window.__qt;
+    return {
+      ds: b.dataset.text,
+      drawn: [...b.querySelectorAll('.tb-qt-line')].map(e => e.textContent),
+      ce: b.querySelectorAll('[contenteditable="true"]').length,
+      editing: b.classList.contains('editing'),
+      taVal: document.getElementById('qt-text')?.value ?? null,
+      marks: b.querySelectorAll('.tb-qt-mark').length,
+    };
+  });
+  expect(after.ds, '★★글이 ★dataset 에 산다(⛔DOM 에만 남지 않는다)').toBe('처음 입어도');
+  expect(after.drawn, '★★다시 그려졌다').toEqual(['처음 입어도']);
+  expect(after.ce, '★편집이 ★닫혔다').toBe(0);
+  expect(after.editing, '★`editing` 이 ★떨어졌다').toBe(false);
+  expect(after.marks, '★부호는 ★그대로 한 쌍').toBe(2);
+  expect(after.taVal, `★★우측 패널 ★textarea 도 ★따라와야 한다(⛔캔버스와 ★갈리면 ★다음에 패널로 고칠 때 ★되돌아간다). 잰 값 「${after.taVal}」`).toBe('처음 입어도');
+
+  /* ── ㉢ ★엔터가 ★줄을 나눈다 (v1 모델 = ★글은 한 덩이 · 렌더가 쪼갠다) ──────── */
+  const lr2 = await waitStableRect(page, '#sQ .quote-block .tb-qt-line');
+  await page.mouse.dblclick(lr2.cx, lr2.cy);
+  await page.waitForFunction(() => window.__qt.querySelector('.tb-qt-body')?.getAttribute('contenteditable') === 'true', null, { timeout: 3000 });
+  await page.evaluate(() => {
+    const body = window.__qt.querySelector('.tb-qt-body');
+    const sel = window.getSelection(); sel.removeAllRanges();
+    const r = document.createRange(); r.selectNodeContents(body); sel.addRange(r);
+  });
+  await page.keyboard.insertText('가');
+  await page.keyboard.press('Enter');
+  await page.keyboard.insertText('나');
+  await page.evaluate(() => window.__qt.querySelector('.tb-qt-body').blur());
+  await page.waitForFunction(() => (window.__qt.querySelectorAll('.tb-qt-line').length === 2), null, { timeout: 3000 })
+    .catch(() => { throw new Error('★엔터로 나눈 글이 ★두 줄로 ★안 그려졌다'); });
+  const two = await page.evaluate(() => ({
+    ds: window.__qt.dataset.text,
+    drawn: [...window.__qt.querySelectorAll('.tb-qt-line')].map(e => e.textContent),
+    pre: window.__qt.querySelectorAll('[data-qt-mark="pre"]').length,
+  }));
+  expect(two.ds.includes('\n'), `★★dataset 에 ★줄바꿈이 ★한 덩이로 들어갔다. 잰 값 ${JSON.stringify(two.ds)}`).toBe(true);
+  expect(two.drawn, '★두 줄로 그려졌다').toEqual(['가', '나']);
+  expect(two.pre, '★부호는 ★한 쌍 그대로(줄 수와 ★무관 — Q4 의 그 불변식)').toBe(1);
+
+  /* ── ㉣ ★★안내문구 ★지뢰 — ★손 안 대고 나가면 ★데이터로 굳지 ★않는다 ──────────
+     ⛔이 줄이 없으면 ★더블클릭만 해도 ★안내문구가 ★본문이 되는 블럭이 ★영영 남는다(모달의 그 규약). */
+  await setup(page, {});                                   /* 글 없는 새 블럭 = 안내문구 */
+  const ph0 = await page.evaluate(() => ({
+    ds: window.__qt.dataset.text ?? null,
+    isPh: !!window.__qt.querySelector('[data-is-placeholder="true"]'),
+    drawn: window.__qt.querySelector('.tb-qt-line')?.textContent ?? null,
+  }));
+  expect(ph0.isPh, '★전제 — 지금 ★안내문구를 그리고 있다').toBe(true);
+  const lr3 = await waitStableRect(page, '#sQ .quote-block .tb-qt-line');
+  await page.mouse.dblclick(lr3.cx, lr3.cy);
+  await page.waitForFunction(() => window.__qt.querySelector('.tb-qt-body')?.getAttribute('contenteditable') === 'true', null, { timeout: 3000 });
+  await page.evaluate(() => window.__qt.querySelector('.tb-qt-body').blur());
+  await page.waitForFunction(() => window.__qt.querySelectorAll('[contenteditable="true"]').length === 0, null, { timeout: 3000 });
+  const ph1 = await page.evaluate(() => ({
+    ds: window.__qt.dataset.text ?? '',
+    isPh: !!window.__qt.querySelector('[data-is-placeholder="true"]'),
+    drawn: window.__qt.querySelector('.tb-qt-line')?.textContent ?? null,
+  }));
+  expect(ph1.ds, `★★안내문구가 ★데이터로 ★굳지 않았다(dataset.text 가 ★빈 채). 잰 값 ${JSON.stringify(ph1.ds)}`).toBe('');
+  expect(ph1.isPh, '★여전히 ★안내문구 표식을 ★달고 그려진다').toBe(true);
+  expect(ph1.drawn, '★그려진 글자는 ★그 안내문구 그대로').toBe(ph0.drawn);
+
+  /* ★★㉣-2 — ★★«손은 댔는데 ★같은 글자»(앞뒤 공백만 더함)도 ★굳지 ★않는다.
+     ★★왜 이 칸이 ★따로 필요한가 — ★★㉣-1 은 ★`text === before` ★하나로 ★통과한다(★실측으로 알았다:
+       `_quoteEndEdit` 의 ★`isPh` 를 ★`false` 로 못박은 ★변이 ★M16 에서 ★㉣-1 이 ★초록이었다).
+     ⇒ ★★`isPh` 가 ★★«유일한 자»인 장면은 ★여기다 — ★글자는 ★달라졌는데(공백) ★뜻은 ★그 안내문구다.
+     ⛔이 줄이 없으면 ★안내문구 지뢰 가드가 ★아무 검사에도 ★안 걸린다(=★지키는 자가 없다). */
+  const lr4 = await waitStableRect(page, '#sQ .quote-block .tb-qt-line');
+  await page.mouse.dblclick(lr4.cx, lr4.cy);
+  await page.waitForFunction(() => window.__qt.querySelector('.tb-qt-body')?.getAttribute('contenteditable') === 'true', null, { timeout: 3000 });
+  const phTxt = await page.evaluate(() => window.__qt.querySelector('.tb-qt-line').textContent);
+  await page.evaluate(() => {
+    const body = window.__qt.querySelector('.tb-qt-body');
+    const sel = window.getSelection(); sel.removeAllRanges();
+    const r = document.createRange(); r.selectNodeContents(body); sel.addRange(r);
+  });
+  await page.keyboard.insertText('  ' + phTxt + '  ');          /* ★같은 글자 ＋ 앞뒤 공백 */
+  await page.evaluate(() => window.__qt.querySelector('.tb-qt-body').blur());
+  await page.waitForFunction(() => window.__qt.querySelectorAll('[contenteditable="true"]').length === 0, null, { timeout: 3000 });
+  const ph2 = await page.evaluate(() => ({
+    ds: window.__qt.dataset.text ?? '',
+    isPh: !!window.__qt.querySelector('[data-is-placeholder="true"]'),
+  }));
+  expect(ph2.ds, `★★«공백만 더한 안내문구»도 ★데이터로 ★굳지 않는다. 잰 값 ${JSON.stringify(ph2.ds)}`).toBe('');
+  expect(ph2.isPh, '★★여전히 ★안내문구다 — ⛔표식이 떨어지면 ★그 블럭은 ★영영 「본문이 안내문구인」 블럭이 된다').toBe(true);
+
+  /* ★★이 마지막 줄은 ★«자»를 위한 꼴이기도 하다 — `tools/assert-strength.mjs:199~203` 이
+     ★본문을 ★«마지막 ★진짜 화살표 뒤의 첫 `{`»부터로 읽어서, ★시험 끝에 ★블록·객체 리터럴이 서면
+     ★이 시험의 ★단언이 ★★0건으로 세어진다(★실측 2026-10-10: 이 칸이 ★n=0 이었다 ⇒ ★게이트가 ★안 재고 있었다).
+     ⇒ ★마지막 화살표를 ★★«블록 없는 식»으로 두면 ★그 자가 ★시험 ★전체를 ★본다.
+     ★그리고 ★`String(e)` 는 ★덤이 아니다 — ★빨강이 났을 때 ★오류 ★꼴을 ★메시지에 ★읽히게 한다.
+     ★까닭 전문은 ★Q10 의 그 머리말에 있다. */
+  expect(errs.map(e => String(e)), '★오류 0').toEqual([]);
+});
+
+/* ══════ 2026-10-10 현빈 1010t2c1-② — 「우측에서는 ★타이포그래피 ★동적으로 ★다른 텍스트블럭처럼 수정되게해줘」 ══════
+   ★★«다른 텍스트블럭»이 ★무엇인가를 ★먼저 ★이름으로 찾았다 — ⛔내가 항목을 ★지어내지 않았다:
+     ★정본 = `js/props/_typo-section.js` 의 ★`buildTypographySectionHtml`(＋`buildFillSectionHtml`)
+       — 머리말 :1 「Typography·Fill 절의 «마크업»이 사는 ★단 하나의 자리」 · ★소비자 ★13파일
+       · `tests/unit/typo-section-ssot.test.mjs` 가 ★그 정본을 쓰는지 잠근다.
+   ★★N 의 출처 — ⛔소스 낱말 grep 이 ★아니다(`id="${p}-…"` 는 ★48건인데 ★줄·그릇이 섞여 거짓양이다).
+     ✅앱에서 ★블럭을 ★만들어 ★고르고 `#panel-right` ★그 절 안의 `input/select/button` 을 ★전수로 셌다
+       (`~/.gd-work/t4quote/run-logs/probe-typo-01.log`):
+         ㉠ ★텍스트블럭(p=`txt`)  Typography ★34(보임 11 · 숨음 23) ＋ Fill ★6
+         ㉡ ★모달(p=`mdl-typo` · ★dataset 이 진실 = ★인용구와 ★같은 꼴) ★11 ＋ ★6
+         ㉢ ★그때의 ★인용구 — Typography/Fill 절이 ★★0(절 제목 전수 = ["인용구(쉼표)","글"]) · «글» 절 ★5칸
+   ★★기준판 = ★㉡ 모달이다 — ㉠의 ★숨은 23칸은 ★부분 서식(선택한 글자만)을 ★전제하고, ★이 블럭의 글은
+     ★`textContent` ★평문으로 dataset 에 살아 ★원리적으로 ★부분 서식이 ★안 된다(모달과 ★같은 한계).
+   ★★모달 11 중 ★★하나(★형광펜 H)를 ★★일부러 ★안 켰다 — ★까닭을 ★이름으로:
+     ★형광펜 ★색의 명부가 ★이미 ★둘(`modal-block.js:326` ＋ `modal-frameify.js:42`)이고
+     `tests/unit/modal-frameify-gates.test.mjs` ★G1 이 ★그 둘만 대조한다 ⇒ ★세 번째 사본은 ★그 게이트 ★밖이다.
+     ⇒ ★그래서 ★★«10 ＋ 안 켠 1»을 ★이 칸이 ★그대로 ★잠근다(⛔「전부」라 적지 않는다). */
+test('Q18 ★★타이포그래피 절 — ★정본에서 나오고(명부) ★닿고 ★눌러서 ★모델과 ★그림을 움직인다 (현빈 1010t2c1-②)', async ({ page }) => {
+  const errs = await setup(page, { text: '안녕' });
+  await openPanel(page);
+
+  /* ── ㉠ ★명부 — ★절이 ★섰나 ＋ ★조종칸 ★전수 ───────────────────────────────── */
+  const cen = await page.evaluate(() => {
+    const p = document.getElementById('panel-right');
+    const titles = [...p.querySelectorAll('.prop-section-title')].map(e => e.textContent.trim());
+    const sec = [...p.querySelectorAll('.prop-section')]
+      .find(s => (s.querySelector('.prop-section-title')?.textContent || '').trim() === 'Typography') || null;
+    const ids = sec ? [...sec.querySelectorAll('input, select, button')].map(e => e.id) : [];
+    return {
+      titles, has: !!sec, ids,
+      /* ⛔한 값에 ★조종칸이 ★둘이면 ★어느 쪽이 참인지 ★사람이 못 안다 — ★옛 쌍은 ★치웠다 */
+      oldFsSlider: p.querySelectorAll('#qt-fontsize-slider, #qt-fontsize-number').length,
+      hlBtn: p.querySelectorAll('#qt-typo-highlight-btn').length,
+      ulBtn: p.querySelectorAll('#qt-typo-underline-btn').length,
+      dotBtn: p.querySelectorAll('#qt-typo-dot-btn').length,
+      sizeMin: document.getElementById('qt-typo-size-number')?.min ?? null,
+      sizeMax: document.getElementById('qt-typo-size-number')?.max ?? null,
+      sizeVal: document.getElementById('qt-typo-size-number')?.value ?? null,
+      weightVal: document.getElementById('qt-typo-font-weight')?.value ?? null,
+    };
+  });
+  expect(cen.has, `★★Typography 절이 ★패널에 ★있어야 한다(⚰️핀 f69c307e 실측 = ★0 · 절 제목 ["인용구(쉼표)","글"]). 잰 제목 ${JSON.stringify(cen.titles)}`).toBe(true);
+  /* ★모달에 있고 ★인용구에 없던 ★그 항목들 — ★하나씩 ★이름으로 */
+  for (const id of ['qt-typo-font-trigger', 'qt-typo-font-search', 'qt-typo-font-noonnu',
+    'qt-typo-font-weight', 'qt-typo-size-number', 'qt-typo-bold-btn', 'qt-typo-italic-btn',
+    'qt-typo-strike-btn', 'qt-typo-lh-number', 'qt-typo-ls-number']) {
+    expect(cen.ids.includes(id), `★조종칸 ★${id} 가 ★있어야 한다. 잰 전수 ${JSON.stringify(cen.ids)}`).toBe(true);
+  }
+  expect(cen.ids.length, `★조종칸 ★10개(모달 11 − ★안 켠 형광펜 1). 잰 값 ${cen.ids.length} · ${JSON.stringify(cen.ids)}`).toBe(10);
+  /* ★★안 켠 것도 ★이름으로 잠근다 — ⛔「눌러도 조용히 아무 일 없음」을 ★만들지 않는다 */
+  expect(cen.hlBtn, '★형광펜(H)은 ★안 켠다 — 색 명부가 이미 둘이다(G1 이 그 둘만 대조)').toBe(0);
+  expect(cen.ulBtn, '★밑줄(U)도 ★안 켠다 — 부분 서식 전제').toBe(0);
+  expect(cen.dotBtn, '★점도 ★안 켠다 — 부분 서식 전제').toBe(0);
+  expect(cen.oldFsSlider, `★옛 «글자 크기» 쌍은 ★치웠다(한 값에 칸 둘 금지). 잰 값 ${cen.oldFsSlider}`).toBe(0);
+  /* ★범위가 ★QUOTE_LIMITS ★한 표에서 왔나 — ⛔리터럴이면 여기서 갈린다 */
+  const lim = await page.evaluate(() => window.QUOTE_LIMITS.fontSize);
+  expect([cen.sizeMin, cen.sizeMax], `★크기 범위는 ★QUOTE_LIMITS 에서 온다(${JSON.stringify(lim)})`).toEqual([String(lim.min), String(lim.max)]);
+  expect(cen.sizeVal, '★크기 칸이 ★지금 값을 비춘다').toBe('21');
+  expect(cen.weightVal, '★굵기 select 가 ★모델(weight=400)을 비춘다').toBe('400');
+
+  /* ── ㉡ ★닿나 (자 ㉢ — Q6·Q14 와 ★같은 자) ────────────────────────────────── */
+  const reach = await page.evaluate(() => {
+    const out = [];
+    for (const id of ['qt-typo-font-trigger', 'qt-typo-font-weight', 'qt-typo-size-number',
+      'qt-typo-bold-btn', 'qt-typo-italic-btn', 'qt-typo-strike-btn', 'qt-typo-lh-number', 'qt-typo-ls-number']) {
+      const el = document.getElementById(id);
+      if (!el) { out.push({ id, missing: true }); continue; }
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      out.push({ id, w: Math.round(r.width), h: Math.round(r.height),
+        reached: !!(hit && (hit === el || el.contains(hit) || hit.closest(`#${id}`) === el)) });
+    }
+    return out;
+  });
+  for (const r of reach) {
+    expect(r.missing, `★${r.id} 가 ★없다`).toBeUndefined();
+    expect(r.w > 0 && r.h > 0, `★${r.id} 의 ★면적이 ★0 이다(${r.w}×${r.h}) — ★규칙이 아니라 ★면적 문제다`).toBe(true);
+    expect(r.reached, `★${r.id} 의 ★가운데를 ★elementFromPoint 가 ★그것으로 ★안 돌려줬다 ⇒ ★안 눌린다. 잰 값 ${JSON.stringify(r)}`).toBe(true);
+  }
+
+  /* ── ㉢ ★★불리나 ＋ ★맞는 갈래인가 — ★모델 ＋ ★그려진 CSS 를 ★같이 잰다 ──────── */
+  const lineCss = () => page.evaluate(() => {
+    const l = window.__qt.querySelector('.tb-qt-line');
+    const m = window.__qt.querySelector('.tb-qt-mark');
+    const cs = getComputedStyle(l), ms = getComputedStyle(m);
+    return {
+      weight: cs.fontWeight, style: cs.fontStyle, deco: cs.textDecorationLine,
+      lh: cs.lineHeight, ls: cs.letterSpacing, size: cs.fontSize, family: cs.fontFamily,
+      markWeight: ms.fontWeight,                 /* ★음성대조용 — 부호는 ★안 따라와야 한다 */
+      ds: { ...window.__qt.dataset },
+    };
+  });
+  const base = await lineCss();
+  expect(base.weight, '★전제 — 지금 굵기 400').toBe('400');
+  expect(base.style, '★전제 — 기울임 아님').toBe('normal');
+  expect(base.deco, '★전제 — 취소선 아님').toBe('none');
+
+  /* ★B — ★진짜 클릭 */
+  /* ⚠️★`{sel:'#id'}` 를 ★쓰면 안 된다 — `_click-at.js:22` 가 ★`#id` 꼴일 때만 ★«맞힌 요소 자체»의 id 를 본다.
+     ★이 단추들은 ★속에 ★`<b>`·`<i>`·`<s>` 를 품어 ★맞히는 것이 ★그 자식이다(실측 2026-10-10: 「맞힌 요소 «»」).
+     ⇒ ★`[id="…"]` 꼴로 주면 ★`closest` 갈래로 가서 ★조상까지 ★본다. */
+  const clickId = async (id) => {
+    const r = await page.evaluate((i) => { const b = document.getElementById(i).getBoundingClientRect(); return { cx: b.left + b.width / 2, cy: b.top + b.height / 2 }; }, id);
+    await clickAt(page, r.cx, r.cy, { sel: `[id="${id}"]` }, { label: `Q18 ${id}` });
+  };
+  await clickId('qt-typo-bold-btn');
+  const b1 = await lineCss();
+  expect(b1.ds.bold, '★B 가 ★모델에 썼다').toBe('1');
+  expect(b1.weight, `★★B 가 ★그려졌다(700). 잰 값 ${b1.weight}`).toBe('700');
+  expect(b1.markWeight, `★★음성대조 — ★부호 굵기는 ★안 따라온다. 잰 값 ${b1.markWeight} (전 ${base.markWeight})`).toBe(base.markWeight);
+  await clickId('qt-typo-bold-btn');                       /* 다시 눌러 끈다 */
+  const b2 = await lineCss();
+  expect(b2.ds.bold, '★다시 누르면 ★키가 ★지워진다(모델 한 표로 떨어진다)').toBe(undefined);
+  expect(b2.weight, '★★끄면 ★400 으로 돌아온다 — ⛔켜기만 되면 ★반쪽이다').toBe('400');
+
+  /* ★I · ★S */
+  await clickId('qt-typo-italic-btn');
+  const i1 = await lineCss();
+  expect(i1.ds.italic, '★I 가 ★모델에 썼다').toBe('1');
+  expect(i1.style, `★★기울임이 ★그려졌다. 잰 값 ${i1.style}`).toBe('italic');
+  await clickId('qt-typo-strike-btn');
+  const s1 = await lineCss();
+  expect(s1.ds.strike, '★S 가 ★모델에 썼다').toBe('1');
+  expect(/line-through/.test(s1.deco), `★★취소선이 ★그려졌다. 잰 값 ${s1.deco}`).toBe(true);
+
+  /* ★굵기 select — ★`weight` ★그 키에 써야 한다(⛔`fontWeight` 라는 둘째 키를 만들면 여기서 빨강) */
+  await page.evaluate(() => {
+    const s = document.getElementById('qt-typo-font-weight');
+    s.value = '700'; s.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  const w1 = await lineCss();
+  expect(w1.ds.weight, `★굵기 select 가 ★`+'`weight`'+`★그 키에 썼다. 잰 dataset ${JSON.stringify({ weight: w1.ds.weight, fontWeight: w1.ds.fontWeight })}`).toBe('700');
+  expect(w1.ds.fontWeight, '⛔둘째 키(`fontWeight`)를 ★만들지 않았다').toBe(undefined);
+  expect(w1.weight, '★그려졌다').toBe('700');
+
+  /* ★크기 · ★줄간격 · ★자간 — ★숫자칸은 ★change 로 커밋한다(prop-number-commit-guard 규약) */
+  const setNum = async (id, v) => page.evaluate(({ i, val }) => {
+    const n = document.getElementById(i);
+    n.value = String(val); n.dispatchEvent(new Event('change', { bubbles: true }));
+  }, { i: id, val: v });
+  await setNum('qt-typo-size-number', 48);
+  await setNum('qt-typo-lh-number', 2);
+  await setNum('qt-typo-ls-number', 5);
+  const n1 = await lineCss();
+  expect(n1.ds.fontSize, '★크기가 ★모델에 썼다').toBe('48');
+  expect(n1.size, `★크기가 ★그려졌다. 잰 값 ${n1.size}`).toBe('48px');
+  expect(n1.ds.lineHeight, '★줄간격이 ★모델에 썼다').toBe('2');
+  expect(Math.round(parseFloat(n1.lh)), `★★줄간격 2 = ★크기 48 의 ★두 배(96px)로 ★그려졌다. 잰 값 ${n1.lh}`).toBe(96);
+  expect(n1.ds.letterSpacing, '★자간이 ★모델에 썼다').toBe('5');
+  expect(n1.ls, `★자간이 ★그려졌다. 잰 값 ${n1.ls}`).toBe('5px');
+  /* ★한도 밖은 ★표에 맞춰 ★접힌다(⛔칸이 보이는 범위와 ★실제가 갈리지 않는다) */
+  await setNum('qt-typo-size-number', 9999);
+  const n2 = await page.evaluate(() => ({ ds: window.__qt.dataset.fontSize, shown: document.getElementById('qt-typo-size-number').value }));
+  const lim2 = await page.evaluate(() => window.QUOTE_LIMITS.fontSize.max);
+  expect(n2.ds, `★한도(${lim2})로 접힌다`).toBe(String(lim2));
+  expect(n2.shown, '★★칸에도 ★되썼다 — ⛔보이는 값과 ★실제가 갈리지 않는다').toBe(String(lim2));
+
+  /* ★글꼴 — ★위젯이 ★배선됐나(★누르면 ★목록이 열린다) ＋ ★고르면 ★모델·그림에 닿나 */
+  await clickId('qt-typo-font-trigger');
+  const dd = await page.evaluate(() => {
+    const d = document.getElementById('qt-typo-font-dropdown');
+    return { shown: d ? getComputedStyle(d).display : null, items: d ? d.querySelectorAll('.font-picker-list *').length : 0 };
+  });
+  expect(dd.shown, `★★글꼴 ★목록이 ★열려야 한다(⛔안 열리면 ★wireFontPicker 가 ★안 돌았다). 잰 값 ${dd.shown}`).not.toBe('none');
+  expect(dd.items > 0, `★목록에 ★항목이 ★있다. 잰 값 ${dd.items}`).toBe(true);
+  /* ⚠️★고르기는 ★`mousedown` 이다(`_font-picker.js:175` — `_fpList.addEventListener('mousedown', …)`).
+     ⇒ ⛔`el.click()` 로는 ★안 걸린다(실측 2026-10-10: dataset.fontFamily 가 ★빈 채였다).
+     ⇒ ★진짜 마우스로 ★그 항목을 ★누른다(= ★사람이 하는 순서). */
+  const item = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('#qt-typo-font-dropdown .font-item')]
+      .find(e => /Inter/.test(e.dataset.value || ''));
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    el.scrollIntoView({ block: 'nearest' });
+    const r2 = el.getBoundingClientRect();
+    return { cx: r2.left + Math.min(40, r2.width / 3), cy: r2.top + r2.height / 2, val: el.dataset.value, h: Math.round(r.height) };
+  });
+  expect(item, '★전제 — 목록에서 ★`.font-item[data-value*=Inter]` 를 찾았다').not.toBe(null);
+  await clickAt(page, item.cx, item.cy, { sel: '.font-item' }, { label: 'Q18 글꼴 Inter' });
+  await page.waitForFunction(() => /Inter/.test(window.__qt.dataset.fontFamily || ''), null, { timeout: 3000 })
+    .catch(() => { throw new Error('★글꼴을 ★골랐는데 ★모델(dataset.fontFamily)이 ★안 바뀌었다 — ★배선(onPick)을 보라'); });
+  const picked = await page.evaluate(() => ({
+    ds: window.__qt.dataset.fontFamily || '',
+    family: getComputedStyle(window.__qt.querySelector('.tb-qt-line')).fontFamily,
+  }));
+  expect(/Inter/.test(picked.ds), `★★고른 글꼴이 ★모델에 썼다. 잰 값 「${picked.ds}」`).toBe(true);
+  expect(/Inter/.test(picked.family), `★★그려졌다. 잰 값 「${picked.family}」`).toBe(true);
+
+  /* ── ㉣ ★왕복 — ★새 키 ★전부가 ★저장 왕복(rebindAll 재렌더)을 ★산다 ───────────── */
+  const rt = await page.evaluate(() => {
+    const b = window.__qt;
+    const snap = { fontFamily: b.dataset.fontFamily, weight: b.dataset.weight, fontSize: b.dataset.fontSize,
+      lineHeight: b.dataset.lineHeight, letterSpacing: b.dataset.letterSpacing,
+      italic: b.dataset.italic, strike: b.dataset.strike };
+    const host = b.closest('.row');
+    host.innerHTML = b.outerHTML;
+    window.rebindAll && window.rebindAll();
+    const nb = host.querySelector('.quote-block');
+    window.__qt = nb;
+    const cs = getComputedStyle(nb.querySelector('.tb-qt-line'));
+    return { snap, now: { fontFamily: nb.dataset.fontFamily, weight: nb.dataset.weight, fontSize: nb.dataset.fontSize,
+      lineHeight: nb.dataset.lineHeight, letterSpacing: nb.dataset.letterSpacing,
+      italic: nb.dataset.italic, strike: nb.dataset.strike },
+      css: { weight: cs.fontWeight, style: cs.fontStyle, ls: cs.letterSpacing, size: cs.fontSize } };
+  });
+  expect(rt.now, `★★왕복 뒤에도 ★일곱 칸이 ★그대로다. 전 ${JSON.stringify(rt.snap)} / 후 ${JSON.stringify(rt.now)}`).toEqual(rt.snap);
+  expect(rt.css.weight, '★왕복 뒤 ★다시 그려져 ★굵기가 산다').toBe('700');
+  expect(rt.css.style, '★기울임도 산다').toBe('italic');
+  expect(rt.css.ls, '★자간도 산다').toBe('5px');
+
+  /* ★★이 마지막 줄은 ★«자»를 위한 꼴이기도 하다 — `tools/assert-strength.mjs:199~203` 이
+     ★본문을 ★«마지막 ★진짜 화살표 뒤의 첫 `{`»부터로 읽어서, ★시험 끝에 ★블록·객체 리터럴이 서면
+     ★이 시험의 ★단언이 ★★0건으로 세어진다(★실측 2026-10-10: 이 칸이 ★n=0 이었다 ⇒ ★게이트가 ★안 재고 있었다).
+     ⇒ ★마지막 화살표를 ★★«블록 없는 식»으로 두면 ★그 자가 ★시험 ★전체를 ★본다.
+     ★그리고 ★`String(e)` 는 ★덤이 아니다 — ★빨강이 났을 때 ★오류 ★꼴을 ★메시지에 ★읽히게 한다.
+     ★까닭 전문은 ★Q10 의 그 머리말에 있다. */
+  expect(errs.map(e => String(e)), '★오류 0').toEqual([]);
 });
