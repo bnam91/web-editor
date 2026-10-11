@@ -54,6 +54,11 @@ function byCreatedAtDesc(a, b) {
   if (kb === null) return -1;           // ★b 를 ★뒤로
   if (kb !== ka) return kb - ka;         // ★최신이 ★앞
   /* ★★동점 깨기 — ★`id` 는 ★시각과 ★무관한 ★안정 축이다(★같은 입력이면 ★같은 순서) */
+  /* ★★★정정(지디 ⚠️ · 2026-10-11) — ★★위 줄의 ★★«시각과 ★무관»이 ★★틀렸다. ⛔윗줄은 ★남겨 둔다.
+       ★참값: ★템플릿 id 는 ★★`tpl_<Date.now()>…` 꼴이라 ★★★id 도 ★ms 를 ★품는다 ⇒ ★★시각과 ★무관하지 ★않다.
+       ⇒ ★★그래서 ★★이 축으로는 ★★«ms 보다 ★잘게» ★★못 가른다 — ★★★같은 ms 면 ★이 축도 ★시각을 ★안 더해 준다.
+       ★★그럼 ★왜 ★쓰나: ★★«전순서가 ★있고 ★안정»하기 ★때문이다 — ★★같은 입력에 ★★같은 차례를 ★보장한다.
+       ⛔«더 ★정밀한 ★시각 ★축»으로 ★읽지 ★마라. ★★마이크로초를 ★가르는 자는 ★★위의 ★`createdAtKey` ★하나다. */
   return String((b && b.id) || '').localeCompare(String((a && a.id) || ''));
 }
 
@@ -68,3 +73,16 @@ function byCreatedAtDesc(a, b) {
  *     ★`window.assetsImportFromGallery`(:1305) */
 window.galleryCreatedAtKey = createdAtKey;
 window.galleryByCreatedAtDesc = byCreatedAtDesc;
+
+/* ★★★중립 이름 ★별칭 — ★★이 두 자는 ★★«갤러리»의 것이 ★아니다.
+ *   ★읽는 필드 = ★`createdAt` ★하나이고, ★★템플릿 레코드도 ★★같은 필드를 ★쓴다(★실측).
+ *   ⇒ ★★설계 F(★템플릿 ★정렬)가 ★★이 비교자를 ★그대로 ★쓴다 ⇒ ★★`gallery*` 라는 ★이름이
+ *     ★★«범위»를 ★거짓으로 ★말하게 ★된다.
+ *   ⇒ ★★그래서 ★★중립 이름을 ★★하나 ★더 ★단다. ⛔기존 두 소비자
+ *     (`ai-image-gallery.js` · `assets-panel.js`)는 ★★한 글자도 ★안 고쳤다 —
+ *     ★★개명은 ★★이 묶음의 ★일이 ★아니다(★그건 ★범위를 ★넓힌다).
+ *   ⚠️⛔«복제»가 ★아니다 — ★★같은 함수 ★객체를 ★가리키는 ★이름 ★둘이다.
+ *     ⇒ ★★`window.byCreatedAtDesc === window.galleryByCreatedAtDesc` 가 ★★참이어야 한다
+ *       (★검사가 ★그 항등을 ★잠근다 — ⛔아니면 ★★명부가 ★둘이 된다). */
+window.byCreatedAtDesc = byCreatedAtDesc;
+window.createdAtKey = createdAtKey;

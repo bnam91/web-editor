@@ -12,6 +12,16 @@ let _browserSearchQ   = '';
    ★★기본은 ★`'all'` — ★★옛 동작(★넷 ★전부를 ★본다)과 ★★같은 답이다 ⇒ ★★기본 쓰임이 ★안 바뀐다. */
 let _browserSearchMode = 'all';
 
+/* ★★정렬 ★열쇠 — ★★`_browserFilter` ★★«옆»이다. ⛔★그 안에 ★넣지 ★마라.
+   ★★★까닭(t4quote 가 ★짚은 ★이 설계의 ★가장 ★숨은 ★함정): ★트리 클릭이 ★`_browserFilter` 를
+     ★★통째로 ★갈아친다(`:217`·`:233`·`:205` 의 ★`_browserFilter = { ... }`)
+   ⇒ ★★안에 ★넣으면 ★★폴더를 ★고를 때마다 ★정렬이 ★★조용히 ★초기화된다.
+   ⇒ ★★검사 ★F4 가 ★바로 ★그걸 ★잰다.
+   ⚠️★`'recent'` 를 ★★글자로 ★적은 ★까닭 — ★★이 줄은 ★★모듈 ★평가 ★시점에 ★돈다.
+     ★★`window.tplSortDefault` 를 ★여기서 ★읽으면 ★★싣는 ★차례에 ★매달린다.
+     ⇒ ★★대신 ★★검사가 ★★«이 글자 == `tplSortDefault`»를 ★잠근다. */
+let _browserSort = 'recent';
+
 /* ── 패널 크기 한계 ── ★리사이즈 핸들과 「창에서 되돌아온 크기」가 «같은» 한계를 써야 한다.
    따로 두면 떼었다 붙일 때마다 서로 다른 값으로 잘려 크기가 야금야금 어긋난다. */
 const TPL_MIN_W = 280, TPL_MAX_W = 700;
@@ -55,6 +65,12 @@ function openTemplateBrowser() {
   _browserSearchMode = 'all';
   const _searchMode = document.getElementById('tpl-browser-search-mode');
   if (_searchMode) _searchMode.value = 'all';
+  /* ★★정렬 ★열쇠도 ★같이 ★되돌린다 ＋ ★★`<option>` 을 ★★명부에서 ★그린다.
+     ⇒ ★★HTML 엔 ★빈 `<select>` 만 두고 ★★목록은 ★★`_tpl-sort.js` 가 ★쥔다
+       ⇒ ★★두 창의 ★마크업이 ★★명부와 ★갈라질 ★수가 ★없다. */
+  _browserSort = window.tplSortDefault || 'recent';
+  const _sortSel = document.getElementById('tpl-browser-sort');
+  if (_sortSel) _sortSel.innerHTML = window.tplSortOptionsHtml(_browserSort);
   _renderBrowserTree();
   _renderBrowserCards();
   _syncInsertBtn();
@@ -399,6 +415,11 @@ function _renderBrowserCards() {
   if (_browserFilter.tag) {
     templates = templates.filter(t => (t.tags || []).includes(_browserFilter.tag));
   }
+
+  /* ★★정렬 — ★★«거르기가 ★전부 ★끝난 ★뒤», ★배지·그리기 ★앞. ★식은 ★`_tpl-sort.js` ★한 자리.
+     ★★기본 `recent` 는 ★★«지금 차례»와 ★같은 뜻이다 — ★`saveAsTemplate` 가 ★`unshift` 하므로
+     ★배열 순서가 ★이미 ★«최근 추가 ★내림차순»이다. ⇒ ★★보이는 차례를 ★안 바꾼다(★검사 F1). */
+  templates = window.tplSortApply(templates, _browserSort);
 
   // 검색 중 배지 — 트리 카운트(전수)와 카드 개수가 왜 다른지 화면에 글자로 남긴다.
   // 기존 태그칩 바(.tpl-browser-tag-chips)와 칩(.tb-tag-chip)을 그대로 재사용 — 새 CSS 없음.
@@ -1010,6 +1031,12 @@ function initTemplateBrowser() {
          ⇒ ★★내 교훈 「★«없다»를 ★고장난 계측기로 ★재지 ★마라」의 ★또 한 판.
      ★★검색어가 ★비어 있어도 ★★다시 그린다 — ⛔「비었으니 ★같은 화면」은 ★★거짓이다:
         ★모드를 ★바꾸면 ★★배지·태그칩이 ★★다시 서야 한다. */
+  /* ★★정렬 ★고르기 — ★`change` ★한 자리. ⛔`_browserFilter` 를 ★건드리지 ★않는다(★F4) */
+  document.getElementById('tpl-browser-sort')?.addEventListener('change', e => {
+    _browserSort = e.target.value || (window.tplSortDefault || 'recent');
+    _renderBrowserCards();
+  });
+
   document.getElementById('tpl-browser-search-mode')?.addEventListener('change', e => {
     _browserSearchMode = e.target.value || 'all';
     _renderBrowserCards();

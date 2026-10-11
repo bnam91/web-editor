@@ -912,6 +912,9 @@
   </div>
   <!-- 검색 바 + 섹션 추가 버튼 (중간) -->
   <div class="tpl-browser-search-wrap">
+    <select class="tpl-browser-search-mode" id="tpl-browser-sort" title="정렬 기준">
+      <!-- ★★비어 있다 — ★★`<option>` 은 ★`_tpl-sort.js` 의 ★명부에서 ★그린다(⛔두 벌로 두지 않는다) -->
+    </select>
     <select class="tpl-browser-search-mode" id="tpl-browser-search-mode" title="검색 기준">
       <option value="all">전체</option>
       <option value="name">파일명</option>
@@ -1049,6 +1052,7 @@
 <script type="module" src="js/effects-shadow.js"></script><!-- ★Effects 식구② 그림자(도형·에셋만 — 텍스트는 제 「Shadow」 절이 있다) -->
 <script type="module" src="js/effects-particles.js"></script><!-- ★Effects 식구③ 섹션 배경 파티클(명부에서 watchAll «문만» 빌린다 · supports:false 라 블럭 패널엔 안 뜬다) -->
 <script type="module" src="js/panels/template-system.js"></script>
+<script src="js/panels/_tpl-sort.js"></script><!-- ★정렬 명부 한 자리(F) — ★고전 스크립트 · ★_gallery-sort 의 비교자를 쓴다 -->
 <script src="js/panels/_tpl-search.js"></script><!-- ★검색 식 한 자리(모드×AND) — ⛔고전 스크립트다(별창이 같은 자를 쓴다) · template-browser.js 보다 ★먼저 -->
 <script type="module" src="js/panels/template-browser.js"></script>
 <script type="module" src="js/branch-system.js"></script>
