@@ -380,19 +380,78 @@ function _bodyEl(block, st, lines) {
        ★다음 사람이 「왜 줄마다 부호가 없나」를 물을 때 ★이 줄이 답이다.
      ★실측(2026-10-09 · 좌표로): 옛 판에서 ★한 줄 글은 inline 도 stack 도 ★둘 다 ★3열×1행이었다
        (cx 329/717/1105 → 675/717/759 — ★간격만 좁아지고 ★축이 ★안 돌았다). ⇒ 현빈 말 그대로다. */
+/* ★★★인용구 «밑» 자식 블럭 그릇 — ★`1011t1C` (현빈 「★안쪽에 ★텍스트 블럭처럼 ★되면되는거 ★아냐?」 ⇒ ★갈래 ★ㄷ)
+   ★★선례 = ★G19 ★그리드(`js/grid-children.js` · `.grd-children`) ＋ ★원형(`js/icb-children.js`).
+     ⇒ ★★이름 꼴도 ★그 둘과 ★같게 ★`qt-children` 으로 둔다(⛔새 꼴을 ★만들지 ★않는다).
+   ★★★그릇은 ★★«자식이 ★하나라도 ★있을 때만» ★있다 — ★자식 0개면 ★DOM 이 ★★`1011t1C` ★이전과 ★★바이트 ★같다.
+     ★★그 약속을 ★지키는 자 = ★★공용 ★`replaceShellKeepChildren`(`js/blocks/grid-block.js`)이고
+     ★★그 함수 ★머리말이 ★★스스로 ★이렇게 적어 뒀다:
+       「★그리드가 ★첫 손님이다 … ★모달도 ★같은 병인데 … ★★같은 함수를 ★window 로도 ★내 둔다」
+     ⇒ ★★★인용구가 ★셋째 손님이다. ⛔제 벌을 ★만들지 ★않는다(★그러면 ★명부가 ★둘이다).
+   ★★★왜 ★«안쪽 래퍼»(`qt-inner`)가 ★필요한가 — ★★그리드와 ★구조가 ★다르다:
+     ★그리드는 ★블럭이 ★★흐름이고 ★격자가 ★`.grd-inner` ★안에 ★있다 ⇒ ★그릇을 ★그 뒤에 ★붙이면 ★끝이다.
+     ★★인용구는 ★★블럭 ★자신이 ★`display:grid` 이고 ★칸이 ★★정확히 ★3개다(앞부호·글·뒤부호)
+       ⇒ ★그릇을 ★그 안에 ★넣으면 ★★암시 칸이 ★생겨 ★★격자가 ★깨진다(★실측: `childElementCount` ★3 · `display: grid`).
+     ⇒ ★★그래서 ★자식이 ★있을 때만 ★블럭을 ★흐름으로 ★돌리고 ★격자를 ★`qt-inner` 로 ★내린다.
+   ★★★자식 0개에서는 ★★래퍼도 ★만들지 ★않는다 — ★★«옛 저장본 ★무변화»가 ★그래서 ★담보된다.
+     ★실측(★옛 저장본 ★5벌 · ⛔읽기만): ★로드 뒤 ★`outerHTML` 해시를 ★떠 뒀고 ★이 변경 ★뒤에 ★같은 자로 ★다시 잰다. */
+const QT_CHILDREN_CLASS = 'qt-children';
+
+/** ★그릇 ★조회 — ⛔만들지 ★않는다. ★`gridKidsBox` 와 ★같은 꼴. */
+export function quoteKidsBox(block) {
+  if (!block || !block.children) return null;
+  for (const ch of block.children) if (ch.classList?.contains(QT_CHILDREN_CLASS)) return ch;
+  return null;
+}
+/** ★그릇의 ★직계 자식(★드롭 표시선은 ★뺀다) — ★`gridKids` 와 ★같은 꼴. */
+export function quoteKids(block) {
+  const box = quoteKidsBox(block);
+  return box ? [...box.children].filter(k => !k.classList.contains('drop-indicator')) : [];
+}
+/** ★그릇을 ★없으면 ★만든다 — ★`ensureGridKidsBox` 와 ★같은 꼴. ⛔렌더러는 ★이걸 ★안 부른다(★넣는 쪽이 부른다). */
+export function ensureQuoteKidsBox(block) {
+  let box = quoteKidsBox(block);
+  if (box) return box;
+  box = document.createElement('div');
+  box.className = QT_CHILDREN_CLASS;
+  block.appendChild(box);
+  return box;
+}
+
 function renderQuoteBlock(block) {
   if (!block) return;
   const st = _qtState(block);
   const lines = quoteLines(block);
 
-  block.innerHTML = '';
+  /* ★★★자식 그릇을 ★남기고 ★껍데기만 ★간다 — ★공용 함수 ★하나로.
+     ★★빈 html 을 ★주는 까닭: ★이 렌더러는 ★조각을 ★★«노드»로 ★짓는다(★문자열이 ★아니다)
+       ⇒ ★그 함수가 ★★«지우기»와 ★«그릇 남기기»만 ★해 주고, ★조각은 ★아래에서 ★붙인다.
+     ★돌려주는 것 = ★남긴 그릇(★없거나 ★비었으면 ★`null` ＋ ★`block.innerHTML = ''`) ⇒ ★★옛 줄 그대로.
+     ⛔`window` 를 ★거치는 까닭 = ★그 함수 머리말의 ★그 규약(★단위시험 ★15벌이 ★grid-block.js 를 ★tmp 로 ★복사한다).
+       ★★그래서 ★★없을 때를 ★★단언으로 ★막는다 — ⛔조용히 ★제 벌로 ★떨어지면 ★★명부가 ★둘이 된다. */
+  const _keep = window.replaceShellKeepChildren;
+  if (typeof _keep !== 'function') {
+    /* ★★«조용히 아무 일 없음»을 ★만들지 ★않는다 — ★여기까지 왔다면 ★로드 순서가 ★깨진 것이다. */
+    console.error('[quote] window.replaceShellKeepChildren 이 없다 — js/blocks/grid-block.js 로드를 보라');
+    block.innerHTML = '';
+  }
+  const kidsBox = (typeof _keep === 'function') ? _keep(block, '', QT_CHILDREN_CLASS) : null;
+  /* ★★자식이 ★있으면 ★격자를 ★`qt-inner` 로 ★내린다. ★없으면 ★★옛 꼴 ★그대로(★블럭이 ★격자). */
+  const host = kidsBox ? document.createElement('div') : block;
+  if (kidsBox) {
+    host.className = 'qt-inner';
+    block.insertBefore(host, kidsBox);
+    /* ★블럭은 ★흐름이 된다 — ★그릇이 ★그 뒤에 ★흐름으로 ★쌓여 ★상자가 ★자식만큼 ★자란다(★G19 와 ★같은 뜻). */
+    block.style.cssText = 'box-sizing:border-box;position:relative;display:block;';
+  }
   if (st.layout === 'stack') {
     const rows = [st.preOn ? 'auto' : null, 'minmax(0,auto)', st.postOn ? 'auto' : null].filter(Boolean).join(' ');
-    block.style.cssText = 'box-sizing:border-box;position:relative;display:grid;'
+    /* ★★`host` = ★자식이 ★없으면 ★`block` ★자신(★옛 꼴 그대로) · ★있으면 ★`qt-inner` */
+    host.style.cssText = 'box-sizing:border-box;position:relative;display:grid;'
       + `justify-items:${_qtSide(st.align)};grid-template-rows:${rows};row-gap:${st.gap}px;`;
-    if (st.preOn) block.appendChild(_markEl(st, 'pre'));
-    block.appendChild(_bodyEl(block, st, lines));
-    if (st.postOn) block.appendChild(_markEl(st, 'post'));
+    if (st.preOn) host.appendChild(_markEl(st, 'pre'));
+    host.appendChild(_bodyEl(block, st, lines));
+    if (st.postOn) host.appendChild(_markEl(st, 'post'));
     return;
   }
 
@@ -413,12 +472,13 @@ function renderQuoteBlock(block) {
        ⚰️Q3 「끈 쪽은 칸째 빠져 ★글 칸이 그만큼 ★넓어진다」(시안 ⒟) — ★글 칸은 이제 ★글폭이다
        ⚰️Q10 inline 음성대조 「★앞부호는 ★안 움직인다」 — ★이제 ★셋이 ★같이 움직인다(그래야 gap 이 뜻을 가진다) */
   const cols = [st.preOn ? 'auto' : null, 'minmax(0,auto)', st.postOn ? 'auto' : null].filter(Boolean).join(' ');
-  block.style.cssText = 'box-sizing:border-box;position:relative;display:grid;'
+  /* ★★`host` = ★자식이 ★없으면 ★`block` ★자신(★옛 꼴 그대로) · ★있으면 ★`qt-inner` */
+  host.style.cssText = 'box-sizing:border-box;position:relative;display:grid;'
     + `align-items:${_qtVSide(st.vAlign)};justify-content:${_qtSide(st.align)};`
     + `grid-template-columns:${cols};column-gap:${st.gap}px;`;
-  if (st.preOn) block.appendChild(_markEl(st, 'pre'));
-  block.appendChild(_bodyEl(block, st, lines));
-  if (st.postOn) block.appendChild(_markEl(st, 'post'));
+  if (st.preOn) host.appendChild(_markEl(st, 'pre'));
+  host.appendChild(_bodyEl(block, st, lines));
+  if (st.postOn) host.appendChild(_markEl(st, 'post'));
 }
 
 function makeQuoteBlock(opts = {}) {
@@ -517,6 +577,13 @@ window.commitQuoteText = commitQuoteText;
 window.quoteLines = quoteLines;
 window.quoteShapeOf = quoteShapeOf;
 window.quoteIsPlaceholder = quoteIsPlaceholder;
+/* ★★자식 그릇 셋 — ★`window` 로 ★낸다(★`gridKidsBox`·`icbKidsBox` 와 ★★같은 꼴).
+   ★소비자 = ★패널 입구 · ★레이어 패널 · (★앞으로) ★드롭 다리 · ★내보내기.
+   ⛔부르는 쪽이 ★제 벌로 ★그릇을 ★찾지 ★마라 — ★그러면 ★명부가 ★둘이 된다. */
+window.quoteKidsBox = quoteKidsBox;
+window.quoteKids = quoteKids;
+window.ensureQuoteKidsBox = ensureQuoteKidsBox;
+window.QT_CHILDREN_CLASS = QT_CHILDREN_CLASS;
 window.QUOTE_SHAPES = QUOTE_SHAPES;
 window.quoteShapesAll = quoteShapesAll;   // ★부호 ★한 명부(제품 8종 ＋ 사용자 것) — 검사·패널이 같이 본다
 window.quoteUserShapes = quoteUserShapes;
@@ -530,4 +597,6 @@ export {
   quoteLines, quoteShapeOf, quoteIsPlaceholder, _qtState,
   /* ★quoteShapesAll·quoteUserShapes 는 ★선언 자리에서 `export function` 으로 나간다 — ⛔여기 또 적으면 중복 export 다 */
   QUOTE_SHAPES, QUOTE_SHAPE_KEYS, QUOTE_DEFAULTS, QUOTE_LIMITS, clampQuote,
+  /* ★quoteKidsBox·quoteKids·ensureQuoteKidsBox 는 ★선언 자리에서 `export function` 으로 나간다 */
+  QT_CHILDREN_CLASS,
 };

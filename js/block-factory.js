@@ -1968,6 +1968,54 @@ function addCircleChild(circle, kind = 'body') {
 }
 window.addCircleChild = addCircleChild;
 
+/* ═══ ★`1011t1C` 「＋ 블럭 넣기 ▾」 — ★인용구 «밑»(.qt-children)에 ★블럭 하나를 넣는다 ═══════════════
+ * ★현빈 원문: 「★안쪽에 ★텍스트 블럭처럼 ★되면되는거 ★아냐?」 ⇒ ★갈래 ★ㄷ(★지디·현빈 판정 2026-10-11)
+ * ★★★길은 ★`addGridChild`·`addCircleChild` 와 ★★같다 — ★`_insertToFlowFrame(opts.into)` ★그대로. ⛔새 길 금지.
+ *   ★그릇은 ★★«넣기 직전»(pushHistory 뒤)에 만든다 — ★`ensureQuoteKidsBox`(js/blocks/quote-block.js).
+ * ★★삽입 래퍼 ★둘이 ★감싼다(★끝 표본 · ★새 블럭 선택) — ★그 로스터는 ★`js/insert-history.js` 의 ★`EXTRA` ★한 줄이고
+ *   ★★이름이 ★`…Block` 이 ★아니라서 ★★거기 ★같이 적어야 ★한다(★그 두 선례와 ★같은 까닭).
+ *   ⛔입구 ★안에서 ★끝 표본·선택을 ★따로 하지 ★않는다(js/CLAUDE.md 의 그 규약).
+ * ★★★왜 ★이 기능이 ★필요한가 — ★`1011t1C` 의 ★뜻이 ★바로 ★이것이다:
+ *   ★인용구 ★안에 ★★텍스트 블럭이 ★서면 ★★밑줄(U)·형광펜(H)·점이 ★★«다시 만들 것 없이» ★온다
+ *   (★그 셋은 ★텍스트 패널이 ★이미 ★들고 있다 — `js/props/prop-text-template.js`).
+ * @param {string|Element} quote  인용구 블럭(또는 id)
+ * @param {'body'|'h2'|'image'|'gap'} kind */
+export const QUOTE_CHILD_KINDS = ['body', 'h2', 'image', 'gap'];
+function addQuoteChild(quote, kind = 'body') {
+  const q = typeof quote === 'string' ? document.getElementById(quote) : quote;
+  if (!q || !q.classList?.contains('quote-block') || !QUOTE_CHILD_KINDS.includes(kind)) return null;
+  let made = null;
+  _insertToFlowFrame(() => {
+    if (kind === 'gap') {
+      const gb = makeGapBlock();
+      gb.style.height = '40px'; gb.dataset.h = 40;
+      made = gb;
+      return gb;
+    }
+    if (kind === 'image') {
+      const r = makeAssetBlock();
+      made = r.block;
+      return r;
+    }
+    const { block } = makeTextBlock(kind);
+    const tf = _makeTextFrame();
+    applyTextOpts(block, tf, {}, kind);
+    tf.appendChild(block);
+    made = block;
+    return { row: tf, block };
+  }, { into: () => window.ensureQuoteKidsBox(q) });
+  /* ★★그릇이 ★생겼으니 ★★다시 그린다 — ★렌더러가 ★«자식이 있다»를 보고 ★`qt-inner` 로 ★격자를 ★내린다.
+     ⛔없으면 ★격자에 ★그릇이 ★네 번째 칸으로 ★끼어 ★★칸이 ★어긋난다(★그 파일 머리말의 ★그 까닭). */
+  if (made) window.renderQuoteBlock?.(q);
+  return made ? { block: made } : null;
+}
+window.addQuoteChild = addQuoteChild;
+/* ★★종류 ★명부를 ★`window` 로 ★낸다 — ★★패널이 ★★이 ★한 자리에서 ★파생한다.
+   ★선례 = ★`js/icb-children.js` 의 ★`ICB_CHILD_KINDS`(★거기도 ★window 로 낸다).
+   ⚠️★그리드는 ★그러지 ★않아서 ★`js/props/prop-grid.js` 가 ★★제 벌(`_GRD_KID_KINDS`)을 ★들고 있다
+     ⇒ ★★거기는 ★명부가 ★둘이다. ⛔인용구는 ★그 꼴을 ★★따르지 ★않는다(★이름으로 적어 둔다). */
+window.QUOTE_CHILD_KINDS = QUOTE_CHILD_KINDS;
+
 function addFrameBlock(opts = {}) {
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
