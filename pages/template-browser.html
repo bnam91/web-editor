@@ -100,8 +100,20 @@
     </svg>
     <input class="tpl-browser-search" id="tpl-browser-search" type="text" placeholder="검색...">
     <button class="tpl-browser-insert-btn" id="tpl-browser-insert-btn">+ 섹션 추가</button>
-    <button class="tpl-browser-insert-btn tpl-browser-replace-btn" id="tpl-browser-replace-btn"
-            title="선택한 섹션을 이 템플릿으로 변경 (Shift+Enter)">↻ 섹션 변경</button>
+    <!-- ⛔⛔★★★«↻ 섹션 변경» 단추는 ★★이 창에 ★★★두지 ★않는다 (★지디 ㉠ · 2026-10-11)
+         ★★까닭 — ★★이 창엔 ★★★`id="canvas"` 가 ★★없다(★실측 ★0건 · ★`index.html` 은 ★1건).
+           ⇒ ★`_syncInsertBtn()` 의 ★`#canvas .section-block.selected` 가 ★★★항상 ★0
+           ⇒ ★`ok = !!_browserSelected && secN === 1` 이 ★★★항상 ★false ⇒ ★★영영 ★`disabled`
+         ★★그리고 ★★배선도 ★없다 — ★★이 창의 ★교체는 ★★IPC 를 ★타야 하는데 ★★둘 다 ★`opts` 를 ★안 받는다:
+           ★`pages/template-browser.html:195`  window.insertTemplate = async (tpl) => …
+           ★`preload.js:78`                   insertTemplateInMain:(id) => …
+         ⇒ ★★★그러니 ★★★«있으나 ★못 쓰는 ★단추»였다. ★★뜻 없는 단추는 ★안 그린다.
+         ★★★「추가는 ★되는데 ★변경은 ★눌리지도 ★않는다」가 ★★사용자가 ★본 ★꼴이다 —
+           ★★`+ 섹션 추가` 는 ★★`:202` 에서 ★★IPC 로 ★메인 창에 ★넣어 ★★돈다. ⇒ ★★비대칭이었다.
+         ★★★잠그는 자 = ★`tests/unit/tpl-browser-two-windows.test.mjs` ★B7·B8
+           ★★★B8 은 ★★«풀 ★조건»을 ★★★행위로 ★잰다 — ★`preload.js` 의 ★`insertTemplateInMain`
+           ★★서명이 ★★둘째 인자를 ★받게 ★되면 ★★B8 이 ★★빨개진다. ⇒ ★★그때 ★이 결정을 ★다시 ★보라.
+         ⇒ ★★★㉡(★별창도 ★IPC 로 ★교체)는 ★★별건이다 — ★★`1011t1b2-c` · ★★⛔내 ★판단으로 ★착수 ★안 한다 -->
   </div>
   <!-- 태그 칩 필터 (태그 모드일 때만 표시) -->
   <div class="tpl-browser-tag-chips" id="tpl-browser-tag-chips" style="display:none"></div>
