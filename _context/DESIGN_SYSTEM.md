@@ -434,7 +434,7 @@ transform-origin: left center; /* 또는 맥락에 맞게 */
 | `--p-*` (primitive) | `css/design-tokens.css` | 원시 값 |
 | `--color-* / --bg-* / --border-* / --text-*` (semantic) | `css/design-tokens.css` | primitive 참조 |
 | `--ui-*` (UI shell) | `css/editor-base.css :root` | 하드코딩 값 (기존 호환) |
-| `--space-* / --radius-*` (간격·반경) | `css/design-tokens.css` | §10 |
+| `--space-* / --radius-*` (간격·반경) | ⚠️**없다** — §10 참조 | §10 |
 | `--inv-zoom / --ui-scale` (런타임) | `js/editor.js` (set) | CSS 정의 없음 = 정상 |
 
 > 별칭/신규 토큰은 위 "정식 소유" 파일에만 추가할 것. 엉뚱한 계층에 정의 금지.
@@ -457,9 +457,21 @@ transform-origin: left center; /* 또는 맥락에 맞게 */
 
 ## 10. 간격·반경 스케일 (`--space-*` / `--radius-*`)
 
-`css/design-tokens.css` 정의. **신규 UI 크롬** 코드의 padding/gap/margin/border-radius는 이 토큰 사용.
+⚠️⚠️**이 토큰은 존재하지 않는다 — 쓰려면 먼저 만들어라.**
+> 정의 **0건** · 사용 **0건** (2026-10-11 내가 쟀다 — `grep -rn -- '--space-[0-9] *:' css/` ＋
+> `--radius-\(sm\|md\|lg\)`, 둘 다 0. `css/design-tokens.css` 안 「space」 글자도 **0**.
+> 양성대조: 같은 자로 `--bg-app`·`--text-sub`·`--color-accent` 등 13종은 전부 정의=1 ⇒ 자는 산다).
+> ⚠️**이 절의 거짓이 이미 사람을 속였다** — 2026-10-11 디자인시스템 일관성 대조에서 내가
+> 아래 코드블록을 읽고 「`--space-1: 4px` 가 있다」고 적어, `css/editor-extra.css:1011`
+> `margin-left:4px` 를 「토큰을 쓸 수 있는데 숫자로 박았다」는 흠으로 올렸다. 쓸 토큰이 없었다.
+> ★손대기 전 이 파일 = blob `3a548c60` · 23195바이트 · 512행 (★저술 mtime 2026-10-10 09:45:16 · ⛔내 워크트리 체크아웃이 파일 mtime 을 덮었으므로 정체는 blob 으로 적는다)
 
+~~`css/design-tokens.css` 정의.~~ **신규 UI 크롬** 코드의 padding/gap/margin/border-radius를
+이 토큰으로 쓰려면 **먼저 `css/design-tokens.css` 에 정의를 만들어야 한다**(미결 — 판정 대기).
+
+⚠️**아래는 «실재하는 정의»가 아니라 «제안된 값»이다 — 코드에 이 줄은 없다(2026-10-11 실측).**
 ```css
+/* ⚠️⚠️ 미구현 — 이 10종은 css/ 어디에도 정의가 없다. 아래를 var() 로 쓰면 빈 값이 된다 */
 --space-0: 2px;  --space-1: 4px;  --space-2: 8px;  --space-3: 12px;
 --space-4: 16px; --space-5: 24px; --space-6: 32px;
 --radius-sm: 4px; --radius-md: 6px; --radius-lg: 10px;
