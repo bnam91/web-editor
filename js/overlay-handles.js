@@ -367,6 +367,26 @@ function _onHandleMouseDown(e, ss, dir) {
     }
     newW = Math.round(newW); newH = Math.round(newH);
     ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
+    /* ★★★「패딩 제외(full-bleed)」 규약의 ★★둘째 입구 (현빈 2026-10-11 「★리사이즈하면 ★패딩제외가 ★풀린다」)
+       ★★규약 = ★★«제 폭을 ★먼저 정하고», ★마지막에 ★패딩제외를 ★덮는다. ★꺼져 있으면 ★no-op 이다.
+       ★★★입구가 ★★둘이다 — ★이 명부를 ★여기와 ★그쪽에 ★같이 적는다:
+         ⒤ ★패널 ★폭 슬라이더 — `js/props/prop-frame.js` 의 `applyWidth`(★그 자리 주석이 ★이 병을 ★이미 적어 뒀다)
+         ⒥ ★★이 자리 — ★오버레이 ★리사이즈 ★핸들의 ★`onMove`
+       ★★★왜 ⒥ 가 ★빠져 있었나: ★`git log -S'applyBlockFullBleed' -- js/overlay-handles.js` 가 ★★0커밋이다
+         ⇒ ★★한 번도 ★없었다. ★★같은 규약이 ★두 입구 중 ★한 곳에만 ★걸려 있었다.
+       ★★실측(★고치기 전 판 `5954e4f4` · ★프레임을 ★패널에서 ★켜고 ★`se` 핸들을 ★끌었다):
+         ★켠 뒤      `style.width = calc(100% + 64px)` · `marginLeft = -32px` · 그려진 폭 ★924
+         ★★드래그 ★중간 `style.width = ★860px` (★★`calc(` 가 ★★사라졌다) · `marginLeft` 는 ★★-32px ★그대로
+         ★up 뒤      ★같다
+         ⇒ ★★★«풀린다»가 ★아니라 ★★«어긋난다»다 — ★스위치와 ★음수 마진은 ★남고 ★폭만 ★죽어
+           ★블럭이 ★왼쪽으로 ★32px ★밀린 채 ★좁아진다.
+       ★★★그래서 ★`onUp` 이 ★아니라 ★★`onMove` 다 — ★★사람은 ★끌면서 ★본다(★중간에 ★이미 ★어긋났다).
+         ★그리고 ★`onUp` 은 ★폭을 ★★안 쓴다(★실측: ★up 뒤 값이 ★마지막 ★중간값과 ★같다)
+         ⇒ ★★★이 ★한 자리가 ★★두 시점을 ★다 ★덮는다.
+       ⚠️★따르는 ★결과를 ★적어 둔다: ★패딩제외가 ★★켜져 있으면 ★★가로 드래그로 ★폭이 ★안 줄어든다
+         (★`applyBlockFullBleed` 가 ★폭을 ★`calc(100% + …)` 로 ★되돌린다). ★★세로는 ★그대로 ★준다.
+         ★★그건 ★★패널 ★슬라이더가 ★★이미 ★그렇게 ★동작한다 ⇒ ★★두 입구가 ★★같아진다(★그게 ★이 고침의 ★뜻이다). */
+    window.applyBlockFullBleed?.(ss);
     if (!isFullWidth) {
       ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
     }
