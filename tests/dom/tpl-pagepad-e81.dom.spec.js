@@ -132,7 +132,15 @@ test('T2 ★서브섹션 길 — 프레임 안 전폭 5종(sub-bridge·sub-gridF
   await ins(page, ids.__sub);
   const got = {}; for (const k of SUB) got[k] = await screen(page, k, '#eS2');
   const ref = await sectionRef(page, ids, SUB);
-  for (const k of SUB) expect(geom(got[k]), `${k} 서브섹션 길 ${JSON.stringify(got[k])} vs 섹션 길 ${JSON.stringify(ref[k])}`).toEqual(geom(ref[k]));
+  /* ★★종별로 ★전부 ★본다 — ⛔`for` 안에서 ★`toEqual` 을 ★바로 걸면 ★★첫 실패에서 ★멈춰
+     ★나머지 ★네 종을 ★★안 본다(★2026-10-11 실측: ★「전폭 5종이 ★깨졌다」로 ★읽혔는데 ★참값은 ★★1종이었다).
+     ⇒ ★★어긋난 종을 ★모아 ★«명부»로 ★단언한다 ⇒ ★★어느 종이 ★빨간지 ★한 번에 ★보인다. */
+  const off = [];
+  for (const k of SUB) {
+    if (JSON.stringify(geom(got[k])) !== JSON.stringify(geom(ref[k])))
+      off.push(`${k}: 서브섹션 ${JSON.stringify(got[k])} vs 섹션 ${JSON.stringify(ref[k])}`);
+  }
+  expect(off, `어긋난 종 ${off.length}/${SUB.length}:\n  ${off.join('\n  ')}`).toEqual([]);
 });
 
 // ─────────── T3 전폭 아님 8 — 바이트 골든(핀 4df20f78) ───────────
@@ -183,13 +191,20 @@ test('T5 ★넣은 «직후» 표본(getSerializedCanvas) 속 값 = −20 · 넣
   expect(s1, `블럭 길 표본 ${JSON.stringify(s1)}`).toEqual({ ml: '-20px', w: 'calc(100% + 40px)' });
   await ins(page, ids.__sub);
   const s2 = await parsed(page, await serial(page), 'sub-frameFB');
-  expect(s2 && s2.w, `서브섹션 길 표본 ${JSON.stringify(s2)}`).toBe('calc(100% + 40px)');
+  /* ★★★조건을 ★다시 적는다 (2026-10-11 · ⒳ 고침 ★뒤 ★측정) — ⛔옛 기대 `calc(100% + 40px)` 는 ★★낡았다.
+     ★★까닭: ★2026-10-10(현빈 1009t3-②) ★«상시 자름» 뒤 ★★프레임 ★안에서는 ★`effectiveSectionPadX` 가 ★★0 이다
+       ⇒ ★★★다시 ★걸 수가 ★없다. ★«뚫는다»가 ★아니라 ★«안 뚫는다»가 ★그 판의 ★참값이다.
+     ★★잰 값(★고침 전 → 뒤): ★`calc(100% + 96px)`(★원본 48 ★스테일) → ★★`''`(★걷혔다)
+       ＋ ★`cw` ★916 → ★★820 · ★`left` ★-28 → ★★20 ⇒ ★★패딩 ★안으로 ★들어왔다
+     ★★두 길이 ★같아졌다: ★섹션 길 표본도 ★★`{ml:'', w:''}` (★같은 회차에서 ★쟀다)
+     ⛔`-20`/`calc(+40)` 로 ★되돌리지 ★마라 — ★그건 ★★«상시 자름» ★전의 ★모형이다. */
+  expect(s2, `서브섹션 길 표본 ${JSON.stringify(s2)}`).toEqual({ ml: '', w: '' });
   // 다른 조작(push-after) — 페이지 배경 바꾸기 대신: 섹션 S3 에 글자 블럭 넣기
   await page.evaluate(() => { window.selectSection(document.getElementById('eS3')); window.addTextBlock('body'); });
   const undo = async () => { await page.evaluate(() => { document.activeElement?.blur?.(); window.deselectAll?.(); }); await page.keyboard.press('Meta+z'); await page.waitForTimeout(300); };
   await undo();
   expect(await page.evaluate(() => document.querySelectorAll('#eS3 .text-block').length), '⌘Z 1 = 글자 블럭만 되돌림').toBe(0);
-  expect((await screen(page, 'sub-frameFB', '#eS2')).w, '⌘Z 1 뒤 서브섹션 넣기는 남음 · −20').toBe('calc(100% + 40px)');
+  expect((await screen(page, 'sub-frameFB', '#eS2')).w, '⌘Z 1 뒤 서브섹션 넣기는 남음 · ★안 뚫는다(위 까닭)').toBe('');
   await undo();
   expect(await screen(page, 'sub-frameFB', '#eS2'), '⌘Z 2 = 서브섹션 넣기 되돌림').toBeNull();
   expect((await screen(page, 'bridge', '#eS2')).ml, '블럭 길 넣기는 남음').toBe('-20px');

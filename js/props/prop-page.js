@@ -257,7 +257,16 @@ function applyPadXToSection(inner, padX) {
      `data-full-bleed="true"` 라는 «표식» 하나로 성질 판정한다(2026-09-10). 새 블록이
      그 표식을 쓰면 padX 를 바꿔도 저절로 따라온다. 위 canvas 는 제 렌더에 위임하므로 뺀다. */
   inner.querySelectorAll('[data-full-bleed="true"]:not(.canvas-block)').forEach(el => {
-    window.applyBlockFullBleed?.(el);
+    /* ★★`applyBlockFullBleed` 는 ★«켜는 자»다 — ★`drag-utils.js:223` 이 ★`padX <= 0` 에서 ★★«아무것도 안 하고» 돌아간다.
+       ⇒ ★★«자르는 프레임 안»(effectiveSectionPadX = 0)에서는 ★★원본 문서의 ★`calc(100% + …)` 가 ★★남았다.
+       ★실측(2026-10-11 · T2·T5): ★원본 padX 48 템플릿을 ★문서 padX 20 에 넣으면 ★`sub-frameFB`·`sub-chatFB` 가
+         ★`-48px / calc(100% + 96px)` 를 ★안고 갔다(★섹션 길·서브섹션 길 ★둘 다).
+       ★★이 갈래는 ★★새 꼴이 ★아니다 — ★`.grid-block` 루프가 ★이미 ★`else clearBlockFullBleed`,
+         ★`.gradient-block`·`.bridge-block` 루프도 ★이미 ★제 손으로 ★걷는다(★그 셋이 ★선례다).
+       ⛔`applyBlockFullBleed` 를 ★0 에서 ★걷게 ★고치지 ★마라 — ★«켜는 자»의 ★뜻이 바뀌고 ★그 함수를 읽는 ★전부에 닿는다.
+       ⛔`if (dataset.fullBleed === 'true') … else …` 로 적으면 ★★죽은 코드다(★위 선택자가 ★이미 걸렀다).
+         ⇒ ★판정은 ★★«그 자가 ★실제로 ★걸었나»로 — ★그 함수는 ★적용한 padX 를 돌려주고 ★안 했으면 ★0 이다. */
+    if (window.applyBlockFullBleed?.(el) === 0) window.clearBlockFullBleed?.(el);
   });
 }
 
