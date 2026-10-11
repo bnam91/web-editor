@@ -708,8 +708,17 @@ function appendFlowChildrenToLayer(containerEl, out, sec, appendRowFn, depth) {
        (★이 파일 ★하나 ＋ ★`js/panels/layer-panel.js` ★셋) ⇒ ★★명부가 ★넷이다.
      ⇒ ★★표를 ★여기 ★하나 두고 ★★그 넷이 ★★이 표에서 ★파생한다.
    ⛔그릇 ★찾는 ★함수를 ★★제 벌로 ★적지 ★마라 — ★각 블럭 모듈이 ★`window` 로 ★낸 ★그 자를 ★쓴다.
-   ⚠️★★이 표 ★밖의 ★★다섯째 자리가 ★있다: ★`js/io/export-figma-json.js` 의 ★`_gridKidsBoxOf`(★제 사본).
-     ★★그건 ★이 레인에서 ★안 건드렸다 — ★이름으로 ★올렸다. */
+   ✅★★★그 ★«다섯째 자리»는 ★★합쳐졌다(2026-10-11 · `1011t1C` ★내보내기 칸) — ★`js/io/export-figma-json.js` 가
+     ★제 사본(★`_gridKidsBoxOf`·★`_gridKidGap`)을 ★버리고 ★★제 표(★`KIDS_SHELL_BY_CLASS`)를 ★한 자리에 ★두었다.
+     ★그 사본은 ★이제 ★레포에 ★없다(★`git grep` 으로 ★다시 ★쟀다 — ★남은 자리는 ★이 주석 ★하나였다).
+   ⚠️★★그래도 ★★표는 ★★둘이다 — ★★이 표 ＋ ★그 표. ⛔«하나로»는 ★★못 합쳤다:
+     ★이 표는 ★«window 함수 이름 ＋ 머리 줄 `dataset.type`»을 ★들고, ★그 표는 ★«그릇 클래스 ＋ 안쪽 래퍼 ＋ 벌어진 틈»을 ★든다
+     (★까닭의 ★정본은 ★그 표의 ★머리말이다).
+   ★★★그래서 ★★«경고»로 ★두지 ★않았다 — ★★★«재는 자»를 ★★붙였다. ★★한쪽 표에서 ★인용구 행을 ★빼면:
+     ★이 표 ⇒ ★`tests/dom/quote-children.dom.spec.js` 의 ★★`QC2` 가 ★빨개진다(★무력화 `QCX` 실측 · ★잰 값 0)
+     ★그 표 ⇒ ★`tests/dom/quote-children-figma.dom.spec.js` 의 ★★`QF1`·`QF2` ★★둘이 ★빨개진다(★무력화 `QFX` 실측)
+   ⇒ ★★★둘이 ★갈리면 ★★«해당하는 쪽 벌»이 ★★반드시 ★빨개진다 ⇒ ★★이 주석은 ★«바람»이 ★아니라 ★★잠긴 사실이다.
+   ⛔줄번호로 ★가리키지 ★마라 — ★★«파일 ＋ 무엇»으로. (★2026-10-11: ★줄번호를 ★박은 인용 ★셋이 ★같은 날 ★썩었다.) */
 export const LAYER_KIDS_BOX_BY_CLASS = Object.freeze([
   /* [블럭 클래스, ★그릇 찾는 window 함수, ★머리 줄의 `dataset.type`] */
   ['icon-circle-block', 'icbKidsBox',   'icon-circle'],   /* G14 — 원 «안» (js/icb-children.js) */
