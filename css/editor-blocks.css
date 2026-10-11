@@ -1481,7 +1481,39 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
      ★토큰은 ★`--sel-color-fill` ★하나를 ★그대로 쓴다(★`.text-block.editing` 과 ★같은 값 · ⛔새 색 ★0).
    ⚠️인용구 블럭은 ★제 배경을 ★인라인으로 ★받지 ★않는다 — ★실측: `renderQuoteBlock` 의 `block.style.cssText`
      에 ★`background` ★0건 ⇒ ★이 틴트가 ★인라인에 ★안 진다(★조용히 아무 일 없음이 ★아니다). */
+/* ★★★261011 `1011t1a-1b` — ★★명부를 ★★하나로 ★합쳤다. ⛔인용구 혼자 들고 있지 ★않는다.
+   ★★같은 ⒝ 를 ★★DOM 으로 ★재서 ★★★같은 꼴임을 ★확인한 ★뒤에 ★합쳤다(★★추론이 ★아니다):
+     ★자 = ★보이는 선 = ★블럭 outline ＋ ★자손 outline ＋ ★블럭 밖 오버레이 `.ss-sel-path`
+     ★기준 = ★같은 회차의 ★텍스트 블럭(★고른 상태 ★1겹 · ★편집 중 ★1겹 ＋ 틴트)
+     ★`modal`  고른 ★1겹 → ★편집 ★★2겹  (★블럭 1 ＋ 오버레이 1) ⇒ ★★중복 ★1겹
+     ★`grid`   고른 ★2겹 → ★편집 ★★4겹  (★블럭 1 ＋ 자손 2 ＋ 오버레이 1) ⇒ ★★중복 ★1겹
+   ★★★⛔«겹이 ★많다»를 ★«다 ★결함이다»로 ★읽지 ★않았다 — ★grid 의 ★자손 ★둘은 ★★제품이 ★의도한 ★표시다:
+     ⒤ `.grd-cell` ★dashed  = ★칸 경계 (`#canvas .grid-block.editing > .grd-inner > .grd-cell`)
+     ⒥ ★편집 host ★solid    = ★「지금 ★편집하는 칸」 (`#canvas .grid-block [contenteditable="true"]`)
+     ⇒ ★그래서 ★기대값이 ★★«1겹»이 ★아니다: ★grid ★★4 → ★★3 · ★modal ★★2 → ★★1
+   ★★★그리고 ★★한 자리를 ★★정정한다 — ★앞 회차에 ★내가 ⒥ 를 ★`.grd-line-selected` 라 ★적었다. ★★틀렸다.
+     ★`#canvas .grid-block .grd-line-selected` 는 ★★`box-shadow`(왼쪽 막대)로 그린다 — ★outline 이 ★아니다.
+     ★그 겹의 ★참 임자는 ★★`[contenteditable="true"]` ★규칙이다(★위 ⒥).
+   ★★`grid` 는 ★★두 갈래를 ★★둘 다 ★쟀다 — ★`.grd-line`(평 줄)과 ★`.grd-badge`(★`line.bg` 지정 뱃지 줄).
+     ★★둘 다 ★host outline 이 ★`solid 1px` ★제품색 ⇒ ★★브라우저 기본 링은 ★★0건이다(★인용구가 ★유일했다).
+     ⇒ ★아래 ★한 줄이 ★★블럭에 ★걸리므로 ★★두 갈래를 ★★다 덮는다(★검사가 ★그것을 ★단언한다).
+   ⛔`coupon`·`infocard`·`innercard` 는 ★★넣지 ★않았다 — ★★편집 길이 ★★없다(★실측: ★더블클릭 뒤
+     `document.activeElement` = ★`BODY` · ★`contenteditable=true` ★0개) ⇒ ★`.editing` 이 ★안 붙어 ★이 줄이 ★무의미하다. */
+.grid-block.selected.editing,
+.modal-block.selected.editing,
 .quote-block.selected.editing { outline-color: transparent; }
+/* ★★«편집 중»임을 ★무엇으로 ★보이나 — ★블럭마다 ★★다르다. ★★재서 ★갈랐다(⛔한 꼴로 ★밀지 ★않았다):
+   ★`quote` ⇒ ★위 줄 뒤 ★선이 ★1겹이고 ★★고른 상태도 ★1겹 ⇒ ★★구별이 ★안 된다 ⇒ ★★블럭에 ★틴트.
+     ⚠️인용구 블럭은 ★제 배경을 ★인라인으로 ★안 받는다 — ★실측: `renderQuoteBlock` 의 `block.style.cssText`
+       에 `background` ★0건 ⇒ ★틴트가 ★인라인에 ★안 진다(★★조용히 아무 일 없음이 ★아니다).
+   ★`grid`  ⇒ ★★더하지 ★않았다. ★이미 ★구별된다 — ★고른 ★2겹 vs ★편집 ★3겹이고,
+     ★★`[contenteditable="true"]` 규칙이 ★이미 ★outline ＋ ★`--sel-color-fill` 배경을 ★칸에 ★준다.
+   ★`modal` ⇒ ★★구별이 ★안 됐다(★실측: ★고른 ★1겹 · ★편집 ★1겹 · ★★블럭 배경도 ★같은 `rgb(246,247,249)`).
+     ⇒ ★★★이미 ★있는 ★그 자리(★아래 `[data-mdl-slot][contenteditable="true"]`)에 ★배경만 ★더했다.
+     ⛔새 선택자를 ★만들지 ★않았다 · ⛔outline 은 ★안 더했다 —
+       ★그 블럭의 ★reset(`.modal-block .tb-mdl-text, …-title, …-cell { outline: none }`)이
+       ★★「편집 포커스 테두리를 ★끈다」를 ★적어 뒀다 ⇒ ★★그걸 ★뒤집지 ★않는다.
+     ⚠️모달 블럭 제 배경은 ★★블럭에 있고 ★틴트는 ★★슬롯에 준다 ⇒ ★★블럭 배경을 ★안 덮는다(★실측으로 가름). */
 .quote-block.editing { background: var(--sel-color-fill); }
 /* ★G19 그리드 «밑» 자식 블럭 그릇(.grd-children) — 간격(margin-top·flex gap)은 js/grid-children.js 가 «인라인»으로 건다
    (그래야 PNG·HTML 내보내기가 에디터 CSS 없이도 같은 자리를 낸다). 여기는 두 가지만:
@@ -1734,8 +1766,18 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
    셀은 텍스트 전용이라 드롭존을 달지 않는다 → 모달 안에 모달이 생기지 않는다. */
 .modal-block .mdl-grid { width: 100%; }
 .modal-block .tb-mdl-cell { background: transparent; }
-/* 편집 중인 슬롯 — 텍스트 블록과 같은 관용구 */
-#canvas .modal-block [data-mdl-slot][contenteditable="true"] { cursor: text; }
+/* 편집 중인 슬롯 — 텍스트 블록과 같은 관용구
+   ★★261011 `1011t1a-1b` — ★★`background` 를 ★더했다(★`cursor` 는 ★그대로).
+     ★까닭 = ★★실측: ★모달은 ★★«고른 상태»와 ★«편집 중»이 ★★구별되지 ★않았다
+       (★보이는 선 ★1겹 : ★1겹 · ★블럭 배경도 ★같은 `rgb(246,247,249)` — ★★같은 회차의 ★텍스트 블럭이 ★기준).
+       ★★그 앞 줄(`.modal-block.selected.editing { outline-color: transparent }`)이 ★중복 ★한 겹을 ★걷어
+       ★★«편집 중»을 ★알리는 것이 ★★아무것도 ★안 남았기 때문이다.
+     ★토큰은 ★`--sel-color-fill` ★하나 — ★`.text-block.editing`·`#canvas .grid-block [contenteditable="true"]`
+       이 ★쓰는 ★그 값이다(⛔새 색 ★0 · ★이 파일 그리드 절의 ★「배경 틴트를 같이 준 이유」와 ★한 쌍).
+     ⛔`outline` 은 ★안 더했다 — ★바로 위 ★reset 이 ★★「편집 포커스 테두리를 ★끈다」를 ★적어 뒀고
+       ★그 까닭은 ★★아직 ★살아 있다(★브라우저 기본 링을 ★끄는 일). ★★뒤집지 ★않는다.
+     ⚠️블럭 제 배경은 ★★블럭에 있고 ★이 틴트는 ★★슬롯에 간다 ⇒ ★★블럭 배경을 ★안 덮는다. */
+#canvas .modal-block [data-mdl-slot][contenteditable="true"] { cursor: text; background: var(--sel-color-fill); }
 
 /* ── 그리드 캔버스 인라인 편집 (P1.5) ──
    ⛔여기서 «어느 줄이 편집 가능한가»를 판정하지 않는다 — 그 판정은 js/block-drag.js 의
