@@ -22,6 +22,122 @@ let _browserSearchMode = 'all';
      ⇒ ★★대신 ★★검사가 ★★«이 글자 == `tplSortDefault`»를 ★잠근다. */
 let _browserSort = 'recent';
 
+/* ★★뎁스1 ★커서 — ★★«지금 ★가리키는 곳». ⛔`active`(=★«무엇으로 ★거르나»)와 ★★다른 것이다.
+   ★★★이 칸이 ★★아예 ★없던 것이 ★설계 D 의 ★핵이다 — ★뎁스1 의 상태는 ★`_browserFilter` ★하나뿐이었다.
+   ★`_depth` : ★1 = ★트리 · ★2 = ★카드. ★★처음은 ★2 다(★열면 ★첫 카드가 ★자동 선택된다 — ★그 거동은 ★그대로). */
+let _treeCursor = -1;
+let _depth = 2;
+
+/* ★★★뎁스1 ★항목 ★명부 — ★★«한 자리». ⛔키 처리와 ★렌더가 ★각자 ★세면 ★갈라진다(t4quote).
+   ★★★DOM 에서 ★뽑는 ★까닭(⛔모델에서 ★뽑지 ★않는다):
+     ★폴더 ★헤더 ★클릭이 ★★`folderEl.classList.toggle('expanded')` 로 ★★DOM 을 ★직접 ★건드리고
+     ★★트리를 ★다시 ★그리지 ★않는다(`:259~268`) ⇒ ★★펴짐 상태가 ★★`_browserFilter` 와 ★★어긋날 수 ★있다.
+   ⇒ ★★그래서 ★★«화면에 ★보이는 것»이 ★참값이고, ★★그게 ★곧 ★단언 ★D7 이 ★요구하는 것이다.
+   ★★`.expanded` 를 ★보는 ★까닭: ★★CSS 가 ★★같은 class 로 ★감춘다
+     (`css/editor-extra.css:876~877` — ★`.tb-tree-cats{display:none}` · ★`.expanded .tb-tree-cats{display:block}`)
+   ⇒ ★★즉 ★★CSS 와 ★★같은 ★열쇠를 ★본다. ⛔`getComputedStyle` 로 ★재지 ★않는다(★느리고, ★레이아웃에 ★매달린다). */
+function _treeItems() {
+  const tree = document.getElementById('tpl-browser-tree');
+  if (!tree) return [];
+  const out = [];
+  /* ★`querySelectorAll` 은 ★★문서 차례로 ★준다 ⇒ ★★그게 ★곧 ★보이는 차례다 */
+  tree.querySelectorAll('.tb-tree-starred, .tb-tree-all, .tb-tree-folder-header, .tb-tree-cat').forEach(el => {
+    if (el.classList.contains('tb-tree-cat')) {
+      const f = el.closest('.tb-tree-folder');
+      if (!f || !f.classList.contains('expanded')) return;   // ★★접힌 폴더의 ★범주는 ★안 든다(D7)
+    }
+    out.push(el);
+  });
+  return out;
+}
+
+/* ★★한 항목이 ★뜻하는 ★«거름» — ★★클릭 핸들러들이 ★쓰는 ★꼴과 ★★같게 ★맞춘다(`:232`·`:244`·`:259`). */
+function _treeItemFilter(el) {
+  if (!el) return null;
+  if (el.classList.contains('tb-tree-starred')) {
+    return { folder: '전체', category: '전체', tag: null, starred: true };
+  }
+  return { folder: el.dataset.folder, category: el.dataset.cat, tag: null, starred: false };
+}
+
+/* ★커서 ★표시 — ⛔`active` 를 ★쓰지 ★마라(★그건 ★«거름»이다). ★★제 class 를 ★둔다. */
+function _paintTreeCursor() {
+  const items = _treeItems();
+  items.forEach(el => el.classList.remove('tb-tree-cursor'));
+  if (_depth !== 1) return;
+  const el = items[_treeCursor];
+  if (!el) return;
+  el.classList.add('tb-tree-cursor');
+  el.scrollIntoView?.({ block: 'nearest' });
+}
+
+/* ★★«지금 거르는 항목»이 ★명부에서 ★몇 번째인가 — ★단언 ★D1 이 ★요구하는 ★시작 자리. */
+function _treeIndexOfCurrentFilter() {
+  const items = _treeItems();
+  for (let i = 0; i < items.length; i++) {
+    if (window.tplNavSameFilter(_treeItemFilter(items[i]), _browserFilter)) return i;
+  }
+  return items.length ? 0 : -1;
+}
+
+/* ★★★뎁스2 → ★뎁스1 (`←`) — ⛔검색어를 ★★안 지운다(★M1) · ⛔선택도 ★★안 버린다(★M2) */
+function _tplNavToTree() {
+  if (!_browserOpen) return false;
+  const items = _treeItems();
+  if (!items.length) return false;
+  _depth = 1;
+  if (_treeCursor < 0 || _treeCursor >= items.length) _treeCursor = _treeIndexOfCurrentFilter();
+  _paintTreeCursor();
+  return true;
+}
+
+/* ★★★뎁스1 에서 ★↑↓ — ★★양 끝에서 ★멈춘다(★순수 핵이 ★판정한다) */
+function _tplNavTreeMove(dir) {
+  if (!_browserOpen || _depth !== 1) return false;
+  const items = _treeItems();
+  const next = window.tplNavMove(_treeCursor, items.length, dir);
+  if (next < 0) return false;
+  const moved = next !== _treeCursor;
+  _treeCursor = next;
+  _paintTreeCursor();
+  return moved || true;   // ★★양 끝에서도 ★«처리했다» — ⛔캐럿으로 ★새지 ★않게(D4)
+}
+
+/* ★★★뎁스1 → ★뎁스2 (`→`·`Enter`·`⌘↓`) — ★★거름이 ★바뀔 때만 ★해제·선택버림 */
+function _tplNavEnter() {
+  if (!_browserOpen || _depth !== 1) return false;
+  const items = _treeItems();
+  const el = items[_treeCursor];
+  if (!el) return false;
+  const next = _treeItemFilter(el);
+  const changed = !window.tplNavSameFilter(_browserFilter, next);
+  if (window.tplNavShouldClearSearch('enter', _browserFilter, next)) _clearBrowserSearch();
+  if (window.tplNavShouldDropSelection('enter', _browserFilter, next)) {
+    _browserSelected = null;
+    _hidePreview();
+  }
+  if (changed) {
+    _browserFilter = next;
+    _renderBrowserTree();     // ★거름이 바뀌면 ★`active`·펴짐이 ★다시 서야 한다
+  }
+  _depth = 2;
+  _treeItems().forEach(x => x.classList.remove('tb-tree-cursor'));
+  _renderBrowserCards();
+  return true;
+}
+
+/* ★★시험 이음새 — ★★읽기 전용. ★선례: `window.__autoSaveDeferState` 등 (★레포에 ★여럿 있다).
+   ⇒ ★★DOM 검사가 ★★«무엇이 ★섰나»를 ★★눈이 ★아니라 ★★수로 ★읽게 ★한다. */
+window.__tplNavState = () => ({
+  depth: _depth,
+  cursor: _treeCursor,
+  itemCount: _treeItems().length,
+  itemLabels: _treeItems().map(el => (el.querySelector('.tb-tree-label')?.textContent || '').trim()),
+  filter: { ..._browserFilter },
+  selected: _browserSelected,
+  searchQ: _browserSearchQ,
+});
+
 /* ── 패널 크기 한계 ── ★리사이즈 핸들과 「창에서 되돌아온 크기」가 «같은» 한계를 써야 한다.
    따로 두면 떼었다 붙일 때마다 서로 다른 값으로 잘려 크기가 야금야금 어긋난다. */
 const TPL_MIN_W = 280, TPL_MAX_W = 700;
@@ -68,6 +184,9 @@ function openTemplateBrowser() {
   /* ★★정렬 ★열쇠도 ★같이 ★되돌린다 ＋ ★★`<option>` 을 ★★명부에서 ★그린다.
      ⇒ ★★HTML 엔 ★빈 `<select>` 만 두고 ★★목록은 ★★`_tpl-sort.js` 가 ★쥔다
        ⇒ ★★두 창의 ★마크업이 ★★명부와 ★갈라질 ★수가 ★없다. */
+  /* ★★뎁스·커서도 ★되돌린다 — ★열면 ★★뎁스2(첫 카드 자동선택)가 ★기존 거동이다 */
+  _depth = 2;
+  _treeCursor = -1;
   _browserSort = window.tplSortDefault || 'recent';
   const _sortSel = document.getElementById('tpl-browser-sort');
   if (_sortSel) _sortSel.innerHTML = window.tplSortOptionsHtml(_browserSort);
@@ -140,7 +259,17 @@ function toggleTemplateBrowser() {
    트리 카운트는 «전체 재고» 기준이고 카드만 검색으로 걸러진다. 검색 중이라는 사실이
    화면에 없으면 그 차이가 「트리 14인데 목록 0」이라는 버그로 읽힌다.
    → ⑴검색 중임을 카드 영역 맨 위에 명시 ⑵트리 항목을 고르면 검색을 자동 해제.
-   (트리 카운트 산출 방식 자체는 바꾸지 않는다 — 타이핑마다 트리가 흔들리는 UX 회피.) */
+   (트리 카운트 산출 방식 자체는 바꾸지 않는다 — 타이핑마다 트리가 흔들리는 UX 회피.)
+
+   ★★★⑵ 의 «고르면»은 «거름이 바뀌는 진입»이다 (2026-10-11 · b1 키보드 이동 신설).
+     ⛔위 줄을 지우지 않았다 — ⑵ 는 «폐기»가 아니라 ★날카로워졌다.
+     ★커서 이동(←·↑·↓)은 «고르는» 것이 아니므로 해제하지 않는다 —
+       현빈 원문이 «키워드 입력 후 방향키 좌측»이라, 그 흐름에서 검색이 살아 있어야 한다.
+     ★같은 항목으로 재진입할 때도 해제하지 않는다(거름이 안 바뀌면 새로 0 이 될 수 없다).
+     ⇒ ★규약의 목적(0건 방지)은 그대로 지켜진다.
+     ⇒ ★그 «살려 둔 대가»는 «검색 중» 배지가 갚는다(이 파일의 _searchBadge) — 단언 D5 가 그 칸을 잰다.
+     ⛔클릭 경로(:232·:244·:259)의 _clearBrowserSearch() 는 ★한 줄도 안 건드렸다 —
+       그건 «다른 요구»다(지디 M1 까닭 ⒥). 판정하는 자리는 _tpl-nav.js 한 자리다. */
 function _clearBrowserSearch() {
   if (!_browserSearchQ) return false;
   _browserSearchQ = '';
@@ -975,8 +1104,16 @@ function initTemplateBrowser() {
   // 작동시키지 않고 무조건 템플릿 적용. 다른 editable / contenteditable 영역에서는 비활성.
   document.addEventListener('keydown', e => {
     if (!_browserOpen) return;
-    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'Enter') return;
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    /* ★★★설계 D(b1) — ★★`←`·`→` 를 ★★새로 ★받는다. ★옛 꼴은 ★★셋만 ★통과시켰다
+       ⇒ ★★그래서 ★`←`·`→` 가 ★★검색창 ★캐럿만 ★움직이고 ★★«아무 일도 ★안 났다»(t4quote 회차52 실측: 캐럿 3→2→3).
+       ⇒ ★★단언 ★D4 가 ★★그 캐럿이 ★★더 이상 ★안 움직이는지를 ★잰다. */
+    const _navKey = e.key === 'ArrowUp' || e.key === 'ArrowDown'
+                 || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Enter';
+    if (!_navKey) return;
+    /* ★★★수식키 — ★옛 꼴은 ★★전부 ★막았다. ★★이제 ★★`⌘↓`(진입) ★하나만 ★열어 준다.
+       ⛔그 밖의 ★수식키 조합은 ★그대로 ★막는다 — ★★앱의 ★다른 단축키를 ★★안 먹는다. */
+    const _cmdDown = (e.metaKey || e.ctrlKey) && e.key === 'ArrowDown' && !e.altKey && !e.shiftKey;
+    if ((e.metaKey || e.ctrlKey || e.altKey) && !_cmdDown) return;
 
     const ae = document.activeElement;
     const panel = document.getElementById('tpl-browser');
@@ -987,6 +1124,35 @@ function initTemplateBrowser() {
     if (ae && (ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
     // 검색 input 외 다른 input(예: 인라인 편집)에서는 비활성
     if (ae && ae.tagName === 'INPUT' && ae.id !== 'tpl-browser-search') return;
+
+    /* ★★★⌘↓ = ★진입 — ★★뎁스1 에서만 ★뜻이 있다(★현빈 원문: ★Enter·⌘↓·→ 가 ★같은 일) */
+    if (_cmdDown) {
+      if (_depth === 1 && _tplNavEnter()) { e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+
+    /* ★★★← = ★뎁스2 → ★뎁스1 · ★→ = ★뎁스1 → ★뎁스2
+       ★★★`preventDefault` 를 ★★반드시 ★한다 — ★그게 ★★«캐럿이 ★안 움직인다»(D4)의 ★집행이다. */
+    if (e.key === 'ArrowLeft') {
+      if (_depth === 2 && _tplNavToTree()) { e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+    if (e.key === 'ArrowRight') {
+      if (_depth === 1 && _tplNavEnter()) { e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+
+    /* ★★뎁스1 의 ↑↓ — ★★트리 커서를 ★걷는다(★뎁스2 면 ★아래 ★카드 이동으로 ★간다) */
+    if (_depth === 1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      if (_tplNavTreeMove(e.key === 'ArrowDown' ? 1 : -1)) { e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+    /* ★★뎁스1 의 ★Enter — ★★진입이다(⛔템플릿 ★적용이 ★아니다) */
+    if (_depth === 1 && e.key === 'Enter') {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (_tplNavEnter()) { e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
 
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       const dir = e.key === 'ArrowDown' ? 1 : -1;
