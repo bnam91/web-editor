@@ -739,5 +739,56 @@ transform-origin: left center; /* 또는 맥락에 맞게 */
 ⛔**자른 출력을 수로 쓰지 마라.**
 
 ⇒ **올릴 후보**: §2 의 「적용 패턴」 예시 CSS(이름으로 찾아라)가 아직 `1px`/`3px` 생짜다.
-실재가 참값이므로 예시를 `var(--sel-outline-w)` 꼴로 갈아야 한다 — ⛔단 **컨테이너 3px** 에는
-대응 토큰이 **없다**(정의 0건). 그것부터 판정이 필요하다.
+실재가 참값이므로 예시를 `var(--sel-outline-w)` 꼴로 갈아야 한다.
+
+⚠️⚠️**그런데 재 보니 더 큰 것이 나왔다 — §2 의 «컨테이너 3px» 표준 자체가 코드에 없다.**
+- `css/` 전체에 `outline: 3px`·`outline-width: 3px` = **0건**(2026-10-11 내가 쟀다)
+- `.frame-block.selected` 는 `outline: var(--sel-outline-w) solid var(--sel-color)` ＋
+  `outline-offset: calc(-1 * var(--sel-outline-w))` — 즉 **컴포넌트와 똑같은 1px / 음수 offset**
+- `.frame-block[data-banner-preset].selected` 도 **같은 값**을 다시 선언한다
+
+⇒ **§2 의 「두 가지 outline 표준」은 실은 «하나»다.** 아래 두 줄이 지금 거짓이다(이름으로 건다):
+㉠ §2 표의 「**컨테이너(container)** | `3px solid var(--sel-color)` | `0`」 행
+㉡ §2 「**컨테이너** (3px / 0):」 머리
+
+⇒ 그리고 §2 의 「❌ 컴포넌트 블록에 컨테이너 두께(3px) 적용 금지 — frame-block 변형도
+**override 필수**」가 **까닭을 잃었다**: 밑바탕이 이미 1px 이므로 `data-banner-preset` 의
+override 는 **같은 값을 다시 적는 것**이다. ⇒ 막아둔 까닭이 죽고 문만 남은 자리다.
+
+⛔**미결 — 고치지 않았다(규약 개정이라 내 자리가 아니다).** 판정이 셋 필요하다:
+⑴ 컨테이너를 **다시 3px 로 되돌릴 것인가**, 아니면 §2 를 **「하나의 표준」으로 고칠 것인가 —
+   언제·왜 1px 이 됐는지는 **안 쟀다**(git 이력을 따라가야 한다)
+⑵ 3px 로 되돌린다면 **대응 토큰이 없다** — `--sel-outline-w` 는 1px 파생이고,
+   `css/` 에 3px 상수 토큰은 0건이다(`--redact-blur: 3px` 는 모자이크 흐림으로 **무관**)
+⑶ `data-banner-preset` override 를 **남길 것인가** — 지금은 무용이다
+
+
+### 14-E. ⚠️ `box-shadow` 금지가 «숫자»로 적혀 까닭을 잃었다
+
+§2 「❌ 하지 말 것」에 「`box-shadow: 0 0 0 2px` 방식 사용 금지 (overflow:hidden 간섭)」이 있다.
+**그 금지의 까닭은 숫자와 무관하다** — 참 조건은 「`overflow:hidden` 안에서 그림자가 잘린다」다.
+
+실측(2026-10-11 내가 쟀다) — `.annotation-block.selected .annot-label` 은
+`box-shadow: 0 0 0 **3px**` 를 쓴다. 숫자가 `2px` 가 아니라 **금지의 글자에는 안 걸린다.**
+그래서 **까닭으로 재야 한다**:
+
+**㉠ 그 블럭이 `overflow:hidden` 조상 안에 놓일 수 있나 — 조건부로 «그렇다».**
+- `.annotation-block`·`.annot-label` 자신엔 `overflow` 선언 **0건**
+- 조상 쪽에서 `overflow:hidden` 을 거는 자(전수):
+  `.frame-block[data-radius]:not([data-radius="0"])` · `.frame-block[data-clip-content="true"]`
+  (＋ `#canvas-area`·`#preview-overlay .section-block` — 둘은 뷰포트/미리보기 층)
+- `.annotation-block` 이 **프레임 자식이 될 수 있다** — 레이어 패널의 프레임 자식 판정이
+  `window.hasPanelForBlock()` → `js/panel-dispatch.js` 의 정본 표에서 **파생**되고,
+  그 표에 `annotation-block` 이 있다(⛔손 명부가 아니라 파생이다)
+
+⇒ **「위반인가 아닌가」는 블럭의 성질이 아니라 «사용자가 어디에 두는가»다.**
+프레임에 반경을 주거나 clip-content 를 켜면 **그 3px 그림자는 잘린다** ⇒ 그 배치에선 참 결함.
+기본 배치(반경 없는 프레임)에서는 금지의 까닭이 그 자리에 **없다**.
+
+⇒ **올릴 후보**: 금지 문장을 **까닭으로** 다시 쓴다 —
+「⛔`overflow:hidden` 안에서는 `box-shadow` 로 테를 그리지 마라 — 잘린다」
+⛔숫자(`2px`)를 이름으로 들지 마라. 읽는 사람이 `3px` 는 괜찮다고 읽는다.
+
+⛔**안 쟀다**: 사용자가 **UI 경로로** 주석 블럭을 반경 있는 프레임에 실제로 넣을 수 있나.
+DOM 하네스로 한 배치를 재면 **그 한 배치만** 답이 나오고, 그 초록·빨강이 «일반 판정»으로
+읽히기 쉽다 ⇒ 2026-10-11 에 지디 허가를 받았으나 그 까닭으로 쓰지 않았다(load 7.49).
