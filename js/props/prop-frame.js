@@ -150,6 +150,45 @@ function _swapBannerChildren(ss) {
 }
 
 /* ── 자유배치 → 스택 변환 (Step 2: 단일 자식 행만) ── */
+/* ★★스택 프레임 ★자식의 ★«그려지는 폭»을 ★★«한 자리»에서 ★파생한다 (★①-가 · 현빈 2026-10-11)
+ *  ★현빈: 「프레임 안에서 ★스택모드 일때 프레임블럭 안에서 ★좌우패딩이 ★먹히게 바란거였거든?」
+ *
+ *  ★★무엇이 문제였나(실측 2026-10-11 · t3frame):
+ *    자유배치→스택 변환이 자식에 ★`style.width = it.width + 'px'` 를 박고 ★`alignSelf: center` 를 남긴다.
+ *    그 둘이 함께면 ★★프레임 좌우 패딩이 ★★«항등식으로» ★소거된다 —
+ *      틈 = pad + (전체폭 − 2·pad − 고른폭)/2 = (전체폭 − 고른폭)/2  ⇒ ★pad 가 ★사라진다
+ *      ★잰 값: 860 프레임 · 고른폭 688 ⇒ pad 0·24·48·100 ★전부 ★틈 ★86 (대칭)
+ *    ⇒ ★그래서 ★패딩 슬라이더를 ★아무리 올려도 ★★안쪽 블럭이 ★★안 들어왔다.
+ *
+ *  ★★왜 이 꼴인가 — ★«뜻»을 저장하고 ★«그림»을 ★파생시킨다(★지디 판정 ㉢):
+ *    ★`dataset.stackW` = ★★«사용자가 ★자유배치에서 ★정한 폭» ⇒ ★★pad 와 ★무관한 ★참값. ★한 번만 박는다.
+ *    ★`style.width`   = ★★«그려지는 폭» = ★★파생값(stackW − 2·pad) ⇒ ★★참값이 ★아니다.
+ *    ⛔변환 쪽과 ★패딩 쪽 ★두 곳에서 ★각각 ★`style.width` 를 ★박으면 ★★그것이 ★★«둘째 명부»다 —
+ *      ★pad 가 바뀔 때 ★한쪽만 ★고쳐져 ★두 값이 ★갈린다. ⇒ ★그래서 ★★부르는 자가 ★둘이어도 ★★계산은 ★이 함수 ★하나다.
+ *
+ *  ★★하한 — ⛔상수를 ★박지 ★않는다. ★남의 상수(그리드의 GRID_WIDTH_MIN)도 ★끌지 ★않는다(★뜻이 ★다르다).
+ *    ★파생폭이 ★0 이하면 ★★«보존을 ★포기»하고 ★`style.width` 를 ★비운다 ⇒ ★내용이 ★칸을 ★채운다.
+ *    ★까닭: ★패딩이 ★폭을 ★다 먹었으면 ★«고른 폭»을 ★지킬 ★자리가 ★없다. ★1px 로 ★남기면
+ *      ★사람은 ★★«사라졌다»로 ★읽는다 — ★이 레포가 ★막아 둔 ★「보이는데 ★없는 것」의 ★사촌이다.
+ *
+ *  ★★정렬은 ★안 건드린다 — ★`alignSelf: center` 는 ★그대로다. ★실측(그 회차):
+ *    ★네 패딩 ★전부에서 ★★틈이 ★대칭이고 ★`_renderedHAlign`(아래)의 ★답이 ★★`ss-align-hcenter` ★유지였다.
+ *    ＋ ★정렬 단추를 ★진짜 눌러도 ★`applyFrameHAlignToChild` 는 ★`alignSelf` 만 바꾸고 ★이 폭을 ★안 덮었다. */
+function _applyStackChildWidths(ss) {
+  if (!ss || ss.dataset.freeLayout === 'true') return 0;
+  const pad = parseFloat(getComputedStyle(ss).paddingLeft) || 0;
+  let n = 0;
+  for (const c of ss.children) {
+    const base = parseFloat(c.dataset && c.dataset.stackW);
+    if (!Number.isFinite(base)) continue;
+    const w = base - 2 * pad;
+    c.style.width = w > 0 ? w + 'px' : '';
+    n++;
+  }
+  return n;
+}
+if (typeof window !== 'undefined') window._applyStackChildWidths = _applyStackChildWidths;
+
 function _convertFreeLayoutToStack(ss) {
   // (FIX-4) 이스터에그 게이팅 — off면 콘솔 디버그 변환 함수 동작 차단
   if (window.isEasterEggEnabled && !window.isEasterEggEnabled('freeLayoutAnalyze')) return false;
@@ -176,9 +215,15 @@ function _convertFreeLayoutToStack(ss) {
     c.style.top = '';
     c.style.flexShrink = '0';
     if (it.width < parentW) {
-      c.style.width = it.width + 'px';
+      /* ★«뜻»만 박는다 — ★그려지는 폭은 ★`_applyStackChildWidths` 가 ★파생한다(그 머리말의 까닭) */
+      c.dataset.stackW = String(it.width);
       c.style.alignSelf = 'center';
     } else {
+      /* ★보존 «안 함» 갈래 — ★`stackW` 를 ★떼고 ★폭도 ★여기서 ★비운다.
+         ⛔이것이 ★«둘째 명부»가 ★아니다: ★`_applyStackChildWidths` 는 ★`stackW` 가 ★없는 자식을
+         ★★건너뛰므로(★그 함수의 `continue`) ★★이 자리에서 ★비우지 않으면 ★옛 폭이 ★남는다.
+         ⇒ ★★«파생값을 ★계산하는 자»는 ★여전히 ★그 함수 ★하나이고, ★여기는 ★★«뜻을 ★지우는 자»다. */
+      delete c.dataset.stackW;
       c.style.width = '';
       c.style.alignSelf = '';
     }
@@ -207,6 +252,8 @@ function _convertFreeLayoutToStack(ss) {
   ss.dataset.fullWidth = 'true';
   ss.style.height = '';
   ss.style.minHeight = '';
+  /* ★스택이 «된 뒤»에 파생한다 — 그 함수가 `freeLayout` 을 보고 비켜 가므로 순서가 뜻을 가른다 */
+  _applyStackChildWidths(ss);
 
   window.scheduleAutoSave?.();
   window.buildLayerPanel?.();
@@ -936,7 +983,12 @@ function _renderAutoPanel(ss) {
   bindSlider(padYSlider, padYNum, applyPadY, { min: 0, max: 200 });
   /* 좌우 패딩(F5) — 섹션 «좌우 패딩» 줄과 같은 마크업(sliderRowHTML)·같은 띠 힌트(_showPadXHint)를 쓴다.
      자유 프레임은 자식이 절대배치라 CSS padding 이 안 먹는다 — 정렬·삽입·끌기 죔이 framePadding 으로 이 값을 읽는다. */
-  const applyPadX = (v) => { ss.dataset.padX = v; ss.style.paddingLeft = v + 'px'; ss.style.paddingRight = v + 'px'; window._showPadXHint?.(ss, v); };
+  const applyPadX = (v) => {
+    ss.dataset.padX = v; ss.style.paddingLeft = v + 'px'; ss.style.paddingRight = v + 'px';
+    /* ★패딩을 쓰는 자가 «폭도 같이» 다시 계산한다 ⇒ 두 값이 갈릴 수 없다(그 함수 머리말) */
+    _applyStackChildWidths(ss);
+    window._showPadXHint?.(ss, v);
+  };
   bindSlider(document.getElementById('ss-padx-slider'), document.getElementById('ss-padx-num'), applyPadX, { min: 0, max: 100 });
 
   // 컴포넌트 저장
