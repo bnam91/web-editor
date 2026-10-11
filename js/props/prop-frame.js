@@ -174,17 +174,41 @@ function _swapBannerChildren(ss) {
  *  ★★정렬은 ★안 건드린다 — ★`alignSelf: center` 는 ★그대로다. ★실측(그 회차):
  *    ★네 패딩 ★전부에서 ★★틈이 ★대칭이고 ★`_renderedHAlign`(아래)의 ★답이 ★★`ss-align-hcenter` ★유지였다.
  *    ＋ ★정렬 단추를 ★진짜 눌러도 ★`applyFrameHAlignToChild` 는 ★`alignSelf` 만 바꾸고 ★이 폭을 ★안 덮었다. */
-/* ★★식이 ★«계수 1」(base − 2·pad)에서 ★★«비율」로 ★바뀌었다 — ★★2026-10-11 지디 판정. ★까닭 둘:
-   ⑴ ★★계수 1 은 ★★★구조적으로 ★불가능하다 — ★`stackW < 2·pad` 면 ★어떤 하한을 써도 ★깨진다.
-      ★실측(이 레포 · 프레임 860 · 패딩칸 상한 100): ★도형 기본 ★100px 자식이 ★pad 48 에서 ★4px,
-      ★pad 50 에서 ★★760px 로 ★«튀었다»(폭을 포기해 칸을 채운다) — ★★상한의 ★절반 자리다.
-   ⑵ ★★그리고 ★★«계수 1」은 ★★요구가 ★아니었다. ★현빈 원문은 ★「좌우패딩이 ★먹히게」 ★하나뿐이고,
-      ★«틈이 pad 만큼 ★정확히 늘어야 한다»는 ★★우리가 ★표를 만들며 ★세운 칸이었다(지디 자기 기록).
-   ⇒ ★비율이면 ★★0 이하가 ★★영영 없다(★`stackW ≤ frameW` 이므로 ★`w ≤ frameW − 2·pad`) ⇒ ★★경계 갈래가
-     ★★«안쪽 폭이 0 이하」 ★하나로 ★줄고, ★★튐이 ★구조적으로 ★불가능해진다.
-   ★대가: ★계수가 ★종마다 ★`stackW/frameW` 다(그리드 688/860 = ★0.8). ⇒ ★★«덜 먹는다»가 아니라 ★★«비율만큼 먹는다».
-   ⛔`frameW` 를 ★변환 시점 값으로 ★굳히지 ★않는다 — ★굳히면 ★프레임 폭이 바뀔 때 ★★둘째 명부가 된다.
-     ★그래서 ★«지금» 값을 ★읽는다. ★꼴은 ★`_analyzeFreeLayoutChildren` 의 ★그 줄과 ★같다(★`:100`). */
+/* ★★«이 요소가 ★보이는 폭으로 ★가질 수 있는 ★최솟값» — ★★이 레포의 ★유일한 문장을 ★★한 자리로.
+   ★원본은 ★`_renderAutoPanel` 의 ★폭 슬라이더 하한이었다(★`minWidth = isShapeFrame ? Math.min(width,20) : 200`).
+   ★★2026-10-11(①-가): ★스택 파생폭의 ★하한도 ★★같은 문장을 ★써야 해서 ★뽑았다 —
+     ⛔주석으로 「둘을 맞춰라」라 ★쓰지 ★않는다. ★★명부가 둘이면 ★경고로 ★못 막는다 ⇒ ★★파생시켜 ★하나로.
+   ★부르는 자 ★둘: ⑴ 폭 슬라이더(`minWidth`) ⑵ `_applyStackChildWidths` 의 ★클램프.
+   ⚠️★두 자리의 ★«주어»가 ★다르다 — ⑴ 은 ★프레임 자신, ⑵ 는 ★그 자식. ★그래서 ★요소와 폭을 ★★받는다.
+   ⛔수(20·200)를 ★여기 밖에서 ★다시 적지 ★마라. ★높이 축(`minHeight` · :870)은 ★다른 자다 — ★안 묶었다. */
+function minVisibleWidth(el, width) {
+  return _isShapeFrameEl(el) ? Math.min(width, 20) : 200;
+}
+/* ★★«합친 것을 ★재는 자»를 위해 ★내놓는다 — ★부르는 둘이 ★같은 `el` 에 ★같은 답을 받나를
+   ★검사가 ★직접 ★물어볼 수 있게(★`tests/dom/stack-padx-works` P5). ⛔제품 코드는 ★이걸 ★안 쓴다. */
+if (typeof window !== 'undefined') window.__minVisibleWidth = minVisibleWidth;
+
+/* ★★파생식 — ★★«클램프»다: ★`w = min( max(stackW − 2·pad, 하한), ★안쪽폭 )`  (★2026-10-11 지디 판정)
+   ★★이 자리는 ★오늘 ★식을 ★세 번 ★갈았다. ★★고른 까닭을 ★수로 남긴다 — ⛔«그때 그렇게 정했다»로 두지 않는다.
+   ⑴ ★★처음: ★`stackW − 2·pad`(★계수 1) ⇒ ★★깨졌다. ★`stackW < 2·pad` 면 ★하한이 ★무엇이든 ★계수 1 이 ★불가능하고,
+      ★★실측으로 ★도형 기본 ★100px 자식이 ★pad 48 ⇒ ★4px, ★pad 50 ⇒ ★★760px 로 ★«튀었다»(걸음 ★한 칸 사이).
+   ⑵ ★★다음: ★비율 `stackW × 안쪽/frameW` ⇒ ★튐은 ★사라졌으나 ★★«먹히는 양»이 ★작았다.
+      ★★틈 이동(pad 0→100 · 프레임 860) — ★비율 vs ★클램프:
+        ★grid 688  ＋80  vs ★★＋100      ★글자틀 339 ＋39 vs ★＋69
+        ★도형 100  ＋11  vs ★★＋40       ★캔버스 360 ＋42 vs ★＋80
+      ⇒ ★★도형에서 ★pad ★100 을 줬는데 ★★＋9px 였다(★비율) — ★현빈 문장(「좌우패딩이 먹히게」)이 ★그 종에서 ★거짓이다.
+   ⑶ ★★그래서 ★클램프. ★하한은 ★`minVisibleWidth` ★하나에서 오고(★위 머리말), ★★«수를 ★고르지 ★않았다».
+   ★★하한에 ★닿는 자식(프레임 860 · 패딩칸 0~100 ★전수): ★도형 100 ⇒ pad ★42 · ★글자틀 339 ⇒ pad ★72 ·
+     ★캔버스 360 ⇒ pad ★82 · ★grid 688 ⇒ ★★안 닿는다.
+   ★★그 «닿음»이 ★★좋은 쪽이라는 것도 ★쟀다 — ★하한을 ★0 으로 두면 ★★글자틀이 ★pad 100 에서 ★139px 로 좁아져
+     ★★줄이 ★2 → ★★4 로 ★늘고 ★높이가 ★115 → ★230 이 된다(= ★수지④ 증상). ★하한이 ★있으면 ★200px·★줄 2 로 ★멈춘다.
+   ★★가둠 ★둘 — ★둘 다 ★«수»가 아니라 ★제약에서 나온다:
+     ⒜ ★`Math.min(base, …)` — ★자식이 ★하한보다 ★이미 ★좁으면(비도형 180px 등) ★★pad 0 에서 ★넓어진다(★주 단언 ⒜ 가 깨진다)
+     ⒝ ★`Math.min(…, inner)` — ★자식은 ★자기 상자보다 ★넓을 수 ★없다. ★없으면 ★프레임 400＋pad 100 에서 ★그리드가
+        ★488px 로 남아 ★패딩 상자를 ★144px/쪽 ★침범하고 ★프레임을 ★44px/쪽 ★벗어난다(★실측 · overflow:hidden 이라 ★잘린다)
+   ⛔`frameW` 를 ★변환 시점 값으로 ★굳히지 ★마라 — ★굳히면 ★둘째 명부가 된다. ★«지금» 값을 ★읽고 ★꼴은 ★`:100` 과 같다.
+   ★★부르는 자 ★셋: ★변환 끝 · ★`applyPadX` · ★`applyWidth`. ⛔셋 중 하나라도 빠지면 ★값이 ★조용히 ★머문다
+     (★실측: ★`applyWidth` 가 빠진 판에서 ★pad 100 고정 · 너비 400→860 일 때 ★그리드가 ★344 에 ★머물렀다). */
 function _applyStackChildWidths(ss) {
   if (!ss || ss.dataset.freeLayout === 'true') return 0;
   const pad = parseFloat(getComputedStyle(ss).paddingLeft) || 0;
@@ -195,8 +219,15 @@ function _applyStackChildWidths(ss) {
     const base = parseFloat(c.dataset && c.dataset.stackW);
     if (!Number.isFinite(base)) continue;
     /* ★안쪽 폭이 ★0 이하면 ★그릴 칸이 ★없다 ⇒ ★보존을 포기한다(거기서는 ★그것이 ★뜻이다) */
-    const w = frameW > 0 && inner > 0 ? Math.round(base * inner / frameW) : 0;
-    c.style.width = w > 0 ? w + 'px' : '';
+    if (!(frameW > 0) || !(inner > 0)) { c.style.width = ''; n++; continue; }
+    /* ★하한 — ★`minVisibleWidth` 하나에서. ★★`base` 로 ★한 번 더 ★가둔다:
+       ★자식이 ★하한보다 ★이미 ★좁으면(비도형 180px 등) ★하한을 그대로 쓰면 ★★pad 0 에서 ★넓어진다 */
+    const floor = Math.min(base, minVisibleWidth(c, base));
+    /* ★★그리고 ★«자기 상자»보다 ★넓을 수 ★없다 — ⛔이건 ★수 선택이 ★아니라 ★상자에서 ★나온다.
+       ★없으면: ★프레임을 ★400 으로 줄이고 pad 100 이면 ★그리드가 ★488px 로 남아 ★패딩 상자를 ★144px/쪽 ★침범하고
+       ★프레임 자체를 ★44px/쪽 ★벗어난다(★`overflow:hidden` 이라 ★잘려 ★보이기만 ★한다 · ★실측). */
+    const w = Math.min(Math.max(base - 2 * pad, floor), inner);
+    c.style.width = w + 'px';
     n++;
   }
   return n;
@@ -289,7 +320,7 @@ function _renderAutoPanel(ss) {
   const padX   = parseInt(ss.dataset.padX) || parseInt(ss.style.paddingLeft) || 0;   // F5: 좌우 패딩(데이터 칸이 없던 옛 프레임은 인라인 padding 을 읽는다)
   const width  = parseInt(ss.dataset.width)  || (isShapeFrame ? 100 : 780);
   const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
-  const minWidth = isShapeFrame ? Math.min(width, 20) : 200;
+  const minWidth = minVisibleWidth(ss, width);   /* ★그 술어 하나에서 — ⛔여기 수를 적지 않는다 */
   const hasBgImg = ss.style.backgroundImage && ss.style.backgroundImage !== 'none';
   /* ★2026-10-10 ③ — ★배경 크기 칸. ★값은 ★dataset 이 정본(공용 `frameBgSize`)이고 ★여기선 ★그릴 때만 읽는다 */
   const _bgSizeNow = frameBgSize(ss);
@@ -956,6 +987,11 @@ function _renderAutoPanel(ss) {
        ⚠️이 한 줄이 없으면 「폭을 만지면 패딩제외가 조용히 풀린다」 — 에셋에서 실제로 났던 병
        (현빈 08-27 「리사이즈하면 패딩제외가 풀린다」)과 같은 뿌리다. 꺼져 있으면 no-op. */
     applyBlockFullBleed(ss);
+    /* ★★폭을 만지는 자도 ★파생을 ★다시 부른다 — ★파생이 ★`frameW` 를 ★읽으므로(그 함수 머리말).
+       ⛔없으면 ★조용히 ★썩는다(실측: 프레임 400→860 으로 되돌렸는데 ★그리드가 ★400 에 ★머물렀다).
+       ★위의 ★비율 스케일 묶음은 ★«absolute 자식»만 ★만지므로 ★스택 자식에는 ★닿지 않는다 —
+       ★그래서 ★여기 ★한 줄이 ★필요하다. ★부르는 자 셋(변환 끝 · `applyPadX` · 여기)이 ★같은 함수다. */
+    _applyStackChildWidths(ss);
   };
   bindSlider(widthSlider, widthNum, applyWidth, { min: minWidth, max: 860 });
 
