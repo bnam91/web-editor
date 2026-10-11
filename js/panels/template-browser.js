@@ -780,13 +780,29 @@ function _navigateBrowserCard(direction) {
   return true;
 }
 
-function _applySelectedBrowserTemplate() {
+function _applySelectedBrowserTemplate(opts = {}) {
   if (!_browserSelected) return false;
   const t = loadTemplates().find(x => x.id === _browserSelected);
   if (!t) return false;
+  /* ★★★«교체»일 때만 ★거는 ★가드 ★둘 — ★지디 판정(2026-10-11).
+     ⛔«추가» 경로엔 ★★안 건다(★무회귀 — ★★`H0` 가 ★그걸 ★잠근다).
+     ★★`.section-block.selected` 로 ★센다 — ★선례 = ★`section-merge.js:238`(★여럿을 ★센다). */
+  if (opts && opts.replace) {
+    const sels = document.querySelectorAll('#canvas .section-block.selected');
+    if (sels.length === 0) {
+      /* ★선례를 ★따른다 — ★`template-system.js:897` 의 ★덮어쓰기 꼴 */
+      window.alert('바꿀 섹션을 먼저 선택하세요.');
+      return true;   // ★★«처리했다» — ★★키가 ★캔버스로 ★새지 ★않게
+    }
+    if (sels.length > 1) {
+      /* ★★★거절한다 — ★«첫 것만»은 ★★사람이 ★안 고른 섹션을 ★잃는다. ★교체는 ★비가역에 ★가깝다 */
+      window.alert('섹션 하나만 선택하세요 — 교체는 되돌리기 한 걸음입니다.');
+      return true;
+    }
+  }
   closeTemplateBrowser();
   // insertTemplate 는 비동기지만 fire-and-forget (insert 버튼과 동일 흐름)
-  insertTemplate(t);
+  insertTemplate(t, opts);
   return true;
 }
 
@@ -1178,11 +1194,15 @@ function initTemplateBrowser() {
     }
 
     if (e.key === 'Enter') {
+      /* ★★★b2 — ★★`Shift+Enter` 는 ★★«교체», ★맨 ★`Enter` 는 ★★그대로 ★«추가»다(★현빈 원문의 ★「…도」).
+         ★★★고치기 ★전에는 ★★`shiftKey` 를 ★★아무도 ★안 봤다 ⇒ ★★`Shift+Enter` 가 ★★Enter 와 ★같았다
+           (★실측: ★이 파일의 ★`shiftKey` 는 ★★`_cmdDown` ★1건뿐이었다)
+         ★★그 빨강을 ★★`H1` 이 ★잠근다. ⛔수식키 가드(★위)는 ★★shift 를 ★★안 막는다 — ★그대로 ★둔다. */
       // ★한글 조합 중 Enter 는 «조합 확정»이지 «실행»이 아니다 — 가드가 없으면 템플릿이 «두 번» 삽입된다.
       //   검색창(tpl-browser-search)은 한글로 검색하는 자리다(2026-08-30 윈도우 실기 QA 에서 발견).
       //   ⚠️closeTemplateBrowser() 는 _browserSelected 를 «안 지운다» → 두 번째 Enter 도 그대로 통과한다.
       if (e.isComposing || e.keyCode === 229) return;
-      if (_applySelectedBrowserTemplate()) {
+      if (_applySelectedBrowserTemplate({ replace: !!e.shiftKey })) {
         e.preventDefault();
         e.stopPropagation();
       }

@@ -450,7 +450,10 @@ function _bindInsertedTree(root) {
   each('.annotation-block').forEach(b => window.bindAnnotationSelect?.(b));
 }
 
-async function insertTemplate(tpl) {
+/* ★★★`opts.replace` — ★★«선택한 섹션을 ★그 템플릿으로 ★교체»(★b2 · ★현빈 원문).
+ *   ★★기존 호출처 ★다섯은 ★★한 글자도 ★안 바뀐다 — ★★★선택 인자다(★`:1227` 서명 규약을 ★안 깬다).
+ *   ⛔새 함수를 ★만들지 ★않았다: ★★그 규약이 ★★「★내부 호출처가 ★여럿이다」라고 ★적혀 ★있다. */
+async function insertTemplate(tpl, opts = {}) {
   const canvas = await _loadCanvas(tpl.id);
   if (!canvas) {
     window.showToast?.('❌ 템플릿 불러오기 실패: 파일이 없거나 손상됐습니다.');
@@ -639,7 +642,12 @@ async function insertTemplate(tpl) {
   // 삽입 위치 결정: 선택된 섹션/프레임/블럭이 있으면 해당 섹션 바로 아래에 삽입, 없으면 맨 밑
   const anchorSec = window.getSelectedSection?.();
   if (anchorSec && anchorSec.parentElement === canvasEl) {
-    anchorSec.after(sec);
+    /* ★★★b2 — ★«교체»는 ★★`replaceWith` ★한 걸음이다.
+       ⛔`after` ＋ `remove` ★두 걸음으로 ★나누지 ★마라 — ★★중간 상태가 ★히스토리에 ★샌다(t4quote).
+       ★★섹션 ★번호는 ★★아래 ★재번호 루프가 ★★자리로 ★다시 ★매긴다 ⇒ ★★여기서 ★물려받지 ★않는다
+         (★t4quote 는 ★«물려받아라»라 ★적었는데 ★★그 결함은 ★★★이미 ★처리돼 ★있다 — ★실측). */
+    if (opts && opts.replace) anchorSec.replaceWith(sec);
+    else anchorSec.after(sec);
   } else {
     canvasEl.appendChild(sec);
   }
