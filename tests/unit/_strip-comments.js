@@ -189,4 +189,24 @@ function stripYamlComments(src) {
   return String(src).split('\n').map(l => l.replace(/(^|\s)#.*$/, '$1')).join('\n');
 }
 
-module.exports = { makeStripper, stripComments, stripCommentsTA, stripYamlComments, templateBalanced };
+/** HTML(`<!-- -->`) 주석을 걷는다 — 두 창의 마크업을 훑는 검사용. (2026-10-11 신설)
+ *
+ * ★왜 여기 두나 — `stripYamlComments` 가 열어 둔 그 칸이다(«언어가 다른 칸»).
+ *   ★★그리고 이번엔 «실물»이 있다: 2026-10-11 에 ★게이트가 ★★«내 주석»을 ★잡아 ★빨개졌다.
+ *     `tests/unit/tpl-browser-sort.test.mjs` 의 F5 가 `<option>` 이 ★마크업에 ★박혔나를 재는데,
+ *     그 `<select>` 안의 ★주석이 ★★글자 그대로 `<option>` 을 ★품고 있었다 ⇒ ★거짓 양성.
+ *   ★★그날 ★같은 꼴이 ★★네 번 났다(변이 확인자가 주석의 `filter(Boolean)` 을 셈 ·
+ *     선례 세는 자 · 자기 머리말을 매칭한 항등식 · 이 F5). ⇒ ★★그래서 ★인라인 정규식을 ★금지하고
+ *     ★★«걷어내기»를 ★이 한 자리로 ★모은다 — ⛔다섯째를 ★만들지 ★마라.
+ * ⛔HTML 주석은 ★중첩되지 ★않는다(명세) ⇒ 상태를 들 필요가 없다. ★한 번에 ★비탐욕으로 ★걷는다.
+ * ⚠️한계(단언하지 않고 적는다)
+ *   · `<script>`·`<style>` ★안의 ★JS/CSS 주석은 ★안 건드린다 — ★그건 `stripComments` 의 일이다.
+ *   · 속성 ★값 «안»의 `<!--` 는 ★주석이 ★아닌데 ★여기선 지운다. ★지금 쓰는 자리(두 창의 마크업)엔
+ *     그런 값이 ★없다. ★생기면 ★여기를 고쳐라.
+ *   · ★안 닫힌 `<!--` 는 ★그 뒤를 ★끝까지 ★먹는다 — ★브라우저도 ★그렇게 ★읽는다(★같은 쪽으로 ★틀린다).
+ */
+function stripHtmlComments(src) {
+  return String(src).replace(/<!--[\s\S]*?-->/g, '');
+}
+
+module.exports = { makeStripper, stripComments, stripCommentsTA, stripYamlComments, stripHtmlComments, templateBalanced };

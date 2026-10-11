@@ -17,10 +17,13 @@ let _browserSearchMode = 'all';
      ★★통째로 ★갈아친다(`:217`·`:233`·`:205` 의 ★`_browserFilter = { ... }`)
    ⇒ ★★안에 ★넣으면 ★★폴더를 ★고를 때마다 ★정렬이 ★★조용히 ★초기화된다.
    ⇒ ★★검사 ★F4 가 ★바로 ★그걸 ★잰다.
-   ⚠️★`'recent'` 를 ★★글자로 ★적은 ★까닭 — ★★이 줄은 ★★모듈 ★평가 ★시점에 ★돈다.
-     ★★`window.tplSortDefault` 를 ★여기서 ★읽으면 ★★싣는 ★차례에 ★매달린다.
-     ⇒ ★★대신 ★★검사가 ★★«이 글자 == `tplSortDefault`»를 ★잠근다. */
-let _browserSort = 'recent';
+   ★★기본 열쇠 = ★★`'default'` = ★★«정렬 자를 ★안 거친 ★그 차례»(★지디 ⒝ · 2026-10-11).
+     ⚠️★글자로 ★적은 ★까닭 — ★★이 줄은 ★★모듈 ★평가 ★시점에 ★돈다 ⇒
+       ★★`window.tplSortDefault` 를 ★여기서 ★읽으면 ★★싣는 ★차례에 ★매달린다.
+     ⇒ ★★대신 ★★검사가 ★★«이 글자 == `tplSortDefault`»를 ★잠근다 —
+       ★★★`tests/unit/tpl-browser-sort.test.mjs` 의 ★★F10. ⛔그 칸 ★없이 ★이 글자를 ★믿지 ★마라
+       (★★261011: ★기본이 ★`recent`→`default` 로 ★바뀌자 ★★이 세 자리가 ★★다 ★거짓이 ★됐다). */
+let _browserSort = 'default';
 
 /* ★★뎁스1 ★커서 — ★★«지금 ★가리키는 곳». ⛔`active`(=★«무엇으로 ★거르나»)와 ★★다른 것이다.
    ★★★이 칸이 ★★아예 ★없던 것이 ★설계 D 의 ★핵이다 — ★뎁스1 의 상태는 ★`_browserFilter` ★하나뿐이었다.
@@ -187,7 +190,7 @@ function openTemplateBrowser() {
   /* ★★뎁스·커서도 ★되돌린다 — ★열면 ★★뎁스2(첫 카드 자동선택)가 ★기존 거동이다 */
   _depth = 2;
   _treeCursor = -1;
-  _browserSort = window.tplSortDefault || 'recent';
+  _browserSort = window.tplSortDefault || 'default';
   const _sortSel = document.getElementById('tpl-browser-sort');
   if (_sortSel) _sortSel.innerHTML = window.tplSortOptionsHtml(_browserSort);
   _renderBrowserTree();
@@ -1199,7 +1202,7 @@ function initTemplateBrowser() {
         ★모드를 ★바꾸면 ★★배지·태그칩이 ★★다시 서야 한다. */
   /* ★★정렬 ★고르기 — ★`change` ★한 자리. ⛔`_browserFilter` 를 ★건드리지 ★않는다(★F4) */
   document.getElementById('tpl-browser-sort')?.addEventListener('change', e => {
-    _browserSort = e.target.value || (window.tplSortDefault || 'recent');
+    _browserSort = e.target.value || (window.tplSortDefault || 'default');
     _renderBrowserCards();
   });
 
