@@ -6,6 +6,11 @@ let _browserOpen      = false;
 let _browserFilter    = { folder: '전체', category: '전체', tag: null, starred: false };
 let _browserSelected  = null;   // 현재 선택된 tpl id
 let _browserSearchQ   = '';
+/* ★★검색 ★«기준» — ★`tpl-browser-search-mode` 가 ★고른 값. ★'all' | 'name' | 'tag'.
+   ★★이 칸이 ★생기기 ★전까지 ★그 select 는 ★★«보이고 ★눌리는데 ★아무 일도 ★안 나는» 자리였다
+   (★t4quote 가 ★자 ★여섯으로 ★쟀다: ★읽는 JS ★0건 · ★CSS 2건 · ★tests 0벌 · ★2026-04-04 `5d36470f` 부터).
+   ★★기본은 ★`'all'` — ★★옛 동작(★넷 ★전부를 ★본다)과 ★★같은 답이다 ⇒ ★★기본 쓰임이 ★안 바뀐다. */
+let _browserSearchMode = 'all';
 
 /* ── 패널 크기 한계 ── ★리사이즈 핸들과 「창에서 되돌아온 크기」가 «같은» 한계를 써야 한다.
    따로 두면 떼었다 붙일 때마다 서로 다른 값으로 잘려 크기가 야금야금 어긋난다. */
@@ -43,6 +48,13 @@ function openTemplateBrowser() {
   _browserSearchQ = '';
   const _searchInput = document.getElementById('tpl-browser-search');
   if (_searchInput) _searchInput.value = '';
+  /* ★★모드도 ★★같이 ★되돌린다 — ★★`_browserSearchMode` 도 ★★모듈 전역이라 ★닫아도 ★살아남는다.
+     ⛔안 되돌리면 ★★위 주석의 ★그 증상이 ★★모드로 ★★다시 생긴다:
+       ★★select 는 ★「태그」로 ★보이는데(★DOM 은 ★살아 있다) ★★검색어는 ★비어 ★★사람은 ★까닭을 ★못 본다.
+     ★★그래서 ★★«변수»와 ★«보이는 칸» ★★둘을 ★★같이 ★맞춘다 — ★★검색어 쪽과 ★꼴이 ★같다. */
+  _browserSearchMode = 'all';
+  const _searchMode = document.getElementById('tpl-browser-search-mode');
+  if (_searchMode) _searchMode.value = 'all';
   _renderBrowserTree();
   _renderBrowserCards();
   _syncInsertBtn();
@@ -373,16 +385,12 @@ function _renderBrowserCards() {
     templates = templates.filter(t => (t.category || '기타') === _browserFilter.category);
   }
 
-  // 검색 필터 (이름·폴더·카테고리·태그)
-  if (_browserSearchQ.trim()) {
-    const q = _browserSearchQ.toLowerCase();
-    templates = templates.filter(t =>
-      t.name.toLowerCase().includes(q) ||
-      (t.folder || '').toLowerCase().includes(q) ||
-      (t.category || '').toLowerCase().includes(q) ||
-      (t.tags || []).some(tag => tag.toLowerCase().includes(q))
-    );
-  }
+  // ★★검색 필터 — ★★식은 ★★`_tpl-search.js` ★한 자리에 ★산다. ⛔여기서 ★다시 적지 ★마라.
+  //   ★★두 축이 ★★직교로 ★선다: ★★모드(어느 칸에 대보나) × ★★AND(낱말이 여럿이면 전부 만족).
+  //   ★★옛 줄은 ★★낱말 ★하나를 ★★넷에 ★OR 로 ★댔다 ⇒ ★★`qna demo` 가 ★★«그 문자열 그대로»를 ★찾아 ★0건이었다.
+  //   ⚠️★`.trim()` 게이트를 ★★뗐다 — ★★`tplSearchFilter` 가 ★★«구분자만»도 ★★∅ 로 ★가른다(★`&`·`,,`·공백).
+  //      ⇒ ★★그게 ★★「낱말 0개면 ★전체가 ★보인다」의 ★집행 자리다.
+  templates = window.tplSearchFilter(templates, _browserSearchQ, _browserSearchMode);
 
   // 태그 칩 목록 렌더링 (태그 필터 적용 전 — 모든 가용 태그를 보여주기 위함)
   _renderTagChips(templates);
@@ -988,6 +996,22 @@ function initTemplateBrowser() {
   // 검색
   document.getElementById('tpl-browser-search')?.addEventListener('input', e => {
     _browserSearchQ = e.target.value;
+    _renderBrowserCards();
+  });
+
+  /* ★★검색 ★기준(select) — ★★이 줄이 ★★그 칸을 ★★«살린다».
+     ★★`change` 로 ★잡는다 — ★`<select>` 는 ★`input` 도 ★쏘지만 ★★이 레포의 ★선례가 ★`change` 다.
+       ★★★«선례»를 ★★세고 ★적는다(⛔「관례대로」로 ★닫지 ★않는다 · ★2026-10-11 실측):
+         ★js/ 전체 ★`addEventListener('change'` ★★538건 vs ★`'input'` ★★328건
+         ★`<select>` 를 ★`change` 로 ★잡는 ★자리 — ★`prop-text-wireup-bubble.js:18`(bubble-style-select)
+           · ★`prop-sticker.js:994`(stk-preset-select) · ★`prop-grid.js:3153` · ★`ai-image-gen.js:397`
+       ⚠️★처음 ★센 자는 ★★거짓 ★0 을 냈다 — ★★`getElementById('id')` 와 ★`addEventListener` 가
+         ★★«같은 줄»에 있어야 ★세는 자였다. ★★이 레포는 ★변수·`querySelector` 로 ★잡는 꼴이 ★많다.
+         ⇒ ★★내 교훈 「★«없다»를 ★고장난 계측기로 ★재지 ★마라」의 ★또 한 판.
+     ★★검색어가 ★비어 있어도 ★★다시 그린다 — ⛔「비었으니 ★같은 화면」은 ★★거짓이다:
+        ★모드를 ★바꾸면 ★★배지·태그칩이 ★★다시 서야 한다. */
+  document.getElementById('tpl-browser-search-mode')?.addEventListener('change', e => {
+    _browserSearchMode = e.target.value || 'all';
     _renderBrowserCards();
   });
 
