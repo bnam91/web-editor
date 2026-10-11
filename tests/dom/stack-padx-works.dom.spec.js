@@ -135,6 +135,12 @@ test('P1 ⒜pad0 무변 ＋ ⒝폭 단조감소(늘어난 칸 0) ＋ ⒞틈 단�
     expect(r.w, `pad 0: ${r.cls} 폭이 변환 직후와 같다(${b.w})`).toBe(b.w);
     expect(r.gapL, `pad 0: ${r.cls} 틈이 변환 직후와 같다(${b.gapL})`).toBe(b.gapL);
   }
+  /* ★★⒜′ ★pad 0 에서 ★★폭 == `stackW` ★정확히 — ★★«하한도 ★뚜껑도 ★거기서는 ★무력»임을 ★한 칸에 박는다.
+     ★무력화로도 ★쟀다: ★뚜껑을 ★죽이면 ★P6 ★한 칸만 ★빨강이고 ★이 P1 은 ★초록이다
+     ⇒ ★★뚜껑은 ★pad 0 과 ★기본 장면(프레임 860)을 ★★안 건드린다. */
+  for (const r of seen[0].rows.filter(x => x.stackW !== null)) {
+    expect(r.w, `pad 0: ${r.cls} 의 폭이 stackW(${r.stackW}) 그대로다 — 하한·뚜껑이 여기서는 무력`).toBe(Number(r.stackW));
+  }
   /* ★★⒝ 폭이 ★늘어난 칸 = ★0개 (⛔«튐 없음»을 ★수로) ＋ ★★⒞ 틈이 ★줄어든 칸 = ★0개 */
   const grew = [], gapShrank = [];
   for (let i = 1; i < seen.length; i++) {
@@ -356,6 +362,8 @@ test('P6 ★프레임을 ★좁혀도 — ★넘침 0 ＋ ★너비를 만지면
   const s2 = await page.evaluate(eval(READ));
   const pick = (s) => s.rows.find(r => Number(r.stackW) === 688);
   console.log(`[P6 ★썩음] pad 100 고정 · 너비 400→860(안쪽 ${s1.inner}→${s2.inner}) ⇒ grid ${pick(s1).w}→${pick(s2).w}`);
+  console.log('[P6 ★썩음 ★범위] ★재파생을 ★증명하는 칸은 ★grid ★하나다 — ★나머지 셋은 ★하한에 닿아 ★frameW 와 ★무관하므로'
+    + ' ★«값이 같은 것»이 ★정답이다(⇒ ★그 셋의 ★«머물렀다»는 ★아무것도 ★안 가른다)');
   expect(pick(s1), '전제: grid(sw688)가 있다').toBeTruthy();
   expect(pick(s2).w, `너비를 바꾸면 파생이 다시 돈다(머물면 ${pick(s1).w})`).not.toBe(pick(s1).w);
   /* ★그리고 ★그 값이 ★식과 ★맞다 */
@@ -430,5 +438,111 @@ test('P7 ★★«하한보다 ★이미 ★좁은» 비도형 자식 — ★pad 
      ★★이 칸의 ★주 단언은 ★위의 ★«pad 0 에서 안 넓어진다»(= `base` 가둠)다. */
   for (const g of got) expect(g.gapL, `pad=${g.pad}: 하한 이하 자식은 틈이 고정이다(${got[0].gapL})`).toBe(got[0].gapL);
   console.log(`[P7 ★죽은 구역] stackW(${z0.sw}) ≤ 하한 ⇒ pad 0·48·100 에서 틈이 ${got[0].gapL} 고정 — ★패딩이 이 자식에겐 안 먹는다`);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('P8 ★★뚜껑이 ★깎아도 ★«뜻»은 ★안 덮인다 — ★프레임을 ★줄였다 ★늘리면 ★폭이 ★복원된다', async ({ page }) => {
+  /* ★★P2 의 되돌림과 ★★다른 길이다 — ★거기는 ★`안쪽 ≤ 0`(보존 포기) 길이고,
+     ★여기는 ★★«뚜껑이 ★깎는» 길이다: ★pad 0 인데 ★★`stackW > frameW` 가 되게 ★프레임만 ★줄인다.
+     ⇒ ★★뚜껑이 ★깎은 값이 ★`dataset.stackW` 를 ★덮었다면 ★★되돌려도 ★안 돌아온다(= ★뜻을 ★잃는다). */
+  const { pre } = await scene(page);
+  const base = pre.rows.filter(r => r.stackW !== null).map(r => ({ id: r.id, cls: r.cls, sw: Number(r.stackW), w: r.w }));
+  const big = Math.max(...base.map(b => b.sw));
+  console.log(`[P8 전제] 덮는 ${base.length}칸 · 가장 넓은 stackW ${big} · 프레임 ${pre.frameW} · pad ${pre.pad}`);
+  expect(pre.pad, '전제: pad 0 이다(뚜껑만 일하게)').toBe(0);
+  /* ★프레임을 ★가장 넓은 자식보다 ★좁게 — ★pad 는 ★0 그대로 */
+  const narrow = 400;
+  expect(narrow, '전제: 그 폭이 가장 넓은 stackW 보다 좁다(뚜껑이 일한다)').toBeLessThan(big);
+  await setW(page, narrow);
+  const cut = await page.evaluate(eval(READ));
+  console.log(`[P8] 너비 ${cut.frameW} · pad ${cut.pad} · 안쪽 ${cut.inner} ⇒ `
+    + cut.rows.filter(r => r.stackW !== null).map(r => `${r.cls}(sw${r.stackW}) w${r.w}`).join(' | '));
+  const cutRows = cut.rows.filter(r => r.stackW !== null);
+  /* ⑴ ★뚜껑이 ★실제로 ★깎았다 — ★한 칸이라도 ★안쪽폭으로 ★눌렸나(⛔안 깎였으면 ★이 칸이 ★아무것도 안 잠근다) */
+  const 깎인 = cutRows.filter(r => r.w < Number(r.stackW));
+  console.log(`[P8] 깎인 칸 ${깎인.length}: ${깎인.map(r => `${r.cls} ${r.stackW}→${r.w}`).join(' · ') || '없다'}`);
+  expect(깎인.length, '전제: 뚜껑이 적어도 한 칸을 깎았다').toBeGreaterThan(0);
+  for (const r of cutRows) expect(r.w, `${r.cls}: 깎인 폭이 안쪽폭을 안 넘는다`).toBeLessThanOrEqual(cut.inner);
+  /* ⑵ ★★«뜻»이 ★그대로다 — `dataset.stackW` 가 ★안 덮였다 */
+  for (const r of cutRows) {
+    const b = base.find(x => x.id === r.id);
+    expect(Number(r.stackW), `${r.cls}: stackW(뜻)가 덮이지 않았다(${b.sw})`).toBe(b.sw);
+  }
+  /* ⑶ ★★되돌리면 ★폭이 ★복원된다 */
+  await setW(page, pre.frameW);
+  const back = await page.evaluate(eval(READ));
+  console.log(`[P8 ★복원] 너비 ${back.frameW} ⇒ `
+    + back.rows.filter(r => r.stackW !== null).map(r => `${r.cls} w${r.w}`).join(' | '));
+  for (const r of back.rows.filter(x => x.stackW !== null)) {
+    const b = base.find(x => x.id === r.id);
+    expect(r.w, `되돌리면 ${r.cls} 폭이 돌아온다(${b.w})`).toBe(b.w);
+  }
+});
+
+test('P9 ★★«패딩 먼저 → 변환 나중» — ★변환 ★끝의 ★파생 호출을 ★잠근다(현빈이 밟을 순서)', async ({ page }) => {
+  /* ★★왜 ★이 칸이 ★따로 있나 — ★★소비자 ★셋 중 ★«변환 끝» 팔은 ★이 장면에서만 ★잡힌다:
+     ★pad 가 ★0 인 채로 변환하면 ★자식의 ★자유배치 폭이 ★곧 ★`stackW` 라 ★★그려진 폭이 ★이미 ★맞다
+     ⇒ ★변환 끝 호출을 ★죽여도 ★안 빨개진다. ★★패딩이 ★«먼저» 있으면 ★그 호출만이 ★폭을 ★맞춘다.
+     ★그리고 ★자유배치에도 ★패딩칸이 ★있다(`prop-frame.js:425` — ★조건 밖) ⇒ ★★사람이 ★이 순서를 ★밟을 수 있다(실측). */
+  await page.setViewportSize({ width: 1500, height: 900 });
+  const errs = await bootApp(page);
+  await page.evaluate(() => {
+    const c = document.getElementById('canvas');
+    c.querySelectorAll('.section-block').forEach(s => s.remove());
+    c.insertAdjacentHTML('beforeend',
+      '<div class="section-block" data-section="1" id="sS"><div class="section-hitzone"></div>' +
+      '<div class="section-inner" id="sS-in"><div class="gap-block" data-type="gap" style="height:40px"></div></div></div>');
+    window.rebindAll?.();
+    window.state.pageSettings.padX = 0; window.applyPageSettings();
+    const S = document.getElementById('sS');
+    window.selectSection(S); window.addFrameBlock();
+    const F = [...S.querySelectorAll('.frame-block:not([data-text-frame])')].pop();
+    F.id = 'sF'; F.style.height = '600px';
+    window._activeFrame = F;
+    window.addGridBlock({});
+    const el = [...F.children].pop(); el.id = 'g1'; el.style.top = '40px';
+  });
+  await page.evaluate(() => window.deselectAll?.());
+  await page.click('#sF', { timeout: 2500, position: { x: 5, y: 5 } });
+  /* ★★★먼저 ★패딩 — ★아직 ★자유배치다 */
+  const free = await page.evaluate(() => ({ pad: !!document.getElementById('ss-padx-num'), fl: document.getElementById('sF').dataset.freeLayout }));
+  console.log(`[P9 전제] 자유배치=${free.fl} · 그 상태에 패딩칸 있나=${free.pad}`);
+  expect(free.fl, '전제: 아직 자유배치다').toBe('true');
+  expect(free.pad, '전제: 자유배치에도 패딩칸이 있다(사람이 이 순서를 밟을 수 있다)').toBe(true);
+  const PAD = 48;
+  await page.fill('#ss-padx-num', String(PAD), { timeout: 2000 });
+  const b4 = await page.evaluate(() => {
+    const F = document.getElementById('sF'), g = document.getElementById('g1');
+    return { pad: parseFloat(getComputedStyle(F).paddingLeft) || 0, w: g.offsetWidth, styleW: g.style.width || '(빈칸)' };
+  });
+  console.log(`[P9 ⒜ 변환 전] pad=${b4.pad} · 자식 폭 ${b4.w}(style ${b4.styleW})`);
+  expect(b4.pad, `전제: 패딩이 ${PAD} 로 먼저 섰다`).toBe(PAD);
+  /* ★그 뒤 ★변환 */
+  await page.click('#ss-to-stack-btn', { timeout: 2500 });
+  await page.evaluate(() => window.deselectAll?.());
+  await page.click('#sF', { timeout: 2500, position: { x: 5, y: 5 } });
+  const s = await page.evaluate(eval(READ));
+  const g = s.rows.find(r => r.id === 'g1');
+  console.log(`[P9 ⒝ 변환 직후] pad=${s.pad} 안쪽 ${s.inner} ⇒ sw=${g.stackW} 폭 ${g.w} 틈 ${g.gapL}/${g.gapR}`);
+  expect(g.stackW, '전제: 변환이 stackW 를 박았다').not.toBeNull();
+  /* ★★주 단언 — ★변환 ★끝에서 ★파생이 ★돌았다: ★폭이 ★식과 ★맞다 */
+  const sw = Number(g.stackW);
+  const floor = await page.evaluate((sw) => {
+    const el = document.getElementById('g1');
+    return Math.min(sw, window.__minVisibleWidth(el, sw));
+  }, sw);
+  const want = Math.min(Math.max(sw - 2 * s.pad, floor), s.inner);
+  console.log(`[P9] 식: min(max(${sw} − 2×${s.pad}, 하한 ${floor}), 안쪽 ${s.inner}) = ${want}`);
+  expect(g.w, `변환 끝에서 파생이 돌아 폭이 식과 맞다(${want})`).toBe(want);
+  /* ★그리고 ★틈도 ★식과 맞다 — ★«패딩이 먹었다»를 ★그림으로 */
+  const wantGap = s.pad + (s.inner - g.w) / 2;
+  expect(Math.abs(g.gapL - wantGap), `틈이 식과 맞다(${wantGap})`).toBeLessThanOrEqual(1);
+  /* ★★«나중에 준 길»과 ★같은 값인가 — ★순서가 ★뜻을 ★안 바꾼다(앞 회차 실측: 같다) */
+  await page.fill('#ss-padx-num', '0', { timeout: 2000 });
+  await page.fill('#ss-padx-num', String(PAD), { timeout: 2000 });
+  const again = await page.evaluate(eval(READ));
+  const g2 = again.rows.find(r => r.id === 'g1');
+  console.log(`[P9 ⒞ 0 으로 내렸다 다시 ${PAD}] 폭 ${g2.w} 틈 ${g2.gapL} — ★순서가 뜻을 바꾸지 않는다`);
+  expect(g2.w, '패딩을 내렸다 다시 올려도 같은 폭').toBe(g.w);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
