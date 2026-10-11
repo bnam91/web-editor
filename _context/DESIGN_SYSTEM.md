@@ -124,27 +124,54 @@ body (#1a1a1a) → 패널 (#1e1e1e) → topbar (#242424) → 팝업 (#252525) �
 
 ### 1-C. Semantic 토큰 요약 (`design-tokens.css`)
 
-주요 의미 토큰. 원시값 대신 이쪽을 참조할 것.
+⚠️⚠️**아래 29종 중 10종은 존재하지 않는다. 쓰기 전에 이 절의 경고를 읽어라.**
+> **없는 10종** — 정의 **0건** ＋ 사용 **0건** 둘 다(2026-10-11 내가 쟀다):
+> `--color-accent-edit` · `--color-selection-fill-dim` · `--color-danger-hover` ·
+> `--color-danger-bg` · `--color-success-bg` · `--color-saved` · `--color-focus-fill` ·
+> `--bg-base` · `--border-strong` · `--text-hint`
+> 자 = 주석 걷은 `css/*.css` 에서 `--x:` 선언을 뽑고(194종), `var(--x)` 를 `css/`＋`js/` 에서 뽑아
+> 둘 다 0인 것만. 항등식 **19(사는 것) ＋ 10(없는 것) = 29(이 블록의 명부)** 가 선다.
+> 양성대조: 같은 자로 `--color-accent`·`--bg-app`·`--text-sub`·`--color-handle`·`--color-focus`·
+> `--color-selection` 6종을 정의=있음으로 잡는다. 음성대조: `--bg-nope` 를 없음으로 잡는다.
+>
+> ⚠️**⒞㉡(§10 간격·반경)과 실패 방식이 다르다 — 따로 읽어라.** §10 은 «아무도 안 만들었다»다.
+> 여기는 **이 줄이 「원시값 대신 이쪽을 참조할 것」이라고 시킨다** ⇒ 따르려는 사람이 더 많다.
+>
+> ⚠️⚠️**가장 위험한 한 쌍 — 이름이 한 글자 차이로 갈린다:**
+> `--ui-bg-base` = **있다**(`css/editor-base.css` · #1e1e1e) ↔ `--bg-base` = **없다**(semantic 층).
+> `--ui-border-strong` = **있다**(#444444) ↔ `--border-strong` = **없다**.
+> ⇒ `--ui-` 접두를 떼면 **같은 뜻의 토큰이 사라진다**. semantic 층에만 구멍이다.
+>
+> ⛔**이 명부를 만든 자의 한계 — 쓰기 전에 읽어라.** 이 자는 `css/` 의 `--x:` 선언만 센다.
+> **JS 가 런타임에 set 하는 토큰은 못 본다** — `--inv-zoom`·`--ui-scale` 은 `js/editor.js`
+> `applyZoom()` 이 `documentElement` 에 걸어서 이 자엔 0건으로 뜬다. 그 둘을 「유령 아님」으로
+> 뺀 것은 **자가 아니라 내 손**이다(§8·§9-A 가 「CSS 정의 없음이 정상」이라 적어 둔 것을 읽었다).
+> ⇒ 다른 JS-set 토큰이 있으면 이 자는 그것도 유령으로 센다. **그 축은 안 쟀다.**
+>
+> ★손대기 전 이 파일 = blob `889803a2` · 24563바이트 · 524행
+> (⛔내 워크트리 체크아웃이 파일 mtime 을 덮었으므로 정체는 blob 으로 적는다)
+
+주요 의미 토큰. 원시값 대신 이쪽을 참조할 것 — ⚠️**단 위 10종은 빼고**(아래 `⛔없음` 표시).
 
 ```css
 --color-accent              /* 주요 액션 (#2d6fe8) */
 --color-accent-hover        /* (#3a7df0) */
---color-accent-edit         /* 편집 배지 (#7cb8ff) */
+--color-accent-edit         /* ⛔없음(제안) — 편집 배지 (#7cb8ff) */
 
 --color-selection           /* 캔버스 블록 선택 outline */
 --color-selection-fill      /* 캔버스 블록 hover tint */
---color-selection-fill-dim  /* 더 연한 hover tint */
+--color-selection-fill-dim  /* ⛔없음(제안) — 더 연한 hover tint */
 
 --color-handle              /* 이미지/CI 핸들 파랑 (#1592fe) */
 
---color-danger / --color-danger-hover / --color-danger-bg
---color-success / --color-success-bg
---color-saved               /* autosave 저장됨 (#4ecb7a) */
---color-focus / --color-focus-fill
+--color-danger / --color-danger-hover⛔없음(제안) / --color-danger-bg⛔없음(제안)
+--color-success / --color-success-bg⛔없음(제안)
+--color-saved               /* ⛔없음(제안) — autosave 저장됨 (#4ecb7a) */
+--color-focus / --color-focus-fill⛔없음(제안)
 
---bg-app / --bg-base / --bg-elevated / --bg-card / --bg-input / --bg-hover
---border-default / --border-mid / --border-strong
---text-default / --text-sub / --text-muted / --text-dim / --text-hint
+--bg-app / --bg-base⛔없음(제안·cf --ui-bg-base 있음) / --bg-elevated / --bg-card / --bg-input / --bg-hover
+--border-default / --border-mid / --border-strong⛔없음(제안·cf --ui-border-strong 있음)
+--text-default / --text-sub / --text-muted / --text-dim / --text-hint⛔없음(제안)
 ```
 
 ---
