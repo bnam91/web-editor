@@ -110,3 +110,48 @@ test('B6 ★★×10 — ★바닥이 ★타이밍이라 ★1회 초록은 ★운
   console.log(`[B6] ★10회 중 ★빨강 ${fails.length}건 ${fails.length ? '⇒ ' + fails.join(' · ') : '(0/10)'}`);
   expect(fails, `★0/10 이어야 한다 — ${fails.join(' · ')}`).toEqual([]);
 });
+
+/* ★★★B7·B8 — ★«여유 타이머»가 ★★CSS 에서 ★끌어오나. ★★이 쌍이 ★★transitionend 길의 ★몫을 ★잠근다.
+ *  ★왜 (지디 2026-10-11): 초판은 ★`260` 을 ★박았고 ★CSS 도 ★`0.2s` 라 적어 ★★명부가 ★둘이었다.
+ *    ⇒ ★누가 ★꾸밈을 ★늘리면 ★타이머가 ★★이르게 ★끊어 ★전환이 ★보이다 ★잘린다.
+ *  ⇒ ★★이제 ★`getComputedStyle(panel).transitionDuration` 에서 ★끌어온다 ⇒ ★★따라가야 ★한다.
+ *  ★장면: ★★런타임으로만 ★전환을 ★1s 로 ★늘린다(⛔제품 CSS 파일 ★무접촉 — ★인라인 style). */
+const SLOW = 'opacity 1s ease';
+
+test('B7 ★★꾸밈을 ★1s 로 늘리면 ★★타이머도 ★따라 늘어난다 — ★300ms 에는 ★아직 ★안 끊는다', async ({ page }) => {
+  const { op } = await openIt(page);
+  expect(op.display, '전제: 열렸다').toBe('flex');
+  const got = await page.evaluate(([SLOW]) => {
+    const p = document.getElementById('tpl-browser');
+    p.style.transition = SLOW;
+    return getComputedStyle(p).transitionDuration;
+  }, [SLOW]);
+  console.log(`[B7] 런타임 전환 = ${got} (★1s 여야 ★이 칸이 뜻이 있다)`);
+  expect(got, '전제: 전환이 1s 로 늘었다').toBe('1s');
+  await page.evaluate(() => window.closeTemplateBrowser?.());
+  await page.waitForTimeout(300);                         /* ★옛 하드코딩 260 보다 ★크다 */
+  const mid = await page.evaluate(eval(READ));
+  console.log(`[B7] 닫고 300ms: display=${mid.display} opacity=${mid.opacity} ← ★하드코딩 260 이면 ★여기서 ★이미 none(이르게 끊김)`);
+  expect(mid.display, '㉠ 300ms 에는 아직 안 끊는다(타이머가 CSS 를 따라갔다)').toBe('flex');
+  await page.waitForTimeout(1200);
+  const end = await page.evaluate(eval(READ));
+  console.log(`[B7] 닫고 1.5s: display=${end.display} opacity=${end.opacity}`);
+  expect(end.display, '㉡ 전환이 끝나면 none 까지 간다').toBe('none');
+});
+
+test('B8 ★★음성 — ★★꾸밈을 ★0s 로 두면 ★곧바로 ★닫힌다(★여유 60ms 안)', async ({ page }) => {
+  const { op } = await openIt(page);
+  expect(op.display, '전제: 열렸다').toBe('flex');
+  const got = await page.evaluate(() => {
+    const p = document.getElementById('tpl-browser');
+    p.style.transition = 'opacity 0s ease';
+    return getComputedStyle(p).transitionDuration;
+  });
+  console.log(`[B8] 런타임 전환 = ${got} (★0s 여야)`);
+  expect(got, '전제: 전환이 0s 다').toBe('0s');
+  await page.evaluate(() => window.closeTemplateBrowser?.());
+  await page.waitForTimeout(200);                         /* ★0s ＋ 여유 60ms 보다 크다 */
+  const t = await page.evaluate(eval(READ));
+  console.log(`[B8] 닫고 200ms: display=${t.display} ⇒ ${t.display === 'none' ? '★곧바로 닫힌다' : '⛔안 닫혔다'}`);
+  expect(t.display, '전환이 0s 면 여유 안에 닫힌다').toBe('none');
+});

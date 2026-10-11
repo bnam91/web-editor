@@ -63,7 +63,23 @@ function openTemplateBrowser() {
  *  ⛔CSS 의 `transition` 을 지우는 쪽으로 풀지 않았다(꾸밈을 죽이는 처방) · ⛔여는 쪽 rAF 도 무죄라 안 건드렸다.
  *  ★리스너를 ★이름 있는 자로 두고 ★★두 길 ★모두에서 ★뗀다 — `{ once: true }` 가 안 깨어나면 ★리스너가 ★쌓인다.
  *  ★`transitionend` 는 ★자식에서도 ★올라온다 ⇒ ★`target`·`propertyName` 을 ★가려 ★조기 종료를 막는다. */
-const TPL_CLOSE_FALLBACK_MS = 260;   /* CSS opacity 0.2s ＋ 여유 (css/editor-extra.css #tpl-browser) */
+/* ★★여유 타이머의 ★시간을 ★★«CSS 에서 ★끌어온다» — ⛔숫자를 ★여기 ★또 적지 ★않는다.
+ *  ★왜 (지디 2026-10-11): 초판은 `260` 을 ★박았는데 ★CSS 도 `0.2s` 라 ★적는다 ⇒ ★★명부가 ★둘이다.
+ *    ★그러면 ★누가 ★꾸밈을 ★늘릴 때 ★★한쪽만 ★고쳐져 ★타이머가 ★★이르게 ★끊는다(★전환이 ★보이다 ★잘린다).
+ *    ⇒ ★★파생시켜 ★하나로. ★이제 ★CSS 를 ★바꾸면 ★★타이머가 ★자동으로 ★따라간다.
+ *  ★`transition-duration`·`transition-delay` 는 ★★콤마 ★목록일 수 있다 ⇒ ★★쌍별 합의 ★★최대를 쓴다.
+ *  ★여유 ★60ms — ★전환이 ★끝나고 ★`transitionend` 가 ★올 ★틈. ★이 수만 ★여기 산다(★CSS 에 ★대응물이 ★없다). */
+const TPL_CLOSE_SLACK_MS = 60;
+
+function _tplCloseWaitMs(panel) {
+  const cs = getComputedStyle(panel);
+  const nums = (str) => String(str || '').split(',').map((v) => parseFloat(v) || 0);
+  const dur = nums(cs.transitionDuration);
+  const dly = nums(cs.transitionDelay);
+  let max = 0;
+  for (let i = 0; i < dur.length; i++) max = Math.max(max, dur[i] + (dly[i] || 0));
+  return Math.round(max * 1000) + TPL_CLOSE_SLACK_MS;
+}
 
 function closeTemplateBrowser() {
   const panel = document.getElementById('tpl-browser');
@@ -84,7 +100,7 @@ function closeTemplateBrowser() {
     if (!_browserOpen) panel.style.display = 'none';
   }
   panel.addEventListener('transitionend', _onEnd);
-  _timer = setTimeout(_finish, TPL_CLOSE_FALLBACK_MS);
+  _timer = setTimeout(_finish, _tplCloseWaitMs(panel));
   _browserOpen = false;
 }
 
