@@ -921,24 +921,41 @@ function _navigateBrowserCard(direction) {
   return true;
 }
 
+/* ★★★«섹션 변경» ★자격 — ★★★판정하는 자리가 ★★하나다.
+   ★★쓰는 자 ★둘: ⒜ `_syncInsertBtn`(★단추 ★disabled·★title) ⒝ `_applySelectedBrowserTemplate`(★거절 알림).
+   ⛔둘이 ★따로 ★판정하면 ★★«단추는 ★열려 ★있는데 ★눌러도 ★거절»이 ★난다 — ★★그게 ★0.9.7 차단 ①이다.
+   ★★`why` 를 ★같이 ★돌려준다 — ★★검사가 ★★«어느 갈래로 ★막혔나»를 ★이름으로 ★잴 수 ★있게.
+   ⛔블록·컴포넌트 ★교체는 ★★구현하지 ★않는다 — ★★`insertTemplate` 의 ★갈래가 ★★섹션 꼴만 ★바꾼다. */
+function _replaceEligibility() {
+  const t = _browserSelected ? loadTemplates().find(x => x.id === _browserSelected) : null;
+  if (!t) return { ok: false, why: 'no-template', msg: '바꿀 템플릿을 먼저 선택하세요.' };
+  if (t.type === 'block' || t.type === 'subsection') {
+    return { ok: false, why: 'not-a-section',
+             msg: '섹션 템플릿만 교체할 수 있습니다 — 블록·컴포넌트는 추가만 됩니다.' };
+  }
+  const sels = document.querySelectorAll('#canvas .section-block.selected');
+  if (sels.length === 0) return { ok: false, why: 'no-section', msg: '바꿀 섹션을 먼저 선택하세요.' };
+  if (sels.length > 1) {
+    /* ★★★거절한다 — ★«첫 것만»은 ★★사람이 ★안 고른 섹션을 ★잃는다. ★교체는 ★비가역에 ★가깝다 */
+    return { ok: false, why: 'many-sections',
+             msg: '섹션 하나만 선택하세요 — 교체는 되돌리기 한 걸음입니다.' };
+  }
+  return { ok: true, why: 'ok', sec: sels[0], tpl: t };
+}
+window.__replaceEligibility = () => { const e = _replaceEligibility(); return { ok: e.ok, why: e.why, msg: e.msg || null }; };
+
 function _applySelectedBrowserTemplate(opts = {}) {
   if (!_browserSelected) return false;
   const t = loadTemplates().find(x => x.id === _browserSelected);
   if (!t) return false;
-  /* ★★★«교체»일 때만 ★거는 ★가드 ★둘 — ★지디 판정(2026-10-11).
+  /* ★★★«교체»일 때만 ★거는 ★가드 — ★★★판정은 ★★`_replaceEligibility` ★하나가 ★쥔다.
      ⛔«추가» 경로엔 ★★안 건다(★무회귀 — ★★`H0` 가 ★그걸 ★잠근다).
-     ★★`.section-block.selected` 로 ★센다 — ★선례 = ★`section-merge.js:238`(★여럿을 ★센다). */
+     ⛔여기서 ★★섹션 수를 ★★다시 ★세지 ★마라 — ★★그게 ★★둘째 명부가 ★되는 ★자리다. */
   if (opts && opts.replace) {
-    const sels = document.querySelectorAll('#canvas .section-block.selected');
-    if (sels.length === 0) {
-      /* ★선례를 ★따른다 — ★`template-system.js:897` 의 ★덮어쓰기 꼴 */
-      window.alert('바꿀 섹션을 먼저 선택하세요.');
+    const el = _replaceEligibility();
+    if (!el.ok) {
+      window.alert(el.msg);
       return true;   // ★★«처리했다» — ★★키가 ★캔버스로 ★새지 ★않게
-    }
-    if (sels.length > 1) {
-      /* ★★★거절한다 — ★«첫 것만»은 ★★사람이 ★안 고른 섹션을 ★잃는다. ★교체는 ★비가역에 ★가깝다 */
-      window.alert('섹션 하나만 선택하세요 — 교체는 되돌리기 한 걸음입니다.');
-      return true;
     }
   }
   closeTemplateBrowser();
@@ -993,14 +1010,13 @@ function _syncInsertBtn() {
      ★★섹션이 ★★둘 이상 골라졌어도 ★막는다 — ★지디 판정 ②(★거절). ⇒ ★★★딱 ★하나일 때만 ★연다. */
   const rbtn = document.getElementById('tpl-browser-replace-btn');
   if (rbtn) {
-    const secN = document.querySelectorAll('#canvas .section-block.selected').length;
-    const ok = !!_browserSelected && secN === 1;
-    rbtn.disabled = !ok;
-    rbtn.style.opacity = ok ? '1' : '0.4';
-    rbtn.style.cursor  = ok ? 'pointer' : 'default';
-    rbtn.title = ok
-      ? '선택한 섹션을 이 템플릿으로 변경 (Shift+Enter)'
-      : (secN === 0 ? '바꿀 섹션을 먼저 선택하세요' : '섹션 하나만 선택하세요');
+    /* ★★★키와 ★★같은 자를 ★쓴다 — ⛔여기서 ★★섹션 수를 ★다시 ★세지 ★마라.
+       ★★title 도 ★★그 자의 ★`msg` 를 ★그대로 ★쓴다 ⇒ ★★단추의 ★말과 ★알림의 ★말이 ★★안 갈린다. */
+    const el = _replaceEligibility();
+    rbtn.disabled = !el.ok;
+    rbtn.style.opacity = el.ok ? '1' : '0.4';
+    rbtn.style.cursor  = el.ok ? 'pointer' : 'default';
+    rbtn.title = el.ok ? '선택한 섹션을 이 템플릿으로 변경 (Shift+Enter)' : el.msg;
   }
 }
 
