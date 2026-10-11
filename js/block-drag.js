@@ -380,7 +380,9 @@ function _quoteEndEdit(block, host) {
   window.pushHistory?.();                            // ⇒ ⌘Z ★한 걸음(commitQuoteText 는 /^update.*Block$/ 가 아니다)
   if (window.commitQuoteText?.(block, next)) {
     window.renderQuoteBlock?.(block);
-    /* ★고른 블럭이면 ★우측 패널도 ★따라온다 — ★`#qt-text` 와 ★줄 수 안내가 ★캔버스와 ★갈리지 않게.
+    /* ★고른 블럭이면 ★우측 패널도 ★따라온다 — ★«줄 수 안내»(`#qt-lines-hint`)가 ★캔버스와 ★갈리지 않게.
+       ★★2026-10-11 현빈 1011t1a-2 로 ★«내용» ★입력칸(옛 `#qt-text`)이 ★사라져 ★따라올 것이 ★★하나 줄었다
+         ⇒ ★이 호출의 ★까닭은 ★그 ★한 칸으로 ★좁아졌다(⛔없어진 칸 이름을 ★여기 ★남겨 두지 않는다).
        ⛔안 고른 블럭에서 부르지 마라 — ★남의 패널을 ★덮는다. */
     if (block.classList.contains('selected')) window.showQuoteProperties?.(block);
     window.scheduleAutoSave?.();

@@ -1201,14 +1201,19 @@ test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클�
     ce: window.__qt.querySelectorAll('[contenteditable="true"]').length,
     body: !!window.__qt.querySelector('.tb-qt-body'),
     text: window.__qt.dataset.text,
-    taVal: document.getElementById('qt-text')?.value ?? null,
+    /* ★★⚰️2026-10-11 현빈 1011t1a-2 — ★여기는 ★`#qt-text`(패널 ★textarea)의 ★`value` 였다.
+       ★그 칸이 ★사라졌다(★캔버스에서 ★바로 고치므로 ★없어도 된다 — ★현빈 원문).
+       ★★재던 ★축은 ★«캔버스와 ★패널이 ★갈리지 ★않는가» ★하나였고 ★★그 축은 ★살려 둔다 —
+         ★입구만 ★바꿨다: ★textarea 의 ★값 → ★★«줄 수 안내»(`#qt-lines-hint`)의 ★글.
+       ⛔지우지 ★않았다. ★주 단언은 ★아래 ㉢(엔터로 ★2줄이 되면 ★안내도 ★2줄)이다. */
+    hint: document.getElementById('qt-lines-hint')?.textContent ?? null,
   }));
   expect(pre.panel, '★전제 ㉠ — 인용구 패널이 열렸다').toBe(true);
   expect(pre.selected, '★전제 ㉡ — 블럭이 ★고른 상태다(사람이 하는 순서)').toBe(true);
   expect(pre.ce, '★전제 ㉢ — ★편집이 ★아직 안 열렸다(contenteditable=true 0건)').toBe(0);
   expect(pre.body, '★전제 ㉣ — 글덩이(.tb-qt-body)가 ★그려져 있다').toBe(true);
   expect(pre.text, '★전제 ㉤ — 지금 글 = 「안녕」').toBe('안녕');
-  expect(pre.taVal, '★전제 ㉥ — 패널 textarea 도 「안녕」').toBe('안녕');
+  expect(pre.hint, `★전제 ㉥ — ★패널의 ★«줄 수 안내»가 ★서 있고 ★지금 ★1줄이라 적혀 있다. 잰 글 「${pre.hint}」`).toMatch(/1줄/);
 
   /* ── ㉠ ★더블클릭이 ★편집을 ★연다 ────────────────────────────────────────── */
   const lr = await waitStableRect(page, '#sQ .quote-block .tb-qt-line');
@@ -1251,7 +1256,11 @@ test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클�
       drawn: [...b.querySelectorAll('.tb-qt-line')].map(e => e.textContent),
       ce: b.querySelectorAll('[contenteditable="true"]').length,
       editing: b.classList.contains('editing'),
-      taVal: document.getElementById('qt-text')?.value ?? null,
+      /* ★★⚰️같은 자리 둘째 — ★여기도 ★`#qt-text` 의 ★value 였다. ★입구만 ★바꿨다(위 ⚰️ 참조).
+         ★이 칸의 ★뜻 = ★«커밋 뒤에도 ★패널이 ★살아 있나»(⛔null 이면 ★패널이 ★죽었다). */
+      hint: document.getElementById('qt-lines-hint')?.textContent ?? null,
+      /* ★★그리고 ★★«없애기»를 ★여기서 ★같이 잠근다 — ★옛 입력칸이 ★되살아나면 ★이 수가 ★0 이 아니다 */
+      oldTa: document.querySelectorAll('#panel-right #qt-text, #panel-right textarea.prop-textarea').length,
       marks: b.querySelectorAll('.tb-qt-mark').length,
     };
   });
@@ -1260,7 +1269,8 @@ test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클�
   expect(after.ce, '★편집이 ★닫혔다').toBe(0);
   expect(after.editing, '★`editing` 이 ★떨어졌다').toBe(false);
   expect(after.marks, '★부호는 ★그대로 한 쌍').toBe(2);
-  expect(after.taVal, `★★우측 패널 ★textarea 도 ★따라와야 한다(⛔캔버스와 ★갈리면 ★다음에 패널로 고칠 때 ★되돌아간다). 잰 값 「${after.taVal}」`).toBe('처음 입어도');
+  expect(after.hint, `★★커밋 뒤에도 ★패널의 ★«줄 수 안내»가 ★살아 있다(⛔null 이면 ★패널이 ★죽었다 — ★다시 그리기가 깨진 꼴). 잰 글 「${after.hint}」`).toMatch(/1줄/);
+  expect(after.oldTa, `★★«내용» ★입력칸은 ★0개여야 한다(현빈 1011t1a-2 「없어도 될듯함」). 잰 값 ${after.oldTa}`).toBe(0);
 
   /* ── ㉢ ★엔터가 ★줄을 나눈다 (v1 모델 = ★글은 한 덩이 · 렌더가 쪼갠다) ──────── */
   const lr2 = await waitStableRect(page, '#sQ .quote-block .tb-qt-line');
@@ -1281,10 +1291,17 @@ test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클�
     ds: window.__qt.dataset.text,
     drawn: [...window.__qt.querySelectorAll('.tb-qt-line')].map(e => e.textContent),
     pre: window.__qt.querySelectorAll('[data-qt-mark="pre"]').length,
+    hint: document.getElementById('qt-lines-hint')?.textContent ?? null,
   }));
   expect(two.ds.includes('\n'), `★★dataset 에 ★줄바꿈이 ★한 덩이로 들어갔다. 잰 값 ${JSON.stringify(two.ds)}`).toBe(true);
   expect(two.drawn, '★두 줄로 그려졌다').toEqual(['가', '나']);
   expect(two.pre, '★부호는 ★한 쌍 그대로(줄 수와 ★무관 — Q4 의 그 불변식)').toBe(1);
+  /* ── ★★«캔버스 → 패널» ★한 축 — ★옛 `taVal` 단언이 ★재던 것을 ★여기로 ★옮겼다(1011t1a-2) ──
+     ★★이 줄이 ★주 단언이다: ★캔버스에서 ★엔터로 ★2줄을 만들면 ★우측 패널의 ★«줄 수 안내»도 ★2줄이어야 한다.
+     ★무력화 과녁 = ★`_quoteEndEdit` 의 ★`showQuoteProperties` 재호출(★그걸 떼면 ★안내가 ★1줄에 ★멈춘다).
+     ⛔「1줄 → 1줄」 장면에 ★걸지 않았다 — ★그건 ★★항등식이라 ★배선을 ★떼도 ★참이다(★실측 전 ★설계로 ★피했다). */
+  expect(two.hint, `★★캔버스에서 ★2줄을 만들면 ★패널의 ★«줄 수 안내»도 ★2줄이어야 한다`
+    + ` (⛔갈리면 ★사람이 ★패널의 ★헌 수를 ★보고 ★판단한다). 잰 글 「${two.hint}」`).toMatch(/2줄/);
 
   /* ── ㉣ ★★안내문구 ★지뢰 — ★손 안 대고 나가면 ★데이터로 굳지 ★않는다 ──────────
      ⛔이 줄이 없으면 ★더블클릭만 해도 ★안내문구가 ★본문이 되는 블럭이 ★영영 남는다(모달의 그 규약). */
@@ -1558,5 +1575,197 @@ test('Q18 ★★타이포그래피 절 — ★정본에서 나오고(명부) ★
      ⇒ ★마지막 화살표를 ★★«블록 없는 식»으로 두면 ★그 자가 ★시험 ★전체를 ★본다.
      ★그리고 ★`String(e)` 는 ★덤이 아니다 — ★빨강이 났을 때 ★오류 ★꼴을 ★메시지에 ★읽히게 한다.
      ★까닭 전문은 ★Q10 의 그 머리말에 있다. */
+  expect(errs.map(e => String(e)), '★오류 0').toEqual([]);
+});
+
+/* ══════ 2026-10-11 현빈 1011t1a-1 ══════════════════════════════════════════════
+   ★원문: 「캔버스에서 수정할 때 ★텍스트블럭 포커스하면 ★★아웃라인 ★이상함 (★다른 것을 ★참고해볼 것)」
+   ★★요구는 ★«있나»가 ★아니라 ★★«맞나»다 ⇒ ★그래서 ★이 칸은 ★★«텍스트 블럭과 ★같은가»를 ★단언한다.
+     ⛔`.quote-block.selected` 가 ★있다는 것으로는 ★아무것도 ★안 잠근다(★그 선이 ★★두 겹인 것이 ★증상이었다).
+   ★★자 = ★★«보이는 선의 ★겹 수». ★세는 자리 ★셋을 ★한 수로 합친다:
+     ⒤ ★블럭 ★제 outline  ⒥ ★그 ★자손의 outline(★편집 host 의 ★브라우저 기본 포커스링이 ★여기 선다)
+     ⒦ ★블럭 ★밖의 ★오버레이 `.ss-sel-path`(★★이걸 빼면 ★«1겹»의 ★분모를 ★잘못 센다)
+   ★실측(고치기 전 판 `3501b00d` · 마우스 치움):
+     ★인용구 ★편집 중 = ★★3겹 [오버레이 1 ＋ 블럭 1px solid rgb(45,111,232) ＋ tb-qt-body auto 1px rgb(153,200,255)]
+     ★텍스트 ★편집 중 = ★★1겹 [오버레이만] ＋ ★배경 틴트 rgba(45,111,232,0.08)
+     ★둘 다 ★«고른 상태»(편집 아님) = ★★1겹 ⇒ ★★증상은 ★★«포커스하는 ★순간»에만 난다.
+   ★★⛔기대값을 ★손으로 ★박지 ★않는다 — ★★같은 회차에서 ★★텍스트 블럭을 ★같은 자로 ★재서 ★그 수를 ★쓴다
+     (★그러면 ★토큰·줌·오버레이 구현이 ★바뀌어도 ★«같은가»는 ★계속 참값을 ★가리킨다).
+   ⚠️★마우스를 ★치운다 — ⛔안 치우면 `.frame-block:not(.selected) .text-block:hover` 의
+     `outline-style:none !important` 가 ★텍스트 쪽에 ★같이 걸려 ★★«0겹»을 재고 ★기준이 ★틀어진다
+     (★실측 2026-10-11: ★그 오염으로 ★텍스트 블럭 outline 이 ★`none` 으로 읽혔다). */
+const LINE_COUNT = `(() => {
+  const b = window.__probeBlk;
+  const t = (el) => { const cs = getComputedStyle(el);
+    return cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0
+      && !/transparent|rgba\\(\\s*0,\\s*0,\\s*0,\\s*0\\s*\\)/.test(cs.outlineColor); };
+  const self = t(b) ? 1 : 0;
+  const desc = [...b.querySelectorAll('*')].filter(t).length;
+  const ov = [...document.querySelectorAll('.ss-sel-path')].filter(p => {
+    const cs = getComputedStyle(p); const r = p.getBoundingClientRect();
+    return cs.display !== 'none' && cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0
+      && parseFloat(cs.strokeWidth) > 0 && !/none|transparent|rgba\\(\\s*0,\\s*0,\\s*0,\\s*0\\s*\\)/.test(cs.stroke)
+      && r.width > 0 && r.height > 0; }).length;
+  const cs = getComputedStyle(b);
+  const inner = b.querySelector('.tb-qt-body') || b.querySelector('[contenteditable]');
+  return { lines: self + desc + ov, self, desc, ov,
+    editing: b.classList.contains('editing'), selected: b.classList.contains('selected'),
+    hover: b.matches(':hover'),
+    bg: cs.backgroundColor,
+    blockOutline: cs.outlineStyle + ' ' + cs.outlineWidth + ' ' + cs.outlineColor,
+    innerOutline: inner ? (getComputedStyle(inner).outlineStyle + ' ' + getComputedStyle(inner).outlineWidth
+      + ' ' + getComputedStyle(inner).outlineColor) : '(편집 host 가 없다)' };
+})()`;
+
+test('Q19 ★★포커스했을 때 ★선이 ★몇 겹인가 — ★★텍스트 블럭과 ★같아야 한다 (현빈 1011t1a-1)', async ({ page }) => {
+  const errs = await setup(page, { text: '안녕' });
+  /* ★같은 회차·같은 섹션에 ★텍스트 블럭도 ★세운다 — ★★기준을 ★이 판에서 ★직접 잰다 */
+  await page.evaluate(() => {
+    window.deselectAll && window.deselectAll();
+    window.selectSection(document.getElementById('sQ'));
+    window.addTextBlock('body');
+    window.__tb = [...document.querySelectorAll('#sQ .text-block')].pop();
+    window.buildLayerPanel && window.buildLayerPanel();
+    window.deselectAll && window.deselectAll();
+  });
+  await page.waitForFunction(() => !!window.__tb && window.__tb.isConnected, null, { timeout: 5000 });
+  /* ★마우스를 ★캔버스 ★밖으로 ★치운다. ⛔고정 대기를 ★쓰지 않는다 — ★★«치워졌나»를 ★조건으로 ★기다린다
+     (★레포 관용구 · `tests/unit/dom-fixed-wait-census.test.mjs` ★W3 이 ★그 수를 ★래칫으로 잠근다.
+      ★실측 2026-10-11: ★처음엔 `waitForTimeout(200)`·`(300)` 을 ★썼고 ★그 자가 ★1318 → ★1320 으로 ★빨개졌다). */
+  const park = async () => {
+    await page.mouse.move(5, 5);
+    await page.waitForFunction(() => !document.querySelector('#canvas :hover'), null, { timeout: 5000 })
+      .catch(() => { throw new Error('★마우스를 치웠는데 ★캔버스 안에 ★:hover 가 ★남아 있다 — ★기준이 틀어진다'); });
+  };
+
+  /* ── ★전제 — ★장면이 ★섰나. ⛔이 넷이 없으면 ★아래 수는 ★아무것도 안 잰다 ── */
+  await openPanel(page);
+  await park();
+  await page.evaluate(() => { window.__probeBlk = window.__qt; });
+  const qSel = await page.evaluate((c) => eval(c), LINE_COUNT);
+  expect(qSel.selected, '★전제 ㉠ — 인용구가 ★고른 상태다').toBe(true);
+  expect(qSel.editing, '★전제 ㉡ — ★아직 ★편집은 ★아니다(증상은 포커스 순간에 난다)').toBe(false);
+  expect(qSel.hover, '★전제 ㉢ — ★마우스를 ★치웠다(⛔안 치우면 :hover !important 가 기준을 틀어뜨린다)').toBe(false);
+  expect(qSel.ov, `★전제 ㉣ — ★오버레이 선이 ★1개 ★살아 있다(★「한 겹」의 ★분모). 잰 값 ${JSON.stringify(qSel)}`).toBe(1);
+
+  /* ── ★인용구를 ★포커스한다 ── */
+  const lr = await waitStableRect(page, '#sQ .quote-block .tb-qt-line');
+  await page.mouse.dblclick(lr.cx, lr.cy);
+  await page.waitForFunction(() => window.__qt.querySelector('.tb-qt-body')?.getAttribute('contenteditable') === 'true', null, { timeout: 5000 });
+  await park();
+  const qEdit = await page.evaluate((c) => eval(c), LINE_COUNT);
+  expect(qEdit.editing, '★전제 ㉤ — ★편집이 ★열렸다').toBe(true);
+  expect(qEdit.hover, '★전제 ㉥ — ★여기서도 ★마우스를 ★치웠다').toBe(false);
+
+  /* ── ★기준 — ★같은 자로 ★텍스트 블럭을 ★잰다 ── */
+  await page.evaluate(() => {
+    window.__qt.querySelector('.tb-qt-body')?.blur();
+    window.deselectAll && window.deselectAll();
+    window.__tb.dataset.pnl2 = '1';
+    window.__probeBlk = window.__tb;
+  });
+  const tr0 = await waitStableRect(page, '[data-pnl2="1"]');
+  await clickAt(page, tr0.cx, tr0.cy, { sel: '[data-pnl2="1"]' }, { label: '텍스트 고르기' });
+  /* ⛔고정 대기 금지 — ★«골랐나»를 ★조건으로 기다린다(위 park 의 그 까닭) */
+  await page.waitForFunction(() => window.__tb.classList.contains('selected'), null, { timeout: 5000 })
+    .catch(() => { throw new Error('★클릭이 ★텍스트 블럭을 ★고르지 못했다 — ★기준을 ★못 잰다'); });
+  await park();
+  const tSel = await page.evaluate((c) => eval(c), LINE_COUNT);
+  expect(tSel.selected, '★전제 ㉦ — ★텍스트도 ★고른 상태다').toBe(true);
+  expect(tSel.ov, `★전제 ㉧ — ★텍스트 쪽도 ★오버레이 ★1개. 잰 값 ${JSON.stringify(tSel)}`).toBe(1);
+
+  const tr = await waitStableRect(page, '#sQ .text-block [contenteditable]');
+  await page.mouse.dblclick(tr.cx, tr.cy);
+  await page.waitForFunction(() => window.__tb.classList.contains('editing'), null, { timeout: 5000 });
+  await park();
+  const tEdit = await page.evaluate((c) => eval(c), LINE_COUNT);
+  expect(tEdit.editing, '★전제 ㉨ — ★텍스트도 ★편집이 ★열렸다(★기준이 ★같은 장면이다)').toBe(true);
+  expect(tEdit.hover, '★전제 ㉩ — ★마우스 치움').toBe(false);
+
+  console.log('★Q19 잰 것 = ' + JSON.stringify({ qSel, qEdit, tSel, tEdit }));
+
+  /* ── ★★주 단언 ⑴ — ★포커스 중 ★선의 ★겹 수가 ★★같다 (★고치기 전 = 3 vs 1) ── */
+  expect(qEdit.lines,
+    `★★인용구를 ★포커스했을 때 ★선이 ★★${tEdit.lines}겹이어야 한다(★같은 회차의 ★텍스트 블럭을 ★같은 자로 잰 수).`
+    + ` ★잰 값 ★${qEdit.lines}겹 — 블럭 ${qEdit.self} ＋ 자손 ${qEdit.desc} ＋ 오버레이 ${qEdit.ov}`
+    + ` · 블럭 outline 「${qEdit.blockOutline}」 · 편집 host outline 「${qEdit.innerOutline}」`
+    + ` (★기준 텍스트: 블럭 ${tEdit.self} ＋ 자손 ${tEdit.desc} ＋ 오버레이 ${tEdit.ov})`).toBe(tEdit.lines);
+
+  /* ── ★★주 단언 ⑵ — ★편집 host 의 ★브라우저 기본 포커스링이 ★꺼져 있다 (★고치기 전 = `auto`) ── */
+  const innerStyle = qEdit.innerOutline.split(' ')[0];
+  expect(innerStyle,
+    `★★편집 host(.tb-qt-body)의 outline-style 이 ★`+'`none`'+`이어야 한다 — ★`+'`auto`'+`면 ★★브라우저 기본 포커스링이다`
+    + ` (★제품 색·두께가 ★아니다). ★잰 값 「${qEdit.innerOutline}」`).toBe('none');
+
+  /* ── ★★주 단언 ⑶ — ★«편집 중»이 ★배경 틴트로 ★보인다. ★기준값도 ★텍스트에서 ★가져온다 ── */
+  expect(qEdit.bg,
+    `★★편집 중 ★배경 틴트가 ★텍스트 블럭과 ★같아야 한다(⛔선이 1겹이면 ★«고른 상태»와 ★구별이 ★안 된다).`
+    + ` ★잰 값 「${qEdit.bg}」 · ★기준(텍스트) 「${tEdit.bg}」`).toBe(tEdit.bg);
+  expect(/transparent|rgba\(\s*0,\s*0,\s*0,\s*0\s*\)/.test(tEdit.bg),
+    `★★전제 — ★기준으로 쓴 ★텍스트 블럭의 ★편집 틴트가 ★★투명이 ★아니어야 한다(★투명이면 ★위 단언이 ★항등식이 된다).`
+    + ` ★잰 값 「${tEdit.bg}」`).toBe(false);
+
+  /* ── ★★음성대조 — ★«고른 상태»는 ★건드리지 ★않았다(★거기선 ★이미 ★텍스트와 ★같았다) ── */
+  expect(qSel.lines, `★★음성대조 — ★고른 상태의 ★겹 수는 ★텍스트와 ★같은 ★${tSel.lines}겹 그대로여야 한다. 잰 값 ${qSel.lines}`).toBe(tSel.lines);
+  expect(/transparent|rgba\(\s*0,\s*0,\s*0,\s*0\s*\)/.test(qSel.bg),
+    `★★음성대조 — ★★고른 상태에 ★배경을 ★주지 ★않았다(.claude/rules/css-blocks.md 의 그 ⛔). 잰 값 「${qSel.bg}」`).toBe(true);
+
+  expect(errs.map(e => String(e)), '★오류 0').toEqual([]);
+});
+
+/* ══════ 2026-10-11 현빈 1011t1a-2 ══════════════════════════════════════════════
+   ★원문: 「그리고 ★캔버스에서 ★바로 수정가능하니 ★★없어도 ★우측패널에서는 될듯함」
+     (★현빈이 ★그 ★HTML 토막 `<textarea … id="qt-text" …>` 을 ★★두 번 붙여 ★가리켰다)
+   ★★이 칸이 ★잠그는 것 ★둘:
+     ⑴ ★«내용» ★입력칸이 ★★0개다 — ★되살리면 ★빨강
+     ⑵ ★그런데 ★★«글을 ★넣을 ★길»은 ★여전히 ★있다 — ★캔버스 ★편집 host 가 ★0 이 되면 ★빨강
+        ⛔⑴ 만 걸면 ★★«칸도 없고 ★길도 없는» 판이 ★초록이 된다. ★그게 ★이 짝의 ★까닭이다.
+   ⚠️★`qt-textcol`(★글자 ★색)은 ★이름이 ★겹치지만 ★★다른 칸이다 — ★그것이 ★★남아 있음을 ★같이 단언한다
+     (⛔「qt-text 로 ★시작하는 것 ★전부 0」 꼴로 ★세면 ★색 칸을 ★같이 ★지워도 ★초록이다). */
+test('Q20 ★★«내용» 입력칸은 ★0개 · 그런데 ★글 넣는 ★길은 ★산다 · ★«글자 색» 칸은 ★그대로 (현빈 1011t1a-2)', async ({ page }) => {
+  const errs = await setup(page, { text: '안녕' });
+  await openPanel(page);
+
+  const cen = await page.evaluate(() => {
+    const p = document.getElementById('panel-right');
+    /* ★★절을 ★이름으로 집는다 — ⛔몇째 절인지로 ★세지 않는다(절이 늘면 ★썩는다) */
+    const sec = [...p.querySelectorAll('.prop-section')]
+      .find(s => (s.querySelector('.prop-section-title')?.textContent || '').trim() === '글') || null;
+    return {
+      hasGlSec: !!sec,
+      titles: [...p.querySelectorAll('.prop-section-title')].map(e => e.textContent.trim()),
+      /* ⑴ ★두 자로 ★센다 — ★id 로 ＋ ★꼴(textarea)로. ⛔한 자로만 세면 ★id 를 바꿔 ★되살릴 수 있다 */
+      byId: p.querySelectorAll('#qt-text').length,
+      byShape: p.querySelectorAll('textarea').length,
+      /* ★★일치가 ★딱 하나인가 — ★안내는 ★한 칸이어야 한다(둘이면 ★어느 쪽을 보는지 ★모른다) */
+      hintCount: p.querySelectorAll('#qt-lines-hint').length,
+      hint: document.getElementById('qt-lines-hint')?.textContent ?? null,
+      /* ★남긴 칸 — ★글자 ★색(이름이 ★겹치는 ★다른 칸) */
+      textColSwatch: p.querySelectorAll('#qt-textcol-swatch, [id^="qt-textcol"]').length,
+      /* ⑵ ★글을 ★넣는 ★길 — ★캔버스의 ★편집 host */
+      canvasHosts: window.__qt.querySelectorAll('.tb-qt-body').length,
+    };
+  });
+  console.log('★Q20 잰 명부 = ' + JSON.stringify(cen));
+
+  /* ★전제 — ★«글» 절 ★자체는 ★남아 있다(⛔절을 ★통째로 지운 것이 ★아니다) */
+  expect(cen.hasGlSec, `★전제 — ★«글» 절이 ★패널에 ★있다. 잰 제목 ${JSON.stringify(cen.titles)}`).toBe(true);
+
+  /* ── ⑴ ★«내용» 입력칸 ★0개 — ★두 자로 ── */
+  expect(cen.byId, `★★옛 ★«내용» 입력칸(#qt-text)이 ★0개여야 한다. 잰 값 ${cen.byId}`).toBe(0);
+  expect(cen.byShape, `★★우측 패널에 ★textarea 가 ★0개여야 한다(★id 를 바꿔 되살려도 ★이 자가 잡는다). 잰 값 ${cen.byShape}`).toBe(0);
+
+  /* ── ⑵ ★그런데 ★길은 ★산다 — ⛔이 줄이 ★없으면 ★«칸도 길도 없는» 판이 ★초록이다 ── */
+  expect(cen.canvasHosts, `★★캔버스 ★편집 host(.tb-qt-body)가 ★1개여야 한다 — ★이게 ★0 이면`
+    + ` ★★글을 ★넣을 ★길이 ★아예 ★없다(그러면 ★칸을 ★없앤 것이 ★★틀린 결정이 된다). 잰 값 ${cen.canvasHosts}`).toBe(1);
+
+  /* ── ★안내 칸은 ★딱 ★하나 ── */
+  expect(cen.hintCount, `★★«줄 수 안내»는 ★딱 ★1개여야 한다(★둘이면 ★검사가 ★어느 쪽을 ★보는지 모른다). 잰 값 ${cen.hintCount}`).toBe(1);
+  expect(cen.hint, `★그 안내가 ★지금 ★1줄을 ★말한다. 잰 글 「${cen.hint}」`).toMatch(/1줄/);
+
+  /* ── ★★음성대조 — ★이름이 ★겹치는 ★«글자 색» 칸은 ★같이 지우지 ★않았다 ── */
+  expect(cen.textColSwatch >= 1, `★★«글자 색»(qt-textcol…) 칸은 ★남아 있어야 한다 —`
+    + ` ⛔「qt-text 로 시작하는 것 전부 0」으로 ★세면 ★이것까지 ★지워도 ★초록이 된다. 잰 값 ${cen.textColSwatch}`).toBe(true);
+
   expect(errs.map(e => String(e)), '★오류 0').toEqual([]);
 });

@@ -1453,8 +1453,36 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 /* ★쿠폰의 글자 칸 — 편집 포커스 테두리를 끈다(모달의 .tb-mdl-* 과 같은 까닭).
    ★줄바꿈은 생성기 쪽에서 white-space:pre 로 준다(렌더가 인라인으로) — 여기선 안 건드린다. */
 .coupon-block .tb-cpn-line { outline: none; }
-/* ★인용구의 글자·부호 칸 — 같은 까닭(쿠폰 위 줄과 한 쌍). */
-.quote-block .tb-qt-line, .quote-block .tb-qt-mark { outline: none; }
+/* ★인용구의 글자·부호 칸 — 같은 까닭(쿠폰 위 줄과 한 쌍).
+   ★★2026-10-11 현빈 1011t1a-1 「★캔버스에서 수정할 때 ★텍스트블럭 포커스하면 ★아웃라인 이상함」 —
+     ★이 명부에 ★`.tb-qt-body` 를 ★더했다. ★★까닭 = ★★«명부가 ★편집 host 를 ★빼먹었다»:
+     ★인용구의 ★진짜 편집 host 는 ★`.tb-qt-body` ★하나이고(block-drag.js `isQuote` dblclick · 그 파일 주석)
+     ★`.tb-qt-line`·`.tb-qt-mark` 는 ★그 자손·형제라 ★★contenteditable 이 ★안 걸린다
+     (⇒ ★그 둘의 outline:none 은 ★★포커스 테두리를 ★한 번도 ★끈 적이 없다).
+   ★실측(고치기 전 · 포커스 중 · 마우스 치움): ★`.tb-qt-body` 가 ★`outline: auto 1px rgb(153,200,255)`
+     = ★★«브라우저 기본 포커스링»이었다 — ★제품 색도 ★제품 두께도 ★아니다. ★걸린 CSS 규칙 ★0건이 ★그 증거다.
+   ★텍스트 블럭은 ★같은 자리를 ★`.text-block [contenteditable] { outline:none }`(editor-layout.css)로 끈다 —
+     ⛔그 꼴을 ★그대로 ★베끼지 ★않았다: ★인용구는 ★부호·줄이 ★contenteditable 이 ★아니라
+     ★«자손 전부»로 넓힐 ★까닭이 ★없고, ★이 줄이 ★이미 ★명부 꼴이라 ★★사본을 ★안 만든다. */
+.quote-block .tb-qt-line, .quote-block .tb-qt-mark, .quote-block .tb-qt-body { outline: none; }
+/* ★★인용구 ★편집 중 — ★선은 ★★«오버레이 한 겹»이 ★전부다.
+   ★실측(고치기 전 · 포커스 중): ★보이는 선이 ★★3겹이었다 —
+     ⑴ ★오버레이 `.ss-sel-path` 1px solid rgb(45,111,232) (★편집 중에도 ★계속 그린다 — ★실측 ovLive=1)
+     ⑵ ★블럭 제 `.quote-block.selected` outline 1px solid rgb(45,111,232) offset -1px
+        (★중화 절 `body.sel-ov #canvas .selected:not(.editing)` 이 ★`.editing` 을 ★빼 두므로 ★되살아난다)
+     ⑶ ★글 칸의 ★브라우저 기본 포커스링 (★위 줄이 ★이제 끈다)
+   ★같은 장면의 ★텍스트 블럭 = ★★1겹(오버레이만) ＋ ★배경 틴트. ⇒ ★★차 = ★+2겹.
+   ★처방은 ★텍스트가 ★이미 쓴 ★관용구다 — ★선을 ★부모/오버레이가 ★책임지면 ★제 outline 은 ★색만 투명으로
+     (★같은 파일의 ★T6 절 「부모 row/text-frame 이 outline 을 책임지면 … 한 겹만 보이게」와 ★한 쌍).
+   ⛔그 절의 ★선택자를 ★베끼지 ★않았다 — ★★구조가 다르다: ★텍스트는 ★`.frame-block[data-text-frame]` 안에 살아
+     ★그 부모가 ★선을 ★책임지는데, ★★인용구는 ★그 프레임이 ★없다. ★인용구에서 ★선을 ★들고 있는 자는 ★오버레이다.
+   ★그래서 ★`.editing` 에만 ★건다(⛔`.selected` 가 ★아니다 — ★고른 상태는 ★이미 ★1겹이고 ★실측으로 ★텍스트와 ★같다).
+   ★★그리고 ★틴트 — ★그게 ★없으면 ★★«고른 상태»와 ★«편집 중»이 ★선 1겹으로 ★구별이 ★안 된다.
+     ★토큰은 ★`--sel-color-fill` ★하나를 ★그대로 쓴다(★`.text-block.editing` 과 ★같은 값 · ⛔새 색 ★0).
+   ⚠️인용구 블럭은 ★제 배경을 ★인라인으로 ★받지 ★않는다 — ★실측: `renderQuoteBlock` 의 `block.style.cssText`
+     에 ★`background` ★0건 ⇒ ★이 틴트가 ★인라인에 ★안 진다(★조용히 아무 일 없음이 ★아니다). */
+.quote-block.selected.editing { outline-color: transparent; }
+.quote-block.editing { background: var(--sel-color-fill); }
 /* ★G19 그리드 «밑» 자식 블럭 그릇(.grd-children) — 간격(margin-top·flex gap)은 js/grid-children.js 가 «인라인»으로 건다
    (그래야 PNG·HTML 내보내기가 에디터 CSS 없이도 같은 자리를 낸다). 여기는 두 가지만:
    ⑴ 빈 그릇은 자리를 안 먹는다 — 자식을 지우거나 끌어낸 직후 «다음 렌더 전»까지 남는 빈 그릇(인라인 margin-top)이

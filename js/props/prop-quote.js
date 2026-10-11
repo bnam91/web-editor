@@ -121,9 +121,24 @@ export function showQuoteProperties(block) {
   const bold = block.dataset.bold === '1';
   const italic = block.dataset.italic === '1';
   const strike = block.dataset.strike === '1';
-  const raw = block.dataset.text ?? '';
   const lines = quoteLines(block);
   const isPh = quoteIsPlaceholder(block);
+  /* ★★⚰️2026-10-11 현빈 1011t1a-2 — ★«글 › 내용» ★입력칸(textarea)을 ★걷었다.
+       ★원문: 「그리고 ★캔버스에서 ★바로 수정가능하니 ★★없어도 ★우측패널에서는 될듯함」
+     ★무엇이 ★있었나 ★둘(★한 쌍이다 — ⛔한쪽만 되살리면 ★칸은 서는데 ★아무 일도 ★안 난다):
+       ⒤ ★«글» 절의 ★첫 `.prop-row` ＋ ★그 안의 `<textarea class="prop-textarea" id="qt-text" rows="3">`
+          (★값은 `block.dataset.text` 를 ★이스케이프해 넣던 ★`raw` 였다 — ★그 지역변수도 ★같이 걷었다)
+       ⒥ ★이 함수 ★끝의 ★`qt-text` ★`change` 배선 — ★`commitQuoteText` ＋ `rerender/commit/reopen`
+     ★★왜 걷을 수 있었나 = ★★«전제를 ★실측했다»(⛔소스 독해가 ★아니다):
+       ★캔버스 ★더블클릭 ⇒ ★타이핑 ⇒ ★`dataset.text` ★커밋이 ★돈다 —
+       ★`tests/dom/quote-block.dom.spec.js` ★Q17 이 ★그 길을 ★행위로 ★잠그고 ★판 `3501b00d` 에서 ★초록이었다.
+       ⇒ ★글을 ★넣는 ★길이 ★이미 ★하나 있다. ⛔`contenteditable` ★속성만 보고 ★닫지 ★않았다.
+     ★★잃은 축 ★하나를 ★이름으로: ★★«패널 → 캔버스» ★방향이 ★사라졌다(★이제 ★캔버스에서만 고친다).
+       ★그 방향을 ★재던 ★검사 자리는 ★Q17 의 ★`taVal` ★두 칸이었고, ★그 축을
+       ★★«캔버스에서 고치면 ★패널의 ★줄 수 안내가 ★따라오나»로 ★옮겼다(⛔지우지 않았다).
+     ⚠️★남긴 것 — ★바로 아래 ★«줄 수 안내»(`#qt-lines-hint`)와 ★«글자 색»(`qt-textcol`).
+       ★`qt-textcol` 은 ★이름이 ★`qt-text` 와 ★겹치지만 ★★다른 칸이다(★글자 ★색). ⛔같이 지우지 마라.
+     ★★되살리는 법: ⒤를 ★«글» 절 ★제목 바로 다음에, ⒥를 ★이 함수 ★끝에 ★둘 다 ★되돌려라. */
 
   /* ★모양 — ★`.prop-align-group`(wrap · 여러 줄). ⛔`.prop-type-group` 으로 바꾸지 마라
      (머리말의 실측: 8번째 단추가 ★안 눌린다). 꼴은 prop-annotation.js:209~213 선례.
@@ -204,12 +219,7 @@ ${layout === 'inline' ? `
 
     <div class="prop-section">
       <div class="prop-section-title">글</div>
-      <div class="prop-row" style="align-items:flex-start">
-        <span class="prop-label">내용</span>
-        <textarea class="prop-textarea" id="qt-text" rows="3" placeholder="${_esc(QUOTE_DEFAULTS.ph)}"
-                  style="flex:1;min-width:0;resize:vertical">${_esc(raw)}</textarea>
-      </div>
-      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">${
+      <div class="prop-hint" id="qt-lines-hint" style="padding:2px 8px;line-height:1.5">${
         layout === 'stack'
           ? `<b>엔터</b>로 줄을 나눕니다. 지금 <b>${lines.length}줄</b>이고 부호는 글 <b>위·아래에 한 쌍</b>입니다. <span style="opacity:.7">빈 줄은 건너뜁니다.</span>`
           : `<b>한 줄</b> 꼴에서는 부호가 <b>한 쌍</b>입니다. 엔터로 나눈 글은 가운데 칸에서 줄로 쌓입니다(지금 <b>${lines.length}줄</b>).`
@@ -434,11 +444,8 @@ ${buildTypographySectionHtml({
     rerender(); commit();
   });
 
-  // ── 글 ── ★줄 수 안내가 바뀌므로 커밋 뒤 다시 그린다
-  const t = document.getElementById('qt-text');
-  t?.addEventListener('change', () => {
-    if (window.commitQuoteText?.(block, t.value)) { rerender(); commit(); reopen(); }
-  });
+  /* ★★⚰️2026-10-11 — ★«글» 배선(`qt-text` change)이 ★여기 있었다. ★걷은 까닭·되살리는 법은
+     ★이 함수 ★위쪽의 ★⚰️ 주석 ★한 자리에 ★모아 뒀다(⛔까닭을 ★두 곳에 ★적지 않는다). */
 }
 
 window.showQuoteProperties = showQuoteProperties;
