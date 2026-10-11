@@ -898,12 +898,12 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       /* ★G19 — 그리드 «밑» 자식 블럭(:scope > .grd-children)은 «블럭»으로 따로 나간다(_blockAll · _gridKidBlocks).
          여기서 그 안의 글자·아이콘까지 긁으면 자식 글자가 그리드 껍데기 (0,0)에 24px 로 «한 번 더» 찍힌다(측정 M2).
          ⇒ 껍데기 수집은 그릇 «밖»만 본다. 자식이 없으면 _kidsBox 가 null 이라 옛 수집과 «같은 결과»다. */
-      const _kidsBox = el.classList.contains('grid-block') ? _gridKidsBoxOf(el) : null;
+      const _kidsBox = _kidsBoxOf(el);   /* ★표 한 자리에서 — G19 그리드 · ★1011t1C 인용구 */
       const _notKid = (n) => !_kidsBox || !_kidsBox.contains(n);
       const w = parseInt(el.dataset.bannerW || el.dataset.compW || el.dataset.width) || parseFloat(el.style.width) || null;
       /* ★자식이 있는 그리드의 «껍데기 높이» = 격자(.grd-inner) 높이 — 그리드 상자 높이엔 자식이 들어 있어 그대로 쓰면
          Figma 에서 격자 프레임이 자식 높이만큼 길어지고 그 밑에 자식이 «또» 쌓인다. */
-      const _liveInner = _kidsBox && el.id ? document.getElementById(el.id)?.querySelector(':scope > .grd-inner') : null;
+      const _liveInner = (_kidsBox && el.id) ? document.getElementById(el.id)?.querySelector(_kidsInnerSel(el)) : null;   /* ★표 한 자리에서 */
       const h = (_liveInner && Math.round(_liveInner.offsetHeight))
                 || parseInt(el.dataset.bannerH || el.dataset.chartHeight) || parseFloat(el.style.height)
                 || Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0);
@@ -959,13 +959,45 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
      (그릇 간격 data-child-gap 만큼 gap 블럭을 앞에 하나씩 — 화면의 margin-top·flex gap 과 같은 자리).
      ⛔순회기(_walkSectionChild·_row)는 그리드 «안»으로 안 내려간다 — 그래서 여기 «한 자리»에서만 내려간다.
      _blockAll 은 _block 과 같되 그리드면 자식 블럭을 뒤에 붙여 «목록»을 돌려준다(자식 0개면 [그리드] 하나 — 옛 출력과 같다). */
-  function _gridKidsBoxOf(grid) {
-    for (const ch of grid.children) if (ch.classList && ch.classList.contains('grd-children')) return ch;
+  /* ★★★«자식 그릇을 ★가진 블럭»의 ★표 ★한 자리 — ★`1011t1C`(2026-10-11 · 지디 조건 ⑵).
+     ★★칸: [★블럭 클래스, ★그릇 클래스, ★★안쪽 래퍼 클래스, ★간격 dataset 키(없으면 null), ★간격 기본값]
+     ★★★왜 ★여기 ★또 ★표가 ★있나 — ★`js/panels/layer-panel-items.js` 의 ★`LAYER_KIDS_BOX_BY_CLASS` 와
+       ★★«합치지 ★못했다». ★까닭을 ★적는다(★지디 「★못 하면 ★왜 못 하나를 ★적어라」):
+         ⒤ ★레이어 표는 ★★«그릇을 찾는 ★window 함수 ★이름»을 ★든다(★살아 있는 문서 · ★런타임)
+         ⒥ ★★이 표는 ★★«클래스 ★글자»를 ★든다 — ★★이 모듈은 ★★«복제된 DOM»을 ★걷고(★`el` 이 ★클론일 수 있다)
+            ★그리고 ★★«안쪽 래퍼»와 ★★«간격»까지 ★필요하다. ★레이어는 ★그 둘을 ★★안 묻는다
+         ⇒ ★★★두 표가 ★★«다른 물음»에 ★답한다. ★합치면 ★한쪽이 ★안 쓰는 칸을 ★들고 다닌다
+       ⚠️★그래서 ★★값은 ★겹친다(★클래스 이름 ★둘). ★★한쪽을 고치면 ★★다른 쪽도 ★보라 —
+         ★그 둘을 ★★한 검사가 ★같이 잰다(★`tests/dom/quote-children-figma.dom.spec.js` ＋ ★`quote-children.dom.spec.js`).
+     ⛔서클(`icon-circle-block`)은 ★★이 표에 ★없다 — ★그릇이 ★★`:scope > .icb-circle > .icb-children` ★★두 단이라
+       ★★«클래스 ★한 칸»으로 ★안 담긴다. ★그 자리는 ★제 분기 그대로 둔다(★이 레인에서 ★안 건드렸다). */
+  const KIDS_SHELL_BY_CLASS = [
+    ['grid-block',  'grd-children', 'grd-inner', 'childGap', 24],   /* G19 */
+    ['quote-block', 'qt-children',  'qt-inner',  null,        0],   /* ★1011t1C — ★간격 키가 ★없다 ⇒ ★화면도 ★0 이다
+                                                                        (★`css/editor-blocks.css` 의 ★`.qt-children` 절이 ★간격을 ★안 준다 — ★실측) */
+  ];
+  const _kidsSpecOf = (el) => (el && el.classList)
+    ? (KIDS_SHELL_BY_CLASS.find(([c]) => el.classList.contains(c)) || null) : null;
+  /** ★★그 블럭이 ★자식 그릇을 ★가질 ★꼴인가 — ⛔클래스를 ★손으로 ★적지 ★마라. */
+  const _hasKidsShell = (el) => !!_kidsSpecOf(el);
+  /** ★그릇 — ★없으면 ★`null`(★자식 0개면 ★옛 출력과 ★같은 결과가 된다). */
+  function _kidsBoxOf(el) {
+    const spec = _kidsSpecOf(el);
+    if (!spec) return null;
+    for (const ch of el.children) if (ch.classList && ch.classList.contains(spec[1])) return ch;
     return null;
   }
-  function _gridKidGap(grid) {
-    const n = Number(grid.dataset?.childGap);
-    return (grid.dataset?.childGap !== undefined && grid.dataset.childGap !== '' && Number.isFinite(n)) ? Math.max(0, Math.min(80, Math.round(n))) : 24;
+  /** ★★안쪽 래퍼 — ★«껍데기 높이»를 ★그것으로 ★잰다(★상자엔 ★자식이 ★들어 있다). */
+  const _kidsInnerSel = (el) => { const s = _kidsSpecOf(el); return s ? `:scope > .${s[2]}` : null; };
+  /** ★그릇 간격 — ★표의 ★키·기본값에서. ★★키가 ★`null` 이면 ★★항상 ★기본값이다. */
+  function _kidsGap(el) {
+    const spec = _kidsSpecOf(el);
+    if (!spec) return 0;
+    const [, , , key, dflt] = spec;
+    if (!key) return dflt;
+    const raw = el.dataset?.[key];
+    const n = Number(raw);
+    return (raw !== undefined && raw !== '' && Number.isFinite(n)) ? Math.max(0, Math.min(80, Math.round(n))) : dflt;
   }
   let _frameBlockFn = null;   // _section 이 자기 _frameBlock 을 걸어 둔다(자식 중 자유배치 프레임용)
   /** 그릇 «한 자식»(row · gap · 글자 래퍼 · 흐름/자유 프레임 · 맨몸 블럭) → 블럭 목록. */
@@ -984,7 +1016,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
   }
   /** 그리드의 자식 블럭 — [{dy, blocks}] (dy = 그리드 윗변에서 그 자식 윗변까지, 캔버스 px · 살아 있는 문서에서 잼). */
   function _gridKidBlocks(grid, ps) {
-    const box = _gridKidsBoxOf(grid);
+    const box = _kidsBoxOf(grid);
     if (!box) return [];
     const liveGrid = grid.id ? document.getElementById(grid.id) : null;
     const gr = liveGrid ? liveGrid.getBoundingClientRect() : null;
@@ -1003,10 +1035,10 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
   function _blockAll(el, ps) {
     const parsed = _block(el, ps);
     if (!parsed) return [];
-    if (!el.classList || !el.classList.contains('grid-block')) return [parsed];
+    if (!_hasKidsShell(el)) return [parsed];   /* ★표 한 자리에서 */
     const kids = _gridKidBlocks(el, ps);
     if (!kids.length) return [parsed];
-    const gap = _gridKidGap(el);
+    const gap = _kidsGap(el);
     const out = [parsed];
     kids.forEach(k => { if (gap > 0) out.push({ type: 'gap', height: gap }); out.push(...k.blocks); });
     return out;
@@ -1130,7 +1162,8 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           if (free && innerB.type === 'text') innerB.padding = { top: 0, right: 0, bottom: 0, left: 0 };
           children.push({ x, y, w: cw, block: innerB });
           /* G19 — 자유배치 프레임 안 그리드의 «밑» 자식: 같은 x, y = 그리드 y + 살아 있는 문서에서 잰 dy. */
-          const _g = c.classList.contains('grid-block') ? c : (c.classList.contains('row') ? c.querySelector(':scope > .grid-block') : null);
+          const _g = _hasKidsShell(c) ? c
+            : (c.classList.contains('row') ? [...c.children].find(_hasKidsShell) || null : null);   /* ★표 한 자리에서 */
           if (_g) _gridKidBlocks(_g, psEx).forEach(k => k.blocks.forEach(b => children.push({ x, y: y + (k.dy ?? 0), w: cw, block: b })));
         }
       });
@@ -1147,7 +1180,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     }
     /* G19 — 떠 있는(오버레이) 그리드의 «밑» 자식도 떠 있는 블럭으로: 같은 x, y = 그리드 y + dy(살아 있는 문서에서 잼). */
     function _pushFloatingGridKids(el, parsed) {
-      if (!el || !el.classList || !el.classList.contains('grid-block')) return;
+      if (!_hasKidsShell(el)) return;   /* ★표 한 자리에서 */
       _gridKidBlocks(el, psEx).forEach(k => k.blocks.forEach(b => {
         blocks.push({ ...b, floating: true, x: parsed.x, y: parsed.y + (k.dy ?? 0) });
       }));
