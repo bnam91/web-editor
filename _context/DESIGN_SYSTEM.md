@@ -358,6 +358,12 @@ section-block
 
 ### 4-D. ⚠️ 이 문서가 든 «없는 블록» — 실패 방식이 둘이다
 
+> ⚠️⚠️**이 유령 명부의 «분모»를 먼저 읽어라.** 2026-10-11 에 센 「유령 22종」은
+> **§1·§2·§4·§9·§10 다섯 절 안에서의 전수**다. **§3·§5·§6·§7·§8 과 권역 문서 5종**
+> (`docs/LEFT_PANEL_LAYER.md` 364행 · `RIGHT_PANEL_PROPS.md` 391 · `TOPBAR.md` 200 ·
+> `FLOATING_PANEL.md` 229 · `SCRATCH_PAD.md` 139 — 합 1323행)은 **한 줄도 안 쟀다**.
+> ⛔「정본 전수」로 읽지 마라. 이 파일은 그 «정본»의 **6분의 1**이다.
+>
 > ⛔**두 칸을 한 칸에 두지 마라.** 아래 ㉠과 ㉡은 고치는 길이 다르다.
 > 센 날 = 2026-10-11 · 자 = 정의 자리(`css/` 선택자)와 사용 자리(`js/`)를 **둘 다** 봤다.
 > ★손대기 전 이 파일 = blob `33c0132f` · 27186바이트 · 551행
@@ -636,6 +642,10 @@ transform-origin: left center; /* 또는 맥락에 맞게 */
 그 결과 문서 전체에서 `-block` 이름을 긁는 순진한 파서는 **27 → 28종**을 본다
 (2026-10-11 내가 `comm` 으로 전후를 견줘 쟀다). ⇒ 그 자는 `zzz-block` 을 명부로 센다.
 
+⛔**`zzz-block` 을 지우지 마라 — 일부러 남겼다.** 그것이 이 문서를 파싱하는 자의
+**음성대조**다: 자를 만든 뒤 `zzz-block` 이 명부에 들어오면 **파싱 범위가 넓은 것**이고,
+안 들어오면 범위가 맞다. 지우면 다음 사람이 이 함정을 **다시 밟는다**(2026-10-11 지디 판정).
+
 **그래서 파싱 범위를 좁혀라:**
 - §2 의 **「블록 분류」 절 안**만 읽어라 — `**컨테이너**` ~ `### 적용 패턴` 사이
 - ⛔문서 전체 `grep` 금지 · ⛔`### 적용 패턴` 의 `.xxx-block`(자리말)을 넣지 마라
@@ -648,3 +658,86 @@ transform-origin: left center; /* 또는 맥락에 맞게 */
 - 이 설계는 **`.X-block.selected` 축 하나**만 본다. `:hover::after` tint·`outline-offset`·
   두께(1px/3px/1.5px)의 정합성은 **다른 자**가 필요하다.
 - §2 가 말하는 **컨테이너/컴포넌트 구분**이 맞는지는 안 잰다 — 이 자는 「명부에 있나」만 센다.
+
+---
+
+## 14. ⚠️ 이 문서가 «말하지 않는» 축 — 정본에 올릴 후보
+
+> 2026-10-11 디자인시스템 일관성 대조에서 **실재에는 있는데 이 문서에 없는** 관례들.
+> ⛔빈칸은 「없는 경우」가 아니라 **「안 잰 경우」**다.
+> ★손대기 전 이 파일 = blob `7fb2dcfb` · 34076바이트 · 650행
+> (출처= `git rev-parse HEAD:_context/DESIGN_SYSTEM.md` · ⛔mtime 은 워크트리가 덮는다)
+> ⚠️**아래는 전부 «이름»으로 걸었다.** 줄번호를 쓴 자리엔 이름을 나란히 적었다 —
+> 2026-10-11 에 지디가 준 `§2:195 · §4-B:323` 이 내 편집으로 `222 · 350` 으로 **밀렸다**.
+
+### 14-A. ⚠️ 세 번째 outline 폭 «1.5px» — §2 의 「두 가지」가 거짓이다
+
+§2 는 **1px/-1px(컴포넌트)·3px/0(컨테이너) 「두 가지」**라 못박는다. 실재는 다르다 —
+`css/` 의 `outline: Npx` 분포(2026-10-11 내가 셌다): **2px 35 · 1px 20 · 1.5px 3**.
+
+1.5px 세 자리(이름으로 건다 — 줄번호는 밀린다):
+- `.text-block.editing` — `css/editor-layout.css` · 1.5px **dashed** `var(--sel-color)` — 편집
+- `.tb-tree-*.tb-tree-cursor` — `css/editor-extra.css` · 1.5px solid `var(--sel-color)` — 커서
+- `.annotation-block.selected .annot-label` — `css/editor-blocks.css` · 1.5px solid
+  `var(--ui-accent-primary)` ＋ `outline-offset: **+**1px` ＋ `box-shadow 0 0 0 3px` — **고름**
+
+⚠️⚠️**처음 나는 「세 자리 전부 편집/커서 상태 전용」이라 적었다. 틀렸다** — 셋째는 **«고름»**이고,
+`--sel-color` 가 아니라 `--ui-accent-primary` 를 쓰고, offset 이 **음수가 아니라 양수**다.
+⇒ **1.5px 는 한 가지 뜻이 아니다.** 그래서 「상태 축」 한 줄로는 못 덮는다.
+
+⇒ **올릴 후보(고친 판)**: §2 에 **두 줄** —
+㉠ 「편집/커서 = 1.5px, offset 음수, `--sel-color`」(위 둘)
+㉡ 「`.annotation-block` 은 **셋째 꼴**이다 — 고름인데 1.5px · `--ui-accent-primary` ·
+   offset **양수** ＋ box-shadow」. ⛔§2 의 「❌box-shadow 0 0 0 2px 사용 금지」와 **부딪친다**
+   (그 줄은 `overflow:hidden` 간섭을 까닭으로 든다) ⇒ **예외인지 위반인지 판정이 필요하다.**
+
+⚠️⚠️**그리고 이 1.5px 를 두고 나와 지디가 «같이» 틀렸다 — 그 걱정은 성립하지 않는다.**
+나는 「배율 40% 에서 1.5px → 0.6px 이면 안 보인다」고 올렸고, 지디는 그것을 현빈께
+「내가 고친 것이 안 고쳐진 것」으로 올렸다. **둘 다 틀렸다.** 실측(2026-10-11 내가 쟀다):
+배율 `transform: scale()` 은 **`#canvas-scaler` 하나**에만 걸리고(`js/editor.js` `applyZoom()`),
+`#tpl-browser` 는 **`body` 의 직계 자식**으로 그 밖에 있다. 그 패널 규칙 중 `--inv-zoom`·
+`--ui-scale` 를 쓰는 것 **0건**. ⇒ **40% 에서도 1.5 CSS px 그대로다.**
+⛔다음 사람은 이 걱정을 다시 하지 마라. (⚠️단 「b1 이 쾌적하지 않았다」의 **다른** 원인은 **미확인**이다.)
+
+### 14-B. ⚠️ 「꼴 물려받기」 = `class="기반 자기이름"` — 규약이 없다
+
+2026-10-11 에 **H1** 이 이 공백 때문에 났다: 정렬 select 가 `class="tpl-browser-search-mode"`
+**하나만** 입어 클래스 이름이 기능을 거짓으로 말하고, CSS 로 조준할 이름이 없었다
+(`.tpl-browser-sort` 가 `css/` 에 0건). 고친 꼴 = **기반 ＋ 자기 이름 두 칸**.
+
+«기반 ＋ 정의 없는 자기이름» 자리 = **≥9자리 / ≥6이름**(2026-10-11, 이 판):
+`tpl-browser-close`(2) · `tpl-browser-sort`(2, H1 이 더했다) · `card-folder-move`(2) ·
+`card-duplicate`(1) · `card-share`(1) · `fp-plugin-icon--mockup`(1).
+그중 **검사가 잠근 이름 3종**(`tpl-browser-close` 4벌 · `card-folder-move` 2 · `card-share` 1).
+⛔**「선례」로 적지 마라** — 「사례」다. `tpl-browser-replace-btn` 은 **이 꼴이 아니다**
+(그 이름은 `css/editor-extra.css` 에 **정의가 있다**). 2026-10-11 에 그 사례가 한 번 잘못 인용됐다.
+⚠️**≥ 로 읽어라** — 이 수는 **HTML 만** 센다. `js/` 가 템플릿 리터럴로 만드는 `class="…"` 는
+`${}` 때문에 정적 파싱이 거짓값을 내므로 **뺐다**.
+
+### 14-C. ⚠️ `_` 접두 = 「붙여 쓰는 조각 파일」 — 어느 문서에도 없다
+
+실재 **9벌**(2026-10-11 `git ls-files` 로 셌다):
+`js/props/_font-picker.js` · `_helpers.js` · `_panel-rendered.js` · `_text-selection.js` ·
+`_typo-section.js` (5) ＋ `js/panels/_gallery-sort.js` · `_tpl-nav.js` · `_tpl-search.js` ·
+`_tpl-sort.js` (4 — 2026-10-11 에 `js/panels/` 로 0→4 확장됐다).
+이 문서 · `CLAUDE.md` · `js/CLAUDE.md` · `docs/TEMPLATE_SYSTEM.md` 에서 언급 **0건**.
+⇒ **올릴 후보**: 「`_` 접두 = 독립 로드되지 않고 `<script>` 로 붙여 쓰는 조각」.
+⛔이번 릴리스에서 파일명을 고치지 마라(릴리스가 가깝다 — 2026-10-11 지디 판정).
+
+### 14-D. ⚠️ `--sel-outline-w` 가 선택 outline 폭의 정본인데 §2 예시는 생짜 1px/3px
+
+정의 자리 **한 곳** — `css/editor-base.css` · `--sel-outline-w: calc(1px * var(--inv-zoom, 1))`.
+⇒ **줌 보정을 받는다**(화면상 굵기가 배율 불변). 그 까닭은 `css/editor-blocks.css` 의
+`[M56]` 주석이 적어 뒀다(이름으로 찾아라 — 줄번호는 밀린다).
+
+사용 **87건 · 7파일**(2026-10-11 내가 셌다 — `grep -rho 'var(--sel-outline-w' css/ | wc -l`):
+`editor-blocks.css` 62 · `editor-layout.css` 8 · `editor-canvas.css` 5 · `section-search.css` 2 ·
+`editor-extra.css` 1 · `editor-graph.css` 1 · `editor-base.css` 1(정의). `js/` 는 **0건**.
+
+⚠️**내가 처음 올린 「17곳」은 틀렸다** — `grep … | head -20` 으로 **자른 출력**을 셌다.
+자르지 않은 참 줄 수는 82(주석 포함), `var()` 사용 건수는 **87**이다.
+⛔**자른 출력을 수로 쓰지 마라.**
+
+⇒ **올릴 후보**: §2 의 「적용 패턴」 예시 CSS(이름으로 찾아라)가 아직 `1px`/`3px` 생짜다.
+실재가 참값이므로 예시를 `var(--sel-outline-w)` 꼴로 갈아야 한다 — ⛔단 **컨테이너 3px** 에는
+대응 토큰이 **없다**(정의 0건). 그것부터 판정이 필요하다.
