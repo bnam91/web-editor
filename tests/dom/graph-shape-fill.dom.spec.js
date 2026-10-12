@@ -195,3 +195,139 @@ test('B4 한도 — 정규화 글자가 SHAPE_SVG_MAX 를 한 자 넘으면 TOO_
   expect(r.boxes, '한도 글자로도 그려진다').toBe(3);
   expect(errs).toEqual([]);
 });
+
+/* ── G2 막대를 SVG 실루엣으로 ─────────────────────────────────────────── */
+const openPanel = (page, id) => page.evaluate((id) => window.showGraphProperties(document.getElementById(id)), id);
+const liveId = (page) => page.evaluate(() => document.querySelector('#sG .graph-block')?.id ?? null);
+
+test('G2-1 채움 — 값 [25,50,100] 이 상자 높이의 0.25 · 0.5 · 1 만큼 아래부터 찬다 · 트랙은 전고이고 옅다', async ({ page }) => {
+  const { errs, id } = await setup(page, { items: V3 });
+  await shape(page, id, { shape: 'person' });
+  await raf2(page);
+  const g = await geom(page, id);
+  expect(g.length, '전제: 상자 3').toBe(3);
+  expect(g.every(b => b.boxH > 50 && b.boxW > 0), '전제: 상자가 그려졌다 ' + JSON.stringify(g)).toBe(true);
+  [0.25, 0.5, 1].forEach((r, i) => expect(Math.abs(g[i].fillH - g[i].boxH * r), `항목 ${i}: 채움 ${g[i].fillH} / 상자 ${g[i].boxH} = ${r}`).toBeLessThanOrEqual(1));
+  expect(g.map(b => b.fillAttr)).toEqual(['0.250', '0.500', '1.000']);
+  g.forEach((b, i) => { expect(b.trackH, `항목 ${i}: 트랙은 상자 전고`).toBe(b.boxH); expect(b.trackOp, `항목 ${i}: 트랙은 옅다`).toBeLessThan(1); expect(b.trackOp).toBeGreaterThan(0); });
+  /* 채움은 «아래»에 붙는다 — 채움의 바닥 = 상자의 바닥 */
+  const bottoms = await page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.grb-shape-box')].map(box => { const f = box.querySelector('.grb-shape-fill'); return box.offsetHeight - (f.offsetTop + f.offsetHeight); }), id);
+  bottoms.forEach((b, i) => expect(Math.abs(b), `항목 ${i}: 바닥 정렬`).toBeLessThanOrEqual(1));
+  /* 트랙과 채움은 같은 색(새 색 0) · 항목 색을 주면 둘 다 그 색 */
+  const same = await page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.grb-shape-box')].map(box => getComputedStyle(box.querySelector('.grb-shape-fill')).backgroundColor === getComputedStyle(box.querySelector('.grb-shape-track')).backgroundColor), id);
+  expect(same).toEqual([true, true, true]);
+  await setDs(page, id, { items: [{ label: '가', value: 25, color: '#ff0000' }, V3[1], V3[2]] });
+  expect(await page.evaluate((id) => { const b = document.getElementById(id).querySelector('.grb-shape-box'); return [getComputedStyle(b.querySelector('.grb-shape-fill')).backgroundColor, getComputedStyle(b.querySelector('.grb-shape-track')).backgroundColor]; }, id)).toEqual(['rgb(255, 0, 0)', 'rgb(255, 0, 0)']);
+  expect(errs).toEqual([]);
+});
+
+test('G2-2 패널 — 「모양」을 고르면 실루엣이 되고 두께 줄이 빠진다 · 「기본 막대」로 돌아가면 처음과 바이트가 같다 · ⌘Z 한 번에 한 단계', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  await openPanel(page, id);
+  const n = await count(page, id, '.grb-bar-fill');
+  expect(n, '전제: 막대가 있다').toBeGreaterThan(0);
+  const html0 = await inner(page, id);
+  await expect(page.locator('#grb-shape-select'), '전제: 세로 막대 패널에 모양 줄이 있다').toHaveCount(1);
+  expect(await page.inputValue('#grb-shape-select'), '전제: 기본 막대').toBe('');
+  expect(await page.locator('#grb-bar-thickness-slider').count(), '전제: 두께 줄이 있다').toBe(1);
+  expect(await page.evaluate(() => [...document.getElementById('grb-shape-select').options].map(o => [o.value, o.textContent.trim()]))).toEqual([['', '기본 막대'], ['person', '사람'], ['bottle', '약통'], ['drop', '물방울'], ['custom', '사용자 SVG']]);
+  /* 절 순서: Size → Chart Type → Shape → Bar Settings → Preset → Data */
+  expect(await page.evaluate(() => [...document.querySelectorAll('#grb-h-slider, #grb-type-v, #grb-shape-select, #grb-padx-slider, #grb-preset-default, #grb-data-list')].map(e => e.closest('.prop-section').querySelector('.prop-section-title').textContent.trim())))
+    .toEqual(['Size', 'Chart Type', 'Shape', 'Bar Settings', 'Preset', 'Data']);
+  await page.locator('#grb-shape-select').selectOption('person');
+  await expect.poll(() => ds(page, id, 'barShape')).toBe('person');
+  expect(await count(page, id, '.grb-shape-box.grb-shape-on'), '상자 = 항목 수').toBe(n);
+  expect(await page.locator('#grb-bar-thickness-slider').count(), '모양이 켜지면 두께 줄 없음').toBe(0);
+  expect(await page.inputValue('#grb-shape-select')).toBe('person');
+  expect(await page.locator('#grb-data-list .grb-data-icon-btn').count(), '항목마다 «이 항목만 SVG» 버튼').toBe(n);
+  /* 패널이 가로로 안 넘친다(항목 줄 포함) */
+  expect(await page.evaluate(() => { const l = document.getElementById('grb-data-list'); const rows = [...l.querySelectorAll('.grb-data-item')]; let host = l; while (host && getComputedStyle(host).overflowY === 'visible') host = host.parentElement;
+    return [l.scrollWidth <= l.clientWidth, rows.every(r => r.scrollWidth <= r.clientWidth), host.scrollWidth <= host.clientWidth, document.querySelector('.grb-data-label-input').offsetWidth > 60]; })).toEqual([true, true, true, true]);
+  const htmlPerson = await inner(page, id);
+  await page.locator('#grb-shape-select').selectOption('drop');
+  await expect.poll(() => ds(page, id, 'barShape')).toBe('drop');
+  await page.locator('#grb-shape-select').selectOption('');
+  await expect.poll(() => ds(page, id, 'barShape')).toBeNull();
+  expect(await inner(page, id), '기본 막대: 처음과 바이트 동일').toBe(html0);
+  expect(await page.locator('#grb-bar-thickness-slider').count(), '두께 줄이 돌아온다').toBe(1);
+  expect(await page.locator('#grb-data-list .grb-data-icon-btn').count(), '항목 버튼은 모양이 켜졌을 때만').toBe(0);
+  /* ⌘Z: 기본 막대 ← 물방울 ← 사람 ← (처음) — 한 번에 한 단계 */
+  await page.evaluate(() => document.activeElement?.blur?.());
+  const live = () => page.evaluate(() => { const g = document.querySelector('#sG .graph-block'); return g ? (g.dataset.barShape ?? null) : 'gone'; });
+  await page.keyboard.press('Meta+z');
+  await expect.poll(live).toBe('drop');
+  await page.keyboard.press('Meta+z');
+  await expect.poll(live).toBe('person');
+  expect(await inner(page, await liveId(page)), '되돌린 그림 = 사람 때 그림').toBe(htmlPerson);
+  await page.keyboard.press('Meta+z');
+  await expect.poll(live).toBeNull();
+  expect(await inner(page, await liveId(page))).toBe(html0);
+  expect(errs).toEqual([]);
+});
+
+test('G2-3 항목별 — index 로 넣은 모양은 그 칸에만 마스크 변수가 붙고 · 패널 버튼으로 지우면 블럭 모양으로 돌아간다', async ({ page }) => {
+  const { errs, id } = await setup(page, { items: V3 });
+  await shape(page, id, { shape: 'person' });
+  const vars = () => page.evaluate((id) => { const g = document.getElementById(id); return { cols: [...g.querySelectorAll('.grb-bar-col')].map(c => c.style.getPropertyValue('--grb-shape')), bars: g.querySelector('.grb-bars-v').style.getPropertyValue('--grb-shape') }; }, id);
+  const v0 = await vars();
+  expect(v0.cols, '전제: 항목 덮어쓰기 없음').toEqual(['', '', '']);
+  expect(v0.bars.startsWith('url('), '전제: 블럭 마스크가 있다').toBe(true);
+  expect(await shape(page, id, { index: 1, shape: 'bottle' })).toEqual({ ok: true, shape: 'bottle' });
+  await raf2(page);
+  const v1 = await vars();
+  expect([v1.cols[0], v1.cols[2]], '0·2번 칸은 그대로').toEqual(['', '']);
+  expect(v1.cols[1].startsWith('url('), '1번 칸만 자기 마스크').toBe(true);
+  expect(v1.cols[1]).not.toBe(v1.bars);
+  const m = await maskOf(page, id);
+  expect(m[0]).toBe(m[2]);
+  expect(m[1], '계산된 마스크도 1번만 다르다').not.toBe(m[0]);
+  /* 상자 비도 그 모양의 viewBox 비(약통 120×200 · 사람 76×240) */
+  const g = await geom(page, id);
+  expect(Math.abs(g[1].boxW / g[1].boxH - 120 / 200)).toBeLessThan(0.02);
+  expect(Math.abs(g[0].boxW / g[0].boxH - 76 / 240)).toBeLessThan(0.02);
+  expect(await page.evaluate((id) => JSON.parse(document.getElementById(id).dataset.items).map(i => i.shape ?? null), id)).toEqual([null, 'bottle', null]);
+  /* 없는 항목 · 모르는 이름은 거절 */
+  expect(await shape(page, id, { index: 9, shape: 'drop' })).toEqual({ ok: false, code: 'NO_ITEM' });
+  expect(await shape(page, id, { index: 0, shape: 'nope' })).toEqual({ ok: false, code: 'UNKNOWN_SHAPE' });
+  /* 패널: 덮어쓴 항목의 버튼만 켜져 있고, 누르면 지워진다(파일창을 안 연다) */
+  await openPanel(page, id);
+  expect(await page.evaluate(() => [...document.querySelectorAll('#grb-data-list .grb-data-icon-btn')].map(b => b.classList.contains('active')))).toEqual([false, true, false]);
+  await page.locator('#grb-data-list .grb-data-icon-btn.active').click();
+  await expect.poll(() => page.evaluate((id) => JSON.parse(document.getElementById(id).dataset.items).map(i => i.shape ?? null), id)).toEqual([null, null, null]);
+  expect((await vars()).cols).toEqual(['', '', '']);
+  expect(await page.evaluate((id) => JSON.parse(document.getElementById(id).dataset.items).length, id), '항목은 안 지워진다(삭제 버튼과 다른 버튼)').toBe(3);
+  /* 블럭 모양을 끄면 항목 모양이 남아 있어도 사각 막대 */
+  await shape(page, id, { index: 2, shape: 'drop' });
+  await shape(page, id, { shape: null });
+  expect(await count(page, id, '.grb-shape-box')).toBe(0);
+  expect(errs).toEqual([]);
+});
+
+test('G2-4 파일 — 숨은 파일 칸에 SVG 를 넣으면(창을 안 띄운다) 사용자 SVG 가 되고 · SVG 가 아니면 무변', async ({ page }) => {
+  const { errs, id } = await setup(page, { items: V3 });
+  await openPanel(page, id);
+  await expect(page.locator('#grb-shape-file-input'), '전제: 숨은 파일 칸이 있다').toHaveCount(1);
+  expect(await page.evaluate(() => { const i = document.getElementById('grb-shape-file-input'); return [i.type, i.accept, i.offsetWidth]; })).toEqual(['file', '.svg,image/svg+xml', 0]);
+  const before = await inner(page, id);
+  await page.locator('#grb-shape-file-input').setInputFiles({ name: 'note.txt', mimeType: 'text/plain', buffer: Buffer.from('<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>') });
+  await raf2(page);
+  expect(await ds(page, id, 'barShape'), 'SVG 가 아닌 파일은 안 받는다').toBeNull();
+  expect(await inner(page, id)).toBe(before);
+  await page.locator('#grb-shape-file-input').setInputFiles({ name: 'dog.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(DIRTY) });
+  await expect.poll(() => ds(page, id, 'barShape')).toBe('custom');
+  expect(await page.inputValue('#grb-shape-select'), '패널이 다시 열려 「사용자 SVG」를 보인다').toBe('custom');
+  expect(await count(page, id, '.grb-shape-box.grb-shape-on')).toBe(3);
+  expect((await ds(page, id, 'shapeSvg')).includes('script')).toBe(false);
+  expect(await page.evaluate(() => window.__pwn)).toBeUndefined();
+  /* 내장 모양으로 갔다가 「사용자 SVG」로 돌아올 수 있다(불러온 글자는 남는다) */
+  await page.locator('#grb-shape-select').selectOption('drop');
+  await expect.poll(() => ds(page, id, 'barShape')).toBe('drop');
+  await page.locator('#grb-shape-select').selectOption('custom');
+  await expect.poll(() => ds(page, id, 'barShape')).toBe('custom');
+  /* 크기를 모르는 SVG 는 거절 — 그림 그대로 */
+  const kept = await inner(page, id);
+  await page.locator('#grb-shape-file-input').setInputFiles({ name: 'nosize.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg><path d="M0 0H1V1Z"/></svg>') });
+  await raf2(page);
+  expect(await inner(page, id)).toBe(kept);
+  expect(errs).toEqual([]);
+});
