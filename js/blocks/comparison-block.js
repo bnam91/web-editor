@@ -34,6 +34,30 @@ export const cmpEmptyRows = (n) => Array.from({ length: Math.max(0, n) }, cmpEmp
    CSS content 와 두 벌 — 검사(cmp-placeholder-hint P1)가 런타임 ::before content == 이 값을 단언해 묶는다. */
 export const CMP_ROW_HINT = '내용을 입력하세요.';
 export const CMP_HD_HINT  = '제목을 입력하세요';
+/* ★보존 필드 명부 (1012t1D1 · 2026-10-12) — MCP/AI 문 `updateComparisonBlock` 이 칼럼·행을 «다시 지을» 때
+   기본 필드({title,bg,text,rows} · {type,text,imgSrc,imgFit}) «밖»에서 실어 보낼 확장 필드의 ★정본 한 자리.
+   ★까닭(실측 plan-D §0 C.fieldSurvival): cols 전체교체가 칼럼을 {title,bg,text,rows} 로 새로 지어
+     렌더는 읽는데 패널/문은 모르는 필드(titleBg 등)를 «조용히» 버렸다 — getComparisonCols(...c) 왕복은 살리는데 문만 떨궜다.
+   꼴: { 키: 검증함수 } — 검증함수(v) → 저장할 값 · '' = 지우기(키 없음) · null = 무효(INVALID).
+   ⇒ 새 칼럼/행 필드를 들이는 항목(D2·D3·D4 …)은 ★여기에 한 줄 더한다. ⛔문 안에 필드를 따로 적지 마라
+     (cols 교체 · columnPatch · _sanitizeRow 세 자리가 모두 이 명부를 돈다). */
+const _cmpStrMax = max => v => { const s = String(v); return s.length > max ? null : s; };
+export const CMP_COL_KEEP = {
+  titleBg:    _cmpStrMax(1024),   // 헤더 배경(헤더 모드 = 밴드 · 캡션 모드 = 알약) — 칼럼 bg 와 같은 상한
+  titleColor: _cmpStrMax(64),     // 헤더 글자색 — 칼럼 text 와 같은 상한
+};
+export const CMP_ROW_KEEP = {};
+/* 명부를 한 객체(src)에서 읽어 dst 에 싣는다. 반환: null = 통과 · 문자열 = 무효 키 이름.
+   '' = dst 에서 키를 지운다(columnPatch = 지우기 · cols 교체는 dst 가 새 객체라 «안 싣기»와 같다). */
+function _cmpKeep(roster, src, dst) {
+  for (const [k, check] of Object.entries(roster)) {
+    if (src[k] === undefined || src[k] === null) continue;
+    const v = check(src[k]);
+    if (v === null) return k;
+    if (v === '') delete dst[k]; else dst[k] = v;
+  }
+  return null;
+}
 // 셀 텍스트가 기본문구와 동일하거나 비어있으면 placeholder로 간주.
 export function isCmpPlaceholderText(t) {
   const s = (t == null ? '' : String(t)).trim();
@@ -422,7 +446,8 @@ function addComparisonBlock(opts = {}) {
 //   - 강조: featured (int index)
 //   - 칼럼 전체: cols (배열 전체 교체, 길이 2~8, rows ≤ 20)
 //       rows 항목: 문자열(=text행) 또는 {type:'text'|'image', text?, imgSrc?, imgFit?'cover'|'contain'}
-//   - 칼럼 단위 patch: columnPatch [{index, title?, bg?, text?, rows?}, ...] (rows 항목 동일 규칙)
+//       칼럼·행의 확장 필드(titleBg/titleColor …)는 보존 명부 CMP_COL_KEEP/CMP_ROW_KEEP 대로 실린다(파일 머리).
+//   - 칼럼 단위 patch: columnPatch [{index, title?, bg?, text?, titleBg?, titleColor?, rows?}, ...] (rows 항목 동일 규칙 · titleBg/titleColor '' = 지우기)
 //   - 행 높이: rowHeights (행 인덱스→px 배열, null/0이면 기본 rowH, 16~400, ≤ 20개)
 //   - 메타: layerName
 function updateComparisonBlock(blockId, partial = {}) {
@@ -464,13 +489,18 @@ function updateComparisonBlock(blockId, partial = {}) {
     if (type === null) return { ok: false, msg: `invalid type: ${raw.type}` };
     const text = raw.text == null ? '' : String(raw.text);
     if ([...text].length > 500) return { ok: false, msg: 'text too long' };
-    if (type === 'text') return { ok: true, row: { type: 'text', text } };
-    // image
-    const imgSrc = raw.imgSrc == null ? '' : String(raw.imgSrc);
-    if (imgSrc.length > 200000) return { ok: false, msg: 'imgSrc too long (>200000)' };
-    if (/["\r\n]/.test(imgSrc)) return { ok: false, msg: 'imgSrc contains quote/newline (escape unsafe)' };
-    const imgFit = raw.imgFit === 'contain' ? 'contain' : 'cover';
-    return { ok: true, row: { type: 'image', text, imgSrc, imgFit } };
+    let row;
+    if (type === 'text') row = { type: 'text', text };
+    else {
+      const imgSrc = raw.imgSrc == null ? '' : String(raw.imgSrc);
+      if (imgSrc.length > 200000) return { ok: false, msg: 'imgSrc too long (>200000)' };
+      if (/["\r\n]/.test(imgSrc)) return { ok: false, msg: 'imgSrc contains quote/newline (escape unsafe)' };
+      const imgFit = raw.imgFit === 'contain' ? 'contain' : 'cover';
+      row = { type: 'image', text, imgSrc, imgFit };
+    }
+    const bad = _cmpKeep(CMP_ROW_KEEP, raw, row);   // 보존 명부(행) — 지금은 비어 있다. D2·D3·D4 가 더한다.
+    if (bad) return { ok: false, msg: `${bad} invalid` };
+    return { ok: true, row };
   };
 
   if (partial.layerName !== undefined && partial.layerName !== null) {
@@ -552,7 +582,10 @@ function updateComparisonBlock(blockId, partial = {}) {
         if (!sr.ok) return { ok: false, code: 'INVALID', message: `cols[${i}].rows[${ri}] ${sr.msg}` };
         safeRows.push(sr.row);
       }
-      safeCols.push({ title, bg, text, rows: safeRows });
+      const safeCol = { title, bg, text, rows: safeRows };
+      const badK = _cmpKeep(CMP_COL_KEEP, c, safeCol);   // ★보존 명부 — 예전엔 여기서 titleBg 등을 버렸다
+      if (badK) return { ok: false, code: 'INVALID', message: `cols[${i}].${badK} invalid (too long)` };
+      safeCols.push(safeCol);
     }
     draftCols = safeCols;
     applied.cols = safeCols;
@@ -593,6 +626,10 @@ function updateComparisonBlock(blockId, partial = {}) {
         const v = String(p.text);
         if (v.length > 64) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].text too long` };
         col.text = v;
+      }
+      { // 보존 명부(칼럼) — titleBg/titleColor 등. '' = 지우기(칼럼 색을 따름).
+        const badK = _cmpKeep(CMP_COL_KEEP, p, col);
+        if (badK) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].${badK} invalid (too long)` };
       }
       if (p.rows !== undefined && p.rows !== null) {
         if (!Array.isArray(p.rows)) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].rows must be array` };
@@ -697,6 +734,8 @@ window.normalizeComparisonRow = normalizeRow;
 window.CMP_PLACEHOLDERS    = CMP_PLACEHOLDERS;
 window.CMP_ROW_HINT        = CMP_ROW_HINT;   // D5 — 빈 칸 안내문(시각 전용). 검사·패널이 읽는다.
 window.CMP_HD_HINT         = CMP_HD_HINT;
+window.CMP_COL_KEEP        = CMP_COL_KEEP;  // D1 — 보존 명부(검사가 런타임으로 읽는다)
+window.CMP_ROW_KEEP        = CMP_ROW_KEEP;
 
 /* ⛔isCmpPlaceholderText 를 여기 더하지 마라 — 위에서 이미 `export function` 이다(중복 export = 문법 오류).
    2026-10-08 에 내가 실제로 이 줄로 깨뜨렸고, ★자가 그걸 ★못 잡았다. 실측(★어느 판인지 같이 적는다 —

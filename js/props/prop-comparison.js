@@ -58,6 +58,12 @@ export function showComparisonProperties(block) {
     const bgVal = col.bg || panelRenderedColor(_colEl, 'backgroundColor') || '#ffffff';
     const textVal = col.text || panelRenderedColor(block.querySelector(`.cmp-row[data-col-idx="${idx}"]`), 'color') || '#1a1a1a';
     const bgIsGrad = /gradient/i.test(bgVal);
+    /* ★1012t1D1 — 헤더만 색 따로(칼럼별 titleBg/titleColor · 렌더러는 이미 읽는다 comparison-block.js buildCol).
+       표시값: 비어 있으면 «보이는» 색 — 헤더 bg 는 투명이라 칼럼 bg 가 비친다(계산값 rgba(0,0,0,0) 을 그대로 쓰면 검정으로 보인다).
+       헤더 글자는 .cmp-hd 의 계산값(그려진 값 규약). 단색만 — 그라데이션은 «안 연다»(onGradient 미배선). */
+    const _hdEl = block.querySelector(`.cmp-hd[data-col-idx="${idx}"]`);
+    const hdBgVal = (typeof col.titleBg === 'string' && col.titleBg) || (bgIsGrad ? '#ffffff' : bgVal);
+    const hdTextVal = (typeof col.titleColor === 'string' && col.titleColor) || panelRenderedColor(_hdEl, 'color') || textVal;
     const canDelete = N > 2;
     return `
       <div class="prop-section">
@@ -66,6 +72,11 @@ export function showComparisonProperties(block) {
           ${canDelete ? `<button class="prop-btn prop-btn-danger cmp-col-del" data-col="${idx}" title="칼럼 삭제" style="width:24px;">×</button>` : ''}
         </div>
         <textarea class="prop-textarea cmp-col-title" data-col="${idx}" rows="1" placeholder="${_esc(CMP_HD_HINT)}" style="width:100%;box-sizing:border-box;">${_esc(col.title)}</textarea>
+        <div class="prop-color-row"><span class="prop-label">헤더 배경</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'HdBg', hex: hdBgVal })}</div>
+        <div class="prop-color-row"><span class="prop-label">헤더 글자</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'HdText', hex: hdTextVal })}</div>
+        <div class="prop-color-row--aux">
+          <button class="prop-align-btn prop-align-btn--aux cmp-hd-color-clear" data-col="${idx}" title="헤더 색 초기화 — 칼럼 색을 따른다">초기화</button>
+        </div>
         <div class="prop-color-row"><span class="prop-label">배경</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Bg', hex: bgIsGrad ? '#ffffff' : bgVal, gradientCss: bgIsGrad ? bgVal : '' })}</div>
         <div class="prop-color-row"><span class="prop-label">텍스트</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Text', hex: textVal })}</div>
         <div style="margin-top:6px;">${rowInputs}</div>
@@ -201,7 +212,24 @@ ${blockHeaderHTML({
       onApply: v => { const c = getCols(); if (c[idx]) { c[idx].text = v; saveCols(c); rerender(); } },
       onCommit: commit
     });
+    // ★1012t1D1 헤더만 — 칼럼 bg/text 는 건드리지 않는다(titleBg/titleColor 만). 단색만(onGradient 없음).
+    wireColorField('cmp-c' + idx + 'HdBg', {
+      onApply: v => { const c = getCols(); if (c[idx]) { c[idx].titleBg = v; saveCols(c); rerender(); } },
+      onCommit: commit
+    });
+    wireColorField('cmp-c' + idx + 'HdText', {
+      onApply: v => { const c = getCols(); if (c[idx]) { c[idx].titleColor = v; saveCols(c); rerender(); } },
+      onCommit: commit
+    });
   });
+
+  // 헤더 색 초기화 — titleBg/titleColor 둘 다 지움 → 칼럼 bg/text 를 따른다(옛 저장본과 같은 꼴: 키 없음).
+  propPanel.querySelectorAll('.cmp-hd-color-clear').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const c = getCols(); const col = c[+btn.dataset.col]; if (!col) return;
+      delete col.titleBg; delete col.titleColor;
+      saveCols(c); rerender(); commit(); showComparisonProperties(block);
+    }));
 
   // 행 텍스트 편집 (text행만 .text 갱신)
   propPanel.querySelectorAll('.cmp-row-input').forEach(inp => {
