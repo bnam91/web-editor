@@ -40,7 +40,7 @@
   });
 
   /** bbox·svg 에 더할 «세로 여유»(두께 절반 바깥). 꼭짓점·조절점 전부 |y−yMid| ≤ thickness/2 + extraPad 안에 든다.
-   *  circle 은 가로로도 선분 밖으로 나가므로 그 여유까지 덮는다(bbox pad 는 사방 공통). */
+   *  ⚠️«길이 방향»(선분 양끝 바깥) 넘침은 여기서 안 덮는다 → extraPadAlong. */
   function extraPad(style, { thickness = 12, amplitude = 6, length = 160 } = {}) {
     const t = Math.max(1, +thickness || 12);
     const a = Math.max(0, +amplitude || 0);
@@ -52,6 +52,18 @@
       case 'scratch': { const g = scratchGeom(length, t); return Math.ceil(Math.max(g.bow, g.tail) + 1.5 + t / 2) + 2; }
       default: return 0;
     }
+  }
+
+  /** «길이 방향» 여유 — 모든 점이 −extraPadAlong ≤ x ≤ length + extraPadAlong 안에 든다(선폭 절반 포함).
+   *  circle 만 0 이 아니다: 타원 rx = L/2 + padX 에 흔들림·두 바퀴째 커짐 k ≤ 1.13 이 곱해져 넘침이 «길이에 비례»한다
+   *  (1012t1J2 D1 · 이벨류에이터 실측 L=600 17.6px · L=2000 103px 넘침 — 옛 판은 L 항이 없었다).
+   *  호출자(sticker-block.js highlightB 렌더)는 이 값을 회전각으로 나눠 bbox 가로·세로 pad 에 얹는다. */
+  function extraPadAlong(style, { thickness = 12, amplitude = 6, length = 160 } = {}) {
+    if (style !== 'circle') return 0;
+    const t = Math.max(1, +thickness || 12);
+    const L = Math.max(1, +length || 1);
+    const g = circleGeom(L, Math.max(0, +amplitude || 0));
+    return Math.ceil(g.rx * 1.13 - L / 2 + Math.max(2, t) / 2) + 2;
   }
 
   /** 스타일 하나의 획 목록 → [{ d, width, opacity }]. rng = FxSeed.mulberry32(seed). */
@@ -125,5 +137,5 @@
     return [];
   }
 
-  w.DoodleLine = Object.freeze({ STYLES, PRESETS, LABELS, extraPad, paths });
+  w.DoodleLine = Object.freeze({ STYLES, PRESETS, LABELS, extraPad, extraPadAlong, paths });
 })(window);

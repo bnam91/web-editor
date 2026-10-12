@@ -234,10 +234,17 @@ function _renderStickerBlockInner(block) {
     const padMarker = lineStyle === 'marker' ? 4 : 0; // 끝부분 roughness 여유
     const padDoodle = _isDoodle ? _DL.extraPad(lineStyle, { thickness, amplitude, length }) : 0;
     const pad = padThick + padAmp + padMarker + padDoodle;
-    const bboxLeft = Math.min(x1, x2) - pad;
-    const bboxTop  = Math.min(y1, y2) - pad;
-    const bboxW    = Math.abs(dx) + pad * 2;
-    const bboxH    = Math.abs(dy) + pad * 2;
+    /* ★1012t1J2 D1 — 길이 방향 넘침(circle 타원이 선분 양끝 밖으로 나감)을 회전각으로 나눠 축별 pad 에 얹는다.
+       회전된 띠(길이 L+2·along, 두께 2·pad)의 축 정렬 외접 상자 = 끝점 상자 + (|cos|·along + |sin|·pad, |sin|·along + |cos|·pad).
+       두들이 아니거나 along=0 이면 padX = padY = pad (옛 판과 같은 bbox). */
+    const along = _isDoodle && _DL.extraPadAlong ? _DL.extraPadAlong(lineStyle, { thickness, amplitude, length }) : 0;
+    const _ca = length > 0 ? Math.abs(dx) / length : 1, _sa = length > 0 ? Math.abs(dy) / length : 0;
+    const padX = Math.max(pad, Math.ceil(_ca * along + _sa * pad));
+    const padY = Math.max(pad, Math.ceil(_sa * along + _ca * pad));
+    const bboxLeft = Math.min(x1, x2) - padX;
+    const bboxTop  = Math.min(y1, y2) - padY;
+    const bboxW    = Math.abs(dx) + padX * 2;
+    const bboxH    = Math.abs(dy) + padY * 2;
     block.style.cssText = `position:absolute;left:${bboxLeft}px;top:${bboxTop}px;`
       + `width:${bboxW}px;height:${bboxH}px;`
       + `background:transparent;pointer-events:auto;user-select:none;z-index:1;`;

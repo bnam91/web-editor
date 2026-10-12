@@ -81,3 +81,28 @@ test('DL4 획 수 — double 2 · brush 3 · 나머지 1', () => {
   const want = { scribble: 1, brush: 3, circle: 1, double: 2, scratch: 1 };
   for (const s of STYLES) assert.equal(draw(s, 5).strokes.length, want[s], s);
 });
+
+/* DL5 ★길이 방향 잘림 없음(1012t1J2 D1 — 이벨류에이터 실측: circle 이 L=600 에서 17.6px · L=2000 에서 103px 가로로 넘쳤다).
+ *   모든 점이 −extraPadAlong ≤ x ≤ L + extraPadAlong 안. 호출자(sticker-block.js)가 이 값으로 bbox 를 넓힌다.
+ *   음성대조: extraPadAlong 의 1.13 을 1 로 깨면(흔들림·두 바퀴째를 안 덮음) 빨강. */
+test('DL5 ★길이 방향 잘림 없음 — 모든 점이 −extraPadAlong ≤ x ≤ L + extraPadAlong (L=1000 포함)', () => {
+  let n = 0, circleOver = 0;
+  for (const s of STYLES) for (const length of [40, 160, 600, 1000, 2000]) for (const seed of [1, 7, 99, 300, 4242]) {
+    const { o, strokes } = draw(s, seed, { length });
+    const along = DL.extraPadAlong(s, o);
+    for (const st of strokes) for (const [x] of pointsOf(st.d)) {
+      n++;
+      if (s === 'circle' && (x < 0 || x > length)) circleOver++;
+      assert.ok(x >= -along - 1e-6 && x <= length + along + 1e-6, `${s} L${length} seed${seed}: x=${x} 가 [${-along}, ${length + along}] 밖`);
+    }
+  }
+  assert.ok(n > 2000, `★전제: 잰 점이 너무 적다(${n})`);
+  assert.ok(circleOver > 0, '★전제: circle 은 실제로 선분 밖으로 나간다(0 이면 이 칸이 아무것도 안 잰다)');
+  // ★L=1000 단독 — 이벨류에이터가 짚은 꼴 그대로(seed 1~300 전수)
+  for (let seed = 1; seed <= 300; seed++) {
+    const { o, strokes } = draw('circle', seed, { length: 1000 });
+    const along = DL.extraPadAlong('circle', o);
+    for (const st of strokes) for (const [x] of pointsOf(st.d)) assert.ok(x >= -along - 1e-6 && x <= 1000 + along + 1e-6, `circle L1000 seed${seed}: x=${x}`);
+  }
+  assert.equal(DL.extraPadAlong('line', { length: 1000 }), 0, '두들 아닌 스타일은 0 (bbox 옛 판 그대로)');
+});
