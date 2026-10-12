@@ -51,7 +51,9 @@ test('HJ1 스티커 메뉴의 형광펜 입구는 «B 를 바로 만드는» 단
 
 test('HJ2 A 는 «숨김»일 뿐 — 렌더·패널·두 클릭 도구는 그대로 있다(옛 프로젝트가 열려야 한다)', () => {
   const stk = read('js/blocks/sticker-block.js');
-  assert.ok(stk.includes("shape === 'highlight'"), 'A 렌더 갈래(shape === \'highlight\')가 사라졌다');
+  // 렌더 갈래 «그 자리»를 잡는다(같은 글자가 기억·계단식 자리에도 있어 includes 로는 한 글자 깨짐을 못 본다)
+  assert.match(stk, /if \(shape === 'highlight'\) \{\s*\/\/[^\n]*\n\s*const hlW = parseInt\(block\.dataset\.hlW\)/,
+    'A 렌더 갈래(if (shape === \'highlight\') { … hlW)가 사라졌다');
   const prop = read('js/props/prop-sticker.js');
   assert.ok(prop.includes('id="stk-hl-section"'), 'A 패널 절(#stk-hl-section)이 사라졌다');
   const html = read('index.html');
