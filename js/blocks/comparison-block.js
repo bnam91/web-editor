@@ -4,6 +4,8 @@ import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.j
 import { bindBlock } from '../drag-drop.js';
 import { _cvbBackgroundSize } from './canvas-block.js';   // ★D3 — 이미지 확대 식 한 벌(카드와 같은 필드 imgScale/imgFit)
 import { normalizeRedact, applyRedact } from '../effects/image-redact.js';   // ★D4 — 셀 이미지 블러(Redact) 공용 모듈(C1 · 에셋과 한 벌)
+import { lnHasLines, lnLinesHtml, lnValidateLines, lnPlainText, lnRemark } from './line-host.js';   // ★D2 — 칸 안 «줄»(버블·챗과 같은 주인 계약 · 사본 금지)
+import { GRID_ROLES } from './grid-block.js';   // ★D2 — 문서에 안 붙은 블럭의 줄 높이 근사(역할 크기 × 줄높이)
 
 // ── cmp 셀 placeholder(기본문구) 식별 ───────────────────────────────────────
 // comparison 셀은 일반 텍스트블럭과 달리 cols 모델에 텍스트가 들어있어 data-isPlaceholder
@@ -78,7 +80,23 @@ export const CMP_ROW_KEEP = {
   redact:   v => { const n = normalizeRedact(v); return n > 0 ? n : ''; },
   /* ★1012t1D4 — 셀 이미지 색보정(카드 card.adj 와 ★이름·꼴 그대로 · 7키 -1..1 클램프). 객체가 아니면 무효 · 전부 0 = 키 없음. */
   adj:      _cmpAdj,
+  /* ★1012t1D2 — 칸 안 «줄»(그리드 줄 데이터 · line-host LN_KINDS = 글자 역할 + 여백 · ⛔그림 줄 없음). 빈 배열 = 키 없음(= 글자 하나 칸).
+     잣대는 lnValidateLines 한 벌(버블·챗과 같다). 이미지 칸에 남은 줄은 «보존»만 한다(imgSrc 가 글자 칸에 남는 것과 같은 관용 · 렌더는 안 읽는다). */
+  lines:    v => {
+    if (!Array.isArray(v)) return null;
+    if (!v.length) return '';
+    if (lnValidateLines(v)) return null;
+    try { return JSON.parse(JSON.stringify(v)); } catch (_) { return null; }
+  },
 };
+/* ★1012t1D2 — 칸(행 객체)에 줄을 싣는 «한 벌»: 줄이 있으면 lines + text 거울(챗 D3 — Figma JSON·AI 읽기가 text 를 읽는다) ·
+   없으면 lines 를 걷고 text 를 비운다(= 줄을 다 지운 칸은 빈 글자 칸 — D5 안내가 다시 뜬다). line-host 주인(write)·문(rowLines)이 같이 쓴다. */
+export function cmpRowSetLines(row, lines) {
+  if (!row || typeof row !== 'object') return row;
+  if (lnHasLines(lines)) { row.lines = lines; row.text = lnPlainText(lines); }
+  else { delete row.lines; row.text = ''; }
+  return row;
+}
 /* 명부를 한 객체(src)에서 읽어 dst 에 싣는다. 반환: null = 통과 · 문자열 = 무효 키 이름.
    '' = dst 에서 키를 지운다(columnPatch = 지우기 · cols 교체는 dst 가 새 객체라 «안 싣기»와 같다). */
 function _cmpKeep(roster, src, dst) {
@@ -241,7 +259,9 @@ export function cmpPickRowImage(block, colIdx, rowIdx) {
   return inp;
 }
 
-function renderComparison(block) {
+/* ★1012t1D2 — _lnNeed = 「줄 칸 때문에 늘어야 할 행 높이」(행 인덱스 → 기본 높이 px · featScale 적용 전). 내부 2단계용 —
+   바깥에서 부를 때는 안 준다. 줄 칸이 없는 블럭은 2단계를 «안 탄다»(옛 저장본 산출 바이트 그대로). */
+function renderComparison(block, _lnNeed = null) {
   const d = block.dataset;
   const overlap   = parseInt(d.overlap) || 32;
   const radius    = parseInt(d.radius) || 20;
@@ -283,12 +303,18 @@ function renderComparison(block) {
   // (구버전은 텍스트행 rowH=64로 폴백 → 이미지 슬롯이 얇은 띠로 수축하는 렌더 붕괴)
   const imgRowDefault = () => Math.round(Math.max(120, baseW * 0.9));
   // 행 인덱스 ri의 기본 높이(featScale 적용 전): rowHeights 오버라이드 > 이미지행 기본 > rowH.
-  const baseRowH = (ri, row) => {
+  const _baseRowH0 = (ri, row) => {
     const o = rowHeights[ri];
     const n = (o == null) ? 0 : Number(o);
     if (Number.isFinite(n) && n > 0) return n;
     if (row && row.type === 'image') return imgRowDefault();
     return rowH;
+  };
+  // ★D2 행 높이 자동 확장(결정 ⑩) — 그 행 인덱스의 높이 = max(설정 높이, 전 칼럼 중 그 행 줄 내용 높이). _lnNeed 없으면 위 그대로.
+  const baseRowH = (ri, row) => {
+    const h = _baseRowH0(ri, row);
+    const n = _lnNeed ? _lnNeed[ri] : 0;
+    return n > h ? n : h;
   };
   // 각 칼럼 높이 (featured만 header/row/gap 확대). 각 카드 상하 padY 포함. 행별 높이 누적.
   // captionPos:'top'이면 헤더가 카드 밖으로 나가므로 카드 높이에서 제외.
@@ -402,6 +428,16 @@ function renderComparison(block) {
         applyRedact(r, src ? row.redact : 0);
         const _adj = src ? _cmpAdj(row.adj) : '';   // 7키 다 채운 꼴로(applyImgColorAdjust 는 키가 빠지면 toFixed 에서 죽는다)
         if (_adj) window.applyImgColorAdjust?.(r, _adj);
+      } else if (row && lnHasLines(row.lines)) {
+        /* ★1012t1D2 — 줄 칸: text 대신 줄만 그린다(버블 D1 「갈음」). 줄 = 그리드 줄 HTML(line-host lnLinesHtml · 칸 기본 정렬 = 가운데).
+           줄 글자 편집 = 줄 더블클릭(lnBindLineEdit · block-drag.js 가 블럭에 건다) — ⛔_editableRow(칸 통째 편집)를 안 건다(줄 경계가 깨진다).
+           줄 역할 크기는 절대값(결정 ⑪ — 강조 배율 안 곱함). 칼럼 글자색은 상속(색 미지정 줄). */
+        r.classList.add('cmp-lines');
+        r.style.cssText = `height:${effRowH}px;margin-top:${gap}px;display:flex;flex-direction:column;justify-content:center;text-align:center;` +
+          `font-size:${rFont}px;font-weight:${isFeat ? 600 : 400};color:${textColor};` +
+          `padding:0 ${12 + insetR}px 0 ${12 + insetL}px;box-sizing:border-box;`;
+        r.setAttribute('contenteditable', 'false');
+        r.innerHTML = lnLinesHtml(row.lines, ri, idx, 'center');
       } else {
         r.textContent = (row && row.text != null) ? row.text : '';
         r.style.cssText = `height:${effRowH}px;margin-top:${gap}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
@@ -421,7 +457,13 @@ function renderComparison(block) {
     inner.appendChild(buildCol(i, c, isFeat, x, w));
     x += w - overlap;
   });
+  /* ★D2 2단계 — 줄 칸의 자연 높이를 재서(offset* 는 transform 영향 없음) 모자라면 그 행 인덱스를 늘려 «한 번» 다시 그린다. */
+  if (!_lnNeed) {
+    const need = _cmpLinesNeed(inner, featuredIdx, featScale, cols);
+    if (need) { renderComparison(block, need); return; }
+  }
   _cmpPaintActiveMark(block);   // ★D3 — 통째 재렌더가 지운 «칸 선택» 표시를 모델(block._cmpActiveCell)에서 다시 칠한다
+  lnRemark(block);              // ★D2 — 통째 재렌더가 지운 «줄 선택» 표시를 되붙인다(선택된 블럭의 활성 줄만 · 줄 없으면 DOM 무변)
 
   const applyScale = () => {
     const aw = block.offsetWidth; if (aw <= 0) return;
@@ -434,6 +476,43 @@ function renderComparison(block) {
   if (block._cmpRO) block._cmpRO.disconnect();
   block._cmpRO = new ResizeObserver(applyScale);
   block._cmpRO.observe(block);
+}
+
+/* ★D2 — 줄 칸이 «늘어야 할» 행 높이. 없으면 null(= 2단계 안 탐). 문서에 안 붙은 칸(offsetHeight 0)은 역할 크기 × 줄높이로 근사. */
+function _cmpLinesApproxH(lines) {
+  let h = 0;
+  for (const l of (Array.isArray(lines) ? lines : [])) {
+    if (!l || typeof l !== 'object') continue;
+    if (l.type === 'gap') { h += Number(l.height) || 16; continue; }
+    const role = GRID_ROLES[l.type] || GRID_ROLES.body;
+    const fs = Number(l.fontSize) || role.size;
+    const lh = Number(l.lineHeight) || Number(role.lh) || 1.4;
+    h += fs * lh * String(l.text ?? '').split('\n').length;
+  }
+  return Math.ceil(h);
+}
+function _cmpLinesNeed(inner, featuredIdx, featScale, cols) {
+  const cells = inner.querySelectorAll('.cmp-row.cmp-lines');
+  if (!cells.length) return null;
+  const need = {};
+  let grow = false;
+  cells.forEach(cell => {
+    const ci = Number(cell.dataset.colIdx), ri = Number(cell.dataset.rowIdx);
+    const k = ci === featuredIdx ? featScale : 1;
+    const kids = cell.children;
+    let span;
+    if (cell.isConnected && cell.offsetHeight > 0 && kids.length) {
+      const first = kids[0], last = kids[kids.length - 1];
+      span = (last.offsetTop + last.offsetHeight) - first.offsetTop;
+    } else span = _cmpLinesApproxH(cols[ci]?.rows?.[ri]?.lines);
+    const cur = parseFloat(cell.style.height) || 0;
+    if (span > cur) {
+      const b = Math.ceil(span / k) + 1;   // +1 = 강조 칼럼 반올림(Math.round(b × featScale)) 여유
+      if (!(need[ri] >= b)) need[ri] = b;
+      grow = true;
+    }
+  });
+  return grow ? need : null;
 }
 
 function _editableTitle(el, block, colIdx) {
@@ -548,6 +627,7 @@ function addComparisonBlock(opts = {}) {
   const { row, block } = makeComparisonBlock(opts);
   insertAfterSelected(sec, row);
   bindBlock(block);
+  if (block.querySelector('.cmp-lines')) renderComparison(block);   // ★D2 — 문서에 붙은 뒤 줄 칸 높이를 «재서» 다시(붙기 전엔 근사)
   window.buildLayerPanel();
   // 방금 추가한 블록 자동 선택 + 화면 안으로 스크롤 (C9)
   try { window.selectBlock?.(block.id); } catch (_) {}
@@ -568,8 +648,11 @@ function addComparisonBlock(opts = {}) {
 //       칼럼·행의 확장 필드(titleBg/titleColor · 행 imgX/imgY/imgScale …)는 보존 명부 CMP_COL_KEEP/CMP_ROW_KEEP 대로 실린다(파일 머리).
 //   - 칼럼 단위 patch: columnPatch [{index, title?, bg?, text?, titleBg?, titleColor?, rows?}, ...] (rows 항목 동일 규칙 · titleBg/titleColor '' = 지우기)
 //   - 행 높이: rowHeights (행 인덱스→px 배열, null/0이면 기본 rowH, 16~400, ≤ 20개)
+//   - 칸 하나의 줄: rowLines {col, row, lines|null} (★1012t1D2 — 그 칸만 바꾼다 · 다른 행·필드 무접촉 · null/[] = 줄 걷기 · 이미지 칸 거절)
+//       rows 항목의 lines 도 받는다(보존 명부 CMP_ROW_KEEP.lines — 잣대 lnValidateLines). 줄이 있으면 text 는 줄 글자 거울.
 //   - 메타: layerName
-function updateComparisonBlock(blockId, partial = {}) {
+// opts.noHistory — push-before 를 안 찍는다(line-host 주인 계약 · 버블/챗 문과 같은 칸).
+function updateComparisonBlock(blockId, partial = {}, opts = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
   const block = document.getElementById(String(blockId));
   if (!block || !block.classList.contains('comparison-block')) {
@@ -606,8 +689,14 @@ function updateComparisonBlock(blockId, partial = {}) {
     if (typeof raw !== 'object') return { ok: false, msg: 'must be string or object' };
     const type = raw.type === 'image' ? 'image' : (raw.type == null || raw.type === 'text' ? 'text' : null);
     if (type === null) return { ok: false, msg: `invalid type: ${raw.type}` };
+    /* ★D2 — 줄은 먼저 잰다(잣대의 말을 그대로 돌려준다). 줄이 있는 글자 칸의 text 는 거울이라 500자 상한을 안 본다(줄마다 상한이 있다). */
+    const hasLines = raw.lines != null && !(Array.isArray(raw.lines) && !raw.lines.length);
+    if (hasLines) {
+      const e = Array.isArray(raw.lines) ? lnValidateLines(raw.lines, 'lines') : { message: 'lines must be array' };
+      if (e) return { ok: false, msg: e.message };
+    }
     const text = raw.text == null ? '' : String(raw.text);
-    if ([...text].length > 500) return { ok: false, msg: 'text too long' };
+    if (!(hasLines && type === 'text') && [...text].length > 500) return { ok: false, msg: 'text too long' };
     let row;
     if (type === 'text') row = { type: 'text', text };
     else {
@@ -619,6 +708,7 @@ function updateComparisonBlock(blockId, partial = {}) {
     }
     const bad = _cmpKeep(CMP_ROW_KEEP, raw, row);   // 보존 명부(행) — D3: imgX/imgY/imgScale. D2·D4 가 더한다.
     if (bad) return { ok: false, msg: `${bad} invalid` };
+    if (type === 'text' && row.lines) cmpRowSetLines(row, row.lines);   // ★D2 — text = 줄 글자 거울
     return { ok: true, row };
   };
 
@@ -767,6 +857,32 @@ function updateComparisonBlock(blockId, partial = {}) {
     applied.columnPatch = appliedPatches;
   }
 
+  /* ★1012t1D2 rowLines — 칸 «하나»의 줄만 바꾼다(line-host 비교 주인의 쓰는 문 · MCP 도 같은 길).
+     ⛔columnPatch{rows} 로 보내지 않는 까닭: 그 길은 칼럼의 행을 _sanitizeRow 로 «다시 지어» 명부 밖 필드(memo 등)를 버린다. */
+  if (partial.rowLines !== undefined && partial.rowLines !== null) {
+    const p = partial.rowLines;
+    if (typeof p !== 'object') return { ok: false, code: 'INVALID', message: 'rowLines must be object' };
+    const base = draftCols || getComparisonCols(block.dataset);
+    const ci = Number(p.col), ri = Number(p.row);
+    if (!Number.isInteger(ci) || ci < 0 || ci >= base.length) return { ok: false, code: 'INVALID', message: `rowLines.col ${p.col} out of range (0~${base.length - 1})` };
+    const row = base[ci].rows?.[ri];
+    if (!Number.isInteger(ri) || !row) return { ok: false, code: 'INVALID', message: `rowLines.row ${p.row} out of range` };
+    if (row.type === 'image') return { ok: false, code: 'INVALID', message: 'rowLines: image cell has no lines (lines are for text cells)' };
+    const lines = p.lines == null ? null : p.lines;
+    if (lines !== null) {
+      if (!Array.isArray(lines)) return { ok: false, code: 'INVALID', message: 'rowLines.lines must be array or null' };
+      if (lines.length) {
+        const e = lnValidateLines(lines, 'rowLines.lines');
+        if (e) return { ok: false, code: e.code || 'INVALID', message: e.message };
+      }
+    }
+    let copy = null;
+    try { copy = lines && lines.length ? JSON.parse(JSON.stringify(lines)) : null; } catch (_) { return { ok: false, code: 'INVALID', message: 'rowLines.lines not serializable' }; }
+    cmpRowSetLines(row, copy);
+    draftCols = base;
+    applied.rowLines = { col: ci, row: ri, lines: copy ? copy.length : 0 };
+  }
+
   // featured (int index) — cols 변경분과의 정합성 검사
   let draftFeatured = null;
   if (partial.featured !== undefined && partial.featured !== null) {
@@ -810,7 +926,7 @@ function updateComparisonBlock(blockId, partial = {}) {
   };
 
   // ── 모든 검증 통과 — 여기서부터 mutate ──
-  window.pushHistory?.();
+  if ((opts || {}).noHistory !== true) window.pushHistory?.();
 
   // 단순 필드 (key=value)
   for (const [k, v] of Object.entries(draft)) {
@@ -863,6 +979,7 @@ window.cmpClearAllActiveCells = cmpClearAllActiveCells;
 window.cmpPickRowImage        = cmpPickRowImage;
 window.cmpImgBgSize           = cmpImgBgSize;
 window.cmpImgBgPos            = cmpImgBgPos;
+window.cmpRowSetLines         = cmpRowSetLines;   // ★D2 — line-host 비교 주인(write)이 부른다(순환 import 회피 관례)
 
 /* ⛔isCmpPlaceholderText 를 여기 더하지 마라 — 위에서 이미 `export function` 이다(중복 export = 문법 오류).
    2026-10-08 에 내가 실제로 이 줄로 깨뜨렸고, ★자가 그걸 ★못 잡았다. 실측(★어느 판인지 같이 적는다 —

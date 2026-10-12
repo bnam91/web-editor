@@ -42,6 +42,9 @@ export function showComparisonProperties(block) {
             <button class="prop-align-btn cmp-row-fit${fit === 'cover' ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-fit="cover" style="flex:1;font-size:10px;">꽉 채우기</button>
             <button class="prop-align-btn cmp-row-fit${fit === 'contain' ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-fit="contain" style="flex:1;font-size:10px;">원본 비율</button>
           </div>`;
+      } else if (row && Array.isArray(row.lines) && row.lines.length) {
+        /* ★1012t1D2 — 줄 칸: 글자는 줄마다 산다(캔버스 줄 더블클릭 · 칸을 고르면 위 줄 절). 여기는 거울(text)을 «읽기만» 보인다. */
+        body = `<input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" data-lines="${row.lines.length}" value="${_esc(row.text)}" disabled title="줄 ${row.lines.length}개 — 캔버스에서 칸을 고르면 줄 편집" style="flex:1;">`;
       } else {
         body = `<input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" placeholder="${_esc(CMP_ROW_HINT)}" value="${_esc(row && row.text)}" style="flex:1;">`;
       }
@@ -269,7 +272,7 @@ ${blockHeaderHTML({
     inp.addEventListener('input', () => {
       const c = getCols(); const ci = +inp.dataset.col; const ri = +inp.dataset.idx;
       const row = c[ci]?.rows?.[ri];
-      if (row && row.type !== 'image') { row.text = inp.value; saveCols(c); rerender(); }
+      if (row && row.type !== 'image' && !(Array.isArray(row.lines) && row.lines.length)) { row.text = inp.value; saveCols(c); rerender(); }   // ★D2 줄 칸은 거울이라 안 쓴다
     });
     inp.addEventListener('change', commit);
   });
@@ -362,6 +365,10 @@ ${blockHeaderHTML({
       const c = getCols(); const ci = +btn.dataset.col;
       if (c[ci]) { c[ci].rows.push(cmpEmptyRow()); saveCols(c); rerender(); commit(); showComparisonProperties(block); }
     }));
+
+  /* ★1012t1D2 — 캔버스에서 «글자 칸»이나 «줄»을 골랐으면 블럭 헤더 바로 아래에 줄 절(줄바 「+ 줄 추가」·줄 꾸미기·Typography).
+     ★그리드·버블·챗과 «같은 함수»(js/blocks/line-host.js → prop-grid.js grdLineUi) — 이름·순서 그대로 · 사본 0. 블럭만 고른 상태 = 0. */
+  window.lnAugmentCmpPanel?.(block);
 
   // 선택 시 활성 칼럼 배경이 그라데이션이면 캔버스 위 그라데이션 라인 표시 (아니면 overlay가 no-op)
   window.showGradientLine?.(block);
