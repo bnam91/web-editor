@@ -350,3 +350,31 @@ test('P10 틈 — 6항목(끝 조각 = 첫 조각과 같은 색)에서 경계각
   expect(await hit(page, id, 0, 0.75)).toEqual([false, true, false]);
   expect(errs).toEqual([]);
 });
+
+/* D1(이벨류에이터 2026-10-13) — 패널 Data 절이 항목 라벨·값을 value="…" 에 «그대로» 넣던 것. 원형·도넛 패널도 같은 줄을 탄다. */
+for (const type of ['bar-v', 'pie']) {
+  test(`P11 패널 이스케이프(${type}) — 라벨에 "> 와 태그가 들어도 패널에 요소가 안 생기고 · 입력칸은 원문 그대로`, async ({ page }) => {
+    const EVIL = '"><img src=x onerror=window.__pwn=1>';
+    const { errs, id } = await setup(page, { type, items: [{ label: EVIL, value: 50 }, { label: "a'b&amp;<i>", value: 30 }] });
+    expect((await itemsOf(page, id)).map(i => i.label), '전제: 모델에 원문이 실렸다').toEqual([EVIL, "a'b&amp;<i>"]);
+    expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll('img, i').length, id), '전제: 캔버스 그림은 글자로만 그린다').toBe(0);
+    await openPanel(page, id);
+    await expect(page.locator('#grb-data-list .grb-data-item:not(.grb-seg-item)'), '전제: 패널이 열렸고 항목 줄이 둘').toHaveCount(2);
+    await raf2(page);
+    const r = await page.evaluate(() => { const panel = document.getElementById('grb-data-list').closest('.prop-section').parentElement;
+      return { img: panel.querySelectorAll('img').length, tags: panel.querySelectorAll('#grb-data-list i').length,
+        labels: [...panel.querySelectorAll('#grb-data-list .grb-data-item:not(.grb-seg-item) .grb-data-label-input')].map(e => e.value),
+        vals: [...panel.querySelectorAll('#grb-data-list .grb-data-item:not(.grb-seg-item) .grb-data-val-input:not(.grb-data-val2-input)')].map(e => e.value),
+        stray: [...document.getElementById('grb-data-list').childNodes].filter(n => n.nodeType === 3 && n.textContent.trim()).length }; });
+    expect(r.img, '패널 안 img 0').toBe(0);
+    expect(r.tags, '패널 안 사용자 태그 0').toBe(0);
+    expect(r.labels, '입력칸 값 = 원문 그대로').toEqual([EVIL, "a'b&amp;<i>"]);
+    expect(r.vals).toEqual(['50', '30']);
+    expect(r.stray, '속성 밖으로 샌 글자 0').toBe(0);
+    expect(await page.evaluate(() => window.__pwn), 'onerror 가 안 돌았다').toBeUndefined();
+    /* 그 칸에서 고쳐 써도 원문이 그대로 모델로 간다(이스케이프가 값에 섞이지 않는다) */
+    await page.locator('#grb-data-list .grb-data-label-input').first().fill(EVIL + '!');
+    await expect.poll(async () => (await itemsOf(page, id))[0].label).toBe(EVIL + '!');
+    expect(errs).toEqual([]);
+  });
+}

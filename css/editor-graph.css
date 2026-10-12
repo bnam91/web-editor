@@ -335,7 +335,9 @@
  * 세로 막대의 덧 길 — 블럭에 모양 키나 항목에 마디가 있을 때만 이 요소들이 생긴다(없으면 위 세로 막대 그대로).
  * 실루엣 = 마스크 그림(변수 한 벌을 블럭 줄에 한 번, 항목이 다르면 그 칸에 덮어쓴다). 채움·트랙·마디 잉크는 막대 채움 클래스를 그대로 달아
  * 프리셋 색·항목 색·컬러풀 순번 색이 그대로 먹는다. 상자는 플롯 칸을 컨테이너로 삼아 높이에 맞추되 폭이 모자라면 같은 비로 줄어든다.
- * 마디 라벨은 마스크 밖 층이라 글자가 실루엣에 잘리지 않는다. 라벨 글자색은 마디 바탕에 맞춰 canvas-contrast 가 변수로 준다(저장에선 걷힌다). */
+ * 마디 라벨은 마스크 밖 층이라 글자가 실루엣에 잘리지 않는다. 라벨 글자색은 마디 바탕에 맞춰 canvas-contrast 가 변수로 준다(저장에선 걷힌다).
+ * 사각 쌓기(모양 없음)는 막대가 두께만큼만 넓어 그 위에 글자가 못 선다 — 라벨 층을 막대 «오른쪽 바깥»으로 뺀다(마디 높이 가운데는 그대로).
+ *   글자가 채움 위가 아니므로 색은 블럭 글자색을 상속한다(카테고리 라벨과 같은 길). 폭은 이웃 막대 앞까지만(칸 폭 − 막대 폭) — 넘으면 거기서 잘린다. */
 .grb-shape-wrap { justify-content: center; container-type: size; }
 .grb-shape-box { position: relative; flex: none; min-width: 0; }
 .grb-shape-mask { position: absolute; inset: 0; }
@@ -371,6 +373,8 @@
   line-height: 1.2;
   color: var(--grb-seg-fg, inherit);
 }
+.grb-shape-box:not(.grb-shape-on) > .grb-seg-labels { left: 100%; right: auto; max-width: calc(100cqw - 100%); box-sizing: border-box; padding-left: var(--ui-row-gap); }
+.grb-shape-box:not(.grb-shape-on) > .grb-seg-labels > .grb-seg-label { justify-content: flex-start; color: inherit; }
 .graph-block[data-preset="colorful"] .grb-shape-mask .grb-bar-fill { background: var(--grb-pie-1); }
 
 /* ── H6 자동 밝기(현빈 2026-10-05) — 맨 끝에 둔다: 프리셋 규칙(.graph-block[data-preset=…] …)과 세기(0,3,0)가 같아 «순서»로 이긴다.

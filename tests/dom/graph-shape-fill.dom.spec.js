@@ -309,9 +309,10 @@ test('G2-2 패널 — 「모양」을 고르면 실루엣이 되고 두께 줄�
 test('G2-3 항목별 — index 로 넣은 모양은 그 칸에만 마스크 변수가 붙고 · 패널 버튼으로 지우면 블럭 모양으로 돌아간다', async ({ page }) => {
   const { errs, id } = await setup(page, { items: V3 });
   await shape(page, id, { shape: 'person' });
-  const vars = () => page.evaluate((id) => { const g = document.getElementById(id); return { cols: [...g.querySelectorAll('.grb-bar-col')].map(c => c.style.getPropertyValue('--grb-shape')), bars: g.querySelector('.grb-bars-v').style.getPropertyValue('--grb-shape') }; }, id);
+  const vars = () => page.evaluate((id) => { const g = document.getElementById(id); return { cols: [...g.querySelectorAll('.grb-bar-col')].map(c => c.style.getPropertyValue('--grb-shape')), decl: [...g.querySelectorAll('.grb-bar-col')].map(c => (c.getAttribute('style') || '').includes('--grb-shape')), bars: g.querySelector('.grb-bars-v').style.getPropertyValue('--grb-shape') }; }, id);
   const v0 = await vars();
   expect(v0.cols, '전제: 항목 덮어쓰기 없음').toEqual(['', '', '']);
+  expect(v0.decl, '전제: 어느 칸의 인라인 style 에도 마스크 변수 선언이 없다').toEqual([false, false, false]);
   expect(v0.bars.startsWith('url('), '전제: 블럭 마스크가 있다').toBe(true);
   expect(await shape(page, id, { index: 1, shape: 'bottle' })).toEqual({ ok: true, shape: 'bottle' });
   await raf2(page);
@@ -319,7 +320,10 @@ test('G2-3 항목별 — index 로 넣은 모양은 그 칸에만 마스크 변�
   expect([v1.cols[0], v1.cols[2]], '0·2번 칸은 그대로').toEqual(['', '']);
   expect(v1.cols[1].startsWith('url('), '1번 칸만 자기 마스크').toBe(true);
   expect(v1.cols[1]).not.toBe(v1.bars);
+  /* 다른 칸엔 선언 «자체»가 없다 — 빈 값 선언(--grb-shape:;)도 블럭 마스크를 가려 실루엣을 지운다(getPropertyValue 는 그것을 '' 로 읽어 위 단언을 지나간다) */
+  expect(v1.decl, '인라인 style 에 --grb-shape 가 있는 칸은 1번뿐').toEqual([false, true, false]);
   const m = await maskOf(page, id);
+  expect(m[0].startsWith('url("data:image/svg+xml,'), '0번 칸은 여전히 블럭 마스크로 그려진다: ' + m[0].slice(0, 40)).toBe(true);
   expect(m[0]).toBe(m[2]);
   expect(m[1], '계산된 마스크도 1번만 다르다').not.toBe(m[0]);
   /* 상자 비도 그 모양의 viewBox 비(약통 120×200 · 사람 76×240) */
@@ -370,11 +374,27 @@ test('G2-4 파일 — 숨은 파일 칸에 SVG 를 넣으면(창을 안 띄운�
   await expect.poll(() => ds(page, id, 'barShape')).toBe('drop');
   await page.locator('#grb-shape-select').selectOption('custom');
   await expect.poll(() => ds(page, id, 'barShape')).toBe('custom');
-  /* 크기를 모르는 SVG 는 거절 — 그림 그대로 */
+  /* 크기를 모르는 SVG 는 거절(소독 실패 길) — 그림 · dataset 그대로 · 히스토리를 안 찍는다 · 패널을 다시 열지 않는다.
+     히스토리는 «꼭대기와 같으면 안 쌓는다» — 그래서 먼저 꼭대기와 다른 상태를 만든다(안 그러면 실패 길이 pushHistory 를 불러도 수가 안 는다 = 못 잰다). */
+  await setDs(page, id, { trackColor: '#123456' });
   const kept = await inner(page, id);
+  const snap = () => page.evaluate((id) => ({ ds: JSON.stringify({ ...document.getElementById(id).dataset }), len: window.getHistoryTip().len, pos: window.getHistoryTip().pos }), id);
+  const s0 = await snap();
+  expect(JSON.parse(s0.ds).trackColor, '전제: 꼭대기 표본과 다른 상태(트랙 색을 히스토리 없이 썼다)').toBe('#123456');
+  expect(s0.len, '전제: 히스토리에 표본이 있다').toBeGreaterThan(0);
+  await page.evaluate(() => { window.__toasts = []; const o = window.showToast; window.showToast = (m, ...a) => { window.__toasts.push(String(m)); return o?.(m, ...a); }; document.getElementById('grb-shape-select').__same = true; });
   await page.locator('#grb-shape-file-input').setInputFiles({ name: 'nosize.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg><path d="M0 0H1V1Z"/></svg>') });
+  await page.waitForFunction(() => window.__toasts.length === 1);   // 거절 알림 = 처리기가 실패 가지까지 왔다(그 뒤는 같은 태스크에서 끝난다)
   await raf2(page);
+  expect(await page.evaluate(() => window.__toasts), '전제: 소독 실패 알림(크기 모름)이 한 번 떴다').toHaveLength(1);
   expect(await inner(page, id)).toBe(kept);
+  const s1 = await snap();
+  expect(s1.ds, '실패: 블럭 dataset 무변').toBe(s0.ds);
+  expect([s1.len, s1.pos], '실패: 히스토리가 안 는다').toEqual([s0.len, s0.pos]);
+  expect(await page.evaluate(() => document.getElementById('grb-shape-select').__same === true), '실패: 패널을 다시 열지 않는다(같은 노드)').toBe(true);
+  /* 대조: 같은 상태에서 pushHistory 를 직접 부르면 는다 — 위 「안 는다」가 무변화 중복 차단 덕이 아니다 */
+  await page.evaluate(() => window.pushHistory('대조'));
+  expect((await snap()).len, '대조: 이 상태는 찍으면 쌓이는 상태였다').toBe(s0.len + 1);
   expect(errs).toEqual([]);
 });
 

@@ -370,3 +370,44 @@ test('G4-8 다른 유형 — 마디 있는 항목을 꺾은선·원형·가로�
   expect((await itemsOf(page, id))[1]).toEqual({ label: 'B', value: 40 });
   expect(errs).toEqual([]);
 });
+
+test('G4-9 사각 쌓기 라벨 — 기본 두께(24px) 막대에서도 마디 라벨이 안 잘린다: 막대 오른쪽 바깥 · 이웃 막대 앞에서 끝난다 · 블럭 글자색 · 약통은 그대로 실루엣 위', async ({ page }) => {
+  const segs = [{ label: '제품원가', value: 40, color: '#111111' }, { label: '영업비', value: 30 }, { label: '광고비', value: 20 }, { label: '마진', value: 10 }];
+  const { errs, id } = await setup(page, { items: [{ label: 'A', value: 100, segments: segs }, { label: 'B', value: 80, segments: SEG4.map(s => ({ ...s, value: s.value * 0.8 })) }, { label: 'C', value: 60 }] });
+  /* 화면 좌표(같은 배율끼리만 견준다) + 글자 상자의 넘침 */
+  const read = () => page.evaluate((id) => { const g = document.getElementById(id); const R = (e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; };
+    return { ink: getComputedStyle(g.querySelector('.grb-bar-label')).color, boxes: [...g.querySelectorAll('.grb-shape-box')].map(box => ({ ...R(box), w: box.offsetWidth, on: box.classList.contains('grb-shape-on'),
+      segs: [...box.querySelectorAll('.grb-seg')].map(R),
+      labels: [...box.querySelectorAll('.grb-seg-label')].map(l => ({ ...R(l), text: l.textContent, sw: l.scrollWidth, cw: l.clientWidth, color: getComputedStyle(l).color, fgVar: l.style.getPropertyValue('--grb-seg-fg').trim() })) })) }; }, id);
+  const g = await read();
+  expect(g.boxes.length, '전제: 상자 3(마디 둘 + 보통 하나)').toBe(3);
+  const b = g.boxes[0];
+  expect(b.segs.length, '전제: 마디 4 가 그려졌다').toBe(4);
+  expect(b.labels.map(l => l.text), '전제: 라벨 4').toEqual(['제품원가', '영업비', '광고비', '마진']);
+  expect(b.on, '전제: 모양 없는 사각 쌓기').toBe(false);
+  expect(await ds(page, id, 'vBarThickness'), '전제: 두께 키 없음(기본 두께)').toBeNull();
+  expect(b.w, '전제: 막대 폭 = 기본 두께').toBe(await page.evaluate(() => window.GRAPH_LIMITS.BAR_THICKNESS_DEFAULT));
+  expect(await ds(page, id, 'labelColor'), '전제: 라벨 색 키 없음').toBeNull();
+  expect(/^rgb/.test(g.ink), '전제: 카테고리 라벨의 글자색을 읽었다').toBe(true);
+  expect(b.labels[0].fgVar, '전제: 톤 변수는 여전히 라벨에 실려 있다(#111 위 = 밝은 글자) — 사각에선 그것을 안 읽는다').toBe('#f2f2f2');
+  g.boxes.slice(0, 2).forEach((box, k) => box.labels.forEach((l, j) => {
+    expect(l.cw, `막대 ${k} 라벨 ${j}: 글자 상자에 폭이 있다`).toBeGreaterThan(0);
+    expect(l.sw, `막대 ${k} 라벨 ${j}「${l.text}」: 글자 폭 ${l.sw} ≤ 상자 폭 ${l.cw}(안 잘린다)`).toBeLessThanOrEqual(l.cw);
+    expect(l.l, `막대 ${k} 라벨 ${j}: 막대 오른쪽 바깥(${l.l} ≥ ${box.r})`).toBeGreaterThanOrEqual(box.r - 0.5);
+    expect(l.r, `막대 ${k} 라벨 ${j}: 이웃 막대 앞에서 끝난다(${l.r} ≤ ${g.boxes[k + 1].l})`).toBeLessThanOrEqual(g.boxes[k + 1].l + 0.5);
+    const mid = (l.t + l.b) / 2, s = box.segs[j];
+    expect(mid >= s.t - 1 && mid <= s.b + 1, `막대 ${k} 라벨 ${j}: 가운데 ${mid} 가 제 마디 ${s.t}~${s.b} 높이 안`).toBe(true);
+    expect(l.color, `막대 ${k} 라벨 ${j}: 글자색 = 블럭 글자색(채움 위가 아니다)`).toBe(g.ink);
+  }));
+  /* 약통(모양)으로 바꾸면 라벨은 옛 자리 — 실루엣 상자 안 · 마디 바탕에 맞춘 글자색 */
+  await setDs(page, id, { barShape: 'bottle', chartHeight: '400' });
+  await expect.poll(async () => (await read()).boxes[0].labels[0].color, { message: '약통: #111 마디 위 = 밝은 글자(톤 변수)' }).toBe('rgb(242, 242, 242)');
+  const t = (await read()).boxes[0];
+  expect(t.on, '전제: 모양 상자').toBe(true);
+  t.labels.forEach((l, j) => {
+    expect(l.l >= t.l - 0.5 && l.r <= t.r + 0.5, `약통 라벨 ${j}: 상자 안(${l.l}~${l.r} ⊂ ${t.l}~${t.r})`).toBe(true);
+    expect(l.sw, `약통 라벨 ${j}: 안 잘린다`).toBeLessThanOrEqual(l.cw);
+  });
+  expect(Math.abs((t.labels[0].l + t.labels[0].r) / 2 - (t.l + t.r) / 2), '약통 라벨은 상자 가로 가운데').toBeLessThanOrEqual(1);
+  expect(errs).toEqual([]);
+});
