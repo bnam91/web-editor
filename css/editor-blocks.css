@@ -2690,6 +2690,15 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
   border-radius: 4px;
   cursor: text;
 }
+/* ★D5 (현빈 2026-10-12) — 빈 칸 «안내» (시각 전용). 글자가 아니다: 모델·textContent·저장본 0.
+ * ⛔10-08 「플레이스홀더 제거」(지워도 되살아나는 진짜 글자)와 다르다 — 이건 :empty 일 때만 보이는 ::before 다.
+ * 색은 칼럼 글자색을 따라(상속) 45% 로 흐리게 — data-is-placeholder(아래 2021행 부근)와 같은 흐림. 하드코딩 색 0.
+ * ★#canvas 스코프: export 클론은 #canvas 밖이라 안내가 결과물에 안 샌다(그리드 안내와 같은 까닭).
+ * 문구는 js/blocks/comparison-block.js CMP_ROW_HINT / CMP_HD_HINT 와 두 벌 — 검사가 묶는다. */
+#canvas .comparison-block .cmp-row:not(.cmp-img):empty::before,
+#canvas .comparison-block .cmp-hd:empty::before { opacity: .45; pointer-events: none; }
+#canvas .comparison-block .cmp-row:not(.cmp-img):empty::before { content: '내용을 입력하세요.'; }
+#canvas .comparison-block .cmp-hd:empty::before { content: '제목을 입력하세요'; }
 /* 이미지 행 빈 placeholder — 체커보드(사용자 자산 채움 신호). dataset.imgSrc는 비워둔다. */
 .comparison-block .cmp-row.cmp-img.cmp-img-empty {
   background-color: #f2f3f5;

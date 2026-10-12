@@ -28,6 +28,12 @@ export const CMP_PLACEHOLDERS = [
      (normalizeRow 가 읽을 때 객체로 바꿔 주지만 dataset 에는 문자열로 남았다). */
 export const cmpEmptyRow  = () => ({ type: 'text', text: '' });
 export const cmpEmptyRows = (n) => Array.from({ length: Math.max(0, n) }, cmpEmptyRow);
+/* ★D5 (현빈 2026-10-12) — 빈 칸의 «안내 힌트» 문구. 글자가 아니라 CSS ::before(css/editor-blocks.css)가 그리는 시각 전용 안내다.
+   ⛔모델(cols)·textContent·저장본에 넣지 않는다 — 10-08 「제거」(지워도 되살아남)와 다른 것이다.
+   ⛔CMP_PLACEHOLDERS 명부에 넣지 마라(그 글자를 진짜로 쓴 칸이 더블클릭=전체선택이 된다).
+   CSS content 와 두 벌 — 검사(cmp-placeholder-hint P1)가 런타임 ::before content == 이 값을 단언해 묶는다. */
+export const CMP_ROW_HINT = '내용을 입력하세요.';
+export const CMP_HD_HINT  = '제목을 입력하세요';
 // 셀 텍스트가 기본문구와 동일하거나 비어있으면 placeholder로 간주.
 export function isCmpPlaceholderText(t) {
   const s = (t == null ? '' : String(t)).trim();
@@ -298,6 +304,8 @@ function _editableTitle(el, block, colIdx) {
   });
   el.addEventListener('blur', () => {
     el.setAttribute('contenteditable', 'false');
+    /* ★D5 — 다 지우고 나가면 contenteditable 이 <br> 을 남겨 :empty 가 깨진다(실측) → 안내 ::before 가 안 돌아온다. 진짜로 비운다. */
+    if (el.textContent === '' && el.firstChild) el.textContent = '';
     const cols = getComparisonCols(block.dataset);
     if (cols[colIdx]) {
       /* ★⒝ 빈 칸을 기본문구로 ★«되돌리지 않는다» (현빈 2026-10-08).
@@ -331,6 +339,8 @@ function _editableRow(el, block, colIdx, rowIdx) {
   });
   el.addEventListener('blur', () => {
     el.setAttribute('contenteditable', 'false');
+    /* ★D5 — 다 지우고 나가면 contenteditable 이 <br> 을 남겨 :empty 가 깨진다(실측) → 안내 ::before 가 안 돌아온다. 진짜로 비운다. */
+    if (el.textContent === '' && el.firstChild) el.textContent = '';
     const cols = getComparisonCols(block.dataset);
     const row = cols[colIdx]?.rows?.[rowIdx];
     // 객체행이면 .text만 갱신(이미지행 imgSrc 유실 방지). getComparisonCols가 항상 객체로 정규화하므로 항상 객체.
@@ -685,6 +695,8 @@ window.normalizeComparisonRow = normalizeRow;
 /* ★식별 명부의 ★정본 한 자리를 검사가 «런타임»으로 읽게 둔다 (선례: window.GRID_CELL_DEFAULT_TEXT).
    ⛔검사가 이 파일을 ★소스 파싱해 리터럴을 뽑던 것을 걷었다 — 주석·상수 참조로 적는 순간 그 자가 조용히 줄어든다. */
 window.CMP_PLACEHOLDERS    = CMP_PLACEHOLDERS;
+window.CMP_ROW_HINT        = CMP_ROW_HINT;   // D5 — 빈 칸 안내문(시각 전용). 검사·패널이 읽는다.
+window.CMP_HD_HINT         = CMP_HD_HINT;
 
 /* ⛔isCmpPlaceholderText 를 여기 더하지 마라 — 위에서 이미 `export function` 이다(중복 export = 문법 오류).
    2026-10-08 에 내가 실제로 이 줄로 깨뜨렸고, ★자가 그걸 ★못 잡았다. 실측(★어느 판인지 같이 적는다 —

@@ -2,7 +2,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
-import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows } from '../blocks/comparison-block.js';
+import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows, CMP_ROW_HINT, CMP_HD_HINT } from '../blocks/comparison-block.js';
 import { panelRenderedColor } from './_panel-rendered.js';
 
 /* ★옛 사본은 «닫는 꺾쇠»와 홑따옴표를 안 덮었다 — 이 파일이 쓰는 세 자리에서는 무력한
@@ -42,7 +42,7 @@ export function showComparisonProperties(block) {
             <button class="prop-align-btn cmp-row-fit${fit === 'contain' ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-fit="contain" style="flex:1;font-size:10px;">원본 비율</button>
           </div>`;
       } else {
-        body = `<input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" value="${_esc(row && row.text)}" style="flex:1;">`;
+        body = `<input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" placeholder="${_esc(CMP_ROW_HINT)}" value="${_esc(row && row.text)}" style="flex:1;">`;
       }
       return `
         <div class="cmp-row-edit" style="margin-bottom:6px;border-bottom:1px solid var(--border-subtle,#2a2a2a);padding-bottom:6px;">
@@ -65,7 +65,7 @@ export function showComparisonProperties(block) {
           <span>칼럼 ${idx + 1}${idx === featuredIdx ? ' ★' : ''}</span>
           ${canDelete ? `<button class="prop-btn prop-btn-danger cmp-col-del" data-col="${idx}" title="칼럼 삭제" style="width:24px;">×</button>` : ''}
         </div>
-        <textarea class="prop-textarea cmp-col-title" data-col="${idx}" rows="1" style="width:100%;box-sizing:border-box;">${_esc(col.title)}</textarea>
+        <textarea class="prop-textarea cmp-col-title" data-col="${idx}" rows="1" placeholder="${_esc(CMP_HD_HINT)}" style="width:100%;box-sizing:border-box;">${_esc(col.title)}</textarea>
         <div class="prop-color-row"><span class="prop-label">배경</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Bg', hex: bgIsGrad ? '#ffffff' : bgVal, gradientCss: bgIsGrad ? bgVal : '' })}</div>
         <div class="prop-color-row"><span class="prop-label">텍스트</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Text', hex: textVal })}</div>
         <div style="margin-top:6px;">${rowInputs}</div>
