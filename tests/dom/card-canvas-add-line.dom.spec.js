@@ -169,6 +169,9 @@ test('A4b ＋ 커밋 1회 = 히스토리 +1 · 두 번째 ⌘Z 는 직전 변경
   await select(page, id, 1);
   const pre = await page.evaluate((id) => {
     const r = window.updateCanvasBlock(id, { titleSize: 30 });
+    // updateCanvasBlock 은 push-before(바꾸기 «전»만 찍음) — 패널 길은 그 뒤 «끝 표본»을 찍는다(push-after · js/CLAUDE.md 히스토리 규약).
+    // 그 끝 표본을 여기서 찍어 «직전 변경이 끝난 상태»를 꼭대기에 둔다. 안 찍으면 이음매 ⑴ 로 +1 이 시험 전제에서 새로 생긴다(실측 [false,false]).
+    window.pushHistory('제목 크기');
     return { ok: r.ok, size: document.getElementById(id).dataset.titleSize };
   }, id);
   expect(pre, '전제 — 직전 변경이 들어갔다').toEqual({ ok: true, size: '30' });
