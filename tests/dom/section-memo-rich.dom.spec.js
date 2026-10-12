@@ -27,6 +27,13 @@
  *   P8 두 장을 붙이면 붙인 차례대로 둘
  *   P9 20MB 를 넘는 파일은 거절한다
  *
+ * 이벨류에이터 실측 결함(2026-10-12)을 잠그는 칸:
+ *   D1a~e 캐럿 «뒤에 글자가 있어도» 체크박스·그림은 정확히 하나(글 가운데 · 줄 맨 앞 · 한글 사이 · 둘째 줄 · 붙여넣기)
+ *   D2·D2b 복사·잘라내기가 표식을 평문에 싣는다 · D2c 갈아 쓴 글이 색 입힌 요소에 싸이지 않는다
+ *   D3 서식 단축키(⌘B·⌘I·⌘U·⌘⇧X)가 메모에 안 먹고 전역으로 안 샌다
+ *   D4·D4b 조합으로 한도를 넘기면 끝에서 잘라 저장한다(원자 노드는 통째로)
+ *   D6 한도가 차서 그림을 못 넣을 때는 자산 IPC 를 안 부른다
+ *
  * 안 재는 것: 실제 한글 IME(합성 이벤트로만 잰다) · 실앱(Electron)에서의 전역 단축키 양보 ·
  *   실제 OS 클립보드(합성 ClipboardEvent 로만 잰다) · 실제 goya-asset 프로토콜(route 로 서브한다) · 자산 IPC 본체(스텁).
  *
@@ -297,7 +304,9 @@ async function armA2(page) {
   }, A2_URLS);
 }
 
-/* sizes = [[w,h],…] 그림 파일을 그 수만큼 만들어 한 번에 붙인다. extra = { html, text, bytes(그 크기의 가짜 파일) } */
+/* sizes = [[w,h],…] 그림 파일을 그 수만큼 만들어 한 번에 붙인다.
+   extra = { html, text, bytes } — bytes: «실제로 풀리는» PNG 뒤에 0 을 덧대 그 크기로 만든 파일
+   (가짜 바이트만이면 디코드에서 먼저 실패해, 크기 가드가 없어도 같은 결과가 난다). */
 async function pasteFiles(page, sizes, extra) {
   return page.evaluate(async ({ sizes, extra }) => {
     const dt = new DataTransfer();
@@ -310,14 +319,31 @@ async function pasteFiles(page, sizes, extra) {
       const blob = await new Promise((res) => cv.toBlob(res, 'image/png'));
       dt.items.add(new File([blob], 'shot.png', { type: 'image/png' }));
     }
-    if (extra && extra.bytes) dt.items.add(new File([new Uint8Array(extra.bytes)], 'big.png', { type: 'image/png' }));
+    let big = null;
+    if (extra && extra.bytes) {
+      const cv = document.createElement('canvas');
+      cv.width = 4; cv.height = 4;
+      cv.getContext('2d').fillRect(0, 0, 4, 4);
+      const head = await new Promise((res) => cv.toBlob(res, 'image/png'));
+      const file = new File([head, new Uint8Array(extra.bytes - head.size)], 'big.png', { type: 'image/png' });
+      /* 이 파일이 «그림으로 풀리는가» — 크기 가드만이 거절의 이유임을 보이는 전제 */
+      const decodes = await new Promise((res) => {
+        const u = URL.createObjectURL(file);
+        const im = new Image();
+        im.onload = () => { URL.revokeObjectURL(u); res(im.naturalWidth > 0); };
+        im.onerror = () => { URL.revokeObjectURL(u); res(false); };
+        im.src = u;
+      });
+      big = { size: file.size, decodes };
+      dt.items.add(file);
+    }
     if (extra && extra.html) dt.setData('text/html', extra.html);
     if (extra && extra.text) dt.setData('text/plain', extra.text);
     const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
     const files = [...ev.clipboardData.items].filter((it) => it.kind === 'file');
     const pre = { files: files.length, imageTypes: files.filter((it) => it.type.startsWith('image/')).length, types: [...ev.clipboardData.types] };
     document.querySelector('.smp-editor').dispatchEvent(ev);
-    return { ...pre, prevented: ev.defaultPrevented };
+    return { ...pre, big, prevented: ev.defaultPrevented };
   }, { sizes, extra: extra || null });
 }
 
@@ -504,7 +530,265 @@ test('P9 20MB 를 넘는 파일은 거절한다 — 자산 IPC 를 안 부르고
   await openMemo(page, null);
   const pre = await pasteFiles(page, [], { bytes: 20 * 1024 * 1024 + 1 });
   expect(pre.imageTypes, '전제: 그림 type 의 파일 하나').toBe(1);
+  expect(pre.big, '전제: 20MB 를 1바이트 넘고, 그림으로는 멀쩡히 풀린다(거절의 이유는 크기뿐)').toEqual({ size: 20 * 1024 * 1024 + 1, decodes: true });
   await expect.poll(() => page.evaluate(() => window.__toasts.length)).toBe(1);
+  expect(await page.evaluate(() => window.__toasts[0]), '크기 알림이다(저장 실패 알림이 아니다)').toContain('20MB');
   expect(await page.evaluate(() => ({ imgs: document.querySelectorAll('.smp-editor img').length, ipc: window.__ipc.length }))).toEqual({ imgs: 0, ipc: 0 });
   expect(await memoOf(page)).toBe(null);
+});
+
+/* ══ 이벨류에이터 실측 결함(2026-10-12)을 잠그는 칸 ═══════════════════════════════════════════
+ * D1 캐럿 «뒤에 글자가 있을 때» 체크박스가 둘 생기던 것 · D2 복사/잘라내기가 표식을 잃던 것 ·
+ * D3 서식 단축키가 메모 글에 먹던 것 · D4 조합으로 한도를 넘기면 저장이 통째로 거절되던 것 ·
+ * D6 한도 초과로 그림을 거절하면서도 자산 파일을 쓰던 것. */
+const afterCaret = (page) => page.evaluate(() => {
+  const ed = document.querySelector('.smp-editor');
+  const s = window.getSelection();
+  const r = document.createRange();
+  r.selectNodeContents(ed);
+  r.setStart(s.anchorNode, s.anchorOffset);
+  return r.toString();
+});
+async function caretLeft(page, n) {
+  for (let i = 0; i < n; i++) await page.keyboard.press('ArrowLeft');
+}
+const selectAllInEditor = (page) => page.evaluate(() => {
+  const ed = document.querySelector('.smp-editor');
+  const r = document.createRange();
+  r.selectNodeContents(ed);
+  const s = window.getSelection();
+  s.removeAllRanges();
+  s.addRange(r);
+  return s.toString();
+});
+/* 합성 copy/cut — 처리기가 clipboardData 에 실은 것을 돌려준다 */
+const clipEvent = (page, type) => page.evaluate((type) => {
+  const dt = new DataTransfer();
+  const ev = new ClipboardEvent(type, { clipboardData: dt, bubbles: true, cancelable: true });
+  document.querySelector('.smp-editor').dispatchEvent(ev);
+  return { text: dt.getData('text/plain'), html: dt.getData('text/html'), prevented: ev.defaultPrevented };
+}, type);
+/* 편집 칸에 «글자·줄바꿈·원자 노드» 말고 남은 요소 수 */
+const foreignCount = (page) => page.evaluate(() => [...document.querySelectorAll('.smp-editor *')]
+  .filter((el) => !el.matches('.smp-check, .smp-img, br')).length);
+
+test('D1a 글 가운데(캐럿 뒤에 글자)에서 `[]` 를 치면 체크박스는 정확히 하나, 뒤 글자는 그대로 뒤에', async ({ page }) => {
+  await openMemo(page, 'abcdef');
+  await caretLeft(page, 3);
+  expect(await afterCaret(page), '전제: 캐럿 뒤에 글자 셋이 있다').toBe('def');
+  await page.keyboard.type('[]');
+  await expect(page.locator('.smp-editor .smp-check')).toHaveCount(1);
+  await expect.poll(() => memoOf(page)).toBe('abc[ ]def');
+  expect(await checkCount(page), '저장된 뒤에도 하나다').toBe(1);
+  /* 이어 친 글자는 체크박스 바로 뒤에 붙는다 */
+  await page.keyboard.type('Z');
+  await expect.poll(() => memoOf(page)).toBe('abc[ ]Zdef');
+});
+
+test('D1b 줄 맨 앞(뒤에 글)과 한글 사이에서도 체크박스는 정확히 하나', async ({ page }) => {
+  await openMemo(page, 'abc');
+  await caretLeft(page, 3);
+  expect(await afterCaret(page), '전제: 캐럿이 줄 맨 앞이고 뒤에 글 전부가 있다').toBe('abc');
+  await page.keyboard.type('[]');
+  await expect(page.locator('.smp-editor .smp-check')).toHaveCount(1);
+  await expect.poll(() => memoOf(page)).toBe('[ ]abc');
+  expect(await checkCount(page)).toBe(1);
+  await closeMemo(page);
+
+  await openMemo(page, '가나다라');
+  await caretLeft(page, 2);
+  expect(await afterCaret(page), '전제: 캐럿이 한글 사이다').toBe('다라');
+  await page.keyboard.type('[]');
+  await expect(page.locator('.smp-editor .smp-check')).toHaveCount(1);
+  await expect.poll(() => memoOf(page)).toBe('가나[ ]다라');
+  expect(await checkCount(page)).toBe(1);
+});
+
+test('D1c 둘째 줄 가운데서 `[x]` 를 치면 체크된 체크박스 정확히 하나', async ({ page }) => {
+  await openMemo(page, 'ab\ncdef');
+  await caretLeft(page, 2);
+  expect(await afterCaret(page), '전제: 캐럿이 둘째 줄 가운데다').toBe('ef');
+  await page.keyboard.type('[x]');
+  await expect(page.locator('.smp-editor .smp-check')).toHaveCount(1);
+  await expect(page.locator('.smp-editor .smp-check')).toHaveAttribute('aria-checked', 'true');
+  await expect.poll(() => memoOf(page)).toBe('ab\ncd[x]ef');
+  expect(await checkCount(page)).toBe(1);
+});
+
+test('D1d 글 가운데에 평문을 붙여도 표식 하나에 체크박스 정확히 하나, 자리도 그대로', async ({ page }) => {
+  await armA2(page);
+  await openMemo(page, 'abcdef');
+  await caretLeft(page, 3);
+  expect(await afterCaret(page), '전제: 캐럿 뒤에 글자 셋이 있다').toBe('def');
+  const pre = await pasteFiles(page, [], { text: 'P [x] Q\nR' });
+  expect(pre.types, '전제: 평문만 붙였다').toEqual(['text/plain']);
+  await expect.poll(() => memoOf(page)).toBe('abcP [x] Q\nRdef');
+  expect(await checkCount(page)).toBe(1);
+  /* 그림 표식도 같은 길을 탄다 — 글 가운데에 붙여도 그림 하나 */
+  await pasteFiles(page, [], { text: `![](${A2_URLS[0]})` });
+  await expect.poll(() => memoOf(page)).toBe(`abcP [x] Q\nR![](${A2_URLS[0]})def`);
+  expect(await imgSrcs(page)).toEqual([A2_URLS[0]]);
+});
+
+test('D1e 글 가운데에 그림을 붙여도 그림은 정확히 하나', async ({ page }) => {
+  await armA2(page);
+  await openMemo(page, 'abcdef');
+  await caretLeft(page, 3);
+  expect(await afterCaret(page), '전제: 캐럿 뒤에 글자 셋이 있다').toBe('def');
+  const pre = await pasteFiles(page, [[40, 20]]);
+  expect(pre.imageTypes, '전제: 그림 파일 하나').toBe(1);
+  await expect.poll(() => memoOf(page)).toBe(`abc![](${A2_URLS[0]})def`);
+  expect(await imgSrcs(page)).toEqual([A2_URLS[0]]);
+});
+
+test('D2 복사·잘라내기는 표식을 평문에 싣는다 — 잘라낸 것을 다시 붙이면 체크박스·그림이 되살아난다', async ({ page }) => {
+  await armA2(page);
+  const MEMO = `[x] 하나\n[ ] 둘 ![](${A2_URLS[0]}) 끝`;
+  await openMemo(page, MEMO);
+  await expect(page.locator('.smp-editor .smp-check'), '전제: 체크박스 둘').toHaveCount(2);
+  expect(await imgSrcs(page), '전제: 그림 하나').toEqual([A2_URLS[0]]);
+  expect(await selectAllInEditor(page), '전제: 화면 글자에는 표식이 없다(기본 복사가 싣는 것)').not.toContain('[');
+  const copied = await clipEvent(page, 'copy');
+  expect(copied, '복사: 저장 글자 그대로 · HTML 은 안 싣는다').toEqual({ text: MEMO, html: '', prevented: true });
+  expect(await memoOf(page), '복사는 메모를 안 바꾼다').toBe(MEMO);
+
+  const cut = await clipEvent(page, 'cut');
+  expect(cut).toEqual({ text: MEMO, html: '', prevented: true });
+  await expect(page.locator('.smp-editor .smp-check')).toHaveCount(0);
+  await expect.poll(() => memoOf(page), '잘라내면 메모가 비고 저장된다').toBe(null);
+
+  await pasteFiles(page, [], { text: cut.text });
+  await expect.poll(() => memoOf(page)).toBe(MEMO);
+  expect(await page.evaluate(() => [...document.querySelectorAll('.smp-editor .smp-check')].map((c) => c.getAttribute('aria-checked')))).toEqual(['true', 'false']);
+  expect(await imgSrcs(page)).toEqual([A2_URLS[0]]);
+  expect(await foreignCount(page), '붙인 글이 남의 요소에 싸이지 않는다').toBe(0);
+});
+
+test('D2b 일부만 골라 복사하면 그 범위의 표식만 실리고, 고른 것이 없으면 아무것도 안 싣는다', async ({ page }) => {
+  await openMemo(page, '가 [x] 나 [ ] 다');
+  await expect(page.locator('.smp-editor .smp-check'), '전제: 체크박스 둘').toHaveCount(2);
+  const none = await clipEvent(page, 'copy');
+  expect(none, '고른 것이 없다 — 기본 동작에 맡긴다').toEqual({ text: '', html: '', prevented: false });
+  /* 첫 체크박스 앞 글자 하나부터 그 뒤 글자 둘까지 */
+  const picked = await page.evaluate(() => {
+    const ed = document.querySelector('.smp-editor');
+    const first = ed.querySelector('.smp-check');
+    const r = document.createRange();
+    r.setStart(first.previousSibling, first.previousSibling.data.length - 1);
+    r.setEnd(first.nextSibling, 2);
+    const s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+    return r.cloneContents().querySelectorAll('.smp-check').length;
+  });
+  expect(picked, '전제: 고른 범위에 체크박스가 하나 들었다').toBe(1);
+  expect((await clipEvent(page, 'copy')).text).toBe(' [x] 나');
+  const cut = await clipEvent(page, 'cut');
+  expect(cut.text).toBe(' [x] 나');
+  await expect.poll(() => memoOf(page)).toBe('가 [ ] 다');
+  expect(await checkCount(page)).toBe(1);
+});
+
+test('D2c 체크된 체크박스로 시작하는 글을 통째로 갈아 써도 글이 색 입힌 요소에 싸이지 않는다', async ({ page }) => {
+  await openMemo(page, '[x] 하나\n[ ] 둘');
+  await expect(page.locator('.smp-editor .smp-check[aria-checked="true"]'), '전제: 첫 노드가 체크된 체크박스다').toHaveCount(1);
+  expect(await page.evaluate(() => document.querySelector('.smp-editor').firstChild.className), '전제: 편집 칸의 첫 노드가 그 체크박스다').toBe('smp-check');
+  await page.keyboard.press('ControlOrMeta+a');
+  expect(await page.evaluate(() => window.getSelection().toString().length > 0), '전제: 전체가 선택됐다').toBe(true);
+  await page.keyboard.type('q');
+  await expect.poll(() => memoOf(page)).toBe('q');
+  expect(await page.evaluate(() => document.querySelector('.smp-editor').innerHTML), '글자만 남는다').toBe('q');
+  /* 캐럿은 그 글자 뒤에 남아 이어 칠 수 있다 */
+  await page.keyboard.type('r');
+  await expect.poll(() => memoOf(page)).toBe('qr');
+  expect(await foreignCount(page)).toBe(0);
+});
+
+test('D3 ⌘B·⌘I·⌘U·⌘⇧X 는 메모 글에 서식을 입히지 않고 전역 단축키 처리기로도 새지 않는다', async ({ page }) => {
+  await openMemo(page, 'abc def');
+  /* js/editor.js 의 전역 keydown 과 같은 자리(document · bubble)에 세는 자를 둔다 */
+  await page.evaluate(() => {
+    window.__leaks = [];
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && !['Meta', 'Control', 'Shift'].includes(e.key)) window.__leaks.push((e.shiftKey ? 'S+' : '') + e.code);
+    });
+  });
+  expect((await selectAllInEditor(page)), '전제: 글 전체가 선택됐다').toBe('abc def');
+  /* 양성 대조 — 막지 않는 조합은 그 자까지 닿는다 */
+  await page.keyboard.press('ControlOrMeta+k');
+  expect(await page.evaluate(() => window.__leaks), '전제: 세는 자가 조합 키를 본다').toEqual(['KeyK']);
+  for (const k of ['ControlOrMeta+b', 'ControlOrMeta+i', 'ControlOrMeta+u', 'ControlOrMeta+Shift+x']) await page.keyboard.press(k);
+  expect(await page.evaluate(() => window.__leaks), '네 조합은 전역으로 안 샌다').toEqual(['KeyK']);
+  expect(await page.evaluate(() => document.querySelector('.smp-editor').innerHTML), '서식 요소가 안 생긴다').toBe('abc def');
+  expect(await foreignCount(page)).toBe(0);
+  /* 막은 뒤에도 편집은 된다 */
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.type('!');
+  await expect.poll(() => memoOf(page)).toBe('abc def!');
+});
+
+/* 조합(IME) 한 번을 합성한다 — 조합 중에 글자가 DOM 에 들어오고(beforeinput 으로 못 막는다) 끝난다 */
+const composeAt = (page, where, text) => page.evaluate(({ where, text }) => {
+  const ed = document.querySelector('.smp-editor');
+  ed.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '' }));
+  const t = document.createTextNode(text);
+  if (where === 'start') ed.insertBefore(t, ed.firstChild); else ed.appendChild(t);
+  const r = document.createRange();
+  r.setStart(t, t.data.length);
+  r.collapse(true);
+  const s = window.getSelection();
+  s.removeAllRanges();
+  s.addRange(r);
+  ed.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertCompositionText', data: text, isComposing: true }));
+  const mid = document.querySelector('.smp-count').textContent;
+  ed.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: text }));
+  return mid;
+}, { where, text });
+
+test('D4 조합(IME)으로 2000자를 넘기면 끝에서 잘라 2000자로 저장한다 — 거절하지 않고 사람 말로 알린다', async ({ page }) => {
+  const BASE = 'a'.repeat(1998);
+  await openMemo(page, BASE);
+  await expect(page.locator('.smp-count'), '전제: 한도까지 두 자 남았다').toHaveText('1998 / 2000');
+  const mid = await composeAt(page, 'end', '가나다라');
+  expect(mid, '전제: 조합 중에는 한도를 넘었다').toBe('2002 / 2000');
+  await expect(page.locator('.smp-count')).toHaveText('2000 / 2000');
+  await expect.poll(() => memoOf(page)).toBe(BASE + '가나');
+  await expect(page.locator('.smp-status')).toHaveText('2000자까지 저장됩니다');
+  /* 그 뒤 편집도 저장된다 */
+  await page.keyboard.press('Backspace');
+  await expect.poll(() => memoOf(page)).toBe(BASE + '가');
+  expect(await page.locator('.smp-status').textContent(), '오류 글이 아니다').not.toMatch(/오류|TOO_LONG/);
+});
+
+test('D4b 끝에서 자를 때 체크박스는 반쪽 내지 않고 통째로 뗀다', async ({ page }) => {
+  const BASE = 'a'.repeat(1996);
+  await openMemo(page, BASE + '[ ]');
+  await expect(page.locator('.smp-editor .smp-check'), '전제: 글 끝에 체크박스가 하나 있다').toHaveCount(1);
+  await expect(page.locator('.smp-count'), '전제: 한도까지 한 자 남았다').toHaveText('1999 / 2000');
+  const mid = await composeAt(page, 'start', '가나다');
+  expect(mid, '전제: 조합 중에는 두 자를 넘었다').toBe('2002 / 2000');
+  await expect.poll(() => memoOf(page)).toBe('가나다' + BASE);
+  expect(await checkCount(page), '체크박스는 통째로 떼인다').toBe(0);
+  await expect(page.locator('.smp-count')).toHaveText('1999 / 2000');
+  await expect(page.locator('.smp-status')).toHaveText('2000자까지 저장됩니다');
+});
+
+test('D6 한도가 차서 그림을 못 넣을 때는 자산 IPC 를 부르지 않는다 — 안 쓰일 자산 파일을 만들지 않는다', async ({ page }) => {
+  await armA2(page);
+  const FULL = 'a'.repeat(1990);
+  await openMemo(page, FULL);
+  await expect(page.locator('.smp-count'), '전제: 남은 자리가 표식 하나보다 적다').toHaveText('1990 / 2000');
+  expect(`![](${A2_URLS[0]})`.length, '전제: 표식 길이가 남은 자리(10)보다 길다').toBeGreaterThan(10);
+  const pre = await pasteFiles(page, [[40, 20]]);
+  expect(pre.imageTypes, '전제: 그림 파일을 붙였다').toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__toasts.length)).toBe(1);
+  expect(await page.evaluate(() => window.__toasts[0])).toContain('2000자');
+  expect(await page.evaluate(() => ({ imgs: document.querySelectorAll('.smp-editor img').length, ipc: window.__ipc.length })), '자산 IPC 0회').toEqual({ imgs: 0, ipc: 0 });
+  await closeMemo(page);
+  expect(await memoOf(page)).toBe(FULL);
+  /* 양성 대조 — 자리가 있으면 같은 길로 IPC 를 부르고 그림이 들어간다 */
+  await openMemo(page, 'a'.repeat(100));
+  await pasteFiles(page, [[40, 20]]);
+  await expect(page.locator('.smp-editor img.smp-img')).toHaveCount(1);
+  expect(await page.evaluate(() => window.__ipc.length)).toBe(1);
 });
