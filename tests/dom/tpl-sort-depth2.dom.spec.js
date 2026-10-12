@@ -6,6 +6,7 @@
  *
  * 이 파일이 재는 것 — `tests/unit/tpl-browser-sort.test.mjs` 가 못 재는 칸(배치·폭·행위)
  *   Z0 전제 / Z1 자리 / Z2 폭 / Z3 고르면 차례가 바뀐다 / Z4 닫았다 열어도 남는다 / Z5 많은 카드에서 목록만 구른다
+ *   Z6 최근 추가순(createdAt 내림차순) / Z7 하한 폭(280px)에서 안 잘린다
  *
  * 안 재는 것: 별창(pages/template-browser.html)의 실제 배치 — 이 하네스는 index.html 만 띄운다.
  *   별창의 마크업 자리는 유닛 F13 이 글자로 잰다.
@@ -207,4 +208,69 @@ test('Z5 템플릿이 많아도 정렬 줄은 패널 안에 남고 카드 목록
   await page.waitForFunction(() => document.getElementById('tpl-browser-cards').scrollTop > 0, null, { timeout: 4000 });
   const r2 = await rects(page);
   expect(r2.bar.top, '목록을 굴리니 정렬 줄이 같이 움직였다').toBe(r.bar.top);
+});
+
+test('Z6 「최근 추가순」을 고르면 카드가 createdAt 내림차순으로 선다', async ({ page }) => {
+  /* 심는 차례 다·가·나 ⇒ 기본(넣은 역순) 나·가·다 / 이름순 가·나·다 / 최근순 나·다·가 — 세 차례가 모두 다르다 */
+  const STAMP = { 나: '2026-03-01T00:00:00.000Z', 다: '2026-02-01T00:00:00.000Z', 가: '2026-01-01T00:00:00.000Z' };
+  const RECENT = ['나', '다', '가'];
+  const NAME = ['가', '나', '다'];
+  const { seeded } = await open(page, [
+    ['다', 'QA알파', 'demo', ['qna']],
+    ['가', 'QA알파', 'demo', ['qna']],
+    ['나', 'QA베타', '레거시', ['war']],
+  ]);
+  expect(seeded.ok, `장면이 안 섰다 — ${seeded.why || ''}`).toBe(true);
+  expect(seeded.n, '전제: 템플릿 수').toBe(3);
+  /* 만든 시각을 앱의 제 문(loadTemplates → saveTemplatesPublic)으로 박는다 — 연달아 심으면 시각이 넣은 차례 그대로라 기본과 못 가른다 */
+  const stamped = await page.evaluate((stamp) => {
+    const list = window.loadTemplates().map(t => ({ ...t, createdAt: stamp[t.name] }));
+    if (typeof window.saveTemplatesPublic !== 'function') return null;
+    window.saveTemplatesPublic(list);
+    return window.loadTemplates().map(t => [t.name, t.createdAt]);
+  }, STAMP);
+  expect(stamped, '전제: saveTemplatesPublic 이 있다').not.toBeNull();
+  expect(Object.fromEntries(stamped), '전제: createdAt 이 박혔다').toEqual(STAMP);
+  expect(new Set(stamped.map(s => s[1])).size, '전제: createdAt 이 전부 다르다').toBe(3);
+
+  const before = await cardNames(page);
+  expect(await page.evaluate(() => document.getElementById('tpl-browser-sort').value),
+    '전제: 처음엔 기본 열쇠').toBe(await page.evaluate(() => window.tplSortDefault));
+  expect(before.slice().sort(), '전제: 심은 세 장이 다 있다').toEqual(NAME);
+  expect(before, '전제: 기본 차례가 최근순과 다르다').not.toEqual(RECENT);
+  expect(before, '전제: 기본 차례가 이름순과 다르다').not.toEqual(NAME);
+
+  await page.selectOption('#tpl-browser-sort', 'recent');
+  await expect.poll(() => cardNames(page), '최근 추가순 = createdAt 내림차순').toEqual(RECENT);
+  /* 이름순은 또 다른 차례다 — 최근순이 이름순의 다른 이름이 아니다 */
+  await page.selectOption('#tpl-browser-sort', 'name');
+  await expect.poll(() => cardNames(page)).toEqual(NAME);
+  await page.selectOption('#tpl-browser-sort', 'recent');
+  await expect.poll(() => cardNames(page)).toEqual(RECENT);
+});
+
+test('Z7 패널을 하한 폭(280px)으로 줄여도 select 가 패널 안에 남고 라벨이 한 줄이다', async ({ page }) => {
+  await open(page);
+  const NARROW = 280;
+  const w = await page.evaluate((px) => {
+    const p = document.getElementById('tpl-browser');
+    p.style.width = px + 'px';
+    return { style: p.style.width, offset: p.offsetWidth };
+  }, NARROW);
+  expect(w.style, '전제: 폭을 줬다').toBe(`${NARROW}px`);
+  expect(w.offset, '전제: 패널 폭이 실제로 하한이 됐다').toBe(NARROW);
+
+  const r = await rects(page);
+  for (const k of ['panel', 'cards', 'sort', 'bar', 'label']) {
+    expect(r[k], `전제: ${k} 요소가 있다`).not.toBeNull();
+  }
+  expect(r.sort.width, '전제: select 가 그려졌다').toBeGreaterThan(0);
+  expect(r.label.width, '전제: 라벨이 그려졌다').toBeGreaterThan(0);
+  expect(r.sort.right, `select 가 패널 오른쪽 밖으로 ${r.sort.right - r.panel.right} 나갔다`).toBeLessThanOrEqual(r.panel.right);
+  expect(r.sort.right, `select 가 카드 칼럼 오른쪽 밖으로 ${r.sort.right - r.cards.right} 나갔다`).toBeLessThanOrEqual(r.cards.right);
+  expect(r.label.right, '라벨이 select 와 겹친다').toBeLessThanOrEqual(r.sort.left);
+  /* 한 줄 — 두 줄로 꺾이면 라벨이 select 보다 높아진다 */
+  expect(r.label.height, `라벨 높이 ${r.label.height} > select 높이 ${r.sort.height} (두 줄로 꺾였다)`).toBeLessThanOrEqual(r.sort.height);
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('.tpl-browser-sort-label')).whiteSpace),
+    '라벨이 줄바꿈을 막지 않는다').toBe('nowrap');
 });

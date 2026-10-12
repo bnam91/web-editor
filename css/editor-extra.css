@@ -1041,9 +1041,17 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 .tpl-browser-sort-label {
   font-size: var(--ui-fs-10);
   color: var(--ui-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-/* 정렬 select 는 글자 폭만큼 넓어진다 — 검색 기준 select 의 고정 폭을 물려받으면 옵션 글자가 잘린다 */
-.tpl-browser-sort { width: auto; }
+/* 정렬 select 는 글자 폭만큼 넓어진다 — 검색 기준 select 의 고정 폭을 물려받으면 옵션 글자가 잘린다.
+   패널이 좁으면 남은 폭까지만 줄어든다 — 줄지 못하면 패널 오른쪽 밖으로 나가 잘린다 */
+.tpl-browser-sort {
+  width: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
 .tpl-browser-cards::-webkit-scrollbar-thumb { background: var(--ui-border); border-radius: 2px; }
 
 /* 드래그 고스트 */
