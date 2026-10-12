@@ -40,9 +40,13 @@ async function seed(page, scene) {
   }, scene);
 }
 
+/* 「열렸다」 = display 가 flex 이고 open 클래스까지 붙었다.
+   여는 쪽은 display 를 먼저 켜고 open 클래스를 다음 프레임에 붙인다. 그 프레임이 오기 전에 닫으면
+   늦게 온 프레임이 닫힌 패널에 open 을 도로 붙인다(실측: 닫은 뒤 80~300ms 에 class 가 돌아왔다).
+   이 파일은 「연 뒤」를 재므로 그 프레임까지 기다린다 — 「열자마자 닫기」는 tpl-browser-close 의 몫이다. */
 const isOpen = () => {
   const p = document.getElementById('tpl-browser');
-  return !!p && getComputedStyle(p).display === 'flex';
+  return !!p && getComputedStyle(p).display === 'flex' && p.classList.contains('open');
 };
 
 async function open(page, scene = SCENE) {

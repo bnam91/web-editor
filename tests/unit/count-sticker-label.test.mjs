@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const { readSrc } = require('./_srcread.js');
+const { sliceBlock } = require('./_slice-block.js');
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../');
 const TOOL = 'js/count-sticker-tool.js';
 
@@ -67,11 +68,8 @@ test('L3 배선 — 스크립트 태그 정확히 1개 · 메뉴 단추가 스�
 test('L4 서로 끄기 — 다른 찍는 도구 셋의 enter 가 Count 를 끄고, Count 의 enter 가 그 셋을 끈다', () => {
   const body = (file, fn) => {
     const src = readSrc(REPO, file);
-    const at = src.indexOf(`function ${fn}() {`);
-    assert.ok(at >= 0, `★전제: ${file} 에 ${fn} 가 있다`);
-    const end = src.indexOf('\n}\n', at);
-    assert.ok(end > at, `★전제: ${fn} 의 끝을 찾았다`);
-    return src.slice(at, end);
+    assert.ok(src.includes(`function ${fn}()`), `★전제: ${file} 에 ${fn} 가 있다`);
+    return sliceBlock(src, `function ${fn}()`);
   };
   const OTHERS = [['js/annotation-tool.js', 'enterPenMode'], ['js/highlight-line-tool.js', 'enterHighlightBMode'], ['js/pen-tool.js', 'enterVectorPenMode']];
   for (const [file, fn] of OTHERS) {
