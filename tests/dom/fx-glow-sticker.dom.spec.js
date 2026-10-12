@@ -295,6 +295,10 @@ async function renderPx(page, opts, { wide = false, W = 600 } = {}) {
 }
 
 test('F13 ★필터 영역이 후광을 안 자른다 — 세기 100 · 퍼짐 20(최대) · 종류 셋 다 «아주 넓은 영역»과 픽셀이 같다', async ({ page }) => {
+  /* ★★CI 에서 ★30s 를 ★넘겼다(run 38309501058 · retry#1 까지 둘 다 · `page.evaluate` 에서).
+   *  ★로컬 실측 ★7.2s — ★CI 는 ★2코어·4워커라 ★배수가 ★붙는다. ⛔전역 timeout 은 ★올리지 않는다(전수가 느려진다).
+   *  ★레포 선례대로 ★이 칸만 올린다(grid-line-bold-role:51 · grid-children-shell-bytes:78 · bubble-shortcut-not-in-text:183). */
+  test.setTimeout(120000);
   await bootApp(page);
   for (const fxKind of ['dot', 'star', 'flare']) {
     const a = await renderPx(page, { fxKind, intensity: 100, spread: 20 });
@@ -306,6 +310,8 @@ test('F13 ★필터 영역이 후광을 안 자른다 — 세기 100 · 퍼짐 2
 });
 
 test('F14 ★세기 0 → 100 에 후광이 «단조증가»한다(같은 퍼짐)', async ({ page }) => {
+  /* ★★CI 30s 초과(같은 run · `page.evaluate`). ★로컬 ★3.8s — ★이 칸은 ★renderPx 를 ★다섯 번 돈다. */
+  test.setTimeout(120000);
   await bootApp(page);
   const v = [];
   for (const I of [0, 25, 50, 75, 100]) v.push(Math.round((await renderPx(page, { fxKind: 'dot', intensity: I, spread: 6 })).halo));

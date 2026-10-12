@@ -98,6 +98,9 @@ test('B5 ★음성 — ★★reduced-motion 에서도 ★닫힌다 (★그 축�
 });
 
 test('B6 ★★×10 — ★바닥이 ★타이밍이라 ★1회 초록은 ★운일 수 있다', async ({ page }) => {
+  /* ★★CI 30s 초과(같은 run · `page.goto`/`waitForTimeout`). ★로컬 ★10.7s — ★×10 이라 ★바닥이 ★열 번 뜬다.
+   *  ⇒ ★로컬만으로 ★이미 ★30s 의 ★3분의 1 이다. ★이 칸만 올린다. */
+  test.setTimeout(120000);
   const fails = [];
   for (let i = 1; i <= 10; i++) {
     const { op } = await openIt(page);
@@ -121,6 +124,18 @@ const SLOW = 'opacity 1s ease';
 test('B7 ★★꾸밈을 ★1s 로 늘리면 ★★타이머도 ★따라 늘어난다 — ★300ms 에는 ★아직 ★안 끊는다', async ({ page }) => {
   const { op } = await openIt(page);
   expect(op.display, '전제: 열렸다').toBe('flex');
+  /* ★★전제 ⓐ — ★«여는 전환»이 ★끝나 ★opacity 가 ★1 이 ★됐나.
+   *  ★★왜 (지디 2026-10-13 ★실측 탐침): ★이 줄이 ★없으면 ★`openIt` 직후 ★opacity 가 ★아직 ★0 근처다(★0 · ★0.0235 · ★0.0204).
+   *    ⇒ ★닫을 때 ★거꾸로 도는 ★전환이 ★★23~25ms 에 ★끝나 ★`transitionend` 가 ★오고 ⇒ ★`_finish` 가 ★곧바로 돈다.
+   *    ⇒ ★★그러면 ★이 칸은 ★«타이머가 CSS 를 ★따라가나»를 ★★재지 ★못한다 — ★장면에 ★따라 ★초록·빨강이 ★갈렸다
+   *      (★격리 ×6 = ★★12/12 ★빨강 · ★전수에서는 ★초록. ★전수의 ★부하가 ★그 ★23ms 를 ★300ms ★밖으로 ★밀어낸 ★덕이었다 —
+   *       ★★즉 ★초록이 ★우연이었다. ★CI(2코어)에서 ★빨강이 ★난 것이 ★오히려 ★맞다.)
+   *  ⇒ ★★그래서 ★«완전히 보이는 판»을 ★먼저 ★세운 ★뒤에 ★꾸밈을 ★늘린다. */
+  await page.waitForFunction(
+    () => getComputedStyle(document.getElementById('tpl-browser')).opacity === '1',
+    null, { timeout: 5000 });
+  const op1 = await page.evaluate(() => getComputedStyle(document.getElementById('tpl-browser')).opacity);
+  expect(op1, '전제 ⓐ: 여는 전환이 끝나 ★완전히 보인다(아니면 닫기 전환이 23ms 에 끝나 이 칸이 뜻을 잃는다)').toBe('1');
   const got = await page.evaluate(([SLOW]) => {
     const p = document.getElementById('tpl-browser');
     p.style.transition = SLOW;

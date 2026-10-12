@@ -122,13 +122,19 @@ test('S2 the gutter is actually HITTABLE at two different canvas scales (element
       hitCls: hit ? hit.className : null,
     };
   });
-  const a = await probe();
-  // 배율을 바꾼다(캔버스 내용을 늘려 fit 배율이 달라지게)
-  await page.evaluate(() => {
-    document.getElementById('cI').insertAdjacentHTML('beforeend', '<div class="gap-block" data-type="gap" style="height:2600px"></div>');
-    window.rebindAll?.();
-  });
+  /* ★★배율을 ★★«직접» 건다 — ⛔내용 높이를 ★늘려 ★fit 배율이 ★달라지길 ★기대지 ★않는다.
+   *  ★★왜 (지디 2026-10-13 ★실측): 옛 지렛대(2600px gap ＋ `rebindAll`)는 ★★배율이 ★안 갈리는 판이 ★있었다 —
+   *    ★격리 ×6 에서 ★★12/12 가 ★`[전제] 배율이 안 갈렸다 a=0.4 b=0.4` 로 ★죽었다(★시작 배율이 ★이미 ★바닥이라
+   *    ★내용을 ★더 늘려도 ★더 안 내려갔다). ★전수에서는 ★시작 배율이 ★달라 ★★우연히 ★갈렸다.
+   *    ⇒ ★★이 칸의 ★초록이 ★«함께 도는 것»에 ★매달려 있었다. ★CI 에서 ★빨강이 ★난 것이 ★오히려 ★맞다.
+   *  ★선례 = `grid-plus-g15:656` (`applyZoom` ＋ `currentZoom` 전제 단언). */
+  await page.evaluate(() => window.applyZoom(100));
   await page.waitForTimeout(250);
+  expect(await page.evaluate(() => window.currentZoom), '전제: 배율 100 이 걸렸다').toBe(100);
+  const a = await probe();
+  await page.evaluate(() => window.applyZoom(40));
+  await page.waitForTimeout(250);
+  expect(await page.evaluate(() => window.currentZoom), '전제: 배율 40 이 걸렸다').toBe(40);
   const b = await probe();
   console.log('### S2 ' + JSON.stringify({ a, b }));
   // ★전제 — 두 판의 배율이 ★실제로 다르다(아니면 아래 「배율 둘」이 거짓말이다)
