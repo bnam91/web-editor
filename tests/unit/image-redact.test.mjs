@@ -143,16 +143,56 @@ test('U5 배선 자리 — 패널·제거·스크래치·h2c·CSS·Figma', () =>
   assert.equal((fn.match(/#4a4a4a/gi) || []).length, 0, '함수 안에 회색 리터럴을 새로 박았다');
 
   const css = readSrc(ROOT, 'css', 'editor-layout.css');
-  const rule = css.match(/\.asset-block\[data-redact\] > \.asset-img-clip::after \{([^}]*)\}/);
-  assert.ok(rule, '블러 CSS 규칙이 없다');
-  assert.match(rule[1], /\n\s*backdrop-filter: blur\(var\(--redact-blur, 8px\)\);/);
-  assert.match(rule[1], /-webkit-backdrop-filter: blur\(var\(--redact-blur, 8px\)\);/);
-  assert.match(rule[1], /content: '';/);
-  assert.match(rule[1], /pointer-events: none;/);
+  /* ★2026-10-13 — 에셋 블러는 그림 «자신»의 filter(뒤 막 backdrop 은 배율 >100% 에서 가장자리가 샜다) */
+  const rule = css.match(/\.asset-block\[data-redact\] > \.asset-img-clip > :is\(\.asset-img, canvas\) \{([^}]*)\}/);
+  assert.ok(rule, '블러 바닥 CSS 규칙이 없다');
+  assert.match(rule[1], /\n\s*filter: blur\(var\(--redact-blur, 8px\)\);/);
+  const grow = css.match(/\.asset-block\[data-redact\]:not\(\[data-img-w\]\):not\(\[data-clip-content="false"\]\) > \.asset-img-clip > :is\(\.asset-img, canvas\) \{([^}]*)\}/);
+  assert.ok(grow, '흐림 가장자리 3σ 키우기 규칙이 없다');
+  assert.match(grow[1], /margin: calc\(-3 \* var\(--redact-blur, 8px\)\);/);
+  assert.match(grow[1], /width: calc\(100% \+ 6 \* var\(--redact-blur, 8px\)\);/);
+  assert.doesNotMatch(css, /\.asset-block\[data-redact\] > \.asset-img-clip::after/, '옛 뒤 막(::after backdrop) 규칙이 남았다 — 배율 >100% 누출');
+  /* 색보정의 인라인 filter 쓰기는 합성 한 자리(writeImgFilter)로만 */
+  const ica = readSrc(ROOT, 'js', 'image-color-adjust.js');
+  assert.match(ica, /import \{ writeImgFilter \} from '\.\/effects\/image-redact\.js'/);
+  assert.equal((ica.match(/\.style\.filter\s*=/g) || []).length, 0, '색보정이 인라인 filter 를 직접 쓴다 — 블러를 지운다');
+  const sl = readSrc(ROOT, 'js', 'io', 'save-load.js');
+  assert.match(sl, /window\.recomposeImageRedact\(ab\)/, '되돌리기/불러오기 뒤 블러 합성이 없다');
 
   const fj = readSrc(ROOT, 'js', 'io', 'export-figma-json.js');
   assert.match(fj, /function _imageRedactField\(el\)[\s\S]{0,200}cover: _REDACT_COVER/, 'Figma 덮개가 기존 상수가 아니다');
   assert.match(fj, /return redact \? \{ src: null, redact \} : \{\};/, 'Figma 이미지 블럭이 원본 src 를 그대로 싣는다');
   const rr = readSrc(ROOT, 'figma-renderer', 'sangpe_to_figma.mjs');
   assert.match(rr, /if \(block\.redact\) \{[\s\S]{0,300}set_fill_color', \{ nodeId: node\.id, color: hex\(block\.redact\.cover\) \}/);
+});
+
+test('U6 writeImgFilter — 색보정 몫 + 블러 몫 합성 · 호스트 상태에서 블러를 읽는다 · 비교 칸·카드는 블러 0', () => {
+  const mkEl = (hostClass, hostDs = {}) => {
+    const host = { classList: { contains: (c) => c === hostClass }, dataset: hostDs };
+    const clip = { classList: { contains: (c) => c === 'asset-img-clip' }, parentElement: host };
+    let f = '';
+    return { host, el: { parentElement: clip, style: { get filter() { return f; }, set filter(v) { f = v; } } } };
+  };
+  const { host, el } = mkEl('asset-block', { redact: '60' });
+  R.writeImgFilter(el, 'url(#img-color-adj-1)');
+  assert.equal(el.style.filter, 'url(#img-color-adj-1) blur(12px)');
+  /* 호출자가 블러를 품은 문자열을 줘도 블러 몫은 «상태»에서만 — 중복·옛 값 0 */
+  R.writeImgFilter(el, 'url(#img-color-adj-1) blur(3px)');
+  assert.equal(el.style.filter, 'url(#img-color-adj-1) blur(12px)');
+  assert.equal(R.adjFilterPart(el), 'url(#img-color-adj-1)');
+  /* 색보정 끔 — 블러 몫은 남는다 */
+  R.writeImgFilter(el, '');
+  assert.equal(el.style.filter, 'blur(12px)');
+  /* 블러 끔(상태) → 합성 → 색보정 몫만 */
+  el.style.filter = 'url(#a) blur(12px)';
+  delete host.dataset.redact;
+  R.composeImgFilter(el);
+  assert.equal(el.style.filter, 'url(#a)');
+  /* 에셋 클립 밖(카드 배경 div · 비교 칸) — 블러를 안 붙인다 */
+  const card = { parentElement: { classList: { contains: () => false } }, style: { filter: '' } };
+  R.writeImgFilter(card, 'url(#c)');
+  assert.equal(card.style.filter, 'url(#c)');
+  const cmp = mkEl('cmp-row', { redact: '60' });
+  R.writeImgFilter(cmp.el, '');
+  assert.equal(cmp.el.style.filter, '', '비교 칸엔 블러 몫을 붙이지 않는다(그 칸은 CSS 막이 흐린다)');
 });

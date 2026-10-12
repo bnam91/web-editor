@@ -1093,6 +1093,11 @@ function rebindAll(opts = {}) {
     canvasEl.querySelectorAll(window.ADJ_DIRTY_SEL)
       .forEach(img => window.restoreImgColorAdjust(img));
   }
+  /* ★에셋 블러(1012t1 C1) — 스냅샷의 인라인 filter 를 «호스트 상태»로 다시 합성한다(색보정 복원과 같은 자리).
+     색보정 없는 그림도 블러 몫이 상태와 어긋나지 않게 — writeImgFilter 한 자리를 탄다. */
+  if (window.recomposeImageRedact) {
+    canvasEl.querySelectorAll('.asset-block').forEach(ab => window.recomposeImageRedact(ab));
+  }
   // asset-overlay 오염 정리: contenteditable 제거 + 직접 텍스트 노드 제거
   canvasEl.querySelectorAll('.asset-overlay').forEach(overlay => {
     overlay.removeAttribute('contenteditable');

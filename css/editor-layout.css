@@ -729,22 +729,25 @@ span[style*="text-fill-color"] .tb-dot { -webkit-text-fill-color: currentColor; 
 /* ── 블러(Redact) 효과 (1012t1 C1) ─────────────────────────────────────
  * 상태는 에셋 블럭 자신의 data-redact(1~100) + 인라인 --redact-blur(px) 뿐이다
  * (js/effects/image-redact.js applyRedact 가 둘을 같이 쓰고 같이 지운다).
- * 그림 상자(클립 래퍼)의 의사요소 하나가 backdrop-filter 로 그 밑의 그림을 흐린다 — 새 DOM 0.
- * img 의 filter 가 아닌 까닭: 색보정이 img.style.filter 를 통째로 쓴다(충돌) + 가장자리가
- * 바탕색으로 바랜다(plan-C1 §3 실측). 층: 그림 위 · 그레인(z1)·오버레이 글자(z2) 아래.
- * 변수가 빠져도 속성만 있으면 8px 로 흐린다(프라이버시 쪽 실패 · 도형 가림막과 같은 폴백).
- * html2canvas 는 backdrop 을 못 그린다 ⇒ capture-safety.js neutralizeRedactForH2C 가 회색으로 덮는다. */
-.asset-block[data-redact] > .asset-img-clip::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  backdrop-filter: blur(var(--redact-blur, 8px));
-  -webkit-backdrop-filter: blur(var(--redact-blur, 8px));
+ * ★그림 «자신»을 filter 로 흐린다(뒤 막 흐리기 = backdrop 을 쓰지 않는다).
+ *   까닭(이벨류에이터 실측 2026-10-13): 캔버스 배율이 100% 를 넘으면(조상 변환) 뒤 막 흐리기가
+ *   아래·오른쪽 가장자리 띠를 «안 흐려» 원본이 보였다(켬/끔 sd 비 0.45) — 변환을 끄면 사라진다.
+ * 색보정도 같은 그림의 인라인 filter 를 쓴다 ⇒ 인라인 값은 image-redact.js writeImgFilter 한 자리가
+ *   «색보정 + 블러»를 이어 쓴다. 아래 규칙은 인라인이 비었을 때(그림을 갈아 끼운 직후 등)의 바닥이다.
+ * 흐림 가장자리 바램은 그림을 사방 3σ 키우고 클립 상자가 잘라 없앤다 — 크롭·편집(그림 자리를
+ *   인라인으로 쥔 상태)과 「내용 자르기」 끔(상자 밖이 보인다)에는 키우지 않는다.
+ * html2canvas 는 filter 를 못 그린다 ⇒ capture-safety.js neutralizeRedactForH2C 가 회색으로 덮는다. */
+.asset-block[data-redact] > .asset-img-clip > :is(.asset-img, canvas) {
+  filter: blur(var(--redact-blur, 8px));
+}
+.asset-block[data-redact]:not([data-img-w]):not([data-clip-content="false"]) > .asset-img-clip > :is(.asset-img, canvas) {
+  width: calc(100% + 6 * var(--redact-blur, 8px));
+  height: calc(100% + 6 * var(--redact-blur, 8px));
+  max-width: none;
+  margin: calc(-3 * var(--redact-blur, 8px));
 }
 /* ── 1012t1 D4 — 비교 블럭 이미지 칸의 블러(같은 상태: data-redact + --redact-blur · 렌더가 모델 row.redact 로 매번 칠한다)
- * ⛔위 에셋 규칙의 «뒤 막 흐리기»를 쓰지 않는다 — 비교 블럭은 조상(블럭 안쪽 상자)에 배율 변환이 걸린다.
+ * ⛔«뒤 막 흐리기»(backdrop · 에셋도 C1 2차에서 버렸다)를 쓰지 않는다 — 비교 블럭은 조상(블럭 안쪽 상자)에 배율 변환이 걸린다.
  *   실측(D4 프로브 2026-10-13 · 배율 1.194): 뒤 막 흐리기는 칸 아래 약 8% 띠와 오른쪽 가장자리를 «안 흐렸다»
  *   (높이 95%·98% 줄무늬 sd 11·36 — 원본 120) · 변환을 끄면 전 줄 1 · 불투명 단색 막은 칸 전체를 덮었다
  *   ⇒ 막의 자리는 맞고 «뒤 그림을 읽는 영역»이 변환 아래에서 어긋난다.
