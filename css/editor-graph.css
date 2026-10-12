@@ -231,6 +231,9 @@
   display: flex; align-items: center; justify-content: center;
 }
 .grb-data-del-btn:hover { border-color: var(--ui-danger); color: var(--ui-danger); }
+/* 1012t1G4 — 마디 줄: 항목 줄 아래에 한 단 들여 쓴다. 마디가 있는 항목의 값 칸은 합이라 읽기 전용. */
+.grb-seg-list { margin-bottom: 0; padding-left: var(--ui-row-gap); }
+.grb-data-val-input[readonly] { opacity: var(--ui-disabled-opacity); cursor: default; }
 /* 1012t1G2 — 항목 줄의 작은 아이콘 버튼(이 항목만 SVG). 삭제 버튼과 같은 상자, 위험색 대신 강조색. */
 .grb-data-icon-btn {
   width: 20px; height: 20px; flex-shrink: 0; padding: 0;

@@ -175,3 +175,25 @@ test('U8 usesShape · fillMaxOf — 키가 없으면 옛 길 · 모양이면 분
   assert.equal(fillMaxOf({ fillMax: '60' }, items), 80, '사각은 fillMax 를 안 읽는다');
   assert.equal(fillMaxOf({}, []), 1);
 });
+
+test('U9 carryItemExtras — 항목을 다시 써도 마디·항목 모양이 남는다 · 새 값엔 같은 비율로 · 들어온 마디가 있으면 그것', () => {
+  const { carryItemExtras, normSegments } = GS;
+  const prev = { label: 'a', value: 100, shape: 'custom', shapeSvg: '<svg viewBox="0 0 1 1"/>', segments: [{ label: 'x', value: 40, color: '#111' }, { label: 'y', value: 60 }] };
+  assert.equal(prev.segments.length, 2, '전제: 옛 마디 2');
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 50 }, prev, { label: 'n', value: 50 }),
+    { label: 'n', value: 50, shape: 'custom', shapeSvg: prev.shapeSvg, segments: [{ label: 'x', value: 20, color: '#111' }, { label: 'y', value: 30 }] });
+  assert.deepEqual(prev.segments.map(s => s.value), [40, 60], '옛 항목을 안 고친다');
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 0 }, prev, {}).segments.map(s => s.value), [40, 60], '새 값 0 = 비율 유지');
+  assert.equal(carryItemExtras({ label: 'n', value: 0 }, prev, {}).value, 100);
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 7 }, prev, { segments: [{ label: 'k', value: 3 }, { value: '4' }] }),
+    { label: 'n', value: 7, shape: 'custom', shapeSvg: prev.shapeSvg, segments: [{ label: 'k', value: 3 }, { label: '', value: 4 }] });
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 9 }, prev, { segments: [] }), { label: 'n', value: 9, shape: 'custom', shapeSvg: prev.shapeSvg }, '빈 배열 = 마디를 걷는다');
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 9 }, undefined, null), { label: 'n', value: 9 }, '옛 항목이 없으면 그대로');
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 9 }, { label: 'p', value: 1 }, {}), { label: 'n', value: 9 });
+  const many = normSegments(Array.from({ length: 30 }, (_, i) => ({ label: 'L'.repeat(200), value: i, color: i % 2 ? 'red' : 'x;y' })));
+  assert.equal(many.length, 20, '마디는 20개까지');
+  assert.equal(many[0].label.length, 80, '라벨 80자');
+  assert.equal(many[1].color, 'red');
+  assert.equal('color' in many[0], false, '검증 못 지난 색은 안 싣는다');
+  assert.deepEqual(normSegments('nope'), []);
+});

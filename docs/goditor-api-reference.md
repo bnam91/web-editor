@@ -561,6 +561,40 @@ window.addGraphBlock({ chartType: 'bar-pair', seriesA: '우리', seriesB: 'A사'
 | `lineColor` / `barColor` / `barColor2` | color | 프리셋 | 선/시리즈A/시리즈B 색 |
 | `seriesA` / `seriesB` | string | — | bar-pair 범례 이름(지정 시 범례 표시) |
 | `chartHeight` / `labelSize` / `strokeWidth` / `pointRadius` | number | 240/20/3/5 | 크기 계열 |
+| `barShape` / `fillMax` | string / number | — / 100 | bar-v 전용 — 막대를 내장 실루엣(`person` `bottle` `drop`)으로 · 채움 분모. 사용자 SVG 는 아래 `setGraphShape` |
+
+#### 그래프 모양 · 채움 · 마디 (1012t1G2 · G3 · G4 — `js/graph-shape.js`)
+
+세로 막대(`bar-v`)의 덧키. 전부 «없으면 옛 세로 막대 그대로»다(chartType 은 안 바뀐다).
+
+| dataset 키 | 값 | 뜻 |
+|------------|----|----|
+| `barShape` | 없음 / `person` `bottle` `drop` / `custom` | 막대를 실루엣으로. 끄면 키를 지운다 |
+| `shapeSvg` | 소독·정규화된 SVG 글자 | `custom` 일 때의 실루엣(`GRAPH_LIMITS.SHAPE_SVG_MAX` 자 이하) |
+| `fillMax` | 양수 | 채움 분모. 없음 = 모양이면 100, 사각이면 `max(items)` |
+| `fillDir` | (예약) | 없음 = `'up'`. 지금은 up 만 그린다 |
+| `trackColor` | color | 안 찬 부분의 색. 없음 = 채움과 같은 색 × 25% |
+| `segGap` | px | 마디 사이 틈. 없음 = 2 |
+| `items[i].shape` / `shapeSvg` | 위와 같음 | 그 항목만 다른 실루엣(블럭 모양이 켜져 있을 때만) |
+| `items[i].segments` | `{ label, value, color? }[]` | 비율별 마디(0번이 맨 아래). 있으면 `items[i].value` = 합 |
+
+```js
+window.setGraphShape(blockOrId, { shape: 'person' })            // 내장 실루엣
+window.setGraphShape(blockOrId, { svg: '<svg viewBox=…>…</svg>' }) // 사용자 SVG(소독 후 custom)
+window.setGraphShape(blockOrId, { index: 1, shape: 'bottle' })  // 1번 항목만
+window.setGraphShape(blockOrId, { shape: null })                // 사각 막대로(키 삭제)
+// → { ok: true, shape } | { ok: false, code }   code: NOT_FOUND · NOT_SVG · TOO_LARGE · NO_SIZE · EMPTY · UNKNOWN_SHAPE · NO_SVG · NO_ITEM
+// 히스토리는 부른 쪽이 «바꾼 뒤» 찍는다(pushHistory).
+
+window.graphFillModel(blockOrId)
+// → { shape, shapeSvg, dir, max, items: [{ label, value, ratio, segments: [{ label, ratio, color }] }] }
+//   ratio = value / max 를 0~1 로 자른 값(소수 3자리) = 채움 요소(.grb-shape-fill)의 data-fill
+//   segments[].ratio = 그 항목 채움 «안에서의» 몫(합 1)
+//   차오르는 애니메이션은 .grb-shape-fill 의 height 를 0 → ratio × 100% 로만 움직이면 된다.
+```
+
+- 마디 쓰기: `updateGraphBlock(id, { items: [{ label, value, segments: [...] }] })`. `segments` 를 안 주면 옛 마디를 물려받고 새 `value` 에 같은 비율로 맞춘다.
+- ⚠️피그마 렌더러 · 디자인 JSON · MCP 스키마는 아직 이 키들을 안 읽는다(피그마에선 보통 세로 막대). 피그마 업로드 JSON 은 켜진 그래프에만 `barShape` · `fillMax` 를 싣는다.
 
 ---
 

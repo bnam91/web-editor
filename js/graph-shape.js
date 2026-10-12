@@ -101,6 +101,40 @@
   }
   var _r3 = function (r) { return +r.toFixed(3); };
 
+  /* ── 항목을 «다시 쓰는» 자리가 덧필드를 안 떨구게 하는 한 자리(1012t1G4) ──
+   * items 를 통째로 새로 짜는 길(AI 채움 js/ai-ext/graph.js · updateGraphBlock)은 { label, value } 만 남겨 왔다 — 마디·항목 모양이 사라진다.
+   * carryItemExtras(out, prev, incoming): out(새 항목)에 prev(같은 순번의 옛 항목)의 shape/shapeSvg/segments 를 옮긴다.
+   *   incoming.segments 가 배열이면 그것을 쓴다(라벨 80자 · 값 0 이상 유한 · 색은 단순 색 글자만 · 20개까지) → out.value = 합.
+   *   옛 마디를 물려받는데 새 value 가 합과 다르면 마디를 «같은 비율로» 늘이거나 줄여 합을 새 value 에 맞춘다(그림은 마디 합을 그린다 — 새 값이 묻히지 않게).
+   *   새 value 가 0 이하면 마디는 그대로 두고 out.value 를 합으로 되돌린다(비율을 잃지 않는다). */
+  var SEG_MAX_COUNT = 20;
+  var _segColorOk = function (c) { return typeof c === 'string' && /^(#[0-9a-fA-F]{3,8}|rgba?\([\d.,\s%]+\)|hsla?\([\d.,\s%]+\)|[a-zA-Z]+)$/.test(c.trim()); };
+  function normSegments(list) {
+    return (Array.isArray(list) ? list : []).slice(0, SEG_MAX_COUNT).map(function (sg) {
+      sg = (sg && typeof sg === 'object') ? sg : {};
+      var o = { label: Array.from(String(sg.label == null ? '' : sg.label)).slice(0, 80).join(''), value: num(sg.value) };
+      if (_segColorOk(sg.color)) o.color = sg.color.trim();
+      return o;
+    });
+  }
+  function carryItemExtras(out, prev, incoming) {
+    prev = (prev && typeof prev === 'object') ? prev : {};
+    incoming = (incoming && typeof incoming === 'object') ? incoming : {};
+    if (typeof prev.shape === 'string' && prev.shape) { out.shape = prev.shape; if (typeof prev.shapeSvg === 'string' && prev.shapeSvg) out.shapeSvg = prev.shapeSvg; }
+    if (Array.isArray(incoming.segments)) {
+      var own = normSegments(incoming.segments);
+      if (own.length) { out.segments = own; out.value = segSum(own); }
+      return out;
+    }
+    if (_hasSegs(prev)) {
+      var segs = normSegments(prev.segments), sum = segSum(segs), v = num(out.value);
+      if (v > 0 && sum > 0 && Math.abs(v - sum) > 1e-9) segs.forEach(function (sg) { sg.value = +(sg.value * v / sum).toFixed(6); });
+      else out.value = sum;
+      out.segments = segs;
+    }
+    return out;
+  }
+
   /* ── 그리기(HTML 글자만 만든다 — DOM 을 안 만진다) ─────────────────────────
    * o = { esc, color, blockShape, blockSvg, boxFrac, ratioOf, blockBar, trackColor, segGap, labelSize, vSize, vCss, xCss, lhCss, colMin, fillW }
    *   esc·color 는 drag-utils 의 _escGraphHtml · _safeGraphColor(사용자 글자·색은 반드시 그 둘을 지난다 · E152).
@@ -282,7 +316,7 @@
 
   var GRAPH_SHAPE = Object.freeze({ GRAPH_SHAPE_PRESETS: GRAPH_SHAPE_PRESETS, fillRatio: fillRatio, segRatios: segRatios, segSum: segSum, segAlpha: segAlpha,
     shapeAspect: shapeAspect, shapeMaskUrl: shapeMaskUrl, shapeSvgOf: shapeSvgOf, usesShape: usesShape, fillMaxOf: fillMaxOf,
-    shapeColsHTML: shapeColsHTML, sanitizeShapeSvg: sanitizeShapeSvg, setGraphShape: setGraphShape, graphFillModel: graphFillModel });
+    normSegments: normSegments, carryItemExtras: carryItemExtras, shapeColsHTML: shapeColsHTML, sanitizeShapeSvg: sanitizeShapeSvg, setGraphShape: setGraphShape, graphFillModel: graphFillModel });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_SHAPE;
   if (root) { root.GRAPH_SHAPE = GRAPH_SHAPE; root.setGraphShape = setGraphShape; root.graphFillModel = graphFillModel; }
 })(typeof window !== 'undefined' ? window : null);

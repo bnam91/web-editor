@@ -38,6 +38,8 @@
       } else if (prev[i] && typeof prev[i].color === 'string' && prev[i].color) {
         out.color = prev[i].color;
       }
+      // 1012t1G4 — 마디·항목 모양 유실 방지(같은 순번의 옛 항목에서 옮긴다 · 규칙은 js/graph-shape.js carryItemExtras 한 자리)
+      window.GRAPH_SHAPE?.carryItemExtras?.(out, prev[i], it);
       return out;
     });
     grb.dataset.items = JSON.stringify(next);

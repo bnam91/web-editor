@@ -4345,6 +4345,7 @@ function updateGraphBlock(blockId, partial = {}) {
       return { ok: false, code: 'INVALID', message: 'items too many (>50)' };
     }
     const norm = [];
+    let _prevItems = []; try { _prevItems = JSON.parse(block.dataset.items || '[]'); } catch (_) {}
     for (let i = 0; i < partial.items.length; i++) {
       const it = partial.items[i];
       if (!it || typeof it !== 'object') {
@@ -4364,7 +4365,8 @@ function updateGraphBlock(blockId, partial = {}) {
       if (v < 0 || v > 9999) {
         return { ok: false, code: 'INVALID', message: `items[${i}].value out of range [0,9999]` };
       }
-      norm.push({ label, value: v });
+      // 1012t1G4 — 마디·항목 모양 유실 방지(같은 순번의 옛 항목에서 옮긴다 · 규칙은 js/graph-shape.js carryItemExtras 한 자리)
+      norm.push(window.GRAPH_SHAPE.carryItemExtras({ label, value: v }, _prevItems[i], it));
     }
     block.dataset.items = JSON.stringify(norm);
     applied.items = norm;

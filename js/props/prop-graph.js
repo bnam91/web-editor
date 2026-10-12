@@ -1,6 +1,6 @@
 import '../graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
 import { propPanel, state } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
@@ -80,10 +80,10 @@ const _isGrad = (c) => typeof c === 'string' && /gradient\(/i.test(c);
 /* GR1 — 항목(막대)마다 색 칸 = colorFieldHTML(단색·그라데이션). 「미지정 = 프리셋 색」은 예전 스와치처럼 체커(.swatch-none)
  * + hex 칸 비움(placeholder 「프리셋」)으로 보인다 — 모델(item.color 없음)은 손대지 않는다. 고르는 순간에만 item.color 가 생긴다. */
 /* 1012t1G1 — solidOnly(원형·도넛 조각): 단색 전용. 막대에서 넘어온 그라데이션 item.color 는 «미지정»으로 보인다(렌더 _renderPie 와 같은 판정 · 모델은 안 지운다). */
-function itemColorFieldHTML(item, i, { solidOnly = false } = {}) {
+function itemColorFieldHTML(item, i, { solidOnly = false, idPrefix = 'grb-data-color-' + i, title = '' } = {}) {
   const c = (solidOnly && _isGrad(item.color)) ? '' : (item.color || '');
-  return `<div class="grb-data-color" title="${solidOnly ? '조각 색상 (미지정 시 프리셋 색)' : '바 색상 (미지정 시 프리셋 색 · 그라데이션은 막대마다 따로)'}">${colorFieldHTML({
-    idPrefix: 'grb-data-color-' + i,
+  return `<div class="grb-data-color" title="${title || (solidOnly ? '조각 색상 (미지정 시 프리셋 색)' : '바 색상 (미지정 시 프리셋 색 · 그라데이션은 막대마다 따로)')}">${colorFieldHTML({
+    idPrefix,
     hex: c && !_isGrad(c) ? c : '#4dabf7',
     alpha: c && !_isGrad(c) ? parseAlphaFromColor(c) : 100,
     placeholder: c ? '' : '프리셋',
@@ -122,6 +122,25 @@ const _isPieType = (t) => t === 'pie' || t === 'donut';
 const SHAPE_FAIL_TOAST = { TOO_LARGE: '⚠️ SVG가 너무 큽니다', NOT_SVG: '⚠️ 유효한 SVG가 아닙니다', EMPTY: '⚠️ 그릴 도형이 없는 SVG입니다', NO_SIZE: '⚠️ SVG에 크기(viewBox)가 없습니다' };
 /* 항목 줄의 작은 버튼 아이콘 — 블럭 헤더 아이콘과 같은 꼴(12 격자 · 선 1.3 · 채움 없음) */
 const ITEM_SHAPE_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V2M3.5 4.5 6 2l2.5 2.5M2 10h8"/></svg>';
+/* 1012t1G4 — 마디(막대·실루엣을 비율별로 나눈 조각) 편집 줄. 항목 줄 아래 같은 꼴의 줄(라벨 · 값 · ✕ · 색) + 「+ 마디 추가」.
+ * 0번이 맨 아래 마디다. 마디가 있으면 그 항목의 값 칸은 읽기 전용(합) — 합을 쓰는 자는 graph-shape.js segSum 한 곳. 세로 막대에서만 나온다. */
+const _segsOf = (item) => (item && Array.isArray(item.segments)) ? item.segments : [];
+const _segSum = (segs) => window.GRAPH_SHAPE.segSum(segs);
+function segListHTML(item, i) {
+  const segs = _segsOf(item);
+  return `
+          <div class="grb-data-list grb-seg-list" data-item="${i}">
+            ${segs.map((sg, j) => `
+            <div class="grb-data-item grb-seg-item" data-item="${i}" data-seg="${j}">
+              <input type="text" class="grb-data-label-input" value="${escHtml(sg && sg.label)}" placeholder="마디 라벨">
+              <input type="number" class="grb-data-val-input" value="${Number(sg && sg.value) || 0}" min="0" max="9999">
+              <button class="grb-data-del-btn" data-item="${i}" data-seg="${j}" title="이 마디 지우기">✕</button>
+              ${itemColorFieldHTML(sg || {}, j, { solidOnly: true, idPrefix: 'grb-seg-color-' + i + '-' + j, title: '마디 색상 (미지정 시 막대색을 위로 갈수록 옅게)' })}
+            </div>`).join('')}
+            <button class="prop-btn-full grb-seg-add" data-item="${i}" title="이 항목을 비율별 마디로 나눈다(아래부터 쌓인다)">+ 마디 추가</button>
+          </div>`;
+}
+
 /* 1012t1G3 — 트랙(안 찬 부분) 색 칸의 «보일 값». 키가 없으면 «지금 그려진» 색 = 채움과 같은 색 · 투명도 = SHAPE_TRACK_OPACITY(렌더 기본 그대로 — 격자선 색 칸과 같은 꼴). */
 const FILL_MAX_LIMIT = 9999;   // 항목 값 칸의 위 끝과 같다
 function _trackColorShown(block) {
@@ -175,7 +194,8 @@ export function showGraphProperties(block) {
   const _thkMax = (() => {
     if (!(_vOnly && BAR_THICKNESS_V_MAX === 'column')) return BAR_THICKNESS_MAX;
     const f = block.querySelector('.grb-bar-fill');
-    const w = f && f.parentElement ? Math.floor(f.parentElement.clientWidth) : 0;
+    const col = block.querySelector('.grb-shape-wrap') || (f && f.parentElement);   // 마디 쌓기(1012t1G4)에선 막대의 부모가 마디라 칸을 직접 잰다
+    const w = col ? Math.floor(col.clientWidth) : 0;
     return w > BAR_THICKNESS_MIN ? w : BAR_THICKNESS_MAX;
   })();
   const padX         = parseInt(block.dataset[_vOnly ? 'vPadX' : 'padX'])         || (chartType === 'line' ? LINE_PADX_DEFAULT : 0);   // E106 — 꺾은선은 렌더 16(막대는 0 그대로)
@@ -378,12 +398,12 @@ ${blockHeaderHTML({
         ${items.map((item, i) => `
           <div class="grb-data-item" data-index="${i}">
             <input type="text" class="grb-data-label-input" value="${item.label}" placeholder="라벨">
-            <input type="number" class="grb-data-val-input" value="${item.value}" min="0" max="9999">
+            <input type="number" class="grb-data-val-input" value="${_segsOf(item).length ? _segSum(item.segments) : item.value}" min="0" max="9999"${_segsOf(item).length ? ' readonly title="마디 값의 합"' : ''}>
             ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${item.value2 ?? 0}" min="0" max="9999" title="시리즈 B 값">` : ''}
             <button class="grb-data-del-btn" data-index="${i}">✕</button>
             ${_shapeOn ? `<button class="grb-data-icon-btn ${item.shape ? 'active' : ''}" data-shape-index="${i}" title="${item.shape ? '이 항목만 쓰는 모양 지우기(블럭 모양으로)' : '이 항목만 SVG 불러오기'}">${ITEM_SHAPE_ICON}</button>` : ''}
             ${(chartType === 'bar-v' || chartType === 'bar-h') ? itemColorFieldHTML(item, i) : (_isPie ? itemColorFieldHTML(item, i, { solidOnly: true }) : '')}
-          </div>`).join('')}
+          </div>${chartType === 'bar-v' ? segListHTML(item, i) : ''}`).join('')}
       </div>
       <button class="prop-btn-full" id="grb-add-item">+ 항목 추가</button>
     </div>`;
@@ -502,7 +522,7 @@ ${blockHeaderHTML({
     const list = document.getElementById('grb-data-list');
     if (!list) return;
     const prevItems = JSON.parse(block.dataset.items || '[]');
-    const newItems = [...list.querySelectorAll('.grb-data-item')].map((row, i) => {
+    const newItems = [...list.querySelectorAll('.grb-data-item:not(.grb-seg-item)')].map((row, i) => {
       const it = {
         label: row.querySelector('.grb-data-label-input').value || '',
         value: parseFloat(row.querySelector('.grb-data-val-input').value) || 0,
@@ -515,6 +535,21 @@ ${blockHeaderHTML({
       //   다시 읽어, 그라데이션 항목이 라벨 한 글자에 #000000 이 됐다(GR-DESIGN 실측). 색을 바꾸는 길은 wireColorField 의
       //   onApply/onGradient «하나»(아래 _wireItemColor)다.
       if (prevItems[i] && prevItems[i].color) it.color = prevItems[i].color;
+      // 1012t1G2·G4 — 항목 모양·마디도 «모델에서» 보존한다(라벨 한 글자에 떨어지지 않게). 마디의 라벨·값만 마디 줄에서 읽고, 색은 모델 것 그대로.
+      const pv = prevItems[i] || {};
+      if (pv.shape) { it.shape = pv.shape; if (pv.shapeSvg) it.shapeSvg = pv.shapeSvg; }
+      if (_segsOf(pv).length) {
+        const segRows = [...list.querySelectorAll('.grb-seg-item[data-item="' + i + '"]')];
+        it.segments = pv.segments.map((sg, j) => {
+          const r = segRows[j];
+          const o = r ? { label: r.querySelector('.grb-data-label-input').value || '', value: parseFloat(r.querySelector('.grb-data-val-input').value) || 0 } : { label: sg.label, value: sg.value };
+          if (sg && sg.color) o.color = sg.color;
+          return o;
+        });
+        it.value = _segSum(it.segments);
+        const vEl = row.querySelector('.grb-data-val-input');
+        if (vEl && document.activeElement !== vEl) vEl.value = it.value;   // 읽기 전용 합 칸을 따라 쓴다(패널을 다시 안 그린다 — 치던 칸의 포커스 유지)
+      }
       return it;
     });
     block.dataset.items = JSON.stringify(newItems);
@@ -552,6 +587,7 @@ ${blockHeaderHTML({
   dataList.addEventListener('click', e => {
     const btn = e.target.closest('.grb-data-del-btn');
     if (!btn) return;
+    if (btn.dataset.seg !== undefined) return;   // 마디 ✕ 는 아래 마디 핸들러가 맡는다(항목을 지우지 않는다)
     const curItems = JSON.parse(block.dataset.items || '[]');
     if (curItems.length <= 1) return;
     curItems.splice(parseInt(btn.dataset.index), 1);
@@ -559,6 +595,55 @@ ${blockHeaderHTML({
     window.renderGraph(block);
     showGraphProperties(block);
   });
+
+  // 1012t1G4 — 마디: 추가 · 삭제 · 색. 전부 «바꾼 뒤» 패널을 다시 열고 히스토리를 찍는다. 값·라벨 타이핑은 위 syncItems 가 받고 change 에 히스토리.
+  const _editSegs = (i, fn) => {
+    const its = JSON.parse(block.dataset.items || '[]');
+    if (!its[i]) return false;
+    const segs = fn(_segsOf(its[i]).slice(), its[i]);
+    if (segs.length) { its[i].segments = segs; its[i].value = _segSum(segs); } else delete its[i].segments;   // 마지막 마디를 지우면 보통 막대로(값은 마지막 합 그대로)
+    block.dataset.items = JSON.stringify(its);
+    window.renderGraph(block);
+    return true;
+  };
+  dataList.addEventListener('click', e => {
+    const add = e.target.closest('.grb-seg-add');
+    const del = add ? null : e.target.closest('.grb-data-del-btn[data-seg]');
+    if (!add && !del) return;
+    const i = parseInt((add || del).dataset.item);
+    const ok = add
+      /* 첫 마디는 그 항목의 값을 통째로 받는다(막대 높이가 안 변한다) · 그 뒤로는 10 씩 */
+      ? _editSegs(i, (segs, it) => segs.concat([{ label: '마디 ' + (segs.length + 1), value: segs.length ? 10 : (parseFloat(it.value) > 0 ? parseFloat(it.value) : 10) }]))
+      : _editSegs(i, (segs) => { segs.splice(parseInt(del.dataset.seg), 1); return segs; });
+    if (!ok) return;
+    showGraphProperties(block);
+    window.pushHistory();
+  });
+  dataList.addEventListener('change', e => {
+    if (e.target.closest('.grb-seg-item') && e.target.matches('.grb-data-label-input, .grb-data-val-input')) window.pushHistory();
+  });
+  const _wireSegColor = (i, j) => {
+    const pre = 'grb-seg-color-' + i + '-' + j;
+    if (!document.getElementById(pre + '-color')) return;
+    const cur = (_segsOf(JSON.parse(block.dataset.items || '[]')[i])[j] || {}).color || '';
+    const swatch = document.getElementById(pre + '-color')?.closest('.prop-color-swatch');
+    const hexEl = document.getElementById(pre + '-hex');
+    if (!cur || _isGrad(cur)) { swatch?.classList.add('swatch-none'); if (hexEl) hexEl.value = ''; }
+    wireColorField(pre, {
+      initialAlpha: cur && !_isGrad(cur) ? parseAlphaFromColor(cur) : 100,
+      onApply: (c) => {
+        const its = JSON.parse(block.dataset.items || '[]');
+        const sg = _segsOf(its[i])[j];
+        if (!sg) return;
+        sg.color = c;
+        block.dataset.items = JSON.stringify(its);
+        swatch?.classList.remove('swatch-none');
+        window.renderGraph(block);
+      },
+      onCommit: () => window.pushHistory(),
+    });
+  };
+  if (chartType === 'bar-v') items.forEach((it, i) => _segsOf(it).forEach((_, j) => _wireSegColor(i, j)));
 
   document.getElementById('grb-add-item').addEventListener('click', () => {
     const curItems = JSON.parse(block.dataset.items || '[]');
