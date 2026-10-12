@@ -53,7 +53,18 @@ const count = (page, sel) => page.evaluate((s) => document.querySelectorAll(s).l
 
 /* 칸 가운데(멈춘 뒤) + «누르는 점이 그 칸 위»라는 전제 단언 */
 async function at(page, c, r) {
+  /* ★스크롤러는 #canvas-wrap 이다(요소 scrollIntoView 가 창을 안 움직인다 — 이벨류에이터 실측 y=1298 > 뷰포트 1200).
+     그 칸의 가운데를 #canvas-wrap 의 가운데로 맞춘다. 맞춘 뒤 «누르는 점이 그 칸 위»는 아래에서 그대로 단언한다. */
+  await page.evaluate((s) => {
+    const el = document.querySelector(s), wrap = document.getElementById('canvas-wrap');
+    if (!el || !wrap) return;
+    const er = el.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+    wrap.scrollTop += (er.top + er.height / 2) - (wr.top + wr.height / 2);
+    wrap.scrollLeft += (er.left + er.width / 2) - (wr.left + wr.width / 2);
+  }, cellSel(c, r));
   const rc = await waitStableRect(page, cellSel(c, r));
+  const vp = page.viewportSize();
+  expect(rc.cy > 0 && rc.cy < vp.height && rc.cx > 0 && rc.cx < vp.width, `전제 — 칸 ${c}/${r} 가운데가 뷰포트 안 (${rc.cx},${rc.cy})`).toBe(true);
   const hit = await page.evaluate(([x, y, s]) => {
     const e = document.elementFromPoint(x, y); const want = document.querySelector(s);
     return !!(e && want && (e === want || want.contains(e)));
@@ -77,7 +88,8 @@ async function rclickItems(page, c, r) {
 }
 /* 메뉴 닫기 — block-factory.js 가 document 'click' 에 closeMenu 를 건다. 화면 어딘가를 «누르면» 그 자리 단추가 눌릴 수 있어 이벤트만 보낸다. */
 async function closeMenu(page) {
-  await page.evaluate(() => document.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  /* 대상은 body — document 자체에 쏘면 다른 click 리스너들의 e.target.closest 가 없어 던진다(실측 E8) */
+  await page.evaluate(() => document.body.dispatchEvent(new MouseEvent('click', { bubbles: true })));
   await page.waitForFunction(() => getComputedStyle(document.getElementById('block-context-menu')).display === 'none', null, { timeout: 3000 });
 }
 
@@ -265,5 +277,32 @@ test('E9 문(MCP/AI) — cols 교체 뒤 imgX/imgY/imgScale 생존 · 범위 밖
   expect(r.ok2, 'columnPatch ok').toBe(true);
   expect(r.clamped, '범위 밖 → 클램프(0~100 · 100~400)').toEqual([100, 100]);
   expect([r.ok3, r.code3], '수 아님 → INVALID').toEqual([false, 'INVALID']);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('E10 편집 중 표시는 저장·히스토리에 안 실린다 — 직렬화에 cmp-img-editing·칩 0 · 나간 뒤 같은 상태 표본은 중복 차단', async ({ page }) => {
+  const errs = await setup(page);
+  const p = await at(page, 0, 0);
+  await page.mouse.dblclick(p.cx, p.cy);
+  await page.waitForFunction(() => document.querySelectorAll('.cmp-img-editing').length === 1 && !!document.querySelector('.cmp-img-editing .img-edit-hint'), null, { timeout: 3000 });
+  await page.mouse.move(p.cx, p.cy);
+  await page.mouse.down();
+  await page.mouse.move(p.cx + 30, p.cy + 20, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(async () => (await model(page))[0].rows[0].imgX ?? 50, { timeout: 3000 }).toBeLessThan(50);
+  /* ⒜ 편집 «중» 직렬화(자동저장 재료) — 라이브엔 있는데(전제) 저장본엔 0 */
+  const ser = await page.evaluate(() => {
+    const s = window.serializeProject(); const str = typeof s === 'string' ? s : JSON.stringify(s);
+    return { live: document.querySelectorAll('.cmp-img-editing, .cmp-img-editing .img-edit-hint').length,
+             cls: (str.match(/cmp-img-editing/g) || []).length, chip: (str.match(/img-edit-hint/g) || []).length };
+  });
+  expect(ser.live, '전제 — 라이브엔 편집 표시가 있다').toBe(2);
+  expect([ser.cls, ser.chip], '직렬화에 편집 클래스·칩 0').toEqual([0, 0]);
+  /* ⒝ 히스토리 — 편집 중 찍힌 «끝 표본»과 나간 뒤 같은 상태를 다시 찍으면 중복 차단이 걸러야 한다(클래스가 실리면 한 칸 더 생긴다 → ⌘Z 첫 번 무효) */
+  const len0 = await page.evaluate(() => window.getHistoryTip().len);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.querySelectorAll('.cmp-img-editing').length === 0, null, { timeout: 3000 });
+  const len1 = await page.evaluate(() => { window.pushHistory('E10 같은 상태'); return window.getHistoryTip().len; });
+  expect(len1, `편집 중/후 표본이 같다(len ${len0} → ${len1})`).toBe(len0);
   expect(errs, errs.join('\n')).toEqual([]);
 });

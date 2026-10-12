@@ -149,7 +149,9 @@ export function enterCmpImageEditMode(block, addr) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       if (curX === startX && curY === startY) return;   // 맨클릭 — 모델·히스토리 무변화
-      writeRow(r => { r.imgX = Math.round(curX * 10) / 10; r.imgY = Math.round(curY * 10) / 10; });
+      const row = writeRow(r => { r.imgX = Math.round(curX * 10) / 10; r.imgY = Math.round(curY * 10) / 10; });
+      // 그려진 값도 모델(반올림)과 같게 — 다시 그린 판과 스냅숏 바이트가 갈리지 않게
+      if (row) div.style.backgroundPosition = `${row.imgX}% ${row.imgY}%`;
       window.pushHistory?.('비교 이미지 위치');
       window.scheduleAutoSave?.();
     };
