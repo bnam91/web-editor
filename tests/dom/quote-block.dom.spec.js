@@ -1205,15 +1205,18 @@ test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클�
        ★그 칸이 ★사라졌다(★캔버스에서 ★바로 고치므로 ★없어도 된다 — ★현빈 원문).
        ★★재던 ★축은 ★«캔버스와 ★패널이 ★갈리지 ★않는가» ★하나였고 ★★그 축은 ★살려 둔다 —
          ★입구만 ★바꿨다: ★textarea 의 ★값 → ★★«줄 수 안내»(`#qt-lines-hint`)의 ★글.
-       ⛔지우지 ★않았다. ★주 단언은 ★아래 ㉢(엔터로 ★2줄이 되면 ★안내도 ★2줄)이다. */
-    hint: document.getElementById('qt-lines-hint')?.textContent ?? null,
+       ⛔지우지 ★않았다. ★주 단언은 ★아래 ㉢(엔터로 ★2줄이 되면 ★안내도 ★2줄)이다.
+       ★★⚰️2026-10-12 현빈 1012t1H2 — 「줄 수 안내」(`#qt-lines-hint`) 자체가 사라졌다 ⇒ 「안내도 N줄」 축은 뜻을 잃었다.
+       ★대신 «캔버스 → 패널 재그림»을 ★도장으로 잰다: 편집 전에 `#qt-shape-group` 에 `data-stale` 을 찍어 두면
+         `_quoteEndEdit` → `showQuoteProperties` 가 패널을 다시 그린 뒤엔 ★새 노드라 도장이 없다. */
+    stamped: (() => { const g = document.getElementById('qt-shape-group'); if (g) g.dataset.stale = '1'; return !!g && g.dataset.stale === '1'; })(),
   }));
   expect(pre.panel, '★전제 ㉠ — 인용구 패널이 열렸다').toBe(true);
   expect(pre.selected, '★전제 ㉡ — 블럭이 ★고른 상태다(사람이 하는 순서)').toBe(true);
   expect(pre.ce, '★전제 ㉢ — ★편집이 ★아직 안 열렸다(contenteditable=true 0건)').toBe(0);
   expect(pre.body, '★전제 ㉣ — 글덩이(.tb-qt-body)가 ★그려져 있다').toBe(true);
   expect(pre.text, '★전제 ㉤ — 지금 글 = 「안녕」').toBe('안녕');
-  expect(pre.hint, `★전제 ㉥ — ★패널의 ★«줄 수 안내»가 ★서 있고 ★지금 ★1줄이라 적혀 있다. 잰 글 「${pre.hint}」`).toMatch(/1줄/);
+  expect(pre.stamped, '★전제 ㉥ — ★패널의 `#qt-shape-group` 이 서 있고 ★재그림 도장(data-stale)을 찍었다').toBe(true);
 
   /* ── ㉠ ★더블클릭이 ★편집을 ★연다 ────────────────────────────────────────── */
   const lr = await waitStableRect(page, '#sQ .quote-block .tb-qt-line');
@@ -1258,7 +1261,9 @@ test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클�
       editing: b.classList.contains('editing'),
       /* ★★⚰️같은 자리 둘째 — ★여기도 ★`#qt-text` 의 ★value 였다. ★입구만 ★바꿨다(위 ⚰️ 참조).
          ★이 칸의 ★뜻 = ★«커밋 뒤에도 ★패널이 ★살아 있나»(⛔null 이면 ★패널이 ★죽었다). */
-      hint: document.getElementById('qt-lines-hint')?.textContent ?? null,
+      panelAlive: !!document.getElementById('qt-shape-group'),
+      stale: document.getElementById('qt-shape-group')?.dataset.stale ?? null,
+      hintCount: document.querySelectorAll('#qt-lines-hint').length,
       /* ★★그리고 ★★«없애기»를 ★여기서 ★같이 잠근다 — ★옛 입력칸이 ★되살아나면 ★이 수가 ★0 이 아니다 */
       oldTa: document.querySelectorAll('#panel-right #qt-text, #panel-right textarea.prop-textarea').length,
       marks: b.querySelectorAll('.tb-qt-mark').length,
@@ -1269,7 +1274,9 @@ test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클�
   expect(after.ce, '★편집이 ★닫혔다').toBe(0);
   expect(after.editing, '★`editing` 이 ★떨어졌다').toBe(false);
   expect(after.marks, '★부호는 ★그대로 한 쌍').toBe(2);
-  expect(after.hint, `★★커밋 뒤에도 ★패널의 ★«줄 수 안내»가 ★살아 있다(⛔null 이면 ★패널이 ★죽었다 — ★다시 그리기가 깨진 꼴). 잰 글 「${after.hint}」`).toMatch(/1줄/);
+  expect({ alive: after.panelAlive, stale: after.stale, hint: after.hintCount },
+    `★★커밋 뒤에도 ★패널이 ★살아 있고 ★다시 그려졌다(도장 없음 = 새 노드) · 줄 수 안내는 0. 잰 값 ${JSON.stringify(after)}`)
+    .toEqual({ alive: true, stale: null, hint: 0 });
   expect(after.oldTa, `★★«내용» ★입력칸은 ★0개여야 한다(현빈 1011t1a-2 「없어도 될듯함」). 잰 값 ${after.oldTa}`).toBe(0);
 
   /* ── ㉢ ★엔터가 ★줄을 나눈다 (v1 모델 = ★글은 한 덩이 · 렌더가 쪼갠다) ──────── */
@@ -1277,6 +1284,7 @@ test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클�
   await page.mouse.dblclick(lr2.cx, lr2.cy);
   await page.waitForFunction(() => window.__qt.querySelector('.tb-qt-body')?.getAttribute('contenteditable') === 'true', null, { timeout: 3000 });
   await page.evaluate(() => {
+    const g = document.getElementById('qt-shape-group'); if (g) g.dataset.stale = '1';   /* 1012t1H2 재그림 도장 */
     const body = window.__qt.querySelector('.tb-qt-body');
     const sel = window.getSelection(); sel.removeAllRanges();
     const r = document.createRange(); r.selectNodeContents(body); sel.addRange(r);
@@ -1291,17 +1299,20 @@ test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클�
     ds: window.__qt.dataset.text,
     drawn: [...window.__qt.querySelectorAll('.tb-qt-line')].map(e => e.textContent),
     pre: window.__qt.querySelectorAll('[data-qt-mark="pre"]').length,
-    hint: document.getElementById('qt-lines-hint')?.textContent ?? null,
+    panelAlive: !!document.getElementById('qt-shape-group'),
+    stale: document.getElementById('qt-shape-group')?.dataset.stale ?? null,
+    hintCount: document.querySelectorAll('#qt-lines-hint').length,
   }));
   expect(two.ds.includes('\n'), `★★dataset 에 ★줄바꿈이 ★한 덩이로 들어갔다. 잰 값 ${JSON.stringify(two.ds)}`).toBe(true);
   expect(two.drawn, '★두 줄로 그려졌다').toEqual(['가', '나']);
   expect(two.pre, '★부호는 ★한 쌍 그대로(줄 수와 ★무관 — Q4 의 그 불변식)').toBe(1);
-  /* ── ★★«캔버스 → 패널» ★한 축 — ★옛 `taVal` 단언이 ★재던 것을 ★여기로 ★옮겼다(1011t1a-2) ──
-     ★★이 줄이 ★주 단언이다: ★캔버스에서 ★엔터로 ★2줄을 만들면 ★우측 패널의 ★«줄 수 안내»도 ★2줄이어야 한다.
-     ★무력화 과녁 = ★`_quoteEndEdit` 의 ★`showQuoteProperties` 재호출(★그걸 떼면 ★안내가 ★1줄에 ★멈춘다).
-     ⛔「1줄 → 1줄」 장면에 ★걸지 않았다 — ★그건 ★★항등식이라 ★배선을 ★떼도 ★참이다(★실측 전 ★설계로 ★피했다). */
-  expect(two.hint, `★★캔버스에서 ★2줄을 만들면 ★패널의 ★«줄 수 안내»도 ★2줄이어야 한다`
-    + ` (⛔갈리면 ★사람이 ★패널의 ★헌 수를 ★보고 ★판단한다). 잰 글 「${two.hint}」`).toMatch(/2줄/);
+  /* ── ★★«캔버스 → 패널» ★한 축 — 1012t1H2 로 「줄 수 안내」가 사라져 «재그림 도장»으로 옮겼다 ──
+     ★주 단언: 캔버스에서 엔터로 2줄을 만든 뒤 패널이 ★살아 있고 ★다시 그려졌다(도장 없음).
+     ★무력화 과녁 = `_quoteEndEdit` 의 `showQuoteProperties` 재호출(그걸 떼면 도장이 남는다).
+     ⚰️「안내도 2줄」 축은 보여 줄 줄 수 안내가 없어 뜻이 사라졌다. */
+  expect({ alive: two.panelAlive, stale: two.stale, hint: two.hintCount },
+    `★★캔버스에서 2줄을 만들면 패널이 다시 그려져야 한다(도장 stale 이 사라진다). 잰 값 ${JSON.stringify(two)}`)
+    .toEqual({ alive: true, stale: null, hint: 0 });
 
   /* ── ㉣ ★★안내문구 ★지뢰 — ★손 안 대고 나가면 ★데이터로 굳지 ★않는다 ──────────
      ⛔이 줄이 없으면 ★더블클릭만 해도 ★안내문구가 ★본문이 되는 블럭이 ★영영 남는다(모달의 그 규약). */
@@ -1737,9 +1748,8 @@ test('Q20 ★★«내용» 입력칸은 ★0개 · 그런데 ★글 넣는 ★�
       /* ⑴ ★두 자로 ★센다 — ★id 로 ＋ ★꼴(textarea)로. ⛔한 자로만 세면 ★id 를 바꿔 ★되살릴 수 있다 */
       byId: p.querySelectorAll('#qt-text').length,
       byShape: p.querySelectorAll('textarea').length,
-      /* ★★일치가 ★딱 하나인가 — ★안내는 ★한 칸이어야 한다(둘이면 ★어느 쪽을 보는지 ★모른다) */
+      /* ★★1012t1H2 — 줄 수 안내 칸은 ★0개다 */
       hintCount: p.querySelectorAll('#qt-lines-hint').length,
-      hint: document.getElementById('qt-lines-hint')?.textContent ?? null,
       /* ★남긴 칸 — ★글자 ★색(이름이 ★겹치는 ★다른 칸) */
       textColSwatch: p.querySelectorAll('#qt-textcol-swatch, [id^="qt-textcol"]').length,
       /* ⑵ ★글을 ★넣는 ★길 — ★캔버스의 ★편집 host */
@@ -1759,9 +1769,8 @@ test('Q20 ★★«내용» 입력칸은 ★0개 · 그런데 ★글 넣는 ★�
   expect(cen.canvasHosts, `★★캔버스 ★편집 host(.tb-qt-body)가 ★1개여야 한다 — ★이게 ★0 이면`
     + ` ★★글을 ★넣을 ★길이 ★아예 ★없다(그러면 ★칸을 ★없앤 것이 ★★틀린 결정이 된다). 잰 값 ${cen.canvasHosts}`).toBe(1);
 
-  /* ── ★안내 칸은 ★딱 ★하나 ── */
-  expect(cen.hintCount, `★★«줄 수 안내»는 ★딱 ★1개여야 한다(★둘이면 ★검사가 ★어느 쪽을 ★보는지 모른다). 잰 값 ${cen.hintCount}`).toBe(1);
-  expect(cen.hint, `★그 안내가 ★지금 ★1줄을 ★말한다. 잰 글 「${cen.hint}」`).toMatch(/1줄/);
+  /* ── ★1012t1H2 — 줄 수 안내 칸은 ★0개 ── */
+  expect(cen.hintCount, `★★«줄 수 안내»(#qt-lines-hint)는 ★0개여야 한다(1012t1H2 삭제). 잰 값 ${cen.hintCount}`).toBe(0);
 
   /* ── ★★음성대조 — ★이름이 ★겹치는 ★«글자 색» 칸은 ★같이 지우지 ★않았다 ── */
   expect(cen.textColSwatch >= 1, `★★«글자 색»(qt-textcol…) 칸은 ★남아 있어야 한다 —`
@@ -1785,12 +1794,21 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
       kidSec: p.querySelectorAll('#qt-kids-section').length,
       addOpts: [...p.querySelectorAll('select option')].filter(o => /블럭 넣기/.test(o.textContent)).length,
       selects: p.querySelectorAll('select').length,
+      hints: [...p.querySelectorAll('.prop-hint')].map(e => e.textContent),
+      linesHint: p.querySelectorAll('#qt-lines-hint').length,
     };
   });
   /* 전제 */
   expect(pn.type, '★전제 — 인용구 블럭이다').toBe('quote');
   expect(pn.layout, '★전제 — inline 꼴이다').toBe('inline');
   expect(pn.hasPanel, '★전제 — 인용구 패널이 열렸다').toBe(true);
+  /* ⑴ H2 — 설명 문구 둘 삭제(.prop-hint 전수에 두 문장이 0건 · #qt-lines-hint 0) */
+  expect(pn.hints.length, `★전제 — 남은 안내(prop-hint)는 읽힌다(「부호만 위아래로…」). 잰 값 ${JSON.stringify(pn.hints)}`).toBeGreaterThanOrEqual(1);
+  expect({
+    sentence1: pn.hints.filter(h => /글 양옆에 부호가/.test(h)).length,
+    sentence2: pn.hints.filter(h => /한 줄 꼴에서는/.test(h)).length,
+    linesHint: pn.linesHint,
+  }, `★H2 — 삭제한 두 문장과 #qt-lines-hint 가 0. 잰 값 ${JSON.stringify(pn.hints)}`).toEqual({ sentence1: 0, sentence2: 0, linesHint: 0 });
   /* ⑸ H6 */
   expect({ kidSel: pn.kidSel, kidSec: pn.kidSec, addOpts: pn.addOpts },
     `★H6 — 「＋ 블럭 넣기」 select·절·옵션이 0 이어야 한다. 잰 값 ${JSON.stringify(pn)}`)

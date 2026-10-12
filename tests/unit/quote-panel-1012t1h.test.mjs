@@ -70,3 +70,13 @@ test('T-H6 prop-quote.js 코드에 qt-kid-add-kind·addQuoteChild·QUOTE_CHILD_K
   assert.ok(/function addQuoteChild\(/.test(fac) || /addQuoteChild\s*=/.test(fac), 'addQuoteChild 정의가 사라졌다 — 자식 있는 저장본이 깨진다');
   assert.ok(/QUOTE_CHILD_KINDS/.test(fac), 'QUOTE_CHILD_KINDS 명부가 사라졌다');
 });
+
+/* T-H2 — 설명 문구 둘(「글 양옆에 부호가 섭니다」 · 「한 줄 꼴에서는 부호가 한 쌍」)과 #qt-lines-hint 가 코드에서 걷혔다.
+   되돌리면 빨강: 그 마크업을 한 줄이라도 되살리면. 「부호만 위아래로…」는 현빈 목록 밖이라 남는다(입력 생존 단언). */
+test('T-H2 prop-quote.js 코드에 삭제한 두 문장·qt-lines-hint 가 0건이고, 남기기로 한 안내는 산다', () => {
+  const code = propCode();
+  assert.ok(code.includes('부호만 위아래로 밀립니다'), '입력이 죽었다 — 남기기로 한 안내가 사라졌다(너무 많이 지웠다)');
+  for (const needle of ['글 양옆에 부호가', '한 줄 꼴에서는', 'qt-lines-hint']) {
+    assert.equal(code.split(needle).length - 1, 0, `${needle} 가 prop-quote.js 코드에 남아 있다`);
+  }
+});
