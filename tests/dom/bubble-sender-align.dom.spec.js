@@ -55,6 +55,12 @@ async function setup(page) {
   });
   await waitFor(page, () => !!document.querySelector('.prop-align-btn[data-align="center"]'),
     undefined, '★정렬 단추(.prop-align-btn[data-align=center])가 ★패널에 ★안 떴다');
+  /* ★1012t1M2 — 배율 보간(.15s transform)이 끝난 뒤에 재게 한다: 화면 폭 ÷ 배율 = layout 폭.
+     안 기다리면 첫 측정이 보간 중 rect 다(이벨 실측 ⒮ 첫 판 bodyW 351.5/372.3 vs 정착 348.5 — 2/2 빨강). */
+  await waitFor(page, () => {
+    const q = document.querySelector('#canvas .speech-bubble-block .tb-bubble');
+    return !!q && Math.abs(q.getBoundingClientRect().width / ((window.currentZoom || 100) / 100) - q.offsetWidth) < 0.5;
+  }, undefined, '배율 보간이 안 끝났다(화면 폭 ÷ 배율 ≠ layout 폭)');
   return errs;
 }
 
