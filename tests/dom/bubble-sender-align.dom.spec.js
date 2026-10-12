@@ -400,6 +400,12 @@ for (const z of [40, 100]) {
     const errs = await setup(page);
     await page.evaluate((z) => window.applyZoom?.(z), z);
     await expect.poll(() => page.evaluate(() => window.currentZoom), { message: `전제 — 배율 ${z}` }).toBe(z);
+    /* ★스케일러 transform 은 .15s 보간이 있다 — 화면 폭 ÷ 배율 = layout 폭이 될 때까지 기다린다
+       (안 기다리면 보간 중 rect 로 재어 bodyW 가 374.7 → 366 처럼 흔들렸다 · 1차 런 실측) */
+    await expect.poll(() => page.evaluate(() => {
+      const q = document.querySelector('#canvas .speech-bubble-block .tb-bubble');
+      return Math.abs(q.getBoundingClientRect().width / ((window.currentZoom || 100) / 100) - q.offsetWidth) < 0.5;
+    }), { message: `전제 — 배율 ${z} 보간이 끝났다` }).toBe(true);
     await showSender(page);
     const g0 = await geom(page), d0 = await dLayoutProbe(page);
     await clickCenter(page);
