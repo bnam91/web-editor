@@ -5,7 +5,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
 
-const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
@@ -78,9 +78,10 @@ function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS
 const _isGrad = (c) => typeof c === 'string' && /gradient\(/i.test(c);
 /* GR1 — 항목(막대)마다 색 칸 = colorFieldHTML(단색·그라데이션). 「미지정 = 프리셋 색」은 예전 스와치처럼 체커(.swatch-none)
  * + hex 칸 비움(placeholder 「프리셋」)으로 보인다 — 모델(item.color 없음)은 손대지 않는다. 고르는 순간에만 item.color 가 생긴다. */
-function itemColorFieldHTML(item, i) {
-  const c = item.color || '';
-  return `<div class="grb-data-color" title="바 색상 (미지정 시 프리셋 색 · 그라데이션은 막대마다 따로)">${colorFieldHTML({
+/* 1012t1G1 — solidOnly(원형·도넛 조각): 단색 전용. 막대에서 넘어온 그라데이션 item.color 는 «미지정»으로 보인다(렌더 _renderPie 와 같은 판정 · 모델은 안 지운다). */
+function itemColorFieldHTML(item, i, { solidOnly = false } = {}) {
+  const c = (solidOnly && _isGrad(item.color)) ? '' : (item.color || '');
+  return `<div class="grb-data-color" title="${solidOnly ? '조각 색상 (미지정 시 프리셋 색)' : '바 색상 (미지정 시 프리셋 색 · 그라데이션은 막대마다 따로)'}">${colorFieldHTML({
     idPrefix: 'grb-data-color-' + i,
     hex: c && !_isGrad(c) ? c : '#4dabf7',
     alpha: c && !_isGrad(c) ? parseAlphaFromColor(c) : 100,
@@ -102,6 +103,18 @@ function _wireGraphColor(prefix, { unset = false, mixed = false, ...opts } = {})
   const onApply = opts.onApply;
   return wireColorField(prefix, { ...opts, onApply: (c) => { if (pending && alphaEvt) return; pending = false; onApply?.(c); } });
 }
+
+/* 1012t1G1 — 그래프 유형 표 «한 자리»: 버튼(마크업)과 배선(클릭)이 같은 표를 돈다. 새 유형은 여기 한 줄 + drag-utils.js GRAPH_RENDERERS 한 줄.
+ * 기존 넷의 id 는 그대로(검사·자동화가 id 로 누른다). 버튼 6개는 3칸 두 줄 — 기존 «프리셋 버튼이 섞인 유형 그룹» 그리드를 탄다(prop-asset 6버튼과 같은 꼴 · 새 CSS 0줄). */
+const GRAPH_TYPES = [
+  { type: 'bar-v',    id: 'grb-type-v',     label: '세로 막대' },
+  { type: 'bar-h',    id: 'grb-type-h',     label: '가로 막대' },
+  { type: 'line',     id: 'grb-type-line',  label: '꺾은선' },
+  { type: 'bar-pair', id: 'grb-type-pair',  label: '비교 막대' },
+  { type: 'pie',      id: 'grb-type-pie',   label: '원형' },
+  { type: 'donut',    id: 'grb-type-donut', label: '도넛' },
+];
+const _isPieType = (t) => t === 'pie' || t === 'donut';
 
 export function showGraphProperties(block) {
   const _vKey = (hKey, vKey) => (block.dataset.chartType === 'bar-v' || block.dataset.chartType === 'bar-pair') ? vKey : hKey;
@@ -152,6 +165,8 @@ export function showGraphProperties(block) {
   const fillColorAlpha = parseAlphaFromColor(fillColor);
   const showVLabel   = block.dataset.showVLabel !== '0';
   const showXLabel   = block.dataset.showXLabel !== '0';
+  const _isPie       = _isPieType(chartType);
+  const pieHole      = (h => Math.min(PIE_HOLE_MAX, Math.max(PIE_HOLE_MIN, Number.isFinite(h) ? h : PIE_HOLE_DEFAULT)))(parseInt(block.dataset.pieHole));   // 렌더(drag-utils.js _renderPie)와 «같은 식»
 
   const presets = [
     { id: 'default',  label: '기본' },
@@ -217,10 +232,7 @@ ${blockHeaderHTML({
     <div class="prop-section">
       <div class="prop-section-title">Chart Type</div>
       <div class="prop-type-group">
-        <button class="prop-type-btn ${chartType === 'bar-v' ? 'active' : ''}" id="grb-type-v">세로 막대</button>
-        <button class="prop-type-btn ${chartType === 'bar-h' ? 'active' : ''}" id="grb-type-h">가로 막대</button>
-        <button class="prop-type-btn ${chartType === 'line' ? 'active' : ''}" id="grb-type-line">꺾은선</button>
-        <button class="prop-type-btn ${chartType === 'bar-pair' ? 'active' : ''}" id="grb-type-pair">비교 막대</button>
+        ${GRAPH_TYPES.map(t => `<button class="prop-preset-btn prop-type-btn ${chartType === t.type ? 'active' : ''}" id="${t.id}">${t.label}</button>`).join('\n        ')}
       </div>
     </div>
     ${chartType === 'bar-pair' ? `
@@ -296,6 +308,15 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="grb-fillalpha-number" min="0" max="100" value="${fillAlpha}">
       </div>
     </div>` : ''}
+    ${chartType === 'donut' ? `
+    <div class="prop-section">
+      <div class="prop-section-title">Pie Settings</div>
+      <div class="prop-row" title="도넛 가운데 구멍의 크기(바깥 반지름 대비 %)">
+        <span class="prop-label">구멍 크기</span>
+        <input type="range" class="prop-slider" id="grb-pie-hole-slider" min="${PIE_HOLE_MIN}" max="${PIE_HOLE_MAX}" step="1" value="${pieHole}">
+        <input type="number" class="prop-number" id="grb-pie-hole-number" min="${PIE_HOLE_MIN}" max="${PIE_HOLE_MAX}" value="${pieHole}">
+      </div>
+    </div>` : ''}
     ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '' }) : ''}
     <div class="prop-section">
       <div class="prop-section-title">Preset</div>
@@ -315,7 +336,7 @@ ${blockHeaderHTML({
             <input type="number" class="grb-data-val-input" value="${item.value}" min="0" max="9999">
             ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${item.value2 ?? 0}" min="0" max="9999" title="시리즈 B 값">` : ''}
             <button class="grb-data-del-btn" data-index="${i}">✕</button>
-            ${(chartType === 'bar-v' || chartType === 'bar-h') ? itemColorFieldHTML(item, i) : ''}
+            ${(chartType === 'bar-v' || chartType === 'bar-h') ? itemColorFieldHTML(item, i) : (_isPie ? itemColorFieldHTML(item, i, { solidOnly: true }) : '')}
           </div>`).join('')}
       </div>
       <button class="prop-btn-full" id="grb-add-item">+ 항목 추가</button>
@@ -323,26 +344,13 @@ ${blockHeaderHTML({
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
-  // 타입 토글
-  document.getElementById('grb-type-v').addEventListener('click', () => {
-    block.dataset.chartType = 'bar-v';
-    window.renderGraph(block);
-    showGraphProperties(block);
-  });
-  document.getElementById('grb-type-h').addEventListener('click', () => {
-    block.dataset.chartType = 'bar-h';
-    window.renderGraph(block);
-    showGraphProperties(block);
-  });
-  document.getElementById('grb-type-line').addEventListener('click', () => {
-    block.dataset.chartType = 'line';
-    window.renderGraph(block);
-    showGraphProperties(block);
-  });
-  document.getElementById('grb-type-pair').addEventListener('click', () => {
-    block.dataset.chartType = 'bar-pair';
-    window.renderGraph(block);
-    showGraphProperties(block);
+  // 타입 토글 — 유형 표를 돈다(클릭 = 유형 쓰기 → 다시 그리기 → 패널 다시 열기 · 기존 넷과 같은 꼴)
+  GRAPH_TYPES.forEach(t => {
+    document.getElementById(t.id).addEventListener('click', () => {
+      block.dataset.chartType = t.type;
+      window.renderGraph(block);
+      showGraphProperties(block);
+    });
   });
 
   // bar-pair: 시리즈명 + 색상 B
@@ -408,7 +416,8 @@ ${blockHeaderHTML({
   //   미지정(체커) 표시는 처음 고를 때 걷는다(.swatch-none 의 !important 배경이 고른 색을 가리므로).
   const _wireItemColor = (i) => {
     const pre = 'grb-data-color-' + i;
-    const cur = (JSON.parse(block.dataset.items || '[]')[i] || {}).color || '';
+    const _cur0 = (JSON.parse(block.dataset.items || '[]')[i] || {}).color || '';
+    const cur = (_isPie && _isGrad(_cur0)) ? '' : _cur0;   // 원형·도넛: 그라데이션 = 미지정(체커)
     const swatch = document.getElementById(pre + '-color')?.closest('.prop-color-swatch');
     const hexEl = document.getElementById(pre + '-hex');
     if (!cur) { swatch?.classList.add('swatch-none'); if (hexEl) hexEl.value = ''; }
@@ -423,12 +432,12 @@ ${blockHeaderHTML({
     wireColorField(pre, {
       initialAlpha: cur && !_isGrad(cur) ? parseAlphaFromColor(cur) : 100,
       onApply: (c) => setColor(c),
-      onGradient: (css, commit) => { setColor(css); if (commit) window.pushHistory(); },
-      gradientValue: _isGrad(cur) ? cur : '',
+      /* 원형·도넛 조각은 단색 전용 — onGradient 를 안 넘기면 피커가 그라데이션 탭을 잠근다(color-picker cpModes 'solid') */
+      ...(_isPie ? {} : { onGradient: (css, commit) => { setColor(css); if (commit) window.pushHistory(); }, gradientValue: _isGrad(cur) ? cur : '' }),
       onCommit: () => window.pushHistory(),
     });
   };
-  if (chartType === 'bar-v' || chartType === 'bar-h') items.forEach((_, i) => _wireItemColor(i));
+  if (chartType === 'bar-v' || chartType === 'bar-h' || _isPie) items.forEach((_, i) => _wireItemColor(i));
   dataList.addEventListener('input', syncItems);
   dataList.addEventListener('click', e => {
     const btn = e.target.closest('.grb-data-del-btn');
@@ -549,6 +558,21 @@ ${blockHeaderHTML({
     swSlider.addEventListener('input',  () => applyStroke(parseInt(swSlider.value)));
     swNumber.addEventListener('change', () => { applyStroke(parseInt(swNumber.value)); window.pushHistory(); });
     swSlider.addEventListener('change', () => window.pushHistory());
+  }
+
+  // 구멍 크기 (donut 전용 · 1012t1G1) — 이웃 슬라이더와 같은 꼴: input 에 적용 · change 에 히스토리. 빈 칸(NaN)은 기본값.
+  const phSlider = document.getElementById('grb-pie-hole-slider');
+  const phNumber = document.getElementById('grb-pie-hole-number');
+  if (phSlider) {
+    const applyHole = v => {
+      v = Math.min(PIE_HOLE_MAX, Math.max(PIE_HOLE_MIN, Number.isFinite(v) ? v : PIE_HOLE_DEFAULT));
+      block.dataset.pieHole = v;
+      window.renderGraph(block);
+      phSlider.value = v; phNumber.value = v;
+    };
+    phSlider.addEventListener('input',  () => applyHole(parseInt(phSlider.value)));
+    phNumber.addEventListener('change', () => { applyHole(parseInt(phNumber.value)); window.pushHistory(); });
+    phSlider.addEventListener('change', () => window.pushHistory());
   }
 
   // 점 크기 (line 전용)

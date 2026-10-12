@@ -29,6 +29,7 @@ function _escGraphHtml(v) {
    DRAG UTILITIES — pure helpers, no drag state
 ═══════════════════════════════════ */
 import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS(막대 두께 기본·한계의 한 자리)를 «이 모듈보다 먼저»
+import './graph-pie-geom.js';   // side-effect import — window.GRAPH_PIE_GEOM(원형·도넛 조각 기하 · 1012t1G1). graph-limits 와 같은 길(모듈 하네스는 _drag-utils-deps 가 따라 준다)
 import { state } from './globals.js';
 import { isShapeFrame, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
 /* ★「이 요소가 ★내용을 ★자르나」의 ★★정본 — ⛔여기 ★사본을 ★짓지 않는다(아래 effectiveSectionPadX)
@@ -789,7 +790,7 @@ function renderGraph(block) {
  *   편집 중엔 block.editing — 공통 mousedown 드래그·삭제키 가드가 본다(그리드 줄 편집과 같은 꼴). */
 /* 카테고리 라벨 «셋»(막대·비교 .grb-bar-label · 가로 .grb-bar-h-desc · 꺾은선 .grb-line-xlabel) — 항목마다 정확히 하나(숨김이어도 display:none 으로 있다)
    ⇒ 블럭 안 순서 = items 순서. 색인을 DOM 속성으로 안 박는다 — 렌더 바이트가 핀(graph-vpair 골든 · GR-W0 기준판)과 같게(회귀 실측: data-grb-idx 가 5 빨강). */
-const GRB_CAT_LABEL_SEL = '.grb-bar-label, .grb-bar-h-desc, .grb-line-xlabel';
+const GRB_CAT_LABEL_SEL = '.grb-bar-label, .grb-bar-h-desc, .grb-line-xlabel, .grb-pie-label';   // 원형·도넛은 범례 라벨(1012t1G1)
 function _bindGraphLabelEdit(block) {
   if (block._grbLabelEditBound) return;
   block._grbLabelEditBound = true;
@@ -838,6 +839,42 @@ function _graphLabelBeginEdit(block, el, idx) {
   el.addEventListener('keydown', onKey);
   el.addEventListener('blur', onBlur);
 }
+/* ── 1012t1G1 원형(pie) · 도넛(donut) ─────────────────────────────────────
+ * 조각 = 인라인 SVG path(기하는 graph-pie-geom.js piePaths 한 자리) · 도넛 구멍은 고리 path 로 실제로 뚫는다(바탕색 원으로 덮지 않는다).
+ * 조각 요소는 «항목마다 정확히 하나»(값 0 이면 d 가 빈 글자) ⇒ 형제 순번 = 항목 순서 — CSS 색 사다리와 범례가 같은 순번을 쓴다.
+ * 색: item.color(단색)면 조각·범례 점에 인라인, 아니면 CSS 프리셋. 막대에서 넘어온 그라데이션 item.color 는 여기선 «미지정»으로 본다(모델은 안 지운다).
+ * 범례 = 카테고리 라벨(.grb-pie-label · 더블클릭 편집 대상) + 비율 %(.grb-pie-val). 공통 키(showVLabel·showXLabel·라벨 색 셋·labelSize·chartHeight)를 그대로 따른다.
+ * 사용자 글자는 _escGraphHtml · 색은 _safeGraphColor 만 지난다(E152 규약). */
+function _renderPie(block, { items, chartH, labelSize }) {
+  const d = block.dataset;
+  const L = window.GRAPH_LIMITS;
+  const _h = parseInt(d.pieHole);
+  const hole = d.chartType === 'donut' ? Math.min(L.PIE_HOLE_MAX, Math.max(L.PIE_HOLE_MIN, Number.isFinite(_h) ? _h : L.PIE_HOLE_DEFAULT)) : 0;
+  const geo = window.GRAPH_PIE_GEOM.piePaths(items.map(it => it && it.value), hole);
+  const _lc = d.labelColor || '';
+  const _vCss = (d.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.vlabelColor || _lc)));
+  const _xCss = (d.showXLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.xlabelColor || _lc)));
+  const _solid = (c) => { const s = _safeGraphColor(c); return (s && !/gradient\(/i.test(s)) ? s : ''; };
+  const colors = items.map(it => _solid(it && it.color));
+
+  // freeLayout 절대 배치가 아닌 경우 height 고정 해제 → 범례 줄 수에 따라 자동 증가(가로 막대·꺾은선과 같은 꼴)
+  if (block.style.position !== 'absolute') {
+    block.style.height = 'auto';
+  }
+
+  const slices = geo.paths.map((p, i) => `<path class="grb-pie-slice" d="${p}"${colors[i] ? ` style="fill:${colors[i]};fill-opacity:1"` : ''}/>`).join('');
+  const emptyEl = geo.empty ? `<circle class="grb-pie-empty" cx="500" cy="500" r="498" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="6 6" vector-effect="non-scaling-stroke"/>` : '';
+  const legend = items.map((it, i) => `<span class="grb-pie-legend-item"><span class="grb-pie-dot"${colors[i] ? ` style="background:${colors[i]};opacity:1"` : ''}></span>`
+    + `<span class="grb-pie-label" style="${_xCss}">${_escGraphHtml(it && it.label)}</span>`
+    + `<span class="grb-pie-val" style="${_vCss}">${Math.round(geo.shares[i] * 100)}%</span></span>`).join('');
+  block.innerHTML = `
+      <div class="grb-pie-wrap" style="height:${chartH}px">
+        <svg class="grb-pie-svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">${slices}${emptyEl}</svg>
+      </div>
+      <div class="grb-pie-legend" style="font-size:${labelSize}px">${legend}</div>`;
+}
+/* 유형 등록표 — 새 그래프 유형은 여기 한 줄(이름 → 그리는 함수)로 붙는다. 표에 없는 유형은 아래 기존 사슬(세로·꺾은선·비교·가로)이 그대로 그린다. */
+const GRAPH_RENDERERS = Object.assign(Object.create(null), { pie: _renderPie, donut: _renderPie });   // 원형 없는 표 — 'constructor' 같은 유형 이름이 상속 함수를 부르지 않게
 function _renderGraphBody(block) {
   const items      = JSON.parse(block.dataset.items || '[]');
   const chartType  = block.dataset.chartType  || 'bar-v';
@@ -846,6 +883,8 @@ function _renderGraphBody(block) {
   const chartH     = parseInt(block.dataset.chartHeight) || 240;
   const labelSize  = parseInt(block.dataset.labelSize)   || window.GRAPH_LIMITS.LABEL_SIZE_DEFAULT;   // 패널과 같은 한 자리(graph-limits.js · 값 20 그대로)
   const valSize    = Math.round(labelSize * 1.07);
+
+  const _r = GRAPH_RENDERERS[chartType]; if (_r) return _r(block, { items, chartH, labelSize, valSize });
 
   if (chartType === 'bar-v') {
     // 값/카테고리 라벨 표시·색 — line 차트와 동일 시맨틱 (이전엔 bar에서 미반영되던 버그)

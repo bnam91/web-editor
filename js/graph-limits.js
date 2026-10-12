@@ -17,7 +17,10 @@
        라벨 글자 크기 20 · 꺾은선 좌우 여백 16(SVG 가상폭 1000 단위 — 계산된 CSS 로 못 읽는다) · 가로 막대 숫자 크기 = 라벨 크기 × 3.
        렌더러(drag-utils renderGraph)와 패널(prop-graph)이 «이 값들»을 읽는다. 전엔 패널 13·0·60 을 각자 적어 그려지는 20·16·라벨×3 과 달랐다
        (명부 E105 = 13≠20 · E106 · E110 — PANEL-SHOWS-WRONG 꼴). 값은 렌더러의 옛 값 그대로 = 렌더 바이트 무변. */
-  var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3 });
+  /* ★PIE_HOLE_MIN · MAX · DEFAULT(1012t1G1 · 2026-10-12) — 도넛 그래프 가운데 구멍의 크기(바깥 반지름 대비 %). 패널 슬라이더·숫자칸(prop-graph.js)과
+       렌더러(drag-utils.js _renderPie)가 «이 세 값»을 읽는다. 20 미만은 원형과 구별이 안 되고 80 초과는 고리가 실처럼 가늘어진다(기획 값 — 현빈 확인 전). */
+  var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3,
+    PIE_HOLE_MIN: 20, PIE_HOLE_MAX: 80, PIE_HOLE_DEFAULT: 55 });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_LIMITS;
   if (root) root.GRAPH_LIMITS = GRAPH_LIMITS;
 })(typeof window !== 'undefined' ? window : null);

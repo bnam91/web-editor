@@ -409,8 +409,8 @@ const GRAPH_FIELD_PARTS = {
   bar:    (b) => (b.dataset.chartType || 'bar-v') === 'line' ? { tone: 'line', el: b.querySelector('.grb-line-path'), prop: 'stroke' }
                  : { el: _firstPlain(b, b.dataset.chartType === 'bar-h' ? '.grb-bar-h-fill' : '.grb-bar-fill:not(.grb-bar-fill-b)'), prop: 'backgroundColor' },
   bar2:   (b) => ({ el: b.querySelector('.grb-bar-fill-b'), prop: 'backgroundColor' }),
-  vlabel: (b) => ({ el: b.querySelector('.grb-bar-val-label, .grb-line-vlabel, .grb-bar-h-pct'), prop: 'color' }),
-  xlabel: (b) => ({ el: b.querySelector('.grb-bar-label, .grb-line-xlabel, .grb-bar-h-desc'), prop: 'color' }),
+  vlabel: (b) => ({ el: b.querySelector('.grb-bar-val-label, .grb-line-vlabel, .grb-bar-h-pct, .grb-pie-val'), prop: 'color' }),
+  xlabel: (b) => ({ el: b.querySelector('.grb-bar-label, .grb-line-xlabel, .grb-bar-h-desc, .grb-pie-label'), prop: 'color' }),
   fill:   (b) => ({ el: b.querySelector('.grb-line-area'), prop: 'fill' }),
   grid:   (b) => ({ el: b.querySelector('.grb-ov-grid-layer') || b, prop: 'color' }),
 };

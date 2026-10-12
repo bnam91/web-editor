@@ -1207,7 +1207,7 @@ function makeGraphBlock() {
 function addGraphBlock(opts = {}) {
   // U9(BL-BOL-03): 스타일/시리즈 옵션 → dataset 일괄 매핑 (smooth=곡선, bar-pair 2시리즈용 barColor2 등)
   const _applyGraphOpts = (block) => {
-    if (opts.chartType) block.dataset.chartType = opts.chartType; // 'bar-v' | 'bar-h' | 'line' | 'bar-pair'
+    if (opts.chartType) block.dataset.chartType = opts.chartType; // 'bar-v' | 'bar-h' | 'line' | 'bar-pair' | 'pie' | 'donut'
     const map = { smooth: 'lineSmooth', fillArea: 'fillArea' };
     for (const [opt, key] of Object.entries(map)) {
       if (opts[opt] !== undefined) block.dataset[key] = opts[opt] ? '1' : '0';
@@ -1215,7 +1215,7 @@ function addGraphBlock(opts = {}) {
     for (const k of ['lineColor', 'fillColor', 'barColor', 'barColor2', 'seriesA', 'seriesB', 'labelColor', 'vlabelColor', 'xlabelColor']) {
       if (typeof opts[k] === 'string' && opts[k].length <= 64) block.dataset[k] = opts[k];
     }
-    for (const k of ['chartHeight', 'labelSize', 'strokeWidth', 'pointRadius']) {
+    for (const k of ['chartHeight', 'labelSize', 'strokeWidth', 'pointRadius', 'pieHole']) {
       const n = Number(opts[k]);
       if (Number.isFinite(n) && n >= 0) block.dataset[k] = String(Math.floor(n));
     }

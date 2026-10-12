@@ -260,6 +260,65 @@
   background: var(--ui-accent-primary);
 }
 
+/* ── 원형 · 도넛 (1012t1G1) ──
+ * 조각 색 = 그 프리셋 막대와 같은 색 하나에 불투명도 사다리(다섯 단, 여섯째부터 되돈다). 컬러풀만 막대의 다섯 색을 그대로 돈다.
+ * 색 값은 변수 한 벌로 두고 조각(fill)과 범례 점(background)이 같이 읽는다. 항목에 색을 정하면 인라인이 이긴다.
+ * 범례 치수는 em — 라벨 크기(인라인 font-size)를 따라 같이 커진다. */
+.graph-block { --grb-pie-base: var(--ui-accent-primary); --grb-pie-1: #ff6b6b; --grb-pie-2: #ffa94d; --grb-pie-3: #69db7c; --grb-pie-4: #4dabf7; --grb-pie-5: #da77f2; }
+.graph-block[data-preset="dark"] { --grb-pie-base: #4f8ef7; }
+.graph-block[data-preset="minimal"] { --grb-pie-base: var(--ui-text-sub); }
+.grb-pie-wrap {
+  width: 100%;
+  height: 240px;
+}
+.grb-pie-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.grb-pie-slice { fill: var(--grb-pie-base); }
+.grb-pie-slice:nth-child(5n+1) { fill-opacity: 1; }
+.grb-pie-slice:nth-child(5n+2) { fill-opacity: 0.8; }
+.grb-pie-slice:nth-child(5n+3) { fill-opacity: 0.6; }
+.grb-pie-slice:nth-child(5n+4) { fill-opacity: 0.45; }
+.grb-pie-slice:nth-child(5n+5) { fill-opacity: 0.3; }
+.grb-pie-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35em 1.1em;
+  margin-top: 0.8em;
+  color: inherit;
+  line-height: 1.3;
+}
+.grb-pie-legend-item { display: inline-flex; align-items: center; min-width: 0; }
+.grb-pie-dot {
+  flex: none;
+  width: 0.6em; height: 0.6em;
+  border-radius: 50%;
+  margin-right: 0.4em;
+  background: var(--grb-pie-base);
+}
+.grb-pie-legend-item:nth-child(5n+1) .grb-pie-dot { opacity: 1; }
+.grb-pie-legend-item:nth-child(5n+2) .grb-pie-dot { opacity: 0.8; }
+.grb-pie-legend-item:nth-child(5n+3) .grb-pie-dot { opacity: 0.6; }
+.grb-pie-legend-item:nth-child(5n+4) .grb-pie-dot { opacity: 0.45; }
+.grb-pie-legend-item:nth-child(5n+5) .grb-pie-dot { opacity: 0.3; }
+.grb-pie-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grb-pie-val { font-weight: 600; margin-left: 0.4em; }
+.graph-block[data-preset="colorful"] .grb-pie-slice { fill-opacity: 1; }
+.graph-block[data-preset="colorful"] .grb-pie-slice:nth-child(5n+1) { fill: var(--grb-pie-1); }
+.graph-block[data-preset="colorful"] .grb-pie-slice:nth-child(5n+2) { fill: var(--grb-pie-2); }
+.graph-block[data-preset="colorful"] .grb-pie-slice:nth-child(5n+3) { fill: var(--grb-pie-3); }
+.graph-block[data-preset="colorful"] .grb-pie-slice:nth-child(5n+4) { fill: var(--grb-pie-4); }
+.graph-block[data-preset="colorful"] .grb-pie-slice:nth-child(5n+5) { fill: var(--grb-pie-5); }
+.graph-block[data-preset="colorful"] .grb-pie-dot { opacity: 1; }
+.graph-block[data-preset="colorful"] .grb-pie-legend-item:nth-child(5n+1) .grb-pie-dot { background: var(--grb-pie-1); }
+.graph-block[data-preset="colorful"] .grb-pie-legend-item:nth-child(5n+2) .grb-pie-dot { background: var(--grb-pie-2); }
+.graph-block[data-preset="colorful"] .grb-pie-legend-item:nth-child(5n+3) .grb-pie-dot { background: var(--grb-pie-3); }
+.graph-block[data-preset="colorful"] .grb-pie-legend-item:nth-child(5n+4) .grb-pie-dot { background: var(--grb-pie-4); }
+.graph-block[data-preset="colorful"] .grb-pie-legend-item:nth-child(5n+5) .grb-pie-dot { background: var(--grb-pie-5); }
+
 /* ── H6 자동 밝기(현빈 2026-10-05) — 맨 끝에 둔다: 프리셋 규칙(.graph-block[data-preset=…] …)과 세기(0,3,0)가 같아 «순서»로 이긴다.
  *   변수는 canvas-contrast.js syncGraphTone 이 «어두운 바탕 · 사용자 색 없음»일 때만 블럭 인라인에 쓴다. 저장에선 걷힌다(section-serialize) ⇒ 저장본에선 이 줄들이 아무것도 못 고른다.
  *   명시 색(lineColor 인라인 stroke · labelColor 인라인 color)은 인라인이라 이 줄들보다 세다. */

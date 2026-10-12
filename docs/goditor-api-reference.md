@@ -553,7 +553,8 @@ window.addGraphBlock({ chartType: 'bar-pair', seriesA: '우리', seriesB: 'A사'
 
 | 옵션 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `chartType` | string | `'bar-v'` | `bar-v` `bar-h` `line` `bar-pair`(2시리즈 비교) |
+| `chartType` | string | `'bar-v'` | `bar-v` `bar-h` `line` `bar-pair`(2시리즈 비교) `pie`(원형) `donut`(도넛) |
+| `pieHole` | number | 55 | donut 전용 — 가운데 구멍 크기(바깥 반지름 대비 %, 20~80) |
 | `items` | `{ label, value, value2? }[]` | 5개 샘플 | `value2`는 bar-pair 전용(시리즈 B). 빈 배열이면 기본값 사용 |
 | `smooth` | boolean | `false` | line 전용 — Catmull-Rom 곡선 보간(온도 곡선) |
 | `fillArea` / `fillAlpha` / `fillColor` | bool / 0~1 / color | — | line 면 채우기 |
