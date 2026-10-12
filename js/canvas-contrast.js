@@ -413,6 +413,7 @@ const GRAPH_FIELD_PARTS = {
   xlabel: (b) => ({ el: b.querySelector('.grb-bar-label, .grb-line-xlabel, .grb-bar-h-desc, .grb-pie-label'), prop: 'color' }),
   fill:   (b) => ({ el: b.querySelector('.grb-line-area'), prop: 'fill' }),
   grid:   (b) => ({ el: b.querySelector('.grb-ov-grid-layer') || b, prop: 'color' }),
+  track:  (b) => ({ el: b.querySelector('.grb-shape-track'), prop: 'backgroundColor' }),   // 1012t1G3 — 실루엣의 안 찬 부분(키 없으면 채움과 같은 색)
 };
 export function graphFieldShown(block, field) {
   if (!block) return field === 'label' ? { c: '', mixed: false } : '';

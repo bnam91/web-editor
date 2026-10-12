@@ -1220,6 +1220,9 @@ function addGraphBlock(opts = {}) {
       if (Number.isFinite(n) && n >= 0) block.dataset[k] = String(Math.floor(n));
     }
     if (typeof opts.fillAlpha === 'number') block.dataset.fillAlpha = String(Math.max(0, Math.min(1, opts.fillAlpha)));
+    // 1012t1G2·G3 — 실루엣(내장 이름만 · 사용자 SVG 는 setGraphShape 가 소독해 싣는다) · 채움 분모
+    if (typeof opts.barShape === 'string' && window.GRAPH_SHAPE?.shapeSvgOf(opts.barShape)) block.dataset.barShape = opts.barShape;
+    if (Number.isFinite(Number(opts.fillMax)) && Number(opts.fillMax) > 0) block.dataset.fillMax = String(Number(opts.fillMax));
     if (opts.items && opts.items.length > 0) block.dataset.items = JSON.stringify(opts.items);
     renderGraph(block);
   };

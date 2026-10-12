@@ -331,3 +331,160 @@ test('G2-4 파일 — 숨은 파일 칸에 SVG 를 넣으면(창을 안 띄운�
   expect(await inner(page, id)).toBe(kept);
   expect(errs).toEqual([]);
 });
+
+/* ── G3 실루엣 안에 차오르는 채움(정적 비율) ───────────────────────────── */
+const model = (page, id) => page.evaluate((id) => window.graphFillModel(id), id);
+
+test('G3-1 분모 — 값 30 · 최대값 60 = 절반 · data-fill 과 graphFillModel 이 같은 수 · 최대값을 넘으면 1 로 자른다', async ({ page }) => {
+  const { errs, id } = await setup(page, { items: [{ label: '물', value: 30 }], extra: { barShape: 'bottle', fillMax: '60' } });
+  const g = await geom(page, id);
+  expect(g.length, '전제: 상자 1').toBe(1);
+  expect(g[0].boxH, '전제: 상자가 그려졌다').toBeGreaterThan(50);
+  expect(Math.abs(g[0].fillH - g[0].boxH * 0.5), `채움 ${g[0].fillH} / 상자 ${g[0].boxH}`).toBeLessThanOrEqual(1);
+  expect(g[0].fillAttr).toBe('0.500');
+  const preset = await page.evaluate(() => window.GRAPH_SHAPE.GRAPH_SHAPE_PRESETS.bottle.svg);
+  expect(await model(page, id)).toEqual({ shape: 'bottle', shapeSvg: preset, dir: 'up', max: 60, items: [{ label: '물', value: 30, ratio: 0.5, segments: [] }] });
+  /* 값 하나가 «늘 100%»가 아니다 — 분모는 max(items) 가 아니라 fillMax */
+  await setDs(page, id, { fillMax: null });
+  const g100 = await geom(page, id);
+  expect(Math.abs(g100[0].fillH - g100[0].boxH * 0.3), '최대값 없음 = 기본 100 → 30%').toBeLessThanOrEqual(1);
+  expect(g100[0].fillAttr).toBe('0.300');
+  expect((await model(page, id)).max).toBe(100);
+  /* 넘치면 자른다 */
+  await setDs(page, id, { fillMax: '60', items: [{ label: '물', value: 90 }] });
+  const g2 = await geom(page, id);
+  expect(g2[0].fillH, '90 / 60 → 꽉 참(넘치지 않는다)').toBe(g2[0].boxH);
+  expect(g2[0].fillAttr).toBe('1.000');
+  expect((await model(page, id)).items[0]).toEqual({ label: '물', value: 90, ratio: 1, segments: [] });
+  /* 험한 값 — 0 · 글자 · 음수는 빈 실루엣(트랙만) · NaN 이 그림에 안 샌다 */
+  for (const v of [0, 'abc', -5, null]) {
+    await setDs(page, id, { items: [{ label: '물', value: v }] });
+    const z = await geom(page, id);
+    expect(z[0].fillH, `값 ${v}: 채움 0`).toBe(0);
+    expect(z[0].fillAttr).toBe('0.000');
+    expect(z[0].trackH, `값 ${v}: 트랙은 남는다`).toBe(z[0].boxH);
+  }
+  expect((await inner(page, id)).includes('NaN')).toBe(false);
+  /* 방향 키는 예약 — 없으면 up, 있어도 모델만 싣는다 */
+  await setDs(page, id, { fillDir: 'down' });
+  expect((await model(page, id)).dir).toBe('down');
+  /* 사각 막대(모양 없음)의 모델: shape null · 분모 = max(items) */
+  await setDs(page, id, { barShape: null, fillDir: null, fillMax: null, items: V3 });
+  expect(await model(page, id)).toEqual({ shape: null, shapeSvg: null, dir: 'up', max: 100, items: [
+    { label: '가', value: 25, ratio: 0.25, segments: [] }, { label: '나', value: 50, ratio: 0.5, segments: [] }, { label: '다', value: 100, ratio: 1, segments: [] }] });
+  expect(await page.evaluate(() => window.graphFillModel('nope')), '없는 블럭 = null').toBeNull();
+  expect(errs).toEqual([]);
+});
+
+test('G3-2 최대값 칸 — 쓰면 dataset.fillMax · 비우면 키를 지운다(기본 100) · 모양이 켜졌을 때만 보인다', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  await openPanel(page, id);
+  expect(await page.locator('#grb-fillmax-number').count(), '전제: 기본 막대에선 최대값 줄 없음').toBe(0);
+  expect(await page.locator('#grb-track-hex').count(), '전제: 트랙 색 줄도 없음').toBe(0);
+  await page.locator('#grb-shape-select').selectOption('bottle');
+  await expect.poll(() => ds(page, id, 'barShape')).toBe('bottle');
+  await expect(page.locator('#grb-fillmax-number')).toHaveCount(1);
+  expect(await page.evaluate(() => { const n = document.getElementById('grb-fillmax-number'); return [n.type, n.min, n.max, n.value, n.placeholder]; }), 'min/max 속성 · 빈 칸 · 안내 = 기본값')
+    .toEqual(['number', '1', '9999', '', String(await page.evaluate(() => window.GRAPH_LIMITS.SHAPE_FILL_MAX_DEFAULT))]);
+  const first = () => page.evaluate((id) => { const b = document.getElementById(id).querySelector('.grb-shape-box'); const f = b.querySelector('.grb-shape-fill'); return [f.getAttribute('data-fill'), Math.abs(f.offsetHeight - b.offsetHeight * parseFloat(f.getAttribute('data-fill'))) <= 1]; }, id);
+  const v0 = await page.evaluate((id) => JSON.parse(document.getElementById(id).dataset.items)[0].value, id);
+  expect(v0, '전제: 첫 항목 값이 0~100 사이').toBeGreaterThan(0);
+  expect(await first()).toEqual([(v0 / 100).toFixed(3), true]);
+  await page.locator('#grb-fillmax-number').fill('150');
+  await page.locator('#grb-fillmax-number').press('Enter');
+  await expect.poll(() => ds(page, id, 'fillMax')).toBe('150');
+  expect(await first()).toEqual([(v0 / 150).toFixed(3), true]);
+  /* 한계 밖은 되써진다 */
+  await page.locator('#grb-fillmax-number').fill('99999');
+  await page.locator('#grb-fillmax-number').press('Enter');
+  await expect.poll(() => ds(page, id, 'fillMax')).toBe('9999');
+  expect(await page.inputValue('#grb-fillmax-number')).toBe('9999');
+  /* 빈 칸 → 키 삭제 → 기본 100 */
+  await page.locator('#grb-fillmax-number').fill('');
+  await page.locator('#grb-fillmax-number').press('Enter');
+  await expect.poll(() => ds(page, id, 'fillMax')).toBeNull();
+  expect(await first()).toEqual([(v0 / 100).toFixed(3), true]);
+  /* 0 도 키 삭제(0 으로 안 나눈다) */
+  await page.locator('#grb-fillmax-number').fill('0');
+  await page.locator('#grb-fillmax-number').press('Enter');
+  await expect.poll(() => page.inputValue('#grb-fillmax-number')).toBe('');
+  expect(await ds(page, id, 'fillMax')).toBeNull();
+  /* ⌘Z 한 번 = 직전 확정 */
+  await page.locator('#grb-fillmax-number').fill('80');
+  await page.locator('#grb-fillmax-number').press('Enter');
+  await expect.poll(() => ds(page, id, 'fillMax')).toBe('80');
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate(() => { const g = document.querySelector('#sG .graph-block'); return g ? [g.dataset.barShape ?? null, g.dataset.fillMax ?? null] : null; })).toEqual(['bottle', null]);
+  expect(errs).toEqual([]);
+});
+
+test('G3-3 눈금 정합 — 격자를 켜면 값 60 의 채움 꼭대기가 60 눈금선에 온다(최대값이 눈금 상한과 달라도)', async ({ page }) => {
+  const { errs, id } = await setup(page, { items: [{ label: '가', value: 60 }, { label: '나', value: 20 }], extra: { barShape: 'drop', showGrid: '1' } });
+  /* 레이아웃 px(offsetTop 사슬 · 막대 줄 기준): 채움 꼭대기 ↔ 그 값의 격자선 */
+  const measure = () => page.evaluate((id) => {
+    const g = document.getElementById(id), bars = g.querySelector('.grb-bars-v'), layer = g.querySelector('.grb-ov-grid-layer');
+    const topIn = (e) => { let t = 0; for (; e && e !== bars; e = e.offsetParent) t += e.offsetTop; return t; };
+    const lines = [...layer.querySelectorAll('.grb-ov-grid')].map(l => layer.offsetTop + layer.offsetHeight * parseFloat(l.getAttribute('y1')) / 1000);
+    return { lines, tops: [...g.querySelectorAll('.grb-shape-fill')].map(topIn), boxTops: [...g.querySelectorAll('.grb-shape-box')].map(topIn), plotTop: layer.offsetTop, plotH: layer.offsetHeight,
+      positioned: getComputedStyle(bars).position };
+  }, id);
+  const m = await measure();
+  expect(m.positioned, '전제: 막대 줄이 기준 상자다').toBe('relative');
+  expect(m.lines.length, '전제: 격자선 6(0~100 · 20 간격)').toBe(6);
+  expect(m.plotH, '전제: 플롯에 높이가 있다').toBeGreaterThan(50);
+  const y = (v, max) => m.plotTop + m.plotH * (1 - v / max);
+  expect(m.lines.some(l => Math.abs(l - y(60, 100)) < 0.01), '전제: 60 눈금선이 있다').toBe(true);
+  expect(Math.abs(m.tops[0] - y(60, 100)), `값 60: 채움 꼭대기 ${m.tops[0]} ↔ 60 눈금 ${y(60, 100)}`).toBeLessThanOrEqual(1.5);
+  expect(Math.abs(m.tops[1] - y(20, 100)), `값 20: 채움 꼭대기 ${m.tops[1]} ↔ 20 눈금 ${y(20, 100)}`).toBeLessThanOrEqual(1.5);
+  expect(Math.abs(m.boxTops[0] - y(100, 100)), '상자 꼭대기 = 최대값 눈금(100)').toBeLessThanOrEqual(1.5);
+  /* 최대값 65 → 눈금 상한 70: 상자는 65 눈금까지만 서고, 값 30 은 30 눈금선에 온다 */
+  await setDs(page, id, { fillMax: '65', items: [{ label: '가', value: 30 }, { label: '나', value: 65 }] });
+  const n = await measure();
+  expect(n.lines.length, '전제: 격자선 8(0~70 · 10 간격)').toBe(8);
+  const y70 = (v) => n.plotTop + n.plotH * (1 - v / 70);
+  expect(n.lines.some(l => Math.abs(l - y70(30)) < 0.01), '전제: 30 눈금선이 있다').toBe(true);
+  expect(Math.abs(n.tops[0] - y70(30)), `값 30: ${n.tops[0]} ↔ ${y70(30)}`).toBeLessThanOrEqual(1.5);
+  expect(Math.abs(n.tops[1] - y70(65)), `값 65(= 최대값): ${n.tops[1]} ↔ ${y70(65)}`).toBeLessThanOrEqual(1.5);
+  expect(Math.abs(n.boxTops[0] - y70(65)), '상자 꼭대기 = 65').toBeLessThanOrEqual(1.5);
+  expect(errs).toEqual([]);
+});
+
+test('G3-4 트랙 색 · 내보내기 — 색 칸에 쓰면 dataset.trackColor · 피그마 JSON 은 켜진 그래프만 모양 키를 싣는다', async ({ page }) => {
+  const { errs, id } = await setup(page, { items: V3 });
+  const graphs = () => page.evaluate(() => { const out = []; (function walk(o) { if (!o || typeof o !== 'object') return; if (o.type === 'graph') out.push(o); for (const v of Object.values(o)) walk(v); })((window.flushCurrentPage(), window.buildFigmaExportJSON(null))); return out; });   // 내보내기는 «페이지에 내려쓴» 캔버스를 읽는다
+  const j0 = await graphs();
+  expect(j0.length, '전제: 내보내기에 그래프가 하나 있다').toBe(1);
+  expect(Object.keys(j0[0]).filter(k => /shape|fillMax/i.test(k)), '기본 막대: 모양 키 0(옛 JSON 그대로)').toEqual([]);
+  await shape(page, id, { shape: 'person' });
+  await openPanel(page, id);
+  await expect(page.locator('#grb-track-hex'), '전제: 트랙 색 칸이 있다').toHaveCount(1);
+  const shown = await page.evaluate((id) => { const g = document.getElementById(id); const t = g.querySelector('.grb-shape-track'), f = g.querySelector('.grb-shape-fill');
+    return { hex: document.getElementById('grb-track-hex').value.toLowerCase(), alpha: document.getElementById('grb-track-alpha').value, track: getComputedStyle(t).backgroundColor, fill: getComputedStyle(f).backgroundColor, op: getComputedStyle(t).opacity }; }, id);
+  expect(shown.track, '키 없음: 트랙 = 채움과 같은 색').toBe(shown.fill);
+  const toHex = (rgb) => rgbOf(rgb).map(v => v.toString(16).padStart(2, '0')).join('');
+  expect(shown.hex.replace('#', ''), '칸은 «그려진» 색을 보인다').toBe(toHex(shown.fill));
+  expect(Number(shown.alpha)).toBe(Math.round(Number(shown.op) * 100));
+  expect(await ds(page, id, 'trackColor'), '전제: 키 없음').toBeNull();
+  await page.fill('#grb-track-hex', 'FF0000');
+  await page.press('#grb-track-hex', 'Enter');
+  await expect.poll(() => ds(page, id, 'trackColor')).toBeTruthy();
+  const after = await page.evaluate((id) => { const g = document.getElementById(id); const t = g.querySelector('.grb-shape-track'), f = g.querySelector('.grb-shape-fill'); return { track: getComputedStyle(t).backgroundColor, fill: getComputedStyle(f).backgroundColor }; }, id);
+  expect(rgbOf(after.track), '트랙만 빨강').toEqual([255, 0, 0]);
+  expect(after.fill, '채움은 그대로').toBe(shown.fill);
+  /* 검증기를 못 지나는 트랙 색은 버린다(속성 탈출 0) */
+  await setDs(page, id, { trackColor: 'red;background:url(x)"><i>' });
+  expect(await page.evaluate((id) => { const g = document.getElementById(id); return [g.querySelectorAll('i').length, getComputedStyle(g.querySelector('.grb-shape-track')).backgroundColor === getComputedStyle(g.querySelector('.grb-shape-fill')).backgroundColor]; }, id)).toEqual([0, true]);
+  /* 피그마 JSON */
+  await setDs(page, id, { trackColor: null, fillMax: '80' });
+  const j1 = await graphs();
+  expect(j1[0]).toMatchObject({ type: 'graph', chartType: 'bar-v', barShape: 'person', fillMax: 80 });
+  await setDs(page, id, { fillMax: null });
+  expect((await graphs())[0]).toMatchObject({ barShape: 'person', fillMax: 100 });
+  /* 삽입 입구도 모양·분모를 받는다(내장 이름만) */
+  const made = await page.evaluate(() => { window.selectSection(document.getElementById('sG')); window.addGraphBlock({ chartType: 'bar-v', barShape: 'drop', fillMax: 40 }); const g = [...document.querySelectorAll('#sG .graph-block')].pop();
+    window.addGraphBlock({ chartType: 'bar-v', barShape: 'nope' }); const h = [...document.querySelectorAll('#sG .graph-block')].pop();
+    return [g.dataset.barShape, g.dataset.fillMax, g.querySelectorAll('.grb-shape-box.grb-shape-on').length > 0, h.dataset.barShape ?? null, h.querySelectorAll('.grb-shape-box').length]; });
+  expect(made).toEqual(['drop', '40', true, null, 0]);
+  expect(errs).toEqual([]);
+});

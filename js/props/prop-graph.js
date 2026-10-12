@@ -5,7 +5,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
 
-const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, SHAPE_SVG_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
@@ -122,8 +122,16 @@ const _isPieType = (t) => t === 'pie' || t === 'donut';
 const SHAPE_FAIL_TOAST = { TOO_LARGE: '⚠️ SVG가 너무 큽니다', NOT_SVG: '⚠️ 유효한 SVG가 아닙니다', EMPTY: '⚠️ 그릴 도형이 없는 SVG입니다', NO_SIZE: '⚠️ SVG에 크기(viewBox)가 없습니다' };
 /* 항목 줄의 작은 버튼 아이콘 — 블럭 헤더 아이콘과 같은 꼴(12 격자 · 선 1.3 · 채움 없음) */
 const ITEM_SHAPE_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V2M3.5 4.5 6 2l2.5 2.5M2 10h8"/></svg>';
+/* 1012t1G3 — 트랙(안 찬 부분) 색 칸의 «보일 값». 키가 없으면 «지금 그려진» 색 = 채움과 같은 색 · 투명도 = SHAPE_TRACK_OPACITY(렌더 기본 그대로 — 격자선 색 칸과 같은 꼴). */
+const FILL_MAX_LIMIT = 9999;   // 항목 값 칸의 위 끝과 같다
+function _trackColorShown(block) {
+  if (block.dataset.trackColor) return { c: block.dataset.trackColor, a: parseAlphaFromColor(block.dataset.trackColor) };
+  return { c: graphFieldShown(block, 'track'), a: Math.round(SHAPE_TRACK_OPACITY * 100) };
+}
 function shapeSectionHTML(block) {
   const cur = block.dataset.barShape || '';
+  const fm = parseFloat(block.dataset.fillMax);
+  const tk = _trackColorShown(block);
   const presets = window.GRAPH_SHAPE.GRAPH_SHAPE_PRESETS;
   const opt = (v, label) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${label}</option>`;
   return `
@@ -139,7 +147,15 @@ function shapeSectionHTML(block) {
         <span class="prop-label">파일</span>
         <button class="prop-btn-sm" id="grb-shape-file-btn">SVG 불러오기</button>
         <input type="file" id="grb-shape-file-input" accept=".svg,image/svg+xml" hidden>
+      </div>${cur ? `
+      <div class="prop-row" title="실루엣이 꽉 차는 값. 비우면 ${SHAPE_FILL_MAX_DEFAULT}">
+        <span class="prop-label">최대값</span>
+        <input type="number" class="prop-number" id="grb-fillmax-number" min="1" max="${FILL_MAX_LIMIT}" placeholder="${SHAPE_FILL_MAX_DEFAULT}" value="${fm > 0 ? fm : ''}">
       </div>
+      <div class="prop-row" title="안 찬 부분의 색(비우면 채움과 같은 색 · 투명도 ${Math.round(SHAPE_TRACK_OPACITY * 100)}%)">
+        <span class="prop-label">트랙 색</span>
+        ${colorFieldHTML({ idPrefix: 'grb-track', hex: tk.c, alpha: tk.a })}
+      </div>` : ''}
     </div>`;
 }
 
@@ -423,6 +439,27 @@ ${blockHeaderHTML({
       if (!window.setGraphShape(block, { index: i, shape: null }).ok) return;
       showGraphProperties(block);
       window.pushHistory();
+    });
+  }
+
+  // 1012t1G3 — 최대값(채움 분모). 빈 칸·0 이하 = 키 삭제(기본 100 으로 그린다). 숫자칸 change 에 적용하고 히스토리.
+  const fmNumber = document.getElementById('grb-fillmax-number');
+  if (fmNumber) {
+    fmNumber.addEventListener('change', () => {
+      const v = parseFloat(fmNumber.value);
+      if (Number.isFinite(v) && v > 0) block.dataset.fillMax = String(Math.min(FILL_MAX_LIMIT, Math.max(1, v)));
+      else delete block.dataset.fillMax;
+      window.renderGraph(block);
+      fmNumber.value = block.dataset.fillMax || '';
+      window.pushHistory();
+    });
+  }
+  // 1012t1G3 — 트랙 색. 고르는 순간에만 키가 생긴다(안 고르면 채움색 × 기본 투명도 그대로).
+  if (document.getElementById('grb-track-color')) {
+    _wireGraphColor('grb-track', { unset: !_trackColorShown(block).c,
+      initialAlpha: _trackColorShown(block).a,
+      onApply: (c) => { block.dataset.trackColor = c; window.renderGraph(block); },
+      onCommit: () => window.pushHistory(),
     });
   }
 
