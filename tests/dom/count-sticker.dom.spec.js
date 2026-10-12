@@ -5,6 +5,8 @@
  *   C4 표기 A/B/C(묶음) · C5 시작 번호(묶음) · C6 모양 원·사각·투명(개별) · C7 크기(폰트 비례)
  *   C8 ⌘Z 한 번 = 스티커 하나 · C9 Esc 종료 · C10 다시 그려도 같은 글자(리로드·undo 와 같은 길)
  *   C11 번호 다시 매기기 · C12 더블클릭해도 글자 편집이 안 열린다 · C13 일반 스티커 패널 무회귀
+ *   C14·C15 크기를 키로 한 칸씩 바꿔도 폰트 비례 · C16·C17 다른 찍는 도구와 안 겹친다 · C18 키 리스너 짝·한 번에 하나
+ *   C19 모서리를 찍어도 섹션 안 · C20 메뉴 재클릭·우클릭·⌘⇧Z · C21 시작 번호 칸은 확정 때 모델 값으로
  * ★스티커는 기존 sticker-block(circle/square)의 변형이다 — data-count 가 붙었을 뿐이다.
  * ★자리 비교는 «레이아웃 px»로 한다(dataset.x·sizeW 와 offsetWidth). 화면 사각형은 «누를 점»을 정하는 데만 쓴다.
  */
@@ -392,4 +394,225 @@ test('C13 무회귀 — 일반 스티커 패널엔 Count 절이 없고 Shape·�
     return { n: all.length, hasCount: 'count' in nb.dataset, size: nb.dataset.size, fs: nb.dataset.fontSize };
   });
   expect(r2, '카운트 스티커의 크기·폰트가 다음 일반 스티커로 새지 않는다').toEqual({ n: 3, hasCount: false, size: '60', fs: '14' });
+});
+
+/* ── 고침 뒤에 더한 칸(C14~C21 · 이벨류에이터가 짚은 결함 D1·D2 와 검사 구멍) ───────────────────────────── */
+
+const SIZE0 = 56, FS0 = 26;                       // 기본 크기·폰트(C7 의 전제와 같은 값)
+const wantFs = (size) => size * FS0 / SIZE0;      // 반올림 전 기대 폰트
+const FS_TOL = 1;                                 // 허용 오차 = 반올림 1 이내
+const STEPS = 28;                                 // 키 단계 수: 56 → 84 (기대 폰트 39 — 정수로 떨어진다)
+
+const readSizeFs = (page) => page.evaluate(() => { const b = document.querySelector('#secA .sticker-block[data-count]');
+  return { size: parseInt(b.dataset.sizeW, 10), sizeH: parseInt(b.dataset.sizeH, 10), fs: parseInt(b.dataset.fontSize, 10), w: b.offsetWidth,
+    drawnFs: getComputedStyle(b).fontSize, num: document.getElementById('stk-count-size-num')?.value, fsNum: document.getElementById('stk-fs-num')?.value }; });
+
+/* 스티커 하나를 찍고 도구를 끈 채(선택은 남는다) 패널이 떠 있는 상태로 만든다. */
+async function oneSelected(page) {
+  await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.5, 0.5);
+  await page.evaluate(() => window.exitCountStickerMode());
+  const r = await readSizeFs(page);
+  expect([r.size, r.fs, r.num], '★전제: 기본 크기 56 · 폰트 26 · 패널의 크기 칸이 떠 있다').toEqual([SIZE0, FS0, String(SIZE0)]);
+}
+
+async function pressN(page, sel, key, n) {
+  await page.focus(sel);
+  expect(await page.evaluate((s) => document.activeElement === document.querySelector(s), sel), `★전제: ${sel} 에 포커스`).toBe(true);
+  for (let i = 0; i < n; i++) await page.keyboard.press(key);
+}
+
+test('C14 크기 키 단계(숫자칸) — ArrowUp 으로 한 칸씩 올려도 폰트가 비례한다(반올림 1 이내)', async ({ page }) => {
+  await oneSelected(page);
+  await pressN(page, '#stk-count-size-num', 'ArrowUp', STEPS / 2);
+  await expect.poll(async () => (await readSizeFs(page)).size, '절반 뒤 크기').toBe(SIZE0 + STEPS / 2);
+  const mid = await readSizeFs(page);
+  expect(Math.abs(mid.fs - wantFs(mid.size)), `중간: 크기 ${mid.size} 에 폰트 ${mid.fs}(기대 ${wantFs(mid.size)})`).toBeLessThanOrEqual(FS_TOL);
+  await pressN(page, '#stk-count-size-num', 'ArrowUp', STEPS / 2);
+  await expect.poll(async () => (await readSizeFs(page)).size, '다 올린 뒤 크기').toBe(SIZE0 + STEPS);
+  const up = await readSizeFs(page);
+  expect(Math.abs(up.fs - wantFs(up.size)), `크기 ${up.size} 에 폰트 ${up.fs}(기대 ${wantFs(up.size)})`).toBeLessThanOrEqual(FS_TOL);
+  expect([up.sizeH, up.w, up.drawnFs, up.fsNum], '높이·그려진 폭·그려진 폰트·폰트 칸이 같이 간다').toEqual([up.size, up.size, up.fs + 'px', String(up.fs)]);
+  // 키로 올린 뒤 숫자를 쳐서 줄여도 비례가 남는다(고치기 전: 폰트 6)
+  await typeNumber(page, '#stk-count-size-num', 30);
+  await expect.poll(async () => (await readSizeFs(page)).size).toBe(30);
+  const down = await readSizeFs(page);
+  expect(Math.abs(down.fs - wantFs(30)), `크기 30 에 폰트 ${down.fs}(기대 ${wantFs(30)})`).toBeLessThanOrEqual(FS_TOL);
+  // 폰트 크기 칸을 직접 고치면 그 값이 새 기준이 된다: 크기 30·폰트 20 → 크기 60 이면 폰트 40
+  await typeNumber(page, '#stk-fs-num', 20);
+  await expect.poll(async () => (await readSizeFs(page)).fs, '★전제: 폰트 칸이 먹었다').toBe(20);
+  await typeNumber(page, '#stk-count-size-num', 60);
+  await expect.poll(async () => (await readSizeFs(page)).size).toBe(60);
+  expect((await readSizeFs(page)).fs, '폰트 칸으로 고친 비율(20/30)을 따른다').toBe(40);
+});
+
+test('C15 크기 키 단계(슬라이더) — ArrowRight 로 한 칸씩 · 중간에 패널을 다시 그려도 폰트가 비례한다', async ({ page }) => {
+  await oneSelected(page);
+  await pressN(page, '#stk-count-size', 'ArrowRight', 1);
+  await expect.poll(async () => (await readSizeFs(page)).size, '1칸 뒤 크기').toBe(SIZE0 + 1);
+  // 패널을 통째로 다시 그린다(다른 블럭을 골랐다 돌아온 것과 같은 길) — 소수 비율이 여기서 사라지면 끝이 38 이 된다(26/57×84)
+  await page.evaluate(() => window.showStickerProperties(document.querySelector('#secA .sticker-block[data-count]')));
+  await pressN(page, '#stk-count-size', 'ArrowRight', STEPS - 1);
+  await expect.poll(async () => (await readSizeFs(page)).size, '다 올린 뒤 크기').toBe(SIZE0 + STEPS);
+  const up = await readSizeFs(page);
+  expect(up.fs, `크기 ${up.size} 에 폰트 ${up.fs} — 정확히 1.5배`).toBe(wantFs(SIZE0 + STEPS));
+  expect([up.num, up.drawnFs]).toEqual([String(SIZE0 + STEPS), wantFs(SIZE0 + STEPS) + 'px']);
+  await pressN(page, '#stk-count-size', 'ArrowLeft', STEPS);
+  await expect.poll(async () => (await readSizeFs(page)).size, '도로 내린 크기').toBe(SIZE0);
+  expect((await readSizeFs(page)).fs, '올렸다 내리면 폰트도 제자리').toBe(FS0);
+});
+
+const modes = (page) => page.evaluate(() => ({ count: document.body.classList.contains('count-stk-mode'), state: window._countStkState().mode,
+  pen: document.body.classList.contains('pen-mode'), hlb: document.body.classList.contains('hlb-mode'), vpen: document.body.classList.contains('vpen-mode') }));
+const OTHERS = [
+  { name: 'Annotation', key: 'pen', on: (page) => penMenu(page, 'Annotation'), off: () => window.exitPenMode() },
+  { name: 'HighlightB', key: 'hlb', on: (page) => penMenu(page, 'HighlightB'), off: () => window.exitHighlightBMode() },
+  { name: '벡터 펜', key: 'vpen', on: (page) => page.evaluate(() => window.toggleVectorPenMode()), off: () => window.exitVectorPenMode() },
+];
+async function penMenu(page, label) {
+  await page.click('#fp-pen-btn');
+  await page.click(`#fp-pen-menu .fp-menu-item:text-is("${label}")`);
+}
+
+test('C16 도구 겹침 — Count 를 켠 채 Annotation·HighlightB·벡터 펜을 켜면 Count 가 꺼지고 클릭이 번호를 안 찍는다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  for (const o of OTHERS) {
+    await toolOn(page);
+    expect(await modes(page), `★전제(${o.name}): Count 만 켜져 있다`).toEqual({ count: true, state: true, pen: false, hlb: false, vpen: false });
+    await o.on(page);
+    const want = { count: false, state: false, pen: false, hlb: false, vpen: false }; want[o.key] = true;
+    expect(await modes(page), `${o.name} 을 켜면 Count 는 내려간다`).toEqual(want);
+    if (o.key !== 'vpen') expect(await page.evaluate(() => document.getElementById('fp-pen-btn').classList.contains('active')), `${o.name}: 스티커 단추는 켜진 채`).toBe(true);
+    const r = await waitStableRect(page, SEC_A);
+    await clickAt(page, r.left + r.width * 0.5, r.top + r.height * 0.5, { sel: SEC_A }, { label: `${o.name} 켠 뒤 클릭` });
+    expect((await modes(page))[o.key], `★전제(${o.name}): 클릭 뒤에도 그 도구가 켜져 있다`).toBe(true);
+    expect(await countIn(page, 'secA'), `${o.name} 이 켜진 동안의 클릭은 카운트 스티커를 안 만든다`).toBe(0);
+    await page.evaluate(o.off);
+    expect(await modes(page), `★전제(${o.name}): 다 껐다`).toEqual({ count: false, state: false, pen: false, hlb: false, vpen: false });
+  }
+});
+
+test('C17 도구 겹침(반대 순서) — 다른 찍는 도구가 켜진 채 Count 를 켜면 그쪽이 꺼지고 번호가 찍힌다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  let n = 0;
+  for (const o of OTHERS) {
+    await o.on(page);
+    expect((await modes(page))[o.key], `★전제: ${o.name} 이 켜졌다`).toBe(true);
+    await toolOn(page);
+    const want = { count: true, state: true, pen: false, hlb: false, vpen: false };
+    expect(await modes(page), `Count 를 켜면 ${o.name} 은 내려간다`).toEqual(want);
+    await stamp(page, SEC_A, 0.2 + 0.2 * n, 0.5);
+    n += 1;
+    expect(await countIn(page, 'secA')).toBe(n);
+    await page.evaluate(() => window.exitCountStickerMode());
+  }
+  expect(await texts(page, 'secA')).toEqual(['1', '2', '3']);
+});
+
+test('C18 리스너 — 켜고 끄기를 되풀이해도 키 리스너가 짝이 맞고, 다시 켠 뒤 한 번 클릭 = 스티커 정확히 1개', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const N = 5;
+  const log = await page.evaluate((N) => {
+    const log = { add: 0, rm: 0 };
+    const add = document.addEventListener, rm = document.removeEventListener;
+    const mine = (t, f) => t === 'keydown' && !!f && f.name === '_cntOnKeydown';
+    document.addEventListener = function (t, f, o) { if (mine(t, f)) log.add += 1; return add.call(this, t, f, o); };
+    document.removeEventListener = function (t, f, o) { if (mine(t, f)) log.rm += 1; return rm.call(this, t, f, o); };
+    try { for (let i = 0; i < N; i++) { window.enterCountStickerMode(); window.exitCountStickerMode(); } }
+    finally { document.addEventListener = add; document.removeEventListener = rm; }
+    return log;
+  }, N);
+  expect(log, '켠 수만큼 달고, 끈 수만큼 뗀다').toEqual({ add: N, rm: N });
+  expect((await modes(page)).state, '★전제: 지금은 꺼져 있다').toBe(false);
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.5, 0.5);
+  await page.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))));
+  expect(await countIn(page, 'secA'), '한 번 누르면 정확히 하나(리스너가 겹쳐 둘이 찍히지 않는다)').toBe(1);
+  expect(await texts(page, 'secA')).toEqual(['1']);
+});
+
+test('C19 가장자리 — 섹션 모서리 바로 안쪽을 찍어도 스티커 전체가 섹션 안이다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  const INSET = 2;      // 모서리에서 안쪽으로 화면 2px
+  const r = await waitStableRect(page, SEC_A);
+  const pts = [
+    { name: '왼쪽 위', x: r.left + INSET, y: r.top + INSET },
+    { name: '오른쪽 아래', x: r.left + r.width - INSET, y: r.top + r.height - INSET },
+  ];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    await clickAt(page, p.x, p.y, { sel: SEC_A }, { label: `모서리 ${p.name}` });
+    await expect.poll(() => countIn(page, 'secA'), `${p.name}: 찍혔다`).toBe(i + 1);
+    const g = await page.evaluate(([px, py, i]) => {
+      const sec = document.getElementById('secA');
+      const b = sec.querySelectorAll('.sticker-block[data-count]')[i];
+      const box = sec.getBoundingClientRect();
+      const scale = box.width / sec.offsetWidth;
+      const lx = (px - box.left) / scale, ly = (py - box.top) / scale;      // 누른 점(레이아웃 px)
+      const x = parseInt(b.dataset.x, 10), y = parseInt(b.dataset.y, 10), w = parseInt(b.dataset.sizeW, 10), h = parseInt(b.dataset.sizeH, 10);
+      return { x, y, w, h, secW: sec.offsetWidth, secH: sec.offsetHeight, offW: b.offsetWidth, offL: b.offsetLeft, offT: b.offsetTop,
+        edgeX: Math.min(lx, sec.offsetWidth - lx), edgeY: Math.min(ly, sec.offsetHeight - ly) };
+    }, [p.x, p.y, i]);
+    expect(g.edgeX < g.w / 2 && g.edgeY < g.h / 2, `★전제(${p.name}): 누른 점이 모서리에서 반지름보다 가깝다 — 안 가두면 삐져나간다(가로 ${g.edgeX} · 세로 ${g.edgeY} · 반지름 ${g.w / 2})`).toBe(true);
+    expect([g.x >= 0, g.y >= 0, g.x + g.w <= g.secW, g.y + g.h <= g.secH], `${p.name}: x=${g.x} y=${g.y} 크기=${g.w} 섹션=${g.secW}×${g.secH}`).toEqual([true, true, true, true]);
+    expect([g.offL, g.offT, g.offW], `${p.name}: 그려진 자리 = dataset`).toEqual([g.x, g.y, g.w]);
+  }
+});
+
+test('C20 종료 갈래 — 메뉴를 다시 누르면 꺼진다 · 우클릭은 안 찍고 끈다 · ⌘⇧Z 는 되돌린 번호를 다시 살린다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  // 메뉴 재클릭
+  await penMenu(page, 'Count Sticker');
+  await page.waitForFunction(() => window._countStkState().mode === true && window._countStkState().armed === true);
+  await stamp(page, SEC_A, 0.2, 0.5);
+  await penMenu(page, 'Count Sticker');
+  expect(await page.evaluate(() => ({ ...window._countStkState(), body: document.body.classList.contains('count-stk-mode'),
+    btn: document.getElementById('fp-pen-btn').classList.contains('active') })), '메뉴를 다시 누르면 꺼진다').toEqual({ mode: false, armed: false, body: false, btn: false });
+  expect(await countIn(page, 'secA'), '메뉴를 누른 것이 번호를 찍지 않는다').toBe(1);
+  const r = await waitStableRect(page, SEC_A);
+  await clickAt(page, r.left + r.width * 0.4, r.top + r.height * 0.5, { sel: SEC_A }, { label: '메뉴로 끈 뒤 클릭' });
+  expect(await countIn(page, 'secA'), '꺼진 뒤 클릭은 안 찍는다').toBe(1);
+
+  // 우클릭
+  await toolOn(page);
+  await clickAt(page, r.left + r.width * 0.6, r.top + r.height * 0.5, { sel: SEC_A }, { label: '우클릭', button: 'right' });
+  await page.waitForFunction(() => window._countStkState().mode === false);
+  expect([await countIn(page, 'secA'), await page.evaluate(() => document.body.classList.contains('count-stk-mode'))], '우클릭은 안 찍고 끈다').toEqual([1, false]);
+
+  // ⌘Z → ⌘⇧Z
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.5, 0.5);
+  await stamp(page, SEC_A, 0.8, 0.5);
+  expect(await texts(page, 'secA'), '★전제').toEqual(['1', '2', '3']);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => texts(page, 'secA'), '★전제: ⌘Z 한 번에 하나가 준다').toEqual(['1', '2']);
+  await page.keyboard.press('Meta+Shift+z');
+  await expect.poll(() => texts(page, 'secA'), '⌘⇧Z 가 되돌린 것을 다시 살린다').toEqual(['1', '2', '3']);
+  expect(await page.evaluate(() => [...document.querySelectorAll('#secA [data-count]')].map(b => b.dataset.count))).toEqual(['1', '2', '3']);
+  // 살아난 뒤의 다음 번호는 4 다
+  expect((await modes(page)).state, '★전제: 되돌리기·다시하기 뒤에도 도구는 켜진 채다').toBe(true);
+  await stamp(page, SEC_A, 0.5, 0.2);
+  expect(await texts(page, 'secA')).toEqual(['1', '2', '3', '4']);
+});
+
+test('C21 시작 번호 칸 — 2.7 을 넣고 확정하면 칸이 모델 값(2)으로 되써진다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp3(page);
+  await typeNumber(page, '#stk-count-start', '2.7');
+  await expect.poll(() => texts(page, 'secA')).toEqual(['2', '3', '4']);
+  const r = await page.evaluate(() => ({ field: document.getElementById('stk-count-start').value,
+    model: [...document.querySelectorAll('#secA [data-count]')].map(b => b.dataset.countStart) }));
+  expect(r.model, '★전제: 모델은 2').toEqual(['2', '2', '2']);
+  expect(r.field, '칸에 2.7 이 남지 않는다').toBe('2');
 });

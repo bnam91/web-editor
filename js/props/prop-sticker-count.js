@@ -15,6 +15,18 @@ const START_MIN = 1, START_MAX = 999;
 const int = (v, fallback) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : fallback; };
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+/* 폰트/크기 비율(반올림 전 소수) — 스티커 요소별. 우리가 마지막에 쓴 크기·폰트가 dataset 에 그대로 있을 때만 믿는다.
+   폰트 크기 칸·코너 드래그·되돌리기처럼 «남이» 크기나 폰트를 바꿨으면 그 값에서 다시 잡는다.
+   패널을 다시 그려도(다른 블럭을 골랐다 돌아와도) 안 사라지게 클로저가 아니라 모듈에 둔다. */
+const _fsRatio = new WeakMap();
+function fsRatioOf(block) {
+  const d = block.dataset;
+  const w = int(d.sizeW, int(d.size, 56)), fs = int(d.fontSize, 26);
+  const kept = _fsRatio.get(block);
+  if (kept && kept.w === String(w) && kept.fs === String(fs)) return kept.ratio;
+  return w > 0 ? fs / w : 1;
+}
+
 function shapeOf(block) {
   const s = block.dataset.countShape;
   if (s === 'square' || s === 'none' || s === 'circle') return s;
@@ -104,23 +116,27 @@ export function wireCountSection(panel, block, rerender) {
       if (!CS || !Number.isFinite(v)) return;
       CS.setGroup(sec(), { start: clamp(v, START_MIN, START_MAX) });
     });
-    startEl.addEventListener('change', () => commit('카운트 스티커 시작 번호'));
+    startEl.addEventListener('change', () => {
+      /* 확정할 때 칸을 모델 값으로 되쓴다 — 2.7 을 넣으면 모델은 2 인데 칸에 "2.7" 이 남던 것 */
+      startEl.value = String(clamp(int(block.dataset.countStart, START_MIN), START_MIN, START_MAX));
+      commit('카운트 스티커 시작 번호');
+    });
   }
 
   /* 크기 — 개별. 폰트는 폭 비율로 같이 키운다(코너 드래그와 같은 식 · 6~150).
-     끄는 동안 반올림이 쌓이지 않게 «제스처를 시작할 때»의 크기·폰트를 기준으로 잡고, 커밋 때 푼다. */
+     ★폰트/크기 «비율»은 반올림 전 소수로 들고 있는다(_fsRatio — 모듈 상태 · 저장 포맷 무변화).
+       키 한 칸(input+change)마다 정수 폰트에서 비율을 다시 뽑으면 round(26×57/56)=26 이 되풀이돼 폰트가 영영 안 따라온다. */
   const sizeS = $('stk-count-size'), sizeN = $('stk-count-size-num');
   if (sizeS && sizeN) {
-    let base = null;
     const applySize = (raw) => {
       const v = parseInt(raw, 10);
       if (!Number.isFinite(v)) return;
       const next = clamp(v, SIZE_MIN, SIZE_MAX);
       const d = block.dataset;
-      if (!base) base = { w: int(d.sizeW, int(d.size, 56)), fs: int(d.fontSize, 26) };
+      const ratio = fsRatioOf(block);
       d.size = String(next); d.sizeW = String(next); d.sizeH = String(next);
-      const ratio = base.w > 0 ? next / base.w : 1;
-      d.fontSize = String(clamp(Math.round(base.fs * ratio), FS_MIN, FS_MAX));
+      d.fontSize = String(clamp(Math.round(next * ratio), FS_MIN, FS_MAX));
+      _fsRatio.set(block, { w: d.sizeW, fs: d.fontSize, ratio });
       sizeS.value = String(next); sizeN.value = String(next);
       const fsS = $('stk-fs'), fsN = $('stk-fs-num');
       if (fsS) fsS.value = d.fontSize;
@@ -128,7 +144,7 @@ export function wireCountSection(panel, block, rerender) {
       redraw();
       block.classList.toggle('tiny', next < 40);
     };
-    const done = () => { base = null; commit('카운트 스티커 크기'); };
+    const done = () => commit('카운트 스티커 크기');
     sizeS.addEventListener('input', () => applySize(sizeS.value));
     sizeN.addEventListener('input', () => applySize(sizeN.value));
     sizeS.addEventListener('change', done);
