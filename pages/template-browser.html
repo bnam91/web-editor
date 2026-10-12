@@ -87,9 +87,6 @@
   </div>
   <!-- 검색 바 + 섹션 추가 버튼 (중간) -->
   <div class="tpl-browser-search-wrap">
-    <select class="tpl-browser-search-mode tpl-browser-sort" id="tpl-browser-sort" title="정렬 기준">
-      <!-- ★★비어 있다 — ★★`<option>` 은 ★`_tpl-sort.js` 의 ★명부에서 ★그린다(⛔두 벌로 두지 않는다) -->
-    </select>
     <select class="tpl-browser-search-mode" id="tpl-browser-search-mode" title="검색 기준">
       <option value="all">전체</option>
       <option value="name">파일명</option>
@@ -120,7 +117,15 @@
   <!-- 하단 body: 카테고리 트리 + 카드 리스트 -->
   <div class="tpl-browser-body">
     <div class="tpl-browser-tree" id="tpl-browser-tree"></div>
-    <div class="tpl-browser-cards" id="tpl-browser-cards"></div>
+    <!-- 뎁스2 칼럼 — 정렬 줄이 카드 목록 머리에 붙는다(1012t1Z2). 새 요소에 id 를 달지 않는다 -->
+    <div class="tpl-browser-cards-col">
+      <div class="tpl-browser-sortbar">
+        <label class="tpl-browser-sort-label" for="tpl-browser-sort">정렬</label>
+        <!-- 비어 있다 — 옵션은 _tpl-sort.js 의 명부에서 그린다(두 벌로 두지 않는다) -->
+        <select class="tpl-browser-search-mode tpl-browser-sort" id="tpl-browser-sort" title="정렬 기준"></select>
+      </div>
+      <div class="tpl-browser-cards" id="tpl-browser-cards"></div>
+    </div>
   </div>
 </div>
 

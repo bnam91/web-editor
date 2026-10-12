@@ -1019,6 +1019,31 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   padding: 6px;
 }
 .tpl-browser-cards::-webkit-scrollbar { width: 3px; }
+/* 뎁스2 칼럼 — 정렬 줄(머리) + 카드 목록(남은 높이). 목록의 basis 는 auto 다: 0 이면 목록이 높이를 요구하지 않아 바디가 바닥 높이로 주저앉는다 */
+.tpl-browser-cards-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tpl-browser-cards-col > .tpl-browser-cards {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.tpl-browser-sortbar {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  padding: var(--ui-row-gap) var(--ui-pad-panel);
+  border-bottom: 1px solid var(--ui-bg-card);
+  flex-shrink: 0;
+}
+.tpl-browser-sort-label {
+  font-size: var(--ui-fs-10);
+  color: var(--ui-text-muted);
+}
+/* 정렬 select 는 글자 폭만큼 넓어진다 — 검색 기준 select 의 고정 폭을 물려받으면 옵션 글자가 잘린다 */
+.tpl-browser-sort { width: auto; }
 .tpl-browser-cards::-webkit-scrollbar-thumb { background: var(--ui-border); border-radius: 2px; }
 
 /* 드래그 고스트 */

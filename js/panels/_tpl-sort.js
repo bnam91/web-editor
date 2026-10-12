@@ -127,7 +127,36 @@ function tplSortApply(list, key) {
   return (list || []).slice().sort(cmp);
 }
 
+/* 고른 정렬을 기기에 기억한다(1012t1Z2) — 닫았다 열어도, 앱을 다시 켜도 그 차례로 선다.
+   명부에 없는 값·읽기 실패는 기본 열쇠로 떨어진다. 쓰는 쪽도 명부에 있는 열쇠만 쓴다. */
+const TPL_SORT_STORE_KEY = 'tpl-browser-sort';
+
+function _tplSortStorage(storage) {
+  if (storage) return storage;
+  try { return window.localStorage || null; } catch { return null; }
+}
+
+function tplSortLoad(storage) {
+  try {
+    const st = _tplSortStorage(storage);
+    const v = st ? st.getItem(TPL_SORT_STORE_KEY) : null;
+    return (typeof v === 'string' && Object.prototype.hasOwnProperty.call(TPL_SORTS, v)) ? v : TPL_SORT_DEFAULT;
+  } catch { return TPL_SORT_DEFAULT; }
+}
+
+function tplSortSave(key, storage) {
+  if (typeof key !== 'string' || !Object.prototype.hasOwnProperty.call(TPL_SORTS, key)) return false;
+  try {
+    const st = _tplSortStorage(storage);
+    if (!st) return false;
+    st.setItem(TPL_SORT_STORE_KEY, key);
+    return true;
+  } catch { return false; }
+}
+
 window.TPL_SORTS = TPL_SORTS;
+window.tplSortLoad = tplSortLoad;
+window.tplSortSave = tplSortSave;
 window.tplSortDefault = TPL_SORT_DEFAULT;
 window.tplSortOptionsHtml = tplSortOptionsHtml;
 window.tplSortApply = tplSortApply;
