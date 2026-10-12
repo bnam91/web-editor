@@ -29,6 +29,7 @@
  *
  * 이벨류에이터 실측 결함(2026-10-12)을 잠그는 칸:
  *   D1a~e 캐럿 «뒤에 글자가 있어도» 체크박스·그림은 정확히 하나(글 가운데 · 줄 맨 앞 · 한글 사이 · 둘째 줄 · 붙여넣기)
+ *   D1f~g 브라우저 판마다 다른 insertHTML 뒷정리(번들 chromium 148 은 줄바꿈을 덧붙이고, 진짜 줄바꿈 앞에서는 삼킨다)에도 저장 글자가 같다
  *   D2·D2b 복사·잘라내기가 표식을 평문에 싣는다 · D2c 갈아 쓴 글이 색 입힌 요소에 싸이지 않는다
  *   D3 서식 단축키(⌘B·⌘I·⌘U·⌘⇧X)가 메모에 안 먹고 전역으로 안 샌다
  *   D4·D4b 조합으로 한도를 넘기면 끝에서 잘라 저장한다(원자 노드는 통째로)
@@ -589,6 +590,16 @@ test('D1a 글 가운데(캐럿 뒤에 글자)에서 `[]` 를 치면 체크박스
   /* 이어 친 글자는 체크박스 바로 뒤에 붙는다 */
   await page.keyboard.type('Z');
   await expect.poll(() => memoOf(page)).toBe('abc[ ]Zdef');
+  /* 편집 칸의 꼴도 브라우저 판과 무관하게 같다 — 줄바꿈 요소가 끼어들지 않는다(번들 chromium 148 은 <br> 를 덧붙였다) */
+  expect(await page.evaluate(() => [...document.querySelector('.smp-editor').childNodes]
+    .map((n) => (n.nodeType === 3 ? JSON.stringify(n.data) : n.tagName)).join(' '))).toBe('"abc" SPAN "Zdef"');
+  /* 글 가운데서도 ⌘Z 가 산다 — Z 를 무르고, 한 번 더 누르면 `[]` 글자로 돌아온다 */
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(() => memoOf(page)).toBe('abc[ ]def');
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.locator('.smp-editor .smp-check')).toHaveCount(0);
+  expect(await editorText(page)).toBe('abc[]def');
+  await expect.poll(() => memoOf(page)).toBe('abc[]def');
 });
 
 test('D1b 줄 맨 앞(뒤에 글)과 한글 사이에서도 체크박스는 정확히 하나', async ({ page }) => {
@@ -645,6 +656,66 @@ test('D1e 글 가운데에 그림을 붙여도 그림은 정확히 하나', asyn
   expect(pre.imageTypes, '전제: 그림 파일 하나').toBe(1);
   await expect.poll(() => memoOf(page)).toBe(`abc![](${A2_URLS[0]})def`);
   expect(await imgSrcs(page)).toEqual([A2_URLS[0]]);
+});
+
+test('D1f 진짜 줄바꿈 바로 앞(줄 끝 · 빈 줄)에 체크박스·그림을 넣어도 그 줄바꿈은 그대로다', async ({ page }) => {
+  await armA2(page);
+  await openMemo(page, 'ab\ncd');
+  expect(await placeCaret(page, 0, 2), '전제: 캐럿이 첫 줄 끝, 줄바꿈 바로 앞이다').toBe('text:ab|\ncd');
+  await page.keyboard.type('[]');
+  await expect(page.locator('.smp-editor .smp-check')).toHaveCount(1);
+  expect((await liveState(page)).caret, '캐럿은 체크박스 뒤, 줄바꿈 앞').toBe('ab[ ]|\ncd');
+  await expect.poll(() => memoOf(page)).toBe('ab[ ]\ncd');
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.locator('.smp-editor .smp-check'), '⌘Z 가 `[]` 글자로 되돌린다').toHaveCount(0);
+  await expect.poll(() => memoOf(page)).toBe('ab[]\ncd');
+  await closeMemo(page);
+
+  await openMemo(page, 'ab\ncd');
+  expect(await placeCaret(page, 0, 2), '전제: 캐럿이 첫 줄 끝, 줄바꿈 바로 앞이다').toBe('text:ab|\ncd');
+  await pasteFiles(page, [], { text: N_IMG });
+  await expect.poll(() => memoOf(page)).toBe(`ab${N_IMG}\ncd`);
+  expect(await imgSrcs(page)).toEqual([A2_URLS[0]]);
+  await closeMemo(page);
+
+  await openMemo(page, 'ab\n\ncd');
+  expect(await placeCaret(page, 2), '전제: 캐럿이 빈 줄(두 줄바꿈 사이)이다').toBe('edge:ab\n|\ncd');
+  await page.keyboard.type('[]');
+  await expect(page.locator('.smp-editor .smp-check')).toHaveCount(1);
+  await expect.poll(() => memoOf(page)).toBe('ab\n[ ]\ncd');
+  await closeMemo(page);
+
+  /* 줄바꿈이 둘 이어질 때도 하나도 안 사라진다 */
+  await openMemo(page, 'ab\n\ncd');
+  expect(await placeCaret(page, 0, 2), '전제: 캐럿이 첫 줄 끝이고 뒤에 줄바꿈이 둘이다').toBe('text:ab|\n\ncd');
+  await pasteFiles(page, [], { text: N_IMG });
+  await expect.poll(() => memoOf(page)).toBe(`ab${N_IMG}\n\ncd`);
+  expect((await liveState(page)).caret, '캐럿은 넣은 그림 바로 뒤').toBe(`ab${N_IMG}|\n\ncd`);
+});
+
+test('D1g 브라우저가 넣은 체크박스 뒤에 줄바꿈을 덧붙여도(번들 chromium 148 의 꼴) 저장은 한 글자도 안 다르다', async ({ page }) => {
+  await openMemo(page, 'abcdef');
+  await caretLeft(page, 3);
+  expect(await afterCaret(page), '전제: 캐럿 뒤에 글자 셋이 있다').toBe('def');
+  /* insertHTML 이 끝난 직후에 <br> 를 하나 덧붙인다 — 어느 판에서 돌든 «덧붙이는 브라우저»를 흉내 낸다 */
+  await page.evaluate(() => {
+    window.__junk = 0;
+    const orig = document.execCommand;
+    document.execCommand = function (cmd, ui, val) {
+      const r = orig.call(document, cmd, ui, val);
+      const c = cmd === 'insertHTML' ? document.querySelector('.smp-editor .smp-check') : null;
+      if (c) { c.after(document.createElement('br')); window.__junk++; }
+      return r;
+    };
+  });
+  await page.keyboard.type('[]');
+  await expect(page.locator('.smp-editor .smp-check')).toHaveCount(1);
+  expect(await page.evaluate(() => window.__junk), '전제: 줄바꿈을 정말로 한 번 덧붙였다').toBe(1);
+  const st = await liveState(page);
+  expect({ all: st.all, caret: st.caret, foreign: st.foreign }).toEqual({ all: 'abc[ ]def', caret: 'abc[ ]|def', foreign: 0 });
+  await expect.poll(() => memoOf(page)).toBe('abc[ ]def');
+  await page.keyboard.type('Z');
+  await expect.poll(() => memoOf(page)).toBe('abc[ ]Zdef');
 });
 
 test('D2 복사·잘라내기는 표식을 평문에 싣는다 — 잘라낸 것을 다시 붙이면 체크박스·그림이 되살아난다', async ({ page }) => {

@@ -324,17 +324,71 @@
          ⇒ 넣기 전에 노드에 표식을 달고, 편집 칸에 «그 표식이 생겼는가»로 판정한다.
        아무것도 안 들어갔을 때만 Range 로 직접 넣는다 — 그 경로는 ⌘Z 에 안 실린다. */
     const NEW_MARK = 'data-smp-new';
+    /* 토큰 → 저장 글자 · 범위 → 저장 글자 (원자 노드 넣기 · 복사·잘라내기 · 줄바꿈 판정이 같이 쓴다). 꼬리 줄바꿈을 «안» 턴다. */
+    const memoOfTokens = (tokens) => {
+      const F = window.SectionMemoFormat;
+      return F ? F.serializeTokens(tokens)
+        : tokens.map((t) => (t.type === 'text' ? t.text : t.type === 'br' ? '\n' : '')).join('');
+    };
+    const rangeAsMemo = (r) => memoOfTokens(_domToTokens(r.cloneContents(), []));
+    const memoOfEditor = () => memoOfTokens(_domToTokens(ta, []));
     const insertAtom = (node) => {
       const sel0 = window.getSelection();
       const r0 = sel0 && sel0.rangeCount ? sel0.getRangeAt(0) : null;
       const inEditor = !!r0 && ta.contains(r0.commonAncestorContainer);
       /* 선택 범위가 원자 노드를 품지 않았으면 «수가 늘었나»도 증거다(브라우저가 표식을 떨궜을 때의 둘째 자) */
       const atomsBefore = ta.querySelectorAll(ATOM_SEL).length;
+      /* ── 브라우저의 뒷정리를 믿지 않는다 (고침 3차 · 실측 2026-10-13 · chromium 148 = CI 번들 / Chrome 154) ──
+         insertHTML 은 넣은 뒤 «줄을 세우는 <br>»을 제 판단으로 더하고 뺀다. 그 판단이 판마다 다르다:
+           ⓐ `abc|def` 에 contenteditable=false 인 빈 <span> 을 넣으면
+                154 ⇒ abc<span></span>def      148 ⇒ abc<span></span><br>def   ← 저장이 `abc[ ]\ndef` 가 됐다
+              (속성 없이 넣으면 두 판이 같다: abc<span></span>def. 그림 <img> 는 속성이 있어도 같다.)
+           ⓑ 진짜 줄바꿈 <br> «바로 앞»에 원자 노드를 넣으면 그 <br> 를 삼킨다(줄이 합쳐진다)
+                `ab|<br>cd` + <img> ⇒ 두 판 모두 ab<img>cd · + <span> ⇒ 154 는 삼키고 148 은 삼킨 뒤 하나를 덧붙인다
+         ⇒ ⑴체크박스는 contenteditable 을 «떼고» 넣은 뒤 곧바로 박는다(속성 쓰기는 되돌리기 기록을 안 건드린다).
+           ⑵바로 뒤가 <br> 면 그 <br> 까지 골라 「노드 + <br>」로 갈아 끼운다(삼킬 것을 우리가 다시 준다).
+           ⑶그래도 「앞 글 + 이 표식 + 뒤 글」과 다르면 그 글자로 통째로 다시 그린다(아래).
+         ⛔덧붙은 <br> 를 넣은 뒤에 직접 떼지 마라 — 148 에서 ⌘Z 가 깨진다(실측: 체크박스가 글 맨 앞으로 튀어 남는다). */
+      let want = null;
+      if (inEditor) {
+        const pre = document.createRange();
+        pre.selectNodeContents(ta);
+        pre.setEnd(r0.startContainer, r0.startOffset);
+        const post = document.createRange();
+        post.selectNodeContents(ta);
+        post.setStart(r0.endContainer, r0.endOffset);
+        const one = document.createDocumentFragment();
+        one.appendChild(node);   // 아직 어디에도 안 붙은 새 노드다 — 표식 글자만 읽는다
+        const preMemo = rangeAsMemo(pre);
+        const F0 = window.SectionMemoFormat;
+        want = {
+          all: preMemo + memoOfTokens(_domToTokens(one, [])) + rangeAsMemo(post),
+          /* 이 노드가 «몇 번째 원자 노드»인가 — 통째로 다시 그릴 때 캐럿을 그 뒤에 놓는다 */
+          nth: F0 ? F0.tokenizeMemo(preMemo).filter((t) => t.type === 'check' || (t.type === 'img' && _isMemoImgSrc(t.src))).length : -1,
+        };
+      }
       const selHasAtom = inEditor && !r0.collapsed
         && Array.from(ta.querySelectorAll(ATOM_SEL)).some((c) => r0.intersectsNode(c));
+      const isCheck = node.classList.contains('smp-check');
       node.setAttribute(NEW_MARK, '1');
-      try { document.execCommand('insertHTML', false, node.outerHTML); } catch (_) { /* 아래 판정이 가른다 */ }
+      if (isCheck) node.removeAttribute('contenteditable');
+      let html = node.outerHTML;
       node.removeAttribute(NEW_MARK);
+      if (isCheck) node.setAttribute('contenteditable', 'false');
+      if (inEditor) {
+        let c;
+        if (r0.endContainer.nodeType === 3) c = r0.endOffset < r0.endContainer.data.length ? null : r0.endContainer.nextSibling;
+        else c = r0.endContainer.childNodes[r0.endOffset] || null;
+        while (c && c.nodeType === 3 && !c.data) c = c.nextSibling;
+        if (c && c.nodeType === 1 && c.tagName === 'BR') {
+          const wide = r0.cloneRange();
+          wide.setEndAfter(c);
+          sel0.removeAllRanges();
+          sel0.addRange(wide);
+          html += '<br>';
+        }
+      }
+      try { document.execCommand('insertHTML', false, html); } catch (_) { /* 아래 판정이 가른다 */ }
       const marked = ta.querySelectorAll('[' + NEW_MARK + ']');
       const inserted = marked.length > 0
         || (!selHasAtom && ta.querySelectorAll(ATOM_SEL).length > atomsBefore);
@@ -342,12 +396,23 @@
          (실측: `abc|def` 에 넣고 이어 치면 글자가 체크박스 앞에 붙었다). */
       const last = marked.length ? marked[marked.length - 1] : null;
       marked.forEach((c) => c.removeAttribute(NEW_MARK));
-      if (last && sel0) {
+      const caretAfter = (el) => {
+        if (!el || !sel0) return;
         const after = document.createRange();
-        after.setStartAfter(last);
+        after.setStartAfter(el);
         after.collapse(true);
         sel0.removeAllRanges();
         sel0.addRange(after);
+      };
+      /* 떼고 넣은 속성을 «지금» 박는다 — 캐럿을 놓기 전에(속성이 없으면 캐럿이 노드 «안»에 들어갈 수 있다) */
+      marked.forEach((c) => { if (c.getAttribute('contenteditable') !== 'false') c.setAttribute('contenteditable', 'false'); });
+      caretAfter(last);
+      /* 그래도 기대 글자와 다르면(아직 못 본 판의 뒷정리) 기대 글자로 «통째로 다시 그린다».
+         이 길은 ⌘Z 에 안 실린다 — 저장되는 글자가 맞는 것이 먼저다. 꼬리 줄바꿈은 저장 때 털리므로 안 견준다. */
+      const trimNl = (v) => v.replace(/\n+$/, '');
+      if (inserted && want && trimNl(memoOfEditor()) !== trimNl(want.all)) {
+        _renderMemo(ta, want.all);
+        caretAfter(want.nth >= 0 ? ta.querySelectorAll(ATOM_SEL)[want.nth] : null);
       }
       if (inserted) {
         /* 브라우저가 속성을 떨궜을 때를 대비해 다시 박는다(실측: 크롬은 보존한다) */
@@ -366,7 +431,8 @@
       }
       const sel = window.getSelection();
       if (!sel || !sel.rangeCount) return;
-      const r = sel.getRangeAt(0);
+      /* ★넣기 «전»의 범위(r0)로 넣는다 — 위에서 <br> 까지 넓혀 고른 범위를 쓰면 그 줄바꿈이 같이 지워진다 */
+      const r = inEditor ? r0 : sel.getRangeAt(0);
       if (!ta.contains(r.commonAncestorContainer)) return;
       r.deleteContents();
       r.insertNode(node);
@@ -462,13 +528,6 @@
       }
       scrubForeign();
       return true;
-    };
-    /* 범위 → 저장 글자 (복사·잘라내기 · 줄바꿈 판정이 같이 쓴다) */
-    const rangeAsMemo = (r) => {
-      const tokens = _domToTokens(r.cloneContents(), []);
-      const F = window.SectionMemoFormat;
-      return F ? F.serializeTokens(tokens)
-        : tokens.map((t) => (t.type === 'text' ? t.text : t.type === 'br' ? '\n' : '')).join('');
     };
     /* 선택 끝(캐럿)부터 글 끝까지의 저장 글자 — 꼬리 줄바꿈을 «안» 턴다 */
     const tailAsMemo = () => {
@@ -633,6 +692,11 @@
     ta.addEventListener('input', (e) => {
       if (e.isComposing || composing) { refreshCount(); return; }
       if (e.inputType === 'insertText' && e.data === ']') convertAtCaret();
+      /* 원자 노드는 늘 contenteditable=false 다 — 체크박스는 그 속성을 «떼고» 넣었다가 박으므로(insertAtom),
+         다시 실행(⇧⌘Z)이 속성 없는 노드를 되살렸을 때를 여기서 메운다(속성이 없으면 그 안에 글이 쳐진다). */
+      ta.querySelectorAll(ATOM_SEL).forEach((c) => {
+        if (c.getAttribute('contenteditable') !== 'false') c.setAttribute('contenteditable', 'false');
+      });
       scrubForeign();
       scheduleCommit();
     });
