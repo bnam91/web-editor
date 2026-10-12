@@ -499,11 +499,18 @@ function _cvbBeginAdd(block, idx, field, slot) {
   const area = _cvbTextArea(block, idx, slot);
   if (!area) return;
   const isTitle = /^title/.test(field);
-  // 글꼴 크기·정렬·색은 «옆 줄»(이미 그려진 형제)과 같은 블럭 값을 따른다 — 색은 형제 렌더값이 아니라 블럭/카드 설정.
-  const sib = area.querySelector(isTitle ? '.cvb-card-desc' : '.cvb-card-title');
+  // 글꼴 크기·정렬·색은 렌더(renderCanvas/_appendCardTexts)와 같은 차례로 고른다:
+  //   카드 슬롯색(titleColorTop 등) → 블럭색(dataset.titleColor/descColor) → 영역 바탕 휘도 자동(렌더와 같은 문턱 0.45·같은 값).
+  //   임시 칸은 커밋 순간 재렌더로 갈리므로, 여기 색은 «쓰는 동안» 보이는 색이다.
+  let card = {};
+  try { const a = JSON.parse(block.dataset.cards || '[]'); if (Array.isArray(a) && a[idx]) card = a[idx]; } catch (_) {}
   const size = isTitle ? (parseInt(block.dataset.titleSize) || 20) : (parseInt(block.dataset.descSize) || 14);
   const align = block.dataset.textAlign || 'left';
-  const color = (isTitle ? block.dataset.titleColor : block.dataset.descColor) || (sib ? getComputedStyle(sib).color : 'inherit');
+  const slotKey = (isTitle ? 'titleColor' : 'descColor') + (slot === 'top' ? 'Top' : slot === 'bottom' ? 'Bottom' : '');
+  const lum = colorLuminance(area.style.backgroundColor || '');
+  const auto = lum === null ? (isTitle ? '#1a1a1a' : '#555555')
+    : (isTitle ? (lum < 0.45 ? '#ffffff' : '#1a1a1a') : (lum < 0.45 ? '#e0e0e0' : '#555555'));
+  const color = (slot && card[slotKey]) || (isTitle ? block.dataset.titleColor : block.dataset.descColor) || auto;
   const host = document.createElement('div');
   host.className = isTitle ? 'cvb-card-title' : 'cvb-card-desc';
   host.dataset.cardIdx = String(idx);

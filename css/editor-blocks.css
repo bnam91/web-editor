@@ -1604,6 +1604,30 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 /* 상한(4×4)에서는 흐리게 — 캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 참고 선례: layer-panel.js:559 disabled) */
 #grd-plus-layer > :is(.grd-add-btn, .ln-add-btn):disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
 
+/* ── [1012t1K1] 카드 블럭 캔버스 ＋ — 빈 줄(설명/제목) 추가 ──────────────────────────────
+ * ★그리드 G15 ＋(바로 위)와 «같은 꼴·같은 토큰» — 40 모델px 점선 원 · ::before «+»(글자 노드 없음, E65).
+ * ★블럭 «밖» 층 #cvb-plus-layer(#canvas-scaler 끝)에 산다 — 까닭은 js/blocks/canvas-block.js [1012t1K1] 머리말.
+ * ★뜨는 조건은 여기 «없다» — canvas-block.js _cvbPlusShown 하나. 자리 = 텍스트 영역 아래 변 가운데(중심을 그 점에). */
+#cvb-plus-layer { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 60; }
+#cvb-plus-layer > .cvb-add-btn {
+  position: absolute;
+  pointer-events: auto;
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;   /* 모델 px — 그리드 ＋ 와 같은 단위 */
+  padding: 0; margin: 0; box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px dashed var(--ui-divider);
+  font-size: var(--ui-fs-20);
+  background: var(--ui-bg-elevated);
+  color: var(--ui-text-muted);
+  line-height: 0;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+#cvb-plus-layer > .cvb-add-btn::before { content: '+'; line-height: 1; pointer-events: none; }
+#cvb-plus-layer > .cvb-add-btn::after { content: ''; position: absolute; border-radius: 50%; inset: 0; }
+#cvb-plus-layer > .cvb-add-btn:hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
+
 /* ═══════════════════════════════════
    QA BLOCK — admin 전용 체크리스트 (2026-09-16)
    ★캔버스 콘텐츠 톤(흰 배경·어두운 글자)을 쓴다 — 앱 다크 크롬(--ui-*) 이 아니다.
