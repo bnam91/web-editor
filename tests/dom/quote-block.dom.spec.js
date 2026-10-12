@@ -1207,16 +1207,15 @@ test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클�
          ★입구만 ★바꿨다: ★textarea 의 ★값 → ★★«줄 수 안내»(`#qt-lines-hint`)의 ★글.
        ⛔지우지 ★않았다. ★주 단언은 ★아래 ㉢(엔터로 ★2줄이 되면 ★안내도 ★2줄)이다.
        ★★⚰️2026-10-12 현빈 1012t1H2 — 「줄 수 안내」(`#qt-lines-hint`) 자체가 사라졌다 ⇒ 「안내도 N줄」 축은 뜻을 잃었다.
-       ★대신 «캔버스 → 패널 재그림»을 ★도장으로 잰다: 편집 전에 `#qt-shape-group` 에 `data-stale` 을 찍어 두면
-         `_quoteEndEdit` → `showQuoteProperties` 가 패널을 다시 그린 뒤엔 ★새 노드라 도장이 없다. */
-    stamped: (() => { const g = document.getElementById('qt-shape-group'); if (g) g.dataset.stale = '1'; return !!g && g.dataset.stale === '1'; })(),
+       ★대신 «캔버스 → 패널 재그림»을 ★도장으로 잰다: ★더블클릭으로 편집을 연 «뒤»(⚠️더블클릭 자체가 패널을 한 번 다시 그린다 — 실측)
+         `#qt-shape-group` 에 `data-stale` 을 찍어 두면 `_quoteEndEdit` → `showQuoteProperties` 가 패널을 다시 그린 뒤엔
+         ★새 노드라 도장이 없다. */
   }));
   expect(pre.panel, '★전제 ㉠ — 인용구 패널이 열렸다').toBe(true);
   expect(pre.selected, '★전제 ㉡ — 블럭이 ★고른 상태다(사람이 하는 순서)').toBe(true);
   expect(pre.ce, '★전제 ㉢ — ★편집이 ★아직 안 열렸다(contenteditable=true 0건)').toBe(0);
   expect(pre.body, '★전제 ㉣ — 글덩이(.tb-qt-body)가 ★그려져 있다').toBe(true);
   expect(pre.text, '★전제 ㉤ — 지금 글 = 「안녕」').toBe('안녕');
-  expect(pre.stamped, '★전제 ㉥ — ★패널의 `#qt-shape-group` 이 서 있고 ★재그림 도장(data-stale)을 찍었다').toBe(true);
 
   /* ── ㉠ ★더블클릭이 ★편집을 ★연다 ────────────────────────────────────────── */
   const lr = await waitStableRect(page, '#sQ .quote-block .tb-qt-line');
@@ -1243,11 +1242,14 @@ test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클�
   expect(open.markCE.filter(v => v === 'true'), `★★부호(.tb-qt-mark)는 ★편집이 ★안 열려야 한다. 잰 값 ${JSON.stringify(open.markCE)}`).toEqual([]);
 
   /* ── ㉡ ★타이핑이 ★dataset 에 ★커밋된다 ＋ ★패널이 ★따라온다 ───────────────── */
-  await page.evaluate(() => {
+  const stamped1 = await page.evaluate(() => {
+    const g = document.getElementById('qt-shape-group'); if (g) g.dataset.stale = '1';   /* 1012t1H2 재그림 도장 */
     const body = window.__qt.querySelector('.tb-qt-body');
     const sel = window.getSelection(); sel.removeAllRanges();
     const r = document.createRange(); r.selectNodeContents(body); sel.addRange(r);   // ★다 지우고 새로 쓴다
+    return !!g && g.dataset.stale === '1';
   });
+  expect(stamped1, '★전제 — 편집이 열린 뒤 패널 `#qt-shape-group` 에 재그림 도장을 찍었다').toBe(true);
   await page.keyboard.insertText('처음 입어도');
   await page.evaluate(() => window.__qt.querySelector('.tb-qt-body').blur());        // ★떠난다 = 커밋
   await page.waitForFunction(() => window.__qt.dataset.text === '처음 입어도', null, { timeout: 3000 })
