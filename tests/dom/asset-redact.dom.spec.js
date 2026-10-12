@@ -288,7 +288,8 @@ test('R5 저장 왕복 · undo 1번이면 꺼짐', async ({ page }) => {
   const ser = await page.evaluate(() => {
     const html = window.getSerializedCanvas();
     document.getElementById('canvas').innerHTML = html;
-    window.rebindAll?.();
+    /* ★preserveHistory — 그냥 rebindAll 은 설계상 clearHistory 를 부른다(save-load.js «rebindAll» 머리말) ⇒ 뒤 undo 칸이 잴 것이 없다 */
+    window.rebindAll?.({ preserveHistory: true });
     return { hasAttr: /data-redact="60"/.test(html), hasVar: /--redact-blur:\s*12px/.test(html) };
   });
   expect(ser.hasAttr, '저장 문자열에 data-redact 가 없다').toBe(true);
