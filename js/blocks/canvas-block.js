@@ -17,42 +17,79 @@ import { effSectionPadX as _effSectionPadX } from './outer-pad.js';   // ⛔사�
 //   - slot==='bottom' → card.titleBottom/descBottom (없으면 card.title/desc fallback), 색은 titleColorBottom/descColorBottom
 //   - slot===null     → 기존 단일 슬롯 (card.title/desc)
 // dataset.field/slot은 인라인 편집(_bindCvbDblEdit) 라우팅에 사용.
+/* ★[1012t1K1] slot → (필드 이름·글자) 를 «한 자리»에서 정한다 — 렌더(_appendCardTexts)와
+ *   「어느 줄이 비었나」 판정(cvbMissingTextSlots → 캔버스 ＋)이 «같은 폴백»을 쓰게 하려고 뽑았다.
+ *   (둘이 따로 폴백을 적으면 both 모드 descTop undefined→desc 폴백에서 ＋ 와 화면이 갈린다.) */
+const _cvbPick = (v, fb) => (v !== undefined && v !== null) ? v : fb;
+function _cvbSlotTexts(card, slot) {
+  card = card || {};
+  if (slot === 'top') {
+    return { titleField: 'titleTop', descField: 'descTop',
+      titleText: _cvbPick(card.titleTop, card.title), descText: _cvbPick(card.descTop, card.desc) };
+  }
+  if (slot === 'bottom') {
+    return { titleField: 'titleBottom', descField: 'descBottom',
+      titleText: _cvbPick(card.titleBottom, card.title), descText: _cvbPick(card.descBottom, card.desc) };
+  }
+  return { titleField: 'title', descField: 'desc', titleText: card.title, descText: card.desc };
+}
+// 렌더가 「글자가 있다」고 보는 술어 — 공백만이면 «없다»(요소를 안 그린다).
+const _cvbHasText = (t) => !!(t && String(t).trim() !== '');
+// 제목/설명 요소의 인라인 스타일 — 렌더와 캔버스 ＋ 의 임시 칸이 같은 꼴로 쓰게 한 줄로 둔다.
+function _cvbTextCss(kind, size, color, align) {
+  return kind === 'title'
+    ? `font-size:${size}px;font-weight:600;color:${color};text-align:${align};white-space:pre-wrap;word-break:break-word;line-height:1.3;font-family:Pretendard,-apple-system,sans-serif;`
+    : `font-size:${size}px;font-weight:400;color:${color};text-align:${align};white-space:pre-wrap;word-break:break-word;line-height:1.4;font-family:Pretendard,-apple-system,sans-serif;`;
+}
+
+/* ★[1012t1K1] 「캔버스에서 ＋ 로 채울 수 있는 빈 줄」 목록 — [{ slot: null|'top'|'bottom', field }].
+ *   · textHide → [] (글자 영역 자체가 없다)
+ *   · 제목·설명 «둘 다» 빔 → [] (그 칸은 안내문 .cvb-card-ph 가 맡는다 — 더블클릭 복구 경로)
+ *   · 설명만 빔 → 설명 필드 · 제목만 빔 → 제목 필드
+ *   · 영역 수: 세로(portrait) + labelPos 'both' → top·bottom 둘, 그 밖(가로 포함) → 하나(slot null).
+ *     (renderCanvas 가로 분기는 labelPos 를 안 보고 슬롯 하나만 그린다 — 그래서 orient 를 받는다.) */
+export function cvbMissingTextSlots(card, labelPos, textHide, orient) {
+  if (textHide === true || textHide === 'true') return [];
+  const slots = (labelPos === 'both' && orient !== 'landscape') ? ['top', 'bottom'] : [null];
+  const out = [];
+  for (const slot of slots) {
+    const t = _cvbSlotTexts(card, slot);
+    const hasT = _cvbHasText(t.titleText), hasD = _cvbHasText(t.descText);
+    if (hasT && !hasD) out.push({ slot, field: t.descField });
+    else if (!hasT && hasD) out.push({ slot, field: t.titleField });
+  }
+  return out;
+}
+
 function _appendCardTexts(container, card, titleSize, descSize, textAlign, titleColor, descColor, cardIdx, slot) {
-  let titleField = 'title', descField = 'desc';
-  let titleText = card.title, descText = card.desc;
+  const { titleField, descField, titleText, descText } = _cvbSlotTexts(card, slot);
   let _tc = titleColor, _dc = descColor;
   if (slot === 'top') {
-    titleField = 'titleTop'; descField = 'descTop';
-    titleText = (card.titleTop !== undefined && card.titleTop !== null) ? card.titleTop : card.title;
-    descText  = (card.descTop  !== undefined && card.descTop  !== null) ? card.descTop  : card.desc;
     if (card.titleColorTop) _tc = card.titleColorTop;
     if (card.descColorTop)  _dc = card.descColorTop;
   } else if (slot === 'bottom') {
-    titleField = 'titleBottom'; descField = 'descBottom';
-    titleText = (card.titleBottom !== undefined && card.titleBottom !== null) ? card.titleBottom : card.title;
-    descText  = (card.descBottom  !== undefined && card.descBottom  !== null) ? card.descBottom  : card.desc;
     if (card.titleColorBottom) _tc = card.titleColorBottom;
     if (card.descColorBottom)  _dc = card.descColorBottom;
   }
   _tc = _tc || '#ffffff';
   _dc = _dc || '#ffffff';
-  if (titleText && titleText.trim() !== '') {
+  if (_cvbHasText(titleText)) {
     const el = document.createElement('div');
     el.className = 'cvb-card-title';
     if (cardIdx != null) { el.dataset.cardIdx = cardIdx; el.dataset.field = titleField; if (slot) el.dataset.slot = slot; }
-    el.style.cssText = `font-size:${titleSize}px;font-weight:600;color:${_tc};text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.3;font-family:Pretendard,-apple-system,sans-serif;`;
+    el.style.cssText = _cvbTextCss('title', titleSize, _tc, textAlign);
     el.textContent = titleText;
     container.appendChild(el);
   }
-  if (descText && descText.trim() !== '') {
+  if (_cvbHasText(descText)) {
     const el = document.createElement('div');
     el.className = 'cvb-card-desc';
     if (cardIdx != null) { el.dataset.cardIdx = cardIdx; el.dataset.field = descField; if (slot) el.dataset.slot = slot; }
-    el.style.cssText = `font-size:${descSize}px;font-weight:400;color:${_dc};text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.4;font-family:Pretendard,-apple-system,sans-serif;`;
+    el.style.cssText = _cvbTextCss('desc', descSize, _dc, textAlign);
     el.textContent = descText;
     container.appendChild(el);
   }
-  if ((!titleText || titleText.trim() === '') && (!descText || descText.trim() === '')) {
+  if (!_cvbHasText(titleText) && !_cvbHasText(descText)) {
     // ★빈 문자열 함정 — 글자를 전부 지우면 렌더러가 위 두 요소를 «안 만든다». 그러면 캔버스에는
     //   겨냥할 것이 남지 않아 다시 못 고친다(duo 에서 실기로 재현된 것과 같은 성질).
     //   이 안내문은 «이미 있던 요소»다 → 새 룩을 만들지 않고 여기에 주소를 붙여 복구 경로로 쓴다.
