@@ -24,6 +24,9 @@ export function applyBubbleSenderAlign(tb, align) {
   const nm = tb.querySelector('.tb-sender-name');
   if (!nm) return false;
   nm.style.textAlign = align;
+  /* ★1012t1M2-b — 표식도 같이 쓴다: CSS 가 center 일 때 말꼬리 쪽 22px 들여쓰기를 뺀다(editor-blocks.css 말풍선 절).
+     인라인 textAlign 은 그대로 둔다(10-10 이후 저장본과 같은 꼴 · ⒨ 판별자는 «블럭» 인라인이라 무관). */
+  if (align) tb.dataset.senderAlign = align; else delete tb.dataset.senderAlign;
   return true;
 }
 

@@ -3290,6 +3290,27 @@ textarea.cvb-card-input {
 .speech-bubble-block[data-tail="center"] .tb-sender-name {
   text-align: center;
 }
+/* ★1012t1M2-b — 이름표가 «보일 때만» 이름과 몸통이 «한 열»을 같이 쓴다 ⇒ 정렬 단추 center = 이름이 «몸통 위 가운데».
+   뿌리: 이름표(블럭 전폭)와 몸통(fit-content)은 형제라, 이름에 건 text-align 은 «블럭» 기준이었다
+     (실측 9436 · dLayout 좁은 풍선 −40 → +287 · 넓은 풍선 −244 → +83 · 말꼬리 right −287, zoom 40/100 같음).
+   ★열 폭 = max(몸통, 이름) · 상한 80% — .tb-bubble 의 max-width 80% «결과»를 열이 대신 진다(몸통은 열을 안 넘는다).
+     블럭 width:100% · 선택 ::after · 말꼬리 SVG(블럭 기준 absolute)는 그대로다(.claude/rules/css-blocks.md 변경 금지 절).
+   ★이름표를 끈 말풍선(data-show-sender="false" — 기본값)은 이 규칙에 안 걸린다 ⇒ 렌더 그대로(시험 ⒮).
+   ⚠️한계: 이름이 몸통보다 길면 열 = 이름 폭이고 몸통은 말꼬리 쪽에 붙는다 ⇒ 그때 이름은 몸통 가운데가 아니다(결정 후보). */
+.speech-bubble-block[data-show-sender="true"] {
+  display: grid;
+  grid-template-columns: fit-content(80%);
+  justify-content: start;
+}
+.speech-bubble-block[data-show-sender="true"][data-tail="right"] { justify-content: end; }
+.speech-bubble-block[data-show-sender="true"][data-tail="center"] { justify-content: center; }
+.speech-bubble-block[data-show-sender="true"] .tb-bubble { max-width: 100%; }
+/* 정렬 단추 center 면 말꼬리 쪽 22px 들여쓰기를 뺀다 — 안 빼면 이름 글자가 11px 치우친다.
+   표식은 applyBubbleSenderAlign(prop-text-wireup-align.js) 한 곳이 쓴다. */
+.speech-bubble-block[data-sender-align="center"] .tb-sender-name {
+  padding-left: 0;
+  padding-right: 0;
+}
 .tb-bubble {
   background: var(--bubble-bg);
   color: #1c1c1e;

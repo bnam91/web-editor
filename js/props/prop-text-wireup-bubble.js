@@ -32,6 +32,7 @@ export function wireBubbleSection({ tb, ctx }) {
        (left = 22px 들여쓰기 · right = 오른쪽 · center = 가운데). 안 지우면 예전에 누른 left 가 CSS 를 이긴다. */
     const nm = tb.querySelector('.tb-sender-name');
     if (nm) nm.style.textAlign = '';
+    delete tb.dataset.senderAlign;   // ★M2-b 표식도 같이(applyBubbleSenderAlign 의 짝)
     // 말꼬리 SVG 교체 (center는 대칭형, left/right는 비대칭형)
     const oldTail = tb.querySelector('.tb-bubble-tail');
     if (oldTail && window.getBubbleTailSVG) {

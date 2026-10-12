@@ -372,3 +372,85 @@ test('⒫ 1012t1M2-a ★정렬 단추 left 를 먼저 눌러 둔 뒤 말꼬리 �
   expect(Math.abs(after.dLayout), `이름이 몸통 가운데에 안 왔다 — dLayout ${after.dLayout}`).toBeLessThanOrEqual(2);
   expect(errs, `pageerror ${JSON.stringify(errs.slice(0, 2))}`).toEqual([]);
 });
+
+/* ══ 1012t1M2-b ⒬⒭⒮⒯ — 정렬 단추 center = 이름이 «몸통 위 가운데» (S4 유닛 M · 2026-10-12) ══════════
+ * ★재현(9436 · 새 말풍선): 정렬 단추 center 뒤 dLayout 좁은 풍선 −40 → +287 · 넓은 −244 → +83 · 말꼬리 right +40 → −287
+ *   (zoom 40·100 같은 수) — 이름은 «블럭» 가운데로 갔고 몸통은 제자리였다.
+ * ★고침: 이름표가 보일 때만 블럭을 한 열 grid(fit-content(80%))로 — 이름과 몸통이 같은 폭의 열을 쓴다.
+ * ★⒮ 가 «이름을 끈 말풍선은 그대로»와 «이름을 켜도 몸통·말꼬리 가로 자리가 그대로»를 잰다. */
+const geom = (page) => page.evaluate(() => {
+  const b = document.querySelector('#canvas .speech-bubble-block');
+  const s = (window.currentZoom || 100) / 100, br = b.getBoundingClientRect();
+  const q = b.querySelector('.tb-bubble').getBoundingClientRect();
+  const v = b.querySelector('svg.tb-bubble-tail').getBoundingClientRect();
+  const r1 = (x) => Math.round(x * 10) / 10;
+  return {
+    display: getComputedStyle(b).display, tail: b.dataset.tail, show: b.dataset.showSender,
+    bodyL: r1((q.left - br.left) / s), bodyW: r1(q.width / s), svgL: r1((v.left - br.left) / s), svgW: r1(v.width / s),
+  };
+});
+async function setTail(page, dir) {
+  await page.locator(`#bubble-tail-${dir}`).click();
+  await waitFor(page, (d) => document.querySelector('#canvas .speech-bubble-block')?.dataset.tail === d, dir,
+    `말꼬리 ${dir} 를 눌렀는데 data-tail 이 안 바뀌었다`);
+}
+
+for (const z of [40, 100]) {
+  test(`⒬⒯ 1012t1M2-b ★정렬 center(말꼬리 left · 배율 ${z}%) → |dLayout| ≤ 2 · 몸통은 제자리`, async ({ page }) => {
+    const errs = await setup(page);
+    await page.evaluate((z) => window.applyZoom?.(z), z);
+    await expect.poll(() => page.evaluate(() => window.currentZoom), { message: `전제 — 배율 ${z}` }).toBe(z);
+    await showSender(page);
+    const g0 = await geom(page), d0 = await dLayoutProbe(page);
+    await clickCenter(page);
+    await waitFor(page, () => document.querySelector('#canvas .speech-bubble-block')?.dataset.senderAlign === 'center',
+      undefined, '정렬 center 뒤 블럭 표식 data-sender-align 이 center 가 안 됐다');
+    const g1 = await geom(page), d1 = await dLayoutProbe(page);
+    console.log(`    ⒬@${z} ` + JSON.stringify({ d: `${d0.dLayout}→${d1.dLayout}`, g0, g1 }));
+    expect(d1.zoom, `전제 — 배율 ${z}`).toBe(z);
+    expect(Math.abs(d1.dLayout), `이름이 몸통 가운데에 안 왔다 — dLayout ${d0.dLayout} → ${d1.dLayout}`).toBeLessThanOrEqual(2);
+    expect(Math.abs(g1.bodyL - g0.bodyL), `몸통이 움직였다 — bodyL ${g0.bodyL} → ${g1.bodyL}`).toBeLessThanOrEqual(0.5);
+    expect(errs).toEqual([]);
+  });
+}
+
+test('⒭ 1012t1M2-b ★말꼬리 right + 정렬 center → |dLayout| ≤ 2', async ({ page }) => {
+  const errs = await setup(page);
+  await showSender(page);
+  await setTail(page, 'right');
+  await clickCenter(page);
+  const d = await dLayoutProbe(page);
+  console.log('    ⒭ ' + JSON.stringify(d));
+  expect(d.tail).toBe('right');
+  expect(Math.abs(d.dLayout), `이름이 몸통 가운데에 안 왔다 — dLayout ${d.dLayout}`).toBeLessThanOrEqual(2);
+  expect(errs).toEqual([]);
+});
+
+test('⒮ 1012t1M2-b ★불변 — 이름 끈 말풍선은 옛 꼴(display:block) · 이름을 켜도 몸통·말꼬리 가로 자리 그대로 (left/right/center)', async ({ page }) => {
+  const errs = await setup(page);
+  const rows = [];
+  for (const dir of ['left', 'right', 'center']) {
+    await setTail(page, dir);
+    const off = await geom(page);
+    await showSender(page);
+    const on = await geom(page);
+    rows.push({ dir, off, on });
+    /* 이름 다시 끄기 — 다음 판의 «끈» 측정을 위해 */
+    await page.evaluate(() => {
+      const t = document.getElementById('bubble-show-sender');
+      t.checked = false; t.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await waitFor(page, () => document.querySelector('#canvas .speech-bubble-block')?.dataset.showSender === 'false',
+      undefined, '이름표를 다시 껐는데 data-show-sender 가 false 가 안 됐다');
+  }
+  console.log('    ⒮ ' + JSON.stringify(rows));
+  for (const { dir, off, on } of rows) {
+    expect(off.show, `전제(${dir}) — 끈 판`).toBe('false');
+    expect(off.display, `(${dir}) 이름을 끈 말풍선의 블럭이 옛 꼴(display:block)이 아니다 — 새 규칙이 끈 판까지 번졌다`).toBe('block');
+    expect(on.show, `전제(${dir}) — 켠 판`).toBe('true');
+    for (const k of ['bodyL', 'bodyW', 'svgL', 'svgW']) {
+      expect(Math.abs(on[k] - off[k]), `(${dir}) 이름을 켜니 ${k} 가 바뀌었다 — ${off[k]} → ${on[k]}`).toBeLessThanOrEqual(0.5);
+    }
+  }
+  expect(errs).toEqual([]);
+});
