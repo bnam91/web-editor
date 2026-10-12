@@ -3284,6 +3284,12 @@ textarea.cvb-card-input {
   padding-right: 22px;
   text-align: right;
 }
+/* ★1012t1M2-a — 말꼬리 「—」(가운데)면 몸통이 블럭 가운데로 간다(위 margin auto) ⇒ 이름도 가운데.
+   옛: 이 규칙이 없어 몸통만 가운데로 가고 이름은 왼쪽 끝에 남았다(실측 dLayout −40 → −337 · zoom 40/100 같음).
+   정렬 단추가 남긴 이름표 인라인 textAlign 은 말꼬리를 바꿀 때 지운다(prop-text-wireup-bubble.js _setTail). */
+.speech-bubble-block[data-tail="center"] .tb-sender-name {
+  text-align: center;
+}
 .tb-bubble {
   background: var(--bubble-bg);
   color: #1c1c1e;

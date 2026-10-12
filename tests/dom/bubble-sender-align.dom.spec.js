@@ -322,3 +322,53 @@ test('⒩ ★★여러 개 고르고 ★정렬해도 ★이름표가 ★따라�
   }
   expect(errs, `★pageerror (잰 값: ${JSON.stringify(errs.slice(0, 2))})`).toEqual([]);
 });
+
+/* ══ 1012t1M2-a ⒪⒫ — 말꼬리 「—」(가운데)면 이름도 «몸통 위 가운데» (S4 유닛 M · 2026-10-12) ══════════
+ * ★재현(9436 · 새로 만든 말풍선 — sb_ts0he_0x61u2c 사본은 없다): 말꼬리 「—」를 누르면 몸통은 블럭 가운데로 가는데
+ *   이름은 왼쪽 끝에 남았다 — dLayout(이름 글자 cx − 몸통 상자 cx, layout px) −40 → −337 (zoom 40·100 같은 수).
+ * ★판정 자 = dLayout(배율로 나눈 layout px) · |dLayout| ≤ 2 면 «따라왔다». */
+const dLayoutProbe = (page) => page.evaluate(() => {
+  const b = document.querySelector('#canvas .speech-bubble-block');
+  const bub = b.querySelector('.tb-bubble'), nm = b.querySelector('.tb-sender-name');
+  const s = (window.currentZoom || 100) / 100;
+  const r = document.createRange(); r.selectNodeContents(nm);
+  const t = r.getBoundingClientRect(), q = bub.getBoundingClientRect(), br = b.getBoundingClientRect();
+  return {
+    zoom: window.currentZoom, tail: b.dataset.tail, nmInline: nm.style.textAlign || '',
+    nmShown: getComputedStyle(nm).display !== 'none', nmW: t.width,
+    dLayout: Math.round((t.left + t.width / 2 - (q.left + q.width / 2)) / s),
+    bodyVsBlk: Math.round((q.left + q.width / 2 - (br.left + br.width / 2)) / s),
+  };
+});
+
+test('⒪ 1012t1M2-a ★말꼬리 「—」 → 이름 글자가 몸통 가운데 위 (|dLayout| ≤ 2)', async ({ page }) => {
+  const errs = await setup(page);
+  await showSender(page);
+  const before = await dLayoutProbe(page);
+  await page.locator('#bubble-tail-center').click();   // ★사람 손 — 진짜 클릭
+  await waitFor(page, () => document.querySelector('#canvas .speech-bubble-block')?.dataset.tail === 'center',
+    undefined, '말꼬리 「—」를 눌렀는데 data-tail 이 center 가 안 됐다');
+  const after = await dLayoutProbe(page);
+  console.log('    ⒪ ' + JSON.stringify({ before, after }));
+  expect(after.nmShown && after.nmW > 0, '★전제 — 이름표가 보이고 글자가 있다').toBe(true);
+  expect(Math.abs(after.bodyVsBlk), `★전제 — 몸통이 블럭 가운데로 갔다 (잰 값 ${after.bodyVsBlk})`).toBeLessThanOrEqual(2);
+  expect(Math.abs(after.dLayout), `이름이 몸통 가운데에 안 왔다 — dLayout ${before.dLayout} → ${after.dLayout} (zoom ${after.zoom})`)
+    .toBeLessThanOrEqual(2);
+  expect(errs, `pageerror ${JSON.stringify(errs.slice(0, 2))}`).toEqual([]);
+});
+
+test('⒫ 1012t1M2-a ★정렬 단추 left 를 먼저 눌러 둔 뒤 말꼬리 「—」 → 인라인 잔재가 안 이긴다', async ({ page }) => {
+  const errs = await setup(page);
+  await showSender(page);
+  await page.evaluate(() => document.querySelector('.prop-align-btn[data-align="left"]').click());
+  await waitFor(page, () => document.querySelector('#canvas .speech-bubble-block .tb-sender-name')?.style.textAlign === 'left',
+    undefined, '★전제 — 정렬 left 뒤 이름표 인라인 textAlign 이 left 가 안 됐다');
+  await page.locator('#bubble-tail-center').click();
+  await waitFor(page, () => document.querySelector('#canvas .speech-bubble-block')?.dataset.tail === 'center',
+    undefined, '말꼬리 「—」를 눌렀는데 data-tail 이 center 가 안 됐다');
+  const after = await dLayoutProbe(page);
+  console.log('    ⒫ ' + JSON.stringify(after));
+  expect(after.nmInline, '말꼬리를 바꿨는데 이름표 인라인 textAlign 이 남았다').toBe('');
+  expect(Math.abs(after.dLayout), `이름이 몸통 가운데에 안 왔다 — dLayout ${after.dLayout}`).toBeLessThanOrEqual(2);
+  expect(errs, `pageerror ${JSON.stringify(errs.slice(0, 2))}`).toEqual([]);
+});

@@ -28,6 +28,10 @@ export function wireBubbleSection({ tb, ctx }) {
     tb.dataset.tail = dir;
     tb.style.marginLeft = dir === 'right' ? 'auto' : dir === 'center' ? 'auto' : '';
     tb.style.marginRight = dir === 'center' ? 'auto' : '';
+    /* ★1012t1M2-a — 정렬 단추가 이름표에 남긴 인라인 textAlign 을 지운다 ⇒ 이름은 말꼬리 규칙(CSS)을 따른다
+       (left = 22px 들여쓰기 · right = 오른쪽 · center = 가운데). 안 지우면 예전에 누른 left 가 CSS 를 이긴다. */
+    const nm = tb.querySelector('.tb-sender-name');
+    if (nm) nm.style.textAlign = '';
     // 말꼬리 SVG 교체 (center는 대칭형, left/right는 비대칭형)
     const oldTail = tb.querySelector('.tb-bubble-tail');
     if (oldTail && window.getBubbleTailSVG) {
