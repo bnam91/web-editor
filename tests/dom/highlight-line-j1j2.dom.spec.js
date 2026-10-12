@@ -12,11 +12,13 @@
  * 음성대조(보고에 수): sticker-block.js 의 끝점 주입 갈래를 지우면 J1-a 빨강 · prop-sticker.js 의 isHl 조건을 true 로 깨면 J1-d 빨강.
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 
-/* 섹션 하나를 깔고 «고른» 상태로 둔다. 돌려주는 값 = 섹션 id. */
+/* 섹션 하나를 깔고 «고른» 상태로 둔다. 돌려주는 값 = 섹션 id.
+   ★섹션 자리가 «멈춘 뒤» 돌려준다 — bootApp 뒤 배율 맞추기가 늦게 끝나면(부하 · workers=2) 그 사이에 단 핸들 자리·누르는 점이 어긋난다
+     (2026-10-12 실측: workers=2 에서 J1-b 끌기 무효 · J2-d 핸들 y 21.9px — 단독 런은 초록). _root-harness waitStableRect 와 같은 병. */
 async function setupSection(page) {
-  return page.evaluate(() => {
+  const out = await page.evaluate(() => {
     const canvas = document.getElementById('canvas');
     canvas.innerHTML = '<div class="section-block" id="secH" style="position:relative;height:480px;background:#ffffff"><div class="section-inner"></div></div>';
     window.rebindAll?.();
@@ -24,6 +26,8 @@ async function setupSection(page) {
     window.selectSection?.(sec);
     return { id: sec.id, selected: window.getSelectedSection?.() === sec };
   });
+  await waitStableRect(page, '#secH');
+  return out;
 }
 
 /* 스티커 버튼 → 메뉴 항목(텍스트로 찾음) 을 «실제 마우스»로 누른다. */
@@ -90,6 +94,7 @@ test('J1-b 만든 직후 끝 핸들을 끌면 x2 가 는다(그다음 조정)', 
   await setupSection(page);
   await clickPenMenu(page, 'Highlight');
   await page.waitForFunction(() => document.querySelectorAll('.sticker-block[data-shape="highlightB"] .hlb-handle').length === 2, null, { timeout: 3000 });
+  await waitStableRect(page, '.sticker-block[data-shape="highlightB"] .hlb-handle[data-endpoint="end"]');
   const h = await page.evaluate(() => {
     const e = document.querySelector('.sticker-block[data-shape="highlightB"] .hlb-handle[data-endpoint="end"]');
     const r = e.getBoundingClientRect();
