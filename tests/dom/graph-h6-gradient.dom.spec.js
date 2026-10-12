@@ -51,13 +51,28 @@ test('G1 ★어두운 그라디언트 프레임(#111 → #2a2a2a) 안 꺾은선 
   for (const stop of [[17, 17, 17], [42, 42, 42]]) expect(cr(rgb(l.stroke), stop), `선 ${l.stroke} · 정지점 ${stop}`).toBeGreaterThanOrEqual(4.5);
   expect(errs).toEqual([]);
 });
-test('G2 ★섹션 «이미지 + 불투명 어두운 색»(#111) → 보이는 바탕 = #111 → H6 켜짐', async ({ page }) => {
-  const { errs, id } = await setup(page, { where: 'section', color: '#111111', img: PNG });
+test('G2 ★섹션 «그림 없는 ★불투명 어두운 색»(#111) → 보이는 바탕 = #111 → H6 켜짐', async ({ page }) => {
+  /* ★7d3cbfbd(현빈 1009t3-④) 뒤 — ★불투명 색 ＋ 그림이면 ★그림이 ★위라 ★색이 ★보이는 바탕을 ★안 정한다.
+     ★그 꼴은 ★G2b 가 ★잠근다. ★이 칸은 ★★«그림 없이 ★색만»이라는 ★덮이지 않은 자리를 ★맡는다(지디 2차 결정). */
+  const { errs, id } = await setup(page, { where: 'section', color: '#111111' });
   const bgImg = await page.evaluate(() => getComputedStyle(document.getElementById('sG')).backgroundImage);
-  expect(bgImg, '전제: 색 층 그라디언트 + 그림').toMatch(/linear-gradient.*url\(/);
+  const bgCol = await page.evaluate(() => getComputedStyle(document.getElementById('sG')).backgroundColor);
+  expect(bgImg, '전제: 그림이 없다').not.toMatch(/url\(/);
   const l = await look(page, id);
+  console.log(`[G2 색만] backgroundImage=${bgImg} backgroundColor=${bgCol} --grb-auto-line=${l.line} stroke=${l.stroke}`);
   expect(l.line, '변수 있음').not.toBe('');
   expect(cr(rgb(l.stroke), [17, 17, 17])).toBeGreaterThanOrEqual(4.5);
+  expect(errs).toEqual([]);
+});
+test('G2b ★섹션 «이미지 + 불투명 어두운 색»(#111) → 색 층을 «안» 깐다(그림이 위) → 변수 없음', async ({ page }) => {
+  /* ★7d3cbfbd(현빈 1009t3-④) 를 ★★지키는 자 — 「불투명 색은 그림 «아래»로」.
+     ★그 고침을 ★되돌리면(= 색 층을 ★다시 ★위에 깔면) ★★이 칸이 ★빨개진다.
+     ⛔출력 값을 ★기대에 ★안 박았다 — ★꼴(`url(` 있음 · `linear-gradient` 없음)과 ★«변수 없음»만 ★잰다. */
+  const { errs, id } = await setup(page, { where: 'section', color: '#111111', img: PNG });
+  const bgImg = await page.evaluate(() => getComputedStyle(document.getElementById('sG')).backgroundImage);
+  expect(bgImg, '전제: 그림이 깔렸다').toMatch(/url\(/);
+  expect(bgImg, '★색 층 그라디언트를 «안» 깐다 — 불투명 색은 그림 아래다').not.toMatch(/linear-gradient/);
+  expect((await look(page, id)).line, '그림이 보이는 바탕을 정한다 = 모른다 ⇒ 변수 없음').toBe('');
   expect(errs).toEqual([]);
 });
 test('G3 밝은 그라디언트 프레임(흰 → #eee) → 변수 없음(오늘 그대로)', async ({ page }) => {

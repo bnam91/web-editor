@@ -45,6 +45,10 @@ async function setup(page) {
     const { block: sb } = window.makeShapeBlock('rectangle'); sb.id = 'eSh';
     const ss = document.createElement('div'); ss.className = 'frame-block'; ss.id = 'eShF';
     ss.dataset.width = '100'; ss.dataset.height = '100'; ss.style.width = '100px'; ss.style.height = '100px';
+    /* ★0e3beee4(현빈 1009t3-②)가 ★frame-block 자름을 ★★기본 켬으로 만들었다 ⇒ ★반사 띠(q.bottom+6..+69)가
+       ★★100px 프레임 ★밖이라 ★잘린다. ★이 벌이 재는 축은 ★«반사에 그림자가 비치나»이지 ★«자름»이 아니다.
+       ⇒ ★규약에서 도출: ★사람이 ★끈 프레임은 ★안 자른다(`css/editor-blocks.css` ★`[data-clip-content="false"]`). */
+    ss.dataset.clipContent = 'false';
     ss.appendChild(sb); document.getElementById('eR3').appendChild(ss);
     sb.querySelectorAll('[fill]').forEach(n => { if (n.getAttribute('fill') !== 'none') n.setAttribute('fill', '#00aa44'); });
     window.rebindAll?.(); window.deselectAll?.(); window.applyZoom?.(100);
