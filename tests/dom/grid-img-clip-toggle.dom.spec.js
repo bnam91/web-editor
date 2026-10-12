@@ -186,3 +186,18 @@ test('GC7 [새 것] 표가 크롭 프레임에서 거짓말하지 않는다 — 
   expect(q, '[회귀 지킴] 크롭 없는 프레임이 gridCrop 으로 샜다').toBe('gridPlain');
   expect(errs).toEqual([]);
 });
+
+test('GC8 [새 것] 패널 절 제목 — 「Layout」 은 맨 위 한 개뿐 · 새 절은 「이미지 표시」 안에 토글', async ({ page }) => {
+  const errs = await scene(page, CROP);
+  const r = await page.evaluate(() => {
+    const titles = [...document.querySelectorAll('.prop-section-title')].map(e => e.textContent.trim());
+    const t = document.getElementById('grd-img-clip-toggle');
+    const sec = t && t.closest('.prop-section');
+    return { titles, secTitle: sec ? sec.querySelector('.prop-section-title').textContent.trim() : null };
+  });
+  expect(r.secTitle, '[전제] 토글이 어느 절 안에 있다').not.toBe(null);
+  expect(r.titles.filter(x => x === 'Layout').length, `[새 것] 「Layout」 제목이 정확히 1개여야 한다 ${JSON.stringify(r.titles)}`).toBe(1);
+  expect(r.titles.filter(x => x === '이미지 표시').length, `[새 것] 「이미지 표시」 제목 1개 ${JSON.stringify(r.titles)}`).toBe(1);
+  expect(r.secTitle, '[새 것] 토글은 「이미지 표시」 절 안에 있다').toBe('이미지 표시');
+  expect(errs).toEqual([]);
+});

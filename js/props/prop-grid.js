@@ -1512,7 +1512,7 @@ function _grdImageClipSectionHtml(anyHit, block) {
   const on = !!(frame && window.clipsContent?.(frame));
   return `
     <div class="prop-section">
-      <div class="prop-section-title">Layout</div>
+      <div class="prop-section-title">이미지 표시</div>
       <div class="prop-row">
         <span class="prop-label">내용 자르기</span>
         <label class="prop-toggle"${locked ? ' style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>

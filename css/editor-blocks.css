@@ -1921,7 +1921,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  *   가상요소 자신은 클릭을 안 먹고 부모가 받는다 — text-block 이 이미 그렇게 돈다).
  * ★#canvas 스코프인 이유: export 클론은 #canvas 밖이라 안내문이 결과물에 «안 샌다».
  *   (editor-layout.css:307 의 text-block 판은 스코프가 없어 내보내기에도 나온다 — 따라하지 않았다.) */
-#canvas .grid-block .grd-line:empty::before { color: #ccc; pointer-events: none; }
+#canvas .grid-block .grd-line:empty::before,
+/* ★1012t1D5-d 컴패리전 빈 칸·빈 줄 안내는 «이 선언을 공유한다» — 색(#ccc)·pointer-events 를 두 벌 만들지 않는다(칼럼 글자색 상속+흐림은 회색 칼럼에서 1.39:1 로 안 보였다). */
+#canvas .comparison-block .cmp-row:not(.cmp-img):empty::before,
+#canvas .comparison-block .cmp-hd:empty::before,
+#canvas .comparison-block .ln-row > .grd-line:empty::before { color: #ccc; pointer-events: none; }
 #canvas .grid-block .grd-h1:empty::before      { content: '제목을 입력하세요'; }
 #canvas .grid-block .grd-h2:empty::before      { content: '소제목을 입력하세요'; }
 #canvas .grid-block .grd-h3:empty::before      { content: '소항목을 입력하세요'; }
@@ -2693,16 +2697,16 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 }
 /* ★D5 (현빈 2026-10-12) — 빈 칸 «안내» (시각 전용). 글자가 아니다: 모델·textContent·저장본 0.
  * ⛔10-08 「플레이스홀더 제거」(지워도 되살아나는 진짜 글자)와 다르다 — 이건 :empty 일 때만 보이는 ::before 다.
- * 색은 칼럼 글자색을 따라(상속) 45% 로 흐리게 — data-is-placeholder(아래 2021행 부근)와 같은 흐림. 하드코딩 색 0.
+ * 색·굵기·흐림은 «그리드 빈 줄 안내와 같은 선언»(위 .grd-line:empty::before 묶음의 #ccc · opacity 1 · normal) — 칼럼 색·굵기를 상속하지 않는다(회색 칼럼 대비 1.39:1 이었다).
  * ★#canvas 스코프: export 클론은 #canvas 밖이라 안내가 결과물에 안 샌다(그리드 안내와 같은 까닭).
  * 문구는 js/blocks/comparison-block.js CMP_ROW_HINT / CMP_HD_HINT 와 두 벌 — 검사가 묶는다. */
 #canvas .comparison-block .cmp-row:not(.cmp-img):empty::before,
-#canvas .comparison-block .cmp-hd:empty::before { opacity: .45; pointer-events: none; }
+#canvas .comparison-block .cmp-hd:empty::before { font-weight: normal; }
 #canvas .comparison-block .cmp-row:not(.cmp-img):empty::before { content: '내용을 입력하세요.'; }
 #canvas .comparison-block .cmp-hd:empty::before { content: '제목을 입력하세요'; }
 /* ★1012t1D2 칸 «줄»의 빈 줄 안내 — 공용 줄 규칙(.ln-row > .grd-line:empty · '글자를 입력하세요' · #ccc)을 비교 «안에서만» 덮어
  * D5 칸 안내와 같은 문구·같은 흐림(칼럼 글자색 45%)으로 맞춘다. ⛔공용 규칙은 그대로(버블·챗 무접촉) — 이 셀렉터가 더 구체적이다. */
-#canvas .comparison-block .ln-row > .grd-line:empty::before { content: '내용을 입력하세요.'; color: inherit; opacity: .45; }
+#canvas .comparison-block .ln-row > .grd-line:empty::before { content: '내용을 입력하세요.'; font-weight: normal; }
 /* ★1012t1D3 이미지 칸 «선택» 표시 — 그리드 빈 칸 선택(.grd-cell-selected)과 같은 그림·같은 토큰(inset box-shadow · --sel-color · --inv-zoom).
  * ⛔.selected 재활용 금지(editor.js 범용 조회) · ⛔outline 금지(.cmp-col overflow:hidden 이 바깥 offset 을 자른다).
  * 클래스가 `-cell-selected` 로 끝나 저장 직렬화가 벗긴다(section-serialize RUNTIME_MARKER_RE). #canvas 스코프 = 내보내기 클론에 안 샌다. */
