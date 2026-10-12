@@ -222,7 +222,21 @@
     });
   }
 
-  const RUNTIME_MARKER_RE  = /(?:^|-)(?:line|cell)-selected$/;
+  /* ★★★2026-10-12 — ★`dragging` 가족을 ★★규칙으로 ★덮는다(★지디 · ★R3 처방).
+     ★★왜: ★명부(`RUNTIME_MARKER_CLS`)는 ★`indexOf` ★★완전일치라 ★★`frame-child-dragging` 이 ★샜다
+       ⇒ ★그 토큰이 ★직렬화 스냅샷에 ★실려 ★드래그 ★시작 표본이 ★«표식이 든 캔버스»를 ★찍었다
+       ⇒ ★★R3(`tests/dom/free-frame-grid-width-roundtrip`)의 ★⌘Z 걸음이 ★한 칸 ★어긋났다.
+     ★★행위로 ★닫았다(2026-10-12): ★그 토큰 ★하나를 ★명부에 ★더하니 ★R3 ★green 3/3 —
+       ★제품의 ★`classList.add` 도 ★CSS 규칙도 ★그대로 ★둔 채였다. ⇒ ★★«보이는 자르기»는 ★무죄다.
+     ★★실측 — ★`*dragging` 클래스 ★★★14종 중 ★덮이던 것 ★★1종(`'dragging'`) ⇒ ★★구멍 ★★13종.
+       ⚠️★처음 ★★13종이라 ★적었다 — ★`git grep -E` 가 ★★`\b` 를 ★몰라 ★CSS 쪽 자가 ★★0건이었다(★죽은 자).
+       ★참값은 ★★14종이고 ★★`tests/unit/runtime-marker-dragging-roster.test.mjs` 가 ★그 수를 ★★매번 ★다시 ★센다.
+     ★★그리고 ★★둘째 명부가 ★있었다 — ★`js/io/save-load.js` 의 ★`[data-pos-dragging], .pos-dragging` ★별도 청소
+       ⇒ ★누군가 ★같은 병을 ★`pos-dragging` 에서 ★맞고 ★«두 번째 자리»에 ★고쳤다. ★★그래서 ★규칙으로 ★합친다.
+     ★★지키는 자: ★`tests/unit/runtime-marker-dragging-roster.test.mjs`
+       ⇒ ★이 줄을 ★좁히면 ★그 벌의 ★★주 단언이 ★빨개진다(★★고치기 전 판에서 ★13종 ★빨강을 ★확인했다).
+     ⛔`'dragging'` 토큰은 ★명부에 ★그대로 ★둔다 — ★그 명부 주석이 「사람이 읽으라고 남긴다」라 ★적었다. */
+  const RUNTIME_MARKER_RE  = /(?:^|-)(?:(?:line|cell)-selected|dragging)$/;
   const RUNTIME_MARKER_CLS = [
     'selected', 'multi-selected', 'ci-selected', 'ci-active', 'row-active',
     'cell-selected',                             // ★RE 가 이미 잡는다(`-cell-selected`). 「지금 무엇이 있나」를 사람이 읽으라고 남긴다
