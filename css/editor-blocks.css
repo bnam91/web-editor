@@ -3331,7 +3331,10 @@ textarea.cvb-card-input {
 .speech-bubble-block[data-show-sender="true"] .tb-bubble { max-width: 100%; }
 /* 정렬 단추 center 면 말꼬리 쪽 22px 들여쓰기를 뺀다 — 안 빼면 이름 글자가 11px 치우친다.
    표식은 applyBubbleSenderAlign(prop-text-wireup-align.js) 한 곳이 쓴다. */
-.speech-bubble-block[data-sender-align="center"] .tb-sender-name {
+/* ★둘째 선택자(결함 2) — 10-10 ~ M2-b 사이 저장본은 이름표 인라인 center 만 있고 표식이 없다(이벨 실측 dLayout +11).
+   불러오기·⌘Z·붙여넣기·템플릿 길이 여럿이라 JS 이행 대신 렌더(CSS)에서 인라인 값을 그대로 읽는다. */
+.speech-bubble-block[data-sender-align="center"] .tb-sender-name,
+.speech-bubble-block .tb-sender-name[style*="text-align: center"] {
   padding-left: 0;
   padding-right: 0;
 }

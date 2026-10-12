@@ -466,3 +466,28 @@ test('⒮ 1012t1M2-b ★불변 — 이름 끈 말풍선은 옛 꼴(display:block
   }
   expect(errs).toEqual([]);
 });
+
+/* ══ 1012t1M2 결함 2·3 (이벨 재투입) ⒰⒱ ══════════════════════════════════════════════
+ * ⒰ 10-10 ~ M2-b 사이 저장본 꼴 — 이름표 인라인 center 만 있고 블럭 표식(data-sender-align)이 없다.
+ *    옛: 22px 들여쓰기가 남아 dLayout +11(이벨 실측). 고침: CSS 가 인라인 값을 읽어 들여쓰기를 뺀다.
+ * ⒱ MCP/모델 문 tail:center — 정렬 단추 left 를 눌러 둔 뒤 updateSpeechBubbleBlock(id,{tail:'center'}).
+ *    옛: 이름표 인라인 left 가 남아 dLayout −113.7(이벨 실측). 고침: 패널 _setTail 과 같은 한 벌 함수. */
+test('⒰ 1012t1M2 ★옛 저장본 꼴(이름표 인라인 center · 표식 없음) → |dLayout| ≤ 2', async ({ page }) => {
+  const errs = await setup(page);
+  await showSender(page);
+  await page.evaluate(() => {
+    const b = document.querySelector('#canvas .speech-bubble-block');
+    delete b.dataset.senderAlign;
+    b.querySelector('.tb-sender-name').style.textAlign = 'center';
+  });
+  const d = await dLayoutProbe(page);
+  const pre = await page.evaluate(() => ({
+    mark: document.querySelector('#canvas .speech-bubble-block').dataset.senderAlign ?? null,
+    attr: document.querySelector('#canvas .speech-bubble-block .tb-sender-name').getAttribute('style'),
+  }));
+  console.log('    ⒰ ' + JSON.stringify({ ...pre, d }));
+  expect(pre.mark, '전제 — 블럭 표식이 없다(옛 저장본 꼴)').toBeNull();
+  expect(pre.attr, '전제 — 이름표 인라인에 text-align: center').toContain('text-align: center');
+  expect(Math.abs(d.dLayout), `옛 저장본 꼴에서 이름이 몸통 가운데에 안 왔다 — dLayout ${d.dLayout}`).toBeLessThanOrEqual(2);
+  expect(errs).toEqual([]);
+});
