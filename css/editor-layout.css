@@ -128,6 +128,64 @@
   resize: vertical;
 }
 .smp-textarea:focus { outline: 1px solid var(--ui-accent-primary, #2d6fe8); border-color: var(--ui-accent-primary, #2d6fe8); }
+/* 메모 편집 칸 (1012t1A1) — 글상자가 아니라 편집 가능한 상자다. 줄바꿈·연속 공백을 글자 그대로 보인다. */
+.smp-editor {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+/* 빈 칸 안내 글 — 캐럿 자리를 밀지 않게 띄워 둔다 */
+.smp-editor.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--ui-text-muted);
+  pointer-events: none;
+}
+/* 메모 속 동그란 체크박스 — 글자 크기를 따라간다 */
+.smp-check {
+  display: inline-block;
+  box-sizing: border-box;
+  position: relative;
+  width: 1.1em;
+  height: 1.1em;
+  margin-right: var(--ui-row-gap);
+  border: 1px solid var(--ui-text-muted);
+  border-radius: 50%;
+  vertical-align: -0.18em;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background 120ms, border-color 120ms;
+}
+.smp-check:hover { border-color: var(--ui-text); }
+.smp-check[aria-checked="true"] {
+  background: var(--ui-accent-primary);
+  border-color: var(--ui-accent-primary);
+}
+.smp-check[aria-checked="true"]::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  width: 0.28em;
+  height: 0.52em;
+  border: solid var(--ui-text);
+  border-width: 0 0.12em 0.12em 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+/* 메모 속 참고 이미지 (1012t1A2) — 한 줄을 통째로 차지하고, 편집 칸 너비를 넘지 않는다 */
+.smp-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: var(--ui-row-gap) 0;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  cursor: default;
+}
 .smp-foot {
   display: flex; justify-content: space-between; align-items: center;
   font-size: var(--ui-fs-base);

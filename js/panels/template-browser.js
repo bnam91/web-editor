@@ -296,13 +296,14 @@ function openTemplateBrowser() {
   _browserSearchMode = 'all';
   const _searchMode = document.getElementById('tpl-browser-search-mode');
   if (_searchMode) _searchMode.value = 'all';
-  /* ★★정렬 ★열쇠도 ★같이 ★되돌린다 ＋ ★★`<option>` 을 ★★명부에서 ★그린다.
-     ⇒ ★★HTML 엔 ★빈 `<select>` 만 두고 ★★목록은 ★★`_tpl-sort.js` 가 ★쥔다
-       ⇒ ★★두 창의 ★마크업이 ★★명부와 ★갈라질 ★수가 ★없다. */
+  /* 정렬 열쇠는 되돌리지 않고 «기억값»을 읽는다(1012t1Z2 — 아래 `tplSortLoad`) ＋ `<option>` 을 명부에서 그린다.
+     ⇒ HTML 엔 빈 `<select>` 만 두고 목록은 `_tpl-sort.js` 가 쥔다
+       ⇒ 두 창의 마크업이 명부와 갈라질 수가 없다.
+     기억값이 없거나 명부에 없으면 기본 열쇠다. */
   /* ★★뎁스·커서도 ★되돌린다 — ★열면 ★★뎁스2(첫 카드 자동선택)가 ★기존 거동이다 */
   _depth = 2;
   _treeCursor = -1;
-  _browserSort = window.tplSortDefault || 'default';
+  _browserSort = window.tplSortLoad?.() || 'default';
   const _sortSel = document.getElementById('tpl-browser-sort');
   if (_sortSel) _sortSel.innerHTML = window.tplSortOptionsHtml(_browserSort);
   _renderBrowserTree();
@@ -1424,6 +1425,7 @@ function initTemplateBrowser() {
   /* ★★정렬 ★고르기 — ★`change` ★한 자리. ⛔`_browserFilter` 를 ★건드리지 ★않는다(★F4) */
   document.getElementById('tpl-browser-sort')?.addEventListener('change', e => {
     _browserSort = e.target.value || (window.tplSortDefault || 'default');
+    window.tplSortSave?.(_browserSort);
     _renderBrowserCards();
   });
 

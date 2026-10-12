@@ -67,6 +67,7 @@ function enterVectorPenMode() {
   if (_mode) return;
   // annotation penMode와 상호 배타
   window.exitPenMode?.();
+  window.exitCountStickerMode?.();
   // 편집 모드 진행 중이면 종료
   exitPenEditMode();
   _mode = true;

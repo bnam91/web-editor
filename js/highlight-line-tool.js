@@ -15,6 +15,7 @@ const HLB_DEFAULTS = {
 
 function enterHighlightBMode() {
   if (_hlbMode) return;
+  window.exitCountStickerMode?.();
   _hlbMode = true;
   document.body.classList.add('hlb-mode');
   const btn = document.getElementById('fp-pen-btn');

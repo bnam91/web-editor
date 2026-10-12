@@ -3556,6 +3556,13 @@ body.hlb-mode .section-block,
 body.hlb-mode .section-block * { cursor: crosshair !important; }
 body.hlb-mode .hlb-preview { cursor: crosshair !important; pointer-events: none; }
 
+/* 카운트 스티커 도구가 켜진 동안 — 위 두 도구와 같은 십자 커서 (1012t1Z4) */
+body.count-stk-mode,
+body.count-stk-mode #canvas-wrap,
+body.count-stk-mode #canvas-scaler,
+body.count-stk-mode .section-block,
+body.count-stk-mode .section-block * { cursor: crosshair !important; }
+
 #fp-pen-btn.active {
   background: var(--ui-accent-primary);
   border-color: var(--ui-accent-primary);

@@ -485,6 +485,8 @@ function bindStickerSelect(block) {
   // 더블클릭 → 텍스트 편집 (contenteditable)
   block.addEventListener('dblclick', (e) => {
     e.stopPropagation();
+    // 카운트 스티커(data-count)는 글자가 «번호»다 — 손으로 고치면 번호 매김과 어긋나므로 인라인 편집을 열지 않는다
+    if (block.dataset.count) return;
     // 이미 편집 중이면 브라우저 기본 워드 선택에 양보 (재진입으로 selection 덮어쓰기 방지)
     if (block.querySelector('.sticker-text')?.isContentEditable) return;
     _enterStickerEdit(block, e);

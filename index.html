@@ -690,6 +690,7 @@
       <button class="fp-menu-item" onclick="addStickerBlock();toggleFpDropdown('fp-pen-dropdown')" title="플로팅 스티커 — 클릭=마지막 스타일 / 색·프리셋은 우측 패널에서 선택">Sticker</button>
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'text'});toggleFpDropdown('fp-pen-dropdown')" title="텍스트 스티커 — 캔버스에 자유 배치하는 텍스트 (폰트/외곽선/그림자 등 풀 옵션)">Text Sticker</button>
       <button class="fp-menu-item" onclick="openIconifyModal((p)=>{const o={shape:'icon', iconName:p.name, svg:p.svg, size:p.size}; if(p.iconColor!=null&&p.iconColor!=='') o.iconColor=p.iconColor; window.addStickerBlock(o);}, {favorites:true});toggleFpDropdown('fp-pen-dropdown')" title="아이콘 스티커 — Iconify에서 아이콘을 골라 캔버스에 스티커로 추가">Icon Sticker</button>
+      <button class="fp-menu-item" onclick="toggleCountStickerMode();toggleFpDropdown('fp-pen-dropdown')" title="카운트 스티커 — 켠 뒤 섹션을 누를 때마다 1·2·3… 번호 스티커 추가 · ESC 종료 / 표기·모양·시작 번호·크기는 우측 패널에서">Count Sticker</button>
       <!-- ★[숨김] 면 형광펜 A(shape:'highlight') · 1012t1J1 · 현빈 「b만 남겨줘」
            ⛔막는 것은 «새로 넣는 입구»뿐이다. 렌더·패널(Highlight Size)·코너 리사이즈·저장/로드·MCP 의
              shape:'highlight' 수용은 그대로 둔다 · 옛 프로젝트의 data-shape="highlight" 는 계속 열린다.
@@ -921,9 +922,6 @@
   </div>
   <!-- 검색 바 + 섹션 추가 버튼 (중간) -->
   <div class="tpl-browser-search-wrap">
-    <select class="tpl-browser-search-mode tpl-browser-sort" id="tpl-browser-sort" title="정렬 기준">
-      <!-- ★★비어 있다 — ★★`<option>` 은 ★`_tpl-sort.js` 의 ★명부에서 ★그린다(⛔두 벌로 두지 않는다) -->
-    </select>
     <select class="tpl-browser-search-mode" id="tpl-browser-search-mode" title="검색 기준">
       <option value="all">전체</option>
       <option value="name">파일명</option>
@@ -942,7 +940,15 @@
   <!-- 하단 body: 카테고리 트리 + 카드 리스트 -->
   <div class="tpl-browser-body">
     <div class="tpl-browser-tree" id="tpl-browser-tree"></div>
-    <div class="tpl-browser-cards" id="tpl-browser-cards"></div>
+    <!-- 뎁스2 칼럼 — 정렬 줄이 카드 목록 머리에 붙는다(1012t1Z2). 새 요소에 id 를 달지 않는다 -->
+    <div class="tpl-browser-cards-col">
+      <div class="tpl-browser-sortbar">
+        <label class="tpl-browser-sort-label" for="tpl-browser-sort">정렬</label>
+        <!-- 비어 있다 — 옵션은 _tpl-sort.js 의 명부에서 그린다(두 벌로 두지 않는다) -->
+        <select class="tpl-browser-search-mode tpl-browser-sort" id="tpl-browser-sort" title="정렬 기준"></select>
+      </div>
+      <div class="tpl-browser-cards" id="tpl-browser-cards"></div>
+    </div>
   </div>
   <!-- 우하단 리사이즈 핸들 -->
   <div id="tpl-resize-handle" style="position:absolute;bottom:0;right:0;width:20px;height:20px;cursor:se-resize;z-index:3;display:flex;align-items:flex-end;justify-content:flex-end;padding:4px;">
@@ -1594,6 +1600,7 @@
 <!-- 빈 캔버스 안내(T-101 ①) — 섹션 0개일 때만 #canvas-area 위에 떠서 첫 걸음을 알려준다. -->
 <!-- 갭 «감수 패스»의 렌더러 쪽(읽기 + 적용). 규격/판단은 main/claude-pm/services/spacing.js 에 있다. -->
 <script src="js/spacing-normalize.js"></script>
+<script src="js/section-memo-format.js"></script>
 <script src="js/section-memo.js"></script>
 <script src="js/section-height.js"></script><!-- ★섹션 높이 표시 (다)·(라) — 자 = offsetHeight 하나(머리말에 근거) -->
 <script src="js/section-protection.js"></script>
@@ -1608,6 +1615,7 @@
 <script type="module" src="js/gradient-line-overlay.js"></script>
 <script src="js/alt-click-layer-select.js"></script>
 <script src="js/highlight-line-tool.js"></script>
+<script src="js/count-sticker-tool.js"></script>
 <script src="js/badge-transform.js"></script>
 <script src="js/text-effect-transform.js"></script>
 <script src="js/liner-transform.js"></script>

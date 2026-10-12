@@ -3,6 +3,7 @@ import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedColor } from './_panel-rendered.js';
 import { glowSectionHTML, wireGlowSection } from './prop-sticker-glow.js';
+import { countSectionHTML, wireCountSection } from './prop-sticker-count.js';
 
 function _esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -134,6 +135,10 @@ export function showStickerProperties(block) {
   const isGlow    = shape === 'glow';   // 이펙트 스티커 — 자기 절(prop-sticker-glow.js)만 보인다
   // circle/square 전용 섹션(mode/text/size/colors)을 가리는 통합 플래그
   const hideBasic = isAnyHl || isText || isIcon || isGlow;
+  // 카운트 스티커(data-count · 1012t1Z4) — circle/square 의 변형. 자기 절(prop-sticker-count.js)을 끼우고
+  //   글자·이미지 모드·Shape 절과 «크기» 행은 숨긴다(글자 = 번호, 모양·크기는 Count 절이 든다).
+  const isCount   = !!block.dataset.count && !hideBasic;
+  const isCountNone = isCount && block.dataset.countShape === 'none';   // 투명 — 배경색이 곧 숫자색이다
   // 기본 sticker(circle/square)에서 사용하는 값
   const size       = parseInt(block.dataset.size)       || 60;
   const text       = block.dataset.text ?? (isText ? 'Text' : 'NEW');
@@ -218,7 +223,7 @@ ${blockHeaderHTML({
       </div>
       <div class="prop-hint" style="font-size:11px;color:#888;margin-top:4px;">SVG가 currentColor를 쓰는 아이콘만 색상이 반영됩니다.</div>
     </div>
-    <div class="prop-section" id="stk-mode-section" style="display:${hideBasic ? 'none' : 'block'};">
+    <div class="prop-section" id="stk-mode-section" style="display:${(hideBasic || isCount) ? 'none' : 'block'};">
       <div class="prop-row">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
           <input type="checkbox" id="stk-mode-img" ${block.dataset.mode === 'image' ? 'checked' : ''}>
@@ -226,13 +231,13 @@ ${blockHeaderHTML({
         </label>
       </div>
     </div>
-    <div class="prop-section" id="stk-text-section" style="display:${hideBasic ? 'none' : (block.dataset.mode === 'image' && !isText ? 'none' : 'block')};">
+    <div class="prop-section" id="stk-text-section" style="display:${(hideBasic || isCount) ? 'none' : (block.dataset.mode === 'image' && !isText ? 'none' : 'block')};">
       <div class="prop-section-title">Text</div>
       <div class="prop-row">
         <textarea class="prop-textarea" id="stk-text" rows="2" placeholder="텍스트"></textarea>
       </div>
     </div>
-    <div class="prop-section" id="stk-image-section" style="display:${hideBasic ? 'none' : (block.dataset.mode === 'image' ? 'block' : 'none')};">
+    <div class="prop-section" id="stk-image-section" style="display:${(hideBasic || isCount) ? 'none' : (block.dataset.mode === 'image' ? 'block' : 'none')};">
       <div class="prop-section-title">Image</div>
       <div id="stk-img-drop" style="border:2px dashed #444;border-radius:6px;padding:18px 10px;text-align:center;color:#888;font-size:11px;cursor:pointer;background:#1a1a1a;transition:border-color .15s,background .15s;">
         ${block.dataset.imgSrc ? `<img src="${block.dataset.imgSrc}" style="max-width:80px;max-height:80px;object-fit:contain;display:block;margin:0 auto 6px;">` : ''}
@@ -241,7 +246,8 @@ ${blockHeaderHTML({
       ${block.dataset.imgSrc ? `<div class="prop-row"><button class="prop-action-btn" id="stk-img-clear" style="width:100%;">이미지 제거</button></div>` : ''}
     </div>
     ${isGlow ? glowSectionHTML(block) : ''}
-    <div class="prop-section" style="display:${isGlow ? 'none' : 'block'};">
+    ${isCount ? countSectionHTML(block) : ''}
+    <div class="prop-section" id="stk-shape-section" style="display:${(isGlow || isCount) ? 'none' : 'block'};">
       <div class="prop-section-title">Shape</div>
       <div class="prop-row">
         <div class="prop-align-group" id="stk-shape-group">
@@ -328,7 +334,7 @@ ${blockHeaderHTML({
     </div>
     <div class="prop-section" id="stk-size-section" style="display:${hideBasic ? 'none' : 'block'};">
       <div class="prop-section-title">Size</div>
-      <div class="prop-row">
+      <div class="prop-row" id="stk-size-row" style="display:${isCount ? 'none' : 'flex'};">
         <span class="prop-label">크기</span>
         <input type="range" class="prop-slider" id="stk-size" min="20" max="300" step="2" value="${size}">
         <input type="number" class="prop-number" id="stk-size-num" min="10" max="600" value="${size}">
@@ -368,10 +374,10 @@ ${blockHeaderHTML({
     <div class="prop-section" id="stk-colors-section" style="display:${hideBasic ? 'none' : 'block'};">
       <div class="prop-section-title">Colors</div>
       <div class="prop-color-row">
-        <span class="prop-label">배경색</span>
+        <span class="prop-label">${isCountNone ? '숫자색' : '배경색'}</span>
         ${colorFieldHTML({ idPrefix: 'stk-bg', hex: bgColor, alpha: bgAlpha })}
       </div>
-      <div class="prop-color-row">
+      <div class="prop-color-row" id="stk-txt-row" style="display:${isCountNone ? 'none' : 'flex'};">
         <span class="prop-label">글자색</span>
         ${colorFieldHTML({ idPrefix: 'stk-txt', hex: textColor, alpha: txtAlpha })}
       </div>
@@ -555,6 +561,7 @@ ${blockHeaderHTML({
     propPanel.querySelectorAll('.stk-hlb-wavy-row').forEach(row => { row.style.display = style === 'wavy' ? 'flex' : 'none'; });
   };
   if (isGlow) wireGlowSection(propPanel, block, rerender);
+  if (isCount) wireCountSection(propPanel, block, rerender);
 
   // 텍스트 — textarea(멀티라인, \n 보존). input에선 .sticker-text textContent만 직접 갱신(rerender 시 캐럿 보존 X)
   //   초깃값은 HTML 본문 주입 대신 value 할당 — <input type=text>의 \n strip 함정 회피 +
