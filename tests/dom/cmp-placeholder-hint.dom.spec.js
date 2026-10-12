@@ -47,6 +47,14 @@ const befores = (page, sel) => page.evaluate((s) => [...window.__blk.querySelect
   return { content: cs.content, opacity: cs.opacity, color: cs.color, text: e.textContent, html: e.innerHTML };
 }), sel);
 const model = (page) => page.evaluate(() => window.getComparisonCols(window.__blk.dataset));
+/* 안내 색 토큰(css/design-tokens.css) — 값은 «산 토큰»에서 읽는다(손으로 박지 않는다). 계산색(rgb) 꼴로 바꿔 돌려준다. */
+const HINT_TOKEN = '--text-placeholder-canvas';
+const tokenColor = (page) => page.evaluate((name) => {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const probe = document.createElement('i'); probe.style.color = raw; document.body.appendChild(probe);
+  const rgb = getComputedStyle(probe).color; probe.remove();
+  return { raw, rgb };
+}, HINT_TOKEN);
 const NEW = 'window.addComparisonBlock({});';
 const TWO = "window.addComparisonBlock({ cols: [{ title: 'A', rows: [{type:'text',text:'a'},{type:'image'}] }, { title: 'B', rows: [{type:'text',text:''},{type:'text',text:'b'}] }], featured: 1 });";
 
@@ -55,10 +63,12 @@ test('P1 새 블럭 빈 행 칸 전부 ‘내용을 입력하세요.’ 안내 �
   const h = await assertRuler(page);
   const rows = await befores(page, '.cmp-row');
   expect(rows.length).toBeGreaterThan(0);
+  const tok = await tokenColor(page);
+  expect(tok.raw.length > 0, `전제 — 토큰 ${HINT_TOKEN} 이 :root 에 정의됐다 ${JSON.stringify(tok)}`).toBe(true);
   for (const r of rows) {
     expect(r.content, `행 ::before — ${JSON.stringify(r)}`).toBe(JSON.stringify(h.row));
     expect(r.text, '안내는 글자가 아니다').toBe('');
-    expect(r.color, `색 — 그리드 빈 줄 안내와 같은 #ccc (칼럼 색 상속 아님) ${r.color}`).toBe('rgb(204, 204, 204)');
+    expect(r.color, `색 — 토큰 ${HINT_TOKEN}(${tok.raw}) (칼럼 색 상속 아님) ${r.color}`).toBe(tok.rgb);
   }
   const m = await model(page);
   expect(m.flatMap(c => c.rows.map(r => r.text)).every(t => t === ''), '모델 text 전부 빈 문자열').toBe(true);
@@ -171,7 +181,7 @@ test('P8 우측 패널 입력칸 placeholder 속성', async ({ page }) => {
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
-/* ── D5-d / D2-e — 안내 글 색·굵기·흐림이 그리드 빈 줄 안내와 «같다» + 대비 하한 ── */
+/* ── D5-d / D2-e — 안내 글 색(토큰)·굵기·흐림 + 두 칼럼 대비 2.5~4.5 · 그리드 쪽 무변 ── */
 /* 같은 장면에 빈 그리드 줄을 하나 더 세운다(비교 블럭 아래). 반환: 안내를 읽을 요소. */
 async function addEmptyGridLine(page) {
   await page.evaluate(() => {
@@ -197,32 +207,51 @@ const measure = `(() => {
              ratio: (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05) }; };
 })()`;
 
-test('P9 [D5-d] 두 칼럼 빈 칸 안내 = 그리드 빈 줄 안내와 색·굵기·흐림이 같고 · 대비 하한', async ({ page }) => {
+test('P9 [D5-d] 두 칼럼 빈 행·빈 헤더·칸 안 빈 줄 안내 — 대비 2.5~4.5 · 두 칼럼 같은 색·굵기 · normal · 색 = 토큰', async ({ page }) => {
   const errs = await setup(page, NEW);
   await assertRuler(page);
-  await addEmptyGridLine(page);
+  /* 칼럼마다 첫 행에 빈 줄 하나(칸 안 빈 줄 안내) — 나머지 행은 빈 칸(빈 행 안내)으로 남는다. */
+  await page.evaluate(() => { const cols = window.getComparisonCols(window.__blk.dataset);
+    for (const c of cols) { c.rows[0].lines = [{ type: 'body', text: '' }]; c.rows[0].text = ''; }
+    window.__blk.dataset.cols = JSON.stringify(cols); window.renderComparison?.(window.__blk); });
+  await page.waitForFunction(() => window.__blk.querySelectorAll('.cmp-row .ln-row > .grd-line:empty').length >= 2);
+  const tok = await tokenColor(page);
   const r = await page.evaluate((src) => {
     const m = (0, eval)(src);
-    const muted = window.__blk.querySelector('.cmp-col:not(.cmp-feat) .cmp-row:not(.cmp-img):empty');
-    const feat = window.__blk.querySelector('.cmp-feat .cmp-row:not(.cmp-img):empty');
-    const grid = document.querySelector('#zzGrid .grd-line:empty');
-    return { muted: muted && m(muted), feat: feat && m(feat), grid: grid && m(grid) };
+    const pick = (col) => {
+      if (!col) return null;
+      const one = (sel) => { const e = col.querySelector(sel); if (!e) return null;
+        const x = m(e); x.bg = getComputedStyle(col).backgroundColor; return x; };
+      return { row: one('.cmp-row:not(.cmp-img):empty'), hd: one('.cmp-hd:empty'), ln: one('.cmp-row .ln-row > .grd-line:empty') };
+    };
+    return { muted: pick(window.__blk.querySelector('.cmp-col:not(.cmp-feat)')), feat: pick(window.__blk.querySelector('.cmp-col.cmp-feat')) };
   }, measure);
-  expect(r.muted && r.feat && r.grid, `전제 — 회색 칼럼·강조 칼럼·그리드 빈 줄이 모두 있다 ${JSON.stringify(r)}`).toBeTruthy();
-  const sig = (x) => [x.color, x.weight, x.opacity];
-  expect(sig(r.muted), '회색 칼럼 안내 = 강조 칼럼 안내').toEqual(sig(r.feat));
-  expect(sig(r.muted), '컴패리전 안내 = 그리드 빈 줄 안내(색·굵기·흐림)').toEqual(sig(r.grid));
-  const floor = Math.max(1.5, r.grid.ratio - 0.01);   // 그리드 빈 줄 안내가 흰 바탕에서 갖는 대비(실측) — 최소 1.5
-  test.info().annotations.push({ type: 'contrast', description: `muted ${r.muted.ratio.toFixed(2)} · feat ${r.feat.ratio.toFixed(2)} · grid(white) ${r.grid.ratio.toFixed(2)}` });
-  console.log('P9 contrast', JSON.stringify({ muted: r.muted.ratio, feat: r.feat.ratio, grid: r.grid.ratio }));
-  expect(r.feat.ratio, `강조 칼럼 대비 ${r.feat.ratio} ≥ ${floor}`).toBeGreaterThanOrEqual(floor);
-  /* ★회색(muted) 칼럼: 그리드와 «같은 #ccc» 를 쓰면 이 칼럼 배경(중간 회색) 위에서 1.5 에 못 미친다(실측 1.35, 옛 상속+.45 는 1.39).
-   *   게이트 ②의 «같은 토큰» 과 «≥1.5» 가 이 칼럼에서 부딪힌다 → 여기서는 «더 나빠지지 않음»(옛 1.39 밑 1.3 미만 금지)만 못박고, 결정은 보고에 올렸다. */
-  expect(r.muted.ratio, `회색 칼럼 대비 ${r.muted.ratio} ≥ 1.3 (결정 대기: 1.5 미달)`).toBeGreaterThanOrEqual(1.3);
+  expect(tok.raw.length > 0, `전제 — 토큰 ${HINT_TOKEN} 정의 ${JSON.stringify(tok)}`).toBe(true);
+  const KINDS = ['row', 'hd', 'ln'];
+  for (const col of ['muted', 'feat']) for (const k of KINDS) {
+    expect(r[col] && r[col][k], `전제 — ${col} 칼럼 ${k} 안내 요소가 있다 ${JSON.stringify(r[col])}`).toBeTruthy();
+  }
+  expect(r.muted.row.bg, `전제 — 회색 칼럼과 강조 칼럼 배경이 다르다 ${r.muted.row.bg} / ${r.feat.row.bg}`).not.toBe(r.feat.row.bg);
+  const log = {};
+  for (const col of ['muted', 'feat']) for (const k of KINDS) log[`${col}.${k}`] = Number(r[col][k].ratio.toFixed(3));
+  log.bg = { muted: r.muted.row.bg, feat: r.feat.row.bg }; log.token = tok;
+  test.info().annotations.push({ type: 'contrast', description: JSON.stringify(log) });
+  console.log('P9 contrast', JSON.stringify(log));
+  for (const col of ['muted', 'feat']) for (const k of KINDS) {
+    const x = r[col][k];
+    expect(x.ratio, `${col}.${k} 대비 ${x.ratio} ≥ 2.5`).toBeGreaterThanOrEqual(2.5);
+    expect(x.ratio, `${col}.${k} 대비 ${x.ratio} ≤ 4.5 (본문처럼 보이면 안 된다)`).toBeLessThanOrEqual(4.5);
+    expect(x.weight, `${col}.${k} font-weight normal`).toBe('400');
+    expect(x.color, `${col}.${k} 색 = 토큰 ${HINT_TOKEN}(${tok.raw})`).toBe(tok.rgb);
+    expect(x.opacity, `${col}.${k} opacity 로 흐리지 않는다`).toBe('1');
+  }
+  for (const k of KINDS) {
+    expect([r.muted[k].color, r.muted[k].weight], `${k}: 회색 칼럼 = 강조 칼럼(색·굵기)`).toEqual([r.feat[k].color, r.feat[k].weight]);
+  }
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
-test('P10 [D2-e] 칸 안 빈 줄 안내 = 빈 칸 안내 문구(CMP_ROW_HINT) · 색·굵기·흐림 같음 · 그리드 문구 무변', async ({ page }) => {
+test('P10 [D2-e] 칸 안 빈 줄 안내 = 빈 칸 안내 문구(CMP_ROW_HINT) · 색·굵기·흐림 같음 · 색 = 토큰 · 그리드 문구·색 무변', async ({ page }) => {
   const errs = await setup(page, NEW);
   const h = await assertRuler(page);
   await addEmptyGridLine(page);
@@ -240,7 +269,9 @@ test('P10 [D2-e] 칸 안 빈 줄 안내 = 빈 칸 안내 문구(CMP_ROW_HINT) ·
   expect(r.ln.content, '빈 줄 안내 = CMP_ROW_HINT').toBe(JSON.stringify(h.row));
   expect(r.cell && r.cell.content, '빈 칸 안내 = CMP_ROW_HINT').toBe(JSON.stringify(h.row));
   expect([r.ln.color, r.ln.weight, r.ln.opacity], '빈 줄 안내 색·굵기·흐림 = 빈 칸 안내').toEqual([r.cell.color, r.cell.weight, r.cell.opacity]);
-  expect([r.ln.color, r.ln.weight, r.ln.opacity], '빈 줄 안내 = 그리드 빈 줄 안내').toEqual([r.grid.color, r.grid.weight, r.grid.opacity]);
+  const tok = await tokenColor(page);
+  expect(r.ln.color, `빈 줄 안내 색 = 토큰 ${HINT_TOKEN}(${tok.raw})`).toBe(tok.rgb);
   expect(r.grid.content, '그리드 빈 본문 줄 문구 무변(기준 9ce081f0 = 본문을 입력하세요)').toBe('"본문을 입력하세요"');
+  expect(r.grid.color, '그리드 빈 줄 안내 색 무변(#ccc) — 컴패리전 토큰이 그리드로 새지 않았다').toBe('rgb(204, 204, 204)');
   expect(errs, errs.join('\n')).toEqual([]);
 });
