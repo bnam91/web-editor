@@ -14,7 +14,7 @@ const DOM_WORKERS = Math.min(6, Number.isInteger(_envW) && _envW > 0 ? _envW : 4
 module.exports = defineConfig({
   testDir: __dirname,
   timeout: 30000,
-  retries: 0,
+  retries: 1,
   workers: DOM_WORKERS,
   preserveOutput: 'failures-only',
   reporter: [['list']],

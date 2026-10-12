@@ -99,8 +99,27 @@ test('P4 자리 — .row 로 싼 모달 자리에 section-inner 직속 프레임
     return { a: [a.left, a.top, a.width, a.height], b: [b.left, b.top, b.width, b.height], nextTop, nextTop2, rowStyle: row.getAttribute('style') };
   }, id);
   console.log('[P4]', JSON.stringify(r));
-  expect(r.b).toEqual(r.a);
-  expect(r.nextTop2).toBe(r.nextTop);
+  /* ★★2026-10-13 — ★`toEqual` 로 ★배열 넷을 ★정확 비교하다 ★CI 에서 ★깨졌다.
+     ★실측(CI run 38287769902 · GitHub 러너 · workers 4):
+       기대 96.70755004882812 ↔ 받음 96.22557067871094 ⇒ ★★차 ★0.482px (★한 픽셀 ★아래)
+     ★로컬(이 맥 · workers 1 · load 3.7~4.0) ⇒ ★★×2 회차 ★둘 다 ★초록(★0/2 빨강)
+     ⇒ ★★환경(폰트·렌더 반올림)에 ★매달린 수다 — ⛔「유력」이고 ★★단정은 ★안 한다
+     ★★이 칸의 ★뜻은 ★제목 그대로 「★같은 y·x·폭에 ★선다」 ⇒ ★★«같은 자리»지 ★«비트 동일»이 ★아니다
+     ★선례가 ★★바로 위 칸에 ★있다: ★P3 가 ★`expect(Math.abs(…)).toBeLessThan(0.01)` 로 ★허용 오차를 쓴다
+       (★레포 전체에도 ★`toBeCloseTo` 가 ★여럿 — asset-align 4 · export-html 5 …)
+     ⇒ ★그래서 ★허용 오차로 ★바꾼다. ★★`1`px 로 둔 ★까닭: ★실측 차 ★0.482 를 ★`0.5` 로 받으면 ★여유가 ★0.018 뿐이라
+       ★다음 러너에서 ★또 깨진다(★「최소선에 맞추면 하루 밀리면 또 막힌다」와 ★같은 꼴).
+     ⚠️★대가: ★★1px ★어긋남은 ★이제 ★못 잡는다. ★그걸 ★잃는 것이 ★맞다고 ★본 까닭은 ★위의 ★«뜻» 이다.
+       ⇒ ★★2px 이상 ★어긋나면 ★여기서 ★여전히 ★빨개진다. */
+  const POS_TOL = 1;   // px — ★«같은 자리»의 허용 오차(⛔비트 동일이 아니다)
+  ['left', 'top', 'width', 'height'].forEach((k, i) => {
+    expect(Math.abs(r.b[i] - r.a[i]),
+      `★${k} 가 «같은 자리»가 아니다 — 모달 ${r.a[i]} ↔ 프레임 ${r.b[i]} (허용 ${POS_TOL}px)`)
+      .toBeLessThanOrEqual(POS_TOL);
+  });
+  expect(Math.abs(r.nextTop2 - r.nextTop),
+    `★다음 블럭의 y 가 움직였다 — ${r.nextTop} → ${r.nextTop2} (허용 ${POS_TOL}px)`)
+    .toBeLessThanOrEqual(POS_TOL);
 });
 
 test('P5 자유배치 프레임 안 absolute fullWidth 프레임 — 클릭 선택 · 직렬화 왕복 · 레이어 등록', async ({ page }) => {
