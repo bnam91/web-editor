@@ -1802,6 +1802,13 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
         const f = [...p.querySelectorAll('.prop-section')].find(x => (x.querySelector('.prop-section-title')?.textContent || '').trim() === 'Fill');
         return f ? { labels: [...f.querySelectorAll('.prop-label')].map(e => e.textContent.trim()), hasColor: !!f.querySelector('#qt-textcol-color'), colorRow: !!f.querySelector('.prop-color-row') } : null;
       })(),
+      al: (() => {
+        const g = (id) => [...p.querySelectorAll(`#${id} svg`)].map(v => ({
+          vb: v.getAttribute('viewBox'), w: v.getAttribute('width'), h: v.getAttribute('height'),
+          lines: v.querySelectorAll('line').length, fill: v.querySelectorAll('path[fill="currentColor"]').length,
+        }));
+        return { h: g('qt-align-group'), v: g('qt-valign-group') };
+      })(),
       hints: [...p.querySelectorAll('.prop-hint')].map(e => e.textContent),
       linesHint: p.querySelectorAll('#qt-lines-hint').length,
     };
@@ -1845,6 +1852,12 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
   const it = tx.titles.indexOf('Typography');
   expect(tx.titles[it + 1], `★H5 기준 — 텍스트블럭도 Fill 이 Typography 바로 다음이다. 잰 제목 ${JSON.stringify(tx.titles)}`).toBe('Fill');
   expect(tx.fillLabels, `★H5 기준 — 텍스트블럭 Fill 절에 「글자색」 라벨이 있다. 잰 값 ${JSON.stringify(tx.fillLabels)}`).toContain('글자색');
+  /* ⑶ H4 — 「정렬」 아이콘 셋이 「세로 정렬」 아이콘 셋과 같은 꼴(viewBox·크기·칠 그림 · 선 0) */
+  expect({ nh: pn.al.h.length, nv: pn.al.v.length }, `★전제 — 정렬 3 · 세로 정렬 3 아이콘이 있다(inline). 잰 값 ${JSON.stringify(pn.al)}`).toEqual({ nh: 3, nv: 3 });
+  const ref = pn.al.v[0];
+  expect(pn.al.h.every(a => a.vb === ref.vb && a.w === ref.w && a.h === ref.h && a.lines === 0 && a.fill >= 1)
+    && pn.al.v.every(a => a.lines === 0 && a.fill >= 1),
+    `★H4 — 정렬 아이콘이 세로 정렬과 같은 viewBox/크기이고 선(line) 0 · 칠 path 가 있다. 잰 값 ${JSON.stringify(pn.al)}`).toBe(true);
   /* ⑸ H6 */
   expect({ kidSel: pn.kidSel, kidSec: pn.kidSec, addOpts: pn.addOpts },
     `★H6 — 「＋ 블럭 넣기」 select·절·옵션이 0 이어야 한다. 잰 값 ${JSON.stringify(pn)}`)

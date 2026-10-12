@@ -211,12 +211,14 @@ ${_pairRow('qt-gap', '간격', gap, L.gap.min, L.gap.max)}
           <button class="prop-type-btn${layout === 'stack' ? ' active' : ''}" data-qt-layout="stack">스택</button>
         </div>
       </div>
+      <!-- 1012t1H4 — 「정렬」 아이콘은 바로 밑 「세로 정렬」과 같은 꼴('object-h' ↔ 'object-v': 같은 사전·크기 14·viewBox 16·칠 그림).
+           옛 'text'(선 4줄)는 문단 정렬 그림인데 이 칸은 «부호+글 덩이»의 가로 자리를 옮긴다. -->
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="qt-align-group">
-          ${alignBtn('text', 'left',   { label: '왼쪽 정렬',   title: '왼쪽 정렬',   active: align === 'left',   attrs: { 'data-al': 'left' } })}
-          ${alignBtn('text', 'center', { label: '가운데 정렬', title: '가운데 정렬', active: align === 'center', attrs: { 'data-al': 'center' } })}
-          ${alignBtn('text', 'right',  { label: '오른쪽 정렬', title: '오른쪽 정렬', active: align === 'right',  attrs: { 'data-al': 'right' } })}
+          ${alignBtn('object-h', 'left',   { label: '왼쪽 정렬',   title: '왼쪽 정렬',   active: align === 'left',   attrs: { 'data-al': 'left' } })}
+          ${alignBtn('object-h', 'center', { label: '가운데 정렬', title: '가운데 정렬', active: align === 'center', attrs: { 'data-al': 'center' } })}
+          ${alignBtn('object-h', 'right',  { label: '오른쪽 정렬', title: '오른쪽 정렬', active: align === 'right',  attrs: { 'data-al': 'right' } })}
         </div>
       </div>
 ${layout === 'inline' ? `

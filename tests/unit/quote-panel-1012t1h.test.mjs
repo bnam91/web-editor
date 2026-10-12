@@ -95,3 +95,15 @@ test('T-H5 prop-quote.js 의 Fill 절이 Typography 뒤에서 qt-textcol 을 담
   assert.equal(code.split('>글자 색<').length - 1, 0, '라벨이 「글자 색」(띄어쓰기)로 돌아갔다 — 텍스트블럭은 「글자색」');
   assert.ok(code.includes('<span class="prop-label">글자색</span>'), '「글자색」 라벨이 없다');
 });
+
+/* T-H4 — 「정렬」(qt-align-group) 아이콘이 'object-h'(세로 정렬 'object-v' 와 같은 칠 그림 사전)이고 'text' 가 아니다.
+   되돌리면 빨강: alignBtn('object-h', …) 를 'text' 로 되돌리면. */
+test('T-H4 prop-quote.js 의 정렬 버튼 셋은 alignBtn(object-h) · 세로 정렬 셋은 alignBtn(object-v) · text 계열 0', () => {
+  const code = propCode();
+  const nH = (code.match(/alignBtn\('object-h'/g) || []).length;
+  const nV = (code.match(/alignBtn\('object-v'/g) || []).length;
+  const nT = (code.match(/alignBtn\('text'/g) || []).length;
+  assert.equal(nV, 3, `입력이 죽었다 — 세로 정렬 alignBtn 이 ${nV}개(기대 3)`);
+  assert.equal(nH, 3, `정렬 alignBtn('object-h') 이 ${nH}개(기대 3)`);
+  assert.equal(nT, 0, `alignBtn('text') 가 ${nT}건 남아 있다 — 정렬 아이콘이 선 4줄로 돌아갔다`);
+});
