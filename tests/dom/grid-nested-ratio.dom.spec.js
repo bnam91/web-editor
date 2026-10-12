@@ -95,6 +95,24 @@ test('S1 nested gutters = (cols-1) per duo line, and the OUTER gutter count does
   expect(errs).toEqual([]);
 });
 
+/** ★★배율을 걸고 ★★«probe 가 ★읽는 그 값»이 ★닿을 때까지 ★기다린다.
+ *  ★★왜 ★`currentZoom` 으로 ★기다리면 ★안 되나 (지디 2026-10-13 ★실측):
+ *    ★`applyZoom(100)` 뒤 ★`window.currentZoom` 은 ★★곧바로 ★100 이 ★되는데
+ *    ★`#canvas-scaler` 의 ★`matrix(a)` 는 ★★아직 ★옛 값이다 ⇒ ★`probe()` 가 ★★a=0.4 를 ★읽어
+ *    ★★전제(「배율이 갈렸다」)가 ★★거짓이 ★된다. ★★즉 ★대리 지표를 ★기다린 ★것이었다.
+ *  ⇒ ★★«재는 그 값»을 ★기다린다. ⛔고정 대기는 ★쓰지 ★않는다(`dom-fixed-wait-census` 래칫).
+ *  ★닿지 ★않으면 ★시간초과로 ★★크게 ★깨진다 — ★그게 ★맞다(★한 배율만 ★재고 ★«배율 둘»이라 ★적는 것보다). */
+async function waitScalerAt(page, zoomPct) {
+  await page.evaluate((z) => window.applyZoom(z), zoomPct);
+  await page.waitForFunction((z) => {
+    if (window.currentZoom !== z) return false;
+    const sc = document.getElementById('canvas-scaler') || document.getElementById('canvas');
+    if (!sc) return false;
+    const a = new DOMMatrixReadOnly(getComputedStyle(sc).transform).a || 1;
+    return Math.abs(a - z / 100) < 0.001;
+  }, zoomPct, { timeout: 10000 });
+}
+
 /* ═══ S2 ② ★면적 — ⛔rect 로 판정하지 마라. elementFromPoint 로, ★배율 둘에서 ═══ */
 test('S2 the gutter is actually HITTABLE at two different canvas scales (elementFromPoint)', async ({ page }) => {
   const errs = await scene(page);
@@ -127,13 +145,13 @@ test('S2 the gutter is actually HITTABLE at two different canvas scales (element
    *    ★격리 ×6 에서 ★★12/12 가 ★`[전제] 배율이 안 갈렸다 a=0.4 b=0.4` 로 ★죽었다(★시작 배율이 ★이미 ★바닥이라
    *    ★내용을 ★더 늘려도 ★더 안 내려갔다). ★전수에서는 ★시작 배율이 ★달라 ★★우연히 ★갈렸다.
    *    ⇒ ★★이 칸의 ★초록이 ★«함께 도는 것»에 ★매달려 있었다. ★CI 에서 ★빨강이 ★난 것이 ★오히려 ★맞다.
-   *  ★선례 = `grid-plus-g15:656` (`applyZoom` ＋ `currentZoom` 전제 단언). */
-  await page.evaluate(() => window.applyZoom(100));
-  await page.waitForTimeout(250);
+   *  ★선례 = `grid-plus-g15:656` (`applyZoom` ＋ `currentZoom` 전제 단언).
+   *  ★★⛔고정 대기(`wait`+`ForTimeout(250)`)로 ★쓰지 ★않는다 — ★`dom-fixed-wait-census` ★래칫이 ★잡았다
+   *    (★1318 → ★1319 · ★이 파일 ★4 → ★5). ★그 자의 ★처방대로 ★조건 대기로 ★썼다(선례 `grid-plus-e1:33`). */
+  await waitScalerAt(page, 100);
   expect(await page.evaluate(() => window.currentZoom), '전제: 배율 100 이 걸렸다').toBe(100);
   const a = await probe();
-  await page.evaluate(() => window.applyZoom(40));
-  await page.waitForTimeout(250);
+  await waitScalerAt(page, 40);
   expect(await page.evaluate(() => window.currentZoom), '전제: 배율 40 이 걸렸다').toBe(40);
   const b = await probe();
   console.log('### S2 ' + JSON.stringify({ a, b }));

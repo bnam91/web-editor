@@ -48,7 +48,13 @@ const COND_RE = () => /\.toPass\(|waitForFunction\(|expect\.poll\(|waitForSelect
 
 /** ★그 뿌리의 ★spec 을 ★한 벌씩 ★재서 ★돌려준다. ★★`read` 를 ★같이 — ⛔«0 벌»이 ★«안 쟀다»인지 ★가른다. */
 function census(dir) {
-  const out = { read: 0, bare: {}, sites: 0, ms: 0, filesWithFix: 0, varSites: 0, varBy: {} };
+  /* ★`litBy` — ★★파일별 ★숫자꼴 수를 ★★«조건 대기가 ★있든 ★없든» ★그대로 ★담는다(2026-10-13 · 지디).
+   *  ★★왜: ★`bare` 는 ★★«조건 0» 인 ★파일만 ★담는다(아래 68행) ⇒ ★★그 파일이 ★조건 대기를 ★하나라도
+   *    ★얻으면 ★★바구니에서 ★빠져 ★`bare[f]` 가 ★undefined 가 ★된다. ⇒ ★★그걸 ★«전제»로 ★쓰면
+   *    ★★★고친 사람이 ★빨강을 ★본다 — ★이 파일 ★314~318행이 ★W4 에서 ★이미 ★적어 둔 ★그 구멍이고,
+   *    ★★W6 에 ★★같은 구멍이 ★남아 ★있었다(★실측 2026-10-13: B7 에 ★`waitForFunction` 을 ★넣자 ★W6 이 ★빨개졌다).
+   *  ⇒ ★★전제는 ★★«조건 무관»인 ★자로 ★재야 한다. ⛔`bare` 를 ★느슨하게 ★바꾸지 ★않았다(★그 뜻은 ★그대로). */
+  const out = { read: 0, bare: {}, litBy: {}, sites: 0, ms: 0, filesWithFix: 0, varSites: 0, varBy: {} };
   if (!fs.existsSync(dir)) return out;
   for (const f of fs.readdirSync(dir).sort()) {
     if (!f.endsWith('.spec.js')) continue;
@@ -62,6 +68,7 @@ function census(dir) {
     if (fx.length) {
       out.filesWithFix += 1;
       out.sites += fx.length;
+      out.litBy[f] = fx.length;        /* ★조건 무관 — ★위 주석 */
       out.ms += fx.reduce((a, v) => a + Number(v.trim()), 0);
     }
     /* ★«조건 0» 명부는 ★★숫자꼴 기준 ★그대로 — ⛔여기서 ★뜻을 ★바꾸면 ★이 회차 판정과 ★섞인다 */
@@ -131,6 +138,11 @@ const BASE_HOW = [
 ].join(' · ');
 
 /** ★★조건 대기가 ★0 인데 ★고정 대기가 ★있는 spec — ★★이름 ⇒ ★곳 수. ★★2026-10-10 실측. */
+/* ★★★2026-10-13 (지디) — ★명부에서 ★★두 벌 ★뺐다. ★★«고쳐져서» 뺀 것이다(★이 파일 ★322행의 처방).
+ *   ★`tpl-browser-close.dom.spec.js` (★3곳) — ★B7 에 ★`waitForFunction` 전제를 ★넣어 ★조건 대기가 ★생겼다
+ *   ★`grid-nested-ratio.dom.spec.js` (★4곳) — ★S2 의 ★배율 지렛대를 ★조건 대기로 ★바꿨다(★고정 대기 ★4 → ★3)
+ *   ⇒ ★★이제 ★둘 중 ★하나라도 ★되돌리면 ★★W4 의 ★«명부 밖 0» 이 ★★그 이름으로 ★빨개진다(★래칫이 ★조인다).
+ *   ★그 회차 수: ★곳 ★1318 → ★1317 · ★합ms ★376820 → ★376570 · ★조건 0 파일 ★103 → ★101벌 */
 const BARE = {
   'text-selection-panel.dom.spec.js': 53,
   'grid-children.dom.spec.js': 33,
@@ -200,7 +212,6 @@ const BARE = {
   'checker-dark-text-tone.dom.spec.js': 4,
   'free-frame-drop-keeps-siblings.dom.spec.js': 4,
   'grid-cross-cell-undo.dom.spec.js': 4,
-  'grid-nested-ratio.dom.spec.js': 4,
   'grid-row-gap-negative.dom.spec.js': 4,
   'marquee-edge-autoscroll.dom.spec.js': 4,
   'modal-enter-newline.dom.spec.js': 4,
@@ -218,7 +229,6 @@ const BARE = {
   /* ★★★2026-10-11 ★추가 — ★`origin/dev` 가 ★들여온 파일이다(커밋 ★265a4e5d). ⛔내 것이 ★아니다.
      ★숫자 고정대기 ★3곳 · ★★조건대기 ★0곳 ⇒ ★★이 명부의 ★뜻 ★그대로 ★«조건 0» 파일이다.
      ⚠️★이 파일엔 ★`waitForTimeout(WAIT)` 가 ★★5곳 ★더 있다(WAIT=500) — ★★이 자가 ★못 보는 ★꼴이다. */
-  'tpl-browser-close.dom.spec.js': 3,
   'dblclick-outside-frame-unchanged.dom.spec.js': 2,
   'def01-history-step.dom.spec.js': 2,
   'def01-pair-grid.dom.spec.js': 2,
@@ -338,8 +348,12 @@ test('W6 ★★★«변수·식꼴» 고정 대기 — ★늘면 ★빨강 · �
   assert.strictEqual(c.varBy[PIN], 5,
     `★★자가 ★안 넓어졌다 — ★${PIN} 의 ★변수꼴이 ★${c.varBy[PIN] ?? 0}곳이다(★5 여야 한다)\n`
     + '  ★그 파일은 ★`const WAIT = 500` 을 ★5곳에서 ★쓴다 ⇒ ★★숫자꼴 3 ＋ ★변수꼴 5 = ★★참 8곳');
-  assert.strictEqual(c.sites > 0 && (c.bare[PIN] ?? 0), 3,
-    `★전제 — ★그 파일의 ★숫자꼴은 ★3 그대로여야 한다(잰 값: ${c.bare[PIN] ?? 0})`);
+  assert.ok(c.sites > 0, `★전제 — ★숫자꼴을 ★한 곳도 ★못 봤다(잰 값: ${c.sites}) ⇒ ★자가 ★죽었다`);
+  /* ★★★`litBy`(조건 무관)로 ★잰다 — ⛔`bare` 로 ★재면 ★그 파일이 ★조건 대기를 ★얻는 ★순간 ★이 전제가 ★거짓이 된다.
+   *  ★2026-10-13 실측: ★B7 에 ★`waitForFunction` 을 ★넣자 ★`bare[PIN]` 이 ★★undefined 가 ★되어 ★이 칸이 ★빨개졌다.
+   *  ★그건 ★★«고쳐졌다»는 ★뜻이지 ★★«자가 ★안 넓어졌다»가 ★아니다 — ★W4 는 ★이미 ★찍기만 ★하도록 ★고쳐져 ★있었다(314~318행). */
+  assert.strictEqual(c.litBy[PIN] ?? 0, 3,
+    `★전제 — ★그 파일의 ★숫자꼴은 ★3 그대로여야 한다(잰 값: ${c.litBy[PIN] ?? 0} · ⛔조건 무관으로 쟀다)`);
   /* ⒟ ★★«늘지 않는다» — ★★N_var 에도 ★래칫. ⛔줄어듦은 ★찍기만(★고친 사람이 ★빨강을 ★보지 ★않게) */
   const slack = BASE_VAR - c.varSites;
   if (slack > 0) {
