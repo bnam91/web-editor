@@ -1894,5 +1894,7 @@ test('Q22 ★1012t1H1 텍스트 드롭다운 → Quote 를 진짜 클릭하면 �
   await clickAt(page, b.x + b.width / 2, b.y + b.height / 2, { sel: '#fp-text-menu .fp-menu-item' }, { label: 'Quote 누르기' });
   await expect.poll(count, { message: 'Quote 를 눌러도 인용구 블럭이 안 늘었다' }).toBe(2);
   await expect(page.locator('#fp-text-dropdown')).not.toHaveClass(/open/);
+  /* toggleFpDropdown 은 «전부 닫고 인자만 연다» — 닫는 인자가 틀리면 남의 메뉴가 열린 채 남는다(음성대조: 닫는 인자를 component 로 바꾸면 빨강) */
+  await expect(page.locator('.fp-dropdown.open'), '★Quote 를 누른 뒤 열린 드롭다운이 0 이다').toHaveCount(0);
   expect(errs.map(e => String(e)), '★오류 0').toEqual([]);
 });
