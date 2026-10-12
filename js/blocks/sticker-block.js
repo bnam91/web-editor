@@ -310,8 +310,13 @@ function _renderStickerBlockInner(block) {
     const bFontStyle = block.dataset.fontStyle === 'italic' ? 'italic' : 'normal';
     const _B_TEXT_DECOS = ['none', 'underline', 'line-through', 'underline line-through'];
     const bTextDeco = _B_TEXT_DECOS.includes(block.dataset.textDecoration) ? block.dataset.textDecoration : 'none';
+    // 카운트 스티커(1012t1Z4)의 «투명» 모양 — 배경을 비우고 숫자를 배경색(bgColor)으로 칠한다.
+    //   모양은 dataset.countShape 가 든다(circle|square|none). none 일 때도 dataset.shape 는 circle/square 그대로다.
+    const _cntNone = !!block.dataset.count && block.dataset.countShape === 'none';
+    const _bBg  = _cntNone ? 'transparent' : bgColor;
+    const _bCol = _cntNone ? bgColor : textColor;
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`
-      + `background:${bgColor};color:${textColor};border-radius:${radius};`
+      + `background:${_bBg};color:${_bCol};border-radius:${radius};`
       + `display:flex;align-items:center;justify-content:center;`
       + `font-size:${fontSize}px;font-weight:${fontWeight};font-style:${bFontStyle};line-height:1;`
       + `${_stkRotCss}`
@@ -357,6 +362,9 @@ window._updateStickerSecClip = _updateStickerSecClip;
 // B13: 현재 sticker의 스타일 토큰을 shape별 슬롯에 저장 (위치/절대크기/text 제외)
 function rememberStickerStyle(block) {
   if (!block || !block.classList || !block.classList.contains('sticker-block')) return;
+  // 카운트 스티커는 기억하지 않는다 — 번호 뱃지의 크기·색이 다음 일반 「Sticker」로 새면 안 된다.
+  //   (카운트 스티커끼리의 물려받기는 js/count-sticker-tool.js 가 섹션에서 직접 읽는다.)
+  if (block.dataset.count) return;
   const d = block.dataset;
   const shape = d.shape || 'circle';
   const slot = {};
@@ -467,6 +475,15 @@ function makeStickerBlock(opts = {}) {
     block.dataset.bgColor       = opts.bgColor       ?? 'transparent';
     if (opts.cornerRadius !== undefined) block.dataset.cornerRadius = opts.cornerRadius;
     block.dataset.rotation      = opts.rotation      ?? 0;
+  }
+  // 카운트 스티커(1012t1Z4) — circle/square 의 변형. 순번·시작·표기·모양을 dataset 에 적는다(js/count-sticker-tool.js).
+  if (opts.count != null) {
+    block.dataset.count      = opts.count;
+    block.dataset.countStart = opts.countStart ?? 1;
+    block.dataset.countStyle = opts.countStyle ?? 'num';
+    block.dataset.countShape = opts.countShape ?? block.dataset.shape;
+    block.dataset.sizeW      = opts.sizeW ?? block.dataset.size;
+    block.dataset.sizeH      = opts.sizeH ?? block.dataset.size;
   }
   renderStickerBlock(block);
   // B13(Codex): 프리셋/메뉴로 생성한 스타일도 다음 스티커에 sticky하게 — 생성 직후 기억.

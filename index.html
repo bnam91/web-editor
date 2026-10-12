@@ -687,6 +687,7 @@
       <button class="fp-menu-item" onclick="addStickerBlock();toggleFpDropdown('fp-pen-dropdown')" title="플로팅 스티커 — 클릭=마지막 스타일 / 색·프리셋은 우측 패널에서 선택">Sticker</button>
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'text'});toggleFpDropdown('fp-pen-dropdown')" title="텍스트 스티커 — 캔버스에 자유 배치하는 텍스트 (폰트/외곽선/그림자 등 풀 옵션)">Text Sticker</button>
       <button class="fp-menu-item" onclick="openIconifyModal((p)=>{const o={shape:'icon', iconName:p.name, svg:p.svg, size:p.size}; if(p.iconColor!=null&&p.iconColor!=='') o.iconColor=p.iconColor; window.addStickerBlock(o);}, {favorites:true});toggleFpDropdown('fp-pen-dropdown')" title="아이콘 스티커 — Iconify에서 아이콘을 골라 캔버스에 스티커로 추가">Icon Sticker</button>
+      <button class="fp-menu-item" onclick="toggleCountStickerMode();toggleFpDropdown('fp-pen-dropdown')" title="카운트 스티커 — 켠 뒤 섹션을 누를 때마다 1·2·3… 번호 스티커 추가 · ESC 종료 / 표기·모양·시작 번호·크기는 우측 패널에서">Count Sticker</button>
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'highlight'});toggleFpDropdown('fp-pen-dropdown')" title="형광펜 — 클릭=마지막 색 / 색·프리셋은 우측 패널에서 선택">Highlight</button>
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'glow'});toggleFpDropdown('fp-pen-dropdown')" title="글로우 이펙트 스티커 — 별 반짝이·렌즈 플레어·빛점 / 색·세기·갈래·다시 뿌리기는 우측 패널에서">Glow</button>
       <button class="fp-menu-item" onclick="toggleHighlightBMode();toggleFpDropdown('fp-pen-dropdown')" title="선 형광펜 — 두 점 클릭으로 직선 형광펜 추가 · ESC 취소">HighlightB</button>
@@ -912,6 +913,7 @@
   </div>
   <!-- 검색 바 + 섹션 추가 버튼 (중간) -->
   <div class="tpl-browser-search-wrap">
+    <select class="tpl-browser-search-mode tpl-browser-sort" id="tpl-browser-sort" title="정렬 기준"></select>
     <select class="tpl-browser-search-mode" id="tpl-browser-search-mode" title="검색 기준">
       <option value="all">전체</option>
       <option value="name">파일명</option>
@@ -935,7 +937,6 @@
       <div class="tpl-browser-sortbar">
         <label class="tpl-browser-sort-label" for="tpl-browser-sort">정렬</label>
         <!-- 비어 있다 — 옵션은 _tpl-sort.js 의 명부에서 그린다(두 벌로 두지 않는다) -->
-        <select class="tpl-browser-search-mode tpl-browser-sort" id="tpl-browser-sort" title="정렬 기준"></select>
       </div>
       <div class="tpl-browser-cards" id="tpl-browser-cards"></div>
     </div>
@@ -1602,6 +1603,7 @@
 <script type="module" src="js/gradient-line-overlay.js"></script>
 <script src="js/alt-click-layer-select.js"></script>
 <script src="js/highlight-line-tool.js"></script>
+<script src="js/count-sticker-tool.js"></script>
 <script src="js/badge-transform.js"></script>
 <script src="js/text-effect-transform.js"></script>
 <script src="js/liner-transform.js"></script>
