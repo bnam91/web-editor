@@ -30,6 +30,7 @@ function _escGraphHtml(v) {
 ═══════════════════════════════════ */
 import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS(막대 두께 기본·한계의 한 자리)를 «이 모듈보다 먼저»
 import './graph-pie-geom.js';   // side-effect import — window.GRAPH_PIE_GEOM(원형·도넛 조각 기하 · 1012t1G1). graph-limits 와 같은 길(모듈 하네스는 _drag-utils-deps 가 따라 준다)
+import './graph-shape.js';   // side-effect import — window.GRAPH_SHAPE(SVG 모양 · 채움 · 마디 · 1012t1G2·G3·G4). 같은 길
 import { state } from './globals.js';
 import { isShapeFrame, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
 /* ★「이 요소가 ★내용을 ★자르나」의 ★★정본 — ⛔여기 ★사본을 ★짓지 않는다(아래 effectiveSectionPadX)
@@ -873,6 +874,35 @@ function _renderPie(block, { items, chartH, labelSize }) {
       </div>
       <div class="grb-pie-legend" style="font-size:${labelSize}px">${legend}</div>`;
 }
+/* ── 1012t1G2 · G3 · G4 「SVG 를 그래프 모양으로」 ─────────────────────────
+ * 세로 막대의 «덧 길» — dataset.barShape(실루엣) 또는 items[i].segments(마디)가 있을 때만 온다. chartType 은 'bar-v' 그대로.
+ * 칸 틀(값 라벨 · 플롯 · 카테고리 라벨)·두께·간격·축/격자/꺾은선 오버레이는 옛 세로 막대와 «같은 함수»(_barVSettings · _barVPlotGeom)를 쓴다
+ *   ⇒ 눈금선이 값과 맞는다. 다른 것은 분모뿐: 모양이면 dataset.fillMax(기본 100), 사각 마디면 옛 max(items).
+ * 칸 안(실루엣 마스크 · 채움 층 · 마디)은 graph-shape.js shapeColsHTML 이 만든다. 사용자 글자는 _escGraphHtml · 색은 _safeGraphColor 만 지난다(E152). */
+function _renderGraphShape(block, { items, chartH, labelSize, valSize }) {
+  const d = block.dataset, GS = window.GRAPH_SHAPE;
+  const _lc = d.labelColor || '';
+  const _vCss = (d.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.vlabelColor || _lc)));
+  const _xCss = (d.showXLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.xlabelColor || _lc)));
+  const _bs = _barVSettings(block, items.length);
+  const _vSize = _bs.pctSize ?? valSize;
+  const blockSvg = GS.shapeSvgOf(d.barShape, d.shapeSvg);
+  /* 값의 정본 — 마디가 있으면 그 합(item.value 가 어긋나 있어도 그림·눈금·꺾은선이 같은 값을 본다) */
+  const vItems = items.map(it => (it && Array.isArray(it.segments) && it.segments.length) ? { ...it, value: GS.segSum(it.segments) } : (it || {}));
+  const maxVal = GS.fillMaxOf(d, vItems);
+  const _g = _barVPlotGeom(block, vItems, { maxVal, labelSize, vSize: _vSize, bs: _bs });
+  const scaleMax = (_g.on && _g.scaleMax) || maxVal;   // 축·격자가 켜지면 «깔끔한 상한»
+  const _barsStyle = (_g.on ? (_bs.barsStyle || ';') + _g.barsExtra : _bs.barsStyle) + (blockSvg ? `;--grb-shape:${GS.shapeMaskUrl(blockSvg)}` : '');
+  const _sg = parseInt(d.segGap);
+  block.innerHTML = `
+      <div class="grb-bars-v" style="height:${chartH}px${_barsStyle}">${GS.shapeColsHTML(vItems, {
+        esc: _escGraphHtml, color: _safeGraphColor, blockShape: !!d.barShape, blockSvg,
+        boxFrac: Math.min(1, maxVal / scaleMax), ratioOf: (v) => GS.fillRatio(v, blockSvg ? maxVal : scaleMax),
+        blockBar: _safeGraphColor(d.vBarColor), trackColor: d.trackColor, segGap: Number.isFinite(_sg) ? _sg : NaN,
+        labelSize, vSize: _vSize, vCss: _vCss, xCss: _xCss, lhCss: _g.lhCss, colMin: _bs.colMin, fillW: _bs.fillW,
+      })}${_g.gridLayerHTML()}${_g.overlayHTML()}
+      </div>`;
+}
 /* 유형 등록표 — 새 그래프 유형은 여기 한 줄(이름 → 그리는 함수)로 붙는다. 표에 없는 유형은 아래 기존 사슬(세로·꺾은선·비교·가로)이 그대로 그린다. */
 const GRAPH_RENDERERS = Object.assign(Object.create(null), { pie: _renderPie, donut: _renderPie });   // 원형 없는 표 — 'constructor' 같은 유형 이름이 상속 함수를 부르지 않게
 function _renderGraphBody(block) {
@@ -887,6 +917,7 @@ function _renderGraphBody(block) {
   const _r = GRAPH_RENDERERS[chartType]; if (_r) return _r(block, { items, chartH, labelSize, valSize });
 
   if (chartType === 'bar-v') {
+    if (window.GRAPH_SHAPE.usesShape(block.dataset, items)) return _renderGraphShape(block, { items, chartH, labelSize, valSize });   // 1012t1G2·G3·G4 — 키가 없으면 아래 옛 분기 그대로(바이트 무변)
     // 값/카테고리 라벨 표시·색 — line 차트와 동일 시맨틱 (이전엔 bar에서 미반영되던 버그)
     const _lc = block.dataset.labelColor || '';
     const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.vlabelColor || _lc)));
