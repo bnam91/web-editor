@@ -633,6 +633,9 @@
       <button class="fp-menu-item" onclick="addLabelGroupBlock();toggleFpDropdown('fp-text-dropdown')">Tags</button>
       <button class="fp-menu-item" onclick="addIconTextBlock();toggleFpDropdown('fp-text-dropdown')">Icon Text</button>
       <button class="fp-menu-item" onclick="addSpeechBubbleBlock('left');toggleFpDropdown('fp-text-dropdown')">Bubble</button>
+      <!-- ★1012t1H1 — 인용구는 «글» 블럭이라 텍스트 드롭다운에 둔다(옛 자리: 컴포넌트 드롭다운).
+           ⚠️닫는 인자도 'fp-text-dropdown' 이어야 이 메뉴가 닫힌다. -->
+      <button class="fp-menu-item" onclick="addQuoteBlock();toggleFpDropdown('fp-text-dropdown')" title="인용구(쉼표) — 글 양옆에 부호가 서는 블럭">Quote</button>
       <button class="fp-menu-item" onclick="addLinerBlock('arc-up');toggleFpDropdown('fp-text-dropdown')">Liner</button>
     </div>
   </div>
@@ -720,7 +723,7 @@
       <button class="fp-menu-item" onclick="addGridBlock();toggleFpDropdown('fp-component-dropdown')">Grid</button>
       <button class="fp-menu-item" onclick="addModalBlock();toggleFpDropdown('fp-component-dropdown')">Modal</button>
       <button class="fp-menu-item" onclick="addCouponBlock();toggleFpDropdown('fp-component-dropdown')">Coupon</button>
-      <button class="fp-menu-item" onclick="addQuoteBlock();toggleFpDropdown('fp-component-dropdown')" title="인용구(쉼표) — 글 양옆에 부호가 서는 블럭">Quote</button>
+      <!-- ★Quote 는 텍스트 드롭다운으로 옮겼다(1012t1H1 · 현빈 「텍스트 패널위치로 옮기기」). -->
       <!-- ★[숨김] Info Card · Inner Card — 현빈 2026-09-07 「info카드와 이너카드도 일단 숨김처리해줘」
            ⛔막는 것은 «새로 넣는 입구»뿐이다. 블록 구현·프로퍼티 패널·레이어 패널·저장/로드는
              그대로 둔다 — 이미 이 블록이 들어간 프로젝트는 계속 열리고 편집돼야 한다
