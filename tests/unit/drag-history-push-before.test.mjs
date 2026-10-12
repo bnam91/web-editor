@@ -65,6 +65,8 @@ const ROSTER = {
   'js/gradient-select.js': ['그라데이션 리사이즈', '그라데이션 이동'],
   'js/annotation-select.js': ['어노테이션 이동', '어노테이션 핸들 이동'],
   'js/blocks/canvas-block.js': ['카드 이미지 위치'],
+  /* 2026-10-12 1012t1D3 — 비교 이미지 칸 편집기(카드 편집기 꼴). 처음부터 양쪽 끝 규약(onMove arm ＋ onUp pushHistory). */
+  'js/blocks/comparison-img-edit.js': ['비교 이미지 위치'],
   'js/blocks/mockup-block.js': ['목업 오프셋'],
   'js/props/asset-video-trim.js': ['영상 트림 구간 조절'],
   'js/image-handling.js': ['이미지 위치 조절', '배경 위치 조절'],

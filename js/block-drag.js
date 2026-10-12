@@ -2080,6 +2080,14 @@ function bindBlock(block) {
   if (isComparison) {
     block.addEventListener('click', e => {
       e.stopPropagation();
+      /* ★1012t1D3 — 그리드 2단 선택과 같은 규칙: 이미 «이것 하나»가 선택돼 있었고 누른 곳이 «이미지 칸»이면 그 칸을 고른다.
+         deselectAll «전»에 잰다(그게 표시·활성 칸을 지운다). 글자 칸·헤더·여백 = 칸 선택 없음(현행 그대로). */
+      let _cmpCell = null;
+      if (block.classList.contains('selected') && _isSoleSelectedBlock(block)) {
+        const a = window.cmpCellAddrAt?.(e, block);
+        const r = a ? window.getComparisonCols?.(block.dataset)?.[a.colIdx]?.rows?.[a.rowIdx] : null;
+        if (r && r.type === 'image') _cmpCell = a;
+      }
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
@@ -2100,7 +2108,19 @@ function bindBlock(block) {
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
+      window.cmpSetActiveCell?.(block, _cmpCell);   // ★D3 — 패널이 이 활성 칸을 읽어 「Image」 절을 띄운다
       window.showComparisonProperties?.(block);
+    });
+    /* ★1012t1D3 — 이미지 칸 더블클릭(블럭 «위임» — renderComparison 이 칸을 통째로 갈아끼우므로 칸마다 걸면 재렌더에 죽는다).
+       그림 든 칸 = 편집기(드래그 위치·휠 확대 — js/blocks/comparison-img-edit.js) · 빈 슬롯 = 파일 고르기(cmpPickRowImage 한 벌).
+       글자 칸·헤더는 자기 dblclick(_editableRow/_editableTitle)이 stopPropagation 하므로 여기 안 온다. */
+    block.addEventListener('dblclick', e => {
+      const a = window.cmpCellAddrAt?.(e, block);
+      const r = a ? window.getComparisonCols?.(block.dataset)?.[a.colIdx]?.rows?.[a.rowIdx] : null;
+      if (!r || r.type !== 'image') return;
+      e.stopPropagation(); e.preventDefault();
+      if (r.imgSrc) window.enterCmpImageEditMode?.(block, a);
+      else window.cmpPickRowImage?.(block, a.colIdx, a.rowIdx);
     });
   }
 

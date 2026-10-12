@@ -1476,7 +1476,7 @@ window.updateCanvasBlock = updateCanvasBlock;
 window._triggerCvbCardImage = _triggerCvbCardImage;
 window._cvbBuildGrad = _cvbBuildGrad;
 
-export { makeCanvasBlock, addCanvasBlock, updateCanvasBlock, renderCanvas, CARD_DEFAULT_OPTS, _cvbBuildGrad };
+export { makeCanvasBlock, addCanvasBlock, updateCanvasBlock, renderCanvas, CARD_DEFAULT_OPTS, _cvbBuildGrad, _cvbBackgroundSize };   // _cvbBackgroundSize — 비교 이미지 칸(1012t1D3)이 같은 식을 쓴다
 // 인라인 편집의 «판정 술어»와 그 술어가 보는 상수 — 단위테스트가 리터럴을 다시 적지 않도록
 // 여기서 가져다 쓴다(테스트 기대값에 셀렉터/필드목록을 박으면 SSOT 가 둘로 갈린다).
 export { _cvbEditable, _cvbReadText, _appendCardTexts, _CVB_EDIT_SEL, _CVB_EDIT_FIELDS };

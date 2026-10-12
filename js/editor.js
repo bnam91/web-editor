@@ -3972,6 +3972,7 @@ function clearSelectionMarks(root) {
   //   Backspace 가 줄 삭제 분기로 새서 블럭이 안 지워졌다. 블럭을 떠나면 줄 선택도 해제한다.
   window.grdClearAllActiveLines?.(canvas);
   window.lnClearAllActive?.(canvas);   // ★BT2 — 말풍선·챗 «줄 선택»도 같은 자리에서(마커 + 활성줄)
+  window.cmpClearAllActiveCells?.(canvas);   // ★1012t1D3 — 비교 «이미지 칸 선택»도 같은 자리에서(.cmp-cell-selected + 활성 칸)
   // 스텝 «지금 보는 스텝» 마커도 같은 자리에서 (prop-step.js 의 _stbSyncMark 와 짝 · 옛 이름 포함)
   canvas.querySelectorAll('.stb-line-selected, .stb-step-selected').forEach(el => el.classList.remove('stb-line-selected', 'stb-step-selected'));
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
