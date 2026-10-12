@@ -162,6 +162,36 @@ test('A4 ⌘Z 한 번에 설명이 빈다', async ({ page }) => {
   expect((await cards(page, id))[0].title).toBe('카드 제목');
 });
 
+/* A4b (이벨 D1 · 2026-10-12) — ＋ 커밋 «한 번» = 히스토리 «한 칸». 두 번째 ⌘Z 는 «직전 변경»으로 간다(빈 걸음 없음).
+ *   직전 변경 = 패널 길과 같은 updateCanvasBlock(titleSize 20→30). 커밋은 이벨 재현대로 «바깥 클릭»(blur). ⌘Z 는 진짜 키. */
+test('A4b ＋ 커밋 1회 = 히스토리 +1 · 두 번째 ⌘Z 는 직전 변경(제목 크기)을 되돌린다', async ({ page }) => {
+  const { id } = await setup(page);
+  await select(page, id, 1);
+  const pre = await page.evaluate((id) => {
+    const r = window.updateCanvasBlock(id, { titleSize: 30 });
+    return { ok: r.ok, size: document.getElementById(id).dataset.titleSize };
+  }, id);
+  expect(pre, '전제 — 직전 변경이 들어갔다').toEqual({ ok: true, size: '30' });
+  await settled(page, id);
+  const len0 = await page.evaluate(() => window.getHistoryTip().len);
+  await clickPlus(page, id);
+  await page.waitForFunction(() => document.activeElement?.classList?.contains('cvb-card-desc'));
+  await page.keyboard.insertText('Q');
+  const out = await page.evaluate(() => { const r = document.getElementById('gapBelow').getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2]; });
+  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.id, out), '전제 — 바깥 클릭 점은 아래 gap 블럭').toBe('gapBelow');
+  await page.mouse.click(out[0], out[1]);
+  await page.waitForFunction((id) => JSON.parse(document.getElementById(id).dataset.cards)[0].desc === 'Q', id);
+  const len1 = await page.evaluate(() => window.getHistoryTip().len);
+  // 진단(빨강일 때 원인을 같이 남긴다): 새로 쌓인 표본마다 «빈 임시 칸»(<div class="cvb-card-desc" …></div>)이 찍혔나
+  const diag = await page.evaluate((n) => window.historyStack.slice(n).map(e => /class="cvb-card-desc"[^>]*><\/div>/.test(e.canvas || '')), len0);
+  expect(len1 - len0, `＋ 커밋 한 번에 쌓인 히스토리 칸 수 · 새 표본별 빈 임시 칸 찍힘=${JSON.stringify(diag)}`).toBe(1);
+  const st = () => page.evaluate((id) => { const b = document.getElementById(id); return b ? { desc: JSON.parse(b.dataset.cards)[0].desc, size: b.dataset.titleSize } : null; }, id);
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(st).toEqual({ desc: '', size: '30' });
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(st, '두 번째 ⌘Z = 직전 변경(제목 크기 30→20)').toEqual({ desc: '', size: '20' });
+});
+
 test('A5 ＋ 는 블럭 DOM·글자·#canvas 에 새지 않는다', async ({ page }) => {
   const { id } = await setup(page);
   await select(page, id, 1);

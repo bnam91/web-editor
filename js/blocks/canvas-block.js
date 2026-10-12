@@ -258,7 +258,11 @@ function _cvbEndEdit(block, host) {
     return;
   }
   // 화면을 «편집 전»으로 되돌린 뒤 커밋한다 — 실패해도 화면과 데이터가 갈라진 채 남지 않는다.
-  if (beforeDom !== undefined) host.textContent = beforeDom;
+  // ★[1012t1K1 · 이벨 D1] 임시 칸은 «편집 전» 화면에 없던 요소다 → 글자만 비우지 말고 «걷고» 커밋한다.
+  //   남겨 두면 updateCanvasBlock 의 push-before 표본에 빈 <div class="cvb-card-desc"> 가 찍혀 꼭대기와 달라지고
+  //   (무변화 중복 차단을 못 탄다) ＋ 커밋 한 번이 히스토리 «두 칸» — 두 번째 ⌘Z 가 화면 변화 없는 빈 걸음이 된다.
+  if (temp) host.remove();
+  else if (beforeDom !== undefined) host.textContent = beforeDom;
   // 렌더러는 cards[idx] 가 없어도 `cards[idx] || {}` 로 «셀은 그린다» → 그리드가 cards 보다 길면
   // 화면에 보이는 칸의 index 가 배열 밖일 수 있다. patchCards 는 그걸 NOT_FOUND 로 막으므로
   // 그 «한 경우»에만 같은 API 의 cards 전체교체로 채워 넣는다(새 경로를 만들지는 않는다).
@@ -278,7 +282,6 @@ function _cvbEndEdit(block, host) {
   if (r && r.ok === false) {
     try { window.showToast?.(`카드 글자를 저장하지 못했습니다 — ${r.message || r.code}`); } catch (_) {}
   }
-  if (temp && host.isConnected) host.remove();        // 성공이면 재렌더가 이미 걷었다 · 실패면 빈 임시 칸을 남기지 않는다
 }
 
 // 편집 진입. 클릭한 «글자 위치»에 캐럿을 세운다(텍스트 블록 더블클릭과 같은 방식).
