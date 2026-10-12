@@ -2297,15 +2297,25 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
      400x200 에셋 45도) — 프레임 overflow:hidden 이 위쪽 92.1px·아래쪽 32.1px 를 «실제로»
      잘라냈다. 회전 규약은 세 갈래라 셀렉터도 세 줄이어야 한다:
        · data-rotation      — asset/text-frame/icon/mockup/canvas/icon-circle
-                              (asset-rotate.js _applyRotationDeg 는 0이면 «속성을 지운다»
-                               → 존재 == 비영). 따라서 :not() 불필요.
+                              ⚰️2026-10-04~10-12 의 글: 「asset-rotate.js _applyRotationDeg 는 0이면
+                               «속성을 지운다» → 존재 == 비영. 따라서 :not() 불필요.」
+                              ★★★그 전제는 «거짓»이었다(quote1011 실측 2026-10-12):
+                                ★`data-rotation` 을 쓰는 자 14 · 지우는 자 3 ⇒ «지운다」는 asset-rotate 하나다.
+                                ★★행위로 «0 을 쓴다」가 확인된 자리 3 — 전부 «아이콘» 계열:
+                                  js/blocks/modal-frameify.js:106 · js/blocks/iconify-block.js:21
+                                  js/props/prop-modal.js:616(_dressIconSlot · MODAL_DEFAULTS.iconRotation=0)
+                                ⇒ 그 프레임이 자르기를 멈춰 현빈 1009t3-② 가 조용히 꺼졌다
+                                   (증상: modal-frameify-pixel 의 icon-stack frame 100% 그림자 130,656px).
+                              ⇒ ★그래서 :not([data-rotation="0"]) 를 붙였다 — 이웃 data-rotate-deg 줄과 같은 꼴.
+                              ★★잠그는 자: tests/dom/frame-rotation-clip.dom.spec.js (R1 전제 · R2 비영 유지 · R3 음성).
+                              ⛔이 :not() 을 떼려면 «쓰는 자 14 가 전부 0을 지운다」를 먼저 행위로 세워라.
        · data-rotate-deg    — frame·vector. 0이어도 «문자열로 남는다» → :not([="0"]) 필수.
        · data-shape-rotation— shape (기존 줄, 유지)
      음성대조 실측: 회전 없는 프레임 / data-rotate-deg="0" 자식만 있는 프레임은 둘 다
      computed overflow-y = hidden 그대로다(축이 실제로 갈린다).
    ⚠️대가: 이 프레임의 border-radius 가 자식을 더 이상 «잘라주지 않는다».
      shape 규칙이 2026년 초에 이미 받아들인 트레이드오프와 «같은» 정책이다. */
-.frame-block:has([data-rotation]),
+.frame-block:has([data-rotation]:not([data-rotation="0"])),
 .frame-block:has([data-rotate-deg]:not([data-rotate-deg="0"])),
 .frame-block:has(.shape-block[data-shape-rotation]) {
   overflow: visible;
