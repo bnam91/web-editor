@@ -106,6 +106,17 @@ export function neutralizeTextGradForH2C(root) {
     el.style.removeProperty('--tgs-src');
     el.style.removeProperty('--tgs-filter');
   }
+  /* ★1012t1E1 — 내부 외곽선(SVG 필터)도 html2canvas 가 못 그린다 ⇒ «사라짐» 대신 «가운데» 획(stroke N)으로 근사.
+     클론에만 쓴다(이 함수의 호출 규약). 값은 dataset(패널 상태)에서 읽는다. */
+  const ins = [...(root.matches?.('[style*="--gd-stroke-filter"]') ? [root] : []), ...root.querySelectorAll('[style*="--gd-stroke-filter"]')];
+  for (const el of ins) {
+    el.style.removeProperty('--gd-stroke-filter');
+    const w = parseFloat(el.dataset?.strokeW);
+    if (el.dataset?.strokeOn === 'true' && w > 0) {
+      el.style.setProperty('-webkit-text-stroke', `${w}px ${el.dataset.strokeColor || '#000000'}`);
+      el.style.removeProperty('paint-order');
+    }
+  }
   return n;
 }
 
