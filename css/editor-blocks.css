@@ -1979,19 +1979,6 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .frame-block[data-text-frame="true"]:has(.text-block.selected) {
   z-index: 2;
 }
-/* ★★D4(2026-10-12 · 지디 결정) — ★점(`.tb-dot::before`)은 ★`bottom:100%` 로 ★★글자 상자 «밖»에 그려진다.
-   ★그 자리는 ★★위 절이 준 ★`z-index:2` 일 때만 ★앞 형제를 덮는데, ★★그건 ★«고른 동안»뿐이다
-   ⇒ ★★★배송본(.selected 없음)에선 ★점이 ★가려졌다. ★★실측(㉢ deselectAll): ★색 픽셀 ★★0 · ★점 ★0
-     ★음성대조: ★`--tb-dot-y:0px`(상자 ★안)이면 ★★㉢ 에서도 ★3개 ★보인다 ⇒ ★★«상자 밖일 때만» 덮인다
-   ⛔★«무조건 z-index:2» 는 ★★안 쓴다 — ★`data-text-frame` 을 ★쓰는 벌이 ★80 이 넘고
-     ★그중 ★z-순서를 ★직접 재는 셋(★`overlay-zindex-hittest` · `overlay-group-zorder` ·
-     ★★`qa0920b-redact-overlay-z` = ★redact 프라이버시 선례)과 ★반대 방향 사고를 낼 수 있다
-   ⇒ ★★범위를 ★병의 집합과 ★같게: ★★«점이 있는 텍스트프레임»만.
-   ★★지키는 자: ★`tests/dom/text-dot-over.dom.spec.js` ★「D4b ★배송본 꼴」 — ★이 절을 지우면 ★거기서 빨개진다
-   ⛔★그리고 ★안 쟀다: ★이 절이 ★다른 화면에 ★어떻게 보이나는 ★★사람 눈으로 ★안 쟀다(★현빈 몫) */
-.frame-block[data-text-frame="true"]:has(.tb-dot) {
-  z-index: 2;
-}
 /* T6: outline 2겹 픽스 — 부모 row/text-frame이 outline을 책임지면
    .text-block.selected의 자체 outline은 transparent로 되돌려 한 겹만 보이게 한다.
    (text-block은 padding/border-box 변화로 부모와 미세 어긋남이 생겨 2겹으로 보였음) */
@@ -2345,6 +2332,17 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
    코너 바깥)을 잘라내지 않도록 — 텍스트 선택 시 overflow 해제(shape 선택 시 해제와 동일 정책).
    비선택 시엔 핫존이 제거되므로 overflow:hidden 유지 → 레이아웃 영향 없음. */
 .frame-block[data-text-frame="true"]:has(.text-block.selected) {
+  overflow: visible;
+}
+/* ★★D4(2026-10-12 · 2차) — ★위 절의 ★★«선택 무관» 짝이다. ★까닭을 ★수로 적는다:
+   ★점(`.tb-dot::before`)은 ★`bottom:100%` 로 ★★글자 상자 «밖»에 그려진다 ⇒ ★★이 프레임이 ★자르면 ★★잘린다.
+   ★★실측(프로브5 · 판 9bec63e9): ★그 프레임 ★`matches` true · ★`z-index` ★2 · ★★`overflow` ★★hidden ·
+     ★★점을 ★덮는 ★앞 형제 ★★0개 ⇒ ★★★«덮임»이 아니라 ★★«잘림»이다(★1차 z절은 ★그래서 ★아무것도 ★안 했다 ⇒ ★걷었다).
+   ★★배송본 꼴(`deselectAll()`)에서 ★색 픽셀 ★★0 · ★`--tb-dot-y:0px`(상자 ★안)이면 ★★3개 ★보인다 ⇒ ★★밖일 때만.
+   ⛔★`!important` 를 ★안 쓴다 — ★`[data-clip-content="true"]`(★사용자가 ★명시로 ★켠 자름)에 ★★★져야 ★한다.
+   ★★지키는 자: ★`tests/dom/text-dot-over.dom.spec.js` ★「D4b ★배송본 꼴」 ＋ ★그 벌의 ★D4.
+   ⛔안 쟀다: ★이 절이 ★다른 화면에 ★어떻게 보이나는 ★★사람 눈으로 ★안 쟀다(★현빈 몫). */
+.frame-block[data-text-frame="true"]:has(.tb-dot) {
   overflow: visible;
 }
 

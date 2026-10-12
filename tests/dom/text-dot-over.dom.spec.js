@@ -381,7 +381,12 @@ test('D4b ★★배송본 꼴 — ★고르지 ★않아도 ★점이 ★보인�
   await typeField(page, '#txt-dot-size-num', 8);
   await typeField(page, '#txt-dot-y', -9);
   await page.evaluate(() => window.deselectAll?.());
-  await page.waitForTimeout(200);
+  /* ⛔고정 대기를 ★안 쓴다(★`dom-fixed-wait-census` W3 가 ★곳 수와 ★합 ms 를 ★둘 다 센다).
+     ★★무엇을 기다리나로 적는다 — ★`deselectAll()` 뒤 ★★고른 것이 ★0개가 되고 ★점 ★셋이 ★그려질 때까지. */
+  await page.waitForFunction(
+    () => document.querySelectorAll('#canvas .selected').length === 0
+          && document.querySelectorAll('span.tb-dot').length === 3,
+    null, { timeout: 20000 });
   expect(await page.evaluate(() => !!document.querySelector('#canvas .selected')),
     '★전제 — 아무것도 안 골라져 있다(배송본 꼴)').toBe(false);
   const d = await paintedDots(page, BOX);
