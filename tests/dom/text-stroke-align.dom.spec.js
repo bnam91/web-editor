@@ -105,7 +105,11 @@ async function baseline(page, id) {
   return { x0, dpr: r.dpr };
 }
 
-async function panelSet(page, { on, w, align }) {
+/* ★색은 «명시»한다 — Stroke 기본색은 검정(STROKE_DEFAULTS.color '#000000')이고 이 줄 분류는 파랑(B)만 센다.
+ *   (색을 안 정하면 외곽선은 그려져도 검정이라 바깥/안쪽 파랑 수가 0 이 된다 — 2d08bab7 의 S3~S8 빨강이 그것.)
+ *   패널의 색 칸(native picker input)으로 넣고, 글자칸 data-stroke-color 가 파랑이 됐음을 전제로 단언한다. */
+const BLUE = '#0000ff';
+async function panelSet(page, { on, w, color, align }) {
   if (on !== undefined) await page.evaluate((v) => {
     const c = document.getElementById('txt-stroke-on'); c.checked = v; c.dispatchEvent(new Event('change', { bubbles: true }));
   }, on);
@@ -113,6 +117,13 @@ async function panelSet(page, { on, w, align }) {
     const n = document.getElementById('txt-stroke-w-number'); n.value = String(v);
     n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true }));
   }, w);
+  if (color !== undefined) {
+    await page.evaluate((v) => {
+      const p = document.getElementById('txt-stroke-color-color'); p.value = v;
+      p.dispatchEvent(new Event('input', { bubbles: true })); p.dispatchEvent(new Event('change', { bubbles: true }));
+    }, color);
+    await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('.tb-h1')].map(e => e.dataset.strokeColor)), '전제: 패널 색 칸이 글자칸 색을 바꿨다').toContain(color);
+  }
   if (align !== undefined) await page.locator('#txt-stroke-align').selectOption(align);
 }
 
@@ -151,7 +162,7 @@ test('S3 외부 — 바깥 ≈W · 안쪽 0', async ({ page }) => {
   const errs = await boot(page);
   const { x0, dpr } = await baseline(page, 'tbS');
   await select(page, 'tbS');
-  await panelSet(page, { on: true, w: W, align: 'outside' });
+  await panelSet(page, { on: true, w: W, color: BLUE, align: 'outside' });
   await expect.poll(() => page.locator(content('tbS')).evaluate(el => el.dataset.strokeAlign)).toBe('outside');
   const b = bands((await rowClasses(page, 'tbS')).cls, x0, dpr);
   expect(b.out).toBeGreaterThanOrEqual(W - 2); expect(b.out).toBeLessThanOrEqual(W + 2);
@@ -163,7 +174,7 @@ test('S4 가운데 — 바깥 ≈W/2 · 안쪽 ≈W/2', async ({ page }) => {
   const errs = await boot(page);
   const { x0, dpr } = await baseline(page, 'tbS');
   await select(page, 'tbS');
-  await panelSet(page, { on: true, w: W, align: 'center' });
+  await panelSet(page, { on: true, w: W, color: BLUE, align: 'center' });
   await expect.poll(() => page.locator(content('tbS')).evaluate(el => el.dataset.strokeAlign)).toBe('center');
   const b = bands((await rowClasses(page, 'tbS')).cls, x0, dpr);
   expect(b.out).toBeGreaterThanOrEqual(W / 2 - 2); expect(b.out).toBeLessThanOrEqual(W / 2 + 2);
@@ -175,7 +186,7 @@ test('S5 내부 — 바깥 0 · 안쪽 ≈W · 필터 정의 1개', async ({ pag
   const errs = await boot(page);
   const { x0, dpr } = await baseline(page, 'tbS');
   await select(page, 'tbS');
-  await panelSet(page, { on: true, w: W, align: 'inside' });
+  await panelSet(page, { on: true, w: W, color: BLUE, align: 'inside' });
   await expect.poll(() => page.evaluate(() => document.querySelectorAll('#gdsk-svg-defs filter').length)).toBe(1);
   expect(await page.locator(content('tbS')).evaluate(el => getComputedStyle(el).webkitTextStrokeWidth)).toBe('0px');
   const b = bands((await rowClasses(page, 'tbS')).cls, x0, dpr);
@@ -201,7 +212,7 @@ test('S7 재동기 — 정의를 지우고 스냅샷을 복원(undo·로드)해�
   const errs = await boot(page);
   const { x0, dpr } = await baseline(page, 'tbS');
   await select(page, 'tbS');
-  await panelSet(page, { on: true, w: W, align: 'inside' });
+  await panelSet(page, { on: true, w: W, color: BLUE, align: 'inside' });
   await expect.poll(() => page.evaluate(() => document.querySelectorAll('#gdsk-svg-defs filter').length)).toBe(1);
   await page.evaluate(() => {
     const host = document.getElementById('host');
@@ -223,7 +234,7 @@ test('S8 그라데이션 글자 + 그림자(.tgs) + 내부 — 안쪽 띠 ∧ �
   const r0 = await rowClasses(page, 'tbG');
   expect(r0.cls.includes('R'), '전제: 그림자가 보인다').toBe(true);
   await select(page, 'tbG');
-  await panelSet(page, { on: true, w: W, align: 'inside' });
+  await panelSet(page, { on: true, w: W, color: BLUE, align: 'inside' });
   await expect.poll(() => page.locator(content('tbG')).evaluate(el => el.classList.contains('tgs'))).toBe(true);
   const filt = await page.locator(content('tbG')).evaluate(el => getComputedStyle(el).filter);
   expect(filt).toContain('gdsk-in-');
