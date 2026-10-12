@@ -34,6 +34,12 @@
  *   D4·D4b 조합으로 한도를 넘기면 끝에서 잘라 저장한다(원자 노드는 통째로)
  *   D6 한도가 차서 그림을 못 넣을 때는 자산 IPC 를 안 부른다
  *
+ * 재검 실측 결함(2026-10-12 · 원자 노드 이웃에서의 크롬 기본 편집 동작)을 잠그는 칸:
+ *   N3a~d 원자 노드 바로 뒤 글 맨 앞에서 Backspace 를 눌러도 끝 체크박스가 복제되지 않는다
+ *   N2a~d 뒤·앞에 글이 있는 체크박스·그림이 Backspace·Delete 한 번에 «그것만» 지워지고 ⌘Z 로 되살아난다
+ *   N1a~d 원자 노드 앞·뒤 Enter 는 줄바꿈 정확히 하나 · 잘라내 같은 자리에 붙이면 한 글자도 안 다르다
+ *   NR 고정 시드로 캐럿 이동·타이핑·Backspace·Delete·Enter 를 섞어도 원자 노드는 안 늘고 남의 요소는 0
+ *
  * 안 재는 것: 실제 한글 IME(합성 이벤트로만 잰다) · 실앱(Electron)에서의 전역 단축키 양보 ·
  *   실제 OS 클립보드(합성 ClipboardEvent 로만 잰다) · 실제 goya-asset 프로토콜(route 로 서브한다) · 자산 IPC 본체(스텁).
  *
@@ -791,4 +797,344 @@ test('D6 한도가 차서 그림을 못 넣을 때는 자산 IPC 를 부르지 �
   await pasteFiles(page, [[40, 20]]);
   await expect(page.locator('.smp-editor img.smp-img')).toHaveCount(1);
   expect(await page.evaluate(() => window.__ipc.length)).toBe(1);
+});
+
+/* ══ 재검 실측 결함(2026-10-12) — 원자 노드(체크박스·그림) 이웃에서의 크롬 기본 편집 동작 ═══════════
+ * N3 원자 노드 바로 뒤 글 맨 앞에서 Backspace 를 누르면 «끝 체크박스»가 누를 때마다 하나씩 복제되던 것 ·
+ * N2 뒤에 글이 있는 원자 노드가 Backspace·Delete 로 안 지워지던 것 ·
+ * N1 원자 노드 앞에서 Enter(와 붙여넣기의 줄바꿈)가 줄바꿈을 둘 넣던 것. */
+/* 편집 칸의 «지금»을 DOM 에서 바로 읽는다(저장은 500ms 뒤라 조작 직후에는 data-memo 가 옛 값이다).
+   caret = 저장 글자로 본 캐럿 자리 `앞|뒤` · edge = 캐럿이 글자 노드 안이 아니라 요소 경계에 있다 */
+const liveState = (page) => page.evaluate(() => {
+  const ed = document.querySelector('.smp-editor');
+  const ser = (root) => {
+    let s = '';
+    for (const n of root.childNodes) {
+      if (n.nodeType === 3) s += n.data;
+      else if (n.nodeType !== 1) continue;
+      else if (n.matches('.smp-check')) s += n.getAttribute('aria-checked') === 'true' ? '[x]' : '[ ]';
+      else if (n.matches('img.smp-img')) s += `![](${n.getAttribute('src')})`;
+      else if (n.tagName === 'BR') s += '\n';
+      else s += `<${n.tagName}>` + ser(n);
+    }
+    return s;
+  };
+  const sel = window.getSelection();
+  const inEd = !!sel.rangeCount && ed.contains(sel.anchorNode);
+  let before = null;
+  let after = null;
+  if (inEd) {
+    const a = document.createRange();
+    a.selectNodeContents(ed);
+    a.setEnd(sel.anchorNode, sel.anchorOffset);
+    const b = document.createRange();
+    b.selectNodeContents(ed);
+    b.setStart(sel.anchorNode, sel.anchorOffset);
+    before = ser(a.cloneContents());
+    after = ser(b.cloneContents());
+  }
+  const all = ser(ed);
+  return {
+    caret: inEd ? `${before}|${after}` : null,
+    edge: inEd && sel.anchorNode.nodeType === 1,
+    collapsed: sel.isCollapsed,
+    all,
+    nl: all.split('\n').length - 1,
+    tail: after,
+    checks: ed.querySelectorAll('.smp-check').length,
+    imgs: ed.querySelectorAll('img.smp-img').length,
+    atoms: ed.querySelectorAll('.smp-check, .smp-img').length,
+    foreign: [...ed.querySelectorAll('*')].filter((el) => !el.matches('.smp-check, .smp-img, br')).length,
+  };
+});
+/* 캐럿을 편집 칸의 i번째 자식 노드에 놓는다 — off 가 수면 그 글자 노드 안, 없으면 요소 경계(편집 칸, i).
+   놓은 자리를 `앞|뒤` 로 돌려준다(검사가 그것을 전제로 단언한다). */
+async function placeCaret(page, i, off) {
+  await page.evaluate(({ i, off }) => {
+    const ed = document.querySelector('.smp-editor');
+    const r = document.createRange();
+    if (off == null) r.setStart(ed, i); else r.setStart(ed.childNodes[i], off);
+    r.collapse(true);
+    const s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+  }, { i, off: off == null ? null : off });
+  const st = await liveState(page);
+  return `${st.edge ? 'edge' : 'text'}:${st.caret}`;
+}
+async function pressN(page, key, n) {
+  for (let i = 0; i < n; i++) await page.keyboard.press(key);
+}
+const N_IMG = `![](${A2_URLS[0]})`;
+
+/* N3 표본 — [메모, 캐럿(자식 번호·글자 자리), 전제 캐럿 자리, Backspace 1회 뒤, 3회 뒤] */
+const N3_SAMPLES = {
+  a: ['ab[ ]cd[x]', [2, 0], 'text:ab[ ]|cd[x]', 'abcd[x]', 'cd[x]'],
+  b: ['[ ] 할일 [x]', [1, 0], 'text:[ ]| 할일 [x]', ' 할일 [x]', ' 할일 [x]'],
+  c: ['제목\n[x] 하나\n[ ]', [3, 0], 'text:제목\n[x]| 하나\n[ ]', '제목\n 하나\n[ ]', '제 하나\n[ ]'],
+};
+const N3_NAMES = {
+  a: 'N3a `ab[ ]cd[x]` 의 c 앞에서 Backspace — 끝 체크박스가 복제되지 않는다(1회 · 3회)',
+  b: 'N3b `[ ] 할일 [x]` 의 첫 체크박스 뒤에서 Backspace — 끝 체크박스가 복제되지 않는다(1회 · 3회)',
+  c: 'N3c 여러 줄 메모의 체크박스 뒤에서 Backspace — 끝 체크박스가 복제되지 않고 줄바꿈도 안 사라진다(1회 · 3회)',
+};
+for (const k of Object.keys(N3_SAMPLES)) {
+  test(N3_NAMES[k], async ({ page }) => {
+    const [memo, [ci, co], where, after1, after3] = N3_SAMPLES[k];
+    for (const [times, want] of [[1, after1], [3, after3]]) {
+      await openMemo(page, memo);
+      const had = (await liveState(page)).checks;
+      expect(had, '전제: 체크박스 둘로 열렸다').toBe(2);
+      expect(await page.evaluate(() => document.querySelector('.smp-editor').lastChild.className), '전제: 메모의 마지막 노드가 체크박스다').toBe('smp-check');
+      expect(await placeCaret(page, ci, co), '전제: 캐럿이 체크박스 바로 뒤 글의 맨 앞이다').toBe(where);
+      for (let i = 0; i < times; i++) {
+        await page.keyboard.press('Backspace');
+        expect((await liveState(page)).checks, `Backspace ${i + 1}회째: 체크박스가 늘지 않는다`).toBeLessThanOrEqual(had);
+      }
+      const st = await liveState(page);
+      expect({ all: st.all, checks: st.checks, foreign: st.foreign }, `Backspace ${times}회 뒤`).toEqual({ all: want, checks: 1, foreign: 0 });
+      await expect.poll(() => memoOf(page)).toBe(want);
+      await closeMemo(page);
+      expect(await memoOf(page), '닫은 뒤에도 그 글자다').toBe(want);
+    }
+  });
+}
+
+test('N3d 글 가운데에 `[]` 를 치고 곧바로 Backspace — 방금 넣은 것만 지워지고 끝 체크박스는 그대로 하나', async ({ page }) => {
+  await openMemo(page, 'abcd[x]');
+  expect(await placeCaret(page, 0, 2), '전제: 캐럿이 글 가운데다').toBe('text:ab|cd[x]');
+  await page.keyboard.type('[]');
+  await expect(page.locator('.smp-editor .smp-check'), '전제: 체크박스가 하나 더 생겼다').toHaveCount(2);
+  expect((await liveState(page)).caret, '전제: 캐럿이 방금 넣은 체크박스 바로 뒤다').toBe('ab[ ]|cd[x]');
+  await page.keyboard.press('Backspace');
+  expect((await liveState(page)).all).toBe('abcd[x]');
+  await pressN(page, 'Backspace', 2);
+  const st = await liveState(page);
+  expect({ all: st.all, checks: st.checks }).toEqual({ all: 'cd[x]', checks: 1 });
+  await expect.poll(() => memoOf(page)).toBe('cd[x]');
+});
+
+test('N2a 뒤에 글이 있는 체크박스 — 그 뒤 글 맨 앞에서 Backspace 한 번에 지워지고, ⌘Z 로 되살아난다', async ({ page }) => {
+  await openMemo(page, 'ab[ ]cd');
+  expect(await placeCaret(page, 2, 0), '전제: 캐럿이 체크박스 바로 뒤 글의 맨 앞이다').toBe('text:ab[ ]|cd');
+  await page.keyboard.press('Backspace');
+  const st = await liveState(page);
+  expect({ all: st.all, checks: st.checks, caret: st.caret }).toEqual({ all: 'abcd', checks: 0, caret: 'ab|cd' });
+  await expect.poll(() => memoOf(page)).toBe('abcd');
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.locator('.smp-editor .smp-check'), '⌘Z 가 지운 체크박스를 되살린다').toHaveCount(1);
+  await expect.poll(async () => (await liveState(page)).all).toBe('ab[ ]cd');
+  await expect.poll(() => memoOf(page)).toBe('ab[ ]cd');
+  /* 다시 지우고 이어 친 글자는 지운 자리에 들어간다 */
+  expect(await placeCaret(page, 2, 0), '전제: 캐럿이 되살아난 체크박스 바로 뒤 글의 맨 앞이다').toBe('text:ab[ ]|cd');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('Z');
+  const end = await liveState(page);
+  expect({ all: end.all, checks: end.checks, foreign: end.foreign }).toEqual({ all: 'abZcd', checks: 0, foreign: 0 });
+  await expect.poll(() => memoOf(page)).toBe('abZcd');
+});
+
+test('N2b 뒤에 글이 있는 그림 — 그 뒤 글 맨 앞에서 Backspace 한 번에 지워지고, ⌘Z 로 되살아난다', async ({ page }) => {
+  await armA2(page);
+  await openMemo(page, `ab${N_IMG}cd`);
+  expect((await liveState(page)).imgs, '전제: 그림이 하나 있다').toBe(1);
+  expect(await placeCaret(page, 2, 0), '전제: 캐럿이 그림 바로 뒤 글의 맨 앞이다').toBe(`text:ab${N_IMG}|cd`);
+  await page.keyboard.press('Backspace');
+  const st = await liveState(page);
+  expect({ all: st.all, imgs: st.imgs, caret: st.caret }).toEqual({ all: 'abcd', imgs: 0, caret: 'ab|cd' });
+  await expect.poll(() => memoOf(page)).toBe('abcd');
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.locator('.smp-editor img.smp-img'), '⌘Z 가 지운 그림을 되살린다').toHaveCount(1);
+  await expect.poll(() => memoOf(page)).toBe(`ab${N_IMG}cd`);
+});
+
+test('N2c 원자 노드 바로 앞 글 끝에서 Delete 한 번 — 그 노드만 지워지고(체크박스 · 그림), ⌘Z 로 되살아난다', async ({ page }) => {
+  await armA2(page);
+  for (const [atom, key] of [['[ ]', 'checks'], [N_IMG, 'imgs']]) {
+    await openMemo(page, `ab${atom}cd`);
+    expect((await liveState(page))[key], '전제: 원자 노드가 하나 있다').toBe(1);
+    expect(await placeCaret(page, 0, 2), '전제: 캐럿이 원자 노드 바로 앞 글의 맨 끝이다').toBe(`text:ab|${atom}cd`);
+    await page.keyboard.press('Delete');
+    const st = await liveState(page);
+    expect({ all: st.all, atoms: st.atoms, caret: st.caret }, `${key}: Delete 1회`).toEqual({ all: 'abcd', atoms: 0, caret: 'ab|cd' });
+    await expect.poll(() => memoOf(page)).toBe('abcd');
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect.poll(async () => (await liveState(page)).all, `${key}: ⌘Z 가 되살린다`).toBe(`ab${atom}cd`);
+    await closeMemo(page);
+    expect(await memoOf(page)).toBe(`ab${atom}cd`);
+  }
+});
+
+test('N2d 원자 노드가 나란할 때는 캐럿 쪽 하나만 지운다 — 요소 경계의 캐럿에서도, 글 가운데서는 글자만', async ({ page }) => {
+  await armA2(page);
+  const MEMO = `ab[ ][x]${N_IMG}cd`;
+  await openMemo(page, MEMO);
+  expect((await liveState(page)).atoms, '전제: 원자 노드 셋이 나란하다').toBe(3);
+  expect(await placeCaret(page, 4, 0), '전제: 캐럿이 그림 바로 뒤 글의 맨 앞이다').toBe(`text:ab[ ][x]${N_IMG}|cd`);
+  await page.keyboard.press('Backspace');
+  expect((await liveState(page)).all, 'Backspace: 그림만').toBe('ab[ ][x]cd');
+  expect(await placeCaret(page, 0, 2), '전제: 캐럿이 첫 체크박스 바로 앞이다').toBe('text:ab|[ ][x]cd');
+  await page.keyboard.press('Delete');
+  expect((await liveState(page)).all, 'Delete: 첫 체크박스만').toBe('ab[x]cd');
+  await closeMemo(page);
+  /* 요소 경계(두 원자 노드 사이)의 캐럿 — 앞은 Backspace 가, 뒤는 Delete 가 지운다 */
+  await openMemo(page, MEMO);
+  expect(await placeCaret(page, 2), '전제: 캐럿이 두 체크박스 사이의 요소 경계다').toBe(`edge:ab[ ]|[x]${N_IMG}cd`);
+  await page.keyboard.press('Backspace');
+  expect((await liveState(page)).all).toBe(`ab[x]${N_IMG}cd`);
+  expect(await placeCaret(page, 2), '전제: 캐럿이 체크박스와 그림 사이의 요소 경계다').toBe(`edge:ab[x]|${N_IMG}cd`);
+  await page.keyboard.press('Delete');
+  expect((await liveState(page)).all).toBe('ab[x]cd');
+  /* 양성 대조 — 원자 노드에 닿지 않은 캐럿에서는 글자만 지운다 */
+  expect(await placeCaret(page, 2, 1), '전제: 캐럿이 글 가운데다').toBe('text:ab[x]c|d');
+  await page.keyboard.press('Backspace');
+  expect((await liveState(page)).all).toBe('ab[x]d');
+  expect(await placeCaret(page, 0, 1), '전제: 캐럿이 글 가운데다').toBe('text:a|b[x]d');
+  await page.keyboard.press('Delete');
+  const st = await liveState(page);
+  expect({ all: st.all, checks: st.checks, foreign: st.foreign }).toEqual({ all: 'a[x]d', checks: 1, foreign: 0 });
+  await expect.poll(() => memoOf(page)).toBe('a[x]d');
+});
+
+/* Enter 한 번 → 줄바꿈이 정확히 하나 늘고, 이어 친 글자가 새 줄 맨 앞에 온다 */
+async function enterOnce(page, wantAfterEnter, wantAfterType) {
+  const before = await liveState(page);
+  await page.keyboard.press('Enter');
+  const mid = await liveState(page);
+  expect(mid.nl - before.nl, 'Enter 한 번에 줄바꿈은 정확히 하나 는다').toBe(1);
+  expect({ all: mid.all, atoms: mid.atoms }).toEqual({ all: wantAfterEnter, atoms: before.atoms });
+  await page.keyboard.type('X');
+  const end = await liveState(page);
+  expect({ all: end.all, foreign: end.foreign }, '이어 친 글자가 새 줄 맨 앞에 온다').toEqual({ all: wantAfterType, foreign: 0 });
+  await expect.poll(() => memoOf(page)).toBe(wantAfterType);
+}
+
+test('N1a 그림 바로 앞에서 Enter — 줄바꿈은 정확히 하나, 이어 친 글자는 새 줄 맨 앞', async ({ page }) => {
+  await armA2(page);
+  await openMemo(page, `a${N_IMG} gh`);
+  expect((await liveState(page)).imgs, '전제: 그림이 하나 있다').toBe(1);
+  expect(await placeCaret(page, 0, 1), '전제: 캐럿이 그림 바로 앞 글의 맨 끝이다').toBe(`text:a|${N_IMG} gh`);
+  await enterOnce(page, `a\n${N_IMG} gh`, `a\nX${N_IMG} gh`);
+});
+
+test('N1b 체크박스 바로 앞에서 Enter — 줄바꿈은 정확히 하나(글 끝의 체크박스 앞에서도)', async ({ page }) => {
+  await openMemo(page, 'a[ ]gh');
+  expect(await placeCaret(page, 0, 1), '전제: 캐럿이 체크박스 바로 앞 글의 맨 끝이다').toBe('text:a|[ ]gh');
+  await enterOnce(page, 'a\n[ ]gh', 'a\nX[ ]gh');
+  await closeMemo(page);
+  await openMemo(page, 'a[x]');
+  expect(await placeCaret(page, 0, 1), '전제: 캐럿 뒤에 체크박스 하나뿐이다').toBe('text:a|[x]');
+  await enterOnce(page, 'a\n[x]', 'a\nX[x]');
+});
+
+test('N1c 체크박스 바로 뒤(요소 경계)에서 Enter — 뒤가 글이든 원자 노드든 줄바꿈은 정확히 하나', async ({ page }) => {
+  await armA2(page);
+  await openMemo(page, 'a[ ]gh');
+  expect(await placeCaret(page, 2), '전제: 캐럿이 체크박스 바로 뒤 요소 경계다').toBe('edge:a[ ]|gh');
+  await enterOnce(page, 'a[ ]\ngh', 'a[ ]\nXgh');
+  await closeMemo(page);
+  await openMemo(page, '[ ][x] z');
+  expect(await placeCaret(page, 1), '전제: 캐럿이 두 체크박스 사이의 요소 경계다').toBe('edge:[ ]|[x] z');
+  await enterOnce(page, '[ ]\n[x] z', '[ ]\nX[x] z');
+  await closeMemo(page);
+  await openMemo(page, `[x]${N_IMG}`);
+  expect(await placeCaret(page, 1), '전제: 캐럿이 체크박스와 그림 사이의 요소 경계다').toBe(`edge:[x]|${N_IMG}`);
+  await enterOnce(page, `[x]\n${N_IMG}`, `[x]\nX${N_IMG}`);
+});
+
+test('N1d 잘라내 같은 자리에 붙이면 — 붙일 자리 바로 뒤가 그림·체크박스여도 data-memo 가 한 글자도 안 다르다', async ({ page }) => {
+  await armA2(page);
+  for (const atom of [N_IMG, '[x]']) {
+    const MEMO = `가\n나\n${atom} 끝`;
+    await openMemo(page, MEMO);
+    expect((await liveState(page)).atoms, '전제: 원자 노드가 하나 있다').toBe(1);
+    /* 글 맨 앞부터 원자 노드 바로 앞까지(`가\n나\n`)를 고른다 */
+    const picked = await page.evaluate(() => {
+      const ed = document.querySelector('.smp-editor');
+      const atomEl = ed.querySelector('.smp-check, .smp-img');
+      const r = document.createRange();
+      r.setStart(ed, 0);
+      r.setEndBefore(atomEl);
+      const s = window.getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+      return { text: s.toString(), next: (r.endContainer.childNodes[r.endOffset] || {}).className };
+    });
+    expect(picked.next, '전제: 고른 범위 바로 뒤가 원자 노드다').toMatch(/^smp-(img|check)$/);
+    const cut = await clipEvent(page, 'cut');
+    expect(cut.text, '전제: 잘라낸 글자에 줄바꿈 둘이 실렸다').toBe('가\n나\n');
+    await expect.poll(() => memoOf(page), '전제: 잘라낸 뒤에는 원자 노드와 꼬리 글만 남는다').toBe(`${atom} 끝`);
+    expect((await liveState(page)).caret, '전제: 캐럿이 잘라낸 그 자리(원자 노드 바로 앞)다').toBe(`|${atom} 끝`);
+    await pasteFiles(page, [], { text: cut.text });
+    await expect.poll(() => memoOf(page)).toBe(MEMO);
+    const st = await liveState(page);
+    expect({ all: st.all, atoms: st.atoms, foreign: st.foreign }).toEqual({ all: MEMO, atoms: 1, foreign: 0 });
+    await closeMemo(page);
+    expect(await memoOf(page)).toBe(MEMO);
+  }
+});
+
+test('NR 고정 시드 무작위 — 캐럿 이동·타이핑·Backspace·Delete·Enter 를 섞어도 원자 노드는 늘지 않고 남의 요소는 0', async ({ page }) => {
+  await armA2(page);
+  /* 작은 LCG(고정 시드) — 같은 조작 줄이 매번 나온다 */
+  let seed = 20261012;
+  const rnd = (n) => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return Math.floor((seed / 4294967296) * n);
+  };
+  const MEMO = `가[ ]나다\n[x] 라${N_IMG}마[ ][x]\n바 ${N_IMG}\n사[ ]`;
+  const OPS = ['ArrowLeft', 'ArrowLeft', 'ArrowRight', 'ArrowRight', 'jump', 'jump', 'type', 'type', 'Backspace', 'Backspace', 'Delete', 'Delete', 'Enter'];
+  const ROUNDS = 4;
+  const PER_ROUND = 50;
+  let ops = 0;
+  let atomDeletes = 0;
+  let enters = 0;
+  for (let round = 0; round < ROUNDS; round++) {
+    await openMemo(page, MEMO);
+    let prev = await liveState(page);
+    expect({ atoms: prev.atoms, foreign: prev.foreign, all: prev.all }, '전제: 원자 노드 일곱으로 열렸고 마지막이 체크박스다').toEqual({ atoms: 7, foreign: 0, all: MEMO });
+    for (let i = 0; i < PER_ROUND; i++) {
+      const op = OPS[rnd(OPS.length)];
+      const r = rnd(1000);
+      if (op === 'jump') {
+        /* 캐럿을 임의의 자식 노드로 — 글자 노드면 맨 앞·맨 끝·가운데 중 하나, 요소면 그 앞 경계 */
+        await page.evaluate((r) => {
+          const ed = document.querySelector('.smp-editor');
+          const n = ed.childNodes[r % Math.max(1, ed.childNodes.length)];
+          const rg = document.createRange();
+          if (n && n.nodeType === 3) rg.setStart(n, [0, n.data.length, n.data.length >> 1][(r >> 4) % 3]);
+          else rg.setStart(ed, n ? [...ed.childNodes].indexOf(n) : 0);
+          rg.collapse(true);
+          const s = window.getSelection();
+          s.removeAllRanges();
+          s.addRange(rg);
+        }, r);
+      } else if (op === 'type') {
+        await page.keyboard.type('qw 가z'[r % 5]);
+      } else {
+        await page.keyboard.press(op);
+      }
+      ops++;
+      const cur = await liveState(page);
+      const tag = `${round}회전 ${i}번째 ${op} · 앞 ${JSON.stringify(prev.caret)} → 뒤 ${JSON.stringify(cur.caret)}`;
+      expect(cur.atoms, `원자 노드는 늘지 않는다 — ${tag}`).toBeLessThanOrEqual(prev.atoms);
+      expect(prev.atoms - cur.atoms, `원자 노드는 한 조작에 많아야 하나 준다 — ${tag}`).toBeLessThanOrEqual(1);
+      expect(cur.foreign, `남의 요소 0 — ${tag}`).toBe(0);
+      if (op !== 'Backspace' && op !== 'Delete') expect(cur.atoms, `지우는 조작이 아니면 원자 노드 수는 그대로다 — ${tag}`).toBe(prev.atoms);
+      if (op === 'Enter') {
+        enters++;
+        /* 캐럿 뒤에 줄바꿈 말고 아무것도 없을 때만 크롬이 «보이는 줄»용 줄바꿈을 하나 더 둔다(저장 때 꼬리로 털린다) */
+        const atEnd = prev.tail.replace(/\n/g, '') === '';
+        if (!atEnd) expect(cur.nl - prev.nl, `Enter 는 줄바꿈 정확히 하나 — ${tag}`).toBe(1);
+        expect(cur.all.replace(/\n+$/, '').length - prev.all.replace(/\n+$/, '').length, `Enter 뒤 저장 글자는 많아야 한 글자 는다 — ${tag}`).toBeLessThanOrEqual(1);
+      }
+      if (cur.atoms < prev.atoms) atomDeletes++;
+      prev = cur;
+    }
+    await closeMemo(page);
+    expect(await memoOf(page), '닫은 뒤의 저장 글자 = 편집 칸의 글자(꼬리 줄바꿈 뗀 것)').toBe(prev.all.replace(/\n+$/, '') || null);
+  }
+  expect(ops, '전제: 조작 200회를 다 돌았다').toBe(ROUNDS * PER_ROUND);
+  expect(atomDeletes, '전제: 원자 노드를 지우는 갈래를 실제로 지났다').toBeGreaterThan(0);
+  expect(enters, '전제: Enter 갈래를 실제로 지났다').toBeGreaterThan(0);
 });

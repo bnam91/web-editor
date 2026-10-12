@@ -415,11 +415,132 @@
       }
       return true;
     };
+    /* ── 원자 노드 이웃의 캐럿 (재검 N1·N2·N3) ─────────────────────────────────
+       크롬의 기본 편집은 contenteditable=false 노드 «바로 옆»에서 틀린다(headless Chrome 실측 2026-10-12):
+         · 원자 노드 바로 뒤 글 맨 앞에서 Backspace ⇒ 그 노드는 안 지우고, 메모의 «끝 체크박스»를 누를 때마다 복제한다
+         · 원자 노드 바로 앞 글 끝에서 Delete ⇒ 헛돈다(그림은 끝내 안 지워진다)
+         · 원자 노드 바로 앞에서 insertLineBreak ⇒ 줄바꿈을 «둘» 넣는다(둘째는 «보이는 줄»용인데 글 가운데라 저장된다)
+       ⇒ 그 세 자리는 기본 동작에 안 맡긴다. 아래가 «캐럿의 dir 쪽 이웃이 원자 노드인가»의 한 자리다.
+       dir: -1 = 캐럿 앞(Backspace 가 지울 쪽) · +1 = 캐럿 뒤(Delete 가 지울 쪽).
+       ★글자 노드 안이면 그 노드의 맨 앞/맨 끝일 때만 본다. 빈 글자 노드는 건너뛴다.
+       ★같은 부모 안에서만 찾는다 — DIV/P 경계를 넘지 않는다(거기는 문단 합치기라 기본 동작이 맞다). */
+    const atomBeside = (dir) => {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount || !sel.isCollapsed) return null;
+      const n = sel.anchorNode;
+      const off = sel.anchorOffset;
+      if (!n || !ta.contains(n)) return null;
+      let c;
+      if (n.nodeType === 3) {
+        if (dir < 0 ? off > 0 : off < n.data.length) return null;
+        c = dir < 0 ? n.previousSibling : n.nextSibling;
+      } else if (n.nodeType === 1) {
+        c = n.childNodes[dir < 0 ? off - 1 : off] || null;
+      } else {
+        return null;
+      }
+      while (c && c.nodeType !== 1 && !(c.nodeType === 3 && c.data)) c = dir < 0 ? c.previousSibling : c.nextSibling;
+      return c && c.nodeType === 1 && c.matches(ATOM_SEL) ? c : null;
+    };
+    /* 원자 노드 «하나»를 지운다. execCommand 로 = 네이티브 되돌리기에 실린다(⌘Z 가 되살린다 — 실측).
+       안 지워졌으면 노드를 직접 뗀다(그 경로는 ⌘Z 에 안 실린다). */
+    const deleteAtom = (atom) => {
+      const sel = window.getSelection();
+      if (!sel || !atom || !ta.contains(atom)) return false;
+      const r = document.createRange();
+      r.selectNode(atom);
+      sel.removeAllRanges();
+      sel.addRange(r);
+      try { document.execCommand('delete'); } catch (_) { /* 아래가 가른다 */ }
+      if (atom.isConnected && ta.contains(atom)) {
+        const at = document.createRange();
+        at.setStartBefore(atom);
+        at.collapse(true);
+        atom.remove();
+        sel.removeAllRanges();
+        sel.addRange(at);
+      }
+      scrubForeign();
+      return true;
+    };
+    /* 범위 → 저장 글자 (복사·잘라내기 · 줄바꿈 판정이 같이 쓴다) */
+    const rangeAsMemo = (r) => {
+      const tokens = _domToTokens(r.cloneContents(), []);
+      const F = window.SectionMemoFormat;
+      return F ? F.serializeTokens(tokens)
+        : tokens.map((t) => (t.type === 'text' ? t.text : t.type === 'br' ? '\n' : '')).join('');
+    };
+    /* 선택 끝(캐럿)부터 글 끝까지의 저장 글자 — 꼬리 줄바꿈을 «안» 턴다 */
+    const tailAsMemo = () => {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return null;
+      const r0 = sel.getRangeAt(0);
+      if (!ta.contains(r0.endContainer)) return null;
+      const r = document.createRange();
+      r.selectNodeContents(ta);
+      r.setStart(r0.endContainer, r0.endOffset);
+      return rangeAsMemo(r);
+    };
+    /* ── 줄바꿈 «정확히 하나» 넣기 (Enter · 붙여넣기의 줄바꿈) ───────────────────
+       기본은 execCommand('insertLineBreak')(= `\n` 글자 · 네이티브 되돌리기). 다만 크롬은 줄바꿈 뒤에
+       «줄을 세울 글자»가 없으면 `\n` 을 하나 더 둔다. 글 «끝»에서는 그게 맞다(캐럿이 설 빈 줄 — 저장 때
+       꼬리 줄바꿈으로 털린다 · C8). 그런데 바로 뒤가 원자 노드일 때도 그러고, 그건 글 가운데라 그대로 저장된다
+       ⇒ ⑴뒤가 원자 노드면 <br> 하나를 insertHTML 로 넣는다(실측: 덧줄바꿈 없음 · 캐럿은 그 뒤 · ⌘Z 한 번).
+         ⑵어느 길이든 넣은 뒤에 «캐럿 뒤 글자가 넣기 전과 같은가»를 재서, 덧들어간 하나를 걷는다. */
+    const insertBreak = () => {
+      const tail0 = tailAsMemo();
+      const next = atomBeside(1);
+      if (next) {
+        const brs0 = new Set(ta.querySelectorAll('br'));
+        try { document.execCommand('insertHTML', false, '<br>'); } catch (_) { /* 아래가 가른다 */ }
+        let br = Array.from(ta.querySelectorAll('br')).filter((b) => !brs0.has(b)).pop() || null;
+        if (!br && next.isConnected) {
+          /* 아무것도 안 들어갔다 — Range 로 직접(⌘Z 에 안 실린다) */
+          br = document.createElement('br');
+          next.parentNode.insertBefore(br, next);
+        }
+        /* ★캐럿은 «넣은 줄바꿈 바로 뒤»에 둔다 — 크롬은 넣고도 캐럿을 그 «앞»에 남길 때가 있다
+           (insertAtom 과 같은 병 · 실측: 원자 노드를 지운 직후의 캐럿에서). */
+        const selB = window.getSelection();
+        if (br && selB) {
+          const r = document.createRange();
+          r.setStartAfter(br);
+          r.collapse(true);
+          selB.removeAllRanges();
+          selB.addRange(r);
+        }
+      } else {
+        document.execCommand('insertLineBreak');
+      }
+      /* 덧줄바꿈 걷기 — 캐럿 뒤에 «줄바꿈 아닌 글»이 있는데 그 앞에 줄바꿈이 하나 더 붙었을 때만.
+         (캐럿 뒤가 비었거나 줄바꿈뿐이면 그 하나는 캐럿이 설 줄이다 — 둔다) */
+      if (tail0 == null || tail0.replace(/\n+$/, '') === '' || tailAsMemo() !== '\n' + tail0) return;
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount || !sel.isCollapsed) return;
+      const n = sel.anchorNode;
+      const off = sel.anchorOffset;
+      const extra = document.createRange();
+      if (n.nodeType === 3 && n.data.charAt(off) === '\n') {
+        extra.setStart(n, off);
+        extra.setEnd(n, off + 1);
+      } else {
+        let c = n.nodeType === 3 ? (off >= n.data.length ? n.nextSibling : null) : n.childNodes[off];
+        while (c && c.nodeType === 3 && !c.data) c = c.nextSibling;
+        if (c && c.nodeType === 3 && c.data.charAt(0) === '\n') { extra.setStart(c, 0); extra.setEnd(c, 1); }
+        else if (c && c.nodeType === 1 && c.tagName === 'BR') extra.selectNode(c);
+        else return;
+      }
+      /* ★Range 로 직접 걷는다 — execCommand('delete') 로 걷으면 ⌘Z 가 «줄바꿈 둘»인 판을 한 번 거친다 */
+      extra.deleteContents();
+      extra.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(extra);
+    };
     /* 토큰 줄을 캐럿 자리에 넣는다(붙여넣기). ★새 토큰 종류는 여기에 한 갈래를 더한다. */
     const insertTokens = (tokens) => {
       for (const t of tokens) {
         if (t.type === 'text') { if (t.text) document.execCommand('insertText', false, t.text); }
-        else if (t.type === 'br') document.execCommand('insertLineBreak');
+        else if (t.type === 'br') insertBreak();
         else if (t.type === 'check') insertAtom(_makeCheckNode(t.checked, t.raw));
         else if (t.type === 'img') { if (_isMemoImgSrc(t.src)) insertAtom(_makeImgNode(t.src)); }
       }
@@ -545,7 +666,22 @@
       if (e.key !== 'Enter' || e.isComposing || composing || e.keyCode === 229) return;
       e.preventDefault();
       if (curLen() + 1 > MAX_MEMO_LEN) return;
-      document.execCommand('insertLineBreak');
+      insertBreak();
+      /* <br> 길(insertHTML)과 덧줄바꿈 걷기는 input 이 안 오거나 그 뒤에 일어난다 — 저장을 직접 예약한다 */
+      scheduleCommit();
+    });
+    /* Backspace · Delete — 캐럿의 «지울 쪽» 이웃이 원자 노드이면 그 노드 하나만 지운다(재검 N2·N3).
+       기본 동작은 그 자리에서 «다른» 체크박스를 복제하거나 헛돈다(위 atomBeside 머리말).
+       ★수식키(⌘·⌃·⌥ = 줄·낱말 지우기)와 고른 범위가 있을 때는 기본 동작 그대로다. ⇧ 는 Backspace 와 같다. */
+    ta.addEventListener('keydown', (e) => {
+      if (e.key !== 'Backspace' && e.key !== 'Delete') return;
+      if (e.isComposing || composing || e.keyCode === 229) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const atom = atomBeside(e.key === 'Backspace' ? -1 : 1);
+      if (!atom) return;
+      e.preventDefault();
+      deleteAtom(atom);
+      scheduleCommit();
     });
     /* 체크 토글 — mousedown 을 막아 캐럿·포커스를 그대로 둔다 */
     ta.addEventListener('mousedown', (e) => {
@@ -575,10 +711,7 @@
       if (!sel || !sel.rangeCount || sel.isCollapsed) return null;
       const r = sel.getRangeAt(0);
       if (!ta.contains(r.commonAncestorContainer)) return null;
-      const tokens = _domToTokens(r.cloneContents(), []);
-      const F = window.SectionMemoFormat;
-      return F ? F.serializeTokens(tokens)
-        : tokens.map((t) => (t.type === 'text' ? t.text : t.type === 'br' ? '\n' : '')).join('');
+      return rangeAsMemo(r);
     };
     const onCopyCut = (e) => {
       const text = selectionAsMemo();
