@@ -4,6 +4,7 @@
  *   U3 segAlpha 단조 감소 · (0,1] 안                                  U4 shapeAspect(viewBox · width/height · 둘 다 없음 · % 단위)
  *   U5 shapeMaskUrl(base64 아님 · 날것 ' ( ) " 0 · xmlns 는 여기서만)   U6 내장 모양마다 viewBox 있고 상한 미만 · 잉크가 viewBox 를 안 넘는다
  *   U7 한계 상수가 graph-limits 에 있다                                U8 usesShape · fillMaxOf(분모 규칙) · segSum
+ *   U10 마디를 새 값에 맞추기(합 정확 · 합 0 균등)   U11 fillPlan(렌더=모델 분모)   U12 setGraphShape index 검증
  * 전제 단언: 칸마다 «비교할 것이 실제로 있다»를 먼저 본다 — 빈 목록이 통과로 읽히지 않게. */
 'use strict';
 const test = require('node:test');
@@ -167,6 +168,16 @@ test('U8 usesShape · fillMaxOf — 키가 없으면 옛 길 · 모양이면 분
   assert.equal(usesShape({}, [{ label: 'a', value: 1, segments: [{ label: 's', value: 1 }] }]), true);
   assert.equal(usesShape({}, [{ label: 'a', value: 1, shape: 'drop' }]), false, '항목 모양만으로는 안 켜진다(블럭 모양이 스위치)');
   assert.equal(usesShape(null, null), false);
+  /* 모르는 이름 · 글자 없는 custom 은 «꺼진 것» — 사각 막대 옛 분기로 간다(truthy 만 보면 안 된다) */
+  assert.equal(usesShape({ barShape: 'zzz' }, items), false, "모르는 barShape('zzz') = 옛 세로 막대");
+  assert.equal(usesShape({ barShape: 'constructor' }, items), false, '상속 이름도 모양이 아니다');
+  assert.equal(usesShape({ barShape: 'custom' }, items), false, 'shapeSvg 없는 custom = 꺼짐');
+  assert.equal(usesShape({ barShape: 'custom', shapeSvg: '<svg><path/></svg>' }, items), false, '크기를 못 읽는 shapeSvg = 꺼짐');
+  assert.equal(usesShape({ barShape: 'custom', shapeSvg: '<svg viewBox="0 0 2 4"><path/></svg>' }, items), true);
+  assert.equal(GS.shapeOn({ barShape: 'drop' }), true);
+  assert.equal(GS.shapeOn({ barShape: 'zzz' }), false);
+  assert.equal(usesShape({ barShape: 'zzz' }, [{ label: 'a', value: 1, segments: [{ label: 's', value: 1 }] }]), true, '마디가 있으면 마디 길(모양과 무관)');
+  assert.equal(fillMaxOf({ barShape: 'zzz', fillMax: '60' }, items), 80, '모르는 모양은 사각의 분모(max(items))');
   assert.equal(fillMaxOf({ barShape: 'drop' }, items), 100);
   assert.equal(fillMaxOf({ barShape: 'drop', fillMax: '60' }, items), 60);
   assert.equal(fillMaxOf({ barShape: 'drop', fillMax: '0' }, items), 100, '0 이하·글자는 기본');
@@ -185,7 +196,8 @@ test('U9 carryItemExtras — 항목을 다시 써도 마디·항목 모양이 �
   assert.deepEqual(prev.segments.map(s => s.value), [40, 60], '옛 항목을 안 고친다');
   assert.deepEqual(carryItemExtras({ label: 'n', value: 0 }, prev, {}).segments.map(s => s.value), [40, 60], '새 값 0 = 비율 유지');
   assert.equal(carryItemExtras({ label: 'n', value: 0 }, prev, {}).value, 100);
-  assert.deepEqual(carryItemExtras({ label: 'n', value: 7 }, prev, { segments: [{ label: 'k', value: 3 }, { value: '4' }] }),
+  /* 들어온 마디가 이긴다 — 같이 온 value(99)는 버리고 합(7)을 쓴다(value 와 합이 «다른» 입력이라야 이 줄이 잰다) */
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 99 }, prev, { value: 99, segments: [{ label: 'k', value: 3 }, { value: '4' }] }),
     { label: 'n', value: 7, shape: 'custom', shapeSvg: prev.shapeSvg, segments: [{ label: 'k', value: 3 }, { label: '', value: 4 }] });
   assert.deepEqual(carryItemExtras({ label: 'n', value: 9 }, prev, { segments: [] }), { label: 'n', value: 9, shape: 'custom', shapeSvg: prev.shapeSvg }, '빈 배열 = 마디를 걷는다');
   assert.deepEqual(carryItemExtras({ label: 'n', value: 9 }, undefined, null), { label: 'n', value: 9 }, '옛 항목이 없으면 그대로');
@@ -196,4 +208,83 @@ test('U9 carryItemExtras — 항목을 다시 써도 마디·항목 모양이 �
   assert.equal(many[1].color, 'red');
   assert.equal('color' in many[0], false, '검증 못 지난 색은 안 싣는다');
   assert.deepEqual(normSegments('nope'), []);
+});
+
+test('U10 carryItemExtras 맞추기 — 합이 «정확히» 새 값 · 긴 소수 없음 · 옛 합 0 이면 균등 분배 · 늘 value === 마디 합', () => {
+  const { carryItemExtras, fitSegments, reconcileItems } = GS;
+  const mk = (vals) => ({ label: 'p', value: vals.reduce((a, b) => a + b, 0), segments: vals.map((v, i) => ({ label: 's' + i, value: v })) });
+  const run = (vals, v) => carryItemExtras({ label: 'n', value: v }, mk(vals), {});
+  /* [10,10,10] → 100: 33.333333×3(합 99.999999)이 아니다 */
+  const a = run([10, 10, 10], 100);
+  assert.deepEqual(a.segments.map(s => s.value), [34, 33, 33]);
+  assert.equal(a.value, 100, '값 라벨에 실리는 수 = 정확히 100');
+  assert.equal(segSum(a.segments), 100);
+  assert.ok(a.segments.every(s => String(s.value).length <= 4), '긴 소수 없음: ' + JSON.stringify(a.segments));
+  /* 옛 마디 합 0 → 새 값이 사라지지 않는다(균등 분배) */
+  const z = run([0, 0], 50);
+  assert.deepEqual(z.segments.map(s => s.value), [25, 25]);
+  assert.equal(z.value, 50, '값이 0 으로 덮이지 않는다');
+  assert.deepEqual(z.segments.map(s => s.label), ['s0', 's1'], '라벨은 그대로');
+  assert.deepEqual(run([0, 0, 0], 50).segments.map(s => s.value), [17, 17, 16]);
+  assert.equal(run([0, 0, 0], 50).value, 50);
+  assert.equal(run([0, 0], 0).value, 0, '합 0 · 새 값 0 = 0');
+  /* 정수로 못 담는 비율은 자릿수를 늘린다(비율을 깨지 않는다) · 그래도 합은 정확 */
+  assert.deepEqual(run([40, 30, 20, 10], 7).segments.map(s => s.value), [2.8, 2.1, 1.4, 0.7]);
+  assert.deepEqual(run([40, 30, 20, 10], 5).segments.map(s => s.value), [2, 1.5, 1, 0.5]);
+  assert.deepEqual(run([1, 1, 1], 1).segments.map(s => s.value), [0.34, 0.33, 0.33]);
+  for (const [vals, v] of [[[10, 10, 10], 100], [[1, 1, 1], 1], [[3, 7, 0], 9999], [[1, 2, 3, 4, 5, 6, 7], 13], [[0.5, 0.25], 2.5], [[1, 1000], 33], [[7, 7, 7], 0.1]]) {
+    const o = run(vals, v);
+    assert.equal(o.value, v, `value === 새 값: ${JSON.stringify(vals)} → ${v}`);
+    assert.equal(segSum(o.segments), o.value, `value === 마디 합: ${JSON.stringify(o.segments.map(s => s.value))}`);
+    assert.ok(o.segments.every((s, j) => (vals[j] > 0) === (s.value > 0)), `양수 마디는 양수로 남는다: ${JSON.stringify(o.segments.map(s => s.value))}`);
+  }
+  assert.deepEqual(fitSegments([3, 7, 0], 10), [3, 7, 0], '이미 맞으면 그대로');
+  assert.deepEqual(fitSegments([1, 2], 0), [1, 2], '새 값 0 이하 = 그대로');
+  assert.deepEqual(fitSegments([], 5), []);
+  /* reconcileItems — value 와 마디 합이 어긋난 항목을 같은 규칙으로(값이 이긴다 · 값 0 이면 마디 합) · 다른 필드·마디 없는 항목은 그대로 */
+  const rec = reconcileItems([{ label: 'a', value: 70, color: '#111', value2: 3, segments: [{ label: 'x', value: 40 }, { label: 'y', value: 60 }] },
+    { label: 'b', value: 0, segments: [{ label: 'x', value: 4 }, { label: 'y', value: 6 }] }, { label: 'c', value: 3 }]);
+  assert.deepEqual(rec, [{ label: 'a', value: 70, color: '#111', value2: 3, segments: [{ label: 'x', value: 28 }, { label: 'y', value: 42 }] },
+    { label: 'b', value: 10, segments: [{ label: 'x', value: 4 }, { label: 'y', value: 6 }] }, { label: 'c', value: 3 }]);
+  assert.deepEqual(reconcileItems(null), []);
+});
+
+test('U11 fillPlan — 렌더와 모델이 같이 부르는 분모 한 자리(마디 합 · 모양 분모 · 눈금 상한)', () => {
+  const { fillPlan } = GS;
+  const nice = (m) => ({ max: Math.ceil(m / 50) * 50 });   // 시험용 눈금 함수(제품은 drag-utils _niceScale 을 넘긴다)
+  const segItem = { label: 'a', value: 5, segments: [{ label: 'x', value: 40 }, { label: 'y', value: 50 }] };
+  assert.notEqual(segItem.value, segSum(segItem.segments), '전제: 날 value 와 마디 합이 다르다');
+  const p0 = fillPlan({}, [segItem, { label: 'b', value: 30 }], nice);
+  assert.deepEqual(p0.vItems.map(i => i.value), [90, 30], '값의 정본 = 마디 합');
+  assert.equal(segItem.value, 5, '들어온 항목을 안 고친다');
+  assert.deepEqual([p0.max, p0.scaleMax, p0.denom, p0.boxFrac], [90, 90, 90, 1], '축·격자 꺼짐: 분모 = max(마디 합 포함)');
+  const p1 = fillPlan({ showGrid: '1' }, [segItem, { label: 'b', value: 30 }], nice);
+  assert.deepEqual([p1.max, p1.scaleMax, p1.denom], [90, 100, 100], '사각 + 격자: 분모 = 눈금 상한');
+  assert.equal(fillPlan({ showAxis: '1' }, [segItem], nice).denom, 100);
+  assert.equal(fillPlan({ showLine: '1' }, [segItem], nice).denom, 90, '꺾은선만 = 옛 상한');
+  const p2 = fillPlan({ barShape: 'drop', fillMax: '65', showGrid: '1' }, [{ label: 'a', value: 30 }], nice);
+  assert.deepEqual([p2.max, p2.scaleMax, p2.denom], [65, 100, 65], '모양: 분모 = fillMax(상자가 낮아진다)');
+  assert.equal(p2.boxFrac, 0.65);
+  assert.equal(fillPlan({ barShape: 'zzz', fillMax: '65' }, [{ label: 'a', value: 30 }], nice).denom, 30, '모르는 모양 = 사각의 분모');
+  assert.deepEqual(fillPlan(null, null, nice).vItems, []);
+  assert.equal(fillPlan({ showGrid: '1' }, [segItem]).denom, 90, '눈금 함수가 없으면(노드) max 그대로');
+});
+
+test("U12 setGraphShape index 검증 — 정수 · 0 이상 · 항목 수 미만이 아니면 BAD_INDEX('__proto__' 가 Array.prototype 을 안 더럽힌다)", () => {
+  const { setGraphShape } = GS;
+  const mk = () => ({ classList: { contains: (c) => c === 'graph-block' }, dataset: { items: JSON.stringify([{ label: 'a', value: 1 }, { label: 'b', value: 2 }]) } });
+  assert.equal('shape' in Array.prototype, false, '전제: Array.prototype 이 깨끗하다');
+  for (const bad of ['__proto__', 'constructor', '0', 1.5, -1, 2, NaN, Infinity, {}, []]) {
+    const b = mk(), before = b.dataset.items;
+    assert.deepEqual(setGraphShape(b, { index: bad, shape: 'drop' }), { ok: false, code: 'BAD_INDEX' }, 'index ' + String(bad));
+    assert.equal(b.dataset.items, before, '거절은 dataset 을 안 건드린다');
+  }
+  assert.equal('shape' in Array.prototype, false, "Array.prototype.shape 가 안 생겼다");
+  assert.equal([].shape, undefined);
+  const ok = mk();
+  assert.deepEqual(setGraphShape(ok, { index: 1, shape: 'drop' }), { ok: true, shape: 'drop' });
+  assert.deepEqual(JSON.parse(ok.dataset.items).map(i => i.shape ?? null), [null, 'drop']);
+  assert.deepEqual(setGraphShape(ok, { index: 0, shape: 'nope' }), { ok: false, code: 'UNKNOWN_SHAPE' });
+  const nul = { classList: { contains: () => true }, dataset: { items: '[null]' } };
+  assert.deepEqual(setGraphShape(nul, { index: 0, shape: 'drop' }), { ok: false, code: 'NO_ITEM' }, '자리는 있는데 객체가 아니면 NO_ITEM');
 });

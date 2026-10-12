@@ -119,11 +119,14 @@ const _isPieType = (t) => t === 'pie' || t === 'donut';
 
 /* 1012t1G2 — Shape 절(세로 막대 전용): 막대를 SVG 실루엣으로. 쓰는 길은 window.setGraphShape «하나»(js/graph-shape.js — 소독·한도·키 삭제가 거기 산다).
  * 목록 = 기본 막대 + 내장 실루엣(GRAPH_SHAPE_PRESETS 표 그대로) + 사용자 SVG. 파일은 숨은 input 하나를 블럭 모양·항목 모양이 같이 쓴다. */
-const SHAPE_FAIL_TOAST = { TOO_LARGE: '⚠️ SVG가 너무 큽니다', NOT_SVG: '⚠️ 유효한 SVG가 아닙니다', EMPTY: '⚠️ 그릴 도형이 없는 SVG입니다', NO_SIZE: '⚠️ SVG에 크기(viewBox)가 없습니다' };
+const SHAPE_FAIL_TOAST = { TOO_LARGE: '⚠️ SVG가 너무 큽니다', NOT_SVG: '⚠️ 유효한 SVG가 아닙니다', EMPTY: '⚠️ 그릴 도형이 없는 SVG입니다', NO_SIZE: '⚠️ SVG에 크기(viewBox)가 없습니다', TOO_COMPLEX: '⚠️ SVG가 너무 복잡합니다(겹쳐 쓴 use)' };
 /* 항목 줄의 작은 버튼 아이콘 — 블럭 헤더 아이콘과 같은 꼴(12 격자 · 선 1.3 · 채움 없음) */
 const ITEM_SHAPE_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V2M3.5 4.5 6 2l2.5 2.5M2 10h8"/></svg>';
 /* 1012t1G4 — 마디(막대·실루엣을 비율별로 나눈 조각) 편집 줄. 항목 줄 아래 같은 꼴의 줄(라벨 · 값 · ✕ · 색) + 「+ 마디 추가」.
- * 0번이 맨 아래 마디다. 마디가 있으면 그 항목의 값 칸은 읽기 전용(합) — 합을 쓰는 자는 graph-shape.js segSum 한 곳. 세로 막대에서만 나온다. */
+ * 0번이 맨 아래 마디다. 마디가 있으면 그 항목의 값 칸은 읽기 전용(합) — 합을 쓰는 자는 graph-shape.js segSum 한 곳. 세로 막대에서만 나온다.
+ * ★다른 유형(가로·꺾은선·비교·원형)에선 마디 줄도, 읽기 전용도, «합으로 되쓰기»도 없다 — 마디는 모델에 «보존만» 하고 값 칸은 자유롭다.
+ *   거기서 값을 확정(change)하면 마디를 그 값에 같은 비율로 맞춘다(값이 이긴다 · carryItemExtras 규칙 그대로). 세로 막대로 돌아올 때 한 번 더 맞춘다(reconcileItems)
+ *   ⇒ 세로 막대에선 늘 item.value === 마디 합. 값 0 은 비율을 담을 수 없어 마디를 그대로 두고, 돌아오면 값이 마디 합으로 선다. */
 const _segsOf = (item) => (item && Array.isArray(item.segments)) ? item.segments : [];
 const _segSum = (segs) => window.GRAPH_SHAPE.segSum(segs);
 function segListHTML(item, i) {
@@ -229,7 +232,8 @@ export function showGraphProperties(block) {
   const showVLabel   = block.dataset.showVLabel !== '0';
   const showXLabel   = block.dataset.showXLabel !== '0';
   const _isPie       = _isPieType(chartType);
-  const _shapeOn     = chartType === 'bar-v' && !!block.dataset.barShape;   // 1012t1G2 — 실루엣이 켜졌나(세로 막대에서만)
+  const _shapeOn     = chartType === 'bar-v' && window.GRAPH_SHAPE.shapeOn(block.dataset);   // 1012t1G2 — 실루엣이 «실제로» 켜졌나(세로 막대에서만 · 모르는 이름은 꺼진 것)
+  const _segOn       = chartType === 'bar-v';   // 1012t1G4 — 마디 편집(줄 · 읽기 전용 합 · 합으로 되쓰기)은 세로 막대에서만
   const pieHole      = (h => Math.min(PIE_HOLE_MAX, Math.max(PIE_HOLE_MIN, Number.isFinite(h) ? h : PIE_HOLE_DEFAULT)))(parseInt(block.dataset.pieHole));   // 렌더(drag-utils.js _renderPie)와 «같은 식»
 
   const presets = [
@@ -398,12 +402,12 @@ ${blockHeaderHTML({
         ${items.map((item, i) => `
           <div class="grb-data-item" data-index="${i}">
             <input type="text" class="grb-data-label-input" value="${item.label}" placeholder="라벨">
-            <input type="number" class="grb-data-val-input" value="${_segsOf(item).length ? _segSum(item.segments) : item.value}" min="0" max="9999"${_segsOf(item).length ? ' readonly title="마디 값의 합"' : ''}>
+            <input type="number" class="grb-data-val-input" value="${_segOn && _segsOf(item).length ? _segSum(item.segments) : item.value}" min="0" max="9999"${_segOn && _segsOf(item).length ? ' readonly title="마디 값의 합"' : ''}>
             ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${item.value2 ?? 0}" min="0" max="9999" title="시리즈 B 값">` : ''}
             <button class="grb-data-del-btn" data-index="${i}">✕</button>
             ${_shapeOn ? `<button class="grb-data-icon-btn ${item.shape ? 'active' : ''}" data-shape-index="${i}" title="${item.shape ? '이 항목만 쓰는 모양 지우기(블럭 모양으로)' : '이 항목만 SVG 불러오기'}">${ITEM_SHAPE_ICON}</button>` : ''}
             ${(chartType === 'bar-v' || chartType === 'bar-h') ? itemColorFieldHTML(item, i) : (_isPie ? itemColorFieldHTML(item, i, { solidOnly: true }) : '')}
-          </div>${chartType === 'bar-v' ? segListHTML(item, i) : ''}`).join('')}
+          </div>${_segOn ? segListHTML(item, i) : ''}`).join('')}
       </div>
       <button class="prop-btn-full" id="grb-add-item">+ 항목 추가</button>
     </div>`;
@@ -414,6 +418,11 @@ ${blockHeaderHTML({
   GRAPH_TYPES.forEach(t => {
     document.getElementById(t.id).addEventListener('click', () => {
       block.dataset.chartType = t.type;
+      if (t.type === 'bar-v') {   // 1012t1G4 — 다른 유형에서 고친 값과 보존된 마디를 한 규칙으로 맞춘다(바뀔 때만 쓴다 — 마디 없는 블럭은 무변)
+        const _raw = block.dataset.items || '[]';
+        let _rec = _raw; try { _rec = JSON.stringify(window.GRAPH_SHAPE.reconcileItems(JSON.parse(_raw))); } catch (_) {}
+        if (_rec !== _raw) block.dataset.items = _rec;
+      }
       window.renderGraph(block);
       showGraphProperties(block);
     });
@@ -444,10 +453,13 @@ ${blockHeaderHTML({
       if (!file) return;
       if (!(/\.svg$/i.test(file.name) || /svg/i.test(file.type))) { window.showToast?.('⚠️ SVG 파일만 지원합니다'); return; }
       if (file.size > SHAPE_SVG_MAX * 8) { window.showToast?.(SHAPE_FAIL_TOAST.TOO_LARGE); return; }
+      const wasSelected = block.classList.contains('selected');
       const text = await file.text();
+      if (!block.isConnected) return;   // 읽는 사이 블럭이 지워졌다
       const r = window.setGraphShape(block, index == null ? { svg: text } : { svg: text, index });
       if (!r.ok) { window.showToast?.(SHAPE_FAIL_TOAST[r.code] || ('⚠️ 불러오기 실패: ' + r.code)); return; }
-      showGraphProperties(block);
+      /* 읽는 사이 선택이 다른 블럭으로 옮겨 갔으면 패널을 가로채지 않는다(「부를 때는 선택돼 있었는데 지금은 아니면 접는다」 — showSectionProperties 의 await 가드와 같은 꼴) */
+      if (!(wasSelected && !block.classList.contains('selected'))) showGraphProperties(block);
       window.pushHistory();
     });
     // 항목별 모양(G2 — 실루엣이 항목마다 다른 그래프): 없으면 파일을 받고, 있으면 지운다(블럭 모양으로 돌아간다)
@@ -466,12 +478,13 @@ ${blockHeaderHTML({
   const fmNumber = document.getElementById('grb-fillmax-number');
   if (fmNumber) {
     fmNumber.addEventListener('change', () => {
+      const _before = block.dataset.fillMax ?? null;
       const v = parseFloat(fmNumber.value);
       if (Number.isFinite(v) && v > 0) block.dataset.fillMax = String(Math.min(FILL_MAX_LIMIT, Math.max(1, v)));
       else delete block.dataset.fillMax;
       window.renderGraph(block);
       fmNumber.value = block.dataset.fillMax || '';
-      window.pushHistory();
+      if ((block.dataset.fillMax ?? null) !== _before) window.pushHistory();   // 값이 안 바뀌었으면 히스토리를 안 찍는다
     });
   }
   // 1012t1G3 — 트랙 색. 고르는 순간에만 키가 생긴다(안 고르면 채움색 × 기본 투명도 그대로).
@@ -538,7 +551,8 @@ ${blockHeaderHTML({
       // 1012t1G2·G4 — 항목 모양·마디도 «모델에서» 보존한다(라벨 한 글자에 떨어지지 않게). 마디의 라벨·값만 마디 줄에서 읽고, 색은 모델 것 그대로.
       const pv = prevItems[i] || {};
       if (pv.shape) { it.shape = pv.shape; if (pv.shapeSvg) it.shapeSvg = pv.shapeSvg; }
-      if (_segsOf(pv).length) {
+      if (_segsOf(pv).length && !_segOn) it.segments = pv.segments;   // 다른 유형: 마디는 «보존만»(값 칸은 자유 — 맞추기는 아래 change 와 유형 전환이 한다)
+      else if (_segsOf(pv).length) {
         const segRows = [...list.querySelectorAll('.grb-seg-item[data-item="' + i + '"]')];
         it.segments = pv.segments.map((sg, j) => {
           const r = segRows[j];
@@ -622,6 +636,17 @@ ${blockHeaderHTML({
   dataList.addEventListener('change', e => {
     if (e.target.closest('.grb-seg-item') && e.target.matches('.grb-data-label-input, .grb-data-val-input')) window.pushHistory();
   });
+  // 1012t1G4 — 다른 유형에서 값 칸을 «확정»하면 보존된 마디를 그 값에 같은 비율로 맞춘다(타이핑 중간값마다 맞추면 반올림이 쌓여 비율이 틀어진다 ⇒ change 에 한 번).
+  if (!_segOn) dataList.addEventListener('change', e => {
+    if (!e.target.matches('.grb-data-val-input:not(.grb-data-val2-input)')) return;
+    const row = e.target.closest('.grb-data-item');
+    const i = [...dataList.querySelectorAll('.grb-data-item:not(.grb-seg-item)')].indexOf(row);
+    const its = JSON.parse(block.dataset.items || '[]');
+    if (i < 0 || !_segsOf(its[i]).length || !(parseFloat(its[i].value) > 0)) return;   // 값 0 은 마디를 그대로 둔다(비율 보존)
+    const { segments: _old, ...rest } = its[i];
+    its[i] = window.GRAPH_SHAPE.carryItemExtras(rest, its[i], null);
+    block.dataset.items = JSON.stringify(its);
+  });
   const _wireSegColor = (i, j) => {
     const pre = 'grb-seg-color-' + i + '-' + j;
     if (!document.getElementById(pre + '-color')) return;
@@ -643,7 +668,7 @@ ${blockHeaderHTML({
       onCommit: () => window.pushHistory(),
     });
   };
-  if (chartType === 'bar-v') items.forEach((it, i) => _segsOf(it).forEach((_, j) => _wireSegColor(i, j)));
+  if (_segOn) items.forEach((it, i) => _segsOf(it).forEach((_, j) => _wireSegColor(i, j)));
 
   document.getElementById('grb-add-item').addEventListener('click', () => {
     const curItems = JSON.parse(block.dataset.items || '[]');

@@ -220,7 +220,7 @@ test('G4-4 패널 — 「+ 마디 추가」로 늘고 · 항목 라벨을 고쳐
 test('G4-5 보존 — AI 채움 · updateGraphBlock 이 항목을 다시 써도 마디·항목 모양이 남는다(새 값엔 같은 비율로 맞춘다)', async ({ page }) => {
   const { errs, id } = await setup(page, { items: [{ label: 'A', value: 100, segments: SEG4, shape: 'drop' }, { label: 'B', value: 40 }], extra: { barShape: 'person' } });
   expect((await itemsOf(page, id))[0].segments.length, '전제: 마디 4').toBe(4);
-  expect(typeof (await page.evaluate(() => typeof window._aiApplyExt_graph)), '전제: AI 적용 함수가 있다').toBe('string');
+  expect(await page.evaluate(() => [typeof window._aiApplyExt_graph, typeof window.updateGraphBlock]), '전제: AI 적용 함수 · updateGraphBlock 이 실제로 있다').toEqual(['function', 'function']);
   /* AI 채움: { label, value } 만 준다 */
   const ok = await page.evaluate((id) => window._aiApplyExt_graph(document.getElementById('sG'), { id, items: [{ label: '새A', value: 50 }, { label: '새B', value: 70 }] }), id);
   expect(ok).toBe(true);
@@ -308,5 +308,65 @@ test('G4-7 모양+마디 — 약통 실루엣 안에 마디 넷 · 합이 최대
   b = (await segGeom(page, id))[0];
   expect([b.on, b.mask, b.segs.length]).toEqual([false, 'none', 4]);
   expect((await itemsOf(page, id))[0].segments.length).toBe(4);
+  expect(errs).toEqual([]);
+});
+
+test('G4-8 다른 유형 — 마디 있는 항목을 꺾은선·원형·가로로 바꾸면 값 칸이 풀리고(읽기 전용 아님) · 마디는 남고 · 세로 막대로 돌아오면 값 = 마디 합', async ({ page }) => {
+  const { errs, id } = await setup(page, { items: [{ label: 'A', value: 100, segments: SEG4 }, { label: 'B', value: 40 }] });
+  await openPanel(page, id);
+  const pVal = () => page.locator('#grb-data-list .grb-data-item:not(.grb-seg-item) .grb-data-val-input:not(.grb-data-val2-input)').first();
+  const panel = () => page.evaluate(() => { const l = document.getElementById('grb-data-list'); const v = l.querySelector('.grb-data-item:not(.grb-seg-item) .grb-data-val-input');
+    return { ro: v.readOnly, val: v.value, segRows: l.querySelectorAll('.grb-seg-item').length, add: l.querySelectorAll('.grb-seg-add').length }; });
+  const it0 = async () => (await itemsOf(page, id))[0];
+  const segVals = async () => ((await it0()).segments || []).map(s => s.value);
+  const sum = (a) => a.reduce((x, y) => x + y, 0);
+  const goType = async (btn, type) => { await page.locator(btn).click(); await expect.poll(() => ds(page, id, 'chartType')).toBe(type); };
+  /* 전제: 세로 막대에선 읽기 전용 합 칸 + 마디 줄 4 */
+  expect(await panel(), '전제: 세로 막대 = 읽기 전용 합').toEqual({ ro: true, val: '100', segRows: 4, add: 2 });
+  expect(await segVals(), '전제: 마디 4').toEqual([40, 30, 20, 10]);
+
+  /* ① 꺾은선 — 값 칸이 풀린다 · 마디 줄은 없다 · 마디는 모델에 남는다 */
+  await goType('#grb-type-line', 'line');
+  expect(await panel(), '꺾은선: 값 칸이 읽기 전용이 아니다').toEqual({ ro: false, val: '100', segRows: 0, add: 0 });
+  expect(await segVals(), '유형을 바꿔도 마디는 남는다').toEqual([40, 30, 20, 10]);
+  await pVal().fill('70');
+  await expect.poll(async () => (await it0()).value, { message: '값 입력이 items[0].value 에 반영된다(마디 합 100 으로 되써지지 않는다)' }).toBe(70);
+  expect((await it0()).segments.map(s => s.label), '마디가 남아 있다').toEqual(['제품원가', '영업비', '광고비', '마진']);
+  expect(await pVal().inputValue(), '칸의 글자도 그대로').toBe('70');
+  await pVal().press('Enter');
+  await expect.poll(segVals, { message: '확정하면 마디를 새 값에 같은 비율로 맞춘다' }).toEqual([28, 21, 14, 7]);
+  expect((await it0()).value).toBe(70);
+  /* 라벨을 고쳐도 값·마디가 그대로 */
+  await page.locator('#grb-data-list .grb-data-item:not(.grb-seg-item) .grb-data-label-input').first().fill('에이');
+  await expect.poll(async () => (await it0()).label).toBe('에이');
+  expect([(await it0()).value, await segVals()]).toEqual([70, [28, 21, 14, 7]]);
+  /* 세로 막대로 복귀 — 값 = 마디 합 · 다시 읽기 전용 · 그림도 그 값 */
+  await goType('#grb-type-v', 'bar-v');
+  expect((await it0()).value, '복귀: item.value === 마디 합').toBe(sum(await segVals()));
+  expect((await it0()).value).toBe(70);
+  expect(await panel()).toEqual({ ro: true, val: '70', segRows: 4, add: 2 });
+  expect(await page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.grb-bar-val-label')].map(e => e.textContent), id)).toEqual(['70', '40']);
+  expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll('.grb-seg').length, id), '마디 4 가 다시 그려진다').toBe(4);
+
+  /* ② 원형 — 값 0 을 확정하면 마디는 그대로(비율 보존) · 돌아오면 마디 합이 값이 된다 */
+  await goType('#grb-type-pie', 'pie');
+  expect(await panel()).toEqual({ ro: false, val: '70', segRows: 0, add: 0 });
+  await pVal().fill('0');
+  await pVal().press('Enter');
+  await expect.poll(async () => (await it0()).value).toBe(0);
+  expect(await segVals(), '값 0: 마디는 그대로').toEqual([28, 21, 14, 7]);
+  await goType('#grb-type-v', 'bar-v');
+  expect([(await it0()).value, await segVals()], '복귀: 값 = 마디 합(70)').toEqual([70, [28, 21, 14, 7]]);
+
+  /* ③ 가로 막대 — 확정 키 없이 곧장 유형 단추를 눌러도 같은 규칙(값이 이긴다) */
+  await goType('#grb-type-h', 'bar-h');
+  expect((await panel()).ro, '가로: 값 칸이 읽기 전용이 아니다').toBe(false);
+  await pVal().fill('35');
+  await expect.poll(async () => (await it0()).value).toBe(35);
+  await goType('#grb-type-v', 'bar-v');
+  expect([(await it0()).value, await segVals()], '복귀: 마디가 35 에 같은 비율로').toEqual([35, [14, 10.5, 7, 3.5]]);
+  expect(await panel()).toEqual({ ro: true, val: '35', segRows: 4, add: 2 });
+  /* 마디 없는 이웃 항목은 내내 그대로 */
+  expect((await itemsOf(page, id))[1]).toEqual({ label: 'B', value: 40 });
   expect(errs).toEqual([]);
 });

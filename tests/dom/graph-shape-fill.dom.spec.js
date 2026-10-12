@@ -62,6 +62,9 @@ const DIRTY = '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" xmln
   + '<script>window.__pwn=2</script><foreignObject width="10" height="10"><div xmlns="http://www.w3.org/1999/xhtml" onclick="window.__pwn=3">x</div></foreignObject>'
   + '<image href="http://evil.example/a.png" width="10" height="10"/><a href="http://evil.example/"><rect x="0" y="0" width="40" height="80"/></a>'
   + '<use xlink:href="http://evil.example/x.svg#a"/><path d="M0 0H40V80H0Z" style="fill:url(http://evil.example/p)" onmouseover="window.__pwn=4"/></svg>';
+const ESCAPED = '<svg viewBox="0 0 10 10"><style>@\\69mport "//evil.example/a.css";path{fill:u\\72l(//evil.example/b)}</style>'
+  + '<path d="M0 0H10V10H0Z" style="fill:u\\72l(//e/x)"/><rect width="5" height="5" fill="u\\72l(//evil.example/c)"/></svg>';
+const BOMB = '<svg viewBox="0 0 10 10"><defs><g id="a"><path d="M0 0H1V1Z"/></g><g id="b"><use href="#a"/><use href="#a"/></g><g id="c"><use href="#b"/><use href="#b"/></g></defs><use href="#c"/></svg>';
 
 test('B0 무변 — 키가 없으면 옛 세로 막대 그대로 · 모양을 켰다 끄면(키 삭제) 바이트가 같다', async ({ page }) => {
   const { errs, id } = await setup(page);
@@ -78,6 +81,22 @@ test('B0 무변 — 키가 없으면 옛 세로 막대 그대로 · 모양을 �
   expect(await shape(page, id, { shape: null })).toEqual({ ok: true, shape: null });
   expect(await page.evaluate((id) => Object.keys(document.getElementById(id).dataset).filter(k => /shape|fillMax|fillDir|trackColor|segGap/i.test(k)), id), '끄면 키를 지운다(빈 글자 0)').toEqual([]);
   expect(await inner(page, id), '껐다: 처음과 바이트 동일').toBe(html0);
+  /* 끄기가 지우는 것 · 남기는 것(현 설계) — barShape · shapeSvg 는 «지운다», fillMax · trackColor 는 «남는다»(사각 막대 렌더는 둘을 안 읽는다 ⇒ 바이트는 처음과 같다) */
+  const shapeKeys = () => page.evaluate((id) => Object.keys(document.getElementById(id).dataset).filter(k => /shape|fillMax|fillDir|trackColor|segGap/i.test(k)).sort(), id);
+  expect(await shape(page, id, { svg: '<svg viewBox="0 0 10 20"><path d="M0 0H10V20H0Z"/></svg>' })).toEqual({ ok: true, shape: 'custom' });
+  await setDs(page, id, { fillMax: '60', trackColor: '#ff0000' });
+  expect(await shapeKeys(), '전제: 모양 키 넷이 서 있다').toEqual(['barShape', 'fillMax', 'shapeSvg', 'trackColor']);
+  const htmlOn = await inner(page, id);
+  expect(htmlOn, '전제: 켜진 동안은 바이트가 다르다').not.toBe(html0);
+  expect(htmlOn.includes('rgb(255, 0, 0)') || htmlOn.includes('#ff0000'), '전제: 트랙 색이 그림에 실렸다').toBe(true);
+  expect(await page.evaluate((id) => document.getElementById(id).querySelector('.grb-shape-fill').getAttribute('data-fill') !== null, id), '전제: 채움 층이 있다').toBe(true);
+  expect(await shape(page, id, { shape: null })).toEqual({ ok: true, shape: null });
+  expect(await shapeKeys(), '끄면 barShape · shapeSvg 만 지운다 — fillMax · trackColor 는 남는다').toEqual(['fillMax', 'trackColor']);
+  expect([await ds(page, id, 'fillMax'), await ds(page, id, 'trackColor')], '남은 값은 그대로').toEqual(['60', '#ff0000']);
+  expect(await inner(page, id), '남은 두 키를 사각 막대는 안 읽는다: 처음과 바이트 동일').toBe(html0);
+  await setDs(page, id, { fillMax: null, trackColor: null });
+  expect(await shapeKeys()).toEqual([]);
+  expect(await inner(page, id)).toBe(html0);
   /* 빈 글자로 꺼도 같다 */
   await shape(page, id, { shape: 'drop' });
   expect(await shape(page, id, { shape: '' })).toEqual({ ok: true, shape: null });
@@ -109,6 +128,28 @@ test('B1 소독 — script · on* · foreignObject · 외부 주소가 든 SVG �
   expect(await shape(page, id, { svg: '<svg><path d="M0 0H1V1Z"/></svg>' })).toEqual({ ok: false, code: 'NO_SIZE' });
   expect(await shape(page, id, { svg: '<svg viewBox="0 0 10 10"><script>1</script></svg>' })).toEqual({ ok: false, code: 'EMPTY' });
   expect(await page.evaluate((id) => JSON.stringify({ ...document.getElementById(id).dataset }), id), '거절은 dataset 을 안 건드린다').toBe(before);
+  /* CSS 이스케이프로 글자 검사를 비껴가는 꼴 — <style> 요소(@\69mport · u\72l) · style 속성 · 표현 속성(fill) */
+  for (const needle of ['<style', '@\\69mport', 'u\\72l(', 'evil.example', '\\', 'style="fill:u']) expect(ESCAPED.includes(needle), `전제: 입력에 ${needle} 가 실제로 있다`).toBe(true);
+  expect(await shape(page, id, { svg: ESCAPED })).toEqual({ ok: true, shape: 'custom' });
+  await raf2(page);
+  const esc = await ds(page, id, 'shapeSvg');
+  expect(typeof esc === 'string' && esc.startsWith('<svg') && esc !== svg, '전제: 새 글자가 실렸다').toBe(true);
+  for (const needle of ['import', 'evil.example', '\\', '<style', 'style=', 'fill=', '72l', '//e/x']) expect(esc.includes(needle), `저장 글자에 ${needle} 없음`).toBe(false);
+  expect(esc, '그리는 요소는 남는다').toMatch(/<path d="M0 0H10V10H0Z"\/?>/);
+  expect(esc).toMatch(/<rect[^>]*width="5"[^>]*>/);
+  expect((await page.evaluate((id) => document.getElementById(id).outerHTML, id)).includes('evil.example'), '블럭 전체에도 없음').toBe(false);
+  /* <use> — 문서 안 #id 하나를 가리키는 것은 남고, 겹쳐 부르기(use 가 use 를 품은 것을 가리킴)·65개 이상은 거절(TOO_COMPLEX) */
+  const useOk = await page.evaluate(() => window.GRAPH_SHAPE.sanitizeShapeSvg('<svg viewBox="0 0 10 10"><defs><path id="p" d="M0 0H5V5H0Z"/></defs><use href="#p"/><use href="#nope"/><use xlink:href="#p" x="5"/></svg>'));
+  expect(useOk.ok, '전제: 평범한 use 는 통과 ' + JSON.stringify(useOk)).toBe(true);
+  expect((useOk.svg.match(/<use /g) || []).length, '가리킬 곳이 없는 use 만 빠진다').toBe(2);
+  const before2 = await page.evaluate((id) => JSON.stringify({ ...document.getElementById(id).dataset }), id);
+  expect(BOMB.match(/<use /g).length, '전제: 폭탄 입력은 use 5개(= 4벌로 불어난다)뿐이다').toBe(5);
+  expect(await shape(page, id, { svg: BOMB })).toEqual({ ok: false, code: 'TOO_COMPLEX' });
+  const flat = (n) => '<svg viewBox="0 0 10 10"><defs><path id="p" d="M0 0H5V5H0Z"/></defs>' + '<use href="#p"/>'.repeat(n) + '</svg>';
+  expect((await page.evaluate((s) => window.GRAPH_SHAPE.sanitizeShapeSvg(s), flat(64))).ok, 'use 64개까지는 받는다').toBe(true);
+  expect(await shape(page, id, { svg: flat(65) })).toEqual({ ok: false, code: 'TOO_COMPLEX' });
+  expect(await shape(page, id, { svg: '<svg viewBox="0 0 10 10"><use id="u" href="#u"/><path d="M0 0H1V1Z"/></svg>' }), '자기 자신을 가리키는 use').toEqual({ ok: false, code: 'TOO_COMPLEX' });
+  expect(await page.evaluate((id) => JSON.stringify({ ...document.getElementById(id).dataset }), id), '거절은 dataset 을 안 건드린다').toBe(before2);
   expect(errs).toEqual([]);
 });
 
@@ -287,7 +328,12 @@ test('G2-3 항목별 — index 로 넣은 모양은 그 칸에만 마스크 변�
   expect(Math.abs(g[0].boxW / g[0].boxH - 76 / 240)).toBeLessThan(0.02);
   expect(await page.evaluate((id) => JSON.parse(document.getElementById(id).dataset.items).map(i => i.shape ?? null), id)).toEqual([null, 'bottle', null]);
   /* 없는 항목 · 모르는 이름은 거절 */
-  expect(await shape(page, id, { index: 9, shape: 'drop' })).toEqual({ ok: false, code: 'NO_ITEM' });
+  expect(await shape(page, id, { index: 9, shape: 'drop' }), '항목 수 밖').toEqual({ ok: false, code: 'BAD_INDEX' });
+  expect(await shape(page, id, { index: -1, shape: 'drop' })).toEqual({ ok: false, code: 'BAD_INDEX' });
+  expect(await shape(page, id, { index: 1.5, shape: 'drop' })).toEqual({ ok: false, code: 'BAD_INDEX' });
+  expect(await page.evaluate((id) => { const r = window.setGraphShape(id, { index: '__proto__', shape: 'drop' }); return [r, 'shape' in Array.prototype, [].shape === undefined]; }, id), "글자 키 '__proto__' 는 거절 · Array.prototype 이 깨끗하다")
+    .toEqual([{ ok: false, code: 'BAD_INDEX' }, false, true]);
+  expect(await page.evaluate((id) => JSON.parse(document.getElementById(id).dataset.items).map(i => i.shape ?? null), id), '거절은 항목을 안 건드린다').toEqual([null, 'bottle', null]);
   expect(await shape(page, id, { index: 0, shape: 'nope' })).toEqual({ ok: false, code: 'UNKNOWN_SHAPE' });
   /* 패널: 덮어쓴 항목의 버튼만 켜져 있고, 누르면 지워진다(파일창을 안 연다) */
   await openPanel(page, id);
@@ -447,6 +493,59 @@ test('G3-3 눈금 정합 — 격자를 켜면 값 60 의 채움 꼭대기가 60 
   expect(Math.abs(n.tops[0] - y70(30)), `값 30: ${n.tops[0]} ↔ ${y70(30)}`).toBeLessThanOrEqual(1.5);
   expect(Math.abs(n.tops[1] - y70(65)), `값 65(= 최대값): ${n.tops[1]} ↔ ${y70(65)}`).toBeLessThanOrEqual(1.5);
   expect(Math.abs(n.boxTops[0] - y70(65)), '상자 꼭대기 = 65').toBeLessThanOrEqual(1.5);
+  expect(errs).toEqual([]);
+});
+
+test('G3-5 모델=렌더 — 모양+최대값 · 사각 마디+축/격자 · value≠마디합 셋 다 각 항목 data-fill === graphFillModel().items[i].ratio(소수 3자리)', async ({ page }) => {
+  const { errs, id } = await setup(page, { items: V3 });
+  const both = () => page.evaluate((id) => { const g = document.getElementById(id); const m = window.graphFillModel(id);
+    return { n: JSON.parse(g.dataset.items).length, fills: [...g.querySelectorAll('.grb-bar-col')].map(c => c.querySelector('.grb-shape-fill')?.getAttribute('data-fill') ?? null), ratios: m.items.map(i => i.ratio.toFixed(3)), values: m.items.map(i => i.value),
+      labels: [...g.querySelectorAll('.grb-bar-val-label')].map(e => e.textContent), max: m.max, shape: m.shape }; }, id);
+  const same = async (what, n) => {
+    const r = await both();
+    expect(r.n, `${what} 전제: 항목 ${n}`).toBe(n);
+    expect(r.fills.length, `${what} 전제: 칸 = 항목 수`).toBe(n);
+    expect(r.fills.every(f => /^[01]\.\d{3}$/.test(f || '')), `${what} 전제: 칸마다 data-fill 이 있다 ${JSON.stringify(r.fills)}`).toBe(true);
+    expect(r.ratios, `${what}: data-fill = 모델 ratio`).toEqual(r.fills);
+    expect(r.values.map(String), `${what}: 모델 value = 값 라벨`).toEqual(r.labels);
+    return r;
+  };
+  /* (a) 모양 + 최대값 — 격자를 켜도(눈금 상한 70 ≠ 최대값 65) 분모는 최대값 */
+  await setDs(page, id, { barShape: 'bottle', fillMax: '65', items: [{ label: '가', value: 13 }, { label: '나', value: 30 }, { label: '다', value: 90 }] });
+  let r = await same('(a) 모양', 3);
+  expect([r.shape, r.max, r.fills]).toEqual(['bottle', 65, ['0.200', '0.462', '1.000']]);
+  await setDs(page, id, { showGrid: '1' });
+  r = await same('(a) 모양+격자', 3);
+  expect([r.max, r.fills]).toEqual([65, ['0.200', '0.462', '1.000']]);
+  /* (b) 모양 없는 마디 막대 + 축/격자 — 렌더는 «깔끔한 상한»(90 → 100)으로 나눈다 · 모델도 같은 수 */
+  const segItems = [{ label: '마디', value: 90, segments: [{ label: 'x', value: 40 }, { label: 'y', value: 50 }] }, { label: '보통', value: 30 }];
+  await setDs(page, id, { barShape: null, fillMax: null, showGrid: null, items: segItems });
+  r = await same('(b) 사각 마디 · 꺼짐', 2);
+  expect([r.shape, r.max, r.fills], '전제: 축·격자 꺼짐 = max(items) 90').toEqual([null, 90, ['1.000', '0.333']]);
+  for (const key of ['showGrid', 'showAxis']) {
+    await setDs(page, id, { showGrid: null, showAxis: null, [key]: '1' });
+    r = await same('(b) 사각 마디 · ' + key, 2);
+    expect([r.max, r.fills], key + ': 분모 = 눈금 상한 100').toEqual([100, ['0.900', '0.300']]);
+  }
+  await setDs(page, id, { showGrid: null, showAxis: null, showLine: '1' });
+  r = await same('(b) 사각 마디 · 꺾은선만', 2);
+  expect([r.max, r.fills], '꺾은선만 = 옛 상한').toEqual([90, ['1.000', '0.333']]);
+  /* (c) 날 데이터 — item.value(5)가 마디 합(90)과 어긋나 있다: 그림·모델 둘 다 마디 합을 본다(분모도) */
+  await setDs(page, id, { showLine: null, items: [{ label: '어긋남', value: 5, segments: [{ label: 'x', value: 40 }, { label: 'y', value: 50 }] }, { label: '보통', value: 60 }] });
+  expect((await page.evaluate((id) => JSON.parse(document.getElementById(id).dataset.items)[0].value, id)), '전제: 저장된 value 는 5(마디 합 90 과 다르다)').toBe(5);
+  r = await same('(c) value≠마디합', 2);
+  expect([r.max, r.values, r.fills]).toEqual([90, [90, 60], ['1.000', '0.667']]);
+  await setDs(page, id, { showGrid: '1' });
+  r = await same('(c) value≠마디합 + 격자', 2);
+  expect([r.max, r.fills]).toEqual([100, ['0.900', '0.600']]);
+  /* 모르는 모양 이름 + 마디 — 사각 길(모델 shape null · 분모 max(items)) */
+  await setDs(page, id, { showGrid: null, barShape: 'zzz', fillMax: '500' });
+  r = await same("모르는 모양('zzz')", 2);
+  expect([r.shape, r.max, r.fills]).toEqual([null, 90, ['1.000', '0.667']]);
+  expect(await count(page, id, '.grb-shape-box.grb-shape-on'), '모르는 모양: 실루엣 상자 0').toBe(0);
+  /* 모르는 모양 이름만(마디 없음) — 옛 세로 막대 분기 */
+  await setDs(page, id, { items: V3 });
+  expect([await count(page, id, '.grb-shape-box'), await count(page, id, '.grb-bar-fill')], "barShape='zzz' 만으로는 덧 길로 안 간다").toEqual([0, 3]);
   expect(errs).toEqual([]);
 });
 

@@ -710,6 +710,7 @@ function _niceScale(M) {
   const ticks = []; for (let i = 0; i <= best.cnt; i++) ticks.push(i * best.step);
   return { max: best.top, step: best.step, ticks };
 }
+window.__grbNiceScale = _niceScale;   // graph-shape.js fillPlan 이 «같은 함수»로 눈금 상한을 읽는다(렌더와 graphFillModel 의 분모가 한 식 · 1012t1G3)
 
 /* ★GR2·GR3 — bar-v 플롯 기하 «한 곳». 막대 높이(pct)와 오버레이(축·격자·꺾은선) 좌표가 이 함수 하나에서 나온다.
  *   좌표는 «렌더 때 DOM 을 재서 박는» 게 아니라 모델 수식 + CSS 앵커다(폭이 바뀌어도 맞는다 — GR-DESIGN 대조: px 박기 270px·비율 1.6px 오차).
@@ -889,17 +890,17 @@ function _renderGraphShape(block, { items, chartH, labelSize, valSize }) {
   const _bs = _barVSettings(block, items.length);
   const _vSize = _bs.pctSize ?? valSize;
   const blockSvg = GS.shapeSvgOf(d.barShape, d.shapeSvg);
-  /* 값의 정본 — 마디가 있으면 그 합(item.value 가 어긋나 있어도 그림·눈금·꺾은선이 같은 값을 본다) */
-  const vItems = items.map(it => (it && Array.isArray(it.segments) && it.segments.length) ? { ...it, value: GS.segSum(it.segments) } : (it || {}));
-  const maxVal = GS.fillMaxOf(d, vItems);
+  /* 값의 정본(마디가 있으면 그 합) · 분모 · 눈금 상한 — graph-shape.js fillPlan «한 자리»(graphFillModel 도 같은 것을 부른다 ⇒ data-fill = 모델 ratio).
+     눈금 상한은 _barVPlotGeom 과 같은 _niceScale(maxVal) 이다(같은 함수 · 같은 인자). */
+  const plan = GS.fillPlan(d, items, _niceScale);
+  const vItems = plan.vItems, maxVal = plan.max;
   const _g = _barVPlotGeom(block, vItems, { maxVal, labelSize, vSize: _vSize, bs: _bs });
-  const scaleMax = (_g.on && _g.scaleMax) || maxVal;   // 축·격자가 켜지면 «깔끔한 상한»
   const _barsStyle = (_g.on ? (_bs.barsStyle || ';') + _g.barsExtra : _bs.barsStyle) + (blockSvg ? `;--grb-shape:${GS.shapeMaskUrl(blockSvg)}` : '');
   const _sg = parseInt(d.segGap);
   block.innerHTML = `
       <div class="grb-bars-v" style="height:${chartH}px${_barsStyle}">${GS.shapeColsHTML(vItems, {
-        esc: _escGraphHtml, color: _safeGraphColor, blockShape: !!d.barShape, blockSvg,
-        boxFrac: Math.min(1, maxVal / scaleMax), ratioOf: (v) => GS.fillRatio(v, blockSvg ? maxVal : scaleMax),
+        esc: _escGraphHtml, color: _safeGraphColor, blockShape: !!blockSvg, blockSvg,
+        boxFrac: plan.boxFrac, ratioOf: (v) => GS.fillRatio(v, plan.denom),
         blockBar: _safeGraphColor(d.vBarColor), trackColor: d.trackColor, segGap: Number.isFinite(_sg) ? _sg : NaN,
         labelSize, vSize: _vSize, vCss: _vCss, xCss: _xCss, lhCss: _g.lhCss, colMin: _bs.colMin, fillW: _bs.fillW,
       })}${_g.gridLayerHTML()}${_g.overlayHTML()}
