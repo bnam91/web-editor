@@ -176,6 +176,16 @@
   border-width: 0 0.12em 0.12em 0;
   transform: translate(-50%, -50%) rotate(45deg);
 }
+/* 메모 속 참고 이미지 (1012t1A2) — 한 줄을 통째로 차지하고, 편집 칸 너비를 넘지 않는다 */
+.smp-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: var(--ui-row-gap) 0;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  cursor: default;
+}
 .smp-foot {
   display: flex; justify-content: space-between; align-items: center;
   font-size: var(--ui-fs-base);

@@ -10,7 +10,8 @@
 //   - PM MCP 도구 set_section_memo / get_section_memo (main.js bridge 경유)
 //   - prop-section.js 의 memo textarea (DOM 직접 dataset 갱신 → 여기 호출 안 함)
 //   - 섹션 툴바 📝 모달 (아래 toggleSectionMemoPopover) — contenteditable 에디터.
-//     `[ ]`/`[x]` 를 동그란 체크박스로 보인다. 글자 규칙: js/section-memo-format.js
+//     `[ ]`/`[x]` 를 동그란 체크박스로, `![](goya-asset://…)` 를 참고 이미지로 보인다.
+//     글자 규칙: js/section-memo-format.js
 //
 // 제약:
 //   - 메모는 string. 최대 2000자 (UTF-8 code points 기준).
@@ -107,11 +108,65 @@
     return el;
   }
 
+  /* 참고 이미지 (1012t1A2) — 주소는 «앱 자산»(goya-asset://)만. 그 판정은 포맷 한 자리(isMemoImgSrc). */
+  const MEMO_IMG_MAX_BYTES = 20 * 1024 * 1024;   // 선례: image-handling.js ASSET_IMAGE_MAX_BYTES
+  const MEMO_IMG_LONG_EDGE = 1280;               // 선례: js/report-modal.js shrinkToJpeg
+  const MEMO_IMG_JPEG_Q = 0.8;
+  const ATOM_SEL = '.smp-check, .smp-img';
+
+  function _isMemoImgSrc(src) {
+    const F = window.SectionMemoFormat;
+    return !!(F && typeof F.isMemoImgSrc === 'function' && F.isMemoImgSrc(src));
+  }
+  function _makeImgNode(src) {
+    const el = document.createElement('img');
+    el.className = 'smp-img';
+    el.setAttribute('contenteditable', 'false');
+    el.setAttribute('draggable', 'false');
+    el.setAttribute('alt', '');
+    el.setAttribute('src', src);
+    return el;
+  }
+  function _toast(msg) { if (typeof window.showToast === 'function') window.showToast(msg); }
+
+  /* 파일 → 긴 변 1280px JPEG(흰 바탕)의 base64. 메모의 그림은 «참고용»이라 원본을 싣지 않는다. */
+  function _shrinkToJpegB64(file) {
+    return new Promise((resolve, reject) => {
+      const rd = new FileReader();
+      rd.onerror = () => reject(rd.error || new Error('read'));
+      rd.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('decode'));
+        img.onload = () => {
+          try {
+            const w = img.naturalWidth || img.width;
+            const h = img.naturalHeight || img.height;
+            if (!w || !h) return reject(new Error('size'));
+            const k = Math.min(1, MEMO_IMG_LONG_EDGE / Math.max(w, h));
+            const cv = document.createElement('canvas');
+            cv.width = Math.max(1, Math.round(w * k));
+            cv.height = Math.max(1, Math.round(h * k));
+            const ctx = cv.getContext('2d');
+            ctx.fillStyle = '#ffffff';   // JPEG 은 알파가 없다 — 안 깔면 투명부가 검게 나온다
+            ctx.fillRect(0, 0, cv.width, cv.height);
+            ctx.drawImage(img, 0, 0, cv.width, cv.height);
+            const m = /^data:image\/jpeg;base64,(.+)$/.exec(cv.toDataURL('image/jpeg', MEMO_IMG_JPEG_Q));
+            if (!m) return reject(new Error('encode'));
+            resolve(m[1]);
+          } catch (e) { reject(e); }
+        };
+        img.src = String(rd.result || '');
+      };
+      rd.readAsDataURL(file);
+    });
+  }
+
   /* 토큰 → 노드. ★새 토큰 종류는 여기에 한 갈래를 더한다(모르는 종류는 버린다). */
   function _tokenToNode(t) {
     if (t.type === 'text') return document.createTextNode(t.text);
     if (t.type === 'br') return document.createElement('br');
     if (t.type === 'check') return _makeCheckNode(t.checked, t.raw);
+    if (t.type === 'img') return _isMemoImgSrc(t.src) ? _makeImgNode(t.src) : null;
     return null;
   }
 
@@ -133,6 +188,11 @@
       if (n.nodeType !== 1) continue;
       if (n.classList.contains('smp-check')) {
         out.push({ type: 'check', checked: n.getAttribute('aria-checked') === 'true', raw: n.dataset.raw });
+        continue;
+      }
+      if (n.tagName === 'IMG') {
+        /* 우리가 넣은 그림만 읽는다 — 그 밖의 img 는 메모의 글이 아니다(직렬화도 주소를 한 번 더 가른다) */
+        if (n.classList.contains('smp-img')) out.push({ type: 'img', src: n.getAttribute('src') || '' });
         continue;
       }
       if (n.tagName === 'BR') { out.push({ type: 'br' }); continue; }
@@ -195,7 +255,7 @@
     const refreshCount = () => {
       count.textContent = `${curLen()} / ${MAX_MEMO_LEN}`;
       ta.classList.toggle('is-empty',
-        !ta.textContent && !ta.querySelector('.smp-check') && ta.querySelectorAll('br').length < 2);
+        !ta.textContent && !ta.querySelector(ATOM_SEL) && ta.querySelectorAll('br').length < 2);
     };
     refreshCount();
     let saveTimer = null;
@@ -225,11 +285,16 @@
       try { ok = document.execCommand('insertHTML', false, node.outerHTML); } catch (_) { ok = false; }
       if (ok) {
         /* 브라우저가 속성을 떨궜을 때를 대비해 다시 박는다(실측: 크롬은 보존한다) */
-        ta.querySelectorAll('.smp-check').forEach((c) => {
+        ta.querySelectorAll(ATOM_SEL).forEach((c) => {
           if (c.getAttribute('contenteditable') !== 'false') c.setAttribute('contenteditable', 'false');
-          if (c.getAttribute('role') !== 'checkbox') c.setAttribute('role', 'checkbox');
-          if (!c.hasAttribute('aria-checked')) c.setAttribute('aria-checked', 'false');
           if (c.hasAttribute('style')) c.removeAttribute('style');
+          if (c.classList.contains('smp-check')) {
+            if (c.getAttribute('role') !== 'checkbox') c.setAttribute('role', 'checkbox');
+            if (!c.hasAttribute('aria-checked')) c.setAttribute('aria-checked', 'false');
+          } else {
+            if (c.getAttribute('draggable') !== 'false') c.setAttribute('draggable', 'false');
+            ['width', 'height'].forEach((a) => { if (c.hasAttribute(a)) c.removeAttribute(a); });
+          }
         });
         return;
       }
@@ -250,6 +315,54 @@
         if (t.type === 'text') { if (t.text) document.execCommand('insertText', false, t.text); }
         else if (t.type === 'br') document.execCommand('insertLineBreak');
         else if (t.type === 'check') insertAtom(_makeCheckNode(t.checked, t.raw));
+        else if (t.type === 'img') { if (_isMemoImgSrc(t.src)) insertAtom(_makeImgNode(t.src)); }
+      }
+    };
+
+    /* ── 참고 이미지 붙여넣기 (1012t1A2) ───────────────────────────────────────
+       그림은 «프로젝트 자산»으로 저장하고(assetsSaveCanvasImage → goya-asset:// 주소), 메모에는
+       그 주소의 표식만 남긴다. ⛔data URL 로 메모에 싣지 않는다 — data-memo 는 캔버스 직렬화에
+       그대로 실려 히스토리 표본마다 그림이 한 벌씩 붙는다. 그래서 IPC·프로젝트가 없으면 «안 넣는다». */
+    const pasteImages = async (files) => {
+      const api = window.electronAPI;
+      const projectId = window.activeProjectId || new URLSearchParams(window.location.search).get('project') || null;
+      if (!api || typeof api.assetsSaveCanvasImage !== 'function' || !projectId) {
+        _toast('⚠️ 이미지는 저장된 프로젝트에서만 메모에 넣을 수 있습니다');
+        return;
+      }
+      /* 기다리는 동안 캐럿이 딴 데로 갈 수 있다 — 붙인 «그 자리»를 쥐고 간다(Range 는 DOM 을 따라 움직인다) */
+      const sel0 = window.getSelection();
+      let at = null;
+      if (sel0 && sel0.rangeCount && ta.contains(sel0.getRangeAt(0).commonAncestorContainer)) at = sel0.getRangeAt(0).cloneRange();
+      if (!at) { at = document.createRange(); at.selectNodeContents(ta); at.collapse(false); }
+      for (const file of files) {
+        if (file.size > MEMO_IMG_MAX_BYTES) {
+          _toast(`⚠️ ${Math.round(MEMO_IMG_MAX_BYTES / 1024 / 1024)}MB 이하 이미지만 지원`);
+          continue;
+        }
+        let url = null;
+        try {
+          const b64 = await _shrinkToJpegB64(file);
+          const saved = await api.assetsSaveCanvasImage({ projectId, b64, mime: 'image/jpeg' });
+          if (saved && saved.ok && typeof saved.url === 'string') url = saved.url;
+        } catch (_) { url = null; }
+        if (!_isMemoImgSrc(url)) { _toast('⚠️ 이미지를 저장하지 못했습니다'); continue; }
+        /* 그 사이 모달이 닫혔으면 넣을 자리가 없다(자산 파일은 남는다 — 같은 바이트는 같은 이름이라 다시 붙여도 한 벌) */
+        if (!ta.isConnected) return;
+        const cut = at.collapsed ? 0 : _memoLen(at.toString());
+        if (curLen() - cut + _memoLen(window.SectionMemoFormat.imgToken(url)) > MAX_MEMO_LEN) {
+          _toast(`⚠️ 메모가 ${MAX_MEMO_LEN}자를 넘어 이미지를 더 넣을 수 없습니다`);
+          break;
+        }
+        ta.focus();
+        const sel = window.getSelection();
+        if (!sel) return;
+        sel.removeAllRanges();
+        sel.addRange(at);
+        insertAtom(_makeImgNode(url));
+        /* 다음 장은 방금 넣은 그림 «뒤»에 */
+        if (sel.rangeCount && ta.contains(sel.getRangeAt(0).commonAncestorContainer)) at = sel.getRangeAt(0).cloneRange();
+        scheduleCommit();
       }
     };
 
@@ -318,10 +431,33 @@
       delete c.dataset.raw;
       scheduleCommit();
     });
-    /* 붙여넣기 — «평문»만 받는다. text/html 은 읽지 않는다(contenteditable 의 기본 붙여넣기는
-       남의 마크업을 그대로 들인다). ★다른 종류(예: 이미지 파일)를 받으려면 이 앞에서 가른다. */
+    /* 그림을 누르면 그 그림 하나가 선택된다 — 이어서 Delete/Backspace 로 지운다(자산 파일은 안 지운다) */
+    ta.addEventListener('click', (e) => {
+      const im = e.target.closest && e.target.closest('.smp-img');
+      if (!im || !ta.contains(im)) return;
+      const r = document.createRange();
+      r.selectNode(im);
+      const sel = window.getSelection();
+      if (sel) { sel.removeAllRanges(); sel.addRange(r); }
+    });
+    /* 붙여넣기 — 그림 파일이 있으면 그림으로, 없으면 «평문»만 받는다. text/html 은 읽지 않는다
+       (contenteditable 의 기본 붙여넣기는 남의 마크업을 그대로 들인다). */
     ta.addEventListener('paste', (e) => {
       e.preventDefault();
+      /* ★파일은 «이 틱 안에서» 꺼낸다 — 처리기가 돌아간 뒤에는 클립보드 항목이 비워진다 */
+      const cd = e.clipboardData;
+      const imgs = [];
+      for (const it of Array.from((cd && cd.items) || [])) {
+        if (it.kind !== 'file' || !/^image\//.test(it.type)) continue;
+        const f = it.getAsFile();
+        if (f) imgs.push(f);
+      }
+      if (imgs.length) {
+        /* 전역 붙여넣기(스크래치패드·캔버스)로 새지 않게 여기서 끝낸다 */
+        e.stopPropagation();
+        pasteImages(imgs);
+        return;
+      }
       const F = window.SectionMemoFormat;
       let text = (e.clipboardData && e.clipboardData.getData('text/plain')) || '';
       text = text.replace(/\r\n?/g, '\n');

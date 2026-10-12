@@ -5,6 +5,7 @@
  *   ⑵ `[ ]` `[x]` `[X]` 만 체크박스다 — `[]` 는 글자다
  *   ⑶ 치는 순간의 방아쇠(checkTrigger) — `[]` `[ ]` `[x]`
  *   ⑷ 배선: index.html 이 이 파일을 js/section-memo.js «앞»에 싣는다
+ *   ⑸ (1012t1A2) 참고 이미지 표식 `![](goya-asset://…)` — 앱 자산 주소만 그림이고, 그 밖은 글자다
  * 안 재는 것: 에디터 DOM(렌더·토글·IME·되돌리기) → tests/dom/section-memo-rich.dom.spec.js
  *
  * 실행: node --test tests/unit/section-memo-format.test.mjs
@@ -20,7 +21,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
 const require_ = createRequire(import.meta.url);
 const F = require_(path.join(ROOT, 'js/section-memo-format.js'));
-const { tokenizeMemo, serializeTokens, checkTrigger, checkTriggerLen, memoLength } = F;
+const { tokenizeMemo, serializeTokens, checkTrigger, checkTriggerLen, memoLength, isMemoImgSrc, imgToken } = F;
 
 const types = (s) => tokenizeMemo(s).map((t) => t.type);
 
@@ -125,4 +126,56 @@ test('U-MEMOFMT-9 배선 — index.html 이 포맷을 메모 스크립트 «앞�
   assert.equal(memoSrc.includes('window.SectionMemoFormat'), true, 'js/section-memo.js 가 포맷 전역을 안 쓴다');
   assert.equal(typeof globalThis.SectionMemoFormat, 'object', 'require 하면 전역에도 걸린다(브라우저와 같은 이름)');
   assert.equal(globalThis.SectionMemoFormat.tokenizeMemo, tokenizeMemo);
+});
+
+test('U-MEMOFMT-10 그림 주소 — 앱 자산(goya-asset://프로젝트/파일)만 참이다', () => {
+  assert.equal(isMemoImgSrc('goya-asset://p1/aaaa.jpg'), true, '양성');
+  const bad = [
+    'javascript:alert(1)',
+    'data:image/png;base64,AAAA',
+    'http://evil/x.png',
+    'goya-asset://p1/a".jpg',
+  ];
+  assert.equal(bad.length, 4, '음성 표본 수 전제');
+  for (const s of bad) assert.equal(isMemoImgSrc(s), false, `${JSON.stringify(s)} 는 그림 주소가 아니다`);
+  /* 앞뒤에 다른 글자가 붙은 것·폴더가 더 깊은 것·값이 아닌 것도 아니다 */
+  for (const s of ['x goya-asset://p1/a.jpg', 'goya-asset://p1/a.jpg\n', 'goya-asset://p1/a.jpg onerror=x', 'goya-asset://p1/d/a.jpg',
+    'goya-asset://p1/', 'goya-asset:///a.jpg', 'https://goya-asset://p1/a.jpg', '', null, undefined, 3]) {
+    assert.equal(isMemoImgSrc(s), false, `${JSON.stringify(s)} 는 그림 주소가 아니다`);
+  }
+});
+
+test('U-MEMOFMT-11 그림 표식 — 토큰 하나로 읽고, 직렬화하면 같은 글자다', () => {
+  const MEMO = '참고 ![](goya-asset://p1/aaaa.jpg)\n[x] 끝 ![](goya-asset://proj_2-b/0123456789abcdef.jpg)꼬리';
+  const toks = tokenizeMemo(MEMO);
+  assert.deepEqual(toks.map((t) => t.type), ['text', 'img', 'br', 'check', 'text', 'img', 'text']);
+  const imgs = toks.filter((t) => t.type === 'img');
+  assert.deepEqual(imgs.map((t) => t.src), ['goya-asset://p1/aaaa.jpg', 'goya-asset://proj_2-b/0123456789abcdef.jpg']);
+  assert.equal(imgs[0].raw, '![](goya-asset://p1/aaaa.jpg)');
+  assert.equal(serializeTokens(toks), MEMO, '왕복 불변');
+  /* 에디터가 DOM 에서 다시 읽은 토큰에는 raw 가 없다 — 그래도 같은 글자다 */
+  assert.equal(serializeTokens([{ type: 'img', src: 'goya-asset://p1/aaaa.jpg' }]), '![](goya-asset://p1/aaaa.jpg)');
+  assert.equal(imgToken('goya-asset://p1/aaaa.jpg'), '![](goya-asset://p1/aaaa.jpg)');
+  assert.equal(memoLength(imgToken('goya-asset://p1/aaaa.jpg')), 29, '그림 하나는 표식 글자 수만큼 한도에 센다');
+});
+
+test('U-MEMOFMT-12 앱 자산이 아닌 그림 표식은 글자다 — 토큰도, 직렬화도 그림을 만들지 않는다', () => {
+  const bad = [
+    '![](http://evil/x.png)',
+    '![](https://evil/x.png)',
+    '![](data:image/png;base64,AAAA)',
+    '![](javascript:alert(1))',
+    '![](goya-asset://p1/a".jpg)',
+    '![alt](goya-asset://p1/aaaa.jpg)',
+    '![](goya-asset://p1/aaaa.jpg "제목")',
+    '[](goya-asset://p1/aaaa.jpg)',
+  ];
+  assert.equal(bad.length, 8, '표본 수 전제');
+  for (const s of bad) {
+    const toks = tokenizeMemo(s);
+    assert.equal(toks.filter((t) => t.type === 'img').length, 0, `${JSON.stringify(s)} 는 그림 표식이 아니다`);
+    assert.equal(serializeTokens(toks), s, `글자가 바뀌었다: ${JSON.stringify(s)}`);
+  }
+  /* 손으로 만든 나쁜 토큰은 직렬화가 버린다(표식으로 되살아날 글자를 만들지 않는다) */
+  assert.equal(serializeTokens([{ type: 'text', text: '가' }, { type: 'img', src: 'http://evil/x.png' }, { type: 'img' }, { type: 'text', text: '나' }]), '가나');
 });
