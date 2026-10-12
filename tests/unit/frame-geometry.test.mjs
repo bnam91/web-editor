@@ -234,7 +234,18 @@ test('⑥-e 삽입 경로는 «음수 클램프» 를 한다 — 프레임보다
 /* ═══ ⑦ CSS — 회전 규약 3갈래가 전부 overflow 해제 대상인지 ═══ */
 test('⑦ 회전 자식 overflow 해제 셀렉터가 세 규약을 모두 덮는다 + 0도는 «안» 덮는다', () => {
   const css = read('css/editor-blocks.css');
-  assert.match(css, /\.frame-block:has\(\[data-rotation\]\)/, 'data-rotation 규약 누락');
+  /* ★★2026-10-12 (quote1011) — ★이 줄은 ★★«0 제외 ★없는» 꼴을 ★글자로 ★잠그고 ★있었다.
+     ⚰️옛 단언: `/\.frame-block:has\(\[data-rotation\]\)/`
+     ★★그런데 ★이 칸의 ★제목은 ★「＋ ★0도는 ★«안» 덮는다」다 ⇒ ★★★`data-rotation` 칸은 ★그것을 ★★안 쟀다
+       (★`data-rotate-deg` 칸만 ★쟀다 — ★아래 줄). ★★«검사처럼 생긴 문장»이었다.
+     ★★참값(★실측 2026-10-12): ★`data-rotation` 을 ★쓰는 자 ★14 · ★지우는 자 ★3 ·
+       ★★행위로 ★«0 을 쓴다」가 확인된 ★3자리(★modal-frameify:106 · iconify-block:21 · prop-modal:616)
+       ⇒ ★★«존재 == 비영»이 ★거짓이라 ★감싼 프레임이 ★자르기를 ★멈췄다(현빈 1009t3-② 위반).
+     ⇒ ★★그래서 ★★이웃 줄과 ★★같은 꼴로 ★★0 제외를 ★★단언한다. ★★제목이 ★이제 ★세 칸 중 ★둘에서 ★참이다.
+     ⚠️★`data-shape-rotation`(아래 셋째 줄)은 ★★0 제외가 ★없다 — ★★«0 을 쓰나»를 ★★안 쟀다 ⇒ ★★손대지 ★않았다.
+     ★★행위로 잠그는 자: `tests/dom/frame-rotation-clip.dom.spec.js` (R1 전제 · R2 비영 유지 · R3 음성). */
+  assert.match(css, /\.frame-block:has\(\[data-rotation\]:not\(\[data-rotation="0"\]\)\)/,
+    'data-rotation 규약 누락(또는 0 제외 없음)');
   assert.match(css, /\.frame-block:has\(\[data-rotate-deg\]:not\(\[data-rotate-deg="0"\]\)\)/, 'data-rotate-deg 규약 누락(또는 0 제외 없음)');
   assert.match(css, /\.frame-block:has\(\.shape-block\[data-shape-rotation\]\)/, 'shape 규약이 사라졌다');
 });
