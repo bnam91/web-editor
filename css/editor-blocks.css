@@ -2334,6 +2334,17 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 .frame-block[data-text-frame="true"]:has(.text-block.selected) {
   overflow: visible;
 }
+/* ★★D4(2026-10-12 · 2차) — ★위 절의 ★★«선택 무관» 짝이다. ★까닭을 ★수로 적는다:
+   ★점(`.tb-dot::before`)은 ★`bottom:100%` 로 ★★글자 상자 «밖»에 그려진다 ⇒ ★★이 프레임이 ★자르면 ★★잘린다.
+   ★★실측(프로브5 · 판 9bec63e9): ★그 프레임 ★`matches` true · ★`z-index` ★2 · ★★`overflow` ★★hidden ·
+     ★★점을 ★덮는 ★앞 형제 ★★0개 ⇒ ★★★«덮임»이 아니라 ★★«잘림»이다(★1차 z절은 ★그래서 ★아무것도 ★안 했다 ⇒ ★걷었다).
+   ★★배송본 꼴(`deselectAll()`)에서 ★색 픽셀 ★★0 · ★`--tb-dot-y:0px`(상자 ★안)이면 ★★3개 ★보인다 ⇒ ★★밖일 때만.
+   ⛔★`!important` 를 ★안 쓴다 — ★`[data-clip-content="true"]`(★사용자가 ★명시로 ★켠 자름)에 ★★★져야 ★한다.
+   ★★지키는 자: ★`tests/dom/text-dot-over.dom.spec.js` ★「D4b ★배송본 꼴」 ＋ ★그 벌의 ★D4.
+   ⛔안 쟀다: ★이 절이 ★다른 화면에 ★어떻게 보이나는 ★★사람 눈으로 ★안 쟀다(★현빈 몫). */
+.frame-block[data-text-frame="true"]:has(.tb-dot) {
+  overflow: visible;
+}
 
 /* shape 리사이즈 핸들 — --inv-zoom calc()로 캔버스 배율 무관하게 고정 크기 유지 */
 .shape-handle {

@@ -367,6 +367,33 @@ test('D4 ★xy — 준 만큼 «그려진 중심»이 옮겨간다', async ({ pa
   expect(errs).toEqual([]);
 });
 
+test('D4b ★★배송본 꼴 — ★고르지 ★않아도 ★점이 ★보인다(★z 순서 ★지키는 자)', async ({ page }) => {
+  /* ★D4 의 임자는 ★★«고른 동안만 ★위로 뜬다»였다 — ★`:has(.text-block.selected){z-index:2}`.
+     ★그래서 ★`deselectAll()`(= ★배송본 꼴)에선 ★상자 밖 점이 ★가려졌다(★실측 ★0개).
+     ⇒ ★`css/editor-blocks.css` 의 ★`:has(.tb-dot)` 절이 ★그걸 고친다. ★★그 절을 ★지우면 ★이 칸이 ★빨개진다.
+     ⛔출력 값을 ★기대에 ★안 박았다 — ★★«3개»는 ★그 장면이 ★넣은 ★글자 수(ABC)다. */
+  const errs = await setup(page);
+  const id = await insertText(page, 'ABC');
+  await centerText(page, id);
+  await openPanel(page, id);
+  await clickBtn(page, '#txt-dot-btn');
+  await pickDotColor(page);
+  await typeField(page, '#txt-dot-size-num', 8);
+  await typeField(page, '#txt-dot-y', -9);
+  await page.evaluate(() => window.deselectAll?.());
+  /* ⛔고정 대기를 ★안 쓴다(★`dom-fixed-wait-census` W3 가 ★곳 수와 ★합 ms 를 ★둘 다 센다).
+     ★★무엇을 기다리나로 적는다 — ★`deselectAll()` 뒤 ★★고른 것이 ★0개가 되고 ★점 ★셋이 ★그려질 때까지. */
+  await page.waitForFunction(
+    () => document.querySelectorAll('#canvas .selected').length === 0
+          && document.querySelectorAll('span.tb-dot').length === 3,
+    null, { timeout: 20000 });
+  expect(await page.evaluate(() => !!document.querySelector('#canvas .selected')),
+    '★전제 — 아무것도 안 골라져 있다(배송본 꼴)').toBe(false);
+  const d = await paintedDots(page, BOX);
+  expect(d.pts.length, `★고르지 않았는데 점이 안 보인다. 잰 값 ${d.pts.length}`).toBe(3);
+  expect(errs).toEqual([]);
+});
+
 test('D5 ★간격 — 점 사이가 벌어지고 ★글자는 안 움직인다 (음성대조)', async ({ page }) => {
   const errs = await setup(page);
   const id = await insertText(page, 'ABC');
