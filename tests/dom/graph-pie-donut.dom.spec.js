@@ -4,6 +4,7 @@
  *   · graph-limits.js PIE_HOLE_MIN/MAX/DEFAULT · prop-graph.js 유형 버튼 표(6개) + Pie Settings(도넛 구멍 슬라이더) + 조각 색(단색 전용)
  *   · editor-graph.css 조각 색(프리셋 막대색 × 불투명도 사다리 · 컬러풀 5색) · canvas-contrast 색 칸 표 · block-factory 정수 키 pieHole.
  * 기하는 «화면 좌표»가 아니라 SVG 사용자 좌표의 isPointInFill 로 잰다 — 배율·패널 폭과 무관(0~1000 viewBox · 중심 500 · 12시 시작 · 시계 방향).
+ * 고침 라운드(2026-10-13): P10 조각 사이 틈(같은 색이 맞닿는 5n+1 항목) · P7 범례 % 합 100.
  * 기다림은 전부 조건(waitForFunction · expect.poll · 로케이터 자동 대기) — 고정 대기 0.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/graph-pie-donut.dom.spec.js */
 const { test, expect } = require('@playwright/test');
@@ -117,7 +118,7 @@ test('P3 패널 배치 — 유형 버튼 6개가 안 넘치고 · 구멍 줄은 
   expect(await page.locator('#grb-pie-hole-slider').count()).toBe(1);
   expect(await page.locator('#grb-pie-hole-number').count()).toBe(1);
   expect(await page.locator('#grb-bar-thickness-slider').count(), '도넛: 막대 설정 없음').toBe(0);
-  expect((await dOf(page, id)).length, '캔버스도 도넛으로 그려졌다').toBeGreaterThan(0);
+  expect((await dOf(page, id)).filter(Boolean).length, '캔버스도 도넛으로 그려졌다 — 기본 5항목이 다 조각').toBe(5);
   await page.locator('#grb-type-pie').click();
   await expect.poll(() => ds(page, id, 'chartType')).toBe('pie');
   expect(await grp()).toMatchObject({ active: ['grb-type-pie'], fits: true, widths: true });
@@ -190,8 +191,12 @@ test('P5 색 — 미지정은 조각·범례 점이 같은 색 사다리 · 항�
   await page.locator('#grb-data-color-0-color').evaluate(e => e.closest('.prop-color-swatch').scrollIntoView({ block: 'center' }));
   await page.locator('.prop-color-swatch:has(#grb-data-color-0-color)').click();
   await page.waitForFunction(() => { const p = document.querySelector('.goya-cp-popover'); return p && !p.hidden; }, null, { timeout: 4000 });
+  await expect(page.locator('.goya-cp-popover'), '전제: 색 피커가 열렸다').toBeVisible();
   const tab = page.locator('.goya-cp-popover .goya-cp-tab[data-tab="gradient"]');
-  expect((await tab.count()) === 0 || await tab.isDisabled(), '그라데이션 탭이 없거나 잠겼다').toBe(true);
+  expect(await tab.count(), '전제: 그라데이션 탭은 «있다»(잠글 대상)').toBe(1);
+  await expect(tab, '그라데이션 탭이 잠겼다').toBeDisabled();
+  await expect(tab).toHaveAttribute('aria-disabled', 'true');
+  await expect(page.locator('.goya-cp-popover .goya-cp-tab[data-tab="solid"]'), '단색 탭은 열려 있다').toBeEnabled();
   await page.keyboard.press('Escape');
   /* 막대에서 넘어온 그라데이션 항목 색은 조각에서 «미지정» — 프리셋 색으로 그린다 */
   const grad = 'linear-gradient(180deg, #ff0000 0%, #0000ff 100%)';
@@ -238,6 +243,16 @@ test('P7 라벨 — 비율 % · 값/카테고리 표시 토글 · 사용자 글�
   const l0 = await legend(page, id);
   expect(l0.length, '전제: 범례 3').toBe(3);
   expect(l0.map(l => l.val)).toEqual(['25%', '25%', '50%']);
+  /* 합이 100 — 조각마다 따로 반올림하면 1·1·1 이 33·33·33(합 99)이 된다. 최대 잔여법 · 동률은 앞 항목 */
+  await setDs(page, id, { items: [1, 1, 1].map((v, i) => ({ label: 't' + i, value: v })) });
+  const l3 = (await legend(page, id)).map(l => l.val);
+  expect(l3).toEqual(['34%', '33%', '33%']);
+  expect(l3.reduce((a, t) => a + parseInt(t), 0)).toBe(100);
+  await setDs(page, id, { items: [1, 1, 1, 1, 1, 1].map((v, i) => ({ label: 's' + i, value: v })) });
+  const l6 = (await legend(page, id)).map(l => parseInt(l.val));
+  expect(l6.length, '전제: 범례 6').toBe(6);
+  expect(l6.reduce((a, b) => a + b, 0)).toBe(100);
+  await setDs(page, id, { items: V3 });
   expect(l0.map(l => l.label)).toEqual(['가', '나', '다']);
   expect(l0.every(l => l.labelShown && l.valShown)).toBe(true);
   await setDs(page, id, { showVLabel: '0' });
@@ -301,5 +316,37 @@ test('P9 라벨 편집 — 범례 라벨 더블클릭 → 타이핑 → Enter = 
   expect((await legend(page, id)).map(l => l.label)).toEqual(['가', '새라벨G1', '다']);
   expect(await page.evaluate((id) => ({ ce: document.getElementById(id).querySelectorAll('[contenteditable]').length, ed: document.getElementById(id).classList.contains('editing') }), id)).toEqual({ ce: 0, ed: false });
   expect((await itemsOf(page, id)).map(i => i.value), '값은 불변').toEqual([1, 1, 2]);
+  expect(errs).toEqual([]);
+});
+
+test('P10 틈 — 6항목(끝 조각 = 첫 조각과 같은 색)에서 경계각의 점은 어느 조각에도 안 든다 · 항목 하나면 틈 없음', async ({ page }) => {
+  const vals = [30, 20, 15, 15, 10, 10];
+  const { errs, id } = await setup(page, { type: 'pie', items: vals.map((v, i) => ({ label: 'k' + i, value: v })) });
+  expect((await dOf(page, id)).filter(Boolean).length, '전제: 조각 6').toBe(6);
+  const p = await paint(page, id);
+  expect(p.sl[5], '전제: 끝 조각과 첫 조각이 같은 색·같은 불투명도(틈이 없으면 한 덩어리)').toEqual(p.sl[0]);
+  const none = [false, false, false, false, false, false];
+  const bounds = vals.reduce((a, v) => [...a, a[a.length - 1] + v * 3.6], [0]);   // 0 · 108 · 180 · 234 · 288 · 324 · 360
+  const check = async (label, radii) => {
+    for (let i = 0; i < 6; i++) {
+      const own = none.map((_, k) => k === i);
+      for (const rr of radii) expect(await hit(page, id, (bounds[i] + bounds[i + 1]) / 2, rr), `${label}: 조각 ${i} 의 가운데 각 · ${rr}R 은 제 조각 안`).toEqual(own);
+      for (const rr of radii) expect(await hit(page, id, bounds[i], rr), `${label}: 경계 ${bounds[i]}° · ${rr}R 은 틈`).toEqual(none);
+    }
+  };
+  await check('원형', [0.75, 0.3]);
+  /* 틈은 «가는» 틈이다 — 경계에서 2° 만 들어가도 조각 안(0.75R 에서 2° ≈ 13 단위 > 틈 절반 5) */
+  expect(await hit(page, id, 2, 0.75)).toEqual([true, false, false, false, false, false]);
+  expect(await hit(page, id, 358, 0.75)).toEqual([false, false, false, false, false, true]);
+  await setDs(page, id, { chartType: 'donut' });
+  await check('도넛', [0.75, 0.6]);
+  /* 항목 하나 = 온 원 — 12시 방향에 틈이 없다(원형·도넛) */
+  await setDs(page, id, { chartType: 'pie', items: [{ label: '하나', value: 5 }] });
+  expect(await hit(page, id, 0, 0.75)).toEqual([true]);
+  await setDs(page, id, { chartType: 'donut' });
+  expect(await hit(page, id, 0, 0.75)).toEqual([true]);
+  /* 값 있는 조각이 하나뿐(0 이 섞인 여럿)이어도 틈 없음 */
+  await setDs(page, id, { chartType: 'pie', items: [{ label: 'a', value: 0 }, { label: 'b', value: 4 }, { label: 'c', value: 0 }] });
+  expect(await hit(page, id, 0, 0.75)).toEqual([false, true, false]);
   expect(errs).toEqual([]);
 });

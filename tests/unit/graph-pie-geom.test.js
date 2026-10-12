@@ -4,11 +4,12 @@
  *   U3 음수·NaN·글자·null → 0 으로             U4 산출 문자열에 NaN·Infinity 0건(험한 입력 묶음)
  *   U5 각도 합 360 · 이어 붙음                  U6 large-arc: 180° 초과만 1
  *   U7 구멍: 0 이면 중심에서 시작 · >0 이면 고리  U8 한계 상수가 graph-limits 에 있다(패널·렌더가 같이 읽는 자리)
+ *   U9 틈: 변을 평행하게 민다(폭 일정) · 값 있는 조각 하나면 0 · 실조각이 안 사라진다   U10 비율 %: 최대 잔여법 — 합 100
  * 전제 단언: 칸마다 «조각 수 = 입력 수»를 먼저 본다 — 빈 배열이 통과로 읽히지 않게. */
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { piePaths, CENTER, RADIUS } = require('../../js/graph-pie-geom.js');
+const { piePaths, piePercents, CENTER, RADIUS } = require('../../js/graph-pie-geom.js');
 const LIM = require('../../js/graph-limits.js');
 
 const arcs = (d) => [...d.matchAll(/A ([\d.]+) ([\d.]+) 0 ([01]) ([01]) ([\d.]+) ([\d.]+)/g)].map(m => ({ r: +m[1], large: +m[3], sweep: +m[4], x: +m[5], y: +m[6] }));
@@ -63,6 +64,13 @@ test('U4 산출 문자열에 NaN · Infinity · undefined 0건 — 험한 입력
     n++;
   }
   assert.equal(n, inputs.length * holes.length, '전제: 묶음을 다 돌았다');
+  /* 넘침 가드 — 유한한 값 둘의 합이 Infinity 여도 «빈 그림»이 아니라 반반 두 조각(가드가 빠지면 share 가 0 이 돼 d 가 비고, 그래도 위 정규식은 지난다) */
+  const big = piePaths([1e308, 1e308], 0);
+  assert.equal(big.paths.length, 2, '전제');
+  assert.equal(big.empty, false);
+  assert.deepEqual(big.shares, [0.5, 0.5]);
+  assert.deepEqual(big.paths, piePaths([1, 1], 0).paths);
+  assert.ok(big.paths.every(d => d.length > 0), '두 조각 다 그려진다');
 });
 
 test('U5 각도 — 합 360 · 앞 조각의 끝 = 뒤 조각의 시작 · 12시에서 시작', () => {
@@ -104,4 +112,68 @@ test('U8 구멍 한계 — graph-limits 한 자리(패널·렌더가 같이 읽�
   assert.equal(LIM.PIE_HOLE_MAX, 80);
   assert.equal(LIM.PIE_HOLE_DEFAULT, 55);
   assert.ok(LIM.PIE_HOLE_MIN < LIM.PIE_HOLE_DEFAULT && LIM.PIE_HOLE_DEFAULT < LIM.PIE_HOLE_MAX);
+});
+
+const nums = (d) => (d.match(/-?\d+\.\d\d/g) || []).map(Number);
+test('U9 틈 — 변을 평행하게 민다(폭이 안팎에서 같다) · 값 있는 조각 하나면 0 · 틈보다 좁은 조각도 남는다', () => {
+  const V = [30, 20, 15, 15, 10, 10], GAP = LIM.PIE_GAP;
+  assert.equal(GAP, 10, '틈 상수는 graph-limits 한 자리');
+  const p0 = piePaths(V, 0), p = piePaths(V, 0, GAP), dn = piePaths(V, 55, GAP);
+  assert.equal(p.paths.length, 6, '전제'); assert.equal(dn.paths.length, 6, '전제');
+  assert.deepEqual(piePaths(V, 0, 0), p0, '틈 0 = 옛 산출 그대로');
+  assert.deepEqual(p.angles, p0.angles, '경계각·점유율은 틈과 무관'); assert.deepEqual(p.shares, p0.shares);
+  assert.equal(p.gap, GAP); assert.equal(p0.gap, 0);
+  for (const d of p.paths) assert.doesNotMatch(d, /^M 500\.00 500\.00/, '어느 조각도 중심에서 떠나지 않는다');
+  /* 12시 경계(첫 조각의 시작 · 끝 조각의 끝): 변이 x = 500 ± 틈/2 인 «세로선» — 바깥 끝도 안쪽 끝도 같은 x ⇒ 폭 일정 */
+  assert.match(p.paths[0], /^M 505\.00 [\d.]+ L 505\.00 0\.03 A /);
+  assert.match(p.paths[5], / 495\.00 0\.03 Z$/); assert.match(p.paths[5], /^M 495\.00 /);
+  assert.match(dn.paths[0], /^M 505\.00 0\.03 A .* 505\.00 225\.05 Z$/);
+  assert.match(dn.paths[5], / 495\.00 0\.03 L 495\.00 225\.05 A /);
+  /* 값 있는 조각이 하나뿐이면 틈 없음 — 온 원 그대로 */
+  assert.deepEqual(piePaths([7], 0, GAP), piePaths([7], 0));
+  assert.deepEqual(piePaths([0, 3, 0], 55, GAP), piePaths([0, 3, 0], 55));
+  /* 틈보다 좁은 조각(0.36°) — 바깥 호가 남는다(양 끝점이 다르다) · 큰 쪽(오목)은 중심 둘레를 작은 호로 돈다 */
+  for (const hole of [0, 55]) {
+    const t = piePaths([999, 1], hole, GAP);
+    assert.equal(t.paths.length, 2, '전제');
+    const a = arcs(t.paths[1])[0], m = nums(t.paths[1]);
+    assert.ok(t.paths[1].length > 0 && a, '좁은 조각이 그려진다');
+    const start = hole ? [m[0], m[1]] : [m[2], m[3]];
+    assert.ok(Math.hypot(a.x - start[0], a.y - start[1]) > 1, `좁은 조각의 바깥 호 길이 > 1 (구멍 ${hole})`);
+    assert.deepEqual(arcs(t.paths[0])[0].large, 1);
+  }
+  assert.match(piePaths([3, 1], 0, GAP).paths[0], / A 5\.00 5\.00 0 0 0 505\.00 500\.00 Z$/, '오목 조각: 중심 둘레 반지름 = 틈/2');
+  /* 험한 입력 × 험한 틈 — NaN 0건 · 조각 수 유지 */
+  for (const v of [[], [0, 0], [NaN, 1], [1e-12, 1], [1e308, 1e308], [1, 1, 2], [1, 1e9]]) for (const h of [0, 1, 55, 95]) for (const g of [GAP, NaN, -1, 1e9, '10', null, Infinity]) {
+    const r = piePaths(v, h, g);
+    assert.equal(r.paths.length, v.length);
+    assert.doesNotMatch(r.paths.join('|') + '|' + r.gap, /NaN|Infinity|undefined|null/, `${JSON.stringify(v)} · 구멍 ${h} · 틈 ${String(g)}`);
+  }
+});
+
+test('U10 비율 % — 최대 잔여법: 합이 정확히 100 · 동률은 앞 항목 우선 · 합 0 이면 전부 0', () => {
+  const sum = (a) => a.reduce((x, y) => x + y, 0);
+  assert.deepEqual(piePercents([1, 1, 1]), [34, 33, 33]);
+  const six = piePercents([1, 1, 1, 1, 1, 1]);
+  assert.equal(six.length, 6, '전제');
+  assert.deepEqual(six, [17, 17, 17, 17, 16, 16]);
+  assert.equal(sum(six), 100);
+  assert.deepEqual(piePercents([1, 1, 2]), [25, 25, 50]);
+  assert.deepEqual(piePercents([0, 0, 0]), [0, 0, 0]);
+  assert.deepEqual(piePercents([]), []);
+  assert.deepEqual(piePercents(undefined), []);
+  assert.deepEqual(piePercents([-5, 10, 'x', null]), [0, 100, 0, 0], '값 가드는 piePaths 와 같다');
+  assert.deepEqual(piePercents([9999, 1]), [100, 0], '0% 로 찍히는 작은 조각을 따로 올려 주지 않는다(합 100 만 지킨다)');
+  assert.deepEqual(piePercents([1e308, 1e308]), [50, 50]);
+  assert.deepEqual(piePercents([30, 20, 15, 15, 10, 10]), [30, 20, 15, 15, 10, 10]);
+  assert.deepEqual(piePercents([3, 7]), [30, 70]);
+  let n = 0;
+  for (const v of [[1, 2, 3, 4, 5, 6, 7], [0.1, 0.2, 0.3], [1, 1, 1, 1, 1, 1, 1], [5, 0, 5, 0, 3], [1e-12, 1], [12.5, 37.5, 50], Array.from({ length: 23 }, (_, i) => i + 1)]) {
+    const p = piePercents(v);
+    assert.equal(p.length, v.length);
+    assert.ok(p.every(x => Number.isInteger(x) && x >= 0), JSON.stringify(v));
+    assert.equal(sum(p), 100, JSON.stringify(v));
+    n++;
+  }
+  assert.equal(n, 7, '전제: 묶음을 다 돌았다');
 });

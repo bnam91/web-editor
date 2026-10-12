@@ -851,7 +851,9 @@ function _renderPie(block, { items, chartH, labelSize }) {
   const L = window.GRAPH_LIMITS;
   const _h = parseInt(d.pieHole);
   const hole = d.chartType === 'donut' ? Math.min(L.PIE_HOLE_MAX, Math.max(L.PIE_HOLE_MIN, Number.isFinite(_h) ? _h : L.PIE_HOLE_DEFAULT)) : 0;
-  const geo = window.GRAPH_PIE_GEOM.piePaths(items.map(it => it && it.value), hole);
+  const _vals = items.map(it => it && it.value);
+  const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, L.PIE_GAP);   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
+  const pcts = window.GRAPH_PIE_GEOM.piePercents(_vals);                // 합이 정확히 100(최대 잔여법)
   const _lc = d.labelColor || '';
   const _vCss = (d.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.vlabelColor || _lc)));
   const _xCss = (d.showXLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.xlabelColor || _lc)));
@@ -867,7 +869,7 @@ function _renderPie(block, { items, chartH, labelSize }) {
   const emptyEl = geo.empty ? `<circle class="grb-pie-empty" cx="500" cy="500" r="498" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="6 6" vector-effect="non-scaling-stroke"/>` : '';
   const legend = items.map((it, i) => `<span class="grb-pie-legend-item"><span class="grb-pie-dot"${colors[i] ? ` style="background:${colors[i]};opacity:1"` : ''}></span>`
     + `<span class="grb-pie-label" style="${_xCss}">${_escGraphHtml(it && it.label)}</span>`
-    + `<span class="grb-pie-val" style="${_vCss}">${Math.round(geo.shares[i] * 100)}%</span></span>`).join('');
+    + `<span class="grb-pie-val" style="${_vCss}">${pcts[i]}%</span></span>`).join('');
   block.innerHTML = `
       <div class="grb-pie-wrap" style="height:${chartH}px">
         <svg class="grb-pie-svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">${slices}${emptyEl}</svg>
