@@ -4561,6 +4561,8 @@ function updateSpeechBubbleBlock(blockId, partial = {}, opts = {}) {
     block.dataset.tail = dir;
     block.style.marginLeft  = dir === 'right' || dir === 'center' ? 'auto' : '';
     block.style.marginRight = dir === 'center' ? 'auto' : '';
+    /* ★1012t1M2(결함 3) — 패널 말꼬리 단추와 «같은» 처리: 정렬 단추가 남긴 이름표 정렬을 걷는다(한 벌 — prop-text-wireup-align.js) */
+    window.clearBubbleSenderAlign?.(block);
     const oldTail = block.querySelector('.tb-bubble-tail');
     if (typeof window.getBubbleTailSVG === 'function') {
       const tmp = document.createElement('div');

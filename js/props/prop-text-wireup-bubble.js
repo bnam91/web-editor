@@ -2,6 +2,7 @@
  * speech-bubble 블록 전용 이벤트 wireup (스타일 / 말꼬리 / 배경 / 발신자)
  */
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
+import { clearBubbleSenderAlign } from './prop-text-wireup-align.js';
 
 export function wireBubbleSection({ tb, ctx }) {
   // 말꼬리 방향 — contentEl은 ctx 통해 동적 조회 (R1: type 토글 후 교체 대비)
@@ -30,9 +31,7 @@ export function wireBubbleSection({ tb, ctx }) {
     tb.style.marginRight = dir === 'center' ? 'auto' : '';
     /* ★1012t1M2-a — 정렬 단추가 이름표에 남긴 인라인 textAlign 을 지운다 ⇒ 이름은 말꼬리 규칙(CSS)을 따른다
        (left = 22px 들여쓰기 · right = 오른쪽 · center = 가운데). 안 지우면 예전에 누른 left 가 CSS 를 이긴다. */
-    const nm = tb.querySelector('.tb-sender-name');
-    if (nm) nm.style.textAlign = '';
-    delete tb.dataset.senderAlign;   // ★M2-b 표식도 같이(applyBubbleSenderAlign 의 짝)
+    clearBubbleSenderAlign(tb);   // ★한 벌 함수(prop-text-wireup-align.js) — MCP tail 갈래와 같은 처리
     // 말꼬리 SVG 교체 (center는 대칭형, left/right는 비대칭형)
     const oldTail = tb.querySelector('.tb-bubble-tail');
     if (oldTail && window.getBubbleTailSVG) {

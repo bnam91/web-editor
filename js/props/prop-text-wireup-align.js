@@ -30,6 +30,19 @@ export function applyBubbleSenderAlign(tb, align) {
   return true;
 }
 
+/** ★1012t1M2(결함 3) — 말꼬리를 바꾸면 «정렬 단추가 남긴 이름표 정렬»을 걷는다 ⇒ 이름은 말꼬리 규칙(CSS)을 따른다.
+ *  ★이 규칙의 유일한 자리 — 패널 말꼬리 단추(prop-text-wireup-bubble.js _setTail)와 MCP/모델 문
+ *    (block-factory.js updateSpeechBubbleBlock tail 갈래)이 같이 부른다. 옛: 패널만 지워 MCP tail:center 뒤 dLayout −113.7(이벨 실측).
+ *  ⛔block-factory 는 이 파일을 import 하지 않는다 — window 다리(아래)로 부른다. */
+export function clearBubbleSenderAlign(tb) {
+  if (!tb || !tb.classList?.contains('speech-bubble-block')) return false;
+  const nm = tb.querySelector('.tb-sender-name');
+  if (nm) nm.style.textAlign = '';
+  delete tb.dataset.senderAlign;
+  return true;
+}
+if (typeof window !== 'undefined') window.clearBubbleSenderAlign = clearBubbleSenderAlign;
+
 export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
   /* 정렬 */
   propPanel.querySelectorAll('.prop-align-btn').forEach(btn => {

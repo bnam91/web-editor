@@ -491,3 +491,22 @@ test('⒰ 1012t1M2 ★옛 저장본 꼴(이름표 인라인 center · 표식 없
   expect(Math.abs(d.dLayout), `옛 저장본 꼴에서 이름이 몸통 가운데에 안 왔다 — dLayout ${d.dLayout}`).toBeLessThanOrEqual(2);
   expect(errs).toEqual([]);
 });
+
+test('⒱ 1012t1M2 ★정렬 left 뒤 MCP tail:center → 이름 정렬 잔재가 걷히고 |dLayout| ≤ 2', async ({ page }) => {
+  const errs = await setup(page);
+  await showSender(page);
+  await page.evaluate(() => document.querySelector('.prop-align-btn[data-align="left"]').click());
+  await waitFor(page, () => document.querySelector('#canvas .speech-bubble-block .tb-sender-name')?.style.textAlign === 'left',
+    undefined, '★전제 — 정렬 left 뒤 이름표 인라인 textAlign 이 left 가 안 됐다');
+  const r = await page.evaluate(() => {
+    const b = document.querySelector('#canvas .speech-bubble-block');
+    return window.updateSpeechBubbleBlock(b.id, { tail: 'center' });
+  });
+  expect(r && r.ok, `전제 — updateSpeechBubbleBlock tail:center 가 성공 (${JSON.stringify(r)})`).toBe(true);
+  const d = await dLayoutProbe(page);
+  console.log('    ⒱ ' + JSON.stringify(d));
+  expect(d.tail).toBe('center');
+  expect(d.nmInline, 'MCP tail 뒤에도 이름표 인라인 textAlign 이 남았다').toBe('');
+  expect(Math.abs(d.dLayout), `MCP tail:center 뒤 이름이 몸통 가운데에 안 왔다 — dLayout ${d.dLayout}`).toBeLessThanOrEqual(2);
+  expect(errs).toEqual([]);
+});
