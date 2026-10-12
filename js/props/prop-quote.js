@@ -56,26 +56,15 @@ import {
 
 const L = QUOTE_LIMITS;
 
-/* ★★`1011t1C` 「＋ 블럭 넣기 ▾」 — ★인용구 «밑»(.qt-children)에 ★블럭을 넣는 ★입구.
-   ★★꼴은 ★★G19 그리드의 ★`_grdKidsAddSectionHtml`(js/props/prop-grid.js)을 ★그대로 ★댄다 —
-     ⛔새 꼴을 ★만들지 ★않는다(★그 둘이 ★갈리면 ★사람이 ★두 UI 를 ★배워야 한다).
-   ★종류 명부는 ★★`window.QUOTE_CHILD_KINDS`(js/block-factory.js) ★한 자리에서 ★파생한다 —
-     ⛔여기 ★손으로 ★적지 ★마라(★그러면 ★명부가 ★둘이고 ★종류를 ★하나 늘릴 때 ★조용히 ★빠진다). */
-const _QT_KID_LABEL = { body: '텍스트', h2: '제목', image: '이미지', gap: '여백' };
-function _qtKidsAddSectionHtml() {
-  const kinds = (typeof window !== 'undefined' && window.QUOTE_CHILD_KINDS) || [];
-  if (!kinds.length) return '';   /* ★명부가 ★안 왔으면 ★칸을 ★내지 ★않는다 — ⛔«눌러도 조용히 아무 일 없음» 금지 */
-  return `
-    <div class="prop-section" id="qt-kids-section" style="padding-bottom:4px;">
-      <div class="prop-row" style="align-items:center;gap:6px;">
-        <select class="prop-select" id="qt-kid-add-kind" style="flex:1 1 0;min-width:0;width:auto;"
-                title="인용구 «밑»에 블럭을 넣는다 — 인용구가 그만큼 늘어난다">
-          <option value="">＋ 블럭 넣기 (인용구 밑)…</option>
-          ${kinds.map(k => `<option value="${k}">+ ${_esc(_QT_KID_LABEL[k] || k)}</option>`).join('')}
-        </select>
-      </div>
-    </div>`;
-}
+/* ★★⚰️2026-10-12 현빈 1012t1H6 — 「＋ 블럭 넣기 (인용구 밑)」 select(`#qt-kid-add-kind`)를 걷었다.
+     ★원문: 「인용구 ... 블럭 넣기 select 삭제」(ref/body.txt H6).
+   ★무엇이 있었나 ★셋(★한 쌍 이상이다 — ⛔일부만 되살리면 ★칸은 서는데 ★아무 일도 ★안 난다):
+     ⒤ ★`_QT_KID_LABEL` ＋ `_qtKidsAddSectionHtml()` (★그리드 `_grdKidsAddSectionHtml` 꼴 · 종류는 `window.QUOTE_CHILD_KINDS` 파생)
+     ⒥ ★패널 마크업 끝의 ★그 호출 한 줄
+     ⒦ ★이 함수 끝의 ★`qt-kid-add-kind` change 배선 (`window.addQuoteChild?.(block, kind)`)
+   ★★남긴 것(⛔지우지 마라): `addQuoteChild` · `QUOTE_CHILD_KINDS`(block-factory.js) · insert-history `EXTRA` ·
+     `.qt-children` 그릇과 렌더 · 레이어·피그마 내보내기 — ★자식을 가진 기존 저장본이 계속 열려야 한다.
+   ★되살리는 법: git 에서 이 커밋의 ★부모 판 prop-quote.js 의 ⒤⒥⒦ 를 ★세 자리 다 되돌려라. */
 
 /** 스와치가 보여 줄 hex — prop-coupon._swatchHex 와 ★같은 규칙. */
 function _swatchHex(v, dflt) {
@@ -264,8 +253,7 @@ ${buildTypographySectionHtml({
        ★그 게이트 ★밖에서 조용히 갈라진다. ★합치는 일은 ★모달 파일을 건드리는 일이라 ★이 레인 밖이다.
        ⇒ ★칸을 ★내지 않는다 — ⛔「눌러도 조용히 아무 일 없음」을 ★만들지 않는다(이 파일의 그 규율). */
     showHighlight: false,
-  })}
-${_qtKidsAddSectionHtml()}`;
+  })}`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
@@ -464,17 +452,6 @@ ${_qtKidsAddSectionHtml()}`;
   document.getElementById('qt-post-on')?.addEventListener('change', (e) => {
     block.dataset.postOn = e.target.checked ? '1' : '0';
     rerender(); commit();
-  });
-
-  /* ★★`1011t1C` 「＋ 블럭 넣기 ▾」 — ★고르면 ★바로 넣고 ★머리로 되돌린다(★그리드의 ★그 꼴).
-     ⛔여기서 ★히스토리·선택을 ★따로 하지 ★않는다 — ★삽입 래퍼 ★둘이 ★`addQuoteChild` 를 ★감싼다
-       (★로스터 = `js/insert-history.js` 의 ★`EXTRA` · ★거기 ★올렸다). */
-  const kidAdd = document.getElementById('qt-kid-add-kind');
-  kidAdd?.addEventListener('change', () => {
-    const kind = kidAdd.value;
-    kidAdd.value = '';
-    if (!kind) return;
-    window.addQuoteChild?.(block, kind);
   });
 
   /* ★★⚰️2026-10-11 — ★«글» 배선(`qt-text` change)이 ★여기 있었다. ★걷은 까닭·되살리는 법은

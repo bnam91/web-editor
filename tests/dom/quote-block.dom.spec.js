@@ -1769,3 +1769,51 @@ test('Q20 ★★«내용» 입력칸은 ★0개 · 그런데 ★글 넣는 ★�
 
   expect(errs.map(e => String(e)), '★오류 0').toEqual([]);
 });
+
+/* ══════ Q21 ★1012t1H2~H6 패널 꼴 (현빈 1012t1) ══════════════════════════════════
+   H6 ⑸ 「＋ 블럭 넣기 (인용구 밑)」 select 는 ★0개다. (다른 항목의 칸은 각 커밋이 이 테스트에 ⑴~⑷ 로 더한다.) */
+test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0)', async ({ page }) => {
+  const errs = await setup(page, { text: '안녕' });
+  await openPanel(page);
+  const pn = await page.evaluate(() => {
+    const p = document.getElementById('panel-right');
+    return {
+      type: window.__qt.dataset.type,
+      layout: window.__qt.dataset.layout,
+      hasPanel: !!document.getElementById('qt-shape-group'),
+      kidSel: p.querySelectorAll('#qt-kid-add-kind').length,
+      kidSec: p.querySelectorAll('#qt-kids-section').length,
+      addOpts: [...p.querySelectorAll('select option')].filter(o => /블럭 넣기/.test(o.textContent)).length,
+      selects: p.querySelectorAll('select').length,
+    };
+  });
+  /* 전제 */
+  expect(pn.type, '★전제 — 인용구 블럭이다').toBe('quote');
+  expect(pn.layout, '★전제 — inline 꼴이다').toBe('inline');
+  expect(pn.hasPanel, '★전제 — 인용구 패널이 열렸다').toBe(true);
+  /* ⑸ H6 */
+  expect({ kidSel: pn.kidSel, kidSec: pn.kidSec, addOpts: pn.addOpts },
+    `★H6 — 「＋ 블럭 넣기」 select·절·옵션이 0 이어야 한다. 잰 값 ${JSON.stringify(pn)}`)
+    .toEqual({ kidSel: 0, kidSec: 0, addOpts: 0 });
+  expect(errs.map(e => String(e)), '★오류 0').toEqual([]);
+});
+
+/* ══════ Q22 ★1012t1H1 텍스트 드롭다운의 Quote ═════════════════════════════════ */
+test('Q22 ★1012t1H1 텍스트 드롭다운 → Quote 를 진짜 클릭하면 인용구 블럭이 +1 · 메뉴 닫힘 (컴포넌트 메뉴엔 없다)', async ({ page }) => {
+  const errs = await setup(page, { text: '먼저' });
+  const count = () => page.evaluate(() => document.querySelectorAll('#sQ .quote-block').length);
+  await page.evaluate(() => { window.deselectAll && window.deselectAll(); window.selectSection(document.getElementById('sQ')); });
+  /* 전제 */
+  expect(await count(), '★전제 — 인용구가 하나 있다').toBe(1);
+  expect(await page.locator('#fp-component-menu .fp-menu-item', { hasText: /^Quote$/ }).count(), '★전제 — 컴포넌트 메뉴엔 Quote 가 없다').toBe(0);
+  const t = await waitStableRect(page, '#fp-text-dropdown .fp-dropdown-trigger');
+  await clickAt(page, t.cx, t.cy, { sel: '#fp-text-dropdown .fp-dropdown-trigger' }, { label: 'Text 펼치기' });
+  await expect(page.locator('#fp-text-dropdown')).toHaveClass(/open/);
+  const item = page.locator('#fp-text-menu .fp-menu-item', { hasText: /^Quote$/ });
+  await expect(item).toBeVisible();
+  const b = await item.boundingBox();
+  await clickAt(page, b.x + b.width / 2, b.y + b.height / 2, { sel: '#fp-text-menu .fp-menu-item' }, { label: 'Quote 누르기' });
+  await expect.poll(count, { message: 'Quote 를 눌러도 인용구 블럭이 안 늘었다' }).toBe(2);
+  await expect(page.locator('#fp-text-dropdown')).not.toHaveClass(/open/);
+  expect(errs.map(e => String(e)), '★오류 0').toEqual([]);
+});
