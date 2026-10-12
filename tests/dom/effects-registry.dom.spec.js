@@ -45,10 +45,6 @@ async function setup(page) {
     const { block: sb } = window.makeShapeBlock('rectangle'); sb.id = 'eSh';
     const ss = document.createElement('div'); ss.className = 'frame-block'; ss.id = 'eShF';
     ss.dataset.width = '100'; ss.dataset.height = '100'; ss.style.width = '100px'; ss.style.height = '100px';
-    /* ★0e3beee4(현빈 1009t3-②)가 ★frame-block 자름을 ★★기본 켬으로 만들었다 ⇒ ★반사 띠(q.bottom+6..+69)가
-       ★★100px 프레임 ★밖이라 ★잘린다. ★이 벌이 재는 축은 ★«반사에 그림자가 비치나»이지 ★«자름»이 아니다.
-       ⇒ ★규약에서 도출: ★사람이 ★끈 프레임은 ★안 자른다(`css/editor-blocks.css` ★`[data-clip-content="false"]`). */
-    ss.dataset.clipContent = 'false';
     ss.appendChild(sb); document.getElementById('eR3').appendChild(ss);
     sb.querySelectorAll('[fill]').forEach(n => { if (n.getAttribute('fill') !== 'none') n.setAttribute('fill', '#00aa44'); });
     window.rebindAll?.(); window.deselectAll?.(); window.applyZoom?.(100);
@@ -246,9 +242,27 @@ test('A6 그림자 카드 — 값(X·Y·Blur·불투명도·색상)이 텍스트
   expect(errs).toEqual([]);
 });
 
+test('A7b ★전제 — ★★속성 ★없는 프레임은 ★`hidden` 이다(★0e3beee4 뒤 ★기본이 ★자름)', async ({ page }) => {
+  /* ★R4 의 ★«자르는 쪽»을 ★세우는 칸 — ★기본이 ★또 뒤집히면 ★★여기서 ★빨개진다.
+     ⛔주 축(반사에 그림자가 비치나)은 ★안 건드린다 — ★이 칸은 ★★전제만 ★잰다. */
+  const errs = await setup(page);
+  expect(await page.evaluate(() => document.getElementById('eShF').dataset.clipContent ?? '(없음)'),
+    '★전제 — 그 프레임엔 속성이 없다').toBe('(없음)');
+  expect(await page.evaluate(() => getComputedStyle(document.getElementById('eShF')).overflow),
+    '★전제 — 속성 없는 프레임의 computed overflow').toBe('hidden');
+  expect(errs).toEqual([]);
+});
+
 /* ══ A7 ★실측 기록 — 그림자는 반사에 «안» 비친다 (⚠️지디 판정과 ★다르다 — 미해결) ══ */
 test('A7 ⚠️실측 — 크로미움은 반사(-webkit-box-reflect)에 그림자(filter)를 ★안 비춘다 · 양성＋음성대조 · ⛔이 사실이 바뀌면 여기서 빨강', async ({ page }) => {
   const errs = await setup(page);
+  /* ⒜ ★그 한 줄은 ★★이 칸 ★안에 둔다 — ★`setup()` 에 두면 ★★다른 칸까지 ★«끔»으로 돌아
+     ★그 벌이 ★★«자르는 쪽»을 ★한 번도 ★안 잰다(★`frame-clip-axis-roster` ★R2 가 ★그걸 ★잡았다).
+     ★까닭: ★0e3beee4(현빈 1009t3-②)가 ★자름을 ★기본 켬으로 만들어 ★반사 띠(q.bottom+6..+69)가 ★잘린다. */
+  await page.evaluate(() => { document.getElementById('eShF').dataset.clipContent = 'false'; });
+  /* ⒝ ★전제 — ★★축 값이 ★먹었나를 ★제품의 computed overflow 로 ★잰다(★R4 가 ★이 줄을 ★센다) */
+  expect(await page.evaluate(() => getComputedStyle(document.getElementById('eShF')).overflow),
+    '★전제 — 끔(false) 프레임의 computed overflow').toBe('visible');
   /* ★지디 1차 판정은 「비치는 것이 맞다」였고, 조건 ㉠(「먼저 재라 · 이상하면 멈추고 알려라」)대로 재 보니 반대라
      멈추고 알렸다 ⇒ ★판정이 철회됐다(2026-10-06). ⛔이 시험은 «결정»이 아니라 «지금 사실»을 잠근다.
      비추게 고치면(별건) 여기가 빨강이 되고, 그때 이 기록을 다시 쓴다.
