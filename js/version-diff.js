@@ -47,7 +47,7 @@
 
   function _localNormSection(secEl) {
     const el = secEl.cloneNode(true);
-    el.querySelectorAll('.section-label, .section-toolbar, .variation-badge, .annotation-block, .annot-preview').forEach(n => n.remove());
+    el.querySelectorAll('.section-label, .section-toolbar, .variation-badge, .section-height-badge, .annotation-block, .annot-preview').forEach(n => n.remove());
     _stripRuntime(el);
     el.querySelectorAll('[contenteditable]').forEach(n => n.removeAttribute('contenteditable'));
     return el.outerHTML.replace(/\s+/g, ' ').trim();

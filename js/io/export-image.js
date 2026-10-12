@@ -2,6 +2,7 @@ import { canvasEl, state } from '../globals.js';
 import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
 import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture, warnIfCaptureTextVanished, withGuideOff } from './capture-safety.js';
+import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★h2c 폴백 가지에서만 쓴다 — CDP 주 경로는 브라우저가 그려 준다 */
 
 const CANVAS_W = 860;
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
@@ -236,6 +237,16 @@ export async function prepareCloneForCapture(sec, w, useNative) {
   /* ★E157 공용 대기(whenGridRatiosSettled · grid-block.js) — 칸 배경 비율이 서고 그 그리드가 다시 그려진 «뒤»에 찍는다(틀린 행 높이가 산출물로 굳지 않게).
      반환 none(기다릴 것 없음) / settled / cap(상한 — 함수가 수·주소를 찍음). ⛔그 결과로 막지 않는다 — 찍기는 그대로 간다. */
   await window.whenGridRatiosSettled?.();
+  /* ★★⛔여기엔 ★`restRuntimeForArtifact`(capture-safety.js)를 ★★«일부러» ★안 부른다 (2026-10-09 · 지디 판정).
+     ★까닭 — ★★계약이 ★다르다: ★PNG 는 ★★«스냅샷»이다. ★사람이 ★«누른 그 순간 화면»이 ★맞는 그림이다.
+       (★HTML 은 ★★«문서»라 ★같은 입력에 ★같은 출력이어야 한다 ⇒ ★그쪽은 ★부른다.
+        ★썸네일도 ★부른다 — ★사람이 ★「지금 이 모습」을 ★고른 적이 ★없고 ★저절로 찍히기 때문이다.)
+     ★실측(2026-10-09 · 실앱 9406 · 네이티브 CDP 캡처 · `window.__exportGate.captureTruth` ×2):
+       ★★멈춘 판 ×2 : 픽셀차 ★0 · ★0%          ← ★★음성대조(★자의 바닥)
+       ★도는 판 ×2 : ★15,463(5.99%) · ★13,938(5.40%)
+       ⇒ ★그 ★0 이 ★5.4~6.0% 가 ★잡음이 ★아님을 ★증명한다. ★PNG 는 ★화면을 ★따라간다 = ★계약대로다.
+     ⛔★«빠뜨렸다»로 읽고 ★넣지 ★마라. ★넣으면 ★사용자가 ★본 화면과 ★다른 PNG 가 나간다.
+     ★이 판정을 ★잠그는 자 = tests/unit/artifact-clone-roster (★이 파일은 ★rest:false 로 ★명부에 있다). */
   const clone = sec.cloneNode(true);
   /* ★편집 전용 DOM·상태 걷기는 «한 벌»이다 — js/io/capture-safety.js stripEditorOnlyForCapture.
      썸네일 경로(js/io/save-load.js captureThumbnail)와 같은 명부를 쓴다. 두 벌로 두었더니
@@ -480,6 +491,10 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
     neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
     neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
     await neutralizeObjectFitForH2C(clone); // html2canvas는 object-fit 미지원 → 상자에 «늘려» 그린다. 상자 크기대로 미리 잘라 끼운다(썸네일이 화면과 다른 그림이 되던 자리)
+    /* ★svg 에 닿는 CSS transform 을 «감싸는 span»으로 올린다 — html2canvas 는 svg 쪽 것을 ★안 그린다
+       (월계수 오른 잎 거울이 ★썸네일에서 사라지던 자리 · 현빈 2026-10-09). ★까닭·실측은 h2c-prep.js 머리말.
+       ⛔클론이 ★document 에 ★붙은 «뒤»라야 한다 — detached 면 computed transform 이 ★빈 문자열이다. */
+    try { liftSvgTransformsForH2C(clone); } catch (e) { console.warn('[export] svg transform 올리기 실패:', e); }
     const _to2 = await _waitImagesReady(clone);
     const _h2c = await html2canvas(clone, {
       scale: 1,

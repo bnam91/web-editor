@@ -3,6 +3,30 @@
  * + icon-text 블록 전용 gap
  */
 
+/** ★★말풍선의 ★★발신자 이름표에 ★가로 정렬을 ★★같이 ★건다 — ★★★이 규칙의 ★유일한 자리.
+ *
+ * ★★왜 ★따로 ★걸어야 ★하나 (★실측 2026-10-10 · `tests/dom/bubble-sender-align.dom.spec.js`):
+ *   ★`js/block-factory.js:2814` — ★`.tb-sender-name` 과 ★`.tb-bubble` 은 ★★★형제다
+ *   ⇒ ★★`.tb-bubble` 에 ★건 ★`text-align` 은 ★★★구조적으로 ★이름표에 ★안 닿는다
+ *   ★실측(★제 상자 기준): ★넓은 풍선에서 ★★풍선 글자는 ★−10 → ★+0(★가운데로) ·
+ *     ★★이름표 글자는 ★−165 → ★−160(★안 간다) ⇒ ★★현빈 2026-10-10 「★발신자이름은 ★안따라옴」
+ *
+ * ⛔★블록(`tb`)에 ★걸지 ★않는다 — ★★판정 2026-10-10(지디):
+ *   ★그러면 ★★말꼬리 SVG 도 ★형제라 ★★같이 ★움직인다(★실측: ★svg cx ★546 → ★558)
+ *   ⇒ ★★★현빈이 ★요청하지 ★않은 ★변화다 ⇒ ★★디자인 ★판단이므로 ★★그에게 ★묻는 중이다
+ *   ⇒ ★★그때까지의 ★«지금 집행선» = ★★이름표만 ★따라오게 ★한다
+ *
+ * ★★그리고 ★★★이 함수가 ★있는 ★까닭: ★★그 규칙이 ★★두 자리에 ★있었다 —
+ *   ⒜ ★여기(★한 블록 ★정렬) ⒝ ★`prop-page.js` 의 ★★쪽 전체 ★일괄 정렬
+ *   ⇒ ★★★주석으로 ★막지 ★않고 ★★파생시켜 ★하나로 ★뒀다(⛔사본을 ★두면 ★한쪽이 ★조용히 ★늙는다) */
+export function applyBubbleSenderAlign(tb, align) {
+  if (!tb || !tb.classList?.contains('speech-bubble-block')) return false;
+  const nm = tb.querySelector('.tb-sender-name');
+  if (!nm) return false;
+  nm.style.textAlign = align;
+  return true;
+}
+
 export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
   /* 정렬 */
   propPanel.querySelectorAll('.prop-align-btn').forEach(btn => {
@@ -22,6 +46,8 @@ export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
         if (itbText) itbText.style.flex = btn.dataset.align === 'left' ? '1' : '0 1 auto';
       } else {
         ctx.contentEl.style.textAlign = btn.dataset.align;
+        /* ★말풍선 — ★이름표는 ★형제라 ★못 물려받는다 ⇒ ★★한 자리(위 함수)로 ★같이 ★건다 */
+        applyBubbleSenderAlign(tb, btn.dataset.align);
         // U10: 커스텀 폭(width≠100%) 블록은 contentEl text-align만으론 박스가 좌측 고정
         //  → section-inner{flex-direction:column}이라 자식 가로위치는 align-self가 지배.
         //    박스 자체(폭을 보유한 flex 자식 = text-frame 래퍼 또는 tb)를 정렬한다.

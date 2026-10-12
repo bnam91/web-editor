@@ -24,14 +24,57 @@
    *   (대조군 /api/license/signup 은 405 = 존재). server/ec2-server.js 의 ROUTES
    *   화이트리스트에 collab 이 없다. 그런데 앱에는 협업이 v0.8.5 로 이미 나갔다
    *   — 지금 사용자가 저 버튼을 누르면 «반드시» 실패한다.
+   *   ⚰️(2026-10-06 지디·태양 실측 — 위 문장은 그날의 사실로 남긴다) 앱은 create/join/ops 를 «부르지 않는다».
+   *     부르는 이름은 register·invite·invites·respond·push·pull·leave 7개이고, 2026-10-06 실측으로 7개 전부
+   *     «있다»(400/401 · 음성대조 /api/collab/control-nonsense = 404). 서버는 지금 Vercel 이 아니라 Cloudflare 뒤 EC2.
+   *     ⇒ 사유 ① 은 «부르지도 않는 이름으로 잰 근거»였다.
+   *     ⚠️404 의 뜻이 서버 판에 따라 갈린다: 옛 서버(HTML 404)는 「미배포」, 지금 라우터(api/collab/[action].js)는
+   *     모르는 경로에도 JSON 404 {reason:'unknown_action'} 를 준다 — 앱이 그걸 「멤버 아님(접근 권한 없음)」으로 읽던
+   *     거짓 문장을 2026-10-06 main/collab/index.js 에서 not_deployed 로 갈랐다.
    * 사유 ②: C8(협업 undo 가 상대 작업 재전파로 영구삭제) 미수정 — feat/collab-undo-op.
+   *   ⚰️(2026-10-06) C8 은 1ec78f0a(2026-08-16)로 dev 에 머지됐다(브랜치만 지워졌다). 08-15 harm 2인스턴스 실증 GREEN.
+   *     까닭은 «사라진» 게 아니라 «바뀌었다» — 그 뒤 C8 을 잠근 검사가 «CI 가 보는 자리»에 0 이었다
+   *     (tests/e2e/10-collab-undo-diff 는 유틸만 잠그고 CI 는 e2e 를 안 돈다). ⇒ 2026-10-06 tests/dom/collab-undo-scope
+   *     U1·U2 가 잠근다(가드 무력화 M1 · 배선 되돌림 M2 · 유틸 무력화 M3 → 각 ×3 빨강).
+   *     ⚠️현재 판의 2인스턴스 harm 은 «다시 안 쟀다»(하네스 신설 필요 — 지디가 일부러 안 시킴).
+   *
+   * ★켜는 조건 — 이름으로(2026-10-06 지디 발주 TWO). 다 초록이어야 이 줄을 true 로 바꾼다:
+   *   ⑴ tests/unit/collab-enable-gate.test.mjs G1 — js/collab/reasons.js 에 «문장 없는»(null) 갈래 0.
+   *      (켜는 순간 이 검사가 빨개진다 — 문장은 현빈 검수: 태양 notes lanes/collab/NEW-SENTENCES.md)
+   *   ⑵ 설정 «협업» 탭이 MVP 문 밖 — js/settings/settings-modal.js MVP_DISABLED_TABS(현빈 2026-08-28 결정).
+   *      안 열면 초대를 받을/보낼 창구가 0 이다(배지도 window.isSettingsTabEnabled 로 같이 닫혀 있다).
+   *   ⑶ tests/dom/collab-undo-scope.dom.spec.js 초록(C8) · tests/unit/collab-silence-ruler 초록(삼키는 catch 0).
+   *   ⑷ 「못 쟀다」 셋은 켜기 전 결정할 것: 현재 판 C8 2인스턴스 harm · 설정 협업 탭 화면(MVP 문 뒤라 못 엶) ·
+   *      서버 배포본 == hompage_app 클론(정황 셋 일치 · 증명 없음).
+   *   ⑸ 켜는 판에서는 tests/dom/collab-undo-scope U0 · collab-notify W1 의 «전제 단언»(flag === false)을 같이 고친다.
+   *      ⛔안 고치면 G1 의 빨강(「문장부터 채워라」)이 가짜 빨강 둘에 묻힌다(2026-10-06 사본 실측: true → G1·U0·W1 셋 빨강).
+   *   ⑹ «켜는 날 살아나는 코드» — 지금은 닿는 길이 0 인 자리. 켜기 전에 «닿는 길이 생겼는지» 재라:
+   *      js/collab/invites-badge.js openCollabSettings 의 inbox_closed 갈래(C2·C3 · boot 가 같은 술어로 리스너를 안 단다) ·
+   *      main/collab/index.js getRef 의 catch(주입된 readMeta 가 오류를 삼켜 안 던진다 — main.js 쪽).
+   *   ── 2026-10-06 켤 때 밟은 결과(태양) ──
+   *   ⑴ G1 초록 — reasons.js 문장 8 현빈 승인 문구로 채움(missing()=[]). ⚠️G1 자에 흠이 있었다(vm 배열 deepEqual → 켜면 «항상 빨강»)
+   *      → 5c4f2ffc 에서 길이로 고침 · 음성대조: 켠 사본에서 unknown 을 null 로 되돌리면 빨강(이름으로).
+   *   ⑵ MVP_DISABLED_TABS 에서 'collab' 만 뺌('dev' 그대로) — 현빈 08-28 주석은 긋고 덧붙임(settings-modal.js 머리).
+   *   ⑶ collab-undo-scope · collab-silence-ruler 초록(이 판 전수).
+   *   ⑷ 못 쟀다 셋은 그대로 «못 쟀다» — 현빈 GO 로 켠다(현재 판 C8 2인스턴스 harm 은 현빈 두 기기 시험이 첫 실측이 된다).
+   *   ⑸ U0 · W1 · W3 전제 단언을 «켜진 판»으로 같이 고침.
+   *   ⑹ inbox_closed 갈래 = 여전히 닿는 길 0(이제 탭이 열려 술어가 참 — 닫힌 갈래가 안 탄다) · getRef catch = 여전히 죽음(main.js readMeta 가 삼킴).
+   *   ⑺ ⚰️«켜기 조건»이었으나 근거가 바뀌어 «별건 카드»로 옮김(지디 2026-10-06): 같은 꼴이 4자리이고 _refreshListMeta 는 «저장마다» 돈다
+   *      ⇒ 협업이 꺼진 지금도 난다(실측 125B → folderId·favorite·collabRef·thumbnail 소실) — 켜기는 원인이 아니다. 설계 = 태양 notes
+   *      lanes/collab/DESIGN-meta-corrupt-guard.md · 카드 = 지디. 아래 원문은 그날의 판단으로 남긴다:
+   *   ⑺ 협업을 켜면 collabRef 를 «쓰는» 길(register·respond 수락·seq 저장)이 늘어난다 — 그 전에 main.js collab init 주입부의
+   *      writeMeta(read-merge-write)가 «깨진» proj_meta.json 을 {} 로 읽고 patch 만 덧써 다른 필드(목록 캐시·collabRef)를
+   *      날리는지 «먼저 재라». ⚠️2026-10-06 태양 «코드 독해 · 미측정» — 「난다」가 아니다. 지금은 꺼져 있어 그 길이 좁고,
+   *      켜는 순간 넓어진다(선후가 핵심). main.js = 현빈 게이트 · 카드는 지디가 작업목록매니저 경유로 뗀다.
    *
    * ★되돌리기 = 이 줄 하나를 true 로. 코드·데이터는 아무것도 안 지웠다.
    *   서버 ROUTES 에 collab 이 올라간 «뒤에» 켠다(순서 반대면 또 404 를 판다).
    * ⚠️데이터는 안 건드린다 — 이미 협업으로 올라간 프로젝트(proj.collabRef)의
    *   「👥 공동작업」 배지·collab-card 표시는 «그대로 남는다». 감추는 건 입구뿐이다
    *   (사용자가 「내 프로젝트가 사라졌다」고 느끼면 안 된다). */
-  w.COLLAB_ENABLED = false;
+  /* ⚰️위 «감춘다» 판단은 그날의 사실로 남긴다. ★2026-10-06 현빈 승인으로 다시 연다
+   *   (현빈 「협업기능 다시 켤건데 … 둘이 되는지 내가 보려고」 + 「좋네 구현가자」 · 지디 경유 · 켜는 조건 ⑴~⑺ 결과는 아래). */
+  w.COLLAB_ENABLED = true;
 
   /* ── ★[M58] 새 프로젝트의 «페이지 배경» 기본값 ─────────────────────────
    * 현빈 2026-09-06: 「애초에 시작할때 캔버스 밝기가 너무 밝아서 바탕색을 777777으로 해줄래?」

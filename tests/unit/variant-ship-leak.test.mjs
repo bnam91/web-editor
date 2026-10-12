@@ -249,7 +249,14 @@ test('V4 ★저장본은 안 바뀐다 — 숨김 술어를 아는 파일이 «�
 function inspSites(src) {
   const click  = /_jumpTargets\[key\]\s*\|\|\s*\[\]\s*\)\s*\.filter\(\s*isJumpTarget\s*\)/.test(src);
   // statRow: 거른 «그 배열»을 담고, «그 배열»의 길이를 찍는다(개수와 점프가 같은 목록)
-  const body = sliceBlock(src, 'const statRow = (key, label, list) =>',
+  /* ⚠️★닻을 ★«서명에 덜 묶이게» 고쳤다 (2026-10-07 · gd/padviz T17).
+     ★까닭 — 옛 닻은 `'const statRow = (key, label, list) =>'` 였다. T17 이 ★매개변수 하나를 더해
+       `(key, label, list, { always = false } = {})` 가 되자 ★★그 닻이 ★못 찾히고 `stat` 이 ★false 로 떨어졌다
+       ⇒ ★★「개수 = 갈 곳」을 재던 ★이 자리가 ★★조용히 ★눈이 멀었다(★제품은 그 불변식을 지키고 있었다).
+     ⇒ ★★「★내가 더한 것이 ★이미 있던 것을 ★조용히 끈다」의 그 얼굴이다.
+     ⇒ ★처방: ★매개변수 ★목록을 ★닻에서 ★뺀다 — 이 검사가 재는 것은 ★«몸통»이지 ★서명이 아니다.
+       ⛔다시 서명을 적어 넣지 마라 — 매개변수가 늘면 ★또 눈이 먼다. */
+  const body = sliceBlock(src, 'const statRow = (',
     '개수와 점프가 «같은 목록»을 보는지 재는 자리');
   const stat = /list\s*=\s*\(\s*list\s*\|\|\s*\[\]\s*\)\.filter\(\s*isJumpTarget\s*\)/.test(body)
             && /_jumpTargets\[key\]\s*=\s*list/.test(body)

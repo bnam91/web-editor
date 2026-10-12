@@ -105,7 +105,30 @@ const settle = async (page) => {
       ⛔없애려면 프레임에 인라인 overflow:visible 을 박아야 하는데, 그러면 «모달에서 온 둥근 프레임»만 나중에 넣는 이미지 줄을
         모서리에서 안 자른다(다른 모든 둥근 프레임과 다르게) — 그 대가가 더 커서 «자르기»를 지켰다(M1-BUILD 보고).
    ⑵ icon-stack · 배율 40%: 2px 안팎(소수 배율 래스터 — 어느 설정에 뜨는지 판마다 바뀐다: 3차 빈칸 · 4차 높이bottom·빈칸). */
-const ALLOW = (variant, name, zoom) => (variant !== 'icon-stack' ? 0 : (name === '모서리' && zoom === 100) ? 64 : (zoom === 40 ? 4 : 0));
+/* ★★★«이름으로 ★미룬 것» — ★★2026-10-12 · ★현빈 「프리릴리스 먼저 · 고칠 건 그 뒤 다」 · ★지디 발주 ⒞
+   ⛔`test.fixme`(★칸 전체 눈감기)보다 ★좁다 — ★★«이 두 설정만» 미루고 ★나머지 12설정은 ★그대로 ★0 으로 ★잰다.
+   ★★실측(quote1011 · ×10 회차 · ★10회 ★전부 ★같은 값):
+     ★`꾸밈`(italic＋strike＋highlight) — ★★`highlight` ★하나가 ★전부다(★쪼개서 ★쟀다: italic 0~2 · strike 0~4)
+        ★최댓값 ★1040px(titled frame 40%) · ★100% 는 ★0(★단 ★icon-stack 100% 는 ★6)
+     ★`빈칸`(title:'' text:'') — ★★`text:''` ★하나가 ★거의 ★전부(★titled grid 만 ★`title:''`)
+        ★최댓값 ★686px(icon-stack 40%)
+     ★★`geo` 는 ★★어긋난 적이 ★★0건(★510/510) ⇒ ★★상자·줄·아이콘은 ★같고 ★★«칠»만 ★다르다
+   ★★★떼는 조건 = ★★«정식 릴리스 ★전». ★그 자리: `tests/dom/EXPECT_N.md` 의 ★그 줄.
+   ★★상한을 ★무한이 아니라 ★★«잰 값 ＋ 여유»로 ★둔 ★까닭: ★★더 ★커지면 ★여기가 ★잡는다(★미룸 ≠ 눈감기). */
+const DEFER_PX = Object.freeze({ '꾸밈': 1100, '빈칸': 700 });
+/* ★★★«배율 40% 상한 10» (2026-10-12 · 지디 발주 ⒠ · 현빈 ⒜ 확정)
+   ★까닭: ★40% 꼬리의 ★★잰 최댓값이 ★★`긴글` ★★10px 이다(★quote1011 ×10 회차 · ★10회 ★전부 ★같은 값).
+     ★꼬리 값 전부 = ★`[1, 2, 4, 6, 10]` — ★기본·색·테두리·모서리·그림자soft/strong·높이center/bottom(★2) ·
+       ★작은글(★1·2·4 · ★icon-stack ★9) · ★긴글(★4·6·10)
+   ⛔★★100% 는 ★★무접촉이다 — ★★거기는 ★★`0` 이 ★참 골든이고(★실측: ★9칸 ★`ALL 0`) ★★새면 ★골든이 ★죽는다.
+     ★★그래서 ★`zoom === 40` ★갈래에만 ★얹는다. ★★그 칸을 ★재는 자 = ★이 벌의 ★100% ★9칸 자신이다.
+   ★★★떼는 조건 = ★★«다음 버전». ★자리: `tests/dom/EXPECT_N.md`
+   ⚠️★이 상한은 ★★`icon-stack · 40%` 의 ★`작은글`(★9)도 ★같이 ★가린다 — ★★의도된 것이다(★같은 꼬리 계열). */
+const TAIL_PX_40 = 10;
+const ALLOW = (variant, name, zoom) => (
+  DEFER_PX[name] !== undefined ? DEFER_PX[name]
+  : zoom === 40 ? TAIL_PX_40
+  : variant !== 'icon-stack' ? 0 : (name === '모서리' && zoom === 100) ? 64 : 0);
 for (const variant of VARIANTS) for (const where of PLACES) for (const zoom of ZOOMS) {
   test(`G1 픽셀 동일 — ${variant} · ${where} · ${zoom}%`, async ({ page }) => {
     test.setTimeout(120000);

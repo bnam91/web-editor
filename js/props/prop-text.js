@@ -1,14 +1,15 @@
 import { propPanel, state } from '../globals.js';
 import { rgbToHex } from './prop-text-utils.js';
+import { parseAlphaFromColor, colorFieldHTML } from './color-picker.js';   /* ★형광펜 색 칸 — 스티커 형광펜이 쓰는 그 부품 그대로(새로 만들지 않는다) */
 import { panelRenderedPx, labelShapeFromRendered, panelRenderedWeight } from './_panel-rendered.js';
 import { buildTextPropsHtml } from './prop-text-template.js';
 import { detectMix } from './prop-text-mix-detect.js';
 import { wireBubbleSection }   from './prop-text-wireup-bubble.js';
 import { wireFontSection }     from './prop-text-wireup-font.js';
-import { wireTypeSection }     from './prop-text-wireup-type.js';
+import { wireTypeSection, wireBulletStyleSection } from './prop-text-wireup-type.js';
 import { wireLabelSection }    from './prop-text-wireup-label.js';
 import { wireAlignSection }    from './prop-text-wireup-align.js';
-import { wireTextEditSection } from './prop-text-wireup-text-edit.js';
+import { wireTextEditSection, isHighlightOn, isDotOn } from './prop-text-wireup-text-edit.js';
 import { wireSpacingSection }  from './prop-text-wireup-spacing.js';
 import { wirePositionSection } from './prop-text-wireup-position.js';
 import { wirePaddingSection }  from './prop-text-wireup-padding.js';
@@ -141,10 +142,56 @@ export function showTextProperties(tb) {
   const isBold        = parseInt(currentWeight, 10) >= 600;
   const isItalic      = contentEl.style.fontStyle  === 'italic';
   const isStrike      = (contentEl.style.textDecorationLine || contentEl.style.textDecoration || '').includes('line-through');
-  const currentHighlight      = tb.dataset.highlight || 'none';
-  const currentHighlightColor = tb.dataset.highlightColor || getComputedStyle(document.documentElement).getPropertyValue('--ui-highlight').trim();
+  /* ★밑줄(⑤ · 2026-10-08 수지 피드백 — ⚠️출처는 2차다, server-manager 가 전한 요약) —
+     ★취소선과 ★같은 CSS 속성(text-decoration-line)에 ★같이 산다. 그래서 「있나」를 ★포함으로 본다
+     (`=== 'underline'` 로 재면 둘이 켜진 'underline line-through' 를 ★꺼짐으로 읽어, 한 번 누를 때
+      밑줄을 켜는 대신 끈다). ★토글 쪽 정본은 prop-text-wireup-text-edit.js 의 _decoTokens 다 — 같은 잣대. */
+  const isUnderline   = (contentEl.style.textDecorationLine || contentEl.style.textDecoration || '').includes('underline');
+  /* ★형광펜(2026-10-06 현빈 tb_5bkw8dq) — 정본은 ★.text-block 의 인라인 --tb-hl-color / --tb-hl-h
+     ★하나씩이다(사본을 dataset 에 두지 않는다 — 그리는 값과 패널 값이 갈린다). 없으면 CSS 기본값.
+     ⛔옛 `tb.dataset.highlight`('none'|'highlight'|'underline')는 ★지웠다 — 레포 전수에 ★쓰는 코드가
+       0건이던 죽은 값이었고(읽는 자리가 여기뿐), 그 짝인 ::after 바는 «글자 길이»를 못 잰다. */
+  const currentHighlightColor = (tb.style.getPropertyValue('--tb-hl-color') || '').trim()
+                             || getComputedStyle(document.documentElement).getPropertyValue('--ui-highlight').trim();
+  const _hlH = Math.min(100, Math.max(5, parseInt(tb.style.getPropertyValue('--tb-hl-h'), 10) || 100));
+  /* ★획 세로자리(2026-10-08 현빈 「바높이 ★및 y값도」) — ★정본은 ★--tb-hl-y ★하나(색·높이와 ★같은 규약).
+     ★안 정하면 ★0 이다 — ★CSS 기본값도 0px 이라 ★두 값이 ★같다(점 네 값처럼 getComputedStyle 로 끌어올
+     ★까닭이 없다: 0 은 ★숫자 하나고 ★CSS 쪽 기본이 ★바뀔 손잡이가 없다. ⛔점 쪽을 베껴 복잡하게 만들지 마라).
+     ★★그래도 ★둘이 ★갈리면 ★검사 U-Y0 이 ★빨개진다 — 패널 ★초기값과 ★computed --tb-hl-y 를 ★견준다. */
+  const _hlY = Math.min(40, Math.max(-40, parseInt(tb.style.getPropertyValue('--tb-hl-y'), 10) || 0));
+  /* ★밑줄 손잡이 셋(2026-10-08 현빈 「언더라인 기능도 ★두께 조절」) — ★정본은 ★--tb-ul-* ★하나씩.
+     ★★''(빈 문자열)을 ★그대로 넘긴다 = ★«아무도 안 정했다» ⇒ 칸이 비고 placeholder 가 「자동」을 보인다.
+     ⛔`|| 0` 으로 ★메우지 마라 — 0 은 ★«정했다»가 되어 CSS 의 auto 를 ★끈다(안 만진 글에서 그림이 바뀐다). */
+  const _ulRaw = (n) => (tb.style.getPropertyValue(n) || '').trim();
+  const _ulNum = (n) => { const v = _ulRaw(n); if (!v || v === 'auto') return ''; const f = parseFloat(v); return Number.isFinite(f) ? f : ''; };
+  const _ulThick  = _ulNum('--tb-ul-thick');
+  const _ulOffset = _ulNum('--tb-ul-offset');
+  /* ★색은 ★스와치가 «지금 무슨 색인가»(진실)여야 한다 — 안 고르면 CSS 기본이 currentColor 라 ★글자색이 그 답이다
+     (점 색과 ★같은 갈래 · buildFillSectionHtml 머리말의 그 규약). */
+  const _ulColorRaw = _ulRaw('--tb-ul-color');
   // ⑨ 서식 버튼 — 블록 전체에 걸린 인라인 서식 여부(부분 서식은 selection 기준이라 여기서 안 본다)
-  const isHighlight   = !!(contentEl.style.backgroundColor && contentEl.style.backgroundColor !== 'transparent');
+  /* ★켜짐 판정은 «식»을 여기 두지 않는다 — 정본은 prop-text-wireup-text-edit.js 의 isHighlightOn 하나.
+     단추 표시(여기)와 토글 방향(거기)이 갈리면 ★옛 형광펜을 지우고 새로 칠하는 사고가 난다. */
+  const isHighlight   = isHighlightOn(contentEl);
+  /* ★점 찍기(⑥ · 2026-10-08 수지 — ⚠️출처 2차) — 정본은 ★.text-block 의 인라인 --tb-dot-* ★하나씩
+     (형광펜 --tb-hl-* 과 ★같은 규약. ⛔사본을 dataset 에 두지 않는다).
+     ★켜짐 판정의 «식»은 여기 두지 않는다 — 정본은 prop-text-wireup-text-edit.js 의 isDotOn 하나.
+     ★★수 네 개의 ★참값은 ★css/editor-layout.css 의 --tb-dot-* 기본값이다.
+       ⇒ ★여기 4·0·0·0 을 다시 적지 «않고» getComputedStyle 로 ★거기서 뽑는다(명부 둘 방지).
+       ⚠️아래 `?? 0` 은 «CSS 가 안 실린 판»의 바닥일 뿐이다 — 브라우저에선 늘 CSS 기본값이 온다.
+         「패널 값이 CSS 에서 파생한다」는 tests/dom/text-dot-over.dom.spec.js D3 의 ★전제가 잰다
+         (패널 칸 값 + 'px' === getComputedStyle 의 --tb-dot-size — 둘 다 ★런타임에서 읽는다). */
+  const isDot = isDotOn(contentEl);
+  const _tbCs = window.getComputedStyle(tb);
+  const _dotNum = (v) => { const n = parseInt(_tbCs.getPropertyValue(v), 10); return Number.isFinite(n) ? n : 0; };
+  const dotSize = _dotNum('--tb-dot-size');
+  const dotGap  = _dotNum('--tb-dot-gap');
+  const dotX    = _dotNum('--tb-dot-x');
+  const dotY    = _dotNum('--tb-dot-y');
+  /* ★스와치는 «지금 무슨 색인가»(진실)다 — 안 고르면 CSS 기본값이 currentColor 라 ★글자색이 그 답이다.
+     (buildFillSectionHtml 머리말의 그 갈래: 스와치=진실 / hex 칸=누가 정했나.) */
+  const _dotColorRaw = (tb.style.getPropertyValue('--tb-dot-color') || '').trim();
+  const dotColor = /^(#|rgb)/i.test(_dotColorRaw) ? _dotColorRaw : currentColor;
 
   // 위치/크기 — text-frame(래퍼)이 position/size를 보유
   const _tf         = tb.closest('.frame-block[data-text-frame="true"]');
@@ -179,9 +226,23 @@ export function showTextProperties(tb) {
     shadow,
     isLiner,
     isStrike,
+    isUnderline,
+    isDot,
     isBold,
     isItalic,
     isHighlight,
+    /* ★색 칸 마크업은 «여기»서 만든다 — _typo-section.js 는 마크업만 내는 순수 함수라 color-picker 를
+       import 하면 안 된다(단위 하네스가 vm 에 그 모듈을 안 올려 골든이 통째로 빨강이 된다. 2026-10-06 실측). */
+    hlColorHtml: colorFieldHTML({ idPrefix: 'txt-hl-color', hex: currentHighlightColor, alpha: parseAlphaFromColor(currentHighlightColor) || 100 }),
+    hlH: _hlH,
+    hlY: _hlY,
+    /* ★점 «색 칸»도 같은 까닭으로 ★여기서 만든다(⑥) — _typo-section.js 는 color-picker 를 import 하면 안 된다. */
+    dotColorHtml: colorFieldHTML({ idPrefix: 'txt-dot-color', hex: dotColor, alpha: parseAlphaFromColor(dotColor) || 100 }),
+    dotSize, dotGap, dotX, dotY,
+    /* ★밑줄 «색 칸»도 ★같은 까닭으로 ★여기서 만든다 — _typo-section.js 는 color-picker 를 import 하면 안 된다. */
+    ulColorHtml: colorFieldHTML({ idPrefix: 'txt-ul-color', hex: (/^(#|rgb)/i.test(_ulColorRaw) ? _ulColorRaw : currentColor), alpha: parseAlphaFromColor(/^(#|rgb)/i.test(_ulColorRaw) ? _ulColorRaw : currentColor) || 100 }),
+    ulThick: _ulThick,
+    ulOffset: _ulOffset,
     isOverlayBlock,
   });
 
@@ -195,12 +256,14 @@ export function showTextProperties(tb) {
   wireFontSection({ propPanel, ctx });
   // 라이너 블록은 Type 토글 숨김 — 클릭 시 contentEl.className 교체로 .tb-liner가 깨지는 회귀 방지 (M2)
   if (!isLiner) wireTypeSection({ tb, propPanel, ctx });
+  wireBulletStyleSection({ propPanel, ctx });   // T7 — 절이 없으면(불릿 아니면) 아무것도 안 한다
+
   wireLabelSection({ ctx });
   wireAlignSection({ tb, ctx, propPanel, isIconText });
   wireTextEditSection({ tb, ctx, currentColorAlpha });   // tb: 0920b textgrad-bar — 캔버스 그라데이션 바 대상 블럭
   wireSpacingSection({ ctx, isLiner }); // M6b: 라이너는 자간 바인딩 스킵(우리 슬라이더 단일소스)
   wireShadowSection({ ctx, initial: shadow });
-  window.wireFxReflectSection?.(tb, 'txt', () => showTextProperties(tb));   // ★E1 Effects — 절이 없으면 아무것도 안 한다
+  window.wireFxSection?.(tb, 'txt', () => showTextProperties(tb));   // ★E1 Effects — 절이 없으면 아무것도 안 한다
   if (!isOverlayTb) wirePositionSection({ tb });
   if (!isOverlayTb) wirePaddingSection({ tb, phLinked });
   if (!isOverlayTb) wireOverlaySection({ tb });

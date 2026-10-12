@@ -21,6 +21,20 @@
  *   P6·P7 이 `_gridLineHtml`·`renderGridBlock` 을 파싱해 «렌더러가 읽는 것»을 뽑고 상수와 맞춘다.
  *   ★생성이 아니라 «대조»인 이유: 생성하면 증인이 둘에서 하나로 준다 — 상수가 틀리면
  *     설명도 자신 있게 같이 틀리고 아무 검사도 안 빨개진다.
+ *
+ * ══ ⛔★★이 파일을 고치러 온 사람에게 — ★`js/blocks/grid-block.js` 의 ★«주석»도 ★이 파일의 입력이다 ══
+ *   ★이 파일의 자들은 ★그 소스를 ★«글자»로 훑는다. ⛔그래서 ★코드와 주석을 ★구분하지 ★못한다:
+ *     · ★P6·P7 — 함수 본문에서 `줄객체.필드` 꼴을 ★정규식으로 뽑아 ★명부와 맞춘다
+ *     · ★P8    — 소스의 ★특정 문자열을 ★«변이 닻»으로 삼아 한 글자를 갈아친다
+ *   ⇒ ★★`grid-block.js` 의 ★주석에 ★「점 뒤에 필드 이름」 꼴 ★예시를 적으면 ★그것이 ★«렌더러가
+ *     읽는 필드»로 ★집계되어 ★P6 이 ★빨개진다. ★제품 코드를 ★한 줄도 안 바꿔도 그렇다.
+ *   ★★실측(2026-10-07 · G20 원 안 글자): ★그 일이 ★실제로 났다. 「P6 은 초록 그대로다」를
+ *     ★설명하려고 쓴 주석의 ★예시 하나가 ★P6 을 ★깨뜨렸다 — ★기계적 추론은 맞았고 ★산문이 틀렸다.
+ *   ⛔★그때 이 함정은 ★«P8 한 자리»에만 경고로 붙어 있었다(그 가지의 ⛔주석). ⇒ ★사정거리 밖이라
+ *     ★읽고도 ★P6 에서 다시 밟았다. ⇒ ★★그래서 경고를 ★«파일 머리말»로 올렸다(지디 2026-10-07 ㉡).
+ *   ★처방 둘:
+ *     ⑴ `grid-block.js` 주석에서 ★필드 이름은 ★«말»로 적어라(「이 함수가 읽는 줄 필드 이름의 집합」).
+ *     ⑵ ★「제품 0줄인데 이 파일이 빨개졌다」면 ★먼저 물어라 — ★«내가 글로 쓴 것»이 ★그 자의 입력인가.
  */
 'use strict';
 const { test, before } = require('node:test');
@@ -76,13 +90,25 @@ async function loadGrid(src = RAW) {
   src = src.replace("from '../grid-cell-resize.js'", 'from ' + JSON.stringify(pathToFileURL(gcrAlias).href));
   assert.notEqual(src, before2, '★grid-cell-resize.js import 를 못 찾았다 — 행높이 상한 SSOT 가 끊겼나?');
 
+  /* ★공용 sanitizer(수지⑦ 2026-10-08) — ★그리드가 ★세 번째 소비자가 되며 ★새 import 가 생겼다.
+     ★소스를 ★임시 디렉터리로 ★옮겨 얹으므로 ★상대 import 가 ★안 풀린다 ⇒ ★grid-cell-resize 와
+     ★★똑같은 방식으로 ★실물을 ★복사해 ★별칭을 ★꽂는다(⛔스텁이 아니다 — ★실물이라야
+     ★허용목록이 ★진짜 그 값이고, ★사본을 ★따로 적으면 ★명부가 둘이 된다).
+     ★`assert.notEqual` 을 ★같이 둔다 — ★그 import 가 ★사라지면 ★이 하네스가 ★조용히 통과하지 않고
+     ★「리팩터링됐나?」로 ★죽어야 한다(★grid-cell-resize 줄과 ★같은 규약). */
+  const srtAlias = path.join(os.tmpdir(), `srt-pcr-${tag}.mjs`);
+  const before3 = src;
+  src = src.replace("from '../util/sanitize-rich-text.js'", 'from ' + JSON.stringify(pathToFileURL(srtAlias).href));
+  assert.notEqual(src, before3, '★sanitize-rich-text.js import 를 못 찾았다 — 부분 서식 공용 모듈이 끊겼나?');
+  fs.copyFileSync(path.join(ROOT, 'js', 'util', 'sanitize-rich-text.js'), srtAlias);
+
   fs.copyFileSync(path.join(ROOT, 'js', 'grid-cell-resize.js'), gcrAlias);
   const alias = path.join(os.tmpdir(), `grid-pcr-${tag}.mjs`);
   fs.writeFileSync(alias, src);
   globalThis.document = makeFakeDom();
   globalThis.window = {};
   const mod = await import(pathToFileURL(alias).href);
-  fs.unlinkSync(alias); fs.unlinkSync(gcrAlias);
+  fs.unlinkSync(alias); fs.unlinkSync(gcrAlias); fs.unlinkSync(srtAlias);
   return mod;
 }
 

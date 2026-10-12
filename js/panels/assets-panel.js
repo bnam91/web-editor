@@ -105,7 +105,7 @@ function _assetsBindGlobalKeydown() {
       '.shape-block.selected, .speech-bubble-block.selected, .canvas-block.selected, ' +
       '.banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
       '.icon-block.selected, .vector-block.selected, .step-block.selected, ' +
-      '.laurel-block.selected, .gradient-block.selected, ' +
+      '.laurel-block.selected, .coupon-block.selected, .quote-block.selected, .gradient-block.selected, ' +
       '.sticker-block.selected, .zoom-block.selected, .joker-block.selected, .chat-block.selected, .qa-block.selected');
     // ⚠️ SSOT window.CANVAS_SEL_BLOCKS_AND_SHAPE는 '블럭 전용'이라 섹션/col/frame/group을 포함하지 않는다
     //    (editor.js:1701 블럭 수집 용도). 섹션 선택 상태에서 Backspace 시 자산 삭제 모달이 잘못 뜨고
@@ -1061,7 +1061,7 @@ async function _assetsShowImportModal() {
   if (gallery.length === 0) {
     body.innerHTML = `<div class="assets-import-empty">AI Images 갤러리에 이미지가 없습니다.</div>`;
   } else {
-    const sorted = [...gallery].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    const sorted = [...gallery].sort(window.galleryByCreatedAtDesc);   /* ★정렬식의 ★«한 자리» = ★`js/panels/_gallery-sort.js` (C11) — ⛔여기 ★다시 적지 ★마라 */
     sorted.forEach(item => {
       const cell = document.createElement('div');
       cell.className = 'assets-import-cell';

@@ -272,6 +272,79 @@ export function syncTableHeaderTone(block) {
 const GRAPH_AUTO_VARS = ['--grb-auto-grid', '--grb-auto-line', '--grb-auto-ink', '--grb-dot-hole'];   // K6 — 속빈 점 구멍 = 바탕색(파생 · 저장에서 걷힘)
 /* ★저장에서 걷을 «파생 변수»의 정본 = 이 파일이 «쓰는» 이름들(쓰는 자가 목록을 낸다 · 두 번째 목록 금지).
    io/section-serialize.js 가 이것을 그대로 읽는다 — 여기 새 자동 변수를 보태면 저장에서도 저절로 걷힌다. */
+/* ═══ T6 ★「체커 어둡게 → 섹션 «안» 글자 밝기 자동」 — 현빈 2026-10-07 ══════════════════════
+ * 원문: 「★체커 어둡게 기능을 켜면, ★안에 텍스트도 ★밝기 자동바꾸기 (★특정 컬러 지정되어있으면 ★★예외)」
+ * 판정(지디 2026-10-07): ★대상 = ⒜ ★섹션 ★직속 텍스트 블럭 · ★길 = ★«좁은 길» · 예외 = ★인라인 판정.
+ *
+ * ★★왜 ★`backdropRgbAt` 을 ★안 쓰나 (실측 2026-10-07)
+ *   체커는 ★`repeating-conic-gradient` = ★`backgroundImage` 다. 그런데 그 함수는
+ *   ★`if (cs.backgroundImage !== 'none') return null` 로 ★★null 을 준다 ⇒ ★대비 계산이 ★안 선다.
+ *   ★행위로 확인했다 — ★관측자를 ★손으로 깨워도(style 변경) ★글자가 ★안 바뀌었다.
+ *   ⛔그 함수를 ★넓히지 않는다: ★소비자가 ★9파일이라 ★링크 연결선·표 헤더·그래프 톤이 ★같이 움직인다.
+ *   ⇒ ★★대신 ★★체커 색이 ★사는 자리를 ★직접 본다 — ★CSS 변수 `--goya-checker-secbg-a/b`
+ *     (★실측: 끔 `#d8d8d8/#f0f0f0` → ★켬 `#7c7c7c/#949494`). ★그게 ★이 카드의 ★좁은 길이다.
+ *   ⇒ ★`backdropRgbAt` 을 ★배경이미지에서도 ★대표색을 내게 넓히는 일은 ★★별건이다(소비자 9 전수가 먼저).
+ *
+ * ★★왜 ★«인라인에 색을 쓰지 않고» ★클래스를 붙이나 — ★★그러면 ★자기 꼬리를 먹는다:
+ *   「지정했나」를 ★인라인으로 가르는데 ★자동 전환이 ★인라인에 쓰면 ★다음 판정이 ★그것을 ★«사람이 지정»으로 읽는다.
+ *   ⇒ ★JS 는 ★★판정만 하고 ★클래스를 붙인다. ★값은 ★★CSS 한 자리(css/editor-layout.css 의 그 절).
+ *   ⇒ ★인라인이 ★있는 블럭은 ★★건드리지 않는다 — ★그게 현빈이 말한 ★「특정 컬러 지정되어있으면 예외」다.
+ *   ⛔「기본색과 같으면 안 지정」으로 ★재지 않는다 — ★사람이 ★기본색을 ★일부러 골랐을 수 있다
+ *     (★같은 결의 판정을 ★이 레인이 ★T7 불릿에서도 썼다 — ★한 레인에 ★두 관용구를 만들지 않는다).
+ *
+ * ★★관측자(installTextToneObserver)를 ★안 건드린다 — ★그 자의 `attributeFilter` 에는 `data-checker-tone` 이
+ *   ★없고 대상도 ★grid·table·graph ★셋뿐이다. ★넓히면 ★그 셋이 ★체커에서 깨어나 ★★별건(⒝)을 건드린다.
+ *   ⇒ ★대신 ★부르는 자리 ★둘에서 ★직접 부른다: ★토글(js/props/prop-section.js) ＋ ★로드(js/io/save-load.js).
+ *   ⚠️그래서 ★«그 둘 밖»의 경로로 체커 톤이 바뀌면 ★안 돈다 — ★지금 그 둘뿐이다(실측: 토글 문 ★하나).
+ * ⛔CLASS 이름을 ★여기 한 자리에만 둔다 — CSS·검사가 ★이 상수를 ★가리킨다. */
+export const TONE_AUTO_LIGHT_CLASS = 'tone-auto-light';
+/* ★★«섹션 직속»을 ★«경로»로 좁히지 않는다 — ⛔내가 ★그 꼴로 ★틀렸다(2026-10-07 실측):
+ *   `addTextBlock` 이 넣는 실제 경로는 ★`section-inner > ★frame-block > text-block` 이었다(★row 안이 아니다).
+ *   ⇒ 내가 적은 `… > .row > .text-block` 과 `… > .text-block` 은 ★둘 다 ★0개를 잡았다 ⇒ ★C1~C4 ★4/4 빨강.
+ *   ⇒ ★★경로를 ★하나 더 적어 고치면 ★또 다른 경로를 ★놓친다(글자 프레임·행·맨몸·그룹…).
+ * ⇒ ★★그래서 ★«포함»이 아니라 ★«제외»로 가른다: ★섹션 안 글자 ★전부에서
+ *   ★★«자기 톤 기계를 ★이미 가진 블럭» 안에 있는 것만 ★뺀다.
+ * ★★그 셋의 명부는 ★관측자(installTextToneObserver)가 보는 것과 ★★같아야 한다 ⇒ ★상수 하나로 뺐다.
+ *   ⛔둘로 두면 조용히 갈라진다 — 그리드가 명부에서 빠지면 ★이 자가 그리드 안 글자까지 덮는다(그게 ⒝ 별건을 침범한다). */
+export const OWN_TONE_BLOCK_SEL = '.grid-block, .table-block, .graph-block';
+/** 그 블럭 안에서 «색이 사는» 요소 — text-block-color.js 가 `style.color` 를 쓰는 바로 그 자리와 같은 셀렉터. */
+const _CONTENT_SEL = '.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet';
+
+/** 이 섹션이 «체커 어둡게»인가 — ★둘이 다 서야 한다(톤 dataset ＋ 체커가 실제로 깔렸나).
+ *  ⚠️`sec-bg-empty` 가 없으면 ★체커가 ★안 그려진다(실측 2026-10-07: 그 클래스 없으면 bgImage none)
+ *    ⇒ 그때 글자를 밝게 하면 ★흰 배경에 ★흰 글자가 된다. ★그래서 둘을 ★같이 본다. */
+export function sectionCheckerIsDark(sec) {
+  return !!sec && sec.dataset?.checkerTone === 'dark' && !!sec.classList?.contains('sec-bg-empty');
+}
+
+/** 섹션 직속 글자의 자동 밝기를 맞춘다. ⛔인라인 색이 «있는» 요소는 건드리지 않는다(현빈의 예외).
+ *  @returns {{on:boolean, marked:number, skipped:number}} — ★`skipped` = 지정 컬러라 비켜간 수(검사가 이 수를 본다). */
+export function syncSectionCheckerTextTone(sec) {
+  if (!sec || !sec.querySelectorAll) return { on: false, marked: 0, skipped: 0 };
+  const on = sectionCheckerIsDark(sec);
+  let marked = 0, skipped = 0;
+  sec.querySelectorAll('.text-block').forEach(tb => {
+    /* ★자기 톤 기계를 가진 블럭 «안»이면 건너뛴다 — 그 셋은 각자 자기 길이 있다(⒝ 별건). */
+    if (tb.closest(OWN_TONE_BLOCK_SEL)) return;
+    tb.querySelectorAll(_CONTENT_SEL).forEach(el => {
+      /* ★「지정했나」 = ★인라인 `style.color` 가 비었나. ⛔computed 금지(기본값과 못 가른다). */
+      const picked = !!(el.style && String(el.style.color || '').trim());
+      if (picked) { el.classList.remove(TONE_AUTO_LIGHT_CLASS); skipped++; return; }
+      if (on) { el.classList.add(TONE_AUTO_LIGHT_CLASS); marked++; }
+      else el.classList.remove(TONE_AUTO_LIGHT_CLASS);
+    });
+  });
+  return { on, marked, skipped };
+}
+/** 캔버스 전체 — 로드 뒤 한 번. ⛔관측자를 새로 달지 않는다(위 ★★ 참조). */
+export function syncAllSectionCheckerTextTone(root) {
+  const r = root || (typeof document !== 'undefined' ? document.getElementById('canvas') : null);
+  if (!r) return 0;
+  let n = 0;
+  r.querySelectorAll('.section-block').forEach(s => { syncSectionCheckerTextTone(s); n++; });
+  return n;
+}
+
 export const DERIVED_AUTO_VARS = ['--tbl-header-fg', ...GRAPH_AUTO_VARS];
 const _rgbOfCss = (v) => { const c = _parseWithAlpha(String(v || '')); return c && c.a > 0 ? c.rgb : null; };
 const _mixRgb = (a, b, t) => a.map((x, i) => x * (1 - t) + b[i] * t);
@@ -374,7 +447,7 @@ export function installTextToneObserver(root, { onGrid } = {}) {
     if (el.classList.contains('grid-block')) out.add(el);
     else if (el.classList.contains('table-block')) out.add(el);
     else if (el.classList.contains('graph-block')) out.add(el);   // H6
-    else el.querySelectorAll?.('.grid-block, .table-block, .graph-block').forEach(b => out.add(b));
+    else el.querySelectorAll?.(OWN_TONE_BLOCK_SEL).forEach(b => out.add(b));
   };
   _toneObs = new MutationObserver((muts) => {
     const hit = new Set();

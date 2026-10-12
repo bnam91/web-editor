@@ -87,6 +87,9 @@
   </div>
   <!-- 검색 바 + 섹션 추가 버튼 (중간) -->
   <div class="tpl-browser-search-wrap">
+    <select class="tpl-browser-search-mode tpl-browser-sort" id="tpl-browser-sort" title="정렬 기준">
+      <!-- ★★비어 있다 — ★★`<option>` 은 ★`_tpl-sort.js` 의 ★명부에서 ★그린다(⛔두 벌로 두지 않는다) -->
+    </select>
     <select class="tpl-browser-search-mode" id="tpl-browser-search-mode" title="검색 기준">
       <option value="all">전체</option>
       <option value="name">파일명</option>
@@ -97,6 +100,20 @@
     </svg>
     <input class="tpl-browser-search" id="tpl-browser-search" type="text" placeholder="검색...">
     <button class="tpl-browser-insert-btn" id="tpl-browser-insert-btn">+ 섹션 추가</button>
+    <!-- ⛔⛔★★★«↻ 섹션 변경» 단추는 ★★이 창에 ★★★두지 ★않는다 (★지디 ㉠ · 2026-10-11)
+         ★★까닭 — ★★이 창엔 ★★★`id="canvas"` 가 ★★없다(★실측 ★0건 · ★`index.html` 은 ★1건).
+           ⇒ ★`_syncInsertBtn()` 의 ★`#canvas .section-block.selected` 가 ★★★항상 ★0
+           ⇒ ★`ok = !!_browserSelected && secN === 1` 이 ★★★항상 ★false ⇒ ★★영영 ★`disabled`
+         ★★그리고 ★★배선도 ★없다 — ★★이 창의 ★교체는 ★★IPC 를 ★타야 하는데 ★★둘 다 ★`opts` 를 ★안 받는다:
+           ★`pages/template-browser.html:195`  window.insertTemplate = async (tpl) => …
+           ★`preload.js:78`                   insertTemplateInMain:(id) => …
+         ⇒ ★★★그러니 ★★★«있으나 ★못 쓰는 ★단추»였다. ★★뜻 없는 단추는 ★안 그린다.
+         ★★★「추가는 ★되는데 ★변경은 ★눌리지도 ★않는다」가 ★★사용자가 ★본 ★꼴이다 —
+           ★★`+ 섹션 추가` 는 ★★`:202` 에서 ★★IPC 로 ★메인 창에 ★넣어 ★★돈다. ⇒ ★★비대칭이었다.
+         ★★★잠그는 자 = ★`tests/unit/tpl-browser-two-windows.test.mjs` ★B7·B8
+           ★★★B8 은 ★★«풀 ★조건»을 ★★★행위로 ★잰다 — ★`preload.js` 의 ★`insertTemplateInMain`
+           ★★서명이 ★★둘째 인자를 ★받게 ★되면 ★★B8 이 ★★빨개진다. ⇒ ★★그때 ★이 결정을 ★다시 ★보라.
+         ⇒ ★★★㉡(★별창도 ★IPC 로 ★교체)는 ★★별건이다 — ★★`1011t1b2-c` · ★★⛔내 ★판단으로 ★착수 ★안 한다 -->
   </div>
   <!-- 태그 칩 필터 (태그 모드일 때만 표시) -->
   <div class="tpl-browser-tag-chips" id="tpl-browser-tag-chips" style="display:none"></div>
@@ -112,7 +129,26 @@
    전역 셔밍 — ★template-browser.js 를 «그대로» 쓰기 위한 최소 받침대.
 
    그 파일은 import 가 0 개이고 바깥 의존이 넷뿐이다:
-     loadTemplates(8) · insertTemplate(4) · deleteTemplate(1) · _loadCanvas(1)
+     loadTemplates(7) · insertTemplate(3) · deleteTemplate(1) · _loadCanvas(1)
+   ⚠️★이 수는 ★★손으로 적지 ★마라 — ★★`tests/unit/popout-shim-deps.test.mjs` 의 ★★`P1` 이
+     ★★이 줄을 ★파싱해 ★★`template-browser.js` 의 ★★참 호출 수와 ★대조한다(★주석을 ★걷고 센다).
+     ★★★셈법(★261012 · ★지디 요구) — ⛔눈으로 ★세지 ★말고 ★★이 식으로 ★뽑아라.
+       ★★자와 ★★★같은 셈법이다(★주석을 ★걷고 ★이름 뒤 ★여는 괄호를 ★센다):
+         node -e "const{stripComments}=require('./tests/unit/_strip-comments.js');
+                  const fs=require('fs');
+                  const c=stripComments(fs.readFileSync('js/panels/template-browser.js','utf8'));
+                  for (const n of ['loadTemplates','insertTemplate','deleteTemplate','_loadCanvas'])
+                    console.log(n, (c.match(new RegExp('\\b'+n+'\\s*\\(','g'))||[]).length)"
+       ★★판별로 ★견주려면 ★★`git show <sha>:js/panels/template-browser.js` 를 ★같은 식에 ★먹여라.
+       ★★★261012 ★실측: ★그 수가 ★★6→7 로 ★늘었다. ★★더한 자는 ★★`_replaceEligibility`(★C3)이고
+         ★★★그 커밋이 ★★이 줄을 ★★안 고쳐 ★★CI 의 ★단위 검사가 ★죽었다(★t1bstar 가 ★제 흠을 ★찾았다).
+     ⚠️★★★이 자리의 ★구조적 ★흠 — ★★★«명부가 ★둘»이다(★소스 ★하나 · ★이 주석 ★하나).
+       ⇒ ★★옳은 ★꼴은 ★★★«파생»이다: ★★자가 ★소스에서 ★세고 ★★★이 줄을 ★★안 읽는 것.
+       ⇒ ★★그러면 ★★이 줄은 ★★사람용 ★설명으로만 ★남고 ★★★썩어도 ★검사를 ★안 깬다.
+       ⇒ ⛔지금 ★고치지 ★않는다 — ★★릴리스 ★뒤 ★일감(★지디 ★명부).
+     ★★★첫 판은 ★★`loadTemplates(8)·insertTemplate(4)` 였고 ★★둘 다 ★틀렸다 —
+       ★★그리고 ★★★전부터 ★틀렸다(★`origin/dev` 와 ★★같은 값이었다) ⇒ ★★어느 diff 가 ★만든 게 ★아니다.
+       ★★지디가 ★★게이트에서 ★잡았다(2026-10-11) ⇒ ★★★그래서 ★★자를 ★세웠다.
    넷의 «정의»는 template-system.js 에 있는데 그 파일은 `import { canvasEl }` 로
    편집기에 묶여 있어 이 창에 실을 수 없다(실으면 편집기를 통째로 끌고 온다).
    ⇒ 그래서 «데이터원만» IPC 로 갈아 끼운다. 렌더 코드는 원본 그대로 돌아가고,
@@ -199,6 +235,15 @@ window.insertTemplate = async (tpl) => {
 </script>
 
 <!-- ★원본을 «그대로» 싣는다(복사 아님) — 이게 「기존 레이아웃 그대로」의 실체다. -->
+<!-- ⛔⛔★이 줄을 ★지우지 ★마라 — ★★★이 창에선 ★★C11 부터 ★★0건이었고 ★★증상이 ★★없었다(★기본 경로가 ★안 부른다).
+     ★★`recent`·`name` 을 ★고르면 ★★`byCreatedAtDesc` 가 ★없어 ★★던진다 ⇒ ★★★카드 그리기가 ★통째로 ★죽는다.
+     ★★2026-10-11 ★격리 앱 실측: ★이 줄이 ★있으면 ★★별창 ★카드 ★22건 · ★오류 ★0건 (★출처= ★내가 셌다 · ★격리 Electron 회차 · ⛔로그 파일 ★없음).
+       ⇒ ★★다시 재려면 ★★격리 앱을 ★다시 띄워 ★세야 한다. ★★이 수를 ★★«1차 출처»로 ★★쓰지 ★마라.
+     ★잠그는 자 = ★tests/unit/tpl-two-windows-scripts.test.mjs ★S3·S2 -->
+<script src="../js/panels/_gallery-sort.js"></script><!-- ★★`_tpl-sort.js` 가 ★이 자의 ★`byCreatedAtDesc` 를 ★부른다 — ⛔빠지면 ★별창의 ★기본 정렬이 ★던진다(★261011 실측) -->
+<script src="../js/panels/_tpl-nav.js"></script><!-- ★방향키 순수 핵(D·b1) — ★원본을 그대로 싣는다 -->
+<script src="../js/panels/_tpl-sort.js"></script><!-- ★정렬 명부 한 자리(F) — ★원본을 그대로 싣는다 -->
+<script src="../js/panels/_tpl-search.js"></script><!-- ★검색 식 한 자리 — ★원본과 ★같은 자를 ★그대로 싣는다(복사 아님) -->
 <script src="../js/panels/template-browser.js"></script>
 
 <script>

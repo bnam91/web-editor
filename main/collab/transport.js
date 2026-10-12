@@ -2,6 +2,7 @@
    collab/transport.js — 협업 서버와의 «말하는 방법»만 담는다.
    ───────────────────────────────────────────────────────────────────────────
    ★왜 분리했나
+     ⚰️(2026-10-06: 지금 서버는 Cloudflare 뒤 EC2 — 아래 「Vercel」은 그때의 사실. 크기 천장 실측은 index.js register 주석)
      지금 서버는 Vercel 서버리스라 **WebSocket 을 못 받는다**. 그래서 2초 HTTP 폴링으로
      시작한다. 나중에 상시 서버(WS)로 옮길 때 «도메인 로직(index.js)은 안 건드리고»
      이 파일만 갈아끼우려고 경계를 여기에 뒀다.
@@ -56,7 +57,7 @@ async function request(pathname, body) {
       signal: ctl.signal,
     });
     let json = null;
-    try { json = await res.json(); } catch (_) { json = null; }
+    try { json = await res.json(); } catch (_) { json = null; }   // 본문이 JSON 이 아니면 null — index.js call() 이 not_deployed/bad_response 로 «말한다»
     return { status: res.status, json };
   } finally {
     clearTimeout(timer);

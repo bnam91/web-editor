@@ -328,6 +328,26 @@
 .text-block .tb-body   { font-size: 36px;  color: var(--preset-body-color);    font-family: var(--preset-body-family);   line-height: 1.6; }
 .text-block .tb-caption { font-size: 26px; color: var(--preset-caption-color); font-family: var(--preset-body-family);   line-height: 1.6; letter-spacing: 0.01em; }
 
+/* ═══ T6 ★「체커 어둡게 → 섹션 «안» 글자 밝기 자동」 — 현빈 2026-10-07 ════════════════════
+   ★클래스는 ★JS 가 «판정해서» 붙인다(js/canvas-contrast.js syncSectionCheckerTextTone) —
+     ★인라인 `style.color` 가 ★있는 요소엔 ★안 붙는다. ★그게 현빈의 「특정 컬러 지정되어있으면 예외」다.
+   ★★값을 ★여기 한 자리에 둔다 — ⛔JS 에 표를 또 만들지 않는다(명부 둘 금지).
+   ★값의 출처: ★이 레포가 ★이미 고른 «어두운 배경 위 역할색» 표와 ★같은 값이다
+     (js/blocks/grid-block.js `_GRID_ROLE_COLOR_ON_DARK` — G5 · 현빈 2026-10-03).
+     ⇒ ★새 값 ★0. ★두 자리가 같은지는 ★tests/unit/tone-auto-light-values.test.mjs 가 ★잰다(경고 주석 대신 재는 자).
+   ★근거(WCAG · 어두운 체커 `#7c7c7c/#949494` 중 ★낮은 쪽 #7c7c7c 기준 — css/editor-base.css 그 절의 표):
+     #fff 3.03 · #f2f2f2 ≈2.8 · #ccc ≈2.0  ⇒ ⚠️작은 글자 4.5 를 ★못 넘는다.
+     ⛔그래도 ★값을 ★새로 만들지 않는다 — ★체커는 ★편집 전용 자리표시이고(내보내기에 안 나간다)
+       ★사람이 원하면 ★인라인으로 고를 수 있다(그때는 이 클래스가 ★안 붙는다). ★범위를 넓히지 않는다.
+   ⛔`tb-bullet` 은 그 표에 ★없다 — ★body 와 같은 폰트 베이스라 ★body 값을 쓴다(아래 bullet 규칙과 같은 결). */
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block .tb-h1.tone-auto-light,
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block .tb-h2.tone-auto-light,
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block .tb-h3.tone-auto-light { color: #ffffff; }
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block .tb-body.tone-auto-light,
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block .tb-label.tone-auto-light,
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block ul.tb-bullet.tone-auto-light { color: #f2f2f2; }
+#canvas .section-block[data-checker-tone="dark"].sec-bg-empty .text-block .tb-caption.tone-auto-light { color: #cccccc; }
+
 /* tb-bullet — <ul> 변형. 디스크 글머리 + body와 동일한 폰트 베이스 */
 .text-block ul.tb-bullet {
   font-size: 36px;
@@ -364,44 +384,179 @@
   justify-content: center;
 }
 
-/* ── 텍스트 형광펜 / 밑줄 애니메이션 ── */
-@keyframes tb-highlight-in {
-  from { transform: scaleX(0); }
-  to   { transform: scaleX(1); }
+/* ── 텍스트 형광펜 «획» (2026-10-06 현빈 tb_5bkw8dq: 「하이라이트 기능은 ★텍스트 길이만큼 해주고,
+     ★색변경 및 ★하이라이트 바 높이 조절가능하게」) ─────────────────────────────────────────
+   ★한 기전으로 셋을 다 덮는다 — 인라인 span 에 «아래에서 올라오는» 그라데이션:
+     길이 = span 이 «글자»를 감싸니 글자 길이 그대로(여러 줄이면 ★줄마다 그 줄 길이)
+     색   = --tb-hl-color      높이 = --tb-hl-h (글자 상자 높이의 %)
+   ★두 변수는 «텍스트 블럭»(.text-block)에 인라인으로 박힌다 — 한 블럭 안 여러 span 이 같이 따라오고,
+     저장본에 그대로 실려 다시 열어도 산다.
+   ★★2026-10-08 ★정정(지디 GO) — 이 자리에 「정본은 tb.dataset.highlightColor / .highlightH 다」가
+     적혀 있었다. ★코드와 어긋난다: ★실제 정본은 ★.text-block 의 ★인라인 `--tb-hl-color` / `--tb-hl-h`
+     ★하나씩이고(위 두 줄이 말하는 그것), dataset 사본은 ★두지 않는다
+     (쓰는 자리 js/props/prop-text-wireup-text-edit.js `_hlApplyColor`·`_hlApplyH` ·
+      읽는 자리 js/props/prop-text.js `currentHighlightColor`·`_hlH` — ★dataset 은 0건).
+     ⛔되살리지 마라 — 사본을 dataset 에 두면 ★그리는 값과 패널 값이 갈린다.
+     ★왜 지금 고치나: ★주석은 «소스 파싱 게이트»의 ★입력이고, 이 파일은 ★그런 게이트 11개가 읽는다
+       (tests/unit 5 · tests/dom 6 — 전수는 커밋 메시지에). 틀린 주석을 두면 ★다음 사람이 dataset 을 만든다.
+   ⛔box-decoration-break:clone 이 ★핵심이다 — 없으면 줄바꿈된 둘째 줄에 획이 «안 그려진다»(한 상자로 쳐서).
+   ★옛 저장본 호환: 2026-10-06 이전 형광펜은 span[style="background-color:…"] 였다. 그 꼴은 그대로
+     렌더된다(건드리지 않는다) — 다시 켜면 js 쪽 _hlStripAll 이 걷고 새 꼴로 바꾼다.
+   ⛔2026-10-06 에 «죽은 코드»를 걷어냈다: .text-block[data-highlight="highlight"|"underline"]::after
+     (+ @keyframes tb-highlight-in · --tb-highlight-color). data-highlight 를 ★쓰는 코드가 레포 전수에
+     0건이었다(읽는 자리만 prop-text.js 에 둘). 되살리지 마라 — ::after 는 «글자 길이»를 모른다. */
+.text-block {
+  --tb-hl-color: var(--ui-highlight);
+  --tb-hl-h: 100%;
+  --tb-hl-y: 0px;
+}
+/* ★★획 «세로 자리» --tb-hl-y (2026-10-08 현빈: 「하이라이트(형광펜) 기능 ★바높이 ★및 y값도 조절」)
+   ★바 높이(--tb-hl-h)는 «획이 글자 상자의 몇 %를 덮나»이고, 이것은 «그 획을 위아래로 얼마나 비껴 놓나»다.
+   ★한 기전을 ★더 쓰지 않는다 — 같은 그라데이션 ★배경을 ★background-position 으로 ★민다.
+     ⇒ 양수 = ★아래로(점의 --tb-dot-y 와 ★같은 방향. 둘이 반대면 쓰는 사람이 매번 헷갈린다).
+   ⛔no-repeat 가 ★필요하다 — 기본 repeat 면 민 만큼 ★위에 획이 ★또 그려져 「두 줄」이 된다.
+     ★Y=0 에서는 그림이 상자를 꽉 채우므로 repeat/no-repeat 의 ★그림이 같다(검사 U-N2 가 그 동일성을 잰다). */
+.tb-hl {
+  background-image: linear-gradient(to top, var(--tb-hl-color) var(--tb-hl-h), transparent var(--tb-hl-h));
+  background-repeat: no-repeat;
+  background-position: 0 var(--tb-hl-y, 0px);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  border-radius: 2px;
 }
 
-.text-block[data-highlight="highlight"]::after,
-.text-block[data-highlight="underline"]::after {
+/* ── 텍스트 위 ★점 찍기(방점) (2026-10-08 수지 피드백 ⑥ · ⚠️출처는 ★2차다:
+     「텍스트 위 ★점 찍기(세 글자 선택→점 3개·간격·xy·크기·색상 변경)」) ───────────────────
+   ★★왜 표준 `text-emphasis` 가 아닌가 — 2026-10-08 헤드리스 크로미움에서 ★그려서 셌다:
+     개수 ✅ 글자 수 그대로 · 색 ✅ · over/under ✅
+     ⛔크기 = ★이산만(filled dot 4×3px · filled circle 8×8 · 문자 '●' 8×8 · '·' 2×2)
+     ⛔xy 오프셋 ★없음 · ⛔점끼리 간격 ★없음 · `font-size` 로 키우면 ★글자가 같이 줄어든다
+   ⇒ 발주서의 다섯 손잡이(점 수·간격·xy·크기·색) 중 ★둘만 준다. 그래서 ★글자마다 span ＋ ::before 로 그린다.
+   ★네 값은 «텍스트 블럭»(.text-block)에 ★인라인으로 하나씩 박힌다 — 형광펜(--tb-hl-*)과 ★같은 규약:
+     한 블럭 안에 점이 여럿이라 그 ★전부가 같은 값이어야 「점 설정」이 한 값이다.
+     ⛔사본을 dataset 에 두지 않는다(그리는 값과 패널 값이 갈리는 자리가 된다).
+   ★★「간격」의 ★뜻 = ★점끼리 ★좌우 간격으로 읽었다. ★★미확정이다 — ★발주서는 「점 3개·간격·xy·크기·색상」
+     이라고만 했고 ★출처가 ★2차다(server-manager 요약). ★그렇게 읽은 까닭 = ★xy 가 ★이미 오프셋이라
+     「점↔글자 거리」는 ★y 가 덮는다. ⇒ 남는 뜻이 ★점끼리 거리다.
+     ★지디가 수지께 ★확인을 올렸다(2026-10-08). ★답이 오면 ★이 변수의 뜻이 바뀔 수 있다.
+   ★--tb-dot-i 「만」은 ★span 마다다 — 「양쪽으로 퍼뜨리기」(간격)가 그 글자의 ★자리를 알아야 한다.
+     값 = i − (n−1)/2 (가운데 = 0) ⇒ 간격을 줘도 ★가운데 점은 제자리고, ★글자는 ★안 움직인다
+     (글자를 밀면 그건 «자간»이지 «점 간격»이 아니다 — D5 의 음성대조가 그 자리다).
+   ★기본 색 = currentColor ⇒ 안 고른 블럭의 점은 ★글자색을 따라온다(hex 가 안 굳는다 — 형광펜의 토큰 추종과 같은 뜻).
+   ⛔★이 길의 «대가» — 글자를 ★고쳐서 한 span 안에 두 글자가 들어가면 점 수가 어긋난다.
+     (`text-emphasis` 는 브라우저가 매번 다시 세서 그 병이 없지만 손잡이를 안 준다 ⇒ ★주고받은 것이다.)
+     단추를 끄고 켜면 다시 맞춰진다. tests/dom/text-dot-over.dom.spec.js D9 가 그 축을 잠근다.
+   ⚠️★잘림 — 점은 글자 상자 ★밖(위)에 그려진다. 2026-10-08 실측(computed):
+     ★`.section-inner` = `overflow: clip visible` (= overflow-x:clip · overflow-y:visible)
+       ⇒ ★세로(위)로 나가는 것은 ★안 잘린다. ★가로로 나가는 것은 ★잘린다 —
+         맨 왼쪽 글자의 점을 ★왼쪽으로 밀면(음수 x · 간격) 사라진다(실측: x 76px 의 점이 0건).
+     ★섹션 ★맨 윗줄에서는 점이 ★섹션 상자 위로 나가 ★잘릴 수 있다(실측: 여백 없는 섹션에서
+       20px 점이 ★18×6 으로 잘려 그려졌다. 기본 4px 는 안 잘린다).
+     ⇒ tests/dom/text-dot-over.dom.spec.js D12 가 그 둘을 ★재서 적는다. ⛔「안 잘린다」로 넓히지 마라. */
+.text-block {
+  --tb-dot-color: currentColor;
+  --tb-dot-size: 4px;
+  --tb-dot-x: 0px;
+  --tb-dot-y: 0px;
+  --tb-dot-gap: 0px;
+}
+/* ★★그라데이션 글자와 ★함께 쓸 때 — ★글자가 ★사라지던 자리 (2026-10-08 현빈 tb_64wad_7yqfksr:
+     「그라데이션 색지정과, 점 효과를 같이 주니까 ★텍스트가 안보이던가 버그가 있어 개선해줘」)
+   ★★«어느 쪽이 덮나»를 ★재서 가렸다(DOM 하네스 · .tb-body 상자를 ★찍어 흰색과의 거리 ≥60 픽셀 수):
+     단색·점✗ ★2278 / 그라✓·점✗ ★2315 / ★그라✓·점✓ ★354  ⇒ ★글자가 ★85% 사라진다
+   ★한 변수씩 되돌린 대조 — 셋 다 글자를 ★살린다:
+     .tb-dot 에 채움색을 주면 ★2538 · .tb-dot 을 position:static 으로 두면 ★2478 ·
+     .tb-dot 에 제 그라데이션을 상속시키면 ★2566
+   ★★판정 = ★둘 중 하나가 아니라 ★«한 쌍»이고, ★바뀐 쪽은 ★점이다:
+     ⑴ 그라데이션은 -webkit-text-fill-color:transparent 로 ★글자를 ★지우고, 글자 모양은 ★부모의
+        background-clip:text 가 ★메워 보이게 한다 ⇒ ★transparent ★혼자서는 ★무해하다(그라만 켠 판 2315 가 그 증거).
+     ⑵ 그런데 ★.tb-dot 은 ★positioned 라 ★그 글자가 ★부모의 text-clip ★밖으로 나간다
+        ⇒ ★메울 것이 ★없는 ★transparent 글자 = ★빈 구멍.
+   ⛔position:relative 는 ★버릴 수 없다 — ::before 의 left:50% 가 ★글자 가운데를 잡는 ★유일한 길이고,
+     static 으로 두면 점이 ★한 자리에 몰린다(그래서 ★구조적 긴장이다. 공짜 길은 ★없었다).
+   ⇒ ★그 글자를 ★스스로 칠한다. 색 = ★--tb-grad-fb = ★그라데이션 ★첫 스탑
+     (= js/props/text-block-color.js textGradientFallbackColor — ★html2canvas·Figma 가 ★이미 쓰는 대체색).
+     ★★부수 이득 = ★화면이 ★내보낸 PNG 와 ★같아진다.
+     ★대가 = ★점을 켠 글자는 ★그라데이션이 ★단색으로 보인다. ⛔숨기지 않는다.
+     ⛔«글자마다 제 그라데이션»(background-image:inherit)은 ★안 쓴다 — ★한 글자에 ★램프가 ★처음부터 다시 달려
+       ★«다른 버그»가 된다. ★이어 붙이려면 span 마다 offsetLeft 를 JS 로 박아야 하고 그건 ★resize·줌·글자편집에
+       ★조용히 썩는다(「신규만 적용」이 빚이 되는 그 꼴).
+   ★그라데이션이 ★없으면 --tb-grad-fb 가 ★없다 ⇒ currentColor = ★초기값과 같은 값 ⇒ ★그림이 안 바뀐다
+     (옛 저장본도 그 길로 내려앉는다 — 마이그레이션이 ★필요 없다. 검사 G-N1 이 그 동일성을 잰다). */
+.tb-dot {
+  position: relative;
+  -webkit-text-fill-color: var(--tb-grad-fb, currentColor);
+}
+/* ★부분 단색 span ★안의 점 글자는 ★그 색을 따른다 — 그 span 이 ★제 채움색을 들고 있다
+   (쓰는 자리 js/props/prop-text-wireup-text-edit.js _applyColorSpanToRange: 그라데이션 host 면
+    span 에 -webkit-text-fill-color 를 ★같이 박는다). ★표식 셀렉터는 ★레포가 이미 쓰는 그것이다
+   (같은 파일 text-block-color.js _stripSpanFill 의 [style*="text-fill-color"]) — ★명부를 ★새로 만들지 않는다. */
+span[style*="text-fill-color"] .tb-dot { -webkit-text-fill-color: currentColor; }
+.tb-dot::before {
   content: '';
   position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: var(--tb-dot-size);
+  height: var(--tb-dot-size);
+  border-radius: 50%;
+  background: var(--tb-dot-color);
+  transform: translate(calc(-50% + var(--tb-dot-x) + var(--tb-dot-gap) * var(--tb-dot-i, 0)), var(--tb-dot-y));
   pointer-events: none;
-  transform-origin: left center;
-  animation: tb-highlight-in 0.65s cubic-bezier(0.4, 0, 0.2, 1) both;
-  background: var(--tb-highlight-color, #ffeb3b);
-  border-radius: 3px;
 }
 
-/* 형광펜: 텍스트 전체 영역을 반투명 색상으로 덮음 */
-.text-block[data-highlight="highlight"]::after {
-  inset: 0;
-  opacity: 0.42;
-  z-index: 0;
+/* ── 텍스트 ★밑줄 손잡이 — ★두께·★색·★위치 (2026-10-08 현빈: 「언더라인 기능도 ★두께 조절 및 요청한게 있었을텐데」)
+   ★«요청한게»를 찾았다 — ★지디 notes 의 ★S7 「볼드/이탤릭/취소선/하이라이트 있는 ★로우에 ★기능 추가」 ★하나뿐이고
+     ★그것은 ★이미 집행됐다(그 줄의 U 단추). ⇒ ★두께 요청은 ★오늘 말이 ★유일하다. ⛔다른 과거 요청은 ★0건이다
+     (센 자리 = 지디/notes 전수 · 소스 주석 전수. 명부와 수는 보고에).
+   ★정본은 ★.text-block 의 ★인라인 --tb-ul-* ★하나씩 — ★형광펜(--tb-hl-*)·점(--tb-dot-*)과 ★같은 규약.
+     ⛔값을 «그리는 자»(contentEl·u·부분 span)마다 박지 않는다 — 부분 밑줄이 여럿이면 ★명부가 그 수만큼 늘어난다.
+   ★★왜 `.text-block *` 인가 — text-decoration-thickness·-color 는 ★상속되지 ★않아 ★«선을 그리는 그 요소»에
+     닿아야 한다. 그 요소는 ★contentEl 이거나 ★u·★부분 span 이다. ⇒ 그 명부를 CSS 에 ★다시 적으면
+     js 의 _CONTENT_SEL 과 ★둘째 명부가 되어 ★조용히 갈린다(이 레포가 앓은 그 병) ⇒ ★한 셀렉터로 덮는다.
+     ⛔그래도 ★안전한 까닭 = ★기본값이 ★auto·currentColor 로 ★초기값과 ★같다 ⇒ ★아무것도 안 정하면 ★그림이 안 바뀐다
+     (검사 U-N1 이 그 동일성을 ★픽셀로 잰다).
+   ⚠️★숨기지 않는다 — CSS 는 ★장식선 ★두께·색을 ★선별로 주지 ★못한다(한 요소에 ★한 값).
+     ⇒ ★취소선이 ★같이 켜져 있으면 ★그것도 ★같이 두꺼워지고 ★같은 색이 된다. ★칸 이름은 「밑줄」이지만
+       ★무엇에 닿는지는 ★이것이 참이다. ⛔「밑줄만 바뀐다」로 ★넓히지 마라(검사 U4 가 그 축을 ★적는다). */
+.text-block {
+  --tb-ul-thick: auto;
+  --tb-ul-offset: auto;
+  --tb-ul-color: currentColor;
+}
+/* ★★`.ts-chip-prev` 를 ★같은 선언에 ★얹는다 — ⛔칩용으로 ★또 적지 않는다.
+   ★까닭 = 「최근 밑줄」 칩은 ★글 블럭 ★밖(패널)이라 `.text-block *` 에 ★안 걸리는데,
+     ★두께·색·위치를 ★칩 쪽에 ★다시 적으면 ★그 순간 ★명부가 ★둘이 되어 ★조용히 갈린다.
+   ⇒ ★셀렉터만 ★늘리고 ★선언은 ★하나로 둔다(「경고를 달 자리 = 구조를 합칠 자리」). */
+.text-block *,
+.ts-chip-prev {
+  text-decoration-thickness: var(--tb-ul-thick, auto);
+  text-decoration-color: var(--tb-ul-color, currentColor);
+  text-underline-offset: var(--tb-ul-offset, auto);
 }
 
-/* 밑줄: 하단에 두꺼운 선 */
-.text-block[data-highlight="underline"]::after {
-  left: 20px;
-  right: 20px;
-  bottom: 24px;
-  height: 8px;
-  opacity: 0.85;
-  z-index: 0;
+/* ── 「★최근 효과」 줄 — 최근 형광펜·점·밑줄·그라데이션 (2026-10-08 현빈 「저장한 스타일도 복사할수 있게」) ──
+   ★꼴은 ★컬러의 «최근 쓴 색 줄»(css/editor-props.css:568 절)을 ★그대로 쓴다 — 줄 `.cv-chips`, 칩 `.cv-chip`.
+     ⛔그 파일에 ★안 쓴다(다른 레인이 쥐고 있다) ⇒ ★여기(내 파일)에 ★덧댄다.
+   ★★칩 ★속은 ★«그 스타일을 입힌 글자»다 — ⛔점 하나로는 ★못 가른다
+     (형광펜 한 벌은 ★색＋높이＋Y ★셋이라 ★「높이 40·Y−8」과 ★「높이 100·Y0」이 ★같은 점이 된다).
+   ★높이를 ★24 로 둔 까닭 = ★점이 ★글자 ★위에 그려져(.tb-dot::before 는 bottom:100%)
+     ★20 짜리 알약에선 ★칩 밖으로 ★나간다. ★글자를 ★아래로 붙이고 ★위를 비워 ★점 자리를 만든다.
+   ★칩 폭은 ★고정이다 — ★그래야 「한 줄에 몇 개」가 ★계산되는 수가 된다
+     (design-system.js TEXT_STYLE_HISTORY_MAX 머리말의 그 법). ⚠️폭을 바꾸면 ★그 수를 ★다시 재라. */
+.ts-recent-row { margin-top: 4px; }
+.ts-chip {
+  padding: 0 0 3px;
+  width: 26px;
+  height: 24px;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: visible;
 }
-
-/* 텍스트 콘텐츠가 ::after 위에 렌더링되도록 */
-.text-block[data-highlight] [contenteditable] {
-  position: relative;
-  z-index: 1;
+.ts-chip-prev {
+  font-size: var(--ui-fs-base, 12px);
+  line-height: 1;
+  color: var(--ui-text);
 }
 
 /* ═══════════════════════════════════

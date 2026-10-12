@@ -31,50 +31,11 @@ export function checkerSvgFills() {
   return { a: 'var(--goya-checker-svg-a)', b: 'var(--goya-checker-svg-b)' };
 }
 
-/* ── S1 «체커 어둡게» 토글 — 읽고 쓰고 거는 문은 «여기 하나» (2026-10-04 현빈 「켜고 끄는 단추를 두기」·지디: 전역·기본 끔) ──
- * 값의 정본은 css/editor-base.css 의 `:root[data-goya-checker-tone="dark"]` 규칙이다 — 여기서는 «속성만» 건다.
- * ★왜 :root(전역)인가 — 체커는 세 갈래로 찍힌다: CSS 규칙(조상 덮기를 따라온다) · SVG 패턴(body 에 한 벌 —
- *   var() 가 :root 에서 풀린다) · JS 인라인(_tok 이 :root 를 읽는다). :root 하나를 바꾸면 셋 다 따라온다.
- * ★왜 localStorage 인가 — 「보기」 설정이지 문서가 아니다(페이지 패널 패딩 비주얼 gdt.padHint·그리드 gdt.gridGuide 와 같은 논리).
- *   ⛔프로젝트·섹션 dataset 에 쓰지 않는다 — 저장본·배송본에 안 실리는 것이 «내보내기 0» 의 첫 겹이다.
- * ★기본은 «끔» — 키가 없거나 깨졌으면 끔(지금 화면 그대로).
- * ⚠️켠 «동안» 새로 만든 인라인 체커(목업·주석 라벨)는 그때 읽은 어두운 hex 로 굳는다 — 꺼도 안 돌아온다(넣는 줄 알고 넣는다). */
-export const CHECKER_DARK_KEY = 'gdt.checkerDark';
-export const CHECKER_TONE_ATTR = 'data-goya-checker-tone';
-
-export function readCheckerDarkOn() {
-  try {
-    if (typeof localStorage === 'undefined') return false;
-    const raw = localStorage.getItem(CHECKER_DARK_KEY);
-    if (raw === null) return false;                      // 키 없음 = 아무도 안 켰다 = 끔
-    const o = JSON.parse(raw);
-    return !!(o && o.on === true);                       // 깨진 값도 «끔» — 지금 화면이 기본이다
-  } catch (_) { return false; }
-}
-
-/** 속성만 건다/뗀다(멱등). 저장은 안 한다. */
-export function applyCheckerTone(on) {
-  /* ⛔모듈 최상위에서 불린다 — 실릴 때 «던지면» 이 모듈을 import 하는 저장·목업 경로가 통째로 죽는다.
-     가짜 document(단위시험 스텁)·속성 API 없는 환경에서도 조용히 넘긴다(tests/unit/save-dirty-after-failure 가 잡았다). */
-  try {
-    const el = typeof document !== 'undefined' ? document.documentElement : null;
-    if (!el || typeof el.setAttribute !== 'function' || typeof el.removeAttribute !== 'function') return;
-    const cur = typeof el.getAttribute === 'function' ? el.getAttribute(CHECKER_TONE_ATTR) : null;
-    if (on) { if (cur !== 'dark') el.setAttribute(CHECKER_TONE_ATTR, 'dark'); }
-    else if (cur !== null) el.removeAttribute(CHECKER_TONE_ATTR);
-  } catch (_) { /* 표시 설정 하나 — 앱을 막을 이유가 없다 */ }
-}
-
-/** 단추가 부르는 문 — 저장 + 즉시 적용. */
-export function setCheckerDarkOn(on) {
-  try { localStorage.setItem(CHECKER_DARK_KEY, JSON.stringify({ on: !!on })); } catch (_) {}
-  applyCheckerTone(!!on);
-}
-
-/* ★모듈이 실릴 때 한 번 건다 — 페이지 패널을 «한 번도 안 열어도» 켠 상태가 살아야 한다.
-   (이 모듈은 save-load·mockup·canvas-block 이 import 해서 부팅 때 늘 실린다.) */
-if (typeof window !== 'undefined') {
-  applyCheckerTone(readCheckerDarkOn());
-  window.readCheckerDarkOn = readCheckerDarkOn;
-  window.setCheckerDarkOn = setCheckerDarkOn;
-}
+/* ── S1 «체커 어둡게» — ★섹션 배경 체커 «섹션마다» (2026-10-06 현빈 R1 확정) ─────────────────
+ * ★이 파일에는 ★토글 문이 없다. 켜고 끄는 문은 js/props/prop-section.js 의 섹션 배경 절 하나다
+ *   (sec.dataset.checkerTone='dark' → css/editor-base.css 의 .section-block[data-checker-tone="dark"]).
+ * ⛔전역 보기설정(localStorage gdt.checkerDark · <html data-goya-checker-tone>)을 ★되살리지 마라 —
+ *   2026-10-06 에 ★일부러 걷어냈다. 같은 것을 두 군데서 정하면 우선순위를 사람이 못 외운다.
+ * ★왜 이 파일이 아무 톤도 안 쓰나 — 섹션 톤은 ★CSS 변수 상속만으로 선다(--goya-checker-secbg-*).
+ *   아래 _tok() 은 :root 를 읽으므로 ★섹션 톤을 못 본다. 그게 ★의도다(R1: 「빈 카드는 그대로」).
+ *   ⇒ 목업·주석 라벨의 인라인 체커는 톤과 무관하게 늘 라이트다. 바꾸려면 R2 가 되고 범위가 다르다. */

@@ -22,6 +22,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 const A = require('../../services/authService.js');
 const ENVFILE = require('../../main/env-file.js');
 const TRANSPORT = require('../../main/collab/transport.js');
@@ -36,7 +37,7 @@ function codeOf(rel) {
 
 /** 임시 .env 두 개를 만들고 경로를 돌려준다. */
 function makeEnvFiles(tag) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `e2c-${tag}-`));
+  const dir = mkTmpRoot(`e2c-${tag}-`);
   const appEnv = path.join(dir, 'app.env');
   const homeEnv = path.join(dir, 'home.env');
   fs.writeFileSync(appEnv, '# c\nGODITOR_LICENSE_API=' + EVIL + '\nGEMINI_API_KEY=devkey\n', 'utf8');

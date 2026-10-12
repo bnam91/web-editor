@@ -13,6 +13,10 @@
  *        pointer-events:none 이고, 판정은 «바깥틀에서 기하로» 한다. 그 사실을 여기서 문다.
  *   ⑷ 이미 와 있으면 «아무 일도 안 한다»(현빈 「또 더블클릭하면 아무 일 없음」).
  *
+ * ★★«얼마나 멀어지나»는 ★여기서 안 잰다 — tests/dom/scratch-pull-near-section.dom.spec.js 가 정본이다
+ *   (현빈 2026-10-09 ① 「밀려 다른 위치로 가도 ★섹션에서는 안 멀어져야」). P2 의 «비켜 앉기»는
+ *   그 상한 ★안쪽이라 둘이 안 부딪친다 — 거기 N4 가 P2 와 ★같은 자리를 다시 못박는다.
+ *
  * ★양성대조 — 작업 «직전» 판을 가리키면 ⑵⑷ 가 빨개진다(그 판엔 pullLink 가 아예 없다):
  *     mkdir -p /tmp/pull-before && git archive a5200c82 js css | tar -x -C /tmp/pull-before
  *     PULL_BEFORE=/tmp/pull-before npx playwright test \

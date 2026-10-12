@@ -41,6 +41,8 @@
     '.step-block',
     '.chat-block',
     '.laurel-block',
+    '.coupon-block',
+    '.quote-block',
     '.zoom-block',
     '.shape-block',
     '.joker-block',

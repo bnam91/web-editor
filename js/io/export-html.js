@@ -2,7 +2,7 @@ import { canvasEl, state } from '../globals.js';
 import { isGoyaAssetUrl as _isGoyaAsset, parseGoyaAssetUrl as _parseGoyaAssetUrl } from './goya-asset-inline.js';
 import { HIDDEN_VARIATION_SECTION_SEL } from '../variation-visibility.js';
 import { textGradShadowDefsMarkup } from '../props/text-block-color.js';
-import { neutralizeRedactForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture } from './capture-safety.js';
+import { neutralizeRedactForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, restRuntimeForArtifact } from './capture-safety.js';
 import { collectCanvasCss } from './export-css-collect.js';
 
 const CANVAS_W = 860;
@@ -109,6 +109,11 @@ async function exportHTMLFile() {
        .sec-bg-proxy·.img-edit-hint·.img-boundary/미입력 placeholder 가림/상태 클래스 일괄 제거는
        전부 그 한 벌이 한다. 아래에 남는 것은 «단독 HTML 에만» 필요한 것들이다. */
   stripEditorOnlyForCapture(clone);
+  /* ★★움직이는 파티클을 ★«쉬는 꼴»로 — ★★HTML 은 ★★«문서»다 ⇒ ★같은 입력에 ★같은 출력이어야 한다.
+     ★실측(2026-10-09): ★같은 문서를 ★두 번 내보내니 ★31,979자 vs ★34,197자 — ★★다른 글자가 나왔다.
+       ★2차에 ★`translate(0,…) rotate(…)` 가 ★박혀 있었다 = ★★움직이던 ★한 프레임.
+     ⇒ ★★「어느 프레임이냐」가 ★★「언제 내보냈냐」로 ★정해지고 있었다. */
+  restRuntimeForArtifact(clone);
   clone.querySelectorAll('.col-placeholder, .col-add-btn, .col-add-menu, .row-col-add-btn, .row-drop-indicator, .layer-section-drop-indicator').forEach(el => el.remove());
   /* ★앱 CSS 를 실으면서 드러난 «이미 새고 있던» 편집 DOM (2026-09-21 실측: 지금 내보낸 export.html
      안에 .shape-handle 8개 · .section-hitzone 1개가 그대로 들어 있었다). 앱 CSS 가 없을 땐 그냥
@@ -157,6 +162,11 @@ async function exportHTMLFile() {
   clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
   clone.querySelectorAll('.cell-selected').forEach(el => el.classList.remove('cell-selected')); // #5-b 테이블 셀 선택 마킹 (UI 상태 — export 유출 방지). rowspan/colspan은 HTML 속성이라 그대로 보존.
   clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+  /* ★별 한 개 고르기(1010t1b2) — ★★이 파일은 ★`runtimeMarkers` 를 ★안 쓰고 ★제 명부를 든다
+     ⇒ ★★그래서 ★둘 다 ★여기 ★또 적는다(★`star-cell-selected` 는 section-serialize 에서는 ★RE 가 잡는다).
+     ⛔«명부 둘을 합치기»는 ★범위 밖이다 — ★지디 판정 · ★티켓은 지디가 든다. */
+  clone.querySelectorAll('.star-mode').forEach(el => el.classList.remove('star-mode'));
+  clone.querySelectorAll('.star-cell-selected').forEach(el => el.classList.remove('star-cell-selected'));
 
   /* ★가림막(Redact)을 «설계로» 불투명하게 만든다 (2026-09-21 최종통합 QA medium)
      이 파일의 <style> 은 앱 CSS 를 «안» 싣는다 — .shape-block/.shape-redact/.shape-svg 규칙이

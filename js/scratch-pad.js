@@ -27,6 +27,12 @@ let _currentPageId = null;
 let _scratchItems = [];   // { el, src, x, y, w, id, g? } — g = 그룹 id (선택 그룹화)
 let _selectedItems = new Set();  // 다중 선택 집합
 let _sliceMode = null;    // 슬라이스 모드 활성 item (또는 null)
+/* ★⑦ 그룹 진입 모드 — 활성 «그룹 id»(또는 null). 현빈 2026-10-10:
+     「더블클릭 → 그룹 진입 → 멤버 단독 선택 · 그 상태에서 Delete/Backspace/삭제버튼 = 그 한 장만 ★빼기」
+   ★꼴은 `_sliceMode` 를 ★그대로 본떴다(진입 배타·단독 선택 강제·밖 클릭 나가기·마퀴 억제).
+   ⛔둘을 따로 고치지 마라 — 같은 관용구다. */
+let _groupMode = null;
+let _groupModeHandlers = null;
 // ★탭 고속 전환(A→B→C) race 가드 (Codex 리뷰) —
 // _scratchLoadGen: 로드 세대 토큰. flush/새 로드가 bump → 늦게 도착한 IndexedDB read가
 //                  새 컨텍스트에 이전 프로젝트 아이템을 섞거나 엉뚱한 키에 저장하는 것 차단.
@@ -245,9 +251,22 @@ function _genScratchId() {
 
 function _removeItem(item) {
   if (_sliceMode) _exitSliceMode();
-  // 다중 선택 중이고 item이 선택에 포함된 경우 → 선택 전체 삭제
+  /* ★★그룹 멤버의 ✕ 는 «그 한 장»만 지운다 (현빈 2026-10-09 ③
+   *   「5번째 스크래치패드를 삭제하면 4개가 되니 4개인 그룹이 계속 유지되어야해」).
+   *   무엇이 문제였나(실측): 멤버를 누르면 바로 아래 mousedown 핸들러가 «그룹 전원»을 선택에
+   *   끼워 넣는다(「그룹 공동 선택」). ✕ 는 «사용자가 고른 선택»과 «앱이 끼워 넣은 선택»을
+   *   구분할 수 없으므로 그 선택을 그대로 지우면 ✕ 한 번에 그룹이 통째로 사라진다
+   *   (잰 값: 5장 그룹에서 한 장의 ✕ → 남은 장 0).
+   * ★판정 = 「선택이 ★전부 이 그룹 안에 있나」. 그렇다면 그 선택은 공동 선택으로 생겼을 수 있고,
+   *   «그룹 하나를 통째로 지우고 싶다»는 뜻은 Delete/Backspace 가 이미 받는다(아래 키 핸들러).
+   *   ⛔그룹 밖의 것이 같이 잡혀 있으면(마퀴로 여럿) 옛 동작 그대로 «선택 전체»를 지운다. */
   let removedItems;
-  if (_selectedItems.size > 0 && _selectedItems.has(item)) {
+  const inSameGroup = item.g && _selectedItems.has(item)
+    && [..._selectedItems].every(s => s.g === item.g);
+  if (inSameGroup) {
+    removedItems = [item];
+  } else if (_selectedItems.size > 0 && _selectedItems.has(item)) {
+    // 다중 선택 중이고 item이 선택에 포함된 경우 → 선택 전체 삭제
     removedItems = [..._selectedItems];
     _clearSelection();
   } else {
@@ -264,12 +283,46 @@ function _deleteScratchItemsWithHistory(items) {
   // ⚠️linkDy 는 빼 왔다(옛 동작 그대로). fx 는 담는다 — 지운 항목을 ⌘Z 로 되살릴 때 효과도 돌아와야 한다.
   const snapshots = items.map(s => _pickScratch(s, ['linkDy']));
 
+  /* ★지우는 이미지가 섹션에 «연결»돼 있으면 그 토큰도 같이 치운다 (2026-10-09 실측 결함).
+   *   무엇이 문제였나: `refLinks` 는 섹션 data-* 인데 이 길이 그걸 ★한 번도 안 건드렸다.
+   *   ⇒ 참고이미지를 ✕ 로 지우면 섹션엔 `sp_c:0` 이 남아 `SPLink.allLinks()` 가 1 을 세는데
+   *     그릴 그림이 없어 선은 0 이다 — 화면은 「연결 0」, 데이터는 「연결 1」(死참조).
+   *     그 토큰은 저장·내보내기를 타고 다음 세션까지 간다.
+   *   ★`_severLinks` 를 쓴다(아래 정의) — `SPLink.removeLink()` 가 아니다. 그건 호출마다
+   *     pushHistory 를 따로 쌓고 ★이제는 «그룹 묶음 전체»를 끊는다(2026-10-09 ④). 여기선
+   *     «지우는 그 장들»만 끊어야 하므로 dataset 을 직접 고치는 쪽이 맞다.
+   *   ⛔섹션 삭제 경로(releaseSectionsForDelete)와 겹치지 않는다 — 저긴 «섹션»이 사라지는 길이고
+   *     여긴 «이미지»가 사라지는 길이다. 둘 다 있어야 양쪽이 닫힌다. */
+  const severed = _severLinks(items.map(s => s.id));
+
   // 실제 삭제
   items.forEach(s => {
     s.el.remove();
     _scratchItems = _scratchItems.filter(i => i !== s);
     _selectedItems.delete(s);
   });
+
+  /* ★★⑧ — ★1장만 남은 그룹은 ★푼다 (현빈 2026-10-10 동의 · 지디 ⒞)
+   *   ★까닭: 「그룹」은 ★둘 이상을 묶는 말이고, ★1장 그룹은 ★공동 선택·공동 이동이 ★무의미하다.
+   *   ★★왜 ★여기도 ★필요한가 — ★★«두 길»이 있다(지디 ⒞ 「두 길이 ★같이 서야 한다」):
+   *     ⒜ ⊘ 길 = `_detachFromGroup` — ★거기선 ★이미 푼다(G9·C6 가 ★잰다)
+   *     ⒝ ★★이 길 = ★지우기(✕ · Delete · ★★⌘X 잘라내기) — ★★여기엔 ★★없었다
+   *   ★실측(고치기 전 · `tests/dom/scratch-cut-paste-group` ★C5):
+   *     ★2장 그룹에서 ★한 장 ⌘X ⇒ ★남은 1장이 ★그룹 `g_tm13a4` 를 ★★그대로 쥐었다(모드도 ★살아 있었다)
+   *     ★같은 상황 ⊘ 길(C6)은 ★★풀렸다 ⇒ ★★두 길이 ★갈려 있었다
+   *   ★★«언제 세나» — ★★«지우고 ★난 뒤»다(지디 ⒞ 의 그 물음).
+   *     ★위 `forEach` 가 `_scratchItems` 에서 ★뺀 ★뒤에 ★세므로 ★남은 수가 ★참값이다.
+   *     ⛔«지우는 순간»에 세면 ★자기 자신이 ★아직 들어 있어 ★한 장 더 센다.
+   *   ★음성대조 = ★C7(3장에서 하나 빼면 ★2장 그룹이 ★남는다 — ⛔풀리지 않는다). */
+  const touchedGroups = [...new Set(items.map(s => s.g).filter(Boolean))];
+  for (const gid of touchedGroups) {
+    const rest = _scratchItems.filter(s => s.g === gid);
+    if (rest.length === 1) {
+      delete rest[0].g;
+      if (rest[0].el) delete rest[0].el.dataset.scratchGroup;
+      if (_groupMode === gid) _exitGroupMode();
+    }
+  }
   _saveScratch();
 
   // 글로벌 history에 sideEffects entry 추가 — 캔버스 스냅샷은 동일 상태로 push되어
@@ -282,12 +335,15 @@ function _deleteScratchItemsWithHistory(items) {
         for (const s of snapshots) {
           try { await window._scratchAddAndSaveFx?.(s.src, s.x, s.y, s.w, s.g, s.id, s.fx); } catch (_) {}
         }
+        // ★이미지를 되살렸으면 «연결»도 되살린다 — 안 하면 ⌘Z 가 그림만 돌려주고 선은 영영 안 돌아온다
+        try { _restoreLinks(severed); } catch (_) {}
       },
       onRedo: async () => {
         // 복원했던 item들을 다시 제거 (id 보존이므로 원본 id로 직접 제거)
         for (const s of snapshots) {
           try { await window._scratchRemoveById?.(s.id); } catch (_) {}
         }
+        try { _severLinks(severed.map(r => r.link.scratchId)); } catch (_) {}
       },
     });
   } catch (_) {}
@@ -436,6 +492,9 @@ async function _sliceItem(item, ratio, vert) {
 // 슬라이스 모드 진입 — 마우스로 가로 절단선 위치 미리보기 + 클릭 시 확정
 function _enterSliceMode(item) {
   if (_sliceMode) _exitSliceMode();
+  /* ★진입 배타 — 두 모드가 ★동시에 서면 Delete 핸들러가 ★어느 쪽인지 못 가린다.
+     ⇒ ★순서 가드를 두는 대신 ★«동시에 못 서게» 한다(구조로 잠근다). 재는 자 = tests/dom/scratch-group-mode. */
+  if (_groupMode) _exitGroupMode();
 
   // 단독 선택 강제
   _clearSelection();
@@ -546,6 +605,130 @@ function _exitSliceMode() {
   _sliceMode = null;
 }
 
+/* ══ ⑦ 그룹 진입 모드 ══════════════════════════════════════════════════════════
+ * ★무엇을 푸나 — 「3장 그룹에서 ★마지막 한 장만 ★빼고 싶을 때」(현빈 2026-10-10).
+ *   ★고치기 전 실측(tests 로 잰 값): 멤버를 ★그냥 클릭 → 선택 ★3 · Delete → ★3장이 ★0장(전원 삭제)
+ *   · ⌘⇧G → 그룹이 ★통째로 풀림 · ⇧클릭 → ★1장(★고르는 길은 ★이미 있었다) ⇒ ★없던 것은 ★«빼는 길»이다.
+ * ★왜 모드인가 — Delete 는 ★선택 전체를 향한 동사라 ★「한 장만」을 ★말할 수 없다.
+ *   ⇒ 현빈이 지정한 ★표준 동작(더블클릭 진입)을 ★문맥으로 쓴다.
+ * ⛔모드 ★밖 동작은 ★한 글자도 안 바꾼다 — 전원 삭제·통째 풀림 ★그대로(회귀 0).
+ *
+ * ★★누가 ★무엇을 ★정했나 — ⛔«남의 권위»를 ★내 문장에 ★빌리지 않으려 ★갈라 적는다
+ *   ─ ★현빈(2026-10-10) ─
+ *     ⒤ ★요구 자체: 「그룹에서 ★한 장만 빼고 싶다」
+ *     ⒥ ★진입 제스처 = ★★더블클릭(★현빈이 ★지정한 표준 동작)
+ *     ⒦ ★A안 채택 ＋ ★★«진입 중임을 ★표시»는 ★필수 조건
+ *   ─ ★지디(조정자 판정) ─
+ *     ⒧ ★진입 ★배타 — 두 모드가 ★동시에 못 선다(:475·:613 ★두 방향)
+ *     ⒨ ★✕ → ★⊘ ＋ title 교체(★위 _markGroupMode 의 그 줄)
+ *     ⒩ ★✂(슬라이스)는 ★ⅰ안 = ★그대로 둔다 — ⛔모드 중 ✂ 를 막지 ★않는다
+ *     ⒪ ★★1장 그룹 ★자동 해제 = ★지디 ★기본값 (★★현빈 ★미정 — ★노트에 적어 ★뒤집을 수 있게 둔다)
+ *   ─ ★★⚰️ ★사라진 안 ─
+ *     ⚰️ ★지디 ⒜ 「★모드 ★안에서는 ★Delete 를 ★막는다」 = ★★폐기됐다.
+ *        ★까닭 = ★⒧ 진입 배타가 ★그 물음을 ★없앴다(두 모드가 ★동시에 못 서니 ★Delete 가 ★어느 쪽인지 ★헷갈릴 ★판이 ★없다).
+ *        ⛔★이 ⚰️ 를 ★선례로 ★되살리지 마라 — ★폐기된 안이다. ★단 ★⒧ 이 ★뒤집히면 ★이 물음이 ★같이 ★되살아난다. */
+function _groupMembers(gid) { return _scratchItems.filter((s) => s.g === gid); }
+
+function _markGroupMode(on) {
+  for (const s of _scratchItems) {
+    if (!s.el) continue;
+    const inMode = !!on && !!_groupMode && s.g === _groupMode;
+    s.el.classList.toggle('scratch-group-mode', inMode);
+    /* ★진입 중엔 ✕ 가 ★«빼기»다 — ★모양으로 말한다(지디 ③).
+       ⛔같은 손잡이가 ★모드에 따라 ★다른 일을 하는데 ★겉모습이 같으면 ★사용자가 ★지우려다 ★뺀다.
+       ⇒ 글자와 title 을 ★같이 바꾼다. 재는 자 = tests/dom/scratch-group-mode (G5). */
+    const btn = s.el.querySelector('.scratch-close');
+    if (btn) {
+      btn.textContent = inMode ? '⊘' : '✕';
+      btn.title = inMode ? '그룹에서 빼기' : '제거';
+    }
+  }
+}
+
+function _enterGroupMode(item) {
+  if (!item || !item.g) return false;
+  if (_groupMode === item.g) { _clearSelection(); _selectItem(item, false); return true; }
+  /* ★★«잠든 가드»다 — ⛔«죽은 가드»와 ★가려 적는다(지디 판정 2026-10-10).
+     ★실측: 변이 `M-EXCL-B`(이 줄 제거) → ★★순 빨강 ★★0건. ★즉 ★지금은 ★★안 선다.
+     ★까닭: ✂ 모드가 ★★제 길로 ★이미 끝난다(그 클릭이 ★확정/취소로 ★모드를 닫는다) ⇒ 여기 오면 `_sliceMode` 가 ★null.
+     ★★★가름 자 = ★★«그 조건이 ★참이 되는 판이 ★있나»:
+       ㉢ 마퀴 `!_groupMode` → ★★없다(capture 가 ★구조적으로 ★먼저 돈다) ⇒ ★★죽었다 ⇒ ★★지웠다
+       ㉣ ★이 줄            → ★★있다(✂ 의 닫는 길·등록 순서는 ★★코드가 정한다 · 바뀌면 ★살아난다) ⇒ ★★둔다
+     ⛔그러니 ★이 줄을 ★«0건이니 죽었다»로 ★지우지 마라 — ★그 0건은 ★★«지금 판에서만» 참이다.
+     ★재는 자 = `M-EXCL-B` · ★★명부에 ★★«기대 0건»으로 ★올려 뒀다(⛔「0건이 비정상」이 ★아니다). */
+  if (_sliceMode) _exitSliceMode();            // ★진입 배타(반대쪽은 _enterSliceMode 머리)
+  if (_groupMode) _exitGroupMode();
+  _clearSelection();
+  _selectItem(item, false);                    // ★단독 선택 강제 — 선례 :468 과 같은 줄
+  _groupMode = item.g;
+  _markGroupMode(true);
+  const onKeyEsc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); _exitGroupMode(); } };
+  /* ★밖 클릭 = 나가기. ★capture 로 건다 — ★선택이 바뀌기 «전»에 모드가 풀려야
+     ★모드 중 선택이 ★그룹 밖으로 샐 길이 없다(선례 :543·:554 와 같은 꼴). */
+  const onOutsideMousedown = (e) => {
+    const el = e.target.closest && e.target.closest('.scratch-item');
+    if (!el || el.dataset.scratchGroup !== _groupMode) _exitGroupMode();
+  };
+  _groupModeHandlers = { onKeyEsc, onOutsideMousedown };
+  setTimeout(() => document.addEventListener('mousedown', onOutsideMousedown, true), 0);
+  document.addEventListener('keydown', onKeyEsc);
+  return true;
+}
+
+function _exitGroupMode() {
+  if (!_groupMode) return;
+  _markGroupMode(false);
+  _groupMode = null;
+  const h = _groupModeHandlers;
+  if (h) {
+    document.removeEventListener('mousedown', h.onOutsideMousedown, true);
+    document.removeEventListener('keydown', h.onKeyEsc);
+  }
+  _groupModeHandlers = null;
+}
+
+/* ★그 한 장만 ★그룹에서 ★뺀다 — ⛔지우지 않는다(이미지는 남는다).
+   ★1장만 남으면 ★그룹을 ★푼다 — ★지디 기본값(현빈 미정 · 노트에 적어 뒤집을 수 있게 둔다).
+     까닭: 「그룹」은 ★둘 이상을 묶는 말이고, 1장 그룹은 공동 선택·공동 이동이 ★무의미하다. */
+function _detachFromGroup(item) {
+  if (!item || !item.g) return { ok: false, reason: 'NO_GROUP' };
+  const gid = item.g;
+  const rest = _groupMembers(gid).filter((s) => s !== item);
+  const touched = [item, ...rest];
+  const before = _scratchGeomSnapshot(touched);
+  delete item.g;
+  if (item.el) delete item.el.dataset.scratchGroup;
+  let dissolved = false;
+  if (rest.length === 1) {
+    delete rest[0].g;
+    if (rest[0].el) delete rest[0].el.dataset.scratchGroup;
+    dissolved = true;
+  }
+  _saveScratch();
+  const after = _scratchGeomSnapshot(touched);
+  try {
+    window.pushHistory?.('스크래치 그룹에서 빼기', {
+      onUndo: () => { _applyScratchGeomSnapshot(before); },
+      onRedo: () => { _applyScratchGeomSnapshot(after); },
+    });
+  } catch (_) {}
+  /* 선은 «묶음당 하나»라 멤버가 줄면 다시 그려야 한다(해제 쪽과 같은 까닭). */
+  try { window.SPLink && window.SPLink.rerender && window.SPLink.rerender(); } catch (_) {}
+  _clearSelection();
+  if (dissolved || rest.length < 2) _exitGroupMode(); else _markGroupMode(true);
+  window.showToast?.(dissolved
+    ? '🧩 그룹에서 뺐습니다 — 1장만 남아 그룹도 풀렸습니다'
+    : `🧩 그룹에서 뺐습니다 (남은 ${rest.length}장은 그대로 그룹)`);
+  return { ok: true, dissolved, remaining: dissolved ? 0 : rest.length };
+}
+
+/* 검사·프로그램용 — ⛔상태를 ★밖에서 ★바꾸지 않는다(읽기만). */
+window._scratchGroupMode = () => _groupMode;
+window._scratchDetachFromGroup = (id) => {
+  const it = _scratchItems.find((s) => s.id === id);
+  return it ? _detachFromGroup(it) : { ok: false, reason: 'NO_ITEM' };
+};
+
 // dataURL → PNG Blob (Chromium 클립보드는 image/png만 허용하므로 canvas 거쳐 변환)
 function _dataUrlToPngBlob(dataUrl) {
   return new Promise((resolve, reject) => {
@@ -607,6 +790,9 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
   closeBtn.title = '제거';
   closeBtn.addEventListener('click', e => {
     e.stopPropagation();
+    /* ★⑦ 그룹 진입 중이고 ★이 그룹의 멤버면 ★«빼기»다 — 현빈 2026-10-10 「삭제버튼 누르면 그 한 장만 빼게」.
+       ⛔모드 밖에서는 ★지금 그대로 ★삭제다(_removeItem 의 그룹 갈래도 그대로). */
+    if (_groupMode && item.g === _groupMode) { _detachFromGroup(item); return; }
     _removeItem(item);
   });
   el.appendChild(closeBtn);
@@ -744,6 +930,14 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
   el.appendChild(resizeH);
 
   // 우클릭 → 자산 폴더로 보내기 메뉴
+  /* ★⑦ 더블클릭 = ★그룹 진입(현빈 2026-10-10). ⛔그룹이 아니면 ★아무 일도 안 한다 —
+     그 경우 더블클릭은 ★지금처럼 ★두 번의 클릭으로 남는다(실측: 선택 0 → 3). */
+  el.addEventListener('dblclick', e => {
+    if (!item.g) return;
+    e.preventDefault(); e.stopPropagation();
+    _enterGroupMode(item);
+  });
+
   el.addEventListener('contextmenu', e => {
     e.preventDefault();
     e.stopPropagation();
@@ -1222,6 +1416,15 @@ async function initScratchPad(projectId, pageId) {
     const isEmptyArea = e.button === 0
       && ['canvas-wrap', 'canvas-scaler', 'canvas'].includes(e.target.id)
       && !_sliceMode
+      /* ★★⚰️2026-10-10 — 여기 `&& !_groupMode` 가 있었다. ★★«닿지 않는 코드»여서 ★지웠다.
+         ★실측(tests/dom/scratch-group-mode G8 · 양성대조 포함):
+           ★모드 ★밖에서 끌 때  마퀴 DOM = ★1   ← ★자의 눈은 ★떴다(자리도 맞다)
+           ★모드 ★진입 중 끌 때 마퀴 DOM = ★★1  ← ★★억제가 ★안 됐다
+         ★변이 `M-MARQUEE`(그 줄을 `true` 로) → ★★순 빨강 ★0건 ⇒ ★있으나 없으나 ★같았다.
+         ★까닭 = `_enterGroupMode` 가 `onOutsideMousedown` 을 ★★capture 로 단다(:643) ⇒
+           ★캔버스 빈 영역 ★mousedown 이 ★★먼저 ★모드를 ★내린다 ⇒ 여기서 `_groupMode` 는 ★★이미 null.
+         ★곁증거 = ★G6(「그룹 밖 클릭으로 나간다」)가 ★초록이다.
+         ⇒ ★선택이 ★그룹 밖으로 ★샐 수 ★없는 ★참 까닭은 ★★«모드가 ★이미 끝났기 때문»이다. */
       && !document.body.classList.contains('pen-mode')
       && !document.body.classList.contains('vpen-mode');
     // 네이티브 스크롤바 클릭은 마퀴 제외 (preventDefault가 스크롤바 드래그를 막음)
@@ -1277,12 +1480,65 @@ async function initScratchPad(projectId, pageId) {
     let active = false;
     let _rafId = null;
     let lastMv = null;
+    let ended = false;
+
+    /* ★가장자리 자동 스크롤 (현빈 2026-10-06 「화면 밑에 드래그를 하면 화면 스크롤이 내려가면서
+     *   더 입력가능할수 있게 해줄래?」) — ★위쪽도 같이 한다(지디 2026-10-06 판정: 아래만 되면
+     *   위로 넓힐 때 막혀 같은 손짓인데 한쪽만 되는 결함으로 읽힌다). ⛔좌우는 ★그 판(2fe08b09)에서 뺐다.
+     * ★좌우를 ★더한 판 = 2026-10-07 (현빈 「★드래그 자동 스크롤은 ★위아래만 됩니다 → ★이것도 되면 해」).
+     *   ★세로와 ★같은 꼴·★같은 수(EDGE_BAND·EDGE_STEP 를 ★그대로 쓴다 — 새 상수 0개).
+     *   ★가로 여지의 출처: #canvas-wrap 은 overflow:auto 이고 #canvas-scaler 에 ★좌우 대칭 팬 여백
+     *   (margin-left/right = clientWidth)이 상시 있다 ⇒ 실측(하네스 1500×800 · 배율 0.4): maxL 1960 ·
+     *   쉼 scrollLeft 980(양쪽 980px). ⛔가로도 팬 여지를 ★안 늘린다 — 세로와 같은 금지(검사 M12).
+     * ★고치기 전 실측(e7444dd3): 하단 −4px 에서 1.2초 보유 → scrollTop 1552 그대로(내려갈 여지
+     *   1876px 이 있었는데 0px 이동), 상자도 안 자랐다. 이 자리엔 'scroll' 문자열이 0건이었다.
+     * ⛔팬 여지(growPanRoom)를 늘리지 않는다 — 마지막 섹션 아래엔 고를 것이 없고, 늘리면 끝없이
+     *   내려간다. 스크롤 최대에서 «멈춘다». */
+    const EDGE_BAND = 40;    // 가장자리 띠(화면 px)
+    const EDGE_STEP = 24;    // 한 프레임 최대 스크롤(화면 px) — 60fps 에서 약 1440px/s
+
+    /** 포인터가 띠 안이면 ★세로·가로로 스크롤한다. ★실제로 움직였으면 true(그때만 다음 프레임을 예약한다).
+     * ★축마다 «따로» 재고 «따로» clamp 한다 ⇒ 모서리(예: 오른쪽 아래 끝)에서 둘이 ★같이 돌아도
+     *   ★세로 속도는 세로만일 때와 ★그대로다(두 배가 아니다 — 검사 M11 이 그것을 잠근다).
+     *   ⛔합성 길이를 EDGE_STEP 으로 «정규화»하지 않는다 — 그러면 모서리에서 ★세로가 느려져
+     *   «위아래 동작»이 바뀐다(발주: 위아래 무변이 더 중요하다). */
+    const _edgeScroll = () => {
+      if (ended || !active || !lastMv) return false;
+      const wr = wrap.getBoundingClientRect();
+      const maxT = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+      const dBottom = wr.bottom - lastMv.clientY;   // 아래 끝에서의 거리(음수 = 화면 밖)
+      const dTop    = lastMv.clientY - wr.top;
+      let dy = 0;
+      if (dBottom < EDGE_BAND)   dy =  Math.ceil(EDGE_STEP * Math.min(1, (EDGE_BAND - dBottom) / EDGE_BAND));
+      else if (dTop < EDGE_BAND) dy = -Math.ceil(EDGE_STEP * Math.min(1, (EDGE_BAND - dTop)    / EDGE_BAND));
+      /* ★좌우 — 위 세로 블럭과 ★완전 대칭(bottom↔right · top↔left · maxT↔maxL · dy↔dx). */
+      const maxL = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+      const dRight = wr.right - lastMv.clientX;     // 오른 끝에서의 거리(음수 = 화면 밖)
+      const dLeft  = lastMv.clientX - wr.left;
+      let dx = 0;
+      if (dRight < EDGE_BAND)     dx =  Math.ceil(EDGE_STEP * Math.min(1, (EDGE_BAND - dRight) / EDGE_BAND));
+      else if (dLeft < EDGE_BAND) dx = -Math.ceil(EDGE_STEP * Math.min(1, (EDGE_BAND - dLeft)  / EDGE_BAND));
+      if (!dy && !dx) return false;
+      const before = { t: wrap.scrollTop, l: wrap.scrollLeft };
+      if (dy) wrap.scrollTop  = Math.max(0, Math.min(maxT, before.t + dy));
+      if (dx) wrap.scrollLeft = Math.max(0, Math.min(maxL, before.l + dx));
+      return wrap.scrollTop !== before.t || wrap.scrollLeft !== before.l;
+    };
 
     const _update = () => {
       _rafId = null;
       if (!lastMv || !marqueeEl) return;
-      const curX = (lastMv.clientX - scalerRect.left) / scale;
-      const curY = (lastMv.clientY - scalerRect.top)  / scale;
+      /* ★먼저 스크롤하고, 그 «뒤»에 상자를 잰다 — 같은 프레임에서 늘어난 만큼이 바로 상자에 든다. */
+      const scrolled = _edgeScroll();
+      /* ★scaler 를 «매 프레임» 다시 잰다. ⛔시작 때 캐시한 scalerRect 를 쓰면 안 된다 — 스크롤하면
+         scaler 가 client 좌표계에서 올라가므로 캐시는 그만큼 낡아, 「스크롤은 되는데 상자는 제자리」가
+         된다(그게 이 줄의 양성대조다 — 검사 M2). scale 도 같이 다시 읽는다(끌기 중 ⌘+/− 대비).
+         startX/startY·canvasBoxes·boxes 는 «모델 좌표»라 스크롤·배율과 무관하다 — 그대로 쓴다. */
+      const sr = scalerEl.getBoundingClientRect();
+      const sc = _getScale() || scale;
+      const curX = (lastMv.clientX - sr.left) / sc;
+      const curY = (lastMv.clientY - sr.top)  / sc;
+      if (scrolled && !_rafId) _rafId = requestAnimationFrame(_update);   // ★포인터가 멈춰 있어도 계속 돈다
       const x1 = Math.min(startX, curX), x2 = Math.max(startX, curX);
       const y1 = Math.min(startY, curY), y2 = Math.max(startY, curY);
       marqueeEl.style.left   = x1 + 'px';
@@ -1325,6 +1581,7 @@ async function initScratchPad(projectId, pageId) {
     };
 
     const onUp = () => {
+      ended = true;                       // ★이 뒤의 _update 는 «재지 않고 스크롤도 않는다»(_edgeScroll 가 먼저 빠진다)
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; _update(); }
@@ -1371,6 +1628,12 @@ async function initScratchPad(projectId, pageId) {
   document.addEventListener('keydown', e => {
     if (e.key !== 'Delete' && e.key !== 'Backspace') return;
     if (_sliceMode) { _exitSliceMode(); return; }
+    /* ★⑦ 그룹 진입 중 — ★고른 한 장을 ★뺀다(⛔지우지 않는다). 현빈 2026-10-10.
+       ★진입 배타 덕에 위 slice 가드와 ★동시에 참일 수 없다 — 순서는 뜻이 없다. */
+    if (_groupMode) {
+      const picked = [..._selectedItems].filter((s) => s.g === _groupMode);
+      if (picked.length === 1) { _detachFromGroup(picked[0]); return; }
+    }
     if (_selectedItems.size === 0) return;
     const active = document.activeElement;
     if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
@@ -1379,16 +1642,13 @@ async function initScratchPad(projectId, pageId) {
     _deleteScratchItemsWithHistory(toRemove);
   });
 
-  // Cmd/Ctrl+C → 선택된 스크래치 이미지 (첫 장)를 OS 클립보드에 복사
-  // 사용 흐름: 스크래치 선택 → Cmd+C → AI 모달 프롬프트에서 Cmd+V로 첨부
-  // OS 클립보드는 한 번에 이미지 1장만 받으므로 N장 선택해도 첫 장만 복사된다.
-  document.addEventListener('keydown', async e => {
-    if ((e.key !== 'c' && e.key !== 'C') || !(e.metaKey || e.ctrlKey)) return;
-    if (_selectedItems.size === 0) return;
-    const active = document.activeElement;
-    if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
-    e.preventDefault();
-    const items = [..._selectedItems];
+  /* ── ⌘C / ⌘X 가 함께 쓰는 «복사 본체» 한 벌 ──────────────────────────────────────────
+   * ★2026-10-06 현빈 「스크래치패드 잘라내기가 안되는 문제」로 ⌘X 를 더하면서 뽑았다.
+   *   잘라내기 = «복사» ＋ «삭제»인데, 복사를 베껴 두면 둘이 조용히 갈린다.
+   * ★돌려주는 값이 ★참일 때만 지워도 된다 — 옛 ⌘C 는 실패를 토스트로만 알리고 삼켰다.
+   *   잘라내기에서 그러면 ★클립보드는 비었는데 원본은 사라진다(데이터 손실).
+   * OS 클립보드는 한 번에 이미지 1장만 받으므로 N장 선택해도 첫 장만 담긴다. */
+  async function _copySelectedToClipboard(items, { verb = '복사' } = {}) {
     try {
       // goya-asset://·webp 등 nativeImage가 못 읽는 src를 PNG data URL로 정규화
       const srcForCopy = await _srcToPngDataUrl(items[0].src);
@@ -1411,16 +1671,69 @@ async function initScratchPad(projectId, pageId) {
         natH: copiedImg?.naturalHeight || 0,
         time: window._scratchClipboardTime
       };
-      if (items.length === 1) {
-        window.showToast?.('📋 이미지 복사됨 — 모달 프롬프트에 Cmd+V');
-      } else {
-        window.showToast?.(`📋 첫 장 복사됨 (선택 ${items.length}장 / OS 한계로 1장씩만)`);
-      }
+      return true;
     } catch (err) {
-      console.error('[ScratchPad] copy failed:', err);
-      window.showToast?.('❌ 이미지 복사 실패: ' + err.message);
+      console.error(`[ScratchPad] ${verb} failed:`, err);
+      window.showToast?.(`❌ 이미지 ${verb} 실패: ` + err.message);
+      return false;
     }
+  }
+
+  /* ⌘C·⌘X 가 같은 잣대를 쓴다 — 갈리면 한쪽만 먹는다. */
+  const _scratchKeyGuardOk = () => {
+    if (_selectedItems.size === 0) return false;
+    const active = document.activeElement;
+    if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return false;
+    return true;
+  };
+
+  // Cmd/Ctrl+C → 선택된 스크래치 이미지 (첫 장)를 OS 클립보드에 복사
+  // 사용 흐름: 스크래치 선택 → Cmd+C → AI 모달 프롬프트에서 Cmd+V로 첨부
+  document.addEventListener('keydown', async e => {
+    if ((e.key !== 'c' && e.key !== 'C') || !(e.metaKey || e.ctrlKey)) return;
+    if (!_scratchKeyGuardOk()) return;
+    e.preventDefault();
+    const items = [..._selectedItems];
+    if (!await _copySelectedToClipboard(items)) return;
+    if (items.length === 1) window.showToast?.('📋 이미지 복사됨 — 모달 프롬프트에 ⌘V');
+    else window.showToast?.(`📋 첫 장 복사됨 (선택 ${items.length}장 / OS 한계로 1장씩만)`);
   });
+
+  /* ── ★⌘X 잘라내기 (2026-10-06 현빈 「스크래치패드 잘라내기가 안되는 문제」) ────────────────
+   * ★무엇이 「안 된다」였나 — 네 갈래로 갈라 실측했다(핀 e7444dd3, 실앱 CDP):
+   *   ㉠ 안 닿나?       닿는다 — document 캡처단계에서 ⌘X keydown 1회 수신
+   *   ㉡ 안 불리나?     ★스크래치의 잘라내기가 «없었다». js/ 전수에서 key==='x' 를 처리하는 자리는
+   *                     editor.js 의 ⌘⇧X(취소선)·⌘X(캔버스 잘라내기) 둘뿐이고 이 파일엔 0건이었다.
+   *   ㉢ 틀린 갈래?     ★그렇다 — editor.js 의 «캔버스» 잘라내기가 받아 preventDefault 했고,
+   *                     캔버스 선택이 비어 있어 아무것도 안 했다(아이템 1 → 1, 토스트 0).
+   *   ㉣ 결과가 틀리나? 아니다 — 아무 결과도 안 났다.
+   *   ★두 번째 피해: 그 preventDefault 가 네이티브 `cut` 이벤트까지 막았다(실측 cutEvt 0) —
+   *     addEventListener('cut') 으로 고치는 길은 ★애초에 막혀 있다. 그래서 keydown 체인에 둔다.
+   * ★editor.js 쪽이 «먼저» 물어보고 양보한다(window.scratchCutSelected) — 선례는 바로 위
+   *   그리드 줄 붙여넣기(`if (window.grdPasteLines?.()) return;`)와 같은 꼴이다.
+   *   ⇒ 여기서는 keydown 을 또 듣지 않는다. 두 군데서 들으면 ⌘X 한 번에 두 번 돈다. */
+  window.scratchCutSelected = function scratchCutSelected() {
+    if (!_scratchKeyGuardOk()) return false;          // 내 일이 아니다 — 캔버스 잘라내기가 종전대로 돈다
+    const items = [..._selectedItems];
+    /* ★참을 «먼저» 돌려줘야 editor.js 가 양보한다 — 복사는 비동기(클립보드 IPC)라 기다릴 수 없다.
+       ⛔그래서 «지우기»는 복사가 끝난 뒤에만 한다. 복사가 실패하면 아이템은 ★그대로 남는다
+         (클립보드는 비었는데 원본이 사라지는 것이 이 기능의 가장 나쁜 실패다). */
+    (async () => {
+      if (!await _copySelectedToClipboard(items, { verb: '잘라내기' })) return;
+      /* ★★«클립보드에 담긴 것»만 지운다 — OS 클립보드는 이미지 한 장뿐이라 N장을 골라도 첫 장만 담긴다.
+         ⛔N장을 다 지우면 나머지 N-1 은 ★어디에도 사본이 없다(⌘Z 로만 돌아온다 — 한 번 붙여넣고
+           작업을 이어가면 영영 사라진다). 「잘라내기」는 «옮기기»지 «지우기»가 아니다.
+         ★Delete 는 종전대로 N장을 다 지운다 — 그건 사본을 약속하지 않는 동작이라 갈래가 다르다. */
+      const cut = [items[0]];
+      _clearSelection();
+      _deleteScratchItemsWithHistory(cut);            // ⌘Z 로 되살아난다(삭제와 같은 길)
+      /* ★단축키는 ⌘ 로 적는다 — 레포 센서스 2026-10-06: 사용자에게 보이는 자리 ⌘ 549 : Cmd+ 36(토스트만 보면 5:2).
+         ★N장 알림은 «우리 말»(OS 클립보드)을 빼고 ★사용자가 아는 말로만 — 지디 2026-10-06. */
+      window.showToast?.(items.length === 1 ? '✂️ 잘라냄 — ⌘V 로 붙여넣기'
+                                            : `✂️ 첫 장만 잘라냈습니다 — 나머지 ${items.length - 1}장은 그대로입니다`);
+    })();
+    return true;
+  };
 
   /* ── C1(현빈 2026-10-01): 에셋을 «섹션 밖»(스크래치 바닥)에 놓으면 스크래치패드로 «이동» ─────────────
      · 우클릭 「스크래치로 보내기」는 «복사»(블럭이 남는다). 이건 «이동» — 블럭은 섹션에서 빠지고 스크래치로 돌아간다.
@@ -1638,45 +1951,80 @@ window._scratchAddForMcp = async (src, { width } = {}) => {
   return { ok: true, scratchId: last.id, x, y, width: W };
 };
 
+/* 폴더 일괄 불러오기 — 파일들을 «폴더 단위»로 묶는다. 순수 함수.
+ * ★왜 필요했나(현빈 2026-10-06 「여러폴더를 넣을 시, 한줄로 들어가는데, 폴더단위로, 칼럼나눠서」):
+ *   옛 판은 `f.name`(basename)만으로 정렬해 «한 컬럼»에 전부 쌓았다 — 하위폴더가 여럿이면
+ *   같은 이름(img1.png)끼리 뭉쳐 ★폴더가 교대로 섞였다(실측 2026-10-06: 하위폴더 3개 → 컬럼 1개,
+ *   쌓인 순서 사용샷·모델컷·디테일·사용샷·…). 막는 벽은 없었다 — `File.webkitRelativePath` 가
+ *   폴더 경로를 그냥 주는데(실측: "reffolders/01_모델컷/img1.png") ★레포 어디서도 안 읽고 있었다.
+ * ★폴더 단위 = «최하위 폴더»(경로의 마지막 디렉터리). 2단 이상 중첩도 사람이 보는 「그 폴더」로 묶인다.
+ * ⚠️`webkitRelativePath` 는 폴더가 아닌 투입(드래그드롭·단일 파일 선택)에선 '' 이다 ⇒ 전부 한 묶음 =
+ *   옛 동작(컬럼 1개) 그대로. 그 길의 수를 바꾸지 않는다.
+ * ★묶음 순서 = 폴더 경로 오름차순, 묶음 «안»은 파일명 오름차순(numeric) — 비교기는 옛 것을 그대로 쓴다. */
+function _groupImagesByFolder(images) {
+  const cmp = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true });
+  const byDir = new Map();
+  for (const f of images) {
+    const rel = f.webkitRelativePath || '';
+    const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
+    if (!byDir.has(dir)) byDir.set(dir, []);
+    byDir.get(dir).push(f);
+  }
+  return [...byDir.keys()].sort(cmp)
+    .map(dir => ({ dir, files: byDir.get(dir).slice().sort((a, b) => cmp(a.name, b.name)) }));
+}
+
 // Port 드롭다운 → 폴더 일괄 불러오기 (goditor-images_to_scratchpad 스킬 UI판)
-// 좌표 정책: 첫 batch는 x=960부터 세로 컬럼. 이후 batch는 기존 max X 옆 컬럼(+GAP_X)에 새 세로 컬럼으로 추가
+// 좌표 정책: ★폴더 하나 = 세로 컬럼 하나. 첫 컬럼은 x=960부터, 다음 폴더는 기존 max X 옆 컬럼(+GAP_X)에 새 컬럼
 async function loadScratchpadFolder(event) {
   const files = [...(event.target.files || [])];
   event.target.value = ''; // 같은 폴더 재선택 가능하도록 즉시 리셋
   if (!files.length) return;
 
   const images = files
-    .filter(f => /^image\//.test(f.type) || /\.(png|jpg|jpeg|gif|webp)$/i.test(f.name))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    .filter(f => /^image\//.test(f.type) || /\.(png|jpg|jpeg|gif|webp)$/i.test(f.name));
   if (!images.length) { window.showToast?.('⚠️ 이미지 파일을 찾지 못했습니다'); return; }
 
-  const { x: startX, y: startY } = window._scratchNextSlot({ newColumn: true });
+  const groups = _groupImagesByFolder(images);
   const WIDTH = SCRATCH_PLACE.WIDTH, GAP_Y = SCRATCH_PLACE.GAP_Y;
 
-  let curY = startY, added = 0;
-  window.showToast?.(`📥 ${images.length}개 불러오는 중...`);
+  let added = 0, cols = 0;
+  window.showToast?.(groups.length > 1
+    ? `📥 ${groups.length}폴더 ${images.length}개 불러오는 중...`
+    : `📥 ${images.length}개 불러오는 중...`);
 
-  for (const file of images) {
-    const dataUrl = await new Promise(res => {
-      const r = new FileReader();
-      r.onload = e => res(e.target.result);
-      r.onerror = () => res(null);
-      r.readAsDataURL(file);
-    });
-    if (!dataUrl) continue;
-    const nat = await new Promise(res => {
-      const img = new Image();
-      img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight });
-      img.onerror = () => res({ w: WIDTH, h: WIDTH });
-      img.src = dataUrl;
-    });
-    const displayH = nat.w > 0 ? Math.round((nat.h / nat.w) * WIDTH) : WIDTH;
-    await window._scratchAddAndSave(dataUrl, startX, curY, WIDTH);
-    curY += displayH + GAP_Y;
-    added++;
+  for (const group of groups) {
+    /* ★컬럼은 «폴더마다» 연다 — 옛 판은 이 호출이 루프 «밖»에 한 번뿐이었다.
+       ⛔여기서 x 를 직접 계산하지 마라: 자리 규칙의 단일 진실소스는 _scratchNextSlot 이다
+       (START_X 하한·GAP_X·「컬럼 상한은 원래 없다」가 전부 그 함수 위 주석에 있다). */
+    const { x: startX, y: startY } = window._scratchNextSlot({ newColumn: true });
+    let curY = startY, inThisCol = 0;
+
+    for (const file of group.files) {
+      const dataUrl = await new Promise(res => {
+        const r = new FileReader();
+        r.onload = e => res(e.target.result);
+        r.onerror = () => res(null);
+        r.readAsDataURL(file);
+      });
+      if (!dataUrl) continue;
+      const nat = await new Promise(res => {
+        const img = new Image();
+        img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight });
+        img.onerror = () => res({ w: WIDTH, h: WIDTH });
+        img.src = dataUrl;
+      });
+      const displayH = nat.w > 0 ? Math.round((nat.h / nat.w) * WIDTH) : WIDTH;
+      await window._scratchAddAndSave(dataUrl, startX, curY, WIDTH);
+      curY += displayH + GAP_Y;
+      added++; inThisCol++;
+    }
+    if (inThisCol > 0) cols++;   // 한 장도 못 읽은 폴더는 컬럼으로 세지 않는다(「3컬럼」이 거짓이 되지 않게)
   }
 
-  window.showToast?.(`✅ 스크래치 ${added}개 추가 완료`);
+  window.showToast?.(cols > 1
+    ? `✅ 스크래치 ${cols}컬럼 ${added}개 추가 완료`
+    : `✅ 스크래치 ${added}개 추가 완료`);
 }
 
 window.loadScratchpadFolder = loadScratchpadFolder;
@@ -2050,24 +2398,50 @@ window._scratchGroupAndAlign = () => {
  * @returns {{ok:boolean, moved?:boolean, reason?:string}}
  */
 window._scratchAnimateItemTo = (id, x, y, opts = {}) => {
-  const it = _scratchItems.find(i => i.id === id);
-  if (!it || !it.el) return { ok: false, reason: 'NOT_FOUND' };
-  /* ⛔`it.x || parseFloat(...)` 금지 — x=0 은 «유효한 자리»다(왼쪽 끝). ?? 로 가른다. */
-  const x0 = it.x ?? (parseFloat(it.el.style.left) || 0);
-  const y0 = it.y ?? (parseFloat(it.el.style.top) || 0);
-  const nx = Math.round(x), ny = Math.round(y);
-  if (Math.abs(nx - x0) < 1 && Math.abs(ny - y0) < 1) return { ok: true, moved: false };
+  /* ★2026-10-09 — 본체가 «여러 장»판(_scratchAnimateItemsTo)으로 옮겨 갔다. 이 자리는 그 겉면이다.
+     ⛔여기에 사본을 다시 만들지 마라 — 되돌리기 규약(linkDy 를 같이 담는 스냅샷)이 두 벌이 된다. */
+  return window._scratchAnimateItemsTo([{ id, x, y, linkDy: opts.linkDy }], opts);
+};
 
-  const before = _scratchGeomSnapshot([it]);
-  const stop = () => { if (it._tweenRAF) { cancelAnimationFrame(it._tweenRAF); it._tweenRAF = null; } };
+/* ══ 여러 장을 «한 걸음»으로 옮긴다 (2026-10-09, 그룹 링크선 당기기) ══════════════════
+ * ★왜 본체가 여기냐 — 위 머리말이 적은 그대로다: 자리·저장·되돌리기는 «스크래치의 것»이고,
+ *   되돌리기 규약(_scratchGeomSnapshot 이 linkDy 까지 담는다)은 이 집에 ★하나만 있어야 한다.
+ *   ⇒ `_scratchAnimateItemTo` 는 이제 ★이 함수의 한 줄짜리 겉면이다(사본이 아니다).
+ * ★N장이어도 pushHistory 는 ★한 번 — 그래야 그룹을 당겨도 ⌘Z 한 번에 통째로 돌아온다.
+ * ★이미 전부 제자리면 «아무 일도 안 한다» — 히스토리도 안 쌓는다(현빈 「또 더블클릭하면 아무 일 없음」).
+ *   ⛔일부만 제자리인 경우에 그 장을 «빼고» 찍지 마라: 빠진 장은 undo 때 복원 대상에서 사라진다.
+ *     한 장이라도 움직이면 ★전원을 스냅샷에 담는다.
+ * @param {Array<{id:string,x:number,y:number,linkDy?:number}>} moves
+ * @param {{label?:string, ms?:number}} [opts]
+ * @returns {{ok:boolean, moved?:boolean, reason?:string, count?:number}}
+ */
+window._scratchAnimateItemsTo = (moves, opts = {}) => {
+  const rows = (moves || []).map(m => {
+    const it = _scratchItems.find(i => i.id === m.id);
+    if (!it || !it.el) return null;
+    /* ⛔`it.x || parseFloat(...)` 금지 — x=0 은 «유효한 자리»다(왼쪽 끝). ?? 로 가른다. */
+    const x0 = it.x ?? (parseFloat(it.el.style.left) || 0);
+    const y0 = it.y ?? (parseFloat(it.el.style.top) || 0);
+    return { it, x0, y0, nx: Math.round(m.x), ny: Math.round(m.y), linkDy: m.linkDy };
+  }).filter(Boolean);
+  if (!rows.length) return { ok: false, reason: 'NOT_FOUND' };
+  if (rows.every(r => Math.abs(r.nx - r.x0) < 1 && Math.abs(r.ny - r.y0) < 1)) return { ok: true, moved: false };
+
+  const items = rows.map(r => r.it);
+  const before = _scratchGeomSnapshot(items);
+  const stop = () => rows.forEach(r => {
+    if (r.it._tweenRAF) { cancelAnimationFrame(r.it._tweenRAF); r.it._tweenRAF = null; }
+  });
   stop();                                  // 연달아 부르면 «마지막 목표»로 간다
   const ms = Number.isFinite(opts.ms) ? Math.max(0, opts.ms) : 220;
   const t0 = performance.now();
   const ease = (p) => 1 - Math.pow(1 - p, 3);          // ease-out cubic
   const settle = () => {
-    it.x = nx; it.y = ny;
-    it.el.style.left = nx + 'px'; it.el.style.top = ny + 'px';
-    if (Number.isFinite(opts.linkDy)) it.linkDy = opts.linkDy;
+    rows.forEach(r => {
+      r.it.x = r.nx; r.it.y = r.ny;
+      r.it.el.style.left = r.nx + 'px'; r.it.el.style.top = r.ny + 'px';
+      if (Number.isFinite(r.linkDy)) r.it.linkDy = r.linkDy;
+    });
     _saveScratch();
     // #16 follow — 추종루프가 이 이동을 «사용자 드래그»로 오인해 재앵커하지 않게 기준선을 맞춘다
     try { window.SPLink && window.SPLink.resyncFollow && window.SPLink.resyncFollow(); } catch (_) {}
@@ -2075,26 +2449,34 @@ window._scratchAnimateItemTo = (id, x, y, opts = {}) => {
   const step = () => {
     const p = ms === 0 ? 1 : Math.min(1, (performance.now() - t0) / ms);
     const k = ease(p);
-    it.x = Math.round(x0 + (nx - x0) * k);
-    it.y = Math.round(y0 + (ny - y0) * k);
-    it.el.style.left = it.x + 'px'; it.el.style.top = it.y + 'px';
-    if (p < 1) { it._tweenRAF = requestAnimationFrame(step); return; }
-    it._tweenRAF = null;
+    rows.forEach(r => {
+      r.it.x = Math.round(r.x0 + (r.nx - r.x0) * k);
+      r.it.y = Math.round(r.y0 + (r.ny - r.y0) * k);
+      r.it.el.style.left = r.it.x + 'px'; r.it.el.style.top = r.it.y + 'px';
+    });
+    /* ★핸들은 «전원»에게 박는다 — 겹치는 다른 묶음이 나중에 불려도 stop() 이 이 트윈을 찾아 세운다
+       (rows[0] 한 곳에만 두면 그 장이 안 낀 다음 호출이 이 루프를 못 세워 두 트윈이 서로를 덮는다). */
+    if (p < 1) { const h = requestAnimationFrame(step); rows.forEach(r => { r.it._tweenRAF = h; }); return; }
+    rows.forEach(r => { r.it._tweenRAF = null; });
     settle();
   };
   if (ms === 0) settle(); else step();
 
   /* 히스토리는 «목표값»으로 찍는다 — 트윈 중간값이 아니다(중간에 ⌘Z 해도 목표로 redo 된다). */
-  const after = _scratchGeomSnapshot([it]).map(sn => ({
-    ...sn, x: nx, y: ny,
-    ...(Number.isFinite(opts.linkDy) ? { linkDy: opts.linkDy } : {}),
-  }));
+  const byId = new Map(rows.map(r => [r.it.id, r]));
+  const after = _scratchGeomSnapshot(items).map(sn => {
+    const r = byId.get(sn.id);
+    return { ...sn, x: r.nx, y: r.ny, ...(Number.isFinite(r.linkDy) ? { linkDy: r.linkDy } : {}) };
+  });
   try {
     window.pushHistory?.(opts.label || '스크래치 이동', {
       onUndo: () => { stop(); _applyScratchGeomSnapshot(before); },
       onRedo: () => { stop(); _applyScratchGeomSnapshot(after); },
     });
   } catch (_) {}
+  /* ⛔`count` 를 더하지 마라 — `_scratchAnimateItemTo` 가 이 값을 그대로 돌려주고,
+     tests/unit/scratch-animate-move M2·M5 가 그 «꼴»을 통째로 비교한다(실측: 더했더니 둘이 빨갰다).
+     「몇 장이 함께 왔나」는 화면(자리)으로 재는 것이 맞다 — 반환값에 숨기지 않는다. */
   return { ok: true, moved: true };
 };
 
@@ -2104,10 +2486,15 @@ window._scratchHasGroupSelection = () =>
 
 // 스크래치 언그룹 — 선택된 아이템들의 그룹 해제 (Cmd+Shift+G)
 /* ── 링크(섹션 연결) 끊기 헬퍼 ───────────────────────────────────────────
- * ⚠️SPLink.removeLink() 를 쓰지 «않는다». 그건 호출마다 pushHistory 를 따로 쌓고
- *   앵커(linkDy)를 버려서, 여러 개를 한꺼번에 끊으면 undo 가 N번으로 쪼개지고
- *   되돌려도 오프셋이 사라진다. 여기선 dataset 을 직접 고쳐 «한 번의» undo 로 묶는다.
- *   linkDy 복원은 _applyScratchGeomSnapshot 이 이미 해준다. */
+ * ★쓰는 곳 = «참고이미지 삭제»(_deleteScratchItemsWithHistory) ★하나다.
+ *   ⛔2026-10-09 이전엔 그룹 해제(_scratchUngroup)도 이걸 불렀다 — 현빈 ②로 ★뺐다(그 자리 주석 참조).
+ * ⚠️SPLink.removeLink() 를 쓰지 «않는다». 까닭 ★셋:
+ *   ⑴ 호출마다 pushHistory 를 따로 쌓아, 여러 개를 한꺼번에 끊으면 undo 가 N번으로 쪼개진다.
+ *   ⑵ 앵커(linkDy)를 버려서 되돌려도 오프셋이 사라진다. 여기선 dataset 을 직접 고쳐 «한 번의»
+ *      undo 로 묶는다 — linkDy 복원은 _applyScratchGeomSnapshot 이 이미 해준다.
+ *   ⑶ ★2026-10-09부터 removeLink 는 «그룹 묶음 ★전체»를 끊는다(현빈 ④). 여기서 부르면
+ *      ★한 장을 지웠는데 그룹 ★전원의 연결이 날아간다 — 이 자리는 «지우는 그 장»만 끊어야 한다.
+ *   ⇒ ★여기를 removeLink 로 «단순화»하지 마라. 셋 다 되살아난다. */
 function _severLinks(ids) {
   const SP = window.SPLink;
   if (!SP || !SP._parse || !SP._write || !SP.sectionIdOf) return [];
@@ -2148,23 +2535,33 @@ window._scratchUngroup = () => {
     delete it.g;
     if (it.el) delete it.el.dataset.scratchGroup;
   });
-  /* ★그룹을 풀면 «섹션 연결»도 같이 끊는다.
-   * 안 그러면 그룹만 풀리고 refLinks 는 남아 _applyFollow 의 rAF 루프가
-   * 계속 y = secTop + linkDy 를 다시 먹여, 「해제했는데 여전히 같이 움직인다」가 된다.
-   * 그룹(6~7월)과 링크(#16, 8월)가 7주 시차로 따로 만들어져 서로를 몰랐다. */
-  const severed = _severLinks(items.map(it => it.id));
+  /* ★★2026-10-09 — 「그룹을 풀면 섹션 연결도 같이 끊는다」를 ★뺐다 (현빈 지시).
+   *   현빈 원문: 「만약 링크 연결된 상태에서 그룹해제를 하면 ★그제서야 각각의 링크들이 연결되던가 해야되지 않겠어?」
+   *   ⇒ 해제는 «묶음을 푸는 일»이지 «연결을 버리는 일»이 아니다. 연결은 각자 그대로 남는다.
+   * ★왜 전에는 끊었나(그 판의 까닭을 지우지 않고 적어 둔다): 그때는 refLinks 가 남으면
+   *   _applyFollow 의 rAF 루프가 계속 y = secTop + linkDy 를 먹여 「해제했는데 여전히 같이 움직인다」로
+   *   보였다. ★그건 «그룹이라서 같이 움직인 것»이 아니라 «각자 제 섹션을 따라간 것»이었는데,
+   *   선이 «멤버마다 하나»씩 있어 둘이 구분되지 않았다. 이제 선은 묶음당 하나라 그룹을 풀면
+   *   선이 눈앞에서 N개로 «갈라진다» — 무슨 일이 일어났는지 화면이 말해 준다.
+   * ⛔「같이 끊기」를 되살리지 마라. 되살리면 현빈 ②가 그대로 돌아온다. 끊고 싶으면 ⛓ 를 쓴다.
+   * ★`_severLinks`/`_restoreLinks` 는 ★버리지 않았다 — 이제 «이미지 삭제»(_deleteScratchItemsWithHistory)가
+   *   쓴다(死참조 치우기). 그 둘을 지우면 그쪽이 조용히 깨진다. */
   _saveScratch();
   const after = _scratchGeomSnapshot(items);
   try {
     window.pushHistory?.('스크래치 그룹 해제', {
-      onUndo: () => { _restoreLinks(severed); _applyScratchGeomSnapshot(before); },
-      onRedo: () => { _severLinks(severed.map(r => r.link.scratchId)); _applyScratchGeomSnapshot(after); },
+      onUndo: () => { _applyScratchGeomSnapshot(before); },
+      onRedo: () => { _applyScratchGeomSnapshot(after); },
     });
   } catch (_) {}
-  window.showToast?.(severed.length
-    ? `🧩 스크래치 그룹 해제 (${items.length}개) · 섹션 연결 ${severed.length}개도 끊음`
+  /* 해제 뒤 선이 «몇 개로 갈라졌나»를 바로 다시 그린다 — rAF 루프가 다음 프레임에 하지만,
+     창이 가려져 있으면(visibilityState=hidden) 그 루프가 멈춰 있다(이 파일이 이미 아는 함정). */
+  try { window.SPLink && window.SPLink.rerender && window.SPLink.rerender(); } catch (_) {}
+  const linked = items.filter(it => { try { return window.SPLink?.isLinked(it.id); } catch (_) { return false; } }).length;
+  window.showToast?.(linked
+    ? `🧩 스크래치 그룹 해제 (${items.length}개) · 섹션 연결 ${linked}개는 각자 유지`
     : `🧩 스크래치 그룹 해제 (${items.length}개)`);
-  return { ok: true, count: items.length, unlinked: severed.length };
+  return { ok: true, count: items.length, unlinked: 0, keptLinks: linked };
 };
 
 // ── Claude PM MCP 노출: 스크래치 아이템 메타데이터 조회 ──

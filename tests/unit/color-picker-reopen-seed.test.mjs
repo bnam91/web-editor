@@ -87,8 +87,10 @@ test('S6 bindGradientLinePicker 시드도 같은 엄격 파서(배너02·비교�
 import fs from 'node:fs';
 import os from 'node:os';
 import { pathToFileURL } from 'node:url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 async function GM() {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gd-gmstrict-'));
+  const tmp = mkTmpRoot('gd-gmstrict-');
   fs.copyFileSync(path.join(ROOT, 'js', 'props', 'gradient-model.js'), path.join(tmp, 'gradient-model.js'));
   fs.writeFileSync(path.join(tmp, 'package.json'), '{"type":"module"}');
   return import(pathToFileURL(path.join(tmp, 'gradient-model.js')).href);

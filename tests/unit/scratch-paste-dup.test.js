@@ -126,7 +126,17 @@ function callArgs(src, callee, label) {
   return args.map((s) => s.trim());
 }
 
-const PASTE = fnBody(SRC.editor, 'function pasteClipboard()', 'pasteClipboard');
+/* ★[2026-10-09 C④] «섹션 붙여넣기 경로»는 이제 두 함수에 걸쳐 있다 — pasteClipboard 가
+ *   갈래를 고르고, 섹션 사본 «하나»를 넣는 한 벌은 _insertPastedSection 으로 빠졌다.
+ *   그렇게 뺀 까닭: 섹션이 «여러 개»인 갈래(type:'multi-section')가 생겼고, 두 갈래가 각자
+ *   id 재발급·rewire·바인딩을 적으면 그게 둘째 명부가 돼 «단건은 되는데 여러 개는 반쪽»으로 갈린다.
+ *   ⇒ 이 게이트가 재는 자리도 ★그 둘의 합집합으로 옮긴다. ⛔needle 을 하나도 안 바꿨다 —
+ *     아래 T-U1-1·T-U1-2·T-U1-11 의 기대 문자열·순서 비교는 그대로다(판정이 느슨해지지 않게).
+ *   ★이 합집합으로 바꾼 뒤 T-U1-1 주석의 변이A(el→el.cloneNode(true))·변이B(queueMicrotask 로
+ *     감싸기)를 ★직접 쳐서 둘 다 여전히 빨간지 확인했다(2026-10-09) — 그게 이 검사가 사는 조건이다.
+ *   ⚠️_insertPastedSection 을 지우거나 이름을 바꾸면 fnBody 가 «던진다»(조용히 0건이 되지 않는다). */
+const PASTE = fnBody(SRC.editor, 'function pasteClipboard()', 'pasteClipboard')
+  + '\n' + fnBody(SRC.editor, 'function _insertPastedSection(el, refSection)', '_insertPastedSection');
 const REWIRE = fnBody(SRC.link, 'function rewireClonedSection(el)', 'rewireClonedSection');
 const DUP = arrowBody(SRC.scratch, 'window._scratchDuplicateItem =', '_scratchDuplicateItem');
 const RESTORE = arrowBody(SRC.scratch, 'window._scratchRestoreItem =', '_scratchRestoreItem');

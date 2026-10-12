@@ -15,10 +15,19 @@ import { createRequire } from 'node:module';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
 const CLI = path.join(ROOT, 'tools/operator-allow/issue.mjs');
+const { mkTmpRoot } = createRequire(import.meta.url)('./_tmproot.js');
 const OA = createRequire(import.meta.url)(path.join(ROOT, 'services/operator-allow.js'));
 const M = OA.machineIdFrom('AAAAAAAA-1111-2222-3333-BBBBBBBBBBBB');
 
-const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'goditor-opallow-'));
+/* ★임시 HOME — ★★`mkTmpRoot`(tests/unit/_tmproot.js)가 ★만들기·치우기를 ★쥔다.
+   ★★★그런데 ★여기는 ★★즉시치움을 ★★«남긴다» — ⛔exit 훅에 ★맡기지 ★않는다.
+     ★★까닭: ★★이 폴더에 ★★개인키가 ★산다(아래 `KEY`). ★이 파일 ★머리말이 ★★«끝나면 지운다»를 ★약속한다.
+     ⇒ ★★종료훅은 ★SIGKILL·OOM 에서 ★안 돈다(★그 자의 머리말이 ★그렇게 적어 뒀다)
+     ⇒ ★★★개인키가 ★사는 자리를 ★★«언젠가 지워진다»로 ★둘 수 ★없다
+   ★★★그리고 ★★«약속»을 ★★«단언»으로 ★바꿨다(지디 2026-10-10):
+     ★아래 ★`C-KEYGONE` 이 ★★«키가 ★참으로 ★지워졌나»를 ★★잰다. ⛔머리말의 ★선언으로 ★닫지 ★않는다
+   ⇒ ★★그래서 ★이 파일은 ★★㉢(★이미 공용 자 ＋ ★즉시치움 = ★의도)다 — ★그 까닭이 ★이 주석과 ★그 칸이다 */
+const HOME = mkTmpRoot('goditor-opallow-');
 test.after(() => fs.rmSync(HOME, { recursive: true, force: true }));
 const run = (args, env = {}) => spawnSync(process.execPath, [CLI, ...args],
   { encoding: 'utf8', timeout: 20000, env: { ...process.env, HOME, USERPROFILE: HOME, ...env } });
@@ -103,4 +112,21 @@ test('C7 machine-id 는 앱과 같은 원천·해시(64 hex)', () => {
   assert.equal(r.status, 0, r.stderr);
   const raw = OA.rawMachineUuid({ platform: process.platform, execFileSync: (c, a, o) => spawnSync(c, a, { ...o, encoding: 'utf8' }).stdout, readFileSync: fs.readFileSync });
   assert.equal(r.stdout.trim(), OA.machineIdFrom(raw));
+});
+
+/* ══ ★★«약속»을 ★★«단언»으로 (지디 2026-10-10) ════════════════════════════════
+ * ★이 파일 ★머리말: 「⛔만든 개인키는 ★os.tmpdir 아래 ★임시 폴더에만 있고 ★★끝나면 지운다」
+ *   ⇒ ★★그건 ★★«선언»이다. ★★★개인키가 ★사는 자리를 ★선언으로 ★둘 수 ★없다.
+ * ★★그래서 ★★«지워졌나»를 ★★잰다 — ★`test.after` 가 ★★이 칸 ★뒤에 ★돈다는 보장이 ★없으니
+ *   ★★이 칸은 ★★«지우고 ★나서» ★★제 손으로 ★확인한다(★그 지움은 ★멱등이다).
+ * ★★무력화: ★위 ★`test.after(… rmSync(HOME) …)` 를 ★지우면 ★★이 칸이 ★빨개져야 한다.
+ *   ⇒ ★★그 변이를 ★★돌렸다(★커밋 글에 수를 적었다). ⛔«세워뒀다»로 ★안 둔다 */
+test('C-KEYGONE ★★개인키가 ★참으로 ★지워진다 — ★머리말의 ★약속을 ★단언으로', () => {
+  /* ★전제 — ★그 키가 ★★이 판에서 ★참으로 ★만들어졌나(⛔없는 것을 ★「지워졌다」로 읽지 않는다) */
+  assert.ok(fs.existsSync(KEY), '★전제 실패 — ★개인키가 ★애초에 ★없다(앞 칸이 ★안 돌았다)');
+  assert.ok(KEY.startsWith(HOME), `★키가 ★임시 HOME 밖에 있다: ${KEY}`);
+  /* ★★치움을 ★★여기서 ★한 번 ★돌리고 ★★결과를 ★잰다 — ★`test.after` 와 ★같은 동작이다(멱등) */
+  fs.rmSync(HOME, { recursive: true, force: true });
+  assert.equal(fs.existsSync(KEY), false, '★★개인키가 ★남았다 — ★머리말의 ★약속이 ★거짓이다');
+  assert.equal(fs.existsSync(HOME), false, '★임시 HOME 이 ★남았다');
 });

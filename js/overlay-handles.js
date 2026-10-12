@@ -367,6 +367,26 @@ function _onHandleMouseDown(e, ss, dir) {
     }
     newW = Math.round(newW); newH = Math.round(newH);
     ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
+    /* ★★★「패딩 제외(full-bleed)」 규약의 ★★둘째 입구 (현빈 2026-10-11 「★리사이즈하면 ★패딩제외가 ★풀린다」)
+       ★★규약 = ★★«제 폭을 ★먼저 정하고», ★마지막에 ★패딩제외를 ★덮는다. ★꺼져 있으면 ★no-op 이다.
+       ★★★입구가 ★★둘이다 — ★이 명부를 ★여기와 ★그쪽에 ★같이 적는다:
+         ⒤ ★패널 ★폭 슬라이더 — `js/props/prop-frame.js` 의 `applyWidth`(★그 자리 주석이 ★이 병을 ★이미 적어 뒀다)
+         ⒥ ★★이 자리 — ★오버레이 ★리사이즈 ★핸들의 ★`onMove`
+       ★★★왜 ⒥ 가 ★빠져 있었나: ★`git log -S'applyBlockFullBleed' -- js/overlay-handles.js` 가 ★★0커밋이다
+         ⇒ ★★한 번도 ★없었다. ★★같은 규약이 ★두 입구 중 ★한 곳에만 ★걸려 있었다.
+       ★★실측(★고치기 전 판 `5954e4f4` · ★프레임을 ★패널에서 ★켜고 ★`se` 핸들을 ★끌었다):
+         ★켠 뒤      `style.width = calc(100% + 64px)` · `marginLeft = -32px` · 그려진 폭 ★924
+         ★★드래그 ★중간 `style.width = ★860px` (★★`calc(` 가 ★★사라졌다) · `marginLeft` 는 ★★-32px ★그대로
+         ★up 뒤      ★같다
+         ⇒ ★★★«풀린다»가 ★아니라 ★★«어긋난다»다 — ★스위치와 ★음수 마진은 ★남고 ★폭만 ★죽어
+           ★블럭이 ★왼쪽으로 ★32px ★밀린 채 ★좁아진다.
+       ★★★그래서 ★`onUp` 이 ★아니라 ★★`onMove` 다 — ★★사람은 ★끌면서 ★본다(★중간에 ★이미 ★어긋났다).
+         ★그리고 ★`onUp` 은 ★폭을 ★★안 쓴다(★실측: ★up 뒤 값이 ★마지막 ★중간값과 ★같다)
+         ⇒ ★★★이 ★한 자리가 ★★두 시점을 ★다 ★덮는다.
+       ⚠️★따르는 ★결과를 ★적어 둔다: ★패딩제외가 ★★켜져 있으면 ★★가로 드래그로 ★폭이 ★안 줄어든다
+         (★`applyBlockFullBleed` 가 ★폭을 ★`calc(100% + …)` 로 ★되돌린다). ★★세로는 ★그대로 ★준다.
+         ★★그건 ★★패널 ★슬라이더가 ★★이미 ★그렇게 ★동작한다 ⇒ ★★두 입구가 ★★같아진다(★그게 ★이 고침의 ★뜻이다). */
+    window.applyBlockFullBleed?.(ss);
     if (!isFullWidth) {
       ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
     }
@@ -1167,6 +1187,135 @@ function _onModalResizeHandleMouseDown(e, block, dir) {
 window.showModalResizeHandles = showModalResizeHandles;
 window.hideModalResizeHandles = hideModalResizeHandles;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   COUPON BLOCK RESIZE HANDLES (네 모서리 · ★폭만 쓴다) — 현빈 발주 2026-10-07
+   ───────────────────────────────────────────────────────────────────────────
+   ★뜻 = «폭» 하나다. 높이는 ★쓰지 않고 ★따라온다 — 쿠폰은 16:9 를 스스로 지킨다
+     (js/blocks/coupon-block.js `_cpnBoxH`). ⇒ dy 는 ★안 읽는다.
+     ⓐ 높이를 따로 쓰면 「비율」이 두 벌이 되고(dataset.height vs cw/ch) 한쪽만 고쳐진다.
+     ⓑ 그래서 네 모서리를 다 주지만 ★수평 성분만 센다 — modal 의 ★가운데 고정 산식(Δ=2·dx)을
+        그대로 쓴다(쿠폰도 margin-left/right:auto 로 가운데 선다 — renderCouponBlock 의 cssText).
+   ★★글자는 ★여기서 안 건드린다. ⛔dataset.slot*Size 를 쓰지 마라 —
+     폭이 줄면 renderCouponBlock 이 ★읽는 자리에서 비율을 곱한다(`_cpnEffFontSize`).
+     그래서 ★다시 넓히면 원래 크기가 ★되살아난다(zoom-geometry.js:392 와 같은 규약).
+     ⇒ 이것이 현빈이 말한 「텍스트 스티커처럼 비율이 줄어든다」의 ★앱 쪽 구현이고,
+       식·clamp 는 js/sticker-select.js:320~323 과 ★같다.
+   ★이름이 `-overlay-handle` 로 끝나야 tests/unit/overlay-handle-cursor.test.mjs 의 전수
+     그물에 자동 등록된다(커서 누락을 기계가 잡는다) — 작명에 이유가 있다.
+   ⛔`.mdl-overlay-handle` 을 «빌리면» hideModalResizeHandles 의 일괄 remove 에 쓸려 나간다
+     (아이콘원형·확대블럭이 두 번 밟은 함정).
+═══════════════════════════════════════════════════════════════════════════ */
+let _cpnResizeBlock = null;
+let _cpnResizeRafId = null;
+
+function showCouponResizeHandles(block) {
+  if (_cpnResizeBlock === block) return;
+  hideCouponResizeHandles();
+  _cpnResizeBlock = block;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  CORNER_DIRS.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `cpn-overlay-handle ${dir}`;
+    h.dataset.couponResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onCouponResizeHandleMouseDown(e, block, dir));
+  });
+  _updateCouponResizeHandlePositions();
+  _startCouponResizeRaf();
+}
+
+function hideCouponResizeHandles() {
+  if (_cpnResizeRafId) { cancelAnimationFrame(_cpnResizeRafId); _cpnResizeRafId = null; }
+  _cpnResizeBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.cpn-overlay-handle').forEach(h => h.remove());
+}
+
+function _updateCouponResizeHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_cpnResizeBlock) return;
+  const HALF = 3.5;
+  overlay.querySelectorAll('.cpn-overlay-handle').forEach(h => {
+    const c = _cornerScreen(_cpnResizeBlock, h.dataset.couponResizeDir);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+  });
+}
+
+function _startCouponResizeRaf() {
+  function loop() {
+    if (!_cpnResizeBlock) return;
+    if (!_cpnResizeBlock.isConnected || !_cpnResizeBlock.classList.contains('selected')) {
+      hideCouponResizeHandles();
+      return;
+    }
+    _updateCouponResizeHandlePositions();
+    _cpnResizeRafId = requestAnimationFrame(loop);
+  }
+  _cpnResizeRafId = requestAnimationFrame(loop);
+}
+
+function _onCouponResizeHandleMouseDown(e, block, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX, startY = e.clientY;
+  /* ★시작 폭은 «모델»에서 읽는다 — offsetWidth 는 배율·max-width:100% 가 곱해진 화면 값이라
+     좁은 호스트에서 첫 틱에 폭이 «쪼그라든다»(아이콘 스냅샷이 밟은 그 병과 같은 꼴). */
+  const lim = (typeof window !== 'undefined' && window.COUPON_LIMITS) || { width: { min: 80, max: 860 } };
+  const clamp = (typeof window !== 'undefined' && window.clampCoupon)
+    || ((v, L) => Math.min(L.max, Math.max(L.min, Math.round(Number(v) || 0))));
+  const startW = clamp(Number(block.dataset.width) || Math.round(block.offsetWidth), lim.width);
+  const sx = dir.includes('e') ? 1 : -1;
+  let moved = false;
+  const _hist = window.beginDragHistory?.('쿠폰 크기');
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    if (!moved) {
+      if (Math.hypot(dx, dy) < 1) return;   // ★기존 임계 — 여기 걸리면 이 틱은 «쓰기»도 안 한다
+      /* ★«시작 상태»를 1회 찍는다(끝 상태는 onUp). 드래그는 «양쪽 끝»을 다 남겨야
+         삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
+      _hist?.arm(dx, dy);
+      moved = true;
+    }
+    /* ★Δ = 2·dx — 가운데 고정 상자는 폭이 Δ 늘 때 각 변이 Δ/2 만 움직인다(modal 의 그 산식).
+       ⛔dy 는 ★안 쓴다 — 높이는 비율에서 나온다(이 절의 머리말 ⓐ). */
+    const newW = clamp(startW + sx * dx * 2, lim.width);
+    block.dataset.width = String(newW);     // ★dataset 이 진실
+    /* ⛔mousemove 마다 renderCouponBlock 을 부르지 않는다 — innerHTML 을 통째로 갈아끼운다
+       (프레임 드랍 · 배경 SVG 가 매 프레임 새로 만들어져 깜빡인다).
+       ★드래그 «중»엔 인라인 두 줄만 얹는다 — 글자는 ★손을 뗀 뒤 재렌더가 비율로 맞춘다.
+         그래서 드래그 중에는 글자가 «안 줄고» 상자만 줄어 보인다. 이것이 의도다
+         (modal 도 같은 까닭으로 드래그 중 재렌더를 안 한다). */
+    block.style.width = newW + 'px';
+    const h = window.cpnBoxH ? window.cpnBoxH(block, newW) : null;
+    if (h) block.style.height = h + 'px';
+    const wNum = document.getElementById('cpn-width-number');
+    const wSld = document.getElementById('cpn-width-slider');
+    if (wNum) wNum.value = String(newW);
+    if (wSld) wSld.value = String(newW);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    /* ★끝 상태를 찍는다. 시작 상태는 onMove 의 arm() 이 찍는다. */
+    window.pushHistory?.();
+    if (!moved) return;
+    window.renderCouponBlock?.(block);       // ★dataset 을 «그림»으로 굳힌다(글자 비율도 여기서)
+    window.showCouponProperties?.(block);    // 폭·높이 안내·「지금 화면 크기」가 실제와 맞게
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showCouponResizeHandles = showCouponResizeHandles;
+window.hideCouponResizeHandles = hideCouponResizeHandles;
+
 /* ═══════════════════════════════════
    ICON-CIRCLE BLOCK RESIZE HANDLE (overlay, east-only, square-constrained)
 ═══════════════════════════════════ */
@@ -1650,10 +1799,16 @@ function showGridGutters(block) {
     const ovl = _getOverlay();
     const haveCol = ovl ? ovl.querySelectorAll('.grd-gutter[data-axis="col"]').length : 0;
     const haveRow = ovl ? ovl.querySelectorAll('.grd-gutter[data-axis="row"]').length : 0;
-    if (haveCol === needCol && haveRow === needRow) { _updateGridGutterPositions(); return; }
+    /* ★S11 — 중첩 거터도 «축별로» 센다. 안 세면 「줄을 나눴는데 거터가 안 선다」가 난다
+       (바깥 격자 수는 그대로라 조기 return 이 걸린다 — 위 3x3 회귀와 ★같은 꼴이다). */
+    const haveNcol = ovl ? ovl.querySelectorAll('.grd-gutter[data-axis="ncol"]').length : 0;
+    const needNcol = _gridNestedLines(block).reduce((a, nl) => a + Math.max(0, nl.n - 1), 0);
+    if (haveCol === needCol && haveRow === needRow && haveNcol === needNcol) { _updateGridGutterPositions(); return; }
   }
   hideGridGutters();
-  if (cols.length < 2 && rows.length < 2) return; // 경계가 하나도 없다
+  /* ★S11 — 중첩 줄이 있으면 바깥이 1×1 이어도 «경계»가 있다. 안 고치면 1열 그리드의
+     나눈 줄에 거터가 영영 안 선다(현빈의 쓰임에 바로 걸린다). */
+  if (cols.length < 2 && rows.length < 2 && !_gridNestedLines(block).length) return; // 경계가 하나도 없다
   _gridGutterBlock = block;
   const overlay = _getOverlay();
   if (!overlay) return;
@@ -1668,6 +1823,20 @@ function showGridGutters(block) {
     overlay.appendChild(g);
     g.addEventListener('mousedown', e => _onGridColMouseDown(e, block, i));
     _wireGutterContextMenu(g, block);
+  }
+  /* ★S11 — 중첩 줄(.grd-nested) «안» 두 칸 사이에도 거터를 둔다. 열 N 개면 ★N−1 개.
+     ⛔바깥 거터 수는 ★안 늘린다 — data-axis 를 'ncol' 로 ★갈라 둔다(검사가 그 수를 따로 센다). */
+  for (const nl of _gridNestedLines(block)) {
+    for (let i = 0; i < nl.n - 1; i++) {
+      const g = document.createElement('div');
+      g.className = 'grd-gutter';
+      g.dataset.axis = 'ncol';
+      g.dataset.r = String(nl.r); g.dataset.c = String(nl.c); g.dataset.li = String(nl.li);
+      g.dataset.i = String(i);
+      g.style.cssText = 'position:absolute;width:8px;cursor:col-resize;z-index:97;pointer-events:auto;';
+      overlay.appendChild(g);
+      g.addEventListener('mousedown', e => _onGridNestedColMouseDown(e, block, { r: nl.r, c: nl.c, li: nl.li }, i));
+    }
   }
   for (let i = 0; i < rows.length - 1; i++) {
     const g = document.createElement('div');
@@ -1806,6 +1975,20 @@ function _updateGridGutterPositions() {
     g.style.top = shellRect.top + 'px';
     g.style.height = shellRect.height + 'px';
   });
+  /* ★S11 — 중첩 거터 자리. 세로 범위는 ★그 줄(.grd-nested)만 — 바깥 칸 전체가 아니다
+     (그 줄 밖에서 끄는 것은 뜻이 없고, 바깥 열 거터와 겹치면 서로 가린다). */
+  overlay.querySelectorAll('.grd-gutter[data-axis="ncol"]').forEach(g => {
+    const i = +g.dataset.i;
+    const els = _getNestedCols(block, +g.dataset.r, +g.dataset.c, +g.dataset.li);
+    const a = els[i], b = els[i + 1];
+    if (!a || !b) { g.style.display = 'none'; return; }
+    g.style.display = '';
+    const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+    const cx = (ar.right + br.left) / 2;
+    g.style.left = (cx - 4) + 'px';
+    g.style.top = Math.min(ar.top, br.top) + 'px';
+    g.style.height = Math.max(ar.height, br.height) + 'px';
+  });
   overlay.querySelectorAll('.grd-gutter[data-axis="row"]').forEach(g => {
     const i = +g.dataset.i;
     const a = _getGridCell(block, i, 0), b = _getGridCell(block, i + 1, 0);
@@ -1831,6 +2014,113 @@ function _updateGridGutterPositions() {
 
 // 열 경계 드래그 — 인접 두 열의 «가중치»만 재분배(합 보존, 다른 열 불변).
 // wL0/wR0(화면 px, 스케일로 나눈 캔버스 px)와 W(가중치 합)는 mousedown 시점 1회 스냅샷 —
+/* ═══ ★S11 «중첩 줄 안 두 칸»의 비율을 ★마우스로 (현빈 2026-10-07) ═══════════════════
+ *   원문: 「그리드 블럭 선택후 우클릭 후 ★나란히 두칸으로 나누기를 통해서 추가되는 줄 ★간에
+ *          ★칸 비율 ★마우스로 조절 가능하게 해줘」
+ *   현빈 확답(지디 중계) — ① 「줄 간에」 = ★«그 줄 ★안»의 두 칸 사이  ② ★줄마다 ★따로
+ *                        ③ 방법은 ★«마우스 하나» (⛔패널 숫자칸 안 만든다)
+ *
+ * ★이미 있던 것(실측) — ⛔새로 안 만든다
+ *   · 「나란히 두 칸으로 나누기」 = `#bcm-grid-nested`(index.html:1662) ＋ block-factory.js:5759 (T-221)
+ *     만드는 값 = `{type:'duo', gap:8, cols:[{width:1,lines:[…]},{width:1,lines:[…]}]}`
+ *   · 비율 ★필드 = `line.cols[c].width` — ★이미 모델에 있고 `grid-block.js:2278` 이 `flex:${w}` 로 ★그린다
+ *   · `cols` 는 ★이미 `GRID_LINE_FIELDS` 에 있다(런타임 import 로 센 명부) ⇒ ★새 필드 ★0
+ *   ⇒ ★★없던 것은 ★«쓰는 손» 하나뿐이었다. 이 아래가 그 손이다.
+ *
+ * ★★조건 ① «합 보존»은 ⛔새로 짜지 않는다 — 바깥 열과 ★같은 순수함수 `resizeColBoundary`
+ *   (grid-cell-resize.js)를 ★그대로 먹인다. ★minPx 도 모듈 기본값(COL_MIN_PX)을 쓴다.
+ *   ⇒ 한 레인에 두 벌을 만들지 않는다.
+ * ★★조건 ⑤ 쓰는 문은 ★`patchCell{r,c,lineIndex,cols}` ★하나 — ⛔dataset 직접 쓰기 금지.
+ *   그래야 `_gridIntake`·`_gridInspectNested`(깊이·열 상한)·모르는 필드 거절을 ★건너뛰지 않는다.
+ *   ⚠️바깥 거터는 `block.dataset.cols` 를 ★직접 쓴다 — ★그 관례를 ★따르지 «않는다».
+ *     까닭: 바깥 `cols` 는 입구 검증이 따로 서 있지만, ★중첩은 `_gridInspectNested` 가
+ *     ★입구에서만 잰다. 직접 쓰면 그 자를 ★통째로 건너뛴다.
+ * ★★조건 ② «면적» — 거터는 `#ss-handles-overlay`(position:fixed) 위에 ★스크린 좌표로 앉는다.
+ *   ⇒ 캔버스 `matrix(0.4)` 를 ★안 탄다(배율이 낮아도 8px 그대로). ★바깥 거터와 ★같은 꼴이다.
+ *   ⛔이것을 ★추론으로 두지 않는다 — 검사가 `elementFromPoint` 로 ★배율 둘에서 잰다. */
+
+/** 중첩 줄 하나의 열 DOM — `.grd-nested[data-r][data-c][data-line] > .grd-nested-col` */
+function _getNestedCols(block, r, c, li) {
+  const nest = block.querySelector(
+    `.grd-cell[data-r="${r}"][data-c="${c}"] .grd-nested[data-r="${r}"][data-c="${c}"][data-line="${li}"]`);
+  return nest ? [...nest.querySelectorAll(':scope > .grd-nested-col')] : [];
+}
+
+/** 이 블럭 안의 «중첩 줄» 전수 — [{r,c,li,n}] (n = 그 줄의 열 수). ★DOM 에서 센다(그려진 것이 참값). */
+function _gridNestedLines(block) {
+  const out = [];
+  block.querySelectorAll('.grd-nested[data-line]').forEach(nest => {
+    /* ★중첩 «안»의 중첩은 건너뛴다 — 안쪽 줄은 data-line 을 안 가지지만(naddr 만 실린다),
+       혹시 바뀌어도 바깥 칸 직계만 집도록 closest 로 한 번 더 가른다. */
+    const cell = nest.closest('.grd-cell');
+    if (!cell) return;
+    const r = cell.dataset.r, c = cell.dataset.c, li = nest.dataset.line;
+    if (r === undefined || c === undefined || li === undefined) return;
+    if (nest.dataset.r !== r || nest.dataset.c !== c) return;   // 바깥 칸의 «제» 줄만
+    const n = nest.querySelectorAll(':scope > .grd-nested-col').length;
+    if (n >= 2) out.push({ r: +r, c: +c, li: +li, n });
+  });
+  return out;
+}
+
+function _onGridNestedColMouseDown(e, block, addr, i) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const model = window.getGridModel?.(block);
+  const line = model?.cells?.[addr.r]?.[addr.c]?.lines?.[addr.li];
+  const cols = Array.isArray(line && line.cols) ? line.cols.map(x => ({ ...x })) : null;
+  if (!cols || !cols[i] || !cols[i + 1]) return;
+  const els = _getNestedCols(block, addr.r, addr.c, addr.li);
+  const elA = els[i], elB = els[i + 1];
+  if (!elA || !elB) return;
+
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+  const scale0 = _canvasScaleNow();
+  const wL0 = elA.getBoundingClientRect().width / scale0;
+  const wR0 = elB.getBoundingClientRect().width / scale0;
+  const W = (Number(cols[i].width) || 1) + (Number(cols[i + 1].width) || 1);
+  const startX = e.clientX;
+  /* ★드래그 «시작 직전» 1회만 — 바깥 거터와 같은 규약. 아래 쓰기는 noHistory 로 보낸다
+     (updateGridBlock 이 제 스스로 1회 쌓으므로, 안 끄면 mousemove 마다 한 칸씩 쌓인다). */
+  window.pushHistory?.();
+
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const delta = (ev.clientX - startX) / scale;
+    const r = resizeColBoundary(wL0, wR0, W, delta);   // ★바깥 열과 «같은 순수함수». ⛔제 계산 금지
+    if (!r) return;
+    cols[i].width = r.leftWeight;
+    cols[i + 1].width = r.rightWeight;
+    /* ★★쓰는 문은 ★하나 — patchCell. ⛔dataset 직접 쓰기 금지(입구 검증·중첩 상한을 건너뛴다). */
+    /* ★`keepPanel:true` 가 ★없으면 — updateGridBlock 이 mousemove 마다 `showGridProperties` 를
+       다시 불러 패널을 ★통째로 새로 그리고, 그 끝의 `showGridGutters` 가 ★지금 끌고 있는 거터를
+       ★지웠다 다시 만든다 ⇒ ★드래그가 ★첫 픽셀에서 끊긴다.
+       ⇒ ★바깥 거터가 「드래그 중 패널 재렌더 금지」라 적어 둔 ★그 규약을 ★같은 뜻으로 지킨다
+         (바깥은 dataset 직접 쓰기라 애초에 패널을 안 건드리고, 나는 patchCell 을 쓰므로 ★이 깃발이 그 자리다).
+       ★`noHistory:true` — 이력은 mousedown 에서 ★1회만 쌓았다(바깥과 같은 규약).
+       ⛔`scheduleAutoSave` 를 ★여기서 또 부르지 않는다 — updateGridBlock 이 ★이미 부른다(두 벌 금지). */
+    /* ★★`updateGridBlockRaw` 다 — ⛔`updateGridBlock` 이 아니다.
+       까닭(2026-10-07 ★실측, 내 검사가 잡았다): `window.update*Block` 은 `model-update-history.js`
+       가 ★전부 감싸서 ★호출마다 «끝 표본» 한 칸을 더 쌓는다. 그 래퍼는 내 `noHistory` 를 ★안 본다.
+       ⇒ 끌기 한 번이 히스토리 ★10칸을 먹었고(mousemove 수만큼), ⌘Z 한 번은 ★한 걸음만 되돌렸다.
+       ★Raw 는 그 래퍼를 «안 타는» 원본이고, 선언 자리가 스스로 「자기 히스토리 칸을 직접 쌓는
+       호출자 전용」이라 적어 뒀다 — mousedown 에서 1회 쌓는 ★내가 바로 그 호출자다. */
+    const res = window.updateGridBlockRaw?.(block.id,
+      { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, cols } },
+      { noHistory: true, keepPanel: true });
+    if (!res || res.ok !== true) return;   // 거절(상한 등)이면 조용히 멈춘다 — 화면도 안 바뀐다
+    _updateGridGutterPositions();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    restoreDrag();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 // mousemove 는 여기서 튄 델타만 resizeColBoundary(순수함수, grid-cell-resize.js)에 먹인다.
 function _onGridColMouseDown(e, block, i) {
   if (e.button !== 0) return;
@@ -2215,9 +2505,25 @@ const GRD_GRIP_H = 18;
 
 /** 그 주소의 «바깥 줄» DOM. ⛔중첩 안 줄(np)은 null — data-line 을 안 쓰므로 addr.li 로
  *  조회하면 «품은 duo 줄»을 집는다(_gridImgFindEl 이 같은 함정을 같은 말로 막는다). */
+/* ★★BT3(2026-10-06 ⑵-B) — 아래 넷은 «주인(host)»에게 묻는다. ⛔그리드 주소를 ★여기서 직접 읽지 마라.
+ *   무엇이었나 — 이 손잡이가 `[data-r][data-c][data-line]` 로 줄을 찾고 `.grd-cell` 로 칸을 찾았다.
+ *     ⇒ 버블·챗 줄은 그 주소를 ★고의로 안 찍으므로(line-host.js 머리말 · 시험 T7) 손잡이가 ★못 섰다.
+ *   ⇒ 묻는 길을 계약 다섯 칸(rowEl·linesBox·rowsIn·rowAt·moveLine)으로 바꿨다.
+ *     ★그리드 구현은 prop-grid.js `_grdGridHost` 안에 ★옛 내부 그대로 옮겼다(산출·동작 불변).
+ *   ⛔이 파일을 복사해 `showLineGrip` 을 새로 만들지 마라 — 그게 이 레포가 갈라진 까닭이다. */
+function _lnGripHost(block) {
+  if (!block || !block.classList) return null;
+  /* ★버블·챗이면 그쪽 주인, 아니면 그리드 주인. ★하나의 문으로 모은다(명부 둘 금지). */
+  const h = window.lnHostFor ? window.lnHostFor(block) : null;
+  if (h) return h;
+  if (!block.classList.contains('grid-block')) return null;
+  return window.grdLineUi && window.grdLineUi.gridHost ? window.grdLineUi.gridHost(block) : null;
+}
+
 function _grdGripFindEl(block, addr) {
   if (!block || !addr || addr.li === null || addr.li === undefined || addr.np) return null;
-  return block.querySelector(`[data-r="${addr.r}"][data-c="${addr.c}"][data-line="${addr.li}"]`);
+  const H = _lnGripHost(block);
+  return (H && H.rowEl) ? H.rowEl(addr) : null;
 }
 
 /** 지금 고른 «바깥 줄» 주소 — 없으면 null. */
@@ -2227,15 +2533,15 @@ function _grdGripActiveAddr(block) {
   return addr;
 }
 
-/** 이 칸의 «바깥 줄» DOM 들 — 직속 자식만. ★중첩 «안»의 줄은 `.grd-nested` 안이라 안 걸린다
- *  (그 `.grd-nested` 자신은 바깥 줄이므로 걸리는 게 맞다). */
-function _grdGripCellLines(cellEl) {
-  return [...cellEl.querySelectorAll(':scope > [data-line]')];
+/** 이 그릇의 «바깥 줄» DOM 들. ★중첩 «안»의 줄은 그리드 구현이 걸러낸다(:scope > [data-line]). */
+function _grdGripCellLines(boxEl, block) {
+  const H = _lnGripHost(block);
+  return (H && H.rowsIn) ? H.rowsIn(boxEl) : [];
 }
 
-/** 포인터 y 가 이 칸의 «몇 번째 자리»인가 — 0..N (N = 줄 수 = 끝에 붙이기). */
-function _grdGripInsertAt(cellEl, clientY) {
-  const kids = _grdGripCellLines(cellEl);
+/** 포인터 y 가 이 그릇의 «몇 번째 자리»인가 — 0..N (N = 줄 수 = 끝에 붙이기). */
+function _grdGripInsertAt(boxEl, clientY, block) {
+  const kids = _grdGripCellLines(boxEl, block);
   for (let i = 0; i < kids.length; i++) {
     const rc = kids[i].getBoundingClientRect();
     if (clientY < rc.top + rc.height / 2) return i;
@@ -2371,8 +2677,11 @@ function _onGridLineGripMouseDown(e, block, addr) {
     window.clearDropIndicators?.();
     dropRC = null; dropInsertAt = null;
     const t = document.elementFromPoint(ev.clientX, ev.clientY);
-    const cellEl = t && t.closest ? t.closest('.grd-cell[data-r][data-c]') : null;
-    if (!cellEl || !block.contains(cellEl)) return;
+    /* ★«행»을 주인에게 묻는다 — 그리드 = 칸{r,c} · 버블 = 하나{r:0} · 챗 = 메시지{r:idx}. */
+    const H = _lnGripHost(block);
+    const at = (H && H.rowAt) ? H.rowAt(t) : null;
+    const cellEl = at ? at.box : null;
+    if (!cellEl) return;
     /* ★★중첩(duo) «안»은 따로 막지 않는다 — ⛔처음엔 `cellEl.closest('.grd-nested')` 가드를
        넣었는데 그것은 ★아무것도 안 재는 문이었다. 실측: 중첩의 열은 `.grd-nested-col` 이고
        중첩 «안»에는 `.grd-cell` 이 아예 없다(grid-block.js 의 중첩 렌더 두 줄). ⇒ 중첩 위에
@@ -2382,13 +2691,11 @@ function _onGridLineGripMouseDown(e, block, addr) {
        위쪽 절반이면 «그 줄 앞», 아래쪽이면 «그 줄 뒤»가 된다. 사용자가 보는 것과 같다.
        ⛔중첩 «안»으로 줄을 밀어 넣는 것은 여전히 못 한다 — 쓰는 길이 거기로 안 내려간다
          (T-220 몫). 그건 여기서 «막을» 일이 아니라 애초에 «갈 수 없는» 자리다. */
-    const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
-    if (!Number.isInteger(r) || !Number.isInteger(c)) return;
-    dropRC = { r, c };
-    dropInsertAt = _grdGripInsertAt(cellEl, ev.clientY);
+    dropRC = { r: at.r, c: at.c };
+    dropInsertAt = _grdGripInsertAt(cellEl, ev.clientY, block);
     const ind = document.createElement('div');
     ind.className = 'drop-indicator';
-    const kids = _grdGripCellLines(cellEl);
+    const kids = _grdGripCellLines(cellEl, block);
     if (dropInsertAt >= kids.length) cellEl.appendChild(ind);
     else cellEl.insertBefore(ind, kids[dropInsertAt]);
   }
@@ -2406,8 +2713,9 @@ function _onGridLineGripMouseDown(e, block, addr) {
     const to = _grdGripDropTarget(addr.li, dropInsertAt, sameCell);
     /* ★쓰는 길은 «부른다» — 이력·되돌림·활성줄 옮기기는 그쪽이 들고 있다(여기서 pushHistory 를
        부르지 않는다. updateGridBlock 이 쓰기 직전에 스스로 1회 쌓는다). */
-    if (sameCell) window.grdMoveLineWithin?.(block, { r: addr.r, c: addr.c }, addr.li, to);
-    else window.grdMoveLineToCell?.(block, { r: addr.r, c: addr.c }, addr.li, { r: dropRC.r, c: dropRC.c }, to);
+    /* ★쓰는 길도 주인이 든다 — 같은 행/다른 행 가름과 이력은 그쪽 몫이다(여기서 pushHistory 를 안 부른다). */
+    const Hup = _lnGripHost(block);
+    Hup?.moveLine?.({ r: addr.r, c: addr.c }, addr.li, { r: dropRC.r, c: dropRC.c }, to);
   }
 
   document.addEventListener('mousemove', onMove);
@@ -3490,6 +3798,10 @@ function showHandlesFor(block) {
   } else if (block.classList.contains('modal-block')) {
     showModalRadiusHandles(block);
     showModalResizeHandles(block);
+  } else if (block.classList.contains('coupon-block')) {
+    /* ★폭 하나다 — 모서리 라디우스 손잡이는 ★안 준다(쿠폰의 모서리는 ★배경 SVG 가
+       그리므로 손잡이를 주면 CSS border-radius 와 ★두 벌이 된다. 패널 슬라이더로만). */
+    showCouponResizeHandles(block);
   } else if (block.classList.contains('text-block')
           || block.classList.contains('speech-bubble-block')
           || block.classList.contains('icon-text-block')) {
@@ -3526,6 +3838,8 @@ export {
   showModalRadiusHandles,
   hideModalRadiusHandles,
   showModalResizeHandles,
+  showCouponResizeHandles,
+  hideCouponResizeHandles,
   hideModalResizeHandles,
   showIconCircleResizeHandle,
   hideIconCircleResizeHandle,

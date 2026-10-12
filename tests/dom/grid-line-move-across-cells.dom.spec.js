@@ -28,6 +28,7 @@
  * ⛔앱을 «안» 띄운다. 실행: npm run test:dom -- grid-line-move-across-cells
  */
 const { test, expect } = require('@playwright/test');
+const { assertAnchorsAlive } = require('./_mutation-anchor.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -100,6 +101,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 /** ★양성대조용: 서빙하는 «소스»를 갈아친다. ⛔닻을 못 찾으면 «조용히 원본»을 주지 않는다. */
 async function boot(page, mutate) {
   const muts = !mutate ? [] : (Array.isArray(mutate) ? mutate : [mutate]);
+  assertAnchorsAlive(REPO, mutate);   /* ★심기 «전» · Node 쪽 — ⛔페이지로 던지면 30초 조용한 죽음이 된다 */
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/__harness.html') return route.fulfill({ contentType: 'text/html', body: HARNESS });

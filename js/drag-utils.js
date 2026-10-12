@@ -31,6 +31,15 @@ function _escGraphHtml(v) {
 import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS(막대 두께 기본·한계의 한 자리)를 «이 모듈보다 먼저»
 import { state } from './globals.js';
 import { isShapeFrame, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
+/* ★「이 요소가 ★내용을 ★자르나」의 ★★정본 — ⛔여기 ★사본을 ★짓지 않는다(아래 effectiveSectionPadX)
+   ★★★2026-10-10 ㈄ — ★`js/frame-geometry.js` 의 ★`frameClipsPaint` 를 ★★여기로 ★합쳤다.
+     ★까닭: ★그 술어와 ★`js/clip-content.js` 의 ★`clipsContent` 는 ★★같은 물음이었다
+       (★프레임·에셋·그리드가 ★★「자르나」를 ★각자 ★세고 있었다) ⇒ ★★명부를 ★하나로.
+     ⚠️★★뜻이 ★한 군데서 ★갈린다: ★옛 술어는 ★★계열을 ★안 봐서 ★아무 요소에도 ★`true` 를 줬고,
+       ★`clipsContent` 는 ★★모르는 계열에 ★★`null` 을 준다(★「영은 ★답이 ★아니다」).
+       ⇒ ★★아래 호출 자리는 ★`closest('.frame-block')` 로 ★계열이 ★★확정이라 ★★동값이다(실측).
+         ★★그 전제를 ★검사가 ★잠근다 — ★tests/unit/block-full-bleed.test.mjs */
+import { clipsContent } from './clip-content.js';
 
 /* ── actorId — «누가 만든 블록인가» ────────────────────────────────────────
  * 원격 동시협업에서는 두 사람의 앱이 «같은 문서»에 블록을 만든다. 기존 ID 는
@@ -144,26 +153,25 @@ function insertBeforeBottomGap(section, el) {
  * ⚠️width 만 키우면 위치가 안 밀려 우측이 잘린다(`.section-inner{overflow-x:hidden}`).
  *   그래서 width + marginLeft + marginRight 를 «항상 세트로» 쓴다 — 정본 세 곳과 같은 규약. */
 
-/** el 이 뚫고 나가야 할 좌우 패딩(px). 뚫을 수 없는 자리면 0. */
-function effectiveSectionPadX(el) {
+/** ★★★«이 자리의 ★실효 좌우 패딩(px)»만 ★답한다 — ★★«조회» 물음이다.
+ *  ★우선순위: ★row 의 padX/paddingX  ⇒  ★section-inner 의 override  ⇒  ★문서 padX
+ *  ★★⛔«el 이 ★그것을 ★뚫을 수 ★있나»는 ★★★안 묻는다 — ★그건 ★아래 `effectiveSectionPadX` 다.
+ *
+ *  ★★★왜 ★갈랐나 (2026-10-10 · ★지디 승인 · ★실측으로 ★찾았다)
+ *    ★한 함수가 ★★두 물음을 ★답하고 있었다: ★㉠«패딩이 ★얼마냐» ＋ ★㉡«뚫을 수 ★있나(자르는 프레임 안이면 0)».
+ *    ★★`js/panels/template-system.js` 의 ★`_tplReapplyPagePad` 는 ★★㉠ 만 ★물었는데 ★★㉡ 까지 ★받았다.
+ *    ★그 파일 주석이 ★★제 가정을 ★적어 뒀다: 「section-inner 를 넘기면 ★프레임 갈래를 ★안 탄다」
+ *      ⇒ ★★★`closest` 는 ★★위로 ★걷는다 ⇒ ★★서브섹션이면 ★조상에 ★프레임이 ★있어 ★★탄다 ⇒ ★가정이 ★거짓이다.
+ *    ★★★2026-10-10 ② ★전에는 ★그 갈래가 ★«둥근 프레임»에서만 ★터져 ★조용했다.
+ *      ⇒ ★★②가 ★기본을 ★자름으로 ★뒤집자 ★★모든 프레임에서 ★터졌다 ⇒ ★★서브섹션만 ★padX 0.
+ *    ⇒ ★★★«막아둔 ★까닭이 ★죽고 ★문만 ★남는다»의 ★★거울상이다 —
+ *      ★★★«문이 ★거의 ★안 열려서 ★아무도 ★몰랐고, ★②가 ★활짝 ★열었다».
+ *    ★실측: ★`tests/dom/tpl-pagepad-e81` ★T2 — ★섹션 길 `100%` vs ★서브섹션 길 `calc(100% + 96px)`
+ *           (★cw ★820 vs ★916 · ★차 ★96 = ★2×48)
+ *  ★★⛔다시 ★합치지 ★마라 — ★★두 물음이 ★다르다. ★★합치면 ★그 사고가 ★그대로 ★돌아온다. */
+function sectionPadX(el) {
   const parent = el?.parentElement;
   if (!parent) return 0;
-  /* ★프레임 «안»에서 뚫을 수 있나 — 그 프레임이 «실제로 자르는지»로 가른다.
-     ~~[2026-09-10] `if (parent.closest('.frame-block')) return 0;` — 무조건 못 뚫었다.~~
-     까닭은 「.frame-block{overflow:hidden} 이라 넘친 폭이 잘리기만 한다」였는데,
-     ★2026-09-28 현빈 지시로 그 overflow 를 visible 로 풀었다(css/editor-blocks.css).
-       ⇒ 막아둔 «까닭»이 죽었는데 «문»만 남아 있었다. 그래서 까닭을 코드가 확인하게 바꾼다.
-     ★지금 자르는 것은 «모서리를 둥글린 프레임»뿐이다 — 같은 CSS 파일의
-       `.frame-block[data-radius]:not([data-radius="0"]) { overflow: hidden }` 한 줄이 정본이고,
-       아래 판정은 그 선택자를 «그대로» 옮긴 것이다(두 곳이 갈리면 여기부터 의심하라).
-     ⛔computed 스타일로 재지 않는다 — 이 함수는 검사에서 «가짜 DOM»으로도 불린다
-       (tests/unit/block-full-bleed.test.mjs 의 makeEl). dataset 은 거기서도 산다. */
-  const _fr = parent.closest?.('.frame-block');
-  if (_fr) {
-    const _r = _fr.dataset?.radius;
-    const _clips = _r !== undefined && _r !== '' && String(_r) !== '0';
-    if (_clips) return 0;
-  }
   /* ⚠️row 의 패딩 키가 «두 가지»다: 생성 경로는 `paddingX`, 패널 슬라이더는 `padX`.
      하나만 보면 조용히 글로벌로 샌다 — assetFullBleedWidth 와 같은 함정. */
   if (parent.classList?.contains('row')) {
@@ -177,6 +185,95 @@ function effectiveSectionPadX(el) {
   const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
   const padX = hasOverride ? parseInt(inner.dataset.paddingX) : parseInt(state?.pageSettings?.padX);
   return padX || 0;
+}
+
+/** ★★«이 요소가 ★인라인으로 ★절대배치냐» — ★★이 물음의 ★자리 ★하나.
+ *  ★★부르는 쪽 ★둘: ★아래 ★`effectiveSectionPadX`(★뚫을 패딩이 ★있나) · ★`isFlowAnchorBlock`(★기준점이 되나).
+ *  ★★왜 ★인라인만 보나 — ★그 까닭의 ★정본은 ★`isFlowAnchorBlock` 의 ★머리말 ⑵ 다(★플로팅 계열이 ★인라인으로 박는다).
+ *  ⛔computed ★금지 — ★검사가 ★«가짜 DOM»으로도 ★부른다(★`block-full-bleed.test.mjs` 의 ★`makeEl`). */
+function isInlineAbsolute(el) {
+  const pos = el?.style?.position;
+  return pos === 'absolute' || pos === 'fixed';
+}
+
+/** ★★«이 프레임이 ★제 몸에 ★든 ★좌우 패딩(px)» — ★★dataset ＋ ★인라인만 ★본다. ⛔computed ★금지.
+ *
+ *  ★★★왜 ★`js/frame-geometry.js` 의 ★`framePadding` 을 ★안 쓰나 — ★★그 자는 ★`getComputedStyle` 을 ★쓴다.
+ *    ★이 함수는 ★아래 ★`effectiveSectionPadX` 가 ★부르고, ★그 자는 ★★검사에서 ★«가짜 DOM»으로도 ★돈다
+ *    (★`tests/unit/block-full-bleed.test.mjs` 의 ★`makeEl`) ⇒ ★★거기엔 ★computed 가 ★없다.
+ *    ⇒ ★★둘은 ★«같은 물음, ★다른 자»다 — ⛔합치지 ★마라. ★합치면 ★그 검사가 ★조용히 ★0 을 ★받는다.
+ *
+ *  ★★출처가 ★★둘이다 — ★`.frame-block` 에 ★붙는 자리를 ★★전수로 ★쟀다(2026-10-11):
+ *    ⑴ ★`dataset.padX`        — ★패널 슬라이더(★`js/props/prop-frame.js` ★`applyPadX`) · ★`js/blocks/modal-frameify.js`
+ *    ⑵ ★인라인 ★`paddingLeft` — ★그 둘이 ★★같이 쓰고, ★데이터 칸이 ★없던 ★★옛 프레임은 ★이것만 ★있다
+ *    ⛔★`dataset.paddingX` 는 ★★여기 ★해당 ★없다 — ★그건 ★텍스트 블럭의 ★속틀 ／ ★row ／ ★section-inner 쪽이다
+ *      (★`js/block-factory.js` ★`applyTextOpts` 가 ★그 자리에 쓴다 · ★전수로 ★가렸다).
+ *
+ *  ★★★그리고 ★★`js/props/prop-frame.js` 가 ★★이 함수를 ★불러 ★표시값을 ★만든다 — ⛔제 식을 ★또 적지 ★않는다.
+ *    ★옛 판엔 ★그 식(★`parseInt(ss.dataset.padX) || parseInt(ss.style.paddingLeft) || 0`)이
+ *    ★★거기 ★한 벌 ★있었다 ⇒ ★★명부가 ★둘이 될 ★자리였다 ⇒ ★★파생시켰다.
+ *    ⚠️★그 옛 식은 ★`||` 라 ★★«0»을 ★«없음»으로 ★읽는다. ★아래는 ★★그러지 ★않는다.
+ *      ★★그래도 ★답이 ★갈리지 ★않는다 — ★★쓰는 자 ★둘이 ★★dataset 과 ★인라인을 ★★한 줄에 ★같이 쓴다
+ *      (★실측: ★`prop-frame.js` ★`applyPadX` · ★`modal-frameify.js` ★그 두 줄) ⇒ ★둘이 ★갈릴 ★판이 ★없다.
+ *      ⇒ ★★그 «갈릴 판이 없다»를 ★잠그는 자 = ★`tests/unit/block-full-bleed.test.mjs` 의 ★P2 칸. */
+function framePadXData(frameEl) {
+  if (!frameEl) return 0;
+  const v = frameEl.dataset?.padX;
+  if (v !== undefined && v !== '') return Math.max(0, parseInt(v) || 0);
+  return Math.max(0, parseInt(frameEl.style?.paddingLeft) || 0);
+}
+
+/** ★el 이 ★«뚫고 나가야 할» 좌우 패딩(px). ★★뚫을 수 ★없는 자리면 ★0 — ★★«full-bleed» 물음이다.
+ *  ★★= ★`sectionPadX(el)` ＋ ★★앞에 ★«자르는 프레임 안이면 0» ★한 갈래.
+ *  ★★부르는 쪽 ★넷이 ★★이 물음을 ★묻는다(★소스에 적혀 있다):
+ *    ★`applyBlockFullBleed`(아래) · ★`prop-page.js assetFullBleedWidth`
+ *    ★`prop-banner02.js _bn2CanFullBleed` · ★`prop-frame.js canFullBleed`
+ *  ★★⛔«이 섹션의 ★패딩이 ★얼마냐»를 ★묻는 쪽은 ★★`sectionPadX` 를 ★불러라(★위 머리말의 ★그 까닭). */
+function effectiveSectionPadX(el) {
+  const parent = el?.parentElement;
+  if (!parent) return 0;
+  /* ★프레임 «안»에서 뚫을 수 있나 — 그 프레임이 «실제로 자르는지»로 가른다.
+     ~~[2026-09-10] `if (parent.closest('.frame-block')) return 0;` — 무조건 못 뚫었다.~~
+     까닭은 「.frame-block{overflow:hidden} 이라 넘친 폭이 잘리기만 한다」였는데,
+     ★2026-09-28 현빈 지시로 그 overflow 를 visible 로 풀었다(css/editor-blocks.css).
+       ⇒ 막아둔 «까닭»이 죽었는데 «문»만 남아 있었다. 그래서 까닭을 코드가 확인하게 바꾼다.
+     ★지금 자르는 것은 «모서리를 둥글린 프레임»뿐이다 — 같은 CSS 파일의
+       `.frame-block[data-radius]:not([data-radius="0"]) { overflow: hidden }` 한 줄이 정본이고,
+       아래 판정은 그 선택자를 «그대로» 옮긴 것이다(두 곳이 갈리면 여기부터 의심하라).
+     ⛔computed 스타일로 재지 않는다 — 이 함수는 검사에서 «가짜 DOM»으로도 불린다
+       (tests/unit/block-full-bleed.test.mjs 의 makeEl). dataset 은 거기서도 산다. */
+  /* ★★2026-10-09 — ★「이 프레임이 ★정말 자르나」의 ★판정을 ★★공용 한 자리로 옮겼다
+       (★★2026-10-10 ㈄ 부터 ★`js/clip-content.js` ★`clipsContent`). ⛔여기 ★제 벌을 ★두면 ★명부가 ★둘이다 —
+       ★실제로 ★갈려 있었다: ★여기는 ★`radius` 만 봤고 ★「내용 자르기」(`data-clip-content`)는
+       ★★안 봤다 ⇒ ★자르는 프레임인데 ★뚫을 수 있다고 ★답했다(★그 판에서 ★뚫은 폭은 ★잘린다).
+     ★★위 옛 주석의 「★지금 자르는 것은 ★둥근 프레임뿐」은 ★그래서 ★★낡았다 — ★★둘이다. */
+  const _fr = parent.closest?.('.frame-block');
+  /* ★★★2026-10-11 ★현빈 ① — ★★이 줄은 ★예전에 ★`return 0` 이었다. ⛔그 줄을 ★지우지 ★않고 ★이어 쓴다(★역사다):
+       ⚰️★옛 줄: ★`if (_fr && clipsContent(_fr) === true) return 0;`
+       ★★그때의 ★뜻 = 「★자르는 프레임 ★안에서는 ★뚫어 ★봐야 ★잘린다 ⇒ ★★뚫을 게 ★없다」.
+       ★★그런데 ★그 뜻이 ★★«섹션 패딩을 ★뚫는 것»에만 ★참이었다 — ★★«그 프레임 ★자신의 ★패딩»은
+         ★★그 프레임이 ★자르는 ★상자 ★안에 ★있어 ★★안 잘린다.
+       ★★★현빈 2026-10-11: 「★프레임블럭의 ★패딩제외기능 ★원래됐잖아? ★★내용자르기도 ★원됐잖아? ★뭐가 문제야?」
+         ★실측(★`FULLBLEED.md` · ★판 `5954e4f4`): ★«섹션 직속»은 ★된다 ／ ★★«프레임 안»은 ★안 된다.
+         ★까닭 = ★이 줄의 ★0 ＋ ★`CLIP_DEFAULTS.frame === true`(★현빈 `1009t3-②` 로 ★기본이 ★자름이 됐다)
+         ⇒ ★★사용자가 ★아무것도 ★안 켜도 ★★칸이 ★조용히 ★사라졌다.
+       ⇒ ★★★지디가 ★고른 ★갈래 ㉡ = ★★«섹션 패딩»이 ★아니라 ★★«그 프레임의 ★패딩»을 ★뚫게 ★한다.
+       ★★잠그는 자: ★`tests/dom/frame-inner-fullbleed.dom.spec.js` — ★FI1(★양성) ＋ ★FI3(★자르기가 ★산다).
+       ⛔`=== true` 는 ★그대로 ★둔다 — ★`null`(★모르는 계열)을 ★참으로 ★안 읽겠다는 ★뜻이다. */
+  if (_fr && clipsContent(_fr) === true) {
+    /* ★★★그런데 ★★«절대배치 자식»에는 ★뚫을 것이 ★없다 — ★★내 ★음성대조가 ★잡았다(★2026-10-11 · ★FI3).
+         ★실측(`.gd-work/.../run-logs/fi-box.log`): ★자유 프레임(★`dataset.freeLayout="true"`)의 ★자식은
+           ★`position:absolute` 다 ⇒ ★★그 자식의 ★담는 상자는 ★★그 프레임의 ★★«패딩 ★상자»다(★content 상자가 ★아니다)
+           ⇒ ★★`width:100%` 가 ★★이미 ★끝까지 ★닿는다(★잰 값: ★겉 clientWidth ★860 · ★속 100% = ★860).
+         ⇒ ★★거기서 ★`calc(100% + 2×40)` 을 ★쓰면 ★★940 이 되어 ★★양쪽으로 ★40 씩 ★★넘고 ★잘린다
+           (★잰 값: ★겉 상자 ★420..1280 ／ ★뚫은 뒤 ★380..1320).
+       ⇒ ★★그래서 ★★«흐름 자식»일 때만 ★뚫는다 — ★스택 프레임의 ★자식에는 ★CSS 패딩이 ★먹는다
+         (★그 사실의 ★정본은 ★`js/frame-geometry.js` ★`framePadding` 의 ★머리말: 「★자유 프레임 자식엔 ★CSS padding 이
+          ★안 먹는다 … ★스택 프레임엔 ★필요 없다(★CSS 가 먹는다)」). */
+    if (isInlineAbsolute(el)) return 0;
+    return framePadXData(_fr);
+  }
+  return sectionPadX(el);
 }
 
 /** dataset.fullBleed 가 'true' 일 때만 폭·마진 세트를 «덮어쓴다». 적용한 padX 를 돌려준다(껐으면 0). */
@@ -235,8 +332,7 @@ const _ANCHOR_EXCLUDE_CLASSES = ['section-block', 'frame-block', 'shape-block'];
 function isFlowAnchorBlock(el) {
   if (!el || el.nodeType !== 1 || !el.classList) return false;
   for (const c of _ANCHOR_EXCLUDE_CLASSES) if (el.classList.contains(c)) return false;
-  const pos = el.style?.position;
-  if (pos === 'absolute' || pos === 'fixed') return false;   // 플로팅 계열
+  if (isInlineAbsolute(el)) return false;   // 플로팅 계열 — ★★판정은 ★위 `isInlineAbsolute` ★한 자리다(2026-10-11 에 ★뽑았다)
   for (const c of el.classList) if (c.endsWith('-block')) return true;
   return false;
 }
@@ -320,7 +416,43 @@ function frameSelectedAsObject(section) {
   /* 자식을 골라 둔 것 = 안쪽. ★흐름 앵커(isFlowAnchorBlock)로 세지 않는다 — 그건 절대배치를 제외해서, 자유 프레임의 절대배치 자식(그리드·에셋)을
    *   골라도 «프레임을 골랐다»로 읽혔다(적대QA). 프레임에 .selected 가 남은 채 «자손이 하나라도» 골라져 있으면 오브젝트 선택이 아니다. */
   if (frame.querySelector('.selected')) return null;
+  if (window._enteredFrame === frame) return null;   // ★여백 더블클릭으로 «들어간» 프레임 = 오브젝트 선택이 아니다(아래 R1 · 현빈 2026-10-08)
   return frame;
+}
+
+/* ★프레임 더블클릭 = «한 겹 내려간다»(R1 · 현빈 2026-10-08 · 지디 발주 ORDER-frame-dblclick-focus 「최종 확정」).
+ *   현빈: 「1번클릭은 프레임블럭위에 마치 오버레이된것 처럼 내부수정이 안되게 되는거고, 두번클릭하면 편집모드로 들어가지는거지」
+ *        「프레임블럭 내부에 자식블럭위에서 더블클릭하면 그걸 선택할수 있는거야. (내부진입 및 자식 선택을 하나로)」
+ *   «오버레이»는 이미 있다 — css/editor-blocks.css :145(고르지 않은 프레임의 자손은 클릭을 못 받는다). 두 번째 클릭이 자식을 고르는 것(R2)도 이미 돈다.
+ *   빠져 있던 것 하나: 그 더블클릭이 자식의 «편집» 처리기까지 내려가 «진입 ＋ 선택»이 아니라 «편집»이 됐다(실측 OV-c).
+ *   ⇒ 제스처 «시작»(첫 mousedown) 때 포인터 밑 가장 안쪽 프레임이 «아직 안 들어간» 상태였으면, 그 제스처의 dblclick 을 capture 에서 멈춘다.
+ *     자식 위였으면 클릭이 이미 그 자식을 골랐다(= 진입 ＋ 선택) · 여백이었으면 그 프레임을 «들어간 프레임»으로 적는다(삽입이 안으로).
+ *     이미 들어간 프레임(자손이 골라져 있거나 여백으로 들어감)에서의 더블클릭은 그대로 흘린다 = 자식 처리기가 편집한다(R3).
+ *   ★번지는 범위: 판정 대상은 «진짜 프레임»(도형 래퍼·글자 래퍼·배너 외곽·그룹 제외) 안의 더블클릭뿐 — 프레임 밖 블럭은 이 처리기를 안 탄다
+ *     (잠금: tests/dom/dblclick-outside-frame-unchanged · 처리기 18 종 정의 자리 수는 그 머리말).
+ *   나가기(R4)는 안 바꾼다 — deselectAll 이 «들어간 프레임» 표시를 같이 지운다(editor.js). */
+function _isEntryFrame(f) {
+  return !!f && f.classList?.contains('frame-block') && !f.dataset?.textFrame && !f.dataset?.bannerPreset
+    && f.dataset?.group !== 'true' && !isShapeFrame(f);
+}
+function _innermostEntryFrame(node) {
+  for (let f = node?.closest?.('.frame-block'); f; f = f.parentElement?.closest('.frame-block')) if (_isEntryFrame(f)) return f;
+  return null;
+}
+let _dblGesture = null;   // { frame, entered } — 제스처 첫 mousedown 때 찍는다
+if (typeof document !== 'undefined') {
+  document.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.detail !== 1) return;
+    const f = _innermostEntryFrame(e.target);
+    _dblGesture = f ? { frame: f, entered: !!f.querySelector('.selected') || window._enteredFrame === f } : null;
+  }, true);
+  document.addEventListener('dblclick', (e) => {
+    const g = _dblGesture;
+    if (!g || g.entered || !g.frame.isConnected || !g.frame.contains(e.target)) return;
+    e.stopPropagation();   // 자식의 편집 처리기로 안 내려간다 — 이 더블클릭은 «한 겹 내려가기»다
+    if (!g.frame.querySelector('.selected')) window._enteredFrame = g.frame;   // 여백이었다 — 그 프레임 «안»이 삽입 자리
+    _dblGesture = null;
+  }, true);
 }
 
 /* 고른 프레임의 «다음 형제» 자리에 el 을 놓는다. 부모가 자유 프레임이면 좌표를 세운다(settleRowInFreeFrame 은 부르기만 한다). */
@@ -1096,6 +1228,9 @@ export {
   frameSelectedAsObject,
   settleRowInFreeFrame,
   effectiveSectionPadX,
+  framePadXData,
+  isInlineAbsolute,
+  sectionPadX,
   applyBlockFullBleed,
   clearBlockFullBleed,
   isFlowAnchorBlock,
@@ -1126,6 +1261,9 @@ window.frameSelectedAsObject      = frameSelectedAsObject;
 window.insertAfterSelectedAsSibling = insertAfterSelectedAsSibling;
 window.settleRowInFreeFrame       = settleRowInFreeFrame;
 window.effectiveSectionPadX       = effectiveSectionPadX;
+window.framePadXData              = framePadXData;
+window.isInlineAbsolute           = isInlineAbsolute;
+window.sectionPadX               = sectionPadX;        /* ★«조회» 물음 — ★template-system 이 쓴다 */
 window.applyBlockFullBleed        = applyBlockFullBleed;
 window.clearBlockFullBleed        = clearBlockFullBleed;
 window.isFlowAnchorBlock          = isFlowAnchorBlock;

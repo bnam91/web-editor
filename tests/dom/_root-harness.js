@@ -67,17 +67,21 @@ module.exports.bootApp = bootApp;
  *   color-history 준비(클릭 빗나감 — 72 중 14 빨강의 한 원인).
  *   ⇒ 그 요소의 화면 사각형이 interval 간격 «두 번 연속 같을 때»까지 기다렸다가 돌려준다. 끝내 안 멈추면 «던진다»(조용히 옛 값을 주지 않는다).
  *   돌려주는 것: { left, top, width, height, cx, cy } (반올림한 화면 px). */
-async function waitStableRect(page, selector, { interval = 150, tries = 40 } = {}) {
+/* ★`index` 는 ★2026-10-10 에 ★더했다(t1bstar) — ★★같은 선택자가 ★여럿일 때 ★몇째를 재나.
+ *   ★까닭: ★별 블록이 ★둘인 칸(★`shape-star-b1b3` E4)이 ★둘째 블록의 ★좌표를 ★재야 했다.
+ *   ⛔★새 자를 ★따로 ★짓지 ★않았다 — ★그러면 ★«재는 자»가 ★둘이 된다.
+ *   ★기본값 0 이라 ★기존 호출(★선택자 ★하나)은 ★★한 글자도 ★안 바뀐다. */
+async function waitStableRect(page, selector, { interval = 150, tries = 40, index = 0 } = {}) {
   let prev = null;
   for (let i = 0; i < tries; i++) {
-    const r = await page.evaluate((sel) => { const e = document.querySelector(sel); if (!e) return null; const b = e.getBoundingClientRect();
-      return { left: Math.round(b.left), top: Math.round(b.top), width: Math.round(b.width), height: Math.round(b.height) }; }, selector);
+    const r = await page.evaluate(([sel, idx]) => { const e = document.querySelectorAll(sel)[idx]; if (!e) return null; const b = e.getBoundingClientRect();
+      return { left: Math.round(b.left), top: Math.round(b.top), width: Math.round(b.width), height: Math.round(b.height) }; }, [selector, index]);
     if (r && prev && r.left === prev.left && r.top === prev.top && r.width === prev.width && r.height === prev.height) {
       return { ...r, cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
     }
     prev = r;
     await page.waitForTimeout(interval);
   }
-  throw new Error(`waitStableRect: ${selector} 가 ${tries * interval}ms 안에 멈추지 않았다(또는 없다) — 옛 좌표로 누르지 않는다`);
+  throw new Error(`waitStableRect: ${selector}[${index}] 가 ${tries * interval}ms 안에 멈추지 않았다(또는 없다) — 옛 좌표로 누르지 않는다`);
 }
 module.exports.waitStableRect = waitStableRect;

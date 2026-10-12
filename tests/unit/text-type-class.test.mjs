@@ -11,17 +11,19 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` — ★만들기·치우기를 ★그 자가 쥔다.
+      ★잠그는 자 = ★`tests/unit/tmproot-sole-owner.test.mjs` */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '../../');
 const read = (p) => fs.readFileSync(path.join(REPO, p), 'utf8');
 
 // js/*.js 는 package.json type:commonjs 라 Node 가 CJS 로 읽는다 → .mjs 별칭으로 복사해 import (선례 align-btn-ssot)
-const _tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'text-type-class-'));
+const _tmpDir = mkTmpRoot('text-type-class-');
 const _alias = path.join(_tmpDir, 'text-type-class.mjs');
 fs.writeFileSync(_alias, read('js/props/text-type-class.js'));
 const { TEXT_TYPE_CLASSES, setTextTypeClass, afterTextTypeChange } = await import(pathToFileURL(_alias).href);
-fs.rmSync(_tmpDir, { recursive: true, force: true });
 
 function fakeEl(classes) {
   let set = [...classes];

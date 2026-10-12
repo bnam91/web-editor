@@ -2,13 +2,25 @@
    PROP-FRAME — Frame 속성 패널 (frame-block)
 ══════════════════════════════════════ */
 import { propPanel } from '../globals.js';
+import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline } from '../frame-bg.js';
+import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
-import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed } from '../drag-utils.js';
+import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, framePadXData, isInlineAbsolute } from '../drag-utils.js';
 import { panelRenderedPx } from './_panel-rendered.js';
+
+/* ★★2026-10-10 (현빈 ③) — ★★옛 `enterBgPosDragMode`(%-기반 ★위치만 · ★크기 축 ★없음)에서
+     ★★`enterFrameBgEditMode`(대리 → 에셋 편집기 · ★위치 px ＋ ★★크기 px)로 ★갈았다.
+   ★현빈 원문 「★에셋블럭처럼 프레임블럭의 배경도 ★면 프레임안에서 이미지 ★위치나 ★크기 조절되게」
+   ★★섹션과 ★같은 꼴로 ★토글이다 — ★선례 = `js/props/prop-section.js:574~577`.
+   ⛔`enterBgPosDragMode` 로 ★되돌리지 ★마라: ★그 모드엔 ★★크기 축이 ★아예 ★없어 ★③ 이 ★다시 열린다. */
+const _frameBgEdit = (el) => {
+  if (el._secBgEditing) window.exitFrameBgEditMode?.(el);
+  else                  window.enterFrameBgEditMode?.(el);
+};
 
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#ffffff';
@@ -60,8 +72,11 @@ function _analyzeFreeLayoutChildren(ss) {
   const items = directChildren.map(c => {
     const left   = parseInt(c.style.left)   || 0;
     const top    = parseInt(c.style.top)    || 0;
-    const width  = parseInt(c.style.width)  || c.offsetWidth  || 0;
-    const height = parseInt(c.style.height) || c.offsetHeight || 0;
+    /* ★수지④(2026-10-08) — style 값은 «px 일 때만» 믿는다. 글자 래퍼는 폭이 「100%」라 parseInt 가 100 을 돌려줘
+       스택 변환이 그 글자를 100px 로 박았다(실측: 860→100 · 한 줄→세 줄). %·auto·빈 값이면 그려진 크기(offset*). */
+    const _px = (v) => (/^-?[\d.]+px$/.test(v || '') ? Math.round(parseFloat(v)) : 0);
+    const width  = _px(c.style.width)  || c.offsetWidth  || 0;
+    const height = _px(c.style.height) || c.offsetHeight || 0;
     return { el: c, id: c.id, left, top, width, height, bottom: top + height, right: left + width };
   });
   const rows = [];
@@ -135,6 +150,90 @@ function _swapBannerChildren(ss) {
 }
 
 /* ── 자유배치 → 스택 변환 (Step 2: 단일 자식 행만) ── */
+/* ★★스택 프레임 ★자식의 ★«그려지는 폭»을 ★★«한 자리»에서 ★파생한다 (★①-가 · 현빈 2026-10-11)
+ *  ★현빈: 「프레임 안에서 ★스택모드 일때 프레임블럭 안에서 ★좌우패딩이 ★먹히게 바란거였거든?」
+ *
+ *  ★★무엇이 문제였나(실측 2026-10-11 · t3frame):
+ *    자유배치→스택 변환이 자식에 ★`style.width = it.width + 'px'` 를 박고 ★`alignSelf: center` 를 남긴다.
+ *    그 둘이 함께면 ★★프레임 좌우 패딩이 ★★«항등식으로» ★소거된다 —
+ *      틈 = pad + (전체폭 − 2·pad − 고른폭)/2 = (전체폭 − 고른폭)/2  ⇒ ★pad 가 ★사라진다
+ *      ★잰 값: 860 프레임 · 고른폭 688 ⇒ pad 0·24·48·100 ★전부 ★틈 ★86 (대칭)
+ *    ⇒ ★그래서 ★패딩 슬라이더를 ★아무리 올려도 ★★안쪽 블럭이 ★★안 들어왔다.
+ *
+ *  ★★왜 이 꼴인가 — ★«뜻»을 저장하고 ★«그림»을 ★파생시킨다(★지디 판정 ㉢):
+ *    ★`dataset.stackW` = ★★«사용자가 ★자유배치에서 ★정한 폭» ⇒ ★★pad 와 ★무관한 ★참값. ★한 번만 박는다.
+ *    ★`style.width`   = ★★«그려지는 폭» = ★★파생값(stackW − 2·pad) ⇒ ★★참값이 ★아니다.
+ *    ⛔변환 쪽과 ★패딩 쪽 ★두 곳에서 ★각각 ★`style.width` 를 ★박으면 ★★그것이 ★★«둘째 명부»다 —
+ *      ★pad 가 바뀔 때 ★한쪽만 ★고쳐져 ★두 값이 ★갈린다. ⇒ ★그래서 ★★부르는 자가 ★둘이어도 ★★계산은 ★이 함수 ★하나다.
+ *
+ *  ★★하한 — ⛔상수를 ★박지 ★않는다. ★남의 상수(그리드의 GRID_WIDTH_MIN)도 ★끌지 ★않는다(★뜻이 ★다르다).
+ *    ★파생폭이 ★0 이하면 ★★«보존을 ★포기»하고 ★`style.width` 를 ★비운다 ⇒ ★내용이 ★칸을 ★채운다.
+ *    ★까닭: ★패딩이 ★폭을 ★다 먹었으면 ★«고른 폭»을 ★지킬 ★자리가 ★없다. ★1px 로 ★남기면
+ *      ★사람은 ★★«사라졌다»로 ★읽는다 — ★이 레포가 ★막아 둔 ★「보이는데 ★없는 것」의 ★사촌이다.
+ *
+ *  ★★정렬은 ★안 건드린다 — ★`alignSelf: center` 는 ★그대로다. ★실측(그 회차):
+ *    ★네 패딩 ★전부에서 ★★틈이 ★대칭이고 ★`_renderedHAlign`(아래)의 ★답이 ★★`ss-align-hcenter` ★유지였다.
+ *    ＋ ★정렬 단추를 ★진짜 눌러도 ★`applyFrameHAlignToChild` 는 ★`alignSelf` 만 바꾸고 ★이 폭을 ★안 덮었다. */
+/* ★★«이 요소가 ★보이는 폭으로 ★가질 수 있는 ★최솟값» — ★★이 레포의 ★유일한 문장을 ★★한 자리로.
+   ★원본은 ★`_renderAutoPanel` 의 ★폭 슬라이더 하한이었다(★`minWidth = isShapeFrame ? Math.min(width,20) : 200`).
+   ★★2026-10-11(①-가): ★스택 파생폭의 ★하한도 ★★같은 문장을 ★써야 해서 ★뽑았다 —
+     ⛔주석으로 「둘을 맞춰라」라 ★쓰지 ★않는다. ★★명부가 둘이면 ★경고로 ★못 막는다 ⇒ ★★파생시켜 ★하나로.
+   ★부르는 자 ★둘: ⑴ 폭 슬라이더(`minWidth`) ⑵ `_applyStackChildWidths` 의 ★클램프.
+   ⚠️★두 자리의 ★«주어»가 ★다르다 — ⑴ 은 ★프레임 자신, ⑵ 는 ★그 자식. ★그래서 ★요소와 폭을 ★★받는다.
+   ⛔수(20·200)를 ★여기 밖에서 ★다시 적지 ★마라. ★높이 축(`minHeight` · :870)은 ★다른 자다 — ★안 묶었다. */
+function minVisibleWidth(el, width) {
+  return _isShapeFrameEl(el) ? Math.min(width, 20) : 200;
+}
+/* ★★«합친 것을 ★재는 자»를 위해 ★내놓는다 — ★부르는 둘이 ★같은 `el` 에 ★같은 답을 받나를
+   ★검사가 ★직접 ★물어볼 수 있게(★`tests/dom/stack-padx-works` P5). ⛔제품 코드는 ★이걸 ★안 쓴다. */
+if (typeof window !== 'undefined') window.__minVisibleWidth = minVisibleWidth;
+
+/* ★★파생식 — ★★«클램프»다: ★`w = min( max(stackW − 2·pad, 하한), ★안쪽폭 )`  (★2026-10-11 지디 판정)
+   ★★이 자리는 ★오늘 ★식을 ★세 번 ★갈았다. ★★고른 까닭을 ★수로 남긴다 — ⛔«그때 그렇게 정했다»로 두지 않는다.
+   ⑴ ★★처음: ★`stackW − 2·pad`(★계수 1) ⇒ ★★깨졌다. ★`stackW < 2·pad` 면 ★하한이 ★무엇이든 ★계수 1 이 ★불가능하고,
+      ★★실측으로 ★도형 기본 ★100px 자식이 ★pad 48 ⇒ ★4px, ★pad 50 ⇒ ★★760px 로 ★«튀었다»(걸음 ★한 칸 사이).
+   ⑵ ★★다음: ★비율 `stackW × 안쪽/frameW` ⇒ ★튐은 ★사라졌으나 ★★«먹히는 양»이 ★작았다.
+      ★★틈 이동(pad 0→100 · 프레임 860) — ★비율 vs ★클램프:
+        ★grid 688  ＋80  vs ★★＋100      ★글자틀 339 ＋39 vs ★＋69
+        ★도형 100  ＋11  vs ★★＋40       ★캔버스 360 ＋42 vs ★＋80
+      ⇒ ★★도형에서 ★pad ★100 을 줬는데 ★★＋9px 였다(★비율) — ★현빈 문장(「좌우패딩이 먹히게」)이 ★그 종에서 ★거짓이다.
+   ⑶ ★★그래서 ★클램프. ★하한은 ★`minVisibleWidth` ★하나에서 오고(★위 머리말), ★★«수를 ★고르지 ★않았다».
+   ★★하한에 ★닿는 자식(프레임 860 · 패딩칸 0~100 ★전수): ★도형 100 ⇒ pad ★42 · ★글자틀 339 ⇒ pad ★72 ·
+     ★캔버스 360 ⇒ pad ★82 · ★grid 688 ⇒ ★★안 닿는다.
+   ★★그 «닿음»이 ★★좋은 쪽이라는 것도 ★쟀다 — ★하한을 ★0 으로 두면 ★★글자틀이 ★pad 100 에서 ★139px 로 좁아져
+     ★★줄이 ★2 → ★★4 로 ★늘고 ★높이가 ★115 → ★230 이 된다(= ★수지④ 증상). ★하한이 ★있으면 ★200px·★줄 2 로 ★멈춘다.
+   ★★가둠 ★둘 — ★둘 다 ★«수»가 아니라 ★제약에서 나온다:
+     ⒜ ★`Math.min(base, …)` — ★자식이 ★하한보다 ★이미 ★좁으면(비도형 180px 등) ★★pad 0 에서 ★넓어진다(★주 단언 ⒜ 가 깨진다)
+     ⒝ ★`Math.min(…, inner)` — ★자식은 ★자기 상자보다 ★넓을 수 ★없다. ★없으면 ★프레임 400＋pad 100 에서 ★그리드가
+        ★488px 로 남아 ★패딩 상자를 ★144px/쪽 ★침범하고 ★프레임을 ★44px/쪽 ★벗어난다(★실측 · overflow:hidden 이라 ★잘린다)
+   ⛔`frameW` 를 ★변환 시점 값으로 ★굳히지 ★마라 — ★굳히면 ★둘째 명부가 된다. ★«지금» 값을 ★읽고 ★꼴은 ★`:100` 과 같다.
+   ★★부르는 자 ★셋: ★변환 끝 · ★`applyPadX` · ★`applyWidth`. ⛔셋 중 하나라도 빠지면 ★값이 ★조용히 ★머문다
+     (★실측: ★`applyWidth` 가 빠진 판에서 ★pad 100 고정 · 너비 400→860 일 때 ★그리드가 ★344 에 ★머물렀다). */
+function _applyStackChildWidths(ss) {
+  if (!ss || ss.dataset.freeLayout === 'true') return 0;
+  const pad = parseFloat(getComputedStyle(ss).paddingLeft) || 0;
+  const frameW = parseInt(ss.style.width) || ss.offsetWidth || parseInt(ss.dataset.width) || 0;
+  const inner = frameW - 2 * pad;
+  let n = 0;
+  for (const c of ss.children) {
+    const base = parseFloat(c.dataset && c.dataset.stackW);
+    if (!Number.isFinite(base)) continue;
+    /* ★안쪽 폭이 ★0 이하면 ★그릴 칸이 ★없다 ⇒ ★보존을 포기한다(거기서는 ★그것이 ★뜻이다) */
+    if (!(frameW > 0) || !(inner > 0)) { c.style.width = ''; n++; continue; }
+    /* ★하한 — ★`minVisibleWidth` 하나에서. ★★`base` 로 ★한 번 더 ★가둔다:
+       ★자식이 ★하한보다 ★이미 ★좁으면(비도형 180px 등) ★하한을 그대로 쓰면 ★★pad 0 에서 ★넓어진다 */
+    const floor = Math.min(base, minVisibleWidth(c, base));
+    /* ★★그리고 ★«자기 상자»보다 ★넓을 수 ★없다 — ⛔이건 ★수 선택이 ★아니라 ★상자에서 ★나온다.
+       ★없으면: ★프레임을 ★400 으로 줄이고 pad 100 이면 ★그리드가 ★488px 로 남아 ★패딩 상자를 ★144px/쪽 ★침범하고
+       ★프레임 자체를 ★44px/쪽 ★벗어난다(★`overflow:hidden` 이라 ★잘려 ★보이기만 ★한다 · ★실측). */
+    const w = Math.min(Math.max(base - 2 * pad, floor), inner);
+    c.style.width = w + 'px';
+    n++;
+  }
+  return n;
+}
+if (typeof window !== 'undefined') window._applyStackChildWidths = _applyStackChildWidths;
+
 function _convertFreeLayoutToStack(ss) {
   // (FIX-4) 이스터에그 게이팅 — off면 콘솔 디버그 변환 함수 동작 차단
   if (window.isEasterEggEnabled && !window.isEasterEggEnabled('freeLayoutAnalyze')) return false;
@@ -161,9 +260,15 @@ function _convertFreeLayoutToStack(ss) {
     c.style.top = '';
     c.style.flexShrink = '0';
     if (it.width < parentW) {
-      c.style.width = it.width + 'px';
+      /* ★«뜻»만 박는다 — ★그려지는 폭은 ★`_applyStackChildWidths` 가 ★파생한다(그 머리말의 까닭) */
+      c.dataset.stackW = String(it.width);
       c.style.alignSelf = 'center';
     } else {
+      /* ★보존 «안 함» 갈래 — ★`stackW` 를 ★떼고 ★폭도 ★여기서 ★비운다.
+         ⛔이것이 ★«둘째 명부»가 ★아니다: ★`_applyStackChildWidths` 는 ★`stackW` 가 ★없는 자식을
+         ★★건너뛰므로(★그 함수의 `continue`) ★★이 자리에서 ★비우지 않으면 ★옛 폭이 ★남는다.
+         ⇒ ★★«파생값을 ★계산하는 자»는 ★여전히 ★그 함수 ★하나이고, ★여기는 ★★«뜻을 ★지우는 자»다. */
+      delete c.dataset.stackW;
       c.style.width = '';
       c.style.alignSelf = '';
     }
@@ -192,6 +297,8 @@ function _convertFreeLayoutToStack(ss) {
   ss.dataset.fullWidth = 'true';
   ss.style.height = '';
   ss.style.minHeight = '';
+  /* ★스택이 «된 뒤»에 파생한다 — 그 함수가 `freeLayout` 을 보고 비켜 가므로 순서가 뜻을 가른다 */
+  _applyStackChildWidths(ss);
 
   window.scheduleAutoSave?.();
   window.buildLayerPanel?.();
@@ -210,11 +317,18 @@ function _renderAutoPanel(ss) {
   const hexBg  = bgGradCss ? '#ffffff' : rgbToHex(rawBg);   // 그라데이션이면 wireColorField 가 첫 스탑 색으로 덮는다
   const bgAlpha = bgGradCss ? 100 : parseAlphaFromColor(rawBg);
   const padY   = Math.round(panelRenderedPx(ss, 'paddingTop'));   // 묶음 B E115 — 그려진 위 여백(_frameDecorCss 는 dataset.padding+인라인 padding 으로 그린다 · 옛 표시는 dataset.padY 만 → 0)
-  const padX   = parseInt(ss.dataset.padX) || parseInt(ss.style.paddingLeft) || 0;   // F5: 좌우 패딩(데이터 칸이 없던 옛 프레임은 인라인 padding 을 읽는다)
+  /* ★★2026-10-11 — ★여기 ★있던 식을 ★★`js/drag-utils.js` ★`framePadXData` 로 ★★파생시켰다.
+     ⚰️★옛 줄: ★`parseInt(ss.dataset.padX) || parseInt(ss.style.paddingLeft) || 0`   // F5: 데이터 칸이 없던 옛 프레임은 인라인 padding 을 읽는다
+     ★★까닭: ★`effectiveSectionPadX` 가 ★★«자르는 프레임 안»에서 ★★그 값을 ★★뚫을 패딩으로 ★쓰게 됐다(★현빈 ①)
+       ⇒ ★★같은 수를 ★★두 자리가 ★따로 읽으면 ★★명부가 ★둘이다. ⇒ ★★한 자리에서 ★가져온다. */
+  const padX   = framePadXData(ss);
   const width  = parseInt(ss.dataset.width)  || (isShapeFrame ? 100 : 780);
   const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
-  const minWidth = isShapeFrame ? Math.min(width, 20) : 200;
+  const minWidth = minVisibleWidth(ss, width);   /* ★그 술어 하나에서 — ⛔여기 수를 적지 않는다 */
   const hasBgImg = ss.style.backgroundImage && ss.style.backgroundImage !== 'none';
+  /* ★2026-10-10 ③ — ★배경 크기 칸. ★값은 ★dataset 이 정본(공용 `frameBgSize`)이고 ★여기선 ★그릴 때만 읽는다 */
+  const _bgSizeNow = frameBgSize(ss);
+  const _bgSizeCustom = /px/.test(_bgSizeNow);
   const borderWidth = Math.round(panelRenderedPx(ss, 'borderTopWidth'));   // 묶음 B E114 — 그려진 테두리(쓰기 키는 dataset.borderW · 옛 표시는 dataset.borderWidth 를 읽어 늘 0)
   const borderStyle = ss.dataset.borderStyle || 'solid';
   const rawBorderColor = ss.style.borderColor || ss.dataset.borderColor || '#888888';
@@ -231,12 +345,49 @@ function _renderAutoPanel(ss) {
 
   /* ── 「패딩 제외(full-bleed)」 — 에셋블럭 패턴 미러 (2026-09-10 현빈 지시) ──
      ★기본 «끔»: dataset.fullBleed 가 없으면 지금 동작 그대로다(옛 프레임 무변화).
-     ⛔뚫을 수 없는 자리에서는 «토글 자체를 안 보여준다» — 켜도 아무 일이 안 일어나는
-       스위치는 「고장」으로 읽힌다. 판정은 공용 부품(effectiveSectionPadX)에 맡긴다:
-         · 프레임 «안»의 프레임 = `.frame-block{overflow:hidden}` 이라 잘리기만 한다
-         · 섹션 밖(자유배치 등) = 기준이 없다  ⇒ 둘 다 0 을 돌려준다. */
+     ⚰️★2026-10-11 — ★옛 주석은 ★이렇게 ★적혀 있었고 ★★절반이 ★거짓이 됐다:
+       「⛔뚫을 수 없는 자리에서는 «토글 자체를 안 보여준다» — 켜도 아무 일이 안 일어나는
+         스위치는 「고장」으로 읽힌다. … · 프레임 «안»의 프레임 = `.frame-block{overflow:hidden}` 이라 잘리기만 한다」
+     ★★어디가 ★거짓이 됐나 ★둘:
+       ⑴ ★`.frame-block{overflow:hidden}` — ★★2026-09-28 현빈 지시로 ★`visible` 로 ★풀렸다(★자름은 ★조건부다)
+       ⑵ ★★«안 보여준다» — ★★그게 ★★현빈 ①의 ★증상 ★자체였다(2026-10-11):
+          ★★«사라진 칸»은 ★「고장」보다 ★더 ★나쁘다 — ★★사용자가 ★★«기능이 ★없어졌다»고 ★읽는다.
+          ★현빈 원문: 「★프레임블럭의 ★패딩제외기능 ★★원래됐잖아? … ★뭐가 문제야?」
+     ⇒ ★★★그래서 ★이제 ★★«언제나 ★보여주고», ★뚫을 게 ★없으면 ★★«꺼진 채» ＋ ★★까닭 ★한 줄을 ★같이 ★낸다.
+       ★★까닭 줄은 ★★«있는 입구»만 ★가리킨다 — ★이 패널의 ★★«좌우 패딩» 칸(`#ss-padx-num`)이다.
+         ⛔«없는 입구»를 ★가리키지 ★마라(★2026-10-11 에 ★그 꼴이 ★하루 ★셋 났다 · ★지디 ⒞).
+     ★판정은 ★여전히 ★공용 부품(★`effectiveSectionPadX`)에 ★맡긴다 — ★그 자가 ★★갈래 ㉡ 을 ★안다.
+     ★잠그는 자: ★`tests/dom/frame-inner-fullbleed.dom.spec.js` ★FI4. */
   const isFullBleed  = ss.dataset.fullBleed === 'true';
-  const canFullBleed = isFullBleed || effectiveSectionPadX(ss) > 0;
+  const _fbPadX      = effectiveSectionPadX(ss);
+  const canFullBleed = isFullBleed || _fbPadX > 0;
+  /* ★왜 ★꺼지나 — ★두 갈래뿐이다(★`effectiveSectionPadX` 의 ★머리말이 ★정본): ★자르는 프레임 안인데 ★그 프레임의
+     ★패딩이 ★0 이거나, ★섹션 ★밖이다. ★★앞쪽이면 ★«무엇을 ★하면 ★되나»를 ★말해 줄 수 ★있다. */
+  const _outerFrame  = ss.parentElement?.closest?.('.frame-block') || null;
+  /* ★★★까닭이 ★셋이다 — ★★내가 ★실측으로 ★가렸다(2026-10-11 · `fi-box.log`). ⛔하나로 ★뭉치지 ★마라:
+       ⑴ ★자유(free) 프레임 안 = ★자식이 ★`position:absolute` ⇒ ★★`100%` 가 ★★이미 ★끝까지 ★닿는다
+          ⇒ ★★뚫을 것이 ★«없다»가 ★아니라 ★★«이미 ★다 뚫려 있다». ★사람이 ★할 일이 ★★다르다(★stack 으로 ★바꾸면 ★칸이 ★선다)
+       ⑵ ★스택 프레임 안인데 ★그 프레임의 ★«좌우 패딩»이 ★0 ⇒ ★그 칸을 ★올리면 ★된다
+       ⑶ ★섹션 ★밖 ⇒ ★기준이 ★없다
+     ★★★가리키는 입구는 ★★«있는 것»만 쓴다 — ★`stack` 버튼(`#ss-to-stack-btn`)과 ★이 패널의 ★«좌우 패딩» 칸이다.
+       ⛔«없는 입구»를 ★가리키지 ★마라(★2026-10-11 에 ★그 꼴이 ★하루 ★셋 났다 · ★지디 ⒞). */
+  /* ⚰️★★★2026-10-12 — ★여기 ★첫 갈래를 ★★`isFreeLayout` 으로 ★썼다가 ★★틀렸다. ★내 검사(★FI4)가 ★잡았다:
+       ★`isFreeLayout` = ★★«이 프레임이 ★제 ★자식들을 ★자유로 ★두나» 다 — ★★«이 프레임 ★자신이 ★절대배치냐»가 ★아니다.
+       ★실측: ★겉을 ★stack 으로 ★바꾼 뒤에도 ★속 프레임의 ★`dataset.freeLayout` 은 ★★`"true"` 로 ★남았고
+         ⇒ ★★stack 장면에 ★★«자유 배치라…»는 ★★거짓 까닭이 ★떴다.
+     ⇒ ★★참 원인은 ★★«이 블럭이 ★인라인 절대배치냐»다 — ★그게 ★담는 상자를 ★패딩 상자로 ★만든다.
+       ⇒ ★★`effectiveSectionPadX` 가 ★★0 을 ★돌려주는 ★그 ★조건과 ★★«같은 술어»를 ★쓴다(★`isInlineAbsolute`). */
+  const _fbWhy = canFullBleed ? ''
+    /* ★★★2026-10-12 ★지디 판정 ⒝ — ★권유를 ★두되 ★★«잃는 것»을 ★★같은 문장에 ★적는다.
+         ⛔«있는 입구»를 ★가리키는데 ★그 입구가 ★손실을 ★내면 ★★«없는 입구»보다 ★더 ★나쁘다(★지디).
+       ★★★그 손실을 ★★«소스에 적혀 있다»로 ★닫지 ★않고 ★★행위로 ★쟀다(★`run-logs/fi-loss.log`):
+         ★자식 둘을 ★`left:120px/top:40px` ＋ ★`left:30px/top:180px` 로 두고 ★변환했더니
+         ⇒ ★★`left`·`top` 이 ★★둘 다 ★★`""` 가 되고 ★`alignSelf:center` 가 ★붙었다(★가운데 정렬)
+         ⇒ ★★폭은 ★지켰다(★`dataset.stackW` ★200·260). ⇒ ★★그래서 ★문장이 ★★«좌표만» 잃는다고 ★말한다.
+       ★잠그는 자: ★`tests/dom/frame-inner-fullbleed.dom.spec.js` ★FI6(★행위로 잰다) ＋ ★FI5(★문장이 ★그걸 ★말하나). */
+    : isInlineAbsolute(ss) ? '자유(free) 배치의 자식이라 이미 프레임 끝까지 닿아 있습니다 — 바깥 프레임을 «stack» 으로 바꾸면 이 칸이 켜지지만, 자식의 가로·세로 좌표를 잃고 가운데 정렬됩니다(폭은 지킵니다).'
+    : _outerFrame          ? '바깥 프레임의 «좌우 패딩»이 0 이라 뚫을 것이 없습니다 — 그 프레임을 고르고 «좌우 패딩»을 올리세요.'
+                           : '섹션 안이 아니라 뚫을 기준이 없습니다.';
 
   const bannerPreset = ss.dataset.bannerPreset || '';
   const isBanner = !!bannerPreset;
@@ -297,7 +448,21 @@ function _renderAutoPanel(ss) {
       <button class="prop-action-btn secondary" id="ss-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
       <input type="file" id="ss-bg-img-input" accept="image/*" style="display:none">
       ${hasBgImg ? `
-        <button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="margin-top:4px;">위치 편집</button>
+        <!-- ★★2026-10-10 (현빈 ③ 「프레임블럭의 배경도 ★면 프레임안에서 ★이미지 위치나 ★크기 조절되게」)
+             ★섹션 패널의 sec-bg-size 와 ★★같은 꼴·같은 값»을 쓴다 — ⛔새 이름·새 값 ★금지.
+             ★값은 ★dataset.bgSize ★한 칸이고 ★그리기는 ★공용 한 자리가 한다(수입 줄 참조).
+             ⚠️★직접 조절»은 ★「배경이미지 편집」이 ★px 쌍을 ★박았을 때만 ★뜬다 — ★안 넣으면 ★select 가
+               ★★Cover 로 ★거짓말을 한다(섹션 패널이 ★같은 사고를 ★먼저 겪고 ★그렇게 고쳤다). -->
+        <div class="prop-row">
+          <span class="prop-label">사이즈</span>
+          <select class="prop-select" id="ss-bg-size">
+            <option value="cover"   ${_bgSizeNow === 'cover'   ? 'selected' : ''}>Cover</option>
+            <option value="contain" ${_bgSizeNow === 'contain' ? 'selected' : ''}>Contain</option>
+            <option value="auto"    ${_bgSizeNow === 'auto'    ? 'selected' : ''}>Auto</option>
+            ${_bgSizeCustom ? `<option value="${_bgSizeNow}" selected>직접 조절</option>` : ''}
+          </select>
+        </div>
+        <button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="margin-top:4px;">배경이미지 편집</button>
         <button class="prop-action-btn danger" id="ss-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
       ` : ''}
     </div>
@@ -344,21 +509,26 @@ function _renderAutoPanel(ss) {
         <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
       </div>
       ${sliderRowHTML('좌우 패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}
-      ${canFullBleed ? `
-      <div class="prop-row">
+      <div class="prop-row"${canFullBleed ? '' : ' style="opacity:.55"'}>
         <span class="prop-label">패딩 제외</span>
         <label class="prop-toggle">
-          <input type="checkbox" id="ss-fullbleed-toggle" ${isFullBleed ? 'checked' : ''}>
+          <input type="checkbox" id="ss-fullbleed-toggle" ${isFullBleed ? 'checked' : ''}${canFullBleed ? '' : ' disabled'}>
           <span class="prop-toggle-track"></span>
         </label>
       </div>
-      ` : ''}
+      ${canFullBleed ? '' : `
+      <div class="prop-row" style="align-items:flex-start">
+        <span class="prop-hint" id="ss-fullbleed-why" style="font-size:10px;line-height:1.4;color:#8a8a8a">${_fbWhy}</span>
+      </div>
+      `}
       <!-- ★내용 자르기(현빈 2026-09-30 「피그마처럼 프레임마다 켬/끔, 기본은 끔」).
-           기본이 «안 자름»인 까닭은 css/editor-blocks.css 맨 위 .frame-block 주석(09-28 지시). -->
+           ⚰️★2026-10-10 — ★이 줄은 「기본이 «안 자름»」이었고 ★★거짓이 되었다:
+             ★현빈 1009t3-② 로 ★★기본이 ★★«자름»이 되었다(css/editor-blocks.css 맨 위 .frame-block).
+           ⇒ ★★켬 판정의 ★참값은 ★★js/clip-content.js 의 ★술어 ★하나다(2026-10-10 c2 에서 ★한 자리로 모았다). -->
       <div class="prop-row">
         <span class="prop-label">내용 자르기</span>
         <label class="prop-toggle">
-          <input type="checkbox" id="ss-clip-toggle" ${ss.dataset.clipContent === 'true' ? 'checked' : ''}>
+          <input type="checkbox" id="ss-clip-toggle" ${clipsContent(ss) ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
       </div>
@@ -612,28 +782,11 @@ function _renderAutoPanel(ss) {
   // ── 배경 CSS변수 동기화 (I2) ──
   // has-bg-opacity 프레임은 배경을 ::before가 그리므로 --frame-bg / --frame-bg-img로 전달.
   // 색(--frame-bg) / 이미지·그라데이션(--frame-bg-img) / 위치(--frame-bg-pos) 3분기 모두 반영.
-  const _syncFrameBgVars = () => {
-    if (!ss.classList.contains('has-bg-opacity')) return;
-    const bgVal = ss.dataset.bg || ss.style.backgroundColor || 'transparent';
-    const isGradient = /gradient\s*\(/i.test(bgVal);
-    if (isGradient) {
-      // 그라데이션: 색은 비우고 이미지 슬롯에 gradient css
-      ss.style.setProperty('--frame-bg', 'transparent');
-      ss.style.setProperty('--frame-bg-img', bgVal);
-    } else {
-      ss.style.setProperty('--frame-bg', bgVal);
-      if (ss.dataset.bgImg) {
-        ss.style.setProperty('--frame-bg-img', `url("${ss.dataset.bgImg}")`);
-      } else {
-        ss.style.setProperty('--frame-bg-img', 'none');
-      }
-    }
-    ss.style.setProperty('--frame-bg-pos', ss.dataset.bgPos || 'center');
-    // 본체 배경은 ::before가 대신 그리므로 비워 이중 배경 방지
-    ss.style.backgroundColor = '';
-    ss.style.backgroundImage = '';
-    ss.style.background = '';
-  };
+  /* ★★2026-10-10 (현빈 ③) — ★이 몸통을 ★공용 한 자리로 옮겼다(파일명은 아래 수입 줄).
+     ★예전엔 ★같은 일을 하는 빌더가 ★★세 벌이었고(여기 · block-factory `_syncBgVars` · save-load `rebindAll`),
+     ★★그 셋이 ★전부 ★«크기»를 ★안 보냈다 ⇒ ★★현빈 ③ 의 그 증상(크기를 손댈 수단이 0).
+     ⛔여기에 ★제 벌을 ★다시 짓지 ★마라 — 소비자 명부 검사가 잡는다. */
+  const _syncFrameBgVars = () => { syncFrameBgVars(ss); };
 
   // ── 배경 투명도(bgOpacity) 슬라이더 (I2) ──
   const bgOpaSlider = document.getElementById('ss-bgopa-slider');
@@ -657,7 +810,7 @@ function _renderAutoPanel(ss) {
         ss.style.background = bgVal;
       } else if (ss.dataset.bgImg) {
         ss.style.backgroundImage = `url("${ss.dataset.bgImg}")`;
-        ss.style.backgroundSize = 'cover';
+        ss.style.backgroundSize = frameBgSize(ss);
         ss.style.backgroundPosition = ss.dataset.bgPos || 'center';
       } else if (bgVal) {
         ss.style.backgroundColor = bgVal;
@@ -679,7 +832,7 @@ function _renderAutoPanel(ss) {
     const reader = new FileReader();
     reader.onload = e => {
       ss.style.backgroundImage = `url('${e.target.result}')`;
-      ss.style.backgroundSize = 'cover';
+      ss.style.backgroundSize = frameBgSize(ss);
       ss.style.backgroundPosition = 'center';
       ss.dataset.bgImg = e.target.result;
       _syncFrameBgVars();
@@ -690,8 +843,8 @@ function _renderAutoPanel(ss) {
         posBtn.id = 'ss-bg-pos-btn';
         posBtn.className = 'prop-action-btn secondary';
         posBtn.style.cssText = 'margin-top:4px;';
-        posBtn.textContent = '위치 편집';
-        posBtn.addEventListener('click', () => window.enterBgPosDragMode?.(ss));
+        posBtn.textContent = '배경이미지 편집';
+        posBtn.addEventListener('click', () => _frameBgEdit(ss));
         bgImgBtn.after(posBtn);
       }
       if (!document.getElementById('ss-bg-img-clear')) {
@@ -720,7 +873,21 @@ function _renderAutoPanel(ss) {
     window.pushHistory?.();
   }
   if (bgImgClear) bgImgClear.addEventListener('click', removeBgImg);
-  if (bgPosBtn)   bgPosBtn.addEventListener('click', () => window.enterBgPosDragMode?.(ss));
+  /* ★★2026-10-10 (현빈 ③) — ★배경 크기 칸 배선. ★섹션(prop-section.js bgSizeEl)과 ★★같은 꼴:
+       ⑴ pushHistory ★먼저(push-before — js/CLAUDE.md 규약 · 이 패널의 다른 칸들과 ★같은 쪽)
+       ⑵ dataset 에 ★쓰고(★정본 한 칸)  ⑶ ★두 그리는 길을 ★공용으로 ★다시 먹인다  ⑷ autosave
+     ⚠️★키워드로 되돌리면 ★px 위치는 ★뜻이 ★달라진다 ⇒ ★섹션과 ★같이 ★위치를 ★버린다.
+       ⛔이 한 줄을 ★빼면 ★「Cover 로 바꿨는데 ★그림이 ★엉뚱한 자리」가 된다(섹션이 ★먼저 겪은 사고). */
+  const bgSizeSel = document.getElementById('ss-bg-size');
+  if (bgSizeSel) bgSizeSel.addEventListener('change', () => {
+    window.pushHistory?.('프레임 배경 크기');
+    ss.dataset.bgSize = bgSizeSel.value;
+    if (!/px/.test(bgSizeSel.value)) delete ss.dataset.bgPos;
+    _syncFrameBgVars();                 /* ::before 경로 */
+    applyFrameBgImageInline(ss);        /* 본체 경로 */
+    window.scheduleAutoSave?.();
+  });
+  if (bgPosBtn)   bgPosBtn.addEventListener('click', () => _frameBgEdit(ss));
 
   // 배경색 (solid + gradient)
   wireColorField('ss-bg', {
@@ -862,8 +1029,22 @@ function _renderAutoPanel(ss) {
     ss.style.margin = '0 auto'; ss.style.alignSelf = 'center';
     /* ★규약: «제 폭을 먼저 정하고» 마지막에 패딩제외를 덮는다.
        ⚠️이 한 줄이 없으면 「폭을 만지면 패딩제외가 조용히 풀린다」 — 에셋에서 실제로 났던 병
-       (현빈 08-27 「리사이즈하면 패딩제외가 풀린다」)과 같은 뿌리다. 꺼져 있으면 no-op. */
+       (현빈 08-27 「리사이즈하면 패딩제외가 풀린다」)과 같은 뿌리다. 꺼져 있으면 no-op.
+       ★★★2026-10-11 — ★★그 병이 ★★«둘째 입구»에서 ★다시 났다(★현빈 ★같은 말로 ★또 신고).
+         ★★이 규약이 ★걸려야 할 ★입구 ★★명부(⛔한 곳만 보지 ★마라):
+           ⒤ ★★이 자리 — ★패널 ★폭 슬라이더
+           ⒥ ★`js/overlay-handles.js` — ★오버레이 ★리사이즈 ★핸들의 ★`onMove`
+         ★★⒥ 는 ★★한 번도 ★없었다(★출처= `git log -S'applyBlockFullBleed' -- js/overlay-handles.js` = ★0커밋)
+         ⇒ ★★이 주석이 ★★그때 ★이 병을 ★이름으로 ★적었는데 ★★«다른 입구»는 ★안 셌다.
+         ⇒ ★★★그래서 ★명부를 ★★두 자리에 ★같이 적는다. ★★입구가 ★하나 더 생기면 ★★이 두 줄을 ★같이 늘려라.
+         ★★★그리고 ★그 둘을 ★★한 검사가 ★같이 잠근다 — `tests/dom/frame-fullbleed-resize.dom.spec.js`
+           ⇒ ★★`applyBlockFullBleed` 본문을 ★무력화하면 ★★두 칸이 ★★다 ★빨강이다(★소비자 수만큼). */
     applyBlockFullBleed(ss);
+    /* ★★폭을 만지는 자도 ★파생을 ★다시 부른다 — ★파생이 ★`frameW` 를 ★읽으므로(그 함수 머리말).
+       ⛔없으면 ★조용히 ★썩는다(실측: 프레임 400→860 으로 되돌렸는데 ★그리드가 ★400 에 ★머물렀다).
+       ★위의 ★비율 스케일 묶음은 ★«absolute 자식»만 ★만지므로 ★스택 자식에는 ★닿지 않는다 —
+       ★그래서 ★여기 ★한 줄이 ★필요하다. ★부르는 자 셋(변환 끝 · `applyPadX` · 여기)이 ★같은 함수다. */
+    _applyStackChildWidths(ss);
   };
   bindSlider(widthSlider, widthNum, applyWidth, { min: minWidth, max: 860 });
 
@@ -887,8 +1068,13 @@ function _renderAutoPanel(ss) {
   // 내용 자르기 — 값은 data-clip-content 한 칸, 그리기는 CSS 한 줄(css/editor-blocks.css).
   //   저장·복사·내보내기(PNG 클론·HTML CSS 수집)가 모두 이 속성을 그대로 따라간다. push-after.
   document.getElementById('ss-clip-toggle')?.addEventListener('change', e => {
+    /* ★★2026-10-10 — ★끔이 ★★«속성 삭제»였다. ★★기본이 ★`hidden` 이 된 뒤로는 ★그 꼴이면
+       ★★토글을 ★끄는 것이 ★★아무 일도 ★안 한다(= ★조용한 무효화) ⇒ ★★끔을 ★★명시 `'false'` 로 쓴다.
+       ★그리는 쪽: `css/editor-blocks.css` 의 `[data-clip-content="false"]` → visible
+       ★판정:     ★★`js/clip-content.js` ★`clipsContent` (★계열 기본값 ＋ ★속성이 ★있을 때만 ★이긴다)
+                  — ★셋이 ★한 쌍이다. ★★2026-10-10 ㈄ 에 ★`frame-geometry.js` ★`frameClipsPaint` 를 ★거기로 ★합쳤다. */
     if (e.target.checked) ss.dataset.clipContent = 'true';
-    else delete ss.dataset.clipContent;
+    else ss.dataset.clipContent = 'false';
     window.pushHistory?.('프레임 내용 자르기');
     window.scheduleAutoSave?.();
   });
@@ -900,7 +1086,12 @@ function _renderAutoPanel(ss) {
   bindSlider(padYSlider, padYNum, applyPadY, { min: 0, max: 200 });
   /* 좌우 패딩(F5) — 섹션 «좌우 패딩» 줄과 같은 마크업(sliderRowHTML)·같은 띠 힌트(_showPadXHint)를 쓴다.
      자유 프레임은 자식이 절대배치라 CSS padding 이 안 먹는다 — 정렬·삽입·끌기 죔이 framePadding 으로 이 값을 읽는다. */
-  const applyPadX = (v) => { ss.dataset.padX = v; ss.style.paddingLeft = v + 'px'; ss.style.paddingRight = v + 'px'; window._showPadXHint?.(ss, v); };
+  const applyPadX = (v) => {
+    ss.dataset.padX = v; ss.style.paddingLeft = v + 'px'; ss.style.paddingRight = v + 'px';
+    /* ★패딩을 쓰는 자가 «폭도 같이» 다시 계산한다 ⇒ 두 값이 갈릴 수 없다(그 함수 머리말) */
+    _applyStackChildWidths(ss);
+    window._showPadXHint?.(ss, v);
+  };
   bindSlider(document.getElementById('ss-padx-slider'), document.getElementById('ss-padx-num'), applyPadX, { min: 0, max: 100 });
 
   // 컴포넌트 저장

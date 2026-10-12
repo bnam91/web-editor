@@ -18,7 +18,8 @@ const FLOWCHILD = '<div class="gap-block" id="kid" data-type="gap" style="height
 const sec = (kind, extra = '') => `
 <div class="section-block" id="sF1" data-section="1"><div class="section-hitzone"></div><div class="section-inner" id="inF1" style="padding-left:0;padding-right:0;">
   <div class="gap-block" id="gBefore" data-type="gap" style="height:30px;"></div>
-  <div class="row" id="rowF" data-layout="stack"><div class="frame-block" id="FR" ${KINDS[kind]}>${kind === 'free' ? CHILD : FLOWCHILD}${extra}</div></div>
+  <!-- ★0e3beee4(현빈 1009t3-②) 상시 자름 ⇒ ★절대배치 자식이 ★잘려 ★클릭이 ★안 닿는다(전제 「자식이 골라졌다」 false). ★이 벌이 재는 축은 ★«형제가 ★프레임 안이냐»이지 ★«자름»이 아니다 ⇒ ★규약에서 도출: ★사람이 끈 프레임은 ★안 자른다 -->
+  <div class="row" id="rowF" data-layout="stack"><div class="frame-block" id="FR" data-clip-content="false" ${KINDS[kind]}>${kind === 'free' ? CHILD : FLOWCHILD}${extra}</div></div>
   <div class="gap-block" id="gAfter" data-type="gap" style="height:30px;"></div>
 </div></div>`;
 

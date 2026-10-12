@@ -189,16 +189,51 @@ test('L1 ★프레임 안에 목업«만» 있어도 레이어에 토글(자식 
 });
 
 /* ── ② 내용 자르기 CSS · ③ 광원 색 ── */
-test('C1 ★내용 자르기 — 켜면 overflow hidden(풀어 주는 예외보다 이긴다) · 기본은 visible', async ({ page }) => {
-  await route(page, `<!doctype html><html><head><meta charset="utf-8">
-    <link rel="stylesheet" href="/css/editor-blocks.css"></head><body>
-    <div class="frame-block" id="f0" data-free-layout="true" style="height:100px"><div data-rotation="10"></div></div>
-    <div class="frame-block" id="f1" data-free-layout="true" data-clip-content="true" style="height:100px"><div data-rotation="10"></div></div>
-    <div class="frame-block" id="f2" data-free-layout="true" style="height:100px"></div>
-    </body></html>`);
+/* ★★★C1 을 ★칸 ★넷으로 ★갈랐다 (2026-10-11 · t3frame) — ⛔제품 ★0줄.
+   ★★왜: ★옛 C1 은 ★★`['visible','hidden','visible']` ★한 줄에 ★★세 갈래를 ★섞었고,
+     ★★2026-10-10(현빈 1009t3-②)에 ★기본이 ★«자름»으로 ★뒤집히자 ★셋째가 ★거짓이 됐다.
+   ★★★그런데 ★첫째(f0)는 ★★아직 ★`visible` 이다 — ★★★까닭이 ★«기본»이 ★아니라
+     ★★`css/editor-blocks.css:2231` 의 ★★«회전 예외»(2026-09-05 · 회전 자식의 AABB 가 잘리지 말라고)다.
+     ⇒ ★★★셋째만 ★고치면 ★f0 이 ★★«기본은 visible»이라는 ★거짓 제목을 ★안고 ★통과한다
+       (★★같은 결과라도 ★★«까닭»이 ★다르면 ★실패방식이 ★다르다) ⇒ ★★그래서 ★★이름으로 ★갈랐다.
+   ★★날짜 ★셋 — ⛔지우지 마라, ★다음 사람이 ★네 번째로 ★뒤집기 ★전에 ★읽어야 한다:
+     ★2026-09-28 현빈 ⇒ ★overflow ★visible 로 ★풀었다
+     ★2026-09-30 현빈 ⇒ ★「내용 자르기」 토글(★기본 ★끔) — ★★옛 C1 이 ★그 판의 수다
+     ★2026-10-10 현빈 ★1009t3-② ⇒ ★「프레임 밖은 ★안 보여야」 ⇒ ★★기본을 ★다시 ★hidden
+   ★★그 사이 ★★여섯 칸이 ★★새 명부(기본=자름)로 ★옮겨졌고 ★★이 칸만 ★남아 ★★«고아»였다:
+     `frame-clip-drag:230` · `free-frame-flow-drag:151` · `free-frame-fullwidth-drag:81` ·
+     `clip-content-roster.test.mjs:62` · `frame-clips-predicate.test.mjs:161` · `block-full-bleed.test.mjs:228`
+   ⇒ ★★그러니 ★이 갱신은 ★«내 판단»이 ★아니라 ★★★여섯 칸이 ★이미 ★그렇게 ★적혀 있다는 ★수다. */
+const CLIP_HTML = (attrs, child) => `<!doctype html><html><head><meta charset="utf-8">
+      <link rel="stylesheet" href="/css/editor-blocks.css"></head><body>
+      <div class="frame-block" id="fx" data-free-layout="true" ${attrs} style="height:100px">${child}</div>
+      </body></html>`;
+const ovOf = async (page, attrs, child) => {
+  await route(page, CLIP_HTML(attrs, child));
   await page.goto(`${ORIGIN}/__h.html`);
-  const r = await page.evaluate(() => ['f0', 'f1', 'f2'].map(id => getComputedStyle(document.getElementById(id)).overflow));
-  expect(r).toEqual(['visible', 'hidden', 'visible']);
+  return page.evaluate(() => getComputedStyle(document.getElementById('fx')).overflow);
+};
+const ROT = '<div data-rotation="10"></div>';
+
+test('C1a ★기본 = ★자름 — ★속성 없음 · ★회전 자식 없음 ⇒ hidden (★2026-10-10 현빈 1009t3-②)', async ({ page }) => {
+  expect(await ovOf(page, '', ''), '★기본이 ★자름이다 — ⛔2026-09-30 의 ★«기본 끔»은 ★죽었다').toBe('hidden');
+});
+
+test('C1b ★회전 예외 = ★안 자름 — ★`[data-rotation]` 자식 ⇒ visible (★`css/editor-blocks.css:2231` · 2026-09-05)', async ({ page }) => {
+  /* ★★이 칸의 ★까닭은 ★«기본»이 ★아니다 — ★★회전 자식의 ★AABB 가 ★잘리지 ★말라는 ★예외다.
+     ⇒ ★★그래서 ★C1a 와 ★★따로 ★선다. ⛔한 칸으로 ★합치면 ★까닭이 ★섞인다. */
+  expect(await ovOf(page, '', ROT), '★회전 자식이 ★있으면 ★안 자른다(★기본과 ★무관)').toBe('visible');
+});
+
+test('C1c ★명시 ★켬이 ★이긴다 — ★`clip-content="true"` ＋ ★회전 자식 ⇒ hidden (★옛 C1 의 그 뜻)', async ({ page }) => {
+  /* ★옛 제목의 ★「풀어 주는 예외보다 ★이긴다」가 ★이 칸이다 — ★`!important`(:118)가 ★회전 예외를 ★이긴다 */
+  expect(await ovOf(page, 'data-clip-content="true"', ROT), '★명시 켬이 ★회전 예외를 ★이긴다').toBe('hidden');
+});
+
+test('C1d ★명시 ★끔 — ★`clip-content="false"` ⇒ visible (★사람이 ★끌 수 있다 · unit `P1d-3` 의 ★DOM 짝)', async ({ page }) => {
+  /* ★`block-full-bleed.test.mjs` 의 ★새 ★`P1d-3` 이 ★그 갈래를 ★unit 에서 ★잠근다
+     ⇒ ★★DOM 쪽에도 ★있어야 ★★«사람이 ★끌 수 있다»가 ★두 층에서 ★선다 */
+  expect(await ovOf(page, 'data-clip-content="false"', ''), '★명시 끔이면 ★안 자른다').toBe('visible');
 });
 
 test('Z1 ★줌 이펙트 색 — 광원 폴리곤이 shc 로 칠해지고, 없으면 옛 검정 · 이상한 값은 검정으로', async ({ page }) => {

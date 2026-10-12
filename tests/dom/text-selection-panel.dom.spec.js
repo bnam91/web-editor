@@ -629,7 +629,9 @@ test('R6 KEEP_FOCUS 밖 표면(채팅)에서 편집이 진짜로 끝나면 하�
   for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowLeft');
   await page.waitForTimeout(150);
   expect(await page.evaluate(() => getSelection().toString()), '전제: BBB').toBe('BBB');
-  await clickField(page, '#chb-fontsize'); await page.waitForTimeout(200);
+  /* ★2026-10-06 ⒝ — #chb-fontsize(손제작 숫자칸)가 공용 Typography 절의 #chb-typo-size-number 로 갈렸다.
+     ⛔이 검사가 재는 것은 «패널 칸을 누르면 챗 인라인 편집이 blur 로 끝나나»다 — 어느 칸이든 된다. 칸 이름만 갈았다. */
+  await clickField(page, '#chb-typo-size-number'); await page.waitForTimeout(200);
   expect(await page.evaluate((s) => document.querySelector(s).getAttribute('contenteditable'), bt), '전제: 채팅 편집은 blur 로 진짜 끝났다').not.toBe('true');
   expect(await highlight(page), '★편집이 끝났으면 하이라이트가 없다').toBeNull();
   expect(errs, errs.join(' | ')).toEqual([]);

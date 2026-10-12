@@ -41,6 +41,28 @@ const _TPL_PATH_ATTR  = 'data-tpl-path';
 const _TPL_KIND_ALIAS = { 'sub-section': 'frame' };
 
 /* 이 엘리먼트가 «경로 한 칸»을 차지하는가 — 아니면 null(투명) */
+/* ★★템플릿 ★id 를 ★만드는 ★★«한 자리» (C · 2026-10-11)
+ *
+ * ★★왜 ★생겼나 — ★같은 ms 에 ★둘을 ★저장하면 ★★id 가 ★겹친다(★t4quote 실측:
+ *   ★`.tb-card.selected` 가 ★★2개가 된다). ★`Date.now()` 는 ★ms 라 ★★사람이 ★빠르면 ★부딪친다.
+ *
+ * ★★꼴은 ★★지어내지 ★않았다 — ★★이 파일에 ★★이미 ★있던 ★선례다:
+ *   ★옛 `:1093` ★`'btpl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)`
+ *   ⇒ ★★그 꼴을 ★★그대로 ★쓴다. ★바뀐 것은 ★★«한 자리에서 ★부른다»뿐이다.
+ *
+ * ⚠️★★★지디·t4quote 의 ★처방은 ★★«`:343` 을 ★`:1093` 꼴로»였다(★복사).
+ *   ★★내가 ★★한 칸 ★다르게 ★했다 — ★★★복사하면 ★★같은 식이 ★★두 벌이 ★된다.
+ *   ★★그건 ★★오늘 ★A(C11)에서 ★★고친 ★바로 ★그 병이다(★명부가 ★둘) ⇒ ★★파생시켜 ★하나로.
+ *   ⇒ ★★되돌리라면 ★★한 줄이다(★두 자리에 ★식을 ★다시 적으면 된다). ★★지디 칸으로 ★올렸다.
+ *
+ * ★★`_safeSeg`(main.js:1838) 가 ★★`[^\w.-]` 를 ★`_` 로 ★바꾼다 ⇒ ★★이 꼴은 ★그대로 ★살아남는다
+ *   (★`\w` = ★[A-Za-z0-9_]) ⇒ ★★파일명으로 ★써도 ★안전하다(★내가 ★쟀다).
+ * ★★그리고 ★id 를 ★★«파싱»하는 자는 ★★0곳이다 — ★전부 ★`t.id === id` ★동치 비교다(★내가 ★전수했다)
+ *   ⇒ ★★꼴을 ★늘려도 ★찾기가 ★안 깨진다. */
+function _mkTplId(prefix) {
+  return prefix + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+}
+
 function _tplKindOf(el) {
   const cl = el && el.classList;
   if (!cl || !cl.length) return null;
@@ -340,7 +362,7 @@ async function saveAsTemplate(el, name, folder, category, tags, type = 'section'
   _tplStampPath(clone);
   _tplStripLinks(clone);   // ★클론에만 — 캔버스의 원본 섹션은 링크를 그대로 쥔다
 
-  const id  = 'tpl_' + Date.now();
+  const id  = _mkTplId('tpl_');     /* ★id 만들기의 ★«한 자리» — ⛔여기 ★식을 ★다시 적지 ★마라(C) */
   const html = clone.outerHTML;
   const tagsArr = Array.isArray(tags) ? tags : [];
 
@@ -385,14 +407,29 @@ async function deleteTemplate(id) {
      → 낡은 값이 그 pushHistory 표본·저장 파일에 남았다(실측: $S/reports/E81-MEASURE.md · 등급 «저장에 남는 꼴 어긋남»).
    ★«넣은 섹션만» — 사용자 행동이 «이 섹션에 넣기»라 범위를 최소로(문서 전체 :603 꼴이 아니다).
    ★부품은 «이미 있는 것»만 부른다 — 새 벌 0: applyPadXToSection(prop-page.js · applyPagePadX 가 섹션마다 부르는 그것) ·
-     실효 padX = window.effectiveSectionPadX(inner)(drag-utils.js — section override ?? 페이지 padX). section-inner 를 넘기면
-     parent 가 .section-block 이라 프레임·행 갈래를 안 타고 그 inner 의 값을 돌려준다(override 섹션 시험 T4 가 잠근다).
+     실효 padX = ★★window.sectionPadX(inner) (drag-utils.js — ★row padX ?? ★section override ?? ★문서 padX).
+     ⚰️★★★2026-10-10 — ★옛 주석은 ★window.effectiveSectionPadX (inner) 였고 ★이렇게 ★적혀 있었다:
+       ★★★⚠️괄호를 ★한 칸 ★띄웠다 — ⛔소비자 ★전수 grep(★이름＋여는 괄호)에 ★안 걸리게.
+         ★까닭(★지디 2026-10-10 실측): ★안 띄우면 ★★이 ★비석이 ★★여섯째 호출로 ★세어진다
+         ⇒ ★★그리고 ★★읽는 사람이 ★★«여기가 ★아직 ★effective 를 ★부른다»로 ★거꾸로 ★읽는다
+         ⇒ ★★★«기록을 ★남기는 ★행위»가 ★★«그 기록을 ★재는 ★자»를 ★망친다 — ★비석은 ★★계측기의 ★입력이다
+       「★section-inner 를 넘기면 ★parent 가 .section-block 이라 ★★프레임·행 갈래를 ★안 타고 그 inner 의 값을 돌려준다」
+     ★★★그 가정은 ★★★«최상위 섹션에서만» ★참이다 (★지디 2026-10-10 — ⛔지우지 말고 ★조건을 붙여라)
+       ★까닭: ★그 함수는 ★`parent.closest('.frame-block')` 로 ★찾고 ★★`closest` 는 ★★★위로 ★걷는다
+       ⇒ ★★«서브섹션 길»이면 ★조상 사슬에 ★프레임이 ★있어 ★★★그 갈래를 ★★탄다
+       ⇒ ★★★그래서 ★여기는 ★★`sectionPadX`(★★조회 ★전용)를 ★부른다 — ★그 가정이 ★안 서는 ★자리이므로.
+     ★★★2026-10-10 ② (현빈 1009t3-②) ★전에는 ★그 갈래가 ★«둥근 프레임»에서만 ★터져 ★★조용했다
+       ⇒ ★★②가 ★기본을 ★자름으로 ★뒤집자 ★★모든 프레임에서 ★터져 ★★서브섹션만 ★padX ★0 을 받았다
+       ⇒ ★실측(T2): ★섹션 길 100% vs ★서브섹션 길 calc(100% + 96px) · ★cw ★820 vs ★916 (★차 96 = 2×48)
+     ⇒ ★★★이 자리가 ★묻는 것은 ★★«이 섹션의 ★패딩이 ★얼마냐»(조회)다 — ⛔«뚫을 수 ★있나»가 ★아니다
+       ★그래서 ★두 물음을 ★갈라 ★★sectionPadX 를 ★부른다(★drag-utils.js ★그 머리말에 ★까닭이 있다).
+     ⛔다시 ★effectiveSectionPadX 로 ★되돌리지 ★마라 — ★★T2·T5 가 ★빨개진다.
    ⛔applyPadXToSection 은 section-inner «직속» 에셋만 덮는다 — 행 안 에셋은 안 덮인다 → E92(별건 · integ16).
    ⛔pushHistory «앞»에서 부른다 — 뒤에 부르면 표본·저장에 낡은 값이 남는다(시험 T5 · T13). */
 function _tplReapplyPagePad(sec) {
   const inner = sec && (sec.querySelector('.section-inner') || null);
-  if (!inner || typeof window.applyPadXToSection !== 'function' || typeof window.effectiveSectionPadX !== 'function') return;
-  window.applyPadXToSection(inner, window.effectiveSectionPadX(inner));
+  if (!inner || typeof window.applyPadXToSection !== 'function' || typeof window.sectionPadX !== 'function') return;
+  window.applyPadXToSection(inner, window.sectionPadX(inner));
 }
 
 /* ★넣은 나무를 «묶는» 한 곳 (2026-10-06 lane-drag · R7 · R7b · ② · block 갈래 — section 갈래와 block 갈래가 같이 쓴다).
@@ -413,7 +450,15 @@ function _bindInsertedTree(root) {
   each('.annotation-block').forEach(b => window.bindAnnotationSelect?.(b));
 }
 
-async function insertTemplate(tpl) {
+/* ★★★`opts.replace` — ★★«선택한 섹션을 ★그 템플릿으로 ★교체»(★b2 · ★현빈 원문).
+ *   ★★기존 호출처 ★★★넷은 ★★한 글자도 ★안 바뀐다 — ★★★선택 인자다(★`:1227` 서명 규약을 ★안 깬다).
+ *     ★★자리를 ★★이름으로 ★적는다(⛔수만 ★적으면 ★★다음 사람이 ★★어디를 ★찾을지 ★모른다):
+ *       ★`template-browser.js:688` · ★`:1249` · ★`template-system.js:815` · ★`:1268`
+ *     ⚠️★첫 판에 ★★「다섯」이라 ★적었다 — ★★★지디가 ★게이트에서 ★잡았다(261011).
+ *       ★★참값은 ★넷이고 ★★내가 ★쪽지엔 ★「네 자리」로 ★맞게 ★적었는데 ★★주석만 ★틀렸다.
+ *       ⇒ ★★★주석의 ★수는 ★★다음 사람의 ★«전수 명부»가 된다 — ★「다섯」을 ★믿으면 ★★없는 ★하나를 ★찾아 ★헤맨다.
+ *   ⛔새 함수를 ★만들지 ★않았다: ★★그 규약이 ★★「★내부 호출처가 ★여럿이다」라고 ★적혀 ★있다. */
+async function insertTemplate(tpl, opts = {}) {
   const canvas = await _loadCanvas(tpl.id);
   if (!canvas) {
     window.showToast?.('❌ 템플릿 불러오기 실패: 파일이 없거나 손상됐습니다.');
@@ -521,7 +566,7 @@ async function insertTemplate(tpl) {
     // 내부 블록 이벤트 핸들러 재등록 (Section 삽입과 동일 수준)
     // ★rebindAll 비경유 문 — 승격을 직접 한다(2026-09-05 개명).
     window.migrateGridIdentity?.(ss);
-    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .qa-block').forEach(b => {
+    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .qa-block, .coupon-block, .quote-block').forEach(b => {
       window.bindBlock?.(b);
       if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
     });
@@ -602,7 +647,54 @@ async function insertTemplate(tpl) {
   // 삽입 위치 결정: 선택된 섹션/프레임/블럭이 있으면 해당 섹션 바로 아래에 삽입, 없으면 맨 밑
   const anchorSec = window.getSelectedSection?.();
   if (anchorSec && anchorSec.parentElement === canvasEl) {
-    anchorSec.after(sec);
+    /* ★★★b2 — ★«교체»는 ★★`replaceWith` ★한 걸음이다.
+       ⛔`after` ＋ `remove` ★두 걸음으로 ★나누지 ★마라 — ★★중간 상태가 ★히스토리에 ★샌다(t4quote).
+       ★★섹션 ★번호는 ★★아래 ★재번호 루프가 ★★자리로 ★다시 ★매긴다 ⇒ ★★여기서 ★물려받지 ★않는다
+         (★t4quote 는 ★«물려받아라»라 ★적었는데 ★★그 결함은 ★★★이미 ★처리돼 ★있다 — ★실측). */
+    /* ════════════════════════════════════════════════════════════════════
+       ★★★C1 — ★★«잠긴 섹션»은 ★★교체하지 ★않는다 (★0.9.7 차단 ② · ★지디 판정)
+
+       ★★★왜 ★여기 ★한 자리인가 — ★★★내가 ★셌다(★주석을 ★걷고 · `js/panels/*.js` ★전수):
+         ★★«섹션을 ★★통째로 ★지우거나 ★덮는» 길 = ★★★1곳 — ★★바로 ★아래 ★`replaceWith` ★그것.
+         (★★같은 파일의 ★`.remove()` 들은 ★★`.section-tags` 같은 ★★«자식»이다 — ★섹션이 ★아니다)
+       ⇒ ★★★그러니 ★가드 ★한 자리가 ★★전수를 ★덮는다. ⛔둘째 명부가 ★생기지 ★않는다.
+
+       ★★★왜 ★★이 지점인가(★`anchorSec` ★바로 ★뒤) — ★★★이것도 ★쟀다:
+         ★`insertTemplate` ★머리부터 ★여기까지 ★★«살아 있는 ★캔버스»를 ★바꾸는 자리 = ★★0.
+         ★그 사이의 ★`innerHTML`·`appendChild` 는 ★★전부 ★★떼어 둔(detached) ★`wrapper`·`tmp`·`row` 것이고,
+         ★`pushHistory` ★둘은 ★★블럭·서브섹션 ★가지에 ★있어 ★★그 가지는 ★★먼저 ★return 한다.
+       ⇒ ★★★그래서 ★여기서 ★return 하면 ★★★흔적이 ★남지 ★않는다(★`sec` 은 ★아직 ★안 붙었다).
+
+       ★★★그리고 ★★«이어 불러라» — ★★`window.isSectionProtected` 를 ★쓴다. ⛔다시 ★짜지 ★않는다.
+         ★정의 = ★`js/section-protection.js` · ★선례 = ★`js/editor.js` ★3곳의 ★`|| (() => false)` 꼴.
+       ★★그리고 ★★★조용히 ★거절하지 ★않는다 — ★★«왜 ★안 되나»를 ★말한다.
+         ★★까닭(★지디): ★★«복구는 ★사용자가 ★알아챈 ★뒤에만 ★쓸 수 ★있다» ⇒ ★★알림이 ★없으면
+         ★★★`⌘Z` 가 ★있어도 ★위안이 ★안 된다. ★★실측: ★★알림 ★★`[]` 였다.
+
+       ⛔⛔★★★그런데 ★★문구에 ★★«어디서 ★푸나»를 ★★★적지 ★않는다. ★★까닭을 ★쟀다:
+         ⒜ ★낱말 — ★★「자물쇠」는 ★제품에 ★★2건뿐(★하나는 ★★내 ★첫 판이었다)이고
+            ★★「보호」는 ★★≥102건이다 ⇒ ★★★제품 용어는 ★★«보호»다(★출처= ★내가 ★`git grep -c` 로 ★셌다).
+            ★꼴도 ★맞춘다 — ★`section-protection.js:144` 가 ★★「🔒 보호된 섹션 …」이다.
+         ⒝ ★★★그리고 ★★★«그 입구가 ★★보이지 ★않는 판이 ★있다» — ★★★이 레포가 ★제 입으로 ★적어 뒀다:
+            ★`js/section-protection.js` 의 ★머리말 — ★★«작업 중에 ★만든 섹션»은 ★보호를 ★켜도
+            ★★표시가 ★하나도 ★안 떴다(★실측) · ★★보호를 ★끄는 ★UI 는 ★★그 단추 ★하나뿐이다.
+            ★그리고 ★`js/io/save-load.js` 는 ★더 세게 적었다 — ★★«보호를 ★끌 방법이 ★없다»는 ★판이 ★있다.
+         ⇒ ★★★그러니 ★★입구를 ★가리키면 ★★★«없는 것»을 ★가리키게 ★된다.
+           ★★★그건 ★★«알림이 ★없는 것»보다 ★★나쁘다 — ★★사용자가 ★찾다가 ★못 찾는다.
+         ⇒ ★★★그래서 ★★★«왜 ★안 되나»까지만 ★말하고 ★★«어떻게 ★푸나»는 ★★말하지 ★않는다.
+       ⚠️★★같은 꼴이 ★★이 레포에 ★★★이미 ★★둘 ★더 ★있다(★내가 ★셌다 · ★`git grep` ·
+         ★`js/editor.js` 의 ★★삭제 차단 ★토스트 ★★두 자리) — ★★★범위 ★밖이라 ★★안 고쳤고 ★★명부로 ★올렸다.
+         ⇒ ★★그리고 ★★그 둘을 ★가리키는 ★주석의 ★★줄번호가 ★★★썩었다(★`:3085` · ★★세 파일이 ★그 수를 ★인용한다)
+           ⇒ ★★★그래서 ★★여기엔 ★★줄번호를 ★★안 적는다. ★★«파일 ＋ ★무엇»만 ★적는다.
+       ★잠그는 자 = ★`tests/dom/tpl-protect-replace.dom.spec.js` ★L1(주) · ★★L2(★음성대조 — ★b2⒜ 가 ★산다)
+       ════════════════════════════════════════════════════════════════════ */
+    const _isProtected = window.isSectionProtected || (() => false);
+    if (opts && opts.replace && _isProtected(anchorSec)) {
+      window.alert('🔒 보호된 섹션은 바꿀 수 없습니다.');
+      return;
+    }
+    if (opts && opts.replace) anchorSec.replaceWith(sec);
+    else anchorSec.after(sec);
   } else {
     canvasEl.appendChild(sec);
   }
@@ -1075,7 +1167,7 @@ export async function saveBlockAsTemplate(block, name, folder = '블록', tagsSt
   _tplStripLinks(clone);   // ★클론에만 — 캔버스의 원본 블록(과 그 섹션)은 링크를 그대로 쥔다
   const html = clone.outerHTML;
 
-  const id = 'btpl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  const id = _mkTplId('btpl_');     /* ★같은 자를 ★쓴다 — ★옛 꼴이 ★이 자의 ★선례였다(C) */
   const blockType = block.dataset.type || block.className.split(' ')[0];
 
   // canvas 저장

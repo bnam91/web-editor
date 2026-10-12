@@ -31,6 +31,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..', '..');
@@ -88,11 +90,19 @@ async function loadGridBlockSrc(src) {
   const withAlias = withStub.replace("from '../grid-cell-resize.js'", 'from ' + JSON.stringify(pathToFileURL(gcrAlias).href));
   assert.notEqual(withAlias, withStub, '★grid-cell-resize.js import 를 못 찾았다 — 행높이 상한 SSOT 가 끊겼나?');
 
+  /* ★공용 sanitizer(수지⑦ 2026-10-08) — ★그리드가 ★세 번째 소비자가 되며 ★새 import 가 생겼다.
+     ★위 gcr 와 ★같은 꼴로 ★실물을 복사해 ★별칭을 꽂는다. ★단언을 ★따로 둔다
+       (⛔위 assert 에 체이닝하면 ★그것이 ★무엇을 잠그는지 ★흐려진다). */
+  const srtAlias = path.join(os.tmpdir(), `srt-gla-${tag}.mjs`);
+  const withSrt = withAlias.replace("from '../util/sanitize-rich-text.js'", 'from ' + JSON.stringify(pathToFileURL(srtAlias).href));
+  assert.notEqual(withSrt, withAlias, '★sanitize-rich-text.js import 를 못 찾았다 — 부분 서식 공용 모듈이 끊겼나?');
+  fs.copyFileSync(path.join(ROOT, 'js', 'util', 'sanitize-rich-text.js'), srtAlias);
+
   fs.copyFileSync(path.join(ROOT, 'js', 'grid-cell-resize.js'), gcrAlias);
   const alias = path.join(os.tmpdir(), `grid-gla-${tag}.mjs`);
-  fs.writeFileSync(alias, withAlias);
+  fs.writeFileSync(alias, withSrt);
   const mod = await import(pathToFileURL(alias).href);
-  fs.unlinkSync(alias); fs.unlinkSync(gcrAlias);
+  fs.unlinkSync(alias); fs.unlinkSync(gcrAlias); fs.unlinkSync(srtAlias);
   return mod;
 }
 
@@ -101,9 +111,13 @@ let GB;    // grid-block.js (실물, TMP 트리 경유)
 let PG;    // prop-grid.js (실물, TMP 트리 경유 — UI 전용 의존만 스텁)
 
 before(async () => {
-  TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'grid-line-add-'));
+  TMP = mkTmpRoot('grid-line-add-');
   fs.mkdirSync(path.join(TMP, 'props'));
   fs.mkdirSync(path.join(TMP, 'blocks'));
+  /* ★공용 sanitizer(수지⑦ 2026-10-08) — grid-block.js 가 `../util/sanitize-rich-text.js` 를 ★읽는다.
+     ★이 트리는 ★상대경로를 ★그대로 살리는 꼴이라 ★디렉터리만 만들고 ★실물을 ★그대로 복사하면 된다
+       (⛔스텁 금지 — ★허용목록이 ★진짜 그 값이라야 ★검사가 ★거짓초록이 안 된다). */
+  fs.mkdirSync(path.join(TMP, 'util'));
 
   // ★실물 그대로 복사 — 트리 모양이 레포와 같아서 import 상대경로를 한 글자도 안 고친다.
   fs.copyFileSync(path.join(ROOT, 'js', 'props', 'prop-grid.js'), path.join(TMP, 'props', 'prop-grid.js'));
@@ -114,6 +128,14 @@ before(async () => {
        한 줄 빠진 것이 28건 실패로 보여서 「남의 그물을 끊었다」로 오독하기 딱 좋다. */
   fs.copyFileSync(path.join(ROOT, 'js', 'blocks', 'gap-limits.js'), path.join(TMP, 'blocks', 'gap-limits.js'));
   fs.copyFileSync(path.join(ROOT, 'js', 'grid-cell-resize.js'), path.join(TMP, 'grid-cell-resize.js'));
+  fs.copyFileSync(path.join(ROOT, 'js', 'util', 'sanitize-rich-text.js'), path.join(TMP, 'util', 'sanitize-rich-text.js'));
+  /* ★prop-text-utils.js 가 ★다섯째다 (2026-10-07) — prop-grid.js 가 ★`fontChain` 을 거기서
+     import 하기 시작했다(현빈 「그리드블럭의 텍스트 줄도 프리텐다드로」 · grdNewLineSpec).
+     ⛔스텁으로 두지 않는다 — ★새 글자 줄의 ★글꼴 ★값이 그 함수에서 ★나온다. 가짜를 세우면
+       이 하네스는 ★제품이 아니라 ★내가 적은 값을 재게 된다(T-234 가 쓴 그 병의 다음 얼굴).
+     ⛔안 복사하면 ERR_MODULE_NOT_FOUND 로 이 파일의 검사 ★전부가 빨개진다 —
+       위 gap-limits.js 주석이 적어 둔 ★그 꼴 그대로다(한 줄이 28건으로 보인다). */
+  fs.copyFileSync(path.join(ROOT, 'js', 'props', 'prop-text-utils.js'), path.join(TMP, 'props', 'prop-text-utils.js'));
 
   // ★UI 전용 의존 — grdAddLine 이 안 쓰는 것들만 최소 스텁.
   fs.writeFileSync(path.join(TMP, 'globals.js'),
@@ -159,7 +181,7 @@ before(async () => {
   PG = await import(pathToFileURL(path.join(TMP, 'props', 'prop-grid.js')).href);
 });
 
-after(() => { try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (_) {} });
+/* ⛔★여기 있던 ★`after(() => rmSync(TMP))` 를 ★뺐다 — ★`mkTmpRoot` 가 ★치우기를 ★쥔다 */
 
 /** 2열 그리드 — col0 은 빈 셀, col1 은 줄 하나. */
 function fixture() {

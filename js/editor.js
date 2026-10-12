@@ -18,7 +18,7 @@ const CANVAS_SEL_BLOCKS =
   '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, ' +
   '.canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.mockup-block.selected, .icon-block.selected, .vector-block.selected, ' +
-  '.step-block.selected, .laurel-block.selected, .zoom-block.selected, .gradient-block.selected, ' +
+  '.step-block.selected, .coupon-block.selected, .quote-block.selected, .laurel-block.selected, .zoom-block.selected, .gradient-block.selected, ' +
   '.sticker-block.selected, .joker-block.selected, .chat-block.selected, ' +
   '.speech-bubble-block.selected, .qa-block.selected';  // 버블(sb_): 복수선택/복사/삭제/⌘X 대상 편입 (#7)
 // shape-block은 ss/row 단위 별도 삭제 경로(allSelShapes)라 위 목록에 포함하지 않음.
@@ -62,7 +62,7 @@ const SECTION_BLOCK_TYPE_SEL = [
   '.bridge-block', '.grid-block', '.infocard-block', '.innercard-block', '.modal-block',
   '.shape-block', '.speech-bubble-block', '.banner02-block', '.comparison-block',
   '.mockup-block', '.vector-block', '.step-block', '.joker-block', '.canvas-block',
-  '.chat-block', '.gradient-block', '.sticker-block', '.laurel-block', '.zoom-block',
+  '.chat-block', '.coupon-block', '.quote-block', '.gradient-block', '.sticker-block', '.laurel-block', '.zoom-block',
   '.qa-block',
 ].join(', ');
 if (typeof window !== 'undefined') window.SECTION_BLOCK_TYPE_SEL = SECTION_BLOCK_TYPE_SEL;
@@ -1108,7 +1108,7 @@ function _openSoleBlockPanel() {
    ⚠️프레임은 «조상»으로도 .selected 가 켜진다(restoreFrameSelectionFor ·
      _restoreFreeLayoutFrameSelected · selectShapeBlock). 그래서 목록이 아니라 «성질»로 거른다
      — 아래 _isFlowMultiSelUnit. */
-const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .zoom-block.selected, .chat-block.selected, .speech-bubble-block.selected, .qa-block.selected, .frame-block.selected';
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .zoom-block.selected, .chat-block.selected, .speech-bubble-block.selected, .qa-block.selected, .coupon-block.selected, .quote-block.selected, .frame-block.selected';
 
 /* ★사본 금지 — js/props/prop-multisel.js 가 «이 상수»를 읽는다(옛날엔 리터럴을 한 벌 더 갖고
  *   있었고, 둘 다 주석에 「SSOT」라 적혀 있었다. 확대블럭이 한쪽에만 들어가 «2개 선택하면
@@ -1477,7 +1477,7 @@ function duplicateSelected() {
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
       // 이벤트 재바인딩
-      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block';
+      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block, .coupon-block, .quote-block';
       clone.querySelectorAll(_ALL_BLOCK_SEL).forEach(b => {
         delete b._blockBound;
         window.bindBlock?.(b);
@@ -1541,7 +1541,7 @@ const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selec
   '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .qa-block.selected, ' +
   '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
-  '.laurel-block.selected, .zoom-block.selected, .joker-block.selected, .speech-bubble-block.selected, ' +
+  '.coupon-block.selected, .quote-block.selected, .laurel-block.selected, .zoom-block.selected, .joker-block.selected, .speech-bubble-block.selected, ' +
   '.mockup-block.selected, .vector-block.selected, .gradient-block.selected';
 
 /* 같은 타입 목록이되 «.selected 여부 무관» — 한 행 안의 블록이 «전부» 선택됐는지 판정할 때 쓴다. */
@@ -1615,6 +1615,24 @@ function copySelected() {
   _writeInternalClipboardToOS();
 
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
+
+  /* ★C④(2026-10-09) — 섹션을 «여러 개» 골라 ⌘C 하면 옛 판은 아래 단건 갈래의
+   *   `document.querySelector('.section-block.selected')` 로 «첫 하나»만 담아, 3·5·7 을
+   *   골라도 언제나 +1 이 붙었다(실측 기준 sha 1fe77e38: 3→+1 · 5→+1 · 7→+1).
+   *   위 MULTI_SEL 은 «블럭» 목록이라 섹션은 애초에 allSel 에 안 들어온다(그래서 길이 0 →
+   *   단건 갈래로 떨어졌다) — 섹션은 복사 «단위»가 달라 그 목록에 넣는 게 답이 아니다.
+   *   ⇒ 섹션 전용 갈래를 둔다. 「섹션만 골랐나」 판정은 ⌘M 과 ★같은 헬퍼(_sectionOnlySelection)
+   *     를 쓴다 — 블럭을 고르면 부모 섹션도 .selected 라, 그걸로 가르면 블럭 복사를 가로챈다.
+   *   ★담는 법은 단건 섹션 복사와 같은 serializeSectionClone (T-031 영상 원본 누수 방지와 같은 경로).
+   *   ★중첩 방어 — 고른 섹션이 다른 고른 섹션 «안»이면 바깥만 담는다(사본 중복 방지). */
+  if (_sectionOnlySelection()) {
+    const secAll = [...document.querySelectorAll('#canvas .section-block.selected')];
+    const secTops = secAll.filter(s => !secAll.some(o => o !== s && o.contains(s)));
+    if (secTops.length > 1) {
+      clipboard = { type: 'multi-section', items: secTops.map(s => ({ html: window.serializeSectionClone(s) })) };
+      return;
+    }
+  }
 
   if (allSel.length > 1) {
     // 멀티셀렉트: DOM 순서대로 고유 항목 수집.
@@ -1729,7 +1747,7 @@ function _bindPastedEl(el) {
   //   ⛔아래 id 재생성보다 «먼저» 부르지만, 승격은 id 를 건드리지 않으므로 순서 무관하다.
   window.migrateGridIdentity?.(el);
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block, .coupon-block, .quote-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {
@@ -1927,6 +1945,39 @@ function _keepOnlyPastedSelected(roots) {
   window._activeFrame = null;
 }
 
+/* ★섹션 사본 «하나»를 DOM 에 넣는 한 벌 — 단건(type:'section')과 여러 개(type:'multi-section')가
+ *   ★같은 코드를 돈다. 두 갈래가 각자 id 재발급·바인딩 목록을 적으면 그게 둘째 명부가 되고,
+ *   «단건은 되는데 여러 개는 반쪽만 살아있는» 꼴로 갈린다(C④ 를 고치며 구조로 합쳤다).
+ *   refSection 뒤에 넣고, 없으면 캔버스 끝에 붙인다. 넣은 el 과 SPLink 결과를 돌려준다. */
+function _insertPastedSection(el, refSection) {
+  const genIdFn = window.genId || ((p) => p + '_' + Math.random().toString(36).slice(2, 9));
+  el.id = genIdFn('sec');
+  el.querySelectorAll('[id]').forEach(child => {
+    const prefix = child.id.split('_')[0] || 'el';
+    child.id = genIdFn(prefix);
+  });
+  /* [#16-DUP] 링크된 섹션의 사본에는 «스크래치 사본»을 딸려 보낸다(안 그러면 한 이미지를
+     두 섹션이 쥐어 링크체인이 2개가 된다 — 현빈 2026-09-08 발주).
+     ★★반드시 여기 — el 이 아직 temp 안(분리 상태)일 때 부른다. DOM 에 «넣은 뒤» 부르면
+       SPLink.sectionIdOf 가 «사본 자신»을 찾아 복제를 건너뛰고, 그 실패가 refSection 이
+       원본 앞/뒤 어디냐(=사용자의 선택 상태)에 따라 갈린다. ⛔아래로 내리지 마라. */
+  /* ⛔이름을 바꾸지 마라 — tests/unit/scratch-paste-dup.test.js T-U1-1 이 이 «문장 그대로»를 센다. */
+  const _spl = window.SPLink?.rewireClonedSection?.(el) || null;
+  // 선택이 없으면(잘라내기 직후 흔함) DOM 끝이 아니라 지금 화면에 보이는 섹션 옆에 붙인다.
+  if (refSection) {
+    refSection.after(el);
+  } else {
+    canvasEl.appendChild(el);
+  }
+  bindSectionDelete(el);
+  bindSectionOrder(el);
+  bindSectionDrag(el);
+  bindSectionDropZone(el);
+  _bindPastedEl(el);
+  el.addEventListener('click', e2 => { e2.stopPropagation(); selectSectionWithModifier(el, e2); });
+  return { el, spl: _spl };
+}
+
 function pasteClipboard() {
   if (!clipboard) { window.showToast?.('복사한 것이 없어요'); return; }
   /* ★0918r2 T-058 — 붙여넣으면 선택이 «블럭 단위»로 바뀐다(사본이 selected 로 들어와 원본과 함께 잡힌다).
@@ -1998,39 +2049,45 @@ function pasteClipboard() {
   }
 
   const temp = document.createElement('div');
-  temp.innerHTML = clipboard.html;
+  temp.innerHTML = clipboard.html || '';   // ★multi-section 은 html 이 없다(items 로 온다)
   const el = temp.firstElementChild;
 
   /* [#16-DUP] 섹션 붙여넣기가 만든 «스크래치 사본» 결과 — 꼬리의 pushHistory 에 sideEffects 로 싣는다.
      복제가 0건이면 null 이고 그 경우 이 경로는 오늘과 동작이 «같다». */
   let _spl = null;
 
-  if (clipboard.type === 'section') {
-    const genIdFn = window.genId || ((p) => p + '_' + Math.random().toString(36).slice(2, 9));
-    el.id = genIdFn('sec');
-    el.querySelectorAll('[id]').forEach(child => {
-      const prefix = child.id.split('_')[0] || 'el';
-      child.id = genIdFn(prefix);
+  /* ★C④(2026-10-09) 섹션 «여러 개» — 단건과 ★같은 한 벌(_insertPastedSection)을 돈다.
+   *   ★기준점 = «마지막» 고른 섹션 뒤. 그러면 A B C A' B' C' 가 된다 — 위 multi-block 갈래가
+   *     같은 까닭으로 고른 규약(「AABB 가 아니라 ABAB」)과 맞춘다. 사본은 앞 사본 뒤에 이어 붙인다.
+   *   ⛔여기서 «따로» 꼬리(buildLayerPanel·pushHistory·__spLinkRerender)를 만들지 마라 —
+   *     1차 구현이 그랬고, 꼬리가 둘이 되는 순간 tests/unit/scratch-paste-dup.test.js 의
+   *     T-U1-11(「재렌더는 꼬리 pushHistory «뒤»」)이 «첫 재렌더 vs 마지막 pushHistory»를 재므로
+   *     빨개진다. 그 검사가 맞다 — 꼬리가 둘이면 어느 쪽이 규약을 지키는지 기계가 못 센다.
+   *     ⇒ _spl 에 실어 «아래 하나뿐인 꼬리»로 흘려보낸다.
+   *   ★sideEffects 는 묶어 하나로 — 섹션마다 스크래치 사본이 생길 수 있고 꼬리 pushHistory 는
+   *     «하나»만 받는다. ⌘Z 한 번이 전부를 되돌려야 한다. */
+  if (clipboard.type === 'multi-section') {
+    const selSecs = [...document.querySelectorAll('#canvas .section-block.selected')];
+    let anchor = selSecs[selSecs.length - 1] || _pickVisibleSection() || null;
+    const _fx = [];
+    clipboard.items.forEach(item => {
+      const t = document.createElement('div');
+      t.innerHTML = item.html;
+      const secEl = t.firstElementChild;
+      if (!secEl) return;
+      const r = _insertPastedSection(secEl, anchor);
+      anchor = r.el;
+      if (r.spl?.sideEffects) _fx.push(r.spl.sideEffects);
     });
-    /* [#16-DUP] 링크된 섹션의 사본에는 «스크래치 사본»을 딸려 보낸다(안 그러면 한 이미지를
-       두 섹션이 쥐어 링크체인이 2개가 된다 — 현빈 2026-09-08 발주).
-       ★★반드시 여기 — el 이 아직 temp 안(분리 상태)일 때 부른다. DOM 에 «넣은 뒤» 부르면
-         SPLink.sectionIdOf 가 «사본 자신»을 찾아 복제를 건너뛰고, 그 실패가 refSection 이
-         원본 앞/뒤 어디냐(=사용자의 선택 상태)에 따라 갈린다. ⛔아래로 내리지 마라. */
-    _spl = window.SPLink?.rewireClonedSection?.(el) || null;
-    // 선택이 없으면(잘라내기 직후 흔함) DOM 끝이 아니라 지금 화면에 보이는 섹션 옆에 붙인다.
-    const refSection = getSelectedSection() || _pickVisibleSection();
-    if (refSection) {
-      refSection.after(el);
-    } else {
-      canvasEl.appendChild(el);
+    if (_fx.length) {
+      _spl = { sideEffects: {
+        onUndo: () => _fx.forEach(f => { try { f.onUndo?.(); } catch (e) { console.warn('[paste] onUndo err:', e); } }),
+        onRedo: () => _fx.forEach(f => { try { f.onRedo?.(); } catch (e) { console.warn('[paste] onRedo err:', e); } }),
+      } };
     }
-    bindSectionDelete(el);
-    bindSectionOrder(el);
-    bindSectionDrag(el);
-    bindSectionDropZone(el);
-    _bindPastedEl(el);
-    el.addEventListener('click', e2 => { e2.stopPropagation(); selectSectionWithModifier(el, e2); });
+  } else if (clipboard.type === 'section') {
+    const r = _insertPastedSection(el, getSelectedSection() || _pickVisibleSection());
+    _spl = r.spl;
   } else if (clipboard.freeLayout) {
     // free-layout 프레임 내 블록 붙여넣기 — 원본(또는 선택된) free-layout 프레임에 +20px 오프셋 절대배치.
     // duplicateSelected의 freeLayout 분기 미러.
@@ -2059,7 +2116,7 @@ function pasteClipboard() {
       // ★자리는 «붙인 뒤» — 사본의 실제 크기를 재야 (중앙 − 크기/2)를 구하고 프레임 안으로 넣을 수 있다(F2). 여기는 임시 자리.
       el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
       frame.appendChild(el);
-      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block';
+      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block, .coupon-block, .quote-block';
       el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
       if (el.matches?.(_ALL)) { delete el._blockBound; window.bindBlock?.(el); }
       el._dragBound = false; el._subSecBound = false;
@@ -2336,6 +2393,38 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  /* ⌘T / Ctrl+T — 템플릿 브라우저 «열기» (현빈 2026-10-11 「커맨드t 누르면 템플릿 패널 열리게해줘」)
+     ★여는 자는 이미 있다 — js/panels/template-browser.js openTemplateBrowser()
+       (docs/TEMPLATE_SYSTEM.md 4절 「공개 API」가 그 셋을 「브라우저 패널 여닫기」로 적어 뒀다) ⇒ 새로 짜지 않는다.
+     ★꼴은 위 ⌘, 갈래를 그대로 베꼈다: (meta||ctrl) ＋ e.code(IME 안전) ＋ shift·alt 배제.
+     ★«토글»이 아니라 «열기»다 — 현빈 문장이 「열리게」이고, 닫는 길이 이미 셋이다:
+       #tpl-browser-close 단추 · Escape(template-browser.js 의 capture keydown) · 캔버스 mousedown.
+     ★입력칸(INPUT·TEXTAREA·SELECT·contenteditable)에서도 «연다» — 위 ⌘, 선례와 «같은» 꼴이다.
+       ⛔초판(d1de2c43)은 입력칸에서 «안» 열었다. 그 조건의 까닭은 「타이핑을 가로챈다」였는데
+         ⌘T 는 글자를 넣지 않으므로 그 까닭이 서지 않는다. 그리고 더 나쁜 것 —
+         «글자를 쓰다가 ⌘T 를 눌렀는데 아무 일도 안 난다»가 되어 이 레포가 열두 자리에 걸쳐
+         막아 둔 「눌리는데 아무 일도 안 난다」를 새로 만든다. ⇒ 그래서 떼고 선례로 돌아왔다.
+       ⛔«타이핑은 preventDefault 가 지킨다»라 적었는데 ★★그 까닭이 거짓이었다(2026-10-11 실측):
+         `e.preventDefault()` «만» 죽인 무력화 회차에서 ★5칸이 전부 초록이었다 ⇒ 그 줄이 한 일이 아니다.
+         참 까닭 = ★수식키 조합은 브라우저가 애초에 글자를 안 넣는다. ⇒ 결과는 참이고 까닭이 거짓이었다.
+       ★`preventDefault` 의 참 몫 = ★«기본 동작(브라우저·AppKit 가속기)이 돌지 않게» 하는 것이다.
+         ⛔그 몫을 잠그는 칸은 이 레포에 ★0 이다 — 그 줄을 죽여도 검사 5벌이 초록이다(그 회차 로그).
+         ⇒ ★AppKit 창 탭을 실제로 막나는 아래 «미확정» 칸과 ★같은 자리다. 앱에서만 선다.
+       ★타이핑을 ★실제로 잠그는 자 = ★T4(맨 t 는 패널을 안 열고 글자 블럭이 늘어난다) ★하나다.
+         ⛔검사 T3 의 둘째 단언(「t 가 안 들어간다」)을 근거로 대지 마라 — ★항상 참이라 아무것도 안 잠근다.
+     ★충돌 실측(2026-10-11): 렌더러에서 KeyT 는 「글자 블럭 추가」지만 그 블록이 `!e.metaKey && !e.ctrlKey && !e.shiftKey`
+       안이라 이 조합에 닿지 않는다. main.js 는 Menu 를 import 조차 하지 않아 우리가 가속기를 등록하는 자리는 0 이다.
+       ★Electron 은 ⌘T 를 «등록하지 않는다» — Framework 바이너리의 가속기 문자열 전수에서 `+T`/`+t` 0건
+         (지디 실측 2026-10-11 · CommandOrControl+Z/V/X/W/Q/M/C/A/Plus · CmdOrCtrl+R · Command+I/H/F 는 있다).
+       ⛔그런데 macOS AppKit 이 «창 탭»으로 ⌘T 를 잡나는 아직 미확정이다 — 같은 바이너리에
+         toggleTabBar·showAllTabs 역할이 살아 있고, 그 가로채기는 AppKit 이 하는 일이라
+         바이너리 문자열로도 DOM 하네스로도 «영영» 안 드러난다. 앱에서만 선다. */
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyT' && !e.shiftKey && !e.altKey) {
+    e.preventDefault();
+    window.openTemplateBrowser?.();
+    return;
+  }
+
   // 패널 접기/펼치기 — Figma 키 의미에 맞춘 배치.
   //   ⌘\   좌측 패널      ⌘⌥\  우측(속성) 패널
   //   ⌘⇧\  좌우 동시 = Figma의 "Minimize UI"(⌘⇧\)와 같은 의미. 우측 단독에 ⇧를 쓰면
@@ -2501,6 +2590,12 @@ document.addEventListener('keydown', e => {
       // shift 조합 배제 — 한글 IME에서 ⌘⇧X(취소선)가 e.key 'x'로 들어와 오삭제되는 경로 차단
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      /* ★스크래치패드 아이템이 골라져 있으면 그쪽이 가져간다 (2026-10-06 현빈 「스크래치패드 잘라내기가
+           안되는 문제」). 참이면 «여기서 끝» — 아래 preventDefault 까지 가면 안 된다.
+         ★왜 여기서 묻나 — 이 갈래가 ⌘X 를 받아 preventDefault 해 버리므로, 스크래치가 keydown 을
+           따로 들어도 네이티브 cut 이벤트가 안 온다(실측 cutEvt 0). «양보»만이 길이다.
+         ★선례 = 바로 위 그리드 줄(`if (window.grdPasteLines?.()) return;`) — 같은 꼴로 맞췄다. */
+      if (window.scratchCutSelected?.()) { e.preventDefault(); return; }
       e.preventDefault();
       copySelected();
       deleteSelectedFromCanvas({ isCut: true });   // [#16-DEL] ⌘X=이동 ⇒ ⛔스크래치를 안 건드린다
@@ -3059,11 +3154,15 @@ document.addEventListener('keydown', e => {
          updateGridBlock 이 «쓰기 직전에» 스스로 1회 쌓는다. */
     if (moveGridLineFromCanvas({ dir: e.key === 'ArrowUp' ? -1 : 1 })) { e.preventDefault(); return; }
     // 섹션 외 모든 selected 요소를 블록으로 취급 (iconify/shape/sticker/laurel 등 누락 방지)
-    const selBlock = [...document.querySelectorAll('.selected')]
-      .find(el => el !== document.body
+    /* ★수지④(2026-10-08) — 드릴인(프레임 클릭 → 자식 클릭) 상태엔 프레임과 자식이 «둘 다» .selected 다.
+       DOM 첫째를 고르면 프레임이 뽑혀 «자식»이 아니라 «프레임»이 섹션에서 움직였다(실측 SM1). ⇒ 다른 후보를 «안에 품지 않은» 가장 안쪽을 고른다.
+       (안 겹친 다중 선택은 예전과 같다 — 첫째가 곧 가장 안쪽.) */
+    const _selCands = [...document.querySelectorAll('.selected')]
+      .filter(el => el !== document.body
         && !el.classList.contains('section-block')
         && !el.classList.contains('layer-item')
         && el.id);
+    const selBlock = _selCands.find(el => !_selCands.some(o => o !== el && el.contains(o)));
     const selSection = document.querySelector('.section-block.selected');
     const moveTarget = selBlock
       ? (selBlock.classList.contains('gap-block') || selBlock.classList.contains('frame-block')
@@ -3134,7 +3233,13 @@ document.addEventListener('keydown', e => {
  *   null = 쓸 줄이 없다(호출부는 false 로 흘려 «블럭 이동»이 되게 둔다).
  *   nested:true = 중첩 «안»의 줄이다 — 호출부는 «소비만» 하고 아무것도 옮기지 않는다. */
 function _gridActiveOuterLine() {
-  const gridSel = document.querySelector('.grid-block.selected');
+  /* ★⑵-B②(2026-10-06) — ★버블·챗도 묻는다. 예전엔 이 첫 줄이 `.grid-block.selected` ★하나였고,
+   *   그래서 ⌫·T·G·Esc 는 버블·챗에 먹는데(line-host.js) ★«옮기기»만 꺼져 있었다
+   *   — 현빈 「이게 똑같지 않니 구조가?」의 그 자리다.
+   * ★아래 게이트 셋(단독선택 → 중첩(np) 막기 → 바깥 줄)은 ★한 글자도 안 바꿨다 — 블럭을 «찾는» 자리만 넓혔다.
+   * ⛔버블·챗에는 중첩(np)이 ★없다 — 그 가지는 그리드에서만 선다(값이 안 들어온다). */
+  const gridSel = document.querySelector('.grid-block.selected')
+    || document.querySelector('.speech-bubble-block.selected, .chat-block.selected');
   let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
   /* ★단독 선택일 때만 — ⌘클릭 다중선택·붙여넣기 뒤 [원본(활성줄)+사본] 은 사용자가 «블럭들»을
      보고 있다. 거기서 첫 그리드의 활성줄만 보고 줄을 옮기면 블럭은 그대로인데 줄만 조용히 바뀐다
@@ -3167,7 +3272,20 @@ function moveGridLineFromCanvas({ dir } = {}) {
   /* ★옮기는 «한 벌»은 prop-grid.js grdMoveLine — 줄을 넣는/지우는 길과 같은 집이다.
      EDGE(칸의 끝)·INVALID(그 사이 데이터가 바뀜)는 조용히 소비만 한다. 여기서 false 를
      돌려주면 「맨 위 줄에서 ⌘↑」가 갑자기 «블럭 이동»으로 바뀐다 — 바로 그 혼동을 막는다. */
-  window.grdMoveLine?.(got.block, { r: got.addr.r, c: got.addr.c }, got.addr.li, dir);
+  /* ★⑵-B② — 그리드는 종전대로 grdMoveLine(EDGE·INVALID 를 조용히 소비). 버블·챗은 ★주인의 moveLine 으로.
+     ⛔두 벌이 아니다 — grdMoveLine 은 「끝인가」를 보고 grdMoveLineWithin 을 부르는 ★그리드 전용 문이고,
+       버블·챗은 그 안쪽 셈(끝 판정 ＋ 재배치)을 주인이 든다. ★한쪽을 다른 쪽으로 밀면 그리드 34검사가 빨개진다. */
+  if (got.block.classList.contains('grid-block')) {
+    window.grdMoveLine?.(got.block, { r: got.addr.r, c: got.addr.c }, got.addr.li, dir);
+    return true;
+  }
+  const H = window.lnHostFor?.(got.block);
+  const lines = H?.getLines?.(got.addr.r) || [];
+  const to = Number(got.addr.li) + (dir < 0 ? -1 : 1);
+  /* ★칸(행)의 끝은 ★조용히 소진한다 — 그리드 EDGE 와 ★같은 뜻이다(여기서 false 를 주면
+     「맨 위 줄에서 ⌘↑」가 갑자기 «블럭 이동»으로 바뀐다). */
+  if (to < 0 || to >= lines.length) return true;
+  H?.moveLine?.({ r: got.addr.r, c: 0 }, got.addr.li, { r: got.addr.r, c: 0 }, to);
   return true;
 }
 
@@ -3186,6 +3304,27 @@ function moveGridLineAcrossCells({ dir } = {}) {
      하면 사용자는 「어느 쪽이 되는 건가」를 새로 배워야 한다). */
   if (got.nested) {
     window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 옮길 수 없습니다 — 바깥 줄을 고르세요');
+    return true;
+  }
+  /* ★⑵-B②(2026-10-06) — ⌘←/→ 는 ★「옆 칸으로」다. 버블·챗에서 그 뜻이 갈린다:
+   *   ★버블 = ★해당 없다(행이 하나다) ⇒ ★조용히 소진한다. ⛔「실패」가 아니다 — ★SKIP 이다.
+   *   ★챗 = 「옆 ★메시지로」가 뜻이 선다. ⛔그런데 ★아직 못 한다 —
+   *     한 제스처가 ★두 문으로 나가야 하는데 `updateChatBlock` 에 ★`opts.noHistory` 가 ★없다(실측: 그 낱말 0건).
+   *     그리드는 `updateGridBlock` 이 그것을 보므로 grdMoveLineToCell 이 둘째 문을 끈다.
+   *     ⇒ 지금 두 문을 보내면 ★⌘Z 가 ★두 칸이 된다(한 제스처 = 이력 한 칸 규약 위반).
+   *     ⇒ ★모델 입구에 noHistory 를 더하는 일이 ★선행이다(별건). ★그때까지 ★사람에게 말한다.
+   *   ⛔「조용히 아무 일 없음」으로 두지 않는다 — 챗에서는 ★뜻이 서는 손짓이라 사람이 기다린다. */
+  if (!got.block.classList.contains('grid-block')) {
+    /* ★⑵-B③(2026-10-06) — ★챗은 「옆 ★메시지로」가 뜻이 선다 ⇒ ★주인의 moveLine 으로 보낸다.
+     *   ⛔버블은 ★행이 하나라 ★해당 없다 — ★조용히 소진한다(SKIP · ⛔FAIL 이 아니다 · 지디 승인).
+     *     그 길로 보내도 `o.rowOk(to.r)` 가 거짓이라 INVALID 로 떨어지지만, ★여기서 먼저 끊어
+     *     «될 것 같은 손짓»을 애초에 안 만든다(토스트도 안 띄운다 — 뜻이 없는 손짓이다).
+     * ★행의 끝(첫·마지막 메시지에서 밖으로)은 ★moveLine 이 INVALID 로 돌려주고 ★여기서 조용히 소진한다
+     *   — ★그리드의 EDGE 와 ★같은 뜻이다(「맨 왼쪽에서 ⌘←」가 갑자기 «블럭 이동»이 되지 않게). */
+    if (!got.block.classList.contains('chat-block')) return true;
+    const H = window.lnHostFor?.(got.block);
+    const step = dir < 0 ? -1 : 1;
+    H?.moveLine?.({ r: got.addr.r, c: 0 }, got.addr.li, { r: got.addr.r + step, c: 0 }, null);
     return true;
   }
   const step = dir < 0 ? -1 : 1;
@@ -3802,7 +3941,7 @@ function clearSelectionMarks(root) {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .annotation-block, .sticker-block, .qa-block').forEach(b => {
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .annotation-block, .sticker-block, .qa-block, .coupon-block, .quote-block').forEach(b => {
     b.classList.remove('selected');
     // 어노테이션은 핸들도 함께 정리
     if (b.classList.contains('annotation-block')) b.querySelectorAll('.annot-handle').forEach(h => h.remove());
@@ -3851,6 +3990,7 @@ window.clearSelectionMarks = clearSelectionMarks;
 
 function deselectAll() {
   clearMultiSel();
+  window._enteredFrame = null;   // ★프레임 더블클릭 «들어간 프레임» 표시도 같이 푼다(R4 나가기 = 지금 동작 그대로 · drag-utils.js R1 머리말)
   _lastClickedBlock = null;
   // 텍스트 편집 중인 블록이 있으면 편집 종료 전 현재 상태 히스토리에 저장
   // (입력한 텍스트가 undo 복원 대상이 되도록)
@@ -3873,6 +4013,9 @@ function deselectAll() {
      모듈 안의 _modalResizeBlock 이 해제된 블록을 계속 가리켜 재클릭이 no-op 이 된다. */
   window.hideModalRadiusHandles?.();
   window.hideModalResizeHandles?.();
+  /* ★쿠폰 폭 손잡이 — 빠지면 모듈 변수 _cpnResizeBlock 이 «해제된 블럭»을 계속 가리켜
+     같은 블럭 재클릭이 동일블럭 빗장에 걸려 no-op 이 된다(위 아이콘원형이 실제로 밟은 사고). */
+  window.hideCouponResizeHandles?.();
   /* ★아이콘원형 핸들도 «여기서» 정리한다 — 빠져 있었다.
    * 빠져 있으면 모듈 내부의 `_icbResizeBlock` 이 «선택 해제된 블록»을 계속 가리킨 채 남고,
    * 같은 블록을 다시 클릭하면 `showIconCircleResizeHandle` 의 동일블록 가드에 걸려 no-op 이 된다.
@@ -4209,7 +4352,7 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .qa-block').forEach(b => window.bindBlock(b));
+document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .qa-block, .coupon-block, .quote-block').forEach(b => window.bindBlock(b));
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가

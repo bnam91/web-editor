@@ -27,6 +27,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 const require = createRequire(import.meta.url);
 /* ⛔주석 걷어내기는 «공용 부품»만 쓴다 — 자기 벌을 만들면 S-6 가 즉시 빨강. */
 const { stripComments } = require('./_strip-comments.js');
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../../');
@@ -44,7 +45,7 @@ const SRC  = { prop: stripComments(RAW.prop), block: stripComments(RAW.block), g
 let _modP = null;
 function loadGeom() {
   if (!_modP) {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zoom-panel-slim-'));
+    const dir = mkTmpRoot('zoom-panel-slim-');
     const mjs = path.join(dir, 'zoom-geometry.mjs');
     fs.copyFileSync(path.join(ROOT, F_GEOM), mjs);
     _modP = import(pathToFileURL(mjs).href);

@@ -87,7 +87,39 @@ async function mount(page) {
     bn.className = 'banner02-block';
     bn.innerHTML = '<div data-line-idx="0" class="bn2-line-selected">bn</div>';
     document.getElementById('host').appendChild(bn);
+
+    /* ★★2026-10-10 (1009t3 A4) — `MARKER_TOKENS` 가 ★2종 늘었다(grd-cell-selected · item-selected).
+       ★★이 검사의 ★분모는 ★그 명부에서 ★파생되므로(위 require), ★★장면도 ★같이 늘려야 한다 —
+       ★안 늘리면 ★D4 의 ★전제 단언이 ★「라이브 0건」으로 ★빨개진다. ★실제로 ★그렇게 났다.
+       ★★⇒ ★교훈: ★★«분모를 늘렸으면 ★장면도 늘려라». ★그 자는 ★제 일을 했다.
+
+       ★★⛔`grd-cell-selected` 는 ★앱의 길(`__open(block,{…li:null})`)로 ★★심을 수 ★없다 —
+         `js/props/prop-grid.js` `_grdSyncLineMark` 가 ★머리에서 ★★`document` ★전역으로
+         `.grd-line-selected` 와 `.grd-cell-selected` 를 ★★둘 다 지운다(:176·:177).
+         ⇒ ★★두 그리드 마커는 ★★«상호배제»다. ★한 장면에 ★둘을 ★같이 세울 ★방법이 ★없다.
+       ★★⇒ ★그래서 ★`bn2-line-selected` 와 ★같은 꼴로 ★★손으로 심는다. ★이 검사가 ★재는 것은
+         ★★«채널이 ★그 토큰을 ★벗기나»이고, ★«앱이 ★그 토큰을 ★붙이나»는 ★아니다.
+       ★★⇒ ★★«앱의 길»로 재는 자리는 ★따로 있다 — `tests/dom/grid-cell-selected-leak.dom.spec.js`
+         (★진짜 마우스로 ★빈 칸을 ★두 번 눌러 심고, ★배송본을 ★★렌더해 ★computed 까지 잰다).
+         ⛔이 손 심기를 ★「앱 경로도 쟀다」로 ★읽지 마라. ★두 자리가 ★다른 것을 ★잠근다. */
   }, FIXTURE);
+}
+
+/** ★★패널을 ★연 ★«뒤»에 심어야 하는 장면 — ⛔순서가 ★계약이다.
+ *  ★까닭: `showGridProperties` → `_grdSyncLineMark`(js/props/prop-grid.js:176·177)가 ★머리에서
+ *    ★★`document` 전역으로 `.grd-line-selected` 와 `.grd-cell-selected` 를 ★★둘 다 지운다.
+ *    ⇒ ★`mount()` 에서 심으면 ★그 패널 호출이 ★★지워 버린다.
+ *    ★★2026-10-10 에 ★내가 ★그 순서를 ★틀려 ★D4 가 ★또 빨갰다(「라이브 0건」) — ★그 자가 ★두 번 잡았다.
+ *  ⛔`mount()` 로 ★되돌리지 마라. ★★여기 두는 것이 ★그 상호배제의 ★처방이다. */
+async function plantAfterPanel(page) {
+  await page.evaluate(() => {
+    const cell = window.__block.querySelector('.grd-cell');
+    if (cell) cell.classList.add('grd-cell-selected');
+    const lg = document.createElement('div');
+    lg.className = 'label-group-block';
+    lg.innerHTML = '<div class="label-item item-selected">lb</div>';
+    document.getElementById('host').appendChild(lg);
+  });
 }
 
 /** 같은 계수기 — 어떤 «문자열»에서든 토큰을 센다. 라이브 DOM 도 같은 함수로 잰다. */
@@ -101,6 +133,7 @@ test('D4 ★편집용 마커가 저장본·HTML·PNG «어디에도» 안 샌다
   const errs = await boot(page);
   await mount(page);
   await page.evaluate(() => window.__open(window.__block, { r: 0, c: 1, li: 2 }));
+  await plantAfterPanel(page);        // ★★패널 «뒤» — 위 함수 머리말의 상호배제 때문이다
 
   const out = await page.evaluate(async () => {
     const live = document.getElementById('canvas').innerHTML;
@@ -159,13 +192,51 @@ test('D4-b ★artifact 명부가 이 검사가 «돌린» 갈래와 맞는다 (�
      — tests/dom/figma-export-coverage.dom.spec.js, 그리고 U6-g 가 그 «연결»을 지킨다.
      ⛔축으로 거르지 않으면 축이 늘 때마다 여기가 «거짓 빨강»이 되고, 사람은 기대값에
        이름만 더해 끄게 된다 — 그러면 이 단언이 아무것도 안 지킨다. */
+  /* ★★2026-10-10 — ★손으로 박은 ★평평한 배열을 ★★«뜻으로 갈라» 둘로 나눴다.
+     ⛔예전 꼴(이름 넷을 ★한 배열에)은 ★명부가 늘 때 ★사람이 ★★«이름만 더해 끄게» 한다.
+     ★★이 검사의 머리말이 요구하는 것은 ★★«늘린 갈래를 ★이 검사가 ★정말 돌리나»다.
+     ⇒ ★그래서 ★★두 칸으로 가른다. ★새 채널이 생기면 ★★둘 중 ★어디인지 ★사람이 ★골라야 하고,
+       ★그 고름이 ★곧 ★«돌리나 / 위임인가»의 ★판정이다.
+     ★★⛔기대값을 ★`CHANNELS` 에서 ★그대로 파생시키면 ★★항등식이 되어 ★아무것도 ★안 잠근다.
+       ⇒ ★그래서 ★★두 명부는 ★★손으로 든다 — ★★단 ★★«뜻»이 붙어 있다.
+       ★★한 쌍: ★명부에 ★가짜 채널을 더하면 ★★이 검사가 ★빨강이다(둘 중 어디에도 없으므로). */
+  const RUN_HERE = [
+    'js/io/section-serialize.js',   // ★채널 ① — serializeCleanRoot 를 ★이 검사가 직접 부른다
+    'js/io/export-html.js',         // ★채널 ② — exportHTMLFile 을 ★실제로 부르고 Blob 을 가로챈다
+    'js/io/export-image.js',        // ★채널 ③ — prepareCloneForCapture 를 ★실제로 부른다
+    'js/io/capture-safety.js',      // ★채널 ③ ★안에서 ★같이 돈다(export-image.js:256 이 stripEditorOnlyForCapture)
+  ];
+  const TWO_LAYER = [
+    /* ★여기서 ★직접 안 돌린다 — ★에디터 전역이 통째로 필요하다. ★대신 ★두 겹으로 덮는다:
+       ⑴ U6-c 가 ★「그 파일이 공용 겹/세척을 ★실제로 부른다」를 단언
+       ⑵ 위 D4 의 ★채널 ①·③ 이 ★「그 겹이 마커를 0건으로 만든다」를 ★실제로 돌려 증명 */
+    'js/panels/template-system.js', // serializeCleanRoot/Self 위임
+    'js/io/save-load.js',           // stripEditorOnlyForCapture 위임(썸네일 → _meta.json → 목록 카드)
+                                    // ⛔그 산출물을 ★«픽셀로» 잰 자는 ★없다 — ★열린 칸
+  ];
   const arts = CHANNELS.filter(c => c.kind === 'artifact' && c.axes.includes('marker'))
     .map(c => c.file).sort();
   expect(arts, '★artifact 채널 명부가 바뀌었다 — 위 D4 가 «안 돌리는» 갈래가 생겼을 수 있다. ' +
     '새 채널을 여기서 실제로 돌리거나, serializeCleanRoot 위임임을 확인해라 ' +
     '(tests/unit/export-channel-roster.test.mjs U6 가 명부 자체를 지킨다).')
-    .toEqual(['js/io/export-html.js', 'js/io/export-image.js',
-              'js/io/section-serialize.js', 'js/panels/template-system.js']);
+    .toEqual([...RUN_HERE, ...TWO_LAYER].sort());
+
+  /* ★★2026-10-10 (1009t3 A4) — ★기대 배열이 ★4 → ★6 이 됐다. ⛔«이름만 더해 끈» 것이 ★아니다 —
+     ★이 머리말이 요구하는 ★★«그 갈래를 ★이 검사가 ★정말 돌리나»를 ★각각 적는다.
+     ⒜ ★`js/io/capture-safety.js` — ★★돌린다. ★위 D4 의 ★채널 ③(PNG 클론)이 ★`__prep` =
+        `prepareCloneForCapture` 를 부르고, ★그 함수가 ★`stripEditorOnlyForCapture(clone)` 를
+        부른다(`js/io/export-image.js:256`). ⇒ ★★«실제로 도는» 갈래다.
+        ★왜 명부에 늦게 올랐나 — ★그 파일이 ★★`transient` 로 적혀 있었다. ★그런데 ★그것이
+        ★PNG·썸네일·단독 HTML ★★세 산출물의 ★마커를 걷는 ★★«공용 겹»이다(2026-10-10 advqa).
+     ⒝ ★`js/io/save-load.js` — ★★여기서 ★직접 ★안 돌린다. ★`js/panels/template-system.js` 와
+        ★★같은 꼴로 ★두 겹으로 덮는다:
+          ⑴ ★`U6-c` 가 ★「그 파일이 ★`stripEditorOnlyForCapture` 를 ★실제로 부른다」를 단언
+             (★`delegates` 선언 ＋ ★호출 수 ★>0)
+          ⑵ ★위 D4 의 ★채널 ③ 이 ★「그 겹이 ★마커를 ★0건으로 만든다」를 ★★실제로 돌려 증명
+        ⇒ ★「안 쟀다」가 ★아니라 ★«위임 ＋ 위임받는 쪽»을 ★각각 쟀다.
+        ★★⛔그러나 ★그 파일의 ★진짜 산출물(썸네일 → `_meta.json` → 프로젝트 목록 카드)을
+          ★★«픽셀로» 잰 자는 ★★없다. ★그 칸은 ★열려 있다(html2canvas 를 이 하네스에서 안 돌린다).
+     ★★⇒ ★다음에 ★이 배열이 ★또 늘면 ★★같은 꼴로 ★★«돌리나/위임인가»를 ★적어라. ⛔수만 고치지 마라. */
 
   /* ★template-system.js 는 여기서 «직접 안 돌린다» — 그 파일을 이 하네스에 띄우려면
      에디터 전역(electronAPI·패널·캔버스 상태)이 통째로 필요하다. 대신 두 겹으로 덮는다:

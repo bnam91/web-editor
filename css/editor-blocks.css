@@ -16,7 +16,19 @@
      ⛔주석에 «선택자 꼴»을 적지 마라 — 이 파일을 정규식으로 훑는 검사가 그것을 «진짜 규칙»
        으로 읽는다. 2026-09-28 에 실제로 그래서 U-CIRCLE-12(도형 폴백 오프셋)가 빨개졌다.
        규칙 변경만으로는 90/90 초록이었고, 주석을 넣은 판에서만 깨졌다. */
-  overflow: visible;
+  /* ★★2026-10-10 — ★★`visible` → ★`hidden` (현빈 10-10 「프레임 밖으로 나간부분은 ★안보여야되는거 아냐?」)
+     ★★이 줄은 ★네 번 뒤집혔다 — ★729479af(04-05 열림) · ★f98a2136(04-07 ★이틀 만에 닫힘) ·
+       ★225053c3(09-29 ★현빈 09-28 지시로 ★다시 열림) · ★이번(10-10 ★다시 닫힘).
+     ★★그래서 ★«왜 열렸었나»를 ★적어 둔다 — ★다음 사람이 ★또 뒤집기 전에 ★읽게:
+       ★09-28 의 까닭 = ★「자식이 프레임 ★밑변 너머로 나가면 ★값은 남고 ★화면에서만 사라진다」
+       ★10-09 의 까닭 = ★「★죔이 걸려 ★오른쪽 170px 끌어도 ★378px 에 ★물려 안 움직인다」
+     ★★두 까닭은 ★★죽지 ★않았다. ★★«자르기»로 ★닫은 것은 ★10-10 ★하나뿐이다.
+     ⇒ ★그래서 ★★«자르나»와 ★«죄나»를 ★★갈랐다(js/frame-geometry.js `frameClipsPaint` / `frameClampsDrag`):
+       ★자르기 = ★상시(이 줄) · ★죔 = ★★안 건다(= 09-28·10-09 의 까닭을 ★살려 둔다)
+       ＋ ★끌는 ★동안은 ★아래 `:has()` 가 ★★푼다(= ★끌면서 ★위치가 보인다 · 현빈 ㄴ)
+     ⚠️★★남은 칸 — ★밖에 ★«놓고 나면» 그 블록은 ★안 보인다(값은 남는다). ★★그건 ★09-28 증상과 ★같은 꼴이다.
+       ★지디·현빈이 ★ㄴ 을 ★그렇게 고른 것이고, ★「놓을 때 안으로 되돌릴까」는 ★★열린 칸이다. ⛔조용히 더하지 마라. */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 60px;
@@ -24,8 +36,71 @@
 /* 모서리를 둥글린 프레임은 클리핑을 지킨다 — 위 overflow 해제의 예외.
    makeFrameBlock 이 radius 지정 시 인라인으로도 박지만, 속성 패널로 «나중에» radius 만
    바꾸는 경로는 그 인라인을 안 준다. 그래서 여기 한 겹 더 건다. */
+/* ★★「내용 자르기」 ★끔 — ★★기본이 ★hidden 이 됐으니 ★«끔»은 ★★명시 opt-out 이어야 한다.
+   ★★왜 — ★예전엔 ★기본이 visible 이라 ★«끔 = 속성 없음»으로 ★됐다(prop-frame.js 가 ★delete 했다).
+     ★그 꼴을 그대로 두고 ★기본만 바꾸면 ★★토글을 ★끄는 것이 ★★아무 일도 안 한다 = ★★조용한 무효화.
+   ★★실측 ⑴ (2026-10-10 · 현빈 proj_1791316848083 · ★t3frame): ★frame-block ★18개 중 ★`data-clip-content` ★1개이고
+     ★그 값이 ★`"true"` 다 — ★★현빈이 ★그 토글을 ★실제로 ★쓰고 계신다. ⇒ ★죽이면 ★안 된다.
+   ★★★⚠️그 수에 ★★점을 ★박는다 (2026-10-10 · 지디 조건) — ★★수가 ★★움직인다:
+     ★★⒜ ★★«어느 자리를 ★쟀나» — ★★위 ⑴ 은 ★★그것을 ★적지 ★않았다. ★그게 ★흠이다.
+        ★★참 자리 = ★★저장본 `proj.json` 의 ★`pages[0].canvas` ★★«HTML 문자열» ·
+          ★세는 단위 = ★★«여는 태그»(★class 에 그 이름이 든 것) · ⛔글자 셈이 ★아니다
+          (★글자 셈은 ★한 블록을 ★여러 번 셀 수 있다 — ★실측: ★글자 ★22 · ★태그 ★22 로 ★같았다)
+     ★★⒝ ★★실측 ⑵ (★지디 · ★★같은 파일 · ★mtime ★2026-10-10 ★10:31:35 · ★1056203B · ★pages ★1벌 ★전수):
+          ★★★frame-block ★★22개 중 ★★2개 · ★둘 다 ★값 ★`"true"`
+          ★그 둘 = ★`ss_ts0he_7nn1lpm` · ★`ss_ts0he_wzaxygz`
+        ★★★t3frame 이 ★★같은 자로 ★다시 재서 ★★확인했다 — ★★22 / 2 가 ★맞다
+          (★음성대조: ★그 이름을 ★지운 판에서 ★0/0 · ★양성대조: ★다른 클래스를 ★섞은 판에서 ★40)
+        ⇒ ★★★위 ⑴ 의 ★「18 중 1」은 ★★이 파일(★그 mtime 판)에서는 ★★재현되지 ★않는다.
+          ⛔«거짓»이라 ★적지 ★않는다 — ★★어느 자리를 ★쟀는지 ★안 적었으니 ★★판정할 수 ★없다.
+          ★갈릴 수 있던 ★까닭(★아무도 ★안 쟀다): ㉠살아있는 DOM 과 ★저장본은 ★다른 자리다
+            ㉡그 사이에 ★프레임이 ★늘었다(★18→22 · ★1→2 는 ★꼴이 맞는다) ㉢한쪽이 ★덜 쟀다
+     ★★⒞ ★★이 주석을 ★달기 ★전 ★이 파일(★실측 · ★★손대기 ★직전에 ★찍었다):
+          ★mtime ★2026-10-10 ★13:11:05 · ★★225087B · ★sha256 ★`b1a25d76738ca6e6`
+        ★★까닭 — ★★비석을 ★달는 ★행위가 ★그 파일 ★mtime 을 ★★덮는다. ★그래서 ★덮기 ★전 값을 ★여기 적는다.
+        ⚠️★★단 ★그 mtime 은 ★★«사람의 손»이 ★아니다 — ★★t3frame 이 ★★같은 날 ★이 파일을 ★여러 번 ★만졌다.
+          ⇒ ★★버전관리 ★안의 파일은 ★mtime 이 ★신호가 ★아니다. ★★신호는 ★위 ⒝ 의 ★`proj.json` 쪽이다.
+        ⛔★★★그리고 ★여기 ★한 번 ★틀렸다 — ★★처음 적을 때 ★★재지 ★않은 수(12:58:34 · 103718B)를 ★박았다.
+          ⇒ ★★교훈: ★★«판정에 ★쓴 ★값»을 ★★그대로 ★적어라. ★★기억으로 ★적으면 ★★비석이 ★★거짓이 된다.
+     ⇒ ★★★⛔이 수(18 이든 22 든)를 ★★«분모»로 ★쓰지 ★마라. ★★현빈이 ★쓰는 ★중이라 ★★또 ★움직인다.
+        ★★«죽이면 안 된다»는 ★판정만 ★★두 수 ★모두에서 ★★같다 — ★★그것이 ★이 주석의 ★요지다.
+   ⇒ ★`prop-frame.js` 가 ★끔에 ★`'false'` 를 ★쓰고, ★이 규칙이 ★그것을 ★푼다. */
+.frame-block[data-clip-content="false"] {
+  /* ★★`!important` — ★2026-10-10 ★실측으로 ★더했다. ⛔«있어 보여서» 더한 것이 ★아니다.
+     ★잰 값(탐침 · ★양성대조 한 쌍 · ★픽셀 ＋ computed):
+       ★radius ★없음 ⇒ overflow ★visible · 넘침 60px · ★★잉크 ★있다
+       ★radius ★24   ⇒ overflow ★★hidden  · 넘침 60px · ★★★잉크 ★★없다  ← ★끔이 ★안 먹었다
+     ★까닭 — 아래 ★모서리 규칙이 ★속성 ★둘을 써 ★명시도가 ★한 칸 ★높다(★순서와 ★무관하게 ★이긴다).
+     ★★그래서 ★사용자가 ★★명시로 ★끈 것이 ★★부수효과에 ★졌다 ⇒ ★토글이 ★거짓이 된다.
+     ★대가(적어 둔다): ★둥근 프레임에서 ★끔을 켜면 ★자식이 ★둥근 모서리를 ★덮고 그려진다.
+       ★★그것이 ★「자르지 마라」의 ★뜻이다 — ★켠 사람이 ★고른 것이다(★09-30 주석의 ★그 논리와 ★같다).
+     ★★언제부터 ★안 먹었나(`-G` 로 쟀다 · ⛔`-S` 는 ★개수 변화만 센다):
+       ★이 규칙 자체가 ★0e3beee4 · ★2026-10-10(★내 ②) ⇒ ★★태어날 때부터 ★지고 있었다.
+       ★모서리 규칙은 ★225053c3 · ★2026-09-29 ⇒ ★★현빈은 ★이 끔을 ★한 번도 ★가져 본 적이 ★없다. */
+  overflow: visible !important;
+}
+/* ★★끌는 ★동안만 ★푼다 (현빈 ㄴ 「자르되 ★끌 때는 ★보인다」).
+   ★선례 = 이 파일 아래 «도형을 고르는 동안 조상 프레임의 overflow 를 푸는» 규칙 — 같은 :has 꼴이다.
+     ⛔여기에 그 선택자를 ★글자로 적지 마라 — 이 파일을 indexOf 로 훑는 검사가 ★주석을 ★규칙으로 읽는다(실측 2회).
+   ★표식 이름을 ★`dragging` 처럼 ★흔한 전역 낱말로 ★두지 않았다(★전역 이름 충돌 교훈, 2026-10-06).
+   ★★`> ` 직속 자식이다 — ★손자까지 열면 ★먼 조상 프레임들이 ★같이 풀린다.
+   ★★거는·떼는 자리 = `js/block-drag.js` onMove/onUp ★한 쌍. ⛔onUp 에서 ★안 떼면 ★영구 visible = ★고치기 전과 같다. */
 .frame-block[data-radius]:not([data-radius="0"]) {
   overflow: hidden;
+}
+/* ★★2026-10-10 ★2차 — ★★자리와 ★선택자를 ★고쳤다. ★잰 값으로.
+   ★★⑴ ★자리: ★위 ★모서리 규칙 ★★«뒤»로 옮겼다. ★명시도가 ★같아져(★속성/의사류 ★둘) ★★나중이 ★이긴다.
+     ⛔앞으로 ★되돌리면 ★★둥근 프레임에서 ★「끌 때는 보인다」가 ★★빨강 없이 ★죽는다.
+   ★★⑵ ★★«켬»은 ★★일부러 ★★제외했다 — ⛔`!important` 를 ★주지 ★않은 까닭이 ★그것이다.
+     ★★현빈 ★2026-09-30 결정: 「★켠 것은 ★풀어 주는 ★예외들보다 ★이겨야 한다」(그래서 ★!important).
+     ★★실측(2026-10-10 탐침 D): ★기본 프레임 ⇒ hidden→★visible(해제 ★먹는다) ·
+       ★★켬 프레임 ⇒ hidden→★★hidden(해제 ★안 먹는다).
+     ⇒ ★★그 둘은 ★★다른 ★단계를 말하는 ★두 지시다(09-30 = ★정적 · 10-09 = ★끌는 중)
+       ⇒ ★★★어느 쪽이 ★이기나는 ★★현빈 판정이다. ⛔내가 ★고르지 ★않는다.
+       ★그래서 ★제외를 ★★선택자에 ★★박아 ★★«안 적용됨»이 ★코드에 ★보이게 했다.
+     ★★판정이 오면 ★이 한 줄(제외)을 ★떼고 ★`!important` 를 ★주면 된다. */
+.frame-block:has(> .frame-child-dragging):not([data-clip-content="true"]) {
+  overflow: visible;
 }
 .frame-block[data-text-frame] {
   min-height: unset;
@@ -42,6 +117,17 @@
      (아래 「도형 선택 시 overflow 해제」가 풀어 주던 것을 이 켬이 다시 막는다). 켠 사람이 고른 것이다. */
 .frame-block[data-clip-content="true"] {
   overflow: hidden !important;
+}
+/* ★★배경 «프레임 안 위치·크기» 편집을 켜 둔 동안만 푼다 (2026-10-10 · 현빈 1009t3-③).
+   ★까닭 — 그 편집기는 숙주 «안»에 임시 대리 요소를 넣고 그 위에 네 귀·네 변 손잡이를 그린다.
+     2026-10-10 부터 프레임의 기본이 «자름»이라, 안 풀면 손잡이가 프레임 밖으로 나간 만큼 잘려
+     «집을 수 없는 손잡이»가 된다(＝면적이 0 이면 규칙이 아니라 «못 닿는 것»이다).
+   ★★`!important` 인 까닭 — 바로 위의 «켬» 규칙이 !important 이고 명시도가 같다. 둘이 같은 무게면
+     «나중에 적힌 것»이 이긴다 ⇒ ⛔이 블록을 위 블록보다 앞으로 옮기지 마라. 옮기면 조용히 진다.
+   ★배경 자체는 안 샌다 — overflow 는 «자식»만 자르고, 배경은 제 박스에서 잘린다.
+   ⚠️이 자리를 재는 자 = tests/unit/frame-bg-edit-wiring.test.mjs (규칙 유무 ＋ «순서»까지). */
+.frame-block:has(> .sec-bg-proxy) {
+  overflow: visible !important;
 }
 /* ★오버레이(플로팅) 텍스트 z-index(2026-09-16, 현빈 실측 — "오버레이 텍스트를 클릭하려고
    해도 쉽게 잘 안 된다"). position:absolute만 있고 z-index가 없어(기본 auto) 섹션 본문
@@ -140,6 +226,10 @@
   z-index: 100;
 }
 /* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제 (shape-block, text-frame 제외) */
+/* ★2026-10-08 실측(태양 · frame-dblclick-overlay OV-x1 · 고치기 전 판 ee614986 도 같은 값): «진짜 프레임 안» 도형에서는
+     아래 shape-block 예외가 효력이 없다 — 도형 래퍼(frame-block)가 덮개를 받고 pointer-events 가 상속되기 때문이다(도형 pointer-events = none).
+   ⛔섹션 직속 도형 래퍼에서는 미측정 — 거기선 뜻이 있을 수 있어 «지우지 않았다». 까닭은 원 커밋(512de5b3 · 2026-04-08)에도 없다.
+   ★이 덮개가 곧 현빈의 «오버레이»다(2026-10-08 「1번클릭은 … 오버레이된것 처럼 내부수정이 안되게」) — 더블클릭 진입은 js/drag-utils.js R1 머리말. */
 /* text-frame은 항상 .selected 없음 (투명 래퍼) → 별도 규칙으로 제외 */
 /* :not(:has(.selected)) — 자손 중 selected가 있으면 차단하지 않음 (nested frame drill-in 지원) */
 .frame-block:not(.selected):not([data-text-frame]):not(:has(.selected)) *:not(.shape-block):not(.shape-handle) {
@@ -152,16 +242,36 @@
 .frame-block.ss-drag-over {
   outline: 2px dashed var(--sel-color);
 }
-/* ★빈 프레임 «자리» 표시 — 편집 화면 전용 (2026-10-03 현빈 결정: 자식을 다 지워도 프레임은 남는다).
-   흰 프레임이 흰 섹션 위에 비면 높이(자유 520·흐름 60)는 있는데 «경계»가 안 보였다(실측: outline none · 배경 둘 다 #fff).
-   꼴은 새로 짓지 않는다 — 빈 줄 표시(.bn2-line-empty: 1px dashed --ui-border-mid)에 배율 보정(.marquee-hit 의 --inv-zoom)만 얹었다.
-   ★#canvas-scaler 아래로만 건다: PNG 클론은 body 로 나가 이 조상이 없고, HTML 내보내기의 CSS 수확은
-     '#canvas-scaler' 를 편집 전용으로 걸러낸다(export-css-collect.js EDITOR_ONLY_SEL) ⇒ 배송본엔 안 실린다.
-   글자 래퍼·그룹은 사용자가 보는 «프레임»이 아니다 — 뺀다. */
-#canvas-scaler .frame-block:not([data-text-frame]):not([data-group="true"]):not(.selected):not(:has(> *)) {
-  outline: calc(1px * var(--inv-zoom, 1)) dashed var(--ui-border-mid);
-  outline-offset: calc(-1px * var(--inv-zoom, 1));
-}
+/* ★★[폐기 2026-10-06] «빈 프레임 자리 표시»(점선 아웃라인)를 ★없앴다 — 규칙 4줄을 지웠다.
+   ⛔이 비석을 지우지 마라. 없으면 다음 사람이 「흰 프레임이 안 보인다」를 ★새 버그로 다시 신고한다.
+
+   ─ 왜 넣었나 (2026-10-03 · T-099 · 커밋 ab1f7c20) ───────────────────────────────
+   그날 현빈 결정이 「자식을 다 지워도 프레임은 남는다」였다. 그 결과 ★흰 프레임이 흰 섹션 위에
+   비면 «경계»가 안 보였다 — 높이는 그대로 차지한다(실측: 자유배치 520px · 흐름 60px ·
+   outline none · 배경이 둘 다 #fff). 그래서 «자리»를 알리는 점선을 얹었다. 규칙은 이랬다:
+     #canvas-scaler .frame-block:not([data-text-frame]):not([data-group="true"]):not(.selected):not(:has(> *))
+       { outline: calc(1px * var(--inv-zoom,1)) dashed var(--ui-border-mid);
+         outline-offset: calc(-1px * var(--inv-zoom,1)); }
+   꼴은 새로 짓지 않았다 — 빈 줄 표시(.bn2-line-empty: 1px dashed --ui-border-mid)에
+   배율 보정(.marquee-hit 의 --inv-zoom)만 얹은 것이었다.
+
+   ─ 왜 없앴나 (2026-10-06 · 현빈) ────────────────────────────────────────────────
+   현빈 원문: 「프레임블럭에는 처음에 왜 점선 아웃라인이 생기는지?? 없어도됨」.
+   ★지디가 ★대가를 그림으로 보여 드리고 받은 답이다 — 「흰 섹션 위의 빈 프레임이 눈에
+   안 들어오게 된다(높이는 그대로 차지)」를 ★알고도 「없애라」. ⇒ 그 대가는 ★받아들인 것이다.
+   ⛔그러니 「안 보인다」가 다시 올라오면 ★버그가 아니라 ★이 결정의 대가다. 되살리려면
+     2026-10-03 결정(「자식을 다 지워도 프레임은 남는다」)까지 같이 다시 봐라.
+
+   ─ 지우기 전에 잰 것 (2026-10-06 · 하네스 bootApp) ──────────────────────────────
+   언제 떴나: ★«자식 0 ＋ 미선택»일 때만. 자식 1개 → none · 자식을 다시 지우면 → dashed ·
+     글자 래퍼(data-text-frame) → none · 그룹(data-group="true") → none · 선택 → solid.
+     ★새로 만든 직후는 selected 라 solid 였다 ⇒ 바깥을 눌러야 점선이 보였다
+     (현빈이 「처음에」라 하신 것은 «비어 있을 때»였다 — 「새로 만들 때만」이 아니다).
+   ★배송본엔 ★원래 안 나갔다 — ⒜PNG: 클론이 body 로 나가 #canvas-scaler 조상을 잃어 outline none.
+     ⒝HTML 내보내기: collectCanvasCss 수확 4,983자에 이 규칙 ★미포함 · '#canvas-scaler' 문자열 0건
+     (export-css-collect.js EDITOR_ONLY_SEL 이 그 문자열을 편집 전용으로 걸러낸다).
+   ⇒ 이 삭제는 ★편집 화면만 바꾼다. 내보낸 산출물은 전·후가 같다.
+   검사: tests/dom/frame-empty-no-dashed.dom.spec.js (★양성대조 = 위 4줄을 되살리면 dashed). */
 
 /* ── 배경 투명도(bgOpacity) — 점진 적용안 (I2) ──
    has-bg-opacity 클래스가 있을 때만 활성. 기존 프레임은 무변경.
@@ -179,7 +289,10 @@
   pointer-events: none;
   background-color: var(--frame-bg, transparent);
   background-image: var(--frame-bg-img, none);
-  background-size: cover;
+  /* ★★2026-10-10 (현빈 ③) — ★하드코딩 `cover` 를 ★변수로. ★이 줄만 ★변수가 아니어서
+     ★프레임 배경은 ★★크기를 ★손댈 ★수단이 ★없었다(★같은 규칙의 ★나머지 네 줄은 ★이미 변수다).
+     ★먹이는 자: `js/frame-bg.js` `syncFrameBgVars` ★한 자리. */
+  background-size: var(--frame-bg-size, cover);
   background-position: var(--frame-bg-pos, center);
   opacity: var(--frame-bg-opacity, 1);
   border-radius: inherit;
@@ -376,6 +489,9 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * ⛔`.asset-overlay-handle` 을 빌리지 않는다 — hideAssetResizeHandles() 의 일괄 remove 에 쓸려 나간다. */
 /* ★`.grd-overlay-handle`(떠 있는 그리드의 «폭» 손잡이, G2-b 2026-10-04)도 같은 규칙에 얹는다 — 여섯 번째다.
  * ⛔`.grd-img-overlay-handle`(칸 안 이미지 크기)과 이름이 비슷하지만 «다른 손잡이»다 — 그건 줄 하나, 이건 블럭 폭. */
+/* ★`.cpn-overlay-handle`(쿠폰 «폭» 손잡이, 2026-10-07)도 같은 규칙에 얹는다 — 일곱 번째다.
+ * ⛔`.mdl-overlay-handle` 을 빌리지 않는다 — hideModalResizeHandles() 의 일괄 remove 에 쓸려 나간다. */
+.cpn-overlay-handle,
 .tfo-overlay-handle,
 .grd-img-overlay-handle,
 .grd-overlay-handle {
@@ -442,10 +558,10 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
      (2026-09-09 현빈 실측: 「모달블럭 > 모서리 핸들 마우스 커서 모양 안 바뀜」).
    ⚠️모양 규칙(:253)엔 얹혀 있는데 «커서만» 안 얹혀서, 손잡이는 보이는데 커서가 화살표 그대로였다.
    ⇒ ★다음에 오버레이 손잡이를 가진 블록을 만들면 «여기도» 더해라. 검사가 이 짝을 못박는다. */
-.asset-overlay-handle.nw, .icb-overlay-handle.nw, .zm-overlay-handle.nw, .mdl-overlay-handle.nw, .grd-img-overlay-handle.nw, .tfo-overlay-handle.nw { cursor: nw-resize; }
-.asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne, .mdl-overlay-handle.ne, .grd-img-overlay-handle.ne, .tfo-overlay-handle.ne { cursor: ne-resize; }
-.asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw, .grd-img-overlay-handle.sw, .tfo-overlay-handle.sw { cursor: sw-resize; }
-.asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se, .grd-img-overlay-handle.se, .tfo-overlay-handle.se { cursor: se-resize; }
+.asset-overlay-handle.nw, .icb-overlay-handle.nw, .zm-overlay-handle.nw, .mdl-overlay-handle.nw, .cpn-overlay-handle.nw, .grd-img-overlay-handle.nw, .tfo-overlay-handle.nw { cursor: nw-resize; }
+.asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne, .mdl-overlay-handle.ne, .cpn-overlay-handle.ne, .grd-img-overlay-handle.ne, .tfo-overlay-handle.ne { cursor: ne-resize; }
+.asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw, .cpn-overlay-handle.sw, .grd-img-overlay-handle.sw, .tfo-overlay-handle.sw { cursor: sw-resize; }
+.asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se, .cpn-overlay-handle.se, .grd-img-overlay-handle.se, .tfo-overlay-handle.se { cursor: se-resize; }
 /* ★그리드 폭 손잡이는 네 모서리 «모두» 좌우 화살표 — 폭만 바뀌고 높이는 내용이 정한다(대각 커서는 거짓말이 된다). */
 /* 10-05 제4안으로 높이도 바뀌어 방향별로 — 모서리 = 폭+높이(대각) · e/w = 폭(좌우) · n/s = 높이(칸 위아래 여백 · 위아래). */
 .grd-overlay-handle { cursor: ew-resize; }
@@ -602,7 +718,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   box-sizing: border-box;
   pointer-events: auto;
 }
-/* ── 섹션 배경 «위치 편집» (image-handling.js: enterSectionBgEditMode) ──
+/* ── 섹션 «배경이미지 편집» (★2026-10-10 이름 변경 · image-handling.js: enterSectionBgEditMode) ──
    프록시 = 섹션 padding-box 를 덮는 «에셋 블록 대역». 편집 중에만 존재하고
    직렬화·내보내기에서 제거된다(section-serialize / save-load / export-image).
    보이는 건 «진짜 배경 + 고스트»뿐이라 프록시 img 는 opacity:0 이다. */
@@ -1305,6 +1421,25 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   box-sizing: border-box;
   outline: 2px solid transparent;
 }
+/* ★쿠폰(2026-10-07) — 위 절의 `width:100%` 를 ★물려받으면 안 된다(폭이 dataset.width 다 ·
+   renderCouponBlock 의 cssText 가 px 로 준다). 그래서 «나머지 넷»만 같이 쓴다.
+   ⛔두께·오프셋을 따로 적지 마라 — 아래 .selected 절을 ★모달과 같이 쓴다(CLAUDE.md 체크리스트). */
+.coupon-block {
+  position: relative;
+  cursor: pointer;
+  box-sizing: border-box;
+  outline: 2px solid transparent;
+}
+/* ★인용구(2026-10-07 · QT1) — 레이아웃(grid/flex)·간격·부호 크기는 ★renderQuoteBlock 이
+   dataset 에서 내어 ★인라인으로 준다(그래야 PNG·HTML 내보내기가 에디터 CSS 없이 같은 자리를 낸다).
+   ⇒ 여기는 ★선택·커서·상자모델만. ⛔두께·오프셋을 따로 적지 마라 — 아래 .selected 절을
+     grid·infocard·modal·innercard·coupon 과 ★같이 쓴다(CLAUDE.md 체크리스트의 그 자리). */
+.quote-block {
+  position: relative;
+  cursor: pointer;
+  box-sizing: border-box;
+  outline: 2px solid transparent;
+}
 .grid-block:hover::after,
 .infocard-block:hover::after,
 .modal-block:hover::after,
@@ -1312,13 +1447,87 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .grid-block.selected,
 .infocard-block.selected,
 .modal-block.selected,
+.coupon-block.selected,
+.quote-block.selected,
 .innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+/* ★쿠폰의 글자 칸 — 편집 포커스 테두리를 끈다(모달의 .tb-mdl-* 과 같은 까닭).
+   ★줄바꿈은 생성기 쪽에서 white-space:pre 로 준다(렌더가 인라인으로) — 여기선 안 건드린다. */
+.coupon-block .tb-cpn-line { outline: none; }
+/* ★인용구의 글자·부호 칸 — 같은 까닭(쿠폰 위 줄과 한 쌍).
+   ★★2026-10-11 현빈 1011t1a-1 「★캔버스에서 수정할 때 ★텍스트블럭 포커스하면 ★아웃라인 이상함」 —
+     ★이 명부에 ★`.tb-qt-body` 를 ★더했다. ★★까닭 = ★★«명부가 ★편집 host 를 ★빼먹었다»:
+     ★인용구의 ★진짜 편집 host 는 ★`.tb-qt-body` ★하나이고(block-drag.js `isQuote` dblclick · 그 파일 주석)
+     ★`.tb-qt-line`·`.tb-qt-mark` 는 ★그 자손·형제라 ★★contenteditable 이 ★안 걸린다
+     (⇒ ★그 둘의 outline:none 은 ★★포커스 테두리를 ★한 번도 ★끈 적이 없다).
+   ★실측(고치기 전 · 포커스 중 · 마우스 치움): ★`.tb-qt-body` 가 ★`outline: auto 1px rgb(153,200,255)`
+     = ★★«브라우저 기본 포커스링»이었다 — ★제품 색도 ★제품 두께도 ★아니다. ★걸린 CSS 규칙 ★0건이 ★그 증거다.
+   ★텍스트 블럭은 ★같은 자리를 ★`.text-block [contenteditable] { outline:none }`(editor-layout.css)로 끈다 —
+     ⛔그 꼴을 ★그대로 ★베끼지 ★않았다: ★인용구는 ★부호·줄이 ★contenteditable 이 ★아니라
+     ★«자손 전부»로 넓힐 ★까닭이 ★없고, ★이 줄이 ★이미 ★명부 꼴이라 ★★사본을 ★안 만든다. */
+.quote-block .tb-qt-line, .quote-block .tb-qt-mark, .quote-block .tb-qt-body { outline: none; }
+/* ★★인용구 ★편집 중 — ★선은 ★★«오버레이 한 겹»이 ★전부다.
+   ★실측(고치기 전 · 포커스 중): ★보이는 선이 ★★3겹이었다 —
+     ⑴ ★오버레이 `.ss-sel-path` 1px solid rgb(45,111,232) (★편집 중에도 ★계속 그린다 — ★실측 ovLive=1)
+     ⑵ ★블럭 제 `.quote-block.selected` outline 1px solid rgb(45,111,232) offset -1px
+        (★중화 절 `body.sel-ov #canvas .selected:not(.editing)` 이 ★`.editing` 을 ★빼 두므로 ★되살아난다)
+     ⑶ ★글 칸의 ★브라우저 기본 포커스링 (★위 줄이 ★이제 끈다)
+   ★같은 장면의 ★텍스트 블럭 = ★★1겹(오버레이만) ＋ ★배경 틴트. ⇒ ★★차 = ★+2겹.
+   ★처방은 ★텍스트가 ★이미 쓴 ★관용구다 — ★선을 ★부모/오버레이가 ★책임지면 ★제 outline 은 ★색만 투명으로
+     (★같은 파일의 ★T6 절 「부모 row/text-frame 이 outline 을 책임지면 … 한 겹만 보이게」와 ★한 쌍).
+   ⛔그 절의 ★선택자를 ★베끼지 ★않았다 — ★★구조가 다르다: ★텍스트는 ★`.frame-block[data-text-frame]` 안에 살아
+     ★그 부모가 ★선을 ★책임지는데, ★★인용구는 ★그 프레임이 ★없다. ★인용구에서 ★선을 ★들고 있는 자는 ★오버레이다.
+   ★그래서 ★`.editing` 에만 ★건다(⛔`.selected` 가 ★아니다 — ★고른 상태는 ★이미 ★1겹이고 ★실측으로 ★텍스트와 ★같다).
+   ★★그리고 ★틴트 — ★그게 ★없으면 ★★«고른 상태»와 ★«편집 중»이 ★선 1겹으로 ★구별이 ★안 된다.
+     ★토큰은 ★`--sel-color-fill` ★하나를 ★그대로 쓴다(★`.text-block.editing` 과 ★같은 값 · ⛔새 색 ★0).
+   ⚠️인용구 블럭은 ★제 배경을 ★인라인으로 ★받지 ★않는다 — ★실측: `renderQuoteBlock` 의 `block.style.cssText`
+     에 ★`background` ★0건 ⇒ ★이 틴트가 ★인라인에 ★안 진다(★조용히 아무 일 없음이 ★아니다). */
+/* ★★★261011 `1011t1a-1b` — ★★명부를 ★★하나로 ★합쳤다. ⛔인용구 혼자 들고 있지 ★않는다.
+   ★★같은 ⒝ 를 ★★DOM 으로 ★재서 ★★★같은 꼴임을 ★확인한 ★뒤에 ★합쳤다(★★추론이 ★아니다):
+     ★자 = ★보이는 선 = ★블럭 outline ＋ ★자손 outline ＋ ★블럭 밖 오버레이 `.ss-sel-path`
+     ★기준 = ★같은 회차의 ★텍스트 블럭(★고른 상태 ★1겹 · ★편집 중 ★1겹 ＋ 틴트)
+     ★`modal`  고른 ★1겹 → ★편집 ★★2겹  (★블럭 1 ＋ 오버레이 1) ⇒ ★★중복 ★1겹
+     ★`grid`   고른 ★2겹 → ★편집 ★★4겹  (★블럭 1 ＋ 자손 2 ＋ 오버레이 1) ⇒ ★★중복 ★1겹
+   ★★★⛔«겹이 ★많다»를 ★«다 ★결함이다»로 ★읽지 ★않았다 — ★grid 의 ★자손 ★둘은 ★★제품이 ★의도한 ★표시다:
+     ⒤ `.grd-cell` ★dashed  = ★칸 경계 (`#canvas .grid-block.editing > .grd-inner > .grd-cell`)
+     ⒥ ★편집 host ★solid    = ★「지금 ★편집하는 칸」 (`#canvas .grid-block [contenteditable="true"]`)
+     ⇒ ★그래서 ★기대값이 ★★«1겹»이 ★아니다: ★grid ★★4 → ★★3 · ★modal ★★2 → ★★1
+   ★★★그리고 ★★한 자리를 ★★정정한다 — ★앞 회차에 ★내가 ⒥ 를 ★`.grd-line-selected` 라 ★적었다. ★★틀렸다.
+     ★`#canvas .grid-block .grd-line-selected` 는 ★★`box-shadow`(왼쪽 막대)로 그린다 — ★outline 이 ★아니다.
+     ★그 겹의 ★참 임자는 ★★`[contenteditable="true"]` ★규칙이다(★위 ⒥).
+   ★★`grid` 는 ★★두 갈래를 ★★둘 다 ★쟀다 — ★`.grd-line`(평 줄)과 ★`.grd-badge`(★`line.bg` 지정 뱃지 줄).
+     ★★둘 다 ★host outline 이 ★`solid 1px` ★제품색 ⇒ ★★브라우저 기본 링은 ★★0건이다(★인용구가 ★유일했다).
+     ⇒ ★아래 ★한 줄이 ★★블럭에 ★걸리므로 ★★두 갈래를 ★★다 덮는다(★검사가 ★그것을 ★단언한다).
+   ⛔`coupon`·`infocard`·`innercard` 는 ★★넣지 ★않았다 — ★★편집 길이 ★★없다(★실측: ★더블클릭 뒤
+     `document.activeElement` = ★`BODY` · ★`contenteditable=true` ★0개) ⇒ ★`.editing` 이 ★안 붙어 ★이 줄이 ★무의미하다. */
+.grid-block.selected.editing,
+.modal-block.selected.editing,
+.quote-block.selected.editing { outline-color: transparent; }
+/* ★★«편집 중»임을 ★무엇으로 ★보이나 — ★블럭마다 ★★다르다. ★★재서 ★갈랐다(⛔한 꼴로 ★밀지 ★않았다):
+   ★`quote` ⇒ ★위 줄 뒤 ★선이 ★1겹이고 ★★고른 상태도 ★1겹 ⇒ ★★구별이 ★안 된다 ⇒ ★★블럭에 ★틴트.
+     ⚠️인용구 블럭은 ★제 배경을 ★인라인으로 ★안 받는다 — ★실측: `renderQuoteBlock` 의 `block.style.cssText`
+       에 `background` ★0건 ⇒ ★틴트가 ★인라인에 ★안 진다(★★조용히 아무 일 없음이 ★아니다).
+   ★`grid`  ⇒ ★★더하지 ★않았다. ★이미 ★구별된다 — ★고른 ★2겹 vs ★편집 ★3겹이고,
+     ★★`[contenteditable="true"]` 규칙이 ★이미 ★outline ＋ ★`--sel-color-fill` 배경을 ★칸에 ★준다.
+   ★`modal` ⇒ ★★구별이 ★안 됐다(★실측: ★고른 ★1겹 · ★편집 ★1겹 · ★★블럭 배경도 ★같은 `rgb(246,247,249)`).
+     ⇒ ★★★이미 ★있는 ★그 자리(★아래 `[data-mdl-slot][contenteditable="true"]`)에 ★배경만 ★더했다.
+     ⛔새 선택자를 ★만들지 ★않았다 · ⛔outline 은 ★안 더했다 —
+       ★그 블럭의 ★reset(`.modal-block .tb-mdl-text, …-title, …-cell { outline: none }`)이
+       ★★「편집 포커스 테두리를 ★끈다」를 ★적어 뒀다 ⇒ ★★그걸 ★뒤집지 ★않는다.
+     ⚠️모달 블럭 제 배경은 ★★블럭에 있고 ★틴트는 ★★슬롯에 준다 ⇒ ★★블럭 배경을 ★안 덮는다(★실측으로 가름). */
+.quote-block.editing { background: var(--sel-color-fill); }
 /* ★G19 그리드 «밑» 자식 블럭 그릇(.grd-children) — 간격(margin-top·flex gap)은 js/grid-children.js 가 «인라인»으로 건다
    (그래야 PNG·HTML 내보내기가 에디터 CSS 없이도 같은 자리를 낸다). 여기는 두 가지만:
    ⑴ 빈 그릇은 자리를 안 먹는다 — 자식을 지우거나 끌어낸 직후 «다음 렌더 전»까지 남는 빈 그릇(인라인 margin-top)이
       그리드 밑에 빈 띠를 만들지 않게. ⛔끄는 동안의 임시 띠(.grd-child-strip)는 비어 있어도 «자리가 곧 기능»이라 뺀다.
    ⑵ 임시 띠 겉모습 — 새 토큰 0(선택색·선택 채움 그대로) · #canvas 한정(내보내기 클론엔 안 간다). */
 .grd-children:not(.grd-child-strip):empty { display: none; }
+/* ★★인용구 «밑» 자식 블럭 그릇(.qt-children) — ★`1011t1C`(현빈 갈래 ★ㄷ) · ★★G19 그리드의 ★바로 위 줄과 ★한 쌍이다.
+   ★★여기는 ★두 가지만 — ⛔간격·정렬을 ★주지 않는다(★그건 ★렌더러가 ★인라인으로 준다 · ★G19 와 ★같은 까닭):
+   ⑴ ★빈 그릇은 ★자리를 ★안 먹는다 — ★자식을 ★지운 ★직후 ★«다음 렌더 전»까지 ★남는 빈 그릇이 ★빈 띠를 ★만들지 않게.
+      ★그리고 ★다음 렌더에서 ★`replaceShellKeepChildren` 이 ★그것을 ★★같이 걷는다(★그 함수의 ★그 조건).
+   ⑵ ★★«안쪽 래퍼»(.qt-inner)는 ★자식이 ★있을 때만 ★생긴다 — ★★자식 0개면 ★블럭 ★자신이 ★격자다(★옛 저장본 ★무변화).
+      ★그래서 ★여기에 ★`.qt-inner` 규칙을 ★★두지 않는다 — ★꼴은 ★렌더러가 ★인라인으로 ★박는다(★내보내기 보험). */
+.qt-children:empty { display: none; }
 /* ★G12·C5 — 블럭 배경을 켠 그리드의 바탕이 «어두우면»(톤 표식 light — js/canvas-contrast.js 가 배경 층까지 합성해 판정),
    그 밑 G19 자식 글자의 «기본색»을 칸 글자와 같은 밝은 역할색으로 바꾼다(grid-block.js _GRID_ROLE_COLOR_ON_DARK 와 같은 값).
    ★변수만 덮는다 — 사용자가 글자에 직접 준 색(인라인)은 그대로 이긴다. 라벨은 자기 바탕이 있어 안 건드린다.
@@ -1370,7 +1579,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   padding: 0; margin: 0; box-sizing: border-box;
   border-radius: 50%;
   border: 1.5px dashed var(--ui-divider);
-  font-size: 20px;
+  font-size: var(--ui-fs-20);   /* ★토큰화(css-token-lint 1009t3) — 값 동일 20px, editor-base.css:180 :root 유일 정의 */
   background: var(--ui-bg-elevated);
   color: var(--ui-text-muted);
   line-height: 0;
@@ -1564,8 +1773,18 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
    셀은 텍스트 전용이라 드롭존을 달지 않는다 → 모달 안에 모달이 생기지 않는다. */
 .modal-block .mdl-grid { width: 100%; }
 .modal-block .tb-mdl-cell { background: transparent; }
-/* 편집 중인 슬롯 — 텍스트 블록과 같은 관용구 */
-#canvas .modal-block [data-mdl-slot][contenteditable="true"] { cursor: text; }
+/* 편집 중인 슬롯 — 텍스트 블록과 같은 관용구
+   ★★261011 `1011t1a-1b` — ★★`background` 를 ★더했다(★`cursor` 는 ★그대로).
+     ★까닭 = ★★실측: ★모달은 ★★«고른 상태»와 ★«편집 중»이 ★★구별되지 ★않았다
+       (★보이는 선 ★1겹 : ★1겹 · ★블럭 배경도 ★같은 `rgb(246,247,249)` — ★★같은 회차의 ★텍스트 블럭이 ★기준).
+       ★★그 앞 줄(`.modal-block.selected.editing { outline-color: transparent }`)이 ★중복 ★한 겹을 ★걷어
+       ★★«편집 중»을 ★알리는 것이 ★★아무것도 ★안 남았기 때문이다.
+     ★토큰은 ★`--sel-color-fill` ★하나 — ★`.text-block.editing`·`#canvas .grid-block [contenteditable="true"]`
+       이 ★쓰는 ★그 값이다(⛔새 색 ★0 · ★이 파일 그리드 절의 ★「배경 틴트를 같이 준 이유」와 ★한 쌍).
+     ⛔`outline` 은 ★안 더했다 — ★바로 위 ★reset 이 ★★「편집 포커스 테두리를 ★끈다」를 ★적어 뒀고
+       ★그 까닭은 ★★아직 ★살아 있다(★브라우저 기본 링을 ★끄는 일). ★★뒤집지 ★않는다.
+     ⚠️블럭 제 배경은 ★★블럭에 있고 ★이 틴트는 ★★슬롯에 간다 ⇒ ★★블럭 배경을 ★안 덮는다. */
+#canvas .modal-block [data-mdl-slot][contenteditable="true"] { cursor: text; background: var(--sel-color-fill); }
 
 /* ── 그리드 캔버스 인라인 편집 (P1.5) ──
    ⛔여기서 «어느 줄이 편집 가능한가»를 판정하지 않는다 — 그 판정은 js/block-drag.js 의
@@ -2078,15 +2297,25 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
      400x200 에셋 45도) — 프레임 overflow:hidden 이 위쪽 92.1px·아래쪽 32.1px 를 «실제로»
      잘라냈다. 회전 규약은 세 갈래라 셀렉터도 세 줄이어야 한다:
        · data-rotation      — asset/text-frame/icon/mockup/canvas/icon-circle
-                              (asset-rotate.js _applyRotationDeg 는 0이면 «속성을 지운다»
-                               → 존재 == 비영). 따라서 :not() 불필요.
+                              ⚰️2026-10-04~10-12 의 글: 「asset-rotate.js _applyRotationDeg 는 0이면
+                               «속성을 지운다» → 존재 == 비영. 따라서 :not() 불필요.」
+                              ★★★그 전제는 «거짓»이었다(quote1011 실측 2026-10-12):
+                                ★`data-rotation` 을 쓰는 자 14 · 지우는 자 3 ⇒ «지운다」는 asset-rotate 하나다.
+                                ★★행위로 «0 을 쓴다」가 확인된 자리 3 — 전부 «아이콘» 계열:
+                                  js/blocks/modal-frameify.js:106 · js/blocks/iconify-block.js:21
+                                  js/props/prop-modal.js:616(_dressIconSlot · MODAL_DEFAULTS.iconRotation=0)
+                                ⇒ 그 프레임이 자르기를 멈춰 현빈 1009t3-② 가 조용히 꺼졌다
+                                   (증상: modal-frameify-pixel 의 icon-stack frame 100% 그림자 130,656px).
+                              ⇒ ★그래서 :not([data-rotation="0"]) 를 붙였다 — 이웃 data-rotate-deg 줄과 같은 꼴.
+                              ★★잠그는 자: tests/dom/frame-rotation-clip.dom.spec.js (R1 전제 · R2 비영 유지 · R3 음성).
+                              ⛔이 :not() 을 떼려면 «쓰는 자 14 가 전부 0을 지운다」를 먼저 행위로 세워라.
        · data-rotate-deg    — frame·vector. 0이어도 «문자열로 남는다» → :not([="0"]) 필수.
        · data-shape-rotation— shape (기존 줄, 유지)
      음성대조 실측: 회전 없는 프레임 / data-rotate-deg="0" 자식만 있는 프레임은 둘 다
      computed overflow-y = hidden 그대로다(축이 실제로 갈린다).
    ⚠️대가: 이 프레임의 border-radius 가 자식을 더 이상 «잘라주지 않는다».
      shape 규칙이 2026년 초에 이미 받아들인 트레이드오프와 «같은» 정책이다. */
-.frame-block:has([data-rotation]),
+.frame-block:has([data-rotation]:not([data-rotation="0"])),
 .frame-block:has([data-rotate-deg]:not([data-rotate-deg="0"])),
 .frame-block:has(.shape-block[data-shape-rotation]) {
   overflow: visible;
@@ -2115,6 +2344,17 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 .frame-block[data-text-frame="true"]:has(.text-block.selected) {
   overflow: visible;
 }
+/* ★★D4(2026-10-12 · 2차) — ★위 절의 ★★«선택 무관» 짝이다. ★까닭을 ★수로 적는다:
+   ★점(`.tb-dot::before`)은 ★`bottom:100%` 로 ★★글자 상자 «밖»에 그려진다 ⇒ ★★이 프레임이 ★자르면 ★★잘린다.
+   ★★실측(프로브5 · 판 9bec63e9): ★그 프레임 ★`matches` true · ★`z-index` ★2 · ★★`overflow` ★★hidden ·
+     ★★점을 ★덮는 ★앞 형제 ★★0개 ⇒ ★★★«덮임»이 아니라 ★★«잘림»이다(★1차 z절은 ★그래서 ★아무것도 ★안 했다 ⇒ ★걷었다).
+   ★★배송본 꼴(`deselectAll()`)에서 ★색 픽셀 ★★0 · ★`--tb-dot-y:0px`(상자 ★안)이면 ★★3개 ★보인다 ⇒ ★★밖일 때만.
+   ⛔★`!important` 를 ★안 쓴다 — ★`[data-clip-content="true"]`(★사용자가 ★명시로 ★켠 자름)에 ★★★져야 ★한다.
+   ★★지키는 자: ★`tests/dom/text-dot-over.dom.spec.js` ★「D4b ★배송본 꼴」 ＋ ★그 벌의 ★D4.
+   ⛔안 쟀다: ★이 절이 ★다른 화면에 ★어떻게 보이나는 ★★사람 눈으로 ★안 쟀다(★현빈 몫). */
+.frame-block[data-text-frame="true"]:has(.tb-dot) {
+  overflow: visible;
+}
 
 /* shape 리사이즈 핸들 — --inv-zoom calc()로 캔버스 배율 무관하게 고정 크기 유지 */
 .shape-handle {
@@ -2129,6 +2369,33 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
   box-sizing: border-box;
 }
 .shape-block.selected .shape-handle { display: block; }
+
+/* ★별 ★한 개 고르기 모드 (현빈 2026-10-10 · 1010t1b2) — ★js/star-select.js
+   ★★«진입 중임을 ★표시»는 ★현빈의 ★필수 조건이었다(★⑦ 그룹 모드 때 ★그가 ★그렇게 지정했다).
+   ★모드 중에는 ★별마다 ★손가락 커서 — ★«고를 수 있다»를 ★겉모습으로 ★말한다.
+   ★★두 클래스는 ★★런타임 전용이다 — ★벗기는 자:
+     ★`star-mode`         → `js/io/section-serialize.js` ★RUNTIME_MARKER_CLS (★규칙 밖 이름이라 손으로)
+     ★`star-cell-selected`→ ★같은 파일 ★RUNTIME_MARKER_RE `/(?:^|-)(?:line|cell)-selected$/` 가 ★잡는다
+     ★＋ ★`js/io/export-html.js` 는 ★제 명부라 ★둘 다 ★거기 ★또 있다 */
+/* ★★★«블록 ★테두리»를 ★안 쓴다 — ★★`tests/unit/selection-overlay-scope.test.mjs` 의
+     ★「★상태 동거」 칸이 ★내 ★첫 안(`.shape-block.star-mode { outline: … }`)을 ★★빨갛게 잡았다.
+   ★그 자의 뜻: ★`.selected` 와 ★★같은 요소에 ★붙을 수 있는 ★`outline` 상태는
+     ★중화 절(`body.sel-ov #canvas .selected:not(…)`)이 ★★삼켜 ★★표시가 ★사라진다
+     ⇒ ★「삼킬지 / 남길지」를 ★★사람이 ★정하라고 ★빨개진다.
+   ★★★정했다 — ★★«남긴다»가 아니라 ★★«블록에 안 그린다»다. ★까닭 둘:
+     ⒜ ★별 모드는 ★★«별»에 대한 모드다 ⇒ ★표시도 ★별에 ★붙는 것이 ★더 많이 말한다
+     ⒝ ★그 블록은 ★이미 ★`.selected` 다(더블클릭으로 들어왔다) ⇒ ★블록 테두리를 ★또 그리면 ★★두 겹이다
+   ⛔★`box-shadow` 로 ★바꿔 ★그 자를 ★피하지 ★않았다 — ★그건 ★★«싼 쪽(증상 가리기)»이다.
+     ★자가 ★연 ★두 길 중 ★싼 쪽을 ★고르면 ★다음 사람이 ★같은 함정에 ★빠진다.
+   ★★그래서 ★«모드가 섰다»는 ★★세 가지로 ★말한다:
+     ⑴ ★고른 별의 ★테두리(아래) ⑵ ★별마다 ★손가락 커서 ⑶ ★우측 패널의 ★«이 별» 색 줄 ＋ ★까닭 한 줄 */
+.shape-block.star-mode .shape-svg polygon { cursor: pointer; }
+.shape-block.star-mode .shape-svg polygon.star-cell-selected {
+  stroke: var(--sel-color, #2d6fe8);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;   /* ★배율·틀 폭에 안 휘둘리게 — 1px 줄이 0.4px 되는 그 병(260930) */
+  paint-order: stroke;                 /* ★칠 위에 테두리 — ★칠이 밝아도 보이게 */
+}
 .shape-handle.nw { top:    calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
 .shape-handle.ne { top:    calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
 .shape-handle.sw { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
@@ -2343,12 +2610,16 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
    JS(prop-section.js _applySectionBg · save-load.js 복원)는 .sec-bg-empty 를 켜 왔는데 ★이 규칙이
    «한 번도» 없었다(git 전 브랜치 이력 0건) ⇒ 단추가 아무것도 안 그렸다.
    값은 새로 안 만든다 — 단추 주석대로 .asset-block 72px 정본(editor-layout.css)을 쓴다.
+   ★2026-10-06 현빈 「일괄이 아니라 섹션마다」(R1) — 색만 전용 토큰 쌍(--goya-checker-secbg-*)으로 갈아탄다.
+     그 쌍의 기본값은 editor-base.css :root 에서 --goya-checker-big-* 를 «가리킨다» ⇒ 톤이 라이트면 픽셀 동일.
+     ⛔--goya-checker-big-* 를 섹션에서 직접 덮지 마라 — 상속돼 같은 섹션 «안»의 빈 카드까지 어두워진다(R1 아님).
+     ★크기(--goya-checker-big-size)는 톤과 무관하므로 그대로 둔다.
    ★!important 인 까닭: 섹션에 색(data-bg)이 있으면 _applySectionBg 가 인라인 background-image:none 을
      박고, 저장본 HTML 에도 그대로 실린다 — 인라인은 클래스를 이긴다. 체크를 켠 것은 사용자의 명시라 이겨야 한다.
    ⚠️그래서 캡처 클론의 «인라인으로 지우기»(neutralizeEmptyImageCheckerForCapture)는 이걸 못 이긴다 —
      클론에서 «클래스를 뗀다»(capture-safety.js stripEditorOnlyForCapture · export-html.js 는 원래 뗀다). */
 .section-block.sec-bg-empty {
-  background-image: repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) !important;
+  background-image: repeating-conic-gradient(var(--goya-checker-secbg-a) 0% 25%, var(--goya-checker-secbg-b) 0% 50%) !important;
   background-size: var(--goya-checker-big-size) var(--goya-checker-big-size) !important;
   background-position: 0 0 !important;
   background-repeat: repeat !important;

@@ -59,7 +59,7 @@ function mergeSectionInto(target, source) {
     window.materializeAllSections?.();
   }
 
-  /* ★섹션 배경 «위치 편집»이 켜져 있으면 «먼저» 끈다.
+  /* ★섹션 «배경이미지 편집»(★2026-10-10 이름 변경)이 켜져 있으면 «먼저» 끈다.
      그 모드는 섹션 직계에 임시 프록시(.sec-bg-proxy)를 띄우는데, 아래 KEEP_OUT 이
      «제외목록»이라 모르는 직계 자식은 전부 상자로 옮겨진다 — 편집용 DOM 이 상자 안으로
      따라 들어가고, source 는 remove 되어 편집 세션이 죽은 노드를 붙들게 된다.

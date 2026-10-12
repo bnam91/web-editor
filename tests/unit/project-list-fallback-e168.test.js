@@ -16,6 +16,7 @@ const os = require('os');
 const path = require('path');
 const { readSrc } = require('./_srcread.js');
 const { sliceBlock } = require('./_slice-block.js');
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const REPO = path.join(__dirname, '..', '..');
 const MAIN_SRC = readSrc(REPO, 'main.js');
@@ -58,7 +59,7 @@ const GOOD = (id) => ({ id, name: '백업 이름', createdAt: '2026-01-01T00:00:
   pages: [{ id: 'page_1', canvas: '<div class="section-block"></div><div class="section-block"></div>' }] });
 /** 실앱 장면 그대로: proj.json 100B(잘림) · 성한 백업 · meta 는 proj.json 보다 낡음(빠른 길 못 탐) */
 function scene() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-e168-')); const id = 'proj_1775644888754'; const p = path.join(dir, id);
+  const dir = mkTmpRoot('gdt-e168-'); const id = 'proj_1775644888754'; const p = path.join(dir, id);
   fs.mkdirSync(p, { recursive: true });
   fs.writeFileSync(path.join(p, 'proj_meta.json'), JSON.stringify({ id, listMetaV: 1, name: '메타 이름' }));
   const old = new Date(Date.now() - 60000); fs.utimesSync(path.join(p, 'proj_meta.json'), old, old);
@@ -102,7 +103,7 @@ test('D1 ★같은 장면을 «열면»(projects:load) 백업에서 오고 · �
 });
 
 test('L3 성한 proj.json 은 지금과 같다 — 표시 없음(음성대조)', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-e168n-')); const id = 'proj_1775644888754';
+  const dir = mkTmpRoot('gdt-e168n-'); const id = 'proj_1775644888754';
   fs.mkdirSync(path.join(dir, id), { recursive: true }); fs.writeFileSync(path.join(dir, id, 'proj.json'), JSON.stringify(GOOD(id)));
   const it = load(dir).list().find(x => x.id === id);
   assert.ok(it); assert.equal(it.recoveredFrom, undefined);

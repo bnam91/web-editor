@@ -3,7 +3,18 @@ import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { svgStopRemap } from './gradient-model.js';
 import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
-import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX } from '../shape-star.js';
+import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
+         starPointsList, starViewBox, clampStarCount, STAR_COUNT_MIN, STAR_COUNT_MAX,
+         clampStarInner, STAR_INNER_MIN, STAR_INNER_MAX, STAR_INNER_DISPLAY,
+         clampStarGap, STAR_GAP_MIN, STAR_GAP_MAX,
+         clampStarRating, starRatingFills, starRatingPreview,
+         STAR_RATING_MIN, STAR_RATING_MAX, STAR_RATING_COUNT,
+         STAR_FILL_ON, STAR_FILL_OFF, STAR_FILL_SWATCHES, starFillColor,
+         starViewBoxWidth, starFrameWidthFor,
+         starFillsFor, starColorList, starColorsAttr,
+         starScaleList, starScalesAttr, clampStarScale,
+         STAR_SCALE_MIN, STAR_SCALE_MAX, STAR_SCALE_DEFAULT } from '../shape-star.js';
+import { starSelectedIndex, starModeBlock, exitStarMode } from '../star-select.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
@@ -82,6 +93,18 @@ export function showShapeProperties(block) {
   const w           = _shapeFrameSize(ss || block, 'w');
   const h           = _shapeFrameSize(ss || block, 'h');
   const starN       = clampStarN(block.dataset.starPoints);
+  const starCount   = clampStarCount(block.dataset.starCount);   // ★별 «갯수»(현빈 2026-10-06) — 없으면 1 = 옛 별
+  const starInner   = clampStarInner(block.dataset.starInner);   // ★null = ★미설정 = ★옛 별(특례)
+  const starGap     = clampStarGap(block.dataset.starGap);       // ★없으면 0 = 옛 간격(틀 폭 그대로)
+  const starRating  = clampStarRating(block.dataset.starRating); // ★null = ★미설정 = ★평점 아님(1010t1b3)
+  const ratingOn    = starRating !== null;                       // ★켜져 있으면 ★갯수가 ★5 로 ★잠긴다
+  /* ★★별점의 ★두 색 — ★★«해석한» 값이다(★무효·미설정이면 ★기본으로 ★폴백).
+     ⇒ ★패널·미리보기·칠이 ★★같은 자(`starFillColor`)를 ★쓴다 — ⛔각자 ★읽어 ★접으면 ★명부가 ★둘이 된다. */
+  const ratingOnColor  = starFillColor(block.dataset.starFillOn,  STAR_FILL_ON);
+  const ratingOffColor = starFillColor(block.dataset.starFillOff, STAR_FILL_OFF);
+  /* ★★«고른 별»(1010t1b2) — ★`js/star-select.js` 가 ★JS 프로퍼티에 들고 있다(⛔속성이 아니다 = ★직렬화 안 탄다) */
+  const starSel     = (starModeBlock() === block) ? starSelectedIndex(block) : null;
+  const starSelColors = starColorList(block.dataset.starColors, starCount) || [];
   const iconSvg     = SHAPE_ICONS[shapeType] || SHAPE_ICONS.rectangle;
   const shapeName   = SHAPE_NAMES[shapeType] || shapeType;
   const id          = block.id || '';
@@ -206,7 +229,73 @@ ${blockHeaderHTML({
         <span class="prop-label">꼭짓점</span>
         <input type="range" class="prop-slider" id="shape-star-slider" min="${STAR_MIN}" max="${STAR_MAX}" step="1" value="${starN}">
         <input type="number" class="prop-number" id="shape-star-num" min="${STAR_MIN}" max="${STAR_MAX}" value="${starN}">
+      </div>
+      <!-- ★별 «갯수»(현빈 2026-10-06 「우측패널에 갯수추가하기하면 별 갯수가 여러개 추가되게」).
+           ★꼴은 새로 짓지 않았다 — 바로 위 「꼭짓점」·「W/H」·「두께」와 «같은» slider+number 쌍이다.
+           ★갯수를 늘리면 블록이 «옆으로» 넓어진다(별 크기 유지 — 현빈 판정). -->
+      <div class="prop-row">
+        <span class="prop-label">갯수</span>
+        <input type="range" class="prop-slider" id="shape-star-count-slider" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" step="1" value="${starCount}"${ratingOn ? ' disabled' : ''}>
+        <input type="number" class="prop-number" id="shape-star-count-num" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" value="${starCount}"${ratingOn ? ' disabled' : ''}>
+      </div>
+      <!-- 별 «통통함»(현빈 2026-10-07 「별이 너무 뾰족해서 … 살짝 통통한 별로도」).
+           꼴은 새로 짓지 않았다 — 위 「꼭짓점」·「갯수」와 같은 slider+number 쌍이다.
+           ★미설정 = 옛 별이다(shape-star.js 머리말) ⇒ 초기 표시는 STAR_INNER_DISPLAY 지만
+             ★dataset 에는 안 쓴다. 사람이 그 칸을 만진 뒤부터 비로 계산한다. -->
+      <div class="prop-row">
+        <span class="prop-label">통통함</span>
+        <input type="range" class="prop-slider" id="shape-star-inner-slider" min="${STAR_INNER_MIN}" max="${STAR_INNER_MAX}" step="1" value="${starInner ?? STAR_INNER_DISPLAY}">
+        <input type="number" class="prop-number" id="shape-star-inner-num" min="${STAR_INNER_MIN}" max="${STAR_INNER_MAX}" value="${starInner ?? STAR_INNER_DISPLAY}">
+      </div>
+      ${starCount > 1 ? `<!-- 별 «간격»(현빈 2026-10-07 「별 간격 조절되면 좋겠고」).
+           ★갯수가 1 이면 이 줄을 안 그린다 — dx=0 이라 ★조용히 아무 일도 안 일어난다
+             (「조용히 아무 일 없음」을 만들지 않는다). 갯수를 2 이상으로 올리면 나타난다. -->
+      <div class="prop-row">
+        <span class="prop-label">간격</span>
+        <input type="range" class="prop-slider" id="shape-star-gap-slider" min="${STAR_GAP_MIN}" max="${STAR_GAP_MAX}" step="1" value="${starGap}">
+        <input type="number" class="prop-number" id="shape-star-gap-num" min="${STAR_GAP_MIN}" max="${STAR_GAP_MAX}" value="${starGap}">
       </div>` : ''}
+      <!-- ★별 «평점»(별점) — 현빈 2026-10-10 1010t1b3 「★별점기능이 들어가야함 ★챗블럭에 ★이미 있는 기능인데
+           ★참고 (★별점기능을 하면 ★별이 ★5개로 구성)」 ⇒ ★꼴을 ★챗블럭에서 ★빌렸다(js/props/prop-chat.js
+           의 ★chb-prop-stars-row — ★체크박스 ＋ ★0~5 숫자칸 ＋ ★★ 미리보기 ★세 쪼가리 그대로).
+           ⛔슬라이더를 ★안 둔다 — ★챗이 ★숫자칸만 쓴다. ★「참고」의 뜻을 ★꼴에서도 지킨다.
+           ★★켜면 ★갯수가 ★5 로 ★잠긴다(지디 판정 ⑤) ⇒ ★위 ★갯수 두 칸에 ★disabled 가 붙고
+             ★아래 ★까닭 줄이 ★나타난다 — ★★«잠겼다»를 ★겉모습으로 ★말한다(t2cmdl ㉣).
+           ★끄면 ★잠금이 ★풀린다(되돌릴 수 있게 · 지디 판정 ⑤). -->
+      <div class="prop-row" id="shape-star-rating-row" style="gap:6px;font-size:11px;white-space:nowrap">
+        <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:#aaa;flex-shrink:0" title="별 도형을 평점으로 — 채운 별과 빈 별을 색으로 가른다">
+          <input type="checkbox" id="shape-star-rating-toggle" ${ratingOn ? 'checked' : ''}>
+          <span>별점</span>
+        </label>
+        <input type="number" class="prop-number" id="shape-star-rating-num" min="${STAR_RATING_MIN}" max="${STAR_RATING_MAX}" value="${starRating ?? STAR_RATING_MAX}" ${ratingOn ? '' : 'disabled'} style="width:48px">
+        <span id="shape-star-rating-preview" style="color:${ratingOnColor};letter-spacing:1px;${ratingOn ? '' : 'opacity:0.3'}">${starRatingPreview(starRating)}</span>
+      </div>
+      ${ratingOn ? `<!-- ★★별점의 ★«두 색» (현빈 2026-10-11 「★빨강/회색 , ★파랑/연파랑 … ★내가 컨트롤 가능하게」)
+           ★★자유색이다 — ⛔2택이 ★아니다. ★무효·빈 값이면 ★기본 두 색으로 ★폴백한다(starFillColor).
+           ★꼴은 ★이 파일의 ★선례 ★그대로 — colorFieldHTML ＋ wireColorField (shape-star-one 과 ★같다).
+           ⛔★★이 주석 안에 ★★역따옴표를 ★쓰지 ★마라 — ★★여기는 ★★템플릿 리터럴 ★안이고
+             ★역따옴표 ★하나가 ★★문자열을 ★끝낸다(★2026-10-11 ★실측: ★패널이 ★통째로 ★안 떴다). -->
+      <div class="prop-row" id="shape-star-fill-row" style="gap:6px;font-size:11px;white-space:nowrap">
+        <span class="prop-label" id="shape-star-fill-on-label">채운 별</span>
+        ${colorFieldHTML({ idPrefix: 'shape-star-fill-on', hex: ratingOnColor })}
+      </div>
+      <div class="prop-row" id="shape-star-fill-off-row" style="gap:6px;font-size:11px;white-space:nowrap">
+        <span class="prop-label" id="shape-star-fill-off-label">빈 별</span>
+        ${colorFieldHTML({ idPrefix: 'shape-star-fill-off', hex: ratingOffColor })}
+      </div>` : ''}
+      ${starSel !== null ? `<!-- ★★«이 별» 색 (현빈 2026-10-10 1010t1b2 「★개별 별모양 블럭을 선택하고 ★색 지정」)
+           ★★이 줄이 ★★«입구»다 — ★이 줄이 ★생기기 전까지 ★data-star-colors 를 ★쓰는 ★자가 ★0건이었다.
+           ★더블클릭으로 ★모드에 들어와 ★별을 고르면 ★나타난다. ★Esc·밖 클릭이면 ★사라진다. -->
+      <div class="prop-row" id="shape-star-one-row" style="gap:6px;font-size:11px;white-space:nowrap">
+        <span class="prop-label" id="shape-star-one-label">${starSel + 1}번 별</span>
+        ${colorFieldHTML({ idPrefix: 'shape-star-one', hex: starSelColors[starSel] || (block.dataset.shapeColor || '#cccccc') })}
+      </div>
+      <div class="prop-row" style="gap:6px;">
+        <button type="button" class="prop-btn" id="shape-star-one-reset">이 별 색 지우기</button>
+        <button type="button" class="prop-btn" id="shape-star-one-done">개별 선택 끝내기</button>
+      </div>
+      <div class="prop-hint" id="shape-star-one-hint" style="margin-top:4px;">${starSel + 1}번 별만 색이 바뀝니다 — 지우면 블록 색을 따릅니다. (Esc 로 끝내기)</div>` : ''}
+      ` : ''}
       ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
     </div>
 
@@ -218,8 +307,8 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="shape-rot-num" min="-180" max="180" value="${parseInt(block.dataset.shapeRotation || '0')}">
       </div>
     </div>
-    ${window.fxReflectSectionHtml?.(block, 'shape') || ''}`;   /* ★E1 Effects — Rotation 아래(맨 끝 · 지디 승인) */
-  window.wireFxReflectSection?.(block, 'shape', () => showShapeProperties(block));
+    ${window.fxSectionHtml?.(block, 'shape') || ''}`;   /* ★E1 Effects — Rotation 아래(맨 끝 · 지디 승인) */
+  window.wireFxSection?.(block, 'shape', () => showShapeProperties(block));
 
   if (window.setRpIdBadge) window.setRpIdBadge(id || null);
 
@@ -487,8 +576,17 @@ ${blockHeaderHTML({
   {
     const inp = document.getElementById('shape-color-color');
     if (inp) {
-      const hasFace = !!SHAPE_FACE_TYPES[shapeType];
+      /* ★별이 여러 개면 이미지 채우기를 «닫는다»(지디 승인 2026-10-06).
+         까닭: 이미지 모드는 .shape-img-fill 에 CSS clip-path 를 «하나» 건다(_syncShapeImageClip).
+           그런데 `clip-path: polygon(...) polygon(...)` 은 ★브라우저가 거절한다(실측 2026-10-06:
+           computed 가 "none"). `path('… Z … Z')` 는 받지만 ★px 단위라 도형 크기에 따라 안 늘어난다.
+         ⛔「조용히 첫 별 하나만 칠한다」가 더 나쁘다 ⇒ 탭을 닫고 ★까닭을 화면에 적는다.
+         ★기존 부품을 쓴다 — cpModes/cpModesNote 가 그 일을 하는 자리다(color-picker.js _applyModeGate,
+           선례 prop-text-wireup-text-edit.js:283). 새 UI 언어 0. */
+      const hasFace = !!SHAPE_FACE_TYPES[shapeType] && !(shapeType === 'star' && starCount > 1);
       inp.dataset.cpModes = hasFace ? 'solid,gradient,image' : 'solid,gradient';
+      if (shapeType === 'star' && starCount > 1) inp.dataset.cpModesNote = '별이 여러 개면 이미지 채우기를 쓸 수 없습니다.';
+      else delete inp.dataset.cpModesNote;
       // 패널을 다시 그리면 native input 이 새로 만들어져 시드가 사라진다 → 블럭 dataset 에서 다시 채운다
       if (block.dataset.shapeGradient) inp.dataset.cpGradient = block.dataset.shapeGradient;
       if (hasFace && block.dataset.shapeFill === 'image') inp.dataset.cpFill = 'image';
@@ -608,17 +706,95 @@ ${blockHeaderHTML({
   });
   hNum.addEventListener('change', () => window.pushHistory?.());
 
-  // ── 별 꼭짓점 수(B2) ── 값이 «다를 때만» polygon 에 쓴다(같은 값을 다시 쓰면 복원 뒤 직렬화가 갈려 ⌘Z 깊이가 깎인다).
+  /* ── 별 꼭짓점 수(B2) ＋ 별 갯수(현빈 2026-10-06) ──
+   * ★두 값을 ★한 함수(_applyStarGeom)로 쓴다 — 명부를 둘로 만들지 않는다. 꼭짓점만 바꿔도 갯수를
+   *   «지금 값»에서 읽어 같이 쓰므로, 둘이 어긋난 SVG(폴리곤 3개인데 viewBox 는 1개분 같은 꼴)가 안 생긴다.
+   * ★값이 «다를 때만» DOM 에 쓴다 — 같은 값을 다시 쓰면 복원 뒤 직렬화가 갈려 ⌘Z 깊이가 깎인다(B2 규율). */
   const starSlider = document.getElementById('shape-star-slider');
   const starNum    = document.getElementById('shape-star-num');
+  const starCSlider = document.getElementById('shape-star-count-slider');
+  const starCNum    = document.getElementById('shape-star-count-num');
+
+  /** ★지금 dataset 에서 ★«네 값»(꼭짓점·갯수·간격·통통함)을 ★스스로 읽어 SVG 기하를 맞춘다. 멱등.
+   *  ★★2026-10-07 — 간격·통통함이 늘었을 때 ★서명을 ★안 늘렸다. ★까닭 둘:
+   *    ⑴ ★호출부가 ★dataset 을 ★먼저 쓰고 ★그 다음 부른다 ⇒ ★인자로 받던 값과 ★같다
+   *    ⑵ ★★서명을 늘리면 ★그걸 ★닻으로 쓰는 검사가 ★조용히 눈이 먼다 — ★오늘 실제로 났다
+   *       (`variant-ship-leak` 의 `sliceBlock('const statRow = (key, label, list) =>')`)
+   *       ⇒ ★★`shape-star` 쪽 닻은 ★0건으로 확인했지만, ★늘리지 ★않는 쪽이 ★더 안전하다
+   *  ★인자 둘은 ★호환으로 ★남겼다(옛 호출부가 그대로 돈다) — ⛔쓰지 않는다. dataset 이 ★정본이다. */
+  const _applyStarGeom = () => {
+    const svg = block.querySelector('svg');
+    if (!svg) return;
+    const n     = clampStarN(block.dataset.starPoints);
+    const count = clampStarCount(block.dataset.starCount);
+    const gap   = clampStarGap(block.dataset.starGap);
+    const inner = clampStarInner(block.dataset.starInner);
+    /* ★★`starColors`·`starScales` 를 ★읽는 자는 ★★이 함수 ★하나다(지디 ⑧ 의 ★조건).
+       ⇒ ★읽는 자가 ★둘이 되면 ★그때 ★명부가 ★참으로 ★둘이 된다. ⛔다른 곳에서 ★읽지 ★마라. */
+    const list = starPointsList(n, count, gap, inner, block.dataset.starScales);
+    const vb = starViewBox(count, gap);
+    if (svg.getAttribute('viewBox') !== vb) svg.setAttribute('viewBox', vb);
+    const polys = [...svg.querySelectorAll('polygon')];
+    /* ★★«이 칠은 ★내가 한 것인가»를 가리는 ★명부 — ⛔무조건 ★떼면 ★그라데이션 `url(#…)` 이 ★죽는다
+       (그 까닭은 ★`_restoreShapeGradientFill` 머리말에 ★한 벌로 적혀 있다).
+       ★든 것 = ★평점 두 색 ＋ ★사람이 ★어느 별에든 ★직접 준 색 ★전부.
+       ★★«어느 별에든»인 까닭 = ★복제가 ★첫 별의 색을 ★다른 index 로 ★옮겨 놓기 때문이다(⒜ 함정).
+         ⇒ ★index 별로만 보면 ★번진 색을 ★«내 것»으로 ★못 알아본다. */
+    /* ★★★명부를 ★★끌어다 쓴다 — ⛔`[STAR_FILL_ON, STAR_FILL_OFF]` 로 ★손으로 ★적지 ★마라.
+       ★까닭(1010t2a ⒠): ★`data-star-fill`(★★옛 키 — ★③ 이 ★`data-star-fill-on`/`-off` 로 ★갈았다) 이 ★회색이면 ★칠이 ★`#9e9e9e` 다
+         ⇒ ★★이 집합에 ★없으면 ★평점을 ★꺼도 ★★그 칠이 ★안 떨어진다(★행위로 ★재는 자리). */
+    /* ★★★자유색이 되어 ★★정적 명부로는 ★못 덮는다 — ★★«지금 이 블록이 ★쓰는 ★두 색»을 ★넣어야 한다.
+       ★까닭(⒠ 때 ★실측한 ★그 물림): ★이 집합에 ★없으면 ★평점을 ★꺼도 ★그 칠이 ★안 떨어진다.
+       ★견본(SWATCHES)도 ★같이 넣는다 — ★사람이 ★견본으로 칠한 뒤 ★키를 ★지운 판을 ★치우려면 ★필요하다. */
+    const _mineFills = new Set([...STAR_FILL_SWATCHES, STAR_FILL_ON, STAR_FILL_OFF,
+      starFillColor(block.dataset.starFillOn, STAR_FILL_ON),
+      starFillColor(block.dataset.starFillOff, STAR_FILL_OFF)]);
+    (starColorList(block.dataset.starColors, count) || []).forEach(v => { if (v) _mineFills.add(v); });
+    /* 갯수가 줄면 남는 polygon 을 지우고, 늘면 첫 polygon 을 ★복제해서 더한다
+       (fill·stroke 는 svg 의 style 상속 ＋ 그라데이션 url(#…) 이 polygon 속성에 있을 수 있어
+        ⛔createElementNS 로 새로 만들지 않는다 — 그러면 그라데이션이 걸린 별만 색이 샌다). */
+    while (polys.length > list.length) polys.pop().remove();
+    while (polys.length < list.length) {
+      const seed = polys[0];
+      if (!seed) break;
+      const cl = seed.cloneNode(false);
+      /* ★★★⒜ 함정(1010t1b2) — ★복제는 ★첫 별의 ★칠을 ★물고 온다 ⇒ ★개별 색이 ★새 별로 ★번진다.
+         ★칠은 ★아래 fills 루프가 ★제 index 로 ★다시 정하므로 ★여기서는 ★«내 칠»만 ★떼어 둔다.
+         ⛔무조건 떼면 ★그라데이션 `url(#…)` 이 ★떨어진다 — ★그게 ★이 복제를 ★쓰는 ★본래 까닭이다
+           (위 cloneNode 주석) ⇒ ★★`_mineFills` 에 든 것만 ★뗀다. */
+      if (_mineFills.has(cl.getAttribute('fill'))) cl.removeAttribute('fill');
+      seed.parentNode.appendChild(cl);
+      polys.push(cl);
+    }
+    /* ★평점(1010t1b3) — ★별마다 ★fill 을 준다. ★미설정이면 ★null = ★«칠하지 않는다».
+       ★fill 을 ★속성으로 쓰는 것은 ★이 파일의 선례다(위 cloneNode 주석의 그 까닭 — 그라데이션이 polygon 속성에 산다).
+       ⛔★그래서 ★끌 때 ★`removeAttribute('fill')` 를 ★무조건 ★부르면 ★★그라데이션 별의 ★칠을 ★죽인다.
+         ⇒ ★★«내가 칠한 두 색일 때만» 뗀다. ★실측 근거 = 그 cloneNode 주석이 ★url(#…) 을 ★이름으로 적어 뒀다. */
+    /* ★★칠의 임자는 ★`starFillsFor` ★하나다(1010t1b2) — ★평점 ＋ ★개별 색을 ★거기서 ★합친다.
+       ⛔여기서 ★둘을 ★섞지 마라 — ★각자 쓰면 ★«누가 마지막에 썼나»가 ★칠을 정한다(순서 의존).
+       ★null 칸 = ★«fill 속성을 ★쓰지 ★말라» = ★블록 색·그라데이션을 ★물려받는다. */
+    const fills = starFillsFor({
+      rating: block.dataset.starRating, colors: block.dataset.starColors, count,
+      fill: block.dataset.starFillOn, fillOff: block.dataset.starFillOff,
+    });
+    polys.forEach((poly, i) => {
+      if (poly.getAttribute('points') !== list[i]) poly.setAttribute('points', list[i]);
+      const want = fills ? fills[i] : null;
+      const cur = poly.getAttribute('fill');
+      if (want) {
+        if (cur !== want) poly.setAttribute('fill', want);
+      } else if (cur !== null && _mineFills.has(cur)) {
+        poly.removeAttribute('fill');
+      }
+    });
+  };
+
   if (starSlider && starNum) {
     const applyStar = (raw) => {
       const n = clampStarN(raw);
       starSlider.value = n; starNum.value = n;
-      const poly = block.querySelector('svg polygon');
-      const pts = starPoints(n);
-      if (poly && poly.getAttribute('points') !== pts) poly.setAttribute('points', pts);
       if (block.dataset.starPoints !== String(n)) block.dataset.starPoints = String(n);
+      _applyStarGeom();   // ★dataset 이 정본 — 위에서 이미 썼다
       _syncShapeImageClip(block);
       window.scheduleAutoSave?.();
     };
@@ -626,6 +802,203 @@ ${blockHeaderHTML({
     starSlider.addEventListener('change', () => window.pushHistory?.());
     starNum.addEventListener('input',  () => { if (starNum.value !== '') applyStar(starNum.value); });
     starNum.addEventListener('change', () => { applyStar(starNum.value); window.pushHistory?.(); });
+  }
+
+  /* ══ ★«별 하나의 비»를 지키는 ★폭 — ★★갯수와 ★간격이 ★쓰는 ★단 ★하나의 자 (1010t1b1 · 지디 ②③) ══
+   * ★★«W/vbW 를 붙든다»는 ★식 자체는 ★`starFrameWidthFor`(shape-star.js) 에 있다 — ★여기는 ★클램프만.
+   * ★클램프 수(10·860)는 ★★W 슬라이더와 ★같은 수다 — ⛔딴 수를 쓰면 ★패널과 ★어긋난다.
+   * ★★상한에 닿으면 ★거기서 ★멈춘다(= 별이 작아진다) — ★갯수와 ★간격이 ★★같게 멈춘다(지디 판정 ③).
+   *   ⛔한쪽만 다르게 ★분기하지 마라. ★그 분기가 ★곧 ★b1 의 ★흠이었다.
+   * ★★★prev 는 ★«지금 dataset»에서 읽는다 ⇒ ★★부르는 쪽은 ★dataset 을 ★쓰기 ★«전»에 ★이 함수를 불러야 한다. */
+  const _starWantW = (nextCount, nextGap) => {
+    const curW = _shapeFrameSize(ss || block, 'w');
+    const raw = starFrameWidthFor(curW,
+      block.dataset.starCount, block.dataset.starGap, nextCount, nextGap);
+    if (raw === null) return null;
+    return { curW, wantW: Math.max(10, Math.min(860, Math.round(raw))) };
+  };
+
+  /* ★★밖으로 뺐다(1010t1b3) — ★평점을 켜면 ★갯수를 ★5 로 맞춰야 하고, ★그 «갯수→폭» 규칙의
+     ★임자는 ★이 함수 ★하나여야 한다. ⛔평점 쪽에 ★폭 계산을 ★다시 쓰면 ★명부가 ★둘이 된다. */
+  let applyStarCount = null;
+  if (starCSlider && starCNum) {
+    applyStarCount = (raw) => {
+      const prev = clampStarCount(block.dataset.starCount);
+      const c = clampStarCount(raw);
+      starCSlider.value = c; starCNum.value = c;
+      if (c === prev) return;
+      /* ★갯수를 늘리면 블록이 «옆으로» 넓어진다 — 별 크기 유지(현빈 판정 2026-10-06).
+         ⛔W 를 그대로 두면 viewBox 만 N배라 preserveAspectRatio="none" 때문에 별이 1/N 로 납작해진다.
+         ★폭은 «읽는 곳과 쓰는 곳이 같은 객체»(래퍼 frame)로 간다 — applySize 가 그 자리다.
+         ★W 상한 860 에 닿으면 거기서 멈춘다(= 별이 작아진다). 슬라이더 상한과 같은 수를 쓴다. */
+      /* ★★공용 자를 쓴다(1010t1b1) — ★옛 식은 ★`curW * c / prev` 였고 ★★gap 을 ★안 셌다.
+         ★실측 오차(gap 15): prev 1→5 ★−5.66%. ★gap 0 에서는 ★항등이라 ★안 잡혔다. */
+      const _w = _starWantW(c, block.dataset.starGap);   // ⚠️dataset 쓰기 «전»에 — prev 를 거기서 읽는다
+      if (block.dataset.starCount !== String(c)) block.dataset.starCount = String(c);
+      _applyStarGeom();   // ★dataset 이 정본 — 위에서 이미 썼다
+      if (_w && _w.wantW !== _w.curW) applySize(_w.wantW, null);
+      /* 이미지 채우기는 갯수>1 에서 못 쓴다(위 cpModes 주석) — 이미 걸려 있으면 «여기서» 푼다.
+         ⛔그냥 두면 사진이 첫 별 모양으로만 잘린 채 나머지 별이 투명해진다(조용한 반쪽 동작). */
+      if (c > 1 && block.dataset.shapeFill === 'image') {
+        _clearShapeImage(block);
+        const svg2 = block.querySelector('svg.shape-svg') || block.querySelector('svg');
+        if (svg2 && svg2.style.fill === 'transparent') svg2.style.fill = 'currentColor';
+        window.showToast?.('별이 여러 개면 이미지 채우기를 쓸 수 없습니다 — 색 채우기로 되돌렸어요');
+      }
+      _syncShapeImageClip(block);
+      window.scheduleAutoSave?.();
+      showShapeProperties(block);   // 갯수에 따라 안내문구·이미지 탭 가능 여부가 바뀐다 → 패널 다시
+    };
+    starCSlider.addEventListener('input',  () => applyStarCount(starCSlider.value));
+    starCSlider.addEventListener('change', () => window.pushHistory?.());
+    starCNum.addEventListener('input',  () => { if (starCNum.value !== '') applyStarCount(starCNum.value); });
+    starCNum.addEventListener('change', () => { applyStarCount(starCNum.value); window.pushHistory?.(); });
+  }
+
+  /* ── 별 «통통함»(현빈 2026-10-07) ＋ 별 «간격»(현빈 2026-10-07) ──
+   * ★꼴을 새로 짓지 않았다 — 위 꼭짓점·갯수와 ★같은 배선이다.
+   * ★★통통함은 ★«미설정 = 옛 별»이라 ★사람이 만지는 ★순간 dataset 에 ★처음 쓰인다
+   *   ⇒ ★그 전에는 ★dataset 에 ★키가 ★없다 ⇒ ★저장본도 ★옛 바이트 그대로다. */
+  const starInSlider = document.getElementById('shape-star-inner-slider');
+  const starInNum    = document.getElementById('shape-star-inner-num');
+  if (starInSlider && starInNum) {
+    const applyStarInner = (raw) => {
+      const v = clampStarInner(raw);
+      if (v === null) return;                       // 빈 칸은 「지우는 중」 — 아무것도 안 한다
+      starInSlider.value = v; starInNum.value = v;
+      if (block.dataset.starInner !== String(v)) block.dataset.starInner = String(v);
+      _applyStarGeom();
+      _syncShapeImageClip(block);                   // 이미지 채우기 clip 도 같은 비를 탄다
+      window.scheduleAutoSave?.();
+    };
+    starInSlider.addEventListener('input',  () => applyStarInner(starInSlider.value));
+    starInSlider.addEventListener('change', () => window.pushHistory?.());
+    starInNum.addEventListener('input',  () => { if (starInNum.value !== '') applyStarInner(starInNum.value); });
+    starInNum.addEventListener('change', () => { applyStarInner(starInNum.value); window.pushHistory?.(); });
+  }
+
+  const starGSlider = document.getElementById('shape-star-gap-slider');
+  const starGNum    = document.getElementById('shape-star-gap-num');
+  if (starGSlider && starGNum) {
+    const applyStarGap = (raw) => {
+      const g = clampStarGap(raw);
+      const prevG = clampStarGap(block.dataset.starGap);
+      starGSlider.value = g; starGNum.value = g;
+      if (g === prevG) return;
+      /* ★★★b1 (현빈 2026-10-10) — ★간격도 ★폭을 ★키운다.
+         ★고치기 전: ★여기가 ★폭을 ★안 건드려 ★viewBox 만 넓어졌다 ⇒ ★`preserveAspectRatio="none"`
+           때문에 ★별이 ★가로로만 ★납작해졌다. ★실측(W 500 · count 5): ★gap 15 에서 비 ★0.9423,
+           ★gap 200 에서 ★0.5549 (★44.5% 납작) — ★세로는 ★불변이었다.
+         ⇒ ★갯수와 ★★같은 자(`_starWantW`)를 쓴다. ⛔여기 ★제 식을 ★두면 ★명부가 ★둘이 된다. */
+      const _w = _starWantW(block.dataset.starCount, g);   // ⚠️dataset 쓰기 «전»에
+      /* ★0 이면 키를 ★지운다 — 옛 저장본과 ★바이트 동일하게(간격을 안 쓴 문서는 그대로). */
+      if (g === 0) { if (block.dataset.starGap !== undefined) delete block.dataset.starGap; }
+      else if (block.dataset.starGap !== String(g)) block.dataset.starGap = String(g);
+      _applyStarGeom();
+      if (_w && _w.wantW !== _w.curW) applySize(_w.wantW, null);
+      window.scheduleAutoSave?.();
+    };
+    starGSlider.addEventListener('input',  () => applyStarGap(starGSlider.value));
+    starGSlider.addEventListener('change', () => window.pushHistory?.());
+    starGNum.addEventListener('input',  () => { if (starGNum.value !== '') applyStarGap(starGNum.value); });
+    starGNum.addEventListener('change', () => { applyStarGap(starGNum.value); window.pushHistory?.(); });
+  }
+
+  /* ── 별 «평점»(별점 · 현빈 2026-10-10 · 1010t1b3) ──
+   * ★꼴은 ★챗블럭 배선과 ★같다 — ★토글은 change, ★숫자칸은 input＋change(prop-chat.js 의 그 두 쌍).
+   * ★★켜면 ★갯수를 ★5 로 맞춘다 — ⛔폭 계산을 ★여기 ★다시 쓰지 ★않고 ★applyStarCount 를 ★부른다.
+   *   ⇒ ★«갯수→폭» 규칙의 ★임자가 ★하나다(지디 판정 ③ 의 그 뜻).
+   * ★★끄면 ★키를 ★지운다 — ★옛 저장본과 ★바이트 동일(starGap 0 의 그 규율과 ★같다). */
+  const starRatToggle = document.getElementById('shape-star-rating-toggle');
+  const starRatNum    = document.getElementById('shape-star-rating-num');
+  if (starRatToggle && starRatNum) {
+    const applyStarRating = (raw) => {
+      const r = clampStarRating(raw);
+      if (r === null) return;                        // 빈 칸은 「지우는 중」 — 아무것도 안 한다
+      if (block.dataset.starRating !== String(r)) block.dataset.starRating = String(r);
+      _applyStarGeom();
+      const pv = document.getElementById('shape-star-rating-preview');
+      if (pv) pv.textContent = starRatingPreview(r);
+      window.scheduleAutoSave?.();
+    };
+    starRatToggle.addEventListener('change', () => {
+      if (starRatToggle.checked) {
+        const r = clampStarRating(starRatNum.value) ?? STAR_RATING_MAX;
+        block.dataset.starRating = String(r);
+        /* ★「별점기능을 하면 ★별이 ★5개로 구성」 — ★갯수를 ★5 로. ★폭은 ★그 함수가 쥔다.
+           ★이미 5 면 ★그 함수가 ★제 머리에서 ★되돌아 나가므로(c === prev) ★기하만 ★직접 맞춘다. */
+        if (clampStarCount(block.dataset.starCount) !== STAR_RATING_COUNT) applyStarCount?.(STAR_RATING_COUNT);
+        else _applyStarGeom();
+      } else {
+        delete block.dataset.starRating;
+        _applyStarGeom();                            // ★칠을 되돌린다 — ★내가 칠한 두 색만
+        /* ★★그라데이션이 걸려 있던 별이면 ★그 참조도 ★되돌린다 — ★★별은 아무도 다시 칠해 주지 않는다
+           (위 `_restoreShapeGradientFill` 머리말: SHAPE_DEFS.star 에 ★dynamic 이 없다)
+           ⇒ ★★이 한 줄이 ★«평점이 그라데이션을 덮는다»를 ★★비가역에서 ★가역으로 ★바꾼다. */
+        _restoreShapeGradientFill(block);
+      }
+      window.pushHistory?.('별점 토글');
+      window.scheduleAutoSave?.();
+      showShapeProperties(block);                    // ★갯수 잠금·까닭 줄이 바뀐다 → 패널 다시
+    });
+    starRatNum.addEventListener('input',  () => { if (starRatNum.value !== '') applyStarRating(starRatNum.value); });
+    starRatNum.addEventListener('change', () => { applyStarRating(starRatNum.value); window.pushHistory?.('별점'); });
+  }
+
+  /* ── ★★«이 별» 색 — ★★1010t1b2 의 ★«입구» (현빈 「개별 별모양 블럭을 선택하고 ★색 지정」) ──
+   * ★★여기 ★배선한 까닭 = ★`_applyStarGeom` 이 ★이 닫힘(closure) 안에 있다.
+   *   ⛔모듈 밖(`star-select.js`)에서 ★색을 쓰면 ★★다시 그릴 자가 ★없다 — ★그 함수가 ★유일한 ★그리개다
+   *   ★실측 근거: ★`_applyStarGeom()` 호출 ★7곳이 ★★전부 ★이 파일의 ★손잡이 ★안이다(★D7 이 ★그래서 ★두 번 빨갰다)
+   * ★★쓰는 꼴 = ★`starColorList` 로 ★읽고 ★그 index 만 갈고 ★`starColorsAttr` 로 ★되돌려 쓴다
+   *   ⇒ ★전부 비면 ★★키를 ★지운다(★옛 바이트 보존 — ★`starGap` 0 의 그 규율) */
+  const starOneSel = (starModeBlock() === block) ? starSelectedIndex(block) : null;
+  if (starOneSel !== null && document.getElementById('shape-star-one-color')) {
+    const writeOne = (hex) => {
+      const count = clampStarCount(block.dataset.starCount);
+      const list = (starColorList(block.dataset.starColors, count) || new Array(count).fill(null)).slice(0, count);
+      while (list.length < count) list.push(null);
+      list[starOneSel] = hex || null;
+      const attr = starColorsAttr(list);
+      if (attr === null) { if (block.dataset.starColors !== undefined) delete block.dataset.starColors; }
+      else if (block.dataset.starColors !== attr) block.dataset.starColors = attr;
+      _applyStarGeom();                 // ★이 파일의 ★그리개 — ★유일하다
+      window.scheduleAutoSave?.();
+    };
+    wireColorField('shape-star-one', {
+      onApply:  (hex) => writeOne(hex),
+      onCommit: () => window.pushHistory?.('별 하나 색'),
+    });
+    document.getElementById('shape-star-one-reset')?.addEventListener('click', () => {
+      writeOne(null);
+      window.pushHistory?.('별 하나 색 지우기');
+      showShapeProperties(block);       // 스와치가 블록 색으로 돌아가야 한다
+    });
+    document.getElementById('shape-star-one-done')?.addEventListener('click', () => {
+      exitStarMode();                   // ★그 함수가 ★패널을 ★다시 그린다
+    });
+  }
+
+  /* ★★별점의 ★두 색 ★배선 (현빈 2026-10-11) — ★꼴은 ★위 `shape-star-one` ★선례 ★그대로.
+     ★★«사람 경로»다 — ★`wireColorField` 가 ★native `<input type=color>` 와 ★hex 칸을 ★둘 다 ★쥔다.
+     ★★키를 ★쓰는 ★꼴: ★기본값과 ★같으면 ★★키를 ★지운다 ⇒ ★★옛 저장본과 ★바이트가 ★같아진다
+       (★`starInner`·`starRating`·`starColors` 의 ★그 특례와 ★★같은 규율). */
+  if (document.getElementById('shape-star-fill-on-color')) {
+    const writeFill = (key, hex, dflt) => {
+      const v = starFillColor(hex, null);
+      if (v === null || v === dflt) { if (block.dataset[key] !== undefined) delete block.dataset[key]; }
+      else if (block.dataset[key] !== v) block.dataset[key] = v;
+      _applyStarGeom?.();
+      const pv = document.getElementById('shape-star-rating-preview');
+      if (pv && key === 'starFillOn') pv.style.color = starFillColor(block.dataset.starFillOn, STAR_FILL_ON);
+    };
+    wireColorField('shape-star-fill-on', {
+      onApply:  (hex) => writeFill('starFillOn', hex, STAR_FILL_ON),
+      onCommit: () => window.pushHistory?.('채운 별 색'),
+    });
+    wireColorField('shape-star-fill-off', {
+      onApply:  (hex) => writeFill('starFillOff', hex, STAR_FILL_OFF),
+      onCommit: () => window.pushHistory?.('빈 별 색'),
+    });
   }
 
   // ── 회전 ──
@@ -760,6 +1133,33 @@ function _clearShapeGradient(block) {
   });
   delete block.dataset.shapeGradient;
 }
+
+/* ★★그라데이션 ★참조를 ★되돌린다 (1010t1b3 · 지디 요청으로 ★재고 ★고친 자리)
+ * ★★왜 필요한가 — ★★별은 ★`refreshShapeInnerSVG`(block-factory.js)가 ★★안 지나간다:
+ *   ★그 함수 머리가 ★`if (!def || !def.dynamic) return;` 이고 ★★`SHAPE_DEFS.star` 에 ★`dynamic` 이 ★없다
+ *   (★실측: dynamic 은 ★rectangle·ellipse ★둘뿐이다) ⇒ ★★rect/ellipse 는 ★⌘Z·페이지전환에서 ★그라데이션
+ *   fill 을 ★다시 칠해 주는데 ★★별은 ★★아무도 ★다시 칠해 주지 않는다.
+ * ⇒ ★평점이 ★polygon 의 ★fill 을 ★덮었다가 ★물러나면 ★★별만 ★`currentColor` 로 ★주저앉는다.
+ *   ★★`dataset.shapeGradient` 와 ★`<defs>` 는 ★살아 있으니 ★★데이터 손실은 ★아니지만
+ *   ★★«스스로 돌아오지는 않는다» ⇒ ★★사용자 눈에는 ★사라진 것이다.
+ * ⇒ ★★그래서 ★평점을 ★끌 때 ★여기서 ★되돌린다 — ★★비가역을 ★«없앤다».
+ * ★id·선택자를 ★다시 쓰지 ★않았다: ★`_gradIdFor` ＋ ★`FILLABLE_SEL` ★그대로 쓴다(명부 안 늘린다). */
+function _restoreShapeGradientFill(block) {
+  if (!block || !block.dataset.shapeGradient) return false;
+  const svg = block.querySelector('svg.shape-svg') || block.querySelector('svg');
+  if (!svg) return false;
+  const id = _gradIdFor(block);
+  /* ★def 가 ★없으면 ★칠하지 않는다 — ⛔없는 id 를 가리키면 ★도형이 ★★투명해진다(조용한 더 큰 손실) */
+  if (!svg.querySelector(`#${CSS.escape(id)}`)) return false;
+  let n = 0;
+  svg.querySelectorAll(FILLABLE_SEL).forEach(el => {
+    if (el.getAttribute('fill') === 'none') return;   // 테두리 전용은 건드리지 않는다
+    el.setAttribute('fill', `url(#${id})`);
+    n++;
+  });
+  return n > 0;
+}
+window._restoreShapeGradientFill = _restoreShapeGradientFill;
 
 // perf: 그라데이션 라이브 업데이트는 매 프레임 일어남. 기존 코드는 매번
 // <linearGradient> 노드를 통째로 제거→재생성하고 모든 fillable에 setAttribute 호출.
@@ -921,7 +1321,12 @@ function _syncShapeImageClip(block) {
   const img = block && block.querySelector(':scope > .shape-img-fill');
   if (!img) return;
   const type = block.dataset.shapeType || 'rectangle';
-  const clip = type === 'star' ? starClipPath(block.dataset.starPoints) : (SHAPE_IMG_CLIP[type] || '');
+  /* ★별이 여러 개면 이미지 모드를 «지운다» — clip-path 는 polygon 하나뿐이라(실측: polygon 둘은
+     computed "none") 사진이 ★첫 별 모양으로만 잘리고 나머지 별은 투명해진다. 패널 경로는 갯수를
+     올릴 때 이미 풀지만(prop-shape applyStarCount), 저장본·다른 입구로 둘이 함께 들어와도
+     «조용한 반쪽 동작»이 되지 않게 여기서도 막는다. */
+  if (type === 'star' && clampStarCount(block.dataset.starCount) > 1) { _clearShapeImage(block); return; }
+  const clip = type === 'star' ? starClipPath(block.dataset.starPoints, block.dataset.starInner) : (SHAPE_IMG_CLIP[type] || '');
   if (clip) img.style.clipPath = clip; else img.style.removeProperty('clip-path');
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "sangpe-editor",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "description": "상페마법사 — 상세페이지 제작용 에디터",
   "main": "main.js",
   "scripts": {
@@ -24,7 +24,9 @@
     "test:cdp:t173": "node tests/e2e/check-t173.mjs",
     "test:cdp:small5": "node tests/e2e/run-all.mjs",
     "figma": "bun run figma-plugin/socket.js",
-    "gate:assert-strength": "node tools/assert-strength.mjs"
+    "gate:assert-strength": "node tools/assert-strength.mjs",
+    "gate:css-token": "node tools/css-token-lint.mjs",
+    "gate:css-token:self": "node tools/css-token-lint.mjs --self"
   },
   "build": {
     "appId": "com.goyamkt.sangpe-editor",
@@ -53,15 +55,13 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64",
-            "x64"
+            "arm64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "arm64",
-            "x64"
+            "arm64"
           ]
         }
       ],

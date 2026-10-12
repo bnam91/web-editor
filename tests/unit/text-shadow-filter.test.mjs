@@ -5,14 +5,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` — ★만들기·치우기를 ★그 자가 쥔다.
+      ★잠그는 자 = ★`tests/unit/tmproot-sole-owner.test.mjs` */
 
 // package.json "type":"commonjs" 라 .js 를 직접 import 하면 CJS 로 잡힌다 → 원문을 임시 .mjs 로 복사해 로드.
 const SRC = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'js', 'props', 'text-shadow-filter.js'), 'utf8');
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'tsf-'));
+const TMP = mkTmpRoot('tsf-');
 const MOD = path.join(TMP, 'text-shadow-filter.mjs');
 fs.writeFileSync(MOD, SRC);
 const { splitShadowList, parseShadowItem, textShadowToDropShadowFilter, DROP_SHADOW_BLUR_FACTOR, parseShadowList, shadowFilterId, svgShadowFilterMarkup } = await import(pathToFileURL(MOD).href);
-fs.rmSync(TMP, { recursive: true, force: true });
 
 test('blur 계수 = 0.5 (크로미움 실측으로 확정한 값)', () => {
   assert.equal(DROP_SHADOW_BLUR_FACTOR, 0.5);

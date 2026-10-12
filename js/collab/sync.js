@@ -10,7 +10,7 @@
      쏘는 gd:project-saved 를 듣는다.
 
    ★받는 시점 = 2초 폴링
-     Vercel 서버리스가 WebSocket 을 못 받는다. 전송계층(main/collab/transport.js)만
+     Vercel 서버리스가 WebSocket 을 못 받는다(⚰️2026-10-06: 지금은 EC2 — WS 를 «못 받는»지는 안 쟀다). 전송계층(main/collab/transport.js)만
      갈아끼우면 WS 로 옮길 수 있게 여기서는 「부르면 온다」만 안다.
 
    ★에코 가드가 2겹이다 — 하나로는 못 막는다
@@ -76,6 +76,12 @@
   let _localSnap = Object.create(null); // 'pageId::secId' → «마지막 자동저장 스냅샷»의 hash
                                         //   (덮어쓰기 경고 기준 — 서버 해시와 «같은 재료»로 계산돼야 비교가 성립한다)
   let _deferred = new Map();          // sectionId → patch (USER_BUSY 로 미뤄둔 것)
+  /* ★SIX ⒜(2026-10-06 · 현빈 「동시에 고쳤는데 한쪽 작업량이 날라가네」 — 지디 서버 데이터로 확정):
+   *   보류된 «묵은» 원격 패치가, 그 사이 내가 올린 더 새 판을 손 뗀 뒤 «경고 없이» 덮고 → 다음 저장이 그걸 다시 올렸다
+   *   (서버 seq 13 A 3061 → 14 B 3481 → ★15 B 가 3061 을 그대로 → 16 B 3483 · 13↔15 바이트 동일 · conflicts 0).
+   *   ⇒ 섹션마다 «내가 마지막으로 올린 seq» 를 기억해, 그보다 묵은 원격 패치는 붙이지 않고 «충돌»로 남긴다. */
+  let _lastPushedSeq = Object.create(null);   // 'pageId::secId' → 내 push 가 받은 서버 seq
+  let _conflicts = new Map();                 // 'pageId::secId' → { mode:'kept'|'replaced', mineHtml, theirsHtml, theirs:{actorId,email,seq} }
   let _inFlight = false;
   let _lastError = null;
   let _seqSaved = 0;                  // 디스크에 남긴 진도
@@ -92,16 +98,19 @@
   function actorId() {
     if (typeof window.getActorId === 'function') return window.getActorId();
     let v = '';
-    try { v = localStorage.getItem('goditor.actorId') || ''; } catch (_) {}
+    /* ★조용한 까닭: 저장소가 막힌 창(사생활 모드 등)이면 아래에서 «이번 세션 값»을 만들어 쓴다 — 동기화는 계속 된다. */
+    try { v = localStorage.getItem('goditor.actorId') || ''; } catch (e) { console.debug('[collab] actorId 읽기 실패 — 새로 만든다:', e); }
     if (!/^[a-z0-9]{4,8}$/.test(v)) {
       v = Math.random().toString(36).slice(2, 7);
-      try { localStorage.setItem('goditor.actorId', v); } catch (_) {}
+      try { localStorage.setItem('goditor.actorId', v); } catch (e) { console.debug('[collab] actorId 저장 실패 — 이번 세션 값으로 산다:', e); }
     }
     return v;
   }
 
   function emit(evt) {
-    for (const fn of _listeners) { try { fn(evt); } catch (_) {} }
+    /* ★조용한 까닭(A11 · 지디 판정 2026-10-06): 구독자 하나가 던져도 다른 구독자·동기화 루프를 죽이지 않게 «격리»한다.
+     *   ⛔삼키지는 않는다 — 콘솔에 남긴다(구독자 쪽 결함이다). */
+    for (const fn of _listeners) { try { fn(evt); } catch (e) { console.error('[collab] 구독자 예외(격리됨):', e); } }
   }
 
   /* ★진도(seq)를 디스크에 남긴다 — 안 남기면 앱을 껐다 켤 때마다 0 부터 다시 받아
@@ -113,7 +122,9 @@
     if (!c || !_cfg || !c.seq) return;
     if (_cfg.seq <= _seqSaved) return;
     const v = _cfg.seq;
-    c.seq({ projectId: _cfg.projectId, seq: v }).then(() => { _seqSaved = v; }).catch(() => {});
+    /* ★조용한 까닭(A9 · 지디 판정): 진도 저장 실패의 대가는 «다음 시작 때 몇 초치를 다시 받는 것»뿐이다(되받는 건 안전한 쪽 실패 —
+     *   위 주석). 사용자가 할 일이 없다 ⇒ 화면엔 안 띄우고 debug 로만 남긴다. */
+    c.seq({ projectId: _cfg.projectId, seq: v }).then(() => { _seqSaved = v; }).catch((e) => { console.debug('[collab] 진도(seq) 저장 실패 — 다음에 되받음:', e); });
   }
 
   /* ── 「사용자가 지금 이 섹션을 만지고 있나」 ──────────────────────────────
@@ -221,7 +232,7 @@
     if (done.length) {
       refreshNeeds();
       const msg = `⚠️ 이 공동작업본의 일부 섹션(${done.slice(0, 3).join(', ')}${done.length > 3 ? ' 외 ' + (done.length - 3) : ''})을 받지 못했습니다 — 상대가 접속했을 때 다시 시도됩니다.`;
-      if (typeof window.showToast === 'function') { try { window.showToast(msg); } catch (_) {} }
+      if (typeof window.showToast === 'function') { try { window.showToast(msg); } catch (e) { console.error('[collab] 토스트 실패:', e); } }
       console.warn('[collab]', msg);
       emit({ type: 'seed_giveup', sections: done });
     }
@@ -263,7 +274,8 @@
     _seedRepushes++;
     emit({ type: 'seed_repush', sections: [...wanted], count: hit });
     if (typeof window.serializeProject === 'function') {
-      try { pushChanged(window.serializeProject()); } catch (_) {}
+      /* ★조용한 까닭(A10): pushChanged 안의 실패(413·오프라인 등)는 그 안에서 emit 으로 말한다. 여기 걸리는 건 직렬화 «예외»뿐. */
+      try { pushChanged(window.serializeProject()); } catch (e) { console.error('[collab] 재푸시 직렬화 실패:', e); }
     }
   }
 
@@ -283,13 +295,13 @@
       window.dispatchEvent(new CustomEvent('gd:collab-remote-applied', {
         detail: { key: p.pageId + '::' + p.sectionId, hash: p.hash, pageId: p.pageId, sectionId: p.sectionId },
       }));
-    } catch (_) {}
+    } catch (e) { console.error('[collab] gd:collab-remote-applied 발화 실패 — 협업 undo 스코프가 이 원격분을 모른다:', e); }
   }
 
   function notifyConflict(conflicts) {
     const ids = conflicts.map(c => c.sectionId).filter(Boolean);
     const msg = `⚠️ 같은 섹션을 동시에 고쳤습니다 (${ids.slice(0, 3).join(', ')}${ids.length > 3 ? ' 외 ' + (ids.length - 3) : ''}) — 상대 내용이 보일 수 있습니다. 서버엔 양쪽 다 남아 있습니다.`;
-    if (typeof window.showToast === 'function') { try { window.showToast(msg); return; } catch (_) {} }
+    if (typeof window.showToast === 'function') { try { window.showToast(msg); return; } catch (e) { console.error('[collab] 토스트 실패:', e); } }
     console.warn('[collab]', msg);
   }
 
@@ -298,7 +310,8 @@
     if (!_cfg || _inFlight) return;
     const c = api(); if (!c) return;
     let obj;
-    try { obj = typeof snapStr === 'string' ? JSON.parse(snapStr) : snapStr; } catch (_) { return; }
+    /* ★A8(지디 판정): 저장 스냅샷이 JSON 이 아니면 «내부 오류»다 — 사용자가 할 일이 없어 화면엔 안 띄우고 error 로 남긴다. */
+    try { obj = typeof snapStr === 'string' ? JSON.parse(snapStr) : snapStr; } catch (e) { console.error('[collab] 저장 스냅샷 파싱 실패 — 이번 push 건너뜀:', e); return; }
 
     const secs = collectSections(obj);
     // ★모든 섹션의 «스냅샷 해시»를 기록해 둔다(바뀐 것만이 아니라). 덮어쓰기 경고가
@@ -311,15 +324,22 @@
     try {
       // ★한 요청에 한 섹션이다. 합쳐 보내면 큰 섹션 하나 때문에 «멀쩡한 섹션까지» 같이 막힌다.
       for (const s of changed) {
+        /* ★SIX ⓒ: 이 섹션에 «보류 중»인 원격 패치가 있으면 baseSeq 를 «그 패치 직전»으로 — 그래야 서버가 keep-both 충돌로 본다
+         *   (옛 판은 _cfg.seq 를 그대로 실어, 보류 패치까지 «본 셈»이 돼 서버 충돌 판정이 «충돌 없음»으로 속았다). */
+        const dp = _deferred.get(s.sectionId);
+        const baseSeq = (dp && Number.isFinite(+dp.seq)) ? Math.min(_cfg.seq, +dp.seq - 1) : _cfg.seq;
         const r = await c.push({
           collabId: _cfg.collabId,
           patches: [{
             pageId: s.pageId, sectionId: s.sectionId, html: s.html, hash: s.hash,
-            baseSeq: _cfg.seq, actorId: _cfg.actorId, ts: new Date().toISOString(),
+            baseSeq, actorId: _cfg.actorId, ts: new Date().toISOString(),
           }],
         });
         if (r && r.ok) {
           _sent[s.key] = s.hash;
+          const acc = Array.isArray(r.accepted) ? r.accepted.find(a => a && a.sectionId === s.sectionId) : null;
+          const mySeq = (acc && Number.isFinite(+acc.seq)) ? +acc.seq : (typeof r.seq === 'number' ? r.seq : null);
+          if (mySeq != null) _lastPushedSeq[s.key] = mySeq;
           if (typeof r.seq === 'number') _cfg.seq = r.seq;
           _lastError = null;
           if (r.conflicts && r.conflicts.length) { emit({ type: 'conflict', conflicts: r.conflicts }); notifyConflict(r.conflicts); }
@@ -357,7 +377,10 @@
     // 다른 페이지의 섹션이면 DOM 이 아니라 state.pages[].canvas 문자열을 고친다.
     if (p.pageId && p.pageId !== st.currentPageId) {
       const page = (st.pages || []).find(x => x.id === p.pageId);
-      if (!page) return false;
+      /* ★A7(지디 판정 2026-10-06): 내게 없는 페이지로 온 패치는 버려진다 = 조용한 «유실»이라 무음 불가.
+       *   설계상 한계다(위 NEED_MAX_ASKS 주석: 「페이지 생성은 아직 동기화 대상이 아니다」) ⇒ 고치지 않고 «말한다».
+       *   notify.js 가 세션당 1회만 토스트 + 상태로 올린다(2초 폴링마다 뜨지 않게). */
+      if (!page) { emit({ type: 'patch_dropped', reason: 'page_missing', pageId: p.pageId, sectionId: p.sectionId }); return false; }
       const parser = new DOMParser();
       const doc = parser.parseFromString(`<div id="c">${page.canvas || ''}</div>`, 'text/html');
       const root = doc.getElementById('c');
@@ -376,6 +399,22 @@
 
     const el = findSectionEl(p.sectionId);
     if (el && isUserBusyIn(el)) { _deferred.set(p.sectionId, p); return false; }
+
+    /* ★SIX ⓐ — 이 섹션에 내가 이미 «더 새 판»을 올렸나(내 마지막 push seq ≥ 이 패치 seq).
+     *   그렇다면 이 패치는 «묵었다»: 붙이면 내 새 글을 덮고, 다음 저장이 그 묵은 판을 다시 올린다(현빈 사고).
+     *   ⇒ 붙이지 않는다(내 판 유지) · 상대 판은 충돌 기록에 남겨 «되살리기» 로 고를 수 있게 한다. */
+    const ckey = (p.pageId || '') + '::' + p.sectionId;
+    const mine = _lastPushedSeq[ckey];
+    const pseq = Number.isFinite(+p.seq) ? +p.seq : null;
+    if (el && mine != null && pseq != null && pseq <= mine) {
+      _deferred.delete(p.sectionId);
+      _conflicts.set(ckey, { mode: 'kept', key: ckey, pageId: p.pageId, sectionId: p.sectionId,
+        mineHtml: el.outerHTML, theirsHtml: p.html, theirs: { actorId: p.actorId, email: p.actorEmail || '', seq: pseq } });
+      emit({ type: 'conflict_kept', key: ckey, sectionId: p.sectionId, theirsSeq: pseq, mineSeq: mine });
+      return 'kept';
+    }
+    /* ★SIX — 상대가 «내 마지막 push 를 못 본 채»(그 baseSeq < 내 push seq) 더 늦게 올린 패치: 붙이되(나중 쓴 쪽) 덮이는 내 판을 남긴다. */
+    const replacedMine = (el && mine != null && Number.isFinite(+p.baseSeq) && +p.baseSeq < mine) ? el.outerHTML : null;
 
     /* ⚠️★덮어쓰기 경고 — 이쪽이 더 위험한 쪽이다.
      *   충돌을 «올린 사람»은 서버 응답으로 알게 되지만, «덮이는 사람»은 자기 화면의 글이
@@ -418,6 +457,11 @@
       requestAnimationFrame(() => { st._suppressAutoSave = false; });
     }
     _deferred.delete(p.sectionId);
+    if (replacedMine) {
+      _conflicts.set(ckey, { mode: 'replaced', key: ckey, pageId: p.pageId, sectionId: p.sectionId,
+        mineHtml: replacedMine, theirsHtml: p.html, theirs: { actorId: p.actorId, email: p.actorEmail || '', seq: pseq } });
+      emit({ type: 'conflict_replaced', key: ckey, sectionId: p.sectionId, theirsSeq: pseq, mineSeq: mine });
+    }
     emitRemoteApplied(p);
     return true;
   }
@@ -472,7 +516,7 @@
       //   collectSections 가 로컬 구버전을 changed 로 오판 → 내 구버전을 서버로 push 해
       //   상대의 신버전을 덮는다(남의 작업 능동 소실). 보류가 풀려 실제 적용될 때
       //   (flushDeferred→applyPatch=true) 기록된다.
-      if (applied && p.pageId && p.sectionId && p.hash) _sent[p.pageId + '::' + p.sectionId] = p.hash;
+      if (applied === true && p.pageId && p.sectionId && p.hash) _sent[p.pageId + '::' + p.sectionId] = p.hash;   // 'kept'(묵은 패치 거절)은 기록 안 함
     }
     if (typeof r.seq === 'number') _cfg.seq = r.seq;
     /* ★시드 재푸시 — 목차가 왔으면 기준을 갈고, 패치가 붙었으면 결손을 다시 센다.
@@ -499,13 +543,15 @@
    * ⚠️남은 한계(정직하게): 화면에는 결국 «나중에 적용된 쪽»이 뜬다. 서버엔 둘 다 남지만
    *   고르는 UI 는 아직 없다 — 그래서 충돌은 반드시 사용자에게 «보이게» 알린다.
    */
+  /* ★A5(2026-10-06 지디: 「무음이 아니라 거짓 성공」): 결과를 «돌려준다» — 예전엔 첫 pull 이 실패해도 아무것도 안 돌려줘서
+   *   start() 가 ok:true ＋ 「started」를 냈다. 이제 { ok } 로 답하고 start() 가 그걸 읽는다. */
   async function resumeSafely() {
-    const c = api(); if (!c || !_cfg) return;
+    const c = api(); if (!c || !_cfg) return { ok: false, reason: 'unavailable' };
     let r;
     try {
       r = await c.pull({ collabId: _cfg.collabId, sinceSeq: _cfg.seq, actorId: _cfg.actorId, wantSections: true });
-    } catch (_) { return; }
-    if (!r || !r.ok) { _lastError = (r && r.reason) || 'unknown'; return; }
+    } catch (e) { console.error('[collab] 첫 받기 예외:', e); return { ok: false, reason: 'exception' }; }
+    if (!r || !r.ok) { _lastError = (r && r.reason) || 'unknown'; return { ok: false, reason: _lastError, status: r && r.status }; }
 
     // ① 서버가 아는 해시를 «이미 보낸 것»으로 심는다 → 안 바뀐 섹션은 다시 안 올라간다.
     for (const s of (r.sections || [])) {
@@ -513,12 +559,14 @@
     }
     // ② 내가 그 사이 바꾼 것만 올라간다.
     if (typeof window.serializeProject === 'function') {
-      try { await pushChanged(window.serializeProject()); } catch (_) {}
+      /* ★조용한 까닭(A10): pushChanged 안의 실패는 그 안에서 emit 으로 말한다 — 여기는 직렬화 예외만. */
+      try { await pushChanged(window.serializeProject()); } catch (e) { console.error('[collab] 재개 push 직렬화 실패:', e); }
     }
     // ③ 이제 남의 것을 적용한다.
     for (const p of (r.patches || [])) {
-      applyPatch(p);
-      if (p.pageId && p.sectionId && p.hash) _sent[p.pageId + '::' + p.sectionId] = p.hash;
+      /* ★BUGS.md:275 의 잠복 구멍(N2 대칭)을 같이 닫는다 — 보류(false)·거절('kept')한 패치는 «서버가 아는 해시»로 기록하지 않는다. */
+      const applied = applyPatch(p);
+      if (applied === true && p.pageId && p.sectionId && p.hash) _sent[p.pageId + '::' + p.sectionId] = p.hash;
     }
     if (typeof r.seq === 'number') _cfg.seq = r.seq;
     /* ★합류 직후가 결손이 가장 크게 벌어지는 순간이다 — 여기서 «목차 대 내 문서»를 처음 맞춰본다.
@@ -527,6 +575,7 @@
     refreshNeeds();
     serveNeeds(r.presence || []);
     paintPresence(r.presence || []);
+    return { ok: true };
   }
 
   /* ── 수명 ──────────────────────────────────────────────────────────────── */
@@ -546,12 +595,20 @@
     _deferred = new Map();
     _serverSections = null; _needIds = []; _needTicks = 0;
     _servedAt = Object.create(null); _asked = Object.create(null); _gaveUp = new Set();
+    _lastPushedSeq = Object.create(null); _conflicts = new Map();
     /* ★seq 0 = 「이 방의 문서를 처음부터 쌓아올리는 중」 = 결손이 생길 수 있는 유일한 구간.
      *   이미 진도가 있는 멤버는 목차 대조를 아예 안 한다(위 주석의 오판 방지). */
     _bootstrap = (ref.seq || 0) === 0;
-    await resumeSafely();                         // ★먼저 내 것을 올리고, 그 다음에 남의 것을 받는다
+    const rs = await resumeSafely();              // ★먼저 내 것을 올리고, 그 다음에 남의 것을 받는다
+    /* ★폴링은 «실패해도» 건다 — 첫 받기만 실패한 것(오프라인 등)이면 다음 tick 이 회복한다. 예전과 같은 동작이다.
+     *   바뀐 것은 «거짓말을 안 하는 것»뿐이다: 실패면 ok:false ＋ reason, 「started」 대신 「start_failed」. */
     _timer = setInterval(tick, POLL_MS);
     _seqTimer = setInterval(flushSeq, 10000);
+    if (!rs || !rs.ok) {
+      const reason = (rs && rs.reason) || 'unknown';
+      emit({ type: 'start_failed', reason, status: rs && rs.status, collabId: ref.collabId });
+      return { ok: false, reason, retrying: true, collabId: ref.collabId };
+    }
     emit({ type: 'started', collabId: ref.collabId });
     return { ok: true, collabId: ref.collabId };
   }
@@ -591,12 +648,18 @@
       /* ★시드 재푸시 요청 마커는 «편집 중»이 아니다 — 그렇게 그리면 없는 사실을 지어낸다.
        *   원본을 고치지 않고 «표시용 사본»을 만든다(serveNeeds 가 원본 마커를 봐야 한다). */
       .map(p => (isNeedMarker(p.editingSectionId) ? { ...p, editingSectionId: null } : p));
-    if (!_cfg || !others.length) { el.style.display = 'none'; el.textContent = ''; return; }
+    if (!_cfg || !others.length) {
+      el.style.display = 'none'; el.textContent = '';
+      if (window.CollabPresenceUI) { try { window.CollabPresenceUI.paint([]); } catch (e) { console.error('[collab] 편집 중 표시 지우기 실패:', e); } }
+      return;
+    }
     const editing = others.filter(p => p.editingSectionId);
     el.textContent = editing.length
       ? `👥 ${others.length}명 · ${editing.length}명 편집 중`
       : `👥 ${others.length}명 접속`;
-    el.title = others.map(p => `${p.email || p.actorId}${p.editingSectionId ? ' — ' + p.editingSectionId + ' 편집 중' : ''}`).join('\n');
+    const _lbl = (id) => (window.collabNotify && window.collabNotify.sectionLabel) ? window.collabNotify.sectionLabel(id) : id;   // 「N번째 섹션」(지디 SIX ②)
+    el.title = others.map(p => `${p.email || p.actorId}${p.editingSectionId ? ' — ' + _lbl(p.editingSectionId) + ' 편집 중' : ''}`).join('\n');
+    if (window.CollabPresenceUI) { try { window.CollabPresenceUI.paint(others.filter(p => p.editingSectionId)); } catch (e) { console.error('[collab] 편집 중 표시 실패:', e); } }
     el.style.display = '';
   }
 
@@ -607,18 +670,48 @@
   function autoStart() {
     if (!window.COLLAB_ENABLED) return;   // ★킬스위치: 협업 비활성 시 프로젝트 열어도 동기화 시작 안 함
     let id = '';
-    try { id = new URLSearchParams(location.search).get('project') || ''; } catch (_) {}
+    /* ★조용한 까닭: 주소에 project 가 없으면(목록·빈 탭) 붙을 프로젝트가 없다 — 할 일이 없다. */
+    try { id = new URLSearchParams(location.search).get('project') || ''; } catch (e) { console.debug('[collab] 주소 읽기 실패:', e); }
     if (!id || !api()) return;
+    /* ★A6(2026-10-06): 성공만 info 하고 실패를 «버리던» 자리.
+     *   - 연결 «후» 실패(resumeSafely)는 start() 가 이미 start_failed 를 emit 했다 → 여기서 또 말하지 않는다.
+     *   - 연결 «전» 갈래 셋은 조용하다 — 까닭: not_linked = 공동작업본이 아닌 보통 프로젝트(정상) ·
+     *     unavailable = 데스크탑 앱이 아닌 화면 · collab_disabled = 킬스위치 off. 셋 다 사용자가 할 일이 없다.
+     *   - start() 자체가 던지면(IPC 예외) 버리지 않고 start_failed 로 말한다. */
     start(id).then(r => {
       if (r && r.ok) console.info('[collab] 동기화 시작 —', r.collabId);
+    }).catch((e) => {
+      console.error('[collab] 동기화 시작 예외:', e);
+      emit({ type: 'start_failed', reason: 'exception' });
     });
   }
   if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', autoStart);
   else autoStart();
   window.addEventListener('beforeunload', stop);
 
+  /* ★SIX ① — 충돌 «고르기»: 내 판 / 상대 판 중 하나를 그 섹션에 둔다. 둔 판은 보통 편집처럼 자동저장 → push 된다.
+   *   (서버엔 둘 다 남아 있다 — keep-both. 여기서 고르는 건 «화면과 다음 판»이다.) */
+  function resolveConflict(key, which) {
+    const c = _conflicts.get(key);
+    if (!c) return false;
+    const el = findSectionEl(c.sectionId);
+    if (!el) { _conflicts.delete(key); emit({ type: 'conflict_resolved', key, which, missing: true }); return false; }
+    const html = which === 'theirs' ? c.theirsHtml : c.mineHtml;
+    if (el.outerHTML !== html) {
+      el.outerHTML = html;
+      window.rebindAll && window.rebindAll({ preserveHistory: true });
+      window.pushHistory && window.pushHistory('공동작업 판 고르기');
+      window.scheduleAutoSave && window.scheduleAutoSave();
+    }
+    _conflicts.delete(key);
+    emit({ type: 'conflict_resolved', key, which });
+    return true;
+  }
+
   window.collabSync = {
     start, stop, tick, autoStart,
+    conflicts: () => [..._conflicts.values()].map(c => ({ ...c })),
+    resolveConflict,
     isActive: () => !!_cfg,
     status: () => ({
       ..._cfg, deferred: _deferred.size, lastError: _lastError,

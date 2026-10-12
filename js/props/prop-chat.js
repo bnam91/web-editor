@@ -1,6 +1,55 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { buildTypographySectionHtml } from './_typo-section.js';   // ⛔글자 크기 칸을 «손으로» 만들지 마라 — 정본은 여기 하나다(tests/unit/typo-section-ssot.test.mjs T2)
+import { CHAT_NUM_BOUNDS } from '../blocks/chat-bounds.js';
+/* ★★별점 ★채운 색의 ★임자는 ★`shape-star.js` ★한 자리다(1010t2a — ★★값이 아니라 ★«자리»를 합쳤다).
+ * ⛔여기에 ★`#ff8a00` 을 ★손으로 ★다시 적지 ★마라 — ★★그러면 ★여섯째 자리가 ★생긴다.
+ * ★들이기가 ★안전한 ★까닭(★실측): ★`shape-star.js` 는 ★★import 가 ★0 인 ★잎 모듈이고,
+ *   ★`number-field-contract` 하네스는 ★★이미 ★`prop-shape.js` 를 ★들이며 ★그것을 ★같이 ★띄운다
+ *   ⇒ ★★모듈 그래프가 ★★한 개도 ★안 늘어난다(★위 ★chat-bounds 경고와 ★다른 자리다). */
+import { STAR_FILL_ON } from '../shape-star.js';   /* ⛔chat-block.js 에서 끌지 마라 — number-field-contract 하네스의 모듈 그래프를 통째로 키워 __ready 가 안 켜진다(그 파일 머리말) */
+/* ★⒝(2026-10-06) — 숫자 손잡이의 min/max 는 ★모델의 경계 표에서 «파생»한다. ⛔여기 숫자를 적지 마라.
+ *   무엇이 있었나(실측): 패널이 모델보다 좁아 ★일곱 자리에서 사람이 못 넣는 값이 있었다 —
+ *     fontSize 10~60(모델 4~400) · gap 0~40(0~400) · radius 0~40(0~400) · padding 0~60(0~400) ·
+ *     profileOffsetY ±40(±400) · profileGap 0~40(0~400) · profileSize 24~120(24~400).
+ *   «값은 받는데 누를 데가 좁다» ⇒ MCP 로는 되고 사람은 안 되는 자리가 일곱이었다.
+ * ⛔슬라이더와 숫자칸에 ★다른 상한을 주지 마라 — range 는 value>max 를 max 로 «조용히 깎는다»
+ *   (숫자칸에 400 을 넣고 슬라이더를 건드리면 60 으로 되돌아간다). 둘은 ★같은 B 를 쓴다. */
+const B = CHAT_NUM_BOUNDS;
+const CHB_FONT_MIN = B.fontSize.min, CHB_FONT_MAX = B.fontSize.max;
+/* ═══ ★다음 판 쪽지 — 「챗 블럭 ★폭을 숫자로 정하기」 (2026-10-06 ⒜ 조사 · 지디 ㉡ 보류 판정) ═══════════════
+ * ★여기에 ★「너비」 줄이 ★없다. ⛔빠뜨린 것이 아니라 ★판정으로 미룬 것이다 — 까닭을 적어 둔다.
+ * ★현빈 ⒜ 원문은 「챗 블럭 너비가 ★더 늘어날 순 없는지?」였고, ★그 요구는 ⒜-1 로 섰다(실측):
+ *     말풍선 최대폭 100 ＋ 블럭 패딩 0 ＋ 「패딩 제외」 토글 ⇒ ★535 → 860px(캔버스 전부 · 1.61배)
+ *   ★그리고 ★캔버스가 ★하드 상한이다(실측: 캔버스 860 · 섹션 블럭 860 · 챗 full-bleed 860).
+ *   ⇒ ★★블럭 자체 너비 손잡이는 ★「더 넓게」를 ★0px 도 못 준다 — 상한이 «그릇 폭»이고 full-bleed 가 이미 그릇을 벗는다.
+ *     (그리드도 같다 — width:3000 을 모델은 받지만 ★그려진 폭은 그릇 폭이다. grid-block.js renderGridBlock 의 max-width min)
+ * ⇒ ★그래서 이것은 「더 넓게」가 아니라 ★「폭을 ★숫자로 ★정하기(＝좁히기)」라는 ★다른 요구다.
+ * ★★짓게 되면 ⛔새로 만들지 마라 — ★그리드의 그 줄에서 ★파생시켜라:
+ *     js/props/prop-grid.js `_grdWidthRowHtml` (슬라이더 ＋ 숫자 ＋ 「100%」 단추)
+ *     ＋ `_grdWidthMax`(상한 = 담는 그릇의 «그려진» 내용 폭) ＋ 빈 칸 = 「자동」 규약
+ *   ⇒ ★공용 함수로 뽑아 ★그리드·챗이 같이 부르고, ★무력화하면 ★2곳 빨강인 쌍을 같이 걸어라.
+ *   ＋모델에 `width` 필드 1개(CHAT_NUM_BOUNDS 에 한 줄) · ★렌더는 full-bleed 분기와 ★한 자리에서 폭을 정해야 한다
+ *     (지금도 chat-block.js 에 그 인라인 쓰기가 두 줄이다 — 각자 쓰면 조용히 갈린다).
+ * ⛔그리고 ★이 쪽지를 지우기 전에 ★현빈께 ★「폭을 숫자로 정하고 싶으신가」를 ★먼저 물어라. ★아직 안 여쭸다.
+ * ═════════════════════════════════════════════════════════════════════════════════════════ */
+/* ★★⒝ 뒤처리(2026-10-06) — 경계 명부가 ★«셋»이었다: ㉠모델 _setInt ㉡패널 min/max 속성 ㉢★핸들러 안 리터럴.
+ *   속성만 넓히고 ㉢ 을 안 봐서, 패딩 숫자칸에 400 을 넣고 Enter 하면 모델이 ★60 이 됐다(옛 상한) —
+ *   ★신설 검사 chat-slider-number-bound S2 가 그 «전제 단언»에서 잡았다(S1 속성 일치는 초록이었다 ⇒ 속성만으로는 못 잰다).
+ *   ⛔prop-number-commit-guard.js 머리말이 바로 이것을 경고한다: 「핸들러 안의 Math.min/Math.max 를 고치면
+ *     칸이 보이는 범위와 실제 범위가 다시 갈린다」. ⇒ ㉢ 도 ★같은 표에서 «파생»시킨다.
+ *   ★왜 아예 지우지 않나 — range(슬라이더) 는 type=number 가 아니라 그 가드의 회원이 아니다. 클램프를 지우면
+ *     슬라이더 쪽 길이 무방비가 된다. ⇒ «지우지 말고 파생»이 이 자리의 답이다(radius·gap 은 숫자칸뿐이라 원래 클램프가 없다).
+ * @param {string} key CHAT_NUM_BOUNDS 의 키 · @param {number} dflt parseInt 실패 시 기본값 */
+const chbClamp = (key, v, dflt) => {
+  const b = B[key];
+  /* ⛔`?? dflt` 금지 — parseInt('abc') = NaN 이고 `NaN ?? x` 는 ★NaN 이다(?? 는 null/undefined 만 걸러낸다).
+     ★그러면 dataset 에 문자열 "NaN" 이 저장된다 — prop-number-commit-guard.js 머리말의 `prop-sticker.js _bindTPair` 그 사고다.
+     ★`|| dflt` 는 원래 일곱 자리가 쓰던 꼴이고, 0 이 dflt 로 바뀌는 갈래도 원래 동작과 한 글자도 안 다르다
+     (profileSize 0→48 · bubbleMaxW 0→70 — 그 뒤 min 이 다시 잡는다). */
+  return Math.max(b.min, Math.min(b.max, parseInt(v) || dflt));
+};
 
 function _chatToken(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
@@ -71,7 +120,7 @@ export function showChatProperties(block) {
             <span>별점</span>
           </label>
           <input type="number" class="chb-stars-num prop-number" data-idx="${i}" min="0" max="5" value="${starsVal}" ${hasStars ? '' : 'disabled'} style="width:48px">
-          <span class="chb-stars-preview" data-idx="${i}" style="color:#ff8a00;letter-spacing:1px;${hasStars ? '' : 'opacity:0.3'}">${starsPreview}</span>
+          <span class="chb-stars-preview" data-idx="${i}" style="color:${STAR_FILL_ON};letter-spacing:1px;${hasStars ? '' : 'opacity:0.3'}">${starsPreview}</span>
         </div>`;
       const profileFieldsHtml = showProfileFields ? `
         <div class="chb-prop-profile-row" data-idx="${i}" style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px dashed #333;font-size:11px;white-space:nowrap">
@@ -120,39 +169,54 @@ ${blockHeaderHTML({
     })}
     </div>
 
+    ${/* ★⒝(2026-10-06 · 지디 GO) — 「폰트 크기」가 여기 «손으로 만든 숫자칸»이었다(min 10 · max 60).
+          ⛔그게 ㉡ 복사본이었다: 절의 정본은 _typo-section.js 하나이고 텍스트·모달·그리드가 그걸 쓴다.
+            챗만 날 <input> 을 들고 있어서 ⑴슬라이더도 폰트도 굵기도 없고 ⑵모델이 받는 4~400 중 «10~60 만» 열려 있었다
+            (chat-block.js :503 `_setInt('fontSize','fontSize',4,400)`). ⇒ 사람은 60 까지, MCP 는 400 까지 — 패널이 340 을 가렸다.
+          ★★왜 아무 검사도 안 빨개졌나 — typo-section-ssot 의 PANELS 가 «셋»이었고 `assert.equal(PANELS.length, 3)` 이
+            그 셋을 못박았다. prop-chat.js 는 ★분모 밖이라, 「절을 베끼지 마라」 검사가 초록인 채로 사본이 살았다.
+            ⇒ 그 명부에 챗을 넣었다(이제 넷). ★「검사가 있다」는 «그 분모 안에서만» 참이다.
+          ⛔renderChatBlock 이 읽는 글자 값은 dataset.fontSize «하나»다(chat-block.js :47 → :127 의 font-size).
+            그래서 Font 피커·굵기·B/I/S/H·줄간격·자간을 «끈다» — 펴 두면 「눌리는데 아무 일도 안 난다」가 된다
+            (그리드의 showHighlight:false 가 같은 까닭으로 같은 일을 한다 — prop-grid.js).
+            ⇒ 그 넷을 켜려면 렌더러가 새 dataset 키를 «읽기 시작»해야 한다. 그건 별건 발주다. */''}
+    ${buildTypographySectionHtml({
+      p: 'chb-typo',
+      size: fontSize,
+      sizeMin: CHB_FONT_MIN, sizeMax: CHB_FONT_MAX,
+      showFont: false, showWeight: false, showStyleGroup: false,
+      showLetterSpacing: false, showLineHeight: false, showHighlight: false,
+    })}
+
     <div class="prop-section">
       <div class="prop-section-title">Style</div>
       <div class="prop-row">
-        <span class="prop-label">폰트 크기</span>
-        <input type="number" id="chb-fontsize" class="prop-color-hex" value="${fontSize}" min="10" max="60" style="width:60px">
-      </div>
-      <div class="prop-row">
         <span class="prop-label">말풍선 곡률</span>
-        <input type="number" id="chb-radius" class="prop-color-hex" value="${radius}" min="0" max="40" style="width:60px">
+        <input type="number" id="chb-radius" class="prop-color-hex" value="${radius}" min="${B.radius.min}" max="${B.radius.max}" style="width:60px">
       </div>
       <div class="prop-row">
         <span class="prop-label">간격</span>
-        <input type="number" id="chb-gap" class="prop-color-hex" value="${gap}" min="0" max="40" style="width:60px">
+        <input type="number" id="chb-gap" class="prop-color-hex" value="${gap}" min="${B.gap.min}" max="${B.gap.max}" style="width:60px">
       </div>
       <div class="prop-row">
         <span class="prop-label">패딩</span>
-        <input type="range" class="prop-slider" id="chb-padding-range" min="0" max="60" value="${padding}">
-        <input type="number" class="prop-number" id="chb-padding-val" min="0" max="60" value="${padding}" style="width:54px">
+        <input type="range" class="prop-slider" id="chb-padding-range" min="${B.padding.min}" max="${B.padding.max}" value="${padding}">
+        <input type="number" class="prop-number" id="chb-padding-val" min="${B.padding.min}" max="${B.padding.max}" value="${padding}" style="width:54px">
       </div>
       <div class="prop-row">
         <span class="prop-label">말풍선 패딩</span>
-        <input type="range" class="prop-slider" id="chb-bubble-padding-range" min="0" max="120" value="${bubblePadding}">
-        <input type="number" class="prop-number" id="chb-bubble-padding-val" min="0" max="120" value="${bubblePadding}" style="width:54px">
+        <input type="range" class="prop-slider" id="chb-bubble-padding-range" min="${B.bubblePadding.min}" max="${B.bubblePadding.max}" value="${bubblePadding}">
+        <input type="number" class="prop-number" id="chb-bubble-padding-val" min="${B.bubblePadding.min}" max="${B.bubblePadding.max}" value="${bubblePadding}" style="width:54px">
       </div>
       <div class="prop-row">
         <span class="prop-label">말풍선 최대폭</span>
-        <input type="range" class="prop-slider" id="chb-bubble-maxw-range" min="10" max="100" value="${bubbleMaxW}">
-        <input type="number" class="prop-number" id="chb-bubble-maxw-val" min="10" max="100" value="${bubbleMaxW}" style="width:54px">
+        <input type="range" class="prop-slider" id="chb-bubble-maxw-range" min="${B.bubbleMaxW.min}" max="${B.bubbleMaxW.max}" value="${bubbleMaxW}">
+        <input type="number" class="prop-number" id="chb-bubble-maxw-val" min="${B.bubbleMaxW.min}" max="${B.bubbleMaxW.max}" value="${bubbleMaxW}" style="width:54px">
       </div>
       <div class="prop-row">
         <span class="prop-label">꼬리 크기</span>
-        <input type="range" class="prop-slider" id="chb-tail-range" min="0" max="600" value="${tailScale}">
-        <input type="number" class="prop-number" id="chb-tail-val" min="0" max="600" value="${tailScale}" style="width:54px">
+        <input type="range" class="prop-slider" id="chb-tail-range" min="${B.tailScale.min}" max="${B.tailScale.max}" value="${tailScale}">
+        <input type="number" class="prop-number" id="chb-tail-val" min="${B.tailScale.min}" max="${B.tailScale.max}" value="${tailScale}" style="width:54px">
       </div>
       <div class="prop-row">
         <span class="prop-label">패딩 제외</span>
@@ -197,18 +261,18 @@ ${blockHeaderHTML({
       </div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="chb-profile-size-range" min="24" max="120" value="${profileSize}">
-        <input type="number" id="chb-profile-size-num" class="prop-number" value="${profileSize}" min="24" max="120" style="width:54px">
+        <input type="range" class="prop-slider" id="chb-profile-size-range" min="${B.profileSize.min}" max="${B.profileSize.max}" value="${profileSize}">
+        <input type="number" id="chb-profile-size-num" class="prop-number" value="${profileSize}" min="${B.profileSize.min}" max="${B.profileSize.max}" style="width:54px">
       </div>
       <div class="prop-row">
         <span class="prop-label">Y 위치</span>
-        <input type="range" class="prop-slider" id="chb-profile-y-range" min="-40" max="40" value="${profileOffsetY}">
-        <input type="number" id="chb-profile-y-num" class="prop-number" value="${profileOffsetY}" min="-40" max="40" style="width:54px">
+        <input type="range" class="prop-slider" id="chb-profile-y-range" min="${B.profileOffsetY.min}" max="${B.profileOffsetY.max}" value="${profileOffsetY}">
+        <input type="number" id="chb-profile-y-num" class="prop-number" value="${profileOffsetY}" min="${B.profileOffsetY.min}" max="${B.profileOffsetY.max}" style="width:54px">
       </div>
       <div class="prop-row">
         <span class="prop-label">간격</span>
-        <input type="range" class="prop-slider" id="chb-profile-gap-range" min="0" max="40" value="${profileGap}">
-        <input type="number" id="chb-profile-gap-num" class="prop-number" value="${profileGap}" min="0" max="40" style="width:54px">
+        <input type="range" class="prop-slider" id="chb-profile-gap-range" min="${B.profileGap.min}" max="${B.profileGap.max}" value="${profileGap}">
+        <input type="number" id="chb-profile-gap-num" class="prop-number" value="${profileGap}" min="${B.profileGap.min}" max="${B.profileGap.max}" style="width:54px">
       </div>
     </div>
 
@@ -236,7 +300,7 @@ ${blockHeaderHTML({
   const sizeRange = propPanel.querySelector('#chb-profile-size-range');
   const sizeNum   = propPanel.querySelector('#chb-profile-size-num');
   const setSize = (v) => {
-    const n = Math.max(24, Math.min(120, parseInt(v) || 48));
+    const n = chbClamp('profileSize', v, 48);
     block.dataset.profileSize = String(n);
     if (sizeRange) sizeRange.value = String(n);
     if (sizeNum)   sizeNum.value   = String(n);
@@ -250,7 +314,7 @@ ${blockHeaderHTML({
   const yRange = propPanel.querySelector('#chb-profile-y-range');
   const yNum   = propPanel.querySelector('#chb-profile-y-num');
   const setY = (v) => {
-    const n = Math.max(-40, Math.min(40, parseInt(v) || 0));
+    const n = chbClamp('profileOffsetY', v, 0);
     block.dataset.profileOffsetY = String(n);
     if (yRange) yRange.value = String(n);
     if (yNum)   yNum.value   = String(n);
@@ -264,7 +328,7 @@ ${blockHeaderHTML({
   const gapRange = propPanel.querySelector('#chb-profile-gap-range');
   const gapNum   = propPanel.querySelector('#chb-profile-gap-num');
   const setGap = (v) => {
-    const n = Math.max(0, Math.min(40, parseInt(v) || 0));
+    const n = chbClamp('profileGap', v, 0);
     block.dataset.profileGap = String(n);
     if (gapRange) gapRange.value = String(n);
     if (gapNum)   gapNum.value   = String(n);
@@ -279,7 +343,7 @@ ${blockHeaderHTML({
   const paddingRange = propPanel.querySelector('#chb-padding-range');
   const paddingVal   = propPanel.querySelector('#chb-padding-val');
   const applyPadding = v => {
-    v = Math.min(60, Math.max(0, parseInt(v) || 0));
+    v = chbClamp('padding', v, 0);
     block.dataset.padding = v;
     block.style.padding = v + 'px ' + v + 'px';
     paddingRange.value = v; paddingVal.value = v;
@@ -293,7 +357,7 @@ ${blockHeaderHTML({
   const bpRange = propPanel.querySelector('#chb-bubble-padding-range');
   const bpVal   = propPanel.querySelector('#chb-bubble-padding-val');
   const applyBubblePadding = v => {
-    const n = Math.min(120, Math.max(0, parseInt(v) || 0));
+    const n = chbClamp('bubblePadding', v, 0);
     block.dataset.bubblePadding = String(n);
     if (bpRange) bpRange.value = String(n);
     if (bpVal)   bpVal.value   = String(n);
@@ -307,7 +371,7 @@ ${blockHeaderHTML({
   const bmwRange = propPanel.querySelector('#chb-bubble-maxw-range');
   const bmwVal   = propPanel.querySelector('#chb-bubble-maxw-val');
   const applyBubbleMaxW = v => {
-    const n = Math.min(100, Math.max(10, parseInt(v) || 70));
+    const n = chbClamp('bubbleMaxW', v, 70);
     block.dataset.bubbleMaxW = String(n);
     if (bmwRange) bmwRange.value = String(n);
     if (bmwVal)   bmwVal.value   = String(n);
@@ -321,7 +385,7 @@ ${blockHeaderHTML({
   const tailRange = propPanel.querySelector('#chb-tail-range');
   const tailVal   = propPanel.querySelector('#chb-tail-val');
   const applyTail = v => {
-    const n = Math.min(600, Math.max(0, parseInt(v) || 0));
+    const n = chbClamp('tailScale', v, 0);
     block.dataset.tailScale = String(n);
     if (tailRange) tailRange.value = String(n);
     if (tailVal)   tailVal.value   = String(n);
@@ -338,11 +402,17 @@ ${blockHeaderHTML({
     rerender();
   });
 
-  propPanel.querySelector('#chb-fontsize').addEventListener('input', e => {
+  /* ★⒝ 글자 크기 — 공용 Typography 절의 숫자칸(#chb-typo-size-number). 핸들러는 옛 #chb-fontsize 와 «한 글자도 다르지 않다».
+     ⛔클램프·빈칸 처리·칸 되쓰기를 여기 적지 «않는다» — prop-number-commit-guard.js 머리말의 규약이다:
+       「값의 SSOT 는 칸 자신의 min/max 속성이다. 핸들러 안의 Math.min/Math.max 를 고치면 칸이 보이는 범위와
+        실제 범위가 다시 갈린다.」 그 가드는 «목록이 아니라 type=number 로» 센다 ⇒ 이 칸도 자동 회원이다.
+     ★그래서 범위를 넓히는 일은 ★min/max 속성 하나로 끝난다(CHAT_NUM_BOUNDS → sizeMin/sizeMax). */
+  const _fsEl = propPanel.querySelector('#chb-typo-size-number');
+  _fsEl?.addEventListener('input', e => {
     block.dataset.fontSize = e.target.value;
     rerender();
   });
-  propPanel.querySelector('#chb-fontsize').addEventListener('change', () => {
+  _fsEl?.addEventListener('change', () => {
     window.pushHistory?.();
   });
   propPanel.querySelector('#chb-radius').addEventListener('input', e => {

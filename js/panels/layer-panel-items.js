@@ -178,9 +178,11 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isInnerCard  = block.classList.contains('innercard-block');
   const isModal      = block.classList.contains('modal-block');
   const isQA         = block.classList.contains('qa-block');
+  const isCoupon     = block.classList.contains('coupon-block');   // ★쿠폰(2026-10-07)
+  const isQuote      = block.classList.contains('quote-block');    // ★인용구(2026-10-07 · QT1)
   const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
-  const type     = isShape ? `shape-${shapeType}` : isBubble ? 'speech-bubble' : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isBridge ? 'bridge' : isGrid ? 'grid' : isInfoCard ? 'infocard' : isInnerCard ? 'innercard' : isModal ? 'modal' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isZoom ? 'zoom' : isGradient ? 'gradient' : isQA ? 'qa' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', bridge:'Bridge', grid:'Grid', infocard:'Info Card', innercard:'Inner Card', modal:'Modal', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', zoom:'Zoom', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star', qa:'QA Check' };
+  const type     = isShape ? `shape-${shapeType}` : isBubble ? 'speech-bubble' : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isBridge ? 'bridge' : isGrid ? 'grid' : isInfoCard ? 'infocard' : isInnerCard ? 'innercard' : isModal ? 'modal' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isZoom ? 'zoom' : isGradient ? 'gradient' : isCoupon ? 'coupon' : isQuote ? 'quote' : isQA ? 'qa' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', bridge:'Bridge', grid:'Grid', infocard:'Info Card', innercard:'Inner Card', modal:'Modal', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', zoom:'Zoom', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star', qa:'QA Check', coupon:'Coupon', quote:'Quote' };
   /* ★[M55] grid 의 타입 라벨을 'Component' → 'Grid'. 현빈 2026-09-05:
        「여기에 컴퍼넌트라고 영어로 되어있는데 그리드라고 되어야되지 않겠니?」
      ★이 칸의 값어치는 «이름을 바꾼 뒤»에 나온다 — 레이어 이름은 「가격표」처럼 바꿀 수 있고,
@@ -193,7 +195,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
        현빈이 볼 화면을 통째로 바꾸는 일이라 별도 항목으로 올린다.
      ★안전 확인: 이 문자열을 «판정»에 쓰는 코드는 0건이다. 읽는 두 자리
        (layer-panel.js:614·:749)는 aria-label 문구를 조립하는 데만 쓴다 — 기능이 안 깨진다. */
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', bridge:'Component', grid:'Grid', infocard:'Component', innercard:'Component', modal:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', zoom:'Zoom', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape', qa:'Component' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', bridge:'Component', grid:'Grid', infocard:'Component', innercard:'Component', modal:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', zoom:'Zoom', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape', qa:'Component', coupon:'Coupon', quote:'Quote' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -288,6 +290,10 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isInfoCard) window.showInfoCardProperties?.(block);
     else if (isInnerCard) window.showInnerCardProperties?.(block);
     else if (isModal) window.showModalProperties?.(block);
+    /* ★쿠폰 — ⛔칸 이름을 넘기지 않는다. 레이어에서 «블럭»을 고른 것이므로 «목록»이 열려야 한다
+       (칸을 넘기면 레이어 클릭만으로 한 칸이 펼쳐진다 — 현빈 지시의 반대가 된다). */
+    else if (isCoupon) window.showCouponProperties?.(block);
+    else if (isQuote) window.showQuoteProperties?.(block);
     else if (isQA) window.showQAProperties?.(block);
     else if (isLabelGroup) window.showLabelGroupProperties?.(block);
     else if (isJoker) window.showJokerProperties?.(block);
@@ -679,7 +685,7 @@ function appendFlowChildrenToLayer(containerEl, out, sec, appendRowFn, depth) {
       }
     } else if (child.classList.contains('row')) {
       appendRowFn(child, out, depth);
-    } else if (child.classList.contains('grid-block') || child.classList.contains('icon-circle-block')) {   // G14 서클도 자식을 펼친다
+    } else if (layerHasKidsBox(child)) {   // ★표 한 자리에서 — G19 그리드 · G14 서클 · 1011t1C 인용구
       out.appendChild(makeLayerGridItem(child, child, sec, depth, appendRowFn));
     } else if (window.hasPanelForBlock?.(child)) {
       /* ★「이 자식이 블럭인가」는 정본 표(js/panel-dispatch.js _PANEL_BY_CLASS) 한 곳이 답한다.
@@ -695,11 +701,52 @@ function appendFlowChildrenToLayer(containerEl, out, sec, appendRowFn, depth) {
    ★0개면 «지금과 똑같은 말단 줄»을 그대로 돌려준다(makeLayerBlockItem 그 자체).
    ★머리 줄은 말단 줄을 «그대로» 품는다 — 선택·이름바꾸기·패널은 말단 줄의 처리기가 한다(새로 안 만든다).
      꼴은 makeLayerRowGroup 의 머리(.layer-row-header > .layer-item, editor-panels.css 의 그 규칙)와 같다. */
+/* ★★★«자식 그릇을 ★가진 블럭»의 ★★표 ★한 자리 — ⛔삼항을 ★늘리지 ★마라(★지디 판정 2026-10-11).
+   ★★손님이 ★★셋이다: ★G19 그리드 · ★G14 서클 · ★★`1011t1C` 인용구.
+   ★★★까닭: ★옛 판은 ★`_isCircle ? icbKidsBox : gridKidsBox` ★삼항이었고, ★셋째가 오면 ★★또 늘어난다.
+     ★그리고 ★★«어느 클래스가 ★자식을 ★펼치나»를 ★★네 자리가 ★따로 들고 있었다
+       (★이 파일 ★하나 ＋ ★`js/panels/layer-panel.js` ★셋) ⇒ ★★명부가 ★넷이다.
+     ⇒ ★★표를 ★여기 ★하나 두고 ★★그 넷이 ★★이 표에서 ★파생한다.
+   ⛔그릇 ★찾는 ★함수를 ★★제 벌로 ★적지 ★마라 — ★각 블럭 모듈이 ★`window` 로 ★낸 ★그 자를 ★쓴다.
+   ✅★★★그 ★«다섯째 자리»는 ★★합쳐졌다(2026-10-11 · `1011t1C` ★내보내기 칸) — ★`js/io/export-figma-json.js` 가
+     ★제 사본(★`_gridKidsBoxOf`·★`_gridKidGap`)을 ★버리고 ★★제 표(★`KIDS_SHELL_BY_CLASS`)를 ★한 자리에 ★두었다.
+     ★그 사본은 ★이제 ★레포에 ★없다(★`git grep` 으로 ★다시 ★쟀다 — ★남은 자리는 ★이 주석 ★하나였다).
+   ⚠️★★그래도 ★★표는 ★★둘이다 — ★★이 표 ＋ ★그 표. ⛔«하나로»는 ★★못 합쳤다:
+     ★이 표는 ★«window 함수 이름 ＋ 머리 줄 `dataset.type`»을 ★들고, ★그 표는 ★«그릇 클래스 ＋ 안쪽 래퍼 ＋ 벌어진 틈»을 ★든다
+     (★까닭의 ★정본은 ★그 표의 ★머리말이다).
+   ★★★그래서 ★★«경고»로 ★두지 ★않았다 — ★★★«재는 자»를 ★★붙였다. ★★한쪽 표에서 ★인용구 행을 ★빼면:
+     ★이 표 ⇒ ★`tests/dom/quote-children.dom.spec.js` 의 ★★`QC2` 가 ★빨개진다(★무력화 `QCX` 실측 · ★잰 값 0)
+     ★그 표 ⇒ ★`tests/dom/quote-children-figma.dom.spec.js` 의 ★★`QF1`·`QF2` ★★둘이 ★빨개진다(★무력화 `QFX` 실측)
+   ⇒ ★★★둘이 ★갈리면 ★★«해당하는 쪽 벌»이 ★★반드시 ★빨개진다 ⇒ ★★이 주석은 ★«바람»이 ★아니라 ★★잠긴 사실이다.
+   ⛔줄번호로 ★가리키지 ★마라 — ★★«파일 ＋ 무엇»으로. (★2026-10-11: ★줄번호를 ★박은 인용 ★셋이 ★같은 날 ★썩었다.) */
+export const LAYER_KIDS_BOX_BY_CLASS = Object.freeze([
+  /* [블럭 클래스, ★그릇 찾는 window 함수, ★머리 줄의 `dataset.type`] */
+  ['icon-circle-block', 'icbKidsBox',   'icon-circle'],   /* G14 — 원 «안» (js/icb-children.js) */
+  ['grid-block',        'gridKidsBox',  'grid'],          /* G19 — 그리드 «밑» (js/grid-children.js) */
+  ['quote-block',       'quoteKidsBox', 'quote'],         /* 1011t1C — 인용구 «밑» (js/blocks/quote-block.js) */
+]);
+/** ★머리 줄의 ★`dataset.type` — ★★그 표에서 ★파생한다. ⛔삼항으로 ★적지 ★마라(★2026-10-11 ★실측: ★그 삼항의
+ *  ★변수를 ★지우고 ★★한 자리를 ★빼먹어 ★`ReferenceError: _isCircle` 로 ★★레이어가 ★터졌다 — ★그래서 ★표로 ★옮긴다). */
+export const layerKidsTypeOf = (el) => {
+  for (const [cls, , type] of LAYER_KIDS_BOX_BY_CLASS) if (el?.classList?.contains(cls)) return type;
+  return 'grid';   /* ★옛 기본값 — ⛔뜻이 ★없으면 ★그대로 둔다(★읽는 자가 ★0건이라 ★안전하다 · ★실측) */
+};
+/** ★그 표로 ★«자식을 ★펼치는 블럭인가»를 ★답한다 — ★분기하는 ★네 자리가 ★이걸 ★쓴다. */
+export const layerHasKidsBox = (el) =>
+  !!el && LAYER_KIDS_BOX_BY_CLASS.some(([cls]) => el.classList?.contains(cls));
+/** ★그 표로 ★그릇을 ★찾는다 — ★없으면 ★`null`. */
+export const layerKidsBoxOf = (el) => {
+  if (!el) return null;
+  for (const [cls, fn] of LAYER_KIDS_BOX_BY_CLASS) {
+    if (el.classList?.contains(cls)) return (typeof window !== 'undefined' ? window[fn]?.(el) : null) ?? null;
+  }
+  return null;
+};
+
 function makeLayerGridItem(block, dragTarget, sec, depth = 1, appendRowFn) {
   const item = makeLayerBlockItem(block, dragTarget, sec, depth);
-  /* ★G14 — 서클 에셋블럭의 «원 안» 그릇(.icb-children)도 같은 꼴로 펼친다(그릇 해석만 다르다 — js/icb-children.js). */
-  const _isCircle = block.classList.contains('icon-circle-block');
-  const box = _isCircle ? window.icbKidsBox?.(block) : window.gridKidsBox?.(block);
+  /* ★그릇 해석은 ★★위 ★표 ★한 자리에서 — ⛔삼항으로 ★늘리지 ★마라(★그 표의 머리말). */
+  const box = layerKidsBoxOf(block);
   if (!box || !appendRowFn) return item;
   const kidsOut = document.createElement('div');
   kidsOut.className = 'layer-row-children';
@@ -707,7 +754,7 @@ function makeLayerGridItem(block, dragTarget, sec, depth = 1, appendRowFn) {
   if (!kidsOut.children.length) return item;
   const group = document.createElement('div');
   group.className = 'layer-row-group';
-  group.dataset.type = _isCircle ? 'icon-circle' : 'grid';
+  group.dataset.type = layerKidsTypeOf(block);   /* ★표 한 자리에서 — ⛔삼항 금지(위 머리말의 그 실측) */
   group._dragTarget = dragTarget;
   const header = document.createElement('div');
   header.className = 'layer-row-header';

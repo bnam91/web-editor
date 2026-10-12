@@ -13,7 +13,9 @@
  */
 
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
-import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
+import { captureTextStyle, applyTextStyleVars } from './text-style-kinds.js';   /* ★«한 벌이 무슨 값인가»의 명부 하나 */
+import { wireAllTextStyleChips } from './text-style-chips.js';                     /* ★「최근 효과」 줄 — 컬러의 최근 줄 꼴 그대로 */
+import { wireHexText, parseHex6, formatHex6, wireColorField } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { detectMix } from './prop-text-mix-detect.js';
 import {
@@ -147,9 +149,202 @@ if (typeof window !== 'undefined') window.applyColorToSelection = applyColorToSe
 
 /* (옛 「전역 셀 selection 캐시 window.__lastCellSel」은 지웠다 — 표 칸도 js/props/_text-selection.js 한 벌을 쓴다.) */
 
+/* ★형광펜 «켜짐» 판정 — 이 식이 사는 자리는 ★여기 하나다(2026-10-06).
+ *   prop-text.js(단추 active 표시)와 아래 단추 핸들러(토글 방향)가 ★같은 것을 써야 한다.
+ *   갈리면 「단추는 꺼짐인데 누르면 꺼진다」가 되고, 더 나쁘게는 ★옛 형광펜을 지우고 새로 칠한다.
+ * ★세 꼴을 다 본다:
+ *   ⑴ 새 꼴      span.tb-hl
+ *   ⑵ 옛 꼴(부분) span[style*="background-color"]  — execCommand('hiliteColor') 가 만들던 것
+ *   ⑶ 옛 꼴(전체) contentEl 자신의 인라인 background-color — 옛 «무선택» 갈래가 만들던 것
+ *   ⑵ 를 빼면 옛 문서에서 단추가 «꺼짐»으로 보이고, 한 번 누르면 _hlStripAll 이 그 획을 ★지워버린다. */
+export const HL_CLASS = 'tb-hl';
+export function isHighlightOn(contentEl) {
+  if (!contentEl) return false;
+  if (contentEl.querySelector('span.' + HL_CLASS)) return true;
+  if (contentEl.querySelector('span[style*="background-color"]')) return true;
+  const bg = contentEl.style && contentEl.style.backgroundColor;
+  return !!(bg && bg !== 'transparent');
+}
+
+/* ★점 찍기 «켜짐» 판정 — 이 식이 사는 자리는 ★여기 하나다(⑥ · 2026-10-08).
+ *   prop-text.js(단추 active 표시)와 아래 단추 핸들러(토글 방향)가 ★같은 것을 써야 한다 —
+ *   갈리면 「단추는 꺼짐인데 누르면 꺼진다」가 되고, 더 나쁘게는 ★있던 점을 지우고 새로 찍는다
+ *   (형광펜 isHighlightOn 이 그 까닭을 먼저 적었다).
+ * ★꼴이 ★하나다 — span.tb-dot. 옛 꼴이 ★없다(레포 전수 0건이었다: `점 찍|dot-over|overdot|emphasis|방점`). */
+export const DOT_CLASS = 'tb-dot';
+export function isDotOn(contentEl) {
+  return !!(contentEl && contentEl.querySelector('span.' + DOT_CLASS));
+}
+
+/* ── ★점 span 의 «불변식»과 그것을 지키는 ★한 자 ────────────────────────────────────────
+ * ★불변식 = «span.tb-dot ★하나 = 점 찍힌 글자 ★하나». 그리는 자가 `.tb-dot::before` ★하나뿐이라
+ *   한 span 에 두 글자가 들어가면 ★점이 안 늘어난다.
+ *
+ * ★★왜 ★점에만 이 자가 필요한가 — ★형광펜과 ★갈리는 자리다(2026-10-09 실측, CDP 실앱·진짜 키):
+ *   'AAA BBB CCC' 의 "BBB" 에 효과를 걸고 ★둘째·셋째 B 사이에 'X' 한 자를 ★쳤다.
+ *     형광펜: `span.tb-hl` ★1개 "BBB" → ★1개 ★"BBXB"  ⇒ 획이 새 글자까지 덮는다 ✅
+ *             («한 span 이 여러 글자»를 덮는 꼴이라 ★브라우저가 span 안에 글자를 꽂으면 ★공짜로 상속한다)
+ *     점    : span ★3개(B·B·B) → ★3개(B·★"BX"·B) · ★그려진 점 ★3개 / 점 찍힌 글자 ★4자  ❌
+ *   ⇒ 갈린 것은 «한 줄»이 아니라 ★「없는 한 자」였다 — 쪼개기(_dotWrapRange)가 ★단추 누른 그 순간에만
+ *     돌고, ★글자가 바뀐 뒤 불변식을 ★다시 세우는 자가 없었다
+ *     (그 대가는 tests/dom/text-dot-over.dom.spec.js 머리말이 ★이미 적어 뒀다 — 이제 ★갚는다).
+ * ⛔형광펜 꼴로 ★바꾸지 않았다 — 점은 «글자마다 하나»여야 수가 맞고, 간격(--tb-dot-i)이 ★그 자리를 쓴다.
+ * ★누가 점을 받나는 ★브라우저가 정한다(글자가 span ★안에 들어갔나) — ★형광펜과 ★같은 규약이다.
+ *   이 자는 ★그 뒤에 «수»만 맞춘다. ⇒ 두 효과가 ★같은 판정을 쓴다(명부가 둘이 안 된다).
+ *
+ * ★자리 — ★여기(모듈 바닥)다. ⛔block-drag.js 의 텍스트블럭 배선에 두면 ★그리드 칸·모달 안의
+ *   리치텍스트가 ★빠져 명부가 둘이 된다. ⇒ `document` 위임 ★하나로 ★모든 글자칸을 덮는다.
+ */
+const _unwrap = (n) => { const p = n.parentNode; if (!p) return; while (n.firstChild) p.insertBefore(n.firstChild, n); p.removeChild(n); };
+const _dotSpans = (el) => (el ? [...el.querySelectorAll('span.' + DOT_CLASS)] : []);
+/* 자리 번호 — 가운데가 0 이 되게. ⇒ 간격을 줘도 ★가운데 점은 제자리고 양쪽으로 퍼진다. */
+const _dotReindex = (spans) => {
+  const n = spans.length;
+  spans.forEach((sp, i) => sp.style.setProperty('--tb-dot-i', String(i - (n - 1) / 2)));
+};
+/* 텍스트 노드 ★하나를 글자마다 span 으로 쪼갠다 — ★두르는 자(_dotWrapRange)와 ★지키는 자
+   (normalizeDotSpans)가 ★이 한 벌을 쓴다. ⛔두 자리에 베껴 적으면 공백 규약이 갈린다.
+   ★공백엔 점을 ★안 찍는다(「세 글자 선택 → 점 3개」가 발주의 말이고, 공백은 글자가 아니다).
+   ★코드포인트 단위로 돈다(for…of) — 한글·이모지가 반 토막 나지 않는다. */
+const _dotSplitTextNode = (t, made) => {
+  const parent = t.parentNode;
+  if (!parent) return;
+  const seq = document.createDocumentFragment();
+  for (const ch of t.nodeValue) {
+    if (!ch.trim()) { seq.appendChild(document.createTextNode(ch)); continue; }
+    const sp = document.createElement('span');
+    sp.className = DOT_CLASS;
+    sp.textContent = ch;
+    seq.appendChild(sp);
+    if (made) made.push(sp);
+  }
+  parent.replaceChild(seq, t);
+};
+/* ★★빈 껍데기 걷기 — `Range.extractContents()` 는 «반쯤 걸친» 요소를 쪼개면서 ★빈 복제를 ★남긴다.
+ *   점 span 은 글자 ★하나만 담으므로 쪼개진 쪽은 ★반드시 비는데, ★빈 .tb-dot 도 ::before 를 ★그린다
+ *   ⇒ ★글자 없는 «유령 점»이 생긴다.
+ *   2026-10-08 실측(D13, 'BBB' 에 점 → "A BBB" 로 겹쳐 다시 두르기):
+ *     점 span ★5개 / 점 달린 글자 ★4자("ABBB") · 남은 자리번호 ["-1.5","-0.5","0.5","1.5",★"1"]
+ *     — 마지막 "1" 이 첫 두르기에서 살아남은 ★빈 껍데기였다.
+ *   ⛔「글자 수 = 점 수」만 세는 검사는 이걸 ★못 본다(글자는 4자로 맞다). span 수를 ★같이 세라.
+ * ★★걷은 수를 ★돌려준다 — 부른 쪽이 「DOM 이 바뀌었나」로 캐럿 되살리기를 판정한다. */
+const _dotPrune = (el) => {
+  if (!el) return 0;
+  let n = 0;
+  for (const sp of _dotSpans(el)) {
+    if ((sp.textContent || '').length) continue;
+    if (!sp.firstChild) { sp.remove(); n++; }   // 아무것도 안 들었다 → 지운다
+    else { _unwrap(sp); n++; }                  // <br> 등이 들었다 → 껍데기만 벗긴다(내용은 지키고)
+  }
+  return n;
+};
+
+/* ★불변식을 ★다시 세운다. 돌려주는 값 = ★DOM 을 건드린 횟수(0 이면 아무것도 안 했다).
+   ★손볼 span 의 꼴 ★둘뿐이다:
+     ⒜ 글자가 ★둘 이상 든 span   — 타자가 span ★안으로 들어간 자리(이 결함의 본체)
+     ⒝ ★공백만 든 span          — 점은 공백에 안 찍는다(쪼개는 자의 규약) ⇒ 껍데기를 벗긴다
+   ★요소를 품은 span(<br> 등)은 ★안 건드린다 — 그건 _dotPrune 몫이다. */
+export function normalizeDotSpans(contentEl) {
+  if (!contentEl) return 0;
+  const needs = (sp) => {
+    if (sp.children.length) return false;
+    const s = sp.textContent || '';
+    if (!s) return false;                       // 빈 껍데기 = _dotPrune 몫
+    return [...s].length > 1 || !s.trim();
+  };
+  const over = _dotSpans(contentEl).filter(needs);
+  const had = _dotSpans(contentEl).length;
+  for (const sp of over) {
+    const t = document.createTextNode(sp.textContent);
+    sp.parentNode.replaceChild(t, sp);          // 껍데기를 벗겨 글자만 남기고
+    _dotSplitTextNode(t, null);                 // ★쪼개는 자 한 벌로 다시 두른다
+  }
+  const pruned = _dotPrune(contentEl);
+  const spans = _dotSpans(contentEl);
+  if (over.length || pruned || spans.length !== had) _dotReindex(spans);
+  return over.length + pruned;
+}
+
+/* ── 캐럿을 «글자 수»로 적어 두고 되살린다 ───────────────────────────────────────────
+ * ★노드로 적으면 ★못 쓴다 — 우리가 그 노드를 ★바로 지운다(span 을 쪼개니까).
+ * ★`Range.toString().length` 와 ★텍스트 노드 길이 합은 ★같은 자다(둘 다 텍스트만 잇는다). */
+function _caretCharOffset(root) {
+  const s = (typeof window !== 'undefined') ? window.getSelection() : null;
+  if (!s || !s.rangeCount || !s.isCollapsed) return null;
+  const n = s.focusNode;
+  if (!n || !root || !root.contains(n)) return null;
+  try {
+    const r = document.createRange();
+    r.setStart(root, 0);
+    r.setEnd(n, s.focusOffset);
+    return r.toString().length;
+  } catch (_) { return null; }
+}
+function _putCaret(node, off) {
+  try {
+    const r = document.createRange();
+    r.setStart(node, off); r.collapse(true);
+    const s = window.getSelection();
+    s.removeAllRanges(); s.addRange(r);
+    return true;
+  } catch (_) { return false; }
+}
+function _restoreCaretAtCharOffset(root, want) {
+  if (want == null || !root) return false;
+  let seen = 0, last = null;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let t;
+  while ((t = w.nextNode())) {
+    const len = t.nodeValue.length;
+    if (want <= seen + len) return _putCaret(t, want - seen);
+    seen += len; last = t;
+  }
+  return last ? _putCaret(last, last.nodeValue.length) : false;
+}
+
+/* 위임 — 글자칸(contenteditable) 안에 점이 ★있을 때만 돈다. ⛔패널 숫자칸은 contentEditable 이 아니다.
+   ★IME 조립 중(`isComposing`)엔 ★손대지 않는다 — 한글 조립 중 span 을 쪼개면 조립이 깨진다.
+     ⇒ 조립이 ★끝난 뒤(`compositionend`) 같은 자로 다시 센다(두 번 돌아도 ★같은 결과다 — ★멱등).
+   ★★`paste` 도 ★같이 듣는다 — 2026-10-09 실측: 붙여넣기는 ★`input` 이 ★안 온다.
+     block-drag.js 의 글자칸 paste 핸들러가 `preventDefault()` 뒤 ★제 손으로 텍스트 노드를 꽂기 때문이다
+     (잰 값: 점 span 에 'PQ' 를 붙여 span 이 ★'가PQ' ⇒ 글자 7 / 그려진 점 ★5).
+     ⇒ ★위임이 ★버블에서 돌아 그 꽂기 ★뒤에 센다(`preventDefault` 는 전파를 ★안 막는다).
+     ⛔합성 `input` 을 ★되쏘지 않았다 — 남의 input 리스너를 ★내가 부르는 꼴이 된다. */
+const _dotHostOf = (t) => {
+  const el = (t && t.nodeType === 1) ? t : (t && t.parentElement) || null;
+  if (!el || !el.isContentEditable) return null;
+  return el.closest('[contenteditable="true"], [contenteditable=""]') || el;
+};
+export function keepDotSpansOnEdit(ev) {
+  if (ev && ev.isComposing) return 0;
+  const host = _dotHostOf(ev && ev.target);
+  if (!host || !host.querySelector('span.' + DOT_CLASS)) return 0;
+  const want = _caretCharOffset(host);
+  const touched = normalizeDotSpans(host);
+  if (touched) _restoreCaretAtCharOffset(host, want);
+  return touched;
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('input', keepDotSpansOnEdit);
+  document.addEventListener('compositionend', keepDotSpansOnEdit);
+  document.addEventListener('paste', keepDotSpansOnEdit);
+}
+
 export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
   /* ★선택 저장·복원 = js/props/_text-selection.js 한 벌. 여기엔 저장 변수가 «없다». */
   const hasSel = () => !!getSavedTextSelection(ctx.contentEl);
+
+  /* ★★「최근 효과」에 ★한 벌을 쌓는다 (2026-10-08 현빈 「저장한 스타일도 ★복사할수 있게」).
+     ★부르는 자리 = ★그 효과의 ★commit 지점 ★뿐이다(input 중에는 ★안 쌓는다 — 끄는 중의 값이 큐를 채운다).
+     ★«무엇이 한 벌인가»는 ★여기가 ★모른다 — text-style-kinds.js 가 ★그 명부다.
+     ★«같으면 쓰기 없음»·«창 안이면 맨 앞을 덮는다»는 ★저장소가 한다(design-system.js).
+       ⇒ ★여기서 ★조건을 ★또 걸지 않는다(걸면 ★명부가 둘이 된다). */
+  const _pushStyle = (k) => {
+    try {
+      const v = captureTextStyle(k, tb, ctx.contentEl);
+      if (v) window.DesignSystem?.pushTextStyleHistory?.(k, v);
+    } catch (e) { console.warn('[text-style] 쌓기 실패:', k, e); }
+  };
 
   const applyExecCmd = (savedSel, cmd, val = null) => {
     if (!savedSel) return false;
@@ -308,6 +503,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     const d = e.detail;
     if (!d || !d.css) return;
     if (!applyTextGradient(ctx.contentEl, d, { commit })) return;
+    if (commit) _pushStyle('grad');
     clearTextSelection();   // 그라데이션은 블럭 전체 — 이후 솔리드 복귀도 전체
     try {
       colorPicker.dataset.cpGradient = JSON.stringify({ type: d.type, angle: d.angle, stops: d.stops });
@@ -358,11 +554,12 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
    *     (click 때 읽으면 이미 사라진 뒤다 — 취소선이 쓰던 것과 같은 함정).
    *   ⚠️블록 전체로 켤 땐 내부 부분서식 잔재를 먼저 걷어내야 «블록 스타일이 단일 소스»가 된다.
    *     (안 걷어내면 껐는데도 일부 글자만 굵게 남는다.)
-   * 형광펜 기본색은 앱에 이미 있는 텍스트 하이라이트 값(prop-text.js currentHighlightColor 기본값)
-   * 을 그대로 쓴다 — 새 색을 만들지 않는다.
+   * ★형광펜은 2026-10-06 에 이 규약에서 «빠졌다» — 아래 전용 배선을 보라(무선택도 «글자 길이»).
+   * ★형광펜 기본색은 앱에 이미 있는 값(--ui-highlight)을 그대로 쓰되, 이제 그 기본값을 ★CSS 가 들고 있다
+   *   (css/editor-layout.css `.text-block { --tb-hl-color: var(--ui-highlight) }`).
+   *   ⇒ 여기서 토큰을 읽어 두던 HL_COLOR 상수는 ★지웠다. 색을 안 고른 블럭은 인라인이 «없어서»
+   *     토큰이 바뀌면 같이 따라온다(옛 판은 단추를 누른 순간 hex 가 굳었다).
    */
-  // 색 리터럴을 JS에 두지 않는다 — 정본은 --ui-highlight 토큰(editor-base.css).
-  const HL_COLOR = (getComputedStyle(document.documentElement).getPropertyValue('--ui-highlight') || '').trim() || 'yellow';
 
   // 부분서식 잔재 정리: 지정 태그를 언랩하고, 지정 style prop 을 가진 span 을 벗긴다.
   const _stripInlineResidue = (el, tagSel, styleProp) => {
@@ -438,55 +635,416 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     setOff: el => { el.style.fontStyle = ''; },
   });
 
-  wireInlineStyleBtn({
-    btnId: 'txt-highlight-btn', cmd: 'hiliteColor', cmdVal: HL_COLOR,
-    tagSel: null, styleProp: 'background-color',
-    isOn: el => !!(el.style.backgroundColor && el.style.backgroundColor !== 'transparent'),
-    setOn: el => { el.style.backgroundColor = HL_COLOR; },
-    setOff: el => { el.style.backgroundColor = ''; },
+  /* ── ★형광펜 (2026-10-06 현빈 tb_5bkw8dq: 「하이라이트 기능은 ★텍스트 길이만큼 해주고,
+   *    ★색변경 및 ★하이라이트 바 높이 조절가능하게」) ───────────────────────────────────────
+   * ★무엇이 달라졌나 — 옛 판은 «갈래가 둘»이었다:
+   *     부분 선택 → execCommand('hiliteColor') ⇒ span 이 글자를 감싸 «글자 길이»  ✅
+   *     무선택   → contentEl.style.backgroundColor ⇒ «블럭 상자» 전체            ❌ (실측 716px vs 글자 298px)
+   *   같은 단추가 다르게 동작했다. ⇒ ★두 갈래를 «하나»로 합친다 — 무선택이면 글자 «전체»를 범위로 잡아
+   *   같은 span 을 두른다. 그러면 길이·색·높이 셋이 한 기전(css .tb-hl)에서 나온다.
+   * ⛔wireInlineStyleBtn 으로 되돌리지 마라 — 그 규약의 「무선택=블럭 인라인」이 바로 이 결함이다. */
+  const _hlSpans = (el) => (el ? [...el.querySelectorAll('span.' + HL_CLASS)] : []);
+  const _hlIsOn = isHighlightOn;   // ★판정은 이 파일 맨 위 «한 자리»에서만 온다(prop-text.js 도 그걸 쓴다)
+  /* 새 꼴·옛 꼴·블럭 인라인을 «다» 걷는다 — 걷고 다시 두르므로 겹 span 이 안 쌓인다. */
+  const _hlStripAll = (el) => {
+    if (!el) return;
+    _hlSpans(el).forEach(_unwrap);
+    _stripInlineResidue(el, null, 'background-color');
+    el.style.backgroundColor = '';
+    el.normalize?.();
+  };
+  const _hlWrap = (range) => {
+    const sp = document.createElement('span');
+    sp.className = HL_CLASS;
+    /* surroundContents 는 «부분만 걸친» 범위에서 던진다(여러 노드를 반쯤 덮을 때) — 그 때는 꺼내서 다시 넣는다. */
+    try { range.surroundContents(sp); } catch (_) { sp.appendChild(range.extractContents()); range.insertNode(sp); }
+    return sp;
+  };
+  /* 블럭 «전체»를 범위로. ⛔글자가 없으면 두르지 않는다 — 빈 span 은 획이 0폭이라 「눌렀는데 아무 일 없음」이 된다. */
+  const _hlWrapWhole = (el) => {
+    if (!el || !el.firstChild || !(el.textContent || '').trim()) return null;
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    return _hlWrap(r);
+  };
+  const _hlVarsOf = (el) => (el ? el.closest('.text-block') : null) || tb;
+  /* 패널의 색·높이 칸을 함께 여닫는다 — 꺼져 있으면 정할 것이 없다. */
+  /* ★줄 명부를 ★한 자리에 둔다 — ⛔요소를 ★하나씩 집어 오지 않는다(칸을 더하는 사람이 ★여기를 ★빠뜨린다.
+     ★점 쪽 DOT_OPT_ROWS 가 ★먼저 그 꼴로 적혀 있다 — ★그것을 ★베낀다). */
+  const HL_OPT_ROWS = ['txt-hl-color-row', 'txt-hl-h-row', 'txt-hl-y-row'];
+  const _hlSyncOpts = (on) => {
+    for (const k of HL_OPT_ROWS) {
+      const e = document.getElementById(k);
+      if (e) e.style.display = on ? 'flex' : 'none';
+    }
+  };
+  const hlBtn = document.getElementById('txt-highlight-btn');
+  if (hlBtn) {
+    hlBtn.addEventListener('click', () => {
+      const el = ctx.contentEl;
+      if (!el) return;
+      const saved = getSavedTextSelection(el)?.range || null;
+      if (saved) {
+        /* 부분 선택 — 그 글자만. ⛔블럭 전체 상태를 건드리지 않는다(선택 밖 획이 살아 있어야 한다). */
+        _hlWrap(saved);
+        clearTextSelection?.(el);
+        hlBtn.classList.add('active');
+        _hlSyncOpts(true);
+      } else {
+        const nowOn = !_hlIsOn(el);
+        _hlStripAll(el);                       // 켜든 끄든 «먼저 걷는다» — 켤 때 겹 span, 끌 때 잔재를 같이 없앤다
+        if (nowOn) _hlWrapWhole(el);
+        hlBtn.classList.toggle('active', nowOn);
+        _hlSyncOpts(nowOn);
+      }
+      if (_hlIsOn(ctx.contentEl)) _pushStyle('hl');
+      window.pushHistory?.();
+      window.scheduleAutoSave?.();
+    });
+  }
+
+  /* ★색 — 정본은 ★.text-block 의 인라인 --tb-hl-color ★하나다(dataset 사본을 두지 «않는다» —
+       그리는 값과 패널이 읽는 값이 갈리는 자리가 된다. 패널은 prop-text.js 에서 이 인라인을 읽는다).
+     ★왜 span 이 아니라 «블럭»에 박나 — 한 블럭 안에 획이 여럿일 수 있고(부분 선택 반복), 그 전부가
+       같은 색이어야 「형광펜 색」이 한 값이다. span 마다 박으면 명부가 획 수만큼 늘어난다.
+     ★안 고른 블럭은 인라인이 «없다» ⇒ CSS 기본값(--ui-highlight)이 산다. */
+  const _hlApplyColor = (c) => {
+    const host = _hlVarsOf(ctx.contentEl);
+    if (!host) return;
+    host.style.setProperty('--tb-hl-color', c);
+  };
+  wireColorField('txt-hl-color', {
+    initialAlpha: 100,
+    onApply: (c) => _hlApplyColor(c),
+    onCommit: () => { _pushStyle('hl'); window.pushHistory?.('형광펜 색'); window.scheduleAutoSave?.(); },
   });
 
-  /* ── 취소선 토글 ──
-   * 부분 선택 시: Cmd+B/I 와 동일한 execCommand 계열('strikeThrough')을 selection 복원 후 실행
-   * 무선택 시: 블록(contentEl) 전체 토글 — 인라인 textDecorationLine 기준, 내부 부분 적용 잔재는 정리 */
-  const strikeBtn = document.getElementById('txt-strike-btn');
-  if (strikeBtn) {
-    strikeBtn.addEventListener('click', () => {
-      const _savedStrikeSel = getSavedTextSelection(ctx.contentEl)?.range || null;
-      if (_savedStrikeSel) {
-        // 부분 선택: 선택 영역만 취소선 토글 (execCommand가 <strike>/<s> 토글 처리)
-        applyExecCmd(_savedStrikeSel, 'strikeThrough');
+  /* ★바 높이(%) — 100 = 글자를 다 덮는다 · 40 = 아래 40%만. 슬라이더와 숫자칸이 «같은 값»을 쓴다. */
+  const _hlClampH = (v) => Math.min(100, Math.max(5, parseInt(v, 10) || 100));
+  const _hlApplyH = (v) => {
+    const host = _hlVarsOf(ctx.contentEl);
+    if (!host) return;
+    const n = _hlClampH(v);
+    host.style.setProperty('--tb-hl-h', n + '%');   // ★정본은 이 인라인 하나(색과 같은 규약)
+    return n;
+  };
+  const hlHRange = document.getElementById('txt-hl-h');
+  const hlHNum   = document.getElementById('txt-hl-h-num');
+  if (hlHRange && hlHNum) {
+    const sync = (v, commit) => {
+      const n = _hlApplyH(v);
+      if (n == null) return;
+      hlHRange.value = String(n); hlHNum.value = String(n);
+      if (commit) { _pushStyle('hl'); window.pushHistory?.('형광펜 바 높이'); window.scheduleAutoSave?.(); }
+    };
+    hlHRange.addEventListener('input',  () => sync(hlHRange.value, false));
+    hlHRange.addEventListener('change', () => sync(hlHRange.value, true));
+    hlHNum.addEventListener('input',    () => sync(hlHNum.value, false));
+    hlHNum.addEventListener('change',   () => sync(hlHNum.value, true));
+  }
+
+  /* ★획 세로자리(px) — 양수 = 아래. ★꼴은 ★바로 위 «바 높이»를 ★그대로, ★단위만 % → px 다.
+     ★정본은 ★--tb-hl-y ★하나(색·높이와 ★같은 규약 — 그리는 자는 css 의 background-position).
+     ⛔min/max 를 ★여기 ★되적지 않는다 — ★칸의 속성을 ★읽어 쓴다(점 쪽 DOT_FIELDS 가 먼저 그 꼴로 적었다.
+       맨숫자를 두 벌 두면 ★마크업과 ★조용히 갈린다). */
+  const hlYRange = document.getElementById('txt-hl-y');
+  const hlYNum   = document.getElementById('txt-hl-y-num');
+  if (hlYRange && hlYNum) {
+    const lo = parseInt(hlYNum.min, 10), hi = parseInt(hlYNum.max, 10);
+    const clampY = (v) => {
+      const n = parseInt(v, 10);
+      const base = Number.isFinite(n) ? n : 0;
+      return Math.min(Number.isFinite(hi) ? hi : base, Math.max(Number.isFinite(lo) ? lo : base, base));
+    };
+    const syncY = (v, commit) => {
+      const host = _hlVarsOf(ctx.contentEl);
+      if (!host) return;
+      const n = clampY(v);
+      host.style.setProperty('--tb-hl-y', n + 'px');
+      hlYRange.value = String(n); hlYNum.value = String(n);
+      if (commit) { _pushStyle('hl'); window.pushHistory?.('형광펜 획 위치'); window.scheduleAutoSave?.(); }
+    };
+    hlYRange.addEventListener('input',  () => syncY(hlYRange.value, false));
+    hlYRange.addEventListener('change', () => syncY(hlYRange.value, true));
+    hlYNum.addEventListener('input',    () => syncY(hlYNum.value, false));
+    hlYNum.addEventListener('change',   () => syncY(hlYNum.value, true));
+  }
+
+  /* ── 장식선 토글 — ★취소선(S)과 ★밑줄(U) ────────────────────────────────────
+   * 규약은 B/I 와 같다: 부분 선택이 있으면 그 영역만(execCommand), 없으면 블록 전체 토글.
+   *
+   * ★★왜 «한 자리»인가 (⑤ · 2026-10-08) — 둘은 ★한 CSS 속성(text-decoration-line)에 ★같이 산다.
+   *   각자 `el.style.textDecorationLine = 'underline'` 로 쓰면 ★다른 하나를 ★조용히 지운다
+   *   (취소선 켠 글에 밑줄을 켜면 취소선이 사라지고, 그 반대도). 옛 취소선 배선이 바로 그 꼴이었다
+   *   — 그땐 이 속성을 ★혼자 썼으니 맞았다. ⇒ 이제 «토큰 집합»으로 읽고 쓴다.
+   *   ⛔한쪽을 다시 `= '…'` 단일 대입으로 되돌리지 마라. 그러면 다른 하나가 사라지는데
+   *     「켜졌다」만 재는 시험은 ★그걸 못 본다(tests/dom/text-underline.dom.spec.js U3 가 그 자다).
+   * ★켜짐 판정은 ★포함으로 — `=== 'line-through'` 는 둘 다 켜진 판을 «꺼짐»으로 읽는다.
+   *   패널의 단추 표시(prop-text.js isStrike·isUnderline)도 ★같은 잣대(포함)를 쓴다 — 갈리면 거꾸로 간다.
+   */
+  const DECO_TOKENS = ['underline', 'line-through'];
+  const _decoTokens = (el) => {
+    const raw = String((el && (el.style.textDecorationLine || el.style.textDecoration)) || '');
+    return new Set(DECO_TOKENS.filter(t => raw.includes(t)));
+  };
+  const _decoWrite = (el, set) => {
+    /* ★순서는 DECO_TOKENS 고정 — Set 순회 순서(=누른 순서)로 쓰면 같은 상태가 두 문자열이 되어
+       저장본·골든이 «같은 뜻인데 다른 바이트»로 갈린다. */
+    const v = DECO_TOKENS.filter(t => set.has(t)).join(' ');
+    if (v) el.style.textDecorationLine = v;
+    else el.style.removeProperty('text-decoration-line');
+    /* 옛 저장본의 ★축약형(text-decoration: line-through)이 남아 있으면 그게 이긴다 — 같이 걷는다. */
+    if (DECO_TOKENS.some(t => (el.style.textDecoration || '').includes(t))) el.style.textDecoration = '';
+  };
+  /* 부분 적용 잔재 정리 — 블록 스타일이 «단일 소스»가 되도록. ⛔내 토큰만 걷는다(다른 하나를 안 건드린다). */
+  const _stripDecoResidue = (el, token, tagSel) => {
+    el.querySelectorAll(tagSel).forEach(_unwrap);
+    el.querySelectorAll(`span[style*="${token}"]`).forEach(sp => {
+      const set = _decoTokens(sp); set.delete(token); _decoWrite(sp, set);
+      const styleStr = sp.getAttribute('style') || '';
+      if (!styleStr.replace(/;|\s/g, '')) _unwrap(sp);
+    });
+  };
+  /* ★onToggle — ★블록 전체 토글 뒤 ★그 단추의 «칸»을 여닫는다(형광펜 _hlSyncOpts·점 _dotSyncOpts 와 같은 일).
+     ⛔부분 선택 갈래에서는 ★안 부른다 — 그 갈래는 ★블록 상태를 ★안 건드리므로 단추도 ★안 끈다(아래 early return).
+     ★왜 ★인자인가 — 이 함수는 ★취소선과 ★밑줄 ★둘이 쓰고, ★칸이 있는 쪽은 ★밑줄 ★하나다. */
+  const wireDecoBtn = ({ btnId, cmd, token, tagSel, onToggle }) => {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const saved = getSavedTextSelection(ctx.contentEl)?.range || null;
+      if (saved) {
+        // 부분 선택: 선택 영역만 토글 (execCommand 가 <u>/<strike> 토글을 처리한다)
+        applyExecCmd(saved, cmd);
         window.pushHistory?.();
         return;
       }
       const el = ctx.contentEl;
       if (!el) return;
-      const nowOn = !(el.style.textDecorationLine || el.style.textDecoration || '').includes('line-through');
-      if (nowOn) {
-        // 부분 적용 잔재 정리 (applyColorToSel 무선택 분기와 동일 패턴) — 블록 스타일이 단일 소스가 되도록
-        el.querySelectorAll('strike, s').forEach(n => {
-          const parent = n.parentNode;
-          while (n.firstChild) parent.insertBefore(n.firstChild, n);
-          parent.removeChild(n);
-        });
-        el.querySelectorAll('span[style*="line-through"]').forEach(s => {
-          s.style.textDecorationLine = '';
-          if ((s.style.textDecoration || '').includes('line-through')) s.style.textDecoration = '';
-          const styleStr = s.getAttribute('style') || '';
-          if (!styleStr.replace(/;|\s/g, '')) {
-            const parent = s.parentNode;
-            while (s.firstChild) parent.insertBefore(s.firstChild, s);
-            parent.removeChild(s);
-          }
-        });
-        el.style.textDecorationLine = 'line-through';
-      } else {
-        el.style.textDecorationLine = '';
-        if ((el.style.textDecoration || '').includes('line-through')) el.style.textDecoration = '';
-      }
-      strikeBtn.classList.toggle('active', nowOn);
+      const set = _decoTokens(el);
+      const nowOn = !set.has(token);
+      _stripDecoResidue(el, token, tagSel);
+      if (nowOn) set.add(token); else set.delete(token);
+      _decoWrite(el, set);
+      btn.classList.toggle('active', nowOn);
+      onToggle?.(nowOn);
       window.pushHistory?.();
     });
+  };
+
+  /* ★밑줄 칸 셋 (2026-10-08 현빈 「언더라인 기능도 ★두께 조절」) — 꺼져 있으면 «없다»(형광펜·점과 같은 규약). */
+  const UL_OPT_ROWS = ['txt-ul-color-row', 'txt-ul-row'];
+  const _ulSyncOpts = (on) => {
+    for (const k of UL_OPT_ROWS) {
+      const e = document.getElementById(k);
+      if (e) e.style.display = on ? 'flex' : 'none';
+    }
+  };
+  wireDecoBtn({ btnId: 'txt-strike-btn',    cmd: 'strikeThrough', token: 'line-through', tagSel: 'strike, s' });
+  wireDecoBtn({ btnId: 'txt-underline-btn', cmd: 'underline',     token: 'underline',    tagSel: 'u',
+    onToggle: (on) => { _ulSyncOpts(on); if (on) _pushStyle('ul'); } });
+
+  /* ★밑줄 손잡이 — ★정본은 ★.text-block 의 인라인 --tb-ul-* ★하나씩(형광펜·점과 ★같은 규약).
+     ★★«빈 값»의 뜻 = ★auto 로 ★되돌린다 ⇒ ★인라인을 ★지운다. ⛔0 으로 ★메우지 마라 — 0 은 «정했다»가 되어
+       ★CSS 의 auto 를 끄고, ★두께 0 은 ★선을 ★없애 「켰는데 안 보인다」가 된다.
+     ⚠️CSS 는 장식선 두께·색을 ★선별로 못 준다 ⇒ ★취소선이 같이 켜져 있으면 ★그것도 같이 바뀐다(칸 title 에 적었다). */
+  const _ulVarsOf = (el) => (el ? el.closest('.text-block') : null) || tb;
+  const UL_FIELDS = [
+    { name: '--tb-ul-thick',  id: 'txt-ul-thick',  label: '밑줄 두께' },
+    { name: '--tb-ul-offset', id: 'txt-ul-offset', label: '밑줄 위치' },
+  ];
+  for (const f of UL_FIELDS) {
+    const el = document.getElementById(f.id);
+    if (!el) continue;
+    const lo = parseFloat(el.min), hi = parseFloat(el.max);
+    const sync = (commit) => {
+      const host = _ulVarsOf(ctx.contentEl);
+      if (!host) return;
+      const raw = String(el.value ?? '').trim();
+      if (raw === '') {
+        host.style.removeProperty(f.name);     // ★빈 값 = 자동으로 되돌린다
+      } else {
+        let n = parseFloat(raw);
+        if (!Number.isFinite(n)) { host.style.removeProperty(f.name); el.value = ''; }
+        else {
+          if (Number.isFinite(hi)) n = Math.min(hi, n);
+          if (Number.isFinite(lo)) n = Math.max(lo, n);
+          host.style.setProperty(f.name, n + 'px');
+          el.value = String(n);
+        }
+      }
+      if (commit) { _pushStyle('ul'); window.pushHistory?.(f.label); window.scheduleAutoSave?.(); }
+    };
+    el.addEventListener('input',  () => sync(false));
+    el.addEventListener('change', () => sync(true));
+  }
+  wireColorField('txt-ul-color', {
+    initialAlpha: 100,
+    onApply: (c) => { const h = _ulVarsOf(ctx.contentEl); if (h) h.style.setProperty('--tb-ul-color', c); },
+    onCommit: () => { _pushStyle('ul'); window.pushHistory?.('밑줄 색'); window.scheduleAutoSave?.(); },
+  });
+
+  /* ── ★★「최근 효과」 줄 — ★누르면 ★이 글에 ★그대로 입힌다 ────────────────────────────────
+   * (2026-10-08 현빈 「★저장한 스타일도 ★복사할수 있게 … ★최근 스타일을 선택할 수 있게」
+   *  ＋ 지디 notes ★T14 「★그 형광펜 스타일로 ★다른 텍스트에 … ★매번 설정을 ★복붙하기가 ★귀찮아」
+   *    ★T15 「★마찬가지 ★최근 효과 뜨게」 ⇒ ★T14 와 ★★같은 기계여야 한다)
+   *
+   * ★★«다른 텍스트에»가 ★어떻게 되나 — ★패널은 ★언제나 ★고른 블럭의 것이다.
+   *   블럭 B 를 고르면 ★wireTextEditSection 이 ★B 로 ★다시 돈다 ⇒ ★여기 tb·ctx 가 ★B 다
+   *   ⇒ ★칩을 누르면 ★B 에 입힌다. ⛔블럭을 가로지르는 기계가 ★따로 필요 ★없다.
+   *   ★그 축은 tests/dom/text-style-recent.dom.spec.js ★C3 가 ★잰다(A 에서 쓰고 B 에 입힌다).
+   *
+   * ★★«켜고 → 입힌다»의 ★순서가 ★여기 ★한 곳에만 있다.
+   *   ⛔text-style-kinds.js 로 ★옮기지 마라 — ★켜기는 ★DOM 쪼개기(span 두르기)라
+   *     ★이 클로저가 ★가진 자다(_hlWrapWhole·_dotWrapWhole·_decoWrite). ★그 머리말에 같은 말을 적었다.
+   * ★끝에 ★패널을 ★다시 그린다 — 칸 값(바 높이·Y·점 넷·밑줄 둘)이 ★입힌 값과 ★어긋나지 않게.
+   *   ⛔칸을 ★하나씩 ★손으로 ★맞추지 않는다(그 목록이 ★둘째 명부가 된다).
+   */
+  const _applyRecentStyle = (k, v) => {
+    const el = ctx.contentEl;
+    if (!el) return;
+    if (k === 'grad') {
+      if (!v || typeof v.css !== 'string') return;
+      if (!applyTextGradient(el, { css: v.css }, { commit: true })) return;
+    } else if (k === 'hl') {
+      if (!_hlIsOn(el)) { _hlStripAll(el); _hlWrapWhole(el); _hlSyncOpts(true); }
+      applyTextStyleVars(k, _hlVarsOf(el), v);
+      window.pushHistory?.('최근 형광펜');
+    } else if (k === 'dot') {
+      if (!isDotOn(el)) { _dotStripAll(el); _dotWrapWhole(el); _dotPrune(el); _dotSyncOpts(true); }
+      applyTextStyleVars(k, _dotVarsOf(el), v);
+      window.pushHistory?.('최근 점');
+    } else if (k === 'ul') {
+      const set = _decoTokens(el);
+      if (!set.has('underline')) { _stripDecoResidue(el, 'underline', 'u'); set.add('underline'); _decoWrite(el, set); _ulSyncOpts(true); }
+      applyTextStyleVars(k, _ulVarsOf(el), v);
+      window.pushHistory?.('최근 밑줄');
+    } else return;
+    window.scheduleAutoSave?.();
+    /* ★칸 값을 ★입힌 값으로 ★다시 세운다 — 패널을 ★통째로 다시 그린다(앱의 ★제 길). */
+    try { window.showTextProperties?.(tb); } catch (_) {}
+  };
+  wireAllTextStyleChips({ p: 'txt', onPick: _applyRecentStyle });
+
+  /* ── ★점 찍기(방점) — 글자 ★위에 점, ★글자마다 하나 ─────────────────────────────────
+   * (2026-10-08 수지 ⑥: 「텍스트 위 ★점 찍기(세 글자 선택→점 3개·간격·xy·크기·색상 변경)」 · ⚠️출처 2차)
+   * ★기전을 «고르기 전에» 쟀다 — 표준 `text-emphasis` 는 ★개수·색만 주고 ★크기(연속)·★xy·★간격을
+   *   ★못 준다(css/editor-layout.css 의 그 절 머리말에 실측값을 적었다). ⇒ ★글자마다 span ＋ ::before.
+   * ★★「간격」의 ★뜻 = ★점끼리 ★좌우 간격(--tb-dot-gap)으로 읽었다. ★★미확정 — 출처가 ★2차고
+   *   발주서는 「간격」이라고만 했다. ★xy 가 이미 오프셋이라 「점↔글자 거리」는 ★y 가 덮는다는 것이 까닭이다.
+   *   ★지디가 수지께 확인을 올렸다(2026-10-08) — ★답이 오면 이 손잡이의 뜻이 바뀐다.
+   * ★규약은 형광펜과 ★같다 — 네 값의 정본은 ★.text-block 의 인라인 --tb-dot-* ★하나씩이고,
+   *   ★--tb-dot-i 「만」 span 마다다(「양쪽으로 퍼뜨리기」가 그 글자의 자리를 알아야 한다).
+   * ⛔wireInlineStyleBtn·wireDecoBtn 으로 되돌리지 마라 — 이것은 «스타일 한 줄»이 아니라 ★DOM 쪼개기다.
+   */
+  /* ★★쪼개기·자리번호·껍데기 걷기는 ★모듈 바닥 ★한 벌이다(normalizeDotSpans 와 ★같은 자를 쓴다).
+     ⛔여기에 ★사본을 다시 두지 마라 — 공백 규약·자리번호가 ★조용히 갈린다(명부가 둘이 된다). */
+  /* 걷기 — 쪼갠 글자를 ★다시 하나로 합친다(normalize). 안 합치면 다음에 켤 때 토막이 쌓인다. */
+  const _dotStripAll = (el) => {
+    if (!el) return;
+    _dotSpans(el).forEach(_unwrap);
+    el.normalize?.();
+  };
+  /* 범위를 ★글자마다 span 으로 쪼갠다.
+     ⛔이미 점이 있는 자리를 다시 두르면 ★겹친다 ⇒ 꺼낸 조각 안의 옛 점을 ★먼저 걷는다(D9). */
+  const _dotWrapRange = (range) => {
+    const frag = range.extractContents();
+    frag.querySelectorAll('span.' + DOT_CLASS).forEach(_unwrap);
+    frag.normalize?.();
+    const texts = [];
+    const w = document.createTreeWalker(frag, NodeFilter.SHOW_TEXT);
+    let n; while ((n = w.nextNode())) texts.push(n);
+    const made = [];
+    for (const t of texts) _dotSplitTextNode(t, made);
+    _dotReindex(made);
+    range.insertNode(frag);
+    return made;
+  };
+  /* 블럭 «전체»를 범위로. ⛔글자가 없으면 아무것도 안 한다(빈 span 은 「눌렀는데 아무 일 없음」이 된다). */
+  const _dotWrapWhole = (el) => {
+    if (!el || !el.firstChild || !(el.textContent || '').trim()) return [];
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    return _dotWrapRange(r);
+  };
+  /* (빈 껍데기 걷기 _dotPrune = ★모듈 바닥 한 벌 — 그 머리말에 D13 실측값이 있다.) */
+  const _dotVarsOf = (el) => (el ? el.closest('.text-block') : null) || tb;
+  const DOT_OPT_ROWS = ['txt-dot-color-row', 'txt-dot-size-row', 'txt-dot-gap-row', 'txt-dot-xy-row'];
+  const _dotSyncOpts = (on) => {
+    for (const k of DOT_OPT_ROWS) {
+      const e = document.getElementById(k);
+      if (e) e.style.display = on ? 'flex' : 'none';
+    }
+  };
+  const dotBtn = document.getElementById('txt-dot-btn');
+  if (dotBtn) {
+    dotBtn.addEventListener('click', () => {
+      const el = ctx.contentEl;
+      if (!el) return;
+      const saved = getSavedTextSelection(el)?.range || null;
+      if (saved) {
+        /* 부분 선택 — 그 글자만. ⛔블럭 전체 상태를 건드리지 않는다(선택 밖 점이 살아 있어야 한다). */
+        _dotWrapRange(saved);
+        _dotPrune(el);                         // ★꺼내기가 남긴 빈 껍데기 = 유령 점(바로 위 머리말)
+        clearTextSelection?.(el);
+        dotBtn.classList.add('active');
+        _dotSyncOpts(true);
+      } else {
+        const nowOn = !isDotOn(el);
+        _dotStripAll(el);                      // 켜든 끄든 «먼저 걷는다» — 켤 때 겹 span, 끌 때 잔재를 같이 없앤다
+        if (nowOn) { _dotWrapWhole(el); _dotPrune(el); }
+        dotBtn.classList.toggle('active', nowOn);
+        _dotSyncOpts(nowOn);
+      }
+      if (isDotOn(ctx.contentEl)) _pushStyle('dot');
+      window.pushHistory?.();
+      window.scheduleAutoSave?.();
+    });
+  }
+
+  /* ★네 값 — 정본은 ★.text-block 의 인라인 --tb-dot-* ★하나씩(형광펜 색·높이와 ★같은 규약).
+     ★안 고른 블럭은 인라인이 «없다» ⇒ CSS 기본값이 산다(색 기본 currentColor = ★글자색을 따라온다).
+     ★슬라이더와 숫자칸은 ★같은 값을 쓴다 — 명부가 둘이면 조용히 갈린다. */
+  const _dotApplyVar = (name, v) => {
+    const host = _dotVarsOf(ctx.contentEl);
+    if (host) host.style.setProperty(name, v);
+  };
+  wireColorField('txt-dot-color', {
+    initialAlpha: 100,
+    onApply: (c) => _dotApplyVar('--tb-dot-color', c),
+    onCommit: () => { _pushStyle('dot'); window.pushHistory?.('점 색'); window.scheduleAutoSave?.(); },
+  });
+  /* ★칸 표 — ★한 자리. ⛔배선마다 min/max 를 되적지 않는다(마크업과 두 벌이 되어 갈린다 —
+     이 레포가 챗 블럭에서 이미 앓은 병이다. 여기선 ★칸의 min/max 속성을 ★읽어서 쓴다). */
+  const DOT_FIELDS = [
+    { name: '--tb-dot-size', num: 'txt-dot-size-num', range: 'txt-dot-size', label: '점 크기' },
+    { name: '--tb-dot-gap',  num: 'txt-dot-gap-num',  range: 'txt-dot-gap',  label: '점 간격' },
+    { name: '--tb-dot-x',    num: 'txt-dot-x',        range: null,           label: '점 X' },
+    { name: '--tb-dot-y',    num: 'txt-dot-y',        range: null,           label: '점 Y' },
+  ];
+  for (const f of DOT_FIELDS) {
+    const numEl = document.getElementById(f.num);
+    if (!numEl) continue;
+    const rangeEl = f.range ? document.getElementById(f.range) : null;
+    const lo = parseInt(numEl.min, 10), hi = parseInt(numEl.max, 10);
+    const clamp = (v) => {
+      const n = parseInt(v, 10);
+      const base = Number.isFinite(n) ? n : 0;
+      return Math.min(Number.isFinite(hi) ? hi : base, Math.max(Number.isFinite(lo) ? lo : base, base));
+    };
+    const sync = (v, commit) => {
+      const n = clamp(v);
+      _dotApplyVar(f.name, n + 'px');
+      numEl.value = String(n);
+      if (rangeEl) rangeEl.value = String(n);
+      if (commit) { _pushStyle('dot'); window.pushHistory?.(f.label); window.scheduleAutoSave?.(); }
+    };
+    numEl.addEventListener('input',  () => sync(numEl.value, false));
+    numEl.addEventListener('change', () => sync(numEl.value, true));
+    if (rangeEl) {
+      rangeEl.addEventListener('input',  () => sync(rangeEl.value, false));
+      rangeEl.addEventListener('change', () => sync(rangeEl.value, true));
+    }
   }
 
   /* ── 컬러 변수 칩 (L3 동적 바인딩) ──

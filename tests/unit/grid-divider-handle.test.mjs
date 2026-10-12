@@ -63,16 +63,24 @@ before(async () => {
   assert.notEqual(src, b1, '★drag-utils/drag-drop import 2줄을 못 찾았다 — 아래 단언이 전부 «다른 이유»로 초록이 된다');
   const tag = `${process.pid}-dv`;
   const gcrAlias = path.join(os.tmpdir(), `gcr-dv-${tag}.mjs`);
+  /* ★공용 sanitizer(수지⑦ 2026-10-08) — ★그리드가 ★세 번째 소비자가 되며 ★새 import 가 생겼다.
+     ★위 gcr 별칭과 ★같은 스코프에 둔다 — ⛔안쪽 함수에 선언하면 ★바깥 `unlinkSync` 에서
+       ★`ReferenceError` 가 난다(★2026-10-08 에 ★내가 ★그렇게 ★5파일을 깼다). */
+  const srtAlias = path.join(os.tmpdir(), `srt-dv-${tag}.mjs`);
   const b2 = src;
   src = src.replace("from '../grid-cell-resize.js'", 'from ' + JSON.stringify(pathToFileURL(gcrAlias).href));
   assert.notEqual(src, b2, '★grid-cell-resize.js import 를 못 찾았다');
+  const beforeSrt = src;
+  src = src.replace("from '../util/sanitize-rich-text.js'", 'from ' + JSON.stringify(pathToFileURL(srtAlias).href));
+  assert.notEqual(src, beforeSrt, '★sanitize-rich-text.js import 를 못 찾았다 — 부분 서식 공용 모듈이 끊겼나?');
+  fs.copyFileSync(path.join(ROOT, 'js', 'util', 'sanitize-rich-text.js'), srtAlias);
   fs.copyFileSync(path.join(ROOT, 'js', 'grid-cell-resize.js'), gcrAlias);
   const alias = path.join(os.tmpdir(), `grid-dv-${tag}.mjs`);
   fs.writeFileSync(alias, src);
   globalThis.document = makeFakeDom();
   globalThis.window = {};
   G = await import(pathToFileURL(alias).href);
-  fs.unlinkSync(alias); fs.unlinkSync(gcrAlias);
+  fs.unlinkSync(alias); fs.unlinkSync(gcrAlias); fs.unlinkSync(srtAlias);
 });
 
 /** 구분선 줄 하나를 «진짜 렌더러»로 그려 그 여는 태그를 돌려준다. */

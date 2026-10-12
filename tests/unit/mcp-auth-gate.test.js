@@ -8,6 +8,7 @@
  */
 'use strict';
 const { test, before, after } = require('node:test');
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 const assert = require('node:assert');
 const { startHarness } = require('./_mcp-harness');
 
@@ -105,7 +106,7 @@ test('A7 ★list_memories 가 «뿌리 밖»을 못 읽는다 (계정을 넘어 
      ⚠️같은 파일의 export_sections 는 outDir 을 검사한다 — 「이 파일이 원래 검증을 안 한다」가
        아니라 «여기만» 없었다. */
   const fs = require('fs'); const os = require('os'); const path = require('path');
-  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-other-acct-'));
+  const outside = mkTmpRoot('gdt-other-acct-');
   fs.writeFileSync(path.join(outside, 'NOTES.md'), '# 철수 대외비 메모\n남의 계정 내용이다');
 
   const txt = said(await H.call('list_memories', { projectFolder: outside }));
@@ -119,5 +120,4 @@ test('A7 ★list_memories 가 «뿌리 밖»을 못 읽는다 (계정을 넘어 
   // 반대방향 — 뿌리 «안»은 통과해야 한다(막기만 하면 도구가 죽는다)
   const inside = said(await H.call('list_memories', {}));
   assert.ok(!/FOLDER_OUT_OF_ROOT/.test(inside), '★인자를 안 주면 현재 뿌리를 쓰고 통과해야 한다');
-  fs.rmSync(outside, { recursive: true, force: true });
 });

@@ -187,4 +187,70 @@ test.describe('미확정 영상 알림 — 뜰 때 뜨고, 안 뜰 때 안 뜬�
     expect(r.afterApplied, '미확정이 아닌데 알렸다').toBe(1);
     expect(r.afterSecond, '같은 블럭의 «다른» 영상에 영영 침묵한다 — 래치를 블럭 id 로 걸었다').toBe(2);
   });
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     P9 ★★«같은» 영상 — ★P8 의 ★빈칸이다 (T-032 거짓음성, 2026-09-22 검수 · 2026-10-07 지음)
+     ★왜 ★P8 이 ★있는데도 ★이 구멍이 ★15일 살았나:
+       ★P8 은 ★★«다른» 영상이다. 그리고 그 ①단계에서 `delete ab.dataset.assetType` 로
+       ★미확정을 ★없애므로 ★identity 가 ★비고 ⇒ `warnPendingVideoLossIf` 가 ★스스로 래치를 푼다
+       (`pending-video-warn.js:73` 「없다 ⇒ 안 알리고 래치도 푼다」).
+       ⇒ ★★★P8 은 `resetPendingVideoWarnLatch` 를 ★★거치지 않고도 ★초록이었다.
+       ⇒ ★★그 초록이 「래치 풀기는 검사됐다」로 읽혔다 — ★★«한 축의 초록이 ★다른 축의 0건을 가린다».
+     ★★이 검사가 재는 것 = ★★«신원이 ★그대로»인 채로 ★★명시적 해제만으로 ★다시 알리나.
+       ⇒ ⛔dataset 을 ★지우지 않는다. 지우면 ★위의 ★다른 길이 ★래치를 풀어
+         ★★«무엇이 풀었나»가 ★안 갈린다(★P8 이 그 꼴이다).
+     ★★★사슬이 ★둘로 나뉘어 있다 — ★어느 한 짝이 죽으면 ★버그가 ★되살아난다:
+       ⑴ `tests/unit/video-pending-warn.test.mjs` S-12/S-13 = ★`clearAssetImage` 가
+          `resetPendingVideoWarnLatch` 를 ★«부르나»(★소스로 잰다)
+       ⑵ ★★이 P9 = ★그 함수가 ★«실제로 래치를 ★푸나»(★동작으로 잰다)
+       ⛔둘 중 하나만으로는 ★막히지 않는다. ★한쪽을 지울 땐 ★다른 쪽도 보라.
+     ⚠️★이 하네스로 ★«못» 재는 것: `clearAssetImage` 자체(`js/image-handling.js:792`)는
+       ★plain 전역이라(`:1517` `window.clearAssetImage =`) ★이 ESM 하네스에 ★못 싣는다
+       ⇒ ★그 배선은 ⑴ 이 맡는다. ★저장본에 `data:video` 가 남나(=★진짜 손실)도 ★여기서 못 잰다
+       — ★`bootApp` 판이 필요하다(★별건으로 올렸다).
+     ═══════════════════════════════════════════════════════════════════════════ */
+  test('P9 ★★«같은» 영상도 ★해제가 있으면 ★한 번 더 알린다 — ⛔해제가 없으면 ★침묵(그게 그 버그)', async ({ page }) => {
+    const r = await page.evaluate(() => {
+      const canvas = document.getElementById('canvas');
+      /* ★★두 길의 ★신원을 ★«다르게» 둔다 — ⒜ 가 남긴 래치가 ⒝ 의 ★첫 경고를 막지 않게.
+         ⚠️2026-10-07: 처음엔 둘을 ★같은 신원으로 두고 ⒝ 시작에 ★해제를 불러 바닥을 쓸었다.
+           ★그 해제가 ★바로 ★양성대조로 ★무력화하는 그 함수라, 변이판에서 ★`b1`(★전제)이 ★0 이 되어
+           ★★«주 단언 b2 를 ★재기 전에» 터졌다 ⇒ ★양성대조가 ★무엇을 잠그는지 ★증명 못 했다.
+         ⇒ ★★«바닥을 ★피검 대상으로 쓰지 마라» — ★두 길을 ★신원으로 ★독립시킨다. */
+      const SAME_A = 'data:video/mp4;base64,SAMEVIDEO-A';
+      const SAME_B = 'data:video/mp4;base64,SAMEVIDEO-B-DIFFERENT-IDENTITY';
+
+      /* ⒜ ★해제를 ★«안» 부르는 길 — ★★버그 ★재현. 신원이 같으니 ★침묵해야 한다 */
+      window.__mk('video', SAME_A);
+      window.__toasts.length = 0;
+      window.__api.warnPendingVideoLossIf(canvas);
+      const a1 = window.__toasts.length;
+      window.__api.warnPendingVideoLossIf(canvas);   /* ⛔해제 없이 다시 — 같은 신원 */
+      const a2 = window.__toasts.length;
+
+      /* ⒝ ★해제를 ★부르는 길 — ★clearAssetImage 가 하는 ★그 호출 ★하나뿐.
+         ⛔dataset 은 ★그대로 둔다(★지우면 identity 가 비어 ★다른 길로 풀린다)
+         ⛔바닥을 ★해제로 쓸지 않는다 — ★신원이 ⒜ 와 다르니 ★첫 경고는 ★그냥 뜬다 */
+      window.__mk('video', SAME_B);
+      window.__toasts.length = 0;
+      window.__api.warnPendingVideoLossIf(canvas);
+      const b1 = window.__toasts.length;
+      window.__api.resetPendingVideoWarnLatch();     /* ★✕로 비우는 자리가 하는 일 */
+      window.__api.warnPendingVideoLossIf(canvas);   /* ★같은 신원 그대로 */
+      const b2 = window.__toasts.length;
+
+      return { a1, a2, b1, b2 };
+    });
+    /* ★전제 — 두 길의 ★첫 경고가 ★같아야 한다(★바닥이 같다는 증인) */
+    expect(r.a1, '★첫 경고가 안 떴다 — 이 검사의 바닥이 무너졌다').toBe(1);
+    expect(r.b1, '★두 길의 첫 경고가 다르다 — 바닥이 같지 않으면 아래 대비가 무의미하다').toBe(1);
+    /* ⒜ ★해제 없으면 ★침묵 — ★★그 버그의 꼴이다(⛔「0회」를 ★안전으로 읽지 마라) */
+    expect(r.a2, '★해제 없이도 다시 알렸다 — 그러면 「한 번만」 래치가 죽은 것이다(P6 를 봐라)').toBe(1);
+    /* ⒝ ★★해제가 있으면 ★한 번 더 — ★고침이 ★사는 자리 */
+    expect(r.b2,
+      '★★«같은» 영상인데 해제 뒤에도 침묵한다 — ✕로 비우고 같은 파일을 다시 넣으면 경고 0회인 채로 '
+      + '저장돼 ★영상이 실제로 사라진다(조용한 데이터 소실). resetPendingVideoWarnLatch 가 죽었다').toBe(2);
+    /* ★★항등식이 아님 — ★두 길이 ★다른 답을 낸다. ⛔같으면 이 검사는 ★아무것도 안 잠근다 */
+    expect(r.b2, '★해제 있는 길과 없는 길이 ★같은 답을 낸다 — 이 검사는 ★안 재고 있다').not.toBe(r.a2);
+  });
 });

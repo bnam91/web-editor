@@ -81,9 +81,23 @@ async function loadGrid(src = RAW) {
 
   const tag = `${process.pid}-${++_seq}`;
   const gcrAlias = path.join(os.tmpdir(), `gcr-gap-${tag}.mjs`);
+  /* ★공용 sanitizer(수지⑦ 2026-10-08) — ★그리드가 ★세 번째 소비자가 되며 ★새 import 가 생겼다.
+     ★위 gcr 별칭과 ★같은 스코프에 둔다 — ⛔안쪽 함수에 선언하면 ★바깥 `unlinkSync` 에서
+       ★`ReferenceError` 가 난다(★2026-10-08 에 ★내가 ★그렇게 ★5파일을 깼다). */
+  const srtAlias = path.join(os.tmpdir(), `srt-gap-${tag}.mjs`);
   const b2 = src;
   src = src.replace("from '../grid-cell-resize.js'", 'from ' + JSON.stringify(pathToFileURL(gcrAlias).href));
   assert.notEqual(src, b2, '★grid-cell-resize.js import 를 못 찾았다 — 행높이 상한 SSOT 가 끊겼나?');
+  /* ⚠️★이 하네스는 ★`baseSrc()` 로 ★옛 판(BASE_REV)의 소스도 ★같은 로더에 넣는다.
+     ★그 판엔 ★이 import 가 ★없다(수지⑦ 에서 생겼다) ⇒ ★그 판은 ★«범위 밖»이다.
+     ⛔범위 밖을 ★FAIL 로 만들면 ★G2/G3(기준판 대조)가 ★영영 안 돈다 ⇒ ★있을 때만 ★꽂고,
+       ★있을 때는 ★반드시 ★꽂혔는지 ★단언한다(★«없으면 건너뛴다»가 ★«아무 때나 넘어간다»가 되지 않게). */
+  if (src.includes("from '../util/sanitize-rich-text.js'")) {
+    const beforeSrt = src;
+    src = src.replace("from '../util/sanitize-rich-text.js'", 'from ' + JSON.stringify(pathToFileURL(srtAlias).href));
+    assert.notEqual(src, beforeSrt, '★sanitize-rich-text.js import 가 있는데 별칭이 안 꽂혔다');
+    fs.copyFileSync(path.join(ROOT, 'js', 'util', 'sanitize-rich-text.js'), srtAlias);
+  }
 
   fs.copyFileSync(path.join(ROOT, 'js', 'grid-cell-resize.js'), gcrAlias);
   const alias = path.join(os.tmpdir(), `grid-gap-${tag}.mjs`);
@@ -92,6 +106,8 @@ async function loadGrid(src = RAW) {
   globalThis.window = {};
   const mod = await import(pathToFileURL(alias).href);
   fs.unlinkSync(alias); fs.unlinkSync(gcrAlias);
+  // ★옛 판(BASE_REV) 경로에선 srtAlias 를 ★안 만든다 ⇒ ★있을 때만 치운다(⛔ENOENT 로 로더가 죽지 않게)
+  fs.rmSync(srtAlias, { force: true });
   return mod;
 }
 

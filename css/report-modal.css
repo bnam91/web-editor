@@ -22,7 +22,7 @@
 
 .report-label {
   display: block;
-  font-size: var(--ui-fs-11, 11px);
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-sub);
   margin: 0 0 7px;
 }
@@ -112,7 +112,7 @@
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-sm, 6px);
   padding: 6px 9px;
-  font-size: var(--ui-fs-11, 11px);
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-sub);
   max-width: 100%;
 }
@@ -134,7 +134,7 @@
   cursor: pointer;
 }
 .report-check input { margin: 3px 0 0; accent-color: var(--ui-accent-primary, #2d6fe8); flex-shrink: 0; }
-.report-check small { display: block; color: var(--ui-text-dim); font-size: var(--ui-fs-11, 11px); margin-top: 2px; }
+.report-check small { display: block; color: var(--ui-text-dim); font-size: var(--ui-fs-base); margin-top: 2px; }
 
 /* 캡처 미리보기 — 켤 때만 (PLAN §8 「켜면 미리보기」) */
 .report-shot {
@@ -151,7 +151,7 @@
   max-width: 100%; max-height: 130px; border-radius: 3px; display: block; margin: 0 auto 6px;
 }
 .report-shot em {
-  font-style: normal; font-size: var(--ui-fs-11, 11px); color: var(--ui-text-dim);
+  font-style: normal; font-size: var(--ui-fs-base); color: var(--ui-text-dim);
 }
 
 /* ── 접힌 고지 — 펼치지 «않지만» 감추지도 않는다 (PLAN §8) ── */
@@ -163,7 +163,7 @@
   padding: 11px 0 0;
   text-align: left;
   font-family: inherit;
-  font-size: var(--ui-fs-11, 11px);
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-dim);
   cursor: pointer;
 }
@@ -178,7 +178,7 @@
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-sm, 6px);
   padding: 9px 11px;
-  font-size: var(--ui-fs-11, 11px);
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-sub);
   line-height: 1.65;
 }
@@ -187,7 +187,7 @@
 .report-disc-body dt { color: var(--ui-text-dim); }
 .report-disc-body dd { margin: 0; word-break: break-all; }
 .report-disc-body h6 {
-  margin: 8px 0 4px; font-size: var(--ui-fs-11, 11px); font-weight: var(--ui-fw-semibold, 600);
+  margin: 8px 0 4px; font-size: var(--ui-fs-base); font-weight: var(--ui-fw-semibold, 600);
   color: var(--ui-text-dim);
 }
 .report-errs {
@@ -206,7 +206,7 @@
 
 .report-queue-note {
   margin-right: auto;
-  font-size: var(--ui-fs-11, 11px);
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-dim);
 }
 

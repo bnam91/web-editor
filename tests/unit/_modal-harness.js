@@ -25,6 +25,12 @@ const { readSrc } = require('./_srcread.js');
 
 const ROOT = path.join(__dirname, '../..');
 const MODAL_REL = 'js/blocks/modal-block.js';
+/* ★2026-10-08 — modal-block.js 가 ★공용 sanitizer 를 import 하게 됐다(수지② 부분 서식).
+   ★그 의존을 ★vm 에 ★같이 올린다 — ⛔안 올리면 이름이 ★undefined 가 되고, 그 길을 타는 검사가
+     ★«다른 이유»로 빨개진다(tests/unit/typo-section-ssot.test.mjs buildSection 이 utils·helpers 를
+      같이 올리는 ★그 까닭과 같다 · 2026-10-06 실측된 함정).
+   ★이름 충돌은 ★없음을 확인했다(공용 모듈 최상위 13개 ∩ modal-block.js 최상위 = ★0). */
+const SANITIZE_REL = 'js/util/sanitize-rich-text.js';
 
 /** modal-block.js 의 «원본 소스»(LF 정규화). 소스 문자열을 재는 검사가 같은 것을 보게. */
 function modalSrc() {
@@ -45,11 +51,19 @@ function modalSrc() {
  *   ⚠️인자를 «그대로» ctx.window 로 쓴다(복사 X) — 호출자가 같은 객체를 계속 들여다볼 수 있게.
  *   ⚠️인자 없이 부르면 종전과 «완전히» 같다(기존 세 검사 무영향). */
 function loadModalModule(opts) {
-  const body = modalSrc()
+  /* ★ESM 문법 세 가지를 벗긴다 — ⑴ import 줄 ⑵ 끝의 export 문 ⑶ ★`export const/function` 의 접두사.
+     ⑶ 은 2026-10-08 에 더했다: `export const MODAL_SLOT_KEYS` 가 생기면서 ⑵ 로는 안 벗겨져
+        ★「export 문을 다 못 벗겼다」로 ★5파일이 빨개졌다(실측). ⛔본문은 한 글자도 안 건드린다. */
+  const strip = (src) => src
     .replace(/^import[^\n]*\n/gm, '')
-    .replace(/export\s*\{[\s\S]*?\};/, '');
-  assert.ok(!/^\s*import\s/m.test(body), 'import 줄을 다 못 벗겼다 — 하네스를 고쳐라');
-  assert.ok(!/^\s*export\s/m.test(body), 'export 문을 다 못 벗겼다 — 하네스를 고쳐라');
+    .replace(/export\s*\{[\s\S]*?\};/, '')
+    .replace(/^export\s+/gm, '');
+  const dep = strip(readSrc(ROOT, SANITIZE_REL));
+  const body = strip(modalSrc());
+  for (const [what, src] of [['공용 sanitizer', dep], ['modal-block.js', body]]) {
+    assert.ok(!/^\s*import\s/m.test(src), `${what}: import 줄을 다 못 벗겼다 — 하네스를 고쳐라`);
+    assert.ok(!/^\s*export\s/m.test(src), `${what}: export 문을 다 못 벗겼다 — 하네스를 고쳐라`);
+  }
 
   let seq = 0;
   const mkEl = () => ({
@@ -68,9 +82,11 @@ function loadModalModule(opts) {
   };
   vm.createContext(ctx);
   vm.runInContext(
-    body + '\n;globalThis.__M = { MODAL_VARIANT_IDENTITY, MODAL_IDENTITY_KEYS, MODAL_DEFAULTS,'
+    dep + '\n;' + body
+         + '\n;globalThis.__M = { MODAL_VARIANT_IDENTITY, MODAL_IDENTITY_KEYS, MODAL_DEFAULTS,'
          + ' MODAL_VARIANTS, _effDefault, applyModalVariant, makeModalBlock, renderModalBlock,'
-         + ' applyPickedIconToModal, iconBlockNewColor, syncModalIconFirstLineOffset };',
+         + ' applyPickedIconToModal, iconBlockNewColor, syncModalIconFirstLineOffset,'
+         + ' MODAL_SLOT_KEYS, commitModalSlot };',
     ctx, { filename: MODAL_REL });
   return ctx.__M;
 }

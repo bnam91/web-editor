@@ -29,6 +29,7 @@
  * ⛔앱을 «안» 띄운다. 실행: npm run test:dom -- grid-line-move-cmdarrow
  */
 const { test, expect } = require('@playwright/test');
+const { assertAnchorsAlive } = require('./_mutation-anchor.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -107,6 +108,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 /** ★양성대조용: 서빙하는 «소스»를 갈아친다. ⛔닻을 못 찾으면 «조용히 원본»을 주지 않는다. */
 async function boot(page, mutate) {
   const muts = !mutate ? [] : (Array.isArray(mutate) ? mutate : [mutate]);
+  assertAnchorsAlive(REPO, mutate);   /* ★심기 «전» · Node 쪽 — ⛔페이지로 던지면 30초 조용한 죽음이 된다 */
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/__harness.html') return route.fulfill({ contentType: 'text/html', body: HARNESS });
@@ -289,10 +291,16 @@ test('M3-양성 ★바깥 줄 분기의 consumed 를 떼면 칸의 끝에서 «�
   await mount(page);
   await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 0 }));
 
-  /* ★★0927 — 닻이 옮겨졌다. 옛 닻은 「바깥 줄인가」 판정문이었고 그것은 이제 게이트 안에 있다.
-     ★이 양성대조의 «뜻»은 그대로다 — 「옮기기는 하되 ★소비를 안 하면 칸의 끝에서 행이 움직인다」.
-       그 뜻을 가장 좁게 때리는 자리가 손잡이의 마지막 `return true;` 다. */
-  const ANCHOR = 'window.grdMoveLine?.(got.block, { r: got.addr.r, c: got.addr.c }, got.addr.li, dir);\n  return true;';
+  /* ★★닻이 ★두 번 옮겨졌다 — ★몇 번 바뀌었나를 적어 둔다(다음 사람이 「또 옮겼나」를 바로 안다).
+   *   ①0927 옛 닻은 「바깥 줄인가」 판정문이었고 그것이 게이트 안으로 갔다.
+   *   ②★2026-10-06 ⑵-B② — 버블·챗도 ⌘↑/↓ 로 줄을 옮기게 되면서 그 자리가 ★그리드 갈래 «안»으로 들어갔다
+   *     (`if (got.block.classList.contains('grid-block')) { … return true; }`). ⇒ 들여쓰기까지 바뀌었다.
+   * ★이 양성대조의 «뜻»은 ★두 번 다 그대로다 — 「옮기기는 하되 ★소비를 안 하면 칸의 끝에서 행이 움직인다」.
+   *   그 뜻을 가장 좁게 때리는 자리가 ★그리드 갈래의 `return true;` 다.
+   * ⛔닻을 ★지어내지 말고 ★따라가라 — 못 찾으면 아래 단언이 「안 재고 있다」로 ★빨개진다(실측: 그렇게 잡혔다). */
+  const ANCHOR = "  if (got.block.classList.contains('grid-block')) {\n"
+    + '    window.grdMoveLine?.(got.block, { r: got.addr.r, c: got.addr.c }, got.addr.li, dir);\n'
+    + '    return true;\n  }';
   expect(MOVE_SRC.includes(ANCHOR), '★변이 닻을 못 찾았다 — 이 양성대조는 «안 재고» 있다').toBe(true);
   const mutated = MOVE_SRC.replace(ANCHOR, ANCHOR.replace('return true;', 'return false;'));
   await pressCmdArrow(page, 'ArrowUp', { moveSrc: mutated });

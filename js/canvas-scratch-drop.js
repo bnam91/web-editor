@@ -23,7 +23,7 @@
 // 활성 가이드 상태 (드래그 1회 사이클 동안 유지)
 let _activeReplaceAb = null;     // .sp2c-replace-target 부착된 asset-block
 let _activeSectionTarget = null; // .sp2c-section-target 부착된 section-block
-let _activeSectionLocked = false; // 그 섹션이 «배경 위치 편집 중»이라 배경 교체를 막고 있는가
+let _activeSectionLocked = false; // 그 섹션이 «배경이미지 편집 중»이라 배경 교체를 막고 있는가 (2026-10-10 이름 변경)
 let _activeIndicator = null;     // .sp2c-insert-indicator DOM 노드
 let _activeNewSection = null;    // newsection 배지 호스트(#canvas-scaler)
 
@@ -179,7 +179,7 @@ function _classifyDrop(clientX, clientY) {
   if (inPart) {
     return { kind: 'insert', sec, inner: inPart, after: null };
   }
-  /* ★섹션 배경 «위치 편집»이 켜져 있으면 «바꾸지 않는다».
+  /* ★섹션 «배경이미지 편집»(★2026-10-10 이름 변경 · 옛 「위치 편집」)이 켜져 있으면 «바꾸지 않는다».
      편집 모드가 섹션을 프록시로 덮고 있어 rowLike 판정이 전부 빠지고 여기로만 떨어진다 —
      그대로 두면 「편집하려고 켜 놨는데 배경이 바뀌었다」가 되고, 편집 세션은 «옛 이미지 기준»
      기하를 새 배경에 커밋해 어긋남이 조용히 남는다.
@@ -248,7 +248,7 @@ function _renderGuide(decision) {
     if (_activeSectionTarget === decision.sec && _activeSectionLocked === !!decision.locked) return;
     _clearGuides();
     decision.sec.classList.add('sp2c-section-target');
-    _addBadge(decision.sec, decision.locked ? '배경 위치 편집 중 — Esc 로 마친 뒤 놓으세요' : '섹션 배경으로', true);
+    _addBadge(decision.sec, decision.locked ? '배경이미지 편집 중 — Esc 로 마친 뒤 놓으세요' : '섹션 배경으로', true);
     _activeSectionTarget = decision.sec;
     _activeSectionLocked = !!decision.locked;
     return;
@@ -514,7 +514,7 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
     window.buildLayerPanel?.();
   } else if (decision.kind === 'sectionbg') {
     if (decision.locked || decision.sec?._secBgEditing) {
-      window.showToast?.('배경 위치 편집 중에는 배경을 바꿀 수 없습니다 — Esc 로 마친 뒤 놓으세요');
+      window.showToast?.('배경이미지 편집 중에는 배경을 바꿀 수 없습니다 — Esc 로 마친 뒤 놓으세요');
       return false;
     }
     // 섹션 빈 영역/가장자리 드롭 → 섹션 배경 이미지로 설정 (#5b)

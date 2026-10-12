@@ -28,6 +28,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
@@ -56,7 +58,7 @@ INDICATOR = el();
 
 /** ★프로세스당 «한 번만» 싣는다(ESM 모듈 캐시). 시험마다 상태만 씻는다. */
 const H = await (async function boot() {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gd-w3b-'));
+  const tmp = mkTmpRoot('gd-w3b-');
   fs.cpSync(path.join(ROOT, 'js'), path.join(tmp, 'js'), { recursive: true });
   fs.writeFileSync(path.join(tmp, 'package.json'), '{"type":"module"}');
 
@@ -102,7 +104,6 @@ const H = await (async function boot() {
   /* ★globals.js 는 «같은 인스턴스»다 — save-load.js 가 쓰는 state 를 검사가 그대로 만진다. */
   const G = await import(pathToFileURL(path.join(tmp, 'js/globals.js')).href);
   await import(pathToFileURL(path.join(tmp, 'js/io/save-load.js')).href);
-  fs.rmSync(tmp, { recursive: true, force: true });
 
   return {
     w: globalThis.window, events, calls, state: G.state,

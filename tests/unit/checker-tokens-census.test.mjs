@@ -20,7 +20,7 @@ const { makeStripper } = _req('./_strip-comments.js');
 const ROOT = process.env.GD1001_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TOKEN_HOME = path.join('css', 'editor-base.css');
 const SWATCH_EXEMPT = new Set([path.join('js', 'props', 'prop-simple-card.js'), path.join('js', 'props', 'prop-gradient.js')]);
-const FAMILIES = ['big-a', 'big-b', 'big-size', 'small-a', 'small-b', 'small-size', 'clear-a', 'clear-b', 'svg-a', 'svg-b'];
+const FAMILIES = ['big-a', 'big-b', 'big-size', 'small-a', 'small-b', 'small-size', 'clear-a', 'clear-b', 'svg-a', 'svg-b', 'secbg-a', 'secbg-b'];
 
 const walk = (dir, exts, out = []) => {
   if (!fs.existsSync(dir)) return out;
@@ -88,12 +88,21 @@ test('C2 센서스 — 체커 무늬 안에 raw hex·transparent 가 «0건» (�
   assert.equal(r.hits.length, 0, `raw 체커 값 ${r.hits.length}곳:\n` + r.hits.map(h => `  ${h.rel} [${h.kind}] ${h.text}`).join('\n'));
 });
 
-/* ★C3 넓힘(S1 체커 어둡게, 2026-10-04) — 토글의 값은 «같은 정본 파일»의 «이름 붙은 톤 선택자 하나» 안에서만 다시 정의된다.
- *   허용: `:root{…}` 에 정확히 1번(기본값) + `:root[data-goya-checker-tone="dark"]{…}` 에 0~1번(색 다섯만).
- *   ⛔그 밖의 선택자(섹션·블록 등)에서 토큰을 재정의하면 빨강 — 섹션 단위 덮기는 «안 하기로» 했다(지디 2026-10-04: 전역).
- *   ⛔톤 규칙이 크기·svg·clear-b 를 덮으면 빨강 — 톤은 «색만» 바꾼다(svg 는 big 을 var 로 따라가고, clear-b 는 «비침»이다). */
-export const TONE_SEL = ':root[data-goya-checker-tone="dark"]';
-export const TONE_FAMILIES = ['big-a', 'big-b', 'small-a', 'small-b', 'clear-a'];
+/* ★C3 (S1 체커 어둡게) — 토글의 값은 «같은 정본 파일»의 «이름 붙은 톤 선택자 하나» 안에서만 다시 정의된다.
+ *   허용: `:root{…}` 에 정확히 1번(기본값) + 톤 선택자에 0~1번.
+ *   ⛔그 밖의 선택자(섹션·블록 등)가 토큰을 재정의하면 빨강.
+ *
+ * ★2026-10-06 — 범위가 «전역»에서 «섹션마다»로 바뀌었다(현빈 「일괄이 아니라 섹션마다」 · R1 확정:
+ *   섹션 ★배경 체커만 · 「빈 카드는 그대로」). 그래서 두 가지가 같이 바뀌었다:
+ *     ⑴ 톤 선택자  :root[data-goya-checker-tone] → .section-block[data-checker-tone="dark"]
+ *     ⑵ 톤이 덮는 토큰  «색 다섯» → ★전용 쌍(secbg-a/b) ★둘뿐
+ *   ★⑵ 가 이 검사의 ★가장 날카로운 이빨이다 — 톤 규칙이 공용 색 토큰(big·small·clear 쌍)을 덮으면 빨강.
+ *     까닭: 톤 선택자는 이제 «섹션»이고 CSS 변수는 ★자식에게 상속된다 ⇒ 공용 토큰을 덮는 순간
+ *     그 섹션 «안»의 빈 카드·에셋·표칸까지 같이 어두워진다. 그건 R1 이 아니다.
+ *     (DOM 쪽 짝 = tests/dom/checker-section-tone.dom.spec.js S3.)
+ *   ⛔옛 전역 선택자(:root[data-goya-checker-tone])로 되돌리면 C4b 가 빨강이다. */
+export const TONE_SEL = '.section-block[data-checker-tone="dark"]';
+export const TONE_FAMILIES = ['secbg-a', 'secbg-b'];
 /** 정본 CSS 를 규칙 단위로 잘라 «선택자 → 그 안의 체커 토큰 정의 목록». 주석은 먼저 걷는다. */
 export function tokenDefsBySelector(cssText) {
   const out = [];
@@ -125,7 +134,7 @@ export function checkTokenDefs(cssText) {
   return errs;
 }
 
-test('C3 정의 — 기본 1번(:root) + 톤 규칙 안 «색 다섯»만 다시 정의, 그 밖의 선택자·다른 CSS 엔 정의가 없다', () => {
+test('C3 정의 — 기본 1번(:root) + 톤 규칙 안 «전용 쌍»만 다시 정의, 그 밖의 선택자·다른 CSS 엔 정의가 없다', () => {
   const errs = checkTokenDefs(fs.readFileSync(path.join(ROOT, TOKEN_HOME), 'utf8'));
   assert.deepEqual(errs, []);
   for (const f of walk(path.join(ROOT, 'css'), ['.css'])) {
@@ -139,22 +148,38 @@ test('C3+ 양성대조(합성) — 넓힌 C3 이 «못 보는» 게 아니라 «
   const tone = tokenDefsBySelector(real).filter(b => b.sel === TONE_SEL);
   assert.equal(tone.length, 1, `톤 규칙 ${tone.length}개 — 토글이 칠할 값이 없다`);
   assert.deepEqual(tone[0].defs.map(d => d.name).sort(), [...TONE_FAMILIES].sort(), '톤 규칙은 «색 다섯»을 전부 덮는다');
-  // ⑴ 섹션 선택자 재정의 — 잡는다
+  // ⑴ 톤 선택자가 «아닌» 섹션 규칙이 토큰을 재정의 — 잡는다
   assert.ok(checkTokenDefs(real + '\n.section-block{--goya-checker-big-a:#000000}').some(e => /section-block/.test(e)));
   // ⑵ 톤 규칙이 크기를 덮음 — 잡는다
   assert.ok(checkTokenDefs(real + `\n${TONE_SEL}{--goya-checker-big-size:10px}`).some(e => /big-size/.test(e)));
+  /* ⑵-b ★R1 경계 — 톤 규칙이 «공용» 색 토큰을 덮으면 잡는다.
+     상속 때문에 같은 섹션 안의 빈 카드까지 어두워지는, 이 설계에서 가장 쉬운 사고다. */
+  for (const n of ['big-a', 'small-a', 'clear-a']) {
+    assert.ok(checkTokenDefs(real + `\n${TONE_SEL}{--goya-checker-${n}:#000000}`).some(e => new RegExp(n).test(e)),
+      `톤 규칙이 공용 --goya-checker-${n} 을 덮는 것을 ★못 잡는다(R1 이 깨진다)`);
+  }
   // ⑶ 기본 정의가 둘 — 잡는다
   assert.ok(checkTokenDefs(real + '\n:root{--goya-checker-small-a:#000000}').some(e => /small-a 기본 정의 2/.test(e)));
   // ⑷ 주석 속 정의는 정의가 아니다 — 안 잡는다
   assert.deepEqual(checkTokenDefs(real + '\n/* .x{--goya-checker-big-a:#000} */'), []);
 });
 
-test('C4b 톤 속성 이름 — CSS 선택자와 JS 가 거는 속성이 «같은 글자»다(오타면 단추가 조용히 아무것도 안 한다)', () => {
-  const js = fs.readFileSync(path.join(ROOT, 'js', 'checker-tokens.js'), 'utf8');
-  const m = js.match(/CHECKER_TONE_ATTR\s*=\s*'([^']+)'/);
-  assert.ok(m, 'js/checker-tokens.js 에 CHECKER_TONE_ATTR 이 없다');
-  assert.equal(`:root[${m[1]}="dark"]`, TONE_SEL);
+/* ★C4b — CSS 선택자와 «JS 가 거는 속성»이 같은 글자인가. 오타면 단추가 조용히 아무것도 안 한다.
+ *   2026-10-06: 거는 자리가 js/checker-tokens.js 의 상수에서 ★js/props/prop-section.js 의
+ *   `sec.dataset.checkerTone = 'dark'` 로 옮겼다(전역 토글을 걷어내면서). ⇒ 거기를 읽는다.
+ *   ★dataset 의 camelCase 는 HTML 속성에서 kebab 이 된다 — 그 변환까지 재야 «같은 글자»를 잰 것이다. */
+test('C4b 톤 속성 이름 — CSS 선택자와 JS 가 거는 dataset 이 «같은 글자»다(오타면 단추가 조용히 아무것도 안 한다)', () => {
+  const js = fs.readFileSync(path.join(ROOT, 'js', 'props', 'prop-section.js'), 'utf8');
+  const m = js.match(/sec\.dataset\.([A-Za-z0-9]+)\s*=\s*'dark'/);
+  assert.ok(m, "js/props/prop-section.js 에 sec.dataset.<이름> = 'dark' 가 없다 — 켜는 문이 사라졌다");
+  const attr = 'data-' + m[1].replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+  assert.equal(`.section-block[${attr}="dark"]`, TONE_SEL);
   assert.ok(stripCss(fs.readFileSync(path.join(ROOT, TOKEN_HOME), 'utf8')).includes(TONE_SEL), '정본 CSS 에 톤 선택자가 없다');
+  // ⛔전역 토글이 되살아나면 빨강 — 명부를 둘로 두지 않는다(2026-10-06 지디).
+  for (const rel of ['js/checker-tokens.js', 'js/props/prop-page.js']) {
+    const src = stripJs(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+    assert.ok(!/gdt\.checkerDark|data-goya-checker-tone/.test(src), `${rel} 에 전역 보기설정이 되살아났다`);
+  }
 });
 
 test('C4 사용 — CSS·JS 가 읽는 --goya-checker-* 는 전부 정의돼 있다(오타 변수 방지)', () => {

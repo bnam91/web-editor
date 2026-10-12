@@ -4,6 +4,24 @@
    - 좌측 탭(API 토큰 / 단축키) + 우측 콘텐츠 + 하단 저장 버튼
    ══════════════════════════════════════ */
 (function () {
+
+  /* ★[MVP 제외] 개발자·협업 탭은 «보이되 안 눌린다»(현빈 2026-08-28).
+   *   Figma 때와 같은 방식 — 감추면 「있었다」는 것조차 사라진다. 다음 런칭에 돌아온다.
+   *   ⛔탭 «내용»(renderDevPane 등)은 그대로 둔다. 여기서 막는 건 «들어가는 문»이다. */
+  /* ⚰️위 문장은 현빈 2026-08-28 결정 그대로 남긴다. ★협업은 2026-10-06 현빈 승인으로 다시 열림 — 'collab' 만 뺐다('dev' 는 그대로). */
+  const MVP_DISABLED_TABS = ['dev'];
+
+  /* ★S7(2026-10-06 발주 TWO ⒜, 지디): 「그 탭이 열려 있나」를 묻는 술어 «하나».
+   *   ⛔위 현빈 08-28 «값·주석»은 그대로 옮기기만 했다 — 여기는 «읽는 길»만 낸다.
+   *   까닭: 초대 배지(js/collab/invites-badge.js)는 COLLAB_ENABLED 만 보고 뜨는데, 초대를 받을
+   *     창구(협업 탭)는 이 MVP 문 안에 있다 — 두 스위치가 «따로» 살면 「배지는 떴는데 누르면
+   *     아무 일 없음」이 된다. 배지가 이 술어를 같이 보면 문을 여는 날 배지도 같이 산다.
+   *   ⚠️고전 스크립트라 index.html 에서 invites-badge.js «뒤»(:1022)에 실린다. 배지는 boot 를
+   *     DOMContentLoaded 로 미루므로 그때는 이미 정의돼 있다 — 회귀: tests/dom/collab-notify.dom.spec.js
+   *     (DOMContentLoaded 순간에 typeof 를 잰다). 목록 화면(pages/projects.html)은 이 파일도 배지도
+   *     안 싣는다 — 거기엔 이 술어가 필요 없다. */
+  window.isSettingsTabEnabled = (tab) => !MVP_DISABLED_TABS.includes(tab);
+
   const PROVIDERS = [
     { key: 'openai',    label: 'OpenAI (GPT)',     placeholder: 'sk-...' },
     { key: 'gemini',    label: 'Google Gemini',    placeholder: 'AIza...' },
@@ -110,10 +128,7 @@
     modal.querySelector('#settings-save-btn').addEventListener('click', onSave);
     modal.querySelector('#settings-reset-btn').addEventListener('click', onResetShortcuts);
 
-    /* ★[MVP 제외] 개발자·협업 탭은 «보이되 안 눌린다»(현빈 2026-08-28).
-     *   Figma 때와 같은 방식 — 감추면 「있었다」는 것조차 사라진다. 다음 런칭에 돌아온다.
-     *   ⛔탭 «내용»(renderDevPane 등)은 그대로 둔다. 여기서 막는 건 «들어가는 문»이다. */
-    const MVP_DISABLED_TABS = ['dev', 'collab'];
+    /* (MVP_DISABLED_TABS 정의는 이 IIFE 머리로 «그대로» 옮겼다 — isSettingsTabEnabled 가 같은 값을 읽게. 2026-10-06 발주 TWO ⒜ S7) */
     modal.querySelectorAll('.settings-tab').forEach(btn => {
       if (MVP_DISABLED_TABS.includes(btn.dataset.tab)) {
         btn.disabled = true;
@@ -799,22 +814,8 @@
     if (!api) { setStatus('공동작업은 데스크탑 앱에서만 사용할 수 있습니다', 'err'); return; }
 
     // 서버 reason → 사람이 다음에 뭘 할지 아는 문장. 코드값을 그대로 보여주면 아무것도 못 한다.
-    const reasonText = (r) => ({
-      not_signed_in: '로그인이 필요합니다.',
-      invalid_session: '로그인이 만료됐습니다. 다시 로그인해 주세요.',
-      offline: '서버에 닿지 못했습니다.',
-      not_deployed: '서버에 공동작업 기능이 아직 배포되지 않았습니다.',
-      not_a_member: '접근 권한이 없습니다(이미 끊겼을 수 있습니다).',
-      already_member: '이미 참여 중인 사람입니다.',
-      self_invite: '자기 자신은 초대할 수 없습니다.',
-      not_linked: '이 프로젝트는 아직 원격으로 올리지 않았습니다.',
-      // U6 — 서버가 아니라 «이 컴퓨터»에서 실패한 것들. 원인이 다르니 문장도 다르다.
-      unavailable: '이 화면에서는 로컬 프로젝트를 만들 수 없습니다(데스크탑 앱에서 열어 주세요).',
-      no_project_factory: '앱 초기화가 끝나지 않았습니다. 잠시 후 다시 시도해 주세요.',
-      id_collision: '프로젝트 번호가 겹쳤습니다. 잠시 후 다시 시도해 주세요.',
-      save_failed: '로컬 프로젝트 파일을 만들지 못했습니다(디스크 권한·용량 확인).',
-      ref_not_saved: '연결 정보를 저장하지 못했습니다(디스크 권한·용량 확인).',
-    }[r] || r || '알 수 없는 오류');
+    // ★표는 js/collab/reasons.js 한 벌이다(2026-10-06 발주 TWO ⒜). 모르는 값은 원문 그대로 보인다.
+    const reasonText = (r, d) => window.CollabReasons.text(r, d);   // d = 응답 자료(개수·id·status) — 문장 없는 갈래에 «값»으로 붙는다
 
     /* ★label·help 를 «항상 글자»로 넣는다 (2026-09-21, T-049 전수에서 나온 자리).
        ⛔날것으로 꽂으면 안 된다 — 이 틀에 들어오는 이름은 «내가 지은 것»이 아니다:
@@ -823,7 +824,7 @@
        ★이 파일엔 _escapeHtml(:340) 이 이미 있고 :325 등에서는 제대로 쓰고 있었다 —
          도구가 없어서가 아니라 «이 틀만» 안 쓰고 있었다.
        ⚠️help 는 «속성 안»(value="…")이라 따옴표까지 막아야 한다 — _escapeHtml 이 " 를 덮는다.
-       회귀: tests/dom/settings-row-injection.dom.spec.js */
+       회귀: tests/unit/settings-row-escape.test.mjs (⚰️2026-10-06: 처음 적은 tests/dom/settings-row-injection.dom.spec.js 는 «없는» 파일이었다) */
     const row = (label, help, buttons) => `
       <div class="settings-api-row">
         <div class="settings-api-label">${_escapeHtml(label)}</div>
@@ -873,7 +874,10 @@
         : '<div class="settings-help">받은 초대가 없습니다.</div>';
       prj.innerHTML = projects.length
         ? projects.map(p => row(p.name || p.collabId, p.role === 'owner' ? '내가 올린 공동작업본' : '초대받아 참여 중',
-            `<button class="settings-api-test" data-leave="${p.collabId}">연결 끊기</button>`)).join('')
+            /* ★SIX ②: 주인이면 «해산»(서버 action:'disband') · 참여자면 «연결 끊기» — 묻는 말도 다르다 */
+            (p.role === 'owner'
+              ? `<button class="settings-api-test" data-leave="${p.collabId}" data-role="owner">${_escapeHtml(window.CollabReasons.text('disband_button'))}</button>`
+              : `<button class="settings-api-test" data-leave="${p.collabId}" data-role="member">연결 끊기</button>`))).join('')
         : '<div class="settings-help">참여 중인 공동작업이 없습니다.</div>';
 
       pane.querySelectorAll('[data-accept],[data-decline],[data-leave]').forEach(btn => {
@@ -881,10 +885,19 @@
           const lock = () => { btn.disabled = true; btn.textContent = '…'; };
           if (btn.dataset.leave) {
             // ⚠️되돌릴 수 없다 — 다시 들어오려면 상대가 «다시 초대»해야 한다. 그래서 묻는다.
-            if (!confirm('이 공동작업 연결을 끊을까요?\n\n로컬 프로젝트는 그대로 남습니다.\n다시 참여하려면 상대가 다시 초대해야 합니다.')) return;
+            const isOwner = btn.dataset.role === 'owner';
+            const ask = isOwner
+              ? window.CollabReasons.text('disband_confirm')
+              : '이 공동작업 연결을 끊을까요?\n\n로컬 프로젝트는 그대로 남습니다.\n다시 참여하려면 상대가 다시 초대해야 합니다.';
+            if (!confirm(ask)) return;
             lock();
-            const rr = await api.leave({ collabId: btn.dataset.leave });
-            setStatus(rr && rr.ok ? '✓ 연결을 끊었습니다' : '✗ ' + reasonText(rr && rr.reason), rr && rr.ok ? 'ok' : 'err');
+            /* 로컬 프로젝트를 찾아 같이 넘긴다 — 그래야 이 설치의 연결(collabRef)도 지운다(못 찾아도 서버 쪽 나가기는 된다) */
+            let pid = null;
+            try { pid = window.collabAccept ? await window.collabAccept.findLinkedProject(btn.dataset.leave) : null; }
+            catch (e) { console.error('[collab] 연결된 로컬 프로젝트 찾기 실패 — 서버 쪽만 처리한다:', e); }
+            const rr = await api.leave({ projectId: pid, collabId: btn.dataset.leave, ...(isOwner ? { action: 'disband' } : {}) });
+            setStatus(rr && rr.ok ? (isOwner ? '✓ ' + window.CollabReasons.text('disbanded_done') : '✓ 연결을 끊었습니다') : '✗ ' + reasonText(rr && rr.reason, rr),
+              rr && rr.ok ? 'ok' : 'err');
           } else {
             const accept = !!btn.dataset.accept;
             lock();
@@ -906,7 +919,7 @@
                 showOpenCta(lk.projectId, lk.name || rr.name || '', lk.reused);
               } else {
                 // 서버 수락은 «됐다». 로컬 연결만 실패한 것이라 그 구분을 분명히 말한다.
-                setStatus('✓ 참여했지만 로컬 프로젝트 연결에 실패했습니다 — ' + reasonText(lk && lk.reason), 'err');
+                setStatus('✓ 참여했지만 로컬 프로젝트 연결에 실패했습니다 — ' + reasonText(lk && lk.reason, lk), 'err');
               }
             }
           }

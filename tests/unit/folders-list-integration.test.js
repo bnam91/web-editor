@@ -17,6 +17,7 @@ const os = require('os');
 const path = require('path');
 const { readSrc } = require('./_srcread.js');
 const { sliceBlock } = require('./_slice-block.js');
+const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const REPO = path.join(__dirname, '..', '..');
 const MAIN_SRC = readSrc(REPO, 'main.js');
@@ -52,7 +53,7 @@ function seed(dir, id, name, extra = {}) {
   }));
 }
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-list-folderid-')); }
+function tmp() { return mkTmpRoot('gdt-list-folderid-'); }
 
 test('L1 ★풀파싱 폴백(첫 조회, 메타 캐시 없음) 경로가 folderId 를 싣는다', () => {
   const dir = tmp();

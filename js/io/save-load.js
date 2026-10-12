@@ -1,14 +1,16 @@
 import { canvasEl, state, PAGE_LABELS } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기만 쓴다(직접 대입 재유입 방지) */
+import { syncFrameBgVars, frameBgSize } from '../frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
 import { buildProjForSave } from './proj-merge.js';   /* ★저장 병합은 «한 벌»(T-232 ⓑ) */
+import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★svg 의 CSS transform 을 감싸는 쪽으로 — h2c 는 svg 쪽을 안 그린다 */
 import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제는 «켠 쪽»이 닫는다
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 import { applyFrameTransform } from '../frame-geometry.js';
 import { checkerBg } from '../checker-tokens.js';
-import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, withGuideOff } from './capture-safety.js';
+import { applyCanvasBackground, syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) · T6 섹션 안 글자 밝기 */
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, withGuideOff, neutralizeBoxReflectForH2C, restRuntimeForArtifact } from './capture-safety.js';
 import { prepareGoyaAssetsForClone } from './goya-asset-inline.js';   /* 썸네일 클론에서 goya-asset 을 data: 로 (T-149) */
 import { ejectShapeFrameIntruders } from '../shape-frame.js';
 import { warnPendingVideoLossIf } from './pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원 */
@@ -53,6 +55,29 @@ function sanitizeCanvasHtml(html) {
 }
 if (typeof window !== 'undefined') window.sanitizeCanvasHtml = sanitizeCanvasHtml;
 
+/* ★C③(2026-10-09) «열 때»도 런타임 UI 상태를 벗긴다. 세 가지가 이 한 자리로 모인다.
+   ⑴ ★이미 샌 저장물은 ★열어도 안 나았다. serializeCleanRoot 는 «클론»에만 도는 계약이라
+     라이브 DOM 은 그 세션 내내 마커를 쥔다 ⇒ 저장 쪽(section-serialize.js 목록)만 고치면
+     ★«새로 저장한 파일»만 낫고 현빈의 기존 프로젝트는 그대로다(= 「신규만 적용」 빚).
+     실측된 결과: `multi-selected` 가 남으면 상자선택의 섹션 길(js/scratch-pad.js — 「이미
+     multi-selected 면 건너뛴다」)이 그 섹션을 ★그 세션 내내 건너뛴다. 자동저장이 돌아도
+     세척은 «클론»으로만 가므로 라이브는 안 고쳐진다.
+   ⑵ ★이 세 자리가 ★갈려 있었다 — switchPage 쪽은 `img-editing`·`sec-bg-editing` 을 «손으로»
+     벗겼고 나머지 둘은 ★안 벗겼다. 손 명부가 셋으로 갈린 꼴이다(어느 문으로 열었나에 따라
+     남는 마커가 달랐다).
+   ⑶ ⇒ 목록을 ★베끼지 않는다. js/io/section-serialize.js 의 ★단일 진실원
+     (window.runtimeMarkers)에서 ★파생한다 — 거기 목록이 늘면 여기도 자동으로 늘어난다.
+     ⛔여기에 클래스 이름을 ★손으로 적지 마라. 그러면 넷째 명부가 된다.
+   ⛔sanitizeCanvasHtml 에 ★합치지 마라 — 그건 «비신뢰 입력»의 보안 세척(script·on*·javascript:)
+     이고 이건 «우리 UI 상태» 세척이다. 까닭이 다르면 자리도 다르다(한쪽을 끄고 싶은 날이 온다).
+   ★로드 계약은 위 serializeCleanRoot 호출과 ★같다 — section-serialize.js 는 플레인 스크립트라
+     모듈(이 파일)보다 «먼저» 돈다. 그래서 폴백을 ★안 둔다(없으면 저장 경로가 이미 죽어 있다). */
+function stripLoadedRuntimeState(root) {
+  if (!root) return;
+  root.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+  root.querySelectorAll('[class]').forEach(window.runtimeMarkers.stripRuntimeMarkers);
+}
+
 /** 현재 activeProjectId 기준 localStorage 키 반환 */
 function getSaveKey() {
   return activeProjectId ? `${SAVE_KEY_PREFIX}__${activeProjectId}` : SAVE_KEY_PREFIX;
@@ -94,6 +119,15 @@ async function captureThumbnail() {
        「내용을 입력하세요」 안내문구, 자식 블록의 .selected/.img-editing/.row-active 테두리.
        (2026-09-21 최종통합 QA medium, 실측 EXPORT-D: 주석 200px·편집전용프록시 100px 이 찍힘) */
     stripEditorOnlyForCapture(clone);
+    /* ★★움직이는 파티클을 ★«쉬는 꼴»로 — ★★썸네일은 ★사람이 ★「지금 이 모습」을 ★고른 것이 ★아니다.
+       ★저절로 찍혀 ★`_meta.json` 에 박히고 ★프로젝트 목록 카드에 ★뜬다
+       ⇒ ★★안 되돌리면 ★★«내가 ★안 건드렸는데 ★카드 그림이 ★바뀐다»가 ★사용자 체감이 된다.
+       ★실측(2026-10-09 · 실앱 9406 · 제품의 saveProjectToFile 길):
+         ★멈춘 판 ×3 ⇒ 썸네일 ★a84564fc/3547 ★셋 다 ★같다(★바닥 0)
+         ★도는 판 ×3 ⇒ ★d23afaea/3723 · ★49546356/3695 · ★89b515b8/4023 ★전부 ★다르다
+       ★★`stripEditorOnlyForCapture` ★바로 뒤다 — ★뒤의 `neutralizeBoxReflectForH2C` 가
+         ★거울상을 ★또 뜨므로 ★먼저 되돌려야 ★거울도 ★쉬는 값을 ★베낀다. */
+    restRuntimeForArtifact(clone);
     clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;';
     document.body.appendChild(clone);
     neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
@@ -128,13 +162,31 @@ async function captureThumbnail() {
     } catch (e) { console.warn('[thumb] goya-asset 클론 준비 실패:', e); }
 
     const bgColor = firstSec.style.background || firstSec.style.backgroundColor || '#ffffff';
+    /* ★반사(-webkit-box-reflect)를 ★클론에서 «그릴 수 있는 꼴»로 바꾼다 (C 버그 ② · 2026-10-08).
+       html2canvas 1.4.1 은 그 속성을 ★모른다(vendor 전수 0건) ⇒ 지금까지 카드 그림에서 반사가 ★통째로 빠졌다.
+       ★PNG 와 ★다른 자리다 — PNG 는 주 경로가 CDP 네이티브라 브라우저가 반사를 그려 준다(그래서
+         tests/dom/effects-reflection R4 가 h2c 쪽을 「의도됨」으로 고정했다. ★그 「의도됨」은 ★대체 경로 이야기다).
+         ★썸네일엔 ★대체가 ★없다 ⇒ 여기서는 ★고친다.
+       ★자리 — ★모든 레이아웃 손질이 ★끝난 «뒤»여야 한다(거울 자리를 offsetTop/offsetHeight 로 읽는다).
+       ⛔capture 공용 길(export-image)의 ★기본값으로 옮기지 마라 — PNG 는 그대로 둔다(라이브 캔버스 인자와 ★같은 규약).
+       ⛔실패해도 찍기를 멈추지 않는다 — 반사 하나 때문에 그림을 ★아예 잃는 쪽이 더 나쁘다. */
+    try { neutralizeBoxReflectForH2C(clone, bgColor); } catch (e) { console.warn('[thumb] 반사 대체 실패:', e); }
+    /* ★svg 에 닿는 CSS transform 을 «감싸는 span»으로 올린다 — html2canvas 는 svg 쪽 것을 ★안 그린다
+       (월계수 오른 잎 거울이 ★썸네일에서 사라지던 자리 · 현빈 2026-10-09). ★까닭·실측은 h2c-prep.js 머리말.
+       ⛔클론이 ★document 에 ★붙은 «뒤»라야 한다 — detached 면 computed transform 이 ★빈 문자열이다. */
+    try { liftSvgTransformsForH2C(clone); } catch (e) { console.warn('[thumb] svg transform 올리기 실패:', e); }
     /* ★L1(2026-10-04) — 편집 보조(그리드 가이드·패딩 비주얼)는 «캡처 동안» 끈다 — PNG(exportSection)와 «같은 함수» withGuideOff(capture-safety.js).
        지금까지 썸네일에 안 샌 것은 html2canvas 가 반복 그라데이션을 못 그려서일 뿐이었다(tests/dom/l1-guide-align L1-X). */
     /* ⚠️바로 아래 html2canvas 호출의 글자 꼴(await · 첫 인자 clone)을 지킨다 — tests/dom/thumb-goya-asset H4 가 그 글자를 «찍는 자리» 닻으로 쓴다(goya 풀기가 그 앞인지 본다).
        ⛔이 주석에 그 닻 글자를 그대로 적지 마라 — H4 는 주석을 안 거르고 «첫» 자리를 닻으로 잡는다(닻이 주석에 걸리면 진짜 호출을 안 잰다).
        ★꼴을 바꾸면 H4 가 «빨개진다»(전제 단언 + H5 음성대조가 있는 단단한 시험) — 다음 사람은 «왜 빨간지»를 모른다. 어색해 보여도 고치지 마라.
        0.9.7: H4 가 재려는 것(「푸는 자리가 찍는 자리보다 앞인가」)을 «실행 시점»에 잰다 — 호출 순서를 기록해 html2canvas «전»에 불렸나를 런타임으로(명부 E75 · 2026-10-04 지디). */
-    const canvas = await withGuideOff(async () => await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false }));
+    /* ★라이브 캔버스(#canvas)는 «안 베낀다»(2026-10-07 지디 ㉠) — html2canvas 는 찍을 클론 하나가 아니라 «문서 전체»를 복제한다.
+       썸네일은 첫 섹션 클론(body 에 붙은 것)만 쓰는데, 복제·레이아웃 비용은 캔버스의 «모든» 섹션 몫이었다
+       (실측 20 섹션 × 입자 320: 썸네일 한 번 12.7~34.5 s · 메인스레드 최장 막힘 11.3~31.3 s · 판 2866df63 ×3 — 섹션 20 × 빈 것은 0.4~0.5 s).
+       ⛔이 술어는 «이 호출부의 인자»다 — capture 공용 길(capture-safety · export-image)의 기본값으로 옮기지 마라(내보내기 PNG 는 그대로). */
+    const _skipLiveCanvas = (el) => el === canvasEl;
+    const canvas = await withGuideOff(async () => await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false, ignoreElements: _skipLiveCanvas }));
     document.body.removeChild(clone);
 
     /* 200px 너비로 축소 — ★«빈 그림»이면 null 이다. 그럴듯한 6자를 돌려주지 않는다 (T-87).
@@ -487,9 +539,7 @@ async function switchPage(pageId) {
     const page = getCurrentPage();
     if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
     canvasEl.innerHTML = sanitizeCanvasHtml(page.canvas || '');
-    canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
-    canvasEl.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
-    canvasEl.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
+    stripLoadedRuntimeState(canvasEl);
     document.querySelectorAll('.sec-bg-ghost-wrap, .sec-bg-ghost').forEach(el => el.remove());
     canvasEl.querySelectorAll(NON_CONTENT_UI_SELECTOR).forEach(el => el.remove());
     // (마이그레이션은 rebindAll 내부에서 처리)
@@ -549,7 +599,7 @@ function deletePage(pageId) {
       state.currentPageId = next.id;
       if (next.pageSettings) Object.assign(state.pageSettings, next.pageSettings);
       canvasEl.innerHTML = sanitizeCanvasHtml(next.canvas || '');
-      canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+      stripLoadedRuntimeState(canvasEl);
       // ★T-031 3차: next 페이지 자신의 sidecar만 쓴다(_pageVideoPendingSidecars Map, 위 switchPage와 같은 이유).
       rebindAll({ videoPendingSidecar: _pageVideoPendingSidecars.get(next.id) });
       applyPageSettings();
@@ -592,12 +642,34 @@ function getSerializedCanvas() {
    ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
    ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
 export const NON_CONTENT_UI_SELECTOR =
-  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy, .grd-add-btn';
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .sec-bg-proxy, .grd-add-btn, .section-height-badge';
+/* ★.mdl-rotate-zone (2026-10-08 지디) — ★모달 블럭의 회전 손잡이. ⛔빠져 있었다.
+   ★증상: modal-frameify U1·U3 가 ★origin/dev 에서 빨강이었다 — 「프레임화 → ⌘Z 한 번 = 앞 직렬화와
+     글자 단위로 같다」가 ★앞 1,245자 vs ★뒤 4,373자로 갈렸고, 갈린 자리가 바로
+     `<div class="mdl-rotate-zone tl" data-corner="tl" style="position: absolute; …`였다.
+   ★전수로 확인했다 — `zoneClass:` ★정의 자리 7개(cvb·icb·icn·★mdl·mkp·tb·vb) 중 ★이 명부에 없는 것이
+     ★★mdl 하나뿐이었다(⛔사용 자리 grep 이 아니라 정의 자리에서 셌다).
+   ★위 ⛔계약대로 section-serialize.js serializeCleanRoot 의 remove 줄에도 ★같이 올렸다 —
+     그쪽에도 0건이었다. ⇒ 두 자리를 한 커밋에.
+   ★그 쌍은 S3(「NON_CONTENT_UI_SELECTOR 의 모든 항목이 저장에서 0건」)가 ★자동으로 잠근다. */
+/* ★.section-height-badge (2026-10-07 (다)) — 위 ⛔계약대로 «serializeProject 가 실제로 지우는지»를
+   먼저 확인하고 넣었다: js/io/section-serialize.js serializeCleanRoot 의 remove 줄에 같이 올렸다.
+   (그 쌍을 tests/dom/section-height-display.dom.spec.js S1 이 잠근다 — 저장본·히스토리에 배지 0건.) */
 
 if (typeof window !== 'undefined') window.NON_CONTENT_UI_SELECTOR = NON_CONTENT_UI_SELECTOR;   // ★E148 — ⌘C 글자 뽑기(editor.js)가 «같은 목록»으로 UI 를 걷는다
 
 /** 이 mutation 이 «UI 장식»만 건드렸나 — 그렇다면 편집이 아니다. */
 function _isNonContentUiMutation(m) {
+  /* ★childList 뿐 아니라 «그 UI 장식 ★안»의 글자·속성 변화도 편집이 아니다.
+     까닭은 위 계약 그대로다 — 저장에서 지워지는 것은 정의상 콘텐츠가 아니고, 지워질 것의
+     글자가 바뀐 것도 콘텐츠 변화일 수 없다.
+     왜 넓혔나(2026-10-07): 섹션 높이 배지(.section-height-badge)는 높이가 바뀔 때마다
+     제 `data-h` 를 고친다(attributes — 글자는 CSS ::after 가 그린다). 안 걸러내면
+     «블록을 하나 옮길 때마다» 1500ms 뒤 serializeProject 가 또 돌아 자동저장이 두 번 울린다.
+     (characterData 쪽도 같은 한 줄이 덮는다 — 장식 «안»이면 무엇이 바뀌든 편집이 아니다.)
+     ⇒ 옛 꼴(childList 전용)도 그대로 참이다 — 이 줄은 그 위에 «안쪽»을 더한 것이다. */
+  const tgt = m.target?.nodeType === 1 ? m.target : m.target?.parentElement;
+  if (tgt?.closest?.(NON_CONTENT_UI_SELECTOR)) return true;
   if (m.type !== 'childList') return false;
   const nodes = [...m.addedNodes, ...m.removedNodes];
   if (!nodes.length) return false;
@@ -697,7 +769,7 @@ function applyProjectData(data) {
     if (!page) return; // S8: 여전히 undefined면 안전하게 종료
     if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
     canvasEl.innerHTML = sanitizeCanvasHtml(page.canvas || '');
-    canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+    stripLoadedRuntimeState(canvasEl);
     rebindAll();
     initLazySections();       // 멱등 — 최초 1회만 IntersectionObserver 생성
     refreshLazyObservation(); // innerHTML 교체 후 새 section-block 관찰 등록
@@ -1080,6 +1152,10 @@ function rebindAll(opts = {}) {
          자리가 여럿이고(클린 클론·배송본), 그러면 새로고침 한 번에 조용히 꺼진다.
        ⇒ 정본은 dataset 이고, 클래스는 «여기서 다시 세운다». 무늬 값은 CSS 한 자리(.sec-bg-empty). */
     sec.classList.toggle('sec-bg-empty', sec.dataset.bgImgEmpty === '1' && !sec.dataset.bgImg);
+    /* ★T6 — 체커 톤이 dark 로 저장돼 있으면 섹션 «안» 글자 밝기를 다시 맞춘다(현빈 2026-10-07).
+       ★여기가 두 호출 자리 중 하나다(다른 하나 = 토글 js/props/prop-section.js).
+       ⛔클래스가 «살아 돌아온다»에 기대지 않는다 — 바로 위 주석이 같은 말을 한다. 다시 세운다. */
+    syncSectionCheckerTextTone(sec);
     // 배경 이미지 복원
     if (sec.dataset.bgImg && !sec.style.backgroundImage) {
       sec.style.backgroundImage = `url(${sec.dataset.bgImg})`;
@@ -1372,7 +1448,7 @@ function rebindAll(opts = {}) {
     window.bindGradientSelect?.(block);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .qa-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .qa-block, .coupon-block, .quote-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -1396,10 +1472,17 @@ function rebindAll(opts = {}) {
         : b.classList.contains('grid-block') ? 'grd'   /* ★'grid' 아니다 — GRID_ID_PREFIXES=['grd_','duo_'] 와 같은 토큰이어야 한다(적대검수 C1) */
         : b.classList.contains('infocard-block') ? 'ifc'
         : b.classList.contains('innercard-block') ? 'icd'
+        : b.classList.contains('coupon-block') ? 'cpn'   /* ★쿠폰 — genId('cpn') 과 ★같은 토큰이어야 한다(js/blocks/coupon-block.js) */
+        : b.classList.contains('quote-block') ? 'qt'     /* ★인용구 — genId('qt') 과 ★같은 토큰이어야 한다(js/blocks/quote-block.js) */
         : b.classList.contains('qa-block') ? 'qa' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
     if (b.classList.contains('laurel-block')) window.renderLaurelBlock?.(b);
+    /* ★쿠폰: 저장본 HTML 은 «그때의 그림»이다 — 배경 SVG·글자 자리·글자 크기가 전부
+       dataset ＋ 폭 비율에서 다시 나온다. ⛔재렌더를 빼면 로드 뒤 «옛 폭으로 그린 그림»이
+       새 dataset 과 어긋난다(laurel/zoom 과 같은 패턴). V4 변이가 이 줄을 잰다. */
+    if (b.classList.contains('coupon-block')) window.renderCouponBlock?.(b);
+    if (b.classList.contains('quote-block')) window.renderQuoteBlock?.(b);
     /* zoom(확대블럭): 저장본은 SVG 스냅샷이라 «그림은 맞지만» a·b 핸들 드래그 위임이 없다
        (_bindZoomHandleDrag 는 renderZoomBlock 안에서 건다) → laurel/chat 과 같은 패턴으로 재렌더. */
     if (b.classList.contains('zoom-block')) window.renderZoomBlock?.(b);
@@ -1446,7 +1529,7 @@ function rebindAll(opts = {}) {
     // 배경 이미지 복원
     if (ss.dataset.bgImg && !ss.style.backgroundImage) {
       ss.style.backgroundImage = `url(${ss.dataset.bgImg})`;
-      ss.style.backgroundSize = 'cover';
+      ss.style.backgroundSize = frameBgSize(ss);   /* ★2026-10-10 ③ — ★:1161(섹션)은 dataset 을 읽는데 ★여기만 상수였다 */
       ss.style.backgroundPosition = ss.dataset.bgPos || 'center';
     } else if (ss.dataset.bgPos && ss.style.backgroundImage) {
       ss.style.backgroundPosition = ss.dataset.bgPos;
@@ -1467,22 +1550,11 @@ function rebindAll(opts = {}) {
       ss.style.setProperty('--frame-bg-opacity', String(o));
       const active = o < 1;
       ss.classList.toggle('has-bg-opacity', active);
-      if (active) {
-        const bgVal = ss.dataset.bg || ss.style.backgroundColor || 'transparent';
-        const isGradient = /gradient\s*\(/i.test(bgVal);
-        if (isGradient) {
-          ss.style.setProperty('--frame-bg', 'transparent');
-          ss.style.setProperty('--frame-bg-img', bgVal);
-        } else {
-          ss.style.setProperty('--frame-bg', bgVal);
-          ss.style.setProperty('--frame-bg-img', ss.dataset.bgImg ? `url("${ss.dataset.bgImg}")` : 'none');
-        }
-        ss.style.setProperty('--frame-bg-pos', ss.dataset.bgPos || 'center');
-        // 본체 배경은 ::before가 대신 그리므로 비워 이중 배경 방지
-        ss.style.backgroundColor = '';
-        ss.style.backgroundImage = '';
-        ss.style.background = '';
-      }
+      /* ★★2026-10-10 (현빈 ③) — ★이 몸통이 ★★세 벌 중 ★셋째였다(prop-frame · block-factory · 여기).
+         ★★셋 다 ★«크기»를 ★안 보냈다 ⇒ ★저장본을 ★다시 열면 ★크기가 ★언제나 ★cover 로 ★돌아갔다.
+         ⇒ ★공용 한 자리에 ★위임한다(파일명은 수입 줄). ★★클래스 토글은 ★이 자리 몫으로 ★남긴다 —
+           ★공용 함수는 ★★«has-bg-opacity 가 ★이미 붙은» 프레임만 ★먹인다(그 전제를 ★스스로 검사한다). */
+      if (active) syncFrameBgVars(ss);
     }
     // 코너 반경 복원
     if (ss.dataset.radius) ss.style.borderRadius = ss.dataset.radius + 'px';
@@ -2039,11 +2111,35 @@ if (IS_ELECTRON) {
 // 변경 감지 — canvas MutationObserver
 // class 속성 변경만 제외 (드래그 UI 상태 토글 spam 방지, DBG-11)
 // data-* 속성 변경(prop 패널 값)은 감지해야 하므로 attributes:true 포함
+/** ★★움직이는 파티클의 `transform` 쓰기인가 — ★그렇다면 ★«편집»이 아니다 (v1.5 ⑴ · 2026-10-09).
+ *
+ *  ★★왜 걸러야 하나 — ★실측(DOM 하네스 · 2026-10-09):
+ *    ★파티클이 ★움직이는 ★1.5초 동안 ★«의미 있는» mutation 이 ★★21,724건 · ★멈추면 ★★0건.
+ *    ⇒ ★안 거르면 ★문서가 ★★«영원히 dirty» 가 되어 ★자동저장이 ★1.5초마다 ★프로젝트를 통째로
+ *      ★다시 쓴다(★updatedAt 오염 ＋ ★디스크 churn). ★위 DEF-03 이 ★막으려던 ★바로 그 병이다.
+ *  ★★왜 ★«편집이 아닌가»가 ★참인가 — ★그 값은 ★★저장되지 않기 때문이다:
+ *    `js/io/section-serialize.js` 의 ★`restParticleMotion` 이 ★세척에서 ★«쉬는 꼴»로 되돌린다.
+ *    ⇒ ★★이 파일 ★NON_CONTENT_UI_SELECTOR 머리말의 ★⛔계약과 ★같은 결이다 —
+ *      ★「저장에서 ★지워지는 것은 ★정의상 ★콘텐츠가 ★아니다」. ★여기선 ★«지운다»가 아니라 ★«되돌린다»다.
+ *    ⇒ ★그 쌍이 ★깨지면(세척이 사라지면) ★tests/dom/fx-particles-anim ★V5 가 ★빨개진다.
+ *  ★★좁게 잡는다 — ★`transform` ★하나 · ★`data-fxp` 를 ★쥔 요소 ★하나.
+ *    ⛔층 통째(`.sec-fxpart-wrap` 안 전부)를 ★거르지 ★않는다. ★그러면 ★«진짜 다시그리기»
+ *      (프리셋·개수를 바꿔 ★층이 ★새로 난 것)까지 ★조용히 ★안 저장된다. */
+function _isParticleMotionMutation(m) {
+  return m.type === 'attributes'
+      && m.attributeName === 'transform'
+      && m.target?.nodeType === 1
+      && typeof m.target.hasAttribute === 'function'
+      && m.target.hasAttribute('data-fxp');
+}
+
 const autoSaveObserver = new MutationObserver(mutations => {
   const meaningful = mutations.some(m => {
     if (m.type === 'attributes' && m.attributeName === 'class') return false;
     // [P-A1″] 저장에서 지워지는 «UI 장식»의 생성/제거는 편집이 아니다 — 같은 목록을 본다.
     if (_isNonContentUiMutation(m)) return false;
+    // ★★파티클 «움직임»은 편집이 아니다 (v1.5 ⑴ · 2026-10-09).
+    if (_isParticleMotionMutation(m)) return false;
     // lazy 렌더 패스(뷰포트 밖 배경 언로드/복원)가 «자기 mutation 만» 무시하게 한다.
     //   예전엔 lazy-sections 가 _suppressAutoSave 를 통째로 켜서, 그 창에 들어온 «진짜 편집»까지
     //   조용히 버려졌다(저장 예약조차 안 됨). lazy 가 만지는 건 style / data-lazy-bg / class 뿐이라
@@ -2200,6 +2296,8 @@ function initApp() {
         // 시맨틱 컬러 변수 복원 (meta.colorVars → localStorage + :root). 비차단.
         window.DesignSystem?.restoreColorVarsFromMeta?.(activeProjectId);
         window.DesignSystem?.restoreColorHistoryFromMeta?.(activeProjectId);   // 최근 쓴 색 — 프로젝트별(meta 에 없으면 빈 목록)
+        window.DesignSystem?.restoreTextStyleHistoryFromMeta?.(activeProjectId); // 최근 «효과» — ★같은 자리·같은 규약(meta 에 없으면 빈 목록)
+        window.DesignSystem?.restoreQuoteShapesFromMeta?.(activeProjectId);     // 인용구 ★사용자 부호 — ★같은 자리·같은 규약(meta 에 없으면 빈 목록)
         if (proj) {
           // GAP-004: proj.json 손상 복구 통지는 loadProjectForOpen 이 «한 곳»에서 한다(★E170 — 탭 열기 길도 같은 글).
           // 마이그레이션: proj.json에 branches/commits가 남아있으면 meta로 이전

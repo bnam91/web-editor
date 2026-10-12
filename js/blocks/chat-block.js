@@ -9,6 +9,8 @@ import { genId, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 /* ★BT2(2026-10-04) — 메시지별 «줄»(그리드 줄 데이터). 없으면 지금 그대로(아래 렌더 갈래는 «있을 때만» 갈린다). */
 import { lnHasLines, lnLinesHtml, lnValidateLines, lnTextMirrorHtml, lnRemark } from './line-host.js';
+import { CHAT_NUM_BOUNDS } from './chat-bounds.js';   // ⛔표를 여기 되적지 마라 — 그 파일 머리말의 까닭
+import { effSectionPadX as _effSectionPadX } from './outer-pad.js';   // ⛔사본을 되만들지 마라 — 그 파일 머리말의 까닭(두 벌이었다)
 
 const CHAT_DEFAULT_MESSAGES = [
   { text: '안녕하세요! 반갑습니다 😊', align: 'left' },
@@ -17,6 +19,8 @@ const CHAT_DEFAULT_MESSAGES = [
 ];
 
 const CHAT_TAIL_PATH = 'M18.3597 14.7395C9.25742 16.3944 2.32729 11.6364 0 9.05055L0.258587 1.29294C2.75826 1.81011 8.17136 2.27557 9.82631 0C9.56773 9.30914 16.5496 13.9637 18.3597 14.7395Z';
+const _B = CHAT_NUM_BOUNDS;   /* ★경계 명부는 ./chat-bounds.js «한 자리» — 까닭(하네스 그래프)은 그 파일 머리말 */
+
 // 꼬리 SVG 기본 크기(viewBox 단위와 동일). tailScale(%)로 width/height만 비례 조정 → path·좌측 translate는 viewBox 좌표라 무관.
 const CHAT_TAIL_W = 19;
 const CHAT_TAIL_H = 16;
@@ -25,15 +29,6 @@ const CHAT_TAIL_H = 16;
 //   - closest('.section-inner')의 dataset.paddingX override가 있으면 그 값
 //   - 없으면 window.state?.pageSettings?.padX (프로젝트 globals state)
 //   - section-inner 없거나(프레임 free-layout 등) full-bleed 무의미하면 0
-// 에셋블럭(prop-asset.js:217-221)·canvas-block(_effSectionPadX) 패턴 미러.
-function _effSectionPadX(block) {
-  if (block.closest?.('.frame-block[data-free-layout="true"]')) return 0;
-  const inner = block.closest?.('.section-inner');
-  if (!inner) return 0;
-  const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
-  if (hasOverride) return parseInt(inner.dataset.paddingX) || 0;
-  return window.state?.pageSettings?.padX || 0;
-}
 
 function _chatToken(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
@@ -41,16 +36,36 @@ function _chatToken(name, fallback) {
   return v || fallback;
 }
 
+/* ★수 읽기 — «0 을 살린다». ⛔`parseInt(x) || d` 를 쓰지 마라: 0 이 d 로 되돌아간다.
+ *   ★무엇이었나(실측 2026-10-06 ⒜) — 모델은 padding:0 을 «받는데»(CHAT_NUM_BOUNDS.padding.min = 0)
+ *     렌더러가 `|| 16` 으로 조용히 16 을 다시 썼다 ⇒ dataset.padding="0" 인데 화면은 16px.
+ *     「값은 저장되는데 화면이 안 바뀐다」 — 현빈의 ⒜「챗 블럭 너비가 더 늘어날 순 없는지?」의 한 범인이다.
+ *     ★«실제로 닿는» 자리는 ★셋이다: gap(0→8) · radius(0→16) · padding(0→16) — 셋 다 모델 하한이 0 이다.
+ *     ⚠️profileSize 는 ★안 닿는다 — 모델 하한이 24 라 0 이 애초에 거절된다(이 파일 profileSize out of range).
+ *       ⇒ 그 한 자리는 ★«일관성»으로만 바꿨다. ⛔«고친 결함»으로 세지 마라 — 재는 자도 없다
+ *         (실측: tests/dom/chat-width-handles W1 은 profileSize 폴백을 되돌려도 ★초록이다).
+ *   ⛔`??` 로 바꾸면 안 된다 — `parseInt('abc')` 는 NaN 이고 `NaN ?? d` 는 ★NaN 이다(?? 는 null/undefined 만).
+ *     ⇒ 유한수인지 «재서» 고른다. 그게 「0 은 살리고 빈값·쓰레기는 기본값」의 유일한 꼴이다.
+ * ★★그리고 `x || d` 와 `x ?? d` 는 ★거울상이다 — ★한 뿌리는 「★0 과 «없음»을 안 가린다」다.
+ *     `||`  : 0 을 «없음»으로 ★잘못 본다  ⇒ 0 이 d 로 되돌아간다(이 커밋이 고친 그것)
+ *     `??`  : NaN 을 «있음»으로 ★잘못 본다 ⇒ NaN 이 그대로 흘러 dataset 에 "NaN" 이 저장된다
+ *     ⇒ ★둘 다 «짧은 연산자로 두 상태를 한 번에 가리려 한» 탓이다. ★재서 갈라야 한다.
+ *     ★같은 날(2026-10-06) 이 레포에서 ★둘 다 났다 — ⒜-1 의 `||`(제품) · prop-chat.js chbClamp 의 `??`(내가 넣고 잡았다). */
+function _chatNum(raw, dflt) {
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) ? n : dflt;
+}
+
 function renderChatBlock(block) {
   const messages    = JSON.parse(block.dataset.messages || '[]');
-  const gap         = parseInt(block.dataset.gap)      || 8;
+  const gap         = _chatNum(block.dataset.gap, 8);
   const fontSize    = parseInt(block.dataset.fontSize) || 32;
   const bgLeft      = block.dataset.bgLeft   || _chatToken('--preset-chat-bg-left', '#e5e5ea');
   const bgRight     = block.dataset.bgRight  || _chatToken('--preset-chat-bg-right', '#1888fe');
   const colorLeft   = block.dataset.colorLeft  || _chatToken('--preset-chat-text-left', '#111111');
   const colorRight  = block.dataset.colorRight || _chatToken('--preset-chat-text-right', '#ffffff');
-  const radius      = parseInt(block.dataset.radius)  || 16;
-  const padding     = parseInt(block.dataset.padding) || 16;
+  const radius      = _chatNum(block.dataset.radius, 16);
+  const padding     = _chatNum(block.dataset.padding, 16);
   // 말풍선 "내부" 패딩(텍스트↔버블 경계). block.dataset.padding은 블록 "바깥" 패딩이라 별개.
   // 하위호환: 명시적으로 설정된 경우에만 인라인 주입 → 미설정 시 CSS 기본(.chb-bubble {padding:10px 14px}) 보존.
   const hasBubblePadding = block.dataset.bubblePadding != null && block.dataset.bubblePadding !== '';
@@ -58,7 +73,7 @@ function renderChatBlock(block) {
   // 카톡식 프로필 — 토글 별도 (default off). 크기는 fontSize에 비례.
   const showProfile = block.dataset.showProfile === '1';
   const showName    = block.dataset.showName === '1';
-  const profileSize    = parseInt(block.dataset.profileSize)    || Math.max(48, Math.round(fontSize * 1.6));
+  const profileSize    = _chatNum(block.dataset.profileSize, Math.max(48, Math.round(fontSize * 1.6)));
   const profileOffsetY = parseInt(block.dataset.profileOffsetY) || 0;
   const profileGap     = (block.dataset.profileGap != null) ? parseInt(block.dataset.profileGap) : 8;
   // 말풍선 꼬리 크기 — tailScale(%). 미설정 시 100(기본). 0이면 꼬리 숨김.
@@ -302,7 +317,7 @@ function addChatBlock(opts = {}) {
 //   - 스타일: gap, fontSize, bgLeft, bgRight, colorLeft, colorRight, radius, padding, bubblePadding
 //   - 프로필: showProfile, showName, profileSize, profileOffsetY, profileGap
 //   - 기타: layerName
-function updateChatBlock(blockId, partial = {}) {
+function updateChatBlock(blockId, partial = {}, opts = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
   const block = document.getElementById(String(blockId));
   if (!block || !block.classList.contains('chat-block')) {
@@ -411,7 +426,22 @@ function updateChatBlock(blockId, partial = {}) {
     }
   }
 
-  window.pushHistory?.('채팅 블록 수정');
+  /* ★opts.noHistory — «한 제스처가 두 문으로 나갈 때» 두 번째부터 끄는 자리다.
+     ★★꼴은 ★그리드와 «한 글자도 다르지 않다» — js/blocks/grid-block.js updateGridBlock 의 그 자리를 보고 맞췄다
+       (이름·뜻·기본값까지). ⛔새 설계를 하지 않았다(지디 조건 ㉠).
+     ⛔첫 문에는 절대 쓰지 마라 — pushHistory 는 dataset 쓰기 «앞»이라 «변경 전» 스냅샷을 쌓는다.
+       첫 문만 쌓으면 그 한 칸이 «둘 다 바뀌기 전»을 담아 ⌘Z 한 번이 두 칸을 함께 되돌린다.
+       두 문 다 쌓으면 ⌘Z 를 «두 번» 눌러야 하고, 한 번만 누른 사람은 «반쪽 상태»를 본다.
+     ⛔이 플래그는 히스토리를 끄는 것뿐 — ★«되돌림»을 주지 않는다. 부르는 쪽이 「실패하면 되돌린다」를 같이 들어야 한다
+       (선례: prop-grid.js grdMoveLineToCell 이 그 되돌림을 든다).
+     ★★왜 지금 생겼나(2026-10-06 ⑵-B③ 선행) — line-host.js 의 두 commit 이 ★이미 `opts` 를 3인자로 넘기는데
+       이 입구들이 ★그 인자를 «안 받아» ★조용히 버려지고 있었다(실측: 서명이 `(blockId, partial = {})` 였다).
+       ⇒ 「값은 넘기는데 아무 일도 안 난다」 — 사슬이 연결돼 있고 ★끝에서 떨어져 있었다.
+     ★기본값 불변: opts 를 안 주면 {} ⇒ `!== true` ⇒ 종전대로 쌓는다.
+       ★소비자 전수(제품 코드 · 실측): updateChatBlock 2(line-host:253 · main.js:7708) ·
+       updateSpeechBubbleBlock 3(line-host:231 · main.js:8518 · 8564). ★MCP 쪽은 2인자라 영향 0.
+     ★낱말은 이 저장소에 이미 있는 것을 쓴다(grid-block.js · js/spacing-normalize.js `plan.noHistory`). */
+  if (opts.noHistory !== true) window.pushHistory?.('채팅 블록 수정');
 
   const applied = {};
 
@@ -499,14 +529,10 @@ function updateChatBlock(blockId, partial = {}) {
     return null;
   };
   let err;
-  err = _setInt('gap',      'gap',      0, 400); if (err) return err;
-  err = _setInt('fontSize', 'fontSize', 4, 400); if (err) return err;
-  err = _setInt('radius',   'radius',   0, 400); if (err) return err;
-  err = _setInt('padding',  'padding',  0, 400); if (err) return err;
-  err = _setInt('profileOffsetY', 'profileOffsetY', -400, 400); if (err) return err;
-  err = _setInt('profileGap',     'profileGap',     0, 400);    if (err) return err;
-  err = _setInt('tailScale',      'tailScale',      0, 600);    if (err) return err;
-  err = _setInt('bubbleMaxW',     'bubbleMaxW',     10, 100);   if (err) return err;
+  /* ★경계는 CHAT_NUM_BOUNDS «한 표»에서 온다(이 파일 머리). ⛔숫자를 여기 되적지 마라 — 그게 ⒝ 의 그 결함이었다. */
+  for (const k of ['gap', 'fontSize', 'radius', 'padding', 'profileOffsetY', 'profileGap', 'tailScale', 'bubbleMaxW']) {
+    err = _setInt(k, k, _B[k].min, _B[k].max); if (err) return err;
+  }
 
   // fullBleed(패딩 제외): boolean → dataset 'true'/'false'. (canvas-block과 동일 표기)
   if (partial.fullBleed !== undefined) {
@@ -525,7 +551,7 @@ function updateChatBlock(blockId, partial = {}) {
       const v = partial.bubblePadding;
       if (!Number.isFinite(+v) || !Number.isInteger(+v)) return { ok: false, code: 'INVALID', message: 'bubblePadding must be integer or null' };
       const n = +v;
-      if (n < 0 || n > 120) return { ok: false, code: 'INVALID', message: 'bubblePadding out of range [0,120]' };
+      if (n < _B.bubblePadding.min || n > _B.bubblePadding.max) return { ok: false, code: 'INVALID', message: `bubblePadding out of range [${_B.bubblePadding.min},${_B.bubblePadding.max}]` };
       block.dataset.bubblePadding = String(n);
       applied.bubblePadding = n;
     }
@@ -540,7 +566,7 @@ function updateChatBlock(blockId, partial = {}) {
       const v = partial.profileSize;
       if (!Number.isFinite(+v) || !Number.isInteger(+v)) return { ok: false, code: 'INVALID', message: 'profileSize must be integer or null' };
       const n = +v;
-      if (n < 24 || n > 400) return { ok: false, code: 'INVALID', message: 'profileSize out of range [24,400]' };
+      if (n < _B.profileSize.min || n > _B.profileSize.max) return { ok: false, code: 'INVALID', message: `profileSize out of range [${_B.profileSize.min},${_B.profileSize.max}]` };
       block.dataset.profileSize = String(n);
       applied.profileSize = n;
     }
@@ -621,5 +647,16 @@ window.makeChatBlock   = makeChatBlock;
 window.addChatBlock    = addChatBlock;
 window.renderChatBlock = renderChatBlock;
 window.updateChatBlock = updateChatBlock;
+/* ★«끝 표본» 래퍼(js/model-update-history.js — window.update*Block 전부를 감싸 호출마다 pushHistory 를 한 칸 더 쌓는다)를
+   «안 타는» 원본. ★이름이 `/^update[A-Z]\w*Block$/` 에 안 걸리게 ★Raw 로 끝낸다 — ★그 우회 설계는
+   js/blocks/grid-block.js `window.updateGridBlockRaw` 가 ★먼저 쓴 꼴이고, ★그 주석에 까닭이 적혀 있다.
+   ⛔일반 호출부는 window.updateChatBlock 를 쓴다. 이건 ★«한 제스처가 두 문으로 나가는» 호출자 전용이다.
+   ★★왜 opts.noHistory ★하나로는 안 되나(실측 2026-10-06) — 그 플래그는 ★입구 «안»의 push-before 만 끈다.
+     ★래퍼의 «끝 표본»은 ★그대로 쌓인다 ⇒ 문2 가 ★이력 한 칸을 남겨 ⌘Z 가 ★두 번이 된다.
+     ⇒ ★두 문 꼴은 ★«Raw ＋ noHistory» ★둘을 같이 써야 «이력 0칸»이 된다.
+   ⚠️그리드의 `grdMoveLineToCell`(prop-grid.js)은 ★아직 Raw 를 안 쓴다 ⇒ 실앱에서 ⌘Z 가 두 번이고
+     ★중간이 «줄이 어느 칸에도 없는» 반쪽이다(실측). ★그건 ★별건으로 올렸다 — ⛔이 파일 몫이 아니다. */
+window.updateChatBlockRaw = updateChatBlock;
 
 export { makeChatBlock, addChatBlock, updateChatBlock, renderChatBlock, CHAT_DEFAULT_MESSAGES, CHAT_TAIL_PATH };
+export { CHAT_NUM_BOUNDS };   /* 되보냄 — 옛 import 경로를 깨지 않게. 정본은 ./chat-bounds.js */

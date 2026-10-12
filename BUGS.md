@@ -1,6 +1,7 @@
 # BUGS.md — Goditor 0.8.0 배포 전 치명적 버그 대장
 
 > ⛔ **dev 배포 차단 중 — C8(협업 undo가 상대 작업 삭제) 미수정.** 확정 치명 4건(C2-A9·B1·N2·C7)은 수정·검증 완료됐으나 **C8은 미수정**이다(「4건 고쳤다」≠「배포 가능」). 해제조건·상세는 레포 루트 `DEPLOY-BLOCK.md`. 정통 수정은 `feat/collab-undo-op` 브랜치에서 진행 중. 배포 시 `tools/deploy-gate.js`가 이 상태를 하드 차단한다.
+> ⚰️ (2026-10-06 태양 · 위 줄은 그날의 사실로 남긴다) **C8 은 고쳐졌다** — `feat/collab-undo-op` 가 `1ec78f0a`(2026-08-16)로 dev 에 머지됐고 `8f37bdb9`(v0.8.1)에서 배포 차단이 풀렸다(아래 「C8 정통 수정 — 검증 GREEN」 절). 그 뒤 남은 구멍은 «C8 을 CI 가 보는 자리에서 잠근 검사 0» 이었고, 2026-10-06 `tests/dom/collab-undo-scope.dom.spec.js`(U1·U2)가 잠근다. ⚠️현재 판 2인스턴스 harm 은 다시 안 쟀다. 협업이 지금 꺼져 있는 까닭과 켜는 조건은 `js/feature-flags.js` COLLAB_ENABLED 주석.
 
 기준선: 태그 `v0.8.0` (main `310ff62` / dev `d9eb0ee`+범프). 탐지 페이즈 산출물(문서 단독, 코드 무수정).
 치명 4분류: ①저장→로드 유실/변형 ②undo→redo 불일치 ③파일 손상/자동저장 실패 ④크래시. 그 외 = non-blocker.

@@ -37,6 +37,13 @@ const BLOCKS_CSS = fs.readFileSync(path.join(REPO, 'css/editor-blocks.css'), 'ut
    applyAssetFullBleed 가 SSOT). 그 파일이 import 하는 globals.js · canvas-contrast.js 만
    최소 stub 으로 대신한다 — 이 검사가 보는 것은 폭 계산이지 패널 렌더가 아니다. */
 const PROP_PAGE_JS = fs.readFileSync(path.join(REPO, 'js/props/prop-page.js'), 'utf8');
+/* ★★★261012 — ★`prop-page.js` 가 ★★`./prop-text-wireup-align.js` 를 ★★최상위에서 ★import 한다.
+   ★★그게 ★route 에 ★없어 ★★404(net::ERR_ABORTED) 였고 ⇒ ★★`prop-page.js` 가 ★★평가되지 ★못해
+   ★★`window.applyAssetFullBleed` 가 ★★안 생겼다 ⇒ ★★`boot()` 의 ★대기가 ★★영영 ★안 참 ⇒ ★★15칸 ★타임아웃.
+   ★★★`pageerror` 엔 ★안 걸렸다 — ★★모듈 ★404 는 ★★네트워크 ★오류이고 ★예외가 ★아니다. ★★그래서 ★안 보였다.
+   ★★판별 실측: ★그 import 는 ★★`v0.9.6` 에 ★★0건 · ★★`734ec138` 부터 ★★1건.
+   ★★선례 = ★위 ★S1 의 ★`checker-tokens.js` ★꼴(★★진짜 파일을 ★그대로 ★준다). */
+const PROP_TEXT_WIREUP_ALIGN_JS = fs.readFileSync(path.join(REPO, 'js/props/prop-text-wireup-align.js'), 'utf8');
 /* S1(2026-10-04): prop-page.js 가 ../checker-tokens.js 를 import 한다(체커 어둡게 단추) — 진짜 파일을 그대로 준다(부작용 = html 속성 하나, localStorage 비면 끔). */
 const CHECKER_TOKENS_JS = fs.readFileSync(path.join(REPO, 'js/checker-tokens.js'), 'utf8');
 const GLOBALS_STUB = `
@@ -128,9 +135,10 @@ async function boot(page, opts = {}) {
     if (url.pathname === '/overlay-float.js') return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_FLOAT_JS });
     if (url.pathname === '/frame-geometry.js') return route.fulfill({ contentType: 'application/javascript', body: FRAME_GEOMETRY_JS });
     if (url.pathname === '/shape-frame.js') return route.fulfill({ contentType: 'application/javascript', body: SHAPE_FRAME_JS });
-    { const d = dragUtilsDep(url.pathname, '/'); if (d) return route.fulfill(d); }
+    { const d = dragUtilsDep(url.pathname, '/', ['globals.js', 'shape-frame.js']); if (d) return route.fulfill(d); }
     if (url.pathname === '/drag-utils.js') return route.fulfill({ contentType: 'application/javascript', body: DRAG_UTILS_JS });
     if (url.pathname === '/props/prop-page.js') return route.fulfill({ contentType: 'application/javascript', body: PROP_PAGE_JS });
+    if (url.pathname === '/props/prop-text-wireup-align.js') return route.fulfill({ contentType: 'application/javascript', body: PROP_TEXT_WIREUP_ALIGN_JS });
     if (url.pathname === '/globals.js') return route.fulfill({ contentType: 'application/javascript', body: GLOBALS_STUB });
     if (url.pathname === '/canvas-contrast.js') return route.fulfill({ contentType: 'application/javascript', body: CANVAS_CONTRAST_STUB });
     if (url.pathname === '/props/color-picker.js') return route.fulfill({ contentType: 'application/javascript', body: COLOR_PICKER_STUB });

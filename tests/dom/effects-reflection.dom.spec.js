@@ -8,14 +8,44 @@
  * ★양성대조: GD1001_ROOT=<6119145c 체크아웃> 에서 R* 빨강 · P0 초록. ⛔HEAD 금지.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/effects-reflection.dom.spec.js */
 const { test, expect } = require('@playwright/test');
+
+/* ★비교 «전»에 «편집이 아닌 것»(UI 장식)을 걷는다 — 2026-10-07 (gd/sec-height).
+   왜 — R2·R9 는 「★효과(reflection)가 섹션 DOM 에 흔적을 남기나」를 재는 ★변경 감지기다. 그런데
+   outerHTML 을 ★통째로 견주므로, 효과와 무관한 ★UI 장식이 섹션 머리에 하나 붙기만 해도 빨개진다
+   (실측: 섹션 높이 배지 `.section-height-badge` 가 붙자 ⑴R2 가 핀 판과 한 줄 달라지고 ⑵R9 는
+    그 배지의 파생값이 비동기로 갱신돼 «켜기 전»과 안 맞았다 — 효과 잔류가 아니라 ★내 장식이었다).
+   ⇒ 「무엇이 콘텐츠가 아닌가」는 이 레포에 ★이미 이름이 있다: js/io/save-load.js 의
+     NON_CONTENT_UI_SELECTOR(계약: 「저장에서 지워지는 것 = 편집이 아닌 것」). ★그 상수 하나를 그대로
+     읽는다 — 여기에 손으로 목록을 적으면 ★둘째 명부가 된다.
+   ★시험의 힘은 안 줄었다 — 저장되는 ★콘텐츠가 한 글자라도 바뀌면 여전히 빨강이다. 걷는 것은
+     「저장에도 안 실리는 것」뿐이다.
+   ⚠️핀 판(옛 판)에는 이 상수가 없을 수도 있다 — 그러면 안 걷는다. 그래도 맞다: 그 판엔 걷을
+     장식 자체가 없다(양쪽 다 배지 없는 꼴로 만나 비교가 성립한다). */
+async function installStripUi(pg) {
+  await pg.addInitScript(() => {
+    window.__fxStripUi = (el) => {
+      if (!el) return '';
+      const sel = window.NON_CONTENT_UI_SELECTOR;
+      if (!sel) return el.outerHTML;
+      const c = el.cloneNode(true);
+      c.querySelectorAll(sel).forEach(n => n.remove());
+      return c.outerHTML;
+    };
+  });
+}
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { bootApp, ROOT, ORIGIN } = require('./_root-harness.js');
 
 const PIN = '6119145c';
-/* 시안(지디 goditor-effects-reflection.html) 슬라이더 값 — 범위·기본값을 «그대로» 빌린다(지디 판정). 흐림은 뺐다. */
-const MOCK = { gap: { min: -20, max: 40, def: 4 }, len: { min: 10, max: 100, def: 55 }, op: { min: 0, max: 100, def: 35 } };
+/* ★길이·불투명도 = 시안(지디 goditor-effects-reflection.html) 슬라이더 값 «그대로». 흐림은 뺐다.
+   ★★간격의 하한은 ★더는 ★시안 값(−20)이 ★아니다 — ★현빈 2026-10-07 「★−20밖에 안되는데 ★더 되게」
+     ⇒ ★★−40 (지디 결정 · ★현빈 −20 의 ★두 배). ★그 수의 까닭은 js/effects-reflect.js 머리말에.
+   ⛔「시안 그대로」를 ★간격의 까닭으로 ★되살리지 마라 — ★그 까닭은 ★현빈이 ★물렀다.
+   ★★그리고 ⛔이 수를 ★손으로 ★고치지 마라 — 아래가 ★정본에서 ★읽는다(⛔두 벌 금지).
+     ★정본 = js/effects-reflect.js 의 `FX_REFLECT_RANGES` · 지키는 자 = tests/unit/effects-reflect-gap.test.mjs ⒜ */
+const MOCK = { gap: { min: -40, max: 40, def: 4 }, len: { min: 10, max: 100, def: 55 }, op: { min: 0, max: 100, def: 35 } };
 
 async function px(page, pts) {
   const buf = await page.screenshot();
@@ -30,6 +60,7 @@ async function px(page, pts) {
 /* 장면: 섹션 하나 — [텍스트 '███'(파랑 80px)] [gap 40] [에셋(주황 그림)] [gap 40] [도형 래퍼(100×100 사각 · 초록)] [gap 40] [아래 텍스트 'BELOW'] — 고정 id */
 async function setup(page, boot = bootApp) {
   await page.setViewportSize({ width: 1500, height: 1400 });
+  await installStripUi(page);          // ★goto «전»이라야 addInitScript 가 걸린다(위 머리말)
   const errs = await boot(page);
   await page.evaluate(() => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
@@ -60,17 +91,19 @@ const fx = (page, id, patch, opts) => page.evaluate(([id, p, o]) => window.setFx
 const ds = (page, id) => page.evaluate((id) => Object.fromEntries(Object.entries(document.getElementById(id).dataset).filter(([k]) => k.startsWith('fx'))), id);
 
 /* ══ P0 전제 — 핀에서도 초록 ══ */
-test('P0 전제 — 패널 부품(.prop-cell-card·.prop-section-title-row·.prop-icon-btn·.prop-icon-input) · PLUS_ICON_SVG', async ({ page }) => {
+test('P0 전제 — 패널 부품(.prop-cell-card·.prop-section-title-row·.prop-icon-btn·.prop-icon-input·.prop-select) · ★따른 선례가 아직 있다', async ({ page }) => {
   const errs = await setup(page);
   const css = fs.readFileSync(path.join(ROOT, 'css/editor-props.css'), 'utf8');
-  for (const sel of ['.prop-cell-card {', '.prop-cell-card-header {', '.prop-icon-btn {', '.prop-icon-input {']) expect(css.includes(sel), sel).toBe(true);
+  for (const sel of ['.prop-cell-card {', '.prop-cell-card-header {', '.prop-icon-btn {', '.prop-icon-input {', '.prop-select {']) expect(css.includes(sel), sel).toBe(true);
   expect(fs.readFileSync(path.join(ROOT, 'js/props/prop-text-template.js'), 'utf8').includes('prop-section-title-row'), 'Shadow 절 머리 꼴이 있다').toBe(true);
-  expect(await page.evaluate(() => typeof window.PLUS_ICON_SVG)).toBe('string');
+  /* ★2026-10-06 — 추가 손잡이가 ＋단추(PLUS_ICON_SVG)에서 «고르는 목록»(.prop-select)으로 바뀌었다(현빈 「바로 적용되는 것이 아니라」).
+     ⇒ 전제도 «따라간 선례»로 바꾼다: 「＋ 줄 추가」 꼴이 prop-grid 에 ★아직 있다(없어지면 내 「선례를 따랐다」가 거짓이 된다). */
+  expect(fs.readFileSync(path.join(ROOT, 'js/props/prop-grid.js'), 'utf8').includes('_grdAddKindSelectHtml'), '따른 선례(＋ 줄 추가 select)가 아직 있다').toBe(true);
   expect(errs).toEqual([]);
 });
 
 /* ══ R — 기능(핀에서 빨강) ══ */
-test('R1 ★패널(진짜 마우스) — 텍스트·도형·에셋 셋 다 「Effects」 절 · ＋ → 카드(간격·길이·불투명도 = 시안 값) · 눈 끔/켬 · ✕ · 접기 · 흐림 없음', async ({ page }) => {
+test('R1 ★패널(진짜 마우스) — 텍스트·도형·에셋 셋 다 「Effects」 절 · ★추가는 «고르는 목록»(열어도 안 붙고 고른 것만 붙는다) → 카드(간격·길이·불투명도 = 시안 값) · 눈 끔/켬 · ✕ · 접기 · 흐림 없음', async ({ page }) => {
   const errs = await setup(page);
   const select = async (id) => { const p = await page.evaluate((id) => { const e = document.getElementById(id); e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return [q.left + 6, q.top + q.height / 2]; }, id);
     await page.evaluate(() => window.deselectAll?.()); await page.mouse.click(p[0], p[1]); await page.waitForTimeout(300); };
@@ -79,17 +112,32 @@ test('R1 ★패널(진짜 마우스) — 텍스트·도형·에셋 셋 다 「Ef
   for (const [id, P, after] of [['eT', 'txt', 'txt-shadow-section'], ['eSh', 'shape', null], ['eA', 'asset', null]]) {
     await select(id);
     const sec = await page.evaluate(([P, after]) => { const s = document.getElementById(`${P}-fx-section`); if (!s) return null;
-      return { title: s.querySelector('.prop-section-title').textContent.trim(), plus: !!document.getElementById(`${P}-fx-add`)?.querySelector('svg'), prevOk: after ? s.previousElementSibling?.id === after : true,
-        plusText: (document.getElementById(`${P}-fx-add`)?.textContent || '').trim() }; }, [P, after]);
+      const a = document.getElementById(`${P}-fx-add`);
+      return { title: s.querySelector('.prop-section-title').textContent.trim(), prevOk: after ? s.previousElementSibling?.id === after : true,
+        addTag: a?.tagName || null, addCls: a?.className || null, headVal: a ? a.options[0].value : null, headSel: a ? a.selectedIndex : null,
+        opts: a ? [...a.options].slice(1).map(o => o.value) : null, addText: (a?.textContent || '').trim() }; }, [P, after]);
     expect(sec, `${id}: Effects 절`).not.toBeNull();
     expect(sec.title).toBe('Effects');
-    expect(sec.plus, '＋ = PLUS_ICON_SVG(svg)').toBe(true);
-    expect(sec.plusText, '⛔＋ 를 글자로 쓰지 않는다(E65)').toBe('');
+    /* ★2026-10-06 현빈 — 「바로 적용되는 것이 아니라」. 더하는 자리는 «고르는 목록»이다(선례 = prop-grid 「＋ 줄 추가」). */
+    expect(sec.addTag, '추가 손잡이 = 고르는 목록').toBe('SELECT');
+    expect(sec.addCls, '선례와 같은 옷(.prop-select)').toContain('prop-select');
+    expect(sec.headVal, '머리 = 값 없는 option(고른 것 아님)').toBe('');
+    expect(sec.headSel, '열었을 때 머리가 골라져 있다').toBe(0);
+    expect(sec.opts, '목록 = 아직 안 걸린 효과 — 반사가 들어 있다').toContain('reflect');
+    expect(sec.addText, '⛔글자 + 를 쓰지 않는다(E65)').not.toContain('+');
     expect(sec.prevOk, '텍스트 = Shadow 절 바로 아래').toBe(true);
+    /* ★목록을 «열기만» 해서는 아무것도 안 붙는다 — 이것이 이 발주의 한 줄이다 */
     await click(`#${P}-fx-add`);
-    expect(await ds(page, id)).toEqual({ fxReflect: 'on' });
+    expect(await ds(page, id), '★고르기 전 = 아무 키도 안 붙는다').toEqual({});
+    await page.selectOption(`#${P}-fx-add`, 'reflect');
+    await page.waitForTimeout(250);
+    expect(await ds(page, id), '★고른 것만 붙는다').toEqual({ fxReflect: 'on' });
     const card = await page.evaluate((P) => ({ rows: [...document.querySelectorAll(`#${P}-fx-body .prop-label`)].map(e => e.textContent.trim()),
-      gap: document.getElementById(`${P}-fx-gap`).value, gmin: document.getElementById(`${P}-fx-gap`).min, gmax: document.getElementById(`${P}-fx-gap`).max,
+      /* ★2026-10-07 — ★간격이 ★slider+number 쌍이 됐다(현빈 「슬라이드로 조절가능하게도」).
+         ⛔옛 id `${P}-fx-gap`(number 하나)은 ★사라졌다 ⇒ ★길이·불투명도와 ★같은 꼴로 읽는다.
+         ★★이 줄이 ★내 변경을 ★«요란하게» 잡았다 — `Cannot read properties of null` 로 ★즉시 빨강이었다
+           (⇒ ★조용히 눈먼 꼴보다 ★낫다. ★그 대조를 ★여기 남긴다). */
+      gap: document.getElementById(`${P}-fx-gap-num`).value, gmin: document.getElementById(`${P}-fx-gap-slider`).min, gmax: document.getElementById(`${P}-fx-gap-slider`).max,
       len: document.getElementById(`${P}-fx-len-num`).value, lmin: document.getElementById(`${P}-fx-len-slider`).min, lmax: document.getElementById(`${P}-fx-len-slider`).max,
       op: document.getElementById(`${P}-fx-op-num`).value, omin: document.getElementById(`${P}-fx-op-slider`).min, omax: document.getElementById(`${P}-fx-op-slider`).max,
       cls: document.getElementById(`${P}-fx-card`).className }), P);
@@ -136,7 +184,7 @@ test('R2 ★옛 문서 바이트 동일 — 같은 장면을 «핀 6119145c 파�
   const shot = async (pg) => pg.evaluate(() => {
     for (const [id, fn] of [['eT', 'showTextProperties'], ['eSh', 'showShapeProperties'], ['eA', 'showAssetProperties']]) { try { window[fn]?.(document.getElementById(id)); } catch (_) {} }
     const s = document.getElementById('eS'); s.querySelectorAll('[id]').forEach(e => { if (!/^e/.test(e.id)) e.removeAttribute('id'); });
-    return s.outerHTML; });
+    return window.__fxStripUi(s); });
   const p2 = await page.context().newPage();
   await setup(p2, pinned);
   const pinHtml = await shot(p2); await p2.close();
@@ -291,7 +339,8 @@ test('R8 ★E64 — 도형 회전 여백과 «합» · 말풍선·그리드 패�
 
 test('R9 ★U8 조건⑴ — 켰다가 ✕ 로 지우면 블럭·래퍼·섹션 outerHTML 이 켜기 «전»과 바이트 동일(텍스트·에셋·도형)', async ({ page }) => {
   await setup(page);
-  const snap = () => page.evaluate(() => ({ t: document.getElementById('eTF').outerHTML, a: document.getElementById('eA').outerHTML, s: document.getElementById('eShF').outerHTML, sec: document.getElementById('eS').outerHTML }));
+  const snap = () => page.evaluate(() => ({ t: window.__fxStripUi(document.getElementById('eTF')), a: window.__fxStripUi(document.getElementById('eA')),
+    s: window.__fxStripUi(document.getElementById('eShF')), sec: window.__fxStripUi(document.getElementById('eS')) }));
   const before = await snap();
   for (const id of ['eT', 'eA', 'eSh']) { await fx(page, id, { state: 'on', gap: 12, len: 70, op: 60 }); await fx(page, id, { state: 'off' }); await fx(page, id, { state: 'on' }); }
   expect((await snap()).sec, '전제 — 켠 동안은 다르다').not.toBe(before.sec);

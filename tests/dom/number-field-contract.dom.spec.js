@@ -93,8 +93,25 @@ const FIELDS = [
     open: `window.showStickerProperties(document.getElementById('stk'))`,
     read: `document.getElementById('stk').dataset.fontSize`,
   },
+  /* ★★2026-10-06 ⒝ — 여기 있던 한 줄이 «둘»이 됐다. ⛔수를 늘린 것이 아니라 ★증거성을 지킨 것이다.
+   *   옛 줄: { key:'chat-fs', id:'chb-fontsize', min:10, max:60 } · 라벨이 「가드 밖 증거칸」이었다.
+   *   ★그 「가드 밖」의 뜻 — `#chb-fontsize` 는 class 가 `prop-color-hex` 라 «.prop-number 목록 밖»인데
+   *     type="number" 라서 가드에 걸린다. 그게 prop-number-commit-guard.js 설계(「목록이 아니라 타입으로 센다」)의
+   *     ★살아 있는 증인이었다.
+   *   ⚠️⒝ 에서 그 칸을 공용 Typography 절의 `#chb-typo-size-number` 로 갈았는데, 그 칸은 class 에
+   *     `prop-number` 를 «달고» 있다 ⇒ 그 줄만 갈아탔다면 ★증인이 조용히 죽는다(검사는 초록인데 아무것도 안 잠근다).
+   *   ⇒ ㈀ 증인 자리를 `#chb-radius`(여전히 prop-color-hex + type=number · 같은 패널)로 ★옮기고,
+   *     ㈁ 새 공용 절 칸을 ★따로 더했다(그 칸의 규약도 재야 한다 — 범위가 모델에서 파생되므로).
+   *   ⛔둘 중 하나를 지우려면 「목록 밖 type=number 가 걸린다」를 ★다른 데서 재고 있음을 먼저 보여라. */
   {
-    key: 'chat-fs', label: '챗 글자크기(가드 밖 증거칸)', id: 'chb-fontsize', min: 10, max: 60, start: 32,
+    key: 'chat-radius', label: '챗 말풍선 곡률(★가드 «목록 밖» 증거칸 — class 에 prop-number 없음)',
+    id: 'chb-radius', min: 0, max: 400, start: 16,
+    open: `window.showChatProperties(document.getElementById('chat'))`,
+    read: `document.getElementById('chat').dataset.radius`,
+  },
+  {
+    key: 'chat-fs', label: '챗 글자크기(공용 Typography 절 칸 · 범위는 CHAT_NUM_BOUNDS 파생)',
+    id: 'chb-typo-size-number', min: 4, max: 400, start: 32,
     open: `window.showChatProperties(document.getElementById('chat'))`,
     read: `document.getElementById('chat').dataset.fontSize`,
   },
@@ -120,7 +137,7 @@ const FIXTURE = `
           <div class="shape-block selected" id="shp" data-shape-type="rectangle"><svg class="shape-svg" viewBox="0 0 100 100"></svg></div>
         </div>
         <div class="sticker-block selected" id="stk" data-shape="text" data-font-size="32" data-text="Text"></div>
-        <div class="chat-block selected" id="chat" data-font-size="32" data-messages="[]"></div>
+        <div class="chat-block selected" id="chat" data-font-size="32" data-radius="16" data-messages="[]"></div><!-- ★data-radius 는 2026-10-06 에 더했다: chat-radius 증거칸의 «출발값». 없으면 dataset.radius=undefined 라 C6 의 Number(before)+1 이 NaN 이 되어 ★검사가 «다른 이유»로 빨개진다(실측). -->
       </div></div>
     </div>
   </div></div>
@@ -263,11 +280,16 @@ test.describe('숫자칸 규약 — 패널 전수', () => {
     test(`C6 [${f.key}] ArrowUp → 즉시 반영 (가드 회귀)`, async ({ page }) => {
       await boot(page);
       const before = await openPanel(page, f);
+      /* ★전제 — 「+1」을 재려면 ★출발값이 수여야 한다. 픽스처에 그 dataset 이 없으면 undefined 가 와서
+         아래 본단언이 «NaN 을 NaN 과» 견주게 되고, 빨강의 까닭이 「스텝이 안 먹는다」로 ★잘못 읽힌다
+         (2026-10-06 실측: chat-radius 를 더했는데 픽스처에 data-radius 가 없어 Expected: NaN 이 떴다). */
+      expect(Number.isFinite(Number(before.model)),
+        `전제: ${f.label} 의 출발값이 수가 아니다(${before.model}) — 픽스처에 그 값을 넣어라`).toBe(true);
       const el = page.locator('#' + f.id);
       await el.click({ clickCount: 3 });
       await el.press('ArrowUp');
       const after = await readState(page, f);
-      expect(Number(after.model), `${f.label}: 화살표 스텝이 즉시 반영되지 않는다`)
+      expect(Number(after.model), `${f.label}: 화살표 스텝이 즉시 반영되지 않는다 — 잰 값 ${before.model} → ${after.model}`)
         .toBe(Number(before.model) + 1);
     });
 

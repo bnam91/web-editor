@@ -17,13 +17,17 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire as __cr } from 'node:module';
+const { sliceBlock } = __cr(import.meta.url)('./_slice-block.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 const FLAGS   = read('js/feature-flags.js');
-const CREATORS = ['js/tab-system.js', 'pages/projects.html'];
+// ★2026-10-06(SIX ①): 빈 프로젝트 모양을 js/io/empty-project.js 한 벌로 올렸다 — 생성 «정의 자리»는 그 하나다.
+//   옛 두 자리(tab-system.js · projects.html)는 «사본이 다시 자라지 않는가»를 아래 M58-ONE 이 잰다.
+const CREATORS = ['js/io/empty-project.js', 'pages/projects.html'];   // projects.html 에 남은 생성 자리 = «샘플 프로젝트»(샘플 캔버스를 담은 다른 모양 — 정당한 별도 생성기)
 
 test('★M58 — 정본이 feature-flags.js 에 «하나» 있고 값이 #777777 이다', () => {
   const m = FLAGS.match(/w\.PAGE_BG_DEFAULT\s*=\s*'(#[0-9a-fA-F]{6})'/);
@@ -63,4 +67,16 @@ test('⚠️M58 — 레거시 폴백은 «일부러» 다르다(신규 기본값
   assert.ok(m, 'globals.js 의 레거시 폴백이 사라졌다 — 구 저장본이 색을 잃는다');
   assert.notEqual(m[1].toLowerCase(), '#777777',
     '레거시 폴백이 신규 기본값과 같아졌다 — 의도한 변경이면 이 검사를 «같이» 고쳐라');
+});
+
+test('★M58-ONE — 빈 프로젝트 «사본»이 옛 두 자리에 다시 자라지 않는다(tab-system.js 전체 · projects.html createProject) · 두 화면이 단일 원본을 싣는다', () => {
+  const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '');
+  const SHAPE = /pageSettings\s*:\s*\{[^}]*\bbg\s*:/;
+  assert.doesNotMatch(strip(read('js/tab-system.js')), SHAPE, 'tab-system.js 에 빈 프로젝트 모양 사본이 다시 생겼다 — js/io/empty-project.js 를 써라');
+  // 구간은 공용 자(_slice-block.js sliceBlock)로 자른다 — 꼬리 문자열 짝맞추기 금지(slice-block-shared SB-16)
+  const fn = sliceBlock(strip(read('pages/projects.html')), 'async function createProject() {');
+  assert.ok(fn && fn.length > 40, '★전제: projects.html createProject 를 찾았다');
+  assert.doesNotMatch(fn, SHAPE, 'projects.html createProject 에 빈 프로젝트 모양 사본이 다시 생겼다');
+  assert.match(fn, /window\.buildEmptyProject\(/, 'createProject 가 단일 원본(window.buildEmptyProject)을 안 부른다');
+  for (const page of ['index.html', 'pages/projects.html']) assert.match(read(page), /js\/io\/empty-project\.js/, `${page} 가 empty-project.js 를 안 싣는다`);
 });

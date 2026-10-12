@@ -26,6 +26,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` — ★만들기·치우기를 ★그 자가 쥔다.
+      ★잠그는 자 = ★`tests/unit/tmproot-sole-owner.test.mjs` */
 
 /* package.json 이 "type":"commonjs" 라 .js 를 직접 import 하면 CJS 로 잡힌다
    → 원문을 임시 .mjs 로 복사해 로드한다(선례: gradient-canvas-bar-geometry.test.mjs).
@@ -33,12 +36,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
      document 는 함수 «안»에서만 쓴다 ⇒ import 시점엔 안 닿는다. */
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SRC = fs.readFileSync(path.join(ROOT, 'js', 'canvas-scratch-drop.js'), 'utf8');
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'csd-'));
+const TMP = mkTmpRoot('csd-');
 const MOD = path.join(TMP, 'canvas-scratch-drop.mjs');
 fs.writeFileSync(MOD, SRC);
 globalThis.window = globalThis.window || {};
 const { planScratchWidth } = await import(pathToFileURL(MOD).href);
-fs.rmSync(TMP, { recursive: true, force: true });
 
 /* 현빈 실앱 기본값 — 새 프로젝트 pageSettings.padX = 72, 섹션 폭 860 ⇒ row 콘텐츠폭 716 */
 const FULL = 716, PAD = 72, WHOLE = FULL + PAD * 2;   // 860

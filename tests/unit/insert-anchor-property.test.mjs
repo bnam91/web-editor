@@ -58,15 +58,35 @@ function sliceFn(src, head, what) {
 }
 
 const EXCLUDE_SRC  = DRAG.match(/const _ANCHOR_EXCLUDE_CLASSES = \[[^\]]*\];/)?.[0] ?? '';
+/* ★★2026-10-12 — ★`isFlowAnchorBlock` 이 ★★`isInlineAbsolute` 를 ★부른다 ⇒ ★★그것도 ★같이 ★싣는다.
+   ⛔안 실으면 ★★`ReferenceError: isInlineAbsolute is not defined` 로 ★★★다섯 칸이 ★빨개진다 — ★★실제로 ★그랬다
+     (★`80c646f3` ★이후 · ★★`9de05e18`·`734ec138` 에서는 ★10/10 ★초록이었다 ⇒ ★판 ★다섯으로 ★좁혀 ★쟀다).
+   ★★★왜 ★이 꼴이 ★또 ★나나 — ★★이 하네스는 ★★«함수를 ★떠서» 싣는다 ⇒ ★★제품이 ★부르는 ★이름이 ★늘 때마다
+     ★★여기를 ★같이 ★고쳐야 한다. ★★그 꼴이 ★★사흘에 ★★다섯 번 났다:
+       ★10-09 `clipsContent` · ★10-10 `sectionPadX` · ★10-11 `framePadXData` ·
+       ★10-12 `isInlineAbsolute`(★`block-full-bleed.test.mjs`) · ★10-12 `isInlineAbsolute`(★여기)
+   ⇒ ★★그래서 ★★«실수»가 ★아니라 ★★구조다. ★★그 자(★전역 ★`D0`)는 ★★릴리스 ★뒤로 ★올렸다(★지디 판정). */
+const IIA_SRC      = sliceFn(DRAG, 'function isInlineAbsolute(', 'drag-utils');
 const IS_FLOW_SRC  = sliceFn(DRAG, 'function isFlowAnchorBlock(', 'drag-utils');
 const FIND_SRC     = sliceFn(DRAG, 'function findFlowAnchorSelected(', 'drag-utils');
 const INSERT_SRC   = sliceFn(DRAG, 'function insertAfterSelected(', 'drag-utils');
 
 /* 소스 그대로를 vm 에서 살린다 — «떠낸 것이 진짜 그 함수»여야 이 검사가 의미가 있다. */
 const ctx = vm.createContext({});
-vm.runInContext(`${EXCLUDE_SRC}\n${IS_FLOW_SRC}\n${FIND_SRC}`, ctx);
+vm.runInContext(`${EXCLUDE_SRC}\n${IIA_SRC}\n${IS_FLOW_SRC}\n${FIND_SRC}`, ctx);
 const isFlowAnchorBlock    = ctx.isFlowAnchorBlock;
 const findFlowAnchorSelected = ctx.findFlowAnchorSelected;
+
+/* ★★★이 하네스의 ★«제 전제»를 ★단언한다(★2026-10-12 · ★지디 GO).
+   ⛔이게 ★없으면 ★★다음에 ★또 ★이름이 ★늘 때 ★★증상이 ★★또 ★`ReferenceError` ★하나뿐이고
+     ★★«무엇이 ★없어서»가 ★★안 찍힌다. ⇒ ★★이름으로 ★말하게 ★한다. */
+assert.equal(typeof ctx.isInlineAbsolute, 'function',
+  '★`isInlineAbsolute` 가 ★하네스에 ★안 실렸다 — ★★`isFlowAnchorBlock` 이 ★그것을 ★부른다. '
+  + '★★이 단언이 ★터지면 ★★위 ★`IIA_SRC` 슬라이스나 ★★`vm.runInContext` 의 ★그 자리를 ★보라');
+assert.equal(typeof isFlowAnchorBlock, 'function',
+  '★`isFlowAnchorBlock` 이 ★안 실렸다 — ★★이 파일이 ★재는 ★그 함수다');
+assert.equal(typeof findFlowAnchorSelected, 'function',
+  '★`findFlowAnchorSelected` 가 ★안 실렸다 — ★★S2 가 ★그것을 ★잰다');
 
 /** 최소 가짜 요소 — classList 는 «순회 + contains» 둘 다 필요하다. */
 function fakeEl(classes, style = {}) {

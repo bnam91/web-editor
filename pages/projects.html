@@ -773,6 +773,9 @@ body {
            ★그 새로고침은 «서버에 물어 등급을 다시 받는» 유일한 경로다 —
              이 앱엔 사용자용 리로드(⌘R)·메뉴가 없어서 지우면 등급이 영영 안 바뀐다.
            평소엔 아바타+이메일+배지 한 줄만 두고, 나머지는 이 드롭다운 안에 접었다. -->
+      <!-- ★SIX ①(2026-10-06): 공동작업 초대 종 — 프로젝트가 0 개여도 «여기서» 초대를 보고 수락한다(편집기를 못 여는 사람의 첫 경험).
+           그리기·칸은 js/collab/invites-badge.js(편집기와 같은 파일). -->
+      <span id="collab-invite-badge" style="display:none;cursor:pointer;align-self:center;margin-right:10px;padding:4px 6px;border-radius:6px;color:inherit;"></span>
       <div id="acct" title="내 계정">
         <button type="button" id="acct-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="acct-menu">
           <span class="acct-avatar" id="acct-avatar" aria-hidden="true"></span>
@@ -886,6 +889,13 @@ body {
 <!-- ★킬스위치 단일 원본(js/feature-flags.js) — 이 인라인 스크립트가 window.COLLAB_ENABLED 를
      읽으므로 «반드시 먼저» 실행돼야 한다. 에디터(index.html)도 같은 파일을 읽는다. -->
 <script src="../js/feature-flags.js"></script>
+<!-- ★협업 reason 문장 표 단일 원본(js/collab/reasons.js) — 아래 인라인 collabReasonText 가 읽는다. 에디터(index.html)도 같은 파일. -->
+<script src="../js/collab/reasons.js"></script>
+<!-- ★빈 프로젝트 모양 단일 원본 — createProject · 초대 수락(collab/accept.js)이 같이 쓴다. feature-flags.js(PAGE_BG_DEFAULT) 뒤. -->
+<script src="../js/io/empty-project.js"></script>
+<!-- ★SIX ①: 초대 수락(로컬 프로젝트 만들기 + 연결) · 초대 종 — 편집기와 «같은 파일». reasons.js·empty-project.js 뒤. -->
+<script src="../js/collab/accept.js"></script>
+<script src="../js/collab/invites-badge.js"></script>
 <script src="../js/io/image-data-url.js"></script><!-- 썸네일 «빈 그림» 판정 — 아래 인라인 스크립트가 바로 쓴다 (T-87) -->
 <script src="../js/notice.js"></script>
 <script src="../js/entitlement-banner.js"></script>
@@ -1817,23 +1827,8 @@ async function _adoptIntoCurrentFolder(id) {
 
 async function createProject() {
   const id = 'proj_' + Date.now();
-  const now = new Date().toISOString();
-  const emptySnap = JSON.stringify({
-    version: 2, currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: window.PAGE_BG_DEFAULT, gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }]
-  });
-  const proj = {
-    id, name: 'Untitled',
-    createdAt: now, updatedAt: now,
-    version: 2,
-    currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: window.PAGE_BG_DEFAULT, gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }],
-    currentBranch: 'dev',
-    branches: {
-      main: { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },
-      dev:  { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() }
-    }
-  };
+  /* ★모양은 js/io/empty-project.js 한 벌(2026-10-06 — 이 자리에 있던 사본을 걷었다 · 편집기 탭·초대 수락과 같은 공장). */
+  const proj = window.buildEmptyProject(id, 'Untitled');
   await saveNewProject(proj);
   // [B안] 폴더 «안»에서 만들면 그 폴더 소속으로 — 실패해도 프로젝트 진입은 막지 않는다.
   await _adoptIntoCurrentFolder(id);
@@ -2057,6 +2052,8 @@ async function deleteProject(e, id) {
  * 에디터를 열어 동기화 루프가 섹션을 한 개씩 올린다.
  *   왜: proj.json 은 캔버스에 base64 이미지가 인라인돼 수십 MB 까지 간다(실측 85MB).
  *   서버리스 본문 한도(≈4.5MB)로는 통째 업로드가 «구조적으로» 불가능하다.
+ *   ⚰️(2026-10-06) 지금 서버는 Cloudflare 뒤 EC2 — 실효 천장은 핸들러 1MB, 4.5MB 는 어댑터가 흉내낸다.
+ *     자세한 실측·못 잰 것: main/collab/index.js register 주석.
  * ★초대는 여기서 안 받는다 — Electron 은 native prompt() 를 «차단»한다(복제 기능이
  *   그것 때문에 한 번 죽었다, duplicateProjectUI 주석 참고). 초대는 환경설정 「협업」 탭.
  */
@@ -2094,20 +2091,11 @@ async function shareProjectUI(e, id) {
 }
 
 /* 서버가 준 reason 을 «사용자가 다음에 뭘 할지 아는» 문장으로. 코드값을 그대로 보여주면
- * 사용자는 아무것도 못 한다. 모르는 값은 그대로 노출한다(빈칸이면 무슨 일인지조차 모른다). */
+ * 사용자는 아무것도 못 한다. 모르는 값은 그대로 노출한다(빈칸이면 무슨 일인지조차 모른다).
+ * ★표는 여기 없다 — js/collab/reasons.js 한 벌(2026-10-06 발주 TWO ⒜ · 전엔 이 자리와
+ *   settings-modal.js 에 «두 벌»이 따로 살았다: 여기 9 · 거기 13 · 겹침 5 → 합집합 17). */
 function collabReasonText(reason, r) {
-  switch (reason) {
-    case 'not_signed_in':  return '로그인이 필요합니다.';
-    case 'invalid_session':return '로그인이 만료됐습니다. 다시 로그인해 주세요.';
-    case 'offline':        return '서버에 닿지 못했습니다. 네트워크를 확인해 주세요.';
-    case 'not_deployed':   return '서버에 공동작업 기능이 아직 배포되지 않았습니다.';
-    case 'not_a_member':   return '이 공동작업본에 접근 권한이 없습니다.';
-    case 'too_large':
-    case 'section_too_large': return '섹션 하나가 너무 큽니다(이미지가 인라인으로 박혀 있습니다).';
-    case 'server':         return `서버 오류(${r?.status || '5xx'}) — 잠시 뒤 다시 시도해 주세요.`;
-    case 'bad_response':   return `서버가 알 수 없는 응답을 보냈습니다(${r?.status || '?'}).`;
-    default:               return reason || '알 수 없는 오류';
-  }
+  return window.CollabReasons.text(reason, r);
 }
 
 async function duplicateProjectUI(e, id) {

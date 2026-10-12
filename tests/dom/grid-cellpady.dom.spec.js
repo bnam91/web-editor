@@ -11,6 +11,7 @@ const path = require('path');
 const { bootApp } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
 const GOLD = path.join(__dirname, 'fixtures', 'grid-cellpady-y0-golden.json');
+const { tokensBack, TOKEN_NAMES } = require('./_golden-tokens.js');
 
 const SCENE = '<div class="section-block" id="cS" data-section="1"><div class="section-hitzone"></div><div class="section-inner" id="cI"><div class="gap-block" data-type="gap" style="height:60px"></div><div class="row" id="cR" data-layout="stack"></div><div class="gap-block" data-type="gap" style="height:400px"></div></div></div>';
 async function setup(page, rows = 2) {
@@ -52,7 +53,27 @@ test('Y0 [회귀 지킴] 키 없는 그리드 여섯 꼴 = 기준 판(0f572e2a) 
   });
   if (process.env.GRID_CPY_GOLDEN === 'update') { fs.writeFileSync(GOLD, JSON.stringify(got, null, 1)); test.info().annotations.push({ type: 'golden', description: 'written' }); return; }
   const want = JSON.parse(fs.readFileSync(GOLD, 'utf8'));
-  for (const k of Object.keys(want)) expect(got[k], `★키 없음 «${k}» 렌더 바이트가 기준 판과 다르다`).toBe(want[k]);
+  /* ★«뜻한 바뀜» 토큰은 옛 꼴로 되돌려 견준다 — 정본 = tests/dom/_golden-tokens.js (까닭·명부는 거기).
+     ⛔골든을 «갱신»하지 마라: 이 검사의 이름이 「기준 판(0f572e2a) 그대로」다 — HEAD 에서 뜨면 핀의 뜻이 사라진다
+     (2026-10-08 에 내가 한 번 갱신했다가 F8 의 가드 글을 읽고 되돌렸다). */
+  /* ★WANT = 이 검사가 되돌리는 토큰. ★영수증도 ★그 목록에만 건다 — ⛔TOKEN_NAMES 전부에 걸면
+     ★안 되돌린 토큰이 0 이라 ★거짓 빨강이 된다(2026-10-08 내가 한 번 밟았다). */
+  const WANT = ['FONT'];
+  const rc = {};
+  for (const k of Object.keys(want)) {
+    /* ★★핀 0f572e2a = ★E127 ★«이후» 판이다 — ★핀에 그 토큰이 ★이미 있다(2026-10-08 실측).
+       ⇒ ★FONT ★하나만 되돌린다. ⛔E127 을 넣으면 ★거꾸로 달라져 빨개진다. */
+    const b = tokensBack(got[k], WANT);
+    for (const t of WANT) rc[t] = (rc[t] || 0) + (b.counts[t] || 0);
+    expect(b.s, `★키 없음 «${k}» 렌더 바이트가 기준 판과 다르다(뜻한 바뀜 토큰만 되돌린 뒤)`).toBe(want[k]);
+  }
+  console.log(`Y0 토큰 되돌림 ${JSON.stringify(rc)} / ${Object.keys(want).length} 판`);
+  /* ★영수증 — 토큰별로 가른다. 한 보정이 헛돌아도 다른 보정이 가려 주지 않는다. */
+  for (const t of WANT) expect(rc[t] || 0, `영수증 — ${t} 토큰을 실제로 되돌렸다(잰 값 ${rc[t] || 0})`).toBeGreaterThan(0);
+  /* ★양성대조 — 토큰 아닌 바이트 하나를 바꾼 사본은 되돌려도 기준 판과 «달라야» 한다. */
+  const _k0 = Object.keys(want).find(k => String(got[k]).includes('grd-cell')) || Object.keys(want)[0];
+  expect(tokensBack(String(got[_k0]).replace('grd-cell', 'grd-cellX'), WANT).s,
+    `[양성대조] 토큰 아닌 바이트를 바꾸면 되돌려도 기준 판과 다르다 (${_k0})`).not.toBe(want[_k0]);
   expect(Object.keys(got).sort()).toEqual(Object.keys(want).sort());
   expect(errs).toEqual([]);
 });

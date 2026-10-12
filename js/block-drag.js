@@ -17,7 +17,20 @@ import {
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
 import { isBlurIntoPanel, parkEditing } from './props/_text-selection.js';
-import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth } from './frame-geometry.js';
+/* ★«부분 서식 HTML» 한 벌 = js/util/sanitize-rich-text.js — ★이 파일의 ★소비자가 ★둘이다:
+ *   ★수지②(모달 슬롯) ＋ ★수지⑦(그리드 줄) — ★2026-10-08 에 ★둘이 ★같은 날 ★들어왔다.
+ *   ⛔둘 다 ★`window._sanitizeStickerHtml` 전역을 ★부르지 않는다 — ★그 모듈 머리말이 ★금지한다
+ *     (★이름이 ★거짓말을 하지 않게 ★직접 import 한다).
+ *   ⚠️★모달은 ★`opts` 를 ★안 준다(★기본 허용목록) · ★그리드는 ★`GRID_RICH_TEXT_OPTS` 를 ★준다.
+ *     ★그 가름이 ★★«남의 소비자 공격면을 안 넓힌다»의 자리다 — ⛔모달 호출에 ★그리드 목록을 ★넘기지 마라. */
+import { sanitizeRichTextHtml, richTextHasFormatting } from './util/sanitize-rich-text.js';
+/* ★수지② — ★슬롯 키 표는 ★modal-block.js 에서 ★파생한다.
+   ⛔여기에 `{title:'titleText',…}` 를 ★되적지 마라 — 그게 ★둘째 명부였다(2026-10-08 합쳤다). */
+import { MODAL_SLOT_KEYS } from './blocks/modal-block.js';
+/* ★수지⑦ — ★그리드 허용목록은 ★그리드가 들고 있다(★렌더와 ★커밋이 ★같은 한 벌을 써야 한다).
+   ⛔여기 ★사본을 적지 마라 — ★갈리면 「★커밋은 됐는데 ★렌더에서 사라진다」가 된다. */
+import { GRID_RICH_TEXT_OPTS } from './blocks/grid-block.js';
+import { frameAlignOffset, frameVisibleSize, growFrameToFitChildren, clampChildIntoFrame, framePadding, innerFullWidth, frameClampsDrag, fitContentWidthPx } from './frame-geometry.js';
 import {
   dragState,
   _suppressDragSave,
@@ -80,10 +93,9 @@ function _isInsideUnselectedFrame(block) {
    못 재거나(≤1px) 줄일 게 없으면(내용이 이미 꽉 참) 아무것도 안 바꾸고 0. */
 function _fitFullWidthTextFrame(tf) {
   const oldW = tf.offsetWidth;
-  const prevW = tf.style.width;
-  tf.style.width = 'fit-content';
-  const fitW = Math.round(tf.offsetWidth);
-  tf.style.width = prevW;
+  /* ★2026-10-10 — ★재는 자를 ★`fitContentWidthPx`(frame-geometry.js) ★하나로 모았다.
+     ★예전엔 ★여기서 ★«offsetWidth 를 정수로 반올림한 값» 로 ★직접 쟀고, ★그 ★내림이 ★★현빈의 「1줄 → 2줄」이었다. */
+  const fitW = fitContentWidthPx(tf);
   if (!(fitW > 1) || fitW >= oldW) return 0;
   const contentEl = tf.querySelector('[class^="tb-"]');
   const tb = tf.querySelector('.text-block');
@@ -201,6 +213,16 @@ function _gridReadText(host) {
   return String(host.innerText == null ? '' : host.innerText).replace(/\r\n?/g, '\n');
 }
 
+/* 화면 글자 → ★«부분 서식 HTML»(수지⑦ 2026-10-08). ★평문을 읽는 위 함수와 ★나란히 산다 —
+   ⛔평문 경로를 ★대체하지 않는다(그걸 지우면 ★옛 저장본이 ★갈린다).
+   ★여기서 ★바로 sanitize 한다 — ★커밋 경로가 ★«걸러진 것»만 들고 다니게 해서
+     「어디선가 한 번은 걸렀겠지」를 ★없앤다. ★렌더도 ★다시 거른다(저장본 변조 대비).
+   ★판정(서식이 ★실제로 있나)은 ★부르는 쪽이 ★`richTextHasFormatting` 으로 한다. */
+function _gridReadHtml(host) {
+  const raw = host.innerHTML == null ? '' : String(host.innerHTML);
+  return raw ? sanitizeRichTextHtml(raw, GRID_RICH_TEXT_OPTS) : '';
+}
+
 /* 편집 세션 종료 = «단일 커밋 choke point» (image-handling.js 편집 세션과 같은 형태).
    blur / Escape / 다른 곳 클릭이 전부 여기 하나로 모인다.
    ★pushHistory 는 여기서 «따로 부르지 않는다» — updateGridBlock 이 dataset 을 바꾸기 «직전»에
@@ -215,15 +237,33 @@ function _gridEndEdit(block, host, addr, opts = {}) {
   block.classList.remove('editing');
   const before = host._gridBefore;
   const text = _gridReadText(host);
+  /* ★★부분 서식(수지⑦ 2026-10-08) — ★서식만 바뀐 경우도 ★«바뀐 것»이다.
+     ★`textHtml` 은 ★서식이 ★실제로 있을 때만 싣는다. ★없으면 ★빈 문자열을 보내고,
+       `_gridMergeLine` 이 ★그걸 ★«키 삭제»로 읽어 ★옛 평문 경로로 ★돌아간다(스티커 선례의 delete 와 같은 뜻).
+     ⇒ ★굵게를 ★다시 눌러 ★끄면 ★묵은 HTML 이 ★안 남는다. */
+  const html = _gridReadHtml(host);
+  const beforeHtml = host._gridBeforeHtml;
+  const textHtml = richTextHasFormatting(html, GRID_RICH_TEXT_OPTS) ? html : '';
+  /* ★견주는 것은 ★«저장할 값»이다 — ⛔날 HTML 로 견주지 마라.
+     까닭: 편집 중 브라우저가 ★제멋대로 끼운 마크업(div 래퍼 등)은 ★sanitize 가 ★언랩해도
+       ★«문자열»로는 갈릴 수 있다. ★그걸 ★「바뀌었다」로 읽으면 ★글자도 서식도 ★그대로인데
+       ★커밋이 나가 ★★히스토리에 ★빈 항목이 쌓인다 — ★옛 규약(「안 바뀌면 아무것도 안 한다」)이 깨진다.
+     ⇒ ★양쪽 다 ★같은 식(`richTextHasFormatting`)을 ★통과시킨 ★뒤에 견준다. */
+  const beforeTextHtml = richTextHasFormatting(beforeHtml || '', GRID_RICH_TEXT_OPTS) ? beforeHtml : '';
   // 안 바뀌었으면 «아무것도» 하지 않는다 — 재렌더가 없어야 바로 옆 줄을 이어서 더블클릭할 때
   // DOM 이 갈리지 않고, 히스토리에 빈 항목도 안 쌓인다.
   // (before 가 없다 = 편집 진입을 안 거친 상태 → 'undefined' 를 데이터에 쓰지 않고 그냥 나간다)
-  if (before == null || text === before) return;
+  // ★평문이 같아도 ★«저장할 서식»이 갈렸으면 ★커밋한다(= 굵게만 눌렀다 / 굵게를 껐다).
+  if (before == null || (text === before && textHtml === beforeTextHtml)) return;
   /* ★DOM 을 편집 «전»으로 되돌린 뒤 커밋한다.
      updateGridBlock 안의 pushHistory 는 «직렬화된 캔버스»를 통째로 찍는다 — 타이핑된 글자가
      DOM 에 남은 채 찍히면 그 스냅샷이 「옛 dataset + 새 글자」로 어긋난다.
      되돌린 직후 updateGridBlock 이 renderGridBlock 으로 새 글자를 다시 그리므로 깜빡임은 없다. */
-  host.textContent = before;
+  /* ★편집 «전»에 ★서식이 있었으면 ★그 꼴로 되돌린다 — ★평문으로 되돌리면 그 스냅샷이
+     ★「옛 dataset(textHtml 있음) + 평문 DOM」으로 ★어긋난다(되돌리기로 ★자정되긴 하지만
+     ★스냅샷 자체가 ★거짓이 되는 것을 ★둘 까닭이 없다). ★없으면 ★옛 경로 그대로. */
+  if (beforeTextHtml) host.innerHTML = beforeTextHtml;
+  else host.textContent = before;
   /* ★중첩 «안» 줄이면 `np` 를 같이 보낸다 — T-220 ① 이 낸 쓰기 길(patchCell{lineIndex, np}).
      ⛔`np` 를 «항상» 싣지 마라: 바깥 줄 커밋의 뜻이 바뀌고, 모델 입구가 「np 는 lineIndex 와
        같이 와야 한다」를 다른 자리에서 다시 재게 된다. 있을 때만 싣는다. */
@@ -231,8 +271,8 @@ function _gridEndEdit(block, host, addr, opts = {}) {
      그 순간 패널을 다시 그리면 지금 눌린 칸이 DOM 에서 떨어져 그 조작이 «먹힌다»(TX1 측정: 그리드 크기 칸 첫 클릭). */
   const res = window.updateGridBlock?.(block.id, {
     patchCell: addr.np
-      ? { r: addr.r, c: addr.c, lineIndex: addr.li, np: addr.np, text }
-      : { r: addr.r, c: addr.c, lineIndex: addr.li, text },
+      ? { r: addr.r, c: addr.c, lineIndex: addr.li, np: addr.np, text, textHtml }
+      : { r: addr.r, c: addr.c, lineIndex: addr.li, text, textHtml },
   }, opts.keepPanel ? { keepPanel: true } : undefined);
   // 실패(좌표가 범위 밖 등)면 화면은 이미 «편집 전»이라 화면·데이터가 갈라진 채 남지 않는다.
   if (res && res.ok === false) window.showToast?.(`줄 수정 실패: ${res.message || res.code}`);
@@ -288,17 +328,65 @@ function _modalEndEdit(block, host) {
   if (before == null || !slot) return;
   const isPh = text.trim() === '' || text.trim() === ph.trim();
   const next = isPh ? '' : text;
-  // 값이 그대로면 아무것도 하지 않는다 — 재렌더도 히스토리도 없다
-  // ★편집 «전» 읽은 값과 같아도 안 쓴다 — 저장된 \n 블록을 dblclick→blur 만 해도 데이터가 덮이던 것(옛 판)을 막는다
-  if (next === before || (block.dataset[{ title: 'titleText', text: 'textText', cell1: 'cell1', cell2: 'cell2' }[slot]] || '') === next) {
+  /* ★★수지② 부분 서식 — ★«평문 옆에» Html 을 같이 커밋한다(스티커 «U6b» 와 ★같은 꼴).
+     ★서식이 ★없으면 ★빈 문자열 ⇒ commitModalSlot 이 ★키를 ★지운다(★옛 평문 경로 유지 = ★무회귀).
+     ★안내문구 상태(isPh)면 ★Html 도 ★없다 — 흐린 안내문구가 서식을 입으면 안 된다. */
+  const sanitized = (!isPh && typeof sanitizeRichTextHtml === 'function')
+    ? sanitizeRichTextHtml(host.innerHTML) : '';
+  const nextHtml = (sanitized && richTextHasFormatting(sanitized)) ? sanitized : '';
+  const K = MODAL_SLOT_KEYS[slot];
+  const curPlain = K ? (block.dataset[K.plain] || '') : '';
+  const curHtml  = K ? (block.dataset[K.html]  || '') : '';
+  /* 값이 그대로면 아무것도 하지 않는다 — 재렌더도 히스토리도 없다
+     ★편집 «전» 읽은 값과 같아도 안 쓴다 — 저장된 \n 블록을 dblclick→blur 만 해도 데이터가 덮이던 것(옛 판)을 막는다
+     ★★⛔그 비교에 ★Html 을 ★같이 넣어야 한다 — ★⌘B 는 ★글자를 ★안 바꾼다.
+       ★빼면 ★서식만 바뀐 커밋이 ★영영 ★삼켜진다(실측: tests/dom/rich-text-consumer-modal ★M6 이 그 자리다). */
+  if ((next === before || curPlain === next) && curHtml === nextHtml) {
     if (isPh) window.renderModalBlock?.(block);   // 안내문구 복원(흐린 상태)만 다시 그린다
     return;
   }
   host.innerText = before;                        // 커밋 전 DOM 을 편집 «전»으로
   window.pushHistory?.();
-  window.commitModalSlot?.(block, slot, next);
+  window.commitModalSlot?.(block, slot, next, nextHtml);
   window.renderModalBlock?.(block);
   window.scheduleAutoSave?.();
+}
+
+/* ★quote 글 편집 종료 — ★모달과 ★한 벌의 규율이다(dataset 에 커밋하고 재렌더).
+   ★현빈 2026-10-10 `1010t2c1-①` 「텍스트를 캔버스에서 수정 바로 할수 있게 해주고」.
+   ★★`quote-block.js:71` 의 v1 머리말이 ★「v1 에 없는 것 … ★인라인 더블클릭 편집(글은 우측 패널로 넣는다)」
+     이라 ★이름으로 적어 뒀다 ⇒ ★이 자는 ★그 결정을 ★뒤집는 것이고, ★근거는 ★현빈 원문이다.
+   ★안내문구 지뢰 방지 — ★모달과 ★같은 까닭: 흐린 안내문구를 ★그대로 두고 나가면 ★아무것도 쓰지 않는다.
+     ★그 문구를 데이터로 굳히면 ★그 블럭은 ★영영 「본문이 안내문구인」 블럭이 된다.
+   ★글자 읽기는 ★`_mdlReadText` ★한 벌을 ★그대로 쓴다 — ⛔제 사본을 만들지 않는다
+     (인용구 글덩이는 ★줄당 `<div class="tb-qt-line">` 이라 ★모달 슬롯과 ★같은 꼴 = 블록 경계가 `\n`).
+   ⛔부분 서식(HTML)은 ★여기서 ★안 다룬다 — ★그건 `c1-②` 범위다(모달은 `nextHtml` 을 같이 커밋한다). */
+function _quoteEndEdit(block, host) {
+  if (host.getAttribute('contenteditable') !== 'true') return;
+  host.setAttribute('contenteditable', 'false');
+  host.removeAttribute('draggable');
+  block.classList.remove('editing');
+  const before = host._qtBefore;
+  if (before == null) return;
+  const text = _mdlReadText(host);
+  /* ★안내문구를 ★손 안 대고 나갔나 — ★그러면 dataset 은 ★빈 채로 둔다(render 가 다시 흐리게 그린다) */
+  const isPh = !!host._qtWasPh && text.trim() === String(before).trim();
+  const next = isPh ? '' : text;
+  if (text === before || (block.dataset.text || '') === next) {
+    if (isPh) window.renderQuoteBlock?.(block);      // 안내문구 복원만 다시 그린다
+    return;
+  }
+  host.innerText = before;                           // 커밋 «전» DOM 을 편집 전으로
+  window.pushHistory?.();                            // ⇒ ⌘Z ★한 걸음(commitQuoteText 는 /^update.*Block$/ 가 아니다)
+  if (window.commitQuoteText?.(block, next)) {
+    window.renderQuoteBlock?.(block);
+    /* ★고른 블럭이면 ★우측 패널도 ★따라온다 — ★«줄 수 안내»(`#qt-lines-hint`)가 ★캔버스와 ★갈리지 않게.
+       ★★2026-10-11 현빈 1011t1a-2 로 ★«내용» ★입력칸(옛 `#qt-text`)이 ★사라져 ★따라올 것이 ★★하나 줄었다
+         ⇒ ★이 호출의 ★까닭은 ★그 ★한 칸으로 ★좁아졌다(⛔없어진 칸 이름을 ★여기 ★남겨 두지 않는다).
+       ⛔안 고른 블럭에서 부르지 마라 — ★남의 패널을 ★덮는다. */
+    if (block.classList.contains('selected')) window.showQuoteProperties?.(block);
+    window.scheduleAutoSave?.();
+  }
 }
 
 function _gridBeginEdit(hit, e) {
@@ -315,6 +403,10 @@ function _gridBeginEdit(hit, e) {
   // (텍스트 블록도 같은 이유로 contenteditable 요소에 draggable=false 를 박는다 — 이 파일의 dragTarget 배선).
   host.setAttribute('draggable', 'false');
   host._gridBefore = _gridReadText(host);
+  /* ★★부분 서식(수지⑦) — ★HTML 도 ★같이 기억한다.
+     ⛔평문만 기억하면 ★«글자는 그대로고 ★서식만 바뀐» 경우(굵게만 눌렀다)를 ★«안 바뀌었다»로 읽어
+       ★아래 _gridEndEdit 가 ★그냥 나가고 ★★서식이 ★영영 커밋되지 않는다. */
+  host._gridBeforeHtml = _gridReadHtml(host);
   const addr = np ? { r, c, li, np } : { r, c, li };
   // 라인 요소는 렌더마다 새로 만들어진다 → 이 요소에 처음 한 번만 붙이면 된다(누수 없음).
   if (!host._gridEditBound) {
@@ -559,6 +651,8 @@ function bindBlock(block) {
   const isInfoCard    = block.classList.contains('infocard-block');
   const isInnerCard   = block.classList.contains('innercard-block');
   const isModal       = block.classList.contains('modal-block');
+  const isCoupon      = block.classList.contains('coupon-block');   // ★쿠폰(2026-10-07 현빈 발주)
+  const isQuote       = block.classList.contains('quote-block');    // ★인용구(2026-10-07 · QT1)
   const isJoker      = block.classList.contains('joker-block');
   const isShape      = block.classList.contains('shape-block');
   const isCanvas     = block.classList.contains('canvas-block');
@@ -716,6 +810,13 @@ function bindBlock(block) {
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
       if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
       moved = true;
+      /* ★★끌는 ★동안만 ★프레임 자르기를 ★푼다 (현빈 2026-10-10 ㄴ 「자르되 ★끌 때는 ★보인다」).
+         ★그리는 쪽은 ★CSS ★한 줄 — `css/editor-blocks.css` `.frame-block:has(> .frame-child-dragging)`.
+         ★이름을 ★`dragging` 처럼 ★흔한 전역 낱말로 ★두지 ★않았다(★전역 이름 충돌 교훈 2026-10-06).
+         ★★떼는 자리는 ★`onUp` ★첫 줄이다 — ⛔안 떼지면 ★영구히 ★visible 이 되고 ★그건 ★★«고치기 전과 같다»
+           (= ★조용한 무효화). ★`dragend` 도 ★onUp 에 ★묶여 있어 ★그 길로도 ★떼진다.
+         ★_dragOutParentFrame 가 ★없으면(=자유배치 프레임 안이 아니면) ★걸 ★필요가 없다. */
+      if (_dragOutParentFrame) dragEl.classList.add('frame-child-dragging');
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
       /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
@@ -795,14 +896,17 @@ function bindBlock(block) {
            (0,0) 에 못 박힌다. 형제 경로(bindFrameDropZone 의 「absolute 셀 프레임 mousemove
            드래그」, `const parentFreeFrame = ss.parentElement?.closest(…)`)도 parentElement
            부터 찾고 거기서 clamp 한다 — 같은 식으로 맞춘다. */
-      const _clampParent = dragEl.parentElement?.closest('.frame-block[data-free-layout]') || null;
-      if (_clampParent) {
-        const _c = clampChildIntoFrame(
-          newLeft, newTop, dragEl.offsetWidth, dragEl.offsetHeight,
-          _clampParent.offsetWidth, _clampParent.offsetHeight, framePadding(_clampParent));
-        newLeft = _c.left;
-        newTop  = _c.top;
-      }
+      /* ══ ★★죔의 ★역사 — ★이 자리에서 ★세 번 ★바뀌었다. ★다음 사람이 ★네 번째로 ★되돌리기 전에 ★읽어라 ══
+         ★T-088(2026-09-22) : ★죔을 ★★«무조건» 걸었다. 까닭 = ★프레임이 ★자르고(그때 overflow:hidden) ★안 커져서
+            ★자식을 ★밑변 너머로 끌면 ★★화면에서 ★사라졌다(실측: 그룹 120 안 제목이 top:148 → ★안 보이고 값만 남음).
+         ★2026-10-09       : ★죔을 ★«정말 자르는 프레임»일 때만 — 까닭 = ★기본이 ★visible 이 돼 ★전제가 죽었다.
+            ★실측(앱 9430 · 진짜 마우스): ★오른쪽 170px 끌어도 ★`style.left` 가 ★★378px 에 ★물려 ★안 움직였다
+            (프레임 716 − 자식 338) · ★음성대조로 ★왼쪽 150px 은 ★378→228 로 ★정확히 움직였다 ⇒ ★죔이었다.
+         ★★2026-10-10(여기) : ★★«끌는 ★동안»에는 ★★아무도 ★죄지 ★않는다. ★죔은 ★★«놓는 ★순간»으로 ★옮겼다.
+            ⇒ ★★10-09 의 ★물림이 ★안 나고(끌 때 자유) · ★T-088·09-28 의 ★사라짐도 ★안 난다(놓을 때 되돌림).
+            ★옮긴 자리 = ★이 함수 아래 ★`onUp` 의 ★`if (moved)` 갈래 ★한 곳 · ★술어 ★`frameClampsDrag(el, 'drop')`.
+         ★★⛔여기에 ★다시 ★죔을 ★넣지 ★마라 — ★넣으면 ★10-09 가 ★부활하고,
+            ★`tests/unit/frame-clips-predicate.test.mjs` 의 ⒝ 칸이 ★그것을 ★잡는다. */
 
       dragEl.style.left = `${newLeft}px`;
       dragEl.style.top  = `${newTop}px`;
@@ -834,6 +938,10 @@ function bindBlock(block) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.removeEventListener('dragend', onUp);
+      /* ★★★맨 앞에서 ★떼낸다 — ★아래에 ★갈래가 여럿이라 ★뒤에 두면 ★어떤 길이 ★빠뜨린다.
+         ★남으면 ★그 프레임은 ★영구 `overflow: visible` = ★현빈 10-10 이 ★조용히 ★되돌아간다.
+         ★지키는 자: tests/dom/frame-clip-drag.dom.spec.js 「놓으면 표식이 떼진다」(돌연변이로 세웠다). */
+      dragEl.classList.remove('frame-child-dragging');
       hideGuides();
 
       // 드래그아웃: freeLayout 프레임 밖에서 마우스업 → 섹션 레벨로 추출
@@ -891,6 +999,28 @@ function bindBlock(block) {
       }
 
       if (moved) {
+        /* ★★★놓을 때 ★안으로 ★되돌린다 (현빈 ㄴ ＋ 지디 2026-10-10 · T-088·09-28 의 ★지키는 자리).
+           ★★여기가 ★«끌어내기»(위 갈래 · return 했다) ★다음이라 ★★«프레임 안에 ★머문» 제스처만 온다.
+           ★★불변식: ★놓은 뒤 ★그 자식의 사각형이 ★★프레임 사각형에 ★★완전히 든다.
+           ★★⛔멀쩡한 것을 ★움직이지 ★않는다 — `clampChildIntoFrame` 은 ★이미 안이면 ★같은 값을 돌려준다
+             (★그 음성대조가 ★검사에 있다). ★다중선택 ★피어도 ★같이 ★되돌린다(안 하면 ★한 쪽만 들어간다). */
+        const _dropParent = dragEl.parentElement?.closest('.frame-block[data-free-layout]') || null;
+        if (_dropParent && frameClampsDrag(_dropParent, 'drop')) {
+          const _pad = framePadding(_dropParent);
+          const _snap = (el) => {
+            if (!el || el.style.position !== 'absolute') return;
+            const c = clampChildIntoFrame(
+              parseFloat(el.style.left) || 0, parseFloat(el.style.top) || 0,
+              el.offsetWidth, el.offsetHeight,
+              _dropParent.offsetWidth, _dropParent.offsetHeight, _pad);
+            el.style.left = `${c.left}px`;
+            el.style.top  = `${c.top}px`;
+            el.dataset.offsetX = String(c.left);
+            el.dataset.offsetY = String(c.top);
+          };
+          _snap(dragEl);
+          multiPeers.forEach(p => _snap(p.el));
+        }
         _resizeFrameToFitChildren(dragEl);
         multiPeers.forEach(p => _resizeFrameToFitChildren(p.el));
         window.pushHistory?.();
@@ -2175,8 +2305,10 @@ function bindBlock(block) {
     });
   }
 
-  // grid/infocard: bridge와 동일한 클릭-선택 (dataset 모델 정적 블록)
-  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties']]) {
+  /* grid/infocard: bridge와 동일한 클릭-선택 (dataset 모델 정적 블록)
+     ★쿠폰도 ★여기에 얹는다(2026-10-07) — ⛔제 핸들러를 새로 만들지 않는다. 그러면 프레임 안 선택·
+       ⌘/⇧ 다중선택·레이어 하이라이트·showHandlesFor 가 ★한 벌 더 생겨 조용히 갈라진다. */
+  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties'], [isCoupon, 'showCouponProperties'], [isQuote, 'showQuoteProperties']]) {
     if (!flag) continue;
     block.addEventListener('click', e => {
       e.stopPropagation();
@@ -2245,6 +2377,18 @@ function bindBlock(block) {
            여기서는 «어떤 키가 눌렸나»만 넘긴다(두 벌로 갈라 두지 않는다).
            ⛔이 줄이 _grdAddr 을 바꾸지는 «않는다» — 패널이 보는 줄은 종전대로 마지막에 누른 줄이다. */
         window.grdApplyLineSelClick?.(block, _grdAddr, { shift: e.shiftKey, meta: e.metaKey || e.ctrlKey });
+      }
+      /* ★쿠폰 — 누른 «글자 칸»의 이름을 2번째 인자로 넘긴다(현빈: 「우측 패널은 캔버스에서
+         ★고른 칸만 열린다」). 선례 = 바로 위 bn2 의 [data-line-idx] · 그리드의 _grdAddr.
+         ★렌더러가 심어 둔 data-cpn-slot 이 ★정본이다 — ⛔DOM 순서로 역산하지 마라.
+         ★배경(글자 아닌 곳)을 누르면 undefined 를 넘긴다 ⇒ 패널은 «열려 있던 칸을 그대로» 둔다
+           (showCouponProperties 가 slotKey===undefined 를 「바꾸지 말라」로 읽는다).
+         ⛔아래 호출줄의 변수 이름(_grdAddr)을 ★고치지 마라 — tests/unit/grid-active-line-reset.mjs:229
+           와 grid-line-typo.test.js:284 가 ★그 글자를 소스에서 찾는다. 이름이 그리드 꼴인 것은
+           «두 검사를 살려 두기 위해» 일부러 둔 것이다. */
+      if (showFn === 'showCouponProperties') {
+        const _sl = e.target && e.target.closest ? e.target.closest('[data-cpn-slot]') : null;
+        if (_sl && block.contains(_sl)) _grdAddr = _sl.dataset.cpnSlot;
       }
       window[showFn]?.(block, _grdAddr);
       /* ★0922 T-058 — 걸쇠는 showGridProperties «뒤»에 건다. 그 호출이 _grdAddr===null 일 때
@@ -2385,6 +2529,54 @@ function bindBlock(block) {
         sel.removeAllRanges();
         const r = document.createRange();
         if (host._mdlWasPh) r.selectNodeContents(host);   // 안내문구면 전체 선택 → 타이핑으로 즉시 교체
+        else {
+          const cr = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
+          if (cr) { sel.addRange(cr); return; }
+          r.selectNodeContents(host); r.collapse(false);
+        }
+        sel.addRange(r);
+      }
+    });
+  }
+
+  /* ── ★quote: 글 ★인라인 편집 (현빈 2026-10-10 `1010t2c1-①`) ──
+     ★★편집 host 는 ★`.tb-qt-body` ★하나다 — ⛔줄(`.tb-qt-line`)마다 열지 마라:
+       ★v1 모델은 ★글이 ★한 덩이(`dataset.text`)이고 ★줄은 ★렌더가 쪼갠다(quote-block.js 머리말 「v1 스택 = 엔터로 나눈다」)
+       ⇒ ★줄마다 열면 ★★«엔터로 줄을 나누는 길»이 ★막힌다.
+     ★두 후보를 ★둘 다 본다 — ★모달 dblclick 과 ★같은 규약(앞 커밋이 innerHTML 을 갈아끼웠으면
+       첫 클릭 타깃이 detach 돼 `elementFromPoint` 가 엉뚱한 요소를 준다).
+     ⛔`RETAIN_ON_PANEL_BLUR_SEL`·`KEEP_FOCUS_HOST_SEL`(`js/props/_text-selection.js:74,80`)에
+       ★`.quote-block` 을 ★더하지 ★않았다 — ★패널 적용이 ★블럭을 ★통째로 다시 그리는 꼴이라
+       ★포커스를 붙잡으면 ★아직 커밋 안 된 글자가 ★사라진다. ★그 파일이 ★그 가름을 ★이미 적어 뒀다. */
+  if (isQuote) {
+    block.addEventListener('dblclick', e => {
+      const _body = (n) => {
+        const b = n && n.closest ? n.closest('.tb-qt-body') : null;
+        return (b && block.contains(b)) ? b : null;
+      };
+      const host = _body(document.elementFromPoint(e.clientX, e.clientY)) || _body(e.target);
+      if (!host) return;
+      e.stopPropagation();
+      if (host.getAttribute('contenteditable') === 'true') return;
+      block.classList.add('editing');          // 드래그·삭제키 가드가 이걸 본다
+      host.setAttribute('contenteditable', 'true');
+      host.setAttribute('draggable', 'false'); // 부모 row 가 draggable — 안 끄면 글자 드래그 선택이 블록 드래그가 된다
+      host._qtBefore = _mdlReadText(host);
+      /* ★안내문구인가 — ★`_lineEl` 이 그때만 ★`data-is-placeholder` 를 박는다(quote-block.js:259) */
+      host._qtWasPh = !!host.querySelector('[data-is-placeholder="true"]');
+      if (!host._qtEditBound) {
+        host._qtEditBound = true;
+        host.addEventListener('blur', () => _quoteEndEdit(block, host));
+        host.addEventListener('keydown', ev => {
+          if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); host.blur(); }
+        });
+      }
+      host.focus();
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        const r = document.createRange();
+        if (host._qtWasPh) r.selectNodeContents(host);   // 안내문구면 전체 선택 → 타이핑으로 즉시 교체
         else {
           const cr = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
           if (cr) { sel.addRange(cr); return; }
@@ -2677,14 +2869,12 @@ function bindFrameDropZone(ss) {
         const cdy = (ev.shiftKey && _shiftAxisF === 'h') ? 0 : dy;
         let newLeft = Math.round(origLeft + cdx / scale);
         let newTop  = Math.round(origTop  + cdy / scale);
-        // 섹션/부모 프레임 경계 클램핑
-        const _clampParent = parentFreeFrame || ss.parentElement;
-        if (_clampParent) {
-          const _maxL = _clampParent.offsetWidth  - ss.offsetWidth;
-          const _maxT = _clampParent.offsetHeight - ss.offsetHeight;
-          newLeft = Math.max(0, Math.min(_maxL, newLeft));
-          newTop  = Math.max(0, Math.min(_maxT,  newTop));
-        }
+        /* ★★2026-10-10 — ★★«끌는 ★동안»의 ★죔을 ★걷었다(★위 일반 블록 끌기와 ★같은 까닭 · 현빈 10-09).
+           ★★⛔그리고 ★이 자리는 ★★«제 벌 명부»였다 — ★`clampChildIntoFrame` 을 ★★안 쓰고
+             ★`Math.max(0, Math.min(_max, …))` 를 ★손으로 ★다시 셌다(★★프레임 ★안쪽 여백도 ★안 봤다).
+             ⇒ ★일반 경로와 ★조용히 ★갈려 있었다: ★저쪽은 ★술어로 ★조건부였고 ★★이쪽은 ★★무조건이었다.
+           ★★⇒ ★죔은 ★아래 ★`onUp` ★한 곳으로 ★모았고, ★★공용 `clampChildIntoFrame` ＋ `framePadding` 을 ★쓴다.
+           ⛔여기에 ★다시 ★넣지 ★마라. */
         ss.style.left = newLeft + 'px';
         ss.style.top  = newTop  + 'px';
         ss.dataset.offsetX = String(newLeft);
@@ -2706,7 +2896,22 @@ function bindFrameDropZone(ss) {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         hideGuides();
-        if (moved) { window.pushHistory?.(); window.triggerAutoSave?.(); }
+        if (moved) {
+          /* ★★놓을 때 ★안으로 ★되돌린다 — ★위 일반 블록 끌기 갈래와 ★★«같은 술어·같은 함수»다.
+             ⛔여기서 ★제 벌로 ★다시 세지 ★않는다(★이 자리의 ★옛 흠이 ★그것이었다). */
+          const _dropParent = parentFreeFrame || ss.parentElement;
+          if (_dropParent && _dropParent.classList?.contains('frame-block') && frameClampsDrag(_dropParent, 'drop')) {
+            const c = clampChildIntoFrame(
+              parseFloat(ss.style.left) || 0, parseFloat(ss.style.top) || 0,
+              ss.offsetWidth, ss.offsetHeight,
+              _dropParent.offsetWidth, _dropParent.offsetHeight, framePadding(_dropParent));
+            ss.style.left = `${c.left}px`;
+            ss.style.top  = `${c.top}px`;
+            ss.dataset.offsetX = String(c.left);
+            ss.dataset.offsetY = String(c.top);
+          }
+          window.pushHistory?.(); window.triggerAutoSave?.();
+        }
       };
 
       document.addEventListener('mousemove', onMove);
@@ -2766,6 +2971,13 @@ function bindFrameDropZone(ss) {
     if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc)) { clearDropIndicators(); dragState.dragSrc = null; return; }
     window.pushHistory();
     const _fromKids = dragState.dragSrc.parentElement;   // G19 — 그리드 밑 그릇에서 끌어냈으면 비었을 때 걷는다(아래 끝에서)
+    /* ★수지③(2026-10-08 · 지디 GO) — 「들어온 것」을 «정체»로 가린다: 넣기 «전» 프레임 자식의 참조 집합(클래스·표시 아님).
+       아래 자유배치 끝 루프(「DOM 순서 변경 후 …」)가 이 집합 «밖»의 absolute 자식만 가운데·기존 바닥+16 아래로 옮기고, 이미 있던 자식은 손대지 않는다.
+       수지 원문: 「기존에 프레임블럭 안에 있던 블럭들의 위치가 바뀌게 된다. 자유배치 모드인데 왜, 오브젝트 블럭이 들어옮에 따라 위치가 영향을 받는가」
+       ⚠️전원 재적층은 09-05 결정이 «아니다» — 그 재적층(left:'0px' 하드코딩 포함)은 2026-04-11 분리(d62d9875) 때 이미 있었고,
+         09-05(ee4a59e1)는 left 를 0 → 가운데로 바꾸기만 했다. (b) 인용의 주어는 「외부에서 들고 넣을 때」의 그것이다.
+       ⛔이 설명을 아래 루프 주석으로 옮기지 마라 — tests/unit/frame-textcenter ④-e 가 그 주석부터 «1400자 창»을 읽는다(넘치면 빨강 · 2026-10-08 실측). */
+    const _kidsBeforeDrop = new Set(inner.children);
 
     // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
     const isFreeLayout = ss.dataset.freeLayout === 'true';
@@ -2897,6 +3109,10 @@ function bindFrameDropZone(ss) {
         }
       }
 
+      // ★수지③ — 들어온 것/이미 있던 것 가르기(_kidsBeforeDrop 선언 주석). 넣기가 다 끝난 «뒤»라 여기서 센다.
+      const _incoming = [...inner.children].filter(b => !_kidsBeforeDrop.has(b) && !b.classList.contains('drop-indicator') && b.style.position === 'absolute');
+      const _stayBottom = [...inner.children].filter(b => _kidsBeforeDrop.has(b) && b.style.position === 'absolute')
+        .reduce((m, b) => Math.max(m, (parseInt(b.style.top, 10) || 0) + (b.offsetHeight || 0)), 0);
       /* DOM 순서 변경 후 absolute 블록의 top 재계산 + ★가로 중앙 배치.
          ★(b) 「외부에서 들고 넣을 때는 좌표만 중앙값에 위치시켜주면 된다.
               중앙값이란 프레임블럭의 «보여지는 가로너비»를 기준」 (현빈 2026-09-05).
@@ -2909,16 +3125,14 @@ function bindFrameDropZone(ss) {
            «이미 중앙에 있던» 형제(left:303)까지 left:0 으로 되돌려 P1 의 중앙배치를 지웠다.
          ⚠️dataset.offsetX 는 여기서 갱신하지 않는다 — 이 루프는 원래부터 안 했고(figma export가
            읽는 값이라 이미 낡아 있다), 이번 변경의 축을 «left 값 하나»로 묶어두기 위해서다. */
+      /* ★수지③ — «들어온 것»(_kidsBeforeDrop 밖)만 옮긴다 · 기존 자식 무변. 까닭·근거는 _kidsBeforeDrop 선언 주석. */
       const _fv = frameVisibleSize(inner);
       const _fpad = framePadding(inner);   // F5
-      let _stackY = _fpad.t;
-      [...inner.children].forEach(b => {
-        if (b.classList.contains('drop-indicator')) return;
-        if (b.style.position === 'absolute') {
-          b.style.top  = _stackY + 'px';
-          const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null, _fpad);
-          b.style.left = Math.max(_fpad.l, _off.left) + 'px';
-        }
+      let _stackY = _stayBottom > 0 ? _stayBottom + 16 : _fpad.t;
+      _incoming.forEach(b => {
+        b.style.top  = _stackY + 'px';
+        const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null, _fpad);
+        b.style.left = Math.max(_fpad.l, _off.left) + 'px';
         _stackY += (b.offsetHeight || 60) + 16;
       });
 

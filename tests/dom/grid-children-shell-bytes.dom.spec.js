@@ -71,32 +71,34 @@ const SNAP = () => {
   { const { row, block } = mk({ gap: 20 }); inner.appendChild(row); block.dataset.overlayBlock = 'true'; window.renderGridBlock(block); take('overlay 폭 없음 gap20', block); }
   return out;
 };
-/* ★E127(c16bbccc · 지디 E127-guards 10-06): 그리드 역할색 color:#hex → color:var(--preset-<역할>-color, #hex) 는 «뜻한 바뀜»(폴백 hex 그대로 = 프리셋 덮기 없으면 같은 픽셀).
- *   기준판엔 없는 꼴이라 «그 토큰만» 옛 꼴로 되돌려 비교한다 — 정규식은 역할 다섯 · 6자리 hex 만 잡는다(다른 바이트는 하나도 안 건드림).
- *   양성대조: 글자색 아닌 바이트 하나(grd-line → grd-linX)를 바꾼 사본은 되돌려도 기준판과 «달라야» 한다 — 아래 단언. */
-const E127_TOKEN = /color:var\(--preset-(?:h1|h2|h3|body|caption)-color, (#[0-9a-fA-F]{6})\);/g;
-const e127Back = (h) => { let n = 0; const s = (h ?? '').replace(E127_TOKEN, (_, hex) => { n++; return `color:${hex};`; }); return { s, n }; };
+/* ★토큰 되돌리기는 ★공용 한 곳에서 뜬다 — tests/dom/_golden-tokens.js
+ *   (핀 37ab1c65 과 견준다 · ⛔여기에 사본을 두지 마라: 2026-10-08 까지 W0·B0 에 복사돼 있었고
+ *    FONT 토큰을 더할 자리가 다섯으로 늘어 명부가 다섯이 될 참이었다). */
+const { tokensBack, TOKEN_NAMES } = require('./_golden-tokens.js');
 test.setTimeout(120000);
 test('B0 ★자식 없는 그리드 — 37ab1c65 와 block.outerHTML 바이트 동일(일곱 꼴 × 재렌더 = 21건)', async ({ browser }) => {
   const pCur = await browser.newPage(), pBase = await browser.newPage();
   const e1 = await setup(pCur, bootApp), e2 = await setup(pBase, bootBase);
   const cur = await pCur.evaluate(SNAP), base = await pBase.evaluate(SNAP);
   const ids = (h) => h.replace(/ id="[^"]*"/g, ' id=""');   // id 는 난수 — 비교에서만 지운다
-  let eq = 0, diff = 0, tokens = 0; const lines = [];
+  let eq = 0, diff = 0, nE127 = 0, nFont = 0; const lines = [];
   for (const k of Object.keys(base)) {
-    const back = e127Back(cur[k]); tokens += back.n;
+    /* ★핀 37ab1c65 = ★E127 ★이전 판 ⇒ ★둘 다 되돌린다. */
+    const back = tokensBack(cur[k], ['E127', 'FONT']); nE127 += (back.counts.E127||0); nFont += (back.counts.FONT||0);
     const a = ids(back.s), b = ids(base[k]);
     if (a === b) eq++; else { diff++; let j = 0; while (j < a.length && a[j] === b[j]) j++; lines.push(`${k} @${j}: now=${JSON.stringify(a.slice(Math.max(0, j - 30), j + 60))} pin=${JSON.stringify(b.slice(Math.max(0, j - 30), j + 60))}`); }
   }
-  console.log(`BYTECOUNT total=${Object.keys(base).length} equal=${eq} different=${diff} errs=${e1.length}/${e2.length} e127tokens=${tokens}`);
+  console.log(`BYTECOUNT total=${Object.keys(base).length} equal=${eq} different=${diff} errs=${e1.length}/${e2.length} e127tokens=${nE127} fonttokens=${nFont}`);
   lines.forEach(l => console.log('BYTEDIFF ' + l));
   expect(e1).toEqual([]); expect(e2).toEqual([]);
   expect(Object.keys(base).length, '★표본이 21건이 아니다 — 자가 «덜» 재고 있다').toBe(21);
   expect(Object.keys(cur).sort()).toEqual(Object.keys(base).sort());
   // ★무엇이 다른지 실패 글에 바로(10-06 integ25: «Expected 0 Received 21» 만 보였다 — console 줄이 리포트에 안 실림)
   expect(diff, `다른 판 ${diff}/${Object.keys(base).length} — 첫 셋:\n${lines.slice(0, 3).join('\n')}`).toBe(0);
-  expect(tokens, '영수증 — E127 토큰을 실제로 되돌렸다(0 이면 정규화가 헛돈다)').toBeGreaterThan(0);
-  const k0 = Object.keys(base)[0], mut = ids(e127Back(cur[k0].replace('grd-line', 'grd-linX')).s);
+  /* ★영수증을 ★둘로 가른다 — 한 보정이 헛돌아도 다른 보정이 가려 주지 않는다. */
+  expect(nE127, `영수증 ⑴ — E127 토큰을 실제로 되돌렸다(잰 값 ${nE127} · 0 이면 정규화가 헛돈다)`).toBeGreaterThan(0);
+  expect(nFont, `영수증 ⑵ — FONT 토큰을 실제로 되돌렸다(잰 값 ${nFont} · 0 이면 fontChain 값이 바뀌어 이 자가 썩었다)`).toBeGreaterThan(0);
+  const k0 = Object.keys(base)[0], mut = ids(tokensBack(cur[k0].replace('grd-line', 'grd-linX'), ['E127', 'FONT']).s);
   expect(mut, '[양성대조] 글자색 아닌 바이트를 바꾸면 되돌려도 기준판과 다르다').not.toBe(ids(base[k0]));
 });
 

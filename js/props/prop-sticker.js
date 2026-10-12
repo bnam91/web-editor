@@ -2,6 +2,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedColor } from './_panel-rendered.js';
+import { glowSectionHTML, wireGlowSection } from './prop-sticker-glow.js';
 
 function _esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -111,8 +112,9 @@ export function showStickerProperties(block) {
   const isHlB     = shape === 'highlightB';
   const isAnyHl   = isHl || isHlB;
   const isIcon    = shape === 'icon';
+  const isGlow    = shape === 'glow';   // 이펙트 스티커 — 자기 절(prop-sticker-glow.js)만 보인다
   // circle/square 전용 섹션(mode/text/size/colors)을 가리는 통합 플래그
-  const hideBasic = isAnyHl || isText || isIcon;
+  const hideBasic = isAnyHl || isText || isIcon || isGlow;
   // 기본 sticker(circle/square)에서 사용하는 값
   const size       = parseInt(block.dataset.size)       || 60;
   const text       = block.dataset.text ?? (isText ? 'Text' : 'NEW');
@@ -219,7 +221,8 @@ ${blockHeaderHTML({
       </div>
       ${block.dataset.imgSrc ? `<div class="prop-row"><button class="prop-action-btn" id="stk-img-clear" style="width:100%;">이미지 제거</button></div>` : ''}
     </div>
-    <div class="prop-section">
+    ${isGlow ? glowSectionHTML(block) : ''}
+    <div class="prop-section" style="display:${isGlow ? 'none' : 'block'};">
       <div class="prop-section-title">Shape</div>
       <div class="prop-row">
         <div class="prop-align-group" id="stk-shape-group">
@@ -514,6 +517,7 @@ ${blockHeaderHTML({
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   const rerender = () => { window.renderStickerBlock?.(block); window.rememberStickerStyle?.(block); };
+  if (isGlow) wireGlowSection(propPanel, block, rerender);
 
   // 텍스트 — textarea(멀티라인, \n 보존). input에선 .sticker-text textContent만 직접 갱신(rerender 시 캐럿 보존 X)
   //   초깃값은 HTML 본문 주입 대신 value 할당 — <input type=text>의 \n strip 함정 회피 +

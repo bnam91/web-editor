@@ -38,6 +38,7 @@ async function call(pathname, body) {
   try {
     r = await request(pathname, { ...body, sessionToken: auth.sessionToken });
   } catch (_) {
+    // 조용한 까닭 아님 — 'offline' 으로 «말한다»(호출부가 reason 문장으로 띄운다). 네트워크 실패·타임아웃만 throw 된다(transport.js).
     return { ok: false, reason: 'offline' };
   }
   if (!r.json || typeof r.json !== 'object') {
@@ -47,9 +48,18 @@ async function call(pathname, body) {
     return { ok: false, reason: 'bad_response', status: r.status };
   }
   if (r.status === 401) return { ok: false, reason: r.json.reason || 'invalid_session' };
-  if (r.status === 404) return { ok: false, reason: 'not_a_member' };  // 서버가 존재를 안 알려준다
-  if (r.status === 413) return { ok: false, reason: 'too_large', message: r.json.message || '' };
+  /* ★D3(2026-10-06): 서버 라우터(api/collab/[action].js)는 모르는 경로에도 «JSON» 404
+   *   {reason:'unknown_action'} 를 준다 — 그래서 위 HTML 갈래로는 「미배포」가 더는 안 잡히고
+   *   「접근 권한 없음」이라는 «거짓 문장»이 됐다. 그 이름은 «경로가 없다»는 뜻이므로 not_deployed 다. */
+  if (r.status === 404) return { ok: false, reason: r.json.reason === 'unknown_action' ? 'not_deployed' : 'not_a_member' };  // 서버가 존재를 안 알려준다
+  /* ★D2: 413 의 본문(sectionId·bytes·limit — 서버 sectionTooLarge)을 «버리지 않는다».
+   *   reason 만 too_large 로 맞추고 나머지는 그대로 싣는다 — 무엇이 몇 바이트였는지 말할 재료다. */
+  if (r.status === 413) return { ...r.json, ok: false, reason: 'too_large', serverReason: r.json.reason || r.json.error || '', message: r.json.message || '' };
   if (r.status >= 500)  return { ok: false, reason: 'server', status: r.status };
+  /* ★D1: 위에서 안 갈린 4xx(400 invalid_body · 429 …)는 서버가 reason 대신 error 를 주기도 한다.
+   *   그대로 넘기면 앱은 reason 이 없어 'unknown' 으로 뭉갠다 ⇒ 서버가 준 이름(error)을 reason 으로 싣는다.
+   *   ⛔모르는 이름을 지어내지 않는다 — 서버 값이 없으면 'http_<status>' (숫자는 사실이다). */
+  if (r.status >= 400 && !r.json.reason) return { ...r.json, ok: false, reason: r.json.error || `http_${r.status}`, status: r.status };
   return { ...r.json, status: r.status };
 }
 
@@ -58,7 +68,12 @@ async function call(pathname, body) {
  * 목록 렌더가 이미 그 필드를 읽어 배지를 그리는 길이 나 있어서, 새 길을 안 낸다.
  */
 function getRef(projectId) {
-  try { return _deps.readMeta(projectId).collabRef || null; } catch (_) { return null; }
+  /* ⚠️meta 를 못 읽으면 «연결 없음»으로 답한다 ⇒ 렌더러는 not_linked(조용한 갈래)로 읽는다. 공동작업본인데 동기화가
+   *   안 붙는 꼴이 될 수 있어 «조용히» 두지 않고 main 콘솔에 남긴다(렌더러 문장은 별건 — 2026-10-06 명부 밖 발견).
+   *   ⚠️그런데 이 catch 는 지금 «닿지 않는다»: 주입된 readMeta(main.js 의 init 주입부)가 파싱 오류를 스스로 삼켜 {} 를
+   *   돌려준다 ⇒ 진짜 삼키는 자리는 main.js 다(현빈 게이트 — 2026-10-06 지디에게 올림). 그 자리가 던지게 되는 날 이 catch 가 산다.
+   *   ★같은 뿌리·다른 처방(2026-10-06 지디): meta 읽기 실패는 accept.js B3 와 main/collab/index.js getRef 가 «같은 뿌리»다. B3(수락 = 만들기)는 «닫는다» — 못 읽으면 이미 연결된 방인지 가릴 수 없고, 만들면 중복이 된다. getRef(읽기)는 «말한다» — 닫으면 읽기 자체가 불가능해진다. 꼴이 갈린 것은 까닭이 갈려서다 — 한쪽에 맞추지 마라. */
+  try { return _deps.readMeta(projectId).collabRef || null; } catch (e) { console.error('[collab] proj_meta 읽기 실패 — 연결 없음으로 답한다:', projectId, e && e.message); return null; }
 }
 function setRef(projectId, collabRef) {
   _deps.writeMeta(projectId, { collabRef: collabRef || null });
@@ -68,7 +83,13 @@ function setRef(projectId, collabRef) {
 /* ⚠️★sections 는 «목차»(sectionId+hash)다. 내용은 안 보낸다.
  *   proj.json 은 캔버스에 base64 이미지가 인라인돼 수십 MB 까지 간다(실측 85MB).
  *   Vercel 서버리스 본문 한도(≈4.5MB)로는 통째 업로드가 구조적으로 불가능하다.
- *   ⇒ register 는 «방»만 만들고, 내용은 push 가 섹션 한 개씩 올린다. */
+ *   ⇒ register 는 «방»만 만들고, 내용은 push 가 섹션 한 개씩 올린다.
+ *   ⚰️(2026-10-06 태양 실측 · 위 문장은 그날의 사실) 서버는 이제 Vercel 이 아니라 Cloudflare 뒤 EC2 다. 천장은 «둘»:
+ *     핸들러 1,000,000B(api/_lib/util.js readJsonBody · 초과 = invites 400 invalid_body / push·register 413) ← 실효 천장
+ *     어댑터 4,500,000B(ec2-server.js · 초과 413) ← Vercel 값을 «흉내»낸다(사라진 게 아니다)
+ *     섹션 700,000B(api/_lib/collab.js MAX_SECTION_BYTES) ← 서버 소스 값 · push 로만 걸려 «못 쟀다»(쓰기 금지)
+ *     경계는 invites(읽기)·토큰 없이 바이트 단위로 쟀다(1,000,000→401 · 1,000,001→400 · 4,500,000→400 · 4,500,001→413).
+ *     ⚠️배포본 == hompage_app 클론 3f5422d 는 «못 쟀다»(healthz sha 는 정적 배포 마커라 api/ 를 증명하지 않는다 · 정황 셋 일치). */
 async function register({ projectId, name, actorId }) {
   const existing = getRef(projectId);
   if (existing && existing.collabId) return { ok: true, ...existing, already: true };
@@ -89,13 +110,24 @@ async function register({ projectId, name, actorId }) {
 }
 
 /** 원격 연결만 끊는다 — ⚠️로컬 프로젝트는 그대로 남는다(지우지 않는다). */
-async function leave({ projectId }) {
-  const ref = getRef(projectId);
-  if (!ref || !ref.collabId) return { ok: false, reason: 'not_linked' };
-  const r = await call('leave', { collabId: ref.collabId });
+/* ★SIX ②(2026-10-06 · 현빈 「주인이 자기가 올린 걸 못 내린다」):
+ *   ⑴ 설정 「연결 끊기」는 { collabId } 만 보냈는데 여기선 projectId 로만 찾아 → 서버를 부르기도 전에 not_linked 로 끝났다
+ *      (실측: leave({collabId}) → not_linked · 서버 호출 0). 참여자도 못 나갔다. ⇒ collabId 만 와도 서버를 부른다.
+ *   ⑵ 서버(api/_lib/collab-handlers/leave.js)는 주인의 leave 를 owner_cannot_leave 로 거절하고, 해산은 action:'disband' 를
+ *      «명시»해야 한다 — 앱은 그걸 안 보냈다. ⇒ action 을 그대로 싣는다(주인 → 'disband'). */
+async function leave({ projectId, collabId, action } = {}) {
+  const ref = projectId ? getRef(projectId) : null;
+  const cid = (ref && ref.collabId) || collabId;
+  if (!cid) return { ok: false, reason: 'not_linked' };
+  const body = { collabId: cid };
+  if (action === 'disband') body.action = 'disband';
+  const r = await call('leave', body);
   // 서버가 「멤버 아님」이라고 답해도 로컬 연결은 끊는 게 맞다 —
   // 이미 끊긴 걸 못 지우면 사용자는 영영 유령 배지를 본다.
-  if (r.ok || r.reason === 'not_a_member') { setRef(projectId, null); return { ok: true }; }
+  if (r.ok || r.reason === 'not_a_member') {
+    if (projectId && ref) setRef(projectId, null);
+    return { ok: true, disbanded: !!r.disbanded };
+  }
   return r;
 }
 

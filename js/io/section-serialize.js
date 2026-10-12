@@ -25,7 +25,87 @@
      ★성질로 못 묶이는 것만 아래 «현재 목록»에 둔다. 이름에 규칙이 없어서지 원리가 달라서가 아니다.
        ⇒ 늘어날 수 있다. 늘릴 땐 «여기 한 곳만» 고친다 — market-merge·version-diff 도 이걸 읽는다.
      ⚠️'tiny'(스티커)·'lazy-unloaded'(가상화)는 여기 안 넣는다 — 조건부(특정 블록에서만)라
-       전역 sweep 대상이 아니다. 아래 serializeCleanRoot 안에서 따로 걷는다. */
+       전역 sweep 대상이 아니다. 아래 serializeCleanRoot 안에서 따로 걷는다.
+     ★C③(2026-10-09) 'multi-selected' — «여러 개 골랐다» 표식이 'selected' 와 짝인데 목록에
+       없어서 저장물·undo 스냅샷에 샜다(실측 기준 sha 1fe77e38: 섹션 셋을 ⌘클릭하고 저장하면
+       저장물에 3건). 'selected' 는 벗겨지고 'multi-selected' 만 남아 CSS 가 없어 «안 보이는»
+       유령이 되고, 다시 열면 상자선택의 섹션 길(js/scratch-pad.js — 「이미 multi-selected 면
+       건너뛴다」)이 그 섹션을 ★전부 건너뛴다(실측: 두 섹션에서 고른 수 0). js/history.js 의
+       협업 undo 범위 가드(`.multi-selected` 가 있으면 scoped undo 포기)도 영구히 꺼진다.
+     ⚠️여기 RE 를 `/(?:^|-)selected$/` 로 넓히면 이것까지 «성질»로 묶이지만, 그 RE 는
+       item-selected · scratch-selected · grd-cell-selected · is-selected ·
+       *--selected(패널 UI 4종) 까지 새로 잡는다.
+     ⚠️★★2026-10-09 ★정정 — ★윗줄의 「★24종」은 ★★미확인 수였다.
+       ★그 수는 ★«사용 자리» grep 이 ★조각(`-line-selected`·`_selected`)까지 ★잡은 ★날것이다
+         (★다시 재니 ★날것은 ★정확히 ★24 — ★그래서 ★맞아 보였다).
+       ★★다시 센 법: ★★«정의 자리» ★둘의 ★합집합 —
+         ⒜ `grep -rhoE '\.[A-Za-z0-9_-]*selected\b' css/*.css`            ⇒ ★15종
+         ⒝ `grep -rhoE "classList\.(add|remove|toggle|contains)\('…'" js/` ⇒ ★15종
+         ⇒ ★★합집합 ★★16종  (⛔`git grep -o` 는 ★이 자리에서 ★0건을 내 ★자가 ★죽은 줄 알았다 —
+            ★양성대조로 ★잡았다. ★`grep -rhoE` 로 ★바꿔 쟀다.)
+       ⚰️★★2026-10-10 ★정정 — ★위 ★「16」도 ★틀린 수였다. ★참값은 ★★17 이다(`stb-step-selected` ★누락).
+         ★그래서 ★이제 ★이 수를 ★주석이 ★들지 ★않는다 — ★`tests/unit/selected-marker-census.test.mjs` 가
+         ★«정의 자리»에서 ★떠서 ★★«이름 명부»로 ★양방향 단언한다(⛔수를 ★박지 ★않는다).
+         ★★「수를 적으면 ★그 수가 ★틀린다」가 ★이 머리말에서 ★★두 번 ★났다.
+       ★★2026-10-10 기준 — ★덮임 ★11 · ★구멍 ★6 (★그 6은 ★전부 ★저장 루트 ★밖이다 · 명부는 ★그 검사 파일에):
+         ★★구멍: scratch-selected · todo-pin--selected · is-selected ·
+                assets-grid-card--selected · assets-row--selected · ck-item--selected
+       ★★⛔금지의 ★«범위»를 ★갈라 적는다 (★2026-10-10 · ★다음 사람이 ★넓게 ★읽지 ★않게):
+         ★★⛔금지 = ★RE 를 ★`/(?:^|-)selected$/` 로 ★넓혀 ★★«여덟 종을 ★한꺼번에» 묶는 것.
+            ★까닭 — ★그 여덟은 ★«저장돼야 하나»가 ★종마다 ★다르고, ★여섯은 ★저장 루트 ★밖이라
+            ★묶으면 ★«무해한 것»까지 ★벗겨 ★무엇을 ★막는지 ★모르는 ★죽은 규칙이 된다.
+         ★★✅금지가 ★아닌 것 = ★★«한 갈래»를 ★성질로 ★묶는 것. ★2026-10-10 에 ★`cell` 갈래를 ★더했다
+            (`/(?:^|-)(?:line|cell)-selected$/`). ★근거 — ★그 갈래에 드는 것은 ★census 17종 중
+            ★`cell-selected`(표 셀 · ★이미 명부에 있었다)와 ★`grd-cell-selected` ★둘뿐이고,
+            ★둘 다 ★저장 루트 ★안이며 ★둘 다 ★벗겨야 한다. ★음성대조는 ★그 검사 파일 ★A4-C3 가 든다
+            (★여섯 구멍이 ★이 RE 에 ★안 걸리는지를 ★종마다 ★단언한다).
+     ★★그중 ★셋은 ★★2026-10-09 에 ★★«해당 없음»으로 ★닫혔다 — ⛔다시 쫓지 마라:
+       ★★`scratch-selected` · `todo-pin--selected` ⇒ ★★저장 클론에 ★★애초에 ★안 든다.
+         ★계층(★실앱에서 ★재서 ★확인): `#canvas-wrap > #canvas-scaler > [ #todo-pin-overlay , #canvas ]`
+         ★`.scratch-item` 의 ★부모 = ★`#canvas-scaler`(js/scratch-pad.js:1139 `scaler.appendChild(el)`)
+         ★저장 루트  = ★`canvasEl.cloneNode(true)` = ★`#canvas`(js/io/save-load.js:606)
+         ⇒ ★★둘은 ★`#canvas` 의 ★★«형제»다. ★★양방향 실측:
+             ★제품 자리 그대로 ⇒ 저장 글자에 ★0건 /  ★★일부러 `#canvas` 안에 두면 ⇒ ★★1건
+           (★그 양성대조가 ★★「0건」이 ★자의 고장이 ★아님을 ★받친다)
+         ⚠️★`js/scratch-pad.js:1077` 의 「`#canvas-scaler` 의 자식」을 ★★«캔버스 안»으로 읽으면 ★틀린다 —
+           ★`#canvas-scaler` 와 ★`#canvas` 는 ★★다른 요소다.
+         ★★문이 ★둘이라 ★둘 다 봤다 — ★스크래치는 ★DOM 말고 ★«데이터»로도 저장된다
+           (`proj.pages[].scratchpad` 매니페스트). ★그 꼴의 ★칸 명부는 ★정의 자리 하나다:
+             `js/scratch-pad.js` ★`SCRATCH_ITEM_KEYS = ['src','x','y','w','id','g','linkDy','fx']`
+             ⇒ ★선택 칸이 ★★없다. ★선택은 ★`_selectedItems`(런타임 Set) ＋ ★DOM 클래스에만 산다.
+           ⚠️★★이쪽은 ★★«읽음»이다 — ★★행위로 ★안 쟀다(★스크래치 항목 없이 ★매니페스트를 ★못 띄웠다).
+             ⇒ ★★닫혔다고 ★읽되 ★★«DOM 문»만 ★실측이다.
+       ★★`item-selected` ⇒ ★★가드 ★0건(★전부 `remove`→`add`) = ★«꾸밈만».
+         ★★단 ★★«세척 명부가 ★넷»의 ★★증인이다 — ★capture-safety 와 ★export-html 은 ★이것을 ★벗기는데
+         ★★여기(저장 명부)에는 ★★없다. ⇒ ★그 넷은 ★`js/io/capture-safety.js` ★머리말에 적어 뒀다.
+     ⚰️★★★`grd-cell-selected` — ★2026-10-10 에 ★고쳤다. ★그리고 ★★2026-10-09 의 ★«무게 0» 판정이
+       ★★틀렸다. ★★«자가 ★맞게 돌았는데도 ★틀린» 판이라 ★그 까닭을 ★남긴다.
+       ★어제 적은 것: 「자 = «읽어서 결정하는» 자리 전수(add/clear 제외) ⇒ ★0건 ⇒ 새도 ★죽는 기능
+         0개 · ★꾸밈만 샌다(유령 셀 하이라이트 · 다음 그리드 조작의 clear 가 지운다)」
+       ★★그 자는 ★★맞게 돌았다 — ★2026-10-10 에 ★다시 세어도 ★읽는 자리는 ★0건이다
+         (★add 1 = prop-grid.js:194 · ★clear 3 = editor.js:3938 · prop-grid.js:142·177).
+       ★★★그런데 ★자가 ★좁았다. ★이 누수는 ★«클래스를 ★읽어서»가 ★아니라 ★★두 길로 ★기능을 깬다:
+         ⒤ ★★«문자열을 ★해시해서» — ★비교 키. ★실측: 섹션 해시 `b8315380`(선택 전) →
+            `805b8dc8`(빈 칸을 ★고르기만 했을 때). ★협업 라이브 가드(js/history-diff.js
+            planScopedUndo)가 ★「체크포인트 후 ★원격 변경」으로 ★읽는 자리다.
+            ★고친 뒤 ★같은 장면에서 ★해시가 ★★`b8315380` 으로 ★돌아왔다(= 선택 전 값).
+         ⅱ) ★★«CSS 규칙이 ★같이 ★수확되어» — ★배송본. `css/editor-blocks.css:1799` 의
+            `#canvas .grid-block .grd-cell-selected` 가 ★`js/io/export-css-collect.js` 의
+            ★배제 정규식을 ★★통과했고, ★내보낸 HTML 에는 ★`<div id="canvas">` 래퍼가 ★있다.
+            ⇒ ★★배송본을 ★★렌더해 재니 ★★computed `rgb(45,111,232) 0 0 0 2px inset` —
+              ★★«고르지도 않은 칸»에 ★테두리가 ★★그려졌다. ★★«꾸밈»이 ★아니다.
+       ★★⇒ ★교훈: ★★«한 축의 ★0건 ≠ ★결함 0». ★자를 적을 때 ★★«그 자가 ★못 보는 길»을 ★같이 적어라.
+         ★이 자가 ★못 본 길이 ★바로 ★★«해시»와 ★«CSS 수확»이었다.
+       ★★⇒ ★그리고 ★★«다시 열면 ★테두리가 ★남는다»는 ★★거짓이었다(2026-10-10 · 행위로 쪼갰다):
+         ★저장본 1건 → innerHTML 주입 후 1건 → ★★이 명부의 세척 통과 후 ★★여전히 1건 →
+         ★`rebindAll` 후 ★0건. ⇒ ★가려 준 것은 ★세척이 ★아니라 ★★«그리드 재렌더»다 = ★★«우연한 방어».
+         ★그래서 ★`tests/dom/grid-cell-selected-leak.dom.spec.js` ★L2 는 ★★«열기 세척» ★그 연산만
+         ★따로 잰다 — ⛔재렌더에 ★가려지지 ★않게.
+       ★★잠그는 자: ★`tests/dom/grid-cell-selected-leak.dom.spec.js`(L1~L6 · ★핀 `be4ebbc10c77`
+         에서 ★여섯 ★전부 빨강 ×3) ＋ ★`tests/unit/selected-marker-census.test.mjs`.
+       ⚠️대조 — 'multi-selected' 는 ★≥4기능이 죽었다(상자선택 · scoped undo ·
+       ★자산패널 ⌫ 양보(js/panels/assets-panel.js:100·114) · ★화살표 미세이동
+       (js/editor.js _freeNudgeTargets)). ★그래서 그건 고쳤고 이건 티켓이다. */
   /* ══ T-031 video-pending 스냅샷 스코프 사이드카 ═══════════════════════════════
      문제: 아래 serializeCleanRoot 의 T-012 안전장치(video-pending → "업로드대기" 빈
      상태로 세척)는 pushHistory 가 쓰는 getSerializedCanvas 스냅샷도 «그대로» 거친다.
@@ -142,13 +222,32 @@
     });
   }
 
-  const RUNTIME_MARKER_RE  = /(?:^|-)line-selected$/;
+  /* ★★★2026-10-12 — ★`dragging` 가족을 ★★규칙으로 ★덮는다(★지디 · ★R3 처방).
+     ★★왜: ★명부(`RUNTIME_MARKER_CLS`)는 ★`indexOf` ★★완전일치라 ★★`frame-child-dragging` 이 ★샜다
+       ⇒ ★그 토큰이 ★직렬화 스냅샷에 ★실려 ★드래그 ★시작 표본이 ★«표식이 든 캔버스»를 ★찍었다
+       ⇒ ★★R3(`tests/dom/free-frame-grid-width-roundtrip`)의 ★⌘Z 걸음이 ★한 칸 ★어긋났다.
+     ★★행위로 ★닫았다(2026-10-12): ★그 토큰 ★하나를 ★명부에 ★더하니 ★R3 ★green 3/3 —
+       ★제품의 ★`classList.add` 도 ★CSS 규칙도 ★그대로 ★둔 채였다. ⇒ ★★«보이는 자르기»는 ★무죄다.
+     ★★실측 — ★`*dragging` 클래스 ★★★14종 중 ★덮이던 것 ★★1종(`'dragging'`) ⇒ ★★구멍 ★★13종.
+       ⚠️★처음 ★★13종이라 ★적었다 — ★`git grep -E` 가 ★★`\b` 를 ★몰라 ★CSS 쪽 자가 ★★0건이었다(★죽은 자).
+       ★참값은 ★★14종이고 ★★`tests/unit/runtime-marker-dragging-roster.test.mjs` 가 ★그 수를 ★★매번 ★다시 ★센다.
+     ★★그리고 ★★둘째 명부가 ★있었다 — ★`js/io/save-load.js` 의 ★`[data-pos-dragging], .pos-dragging` ★별도 청소
+       ⇒ ★누군가 ★같은 병을 ★`pos-dragging` 에서 ★맞고 ★«두 번째 자리»에 ★고쳤다. ★★그래서 ★규칙으로 ★합친다.
+     ★★지키는 자: ★`tests/unit/runtime-marker-dragging-roster.test.mjs`
+       ⇒ ★이 줄을 ★좁히면 ★그 벌의 ★★주 단언이 ★빨개진다(★★고치기 전 판에서 ★13종 ★빨강을 ★확인했다).
+     ⛔`'dragging'` 토큰은 ★명부에 ★그대로 ★둔다 — ★그 명부 주석이 「사람이 읽으라고 남긴다」라 ★적었다. */
+  const RUNTIME_MARKER_RE  = /(?:^|-)(?:(?:line|cell)-selected|dragging)$/;
   const RUNTIME_MARKER_CLS = [
-    'selected', 'cell-selected', 'ci-selected', 'ci-active', 'row-active',
+    'selected', 'multi-selected', 'ci-selected', 'ci-active', 'row-active',
+    'cell-selected',                             // ★RE 가 이미 잡는다(`-cell-selected`). 「지금 무엇이 있나」를 사람이 읽으라고 남긴다
+    'item-selected',                             // ★라벨 항목(2026-10-10 A4) — 저장본 1건 · 섹션 해시 `a1ad09e8`→`b4189398` 실측
     'bn2-line-selected', 'grd-line-selected',   // ★RE 가 이미 잡는다. 「현재 무엇이 있나」를 사람이 읽으라고 남긴다
     'bn2-line-empty',                            // 빈 줄 플레이스홀더 (편집 전용)
     'stb-step-selected',                         // 스텝 마커의 «옛 이름» — 규칙 밖 이름이라 저장본에 샜다(2026-09-15). 새 이름 stb-line-selected 는 RE 가 잡는다
     'editing', 'img-editing', 'sec-bg-editing', 'group-selected', 'group-editing',
+    'star-mode',                                 // ★별 한 개 고르기 모드(1010t1b2) — ★규칙 밖 이름이라 ★손으로 든다.
+                                                 //   ★짝 `star-cell-selected` 는 ★RE 가 잡는다(`-cell-selected`) ⇒ ★여기 안 적는다.
+                                                 //   ★선례이자 경고: `stb-step-selected` 가 규칙 밖 이름이라 ★저장본에 샜다(2026-09-15).
     'dragging', 'ss-drag-over', 'drag-over', 'hovered',
   ];
   /** 클래스 토큰 하나가 «런타임 전용»인가. */
@@ -165,6 +264,36 @@
     return el;
   }
 
+  /** ★★파티클 ★움직임을 ★«쉬는 자리»로 되돌린다 (v1.5 ⑴ · 2026-10-09).
+   *
+   *  ★★왜 여기인가 — ★움직이개(js/fx/particles-animate.js)는 ★매 프레임 ★알맹이의 `transform` 을
+   *    ★`translate(0,dy) rotate(…)` 로 ★덮는다. ★그 `dy` 는 ★★«시각»이다.
+   *    ⇒ ★세척 없이 저장하면 ★★«움직이던 한 프레임»이 ★저장본에 ★박힌다.
+   *  ★★실측(2026-10-09 · DOM 하네스): ★`serializeSectionClone` 결과에
+   *    ★`translate(0,-N) rotate(…)` 가 ★그대로 들어 있었다.
+   *  ★★왜 그것이 ★나쁜가 — ★셋이 ★한꺼번에 깨진다:
+   *    ⒜ ★「같은 시드 = 같은 그림」 — ★저장본이 ★언제 저장했냐에 따라 ★달라진다
+   *    ⒝ ★히스토리 스냅샷(js/history.js)이 ★이 자를 쓴다 ⇒ ★프레임마다 ★다른 글자
+   *    ⒞ ★비교 채널(market-merge·version-diff)이 ★이 자를 ★«비교 키»로 쓴다
+   *       ⇒ ★★「★손도 안 댔는데 ★변경됨」 ★오탐 — ★위 RUNTIME_MARKER_CLS 머리말이 ★경고한 ★바로 그 병이다.
+   *  ★★되돌릴 값은 ★★«꼬리표 안»에 있다 — `data-fxp="x,y,vj,dir,rot0"` 의 ★x·y·rot0.
+   *    ⇒ ⛔시드를 ★다시 돌리지 않는다(★명부가 둘이 된다). ★그리개가 ★적어 둔 값을 ★그대로 쓴다.
+   *    ★그리개의 꼴 그대로: ★`rot0` 이 ★0 이면 ★속성 ★자체가 ★없다(particles-render shapeSVG 의 `tr`).
+   *  ⚠️★`data-fxp` 꼬리표 ★자체는 ★여기서 ★안 벗긴다 — ★움직이개가 ★다시 그린 뒤 ★그것을 읽는다.
+   *    ★그 꼬리표는 ★시드에서 ★난 ★결정적 값이라 ★비교 키를 ★흔들지 않는다(⛔시각이 안 들어간다).
+   *    ★★다만 ★저장 용량은 ★는다 — ★그 수와 ★판정은 ★지디에게 올렸다(2026-10-09). */
+  function restParticleMotion(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('[data-fxp]').forEach((el) => {
+      const a = String(el.getAttribute('data-fxp') || '').split(',');
+      if (a.length !== 5) return;                     /* ★꼴이 틀리면 ★손대지 않는다 */
+      const x = Number(a[0]), y = Number(a[1]), rot0 = Number(a[4]);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(rot0)) return;
+      if (rot0) el.setAttribute('transform', 'rotate(' + rot0 + ' ' + x + ' ' + y + ')');
+      else el.removeAttribute('transform');
+    });
+  }
+
   /* 캔버스(또는 섹션 래퍼) 클론 root 를 «제자리»에서 세척한다. getSerializedCanvas 의
    * clone 생성 이후 return 직전까지의 연산을 «그대로»(순서 포함) 옮긴 것. root 를 반환한다. */
   function serializeCleanRoot(root) {
@@ -178,6 +307,7 @@
       el.removeAttribute('data-lazy-bg');
     });
     root.querySelectorAll('.section-block.lazy-unloaded').forEach(el => el.classList.remove('lazy-unloaded'));
+    restParticleMotion(root);
     /* T-012 안전장치: video-pending(트림 확정 «전» 임시 상태, js/image-handling.js
        setAssetVideoFromSrc 참고)은 저장 대상이 아니다 — "GIF로 적용"을 안 누른 채 저장하면
        원본 영상 data URL(최대 ~50MB×1.33 팽창)이 proj.json «과» 모든 undo 스냅샷(트림 핸들
@@ -214,7 +344,10 @@
     });
     // ghost 섹션은 저장에서 제외
     root.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
-    root.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .sec-bg-proxy, .grd-add-btn').forEach(el => el.remove());
+    root.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .sec-bg-proxy, .grd-add-btn, .section-height-badge').forEach(el => el.remove());
+    /* ★.section-height-badge (2026-10-07 (다)) — 섹션 머리의 «지금 몇 px» 칩. 파생 표시라 저장·히스토리·
+       템플릿·협업 비교 ★어디에도 실리면 안 된다. save-load.js NON_CONTENT_UI_SELECTOR 의 ★계약 짝이다
+       (거기 주석: 「여기에 추가할 때는 serializeProject 가 실제로 그걸 지우는지 먼저 확인하라」). */
     /* ★UI 상태 클래스 전면 제거 — «성질»로 센다. 손 열거가 아니다.
        selected 잔존이 독립렌더/export 에 파란 아웃라인을 유출하고, 줄 선택 마커
        (bn2/grd/앞으로 생길 것)는 템플릿에 박혀 «유령 선택바»가 된다.
@@ -222,7 +355,7 @@
          생길 때마다 사람이 «기억해서» 한 줄을 더해야 하고, 안 더한 날 조용히 샌다. */
     root.querySelectorAll('[class]').forEach(stripRuntimeMarkers);
     root.querySelectorAll('.sticker-block.tiny').forEach(s => s.classList.remove('tiny'));  // 조건부 — 스티커에서만 UI 상태
-    /* 섹션 배경 «위치 편집» 임시 상태 — .sec-bg-proxy 는 위 remove 목록에서 이미 사라졌고,
+    /* 섹션 «배경이미지 편집» 임시 상태(★2026-10-10 이름 변경) — .sec-bg-proxy 는 위 remove 목록에서 이미 사라졌고,
        마킹 클래스(sec-bg-editing)는 위 성질 sweep 이 걷었다. ci-selected · ci-active ·
        editing · dragging · ss-drag-over · group-selected/editing 도 마찬가지다.
        (고스트 .sec-bg-ghost 는 #canvas 밖 오버레이라 애초에 클론에 없다) */
@@ -258,6 +391,31 @@
     root.querySelectorAll('.frame-block').forEach(fb => {   // 프레임 좌우 패딩(F5)도 같은 띠 — 위 줄(정규식 검사가 지킨다)은 그대로 둔다
       fb.style.removeProperty('--gdt-pad-l');
       fb.style.removeProperty('--gdt-pad-r');
+    });
+    /* ★안전망 — 위 두 덩이는 «이름·요소 명부»다. 띠 변수가 늘 때(2026-10-07 `--gdt-pad-b`)
+         한쪽만 고쳐지면 ★저장본에 영구히 실린다 — 이 함수가 그 ★유일한 영구 경로다.
+       ⇒ 이름을 세지 않고 ★접두사로 한 번 더 쓸어 «빠뜨림»을 구조로 막는다.
+         (바로 아래 파생변수 세척이 쓰는 그 꼴 — 「블럭 종류도 묻지 않는다」.)
+       ★접두사 문자열이 prop-page.js PAD_HINT_VAR_PREFIX 와 ★갈리면 빨강이다 —
+         이 파일은 플레인 스크립트라 import 를 못 해서, 「두 글자가 같은가」를
+         tests/unit/pad-hint.test.js 가 ★두 소스에서 뽑아 견준다.
+       ⚠️사용자가 고른 색(--gdt-padhint-color)은 ★이 접두사에 안 걸린다(한 글자 차이) —
+         걸리면 보기 설정이 조용히 지워진다. 그 경계도 같은 검사가 잰다.
+       ★★이 쓸기는 ★«저장»만 덮는다 — ★라이브 DOM 세척 두 자리는 ★여전히 필요하다:
+           js/props/prop-section.js `_schedulePadHintClear`(400ms 뒤 거두기)
+           js/props/prop-page.js    패딩 비주얼 «끔» 라디오(즉시 거두기)
+         ⇒ ⛔이쪽이 초록이라고 ★그 둘을 지우지 마라 — ★에디터 화면에 ★띠가 그대로 남는다.
+         ★여긴 「경고를 달 자리 = 구조를 합칠 자리」의 ★반례다: 합칠 수 없는 ★두 층이다
+           (★저장 = 클론 · ★화면 = 라이브). ★그래서 쓸기가 두 벌이고, 그 ★두 벌이 갈리지 않게
+           접두사 문자열을 tests/unit/pad-hint.test.js T12 가 ★두 소스에서 뽑아 견준다.
+       ⛔라이브 DOM 이 아니라 «클론(root)» 에만 쓴다 — 이 함수의 계약이다. */
+    const PAD_HINT_VAR_PREFIX = '--gdt-pad-';
+    root.querySelectorAll('[style*="' + PAD_HINT_VAR_PREFIX + '"]').forEach(el => {
+      const st = el.style;
+      for (let i = st.length - 1; i >= 0; i--) {          // ★뒤에서 앞으로 — 지우면 인덱스가 당겨진다
+        const name = st[i];
+        if (name.startsWith(PAD_HINT_VAR_PREFIX)) st.removeProperty(name);
+      }
     });
     /* ★파생 변수(관찰자가 «바탕»에서 다시 계산하는 자동 색) — 저장에 굳히지 않는다(열면 관찰자가 다시 쓴다).
        E144(표 G6 --tbl-header-fg · 지금까지 저장에 실렸다 — 실측 2026-10-05) + H6(그래프 --grb-auto-*). 한 목록 · 한 고리.
@@ -322,4 +480,8 @@
      그쪽은 결과물이 아니라 «비교 키»를 만들지만, 마커가 남으면 「줄을 골랐을 뿐인데 변경됨」
      오탐이 난다. 목록이 두 벌이면 한쪽만 고쳐지는 날이 온다 — 그래서 여기가 유일한 원본이다. */
   window.runtimeMarkers = { isRuntimeMarker, stripRuntimeMarkers, LIST: RUNTIME_MARKER_CLS, RE: RUNTIME_MARKER_RE };
+  /* ★★움직이개(js/fx/particles-animate.js)가 ★«쉬는 꼴로 되돌리기»를 ★같이 쓴다 —
+     ★모션 감소에서 ★멈출 때 ★제자리로 ★돌려놓아야 한다. ⛔거기에 ★사본을 지으면 ★명부가 ★둘이다
+     (★꼬리표 꼴 `x,y,vj,dir,rot0` 을 ★두 곳이 ★읽게 된다). ⇒ ★임자는 ★여기 하나다. */
+  window.restParticleMotion = restParticleMotion;
 })();

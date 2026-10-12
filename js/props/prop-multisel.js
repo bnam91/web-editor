@@ -1,5 +1,8 @@
 import { propPanel } from '../globals.js';
 import { alignBtn } from './_helpers.js';
+/* ★★말풍선의 ★«발신자 이름»을 ★데려가는 ★유일한 자 — ⛔여기서 ★`.tb-sender-name` 을 ★직접 ★만지지 ★마라.
+   ★선례: ★`prop-text-wireup-align.js:50`(★단일선택) · ★`prop-page.js:683`(★페이지 일괄) ★둘이 ★이미 ★이렇게 ★쓴다. */
+import { applyBubbleSenderAlign } from './prop-text-wireup-align.js';
 import { detectMix } from './prop-text-mix-detect.js';
 
 /* ═══════════════════════════════════
@@ -503,6 +506,13 @@ export function alignFlowBlock(b, dir) {
     } else {
       contentEl.style.textAlign = dir;               // 일반 텍스트 (align wireup:22)
     }
+    /* ★★★말풍선이면 ★«발신자 이름»도 ★같이 — ★★실측 2026-10-11(★현빈 1010t2b ★재부상):
+       ★이 경로(★여러 개 고르고 ★정렬)에서는 ★이름이 ★★안 따라왔다 —
+         ★단일선택 ★정렬버튼: nmAlign ★start→★center · ★글자 ★159px ★움직임(★배율 40%)
+         ★★이 경로:            nmAlign ★start ★그대로 · ★글자 ★★0px
+       ★까닭: ★위 두 줄은 ★`contentEl`·`b` 만 ★쓰고 ★★`.tb-sender-name` 을 ★한 번도 ★안 본다.
+       ⇒ ★★그 자(`applyBubbleSenderAlign`)가 ★말풍선이 ★아니면 ★★스스로 ★false 로 ★빠진다 ⇒ ★여기서 ★가리지 ★않는다. */
+    applyBubbleSenderAlign(b, dir);
   } else if (b.classList.contains('icon-text-block')) {
     b.style.justifyContent = jcMap[dir];             // align wireup:17
     const itbText = b.querySelector('.itb-text');

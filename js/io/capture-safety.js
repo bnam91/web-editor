@@ -10,6 +10,7 @@
 // 경로에서만» 호출해야 한다. 네이티브 경로의 clone에 걸면 정상 블러까지 망가진다.
 import { parseGradient } from '../props/gradient-model.js';
 import { stripImageMemoForCapture } from '../image-memo.js';
+import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★svg 의 CSS transform 을 감싸는 쪽으로 — h2c 는 svg 쪽을 안 그린다 */
 
 const REDACT_OPAQUE_FILL = '#4a4a4a';
 
@@ -447,18 +448,71 @@ export function stripEditorOnlyForCapture(clone) {
   clone.classList?.remove('selected', 'sec-bg-editing');
   // 캔버스 전체 클론에서는 «루트»가 아니라 자식 섹션이 sec-bg-editing 을 달고 있다.
   clone.querySelectorAll?.('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
+  /* ★★.grd-cell-selected (2026-10-10 · 1009t3 A4) — ★빈 그리드 «칸» 선택 표시.
+     ★증상 — ★이것이 ★★«배송본에 ★그려진» ★유일한 마커였다: 클래스가 단독 HTML 클론에 실리고
+       (`js/io/export-html.js` 가 ★이 함수를 부른다), ★`css/editor-blocks.css:1799` 의
+       `#canvas .grid-block .grd-cell-selected` 가 ★`export-css-collect.js` 의 ★배제 정규식을
+       ★통과해 ★같이 수확되고, ★내보낸 HTML 엔 `<div id="canvas">` 래퍼가 ★있다.
+       ⇒ ★배송본을 ★렌더해 잰 computed = `rgb(45,111,232) 0 0 0 2px inset`(2026-10-10 실측).
+     ★★⚠️그런데 ★이 명부는 ★★«둘째 명부»다 — ★임자는 `js/io/section-serialize.js` 의
+       `window.runtimeMarkers` 다. ★2026-10-10 에 ★두 명부를 ★함수 몸통으로 좁혀 견주니
+       ★이 명부 ∖ 그 뿌리 = ★★3종(`col-active` · `item-selected` · `sec-bg-empty`)뿐이었다
+       (`item-selected` 는 ★그 커밋에서 ★뿌리로 ★옮겼다 ⇒ 남는 것은 ★둘).
+       ⇒ ★★그러니 ★여기는 ★`stripRuntimeMarkers` 위임 ＋ ★«산출물 전용 2종»으로 ★모을 수 있다.
+       ★★⛔이번에 ★안 모았다. ★까닭을 ★수로 적는다: ★이 함수를 ★«실행하는» DOM 검사 ★9벌이
+         ★부분 하네스(`boot`)라 ★`section-serialize.js` 를 ★안 싣는다 ⇒ `window.runtimeMarkers`
+         가 ★undefined 다. ★위임하면 ★그 9벌이 ★한꺼번에 빨강이거나(명시 실패) ★★조용히
+         안 씻는다(폴백을 두면). ★★둘 다 ★이번 티켓보다 ★크다.
+       ★★★⛔그리고 ★모을 때 ★★«합집합»으로 ★하지 ★마라 — ★★`A ⊇ B` 는 ★★★거짓이다(2026-10-10 실측).
+         ★자 = ★두 명부를 ★★«함수 몸통»으로 좁혀(⛔파일 전체가 아니다) ★주석 떼고 ★뜬 뒤
+           ★`isRuntimeMarker` 를 ★실행해 물었다. ★결과:
+             ★B(이 함수) ∖ A = ★3종  col-active · item-selected · sec-bg-empty
+             ★C(export-html exportHTMLFile) ∖ A = ★6종  bn2-img-empty · cvb-img-empty ·
+                cvb-img-empty-plain · grd-img-empty · item-selected · sec-bg-empty
+             ★D(export-image renderComponentsInClone) ∖ A = ★0종
+           ⇒ ★`item-selected` 를 ★A 로 옮긴 뒤 ★남는 ★«산출물 전용» 후보 = ★★6종
+         ★★그 6종 중 ★★5종(`sec-bg-empty`·`bn2-img-empty`·`cvb-img-empty`·`cvb-img-empty-plain`·
+           `grd-img-empty`)은 ★★«빈 이미지/배경 ★자리표시»다 ⇒ ★★★저장본에 ★남아야 한다.
+           ★★A 가 그것을 ★삼키면 ★`tests/dom/grid-cell-emptied.dom.spec.js` ★E
+           (「★저장·재열기 왕복에서 ★빈 칸이 ★머문다」)가 ★빨개진다 = ★★멀쩡한 것을 ★깬다.
+         ★★⇒ ★★★방향은 ★하나뿐이다: ★★`B(산출물) = A(저장 뿌리) ＋ ARTIFACT_ONLY[6종]`.
+           ⛔그 반대(A 가 B 를 삼키기)는 ★데이터 손실이다.
+         ★★⇒ ★★교훈: ★★「명부가 둘이면 ★파생시켜 하나로」의 ★«파생»은 ★★«합집합»이 ★아니다 —
+           ★★★파생시키기 ★전에 ★★«포함관계»를 ★재라.
+         ★★⇒ ★그 6종 명부와 ★「그중 하나가 ★A 에 ★들어오면 ★빨강」은
+           ★`tests/unit/selected-marker-census.test.mjs` 가 든다.
+       ★★⇒ ★모으기는 ★지디 명부로 올렸다(2026-10-10). ★그때 ★같이 고칠 것 =
+         ★그 9벌 하네스에 `js/io/section-serialize.js` 한 줄 ＋ ★`col-active` 가 ★저장에도
+         ★필요한가(★안 쟀다 — `row-active` 는 뿌리에 있는데 ★그것만 없다).
+     ★★⛔그 사이에 ★이 명부와 ★뿌리가 ★다시 갈리지 않게 ★`tests/_export-channels.js`
+       `MARKER_TOKENS` 가 ★두 자리를 ★같은 토큰으로 ★동시에 잰다. */
   // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 오염 방지)
-  // ★row-active/col-active(2026-09-15 a1-a3 지적): editor-blocks.css가 이 둘에 z-index:1을
-  //   줘서(활성 줄/칸 강조용) .row/.col이 스태킹 컨텍스트가 된다 — 벗기기 목록에 없으면
-  //   클론에 그대로 남아, 그 안의 redact 도형이 z-index:3을 받아도(:has() 규칙)
-  //   «줄 전체»가 z-index:1에 갇혀 겹치는 다른 줄의 글자(z-index:2)보다 아래일 수 있다.
-  clone.querySelectorAll(
-    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over, .item-selected, .bn2-line-selected, .bn2-line-empty, .grd-line-selected, .stb-line-selected, .stb-step-selected, .row-active, .col-active'
-  ).forEach(el => {
-    el.classList.remove('selected', 'img-editing', 'editing', 'dragging',
-      'group-selected', 'group-editing', 'ss-drag-over', 'drag-over', 'item-selected', 'bn2-line-selected', 'bn2-line-empty',
-      'grd-line-selected', 'stb-line-selected', 'stb-step-selected', 'row-active', 'col-active');
-  });
+  /* ★★명부는 ★«한 벌»이다 — ★선택자와 ★`remove` 인자를 ★★같은 배열에서 ★파생시킨다.
+     ★★왜 (2026-10-10 · advqa 가 ★실물로 심어 증명):
+       ★예전 꼴은 ★명부를 ★★«두 벌» 들었다 — ⒜어느 요소를 ★돌까(선택자) ⒝무엇을 ★벗길까(remove 인자).
+       ★★둘 다 있어야 ★벗겨지는데, ★★한쪽만 지운 변이가 ★★«검사 9/9 초록 · rc 0»으로 ★지나갔다:
+         ★M1 = ⒝ 에서만 뺌 ⇒ 요소는 돌지만 ★안 벗긴다 ⇒ ★누수 부활 ★★거짓초록
+         ★M3 = ⒜ 에서만 뺌 ⇒ 그 요소를 ★아예 안 돈다 ⇒ ★누수 부활 ★★거짓초록
+         ★M2 = ★둘 다 뺌   ⇒ ★fail 1 · rc 1 ✅ (★자는 ★죽지 않았다 — ★★반쪽을 ★못 봤을 뿐)
+     ★★⇒ ★경고 주석으로는 ★못 막는다. ★★«파생시켜 ★하나로» 둔다 ⇒ ★M1·M3 은 ★★지을 수 ★없는 변이가 된다.
+     ⛔이 배열을 ★★다시 ★두 벌로 ★풀지 ★마라. ★늘릴 때는 ★★여기 ★한 줄만 보탠다.
+     ★row-active/col-active(2026-09-15 a1-a3 지적): editor-blocks.css 가 이 둘에 z-index:1 을
+       줘서(활성 줄/칸 강조용) .row/.col 이 스태킹 컨텍스트가 된다 — 벗기기 목록에 없으면
+       클론에 그대로 남아, 그 안의 redact 도형이 z-index:3 을 받아도(:has() 규칙)
+       «줄 전체»가 z-index:1 에 갇혀 겹치는 다른 줄의 글자(z-index:2)보다 아래일 수 있다.
+     ★grd-cell-selected(2026-10-10 · 1009t3 A4) — ★빈 그리드 «칸» 선택 표시. ★이것이 ★★«배송본에
+       ★그려진» ★유일한 마커였다(실측 computed `rgb(45,111,232) 0 0 0 2px inset`).
+     ★★잠그는 자 = `tests/unit/export-channel-roster.test.mjs` U6-c (★MARKER_TOKENS 4종) ＋
+       `tests/dom/grid-cell-selected-leak.dom.spec.js` L4. */
+  const EDITOR_STATE_CLS = [
+    'selected', 'img-editing', 'editing', 'dragging',
+    'group-selected', 'group-editing', 'ss-drag-over', 'drag-over',
+    'item-selected', 'bn2-line-selected', 'bn2-line-empty',
+    'grd-line-selected', 'grd-cell-selected', 'stb-line-selected', 'stb-step-selected',
+    'row-active', 'col-active',
+  ];
+  clone.querySelectorAll(EDITOR_STATE_CLS.map(c => '.' + c).join(','))
+    .forEach(el => el.classList.remove(...EDITOR_STATE_CLS));
   /* ★프라이버시(2026-09-15, a1-a3 지적+elementFromPoint 실측 확인 — T-027 z-index 수정
    * (editor-blocks.css .shape-block.shape-redact z-index:3)의 잔여 구멍): transform이
    * 걸린 조상은 «새 스태킹 컨텍스트»를 만든다 — 그 안의 redact 도형은 z-index:3이어도
@@ -532,6 +586,10 @@ export async function captureSectionImage(sec) {
     neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
     await neutralizeObjectFitForH2C(clone); // html2canvas는 object-fit 미지원 → 상자에 «늘려» 그린다. 상자 크기대로 미리 잘라 끼운다(썸네일이 화면과 다른 그림이 되던 자리)
     if (window.finalizeMosaicForClone) { try { await window.finalizeMosaicForClone(sec, clone); } catch (_) {} }
+    /* ★svg 에 닿는 CSS transform 을 «감싸는 span»으로 올린다 — html2canvas 는 svg 쪽 것을 ★안 그린다
+       (월계수 오른 잎 거울이 ★썸네일에서 사라지던 자리 · 현빈 2026-10-09). ★까닭·실측은 h2c-prep.js 머리말.
+       ⛔클론이 ★document 에 ★붙은 «뒤»라야 한다 — detached 면 computed transform 이 ★빈 문자열이다. */
+    try { liftSvgTransformsForH2C(clone); } catch (e) { console.warn('[capture] svg transform 올리기 실패:', e); }
 
     const bgColor = sec.style.backgroundColor || sec.style.background || '#ffffff';
     const canvas = await html2canvas(clone, {
@@ -560,4 +618,157 @@ export async function captureSectionImage(sec) {
   } finally {
     clone?.remove();
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ★반사(-webkit-box-reflect)의 html2canvas 대체 — ★썸네일 전용 (C 버그 ② · 2026-10-08 지디 레인 gd/thumb)
+   ─────────────────────────────────────────────────────────────────────────────
+   ★병 — 동봉 html2canvas 1.4.1 은 `-webkit-box-reflect` 를 «모른다»(vendor 바이트 전수 0건:
+     `boxReflect`·`box-reflect` 둘 다). 그래서 반사가 그림에서 ★통째로 빠진다.
+   ★PNG 는 괜찮다 — 주 경로가 CDP 네이티브 캡처라 브라우저 합성이 반사를 그려 준다
+     (tests/dom/effects-reflection R4 가 그 둘을 픽셀로 갈라 둔다: 주 경로 = 주황 틴트 · h2c = 흰색).
+     ★그 R4 의 「의도됨」은 ★PNG 의 ★대체 경로 이야기다 — ★썸네일엔 ★대체가 ★없다.
+     썸네일은 html2canvas 가 ★유일한 길이므로, 프로젝트 카드가 ★언제나 화면과 다른 그림이 된다.
+   ⇒ ★클론에만 «DOM 거울»을 세운다.
+     ⛔R5(effects-reflection)가 DOM 거울을 금한 것은 ★«라이브 DOM» 이야기다 — innerText/textContent
+       35+459 곳이 글자를 «두 번» 읽는다. ★이 클론은 찍고 바로 removeChild 되고 ★직렬화되지 않는다.
+       그래도 거울에 `aria-hidden` 을 달고 ★id 를 전부 지운다(읽는 자가 와도 두 번 세지 않게).
+   ★페이드는 ★mask 로 못 한다(html2canvas 는 mask 도 모른다) ⇒ ★배경색 막(scrim)으로 «같은 그림»을 만든다.
+     ★이것은 근사가 아니라 ★항등이다 — 반사가 ★단색 배경 위에 앉을 때:
+        참:  bg(1−α) + M·α                      (α = 그 자리의 반사 알파)
+        내:  거울을 op 로 깔고 → bg(1−op) + M·op  그 위에 rgba(bg, a) 막을 덮으면
+             bg(1−op(1−a)) + M·op(1−a)         ⇒ α = op(1−a) 로 ★같다.
+     ⇒ a(y) 만 맞추면 된다.
+   ★α(y) 의 꼴 — effects-reflect.js 가 거는 마스크는
+       `linear-gradient(to bottom, rgba(0,0,0,0) (100−len)%, rgba(0,0,0,op))` 이고
+     크로미움은 그 마스크를 ★반사와 ★같이 뒤집는다(그래서 그 파일 주석의 실측이 「near 틴트 · far 흰」이다).
+     ⇒ 블럭 바닥에서 아래로 d, u = d/h 라 하면
+        보이는 길이 = h·len/100 · α(u) = (op/100)·(len/100 − u)/(len/100)  — ★선형, 위가 진하고 끝에서 0.
+     ⇒ a(u) = 1 − α/(op/100) = u/(len/100) ⇒ 막 = ★위 rgba(bg,0) → ★아래 rgba(bg,1) 선형 ★하나.
+   ★값은 ★정본에서 ★읽는다 — js/effects-reflect.js `fxReflectOf`(패널·렌더·시험이 보는 ★그 함수).
+     ⛔인라인 webkitBoxReflect 문자열을 파싱하지 마라 — 그러면 명부가 ★둘이 된다.
+   ⛔CDP 네이티브 경로에서 부르지 마라 — 브라우저가 반사를 ★제대로 그린다(거울이 ★두 겹이 된다).
+   ★돌려주는 것 = 거울을 ★세운 수(0 이면 반사 켠 블럭이 ★없었다).
+   ══════════════════════════════════════════════════════════════════════════════ */
+const H2C_REFLECT_CLASS = 'h2c-reflect-mirror';
+
+/** '#rgb'·'#rrggbb'·'rgb()'·'rgba()' → [r,g,b]. 못 읽으면 null(그러면 거울을 안 세운다 — 안전실패). */
+function _rgbTriple(css) {
+  const c = String(css || '').trim();
+  const m = c.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  if (m) return [m[1], m[2], m[3]].map(n => Math.max(0, Math.min(255, Math.round(+n))));
+  let h = c.match(/^#([0-9a-f]{3})$/i) ? c.slice(1).split('').map(x => x + x).join('') : (c.match(/^#([0-9a-f]{6})$/i) ? c.slice(1) : null);
+  if (!h) return null;
+  return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+}
+
+/** ★★«산출물»을 만들 클론에서 ★★«런타임 값»을 ★쉬는 꼴로 되돌린다 (2026-10-09 · 지디 ⑷ 판정).
+ *
+ *  ★★왜 ★한 겹인가 — ⛔`restParticleMotion` 을 ★날로 ★두 곳에서 ★부르면
+ *    ★★«무엇을 세척해야 하나»가 ★두 자리에 ★퍼진다. ★⒟(번짐을 속도에 묶기)가 ★`stdDeviation` 을
+ *    ★더하는 날 ★두 곳을 ★다 고쳐야 하고, ★한 곳을 잊으면 ★★조용히 ★반쪽이 된다.
+ *    ⇒ ★★넓힐 때는 ★★이 함수 ★하나만 넓힌다.
+ *
+ *  ★★누가 부르나 (★2026-10-09 전수 · ★게이트 = tests/unit/artifact-clone-roster):
+ *    ✅ `js/io/save-load.js` captureThumbnail  — ★썸네일 → `_meta.json`
+ *    ✅ `js/io/export-html.js`                 — ★HTML 내보내기
+ *    ⛔ `js/io/export-image.js`                — ★★«일부러 ★안 부른다». ★그 파일에 ★까닭을 적었다
+ *
+ *  ★★부르는 ★자리 — ★`stripEditorOnlyForCapture` ★바로 뒤(★«맨 앞»)에 둔다.
+ *    ★까닭: ★`neutralizeBoxReflectForH2C` 가 ★뒤에서 ★`el.cloneNode(true)` 로 ★거울상을 ★또 뜬다.
+ *      ⇒ ★먼저 되돌려 두면 ★거울이 ★★이미 쉬는 값을 ★베낀다.
+ *      ⇒ ★★「반사가 ★섹션에도 걸리나」를 ★★몰라도 ★닫힌다(★그 답은 ★★안 쟀다 — ★순서로 ★막았다).
+ *
+ *  ★★⚠️«세척 명부»가 ★지금 ★★넷이다 (★지디 2026-10-09 전수 · ⛔이 커밋에서 ★안 합쳤다):
+ *    ⒜ `js/io/section-serialize.js`  — ★저장 (`RUNTIME_MARKER_CLS` ＋ RE · ★4건)
+ *    ⒝ `js/io/capture-safety.js:456·459` — ★PNG·썸네일 공용 걷기 (★제 명부를 ★따로 든다 · ★8건)
+ *    ⒞ `js/io/export-html.js:127`    — ★HTML (`item-selected` 를 ★손으로 벗긴다 · ★2건)
+ *    ⒟ `js/io/export-css-collect.js:34` — ★CSS 수집 (★또 따로 · ★3건)
+ *  ★★그 넷을 ★이 겹으로 ★모으는 것이 ★★다음 커밋이다 — ★이번엔 ★파티클만 든다.
+ *    ★까닭: ★넷을 ★지금 합치면 ★★PNG 가 ★섞인다(★PNG 는 ★이 겹을 ★안 부른다 ⇒ ★걷기가 ★갈린다).
+ *    ⇒ ★합칠 때는 ★`window.runtimeMarkers.stripRuntimeMarkers` 를 ★여기서 ★같이 부르고,
+ *      ★★그 전에 ★★«PNG 도 ★그 걷기가 ★필요한가»를 ★먼저 재야 한다.
+ *  ★★이름을 ★`restRuntimeForArtifact`(⛔`restParticles…` 가 아니다)로 ★둔 까닭이 ★그것이다 —
+ *    ★★넓힐 자리를 ★이름이 ★미리 ★열어 둔다.
+ *
+ *  ★★⛔«⒟(번짐을 속도에 묶기) 때문에 ★이 겹을 ★`stdDeviation` 까지 ★넓혀라»는 ★★지시를 받았고,
+ *    ★★재어 보니 ★★«넓힐 것이 ★없다». ★★근거(2026-10-09 · 행위로 셌다):
+ *      ★`setAttribute('stdDeviation'…)` 을 ★하는 자리 = ★★js/ 전수 ★★0건
+ *        ★★⚠️세는 법 — ★★«주석을 ★떼고» 센다(`tests/unit/_strip-comments.js` ★공용 부품).
+ *          ⛔안 떼면 ★★이 주석 ★자신이 ★세어진다: ★날것은 ★stdDeviation ★1 · transform ★3 이고
+ *            ★그 ★여분이 ★전부 ★★«이 머리말」이다(2026-10-09 · 지디의 ★자가 ★그래서 ★어긋났다).
+ *          ⇒ ★★「주석은 ★«소스 파싱 게이트»의 ★입력」의 ★또 한 판.
+ *        ★★양성대조: ★같은 자가 ★`setAttribute('transform'…)` 는 ★★2건 ★잡는다 —
+ *            `js/fx/particles-animate.js`(움직이개가 ★쓴다) ＋
+ *            `js/io/section-serialize.js`(★`restParticleMotion` 이 ★되돌린다)
+ *          ⚠️★처음엔 ★내가 ★★1건이라 적었다 — ★★되돌리기 쓰기를 ★안 셌다. ★참값은 ★2 다.
+ *      ★까닭 = ⒟ 의 식 `blur × speed / 58` 의 ★입력이 ★★«설정»이지 ★«시각»이 ★아니다
+ *        ⇒ ★`svg()` 가 ★★한 번 ★계산해 ★글자에 ★굳힌다 ⇒ ★★런타임에 ★안 바뀐다
+ *        ⇒ ★★되돌릴 ★«움직인 값»이 ★애초에 ★없다.
+ *    ⇒ ★★지금 넓히면 ★★«죽은 코드»가 된다 — ★무엇을 막는지 ★모르는 채 ★남는다.
+ *    ★★★그러나 ★언젠가 ★`stdDeviation` 을 ★★«매 프레임» 쓰게 되면 ★★그때는 ★여기를 ★넓혀라.
+ *      ★그 순서(세척이 ★거울상보다 ★앞)는 ★★이미 ★잠겨 있다 —
+ *      ★★`tests/unit/artifact-clone-roster` ★★A5 가 ★그 자리를 ★잰다. ⛔새 칸을 ★또 세우지 ★마라.
+ *
+ *  ★★임자는 ★여기가 ★아니다 — ★되돌리는 ★법은 ★`js/io/section-serialize.js` ★`restParticleMotion`
+ *    ★하나다(★꼬리표 꼴 `data-fxp="x,y,vj,dir,rot0"` 을 ★읽는 자리). ★여기는 ★★«부르는 겹»이다. */
+export function restRuntimeForArtifact(clone) {
+  if (!clone) return clone;
+  /* ⛔없으면 ★조용히 지나간다 — ★움직이개가 ★안 실린 판에는 ★움직인 값도 ★없다
+     (★그 값을 ★쓰는 자가 ★js/fx/particles-animate.js ★하나뿐이다). */
+  try { (typeof window !== 'undefined' ? window.restParticleMotion : null)?.(clone); } catch (_) {}
+  return clone;
+}
+
+export function neutralizeBoxReflectForH2C(root, bgColor) {
+  if (!root) return 0;
+  const sel = '[style*="box-reflect"]';
+  const targets = [...(root.matches?.(sel) ? [root] : []), ...root.querySelectorAll(sel)];
+  if (!targets.length) return 0;
+  const bg = _rgbTriple(bgColor) || _rgbTriple(getComputedStyle(root).backgroundColor) || [255, 255, 255];
+  let n = 0;
+  for (const el of targets) {
+    const raw = el.style.webkitBoxReflect || el.style.getPropertyValue('-webkit-box-reflect') || '';
+    /* ⛔`below` 가 아닌 꼴은 ★우리 것이 아니다 — 걷기만 하고 거울을 안 세운다(모르는 꼴을 흉내내지 않는다). */
+    if (!/^\s*below\b/i.test(raw)) { el.style.webkitBoxReflect = ''; continue; }
+    const fx = _fxReflectOf(el);
+    el.style.webkitBoxReflect = '';          // h2c 가 못 그리는 속성은 걷는다(의도를 분명히)
+    if (!fx || fx.state !== 'on') continue;
+    const h = el.offsetHeight || 0, w = el.offsetWidth || 0;
+    const visH = Math.round(h * fx.len / 100);
+    if (!h || !w || visH <= 0 || fx.op <= 0) continue;
+    const parent = el.parentNode;
+    if (!parent || !parent.insertBefore) continue;
+
+    const mir = el.cloneNode(true);
+    mir.removeAttribute('id');
+    mir.querySelectorAll?.('[id]').forEach(q => q.removeAttribute('id'));
+    mir.style.webkitBoxReflect = '';
+    mir.style.cssText += `;position:absolute;left:0;top:0;width:${w}px;height:${h}px;margin:0;transform:scaleY(-1);opacity:${fx.op / 100};`;
+
+    const scrim = document.createElement('div');
+    scrim.style.cssText = `position:absolute;left:0;top:0;width:${w}px;height:${visH}px;`
+      + `background-image:linear-gradient(to bottom, rgba(${bg[0]},${bg[1]},${bg[2]},0) 0%, rgba(${bg[0]},${bg[1]},${bg[2]},1) 100%);`;
+
+    const box = document.createElement('div');
+    box.className = H2C_REFLECT_CLASS;
+    box.setAttribute('aria-hidden', 'true');
+    /* ★자리 — 거울 상자를 el 의 ★형제로 넣으므로 둘의 «담는 상자»(가장 가까운 positioned 조상)가 ★같다
+       ⇒ offsetTop/offsetLeft 를 그대로 absolute 좌표로 쓸 수 있다. */
+    box.style.cssText = `position:absolute;left:${el.offsetLeft}px;top:${el.offsetTop + h + fx.gap}px;`
+      + `width:${w}px;height:${visH}px;overflow:hidden;pointer-events:none;`;
+    box.appendChild(mir);
+    box.appendChild(scrim);
+    parent.insertBefore(box, el.nextSibling);
+    n++;
+  }
+  return n;
+}
+
+/* ★정본을 ★늦게 받는다 — capture-safety 는 ★io 층이고 effects-reflect 는 ★블럭 층이다.
+   정적 import 로 묶으면 단위 하네스가 io 하나를 실을 때 효과 층까지 끌고 온다(PLUS_ICON_SVG 와 같은 까닭).
+   ⇒ ★같은 함수를 ★window 다리로 받는다. ⛔여기에 꼴을 ★다시 적지 마라(그러면 명부가 둘이다). */
+function _fxReflectOf(el) {
+  const f = (typeof window !== 'undefined') && window.fxReflectOf;
+  return typeof f === 'function' ? f(el) : null;
 }

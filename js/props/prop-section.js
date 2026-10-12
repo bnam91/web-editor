@@ -1,10 +1,14 @@
 import { propPanel } from '../globals.js';
+import { syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* T6 — 섹션 안 글자 밝기 자동(판정은 그 파일 한 자리) */
 import { blockHeaderHTML, escHtml, sliderRowHTML } from './_helpers.js';
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
 import { alignFlowBlock } from './prop-multisel.js';
 import { collectBulkAlignTargets } from './bulk-align-targets.js';
+/* ★띠 변수의 «거두기»는 prop-page.js 한 벌에서 온다 — 여기서 이름 명부를 다시 적지 않는다.
+   (그 파일이 패딩 비주얼 on/off 의 «단일 진실원»이기도 하다. 순환 없음: prop-page 는 이 파일을 안 부른다.) */
+import { sweepPadHintVars } from './prop-page.js';
 
 /* ═══════════════════════════════════
    SECTION PROPERTIES PANEL
@@ -22,6 +26,19 @@ import { collectBulkAlignTargets } from './bulk-align-targets.js';
      autoSave 디바운스가 1500ms 라 400ms 청소가 «먼저» 끝난다.
 ═══════════════════════════════════ */
 let _padHintTimer = null;
+/* ★띠를 거두는 «문»은 하나다 — 좌우(_showPadXHint)와 아래(_showPadBHint)가 ★같이 쓴다.
+   ⚠️★타이머도 한 벌이어야 한다: 좌우를 만지다 아래를 만지면 ★뒤 타이머가 앞을 이어받는다.
+     따로 두면 앞 타이머가 «둘 다»의 클래스(gdt-pad-on)를 먼저 꺼서 ★뒤 띠가 사라진다.
+   ★400ms — 이 수를 두 군데 적지 않으려고 여기 한 줄로 모았다.
+   ★변수 이름 명부는 ⛔적지 않는다: sweepPadHintVars 가 `--gdt-pad-` 접두사로 걷는다
+     (prop-page.js 그 함수 머리말 — 요소 명부도 같이 없앤 까닭이 적혀 있다). */
+function _schedulePadHintClear() {
+  clearTimeout(_padHintTimer);
+  _padHintTimer = setTimeout(() => {
+    document.body.classList.remove('gdt-pad-on');
+    sweepPadHintVars();
+  }, 400);
+}
 function _showPadXHint(inner, v) {
   /* ★꺼져 있으면 «아예 아무것도 안 한다» — 클래스도, 변수도 안 붙는다.
      ⇒ 끈 상태에서는 거둘 것도 새어나갈 것도 없다(저장 경합 자체가 생기지 않는다).
@@ -33,28 +50,45 @@ function _showPadXHint(inner, v) {
   inner.style.setProperty('--gdt-pad-l', v + 'px');
   inner.style.setProperty('--gdt-pad-r', v + 'px');
   document.body.classList.add('gdt-pad-on');
-  clearTimeout(_padHintTimer);
-  _padHintTimer = setTimeout(() => {
-    document.body.classList.remove('gdt-pad-on');
-    /* 섹션을 빠르게 갈아타며 만졌을 수 있다 — 남은 변수를 «전부» 거둔다. */
-    document.querySelectorAll('.section-inner, .frame-block').forEach(el => {
-      el.style.removeProperty('--gdt-pad-l');
-      el.style.removeProperty('--gdt-pad-r');
-    });
-  }, 400);
+  /* 섹션을 빠르게 갈아타며 만졌을 수 있다 — 거두기는 «남은 변수 전부»를 걷는다(공용 한 벌). */
+  _schedulePadHintClear();
+}
+
+/* ═══════════════════════════════════
+   ★아래 패딩 띠 — 만지는 «동안»만 (2026-10-07 현빈 ①)
+   > 「섹션선택 > 우측패널 > ★아래 패딩 슬라이드 조절 시 ★좌우패딩하면 ★색이 보이는데
+      ★아래 패딩 조절시 ★안보이는 문제가 있음 / ★이걸 조절해도 ★패딩이 어떻게 줄어드는지 ★안보임」
+   ★2026-09-08 당시엔 ★일부러 안 만들었다(그때 범위가 「좌우 하나」였고, 검사 T5 가 그걸 잠갔다).
+     ⇒ 그 ★까닭이 죽었다. T5 는 ★지우지 않고 ★방향을 뒤집었다 — 범위가 ★늘었을 뿐,
+       「범위를 안 넘었다」는 규칙은 살아 있다(같은 파일 T6 이 세운 선례 그대로).
+   ★왜 _showPadXHint 를 그냥 부르지 않나 — ★그릴 상자가 다르다.
+     좌우는 `.section-inner` 의 padding-left/right, 아래는 ★`.section-block` 의 padding-bottom 이다
+     (applyPadB 가 `sec.style.paddingBottom` 에 쓴다). ⇒ 받는 요소도, 변수도 다르다.
+   ★거두기·타이머·on/off 게이트는 ★좌우와 «한 벌»을 쓴다 — 갈라 두면 둘이 서로를 끈다.
+   ★그리는 쪽: css/editor-canvas.css `body.gdt-pad-on .section-block[style*="--gdt-pad-b"]::before`
+═══════════════════════════════════ */
+function _showPadBHint(sec, v) {
+  /* ★게이트는 좌우와 «같은 문»을 본다(prop-page.js readPadHintOn) — 「패딩 비주얼 끔」이면
+     좌우는 안 뜨는데 아래만 뜨는 꼴이 되면 그게 결함이다.
+     ⛔`!window.readPadHintOn?.()` 로 쓰지 마라 — 로드 순서 때문에 기본값이 뒤집힌다(T9 와 같은 까닭). */
+  if (window.readPadHintOn && window.readPadHintOn() === false) return;
+  sec.style.setProperty('--gdt-pad-b', v + 'px');
+  document.body.classList.add('gdt-pad-on');
+  _schedulePadHintClear();
 }
 
 
 /* ★프레임 패널의 「좌우 패딩」도 «같은 띠»를 쓴다(F5) — 사본 없이 이 함수를 그대로 부른다.
    (inner 자리에 프레임을 넘긴다. 그리는 쪽 규칙은 css/editor-canvas.css 에 프레임용 선택자 한 줄이 붙었다.) */
 window._showPadXHint = _showPadXHint;
+window._showPadBHint = _showPadBHint;   /* ★짝을 맞춘다 — 좌우만 노출하면 다음 사람이 「아래는 없다」로 읽는다 */
 
 /**
  * 섹션 배경 적용 헬퍼 — 이미지와 색을 동시에 합성한다.
- * 우선순위(위→아래): 색(overlay) > 이미지 > 투명
- * - 이미지 + 색 둘 다: `background: linear-gradient(<color>,<color>), url(<img>)`
- *   (첫 layer가 위. 색이 반투명이면 이미지에 tint, 불투명이면 이미지 가림 — 의도된 동작)
- * - 이미지만: backgroundImage = url(...), backgroundColor = transparent
+ * ★2026-10-10 갱신 — 「불투명이면 이미지 가림 = 의도된 동작」은 ★더는 참이 아니다(현빈 지적).
+ * - 이미지 + ★«반투명» 색: `background: linear-gradient(<color>,<color>), url(<img>)` → 이미지에 tint(기능)
+ * - 이미지 + ★«불투명» 색: ★★이미지가 이긴다. 색은 dataset 에 남고 그림 «아래» 받침으로만 쓰인다
+ * - 이미지만: backgroundImage = url(...), backgroundColor = (색 있으면 그 색, 없으면 transparent)
  * - 색만: backgroundColor = <color>, backgroundImage = none
  * - 둘 다 없음: 모두 클리어
  *
@@ -81,22 +115,34 @@ function _applySectionBg(sec) {
   const size  = sec.dataset.bgSize || 'cover';
   // ★bgPos 는 dataset 이 정본(save-load.js 복원과 동일). 예전엔 여기서 'center' 로 덮어써서
   //   「위치 편집」으로 잡은 위치가 사이즈 변경·색 변경 한 번에 되돌아갔다.
+  //   ⚠️★★이 줄의 ★「위치 편집」은 ★★«그때의 이름»이다 — ⛔2026-10-10 의 ★이름 변경으로
+  //     ★★바꾸지 ★마라. ★바꾸면 ★★그때 ★일어난 일을 ★★거짓으로 적게 된다(★역사 문장).
   const pos   = sec.dataset.bgPos || 'center';
 
   // 항상 shorthand는 초기화 후 개별 속성으로 재설정 (이전 multi-layer 잔재 제거)
   sec.style.background = '';
 
-  if (img && color) {
-    // multi-background: gradient(색) 위, url(이미지) 아래
+  /* ★★2026-10-10 (현빈 「솔리드배경에서 ★즉각 바껴야지」) — ★«불투명» 색은 ★★그림 위에 ★안 깐다.
+     ★★왜 — ★예전엔 ★색·그림이 ★둘 다 있으면 ★언제나 ★`linear-gradient(색,색), url(그림)` 로 합성했고,
+       ★색 층이 ★첫째(=★위)라 ★★불투명 색이면 ★그림이 ★★0픽셀도 ★안 보였다.
+       ★실측(2026-10-10 · 픽셀): ★«불투명 솔리드＋이미지» 가 ★«솔리드만»과 ★★픽셀 ★완전 동일했다.
+     ★★그런데 ★«반투명» 색은 ★그림에 ★물을 들이는 ★★기능이다(★같은 실측의 ★양성대조: ★반투명이면 ★달라진다).
+       ⇒ ★★그래서 ★★«불투명일 때만» 갈라낸다. ⛔반투명 합성을 ★없애지 ★마라.
+     ★★색을 ★«치우지»는 ★않는다(지디 기본값) — ★`dataset.bg` 에 ★그대로 두고 ★★그리기만 ★양보한다.
+       ⇒ ★그림을 ★지우면 ★아래 `else if (color)` 가 ★그 색을 ★★다시 그린다 = ★사용자가 ★안 잃는다.
+     ★그리고 ★그림만 그릴 때 ★`backgroundColor` 를 ★★`transparent` 가 아니라 ★★그 색으로 둔다 —
+       ★배경색은 ★언제나 ★그림 ★«아래»라 ★가릴 일이 없고, ★그림이 ★못 뜨면 ★그 색이 ★받쳐 준다. */
+  if (img && color && !isOpaqueSectionColor(color)) {
+    // multi-background: gradient(색) 위, url(이미지) 아래 — ★반투명 색의 ★물들임
     sec.style.background = `linear-gradient(${color}, ${color}), url(${img})`;
     // 색 layer 는 gradient — 고유 크기가 없어 어떤 키워드든 박스 전체다. 'cover' 로 고정해야
-    // 이미지 layer 가 px 값(위치 편집 결과)일 때 색이 박스 일부만 덮는 사고가 없다.
+    // 이미지 layer 가 px 값(「배경이미지 편집」 결과)일 때 색이 박스 일부만 덮는 사고가 없다.
     sec.style.backgroundSize = `cover, ${size}`;
     sec.style.backgroundPosition = `center, ${pos}`;
     sec.style.backgroundRepeat = 'no-repeat, no-repeat';
   } else if (img) {
     sec.style.backgroundImage = `url(${img})`;
-    sec.style.backgroundColor = 'transparent';
+    sec.style.backgroundColor = color || 'transparent';   /* ★그림 «아래» 받침 — 불투명 색도 여기서는 안 가린다 */
     sec.style.backgroundSize = size;
     sec.style.backgroundPosition = pos;
     sec.style.backgroundRepeat = 'no-repeat';
@@ -179,9 +225,13 @@ async function showSectionProperties(sec) {
     ? parseInt(inner.dataset.paddingX)
     : (parseInt(inner?.style.paddingLeft) || 0);
   const secPadXAsset   = inner?.dataset.padXExcludesAsset || '';
-  // 「위치 편집」으로 잡은 크기는 px 값이라 3개 키워드 어디에도 안 맞는다 —
+  // 「배경이미지 편집」으로 잡은 크기는 px 값이라 3개 키워드 어디에도 안 맞는다 —
   // 옵션을 안 넣으면 select 가 «Cover» 로 보이는 거짓말을 한다.
   const _bgEmpty = sec.dataset.bgImgEmpty === '1';
+  /* ★S1 섹션 체커 톤(2026-10-06 현빈 「일괄이 아니라 섹션마다」 · R1 = 섹션 «배경» 체커만).
+     정본은 이 dataset 하나다 — ⛔전역 보기설정을 되살리지 마라(css/editor-base.css 머리말).
+     ★키가 없으면 라이트 = 지금까지 저장된 모든 프로젝트가 «픽셀 동일»이다(마이그레이션 코드 0). */
+  const _bgTone  = sec.dataset.checkerTone === 'dark' ? 'dark' : 'light';
   const _bgSizeCustom = /px/.test(bgSize);
   const bgImgHTML = hasBgImg ? `
     <div class="prop-row">
@@ -193,9 +243,12 @@ async function showSectionProperties(sec) {
         ${_bgSizeCustom ? `<option value="${bgSize}" selected>직접 조절</option>` : ''}
       </select>
     </div>
-    <button class="prop-action-btn secondary" id="sec-bg-pos-btn" style="margin-top:6px;">${sec._secBgEditing ? '위치 편집 완료' : '위치 편집'}</button>
-    ${isOpaqueSectionColor(sec.dataset.bg) ? `<!-- ★상시 한 줄(지디 2026-10-01) — 토스트는 «방금 한 일»의 답, 이 줄은 «지금 상태»의 답. 증상이 아니라 «까닭»을 말한다. -->
-    <div class="prop-hint" style="font-size:11px;color:#888;margin-top:6px;">배경색이 불투명해서 이 이미지를 덮고 있습니다 — 배경색 투명도를 낮추면 보입니다.</div>` : ''}
+    <button class="prop-action-btn secondary" id="sec-bg-pos-btn" style="margin-top:6px;">${sec._secBgEditing ? '배경이미지 편집 완료' : '배경이미지 편집'}</button>
+    <!-- ★2026-10-10 — ★«배경색이 불투명하다»고 알리던 ★안내 한 줄을 ★걷었다.
+         ★까닭: ★_applySectionBg 가 ★더는 ★덮지 않는다(불투명 색은 그림 «아래»로 간다) ⇒ ★안내할 것이 ★없다.
+         ★실측(2026-10-10 · t3frame): 고치기 «전» 판에서 그 줄은 ★정말 떴고 ★보였다(211×51 · 11px · #888) —
+           ★즉 ★«안 뜨는 버그»가 아니라 ★«뜨는데도 현빈이 바꾸라 하신 것»이었다. ⇒ 규약을 바꿨으니 ★줄도 간다.
+         ⛔되살리지 마라 — 되살리려면 ★위 분기부터 되돌려야 한다(둘은 한 쌍이다). -->
     <!-- C2 역방향(2026-10-01) — 배경 이미지를 스크래치패드로 «복사». 배경은 그대로 남는다. -->
     <button class="prop-action-btn secondary" id="sec-bg-to-scratch" style="margin-top:4px;">스크래치로 보내기</button>
     <button class="prop-action-btn danger" id="sec-bg-img-remove" style="margin-top:4px;">이미지 제거</button>
@@ -207,6 +260,18 @@ async function showSectionProperties(sec) {
     <button class="prop-action-btn ${_bgEmpty ? 'primary' : 'secondary'}" id="sec-bg-img-empty" style="margin-top:4px;"
       title="이미지를 넣기 «전»에 자리만 잡아 둔다. 내보내기엔 무늬가 안 나간다">
       ${_bgEmpty ? '체크 배경 끄기' : '체크 배경으로 두기'}</button>
+    ${_bgEmpty ? `<!-- ★체커 톤 — 현빈 2026-10-06 「체크 배경 끄기 이거할때마다 «옆에 있을» 옵션 ·
+           섹션마다 라이트 체크일수도, 어두운 체크일수도」. ⇒ 자리는 «그 단추 옆»이고, 체크 배경이
+           켜져 «있을 때만» 보인다(끔 상태에선 정할 것이 없다).
+         ★어휘는 페이지 패널에서 걷어온 그 라디오 그대로 쓴다 — 새 클래스 0.
+         ⛔「내보내기엔 무늬가 안 나간다」는 톤과 무관하게 그대로다(걷는 판정이 «색»이 아니라 «서명»이라서). -->
+    <div class="prop-row" style="margin-top:4px;" title="이 섹션의 체크 배경만 어둡게 합니다 — 흰 글자가 체커 위에서 보이게. 이 섹션 안의 빈 카드·도형 체커는 그대로입니다. 내보내기에는 체커가 나가지 않습니다.">
+      <span class="prop-label prop-label--auto">체커 어둡게</span>
+      <div class="prop-radio-group">
+        <label class="prop-radio"><input type="radio" name="sec-checker-tone" id="sec-checker-tone-on" value="dark" ${_bgTone === 'dark' ? 'checked' : ''}> 켬</label>
+        <label class="prop-radio"><input type="radio" name="sec-checker-tone" id="sec-checker-tone-off" value="light" ${_bgTone === 'dark' ? '' : 'checked'}> 끔</label>
+      </div>
+    </div>` : ''}
   `;
 
   // 섹션 내 텍스트 블록 타입별 수집
@@ -264,6 +329,16 @@ ${blockHeaderHTML({
         <span class="prop-label">Preset</span>
         <select class="prop-select" id="sec-preset">${presetSelectHTML}</select>
       </div>
+      <!-- ★(다) 이 섹션의 «지금» 높이 — 현빈 2026-10-07. 읽기 전용(여기서 높이를 «정하지» 않는다).
+           ⛔수를 여기서 다시 계산하지 마라 — 캔버스 배지·합계와 ★같은 함수(window.measureSectionHeight)를
+             부른다. 값의 출처가 둘이면 어느 날 갈린다(js/section-height.js 머리말).
+           갱신은 js/section-height.js 가 #sec-height-value 를 찾아서 한다(섹션 높이가 바뀌는 동안 패널이 열려 있을 수 있다). -->
+      <div class="prop-row" title="내보내기 기준 레이아웃 px — 캔버스 배율에 흔들리지 않습니다">
+        <span class="prop-label">높이</span>
+        <span class="prop-value-text" id="sec-height-value" style="font-variant-numeric:tabular-nums;" data-sec-id="${escHtml(sec.id || '')}">${
+          (() => { const h = window.measureSectionHeight?.(sec); return h == null ? '—' : h + 'px'; })()
+        }</span>
+      </div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Background</div>
@@ -282,6 +357,11 @@ ${blockHeaderHTML({
       </div>
       <span class="prop-field-label" style="margin-top:8px">Background Image</span>
       ${bgImgHTML}
+      <!-- ★파티클 — 섹션 «배경»이라 이 절에 산다(지디 2026-10-07 Q1 판정 ⒞ · js/effects-particles.js:8~15).
+           ★칸의 몸은 js/props/prop-section-particles.js 한 자리다 — 효과가 늘어도 이 줄은 그대로다.
+           ⛔배경색·배경이미지 칸과 «섞이지» 않는다: 그 파일은 sec.style.background* 와 sec.dataset.bg* 를
+             한 번도 쓰지 않는다(현빈 2026-10-07 「배경색이 계속 바뀌면 안되는거 알지?」). -->
+      ${window.secParticlesHTML?.(sec) || ''}
     </div>
     ${colorRows ? `<div class="prop-section"><div class="prop-section-title">Text Color</div>${colorRows}</div>` : ''}
     <div class="prop-section">
@@ -409,6 +489,7 @@ ${blockHeaderHTML({
     const applyPadB = v => {
       v = Math.min(200, Math.max(0, isNaN(v) ? 0 : v));
       sec.style.paddingBottom = v ? v + 'px' : '';
+      _showPadBHint(sec, v);                                         // 만지는 «동안»만 아래 패딩 띠를 비춘다
       padBSlider.value = v;
       padBNumber.value = v || '';
     };
@@ -491,8 +572,11 @@ ${blockHeaderHTML({
     }
   });
   const bgPosBtnEl  = document.getElementById('sec-bg-pos-btn');
-  // 「위치 편집」 = 에셋 더블클릭 편집기를 섹션 배경에 붙인 모드(토글).
-  // 예전 enterBgPosDragMode(%-기반 위치만 드래그)는 프레임(.frame-block) 쪽에 그대로 남아 있다.
+  // 「배경이미지 편집」(2026-10-10 현빈 지시로 ★이름 변경 · 옛 이름 「위치 편집」)
+  //   = 에셋 더블클릭 편집기를 섹션 배경에 붙인 모드(토글).
+  // ★★2026-10-10 (현빈 ③) — ★이 줄이 ★거짓이 되었다. ⛔지우지 않고 ★다시 적는다:
+  //   ★옛 `enterBgPosDragMode`(%-기반 ★위치만 · ★크기 축 없음)는 ★프레임 쪽에 ★★더 이상 ★안 쓰인다.
+  //   ★프레임도 ★이제 ★같은 본문을 탄다 — `window.enterFrameBgEditMode` (`js/image-handling.js`).
   if (bgPosBtnEl) bgPosBtnEl.addEventListener('click', () => {
     if (sec._secBgEditing) window.exitSectionBgEditMode?.(sec);
     else                   window.enterSectionBgEditMode?.(sec);
@@ -534,10 +618,33 @@ ${blockHeaderHTML({
       const on = sec.dataset.bgImgEmpty === '1';
       window.pushHistory?.(on ? '섹션 체크 배경 끄기' : '섹션 체크 배경');
       if (on) delete sec.dataset.bgImgEmpty; else sec.dataset.bgImgEmpty = '1';
+      /* ⛔checkerTone 은 «같이 지우지 마라» — 체크 배경을 껐다 켜면 고른 톤이 돌아와야 한다.
+         남아도 그리는 것이 없다: 그 속성이 바꾸는 토큰(--goya-checker-secbg-*)을 읽는 자리는
+         .section-block.sec-bg-empty «하나»뿐이고, 그 클래스가 없으면 아무도 안 읽는다. */
       _applySectionBg(sec);
       window.scheduleAutoSave?.();
       showSectionProperties(sec);
     });
+  }
+  /* ★체커 톤 라디오 — 쓰는 문은 여기 하나(sec.dataset.checkerTone). CSS 가 속성을 보고 색을 바꾼다.
+     ⛔_applySectionBg 를 부를 필요가 없다 — 이 값은 «클래스»도 «인라인»도 안 건드리고 CSS 변수만 바꾼다.
+     ★showSectionProperties 를 다시 안 부른다: 패널을 다시 그리면 라디오 포커스가 날아가고, 바뀐 것은
+       화면 색뿐이라 패널이 들고 있는 다른 값이 틀려질 자리가 없다. */
+  const toneOn  = document.getElementById('sec-checker-tone-on');
+  const toneOff = document.getElementById('sec-checker-tone-off');
+  if (toneOn && toneOff) {
+    const applyTone = (dark) => {
+      window.pushHistory?.(dark ? '섹션 체커 어둡게' : '섹션 체커 밝게');
+      if (dark) sec.dataset.checkerTone = 'dark'; else delete sec.dataset.checkerTone;
+      /* ★T6 — 섹션 «안» 글자 밝기를 같이 맞춘다(현빈 2026-10-07).
+         ⛔관측자(installTextToneObserver)를 넓히지 않았다 — 그 자의 attributeFilter 엔 `data-checker-tone` 이
+           없고 대상도 grid·table·graph 셋뿐이라, 넓히면 그 셋이 체커에서 깨어나 ★별건(⒝)을 건드린다.
+         ⇒ 켜고 끄는 문이 ★이 하나뿐이므로(실측) ★여기서 직접 부른다. 로드 쪽은 js/io/save-load.js. */
+      syncSectionCheckerTextTone(sec);
+      window.scheduleAutoSave?.();
+    };
+    toneOn.addEventListener('change',  () => { if (toneOn.checked)  applyTone(true);  });
+    toneOff.addEventListener('change', () => { if (toneOff.checked) applyTone(false); });
   }
   if (bgSizeEl) {
     bgSizeEl.addEventListener('change', () => {
@@ -560,6 +667,10 @@ ${blockHeaderHTML({
       showSectionProperties(sec);
     });
   }
+
+  /* ★파티클 배선 — 그리개(위 Background 절의 한 줄)와 ★한 쌍이다. ⛔둘 중 하나만 옮기지 마라.
+     ★다시 그리기로 showSectionProperties 를 넘긴다 — 켜기·프리셋·모양은 ★칸의 «꼴»을 바꾼다. */
+  window.wireSecParticles?.(sec, () => showSectionProperties(sec));
 
   // Preset 드롭다운 이벤트
   const presetSelect = document.getElementById('sec-preset');
@@ -738,5 +849,5 @@ export { applyPreset, setRpIdBadge, showSectionProperties, syncSection };
 window.applyPreset           = applyPreset;
 window.setRpIdBadge          = setRpIdBadge;
 window.showSectionProperties = showSectionProperties;
-window.applySectionBg = _applySectionBg;   // image-handling.js(섹션 배경 위치 편집) 커밋용
+window.applySectionBg = _applySectionBg;   // image-handling.js(섹션 배경이미지 편집) 커밋용
 window.syncSection           = syncSection;

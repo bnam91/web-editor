@@ -190,7 +190,11 @@ test('T7 ★음성대조: 고치기 «전» ⌘A 목록을 그대로 물리면 T
   const missing = [...DELETE].filter(c => !oldSel.has(c)).sort();
   assert.ok(missing.length > 0, 'T2 가 옛 목록에서 어긋남을 못 찾는다 ⇒ 그물이 죽었다');
   assert.deepEqual(
-    missing.slice(0, 3), ['.chat-block', '.gradient-block', '.icon-block'],
+    /* ★2026-10-07 쿠폰블럭이 DELETE 에 들어와 ★정렬 첫 셋이 바뀌었다
+       (.coupon-block 이 .gradient-block «앞»에 온다 — c-o 가 g 보다 작다).
+       ⛔수를 박지 않고 ★첫 셋을 표본으로 쓰는 설계는 그대로 둔다 — 새 블럭이 들어오면
+         여기가 빨개져서 「대조 상수가 아직 살아 있나」를 사람이 다시 보게 된다. */
+    missing.slice(0, 3), ['.chat-block', '.coupon-block', '.gradient-block'],
     '옛 목록에서 빠져 있던 타입 집합이 달라졌다 — 대조 상수를 다시 맞춰라. 실제: ' + missing.join(', ')
   );
 });

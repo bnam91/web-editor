@@ -1,4 +1,5 @@
 import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
+import { syncFrameBgVars, frameBgSize } from './frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { state } from './globals.js';
 import {
   genId,
@@ -23,7 +24,7 @@ import {
 } from './drag-drop.js';
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame, framePadding, innerFullWidth,
-         growFrameToFitChildren, applyFrameHAlignToChild } from './frame-geometry.js';
+         growFrameToFitChildren, applyFrameHAlignToChild, fitContentWidthPx } from './frame-geometry.js';
 import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
 import { GRID_CIRCLE_ICON_INNER, GRID_CIRCLE_ICON_STROKE_WIDTH } from './blocks/grid-circle-icon.js';
@@ -525,7 +526,11 @@ function addTextBlock(type, opts = {}) {
         tf.style.width = opts.width + 'px';
         tf.dataset.width = String(opts.width);
       } else {
-        _clampTextFrameWidth(tf, activeSS);
+        /* ★①-나 — ★«글자 길이 폭»으로 ★넣는다(끌고 난 뒤와 ★같은 꼴).
+           ★켜는 조건은 ★`!hasAbsCoords` ★하나 — ★★아래 `_placeAtFrameCenter` 가 ★자리를 ★다시 잡아 주는
+           ★그 경우에만 ★폭을 ★좁힌다. ⛔좌표를 ★받은 길(MCP·Figma 임포트)은 ★자리를 ★안 고치므로
+           ★폭만 좁히면 ★보이는 글자가 ★옆으로 ★튄다 ⇒ ★★한 술어로 ★묶어 ★둘이 ★갈릴 수 없게 둔다. */
+        _clampTextFrameWidth(tf, activeSS, { fitWhenCentered: !hasAbsCoords });
       }
       // #2 «프레임 안 텍스트가 가운데 안 온다» — 좌표를 «안 준» 경우의 기본값을 프레임 중앙으로.
       // ★opts.x/y/width 를 명시한 경로(MCP·드롭)는 사용자가 지정한 좌표라 손대지 않는다.
@@ -1550,7 +1555,7 @@ function addSection(opts = {}) {
   // 반드시 bindSectionHitzone 이후에 bindSectionDrag를 호출해야 함 (FIX-SD-01)
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .qa-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .qa-block, .coupon-block, .quote-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
   /* ★🔓 보호 단추를 «만들 때» 심는다 (T-094 ⒜⒝ · 2026-09-22 실앱 실측).
@@ -1705,7 +1710,14 @@ function makeFrameBlock(opts = {}) {
    - 그 외 좌측정렬/기본은 콘텐츠 실측 폭을 min(content, 프레임폭)px로 클램프
    - inline style.width와 dataset.width를 함께 동기화(HTML outerHTML 영속 + 로드 반영)
    반환: 적용한 width 문자열('100%' 또는 'NNNpx') */
-function _clampTextFrameWidth(tf, frameEl) {
+/* ★3번째 칸 `opts.fitWhenCentered` (①-나 · 현빈 2026-10-11):
+     「자유배치 프레임에 ★처음 넣은 텍스트의 폭」과 「★끌고 난 뒤의 폭」이 달라서, ★★후자(글자 길이 폭)로 통일해 달라.
+   ★실측(두 끝):  넣을 때 ★860(`width:100%`) · ★끌고 난 뒤 ★183px(`dataset.width='183'`) — 같은 글자인데 ★아웃라인만 677px 넓었다.
+   ★★후자를 만드는 자는 `js/block-drag.js` `_fitFullWidthTextFrame` 이고, ★재는 자는 ★이미 ★하나다(`fitContentWidthPx`).
+     ⇒ ★그래서 ★새 함수를 ★만들지 않는다. ★아래 center 갈래를 ★이 칸으로 ★건너뛰게만 해, ★폭을 ★한 자리에서 ★센다.
+   ⛔기본은 ★거짓이다 — ★정렬이 center/right 면 ★100% 가 ★기존 뜻이고, ★그 뜻을 ★읽는 자가 ★있다
+     (`block-drag.js:770` `_fullWidthTf` · `props/prop-text.js:89`). ★켜는 자는 ★★한 자리(자유배치 «추가» 길)뿐이다. */
+function _clampTextFrameWidth(tf, frameEl, opts = {}) {
   if (!tf || tf.dataset.textFrame !== 'true') return tf && tf.style.width;
   // 정렬 확인 — text-block 또는 내부 콘텐츠 요소의 textAlign
   const tb = tf.querySelector('.text-block, [class^="tb-"]');
@@ -1714,26 +1726,31 @@ function _clampTextFrameWidth(tf, frameEl) {
     || (tb && tb.style.textAlign)
     || tf.style.textAlign
     || 'left';
-  if (align === 'center' || align === 'right' || align === 'justify') {
+  if ((align === 'center' || align === 'right' || align === 'justify') && !opts.fitWhenCentered) {
     tf.style.width = innerFullWidth(frameEl);   // F5: 여백이 있으면 안쪽 상자 폭(dataset 은 '100%' 의미 그대로)
     tf.dataset.width = '100%';
     return tf.style.width;
   }
+  /* ★`fitWhenCentered` 면 ★여기로 ★떨어져 ★아래 ★내용폭 측정을 ★그대로 ★탄다 —
+     ★글자 ★정렬값은 ★★안 건드린다(현빈 2026-09-05 의 center 는 ★그대로 살아 있고,
+     ★자리는 ★부르는 쪽의 `_placeAtFrameCenter` 가 ★정한다). */
   // 프레임 가용 폭(클램프 상한)
   const _fp = framePadding(frameEl);   // F5: 안쪽 여백 안에서만 자란다
   const frameW = ((frameEl && frameEl.clientWidth) || 860) - _fp.l - _fp.r;
   // 콘텐츠 실측: 측정 동안 width를 fit-content로 잠시 풀어 자연 폭 산출
   const prevWidth = tf.style.width;
-  tf.style.width = 'fit-content';
-  // tb 자식이 inline-block이 아니어도 tf가 fit-content면 콘텐츠 폭으로 수축
-  let contentW = tf.offsetWidth || (tb && tb.offsetWidth) || 0;
+  /* ★2026-10-10 — ★재는 자를 ★`fitContentWidthPx`(frame-geometry.js) ★하나로 모았다(★block-drag 의 D3 와 ★같은 자).
+     ★예전엔 ★«offsetWidth 를 정수로 반올림한 값» 였고, ★그 ★내림이 ★「1줄 → 2줄」을 ★만들었다.
+     ★`tf` 로 못 재면(0) ★예전처럼 ★`tb` 로 떨어진다 — ★그 폴백은 ★그대로 둔다. */
+  let contentW = fitContentWidthPx(tf);
+  if (!contentW) contentW = (tb && tb.offsetWidth) || 0;
   // box-sizing:border-box이므로 패딩 포함 offsetWidth가 곧 프레임 폭
   if (!contentW || contentW <= 1) {
     // 측정 실패 시 안전하게 원복
     tf.style.width = prevWidth || innerFullWidth(frameEl);
     return tf.style.width;
   }
-  const w = Math.min(Math.round(contentW), frameW);
+  const w = Math.min(contentW, frameW);
   tf.style.width = w + 'px';
   tf.dataset.width = String(w);
   return tf.style.width;
@@ -1951,6 +1968,54 @@ function addCircleChild(circle, kind = 'body') {
 }
 window.addCircleChild = addCircleChild;
 
+/* ═══ ★`1011t1C` 「＋ 블럭 넣기 ▾」 — ★인용구 «밑»(.qt-children)에 ★블럭 하나를 넣는다 ═══════════════
+ * ★현빈 원문: 「★안쪽에 ★텍스트 블럭처럼 ★되면되는거 ★아냐?」 ⇒ ★갈래 ★ㄷ(★지디·현빈 판정 2026-10-11)
+ * ★★★길은 ★`addGridChild`·`addCircleChild` 와 ★★같다 — ★`_insertToFlowFrame(opts.into)` ★그대로. ⛔새 길 금지.
+ *   ★그릇은 ★★«넣기 직전»(pushHistory 뒤)에 만든다 — ★`ensureQuoteKidsBox`(js/blocks/quote-block.js).
+ * ★★삽입 래퍼 ★둘이 ★감싼다(★끝 표본 · ★새 블럭 선택) — ★그 로스터는 ★`js/insert-history.js` 의 ★`EXTRA` ★한 줄이고
+ *   ★★이름이 ★`…Block` 이 ★아니라서 ★★거기 ★같이 적어야 ★한다(★그 두 선례와 ★같은 까닭).
+ *   ⛔입구 ★안에서 ★끝 표본·선택을 ★따로 하지 ★않는다(js/CLAUDE.md 의 그 규약).
+ * ★★★왜 ★이 기능이 ★필요한가 — ★`1011t1C` 의 ★뜻이 ★바로 ★이것이다:
+ *   ★인용구 ★안에 ★★텍스트 블럭이 ★서면 ★★밑줄(U)·형광펜(H)·점이 ★★«다시 만들 것 없이» ★온다
+ *   (★그 셋은 ★텍스트 패널이 ★이미 ★들고 있다 — `js/props/prop-text-template.js`).
+ * @param {string|Element} quote  인용구 블럭(또는 id)
+ * @param {'body'|'h2'|'image'|'gap'} kind */
+export const QUOTE_CHILD_KINDS = ['body', 'h2', 'image', 'gap'];
+function addQuoteChild(quote, kind = 'body') {
+  const q = typeof quote === 'string' ? document.getElementById(quote) : quote;
+  if (!q || !q.classList?.contains('quote-block') || !QUOTE_CHILD_KINDS.includes(kind)) return null;
+  let made = null;
+  _insertToFlowFrame(() => {
+    if (kind === 'gap') {
+      const gb = makeGapBlock();
+      gb.style.height = '40px'; gb.dataset.h = 40;
+      made = gb;
+      return gb;
+    }
+    if (kind === 'image') {
+      const r = makeAssetBlock();
+      made = r.block;
+      return r;
+    }
+    const { block } = makeTextBlock(kind);
+    const tf = _makeTextFrame();
+    applyTextOpts(block, tf, {}, kind);
+    tf.appendChild(block);
+    made = block;
+    return { row: tf, block };
+  }, { into: () => window.ensureQuoteKidsBox(q) });
+  /* ★★그릇이 ★생겼으니 ★★다시 그린다 — ★렌더러가 ★«자식이 있다»를 보고 ★`qt-inner` 로 ★격자를 ★내린다.
+     ⛔없으면 ★격자에 ★그릇이 ★네 번째 칸으로 ★끼어 ★★칸이 ★어긋난다(★그 파일 머리말의 ★그 까닭). */
+  if (made) window.renderQuoteBlock?.(q);
+  return made ? { block: made } : null;
+}
+window.addQuoteChild = addQuoteChild;
+/* ★★종류 ★명부를 ★`window` 로 ★낸다 — ★★패널이 ★★이 ★한 자리에서 ★파생한다.
+   ★선례 = ★`js/icb-children.js` 의 ★`ICB_CHILD_KINDS`(★거기도 ★window 로 낸다).
+   ⚠️★그리드는 ★그러지 ★않아서 ★`js/props/prop-grid.js` 가 ★★제 벌(`_GRD_KID_KINDS`)을 ★들고 있다
+     ⇒ ★★거기는 ★명부가 ★둘이다. ⛔인용구는 ★그 꼴을 ★★따르지 ★않는다(★이름으로 적어 둔다). */
+window.QUOTE_CHILD_KINDS = QUOTE_CHILD_KINDS;
+
 function addFrameBlock(opts = {}) {
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
@@ -2017,7 +2082,7 @@ function _nextGroupName() {
 function wrapSelectedBlocksInFrame(opts = {}) {
   const asGroup = opts.asGroup === true;
   // 그룹은 freeLayout 절대블록 전부 대상 (joker/shape/vector/frame-block 서브섹션·중첩그룹 포함)
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .zoom-block, .step-block, .frame-block, .qa-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .zoom-block, .step-block, .frame-block, .qa-block, .coupon-block, .quote-block';
   let selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];
@@ -4426,7 +4491,7 @@ function updateGapBlock(blockId, partial = {}) {
 }
 
 // ── updateSpeechBubbleBlock ────────────────────────────────────────────
-function updateSpeechBubbleBlock(blockId, partial = {}) {
+function updateSpeechBubbleBlock(blockId, partial = {}, opts = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
   const block = document.getElementById(String(blockId));
   if (!block || !block.classList.contains('speech-bubble-block')) {
@@ -4469,7 +4534,22 @@ function updateSpeechBubbleBlock(blockId, partial = {}) {
     lines:       _lnNow,
   };
 
-  window.pushHistory?.();
+  /* ★opts.noHistory — «한 제스처가 두 문으로 나갈 때» 두 번째부터 끄는 자리다.
+     ★★꼴은 ★그리드와 «한 글자도 다르지 않다» — js/blocks/grid-block.js updateGridBlock 의 그 자리를 보고 맞췄다
+       (이름·뜻·기본값까지). ⛔새 설계를 하지 않았다(지디 조건 ㉠).
+     ⛔첫 문에는 절대 쓰지 마라 — pushHistory 는 dataset 쓰기 «앞»이라 «변경 전» 스냅샷을 쌓는다.
+       첫 문만 쌓으면 그 한 칸이 «둘 다 바뀌기 전»을 담아 ⌘Z 한 번이 두 칸을 함께 되돌린다.
+       두 문 다 쌓으면 ⌘Z 를 «두 번» 눌러야 하고, 한 번만 누른 사람은 «반쪽 상태»를 본다.
+     ⛔이 플래그는 히스토리를 끄는 것뿐 — ★«되돌림»을 주지 않는다. 부르는 쪽이 「실패하면 되돌린다」를 같이 들어야 한다
+       (선례: prop-grid.js grdMoveLineToCell 이 그 되돌림을 든다).
+     ★★왜 지금 생겼나(2026-10-06 ⑵-B③ 선행) — line-host.js 의 두 commit 이 ★이미 `opts` 를 3인자로 넘기는데
+       이 입구들이 ★그 인자를 «안 받아» ★조용히 버려지고 있었다(실측: 서명이 `(blockId, partial = {})` 였다).
+       ⇒ 「값은 넘기는데 아무 일도 안 난다」 — 사슬이 연결돼 있고 ★끝에서 떨어져 있었다.
+     ★기본값 불변: opts 를 안 주면 {} ⇒ `!== true` ⇒ 종전대로 쌓는다.
+       ★소비자 전수(제품 코드 · 실측): updateChatBlock 2(line-host:253 · main.js:7708) ·
+       updateSpeechBubbleBlock 3(line-host:231 · main.js:8518 · 8564). ★MCP 쪽은 2인자라 영향 0.
+     ★낱말은 이 저장소에 이미 있는 것을 쓴다(grid-block.js · js/spacing-normalize.js `plan.noHistory`). */
+  if (opts.noHistory !== true) window.pushHistory?.();
 
   const applied = {};
 
@@ -4937,6 +5017,10 @@ function updateShapeBlock(blockId, partial = {}) {
     // ★위 swap 이 기하를 «기본(별=5각)»으로 새로 쓴다 ⇒ 별 꼭짓점 수(B2)도 기본으로 — 안 지우면 SVG 5각·dataset 7·이미지 clip 14 로 어긋난다.
     //   편집 경로에서만 지운다(복원·로드는 이 함수를 안 지나므로 재생성 없음).
     delete block.dataset.starPoints;
+    /* ★별 «갯수»(2026-10-06)도 같은 까닭으로 기본으로 — 위 swap 은 polygon 을 ★한 벌만 쓰고
+       viewBox 를 def.vb(= 별 1개분)로 되돌린다. 안 지우면 「SVG 별 1개 · dataset 3개」로 어긋나고,
+       패널이 갯수 3 을 보여주면서 캔버스는 1개인 상태가 된다. */
+    delete block.dataset.starCount;
     applied.shapeType = partial.shapeType;
     // 이미지(에셋) 채우기 모드(0918 picker) — 면 없는 타입(선·화살표)이면 해제, 면 있으면 모양 clip 을 새 타입으로
     if (block.dataset.shapeFill) {
@@ -5339,6 +5423,16 @@ window.updateIconCircleBlock  = updateIconCircleBlock;
 window.updateGraphBlock       = updateGraphBlock;
 window.updateGapBlock         = updateGapBlock;
 window.updateSpeechBubbleBlock = updateSpeechBubbleBlock;
+/* ★«끝 표본» 래퍼(js/model-update-history.js — window.update*Block 전부를 감싸 호출마다 pushHistory 를 한 칸 더 쌓는다)를
+   «안 타는» 원본. ★이름이 `/^update[A-Z]\w*Block$/` 에 안 걸리게 ★Raw 로 끝낸다 — ★그 우회 설계는
+   js/blocks/grid-block.js `window.updateGridBlockRaw` 가 ★먼저 쓴 꼴이고, ★그 주석에 까닭이 적혀 있다.
+   ⛔일반 호출부는 window.updateSpeechBubbleBlock 를 쓴다. 이건 ★«한 제스처가 두 문으로 나가는» 호출자 전용이다.
+   ★★왜 opts.noHistory ★하나로는 안 되나(실측 2026-10-06) — 그 플래그는 ★입구 «안»의 push-before 만 끈다.
+     ★래퍼의 «끝 표본»은 ★그대로 쌓인다 ⇒ 문2 가 ★이력 한 칸을 남겨 ⌘Z 가 ★두 번이 된다.
+     ⇒ ★두 문 꼴은 ★«Raw ＋ noHistory» ★둘을 같이 써야 «이력 0칸»이 된다.
+   ⚠️그리드의 `grdMoveLineToCell`(prop-grid.js)은 ★아직 Raw 를 안 쓴다 ⇒ 실앱에서 ⌘Z 가 두 번이고
+     ★중간이 «줄이 어느 칸에도 없는» 반쪽이다(실측). ★그건 ★별건으로 올렸다 — ⛔이 파일 몫이 아니다. */
+window.updateSpeechBubbleBlockRaw = updateSpeechBubbleBlock;
 window.updateLabelGroupBlock  = updateLabelGroupBlock;
 window.updateShapeBlock       = updateShapeBlock;
 window.updateIconTextBlock    = updateIconTextBlock;
@@ -5353,6 +5447,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
   let _targetBlock = null;
   let _targetCell = null; // #5-b: 우클릭한 테이블 바디셀 (병합/해제 대상)
   let _targetGridAddr = null; // 그리드 블록: 우클릭한 셀 {r,c,li} — li는 «기존 이미지 줄»이 있을 때만 숫자
+  let _targetCmpAddr = null;  // 비교 블록: 우클릭한 «행 셀» {colIdx,rowIdx} — 헤더·여백이면 null
 
   // 메뉴 닫기
   function closeMenu() {
@@ -5360,6 +5455,64 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     _targetBlock = null;
     _targetCell = null;
     _targetGridAddr = null;
+    _targetCmpAddr = null;
+  }
+
+  /* 비교 블록 우클릭 → 「어느 ★행 셀인가」. 헤더(.cmp-hd)·카드 여백·캡션이면 null.
+     ★_gridCellAddrAt 과 ★같은 꼴이다 — 베낀 것이고 발명이 아니다:
+       ⑴ elementsFromPoint(★복수) 먼저. 선택된 블럭 위엔 «블록 바깥» 요소가 pointer-events:auto 로
+          덮일 수 있다(#ss-handles-overlay 소속). 단수는 그걸 집어 와 block.contains 가 false 가 된다.
+          ★실측(5f177748): 지금 cmp 엔 거터·손잡이가 없어 ★단수로도 닿는다. ⛔그래도 복수를 쓴다 —
+          cmp 에 오버레이가 붙는 날 그리드가 2026-09-20 에 겪은 「항목이 조용히 사라진다」가 똑같이 난다.
+       ⑵ ⛔DOM 순서 역산 금지 — renderComparison 이 심은 data-col-idx / data-row-idx 가 ★정본이다.
+     ★헤더를 ★일부러 뺀다: 렌더러가 .cmp-hd 엔 data-row-idx 를 ★안 심고(comparison-block.js:202·192),
+       모델에도 그 자리가 ★없다(col.title 은 문자열뿐) ⇒ 「이미지로」가 뜻이 없다. 검사 R5 가 이걸 잠근다. */
+  function _cmpCellAddrAt(e, block) {
+    if (!block.classList.contains('comparison-block')) return null;
+    let node = null;
+    if (typeof document.elementsFromPoint === 'function') {
+      const stack = document.elementsFromPoint(e.clientX, e.clientY) || [];
+      for (const el of stack) { if (block.contains(el)) { node = el; break; } }
+    }
+    if (!node) {
+      const atPoint = document.elementFromPoint(e.clientX, e.clientY);
+      node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
+    }
+    /* ⚠️선례와 ★다른 한 칸 — 그리드엔 ★기하 폴백(gridPickCellByPoint)이 있고 ★여기엔 ★없다.
+       그리드가 그걸 왜 뒀나: 「칸 ★밖(패딩·gap)」이거나 「선택 안 된 프레임 안이라 pointer-events:none 이어서
+       elementsFromPoint 가 자식을 ★반환조차 안 하는」 경우.
+       ★cmp 에서 그 두 경우가 어떻게 끝나나 — ★조용히 틀리지 않고 ★항목이 숨는다:
+         · 칸 밖(카드 여백·그림자 여유) → 여기서 null ⇒ 셋 다 숨음. ★그게 맞는 동작이다(검사 R7).
+         · 선택 안 된 프레임 안 → 이벤트가 cmp 블럭에 ★닿지도 않아 openMenu 가 ★프레임을 block 으로 받는다
+           ⇒ `classList.contains('comparison-block')` 이 거짓 ⇒ 셋 다 숨음.
+       ⇒ ★「프레임 안 cmp 는 드릴인해야 쓴다」가 ★지금의 한계다. ⛔기하 폴백을 ★추측으로 만들지 않았다 —
+         만들면 ★그 갈래를 재는 검사를 ★같이 세워야 하고, 그건 이 묶음 밖이다(지디에게 이름으로 올렸다). */
+    const rowEl = node && node.closest ? node.closest('.cmp-row[data-row-idx]') : null;
+    if (!rowEl || !block.contains(rowEl)) return null;
+    const colIdx = Number(rowEl.dataset.colIdx), rowIdx = Number(rowEl.dataset.rowIdx);
+    if (!Number.isInteger(colIdx) || !Number.isInteger(rowIdx)) return null;
+    return { colIdx, rowIdx };
+  }
+  /* 비교 주소 → 그 행(모델). 없으면 null.
+     ⛔import 가 아니라 ★`window` 로 간다 — ★js/blocks/line-host.js:575 · grid-block.js:78 과 ★같은 관용구다
+       (comparison-block.js 는 drag-drop.js 를 들여오므로 여기서 import 하면 순환이 된다). */
+  function _cmpRowAt(block, addr) {
+    try { return window.getComparisonCols?.(block.dataset)?.[addr.colIdx]?.rows?.[addr.rowIdx] || null; }
+    catch (_) { return null; }
+  }
+  /* 비교 행 하나를 고쳐 쓴다 — ★패널과 ★같은 길(getComparisonCols → 고침 → setComparisonCols →
+     renderComparison → pushHistory/scheduleAutoSave). prop-comparison.js 의 `commit()` 이 push-after 라
+     ★여기도 push-after 다(⛔규약을 여기서 바꾸지 않는다 — 그건 «이음매를 옮기는 것»이다). */
+  function _cmpPatchRow(block, addr, mutate) {
+    const cols = window.getComparisonCols?.(block.dataset);
+    const row = cols?.[addr.colIdx]?.rows?.[addr.rowIdx];
+    if (!row) return false;
+    mutate(row);
+    window.setComparisonCols?.(block, cols);
+    try { window.renderComparison?.(block); } catch (_) { return false; }
+    window.pushHistory?.(); window.scheduleAutoSave?.();
+    if (block.classList.contains('selected')) { try { window.showComparisonProperties?.(block); } catch (_) {} }
+    return true;
   }
 
   /* 그리드 블록 우클릭 → 「어느 셀인가」(및 그 셀에 이미 이미지 줄이 있는가).
@@ -5547,6 +5700,24 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       if (lbl) lbl.textContent = ln?.type === 'image' ? (ln.imgShape === 'circle' ? '사각으로 바꾸기' : '원형으로 바꾸기') : '원형 이미지 추가';
     }
 
+    /* ★비교 셀의 «칸 종류» (현빈 2026-10-08) — 그리드가 `_targetGridAddr` 하나로 네 항목을 가르는 ★그 꼴.
+       ★판정은 `_targetCmpAddr` ★하나다. 갈래는 «누른 행이 그림이냐»로 가른다(그리드 T-168 과 같은 축):
+         · 글자 행을 눌렀다 → 「이미지 칸으로」만        (빈 슬롯으로 바꾼다 · ⛔파일창 안 열린다)
+         · 그림 행을 눌렀다 → 「텍스트 칸으로」 ＋ 그림이 ★있으면 「이미지 삭제」
+       ⛔헤더·카드 여백에선 `_cmpCellAddrAt` 이 null 이라 ★셋 다 숨는다(검사 R5·R7). */
+    _targetCmpAddr = block.classList.contains('comparison-block') ? _cmpCellAddrAt(e, block) : null;
+    {
+      const cmpRow = _targetCmpAddr ? _cmpRowAt(block, _targetCmpAddr) : null;
+      const isImg = !!cmpRow && cmpRow.type === 'image';
+      const hasSrc = isImg && !!String(cmpRow.imgSrc || '');
+      const imgItem = document.getElementById('bcm-cmp-img');
+      const textItem = document.getElementById('bcm-cmp-text');
+      const delItem = document.getElementById('bcm-cmp-img-del');
+      if (imgItem)  imgItem.style.display  = (cmpRow && !isImg) ? 'flex' : 'none';
+      if (textItem) textItem.style.display = isImg ? 'flex' : 'none';
+      if (delItem)  delItem.style.display  = hasSrc ? 'flex' : 'none';
+    }
+
     // 보일 항목이 하나도 없으면 빈 상자를 띄우지 않는다(자유배치 프레임 안 프레임 = 저장·갭 둘 다 숨김)
     if (![...menu.querySelectorAll(':scope > .bcm-item')].some(it => it.style.display !== 'none')) { closeMenu(); return; }
 
@@ -5634,12 +5805,13 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     window.applySectionBg?.(sec);
     window.pushHistory?.('에셋 → 섹션 배경');
     window.scheduleAutoSave?.();
-    /* ★섹션 «색»은 안 건드린다 — applySectionBg 규약상 색 층이 그림 «위»라 불투명 색이면 그림이 가려진다
-       (업로드 길과 같은 «의도된 동작», prop-section.js _applySectionBg 머리말). 그대로 두면 「눌렀는데 안 된다」로
-       읽히므로 «왜 안 보이는지와 푸는 법»을 같이 말한다(2026-10-01 실측: data-bg #ffffff 섹션에서 그림이 안 보였다). */
-    const _opaque = !!window.isOpaqueSectionColor?.(sec.dataset.bg);   // 판정은 prop-section.js 한 곳
-    window.showToast?.('섹션 배경으로 넣었어요 — 블럭은 그대로 남습니다. 배경은 크기·위치만 가져서 크롭·색보정 같은 이미지 효과는 배경에 실리지 않아요.'
-      + (_opaque ? ' ⚠️지금 섹션 배경색이 불투명해서 그림을 덮고 있어요 — 배경색 투명도를 낮추면 보입니다.' : ''));
+    /* ★섹션 «색»은 안 건드린다 — ★그래도 ★그림이 ★보인다.
+       ★★2026-10-10 변경 — ★예전엔 ★applySectionBg 가 ★색 층을 ★그림 «위»에 깔아 ★불투명 색이면 ★그림이
+         ★가려졌고, ★그래서 ★여기에 ★«왜 안 보이는지» 안내를 ★붙여 뒀다(2026-10-01).
+       ★★이제 ★그 규약이 ★바뀌었다 — ★불투명 색은 ★그림 «아래»로 간다(prop-section.js `_applySectionBg`).
+         ⇒ ★★그 안내는 ★거짓이 됐다. ★그래서 ★걷었다. ★`isOpaqueSectionColor` 는 ★이제 ★«판정»에만 쓰인다.
+       ⛔되살리지 마라 — 되살리려면 ★그 분기부터 되돌려야 한다(둘은 한 쌍이다). */
+    window.showToast?.('섹션 배경으로 넣었어요 — 블럭은 그대로 남습니다. 배경은 크기·위치만 가져서 크롭·색보정 같은 이미지 효과는 배경에 실리지 않아요.');
   });
 
   // STICKERUX(3): 아이콘 블록 → 스티커 변환(복제 — 원본 .icon-block 유지)
@@ -5870,6 +6042,53 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc: '' } }));
   });
 
+  /* ── 비교(comparison) 셀의 «칸 종류» (현빈 2026-10-08) ────────────────────────────────
+   * ★이미 있던 것 — ⛔새로 안 만든다:
+   *   · 모델 필드 `row.type('text'|'image')` · `imgSrc` · `imgFit` — comparison-block.js normalizeRow 가
+   *     ★이미 정규화하고 renderComparison 이 ★이미 그린다(빈 imgSrc = .cmp-img-empty 체커보드).
+   *   · 같은 전환이 ★패널에도 있다 — prop-comparison.js `.cmp-row-type` / `.cmp-row-img-clear`.
+   *   ⇒ ★없던 것은 «우클릭이라는 손» 하나뿐이다. 이 아래가 그 손이고, 쓰는 길은 `_cmpPatchRow` ★한 벌이다.
+   *
+   * ★★⛔「이미지 교체」(파일 선택창)를 ★여기 두지 않았다 — ★선례 bcm-grid-img 는 두는데 왜 안 뒀나:
+   *   ⑴ 이 레인 금지선에 ★「파일 선택창·저장창 열지 마라」가 있어 ★내가 그 갈래를 ★«재지 못한다».
+   *      세워만 둔 방어가 장식이듯, ★못 재는 손잡이도 장식이다(한 번도 발동을 확인 못 한다).
+   *   ⑵ ★파일 고르기는 ★패널에 ★이미 있다 — prop-comparison.js `.cmp-row-img`(「+ 이미지」/「교체」).
+   *      여기 또 두면 ★같은 일을 하는 길이 두 벌이 되고 ★한쪽만 늙는다.
+   *   ⇒ 메뉴는 «칸의 ★종류»만 고르고, 「그림 ★고르기」는 패널이 맡는다.
+   *   ⚠️넣기로 결정하면 ★패널 핸들러를 ★공용 함수로 떼서 ★두 길이 그걸 부르게 해라(사본 금지).
+   *
+   * ★「이미지 삭제」의 규약은 ★그리드와 ★같다 — 그림만 비우고 ★자리(행)는 남긴다(빈 슬롯).
+   *   ⇒ 「행을 아예 빼고 싶다」는 ★패널 「×」(.cmp-row-del)가 맡는다. 손잡이 ★이름대로 가른다. */
+  document.getElementById('bcm-cmp-img')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock; const addr = _targetCmpAddr;
+    closeMenu();
+    if (!block || !addr) return;
+    /* 빈 슬롯으로 바꾼다. imgSrc/imgFit 은 ★이미 있던 값을 보존한다 —
+       패널 토글(prop-comparison.js:220)이 그렇게 한다(다시 이미지로 돌아올 때 복원되게). */
+    _cmpPatchRow(block, addr, row => {
+      row.type = 'image';
+      row.imgSrc = row.imgSrc || '';
+      row.imgFit = row.imgFit || 'cover';
+    });
+  });
+  document.getElementById('bcm-cmp-text')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock; const addr = _targetCmpAddr;
+    closeMenu();
+    if (!block || !addr) return;
+    // imgSrc/imgFit 는 ⛔안 턴다 — 패널 토글과 ★같다(다시 이미지로 전환하면 그림이 돌아온다).
+    _cmpPatchRow(block, addr, row => { row.type = 'text'; });
+  });
+  document.getElementById('bcm-cmp-img-del')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock; const addr = _targetCmpAddr;
+    closeMenu();
+    if (!block || !addr) return;
+    // 그림만 비운다. type 은 'image' 로 ★남긴다 ⇒ 자리가 빈 슬롯으로 남는다(그리드와 같은 규약).
+    _cmpPatchRow(block, addr, row => { row.imgSrc = ''; });
+  });
+
   nameConfirm?.addEventListener('click', e => {
     e.stopPropagation();
     const name = nameInput?.value?.trim();
@@ -5971,21 +6190,10 @@ function updateFrameBlock(blockId, partial = {}) {
 
   // ── 배경 CSS변수 동기화 (I2, prop-frame _syncFrameBgVars 미러) ──
   //    has-bg-opacity 프레임만: 배경을 ::before가 그리므로 --frame-bg/--frame-bg-img로 전달하고 본체 배경 비움.
-  const _syncBgVars = () => {
-    if (!block.classList.contains('has-bg-opacity')) return;
-    const bgVal = block.dataset.bg || block.style.backgroundColor || 'transparent';
-    if (/gradient\s*\(/i.test(bgVal)) {
-      block.style.setProperty('--frame-bg', 'transparent');
-      block.style.setProperty('--frame-bg-img', bgVal);
-    } else {
-      block.style.setProperty('--frame-bg', bgVal);
-      block.style.setProperty('--frame-bg-img', block.dataset.bgImg ? `url("${block.dataset.bgImg}")` : 'none');
-    }
-    block.style.setProperty('--frame-bg-pos', block.dataset.bgPos || 'center');
-    block.style.backgroundColor = '';
-    block.style.backgroundImage = '';
-    block.style.background = '';
-  };
+  /* ★★2026-10-10 (현빈 ③) — ★몸통을 ★공용 한 자리로 옮겼다(파일명은 수입 줄).
+     ★이 자리 옛 주석이 ★스스로 「prop-frame `_syncFrameBgVars` ★미러」라 적고 있었다 —
+     ★★그 «미러»가 ★곧 ★명부가 ★둘이라는 ★자백이었다. ★이제 ★하나다. */
+  const _syncBgVars = () => { syncFrameBgVars(block); };
 
   // 1) bg — solid / gradient(css) 둘 다 허용. prop-frame.js wireColorField onApply/onGradient 패턴 미러.
   //    string으로 들어오는 색상값을 그대로 backgroundColor에 (gradient면 backgroundImage로 분리해야 정상 표시).
@@ -6040,7 +6248,7 @@ function updateFrameBlock(blockId, partial = {}) {
         return { ok: false, code: 'INVALID', message: 'bgImage scheme not allowed (http/https/file/relative only)' };
       }
       block.style.backgroundImage = `url("${src}")`;
-      block.style.backgroundSize = 'cover';
+      block.style.backgroundSize = frameBgSize(block);
       block.style.backgroundPosition = 'center';
       block.dataset.bgImg = src;
       _syncBgVars();
@@ -6238,7 +6446,7 @@ function updateFrameBlock(blockId, partial = {}) {
         block.style.background = bgVal;
       } else if (block.dataset.bgImg) {
         block.style.backgroundImage = `url("${block.dataset.bgImg}")`;
-        block.style.backgroundSize = 'cover';
+        block.style.backgroundSize = frameBgSize(block);
         block.style.backgroundPosition = block.dataset.bgPos || 'center';
       } else if (bgVal) {
         block.style.backgroundColor = bgVal;

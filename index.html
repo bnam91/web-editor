@@ -572,6 +572,11 @@
         </svg>
       </button>
     </div>
+    <!-- ★(라) 모든 섹션 높이의 합계 — 현빈 2026-10-07. 자리 = 우측 패널 ★맨 위(지디 확정).
+         ⛔.panel-body 안에 두지 마라 — 거기는 선택마다 innerHTML 이 통째로 갈린다(propPanel)
+           ⇒ 패널 종류(섹션·블럭·페이지…)마다 합계를 다시 적는 «둘째 명부»가 생긴다.
+         값은 js/section-height.js 가 ★measureSectionHeight 하나로 채운다(섹션 배지와 같은 자). -->
+    <div id="rp-height-total" title="모든 섹션 높이의 합계"></div>
     <div class="panel-header">
       <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
         <circle cx="8" cy="8" r="2"/>
@@ -683,6 +688,7 @@
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'text'});toggleFpDropdown('fp-pen-dropdown')" title="텍스트 스티커 — 캔버스에 자유 배치하는 텍스트 (폰트/외곽선/그림자 등 풀 옵션)">Text Sticker</button>
       <button class="fp-menu-item" onclick="openIconifyModal((p)=>{const o={shape:'icon', iconName:p.name, svg:p.svg, size:p.size}; if(p.iconColor!=null&&p.iconColor!=='') o.iconColor=p.iconColor; window.addStickerBlock(o);}, {favorites:true});toggleFpDropdown('fp-pen-dropdown')" title="아이콘 스티커 — Iconify에서 아이콘을 골라 캔버스에 스티커로 추가">Icon Sticker</button>
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'highlight'});toggleFpDropdown('fp-pen-dropdown')" title="형광펜 — 클릭=마지막 색 / 색·프리셋은 우측 패널에서 선택">Highlight</button>
+      <button class="fp-menu-item" onclick="addStickerBlock({shape:'glow'});toggleFpDropdown('fp-pen-dropdown')" title="글로우 이펙트 스티커 — 별 반짝이·렌즈 플레어·빛점 / 색·세기·갈래·다시 뿌리기는 우측 패널에서">Glow</button>
       <button class="fp-menu-item" onclick="toggleHighlightBMode();toggleFpDropdown('fp-pen-dropdown')" title="선 형광펜 — 두 점 클릭으로 직선 형광펜 추가 · ESC 취소">HighlightB</button>
       <button class="fp-menu-item" onclick="addGradientBlock();toggleFpDropdown('fp-pen-dropdown')" title="그라데이션 페이드 — 섹션 너비 전체, 이미지 끝 자연 페이드 효과">Gradient</button>
       <!-- ★확대블럭(Zoom) — 현빈 2026-09-08 「줌블럭은 스티커 패널에 넣어줘야하고」.
@@ -694,7 +700,7 @@
     </div>
   </div>
   <div class="fp-dropdown" id="fp-component-dropdown">
-    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-component-dropdown')" title="컴포넌트 블록 추가 (Table / Card / Graph / Divider / Gap / Step / Chat / Banner)">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-component-dropdown')" title="컴포넌트 블록 추가 (Table / Card / Graph / Divider / Gap / Step / Chat / Banner / Coupon)">
       <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
         <rect x="1" y="1" width="4" height="4" rx="0.5"/>
         <rect x="6" y="1" width="4" height="4" rx="0.5"/>
@@ -713,6 +719,8 @@
       <button class="fp-menu-item" onclick="addChatBlock();toggleFpDropdown('fp-component-dropdown')">Chat</button>
       <button class="fp-menu-item" onclick="addGridBlock();toggleFpDropdown('fp-component-dropdown')">Grid</button>
       <button class="fp-menu-item" onclick="addModalBlock();toggleFpDropdown('fp-component-dropdown')">Modal</button>
+      <button class="fp-menu-item" onclick="addCouponBlock();toggleFpDropdown('fp-component-dropdown')">Coupon</button>
+      <button class="fp-menu-item" onclick="addQuoteBlock();toggleFpDropdown('fp-component-dropdown')" title="인용구(쉼표) — 글 양옆에 부호가 서는 블럭">Quote</button>
       <!-- ★[숨김] Info Card · Inner Card — 현빈 2026-09-07 「info카드와 이너카드도 일단 숨김처리해줘」
            ⛔막는 것은 «새로 넣는 입구»뿐이다. 블록 구현·프로퍼티 패널·레이어 패널·저장/로드는
              그대로 둔다 — 이미 이 블록이 들어간 프로젝트는 계속 열리고 편집돼야 한다
@@ -904,6 +912,9 @@
   </div>
   <!-- 검색 바 + 섹션 추가 버튼 (중간) -->
   <div class="tpl-browser-search-wrap">
+    <select class="tpl-browser-search-mode tpl-browser-sort" id="tpl-browser-sort" title="정렬 기준">
+      <!-- ★★비어 있다 — ★★`<option>` 은 ★`_tpl-sort.js` 의 ★명부에서 ★그린다(⛔두 벌로 두지 않는다) -->
+    </select>
     <select class="tpl-browser-search-mode" id="tpl-browser-search-mode" title="검색 기준">
       <option value="all">전체</option>
       <option value="name">파일명</option>
@@ -914,6 +925,8 @@
     </svg>
     <input class="tpl-browser-search" id="tpl-browser-search" type="text" placeholder="검색...">
     <button class="tpl-browser-insert-btn" id="tpl-browser-insert-btn">+ 섹션 추가</button>
+    <button class="tpl-browser-insert-btn tpl-browser-replace-btn" id="tpl-browser-replace-btn"
+            title="선택한 섹션을 이 템플릿으로 변경 (Shift+Enter)">↻ 섹션 변경</button>
   </div>
   <!-- 태그 칩 필터 (태그 모드일 때만 표시) -->
   <div class="tpl-browser-tag-chips" id="tpl-browser-tag-chips" style="display:none"></div>
@@ -976,6 +989,10 @@
 <!-- ★킬스위치 단일 원본 — «맨 앞»에 둔다(다른 스크립트가 window.COLLAB_ENABLED 를 읽는다).
      pages/projects.html 도 «같은 파일»을 읽는다 — 스위치가 두 벌이 되면 한쪽이 샌다. -->
 <script src="js/feature-flags.js"></script>
+<!-- ★협업 reason 문장 표 단일 원본 — settings-modal·collab/notify 가 읽는다. 목록 화면(pages/projects.html)도 같은 파일. -->
+<script src="js/collab/reasons.js"></script>
+<!-- ★빈 프로젝트 모양 단일 원본(js/io/empty-project.js) — tab-system.js(모듈)·collab/accept.js 가 읽는다. 목록 화면도 같은 파일. -->
+<script src="js/io/empty-project.js"></script>
 <script src="js/io/image-data-url.js"></script><!-- 썸네일 «빈 그림» 판정 — save-load.js(모듈)보다 먼저 실려야 한다 (T-87) -->
 <!-- [Unit B] 오류 링버퍼 — ★반드시 «맨 앞». 뒤에 두면 초기 오류를 놓친다 -->
 <script src="js/report-buffer.js"></script>
@@ -1015,6 +1032,11 @@
 <script src="js/history-diff.js"></script>
 <!-- 협업 동기화 루프. market-merge «뒤»여야 한다 — 섹션 해시를 그걸 빌려 쓴다. -->
 <script src="js/collab/sync.js"></script>
+<!-- ★협업 사건을 듣는 «단 하나의» 자리 — sync.js «바로 뒤»(window.collabSync 가 있어야 붙는다). 문장은 js/collab/reasons.js. -->
+<script src="js/collab/notify.js"></script>
+<!-- ★SIX(2026-10-06): 충돌 «고르기» 단추·칸 · 「편집 중」 섹션 표시 — 둘 다 캔버스 «밖»에 그린다(저장본에 안 섞이게). notify·sync 가 부른다. -->
+<script src="js/collab/conflict-ui.js"></script>
+<script src="js/collab/presence-ui.js"></script>
 <script src="js/collab/invites-badge.js"></script>
 <!-- 초대 수락 → 로컬 프로젝트 연결(U6). settings-modal 이 이걸 쓴다 — «앞»에 둔다. -->
 <script src="js/collab/accept.js"></script>
@@ -1027,8 +1049,14 @@
 <!-- Section Search (⌘F 팔레트) — editor.js(module) 이전에 window.openSectionSearch 정의 -->
 <script src="js/section-search.js"></script>
 <script type="module" src="js/globals.js"></script>
-<script type="module" src="js/effects-reflect.js"></script><!-- ★E1 Effects 바닥 반사(window 다리 — 패널 세 곳이 부른다) -->
+<script type="module" src="js/effects-registry.js"></script><!-- ★Effects 명부 — 그리개·＋·로드 감시(효과 1개 = 파일 1개 + 이 아래 한 줄) -->
+<script type="module" src="js/effects-reflect.js"></script><!-- ★Effects 식구① 바닥 반사(window 다리 — 패널 세 곳이 부른다) -->
+<script type="module" src="js/effects-shadow.js"></script><!-- ★Effects 식구② 그림자(도형·에셋만 — 텍스트는 제 「Shadow」 절이 있다) -->
+<script type="module" src="js/effects-particles.js"></script><!-- ★Effects 식구③ 섹션 배경 파티클(명부에서 watchAll «문만» 빌린다 · supports:false 라 블럭 패널엔 안 뜬다) -->
 <script type="module" src="js/panels/template-system.js"></script>
+<script src="js/panels/_tpl-nav.js"></script><!-- ★방향키 순수 핵(D·b1) — ★고전 스크립트 -->
+<script src="js/panels/_tpl-sort.js"></script><!-- ★정렬 명부 한 자리(F) — ★고전 스크립트 · ★_gallery-sort 의 비교자를 쓴다 -->
+<script src="js/panels/_tpl-search.js"></script><!-- ★검색 식 한 자리(모드×AND) — ⛔고전 스크립트다(별창이 같은 자를 쓴다) · template-browser.js 보다 ★먼저 -->
 <script type="module" src="js/panels/template-browser.js"></script>
 <script type="module" src="js/branch-system.js"></script>
 <script type="module" src="js/panels/layer-panel-items.js"></script>
@@ -1047,6 +1075,7 @@
 <script type="module" src="js/props/prop-joker.js"></script>
 <script type="module" src="js/effects/redact-mosaic.js"></script>
 <script type="module" src="js/props/prop-shape.js"></script>
+<script type="module" src="js/star-select.js"></script><!-- ★별 한 개 고르기(1010t1b2) — 더블클릭 진입 · 표시 · 진입배타 양방향 -->
 <script type="module" src="js/props/prop-graph.js"></script>
 <script type="module" src="js/props/prop-canvas.js"></script>
 <script type="module" src="js/props/prop-simple-card.js"></script>
@@ -1066,8 +1095,16 @@
 <script type="module" src="js/props/prop-infocard.js"></script>
 <script type="module" src="js/props/prop-innercard.js"></script>
 <script type="module" src="js/props/prop-modal.js"></script>
+<!-- ★이펙트 공용 부품(고전 · 모듈보다 먼저 실행) — 씨앗 고정 난수(FxSeed) · 글로우 그림(GlowFx).
+     sticker-block.js(모듈)의 glow 갈래가 읽는다. 2026-10-06 지디 발주 FOUR. -->
+<script src="js/fx/seeded-random.js"></script>
+<script src="js/fx/glow-render.js"></script>
+<script src="js/fx/particles-render.js"></script><!-- ★파티클 그림(ParticlesFx) — 섹션 배경 파티클 · 2026-10-07 지디 발주 -->
+<script src="js/fx/particles-animate.js"></script><!-- ★파티클 움직임(ParticlesAnim) — v1.5 ⑴ rAF · 2026-10-09 · ⛔그림(위)보다 뒤 -->
 <script type="module" src="js/props/prop-sticker.js"></script>
 <script type="module" src="js/props/prop-laurel.js"></script>
+<script type="module" src="js/props/prop-coupon.js"></script>
+<script type="module" src="js/props/prop-quote.js"></script>
 <script type="module" src="js/props/prop-zoom.js"></script>
 <script type="module" src="js/props/prop-gradient.js"></script>
 <script type="module" src="js/props/prop-label-group.js"></script>
@@ -1096,6 +1133,9 @@
 <script type="module" src="js/blocks/line-host.js"></script>  <!-- ★BT2 말풍선·챗 «줄»(그리드 줄 데이터) — 줄바·줄 꾸미기는 prop-grid 와 같은 함수 -->
 <script type="module" src="js/blocks/chat-block.js"></script>
 <script type="module" src="js/blocks/laurel-block.js"></script>
+<script type="module" src="js/blocks/coupon-block.js"></script>
+<script type="module" src="js/blocks/coupon-presets.js"></script>
+<script type="module" src="js/blocks/quote-block.js"></script>
 <script type="module" src="js/blocks/zoom-block.js"></script>
 <script type="module" src="js/blocks/sticker-block.js"></script>
 <script type="module" src="js/blocks/vector-block.js"></script>
@@ -1130,6 +1170,7 @@
 <script type="module" src="js/preview.js"></script>
 <script type="module" src="js/animation-engine.js"></script>
 <script type="module" src="js/inspector.js"></script>
+<script type="module" src="js/props/prop-section-particles.js"></script><!-- ★섹션 배경 파티클의 «켜는 칸» — prop-section.js 의 Background 절이 창 다리로 부른다(2026-10-08 현빈 발주) -->
 <script type="module" src="js/props/prop-section.js"></script>
 <script type="module" src="js/section-variation.js"></script>
 <script src="js/ai-ext/graph.js"></script>
@@ -1314,6 +1355,10 @@
 <script type="module" src="js/ai-prompt.js"></script>
 <script src="js/outpaint-overlay.js"></script>
 <script type="module" src="js/ai-image-gen.js"></script>
+<!-- ⛔⛔★이 줄을 ★지우지 ★마라 — ★★`_tpl-sort.js` 가 ★`byCreatedAtDesc` 를 ★받는다.
+     ★★★그런데 ★★기본 열쇠(`default`)는 ★`cmp:null` 이라 ★★이 자를 ★안 부른다 ⇒ ★★★기본 화면만 보면 ★«안 쓰는 줄»로 보인다.
+     ★★난다면 ★«사람이 ★최근추가순·이름순을 ★고를 때»뿐. ★잠그는 자 = ★tests/unit/tpl-two-windows-scripts.test.mjs ★S3 -->
+<script src="js/panels/_gallery-sort.js"></script>
 <script src="js/panels/ai-image-gallery.js"></script>
 <script src="js/panels/assets-panel.js"></script>
 <script src="js/theme-system.js"></script>
@@ -1538,6 +1583,7 @@
 <!-- 갭 «감수 패스»의 렌더러 쪽(읽기 + 적용). 규격/판단은 main/claude-pm/services/spacing.js 에 있다. -->
 <script src="js/spacing-normalize.js"></script>
 <script src="js/section-memo.js"></script>
+<script src="js/section-height.js"></script><!-- ★섹션 높이 표시 (다)·(라) — 자 = offsetHeight 하나(머리말에 근거) -->
 <script src="js/section-protection.js"></script>
 <script src="js/section-cleanup.js"></script>
 <script type="module" src="js/annotation-tool.js"></script>
@@ -1626,6 +1672,32 @@
     <span id="bcm-grid-img-circle-label">원형 이미지 추가</span>
   </div>
   <div class="bcm-item" id="bcm-grid-img-del" style="display:none;">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+      <path d="M2.5 3.5h7M4.5 3.5v-1a1 1 0 011-1h1a1 1 0 011 1v1M3.5 3.5l.5 6.5a1 1 0 001 1h2a1 1 0 001-1l.5-6.5"/>
+    </svg>
+    이미지 삭제
+  </div>
+  <!-- ★비교(comparison) 셀의 «칸 종류» (현빈 2026-10-08 — 「컴패리전 셀에 텍스트/이미지를 우클릭으로 선택 입력」)
+       ★바로 위 bcm-grid-img 계열을 ★그대로 베꼈다(그림·이름·display:none 시작). 보이는 조건 = block-factory.js openMenu
+         의 `_targetCmpAddr` ★하나 — 두 벌로 가르면 한쪽만 늙는다(그리드가 그 까닭을 적어 뒀다).
+       ★모델은 ★이미 있다 — row.type('text'|'image') · imgSrc · imgFit (comparison-block.js normalizeRow) ⇒ 새 필드 0.
+       ⛔「이미지 교체」(파일 선택창)는 ★여기 두지 않았다 — ★패널에 이미 있다(prop-comparison.js `.cmp-row-img`).
+         까닭은 block-factory.js 의 bcm-cmp-img 핸들러 머리말. -->
+  <div class="bcm-item" id="bcm-cmp-img" style="display:none;">
+    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="1.5" y="2.5" width="11" height="9" rx="1.3"/>
+      <circle cx="5" cy="5.5" r="1"/>
+      <path d="M12.5 9L9.5 6.5 4 11.5"/>
+    </svg>
+    이미지 칸으로
+  </div>
+  <div class="bcm-item" id="bcm-cmp-text" style="display:none;">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+      <path d="M2 2.5h8M6 2.5v7M4 9.5h4"/>
+    </svg>
+    텍스트 칸으로
+  </div>
+  <div class="bcm-item" id="bcm-cmp-img-del" style="display:none;">
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
       <path d="M2.5 3.5h7M4.5 3.5v-1a1 1 0 011-1h1a1 1 0 011 1v1M3.5 3.5l.5 6.5a1 1 0 001 1h2a1 1 0 001-1l.5-6.5"/>
     </svg>

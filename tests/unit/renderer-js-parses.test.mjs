@@ -36,6 +36,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createRequire as _cr } from 'node:module';
+const { mkTmpRoot } = _cr(import.meta.url)('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..', '..');
@@ -83,7 +85,7 @@ test('P0 ★양성대조(먼저) — 모수가 있다(둘 다 0 이 아니다)',
 });
 
 test('P1 ★★모든 렌더러 js 가 «그 모드로» 파싱된다', () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rjs-parse-'));
+  const tmp = mkTmpRoot('rjs-parse-');
   const bad = [];
   try {
     for (const [kind, list] of [['esm', SPLIT.esm], ['script', SPLIT.script]]) {
@@ -93,7 +95,6 @@ test('P1 ★★모든 렌더러 js 가 «그 모드로» 파싱된다', () => {
       });
     }
   } finally {
-    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (_) {}
   }
   assert.deepEqual(bad, [],
     '★★파싱이 안 되는 파일이 있다 — 그 파일을 import 하는 검사가 «자기 축을 재기 전에» 통째로 죽는다:\n  '
@@ -101,7 +102,7 @@ test('P1 ★★모든 렌더러 js 가 «그 모드로» 파싱된다', () => {
 });
 
 test('P2 ★음성대조 — 템플릿 리터럴 안에 백틱을 넣으면 이 자가 잡는다(0927 에 실제로 난 꼴)', () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rjs-neg-'));
+  const tmp = mkTmpRoot('rjs-neg-');
   try {
     /* ★0927 의 꼴 그대로 — HTML 을 만드는 템플릿 «안»의 HTML 주석에 백틱을 하나 넣는다. */
     const BROKEN = [
@@ -118,7 +119,6 @@ test('P2 ★음성대조 — 템플릿 리터럴 안에 백틱을 넣으면 이 
     const OK = BROKEN.replace('`백틱`', '«백틱»');
     assert.equal(checkSyntax(OK, true, tmp, 'ok'), null, '★백틱을 뺀 것도 빨갛다 — 이 대조가 아무것도 안 가른다');
   } finally {
-    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (_) {}
   }
 });
 

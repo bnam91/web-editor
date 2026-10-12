@@ -2,7 +2,7 @@
  * 타입 전환 (H1/H2/H3/body/caption/label/bullet)
  * — bullet ↔ 일반 변형 전환 시 contentEl을 새 노드로 교체하므로 state.contentEl을 mutate
  */
-import { setTextTypeClass, afterTextTypeChange } from './text-type-class.js';
+import { setTextTypeClass, afterTextTypeChange, BULLET_LIST_STYLE_VALUES } from './text-type-class.js';
 import { markLabelAutoColor, dropLabelAutoColor } from './label-auto-color.js';
 
 export function wireTypeSection({ tb, propPanel, ctx }) {
@@ -90,6 +90,32 @@ export function wireTypeSection({ tb, propPanel, ctx }) {
       //   (불릿 경로는 replaceWith 로 붙은 «뒤»라 여기서 부른다 — 떨어진 노드는 무시됨)
       afterTextTypeChange(contentEl);
       _cp?.__textGradRegate?.();
+    });
+  });
+}
+
+/* ═══ T7 ★불릿 «글머리» 배선 — 현빈 2026-10-07 ═══════════════════════════════════════
+ * ★명부·판정은 ★text-type-class.js 한 자리(BULLET_LIST_STYLES · bulletListStyleOf). ⛔여기 베끼지 마라.
+ * ★★이력은 ★push-after 다 — ★적용 먼저, `pushHistory` ★나중. ⛔순서를 되돌리지 마라:
+ *   `tests/unit/prop-push-after.test.mjs` ★PA-1 이 ★「찍고 나서 바꾸는」 꼴을 ★소스에서 잡는다.
+ *   ★그리고 2026-10-07 에 ★같은 함정을 ★그리드 원형 패널에서 ★수로 쟀다 —
+ *     push-before 면 ★앞 편집이 push-after 일 때 ★이 변경이 ★자기 히스토리 칸을 ★못 만든다(Δ＋0).
+ * ★값은 ★인라인 `style.listStyleType` 로 쓴다 — ★새 dataset 키 0개(그 까닭은 명부 쪽 주석).
+ * ⛔`setTextTypeClass` 를 ★안 부른다 — ★타입 클래스는 ★안 건드린다(모양만 바꾼다).
+ * ★`ctx.contentEl` 을 ★매번 읽는다 — 타입 전환이 ★노드를 갈아끼우기 때문이다(이 파일 머리말 R1). */
+export function wireBulletStyleSection({ propPanel, ctx }) {
+  const sec = propPanel.querySelector('#bullet-style-section');
+  if (!sec) return;                                    // 불릿이 아니면 절이 없다 — 아무것도 안 한다
+  sec.querySelectorAll('[data-lst]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const v = btn.dataset.lst;
+      if (!BULLET_LIST_STYLE_VALUES.includes(v)) return;   // 명부 밖 값은 여기서 죽는다
+      const el = ctx.contentEl;
+      if (!el || el.tagName !== 'UL') return;              // ★타입이 그 사이 바뀌었으면 아무것도 안 한다
+      el.style.listStyleType = v;                          // ★적용 먼저
+      sec.querySelectorAll('[data-lst]').forEach(b => b.classList.toggle('active', b === btn));
+      window.triggerAutoSave?.();
+      window.pushHistory?.();                              // ★찍기 나중(= push-after · 위 ★★ 참조)
     });
   });
 }

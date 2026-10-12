@@ -30,6 +30,17 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+/* ★★주석을 ★걷고 시작한다 (2026-10-07) — ⛔이 모듈은 ★그동안 ★raw 를 훑었다.
+ *  ★산 결함: `js/props/prop-grid.js` 의 ★템플릿 보간 ★안에 든 블록 주석을 ★코드로 읽어,
+ *    한 보간식이 ★2927자까지 ★폭주해 ★패널 템플릿을 통째로 삼켰다. 그 안에 들어 있던
+ *    ★검증된 안전 싱크(`blockHeaderHTML({ name: … })`)가 ★같이 먹혀서, X5 가 ★«안 닫힌 자리»
+ *    ★1건으로 신고했다 — ★제품에는 ★이름 보간이 ★없었다.
+ *  ★`templateAware` 를 켠다 — ⛔기본 모드는 ★보간 안 주석을 ★못 걷는다(그 한계가 이 결함이었다).
+ *  ★줄번호가 ★그대로 사는 까닭 = 공용 거르개는 ★줄 수를 ★보존한다(내용만 비운다).
+ *    ⇒ ★그래서 ★파일을 ★«통째로» 걷고 ★그 결과로 segment·offset 을 ★전부 다시 센다.
+ *    ⛔한 segment 만 걷으면 ★offset 이 밀려 ★엉뚱한 줄을 가리킨다(글자 수는 ★안 보존된다).
+ *  ⛔`templateBalanced` 를 ★«전제»로 걸어라 — 쓰는 쪽(name-axes-to-markup.test.mjs X0)이 건다. */
+const { stripCommentsTA, templateBalanced } = require('./unit/_strip-comments.js');
 
 const SOURCE_ROOTS = ['js', 'pages'];
 const SOURCE_FILES_EXTRA = ['index.html'];
@@ -61,7 +72,7 @@ function sourceFiles(repo) {
 
 /* .html 은 <script> 안쪽만 본다(바깥 HTML 의 따옴표가 토크나이저를 어지럽히지 않게). */
 function scriptSegments(repo, rel) {
-  const raw = fs.readFileSync(path.join(repo, rel), 'utf8');
+  const raw = stripCommentsTA(fs.readFileSync(path.join(repo, rel), 'utf8'));
   if (!rel.endsWith('.html')) return [{ text: raw, offset: 0, rawSrc: raw }];
   const segs = [];
   const re = /<script\b[^>]*>/gi;
@@ -154,7 +165,10 @@ function interpolations(lit) {
         else if (c === '}') { depth--; if (depth === 0) break; }
         j++;
       }
-      out.push({ start: i, expr: lit.slice(open, j) });
+      /* ★`unterminated` — ★닫는 중괄호를 ★못 찾고 ★리터럴 끝까지 간 경우.
+         ★이게 ★«폭주»의 ★정체다: 그 보간식은 ★제 경계를 잃고 ★뒤를 통째로 삼킨다.
+         ⛔길이로는 ★못 가른다(실측 2026-10-07: 정상 중 최장 ★3478자 > 폭주 ★2927자). */
+      out.push({ start: i, expr: lit.slice(open, j), unterminated: j >= lit.length });
       i = j + 1; continue;
     }
     i++;
@@ -290,7 +304,10 @@ function fromConstArray(tok, src, repo, rel) {
   if (isArr(src)) return true;
   const imp = new RegExp(`import\\s*\\{[^}]*\\b${holder}\\b[^}]*\\}\\s*from\\s*['"]([^'"]+)['"]`).exec(src);
   if (!imp) return false;
-  try { return isArr(fs.readFileSync(path.resolve(path.dirname(path.join(repo, rel)), imp[1]), 'utf8')); }
+  /* ★수입한 모듈도 ★주석을 걷고 본다 (2026-10-07) — ⛔여기만 raw 로 두면 ★본문은 걷고
+     ★수입처는 안 걷는 ★비대칭이 생긴다. ★틀리는 ★방향이 ★나쁘다: 주석 속 예시
+     (`const X = [ … ]`)가 ★«상수 배열»로 읽히면 ★그 자리는 ★조용히 ★건너뛰어진다(거짓 음성). */
+  try { return isArr(stripCommentsTA(fs.readFileSync(path.resolve(path.dirname(path.join(repo, rel)), imp[1]), 'utf8'))); }
   catch { return false; }
 }
 
@@ -328,6 +345,87 @@ function isEscaped(expr) {
 function lineOf(src, idx) { return src.slice(0, idx).split('\n').length; }
 
 // ───────────────────────── 훑기 ─────────────────────────
+/** ★★경계 감지기 — 「한 보간이 ★닫는 중괄호를 ★못 찾았다」를 전수로. ★이게 ★주 자다.
+ *  ★병의 정체(2026-10-07): `js/props/prop-grid.js:3103` 의 보간이 ★경계를 잃고
+ *    ★리터럴 끝까지 삼켰다(raw ★32,541자). 그 안의 ★검증된 안전 싱크까지 ★같이 먹혀
+ *    X5 가 ★«안 닫힌 이름 자리» ★1건으로 신고했다 — ★제품에는 ★이름 보간이 ★없었다.
+ *
+ *  ★★⚠️[정정 · 2026-10-07] ★내가 ★한 번 ★「길이로는 못 가른다」고 ★적었다. ★그것은 ★틀렸다 —
+ *    ★★«두 자를 섞어» 견준 것이다: ★폭주는 `scan()` 이 ★공백을 접고 ★중첩을 가린 뒤의
+ *    ★2,927자로, ★정상 최장은 ★raw `it.expr.length` ★3,478자로 재 놓고 ★나란히 놓았다.
+ *    ★★같은 자(raw)로 다시 재면 ★갈린다:
+ *        ★정상 최장  ★3,478 (js/props/prop-simple-card.js:231 · 다음 3,384 · 2,882 …)
+ *        ★폭주       ★19,498 (js/props/prop-chat.js:166) · ★32,541 (prop-grid.js:3103)
+ *    ⇒ ★길이 자도 ★선다. ⇒ ★버리지 않고 ★«둘째 그물»로 ★같이 건다(아래 INTERP_MAX_CHARS).
+ *
+ *  ★그래도 ★주 자는 ★«닫혔나»다 — ★까닭:
+ *    ⑴ ★문턱이 ★없다(★정상 최장이 자라면 길이 자는 ★손으로 올려야 한다 = ★썩는다)
+ *    ⑵ ★까닭과 ★무관하다(주석·정규식·새 문법 ★무엇이든 ★경계를 잃으면 운다)
+ *  ⛔둘 중 ★하나라도 ★느슨하게 하지 마라 — ★토크나이저를 고쳐라. */function unterminatedInterpolations(repo) {
+  const out = [];
+  for (const rel of sourceFiles(repo)) {
+    for (const seg of scriptSegments(repo, rel)) {
+      for (const lit of templateLiterals(seg.text)) {
+        for (const it of interpolations(lit.text)) {
+          if (!it.unterminated) continue;
+          out.push({
+            file: rel,
+            line: lineOf(seg.rawSrc, seg.offset + lit.start + it.start),
+            len: it.expr.length,
+            head: it.expr.replace(/\s+/g, ' ').trim().slice(0, 80),
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** ★둘째 그물 — ★길이 상한. ★문턱의 ★근거는 ★실측이다(2026-10-07, ★raw `it.expr.length`):
+ *    ★정상 최장 ★3,478  ·  ★폭주 ★19,498 / ★32,541   ⇒ ★그 사이에 ★여유 있게 ★8,000.
+ *  ★★⛔이 수를 ★올려서 빨강을 끄지 마라 — ★올리기 전에 ★「★왜 그렇게 긴 보간이 생겼나」를 적어라.
+ *    ★정상 최장이 ★8,000 에 닿으면 ★그때는 ★그 보간을 ★쪼개는 것이 ★맞는 처방이다.
+ *  ⚠️이 자는 ★주 자(경계)가 ★못 보는 꼴을 ★덮는 ★보조다 — ⛔이것만으로 ★닫지 마라. */
+const INTERP_MAX_CHARS = 8000;
+
+/** 상한을 넘은 보간식 전부. */
+function oversizedInterpolations(repo, limit = INTERP_MAX_CHARS) {
+  const out = [];
+  for (const rel of sourceFiles(repo)) {
+    for (const seg of scriptSegments(repo, rel)) {
+      for (const lit of templateLiterals(seg.text)) {
+        for (const it of interpolations(lit.text)) {
+          if (it.expr.length <= limit) continue;
+          out.push({
+            file: rel,
+            line: lineOf(seg.rawSrc, seg.offset + lit.start + it.start),
+            len: it.expr.length,
+            head: it.expr.replace(/\s+/g, ' ').trim().slice(0, 80),
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** 가장 긴 보간식 — ★진단용(위 문턱이 ★아직 넉넉한지 ★검사가 스스로 찍게). */
+function longestInterpolation(repo) {
+  let best = { len: -1 };
+  for (const rel of sourceFiles(repo)) {
+    for (const seg of scriptSegments(repo, rel)) {
+      for (const lit of templateLiterals(seg.text)) {
+        for (const it of interpolations(lit.text)) {
+          if (it.expr.length > best.len) {
+            best = { file: rel, line: lineOf(seg.rawSrc, seg.offset + lit.start + it.start), len: it.expr.length };
+          }
+        }
+      }
+    }
+  }
+  return best;
+}
+
 function scan(repo) {
   const hits = [];
   for (const rel of sourceFiles(repo)) {
@@ -417,4 +515,5 @@ module.exports = {
   sourceFiles, scriptSegments, templateLiterals, interpolations,
   nameSinkRanges, VOID_TAGS, nameReads, producesOnlyLiterals, fromConstArray, resolveAliases, isNumericish, escapedSpans, isEscaped, lineOf,
   scan, verifyEscapers, escapersUsedBy,
+  unterminatedInterpolations, oversizedInterpolations, INTERP_MAX_CHARS, longestInterpolation, templateBalanced,
 };
