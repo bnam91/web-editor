@@ -3,16 +3,18 @@
  * ★현빈 원문: 「(컴패리전 셀에) 이미지를 넣으면 해당 이미지에 에셋블럭이 들어간 것처럼 블러(redact) 기능 및 색상편집 가능하게 해줄 것」
  *
  * ★설계: 정본 = 모델(행 필드 row.redact 0..100 · row.adj 7키) — renderComparison 이 칸 div 를 매번 새로 만들므로 렌더가 매번 칠한다.
- *   블러 = 칸 div 의 ::after backdrop-filter(css/editor-layout.css · C1 공용 모듈 js/effects/image-redact.js applyRedact)
+ *   블러 = 칸 div 의 ::after 가 칸 배경을 물려받아 filter:blur (css/editor-layout.css · 상태는 C1 공용 applyRedact 의 data-redact·--redact-blur)
+ *     ⛔에셋의 backdrop 꼴이 아니다 — 블럭 안쪽 배율 변환 아래에서 아래 띠·오른 가장자리를 안 흐렸다(K8 · 1012t1D4 이벨류에이터)
  *   색보정 = 칸 div 의 filter:url(#img-color-adj-…)(js/image-color-adjust.js · 대상 술어 ADJ_TARGET_SEL 에 칸을 더함)
  *
  * 칸
  *   K1 adj 행 → data-adj-* · filter url · 재렌더 · 저장 왕복(serializeProject → applyProjectData) 생존
  *   K2 내보내기 클론(renderComponentsInClone) → ADJ_DIRTY_SEL 이 칸을 집고 bake 가 배경을 구운 PNG 로 · neutralize 가 블러 칸을 덮개로
- *   K3 redact 보임 — C1 asset-redact 와 같은 자(::after backdrop blur(12px) + 가운데 줄 B 채널 sd) · 색보정과 공존(둘 다 생존 · 그래도 흐림)
+ *   K3 redact 보임 — C1 asset-redact 와 같은 자(::after blur(12px) + 가로줄 B 채널 sd · 여러 줄의 최댓값) · 색보정과 공존(둘 다 생존 · 그래도 흐림)
  *   K4 패널 — 「Image」 절 바로 아래 「블러 (Redact)」 · 슬라이더 → 모델 · undo 1번 = 꺼짐 · 편집기(더블클릭) 색보정 슬라이더 → 모델 · Esc = 패널 닫힘
  *   K5 0/기본값 = 흔적 0(속성·변수·필터·모델 키·outerHTML)
  *   K6 문(MCP/AI) cols 교체 뒤 redact·adj 생존 · 범위 밖 클램프 · adj 꼴 아님 = INVALID
+ *   K8 띠 누출 없음 — 높이 2~98% 일곱 줄 모두 on/off sd 비 < LEAK_RATIO (두 칼럼 · 색보정 동시)
  *   K7 Figma JSON — 블러 칸 원본 imgSrc 가 JSON 에 없다(양성대조: 끄면 있다)
  *
  * ⛔고정 대기 0(waitForFunction / expect.poll) · 픽셀은 요소 스크린샷(locator.screenshot)으로 — 화면 사각형을 숫자와 견주지 않는다.
@@ -22,7 +24,7 @@
  *   · js/image-color-adjust.js ADJ_TARGET_SEL 에서 `, .comparison-block .cmp-img` 빼기   ⇒ K2(bake) · K4(편집기 패널 안 뜸) 빨강
  *   · js/blocks/comparison-block.js 렌더의 `applyRedact(r, src ? row.redact : 0);` 를 `applyRedact(r, 0);`  ⇒ K3 · K4 · K6 빨강
  *   · 같은 곳 `if (_adj) window.applyImgColorAdjust?.(r, _adj);` 주석                   ⇒ K1 · K2 · K3(공존) 빨강
- *   · css/editor-layout.css 비교 칸 선택자 줄(`…cmp-img[data-redact]::after,`) 지우기      ⇒ K3(계산값·픽셀) 빨강
+ *   · css/editor-layout.css 비교 칸 막의 `inset: calc(-3 * …)` → `inset: 0` 또는 filter 를 backdrop-filter 로   ⇒ K8 빨강(가장자리/띠)
  *   · js/effects/image-redact.js REDACT_HOST_SEL 에서 비교 칸 빼기                        ⇒ K2(neutralize 덮개) 빨강
  *   · comparison-block.js CMP_ROW_KEEP 의 `redact:` 줄 지우기                              ⇒ K6(cols 교체 생존) 빨강
  *   · prop-comparison.js `${imgSection}${redactSection}` → `${imgSection}`                  ⇒ K4 빨강
@@ -38,6 +40,8 @@ const cellSel = (c, r) => `#sB .comparison-block .cmp-row[data-col-idx="${c}"][d
 const ADJ_SAT = { exposure: 0, contrast: 0, saturation: -1, temperature: 0, tint: 0, highlights: 0, shadows: 0 };
 /* 흐림 판정 문턱 — C1 asset-redact R4 와 같은 자(가운데 줄 B 채널 표준편차) */
 const SD_ON = 50, SD_OFF = 15;
+/* K8 — 블러 켠 줄 sd ÷ 같은 칸 블러 끈 줄 sd 의 상한(줄마다). 고친 판 실측 ≤ 0.02 · 옛 «뒤 막 흐리기» 판 98% 줄 0.3 · 95% 줄 0.09 */
+const LEAK_RATIO = 0.05;
 
 /* 칼럼0: [줄무늬 그림 칸, 글자, 빈 슬롯] · 칼럼1: [줄무늬 그림 칸, 글자, 글자] — 행 필드는 extra 로 칼럼0 첫 칸에 */
 async function setup(page, extra = {}) {
@@ -61,7 +65,7 @@ async function setup(page, extra = {}) {
     window.__blk = [...document.querySelectorAll('#sB .comparison-block')].pop();
     window.__bid = window.__blk?.id;
     window.buildLayerPanel?.(); window.deselectAll?.();
-    window.__blk?.scrollIntoView({ block: 'center' });
+    window.__blk?.scrollIntoView({ block: 'start' });   // 화면 아래 떠 있는 툴바가 칸 스크린샷에 끼지 않게
   }, [SEC, extra]);
   await page.waitForFunction(() => !!window.__blk && window.__blk.isConnected && !window.__blk.classList.contains('selected'), null, { timeout: 5000 });
   return errs;
@@ -77,7 +81,8 @@ const cell = (page, c = 0, r = 0) => page.evaluate(([c, r]) => {
     redactAttr: e.getAttribute('data-redact'),
     blurVar: (e.style.getPropertyValue('--redact-blur') || '').trim(),
     afterContent: after.content,
-    afterBackdrop: after.backdropFilter || after.webkitBackdropFilter || '',
+    /* 비교 칸 막은 «자기 배경을 물려받아 흐린다»(filter) — 배율 변환 아래 뒤 막 흐리기는 띠를 남겼다(K8) */
+    afterBlur: after.filter || '',
     position: getComputedStyle(e).position,
     filter: e.style.filter || '',
     adjSat: e.getAttribute('data-adj-saturation'),
@@ -88,25 +93,34 @@ const cell = (page, c = 0, r = 0) => page.evaluate(([c, r]) => {
     rowKeys: Object.keys(row),
   };
 }, [c, r]);
-/* 칸 그림의 가운데 줄 B 채널 sd — 요소 스크린샷(화면 사각형을 안 읽는다). 가장자리 20% 는 버린다. */
-async function sdOf(page, c = 0, r = 0) {
+/* 칸 그림의 가로줄 B 채널 sd — 요소 스크린샷(화면 사각형을 안 읽는다). 줄 = 높이 %(기본 가운데 하나), 좌우 20% 는 버린다.
+   ★PNG 는 <img> 로 푼다 — index.html CSP connect-src 가 fetch('data:…') 를 막는다(이벨류에이터 실측 「Failed to fetch」). */
+async function sdRows(page, c = 0, r = 0, hs = [50]) {
   const png = await page.locator(cellSel(c, r)).screenshot();
-  return page.evaluate(async (b64) => {
-    const bmp = await createImageBitmap(await (await fetch('data:image/png;base64,' + b64)).blob());
-    const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height;
-    const ctx = cv.getContext('2d'); ctx.drawImage(bmp, 0, 0);
-    const y = Math.floor(bmp.height / 2), x0 = Math.floor(bmp.width * 0.2), x1 = Math.floor(bmp.width * 0.8);
-    const d = ctx.getImageData(x0, y, x1 - x0, 1).data;
-    const bs = []; for (let i = 0; i < d.length; i += 4) bs.push(d[i + 2]);
-    const m = bs.reduce((a, v) => a + v, 0) / bs.length;
-    return Math.round(Math.sqrt(bs.reduce((a, v) => a + (v - m) * (v - m), 0) / bs.length) * 10) / 10;
-  }, png.toString('base64'));
+  return page.evaluate(async ([b64, hs]) => {
+    const im = new Image(); im.src = 'data:image/png;base64,' + b64; await im.decode();
+    const cv = document.createElement('canvas'); cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+    const ctx = cv.getContext('2d'); ctx.drawImage(im, 0, 0);
+    const x0 = Math.floor(cv.width * 0.2), x1 = Math.floor(cv.width * 0.8);
+    const out = {};
+    for (const p of hs) {
+      const y = Math.min(cv.height - 1, Math.floor(cv.height * p / 100));
+      const d = ctx.getImageData(x0, y, x1 - x0, 1).data;
+      const bs = []; for (let i = 0; i < d.length; i += 4) bs.push(d[i + 2]);
+      const m = bs.reduce((a, v) => a + v, 0) / bs.length;
+      out[p] = Math.round(Math.sqrt(bs.reduce((a, v) => a + (v - m) * (v - m), 0) / bs.length) * 10) / 10;
+    }
+    return out;
+  }, [png.toString('base64'), hs]);
 }
+/* 여러 줄 중 «가장 덜 흐린» 줄(최댓값) — 띠 하나라도 원본이 보이면 크다 */
+const HS = [2, 25, 50, 75, 90, 95, 98];
+const sdOf = async (page, c = 0, r = 0) => Math.max(...Object.values(await sdRows(page, c, r, HS)));
 const setRow = (page, patch, c = 0, r = 0) => page.evaluate(([p, c, r]) => {
   const b = document.getElementById(window.__bid);
   const cols = window.getComparisonCols(b.dataset);
   Object.assign(cols[c].rows[r], p);
-  for (const k of Object.keys(p)) if (p[k] === undefined) delete cols[c].rows[r][k];
+  for (const k of Object.keys(p)) if (p[k] == null) delete cols[c].rows[r][k];   // null = 키 지우기
   window.setComparisonCols(b, cols); window.renderComparison(b);
 }, [patch, c, r]);
 
@@ -177,22 +191,22 @@ test('K3 블러 보임 — ::after blur(12px) · 줄무늬 sd 가 꺼진다 · �
   const errs = await setup(page);
   const s0 = await cell(page);
   expect([s0.redactAttr, s0.afterContent], '전제: 처음엔 블러 없음').toEqual([null, 'none']);
-  const before = await sdOf(page);
-  expect(before, '양성대조: 켜기 전 줄무늬가 안 보인다 ⇒ 이 자는 흐림을 못 가른다').toBeGreaterThan(SD_ON);
+  const before = Math.min(...Object.values(await sdRows(page, 0, 0, HS)));
+  expect(before, '양성대조: 켜기 전 어느 줄에 줄무늬가 안 보인다 ⇒ 이 자는 흐림을 못 가른다').toBeGreaterThan(SD_ON);
   await setRow(page, { redact: 60 });
   const s1 = await cell(page);
   expect([s1.redactAttr, s1.blurVar, s1.position], '속성·변수·위치 기준').toEqual(['60', '12px', 'relative']);
-  expect(s1.afterBackdrop).toContain('blur(12px)');
+  expect(s1.afterBlur).toContain('blur(12px)');
   await expect.poll(() => sdOf(page), { message: '켰는데 줄무늬가 남는다(흐려지지 않았다)' }).toBeLessThan(SD_OFF);
   /* 공존 — 같은 칸에 색보정(채도 -100)을 더한다 */
   await setRow(page, { redact: 60, adj: ADJ_SAT });
   const s2 = await cell(page);
   expect(s2.filter, '블러를 켜니 색보정 필터가 사라졌다').toMatch(/^url\(/);
-  expect(s2.afterBackdrop, '색보정을 더하니 블러가 사라졌다').toContain('blur(12px)');
+  expect(s2.afterBlur, '색보정을 더하니 블러가 사라졌다').toContain('blur(12px)');
   await expect.poll(() => sdOf(page), { message: '색보정과 같이 켜니 흐림이 풀렸다' }).toBeLessThan(SD_OFF);
   /* 양성대조(공존 쪽): 색보정만 남기면 다시 줄무늬 — 채도 -100 이어도 파랑/노랑의 B 차가 남는다 */
-  await setRow(page, { redact: undefined, adj: ADJ_SAT });
-  await expect.poll(() => sdOf(page), { message: '블러를 껐는데 줄무늬가 안 돌아온다' }).toBeGreaterThan(SD_ON);
+  await setRow(page, { redact: null, adj: ADJ_SAT });
+  await expect.poll(async () => Math.min(...Object.values(await sdRows(page, 0, 0, HS))), { message: '블러를 껐는데 줄무늬가 안 돌아온다' }).toBeGreaterThan(SD_ON);
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
@@ -239,7 +253,7 @@ test('K4 패널 — Image 절 아래 블러 절 · 슬라이더 → 모델 · un
   await expect.poll(async () => (await cell(page)).rowRedact, { message: '슬라이더가 모델에 안 썼다' }).toBe(60);
   const s1 = await cell(page);
   expect([s1.redactAttr, s1.blurVar]).toEqual(['60', '12px']);
-  expect(s1.afterBackdrop).toContain('blur(12px)');
+  expect(s1.afterBlur).toContain('blur(12px)');
   /* undo 1번 — 켜기 «전»으로 */
   await page.evaluate(() => window.undo());
   await expect.poll(async () => (await cell(page)).rowRedact, { message: 'undo 1번에 블러가 안 꺼졌다' }).toBe(null);
@@ -349,5 +363,29 @@ test('K7 Figma JSON — 블러 칸 원본 imgSrc 가 없다 · 덮개 색 (양�
   expect(on.hasSrc, '블러를 켰는데 원본 src 가 Figma JSON 에 실렸다').toBe(false);
   expect(on.row?.redact).toEqual({ intensity: 60, blurPx: 12, cover: '#4a4a4a' });
   expect(on.row?.imgSrc).toBe('');
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('K8 블러 띠 누출 없음 — 높이 2/25/50/75/90/95/98% 전 줄이 흐리다(배율 변환 아래 · 두 칼럼 · 색보정 동시)', async ({ page }) => {
+  const errs = await setup(page);
+  const scale = await page.evaluate(() => document.getElementById(window.__bid)._cmpScale);
+  expect(Math.abs(scale - 1), '전제: 블럭 안쪽에 배율 변환이 걸려 있다(이 병은 배율 1 에선 안 난다)').toBeGreaterThan(0.05);
+  const check = async (label) => {
+    for (const c of [0, 1]) {
+      const off = await sdRows(page, c, 0, HS);
+      for (const h of HS) expect(off[h], `${label} 양성대조: 칼럼${c} ${h}% 줄에 원본 줄무늬가 안 보인다`).toBeGreaterThan(SD_ON);
+      await setRow(page, { redact: 60 }, c, 0);
+      await expect.poll(async () => (await cell(page, c, 0)).redactAttr).toBe('60');
+      const on = await sdRows(page, c, 0, HS);
+      console.log('K8', label, c, JSON.stringify({ off, on }));
+      for (const h of HS) expect(on[h] / off[h], `${label} 칼럼${c} 높이 ${h}% 줄이 안 흐리다(on ${on[h]} / off ${off[h]}) — 원본이 띠로 보인다`).toBeLessThan(LEAK_RATIO);
+      await setRow(page, { redact: null }, c, 0);
+    }
+  };
+  await check('블러만');
+  await setRow(page, { adj: ADJ_SAT }, 0, 0);
+  await setRow(page, { adj: ADJ_SAT }, 1, 0);
+  expect((await cell(page)).filter, '전제: 색보정이 걸렸다').toMatch(/^url\(/);
+  await check('색보정 동시');
   expect(errs, errs.join('\n')).toEqual([]);
 });
