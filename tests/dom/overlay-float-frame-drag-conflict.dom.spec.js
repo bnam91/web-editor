@@ -37,8 +37,10 @@ const BD = read('js/block-drag.js');
 const BIND_FRAME_DROPZONE = sliceBlock(BD, 'function bindFrameDropZone(ss)');
 
 /* 음성대조본 — 이번 통합이 붙인 «오버레이 가드» 한 줄만 걷어낸 것.
-   이 판으로 돌리면 실앱에서 난 증상(하드클램프로 끌려옴)이 그대로 재현돼야 한다.
-   ⛔재현이 안 되면 이 검사는 아무것도 지키지 못하는 것이다(그래서 아래 N1 이 있다). */
+   ★2026-10-12: 증상을 다시 적는다 — 현빈 1010t1c1 이 하드 클램프를 폐기해서
+   «하드클램프로 끌려옴»(left ≤ 600)은 더 이상 안 난다. 실측: 가드 없으면 left=700(raw DX),
+   가드 있으면 ≈670.5(탄성). ⇒ 살아 있는 지문은 «탄성이 사라진다»(그 차 29.5)다.
+   ⛔재현이 안 되면 이 검사는 아무것도 지키지 못하는 것이다. */
 const GUARD_LINE = "if (ss.dataset.overlayBlock === 'true') return;";
 if (!BIND_FRAME_DROPZONE.includes(GUARD_LINE)) {
   throw new Error('하네스가 늙었다 — bindFrameDropZone 에서 오버레이 가드 줄을 못 찾았다');
@@ -187,14 +189,14 @@ test('F1 ★떠 있는 도형(저장본 모양, position:absolute) — 프레임
     `style.left(${left}) 와 dataset.offsetX(${offsetX}) 가 갈렸다 — 두 핸들러가 번갈아 썼다`).toBeLessThanOrEqual(1);
 });
 
-test('F1-음성대조 ★가드 한 줄을 빼면 «하드클램프로 끌려오는» 실앱 증상이 그대로 재현된다', async ({ page }) => {
+test('F1-음성대조 ★가드 한 줄을 빼면 «탄성이 사라진다»(= 프레임 드래그가 좌표를 덮는다)', async ({ page }) => {
   await boot(page, { pre: true });
   await dragRight(page, DX);
   const { left, offsetX } = await stateOf(page);
   console.log(`[음성대조] left=${left} offsetX=${offsetX} (하드클램프=${HARD_MAX_LEFT}, 탄성기대=${EXPECT_ELASTIC})`);
-  expect(left,
-    `음성대조가 재현 안 됐다(left=${left}) — 이 검사는 결함을 못 잡는다. 하네스를 고쳐라`)
-    .toBeLessThanOrEqual(HARD_MAX_LEFT);
+  expect(Math.abs(left - EXPECT_ELASTIC),
+    `음성대조가 재현 안 됐다(left=${left}, 탄성기대=${EXPECT_ELASTIC}) — 가드를 빼도 탄성이 그대로다 ⇒ 이 검사는 결함을 못 잡는다`)
+    .toBeGreaterThan(10);
 });
 
 test('F2 ★오버레이가 «아닌» 절대배치 프레임은 예전대로 프레임 드래그가 맡는다(가드가 과하지 않다)', async ({ page }) => {
