@@ -52,6 +52,13 @@ export function readShadowState(contentEl) {
   };
 }
 
+/** 사용자 그림자 css(Shadow 절이 켜진 때만 · 아니면 '') — 글자칸 dataset 에서 읽는다.
+ *  ★Effects 글로우(js/effects-glow.js)가 text-shadow 를 «합성»할 때 사용자 몫을 다시 만드는 자리(같은 _buildShadowCss). */
+export function textUserShadowCss(contentEl) {
+  const st = readShadowState(contentEl);
+  return st.enabled ? _buildShadowCss(st) : '';
+}
+
 /** Wire up the Shadow controls in the right panel */
 export function wireShadowSection({ ctx, initial }) {
   const section = document.getElementById('txt-shadow-section');
@@ -81,13 +88,13 @@ export function wireShadowSection({ ctx, initial }) {
   const _apply = () => {
     if (!ctx.contentEl) return;
     const el = ctx.contentEl;
-    if (s.enabled) {
-      el.style.textShadow = _buildShadowCss(s);
-      el.dataset.shadowEnabled = 'true';
-    } else {
-      el.style.textShadow = '';
-      el.dataset.shadowEnabled = 'false';
-    }
+    /* ★1012t1E3 — text-shadow 는 «합성 문»(js/effects-glow.js fxComposeTextShadow)으로 쓴다:
+       [Effects 글로우 겹, 이 사용자 그림자]. ⛔여기서 통째로 대입하지 마라 — 글로우를 지운다(시험 effects-glow G3).
+       글로우가 없으면 합성 결과 = 아래 userCss 그대로(옛 동작 바이트 동일 · G7). 합성 문이 없는 판(단위 대역)은 옛 대입. */
+    const userCss = s.enabled ? _buildShadowCss(s) : '';
+    if (typeof window !== 'undefined' && typeof window.fxComposeTextShadow === 'function') window.fxComposeTextShadow(el, userCss);
+    else el.style.textShadow = userCss;
+    el.dataset.shadowEnabled = s.enabled ? 'true' : 'false';
     // 항상 dataset에 값 저장 (off여도 복원 시 슬라이더 위치 유지)
     el.dataset.shadowX = String(s.x);
     el.dataset.shadowY = String(s.y);

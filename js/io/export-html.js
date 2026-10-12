@@ -2,6 +2,7 @@ import { canvasEl, state } from '../globals.js';
 import { isGoyaAssetUrl as _isGoyaAsset, parseGoyaAssetUrl as _parseGoyaAssetUrl } from './goya-asset-inline.js';
 import { HIDDEN_VARIATION_SECTION_SEL } from '../variation-visibility.js';
 import { textGradShadowDefsMarkup } from '../props/text-block-color.js';
+import { strokeDefsMarkup } from '../props/text-stroke-filter.js';   /* ★1012t1E1 내부 외곽선 필터 정의 */
 import { neutralizeRedactForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, restRuntimeForArtifact } from './capture-safety.js';
 import { collectCanvasCss } from './export-css-collect.js';
 
@@ -272,7 +273,8 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 .tb-table thead th{background:#f5f5f5;font-weight:600;}
 /* 글자 그라데이션 + 그림자/네온 = 그림자를 글자 «뒤»로 (0919r3 textshadow — 앱 css/editor-blocks.css .tgs 와 같은 규칙).
    이 줄이 없으면 인라인 text-shadow 가 그라데이션 위에 칠해져 페이드가 사라진다. 여러 겹은 아래 <svg> 필터 정의를 참조. */
-.tgs{text-shadow:none!important;filter:var(--tgs-filter)!important;}
+[style*="--gd-stroke-filter"]{filter:var(--gd-stroke-filter);}
+.tgs{text-shadow:none!important;filter:var(--gd-stroke-filter,) var(--tgs-filter)!important;}
 `;
 
   /* ★앱 CSS 수확 (2026-09-21 최종통합 QA medium — 「내보낸 HTML 이 화면과 다르다」)
@@ -299,6 +301,8 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 
   // .tgs 글자가 url(#tgs-f-…) 로 가리키는 SVG 필터 정의 — 앱에선 캔버스 밖(body 직속)에 있어 클론에 안 딸려 온다.
   const tgsDefs = textGradShadowDefsMarkup(clone);
+  // ★1012t1E1 — 내부 외곽선(url(#gdsk-in-…))의 정의도 같은 까닭으로 딸려 보낸다(앱에선 body 직속 #gdsk-svg-defs).
+  const strokeDefs = strokeDefsMarkup(clone);
 
   const html = `<!DOCTYPE html>
 <html lang="ko">
@@ -312,7 +316,7 @@ ${fontLink}
 <style>${exportOnlyCss}</style>
 </head>
 <body>
-${tgsDefs}
+${tgsDefs}${strokeDefs}
 <div id="canvas">
 ${clone.innerHTML}
 </div>

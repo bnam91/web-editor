@@ -12,9 +12,10 @@ const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '
 const EXPORT = strip(fs.readFileSync(path.join(ROOT, 'js/io/export-html.js'), 'utf8'));
 const APPCSS = fs.readFileSync(path.join(ROOT, 'css/editor-blocks.css'), 'utf8');
 
+/* 1012t1E1 — 내부 외곽선 필터(--gd-stroke-filter, 빈 값 기본)가 .tgs 필터 «앞»에 잇는다. 앱·내보내기 둘 다 같은 꼴이어야 한다. */
 test('export-html: .tgs 규칙이 앱과 같은 뜻으로 실린다', () => {
-  assert.match(EXPORT, /\.tgs\{text-shadow:none!important;filter:var\(--tgs-filter\)!important;\}/);
-  assert.match(APPCSS, /\.tgs \{\s*text-shadow: none !important;\s*filter: var\(--tgs-filter\) !important;\s*\}/);
+  assert.match(EXPORT, /\.tgs\{text-shadow:none!important;filter:var\(--gd-stroke-filter,\) var\(--tgs-filter\)!important;\}/);
+  assert.match(strip(APPCSS), /\.tgs \{\s*text-shadow: none !important;\s*filter: var\(--gd-stroke-filter,\) var\(--tgs-filter\) !important;\s*\}/);
 });
 
 test('export-html: 클론이 쓰는 SVG 필터 정의를 body 에 넣는다', () => {

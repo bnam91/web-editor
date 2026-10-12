@@ -93,6 +93,7 @@ export function buildTypographySectionHtml({
   showUnderline = false,
   showUnderlineOpts = false, ulColorHtml = '', ulThick = '', ulOffset = '',
   showDots = false, showDotOpts = false, dotColorHtml = '', dotSize = 4, dotGap = 0, dotX = 0, dotY = 0,
+  isGlow = false, showGlow = false, showGlowOpts = false, glowColorHtml = '', glowK = 70,
   sizePh, lhPh, lsPh,
   mix,
 } = {}) {
@@ -169,6 +170,14 @@ export function buildTypographySectionHtml({
          ★그래서 ★맨숫자를 ★미리 ★박지 않는다(이 절의 _ph 규약과 ★같은 뜻: 안 정한 칸은 ★안 정했다고 보인다).
        ⚠️★CSS 는 ★장식선 두께·색을 ★선별로 못 준다(한 요소에 ★한 값) ⇒ ★취소선이 같이 켜져 있으면
          ★그것도 ★같이 바뀐다. ⛔「밑줄만 바뀐다」로 ★넓히지 마라 — ★검사가 그 축을 ★적는다. */
+  /* ★★⑸ ★글로우 단추·손잡이 (1012t1E2 · 2026-10-12 현빈: 「하이라이트 효과처럼 특정 영역선택후 입력도 가능하게」)
+       ★단추 = 점 단추 «바로 뒤»(B I U S H 점 글로우). 아이콘 = 점 단추 svg 와 ★같은 꼴(viewBox 13×15 · stroke 1.5 · round ·
+         currentColor) — 글자 자리 A 획은 그대로 두고 점 대신 ★빛살 세 줄을 위에 그었다(새 아이콘 족을 만들지 않는다).
+       ★showGlow·showGlowOpts 기본 false ⇒ 모달·그리드·챗·텍스트 골든은 «바이트 동일»(텍스트 패널은 prop-text.js 가 켠다).
+       ★손잡이 블록은 ★밑줄 블록 끝에 이어 붙였다(새 줄에서 시작하면 꺼져도 줄바꿈이 남아 바이트 동일이 깨진다 — 위 점 블록 머리말).
+       ★칸 꼴은 형광펜과 같다: colorFieldHTML(색＋불투명도%) ＋ range/number 쌍(세기 0~100 → --tb-glow-k 0~1).
+       ⚠️240px 패널 폭: 단추 7개 × 28px ＋ 간격 6 × 4px = 220px · 섹션 좌우 패딩 8+8 을 빼면 224px 남는다(★코드로만 셌다 — 안 쟀다.
+         스크롤바·상위 여백은 안 셌다. 모자라면 flex 기본 shrink 로 단추가 줄어든다 — 넘치지는 않을 것으로 «읽었다»). */
   return `<div class="prop-section">
       <div class="prop-section-title">Typography</div>
 
@@ -207,7 +216,8 @@ export function buildTypographySectionHtml({
         <button class="prop-style-btn ${isUnderline?'active':''}" id="${p}-underline-btn" title="밑줄 (⌘U)"><u>U</u></button>` : ''}
         <button class="prop-style-btn ${isStrike?'active':''}" id="${p}-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>${showHighlight ? `
         <button class="prop-style-btn ${isHighlight?'active':''}" id="${p}-highlight-btn" title="형광펜 (글자 길이만큼 — 선택이 있으면 그 글자만)">H</button>` : ''}${showDots ? `
-        <button class="prop-style-btn ${isDot?'active':''}" id="${p}-dot-btn" title="글자 위 점 찍기 (글자마다 하나 — 선택이 있으면 그 글자만)"><svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true"><circle cx="6.5" cy="2.1" r="1.9" fill="currentColor"/><path d="M2 13.4 6.5 6.6l4.5 6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.1 11.1h4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}
+        <button class="prop-style-btn ${isDot?'active':''}" id="${p}-dot-btn" title="글자 위 점 찍기 (글자마다 하나 — 선택이 있으면 그 글자만)"><svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true"><circle cx="6.5" cy="2.1" r="1.9" fill="currentColor"/><path d="M2 13.4 6.5 6.6l4.5 6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.1 11.1h4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}${showGlow ? `
+        <button class="prop-style-btn ${isGlow?'active':''}" id="${p}-glow-btn" title="글로우 (선택이 있으면 그 글자만)"><svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true"><path d="M6.5 1v2.2M2.4 2.5l1.2 1.2M10.6 2.5 9.4 3.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 13.4 6.5 6.6l4.5 6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.1 11.1h4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}
       </div>
 ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현빈 tb_5bkw8dq: 「색변경 및 하이라이트 바 높이 조절가능하게」).
            ★H 단추 «바로 아래» — 그 단추가 켜는 것을 고치는 칸이라 같은 자리가 맞다.
@@ -287,6 +297,16 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         </div>
       </div>
       <div class="cv-chips ts-recent-row" id="${p}-ul-recent-row" hidden></div>
+` : ''}${showGlowOpts ? `      <div class="prop-color-row" id="${p}-glow-color-row" style="margin-top:6px;display:${isGlow?'flex':'none'}">
+        <span class="prop-label">글로우</span>
+        ${glowColorHtml}
+      </div>
+      <div class="prop-row" id="${p}-glow-k-row" style="display:${isGlow?'flex':'none'}" title="빛 번짐 세기(%). 100 = 가장 큰 겹 28px · 0 = 빛 없음">
+        <span class="prop-label">세기</span>
+        <input type="range" class="prop-slider" id="${p}-glow-k" min="0" max="100" step="1" value="${glowK}">
+        <input type="number" class="prop-number" id="${p}-glow-k-num" min="0" max="100" value="${glowK}">
+      </div>
+      <div class="cv-chips ts-recent-row" id="${p}-glow-recent-row" hidden></div>
 ` : ''}
       <div class="prop-lhls-row">
         <div class="prop-lhls-col"${_hide(showLineHeight)}>

@@ -425,6 +425,29 @@
   border-radius: 2px;
 }
 
+/* ── 텍스트 ★범위 글로우 (1012t1E2 · 2026-10-12 현빈: 「네온글로우 효과가 하나의 텍스트 블럭 전체에만 들어가는데
+     하이라이트 효과처럼 특정 영역선택후 입력도 가능하게」) ─────────────────────────────────────────
+   ★꼴 = 형광펜과 같다 — span.tb-glow 가 «여러 글자»를 두르고, 값은 .text-block 인라인 두 변수 한 벌:
+     색 = --tb-glow-color (불투명도는 색칸 % 가 rgba 로 싣는다)   세기 = --tb-glow-k (0~1)
+   ★겹 처방 = Effects 블럭 글로우(js/effects-glow.js)와 «같은 3겹 반경 비» 0.21 : 0.5 : 1 · 가장 큰 겹 = 28px × k
+     (k 0.7 → 19.6px ≈ Effects 기본 Blur 20). 흰 심·색수차·글자색 바꾸기는 안 한다(이스트에그 몫 · 계획 Q2/Q3 기본값).
+   ★★var(--tb-glow-base,) — text-shadow 는 «상속 덮어쓰기»라 span 이 글자칸의 그림자(Effects 글로우·Shadow 절 합성)를
+     잃는다 ⇒ 글자칸에 적어 둔 ", <글자칸 text-shadow>" 를 제 겹 «뒤에» 잇는다
+     (쓰는 자리 = js/props/prop-text-wireup-text-edit.js syncRangeGlowBase · 없으면 빈 값 = 제 겹만).
+   ★기본색 #ff00ff = 이스트에그 TEXT_EFFECT_DEFAULTS.glowColor · Effects FX_GLOW_DEFAULTS.color 와 같은 값
+     (효과 기본값 — design-tokens.css 에 맞는 토큰 0건 · grep ff00ff/neon/glow). ⛔다른 값으로 갈지 마라 — 셋이 갈린다.
+   ⚠️그라데이션 글자(투명 채움)에선 빛이 글자 «위»로 비쳐 그라데이션이 지워진다 ⇒ 단추가 막는다(_syncGradUi). */
+.text-block {
+  --tb-glow-color: #ff00ff;
+  --tb-glow-k: 0.7;
+}
+.tb-glow {
+  text-shadow:
+    0 0 calc(5.88px * var(--tb-glow-k)) var(--tb-glow-color),
+    0 0 calc(14px * var(--tb-glow-k)) var(--tb-glow-color),
+    0 0 calc(28px * var(--tb-glow-k)) var(--tb-glow-color) var(--tb-glow-base,);
+}
+
 /* ── 텍스트 위 ★점 찍기(방점) (2026-10-08 수지 피드백 ⑥ · ⚠️출처는 ★2차다:
      「텍스트 위 ★점 찍기(세 글자 선택→점 3개·간격·xy·크기·색상 변경)」) ───────────────────
    ★★왜 표준 `text-emphasis` 가 아닌가 — 2026-10-08 헤드리스 크로미움에서 ★그려서 셌다:

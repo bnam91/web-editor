@@ -374,7 +374,11 @@ export function syncTextGradShadow(contentEl) {
   // 떨어진 노드는 computed 를 못 읽는다 — 손대지 않는다(붙는 순간 아래 관찰자가 다시 맞춘다)
   if (!contentEl.isConnected) return had;
   let src = '';
-  if (hasTextGradient(contentEl)) {
+  /* ★1012t1E1 — «내부» 외곽선(SVG 필터 erode)도 같은 길을 탄다: 필터는 요소가 칠한 «전부»(text-shadow·글로우 포함)를
+     깎아 띠를 그리므로, 그림자를 text-shadow 로 두면 그림자 가장자리에도 외곽선이 생긴다.
+     ⇒ 그림자를 filter 사슬로 옮기고 CSS(.tgs)가 [외곽선 필터 → 그림자] 순서로 합성한다(css/editor-blocks.css). */
+  const insideStroke = !!(contentEl.dataset && contentEl.dataset.strokeOn === 'true' && contentEl.dataset.strokeAlign === 'inside');
+  if (hasTextGradient(contentEl) || insideStroke) {
     if (had) contentEl.classList.remove('tgs');
     try {
       const ts = getComputedStyle(contentEl).textShadow;
@@ -415,7 +419,7 @@ export function textShadowSource(el) {
   } catch (_) { return ''; }
 }
 
-const _TGS_SEL = '.tgs, [style*="background-clip"]';
+const _TGS_SEL = '.tgs, [style*="background-clip"], [data-stroke-align="inside"]';   /* ★1012t1E1 내부 외곽선도 */
 function _syncTree(node) {
   if (!node || node.nodeType !== 1) return;
   if (node.matches && node.matches(_TGS_SEL)) syncTextGradShadow(node);
