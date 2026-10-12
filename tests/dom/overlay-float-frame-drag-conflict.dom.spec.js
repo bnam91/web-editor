@@ -204,6 +204,6 @@ test('F2 ★오버레이가 «아닌» 절대배치 프레임은 예전대로 �
   const { left } = await stateOf(page);
   expect(errs, `페이지 에러: ${errs.join(' | ')}`).toEqual([]);
   expect(left, `오버레이가 아닌 프레임인데 안 움직였다(left=${left}) — 가드가 너무 넓다`).toBeGreaterThan(0);
-  expect(left, `하드 클램프 경계를 넘었다(left=${left}) — 프레임 드래그의 기존 규약이 바뀌었다`)
-    .toBeLessThanOrEqual(HARD_MAX_LEFT);
+  expect(left, `하드 클램프 경계에서 멈췄다(left=${left}) — 1010t1c1 이 폐기한 하드 클램프가 되살아났다`)
+    .toBeGreaterThan(HARD_MAX_LEFT);
 });
