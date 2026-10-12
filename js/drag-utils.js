@@ -886,7 +886,8 @@ function _renderGraphShape(block, { items, chartH, labelSize, valSize }) {
   const d = block.dataset, GS = window.GRAPH_SHAPE;
   const _lc = d.labelColor || '';
   const _vCss = (d.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.vlabelColor || _lc)));
-  const _xCss = (d.showXLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.xlabelColor || _lc)));
+  const _xInk = (_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.xlabelColor || _lc));   // 카테고리 라벨 색(소독 뒤) — 사각 쌓기 마디 라벨도 같은 값을 탄다
+  const _xCss = (d.showXLabel !== '0' ? '' : 'display:none;') + _xInk;
   const _bs = _barVSettings(block, items.length);
   const _vSize = _bs.pctSize ?? valSize;
   const blockSvg = GS.shapeSvgOf(d.barShape, d.shapeSvg);
@@ -902,7 +903,7 @@ function _renderGraphShape(block, { items, chartH, labelSize, valSize }) {
         esc: _escGraphHtml, color: _safeGraphColor, blockShape: !!blockSvg, blockSvg,
         boxFrac: plan.boxFrac, ratioOf: (v) => GS.fillRatio(v, plan.denom),
         blockBar: _safeGraphColor(d.vBarColor), trackColor: d.trackColor, segGap: Number.isFinite(_sg) ? _sg : NaN,
-        labelSize, vSize: _vSize, vCss: _vCss, xCss: _xCss, lhCss: _g.lhCss, colMin: _bs.colMin, fillW: _bs.fillW,
+        labelSize, vSize: _vSize, vCss: _vCss, xCss: _xCss, xInk: _xInk, lhCss: _g.lhCss, colMin: _bs.colMin, fillW: _bs.fillW,
       })}${_g.gridLayerHTML()}${_g.overlayHTML()}
       </div>`;
 }

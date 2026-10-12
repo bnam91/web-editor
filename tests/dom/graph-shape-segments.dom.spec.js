@@ -371,14 +371,16 @@ test('G4-8 다른 유형 — 마디 있는 항목을 꺾은선·원형·가로�
   expect(errs).toEqual([]);
 });
 
-test('G4-9 사각 쌓기 라벨 — 기본 두께(24px) 막대에서도 마디 라벨이 안 잘린다: 막대 오른쪽 바깥 · 이웃 막대 앞에서 끝난다 · 블럭 글자색 · 약통은 그대로 실루엣 위', async ({ page }) => {
+test('G4-9 사각 쌓기 라벨 — 기본 두께(24px) 막대 오른쪽 바깥 · 3막대 기본 라벨은 안 잘린다 · 이웃 막대 앞과 블럭 가장자리 안에서 끝난다(긴 라벨·8막대는 말줄임) · 색 = 카테고리 라벨 색(labelColor 따름) · 약통은 그대로 실루엣 위', async ({ page }) => {
   const segs = [{ label: '제품원가', value: 40, color: '#111111' }, { label: '영업비', value: 30 }, { label: '광고비', value: 20 }, { label: '마진', value: 10 }];
   const { errs, id } = await setup(page, { items: [{ label: 'A', value: 100, segments: segs }, { label: 'B', value: 80, segments: SEG4.map(s => ({ ...s, value: s.value * 0.8 })) }, { label: 'C', value: 60 }] });
   /* 화면 좌표(같은 배율끼리만 견준다) + 글자 상자의 넘침 */
   const read = () => page.evaluate((id) => { const g = document.getElementById(id); const R = (e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; };
-    return { ink: getComputedStyle(g.querySelector('.grb-bar-label')).color, boxes: [...g.querySelectorAll('.grb-shape-box')].map(box => ({ ...R(box), w: box.offsetWidth, on: box.classList.contains('grb-shape-on'),
+    /* 글자 폭은 «글자 칸»에서 잰다 — 사각 쌓기는 말줄임 칸(.grb-seg-text), 모양은 라벨 자신 */
+    return { ink: getComputedStyle(g.querySelector('.grb-bar-label')).color, block: R(g), boxes: [...g.querySelectorAll('.grb-shape-box')].map(box => ({ ...R(box), w: box.offsetWidth, on: box.classList.contains('grb-shape-on'),
       segs: [...box.querySelectorAll('.grb-seg')].map(R),
-      labels: [...box.querySelectorAll('.grb-seg-label')].map(l => ({ ...R(l), text: l.textContent, sw: l.scrollWidth, cw: l.clientWidth, color: getComputedStyle(l).color, fgVar: l.style.getPropertyValue('--grb-seg-fg').trim() })) })) }; }, id);
+      labels: [...box.querySelectorAll('.grb-seg-label')].map(l => { const t = l.querySelector('.grb-seg-text') || l;
+        return { ...R(l), text: l.textContent, sw: t.scrollWidth, cw: t.clientWidth, wrapped: t !== l, ellipsis: getComputedStyle(t).textOverflow, color: getComputedStyle(l).color, fgVar: l.style.getPropertyValue('--grb-seg-fg').trim() }; }) })) }; }, id);
   const g = await read();
   expect(g.boxes.length, '전제: 상자 3(마디 둘 + 보통 하나)').toBe(3);
   const b = g.boxes[0];
@@ -399,12 +401,53 @@ test('G4-9 사각 쌓기 라벨 — 기본 두께(24px) 막대에서도 마디 �
     expect(mid >= s.t - 1 && mid <= s.b + 1, `막대 ${k} 라벨 ${j}: 가운데 ${mid} 가 제 마디 ${s.t}~${s.b} 높이 안`).toBe(true);
     expect(l.color, `막대 ${k} 라벨 ${j}: 글자색 = 블럭 글자색(채움 위가 아니다)`).toBe(g.ink);
   }));
-  /* 약통(모양)으로 바꾸면 라벨은 옛 자리 — 실루엣 상자 안 · 마디 바탕에 맞춘 글자색 */
+  /* 라벨 색 — labelColor 를 주면 마디 라벨도 카테고리 라벨과 같은 색(같은 길) · 카테고리 색(xlabelColor)이 따로 있으면 그것 · 걷으면 원래대로 */
+  const rgbOf = (c) => page.evaluate((c) => { const e = document.createElement('i'); e.style.color = c; document.body.appendChild(e); const v = getComputedStyle(e).color; e.remove(); return v; }, c);
+  const RED = await rgbOf('#ff0000'), BLUE = await rgbOf('#0000ff');
+  expect(g.ink, '전제: 기본 글자색은 빨강·파랑이 아니다(아래 비교가 뜻이 있다)').not.toBe(RED);
+  expect(g.ink).not.toBe(BLUE);
+  await setDs(page, id, { labelColor: '#ff0000' });
+  const c1 = await read();
+  expect(c1.ink, '전제: labelColor 가 카테고리 라벨에 닿았다').toBe(RED);
+  c1.boxes.slice(0, 2).forEach((box, k) => box.labels.forEach((l, j) => expect(l.color, `labelColor: 막대 ${k} 마디 라벨 ${j} 색 = 카테고리 라벨 색`).toBe(RED)));
+  await setDs(page, id, { xlabelColor: '#0000ff' });
+  const c2 = await read();
+  expect(c2.ink, '전제: xlabelColor 가 카테고리 라벨에서 이긴다').toBe(BLUE);
+  c2.boxes.slice(0, 2).forEach((box, k) => box.labels.forEach((l, j) => expect(l.color, `xlabelColor: 막대 ${k} 마디 라벨 ${j} 색 = 카테고리 라벨 색`).toBe(BLUE)));
+  await setDs(page, id, { labelColor: null, xlabelColor: null });
+  const c3 = await read();
+  expect(c3.ink, '전제: 색 키를 걷으면 카테고리 라벨이 원래 색').toBe(g.ink);
+  c3.boxes.slice(0, 2).forEach((box, k) => box.labels.forEach((l, j) => expect(l.color, `색 키 없음: 막대 ${k} 마디 라벨 ${j} = 블럭 글자색(기존대로)`).toBe(g.ink)));
+  /* 블럭 가장자리 — 마지막 막대(오른쪽에 이웃 없음)의 긴 라벨도 블럭 오른쪽 안 · 넘는 글자는 말줄임 */
+  const LONG = '제품원가와 물류비 합계';
+  const edge = (r, tag) => r.boxes.filter(box => box.labels.length).forEach((box) => { const k = r.boxes.indexOf(box); box.labels.forEach((l, j) => {
+    expect(l.wrapped, `${tag} 막대 ${k} 라벨 ${j}: 전제 — 말줄임 칸이 있다`).toBe(true);
+    expect(l.ellipsis, `${tag} 막대 ${k} 라벨 ${j}: 넘치면 말줄임`).toBe('ellipsis');
+    expect(l.cw, `${tag} 막대 ${k} 라벨 ${j}: 글자 칸에 폭이 있다`).toBeGreaterThan(0);
+    expect(l.l, `${tag} 막대 ${k} 라벨 ${j}: 막대 오른쪽 바깥`).toBeGreaterThanOrEqual(box.r - 0.5);
+    expect(l.r, `${tag} 막대 ${k} 라벨 ${j}「${l.text}」: 오른쪽 ${l.r} ≤ 블럭 오른쪽 ${r.block.r}`).toBeLessThanOrEqual(r.block.r + 0.5);
+    if (r.boxes[k + 1]) expect(l.r, `${tag} 막대 ${k} 라벨 ${j}: 이웃 막대 ${r.boxes[k + 1].l} 를 안 덮는다`).toBeLessThanOrEqual(r.boxes[k + 1].l + 0.5);
+  }); });
+  await setDs(page, id, { items: [{ label: 'A', value: 100, segments: segs }, { label: 'B', value: 80 }, { label: 'C', value: 100, segments: [{ label: LONG, value: 60 }, { label: '마진', value: 40 }] }] });
+  const e3 = await read();
+  expect(e3.boxes.length, '전제: 3막대').toBe(3);
+  expect(e3.boxes[2].labels.map(l => l.text), '전제: 마지막 막대에 긴 라벨').toEqual([LONG, '마진']);
+  expect(e3.boxes[2].labels[0].sw, '전제: 긴 라벨은 제 칸보다 길다(말줄임이 실제로 걸린다)').toBeGreaterThan(e3.boxes[2].labels[0].cw);
+  edge(e3, '3막대·긴 라벨');
+  await setDs(page, id, { items: Array.from({ length: 8 }, (_, i) => ({ label: 'M' + (i + 1), value: 100, segments: SEG4 })) });
+  const e8 = await read();
+  expect(e8.boxes.length, '전제: 8막대').toBe(8);
+  expect(e8.boxes.every(box => box.labels.length === 4 && !box.on), '전제: 8막대 모두 사각 쌓기 · 라벨 4').toBe(true);
+  edge(e8, '8막대');
+  /* 약통(모양)으로 바꾸면 라벨은 옛 자리 — 실루엣 상자 안 · 마디 바탕에 맞춘 글자색(라벨 색 키가 있어도 톤 변수가 이긴다) */
+  await setDs(page, id, { items: [{ label: 'A', value: 100, segments: segs }, { label: 'B', value: 80, segments: SEG4.map(s => ({ ...s, value: s.value * 0.8 })) }, { label: 'C', value: 60 }], labelColor: '#ff0000' });
   await setDs(page, id, { barShape: 'bottle', chartHeight: '400' });
   await expect.poll(async () => (await read()).boxes[0].labels[0].color, { message: '약통: #111 마디 위 = 밝은 글자(톤 변수)' }).toBe('rgb(242, 242, 242)');
   const t = (await read()).boxes[0];
   expect(t.on, '전제: 모양 상자').toBe(true);
+  expect((await read()).ink, '전제: 약통에서도 카테고리 라벨은 labelColor').toBe(RED);
   t.labels.forEach((l, j) => {
+    expect(l.wrapped, `약통 라벨 ${j}: 말줄임 칸 없음(옛 구조 그대로)`).toBe(false);
     expect(l.l >= t.l - 0.5 && l.r <= t.r + 0.5, `약통 라벨 ${j}: 상자 안(${l.l}~${l.r} ⊂ ${t.l}~${t.r})`).toBe(true);
     expect(l.sw, `약통 라벨 ${j}: 안 잘린다`).toBeLessThanOrEqual(l.cw);
   });

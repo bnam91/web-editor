@@ -193,7 +193,7 @@
   }
 
   /* ── 그리기(HTML 글자만 만든다 — DOM 을 안 만진다) ─────────────────────────
-   * o = { esc, color, blockShape, blockSvg, boxFrac, ratioOf, blockBar, trackColor, segGap, labelSize, vSize, vCss, xCss, lhCss, colMin, fillW }
+   * o = { esc, color, blockShape, blockSvg, boxFrac, ratioOf, blockBar, trackColor, segGap, labelSize, vSize, vCss, xCss, xInk, lhCss, colMin, fillW }
    *   esc·color 는 drag-utils 의 _escGraphHtml · _safeGraphColor(사용자 글자·색은 반드시 그 둘을 지난다 · E152).
    *   ratioOf(value) 는 «상자 안» 채움 비율(0~1) · boxFrac 는 상자 높이 / 플롯 높이(눈금 상한이 분모보다 클 때 < 1). */
   function shapeColsHTML(items, o) {
@@ -223,9 +223,12 @@
             var ink = sc ? 'background:' + sc + ';' : bg + 'opacity:' + segAlpha(j) + ';';
             return '<div class="grb-seg" style="' + (rs[j] > 0 ? 'flex-grow:' + +(rs[j] * 100).toFixed(4) : 'display:none') + '"><div class="grb-bar-fill grb-seg-ink" style="' + ink + '"></div></div>';
           }).join('') + '</div>';
-        labels = '<div class="grb-seg-labels" style="height:' + pct + '%;gap:' + gap + 'px;font-size:' + o.labelSize + 'px">'
+        /* 사각 쌓기(모양 없음)의 라벨은 막대 바깥 글자 — 카테고리 라벨과 같은 색 길(o.xInk = 소독을 지난 xlabelColor || labelColor)을 탄다 · 글자는 말줄임 칸(.grb-seg-text)에 싼다.
+           모양이면 둘 다 안 한다(글자색 = 마디 바탕에 맞춘 톤 변수 · 옛 바이트 그대로). */
+        labels = '<div class="grb-seg-labels" style="height:' + pct + '%;gap:' + gap + 'px;font-size:' + o.labelSize + 'px' + (!asp && o.xInk ? ';' + o.xInk : '') + '">'
           + segs.map(function (s, j) {
-            return '<div class="grb-seg-label" style="' + (rs[j] > 0 ? 'flex-grow:' + +(rs[j] * 100).toFixed(4) : 'display:none') + '">' + o.esc(s && s.label) + '</div>';
+            var txt = o.esc(s && s.label);
+            return '<div class="grb-seg-label" style="' + (rs[j] > 0 ? 'flex-grow:' + +(rs[j] * 100).toFixed(4) : 'display:none') + '">' + (asp ? txt : '<span class="grb-seg-text">' + txt + '</span>') + '</div>';
           }).join('') + '</div>';
       } else {
         if (asp) layers += '<div class="grb-bar-fill grb-shape-track" style="' + (trackSolid ? 'background:' + trackSolid + ';' : bg + 'opacity:' + L.SHAPE_TRACK_OPACITY + ';') + '"></div>';

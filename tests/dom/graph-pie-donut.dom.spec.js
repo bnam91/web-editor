@@ -378,3 +378,28 @@ for (const type of ['bar-v', 'pie']) {
     expect(errs).toEqual([]);
   });
 }
+
+/* D1b(이벨류에이터 2026-10-13) — 같은 줄의 «값 · 값2» 칸. 모델에 글자 값이 실려 와도(불러온 파일·AI 채움) 패널 value="…" 를 못 뚫는다. bar-pair 는 값2 칸까지. */
+for (const type of ['bar-v', 'bar-pair']) {
+  test(`P11b 패널 이스케이프 — 값·값2(${type}) — 값에 "> 와 태그가 들어도 패널에 요소가 안 생긴다`, async ({ page }) => {
+    const EVIL = '"><img src=x onerror=window.__pwn=1>';
+    const { errs, id } = await setup(page, { type, items: [{ label: 'a', value: EVIL, value2: EVIL }, { label: 'b', value: 30, value2: 20 }] });
+    const m = await itemsOf(page, id);
+    expect([m[0].value, m[0].value2], '전제: 모델의 값·값2 에 원문이 실렸다').toEqual([EVIL, EVIL]);
+    expect(await page.evaluate(() => window.__pwn), '전제: 캔버스 그림에서 onerror 가 안 돌았다').toBeUndefined();
+    expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll('img').length, id), '전제: 캔버스 그림은 글자로만 그린다').toBe(0);
+    await openPanel(page, id);
+    await expect(page.locator('#grb-data-list .grb-data-item:not(.grb-seg-item)'), '전제: 패널이 열렸고 항목 줄이 둘').toHaveCount(2);
+    await expect(page.locator('#grb-data-list .grb-data-val2-input'), `전제: 값2 칸은 bar-pair 에만(${type})`).toHaveCount(type === 'bar-pair' ? 2 : 0);
+    await raf2(page);
+    const r = await page.evaluate(() => { const list = document.getElementById('grb-data-list'), panel = list.closest('.prop-section').parentElement;
+      return { img: panel.querySelectorAll('img').length, rows: list.querySelectorAll('.grb-data-item:not(.grb-seg-item)').length,
+        vals: list.querySelectorAll('.grb-data-val-input:not(.grb-data-val2-input)').length,
+        stray: [...list.querySelectorAll('.grb-data-item')].flatMap(row => [...row.childNodes]).concat([...list.childNodes]).filter(n => n.nodeType === 3 && n.textContent.trim()).length }; });
+    expect(r.img, '패널 안 img 0').toBe(0);
+    expect(r.vals, '값 칸은 항목마다 하나(속성이 안 깨졌다)').toBe(2);
+    expect(r.stray, '속성 밖으로 샌 글자 0').toBe(0);
+    expect(await page.evaluate(() => window.__pwn), 'onerror 가 안 돌았다').toBeUndefined();
+    expect(errs).toEqual([]);
+  });
+}
