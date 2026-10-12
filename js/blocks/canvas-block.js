@@ -247,9 +247,13 @@ function _cvbEndEdit(block, host) {
   const before = host._cvbBeforeText;
   const beforeDom = host._cvbBeforeDom;
   delete host._cvbBeforeText; delete host._cvbBeforeDom;
-  if (!hit) return;                                   // 주소를 잃었으면 데이터는 건드리지 않는다
+  // ★[1012t1K1] 캔버스 ＋ 가 만든 «임시 칸»(host._cvbTemp) — 데이터에 없던 요소다.
+  //   빈 채로 나가면 «그냥 걷는다»(재렌더·히스토리·저장 없음 = 안 누른 것과 같다).
+  const temp = host._cvbTemp === true;
+  if (!hit) { if (temp) host.remove(); return; }       // 주소를 잃었으면 데이터는 건드리지 않는다
   const text = _cvbReadText(host);
   if (before === undefined || text === before) {      // 안 바뀌었으면 재렌더도 히스토리도 없다
+    if (temp) { host.remove(); return; }
     if (beforeDom !== undefined) host.textContent = beforeDom;
     return;
   }
@@ -274,6 +278,7 @@ function _cvbEndEdit(block, host) {
   if (r && r.ok === false) {
     try { window.showToast?.(`카드 글자를 저장하지 못했습니다 — ${r.message || r.code}`); } catch (_) {}
   }
+  if (temp && host.isConnected) host.remove();        // 성공이면 재렌더가 이미 걷었다 · 실패면 빈 임시 칸을 남기지 않는다
 }
 
 // 편집 진입. 클릭한 «글자 위치»에 캐럿을 세운다(텍스트 블록 더블클릭과 같은 방식).
@@ -340,6 +345,174 @@ function _bindCvbDblEdit(block) {
     if (e.key === 'Escape') { e.preventDefault(); host.blur(); }
     else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); host.blur(); }
   });
+}
+
+/* ══ [1012t1K1] 캔버스 ＋ — 카드의 «빈 줄»(설명/제목)을 캔버스에서 만든다 (안 ㉠ · 데이터 형식 불변) ══════════
+ * ★무엇: 제목만 있는 카드(기본)는 설명 줄 요소가 «아예 안 그려져서» 더블클릭할 곳이 없었다(우측 패널 textarea 만 길).
+ *   ⇒ 카드 블럭이 골라져 있으면 빈 줄마다 ＋ 하나 · 누르면 그 자리에 «임시 칸»을 열고 기존 인라인 편집(_cvbBeginEdit)에 넘긴다.
+ *   커밋은 기존 choke point(_cvbEndEdit → updateCanvasBlock patchCards) «한 길» — 빈 채로 나가면 임시 칸만 걷힌다.
+ * ★＋ 는 블럭 «밖» 층 #cvb-plus-layer(#canvas-scaler 끝 · #canvas 의 형제)에 산다 — 그리드 G15 ＋(grid-block.js
+ *   _gridPlusLayer) 와 같은 까닭(E65·RG5): 블럭 DOM 에 있으면 PNG·MCP·innerText·저장으로 샌다. 글리프도 CSS ::before.
+ * ★뜨는 조건은 _cvbPlusShown «하나» · 어느 줄인지는 cvbMissingTextSlots «하나»(렌더와 같은 폴백). */
+const CVB_PLUS_LAYER_ID = 'cvb-plus-layer';
+const CVB_ADD_BTN_CLS = 'cvb-add-btn';
+const _cvbPlusBtns = new Map();   // block → { sig, btns[] } — ＋ 가 떠 있는 블럭만
+
+function _cvbPlusLayer() {
+  let L = document.getElementById(CVB_PLUS_LAYER_ID);
+  if (L) return L;
+  const scaler = document.getElementById('canvas-scaler');
+  if (!scaler) return null;          // 스케일러 없는 하네스(단위 시험)에선 ＋ 없음
+  L = document.createElement('div');
+  L.id = CVB_PLUS_LAYER_ID;
+  scaler.appendChild(L);
+  return L;
+}
+
+function _cvbPlusShown(block) {
+  return !!(block?.classList?.contains('selected')
+    && block.dataset?.cardMode === 'simple'
+    && !block.classList.contains('editing'));
+}
+
+// 지금 블럭 데이터에서 «빈 줄» 전부 — [{ idx, slot, field }]
+function _cvbMissingAll(block) {
+  let cards = [];
+  try { const a = JSON.parse(block.dataset.cards || '[]'); if (Array.isArray(a)) cards = a; } catch (_) {}
+  const n = (parseInt(block.dataset.gridCols) || 1) * (parseInt(block.dataset.gridRows) || 1);
+  const out = [];
+  for (let idx = 0; idx < n; idx++) {
+    for (const m of cvbMissingTextSlots(cards[idx] || {}, block.dataset.labelPos || 'bottom', block.dataset.textHide, block.dataset.cardOrient || 'portrait')) {
+      out.push({ idx, slot: m.slot, field: m.field });
+    }
+  }
+  return out;
+}
+
+// 빈 줄의 «텍스트 영역» = 같은 카드·같은 슬롯에 «있는» 글자 요소의 부모(빈 줄은 한쪽만 비었으니 다른 쪽이 늘 있다).
+//   ⇒ 렌더 DOM 에 표식을 새로 달지 않는다(블럭 바이트 불변).
+function _cvbTextArea(block, idx, slot) {
+  for (const el of block.querySelectorAll('.cvb-card-title, .cvb-card-desc')) {
+    if (el.dataset.cardIdx === String(idx) && (el.dataset.slot || '') === (slot || '')) return el.parentElement;
+  }
+  return null;
+}
+
+function _cvbBlockMounts(block) {
+  _cvbBindPlusObserver(block);
+  const want = _cvbPlusShown(block) && block.isConnected ? _cvbMissingAll(block) : [];
+  if (!want.length) { _dropCvbPlus(block); return; }
+  const L = _cvbPlusLayer();
+  if (!L) return;
+  const sig = want.map(w => `${w.idx}:${w.slot || ''}:${w.field}`).join('|');
+  let p = _cvbPlusBtns.get(block);
+  // ⛔같은 목록이면 갈아끼우지 않는다(마우스 밑 노드를 빼지 않는다 — grid G15 2026-10-04 실측과 같은 까닭)
+  if (!p || p.sig !== sig || p.btns.some(b => !b.isConnected)) {
+    _dropCvbPlus(block);
+    p = { sig, btns: want.map(w => _makeCvbAddBtn(block, w)) };
+    L.append(...p.btns);
+    _cvbPlusBtns.set(block, p);
+  }
+  _placeCvbAddBtns(block);
+  _startCvbPlusRaf();
+}
+function _syncCvbAddBtns(block) { try { _cvbBlockMounts(block); } catch (_) {} }
+
+function _dropCvbPlus(block) {
+  const p = _cvbPlusBtns.get(block);
+  if (p) p.btns.forEach(b => b.remove());
+  _cvbPlusBtns.delete(block);
+}
+
+// 블럭마다 한 번 — class 가 바뀌면(골라짐·풀림·편집 진입/끝) 다시 맞춘다. 층은 #canvas 밖이라 자동저장 감시에 안 걸린다.
+const _cvbPlusBound = new WeakSet();
+function _cvbBindPlusObserver(block) {
+  if (!block?.addEventListener || _cvbPlusBound.has(block) || typeof MutationObserver !== 'function') return;
+  _cvbPlusBound.add(block);
+  let was = _cvbPlusShown(block);
+  new MutationObserver(() => {
+    const now = _cvbPlusShown(block);
+    if (now === was) return;
+    was = now;
+    _syncCvbAddBtns(block);
+  }).observe(block, { attributes: true, attributeFilter: ['class'] });
+}
+
+// 떠 있는 동안만 도는 rAF — 배율·스크롤·재렌더·삭제를 따라간다(grid _startGridPlusRaf 꼴).
+let _cvbPlusRaf = 0;
+function _startCvbPlusRaf() {
+  if (_cvbPlusRaf || typeof requestAnimationFrame !== 'function') return;
+  const loop = () => {
+    _cvbPlusRaf = 0;
+    for (const blk of [..._cvbPlusBtns.keys()]) {
+      if (!blk.isConnected || !_cvbPlusShown(blk)) { _dropCvbPlus(blk); continue; }
+      _placeCvbAddBtns(blk);
+    }
+    if (_cvbPlusBtns.size) _cvbPlusRaf = requestAnimationFrame(loop);
+  };
+  _cvbPlusRaf = requestAnimationFrame(loop);
+}
+
+// 자리 = 텍스트 영역 «아래 변 가운데»(CSS transform 이 중심을 그 점에 둔다). 좌표 = 스케일러 로컬(grid _placeGridAddBtns 와 같은 식).
+function _placeCvbAddBtns(block) {
+  const p = _cvbPlusBtns.get(block);
+  const scaler = p && p.btns[0]?.parentElement?.parentElement;
+  if (!p || !scaler) return;
+  const sr = scaler.getBoundingClientRect();
+  const scale = (window.currentZoom || 40) / 100;
+  for (const b of p.btns) {
+    const area = _cvbTextArea(block, parseInt(b.dataset.cvbIdx, 10), b.dataset.cvbSlot || null);
+    if (!area) { if (b.style.display !== 'none') b.style.display = 'none'; continue; }
+    if (b.style.display) b.style.display = '';
+    const r = area.getBoundingClientRect();
+    const l = ((r.left + r.right) / 2 - sr.left) / scale + 'px';
+    const t = (r.bottom - sr.top) / scale + 'px';
+    if (b.style.left !== l) b.style.left = l;
+    if (b.style.top !== t) b.style.top = t;
+  }
+}
+
+function _makeCvbAddBtn(block, w) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = CVB_ADD_BTN_CLS;
+  if (block.id) btn.dataset.cvbFor = block.id;
+  btn.dataset.cvbIdx = String(w.idx);
+  btn.dataset.cvbField = w.field;
+  btn.dataset.cvbSlot = w.slot || '';
+  const label = /^title/.test(w.field) ? '줄 추가 (제목)' : '줄 추가 (설명)';
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  // ⛔캔버스 쪽 손(마키·팬·선택 해제)으로 새지 않게 · 포커스를 뺏지 않게(grid _makeGridAddBtn 꼴)
+  btn.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
+  btn.addEventListener('dblclick', e => { e.stopPropagation(); e.preventDefault(); });
+  btn.addEventListener('click', e => {
+    e.stopPropagation(); e.preventDefault();
+    _cvbBeginAdd(block, w.idx, w.field, w.slot || null);
+  });
+  return btn;
+}
+
+// ＋ → 그 영역에 «임시 칸»(제목이면 맨 앞, 설명이면 맨 뒤)을 열고 기존 인라인 편집에 넘긴다.
+function _cvbBeginAdd(block, idx, field, slot) {
+  if (!_CVB_EDIT_FIELDS.includes(field)) return;
+  const area = _cvbTextArea(block, idx, slot);
+  if (!area) return;
+  const isTitle = /^title/.test(field);
+  // 글꼴 크기·정렬·색은 «옆 줄»(이미 그려진 형제)과 같은 블럭 값을 따른다 — 색은 형제 렌더값이 아니라 블럭/카드 설정.
+  const sib = area.querySelector(isTitle ? '.cvb-card-desc' : '.cvb-card-title');
+  const size = isTitle ? (parseInt(block.dataset.titleSize) || 20) : (parseInt(block.dataset.descSize) || 14);
+  const align = block.dataset.textAlign || 'left';
+  const color = (isTitle ? block.dataset.titleColor : block.dataset.descColor) || (sib ? getComputedStyle(sib).color : 'inherit');
+  const host = document.createElement('div');
+  host.className = isTitle ? 'cvb-card-title' : 'cvb-card-desc';
+  host.dataset.cardIdx = String(idx);
+  host.dataset.field = field;
+  if (slot) host.dataset.slot = slot;
+  host.style.cssText = _cvbTextCss(isTitle ? 'title' : 'desc', size, color, align);
+  host._cvbTemp = true;
+  if (isTitle) area.insertBefore(host, area.firstChild); else area.appendChild(host);
+  _cvbBeginEdit(block, { host, idx, field });
 }
 
 // 카드 이미지 영역 더블클릭 → 파일 피커로 card.imgSrc 추가/교체
@@ -816,6 +989,7 @@ function renderCanvas(block) {
       }
     }
     _bindCvbDblEdit(block);
+    _syncCvbAddBtns(block);   // ★[1012t1K1] 캔버스 ＋ (블럭 밖 층 — 블럭 DOM 은 안 건드린다)
     return;
   }
   // ── End Simple Card Mode ───────────────────────────────────────────────────
