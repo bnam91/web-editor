@@ -1568,7 +1568,7 @@ function enterGridImageEditMode(block, addr) {
           if (!addr.np && Array.isArray(curLines) && curLines[addr.li]) {
             const nextLines = curLines.map((ln, i) => {
               if (i !== addr.li) return ln;
-              const o = { ...ln }; delete o.imgSizePct; delete o.imgPosX; delete o.imgPosY; delete o.height; return o;
+              const o = { ...ln }; delete o.imgSizePct; delete o.imgPosX; delete o.imgPosY; delete o.height; delete o.clipContent; return o;   /* ★1012t1 B1 — 크롭이 없어지면 「내용 자르기」 값도 «안 읽히는 값»이 된다 */
             });
             window.updateGridBlock?.(block.id, { patchCell: { r: addr.r, c: addr.c, lines: nextLines } });
           } else {

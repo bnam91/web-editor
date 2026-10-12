@@ -1012,7 +1012,7 @@ const GRID_NESTED_LINE_TYPE = 'duo';
 
 /** `_gridLineHtml` 이 읽는 `line.*` — patchCell{lineIndex} 로 줄 수 있는 필드. */
 const GRID_LINE_FIELDS = new Set([
-  'align', 'barColor', 'bg', 'color', 'cols', 'content', 'fontFamily', 'fontSize',
+  'align', 'barColor', 'bg', 'clipContent', 'color', 'cols', 'content', 'fontFamily', 'fontSize',
   'gap', 'height', 'imgPosX', 'imgPosY', 'imgShape', 'imgSizePct', 'imgSrc', 'italic', 'items',
   'labelColor', 'labelSize', 'letterSpacing', 'lineHeight', 'marginTop', 'padH', 'padV',
   'radius', 'strike', 'text', 'textHtml', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize',
@@ -2441,7 +2441,18 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
      *   «행 높이가 짧은 칸»에서 프레임이 늘 쪼그라든다. 옛 <img> 는 그림 비율에 따라 줄기도
      *   안 줄기도 했다(커밋 ① 의 ㈐ 실측). 크롭이 없는 줄까지 그 규칙을 바꿀 이유가 없다.
      *   크롭이 있는 줄은 «자른다»는 것이 이미 그 줄의 뜻이라, 그 규칙 변화도 그 뜻의 일부다. */
-    const clipCss = cropped ? 'position:relative;overflow:hidden;' : '';
+    /* ★★1012t1 B1 — 크롭 줄 「내용 자르기」 토글(현빈 1010t1c2 ㈁).
+     *   ★판정은 js/clip-content.js 의 ★표 ＋ 순수 술어 ★한 자리(clipsContentFor · 계열 gridCrop = 자름)다 — ⛔여기서 값을 ★다시 세지 않는다.
+     *   ★window 로 부른다(import 0) — 유닛 하네스 19벌이 이 파일 사본을 tmpdir 로 옮겨 상대 import 가 깨진다.
+     *     브라우저에선 drag-utils.js → clip-content.js 가 이 모듈보다 ★먼저 평가돼 늘 있다.
+     *     술어가 없으면(유닛) ★`undefined` ⇒ «false 가 아님» ⇒ ★자른다 = 오늘 바이트.
+     *   ★끔이면 overflow 만 뗀다 — `position:relative` 는 남긴다(안쪽 absolute 그림의 기준 상자).
+     *     ★실측: hidden→visible 에 프레임 높이 무변(200→200) — ㈐ 의 붕괴를 다시 열지 않는다(안쪽 img 가 absolute).
+     *   ★값이 있을 때만 `data-clip-content="false"` 를 찍는다 ⇒ 미설정 줄은 산출 바이트 동일(D_GOLDEN 증인).
+     *   ⚠️끔일 때 프레임 모서리 반경은 아무것도 안 자른다 — 그대로 둔다(끔 = 자르지 않음의 뜻). */
+    const clipOn = !cropped || (typeof window !== 'undefined' ? window.clipsContentFor?.('gridCrop', line.clipContent) : undefined) !== false;
+    const clipCss = cropped ? ('position:relative;' + (clipOn ? 'overflow:hidden;' : '')) : '';
+    const clipAttr = cropped && !clipOn ? ' data-clip-content="false"' : '';
     /* ★모서리 반경을 «어디에» 찍나 — 크롭 여부로 갈린다. 둘 다에 찍으면 틀린 자리가 생긴다.
      *   · 크롭 없음 : 프레임에 overflow 가 없으니 «자르는 자»는 안쪽 그림 자신이다 ⇒ 안쪽에 찍는다
      *                 (프레임 쪽은 다음 사람이 읽을 «상자의 뜻»으로 같이 남긴다 — 그리는 것은 없다).
@@ -2449,7 +2460,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
      *                 ⛔안쪽에도 찍으면 프레임보다 큰 그림의 «제 모서리»가 둥글어진다 —
      *                   보이는 자리가 아닐 때가 많지만, 폭을 100% 아래로 줄이면 드러난다. */
     const innerRadius = cropped ? '' : radiusCss;
-    return `<div${addrAttr} class="grd-img-frame" style="${widthCss}${frameH}${clipCss}${radiusCss}${alignCss}${mtCss}">`
+    return `<div${addrAttr} class="grd-img-frame"${clipAttr} style="${widthCss}${frameH}${clipCss}${radiusCss}${alignCss}${mtCss}">`
       + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;${innerCss}${innerRadius}">`
       + `</div>`;
   }

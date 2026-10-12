@@ -15,7 +15,14 @@
  *                               ★까닭(그 파일 ㈏): ★CSS 에 두면 ★★내보낸 HTML·캡처 클론이 ★못 들고 간다
  *   ★★그리드 ★평형 ★★★안 자른다 — ★★★일부러 ★안 붙였다(그 파일 ㈐). ★★실측으로 ★두 번 ★고쳐 세운 자리다
  *                               ★까닭: ★붙이면 ★★flex 항목의 `min-height:auto` 가 ★★통째로 ★0 이 된다
- *                               (★★내 실측 2026-10-10: ★상자 ★[386, ★0]) ⇒ ★★c2 ㈁ 는 ★★범위 ★밖이다
+ *                               (★★내 실측 2026-10-10: ★상자 ★[386, ★0])
+ *                               ★★그리고 ★넘칠 것이 ★없다 — ★크롭 없는 줄은 ★그림 rect = 프레임 rect(★실측 2026-10-12 331×248)
+ *   ★★그리드 ★크롭 줄 ★자른다   — ★렌더러가 ★인라인으로 박는다(grid-block.js `clipCss` · ★크롭일 때만)
+ *                               ★★2026-10-12 (1012t1 B1) — ★★c2 ㈁ 가 ★★«크롭 줄 한정»으로 ★들어왔다:
+ *                               ★그리드에서 ★넘침이 ★생기는 ★유일한 사각 장면이 ★크롭 줄이고 ★그 줄은 ★이미 hidden 이다
+ *                               ⇒ ★토글은 ★hidden 을 ★«떼는» 방향이라 ㈐ 의 붕괴를 ★다시 열지 않는다
+ *                               (★실측: hidden→visible 에 ★프레임 높이 ★무변 — 200→200 · 안쪽 img 가 absolute 라
+ *                                ★내용 기반 최소 높이가 ★애초에 0 이고 ★프레임이 ★명시 height 를 갖는다)
  *
  * ★★★그래서 ★토글은 ★★«속성이 ★있을 때만» ★이긴다 — ⛔기본값을 ★★안 바꾼다:
  *   ★속성 ★없음  ⇒ ★★그 계열의 ★지금 기본값 (★★★옛 바이트 ★보존 · 지디 조건 ㉢)
@@ -42,7 +49,14 @@ export const CLIP_DEFAULTS = Object.freeze({
                           ★`overflow:hidden` 을 붙이면 ★★flex 항목의 `min-height:auto` 가 ★★통째로 ★0 이 된다
                           (★★내 실측 2026-10-10: ★상자 ★[386, ★0])
                         ⇒ ★★그래서 ★★c2 ㈁ 는 ★★«토글 하나 추가»가 ★아니라 ★★«flex 가 ★무엇을 ★누르나»가 ★먼저다
-                          — ★그 물음은 ★★그 파일에 ★★«별건»으로 ★이미 ★기록돼 있다 */
+                          — ★그 물음은 ★★그 파일에 ★★«별건»으로 ★이미 ★기록돼 있다
+                        ★★2026-10-12 — ★이 행은 ★이제 ★«크롭 없는 줄»만 뜻한다(★크롭 줄은 아래 gridCrop).
+                          ★크롭 없는 줄은 ★그림 = 프레임 크기라 ★넘칠 것이 ★없다(★실측 331×248 = 331×248) */
+  gridCrop: true,    /* `.grd-img-frame` ＋ 안쪽 `img.grd-img` 가 ★absolute(= 크롭 줄) — ★렌더러가 ★인라인
+                        `position:relative;overflow:hidden` 을 ★박는다(grid-block.js `clipCss`).
+                        ★까닭: ★크롭은 ★«프레임 안에서 원하는 부분만 보인다»(현빈 2026-09-25)가 ★뜻이라 ★자름이 ★그 뜻이다.
+                        ⛔gridPlain 처럼 false 로 두면 ★크롭 프레임에서 ★표가 ★거짓말을 한다
+                          (★실측 2026-10-12: clipsContent=false 인데 ★computed overflow=hidden) */
 });
 
 /** ★그 요소가 ★★어느 계열인가. ⛔부르는 자가 ★손으로 ★가르지 ★마라. */
@@ -51,8 +65,26 @@ export function clipFamily(el) {
   const c = el.classList;
   if (c.contains('frame-block')) return 'frame';
   if (c.contains('asset-block')) return 'asset';
-  if (c.contains('grd-img-frame')) return c.contains('grd-img-circle') ? 'gridCircle' : 'gridPlain';
+  if (c.contains('grd-img-frame')) {
+    if (c.contains('grd-img-circle')) return 'gridCircle';
+    /* ★크롭 판정 = ★렌더러가 ★크롭일 때만 쓰는 꼴(★안쪽 그림 `position:absolute` · grid-block.js `innerCss`).
+       ⛔모델 값(imgSizePct…)을 ★여기서 ★다시 읽지 않는다 — ★렌더러의 `cropped` 판정을 ★두 벌로 만든다. */
+    const img = typeof el.querySelector === 'function' ? el.querySelector(':scope > img.grd-img') : null;
+    return img && img.style && img.style.position === 'absolute' ? 'gridCrop' : 'gridPlain';
+  }
   return null;
+}
+
+/** ★★«이 계열에 ★이 값이면 ★자르나» — ★요소 없이 ★묻는 ★순수 판정(★렌더러가 ★문자열을 지을 때 부른다).
+ *  ★`clipsContent(el)` 도 ★이것에 ★위임한다 ⇒ ★판정은 ★여전히 ★한 자리다.
+ *  ★값: `'true'`·`true` ⇒ 자름 · `'false'`·`false` ⇒ 안 자름 · ★그 밖(없음·빈칸·대문자…) ⇒ ★계열 기본값.
+ *    (★불 값을 받는 까닭: ★그리드는 ★모델(JSON)에 ★`clipContent:false` 로 싣는다 — dataset 은 ★문자열만 된다)
+ *  @returns {boolean|null} ★계열을 ★모르면 ★`null` */
+export function clipsContentFor(fam, v) {
+  if (!fam || !Object.prototype.hasOwnProperty.call(CLIP_DEFAULTS, fam)) return null;
+  if (v === 'true' || v === true) return true;
+  if (v === 'false' || v === false) return false;
+  return CLIP_DEFAULTS[fam];
 }
 
 /** ★★«이 블럭은 ★내용을 ★자르나» — ★★속성이 ★있으면 ★그것이, ★없으면 ★계열 기본값이 ★이긴다.
@@ -60,10 +92,7 @@ export function clipFamily(el) {
 export function clipsContent(el) {
   const fam = clipFamily(el);
   if (!fam) return null;
-  const v = el.dataset ? el.dataset.clipContent : undefined;
-  if (v === 'true') return true;
-  if (v === 'false') return false;
-  return CLIP_DEFAULTS[fam];
+  return clipsContentFor(fam, el.dataset ? el.dataset.clipContent : undefined);
 }
 
 /** ★★에셋의 ★자름을 ★★«렌더러가» ★먹인다 — ★지디 판정: ⛔`!important` 로 ★CSS 가 ★이기게 ★하지 ★않는다.
@@ -85,6 +114,7 @@ export function applyAssetClip(ab) {
 if (typeof window !== 'undefined') {
   window.clipsContent = clipsContent;
   window.clipFamily = clipFamily;
+  window.clipsContentFor = clipsContentFor;   /* ★그리드 렌더러가 ★import 없이 부른다(유닛 하네스 19벌이 grid-block 사본을 tmpdir 로 옮긴다) */
   window.applyAssetClip = applyAssetClip;
   window.CLIP_DEFAULTS = CLIP_DEFAULTS;
 }
