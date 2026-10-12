@@ -94,6 +94,9 @@ export function fxComposeTextShadow(contentEl, userCss) {
   if (!contentEl || !contentEl.style) return '';
   const css = fxComposedTextShadowCss(contentEl, userCss);
   contentEl.style.textShadow = css;
+  /* ★1012t1E2 — 범위 글로우 span(.tb-glow)이 이 합성을 잇게 --tb-glow-base 를 맞춘다.
+     span.tb-glow 가 없으면 아무것도 안 만진다(G4·G7 바이트 동일 유지) — prop-text-wireup-text-edit.js syncRangeGlowBase 머리말. */
+  if (typeof window !== 'undefined') window.syncRangeGlowBase?.(contentEl, css);
   return css;
 }
 

@@ -27,6 +27,7 @@ export function buildTextPropsHtml(state) {
     hlColorHtml, hlH, hlY,          /* ★형광펜 «색 칸 마크업»·바 높이·★획 세로자리 (2026-10-06 ＋ ★hlY 2026-10-08). 마크업은 prop-text.js 가 만들어 준다 */
     ulColorHtml, ulThick, ulOffset, /* ★밑줄 «색 칸 마크업»·두께·위치 (2026-10-08). 같은 까닭으로 prop-text.js 가 만든다 */
     dotColorHtml, dotSize, dotGap, dotX, dotY,   /* ★점 찍기 «색 칸 마크업»·네 수 (⑥ · 2026-10-08). 같은 까닭으로 prop-text.js 가 만든다 */
+    showGlow, isGlow, glowColorHtml, glowK,      /* ★1012t1E2 범위 글로우 — prop-text.js 가 showGlow:true 로 켠다. 없으면 단추·칸 0 ⇒ 골든 바이트 동일 */
     isOverlayBlock,
   } = state;
 
@@ -207,6 +208,8 @@ ${blockHeaderHTML({
       /* ★점 찍기(⑥)도 ★텍스트 패널만 — 배선(wireTextEditSection)이 여기에만 있다. 모달·그리드·챗은 기본 false ⇒ «바이트 동일».
          ★isLiner(곡선 텍스트)는 손잡이 칸을 안 준다 — 서식 그룹 자체가 숨는 판이라 칸만 떠 있으면 「눌리는데 아무 일 없음」이 된다. */
       showDots: true, showDotOpts: !isLiner, isDot, dotColorHtml, dotSize, dotGap, dotX, dotY,
+      /* ★범위 글로우(1012t1E2)도 ★텍스트 패널만 — 배선이 wireTextEditSection 에만 있다. 모달·그리드·챗은 기본 false ⇒ «바이트 동일». */
+      showGlow: !!showGlow, showGlowOpts: !!showGlow && !isLiner, isGlow: !!isGlow, glowColorHtml: glowColorHtml || '', glowK: glowK ?? 70,
       mix: _mix,
     })}
 

@@ -85,6 +85,11 @@
 .frame-block[data-text-frame]:has(.tb-dot) {
   overflow: visible;
 }
+/* ★1012t1E2 — 범위 글로우(tb-glow)가 든 텍스트 프레임도 같은 까닭으로 안 자른다(빛이 글자 상자 밖 최대 28px 로 번진다).
+   점 규칙과 같은 자리·같은 명시도 ⇒ 둥근 프레임·「내용 자르기」 켬은 계속 자른다. ⚠️잘림 자체는 안 쟀다. */
+.frame-block[data-text-frame]:has(.tb-glow) {
+  overflow: visible;
+}
 /* ★★끌는 ★동안만 ★푼다 (현빈 ㄴ 「자르되 ★끌 때는 ★보인다」).
    ★선례 = 이 파일 아래 «도형을 고르는 동안 조상 프레임의 overflow 를 푸는» 규칙 — 같은 :has 꼴이다.
      ⛔여기에 그 선택자를 ★글자로 적지 마라 — 이 파일을 indexOf 로 훑는 검사가 ★주석을 ★규칙으로 읽는다(실측 2회).

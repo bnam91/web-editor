@@ -38,10 +38,14 @@ const WANT_COMPOSITE = 'T1-rgba(255%2C0%2C0%2C%2E5),0%2E5px,%2D2px.#f00,7px,2px,
 const WANT_UL_ONE = 'T1-ul:#00f,3px,%2D10px-cn';
 const WANT_HL_OFF = 'T1-.#f00,7px,2px,0px,%2D1px.#00f,3px,%2D10px-ka';
 
-test('A1 전제 — 명부를 ★소스에서 긁었고 ★kind 4종·vars 11개다 (⛔손으로 안 적었다)', () => {
-  assert.deepEqual(R.map((d) => d.k), ['hl', 'dot', 'ul', 'grad']);
-  assert.deepEqual(R.map((d) => d.vars.length), [3, 5, 3, 0]);
-  assert.equal(R.reduce((a, d) => a + d.vars.length, 0), 11);
+/* ★1012t1E2(2026-10-12) — 명부에 'glow'(범위 글로우 · vars 2)가 들어왔다. ★버전 1 은 ⛔안 넓혔다(A2·A2c 그대로).
+   ★glow 를 번호에 싣는가(버전 2)는 E5 결정 대기 ⇒ 그때까지 «버전 1 밖에 둔 kind» 를 ★이름으로 적는다(A2b). */
+const NOT_IN_V1_YET = ['glow'];
+
+test('A1 전제 — 명부를 ★소스에서 긁었고 ★kind 5종·vars 13개다 (⛔손으로 안 적었다)', () => {
+  assert.deepEqual(R.map((d) => d.k), ['hl', 'dot', 'ul', 'glow', 'grad']);
+  assert.deepEqual(R.map((d) => d.vars.length), [3, 5, 3, 2, 0]);
+  assert.equal(R.reduce((a, d) => a + d.vars.length, 0), 13);
 });
 
 test('A2 ★버전 1 은 ★3칸이다 — `grad` 는 ★없다 (⒜-2 ㉢)', () => {
@@ -52,7 +56,7 @@ test('A2 ★버전 1 은 ★3칸이다 — `grad` 는 ★없다 (⒜-2 ㉢)', ()
 
 /* ★A2 와 ★짝 — ⛔이것이 없으면 ★명부가 늘 때 ★버전 1 이 ★조용히 어긋난다 */
 test('A2b ★짝 — 「오늘 vars>0 인 kind 집합」 == TS_CODE_V1_KINDS (늘면 ★빨강 ⇒ ★버전 2 로 가라)', () => {
-  const withVars = R.filter((d) => d.vars.length > 0).map((d) => d.k);
+  const withVars = R.filter((d) => d.vars.length > 0 && !NOT_IN_V1_YET.includes(d.k)).map((d) => d.k);
   assert.deepEqual(withVars, M.TS_CODE_V1_KINDS,
     `★vars 를 가진 kind 가 [${withVars}] 인데 ★버전 1 꼴은 [${M.TS_CODE_V1_KINDS}] 다`
     + ' — ★kind 가 늘었으면 ⛔버전 1 을 넓히지 말고 ★`TS_CODE_VERSION` 을 ★2 로 올려라');

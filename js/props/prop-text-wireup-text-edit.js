@@ -176,6 +176,43 @@ export function isDotOn(contentEl) {
   return !!(contentEl && contentEl.querySelector('span.' + DOT_CLASS));
 }
 
+/* ★범위 글로우 «켜짐» 판정 — 이 식이 사는 자리는 ★여기 하나다 (1012t1E2 · 2026-10-12).
+ *   현빈 원문: 「네온글로우 효과가 하나의 텍스트 블럭 전체에만 들어가는데 하이라이트 효과처럼 특정 영역선택후 입력도 가능하게」
+ *   ★꼴 = 형광펜과 같다 — «한 span 이 여러 글자»(span.tb-glow) · 값은 .text-block 인라인 --tb-glow-color / --tb-glow-k 한 벌.
+ *   ★옛 꼴이 없다(새 기능). 블럭 «전체» 글로우는 Effects 카드(js/effects-glow.js · dataset fxGlow*)이고 ★별개 정본이다. */
+export const GLOW_CLASS = 'tb-glow';
+export function isGlowOn(contentEl) {
+  return !!(contentEl && contentEl.querySelector('span.' + GLOW_CLASS));
+}
+/* ★text-shadow 는 «상속 덮어쓰기»다 — span.tb-glow 에 text-shadow 를 걸면 그 span 안에서는 글자칸(contentEl)의
+ *   text-shadow(Effects 블럭 글로우 + 사용자 Shadow 합성)가 ★사라진다.
+ *   ⇒ 글자칸에 ★--tb-glow-base = ", <글자칸의 지금 text-shadow>" 를 적어 두고, css .tb-glow 가 제 겹 «뒤에» var 로 잇는다.
+ *   ★적는 때 = 글자칸 안에 span.tb-glow 가 «있을 때만». 없으면 걷는다(이미 없으면 아무것도 안 만진다)
+ *     ⇒ 범위 글로우를 안 쓰는 블럭의 outerHTML 은 ★한 글자도 안 바뀐다(effects-glow G4·G7 바이트 동일).
+ *   ★부르는 자리 ⑴ js/effects-glow.js fxComposeTextShadow (합성 결과를 막 쓴 직후 · css 인자로 그 값)
+ *                ⑵ 아래 글로우 단추·최근 칩(span 을 두르거나 걷은 직후 · css 없음 → 글자칸 computed 를 읽는다)
+ *   ★computed 를 읽는 까닭 = 이스트에그 네온(.tfx-neon 클래스 text-shadow)도 «글자칸의 지금 그림자»라서. */
+export const GLOW_BASE_VAR = '--tb-glow-base';
+export function syncRangeGlowBase(contentEl, css) {
+  if (!contentEl || !contentEl.style) return '';
+  let base = '';
+  if (isGlowOn(contentEl)) {
+    if (typeof css === 'string' && css) base = css;
+    else {
+      let cs = '';
+      try { cs = contentEl.isConnected ? (getComputedStyle(contentEl).textShadow || '') : ''; } catch (_) { cs = ''; }
+      base = (cs && cs !== 'none') ? cs : (contentEl.style.textShadow || '');
+    }
+  }
+  if (base) contentEl.style.setProperty(GLOW_BASE_VAR, ', ' + base);
+  else if (contentEl.style.getPropertyValue(GLOW_BASE_VAR)) {
+    contentEl.style.removeProperty(GLOW_BASE_VAR);
+    if (contentEl.getAttribute('style') === '') contentEl.removeAttribute('style');
+  }
+  return base;
+}
+if (typeof window !== 'undefined') window.syncRangeGlowBase = syncRangeGlowBase;   /* effects-glow.js 가 import 없이 부른다(모듈 그래프 무변) */
+
 /* ── ★점 span 의 «불변식»과 그것을 지키는 ★한 자 ────────────────────────────────────────
  * ★불변식 = «span.tb-dot ★하나 = 점 찍힌 글자 ★하나». 그리는 자가 `.tb-dot::before` ★하나뿐이라
  *   한 span 에 두 글자가 들어가면 ★점이 안 늘어난다.
@@ -469,6 +506,13 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     if (hl) {
       hl.disabled = !!g;
       hl.title = g ? '그라데이션 글자엔 형광펜을 쓸 수 없어요 (단색으로 바꾸면 켜져요)' : '형광펜 (선택 영역 배경칠)';
+    }
+    /* ★범위 글로우도 그라데이션과 함께 못 쓴다(1012t1E2 · 계획 P2 실측) — 글자가 투명 채움이라 span 의 text-shadow 가
+       ★글자 위로 비쳐 그라데이션이 지워져 보인다. 블럭 전체 글로우는 .tgs(SVG 필터)로 글자 «뒤»에 옮겨지지만 span 은 못 옮긴다. */
+    const gl = document.getElementById('txt-glow-btn');
+    if (gl) {
+      gl.disabled = !!g;
+      gl.title = g ? '그라데이션 글자엔 글로우를 쓸 수 없어요 (빛이 글자를 덮어요 — 단색으로 바꾸면 켜져요)' : '글로우 (선택이 있으면 그 글자만)';
     }
   }
   function _gateTextModes() {
@@ -919,6 +963,11 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
       if (!set.has('underline')) { _stripDecoResidue(el, 'underline', 'u'); set.add('underline'); _decoWrite(el, set); _ulSyncOpts(true); }
       applyTextStyleVars(k, _ulVarsOf(el), v);
       window.pushHistory?.('최근 밑줄');
+    } else if (k === 'glow') {
+      if (hasTextGradient(el)) return;          // ★단추와 같은 게이트 — 그라데이션 글자엔 못 건다(1012t1E2)
+      if (!isGlowOn(el)) { _glowStripAll(el); _glowWrapWhole(el); _glowSyncOpts(true); syncRangeGlowBase(el); }
+      applyTextStyleVars(k, _glowVarsOf(el), v);
+      window.pushHistory?.('최근 글로우');
     } else return;
     window.scheduleAutoSave?.();
     /* ★칸 값을 ★입힌 값으로 ★다시 세운다 — 패널을 ★통째로 다시 그린다(앱의 ★제 길). */
@@ -1045,6 +1094,100 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
       rangeEl.addEventListener('input',  () => sync(rangeEl.value, false));
       rangeEl.addEventListener('change', () => sync(rangeEl.value, true));
     }
+  }
+
+  /* ── ★범위 글로우 — 선택한 글자에만 빛 (1012t1E2 · 2026-10-12) ─────────────────────────────
+   * 현빈 원문: 「네온글로우 효과가 하나의 텍스트 블럭 전체에만 들어가는데 하이라이트 효과처럼 특정 영역선택후 입력도 가능하게」
+   * ★규약은 형광펜과 ★같다(그 단추를 베꼈다): 선택이 있으면 그 글자만 span.tb-glow 로 두르고,
+   *   없으면 «먼저 다 걷고» 켤 때만 글자 전체를 두른다(토글). 값은 .text-block 인라인 --tb-glow-color / --tb-glow-k 한 벌.
+   * ★형광펜과 다른 한 가지 — 두를 때 꺼낸 조각 안의 옛 tb-glow 를 걷는다(겹 span 이면 안쪽이 바깥 겹을 다시 그릴 뿐이지만
+   *   걷기 «한 번»에 다 사라지게 — 점 _dotWrapRange 의 D9 꼴).
+   * ★두르거나 걷은 뒤 syncRangeGlowBase — span 이 글자칸의 그림자(Effects 글로우·Shadow)를 잃지 않게(모듈 위 머리말).
+   * ⛔그라데이션 글자엔 막는다 — 위 _syncGradUi 가 단추를 disabled 로 둔다(이유는 title). */
+  const _glowSpans = (el) => (el ? [...el.querySelectorAll('span.' + GLOW_CLASS)] : []);
+  const _glowStripAll = (el) => {
+    if (!el) return;
+    _glowSpans(el).forEach(_unwrap);
+    el.normalize?.();
+  };
+  const _glowWrap = (range) => {
+    const sp = document.createElement('span');
+    sp.className = GLOW_CLASS;
+    const frag = range.extractContents();
+    frag.querySelectorAll('span.' + GLOW_CLASS).forEach(_unwrap);
+    sp.appendChild(frag);
+    range.insertNode(sp);
+    return sp;
+  };
+  /* 블럭 «전체»를 범위로. ⛔글자가 없으면 두르지 않는다(형광펜 _hlWrapWhole 과 같은 까닭). */
+  const _glowWrapWhole = (el) => {
+    if (!el || !el.firstChild || !(el.textContent || '').trim()) return null;
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    return _glowWrap(r);
+  };
+  const _glowVarsOf = (el) => (el ? el.closest('.text-block') : null) || tb;
+  const GLOW_OPT_ROWS = ['txt-glow-color-row', 'txt-glow-k-row'];
+  const _glowSyncOpts = (on) => {
+    for (const k of GLOW_OPT_ROWS) {
+      const e = document.getElementById(k);
+      if (e) e.style.display = on ? 'flex' : 'none';
+    }
+  };
+  const glowBtn = document.getElementById('txt-glow-btn');
+  if (glowBtn) {
+    glowBtn.addEventListener('click', () => {
+      const el = ctx.contentEl;
+      if (!el || glowBtn.disabled || hasTextGradient(el)) return;
+      const saved = getSavedTextSelection(el)?.range || null;
+      if (saved) {
+        /* 부분 선택 — 그 글자만. ⛔블럭 전체 상태를 건드리지 않는다(선택 밖 빛이 살아 있어야 한다). */
+        _glowWrap(saved);
+        clearTextSelection?.(el);
+        glowBtn.classList.add('active');
+        _glowSyncOpts(true);
+      } else {
+        const nowOn = !isGlowOn(el);
+        _glowStripAll(el);                     // 켜든 끄든 «먼저 걷는다» — 형광펜과 같은 규약
+        if (nowOn) _glowWrapWhole(el);
+        glowBtn.classList.toggle('active', nowOn);
+        _glowSyncOpts(nowOn);
+      }
+      syncRangeGlowBase(el);
+      if (isGlowOn(ctx.contentEl)) _pushStyle('glow');
+      window.pushHistory?.();
+      window.scheduleAutoSave?.();
+    });
+  }
+  /* ★색 — 정본은 .text-block 인라인 --tb-glow-color 하나(형광펜 색과 같은 규약 · 불투명도는 색칸 % 가 rgba 로 싣는다). */
+  wireColorField('txt-glow-color', {
+    initialAlpha: 100,
+    onApply: (c) => { const host = _glowVarsOf(ctx.contentEl); if (host) host.style.setProperty('--tb-glow-color', c); },
+    onCommit: () => { _pushStyle('glow'); window.pushHistory?.('글로우 색'); window.scheduleAutoSave?.(); },
+  });
+  /* ★세기(0~100) → --tb-glow-k(0~1). css 가 겹 반경에 곱한다(가장 큰 겹 = 28px × k — Effects 글로우 기본 Blur 20 ≈ 28×0.7).
+     ⛔min/max 를 여기 되적지 않는다 — 칸의 속성을 읽는다(형광펜 Y·점 DOT_FIELDS 와 같은 꼴). */
+  const glowKRange = document.getElementById('txt-glow-k');
+  const glowKNum   = document.getElementById('txt-glow-k-num');
+  if (glowKRange && glowKNum) {
+    const lo = parseInt(glowKNum.min, 10), hi = parseInt(glowKNum.max, 10);
+    const clampK = (v) => {
+      const n = parseInt(v, 10);
+      const base = Number.isFinite(n) ? n : 0;
+      return Math.min(Number.isFinite(hi) ? hi : base, Math.max(Number.isFinite(lo) ? lo : base, base));
+    };
+    const syncK = (v, commit) => {
+      const host = _glowVarsOf(ctx.contentEl);
+      if (!host) return;
+      const n = clampK(v);
+      host.style.setProperty('--tb-glow-k', String(n / 100));
+      glowKRange.value = String(n); glowKNum.value = String(n);
+      if (commit) { _pushStyle('glow'); window.pushHistory?.('글로우 세기'); window.scheduleAutoSave?.(); }
+    };
+    glowKRange.addEventListener('input',  () => syncK(glowKRange.value, false));
+    glowKRange.addEventListener('change', () => syncK(glowKRange.value, true));
+    glowKNum.addEventListener('input',    () => syncK(glowKNum.value, false));
+    glowKNum.addEventListener('change',   () => syncK(glowKNum.value, true));
   }
 
   /* ── 컬러 변수 칩 (L3 동적 바인딩) ──
