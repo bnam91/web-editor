@@ -1141,6 +1141,7 @@
 <script type="module" src="js/blocks/banner-block.js"></script>
 <script type="module" src="js/blocks/banner02-block.js"></script>
 <script type="module" src="js/blocks/comparison-block.js"></script>
+<script type="module" src="js/blocks/comparison-img-edit.js"></script>  <!-- ★1012t1D3 비교 이미지 칸 편집기(카드 편집기 꼴) -->
 <script type="module" src="js/blocks/line-host.js"></script>  <!-- ★BT2 말풍선·챗 «줄»(그리드 줄 데이터) — 줄바·줄 꾸미기는 prop-grid 와 같은 함수 -->
 <script type="module" src="js/blocks/chat-block.js"></script>
 <script type="module" src="js/blocks/laurel-block.js"></script>
@@ -1692,8 +1693,8 @@
        ★바로 위 bcm-grid-img 계열을 ★그대로 베꼈다(그림·이름·display:none 시작). 보이는 조건 = block-factory.js openMenu
          의 `_targetCmpAddr` ★하나 — 두 벌로 가르면 한쪽만 늙는다(그리드가 그 까닭을 적어 뒀다).
        ★모델은 ★이미 있다 — row.type('text'|'image') · imgSrc · imgFit (comparison-block.js normalizeRow) ⇒ 새 필드 0.
-       ⛔「이미지 교체」(파일 선택창)는 ★여기 두지 않았다 — ★패널에 이미 있다(prop-comparison.js `.cmp-row-img`).
-         까닭은 block-factory.js 의 bcm-cmp-img 핸들러 머리말. -->
+       ~~⛔「이미지 교체」(파일 선택창)는 ★여기 두지 않았다~~ ⇒ 1012t1D3 에 넣었다(아래 bcm-cmp-img-replace) —
+         머리말이 적은 조건 그대로 패널과 «같은 함수»(cmpPickRowImage)를 부른다. -->
   <div class="bcm-item" id="bcm-cmp-img" style="display:none;">
     <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
       <rect x="1.5" y="2.5" width="11" height="9" rx="1.3"/>
@@ -1701,6 +1702,15 @@
       <path d="M12.5 9L9.5 6.5 4 11.5"/>
     </svg>
     이미지 칸으로
+  </div>
+  <!-- ★1012t1D3 「이미지 교체」 — 그림이 든 칸에서만 보인다. 그림·글자 = 바로 위 bcm-grid-img 와 같은 꼴. 파일 고르기는 comparison-block.js cmpPickRowImage 한 벌. -->
+  <div class="bcm-item" id="bcm-cmp-img-replace" style="display:none;">
+    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="1.5" y="2.5" width="11" height="9" rx="1.3"/>
+      <circle cx="5" cy="5.5" r="1"/>
+      <path d="M12.5 9L9.5 6.5 4 11.5"/>
+    </svg>
+    이미지 교체
   </div>
   <div class="bcm-item" id="bcm-cmp-text" style="display:none;">
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">

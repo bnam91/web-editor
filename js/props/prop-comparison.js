@@ -2,8 +2,9 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
-import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows } from '../blocks/comparison-block.js';
+import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows, CMP_ROW_HINT, CMP_HD_HINT, cmpGetActiveCell, cmpPickRowImage } from '../blocks/comparison-block.js';
 import { panelRenderedColor } from './_panel-rendered.js';
+import { redactSectionHTML, wireRedactSection, normalizeRedact } from '../effects/image-redact.js';   /* ★1012t1D4 셀 이미지 「블러 (Redact)」 — 에셋과 같은 공용 절(C1) */
 
 /* ★옛 사본은 «닫는 꺾쇠»와 홑따옴표를 안 덮었다 — 이 파일이 쓰는 세 자리에서는 무력한
    글자들이라 새지는 않았지만, 다음 사람이 이 사본을 홑따옴표 속성 자리에 쓰면 그때 뚫린다.
@@ -41,8 +42,12 @@ export function showComparisonProperties(block) {
             <button class="prop-align-btn cmp-row-fit${fit === 'cover' ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-fit="cover" style="flex:1;font-size:10px;">꽉 채우기</button>
             <button class="prop-align-btn cmp-row-fit${fit === 'contain' ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-fit="contain" style="flex:1;font-size:10px;">원본 비율</button>
           </div>`;
+      } else if (row && Array.isArray(row.lines) && row.lines.length) {
+        /* ★1012t1D2 — 줄 칸: 글자는 줄마다 산다(캔버스 줄 더블클릭 · 칸을 고르면 위 줄 절). 여기는 거울(text)을 «읽기만» 보인다.
+           한 줄 input 은 \n 을 지워 붙여 보이므로 줄 사이를 ' / ' 로 잇는다(값만 표시 — 모델은 그대로). 글자 줄이 다 비면 placeholder 가 줄 수를 말한다. */
+        body = `<input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" data-lines="${row.lines.length}" value="${_esc(String(row.text ?? '').split('\n').filter(Boolean).join(' / '))}" placeholder="줄 ${row.lines.length}개 — 캔버스에서 편집" disabled title="줄 ${row.lines.length}개 — 캔버스에서 칸을 고르면 줄 편집" style="flex:1;">`;
       } else {
-        body = `<input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" value="${_esc(row && row.text)}" style="flex:1;">`;
+        body = `<input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" placeholder="${_esc(CMP_ROW_HINT)}" value="${_esc(row && row.text)}" style="flex:1;">`;
       }
       return `
         <div class="cmp-row-edit" style="margin-bottom:6px;border-bottom:1px solid var(--border-subtle,#2a2a2a);padding-bottom:6px;">
@@ -58,6 +63,12 @@ export function showComparisonProperties(block) {
     const bgVal = col.bg || panelRenderedColor(_colEl, 'backgroundColor') || '#ffffff';
     const textVal = col.text || panelRenderedColor(block.querySelector(`.cmp-row[data-col-idx="${idx}"]`), 'color') || '#1a1a1a';
     const bgIsGrad = /gradient/i.test(bgVal);
+    /* ★1012t1D1 — 헤더만 색 따로(칼럼별 titleBg/titleColor · 렌더러는 이미 읽는다 comparison-block.js buildCol).
+       표시값: 비어 있으면 «보이는» 색 — 헤더 bg 는 투명이라 칼럼 bg 가 비친다(계산값 rgba(0,0,0,0) 을 그대로 쓰면 검정으로 보인다).
+       헤더 글자는 .cmp-hd 의 계산값(그려진 값 규약). 단색만 — 그라데이션은 «안 연다»(onGradient 미배선). */
+    const _hdEl = block.querySelector(`.cmp-hd[data-col-idx="${idx}"]`);
+    const hdBgVal = (typeof col.titleBg === 'string' && col.titleBg) || (bgIsGrad ? '#ffffff' : bgVal);
+    const hdTextVal = (typeof col.titleColor === 'string' && col.titleColor) || panelRenderedColor(_hdEl, 'color') || textVal;
     const canDelete = N > 2;
     return `
       <div class="prop-section">
@@ -65,13 +76,50 @@ export function showComparisonProperties(block) {
           <span>칼럼 ${idx + 1}${idx === featuredIdx ? ' ★' : ''}</span>
           ${canDelete ? `<button class="prop-btn prop-btn-danger cmp-col-del" data-col="${idx}" title="칼럼 삭제" style="width:24px;">×</button>` : ''}
         </div>
-        <textarea class="prop-textarea cmp-col-title" data-col="${idx}" rows="1" style="width:100%;box-sizing:border-box;">${_esc(col.title)}</textarea>
+        <textarea class="prop-textarea cmp-col-title" data-col="${idx}" rows="1" placeholder="${_esc(CMP_HD_HINT)}" style="width:100%;box-sizing:border-box;">${_esc(col.title)}</textarea>
+        <div class="prop-color-row"><span class="prop-label">헤더 배경</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'HdBg', hex: hdBgVal })}</div>
+        <div class="prop-color-row"><span class="prop-label">헤더 글자</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'HdText', hex: hdTextVal })}</div>
+        <div class="prop-color-row--aux">
+          <button class="prop-align-btn prop-align-btn--aux cmp-hd-color-clear" data-col="${idx}" title="헤더 색 초기화 — 칼럼 색을 따른다">초기화</button>
+        </div>
         <div class="prop-color-row"><span class="prop-label">배경</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Bg', hex: bgIsGrad ? '#ffffff' : bgVal, gradientCss: bgIsGrad ? bgVal : '' })}</div>
         <div class="prop-color-row"><span class="prop-label">텍스트</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Text', hex: textVal })}</div>
         <div style="margin-top:6px;">${rowInputs}</div>
         <button class="prop-btn cmp-row-add" data-col="${idx}" style="width:100%;margin-top:6px;">+ 행 추가</button>
       </div>`;
   };
+
+  /* ★1012t1D3 — 캔버스에서 «이미지 칸»을 골랐으면(2번째 클릭 · block-drag.js) 블럭 헤더 «바로 아래»에 「Image」 절.
+     이름·첫 줄은 그리드 Image 절 그대로(「Image」 · prop-btn-full 「이미지 교체…/이미지 선택…」).
+     ⛔크기 손잡이·폭/높이 칸은 없다(결정 ⑦ — 행 높이는 행 인덱스 단위 «전 칼럼 공통», 칼럼 절의 행 높이 칸이 맡는다).
+     ★D4(블러 등)는 이 절 «아래»에 자기 절을 붙인다(prop-asset Image → 그레인 순서). */
+  const _act = cmpGetActiveCell(block);
+  const _actRow = _act ? cols[_act.colIdx]?.rows?.[_act.rowIdx] : null;
+  const imgSection = (_actRow && _actRow.type === 'image') ? (() => {
+    const fit = _actRow.imgFit === 'contain' ? 'contain' : 'cover';
+    const sc = Math.min(400, Math.max(100, Number(_actRow.imgScale) || 100));
+    return `
+    <div class="prop-section" id="cmp-img-section">
+      <div class="prop-section-title">Image</div>
+      <div class="prop-row">
+        <button id="cmp-img-pick-btn" class="prop-btn-full">${_actRow.imgSrc ? '이미지 교체…' : '이미지 선택…'}</button>
+      </div>
+      <div class="prop-align-group" id="cmp-img-fit-group">
+        <button class="prop-align-btn${fit === 'cover' ? ' active' : ''}" data-fit="cover">꽉 채우기</button>
+        <button class="prop-align-btn${fit === 'contain' ? ' active' : ''}" data-fit="contain">원본 비율</button>
+      </div>
+      <div class="prop-row"><span class="prop-label">확대(%)</span>
+        <input type="range" class="prop-slider" id="cmp-img-scale" min="100" max="400" step="5" value="${sc}">
+        <input type="number" class="prop-number" id="cmp-img-scale-num" min="100" max="400" step="5" value="${sc}"></div>
+      <div class="prop-row">
+        <button id="cmp-img-pos-reset" class="prop-btn-full" title="위치·확대를 처음(가운데 · 100%)으로">위치 초기화</button>
+      </div>
+    </div>`;
+  })() : '';
+  /* ★1012t1D4 — 「Image」 절 바로 아래 「블러 (Redact)」(에셋 패널의 그림 → 블러 순서 · 같은 함수 한 벌). 그림이 든 칸에만(에셋 hasImage 와 같은 조건).
+     색보정은 에셋·카드처럼 «편집기(더블클릭)에 들어가면» 뜨는 플로팅 패널이다(js/blocks/comparison-img-edit.js) — 우측 패널 자리 0. */
+  const redactSection = (imgSection && _actRow.imgSrc)
+    ? redactSectionHTML({ idPrefix: 'cmp-cell', value: normalizeRedact(_actRow.redact) }) : '';
 
   // ★flex:1 은 basis 0 이라 «축소»가 아니라 «균등분배»를 한다 — 칼럼이 «6개 이상»이면 각자 몫이
   //   글자보다 좁아져 「칼럼 N」이 잘린다(comparison-block.js:480 이 상한을 8 로 허용한다).
@@ -94,7 +142,7 @@ ${blockHeaderHTML({
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
     })}
-    </div>
+    </div>${imgSection}${redactSection}
     <div class="prop-section">
       <div class="prop-section-title">강조 칼럼 (떠보이는 쪽)</div>
       <div class="prop-align-group" id="cmp-feat-group" style="display:flex;gap:4px;flex-wrap:wrap;">${featBtns}</div>
@@ -201,14 +249,31 @@ ${blockHeaderHTML({
       onApply: v => { const c = getCols(); if (c[idx]) { c[idx].text = v; saveCols(c); rerender(); } },
       onCommit: commit
     });
+    // ★1012t1D1 헤더만 — 칼럼 bg/text 는 건드리지 않는다(titleBg/titleColor 만). 단색만(onGradient 없음).
+    wireColorField('cmp-c' + idx + 'HdBg', {
+      onApply: v => { const c = getCols(); if (c[idx]) { c[idx].titleBg = v; saveCols(c); rerender(); } },
+      onCommit: commit
+    });
+    wireColorField('cmp-c' + idx + 'HdText', {
+      onApply: v => { const c = getCols(); if (c[idx]) { c[idx].titleColor = v; saveCols(c); rerender(); } },
+      onCommit: commit
+    });
   });
+
+  // 헤더 색 초기화 — titleBg/titleColor 둘 다 지움 → 칼럼 bg/text 를 따른다(옛 저장본과 같은 꼴: 키 없음).
+  propPanel.querySelectorAll('.cmp-hd-color-clear').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const c = getCols(); const col = c[+btn.dataset.col]; if (!col) return;
+      delete col.titleBg; delete col.titleColor;
+      saveCols(c); rerender(); commit(); showComparisonProperties(block);
+    }));
 
   // 행 텍스트 편집 (text행만 .text 갱신)
   propPanel.querySelectorAll('.cmp-row-input').forEach(inp => {
     inp.addEventListener('input', () => {
       const c = getCols(); const ci = +inp.dataset.col; const ri = +inp.dataset.idx;
       const row = c[ci]?.rows?.[ri];
-      if (row && row.type !== 'image') { row.text = inp.value; saveCols(c); rerender(); }
+      if (row && row.type !== 'image' && !(Array.isArray(row.lines) && row.lines.length)) { row.text = inp.value; saveCols(c); rerender(); }   // ★D2 줄 칸은 거울이라 안 쓴다
     });
     inp.addEventListener('change', commit);
   });
@@ -223,27 +288,43 @@ ${blockHeaderHTML({
       else { row.type = 'text'; } // imgSrc/imgFit는 보존(다시 이미지로 전환 시 복원)
       saveCols(c); rerender(); commit(); showComparisonProperties(block);
     }));
-  // 행 이미지 업로드/교체 (FileReader→dataURL, banner02 패턴)
+  // 행 이미지 업로드/교체 — ★1012t1D3: 파일 고르기 한 벌(comparison-block.js cmpPickRowImage)을 부른다(우클릭·더블클릭·Image 절과 같은 함수 · 사본 금지)
   propPanel.querySelectorAll('.cmp-row-img').forEach(btn =>
-    btn.addEventListener('click', () => {
-      const ci = +btn.dataset.col, ri = +btn.dataset.idx;
-      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
-      inp.onchange = () => {
-        const f = inp.files?.[0]; if (!f) return;
-        const r = new FileReader();
-        r.onload = () => {
-          const c = getCols(); const row = c[ci]?.rows?.[ri]; if (!row) return;
-          row.type = 'image'; row.imgSrc = r.result; row.imgFit = row.imgFit || 'cover';
-          saveCols(c); rerender(); commit(); showComparisonProperties(block);
-        };
-        r.readAsDataURL(f);
-      };
-      inp.click();
-    }));
+    btn.addEventListener('click', () => { cmpPickRowImage(block, +btn.dataset.col, +btn.dataset.idx); }));
+
+  /* ★1012t1D3 「Image」 절 배선 — 활성 칸 하나에만 쓴다. push-after(commit) 규약 그대로. */
+  if (imgSection) {
+    const { colIdx: aci, rowIdx: ari } = _act;
+    const withRow = (fn) => { const c = getCols(); const row = c[aci]?.rows?.[ari]; if (!row) return false; fn(row); saveCols(c); rerender(); return true; };
+    propPanel.querySelector('#cmp-img-pick-btn')?.addEventListener('click', () => { cmpPickRowImage(block, aci, ari); });
+    propPanel.querySelectorAll('#cmp-img-fit-group [data-fit]').forEach(b =>
+      b.addEventListener('click', () => {
+        if (withRow(row => { row.imgFit = b.dataset.fit === 'contain' ? 'contain' : 'cover'; })) { commit(); showComparisonProperties(block); }
+      }));
+    const sS = propPanel.querySelector('#cmp-img-scale'), sN = propPanel.querySelector('#cmp-img-scale-num');
+    const setSc = v => {
+      v = Math.max(100, Math.min(400, parseInt(v) || 100));
+      if (sS) sS.value = v; if (sN) sN.value = v;
+      withRow(row => { if (v === 100) delete row.imgScale; else row.imgScale = v; });
+    };
+    sS?.addEventListener('input', () => setSc(sS.value)); sN?.addEventListener('input', () => setSc(sN.value));
+    sS?.addEventListener('change', commit); sN?.addEventListener('change', commit);
+    propPanel.querySelector('#cmp-img-pos-reset')?.addEventListener('click', () => {
+      if (withRow(row => { delete row.imgX; delete row.imgY; delete row.imgScale; })) { commit(); showComparisonProperties(block); }
+    });
+    /* ★1012t1D4 블러 — input = 그 칸 div 에 라이브로만(applyRedact) · change = 모델(row.redact)에 되쓰고 다시 그림.
+       pushHistory 는 공용 배선이 onCommit «뒤»에 부른다(push-after). 칸 div 는 재렌더로 바뀌므로 getHost 가 그때그때 찾는다. */
+    if (redactSection) wireRedactSection({
+      idPrefix: 'cmp-cell',
+      getHost: () => block.querySelector(`.cmp-row.cmp-img[data-col-idx="${aci}"][data-row-idx="${ari}"]`),
+      onCommit: (v) => { if (withRow(row => { if (v > 0) row.redact = v; else delete row.redact; })) window.scheduleAutoSave?.(); },
+    });
+  }
   propPanel.querySelectorAll('.cmp-row-img-clear').forEach(btn =>
     btn.addEventListener('click', () => {
       const c = getCols(); const row = c[+btn.dataset.col]?.rows?.[+btn.dataset.idx]; if (!row) return;
-      row.imgSrc = ''; saveCols(c); rerender(); commit(); showComparisonProperties(block);
+      row.imgSrc = ''; delete row.redact;   // ★D4 그림을 비우면 블러도 끈다(에셋 clearAssetImage · 편집기 ⌫ 와 같다)
+      saveCols(c); rerender(); commit(); showComparisonProperties(block);
     }));
   propPanel.querySelectorAll('.cmp-row-fit').forEach(btn =>
     btn.addEventListener('click', () => {
@@ -285,6 +366,10 @@ ${blockHeaderHTML({
       const c = getCols(); const ci = +btn.dataset.col;
       if (c[ci]) { c[ci].rows.push(cmpEmptyRow()); saveCols(c); rerender(); commit(); showComparisonProperties(block); }
     }));
+
+  /* ★1012t1D2 — 캔버스에서 «글자 칸»이나 «줄»을 골랐으면 블럭 헤더 바로 아래에 줄 절(줄바 「+ 줄 추가」·줄 꾸미기·Typography).
+     ★그리드·버블·챗과 «같은 함수»(js/blocks/line-host.js → prop-grid.js grdLineUi) — 이름·순서 그대로 · 사본 0. 블럭만 고른 상태 = 0. */
+  window.lnAugmentCmpPanel?.(block);
 
   // 선택 시 활성 칼럼 배경이 그라데이션이면 캔버스 위 그라데이션 라인 표시 (아니면 overlay가 no-op)
   window.showGradientLine?.(block);

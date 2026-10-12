@@ -3239,7 +3239,7 @@ function _gridActiveOuterLine() {
    * ★아래 게이트 셋(단독선택 → 중첩(np) 막기 → 바깥 줄)은 ★한 글자도 안 바꿨다 — 블럭을 «찾는» 자리만 넓혔다.
    * ⛔버블·챗에는 중첩(np)이 ★없다 — 그 가지는 그리드에서만 선다(값이 안 들어온다). */
   const gridSel = document.querySelector('.grid-block.selected')
-    || document.querySelector('.speech-bubble-block.selected, .chat-block.selected');
+    || document.querySelector('.speech-bubble-block.selected, .chat-block.selected, .comparison-block.selected');   // ★1012t1D2 비교 칸 줄도(line-host 세 번째 주인)
   let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
   /* ★단독 선택일 때만 — ⌘클릭 다중선택·붙여넣기 뒤 [원본(활성줄)+사본] 은 사용자가 «블럭들»을
      보고 있다. 거기서 첫 그리드의 활성줄만 보고 줄을 옮기면 블럭은 그대로인데 줄만 조용히 바뀐다
@@ -3280,12 +3280,13 @@ function moveGridLineFromCanvas({ dir } = {}) {
     return true;
   }
   const H = window.lnHostFor?.(got.block);
-  const lines = H?.getLines?.(got.addr.r) || [];
+  const c = H?.cAxis ? got.addr.c : 0;   // ★1012t1D2 — 비교만 칼럼을 싣는다(버블·챗 0 그대로 · ⛔0 고정이면 칼럼 1 칸이 칼럼 0 칸을 옮긴다)
+  const lines = H?.getLines?.(got.addr.r, c) || [];
   const to = Number(got.addr.li) + (dir < 0 ? -1 : 1);
   /* ★칸(행)의 끝은 ★조용히 소진한다 — 그리드 EDGE 와 ★같은 뜻이다(여기서 false 를 주면
      「맨 위 줄에서 ⌘↑」가 갑자기 «블럭 이동»으로 바뀐다). */
   if (to < 0 || to >= lines.length) return true;
-  H?.moveLine?.({ r: got.addr.r, c: 0 }, got.addr.li, { r: got.addr.r, c: 0 }, to);
+  H?.moveLine?.({ r: got.addr.r, c }, got.addr.li, { r: got.addr.r, c }, to);
   return true;
 }
 
@@ -3320,7 +3321,9 @@ function moveGridLineAcrossCells({ dir } = {}) {
      *     그 길로 보내도 `o.rowOk(to.r)` 가 거짓이라 INVALID 로 떨어지지만, ★여기서 먼저 끊어
      *     «될 것 같은 손짓»을 애초에 안 만든다(토스트도 안 띄운다 — 뜻이 없는 손짓이다).
      * ★행의 끝(첫·마지막 메시지에서 밖으로)은 ★moveLine 이 INVALID 로 돌려주고 ★여기서 조용히 소진한다
-     *   — ★그리드의 EDGE 와 ★같은 뜻이다(「맨 왼쪽에서 ⌘←」가 갑자기 «블럭 이동»이 되지 않게). */
+     *   — ★그리드의 EDGE 와 ★같은 뜻이다(「맨 왼쪽에서 ⌘←」가 갑자기 «블럭 이동»이 되지 않게).
+     * ★1012t1D2 비교 칸 줄도 이 갈래로 ★조용히 소진한다 — 「옆 칸으로」는 v1 제외(결정 ⑨ · 주인 moveLine 도 INVALID).
+     *   ⛔false 로 흘리지 않는다 — 흘리면 ⌘←/→ 가 «블럭 이동»으로 샌다. */
     if (!got.block.classList.contains('chat-block')) return true;
     const H = window.lnHostFor?.(got.block);
     const step = dir < 0 ? -1 : 1;
@@ -3972,6 +3975,7 @@ function clearSelectionMarks(root) {
   //   Backspace 가 줄 삭제 분기로 새서 블럭이 안 지워졌다. 블럭을 떠나면 줄 선택도 해제한다.
   window.grdClearAllActiveLines?.(canvas);
   window.lnClearAllActive?.(canvas);   // ★BT2 — 말풍선·챗 «줄 선택»도 같은 자리에서(마커 + 활성줄)
+  window.cmpClearAllActiveCells?.(canvas);   // ★1012t1D3 — 비교 «이미지 칸 선택»도 같은 자리에서(.cmp-cell-selected + 활성 칸)
   // 스텝 «지금 보는 스텝» 마커도 같은 자리에서 (prop-step.js 의 _stbSyncMark 와 짝 · 옛 이름 포함)
   canvas.querySelectorAll('.stb-line-selected, .stb-step-selected').forEach(el => el.classList.remove('stb-line-selected', 'stb-step-selected'));
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));

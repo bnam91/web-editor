@@ -8,6 +8,8 @@
 //   Persistence: img.dataset.adj* 속성 (HTML 직렬화 자동 포함)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+import { writeImgFilter } from './effects/image-redact.js';   /* ★인라인 filter 는 «색보정 + 블러» 합성 한 자리로만 쓴다(1012t1 C1) */
+
 const FILTER_PREFIX = 'img-color-adj-';
 const SVG_EL_ID     = 'img-color-adj-svg';
 
@@ -15,7 +17,7 @@ const SVG_EL_ID     = 'img-color-adj-svg';
 //   이 두 상수를 저장복원(save-load)·내보내기(export-image)가 그대로 재사용한다.
 //   (예전엔 7개 속성 셀렉터가 3곳에 복사돼 있었고, 카드가 생기면 세 곳을 다 고쳐야 했다.)
 const ADJ_KEYS       = ['exposure','contrast','saturation','temperature','tint','highlights','shadows'];
-const ADJ_TARGET_SEL = '.asset-img, .cvb-card-img';
+const ADJ_TARGET_SEL = '.asset-img, .cvb-card-img, .comparison-block .cmp-img';   // ★1012t1D4 — 비교 블럭 이미지 칸(배경이미지 div · 카드와 같은 꼴)
 const ADJ_DIRTY_SEL  = ADJ_TARGET_SEL.split(',').map(s => s.trim())
   .flatMap(base => ADJ_KEYS.map(k => `${base}[data-adj-${k}]`)).join(', ');
 
@@ -184,11 +186,11 @@ function applyImgColorAdjust(img, adj) {
     // 기본값이면 흔적을 «지운다» — 남겨두면 저장본에 무의미한 data-adj-* 7개가 박히고,
     // 내보내기 bake 대상 목록에도 계속 걸린다.
     ADJ_KEYS.forEach(k => { delete img.dataset['adj' + k[0].toUpperCase() + k.slice(1)]; });
-    img.style.filter = '';
+    writeImgFilter(img, '');   // ★블러가 켜져 있으면 블러 몫은 남는다
     return;
   }
   _saveAdj(img, adj);
-  img.style.filter = `url(#${_ensureSVGFilter(adj)})`;
+  writeImgFilter(img, `url(#${_ensureSVGFilter(adj)})`);
 }
 
 /** 호스트(에셋블럭 / 카드 셀 / 카드 이미지 div)에서 색보정 «대상»을 찾는 술어 — 유일 정의 */
@@ -327,11 +329,13 @@ async function bakeImgFilterToCanvas(el) {
 
   if (isImg) {
     // img를 canvas로 교체 (style 복사)
-    canvas.style.cssText   = el.style.cssText;
-    canvas.style.filter    = '';
+    canvas.style.cssText   = el.style.cssText;   // filter 는 아래 writeImgFilter 가 다시 쓴다
     canvas.style.objectFit = '';
     canvas.style.display   = 'block';
     el.parentNode?.replaceChild(canvas, el);
+    /* ★색은 구웠으니 색보정 몫은 비우고, 블러 몫은 «남긴다» — 네이티브(CDP) PNG 는 이 클론을 그대로 찍는다.
+       (css 클래스가 안 따라오므로 인라인으로 다시 합성해야 흐림이 산다 · 1012t1 C1) */
+    writeImgFilter(canvas, '');
   } else {
     // 배경이미지 div: «구운 그림으로 배경만 갈아끼운다».
     // 엘리먼트를 교체하면 라운드/클립/텍스트 오버레이 같은 형제 스타일이 함께 날아간다.
@@ -342,7 +346,7 @@ async function bakeImgFilterToCanvas(el) {
       return;
     }
     el.style.backgroundImage = `url("${baked}")`;
-    el.style.filter = '';
+    writeImgFilter(el, '');
   }
 }
 
@@ -547,7 +551,7 @@ if (document.readyState === 'loading') {
 function restoreImgColorAdjust(img) {
   const adj = _readAdj(img);
   if (_isDefault(adj)) return;
-  img.style.filter = `url(#${_ensureSVGFilter(adj)})`;
+  writeImgFilter(img, `url(#${_ensureSVGFilter(adj)})`);   // ★되돌리기·불러오기 뒤에도 블러 몫을 다시 합성
 }
 
 window.ADJ_DIRTY_SEL         = ADJ_DIRTY_SEL;   // ★저장복원·내보내기가 «같은 술어»를 쓴다

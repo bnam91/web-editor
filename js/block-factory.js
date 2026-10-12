@@ -5469,31 +5469,14 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
        ⑵ ⛔DOM 순서 역산 금지 — renderComparison 이 심은 data-col-idx / data-row-idx 가 ★정본이다.
      ★헤더를 ★일부러 뺀다: 렌더러가 .cmp-hd 엔 data-row-idx 를 ★안 심고(comparison-block.js:202·192),
        모델에도 그 자리가 ★없다(col.title 은 문자열뿐) ⇒ 「이미지로」가 뜻이 없다. 검사 R5 가 이걸 잠근다. */
+  /* ★1012t1D3 — 본체를 js/blocks/comparison-block.js `cmpCellAddrAt` 로 «올렸다»(클릭 2단 선택·더블클릭 편집도 같은 판정을 쓴다 · 사본 금지).
+     위 머리말(복수 elementsFromPoint · data-* 정본 · 헤더 제외)과 아래 «기하 폴백 없음»의 까닭은 그 함수에 그대로 산다.
+     ⚠️선례와 ★다른 한 칸 — 그리드엔 ★기하 폴백(gridPickCellByPoint)이 있고 ★여기엔 ★없다:
+         · 칸 밖(카드 여백·그림자 여유) → null ⇒ 셋 다 숨음(검사 R7).
+         · 선택 안 된 프레임 안 → 이벤트가 cmp 블럭에 ★닿지도 않아 openMenu 가 ★프레임을 block 으로 받는다 ⇒ 셋 다 숨음.
+       ⇒ ★「프레임 안 cmp 는 드릴인해야 쓴다」가 ★지금의 한계다(지디에게 이름으로 올렸다). */
   function _cmpCellAddrAt(e, block) {
-    if (!block.classList.contains('comparison-block')) return null;
-    let node = null;
-    if (typeof document.elementsFromPoint === 'function') {
-      const stack = document.elementsFromPoint(e.clientX, e.clientY) || [];
-      for (const el of stack) { if (block.contains(el)) { node = el; break; } }
-    }
-    if (!node) {
-      const atPoint = document.elementFromPoint(e.clientX, e.clientY);
-      node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
-    }
-    /* ⚠️선례와 ★다른 한 칸 — 그리드엔 ★기하 폴백(gridPickCellByPoint)이 있고 ★여기엔 ★없다.
-       그리드가 그걸 왜 뒀나: 「칸 ★밖(패딩·gap)」이거나 「선택 안 된 프레임 안이라 pointer-events:none 이어서
-       elementsFromPoint 가 자식을 ★반환조차 안 하는」 경우.
-       ★cmp 에서 그 두 경우가 어떻게 끝나나 — ★조용히 틀리지 않고 ★항목이 숨는다:
-         · 칸 밖(카드 여백·그림자 여유) → 여기서 null ⇒ 셋 다 숨음. ★그게 맞는 동작이다(검사 R7).
-         · 선택 안 된 프레임 안 → 이벤트가 cmp 블럭에 ★닿지도 않아 openMenu 가 ★프레임을 block 으로 받는다
-           ⇒ `classList.contains('comparison-block')` 이 거짓 ⇒ 셋 다 숨음.
-       ⇒ ★「프레임 안 cmp 는 드릴인해야 쓴다」가 ★지금의 한계다. ⛔기하 폴백을 ★추측으로 만들지 않았다 —
-         만들면 ★그 갈래를 재는 검사를 ★같이 세워야 하고, 그건 이 묶음 밖이다(지디에게 이름으로 올렸다). */
-    const rowEl = node && node.closest ? node.closest('.cmp-row[data-row-idx]') : null;
-    if (!rowEl || !block.contains(rowEl)) return null;
-    const colIdx = Number(rowEl.dataset.colIdx), rowIdx = Number(rowEl.dataset.rowIdx);
-    if (!Number.isInteger(colIdx) || !Number.isInteger(rowIdx)) return null;
-    return { colIdx, rowIdx };
+    return window.cmpCellAddrAt?.(e, block) ?? null;
   }
   /* 비교 주소 → 그 행(모델). 없으면 null.
      ⛔import 가 아니라 ★`window` 로 간다 — ★js/blocks/line-host.js:575 · grid-block.js:78 과 ★같은 관용구다
@@ -5715,7 +5698,9 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       const imgItem = document.getElementById('bcm-cmp-img');
       const textItem = document.getElementById('bcm-cmp-text');
       const delItem = document.getElementById('bcm-cmp-img-del');
+      const replItem = document.getElementById('bcm-cmp-img-replace');   // ★1012t1D3 — 그림이 «든» 칸에서만(그리드 「이미지 교체」와 같은 자리)
       if (imgItem)  imgItem.style.display  = (cmpRow && !isImg) ? 'flex' : 'none';
+      if (replItem) replItem.style.display = hasSrc ? 'flex' : 'none';
       if (textItem) textItem.style.display = isImg ? 'flex' : 'none';
       if (delItem)  delItem.style.display  = hasSrc ? 'flex' : 'none';
     }
@@ -6073,6 +6058,17 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       row.imgSrc = row.imgSrc || '';
       row.imgFit = row.imgFit || 'cover';
     });
+  });
+  /* ★1012t1D3 「이미지 교체」 — 위 머리말 「⚠️넣기로 결정하면 ★패널 핸들러를 ★공용 함수로 떼서 ★두 길이 그걸 부르게」 그대로:
+     파일 고르기 한 벌 = comparison-block.js `cmpPickRowImage`(패널 「교체」·Image 절·빈 칸 더블클릭과 같은 함수).
+     ⛔여기서 FileReader 를 쓰지 않는다(이 파일 readAsDataURL 0 — tests/unit/grid-picked-image-entrances E91).
+     못 재던 까닭(파일창)은 검사가 HTMLInputElement.prototype.click 을 가로채 «배선만» 재는 것으로 풀었다(cmp-img-edit E8). */
+  document.getElementById('bcm-cmp-img-replace')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock; const addr = _targetCmpAddr;
+    closeMenu();
+    if (!block || !addr) return;
+    window.cmpPickRowImage?.(block, addr.colIdx, addr.rowIdx);
   });
   document.getElementById('bcm-cmp-text')?.addEventListener('click', e => {
     e.stopPropagation();

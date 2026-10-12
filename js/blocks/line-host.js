@@ -20,14 +20,17 @@
 ═══════════════════════════════════════════════════════════════════════════ */
 import { gridLineHtml, GRID_ROLES, MAX_CELL_LINES, gridMergeLine, gridValidateLines, gridLineHasText, gridPlusLayer } from './grid-block.js';
 import { grdLineUi, grdSetActiveLine, grdGetActiveLine, grdIsSoleSelected } from '../props/prop-grid.js';
-import { escHtml } from '../props/_helpers.js';   // ⛔이스케이프 사본 금지(tests/unit/name-axes-to-markup X6·X9) — 정본을 쓴다
+import { escHtml } from '../props/_helpers.js';
+import { swatchHex } from '../props/color-picker.js';          // ★D2 — 비교 줄 Fill 스와치를 «그려진 색»으로(prop-grid 가 이미 들이는 모듈 · 새 그래프 0)
+import { panelRenderedColor } from '../props/_panel-rendered.js';   // ★D2 — «그려진 값»을 읽는 한 자리(E121)   // ⛔이스케이프 사본 금지(tests/unit/name-axes-to-markup X6·X9) — 정본을 쓴다
 
 /** D5 — 버블·챗이 내놓는 줄 종류. ★GRID_ROLES 에서 뜬다(손으로 안 적는다) + 여백. */
 export const LN_KINDS = Object.freeze([...Object.keys(GRID_ROLES), 'gap']);
 export const LN_ROW_CLASS = 'ln-row';
 /** 줄 선택 표시 — `-line-selected` 로 끝나 저장 직렬화가 «알아서» 벗긴다(section-serialize.js RUNTIME_MARKER_RE). */
 export const LN_MARK_CLASS = 'ln-line-selected';
-const HOST_SEL = '.speech-bubble-block, .chat-block';
+/* ★1012t1D2 — 비교(comparison) 칸이 «세 번째 주인»이다(행 안 줄 추가 · 그리드 칸처럼). ⛔버블·챗의 산출·동작은 그대로다(아래 cAxis). */
+const HOST_SEL = '.speech-bubble-block, .chat-block, .comparison-block';
 
 export function lnHasLines(v) { return Array.isArray(v) && v.length > 0; }
 
@@ -53,11 +56,18 @@ export function lnPlainText(lines) {
 /** 챗 msg.text 거울 — 챗 렌더러는 msg.text 를 «HTML 로» 싣는다(chat-block.js) ⇒ 이스케이프한다. */
 export function lnTextMirrorHtml(lines) { return escHtml(lnPlainText(lines)); }
 
-/** 줄 HTML — 감싸개 하나에 줄 하나. m = 챗 메시지 번호(버블은 null). */
-export function lnLinesHtml(lines, m = null) {
+/** 줄 HTML — 감싸개 하나에 줄 하나. m = 챗 메시지 번호(버블은 null).
+ *  ★1012t1D2 — c = 비교 칼럼 번호(m = 행 번호) · align = 칸 기본 정렬. ⛔둘 다 안 주면(버블·챗) 산출 바이트 그대로. */
+export function lnLinesHtml(lines, m = null, c = null, align = 'left') {
   const mAttr = (m === null || m === undefined) ? '' : ` data-ln-m="${m}"`;
+  const cAttr = (c === null || c === undefined) ? '' : ` data-ln-c="${c}"`;
   return (Array.isArray(lines) ? lines : [])
-    .map((l, i) => `<div class="${LN_ROW_CLASS}" data-ln="${i}"${mAttr}>${gridLineHtml(l, 'left')}</div>`).join('');
+    .map((l, i) => `<div class="${LN_ROW_CLASS}" data-ln="${i}"${mAttr}${cAttr}>${gridLineHtml(l, align)}</div>`).join('');
+}
+/** 줄 감싸개 셀렉터 — 주인마다 주소 속성이 다르다(버블 = li · 챗 = m+li · 비교 = c+m+li). */
+function _lnRowSel(block, r, c, li) {
+  if (block.classList.contains('comparison-block')) return `.${LN_ROW_CLASS}[data-ln-c="${c}"][data-ln-m="${r}"][data-ln="${li}"]`;
+  return block.classList.contains('chat-block') ? `.${LN_ROW_CLASS}[data-ln-m="${r}"][data-ln="${li}"]` : `.${LN_ROW_CLASS}[data-ln="${li}"]`;
 }
 
 /* ══ 버블 ══════════════════════════════════════════════════════════════════ */
@@ -121,30 +131,33 @@ export function lnBakeChat(block, m) {
  * 주소 = {r, c, li} 그대로(그리드 꼴): 버블 r=0, 챗 r=메시지 번호, c=0 고정.
  * ★commitLines 는 «모델 문»(updateSpeechBubbleBlock / updateChatBlock)으로만 쓴다 — 패널과 MCP 가 «같은 길»이고,
  *   그 문이 push-before ＋ model-update-history 끝 표본을 진다(⌘Z 한 걸음, T4).
- * ★처음 줄을 더하면(줄 없음 → 있음) 지금 본문을 첫 줄로 굽는다(D2). 그때 grdAddLine 이 미리 세운 활성줄은 한 칸 민다. */
+ * ★처음 줄을 더하면(줄 없음 → 있음) 지금 본문을 첫 줄로 굽는다(D2). 그때 grdAddLine 이 미리 세운 활성줄은 한 칸 민다.
+ * ★1012t1D2 — 「칸」 축(c)을 연다: o.cAxis 가 참인 주인(비교)만 c 를 쓴다. 버블·챗은 C(c) = 0 ⇒ 옛 동작 그대로.
+ *   o.* 는 c 를 «맨 뒤 인자»로 받는다(버블·챗의 o.* 는 그 인자를 안 읽는다). ⛔r 에 c 를 부호화하지 않는다. */
 function _baseHost(block, o) {
+  const C = (c) => (o.cAxis ? c : 0);
   const host = {
     kind: o.kind, kinds: LN_KINDS, maxLines: MAX_CELL_LINES, limitLabel: o.limitLabel, noHitHint: o.noHitHint,
-    head: o.head,
-    getLines: (r) => o.getLines(r) || [],
+    head: o.head, cAxis: !!o.cAxis,
+    getLines: (r, c) => o.getLines(r, C(c)) || [],
     commitLines: (r, c, lines, opts) => {
       let next = Array.isArray(lines) ? lines.slice() : lines;
-      if (Array.isArray(next) && next.length && !o.getLines(r)) {
-        next = [o.bake(r), ...next];                       // D2 — 첫 전환
+      if (Array.isArray(next) && next.length && !o.getLines(r, C(c))) {
+        next = [o.bake(r, C(c)), ...next];                 // D2 — 첫 전환
         const act = grdGetActiveLine(block);
-        if (act && act.r === r && Number.isInteger(act.li)) grdSetActiveLine(block, { ...act, li: act.li + 1 });
+        if (act && act.r === r && (!o.cAxis || act.c === c) && Number.isInteger(act.li)) grdSetActiveLine(block, { ...act, li: act.li + 1 });
       }
-      return o.commit(r, next, opts);
+      return o.commit(r, next, opts, C(c));
     },
     patchLine: (r, c, li, fields) => {
-      const merged = gridMergeLine(o.getLines(r) || [], li, fields);
+      const merged = gridMergeLine(o.getLines(r, C(c)) || [], li, fields);
       if (!merged) return { ok: false, code: 'NOT_FOUND', message: `line ${li} not found` };
-      return o.commit(r, merged);
+      return o.commit(r, merged, undefined, C(c));
     },
     previewLine: (r, c, li, fields) => {
-      const merged = gridMergeLine(o.getLines(r) || [], li, fields);
+      const merged = gridMergeLine(o.getLines(r, C(c)) || [], li, fields);
       if (!merged) return false;
-      o.write(r, merged);                                   // ⛔히스토리·패널 재생성 없음 — 제스처 정책은 부르는 쪽(prop-grid)
+      o.write(r, merged, C(c));                             // ⛔히스토리·패널 재생성 없음 — 제스처 정책은 부르는 쪽(prop-grid)
       return true;
     },
     show: (addr) => { if (addr !== undefined) grdSetActiveLine(block, addr); o.show(); },
@@ -153,13 +166,14 @@ function _baseHost(block, o) {
     resolveAny: (addr) => {
       if (!addr || addr.np) return null;
       const r = Number(addr.r);
-      if (!Number.isInteger(r) || !o.rowOk(r)) return null;
-      if (addr.li === null) return { r, c: 0, li: null, line: null };
+      const c = o.cAxis ? Number(addr.c) : 0;
+      if (!Number.isInteger(r) || !Number.isInteger(c) || !o.rowOk(r, c)) return null;
+      if (addr.li === null) return { r, c, li: null, line: null };
       const li = Number(addr.li);
-      const lines = o.getLines(r);
+      const lines = o.getLines(r, c);
       const line = Array.isArray(lines) ? lines[li] : undefined;
       if (!Number.isInteger(li) || !line || typeof line !== 'object') return null;
-      return { r, c: 0, li, line };
+      return { r, c, li, line };
     },
     refreshSummary: (addr) => {
       const el = document.getElementById('grd-line-summary');
@@ -177,9 +191,9 @@ function _baseHost(block, o) {
      * ★버블·챗 줄은 그리드 주소(data-r/c/line)를 ★고의로 안 찍는다(이 파일 머리말 · 시험 T7) ⇒ `.ln-row` 로 찾는다. */
     rowEl: (addr) => {
       if (!addr || addr.li === null || addr.li === undefined || addr.np) return null;
-      return block.querySelector(o.rowSel(addr.r, addr.li));
+      return block.querySelector(o.rowSel(addr.r, addr.li, C(addr.c)));
     },
-    linesBox: (r) => o.boxOf(r),
+    linesBox: (r, c) => o.boxOf(r, C(c)),
     /** 그 그릇의 줄들 — 직속 `.ln-row` 만. ★그리드의 `:scope > [data-line]` 과 같은 뜻이다. */
     rowsIn: (boxEl) => (boxEl ? [...boxEl.querySelectorAll(`:scope > .${LN_ROW_CLASS}`)] : []),
     rowAt: (el) => o.rowAt(el),
@@ -195,6 +209,8 @@ function _baseHost(block, o) {
        *   ⛔「호출자가 pushHistory 1칸 ＋ 둘 다 Raw」 꼴도 ★틀렸다 — 그 한 칸이 ★무변화 차단에 먹혀 스택 ＋0 이 된다(실측).
        * ★상한을 ★«먼저» 본다 — 거절되는 순간 줄이 ★어느 행에도 없어서는 안 된다(grdMoveLineToCell 의 그 순서 규약).
        * ★줄 «객체를 그대로» 옮긴다 — 꾸밈은 그 객체에 산다. ⛔필드를 골라 베끼지 마라. */
+      /* ★1012t1D2 비교 — v1 은 «같은 칸 안 순서만»(결정 ⑨). 다른 칸은 INVALID(버블의 「다른 행」과 같은 SKIP 뜻). */
+      if (o.cAxis && (to.r !== from.r || to.c !== from.c)) return { ok: false, code: 'INVALID' };
       if (to.r !== from.r) {
         if (!o.rowOk(to.r)) return { ok: false, code: 'INVALID' };   // 버블(행 하나)·없는 메시지
         const src = o.getLines(from.r);
@@ -236,7 +252,7 @@ function _baseHost(block, o) {
         }
         return r2 || { ok: true };
       }
-      const lines = o.getLines(from.r);
+      const lines = o.getLines(from.r, C(from.c));
       if (!Array.isArray(lines)) return { ok: false, code: 'INVALID' };
       const f = Number(fromLi), t = Number(toLi);
       if (!Number.isInteger(f) || f < 0 || f >= lines.length) return { ok: false, code: 'INVALID' };
@@ -249,8 +265,8 @@ function _baseHost(block, o) {
       /* ★활성 줄을 «도착 자리»로 먼저 옮긴다 — commitLines 가 패널을 다시 그리므로, 안 옮기면
          그 한 번이 «옛 자리»를 가리킨다(grdMoveLineToCell 의 그 순서 규약). */
       const prev = grdGetActiveLine(block);
-      grdSetActiveLine(block, { r: from.r, c: 0, li: t });
-      const res = host.commitLines(from.r, 0, next);
+      grdSetActiveLine(block, { r: from.r, c: C(from.c), li: t });
+      const res = host.commitLines(from.r, C(from.c), next);
       if (res && res.ok === false) {
         grdSetActiveLine(block, prev);
         window.showToast?.('⚠️ 줄 옮기기 실패 — ' + (res.message || res.code));
@@ -334,10 +350,57 @@ export function lnChatHost(block) {
   });
 }
 
+/* ══ 비교(comparison) 칸 — ★1012t1D2 (현빈 2026-10-12 「하나의 로우 안에 현재는 하나의 텍스트만 들어가는데
+ *    그리드칸처럼 줄을 추가할 수 있게」) ══════════════════════════════════════════════════
+ * ★주소 = {r: 행 번호, c: 칼럼 번호, li} — 그리드 {r,c} 와 같은 뜻(칸 = 칼럼 c 의 행 r).
+ * ★저장: dataset.cols[c].rows[r].lines (선택 필드) · 없으면 지금 그대로(글자 하나). row.text 는 «줄 글자 거울»(챗 D3).
+ * ★쓰는 문 = updateComparisonBlock({rowLines}) 한 길(push-before + 래퍼 끝 표본 = ⌘Z 한 걸음 · 패널·MCP 같은 길).
+ * ⛔그림 줄 없음(LN_KINDS) · 다른 칸으로 옮기기 없음(v1 · moveLine INVALID). 모델 읽기는 window 로 간다(순환 import 회피). */
+function _cmpCols(block) { try { return window.getComparisonCols?.(block.dataset) || []; } catch (_) { return []; } }
+function _cmpCellRow(block, r, c) { const row = _cmpCols(block)[c]?.rows?.[r]; return row && typeof row === 'object' ? row : null; }
+export function lnCmpLines(block, r, c) {
+  const row = _cmpCellRow(block, r, c);
+  return row && row.type !== 'image' && lnHasLines(row.lines) ? row.lines : null;
+}
+export function lnBakeCmp(block, r, c) {
+  const el = block.querySelector(`.cmp-row[data-col-idx="${c}"][data-row-idx="${r}"]`);
+  return el ? _bakeFrom(el) : { type: 'body', text: '' };
+}
+export function lnCmpHost(block) {
+  return _baseHost(block, {
+    kind: 'comparison', cAxis: true, limitLabel: '칸 한 개에',
+    noHitHint: '칸을 한 번 더 누르면 줄 편집 · 줄을 두 번 누르면 글자 편집',
+    head: (r, c, li) => (li === null ? `칼럼 ${c + 1} · ${r + 1}행 · 줄 없음 — 줄을 더하면 지금 글이 첫 줄이 된다` : `칼럼 ${c + 1} · ${r + 1}행 · ${li + 1}번째 줄`),
+    getLines: (r, c) => lnCmpLines(block, r, c),
+    rowOk: (r, c) => { const row = _cmpCellRow(block, r, c); return !!row && row.type !== 'image'; },
+    bake: (r, c) => lnBakeCmp(block, r, c),
+    commit: (r, lines, opts, c) => window.updateComparisonBlock?.(block.id, { rowLines: { col: c, row: r, lines: lines.length ? lines : null } }, opts),
+    write: (r, lines, c) => {
+      const cols = _cmpCols(block);
+      const row = cols[c]?.rows?.[r];
+      if (!row) return;
+      window.cmpRowSetLines?.(row, lines);
+      window.setComparisonCols?.(block, cols);
+      window.renderComparison?.(block);
+    },
+    show: () => window.showComparisonProperties?.(block),
+    rowSel: (r, li, c) => _lnRowSel(block, r, c, li),
+    boxOf: (r, c) => block.querySelector(`.cmp-row[data-col-idx="${c}"][data-row-idx="${r}"]`),
+    rowAt: (el) => {
+      if (!el || !el.closest || !block.contains(el)) return null;
+      const cell = el.closest('.cmp-row[data-row-idx]');
+      if (!cell || !block.contains(cell) || cell.classList.contains('cmp-img')) return null;
+      const r = Number(cell.dataset.rowIdx), c = Number(cell.dataset.colIdx);
+      return Number.isInteger(r) && Number.isInteger(c) ? { r, c, box: cell } : null;
+    },
+  });
+}
+
 export function lnHostFor(block) {
   if (!block || !block.classList) return null;
   if (block.classList.contains('speech-bubble-block')) return lnBubbleHost(block);
   if (block.classList.contains('chat-block')) return lnChatHost(block);
+  if (block.classList.contains('comparison-block')) return lnCmpHost(block);
   return null;
 }
 
@@ -346,9 +409,7 @@ export function lnMark(block, addr) {
   if (!block) return;
   block.querySelectorAll('.' + LN_MARK_CLASS).forEach(el => el.classList.remove(LN_MARK_CLASS));
   if (!addr || addr.li === null || addr.li === undefined) return;
-  const isChat = block.classList.contains('chat-block');
-  const sel = isChat ? `.${LN_ROW_CLASS}[data-ln-m="${addr.r}"][data-ln="${addr.li}"]` : `.${LN_ROW_CLASS}[data-ln="${addr.li}"]`;
-  block.querySelector(sel)?.classList.add(LN_MARK_CLASS);
+  block.querySelector(_lnRowSel(block, addr.r, addr.c, addr.li))?.classList.add(LN_MARK_CLASS);
 }
 /** 다시 그린 뒤 표시를 되붙인다(렌더가 innerHTML 을 갈아 표시를 지운다). 선택된 블럭만. */
 export function lnRemark(block) {
@@ -369,12 +430,20 @@ export function lnClickAddr(block, target, wasSole) {
   if (row && block.contains(row)) {
     const li = Number(row.dataset.ln);
     const r = row.dataset.lnM !== undefined ? Number(row.dataset.lnM) : 0;
-    return Number.isInteger(li) && Number.isInteger(r) ? { r, c: 0, li } : null;
+    const c = row.dataset.lnC !== undefined ? Number(row.dataset.lnC) : 0;   // ★D2 비교만 data-ln-c 를 찍는다(버블·챗 = 0 그대로)
+    return Number.isInteger(li) && Number.isInteger(r) && Number.isInteger(c) ? { r, c, li } : null;
   }
   if (block.classList.contains('chat-block')) {               // 챗: 줄 없는 메시지 = 메시지 선택(li:null)
     const msg = target.closest('.chb-msg');
     const bt = msg && msg.querySelector('.chb-btext[data-msg-idx]');
     if (bt && block.contains(bt)) { const r = Number(bt.dataset.msgIdx); return Number.isInteger(r) ? { r, c: 0, li: null } : null; }
+  }
+  if (block.classList.contains('comparison-block')) {         // ★D2 비교: 글자 칸(줄 밖) = 칸 선택(li:null) · 이미지 칸은 D3 몫
+    const cell = target.closest('.cmp-row[data-row-idx]');
+    if (cell && block.contains(cell) && !cell.classList.contains('cmp-img')) {
+      const r = Number(cell.dataset.rowIdx), c = Number(cell.dataset.colIdx);
+      return Number.isInteger(r) && Number.isInteger(c) ? { r, c, li: null } : null;
+    }
   }
   return null;
 }
@@ -395,7 +464,7 @@ function _insertAfterHeader(html) {
 function _mountLineUi(block, host, addr, { synthetic = false } = {}) {
   const anyHit = host.resolveAny(addr);
   const hit = anyHit && anyHit.line && gridLineHasText(anyHit.line) ? anyHit : null;
-  const cur = anyHit ? { r: anyHit.r, c: 0, li: anyHit.li } : null;
+  const cur = anyHit ? { r: anyHit.r, c: anyHit.c, li: anyHit.li } : null;   // c = 버블·챗 0 · 비교 칼럼
   if (!synthetic) grdSetActiveLine(block, cur);
   const html = grdLineUi.lineBarHtml(anyHit, block, host)
     + (anyHit && anyHit.li !== null ? grdLineUi.lineSectionHtml(anyHit, block, host) : '')
@@ -439,6 +508,33 @@ export function lnAugmentChatPanel(block) {
   if (_chatMsgs(block).length === 1) { _mountLineUi(block, lnChatHost(block), { r: 0, c: 0, li: null }, { synthetic: true }); return; }
   _mountLineUi(block, lnChatHost(block), null);
 }
+/** ★1012t1D2 비교 — 캔버스에서 «글자 칸»이나 «줄»을 골랐을 때만 줄 절을 얹는다(블럭만 고른 상태 = 지금 패널 그대로).
+ *  ⛔기본 주소를 세우지 않는다(버블 _lnPickedLine 주석의 그 병 — 패널이 세운 주소를 단축키가 «사람이 고른 것»으로 읽는다). */
+export function lnAugmentCmpPanel(block) {
+  const act = grdGetActiveLine(block);
+  if (!act) return;
+  const host = lnCmpHost(block);
+  if (!host.resolveAny(act)) { grdSetActiveLine(block, null); return; }
+  _mountLineUi(block, host, act);
+  _lnCmpFillShowsRendered(block, host, act);
+}
+/* ★D2 — 색 없는 비교 줄은 «칼럼 글자색»을 상속해 그린다(렌더러 useRoleColor=false). 그런데 공용 Fill 절은 역할 기본색(#555)을 보인다
+   ⇒ 패널이 실제와 다르다. 비교에서만 스와치·피커·hex 안내값을 «그려진 계산색»으로 맞춘다(값만 표시 — 모델에 안 쓴다).
+   ⛔공용 절(prop-grid _grdTypoSectionsHtml)은 안 고친다 — 그리드·버블·챗 동작 불변(이 함수는 lnAugmentCmpPanel 만 부른다). */
+function _lnCmpFillShowsRendered(block, host, addr) {
+  const line = host.line(addr);
+  if (!line || (line.color !== undefined && line.color !== null && String(line.color).trim() !== '')) return;
+  const el = _lineTextEl(block.querySelector(_lnRowSel(block, addr.r, addr.c, addr.li)));
+  const rgb = panelRenderedColor(el, 'color');
+  const hex = rgb ? swatchHex(rgb, '') : '';
+  if (!hex) return;
+  const pick = document.getElementById('grd-typo-color');
+  if (pick) pick.value = hex;
+  const sw = pick?.closest('.prop-color-swatch');
+  if (sw) sw.style.background = rgb;
+  const hx = document.getElementById('grd-typo-color-hex');
+  if (hx && !hx.value) hx.placeholder = hex.replace('#', '').toUpperCase();
+}
 
 /* ══ 줄 «글자» 편집 — 더블클릭 (그리드 인라인 편집과 같은 손짓) ═════════════════
  * ★capture 로 블럭에 건다(BT1 이름표 선례, block-drag.js) — 일반 텍스트 더블클릭(=[contenteditable] 전부 켜기)과
@@ -455,7 +551,8 @@ export function lnBeginEdit(block, addr) {
   const hit = host && host.resolveAny(addr);
   if (!hit || hit.li === null || !gridLineHasText(hit.line)) return false;
   const isChat = block.classList.contains('chat-block');
-  const row = block.querySelector(isChat ? `.${LN_ROW_CLASS}[data-ln-m="${hit.r}"][data-ln="${hit.li}"]` : `.${LN_ROW_CLASS}[data-ln="${hit.li}"]`);
+  const isCmp = block.classList.contains('comparison-block');
+  const row = block.querySelector(_lnRowSel(block, hit.r, hit.c, hit.li));
   const el = _lineTextEl(row);
   if (!el) return false;
   window.pushHistory?.('줄 글자 편집');
@@ -472,10 +569,10 @@ export function lnBeginEdit(block, addr) {
     block.classList.remove('editing');
     const text = String(el.innerText || '').replace(/\r\n?/g, '\n').replace(/​/g, '').replace(/\n+$/, '');
     if (text !== String(hit.line.text ?? '')) {
-      host.previewLine(hit.r, 0, hit.li, { text });
+      host.previewLine(hit.r, hit.c, hit.li, { text });
       window.scheduleAutoSave?.();
-    } else if (isChat) window.renderChatBlock?.(block); else lnRenderBubble(block);
-    if (block.classList.contains('selected')) host.show({ r: hit.r, c: 0, li: hit.li });
+    } else if (isChat) window.renderChatBlock?.(block); else if (isCmp) window.renderComparison?.(block); else lnRenderBubble(block);
+    if (block.classList.contains('selected')) host.show({ r: hit.r, c: hit.c, li: hit.li });
   };
   el.addEventListener('keydown', onKey); el.addEventListener('paste', onPaste); el.addEventListener('blur', finish);
   return true;
@@ -492,8 +589,9 @@ export function lnBindLineEdit(block) {
       e.stopPropagation(); e.preventDefault();
       const li = Number(row.dataset.ln);
       const r = row.dataset.lnM !== undefined ? Number(row.dataset.lnM) : 0;
+      const c = row.dataset.lnC !== undefined ? Number(row.dataset.lnC) : 0;   // ★D2 비교
       if (_lineTextEl(row)?.getAttribute('contenteditable') === 'true') return;
-      lnBeginEdit(block, { r, c: 0, li });
+      lnBeginEdit(block, { r, c, li });
       return;
     }
     /* ★줄 모드 버블의 «줄 밖»(본체 패딩) 더블클릭도 여기서 막는다 — 안 막으면 일반 핸들러가 .tb-bubble 을 통째로 켠다. */
@@ -601,7 +699,7 @@ export function lnEnterEdit(block) {
 
 /* ══ 단축키 (D10) — 그리드의 줄 단축키와 «같은 뜻» ════════════════════════════ */
 function _soleSelectedHost() {
-  const sel = [...document.querySelectorAll('.speech-bubble-block.selected, .chat-block.selected')];
+  const sel = [...document.querySelectorAll('.speech-bubble-block.selected, .chat-block.selected, .comparison-block.selected')];
   if (sel.length !== 1 || !grdIsSoleSelected(sel[0])) return null;
   return sel[0];
 }
@@ -640,13 +738,14 @@ export function lnDeleteActiveLine() {
   const addr = _lnPickedLine(block);
   if (!addr || addr.li === null || addr.li === undefined) return false;
   const host = lnHostFor(block);
-  const lines = host.getLines(addr.r);
+  const lines = host.getLines(addr.r, host.cAxis ? addr.c : 0);
   const li = Number(addr.li);
   if (!Number.isInteger(li) || li < 0 || li >= lines.length) return true;   // 주소가 낡았다 — 블럭 삭제로 새지 않는다
   const next = lines.filter((_, i) => i !== li);
   const prev = addr;
-  grdSetActiveLine(block, next.length ? { r: addr.r, c: 0, li: Math.min(li, next.length - 1) } : null);
-  const res = host.commitLines(addr.r, 0, next);
+  const c = host.cAxis ? addr.c : 0;   // ★D2 — 비교만 칼럼을 싣는다(버블·챗 0 그대로)
+  grdSetActiveLine(block, next.length ? { r: addr.r, c, li: Math.min(li, next.length - 1) } : null);
+  const res = host.commitLines(addr.r, c, next);
   if (res && res.ok === false) { grdSetActiveLine(block, prev); window.showToast?.('⚠️ 줄 삭제 실패 — ' + (res.message || res.code)); }
   return true;
 }
@@ -665,7 +764,7 @@ export function lnAddLineToSelected(type) {
      ⛔리터럴 폴백을 ★두지 않는다 — 두면 ★그게 다시 ★둘째 명부다. 못 읽으면 ★grdAddLine 과 ★같이 false. */
   const spec = window.grdNewLineSpec?.(type === 'gap' ? 'gap' : 'body');
   if (!spec) return false;
-  const res = window.grdAddLine?.(block, { r: addr.r, c: 0 }, addr.li === null ? null : addr.li, spec, {}, host);
+  const res = window.grdAddLine?.(block, { r: addr.r, c: host.cAxis ? addr.c : 0 }, addr.li === null ? null : addr.li, spec, {}, host);
   if (res && res.ok) host.show(grdGetActiveLine(block));
   return !!(res && res.ok);
 }
@@ -683,7 +782,7 @@ if (typeof window !== 'undefined') {
   Object.assign(window, {
     lnHasLines, lnLinesHtml, lnValidateLines, lnPlainText, lnTextMirrorHtml,
     lnRenderBubble, lnBubbleLines, lnHostFor, lnMark, lnRemark, lnClearAllActive, lnClickAddr,
-    lnAugmentBubblePanel, lnAugmentChatPanel, lnBindLineEdit, lnBeginEdit, lnEnterEdit,
+    lnAugmentBubblePanel, lnAugmentChatPanel, lnAugmentCmpPanel, lnCmpLines, lnBindLineEdit, lnBeginEdit, lnEnterEdit,
     lnDeleteActiveLine, lnAddLineToSelected, lnEscLine, lnSyncPlus,
   });
 }

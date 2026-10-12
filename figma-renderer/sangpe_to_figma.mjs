@@ -733,7 +733,11 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       parentId,
     });
     if (node) {
-      if (block.src) {
+      if (block.redact) {
+        // ★블러(Redact, 1012t1 C1) — 에디터가 원본 src 를 안 싣는다. 불투명 덮개 색으로만 칠한다(도형 가림막과 같은 원칙).
+        run('set_fill_color', { nodeId: node.id, color: hex(block.redact.cover) });
+        console.log(`      · image ${availableWidth}×${imgH} → ${node.id} (블러 가림 — 덮개색)`);
+      } else if (block.src) {
         // 실제 이미지 데이터가 있으면 fill로 적용
         let sourceType, imageSource;
         if (block.src.startsWith('data:')) {
@@ -1237,7 +1241,11 @@ function renderBlock(block, parentId, x, y, availableWidth) {
           ryAcc += effRowH + gap;
           if (rType === 'image') {
             const src = isObj ? (r.imgSrc || '') : '';
-            if (src) {
+            const rRedact = isObj ? r.redact : null;   // ★1012t1D4 셀 블러 — 에디터가 원본 대신 덮개 색만 싣는다
+            if (rRedact) {
+              const imf = run('create_frame', { x: 0, y: ryTop, width: cw, height: effRowH, name: `cmp_img_${i}_${ri}`, parentId: card.id });
+              if (imf) run('set_fill_color', { nodeId: imf.id, color: hex(rRedact.cover) });
+            } else if (src) {
               const imf = run('create_frame', { x: 0, y: ryTop, width: cw, height: effRowH, name: `cmp_img_${i}_${ri}`, parentId: card.id });
               if (imf) {
                 let b64 = '';

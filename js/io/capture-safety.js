@@ -11,6 +11,7 @@
 import { parseGradient } from '../props/gradient-model.js';
 import { stripImageMemoForCapture } from '../image-memo.js';
 import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★svg 의 CSS transform 을 감싸는 쪽으로 — h2c 는 svg 쪽을 안 그린다 */
+import { REDACT_HOST_SEL } from '../effects/image-redact.js';   /* ★이미지 블러(Redact) 호스트 명부 한 자리(1012t1 C1) */
 
 const REDACT_OPAQUE_FILL = '#4a4a4a';
 
@@ -27,6 +28,29 @@ export function neutralizeRedactForH2C(root) {
     el.style.webkitBackdropFilter = 'none';
     el.style.background = REDACT_OPAQUE_FILL;
     el.style.backgroundColor = REDACT_OPAQUE_FILL;
+  }
+  /* ★이미지 블러(Redact, 1012t1 C1) — 그림 상자의 ::after backdrop-filter 도 html2canvas 가 못 그린다
+     (plan-C1 §3 M4 실측: 원본 그대로 찍힘). ⇒ 같은 원칙으로 «그림 자체를 걷고» 불투명 회색으로 채운다.
+     src 까지 지우는 까닭: 단독 HTML 내보내기는 클론 HTML 을 그대로 뱉는다 — 숨기기만 하면 원본 주소가 파일에 남는다.
+     canvas 포함: 색보정 굽기가 img 를 canvas 로 갈아 끼운 뒤일 수 있다.
+     호스트 자신(D4 컴패리전 셀처럼 배경그림 div)이면 box = 호스트. */
+  const hosts = [
+    ...(root.matches?.(REDACT_HOST_SEL) ? [root] : []),
+    ...root.querySelectorAll(REDACT_HOST_SEL),
+  ];
+  for (const host of hosts) {
+    const box = host.querySelector(':scope > .asset-img-clip') || host;
+    box.querySelectorAll('img, video, canvas').forEach(m => {
+      m.style.visibility = 'hidden';
+      m.removeAttribute('src');
+      m.removeAttribute('srcset');
+      m.removeAttribute('poster');
+    });
+    box.style.backgroundImage = 'none';
+    box.style.background = REDACT_OPAQUE_FILL;
+    box.style.backgroundColor = REDACT_OPAQUE_FILL;
+    delete host.dataset.imgSrc;
+    delete host.dataset.gifSrc;
   }
 }
 

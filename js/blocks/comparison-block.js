@@ -2,6 +2,10 @@
 // 한 칼럼(featured)이 더 크게 떠보임(그림자·overlap·스케일↑). 칼럼은 cols 배열로 관리.
 import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
+import { _cvbBackgroundSize } from './canvas-block.js';   // ★D3 — 이미지 확대 식 한 벌(카드와 같은 필드 imgScale/imgFit)
+import { normalizeRedact, applyRedact } from '../effects/image-redact.js';   // ★D4 — 셀 이미지 블러(Redact) 공용 모듈(C1 · 에셋과 한 벌)
+import { lnHasLines, lnLinesHtml, lnValidateLines, lnPlainText, lnRemark } from './line-host.js';   // ★D2 — 칸 안 «줄»(버블·챗과 같은 주인 계약 · 사본 금지)
+import { GRID_ROLES } from './grid-block.js';   // ★D2 — 문서에 안 붙은 블럭의 줄 높이 근사(역할 크기 × 줄높이)
 
 // ── cmp 셀 placeholder(기본문구) 식별 ───────────────────────────────────────
 // comparison 셀은 일반 텍스트블럭과 달리 cols 모델에 텍스트가 들어있어 data-isPlaceholder
@@ -28,6 +32,82 @@ export const CMP_PLACEHOLDERS = [
      (normalizeRow 가 읽을 때 객체로 바꿔 주지만 dataset 에는 문자열로 남았다). */
 export const cmpEmptyRow  = () => ({ type: 'text', text: '' });
 export const cmpEmptyRows = (n) => Array.from({ length: Math.max(0, n) }, cmpEmptyRow);
+/* ★D5 (현빈 2026-10-12) — 빈 칸의 «안내 힌트» 문구. 글자가 아니라 CSS ::before(css/editor-blocks.css)가 그리는 시각 전용 안내다.
+   ⛔모델(cols)·textContent·저장본에 넣지 않는다 — 10-08 「제거」(지워도 되살아남)와 다른 것이다.
+   ⛔CMP_PLACEHOLDERS 명부에 넣지 마라(그 글자를 진짜로 쓴 칸이 더블클릭=전체선택이 된다).
+   CSS content 와 두 벌 — 검사(cmp-placeholder-hint P1)가 런타임 ::before content == 이 값을 단언해 묶는다. */
+export const CMP_ROW_HINT = '내용을 입력하세요.';
+export const CMP_HD_HINT  = '제목을 입력하세요';
+/* ★보존 필드 명부 (1012t1D1 · 2026-10-12) — MCP/AI 문 `updateComparisonBlock` 이 칼럼·행을 «다시 지을» 때
+   기본 필드({title,bg,text,rows} · {type,text,imgSrc,imgFit}) «밖»에서 실어 보낼 확장 필드의 ★정본 한 자리.
+   ★까닭(실측 plan-D §0 C.fieldSurvival): cols 전체교체가 칼럼을 {title,bg,text,rows} 로 새로 지어
+     렌더는 읽는데 패널/문은 모르는 필드(titleBg 등)를 «조용히» 버렸다 — getComparisonCols(...c) 왕복은 살리는데 문만 떨궜다.
+   꼴: { 키: 검증함수 } — 검증함수(v) → 저장할 값 · '' = 지우기(키 없음) · null = 무효(INVALID).
+   ⇒ 새 칼럼/행 필드를 들이는 항목(D2·D3·D4 …)은 ★여기에 한 줄 더한다. ⛔문 안에 필드를 따로 적지 마라
+     (cols 교체 · columnPatch · _sanitizeRow 세 자리가 모두 이 명부를 돈다). */
+const _cmpStrMax = max => v => { const s = String(v); return s.length > max ? null : s; };
+export const CMP_COL_KEEP = {
+  titleBg:    _cmpStrMax(1024),   // 헤더 배경(헤더 모드 = 밴드 · 캡션 모드 = 알약) — 칼럼 bg 와 같은 상한
+  titleColor: _cmpStrMax(64),     // 헤더 글자색 — 칼럼 text 와 같은 상한
+};
+/* 숫자 칸 — 범위로 «클램프»(⛔거절 아님: 카드 imgX/imgScale 과 같은 관용). 수가 아니면 무효. '' = 지우기. */
+const _cmpNumIn = (lo, hi) => v => {
+  if (v === '') return '';
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : null;
+};
+/* 색보정 7키(image-color-adjust.js ADJ_KEYS 와 같은 이름 · 슬라이더 -100..100 ÷ 100 = -1..1). 모르는 키는 버린다. */
+export const CMP_ADJ_KEYS = ['exposure', 'contrast', 'saturation', 'temperature', 'tint', 'highlights', 'shadows'];
+function _cmpAdj(v) {
+  if (v === '') return '';
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const out = {};
+  let any = false;
+  for (const k of CMP_ADJ_KEYS) {
+    const n = Number(v[k]);
+    out[k] = Number.isFinite(n) ? Math.min(1, Math.max(-1, n)) : 0;
+    if (Math.abs(out[k]) > 0.001) any = true;
+  }
+  return any ? out : '';
+}
+export const CMP_ROW_KEEP = {
+  /* ★1012t1D3 — 이미지 칸 위치/확대 (카드블럭 card.imgX/imgY/imgScale 과 ★이름·범위 그대로).
+     없으면 키 없음 = 현행 렌더(가운데 · cover|contain) 바이트 그대로. */
+  imgX:     _cmpNumIn(0, 100),     // background-position x (%) · 기본 50
+  imgY:     _cmpNumIn(0, 100),     // background-position y (%) · 기본 50
+  imgScale: _cmpNumIn(100, 400),   // 확대(%) · 기본 100 (= imgFit 그대로)
+  /* ★1012t1D4 — 셀 이미지 블러(Redact) 강도 0..100 정수(C1 공용 normalizeRedact 그대로 · 0 = 끔 = 키 없음). */
+  redact:   v => { const n = normalizeRedact(v); return n > 0 ? n : ''; },
+  /* ★1012t1D4 — 셀 이미지 색보정(카드 card.adj 와 ★이름·꼴 그대로 · 7키 -1..1 클램프). 객체가 아니면 무효 · 전부 0 = 키 없음. */
+  adj:      _cmpAdj,
+  /* ★1012t1D2 — 칸 안 «줄»(그리드 줄 데이터 · line-host LN_KINDS = 글자 역할 + 여백 · ⛔그림 줄 없음). 빈 배열 = 키 없음(= 글자 하나 칸).
+     잣대는 lnValidateLines 한 벌(버블·챗과 같다). 이미지 칸에 남은 줄은 «보존»만 한다(imgSrc 가 글자 칸에 남는 것과 같은 관용 · 렌더는 안 읽는다). */
+  lines:    v => {
+    if (!Array.isArray(v)) return null;
+    if (!v.length) return '';
+    if (lnValidateLines(v)) return null;
+    try { return JSON.parse(JSON.stringify(v)); } catch (_) { return null; }
+  },
+};
+/* ★1012t1D2 — 칸(행 객체)에 줄을 싣는 «한 벌»: 줄이 있으면 lines + text 거울(챗 D3 — Figma JSON·AI 읽기가 text 를 읽는다) ·
+   없으면 lines 를 걷고 text 를 비운다(= 줄을 다 지운 칸은 빈 글자 칸 — D5 안내가 다시 뜬다). line-host 주인(write)·문(rowLines)이 같이 쓴다. */
+export function cmpRowSetLines(row, lines) {
+  if (!row || typeof row !== 'object') return row;
+  if (lnHasLines(lines)) { row.lines = lines; row.text = lnPlainText(lines); }
+  else { delete row.lines; row.text = ''; }
+  return row;
+}
+/* 명부를 한 객체(src)에서 읽어 dst 에 싣는다. 반환: null = 통과 · 문자열 = 무효 키 이름.
+   '' = dst 에서 키를 지운다(columnPatch = 지우기 · cols 교체는 dst 가 새 객체라 «안 싣기»와 같다). */
+function _cmpKeep(roster, src, dst) {
+  for (const [k, check] of Object.entries(roster)) {
+    if (src[k] === undefined || src[k] === null) continue;
+    const v = check(src[k]);
+    if (v === null) return k;
+    if (v === '') delete dst[k]; else dst[k] = v;
+  }
+  return null;
+}
 // 셀 텍스트가 기본문구와 동일하거나 비어있으면 placeholder로 간주.
 export function isCmpPlaceholderText(t) {
   const s = (t == null ? '' : String(t)).trim();
@@ -57,9 +137,16 @@ function normalizeRow(r) {
     const type = r.type === 'image' ? 'image' : 'text';
     // ...r 보존: memo(이미지 발주채널) 등 확장 필드가 편집 blur 재직렬화에서 소실되지 않게
     if (type === 'image') {
-      return { ...r, type: 'image', text: r.text != null ? String(r.text) : '',
+      const out = { ...r, type: 'image', text: r.text != null ? String(r.text) : '',
                imgSrc: r.imgSrc != null ? String(r.imgSrc) : '',
                imgFit: r.imgFit === 'contain' ? 'contain' : 'cover' };
+      // ★D3 위치/확대 — 있으면 명부(CMP_ROW_KEEP)의 범위로 클램프, 수가 아니면 키를 걷는다(없으면 키 없음 그대로).
+      for (const k of ['imgX', 'imgY', 'imgScale', 'redact', 'adj']) {   // ★D4 redact/adj 도 같은 명부로(0·기본값 = 키 없음)
+        if (out[k] === undefined) continue;
+        const v = (out[k] === null || out[k] === '') ? null : CMP_ROW_KEEP[k](out[k]);
+        if (v === null || v === '') delete out[k]; else out[k] = v;
+      }
+      return out;
     }
     return { ...r, type: 'text', text: r.text != null ? String(r.text) : '' };
   }
@@ -100,7 +187,81 @@ function getComparisonFeaturedIdx(d, n) {
 }
 function setComparisonCols(block, cols) { block.dataset.cols = JSON.stringify(cols); }
 
-function renderComparison(block) {
+/* ══ ★1012t1D3 — 이미지 칸 «편집» (현빈 「셀 이미지 넣은 뒤 편집이 안 된다」) ══════════════════════
+ * 몸짓 = 그리드(2번째 클릭 = 칸 선택 + 패널 「Image」 절 · 더블클릭 = 편집기 · 우클릭 「이미지 교체」),
+ * 편집기 = 카드블럭(드래그 = imgX/imgY · 휠 = imgScale) — js/blocks/comparison-img-edit.js.
+ * ★상태의 정본은 모델(행 필드)이다 — renderComparison 이 .cmp-inner 를 통째로 다시 그리므로 DOM 에 둔 값은 사라진다. */
+export function cmpImgBgSize(row) { return _cvbBackgroundSize(row || {}); }
+export function cmpImgBgPos(row) {
+  if (!row || (row.imgX == null && row.imgY == null)) return 'center';   // ⛔옛 행 바이트 불변(E7)
+  return `${row.imgX ?? 50}% ${row.imgY ?? 50}%`;
+}
+/* 활성 칸 — 블럭 «속성»(직렬화 안 됨 · undo 로 DOM 이 갈리면 저절로 사라짐). 주소 꼴 = {colIdx,rowIdx}(우클릭 판정과 같은 꼴).
+   표시 클래스 `cmp-cell-selected` 는 `-cell-selected` 로 끝나 저장 때 section-serialize RUNTIME_MARKER_RE 가 벗긴다. */
+export function cmpGetActiveCell(block) { return (block && block._cmpActiveCell) || null; }
+function _cmpPaintActiveMark(block) {
+  block.querySelectorAll('.cmp-cell-selected').forEach(el => el.classList.remove('cmp-cell-selected'));
+  const a = block._cmpActiveCell;
+  if (!a) return;
+  block.querySelector(`.cmp-row[data-col-idx="${a.colIdx}"][data-row-idx="${a.rowIdx}"]`)?.classList.add('cmp-cell-selected');
+}
+export function cmpSetActiveCell(block, addr) {
+  if (!block) return;
+  block._cmpActiveCell = (addr && Number.isInteger(addr.colIdx) && Number.isInteger(addr.rowIdx))
+    ? { colIdx: addr.colIdx, rowIdx: addr.rowIdx } : null;
+  _cmpPaintActiveMark(block);
+}
+/* editor.js clearSelectionMarks 가 부른다(그리드 grdClearAllActiveLines 와 같은 자리) — 표시 + 모델 둘 다. */
+export function cmpClearAllActiveCells(root) {
+  (root || document).querySelectorAll('.comparison-block').forEach(b => { b._cmpActiveCell = null; });
+  (root || document).querySelectorAll('.cmp-cell-selected').forEach(el => el.classList.remove('cmp-cell-selected'));
+}
+/* 비교 블록 (x,y) → 「어느 ★행 칸인가」 {colIdx,rowIdx} · 헤더·카드 여백·캡션이면 null.
+   ★block-factory.js 우클릭(_cmpCellAddrAt)에서 «올려» 왔다 — 클릭·더블클릭·우클릭 세 길이 이 한 벌을 쓴다(사본 금지).
+   ⑴ elementsFromPoint(★복수) 먼저 — 선택된 블럭 위 오버레이가 «단수»를 가로채는 병(그리드 2026-09-20).
+   ⑵ ⛔DOM 순서 역산 금지 — 렌더러가 심은 data-col-idx / data-row-idx 가 정본.
+   (기하 폴백 없음 · 헤더 제외의 까닭은 block-factory.js 그 자리 머리말 그대로) */
+export function cmpCellAddrAt(e, block) {
+  if (!block || !block.classList.contains('comparison-block')) return null;
+  let node = null;
+  if (typeof document.elementsFromPoint === 'function') {
+    const stack = document.elementsFromPoint(e.clientX, e.clientY) || [];
+    for (const el of stack) { if (block.contains(el)) { node = el; break; } }
+  }
+  if (!node) {
+    const atPoint = document.elementFromPoint(e.clientX, e.clientY);
+    node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
+  }
+  const rowEl = node && node.closest ? node.closest('.cmp-row[data-row-idx]') : null;
+  if (!rowEl || !block.contains(rowEl)) return null;
+  const colIdx = Number(rowEl.dataset.colIdx), rowIdx = Number(rowEl.dataset.rowIdx);
+  if (!Number.isInteger(colIdx) || !Number.isInteger(rowIdx)) return null;
+  return { colIdx, rowIdx };
+}
+/* 칸에 그림 고르기(파일창) — ★입구 넷(패널 「+ 이미지/교체」·Image 절 「이미지 교체…」·우클릭 「이미지 교체」·빈 칸 더블클릭)이
+   이 한 벌을 부른다(block-factory.js bcm-cmp-img 머리말이 요구한 꼴 · 사본 금지). push-after(패널 commit 과 같은 규약).
+   반환 = 만든 input(검사가 prototype.click 가로채기로 «배선만» 잰다 — 파일창은 안 연다). */
+export function cmpPickRowImage(block, colIdx, rowIdx) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = () => {
+    const f = inp.files?.[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      const cols = getComparisonCols(block.dataset); const row = cols[colIdx]?.rows?.[rowIdx]; if (!row) return;
+      row.type = 'image'; row.imgSrc = r.result; row.imgFit = row.imgFit || 'cover';
+      setComparisonCols(block, cols); renderComparison(block);
+      window.pushHistory?.(); window.scheduleAutoSave?.();
+      if (block.classList.contains('selected')) window.showComparisonProperties?.(block);
+    };
+    r.readAsDataURL(f);
+  };
+  inp.click();
+  return inp;
+}
+
+/* ★1012t1D2 — _lnNeed = 「줄 칸 때문에 늘어야 할 행 높이」(행 인덱스 → 기본 높이 px · featScale 적용 전). 내부 2단계용 —
+   바깥에서 부를 때는 안 준다. 줄 칸이 없는 블럭은 2단계를 «안 탄다»(옛 저장본 산출 바이트 그대로). */
+function renderComparison(block, _lnNeed = null) {
   const d = block.dataset;
   const overlap   = parseInt(d.overlap) || 32;
   const radius    = parseInt(d.radius) || 20;
@@ -142,12 +303,18 @@ function renderComparison(block) {
   // (구버전은 텍스트행 rowH=64로 폴백 → 이미지 슬롯이 얇은 띠로 수축하는 렌더 붕괴)
   const imgRowDefault = () => Math.round(Math.max(120, baseW * 0.9));
   // 행 인덱스 ri의 기본 높이(featScale 적용 전): rowHeights 오버라이드 > 이미지행 기본 > rowH.
-  const baseRowH = (ri, row) => {
+  const _baseRowH0 = (ri, row) => {
     const o = rowHeights[ri];
     const n = (o == null) ? 0 : Number(o);
     if (Number.isFinite(n) && n > 0) return n;
     if (row && row.type === 'image') return imgRowDefault();
     return rowH;
+  };
+  // ★D2 행 높이 자동 확장(결정 ⑩) — 그 행 인덱스의 높이 = max(설정 높이, 전 칼럼 중 그 행 줄 내용 높이). _lnNeed 없으면 위 그대로.
+  const baseRowH = (ri, row) => {
+    const h = _baseRowH0(ri, row);
+    const n = _lnNeed ? _lnNeed[ri] : 0;
+    return n > h ? n : h;
   };
   // 각 칼럼 높이 (featured만 header/row/gap 확대). 각 카드 상하 padY 포함. 행별 높이 누적.
   // captionPos:'top'이면 헤더가 카드 밖으로 나가므로 카드 높이에서 제외.
@@ -248,12 +415,29 @@ function renderComparison(block) {
         // 순수 이미지 행: backgroundImage div. 빈 imgSrc면 placeholder(체커보드) — dataset 직접 채우지 않음.
         r.classList.add('cmp-img');
         const src = row.imgSrc || '';
-        const fit = row.imgFit === 'contain' ? 'contain' : 'cover';
+        /* ★D3 위치/확대 — 식은 카드블럭 «한 벌»(_cvbBackgroundSize · 사본 금지). 키가 없으면 현행 바이트 그대로
+           (size = fit · position = center) ⇒ 옛 저장본 픽셀 불변(검사 cmp-img-edit E7). */
         r.style.cssText = `height:${effRowH}px;margin-top:${gap}px;box-sizing:border-box;overflow:hidden;` +
           (src
-            ? `background-image:url("${src}");background-size:${fit};background-position:center;background-repeat:no-repeat;`
+            ? `background-image:url("${src}");background-size:${cmpImgBgSize(row)};background-position:${cmpImgBgPos(row)};background-repeat:no-repeat;`
             : '');
         if (!src) r.classList.add('cmp-img-empty');
+        /* ★1012t1D4 — 블러·색보정. ★정본은 모델(row.redact · row.adj) — div 는 매 렌더 새로 생기므로 «매번» 칠한다.
+           블러 = 이 div 의 ::after backdrop(css/editor-layout.css · data-redact + --redact-blur) · 색보정 = 이 div 의 filter:url(#…)
+           ⇒ 다른 요소·다른 속성이라 서로 안 덮는다. 0/기본값이면 흔적 0(옛 저장본 바이트 그대로). 빈 슬롯엔 안 건다. */
+        applyRedact(r, src ? row.redact : 0);
+        const _adj = src ? _cmpAdj(row.adj) : '';   // 7키 다 채운 꼴로(applyImgColorAdjust 는 키가 빠지면 toFixed 에서 죽는다)
+        if (_adj) window.applyImgColorAdjust?.(r, _adj);
+      } else if (row && lnHasLines(row.lines)) {
+        /* ★1012t1D2 — 줄 칸: text 대신 줄만 그린다(버블 D1 「갈음」). 줄 = 그리드 줄 HTML(line-host lnLinesHtml · 칸 기본 정렬 = 가운데).
+           줄 글자 편집 = 줄 더블클릭(lnBindLineEdit · block-drag.js 가 블럭에 건다) — ⛔_editableRow(칸 통째 편집)를 안 건다(줄 경계가 깨진다).
+           줄 역할 크기는 절대값(결정 ⑪ — 강조 배율 안 곱함). 칼럼 글자색은 상속(색 미지정 줄). */
+        r.classList.add('cmp-lines');
+        r.style.cssText = `height:${effRowH}px;margin-top:${gap}px;display:flex;flex-direction:column;justify-content:center;text-align:center;` +
+          `font-size:${rFont}px;font-weight:${isFeat ? 600 : 400};color:${textColor};` +
+          `padding:0 ${12 + insetR}px 0 ${12 + insetL}px;box-sizing:border-box;`;
+        r.setAttribute('contenteditable', 'false');
+        r.innerHTML = lnLinesHtml(row.lines, ri, idx, 'center');
       } else {
         r.textContent = (row && row.text != null) ? row.text : '';
         r.style.cssText = `height:${effRowH}px;margin-top:${gap}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
@@ -273,6 +457,13 @@ function renderComparison(block) {
     inner.appendChild(buildCol(i, c, isFeat, x, w));
     x += w - overlap;
   });
+  /* ★D2 2단계 — 줄 칸의 자연 높이를 재서(offset* 는 transform 영향 없음) 모자라면 그 행 인덱스를 늘려 «한 번» 다시 그린다. */
+  if (!_lnNeed) {
+    const need = _cmpLinesNeed(inner, featuredIdx, featScale, cols);
+    if (need) { renderComparison(block, need); return; }
+  }
+  _cmpPaintActiveMark(block);   // ★D3 — 통째 재렌더가 지운 «칸 선택» 표시를 모델(block._cmpActiveCell)에서 다시 칠한다
+  lnRemark(block);              // ★D2 — 통째 재렌더가 지운 «줄 선택» 표시를 되붙인다(선택된 블럭의 활성 줄만 · 줄 없으면 DOM 무변)
 
   const applyScale = () => {
     const aw = block.offsetWidth; if (aw <= 0) return;
@@ -287,6 +478,43 @@ function renderComparison(block) {
   block._cmpRO.observe(block);
 }
 
+/* ★D2 — 줄 칸이 «늘어야 할» 행 높이. 없으면 null(= 2단계 안 탐). 문서에 안 붙은 칸(offsetHeight 0)은 역할 크기 × 줄높이로 근사. */
+function _cmpLinesApproxH(lines) {
+  let h = 0;
+  for (const l of (Array.isArray(lines) ? lines : [])) {
+    if (!l || typeof l !== 'object') continue;
+    if (l.type === 'gap') { h += Number(l.height) || 16; continue; }
+    const role = GRID_ROLES[l.type] || GRID_ROLES.body;
+    const fs = Number(l.fontSize) || role.size;
+    const lh = Number(l.lineHeight) || Number(role.lh) || 1.4;
+    h += fs * lh * String(l.text ?? '').split('\n').length;
+  }
+  return Math.ceil(h);
+}
+function _cmpLinesNeed(inner, featuredIdx, featScale, cols) {
+  const cells = inner.querySelectorAll('.cmp-row.cmp-lines');
+  if (!cells.length) return null;
+  const need = {};
+  let grow = false;
+  cells.forEach(cell => {
+    const ci = Number(cell.dataset.colIdx), ri = Number(cell.dataset.rowIdx);
+    const k = ci === featuredIdx ? featScale : 1;
+    const kids = cell.children;
+    let span;
+    if (cell.isConnected && cell.offsetHeight > 0 && kids.length) {
+      const first = kids[0], last = kids[kids.length - 1];
+      span = (last.offsetTop + last.offsetHeight) - first.offsetTop;
+    } else span = _cmpLinesApproxH(cols[ci]?.rows?.[ri]?.lines);
+    const cur = parseFloat(cell.style.height) || 0;
+    if (span > cur) {
+      const b = Math.ceil(span / k) + 1;   // +1 = 강조 칼럼 반올림(Math.round(b × featScale)) 여유
+      if (!(need[ri] >= b)) need[ri] = b;
+      grow = true;
+    }
+  });
+  return grow ? need : null;
+}
+
 function _editableTitle(el, block, colIdx) {
   el.setAttribute('contenteditable', 'false');
   el.addEventListener('dblclick', e => {
@@ -298,6 +526,8 @@ function _editableTitle(el, block, colIdx) {
   });
   el.addEventListener('blur', () => {
     el.setAttribute('contenteditable', 'false');
+    /* ★D5 — 다 지우고 나가면 contenteditable 이 <br> 을 남겨 :empty 가 깨진다(실측) → 안내 ::before 가 안 돌아온다. 진짜로 비운다. */
+    if (el.textContent === '' && el.firstChild) el.textContent = '';
     const cols = getComparisonCols(block.dataset);
     if (cols[colIdx]) {
       /* ★⒝ 빈 칸을 기본문구로 ★«되돌리지 않는다» (현빈 2026-10-08).
@@ -331,6 +561,8 @@ function _editableRow(el, block, colIdx, rowIdx) {
   });
   el.addEventListener('blur', () => {
     el.setAttribute('contenteditable', 'false');
+    /* ★D5 — 다 지우고 나가면 contenteditable 이 <br> 을 남겨 :empty 가 깨진다(실측) → 안내 ::before 가 안 돌아온다. 진짜로 비운다. */
+    if (el.textContent === '' && el.firstChild) el.textContent = '';
     const cols = getComparisonCols(block.dataset);
     const row = cols[colIdx]?.rows?.[rowIdx];
     // 객체행이면 .text만 갱신(이미지행 imgSrc 유실 방지). getComparisonCols가 항상 객체로 정규화하므로 항상 객체.
@@ -395,6 +627,7 @@ function addComparisonBlock(opts = {}) {
   const { row, block } = makeComparisonBlock(opts);
   insertAfterSelected(sec, row);
   bindBlock(block);
+  if (block.querySelector('.cmp-lines')) renderComparison(block);   // ★D2 — 문서에 붙은 뒤 줄 칸 높이를 «재서» 다시(붙기 전엔 근사)
   window.buildLayerPanel();
   // 방금 추가한 블록 자동 선택 + 화면 안으로 스크롤 (C9)
   try { window.selectBlock?.(block.id); } catch (_) {}
@@ -412,10 +645,14 @@ function addComparisonBlock(opts = {}) {
 //   - 강조: featured (int index)
 //   - 칼럼 전체: cols (배열 전체 교체, 길이 2~8, rows ≤ 20)
 //       rows 항목: 문자열(=text행) 또는 {type:'text'|'image', text?, imgSrc?, imgFit?'cover'|'contain'}
-//   - 칼럼 단위 patch: columnPatch [{index, title?, bg?, text?, rows?}, ...] (rows 항목 동일 규칙)
+//       칼럼·행의 확장 필드(titleBg/titleColor · 행 imgX/imgY/imgScale …)는 보존 명부 CMP_COL_KEEP/CMP_ROW_KEEP 대로 실린다(파일 머리).
+//   - 칼럼 단위 patch: columnPatch [{index, title?, bg?, text?, titleBg?, titleColor?, rows?}, ...] (rows 항목 동일 규칙 · titleBg/titleColor '' = 지우기)
 //   - 행 높이: rowHeights (행 인덱스→px 배열, null/0이면 기본 rowH, 16~400, ≤ 20개)
+//   - 칸 하나의 줄: rowLines {col, row, lines|null} (★1012t1D2 — 그 칸만 바꾼다 · 다른 행·필드 무접촉 · null/[] = 줄 걷기 · 이미지 칸 거절)
+//       rows 항목의 lines 도 받는다(보존 명부 CMP_ROW_KEEP.lines — 잣대 lnValidateLines). 줄이 있으면 text 는 줄 글자 거울.
 //   - 메타: layerName
-function updateComparisonBlock(blockId, partial = {}) {
+// opts.noHistory — push-before 를 안 찍는다(line-host 주인 계약 · 버블/챗 문과 같은 칸).
+function updateComparisonBlock(blockId, partial = {}, opts = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
   const block = document.getElementById(String(blockId));
   if (!block || !block.classList.contains('comparison-block')) {
@@ -452,15 +689,27 @@ function updateComparisonBlock(blockId, partial = {}) {
     if (typeof raw !== 'object') return { ok: false, msg: 'must be string or object' };
     const type = raw.type === 'image' ? 'image' : (raw.type == null || raw.type === 'text' ? 'text' : null);
     if (type === null) return { ok: false, msg: `invalid type: ${raw.type}` };
+    /* ★D2 — 줄은 먼저 잰다(잣대의 말을 그대로 돌려준다). 줄이 있는 글자 칸의 text 는 거울이라 500자 상한을 안 본다(줄마다 상한이 있다). */
+    const hasLines = raw.lines != null && !(Array.isArray(raw.lines) && !raw.lines.length);
+    if (hasLines) {
+      const e = Array.isArray(raw.lines) ? lnValidateLines(raw.lines, 'lines') : { message: 'lines must be array' };
+      if (e) return { ok: false, msg: e.message };
+    }
     const text = raw.text == null ? '' : String(raw.text);
-    if ([...text].length > 500) return { ok: false, msg: 'text too long' };
-    if (type === 'text') return { ok: true, row: { type: 'text', text } };
-    // image
-    const imgSrc = raw.imgSrc == null ? '' : String(raw.imgSrc);
-    if (imgSrc.length > 200000) return { ok: false, msg: 'imgSrc too long (>200000)' };
-    if (/["\r\n]/.test(imgSrc)) return { ok: false, msg: 'imgSrc contains quote/newline (escape unsafe)' };
-    const imgFit = raw.imgFit === 'contain' ? 'contain' : 'cover';
-    return { ok: true, row: { type: 'image', text, imgSrc, imgFit } };
+    if (!(hasLines && type === 'text') && [...text].length > 500) return { ok: false, msg: 'text too long' };
+    let row;
+    if (type === 'text') row = { type: 'text', text };
+    else {
+      const imgSrc = raw.imgSrc == null ? '' : String(raw.imgSrc);
+      if (imgSrc.length > 200000) return { ok: false, msg: 'imgSrc too long (>200000)' };
+      if (/["\r\n]/.test(imgSrc)) return { ok: false, msg: 'imgSrc contains quote/newline (escape unsafe)' };
+      const imgFit = raw.imgFit === 'contain' ? 'contain' : 'cover';
+      row = { type: 'image', text, imgSrc, imgFit };
+    }
+    const bad = _cmpKeep(CMP_ROW_KEEP, raw, row);   // 보존 명부(행) — D3: imgX/imgY/imgScale. D2·D4 가 더한다.
+    if (bad) return { ok: false, msg: `${bad} invalid` };
+    if (type === 'text' && row.lines) cmpRowSetLines(row, row.lines);   // ★D2 — text = 줄 글자 거울
+    return { ok: true, row };
   };
 
   if (partial.layerName !== undefined && partial.layerName !== null) {
@@ -542,7 +791,10 @@ function updateComparisonBlock(blockId, partial = {}) {
         if (!sr.ok) return { ok: false, code: 'INVALID', message: `cols[${i}].rows[${ri}] ${sr.msg}` };
         safeRows.push(sr.row);
       }
-      safeCols.push({ title, bg, text, rows: safeRows });
+      const safeCol = { title, bg, text, rows: safeRows };
+      const badK = _cmpKeep(CMP_COL_KEEP, c, safeCol);   // ★보존 명부 — 예전엔 여기서 titleBg 등을 버렸다
+      if (badK) return { ok: false, code: 'INVALID', message: `cols[${i}].${badK} invalid (too long)` };
+      safeCols.push(safeCol);
     }
     draftCols = safeCols;
     applied.cols = safeCols;
@@ -584,6 +836,10 @@ function updateComparisonBlock(blockId, partial = {}) {
         if (v.length > 64) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].text too long` };
         col.text = v;
       }
+      { // 보존 명부(칼럼) — titleBg/titleColor 등. '' = 지우기(칼럼 색을 따름).
+        const badK = _cmpKeep(CMP_COL_KEEP, p, col);
+        if (badK) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].${badK} invalid (too long)` };
+      }
       if (p.rows !== undefined && p.rows !== null) {
         if (!Array.isArray(p.rows)) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].rows must be array` };
         if (p.rows.length > 20) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].rows length > 20` };
@@ -599,6 +855,32 @@ function updateComparisonBlock(blockId, partial = {}) {
     }
     draftCols = base;
     applied.columnPatch = appliedPatches;
+  }
+
+  /* ★1012t1D2 rowLines — 칸 «하나»의 줄만 바꾼다(line-host 비교 주인의 쓰는 문 · MCP 도 같은 길).
+     ⛔columnPatch{rows} 로 보내지 않는 까닭: 그 길은 칼럼의 행을 _sanitizeRow 로 «다시 지어» 명부 밖 필드(memo 등)를 버린다. */
+  if (partial.rowLines !== undefined && partial.rowLines !== null) {
+    const p = partial.rowLines;
+    if (typeof p !== 'object') return { ok: false, code: 'INVALID', message: 'rowLines must be object' };
+    const base = draftCols || getComparisonCols(block.dataset);
+    const ci = Number(p.col), ri = Number(p.row);
+    if (!Number.isInteger(ci) || ci < 0 || ci >= base.length) return { ok: false, code: 'INVALID', message: `rowLines.col ${p.col} out of range (0~${base.length - 1})` };
+    const row = base[ci].rows?.[ri];
+    if (!Number.isInteger(ri) || !row) return { ok: false, code: 'INVALID', message: `rowLines.row ${p.row} out of range` };
+    if (row.type === 'image') return { ok: false, code: 'INVALID', message: 'rowLines: image cell has no lines (lines are for text cells)' };
+    const lines = p.lines == null ? null : p.lines;
+    if (lines !== null) {
+      if (!Array.isArray(lines)) return { ok: false, code: 'INVALID', message: 'rowLines.lines must be array or null' };
+      if (lines.length) {
+        const e = lnValidateLines(lines, 'rowLines.lines');
+        if (e) return { ok: false, code: e.code || 'INVALID', message: e.message };
+      }
+    }
+    let copy = null;
+    try { copy = lines && lines.length ? JSON.parse(JSON.stringify(lines)) : null; } catch (_) { return { ok: false, code: 'INVALID', message: 'rowLines.lines not serializable' }; }
+    cmpRowSetLines(row, copy);
+    draftCols = base;
+    applied.rowLines = { col: ci, row: ri, lines: copy ? copy.length : 0 };
   }
 
   // featured (int index) — cols 변경분과의 정합성 검사
@@ -644,7 +926,7 @@ function updateComparisonBlock(blockId, partial = {}) {
   };
 
   // ── 모든 검증 통과 — 여기서부터 mutate ──
-  window.pushHistory?.();
+  if ((opts || {}).noHistory !== true) window.pushHistory?.();
 
   // 단순 필드 (key=value)
   for (const [k, v] of Object.entries(draft)) {
@@ -685,6 +967,19 @@ window.normalizeComparisonRow = normalizeRow;
 /* ★식별 명부의 ★정본 한 자리를 검사가 «런타임»으로 읽게 둔다 (선례: window.GRID_CELL_DEFAULT_TEXT).
    ⛔검사가 이 파일을 ★소스 파싱해 리터럴을 뽑던 것을 걷었다 — 주석·상수 참조로 적는 순간 그 자가 조용히 줄어든다. */
 window.CMP_PLACEHOLDERS    = CMP_PLACEHOLDERS;
+window.CMP_ROW_HINT        = CMP_ROW_HINT;   // D5 — 빈 칸 안내문(시각 전용). 검사·패널이 읽는다.
+window.CMP_HD_HINT         = CMP_HD_HINT;
+window.CMP_COL_KEEP        = CMP_COL_KEEP;  // D1 — 보존 명부(검사가 런타임으로 읽는다)
+window.CMP_ROW_KEEP        = CMP_ROW_KEEP;
+// ★D3 — 이미지 칸 편집 (block-drag.js · block-factory.js · editor.js 는 import 대신 window 로 부른다 — 순환 회피 관례)
+window.cmpCellAddrAt          = cmpCellAddrAt;
+window.cmpGetActiveCell       = cmpGetActiveCell;
+window.cmpSetActiveCell       = cmpSetActiveCell;
+window.cmpClearAllActiveCells = cmpClearAllActiveCells;
+window.cmpPickRowImage        = cmpPickRowImage;
+window.cmpImgBgSize           = cmpImgBgSize;
+window.cmpImgBgPos            = cmpImgBgPos;
+window.cmpRowSetLines         = cmpRowSetLines;   // ★D2 — line-host 비교 주인(write)이 부른다(순환 import 회피 관례)
 
 /* ⛔isCmpPlaceholderText 를 여기 더하지 마라 — 위에서 이미 `export function` 이다(중복 export = 문법 오류).
    2026-10-08 에 내가 실제로 이 줄로 깨뜨렸고, ★자가 그걸 ★못 잡았다. 실측(★어느 판인지 같이 적는다 —

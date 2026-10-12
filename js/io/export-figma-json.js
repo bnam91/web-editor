@@ -3,6 +3,7 @@ import { inlineGoyaAssetsInJSON, makeElectronAssetReader } from './goya-asset-in
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';
 import { getTextGradient, hasPaintingTextEffect, textShadowSource } from '../props/text-block-color.js';
 import { parseGradient } from '../props/gradient-model.js';
+import { readRedact, redactPx, normalizeRedact } from '../effects/image-redact.js';   /* ★이미지 블러(Redact, 1012t1 C1) */
 
 const CANVAS_W = 860;
 
@@ -14,6 +15,13 @@ const CANVAS_W = 860;
  *    밖인 스탑 재매핑 포함) — 렌더러가 도형 SVG 에 그대로 넣는다(캔버스와 같은 수식).
  * ⑶ 가림막: redact 표시 + 불투명 덮개 색. ⛔반투명·원본 노출 금지(프라이버시). */
 const _REDACT_COVER = '#4a4a4a';   // 모자이크 안전실패 색과 같은 회색(캔버스 폴백과 같다)
+/* ★이미지 블러(Redact, 1012t1 C1) — 블러는 Figma 로 못 옮긴다(LAYER_BLUR 로 보내면 원본이 피그마 파일에 실려 효과를 끄면 보인다).
+ *   ⇒ 도형 가림막과 같은 원칙: 원본 src 를 «싣지 않고» 불투명 덮개 색을 싣는다. 렌더러는 block.redact 갈래에서 그 색으로 칠한다.
+ *   켜져 있지 않으면 null(필드 자체를 안 붙인다 — 옛 JSON 바이트 그대로). */
+function _imageRedactField(el) {
+  const v = readRedact(el);
+  return v > 0 ? { intensity: v, blurPx: redactPx(v), cover: _REDACT_COVER } : null;
+}
 function _shapeFigmaBlock(el) {
   const live = (el.id && document.getElementById(el.id)) || el;
   const frame = live.parentElement && live.parentElement.classList?.contains('frame-block') ? live.parentElement : null;
@@ -133,6 +141,8 @@ async function exportFigmaJSON() {
         left:   parseFloat(el.style.paddingLeft)   || padX,
       };
       // col width는 parseCol에서 주입
+      const redact = _imageRedactField(el);
+      if (redact) return { type: 'asset', src: null, height: h, padding, redact };   // ★블러: 원본 src 를 싣지 않는다(1012t1 C1)
       return { type: 'asset', src, height: h, padding };
     }
 
@@ -456,6 +466,10 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         overlayText,
         overlayColor,
         overlayBg,
+        ...(() => {   // ★블러(Redact, 1012t1 C1): 원본 src 를 덮개로 바꾼다 — 원본 바이트가 앱 밖으로 안 나간다
+          const redact = _imageRedactField(el);
+          return redact ? { src: null, redact } : {};
+        })(),
       };
     }
     if (el.classList.contains('icon-circle-block')) {
@@ -772,6 +786,10 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     // comparison 행: image 행은 객체로 보존(placeholder 텍스트 노출 방지), 그 외 텍스트 (회차12 z8lg3v4 fix)
     function _cmpRow(r) {
       if (r && typeof r === 'object' && (r.type === 'image' || r.imgSrc !== undefined)) {
+        /* ★1012t1D4 셀 이미지 블러 — 에셋(_imageRedactField)과 같은 원칙: 원본 imgSrc 를 싣지 않고 덮개 색만. */
+        const rd = r.imgSrc ? normalizeRedact(r.redact) : 0;
+        if (rd > 0) return { type: 'image', imgSrc: '', imgFit: r.imgFit || 'cover', text: r.text || '',
+                             redact: { intensity: rd, blurPx: redactPx(rd), cover: _REDACT_COVER } };
         return { type: 'image', imgSrc: r.imgSrc || '', imgFit: r.imgFit || 'cover', text: r.text || '' };
       }
       return { type: 'text', text: _cmpCell(r) };
