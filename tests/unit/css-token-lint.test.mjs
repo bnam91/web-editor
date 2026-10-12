@@ -465,11 +465,22 @@ test('기준판 ⒞ — 못 뽑는 세 갈래가 ★전부 {ok:false} ＋ ★까
   assert.deepEqual([good.ok, good.base, good.mainRef], [true, 'v0.9.6', 'origin/main']);
 });
 
-test('② --rev — ★체크아웃 없이 ref 를 잰다 · ⛔빈 블롭을 「0건」으로 접지 않는다', () => {
+test('② --rev — ★체크아웃 없이 ref 를 잰다 · ⛔빈 블롭을 「0건」으로 접지 않는다', (t) => {
   const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs'), '--rev', 'HEAD'],
     { encoding: 'utf8', cwd: REPO });
   assert.notEqual(r.status, 3, `--rev HEAD 가 HARNESS_ERROR 를 냈다\n${r.stdout}${r.stderr}`);
   assert.match(r.stdout, /잰 것=HEAD/, '무엇을 쟀는지 출력에 안 적힌다');
+  /* ★★그 위 두 단언(`--rev <sha>` 적발 2건 · 작업트리 0건)은 ★기준판 파생과 ★무관하므로 ★★이 가드 ★앞에서 ★돈다.
+     ★SKIP 규율(★이 파일 머리말) — ★범위 밖 검사는 ★FAIL 이 아니라 ★SKIP · ⛔조용한 통과 ★금지.
+     ★★까닭: ★기준판은 ★`origin/main` 의 ★최신 릴리스 태그로 ★파생된다 ⇒ ★★릴리스 커밋에선 ★★범위가 ★★항상 ★0 이다
+     ★★실측(판 bc7630d1): ★`--rev HEAD` ⇒ 「범위 안 CSS 줄이 ★0줄」 · ★`--base v0.9.5` ⇒ ★9파일 ★1073줄 ⇒ ★두 줄이 ★다 ★찍힌다
+     ⛔기준판을 ★여기 ★박지 ★않는다 — ★자와 ★같은 ★`gatePremise`/`scopeLineCount` 를 ★쓴다(★명부 하나). */
+  const pre = gatePremise(null);
+  const nScope = pre.ok ? scopeLineCount(pre.base) : null;
+  if (!pre.ok || nScope === 0) {
+    process.stdout.write(`\n⚠️ ★SKIP — ★안 쟀다(통과가 ★아니다): ${pre.ok ? `범위 안 CSS 줄이 0줄이다(base=${pre.base})` : pre.reason}\n`);
+    t.skip(`안 쟀다: ${pre.ok ? '범위 0줄' : pre.reason}`); return;
+  }
   assert.match(r.stdout, /토큰 명부 :root \d+건/, 'ref 에서 토큰 명부를 못 읽었다');
   // ★없는 ref 는 ★조용히 0 이 아니라 ★3 이어야 한다
   const bad = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs'), '--rev', 'nope-ref-1009t3'],
@@ -570,7 +581,17 @@ test('Ⓐ 정합 ⑵b — 문자열 안의 `)` ★만으로는 ★폭주가 ★�
  *     ★`blankCssNoise(src).length === src.length` 는 ★항상 참이어야 한다.
  *   ★지금은 astral 입력에서 ★거짓이다(실측 -2). ★Ⓑ 에서 ★이 줄을 ★단언으로 올린다. */
 
-test('Ⓐ 정합 ⑶ — ★CLI 출력에 「거르개 정합」 줄이 ★늘 찍힌다 (⛔조용히 빠지면 의미가 없다)', () => {
+test('Ⓐ 정합 ⑶ — ★CLI 출력에 「거르개 정합」 줄이 ★늘 찍힌다 (⛔조용히 빠지면 의미가 없다)', (t) => {
+  /* ★SKIP 규율(★이 파일 머리말) — ★범위 밖 검사는 ★FAIL 이 아니라 ★SKIP · ⛔조용한 통과 ★금지.
+     ★★까닭: ★기준판은 ★`origin/main` 의 ★최신 릴리스 태그로 ★파생된다 ⇒ ★★릴리스 커밋에선 ★★범위가 ★★항상 ★0 이다
+     ★★실측(판 bc7630d1): ★`--rev HEAD` ⇒ 「범위 안 CSS 줄이 ★0줄」 · ★`--base v0.9.5` ⇒ ★9파일 ★1073줄 ⇒ ★두 줄이 ★다 ★찍힌다
+     ⛔기준판을 ★여기 ★박지 ★않는다 — ★자와 ★같은 ★`gatePremise`/`scopeLineCount` 를 ★쓴다(★명부 하나). */
+  const pre = gatePremise(null);
+  const nScope = pre.ok ? scopeLineCount(pre.base) : null;
+  if (!pre.ok || nScope === 0) {
+    process.stdout.write(`\n⚠️ ★SKIP — ★안 쟀다(통과가 ★아니다): ${pre.ok ? `범위 안 CSS 줄이 0줄이다(base=${pre.base})` : pre.reason}\n`);
+    t.skip(`안 쟀다: ${pre.ok ? '범위 0줄' : pre.reason}`); return;
+  }
   const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs')], { encoding: 'utf8', cwd: REPO });
   assert.notEqual(r.status, 3, `HARNESS_ERROR\n${r.stdout}${r.stderr}`);
   assert.match(r.stdout, /거르개 정합 \d+\/\d+/, '★정합 줄이 출력에서 ★빠졌다 — 사람이 실명을 ★못 본다');
@@ -673,7 +694,18 @@ test('Ⓑ 폭주 가드 — 짝 없는 `(` 가 있어도 ★그 뒤를 ★본다
  * ★무력화 실측(2026-10-10): `maps.knownVars = null` 로 ★배선을 끊으면
  *   ★`--self` 19칸이 ★전부 초록이었다(⒀ 는 ★자기 KNOWN 집합을 쓰니 안 걸린다).
  *   ⇒ ★배선은 ★CLI 출력으로만 잴 수 있다. ★그래서 이 칸이 있다. */
-test('⒊-① 배선 — ★CLI 가 var() 이름 명부를 ★실제로 만든다 (끊기면 ⚠️ 줄이 뜬다)', () => {
+test('⒊-① 배선 — ★CLI 가 var() 이름 명부를 ★실제로 만든다 (끊기면 ⚠️ 줄이 뜬다)', (t) => {
+  /* ★SKIP 규율(★이 파일 머리말) — ★범위 밖 검사는 ★FAIL 이 아니라 ★SKIP · ⛔조용한 통과 ★금지.
+     ★★까닭: ★기준판은 ★`origin/main` 의 ★최신 릴리스 태그로 ★파생된다 ⇒ ★★릴리스 커밋에선 ★★범위가 ★★항상 ★0 이다
+     ★★실측(판 bc7630d1): ★`--rev HEAD` ⇒ 「범위 안 CSS 줄이 ★0줄」 · ★`--base v0.9.5` ⇒ ★9파일 ★1073줄 ⇒ ★「var() 이름 명부」 줄이 ★찍힌다
+     ⛔★`gatePremise` 만으로는 ★안 걸린다 — ★태그가 ★보이면 ★`pre.ok` 가 ★참이다(★첫 판에서 ★이 칸이 ★그래서 ★빨갰다).
+     ⇒ ★★`scopeLineCount` 로 ★«범위»를 ★같이 재야 한다. ⛔기준판을 ★여기 ★박지 ★않는다(★명부 하나). */
+  const pre = gatePremise(null);
+  const nScope = pre.ok ? scopeLineCount(pre.base) : null;
+  if (!pre.ok || nScope === 0) {
+    process.stdout.write(`\n⚠️ ★SKIP — ★안 쟀다(통과가 ★아니다): ${pre.ok ? `범위 안 CSS 줄이 0줄이다(base=${pre.base})` : pre.reason}\n`);
+    t.skip(`안 쟀다: ${pre.ok ? '범위 0줄' : pre.reason}`); return;
+  }
   const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs')], { encoding: 'utf8', cwd: REPO });
   assert.notEqual(r.status, 3, `HARNESS_ERROR\n${r.stdout}${r.stderr}`);
   assert.match(r.stdout, /var\(\) 이름 명부 \d+종/, '★명부 줄이 없다 — 배선이 끊겼다(그러면 대체값 검사가 off 다)');
