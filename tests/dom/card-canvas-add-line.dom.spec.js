@@ -56,6 +56,27 @@ async function select(page, id, expectPlus) {
   await page.mouse.click(x, y);
   await page.waitForFunction(([id, s, n]) => document.getElementById(id).classList.contains('selected')
     && document.querySelectorAll(s).length === n, [id, plusSel(id), expectPlus], { timeout: 4000 });
+  if (expectPlus) await settled(page, id);
+}
+
+/* 고른 뒤엔 패널이 열리며 캔버스 폭·카드 배율이 한동안 바뀐다 → ＋ 는 rAF 로 따라간다.
+   «＋ 중심 = 영역 아래 변 가운데»가 연속 두 번(값 그대로) 성립할 때까지 기다린다 — 고정 대기 대신 «무엇을» 기다리나. */
+async function settled(page, id) {
+  await page.waitForFunction(([id, s]) => {
+    const bs = [...document.querySelectorAll(s)];
+    if (!bs.length) return false;
+    const key = bs.map(b => {
+      const r = b.getBoundingClientRect();
+      const txt = [...document.getElementById(id).querySelectorAll('.cvb-card-title, .cvb-card-desc')]
+        .find(e => e.dataset.cardIdx === b.dataset.cvbIdx && (e.dataset.slot || '') === b.dataset.cvbSlot);
+      if (!txt) return 'x';
+      const a = txt.parentElement.getBoundingClientRect();
+      const ok = Math.abs(r.top + r.height / 2 - a.bottom) < 2 && Math.abs(r.left + r.width / 2 - (a.left + a.right) / 2) < 2;
+      return ok ? `${Math.round(r.left)},${Math.round(r.top)}` : 'x';
+    }).join('|');
+    const prev = window.__k1Prev; window.__k1Prev = key;
+    return !key.includes('x') && key === prev;
+  }, [id, plusSel(id)], { polling: 'raf', timeout: 8000 });
 }
 
 /* ＋ 의 중심 · 그 점에서 잡히는 것 · 그 ＋ 가 가리키는 텍스트 영역(같은 카드·같은 슬롯의 글자 요소 부모)의 아래 변 */
