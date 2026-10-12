@@ -57,7 +57,7 @@ import {
 const L = QUOTE_LIMITS;
 
 /* ★★⚰️2026-10-12 현빈 1012t1H6 — 「＋ 블럭 넣기 (인용구 밑)」 select(`#qt-kid-add-kind`)를 걷었다.
-     ★원문: 「인용구 ... 블럭 넣기 select 삭제」(ref/body.txt H6).
+     ★원문(1012t1H6): 「quote 블럭 : 불필요한 게 우측 프로퍼티에 있음 없애줄 것 ＋ 블럭 넣기 (인용구 밑)… / + 텍스트 / + 제목 / + 이미지 / + 여백」(ref/body.txt).
    ★무엇이 있었나 ★셋(★한 쌍 이상이다 — ⛔일부만 되살리면 ★칸은 서는데 ★아무 일도 ★안 난다):
      ⒤ ★`_QT_KID_LABEL` ＋ `_qtKidsAddSectionHtml()` (★그리드 `_grdKidsAddSectionHtml` 꼴 · 종류는 `window.QUOTE_CHILD_KINDS` 파생)
      ⒥ ★패널 마크업 끝의 ★그 호출 한 줄
@@ -148,7 +148,7 @@ export function showQuoteProperties(block) {
        ★`qt-textcol` 은 ★이름이 ★`qt-text` 와 ★겹치지만 ★★다른 칸이다(★글자 ★색). ⛔같이 지우지 마라.
      ★★되살리는 법: ⒤를 ★«글» 절 ★제목 바로 다음에, ⒥를 ★이 함수 ★끝에 ★둘 다 ★되돌려라. */
 
-  /* ★★⚰️2026-10-12 현빈 1012t1H2 — 설명 문구 둘을 걷었다. ★원문: 「설명 문구 삭제」(ref/body.txt H2).
+  /* ★★⚰️2026-10-12 현빈 1012t1H2 — 설명 문구 둘을 걷었다. ★원문(1012t1H2): 「quato 블럭 : 우측패널에 보이는 설명 문구 없애기 2건」(ref/body.txt — 지목한 두 문장: 「글 양옆에 부호가 섭니다. 부호 크기·간격은 글자 크기와 따로 갑니다 — …」 / 「한 줄 꼴에서는 …」).
      ⒤ ★절 제목 바로 밑의 `<div class="prop-hint">글 양옆에 부호가 섭니다. <b>부호 크기·간격은 글자 크기와 따로</b> 갑니다 …</div>`
      ⒥ ★«글» 절의 `<div class="prop-hint" id="qt-lines-hint">` — ★줄 수 안내(한 줄 꼴 / 스택 꼴 / 「안내문구를 그리고 있습니다」 꼬리까지 한 칸).
         ★이 칸만 쓰던 지역변수 `lines = quoteLines(block)` · `isPh = quoteIsPlaceholder(block)` 와 그 import 도 같이 걷었다.
@@ -158,7 +158,7 @@ export function showQuoteProperties(block) {
      ★되살리는 법: git 에서 이 커밋의 부모 판 prop-quote.js 의 ⒤⒥ 마크업과 위 두 지역변수·import 를 되돌려라. */
 
   /* ★★⚰️2026-10-12 현빈 1012t1H5 — 「글」 절(글자 색 한 칸만 남아 있었다)을 걷고 ★글자색을 텍스트블럭과 ★같은 자리로 옮겼다.
-     ★원문: 「글자색 위치를 텍스트블럭과 동일하게」(ref/body.txt H5). ★텍스트블럭 패널 = Typography 바로 다음의 `Fill` 절 · 라벨 「글자색」.
+     ★원문(1012t1H5): 「quato 블럭 : 글자색 위치가 우측패널에서 이상하게 되어있는거 같은데 확인 및 텍스트 블럭처럼 해주면 될듯」(ref/body.txt). ★텍스트블럭 패널 = Typography 바로 다음의 `Fill` 절 · 라벨 「글자색」.
      ★옮긴 곳: Typography 절 «뒤» `Fill` 절 안 `.prop-color-row` — id `qt-textcol` ＋ 배선 `wireColor('qt-textcol','textColor')` 은 ★그대로(배선 변경 0).
      ⛔`buildFillSectionHtml` 을 안 쓴 까닭: 그 절은 `<p>-color-hex` id 를 내서 `wireColorField` 와 안 맞고(prop-modal.js:376 이 손배선 60줄로 갚았다),
        VAR 칩은 `var()` 를 내는데 인용구 `_QT_COLOR_RE` 가 `var()` 를 거부한다 ⇒ «눌리는데 안 먹는» 칸이 된다(계획 D3).
