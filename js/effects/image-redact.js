@@ -14,7 +14,7 @@
 // ⛔최상위에서 DOM 을 만지지 마라 — 노드 유닛이 import 한다.
 
 export const REDACT_MAX_PX = 20;   // 강도 100 ⇒ 20px (도형 가림막 최대와 같다 · plan-C1 결정 D-1)
-export const REDACT_HOST_SEL = '.asset-block[data-redact]';
+export const REDACT_HOST_SEL = '.asset-block[data-redact], .comparison-block .cmp-row.cmp-img[data-redact]';   // ★D4 컴패리전 셀 = 호스트 자신이 그림 상자
 
 /** 무엇이 오든 0..100 정수로(모델 검증 함수 — D4 의 _sanitizeRow 가 그대로 쓴다). NaN·음수 → 0, 100 초과 → 100. */
 export function normalizeRedact(v) {

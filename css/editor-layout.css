@@ -733,7 +733,10 @@ span[style*="text-fill-color"] .tb-dot { -webkit-text-fill-color: currentColor; 
  * img 의 filter 가 아닌 까닭: 색보정이 img.style.filter 를 통째로 쓴다(충돌) + 가장자리가
  * 바탕색으로 바랜다(plan-C1 §3 실측). 층: 그림 위 · 그레인(z1)·오버레이 글자(z2) 아래.
  * 변수가 빠져도 속성만 있으면 8px 로 흐린다(프라이버시 쪽 실패 · 도형 가림막과 같은 폴백).
- * html2canvas 는 backdrop 을 못 그린다 ⇒ capture-safety.js neutralizeRedactForH2C 가 회색으로 덮는다. */
+ * html2canvas 는 backdrop 을 못 그린다 ⇒ capture-safety.js neutralizeRedactForH2C 가 회색으로 덮는다.
+ * 1012t1 D4: 비교 블럭 이미지 칸(배경그림 div)도 같은 선언 한 벌 — 그 칸은 «자기 자신»이 그림 상자라
+ * 의사요소를 칸 자신에 건다(상태는 모델 row.redact → 렌더가 매번 applyRedact). 칸은 아래 규칙으로 위치 기준이 된다. */
+.comparison-block .cmp-row.cmp-img[data-redact]::after,
 .asset-block[data-redact] > .asset-img-clip::after {
   content: '';
   position: absolute;
@@ -743,6 +746,12 @@ span[style*="text-fill-color"] .tb-dot { -webkit-text-fill-color: currentColor; 
   backdrop-filter: blur(var(--redact-blur, 8px));
   -webkit-backdrop-filter: blur(var(--redact-blur, 8px));
 }
+/* 1012t1 D4 — 비교 이미지 칸이 블러를 켰을 때만 의사요소의 위치 기준(넘침 자르기는 렌더 인라인에 이미 있다) */
+.comparison-block .cmp-row.cmp-img[data-redact] { position: relative; }
+/* 편집 칩은 칸의 자식이라 트리 순서상 의사요소보다 먼저 그려져 같이 흐려진다 — 칩만 한 층 위로 */
+.comparison-block .cmp-row.cmp-img[data-redact] > .img-edit-hint { z-index: 1; }
+/* 칸 선택·편집 표시(칸 자신의 안쪽 그림자)도 흐린 막 아래라 번진다 — 막이 같은 그림자를 물려받아 위에 다시 그린다 */
+.comparison-block .cmp-row.cmp-img[data-redact]::after { box-shadow: inherit; }
 /* 오버레이 내 블록은 페이지 padX/padY 무시 */
 .asset-overlay .text-block {
   padding: 4px 16px !important;

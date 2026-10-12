@@ -96,6 +96,7 @@ export function enterCmpImageEditMode(block, addr) {
       const row = _rowOf(cols, addr); if (!row) return;
       row.imgSrc = '';
       delete row.imgX; delete row.imgY; delete row.imgScale;   // 위치/확대도 초기화(카드와 같다)
+      delete row.redact;   // ★D4 블러도 끈다(에셋 clearAssetImage 와 같다 — 남기면 다음 그림이 말없이 흐려진다). 색보정 adj 는 카드처럼 둔다.
       setComparisonCols(block, cols);
       try { renderComparison(block); } catch (_) {}
       window.pushHistory?.('비교 이미지 제거'); window.scheduleAutoSave?.();
@@ -160,6 +161,22 @@ export function enterCmpImageEditMode(block, addr) {
   _enterHooks.forEach(fn => { try { fn(ctx); } catch (_) {} });
   return true;
 }
+
+/* ★1012t1D4 색보정 — 에셋·카드와 «같은 몸짓»: 편집기에 들어가면 플로팅 패널(#color-adjust-panel)이 뜨고, 나가면 닫힌다
+   (에셋 image-handling.js enterImageEditMode 끝 / 카드 canvas-block.js _enterCvbImgEditMode 와 같은 규약 · 우측 패널 단추는 둘 다 없다).
+   정본 = 모델 row.adj — 편집 중엔 렌더하지 않으므로 슬라이더는 이 div 에 바로 칠하고(applyImgColorAdjust) 모델엔 되쓰기만 한다.
+   전부 0(초기화) = 키를 지운다(옛 저장본과 같은 바이트). 바깥 클릭 판정은 위 onOutside 가 #color-adjust-panel 을 이미 뺀다. */
+onCmpImgEdit(
+  (ctx) => {
+    window.showColorAdjustPanel?.(ctx.div, {
+      onChange: (adj) => ctx.writeRow((r) => {
+        const any = adj && Object.values(adj).some(v => Math.abs(Number(v) || 0) > 0.001);
+        if (any) r.adj = { ...adj }; else delete r.adj;
+      }),
+    });
+  },
+  () => { window.hideColorAdjustPanel?.(); },
+);
 
 window.enterCmpImageEditMode = enterCmpImageEditMode;
 window.exitCmpImageEditMode  = exitCmpImageEditMode;

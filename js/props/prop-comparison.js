@@ -4,6 +4,7 @@ import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows, CMP_ROW_HINT, CMP_HD_HINT, cmpGetActiveCell, cmpPickRowImage } from '../blocks/comparison-block.js';
 import { panelRenderedColor } from './_panel-rendered.js';
+import { redactSectionHTML, wireRedactSection, normalizeRedact } from '../effects/image-redact.js';   /* ★1012t1D4 셀 이미지 「블러 (Redact)」 — 에셋과 같은 공용 절(C1) */
 
 /* ★옛 사본은 «닫는 꺾쇠»와 홑따옴표를 안 덮었다 — 이 파일이 쓰는 세 자리에서는 무력한
    글자들이라 새지는 않았지만, 다음 사람이 이 사본을 홑따옴표 속성 자리에 쓰면 그때 뚫린다.
@@ -111,6 +112,10 @@ export function showComparisonProperties(block) {
       </div>
     </div>`;
   })() : '';
+  /* ★1012t1D4 — 「Image」 절 바로 아래 「블러 (Redact)」(에셋 패널의 그림 → 블러 순서 · 같은 함수 한 벌). 그림이 든 칸에만(에셋 hasImage 와 같은 조건).
+     색보정은 에셋·카드처럼 «편집기(더블클릭)에 들어가면» 뜨는 플로팅 패널이다(js/blocks/comparison-img-edit.js) — 우측 패널 자리 0. */
+  const redactSection = (imgSection && _actRow.imgSrc)
+    ? redactSectionHTML({ idPrefix: 'cmp-cell', value: normalizeRedact(_actRow.redact) }) : '';
 
   // ★flex:1 은 basis 0 이라 «축소»가 아니라 «균등분배»를 한다 — 칼럼이 «6개 이상»이면 각자 몫이
   //   글자보다 좁아져 「칼럼 N」이 잘린다(comparison-block.js:480 이 상한을 8 로 허용한다).
@@ -133,7 +138,7 @@ ${blockHeaderHTML({
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
     })}
-    </div>${imgSection}
+    </div>${imgSection}${redactSection}
     <div class="prop-section">
       <div class="prop-section-title">강조 칼럼 (떠보이는 쪽)</div>
       <div class="prop-align-group" id="cmp-feat-group" style="display:flex;gap:4px;flex-wrap:wrap;">${featBtns}</div>
@@ -303,11 +308,19 @@ ${blockHeaderHTML({
     propPanel.querySelector('#cmp-img-pos-reset')?.addEventListener('click', () => {
       if (withRow(row => { delete row.imgX; delete row.imgY; delete row.imgScale; })) { commit(); showComparisonProperties(block); }
     });
+    /* ★1012t1D4 블러 — input = 그 칸 div 에 라이브로만(applyRedact) · change = 모델(row.redact)에 되쓰고 다시 그림.
+       pushHistory 는 공용 배선이 onCommit «뒤»에 부른다(push-after). 칸 div 는 재렌더로 바뀌므로 getHost 가 그때그때 찾는다. */
+    if (redactSection) wireRedactSection({
+      idPrefix: 'cmp-cell',
+      getHost: () => block.querySelector(`.cmp-row.cmp-img[data-col-idx="${aci}"][data-row-idx="${ari}"]`),
+      onCommit: (v) => { if (withRow(row => { if (v > 0) row.redact = v; else delete row.redact; })) window.scheduleAutoSave?.(); },
+    });
   }
   propPanel.querySelectorAll('.cmp-row-img-clear').forEach(btn =>
     btn.addEventListener('click', () => {
       const c = getCols(); const row = c[+btn.dataset.col]?.rows?.[+btn.dataset.idx]; if (!row) return;
-      row.imgSrc = ''; saveCols(c); rerender(); commit(); showComparisonProperties(block);
+      row.imgSrc = ''; delete row.redact;   // ★D4 그림을 비우면 블러도 끈다(에셋 clearAssetImage · 편집기 ⌫ 와 같다)
+      saveCols(c); rerender(); commit(); showComparisonProperties(block);
     }));
   propPanel.querySelectorAll('.cmp-row-fit').forEach(btn =>
     btn.addEventListener('click', () => {

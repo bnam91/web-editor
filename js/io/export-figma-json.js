@@ -3,7 +3,7 @@ import { inlineGoyaAssetsInJSON, makeElectronAssetReader } from './goya-asset-in
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';
 import { getTextGradient, hasPaintingTextEffect, textShadowSource } from '../props/text-block-color.js';
 import { parseGradient } from '../props/gradient-model.js';
-import { readRedact, redactPx } from '../effects/image-redact.js';   /* ★이미지 블러(Redact, 1012t1 C1) */
+import { readRedact, redactPx, normalizeRedact } from '../effects/image-redact.js';   /* ★이미지 블러(Redact, 1012t1 C1) */
 
 const CANVAS_W = 860;
 
@@ -786,6 +786,10 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     // comparison 행: image 행은 객체로 보존(placeholder 텍스트 노출 방지), 그 외 텍스트 (회차12 z8lg3v4 fix)
     function _cmpRow(r) {
       if (r && typeof r === 'object' && (r.type === 'image' || r.imgSrc !== undefined)) {
+        /* ★1012t1D4 셀 이미지 블러 — 에셋(_imageRedactField)과 같은 원칙: 원본 imgSrc 를 싣지 않고 덮개 색만. */
+        const rd = r.imgSrc ? normalizeRedact(r.redact) : 0;
+        if (rd > 0) return { type: 'image', imgSrc: '', imgFit: r.imgFit || 'cover', text: r.text || '',
+                             redact: { intensity: rd, blurPx: redactPx(rd), cover: _REDACT_COVER } };
         return { type: 'image', imgSrc: r.imgSrc || '', imgFit: r.imgFit || 'cover', text: r.text || '' };
       }
       return { type: 'text', text: _cmpCell(r) };

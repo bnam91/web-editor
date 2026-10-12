@@ -1241,7 +1241,11 @@ function renderBlock(block, parentId, x, y, availableWidth) {
           ryAcc += effRowH + gap;
           if (rType === 'image') {
             const src = isObj ? (r.imgSrc || '') : '';
-            if (src) {
+            const rRedact = isObj ? r.redact : null;   // ★1012t1D4 셀 블러 — 에디터가 원본 대신 덮개 색만 싣는다
+            if (rRedact) {
+              const imf = run('create_frame', { x: 0, y: ryTop, width: cw, height: effRowH, name: `cmp_img_${i}_${ri}`, parentId: card.id });
+              if (imf) run('set_fill_color', { nodeId: imf.id, color: hex(rRedact.cover) });
+            } else if (src) {
               const imf = run('create_frame', { x: 0, y: ryTop, width: cw, height: effRowH, name: `cmp_img_${i}_${ri}`, parentId: card.id });
               if (imf) {
                 let b64 = '';

@@ -3,6 +3,7 @@
 import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import { _cvbBackgroundSize } from './canvas-block.js';   // ★D3 — 이미지 확대 식 한 벌(카드와 같은 필드 imgScale/imgFit)
+import { normalizeRedact, applyRedact } from '../effects/image-redact.js';   // ★D4 — 셀 이미지 블러(Redact) 공용 모듈(C1 · 에셋과 한 벌)
 
 // ── cmp 셀 placeholder(기본문구) 식별 ───────────────────────────────────────
 // comparison 셀은 일반 텍스트블럭과 달리 cols 모델에 텍스트가 들어있어 data-isPlaceholder
@@ -53,12 +54,30 @@ const _cmpNumIn = (lo, hi) => v => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : null;
 };
+/* 색보정 7키(image-color-adjust.js ADJ_KEYS 와 같은 이름 · 슬라이더 -100..100 ÷ 100 = -1..1). 모르는 키는 버린다. */
+export const CMP_ADJ_KEYS = ['exposure', 'contrast', 'saturation', 'temperature', 'tint', 'highlights', 'shadows'];
+function _cmpAdj(v) {
+  if (v === '') return '';
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const out = {};
+  let any = false;
+  for (const k of CMP_ADJ_KEYS) {
+    const n = Number(v[k]);
+    out[k] = Number.isFinite(n) ? Math.min(1, Math.max(-1, n)) : 0;
+    if (Math.abs(out[k]) > 0.001) any = true;
+  }
+  return any ? out : '';
+}
 export const CMP_ROW_KEEP = {
   /* ★1012t1D3 — 이미지 칸 위치/확대 (카드블럭 card.imgX/imgY/imgScale 과 ★이름·범위 그대로).
      없으면 키 없음 = 현행 렌더(가운데 · cover|contain) 바이트 그대로. */
   imgX:     _cmpNumIn(0, 100),     // background-position x (%) · 기본 50
   imgY:     _cmpNumIn(0, 100),     // background-position y (%) · 기본 50
   imgScale: _cmpNumIn(100, 400),   // 확대(%) · 기본 100 (= imgFit 그대로)
+  /* ★1012t1D4 — 셀 이미지 블러(Redact) 강도 0..100 정수(C1 공용 normalizeRedact 그대로 · 0 = 끔 = 키 없음). */
+  redact:   v => { const n = normalizeRedact(v); return n > 0 ? n : ''; },
+  /* ★1012t1D4 — 셀 이미지 색보정(카드 card.adj 와 ★이름·꼴 그대로 · 7키 -1..1 클램프). 객체가 아니면 무효 · 전부 0 = 키 없음. */
+  adj:      _cmpAdj,
 };
 /* 명부를 한 객체(src)에서 읽어 dst 에 싣는다. 반환: null = 통과 · 문자열 = 무효 키 이름.
    '' = dst 에서 키를 지운다(columnPatch = 지우기 · cols 교체는 dst 가 새 객체라 «안 싣기»와 같다). */
@@ -104,7 +123,7 @@ function normalizeRow(r) {
                imgSrc: r.imgSrc != null ? String(r.imgSrc) : '',
                imgFit: r.imgFit === 'contain' ? 'contain' : 'cover' };
       // ★D3 위치/확대 — 있으면 명부(CMP_ROW_KEEP)의 범위로 클램프, 수가 아니면 키를 걷는다(없으면 키 없음 그대로).
-      for (const k of ['imgX', 'imgY', 'imgScale']) {
+      for (const k of ['imgX', 'imgY', 'imgScale', 'redact', 'adj']) {   // ★D4 redact/adj 도 같은 명부로(0·기본값 = 키 없음)
         if (out[k] === undefined) continue;
         const v = (out[k] === null || out[k] === '') ? null : CMP_ROW_KEEP[k](out[k]);
         if (v === null || v === '') delete out[k]; else out[k] = v;
@@ -377,6 +396,12 @@ function renderComparison(block) {
             ? `background-image:url("${src}");background-size:${cmpImgBgSize(row)};background-position:${cmpImgBgPos(row)};background-repeat:no-repeat;`
             : '');
         if (!src) r.classList.add('cmp-img-empty');
+        /* ★1012t1D4 — 블러·색보정. ★정본은 모델(row.redact · row.adj) — div 는 매 렌더 새로 생기므로 «매번» 칠한다.
+           블러 = 이 div 의 ::after backdrop(css/editor-layout.css · data-redact + --redact-blur) · 색보정 = 이 div 의 filter:url(#…)
+           ⇒ 다른 요소·다른 속성이라 서로 안 덮는다. 0/기본값이면 흔적 0(옛 저장본 바이트 그대로). 빈 슬롯엔 안 건다. */
+        applyRedact(r, src ? row.redact : 0);
+        const _adj = src ? _cmpAdj(row.adj) : '';   // 7키 다 채운 꼴로(applyImgColorAdjust 는 키가 빠지면 toFixed 에서 죽는다)
+        if (_adj) window.applyImgColorAdjust?.(r, _adj);
       } else {
         r.textContent = (row && row.text != null) ? row.text : '';
         r.style.cssText = `height:${effRowH}px;margin-top:${gap}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
