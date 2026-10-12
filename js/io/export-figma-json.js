@@ -727,6 +727,8 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         // GR2·GR3 — 축·격자·꺾은선 토글은 «켜진 것만» 싣는다(꺼진 그래프의 JSON 은 예전과 같다). ⚠️렌더러(sangpe_to_figma)는 아직 안 읽는다(E11).
         ...(['showAxis', 'showGrid', 'showLine'].some(k => el.dataset[k] === '1')
           ? { showAxis: el.dataset.showAxis === '1', showGrid: el.dataset.showGrid === '1', showLine: el.dataset.showLine === '1' } : {}),
+        // 1012t1G2·G3 — 실루엣·채움 분모도 «켜진 것만» 싣는다(옛 JSON 무변). ⚠️렌더러(sangpe_to_figma)는 아직 안 읽는다 — 피그마에선 보통 세로 막대.
+        ...(window.GRAPH_SHAPE.shapeOn(el.dataset) ? { barShape: el.dataset.barShape, fillMax: window.GRAPH_SHAPE.fillMaxOf(el.dataset, items) } : {}),
       };
     }
     // ── SHAPE (shape-block) : 도형(선/사각/원) ──

@@ -272,6 +272,7 @@ test('N9 ★센서스 — «빈 값을 값으로 다루는» 패널은 모두 �
        껐다. 여기 «없는» 것이 정답이다 — 다시 들어오면 그 칸의 빈 값이 커밋으로 샌다. */
     'js/props/prop-banner02.js',     // bn2-h/tx/tw/ty — bindAutoNum: 비우면 플래그를 걷고 프리셋/자동
     'js/props/prop-comparison.js',   // .cmp-row-h    — :251 raw==='' → arr[ri]=null
+    'js/props/prop-graph.js',        // grb-fillmax-number — 1012t1G3: 비우면 dataset.fillMax 를 지운다 = 기본 분모 100(placeholder 가 그 값)
     'js/props/prop-grid.js',         // grd-img-height/radius, .grd-row-h-item — :437 :1011
     'js/props/prop-row.js',          // row-height/child-h — :145 :205 isNaN → 0 → minHeight '' = auto
     'js/props/prop-table.js',        // .tbl-row-h-item — :847 !isFinite → style.height='' = auto

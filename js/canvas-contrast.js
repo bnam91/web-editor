@@ -269,6 +269,7 @@ export function syncTableHeaderTone(block) {
  * ★자동 값은 «블럭 인라인 CSS 변수» 셋(--grb-auto-grid · --grb-auto-line · --grb-auto-ink)에만 산다(--tbl-header-fg 꼴).
  *   읽는 자 = css/editor-graph.css 끝 네 줄 · 저장에선 io/section-serialize.js 의 «파생 변수» 목록이 걷는다(굳지 않음 · E144 와 한 목록).
  * ★계산은 «변수 없는 그려진 값»을 바탕으로 한다 — 그래서 먼저 걷고 읽는다(자기 값을 다시 밝히는 고리 방지). */
+const GRAPH_SEG_FG_VAR = '--grb-seg-fg';   // 1012t1G4 — 마디 라벨 글자색(라벨마다 인라인 · 아래 _syncSegLabelTone 이 쓴다 · 저장에서 걷힘)
 const GRAPH_AUTO_VARS = ['--grb-auto-grid', '--grb-auto-line', '--grb-auto-ink', '--grb-dot-hole'];   // K6 — 속빈 점 구멍 = 바탕색(파생 · 저장에서 걷힘)
 /* ★저장에서 걷을 «파생 변수»의 정본 = 이 파일이 «쓰는» 이름들(쓰는 자가 목록을 낸다 · 두 번째 목록 금지).
    io/section-serialize.js 가 이것을 그대로 읽는다 — 여기 새 자동 변수를 보태면 저장에서도 저절로 걷힌다. */
@@ -345,7 +346,7 @@ export function syncAllSectionCheckerTextTone(root) {
   return n;
 }
 
-export const DERIVED_AUTO_VARS = ['--tbl-header-fg', ...GRAPH_AUTO_VARS];
+export const DERIVED_AUTO_VARS = ['--tbl-header-fg', ...GRAPH_AUTO_VARS, GRAPH_SEG_FG_VAR];
 const _rgbOfCss = (v) => { const c = _parseWithAlpha(String(v || '')); return c && c.a > 0 ? c.rgb : null; };
 const _mixRgb = (a, b, t) => a.map((x, i) => x * (1 - t) + b[i] * t);
 const _rgbCss = (c) => `rgb(${c.map(x => Math.min(255, Math.ceil(x - 1e-9))).join(', ')})`;   // 흰 쪽으로 «올림» — 반올림이면 4.49 로 목표 밑에 앉는다(실측 graph-h6 D1)
@@ -395,7 +396,29 @@ export function syncGraphTone(block) {
      ⚠️그라디언트는 «한 색»이 없어 구멍 변수를 안 쓴다 → CSS 흰 대체(⒦1 · E151 은 H6 만 푼다) · 이미지 바탕도 같다(못 보는 꼴). */
   if (bg && d.pointStyle === 'hollow' && d.chartType === 'line') want[3] = _rgbCss(bg);
   GRAPH_AUTO_VARS.forEach((v, i) => { if (want[i]) block.style.setProperty(v, want[i]); });
+  _syncSegLabelTone(block, stops);
   return { prev, want };
+}
+/* 1012t1G4 — 마디 라벨 글자색: «그 마디의 그려진 색»(잉크 색 × 불투명도를 바탕 위에 얹은 값) 위에서 읽히는 쪽으로.
+ *   판정은 기존 textToneOver 그대로 · 값은 표 헤더가 쓰는 두 색(밝은 글자 · 기본 글자)을 그대로 쓴다(새 색 0).
+ *   값은 «그 라벨의 인라인 CSS 변수» 하나(GRAPH_SEG_FG_VAR)에만 산다 — 읽는 자 = css/editor-graph.css 마디 라벨 줄 · 저장에선 파생 변수 목록이 걷는다.
+ *   못 재면(그라데이션 잉크 · 바탕을 모름) 변수를 걷는다 = 블럭 글자색 상속. 같으면 안 쓴다(멱등). */
+function _syncSegLabelTone(block, stops) {
+  const base = stops && stops.length ? stops[0] : null;
+  block.querySelectorAll('.grb-shape-box').forEach(box => {
+    const inks = box.querySelectorAll('.grb-seg-ink');
+    box.querySelectorAll('.grb-seg-label').forEach((lab, i) => {
+      let want = '';
+      const cs = inks[i] ? _cs(inks[i]) : null;
+      if (cs && base && (!cs.backgroundImage || cs.backgroundImage === 'none')) {
+        const c = _parseWithAlpha(cs.backgroundColor);
+        const op = parseFloat(cs.opacity);
+        if (c) want = textToneOver(_over(c.rgb, base, Math.max(0, Math.min(1, c.a * (Number.isFinite(op) ? op : 1))))) === 'light' ? TABLE_HEADER_FG_LIGHT : _TBL_DEFAULT_TEXT;
+      }
+      if (lab.style.getPropertyValue(GRAPH_SEG_FG_VAR).trim() === want) return;
+      if (want) lab.style.setProperty(GRAPH_SEG_FG_VAR, want); else lab.style.removeProperty(GRAPH_SEG_FG_VAR);
+    });
+  });
 }
 
 /* ── E149 그래프 패널 색 칸의 «보일 값» 한 자리 ───────────────────────────
@@ -409,10 +432,11 @@ const GRAPH_FIELD_PARTS = {
   bar:    (b) => (b.dataset.chartType || 'bar-v') === 'line' ? { tone: 'line', el: b.querySelector('.grb-line-path'), prop: 'stroke' }
                  : { el: _firstPlain(b, b.dataset.chartType === 'bar-h' ? '.grb-bar-h-fill' : '.grb-bar-fill:not(.grb-bar-fill-b)'), prop: 'backgroundColor' },
   bar2:   (b) => ({ el: b.querySelector('.grb-bar-fill-b'), prop: 'backgroundColor' }),
-  vlabel: (b) => ({ el: b.querySelector('.grb-bar-val-label, .grb-line-vlabel, .grb-bar-h-pct'), prop: 'color' }),
-  xlabel: (b) => ({ el: b.querySelector('.grb-bar-label, .grb-line-xlabel, .grb-bar-h-desc'), prop: 'color' }),
+  vlabel: (b) => ({ el: b.querySelector('.grb-bar-val-label, .grb-line-vlabel, .grb-bar-h-pct, .grb-pie-val'), prop: 'color' }),
+  xlabel: (b) => ({ el: b.querySelector('.grb-bar-label, .grb-line-xlabel, .grb-bar-h-desc, .grb-pie-label'), prop: 'color' }),
   fill:   (b) => ({ el: b.querySelector('.grb-line-area'), prop: 'fill' }),
   grid:   (b) => ({ el: b.querySelector('.grb-ov-grid-layer') || b, prop: 'color' }),
+  track:  (b) => ({ el: b.querySelector('.grb-shape-track'), prop: 'backgroundColor' }),   // 1012t1G3 — 실루엣의 안 찬 부분(키 없으면 채움과 같은 색)
 };
 export function graphFieldShown(block, field) {
   if (!block) return field === 'label' ? { c: '', mixed: false } : '';

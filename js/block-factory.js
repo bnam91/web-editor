@@ -1207,7 +1207,7 @@ function makeGraphBlock() {
 function addGraphBlock(opts = {}) {
   // U9(BL-BOL-03): 스타일/시리즈 옵션 → dataset 일괄 매핑 (smooth=곡선, bar-pair 2시리즈용 barColor2 등)
   const _applyGraphOpts = (block) => {
-    if (opts.chartType) block.dataset.chartType = opts.chartType; // 'bar-v' | 'bar-h' | 'line' | 'bar-pair'
+    if (opts.chartType) block.dataset.chartType = opts.chartType; // 'bar-v' | 'bar-h' | 'line' | 'bar-pair' | 'pie' | 'donut'
     const map = { smooth: 'lineSmooth', fillArea: 'fillArea' };
     for (const [opt, key] of Object.entries(map)) {
       if (opts[opt] !== undefined) block.dataset[key] = opts[opt] ? '1' : '0';
@@ -1215,11 +1215,14 @@ function addGraphBlock(opts = {}) {
     for (const k of ['lineColor', 'fillColor', 'barColor', 'barColor2', 'seriesA', 'seriesB', 'labelColor', 'vlabelColor', 'xlabelColor']) {
       if (typeof opts[k] === 'string' && opts[k].length <= 64) block.dataset[k] = opts[k];
     }
-    for (const k of ['chartHeight', 'labelSize', 'strokeWidth', 'pointRadius']) {
+    for (const k of ['chartHeight', 'labelSize', 'strokeWidth', 'pointRadius', 'pieHole']) {
       const n = Number(opts[k]);
       if (Number.isFinite(n) && n >= 0) block.dataset[k] = String(Math.floor(n));
     }
     if (typeof opts.fillAlpha === 'number') block.dataset.fillAlpha = String(Math.max(0, Math.min(1, opts.fillAlpha)));
+    // 1012t1G2·G3 — 실루엣(내장 이름만 · 사용자 SVG 는 setGraphShape 가 소독해 싣는다) · 채움 분모
+    if (typeof opts.barShape === 'string' && window.GRAPH_SHAPE?.shapeSvgOf(opts.barShape)) block.dataset.barShape = opts.barShape;
+    if (Number.isFinite(Number(opts.fillMax)) && Number(opts.fillMax) > 0) block.dataset.fillMax = String(Number(opts.fillMax));
     if (opts.items && opts.items.length > 0) block.dataset.items = JSON.stringify(opts.items);
     renderGraph(block);
   };
@@ -4342,6 +4345,7 @@ function updateGraphBlock(blockId, partial = {}) {
       return { ok: false, code: 'INVALID', message: 'items too many (>50)' };
     }
     const norm = [];
+    let _prevItems = []; try { _prevItems = JSON.parse(block.dataset.items || '[]'); } catch (_) {}
     for (let i = 0; i < partial.items.length; i++) {
       const it = partial.items[i];
       if (!it || typeof it !== 'object') {
@@ -4361,7 +4365,8 @@ function updateGraphBlock(blockId, partial = {}) {
       if (v < 0 || v > 9999) {
         return { ok: false, code: 'INVALID', message: `items[${i}].value out of range [0,9999]` };
       }
-      norm.push({ label, value: v });
+      // 1012t1G4 — 마디·항목 모양 유실 방지(같은 순번의 옛 항목에서 옮긴다 · 규칙은 js/graph-shape.js carryItemExtras 한 자리)
+      norm.push(window.GRAPH_SHAPE.carryItemExtras({ label, value: v }, _prevItems[i], it));
     }
     block.dataset.items = JSON.stringify(norm);
     applied.items = norm;

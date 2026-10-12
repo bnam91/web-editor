@@ -29,6 +29,8 @@ function _escGraphHtml(v) {
    DRAG UTILITIES — pure helpers, no drag state
 ═══════════════════════════════════ */
 import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS(막대 두께 기본·한계의 한 자리)를 «이 모듈보다 먼저»
+import './graph-pie-geom.js';   // side-effect import — window.GRAPH_PIE_GEOM(원형·도넛 조각 기하 · 1012t1G1). graph-limits 와 같은 길(모듈 하네스는 _drag-utils-deps 가 따라 준다)
+import './graph-shape.js';   // side-effect import — window.GRAPH_SHAPE(SVG 모양 · 채움 · 마디 · 1012t1G2·G3·G4). 같은 길
 import { state } from './globals.js';
 import { isShapeFrame, resolveInsertFrame, anchorUnitOf } from './shape-frame.js';
 /* ★「이 요소가 ★내용을 ★자르나」의 ★★정본 — ⛔여기 ★사본을 ★짓지 않는다(아래 effectiveSectionPadX)
@@ -708,6 +710,7 @@ function _niceScale(M) {
   const ticks = []; for (let i = 0; i <= best.cnt; i++) ticks.push(i * best.step);
   return { max: best.top, step: best.step, ticks };
 }
+window.__grbNiceScale = _niceScale;   // graph-shape.js fillPlan 이 «같은 함수»로 눈금 상한을 읽는다(렌더와 graphFillModel 의 분모가 한 식 · 1012t1G3)
 
 /* ★GR2·GR3 — bar-v 플롯 기하 «한 곳». 막대 높이(pct)와 오버레이(축·격자·꺾은선) 좌표가 이 함수 하나에서 나온다.
  *   좌표는 «렌더 때 DOM 을 재서 박는» 게 아니라 모델 수식 + CSS 앵커다(폭이 바뀌어도 맞는다 — GR-DESIGN 대조: px 박기 270px·비율 1.6px 오차).
@@ -789,7 +792,7 @@ function renderGraph(block) {
  *   편집 중엔 block.editing — 공통 mousedown 드래그·삭제키 가드가 본다(그리드 줄 편집과 같은 꼴). */
 /* 카테고리 라벨 «셋»(막대·비교 .grb-bar-label · 가로 .grb-bar-h-desc · 꺾은선 .grb-line-xlabel) — 항목마다 정확히 하나(숨김이어도 display:none 으로 있다)
    ⇒ 블럭 안 순서 = items 순서. 색인을 DOM 속성으로 안 박는다 — 렌더 바이트가 핀(graph-vpair 골든 · GR-W0 기준판)과 같게(회귀 실측: data-grb-idx 가 5 빨강). */
-const GRB_CAT_LABEL_SEL = '.grb-bar-label, .grb-bar-h-desc, .grb-line-xlabel';
+const GRB_CAT_LABEL_SEL = '.grb-bar-label, .grb-bar-h-desc, .grb-line-xlabel, .grb-pie-label';   // 원형·도넛은 범례 라벨(1012t1G1)
 function _bindGraphLabelEdit(block) {
   if (block._grbLabelEditBound) return;
   block._grbLabelEditBound = true;
@@ -838,6 +841,74 @@ function _graphLabelBeginEdit(block, el, idx) {
   el.addEventListener('keydown', onKey);
   el.addEventListener('blur', onBlur);
 }
+/* ── 1012t1G1 원형(pie) · 도넛(donut) ─────────────────────────────────────
+ * 조각 = 인라인 SVG path(기하는 graph-pie-geom.js piePaths 한 자리) · 도넛 구멍은 고리 path 로 실제로 뚫는다(바탕색 원으로 덮지 않는다).
+ * 조각 요소는 «항목마다 정확히 하나»(값 0 이면 d 가 빈 글자) ⇒ 형제 순번 = 항목 순서 — CSS 색 사다리와 범례가 같은 순번을 쓴다.
+ * 색: item.color(단색)면 조각·범례 점에 인라인, 아니면 CSS 프리셋. 막대에서 넘어온 그라데이션 item.color 는 여기선 «미지정»으로 본다(모델은 안 지운다).
+ * 범례 = 카테고리 라벨(.grb-pie-label · 더블클릭 편집 대상) + 비율 %(.grb-pie-val). 공통 키(showVLabel·showXLabel·라벨 색 셋·labelSize·chartHeight)를 그대로 따른다.
+ * 사용자 글자는 _escGraphHtml · 색은 _safeGraphColor 만 지난다(E152 규약). */
+function _renderPie(block, { items, chartH, labelSize }) {
+  const d = block.dataset;
+  const L = window.GRAPH_LIMITS;
+  const _h = parseInt(d.pieHole);
+  const hole = d.chartType === 'donut' ? Math.min(L.PIE_HOLE_MAX, Math.max(L.PIE_HOLE_MIN, Number.isFinite(_h) ? _h : L.PIE_HOLE_DEFAULT)) : 0;
+  const _vals = items.map(it => it && it.value);
+  const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, L.PIE_GAP);   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
+  const pcts = window.GRAPH_PIE_GEOM.piePercents(_vals);                // 합이 정확히 100(최대 잔여법)
+  const _lc = d.labelColor || '';
+  const _vCss = (d.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.vlabelColor || _lc)));
+  const _xCss = (d.showXLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.xlabelColor || _lc)));
+  const _solid = (c) => { const s = _safeGraphColor(c); return (s && !/gradient\(/i.test(s)) ? s : ''; };
+  const colors = items.map(it => _solid(it && it.color));
+
+  // freeLayout 절대 배치가 아닌 경우 height 고정 해제 → 범례 줄 수에 따라 자동 증가(가로 막대·꺾은선과 같은 꼴)
+  if (block.style.position !== 'absolute') {
+    block.style.height = 'auto';
+  }
+
+  const slices = geo.paths.map((p, i) => `<path class="grb-pie-slice" d="${p}"${colors[i] ? ` style="fill:${colors[i]};fill-opacity:1"` : ''}/>`).join('');
+  const emptyEl = geo.empty ? `<circle class="grb-pie-empty" cx="500" cy="500" r="498" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="6 6" vector-effect="non-scaling-stroke"/>` : '';
+  const legend = items.map((it, i) => `<span class="grb-pie-legend-item"><span class="grb-pie-dot"${colors[i] ? ` style="background:${colors[i]};opacity:1"` : ''}></span>`
+    + `<span class="grb-pie-label" style="${_xCss}">${_escGraphHtml(it && it.label)}</span>`
+    + `<span class="grb-pie-val" style="${_vCss}">${pcts[i]}%</span></span>`).join('');
+  block.innerHTML = `
+      <div class="grb-pie-wrap" style="height:${chartH}px">
+        <svg class="grb-pie-svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">${slices}${emptyEl}</svg>
+      </div>
+      <div class="grb-pie-legend" style="font-size:${labelSize}px">${legend}</div>`;
+}
+/* ── 1012t1G2 · G3 · G4 「SVG 를 그래프 모양으로」 ─────────────────────────
+ * 세로 막대의 «덧 길» — dataset.barShape(실루엣) 또는 items[i].segments(마디)가 있을 때만 온다. chartType 은 'bar-v' 그대로.
+ * 칸 틀(값 라벨 · 플롯 · 카테고리 라벨)·두께·간격·축/격자/꺾은선 오버레이는 옛 세로 막대와 «같은 함수»(_barVSettings · _barVPlotGeom)를 쓴다
+ *   ⇒ 눈금선이 값과 맞는다. 다른 것은 분모뿐: 모양이면 dataset.fillMax(기본 100), 사각 마디면 옛 max(items).
+ * 칸 안(실루엣 마스크 · 채움 층 · 마디)은 graph-shape.js shapeColsHTML 이 만든다. 사용자 글자는 _escGraphHtml · 색은 _safeGraphColor 만 지난다(E152). */
+function _renderGraphShape(block, { items, chartH, labelSize, valSize }) {
+  const d = block.dataset, GS = window.GRAPH_SHAPE;
+  const _lc = d.labelColor || '';
+  const _vCss = (d.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.vlabelColor || _lc)));
+  const _xInk = (_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.xlabelColor || _lc));   // 카테고리 라벨 색(소독 뒤) — 사각 쌓기 마디 라벨도 같은 값을 탄다
+  const _xCss = (d.showXLabel !== '0' ? '' : 'display:none;') + _xInk;
+  const _bs = _barVSettings(block, items.length);
+  const _vSize = _bs.pctSize ?? valSize;
+  const blockSvg = GS.shapeSvgOf(d.barShape, d.shapeSvg);
+  /* 값의 정본(마디가 있으면 그 합) · 분모 · 눈금 상한 — graph-shape.js fillPlan «한 자리»(graphFillModel 도 같은 것을 부른다 ⇒ data-fill = 모델 ratio).
+     눈금 상한은 _barVPlotGeom 과 같은 _niceScale(maxVal) 이다(같은 함수 · 같은 인자). */
+  const plan = GS.fillPlan(d, items, _niceScale);
+  const vItems = plan.vItems, maxVal = plan.max;
+  const _g = _barVPlotGeom(block, vItems, { maxVal, labelSize, vSize: _vSize, bs: _bs });
+  const _barsStyle = (_g.on ? (_bs.barsStyle || ';') + _g.barsExtra : _bs.barsStyle) + (blockSvg ? `;--grb-shape:${GS.shapeMaskUrl(blockSvg)}` : '');
+  const _sg = parseInt(d.segGap);
+  block.innerHTML = `
+      <div class="grb-bars-v" style="height:${chartH}px${_barsStyle}">${GS.shapeColsHTML(vItems, {
+        esc: _escGraphHtml, color: _safeGraphColor, blockShape: !!blockSvg, blockSvg,
+        boxFrac: plan.boxFrac, ratioOf: (v) => GS.fillRatio(v, plan.denom),
+        blockBar: _safeGraphColor(d.vBarColor), trackColor: d.trackColor, segGap: Number.isFinite(_sg) ? _sg : NaN,
+        labelSize, vSize: _vSize, vCss: _vCss, xCss: _xCss, xInk: _xInk, lhCss: _g.lhCss, colMin: _bs.colMin, fillW: _bs.fillW,
+      })}${_g.gridLayerHTML()}${_g.overlayHTML()}
+      </div>`;
+}
+/* 유형 등록표 — 새 그래프 유형은 여기 한 줄(이름 → 그리는 함수)로 붙는다. 표에 없는 유형은 아래 기존 사슬(세로·꺾은선·비교·가로)이 그대로 그린다. */
+const GRAPH_RENDERERS = Object.assign(Object.create(null), { pie: _renderPie, donut: _renderPie });   // 원형 없는 표 — 'constructor' 같은 유형 이름이 상속 함수를 부르지 않게
 function _renderGraphBody(block) {
   const items      = JSON.parse(block.dataset.items || '[]');
   const chartType  = block.dataset.chartType  || 'bar-v';
@@ -847,7 +918,10 @@ function _renderGraphBody(block) {
   const labelSize  = parseInt(block.dataset.labelSize)   || window.GRAPH_LIMITS.LABEL_SIZE_DEFAULT;   // 패널과 같은 한 자리(graph-limits.js · 값 20 그대로)
   const valSize    = Math.round(labelSize * 1.07);
 
+  const _r = GRAPH_RENDERERS[chartType]; if (_r) return _r(block, { items, chartH, labelSize, valSize });
+
   if (chartType === 'bar-v') {
+    if (window.GRAPH_SHAPE.usesShape(block.dataset, items)) return _renderGraphShape(block, { items, chartH, labelSize, valSize });   // 1012t1G2·G3·G4 — 키가 없으면 아래 옛 분기 그대로(바이트 무변)
     // 값/카테고리 라벨 표시·색 — line 차트와 동일 시맨틱 (이전엔 bar에서 미반영되던 버그)
     const _lc = block.dataset.labelColor || '';
     const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(block.dataset.vlabelColor || _lc)));

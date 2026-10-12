@@ -553,13 +553,55 @@ window.addGraphBlock({ chartType: 'bar-pair', seriesA: '우리', seriesB: 'A사'
 
 | 옵션 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `chartType` | string | `'bar-v'` | `bar-v` `bar-h` `line` `bar-pair`(2시리즈 비교) |
+| `chartType` | string | `'bar-v'` | `bar-v` `bar-h` `line` `bar-pair`(2시리즈 비교) `pie`(원형) `donut`(도넛) |
+| `pieHole` | number | 55 | donut 전용 — 가운데 구멍 크기(바깥 반지름 대비 %, 20~80) |
 | `items` | `{ label, value, value2? }[]` | 5개 샘플 | `value2`는 bar-pair 전용(시리즈 B). 빈 배열이면 기본값 사용 |
 | `smooth` | boolean | `false` | line 전용 — Catmull-Rom 곡선 보간(온도 곡선) |
 | `fillArea` / `fillAlpha` / `fillColor` | bool / 0~1 / color | — | line 면 채우기 |
 | `lineColor` / `barColor` / `barColor2` | color | 프리셋 | 선/시리즈A/시리즈B 색 |
 | `seriesA` / `seriesB` | string | — | bar-pair 범례 이름(지정 시 범례 표시) |
 | `chartHeight` / `labelSize` / `strokeWidth` / `pointRadius` | number | 240/20/3/5 | 크기 계열 |
+| `barShape` / `fillMax` | string / number | — / 100 | bar-v 전용 — 막대를 내장 실루엣(`person` `bottle` `drop`)으로 · 채움 분모. 사용자 SVG 는 아래 `setGraphShape` |
+
+#### 그래프 모양 · 채움 · 마디 (1012t1G2 · G3 · G4 — `js/graph-shape.js`)
+
+세로 막대(`bar-v`)의 덧키. 전부 «없으면 옛 세로 막대 그대로»다(chartType 은 안 바뀐다).
+
+| dataset 키 | 값 | 뜻 |
+|------------|----|----|
+| `barShape` | 없음 / `person` `bottle` `drop` / `custom` | 막대를 실루엣으로. 끄면 키를 지운다(`barShape` · `shapeSvg` 만 — `fillMax` · `trackColor` 는 남고 사각 막대는 안 읽는다). 모르는 이름 · `shapeSvg` 없는 `custom` 은 «꺼진 것»(사각 막대)이다 |
+| `shapeSvg` | 소독·정규화된 SVG 글자 | `custom` 일 때의 실루엣(`GRAPH_LIMITS.SHAPE_SVG_MAX` 자 이하) |
+| `fillMax` | 양수 | 채움 분모. 없음 = 모양이면 100, 사각이면 `max(items)` |
+| `fillDir` | (예약) | 없음 = `'up'`. 지금은 up 만 그린다 |
+| `trackColor` | color | 안 찬 부분의 색. 없음 = 채움과 같은 색 × 25% |
+| `segGap` | px | 마디 사이 틈. 없음 = 2 |
+| `items[i].shape` / `shapeSvg` | 위와 같음 | 그 항목만 다른 실루엣(블럭 모양이 켜져 있을 때만) |
+| `items[i].segments` | `{ label, value, color? }[]` | 비율별 마디(0번이 맨 아래). 세로 막대에선 `items[i].value` = 합. 다른 유형에선 «보존만» 한다(아래 규칙) |
+
+```js
+window.setGraphShape(blockOrId, { shape: 'person' })            // 내장 실루엣
+window.setGraphShape(blockOrId, { svg: '<svg viewBox=…>…</svg>' }) // 사용자 SVG(소독 후 custom)
+window.setGraphShape(blockOrId, { index: 1, shape: 'bottle' })  // 1번 항목만
+window.setGraphShape(blockOrId, { shape: null })                // 사각 막대로(키 삭제)
+// → { ok: true, shape } | { ok: false, code }   code: NOT_FOUND · NOT_SVG · TOO_LARGE · NO_SIZE · EMPTY · TOO_COMPLEX · UNKNOWN_SHAPE · NO_SVG · BAD_INDEX · NO_ITEM
+//   BAD_INDEX   index 가 0 이상 · 항목 수 미만의 «정수»가 아니다('1' · 1.5 · -1 · '__proto__' 전부 거절)
+//   TOO_COMPLEX <use> 가 64개를 넘거나, use 가 «use 를 품은 것(또는 use 자신)»을 가리킨다(겹쳐 부르기)
+//   소독: <style> 요소는 안 받는다 · 값에 백슬래시(CSS 이스케이프)가 든 속성은 뺀다 ⇒ class 로 fill:none 을 주던 SVG 는 그 면이 찬다
+// 히스토리는 부른 쪽이 «바꾼 뒤» 찍는다(pushHistory).
+
+window.graphFillModel(blockOrId)
+// → { shape, shapeSvg, dir, max, items: [{ label, value, ratio, segments: [{ label, ratio, color }] }] }
+//   max   = 렌더가 나누는 바로 그 분모(GRAPH_SHAPE.fillPlan 한 자리): 모양이면 fillMax(기본 100) · 사각이면 max(items),
+//           축·격자가 켜진 사각이면 그 «깔끔한 눈금 상한»(예: 최대 90 → 100). value = 마디가 있으면 마디 합
+//   ratio = value / max 를 0~1 로 자른 값(소수 3자리) = 채움 요소(.grb-shape-fill)의 data-fill
+//   segments[].ratio = 그 항목 채움 «안에서의» 몫(합 1)
+//   차오르는 애니메이션은 .grb-shape-fill 의 height 를 0 → ratio × 100% 로만 움직이면 된다.
+```
+
+- 마디 쓰기: `updateGraphBlock(id, { items: [{ label, value, segments: [...] }] })`. `segments` 를 안 주면 옛 마디를 물려받고 새 `value` 에 같은 비율로 맞춘다 — 맞춘 합은 «정확히» 새 `value`(최대 잔여법: `[10,10,10]` → 100 은 `[34,33,33]`), 옛 마디 합이 0 이면 균등하게 나눈다, 새 `value` 가 0 이면 마디를 그대로 두고 `value` 를 합으로 되돌린다.
+- 마디 라벨이 놓이는 자리: 모양(실루엣)이면 그 마디 «위» 가운데(글자색은 마디 바탕에 맞춘 자동 톤). 모양 없는 사각 쌓기면 막대 «오른쪽 바깥»에 마디 높이 가운데로 놓인다 — 막대가 두께만큼만 넓어 그 위엔 글자가 못 선다. 이때 글자색은 카테고리 라벨과 같은 색(`xlabelColor` → `labelColor` → 블럭 글자색 순)이고, 폭은 이웃 막대 앞까지다. 마지막 막대는 오른쪽에 이웃이 없어 제 칸 끝까지만 쓴다(블럭 가장자리를 안 넘는다 — 폭이 다른 막대의 절반쯤). 더 긴 라벨은 말줄임(…)으로 끊긴다 — 막대가 많거나 라벨이 길면 글자가 한두 자만 남을 수 있다.
+- 다른 유형(가로·꺾은선·비교·원형·도넛)에서의 마디: 그리지 않고 «보존만» 한다. 패널 값 칸은 자유롭게 고쳐지고(읽기 전용 아님 · 합으로 되쓰지 않음), 값을 확정하면 마디를 그 값에 같은 비율로 맞춘다(값이 이긴다). 값 0 은 마디를 그대로 둔다. 패널에서 세로 막대로 돌아올 때 `GRAPH_SHAPE.reconcileItems` 로 한 번 더 맞춘다 ⇒ 세로 막대에선 `value === 마디 합`. 날 데이터가 어긋나 있어도 그림 · `graphFillModel` 은 늘 마디 합을 본다.
+- ⚠️피그마 렌더러 · 디자인 JSON · MCP 스키마는 아직 이 키들을 안 읽는다(피그마에선 보통 세로 막대). 피그마 업로드 JSON 은 켜진 그래프에만 `barShape` · `fillMax` 를 싣는다.
 
 ---
 
