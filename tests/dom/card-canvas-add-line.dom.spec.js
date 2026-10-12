@@ -175,6 +175,10 @@ test('A4b ＋ 커밋 1회 = 히스토리 +1 · 두 번째 ⌘Z 는 직전 변경
     return { ok: r.ok, size: document.getElementById(id).dataset.titleSize };
   }, id);
   expect(pre, '전제 — 직전 변경이 들어갔다').toEqual({ ok: true, size: '30' });
+  /* updateCanvasBlock 래퍼(js/model-update-history.js _scheduleRestamp)가 «rAF 두 번 뒤 매크로태스크»에 꼭대기를 되쓴다.
+     그 되쓰기가 ＋ 편집 «중»에 떨어지면 꼭대기에 임시 칸이 찍혀 +1 이 시험 속도 탓으로 생긴다(실측 진단 꼭대기 tempDiv:true).
+     ⇒ 그 되쓰기가 «지나간 뒤»를 기다린다(같은 꼴의 예약: rAF·rAF·setTimeout 0 뒤 한 번 더). 사람 손 속도에선 이 창이 안 겹친다. */
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => setTimeout(r, 0), 0)))));
   await settled(page, id);
   const len0 = await page.evaluate(() => window.getHistoryTip().len);
   await clickPlus(page, id);
@@ -186,7 +190,13 @@ test('A4b ＋ 커밋 1회 = 히스토리 +1 · 두 번째 ⌘Z 는 직전 변경
   await page.waitForFunction((id) => JSON.parse(document.getElementById(id).dataset.cards)[0].desc === 'Q', id);
   const len1 = await page.evaluate(() => window.getHistoryTip().len);
   // 진단(빨강일 때 원인을 같이 남긴다): 새로 쌓인 표본마다 «빈 임시 칸»(<div class="cvb-card-desc" …></div>)이 찍혔나
-  const diag = await page.evaluate((n) => window.historyStack.slice(n).map(e => /class="cvb-card-desc"[^>]*><\/div>/.test(e.canvas || '')), len0);
+  const diag = await page.evaluate((n) => window.historyStack.slice(n - 1).map((e, i, a) => {
+    const c = e.canvas || '';
+    const m = c.match(/id="cvb_k1"[^>]*/); const tag = m ? m[0] : '';
+    return { act: e.action || null, tempDiv: /class="cvb-card-desc"[^>]*><\/div>/.test(c),
+      size: (tag.match(/data-title-size="(\d+)"/) || [])[1] || null, hasQ: /&quot;desc&quot;:&quot;Q&quot;/.test(tag),
+      sameAsPrev: i > 0 ? c === a[i - 1].canvas : null, len: c.length };
+  }), len0);
   expect(len1 - len0, `＋ 커밋 한 번에 쌓인 히스토리 칸 수 · 새 표본별 빈 임시 칸 찍힘=${JSON.stringify(diag)}`).toBe(1);
   const st = () => page.evaluate((id) => { const b = document.getElementById(id); return b ? { desc: JSON.parse(b.dataset.cards)[0].desc, size: b.dataset.titleSize } : null; }, id);
   await page.keyboard.press('ControlOrMeta+z');
