@@ -474,6 +474,9 @@ function makeStickerBlock(opts = {}) {
   return block;
 }
 
+/* 선 형광펜(highlightB) 메뉴 생성 기본 길이 — shape 전환 기본값(updateStickerBlock · prop-sticker baseX+160)과 같은 수. */
+const HLB_DEFAULT_LEN = 160;
+
 function addStickerBlock(opts = {}) {
   // U6(b): 섹션 미선택 게이트 — sec 결정 우선순위(맨아래-섹션 자동 폴백 제거):
   //   1) getSelectedSection() (이제 .sticker-block.selected 포함 — editor.js U6 보강)
@@ -511,11 +514,23 @@ function addStickerBlock(opts = {}) {
     const n = sec.querySelectorAll('.sticker-block').length;
     let cx = 40 + (n % 8) * 24;
     let cy = 40 + (n % 8) * 24;
-    // highlight는 폭이 커서 clamp 가정 크기를 분기 (A27)
-    const bw = (opts.shape === 'highlight') ? 160 : 60;
-    const bh = (opts.shape === 'highlight') ? 28  : 60;
+    // highlight는 폭이 커서 clamp 가정 크기를 분기 (A27) · ★highlightB(선 형광펜)도 기본 길이 × 두께로 (1012t1J1)
+    const _isHlB = opts.shape === 'highlightB';
+    const bw = (opts.shape === 'highlight') ? 160 : _isHlB ? HLB_DEFAULT_LEN : 60;
+    const bh = (opts.shape === 'highlight') ? 28  : _isHlB ? (Number(opts.thickness) || 12) : 60;
     const [qx, qy] = window._clampToSection?.(cx, cy, sec, bw, bh) || [cx, cy];
     opts = { ...opts, x: qx, y: qy };
+  }
+  /* ★1012t1J1 — 선 형광펜은 «누르면 바로» 생긴다(현빈 「찍으면 선이 되는데 그냥 누르면 만들어지게 하고 그다음 조정」).
+     끝점 둘을 안 주면 계단식 자리(x,y)에서 기본 길이(HLB_DEFAULT_LEN) 수평선을 깐다. 조정은 생성 직후
+     _selectSticker 가 붙이는 끝점 핸들(.hlb-handle) 2개로 한다. 두 클릭 모드(highlight-line-tool.js)는 설정 이스터에그 입구로만 남았다.
+     ⚠️이 갈래가 없으면 makeStickerBlock 기본값 (0,0)→(100,0) 이 들어가 섹션 왼쪽 위 모서리에 박힌다(MCP·콘솔 호출도 같은 병).
+     회귀: tests/dom/highlight-line-j1j2.dom.spec.js J1-a. */
+  if (opts.shape === 'highlightB' && opts.x1 == null && opts.x2 == null) {
+    const t  = Number(opts.thickness) || 12;
+    const x1 = Number(opts.x) || 0;
+    const y1 = (Number(opts.y) || 0) + t / 2;
+    opts = { ...opts, x1, y1, x2: x1 + HLB_DEFAULT_LEN, y2: y1 };
   }
   window.pushHistory?.('스티커 추가');
   const block = makeStickerBlock(opts);

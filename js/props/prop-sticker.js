@@ -235,9 +235,11 @@ ${blockHeaderHTML({
           <button class="prop-align-btn${isText ? ' active' : ''}" data-shape="text" title="텍스트 스티커">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 4 L13 4 M8 4 L8 13" stroke-linecap="round"/></svg>
           </button>
-          <button class="prop-align-btn${isHl ? ' active' : ''}" data-shape="highlight" title="형광펜">
+          ${/* ★1012t1J1: 면 형광펜 A 는 메뉴에서 숨겼다 — 이 단추도 «지금 A 인 옛 블럭»에서만 보인다(그 블럭이 B 로 넘어갈 수는 있게).
+               새로 A 로 바꾸는 입구는 닫힌다. 회귀: tests/dom/highlight-line-j1j2.dom.spec.js J1-d. */
+            isHl ? `<button class="prop-align-btn active" data-shape="highlight" title="형광펜(면 · 옛 블럭)">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="6" width="12" height="5" rx="1" fill="rgba(255,235,70,0.85)"/></svg>
-          </button>
+          </button>` : ''}
           <button class="prop-align-btn${isHlB ? ' active' : ''}" data-shape="highlightB" title="선 형광펜">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><line x1="2" y1="11" x2="14" y2="5" stroke="rgba(255,235,70,0.95)" stroke-width="3.5" stroke-linecap="round"/></svg>
           </button>
