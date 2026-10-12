@@ -55,6 +55,12 @@ async function setup(page) {
   });
   await waitFor(page, () => !!document.querySelector('.prop-align-btn[data-align="center"]'),
     undefined, '★정렬 단추(.prop-align-btn[data-align=center])가 ★패널에 ★안 떴다');
+  /* ★1012t1M2 — 배율 보간(.15s transform)이 끝난 뒤에 재게 한다: 화면 폭 ÷ 배율 = layout 폭.
+     안 기다리면 첫 측정이 보간 중 rect 다(이벨 실측 ⒮ 첫 판 bodyW 351.5/372.3 vs 정착 348.5 — 2/2 빨강). */
+  await waitFor(page, () => {
+    const q = document.querySelector('#canvas .speech-bubble-block .tb-bubble');
+    return !!q && Math.abs(q.getBoundingClientRect().width / ((window.currentZoom || 100) / 100) - q.offsetWidth) < 0.5;
+  }, undefined, '배율 보간이 안 끝났다(화면 폭 ÷ 배율 ≠ layout 폭)');
   return errs;
 }
 
@@ -321,4 +327,186 @@ test('⒩ ★★여러 개 고르고 ★정렬해도 ★이름표가 ★따라�
     expect(x.blkInline, `★${i}번 블록에 ★인라인 정렬이 ★붙었다 (잰 값: ${x.blkInline})`).toBe('');
   }
   expect(errs, `★pageerror (잰 값: ${JSON.stringify(errs.slice(0, 2))})`).toEqual([]);
+});
+
+/* ══ 1012t1M2-a ⒪⒫ — 말꼬리 「—」(가운데)면 이름도 «몸통 위 가운데» (S4 유닛 M · 2026-10-12) ══════════
+ * ★재현(9436 · 새로 만든 말풍선 — sb_ts0he_0x61u2c 사본은 없다): 말꼬리 「—」를 누르면 몸통은 블럭 가운데로 가는데
+ *   이름은 왼쪽 끝에 남았다 — dLayout(이름 글자 cx − 몸통 상자 cx, layout px) −40 → −337 (zoom 40·100 같은 수).
+ * ★판정 자 = dLayout(배율로 나눈 layout px) · |dLayout| ≤ 2 면 «따라왔다». */
+const dLayoutProbe = (page) => page.evaluate(() => {
+  const b = document.querySelector('#canvas .speech-bubble-block');
+  const bub = b.querySelector('.tb-bubble'), nm = b.querySelector('.tb-sender-name');
+  const s = (window.currentZoom || 100) / 100;
+  const r = document.createRange(); r.selectNodeContents(nm);
+  const t = r.getBoundingClientRect(), q = bub.getBoundingClientRect(), br = b.getBoundingClientRect();
+  return {
+    zoom: window.currentZoom, tail: b.dataset.tail, nmInline: nm.style.textAlign || '',
+    nmShown: getComputedStyle(nm).display !== 'none', nmW: t.width,
+    dLayout: Math.round((t.left + t.width / 2 - (q.left + q.width / 2)) / s),
+    bodyVsBlk: Math.round((q.left + q.width / 2 - (br.left + br.width / 2)) / s),
+  };
+});
+
+test('⒪ 1012t1M2-a ★말꼬리 「—」 → 이름 글자가 몸통 가운데 위 (|dLayout| ≤ 2)', async ({ page }) => {
+  const errs = await setup(page);
+  await showSender(page);
+  const before = await dLayoutProbe(page);
+  await page.locator('#bubble-tail-center').click();   // ★사람 손 — 진짜 클릭
+  await waitFor(page, () => document.querySelector('#canvas .speech-bubble-block')?.dataset.tail === 'center',
+    undefined, '말꼬리 「—」를 눌렀는데 data-tail 이 center 가 안 됐다');
+  const after = await dLayoutProbe(page);
+  console.log('    ⒪ ' + JSON.stringify({ before, after }));
+  expect(after.nmShown && after.nmW > 0, '★전제 — 이름표가 보이고 글자가 있다').toBe(true);
+  expect(Math.abs(after.bodyVsBlk), `★전제 — 몸통이 블럭 가운데로 갔다 (잰 값 ${after.bodyVsBlk})`).toBeLessThanOrEqual(2);
+  expect(Math.abs(after.dLayout), `이름이 몸통 가운데에 안 왔다 — dLayout ${before.dLayout} → ${after.dLayout} (zoom ${after.zoom})`)
+    .toBeLessThanOrEqual(2);
+  expect(errs, `pageerror ${JSON.stringify(errs.slice(0, 2))}`).toEqual([]);
+});
+
+test('⒫ 1012t1M2-a ★정렬 단추 left 를 먼저 눌러 둔 뒤 말꼬리 「—」 → 인라인 잔재가 안 이긴다', async ({ page }) => {
+  const errs = await setup(page);
+  await showSender(page);
+  await page.evaluate(() => document.querySelector('.prop-align-btn[data-align="left"]').click());
+  await waitFor(page, () => document.querySelector('#canvas .speech-bubble-block .tb-sender-name')?.style.textAlign === 'left',
+    undefined, '★전제 — 정렬 left 뒤 이름표 인라인 textAlign 이 left 가 안 됐다');
+  await page.locator('#bubble-tail-center').click();
+  await waitFor(page, () => document.querySelector('#canvas .speech-bubble-block')?.dataset.tail === 'center',
+    undefined, '말꼬리 「—」를 눌렀는데 data-tail 이 center 가 안 됐다');
+  const after = await dLayoutProbe(page);
+  console.log('    ⒫ ' + JSON.stringify(after));
+  expect(after.nmInline, '말꼬리를 바꿨는데 이름표 인라인 textAlign 이 남았다').toBe('');
+  expect(Math.abs(after.dLayout), `이름이 몸통 가운데에 안 왔다 — dLayout ${after.dLayout}`).toBeLessThanOrEqual(2);
+  expect(errs, `pageerror ${JSON.stringify(errs.slice(0, 2))}`).toEqual([]);
+});
+
+/* ══ 1012t1M2-b ⒬⒭⒮⒯ — 정렬 단추 center = 이름이 «몸통 위 가운데» (S4 유닛 M · 2026-10-12) ══════════
+ * ★재현(9436 · 새 말풍선): 정렬 단추 center 뒤 dLayout 좁은 풍선 −40 → +287 · 넓은 −244 → +83 · 말꼬리 right +40 → −287
+ *   (zoom 40·100 같은 수) — 이름은 «블럭» 가운데로 갔고 몸통은 제자리였다.
+ * ★고침: 이름표가 보일 때만 블럭을 한 열 grid(fit-content(80%))로 — 이름과 몸통이 같은 폭의 열을 쓴다.
+ * ★⒮ 가 «이름을 끈 말풍선은 그대로»와 «이름을 켜도 몸통·말꼬리 가로 자리가 그대로»를 잰다. */
+const geom = (page) => page.evaluate(() => {
+  const b = document.querySelector('#canvas .speech-bubble-block');
+  const s = (window.currentZoom || 100) / 100, br = b.getBoundingClientRect();
+  const q = b.querySelector('.tb-bubble').getBoundingClientRect();
+  const v = b.querySelector('svg.tb-bubble-tail').getBoundingClientRect();
+  const r1 = (x) => Math.round(x * 10) / 10;
+  return {
+    display: getComputedStyle(b).display, tail: b.dataset.tail, show: b.dataset.showSender,
+    bodyL: r1((q.left - br.left) / s), bodyW: r1(q.width / s), svgL: r1((v.left - br.left) / s), svgW: r1(v.width / s),
+  };
+});
+async function setTail(page, dir) {
+  await page.locator(`#bubble-tail-${dir}`).click();
+  await waitFor(page, (d) => document.querySelector('#canvas .speech-bubble-block')?.dataset.tail === d, dir,
+    `말꼬리 ${dir} 를 눌렀는데 data-tail 이 안 바뀌었다`);
+}
+
+for (const z of [40, 100]) {
+  test(`⒬⒯ 1012t1M2-b ★정렬 center(말꼬리 left · 배율 ${z}%) → |dLayout| ≤ 2 · 몸통은 제자리`, async ({ page }) => {
+    const errs = await setup(page);
+    await page.evaluate((z) => window.applyZoom?.(z), z);
+    await expect.poll(() => page.evaluate(() => window.currentZoom), { message: `전제 — 배율 ${z}` }).toBe(z);
+    /* ★스케일러 transform 은 .15s 보간이 있다 — 화면 폭 ÷ 배율 = layout 폭이 될 때까지 기다린다
+       (안 기다리면 보간 중 rect 로 재어 bodyW 가 374.7 → 366 처럼 흔들렸다 · 1차 런 실측) */
+    await expect.poll(() => page.evaluate(() => {
+      const q = document.querySelector('#canvas .speech-bubble-block .tb-bubble');
+      return Math.abs(q.getBoundingClientRect().width / ((window.currentZoom || 100) / 100) - q.offsetWidth) < 0.5;
+    }), { message: `전제 — 배율 ${z} 보간이 끝났다` }).toBe(true);
+    await showSender(page);
+    const g0 = await geom(page), d0 = await dLayoutProbe(page);
+    await clickCenter(page);
+    await waitFor(page, () => document.querySelector('#canvas .speech-bubble-block')?.dataset.senderAlign === 'center',
+      undefined, '정렬 center 뒤 블럭 표식 data-sender-align 이 center 가 안 됐다');
+    const g1 = await geom(page), d1 = await dLayoutProbe(page);
+    console.log(`    ⒬@${z} ` + JSON.stringify({ d: `${d0.dLayout}→${d1.dLayout}`, g0, g1 }));
+    expect(d1.zoom, `전제 — 배율 ${z}`).toBe(z);
+    expect(Math.abs(d1.dLayout), `이름이 몸통 가운데에 안 왔다 — dLayout ${d0.dLayout} → ${d1.dLayout}`).toBeLessThanOrEqual(2);
+    expect(Math.abs(g1.bodyL - g0.bodyL), `몸통이 움직였다 — bodyL ${g0.bodyL} → ${g1.bodyL}`).toBeLessThanOrEqual(0.5);
+    expect(errs).toEqual([]);
+  });
+}
+
+test('⒭ 1012t1M2-b ★말꼬리 right + 정렬 center → |dLayout| ≤ 2', async ({ page }) => {
+  const errs = await setup(page);
+  await showSender(page);
+  await setTail(page, 'right');
+  await clickCenter(page);
+  const d = await dLayoutProbe(page);
+  console.log('    ⒭ ' + JSON.stringify(d));
+  expect(d.tail).toBe('right');
+  expect(Math.abs(d.dLayout), `이름이 몸통 가운데에 안 왔다 — dLayout ${d.dLayout}`).toBeLessThanOrEqual(2);
+  expect(errs).toEqual([]);
+});
+
+test('⒮ 1012t1M2-b ★불변 — 이름 끈 말풍선은 옛 꼴(display:block) · 이름을 켜도 몸통·말꼬리 가로 자리 그대로 (left/right/center)', async ({ page }) => {
+  const errs = await setup(page);
+  const rows = [];
+  for (const dir of ['left', 'right', 'center']) {
+    await setTail(page, dir);
+    const off = await geom(page);
+    await showSender(page);
+    const on = await geom(page);
+    rows.push({ dir, off, on });
+    /* 이름 다시 끄기 — 다음 판의 «끈» 측정을 위해 */
+    await page.evaluate(() => {
+      const t = document.getElementById('bubble-show-sender');
+      t.checked = false; t.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await waitFor(page, () => document.querySelector('#canvas .speech-bubble-block')?.dataset.showSender === 'false',
+      undefined, '이름표를 다시 껐는데 data-show-sender 가 false 가 안 됐다');
+  }
+  console.log('    ⒮ ' + JSON.stringify(rows));
+  for (const { dir, off, on } of rows) {
+    expect(off.show, `전제(${dir}) — 끈 판`).toBe('false');
+    expect(off.display, `(${dir}) 이름을 끈 말풍선의 블럭이 옛 꼴(display:block)이 아니다 — 새 규칙이 끈 판까지 번졌다`).toBe('block');
+    expect(on.show, `전제(${dir}) — 켠 판`).toBe('true');
+    for (const k of ['bodyL', 'bodyW', 'svgL', 'svgW']) {
+      expect(Math.abs(on[k] - off[k]), `(${dir}) 이름을 켜니 ${k} 가 바뀌었다 — ${off[k]} → ${on[k]}`).toBeLessThanOrEqual(0.5);
+    }
+  }
+  expect(errs).toEqual([]);
+});
+
+/* ══ 1012t1M2 결함 2·3 (이벨 재투입) ⒰⒱ ══════════════════════════════════════════════
+ * ⒰ 10-10 ~ M2-b 사이 저장본 꼴 — 이름표 인라인 center 만 있고 블럭 표식(data-sender-align)이 없다.
+ *    옛: 22px 들여쓰기가 남아 dLayout +11(이벨 실측). 고침: CSS 가 인라인 값을 읽어 들여쓰기를 뺀다.
+ * ⒱ MCP/모델 문 tail:center — 정렬 단추 left 를 눌러 둔 뒤 updateSpeechBubbleBlock(id,{tail:'center'}).
+ *    옛: 이름표 인라인 left 가 남아 dLayout −113.7(이벨 실측). 고침: 패널 _setTail 과 같은 한 벌 함수. */
+test('⒰ 1012t1M2 ★옛 저장본 꼴(이름표 인라인 center · 표식 없음) → |dLayout| ≤ 2', async ({ page }) => {
+  const errs = await setup(page);
+  await showSender(page);
+  await page.evaluate(() => {
+    const b = document.querySelector('#canvas .speech-bubble-block');
+    delete b.dataset.senderAlign;
+    b.querySelector('.tb-sender-name').style.textAlign = 'center';
+  });
+  const d = await dLayoutProbe(page);
+  const pre = await page.evaluate(() => ({
+    mark: document.querySelector('#canvas .speech-bubble-block').dataset.senderAlign ?? null,
+    attr: document.querySelector('#canvas .speech-bubble-block .tb-sender-name').getAttribute('style'),
+  }));
+  console.log('    ⒰ ' + JSON.stringify({ ...pre, d }));
+  expect(pre.mark, '전제 — 블럭 표식이 없다(옛 저장본 꼴)').toBeNull();
+  expect(pre.attr, '전제 — 이름표 인라인에 text-align: center').toContain('text-align: center');
+  expect(Math.abs(d.dLayout), `옛 저장본 꼴에서 이름이 몸통 가운데에 안 왔다 — dLayout ${d.dLayout}`).toBeLessThanOrEqual(2);
+  expect(errs).toEqual([]);
+});
+
+test('⒱ 1012t1M2 ★정렬 left 뒤 MCP tail:center → 이름 정렬 잔재가 걷히고 |dLayout| ≤ 2', async ({ page }) => {
+  const errs = await setup(page);
+  await showSender(page);
+  await page.evaluate(() => document.querySelector('.prop-align-btn[data-align="left"]').click());
+  await waitFor(page, () => document.querySelector('#canvas .speech-bubble-block .tb-sender-name')?.style.textAlign === 'left',
+    undefined, '★전제 — 정렬 left 뒤 이름표 인라인 textAlign 이 left 가 안 됐다');
+  const r = await page.evaluate(() => {
+    const b = document.querySelector('#canvas .speech-bubble-block');
+    return window.updateSpeechBubbleBlock(b.id, { tail: 'center' });
+  });
+  expect(r && r.ok, `전제 — updateSpeechBubbleBlock tail:center 가 성공 (${JSON.stringify(r)})`).toBe(true);
+  const d = await dLayoutProbe(page);
+  console.log('    ⒱ ' + JSON.stringify(d));
+  expect(d.tail).toBe('center');
+  expect(d.nmInline, 'MCP tail 뒤에도 이름표 인라인 textAlign 이 남았다').toBe('');
+  expect(Math.abs(d.dLayout), `MCP tail:center 뒤 이름이 몸통 가운데에 안 왔다 — dLayout ${d.dLayout}`).toBeLessThanOrEqual(2);
+  expect(errs).toEqual([]);
 });

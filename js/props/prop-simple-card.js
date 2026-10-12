@@ -516,6 +516,7 @@ ${blockHeaderHTML({
 
     <div class="prop-section">
       <div class="prop-section-title">Cards (${cards.length})</div>
+      <div class="prop-hint">캔버스에서 ＋ 로 줄 추가 · 더블클릭으로 수정</div>
       <div id="cvb-card-items">${cardItemsHtml}</div>
     </div>`;
 

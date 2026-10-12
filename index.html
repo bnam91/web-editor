@@ -633,6 +633,9 @@
       <button class="fp-menu-item" onclick="addLabelGroupBlock();toggleFpDropdown('fp-text-dropdown')">Tags</button>
       <button class="fp-menu-item" onclick="addIconTextBlock();toggleFpDropdown('fp-text-dropdown')">Icon Text</button>
       <button class="fp-menu-item" onclick="addSpeechBubbleBlock('left');toggleFpDropdown('fp-text-dropdown')">Bubble</button>
+      <!-- ★1012t1H1 — 인용구는 «글» 블럭이라 텍스트 드롭다운에 둔다(옛 자리: 컴포넌트 드롭다운).
+           ⚠️닫는 인자도 'fp-text-dropdown' 이어야 이 메뉴가 닫힌다. -->
+      <button class="fp-menu-item" onclick="addQuoteBlock();toggleFpDropdown('fp-text-dropdown')" title="인용구(쉼표) — 글 양옆에 부호가 서는 블럭">Quote</button>
       <button class="fp-menu-item" onclick="addLinerBlock('arc-up');toggleFpDropdown('fp-text-dropdown')">Liner</button>
     </div>
   </div>
@@ -687,9 +690,15 @@
       <button class="fp-menu-item" onclick="addStickerBlock();toggleFpDropdown('fp-pen-dropdown')" title="플로팅 스티커 — 클릭=마지막 스타일 / 색·프리셋은 우측 패널에서 선택">Sticker</button>
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'text'});toggleFpDropdown('fp-pen-dropdown')" title="텍스트 스티커 — 캔버스에 자유 배치하는 텍스트 (폰트/외곽선/그림자 등 풀 옵션)">Text Sticker</button>
       <button class="fp-menu-item" onclick="openIconifyModal((p)=>{const o={shape:'icon', iconName:p.name, svg:p.svg, size:p.size}; if(p.iconColor!=null&&p.iconColor!=='') o.iconColor=p.iconColor; window.addStickerBlock(o);}, {favorites:true});toggleFpDropdown('fp-pen-dropdown')" title="아이콘 스티커 — Iconify에서 아이콘을 골라 캔버스에 스티커로 추가">Icon Sticker</button>
+      <!-- ★[숨김] 면 형광펜 A(shape:'highlight') · 1012t1J1 · 현빈 「b만 남겨줘」
+           ⛔막는 것은 «새로 넣는 입구»뿐이다. 렌더·패널(Highlight Size)·코너 리사이즈·저장/로드·MCP 의
+             shape:'highlight' 수용은 그대로 둔다 · 옛 프로젝트의 data-shape="highlight" 는 계속 열린다.
+           되돌리기 = 이 주석을 풀면 끝. 회귀: tests/unit/highlight-entry-j1.test.mjs HJ1·HJ2.
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'highlight'});toggleFpDropdown('fp-pen-dropdown')" title="형광펜 — 클릭=마지막 색 / 색·프리셋은 우측 패널에서 선택">Highlight</button>
+      -->
+      <!-- ★형광펜 = 선 형광펜 B(shape:'highlightB') 하나. 누르면 바로 생긴다(두 클릭 모드는 설정 이스터에그 입구로만 남았다 · 1012t1J1). -->
+      <button class="fp-menu-item" onclick="addStickerBlock({shape:'highlightB'});toggleFpDropdown('fp-pen-dropdown')" title="형광펜 — 누르면 선이 바로 생긴다 · 끝점 핸들로 길이·각도 조정 · 스타일·두들 프리셋은 우측 패널">Highlight</button>
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'glow'});toggleFpDropdown('fp-pen-dropdown')" title="글로우 이펙트 스티커 — 별 반짝이·렌즈 플레어·빛점 / 색·세기·갈래·다시 뿌리기는 우측 패널에서">Glow</button>
-      <button class="fp-menu-item" onclick="toggleHighlightBMode();toggleFpDropdown('fp-pen-dropdown')" title="선 형광펜 — 두 점 클릭으로 직선 형광펜 추가 · ESC 취소">HighlightB</button>
       <button class="fp-menu-item" onclick="addGradientBlock();toggleFpDropdown('fp-pen-dropdown')" title="그라데이션 페이드 — 섹션 너비 전체, 이미지 끝 자연 페이드 효과">Gradient</button>
       <!-- ★확대블럭(Zoom) — 현빈 2026-09-08 「줌블럭은 스티커 패널에 넣어줘야하고」.
            컴포넌트 드롭다운에서 여기로 옮겼다. 줌은 «플로팅»(섹션 직접 자식, absolute)이라
@@ -720,7 +729,7 @@
       <button class="fp-menu-item" onclick="addGridBlock();toggleFpDropdown('fp-component-dropdown')">Grid</button>
       <button class="fp-menu-item" onclick="addModalBlock();toggleFpDropdown('fp-component-dropdown')">Modal</button>
       <button class="fp-menu-item" onclick="addCouponBlock();toggleFpDropdown('fp-component-dropdown')">Coupon</button>
-      <button class="fp-menu-item" onclick="addQuoteBlock();toggleFpDropdown('fp-component-dropdown')" title="인용구(쉼표) — 글 양옆에 부호가 서는 블럭">Quote</button>
+      <!-- ★Quote 는 텍스트 드롭다운으로 옮겼다(1012t1H1 · 현빈 「텍스트 패널위치로 옮기기」). -->
       <!-- ★[숨김] Info Card · Inner Card — 현빈 2026-09-07 「info카드와 이너카드도 일단 숨김처리해줘」
            ⛔막는 것은 «새로 넣는 입구»뿐이다. 블록 구현·프로퍼티 패널·레이어 패널·저장/로드는
              그대로 둔다 — 이미 이 블록이 들어간 프로젝트는 계속 열리고 편집돼야 한다
@@ -1100,6 +1109,7 @@
      sticker-block.js(모듈)의 glow 갈래가 읽는다. 2026-10-06 지디 발주 FOUR. -->
 <script src="js/fx/seeded-random.js"></script>
 <script src="js/fx/glow-render.js"></script>
+<script src="js/fx/doodle-line-render.js"></script>   <!-- ★1012t1J2 선 형광펜 두들(DoodleLine) — 모듈 sticker-block.js 보다 먼저 -->
 <script src="js/fx/particles-render.js"></script><!-- ★파티클 그림(ParticlesFx) — 섹션 배경 파티클 · 2026-10-07 지디 발주 -->
 <script src="js/fx/particles-animate.js"></script><!-- ★파티클 움직임(ParticlesAnim) — v1.5 ⑴ rAF · 2026-10-09 · ⛔그림(위)보다 뒤 -->
 <script type="module" src="js/props/prop-sticker.js"></script>

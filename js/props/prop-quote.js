@@ -51,31 +51,20 @@ import { buildTypographySectionHtml } from './_typo-section.js';
 import { wireFontPicker } from './_font-picker.js';
 import {
   QUOTE_SHAPES, QUOTE_SHAPE_KEYS, QUOTE_DEFAULTS, QUOTE_LIMITS, clampQuote,
-  quoteLines, quoteShapeOf, quoteIsPlaceholder, quoteShapesAll,
+  quoteShapeOf, quoteShapesAll,
 } from '../blocks/quote-block.js';
 
 const L = QUOTE_LIMITS;
 
-/* ★★`1011t1C` 「＋ 블럭 넣기 ▾」 — ★인용구 «밑»(.qt-children)에 ★블럭을 넣는 ★입구.
-   ★★꼴은 ★★G19 그리드의 ★`_grdKidsAddSectionHtml`(js/props/prop-grid.js)을 ★그대로 ★댄다 —
-     ⛔새 꼴을 ★만들지 ★않는다(★그 둘이 ★갈리면 ★사람이 ★두 UI 를 ★배워야 한다).
-   ★종류 명부는 ★★`window.QUOTE_CHILD_KINDS`(js/block-factory.js) ★한 자리에서 ★파생한다 —
-     ⛔여기 ★손으로 ★적지 ★마라(★그러면 ★명부가 ★둘이고 ★종류를 ★하나 늘릴 때 ★조용히 ★빠진다). */
-const _QT_KID_LABEL = { body: '텍스트', h2: '제목', image: '이미지', gap: '여백' };
-function _qtKidsAddSectionHtml() {
-  const kinds = (typeof window !== 'undefined' && window.QUOTE_CHILD_KINDS) || [];
-  if (!kinds.length) return '';   /* ★명부가 ★안 왔으면 ★칸을 ★내지 ★않는다 — ⛔«눌러도 조용히 아무 일 없음» 금지 */
-  return `
-    <div class="prop-section" id="qt-kids-section" style="padding-bottom:4px;">
-      <div class="prop-row" style="align-items:center;gap:6px;">
-        <select class="prop-select" id="qt-kid-add-kind" style="flex:1 1 0;min-width:0;width:auto;"
-                title="인용구 «밑»에 블럭을 넣는다 — 인용구가 그만큼 늘어난다">
-          <option value="">＋ 블럭 넣기 (인용구 밑)…</option>
-          ${kinds.map(k => `<option value="${k}">+ ${_esc(_QT_KID_LABEL[k] || k)}</option>`).join('')}
-        </select>
-      </div>
-    </div>`;
-}
+/* ★★⚰️2026-10-12 현빈 1012t1H6 — 「＋ 블럭 넣기 (인용구 밑)」 select(`#qt-kid-add-kind`)를 걷었다.
+     ★원문(1012t1H6): 「quote 블럭 : 불필요한 게 우측 프로퍼티에 있음 없애줄 것 ＋ 블럭 넣기 (인용구 밑)… / + 텍스트 / + 제목 / + 이미지 / + 여백」(ref/body.txt).
+   ★무엇이 있었나 ★셋(★한 쌍 이상이다 — ⛔일부만 되살리면 ★칸은 서는데 ★아무 일도 ★안 난다):
+     ⒤ ★`_QT_KID_LABEL` ＋ `_qtKidsAddSectionHtml()` (★그리드 `_grdKidsAddSectionHtml` 꼴 · 종류는 `window.QUOTE_CHILD_KINDS` 파생)
+     ⒥ ★패널 마크업 끝의 ★그 호출 한 줄
+     ⒦ ★이 함수 끝의 ★`qt-kid-add-kind` change 배선 (`window.addQuoteChild?.(block, kind)`)
+   ★★남긴 것(⛔지우지 마라): `addQuoteChild` · `QUOTE_CHILD_KINDS`(block-factory.js) · insert-history `EXTRA` ·
+     `.qt-children` 그릇과 렌더 · 레이어·피그마 내보내기 — ★자식을 가진 기존 저장본이 계속 열려야 한다.
+   ★되살리는 법: git 에서 이 커밋의 ★부모 판 prop-quote.js 의 ⒤⒥⒦ 를 ★세 자리 다 되돌려라. */
 
 /** 스와치가 보여 줄 hex — prop-coupon._swatchHex 와 ★같은 규칙. */
 function _swatchHex(v, dflt) {
@@ -142,8 +131,6 @@ export function showQuoteProperties(block) {
   const bold = block.dataset.bold === '1';
   const italic = block.dataset.italic === '1';
   const strike = block.dataset.strike === '1';
-  const lines = quoteLines(block);
-  const isPh = quoteIsPlaceholder(block);
   /* ★★⚰️2026-10-11 현빈 1011t1a-2 — ★«글 › 내용» ★입력칸(textarea)을 ★걷었다.
        ★원문: 「그리고 ★캔버스에서 ★바로 수정가능하니 ★★없어도 ★우측패널에서는 될듯함」
      ★무엇이 ★있었나 ★둘(★한 쌍이다 — ⛔한쪽만 되살리면 ★칸은 서는데 ★아무 일도 ★안 난다):
@@ -160,6 +147,22 @@ export function showQuoteProperties(block) {
      ⚠️★남긴 것 — ★바로 아래 ★«줄 수 안내»(`#qt-lines-hint`)와 ★«글자 색»(`qt-textcol`).
        ★`qt-textcol` 은 ★이름이 ★`qt-text` 와 ★겹치지만 ★★다른 칸이다(★글자 ★색). ⛔같이 지우지 마라.
      ★★되살리는 법: ⒤를 ★«글» 절 ★제목 바로 다음에, ⒥를 ★이 함수 ★끝에 ★둘 다 ★되돌려라. */
+
+  /* ★★⚰️2026-10-12 현빈 1012t1H2 — 설명 문구 둘을 걷었다. ★원문(1012t1H2): 「quato 블럭 : 우측패널에 보이는 설명 문구 없애기 2건」(ref/body.txt — 지목한 두 문장: 「글 양옆에 부호가 섭니다. 부호 크기·간격은 글자 크기와 따로 갑니다 — …」 / 「한 줄 꼴에서는 …」).
+     ⒤ ★절 제목 바로 밑의 `<div class="prop-hint">글 양옆에 부호가 섭니다. <b>부호 크기·간격은 글자 크기와 따로</b> 갑니다 …</div>`
+     ⒥ ★«글» 절의 `<div class="prop-hint" id="qt-lines-hint">` — ★줄 수 안내(한 줄 꼴 / 스택 꼴 / 「안내문구를 그리고 있습니다」 꼬리까지 한 칸).
+        ★이 칸만 쓰던 지역변수 `lines = quoteLines(block)` · `isPh = quoteIsPlaceholder(block)` 와 그 import 도 같이 걷었다.
+     ★★잃은 축 하나: 「캔버스에서 줄을 나누면 패널의 줄 수 안내가 따라온다」(Q17) — 보여 줄 안내가 없어 뜻이 사라졌다.
+        ★대신 «캔버스 → 패널 재그림»(`_quoteEndEdit` → `showQuoteProperties`)을 `#qt-shape-group` 도장으로 잰다.
+     ★남긴 것: 「부호만 위아래로 밀립니다…」 · 스택의 「세로 정렬은 스택에서 쓰지 않습니다…」 (현빈 목록 밖).
+     ★되살리는 법: git 에서 이 커밋의 부모 판 prop-quote.js 의 ⒤⒥ 마크업과 위 두 지역변수·import 를 되돌려라. */
+
+  /* ★★⚰️2026-10-12 현빈 1012t1H5 — 「글」 절(글자 색 한 칸만 남아 있었다)을 걷고 ★글자색을 텍스트블럭과 ★같은 자리로 옮겼다.
+     ★원문(1012t1H5): 「quato 블럭 : 글자색 위치가 우측패널에서 이상하게 되어있는거 같은데 확인 및 텍스트 블럭처럼 해주면 될듯」(ref/body.txt). ★텍스트블럭 패널 = Typography 바로 다음의 `Fill` 절 · 라벨 「글자색」.
+     ★옮긴 곳: Typography 절 «뒤» `Fill` 절 안 `.prop-color-row` — id `qt-textcol` ＋ 배선 `wireColor('qt-textcol','textColor')` 은 ★그대로(배선 변경 0).
+     ⛔`buildFillSectionHtml` 을 안 쓴 까닭: 그 절은 `<p>-color-hex` id 를 내서 `wireColorField` 와 안 맞고(prop-modal.js:376 이 손배선 60줄로 갚았다),
+       VAR 칩은 `var()` 를 내는데 인용구 `_QT_COLOR_RE` 가 `var()` 를 거부한다 ⇒ «눌리는데 안 먹는» 칸이 된다(계획 D3).
+     ★되살리는 법: Fill 절을 걷고 Typography 앞에 `<div class="prop-section-title">글</div>` + `.prop-row` + 「글자 색」 라벨로 되돌려라. */
 
   /* ★모양 — ★`.prop-align-group`(wrap · 여러 줄). ⛔`.prop-type-group` 으로 바꾸지 마라
      (머리말의 실측: 8번째 단추가 ★안 눌린다). 꼴은 prop-annotation.js:209~213 선례.
@@ -189,7 +192,6 @@ ${blockHeaderHTML({
 
     <div class="prop-section">
       <div class="prop-section-title">인용구(쉼표)</div>
-      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">글 양옆에 부호가 섭니다. <b>부호 크기·간격은 글자 크기와 따로</b> 갑니다 — 묶으면 큰 부호를 쓰려고 글까지 커집니다.</div>
       <div class="prop-row" style="align-items:flex-start">
         <span class="prop-label">모양</span>
         <div class="prop-align-group" id="qt-shape-group">${shapeBtns}</div>
@@ -209,12 +211,14 @@ ${_pairRow('qt-gap', '간격', gap, L.gap.min, L.gap.max)}
           <button class="prop-type-btn${layout === 'stack' ? ' active' : ''}" data-qt-layout="stack">스택</button>
         </div>
       </div>
+      <!-- 1012t1H4 — 「정렬」 아이콘은 바로 밑 「세로 정렬」과 같은 꼴('object-h' ↔ 'object-v': 같은 사전·크기 14·viewBox 16·칠 그림).
+           옛 'text'(선 4줄)는 문단 정렬 그림인데 이 칸은 «부호+글 덩이»의 가로 자리를 옮긴다. -->
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="qt-align-group">
-          ${alignBtn('text', 'left',   { label: '왼쪽 정렬',   title: '왼쪽 정렬',   active: align === 'left',   attrs: { 'data-al': 'left' } })}
-          ${alignBtn('text', 'center', { label: '가운데 정렬', title: '가운데 정렬', active: align === 'center', attrs: { 'data-al': 'center' } })}
-          ${alignBtn('text', 'right',  { label: '오른쪽 정렬', title: '오른쪽 정렬', active: align === 'right',  attrs: { 'data-al': 'right' } })}
+          ${alignBtn('object-h', 'left',   { label: '왼쪽 정렬',   title: '왼쪽 정렬',   active: align === 'left',   attrs: { 'data-al': 'left' } })}
+          ${alignBtn('object-h', 'center', { label: '가운데 정렬', title: '가운데 정렬', active: align === 'center', attrs: { 'data-al': 'center' } })}
+          ${alignBtn('object-h', 'right',  { label: '오른쪽 정렬', title: '오른쪽 정렬', active: align === 'right',  attrs: { 'data-al': 'right' } })}
         </div>
       </div>
 ${layout === 'inline' ? `
@@ -238,19 +242,6 @@ ${layout === 'inline' ? `
       </div>
     </div>
 
-    <div class="prop-section">
-      <div class="prop-section-title">글</div>
-      <div class="prop-hint" id="qt-lines-hint" style="padding:2px 8px;line-height:1.5">${
-        layout === 'stack'
-          ? `<b>엔터</b>로 줄을 나눕니다. 지금 <b>${lines.length}줄</b>이고 부호는 글 <b>위·아래에 한 쌍</b>입니다. <span style="opacity:.7">빈 줄은 건너뜁니다.</span>`
-          : `<b>한 줄</b> 꼴에서는 부호가 <b>한 쌍</b>입니다. 엔터로 나눈 글은 가운데 칸에서 줄로 쌓입니다(지금 <b>${lines.length}줄</b>).`
-      }${isPh ? ' <span style="opacity:.7">지금은 안내문구를 그리고 있습니다.</span>' : ''}</div>
-      <div class="prop-row">
-        <span class="prop-label">글자 색</span>
-        ${colorFieldHTML({ idPrefix: 'qt-textcol', hex: _swatchHex(textColor, QUOTE_DEFAULTS.textColor), alpha: parseAlphaFromColor(textColor) })}
-      </div>
-    </div>
-
 ${buildTypographySectionHtml({
     p: 'qt-typo',
     font: fontFamily, weight: String(weight), size: fontSize,
@@ -265,7 +256,14 @@ ${buildTypographySectionHtml({
        ⇒ ★칸을 ★내지 않는다 — ⛔「눌러도 조용히 아무 일 없음」을 ★만들지 않는다(이 파일의 그 규율). */
     showHighlight: false,
   })}
-${_qtKidsAddSectionHtml()}`;
+
+    <div class="prop-section">
+      <div class="prop-section-title">Fill</div>
+      <div class="prop-color-row">
+        <span class="prop-label">글자색</span>
+        ${colorFieldHTML({ idPrefix: 'qt-textcol', hex: _swatchHex(textColor, QUOTE_DEFAULTS.textColor), alpha: parseAlphaFromColor(textColor) })}
+      </div>
+    </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
@@ -464,17 +462,6 @@ ${_qtKidsAddSectionHtml()}`;
   document.getElementById('qt-post-on')?.addEventListener('change', (e) => {
     block.dataset.postOn = e.target.checked ? '1' : '0';
     rerender(); commit();
-  });
-
-  /* ★★`1011t1C` 「＋ 블럭 넣기 ▾」 — ★고르면 ★바로 넣고 ★머리로 되돌린다(★그리드의 ★그 꼴).
-     ⛔여기서 ★히스토리·선택을 ★따로 하지 ★않는다 — ★삽입 래퍼 ★둘이 ★`addQuoteChild` 를 ★감싼다
-       (★로스터 = `js/insert-history.js` 의 ★`EXTRA` · ★거기 ★올렸다). */
-  const kidAdd = document.getElementById('qt-kid-add-kind');
-  kidAdd?.addEventListener('change', () => {
-    const kind = kidAdd.value;
-    kidAdd.value = '';
-    if (!kind) return;
-    window.addQuoteChild?.(block, kind);
   });
 
   /* ★★⚰️2026-10-11 — ★«글» 배선(`qt-text` change)이 ★여기 있었다. ★걷은 까닭·되살리는 법은

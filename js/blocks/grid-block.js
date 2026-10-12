@@ -3756,6 +3756,8 @@ function _gridPlusLayer() {
   scaler.appendChild(L);
   return L;
 }
+/* ★1012t1M1 — 말풍선 캔버스 ＋(line-host.js)가 «같은 층»을 빌린다. 이름만 하나 더 붙였다(몸통 그대로). */
+export const gridPlusLayer = _gridPlusLayer;
 
 /* ★뜨는 조건 = «선택» — 그리드 블럭이 골라져 있으면(.selected) 두 ＋ 가 붙는다.
  *   역사: «호버»(현빈 2026-10-04 결정 — 태그블럭 ＋ 의 «선택» 선례와 일부러 다르게) → «선택 시»(현빈 2026-10-05 재지시 · H8).
