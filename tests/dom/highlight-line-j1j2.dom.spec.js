@@ -141,3 +141,178 @@ test('J1-d 옛 면 형광펜 A 는 계속 그려지고 패널이 열린다 · Sh
   expect(r.bBtnOnB, '★전제: B 블럭 패널이 그려졌다').toBe(1);
   expect(r.aBtnOnB, 'B 블럭에선 A 로 바꾸는 단추가 없다').toBe(0);
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   J2 — 두들 프리셋 칩 (선 형광펜 우측 패널 «Doodle Presets»)
+   음성대조(보고에 수): 칩 맵핑(PRESETS 키) 한 글자를 깨면 J2-b 빨강 · 렌더 두들 갈래를 비우면 J2-b 빨강 ·
+     모르는 lineStyle 폴백을 지우면 J2-f 빨강.
+   ══════════════════════════════════════════════════════════════════════════ */
+/* 프리셋 기대값 — ★글자로 박는다(doodle-line-render.js 에서 읽으면 항등식) */
+const DOODLE_WANT = {
+  scribble: { thickness: '18', hlColor: 'rgba(255, 235, 70, 0.75)', paths: 1 },
+  brush:    { thickness: '20', hlColor: 'rgba(255, 150, 40, 0.6)',  paths: 3 },
+  circle:   { thickness: '4',  hlColor: 'rgba(230, 60, 60, 0.9)',   paths: 1 },
+  double:   { thickness: '5',  hlColor: 'rgba(40, 110, 230, 0.85)', paths: 2 },
+  scratch:  { thickness: '6',  hlColor: 'rgba(230, 60, 60, 0.9)',   paths: 1 },
+};
+
+/* B 하나를 만들어 고른다(입구 함수 — J1 이 입구 클릭을 따로 잰다). 돌려주는 값 = id */
+async function makeSelectedB(page, extra = {}) {
+  await setupSection(page);
+  return page.evaluate((extra) => {
+    const sec = document.getElementById('secH');
+    const b = window.makeStickerBlock({ shape: 'highlightB', x1: 80, y1: 200, x2: 420, y2: 200, seed: 4242, ...extra });
+    sec.appendChild(b); window.bindStickerSelect?.(b); window._selectSticker?.(b);
+    return b.id;
+  }, extra);
+}
+
+async function clickChip(page, key) {
+  const c = await page.evaluate((key) => {
+    const e = document.querySelector(`#stk-hlb-doodle-group .prop-preset-btn[data-doodle="${key}"]`);
+    if (!e) return null;
+    e.scrollIntoView({ block: 'center' });
+    const r = e.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const hit = document.elementFromPoint(x, y);
+    return { x, y, hit: !!hit && (hit === e || e.contains(hit)) };
+  }, key);
+  expect(c, `★전제: «${key}» 칩이 있다`).not.toBeNull();
+  expect(c.hit, `★전제: 누르는 점이 «${key}» 칩 위다`).toBe(true);
+  await page.mouse.click(c.x, c.y);
+}
+
+test('J2-a 선 형광펜 패널에 두들 칩 5개 · A·원형 스티커에선 그 절이 숨는다', async ({ page }) => {
+  const errs = await bootApp(page);
+  await makeSelectedB(page);
+  const r = await page.evaluate(() => {
+    const vis = () => { const s = document.getElementById('stk-hlb-doodle-section'); return !!s && getComputedStyle(s).display !== 'none'; };
+    const out = { chips: [...document.querySelectorAll('#stk-hlb-doodle-group .prop-preset-btn')].map(e => e.dataset.doodle), onB: vis() };
+    const sec = document.getElementById('secH');
+    const a = window.makeStickerBlock({ shape: 'highlight', x: 40, y: 40 }); sec.appendChild(a); window.bindStickerSelect?.(a); window._selectSticker?.(a);
+    out.onA = vis(); out.panelA = !!document.getElementById('stk-hl-section');
+    const c = window.makeStickerBlock({ shape: 'circle', x: 300, y: 40 }); sec.appendChild(c); window.bindStickerSelect?.(c); window._selectSticker?.(c);
+    out.onCircle = vis(); out.panelCircle = !!document.getElementById('stk-shape-group');
+    return out;
+  });
+  expect(r.chips).toEqual(['scribble', 'brush', 'circle', 'double', 'scratch']);
+  expect(r.onB, 'B 에선 보인다').toBe(true);
+  expect(r.panelA, '★전제: A 패널이 그려졌다').toBe(true);
+  expect(r.onA, 'A 에선 숨는다').toBe(false);
+  expect(r.panelCircle, '★전제: 원형 패널이 그려졌다').toBe(true);
+  expect(r.onCircle, '원형에선 숨는다').toBe(false);
+  expect(errs).toEqual([]);
+});
+
+test('J2-b 칩 5개를 실제로 누르면 모양·두께·색이 깔리고 획 수가 맞고 필터 0 · 잘림 없음', async ({ page }) => {
+  const errs = await bootApp(page);
+  const id = await makeSelectedB(page);
+  for (const [key, want] of Object.entries(DOODLE_WANT)) {
+    await clickChip(page, key);
+    await page.waitForFunction(([id, key]) => document.getElementById(id)?.dataset.lineStyle === key
+      && document.querySelector(`#stk-hlb-doodle-group .prop-preset-btn[data-doodle="${key}"]`)?.classList.contains('active'), [id, key], { timeout: 3000 });
+    const r = await page.evaluate((id) => {
+      const b = document.getElementById(id);
+      const svg = b.querySelector('svg.sticker-hlb-svg');
+      const ps = [...b.querySelectorAll('path.sticker-hlb-line')];
+      let top = Infinity, bot = -Infinity;
+      for (const p of ps) { const bb = p.getBBox(); top = Math.min(top, bb.y); bot = Math.max(bot, bb.y + bb.height); }
+      return { ds: { lineStyle: b.dataset.lineStyle, thickness: b.dataset.thickness, hlColor: b.dataset.hlColor },
+        paths: ps.length, empty: ps.filter(p => !(p.getAttribute('d') || '').trim()).length,
+        filters: b.querySelectorAll('[filter], filter').length,
+        svgH: +svg.getAttribute('height'), top, bot,
+        styleActive: document.querySelectorAll('#stk-hlb-style-group .prop-align-btn.active').length,
+        handles: b.querySelectorAll('.hlb-handle').length };
+    }, id);
+    expect(r.ds, `${key}: 프리셋 값`).toEqual({ lineStyle: key, thickness: want.thickness, hlColor: want.hlColor });
+    expect(r.paths, `${key}: 획 수`).toBe(want.paths);
+    expect(r.empty, `${key}: 빈 d`).toBe(0);
+    expect(r.filters, `${key}: SVG 필터 0`).toBe(0);
+    expect(r.top, `${key}: 위가 안 잘린다`).toBeGreaterThanOrEqual(-0.01);
+    expect(r.bot, `${key}: 아래가 안 잘린다`).toBeLessThanOrEqual(r.svgH + 0.01);
+    expect(r.styleActive, `${key}: 직선/물결/마커 토글은 비활성`).toBe(0);
+    expect(r.handles, `${key}: 끝점 핸들 2 유지`).toBe(2);
+  }
+  expect(errs).toEqual([]);
+});
+
+test('J2-c 결정성 — 두 번 그려도 · 직렬화→재삽입→재렌더해도 같은 그림', async ({ page }) => {
+  await bootApp(page);
+  const id = await makeSelectedB(page);
+  const r = await page.evaluate((id) => {
+    const b = document.getElementById(id);
+    const out = {};
+    for (const k of ['scribble', 'brush', 'circle', 'double', 'scratch']) {
+      b.dataset.lineStyle = k;
+      window.renderStickerBlock(b);
+      const one = b.querySelector('svg').outerHTML;
+      window.renderStickerBlock(b);
+      const two = b.querySelector('svg').outerHTML;
+      const wrap = document.createElement('div'); wrap.appendChild(b.cloneNode(true));
+      window.serializeCleanRoot(wrap);
+      const html = wrap.innerHTML;
+      const host = document.createElement('div'); host.innerHTML = html;
+      const c = host.firstElementChild; c.id = id + '_re';      // id 해시 폴백을 안 타게 seed 가 실렸는지도 같이 잰다
+      document.getElementById('secH').appendChild(c);
+      window.renderStickerBlock(c);
+      out[k] = { same: one === two, reSame: c.querySelector('svg').outerHTML.replace(/hlb-rough-[^"]+/g, '') === one.replace(/hlb-rough-[^"]+/g, ''), seed: c.dataset.seed };
+      c.remove();
+    }
+    return out;
+  }, id);
+  for (const [k, v] of Object.entries(r)) {
+    expect(v.same, `${k}: 두 번 그리면 같다`).toBe(true);
+    expect(v.seed, `${k}: 직렬화에 seed 가 산다`).toBe('4242');
+    expect(v.reSame, `${k}: 저장/로드 길에서도 같다`).toBe(true);
+  }
+});
+
+test('J2-d 동그라미로 bbox 가 커져도 끝점 핸들이 (x1,y1)/(x2,y2) 에 붙어 있다', async ({ page }) => {
+  await bootApp(page);
+  const id = await makeSelectedB(page);
+  await clickChip(page, 'circle');
+  await page.waitForFunction((id) => document.getElementById(id)?.dataset.lineStyle === 'circle' && document.querySelectorAll(`#${id} .hlb-handle`).length === 2, id, { timeout: 3000 });
+  const r = await page.evaluate((id) => {
+    const b = document.getElementById(id);
+    const sec = document.getElementById('secH').getBoundingClientRect();
+    const z = (window.currentZoom || 40) / 100;
+    return [...b.querySelectorAll('.hlb-handle')].map(h => {
+      const q = h.getBoundingClientRect();
+      const i = h.dataset.endpoint === 'start' ? '1' : '2';
+      return { ep: h.dataset.endpoint, dx: Math.abs((q.left + q.width / 2) - (sec.left + (+b.dataset['x' + i]) * z)), dy: Math.abs((q.top + q.height / 2) - (sec.top + (+b.dataset['y' + i]) * z)) };
+    });
+  }, id);
+  expect(r.length).toBe(2);
+  for (const h of r) { expect(h.dx, `${h.ep} x`).toBeLessThanOrEqual(2); expect(h.dy, `${h.ep} y`).toBeLessThanOrEqual(2); }
+});
+
+test('J2-e 칩 → ⌘Z 한 번이면 직전 스타일로 돌아간다', async ({ page }) => {
+  await bootApp(page);
+  await setupSection(page);
+  await clickPenMenu(page, 'Highlight');            // 실제 입구(삽입 이음매 포함)
+  await page.waitForFunction(() => document.querySelectorAll('.sticker-block[data-shape="highlightB"]').length === 1, null, { timeout: 3000 });
+  const before = await page.evaluate(() => document.querySelector('.sticker-block[data-shape="highlightB"]').dataset.lineStyle);
+  expect(before, '★전제: 처음은 직선').toBe('line');
+  await clickChip(page, 'double');
+  await page.waitForFunction(() => document.querySelector('.sticker-block[data-shape="highlightB"]')?.dataset.lineStyle === 'double', null, { timeout: 3000 });
+  await page.evaluate(() => { document.activeElement?.blur?.(); });
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate(() => {
+    const all = document.querySelectorAll('.sticker-block[data-shape="highlightB"]');
+    return all.length === 1 ? all[0].dataset.lineStyle : `n=${all.length}`;
+  })).toBe('line');
+});
+
+test('J2-f 모르는 lineStyle 은 직선으로 떨어진다(선이 안 사라진다)', async ({ page }) => {
+  await bootApp(page);
+  const id = await makeSelectedB(page);
+  const r = await page.evaluate((id) => {
+    const b = document.getElementById(id);
+    b.dataset.lineStyle = 'zzz';
+    window.renderStickerBlock(b);
+    const ps = [...b.querySelectorAll('path.sticker-hlb-line')];
+    return { n: ps.length, d: ps.map(p => p.getAttribute('d') || '') };
+  }, id);
+  expect(r.n).toBe(1);
+  expect(r.d[0].trim().length, 'd 가 비었다 — 선이 안 보인다').toBeGreaterThan(0);
+});

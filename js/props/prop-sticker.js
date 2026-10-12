@@ -105,6 +105,25 @@ const TEXT_PRESETS = [
 ];
 window.STICKER_TEXT_PRESETS = TEXT_PRESETS;
 
+/* ★1012t1J2 선 형광펜 두들 프리셋 칩 — 이름·모양값은 js/fx/doodle-line-render.js(DoodleLine) 한 자리. 여기는 칩 아이콘·설명만.
+   아이콘은 이웃 #stk-hlb-style-group 과 같은 꼴(18×14 · viewBox 0 0 18 14 · currentColor). */
+const _HLB_DOODLE_ICON = {
+  scribble: '<path d="M2,10 L4,4 L6,10 L8,4 L10,10 L12,4 L14,10 L16,4" stroke-width="1.4"/>',
+  brush:    '<path d="M2,6.5 C6,4.5 12,8 16,6" stroke-width="3.2"/><path d="M3,9.5 C7,8 11,10.5 15,8.5" stroke-width="1.2" opacity="0.55"/>',
+  circle:   '<path d="M9,2.5 C14.5,2.5 16.5,5 16.5,7 C16.5,9.5 13,11.5 9,11.5 C4.5,11.5 1.5,9.5 1.5,7 C1.5,4.5 5,2.2 10.5,2.8" stroke-width="1.4"/>',
+  double:   '<path d="M2,5.5 C7,4.8 12,6 16,5.2" stroke-width="1.4"/><path d="M3,9.2 C7,8.6 11,9.8 15,9" stroke-width="1.4"/>',
+  scratch:  '<path d="M2,7 Q8,10.5 14,7 L16,3" stroke-width="1.6"/>',
+};
+const _HLB_DOODLE_TITLE = {
+  scribble: '스크리블 — 지그재그로 칠한 낙서 (모양·두께·색을 한 번에 깐다)',
+  brush:    '거친 붓 — 겹친 붓 획 (모양·두께·색을 한 번에 깐다)',
+  circle:   '동그라미 — 선을 감싸는 손그림 타원 · 높이는 아래 칸 (모양·두께·색을 한 번에 깐다)',
+  double:   '두 줄 밑줄 — 평행한 손그림 두 줄 · 간격은 아래 칸 (모양·두께·색을 한 번에 깐다)',
+  scratch:  '밑줄 긁기 — 휜 밑줄 끝을 치켜 올린 획 (모양·두께·색을 한 번에 깐다)',
+};
+/* 진폭 칸은 갈래마다 뜻이 다르다 — 없으면 칸을 숨긴다. 주기 칸은 wavy 만. */
+const _HLB_AMP_LABEL = { wavy: '진폭', circle: '높이', double: '간격' };
+
 export function showStickerProperties(block) {
   const shape      = block.dataset.shape      || 'circle';
   const isText     = shape === 'text';
@@ -284,8 +303,8 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="stk-hlb-thick" min="1" max="100" step="1" value="${parseInt(block.dataset.thickness) || 12}">
         <input type="number" class="prop-number" id="stk-hlb-thick-num" min="1" max="200" value="${parseInt(block.dataset.thickness) || 12}">
       </div>
-      <div class="prop-row stk-hlb-wavy-row" style="display:${block.dataset.lineStyle === 'wavy' ? 'flex' : 'none'};">
-        <span class="prop-label">진폭</span>
+      <div class="prop-row stk-hlb-amp-row" style="display:${_HLB_AMP_LABEL[block.dataset.lineStyle] ? 'flex' : 'none'};">
+        <span class="prop-label" id="stk-hlb-amp-label">${_HLB_AMP_LABEL[block.dataset.lineStyle] || '진폭'}</span>
         <input type="range" class="prop-slider" id="stk-hlb-amp" min="1" max="30" step="1" value="${parseFloat(block.dataset.amplitude) || 6}">
         <input type="number" class="prop-number" id="stk-hlb-amp-num" min="1" max="60" value="${parseFloat(block.dataset.amplitude) || 6}">
       </div>
@@ -297,6 +316,14 @@ ${blockHeaderHTML({
       <div class="prop-color-row" style="margin-top:6px;">
         <span class="prop-label">색상</span>
         ${colorFieldHTML({ idPrefix: 'stk-hlb-color', hex: _stkHlShown, alpha: parseAlphaFromColor(_stkHlShown) })}
+      </div>
+    </div>
+    <div class="prop-section" id="stk-hlb-doodle-section" style="display:${shape === 'highlightB' ? 'block' : 'none'};">
+      <div class="prop-section-title">Doodle Presets</div>
+      <div class="prop-type-group prop-preset-group" id="stk-hlb-doodle-group">
+        ${(window.DoodleLine?.STYLES || []).map(k => `<button class="prop-preset-btn${block.dataset.lineStyle === k ? ' active' : ''}" data-doodle="${k}" title="${_HLB_DOODLE_TITLE[k] || ''}">
+          <svg width="18" height="14" viewBox="0 0 18 14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${_HLB_DOODLE_ICON[k] || ''}</svg><span>${window.DoodleLine.LABELS[k] || k}</span>
+        </button>`).join('')}
       </div>
     </div>
     <div class="prop-section" id="stk-size-section" style="display:${hideBasic ? 'none' : 'block'};">
@@ -519,6 +546,14 @@ ${blockHeaderHTML({
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   const rerender = () => { window.renderStickerBlock?.(block); window.rememberStickerStyle?.(block); };
+  // 선 형광펜 진폭·주기 칸 — 갈래별 노출·라벨(1012t1J2)
+  const _syncHlbRows = (style) => {
+    const lbl = _HLB_AMP_LABEL[style];
+    propPanel.querySelectorAll('.stk-hlb-amp-row').forEach(row => { row.style.display = lbl ? 'flex' : 'none'; });
+    const lab = propPanel.querySelector('#stk-hlb-amp-label');
+    if (lab && lbl) lab.textContent = lbl;
+    propPanel.querySelectorAll('.stk-hlb-wavy-row').forEach(row => { row.style.display = style === 'wavy' ? 'flex' : 'none'; });
+  };
   if (isGlow) wireGlowSection(propPanel, block, rerender);
 
   // 텍스트 — textarea(멀티라인, \n 보존). input에선 .sticker-text textContent만 직접 갱신(rerender 시 캐럿 보존 X)
@@ -783,6 +818,8 @@ ${blockHeaderHTML({
       const modeSec = propPanel.querySelector('#stk-mode-section');
       if (hlSec)  hlSec.style.display  = _isHl  ? 'block' : 'none';
       if (hlbSec) hlbSec.style.display = _isHlB ? 'block' : 'none';
+      const dlSec = propPanel.querySelector('#stk-hlb-doodle-section');   // ★1012t1J2 두들 칩 절도 같이
+      if (dlSec) dlSec.style.display = _isHlB ? 'block' : 'none';
       if (txtSec) txtSec.style.display = _isAnyHl ? 'none' : (block.dataset.mode === 'image' ? 'none' : 'block');
       if (imgSec) imgSec.style.display = _isAnyHl ? 'none' : (block.dataset.mode === 'image' ? 'block' : 'none');
       if (modeSec) modeSec.style.display = _isAnyHl ? 'none' : 'block';
@@ -856,15 +893,30 @@ ${blockHeaderHTML({
       propPanel.querySelectorAll('#stk-hlb-style-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
       const style = btn.dataset.style;
       block.dataset.lineStyle = style;
-      // wavy 전용 슬라이더 표시
-      propPanel.querySelectorAll('.stk-hlb-wavy-row').forEach(row => {
-        row.style.display = style === 'wavy' ? 'flex' : 'none';
-      });
+      // 진폭(wavy·circle·double)·주기(wavy) 칸 표시 · 두들 칩은 비활성(스타일은 한 가지만 골라져 있다)
+      _syncHlbRows(style);
+      propPanel.querySelectorAll('#stk-hlb-doodle-group .prop-preset-btn').forEach(b => b.classList.remove('active'));
       rerender();
       // 선택 상태면 핸들 위치 재계산 (bbox가 바뀌므로)
       if (block.classList.contains('selected')) window._addHlbHandles?.(block);
       window.pushHistory?.('선 형광펜 스타일');
       window.scheduleAutoSave?.();
+    });
+  });
+
+  /* ★1012t1J2 두들 프리셋 칩 — 모양·두께·색(+높이/간격)을 «한 묶음»으로 깐다(가정 A3 · 글로우 종류 선례).
+     push-after(이웃 패널 규약) · 패널을 다시 그려 두께·색 칸과 활성 표시를 맞춘다(text 프리셋 선례). */
+  propPanel.querySelectorAll('#stk-hlb-doodle-group .prop-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pre = window.DoodleLine?.PRESETS?.[btn.dataset.doodle];
+      if (!pre) return;
+      for (const [k, v] of Object.entries(pre)) block.dataset[k] = String(v);
+      if (!(parseInt(block.dataset.seed, 10) > 0)) block.dataset.seed = String(window.FxSeed ? window.FxSeed.newSeed() : 1);
+      rerender();
+      if (block.classList.contains('selected')) window._addHlbHandles?.(block);
+      window.pushHistory?.('선 형광펜 두들');
+      window.scheduleAutoSave?.();
+      showStickerProperties(block);
     });
   });
 

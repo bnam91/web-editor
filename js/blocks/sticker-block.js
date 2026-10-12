@@ -212,7 +212,15 @@ function _renderStickerBlockInner(block) {
     const y2 = parseFloat(block.dataset.y2) || 0;
     const thickness = parseInt(block.dataset.thickness) || 12;
     const hlColor   = block.dataset.hlColor || 'rgba(255, 235, 70, 0.7)';
-    const lineStyle = block.dataset.lineStyle || 'line';
+    /* ★1012t1J2 두들 다섯(js/fx/doodle-line-render.js DoodleLine) · ★모르는 값(앞날의 enum·손상)은 'line' 으로 떨어진다 —
+       옛 판은 pathD = '' 라 선이 «안 보였다». DoodleLine 이 안 실렸으면 두들도 line 으로(그리고 크게 알린다 — glow 선례). */
+    const _DL = window.DoodleLine;
+    const _rawStyle = block.dataset.lineStyle || 'line';
+    const _isDoodle = !!(_DL && _DL.STYLES.includes(_rawStyle));
+    if (!_DL && ['scribble', 'brush', 'circle', 'double', 'scratch'].includes(_rawStyle)) {
+      console.error('[sticker] DoodleLine 이 안 실렸다 — js/fx/doodle-line-render.js 의 script 태그를 확인하라. 두들을 직선으로 그린다.');
+    }
+    const lineStyle = (_isDoodle || ['line', 'wavy', 'marker'].includes(_rawStyle)) ? _rawStyle : 'line';
     const amplitude = parseFloat(block.dataset.amplitude) || 6;   // wavy 진폭(px)
     const period    = parseFloat(block.dataset.period)    || 30;  // wavy 주기(px)
     const dx = x2 - x1;
@@ -224,7 +232,8 @@ function _renderStickerBlockInner(block) {
     const padThick = Math.ceil(thickness / 2) + 2;
     const padAmp   = lineStyle === 'wavy' ? Math.ceil(amplitude) + 2 : 0;
     const padMarker = lineStyle === 'marker' ? 4 : 0; // 끝부분 roughness 여유
-    const pad = padThick + padAmp + padMarker;
+    const padDoodle = _isDoodle ? _DL.extraPad(lineStyle, { thickness, amplitude, length }) : 0;
+    const pad = padThick + padAmp + padMarker + padDoodle;
     const bboxLeft = Math.min(x1, x2) - pad;
     const bboxTop  = Math.min(y1, y2) - pad;
     const bboxW    = Math.abs(dx) + pad * 2;
@@ -238,7 +247,7 @@ function _renderStickerBlockInner(block) {
     const lineLeft = cx - bboxLeft;
     const lineTop  = cy - bboxTop;
     // SVG 내부 좌표: viewBox 0 0 length (svgH); y 중심 = svgH/2
-    const svgH = thickness + (padAmp + padMarker) * 2;
+    const svgH = thickness + (padAmp + padMarker + padDoodle) * 2;
     const yMid = svgH / 2;
 
     // path 생성 ──────────────────────────────
@@ -280,6 +289,20 @@ function _renderStickerBlockInner(block) {
       </defs>` : '';
     const filterAttr = (lineStyle === 'marker') ? ` filter="url(#${filterId})"` : '';
 
+    // ★두들 — 획 목록(DoodleLine.paths)을 <path> 마다 찍는다. 흔들림은 저장된 seed 에서만(없으면 block.id 해시 — 옛 블럭도 결정적).
+    let strokes;
+    if (_isDoodle) {
+      let seed = parseInt(block.dataset.seed, 10);
+      if (!(seed > 0)) { seed = 0; for (const ch of String(block.id || 'hlb')) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) >>> 0; seed = seed || 1; }
+      const rng = window.FxSeed ? window.FxSeed.mulberry32(seed) : (() => 0.5);
+      strokes = _DL.paths(lineStyle, { length, thickness, yMid, amplitude, rng });
+    } else {
+      strokes = [{ d: pathD, width: thickness, opacity: 1 }];
+    }
+    const pathsHTML = strokes.map(st => `<path class="sticker-hlb-line" d="${st.d}" `
+      + `fill="none" stroke="${hlColor}" stroke-width="${st.width}"${st.opacity !== 1 ? ` stroke-opacity="${st.opacity}"` : ''} `
+      + `stroke-linecap="round" stroke-linejoin="round"${filterAttr}/>`).join('');
+
     const svgNS = 'http://www.w3.org/2000/svg';
     block.innerHTML = `<svg class="sticker-hlb-svg" xmlns="${svgNS}" width="${length}" height="${svgH}" `
       + `viewBox="0 0 ${length} ${svgH}" preserveAspectRatio="none" `
@@ -288,9 +311,7 @@ function _renderStickerBlockInner(block) {
       + `transform:translate(-50%, -50%) rotate(${angle}deg);transform-origin:center center;`
       + `overflow:visible;cursor:move;pointer-events:auto;">`
       + filterDef
-      + `<path class="sticker-hlb-line" d="${pathD}" `
-      + `fill="none" stroke="${hlColor}" stroke-width="${thickness}" `
-      + `stroke-linecap="round" stroke-linejoin="round"${filterAttr}/>`
+      + pathsHTML
       + `</svg>`;
     return;
   }
@@ -418,6 +439,8 @@ function makeStickerBlock(opts = {}) {
     block.dataset.lineStyle = opts.lineStyle ?? 'line';   // 'line' | 'wavy' | 'marker'
     block.dataset.amplitude = opts.amplitude ?? 6;
     block.dataset.period    = opts.period    ?? 30;
+    // ★1012t1J2 두들 흔들림의 seed — «만들 때» 한 번(찍을 때마다 다른 손맛 · 저장하면 같은 모습)
+    block.dataset.seed      = opts.seed      ?? (window.FxSeed ? window.FxSeed.newSeed() : 1);
   }
   // ★glow(이펙트) — 프리셋(js/fx/glow-render.js GlowFx.PRESETS)을 깔고 opts 로 덮는다. seed 는 «만들 때» 새로(찍을 때마다 다른 모습).
   if (opts.shape === 'glow') {
@@ -626,7 +649,7 @@ function updateStickerBlock(blockId, partial = {}) {
   const _MODES  = ['text','image'];
   const _WEIGHTS = ['300','400','500','600','700','800','900'];
   const _ALIGNS = ['left','center','right'];
-  const _LSTYLES = ['line','wavy','marker'];
+  const _LSTYLES = ['line','wavy','marker', ...(window.DoodleLine?.STYLES || [])];   // ★1012t1J2 두들 다섯
   const _FONTS = [
     "'Pretendard', sans-serif",
     "'Noto Sans KR', sans-serif",
