@@ -186,7 +186,9 @@ test('H7 문 — columnPatch 로 칠하고, cols 전체교체 뒤에도 titleBg/
     /* ★구멍 재현 꼴: 지금 모델을 그대로 cols 로 되돌려 넣는다 — 예전엔 여기서 titleBg/titleColor 가 사라졌다. */
     const p2 = window.updateComparisonBlock(b.id, { cols: window.getComparisonCols(b.dataset) });
     const m2 = window.getComparisonCols(b.dataset)[0];
+    /* ★색은 «지금» 읽는다 — 다음 columnPatch 가 다시 그리면 이 헤더 요소는 떨어져 나간다(읽으면 ""). */
     const hd = b.querySelector('.cmp-hd[data-col-idx="0"]');
+    const hdCs = [getComputedStyle(hd).backgroundColor, getComputedStyle(hd).color];
     /* 지우기: '' = 키 없음 */
     const p3 = window.updateComparisonBlock(b.id, { columnPatch: [{ index: 0, titleBg: '' }] });
     const m3 = window.getComparisonCols(b.dataset)[0];
@@ -194,7 +196,7 @@ test('H7 문 — columnPatch 로 칠하고, cols 전체교체 뒤에도 titleBg/
     const p4 = window.updateComparisonBlock(b.id, { cols: [{ title: 'x', titleColor: 'x'.repeat(65), rows: [] }, { title: 'y', rows: [] }] });
     return { p1: p1.ok, p2: p2.ok, p3: p3.ok, p4: p4.code,
              m1: [m1.titleBg, m1.titleColor], m2: [m2.titleBg, m2.titleColor],
-             hd: [getComputedStyle(hd).backgroundColor, getComputedStyle(hd).color],
+             hd: hdCs,
              m3: [Object.prototype.hasOwnProperty.call(m3, 'titleBg'), m3.titleColor],
              colsAfterInvalid: window.getComparisonCols(b.dataset).length };
   }, [RED, GREEN]);
