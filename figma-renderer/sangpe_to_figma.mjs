@@ -733,7 +733,11 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       parentId,
     });
     if (node) {
-      if (block.src) {
+      if (block.redact) {
+        // ★블러(Redact, 1012t1 C1) — 에디터가 원본 src 를 안 싣는다. 불투명 덮개 색으로만 칠한다(도형 가림막과 같은 원칙).
+        run('set_fill_color', { nodeId: node.id, color: hex(block.redact.cover) });
+        console.log(`      · image ${availableWidth}×${imgH} → ${node.id} (블러 가림 — 덮개색)`);
+      } else if (block.src) {
         // 실제 이미지 데이터가 있으면 fill로 적용
         let sourceType, imageSource;
         if (block.src.startsWith('data:')) {

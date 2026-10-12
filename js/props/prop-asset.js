@@ -8,6 +8,7 @@ import { clipsContent, CLIP_DEFAULTS, applyAssetClip } from '../clip-content.js'
    패널(슬라이더·숫자칸·커밋 clamp)과 모서리 핸들이 «같은 수»를 봐야 갈라지지 않는다.
    (선례: prop-modal.js 가 MODAL_LIMITS 를, prop-gap.js 가 GAP_MIN/MAX 를 그렇게 쓴다.) */
 import { ASSET_W_MIN } from '../blocks/asset-width-limits.js';
+import { redactSectionHTML, wireRedactSection, readRedact } from '../effects/image-redact.js';   /* ★「블러 (Redact)」 공용 모듈(1012t1 C1) */
 
 export function applyAssetPadX(ab, padX) {
   const canvasW = 860;
@@ -241,6 +242,7 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="asset-grain-number" min="0" max="100" value="${grainIntensity}">
       </div>
     </div>` : ''}
+    ${hasImage ? redactSectionHTML({ idPrefix: 'asset', value: readRedact(ab) }) : ''}<!-- ★1012t1 C1 블러(Redact) — 그레인 바로 아래 -->
     ${window.fxSectionHtml?.(ab, 'asset') || ''}<!-- ★E1 Effects — 그레인 아래(지디 승인) -->
     <div class="prop-section">
       <div class="prop-section-title">Text Overlay</div>
@@ -732,6 +734,8 @@ ${blockHeaderHTML({
       window.pushHistory?.();
     });
   }
+  // ── 블러(Redact) 이벤트 바인딩 (1012t1 C1) — 상태는 ab 자신의 data-redact·--redact-blur ──
+  if (hasImage) wireRedactSection({ idPrefix: 'asset', getHost: () => ab });
 
   /* 오버레이(플로팅) 토글 — 텍스트·도형 패널과 «같은 함수»(js/overlay-float.js). */
   wireFloatToggle({

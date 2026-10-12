@@ -5,6 +5,7 @@ import { propPanel } from './globals.js';
 import { alignBtn } from './props/_helpers.js';
 import { decodeGifFrames } from './io/export-image.js';
 import { applyAssetClip } from './clip-content.js';   /* ★「내용 자르기」 ★술어·표의 ★단 한 자리(2026-10-10 c2) */
+import { applyRedact } from './effects/image-redact.js';   /* ★「블러 (Redact)」 공용 모듈(1012t1 C1) */
 
 /* ── 이미지 업로드 로딩 오버레이 헬퍼 ── */
 export function showAssetLoading(block) {
@@ -825,6 +826,9 @@ function clearAssetImage(ab) {
   delete ab.dataset.motion;
   delete ab.dataset.gifSrc;
   delete ab.dataset.gifPlaying;
+  /* ★블러(Redact)도 그림과 같이 걷는다(그레인이 innerHTML 재작성으로 사라지는 것과 같은 동작, 1012t1 C1).
+     안 걷으면 빈 칸에 속성이 남아 «다음에 넣는 그림이 말없이 흐려진다». */
+  applyRedact(ab, 0);
   const prevOverlayEl2 = ab.querySelector('.asset-overlay');
   const prevOverlayHTML2 = prevOverlayEl2 ? prevOverlayEl2.innerHTML : '';
   const prevOverlayStyle2 = prevOverlayEl2 ? prevOverlayEl2.getAttribute('style') || '' : '';
@@ -1659,7 +1663,7 @@ window.setAssetImageFromSrc = setAssetImageFromSrc;
  * ★되얹는 순서가 중요하다 — setAssetImageFromSrc 는 ⓐ오버레이·그레인은 «앞서 있던 것»을 보존하고 ⓑ크롭 키(imgW/X/Y/
  *   imgPosition)는 «지우고» ⓒ그림 요소를 새로 만든다. ⇒ ④⑤는 «넣기 전»에, ①②③은 «넣은 뒤»에 얹는다.
  *   (HTML 을 통째로 갈아 끼우면 이 함수가 단 지우기·GIF 단추 리스너가 사라져서 그 길은 안 쓴다.) */
-const ASSET_FX_DS_KEYS = ['fit', 'imgX', 'imgY', 'imgW', 'imgPosition', 'imgRotate', 'rotation', 'overlay', 'motion', 'gifSrc'];
+const ASSET_FX_DS_KEYS = ['fit', 'imgX', 'imgY', 'imgW', 'imgPosition', 'imgRotate', 'rotation', 'overlay', 'motion', 'gifSrc', 'redact'];   /* ★redact = 1012t1 C1 블러 */
 function captureAssetFx(ab) {
   if (!ab?.classList?.contains('asset-block')) return null;
   const ds = {};
@@ -1691,7 +1695,9 @@ function setAssetImageWithFx(ab, src, fx) {
   setAssetImageFromSrc(ab, src, fx.ds?.motion === 'gif' ? fx.ds.gifSrc : undefined);
   // ①②③ 넣은 «뒤»
   const ds = fx.ds || {};
-  for (const k of ASSET_FX_DS_KEYS) if (ds[k] != null && k !== 'rotation') ab.dataset[k] = ds[k];
+  for (const k of ASSET_FX_DS_KEYS) if (ds[k] != null && k !== 'rotation' && k !== 'redact') ab.dataset[k] = ds[k];
+  /* ★블러는 속성만 되얹으면 인라인 --redact-blur 가 빠진다(이 함수는 ab.style 중 radius 만 옮긴다) ⇒ 공용 함수로 둘 다 쓴다(1012t1 C1) */
+  if (ds.redact != null) applyRedact(ab, ds.redact);
   if (ds.rotation != null) window.applyRotationDeg?.(ab, ds.rotation);
   if (fx.radius) ab.style.borderRadius = fx.radius;
   const img = ab.querySelector('.asset-img');

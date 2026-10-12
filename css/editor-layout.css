@@ -726,6 +726,23 @@ span[style*="text-fill-color"] .tb-dot { -webkit-text-fill-color: currentColor; 
   mix-blend-mode: overlay;
   opacity: 0;
 }
+/* ── 블러(Redact) 효과 (1012t1 C1) ─────────────────────────────────────
+ * 상태는 에셋 블럭 자신의 data-redact(1~100) + 인라인 --redact-blur(px) 뿐이다
+ * (js/effects/image-redact.js applyRedact 가 둘을 같이 쓰고 같이 지운다).
+ * 그림 상자(클립 래퍼)의 의사요소 하나가 backdrop-filter 로 그 밑의 그림을 흐린다 — 새 DOM 0.
+ * img 의 filter 가 아닌 까닭: 색보정이 img.style.filter 를 통째로 쓴다(충돌) + 가장자리가
+ * 바탕색으로 바랜다(plan-C1 §3 실측). 층: 그림 위 · 그레인(z1)·오버레이 글자(z2) 아래.
+ * 변수가 빠져도 속성만 있으면 8px 로 흐린다(프라이버시 쪽 실패 · 도형 가림막과 같은 폴백).
+ * html2canvas 는 backdrop 을 못 그린다 ⇒ capture-safety.js neutralizeRedactForH2C 가 회색으로 덮는다. */
+.asset-block[data-redact] > .asset-img-clip::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  backdrop-filter: blur(var(--redact-blur, 8px));
+  -webkit-backdrop-filter: blur(var(--redact-blur, 8px));
+}
 /* 오버레이 내 블록은 페이지 padX/padY 무시 */
 .asset-overlay .text-block {
   padding: 4px 16px !important;
