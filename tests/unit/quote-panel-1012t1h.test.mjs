@@ -80,3 +80,18 @@ test('T-H2 prop-quote.js 코드에 삭제한 두 문장·qt-lines-hint 가 0건�
     assert.equal(code.split(needle).length - 1, 0, `${needle} 가 prop-quote.js 코드에 남아 있다`);
   }
 });
+
+/* T-H5 — 글자색(qt-textcol)이 «Fill» 절 안, Typography 절 «뒤»에 있고, 「글」 절·「글자 색」 라벨은 0건이다.
+   되돌리면 빨강: Fill 절을 Typography 앞으로 옮기거나 「글」 절을 되살리면. */
+test('T-H5 prop-quote.js 의 Fill 절이 Typography 뒤에서 qt-textcol 을 담고, 「글」 절은 없다', () => {
+  const code = propCode();
+  const iTypo = code.indexOf('buildTypographySectionHtml({');
+  const iFill = code.indexOf('prop-section-title">Fill<');
+  const iCol = code.indexOf("idPrefix: 'qt-textcol'");
+  assert.ok(iTypo > 0 && iFill > 0 && iCol > 0, `입력이 죽었다: typo ${iTypo} fill ${iFill} col ${iCol}`);
+  assert.ok(iFill > iTypo, 'Fill 절이 Typography 절 앞에 있다 — 텍스트블럭은 Typography 바로 다음이다');
+  assert.ok(iCol > iFill, 'qt-textcol 칸이 Fill 절 밖(앞)에 있다');
+  assert.equal(code.split('prop-section-title">글<').length - 1, 0, '「글」 절이 되살아났다');
+  assert.equal(code.split('>글자 색<').length - 1, 0, '라벨이 「글자 색」(띄어쓰기)로 돌아갔다 — 텍스트블럭은 「글자색」');
+  assert.ok(code.includes('<span class="prop-label">글자색</span>'), '「글자색」 라벨이 없다');
+});

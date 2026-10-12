@@ -1742,10 +1742,11 @@ test('Q20 ★★«내용» 입력칸은 ★0개 · 그런데 ★글 넣는 ★�
   const cen = await page.evaluate(() => {
     const p = document.getElementById('panel-right');
     /* ★★절을 ★이름으로 집는다 — ⛔몇째 절인지로 ★세지 않는다(절이 늘면 ★썩는다) */
+    /* ★1012t1H5 — 글자색은 «글» 절이 아니라 ★`Fill` 절 안에 산다(텍스트블럭과 같은 자리) */
     const sec = [...p.querySelectorAll('.prop-section')]
-      .find(s => (s.querySelector('.prop-section-title')?.textContent || '').trim() === '글') || null;
+      .find(s => (s.querySelector('.prop-section-title')?.textContent || '').trim() === 'Fill') || null;
     return {
-      hasGlSec: !!sec,
+      hasGlSec: !!sec && !!sec.querySelector('#qt-textcol-color'),
       titles: [...p.querySelectorAll('.prop-section-title')].map(e => e.textContent.trim()),
       /* ⑴ ★두 자로 ★센다 — ★id 로 ＋ ★꼴(textarea)로. ⛔한 자로만 세면 ★id 를 바꿔 ★되살릴 수 있다 */
       byId: p.querySelectorAll('#qt-text').length,
@@ -1760,8 +1761,8 @@ test('Q20 ★★«내용» 입력칸은 ★0개 · 그런데 ★글 넣는 ★�
   });
   console.log('★Q20 잰 명부 = ' + JSON.stringify(cen));
 
-  /* ★전제 — ★«글» 절 ★자체는 ★남아 있다(⛔절을 ★통째로 지운 것이 ★아니다) */
-  expect(cen.hasGlSec, `★전제 — ★«글» 절이 ★패널에 ★있다. 잰 제목 ${JSON.stringify(cen.titles)}`).toBe(true);
+  /* ★전제 — ★글자색을 담은 절(1012t1H5: Fill)이 ★남아 있다(⛔칸을 ★통째로 지운 것이 ★아니다) */
+  expect(cen.hasGlSec, `★전제 — ★Fill 절이 있고 그 안에 글자색 칸(#qt-textcol-color)이 ★있다(1012t1H5). 잰 제목 ${JSON.stringify(cen.titles)}`).toBe(true);
 
   /* ── ⑴ ★«내용» 입력칸 ★0개 — ★두 자로 ── */
   expect(cen.byId, `★★옛 ★«내용» 입력칸(#qt-text)이 ★0개여야 한다. 잰 값 ${cen.byId}`).toBe(0);
@@ -1796,6 +1797,11 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
       kidSec: p.querySelectorAll('#qt-kids-section').length,
       addOpts: [...p.querySelectorAll('select option')].filter(o => /블럭 넣기/.test(o.textContent)).length,
       selects: p.querySelectorAll('select').length,
+      titles: [...p.querySelectorAll('.prop-section-title')].map(e => e.textContent.trim()),
+      fill: (() => {
+        const f = [...p.querySelectorAll('.prop-section')].find(x => (x.querySelector('.prop-section-title')?.textContent || '').trim() === 'Fill');
+        return f ? { labels: [...f.querySelectorAll('.prop-label')].map(e => e.textContent.trim()), hasColor: !!f.querySelector('#qt-textcol-color'), colorRow: !!f.querySelector('.prop-color-row') } : null;
+      })(),
       hints: [...p.querySelectorAll('.prop-hint')].map(e => e.textContent),
       linesHint: p.querySelectorAll('#qt-lines-hint').length,
     };
@@ -1811,6 +1817,34 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
     sentence2: pn.hints.filter(h => /한 줄 꼴에서는/.test(h)).length,
     linesHint: pn.linesHint,
   }, `★H2 — 삭제한 두 문장과 #qt-lines-hint 가 0. 잰 값 ${JSON.stringify(pn.hints)}`).toEqual({ sentence1: 0, sentence2: 0, linesHint: 0 });
+  /* ⑵ H5 — 글자색 = Typography 바로 다음의 Fill 절(텍스트블럭과 같은 자리 · 같은 라벨) */
+  const iq = pn.titles.indexOf('Typography');
+  expect(iq, `★전제 — Typography 절이 있다. 잰 제목 ${JSON.stringify(pn.titles)}`).toBeGreaterThanOrEqual(0);
+  expect(pn.titles[iq + 1], `★H5 — Fill 이 Typography 바로 다음이다. 잰 제목 ${JSON.stringify(pn.titles)}`).toBe('Fill');
+  expect(pn.fill, `★H5 — Fill 절 안 라벨은 「글자색」 하나, 글자색 칸과 .prop-color-row 가 있다. 잰 값 ${JSON.stringify(pn.fill)}`)
+    .toEqual({ labels: ['글자색'], hasColor: true, colorRow: true });
+  expect(pn.titles.includes('글'), `★H5 — 「글」 절은 0 이다. 잰 제목 ${JSON.stringify(pn.titles)}`).toBe(false);
+  /* 기준이 살아 있다 — 텍스트블럭 패널도 같은 술어(Fill 이 Typography 바로 다음, 라벨 글자색)를 만족한다 */
+  await page.evaluate(() => {
+    window.deselectAll && window.deselectAll();
+    window.selectSection(document.getElementById('sQ'));
+    window.addTextBlock('body');
+    const tb = [...document.querySelectorAll('#sQ .text-block')].pop();
+    if (tb) tb.dataset.pnl2 = '1';
+  });
+  await page.evaluate(() => { window.deselectAll && window.deselectAll(); });
+  const tr = await waitStableRect(page, '[data-pnl2="1"]');
+  await clickAt(page, tr.cx, tr.cy, { sel: '[data-pnl2="1"]' }, { label: 'Q21 텍스트블럭 고르기' });
+  await page.waitForFunction(() => [...document.querySelectorAll('#panel-right .prop-section-title')].some(e => e.textContent.trim() === 'Typography'), null, { timeout: 5000 });
+  const tx = await page.evaluate(() => {
+    const p = document.getElementById('panel-right');
+    const titles = [...p.querySelectorAll('.prop-section-title')].map(e => e.textContent.trim());
+    const f = [...p.querySelectorAll('.prop-section')].find(x => (x.querySelector('.prop-section-title')?.textContent || '').trim() === 'Fill');
+    return { titles, fillLabels: f ? [...f.querySelectorAll('.prop-label')].map(e => e.textContent.trim()) : null };
+  });
+  const it = tx.titles.indexOf('Typography');
+  expect(tx.titles[it + 1], `★H5 기준 — 텍스트블럭도 Fill 이 Typography 바로 다음이다. 잰 제목 ${JSON.stringify(tx.titles)}`).toBe('Fill');
+  expect(tx.fillLabels, `★H5 기준 — 텍스트블럭 Fill 절에 「글자색」 라벨이 있다. 잰 값 ${JSON.stringify(tx.fillLabels)}`).toContain('글자색');
   /* ⑸ H6 */
   expect({ kidSel: pn.kidSel, kidSec: pn.kidSec, addOpts: pn.addOpts },
     `★H6 — 「＋ 블럭 넣기」 select·절·옵션이 0 이어야 한다. 잰 값 ${JSON.stringify(pn)}`)

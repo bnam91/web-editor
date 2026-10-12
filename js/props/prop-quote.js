@@ -157,6 +157,13 @@ export function showQuoteProperties(block) {
      ★남긴 것: 「부호만 위아래로 밀립니다…」 · 스택의 「세로 정렬은 스택에서 쓰지 않습니다…」 (현빈 목록 밖).
      ★되살리는 법: git 에서 이 커밋의 부모 판 prop-quote.js 의 ⒤⒥ 마크업과 위 두 지역변수·import 를 되돌려라. */
 
+  /* ★★⚰️2026-10-12 현빈 1012t1H5 — 「글」 절(글자 색 한 칸만 남아 있었다)을 걷고 ★글자색을 텍스트블럭과 ★같은 자리로 옮겼다.
+     ★원문: 「글자색 위치를 텍스트블럭과 동일하게」(ref/body.txt H5). ★텍스트블럭 패널 = Typography 바로 다음의 `Fill` 절 · 라벨 「글자색」.
+     ★옮긴 곳: Typography 절 «뒤» `Fill` 절 안 `.prop-color-row` — id `qt-textcol` ＋ 배선 `wireColor('qt-textcol','textColor')` 은 ★그대로(배선 변경 0).
+     ⛔`buildFillSectionHtml` 을 안 쓴 까닭: 그 절은 `<p>-color-hex` id 를 내서 `wireColorField` 와 안 맞고(prop-modal.js:376 이 손배선 60줄로 갚았다),
+       VAR 칩은 `var()` 를 내는데 인용구 `_QT_COLOR_RE` 가 `var()` 를 거부한다 ⇒ «눌리는데 안 먹는» 칸이 된다(계획 D3).
+     ★되살리는 법: Fill 절을 걷고 Typography 앞에 `<div class="prop-section-title">글</div>` + `.prop-row` + 「글자 색」 라벨로 되돌려라. */
+
   /* ★모양 — ★`.prop-align-group`(wrap · 여러 줄). ⛔`.prop-type-group` 으로 바꾸지 마라
      (머리말의 실측: 8번째 단추가 ★안 눌린다). 꼴은 prop-annotation.js:209~213 선례.
      ★★목록은 ★`quoteShapesAll()` ★하나에서 온다 — ★제품 8종 ＋ ★사용자가 더한 것(현빈 2026-10-09 ⒝).
@@ -233,14 +240,6 @@ ${layout === 'inline' ? `
       </div>
     </div>
 
-    <div class="prop-section">
-      <div class="prop-section-title">글</div>
-      <div class="prop-row">
-        <span class="prop-label">글자 색</span>
-        ${colorFieldHTML({ idPrefix: 'qt-textcol', hex: _swatchHex(textColor, QUOTE_DEFAULTS.textColor), alpha: parseAlphaFromColor(textColor) })}
-      </div>
-    </div>
-
 ${buildTypographySectionHtml({
     p: 'qt-typo',
     font: fontFamily, weight: String(weight), size: fontSize,
@@ -254,7 +253,15 @@ ${buildTypographySectionHtml({
        ★그 게이트 ★밖에서 조용히 갈라진다. ★합치는 일은 ★모달 파일을 건드리는 일이라 ★이 레인 밖이다.
        ⇒ ★칸을 ★내지 않는다 — ⛔「눌러도 조용히 아무 일 없음」을 ★만들지 않는다(이 파일의 그 규율). */
     showHighlight: false,
-  })}`;
+  })}
+
+    <div class="prop-section">
+      <div class="prop-section-title">Fill</div>
+      <div class="prop-color-row">
+        <span class="prop-label">글자색</span>
+        ${colorFieldHTML({ idPrefix: 'qt-textcol', hex: _swatchHex(textColor, QUOTE_DEFAULTS.textColor), alpha: parseAlphaFromColor(textColor) })}
+      </div>
+    </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
