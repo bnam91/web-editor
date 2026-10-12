@@ -18,7 +18,7 @@
      D10 ⌫·T·G·Esc 는 «줄»에 먹는다 · D11 역할 크기는 절대값(챗 fontSize 를 안 따른다).
    ⛔옛 버블·챗(줄 없음)은 이 파일의 어떤 코드도 «그리지» 않는다 — 렌더 문은 전부 lnHasLines 로 막혀 있다(T1·T1b).
 ═══════════════════════════════════════════════════════════════════════════ */
-import { gridLineHtml, GRID_ROLES, MAX_CELL_LINES, gridMergeLine, gridValidateLines, gridLineHasText } from './grid-block.js';
+import { gridLineHtml, GRID_ROLES, MAX_CELL_LINES, gridMergeLine, gridValidateLines, gridLineHasText, gridPlusLayer } from './grid-block.js';
 import { grdLineUi, grdSetActiveLine, grdGetActiveLine, grdIsSoleSelected } from '../props/prop-grid.js';
 import { escHtml } from '../props/_helpers.js';   // ⛔이스케이프 사본 금지(tests/unit/name-axes-to-markup X6·X9) — 정본을 쓴다
 
@@ -484,6 +484,7 @@ export function lnBeginEdit(block, addr) {
 export function lnBindLineEdit(block) {
   if (!block || block._lnEditBound) return;
   block._lnEditBound = true;
+  if (block.classList.contains('speech-bubble-block')) lnBindPlus(block);   // ★1012t1M1 — 캔버스 ＋(아래 절)
   block.addEventListener('dblclick', (e) => {
     const isBubble = block.classList.contains('speech-bubble-block');
     const row = e.target.closest?.('.' + LN_ROW_CLASS);
@@ -498,6 +499,93 @@ export function lnBindLineEdit(block) {
     /* ★줄 모드 버블의 «줄 밖»(본체 패딩) 더블클릭도 여기서 막는다 — 안 막으면 일반 핸들러가 .tb-bubble 을 통째로 켠다. */
     if (isBubble && lnBubbleLines(block) && e.target.closest?.('.tb-bubble')) { e.stopPropagation(); e.preventDefault(); }
   }, true);
+}
+
+/* ══ ★1012t1M1 말풍선 캔버스 ＋ «줄 추가» — 그리드 아래 ＋ 와 같은 꼴·같은 층 (S4 유닛 M · 2026-10-12) ══════
+ * ★왜: 현빈 「말풍선 줄 추가가 그리드만큼 쾌적하지 않다」. 실측(9436, zoom 100): 그리드는 고르자마자 캔버스에 ＋ 둘이 보이고
+ *   ＋ 1클릭 = 행 +1. 말풍선은 고른 뒤 캔버스 입구 0개 — 몸통 클릭 + T 는 «새 텍스트 블럭»을 만들었고(B1 계약 — 줄 없는
+ *   말풍선의 T/G 는 전역), 첫 줄은 우측 패널 「+ 줄 추가…」 select 로만 만들 수 있었다.
+ * ★＋ = 그리드 ＋ 층(#grd-plus-layer — grid-block.js gridPlusLayer)에 산다 ⇒ 블럭 DOM·저장·PNG·MCP 읽기에 안 샌다(E65).
+ *   ⛔클래스는 `.grd-add-btn` 이 아니다(그리드 ＋ 개수를 세는 시험이 문서 전체를 센다) — `.ln-add-btn`. 꼴은 CSS 가 같은 규칙으로 준다.
+ * ★동작 = T 와 «같은 길»(grdNewLineSpec('body') → grdAddLine(…, host)) — D2 첫 줄 굽기·상한 토스트·이력은 그 길이 진다.
+ *   고른 줄이 있으면 그 다음, 없으면 끝. 편집에는 안 들어간다(그리드 ＋·T 와 같다 — 결정 후보 D-M1-1).
+ * ★자리 = (몸통 가로 가운데, 블럭 아래 끝) — 그리드 아래 ＋ 처럼 «블럭 바로 아래 바깥»이라 블럭 고르는 클릭을 안 먹는다.
+ * ★뜨는 조건은 _lnPlusShown «하나». 계기 = 블럭 class 관측(골라짐·풀림·편집) + 떠 있는 동안 rAF(자리·다중선택·삭제). */
+const LN_ADD_BTN_CLS = 'ln-add-btn';
+const _lnPlusBtns = new Map();   // block → button (떠 있는 것만)
+function _lnPlusShown(block) {
+  return !!(block && block.isConnected && block.classList.contains('selected')
+    && !block.classList.contains('editing') && grdIsSoleSelected(block));
+}
+function _lnPlusAdd(block) {
+  const host = lnBubbleHost(block);
+  const act = _lnPickedLine(block);
+  const after = act && Number.isInteger(act.li) ? act.li : null;   // 고른 줄 다음, 없으면 끝
+  const spec = window.grdNewLineSpec?.('body');
+  if (!spec) return false;
+  const res = window.grdAddLine?.(block, { r: 0, c: 0 }, after, spec, {}, host);
+  if (res && res.ok) host.show(grdGetActiveLine(block));
+  return !!(res && res.ok);
+}
+function _lnMakePlusBtn(block) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = LN_ADD_BTN_CLS;
+  btn.dataset.grdAdd = 'row';            // 그리드 아래 ＋ 와 같은 기준점 변환(translateX(-50%))을 CSS 에서 받는다
+  if (block.id) btn.dataset.lnFor = block.id;
+  btn.title = '줄 추가';
+  btn.setAttribute('aria-label', '줄 추가');
+  // ⛔캔버스 쪽 손(마키·선택 해제·더블클릭 편집)으로 새지 않게 — 그리드 ＋(_makeGridAddBtn)와 같은 세 겹
+  btn.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
+  btn.addEventListener('dblclick', e => { e.stopPropagation(); e.preventDefault(); });
+  btn.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); _lnPlusAdd(block); });
+  return btn;
+}
+function _lnDropPlus(block) {
+  const b = _lnPlusBtns.get(block);
+  if (b) b.remove();
+  _lnPlusBtns.delete(block);
+}
+function _lnPlacePlus(block) {
+  const btn = _lnPlusBtns.get(block);
+  const scaler = btn && btn.parentElement && btn.parentElement.parentElement;
+  const bub = block.querySelector('.tb-bubble');
+  if (!btn || !scaler || !bub) return;
+  const sr = scaler.getBoundingClientRect();
+  const scale = (window.currentZoom || 40) / 100;   // ← grid-block.js _placeGridAddBtns 와 같은 식
+  const q = bub.getBoundingClientRect(), br = block.getBoundingClientRect();
+  const l = ((q.left + q.right) / 2 - sr.left) / scale + 'px', t = (br.bottom - sr.top) / scale + 'px';
+  if (btn.style.left !== l) btn.style.left = l;
+  if (btn.style.top !== t) btn.style.top = t;
+}
+let _lnPlusRaf = 0;
+function _lnStartPlusRaf() {
+  if (_lnPlusRaf || typeof requestAnimationFrame !== 'function') return;
+  const loop = () => {
+    _lnPlusRaf = 0;
+    for (const blk of [..._lnPlusBtns.keys()]) {
+      if (!_lnPlusShown(blk)) { _lnDropPlus(blk); continue; }   // 삭제·⌘Z 교체·다중선택
+      _lnPlacePlus(blk);
+    }
+    if (_lnPlusBtns.size) _lnPlusRaf = requestAnimationFrame(loop);
+  };
+  _lnPlusRaf = requestAnimationFrame(loop);
+}
+export function lnSyncPlus(block) {
+  if (!block || !block.classList?.contains('speech-bubble-block')) return;
+  if (!_lnPlusShown(block)) { _lnDropPlus(block); return; }
+  const L = gridPlusLayer();
+  if (!L) return;
+  let btn = _lnPlusBtns.get(block);
+  if (!btn || !btn.isConnected) { _lnDropPlus(block); btn = _lnMakePlusBtn(block); L.appendChild(btn); _lnPlusBtns.set(block, btn); }
+  _lnPlacePlus(block);
+  _lnStartPlusRaf();
+}
+export function lnBindPlus(block) {
+  if (!block || block._lnPlusBound || typeof MutationObserver !== 'function') return;
+  block._lnPlusBound = true;
+  new MutationObserver(() => lnSyncPlus(block)).observe(block, { attributes: true, attributeFilter: ['class'] });
+  lnSyncPlus(block);
 }
 
 /** Enter 로 편집 들어가기(block-drag.js _enterTextEditMode 의 줄 모드 갈래) — 활성 줄, 없으면 첫 글자 줄. */
@@ -596,6 +684,6 @@ if (typeof window !== 'undefined') {
     lnHasLines, lnLinesHtml, lnValidateLines, lnPlainText, lnTextMirrorHtml,
     lnRenderBubble, lnBubbleLines, lnHostFor, lnMark, lnRemark, lnClearAllActive, lnClickAddr,
     lnAugmentBubblePanel, lnAugmentChatPanel, lnBindLineEdit, lnBeginEdit, lnEnterEdit,
-    lnDeleteActiveLine, lnAddLineToSelected, lnEscLine,
+    lnDeleteActiveLine, lnAddLineToSelected, lnEscLine, lnSyncPlus,
   });
 }
