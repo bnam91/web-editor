@@ -20,7 +20,9 @@
 ═══════════════════════════════════════════════════════════════════════════ */
 import { gridLineHtml, GRID_ROLES, MAX_CELL_LINES, gridMergeLine, gridValidateLines, gridLineHasText } from './grid-block.js';
 import { grdLineUi, grdSetActiveLine, grdGetActiveLine, grdIsSoleSelected } from '../props/prop-grid.js';
-import { escHtml } from '../props/_helpers.js';   // ⛔이스케이프 사본 금지(tests/unit/name-axes-to-markup X6·X9) — 정본을 쓴다
+import { escHtml } from '../props/_helpers.js';
+import { swatchHex } from '../props/color-picker.js';          // ★D2 — 비교 줄 Fill 스와치를 «그려진 색»으로(prop-grid 가 이미 들이는 모듈 · 새 그래프 0)
+import { panelRenderedColor } from '../props/_panel-rendered.js';   // ★D2 — «그려진 값»을 읽는 한 자리(E121)   // ⛔이스케이프 사본 금지(tests/unit/name-axes-to-markup X6·X9) — 정본을 쓴다
 
 /** D5 — 버블·챗이 내놓는 줄 종류. ★GRID_ROLES 에서 뜬다(손으로 안 적는다) + 여백. */
 export const LN_KINDS = Object.freeze([...Object.keys(GRID_ROLES), 'gap']);
@@ -514,6 +516,24 @@ export function lnAugmentCmpPanel(block) {
   const host = lnCmpHost(block);
   if (!host.resolveAny(act)) { grdSetActiveLine(block, null); return; }
   _mountLineUi(block, host, act);
+  _lnCmpFillShowsRendered(block, host, act);
+}
+/* ★D2 — 색 없는 비교 줄은 «칼럼 글자색»을 상속해 그린다(렌더러 useRoleColor=false). 그런데 공용 Fill 절은 역할 기본색(#555)을 보인다
+   ⇒ 패널이 실제와 다르다. 비교에서만 스와치·피커·hex 안내값을 «그려진 계산색»으로 맞춘다(값만 표시 — 모델에 안 쓴다).
+   ⛔공용 절(prop-grid _grdTypoSectionsHtml)은 안 고친다 — 그리드·버블·챗 동작 불변(이 함수는 lnAugmentCmpPanel 만 부른다). */
+function _lnCmpFillShowsRendered(block, host, addr) {
+  const line = host.line(addr);
+  if (!line || (line.color !== undefined && line.color !== null && String(line.color).trim() !== '')) return;
+  const el = _lineTextEl(block.querySelector(_lnRowSel(block, addr.r, addr.c, addr.li)));
+  const rgb = panelRenderedColor(el, 'color');
+  const hex = rgb ? swatchHex(rgb, '') : '';
+  if (!hex) return;
+  const pick = document.getElementById('grd-typo-color');
+  if (pick) pick.value = hex;
+  const sw = pick?.closest('.prop-color-swatch');
+  if (sw) sw.style.background = rgb;
+  const hx = document.getElementById('grd-typo-color-hex');
+  if (hx && !hx.value) hx.placeholder = hex.replace('#', '').toUpperCase();
 }
 
 /* ══ 줄 «글자» 편집 — 더블클릭 (그리드 인라인 편집과 같은 손짓) ═════════════════

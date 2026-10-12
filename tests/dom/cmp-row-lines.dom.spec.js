@@ -292,3 +292,73 @@ test('L9 빈 줄 안내 = D5 와 같은 문구(window.CMP_ROW_HINT) · 비교 �
   expect(r.content, '안내 = CMP_ROW_HINT').toBe(JSON.stringify(r.hint));
   expect(errs, errs.join('\n')).toEqual([]);
 });
+
+/* ══ 이벨류에이터 지적 후속 (2026-10-13) ══════════════════════════════════════════
+ * ⑴ ⌘↓ 가 비교 칸 줄 대신 «블럭»을 옮겼다 — editor.js _gridActiveOuterLine 셀렉터에 .comparison-block 이 없었고,
+ *    옮기는 길이 c 를 0 으로 고정했다. ⑵ 칼럼 절 거울 입력이 줄을 붙여 보였다. ⑶ Fill 스와치가 역할 기본색(#555)이었다.
+ * 음성대조: js/editor.js _gridActiveOuterLine 의 `, .comparison-block.selected` 를 빼면 → L10·L11 빨강(블럭 순서가 바뀐다). */
+const TEXTS = (ls) => (ls || []).map(l => l.text);
+async function setupLines(page) {
+  const errs = await setup(page);
+  const ok = await page.evaluate(() => window.updateComparisonBlock(window.__bid, { rowLines: { col: 1, row: 0, lines: [
+    { type: 'body', text: 'A' }, { type: 'body', text: 'B' }, { type: 'body', text: 'C' }] } }).ok);
+  expect(ok, '전제 — 칼럼 1 칸(0행)에 줄 셋').toBe(true);
+  await page.waitForFunction((s) => document.querySelectorAll(s).length === 3, `${cellSel(1, 0)} > .ln-row`, { timeout: 3000 });
+  return errs;
+}
+async function pickLine(page, c, r, li) {
+  const q = await at(page, lineSel(c, r, li));
+  await page.mouse.click(q.cx, q.cy);
+  await page.waitForFunction(() => document.getElementById(window.__bid).classList.contains('selected'), null, { timeout: 3000 });
+  await page.mouse.click(q.cx, q.cy);
+  await page.waitForFunction(([id, a]) => JSON.stringify(window.grdGetActiveLine(document.getElementById(id))) === JSON.stringify(a),
+    [await page.evaluate(() => window.__bid), { r, c, li }], { timeout: 3000 });
+  await page.evaluate(() => document.activeElement?.blur?.());
+}
+const blockOrder = (page) => page.evaluate(() => [...document.querySelectorAll('#sB .section-inner > *')].map(e =>
+  e.querySelector('.comparison-block') || e.classList.contains('comparison-block') ? 'CMP' : (e.classList.contains('gap-block') || e.querySelector('.gap-block') ? 'gap' : e.className)));
+
+test('L10 칼럼 1 칸 줄 셋 · 둘째 줄 고르고 ⌘↓ → 줄 순서 A,C,B · 블럭 순서 불변 · ⌘Z 한 번에 A,B,C', async ({ page }) => {
+  const errs = await setupLines(page);
+  const order0 = await blockOrder(page);
+  expect(order0, '전제 — 블럭 순서에 CMP 가 있다').toContain('CMP');
+  await pickLine(page, 1, 0, 1);
+  await page.keyboard.press('Meta+ArrowDown');
+  await expect.poll(async () => TEXTS((await model(page))[1].rows[0].lines), { timeout: 3000 }).toEqual(['A', 'C', 'B']);
+  expect(await blockOrder(page), '블럭은 안 움직였다').toEqual(order0);
+  expect(await page.evaluate(`window.grdGetActiveLine(${blk})`), '활성 줄이 따라갔다').toEqual({ r: 0, c: 1, li: 2 });
+  expect((await model(page))[0].rows[0].lines, '칼럼 0 칸 무접촉').toBeUndefined();
+  await page.evaluate(() => window.undo());
+  await expect.poll(async () => TEXTS((await model(page))[1].rows[0].lines), { timeout: 3000 }).toEqual(['A', 'B', 'C']);
+  expect(await blockOrder(page), '⌘Z 뒤에도 블럭 순서 그대로').toEqual(order0);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('L11 비교 칸 줄 고른 채 ⌘←/⌘→ = 아무것도 안 함(블럭 안 옮김 · 줄 안 옮김 — 옆 칸 옮기기는 v1 제외)', async ({ page }) => {
+  const errs = await setupLines(page);
+  const order0 = await blockOrder(page);
+  await pickLine(page, 1, 0, 1);
+  const cols0 = await page.evaluate(`${blk}.dataset.cols`);
+  for (const k of ['Meta+ArrowLeft', 'Meta+ArrowRight']) {
+    await page.keyboard.press(k);
+    expect(await blockOrder(page), `${k} — 블럭 순서 불변`).toEqual(order0);
+    expect(await page.evaluate(`${blk}.dataset.cols`), `${k} — 모델 불변`).toBe(cols0);
+    expect(await page.evaluate(`window.grdGetActiveLine(${blk})`), `${k} — 줄 선택 유지`).toEqual({ r: 0, c: 1, li: 1 });
+  }
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('L12 패널 — 칼럼 절 거울 입력은 줄을 « / » 로 잇는다 · 색 없는 줄의 Fill 스와치 = 그려진 칼럼 글자색', async ({ page }) => {
+  const errs = await setupLines(page);
+  await pickLine(page, 1, 0, 0);
+  expect(await page.evaluate(() => document.querySelector('.cmp-row-input[data-col="1"][data-idx="0"]')?.value), '거울 = A / B / C').toBe('A / B / C');
+  const r = await page.evaluate((s) => {
+    const el = document.querySelector(s);
+    const rgb = getComputedStyle(el).color.match(/\d+/g).slice(0, 3).map(n => (+n).toString(16).padStart(2, '0')).join('');
+    return { drawn: '#' + rgb, pick: document.getElementById('grd-typo-color')?.value, lineColor: window.getComparisonCols(document.getElementById(window.__bid).dataset)[1].rows[0].lines[0].color };
+  }, `${lineSel(1, 0, 0)} > .grd-line`);
+  expect(r.lineColor, '전제 — 줄에 색이 없다').toBeUndefined();
+  expect(r.pick, 'Fill 피커 = 캔버스에 그려진 색').toBe(r.drawn);
+  expect(r.drawn, '전제 — 역할 기본색(#555555)이 아니다').not.toBe('#555555');
+  expect(errs, errs.join('\n')).toEqual([]);
+});

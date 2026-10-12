@@ -43,8 +43,9 @@ export function showComparisonProperties(block) {
             <button class="prop-align-btn cmp-row-fit${fit === 'contain' ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-fit="contain" style="flex:1;font-size:10px;">원본 비율</button>
           </div>`;
       } else if (row && Array.isArray(row.lines) && row.lines.length) {
-        /* ★1012t1D2 — 줄 칸: 글자는 줄마다 산다(캔버스 줄 더블클릭 · 칸을 고르면 위 줄 절). 여기는 거울(text)을 «읽기만» 보인다. */
-        body = `<input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" data-lines="${row.lines.length}" value="${_esc(row.text)}" disabled title="줄 ${row.lines.length}개 — 캔버스에서 칸을 고르면 줄 편집" style="flex:1;">`;
+        /* ★1012t1D2 — 줄 칸: 글자는 줄마다 산다(캔버스 줄 더블클릭 · 칸을 고르면 위 줄 절). 여기는 거울(text)을 «읽기만» 보인다.
+           한 줄 input 은 \n 을 지워 붙여 보이므로 줄 사이를 ' / ' 로 잇는다(값만 표시 — 모델은 그대로). 글자 줄이 다 비면 placeholder 가 줄 수를 말한다. */
+        body = `<input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" data-lines="${row.lines.length}" value="${_esc(String(row.text ?? '').split('\n').filter(Boolean).join(' / '))}" placeholder="줄 ${row.lines.length}개 — 캔버스에서 편집" disabled title="줄 ${row.lines.length}개 — 캔버스에서 칸을 고르면 줄 편집" style="flex:1;">`;
       } else {
         body = `<input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" placeholder="${_esc(CMP_ROW_HINT)}" value="${_esc(row && row.text)}" style="flex:1;">`;
       }
