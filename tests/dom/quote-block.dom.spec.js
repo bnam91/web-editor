@@ -1152,7 +1152,7 @@ test('Q16 ★★간격 슬라이더가 ★그림을 바꾼다 — ★inline ＋ 
     const s = document.getElementById('qt-gap-slider');
     if (!s) return null;
     const r = s.getBoundingClientRect();
-    return { x: r.left + 6, y: r.top + r.height / 2, right: r.right - 4, min: s.min, max: s.max, value: s.value };
+    return { x: r.left + 6, y: r.top + r.height / 2, right: r.right - 4, min: s.min, max: s.max, value: s.value, gmax: window.QUOTE_LIMITS.gap.max };   /* 1012t1H3: 한도는 표에서 읽는다(리터럴 금지) */
   });
   expect(sld, '★전제 — `#qt-gap-slider` 가 패널에 ★있다').not.toBe(null);
   expect(sld.value, '★전제 — 끌기 ★전 슬라이더 값 = 0').toBe('0');
@@ -1160,12 +1160,12 @@ test('Q16 ★★간격 슬라이더가 ★그림을 바꾼다 — ★inline ＋ 
   await page.mouse.down();
   await page.mouse.move(sld.right, sld.y, { steps: 12 });
   await page.mouse.up();
-  await page.waitForFunction(() => document.getElementById('qt-gap-slider')?.value === '80', null, { timeout: 3000 })
-    .catch(() => { throw new Error('★끌었는데 ★슬라이더 값이 ★최대(80)로 ★안 갔다 — ★① 닿는가 갈래가 ★깨졌다'); });
+  await page.waitForFunction((mx) => document.getElementById('qt-gap-slider')?.value === String(mx), sld.gmax, { timeout: 3000 })
+    .catch(() => { throw new Error('★끌었는데 ★슬라이더 값이 ★최대(QUOTE_LIMITS.gap.max)로 ★안 갔다 — ★① 닿는가 갈래가 ★깨졌다'); });
   const s1 = await page.evaluate((code) => eval(code), QT_GEO);
   const sd = s1.dPre - s0.dPre;
-  expect(Math.abs(sd - 80) <= 3,
-    `★★슬라이더를 ★끝까지 끌었더니 ★거리가 ★80px 벌어져야 한다. 잰 값 ${sd.toFixed(1)}px`
+  expect(Math.abs(sd - sld.gmax) <= 3,
+    `★★슬라이더를 ★끝까지 끌었더니 ★거리가 ★${sld.gmax}px(QUOTE_LIMITS.gap.max) 벌어져야 한다. 잰 값 ${sd.toFixed(1)}px`
     + ` (${s0.dPre.toFixed(1)} → ${s1.dPre.toFixed(1)} · dataset ${await page.evaluate(() => window.__qt.dataset.gap)})`).toBe(true);
 
   /* ── ㉣ ★stack 도 ★같이 잠근다 — ★여기는 ★핀에서도 ★먹었다(14→48 화면 = ★배율 적용 전) ── */
@@ -1809,6 +1809,7 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
         }));
         return { h: g('qt-align-group'), v: g('qt-valign-group') };
       })(),
+      gap: { sMax: document.getElementById('qt-gap-slider')?.max, nMax: document.getElementById('qt-gap-number')?.max },
       hints: [...p.querySelectorAll('.prop-hint')].map(e => e.textContent),
       linesHint: p.querySelectorAll('#qt-lines-hint').length,
     };
@@ -1858,6 +1859,17 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
   expect(pn.al.h.every(a => a.vb === ref.vb && a.w === ref.w && a.h === ref.h && a.lines === 0 && a.fill >= 1)
     && pn.al.v.every(a => a.lines === 0 && a.fill >= 1),
     `★H4 — 정렬 아이콘이 세로 정렬과 같은 viewBox/크기이고 선(line) 0 · 칠 path 가 있다. 잰 값 ${JSON.stringify(pn.al)}`).toBe(true);
+  /* ⑷ H3 — 간격 한도 200: 슬라이더·숫자 칸 max 와 렌더 클램프(dataset.gap=200 이 80 일 때보다 ≈120 더 벌린다) */
+  expect(pn.gap, `★H3 — 간격 슬라이더·숫자 max 가 200. 잰 값 ${JSON.stringify(pn.gap)}`).toEqual({ sMax: '200', nMax: '200' });
+  const dist = (g) => page.evaluate((g) => {
+    const b = window.__qt; b.dataset.gap = String(g); window.renderQuoteBlock(b);
+    const pre = b.querySelector('[data-qt-mark="pre"]').getBoundingClientRect();
+    const ln = b.querySelector('.tb-qt-body').getBoundingClientRect();
+    const k = b.getBoundingClientRect().width / b.offsetWidth || 1;   /* 섹션 배율 */
+    return (ln.left - pre.right) / k;
+  }, g);
+  const d80 = await dist(80), d200 = await dist(200);
+  expect(Math.abs((d200 - d80) - 120) <= 4, `★H3 — gap 200 이 80 보다 ≈120px 더 벌린다(렌더 클램프도 200). 잰 값 ${d80.toFixed(1)} → ${d200.toFixed(1)}`).toBe(true);
   /* ⑸ H6 */
   expect({ kidSel: pn.kidSel, kidSec: pn.kidSec, addOpts: pn.addOpts },
     `★H6 — 「＋ 블럭 넣기」 select·절·옵션이 0 이어야 한다. 잰 값 ${JSON.stringify(pn)}`)

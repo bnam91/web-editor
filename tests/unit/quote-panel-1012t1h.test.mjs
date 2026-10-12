@@ -107,3 +107,15 @@ test('T-H4 prop-quote.js 의 정렬 버튼 셋은 alignBtn(object-h) · 세로 �
   assert.equal(nH, 3, `정렬 alignBtn('object-h') 이 ${nH}개(기대 3)`);
   assert.equal(nT, 0, `alignBtn('text') 가 ${nT}건 남아 있다 — 정렬 아이콘이 선 4줄로 돌아갔다`);
 });
+
+/* T-H3 — 간격 한도 표가 200 이고 패널에 80 리터럴이 없다.
+   되돌리면 빨강: QUOTE_LIMITS.gap.max 를 80 으로 되돌리거나 패널에 max="80" 을 박으면. */
+test('T-H3 QUOTE_LIMITS.gap.max 가 200 이고 prop-quote.js 에 max="80" 리터럴이 0건', () => {
+  const blk = stripCommentsTA(read(F_BLK));
+  const at = blk.indexOf('const QUOTE_LIMITS');
+  assert.ok(at >= 0, 'QUOTE_LIMITS 표를 못 찾았다');
+  const tbl = blk.slice(at, blk.indexOf('});', at));
+  assert.ok(/markSize:\s*\{[^}]*max:\s*200/.test(tbl), '입력이 죽었다 — 형제 한도(markSize.max 200)가 안 읽힌다');
+  assert.ok(/gap:\s*\{\s*min:\s*0,\s*max:\s*200/.test(tbl), 'gap 한도가 200 이 아니다');
+  assert.equal((propCode().match(/max="80"/g) || []).length, 0, 'prop-quote.js 에 max="80" 리터럴이 있다');
+});

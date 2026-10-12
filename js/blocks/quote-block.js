@@ -193,7 +193,9 @@ const QUOTE_DEFAULTS = Object.freeze({
    ⛔패널이 자기 리터럴을 갖는 순간 둘이 갈라진다. */
 const QUOTE_LIMITS = Object.freeze({
   markSize: { min: 8,  max: 200 },
-  gap:      { min: 0,  max: 80  },
+  /* ★1012t1H3 현빈 «간격 한도 늘려줘» — 80 → 200. 근거: ⑴ 같은 표 형제 markSize.max=200 ⑵ 이웃 블럭 간격 천장
+     GRID_GAP_MAX=200(grid-block.js) · 스텝 stb-gap 200 ⑶ 실측: 블럭 안쪽 716px 에서 기본 글이 안 눌리는 상한 269 → 200 이면 넘침 0. */
+  gap:      { min: 0,  max: 200 },
   fontSize: { min: 10, max: 96  },
   /* ★±60 — ★부호 크기 천장(200)보다 ★작게 잡았다. ⚠️⛔이 수는 ★«줄 폭»을 잰 수가 ★아니다
      (`markSize` 의 8~200 과 달리 ★UI 에서 ★안 쟀다) — ★밀어낼 수 있는 ★범위의 ★울타리일 뿐이다.
