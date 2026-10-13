@@ -788,6 +788,12 @@ test('C24 Esc 충돌 없음 — 패널 밖 입력 칸·인라인 편집의 Esc �
   await page.keyboard.press('Escape');
   await expect.poll(popOpen, '③ 첫 Esc: 팝오버가 닫힌다').toBe(false);
   expect((await escState(page)).mode, '③ 첫 Esc: 도구는 그대로 켜져 있다').toBe(true);
+  /* ★전제(2차) — 둘째 Esc 가 도구를 끄려면 포커스가 «패널 밖 입력 칸»(닫힌 팝오버 안의 칸 포함)에 남아 있으면 안 된다
+     (그 자리는 규칙 ④가 그 칸의 Esc 로 본다). 닫힌 팝오버가 포커스를 쥐고 있으면 여기서 빨개진다 — 아래 단언이 엉뚱한 까닭으로 빨개지지 않게. */
+  await expect.poll(() => page.evaluate(() => { const ae = document.activeElement; const tag = ae ? ae.tagName : '';
+    const field = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!(ae && ae.isContentEditable);
+    return { outsideField: field && !ae.closest('#panel-right'), inPopover: !!(ae && ae.closest && ae.closest('.goya-cp-popover')) }; }),
+    '★전제③: 팝오버가 닫힌 뒤 포커스가 패널 밖 입력 칸·팝오버 안에 남아 있지 않다').toEqual({ outsideField: false, inPopover: false });
   await page.keyboard.press('Escape');
   expect(await escState(page), '③ 둘째 Esc: 도구가 꺼진다').toEqual({ mode: false, body: false, btn: false });
 });
@@ -864,8 +870,10 @@ test('C27 옛 저장본 — 색을 든 옛 마킹은 다시 그려도 그 색 ·
 /* 그 섹션의 마킹 전부 — dataset 과 «그려진» 값을 같이 읽는다(둘이 따로 놀면 한쪽만 맞아도 초록이 되므로). */
 const groupLook = (page, secId) => page.evaluate((id) => [...document.querySelectorAll(`#${id} .sticker-block[data-count]`)].map((b) => {
   const c = getComputedStyle(b), d = b.dataset;
+  const span = b.querySelector(':scope > .sticker-text');
   return { countShape: d.countShape, sizeW: d.sizeW, fontSize: d.fontSize, fontWeight: d.fontWeight, bgColor: d.bgColor, textColor: d.textColor,
-    radius: c.borderRadius, w: b.offsetWidth, drawnFs: c.fontSize, drawnFw: c.fontWeight, bg: c.backgroundColor, color: c.color };
+    radius: c.borderRadius, w: b.offsetWidth, drawnFs: c.fontSize, drawnFw: c.fontWeight, bg: c.backgroundColor, color: c.color,
+    fontStyle: d.fontStyle ?? null, deco: d.textDecoration ?? null, drawnStyle: c.fontStyle, drawnDeco: span ? getComputedStyle(span).textDecorationLine : null };
 }), secId);
 const pluck = (rows, k) => rows.map((r) => r[k]);
 
@@ -890,7 +898,7 @@ async function typeHex(page, sel, hex) {
   await page.keyboard.press('Enter');
 }
 
-test('C28 일괄(켬 · 기본) — 모양 · 크기 · 폰트 크기 · 굵기 · 배경색 · 글자색이 같은 섹션 3개에 다 가고 다른 섹션은 그대로', async ({ page }) => {
+test('C28 일괄(켬 · 기본) — 모양 · 크기 · 폰트 크기 · 굵기 · 스타일(이탤릭·밑줄) · 배경색 · 글자색이 같은 섹션 3개에 다 가고 다른 섹션은 그대로', async ({ page }) => {
   const errs = await groupSetup(page);
   const b0 = (await groupLook(page, 'secB'))[0];
   const a0 = await groupLook(page, 'secA');
@@ -912,6 +920,16 @@ test('C28 일괄(켬 · 기본) — 모양 · 크기 · 폰트 크기 · 굵기 
   await page.selectOption('#stk-fw', '900');
   a = await groupLook(page, 'secA');
   expect([pluck(a, 'fontWeight'), pluck(a, 'drawnFw')], '굵기: 셋 다 900').toEqual([['900', '900', '900'], ['900', '900', '900']]);
+
+  /* 스타일(이탤릭 · 밑줄) — 2차(이벨류에이터 D9): 이 줄이 없으면 prop-sticker.js 의 스타일 일괄 한 줄을 지워도 전부 초록이었다 */
+  expect([pluck(a, 'drawnStyle'), pluck(a, 'drawnDeco')], '★전제: 처음엔 셋 다 바로 선 글자 · 장식 없음').toEqual([['normal', 'normal', 'normal'], ['none', 'none', 'none']]);
+  await page.click('#stk-b-style-group [data-style="italic"]');
+  a = await groupLook(page, 'secA');
+  expect([pluck(a, 'fontStyle'), pluck(a, 'drawnStyle')], '이탤릭: 셋 다').toEqual([['italic', 'italic', 'italic'], ['italic', 'italic', 'italic']]);
+  await page.click('#stk-b-style-group [data-style="underline"]');
+  a = await groupLook(page, 'secA');
+  expect([pluck(a, 'deco'), pluck(a, 'drawnDeco')], '밑줄: 셋 다').toEqual([['underline', 'underline', 'underline'], ['underline', 'underline', 'underline']]);
+  expect(pluck(a, 'drawnStyle'), '밑줄을 켜도 이탤릭은 그대로').toEqual(['italic', 'italic', 'italic']);
 
   await typeHex(page, '#stk-bg-hex', 'F26B1F');
   await expect.poll(async () => pluck(await groupLook(page, 'secA'), 'bg'), '배경색: 셋 다').toEqual(Array(3).fill('rgb(242, 107, 31)'));
