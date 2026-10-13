@@ -847,7 +847,11 @@ function _graphLabelBeginEdit(block, el, idx) {
  * 색: item.color(단색)면 조각·범례 점에 인라인, 아니면 CSS 프리셋. 막대에서 넘어온 그라데이션 item.color 는 여기선 «미지정»으로 본다(모델은 안 지운다).
  * 범례 = 카테고리 라벨(.grb-pie-label · 더블클릭 편집 대상) + 비율 %(.grb-pie-val). 공통 키(showVLabel·showXLabel·라벨 색 셋·labelSize·chartHeight)를 그대로 따른다.
  * 사용자 글자는 _escGraphHtml · 색은 _safeGraphColor 만 지난다(E152 규약).
- * 1013t1C — 도넛 여부 = chartType 'donut'(옛 별칭) 또는 dataset.pieDonut '1'. 새 키가 «하나도 없으면» 그림(innerHTML)은 1012 판과 바이트가 같다(골든 G0). */
+ * 1013t1C — 도넛 여부 = chartType 'donut'(옛 별칭) 또는 dataset.pieDonut '1'. 새 키가 «하나도 없으면» 그림(innerHTML)은 1012 판과 바이트가 같다(골든 G0).
+ * 1013t1C3 — 조각 안 라벨(순위 배지 「n위」 · 이름): dataset.pieRank / pieName 이 '1' 일 때만 svg 바로 뒤에 HTML 덧층 .grb-pie-tags 를 낸다(둘 다 꺼지면 덧층 자체가 없다 = 옛 바이트).
+ *   덧층 안은 «항목마다 정확히 하나»의 .grb-pie-tag(색인 = 조각 색인 — 글자 톤 canvas-contrast.js _syncPieTagTone 이 색인으로 짝짓는다). 자리·보임은 graph-pie-geom.js pieTagPlan,
+ *   순위는 pieRanks. 자리는 viewBox 좌표를 % 로 옮겨 쓴다(덧층 = svg 가 그려지는 정사각과 겹치는 정사각 · css/editor-graph.css). 덧층은 클릭을 안 받는다(pointer-events:none — 조각 고르기·블럭 끌기 그대로).
+ *   클래스 이름에 grb-pie-label 을 안 쓴다 — 그 이름은 범례 라벨이고 더블클릭 편집·패널 색 칸이 «그 이름으로» 색인을 센다. 이름 글자는 사용자 글자 ⇒ _escGraphHtml. */
 /* 1013t1C4 전제 — 조각 고르기. 상태는 DOM 표식 «하나»뿐이다: path.grb-pie-slice.grb-pie-cell-selected (JS 쪽에 따로 들지 않는다 — 두 진실 방지).
  *   이름이 -cell-selected 로 끝나 저장·복사 때 section-serialize 의 RUNTIME_MARKER_RE 가 벗긴다(별 한 개 고르기 star-cell-selected 와 같은 길).
  *   세우는 자: block-drag.js 그래프 클릭(이미 이 블럭만 선택된 채 조각을 누르면) · 패널 Data 줄의 조각 버튼. 걷는 자: editor.js clearSelectionMarks «한 곳».
@@ -905,6 +909,18 @@ function _renderPie(block, { items, chartH, labelSize }) {
   }
 
   const _tf = (o) => (o[0] !== '0.00' || o[1] !== '0.00') ? ` transform="translate(${o[0]} ${o[1]})"` : '';
+  let tagsHTML = '';
+  const _tagRank = d.pieRank === '1', _tagName = d.pieName === '1';
+  if (_tagRank || _tagName) {
+    const ranks = window.GRAPH_PIE_GEOM.pieRanks(_vals);
+    const plan = window.GRAPH_PIE_GEOM.pieTagPlan(geo, { tags: items.map(it => it && it.pieTag) });
+    const _side = 1000 + 2 * _m;
+    const _at = (v) => ((v + _m) / _side * 100).toFixed(2);   // viewBox 좌표 → 덧층 정사각의 %
+    tagsHTML = `<div class="grb-pie-tags" style="width:${chartH}px;font-size:${labelSize}px">` + items.map((it, i) =>
+      `<div class="grb-pie-tag" style="left:${_at(plan[i].x)}%;top:${_at(plan[i].y)}%${plan[i].show ? '' : ';display:none'}">`
+      + (_tagRank ? `<span class="grb-pie-rank">${ranks[i] > 0 ? ranks[i] + '위' : ''}</span>` : '')
+      + (_tagName ? `<span class="grb-pie-name">${_escGraphHtml(it && it.label)}</span>` : '') + `</div>`).join('') + `</div>`;
+  }
   const slices = geo.paths.map((p, i) => `<path class="grb-pie-slice" d="${p}"${_tf(geo.offsets[i])}${colors[i] ? ` style="fill:${colors[i]};fill-opacity:1"` : ''}/>`).join('');
   const emptyEl = geo.empty ? `<circle class="grb-pie-empty" cx="500" cy="500" r="498" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="6 6" vector-effect="non-scaling-stroke"/>` : '';
   const legend = items.map((it, i) => `<span class="grb-pie-legend-item"><span class="grb-pie-dot"${colors[i] ? ` style="background:${colors[i]};opacity:1"` : ''}></span>`
@@ -912,7 +928,7 @@ function _renderPie(block, { items, chartH, labelSize }) {
     + `<span class="grb-pie-val" style="${_vCss}">${pcts[i]}%</span></span>`).join('');
   block.innerHTML = `
       <div class="grb-pie-wrap" style="height:${chartH}px">
-        <svg class="grb-pie-svg" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet">${slices}${emptyEl}</svg>
+        <svg class="grb-pie-svg" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet">${slices}${emptyEl}</svg>${tagsHTML}
       </div>
       <div class="grb-pie-legend" style="font-size:${labelSize}px">${legend}</div>`;
   if (_selIdx >= 0) grbPieSelect(block, _selIdx);

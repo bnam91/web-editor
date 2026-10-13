@@ -137,6 +137,8 @@ const _slicePct = (v, hi) => { const n = parseInt(v); return Number.isFinite(n) 
 function pieSliceRowsHTML(item) {   // 조각별 설정 줄 — 줄을 더하면 아래 배선(_wireSliceInt)도 한 줄
   const grow = _slicePct(item.pieGrow, PIE_GROW_MAX);
   const pull = _slicePct(item.piePull, PIE_PULL_MAX);
+  const tag = (item.pieTag === 'on' || item.pieTag === 'off') ? item.pieTag : '';
+  const tagOpt = (v, label) => `<option value="${v}" ${tag === v ? 'selected' : ''}>${label}</option>`;
   return `
       <div class="prop-row" title="이 조각만 바깥으로 키운다(바깥 반지름 대비 %)">
         <span class="prop-label">크기</span>
@@ -147,6 +149,12 @@ function pieSliceRowsHTML(item) {   // 조각별 설정 줄 — 줄을 더하면
         <span class="prop-label">밀어내기</span>
         <input type="range" class="prop-slider" id="grb-pie-pull-slider" min="0" max="${PIE_PULL_MAX}" step="1" value="${pull}">
         <input type="number" class="prop-number" id="grb-pie-pull-number" min="0" max="${PIE_PULL_MAX}" value="${pull}">
+      </div>
+      <div class="prop-row" title="이 조각 안의 순위·이름 라벨. 자동 = 조각이 넉넉할 때만 보인다(Pie Settings 의 순위·이름 표시가 켜져 있어야 한다)">
+        <span class="prop-label">라벨</span>
+        <select class="prop-select" id="grb-pie-tag-select">
+          ${tagOpt('', '자동')}${tagOpt('on', '항상')}${tagOpt('off', '숨김')}
+        </select>
       </div>`;
 }
 function pieSliceSectionHTML(items, sel) {
@@ -445,6 +453,20 @@ ${blockHeaderHTML({
         <span class="prop-label">시작 각도</span>
         <input type="range" class="prop-slider" id="grb-pie-start-slider" min="${PIE_START_MIN}" max="${PIE_START_MAX}" step="1" value="${pieStart}">
         <input type="number" class="prop-number" id="grb-pie-start-number" min="${PIE_START_MIN}" max="${PIE_START_MAX}" value="${pieStart}">
+      </div>
+      <div class="prop-row" title="조각 안에 순위 배지(1위·2위…)를 넣는다. 좁은 조각은 자동으로 숨는다">
+        <span class="prop-label">순위 표시</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="grb-pie-rank-toggle" ${block.dataset.pieRank === '1' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div class="prop-row" title="조각 안에 항목 이름을 넣는다. 좁은 조각은 자동으로 숨는다">
+        <span class="prop-label">이름 표시</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="grb-pie-name-toggle" ${block.dataset.pieName === '1' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
       </div>
     </div>${pieSliceSectionHTML(items, _sliceSel)}` : ''}
     ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn }) : ''}
@@ -918,6 +940,24 @@ ${blockHeaderHTML({
   };
   _wireSliceInt('grb-pie-grow', 'pieGrow', PIE_GROW_MAX);
   _wireSliceInt('grb-pie-pull', 'piePull', PIE_PULL_MAX);   // 1013t1C5
+  // 1013t1C3 — 조각 안 라벨: 블럭 수준 토글 둘(순위 · 이름 — 켜면 '1', 끄면 키 삭제) + 고른 조각의 「라벨」(자동 = 키 없음 · 항상 'on' · 숨김 'off').
+  for (const [tid, key] of [['grb-pie-rank-toggle', 'pieRank'], ['grb-pie-name-toggle', 'pieName']]) {
+    const tg = document.getElementById(tid);
+    if (tg) tg.addEventListener('change', () => {
+      if (tg.checked) block.dataset[key] = '1'; else delete block.dataset[key];
+      window.renderGraph(block);
+      window.pushHistory();
+    });
+  }
+  const tagSel = document.getElementById('grb-pie-tag-select');
+  if (tagSel && _sliceSel >= 0) tagSel.addEventListener('change', () => {
+    const its = JSON.parse(block.dataset.items || '[]');
+    if (!its[_sliceSel]) return;
+    if (tagSel.value === 'on' || tagSel.value === 'off') its[_sliceSel].pieTag = tagSel.value; else delete its[_sliceSel].pieTag;
+    block.dataset.items = JSON.stringify(its);
+    window.renderGraph(block);
+    window.pushHistory();
+  });
 
   // 점 크기 (line 전용)
   const ptSlider = document.getElementById('grb-point-slider');

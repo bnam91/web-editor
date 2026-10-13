@@ -1,5 +1,6 @@
 /* graph-pie-geom.js — 원형·도넛 그래프 조각 기하의 «한 자리» (1012t1G1 · 2026-10-12).
  * 순수 함수 둘: piePaths(값 목록 + 구멍 비율 % + 틈) → 조각마다 SVG path 의 d 문자열 · piePercents(값 목록) → 합이 100 인 정수 %. DOM·window 를 안 읽는다 ⇒ 유닛(node)과 렌더러(브라우저)가 «같은 식»을 쓴다.
+ * 1013t1C3 이 둘을 보탰다: pieRanks(값 목록) → 값 내림차순 순위 · pieTagPlan(piePaths 산출) → 조각 안 라벨의 자리와 보임(아래 함수 머리말). 한도는 graph-limits.js 에서 읽는다(DOM 측정 0).
  * 싣는 길은 graph-limits.js 와 같다 — drag-utils.js 가 side-effect import 해 window.GRAPH_PIE_GEOM 을 받고, 유닛은 require.
  *
  * 규약
@@ -22,6 +23,7 @@
  *   · 산출 문자열에 NaN·Infinity 가 들어갈 길이 없다(모든 수가 위 가드를 지난 유한값에서 나온다). */
 (function (root) {
   var VIEW = 1000, C = 500, R = 500, FULL = 0.9999;
+  var LIM = function () { return (root && root.GRAPH_LIMITS) || (typeof require === 'function' ? require('./graph-limits.js') : {}); };   // 부를 때 읽는다(graph-shape.js 와 같은 길 — 로드 순서 무관)
   var f = function (n) { return n.toFixed(2); };
   var fz = function (n) { var t = n.toFixed(2); return t === '-0.00' ? '0.00' : t; };   // 옮길 양 — 0 은 늘 '0.00' 한 글자꼴(그리는 쪽이 «안 밀었다»를 글자로 가린다)
   var pt = function (deg, rad) {   // 12시 = 0° · 시계 방향(SVG 는 y 가 아래로 자란다)
@@ -121,7 +123,48 @@
     for (var k = 0; k < left && k < order.length; k++) pct[order[k]] += 1;
     return pct;
   }
-  var GRAPH_PIE_GEOM = Object.freeze({ piePaths: piePaths, piePercents: piePercents, VIEW: VIEW, CENTER: C, RADIUS: R });
+  /** 순위(1013t1C3) — 값이 큰 순서로 1, 2, 3 … · «동률은 같은 순위»(다음 순위는 건너뛴다: 30·20·15·15·10 → 1·2·3·3·5). 값 0(가드에 걸린 것 포함)은 0 = 순위 없음.
+   *  값 가드·넘침 처리는 piePaths 와 같다(norm). @param {Array} values @returns {number[]} */
+  function pieRanks(values) {
+    var vals = norm(values).vals;
+    return vals.map(function (v) {
+      if (!(v > 0)) return 0;
+      var k = 1;
+      vals.forEach(function (w) { if (w > v) k++; });
+      return k;
+    });
+  }
+  /** 조각 안 라벨의 자리와 보임(1013t1C3) — piePaths 의 산출 «만» 읽는다(DOM 을 안 잰다 ⇒ 떼어진 블럭·배율과 무관하게 같은 답 · 두 번 그려 같다).
+   *  · 자리(viewBox 좌표): 이등분각 방향으로 도너츠면 고리의 한가운데((구멍 + 그 조각의 바깥) / 2) · 원형이면 그 조각 바깥 반지름의 PIE_TAG_AT % · 온 원 원형이면 중심.
+   *    거기에 그 조각을 민 양(offsets)을 더한다 ⇒ 크기(C4)·밀어내기(C5)를 따라간다.
+   *  · 보임: tags[i] 가 'on' 이면 보이고 'off' 면 숨는다. 그 밖(자동)은 «자리가 넉넉할 때만» — 라벨 자리의 현(2 × ra × sin(min(폭, 180°) / 2))이 PIE_TAG_MIN_CHORD 이상이고
+   *    고리 두께(바깥 − 구멍)가 PIE_TAG_MIN_RADIAL 이상. 값 0 조각 · 각 폭 0 조각은 'on' 이어도 숨는다(그려진 조각이 없다).
+   *  @param {ReturnType<typeof piePaths>} geo @param {{ tags?: Array }} [opts] @returns {{ x: number, y: number, show: boolean }[]} */
+  function pieTagPlan(geo, opts) {
+    var L = LIM(), tags = (opts && Array.isArray(opts.tags)) ? opts.tags : [];
+    var lim = function (v) { var n = Number(v); return (Number.isFinite(n) && n > 0) ? n : 0; };
+    var at = Math.min(100, lim(L.PIE_TAG_AT)), minChord = lim(L.PIE_TAG_MIN_CHORD), minRadial = lim(L.PIE_TAG_MIN_RADIAL);
+    var g = (geo && typeof geo === 'object') ? geo : {};
+    var shares = Array.isArray(g.shares) ? g.shares : [];
+    var r = R * lim(g.hole) / 100, rad = Math.PI / 180;
+    return shares.map(function (share, i) {
+      var Ro = (g.outer && lim(g.outer[i])) || R;
+      var a0 = g.angles && g.angles[i] ? Number(g.angles[i][0]) : 0, a1 = g.angles && g.angles[i] ? Number(g.angles[i][1]) : 0;
+      var span = (Number.isFinite(a1 - a0) && a1 - a0 > 0) ? a1 - a0 : 0;
+      var full = share >= FULL;
+      var ra = r > 0 ? (r + Ro) / 2 : (full ? 0 : Ro * at / 100);
+      var mid = (a0 + a1) / 2 * rad;
+      var off = (g.offsets && g.offsets[i]) || [0, 0];
+      var dx = Number(off[0]), dy = Number(off[1]);
+      var x = C + ra * Math.sin(mid) + (Number.isFinite(dx) ? dx : 0), y = C - ra * Math.cos(mid) + (Number.isFinite(dy) ? dy : 0);
+      var live = share > 0 && span > 0;
+      var chord = 2 * ra * Math.sin(Math.min(span, 180) / 2 * rad);
+      var room = ((full && !(r > 0)) || chord >= minChord) && (Ro - r) >= minRadial;
+      var show = live && (tags[i] === 'on' ? true : (tags[i] === 'off' ? false : room));
+      return { x: Number.isFinite(x) ? x : C, y: Number.isFinite(y) ? y : C, show: show };
+    });
+  }
+  var GRAPH_PIE_GEOM = Object.freeze({ piePaths: piePaths, piePercents: piePercents, pieRanks: pieRanks, pieTagPlan: pieTagPlan, VIEW: VIEW, CENTER: C, RADIUS: R });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_PIE_GEOM;
   if (root) root.GRAPH_PIE_GEOM = GRAPH_PIE_GEOM;
 })(typeof window !== 'undefined' ? window : null);

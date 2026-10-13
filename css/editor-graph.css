@@ -282,6 +282,7 @@
 .graph-block[data-preset="dark"] { --grb-pie-base: #4f8ef7; }
 .graph-block[data-preset="minimal"] { --grb-pie-base: var(--ui-text-sub); }
 .grb-pie-wrap {
+  position: relative;
   width: 100%;
   height: 240px;
 }
@@ -308,6 +309,44 @@
 .grb-pie-slice:nth-child(5n+3) { fill-opacity: 0.6; }
 .grb-pie-slice:nth-child(5n+4) { fill-opacity: 0.45; }
 .grb-pie-slice:nth-child(5n+5) { fill-opacity: 0.3; }
+/* 1013t1C3 — 조각 안 라벨(순위 배지 + 이름)의 HTML 덧층. svg 는 wrap 안에서 한 변 min(높이, 폭)인 정사각으로 가운데에 그려진다(preserveAspectRatio meet)
+   ⇒ 덧층도 «같은 정사각»: 폭 = 인라인 chartH px(폭이 모자라면 max-width 100 %) · 높이 = aspect-ratio 1 · 가운데. 라벨 자리는 그 정사각의 %(렌더가 viewBox 좌표에서 옮겨 쓴다).
+   클릭은 안 받는다(조각 고르기·블럭 끌기가 그대로 조각에 닿는다). 치수는 em·% 뿐 — 글자 크기(인라인 = 라벨 크기)를 따라 같이 커진다.
+   글자 톤: --grb-seg-fg(그 조각 위에서 읽히는 쪽 · 마디 라벨과 같은 변수)와 --grb-pie-rank-ink(그 반대 쪽)를 canvas-contrast.js _syncPieTagTone 이 라벨마다 인라인으로 쓴다.
+   배지 = 글자 톤으로 채운 알약 + 반대 톤 글자. 변수가 없으면(못 쟀을 때 · 앱 밖) 블럭 글자색의 «테두리 알약»으로 떨어진다. */
+.grb-pie-tags {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  aspect-ratio: 1;
+  max-width: 100%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.grb-pie-tag {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25em;
+  max-width: 34%;
+  text-align: center;
+  word-break: keep-all;
+  line-height: 1.2;
+  font-weight: var(--ui-fw-semibold);
+  color: var(--grb-seg-fg, inherit);
+}
+.grb-pie-rank {
+  font-size: 0.7em;
+  padding: 0 0.6em;
+  border-radius: 1em;
+  border: 1px solid var(--grb-seg-fg, currentColor);
+  background: var(--grb-seg-fg, transparent);
+  color: var(--grb-pie-rank-ink, inherit);
+  white-space: nowrap;
+}
+.grb-pie-rank:empty { display: none; }
 .grb-pie-legend {
   display: flex;
   flex-wrap: wrap;

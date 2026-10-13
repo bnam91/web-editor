@@ -270,6 +270,7 @@ export function syncTableHeaderTone(block) {
  *   읽는 자 = css/editor-graph.css 끝 네 줄 · 저장에선 io/section-serialize.js 의 «파생 변수» 목록이 걷는다(굳지 않음 · E144 와 한 목록).
  * ★계산은 «변수 없는 그려진 값»을 바탕으로 한다 — 그래서 먼저 걷고 읽는다(자기 값을 다시 밝히는 고리 방지). */
 const GRAPH_SEG_FG_VAR = '--grb-seg-fg';   // 1012t1G4 — 마디 라벨 글자색(라벨마다 인라인 · 아래 _syncSegLabelTone 이 쓴다 · 저장에서 걷힘)
+const GRAPH_PIE_RANK_INK_VAR = '--grb-pie-rank-ink';   // 1013t1C3 — 원형 조각 안 순위 배지의 글자색(= 그 라벨 글자 톤의 반대 쪽 · 아래 _syncPieTagTone 이 쓴다 · 저장에서 걷힘)
 const GRAPH_AUTO_VARS = ['--grb-auto-grid', '--grb-auto-line', '--grb-auto-ink', '--grb-dot-hole'];   // K6 — 속빈 점 구멍 = 바탕색(파생 · 저장에서 걷힘)
 /* ★저장에서 걷을 «파생 변수»의 정본 = 이 파일이 «쓰는» 이름들(쓰는 자가 목록을 낸다 · 두 번째 목록 금지).
    io/section-serialize.js 가 이것을 그대로 읽는다 — 여기 새 자동 변수를 보태면 저장에서도 저절로 걷힌다. */
@@ -346,7 +347,7 @@ export function syncAllSectionCheckerTextTone(root) {
   return n;
 }
 
-export const DERIVED_AUTO_VARS = ['--tbl-header-fg', ...GRAPH_AUTO_VARS, GRAPH_SEG_FG_VAR];
+export const DERIVED_AUTO_VARS = ['--tbl-header-fg', ...GRAPH_AUTO_VARS, GRAPH_SEG_FG_VAR, GRAPH_PIE_RANK_INK_VAR];
 const _rgbOfCss = (v) => { const c = _parseWithAlpha(String(v || '')); return c && c.a > 0 ? c.rgb : null; };
 const _mixRgb = (a, b, t) => a.map((x, i) => x * (1 - t) + b[i] * t);
 const _rgbCss = (c) => `rgb(${c.map(x => Math.min(255, Math.ceil(x - 1e-9))).join(', ')})`;   // 흰 쪽으로 «올림» — 반올림이면 4.49 로 목표 밑에 앉는다(실측 graph-h6 D1)
@@ -397,7 +398,36 @@ export function syncGraphTone(block) {
   if (bg && d.pointStyle === 'hollow' && d.chartType === 'line') want[3] = _rgbCss(bg);
   GRAPH_AUTO_VARS.forEach((v, i) => { if (want[i]) block.style.setProperty(v, want[i]); });
   _syncSegLabelTone(block, stops);
+  _syncPieTagTone(block, stops);
   return { prev, want };
+}
+/* 1013t1C3 — 원형 조각 안 라벨(.grb-pie-tag)의 글자 톤: «그 조각의 그려진 색»(fill × fill-opacity 를 바탕 위에 얹은 값) 위에서 읽히는 쪽으로. 짝 = 색인(라벨 i ↔ 조각 i).
+ *   마디 라벨(_syncSegLabelTone)과 같은 판정(textToneOver) · 같은 두 색(표 헤더의 밝은 글자 · 기본 글자) — 새 색 0.
+ *   라벨마다 인라인 변수 둘: GRAPH_SEG_FG_VAR = 읽히는 쪽(이름 글자 · 배지 바탕) · GRAPH_PIE_RANK_INK_VAR = 그 반대 쪽(배지 글자).
+ *   조각이 불투명하면 바탕을 몰라도 잰다(얹을 것이 없다). 못 재면 둘 다 걷는다 = 블럭 글자색 상속 + 테두리 알약(css/editor-graph.css). 같으면 안 쓴다(멱등). 라벨이 없으면 아무 일도 없다. */
+function _syncPieTagTone(block, stops) {
+  const tags = block.querySelectorAll('.grb-pie-tag');
+  if (!tags.length) return;
+  const base = stops && stops.length ? stops[0] : null;
+  const slices = block.querySelectorAll('.grb-pie-slice');
+  tags.forEach((tag, i) => {
+    let fg = '', ink = '';
+    const cs = slices[i] ? _cs(slices[i]) : null;
+    const c = cs ? _parseWithAlpha(cs.fill) : null;
+    if (c) {
+      const op = parseFloat(cs.fillOpacity);
+      const a = Math.max(0, Math.min(1, c.a * (Number.isFinite(op) ? op : 1)));
+      if (base || a >= 1) {
+        const light = textToneOver(_over(c.rgb, base || c.rgb, a)) === 'light';
+        fg = light ? TABLE_HEADER_FG_LIGHT : _TBL_DEFAULT_TEXT;
+        ink = light ? _TBL_DEFAULT_TEXT : TABLE_HEADER_FG_LIGHT;
+      }
+    }
+    [[GRAPH_SEG_FG_VAR, fg], [GRAPH_PIE_RANK_INK_VAR, ink]].forEach(([v, want]) => {
+      if (tag.style.getPropertyValue(v).trim() === want) return;
+      if (want) tag.style.setProperty(v, want); else tag.style.removeProperty(v);
+    });
+  });
 }
 /* 1012t1G4 — 마디 라벨 글자색: «그 마디의 그려진 색»(잉크 색 × 불투명도를 바탕 위에 얹은 값) 위에서 읽히는 쪽으로.
  *   판정은 기존 textToneOver 그대로 · 값은 표 헤더가 쓰는 두 색(밝은 글자 · 기본 글자)을 그대로 쓴다(새 색 0).

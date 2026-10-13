@@ -10,6 +10,8 @@
  *     · S5 패널 항목 줄 버튼 · S6 다시 그려도 표식 유지 · S7 조각을 잡고 끌기는 고르기가 아니다
  *   C4 조각 크기 — H1 pieGrow 가 그 조각만 바깥으로 키우고 viewBox 를 대칭으로 넓힌다 · H2 라벨을 쳐도·항목을 다시 써도 pieGrow 유지 · H3 Slice 절 「크기」 칸 · ⌘Z
  *   C5 밀어내기 — I1 piePull 이 그 조각만 이등분각 방향으로 옮긴다(d 무변 · transform · viewBox) · 옮긴 자리에서 눌러야 골라진다 · I2 Slice 절 「밀어내기」 칸 · ⌘Z
+ *   C3 조각 안 라벨 — J1 순위·이름 토글(기본 꺼짐 · 덧층 · 「n위」) · J2 좁은 조각 자동 숨김 · 조각별 「라벨」 자동/항상/숨김 · J3 이름은 글자 그대로(주입 0)
+ *     · J4 글자 톤이 조각 색을 따른다 · 저장본에 톤 변수 0 · J5 라벨이 제 조각 위에 앉고(크기·밀어내기·시작 각도) 클릭을 안 가로챈다 · J6 끄면 켜기 전 그림(바이트)
  *   G0 골든 핀: 새 키가 «하나도 없는» 블럭의 그림(innerHTML)이 1012 판과 바이트가 같다 — 1013t1C0 에서 «고치기 전 판» 위에 박았다.
  * 실행: bash ~/taeyang-098/run-test.sh dom tests/dom/graph-pie-1013.dom.spec.js */
 const { test, expect } = require('@playwright/test');
@@ -643,5 +645,220 @@ test('I2 Slice 절 「밀어내기」 칸 — 고른 조각에만 쓰고 · 999 
   await page.locator('#grb-data-list .grb-data-item:not(.grb-seg-item) .grb-data-label-input').nth(0).fill('새');
   await expect.poll(() => page.evaluate((id2) => JSON.parse(document.getElementById(id2).dataset.items)[0].label, id2)).toBe('새');
   expect(await page.evaluate((id2) => JSON.parse(document.getElementById(id2).dataset.items).map(i => i.piePull ?? null), id2)).toEqual([null, null, 9, null, null]);
+  expect(errs).toEqual([]);
+});
+
+/* ── C3 조각 안 라벨(순위 배지 + 이름) ── dataset.pieRank / pieName '1'(기본 꺼짐) · 조각별 items[i].pieTag 'on' / 'off' / 없음(자동). svg 뒤의 HTML 덧층 .grb-pie-tags. */
+const tagsOf = (page, id) => page.evaluate((id) => { const b = document.getElementById(id);
+  return { layers: b.querySelectorAll('.grb-pie-tags').length, n: b.querySelectorAll('.grb-pie-tag').length,
+    rank: [...b.querySelectorAll('.grb-pie-tag')].map(t => t.querySelector('.grb-pie-rank')?.textContent ?? null),
+    name: [...b.querySelectorAll('.grb-pie-tag')].map(t => t.querySelector('.grb-pie-name')?.textContent ?? null),
+    shown: [...b.querySelectorAll('.grb-pie-tag')].map(t => getComputedStyle(t).display !== 'none') }; }, id);
+
+test('J1 순위·이름 토글 — 기본은 꺼짐(덧층 없음) · 켜면 조각마다 라벨 하나 · 「n위」(동률은 같은 순위) · 끄면 키가 지워진다 · ⌘Z', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V6 });
+  expect(await tagsOf(page, id), '전제: 새 원형에는 덧층이 없다').toEqual({ layers: 0, n: 0, rank: [], name: [], shown: [] });
+  expect([await ds(page, id, 'pieRank'), await ds(page, id, 'pieName')], '전제: 키 없음').toEqual([null, null]);
+  await openPanel(page, id);
+  await expect(page.locator('#grb-pie-rank-toggle'), '전제: 토글 꺼짐').not.toBeChecked();
+  await expect(page.locator('#grb-pie-name-toggle')).not.toBeChecked();
+  expect(await page.evaluate(() => ['grb-pie-rank-toggle', 'grb-pie-name-toggle'].map(i => document.getElementById(i).closest('.prop-row').querySelector('.prop-label').textContent.trim()))).toEqual(['순위 표시', '이름 표시']);
+  await clickToggle(page, 'grb-pie-rank-toggle');
+  await expect.poll(() => ds(page, id, 'pieRank')).toBe('1');
+  let t = await tagsOf(page, id);
+  expect([t.layers, t.n], '덧층 하나 · 라벨 = 항목 수').toEqual([1, 6]);
+  expect(t.rank, '값 30·20·15·15·10·10 → 동률은 같은 순위').toEqual(['1위', '2위', '3위', '3위', '5위', '5위']);
+  expect(t.name, '이름은 아직 꺼짐').toEqual([null, null, null, null, null, null]);
+  expect(t.shown.slice(0, 2), '넉넉한 조각은 보인다').toEqual([true, true]);
+  expect(await page.evaluate((id) => { const b = document.getElementById(id); const w = b.querySelector('.grb-pie-wrap'); return [w.children.length, w.children[0].matches('svg.grb-pie-svg'), w.children[1].matches('.grb-pie-tags')]; }, id), '덧층은 svg 바로 뒤').toEqual([2, true, true]);
+  await clickToggle(page, 'grb-pie-name-toggle');
+  await expect.poll(() => ds(page, id, 'pieName')).toBe('1');
+  t = await tagsOf(page, id);
+  expect(t.name).toEqual(['k0', 'k1', 'k2', 'k3', 'k4', 'k5']);
+  expect(t.rank[0]).toBe('1위');
+  expect(await legendOf(page, id), '범례는 그대로(라벨·%)').toEqual([['k0', '30%'], ['k1', '20%'], ['k2', '15%'], ['k3', '15%'], ['k4', '10%'], ['k5', '10%']]);
+  /* ⌘Z 한 번 = 이름 켜기 전 */
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate(() => { const g = document.querySelector('#sG .graph-block'); return [g.dataset.pieRank ?? null, g.dataset.pieName ?? null, g.querySelectorAll('.grb-pie-name').length]; })).toEqual(['1', null, 0]);
+  /* 끄면 키가 지워지고 덧층이 사라진다 */
+  const id2 = await page.evaluate(() => document.querySelector('#sG .graph-block').id);
+  await openPanel(page, id2);
+  await expect(page.locator('#grb-pie-rank-toggle'), '전제: 되돌린 뒤 패널 — 순위 켜짐').toBeChecked();
+  await clickToggle(page, 'grb-pie-rank-toggle');
+  await expect.poll(() => ds(page, id2, 'pieRank')).toBeNull();
+  expect((await tagsOf(page, id2)).layers).toBe(0);
+  /* 값 0 항목 — 라벨은 있되(색인 유지) 숨고 순위 글자가 없다 · 막대 유형에선 토글이 없다 */
+  await setDs(page, id2, { pieRank: '1', items: [{ label: 'a', value: 0 }, { label: 'b', value: 5 }, { label: 'c', value: 5 }] });
+  t = await tagsOf(page, id2);
+  expect([t.n, t.rank, t.shown]).toEqual([3, ['', '1위', '1위'], [false, true, true]]);
+  await openPanel(page, id2);
+  await page.locator('#grb-type-v').click();
+  await expect.poll(() => ds(page, id2, 'chartType')).toBe('bar-v');
+  expect(await page.locator('#grb-pie-rank-toggle').count()).toBe(0);
+  expect(await page.evaluate((id2) => document.getElementById(id2).querySelectorAll('.grb-pie-tags').length, id2), '막대로 그리면 덧층도 없다').toBe(0);
+  expect(errs).toEqual([]);
+});
+
+const VW = [50, 30, 12, 5, 3].map((v, i) => ({ label: 'w' + i, value: v }));   // 각 폭 180 · 108 · 43.2 · 18 · 10.8 — 뒤의 둘이 자동 숨김 문턱 아래
+test('J2 좁은 조각은 자동으로 숨는다 · 조각별 「라벨」 자동/항상/숨김이 이긴다 · 구멍이 크면(고리가 얇으면) 자동은 전부 숨는다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: VW, extra: { pieRank: '1', pieName: '1' } });
+  let t = await tagsOf(page, id);
+  expect(t.n, '전제: 라벨 5(항목마다 하나)').toBe(5);
+  expect(t.shown, '넓은 셋은 보이고 좁은 둘은 숨는다').toEqual([true, true, true, false, false]);
+  expect(t.rank[4], '숨은 라벨도 글자는 있다(색인 유지)').toBe('5위');
+  await setDs(page, id, { items: VW.map((it, i) => i === 3 ? { ...it, pieTag: 'on' } : i === 0 ? { ...it, pieTag: 'off' } : it) });
+  expect((await tagsOf(page, id)).shown, "pieTag 'on' = 좁아도 보임 · 'off' = 넓어도 숨김").toEqual([false, true, true, true, false]);
+  await setDs(page, id, { items: VW.map((it, i) => i === 3 ? { ...it, pieTag: 'banana' } : it) });
+  expect((await tagsOf(page, id)).shown, '모르는 값 = 자동').toEqual([true, true, true, false, false]);
+  /* 패널 Slice 절 「라벨」 */
+  await setDs(page, id, { items: VW });
+  await pickSlice(page, id, 1);
+  expect(await page.evaluate(() => { const s = document.getElementById('grb-pie-tag-select'); return [s.closest('.prop-section').id, s.closest('.prop-row').querySelector('.prop-label').textContent.trim(), s.value, [...s.options].map(o => [o.value, o.textContent.trim()])]; }))
+    .toEqual(['grb-pie-slice-section', '라벨', '', [['', '자동'], ['on', '항상'], ['off', '숨김']]]);
+  await page.locator('#grb-pie-tag-select').selectOption('off');
+  await expect.poll(async () => (await itemsOf(page, id)).map(i => i.pieTag ?? null)).toEqual([null, 'off', null, null, null]);
+  expect((await tagsOf(page, id)).shown).toEqual([true, false, true, false, false]);
+  expect((await markOf(page, id)).marks, '칸을 바꿔도 조각 선택 유지').toEqual([1]);
+  await page.locator('#grb-pie-tag-select').selectOption('on');
+  await expect.poll(async () => (await itemsOf(page, id))[1].pieTag).toBe('on');
+  await page.locator('#grb-pie-tag-select').selectOption('');
+  await expect.poll(async () => 'pieTag' in (await itemsOf(page, id))[1], { message: '자동 = 키 삭제' }).toBe(false);
+  expect((await tagsOf(page, id)).shown).toEqual([true, true, true, false, false]);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate(() => JSON.parse(document.querySelector('#sG .graph-block').dataset.items)[1].pieTag ?? null), { message: '⌘Z 한 번 = 직전 값' }).toBe('on');
+  /* 다시 열면 칸이 모델 값을 보인다 · 라벨을 쳐도 pieTag 가 남는다 */
+  const id2 = await page.evaluate(() => document.querySelector('#sG .graph-block').id);
+  await page.evaluate((id2) => { const b = document.getElementById(id2); b.classList.add('selected'); window.grbPieSelect(b, 1); window.showGraphProperties(b); }, id2);
+  await expect(page.locator('#grb-pie-tag-select')).toHaveValue('on');
+  await page.locator('#grb-data-list .grb-data-item:not(.grb-seg-item) .grb-data-label-input').nth(1).fill('새');
+  await expect.poll(async () => (await itemsOf(page, id2))[1].label).toBe('새');
+  expect((await itemsOf(page, id2))[1].pieTag).toBe('on');
+  expect((await tagsOf(page, id2)).name[1], '조각 안 이름도 따라 바뀐다').toBe('새');
+  /* 도너츠 — 구멍 80 이면 고리 두께 100 < 문턱 ⇒ 자동은 전부 숨고 'on' 만 남는다 */
+  await setDs(page, id2, { pieDonut: '1', pieHole: '80' });
+  expect((await tagsOf(page, id2)).shown).toEqual([false, true, false, false, false]);
+  await setDs(page, id2, { pieHole: '55' });
+  expect((await tagsOf(page, id2)).shown).toEqual([true, true, true, false, false]);
+  expect(errs).toEqual([]);
+});
+
+test('J3 이름은 사용자 글자 — 태그·속성이 «글자 그대로» 찍히고 요소가 안 생기고 스크립트가 안 돈다', async ({ page }) => {
+  const evil = ['<img src=x onerror="window.__pwn=1">', '</span></div><script>window.__pwn=2</script><svg onload="window.__pwn=3">', '"><b style="color:red">굵게</b>&amp;'];
+  const { errs, id } = await setup(page, { type: 'pie', items: evil.map(l => ({ label: l, value: 1 })), extra: { pieRank: '1', pieName: '1' } });
+  const probe = (bid) => page.evaluate((bid) => { const b = document.getElementById(bid); const L = b.querySelector('.grb-pie-tags');
+    return { tags: L ? L.querySelectorAll('.grb-pie-tag').length : -1, names: L ? [...L.querySelectorAll('.grb-pie-name')].map(n => n.textContent) : [],
+      kids: L ? [...L.querySelectorAll('*')].filter(e => !e.matches('.grb-pie-tag, .grb-pie-rank, .grb-pie-name')).map(e => e.tagName) : ['no-layer'],
+      alien: b.querySelectorAll('img, script, b, [onerror], [onload]').length, svgs: b.querySelectorAll('svg').length, pwn: window.__pwn ?? null }; }, bid);
+  await raf2(page);
+  const r = await probe(id);
+  expect(r.tags, '전제: 덧층에 라벨 3').toBe(3);
+  expect(r.names, '이름은 넣은 글자 그대로').toEqual(evil);
+  expect({ kids: r.kids, alien: r.alien, svgs: r.svgs, pwn: r.pwn }, '덧층 안에는 라벨 요소뿐 · 주입된 요소 0 · svg 는 그래프 하나 · 실행 0').toEqual({ kids: [], alien: 0, svgs: 1, pwn: null });
+  /* 패널에서 «치는» 길도 같다 */
+  await openPanel(page, id);
+  const evil2 = '<img src=x onerror="window.__pwn=9"><i>기울임</i>';
+  await page.locator('#grb-data-list .grb-data-item:not(.grb-seg-item) .grb-data-label-input').nth(0).fill(evil2);
+  await expect.poll(async () => (await itemsOf(page, id))[0].label).toBe(evil2);
+  await raf2(page);
+  const r2 = await probe(id);
+  expect(r2.names[0]).toBe(evil2);
+  expect({ kids: r2.kids, alien: r2.alien, pwn: r2.pwn }).toEqual({ kids: [], alien: 0, pwn: null });
+  expect(await page.evaluate(() => document.querySelectorAll('#sG i, #sG img').length), '캔버스 섹션 어디에도 주입된 요소가 없다').toBe(0);
+  expect(errs).toEqual([]);
+});
+
+test('J4 글자 톤 — 어두운 조각 위는 밝은 글자 · 밝은 조각 위는 어두운 글자 · 배지 글자는 그 반대 · 저장본에는 톤 변수가 안 실린다', async ({ page }) => {
+  const items = [{ label: '어둠', value: 1, color: '#111111' }, { label: '밝음', value: 1, color: '#f5f5f5' }];
+  const { errs, id } = await setup(page, { type: 'pie', items, extra: { pieRank: '1', pieName: '1' } });
+  const tone = (bid) => page.evaluate((bid) => [...document.getElementById(bid).querySelectorAll('.grb-pie-tag')].map(t => { const r = t.querySelector('.grb-pie-rank');
+    return { fg: t.style.getPropertyValue('--grb-seg-fg').trim(), ink: t.style.getPropertyValue('--grb-pie-rank-ink').trim(), color: getComputedStyle(t).color, pill: getComputedStyle(r).backgroundColor, pillInk: getComputedStyle(r).color }; }), bid);
+  await expect.poll(async () => (await tone(id)).map(t => !!t.fg), { message: '전제: 라벨 둘에 톤 변수가 섰다' }).toEqual([true, true]);
+  const t = await tone(id);
+  expect(t[0].fg, '두 조각의 글자 톤이 다르다').not.toBe(t[1].fg);
+  expect([t[0].ink, t[1].ink], '배지 글자 = 상대 조각의 글자 톤(두 색을 맞바꿔 쓴다 — 새 색 0)').toEqual([t[1].fg, t[0].fg]);
+  expect(t[0].color, '그려진 글자색도 다르다').not.toBe(t[1].color);
+  expect([t[0].pill, t[1].pill], '배지 바탕 = 그 라벨의 글자색(채운 알약)').toEqual([t[0].color, t[1].color]);
+  expect([t[0].pillInk, t[1].pillInk], '배지 글자 = 반대 톤').toEqual([t[1].color, t[0].color]);
+  /* 어두운 조각 위 글자가 더 밝다 — 밝기는 색 성분의 합으로 견준다(리터럴 없이) */
+  const lum = (c) => c.match(/\d+/g).slice(0, 3).reduce((a, b) => a + +b, 0);
+  expect(lum(t[0].color), '어두운 조각 위 글자가 밝은 조각 위 글자보다 밝다').toBeGreaterThan(lum(t[1].color));
+  /* 조각 색을 맞바꾸면 톤도 맞바뀐다(색인으로 짝짓는다) */
+  await setDs(page, id, { items: [{ ...items[0], color: '#f5f5f5' }, { ...items[1], color: '#111111' }] });
+  const t2 = await tone(id);
+  expect([t2[0].fg, t2[1].fg]).toEqual([t[1].fg, t[0].fg]);
+  /* 저장본 — 라벨은 실리고 톤 변수는 안 실린다 · 화면은 그대로 */
+  const r = await page.evaluate((id) => { const saved = window.getSerializedCanvas(); const live = document.getElementById(id).innerHTML;
+    return { hasTags: saved.includes('grb-pie-tag') && saved.includes('grb-pie-rank'), fg: saved.includes('--grb-seg-fg'), ink: saved.includes('--grb-pie-rank-ink'), liveFg: live.includes('--grb-seg-fg'), liveInk: live.includes('--grb-pie-rank-ink'),
+      listed: ['--grb-seg-fg', '--grb-pie-rank-ink'].map(v => window.__gdTextTone.DERIVED_AUTO_VARS.includes(v)) }; }, id);
+  expect(r).toEqual({ hasTags: true, fg: false, ink: false, liveFg: true, liveInk: true, listed: [true, true] });
+  /* 저장본을 다시 꽂으면(열기) 관찰자가 톤을 다시 쓴다 — 변수 없는 채로 굳지 않는다 */
+  await page.evaluate((id) => { const g = document.getElementById(id); const row = g.parentElement; const tmp = document.createElement('div'); tmp.innerHTML = window.getSerializedCanvas();
+    const fresh = tmp.querySelector('#' + id); const html = fresh.parentElement.outerHTML; row.insertAdjacentHTML('afterend', html); row.remove(); window.rebindAll?.(); }, id);
+  expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll('.grb-pie-tag').length, id), '전제: 다시 꽂은 블럭에 라벨 2').toBe(2);
+  await expect.poll(async () => (await tone(id)).map(x => x.fg), { message: '다시 꽂은 뒤 톤 변수가 돌아온다' }).toEqual([t2[0].fg, t2[1].fg]);
+  expect(errs).toEqual([]);
+});
+
+/* 라벨 i 의 가운데(화면) → SVG 사용자 좌표 → 조각마다 채움 안인가(밀어낸 조각은 옮긴 양을 뺀다) · 그 자리의 맨 위 요소가 몇 번 조각인가 */
+const tagSpot = (page, id) => page.evaluate((id) => { const b = document.getElementById(id); const svg = b.querySelector('.grb-pie-svg'); const inv = svg.getScreenCTM().inverse(); const slices = [...b.querySelectorAll('.grb-pie-slice')];
+  return [...b.querySelectorAll('.grb-pie-tag')].map((t, i) => { if (getComputedStyle(t).display === 'none') return null; const r = t.getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const p = new DOMPoint(cx, cy).matrixTransform(inv);
+    const inFill = slices.map(s => { const m = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(s.getAttribute('transform') || ''); return !!s.getAttribute('d') && s.isPointInFill(new DOMPoint(p.x - (m ? +m[1] : 0), p.y - (m ? +m[2] : 0))); });
+    const el = document.elementFromPoint(cx, cy);
+    return { own: inFill[i], others: inFill.filter((v, k) => v && k !== i).length, top: el && el.matches('.grb-pie-slice') ? slices.indexOf(el) : -1, x: cx, y: cy }; }); }, id);
+test('J5 라벨은 제 조각 위에 앉는다(원형·도너츠 · 크기·밀어내기·시작 각도를 따라간다) · 클릭을 안 가로챈다(라벨 위를 눌러도 그 조각)', async ({ page }) => {
+  const all = V6.map(it => ({ ...it, pieTag: 'on' }));   // 좁은 조각까지 전부 보이게 — 자리가 조금만 어긋나도 이웃 조각에 떨어진다
+  const { errs, id } = await setup(page, { type: 'pie', items: all, extra: { pieRank: '1', pieName: '1' } });
+  const check = async (what) => { await waitStableRect(page, `#${id} .grb-pie-svg`); const sp = await tagSpot(page, id);
+    expect(sp.length, `전제(${what}): 라벨 6`).toBe(6); expect(sp.every(Boolean), `전제(${what}): 여섯 다 보인다`).toBe(true);
+    expect(sp.map(s => [s.own, s.others]), `${what}: 라벨 가운데가 제 조각 채움 안 · 다른 조각 밖`).toEqual(sp.map(() => [true, 0]));
+    expect(sp.map(s => s.top), `${what}: 라벨 가운데의 맨 위 요소 = 그 조각(덧층이 안 가린다)`).toEqual([0, 1, 2, 3, 4, 5]); return sp; };
+  await check('원형');
+  await setDs(page, id, { pieDonut: '1' });
+  await check('도너츠');
+  await setDs(page, id, { pieStart: '77', pieGap: '30' });
+  await check('시작 각도 77 · 간격 30');
+  await setDs(page, id, { items: all.map((it, i) => i === 0 ? { ...it, pieGrow: 30 } : i === 4 ? { ...it, piePull: 30 } : i === 2 ? { ...it, pieGrow: 10, piePull: 15 } : it) });
+  expect(await vbOf(page, id), '전제: viewBox 가 넓어졌다').not.toBe('0 0 1000 1000');
+  const sp = await check('크기·밀어내기(도너츠)');
+  await setDs(page, id, { pieDonut: null });
+  await check('크기·밀어내기(원형)');
+  /* 덧층은 svg 가 그려지는 정사각과 겹친다 — 네 변이 svg 의 viewBox 네 변과 같다(SVG 좌표로 되돌려 견준다 · 화면 px 리터럴 없이) */
+  const box = await page.evaluate((id) => { const b = document.getElementById(id); const svg = b.querySelector('.grb-pie-svg'); const inv = svg.getScreenCTM().inverse(); const r = b.querySelector('.grb-pie-tags').getBoundingClientRect();
+    const a = new DOMPoint(r.left, r.top).matrixTransform(inv), c = new DOMPoint(r.right, r.bottom).matrixTransform(inv); const vb = svg.viewBox.baseVal;
+    return [a.x - vb.x, a.y - vb.y, c.x - (vb.x + vb.width), c.y - (vb.y + vb.height)].map(v => Math.abs(v) < vb.width / 200); }, id);
+  expect(box, '덧층 네 변 = viewBox 네 변(0.5 % 안)').toEqual([true, true, true, true]);
+  /* 라벨 위를 눌러도 조각이 골라진다 — 한 번 = 블럭 · 또 한 번 = 그 조각 */
+  const sp2 = await tagSpot(page, id);
+  await page.mouse.click(sp2[1].x, sp2[1].y);
+  await expect.poll(async () => (await markOf(page, id)).sel, { message: '라벨 위 첫 클릭 = 블럭 선택' }).toBe(true);
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  const sp3 = await tagSpot(page, id);
+  expect(sp3[4].top, '전제: 밀어낸 조각4 의 라벨 자리').toBe(4);
+  await page.mouse.click(sp3[4].x, sp3[4].y);
+  await expect.poll(async () => (await markOf(page, id)).marks, { message: '라벨 위 둘째 클릭 = 그 조각' }).toEqual([4]);
+  expect((await tagsOf(page, id)).n, '고른 뒤에도 라벨 6').toBe(6);
+  expect(sp.length).toBe(6);
+  expect(errs).toEqual([]);
+});
+
+test('J6 둘 다 끄면 켜기 전 그림과 바이트가 같다 · 두 번 그려 같다 · pieTag 만 있고 토글이 꺼져 있으면 덧층이 없다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'donut', items: V6 });
+  const html0 = await htmlOf(page, id);
+  expect(html0, '전제: 덧층 없는 그림').not.toContain('grb-pie-tag');
+  await setDs(page, id, { pieRank: '1', pieName: '1' });
+  const on = await htmlOf(page, id);
+  expect(on, '전제: 켜면 덧층이 생긴다').toContain('class="grb-pie-tags"');
+  await setDs(page, id, {});
+  expect(await htmlOf(page, id), '같은 데이터로 다시 그리면 같은 글자(톤 변수 포함)').toBe(on);
+  expect(on.replace(/<div class="grb-pie-tags".*?<\/div><\/div>/s, ''), '덧층을 뺀 나머지는 켜기 전과 한 글자도 안 다르다').toBe(html0);
+  await setDs(page, id, { pieRank: null, pieName: null });
+  expect(await htmlOf(page, id), '끄면 켜기 전 그림(바이트)').toBe(html0);
+  await setDs(page, id, { items: V6.map(it => ({ ...it, pieTag: 'on' })) });
+  expect(await htmlOf(page, id), "조각별 pieTag 'on' 만으로는 아무것도 안 그린다(블럭 토글이 꺼져 있다)").toBe(html0);
+  await setDs(page, id, { pieRank: '0', pieName: 'yes' });
+  expect(await htmlOf(page, id), "켜짐 = 정확히 '1' 만").toBe(html0);
   expect(errs).toEqual([]);
 });

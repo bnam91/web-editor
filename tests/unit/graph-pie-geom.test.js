@@ -9,7 +9,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { piePaths, piePercents, CENTER, RADIUS } = require('../../js/graph-pie-geom.js');
+const { piePaths, piePercents, pieRanks, pieTagPlan, CENTER, RADIUS } = require('../../js/graph-pie-geom.js');
 const LIM = require('../../js/graph-limits.js');
 
 const arcs = (d) => [...d.matchAll(/A ([\d.]+) ([\d.]+) 0 ([01]) ([01]) ([\d.]+) ([\d.]+)/g)].map(m => ({ r: +m[1], large: +m[3], sweep: +m[4], x: +m[5], y: +m[6] }));
@@ -331,4 +331,66 @@ test('U15 밀어내기 — pull 10 이면 offsets = 50 × (sin mid, −cos mid) 
   assert.equal(wild.offsets.length, 4, '전제');
   assert.doesNotMatch(JSON.stringify(wild.offsets) + wild.paths.join('|'), /NaN|Infinity|undefined/);
   assert.deepEqual(wild.offsets[2], ['0.00', '0.00'], '각 폭이 0 으로 접힌 조각은 안 민다');
+});
+
+test('U16 순위 — 값 내림차순 · 동률은 같은 순위(다음은 건너뛴다) · 값 0·험한 값은 0(순위 없음)', () => {
+  assert.deepEqual(pieRanks([30, 20, 15, 15, 10, 10]), [1, 2, 3, 3, 5, 5]);
+  assert.deepEqual(pieRanks([10, 30, 20]), [3, 1, 2], '항목 순서와 무관 — 값으로');
+  assert.deepEqual(pieRanks([5, 5, 5]), [1, 1, 1]);
+  assert.deepEqual(pieRanks([0, 7, 0, 3]), [0, 1, 0, 2], '값 0 은 순위 없음 · 남은 것끼리 센다');
+  assert.deepEqual(pieRanks([-5, 10, NaN, 'abc', null, '30', Infinity]), [0, 2, 0, 0, 0, 1, 0], '가드는 piePaths 와 같다(글자 수는 수로)');
+  assert.deepEqual(pieRanks([]), []); assert.deepEqual(pieRanks(undefined), []); assert.deepEqual(pieRanks([0, 0]), [0, 0]);
+  assert.deepEqual(pieRanks([1e308, 1e308, 1]), [1, 1, 3], '넘치는 큰 값도 비율로');
+  const V = [3, 1, 2];
+  assert.deepEqual(pieRanks(V).map((r, i) => r > 0 === piePaths(V, 0, 10).shares[i] > 0), [true, true, true], '순위가 있는 것 = 그려지는 조각');
+});
+
+test('U17 조각 안 라벨 자리 — 도너츠는 고리 한가운데 · 원형은 PIE_TAG_AT % · 좁은 조각은 자동 숨김 · on/off 가 이긴다 · 크기·밀어내기를 따라간다', () => {
+  assert.equal(LIM.PIE_TAG_AT, 62); assert.equal(LIM.PIE_TAG_MIN_CHORD, 150); assert.equal(LIM.PIE_TAG_MIN_RADIAL, 150);
+  const near = (a, b, m) => assert.ok(Math.abs(a - b) < 1e-6, `${m}: ${a} ≈ ${b}`);
+  const rOf = (t) => Math.hypot(t.x - CENTER, t.y - CENTER);
+  /* 원형 — 반지름 = 500 × 62 % = 310 · 방향 = 이등분각 */
+  const V = [50, 30, 12, 5, 3];   // 각 폭 180 · 108 · 43.2 · 18 · 10.8
+  const pie = piePaths(V, 0, 10), pp = pieTagPlan(pie);
+  assert.equal(pp.length, 5, '전제: 라벨 수 = 조각 수');
+  pp.forEach((t, i) => near(rOf(t), RADIUS * LIM.PIE_TAG_AT / 100, `원형 조각 ${i} 의 라벨 반지름`));
+  near(pp[0].x, CENTER + 310, '조각0(0~180°)의 이등분각 90° = 3시'); near(pp[0].y, CENTER, '');
+  /* 자동 숨김 — 현 = 2 × 310 × sin(폭/2): 43.2° → 228(보임) · 18° → 97(숨김) · 10.8° → 58(숨김) */
+  assert.ok(2 * 310 * Math.sin(43.2 / 2 * Math.PI / 180) >= LIM.PIE_TAG_MIN_CHORD && 2 * 310 * Math.sin(18 / 2 * Math.PI / 180) < LIM.PIE_TAG_MIN_CHORD, '전제: 표본이 문턱 양쪽에 걸쳐 있다');
+  assert.deepEqual(pp.map(t => t.show), [true, true, true, false, false]);
+  /* on/off 가 자동을 이긴다 · 모르는 값은 자동 */
+  assert.deepEqual(pieTagPlan(pie, { tags: ['off', undefined, 'auto', 'on', null] }).map(t => t.show), [false, true, true, true, false]);
+  assert.deepEqual(pieTagPlan(pie, { tags: 'on' }).map(t => t.show), pp.map(t => t.show), '배열이 아니면 전부 자동');
+  /* 도너츠 — 고리 한가운데 (r + R) / 2 */
+  const dn = piePaths(V, 55, 10), dp = pieTagPlan(dn);
+  dp.forEach((t, i) => near(rOf(t), (275 + 500) / 2, `도너츠 조각 ${i}`));
+  assert.deepEqual(dp.map(t => t.show), [true, true, true, false, false], '387.5 × 2 × sin(9°) = 121 < 150');
+  /* 고리가 얇으면(구멍 80 → 두께 100 < 150) 자동은 전부 숨는다 · on 은 그래도 보인다 */
+  const thin = piePaths(V, 80, 10);
+  assert.deepEqual(pieTagPlan(thin).map(t => t.show), [false, false, false, false, false]);
+  assert.deepEqual(pieTagPlan(thin, { tags: ['on'] }).map(t => t.show), [true, false, false, false, false]);
+  /* 크기(C4) — 그 조각만 바깥으로: 원형 600 × 62 % · 도너츠 (275 + 600) / 2. 밀어내기(C5) — 옮긴 양만큼 더 */
+  near(rOf(pieTagPlan(piePaths(V, 0, 10, { grow: [0, 20] }))[1]), 600 * 0.62, '키운 원형 조각');
+  near(rOf(pieTagPlan(piePaths(V, 55, 10, { grow: [0, 20] }))[1]), (275 + 600) / 2, '키운 도너츠 조각');
+  near(rOf(pieTagPlan(piePaths(V, 0, 10, { grow: [0, 20] }))[0]), 310, '안 키운 조각은 그대로');
+  const pulled = piePaths(V, 0, 10, { pull: [20] }), pl = pieTagPlan(pulled);
+  assert.deepEqual(pulled.offsets[0], ['100.00', '0.00'], '전제: 조각0 을 3시 방향으로 100 밀었다');
+  near(pl[0].x, CENTER + 310 + 100, '민 조각의 라벨은 같이 간다'); near(pl[0].y, CENTER, '');
+  near(pl[1].x, pp[1].x, '안 민 조각은 제자리');
+  /* 시작 각도를 따라 돈다 */
+  near(pieTagPlan(piePaths(V, 0, 10, { start: 90 }))[0].y, CENTER + 310, 'start 90: 조각0 의 라벨은 6시');
+  /* 온 원 — 원형은 중심 · 도너츠는 고리 위 · 둘 다 보인다. 값 0·합 0 은 on 이어도 숨는다 */
+  const one = pieTagPlan(piePaths([7], 0, 10));
+  assert.deepEqual(one, [{ x: CENTER, y: CENTER, show: true }]);
+  const oneD = pieTagPlan(piePaths([7], 55, 10));
+  near(rOf(oneD[0]), 387.5, '온 원 도너츠'); assert.equal(oneD[0].show, true);
+  assert.deepEqual(pieTagPlan(piePaths([0, 4, 0], 0, 10), { tags: ['on', 'on', 'on'] }).map(t => t.show), [false, true, false]);
+  assert.deepEqual(pieTagPlan(piePaths([0, 0], 0, 10), { tags: ['on', 'on'] }).map(t => t.show), [false, false]);
+  assert.deepEqual(pieTagPlan(piePaths([], 0, 10)), []);
+  /* 험한 입력 — 안 죽고 · 수는 전부 유한 */
+  for (const bad of [null, undefined, {}, { shares: [0.5, 0.5] }, 7]) assert.ok(pieTagPlan(bad).every(t => Number.isFinite(t.x) && Number.isFinite(t.y) && typeof t.show === 'boolean'), `험한 geo ${JSON.stringify(bad)}`);
+  const wild = pieTagPlan(piePaths([1e308, 1e308, 1, 1e17, 'x'], 55, 40, { start: 77, grow: [30, 'x'], pull: [30, 30, 30, 30] }), { tags: ['on', 'on', 'on', 'on', 'on'] });
+  assert.equal(wild.length, 5, '전제');
+  assert.ok(wild.every(t => Number.isFinite(t.x) && Number.isFinite(t.y)));
+  assert.deepEqual(wild.map(t => t.show), [true, true, false, false, false], '각 폭이 0 으로 접힌 조각(셋째·넷째) · 값 없는 조각은 on 이어도 숨는다');
 });
