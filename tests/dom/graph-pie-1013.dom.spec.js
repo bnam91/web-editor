@@ -16,6 +16,7 @@
  *       · J9 라벨 크기 40 + 긴 이름(띄어쓰기 없는 낱말 포함) × 높이 240/420/560 × 원형·도너츠 · 「항상」 라벨은 안 숨고 제 조각 안으로 잘린다 · 범례를 안 덮는다
  *     · 고침 2(게이트 반려 — 숨기기 전에 단계) — J10 기본 240 에서 이름 5/5(도너츠·원형) · 저장본에 줄인 글자 변수 0 · J11 2줄 경로 · J12 줄인 글자 경로(< 라벨 크기 · ≥ 최소 · 넓으면 안 줄인다)
  *       · J13 「항상」 라벨의 줄 수 자르기(line-clamp) · J14 패널 안내 줄 「좁아서 이름 n개 숨김」(n = 숨긴 수 · 0 이면 없음 · 크기가 바뀌면 따라간다)
+ *     · 검사 칸 메우기(이벨류에이터 음성대조 — 지키는 칸이 없던 셋) — J16 안내 줄은 «지금 패널의 블럭» 것만(블럭 둘 · 다른 쪽의 grb-pie-fit 에 안 덮인다) · J7 에 라벨 여백(PIE_TAG_PAD) 한 줄 · H5 온 원은 pieGrow 가 있어도 안 키운다(viewBox)
  *     · 고침 3(산출물) — J15 단독 HTML 산출물(스크립트 없음 · 글자 폭을 키운 판)에서도 라벨이 제 조각 안 · 한계 쌍이 기하 안 · 높이 none 이 안 실린다(X1 뒤에 있다 — exportHtml 도우미 옆)
      · 고침 2(C4) — S9 같은 블럭을 ⌘클릭해 풀면 Slice 절이 걷히고 · 쥐어 둔 칸에 써도 블럭·히스토리 무변 · H4 조각이 하나(온 원)면 「크기」·「밀어내기」 칸이 잠기고 안내 줄
      · S8 ⌘클릭 다중 선택에서도 조각 표식이 걷힌다 · K3 쓰레기 dropShadow 에서 「없음」 = 키 삭제 · Shadow 줄에 prop-label
@@ -655,6 +656,35 @@ test('H4 조각이 하나(온 원)면 Slice 절 「크기」·「밀어내기」
   expect(errs).toEqual([]);
 });
 
+/* 1013t1C4 검사 칸 메우기 — 「온 원은 안 키운다」의 «그려진» 쪽(유닛 U14 만 지키던 줄). 칸은 잠겨 있어도 dataset 에는 pieGrow 가 남을 수 있다(조각이 여럿일 때 키운 뒤 항목을 지운 판 · 옛 저장본). */
+test('H5 조각이 하나(온 원)면 pieGrow 30 이 dataset 에 있어도 안 키운다 — viewBox 는 0 0 1000 1000 · 1.1R 은 원 밖 · 항목을 늘리면 넓어지고 · 다시 하나가 되면 돌아온다 · 도너츠도 같다', async ({ page }) => {
+  const SOLO = [{ label: '하나', value: 5, pieGrow: 30 }];
+  const { errs, id } = await setup(page, { type: 'pie', items: SOLO });
+  expect((await dOf(page, id)).length, '전제: 조각 하나').toBe(1);
+  expect((await itemsOf(page, id))[0].pieGrow, '전제: dataset 의 항목에 pieGrow 30 이 실려 있다').toBe(30);
+  const wide = await page.evaluate(() => { const g = window.GRAPH_LIMITS.PIE_GROW_MAX; return { g, m: Math.ceil(500 * Math.min(g, 30) / 100) }; });
+  expect(wide.g, '전제: 30 은 조각 크기 한계 안(렌더가 0 으로 자르는 값이 아니다)').toBeGreaterThanOrEqual(30);
+  const grown = `${-wide.m} ${-wide.m} ${1000 + 2 * wide.m} ${1000 + 2 * wide.m}`;
+  expect(await vbOf(page, id), '온 원: pieGrow 가 있어도 viewBox 는 그대로').toBe('0 0 1000 1000');
+  expect(await hit(page, id, 45, 0.9), '전제: 0.9R 은 조각 안').toEqual([true]);
+  expect(await hit(page, id, 45, 1.1), '온 원: 1.1R 은 원 밖(바깥 반지름이 안 커졌다)').toEqual([false]);
+  /* 항목을 늘리면(같은 pieGrow) 그 조각이 커지고 viewBox 가 넓어진다 — 위의 「그대로」가 «pieGrow 를 못 읽어서»가 아니다 */
+  await setDs(page, id, { items: [...SOLO, { label: '둘', value: 5 }] });
+  expect((await dOf(page, id)).filter(Boolean).length, '전제: 조각 둘').toBe(2);
+  expect(await vbOf(page, id), '조각이 둘이면 같은 pieGrow 30 으로 viewBox 가 대칭으로 넓어진다').toBe(grown);
+  expect(await hit(page, id, 90, 1.1), '조각 둘: 키운 조각의 1.1R 이 채움 안').toEqual([true, false]);
+  /* 다시 하나(다른 조각의 값이 0 — 그려지는 조각은 하나) → 돌아온다 */
+  await setDs(page, id, { items: [...SOLO, { label: '둘', value: 0 }] });
+  expect((await dOf(page, id)).filter(Boolean).length, '전제: 그려진 조각 하나(값 0 항목은 d 가 비었다)').toBe(1);
+  expect(await vbOf(page, id), '값 0 으로 하나가 되면 viewBox 가 돌아온다').toBe('0 0 1000 1000');
+  /* 도너츠 온 원도 같다 */
+  await setDs(page, id, { items: SOLO, pieDonut: '1' });
+  expect(await vbOf(page, id), '도너츠 온 원: viewBox 그대로').toBe('0 0 1000 1000');
+  expect(await hit(page, id, 45, 1.1), '도너츠 온 원: 1.1R 은 밖').toEqual([false]);
+  expect(await htmlOf(page, id)).not.toMatch(/NaN|Infinity|undefined/);
+  expect(errs).toEqual([]);
+});
+
 /* ── C5 밀어내기(items[i].piePull · 바깥 반지름 대비 % · 0 이면 키 없음) ── d 는 그대로 두고 path 의 transform 으로 옮긴다. */
 test('I1 밀어내기 — piePull 20: 그 조각만 transform 으로 옮겨진다(d 무변) · viewBox 대칭 확장 · 조각은 «옮긴 자리»에서 눌린다', async ({ page }) => {
   const { errs, id } = await setup(page, { type: 'pie', items: V3 });
@@ -990,6 +1020,28 @@ const expectFit = (f, what, onIdx = []) => {
   expect(f.legend, `${what}: 범례를 덮는 라벨 0`).toEqual([]);
   expect(f.clipped.filter(i => !onIdx.includes(i)), `${what}: 자동 라벨은 글자가 안 잘린다(안 들면 이름 → 라벨 순으로 숨는다)`).toEqual([]);
 };
+/* 1013t1C3 검사 칸 메우기 — 라벨 여백(GRAPH_LIMITS.PIE_TAG_PAD · viewBox 단위): 보이는 라벨 사각형의 네 귀를 viewBox 좌표로 옮긴 뒤 «여백의 절반씩» 바깥으로(가로·세로) 밀어도 제 조각의 채움 안.
+   귀가 움직이는 길이 = 여백 × 0.71 < 여백 ⇒ 라벨이 가장자리에서 여백만큼 떨어져 있으면 든다(화면 px 리터럴 없음 — 배율은 CTM 이 옮긴다). 여백이 0 이면 이 줄이 expectFit 의 네 귀와 같아지므로 「0 이 아니다」를 전제로 건다. */
+const tagPad = (page, id) => page.evaluate((id) => {
+  const b = document.getElementById(id), svg = b.querySelector('.grb-pie-svg'), inv = svg.getScreenCTM().inverse(), pad = window.GRAPH_LIMITS.PIE_TAG_PAD, d = pad / 2;
+  const slices = [...b.querySelectorAll('.grb-pie-slice')], bad = []; let seen = 0;
+  [...b.querySelectorAll('.grb-pie-tag')].forEach((t, i) => {
+    if (getComputedStyle(t).display === 'none') return;
+    seen++;
+    const r = t.getBoundingClientRect(), tf = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(slices[i].getAttribute('transform') || '');
+    [[r.left, r.top, -1, -1], [r.right, r.top, 1, -1], [r.left, r.bottom, -1, 1], [r.right, r.bottom, 1, 1]].forEach(([x, y, sx, sy], k) => {
+      const q = new DOMPoint(x, y).matrixTransform(inv);
+      if (!slices[i].isPointInFill(new DOMPoint(q.x + sx * d - (tf ? +tf[1] : 0), q.y + sy * d - (tf ? +tf[2] : 0)))) bad.push([i, k]);
+    });
+  });
+  return { pad, seen, bad };
+}, id);
+const expectPad = (p, what, nVis) => {
+  expect(p.pad, `전제(${what}): 라벨 여백 한도가 0 이 아니다`).toBeGreaterThan(0);
+  expect(p.seen, `전제(${what}): 보이는 라벨을 실제로 쟀다`).toBe(nVis);
+  expect(p.seen, `전제(${what}): 보이는 라벨이 하나 이상`).toBeGreaterThan(0);
+  expect(p.bad, `${what}: 라벨 사각형의 네 귀를 여백의 절반씩 밖으로 밀어도 제 조각 안(가장자리에서 여백만큼 떨어져 있다) — [라벨, 귀]`).toEqual([]);
+};
 const REF = [{ label: '탈취 기능', value: 60, color: '#f04e1f', pieGrow: 30 }, { label: '처리 불가 음식물', value: 10, color: '#a9a9a9' }, { label: '저소음/음소거 기능', value: 22, color: '#2b2b2b' },
   { label: '기타 A', value: 3, color: '#ededed' }, { label: '기타 B', value: 3, color: '#f6f6f6' }, { label: '기타 C', value: 2, color: '#bcbcbc' }];
 test('J7 참고 그림 꼴(도너츠 · 구멍 38 · 간격 4 · 시작 295 · 1위만 크기 30 · 순위+이름) — 높이 560/420/240 에서 라벨이 제 조각 안 · 겹침 0 · 긴 이름은 제 조각 안에서 줄을 바꾼다', async ({ page }) => {
@@ -1002,6 +1054,7 @@ test('J7 참고 그림 꼴(도너츠 · 구멍 38 · 간격 4 · 시작 295 · 1
   expect(f.vis, '높이 560: 1·2·3위 라벨이 다 보인다').toEqual([0, 1, 2]);
   expect(f.areas.every(Boolean), '전제: 보이는 라벨에 넓이가 있다').toBe(true);
   expectFit(f, '높이 560');
+  expectPad(await tagPad(page, id), '높이 560', f.vis.length);
   expect(f.names, '높이 560: 1위·2위는 이름까지').toEqual(expect.arrayContaining([0, 2]));
   expect(f.lines[f.vis.indexOf(2)], '긴 이름(저소음/음소거 기능)은 제 조각 안에서 줄을 바꾼다(둘째 줄 이상)').toBeGreaterThan(1);
   const seen = { 560: f };
@@ -1012,6 +1065,7 @@ test('J7 참고 그림 꼴(도너츠 · 구멍 38 · 간격 4 · 시작 295 · 1
     expect(g.stage1, `전제(높이 ${h}): 첫 단은 그대로 셋`).toEqual([0, 1, 2]);
     expect(g.layer, `전제(높이 ${h}): 덧층이 작아졌다`).toBeLessThan(seen[560].layer);
     expectFit(g, `높이 ${h}`);
+    expectPad(await tagPad(page, id), `높이 ${h}`, g.vis.length);
     seen[h] = g;
   }
   expect(seen[240].names.length + seen[240].vis.length, '작아지면 이름·라벨이 줄어든다(둘째 단이 px 를 본다)').toBeLessThan(seen[560].names.length + seen[560].vis.length);
@@ -1236,6 +1290,55 @@ test('J14 패널 안내 줄 「좁아서 이름 n개 숨김」 — n = 실제로
   await clickToggle(page, 'grb-pie-name-toggle');
   await expect.poll(() => ds(page, id, 'pieName')).toBeNull();
   await expect.poll(async () => (await hintOf(page)).n, { message: '이름 표시를 끄면 안내 줄이 없다' }).toBe(0);
+  expect(errs).toEqual([]);
+});
+
+/* 1013t1C3 검사 칸 메우기 — 안내 줄은 «지금 패널의 블럭» 것만 쓴다. J14 는 블럭 하나로만 재서, 듣는 자가 «아무 블럭의» grb-pie-fit 에나 줄을 고쳐도 초록이었다.
+   블럭 둘(A: 숨긴 이름 있음 · B: 0)을 세우고, 한쪽 패널을 연 채 «다른 쪽»이 다시 재게 한다(값을 고쳐 다시 그린다 → grb-pie-fit). 이벤트가 실제로 올랐는지는 문서에 건 셈으로 본다
+   (셈은 제품의 듣는 자 «뒤에» 걸린다 ⇒ 셈이 오른 때에는 제품 쪽이 이미 돌았다). */
+test('J16 안내 줄은 다른 블럭의 숫자로 덮이지 않는다 — A(숨김 n) 패널을 연 채 B(숨김 0)가 다시 재도 「n개 숨김」 그대로 · B 패널을 연 채 A 가 다시 재도 줄이 안 생긴다', async ({ page }) => {
+  const EXTRA = { pieDonut: '1', pieRank: '1', pieName: '1' };
+  const { errs, id: A } = await setup(page, { type: 'pie', items: LONG5, extra: { ...EXTRA, labelSize: '28' } });
+  const B = await page.evaluate(([items, extra]) => {
+    window.selectSection(document.getElementById('sG')); window.addGraphBlock({ chartType: 'pie' });
+    const g = [...document.querySelectorAll('#sG .graph-block')].pop();
+    g.dataset.items = JSON.stringify(items);
+    for (const [k, v] of Object.entries(extra)) g.dataset[k] = v;
+    window.renderGraph(g); window.deselectAll?.();
+    window.__j16 = {};
+    document.addEventListener('grb-pie-fit', (e) => { window.__j16[e.target.id] = (window.__j16[e.target.id] || 0) + 1; });
+    return g.id;
+  }, [LONG5, { ...EXTRA, chartHeight: '560' }]);
+  expect(B && B !== A, '전제: 둘째 그래프 블럭이 따로 섰다').toBe(true);
+  expect(await page.evaluate(() => document.querySelectorAll('#sG .graph-block').length), '전제: 그래프 블럭 둘').toBe(2);
+  await waitStableRect(page, `#${A} .grb-pie-svg`); await waitStableRect(page, `#${B} .grb-pie-svg`);
+  const fired = (id) => page.evaluate((id) => window.__j16[id] || 0, id);
+  const hidden = (id) => page.evaluate((id) => window.grbPieHiddenNames(document.getElementById(id)), id);
+  await expect.poll(async () => (await tagType(page, B)).hiddenByDom.length, { message: '전제: B(높이 560 · 라벨 20)는 숨긴 이름 0' }).toBe(0);
+  const tA = await tagType(page, A), tB = await tagType(page, B);
+  const nA = tA.hiddenByDom.length;
+  expect(nA, '전제: A(높이 240 · 라벨 28)는 숨긴 이름이 있다').toBeGreaterThanOrEqual(1);
+  expect([tA.hiddenApi, tB.hiddenApi], '전제: 재는 쪽이 센 수 = 화면에서 센 수(A n · B 0) — 두 블럭의 숨김 수가 서로 다르다').toEqual([nA, 0]);
+  /* ① A 패널을 연 채 B 가 다시 잰다 */
+  await openPanel(page, A);
+  await expect(page.locator('#grb-pie-name-toggle'), '전제: 패널(A)의 이름 표시 켜짐').toBeChecked();
+  expect(await hintOf(page), '전제: A 패널의 안내 줄 = A 의 수').toMatchObject({ n: 1, text: `좁아서 이름 ${nA}개 숨김` });
+  const b0 = await fired(B), a0 = await fired(A);
+  await setDs(page, B, { items: LONG5.map((it, i) => i === 0 ? { ...it, value: it.value + 1 } : it) });
+  await expect.poll(() => fired(B), { message: '전제: B 가 다시 재서 grb-pie-fit 이 한 번 이상 올랐다' }).toBeGreaterThan(b0);
+  expect(await hidden(B), '전제: 다시 잰 B 의 숨김 수는 여전히 0(A 의 수와 다르다)').toBe(0);
+  expect(await fired(A), '전제: 그 사이 A 는 다시 안 쟀다(줄을 A 가 고쳐 쓴 것이 아니다)').toBe(a0);
+  expect(await hintOf(page), 'A 패널의 안내 줄은 B 의 이벤트에 안 덮인다 — 줄 하나 · A 의 수 그대로').toMatchObject({ n: 1, text: `좁아서 이름 ${nA}개 숨김` });
+  /* ② 반대 — B 패널을 연 채 A 가 다시 잰다 */
+  await openPanel(page, B);
+  await expect(page.locator('#grb-pie-name-toggle'), '전제: 패널(B)의 이름 표시 켜짐').toBeChecked();
+  expect((await hintOf(page)).n, '전제: B 패널에는 안내 줄이 없다(숨김 0)').toBe(0);
+  const a1 = await fired(A), b1 = await fired(B);
+  await setDs(page, A, { items: LONG5.map((it, i) => i === 0 ? { ...it, value: it.value + 1 } : it) });
+  await expect.poll(() => fired(A), { message: '전제: A 가 다시 재서 grb-pie-fit 이 한 번 이상 올랐다' }).toBeGreaterThan(a1);
+  expect(await hidden(A), '전제: 다시 잰 A 에는 숨긴 이름이 있다(B 의 0 과 다르다)').toBeGreaterThanOrEqual(1);
+  expect(await fired(B), '전제: 그 사이 B 는 다시 안 쟀다').toBe(b1);
+  expect((await hintOf(page)).n, 'B 패널에는 A 의 이벤트로 줄이 안 생긴다').toBe(0);
   expect(errs).toEqual([]);
 });
 

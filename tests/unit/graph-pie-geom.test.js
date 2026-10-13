@@ -5,6 +5,7 @@
  *   U5 각도 합 360 · 이어 붙음                  U6 large-arc: 180° 초과만 1
  *   U7 구멍: 0 이면 중심에서 시작 · >0 이면 고리  U8 한계 상수가 graph-limits 에 있다(패널·렌더가 같이 읽는 자리)
  *   U9 틈: 변을 평행하게 민다(폭 일정) · 값 있는 조각 하나면 0 · 실조각이 안 사라진다   U10 비율 %: 최대 잔여법 — 합 100
+ *   U20 라벨 여백 PIE_TAG_PAD: 0 이 아니다 · 낸 사각형은 가장자리에서 여백 이상 · 여백보다 가까이 닿으면 안 든다(1013t1C3 검사 칸 메우기)
  * 전제 단언: 칸마다 «조각 수 = 입력 수»를 먼저 본다 — 빈 배열이 통과로 읽히지 않게. */
 'use strict';
 const test = require('node:test');
@@ -473,4 +474,72 @@ test('U19 조각 안 라벨이 써 보는 글자 크기(1013t1C3 고침 2) — �
   assert.deepEqual(pieTagFontSizes(6), [6], '라벨 크기가 최소보다 작으면 그대로 하나(더 줄이지 않는다)');
   for (const bad of [NaN, 0, -5, 'abc', null, undefined, Infinity]) assert.deepEqual(pieTagFontSizes(bad), pieTagFontSizes(LIM.LABEL_SIZE_DEFAULT), `험한 라벨 크기 ${bad} → 기본`);
   assert.deepEqual(pieTagFontSizes('20'), pieTagFontSizes(20), '글자 수는 수로');
+});
+
+/* 1013t1C3 검사 칸 메우기 — U18 은 «조각 안인가»만 본다(여백 0 이어도 초록). 이 칸은 여백 PIE_TAG_PAD 자체를 잰다: 낸 사각형의 둘레가 조각 가장자리(바깥 호 · 구멍 · 두 변)에서
+   여백 이상 떨어져 있고, 여백보다 «덜» 떨어지게 키운 사각형(맨 조각 안에는 아직 든다)은 fits 가 거절한다. 거리는 이 파일이 따로 센다(pieTagRoom 의 식을 안 부른다). */
+test('U20 라벨 여백 PIE_TAG_PAD(1013t1C3) — 0 이 아니다 · 낸 사각형은 조각 가장자리에서 여백 이상 떨어진다 · 여백 안쪽까지만 든다(온 원 · 4분 조각의 닫힌 식) · 여백보다 가까이 닿으면 맨 조각 안이어도 안 든다', () => {
+  const PAD = LIM.PIE_TAG_PAD;
+  assert.ok(Number.isFinite(PAD) && PAD > 0, `여백 한도가 0 이 아니다(${PAD}) — 0 이면 라벨이 조각 변·틈에 닿는다`);
+  assert.ok(PAD < LIM.PIE_TAG_MIN_RADIAL / 2, '전제: 여백이 자동 숨김 문턱(고리 두께)의 절반보다 작다 — 보이는 조각에 자리가 남는다');
+  /* 점 (x, y) 에서 i 번 조각의 «그려진» 가장자리까지 남은 거리(음수 = 밖) — 바깥 호 · 구멍 · 두 변(틈의 절반을 뺀 수직 거리) */
+  const margin = (geo, i, x, y) => {
+    const qx = x - CENTER - (+geo.offsets[i][0]), qy = y - CENTER - (+geo.offsets[i][1]);
+    const rho = Math.hypot(qx, qy), r = RADIUS * geo.hole / 100, rad = Math.PI / 180;
+    const out = { outer: geo.outer[i] - rho, hole: r > 0 ? rho - r : Infinity, side: Infinity };
+    if (geo.shares[i] < 0.9999) {
+      const [a0, a1] = geo.angles[i];
+      const d0 = qx * Math.cos(a0 * rad) + qy * Math.sin(a0 * rad) - geo.gap / 2, d1 = -(qx * Math.cos(a1 * rad) + qy * Math.sin(a1 * rad)) - geo.gap / 2;
+      out.side = (a1 - a0) > 180 ? Math.max(d0, d1) : Math.min(d0, d1);
+    }
+    return out;
+  };
+  const ring = (w, h) => { const o = []; for (let k = 0; k <= 12; k++) { const t = k / 12 - 0.5; o.push([t * w, -h / 2], [t * w, h / 2], [-w / 2, t * h], [w / 2, t * h]); } return o; };   // 사각형 둘레의 점들(귀 + 변 위)
+  const least = (geo, i, cx, cy, w, h) => { const m = { outer: Infinity, hole: Infinity, side: Infinity };
+    for (const [ox, oy] of ring(w, h)) { const p = margin(geo, i, cx + ox, cy + oy); for (const k of Object.keys(m)) m[k] = Math.min(m[k], p[k]); } return m; };
+  const cases = [
+    [[60, 10, 22, 3, 3, 2], 38, 4, { start: 295, grow: [30] }],
+    [[30, 20, 15, 15, 10, 10], 0, 10, {}],
+    [[30, 20, 15, 15, 10, 10], 55, 40, { start: 77, grow: [30, 0, 10], pull: [0, 0, 15, 0, 30] }],
+    [[70, 20, 10], 0, 10, {}],
+    [[70, 20, 10], 80, 0, {}],
+  ];
+  const EPS = 1e-6, tight = { outer: Infinity, hole: Infinity, side: Infinity };
+  let seen = 0;
+  for (const [vals, hole, gap, opts] of cases) {
+    const geo = piePaths(vals, hole, gap, opts), plan = pieTagPlan(geo), room = pieTagRoom(geo);
+    assert.equal(room.length, vals.length, '전제: 조각마다 하나');
+    room.forEach((rm, i) => rm.boxes.forEach((b) => {
+      if (!(b.w > 0)) return;
+      seen++;
+      const what = `조각 ${i} · ${b.w}×${b.h} (${JSON.stringify([vals, hole, gap, opts])})`;
+      const m = least(geo, i, plan[i].x, plan[i].y, b.w, b.h);
+      for (const k of Object.keys(m)) { assert.ok(m[k] >= PAD - EPS, `낸 사각형의 둘레가 ${k} 가장자리에서 여백(${PAD}) 이상 떨어진다 — ${m[k]} · ${what}`); tight[k] = Math.min(tight[k], m[k]); }
+      /* 폭·높이를 여백만큼 키운다 = 변마다 여백의 절반씩 밖으로(귀는 여백 × 0.71) ⇒ 맨 조각 안에는 아직 들지만 가장자리까지는 여백보다 가깝다 */
+      const g = least(geo, i, plan[i].x, plan[i].y, b.w + PAD, b.h + PAD), gMin = Math.min(g.outer, g.hole, g.side);
+      assert.ok(gMin > 0 && gMin < PAD, `전제: 키운 사각형은 맨 조각 안이면서(> 0) 여백보다 가깝다(< ${PAD}) — ${gMin} · ${what}`);
+      assert.equal(rm.fits(b.w + PAD, b.h + PAD), false, `여백보다 가까이 닿는 사각형은 안 든다 — ${what}`);
+    }));
+  }
+  assert.ok(seen >= 60, `전제: 사각형을 실제로 견줬다(${seen})`);
+  for (const k of Object.keys(tight)) assert.ok(tight[k] < PAD + 1, `전제: ${k} 가장자리에 여백까지 바짝 붙은 사각형이 표본에 있다(가장 가까운 것 ${tight[k]}) — 세 가장자리 모두 여백이 «묶는» 조건이다`);
+  /* 닫힌 식 ① 온 원 원형(자리 = 중심): 정사각의 귀가 바깥 호에서 여백만큼 — 한 변 = √2 × (R − 여백) */
+  const full = pieTagRoom(piePaths([5], 0, 10))[0], s = Math.SQRT2 * (RADIUS - PAD);
+  assert.equal(full.fits(s - 0.01, s - 0.01), true, '바깥 호에서 여백만큼 들어온 정사각은 든다');
+  assert.equal(full.fits(s + 0.01, s + 0.01), false, '여백을 조금이라도 먹으면 안 든다');
+  const half = Math.SQRT2 * (RADIUS - PAD / 2);
+  assert.ok(half / Math.SQRT2 < RADIUS, '전제: 귀가 아직 원 안(반지름 R 미만)');
+  assert.equal(full.fits(half, half), false, '원 안이어도 바깥 호에서 여백의 절반까지 다가간 정사각은 안 든다');
+  /* 닫힌 식 ② 4분 조각(값 넷이 같다 · 틈 0 · 구멍 0 — 0°~90°): 두 변이 축이라 변까지의 거리 = 자리의 좌표 − 사각형의 반 폭(반 높이) */
+  const q = piePaths([1, 1, 1, 1], 0, 0), qp = pieTagPlan(q)[0], qr = pieTagRoom(q)[0];
+  assert.deepEqual([q.gap, q.angles[0][0], q.angles[0][1]], [0, 0, 90], '전제: 틈 0 · 첫 조각은 0°~90°');
+  const ax = qp.x - CENTER, ay = CENTER - qp.y, thin = 10;
+  assert.ok(ax > PAD * 4 && ay > PAD * 4, '전제: 자리가 두 변에서 여백보다 훨씬 멀다');
+  assert.ok(Math.hypot(ax + ax, thin / 2) < RADIUS - PAD && Math.hypot(thin / 2, ay + ay) < RADIUS - PAD, '전제: 아래 사각형들은 바깥 호에 안 닿는다(변만 묶는다)');
+  assert.equal(qr.fits(2 * (ax - PAD) - 0.01, thin), true, '시작 변에서 여백만큼 떨어진 사각형은 든다');
+  assert.equal(qr.fits(2 * (ax - PAD) + 0.01, thin), false, '시작 변 쪽 여백을 먹으면 안 든다');
+  assert.equal(qr.fits(2 * (ax - PAD / 2), thin), false, '조각 안이어도 시작 변에서 여백의 절반까지 다가가면 안 든다');
+  assert.equal(qr.fits(thin, 2 * (ay - PAD) - 0.01), true, '끝 변에서 여백만큼 떨어진 사각형은 든다');
+  assert.equal(qr.fits(thin, 2 * (ay - PAD) + 0.01), false, '끝 변 쪽 여백을 먹으면 안 든다');
+  assert.equal(qr.fits(thin, 2 * (ay - PAD / 2)), false, '조각 안이어도 끝 변에서 여백의 절반까지 다가가면 안 든다');
 });
