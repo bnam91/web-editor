@@ -168,6 +168,7 @@ async function exportHTMLFile() {
      ⛔«명부 둘을 합치기»는 ★범위 밖이다 — ★지디 판정 · ★티켓은 지디가 든다. */
   clone.querySelectorAll('.star-mode').forEach(el => el.classList.remove('star-mode'));
   clone.querySelectorAll('.star-cell-selected').forEach(el => el.classList.remove('star-cell-selected'));
+  clone.querySelectorAll('.grb-pie-cell-selected').forEach(el => el.classList.remove('grb-pie-cell-selected'));   // 1013t1C4 — 원형 그래프 조각 선택(같은 까닭 — 이 파일은 제 명부를 든다)
 
   /* ★가림막(Redact)을 «설계로» 불투명하게 만든다 (2026-09-21 최종통합 QA medium)
      이 파일의 <style> 은 앱 CSS 를 «안» 싣는다 — .shape-block/.shape-redact/.shape-svg 규칙이

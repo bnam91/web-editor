@@ -848,8 +848,31 @@ function _graphLabelBeginEdit(block, el, idx) {
  * 범례 = 카테고리 라벨(.grb-pie-label · 더블클릭 편집 대상) + 비율 %(.grb-pie-val). 공통 키(showVLabel·showXLabel·라벨 색 셋·labelSize·chartHeight)를 그대로 따른다.
  * 사용자 글자는 _escGraphHtml · 색은 _safeGraphColor 만 지난다(E152 규약).
  * 1013t1C — 도넛 여부 = chartType 'donut'(옛 별칭) 또는 dataset.pieDonut '1'. 새 키가 «하나도 없으면» 그림(innerHTML)은 1012 판과 바이트가 같다(골든 G0). */
+/* 1013t1C4 전제 — 조각 고르기. 상태는 DOM 표식 «하나»뿐이다: path.grb-pie-slice.grb-pie-cell-selected (JS 쪽에 따로 들지 않는다 — 두 진실 방지).
+ *   이름이 -cell-selected 로 끝나 저장·복사 때 section-serialize 의 RUNTIME_MARKER_RE 가 벗긴다(별 한 개 고르기 star-cell-selected 와 같은 길).
+ *   세우는 자: block-drag.js 그래프 클릭(이미 이 블럭만 선택된 채 조각을 누르면) · 패널 Data 줄의 조각 버튼. 걷는 자: editor.js clearSelectionMarks «한 곳».
+ *   다시 그리기(_renderPie)는 표식을 색인으로 옮겨 붙인다 — 마크업 문자열에는 안 넣는다(「두 번 그려 같다」 무변). */
+function grbPieSliceIndexAt(target, block) {
+  const p = target?.closest?.('.grb-pie-slice');
+  if (!p || !block || !block.contains(p)) return -1;
+  return [...block.querySelectorAll('.grb-pie-slice')].indexOf(p);
+}
+function _grbPieMarkIndex(block) {
+  return [...block.querySelectorAll('.grb-pie-slice')].findIndex(p => p.classList.contains('grb-pie-cell-selected'));
+}
+/** 고른 조각의 색인(항목 순서) — 블럭이 선택돼 있고 표식이 있을 때만. 없으면 −1. */
+function grbPieSelected(block) {
+  if (!block || !block.classList.contains('selected')) return -1;
+  return _grbPieMarkIndex(block);
+}
+/** idx 번 조각을 고른다. null·범위 밖 = 해제. */
+function grbPieSelect(block, idx) {
+  if (!block) return;
+  block.querySelectorAll('.grb-pie-slice').forEach((p, i) => p.classList.toggle('grb-pie-cell-selected', i === idx));
+}
 function _renderPie(block, { items, chartH, labelSize }) {
   const d = block.dataset;
+  const _selIdx = _grbPieMarkIndex(block);   // 다시 그리기 «전»의 조각 선택 — 아래에서 innerHTML 을 덮은 뒤 되붙인다
   const L = window.GRAPH_LIMITS;
   const _h = parseInt(d.pieHole);
   const donut = d.chartType === 'donut' || d.pieDonut === '1';   // 1013t1C1 — 유형은 '원형' 하나 + 「도너츠」 토글(pieDonut='1'). 옛 유형 'donut' 은 «영구 별칭»(옛 저장본 그대로 그린다)
@@ -882,6 +905,7 @@ function _renderPie(block, { items, chartH, labelSize }) {
         <svg class="grb-pie-svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">${slices}${emptyEl}</svg>
       </div>
       <div class="grb-pie-legend" style="font-size:${labelSize}px">${legend}</div>`;
+  if (_selIdx >= 0) grbPieSelect(block, _selIdx);
 }
 /* ── 1012t1G2 · G3 · G4 「SVG 를 그래프 모양으로」 ─────────────────────────
  * 세로 막대의 «덧 길» — dataset.barShape(실루엣) 또는 items[i].segments(마디)가 있을 때만 온다. chartType 은 'bar-v' 그대로.
@@ -1353,6 +1377,9 @@ window.showToast                  = showToast;
 window.getSectionAlign            = getSectionAlign;
 window.GRAPH_DEFAULT_ITEMS        = GRAPH_DEFAULT_ITEMS;
 window.renderGraph                = renderGraph;
+window.grbPieSliceIndexAt         = grbPieSliceIndexAt;   // 1013t1C4 — 조각 고르기 셋(block-drag 클릭 · prop-graph 패널이 부른다)
+window.grbPieSelected             = grbPieSelected;
+window.grbPieSelect               = grbPieSelect;
 window.applyDividerStyle          = applyDividerStyle;
 window.ASSET_PRESETS              = ASSET_PRESETS;
 window.suppressAncestorDrag       = suppressAncestorDrag;

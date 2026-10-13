@@ -6,11 +6,13 @@
  *   C1 — D1 옛 donut 패널 · D2 도너츠 토글 왕복 · D3 옛 donut → 막대 → 원형 = 도넛 · D4 ⌘Z · G1 옛 꼴 블럭 저장·다시 열기·패널 무변 · G2 구멍 슬라이더 왕복
  *   C6 — E1 조각 간격이 그림을 바꾼다(0 = 맞닿음 · 40 = 넓은 틈) · E2 패널 칸의 한계 = GRAPH_LIMITS · 999 → 40 되쓰기 · ⌘Z
  *   C2 — F1 시작 각도가 조각을 돌린다(범례 순서·% 는 그대로) · 패널 칸
+ *   조각 고르기(C4 전제) — S1 첫 클릭 = 블럭 · 둘째 클릭 = 조각(표식 + Slice 절) · S2 범례 클릭 = 해제 · S3 떠나면 해제 · S4 저장본에 표식 0
+ *     · S5 패널 항목 줄 버튼 · S6 다시 그려도 표식 유지 · S7 조각을 잡고 끌기는 고르기가 아니다
  *   G0 골든 핀: 새 키가 «하나도 없는» 블럭의 그림(innerHTML)이 1012 판과 바이트가 같다 — 1013t1C0 에서 «고치기 전 판» 위에 박았다.
  * 실행: bash ~/taeyang-098/run-test.sh dom tests/dom/graph-pie-1013.dom.spec.js */
 const { test, expect } = require('@playwright/test');
 const crypto = require('crypto');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const V3 = [{ label: '가', value: 1 }, { label: '나', value: 1 }, { label: '다', value: 2 }];
 const V6 = [30, 20, 15, 15, 10, 10].map((v, i) => ({ label: 'k' + i, value: v }));
@@ -306,5 +308,158 @@ test('F1 시작 각도 — pieStart 90 이면 첫 조각이 3시에서 시작한
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('Meta+z');
   await expect.poll(() => page.evaluate(() => document.querySelector('#sG .graph-block')?.dataset.pieStart ?? null)).toBe('90');
+  expect(errs).toEqual([]);
+});
+
+/* ── 조각 고르기(C4·C5 의 전제) ── 상태 = 캔버스 표식 하나(path.grb-pie-cell-selected). 첫 클릭 = 블럭, 이미 선택된 블럭의 조각 클릭 = 그 조각. */
+/* 조각 i 의 가운데 각 · 반지름 비율 rr 점의 «화면 자리»(SVG 사용자 좌표 → getScreenCTM) — 누를 자리로만 쓴다(수와 견주지 않는다). on = 그 자리 맨 위 요소가 몇 번 조각인가(아니면 −1). */
+const slicePoint = (page, id, i, rr = 0.7) => page.evaluate(([id, i, rr]) => {
+  const b = document.getElementById(id), items = JSON.parse(b.dataset.items);
+  const geo = window.GRAPH_PIE_GEOM.piePaths(items.map(it => it.value), 0, 0, { start: parseInt(b.dataset.pieStart) || 0 });
+  const mid = (geo.angles[i][0] + geo.angles[i][1]) / 2 * Math.PI / 180;
+  const p = new DOMPoint(500 + 500 * rr * Math.sin(mid), 500 - 500 * rr * Math.cos(mid)).matrixTransform(b.querySelector('.grb-pie-svg').getScreenCTM());
+  const el = document.elementFromPoint(p.x, p.y);
+  return { x: p.x, y: p.y, on: (el && el.matches('.grb-pie-slice')) ? [...b.querySelectorAll('.grb-pie-slice')].indexOf(el) : -1 };
+}, [id, i, rr]);
+const clickSlice = async (page, id, i) => {
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  const p = await slicePoint(page, id, i);
+  expect(p.on, `전제: 누를 자리의 맨 위 요소가 조각 ${i}`).toBe(i);
+  await page.mouse.click(p.x, p.y);
+};
+/* 블럭 선택 여부 · 표식이 붙은 조각 색인들 · API 가 말하는 고른 조각 */
+const markOf = (page, id) => page.evaluate((id) => { const b = document.getElementById(id); return { sel: b.classList.contains('selected'),
+  marks: [...b.querySelectorAll('.grb-pie-slice')].map((p, i) => p.classList.contains('grb-pie-cell-selected') ? i : -1).filter(i => i >= 0), api: window.grbPieSelected(b) }; }, id);
+/* 사용자 길로 조각 i 를 고른다 — 한 번 눌러 블럭을 고르고, 한 번 더 눌러 조각을 고른다 */
+const pickSlice = async (page, id, i) => {
+  await clickSlice(page, id, i);
+  await expect.poll(async () => (await markOf(page, id)).sel, { message: '첫 클릭 = 블럭 선택' }).toBe(true);
+  await clickSlice(page, id, i);
+  await expect.poll(async () => (await markOf(page, id)).marks, { message: `둘째 클릭 = 조각 ${i}` }).toEqual([i]);
+};
+const sliceSection = (page) => page.evaluate(() => { const s = document.getElementById('grb-pie-slice-section'); return s ? { title: s.querySelector('.prop-section-title').textContent.trim(), name: document.getElementById('grb-pie-slice-name').textContent, idx: s.dataset.slice,
+  activeBtns: [...document.querySelectorAll('#grb-data-list .grb-data-icon-btn[data-slice-index].active')].map(b => b.dataset.sliceIndex) } : null; });
+
+test('S1 조각 고르기 — 첫 클릭은 블럭 선택(표식 0) · 둘째 클릭은 그 조각(표식 1 + Slice 절) · 다른 조각을 누르면 옮겨 간다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3 });
+  expect(await markOf(page, id), '전제: 아무것도 안 골랐다').toEqual({ sel: false, marks: [], api: -1 });
+  await clickSlice(page, id, 2);
+  await expect.poll(async () => (await markOf(page, id)).sel).toBe(true);
+  expect(await markOf(page, id), '첫 클릭 = 블럭만').toEqual({ sel: true, marks: [], api: -1 });
+  expect(await page.locator('#grb-pie-donut-toggle').count(), '전제: 그래프 패널이 열렸다').toBe(1);
+  expect(await sliceSection(page), '조각을 안 골랐으면 Slice 절 없음').toBeNull();
+  expect(await page.locator('#grb-data-list .grb-data-icon-btn[data-slice-index]').count(), '항목 줄마다 조각 버튼').toBe(3);
+  await clickSlice(page, id, 2);
+  await expect.poll(async () => (await markOf(page, id)).marks).toEqual([2]);
+  expect(await markOf(page, id)).toEqual({ sel: true, marks: [2], api: 2 });
+  expect(await sliceSection(page), 'Slice 절 머리 = 「n번 · 라벨」').toEqual({ title: 'Slice', name: '3번 · 다', idx: '2', activeBtns: ['2'] });
+  /* 표식이 «보인다» — 고른 조각에만 테두리 · 선택된 블럭의 조각은 손가락 커서 */
+  const st = await page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.grb-pie-slice')].map(p => { const c = getComputedStyle(p); return [c.stroke !== 'none', c.cursor]; }), id);
+  expect(st).toEqual([[false, 'pointer'], [false, 'pointer'], [true, 'pointer']]);
+  await clickSlice(page, id, 0);
+  await expect.poll(async () => (await markOf(page, id)).marks, { message: '다른 조각을 누르면 그 조각으로' }).toEqual([0]);
+  expect((await sliceSection(page)).name).toBe('1번 · 가');
+  expect(errs).toEqual([]);
+});
+
+test('S2 범례(조각 밖)를 누르면 조각 선택이 풀린다 — 블럭 선택은 남는다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3 });
+  await pickSlice(page, id, 1);
+  expect(await sliceSection(page), '전제: Slice 절이 있다').not.toBeNull();
+  await page.locator(`#${id} .grb-pie-legend-item`).nth(0).click();
+  await expect.poll(async () => (await markOf(page, id)).marks).toEqual([]);
+  expect(await markOf(page, id)).toEqual({ sel: true, marks: [], api: -1 });
+  expect(await sliceSection(page)).toBeNull();
+  expect(errs).toEqual([]);
+});
+
+test('S3 블럭을 떠나면 조각 선택이 풀린다 — deselectAll · 다른 블럭 클릭', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3 });
+  const id2 = await page.evaluate(() => { window.selectSection(document.getElementById('sG')); window.addGraphBlock({ chartType: 'bar-v' }); window.deselectAll(); return [...document.querySelectorAll('#sG .graph-block')].pop().id; });
+  expect(id2, '전제: 둘째 블럭').not.toBe(id);
+  await pickSlice(page, id, 1);
+  await page.evaluate(() => window.deselectAll());
+  expect(await markOf(page, id), 'deselectAll = 표식 0').toEqual({ sel: false, marks: [], api: -1 });
+  await pickSlice(page, id, 1);
+  await waitStableRect(page, `#${id2}`);
+  await page.locator(`#${id2}`).click();
+  await expect.poll(() => page.evaluate((id2) => document.getElementById(id2).classList.contains('selected'), id2), { message: '전제: 둘째 블럭이 선택됐다' }).toBe(true);
+  expect(await markOf(page, id), '다른 블럭 클릭 = 표식 0').toEqual({ sel: false, marks: [], api: -1 });
+  expect(await page.evaluate(() => document.querySelectorAll('#canvas .grb-pie-cell-selected').length)).toBe(0);
+  expect(errs).toEqual([]);
+});
+
+test('S4 저장본 — 조각을 고른 채 직렬화해도 표식이 안 실린다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3 });
+  await pickSlice(page, id, 0);
+  const r = await page.evaluate((id) => { const saved = window.getSerializedCanvas();
+    return { live: document.getElementById(id).outerHTML.includes('grb-pie-cell-selected'), hasGraph: saved.includes('grb-pie-slice') && saved.includes(`id="${id}"`), leaked: saved.includes('grb-pie-cell-selected'),
+      marker: window.runtimeMarkers.isRuntimeMarker('grb-pie-cell-selected') }; }, id);
+  expect(r).toEqual({ live: true, hasGraph: true, leaked: false, marker: true });
+  expect((await markOf(page, id)).marks, '직렬화는 화면의 선택을 안 건드린다').toEqual([0]);
+  expect(errs).toEqual([]);
+});
+
+test('S5 패널 항목 줄의 조각 버튼 — 누르면 그 조각 · 다시 누르면 풀린다 · 항목을 지우면 풀린다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3 });
+  await clickSlice(page, id, 0);   // 블럭 선택(사용자 길)
+  await expect.poll(async () => (await markOf(page, id)).sel).toBe(true);
+  expect((await markOf(page, id)).marks, '전제: 조각은 아직 안 골랐다').toEqual([]);
+  await page.locator('#grb-data-list .grb-data-icon-btn[data-slice-index="1"]').click();
+  await expect.poll(async () => (await markOf(page, id)).marks).toEqual([1]);
+  expect(await sliceSection(page)).toEqual({ title: 'Slice', name: '2번 · 나', idx: '1', activeBtns: ['1'] });
+  await page.locator('#grb-data-list .grb-data-icon-btn[data-slice-index="1"]').click();
+  await expect.poll(async () => (await markOf(page, id)).marks).toEqual([]);
+  expect(await sliceSection(page)).toBeNull();
+  /* 항목 삭제 — 색인이 다른 조각을 가리키지 않게 푼다 */
+  await page.locator('#grb-data-list .grb-data-icon-btn[data-slice-index="2"]').click();
+  await expect.poll(async () => (await markOf(page, id)).marks).toEqual([2]);
+  await page.locator('#grb-data-list .grb-data-del-btn[data-index="0"]').click();
+  await expect.poll(async () => (await itemsOf(page, id)).length).toBe(2);
+  expect((await markOf(page, id)).marks).toEqual([]);
+  expect(await sliceSection(page)).toBeNull();
+  /* 막대 유형에선 조각 버튼이 없다 */
+  await page.locator('#grb-type-v').click();
+  await expect.poll(() => ds(page, id, 'chartType')).toBe('bar-v');
+  expect(await page.locator('#grb-data-list .grb-data-icon-btn[data-slice-index]').count()).toBe(0);
+  expect(errs).toEqual([]);
+});
+
+test('S6 다시 그려도 조각 선택이 남는다 — dataset 변경 · 패널 라벨 타이핑(Slice 절 머리도 따라 쓴다)', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3 });
+  await pickSlice(page, id, 1);
+  const h0 = await htmlOf(page, id);
+  await setDs(page, id, { labelSize: '24' });
+  expect(await htmlOf(page, id), '전제: 다시 그려졌다(다른 그림)').not.toBe(h0);
+  expect(await markOf(page, id)).toEqual({ sel: true, marks: [1], api: 1 });
+  await page.locator('#grb-data-list .grb-data-item:not(.grb-seg-item) .grb-data-label-input').nth(1).fill('새이름');
+  await expect.poll(async () => (await itemsOf(page, id))[1].label).toBe('새이름');
+  expect((await markOf(page, id)).marks, '라벨을 쳐도 표식 유지').toEqual([1]);
+  expect((await sliceSection(page)).name).toBe('2번 · 새이름');
+  /* 표식은 마크업 문자열이 아니라 «되붙인» 클래스다 — 풀고 다시 그리면 표식 없는 그림과 같다 */
+  const marked = await htmlOf(page, id);
+  const clean = await page.evaluate((id) => { const b = document.getElementById(id); window.grbPieSelect(b, null); window.renderGraph(b); return b.innerHTML; }, id);
+  expect(marked).toContain('grb-pie-cell-selected');
+  expect(clean).not.toContain('grb-pie-cell-selected');
+  expect(marked.replace(' grb-pie-cell-selected', ''), '표식 클래스 한 낱말만 다르다').toBe(clean);
+  expect(errs).toEqual([]);
+});
+
+test('S7 조각을 잡고 블럭을 끄는 것은 조각 고르기가 아니다 — 끈 뒤 표식 0', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3 });
+  await clickSlice(page, id, 0);
+  await expect.poll(async () => (await markOf(page, id)).sel, { message: '전제: 블럭이 선택돼 있다(다음 «클릭»이면 조각이 골라질 상태)' }).toBe(true);
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  const from = await slicePoint(page, id, 0);
+  expect(from.on, '전제: 잡는 자리가 조각 0 위').toBe(0);
+  const to = await page.evaluate(() => { const r = document.querySelector('#sG .gap-block').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  await page.mouse.move(from.x, from.y); await page.mouse.down();
+  await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 6 });
+  await page.mouse.move(to.x, to.y, { steps: 6 });
+  await page.mouse.up();
+  await raf2(page);
+  const b = await page.evaluate(() => { const g = document.querySelector('#sG .graph-block'); return g ? { slices: g.querySelectorAll('.grb-pie-slice').length, marks: g.querySelectorAll('.grb-pie-cell-selected').length } : null; });
+  expect(b, '끈 뒤에도 블럭은 있고 · 조각 표식은 없다').toEqual({ slices: 3, marks: 0 });
+  expect(await page.evaluate(() => document.querySelectorAll('#canvas .grb-pie-cell-selected').length)).toBe(0);
   expect(errs).toEqual([]);
 });

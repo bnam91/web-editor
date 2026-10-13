@@ -125,6 +125,27 @@ const _isDonut = (ds) => ds.chartType === 'donut' || (ds.chartType === 'pie' && 
 const SHAPE_FAIL_TOAST = { TOO_LARGE: '⚠️ SVG가 너무 큽니다', NOT_SVG: '⚠️ 유효한 SVG가 아닙니다', EMPTY: '⚠️ 그릴 도형이 없는 SVG입니다', NO_SIZE: '⚠️ SVG에 크기(viewBox)가 없습니다', TOO_COMPLEX: '⚠️ SVG가 너무 복잡합니다(겹쳐 쓴 use)' };
 /* 항목 줄의 작은 버튼 아이콘 — 블럭 헤더 아이콘과 같은 꼴(12 격자 · 선 1.3 · 채움 없음) */
 const ITEM_SHAPE_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V2M3.5 4.5 6 2l2.5 2.5M2 10h8"/></svg>';
+/* 1013t1C4 — 원형 «조각 고르기»의 패널 쪽. 고른 조각 = 캔버스 표식 하나(drag-utils.js grbPieSelected — 패널은 따로 안 든다).
+ *   · Data 절 항목 줄의 작은 버튼(.grb-data-icon-btn[data-slice-index]) = 그 조각 고르기/풀기(캔버스에서 조각을 누르는 것과 같은 일).
+ *   · Slice 절 = 고른 조각이 있을 때만 Pie Settings 뒤에. 머리 줄 「n번 · 라벨」 + 조각별 설정 줄(pieSliceRowsHTML — 크기 · 밀어내기 · 라벨이 여기 붙는다).
+ *   패널 쪽 클래스 이름에 selected 를 쓰지 않는다(켜짐 = 기존 .active) — 선택 마커 센서스가 캔버스 마커만 세게. */
+const ITEM_SLICE_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="4.5"/><path d="M6 1.5V6l3.2 3.2"/></svg>';
+const _sliceName = (items, i) => `${i + 1}번 · ${(items[i] && items[i].label) || ''}`;
+function pieSliceRowsHTML(item) {   // 조각별 설정 줄 — 지금은 없음(1013t1C4 「크기」가 첫 줄)
+  return '';
+}
+function pieSliceSectionHTML(items, sel) {
+  if (!(sel >= 0 && sel < items.length)) return '';
+  return `
+    <div class="prop-section" id="grb-pie-slice-section" data-slice="${sel}">
+      <div class="prop-section-title">Slice</div>
+      <div class="prop-row" title="고른 조각 — 아래 설정은 이 조각에만 걸린다">
+        <span class="prop-label">조각</span>
+        <span class="prop-value-text grb-slice-name" id="grb-pie-slice-name">${escHtml(_sliceName(items, sel))}</span>
+      </div>${pieSliceRowsHTML(items[sel] || {})}
+    </div>`;
+}
+
 /* 1012t1G4 — 마디(막대·실루엣을 비율별로 나눈 조각) 편집 줄. 항목 줄 아래 같은 꼴의 줄(라벨 · 값 · ✕ · 색) + 「+ 마디 추가」.
  * 0번이 맨 아래 마디다. 마디가 있으면 그 항목의 값 칸은 읽기 전용(합) — 합을 쓰는 자는 graph-shape.js segSum 한 곳. 세로 막대에서만 나온다.
  * ★다른 유형(가로·꺾은선·비교·원형)에선 마디 줄도, 읽기 전용도, «합으로 되쓰기»도 없다 — 마디는 모델에 «보존만» 하고 값 칸은 자유롭다.
@@ -238,6 +259,7 @@ export function showGraphProperties(block) {
   const _donut       = _isDonut(block.dataset);   // 1013t1C1 — 옛 'donut' 또는 'pie' + pieDonut
   const _pieInt      = (raw, lo, hi, dflt) => { const n = parseInt(raw); return Math.min(hi, Math.max(lo, (raw !== undefined && Number.isFinite(n)) ? n : dflt)); };   // 렌더(_renderPie)와 «같은 식» — 키 없음·NaN = 기본
   const pieGap       = _pieInt(block.dataset.pieGap, PIE_GAP_MIN, PIE_GAP_MAX, PIE_GAP);
+  const _sliceSel    = _isPie ? (i => (i >= 0 && i < items.length) ? i : -1)(window.grbPieSelected?.(block) ?? -1) : -1;   // 1013t1C4 — 고른 조각(없으면 −1)
   const pieStart     = (s => Number.isFinite(s) ? ((s % 360) + 360) % 360 : 0)(parseInt(block.dataset.pieStart));   // 렌더와 같은 식(360 으로 접는다)
   const _shapeOn     = chartType === 'bar-v' && window.GRAPH_SHAPE.shapeOn(block.dataset);   // 1012t1G2 — 실루엣이 «실제로» 켜졌나(세로 막대에서만 · 모르는 이름은 꺼진 것)
   const _segOn       = chartType === 'bar-v';   // 1012t1G4 — 마디 편집(줄 · 읽기 전용 합 · 합으로 되쓰기)은 세로 막대에서만
@@ -409,7 +431,7 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="grb-pie-start-slider" min="${PIE_START_MIN}" max="${PIE_START_MAX}" step="1" value="${pieStart}">
         <input type="number" class="prop-number" id="grb-pie-start-number" min="${PIE_START_MIN}" max="${PIE_START_MAX}" value="${pieStart}">
       </div>
-    </div>` : ''}
+    </div>${pieSliceSectionHTML(items, _sliceSel)}` : ''}
     ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn }) : ''}
     <div class="prop-section">
       <div class="prop-section-title">Preset</div>
@@ -429,6 +451,7 @@ ${blockHeaderHTML({
             <input type="number" class="grb-data-val-input" value="${_segOn && _segsOf(item).length ? _segSum(item.segments) : escHtml(item.value)}" min="0" max="9999"${_segOn && _segsOf(item).length ? ' readonly title="마디 값의 합"' : ''}>
             ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${escHtml(item.value2 ?? 0)}" min="0" max="9999" title="시리즈 B 값">` : ''}
             <button class="grb-data-del-btn" data-index="${i}">✕</button>
+            ${_isPie ? `<button class="grb-data-icon-btn ${_sliceSel === i ? 'active' : ''}" data-slice-index="${i}" title="${_sliceSel === i ? '조각 고르기 풀기' : '이 조각 고르기(조각별 설정)'}">${ITEM_SLICE_ICON}</button>` : ''}
             ${_shapeOn ? `<button class="grb-data-icon-btn ${item.shape ? 'active' : ''}" data-shape-index="${i}" title="${item.shape ? '이 항목만 쓰는 모양 지우기(블럭 모양으로)' : '이 항목만 SVG 불러오기'}">${ITEM_SHAPE_ICON}</button>` : ''}
             ${(chartType === 'bar-v' || chartType === 'bar-h') ? itemColorFieldHTML(item, i) : (_isPie ? itemColorFieldHTML(item, i, { solidOnly: true }) : '')}
           </div>${_segOn ? segListHTML(item, i) : ''}`).join('')}
@@ -593,6 +616,8 @@ ${blockHeaderHTML({
     });
     block.dataset.items = JSON.stringify(newItems);
     window.renderGraph(block);
+    const _sn = document.getElementById('grb-pie-slice-name');   // 1013t1C4 — Slice 절 머리의 라벨을 따라 쓴다(패널을 다시 안 그린다 — 치던 칸의 포커스 유지)
+    if (_sn && _sliceSel >= 0) _sn.textContent = _sliceName(newItems, _sliceSel);
   }
 
   const dataList = document.getElementById('grb-data-list');
@@ -631,7 +656,16 @@ ${blockHeaderHTML({
     if (curItems.length <= 1) return;
     curItems.splice(parseInt(btn.dataset.index), 1);
     block.dataset.items = JSON.stringify(curItems);
+    window.grbPieSelect?.(block, null);   // 1013t1C4 — 항목 수가 바뀌면 조각 선택을 푼다(색인이 다른 조각을 가리키지 않게)
     window.renderGraph(block);
+    showGraphProperties(block);
+  });
+
+  // 1013t1C4 — 항목 줄의 조각 버튼: 그 조각을 고르거나(꺼져 있으면) 푼다(켜져 있으면). 캔버스 표식을 쓰고 패널을 다시 연다.
+  if (_isPie) dataList.addEventListener('click', e => {
+    const btn = e.target.closest('.grb-data-icon-btn[data-slice-index]');
+    if (!btn) return;
+    window.grbPieSelect?.(block, btn.classList.contains('active') ? null : parseInt(btn.dataset.sliceIndex));
     showGraphProperties(block);
   });
 
@@ -699,6 +733,7 @@ ${blockHeaderHTML({
     const curItems = JSON.parse(block.dataset.items || '[]');
     curItems.push({ label: '항목 ' + (curItems.length + 1), value: 50 });
     block.dataset.items = JSON.stringify(curItems);
+    window.grbPieSelect?.(block, null);   // 1013t1C4 — 위 삭제와 같은 까닭
     window.renderGraph(block);
     showGraphProperties(block);
   });
