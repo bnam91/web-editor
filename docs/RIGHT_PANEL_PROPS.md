@@ -244,7 +244,17 @@
 | 데이터 | 데이터 편집 | 값, 라벨 입력 |
 | 스타일 | 바 색상 | — |
 | 스타일 | 배경 색상 | — |
-| 타입 | 그래프 형태 | Bar / Line 등 |
+| 타입 | 그래프 형태 | 세로 막대 / 가로 막대 / 꺾은선 / 비교 / 원형 — 버튼 다섯(`grb-type-*`). 도넛은 유형이 아니라 원형의 토글이다(옛 `chartType: 'donut'` 블럭은 「원형」이 켜진 채 열린다) |
+| Pie Settings (원형 전용 · 1013t1C) | 도너츠 토글 `grb-pie-donut-toggle` | `dataset.pieDonut` '1' (끄면 키 삭제). 옛 `donut` 은 여기서 `pie` + `pieDonut` 로 옮겨 쓴다 |
+| Pie Settings | 구멍 크기 `grb-pie-hole-slider/number` | 도너츠일 때만 — `dataset.pieHole` 20~80 |
+| Pie Settings | 조각 간격 `grb-pie-gap-slider/number` | `dataset.pieGap` 0~40 (없음 = 10) |
+| Pie Settings | 시작 각도 `grb-pie-start-slider/number` | `dataset.pieStart` 0~359 |
+| Pie Settings | 순위 표시 `grb-pie-rank-toggle` · 이름 표시 `grb-pie-name-toggle` | 조각 안 라벨 — `dataset.pieRank` / `pieName` '1' (끄면 키 삭제 · 기본 꺼짐). 좁은 조각은 자동으로 숨는다 |
+| Slice (원형 · 조각을 골랐을 때만) | 조각 「n번 · 라벨」 `grb-pie-slice-name` | 고른 조각 = 캔버스 표식 `grb-pie-cell-selected` 하나(선택된 블럭의 조각 클릭 · 또는 데이터 줄의 조각 버튼 `[data-slice-index]`) |
+| Slice | 크기 `grb-pie-grow-slider/number` | `items[i].pieGrow` 0~30 % (0 = 키 삭제) |
+| Slice | 밀어내기 `grb-pie-pull-slider/number` | `items[i].piePull` 0~30 % (0 = 키 삭제) |
+| Slice | 라벨 `grb-pie-tag-select` | 자동 / 항상 / 숨김 — `items[i].pieTag` 없음 / `'on'` / `'off'` |
+| Shadow (원형 전용 · 1013t1C7) | 없음 / 부드럽게 / 강하게 `grb-drop-group` | `dataset.dropShadow` 없음 / `soft` / `strong` — 모달·확대블럭과 같은 키·같은 값. 값이 같으면 히스토리를 안 찍는다 |
 | Shape (세로 막대 전용 · 1012t1G2·G3) | 모양 select | 기본 막대 / 사람 / 약통 / 물방울 / 사용자 SVG — `dataset.barShape` (끄면 키 삭제) |
 | Shape | SVG 불러오기 | `.svg` 파일을 소독·정규화해 실루엣으로 (`dataset.shapeSvg`, 상한 `GRAPH_LIMITS.SHAPE_SVG_MAX`). `<style>` 요소는 안 받는다 · `<use>` 겹쳐 부르기는 거절(TOO_COMPLEX). 읽는 사이 선택이 다른 블럭으로 옮겨 갔으면 패널을 다시 그리지 않는다 |
 | Shape | 최대값 | 채움 분모 `dataset.fillMax` (모양이 켜졌을 때만 · 빈 칸 = 기본 100 · 값이 안 바뀌면 히스토리를 안 찍는다) |

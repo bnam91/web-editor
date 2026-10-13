@@ -553,8 +553,12 @@ window.addGraphBlock({ chartType: 'bar-pair', seriesA: '우리', seriesB: 'A사'
 
 | 옵션 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `chartType` | string | `'bar-v'` | `bar-v` `bar-h` `line` `bar-pair`(2시리즈 비교) `pie`(원형) `donut`(도넛) |
-| `pieHole` | number | 55 | donut 전용 — 가운데 구멍 크기(바깥 반지름 대비 %, 20~80) |
+| `chartType` | string | `'bar-v'` | `bar-v` `bar-h` `line` `bar-pair`(2시리즈 비교) `pie`(원형). `donut` 은 옛 별칭(= `pie` + `pieDonut`) — 계속 받는다 |
+| `pieDonut` | boolean | `false` | pie 전용 — 가운데를 뚫어 도너츠로(1013t1C1) |
+| `pieHole` | number | 55 | 도너츠 전용 — 가운데 구멍 크기(바깥 반지름 대비 %, 20~80) |
+| `pieStart` / `pieGap` | number | 0 / 10 | pie 전용 — 시작 각도(도 · 12시 = 0 · 시계 방향 · 0~359) / 조각 사이 틈(viewBox 1000 단위 · 0~40) |
+| `pieRank` / `pieName` | boolean | `false` | pie 전용 — 조각 안에 순위 배지(「1위」…) / 항목 이름을 넣는다 |
+| `dropShadow` | string | — | pie 전용 — `soft` / `strong`(그 밖은 무시) |
 | `items` | `{ label, value, value2? }[]` | 5개 샘플 | `value2`는 bar-pair 전용(시리즈 B). 빈 배열이면 기본값 사용 |
 | `smooth` | boolean | `false` | line 전용 — Catmull-Rom 곡선 보간(온도 곡선) |
 | `fillArea` / `fillAlpha` / `fillColor` | bool / 0~1 / color | — | line 면 채우기 |
@@ -562,6 +566,35 @@ window.addGraphBlock({ chartType: 'bar-pair', seriesA: '우리', seriesB: 'A사'
 | `seriesA` / `seriesB` | string | — | bar-pair 범례 이름(지정 시 범례 표시) |
 | `chartHeight` / `labelSize` / `strokeWidth` / `pointRadius` | number | 240/20/3/5 | 크기 계열 |
 | `barShape` / `fillMax` | string / number | — / 100 | bar-v 전용 — 막대를 내장 실루엣(`person` `bottle` `drop`)으로 · 채움 분모. 사용자 SVG 는 아래 `setGraphShape` |
+
+#### 원형 · 도너츠 (1013t1C — `js/graph-pie-geom.js` · `js/drag-utils.js` `_renderPie`)
+
+유형은 `pie` 하나다. 아래 키가 «하나도 없으면» 그림은 1012 판과 바이트가 같다(옛 저장본 무변). 한도는 전부 `GRAPH_LIMITS`(`js/graph-limits.js`).
+
+| dataset 키 | 값 | 뜻 |
+|------------|----|----|
+| `chartType` | `pie` (`donut` = 옛 별칭) | 옛 `donut` 은 읽을 때 `pie` + `pieDonut` 로 본다. 패널의 유형 버튼·도너츠 토글을 만질 때만 `pie` + `pieDonut` 로 옮겨 쓴다(열기만 해서는 안 바뀐다) |
+| `pieDonut` | `'1'` / 없음 | 도너츠(가운데를 실제로 뚫는다). 끄면 키 삭제 — `pieHole` 은 남는다 |
+| `pieHole` | 20~80 (없음 = 55) | 구멍 크기(바깥 반지름 대비 %). 도너츠일 때만 읽는다 |
+| `pieGap` | 0~40 (없음 = 10) | 조각 사이 틈(viewBox 1000 단위). 0 = 맞닿는다 |
+| `pieStart` | 0~359 (없음 = 0) | 첫 조각의 시작 각도(도 · 12시 = 0 · 시계 방향). 범례 순서·% 는 안 바뀐다 |
+| `pieRank` / `pieName` | `'1'` / 없음 | 조각 안 라벨 — 순위 배지(「n위」 · 값 내림차순 · 동률은 같은 순위) / 항목 이름. 둘 다 없으면 덧층(`.grb-pie-tags`) 자체가 없다 |
+| `dropShadow` | `soft` / `strong` / 없음 | 그림자(`.grb-pie-svg` 의 CSS `filter: drop-shadow` — 확대블럭과 같은 값). 다른 유형에선 죽은 키 |
+| `items[i].pieGrow` | 1~30 (없음 = 0) | 그 조각만 바깥 반지름을 % 만큼 키운다(구멍은 그대로). viewBox 가 대칭으로 넓어져 나머지가 화면에서 조금 작아진다 |
+| `items[i].piePull` | 1~30 (없음 = 0) | 그 조각을 이등분각 방향으로 바깥 반지름의 % 만큼 밀어낸다(path 의 `transform` · `d` 는 그대로). viewBox 는 크기와 같은 길로 넓어진다 |
+| `items[i].pieTag` | `'on'` / `'off'` / 없음 | 그 조각의 라벨 — 항상 / 숨김 / 자동. 자동은 조각이 좁으면(현 < `PIE_TAG_MIN_CHORD` 또는 고리 두께 < `PIE_TAG_MIN_RADIAL`) 숨긴다 |
+
+- 조각별 키 셋은 항목을 다시 써도 남는다(패널 `syncItems` · `GRAPH_SHAPE.carryItemExtras` — `updateGraphBlock({ items })` 포함).
+- 조각 고르기: 선택된 블럭의 조각을 누르면 그 조각에 표식 `grb-pie-cell-selected`(저장·내보내기에서 걷힌다)가 붙고 패널에 Slice 절이 선다. `window.grbPieSelect(block, i | null)` · `window.grbPieSelected(block)` · `window.grbPieSliceIndexAt(target, block)`.
+- 조각 안 라벨의 글자 톤은 조각 색에 맞춰 자동이다(인라인 변수 `--grb-seg-fg` · `--grb-pie-rank-ink` — 저장에 안 실린다). 직접 지정하는 키는 없다.
+- 순수 함수: `GRAPH_PIE_GEOM.piePaths(values, holePct, gap, { start, grow, pull })` → `{ paths, shares, angles, mids, outer, offsets, extent, … }` · `pieRanks(values)` · `pieTagPlan(geo, { tags })` → `[{ x, y, show }]` · `piePercents(values)`.
+- ⚠️`updateGraphBlock` 의 `chartType` 과 MCP 스키마는 아직 `bar-v` `bar-h` `line` 만 받는다(원형으로 «바꾸는» 길은 패널·`addGraphBlock` 뿐). 피그마 JSON 은 위 키를 싣지만 렌더러는 아직 안 읽는다(원형이 막대로 나간다).
+
+```js
+// 도너츠 · 1위 조각만 키움 · 조각 안 순위 + 이름 · 가는 틈 · 그림자
+window.addGraphBlock({ chartType: 'pie', pieDonut: true, pieHole: 45, pieGap: 6, pieStart: 300, pieRank: true, pieName: true, dropShadow: 'soft',
+  items: [{ label: '탈취 기능', value: 48, pieGrow: 20 }, { label: '저소음', value: 22 }, { label: '처리 용량', value: 12, piePull: 10 }, { label: '기타', value: 6, pieTag: 'off' }] })
+```
 
 #### 그래프 모양 · 채움 · 마디 (1012t1G2 · G3 · G4 — `js/graph-shape.js`)
 

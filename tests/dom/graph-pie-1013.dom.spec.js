@@ -13,6 +13,7 @@
  *   C3 조각 안 라벨 — J1 순위·이름 토글(기본 꺼짐 · 덧층 · 「n위」) · J2 좁은 조각 자동 숨김 · 조각별 「라벨」 자동/항상/숨김 · J3 이름은 글자 그대로(주입 0)
  *     · J4 글자 톤이 조각 색을 따른다 · 저장본에 톤 변수 0 · J5 라벨이 제 조각 위에 앉고(크기·밀어내기·시작 각도) 클릭을 안 가로챈다 · J6 끄면 켜기 전 그림(바이트)
  *   C7 그림자 — K1 Shadow 절 없음/부드럽게/강하게(dataset.dropShadow · 없음 = 키 삭제) · 그림(innerHTML) 무변 · ⌘Z · 저장 · K2 값 = 확대블럭 선례와 같다 · 막대에선 절도 그림자도 없다
+ *   내보내기 — X1 단독 HTML 산출물에 조각 표식 0 · X2 피그마 JSON 이 새 키를 «있는 것만» 싣는다(옛 꼴은 무변) · X3 addGraphBlock 옵션
  *   G0 골든 핀: 새 키가 «하나도 없는» 블럭의 그림(innerHTML)이 1012 판과 바이트가 같다 — 1013t1C0 에서 «고치기 전 판» 위에 박았다.
  * 실행: bash ~/taeyang-098/run-test.sh dom tests/dom/graph-pie-1013.dom.spec.js */
 const { test, expect } = require('@playwright/test');
@@ -938,5 +939,70 @@ test('K2 그림자 값은 확대블럭 선례와 같다(넷째 벌 없음) · �
   await page.locator('#grb-type-pie').click();
   await expect.poll(() => ds(page, id, 'chartType')).toBe('pie');
   expect(await filterOf(page, id), '원형으로 돌아오면 그림자도 돌아온다').toBe(ref.strong);
+  expect(errs).toEqual([]);
+});
+
+/* ── 내보내기 · 입구 ── */
+/* 진짜 exportHTMLFile 을 돌리고 «내려받는 대신» 산출 글자를 받는다(effects-reflection · frame-keep-empty 와 같은 가로채기 — 파일 창 0) */
+const exportHtml = (page) => page.evaluate(async () => { let out = null; const oc = URL.createObjectURL; URL.createObjectURL = (b) => { out = b; return 'blob:x'; };
+  const ck = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () {};
+  try { await window.exportHTMLFile(); } finally { URL.createObjectURL = oc; HTMLAnchorElement.prototype.click = ck; } return out ? await out.text() : ''; });
+test('X1 단독 HTML 내보내기 — 조각을 고른 채 내보내도 표식(grb-pie-cell-selected)이 안 실린다 · 조각·밀어내기·라벨은 실린다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3.map((it, i) => i === 0 ? { ...it, piePull: 20 } : it), extra: { pieRank: '1' } });
+  await pickSlice(page, id, 1);
+  expect(await page.evaluate((id) => document.getElementById(id).outerHTML.includes('grb-pie-cell-selected'), id), '전제: 화면에는 표식이 있다').toBe(true);
+  const html = await exportHtml(page);
+  expect(html.length, '전제: 산출물이 있다').toBeGreaterThan(0);
+  expect(html.includes('class="grb-pie-slice"'), '전제: 그 그래프의 조각이 산출물에 있다').toBe(true);
+  expect(/class="[^"]*grb-pie-cell-selected/.test(html), '산출물의 어느 요소에도 표식 클래스가 없다').toBe(false);
+  expect(html.includes('transform="translate(70.71 -70.71)"'), '밀어낸 조각은 그대로 실린다').toBe(true);
+  expect(html.includes('class="grb-pie-rank"'), '조각 안 라벨도 실린다').toBe(true);
+  expect((await markOf(page, id)).marks, '내보내기는 화면의 선택을 안 건드린다').toEqual([1]);
+  expect(errs).toEqual([]);
+});
+
+test('X2 피그마 JSON — 원형의 새 키를 «있는 것만» 싣는다 · 새 키 없는 원형·옛 donut 은 예전 꼴 그대로', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'donut', items: V3 });
+  expect(await page.evaluate(() => typeof window.buildFigmaExportJSON), '전제: 내보내기 함수가 있다').toBe('function');
+  /* 섹션이 잡히는 꼴로 — 저장 왕복 한 번 뒤에 짓는다(graph-gr-overlay 의 피그마 칸과 같은 길). 블럭 id 는 왕복해도 같다 */
+  const node = () => page.evaluate((id) => { window.applyProjectData(JSON.parse(window.serializeProject()));
+    const find = (o) => { if (!o || typeof o !== 'object') return null; if (o.type === 'graph' && o.id === id) return o;
+      for (const v of Array.isArray(o) ? o : Object.values(o)) { const r = find(v); if (r) return r; } return null; }; return find(window.buildFigmaExportJSON()); }, id);
+  const NEW = ['pieDonut', 'pieHole', 'pieStart', 'pieGap', 'pieRank', 'pieName', 'dropShadow'];
+  const n0 = await node();
+  expect(n0, '전제: 그래프 노드를 찾았다').toBeTruthy();
+  const OLD = Object.keys(n0).sort();
+  expect(['type', 'id', 'chartType', 'items'].every(k => OLD.includes(k)), '전제: 예전 키 묶음이 있다').toBe(true);
+  expect([n0.chartType, NEW.filter(k => k in n0)], '옛 donut(새 키 0) — 새 키를 하나도 안 싣는다').toEqual(['donut', []]);
+  await setDs(page, id, { pieHole: '40' });
+  expect(Object.keys(await node()).sort(), '옛 donut 의 pieHole 은 안 싣는다(옛 JSON 무변)').toEqual(OLD);
+  await setDs(page, id, { chartType: 'pie', pieDonut: '1', pieStart: '90', pieGap: '0', pieRank: '1', pieName: '1', dropShadow: 'soft', items: V3.map((it, i) => i === 0 ? { ...it, pieGrow: 20, piePull: 10, pieTag: 'on' } : it) });
+  const n1 = await node();
+  expect({ chartType: n1.chartType, pieDonut: n1.pieDonut, pieHole: n1.pieHole, pieStart: n1.pieStart, pieGap: n1.pieGap, pieRank: n1.pieRank, pieName: n1.pieName, dropShadow: n1.dropShadow })
+    .toEqual({ chartType: 'pie', pieDonut: true, pieHole: 40, pieStart: 90, pieGap: 0, pieRank: true, pieName: true, dropShadow: 'soft' });
+  expect(n1.items[0], '조각별 키는 items 에 실려 간다').toEqual({ label: '가', value: 1, pieGrow: 20, piePull: 10, pieTag: 'on' });
+  /* 꺼진 것·험한 값은 안 싣는다 · 막대에선 원형 키를 안 싣는다 */
+  await setDs(page, id, { pieDonut: null, pieStart: 'abc', pieGap: null, pieRank: '0', pieName: null, dropShadow: 'banana', items: V3 });
+  expect(Object.keys(await node()).sort(), '새 키가 다 꺼지면 예전 꼴').toEqual(OLD);
+  await setDs(page, id, { chartType: 'bar-v', pieDonut: '1', pieStart: '90', dropShadow: 'soft' });
+  expect(Object.keys(await node()).sort(), '막대: 원형 키 없음').toEqual(OLD);
+  expect(errs).toEqual([]);
+});
+
+test('X3 addGraphBlock 옵션 — pieStart · pieGap · pieRank · pieName · dropShadow 가 dataset 으로 가고 그대로 그려진다 · 험한 값은 안 싣는다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie' });
+  const made = await page.evaluate(() => { window.selectSection(document.getElementById('sG'));
+    window.addGraphBlock({ chartType: 'pie', pieDonut: true, pieHole: 45, pieStart: 300, pieGap: 6, pieRank: true, pieName: true, dropShadow: 'soft', items: [{ label: 'a', value: 3, pieGrow: 20 }, { label: 'b', value: 1, piePull: 10 }] });
+    const g = [...document.querySelectorAll('#sG .graph-block')].pop(); const d = g.dataset;
+    return { id: g.id, ds: [d.chartType, d.pieDonut, d.pieHole, d.pieStart, d.pieGap, d.pieRank, d.pieName, d.dropShadow], tags: g.querySelectorAll('.grb-pie-tag').length, rank: [...g.querySelectorAll('.grb-pie-rank')].map(e => e.textContent),
+      tf: [...g.querySelectorAll('.grb-pie-slice')].map(p => p.hasAttribute('transform')), vb: g.querySelector('.grb-pie-svg').getAttribute('viewBox') }; });
+  expect(made.id, '전제: 새 블럭').not.toBe(id);
+  expect(made.ds).toEqual(['pie', '1', '45', '300', '6', '1', '1', 'soft']);
+  expect([made.tags, made.rank, made.tf, made.vb]).toEqual([2, ['1위', '2위'], [false, true], '-100 -100 1200 1200']);
+  expect(await filterOf(page, made.id), '그림자도 선다').toContain('drop-shadow');
+  const bad = await page.evaluate(() => { window.selectSection(document.getElementById('sG'));
+    window.addGraphBlock({ chartType: 'pie', pieStart: 'abc', pieGap: -3, pieRank: 0, pieName: '', dropShadow: 'url(#x)' });
+    const d = [...document.querySelectorAll('#sG .graph-block')].pop().dataset; return ['pieStart', 'pieGap', 'pieRank', 'pieName', 'dropShadow'].map(k => d[k] ?? null); });
+  expect(bad, '험한 값은 키를 안 남긴다').toEqual([null, null, null, null, null]);
   expect(errs).toEqual([]);
 });
