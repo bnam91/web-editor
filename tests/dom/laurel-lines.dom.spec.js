@@ -2,7 +2,8 @@
  *
  * ★현빈 원문(1013t1B2): 「laurel 블럭의 경우 우측패널에 셀별로 줄추가 … 그리드의 칸과 줄을 삽입하는 것과 같은 방식으로 …
  *   줄 추가하는 부분 일관성 유지해줘.」
- * ★단계 C1(이 파일의 LL0~LL4) — 모든 줄을 «한 렌더 길»(lnLinesHtml = 그리드 줄 렌더)로 그린다.
+ * ★단계 C1(LL0~LL3) — 모든 줄을 «한 렌더 길»(lnLinesHtml = 그리드 줄 렌더)로 그린다.
+ * ★단계 C2(LL4~LL10) — line-host 네 번째 주인: 캔버스 2단 선택 · 공용 줄바 · T/G/⌫/Esc/⌘↑↓/⌘→ · 더블클릭 편집 · updateLaurelBlock{cellLines} 문.
  *   UI·저장 데이터 변화 0 · 옛 저장본(옛 꼴 줄 {text,fontSize,fontWeight,color,letterSpacing?})의 렌더 기하·계산 스타일 불변.
  *   ⇒ 「옛 렌더 산출」을 이 파일 안에 «고정 문자열 식»(oldLineHtml — b6e85227 의 _renderLaurelCellHtml 줄 span 그대로)으로 박고,
  *     같은 칸에 나란히 놓아 화면으로 견준다(grid-img-frame-noop 선례).
@@ -13,7 +14,7 @@
  *   · 같은 파일 _lrlDecorateLinesHtml 의 `el.style.whiteSpace = 'nowrap';` 를 빼면 → LL1 빨강(긴 줄이 줄바꿈 · 높이 44 → 여러 줄)
  *   · 같은 파일 _lrlDecorateLinesHtml 의 `if (fxClass) {` 를 `if (false) {` 로 → LL2 빨강(neon 글자색이 fx 색이 아니다)
  *   실측 2026-10-13(셋을 한 번에 깨서 한 벌): 3 failed / 2 passed — LL0 줄높이 61.6→89.6px·white-space pre-wrap · LL1 · LL2(fx 줄 0 → 기다림 시간초과).
- *   LL3·LL4 는 이 셋과 무관해 초록(그 둘의 음성대조는 안 쟀다).
+ *   LL3 은 이 셋과 무관해 초록(음성대조 안 쟀다). LL4 는 C2 에서 「더블클릭 = line-host 편집기」로 고쳐 썼다(C1 판 LL4 = 옛 「Enter = 끝」).
  *
  * 실행: bash run-test.sh dom tests/dom/laurel-lines.dom.spec.js
  */
@@ -35,21 +36,21 @@ const OLD_CELLS = [
   ], leafColor: '#1a1a1a', gap: 24, height: 140 },
 ];
 
-async function setup(page, cells = OLD_CELLS, cols = 2) {
+async function setup(page, cells = OLD_CELLS, cols = 2, rows = 1) {
   await page.setViewportSize({ width: 1700, height: 1200 });
   const errs = await bootApp(page);
-  await page.evaluate(([cells, cols, sec]) => {
+  await page.evaluate(([cells, cols, rows, sec]) => {
     const c = document.getElementById('canvas');
     c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', sec);
     window.rebindAll?.(); window.applyZoom?.(100);
     window.deselectAll?.(); window.selectSection(document.getElementById('sB'));
-    window.addLaurelBlock({ gridCols: cols, cells });
+    window.addLaurelBlock({ gridCols: cols, gridRows: rows, cells });
     window.__blk = [...document.querySelectorAll('#sB .laurel-block')].pop();
     window.__bid = window.__blk?.id;
     window.buildLayerPanel?.(); window.deselectAll?.();
     window.__blk?.scrollIntoView({ block: 'center' });
-  }, [cells, cols, SEC]);
+  }, [cells, cols, rows, SEC]);
   await page.waitForFunction(() => !!window.__blk && window.__blk.isConnected && !window.__blk.classList.contains('selected'), null, { timeout: 5000 });
   await waitStableRect(page, '#sB .laurel-block');
   return errs;
@@ -164,21 +165,269 @@ test.describe('laurel 줄 — C1 한 렌더 길(옛 저장본 렌더 불변)', (
     expect(errs).toEqual([]);
   });
 
-  test('LL4 C1 더블클릭 글자 편집(옛 동작) — 새 줄 DOM 에서도 열리고 Enter 로 그 줄 text 만 바뀐다', async ({ page }) => {
+  test('LL4 C2 더블클릭 글자 편집 — line-host 한 길(lnBindLineEdit) · Enter = 줄 안 줄바꿈 · Esc 로 끝 · 그 줄 꾸밈 보존', async ({ page }) => {
     const errs = await setup(page);
     const sel = '#sB .laurel-block .laurel-cell[data-cell-idx="0"] .ln-row[data-ln="1"] > .grd-line';
     const p = await waitStableRect(page, sel);
     await page.mouse.dblclick(p.cx, p.cy);
     await expect.poll(() => page.evaluate((s) => document.querySelector(s)?.getAttribute('contenteditable'), sel)).toBe('true');
+    expect(await page.evaluate(() => document.getElementById(window.__bid).classList.contains('editing')), '전제 — line-host 편집기(블럭 .editing)가 열었다').toBe(true);
     await page.keyboard.press('ControlOrMeta+a');
-    await page.keyboard.type('바뀐 글');
-    await page.keyboard.press('Enter');
-    await expect.poll(() => page.evaluate(() => JSON.parse(document.getElementById(window.__bid).dataset.cells)[0].lines[1].text)).toBe('바뀐 글');
+    await page.keyboard.type('윗줄');
+    await page.keyboard.press('Enter');                       // ★B2-8 — 끝내지 않고 줄 안 줄바꿈
+    await page.keyboard.type('아랫줄');
+    expect(await page.evaluate((s) => document.querySelector(s)?.getAttribute('contenteditable'), sel), 'Enter 뒤에도 편집 중(옛 「Enter = 끝」이 아니다)').toBe('true');
+    await page.keyboard.press('Escape');
+    const want = '윗줄\n아랫줄';
+    await expect.poll(() => page.evaluate(() => JSON.parse(document.getElementById(window.__bid).dataset.cells)[0].lines[1].text)).toBe(want);
     const after = await page.evaluate(() => JSON.parse(document.getElementById(window.__bid).dataset.cells));
-    expect(after[0].lines[1], '그 줄의 다른 필드 보존(옛 꼴 그대로)').toEqual({ ...OLD_CELLS[0].lines[1], text: '바뀐 글' });
-    expect(after[0].lines[0]).toEqual(OLD_CELLS[0].lines[0]);
-    expect(after[1]).toEqual(OLD_CELLS[1]);
-    expect(await page.evaluate((s) => document.querySelector(s)?.textContent, sel), '다시 그린 줄').toBe('바뀐 글');
+    const o = OLD_CELLS[0].lines[1];
+    expect(after[0].lines[1], '그 줄의 꾸밈 보존(새 꼴로)').toEqual({ type: 'body', text: want, fontSize: o.fontSize, weight: String(o.fontWeight), color: o.color, letterSpacing: o.letterSpacing, lineHeight: 1.1 });
+    expect(after[1], '다른 칸 무변').toEqual(OLD_CELLS[1]);
+    const r = await page.evaluate((s) => { const e = document.querySelector(s); const cs = getComputedStyle(e);
+      return { ws: cs.whiteSpace, h: e.getBoundingClientRect().height, lh: parseFloat(cs.lineHeight), editable: e.getAttribute('contenteditable'), other: getComputedStyle(document.querySelector('#sB .laurel-block .ln-row[data-ln-m="0"][data-ln="0"] > .grd-line')).whiteSpace }; }, sel);
+    expect(r.editable, '편집 끝').toBe(null);
+    expect(r.ws, '줄바꿈 든 줄 = pre(줄은 그 자리에서 끊되 감싸지 않는다)').toBe('pre');
+    expect(Math.abs(r.h - 2 * r.lh), `두 줄 높이 — ${r.h} vs 2×${r.lh}`).toBeLessThanOrEqual(1);
+    expect(r.other, '줄바꿈 없는 줄은 nowrap 그대로(옛 렌더)').toBe('nowrap');
+    expect(errs).toEqual([]);
+  });
+});
+
+/* ══ C2 — 네 번째 주인(그리드와 같은 손) ══════════════════════════════════════════════════════════
+ * 음성대조(1회 실측 · 생성기 C2): js/block-drag.js isLaurel 클릭의
+ *   `if (_lnAt) window.grdSetActiveLine?.(block, _lnAt);` 를 주석 처리 → LL5 빨강(두 번째 클릭이 줄을 못 고른다)
+ *   (그 줄 하나가 «캔버스에서 줄을 고르는 문»이라, 클릭으로 고르는 LL6·LL7·LL8·LL10 전제도 같이 빨개진다.)
+ *   실측 2026-10-13: 5 failed(LL5·LL6·LL7·LL8·LL10) / 6 passed(LL0~LL4·LL9 — 클릭 선택과 무관) · 되돌린 뒤 cmp 같음. */
+const C2_CELLS = [
+  { lines: [{ text: '1위', fontSize: 56, fontWeight: 700, color: '#1a1a1a' }, { text: '고객 만족', fontSize: 28, fontWeight: 500, color: '#333333' }], leafColor: '#1a1a1a', gap: 24, height: 140 },
+  { lines: [{ text: '2위', fontSize: 56, fontWeight: 700, color: '#1a1a1a' }], leafColor: '#1a1a1a', gap: 24, height: 140 },
+  { lines: [{ text: '3위', fontSize: 56, fontWeight: 700, color: '#1a1a1a' }], leafColor: '#1a1a1a', gap: 24, height: 140 },
+  { lines: [{ text: '4위', fontSize: 56, fontWeight: 700, color: '#1a1a1a' }, { text: '넷째 칸 둘째 줄', fontSize: 24, fontWeight: 400, color: '#555555' }], leafColor: '#1a1a1a', gap: 24, height: 140 },
+];
+const LSEL = (ci, li) => `#sB .laurel-block .ln-row[data-ln-m="${ci}"][data-ln="${li}"]`;
+const cellsOf = (page) => page.evaluate(() => JSON.parse(document.getElementById(window.__bid).dataset.cells));
+const active = (page) => page.evaluate(() => window.grdGetActiveLine?.(document.getElementById(window.__bid)) ?? null);
+const histLen = (page) => page.evaluate(() => window.getHistoryTip?.().pos);
+async function setup2(page) {
+  const errs = await setup(page, C2_CELLS, 2, 2);
+  await page.evaluate(() => { window.deselectAll(); window.clearHistory?.(); });
+  await waitStableRect(page, LSEL(3, 1));
+  return errs;
+}
+/* 진짜 마우스로 «블럭 → 줄» 2단 선택. 누르는 점이 그 줄 위라는 전제를 단언한다. */
+async function pickLine(page, ci, li) {
+  const sel = LSEL(ci, li);
+  const p = await waitStableRect(page, sel);
+  const hit = await page.evaluate(([x, y, s]) => { const e = document.elementFromPoint(x, y); const w = document.querySelector(s); return !!(e && w && (e === w || w.contains(e))); }, [p.cx, p.cy, sel]);
+  expect(hit, `전제 — 누르는 점이 ${sel} 위`).toBe(true);
+  const sel0 = await page.evaluate(() => document.getElementById(window.__bid).classList.contains('selected'));
+  if (!sel0) {
+    await page.mouse.click(p.cx, p.cy);
+    await page.waitForFunction(() => document.getElementById(window.__bid).classList.contains('selected'));
+  }
+  await page.mouse.click(p.cx, p.cy);
+  await expect.poll(() => active(page), `줄 (${ci},${li}) 활성`).toEqual({ r: ci, c: 0, li });
+}
+
+test.describe('laurel 줄 — C2 네 번째 주인(캔버스 2단 선택 · 줄바 · 단축키 · 문)', () => {
+  test('LL5 C2 클릭1 = 블럭만 · 클릭2 = 줄 활성 + 줄바(그리드와 같은 명부 · 그림 줄만 C4) · 칸 카드에 줄 카드 0 · 2×2 칸 4 머리', async ({ page }) => {
+    const errs = await setup2(page);
+    // 그리드 기준값 — 같은 페이지의 그리드 블럭에서 «+ 줄 추가» 명부를 뜬다(손으로 안 적는다)
+    const gridKinds = await page.evaluate(async () => {
+      window.selectSection(document.getElementById('sB')); window.addGridBlock({});
+      const g = [...document.querySelectorAll('#sB .grid-block')].pop();
+      window.deselectAll(); g.classList.add('selected'); window.grdSetActiveLine(g, { r: 0, c: 0, li: 0 }); window.showGridProperties(g);
+      const o = [...(document.getElementById('grd-line-add-kind')?.options || [])].map(x => x.value);
+      window.deselectAll(); g.closest('.row')?.remove(); return o;
+    });
+    expect(gridKinds.length, '전제 — 그리드 줄바 명부를 읽었다').toBeGreaterThan(3);
+    const p = await waitStableRect(page, LSEL(0, 1));
+    await page.mouse.click(p.cx, p.cy);
+    await page.waitForFunction(() => document.getElementById(window.__bid).classList.contains('selected'));
+    const s1 = await page.evaluate(() => ({ act: window.grdGetActiveLine(document.getElementById(window.__bid)) ?? null, bar: !!document.getElementById('grd-line-add-kind'),
+      marked: document.querySelectorAll('#sB .laurel-block .ln-line-selected').length }));
+    expect(s1, '클릭1 = 블럭만(줄 활성·줄바·표시 0)').toEqual({ act: null, bar: false, marked: 0 });
+    await page.mouse.click(p.cx, p.cy);
+    await expect.poll(() => active(page)).toEqual({ r: 0, c: 0, li: 1 });
+    const s2 = await page.evaluate(() => {
+      const P = document.querySelector('#panel-right .panel-body');
+      return { kinds: [...(document.getElementById('grd-line-add-kind')?.options || [])].map(x => x.value),
+        summary: document.getElementById('grd-line-summary')?.textContent || '', kindSel: !!document.getElementById('grd-line-kind'),
+        marked: [...document.querySelectorAll('#sB .laurel-block .ln-line-selected')].map(e => `${e.dataset.lnM}:${e.dataset.ln}`),
+        lineCards: P.querySelectorAll('.prop-line-card, .lrl-line-add, .lrl-line-remove').length, cellCards: P.querySelectorAll('.prop-cell-card').length,
+        expanded: [...P.querySelectorAll('.prop-cell-card.expanded')].map(e => e.dataset.cellIdx),
+        barAfterHeader: P.querySelector('.prop-section + #ln-line-panel') !== null };
+    });
+    expect(s2.kinds, '줄바 명부 = 그리드 명부에서 그림(image)만 뺀 것(C4 에서 연다)').toEqual(gridKinds.filter(k => k !== 'image'));
+    expect(s2.summary, '줄바 머리 = 칸 1 · 2번째 줄').toContain('칸 1');
+    expect(s2.summary).toContain('2번째 줄');
+    expect(s2.kindSel, '줄 꾸미기(종류) 절').toBe(true);
+    expect(s2.marked, '줄 표시 1 = 고른 줄').toEqual(['0:1']);
+    expect(s2.barAfterHeader, '줄 절이 헤더 바로 아래').toBe(true);
+    expect(s2.lineCards, '칸 카드의 줄 카드·「+ 줄 추가」·× = 0(걷었다)').toBe(0);
+    expect(s2.cellCards, '칸 카드는 그대로(2×2 = 4)').toBe(4);
+    expect(s2.expanded, '고른 칸 카드가 펼쳐져 있다').toContain('0');
+    // 2×2 의 넷째 칸(칸 번호 3) 줄 — 머리에 「칸 4 (2,2)」
+    await pickLine(page, 3, 1);
+    const sum4 = await page.evaluate(() => document.getElementById('grd-line-summary')?.textContent || '');
+    expect(sum4).toContain('칸 4 (2,2)');
+    expect(await page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-cell-card.expanded')].map(e => e.dataset.cellIdx)), '칸 4 카드 펼침').toContain('3');
+    // 줄 밖(잎 위) 클릭 = 칸 선택(li:null)
+    const leaf = await waitStableRect(page, '#sB .laurel-block .laurel-cell[data-cell-idx="1"] .laurel-leaf-left');
+    await page.mouse.click(leaf.cx, leaf.cy);
+    await expect.poll(() => active(page), '잎 클릭 = 칸 선택').toEqual({ r: 1, c: 0, li: null });
+    expect(await page.evaluate(() => !!document.getElementById('grd-line-add-kind')), '칸만 골라도 줄바(+ 줄 추가)').toBe(true);
+    expect(errs).toEqual([]);
+  });
+
+  test('LL6 C2 T·G·⌫·Esc 가 «고른 줄»에 먹는다 · ⌘Z 한 걸음 · 마지막 줄까지 지우면 빈 칸(잎만)', async ({ page }) => {
+    const errs = await setup2(page);
+    const textBlocks0 = await page.evaluate(() => document.querySelectorAll('#sB .text-block').length);
+    const gaps0 = await page.evaluate(() => document.querySelectorAll('#sB .gap-block').length);
+    const before = await page.evaluate(() => document.getElementById(window.__bid).dataset.cells);
+    await pickLine(page, 0, 0);
+    const h0 = await histLen(page);
+    await page.keyboard.press('t');
+    await expect.poll(async () => (await cellsOf(page))[0].lines.length).toBe(3);
+    let c = await cellsOf(page);
+    expect(c[0].lines[1].type, 'T = 고른 줄 «다음»에 본문 줄').toBe('body');
+    expect(c[0].lines[1].text).toBe('');
+    expect(await active(page), '새 줄이 활성').toEqual({ r: 0, c: 0, li: 1 });
+    expect(await page.evaluate(() => document.querySelectorAll('#sB .text-block').length), '새 텍스트 블럭이 안 생겼다(옛 증상)').toBe(textBlocks0);
+    expect(await page.evaluate(() => document.getElementById(window.__bid).classList.contains('selected')), 'laurel 선택 유지').toBe(true);
+    expect(c[1].lines.map(l => l.type), '«쓰기 하나» — 한 번 쓰면 모든 칸이 새 꼴').toEqual(['body']);
+    expect(await histLen(page), '이력 +1 칸(push-before + 끝 표본이 한 걸음)').toBeGreaterThan(h0);
+    await page.keyboard.press('g');
+    await expect.poll(async () => (await cellsOf(page))[0].lines.map(l => l.type)).toEqual(['body', 'body', 'gap', 'body']);
+    expect(await page.evaluate(() => document.querySelectorAll('#sB .gap-block').length), 'G = 여백 «줄»(새 여백 블럭 아님)').toBe(gaps0);
+    // ⌫ — 고른 줄(여백)을 지운다
+    expect(await active(page)).toEqual({ r: 0, c: 0, li: 2 });
+    await page.keyboard.press('Delete');
+    await expect.poll(async () => (await cellsOf(page))[0].lines.map(l => l.type)).toEqual(['body', 'body', 'body']);
+    expect(await page.evaluate(() => document.querySelectorAll('#sB .laurel-block').length), '블럭은 그대로').toBe(1);
+    // ⌘Z 두 번 = G·⌫ 전 → 한 번 더 = T 전(옛 문자열 바이트 그대로)
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('Meta+z'); await expect.poll(async () => (await cellsOf(page))[0].lines.length).toBe(4);
+    await page.keyboard.press('Meta+z'); await expect.poll(async () => (await cellsOf(page))[0].lines.length).toBe(3);
+    await page.keyboard.press('Meta+z');
+    await expect.poll(() => page.evaluate(() => document.getElementById(window.__bid).dataset.cells), '⌘Z 한 번씩 — T 전 옛 꼴 문자열 그대로').toBe(before);
+    // 마지막 줄까지 지우기(칸 2 = 줄 하나)
+    await page.evaluate(() => window.deselectAll());
+    await pickLine(page, 1, 0);
+    await page.keyboard.press('Delete');
+    await expect.poll(async () => (await cellsOf(page))[1].lines).toEqual([]);
+    const empty = await page.evaluate(() => { const cell = document.querySelector('#sB .laurel-block .laurel-cell[data-cell-idx="1"]');
+      return { rows: cell.querySelectorAll('.ln-row').length, leaves: cell.querySelectorAll('.laurel-leaf').length, h: cell.getBoundingClientRect().height }; });
+    expect(empty.rows, '빈 칸 — 줄 0').toBe(0);
+    expect(empty.leaves, '잎은 남는다').toBe(2);
+    expect(await active(page), '활성 줄 비움').toBe(null);
+    // Esc — 줄 선택만 풀고 블럭은 남는다
+    await pickLine(page, 0, 0);
+    await page.keyboard.press('Escape');
+    await expect.poll(() => active(page)).toBe(null);
+    expect(await page.evaluate(() => document.getElementById(window.__bid).classList.contains('selected')), 'Esc 뒤 블럭 선택 유지').toBe(true);
+    expect(await page.evaluate(() => document.querySelectorAll('#sB .laurel-block .ln-line-selected').length)).toBe(0);
+    expect(errs).toEqual([]);
+  });
+
+  test('LL7 C2 ⌘↑/↓ — 칸 안 줄 순서 · 블럭 순서 불변 · ⌘Z 한 번', async ({ page }) => {
+    const errs = await setup2(page);
+    const order = () => page.evaluate(() => [...document.querySelectorAll('#sB .section-inner > *')].map(e => e.id || e.className.split(' ')[0]));
+    const o0 = await order();
+    await pickLine(page, 0, 1);
+    await page.keyboard.press('Meta+ArrowUp');
+    await expect.poll(async () => (await cellsOf(page))[0].lines.map(l => l.text)).toEqual(['고객 만족', '1위']);
+    expect(await active(page), '활성 줄이 따라간다').toEqual({ r: 0, c: 0, li: 0 });
+    expect(await order(), '블럭이 안 움직였다').toEqual(o0);
+    await page.keyboard.press('Meta+ArrowUp');   // 칸 맨 위 — 조용히 소진(블럭 이동으로 새지 않는다)
+    expect(await order()).toEqual(o0);
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('Meta+z');
+    await expect.poll(async () => (await cellsOf(page))[0].lines.map(l => l.text)).toEqual(['1위', '고객 만족']);
+    expect(errs).toEqual([]);
+  });
+
+  test('LL8 C2 ⌘→ — 다음 칸(선형 순서)으로 줄 옮기기 · ⌘Z 한 번에 두 칸 다 돌아온다', async ({ page }) => {
+    const errs = await setup2(page);
+    const before = await page.evaluate(() => document.getElementById(window.__bid).dataset.cells);
+    await pickLine(page, 0, 1);
+    await page.keyboard.press('Meta+ArrowRight');
+    await expect.poll(async () => (await cellsOf(page)).map(c => c.lines.map(l => l.text))).toEqual([['1위'], ['2위', '고객 만족'], ['3위'], ['4위', '넷째 칸 둘째 줄']]);
+    expect(await active(page), '활성 줄이 도착 칸 끝').toEqual({ r: 1, c: 0, li: 1 });
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('Meta+z');
+    await expect.poll(() => page.evaluate(() => document.getElementById(window.__bid).dataset.cells), '⌘Z 한 번 = 옮기기 전 그대로').toBe(before);
+    expect(errs).toEqual([]);
+  });
+
+  test('LL9 C2 문 규칙 — cellLines 잣대(종류·범위)·noHistory·옛 꼴 연산(editLine fontWeight)이 새 꼴에 먹는다', async ({ page }) => {
+    const errs = await setup2(page);
+    const r = await page.evaluate(() => {
+      const id = window.__bid; const tip = () => window.getHistoryTip().len;
+      const out = {};
+      let t0 = tip();
+      out.badType = window.updateLaurelBlock(id, { cellLines: { cell: 0, lines: [{ type: 'image', imgSrc: 'x.png' }] } });
+      out.badCell = window.updateLaurelBlock(id, { cellLines: { cell: 9, lines: [] } });
+      out.histOnReject = tip() - t0;
+      t0 = tip();
+      out.raw = window.updateLaurelBlockRaw(id, { cellLines: { cell: 2, lines: [{ type: 'h2', text: '제목' }, { type: 'divider', height: 2 }] } }, { noHistory: true });
+      out.histNoHistory = tip() - t0;
+      out.stored2 = JSON.parse(document.getElementById(id).dataset.cells)[2].lines;
+      out.divW = document.querySelector('#sB .laurel-block .ln-row[data-ln-m="2"][data-ln="1"]')?.getBoundingClientRect().width || 0;
+      out.edit = window.updateLaurelBlock(id, { editLine: { cellIndex: 0, lineIndex: 0, fontWeight: 800, text: '첫째' } });
+      const c = JSON.parse(document.getElementById(id).dataset.cells);
+      out.line0 = c[0].lines[0];
+      out.weight = getComputedStyle(document.querySelector('#sB .laurel-block .ln-row[data-ln-m="0"][data-ln="0"] > .grd-line')).fontWeight;
+      out.allTyped = c.every(cell => cell.lines.every(l => typeof l.type === 'string'));
+      out.editGap = window.updateLaurelBlock(id, { editLine: { cellIndex: 2, lineIndex: 1, text: 'x' } });
+      out.add = window.updateLaurelBlock(id, { addLine: { cellIndex: 1, line: { text: '추가', fontSize: 30, fontWeight: 600 } } });
+      out.added = JSON.parse(document.getElementById(id).dataset.cells)[1].lines.at(-1);
+      return out;
+    });
+    expect(r.badType.ok, '그림 줄은 laurel 종류 명부 밖(C2)').toBe(false);
+    expect(r.badType.code).toBe('INVALID');
+    expect(r.badType.message).toContain('laurel');
+    expect(r.badCell.ok, '없는 칸').toBe(false);
+    expect(r.histOnReject, '거절은 이력을 안 남긴다').toBe(0);
+    expect(r.raw.ok).toBe(true);
+    expect(r.histNoHistory, 'Raw + noHistory = 이력 0칸').toBe(0);
+    expect(r.stored2, '새 꼴 그대로 저장').toEqual([{ type: 'h2', text: '제목' }, { type: 'divider', height: 2 }]);
+    expect(r.divW, '구분선 줄이 스택 폭으로 펴져 보인다').toBeGreaterThan(10);
+    expect(r.edit.ok).toBe(true);
+    expect(r.line0, 'editLine{fontWeight} → 새 꼴 weight(문자) · 다른 꾸밈 보존').toEqual({ type: 'body', text: '첫째', fontSize: 56, weight: '800', color: '#1a1a1a', lineHeight: 1.1 });
+    expect(r.weight, '화면 굵기 800').toBe('800');
+    expect(r.allTyped, '«쓰기 하나» — 모든 칸 새 꼴').toBe(true);
+    expect(r.editGap.ok, '글자 아닌 줄(구분선)을 editLine → 거절').toBe(false);
+    expect(r.editGap.code).toBe('INVALID');
+    expect(r.add.ok).toBe(true);
+    expect(r.added, 'addLine 옛 필드 → 새 꼴').toEqual({ type: 'body', text: '추가', fontSize: 30, weight: '600', color: '#1a1a1a', lineHeight: 1.1 });
+    expect(errs).toEqual([]);
+  });
+
+  test('LL10 C2 하위호환 — 옛 저장본(lines 키 없는 칸 · 옛 꼴 줄) 열기만 하면 데이터 무변 · 첫 편집에 새 꼴 · ⌘Z 로 옛 문자열', async ({ page }) => {
+    const errs = await setup2(page);
+    const r = await page.evaluate(() => {
+      const b = document.getElementById(window.__bid);
+      const OLD = JSON.stringify([{ leafColor: '#1a1a1a', gap: 24, height: 140 }, { lines: [{ text: '옛', fontSize: 40, fontWeight: 600, color: '#123456' }], leafColor: '#1a1a1a', gap: 24, height: 140 },
+        { lines: [{ text: 'c' }] }, { lines: [{ text: 'd' }] }]);
+      b.dataset.cells = OLD; window.rebindAll?.();
+      const b2 = document.getElementById(window.__bid);
+      return { OLD, same: b2.dataset.cells === OLD, t0: b2.querySelector('.ln-row[data-ln-m="0"][data-ln="0"]')?.textContent, rows0: b2.querySelectorAll('.ln-row[data-ln-m="0"]').length };
+    });
+    expect(r.same, '열기(rebindAll) 뒤 바이트 같음').toBe(true);
+    expect(r.t0, 'lines 키 없는 칸 = 옛 「1위」 기본 줄').toBe('1위');
+    expect(r.rows0).toBe(1);
+    await page.evaluate(() => window.clearHistory?.());
+    await pickLine(page, 1, 0);
+    await page.keyboard.press('t');
+    await expect.poll(async () => (await cellsOf(page))[1].lines.length).toBe(2);
+    const c = await cellsOf(page);
+    expect(c[1].lines[0], '옛 줄이 새 꼴로(값 그대로)').toEqual({ type: 'body', text: '옛', fontSize: 40, weight: '600', color: '#123456', lineHeight: 1.1 });
+    expect('lines' in c[0], 'lines 키 없는 칸은 그대로(렌더 폴백)').toBe(false);
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('Meta+z');
+    await expect.poll(() => page.evaluate(() => document.getElementById(window.__bid).dataset.cells), '⌘Z 한 번 = 옛 꼴 문자열 그대로').toBe(r.OLD);
     expect(errs).toEqual([]);
   });
 });

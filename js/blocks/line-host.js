@@ -26,24 +26,29 @@ import { panelRenderedColor } from '../props/_panel-rendered.js';   // ★D2 —
 
 /** D5 — 버블·챗이 내놓는 줄 종류. ★GRID_ROLES 에서 뜬다(손으로 안 적는다) + 여백. */
 export const LN_KINDS = Object.freeze([...Object.keys(GRID_ROLES), 'gap']);
+/** ★1013t1B2 — laurel(월계관) 칸이 내놓는 줄 종류: 글자 역할 + 여백 + 구분선(그리드 명부에서 그림만 뺀 것).
+ *  ★GRID_ROLES 에서 뜬다(손으로 안 적는다). 그림(image)은 C4 에서 laurel 그림 크기 규칙과 함께 연다(계획 §5 C2 ⚠️). */
+export const LAUREL_LN_KINDS = Object.freeze([...Object.keys(GRID_ROLES), 'gap', 'divider']);
 export const LN_ROW_CLASS = 'ln-row';
 /** 줄 선택 표시 — `-line-selected` 로 끝나 저장 직렬화가 «알아서» 벗긴다(section-serialize.js RUNTIME_MARKER_RE). */
 export const LN_MARK_CLASS = 'ln-line-selected';
 /* ★1012t1D2 — 비교(comparison) 칸이 «세 번째 주인»이다(행 안 줄 추가 · 그리드 칸처럼). ⛔버블·챗의 산출·동작은 그대로다(아래 cAxis). */
-const HOST_SEL = '.speech-bubble-block, .chat-block, .comparison-block';
+/* ★1013t1B2 — laurel(월계관) 칸이 «네 번째 주인»이다(챗과 같은 주소 꼴 {r: 칸 번호(선형), c: 0, li} · cAxis 없음). */
+const HOST_SEL = '.speech-bubble-block, .chat-block, .comparison-block, .laurel-block';
 
 export function lnHasLines(v) { return Array.isArray(v) && v.length > 0; }
 
 
-/** 줄 배열 검사 — 그리드 잣대(gridValidateLines) ＋ D5 종류 제한. null = 통과. */
-export function lnValidateLines(lines, where = 'lines') {
+/** 줄 배열 검사 — 그리드 잣대(gridValidateLines) ＋ D5 종류 제한. null = 통과.
+ *  ★1013t1B2 — kinds·what 는 주인별(laurel = LAUREL_LN_KINDS). ⛔안 주면(버블·챗·비교) 옛 산출 바이트 그대로. */
+export function lnValidateLines(lines, where = 'lines', kinds = LN_KINDS, what = 'a speech bubble / chat line') {
   const r = gridValidateLines(lines, where);
   if (r) return r;
   for (let i = 0; i < lines.length; i++) {
     const t = lines[i].type === undefined ? 'body' : lines[i].type;
-    if (!LN_KINDS.includes(t)) {
+    if (!kinds.includes(t)) {
       return { ok: false, code: 'INVALID',
-        message: `${where}[${i}].type '${t}' is not allowed in a speech bubble / chat line — allowed: ${LN_KINDS.join('|')}` };
+        message: `${where}[${i}].type '${t}' is not allowed in ${what} — allowed: ${kinds.join('|')}` };
     }
   }
   return null;
@@ -67,7 +72,9 @@ export function lnLinesHtml(lines, m = null, c = null, align = 'left') {
 /** 줄 감싸개 셀렉터 — 주인마다 주소 속성이 다르다(버블 = li · 챗 = m+li · 비교 = c+m+li). */
 function _lnRowSel(block, r, c, li) {
   if (block.classList.contains('comparison-block')) return `.${LN_ROW_CLASS}[data-ln-c="${c}"][data-ln-m="${r}"][data-ln="${li}"]`;
-  return block.classList.contains('chat-block') ? `.${LN_ROW_CLASS}[data-ln-m="${r}"][data-ln="${li}"]` : `.${LN_ROW_CLASS}[data-ln="${li}"]`;
+  /* ★1013t1B2 laurel = 챗과 같은 꼴(data-ln-m = 칸 번호) */
+  return (block.classList.contains('chat-block') || block.classList.contains('laurel-block'))
+    ? `.${LN_ROW_CLASS}[data-ln-m="${r}"][data-ln="${li}"]` : `.${LN_ROW_CLASS}[data-ln="${li}"]`;
 }
 
 /* ══ 버블 ══════════════════════════════════════════════════════════════════ */
@@ -137,7 +144,7 @@ export function lnBakeChat(block, m) {
 function _baseHost(block, o) {
   const C = (c) => (o.cAxis ? c : 0);
   const host = {
-    kind: o.kind, kinds: LN_KINDS, maxLines: MAX_CELL_LINES, limitLabel: o.limitLabel, noHitHint: o.noHitHint,
+    kind: o.kind, kinds: o.kinds || LN_KINDS, maxLines: MAX_CELL_LINES, limitLabel: o.limitLabel, noHitHint: o.noHitHint,
     head: o.head, cAxis: !!o.cAxis,
     getLines: (r, c) => o.getLines(r, C(c)) || [],
     commitLines: (r, c, lines, opts) => {
@@ -396,11 +403,58 @@ export function lnCmpHost(block) {
   });
 }
 
+/* ══ laurel(월계관) 칸 — ★1013t1B2 (현빈 1013t1 「그리드의 칸과 줄을 삽입하는 것과 같은 방식으로 … 줄 추가하는 부분 일관성 유지해줘」) ══
+ * ★주소 = {r: 칸 번호(선형 · cells 배열 순서), c: 0, li} — 챗과 같은 꼴(cAxis 없음). 「칸」 = 월계관 하나.
+ * ★저장: dataset.cells[r].lines. 읽기는 옛 꼴·새 꼴 둘 다(laurel-block.js _lrlGridLines «보기») · 쓰기는 새 꼴(그리드 줄)만.
+ * ★쓰는 문 = updateLaurelBlock({cellLines}) 한 길(push-before + 래퍼 끝 표본 = ⌘Z 한 걸음 · Raw = 래퍼 밖, 칸 사이 옮기기 문1).
+ * ★다른 칸으로 옮기기 허용(결정 B2-6 · 챗 길). ★마지막 줄도 지운다 → 빈 칸(잎만 · 결정 B2-3).
+ * 모델 읽기는 window 로 간다(순환 import 회피 — laurel-block.js 가 이 파일을 import 한다). */
+function _lrlCells(block) { try { const a = window._readLaurelCells?.(block); return Array.isArray(a) ? a : []; } catch (_) { return []; } }
+export function lnLaurelLines(block, r) {
+  const cell = _lrlCells(block)[r];
+  return cell ? (window._lrlGridLines?.(cell) || []) : null;
+}
+export function lnLaurelHost(block) {
+  const cols = () => Math.max(1, parseInt(block.dataset.gridCols) || 1);
+  const where = (r) => `칸 ${r + 1} (${(r % cols()) + 1},${Math.floor(r / cols()) + 1})`;   // 패널 칸 카드 「Cell N (c,r)」 와 같은 수
+  const cellLines = (r, lines) => ({ cellLines: { cell: r, lines } });
+  return _baseHost(block, {
+    kind: 'laurel', kinds: LAUREL_LN_KINDS, limitLabel: '칸 한 개에',
+    noHitHint: '칸을 한 번 더 누르면 줄 편집 · 줄을 두 번 누르면 글자 편집',
+    head: (r, c, li) => (li === null ? `${where(r)} · 줄을 고르거나 더하세요` : `${where(r)} · ${li + 1}번째 줄`),
+    getLines: (r) => lnLaurelLines(block, r),
+    rowOk: (r) => Number.isInteger(r) && r >= 0 && r < _lrlCells(block).length,
+    /* ⛔안 불린다 — getLines 가 있는 칸엔 늘 배열을 준다(빈 칸 = []). 계약을 반쪽으로 두지 않으려고 둔다(버블 commitRaw 주석과 같은 까닭). */
+    bake: () => ({ type: 'body', text: '' }),
+    commit: (r, lines, opts) => window.updateLaurelBlock?.(block.id, cellLines(r, lines), opts),
+    commitRaw: (r, lines, opts) => window.updateLaurelBlockRaw?.(block.id, cellLines(r, lines), opts),
+    write: (r, lines) => {
+      const cells = _lrlCells(block);
+      if (!cells[r]) return;
+      cells[r] = { ...cells[r], lines };
+      block.dataset.cells = JSON.stringify(cells);
+      window.renderLaurelBlock?.(block);
+    },
+    show: () => window.showLaurelProperties?.(block),
+    rowSel: (r, li) => `.${LN_ROW_CLASS}[data-ln-m="${r}"][data-ln="${li}"]`,
+    boxOf: (r) => block.querySelector(`.laurel-cell[data-cell-idx="${r}"] .laurel-text-stack`),
+    rowAt: (el) => {
+      if (!el || !el.closest || !block.contains(el)) return null;
+      const cell = el.closest('.laurel-cell[data-cell-idx]');
+      if (!cell || !block.contains(cell)) return null;
+      const r = Number(cell.dataset.cellIdx);
+      const box = cell.querySelector('.laurel-text-stack');
+      return Number.isInteger(r) && box ? { r, c: 0, box } : null;
+    },
+  });
+}
+
 export function lnHostFor(block) {
   if (!block || !block.classList) return null;
   if (block.classList.contains('speech-bubble-block')) return lnBubbleHost(block);
   if (block.classList.contains('chat-block')) return lnChatHost(block);
   if (block.classList.contains('comparison-block')) return lnCmpHost(block);
+  if (block.classList.contains('laurel-block')) return lnLaurelHost(block);
   return null;
 }
 
@@ -444,6 +498,10 @@ export function lnClickAddr(block, target, wasSole) {
       const r = Number(cell.dataset.rowIdx), c = Number(cell.dataset.colIdx);
       return Number.isInteger(r) && Number.isInteger(c) ? { r, c, li: null } : null;
     }
+  }
+  if (block.classList.contains('laurel-block')) {             // ★1013t1B2 laurel: 줄 밖(잎·여백) = 칸 선택(li:null)
+    const cell = target.closest('.laurel-cell[data-cell-idx]');
+    if (cell && block.contains(cell)) { const r = Number(cell.dataset.cellIdx); return Number.isInteger(r) ? { r, c: 0, li: null } : null; }
   }
   return null;
 }
@@ -516,12 +574,22 @@ export function lnAugmentCmpPanel(block) {
   const host = lnCmpHost(block);
   if (!host.resolveAny(act)) { grdSetActiveLine(block, null); return; }
   _mountLineUi(block, host, act);
-  _lnCmpFillShowsRendered(block, host, act);
+  _lnFillShowsRendered(block, host, act);
+}
+/** ★1013t1B2 laurel — 비교와 같은 규칙: 캔버스에서 «칸»이나 «줄»을 골랐을 때만 줄 절(줄바·줄 꾸미기·Typography)을 얹는다.
+ *  ⛔기본 주소를 세우지 않는다(위 비교 주석과 같은 까닭). 낡은 주소(그리드를 줄여 칸이 사라짐)는 비운다. */
+export function lnAugmentLaurelPanel(block) {
+  const act = grdGetActiveLine(block);
+  if (!act) { lnMark(block, null); return; }   // ★Esc(줄 선택만 풀기)가 여기로 온다 — 표시도 같이 걷는다(LL6)
+  const host = lnLaurelHost(block);
+  if (!host.resolveAny(act)) { grdSetActiveLine(block, null); lnMark(block, null); return; }
+  _mountLineUi(block, host, act);
+  _lnFillShowsRendered(block, host, act);
 }
 /* ★D2 — 색 없는 비교 줄은 «칼럼 글자색»을 상속해 그린다(렌더러 useRoleColor=false). 그런데 공용 Fill 절은 역할 기본색(#555)을 보인다
    ⇒ 패널이 실제와 다르다. 비교에서만 스와치·피커·hex 안내값을 «그려진 계산색»으로 맞춘다(값만 표시 — 모델에 안 쓴다).
    ⛔공용 절(prop-grid _grdTypoSectionsHtml)은 안 고친다 — 그리드·버블·챗 동작 불변(이 함수는 lnAugmentCmpPanel 만 부른다). */
-function _lnCmpFillShowsRendered(block, host, addr) {
+function _lnFillShowsRendered(block, host, addr) {   // ★1013t1B2 — 비교·laurel 공용(색 없는 줄은 상속색으로 그린다)
   const line = host.line(addr);
   if (!line || (line.color !== undefined && line.color !== null && String(line.color).trim() !== '')) return;
   const el = _lineTextEl(block.querySelector(_lnRowSel(block, addr.r, addr.c, addr.li)));
@@ -571,7 +639,9 @@ export function lnBeginEdit(block, addr) {
     if (text !== String(hit.line.text ?? '')) {
       host.previewLine(hit.r, hit.c, hit.li, { text });
       window.scheduleAutoSave?.();
-    } else if (isChat) window.renderChatBlock?.(block); else if (isCmp) window.renderComparison?.(block); else lnRenderBubble(block);
+    } else if (isChat) window.renderChatBlock?.(block); else if (isCmp) window.renderComparison?.(block);
+    else if (block.classList.contains('laurel-block')) window.renderLaurelBlock?.(block);   // ★1013t1B2 — ⛔버블 갈래로 떨어지면 안 다시 그린다(편집 흔적이 남는다)
+    else lnRenderBubble(block);
     if (block.classList.contains('selected')) host.show({ r: hit.r, c: hit.c, li: hit.li });
   };
   el.addEventListener('keydown', onKey); el.addEventListener('paste', onPaste); el.addEventListener('blur', finish);
@@ -699,7 +769,7 @@ export function lnEnterEdit(block) {
 
 /* ══ 단축키 (D10) — 그리드의 줄 단축키와 «같은 뜻» ════════════════════════════ */
 function _soleSelectedHost() {
-  const sel = [...document.querySelectorAll('.speech-bubble-block.selected, .chat-block.selected, .comparison-block.selected')];
+  const sel = [...document.querySelectorAll('.speech-bubble-block.selected, .chat-block.selected, .comparison-block.selected, .laurel-block.selected')];
   if (sel.length !== 1 || !grdIsSoleSelected(sel[0])) return null;
   return sel[0];
 }
@@ -782,7 +852,7 @@ if (typeof window !== 'undefined') {
   Object.assign(window, {
     lnHasLines, lnLinesHtml, lnValidateLines, lnPlainText, lnTextMirrorHtml,
     lnRenderBubble, lnBubbleLines, lnHostFor, lnMark, lnRemark, lnClearAllActive, lnClickAddr,
-    lnAugmentBubblePanel, lnAugmentChatPanel, lnAugmentCmpPanel, lnCmpLines, lnBindLineEdit, lnBeginEdit, lnEnterEdit,
+    lnAugmentBubblePanel, lnAugmentChatPanel, lnAugmentCmpPanel, lnAugmentLaurelPanel, lnCmpLines, lnLaurelLines, LAUREL_LN_KINDS, lnBindLineEdit, lnBeginEdit, lnEnterEdit,
     lnDeleteActiveLine, lnAddLineToSelected, lnEscLine, lnSyncPlus,
   });
 }

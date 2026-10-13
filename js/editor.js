@@ -3239,7 +3239,7 @@ function _gridActiveOuterLine() {
    * ★아래 게이트 셋(단독선택 → 중첩(np) 막기 → 바깥 줄)은 ★한 글자도 안 바꿨다 — 블럭을 «찾는» 자리만 넓혔다.
    * ⛔버블·챗에는 중첩(np)이 ★없다 — 그 가지는 그리드에서만 선다(값이 안 들어온다). */
   const gridSel = document.querySelector('.grid-block.selected')
-    || document.querySelector('.speech-bubble-block.selected, .chat-block.selected, .comparison-block.selected');   // ★1012t1D2 비교 칸 줄도(line-host 세 번째 주인)
+    || document.querySelector('.speech-bubble-block.selected, .chat-block.selected, .comparison-block.selected, .laurel-block.selected');   // ★1012t1D2 비교 칸 줄도(line-host 세 번째 주인) · ★1013t1B2 laurel(네 번째)
   let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
   /* ★단독 선택일 때만 — ⌘클릭 다중선택·붙여넣기 뒤 [원본(활성줄)+사본] 은 사용자가 «블럭들»을
      보고 있다. 거기서 첫 그리드의 활성줄만 보고 줄을 옮기면 블럭은 그대로인데 줄만 조용히 바뀐다
@@ -3324,7 +3324,8 @@ function moveGridLineAcrossCells({ dir } = {}) {
      *   — ★그리드의 EDGE 와 ★같은 뜻이다(「맨 왼쪽에서 ⌘←」가 갑자기 «블럭 이동»이 되지 않게).
      * ★1012t1D2 비교 칸 줄도 이 갈래로 ★조용히 소진한다 — 「옆 칸으로」는 v1 제외(결정 ⑨ · 주인 moveLine 도 INVALID).
      *   ⛔false 로 흘리지 않는다 — 흘리면 ⌘←/→ 가 «블럭 이동»으로 샌다. */
-    if (!got.block.classList.contains('chat-block')) return true;
+    /* ★1013t1B2 laurel — 「옆 ★월계관(칸)으로」(결정 B2-6 · 챗과 같은 길 · 칸 순서는 선형 cells 순서). */
+    if (!got.block.classList.contains('chat-block') && !got.block.classList.contains('laurel-block')) return true;
     const H = window.lnHostFor?.(got.block);
     const step = dir < 0 ? -1 : 1;
     H?.moveLine?.({ r: got.addr.r, c: 0 }, got.addr.li, { r: got.addr.r + step, c: 0 }, null);

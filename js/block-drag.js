@@ -1953,8 +1953,11 @@ function bindBlock(block) {
   }
 
   if (isLaurel) {
+    window.lnBindLineEdit?.(block);   // ★1013t1B2 — 칸 «줄»의 글자 편집(더블클릭, capture). 옛 자체 편집(_bindLaurelInlineEdit)은 걷었다
     block.addEventListener('click', e => {
       e.stopPropagation();
+      /* ★1013t1B2 — 그리드 2단 선택과 같은 규칙(챗·비교 꼴): 이미 «이것 하나»가 선택돼 있었으면 칸/줄을 고른다. deselectAll «전»에 잰다. */
+      const _lnAt = window.lnClickAddr?.(block, e.target, block.classList.contains('selected') && _isSoleSelectedBlock(block));
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
@@ -1976,6 +1979,7 @@ function bindBlock(block) {
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
+      if (_lnAt) window.grdSetActiveLine?.(block, _lnAt);   // ★1013t1B2 — 패널이 이 활성 줄/칸을 읽어 줄바(+ 줄 추가)를 띄운다
       window.showLaurelProperties?.(block);
     });
   }
