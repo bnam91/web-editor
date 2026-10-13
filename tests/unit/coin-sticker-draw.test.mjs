@@ -12,6 +12,9 @@
  *   D7 class 속성 0 · filter 0(배송본 쓸기·html2canvas 가 못 그리는 것에 기대지 않는다)
  *   D8 배선 — index.html 에 스크립트 1번(seeded-random 뒤 · sticker-block 모듈 앞) · 메뉴 「Coin」이 #fp-pen-menu 안, Count Sticker 바로 다음
  *   D9 색 표는 그리개 한 곳 — 금/은의 대표 색이 패널·블럭 파일에 글자로 없다
+ *   D10 ★어떤 입력에도 안 던진다 — 객체 내장 이름 재질 · NaN·음수·아주 큰 수 · 빈 값 (손댄 저장본이 로드를 멈추지 않는다)
+ *   D11 두께는 그리개가 가둔다(패널과 같은 표 LIMITS) · 방향·회전은 한 바퀴 안으로
+ *   D12 각인 자르기 한 벌(cutGlyph) — 공백뿐 = 없음 · 그래핌 기준 · 그리개가 그 함수를 쓴다
  * ★기대값은 «글자로» 박았다(피검 함수에서 뽑으면 항등식이다).
  * ⛔앱 0 · 네트워크 0. 두 파일 다 최상위에서 DOM 을 안 건드리므로 vm 으로 그대로 싣는다.
  */
@@ -47,7 +50,7 @@ test('D0 전제 — DOM 없이 실리고, 계약한 이름만 낸다', () => {
   const { C } = load();
   assert.equal(typeof C?.svg, 'function');
   assert.deepEqual(Object.keys(C).sort(),
-    ['DEFAULTS', 'GLYPH_MAX', 'PALETTES', 'angleFromSeed', 'baseColors', 'paletteFor', 'svg', 'toHex6'],
+    ['DEFAULTS', 'GLYPH_MAX', 'LIMITS', 'PALETTES', 'angleFromSeed', 'baseColors', 'cutGlyph', 'paletteFor', 'svg', 'toHex6'],
     '★스티커가 안 쓰는 API 가 붙었거나 계약한 것이 빠졌다 — 머리말의 계약과 같이 고쳐라');
   assert.deepEqual({ ...C.DEFAULTS }, { metal: 'gold', glyph: '$', k: 22, gloss: 22, size: 120 });
   assert.equal(C.GLYPH_MAX, 2);
@@ -138,6 +141,17 @@ test('D5 ★재질 — 금/은은 표의 색 · 커스텀은 준 색 · 못 읽�
   assert.ok(bad.includes('#f5c542'), '못 읽는 커스텀 색은 금 대표색으로 떨어진다');
   assert.equal(C.toHex6('#abc'), '#aabbcc'); assert.equal(C.toHex6('#A1B2C3D4'), '#a1b2c3');
   assert.equal(C.toHex6('rgba(255, 0, 10, 0.5)'), '#ff000a'); assert.equal(C.toHex6('red'), null); assert.equal(C.toHex6(null), null);
+  assert.equal(C.toHex6('rgb(12.4, 0.6, 300)'), '#0c01ff', '소수·범위 밖 성분은 반올림·끝값');
+  /* 못 읽는 것은 null — 반쪽 색(#NaN…)을 내지 않는다 */
+  for (const bad of ['rgb(1.2.3,4,5)', 'rgb(.,.,.)', 'rgb(1,2)', 'rgb(1,2,3,4,5)', '#12', '#1234567', 'rgb(a,b,c)', '', '#ggg']) assert.equal(C.toHex6(bad), null, `toHex6(${bad})`);
+  const nan = C.svg({ ...BASE, metal: 'custom', face: 'rgb(1.2.3,4,5)', side: 'rgb(.,.,.)' });
+  assert.ok(!/NaN/.test(nan) && nan.includes('#f5c542'), '못 읽는 rgb() 가 #NaN 색으로 그림에 들어갔다');
+  /* 객체 내장 이름은 재질이 아니다 — 표에 «제 열쇠로» 있는 것만 */
+  for (const m of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf']) {
+    assert.equal(C.svg({ ...BASE, metal: m }), gold, `재질 ${m} 이 금으로 안 떨어졌다`);
+    assert.deepEqual({ ...C.baseColors(m) }, { face: '#f5c542', side: '#c98a14' }, `baseColors(${m})`);
+    assert.equal(C.paletteFor({ metal: m }), C.PALETTES.gold);
+  }
   assert.deepEqual({ ...C.baseColors('gold') }, { face: '#f5c542', side: '#c98a14' });
   assert.deepEqual({ ...C.baseColors('silver') }, { face: '#d3d9e2', side: '#8e97a4' });
 });
@@ -202,4 +216,67 @@ test('D9 금/은 색은 그리개 한 곳 — 패널·블럭 파일에 글자로
     const hit = colors.filter((c) => c.toLowerCase() !== '#ffffff' && src.includes(c.toLowerCase()));
     assert.deepEqual(hit, [], `${f} 에 코인 색이 글자로 적혀 있다 — CoinFx.PALETTES 한 곳에만`);
   }
+});
+
+test('D10 ★어떤 입력에도 안 던진다 — 손댄 저장본의 값들', () => {
+  const { C } = load();
+  const weird = [undefined, null, '', 'abc', NaN, Infinity, -Infinity, -50, 1e9, '1e9', '-1e300', {}, [], true, () => 1, Symbol.iterator.toString()];
+  let n = 0;
+  for (const key of ['tilt', 'dir', 'k', 'gloss', 'glyph', 'metal', 'face', 'side', 'extRot', 'idPrefix']) {
+    for (const v of weird) {
+      let s;
+      assert.doesNotThrow(() => { s = C.svg({ ...BASE, metal: key === 'face' || key === 'side' ? 'custom' : BASE.metal, [key]: v }); }, `svg({ ${key}: ${String(v)} }) 가 던졌다`);
+      assert.ok(s.startsWith('<svg ') && s.endsWith('</svg>'));
+      /* id 접두는 글자라 'NaN' 같은 낱말이 그대로 id 가 된다(정상) — 수가 새는지는 나머지 축에서만 본다 */
+      if (key !== 'idPrefix') assert.ok(!/NaN|undefined|Infinity/.test(s), `svg({ ${key}: ${String(v)} }) 의 그림에 NaN·undefined 가 샜다`);
+      assert.equal(idsOf(s).length, 8, `svg({ ${key}: ${String(v)} }) 의 그림 구조가 깨졌다`);
+      n++;
+    }
+  }
+  assert.equal(n, 160, '★전제: 조합을 다 돌았다');
+  assert.doesNotThrow(() => C.svg({}), '빈 객체');
+  for (const v of weird) assert.doesNotThrow(() => C.angleFromSeed(v), `angleFromSeed(${String(v)})`);
+  for (const v of [NaN, -5, 1e20, 'abc', null]) { const [t, d] = C.angleFromSeed(v); assert.ok(t >= 0 && t <= 80 && d >= -180 && d <= 180, `angleFromSeed(${String(v)}) 범위`); }
+});
+
+test('D11 ★두께는 그리개가 가둔다(LIMITS) · 방향·회전은 한 바퀴 안으로', () => {
+  const { C } = load();
+  assert.deepEqual(JSON.parse(JSON.stringify(C.LIMITS)), { k: [8, 40], gloss: [0, 100] });
+  assert.ok(Object.isFrozen(C.LIMITS) && Object.isFrozen(C.LIMITS.k));
+  const vb = (s) => /viewBox="([^"]+)"/.exec(s)[1];
+  const lo = C.svg({ ...BASE, k: 0.08 }), hi = C.svg({ ...BASE, k: 0.4 });
+  assert.equal(vb(lo), '-58 -58 116 116'); assert.equal(vb(hi), '-90 -90 180 180');
+  for (const k of [-0.5, 0, -1e9, 0.0799]) assert.equal(C.svg({ ...BASE, k }), lo, `두께 ${k} 가 아래 끝(8%)으로 안 가둬졌다 — viewBox 가 0 이면 코인이 안 보인다`);
+  for (const k of [0.41, 1, 1e7, 1e300]) assert.equal(C.svg({ ...BASE, k }), hi, `두께 ${k} 가 위 끝(40%)으로 안 가둬졌다`);
+  assert.equal(C.svg({ ...BASE, gloss: 1e9 }), C.svg({ ...BASE, gloss: 100 }));
+  assert.equal(C.svg({ ...BASE, gloss: -3 }), C.svg({ ...BASE, gloss: 0 }));
+  assert.equal(C.svg({ ...BASE, tilt: 1e9 }), C.svg({ ...BASE, tilt: 88 }));
+  assert.equal(C.svg({ ...BASE, tilt: -10 }), C.svg({ ...BASE, tilt: 0 }));
+  assert.equal(C.svg({ ...BASE, dir: 25 + 360 * 1000 }), C.svg(BASE), '방향은 한 바퀴를 접는다');
+  assert.equal(C.svg({ ...BASE, extRot: 360 * 7 }), C.svg(BASE));
+  assert.ok(C.svg({ ...BASE, dir: 1e15 }).length < C.svg(BASE).length + 200, '아주 큰 방향 값이 그림 문자열을 부풀렸다');
+});
+
+test('D12 ★각인 자르기 한 벌(cutGlyph) — 공백뿐 = 없음 · 그래핌 기준', () => {
+  const { C } = load();
+  assert.equal(typeof Intl?.Segmenter, 'function', '★전제: 이 런타임에 Intl.Segmenter 가 있다(그래핌 갈래를 잰다)');
+  assert.equal(C.cutGlyph('ABC'), 'AB'); assert.equal(C.cutGlyph('₩'), '₩'); assert.equal(C.cutGlyph(7), '7');
+  assert.equal(C.cutGlyph(''), ''); assert.equal(C.cutGlyph(null), ''); assert.equal(C.cutGlyph(undefined), '');
+  for (const blank of [' ', '   ', '\t', '\u3000', ' \n ']) assert.equal(C.cutGlyph(blank), '', `공백뿐(${JSON.stringify(blank)})은 각인 없음`);
+  assert.equal(C.cutGlyph('a b'), 'a ', '글자 사이 공백은 글자다');
+  const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
+  assert.equal(C.cutGlyph(family + 'xy'), family + 'x', '이음표로 묶인 이모지는 한 글자 — 반쪽 내지 않는다');
+  assert.equal(C.cutGlyph('e\u0301xy'), 'e\u0301x', '결합 부호는 앞 글자에 붙는다');
+  assert.equal(C.cutGlyph('한글날'), '한글');
+  /* 그리개가 그 함수를 쓴다 — 칸에 보이는 글자 = 그려지는 글자 */
+  for (const g of [family + 'xy', 'e\u0301xy', ' ', 'ABC', '<b>']) {
+    const want = C.cutGlyph(g);
+    const drawn = [...new Set(textsOf(C.svg({ ...BASE, glyph: g })))];
+    const esc = want.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    assert.deepEqual(drawn, want ? [esc] : [], `그림의 각인이 cutGlyph(${JSON.stringify(g)}) 와 다르다`);
+  }
+  /* 패널도 같은 함수를 쓴다(제 자르기를 따로 두지 않는다) */
+  const look = readSrc(REPO, 'js/props/_coin-look.js');
+  assert.ok(/fx\(\)\.cutGlyph\(/.test(look) && !/Array\.from\(/.test(look), '패널이 각인을 제 식으로 자른다 — CoinFx.cutGlyph 하나만');
+  assert.ok(/LIMITS/.test(look) && !/\b(?:K_MIN|K_MAX)\s*=\s*\d/.test(look), '패널이 두께 범위를 제 숫자로 적었다 — CoinFx.LIMITS 하나만');
 });

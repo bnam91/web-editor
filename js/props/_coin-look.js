@@ -7,24 +7,24 @@
  *        set(patch)    → patch 의 키만 저장하고 다시 그린다(히스토리는 안 찍는다)
  *        commit(label) → 히스토리 한 칸(push-after) + 자동저장
  *   ⛔금/은의 색 값은 여기 없다 — js/fx/coin-draw.js 의 CoinFx.PALETTES 한 곳뿐이다(색칸의 첫 값도 CoinFx.baseColors 에서).
- *   색칸의 불투명도 칸은 코인에 닿지 않는다(그리개가 알파를 버린다 — CoinFx.toHex6).
+ *   색칸의 불투명도 칸은 숨긴다 — 코인 색은 불투명뿐이다(그리개가 알파를 버린다 — CoinFx.toHex6). 보이는 채 두면 값이 먹는 것처럼 보인다.
+ *   두께·광택의 범위(CoinFx.LIMITS)와 각인 자르기(CoinFx.cutGlyph)는 그리개 것을 그대로 읽는다 — 칸에 보이는 값 = 그려지는 값.
+ *   각인 행은 「각인 + 직접 입력 칸」 한 줄, 그 아래 칩 다섯을 라벨 없이 한 줄(라벨 옆에는 칩 넷까지만 들어가 다섯째가 혼자 둘째 줄로 떨어진다).
  *   숫자칸의 범위·빈 값 처리는 칸의 min/max 를 읽는 공용 가드(prop-number-commit-guard.js)가 한다.
  */
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { escHtml } from './_helpers.js';
 
-const K_MIN = 8, K_MAX = 40;            // 두께 %
-const GLOSS_MIN = 0, GLOSS_MAX = 100;   // 광택
-
 const METALS = [['gold', '금'], ['silver', '은'], ['custom', '커스텀']];
 const GLYPHS = [['$', '$'], ['₩', '₩'], ['P', 'P'], ['%', '%'], ['', '없음']];
 
-const int = (v, fb) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : fb; };
+/* 저장값 → 정수. 그리기(sticker-block.js coin 갈래)와 같은 읽기(parseFloat) — 손댄 저장본에서도 칸과 그림이 같은 값을 본다. */
+const int = (v, fb) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.round(n) : fb; };
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const fx = () => window.CoinFx;
 const glyphMax = () => fx()?.GLYPH_MAX ?? 2;
-/* 각인 글자 수는 «글자»로 센다(₩ · 이모지도 한 글자) — 그리개와 같은 식. */
-const cutGlyph = (s) => Array.from(String(s ?? '')).slice(0, glyphMax()).join('');
+const limits = (key) => fx()?.LIMITS?.[key] || [0, 100];
+const cutGlyph = (s) => (fx() ? fx().cutGlyph(s) : '');
 
 /** 값 정리 — 빈 칸·범위 밖·모르는 재질을 기본값·범위 안으로. */
 function norm(v) {
@@ -36,8 +36,8 @@ function norm(v) {
     face: fx()?.toHex6?.(v?.face) || base.face,
     side: fx()?.toHex6?.(v?.side) || base.side,
     glyph: v?.glyph == null ? (D.glyph ?? '$') : cutGlyph(v.glyph),
-    k: clamp(int(v?.k, D.k ?? 22), K_MIN, K_MAX),
-    gloss: clamp(int(v?.gloss, D.gloss ?? 22), GLOSS_MIN, GLOSS_MAX),
+    k: clamp(int(v?.k, D.k ?? 22), ...limits('k')),
+    gloss: clamp(int(v?.gloss, D.gloss ?? 22), ...limits('gloss')),
   };
 }
 
@@ -46,6 +46,7 @@ export function coinLookHTML(idp, value) {
   const custom = v.metal === 'custom';
   const on = (c) => (c ? ' active' : '');
   const n = glyphMax();
+  const [K_MIN, K_MAX] = limits('k'), [GLOSS_MIN, GLOSS_MAX] = limits('gloss');
   return `
       <div class="prop-row"><span class="prop-label">재질</span>
         <div class="prop-align-group" id="${idp}-metal">
@@ -59,12 +60,12 @@ export function coinLookHTML(idp, value) {
         ${colorFieldHTML({ idPrefix: `${idp}-side`, hex: v.side, alpha: 100 })}
       </div>
       <div class="prop-row"><span class="prop-label">각인</span>
+        <input type="text" class="prop-input" id="${idp}-glyph" value="${escHtml(v.glyph)}" placeholder="직접 입력 (1~${n}자)" aria-label="각인 글자 직접 입력" title="각인 글자 직접 입력 (1~${n}자) · 비우면 각인 없음">
+      </div>
+      <div class="prop-row">
         <div class="prop-align-group" id="${idp}-glyphs">
           ${GLYPHS.map(([g, t]) => `<button class="prop-align-btn${on(g === v.glyph)}" data-coin-glyph="${escHtml(g)}" title="${g ? `각인 ${escHtml(g)}` : '각인 없음'}">${escHtml(t)}</button>`).join('')}
         </div>
-      </div>
-      <div class="prop-row"><span class="prop-label">직접 입력</span>
-        <input type="text" class="prop-input" id="${idp}-glyph" maxlength="${n * 2}" value="${escHtml(v.glyph)}" placeholder="1~${n}자" aria-label="각인 글자 직접 입력" title="각인 글자 (1~${n}자)">
       </div>
       <div class="prop-row"><span class="prop-label">두께</span>
         <input type="range" class="prop-slider" id="${idp}-k" min="${K_MIN}" max="${K_MAX}" step="1" value="${v.k}">
@@ -125,6 +126,14 @@ export function wireCoinLook(panel, idp, { get, set, commit }) {
   const hexOf = (c) => fx()?.toHex6?.(c) || c;
   wireColorField(`${idp}-face`, { initialAlpha: 100, onApply: (c) => set({ face: hexOf(c) }), onCommit: () => commit('코인 앞면 색') });
   wireColorField(`${idp}-side`, { initialAlpha: 100, onApply: (c) => set({ side: hexOf(c) }), onCommit: () => commit('코인 옆면 색') });
+  /* 불투명도 칸을 숨기고 끈다 — 공용 색칸은 그 칸이 있어야 배선되므로 마크업은 두고 이 두 칸에서만 접는다(다른 패널 색칸 무영향). */
+  ['face', 'side'].forEach((key) => {
+    const a = $(`${idp}-${key}-alpha`);
+    if (!a) return;
+    a.disabled = true;
+    const box = a.closest('.prop-color-alpha');
+    if (box) box.style.display = 'none';
+  });
 
   /* ── 각인 — 칩과 직접 입력 칸은 같은 값의 두 얼굴이다 ── */
   const gIn = $(`${idp}-glyph`);

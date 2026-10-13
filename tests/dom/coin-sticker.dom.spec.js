@@ -17,6 +17,7 @@
  *   K13 ★내보내기 그림 두 길(PNG = CDP 오프스크린 · 썸네일 = html2canvas) — gradient·clipPath·각인 글자가 산다
  *   K14 ★내보내기 HTML — 배송본에 코인 SVG 가 그대로 실리고 id 참조가 문서 안에서 풀린다
  *   K15 일반 「Sticker」 단추가 코인을 안 낳는다 · 다음 Coin 은 생김새를 잇고 각도는 새로
+ *   K16 ★손댄 저장본 — 재질이 객체 내장 이름이거나 수가 깨져 있어도 열기가 안 멈추고, 뒤 스티커도 그려지고, 칸 = 그림
  * ★자리 비교는 «레이아웃 px»(dataset)로 한다. 화면 사각형은 «누를 점»을 정하는 데만 쓴다(멈춘 뒤 잰다 — waitStableRect).
  * ★기대값은 글자로 박았다: 무늬번호 201 → 기울기 35 · 방향 -24 (tests/unit/coin-sticker-draw.test.mjs 가 그 함수를 따로 잠근다).
  */
@@ -180,26 +181,35 @@ test('K2 패널 구성 — 행 순서 · 기본 절과 Shape 는 숨고 · 크�
   const r = await page.evaluate(() => {
     const vis = (el) => !!el && getComputedStyle(el).display !== 'none';
     const sec = document.getElementById('stk-coin-section');
-    const rows = [...sec.querySelectorAll(':scope > .prop-row')].filter(vis).map((row) => row.querySelector('.prop-label')?.textContent.trim() || row.querySelector('button')?.textContent.trim());
-    const all = [...sec.querySelectorAll(':scope > .prop-row')].map((row) => row.querySelector('.prop-label')?.textContent.trim() || row.querySelector('button')?.textContent.trim());
+    const nameOf = (row) => row.querySelector('.prop-label')?.textContent.trim() || (row.querySelector('#stk-coin-glyphs') ? '(각인 칩)' : row.querySelector('button')?.textContent.trim());
+    const rows = [...sec.querySelectorAll(':scope > .prop-row')].filter(vis).map(nameOf);
+    const all = [...sec.querySelectorAll(':scope > .prop-row')].map(nameOf);
+    const chips = [...sec.querySelectorAll('#stk-coin-glyphs [data-coin-glyph]')];
+    const rowH = (el) => Math.round(el.closest('.prop-row').getBoundingClientRect().height);
     const shapeSec = [...document.querySelectorAll('.prop-section')].find((s) => s.querySelector('.prop-section-title')?.textContent.trim() === 'Shape');
     return { title: sec.querySelector('.prop-section-title').textContent.trim(), rows, all,
       shape: vis(shapeSec), text: vis(document.getElementById('stk-text-section')), image: vis(document.getElementById('stk-image-section')), mode: vis(document.getElementById('stk-mode-section')),
       metals: [...sec.querySelectorAll('#stk-coin-metal [data-coin-metal]')].map((b) => b.textContent.trim() + (b.classList.contains('active') ? '*' : '')),
       glyphs: [...sec.querySelectorAll('#stk-coin-glyphs [data-coin-glyph]')].map((b) => b.textContent.trim() + (b.classList.contains('active') ? '*' : '')),
       gone: ['stk-coin-size', 'stk-coin-rot', 'stk-coin-tilt', 'stk-coin-dir', 'stk-coin-scatter', 'stk-coin-count', 'stk-coin-scatter-section'].filter((x) => document.getElementById(x)),
+      chipTops: [...new Set(chips.map((b) => Math.round(b.getBoundingClientRect().top)))].length, chipRowH: rowH(chips[0]), metalRowH: rowH(document.getElementById('stk-coin-metal')),
+      chipFit: chips.every((b) => b.scrollWidth <= b.clientWidth + 1), glyphRowHasInput: document.getElementById('stk-coin-glyph').closest('.prop-row').querySelector('.prop-label')?.textContent.trim(),
       glyphMax: document.getElementById('stk-coin-glyph').placeholder, lock: document.getElementById('stk-coin-lock').checked,
       favDim: getComputedStyle(document.getElementById('stk-fav-add')).opacity,
       head: document.querySelector('#stk-coin-section')?.closest('#prop-panel, .prop-panel, body').querySelector('.prop-block-name')?.textContent.trim() };
   });
   expect(r.title).toBe('Coin');
-  expect(r.rows, '보이는 행(금 코인 — 색 행은 숨는다)').toEqual(['다시뽑기', '무늬번호', '재질', '각인', '직접 입력', '두께', '광택', '각도 잠금']);
-  expect(r.all, '전체 행 — 색 둘은 재질 바로 아래').toEqual(['다시뽑기', '무늬번호', '재질', '앞면 색', '옆면 색', '각인', '직접 입력', '두께', '광택', '각도 잠금']);
+  expect(r.rows, '보이는 행(금 코인 — 색 행은 숨는다)').toEqual(['다시뽑기', '무늬번호', '재질', '각인', '(각인 칩)', '두께', '광택', '각도 잠금']);
+  expect(r.all, '전체 행 — 색 둘은 재질 바로 아래').toEqual(['다시뽑기', '무늬번호', '재질', '앞면 색', '옆면 색', '각인', '(각인 칩)', '두께', '광택', '각도 잠금']);
+  expect(r.glyphRowHasInput, '직접 입력 칸은 「각인」 행에 있다').toBe('각인');
+  expect(r.chipTops, '각인 칩 다섯이 한 줄이다(「없음」이 혼자 둘째 줄로 안 떨어진다)').toBe(1);
+  expect(r.chipRowH, '칩 행의 높이가 이웃(재질) 행과 같다').toBe(r.metalRowH);
+  expect(r.chipFit, '칩 글자가 칩 안에 들어간다').toBe(true);
   expect([r.shape, r.text, r.image, r.mode], 'Shape·Text·Image·이미지 모드 절은 숨는다').toEqual([false, false, false, false]);
   expect(r.metals).toEqual(['금*', '은', '커스텀']);
   expect(r.glyphs).toEqual(['$*', '₩', 'P', '%', '없음']);
   expect(r.gone, '크기·회전·기울기·방향·뿌리기 칸은 없다(손잡이가 한다)').toEqual([]);
-  expect(r.glyphMax).toBe('1~2자');
+  expect(r.glyphMax).toBe('직접 입력 (1~2자)');
   expect(r.lock).toBe(false);
   expect(r.favDim, '즐겨찾기 미지원 모양 — 추가 단추가 흐리다').toBe('0.4');
   expect(r.head, '헤더 이름은 다른 스티커와 같다').toBe('Sticker');
@@ -262,6 +272,11 @@ test('K4 재질 — 금/은/커스텀 · 커스텀일 때만 색 행 · 색이 �
   expect(await rowsShown(), '커스텀이면 앞면·옆면 색 행이 뜬다').toEqual([true, true]);
   expect([custom.d.coinFace, custom.d.coinSide], '커스텀 첫 색 = 방금 보이던 은의 대표 두 색').toEqual(['#d3d9e2', '#8e97a4']);
   expect(await page.inputValue('#stk-coin-face-hex'), '색칸이 저장값을 보여 준다').toBe('D3D9E2');
+  /* 코인 색은 불투명뿐 — 색칸의 불투명도 칸은 안 보이고 꺼져 있다(먹는 척하는 칸이 없다) */
+  const alpha = await page.evaluate(() => ['face', 'side'].map((k) => { const a = document.getElementById(`stk-coin-${k}-alpha`);
+    /* 보이나 = 레이아웃 상자가 있나(offsetWidth — 배율과 무관) */
+    return { there: !!a, disabled: a.disabled, shown: a.offsetWidth > 0, hexShown: document.getElementById(`stk-coin-${k}-hex`).offsetWidth > 0 }; }));
+  expect(alpha, '불투명도 칸이 보이거나 켜져 있다').toEqual([{ there: true, disabled: true, shown: false, hexShown: true }, { there: true, disabled: true, shown: false, hexShown: true }]);
 
   await typeInto(page, '#stk-coin-face-hex', '3366FF');
   await expect.poll(async () => (await read(page, id)).d.coinFace, '앞면 색 칸에 넣은 값이 저장된다').toBe('#3366ff');
@@ -302,10 +317,18 @@ test('K5 각인 — 칩 · 직접 입력은 2자에서 잘리고, 꺾쇠는 글�
   c = await read(page, id);
   expect([c.d.coinGlyph, c.texts, await page.inputValue('#stk-coin-glyph')], '2자에서 잘린다(칸 · 저장 · 그림)').toEqual(['WX', ['WX'], 'WX']);
 
-  await typeInto(page, '#stk-coin-glyph', '<&');
+  /* 이스케이프가 없으면 마크업이 깨지는 글자 — `<b` 는 태그가 열리고, `&l` 은 뒤 글자와 붙어 실체참조가 될 수 있다 */
+  for (const g of ['<b', '"x', '&l', '</']) {
+    await typeInto(page, '#stk-coin-glyph', g);
+    c = await read(page, id);
+    const shape = await page.evaluate((id) => { const svg = document.querySelector(`[id="${id}"] > svg`); return { texts: svg.querySelectorAll('text').length, odd: [...svg.querySelectorAll('*')].map((e) => e.localName).filter((n) => !['defs', 'linearGradient', 'stop', 'clipPath', 'ellipse', 'g', 'path', 'text', 'rect'].includes(n)) }; }, id);
+    expect([c.d.coinGlyph, c.texts, c.textKids], `각인 ${g}: 글자 그대로 들어간다 — <text> 안에 요소가 안 생긴다`).toEqual([g, [g], 0]);
+    expect([c.ids.length, shape.odd, shape.texts > 0], `각인 ${g}: 그림 구조가 그대로다(뜻밖의 요소 0)`).toEqual([8, [], true]);
+  }
+  /* 공백뿐 = 각인 없음(안 보이는 각인이 저장되지 않는다) */
+  await typeInto(page, '#stk-coin-glyph', '  ');
   c = await read(page, id);
-  expect([c.d.coinGlyph, c.texts, c.textKids], '꺾쇠·앰퍼샌드는 글자다 — <text> 안에 요소가 안 생긴다').toEqual(['<&', ['<&'], 0]);
-  expect(c.ids.length, '각인이 그림 구조를 안 깼다').toBe(8);
+  expect([c.d.coinGlyph, c.texts, await active(), await page.inputValue('#stk-coin-glyph')], '공백뿐인 입력은 「없음」').toEqual(['', [], [''], '']);
 
   await typeInto(page, '#stk-coin-glyph', 'P');
   expect(await active(), '칩에 있는 글자를 치면 그 칩이 켜진다').toEqual(['P']);
@@ -351,6 +374,12 @@ test('K7 각도 잠금 — 켜면 다시뽑기·무늬번호가 이 코인을 �
   await page.click('#stk-coin-section .prop-toggle');
   await expect.poll(async () => (await read(page, id)).d.coinLock, '토글을 켰는데 data-coin-lock 이 안 붙었다').toBe('1');
   expect(await ctl(), '잠그면 단추·칸이 둘 다 disabled').toEqual({ reroll: true, seed: true, lock: true });
+  /* 꺼진 단추는 흐리게 보인다 — 값은 토큰(--ui-disabled-opacity) */
+  const look = () => page.evaluate(() => { const b = document.getElementById('stk-coin-reroll'), cs = getComputedStyle(b);
+    return { opacity: parseFloat(cs.opacity), cursor: cs.cursor, token: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-disabled-opacity')) }; });
+  const dim = await look();
+  expect(dim.token > 0 && dim.token < 1, `★전제: 토큰 --ui-disabled-opacity 가 있다 (${dim.token})`).toBe(true);
+  expect([dim.opacity, dim.cursor], '잠긴 다시뽑기 단추가 눌릴 것처럼 보인다').toEqual([dim.token, 'not-allowed']);
   expect(/data-coin-lock="1"/.test(await page.evaluate(() => window.getSerializedCanvas())), '저장본에 data-coin-lock="1" 이 실린다').toBe(true);
 
   /* 잠긴 단추를 진짜로 누른다 — 누르는 점이 그 단추 위다 */
@@ -379,6 +408,7 @@ test('K7 각도 잠금 — 켜면 다시뽑기·무늬번호가 이 코인을 �
   await page.click('#stk-coin-section .prop-toggle');
   await expect.poll(async () => (await read(page, id)).d.coinLock, '끄면 속성을 지운다').toBeUndefined();
   expect(await ctl()).toEqual({ reroll: false, seed: false, lock: false });
+  expect((await look()).opacity, '풀면 단추가 원래대로 보인다').toBe(1);
   await page.click('#stk-coin-reroll');
   await expect.poll(async () => (await read(page, id)).d.seed, '풀었는데 다시뽑기가 안 돈다').not.toBe('201');
 });
@@ -418,7 +448,7 @@ test('K8 ★저장 → 새 페이지에서 다시 열기 — 같은 그림 · �
 });
 
 test('K9 ★⌘Z / ⇧⌘Z — 패널 조작 한 번 = 한 칸, 되돌리면 그림도 돌아온다', async ({ page }) => {
-  test.setTimeout(90000);
+  test.setTimeout(150000);
   await bootApp(page);
   await setup(page);
   await selectSection(page);
@@ -444,9 +474,16 @@ test('K9 ★⌘Z / ⇧⌘Z — 패널 조작 한 번 = 한 칸, 되돌리면 그
   await one('각인 칩', () => page.click('#stk-coin-glyphs [data-coin-glyph="%"]'), (d) => d.coinGlyph === '%');
   await one('다시뽑기', () => page.click('#stk-coin-reroll'), (d) => d.seed !== a.d.seed);
   await one('두께', () => typeInto(page, '#stk-coin-k-num', 35), (d) => d.coinK === '35');
+  await one('광택', () => typeInto(page, '#stk-coin-gloss-num', 60), (d) => d.coinGloss === '60');
+  await one('무늬번호', () => typeInto(page, '#stk-coin-seed', 225), (d) => d.seed === '225' && d.coinTilt === '1' && d.coinDir === '-27');
+  await one('직접 입력', () => typeInto(page, '#stk-coin-glyph', 'AB'), (d) => d.coinGlyph === 'AB');
+  await one('재질(커스텀)', () => page.click('#stk-coin-metal [data-coin-metal="custom"]'), (d) => d.coinMetal === 'custom');
+  await one('앞면 색', () => typeInto(page, '#stk-coin-face-hex', '3366FF'), (d) => d.coinFace === '#3366ff');
+  await one('옆면 색', () => typeInto(page, '#stk-coin-side-hex', '112244'), (d) => d.coinSide === '#112244');
   await one('각도 잠금', () => page.click('#stk-coin-section .prop-toggle'), (d) => d.coinLock === '1');
   const end = await read(page, id);
-  expect([end.d.coinMetal, end.d.coinGlyph, end.d.coinK, end.d.coinLock], '다섯 조작이 다 다시 실행된 채다').toEqual(['silver', '%', '35', '1']);
+  expect([end.d.coinMetal, end.d.coinGlyph, end.d.coinK, end.d.coinGloss, end.d.seed, end.d.coinFace, end.d.coinSide, end.d.coinLock], '열한 조작이 다 다시 실행된 채다')
+    .toEqual(['custom', 'AB', '35', '60', '225', '#3366ff', '#112244', '1']);
 });
 
 test('K10 ★복제 — ⌘D · ⌘C⌘V · 섹션 ⌘C⌘V 의 사본이 제 id 로 다시 그려진다(문서에서 id 겹침 0)', async ({ page }) => {
@@ -681,7 +718,7 @@ test('K13 ★내보내기 그림 두 길(PNG · CDP 오프스크린 / 썸네일 
 test('K14 ★내보내기 HTML — 배송본에 코인 SVG 가 그대로 실리고 id 참조가 그 문서 안에서 풀린다', async ({ page }) => {
   await bootApp(page);
   await setup(page);
-  const id = await make(page, { seed: 199, coinMetal: 'custom', coinFace: '#3366ff', coinSide: '#112244', coinGlyph: '<&', rotation: 30, x: 200, y: 90 });
+  const id = await make(page, { seed: 199, coinMetal: 'custom', coinFace: '#3366ff', coinSide: '#112244', coinGlyph: '<b', rotation: 30, x: 200, y: 90 });
   const live = await read(page, id);
   expect([live.ids.length, live.selected, live.handles], '★전제: 코인이 그려져 있고 골라지지 않았다').toEqual([8, false, 0]);
   /* 진짜 exportHTMLFile() 을 부르고 «내려받는 대신» 그 HTML 문자열을 가로챈다 */
@@ -721,7 +758,8 @@ test('K14 ★내보내기 HTML — 배송본에 코인 SVG 가 그대로 실리�
   expect(r.nsOk, 'linearGradient·clipPath 가 SVG 요소로 살아 있지 않다(이름 대소문자가 깨졌다)').toBe(true);
   expect(r.refsResolve, 'url(#…) 참조가 배송본 문서 안에서 풀린다').toEqual(['clipPath', 'clipPath', 'linearGradient', 'linearGradient', 'linearGradient', 'linearGradient', 'linearGradient', 'linearGradient'].sort());
   expect(/^url\(/.test(r.faceFill), `앞면 fill 이 gradient 참조가 아니다: ${r.faceFill}`).toBe(true);
-  expect([r.texts, r.textKids], '각인 글자가 글자로 실린다').toEqual([['<&'], 0]);
+  expect([live.texts, live.textKids], '★전제: 화면의 각인이 글자 `<b` 다').toEqual([['<b'], 0]);
+  expect([r.texts, r.textKids], '각인 글자가 글자로 실린다(이스케이프가 없으면 <b 가 태그로 열린다)').toEqual([['<b'], 0]);
   expect([r.pos, r.w, r.rotated, r.svgW], '자리·크기·회전이 인라인 스타일로 실린다').toEqual(['absolute', 120, true, true]);
   expect(r.dupIds, '배송본 안에서 id 가 겹친다').toEqual([]);
   expect([r.handles, r.scripts]).toEqual([0, 0]);
@@ -754,4 +792,66 @@ test('K15 일반 「Sticker」 단추는 코인을 안 낳는다 · 다음 Coin 
   expect(b.d.coinLock, '각도 잠금은 물려받지 않는다').toBeUndefined();
   expect([b.d.x === a.d.x && b.d.y === a.d.y, b.ownIds, b.refsOwn], '둘째는 계단식으로 비켜 놓이고 제 id 로 그려진다').toEqual([false, true, true]);
   expect(await dupCoinIds(page)).toEqual([]);
+});
+
+test('K16 ★손댄 저장본 — 재질이 객체 내장 이름이거나 수가 깨져 있어도 열기가 안 멈추고 뒤 스티커도 그려진다', async ({ page }) => {
+  test.setTimeout(90000);
+  const errs = await bootApp(page);
+  /* 저장본에는 dataset 만 믿을 수 있다 — 그림은 열 때 다시 그린다. 코인 열셋(깨진 꼴) + 멀쩡한 코인 + 원 스티커(맨 뒤). */
+  const BAD = [
+    ['metal-constructor', 'data-coin-metal="constructor"'], ['metal-proto', 'data-coin-metal="__proto__"'], ['metal-toString', 'data-coin-metal="toString"'],
+    ['metal-hasOwn', 'data-coin-metal="hasOwnProperty"'], ['k-neg', 'data-coin-k="-50"'], ['k-huge', 'data-coin-k="1e9"'], ['gloss-nan', 'data-coin-gloss="NaN"'],
+    ['tilt-neg', 'data-coin-tilt="-9999"'], ['dir-huge', 'data-coin-dir="1e15"'], ['seed-abc', 'data-seed="abc"'],
+    ['face-bad', 'data-coin-metal="custom" data-coin-face="rgb(1.2.3,4,5)" data-coin-side="x"'], ['glyph-blank', 'data-coin-glyph="   "'], ['bare', ''],
+  ];
+  const html = (id) => `<div class="section-block" id="${id}" style="position:relative;height:420px;background:#f4f4f6"><div class="section-inner"></div>`
+    + BAD.map(([name, attrs], i) => `<div class="sticker-block" id="stk_bad${i}" data-bad="${name}" data-type="sticker" data-shape="coin" data-x="${20 + (i % 7) * 115}" data-y="${20 + Math.floor(i / 7) * 130}" data-size-w="100" data-size-h="100" ${attrs}></div>`).join('')
+    + '<div class="sticker-block" id="stk_good" data-type="sticker" data-shape="coin" data-seed="201" data-coin-tilt="35" data-coin-dir="-24" data-x="40" data-y="290" data-size-w="100" data-size-h="100"></div>'
+    + '<div class="sticker-block" id="stk_after" data-type="sticker" data-shape="circle" data-size="60" data-text="뒤" data-x="400" data-y="300"></div></div>';
+  const state = () => page.evaluate((n) => {
+    const one = (b) => { const svg = b.querySelector(':scope > svg'); const ids = svg ? [...svg.querySelectorAll('[id]')].map((e) => e.id) : [];
+      return { ids: ids.length, own: ids.every((x) => x.startsWith('coin-' + b.id)), nan: svg ? /NaN|undefined|Infinity/.test(svg.outerHTML.split(b.id).join('')) : true, vb: svg?.getAttribute('viewBox') || null, w: svg ? Math.round(svg.getBoundingClientRect().width) : 0 }; };
+    const out = {};
+    for (let i = 0; i < n; i++) { const b = document.getElementById('stk_bad' + i); out[b.dataset.bad] = one(b); }
+    out.good = one(document.getElementById('stk_good'));
+    return { coins: out, afterText: document.querySelector('#stk_after .sticker-text')?.textContent || null, total: document.querySelectorAll('#canvas .sticker-block').length };
+  }, BAD.length);
+  const judge = (st, where) => {
+    expect(st.total, `${where}: ★전제 — 스티커 ${BAD.length + 2}개가 있다`).toBe(BAD.length + 2);
+    for (const [name] of BAD) {
+      const c = st.coins[name];
+      expect([c.ids, c.own, c.nan, c.w > 0], `${where}: 깨진 코인 「${name}」이 안 그려졌다 — ${JSON.stringify(c)}`).toEqual([8, true, false, true]);
+      const [, , vw] = c.vb.split(' ').map(Number);
+      expect(vw >= 116 && vw <= 180, `${where}: 「${name}」의 viewBox 가 범위 밖이다(코인이 안 보인다) — ${c.vb}`).toBe(true);
+    }
+    expect(st.coins.good.ids, `${where}: 멀쩡한 코인`).toBe(8);
+    expect(st.afterText, `${where}: ★깨진 코인 «뒤»의 스티커가 안 그려졌다 — 하나가 던져 로드가 멈췄다`).toBe('뒤');
+  };
+  /* ⑴ rebindAll 길 */
+  const threw = await page.evaluate((h) => { document.getElementById('canvas').innerHTML = h; try { window.rebindAll(); return null; } catch (e) { return String(e); } }, html('secK'));
+  expect(threw, 'rebindAll 이 던졌다').toBeNull();
+  judge(await state(), 'rebindAll');
+  expect((await state()).coins['k-neg'].vb, '두께 -50 → 아래 끝 8%').toBe('-58 -58 116 116');
+  expect((await state()).coins['k-huge'].vb, '두께 1e9 → 위 끝 40%').toBe('-90 -90 180 180');
+  /* 칸 = 그림 — 패널도 같은 끝값을 보여 준다 */
+  for (const [i, want] of [[4, '8'], [5, '40']]) {
+    await pick(page, 'stk_bad' + i);
+    expect(await page.inputValue('#stk-coin-k-num'), `패널의 두께 칸(${BAD[i][0]})이 그림과 다르다`).toBe(want);
+  }
+  await pick(page, 'stk_bad0');
+  expect(await page.evaluate(() => [...document.querySelectorAll('#stk-coin-metal .active')].map((b) => b.dataset.coinMetal)), '모르는 재질은 패널에서도 금').toEqual(['gold']);
+  /* 뒤 스티커는 묶여 있다(눌러서 골라진다) */
+  const ra = await waitStableRect(page, '[id="stk_after"]');
+  await clickAt(page, ra.cx, ra.cy, { sel: '.sticker-block' }, { label: '뒤 스티커' });
+  await expect.poll(() => page.evaluate(() => document.getElementById('stk_after').classList.contains('selected')), '깨진 코인 뒤의 스티커가 안 묶였다').toBe(true);
+
+  /* ⑵ 저장 → 새 페이지에서 열기(applyProjectData) 길 — 속성만 남기고 그림은 비운 저장본 */
+  const snap = await page.evaluate((h) => { const p = JSON.parse(window.serializeProject()); const pg = (p.pages || [])[0]; if (pg && typeof pg.canvas === 'string') { pg.canvas = h; return JSON.stringify(p); } return null; }, html('secK'));
+  expect(snap, '★전제: 저장본의 첫 페이지 canvas 를 손댔다').not.toBeNull();
+  const errs2 = await bootApp(page);
+  const threw2 = await page.evaluate(async (d) => { try { await window.applyProjectData(JSON.parse(d)); return null; } catch (e) { return String(e); } }, snap);
+  expect(threw2, 'applyProjectData 가 던졌다').toBeNull();
+  await expect.poll(async () => (await state()).total, '다시 연 뒤 스티커 수').toBe(BAD.length + 2);
+  judge(await state(), 'applyProjectData');
+  expect([errs, errs2], '페이지 오류 0').toEqual([[], []]);
 });
