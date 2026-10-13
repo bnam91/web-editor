@@ -855,7 +855,9 @@ function _renderPie(block, { items, chartH, labelSize }) {
   const donut = d.chartType === 'donut' || d.pieDonut === '1';   // 1013t1C1 — 유형은 '원형' 하나 + 「도너츠」 토글(pieDonut='1'). 옛 유형 'donut' 은 «영구 별칭»(옛 저장본 그대로 그린다)
   const hole = donut ? Math.min(L.PIE_HOLE_MAX, Math.max(L.PIE_HOLE_MIN, Number.isFinite(_h) ? _h : L.PIE_HOLE_DEFAULT)) : 0;
   const _vals = items.map(it => it && it.value);
-  const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, L.PIE_GAP);   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
+  const _g = parseInt(d.pieGap);   // 1013t1C6 — 조각 간격(없으면 기본 PIE_GAP · 0 = 맞닿는다)
+  const gap = (d.pieGap !== undefined && Number.isFinite(_g)) ? Math.min(L.PIE_GAP_MAX, Math.max(L.PIE_GAP_MIN, _g)) : L.PIE_GAP;
+  const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, gap);   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
   const pcts = window.GRAPH_PIE_GEOM.piePercents(_vals);                // 합이 정확히 100(최대 잔여법)
   const _lc = d.labelColor || '';
   const _vCss = (d.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.vlabelColor || _lc)));

@@ -4,6 +4,7 @@
  * 기하는 «화면 좌표»가 아니라 SVG 사용자 좌표의 isPointInFill 로 잰다(0~1000 viewBox · 중심 500 · 12시 = 0° · 시계 방향) — 배율·패널 폭과 무관.
  * 기다림은 전부 조건(waitForFunction · expect.poll · 로케이터 자동 대기) — 고정 대기 0.
  *   C1 — D1 옛 donut 패널 · D2 도너츠 토글 왕복 · D3 옛 donut → 막대 → 원형 = 도넛 · D4 ⌘Z · G1 옛 꼴 블럭 저장·다시 열기·패널 무변 · G2 구멍 슬라이더 왕복
+ *   C6 — E1 조각 간격이 그림을 바꾼다(0 = 맞닿음 · 40 = 넓은 틈) · E2 패널 칸의 한계 = GRAPH_LIMITS · 999 → 40 되쓰기 · ⌘Z
  *   G0 골든 핀: 새 키가 «하나도 없는» 블럭의 그림(innerHTML)이 1012 판과 바이트가 같다 — 1013t1C0 에서 «고치기 전 판» 위에 박았다.
  * 실행: bash ~/taeyang-098/run-test.sh dom tests/dom/graph-pie-1013.dom.spec.js */
 const { test, expect } = require('@playwright/test');
@@ -204,5 +205,63 @@ test('G2 옛 꼴 블럭의 구멍 슬라이더 55 → 56 → 55 — 그림이 �
   expect(await htmlOf(page, id), '55 로 돌아오면 처음 그림(바이트)').toBe(html0);
   expect(await ds(page, id, 'chartType'), '구멍만 만져서는 유형을 안 옮겨 쓴다').toBe('donut');
   expect(await ds(page, id, 'pieDonut')).toBeNull();
+  expect(errs).toEqual([]);
+});
+
+/* ── C6 조각 간격(dataset.pieGap · viewBox 단위 · 없으면 기본 10) ── */
+test('E1 조각 간격 — 경계 옆 점: 기본은 틈 · pieGap 0 이면 조각 안 · 40 이면 더 먼 점도 틈', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V6 });
+  expect((await dOf(page, id)).filter(Boolean).length, '전제: 조각 6').toBe(6);
+  expect(await ds(page, id, 'pieGap'), '전제: 키 없음 = 기본 틈').toBeNull();
+  const none = [false, false, false, false, false, false], s1 = [false, true, false, false, false, false];
+  /* 경계 108°(조각0|조각1). 0.75R 에서 0.5° ≈ 3.3 단위(기본 틈 절반 5 보다 안) · 2° ≈ 13 단위(기본 틈 밖 · 40 의 절반 20 보다 안) */
+  expect(await hit(page, id, 108.5, 0.75), '전제: 기본 틈 — 경계에서 0.5° 는 어느 조각에도 안 든다').toEqual(none);
+  expect(await hit(page, id, 110, 0.75), '전제: 기본 틈 — 2° 는 조각1 안').toEqual(s1);
+  await setDs(page, id, { pieGap: '0' });
+  expect(await hit(page, id, 108.5, 0.75), 'pieGap 0: 0.5° 가 조각1 안(맞닿는다)').toEqual(s1);
+  expect(await hit(page, id, 107.5, 0.75), 'pieGap 0: 반대쪽 0.5° 는 조각0 안').toEqual([true, false, false, false, false, false]);
+  await setDs(page, id, { pieGap: '40' });
+  expect(await hit(page, id, 110, 0.75), 'pieGap 40: 2° 도 틈').toEqual(none);
+  expect(await hit(page, id, 126, 0.75), 'pieGap 40: 조각1 의 가운데는 그대로 조각 안').toEqual(s1);
+  /* 한계 밖·험한 값은 렌더가 자른다 — 999 = 40 과 같은 그림 · 글자 = 기본과 같은 그림 */
+  const d40 = await dOf(page, id);
+  await setDs(page, id, { pieGap: '999' });
+  expect(await dOf(page, id)).toEqual(d40);
+  await setDs(page, id, { pieGap: null });
+  const dDef = await dOf(page, id);
+  await setDs(page, id, { pieGap: 'abc' });
+  expect(await dOf(page, id), '글자 = 기본 틈').toEqual(dDef);
+  expect(await htmlOf(page, id)).not.toMatch(/NaN|Infinity|undefined/);
+  expect(errs).toEqual([]);
+});
+
+test('E2 조각 간격 칸 — 한계·기본 = GRAPH_LIMITS · 끌면 그려지고 · 999 → 40 되써지고 · ⌘Z 한 번에 돌아온다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie' });
+  await openPanel(page, id);
+  const d0 = await dOf(page, id);
+  expect(d0.length, '전제: 조각이 있다').toBeGreaterThan(0);
+  expect(await page.locator('#grb-pie-gap-slider').count(), '전제: 원형이면 조각 간격 줄이 있다').toBe(1);
+  expect(await page.evaluate(() => { const s = document.getElementById('grb-pie-gap-slider'), n = document.getElementById('grb-pie-gap-number'); return [s.min, s.max, s.value, n.min, n.max, n.value]; }),
+    '칸의 한계·기본 = GRAPH_LIMITS').toEqual(await page.evaluate(() => { const L = window.GRAPH_LIMITS; const a = [String(L.PIE_GAP_MIN), String(L.PIE_GAP_MAX), String(L.PIE_GAP)]; return [...a, ...a]; }));
+  await page.evaluate(() => { const s = document.getElementById('grb-pie-gap-slider'); s.value = '25'; s.dispatchEvent(new Event('input', { bubbles: true })); });
+  expect(await ds(page, id, 'pieGap')).toBe('25');
+  const d25 = await dOf(page, id);
+  expect(d25, '간격이 바뀌면 조각 길이 바뀐다').not.toEqual(d0);
+  expect(await page.inputValue('#grb-pie-gap-number')).toBe('25');
+  await page.evaluate(() => document.getElementById('grb-pie-gap-slider').dispatchEvent(new Event('change', { bubbles: true })));   // 놓기 = 히스토리 한 칸
+  await page.locator('#grb-pie-gap-number').fill('999');
+  await page.locator('#grb-pie-gap-number').press('Enter');
+  await expect.poll(() => ds(page, id, 'pieGap')).toBe('40');
+  expect(await page.inputValue('#grb-pie-gap-number')).toBe('40');
+  expect(await page.inputValue('#grb-pie-gap-slider')).toBe('40');
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate(() => document.querySelector('#sG .graph-block')?.dataset.pieGap ?? null)).toBe('25');
+  expect(await page.evaluate(() => [...document.querySelectorAll('#sG .graph-block .grb-pie-slice')].map(p => p.getAttribute('d'))), '되돌린 그림 = 25 때 그림').toEqual(d25);
+  /* 막대 유형에선 줄이 없다 */
+  await openPanel(page, await page.evaluate(() => document.querySelector('#sG .graph-block').id));
+  await page.locator('#grb-type-v').click();
+  await expect.poll(() => page.evaluate(() => document.querySelector('#sG .graph-block').dataset.chartType)).toBe('bar-v');
+  expect(await page.locator('#grb-pie-gap-slider').count()).toBe(0);
   expect(errs).toEqual([]);
 });

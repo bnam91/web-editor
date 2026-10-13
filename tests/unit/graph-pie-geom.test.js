@@ -202,3 +202,20 @@ test('U11 골든 핀 — 새 인자를 안 주면 조각 path 가 1012 판과 �
   assert.equal(n, 8, '전제: 표본을 다 돌았다');
   assert.equal(piePaths([1, 1, 2], 0, 10).paths[0], 'M 505.00 495.00 L 505.00 0.03 A 500.00 500.00 0 0 1 999.97 495.00 Z', '해시가 재는 글자의 꼴(눈으로 읽는 한 줄)');
 });
+
+test('U12 조각 간격 한계 — graph-limits 한 자리 · 틈 0 이면 조각이 중심에서 맞닿고 · 위 끝(40)에서도 조각이 남는다', () => {
+  assert.equal(LIM.PIE_GAP, 10, '기본 틈은 그대로(옛 저장본)');
+  assert.equal(LIM.PIE_GAP_MIN, 0);
+  assert.equal(LIM.PIE_GAP_MAX, 40);
+  assert.ok(LIM.PIE_GAP_MIN <= LIM.PIE_GAP && LIM.PIE_GAP <= LIM.PIE_GAP_MAX, '기본값이 한계 안');
+  const V = [30, 20, 15, 15, 10, 10];
+  const g0 = piePaths(V, 0, LIM.PIE_GAP_MIN), gd = piePaths(V, 0, LIM.PIE_GAP), gx = piePaths(V, 0, LIM.PIE_GAP_MAX);
+  assert.equal(g0.paths.length, 6, '전제'); assert.equal(gx.paths.length, 6, '전제');
+  assert.equal(g0.gap, 0); assert.equal(gd.gap, 10); assert.equal(gx.gap, 40);
+  for (const d of g0.paths) assert.match(d, /^M 500\.00 500\.00 L /, '틈 0: 모든 조각이 중심에서 떠난다(맞닿는다)');
+  assert.match(g0.paths[0], /^M 500\.00 500\.00 L 500\.00 0\.00 A /, '틈 0: 첫 변은 x = 500 세로선');
+  assert.match(gd.paths[0], /^M 505\.00 [\d.]+ L 505\.00 0\.03 A /, '기본 10: 첫 변이 5 만큼 밀린다');
+  assert.match(gx.paths[0], /^M 520\.00 [\d.]+ L 520\.00 0\.40 A /, '40: 첫 변이 20 만큼 밀린다');
+  assert.ok(gx.paths.every(d => d.length > 0 && arcs(d).length >= 1), '40 에서도 여섯 조각이 다 그려진다');
+  assert.deepEqual(gx.angles, g0.angles, '경계각은 틈과 무관');
+});
