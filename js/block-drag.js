@@ -1954,6 +1954,7 @@ function bindBlock(block) {
 
   if (isLaurel) {
     window.lnBindLineEdit?.(block);   // ★1013t1B2 — 칸 «줄»의 글자 편집(더블클릭, capture). 옛 자체 편집(_bindLaurelInlineEdit)은 걷었다
+    window.lrlBindPlus?.(block);      // ★1013t1B2 C5 — 캔버스 ＋(칸 열·행 · 그리드 ＋ 와 같은 층·꼴)
     block.addEventListener('click', e => {
       e.stopPropagation();
       /* ★1013t1B2 — 그리드 2단 선택과 같은 규칙(챗·비교 꼴): 이미 «이것 하나»가 선택돼 있었으면 칸/줄을 고른다. deselectAll «전»에 잰다. */

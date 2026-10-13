@@ -611,3 +611,82 @@ test.describe('laurel 줄 — C4 그림(에셋) 줄', () => {
     expect(errs2).toEqual([]);
   });
 });
+
+/* ══ C5 — 캔버스 ＋ (칸 열·행 · 결정 B2-1) ═══════════════════════════════════════════════════════
+ * 음성대조(1회 실측 · 생성기 C5): js/block-drag.js isLaurel 의 `window.lrlBindPlus?.(block);` 를 빼면 → LL16 빨강(＋ 0개)
+ *   실측 2026-10-13: 1 failed(LL16 — ＋ 2개 기다림 시간초과) / 16 passed · 되돌린 뒤 cmp 같음. */
+const PLUS = (axis) => `#grd-plus-layer > .ln-add-btn[data-grd-add="${axis}"]`;
+const plusInfo = (page) => page.evaluate(() => {
+  const b = document.getElementById(window.__bid); const br = b.getBoundingClientRect();
+  const one = (axis) => { const e = document.querySelector(`#grd-plus-layer > .ln-add-btn[data-grd-add="${axis}"][data-ln-for="${b.id}"]`); if (!e) return null;
+    const q = e.getBoundingClientRect(); const s = getComputedStyle(e);
+    return { cx: q.left + q.width / 2, cy: q.top + q.height / 2, top: q.top, w: q.width, h: q.height, disabled: e.disabled, look: [s.borderRadius, s.backgroundColor, s.borderColor, s.borderWidth, s.color, s.fontSize] }; };
+  return { block: { right: br.right, bottom: br.bottom, midX: (br.left + br.right) / 2, midY: (br.top + br.bottom) / 2 }, col: one('col'), row: one('row'),
+    all: document.querySelectorAll(`#grd-plus-layer > .ln-add-btn[data-ln-for="${b.id}"]`).length };
+});
+
+test.describe('laurel 줄 — C5 캔버스 ＋(칸 열·행)', () => {
+  test('LL16 C5 ＋ — 고를 때만 둘 · 그리드 ＋ 와 같은 자리 식·꼴 · ＋열 1번 = 열 +1(새 칸 = 기본 줄 · 잎 꾸밈 이어받기) · ⌘Z 한 걸음 · 4 에서 흐림 · 내보내기에 안 샌다', async ({ page }) => {
+    const ONE = [{ lines: [{ text: '첫칸', fontSize: 40, fontWeight: 600, color: '#2244aa' }], leafColor: '#c0a060', leafFill: 'gold', gap: 12, height: 120 }];
+    const errs = await setup(page, ONE, 1, 1);
+    await page.evaluate(() => { window.deselectAll(); window.clearHistory?.(); });
+    expect((await plusInfo(page)).all, '고르기 전 = ＋ 0').toBe(0);
+    const p = await waitStableRect(page, '#sB .laurel-block .laurel-leaf-left');
+    await page.mouse.click(p.cx, p.cy);
+    await page.waitForFunction(() => document.querySelectorAll(`#grd-plus-layer > .ln-add-btn[data-ln-for="${window.__bid}"]`).length === 2);
+    await waitStableRect(page, PLUS('col'));
+    const i1 = await plusInfo(page);
+    expect(Math.abs(i1.col.cx - i1.block.right) <= 1.5 && Math.abs(i1.col.cy - i1.block.midY) <= 1.5, `오른쪽 ＋ = (블럭 오른쪽 끝, 세로 가운데) ${JSON.stringify(i1)}`).toBe(true);
+    expect(Math.abs(i1.row.cx - i1.block.midX) <= 1.5 && Math.abs(i1.row.top - i1.block.bottom) <= 1.5, '아래 ＋ = (가로 가운데, 블럭 아래 끝)').toBe(true);
+    // 꼴 = 그리드 ＋ 와 같다(같은 CSS 규칙 · 토큰) — 같은 페이지 그리드 블럭을 골라 ＋ 를 견준다
+    const gridLook = await page.evaluate(() => {
+      window.selectSection(document.getElementById('sB')); window.addGridBlock({});
+      const g = [...document.querySelectorAll('#sB .grid-block')].pop(); window.deselectAll(); g.classList.add('selected');
+      return new Promise(res => requestAnimationFrame(() => requestAnimationFrame(() => {
+        const e = document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-add="col"][data-grd-for="${g.id}"]`); const q = e.getBoundingClientRect(); const s = getComputedStyle(e);
+        const out = { w: q.width, h: q.height, look: [s.borderRadius, s.backgroundColor, s.borderColor, s.borderWidth, s.color, s.fontSize] };
+        g.classList.remove('selected'); g.closest('.row')?.remove(); res(out); })));
+    });
+    expect([i1.col.w, i1.col.h, i1.col.look], '그리드 ＋ 와 같은 크기·꼴').toEqual([gridLook.w, gridLook.h, gridLook.look]);
+    // 다시 고른다(그리드를 고르며 풀렸다)
+    await page.mouse.click(p.cx, p.cy);
+    await page.waitForFunction(() => document.querySelectorAll(`#grd-plus-layer > .ln-add-btn[data-ln-for="${window.__bid}"]`).length === 2);
+    const before = await page.evaluate(() => document.getElementById(window.__bid).dataset.cells);
+    const c = await waitStableRect(page, PLUS('col'));
+    await page.mouse.click(c.cx, c.cy);
+    await expect.poll(() => page.evaluate(() => document.getElementById(window.__bid).dataset.gridCols)).toBe('2');
+    const cells = await cellsOf(page);
+    expect(cells.length).toBe(2);
+    expect(cells[1].lines.map(l => l.text), '새 칸 = 기본 줄(첫 칸 글자 복제 아님)').toEqual(['1위']);
+    expect([cells[1].leafColor, cells[1].leafFill, cells[1].gap, cells[1].height], '잎 꾸밈은 첫 칸을 잇는다').toEqual(['#c0a060', 'gold', 12, 120]);
+    expect(cells[0].lines[0].text, '첫 칸 무변').toBe('첫칸');
+    expect(await page.evaluate(() => document.getElementById(window.__bid).classList.contains('selected')), '선택 유지').toBe(true);
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('Meta+z');
+    await expect.poll(() => page.evaluate(() => document.getElementById(window.__bid).dataset.cells), '⌘Z 한 번 = 전 그대로').toBe(before);
+    expect(await page.evaluate(() => document.getElementById(window.__bid).dataset.gridCols)).toBe('1');
+    // 아래 ＋ 한 번 → 행 +1
+    await page.evaluate(() => { const b = document.getElementById(window.__bid); window.deselectAll(); b.classList.add('selected'); });
+    await page.waitForFunction(() => document.querySelectorAll(`#grd-plus-layer > .ln-add-btn[data-ln-for="${window.__bid}"]`).length === 2);
+    const rw = await waitStableRect(page, PLUS('row'));
+    await page.mouse.click(rw.cx, rw.cy);
+    await expect.poll(() => page.evaluate(() => document.getElementById(window.__bid).dataset.gridRows)).toBe('2');
+    // 상한 4 — 흐림 + 눌러도 그대로
+    await page.evaluate(() => window.updateLaurelBlock(window.__bid, { gridCols: 4 }));
+    await expect.poll(async () => (await plusInfo(page)).col?.disabled, '열 4 = 오른쪽 ＋ 흐림').toBe(true);
+    expect((await plusInfo(page)).row.disabled, '행 2 = 아래 ＋ 살아 있음').toBe(false);
+    const c4 = await waitStableRect(page, PLUS('col'));
+    await page.mouse.click(c4.cx, c4.cy);
+    expect(await page.evaluate(() => document.getElementById(window.__bid).dataset.gridCols), '상한에서 누름 = 그대로').toBe('4');
+    // 내보내기·저장에 안 샌다(＋ 는 #canvas 밖 층)
+    const leak = await page.evaluate(() => { window.flushCurrentPage?.(); const s = window.serializeProject(); const f = JSON.stringify(window.buildFigmaExportJSON(null));
+      return { save: s.includes('ln-add-btn'), figma: f.includes('ln-add-btn'), inCanvas: document.querySelectorAll('#canvas .ln-add-btn').length }; });
+    expect(leak, '저장·Figma·#canvas 안 = ＋ 0').toEqual({ save: false, figma: false, inCanvas: 0 });
+    // 편집 중·풀림 = ＋ 없음
+    await page.evaluate(() => document.getElementById(window.__bid).classList.add('editing'));
+    await expect.poll(async () => (await plusInfo(page)).all, '편집 중 = ＋ 0').toBe(0);
+    await page.evaluate(() => { document.getElementById(window.__bid).classList.remove('editing'); window.deselectAll(); });
+    await expect.poll(async () => (await plusInfo(page)).all, '풀림 = ＋ 0').toBe(0);
+    expect(errs).toEqual([]);
+  });
+});
