@@ -140,7 +140,7 @@ test('S0 ★전제 — 배선이 섰다(window 에 셋이 있고 콘솔 오류 0
     kinds: window.ParticlesFx?.KINDS,
   }));
   expect(r).toEqual({ fx: 'function', seed: 'function', apply: 'function', write: 'function',
-    kinds: ['star', 'gold', 'party', 'dust'] });
+    kinds: ['star', 'gold', 'party', 'dust', 'coin'] });   /* 다섯째 「coin」 = 현빈 노트 1013t2E3 */
 
   /* ★★상한을 ★여기서 ★«값»으로 ★잠그지 ★않는다 — ⛔2026-10-08 ★그것이 ★이 칸을 ★깼다.
      ★옛 판은 ★`cap: 60` ★맨숫자였다 ⇒ ★현빈이 ★「60개 말고 ★120개까지하자 최대」라 해

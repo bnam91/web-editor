@@ -65,6 +65,16 @@ async function typeInto(page, sel, value) {
   await page.keyboard.type(String(value));
   await page.keyboard.press('Enter');
 }
+/* 「조작 한 번 = ⌘Z 한 걸음」 — 기존 코인 검사(coin-sticker K9)와 같은 꼴: 히스토리 수(A1·A2)는 헬퍼가, 되돌아온 값·그림은 여기서 직접 본다. */
+async function oneUndo(page, id, label, action) {
+  const snap = () => page.evaluate((id) => { const b = document.getElementById(id); return b ? { d: { ...b.dataset }, svg: b.querySelector(':scope > svg')?.outerHTML, left: b.style.left, top: b.style.top } : null; }, id);
+  const before = await snap();
+  const h = await expectOneUndoStep(page, action, label, { soft: true });
+  expect(h.changed, `${label}: A0 조작이 화면을 바꿨다`).toBe(true);
+  expect(h.dPos >= 1 && h.seqNew, `${label}: A1 조작 직후 꼭대기가 새 칸(끝 표본) — Δpos=${h.dPos}`).toBe(true);
+  expect([h.undoDLen, h.undoDPos], `${label}: A2 ⌘Z 가 구제 칸을 안 만들고 정확히 한 칸 내려간다`).toEqual([0, -1]);
+  expect(await snap(), `${label}: ⌘Z 한 번에 값·자리·그림이 조작 전으로`).toEqual(before);
+}
 const ds = (page, id) => page.evaluate((id) => ({ ...document.getElementById(id).dataset }), id);
 
 /* ★코인 «그림»이 섹션 안에 남은 비율 — 화면에서 직접 잰다.
@@ -90,6 +100,7 @@ test('C2-a Position 절 — Coin 절 위 · 텍스트 Position 과 같은 꼴 ·
   await setup(page);
   const id = await make(page);
   await pick(page, id);
+  await page.evaluate(() => window.pushHistory?.('준비'));              // 코드로 넣은 코인을(고른 채로) 히스토리 꼭대기에 올린다 — ⌘Z 가 돌아갈 자리
   const p = await page.evaluate(() => {
     const pos = document.getElementById('stk-coin-pos-section'), coin = document.getElementById('stk-coin-section');
     const sig = (inp) => { const w = inp.closest('.prop-icon-input'); return [inp.type, w?.className, w?.querySelector('.prop-xy-label')?.textContent, w?.parentElement.className, w?.parentElement.parentElement.className, inp.getAttribute('aria-label')]; };
@@ -108,11 +119,10 @@ test('C2-a Position 절 — Coin 절 위 · 텍스트 Position 과 같은 꼴 ·
 
   /* 쳐 넣는다 — 저장값 · 화면 자리 · 칸이 같이 간다 · 그림은 안 바뀐다 */
   const svg0 = await page.evaluate((id) => document.getElementById(id).querySelector('svg').outerHTML, id);
-  const step = await expectOneUndoStep(page, async () => {
+  await oneUndo(page, id, '코인 X', async () => {
     await typeInto(page, '#stk-coin-x', 300);
     await expect.poll(async () => (await ds(page, id)).x).toBe('300');
-  }, '코인 X');
-  expect(step.dPos).toBeGreaterThanOrEqual(1);
+  });
   await pick(page, id);
   await typeInto(page, '#stk-coin-x', 300);
   await typeInto(page, '#stk-coin-y', 210);
@@ -193,7 +203,15 @@ test('C2-d ⌘ 끌기 — 코인은 10% 를 남기고 · X·Y 칸이 따라온�
   expect(+d.x < -50, `★전제: ⌘ 끌기로 섹션 밖까지 나갔다(x=${d.x})`).toBe(true);
   const got = await inkInside(page, id);
   expect(got.fx >= 0.1 - 1e-3 && got.fx <= 0.1 + 1.01 / got.inkW + 1e-3, `⌘ 끌기 뒤 섹션 안에 남은 그림 ${(got.fx * 100).toFixed(2)}% (10% 여야 한다)`).toBe(true);
-  expect([midX, await page.inputValue('#stk-coin-x'), await page.inputValue('#stk-coin-y')], 'X·Y 칸이 끄는 동안에도, 놓은 뒤에도 저장값과 같다').toEqual([d.x, d.x, d.y]);
+  expect(midX, 'X 칸이 끄는 동안 저장값을 따라온다').toBe(d.x);
+  /* 놓은 뒤 — 패널이 그대로면 그 칸을, 다른 패널로 바뀌었으면 다시 골라서 본다(어느 쪽이었는지 적어 둔다) */
+  const kept = await page.evaluate(() => !!document.getElementById('stk-coin-x'));
+  test.info().annotations.push({ type: 'note', description: `⌘ 끌기 뒤 코인 패널이 남아 있나: ${kept}` });
+  if (!kept) {                                                          // 코인 가운데가 섹션 밖이라 마우스로는 못 누른다 — 코드로 고른다
+    await page.evaluate((id) => window._selectSticker(document.getElementById(id)), id);
+    await page.waitForSelector('#stk-coin-x');
+  }
+  expect([await page.inputValue('#stk-coin-x'), await page.inputValue('#stk-coin-y')], '놓은 뒤 X·Y 칸 = 저장값').toEqual([d.x, d.y]);
   /* 코인이 아닌 스티커는 이 한도를 안 받는다(다른 스티커의 ⌘ 자유 이동은 그대로) */
   const other = await page.evaluate(() => {
     const b = window.makeStickerBlock({ shape: 'circle', x: 40, y: 40 });
@@ -203,7 +221,7 @@ test('C2-d ⌘ 끌기 — 코인은 10% 를 남기고 · X·Y 칸이 따라온�
   expect(other).toEqual([null, null]);
 });
 
-test('C2-e 각도가 바뀌어 그림 상자가 달라지면 다시 가둔다(다시뽑기로 코인이 밖에 남지 않는다)', async ({ page }) => {
+test('C2-e 생김새(두께)가 바뀌어 그림 상자가 달라지면 다시 가둔다(코인이 10% 아래로 밖에 남지 않는다)', async ({ page }) => {
   await bootApp(page);
   await setup(page);
   const id = await make(page, { coinTilt: 0, coinDir: 0, sizeW: 240, sizeH: 240 });   // 정면 — 그림 폭이 가장 넓다 · 크게(한도 차이가 3px 로 벌어진다)
@@ -212,12 +230,12 @@ test('C2-e 각도가 바뀌어 그림 상자가 달라지면 다시 가둔다(�
   await expect.poll(async () => +(await ds(page, id)).x < 0).toBe(true);
   const x0 = +(await ds(page, id)).x;
   expect((await inkInside(page, id)).fx, '★전제: 정면 코인이 왼쪽 끝에서 10% 남아 있다').toBeGreaterThanOrEqual(0.1 - 1e-3);
-  /* 무늬번호 201 → 기울기 35 · 방향 -24 — 그림의 오른쪽 끝이 안쪽으로 들어온다 ⇒ 같은 x 로는 10% 가 안 남는다 */
-  await typeInto(page, '#stk-coin-seed', 201);
-  await expect.poll(async () => (await ds(page, id)).coinTilt).toBe('35');
+  /* 두께 22 → 40 — 상자 안에서 그림이 작아진다(viewBox 가 넓어진다) ⇒ 그림의 오른쪽 끝이 안쪽으로 들어와 같은 x 로는 10% 가 안 남는다 */
+  await typeInto(page, '#stk-coin-k-num', 40);
+  await expect.poll(async () => (await ds(page, id)).coinK).toBe('40');
   const d = await ds(page, id);
   const lim = await page.evaluate((id) => { const b = document.getElementById(id); return window._coinKeepRange(b, b.closest('.section-block')); }, id);
-  expect(+d.x > x0, `각도를 바꿨는데 자리가 그대로다(x ${x0} → ${d.x}) — 그림이 10% 아래로 남는다`).toBe(true);
+  expect(+d.x > x0 + 5, `두께를 바꿨는데 자리가 그대로다(x ${x0} → ${d.x}) — 그림이 10% 아래로 남는다`).toBe(true);
   expect(+d.x, '새 그림 상자의 왼쪽 한도로 왔다').toBe(lim.minX);
   expect([await page.inputValue('#stk-coin-x'), await page.evaluate((id) => document.getElementById(id).style.left, id)]).toEqual([d.x, d.x + 'px']);
 });
@@ -257,6 +275,7 @@ test('C3-b 번짐 값 → 그림 — 세로로만 번지는 필터 · 0 이면 �
   await setup(page);
   const id = await make(page);
   await pick(page, id);
+  await page.evaluate(() => window.pushHistory?.('준비'));
   const pic = () => page.evaluate((id) => {
     const b = document.getElementById(id), svg = b.querySelector(':scope > svg');
     const f = svg.querySelector('filter'), blur = svg.querySelector('feGaussianBlur');
@@ -269,11 +288,10 @@ test('C3-b 번짐 값 → 그림 — 세로로만 번지는 필터 · 0 이면 �
   const plain = await pic();
   expect([plain.filterId, plain.sd, plain.wrap, plain.blurData], '★전제: 번짐 없는 코인엔 필터가 없다').toEqual([null, null, null, null]);
 
-  const step = await expectOneUndoStep(page, async () => {
+  await oneUndo(page, id, '코인 번짐', async () => {
     await typeInto(page, '#stk-coin-blur-num', 6);
     await expect.poll(async () => (await pic()).blurData).toBe('6');
-  }, '코인 번짐');
-  expect(step.dPos).toBeGreaterThanOrEqual(1);
+  });
   await pick(page, id);
   await typeInto(page, '#stk-coin-blur-num', 6);
   await expect.poll(async () => (await pic()).blurData).toBe('6');

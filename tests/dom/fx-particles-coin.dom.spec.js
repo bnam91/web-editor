@@ -48,7 +48,8 @@ const state = (page, id = 'pS') => page.evaluate((id) => {
   const sec = document.getElementById(id);
   const wrap = sec.querySelector(':scope > .' + window.FX_PARTICLES_WRAP);
   const svg = wrap?.querySelector('svg');
-  const faces = svg ? [...svg.querySelectorAll('ellipse[fill^="url("]')] : [];
+  /* 앞면 타원 = fill 이 앞면 gradient(id 가 …f)인 타원 — 코인마다 하나(테 안쪽 바닥 타원은 …d 라 안 걸린다) */
+  const faces = svg ? [...svg.querySelectorAll('ellipse[fill$="f)"]')] : [];
   const ids = svg ? [...svg.querySelectorAll('[id]')].map((e) => e.id) : [];
   return {
     cfg: window.readParticles(sec.dataset),
@@ -57,7 +58,7 @@ const state = (page, id = 'pS') => page.evaluate((id) => {
     circles: svg ? svg.querySelectorAll('circle').length : -1,
     stops: svg ? [...new Set([...svg.querySelectorAll('linearGradient[id$="f"] stop')].map((s) => s.getAttribute('stop-color').toLowerCase()))] : [],
     ids, tags: svg ? svg.querySelectorAll('[data-fxp]').length : -1,
-    rest: (() => { try { return window.serializeSectionClone(sec) || ''; } catch (_) { return ''; } })(),
+    layer: wrap ? wrap.innerHTML : '',
   };
 }, id);
 
@@ -169,7 +170,7 @@ test('E3-c 저장 → 다시 열기 — 같은 그림이 다시 난다 · 섹션
   await expect.poll(async () => (await state(page, 'pS')).coins, '다시 열었는데 코인이 안 그려졌다').toBe(14);
   const a2 = await state(page, 'pS'), b2 = await state(page, 'pT');
   expect([a2.cfg, b2.cfg], '저장값이 그대로다').toEqual([a.cfg, b.cfg]);
-  expect([a2.rest === a.rest, b2.rest === b.rest, a2.rest.length > 5000], '다시 연 그림(저장되는 꼴)이 저장 전과 같다').toEqual([true, true, true]);
+  expect([a2.layer === a.layer, b2.layer === b.layer, a2.layer.length > 5000, a.layer !== b.layer], '다시 연 파티클 층이 저장 전과 글자까지 같다(멈춘 판이라 시각이 안 들어간다)').toEqual([true, true, true, true]);
   expect(errs).toEqual([]);
 });
 
@@ -216,7 +217,7 @@ test('E4-a ★크기 상한 250 — 칸의 max · 250 이 들어가고 그 크�
   /* 화면에서도 그 크기다 — 섹션 폭(레이아웃 px) 대비 코인 한 닢의 폭 */
   const px = await page.evaluate(() => {
     const sec = document.getElementById('pS'); const z = sec.getBoundingClientRect().width / sec.clientWidth;
-    return Math.round(sec.querySelector('.sec-fxpart-wrap ellipse[fill^="url("]').getBoundingClientRect().width / z);
+    return Math.round(sec.querySelector('.sec-fxpart-wrap ellipse[fill$="f)"]').getBoundingClientRect().width / z);
   });
   expect(Math.abs(px - 250), `화면에 그려진 코인 폭 ${px}px(레이아웃) — 250 이어야 한다`).toBeLessThanOrEqual(2);
   await set('smax', 400);
