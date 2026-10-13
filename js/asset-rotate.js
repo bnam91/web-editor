@@ -31,6 +31,8 @@ window._snapRotate = function (deg, shift) {
 
 // 피그마식 회전 커서 (sticker-select.js와 동일)
 const _AB_ROTATE_CURSOR = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 12a8 8 0 1 1-2.3-5.6' stroke='white' stroke-width='4'/%3E%3Cpolyline points='20 3 20 7 16 7' stroke='white' stroke-width='4'/%3E%3Cpath d='M20 12a8 8 0 1 1-2.3-5.6' stroke='%23222' stroke-width='2'/%3E%3Cpolyline points='20 3 20 7 16 7' stroke='%23222' stroke-width='2'/%3E%3C/svg%3E\") 12 12, grab";
+// ★1013t2C7 — 어노테이션 시작점 회전 손잡이가 같은 커서를 쓴다(리터럴을 또 베끼지 않게 window 로 연다)
+window._ROTATE_CURSOR = _AB_ROTATE_CURSOR;
 
 function _removeAbRotateHandles(block) {
   if (!block) return;

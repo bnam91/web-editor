@@ -1,4 +1,4 @@
-/* annotation-1013t2 — 스티커패널 어노테이션 블럭 (1013t2C6 라벨 줄바꿈).
+/* annotation-1013t2 — 스티커패널 어노테이션 블럭 (1013t2C6 라벨 줄바꿈 · 1013t2C7 시작점 회전).
  *
  * ★무엇을 잠그나
  *   AL1 라벨 편집 중 Enter = 줄바꿈(편집이 이어진다) · ⌘Enter 마침 → dataset 'A\nB' · white-space pre · 2줄
@@ -9,6 +9,7 @@
  *   AL6 펜으로 만든 직후 편집도 같은 규약(만들기 → X · Enter · Y · Esc → 'X\nY' · 펜 종료)
  *   AL7 라벨 글은 «글자»다 — `<b>x</b>` 를 치고 다시 그려도 b 요소 0
  *   AR0 (1013t2C7-pre) 끌기(전체 이동 · 점 손잡이) 뒤에도 삼각형이 선 방향을 가리킨다 · 다시 그린 것과 같다
+ *   AR1~AR7 (1013t2C7) 시작점 회전 — 패널 칸 · 캔버스 손잡이 · ⌘Z · 저장 왕복 · 되돌리기 · 미직렬화 · 점 이동 뒤 (아래 절 머리)
  * ★만드는 길은 «사람 손» 그대로 — 펜 단추 → 메뉴 「Annotation」 → 섹션 두 점 → Enter → Esc (annotation-1013 과 같은 꼴).
  * ⛔waitForTimeout 0 — 모든 대기는 «재는 값» 자체를 expect.poll 로 기다린다.
  * ⛔줄 수는 rect 가 아니라 offsetHeight ÷ line-height 로 잰다(배율에 안 곱해지는 값 · modal-enter-newline 꼴).
@@ -284,4 +285,179 @@ test('AR0 끌기 뒤에도 삼각형이 선 방향을 가리킨다 — 전체 �
   await reloadCanvas(page);
   const s3 = await anchorState(page, id);
   expect(s3.html, '다시 그린 시작점 outerHTML = 라이브').toBe(s2.html);
+});
+
+/* ══ 1013t2C7 본체 ═══════════════════════════════════════════════════════════════
+ *   AR1 패널 「회전°」 — 삼각형·화살촉일 때만 줄이 선다 · 30 → anchorRot '30' · 다른 모양으로 가도 데이터는 남는다
+ *   AR2 캔버스 회전 손잡이 — 삼각형·화살촉에서만 1개 · 진짜 마우스 90° → anchorRot≈+90 · 점 불변 · ⇧ = 절대각 45° 단위
+ *   AR3 회전 끌기 한 번 = ⌘Z 한 걸음 · ⌘⇧Z 로 다시
+ *   AR4 저장 왕복 — anchorRot 유지 · 시작점 outerHTML 이 라이브와 같다
+ *   AR5 「자동 방향으로 되돌리기」 — 0 이면 꺼짐 · 누르면 키 삭제 · 히스토리 '시작점 방향 되돌리기'
+ *   AR6 회전 손잡이는 저장 직렬화에 안 실린다
+ *   AR7 점을 옮겨도 회전은 «선 방향 대비»로 따라 돈다(새 자동각 + rot)
+ */
+const ROT_NUM = '#annot-anchor-rot-num';
+const rotRow = (page) => page.evaluate(() => ({ slider: !!document.getElementById('annot-anchor-rot'), num: !!document.getElementById('annot-anchor-rot-num'),
+  reset: document.getElementById('annot-anchor-rot-reset') ? document.getElementById('annot-anchor-rot-reset').disabled : null }));
+
+async function typeRot(page, v) {
+  await page.click(ROT_NUM);
+  await page.keyboard.press('Meta+a');
+  await page.keyboard.type(String(v));
+  await page.keyboard.press('Enter');
+}
+
+/* 회전 중심(시작점)의 화면 좌표 — 섹션 rect + 점 × 배율. */
+const anchorScreen = (page, id) => page.evaluate((id) => {
+  const b = document.getElementById(id); const sr = b.closest('.section-block').getBoundingClientRect();
+  const p = JSON.parse(b.dataset.points)[0]; const z = (window.currentZoom || 40) / 100;
+  return { x: sr.left + p[0] * z, y: sr.top + p[1] * z, z };
+}, id);
+
+/* 회전 손잡이를 진짜 마우스로 중심 둘레 deg° 만큼(화면 시계방향 +) 돌린다. */
+async function rotateBy(page, id, deg, { shift = false } = {}) {
+  const hsel = `[id="${id}"] .annot-rot-handle`;
+  const h = await waitStableRect(page, hsel);
+  expect(await hitIs(page, h.cx, h.cy, hsel), '★전제: 누르는 점이 회전 손잡이 위다').toBe(true);
+  const c = await anchorScreen(page, id);
+  const R = Math.hypot(h.cx - c.x, h.cy - c.y);
+  expect(R > 4, `★전제: 손잡이가 중심에서 떨어져 있다(R=${R})`).toBe(true);
+  const a0 = Math.atan2(h.cy - c.y, h.cx - c.x);
+  await page.mouse.move(h.cx, h.cy);
+  if (shift) await page.keyboard.down('Shift');
+  await page.mouse.down();
+  for (let i = 1; i <= 12; i++) {
+    const a = a0 + (deg * Math.PI / 180) * i / 12;
+    await page.mouse.move(c.x + R * Math.cos(a), c.y + R * Math.sin(a));
+  }
+  await page.mouse.up();
+  if (shift) await page.keyboard.up('Shift');
+}
+const wrapDeg = (d) => ((d % 360) + 540) % 360 - 180;
+
+test('AR1 패널 「회전°」 — 삼각형·화살촉일 때만 · 30 → anchorRot 30 · 모양을 바꿔도 데이터는 남는다', async ({ page }) => {
+  const errs = await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+  expect(await page.evaluate((id) => document.getElementById(id).dataset.anchorShape, id), '★전제: 기본 모양 circle').toBe('circle');
+  expect(await rotRow(page), 'circle 이면 회전 줄 0').toEqual({ slider: false, num: false, reset: null });
+  await setShape(page, id, 'triangle');
+  await expect.poll(() => rotRow(page), 'triangle 이면 회전 줄이 선다(되돌리기는 꺼짐)').toEqual({ slider: true, num: true, reset: true });
+  await typeRot(page, 30);
+  await expect.poll(async () => (await anchorState(page, id)).rotKey, '숫자칸 30 → dataset').toBe('30');
+  const s = await anchorState(page, id);
+  expect(s.tf, '그려진 방향 = 자동각 + 30 + 180').toBe(s.want);
+  await setShape(page, id, 'arrowhead');
+  await expect.poll(() => rotRow(page), 'arrowhead 도 회전 줄').toEqual({ slider: true, num: true, reset: false });
+  expect((await anchorState(page, id)).tf, '화살촉도 같은 방향 산식').toBe((await anchorState(page, id)).want);
+  await setShape(page, id, 'circle');
+  await expect.poll(() => rotRow(page), 'circle 로 가면 줄이 사라진다').toEqual({ slider: false, num: false, reset: null });
+  expect((await anchorState(page, id)).rotKey, '데이터는 남는다').toBe('30');
+  expect(errs).toEqual([]);
+});
+
+test('AR2 캔버스 회전 손잡이 — 삼각형·화살촉에서만 · 90° 끌기 → +90 · 점 불변 · ⇧ 는 절대각 45° 단위', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+  expect((await anchorState(page, id)).rotHandles, 'circle 이면 회전 손잡이 0').toBe(0);
+  await setShape(page, id, 'arrowhead');
+  await expect.poll(async () => (await anchorState(page, id)).rotHandles, 'arrowhead 이면 1').toBe(1);
+  await setShape(page, id, 'triangle');
+  await expect.poll(async () => (await anchorState(page, id)).rotHandles, 'triangle 이면 1').toBe(1);
+  const s0 = await anchorState(page, id);
+  expect(s0.rotKey, '★전제: 회전 없음').toBeNull();
+  await rotateBy(page, id, 90);
+  await expect.poll(async () => (await anchorState(page, id)).rotKey, '끌기로 회전이 생겼다').not.toBeNull();
+  const s1 = await anchorState(page, id);
+  expect(Math.abs(wrapDeg(s1.rot - 90)) <= 1, `90° 끌기 → anchorRot≈90 (잰 값 ${s1.rot})`).toBe(true);
+  expect(s1.points, '점은 그대로').toBe(s0.points);
+  expect(s1.tf, '그려진 방향 = 자동각 + rot + 180').toBe(s1.want);
+  await rotateBy(page, id, 20, { shift: true });
+  await expect.poll(async () => (await anchorState(page, id)).rot, '⇧ 끌기로 값이 바뀌었다').not.toBe(s1.rot);
+  const s2 = await anchorState(page, id);
+  const m = (((s2.auto + s2.rot) % 45) + 45) % 45;
+  expect(Math.min(m, 45 - m) < 0.02, `⇧ = 절대각(자동각 ${s2.auto} + rot ${s2.rot})이 45° 단위`).toBe(true);
+});
+
+test('AR3 회전 끌기 한 번 = ⌘Z 한 걸음 · ⌘⇧Z 로 다시', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+  await setShape(page, id, 'triangle');
+  await expect.poll(async () => (await anchorState(page, id)).rotHandles, '★전제: 회전 손잡이').toBe(1);
+  const r = await expectOneUndoStep(page, () => rotateBy(page, id, 60), '어노테이션 시작점 회전');
+  expect(r.topAction, '끝 표본 이름').toBe('어노테이션 시작점 회전');
+  await expect.poll(async () => (await anchorState(page, id)).rotKey, '⌘Z 뒤 회전 없음').toBeNull();
+  await page.keyboard.press('Meta+Shift+z');
+  await expect.poll(async () => (await anchorState(page, id)).rotKey, '⌘⇧Z 한 번에 다시').not.toBeNull();
+  const s = await anchorState(page, id);
+  expect(s.tf, '다시 뒤 그려진 방향 = 산식').toBe(s.want);
+});
+
+test('AR4 저장 왕복 — anchorRot 유지 · 시작점 outerHTML 이 라이브와 같다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+  await setShape(page, id, 'triangle');
+  await typeRot(page, -45);
+  await expect.poll(async () => (await anchorState(page, id)).rotKey, '★전제: 회전 -45').toBe('-45');
+  const live = await anchorState(page, id);
+  await reloadCanvas(page);
+  const after = await anchorState(page, id);
+  expect(after.rotKey, '다시 그린 뒤 anchorRot').toBe('-45');
+  expect(after.html, '다시 그린 시작점 outerHTML = 라이브').toBe(live.html);
+  expect(after.tf, '다시 그린 방향 = 산식').toBe(after.want);
+});
+
+test('AR5 「자동 방향으로 되돌리기」 — 0 이면 꺼짐 · 누르면 키 삭제 · 히스토리 한 칸', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+  await setShape(page, id, 'triangle');
+  await expect.poll(async () => (await rotRow(page)).reset, '★전제: 회전 없으면 단추가 꺼져 있다').toBe(true);
+  await typeRot(page, 30);
+  await expect.poll(async () => (await rotRow(page)).reset, '회전이 생기면 단추가 켜진다').toBe(false);
+  const tip0 = await page.evaluate(() => window.getHistoryTip().pos);
+  await page.click('#annot-anchor-rot-reset');
+  await expect.poll(async () => (await anchorState(page, id)).rotKey, '되돌리기 → 키 없음').toBeNull();
+  const s = await anchorState(page, id);
+  expect(s.tf, '자동 방향(rot 0)으로 그려졌다').toBe(s.want);
+  await expect.poll(async () => (await rotRow(page)).reset, '되돌린 뒤 단추가 꺼진다').toBe(true);
+  expect(await page.evaluate(() => window.getHistoryTip().action), '히스토리 이름').toBe('시작점 방향 되돌리기');
+  expect(await page.evaluate(() => window.getHistoryTip().pos), '꼭대기가 올라갔다').toBeGreaterThan(tip0);
+});
+
+test('AR6 회전 손잡이는 저장 직렬화에 안 실린다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+  await setShape(page, id, 'triangle');
+  await expect.poll(async () => (await anchorState(page, id)).rotHandles, '★전제: 라이브엔 회전 손잡이 1').toBe(1);
+  expect(await page.evaluate(() => (window.getSerializedCanvas().match(/annot-rot-handle/g) || []).length), '직렬화엔 0').toBe(0);
+});
+
+test('AR7 점을 옮겨도 회전은 선 방향 대비로 따라 돈다 (새 자동각 + rot)', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+  await setShape(page, id, 'triangle');
+  await typeRot(page, 30);
+  await expect.poll(async () => (await anchorState(page, id)).rotKey, '★전제: 회전 30').toBe('30');
+  const s0 = await anchorState(page, id);
+  const hsel = `[id="${id}"] .annot-handle[data-point-idx="0"]`;
+  const hr = await waitStableRect(page, hsel);
+  expect(await hitIs(page, hr.cx, hr.cy, hsel), '★전제: 누르는 점이 시작점 손잡이 위다').toBe(true);
+  await dragBy(page, hr.cx, hr.cy, -20, 25);
+  await expect.poll(async () => (await anchorState(page, id)).auto, '점을 옮겨 자동각이 바뀌었다').not.toBe(s0.auto);
+  const s1 = await anchorState(page, id);
+  expect(s1.rotKey, '회전값은 그대로').toBe('30');
+  expect(s1.tf, '그려진 방향 = 새 자동각 + 30 + 180').toBe(s1.want);
 });

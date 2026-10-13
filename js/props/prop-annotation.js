@@ -186,6 +186,8 @@ export function showAnnotationProperties(block) {
   // ★1013t1A3 라벨 개별 위치(방사형 블럭 호의 「라벨 간격」 · 「자동 배치로 되돌리기」 꼴)
   const LIM    = window.ANNOT_LIMITS;
   const manual = st.labelDx !== 0 || st.labelDy !== 0;
+  // ★1013t2C7 시작점 회전 — 삼각형·화살촉만(다른 모양엔 «방향»이 없다). 모양을 바꿔도 데이터는 남는다.
+  const rotatable = st.anchorShape === 'triangle' || st.anchorShape === 'arrowhead';
 
   propPanel.innerHTML = `
     <div class="prop-section" data-prop-panel="annotation">
@@ -230,6 +232,15 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="annot-anchor-size" min="2" max="24" step="1" value="${st.anchorSize}">
         <input type="number" class="prop-number" id="annot-anchor-size-num" min="2" max="24" step="1" value="${st.anchorSize}">
       </div>
+      ${rotatable ? `
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="annot-anchor-rot" min="${LIM.anchorRot.min}" max="${LIM.anchorRot.max}" step="1" value="${st.anchorRot}">
+        <input type="number" class="prop-number" id="annot-anchor-rot-num" min="${LIM.anchorRot.min}" max="${LIM.anchorRot.max}" step="1" value="${st.anchorRot}">
+      </div>
+      <div class="prop-hint">캔버스에서 시작점 옆 손잡이를 끌어 돌립니다 · ⇧ 45°</div>
+      <button class="prop-btn-full" id="annot-anchor-rot-reset"${st.anchorRot !== 0 ? '' : ' disabled'}>자동 방향으로 되돌리기</button>
+      ` : ''}
     </div>
 
     <div class="prop-section">
@@ -362,6 +373,9 @@ ${blockHeaderHTML({
         .forEach(b => b.classList.toggle('active', b === btn));
       window.pushHistory?.('시작점 모양');
       _writeProps(block, { anchorShape: s });
+      // ★1013t2C7 — 회전 줄·회전 손잡이는 모양에 따라 섰다 사라진다
+      showAnnotationProperties(block);
+      window.annotRefreshHandles?.(block);
     });
   });
 
@@ -375,6 +389,28 @@ ${blockHeaderHTML({
     asz.value = v; _writeProps(block, { anchorSize: v });
   });
   aszN.addEventListener('change', () => window.pushHistory?.('시작점 크기'));
+
+  // ★1013t2C7 시작점 회전 — input 에서 쓰고(그림·손잡이 같이) change 에서 찍는다(push-after · prop-shape 「회전°」 꼴)
+  const rotS = propPanel.querySelector('#annot-anchor-rot');
+  const rotN = propPanel.querySelector('#annot-anchor-rot-num');
+  const rotReset = propPanel.querySelector('#annot-anchor-rot-reset');
+  const applyRot = (v) => {
+    window.annotSetAnchorRot?.(block, parseFloat(v) || 0);
+    const r = window.annotAnchorRotOf?.(block) || 0;
+    if (rotReset) rotReset.disabled = r === 0;
+    return r;
+  };
+  if (rotS && rotN) {
+    rotS.addEventListener('input',  () => { rotN.value = applyRot(rotS.value); });
+    rotS.addEventListener('change', () => window.pushHistory?.('시작점 회전'));
+    rotN.addEventListener('input',  () => { rotS.value = applyRot(rotN.value); });
+    rotN.addEventListener('change', () => { rotS.value = applyRot(rotN.value); window.pushHistory?.('시작점 회전'); });
+  }
+  rotReset?.addEventListener('click', () => {
+    if (!window.annotResetAnchorRot?.(block)) return;
+    showAnnotationProperties(block);
+    window.pushHistory?.('시작점 방향 되돌리기');
+  });
 
   // 라벨 모드 토글
   propPanel.querySelectorAll('#annot-label-mode-group .prop-align-btn').forEach(btn => {

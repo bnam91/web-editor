@@ -149,7 +149,23 @@
       c.dataset.pointIdx = String(idx);
       svg.appendChild(c);
     });
+    /* ★1013t2C7 — 시작점이 삼각형·화살촉이면 회전 손잡이 하나. 클래스에 annot-handle 을 같이 달아
+       _removeHandles · 저장 철거 목록(save-load NON_CONTENT_UI_SELECTOR · section-serialize)이 저절로 덮는다.
+       자리는 annotRedrawAnchor 가 시작점과 같이 옮긴다(annotRotHandlePos 한 벌). */
+    const shape = block.dataset.anchorShape;
+    if (shape === 'triangle' || shape === 'arrowhead') {
+      const rh = document.createElementNS(SVG_NS, 'circle');
+      rh.setAttribute('class', 'annot-handle annot-rot-handle');
+      const [hx, hy] = window.annotRotHandlePos?.(block, points) || points[0];
+      rh.setAttribute('cx', String(hx));
+      rh.setAttribute('cy', String(hy));
+      rh.setAttribute('r', '5');
+      if (window._ROTATE_CURSOR) rh.style.cursor = window._ROTATE_CURSOR;
+      svg.appendChild(rh);
+    }
   }
+  /* 모양을 바꾼 뒤(패널) 손잡이를 다시 세운다 — 고른 블럭만. */
+  window.annotRefreshHandles = (block) => { if (block?.classList.contains('selected')) _ensureHandles(block); };
   function _removeHandles(block) {
     block.querySelectorAll('.annot-handle').forEach(h => h.remove());
   }
@@ -289,6 +305,53 @@
       window.annotSetLabelOffset?.(block, cur.dx, cur.dy);
       window.showAnnotationProperties?.(block);
       if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 라벨 위치');
+      window.scheduleAutoSave?.();
+    };
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('mouseup',   onUp,   true);
+  }
+
+  // ── ★1013t2C7 시작점 회전 끌기 (A3 라벨 위치와 같은 길 · asset-rotate 의 atan2 꼴) ──
+  // 중심 = 시작점의 화면 좌표(섹션 rect + 점 × 배율). 끄는 동안 annotSetAnchorRot 이 dataset·그림을 같이 바꾼다.
+  // ⇧ = «절대» 방향(자동 + 회전)을 45° 단위로(window._snapRotate) — 그 값에서 자동각을 빼 회전으로 환산한다.
+  // 시작 표본은 첫 움직임의 arm(), 끝 표본은 onUp 의 pushHistory — 끌기 한 번 = ⌘Z 한 걸음.
+  function _startAnchorRotateDrag(block, e) {
+    e.stopImmediatePropagation();
+    e.stopPropagation();
+    e.preventDefault();
+    const sec = block.closest('.section-block');
+    if (!sec) return;
+    const points = _readPoints(block);
+    const sr = sec.getBoundingClientRect();
+    const cx = sr.left + points[0][0] * _zoom();
+    const cy = sr.top  + points[0][1] * _zoom();
+    const auto = window._calcAnnotAnchorAngle?.(points) || 0;
+    const rot0 = window.annotAnchorRotOf?.(block) || 0;
+    const snap = window._snapRotate || ((d, sh) => Math.round(d));
+    const startX = e.clientX, startY = e.clientY;
+    const startA = Math.atan2(startY - cy, startX - cx) * 180 / Math.PI;
+    let moved = false;
+    const _hist = window.beginDragHistory?.('어노테이션 시작점 회전');
+    const onMove = (ev) => {
+      if (!moved) {
+        if (Math.abs(ev.clientX - startX) < 2 && Math.abs(ev.clientY - startY) < 2) return;
+        moved = true;
+        _hist?.arm((ev.clientX - startX) / _zoom(), (ev.clientY - startY) / _zoom());
+      }
+      const d = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI - startA;
+      const rot = ev.shiftKey ? snap(auto + rot0 + d, true) - auto : rot0 + snap(d, false);
+      window.annotSetAnchorRot?.(block, rot);
+      ev.preventDefault();
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove, true);
+      document.removeEventListener('mouseup',   onUp,   true);
+      if (!moved) return;
+      const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+      window.addEventListener('click', eat, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener('click', eat, true), 0);
+      window.showAnnotationProperties?.(block);
+      if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 시작점 회전');
       window.scheduleAutoSave?.();
     };
     document.addEventListener('mousemove', onMove, true);
@@ -448,6 +511,8 @@
         const h = e.target.closest('.annot-handle');
         if (!h) return;
         if (e.button !== 0) return;
+        // ★1013t2C7 — 회전 손잡이는 점 번호가 없다 → 점 끌기 판정보다 «먼저» 가른다
+        if (h.classList.contains('annot-rot-handle')) { _startAnchorRotateDrag(block, e); return; }
         e.stopPropagation();
         e.preventDefault();
 
