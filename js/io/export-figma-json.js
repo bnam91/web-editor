@@ -65,6 +65,19 @@ function _shapeFigmaBlock(el) {
     width, height,
   };
   if (gradientDef && !redact) out.gradientDef = gradientDef;
+  /* ★1013t2A1 원 «갯수·간격·원마다 색·이너 그림자» — 켜진 것만 싣는다(꺼져 있으면 필드 0 = 옛 JSON 바이트 그대로).
+     ⚠️렌더러(sangpe_to_figma)는 아직 이 필드를 안 읽는다 ⇒ 피그마에는 «원 1개 + 색 하나»로 간다(별과 같은 기존 흠).
+     ⛔「피그마도 된다」로 읽지 마라 — 렌더러를 고칠지는 별건 판정이다. (그래프 G2 선례와 같은 꼴) */
+  if ((el.dataset.shapeType || '') === 'ellipse') {
+    const ec = parseInt(el.dataset.ellipseCount, 10);
+    if (Number.isFinite(ec) && ec > 1) {
+      out.ellipseCount = ec;
+      if (el.dataset.ellipseGap !== undefined && el.dataset.ellipseGap !== '') out.ellipseGap = Number(el.dataset.ellipseGap);
+      if (el.dataset.ellipseColors) out.ellipseColors = String(el.dataset.ellipseColors).split(',').map(v => v.trim() || null);
+    }
+    const es = parseInt(el.dataset.ellipseShadow, 10);
+    if (Number.isFinite(es) && es > 0) out.innerShadow = { strength: es };
+  }
   if (redact) {
     out.redact = { mode: el.dataset.shapeRedactMode || 'blur' };
     out.color = _REDACT_COVER;   // 불투명 덮개 — 흐림/모자이크 비트맵은 Figma 로 못 옮긴다(가리기가 우선)

@@ -2177,6 +2177,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .shape-block.selected[data-shape-type="ellipse"][data-sel-variant="sticker"]::before {
   border-color: var(--ui-sel-overlay, #9966ff);
 }
+/* ★1013t2A1 — 원이 여러 개(data-ellipse-count 는 2 이상일 때만 있다)면 «상자에 내접한 원 하나» 링은 거짓이다
+   ⇒ 링을 숨기고 공통 네모 선택선만 남긴다. 위 두 규칙은 그대로 둔다(유닛이 그 선택자 글자를 잡는다). */
+.shape-block.selected[data-shape-type="ellipse"][data-ellipse-count]::before {
+  display: none;
+}
 .shape-block .shape-svg {
   display: block;
   width: 100%;
