@@ -78,6 +78,30 @@ function _renderStickerBlockInner(block) {
     return;
   }
 
+  /* ★coin(코인 스티커) — 그림은 js/fx/coin-draw.js(CoinFx.svg · 순수 SVG 문자열). glow 와 같은 꼴이다:
+     상자 = sizeW×sizeH, 저장은 dataset 만 — 매번 여기서 다시 그린다(리로드·undo·복제·내보내기가 같은 그림).
+     gradient·clipPath id 의 접두 = 'coin-<block.id>' — 블럭 id 가 바뀌면(복제) 다시 그려야 제 id 를 가리킨다.
+     data-rotation 은 상자의 CSS 회전이고, 그리개엔 extRot 로 넘겨 «빛 방향»만 보정한다(코인이 돌아도 빛은 왼쪽 위).
+     ⚠️CoinFx 가 안 실렸으면 빈 상자 + 콘솔 — 조용히 다른 그림을 그리지 않는다. */
+  if (shape === 'coin') {
+    block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`
+      + `background:transparent;overflow:visible;${_stkRotCss}`
+      + `user-select:none;cursor:move;z-index:55;pointer-events:auto;`;
+    block._coinLitRot = _stkRot;   // 이 그림의 빛이 맞춰진 회전값(아래 _relightCoinAfterRotate 가 읽는다 · 저장 안 됨)
+    if (!window.CoinFx) { console.error('[sticker/coin] CoinFx 가 안 실렸다 — index.html 고전 스크립트 순서'); block.innerHTML = ''; return; }
+    const d = block.dataset, D = window.CoinFx.DEFAULTS;
+    const n = (v, fb) => { const p = parseFloat(v); return Number.isFinite(p) ? p : fb; };
+    block.innerHTML = window.CoinFx.svg({
+      idPrefix: 'coin-' + (block.id || 'tmp'),
+      tilt: n(d.coinTilt, 0), dir: n(d.coinDir, 0),
+      metal: d.coinMetal || D.metal, face: d.coinFace, side: d.coinSide,
+      glyph: d.coinGlyph ?? D.glyph,
+      k: n(d.coinK, D.k) / 100, gloss: n(d.coinGloss, D.gloss),
+      extRot: _stkRot,
+    });
+    return;
+  }
+
   if (shape === 'highlight') {
     // 형광펜 모드 — 색 사각형 (글자 없음), W/H 별도, z-index 낮음 (텍스트 아래)
     const hlW = parseInt(block.dataset.hlW) || 160;
@@ -406,6 +430,15 @@ function rememberStickerStyle(block) {
     _lastStickerStyle.glow = slot;
     return;
   }
+  /* ★coin: 생김새 축만 기억(무늬번호·각도·각도 잠금·위치·크기 제외 — 각도는 «찍을 때마다 새로»).
+     glow 와 같은 까닭으로 ⛔__last 에는 안 올린다 — 올리면 일반 「Sticker」 단추가 코인을 낳는다.
+     각인은 빈 값('' = 각인 없음)도 뜻이 있어 put(빈 값 건너뜀)을 쓰지 않는다. */
+  if (shape === 'coin') {
+    ['coinMetal', 'coinFace', 'coinSide', 'coinGlyph', 'coinK', 'coinGloss'].forEach((k) => { if (d[k] !== undefined) slot[k] = d[k]; });
+    slot.shape = shape;
+    _lastStickerStyle.coin = slot;
+    return;
+  }
   if (shape === 'highlight') {
     put('hlColor');
   } else if (shape === 'highlightB') {
@@ -425,6 +458,19 @@ function rememberStickerStyle(block) {
   _lastStickerStyle.__last = slot;   // shape 미지정 생성 시 마지막 shape 재현용
 }
 window.rememberStickerStyle = rememberStickerStyle;
+
+/* ★coin — 회전 손잡이(js/sticker-select.js _bindRotateDrag)는 끄는 동안 상자의 CSS transform 만 고친다(다시 안 그린다).
+   코인은 «빛 방향»이 회전값에 묶여 있어, 놓는 순간 한 번 다시 그려야 화면·히스토리 표본·저장본이 dataset 과 같은 그림이 된다.
+   document 의 capture 단계라 그 드래그의 onUp(버블 단계 · pushHistory)보다 «먼저» 돈다 ⇒ 표본에 보정된 그림이 찍힌다.
+   그린 회전값과 같으면(=회전이 아닌 모든 mouseup) 아무것도 안 한다. */
+function _relightCoinAfterRotate() {
+  document.querySelectorAll('.sticker-block.selected[data-shape="coin"]').forEach((b) => {
+    if (b._coinLitRot === (parseFloat(b.dataset.rotation) || 0)) return;
+    renderStickerBlock(b);
+    window._addCornerHandles?.(b);   // 그리기가 innerHTML 을 갈아 끼워 손잡이가 사라지므로 다시 단다
+  });
+}
+document.addEventListener('mouseup', _relightCoinAfterRotate, true);
 
 function makeStickerBlock(opts = {}) {
   const block = document.createElement('div');
@@ -473,6 +519,28 @@ function makeStickerBlock(opts = {}) {
     block.dataset.sizeW     = opts.sizeW     ?? pre.sizeW     ?? 96;
     block.dataset.sizeH     = opts.sizeH     ?? pre.sizeH     ?? 96;
     block.dataset.text      = '';   // glow 는 글자 없음
+  }
+  // ★coin — 무늬번호(seed)는 «만들 때» 새로, 보는 각도(tilt·dir)는 그 번호에서(CoinFx.angleFromSeed).
+  //   tilt·dir 이 그림의 정본이다 — 패널의 다시뽑기·무늬번호 칸이 이 둘을 다시 쓴다(js/props/prop-sticker-coin.js).
+  //   앞면·옆면 색은 「커스텀」일 때만 읽으므로 준 것만 적는다. 각도 잠금(data-coin-lock)은 패널에서만 켠다.
+  if (opts.shape === 'coin') {
+    const D = (window.CoinFx && window.CoinFx.DEFAULTS) || {};
+    const seed = opts.seed ?? (window.FxSeed ? window.FxSeed.newSeed() : 1);
+    const ang = window.CoinFx ? window.CoinFx.angleFromSeed(+seed) : [0, 0];
+    block.dataset.seed      = seed;
+    block.dataset.coinTilt  = opts.coinTilt  ?? ang[0];
+    block.dataset.coinDir   = opts.coinDir   ?? ang[1];
+    block.dataset.coinMetal = opts.coinMetal ?? D.metal ?? 'gold';
+    if (opts.coinFace !== undefined) block.dataset.coinFace = opts.coinFace;
+    if (opts.coinSide !== undefined) block.dataset.coinSide = opts.coinSide;
+    block.dataset.coinGlyph = opts.coinGlyph ?? D.glyph ?? '$';
+    block.dataset.coinK     = opts.coinK     ?? D.k     ?? 22;
+    block.dataset.coinGloss = opts.coinGloss ?? D.gloss ?? 22;
+    block.dataset.sizeW     = opts.sizeW     ?? opts.size ?? D.size ?? 120;
+    block.dataset.sizeH     = opts.sizeH     ?? opts.size ?? D.size ?? 120;
+    block.dataset.size      = Math.max(+block.dataset.sizeW || 0, +block.dataset.sizeH || 0);
+    if (opts.rotation !== undefined) block.dataset.rotation = opts.rotation;
+    block.dataset.text      = '';   // coin 은 글자 없음(각인은 data-coin-glyph)
   }
   // U6(e): 아이콘 스티커 — Iconify에서 고른 SVG/이름 보관 (size는 위 size dataset 공유)
   if (opts.shape === 'icon') {
@@ -563,8 +631,10 @@ function addStickerBlock(opts = {}) {
     let cy = 40 + (n % 8) * 24;
     // highlight는 폭이 커서 clamp 가정 크기를 분기 (A27) · ★highlightB(선 형광펜)도 기본 길이 × 두께로 (1012t1J1)
     const _isHlB = opts.shape === 'highlightB';
-    const bw = (opts.shape === 'highlight') ? 160 : _isHlB ? HLB_DEFAULT_LEN : 60;
-    const bh = (opts.shape === 'highlight') ? 28  : _isHlB ? (Number(opts.thickness) || 12) : 60;
+    // coin 은 기본 상자가 60 보다 크다 — 60 으로 재면 섹션 오른쪽·아래 끝에서 상자가 밖으로 나간다
+    const _coinBox = opts.shape === 'coin' ? (Number(opts.sizeW ?? opts.size) || window.CoinFx?.DEFAULTS?.size || 60) : 60;
+    const bw = (opts.shape === 'highlight') ? 160 : _isHlB ? HLB_DEFAULT_LEN : _coinBox;
+    const bh = (opts.shape === 'highlight') ? 28  : _isHlB ? (Number(opts.thickness) || 12) : _coinBox;
     const [qx, qy] = window._clampToSection?.(cx, cy, sec, bw, bh) || [cx, cy];
     opts = { ...opts, x: qx, y: qy };
   }
