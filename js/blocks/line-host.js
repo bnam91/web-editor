@@ -18,7 +18,9 @@
      D10 ⌫·T·G·Esc 는 «줄»에 먹는다 · D11 역할 크기는 절대값(챗 fontSize 를 안 따른다).
    ⛔옛 버블·챗(줄 없음)은 이 파일의 어떤 코드도 «그리지» 않는다 — 렌더 문은 전부 lnHasLines 로 막혀 있다(T1·T1b).
 ═══════════════════════════════════════════════════════════════════════════ */
-import { gridLineHtml, GRID_ROLES, MAX_CELL_LINES, gridMergeLine, gridValidateLines, gridLineHasText, gridPlusLayer } from './grid-block.js';
+import { gridLineHtml, GRID_ROLES, MAX_CELL_LINES, gridMergeLine, gridValidateLines, gridLineHasText, gridPlusLayer, GRID_RICH_TEXT_OPTS } from './grid-block.js';
+/* ★1013t1B1 — 줄 «부분 서식»(⌘B/I/U/S) 커밋. 공용 한 벌(grid-block.js 가 이미 들이는 모듈 · 새 그래프 0) · 허용목록은 그리드 줄과 같은 GRID_RICH_TEXT_OPTS. */
+import { sanitizeRichTextHtml, richTextHasFormatting } from '../util/sanitize-rich-text.js';
 import { grdLineUi, grdSetActiveLine, grdGetActiveLine, grdIsSoleSelected } from '../props/prop-grid.js';
 import { escHtml } from '../props/_helpers.js';
 import { swatchHex } from '../props/color-picker.js';          // ★D2 — 비교 줄 Fill 스와치를 «그려진 색»으로(prop-grid 가 이미 들이는 모듈 · 새 그래프 0)
@@ -639,6 +641,11 @@ function _lineTextEl(row) {
   if (first.classList.contains('grd-line')) return first;
   return first.querySelector(':scope > .grd-badge');
 }
+/** ★1013t1B1 — 줄 글자 요소 → «걸러진» 부분 서식 HTML(그리드 block-drag.js _gridReadHtml 과 같은 식 · 같은 허용목록). */
+function _lnReadHtml(el) {
+  const raw = el && el.innerHTML != null ? String(el.innerHTML) : '';
+  return raw ? sanitizeRichTextHtml(raw, GRID_RICH_TEXT_OPTS) : '';
+}
 export function lnBeginEdit(block, addr) {
   const host = lnHostFor(block);
   const hit = host && host.resolveAny(addr);
@@ -649,6 +656,9 @@ export function lnBeginEdit(block, addr) {
   const el = _lineTextEl(row);
   if (!el) return false;
   window.pushHistory?.('줄 글자 편집');
+  /* ★1013t1B1 — 편집 «전» HTML 도 기억한다(그리드 _gridBeginEdit 의 _gridBeforeHtml 꼴).
+     ⛔평문만 견주면 «글자는 그대로, 서식만 바뀐» 커밋(⌘B 만 눌렀다)을 «안 바뀌었다»로 읽어 서식이 날아간다(플래너 실측 H2). */
+  const beforeHtml = _lnReadHtml(el);
   block.classList.add('editing');
   el.setAttribute('contenteditable', 'true');
   el.style.userSelect = 'text'; el.style.cursor = 'text';
@@ -661,8 +671,15 @@ export function lnBeginEdit(block, addr) {
     el.removeAttribute('contenteditable'); el.style.userSelect = ''; el.style.cursor = '';
     block.classList.remove('editing');
     const text = String(el.innerText || '').replace(/\r\n?/g, '\n').replace(/​/g, '').replace(/\n+$/, '');
-    if (text !== String(hit.line.text ?? '')) {
-      host.previewLine(hit.r, hit.c, hit.li, { text });
+    /* ★1013t1B1 — 부분 서식을 같이 싣는다(그리드 _gridEndEdit 와 같은 규약):
+       · textHtml = sanitize 한 innerHTML · «서식이 실제로 있을 때만» — 없으면 '' ⇒ gridMergeLine 이 키를 지운다(평문 경로 복귀)
+       · 견주는 것은 «저장할 값»(둘 다 같은 판정을 지난 뒤) — 브라우저가 끼운 마크업만으로 커밋이 나가지 않게
+       ⇒ ⌘B 만 눌러도 커밋된다(H2) · 서식 든 줄에 글자를 치면 그 순간의 DOM 서식으로 다시 쓴다 — 묵은 textHtml 이 새 글자를 가리지 않는다(H1a). */
+    const html = _lnReadHtml(el);
+    const textHtml = richTextHasFormatting(html, GRID_RICH_TEXT_OPTS) ? html : '';
+    const beforeTextHtml = richTextHasFormatting(beforeHtml, GRID_RICH_TEXT_OPTS) ? beforeHtml : '';
+    if (text !== String(hit.line.text ?? '') || textHtml !== beforeTextHtml) {
+      host.previewLine(hit.r, hit.c, hit.li, { text, textHtml });
       window.scheduleAutoSave?.();
     } else if (isChat) window.renderChatBlock?.(block); else if (isCmp) window.renderComparison?.(block);
     else if (block.classList.contains('laurel-block')) window.renderLaurelBlock?.(block);   // ★1013t1B2 — ⛔버블 갈래로 떨어지면 안 다시 그린다(편집 흔적이 남는다)

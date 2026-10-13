@@ -21,6 +21,8 @@
  *   ⑴ `js/blocks/sticker-block.js` — `dataset.textHtml`
  *      (★2026-10-08 이사 시점의 ★유일한 소비자. ★행위로 셌다: 이 모듈을 import 하는 파일 1)
  *   ⑵ (예정) 모달 슬롯 — 수지② `js/blocks/modal-block.js` · `js/block-drag.js`
+ *   ⑶ 그리드 줄 — `js/blocks/grid-block.js`(렌더 gridLineHtml) · `js/block-drag.js`(커밋 _gridEndEdit) · opts = GRID_RICH_TEXT_OPTS (수지⑦ 2026-10-08)
+ *   ⑷ line-host 줄(버블·챗·비교·laurel) — `js/blocks/line-host.js` lnBeginEdit 커밋 · 렌더는 ⑶ 의 gridLineHtml · 같은 opts (1013t1B1 2026-10-13)
  *
  * ★★★2026-10-08 ★정정 — ★내가 여기 적었던 문장이 ★틀렸다(★지디가 ★자기 QA 로 잡았다)
  *   ⛔틀린 문장: 「이 본문을 ★무력화하면 ★소비자 ★«수»만큼 빨강이어야 한다 · 실측 = 소비자 1 이라 빨강도 1」
