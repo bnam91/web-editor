@@ -42,6 +42,24 @@ const COUNT_STK_GLYPH_NAMES = Object.keys(COUNT_STK_GLYPHS);
 const COUNT_STK_GLYPH_DEFAULT = 'chevron-right';
 const COUNT_STK_ICON_SVG_MAX = 200000;      // js/util/sanitize-svg.js SVG_MAX_LEN 과 같은 수
 
+/* 프리셋(1013t2B5) — 「한 벌 만들기」: 누르면 그 섹션의 마킹 «전부»에 깐다(「섹션 전체」 스위치와 무관).
+   set = dataset 에 쓸 키 · unset = 지울 키. 라벨 «글자»·번호·자리·크기는 안 건드린다.
+   ★색은 «내용» 기본값이다(UI 토큰 아님 — COUNT_STK_DEFAULTS · STICKER_DEFAULTS 와 같은 부류).
+     point 의 주황 = 현빈 예시 그림(ref/1013t2-img02.png)의 마커 색을 픽셀로 읽은 값(#eb6217 · 주황 픽셀 3158개의 최빈 235,98,23).
+   number = 기본(B4)으로 되돌리기 · point = 그림의 꼴(주황 둥근 네모 + 흰 꺾쇠 + 흰 굵은 라벨 글자 · 라벨은 오른쪽). */
+const COUNT_STK_PRESETS = {
+  number: {
+    set: { countStyle: 'num', countShape: 'circle', shape: 'circle', bgColor: '#000000', textColor: '#ffffff' },
+    unset: ['countIcon', 'countIconSvg', 'countLabelColor'],
+  },
+  point: {
+    set: { countStyle: 'icon', countIcon: 'chevron-right', countShape: 'square', shape: 'square',
+      bgColor: '#eb6217', textColor: '#ffffff', countLabelColor: '#ffffff', countLabelPos: 'right' },
+    unset: ['countIconSvg'],
+  },
+};
+const COUNT_STK_PRESET_NAMES = Object.keys(COUNT_STK_PRESETS);
+
 /* 표기 값 3갈래 — 모르는 값은 num(옛 저장본·손댄 값이 조용히 다른 그림이 되지 않게). */
 function _cntStyle(v) {
   return v === 'alpha' ? 'alpha' : v === 'icon' ? 'icon' : 'num';
@@ -215,6 +233,20 @@ function countStickerCopyToGroup(block, keys) {
     n += 1;
   });
   return n;
+}
+
+// 프리셋 깔기 — 그 섹션의 마킹 전부에. 모르는 이름이면 아무것도 안 한다(0). 히스토리는 부르는 쪽이 한 번 찍는다.
+function countStickerApplyPreset(sec, name) {
+  if (!Object.prototype.hasOwnProperty.call(COUNT_STK_PRESETS, name)) return 0;
+  const pre = COUNT_STK_PRESETS[name];
+  const list = _cntListOf(sec);
+  list.forEach((b) => {
+    Object.keys(pre.set).forEach((k) => { b.dataset[k] = pre.set[k]; });
+    pre.unset.forEach((k) => { delete b.dataset[k]; });
+    countStickerApplyText(b);
+    _cntRerender(b);
+  });
+  return list.length;
 }
 
 // 번호 다시 매기기 — 순번 오름차순(동률은 DOM 순)으로 1..n.
@@ -420,6 +452,9 @@ window.CountSticker = {
   setGroup: countStickerSetGroup,
   copyToGroup: countStickerCopyToGroup,
   glyphSvg: countStickerGlyphSvg,
+  applyPreset: countStickerApplyPreset,
+  PRESETS: COUNT_STK_PRESETS,
+  PRESET_NAMES: COUNT_STK_PRESET_NAMES,
   GLYPHS: COUNT_STK_GLYPHS,
   GLYPH_NAMES: COUNT_STK_GLYPH_NAMES,
   GLYPH_DEFAULT: COUNT_STK_GLYPH_DEFAULT,

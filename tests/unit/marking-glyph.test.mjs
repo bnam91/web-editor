@@ -7,6 +7,7 @@
  *   G2 표기 3값 — applyText: icon 이면 data-text 는 '' 이고 data-count 는 그대로 · 모르는 값은 num · setGroup 이 icon/글리프를 묶음에 쓴다
  *      · custom svg 는 거르개가 실렸을 때만, 거른 것만 쓴다(날것을 dataset 에 안 넣는다)
  *   G3 물려받기 — 다음 찍기는 아이콘·라벨 «꾸밈»(자리·색·크기)을 물려받고 라벨 «글자»는 안 물려받는다
+ *   G4 프리셋 — 「번호」「포인트」의 값(글자로) · 섹션 전부에 깔고 라벨 글자·번호·자리는 안 건드린다 · 모르는 이름은 무동작
  * ★기대값은 «글자로» 박았다. ⛔앱 0 · 네트워크 0 — js/count-sticker-tool.js 를 vm 으로 그대로 싣는다(count-sticker-label 과 같은 꼴).
  */
 import { test } from 'node:test';
@@ -131,4 +132,41 @@ test('G3 inheritFrom — 아이콘·라벨 꾸밈은 넘기고 라벨 글자는 
   }
   /* 모르는 표기 값은 num 으로 물려받는다 */
   assert.equal(inheritFrom({ querySelectorAll: () => [{ dataset: { count: '1', countStyle: 'emoji' } }] }).countStyle, 'num');
+});
+
+test('G4 프리셋 — 값은 글자로 · 섹션 전부에 깔고 라벨 글자·번호·자리는 안 건드린다', () => {
+  const ctx = load();
+  ctx.renderStickerBlock = () => {};
+  const CS = ctx.CountSticker;
+  assert.deepEqual(plain(CS.PRESET_NAMES), ['number', 'point'], '프리셋 이름');
+  assert.deepEqual(plain(CS.PRESETS.point), {
+    set: { countStyle: 'icon', countIcon: 'chevron-right', countShape: 'square', shape: 'square',
+      bgColor: '#eb6217', textColor: '#ffffff', countLabelColor: '#ffffff', countLabelPos: 'right' },
+    unset: ['countIconSvg'],
+  }, '「포인트」 = 주황 둥근 네모 · 흰 꺾쇠 · 흰 라벨(오른쪽)');
+  assert.deepEqual(plain(CS.PRESETS.number), {
+    set: { countStyle: 'num', countShape: 'circle', shape: 'circle', bgColor: '#000000', textColor: '#ffffff' },
+    unset: ['countIcon', 'countIconSvg', 'countLabelColor'],
+  }, '「번호」 = 기본 꼴(원 · 검정 · 흰 숫자)');
+
+  const A = fakeGroup([
+    { count: '1', countStart: '3', countStyle: 'num', shape: 'circle', countShape: 'circle', bgColor: '#000000', textColor: '#ffffff', text: '3', x: '10', y: '20', sizeW: '56', countLabel: '메쉬포켓' },
+    { count: '2', countStart: '3', countStyle: 'num', shape: 'circle', countShape: 'none', bgColor: '#123456', textColor: '#ffffff', text: '4', x: '90', y: '20', sizeW: '80', countIconSvg: '<svg/>' },
+  ]);
+  const B = fakeGroup([{ count: '1', countStyle: 'num', shape: 'circle', bgColor: '#000000', text: '1' }]);
+  assert.equal(CS.applyPreset(A.sec, 'point'), 2, '바뀐 수');
+  for (const b of A.blocks) {
+    const d = b.dataset;
+    assert.deepEqual([d.countStyle, d.countIcon, d.countShape, d.shape, d.bgColor, d.textColor, d.countLabelColor, d.countLabelPos, d.text, 'countIconSvg' in d],
+      ['icon', 'chevron-right', 'square', 'square', '#eb6217', '#ffffff', '#ffffff', 'right', '', false]);
+  }
+  assert.deepEqual(A.blocks.map((b) => [b.dataset.count, b.dataset.x, b.dataset.sizeW, b.dataset.countLabel ?? null]),
+    [['1', '10', '56', '메쉬포켓'], ['2', '90', '80', null]], '번호·자리·크기·라벨 글자는 그대로');
+  assert.equal(B.blocks[0].dataset.bgColor, '#000000', '다른 섹션은 그대로');
+
+  assert.equal(CS.applyPreset(A.sec, 'number'), 2);
+  assert.deepEqual(A.blocks.map((b) => [b.dataset.countStyle, b.dataset.countShape, b.dataset.bgColor, b.dataset.text, 'countIcon' in b.dataset, 'countLabelColor' in b.dataset]),
+    [['num', 'circle', '#000000', '3', false, false], ['num', 'circle', '#000000', '4', false, false]], '「번호」: 기본 꼴 · 번호 글자가 산다(시작 번호 3)');
+  assert.equal(CS.applyPreset(A.sec, 'toString'), 0, '모르는 이름(객체 내장 이름 포함)은 무동작');
+  assert.equal(CS.applyPreset(A.sec, '없는프리셋'), 0);
 });

@@ -6,6 +6,8 @@
  *   ★표기 「아이콘」(1013t2B5) — 번호 대신 내장 글리프. 표기와 같이 «항상 묶음»이다. 크기 = 폰트 크기 칸 · 색 = 글자색 칸(새 칸 없음).
  *     글리프 표·그 svg 는 js/count-sticker-tool.js(CountSticker.GLYPHS · glyphSvg) 한 자리 — 여기서 path 를 다시 적지 않는다.
  *     아이콘일 때 「시작 번호」「번호 다시 매기기」 행은 숨긴다(뜻이 없다 — 순번은 그대로 세고 있어 1/A 로 돌아오면 산다).
+ *     「아이콘 고르기…」 = 레포의 기존 고르개(openIconifyModal · 인터넷 필요)를 그대로 부른다 — 받은 svg 는 쓸 때·그릴 때 거른다.
+ *   ★프리셋(번호 · 포인트) — 절 맨 아래. 값은 도구의 표(CountSticker.PRESETS) 한 자리 · 누르면 이 섹션의 마킹 전부에(스위치와 무관) · 히스토리 한 칸.
  *   ★Label 절(1013t2B5) — 마커 옆 텍스트 라벨: 글자(블럭마다 · 일괄 안 함) · 위치 · 크기 · 글자색(이 셋은 「섹션 전체」 스위치를 따른다).
  *     그리기는 js/blocks/sticker-block.js(_countLabelHTML) — 라벨은 마커 블럭 «안»의 자식이고 상자(선택·손잡이)는 마커 그대로다.
  *     캔버스에서 마커를 더블클릭해도 같은 글자를 고친다(js/sticker-select.js _enterCountLabelEdit).
@@ -104,6 +106,9 @@ export function countSectionHTML(block) {
           ${glyphButtonsHTML(isIcon ? glyph : '')}
         </div>
       </div>
+      <div class="prop-row" id="stk-count-icon-pick-row" style="display:${isIcon ? 'flex' : 'none'};">
+        <button class="prop-action-btn secondary" id="stk-count-icon-pick" style="width:100%;" title="아이콘 고르개에서 다른 아이콘을 고른다 (인터넷 연결 필요 · 고른 svg 는 걸러서 넣는다)">아이콘 고르기…</button>
+      </div>
       <div class="prop-row"><span class="prop-label">모양</span>
         <div class="prop-align-group" id="stk-count-shape">
           <button class="prop-align-btn${on(shape === 'circle')}" data-count-shape="circle" title="원형">
@@ -126,6 +131,14 @@ export function countSectionHTML(block) {
       </div>
       <div class="prop-row" id="stk-count-renumber-row" style="display:${isIcon ? 'none' : 'flex'};">
         <button class="prop-action-btn" id="stk-count-renumber" title="이 섹션의 번호를 지금 순서대로 1부터 다시 매긴다 (중간을 지운 뒤 빈 번호 메우기)">번호 다시 매기기</button>
+      </div>
+      <div class="prop-type-group prop-preset-group" id="stk-count-presets">
+        <button class="prop-preset-btn" data-count-preset="number" title="번호 — 원 · 검정 배경 · 흰 숫자 (기본 꼴로 되돌린다 · 이 섹션의 마킹 전부)">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><line x1="8" y1="5.5" x2="8" y2="10.5"/></svg><span>번호</span>
+        </button>
+        <button class="prop-preset-btn" data-count-preset="point" title="포인트 — 주황 둥근 네모 · 흰 꺾쇠 · 흰 라벨 글자 (이 섹션의 마킹 전부)">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><polyline points="7 5.5 9.5 8 7 10.5"/></svg><span>포인트</span>
+        </button>
       </div>
     </div>
     <div class="prop-section" id="stk-count-label-section">
@@ -178,6 +191,8 @@ export function wireCountSection(panel, block, rerender) {
     const isIcon = styleOf(block.dataset.countStyle) === 'icon';
     const show = (id, on) => { const row = $(id); if (row) row.style.display = on ? 'flex' : 'none'; };
     show('stk-count-glyph-row', isIcon);
+    show('stk-count-icon-pick-row', isIcon);
+    panel.querySelectorAll('#stk-count-style [data-count-style]').forEach(b => b.classList.toggle('active', styleOf(b.dataset.countStyle) === styleOf(block.dataset.countStyle)));
     show('stk-count-start-row', !isIcon);
     show('stk-count-renumber-row', !isIcon);
     const cur = CS?.iconNameOf ? CS.iconNameOf(block.dataset.countIcon) : '';
@@ -264,6 +279,31 @@ export function wireCountSection(panel, block, rerender) {
     sizeS.addEventListener('change', done);
     sizeN.addEventListener('change', done);
   }
+
+  /* 아이콘 고르기 — 레포의 기존 고르개(js/panels/iconify-panel.js openIconifyModal)를 그대로 쓴다. 여기에 네트워크 코드는 없다.
+     ⚠️그 고르개는 인터넷이 있어야 아이콘을 받는다(없으면 내장 글리프 6개만 쓴다). 받지 못하면 svg 대신 <img …> 문자열이 온다 — 그건 안 쓴다.
+     받은 svg 는 묶음 setter(CountSticker.setGroup)가 «쓸 때» 거르고(js/util/sanitize-svg.js), 그릴 때 한 번 더 거른다. */
+  $('stk-count-icon-pick')?.addEventListener('click', () => {
+    if (!CS || typeof window.openIconifyModal !== 'function') { window.showToast?.('⚠️ 아이콘 고르개를 열 수 없습니다'); return; }
+    window.openIconifyModal((picked) => {
+      const svg = picked && typeof picked.svg === 'string' ? picked.svg : '';
+      if (!/^\s*<svg[\s>]/i.test(svg)) { window.showToast?.('⚠️ 아이콘을 받지 못했습니다'); return; }
+      CS.setGroup(sec(), { style: 'icon', icon: 'custom', iconSvg: svg });
+      if (block.dataset.countIcon !== 'custom' || block.dataset.countIconSvg === undefined) { window.showToast?.('⚠️ 쓸 수 없는 아이콘입니다'); return; }
+      syncIconRows();
+      commit('마킹 아이콘');
+    }, { hideSize: true });
+  });
+
+  /* 프리셋 — 이 섹션의 마킹 전부에 한 벌을 깐다(스위치와 무관). 색·모양·표기 칸이 다 바뀌므로 패널을 다시 그린다. */
+  panel.querySelectorAll('#stk-count-presets [data-count-preset]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!CS?.applyPreset) return;
+      if (!CS.applyPreset(sec(), btn.dataset.countPreset)) return;
+      commit('마킹 프리셋');
+      window.showStickerProperties?.(block);
+    });
+  });
 
   /* ── Label 절(옆 라벨 · 1013t2B5) ─────────────────────────────────────────────── */
   /* 글자 — 블럭마다(일괄 안 함). 값은 .value 로 넣는다(본문 주입의 선두 개행 소실·이스케이프 함정 회피 — #stk-text 와 같은 까닭).

@@ -9,6 +9,8 @@
  *   M6 인라인 — 마커를 더블클릭하면 라벨 편집이 열리고 Enter 로 확정 · 번호 글자는 편집이 안 열린다 · ⌘Z 한 칸
  *   M7 살아남기 — ⌘Z/⌘⇧Z · ⌘D 복제 · 직렬화→다시 싣기 뒤에도 아이콘·라벨이 같다 · 손잡이·편집 잔재가 직렬화에 0
  *   M8 섹션 경계 — 마커가 왼쪽 경계에 걸쳐도 오른쪽 라벨은 안 잘린다(오른쪽 inset 이 음수) · 라벨 없는 것의 --sec-clip 은 예전 값
+ *   M9 프리셋 「포인트」 — 한 번에 사각·주황·흰 꺾쇠·흰 라벨(섹션 전부) · ⌘Z 한 칸 / 「번호」 = 기본 꼴로
+ *   M9b 「아이콘 고르기…」 — 고르개가 준 svg 를 걸러서 섹션 전부에 넣는다 · img 폴백은 안 쓴다(고르개는 «대역» — 모달·네트워크를 안 연다)
  *   M10 내보내기 클론 — 에디터 CSS 가 없는 문서에서도 라벨이 마커 오른쪽·세로 가운데(자리 스타일이 인라인)
  * ★자리·크기는 «레이아웃 px»(offset* · dataset)로 견준다. 화면 사각형은 «누를 점»과 «두 사각형의 상대 관계»에만 쓴다.
  * ⛔파일 선택창 · 네트워크 · Iconify 모달은 안 연다(아이콘은 내장 글리프와 setter 로만).
@@ -499,4 +501,98 @@ test('M10 내보내기 클론 — 에디터 CSS 가 없는 문서에서도 라�
   expect(r.text, '★전제: 클론에 라벨이 실렸다').toBe('방수포켓');
   expect([r.rightOf, r.centered, r.gap], '라벨: 마커 오른쪽 · 세로 가운데 · 간격 = 마커 폭의 20%').toEqual([true, true, r.wantGap]);
   expect([r.iconW, r.iconInside, r.labelSizeOk], '아이콘 폭 = 폰트 크기(숫자로 구웠다) · 마커 안 · 라벨 크기도 인라인').toEqual([r.fontPx, true, true]);
+});
+
+/* ── 프리셋 · 아이콘 고르기(1013t2B5) ────────────────────────────────────────────────────────────── */
+
+const ORANGE = 'rgb(235, 98, 23)';       // #eb6217 — js/count-sticker-tool.js COUNT_STK_PRESETS.point.bgColor (글자로 박는다)
+
+/* 그 섹션 마킹들의 «꼴» — 모양·색·아이콘·라벨 색. */
+const shapeLook = (page, secId) => page.evaluate((id) => [...document.querySelectorAll(`#${id} .sticker-block[data-count]`)].map((b) => {
+  const c = getComputedStyle(b), first = b.querySelector(':scope > .sticker-count-icon > svg')?.firstElementChild, lab = b.querySelector(':scope > .sticker-count-label');
+  return { radius: c.borderRadius, bg: c.backgroundColor, points: first ? first.getAttribute('points') : null, stroke: first ? getComputedStyle(first).stroke : null,
+    num: b.querySelector(':scope > .sticker-text')?.textContent ?? null, label: lab ? lab.textContent : null, labelColor: lab ? getComputedStyle(lab).color : null,
+    labelLeft: lab ? lab.offsetLeft - b.offsetWidth : null };
+}), secId);
+
+test('M9 프리셋 「포인트」 — 한 번에 사각·주황·흰 꺾쇠·흰 라벨(섹션 전부) · ⌘Z 한 칸 / 「번호」는 기본 꼴로', async ({ page }) => {
+  const errs = await three(page);
+  await typeLabel(page, '메쉬포켓');
+  await commitField(page);
+  const b0 = await shapeLook(page, 'secB');
+  const a0 = await shapeLook(page, 'secA');
+  expect(a0.map((m) => [m.radius, m.bg, m.num]), '★전제: 기본 꼴(원 · 검정 · 번호)').toEqual([['50%', 'rgb(0, 0, 0)', '1'], ['50%', 'rgb(0, 0, 0)', '2'], ['50%', 'rgb(0, 0, 0)', '3']]);
+  expect([a0[2].label, a0[2].labelColor], '★전제: 셋째의 라벨은 마커 배경색(검정)').toEqual(['메쉬포켓', 'rgb(0, 0, 0)']);
+  expect(await page.evaluate(() => document.querySelectorAll('#stk-count-presets [data-count-preset]').length), '★전제: 프리셋 단추 둘').toBe(2);
+
+  const point = { radius: '8px', bg: ORANGE, points: CHEVRON, stroke: WHITE, num: null };
+  const h = await expectOneUndoStep(page, async () => {
+    await page.click('#stk-count-presets [data-count-preset="point"]');
+    await expect.poll(async () => pluck(await shapeLook(page, 'secA'), 'bg'), '★전제: 셋 다 주황이 됐다').toEqual([ORANGE, ORANGE, ORANGE]);
+    const a = await shapeLook(page, 'secA');
+    expect(a.map((m) => ({ radius: m.radius, bg: m.bg, points: m.points, stroke: m.stroke, num: m.num })), '포인트: 사각 · 주황 · 흰 꺾쇠(섹션 셋 다)').toEqual([point, point, point]);
+    expect([a[2].label, a[2].labelColor, a[2].labelLeft], '포인트: 라벨 글자는 그대로 · 흰색 · 마커 오른쪽').toEqual(['메쉬포켓', WHITE, 11]);
+    expect(pluck(a, 'label').slice(0, 2), '라벨 글자가 없는 둘에는 라벨이 안 생긴다').toEqual([null, null]);
+    const panel = await page.evaluate(() => ({ style: document.querySelector('#stk-count-style .active')?.dataset.countStyle, shape: document.querySelector('#stk-count-shape .active')?.dataset.countShape,
+      glyph: document.querySelector('#stk-count-glyph .active')?.dataset.countGlyph, bgHex: document.getElementById('stk-bg-hex')?.value,
+      handles: document.querySelectorAll('#secA .sticker-block.selected .sticker-corner-handle').length }));
+    expect(panel, '패널이 새 꼴로 다시 그려졌다 · 손잡이 그대로').toEqual({ style: 'icon', shape: 'square', glyph: 'chevron-right', bgHex: 'EB6217', handles: 4 });
+  }, '마킹 프리셋 포인트', { soft: true });
+  expect(await shapeLook(page, 'secB'), '다른 섹션은 그대로(⌘Z 뒤에도)').toEqual(b0);
+  expect(h.dPos >= 1 && h.seqNew, `A1 프리셋 직후 꼭대기가 새 칸 — Δpos=${h.dPos} top=${h.topAction}`).toBe(true);
+  expect([h.undoDLen, h.undoDPos], 'A2 ⌘Z 가 구제 칸 없이 정확히 한 칸').toEqual([0, -1]);
+  await expect.poll(() => shapeLook(page, 'secA'), '⌘Z 한 번에 셋 다 프리셋 전으로').toEqual(a0);
+
+  /* 「번호」 — 포인트를 깐 뒤 기본 꼴로 */
+  await pickMark(page, 2);
+  await page.click('#stk-count-presets [data-count-preset="point"]');
+  await expect.poll(async () => pluck(await shapeLook(page, 'secA'), 'bg'), '★전제: 다시 주황').toEqual([ORANGE, ORANGE, ORANGE]);
+  await page.click('#stk-count-presets [data-count-preset="number"]');
+  await expect.poll(() => shapeLook(page, 'secA'), '번호: 원 · 검정 · 번호 글자 · 라벨은 마커 색(검정)으로').toEqual(a0);
+  expect(errs).toEqual([]);
+});
+
+test('M9b 아이콘 고르기 — 고르개가 준 svg 를 걸러 섹션 전부에 넣는다 · img 폴백은 안 쓴다 · ⌘Z 한 칸', async ({ page }) => {
+  const errs = await three(page);
+  /* 고르개는 «대역»이다 — 진짜 모달·네트워크를 안 연다. 단추가 부르는 것이 window.openIconifyModal 이고(레포의 기존 고르개 입구),
+     그 콜백에 { svg } 를 돌려준다는 계약만 흉내 낸다. */
+  await page.evaluate(() => {
+    window.__pickCalls = [];
+    window.__pickReply = { name: 'mdi:arrow', svg: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" onload="window.__pwned=1"><script>window.__pwned=2</script><path fill="currentColor" d="M4 11h12v2H4z"/></svg>' };
+    window.openIconifyModal = (cb, opts) => { window.__pickCalls.push(opts || null); cb(window.__pickReply); };
+  });
+  expect(await page.evaluate(() => getComputedStyle(document.getElementById('stk-count-icon-pick-row')).display), '★전제: 번호 표기일 때 「아이콘 고르기」 행은 숨어 있다').toBe('none');
+  await page.click('#stk-count-style [data-count-style="icon"]');
+  expect(await page.evaluate(() => getComputedStyle(document.getElementById('stk-count-icon-pick-row')).display), '아이콘 표기면 행이 보인다').toBe('flex');
+
+  const state = () => page.evaluate(() => [...document.querySelectorAll('#secA .sticker-block[data-count]')].map((b) => {
+    const svg = b.querySelector(':scope > .sticker-count-icon > svg');
+    return { icon: b.dataset.countIcon, stored: b.dataset.countIconSvg ?? null, d: svg?.querySelector('path')?.getAttribute('d') ?? null,
+      w: svg ? svg.getAttribute('width') : null, on: svg ? [...svg.attributes].filter((a) => /^on/i.test(a.name)).length : null, scripts: b.querySelectorAll('script').length };
+  }));
+  const CLEAN = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="M4 11h12v2H4z"/></svg>';
+  const h = await expectOneUndoStep(page, async () => {
+    await page.click('#stk-count-icon-pick');
+    await expect.poll(async () => pluck(await state(), 'icon'), '★전제: 셋 다 custom 이 됐다').toEqual(['custom', 'custom', 'custom']);
+  }, '마킹 아이콘 고르기', { soft: true });
+  expect(await page.evaluate(() => window.__pickCalls.length), '★전제: 고르개 입구를 한 번 불렀다').toBe(1);
+  expect(h.dPos >= 1 && h.seqNew, `A1 고른 직후 꼭대기가 새 칸 — Δpos=${h.dPos}`).toBe(true);
+  expect([h.undoDLen, h.undoDPos], 'A2 ⌘Z 가 구제 칸 없이 정확히 한 칸').toEqual([0, -1]);
+  await expect.poll(async () => pluck(await state(), 'icon'), '⌘Z: 고르기 전(내장 글리프)으로').toEqual(['chevron-right', 'chevron-right', 'chevron-right']);
+
+  /* 다시 골라 «걸러진» 모습을 본다 */
+  await pickMark(page, 2);
+  await page.click('#stk-count-icon-pick');
+  const s = await state();
+  expect(pluck(s, 'stored'), 'dataset 에는 거른 svg 만(onload·script 없음)').toEqual([CLEAN, CLEAN, CLEAN]);
+  expect(s.map((x) => [x.d, x.w, x.on, x.scripts]), '그려진 것: 그 path · 폭 = 폰트 크기(26) · on* 0 · script 0').toEqual(Array(3).fill(['M4 11h12v2H4z', '26', 0, 0]));
+  expect(await page.evaluate(() => window.__pwned ?? null), '아무것도 실행되지 않았다').toBeNull();
+  expect(await page.evaluate(() => document.querySelector('#stk-count-glyph .active')), '내장 글리프 단추는 아무것도 활성이 아니다').toBeNull();
+
+  /* img 폴백(고르개가 아이콘을 못 받았을 때 주는 꼴)은 안 쓴다 */
+  await page.evaluate(() => { window.__pickReply = { name: 'x', svg: '<img src="https://api.iconify.design/x.svg" onerror="window.__pwned=3">' }; });
+  await page.click('#stk-count-icon-pick');
+  expect(pluck(await state(), 'stored'), 'img 문자열: 앞의 아이콘 그대로').toEqual([CLEAN, CLEAN, CLEAN]);
+  expect(await page.evaluate(() => [window.__pickCalls.length, window.__pwned ?? null, document.querySelectorAll('#secA .sticker-block img').length]), '고르개는 불렀지만 쓰지 않았다 · img 0').toEqual([3, null, 0]);
+  expect(errs).toEqual([]);
 });
