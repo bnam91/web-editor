@@ -26,9 +26,11 @@ import { panelRenderedColor } from '../props/_panel-rendered.js';   // ★D2 —
 
 /** D5 — 버블·챗이 내놓는 줄 종류. ★GRID_ROLES 에서 뜬다(손으로 안 적는다) + 여백. */
 export const LN_KINDS = Object.freeze([...Object.keys(GRID_ROLES), 'gap']);
-/** ★1013t1B2 — laurel(월계관) 칸이 내놓는 줄 종류: 글자 역할 + 여백 + 구분선(그리드 명부에서 그림만 뺀 것).
- *  ★GRID_ROLES 에서 뜬다(손으로 안 적는다). 그림(image)은 C4 에서 laurel 그림 크기 규칙과 함께 연다(계획 §5 C2 ⚠️). */
-export const LAUREL_LN_KINDS = Object.freeze([...Object.keys(GRID_ROLES), 'gap', 'divider']);
+/** ★1013t1B2 — laurel(월계관) 칸이 내놓는 줄 종류 = 그리드와 같은 명부(글자 역할 + 그림 + 여백 + 구분선 · prop-grid _GRD_KINDS 와 같은 순서).
+ *  ★GRID_ROLES 에서 뜬다(손으로 안 적는다). 그림(image)은 C4 에서 laurel 그림 크기 규칙(높이 px · laurel-block.js 꾸밈)과 함께 열었다. */
+export const LAUREL_LN_KINDS = Object.freeze([...Object.keys(GRID_ROLES), 'image', 'gap', 'divider']);
+/** ★1013t1B2 C4 — laurel 그림 줄 기본 높이(px · 결정 B2-4) = 아이콘 피커 크기(picked.size)가 없을 때 그리드 K 와 같은 64. */
+export const LAUREL_IMG_DEFAULT_H = 64;
 export const LN_ROW_CLASS = 'ln-row';
 /** 줄 선택 표시 — `-line-selected` 로 끝나 저장 직렬화가 «알아서» 벗긴다(section-serialize.js RUNTIME_MARKER_RE). */
 export const LN_MARK_CLASS = 'ln-line-selected';
@@ -145,7 +147,7 @@ function _baseHost(block, o) {
   const C = (c) => (o.cAxis ? c : 0);
   const host = {
     kind: o.kind, kinds: o.kinds || LN_KINDS, maxLines: MAX_CELL_LINES, limitLabel: o.limitLabel, noHitHint: o.noHitHint,
-    head: o.head, cAxis: !!o.cAxis,
+    head: o.head, cAxis: !!o.cAxis, imgDefaultH: o.imgDefaultH,   // ★1013t1B2 C4 — imgDefaultH 는 laurel 만(이미지 절 높이 안내값)
     getLines: (r, c) => o.getLines(r, C(c)) || [],
     commitLines: (r, c, lines, opts) => {
       let next = Array.isArray(lines) ? lines.slice() : lines;
@@ -419,7 +421,7 @@ export function lnLaurelHost(block) {
   const where = (r) => `칸 ${r + 1} (${(r % cols()) + 1},${Math.floor(r / cols()) + 1})`;   // 패널 칸 카드 「Cell N (c,r)」 와 같은 수
   const cellLines = (r, lines) => ({ cellLines: { cell: r, lines } });
   return _baseHost(block, {
-    kind: 'laurel', kinds: LAUREL_LN_KINDS, limitLabel: '칸 한 개에',
+    kind: 'laurel', kinds: LAUREL_LN_KINDS, limitLabel: '칸 한 개에', imgDefaultH: LAUREL_IMG_DEFAULT_H,
     noHitHint: '칸을 한 번 더 누르면 줄 편집 · 줄을 두 번 누르면 글자 편집',
     head: (r, c, li) => (li === null ? `${where(r)} · 줄을 고르거나 더하세요` : `${where(r)} · ${li + 1}번째 줄`),
     getLines: (r) => lnLaurelLines(block, r),
@@ -524,12 +526,16 @@ function _mountLineUi(block, host, addr, { synthetic = false } = {}) {
   const hit = anyHit && anyHit.line && gridLineHasText(anyHit.line) ? anyHit : null;
   const cur = anyHit ? { r: anyHit.r, c: anyHit.c, li: anyHit.li } : null;   // c = 버블·챗 0 · 비교 칼럼
   if (!synthetic) grdSetActiveLine(block, cur);
+  /* ★1013t1B2 C4 — 그림 줄이면 이미지 절(주인을 받는 그리드 절 «그 함수»)도 얹는다. ⛔그림 종류를 안 가진 주인(버블·챗·비교)은 산출 무변. */
+  const img = !!(anyHit && anyHit.li !== null && anyHit.line && anyHit.line.type === 'image' && host.kinds.includes('image'));
   const html = grdLineUi.lineBarHtml(anyHit, block, host)
     + (anyHit && anyHit.li !== null ? grdLineUi.lineSectionHtml(anyHit, block, host) : '')
+    + (img ? grdLineUi.imageSectionHtml(anyHit, block, host) : '')
     + (hit ? grdLineUi.typoSectionsHtml(hit, block) : '');
   if (!_insertAfterHeader(html)) return;
   if (cur) grdLineUi.wireLineBar(block, cur, host);
   if (cur && cur.li !== null) grdLineUi.wireLineSection(block, cur, host);
+  if (img) grdLineUi.wireImageSection(block, cur, host);
   if (hit) grdLineUi.wireTypo(block, cur, host);
   if (!synthetic) lnMark(block, cur);
   /* ★⑵-B② — 줄을 고르면 ★끄는 손잡이도 같이 뜬다(그리드는 prop-grid.js 가 같은 자리에서 부른다).
@@ -838,6 +844,23 @@ export function lnAddLineToSelected(type) {
   if (res && res.ok) host.show(grdGetActiveLine(block));
   return !!(res && res.ok);
 }
+/** K — 고른 줄 «다음»(칸만 골랐으면 끝)에 아이콘 그림 줄. 그림 종류를 가진 주인(laurel)만. 반환 = 게이트를 지나 피커를 열었나
+ *  (그리드 grdAddIconToSelectedCell 과 같은 뜻 — 삽입 성공 여부가 아니다). ★1013t1B2 C4 */
+export function lnAddIconToSelected() {
+  const block = _soleSelectedHost();
+  if (!block) return false;
+  const host = lnHostFor(block);
+  if (!host || !host.kinds.includes('image')) return false;
+  const addr = _lnPickedLine(block);
+  if (!addr) return false;
+  window.openIconifyModal?.((picked) => {
+    const imgSrc = grdLineUi.svgToDataUri(picked.svg);
+    const res = window.grdAddLine?.(block, { r: addr.r, c: host.cAxis ? addr.c : 0 }, addr.li === null ? null : addr.li,
+      { type: 'image', imgSrc, height: picked.size || host.imgDefaultH || LAUREL_IMG_DEFAULT_H }, {}, host);
+    if (res && res.ok) host.show(grdGetActiveLine(block)); else window.grdToastImgFail?.(res);
+  });
+  return true;
+}
 /** Esc — 줄 선택만 풀고 블럭은 남긴다(그리드 «상위 선택»과 같은 규칙). 먹었으면 true. */
 export function lnEscLine() {
   const block = _soleSelectedHost();
@@ -853,6 +876,6 @@ if (typeof window !== 'undefined') {
     lnHasLines, lnLinesHtml, lnValidateLines, lnPlainText, lnTextMirrorHtml,
     lnRenderBubble, lnBubbleLines, lnHostFor, lnMark, lnRemark, lnClearAllActive, lnClickAddr,
     lnAugmentBubblePanel, lnAugmentChatPanel, lnAugmentCmpPanel, lnAugmentLaurelPanel, lnCmpLines, lnLaurelLines, LAUREL_LN_KINDS, lnBindLineEdit, lnBeginEdit, lnEnterEdit,
-    lnDeleteActiveLine, lnAddLineToSelected, lnEscLine, lnSyncPlus,
+    lnDeleteActiveLine, lnAddLineToSelected, lnEscLine, lnSyncPlus, lnAddIconToSelected,
   });
 }

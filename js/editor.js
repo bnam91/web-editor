@@ -2975,6 +2975,7 @@ document.addEventListener('keydown', e => {
     // ★아이콘 새 줄(K) — 그리드 전용, 하드코딩(설정 리매핑 레지스트리는 이번 범위 밖).
     if (e.code === 'KeyK' && !e.isComposing) {
       if (window.grdAddIconToSelectedCell?.()) { e.preventDefault(); return; }
+      if (window.lnAddIconToSelected?.()) { e.preventDefault(); return; }   // ★1013t1B2 C4 — laurel 칸/줄에도(그리드 다음 · T/G 와 같은 꼴)
     }
 
     // Enter → 선택된 텍스트 블록 편집 모드 진입

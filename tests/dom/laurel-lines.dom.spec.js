@@ -231,7 +231,7 @@ async function pickLine(page, ci, li) {
 }
 
 test.describe('laurel 줄 — C2 네 번째 주인(캔버스 2단 선택 · 줄바 · 단축키 · 문)', () => {
-  test('LL5 C2 클릭1 = 블럭만 · 클릭2 = 줄 활성 + 줄바(그리드와 같은 명부 · 그림 줄만 C4) · 칸 카드에 줄 카드 0 · 2×2 칸 4 머리', async ({ page }) => {
+  test('LL5 C2 클릭1 = 블럭만 · 클릭2 = 줄 활성 + 줄바(그리드와 같은 명부) · 칸 카드에 줄 카드 0 · 2×2 칸 4 머리', async ({ page }) => {
     const errs = await setup2(page);
     // 그리드 기준값 — 같은 페이지의 그리드 블럭에서 «+ 줄 추가» 명부를 뜬다(손으로 안 적는다)
     const gridKinds = await page.evaluate(async () => {
@@ -259,7 +259,7 @@ test.describe('laurel 줄 — C2 네 번째 주인(캔버스 2단 선택 · 줄�
         expanded: [...P.querySelectorAll('.prop-cell-card.expanded')].map(e => e.dataset.cellIdx),
         barAfterHeader: P.querySelector('.prop-section + #ln-line-panel') !== null };
     });
-    expect(s2.kinds, '줄바 명부 = 그리드 명부에서 그림(image)만 뺀 것(C4 에서 연다)').toEqual(gridKinds.filter(k => k !== 'image'));
+    expect(s2.kinds, '줄바 명부 = 그리드 명부 그대로(C4 에서 그림까지 열었다)').toEqual(gridKinds);
     expect(s2.summary, '줄바 머리 = 칸 1 · 2번째 줄').toContain('칸 1');
     expect(s2.summary).toContain('2번째 줄');
     expect(s2.kindSel, '줄 꾸미기(종류) 절').toBe(true);
@@ -367,7 +367,7 @@ test.describe('laurel 줄 — C2 네 번째 주인(캔버스 2단 선택 · 줄�
       const id = window.__bid; const tip = () => window.getHistoryTip().len;
       const out = {};
       let t0 = tip();
-      out.badType = window.updateLaurelBlock(id, { cellLines: { cell: 0, lines: [{ type: 'image', imgSrc: 'x.png' }] } });
+      out.badType = window.updateLaurelBlock(id, { cellLines: { cell: 0, lines: [{ type: 'graph', items: [] }] } });
       out.badCell = window.updateLaurelBlock(id, { cellLines: { cell: 9, lines: [] } });
       out.histOnReject = tip() - t0;
       t0 = tip();
@@ -385,7 +385,7 @@ test.describe('laurel 줄 — C2 네 번째 주인(캔버스 2단 선택 · 줄�
       out.added = JSON.parse(document.getElementById(id).dataset.cells)[1].lines.at(-1);
       return out;
     });
-    expect(r.badType.ok, '그림 줄은 laurel 종류 명부 밖(C2)').toBe(false);
+    expect(r.badType.ok, '명부 밖 종류(graph)는 거절(C4 부터 그림은 명부 안)').toBe(false);
     expect(r.badType.code).toBe('INVALID');
     expect(r.badType.message).toContain('laurel');
     expect(r.badCell.ok, '없는 칸').toBe(false);
@@ -500,5 +500,114 @@ test.describe('laurel 줄 — C3 Figma JSON · AI 채움', () => {
     expect(r.cells.every(c => c.lines.every(l => typeof l.type === 'string')), '«쓰기 하나» — 모든 칸 새 꼴').toBe(true);
     expect(await page.evaluate(() => document.querySelector('#sB .laurel-block .ln-row[data-ln-m="0"][data-ln="3"]')?.textContent), '화면에 새 줄').toBe('추가 줄');
     expect(errs).toEqual([]);
+  });
+});
+
+/* ══ C4 — 그림(에셋) 줄 ═══════════════════════════════════════════════════════════════════════
+ * 음성대조(1회 실측 · 생성기 C4): js/blocks/laurel-block.js _lrlDecorateLinesHtml ⑷ 의
+ *   `img.style.height = hpx + 'px';` 를 빼면 → LL13 빨강(iconify 꼴 svg 가 1em = 16px 로 그려진다)
+ *   실측 2026-10-13: 3 failed(LL13 높이 16 · LL14 · LL15 — 셋 다 그 꾸밈을 잰다) / 13 passed · 되돌린 뒤 cmp 같음. */
+const ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="currentColor" d="M2 2h20v20H2z"/></svg>';
+const imgBox = (page, ci, li) => page.evaluate(async ([ci, li]) => {
+  const im = document.querySelector(`#sB .laurel-block .ln-row[data-ln-m="${ci}"][data-ln="${li}"] img`);
+  if (!im) return null;
+  try { await im.decode(); } catch (_) {}
+  const q = im.getBoundingClientRect(); return { w: q.width, h: q.height, nw: im.naturalWidth };
+}, [ci, li]);
+
+test.describe('laurel 줄 — C4 그림(에셋) 줄', () => {
+  test('LL13 C4 K = 아이콘 그림 줄(높이 64 · 폭 auto) · 이미지 절(높이 켬 · 폭·자르기 절 숨김) · 높이 바꾸면 따라감 · ⌘Z 한 걸음', async ({ page }) => {
+    const errs = await setup(page, C2_CELLS, 2, 2);
+    await page.evaluate((svg) => { window.deselectAll(); window.clearHistory?.(); window.__iconCalls = 0; window.openIconifyModal = (cb) => { window.__iconCalls++; cb({ svg, size: 64 }); }; }, ICON_SVG);
+    const before = await page.evaluate(() => document.getElementById(window.__bid).dataset.cells);
+    await pickLine(page, 0, 0);
+    await page.keyboard.press('k');
+    await expect.poll(async () => (await cellsOf(page))[0].lines.map(l => l.type)).toEqual(['body', 'image', 'body']);
+    expect(await page.evaluate(() => window.__iconCalls), '피커 1번').toBe(1);
+    expect(await active(page), '새 그림 줄이 활성').toEqual({ r: 0, c: 0, li: 1 });
+    const line = (await cellsOf(page))[0].lines[1];
+    expect(line.height, '저장 높이 = 피커 크기').toBe(64);
+    expect(line.imgSrc.startsWith('data:image/svg+xml'), '아이콘 = data URI').toBe(true);
+    await expect.poll(async () => (await imgBox(page, 0, 1))?.h ?? 0, '화면 높이 64').toBeGreaterThan(63);
+    const b1 = await imgBox(page, 0, 1);
+    expect(Math.abs(b1.h - 64), `높이 64±1 — ${b1.h}`).toBeLessThanOrEqual(1);
+    expect(Math.abs(b1.w - 64), `정사각 아이콘 폭 auto = 64±1 — ${b1.w}`).toBeLessThanOrEqual(1);
+    const P = await page.evaluate(() => ({ pick: !!document.getElementById('grd-img-pick-btn'), h: document.getElementById('grd-img-height'),
+      hDisabled: document.getElementById('grd-img-height')?.disabled, wHidden: document.getElementById('grd-img-width-pct')?.closest('.prop-row')?.style.display === 'none',
+      clip: !!document.getElementById('grd-img-clip-toggle'), typo: !!document.getElementById('grd-typo-color'),
+      addKinds: [...(document.getElementById('grd-line-add-kind')?.options || [])].map(o => o.value) }));
+    expect(P.pick, '이미지 절 「이미지 교체…」').toBe(true);
+    expect(P.hDisabled, '높이 칸 켜짐(laurel 은 높이를 읽는다)').toBe(false);
+    expect(P.wHidden, '폭(%) 숨김').toBe(true);
+    expect(P.clip, '「이미지 표시/내용 자르기」 절 없음').toBe(false);
+    expect(P.typo, '그림 줄엔 Typography 없음').toBe(false);
+    expect(P.addKinds).toContain('image');
+    await page.evaluate(() => { const i = document.getElementById('grd-img-height'); i.value = '96'; i.dispatchEvent(new Event('change', { bubbles: true })); });
+    await expect.poll(async () => (await cellsOf(page))[0].lines[1].height).toBe(96);
+    await expect.poll(async () => Math.round((await imgBox(page, 0, 1))?.h ?? 0), '높이 바꾸면 화면도 96').toBe(96);
+    // Figma·AI 는 그림 줄을 건너뛴다(C3 규약 그대로)
+    const skip = await page.evaluate(() => { window.flushCurrentPage?.(); let hit = null;
+      const walk = (o) => { if (hit || !o || typeof o !== 'object') return; if (o.type === 'laurel' && o.id === window.__bid) { hit = o; return; } for (const k in o) walk(o[k]); };
+      walk(window.buildFigmaExportJSON(null));
+      const slots = window.collectSectionTextBlocks(document.getElementById('sB')).filter(x => x.id.startsWith(`lrl:${window.__bid}:0:`)).map(x => x.id.split(':')[3]);
+      return { figma: hit.cells[0].lines.map(l => l.text), slots }; });
+    expect(skip.figma, 'Figma — 그림 줄 빠짐').toEqual(['1위', '고객 만족']);
+    expect(skip.slots, 'AI 슬롯 — 그림 줄(1) 없음').toEqual(['0', '2']);
+    // ⌘Z — 높이 바꾸기 → K 순으로 한 걸음씩
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('Meta+z'); await expect.poll(async () => (await cellsOf(page))[0].lines[1]?.height).toBe(64);
+    await page.keyboard.press('Meta+z');
+    await expect.poll(() => page.evaluate(() => document.getElementById(window.__bid).dataset.cells), '⌘Z — K 전 문자열 그대로').toBe(before);
+    expect(errs).toEqual([]);
+  });
+
+  test('LL14 C4 「이미지 교체…」 — 파일창은 «한 번 부르기만»(가로챔) · 고른 파일이 data URL 로 그 줄에 · 큰 그림은 높이 그대로 비율 유지', async ({ page }) => {
+    const errs = await setup(page, C2_CELLS, 2, 2);
+    await page.evaluate((svg) => { window.deselectAll(); window.openIconifyModal = (cb) => cb({ svg, size: 64 }); }, ICON_SVG);
+    await pickLine(page, 1, 0);
+    await page.keyboard.press('k');
+    await expect.poll(async () => (await cellsOf(page))[1].lines.length).toBe(2);
+    // ⛔파일창을 열지 않는다 — click 을 가로채 «부른 횟수»만 세고, 그 input 에 만든 PNG(240×80)를 넣어 change 를 쏜다.
+    await page.evaluate(async () => {
+      window.__fileClicks = 0;
+      const cv = document.createElement('canvas'); cv.width = 240; cv.height = 80; const g = cv.getContext('2d'); g.fillStyle = '#c00'; g.fillRect(0, 0, 240, 80);
+      const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+      window.__pngFile = new File([blob], 'wide.png', { type: 'image/png' });
+      const orig = HTMLInputElement.prototype.click;
+      HTMLInputElement.prototype.click = function () {
+        if (this.type !== 'file') return orig.call(this);
+        window.__fileClicks++;
+        const dt = new DataTransfer(); dt.items.add(window.__pngFile); this.files = dt.files;
+        this.dispatchEvent(new Event('change'));
+      };
+    });
+    await page.click('#grd-img-pick-btn');
+    await expect.poll(async () => String((await cellsOf(page))[1].lines[1].imgSrc).slice(0, 22), '그 줄 imgSrc = 고른 파일의 data URL').toBe('data:image/png;base64,');
+    expect(await page.evaluate(() => window.__fileClicks), '파일창 부르기 1번(열지 않음)').toBe(1);
+    expect((await cellsOf(page))[1].lines[1].height, '높이는 그대로').toBe(64);
+    await expect.poll(async () => (await imgBox(page, 1, 1))?.nw ?? 0, '새 그림이 디코드됐다').toBe(240);
+    const b = await imgBox(page, 1, 1);
+    expect(Math.abs(b.h - 64), `높이 64 — ${b.h}`).toBeLessThanOrEqual(1);
+    expect(Math.abs(b.w - 192), `폭 = 64 × 240/80 = 192 (비율 유지) — ${b.w}`).toBeLessThanOrEqual(1);
+    expect(errs).toEqual([]);
+  });
+
+  test('LL15 C4 저장 왕복 — 그림 줄이 serializeProject → applyProjectData 뒤에도 그대로(데이터·높이)', async ({ page }) => {
+    await setup(page, C2_CELLS, 2, 2);
+    await page.evaluate((svg) => {
+      const src = 'data:image/svg+xml;base64,' + btoa(svg);
+      window.updateLaurelBlock(window.__bid, { cellLines: { cell: 2, lines: [{ type: 'image', imgSrc: src, height: 80 }, { type: 'h3', text: '아래' }] } });
+    }, ICON_SVG);
+    const snap = await page.evaluate(() => { window.flushCurrentPage?.(); return window.serializeProject(); });
+    const cells0 = await page.evaluate(() => document.getElementById(window.__bid).dataset.cells);
+    const bid = await page.evaluate(() => window.__bid);
+    const errs2 = await bootApp(page);
+    await page.evaluate((d) => window.applyProjectData(d), JSON.parse(snap));
+    await page.waitForFunction((id) => !!document.getElementById(id)?.querySelector('.ln-row[data-ln-m="2"][data-ln="0"] img'), bid);
+    await page.evaluate((id) => { window.__bid = id; window.applyZoom?.(100); document.getElementById(id).scrollIntoView({ block: 'center' }); }, bid);
+    expect(await page.evaluate(() => window.currentZoom), '전제 — 배율 100(화면 px = 모델 px)').toBe(100);
+    expect(await page.evaluate(() => document.getElementById(window.__bid).dataset.cells), '데이터 바이트 같음').toBe(cells0);
+    await expect.poll(async () => Math.round((await imgBox(page, 2, 0))?.h ?? 0), '다시 연 뒤 높이 80').toBe(80);
+    expect(errs2).toEqual([]);
   });
 });

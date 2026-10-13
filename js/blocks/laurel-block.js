@@ -7,7 +7,7 @@
 
 import { insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
-import { lnLinesHtml, lnValidateLines, lnRemark, LAUREL_LN_KINDS } from './line-host.js';   // ★1013t1B2 — 줄은 그리드 줄 렌더 «한 길» · 네 번째 주인(comparison-block.js 와 같은 import · 사본 금지)
+import { lnLinesHtml, lnValidateLines, lnRemark, LAUREL_LN_KINDS, LAUREL_IMG_DEFAULT_H } from './line-host.js';   // ★1013t1B2 — 줄은 그리드 줄 렌더 «한 길» · 네 번째 주인(comparison-block.js 와 같은 import · 사본 금지)
 import { GRID_ROLES } from './grid-block.js';   // ★1013t1B2 — 「글자 줄인가」= 역할표에 있나(comparison-block.js 와 같은 import)
 
 const LAUREL_VIEWBOX = '0 0 170 324';
@@ -213,7 +213,9 @@ function _lrlGridLines(cell) {
  *      ★있으면 pre — 결정 B2-8(편집 중 Enter = 줄 안 줄바꿈)이 낸 \n 을 «그 자리에서» 끊되, 각 줄은 여전히 감싸지 않고 말줄임(LL9).
  *        ⛔pre-line·pre-wrap 은 긴 글을 칸 폭에서 감싼다(⑴ 위반). ⛔전부 pre 로 하면 옛 저장본의 겹공백이 펴진다(LL0 빨강).
  *   ⑵ fx(**text_) = «글자 줄 자신»에 .text-effect tfx-* + --tfx-* — 감싸개에 달면 neon 글자색이 줄 인라인 color 에 진다(실측).
- *   ⑶ 구분선 줄 = 감싸개를 스택 폭으로 편다(align-self:stretch) — 안 펴면 폭 0 이라 안 보인다(가운데 정렬 flex 열의 맞춤 폭). */
+ *   ⑶ 구분선 줄 = 감싸개를 스택 폭으로 편다(align-self:stretch) — 안 펴면 폭 0 이라 안 보인다(가운데 정렬 flex 열의 맞춤 폭).
+ *   ⑷ ★C4 그림 줄(사각) = «높이(px) 하나»로 크기(결정 B2-4 · 없으면 LAUREL_IMG_DEFAULT_H 64) · 폭 auto · 칸 폭을 넘으면 줄되 비율 유지(contain).
+ *      ⛔그리드 그대로면 iconify 꼴 svg(width=1em)가 16px, 큰 사진은 칸 폭 꽉(실측 §1-3 — 플래너 F·E). 원형(imgShape circle)은 그리드 산출 그대로(지름 = height). */
 function _lrlDecorateLinesHtml(html, fxClass, fxStyle, lines = []) {
   if (typeof document === 'undefined') return html;
   const t = document.createElement('template');
@@ -225,6 +227,15 @@ function _lrlDecorateLinesHtml(html, fxClass, fxStyle, lines = []) {
     if (row.querySelector(':scope > .grd-divider')) row.style.alignSelf = 'stretch';
     const ln = lines[Number(row.dataset.ln)];
     const multi = !!(ln && typeof ln.text === 'string' && ln.text.includes('\n'));
+    const frame = row.querySelector(':scope > .grd-img-frame');
+    if (frame && !frame.classList.contains('grd-img-circle')) {
+      const hpx = (ln && Number(ln.height) > 0) ? Number(ln.height) : LAUREL_IMG_DEFAULT_H;
+      frame.style.width = 'auto';
+      frame.style.maxWidth = '100%';
+      const img = frame.querySelector(':scope > img');
+      if (img) { img.style.width = 'auto'; img.style.maxWidth = '100%'; img.style.height = hpx + 'px'; img.style.objectFit = 'contain'; }
+      else { frame.style.width = hpx + 'px'; frame.style.height = hpx + 'px'; }   // 빈 그림 자리 — 정사각 hpx
+    }
     row.querySelectorAll(':scope > .grd-line, :scope > div > .grd-badge').forEach(el => {
       el.style.whiteSpace = multi ? 'pre' : 'nowrap';
       el.style.maxWidth = '100%';
