@@ -958,6 +958,31 @@ test('K2 그림자 값은 확대블럭 선례와 같다(넷째 벌 없음) · �
 
 /* ── 내보내기 · 입구 ── */
 /* 진짜 exportHTMLFile 을 돌리고 «내려받는 대신» 산출 글자를 받는다(effects-reflection · frame-keep-empty 와 같은 가로채기 — 파일 창 0) */
+test('K3 쓰레기 dropShadow 값(abc)에서 「없음」을 누르면 키가 지워진다 · Shadow 줄에 이웃 줄과 같은 prop-label 이 있다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3, extra: { dropShadow: 'abc' } });
+  expect(await ds(page, id, 'dropShadow'), '전제: 쓰레기 값이 실려 있다').toBe('abc');
+  expect(await filterOf(page, id), '전제: 모르는 값 = 그림자 없음').toBe('none');
+  await openPanel(page, id);
+  expect((await dropGroup(page)).active, '전제: 패널은 「없음」을 보인다').toEqual(['none']);
+  const row = await page.evaluate(() => { const g = document.getElementById('grb-drop-group'); const r = g.closest('.prop-row'); const nb = document.getElementById('grb-pie-rank-toggle').closest('.prop-row');
+    return { label: r.querySelector(':scope > .prop-label')?.textContent.trim() ?? null, first: r.firstElementChild.className, nbFirst: nb.firstElementChild.className }; });
+  expect(row.label, 'Shadow 줄에 prop-label').toBe('그림자');
+  expect(row.first, '줄의 첫 칸 = 이웃 줄(순위 표시)과 같은 꼴').toBe(row.nbFirst);
+  await page.evaluate(() => window.pushHistory());   // 전제: 쓰레기 값이 실린 지금 판을 히스토리에 박는다(아래 ⌘Z 가 돌아올 자리)
+  const h0 = await page.evaluate(() => window.getSerializedCanvas().includes('data-drop-shadow'));
+  expect(h0, '전제: 저장본에 쓰레기 키가 실린다').toBe(true);
+  await page.locator('#grb-drop-group .prop-align-btn[data-val="none"]').click();
+  await expect.poll(() => ds(page, id, 'dropShadow'), { message: '「없음」 = 키 삭제(쓰레기 값이어도)' }).toBeNull();
+  expect(await page.evaluate((id) => document.getElementById(id).hasAttribute('data-drop-shadow'), id)).toBe(false);
+  expect((await dropGroup(page)).active).toEqual(['none']);
+  /* 키가 없을 때 「없음」을 또 눌러도 아무 일도 없다(히스토리에 빈 칸을 안 쌓는다) — ⌘Z 한 번이 쓰레기 값으로 돌아간다 */
+  await page.locator('#grb-drop-group .prop-align-btn[data-val="none"]').click();
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate(() => document.querySelector('#sG .graph-block')?.dataset.dropShadow ?? null), { message: '⌘Z 한 번 = 지우기 전' }).toBe('abc');
+  expect(errs).toEqual([]);
+});
+
 const exportHtml = (page) => page.evaluate(async () => { let out = null; const oc = URL.createObjectURL; URL.createObjectURL = (b) => { out = b; return 'blob:x'; };
   const ck = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () {};
   try { await window.exportHTMLFile(); } finally { URL.createObjectURL = oc; HTMLAnchorElement.prototype.click = ck; } return out ? await out.text() : ''; });

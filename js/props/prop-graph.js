@@ -167,6 +167,7 @@ function pieShadowSectionHTML(ds) {
     <div class="prop-section">
       <div class="prop-section-title">Shadow</div>
       <div class="prop-row">
+        <span class="prop-label">그림자</span>
         <div class="prop-align-group" id="grb-drop-group">
           ${PIE_DROP_OPTS.map(([v, label]) => `<button class="prop-align-btn${cur === v ? ' active' : ''}" data-val="${v}">${label}</button>`).join('\n          ')}
         </div>
@@ -968,7 +969,9 @@ ${blockHeaderHTML({
   // 1013t1C7 — 그림자. 값이 같으면 아무 것도 안 한다(히스토리에 빈 칸을 안 쌓는다 — 모달·확대블럭과 같다). 다시 그리지 않는다(그림은 그대로 · CSS 가 속성을 읽는다).
   propPanel.querySelectorAll('#grb-drop-group .prop-align-btn').forEach(btn => btn.addEventListener('click', () => {
     const next = btn.dataset.val;
-    if (_pieDropOf(block.dataset) === next) return;
+    /* 1013t1C7 고침 — 키에 쓰레기 값('abc')이 있으면 «없음»으로 보이지만 키는 남아 있다 ⇒ 「없음」을 누르면 그 키를 지운다(같은 값이라고 돌아가지 않는다). */
+    const _junk = block.dataset.dropShadow !== undefined && _pieDropOf(block.dataset) === 'none';
+    if (_pieDropOf(block.dataset) === next && !(_junk && next === 'none')) return;
     propPanel.querySelectorAll('#grb-drop-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
     if (next === 'soft' || next === 'strong') block.dataset.dropShadow = next; else delete block.dataset.dropShadow;
     window.pushHistory();
