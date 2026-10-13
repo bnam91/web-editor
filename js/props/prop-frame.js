@@ -9,7 +9,7 @@ import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML } from './_helpers
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 /* 버즈(1012t1Z5) — 버즈 표식 프레임이면 머리 바로 뒤에 「Buzz」 절을 그린다(절의 마크업 · 배선은 그 파일의 것). */
-import { isBuzzFrame } from '../blocks/buzz-mark.js';
+import { isBuzzFrame, buzzIconSvg } from '../blocks/buzz-mark.js';
 import { buzzSectionHTML, wireBuzzSection } from './prop-frame-buzz.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, framePadXData, isInlineAbsolute } from '../drag-utils.js';
@@ -51,8 +51,11 @@ function _headerHTML(el, mode) {
   // showFrameProperties는 frame-block 전용 패널.
   // banner-preset 변형은 컴포넌트 단위 — Banner 아이콘 + 'Banner' 라벨 사용.
   const isBanner = !!el.dataset.bannerPreset;
-  const icon = isBanner ? _BANNER_ICON : _FRAME_ICON;
-  const defaultName = isBanner ? 'Banner' : 'Frame';
+  /* 버즈(1012t1Z5) — 버즈 표식 프레임은 「Buzz」 + 전용 아이콘(이웃 모달 머리와 같은 꼴: 12px · viewBox 12 · 선 1.3 · #888).
+     레이어 줄(js/panels/layer-panel-items.js)과 같은 판정 · 같은 그림을 쓴다(js/blocks/buzz-mark.js). 배너가 먼저다. */
+  const isBuzz = !isBanner && isBuzzFrame(el);
+  const icon = isBanner ? _BANNER_ICON : (isBuzz ? buzzIconSvg({ size: 12, stroke: '#888' }) : _FRAME_ICON);
+  const defaultName = isBanner ? 'Banner' : (isBuzz ? 'Buzz' : 'Frame');
   return `
     <div class="prop-section">
 ${blockHeaderHTML({

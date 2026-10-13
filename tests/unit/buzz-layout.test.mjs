@@ -233,3 +233,38 @@ test('U10 ★⑴⑵ 구조 — 프레임 높이를 쓰는 자리는 삽입 하�
   for (const word of ['release', '옮긴', '풀기']) assert.ok(!PANEL_SRC.includes(word), `prop-frame-buzz.js 에 「${word}」`);
   assert.deepEqual(stripCommentsTA(PANEL_SRC).match(HEIGHT_WRITE) || [], [], 'Buzz 절 배선이 프레임 높이를 쓴다');
 });
+
+/* ⇐ 깨뜨리면: buzz-mark.js 의 BUZZ_ICON_STROKE_WIDTH '1.3' → '1.4' */
+test('U11 ★⑶ 이름 · 아이콘 — 이웃과 같은 꼴(viewBox 12 · 선 1.3)이고 레이어 줄 · 패널 머리 · 삽입 메뉴에 배선돼 있다', () => {
+  const layer = M.buzzIconSvg({ cls: 'layer-item-icon' });
+  for (const part of ['class="layer-item-icon"', 'viewBox="0 0 12 12"', 'stroke-width="1.3"', 'fill="none"', 'stroke="currentColor"']) {
+    assert.ok(layer.includes(part), `레이어 줄 아이콘에 ${part} 가 없다: ${layer}`);
+  }
+  const head = M.buzzIconSvg({ size: 12, stroke: '#888' });
+  assert.ok(head.includes('width="12" height="12"') && head.includes('stroke="#888"') && !head.includes('class='), `패널 머리 아이콘 꼴: ${head}`);
+  /* 이웃(레이어 줄의 modal 아이콘)과 같은 껍데기 값인가 — 이웃의 소스에서 읽어 견준다 */
+  const LAYER_SRC = readSrc(ROOT, 'js/panels/layer-panel-items.js');
+  const neighbor = /modal:\s*`<svg class="layer-item-icon" viewBox="([^"]+)" fill="([^"]+)" stroke="currentColor" stroke-width="([^"]+)"/.exec(LAYER_SRC);
+  assert.ok(neighbor, '★전제: 이웃(modal) 레이어 아이콘을 소스에서 찾았다');
+  assert.deepEqual([M.BUZZ_ICON_VIEWBOX, 'none', M.BUZZ_ICON_STROKE_WIDTH], [neighbor[1], neighbor[2], neighbor[3]], '이웃 아이콘과 viewBox · fill · 선 굵기가 같다');
+  /* 판정 */
+  const el = (ds, cls = ['frame-block']) => ({ classList: { contains: (c) => cls.includes(c) }, dataset: ds });
+  assert.equal(M.isBuzzFrame(el({ buzz: '1', freeLayout: 'true' })), true);
+  assert.equal(M.isBuzzFrame(el({ freeLayout: 'true' })), false, '표식 없는 자유배치 프레임은 버즈가 아니다');
+  assert.equal(M.isBuzzFrame(el({ buzz: '1' })), false, '자유배치가 아니면 버즈가 아니다');
+  assert.equal(M.isBuzzFrame(el({ buzz: '1', freeLayout: 'true' }, ['row'])), false);
+  assert.equal(M.isBuzzFrame(null), false);
+  /* 배선 */
+  const PROP_SRC = readSrc(ROOT, 'js/props/prop-frame.js');
+  for (const [name, src] of [['layer-panel-items.js', LAYER_SRC], ['prop-frame.js', PROP_SRC]]) {
+    assert.ok(src.includes('buzzIconSvg(') && src.includes("'Buzz'") && src.includes('isBuzzFrame('), `${name} 에 Buzz 이름 · 아이콘 · 판정이 없다`);
+  }
+  const IX = readSrc(ROOT, 'index.html');
+  const from = IX.indexOf('id="fp-component-menu"');
+  assert.ok(from > 0, '★전제: 삽입 메뉴(#fp-component-menu)를 찾았다');
+  const menu = IX.slice(from, IX.indexOf('</div>', from));
+  assert.equal(menu.split('onclick="addBuzzBlock();').length - 1, 1, '삽입 메뉴에 Buzz 항목이 하나');
+  assert.ok(/<button class="fp-menu-item" onclick="addBuzzBlock\(\);toggleFpDropdown\('fp-component-dropdown'\)">Buzz<\/button>/.test(menu), '메뉴 항목은 맨몸 button 이고 글자는 Buzz');
+  assert.equal(IX.split('src="js/blocks/buzz-frame.js"').length - 1, 1, 'buzz-frame.js 스크립트 태그가 하나');
+  assert.ok(IX.indexOf('src="js/blocks/modal-block.js"') < IX.indexOf('src="js/blocks/buzz-frame.js"'), 'buzz-frame.js 는 modal-block.js 뒤');
+});
