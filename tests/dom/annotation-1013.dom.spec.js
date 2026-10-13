@@ -6,12 +6,18 @@
  *   AN3 지우면 «죽은 행»이 안 남는다 (A1)
  *   AN4 기본 글자 크기 24 (dataset · 그려진 크기) · 프리셋을 눌러도 24 그대로 (A2)
  *   AN5 우측 패널에 글 입력칸이 없고, 캔버스 더블클릭으로 글을 고친다 (A2)
+ *   AN6 고른 라벨을 끌면 라벨만 옮겨진다(dataset.labelDx/Dy · 선 점 불변) (A3)
+ *   AN7 끌기 한 번 = ⌘Z 한 걸음 · ⌘⇧Z 로 다시 (A3)
+ *   AN8 다시 그려도(rebindAll) 오프셋이 남고 라벨 style 이 라이브와 같다 (A3)
+ *   AN9 패널 숫자칸으로 옮기기 · 「자동 배치로 되돌리기」(없으면 꺼짐) (A3)
+ *   AN10 «고른 라벨» 표식은 저장 직렬화에 안 실린다 (A3)
  *   AN11 다시 그려도(rebindAll — 로드·⌘Z 복원이 같이 쓰는 길) 라벨 테두리 스타일이 남는다 (A3-pre)
  * ★만드는 길은 «사람 손» 그대로 — 펜 단추 → 메뉴 「Annotation」 → 섹션 두 점 → Enter → Esc.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
-const { clickAt } = require('./_click-at.js');
+const { clickAt, hitAt } = require('./_click-at.js');
+const { expectOneUndoStep } = require('./_history-step.js');
 
 const SEC = '[id="secA"]';
 
@@ -21,6 +27,7 @@ async function setup(page) {
     const canvas = document.getElementById('canvas');
     canvas.innerHTML = '<div class="section-block" id="secA" style="position:relative;height:420px;background:#f4f4f6"><div class="section-inner"></div></div>';
     window.rebindAll?.();
+    window.applyPagePadX?.(window.state?.pageSettings?.padX);   // 복원(applyPageSettings)이 하는 것과 같게 — ⌘Z 비교가 «셋업 차이»로 갈리지 않게
     window.buildLayerPanel?.();
   });
 }
@@ -160,4 +167,117 @@ test('AN11 다시 그려도 라벨 테두리 «대시»가 남는다 (rebindAll 
   const after = await read();
   expect([after.data, after.drawn], '다시 그린 뒤에도 대시').toEqual(['dashed', 'dashed']);
   expect(after.css, '다시 그린 라벨 style(정규화) = 라이브').toBe(live.css);
+});
+
+const labelSel = (id) => `[id="${id}"] .annot-label`;
+const labelState = (page, id) => page.evaluate((id) => {
+  const b = document.getElementById(id); const l = b.querySelector('.annot-label'); const r = l.getBoundingClientRect();
+  return { dx: b.dataset.labelDx ?? null, dy: b.dataset.labelDy ?? null, points: b.dataset.points, translate: l.style.translate,
+    picked: l.classList.contains('annot-cell-selected'), x: r.left, y: r.top, css: l.style.cssText };
+}, id);
+
+/* 고른다(라벨 클릭) → 한 번 더 누른다(안 움직임) → 라벨이 «골라졌다». */
+async function pickLabel(page, id) {
+  await selectByLabel(page, id);
+  const lr = await waitStableRect(page, labelSel(id));
+  await clickAt(page, lr.cx, lr.cy, { sel: labelSel(id) }, { label: '라벨 한 번 더' });
+  await expect.poll(async () => (await labelState(page, id)).picked, '한 번 더 누르면 라벨이 골라진다').toBe(true);
+  return lr;
+}
+
+/* 라벨을 진짜 마우스로 (+DX, +DY) «캔버스 px» 만큼 끈다(화면 px = 캔버스 px × 배율). */
+const DX = 40, DY = 20;
+async function dragLabel(page, id, lr) {
+  const z = await page.evaluate(() => (window.currentZoom || 40) / 100);
+  expect(Number.isFinite(z) && z > 0, `★전제: 배율이 수다(${z})`).toBe(true);
+  const hit = await hitAt(page, lr.cx, lr.cy);
+  expect(hit && /annot-label/.test(hit.cls), `★전제: 누르는 점이 라벨 위다(${JSON.stringify(hit)})`).toBe(true);
+  await page.mouse.move(lr.cx, lr.cy);
+  await page.mouse.down();
+  for (let i = 1; i <= 8; i++) await page.mouse.move(lr.cx + DX * z * i / 8, lr.cy + DY * z * i / 8);
+  await page.mouse.up();
+  return z;
+}
+
+test('AN6 고른 라벨을 끌면 라벨만 옮겨진다 — dataset.labelDx/Dy · 화면 이동량 · 선 점 불변', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  const lr = await pickLabel(page, id);
+  const s0 = await labelState(page, id);
+  expect([s0.dx, s0.dy, s0.translate], '★전제: 오프셋 없음').toEqual([null, null, '']);
+  const z = await dragLabel(page, id, lr);
+  await expect.poll(async () => { const s = await labelState(page, id); return [s.dx, s.dy]; }, '놓으면 dataset 에 오프셋').toEqual([String(DX), String(DY)]);
+  const s1 = await labelState(page, id);
+  expect(s1.translate, '그려진 translate').toBe(`${DX}px ${DY}px`);
+  expect(Math.abs((s1.x - s0.x) - DX * z) <= 1 && Math.abs((s1.y - s0.y) - DY * z) <= 1, `라벨이 화면에서 (${DX},${DY})×배율 만큼 움직였다: Δ=(${s1.x - s0.x},${s1.y - s0.y}) z=${z}`).toBe(true);
+  expect(s1.points, '선의 점(마지막 점 포함)은 그대로 — 라벨만 떨어진다').toBe(s0.points);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), id), '끈 뒤에도 선택 유지').toBe(true);
+});
+
+test('AN7 라벨 끌기 한 번 = ⌘Z 한 걸음 · ⌘⇧Z 로 다시', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  const lr = await pickLabel(page, id);
+  const s0 = await labelState(page, id);
+  const r = await expectOneUndoStep(page, () => dragLabel(page, id, lr), '어노테이션 라벨 위치');
+  expect(r.topAction, '끝 표본 이름').toBe('어노테이션 라벨 위치');
+  const u = await labelState(page, id);
+  expect([u.dx, u.dy, u.translate], '⌘Z 뒤 오프셋 없음').toEqual([null, null, '']);
+  expect(Math.abs(u.x - s0.x) <= 1 && Math.abs(u.y - s0.y) <= 1, `⌘Z 뒤 라벨 원위치 Δ=(${u.x - s0.x},${u.y - s0.y})`).toBe(true);
+  await page.keyboard.press('Meta+Shift+z');
+  await expect.poll(async () => { const s = await labelState(page, id); return [s.dx, s.dy, s.translate]; }, '⌘⇧Z 한 번에 다시').toEqual([String(DX), String(DY), `${DX}px ${DY}px`]);
+});
+
+test('AN8 다시 그려도(rebindAll) 오프셋이 남고 라벨 style 이 라이브와 같다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  const lr = await pickLabel(page, id);
+  await dragLabel(page, id, lr);
+  await expect.poll(async () => (await labelState(page, id)).dx, '★전제: 끌어서 오프셋이 생겼다').toBe(String(DX));
+  const live = await labelState(page, id);
+  await reloadCanvas(page);
+  const after = await labelState(page, id);
+  expect([after.dx, after.dy, after.translate], '다시 그린 뒤 오프셋').toEqual([String(DX), String(DY), `${DX}px ${DY}px`]);
+  expect(after.css, '라벨 style(정규화) = 라이브 — translate 가 «맨 끝» 한 자리').toBe(live.css);
+  expect(Math.abs(after.x - live.x) <= 1 && Math.abs(after.y - live.y) <= 1, `다시 그린 라벨이 같은 자리 Δ=(${after.x - live.x},${after.y - live.y})`).toBe(true);
+});
+
+test('AN9 패널 숫자칸으로 옮기고 「자동 배치로 되돌리기」로 지운다 (없으면 단추 꺼짐)', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+  const btn = () => page.evaluate(() => { const b = document.getElementById('annot-label-reset'); return b ? b.disabled : null; });
+  expect(await btn(), '★전제: 오프셋 없으면 단추가 꺼져 있다').toBe(true);
+  await page.click('#annot-label-dx');
+  await page.keyboard.press('Meta+a');
+  await page.keyboard.type('15');
+  await page.keyboard.press('Enter');
+  await page.click('#annot-label-dy');
+  await page.keyboard.press('Meta+a');
+  await page.keyboard.type('-12');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => { const s = await labelState(page, id); return [s.dx, s.dy, s.translate]; }, '숫자칸 값이 먹었다').toEqual(['15', '-12', '15px -12px']);
+  await expect.poll(btn, '오프셋이 생기면 단추가 켜진다').toBe(false);
+  const tip0 = await page.evaluate(() => window.getHistoryTip().pos);
+  await page.click('#annot-label-reset');
+  await expect.poll(async () => { const s = await labelState(page, id); return [s.dx, s.dy, s.translate]; }, '되돌리기 → 키 없음 · translate 없음').toEqual([null, null, '']);
+  await expect.poll(btn, '되돌린 뒤 단추가 꺼진다').toBe(true);
+  expect(await page.evaluate(() => window.getHistoryTip().action), '되돌리기도 히스토리 한 칸').toBe('라벨 위치 되돌리기');
+  expect(await page.evaluate(() => window.getHistoryTip().pos), '꼭대기가 올라갔다').toBeGreaterThan(tip0);
+});
+
+test('AN10 «고른 라벨» 표식은 저장 직렬화에 안 실린다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await pickLabel(page, id);
+  const r = await page.evaluate(() => ({ live: document.querySelectorAll('.annot-cell-selected').length, saved: (window.getSerializedCanvas().match(/annot-cell-selected/g) || []).length }));
+  expect(r, '라이브엔 1 · 직렬화엔 0').toEqual({ live: 1, saved: 0 });
+  await page.keyboard.press('Escape');
+  await expect.poll(() => page.evaluate((id) => ({ picked: !!document.querySelector('.annot-cell-selected'), sel: document.getElementById(id).classList.contains('selected') }), id),
+    'ESC 한 번은 라벨 고르기만 푼다').toEqual({ picked: false, sel: true });
 });

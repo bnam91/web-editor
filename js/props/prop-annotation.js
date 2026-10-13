@@ -165,6 +165,8 @@ function _rerenderAnnotation(block) {
         if ((label.textContent || '').trim() !== st.text) label.textContent = st.text;
       }
     }
+    // ★1013t1A3 — 개별 위치(translate)를 style «맨 끝»으로 다시 붙인다(위에서 padding 등이 새로 붙었을 수 있다)
+    window.annotApplyLabelOffset?.(block);
   }
 }
 
@@ -199,6 +201,9 @@ export function showAnnotationProperties(block) {
   const labelBorderAlpha = parseAlphaFromColor(st.labelBorderColor);
   const strokeAlpha      = parseAlphaFromColor(st.strokeColor);
   const labelColorAlpha  = parseAlphaFromColor(st.labelColor);
+  // ★1013t1A3 라벨 개별 위치(방사형 블럭 호의 「라벨 간격」 · 「자동 배치로 되돌리기」 꼴)
+  const LIM    = window.ANNOT_LIMITS;
+  const manual = st.labelDx !== 0 || st.labelDy !== 0;
 
   propPanel.innerHTML = `
     <div class="prop-section" data-prop-panel="annotation">
@@ -320,6 +325,17 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="annot-border-w" min="0" max="8" step="0.5" value="${st.labelBorderWidth}">
         <input type="number" class="prop-number" id="annot-border-w-num" min="0" max="8" step="0.5" value="${st.labelBorderWidth}">
       </div>
+    </div>
+
+    <div class="prop-section" id="annot-label-pos-section">
+      <div class="prop-section-title">라벨 위치</div>
+      <div class="prop-hint">캔버스에서 라벨을 한 번 더 누르면 골라지고, 끌면 라벨만 옮겨집니다</div>
+      <div class="prop-row">
+        <span class="prop-label">위치</span>
+        <input type="number" class="prop-number" id="annot-label-dx" min="${LIM.labelDx.min}" max="${LIM.labelDx.max}" step="1" value="${st.labelDx}" title="가로(dx)">
+        <input type="number" class="prop-number" id="annot-label-dy" min="${LIM.labelDy.min}" max="${LIM.labelDy.max}" step="1" value="${st.labelDy}" title="세로(dy)">
+      </div>
+      <button class="prop-btn-full" id="annot-label-reset"${manual ? '' : ' disabled'}>자동 배치로 되돌리기</button>
     </div>
   `;
 
@@ -500,6 +516,22 @@ ${blockHeaderHTML({
       window.pushHistory?.('선 두께');
     });
   }
+
+  // ★1013t1A3 라벨 위치 — 쓰고 → 다시 그리고(패널 포함) → 찍는다(push-after · tests/unit/prop-push-after)
+  const dxIn = propPanel.querySelector('#annot-label-dx');
+  const dyIn = propPanel.querySelector('#annot-label-dy');
+  const onOffset = () => {
+    if (!window.annotSetLabelOffset?.(block, parseFloat(dxIn.value) || 0, parseFloat(dyIn.value) || 0)) return;
+    showAnnotationProperties(block);
+    window.pushHistory?.('라벨 위치');
+  };
+  dxIn?.addEventListener('change', onOffset);
+  dyIn?.addEventListener('change', onOffset);
+  propPanel.querySelector('#annot-label-reset')?.addEventListener('click', () => {
+    if (!window.annotResetLabelOffset?.(block)) return;
+    showAnnotationProperties(block);
+    window.pushHistory?.('라벨 위치 되돌리기');
+  });
 }
 window.showAnnotationProperties = showAnnotationProperties;
 

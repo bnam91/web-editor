@@ -3659,6 +3659,15 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 .annotation-block.selected .annot-line {
   stroke-width: 2.5;
 }
+/* ★1013t1A3 고른 라벨(선택된 어노테이션의 라벨을 한 번 더 누름) — 끌면 라벨만 옮겨진다.
+   방사형 블럭 호의 «고른 항목 라벨»과 같은 꼴(점선 테 · grab). 클래스는 런타임 표식이라 저장본에 안 남는다
+   (js/io/section-serialize.js RUNTIME_MARKER_RE 의 -cell-selected). */
+.annotation-block.selected .annot-label.annot-cell-selected {
+  outline: var(--sel-outline-w) dashed var(--sel-color);
+  outline-offset: 6px;
+  box-shadow: none;
+  cursor: grab;
+}
 
 /* 핸들 (각 점 드래그) */
 .annot-handle {
