@@ -756,14 +756,28 @@ function _lnSelRestore(snap, row) {
   const r = document.createRange(); r.setStart(sN, sO); r.setEnd(eN, eO);
   return setSavedTextSelection(r, host);
 }
+/* 두 경계 사이에 글자가 0 인가 — 「같은 글자 자리」(경계의 DOM 꼴은 달라도: (span,0) ↔ (span 안 글자,0) ↔ (앞 글자 노드, 끝)). */
+function _lnSameTextPoint(c1, o1, c2, o2) {
+  const g = document.createRange(); g.setStart(c1, o1); g.collapse(true);
+  if (g.comparePoint(c2, o2) < 0) g.setStart(c2, o2); else g.setEnd(c2, o2);
+  return g.toString() === '';
+}
+/* 갈래 ② — 범위 글자 = 한 color span 의 글자 «전체»면 그 span(재사용 = 겹 span 0).
+   ★1013 바로잡음(재판정 · LR11-10): 옛 판정은 DOM 경계 비교(compareBoundaryPoints)라 «span 안 글자 노드 (0..n)» 범위
+     — ①a·①b(_lnSelRestore)가 세우는 바로 그 꼴 — 를 «span 을 덮지 않는다»로 읽어 늘 null 이었다(밖에서 시작하는 _rangeFromOffsets 꼴만 걸림).
+     그 꼴에선 ③(빈 span 걷기)·_flattenAncestorWithPropIn 이 대신 같은 바이트를 냈으나, 옛 span 이 color «말고 다른 속성»(font-weight 등)도
+     가지면 벗겨지지 않아 겹 span(`<span fw><span color>…`)이 남았다 ⇒ 경계를 «글자 자리»로 견준다. 지키는 칸 = LR11-10. */
 function _lnExactColorSpan(range, host) {
   const t = range.toString();
   if (!t) return null;
-  let n = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
+  const ec = range.endContainer, eo = range.endOffset;
+  let n = (ec.nodeType === 1 && eo > 0 && ec.childNodes[eo - 1]) ? ec.childNodes[eo - 1] : ec;   // (요소, k) 꼴 끝 = 그 앞 자식
+  n = n.nodeType === 1 ? n : n.parentElement;
   for (; n && n !== host && host.contains(n); n = n.parentElement) {
     if (n.tagName !== 'SPAN' || !n.style || !n.style.color || n.textContent !== t) continue;
     const r = document.createRange(); r.selectNodeContents(n);
-    if (range.compareBoundaryPoints(Range.START_TO_START, r) <= 0 && range.compareBoundaryPoints(Range.END_TO_END, r) >= 0) return n;
+    if (_lnSameTextPoint(range.startContainer, range.startOffset, r.startContainer, r.startOffset)
+        && _lnSameTextPoint(range.endContainer, range.endOffset, r.endContainer, r.endOffset)) return n;
   }
   return null;
 }
@@ -799,8 +813,12 @@ export function lnApplyLinePartialColor(block, H, addr, color, before) {
     host.querySelectorAll('span').forEach((sp) => { if (sp !== span && sp.textContent === '' && !sp.querySelector('br,img')) sp.remove(); });
     applied = true;
     if (host.getAttribute('contenteditable') === 'true') return span;   // 편집 중 — 커밋(finish/_gridEndEdit)이 싣는다
-    /* 다시 그려진 «평문» 줄은 줄바꿈을 글자 \n 으로 갖는다(편집 중 DOM 은 <div>) — textHtml 쪽은 줄바꿈을 <br> 로만 쓴다(LR8 규약 ·
-       laurel 줄은 white-space:nowrap 이라 \n 글자는 한 줄로 뭉개진다). 거른 뒤라 \n 은 글자 노드에만 있다(속성값은 다시 지은 것). */
+    /* 다시 그려진 «평문» 줄은 줄바꿈을 글자 \n 으로 갖는다(편집 중 DOM 은 <div>) — textHtml 쪽은 줄바꿈을 <br> 로만 쓴다(LR8 규약).
+       ⚠️«화면» 때문이 아니다(1013 바로잡음 · 옛 주석 「laurel 줄은 nowrap 이라 \n 은 한 줄로 뭉개진다」는 틀렸다): laurel-block.js 는
+         text 에 \n 이 든 줄을 white-space:pre 로 그려(버블·챗·비교 줄은 pre-wrap) \n 글자도 두 줄로 보인다(실측 LR11-2 · ws 'pre' · 2줄).
+         ⇒ 이 치환은 «바이트 규약»(textHtml 의 줄바꿈 = <br> · text 와 줄 수 같음 · 저장본·다른 소비자) 을 지키는 것이다 —
+           지키는 칸 = laurel-rich-text LR12·HB4·HC3·HM3(빼면 A1 바이트에 \n 이 남는다).
+       거른 뒤라 \n 은 글자 노드에만 있다(속성값은 다시 지은 것). */
     const html = _lnReadHtml(host).replace(/\r?\n/g, '<br>');
     const textHtml = richTextHasFormatting(html, GRID_RICH_TEXT_OPTS) ? html : '';
     H.previewLine(addr.r, addr.c, addr.li, { textHtml }, addr.np);
