@@ -26,7 +26,7 @@ import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 /* ★그림자 단계도 «리터럴 금지» — MODAL_DROP_SHADOWS 한 표에서 온다.
    패널이 자기 배열을 갖는 순간, 표에 단계를 하나 더해도 패널이 안 따라온다. */
 import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS, clampModal, setModalSizeMode,
-         MODAL_DROP_SHADOWS } from '../blocks/modal-block.js';
+         MODAL_DROP_SHADOWS, MODAL_DECO_TAILS, MODAL_DECO_TAPES } from '../blocks/modal-block.js';
 const L = MODAL_LIMITS;
 
 /* 스와치·hex 칸에 «보여 줄» 색.
@@ -81,6 +81,9 @@ export function showModalProperties(block) {
      캔버스엔 그림자가 없는데 패널만 「강하게」가 켜져 보이는 «화면이 거짓말하는» 자리가 생긴다. */
   const dropShadow = MODAL_DROP_SHADOWS.includes(block.dataset.dropShadow)
     ? block.dataset.dropShadow : MODAL_DEFAULTS.dropShadow;
+  /* 장식 — 표 밖의 값은 «없음»으로(그리는 쪽 _decoHtml 과 같은 착지점). */
+  const decoTail = MODAL_DECO_TAILS.includes(block.dataset.decoTail) ? block.dataset.decoTail : 'none';
+  const decoTape = MODAL_DECO_TAPES.includes(block.dataset.decoTape) ? block.dataset.decoTape : 'none';
   const fontSize = _i('fontSize', MODAL_DEFAULTS.fontSize);
   const gap = _i('gap', 14);
   // ★타이포 — 텍스트 패널과 «같은 절»을 쓴다(_typo-section.js). dataset 이 진실이다.
@@ -252,6 +255,26 @@ ${blockHeaderHTML({
           <button class="prop-align-btn${dropShadow === 'soft'   ? ' active' : ''}" data-val="soft">부드럽게</button>
           <button class="prop-align-btn${dropShadow === 'strong' ? ' active' : ''}" data-val="strong">강하게</button>
         </div>
+      </div>
+    </div>
+
+    <!-- 장식(1012t1Z5) — 꼬리 · 테이프. 모달의 옵션이다(버즈 묶음 안팎 같다). 그리는 것은 renderModalBlock.
+         단추 묶음은 절 «직속»이고 라벨은 윗줄(.prop-field-label) — 넷이 한 줄에 들어가야 한다.
+         단추 속성은 data-tail / data-tape 다(이 파일의 data-val 은 그림자 3단의 것이다). -->
+    <div class="prop-section">
+      <div class="prop-section-title">Decoration</div>
+      <span class="prop-field-label">꼬리</span>
+      <div class="prop-align-group" id="mdl-deco-tail-group">
+        <button class="prop-align-btn${decoTail === 'none'  ? ' active' : ''}" data-tail="none">없음</button>
+        <button class="prop-align-btn${decoTail === 'left'  ? ' active' : ''}" data-tail="left">왼쪽</button>
+        <button class="prop-align-btn${decoTail === 'right' ? ' active' : ''}" data-tail="right">오른쪽</button>
+      </div>
+      <span class="prop-field-label">테이프</span>
+      <div class="prop-align-group" id="mdl-deco-tape-group">
+        <button class="prop-align-btn${decoTape === 'none'   ? ' active' : ''}" data-tape="none">없음</button>
+        <button class="prop-align-btn${decoTape === 'left'   ? ' active' : ''}" data-tape="left">왼쪽</button>
+        <button class="prop-align-btn${decoTape === 'center' ? ' active' : ''}" data-tape="center">가운데</button>
+        <button class="prop-align-btn${decoTape === 'right'  ? ' active' : ''}" data-tape="right">오른쪽</button>
       </div>
     </div>
 
@@ -521,6 +544,20 @@ ${blockHeaderHTML({
     block.dataset.dropShadow = next;
     rerender(); commit();
   }));
+  /* ── 장식: 꼬리 · 테이프 — 그림자 3단과 같은 하네스(값이 같으면 아무 것도 안 한다 · 'none' 은 칸을 지운다) ── */
+  const wireDeco = (groupId, attr, key) => {
+    propPanel.querySelectorAll(`#${groupId} .prop-align-btn`).forEach(btn => btn.addEventListener('click', () => {
+      const next = btn.dataset[attr];
+      if ((block.dataset[key] || 'none') === next) return;
+      propPanel.querySelectorAll(`#${groupId} .prop-align-btn`)
+        .forEach(b => b.classList.toggle('active', b === btn));
+      if (next === 'none') delete block.dataset[key];
+      else block.dataset[key] = next;
+      rerender(); commit();
+    }));
+  };
+  wireDeco('mdl-deco-tail-group', 'tail', 'decoTail');
+  wireDeco('mdl-deco-tape-group', 'tape', 'decoTape');
   propPanel.querySelectorAll('[data-al]').forEach(btn => btn.addEventListener('click', () => {
     block.dataset.align = btn.dataset.al;
     propPanel.querySelectorAll('[data-al]').forEach(b => b.classList.toggle('active', b === btn));
