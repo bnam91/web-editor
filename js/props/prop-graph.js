@@ -5,7 +5,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
 
-const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
@@ -238,6 +238,7 @@ export function showGraphProperties(block) {
   const _donut       = _isDonut(block.dataset);   // 1013t1C1 — 옛 'donut' 또는 'pie' + pieDonut
   const _pieInt      = (raw, lo, hi, dflt) => { const n = parseInt(raw); return Math.min(hi, Math.max(lo, (raw !== undefined && Number.isFinite(n)) ? n : dflt)); };   // 렌더(_renderPie)와 «같은 식» — 키 없음·NaN = 기본
   const pieGap       = _pieInt(block.dataset.pieGap, PIE_GAP_MIN, PIE_GAP_MAX, PIE_GAP);
+  const pieStart     = (s => Number.isFinite(s) ? ((s % 360) + 360) % 360 : 0)(parseInt(block.dataset.pieStart));   // 렌더와 같은 식(360 으로 접는다)
   const _shapeOn     = chartType === 'bar-v' && window.GRAPH_SHAPE.shapeOn(block.dataset);   // 1012t1G2 — 실루엣이 «실제로» 켜졌나(세로 막대에서만 · 모르는 이름은 꺼진 것)
   const _segOn       = chartType === 'bar-v';   // 1012t1G4 — 마디 편집(줄 · 읽기 전용 합 · 합으로 되쓰기)은 세로 막대에서만
   const pieHole      = (h => Math.min(PIE_HOLE_MAX, Math.max(PIE_HOLE_MIN, Number.isFinite(h) ? h : PIE_HOLE_DEFAULT)))(parseInt(block.dataset.pieHole));   // 렌더(drag-utils.js _renderPie)와 «같은 식»
@@ -402,6 +403,11 @@ ${blockHeaderHTML({
         <span class="prop-label">조각 간격</span>
         <input type="range" class="prop-slider" id="grb-pie-gap-slider" min="${PIE_GAP_MIN}" max="${PIE_GAP_MAX}" step="1" value="${pieGap}">
         <input type="number" class="prop-number" id="grb-pie-gap-number" min="${PIE_GAP_MIN}" max="${PIE_GAP_MAX}" value="${pieGap}">
+      </div>
+      <div class="prop-row" title="첫 조각이 시작하는 각도(12시 = 0 · 시계 방향)">
+        <span class="prop-label">시작 각도</span>
+        <input type="range" class="prop-slider" id="grb-pie-start-slider" min="${PIE_START_MIN}" max="${PIE_START_MAX}" step="1" value="${pieStart}">
+        <input type="number" class="prop-number" id="grb-pie-start-number" min="${PIE_START_MIN}" max="${PIE_START_MAX}" value="${pieStart}">
       </div>
     </div>` : ''}
     ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn }) : ''}
@@ -841,6 +847,7 @@ ${blockHeaderHTML({
     sl.addEventListener('change', () => window.pushHistory());
   };
   _wirePieInt('grb-pie-gap', 'pieGap', PIE_GAP_MIN, PIE_GAP_MAX, PIE_GAP);
+  _wirePieInt('grb-pie-start', 'pieStart', PIE_START_MIN, PIE_START_MAX, 0);
 
   // 점 크기 (line 전용)
   const ptSlider = document.getElementById('grb-point-slider');

@@ -219,3 +219,29 @@ test('U12 조각 간격 한계 — graph-limits 한 자리 · 틈 0 이면 조�
   assert.ok(gx.paths.every(d => d.length > 0 && arcs(d).length >= 1), '40 에서도 여섯 조각이 다 그려진다');
   assert.deepEqual(gx.angles, g0.angles, '경계각은 틈과 무관');
 });
+
+test('U13 시작 각도 — start 90 이면 첫 조각이 3시에서 떠난다 · 0/미지정은 옛 산출 그대로 · 360 으로 접는다 · 험한 값은 0', () => {
+  const V = [1, 1, 2];
+  const p0 = piePaths(V, 0, 0), p90 = piePaths(V, 0, 0, { start: 90 });
+  assert.equal(p90.paths.length, 3, '전제');
+  assert.equal(p0.start, 0); assert.equal(p90.start, 90);
+  assert.deepEqual(piePaths(V, 0, 0, { start: 0 }), p0, 'start 0 = 미지정');
+  assert.deepEqual(piePaths(V, 0, 0, {}), p0); assert.deepEqual(piePaths(V, 0, 0, null), p0);
+  assert.deepEqual(piePaths(V, 55, 10, { start: 0 }).paths, piePaths(V, 55, 10).paths, '도넛·틈에서도 start 0 은 바이트가 같다');
+  assert.equal(p90.angles[0][0], 90, '첫 조각의 시작각');
+  assert.deepEqual(p90.angles, [[90, 180], [180, 270], [270, 450]]);
+  assert.deepEqual(p90.shares, p0.shares, '점유율은 시작 각도와 무관');
+  assert.match(p90.paths[0], /^M 500\.00 500\.00 L 1000\.00 500\.00 A 500\.00 500\.00 0 0 1 500\.00 1000\.00 Z$/, '첫 점 = 3시(1000,500) · 시계 방향으로 90° 돌아 6시');
+  assert.notDeepEqual(p90.paths, p0.paths, '전제: 90 은 다른 그림');
+  assert.deepEqual(piePaths(V, 0, 0, { start: 450 }).paths, p90.paths, '450 ≡ 90');
+  assert.deepEqual(piePaths(V, 0, 0, { start: -270 }).paths, p90.paths, '−270 ≡ 90');
+  assert.deepEqual(piePaths(V, 0, 0, { start: '90' }).paths, p90.paths, '글자 수도 받는다');
+  for (const bad of [NaN, Infinity, 'x', null, undefined, {}]) assert.deepEqual(piePaths(V, 0, 0, { start: bad }).paths, p0.paths, `험한 start ${String(bad)} = 0`);
+  /* 틈·도넛에서도 통째로 돈다 — 조각마다 호의 수·반지름이 같다 */
+  const d0 = piePaths(V, 55, 10), d90 = piePaths(V, 55, 10, { start: 90 });
+  assert.deepEqual(d90.paths.map(d => arcs(d).map(a => [a.r, a.large, a.sweep])), d0.paths.map(d => arcs(d).map(a => [a.r, a.large, a.sweep])));
+  assert.match(d90.paths[0], /^M 999\.97 505\.00 A /, '도넛·틈 10: 첫 변이 3시 방향 가로선(y = 505)');
+  /* 온 원(항목 하나)은 시작 각도와 무관 */
+  assert.deepEqual(piePaths([7], 0, 10, { start: 90 }).paths, piePaths([7], 0, 10).paths);
+  assert.doesNotMatch(piePaths([1e308, 1e308, 0, 'x'], 55, 10, { start: 123 }).paths.join('|'), /NaN|Infinity|undefined/);
+});

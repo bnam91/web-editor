@@ -5,6 +5,7 @@
  * 기다림은 전부 조건(waitForFunction · expect.poll · 로케이터 자동 대기) — 고정 대기 0.
  *   C1 — D1 옛 donut 패널 · D2 도너츠 토글 왕복 · D3 옛 donut → 막대 → 원형 = 도넛 · D4 ⌘Z · G1 옛 꼴 블럭 저장·다시 열기·패널 무변 · G2 구멍 슬라이더 왕복
  *   C6 — E1 조각 간격이 그림을 바꾼다(0 = 맞닿음 · 40 = 넓은 틈) · E2 패널 칸의 한계 = GRAPH_LIMITS · 999 → 40 되쓰기 · ⌘Z
+ *   C2 — F1 시작 각도가 조각을 돌린다(범례 순서·% 는 그대로) · 패널 칸
  *   G0 골든 핀: 새 키가 «하나도 없는» 블럭의 그림(innerHTML)이 1012 판과 바이트가 같다 — 1013t1C0 에서 «고치기 전 판» 위에 박았다.
  * 실행: bash ~/taeyang-098/run-test.sh dom tests/dom/graph-pie-1013.dom.spec.js */
 const { test, expect } = require('@playwright/test');
@@ -222,7 +223,7 @@ test('E1 조각 간격 — 경계 옆 점: 기본은 틈 · pieGap 0 이면 조�
   expect(await hit(page, id, 107.5, 0.75), 'pieGap 0: 반대쪽 0.5° 는 조각0 안').toEqual([true, false, false, false, false, false]);
   await setDs(page, id, { pieGap: '40' });
   expect(await hit(page, id, 110, 0.75), 'pieGap 40: 2° 도 틈').toEqual(none);
-  expect(await hit(page, id, 126, 0.75), 'pieGap 40: 조각1 의 가운데는 그대로 조각 안').toEqual(s1);
+  expect(await hit(page, id, 126, 0.75), 'pieGap 40: 조각1 의 안쪽은 그대로 조각 안').toEqual(s1);
   /* 한계 밖·험한 값은 렌더가 자른다 — 999 = 40 과 같은 그림 · 글자 = 기본과 같은 그림 */
   const d40 = await dOf(page, id);
   await setDs(page, id, { pieGap: '999' });
@@ -263,5 +264,47 @@ test('E2 조각 간격 칸 — 한계·기본 = GRAPH_LIMITS · 끌면 그려지
   await page.locator('#grb-type-v').click();
   await expect.poll(() => page.evaluate(() => document.querySelector('#sG .graph-block').dataset.chartType)).toBe('bar-v');
   expect(await page.locator('#grb-pie-gap-slider').count()).toBe(0);
+  expect(errs).toEqual([]);
+});
+
+/* ── C2 시작 각도(dataset.pieStart · 도 · 없으면 0) ── */
+const legendOf = (page, id) => page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.grb-pie-legend-item')].map(li => [li.querySelector('.grb-pie-label').textContent, li.querySelector('.grb-pie-val').textContent]), id);
+test('F1 시작 각도 — pieStart 90 이면 첫 조각이 3시에서 시작한다 · 범례 순서·% 는 그대로 · 패널 칸이 같은 값을 쓴다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3 });
+  expect(await ds(page, id, 'pieStart'), '전제: 키 없음 = 12시 시작').toBeNull();
+  const s0 = [true, false, false], s2 = [false, false, true];
+  expect(await hit(page, id, 20, 0.75), '전제: 12시 바로 뒤(20°)는 조각0').toEqual(s0);
+  expect(await hit(page, id, 110, 0.75), '전제: 110° 는 조각1').toEqual([false, true, false]);
+  const lg0 = await legendOf(page, id);
+  expect(lg0, '전제: 범례').toEqual([['가', '25%'], ['나', '25%'], ['다', '50%']]);
+  const d0 = await dOf(page, id);
+  await setDs(page, id, { pieStart: '90' });
+  expect(await hit(page, id, 110, 0.75), 'pieStart 90: 3시 바로 뒤(110°)가 조각0').toEqual(s0);
+  expect(await hit(page, id, 20, 0.75), 'pieStart 90: 12시 쪽(20°)은 끝 조각').toEqual(s2);
+  expect(await hit(page, id, 225, 0.75), '조각1 은 180~270°').toEqual([false, true, false]);
+  expect(await legendOf(page, id), '범례 순서·% 는 시작 각도와 무관').toEqual(lg0);
+  const d90 = await dOf(page, id);
+  expect(d90).not.toEqual(d0);
+  await setDs(page, id, { pieStart: '450' });
+  expect(await dOf(page, id), '450 ≡ 90').toEqual(d90);
+  await setDs(page, id, { pieStart: 'abc' });
+  expect(await dOf(page, id), '글자 = 0').toEqual(d0);
+  await setDs(page, id, { pieStart: null });
+  /* 패널 칸 — 한계 = GRAPH_LIMITS · 끌면 같은 그림 · 999 → 359 */
+  await openPanel(page, id);
+  expect(await page.evaluate(() => { const s = document.getElementById('grb-pie-start-slider'), n = document.getElementById('grb-pie-start-number'); return [s.min, s.max, s.value, n.min, n.max, n.value]; }))
+    .toEqual(await page.evaluate(() => { const L = window.GRAPH_LIMITS; const a = [String(L.PIE_START_MIN), String(L.PIE_START_MAX), '0']; return [...a, ...a]; }));
+  await page.evaluate(() => { const s = document.getElementById('grb-pie-start-slider'); s.value = '90'; s.dispatchEvent(new Event('input', { bubbles: true })); });
+  expect(await ds(page, id, 'pieStart')).toBe('90');
+  expect(await dOf(page, id), '칸으로 준 90 = dataset 으로 준 90').toEqual(d90);
+  expect(await page.inputValue('#grb-pie-start-number')).toBe('90');
+  await page.evaluate(() => document.getElementById('grb-pie-start-slider').dispatchEvent(new Event('change', { bubbles: true })));
+  await page.locator('#grb-pie-start-number').fill('999');
+  await page.locator('#grb-pie-start-number').press('Enter');
+  await expect.poll(() => ds(page, id, 'pieStart')).toBe('359');
+  expect(await page.inputValue('#grb-pie-start-number')).toBe('359');
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate(() => document.querySelector('#sG .graph-block')?.dataset.pieStart ?? null)).toBe('90');
   expect(errs).toEqual([]);
 });

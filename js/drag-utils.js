@@ -857,7 +857,9 @@ function _renderPie(block, { items, chartH, labelSize }) {
   const _vals = items.map(it => it && it.value);
   const _g = parseInt(d.pieGap);   // 1013t1C6 — 조각 간격(없으면 기본 PIE_GAP · 0 = 맞닿는다)
   const gap = (d.pieGap !== undefined && Number.isFinite(_g)) ? Math.min(L.PIE_GAP_MAX, Math.max(L.PIE_GAP_MIN, _g)) : L.PIE_GAP;
-  const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, gap);   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
+  const _s = parseInt(d.pieStart);   // 1013t1C2 — 시작 각도(도 · 없으면 0). 범례·% 는 항목 순서 그대로다
+  const start = Number.isFinite(_s) ? ((_s % 360) + 360) % 360 : 0;
+  const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, gap, { start });   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
   const pcts = window.GRAPH_PIE_GEOM.piePercents(_vals);                // 합이 정확히 100(최대 잔여법)
   const _lc = d.labelColor || '';
   const _vCss = (d.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.vlabelColor || _lc)));

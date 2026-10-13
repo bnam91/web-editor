@@ -11,6 +11,8 @@
  *   · 구멍: holePct(바깥 반지름 대비 %) > 0 이면 고리 path 로 «실제로» 뚫는다(가운데를 바탕색 원으로 덮지 않는다 ⇒ 어떤 바탕 위에서도 뚫려 보인다).
  *     온 원 도넛은 바깥(시계)·안(반시계) 두 닫힌 길 — nonzero 채움에서 안쪽이 빈다.
  *   · 틈: gap(viewBox 단위) > 0 이고 값 있는 조각이 둘 이상이면 조각의 두 변을 평행하게 안으로 민다(바탕색 선을 덧칠하지 않는다 ⇒ 어떤 바탕 위에서도 틈).
+ *   · 시작 각도(1013t1C2): opts.start(도 · 12시 = 0 · 시계 방향)만큼 첫 조각의 시작을 돌린다. 유한하지 않으면 0 · 360 으로 접는다(450 ≡ 90 · −90 ≡ 270).
+ *     opts 를 안 주거나 start 가 0 이면 산출이 옛 판과 «바이트가 같다»(0 + x 는 x 와 같은 부동소수).
  *   · 산출 문자열에 NaN·Infinity 가 들어갈 길이 없다(모든 수가 위 가드를 지난 유한값에서 나온다). */
 (function (root) {
   var VIEW = 1000, C = 500, R = 500, FULL = 0.9999;
@@ -55,9 +57,13 @@
   /** @param {Array} values 항목 값(아무 꼴) @param {number} holePct 구멍 비율 %(0 = 꽉 찬 원형)
    *  @param {number} [gap] 조각 사이 틈의 폭(viewBox 단위 · 기본 0 = 틈 없음 — 옛 산출과 바이트가 같다). 값 있는 조각이 하나뿐이면 틈 0.
    *    조각이 틈보다 좁으면 «그 조각 쪽» 깎는 양을 줄인다(바깥 호가 제 폭의 절반은 남는다 — 사라지지 않는다).
-   *  @returns {{ paths: string[], shares: number[], angles: number[][], total: number, empty: boolean, hole: number, gap: number }}
-   *    angles 는 틈을 깎기 «전»의 경계각(이어 붙는다 · 합 360). */
-  function piePaths(values, holePct, gap) {
+   *  @param {{ start?: number }} [opts] start = 시작 각도(도). (1013t1C — 조각별 크기 grow · 밀어내기 pull 이 같은 자리에 붙는다)
+   *  @returns {{ paths: string[], shares: number[], angles: number[][], total: number, empty: boolean, hole: number, gap: number, start: number }}
+   *    angles 는 틈을 깎기 «전»의 경계각(이어 붙는다 · 폭의 합 360 · 첫 시작 = start). */
+  function piePaths(values, holePct, gap, opts) {
+    var o = (opts && typeof opts === 'object') ? opts : {};
+    var st = Number(o.start);
+    var start = Number.isFinite(st) ? ((st % 360) + 360) % 360 : 0;
     var n = norm(values), vals = n.vals, total = n.total;
     var h = Number(holePct);
     var hole = (Number.isFinite(h) && h > 0) ? Math.min(95, h) : 0;
@@ -65,11 +71,11 @@
     var g = Number(gap);
     var live = vals.filter(function (v) { return v > 0; }).length;
     var half = (Number.isFinite(g) && g > 0 && live > 1) ? Math.min(g, R / 5) / 2 : 0;
-    var out = { paths: [], shares: [], angles: [], total: total, empty: !(total > 0), hole: hole, gap: half * 2 };
+    var out = { paths: [], shares: [], angles: [], total: total, empty: !(total > 0), hole: hole, gap: half * 2, start: start };
     var acc = 0;
     vals.forEach(function (v) {
       var share = total > 0 ? v / total : 0;
-      var a0 = acc * 360, a1 = (acc + share) * 360;
+      var a0 = start + acc * 360, a1 = start + (acc + share) * 360;
       acc += share;
       out.shares.push(share);
       out.angles.push([a0, a1]);
