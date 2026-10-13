@@ -156,6 +156,15 @@ const layerOf = (page, fid) => page.evaluate((fid) => {
   return { name: it.querySelector('.layer-item-name')?.textContent, type: it.querySelector('.layer-item-type')?.textContent,
     viewBox: svg?.getAttribute('viewBox') || null, sw: svg?.getAttribute('stroke-width') || null, fill: svg?.getAttribute('fill') || null };
 }, fid);
+/** 배율을 바꾸고 «화면이 실제로 그 배율이 될 때까지» 기다린다 — window.currentZoom 은 곧장 바뀌지만
+ *  #canvas-scaler 의 transform 은 전환(transition)을 거쳐 늦게 닿는다. 그 사이에 재면 옛 배율의 화면을 잰다. */
+async function zoomTo(page, z) {
+  await page.evaluate((z) => window.applyZoom(z), z);
+  await page.waitForFunction((z) => {
+    const m = new DOMMatrix(getComputedStyle(document.getElementById('canvas-scaler')).transform);
+    return window.currentZoom === z && Math.abs(m.a - z / 100) < 0.001;
+  }, z);
+}
 const undo = async (page) => { await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z'); };
 const redo = async (page) => { await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+Shift+z'); };
 
@@ -578,6 +587,9 @@ test('BZ-13 실행 취소 — 다시 뿌리기 ⌘Z/⌘⇧Z · 개수 + 는 한 
   await redo(page);
   await expect.poll(async () => (await stateOf(page, fid))?.attrs['data-buzz-seed'], { message: '⌘⇧Z → 뿌린 뒤로' }).toBe(b.attrs['data-buzz-seed']);
   expect(coordsOf(await stateOf(page, fid))).toEqual(coordsOf(b));
+  /* 다시 뿌리기 = 히스토리 한 걸음(끝 표본이 있다) — ⌘Z 의 구제 칸에 기대지 않는다 */
+  await pickFrame(page, fid);
+  await expectOneUndoStep(page, async () => { await page.locator('#bzf-reroll').click(); }, '버즈 다시 뿌리기');
   /* 개수 + = 히스토리 한 걸음 */
   await pickFrame(page, fid);
   await expectOneUndoStep(page, async () => { await page.locator('#bzf-n-plus').click(); }, '버즈 개수 +1');
@@ -668,8 +680,7 @@ test('BZ-16 캔버스 배율과 무관 — 같은 무늬번호면 40% 에서도 
   await seed.press('Enter');
   await expect.poll(() => page.evaluate((fid) => document.getElementById(fid).dataset.buzzSeed, fid), { message: '전제: 무늬번호 4127' }).toBe('4127');
   const a = await stateOf(page, fid);
-  await page.evaluate(() => window.applyZoom(100));
-  await page.waitForFunction(() => window.currentZoom === 100);
+  await zoomTo(page, 100);                                          /* 화면이 실제로 100% 가 된 뒤에 다시 그린다 */
   await page.locator('#bzf-redraw').click();
   const b = await stateOf(page, fid);
   expect([coordsOf(b), b.rows.map((r) => r.w), b.rows.map((r) => r.rot)], '배율 100% 에서 같은 번호로 다시 그려도 자리 · 폭 · 회전이 같다').toEqual([coordsOf(a), a.rows.map((r) => r.w), a.rows.map((r) => r.rot)]);
@@ -728,7 +739,7 @@ test('BZ-18 테이프 자리 — 윗변에 걸치고(중심 = 윗변) 좌 · 중
     const tb = t.getBoundingClientRect();
     const rot = (parseInt(m.dataset.rotation, 10) || 0) * Math.PI / 180;
     const dx = (tb.left + tb.width / 2) - (mb.left + mb.width / 2), dy = (tb.top + tb.height / 2) - (mb.top + mb.height / 2);
-    const scale = (window.currentZoom || 0) / 100;
+    const scale = new DOMMatrix(getComputedStyle(document.getElementById('canvas-scaler')).transform).a;   /* 지금 화면의 실제 배율 */
     return { x: (dx * Math.cos(-rot) - dy * Math.sin(-rot)) / scale, y: (dx * Math.sin(-rot) + dy * Math.cos(-rot)) / scale, scale };
   }, mid);
   const near = (a, b, tol = 1) => Math.abs(a - b) <= tol;
@@ -762,8 +773,7 @@ test('BZ-18 테이프 자리 — 윗변에 걸치고(중심 = 윗변) 좌 · 중
 
   /* 배율 두 값 — 모달 대비 상대 자리 · 크기가 같다 */
   const ratioAt = async (z) => {
-    await page.evaluate((z) => window.applyZoom(z), z);
-    await page.waitForFunction((z) => window.currentZoom === z, z);
+    await zoomTo(page, z);
     await waitStableRect(page, `[id="${mid}"]`);
     const f = await inModalFrame();
     const k = await page.evaluate((id) => { const m = document.getElementById(id); const a = m.getBoundingClientRect(); const b = m.querySelector('.mdl-deco-tape').getBoundingClientRect(); return b.width / a.width; }, mid);
