@@ -6,6 +6,9 @@
  *   ★표기 「아이콘」(1013t2B5) — 번호 대신 내장 글리프. 표기와 같이 «항상 묶음»이다. 크기 = 폰트 크기 칸 · 색 = 글자색 칸(새 칸 없음).
  *     글리프 표·그 svg 는 js/count-sticker-tool.js(CountSticker.GLYPHS · glyphSvg) 한 자리 — 여기서 path 를 다시 적지 않는다.
  *     아이콘일 때 「시작 번호」「번호 다시 매기기」 행은 숨긴다(뜻이 없다 — 순번은 그대로 세고 있어 1/A 로 돌아오면 산다).
+ *   ★Label 절(1013t2B5) — 마커 옆 텍스트 라벨: 글자(블럭마다 · 일괄 안 함) · 위치 · 크기 · 글자색(이 셋은 「섹션 전체」 스위치를 따른다).
+ *     그리기는 js/blocks/sticker-block.js(_countLabelHTML) — 라벨은 마커 블럭 «안»의 자식이고 상자(선택·손잡이)는 마커 그대로다.
+ *     캔버스에서 마커를 더블클릭해도 같은 글자를 고친다(js/sticker-select.js _enterCountLabelEdit).
  *   ★표기·시작 번호 = «묶음» 속성 — 같은 섹션의 카운트 스티커 전부에 쓴다(히스토리 1칸). 스위치와 무관하게 항상.
  *   ★모양·크기·폰트 크기·굵기·스타일·배경색·글자색 = 「섹션 전체」 스위치(1013t2B3 · 기본 켬)를 따른다.
  *     켬 = 같은 섹션의 마킹 전부 · 끔 = 고른 것 하나. 스위치는 UI 선호다 — 모듈 변수(세션 동안) · 저장본에 안 쓴다.
@@ -14,9 +17,13 @@
  *   숫자칸의 범위·빈 값 처리는 칸의 min/max 를 읽는 공용 가드(prop-number-commit-guard.js)가 한다.
  */
 
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+
 const SIZE_MIN = 10, SIZE_MAX = 600;
 const FS_MIN = 6, FS_MAX = 150;      // 코너 드래그(js/sticker-select.js)와 같은 범위
 const START_MIN = 1, START_MAX = 999;
+
+const LABEL_POS = ['right', 'left', 'top', 'bottom'];
 
 const int = (v, fallback) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : fallback; };
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -70,6 +77,10 @@ export function countSectionHTML(block) {
   const start = clamp(int(d.countStart, START_MIN), START_MIN, START_MAX);
   const size = clamp(int(d.sizeW, int(d.size, 56)), SIZE_MIN, SIZE_MAX);
   const on = (c) => (c ? ' active' : '');
+  /* 옆 라벨(1013t2B5) — 그리기(js/blocks/sticker-block.js _countLabelHTML)와 같은 폴백: 자리 = right · 크기 = 마커 폰트 크기 · 색 = 마커 배경색 */
+  const labelPos = LABEL_POS.includes(d.countLabelPos) ? d.countLabelPos : 'right';
+  const labelSize = clamp(int(d.countLabelSize, int(d.fontSize, 26)), FS_MIN, FS_MAX);
+  const labelColor = d.countLabelColor || d.bgColor || '#000000';
   return `
     <div class="prop-section" id="stk-count-section">
       <div class="prop-section-title">Marking</div>
@@ -115,6 +126,36 @@ export function countSectionHTML(block) {
       </div>
       <div class="prop-row" id="stk-count-renumber-row" style="display:${isIcon ? 'none' : 'flex'};">
         <button class="prop-action-btn" id="stk-count-renumber" title="이 섹션의 번호를 지금 순서대로 1부터 다시 매긴다 (중간을 지운 뒤 빈 번호 메우기)">번호 다시 매기기</button>
+      </div>
+    </div>
+    <div class="prop-section" id="stk-count-label-section">
+      <div class="prop-section-title">Label</div>
+      <div class="prop-row">
+        <textarea class="prop-textarea" id="stk-count-label" rows="2" placeholder="마커 옆에 붙는 글자 (비우면 라벨 없음)" aria-label="라벨 글자"></textarea>
+      </div>
+      <div class="prop-row"><span class="prop-label">위치</span>
+        <div class="prop-align-group" id="stk-count-label-pos">
+          <button class="prop-align-btn${on(labelPos === 'left')}" data-label-pos="left" title="마커 왼쪽">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="12" cy="8" r="2"/><line x1="2.5" y1="8" x2="7.5" y2="8"/></svg>
+          </button>
+          <button class="prop-align-btn${on(labelPos === 'right')}" data-label-pos="right" title="마커 오른쪽">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="4" cy="8" r="2"/><line x1="8.5" y1="8" x2="13.5" y2="8"/></svg>
+          </button>
+          <button class="prop-align-btn${on(labelPos === 'top')}" data-label-pos="top" title="마커 위">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="12" r="2"/><line x1="5" y1="5" x2="11" y2="5"/></svg>
+          </button>
+          <button class="prop-align-btn${on(labelPos === 'bottom')}" data-label-pos="bottom" title="마커 아래">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="4" r="2"/><line x1="5" y1="11" x2="11" y2="11"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="prop-row"><span class="prop-label">크기</span>
+        <input type="range" class="prop-slider" id="stk-count-label-size" min="${FS_MIN}" max="${FS_MAX}" step="1" value="${labelSize}">
+        <input type="number" class="prop-number" id="stk-count-label-size-num" min="${FS_MIN}" max="${FS_MAX}" value="${labelSize}">
+      </div>
+      <div class="prop-color-row">
+        <span class="prop-label">글자색</span>
+        ${colorFieldHTML({ idPrefix: 'stk-clabel', hex: labelColor, alpha: parseAlphaFromColor(labelColor) })}
       </div>
     </div>`;
 }
@@ -223,6 +264,60 @@ export function wireCountSection(panel, block, rerender) {
     sizeS.addEventListener('change', done);
     sizeN.addEventListener('change', done);
   }
+
+  /* ── Label 절(옆 라벨 · 1013t2B5) ─────────────────────────────────────────────── */
+  /* 글자 — 블럭마다(일괄 안 함). 값은 .value 로 넣는다(본문 주입의 선두 개행 소실·이스케이프 함정 회피 — #stk-text 와 같은 까닭).
+     input 마다 그 블럭만 다시 그리고, change(포커스가 빠질 때)에 히스토리 한 칸. 비우면 키를 지운다(라벨 사라짐). */
+  const labelEl = $('stk-count-label');
+  if (labelEl) {
+    labelEl.value = block.dataset.countLabel ?? '';
+    labelEl.addEventListener('input', () => {
+      const v = labelEl.value.replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '');
+      if (v === '') delete block.dataset.countLabel;
+      else block.dataset.countLabel = v;
+      redraw();
+    });
+    labelEl.addEventListener('change', () => commit('마킹 라벨'));
+  }
+
+  /* 위치 — 스위치를 따른다 */
+  panel.querySelectorAll('#stk-count-label-pos [data-label-pos]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pos = LABEL_POS.includes(btn.dataset.labelPos) ? btn.dataset.labelPos : 'right';
+      if ((LABEL_POS.includes(block.dataset.countLabelPos) ? block.dataset.countLabelPos : 'right') === pos) return;
+      block.dataset.countLabelPos = pos;
+      redraw();
+      syncCountGroup(block, ['countLabelPos']);
+      markActive('stk-count-label-pos', btn);
+      commit('마킹 라벨 위치');
+    });
+  });
+
+  /* 크기 — 스위치를 따른다. 마커 크기와는 따로다(자기 칸). */
+  const lsS = $('stk-count-label-size'), lsN = $('stk-count-label-size-num');
+  if (lsS && lsN) {
+    const applyLabelSize = (raw) => {
+      const v = parseInt(raw, 10);
+      if (!Number.isFinite(v)) return;
+      const next = clamp(v, FS_MIN, FS_MAX);
+      block.dataset.countLabelSize = String(next);
+      lsS.value = String(next); lsN.value = String(next);
+      redraw();
+      syncCountGroup(block, ['countLabelSize']);
+    };
+    const doneLs = () => commit('마킹 라벨 크기');
+    lsS.addEventListener('input', () => applyLabelSize(lsS.value));
+    lsN.addEventListener('input', () => applyLabelSize(lsN.value));
+    lsS.addEventListener('change', doneLs);
+    lsN.addEventListener('change', doneLs);
+  }
+
+  /* 글자색 — 스위치를 따른다 */
+  wireColorField('stk-clabel', {
+    initialAlpha: parseAlphaFromColor(block.dataset.countLabelColor || block.dataset.bgColor || '#000000'),
+    onApply: (c) => { block.dataset.countLabelColor = c; redraw(); syncCountGroup(block, ['countLabelColor']); },
+    onCommit: () => commit('마킹 라벨 색'),
+  });
 
   /* 번호 다시 매기기 — 묶음 */
   $('stk-count-renumber')?.addEventListener('click', () => {

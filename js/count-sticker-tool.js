@@ -8,6 +8,9 @@
 //   data-count-shape  circle | square | none(투명)
 //   data-count-icon      내장 글리프 이름(COUNT_STK_GLYPHS) | custom            — 표기가 icon 일 때만 읽는다
 //   data-count-icon-svg  custom 일 때의 svg 문자열(쓸 때·그릴 때 js/util/sanitize-svg.js 로 거른다)
+//   data-count-label        마커 옆 텍스트 라벨(평문 · 블럭마다) — 없으면 라벨 없음
+//   data-count-label-pos    right(기본) | left | top | bottom
+//   data-count-label-color  라벨 글자색(없으면 마커 배경색) · data-count-label-size  라벨 글자 크기 px(없으면 마커 폰트 크기)
 // 표시 글자 = label(start + k − 1, style) 을 data-text 에 «구워» 넣는다 ⇒ 저장·내보내기가 그대로 탄다(icon 이면 '').
 // ★새 키는 전부 «더하기»다 — 없으면 옛 그림과 100% 같다. 모르는 표기 값은 num 으로 읽는다.
 // 종료: Esc(패널 칸에 포커스가 있어도 · 1013t2B2) · V · 우클릭 · 메뉴 재클릭. 골격은 js/highlight-line-tool.js 와 같다.
@@ -130,8 +133,10 @@ function countStickerInheritFrom(sec) {
     fontSize: _cntInt(d.fontSize, COUNT_STK_DEFAULTS.fontSize),
     fontWeight: _cntInt(d.fontWeight, COUNT_STK_DEFAULTS.fontWeight),
   };
-  /* 아이콘(1013t2B5)도 물려받는다 — 표기가 icon 인 섹션에 이어 찍으면 같은 아이콘이다 */
-  ['bgColor', 'textColor', 'fontStyle', 'textDecoration', 'countIcon', 'countIconSvg'].forEach((k) => {
+  /* 아이콘·라벨 «꾸밈»(1013t2B5)도 물려받는다 — 표기가 icon 인 섹션에 이어 찍으면 같은 아이콘이고, 라벨을 달면 같은 자리·색·크기다.
+     ⛔라벨 «글자»(countLabel)는 안 넘긴다 — 새로 찍은 것은 라벨이 없다(블럭마다의 것). */
+  ['bgColor', 'textColor', 'fontStyle', 'textDecoration', 'countIcon', 'countIconSvg',
+    'countLabelPos', 'countLabelColor', 'countLabelSize'].forEach((k) => {
     if (d[k] !== undefined && d[k] !== '') out[k] = d[k];
   });
   return out;

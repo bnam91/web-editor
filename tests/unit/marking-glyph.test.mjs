@@ -6,6 +6,7 @@
  *      · 감싸개는 viewBox 0 0 16 16 · 크기·색을 «숫자로» 굽는다 · 모르는 이름은 ''
  *   G2 표기 3값 — applyText: icon 이면 data-text 는 '' 이고 data-count 는 그대로 · 모르는 값은 num · setGroup 이 icon/글리프를 묶음에 쓴다
  *      · custom svg 는 거르개가 실렸을 때만, 거른 것만 쓴다(날것을 dataset 에 안 넣는다)
+ *   G3 물려받기 — 다음 찍기는 아이콘·라벨 «꾸밈»(자리·색·크기)을 물려받고 라벨 «글자»는 안 물려받는다
  * ★기대값은 «글자로» 박았다. ⛔앱 0 · 네트워크 0 — js/count-sticker-tool.js 를 vm 으로 그대로 싣는다(count-sticker-label 과 같은 꼴).
  */
 import { test } from 'node:test';
@@ -110,4 +111,24 @@ test('G2 표기 3값 — icon 이면 data-text 는 빈 값이고 순번은 그�
   /* 내장 글리프로 돌아가면 custom svg 를 지운다 */
   CS.setGroup(A.sec, { icon: 'plus' });
   assert.deepEqual(A.blocks.map((b) => [b.dataset.countIcon, 'countIconSvg' in b.dataset]), [['plus', false], ['plus', false]]);
+});
+
+test('G3 inheritFrom — 아이콘·라벨 꾸밈은 넘기고 라벨 글자는 안 넘긴다', () => {
+  const { inheritFrom } = load().CountSticker;
+  const last = { dataset: { count: '2', shape: 'square', size: '56', countShape: 'square', countStyle: 'icon', countIcon: 'custom', countIconSvg: '<svg><path d="M0 0"/></svg>',
+    bgColor: '#f26b1f', textColor: '#ffffff', countLabel: '메쉬포켓', countLabelPos: 'left', countLabelColor: '#ffffff', countLabelSize: '30' } };
+  const first = { dataset: { count: '1', shape: 'circle', size: '56', countStyle: 'num', countLabel: '첫째', countLabelPos: 'top' } };
+  const inh = inheritFrom({ querySelectorAll: () => [first, last] });
+  assert.equal(inh.countStyle, 'icon', '표기');
+  assert.equal(inh.countIcon, 'custom', '아이콘 이름');
+  assert.equal(inh.countIconSvg, '<svg><path d="M0 0"/></svg>', '커스텀 svg');
+  assert.deepEqual([inh.countLabelPos, inh.countLabelColor, inh.countLabelSize], ['left', '#ffffff', '30'], '라벨의 자리·색·크기');
+  assert.equal('countLabel' in inh, false, '라벨 «글자»는 안 넘긴다 — 새로 찍은 것은 라벨이 없다');
+  /* 꾸밈 키가 없는 옛 것에서는 그 키들을 지어내지 않는다 */
+  const bare = inheritFrom({ querySelectorAll: () => [{ dataset: { count: '1', shape: 'circle', size: '56' } }] });
+  for (const k of ['countIcon', 'countIconSvg', 'countLabel', 'countLabelPos', 'countLabelColor', 'countLabelSize']) {
+    assert.equal(k in bare, false, `옛 것: ${k} 를 지어내지 않는다`);
+  }
+  /* 모르는 표기 값은 num 으로 물려받는다 */
+  assert.equal(inheritFrom({ querySelectorAll: () => [{ dataset: { count: '1', countStyle: 'emoji' } }] }).countStyle, 'num');
 });

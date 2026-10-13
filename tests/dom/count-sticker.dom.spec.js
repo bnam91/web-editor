@@ -356,6 +356,8 @@ test('C11 번호 다시 매기기 — 2 를 지운 뒤 1·3 이 1·2 가 된다'
   expect(await page.evaluate(() => window.CountSticker.nextOrdinal(document.getElementById('secA')))).toBe(3);
 });
 
+/* 1013t2B5 뒤 — 마킹을 더블클릭하면 «옆 라벨»의 편집이 열린다(tests/dom/marking-icon-label.dom.spec.js M6).
+   이 칸이 지키는 것은 그대로다: 번호 글자(.sticker-text)는 편집이 안 열리고 번호가 안 바뀐다. */
 test('C12 더블클릭 — 카운트 스티커는 글자 편집이 안 열린다(일반 스티커는 열린다)', async ({ page }) => {
   await bootApp(page);
   await setup(page);
