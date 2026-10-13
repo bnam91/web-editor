@@ -3021,9 +3021,19 @@ function _grdWireTypo(block, addr, host = null) {
     const a = Math.max(0, Math.min(1, _alpha / 100));
     return a >= 1 ? (cPick?.value || '#000000') : `rgba(${r},${g},${b},${a})`;
   };
+  /* ★1013t1B1② «부분 색» — 줄 글자 일부를 고른 채(편집 중 선택 · 패널로 가는 blur 는 세움) 색을 바꾸면 «고른 부분만».
+       텍스트블럭과 같은 길(저장 선택 → window.applyColorToSelection span → 커밋 식으로 textHtml) — 몸통은 line-host.js 한 자리
+       (⛔이 파일은 line-host 를 import 못 한다 — 순환 · unit 하네스). 선택이 없으면 false ⇒ 옛 갈래(줄 전체 color). */
+  const partialColor = (cc) => {
+    if (!window.lnApplyLinePartialColor?.(block, H, addr, cc, begin)) return false;
+    H.mark(addr);
+    H.refreshSummary(addr);
+    return true;
+  };
   const applyColor = () => {
     const cc = buildColor();
     if (cSwatch) cSwatch.style.background = cc;
+    if (partialColor(cc)) return;
     begin();                       // ★연속 input 의 «첫» 한 번만 히스토리를 찍는다
     setLine({ color: cc });
   };
@@ -3068,7 +3078,7 @@ function _grdWireTypo(block, addr, host = null) {
       getActiveName: () => parseColorVarName((H.line(addr) || {}).color || ''),
       getFallbackHex: (name, hex) => hex,
       onPick: (cssRef) => {
-        commit({ color: cssRef });
+        if (partialColor(cssRef)) end(); else commit({ color: cssRef });   // ★1013t1B1② 고른 글자가 있으면 그 부분만(대체 hex)
         const fb = (String(cssRef).match(/#[0-9a-fA-F]{6}/) || [])[0];
         if (fb && cPick) { cPick.value = fb; _grdLastHex = fb; if (cHex) cHex.value = fb.replace('#', '').toUpperCase(); }
         _alpha = 100; if (cAlpha) cAlpha.value = '100';

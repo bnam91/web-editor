@@ -500,3 +500,210 @@ test.describe('line-host 다른 주인 — 같은 길(버블 H2·H1a 고침 · �
     expect(errs).toEqual([]);
   });
 });
+
+/* ══ LR10 — 패널 «부분 색» (1013t1B1 반려 ① · 태양 게이트) ══════════════════════════════════════════════
+ * 발주: 「캔버스에서 laurel 글의 «특정 영역만» 스타일(굵게·★색 등 — ★텍스트 블럭의 범위 서식과 같은 길)」.
+ * 몸짓: 줄 더블클릭 → 'AAABBBCCC' → 끝 3글자 ⇧← → 우측 패널 그 줄 Fill 글자색 스와치를 «마우스로» 누른다(편집 blur → 세움)
+ *       → 피커 값 #ff0000 input·change(피커 팝업이 쏘는 것과 같은 이벤트) → 고른 3글자만 빨강.
+ * 고침: line-host.js lnBeginEdit onBlur(패널로 가는 blur = parkEditing · flush=finish keepPanel) · lnApplyLinePartialColor(저장 선택 →
+ *       window.applyColorToSelection → textHtml) · prop-grid _grdWireTypo applyColor 의 partialColor 갈래 ·
+ *       _text-selection.js RETAIN 에 .ln-row · KEEP_FOCUS 에서 줄 모드 말풍선 줄 제외.
+ * J1 = 0번 실측(공용 sanitizer 가 color span 을 남기나) — 순수 함수 결과 문자열.
+ * 음성대조(1회 실측 · 생성기 2026-10-13 · cp 백업/복원 · cmp 같음): prop-grid applyColor 의 `if (partialColor(cc)) return;` 한 줄 주석
+ *   → 이 파일 32칸 중 6 failed / 26 passed — 빨강 LR10·LR10b·HB3·HC2·HM2·GL1.
+ *   (LR10b 도 빨갛다 = 그 갈래가 «열린 편집을 먼저 커밋»도 진다 — 끊으면 줄 전체 색이 편집 중 줄을 다시 그려 화면 글자가 편집 전 「1위」로.) */
+const RED = 'rgb(255, 0, 0)';
+const KIND_GRID = { sel: (id) => `#${id} .grd-line[data-r="0"][data-c="0"][data-line="0"]`,
+  line: (b) => { const cols = JSON.parse(b.dataset.cols || '[]'); return cols[0]?.lines?.[0] ?? null; } };
+
+test('J1 0번 실측 — GRID_RICH_TEXT_OPTS sanitize 가 color span 을 남기고 위험 style 만 걷는다(순수 함수)', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(async () => {
+    const m = await import('/js/util/sanitize-rich-text.js');
+    const g = await import('/js/blocks/grid-block.js');
+    const O = g.GRID_RICH_TEXT_OPTS;
+    const run = (h) => m.sanitizeRichTextHtml(h, O);
+    return {
+      hex: run('AAA<span style="color:#ff0000">CCC</span>'),
+      rgb: run('AAA<span style="color: rgb(255, 0, 0);">CCC</span>'),
+      rgba: run('AAA<span style="color: rgba(255, 0, 0, 0.5);">CCC</span>'),
+      mixed: run('AAA<span style="background-color:url(x);color:#ff0000;position:fixed">CCC</span>'),
+      varRef: run('AAA<span style="color:var(--color-x, #ff0000)">CCC</span>'),
+      fmt: m.richTextHasFormatting(run('AAA<span style="color: rgb(255, 0, 0);">CCC</span>'), O),
+    };
+  });
+  console.log('  J1:', JSON.stringify(r));
+  expect(r.hex, 'hex color span 생존').toBe('AAA<span style="color:#ff0000">CCC</span>');
+  expect(r.rgb, 'rgb()(브라우저 style.color 직렬화 꼴) 생존').toBe('AAA<span style="color:rgb(255, 0, 0)">CCC</span>');
+  expect(r.rgba).toBe('AAA<span style="color:rgba(255, 0, 0, 0.5)">CCC</span>');
+  expect(r.mixed, '위험 style(url(·position) 걷힘 · color 만 생존').toBe('AAA<span style="color:#ff0000">CCC</span>');
+  expect(r.varRef, 'var() 는 걷힌다(→ 부분 적용은 대체 hex 를 쓴다)').toBe('AAA<span>CCC</span>');
+  expect(r.fmt, 'color span = 서식(판정자 참)').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+/* 편집 들어가 'AAABBBCCC' → 끝 3글자 선택(편집은 연 채) */
+async function editSelectTail3(page, sel, id) {
+  await page.evaluate((s) => document.querySelector(s)?.scrollIntoView({ block: 'center' }), sel);
+  const r = await waitStableRect(page, sel);
+  await page.mouse.dblclick(r.cx, r.cy);
+  await page.waitForFunction((s) => document.querySelector(s)?.getAttribute('contenteditable') === 'true', sel);
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.type(TXT);
+  await page.waitForFunction(([s, t]) => document.querySelector(s)?.innerText === t, [sel, TXT]);
+  await page.keyboard.press('End');
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowLeft');
+  await page.waitForFunction(() => getSelection().toString() === 'CCC');
+  expect(await page.evaluate((i) => document.getElementById(i).classList.contains('editing'), id), '전제 — 편집 중').toBe(true);
+}
+/* 패널 Fill 글자색 스와치를 마우스로 누르고(편집 blur) 피커 값을 바꾼다 */
+async function panelColor(page, hex) {
+  const sw = await page.evaluate(() => {
+    const e = document.getElementById('grd-typo-color')?.closest('.prop-color-swatch');
+    if (!e) return null;
+    const b = e.getBoundingClientRect();
+    const x = b.x + b.width / 2, y = b.y + b.height / 2;
+    const at = document.elementFromPoint(x, y);
+    return { x, y, on: !!(at && (at === e || e.contains(at))) };
+  });
+  expect(sw, '전제 — 패널에 그 줄 Fill 글자색 스와치').not.toBeNull();
+  expect(sw.on, '전제 — 누르는 점이 스와치 위').toBe(true);
+  await page.mouse.click(sw.x, sw.y);
+  const saved = await page.evaluate(() => window.__textSelection?.getSavedTextSelection?.()?.range?.toString() ?? null);
+  expect(saved, '전제 — 패널을 눌러도 고른 글자(저장 선택)가 산다').toBe('CCC');
+  await page.evaluate((h) => {
+    const p = document.getElementById('grd-typo-color');
+    p.value = h;
+    p.dispatchEvent(new Event('input', { bubbles: true }));
+    p.dispatchEvent(new Event('change', { bubbles: true }));
+  }, hex);
+}
+/* 렌더된 줄에서 글자별 계산색 — 첫 글자(A)와 끝 글자(C) */
+const charColors = (page, sel) => page.evaluate((s) => {
+  const el = document.querySelector(s); if (!el) return null;
+  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const out = [];
+  for (let t = tw.nextNode(); t; t = tw.nextNode()) for (const ch of t.nodeValue) out.push([ch, getComputedStyle(t.parentElement).color]);
+  return { first: out[0], last: out[out.length - 1], red: out.filter(x => x[1] === 'rgb(255, 0, 0)').map(x => x[0]).join(''), base: getComputedStyle(el).color };
+}, sel);
+
+async function partialColorCase(page, kind, id, K) {
+  const sel = K.sel(id);
+  await editSelectTail3(page, sel, id);
+  const base = (await charColors(page, sel)).base;
+  expect(base, '전제 — 줄 기본색이 빨강이 아니다').not.toBe(RED);
+  const lineColor0 = await page.evaluate(([i, src]) => ((0, eval)(src))(document.getElementById(i))?.color ?? null, [id, K.line.toString()]);
+  await panelColor(page, '#ff0000');
+  if (kind === 'grid') {   // 그리드 편집기(block-drag _gridBeginEdit)는 편집 DOM 에 칠하고 «커밋 때» textHtml 로 싣는다 → 편집칸 blur 로 커밋
+    /* ⚠️Esc 한 번은 열린 색 피커 팝업이 먹는다(실측 probe — 편집이 안 닫힘) ⇒ 바깥을 누른 것과 같은 blur 로 끝낸다 */
+    expect(await page.evaluate((i) => document.getElementById(i).classList.contains('editing'), id), '전제 — 그리드는 색 뒤에도 편집 중').toBe(true);
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.waitForFunction((i) => !document.getElementById(i).classList.contains('editing'), id);
+  } else {                 // line-host 는 색 갈래가 열린 편집을 먼저 커밋한다(lnApplyLinePartialColor)
+    expect(await page.evaluate((i) => document.getElementById(i).classList.contains('editing'), id), '색 적용 뒤 편집이 커밋돼 닫혔다').toBe(false);
+  }
+  const readLine = () => page.evaluate(([i, src]) => ((0, eval)(src))(document.getElementById(i)), [id, K.line.toString()]);
+  await expect.poll(async () => /color/.test((await readLine())?.textHtml || ''), '부분 색이 모델 textHtml 에 들어왔다').toBe(true);
+  const line = await readLine();
+  const cc = await charColors(page, sel);
+  console.log(`  partial ${kind}:`, JSON.stringify({ line, cc }));
+  expect(line.text, '평문 text 짝').toBe(TXT);
+  expect(/<span style="color:rgb\(255, 0, 0\)">CCC<\/span>$/.test(line.textHtml), `textHtml = 끝 3글자만 color span ${line.textHtml}`).toBe(true);
+  expect(line.textHtml.startsWith('AAABBB'), '앞 6글자는 span 밖').toBe(true);
+  expect(line.color ?? null, '줄 전체 color 는 안 바뀐다').toBe(lineColor0);
+  expect(cc.red, '빨강 글자 = 고른 3글자만').toBe('CCC');
+  expect(cc.first[1], '앞 글자는 원래 색').toBe(base);
+  return line;
+}
+
+test.describe('LR10 패널 부분 색 — laurel · 같은 길의 주인들', () => {
+  test('LR10 laurel — 끝 3글자 선택 → 패널 색 → 그 3글자만 · 커밋 textHtml color span · 저장 왕복 · ⌘Z 1 · Figma span 0', async ({ page }) => {
+    const errs = await setup(page);
+    const id = await addBlock(page, 'laurel');
+    const K = { sel: KIND.laurel.sel, line: KIND.laurel.line };
+    const pos0 = await page.evaluate(() => window.getHistoryTip?.().pos);
+    const t0 = (await state(page, 'laurel', id)).text;
+    expect(t0, '전제 — 편집 전 글자는 TXT 가 아니다').not.toBe(TXT);
+    const line = await partialColorCase(page, 'laurel', id, K);
+    const pos1 = await page.evaluate(() => window.getHistoryTip?.().pos);
+    /* Figma — 글만(B1-b) */
+    const j = await page.evaluate((want) => { let hit = null;
+      const walk = (o) => { if (hit || !o || typeof o !== 'object') return; if (o.type === 'laurel' && o.id === want) { hit = o; return; } for (const k in o) walk(o[k]); };
+      window.flushCurrentPage?.(); walk(window.buildFigmaExportJSON(null)); return hit; }, id);
+    expect(j, '전제 — Figma JSON 에 그 laurel').not.toBe(null);
+    const fj = JSON.stringify(j);
+    expect((fj.match(/<span/g) || []).length, `Figma JSON 에 span 0 ${fj}`).toBe(0);
+    expect(/textHtml/.test(fj), 'Figma JSON 에 textHtml 0').toBe(false);
+    expect(j.cells[0].lines[0].text, 'Figma = 평문').toBe(TXT);
+    /* 저장 왕복 */
+    const snap = await page.evaluate(() => { window.flushCurrentPage?.(); return window.serializeProject(); });
+    /* ⌘Z 1 걸음 = 색만 되돌린다(글자 커밋은 남는다) */
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect.poll(async () => (await state(page, 'laurel', id)).hasKey, '⌘Z 한 번 — 부분 색(textHtml) 없어짐').toBe(false);
+    const u1 = await state(page, 'laurel', id);
+    const pos2 = await page.evaluate(() => window.getHistoryTip?.().pos);
+    console.log('  LR10 undo:', JSON.stringify({ pos0, pos1, pos2, u1 }));
+    expect(u1.text, '⌘Z 한 번은 «색 한 걸음»만 — 친 글자는 남는다').toBe(TXT);
+    expect(await charColors(page, KIND.laurel.sel(id)).then(c => c.red), '화면에도 빨강 0').toBe('');
+    await page.keyboard.press('ControlOrMeta+z');   // 두 번째 = 글자 편집 한 걸음(편집 시작 때 찍힌 것)
+    await expect.poll(async () => (await state(page, 'laurel', id)).text, '⌘Z 두 번 — 편집 전 글자').toBe(t0);
+    const errs2 = await bootApp(page);
+    await page.evaluate((d) => window.applyProjectData(d), JSON.parse(snap));
+    await page.waitForFunction((s) => !!document.querySelector(s), KIND.laurel.sel(id));
+    const s2 = await state(page, 'laurel', id);
+    expect(s2.textHtml, '다시 연 뒤 textHtml 바이트 같음').toBe(line.textHtml);
+    const cc2 = await charColors(page, KIND.laurel.sel(id));
+    expect([cc2.red, cc2.first[1] !== RED], '다시 연 뒤 빨강 = CCC 만').toEqual(['CCC', true]);
+    expect(errs).toEqual([]);
+    expect(errs2).toEqual([]);
+  });
+
+  test('LR10b 선택 없이(캐럿만) 패널 색 — 옛 동작 = 줄 전체 color · textHtml 없음', async ({ page }) => {
+    const errs = await setup(page);
+    const id = await addBlock(page, 'laurel');
+    const sel = KIND.laurel.sel(id);
+    await editSelectTail3(page, sel, id);
+    await page.keyboard.press('End');   // 선택 접기
+    await page.waitForFunction(() => getSelection().isCollapsed);
+    const sw = await page.evaluate(() => { const e = document.getElementById('grd-typo-color').closest('.prop-color-swatch'); const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
+    await page.mouse.click(sw.x, sw.y);
+    await page.evaluate(() => { const p = document.getElementById('grd-typo-color'); p.value = '#ff0000';
+      p.dispatchEvent(new Event('input', { bubbles: true })); p.dispatchEvent(new Event('change', { bubbles: true })); });
+    await expect.poll(() => page.evaluate((i) => JSON.parse(document.getElementById(i).dataset.cells)[0].lines[0].color || '', id)).toMatch(/ff0000/i);
+    const s = await state(page, 'laurel', id);
+    const cc = await charColors(page, sel);
+    console.log('  LR10b:', JSON.stringify({ s, cc, cells: await page.evaluate((i) => document.getElementById(i).dataset.cells, id) }));
+    expect(s.shown, '화면 글자 = 친 글자').toBe(TXT);
+    expect(s.text, '친 글자 커밋').toBe(TXT);
+    expect(s.hasKey, '선택 없음 — textHtml 없음').toBe(false);
+    expect(cc.red, '줄 전체 빨강').toBe(TXT);
+    expect(errs).toEqual([]);
+  });
+
+  for (const kind of ['bubble', 'chat', 'cmp']) {
+    const name = { bubble: 'HB3 버블', chat: 'HC2 챗', cmp: 'HM2 비교' }[kind];
+    test(`${name} — 같은 길(line-host): 끝 3글자만 패널 색`, async ({ page }) => {
+      const errs = await setup(page);
+      const id = await addBlock(page, kind);
+      await prepOwner(page, kind, id);
+      await partialColorCase(page, kind, id, KIND[kind]);
+      expect(errs).toEqual([]);
+    });
+  }
+
+  test('GL1 그리드 줄 — 같은 패널 갈래(_grdWireTypo): 끝 3글자만 패널 색', async ({ page }) => {
+    const errs = await setup(page);
+    const gid = await addBlock(page, 'grid', { deselect: false });
+    await page.evaluate((g) => { const b = document.getElementById(g); const cols = JSON.parse(b.dataset.cols);
+      cols[0].lines = [{ type: 'body', text: 'x' }]; b.dataset.cols = JSON.stringify(cols); window.renderGridBlock(b); window.deselectAll?.(); }, gid);
+    await page.waitForFunction((s) => !!document.querySelector(s), KIND_GRID.sel(gid));
+    /* 그리드는 2단 선택 — 블럭 → 줄을 먼저 고른다(패널에 줄 Typography) */
+    const r = await waitStableRect(page, KIND_GRID.sel(gid));
+    await page.mouse.click(r.cx, r.cy);
+    await page.mouse.click(r.cx, r.cy);
+    await page.waitForFunction(() => !!document.getElementById('grd-typo-color'));
+    await partialColorCase(page, 'grid', gid, KIND_GRID);
+    expect(errs).toEqual([]);
+  });
+});

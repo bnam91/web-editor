@@ -21,6 +21,8 @@
 import { gridLineHtml, GRID_ROLES, MAX_CELL_LINES, gridMergeLine, gridValidateLines, gridLineHasText, gridPlusLayer, GRID_RICH_TEXT_OPTS } from './grid-block.js';
 /* ★1013t1B1 — 줄 «부분 서식»(⌘B/I/U/S) 커밋. 공용 한 벌(grid-block.js 가 이미 들이는 모듈 · 새 그래프 0) · 허용목록은 그리드 줄과 같은 GRID_RICH_TEXT_OPTS. */
 import { sanitizeRichTextHtml, richTextHasFormatting, richTextBlocksToBreaks } from '../util/sanitize-rich-text.js';
+/* ★1013t1B1② — 패널 «부분 색»: 캔버스 글자 선택 한 벌(텍스트블럭·표·그리드와 같은 모듈 · 의존 0 · unit 하네스는 이 파일을 안 얹는다 — grep 확인). */
+import { isBlurIntoPanel, parkEditing, withTextSelection, getSavedTextSelection, setSavedTextSelection } from '../props/_text-selection.js';
 import { grdLineUi, grdSetActiveLine, grdGetActiveLine, grdIsSoleSelected } from '../props/prop-grid.js';
 import { escHtml } from '../props/_helpers.js';
 import { swatchHex } from '../props/color-picker.js';          // ★D2 — 비교 줄 Fill 스와치를 «그려진 색»으로(prop-grid 가 이미 들이는 모듈 · 새 그래프 0)
@@ -668,8 +670,11 @@ export function lnBeginEdit(block, addr) {
   try { const s = window.getSelection(); s.selectAllChildren(el); s.collapseToEnd(); } catch (_) {}
   const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); el.blur(); } };
   const onPaste = (ev) => { ev.preventDefault(); const t = ev.clipboardData?.getData('text/plain') || ''; if (t) document.execCommand('insertText', false, t); };
-  const finish = () => {
-    el.removeEventListener('keydown', onKey); el.removeEventListener('paste', onPaste); el.removeEventListener('blur', finish);
+  let done = false;
+  const finish = ({ keepPanel = false } = {}) => {
+    if (done) return;
+    done = true;
+    el.removeEventListener('keydown', onKey); el.removeEventListener('paste', onPaste); el.removeEventListener('blur', onBlur);
     el.removeAttribute('contenteditable'); el.style.userSelect = ''; el.style.cursor = '';
     block.classList.remove('editing');
     const text = String(el.innerText || '').replace(/\r\n?/g, '\n').replace(/​/g, '').replace(/\n+$/, '');
@@ -686,11 +691,104 @@ export function lnBeginEdit(block, addr) {
     } else if (isChat) window.renderChatBlock?.(block); else if (isCmp) window.renderComparison?.(block);
     else if (block.classList.contains('laurel-block')) window.renderLaurelBlock?.(block);   // ★1013t1B2 — ⛔버블 갈래로 떨어지면 안 다시 그린다(편집 흔적이 남는다)
     else lnRenderBubble(block);
-    if (block.classList.contains('selected')) host.show({ r: hit.r, c: hit.c, li: hit.li });
+    /* ★keepPanel — 패널 조작 «직전»의 flush(아래 onBlur 의 parkEditing)에서만 켠다(그리드 _gridEndEdit 의 keepPanel 과 같은 뜻):
+       그 순간 패널을 다시 그리면 지금 눌린 칸(색 피커·버튼)이 DOM 에서 떨어져 그 조작이 «먹힌다». */
+    if (!keepPanel && block.classList.contains('selected')) host.show({ r: hit.r, c: hit.c, li: hit.li });
   };
-  el.addEventListener('keydown', onKey); el.addEventListener('paste', onPaste); el.addEventListener('blur', finish);
+  /* ★1013t1B1② — 「패널로 가는 blur」는 끝내지 않고 «세운다»(그리드 줄 _gridBeginEdit 와 같은 길 · 판정은 _text-selection.js 한 곳).
+     ⇒ 고른 글자(저장 선택)가 살아 패널 글자색이 «고른 부분만» 칠할 수 있다(lnApplyLinePartialColor).
+       패널 값이 핸들러에 닿기 직전 flush 가 커밋한다(패널은 다시 안 그림) · 바깥을 누르면 그때 end. */
+  const onBlur = (ev) => {
+    if (isBlurIntoPanel(ev)) { parkEditing(el, () => finish(), { flush: () => finish({ keepPanel: true }) }); return; }
+    finish();
+  };
+  el.addEventListener('keydown', onKey); el.addEventListener('paste', onPaste); el.addEventListener('blur', onBlur);
+  /* ★1013t1B1② — 패널 글자색은 blur 없이 온다(color-picker.js 스와치 위임이 mousedown 을 막아 포커스가 이 칸에 남는다 — 실측 probe:
+     스와치 클릭에 blur·focusout 0). 그 채로 줄을 다시 그리면 친 글자가 «화면에서» 사라진다 ⇒ 색 갈래가 먼저 이걸로 커밋한다(lnApplyLinePartialColor). */
+  el._lnCommit = () => finish({ keepPanel: true });
   return true;
 }
+
+/* ══ ★1013t1B1② 패널 «부분 색» — 줄 글자 일부를 고르고 Fill 글자색을 바꾸면 «고른 부분만» ═══════════════════════
+ * ★텍스트블럭과 같은 길: 저장 선택(_text-selection.js getSavedTextSelection) → window.applyColorToSelection(부분 색 span 한 벌)
+ *   → 그 줄 글자 요소의 HTML 을 커밋 때와 같은 식(_lnReadHtml = 블럭 경계 펴기 + GRID_RICH_TEXT_OPTS sanitize)으로 읽어 textHtml 로 쓴다.
+ * ★주인 무관 — H 는 prop-grid _grdWireTypo 가 받은 주인(line-host 네 주인 · 그리드). 쓰는 것은 계약 칸 rowEl·previewLine 뿐.
+ * ★선택이 «그 줄» 안에 없으면 false ⇒ 부르는 자가 옛 갈래(줄 전체 색)를 탄다.
+ * ★편집이 아직 열려 있으면(contenteditable) DOM 에만 칠한다 — 커밋(finish/_gridEndEdit)이 textHtml 로 싣는다.
+ *   패널 input/change/click 은 flush 가 «먼저» 커밋하므로 보통은 다시 그려진 줄에 칠하고 여기서 바로 쓴다.
+ * ★색 값: var(--color-x, #hex)(컬러 변수 칩)는 공용 sanitizer 가 안 받는다(VAL_FUNC 는 rgb·hsl 만) ⇒ 부분 적용엔 대체 hex 를 쓴다.
+ * ★before = 부르는 자의 «제스처 첫 적용 전 pushHistory» — 칠하기 «전»에 부른다(스냅샷이 칠하기 전 상태). */
+function _lnPartialColorValue(color) {
+  const s = String(color || '').trim();
+  if (/^var\(/i.test(s)) { const m = s.match(/#[0-9a-fA-F]{3,8}\b/); return m ? m[0] : ''; }
+  return s;
+}
+/* 저장 선택 → { path(줄 안 글자칸 자리), start, end, text } — 줄바꿈(\n)은 세지 않는다
+   (편집 중 Enter 는 <div> 라 글자에 \n 이 없고, 커밋 뒤 평문 렌더는 \n 글자를 쓴다 — 둘을 같은 글자로 본다). */
+const _lnNoNl = (t) => String(t || '').replace(/\n/g, '');
+function _lnSelSnapshot(s, row) {
+  if (!s || !s.range || s.range.collapsed || !row || !(row === s.host || row.contains(s.host))) return null;
+  const path = [];
+  for (let n = s.host; n && n !== row; n = n.parentElement) path.unshift(Array.prototype.indexOf.call(n.parentElement.children, n));
+  const pre = document.createRange(); pre.selectNodeContents(s.host); pre.setEnd(s.range.startContainer, s.range.startOffset);
+  const start = _lnNoNl(pre.toString()).length;
+  return { path, start, end: start + _lnNoNl(s.range.toString()).length, text: _lnNoNl(s.host.textContent) };
+}
+function _lnSelRestore(snap, row) {
+  if (!snap || !row) return false;
+  let host = row;
+  for (const i of snap.path) { host = host && host.children[i]; }
+  if (!host || _lnNoNl(host.textContent) !== snap.text) return false;
+  const w = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+  let pos = 0, sN = null, sO = 0, eN = null, eO = 0;
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    const v = n.nodeValue;
+    for (let k = 0; k <= v.length; k++) {
+      if (k < v.length && v[k] === '\n') continue;
+      if (!sN && pos === snap.start && k < v.length) { sN = n; sO = k; }
+      if (sN && !eN && pos === snap.end) { eN = n; eO = k; break; }
+      if (k < v.length) pos++;
+    }
+    if (eN) break;
+  }
+  if (!sN || !eN) return false;
+  const r = document.createRange(); r.setStart(sN, sO); r.setEnd(eN, eO);
+  return setSavedTextSelection(r, host);
+}
+export function lnApplyLinePartialColor(block, H, addr, color, before) {
+  if (!block || !H || !addr || addr.li === null || addr.li === undefined || addr.np) return false;
+  const rowOf = () => (typeof H.rowEl === 'function' ? H.rowEl(addr) : null);
+  /* ★열린 line-host 편집이 그 줄이면 «먼저» 커밋한다(패널은 다시 안 그림) — 그 뒤 칠하기·이력이 «커밋된 줄» 위에서 돈다.
+     저장 선택은 다시 그려진 줄로 글자 오프셋으로 옮겨 간다(_alive). 선택이 없어도 커밋은 한다 — 부르는 자의 줄 전체 갈래가
+     친 글자를 지우지 않게(옛 결함: 편집 중 줄 전체 색 = 화면 글자가 편집 전으로). 그리드 편집기(_lnCommit 없음)는 손대지 않는다. */
+  const r0 = rowOf();
+  const ed = r0 && (r0.getAttribute('contenteditable') === 'true' ? r0 : r0.querySelector('[contenteditable="true"]'));
+  if (ed && typeof ed._lnCommit === 'function') {
+    const pre = _lnSelSnapshot(getSavedTextSelection(r0), r0);
+    ed._lnCommit();
+    _lnSelRestore(pre, rowOf());   // contenteditable 을 끄며 난 blur 가 버린 저장 선택을 «같은 글자»로 되세운다
+  }
+  const row = rowOf();
+  const apply = typeof window !== 'undefined' ? window.applyColorToSelection : null;
+  const c = _lnPartialColorValue(color);
+  if (!row || typeof apply !== 'function' || !c) return false;
+  let applied = false;
+  /* withTextSelection — 칠한 span 으로 저장 범위를 바꾸고(편집 중일 때) 칠하기를 되살린다. 다시 그려진 줄이면 다음 부름이
+     글자 오프셋으로 같은 글자를 다시 찾는다(_text-selection.js _alive — 같은 글자·같은 구조일 때만). */
+  withTextSelection((range, host) => {
+    if (!range || range.collapsed || !range.toString()) return null;
+    if (typeof before === 'function') before();
+    const span = apply(c, host, range, null)?.span || null;
+    applied = true;
+    if (host.getAttribute('contenteditable') === 'true') return span;   // 편집 중 — 커밋(finish/_gridEndEdit)이 싣는다
+    const html = _lnReadHtml(host);
+    const textHtml = richTextHasFormatting(html, GRID_RICH_TEXT_OPTS) ? html : '';
+    H.previewLine(addr.r, addr.c, addr.li, { textHtml }, addr.np);
+    return span;
+  }, { within: row });
+  return applied;
+}
+if (typeof window !== 'undefined') window.lnApplyLinePartialColor = lnApplyLinePartialColor;   // prop-grid 는 이 파일을 import 못 한다(순환)
 
 export function lnBindLineEdit(block) {
   if (!block || block._lnEditBound) return;

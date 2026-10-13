@@ -72,12 +72,16 @@ const EXC_SEL = FOCUS_TAKING_EXCEPTIONS.map(e => e.sel).join(', ');
  *    아직 커밋 안 된 글자가 사라진다. 그곳들은 blur 가 «패널로» 가면 제 표면의 규칙대로 세우거나
  *    (그리드 — parkEditing + flush, block-drag.js) 예전대로 커밋한다(모달 — 다시 그린 뒤 저장 선택을 글자 오프셋으로 옮겨 단다).
  *  ⛔줄을 더하기 전에: 그 블럭의 패널 적용이 글자칸을 다시 그리지 않는가? */
-export const KEEP_FOCUS_HOST_SEL = '.text-block [contenteditable="true"], .table-block [contenteditable="true"]';
+/*  ★1013t1B1② — `:not(.ln-row > *)`: 말풍선은 .text-block 이지만 «줄 모드» 줄 글자칸(line-host)은 진실이 dataset 이고 패널 적용이
+ *    블럭을 다시 그린다(위 ⛔ 그대로) ⇒ 붙잡지 않고 그리드 줄처럼 세운다(laurel·챗·비교 줄과 같은 길 · RETAIN 의 .ln-row). */
+export const KEEP_FOCUS_HOST_SEL = '.text-block [contenteditable="true"]:not(.ln-row > *), .table-block [contenteditable="true"]';
 /** 「패널로 가는 blur」 뒤에도 저장 선택을 «들고 있는» 글자칸 — 패널 값이 그 글자에 다시 쓰이는 표면.
  *  KEEP_FOCUS 칸(텍스트블럭·표 칸) + 그리드 줄(세워 둠) + 모달 슬롯(다시 그린 뒤 옮겨 단다 — T7).
  *  ⛔여기 없는 표면(채팅·배너2·카드 …)은 blur 가 곧 «진짜 편집 종료»라 저장 선택·하이라이트를 버린다(적대QA ⑥). */
 /*  ⚠️contenteditable 로 거르지 않고 «블럭 꼴»로 가른다 — 표 칸은 blur 핸들러가 focusout «보다 먼저» contenteditable 을 끈다. */
-export const RETAIN_ON_PANEL_BLUR_SEL = '.text-block, .table-block, .grid-block, .modal-block';
+/*  ★1013t1B1② — `.ln-row` = line-host 줄(laurel·버블·챗·비교)의 글자칸 «만» — 그리드 줄과 같은 «세움»(line-host.js lnBeginEdit onBlur)이라
+ *    패널 글자색이 고른 글자에만 간다(lnApplyLinePartialColor). ⛔블럭 꼴(.chat-block 등)로 넓히지 않았다 — 줄 없는 옛 챗·버블 편집은 그대로 버린다. */
+export const RETAIN_ON_PANEL_BLUR_SEL = '.text-block, .table-block, .grid-block, .modal-block, .ln-row';
 const _el = (n) => (n && n.nodeType === 1 ? n : n && n.parentElement) || null;
 export function isInPanelSurface(node) {
   const e = _el(node);
@@ -218,6 +222,16 @@ export function replaceSavedTextSelection(node) {
   r.selectNodeContents(node);
   if (r.collapsed) return false;
   _record(r, host);
+  _schedulePaint();
+  return true;
+}
+
+/** ★1013t1B1② — 저장 범위를 «직접» 세운다(편집이 아닌 글자칸도). line-host 색 갈래가 열린 편집을 커밋하면
+ *  contenteditable 을 끄는 순간 blur → focusout 이 저장 선택을 버린다(실측 probe) ⇒ 다시 그려진 줄의 같은 글자로 되세운다.
+ *  ⛔부르는 자가 «같은 글자»임을 확인한 뒤에만 부른다(이 함수는 확인하지 않는다). */
+export function setSavedTextSelection(range, host) {
+  if (!range || range.collapsed || !host || !host.isConnected || !host.contains(range.startContainer)) return false;
+  _record(range, host);
   _schedulePaint();
   return true;
 }
