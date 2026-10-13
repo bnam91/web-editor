@@ -4,9 +4,12 @@
 // 스티커는 기존 sticker-block(circle/square)의 «변형»이다 — data-count 가 붙었을 뿐 새 블록 타입이 아니다.
 //   data-count        섹션 안 순번 k (1부터)
 //   data-count-start  시작 번호 (기본 1)
-//   data-count-style  num | alpha
+//   data-count-style  num | alpha | icon(1013t2B5 — 번호 대신 아이콘. 순번은 그대로 센다)
 //   data-count-shape  circle | square | none(투명)
-// 표시 글자 = label(start + k − 1, style) 을 data-text 에 «구워» 넣는다 ⇒ 저장·내보내기가 그대로 탄다.
+//   data-count-icon      내장 글리프 이름(COUNT_STK_GLYPHS) | custom            — 표기가 icon 일 때만 읽는다
+//   data-count-icon-svg  custom 일 때의 svg 문자열(쓸 때·그릴 때 js/util/sanitize-svg.js 로 거른다)
+// 표시 글자 = label(start + k − 1, style) 을 data-text 에 «구워» 넣는다 ⇒ 저장·내보내기가 그대로 탄다(icon 이면 '').
+// ★새 키는 전부 «더하기»다 — 없으면 옛 그림과 100% 같다. 모르는 표기 값은 num 으로 읽는다.
 // 종료: Esc(패널 칸에 포커스가 있어도 · 1013t2B2) · V · 우클릭 · 메뉴 재클릭. 골격은 js/highlight-line-tool.js 와 같다.
 // ⚠️최상위에서 DOM 을 건드리지 않는다(유닛이 vm 으로 이 파일을 싣는다).
 
@@ -20,6 +23,45 @@ let _cntEntryAt = 0;          // 모드 진입 직후 잔여 click 무시용 타
 const COUNT_STK_DEFAULTS = { size: 56, fontSize: 26, fontWeight: 700, start: 1, style: 'num', shape: 'circle', bgColor: '#000000', textColor: '#ffffff' };
 const COUNT_STK_START_MIN = 1;
 const COUNT_STK_START_MAX = 999;
+
+/* 내장 글리프(1013t2B5) — 네트워크 0. 값은 `viewBox 0 0 16 16` 안의 «안쪽 마크업»만이다(우측 패널의 이웃 아이콘과 같은 격자).
+   감싸개(<svg …>)는 countStickerGlyphSvg 가 붙인다 — 패널 단추는 선 굵기 1.4, 캔버스 마커는 2(굵게).
+   ⛔여기에 on* · href · script 를 적지 마라 — 유닛(marking-glyph G1)이 태그·속성을 잠근다. */
+const COUNT_STK_GLYPHS = {
+  'chevron-right': '<polyline points="6 3.5 10.5 8 6 12.5"/>',
+  'check':         '<polyline points="3.5 8.5 6.5 11.5 12.5 4.5"/>',
+  'arrow-right':   '<line x1="3" y1="8" x2="13" y2="8"/><polyline points="9 4 13 8 9 12"/>',
+  'plus':          '<line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/>',
+  'star':          '<polygon points="8 2.2 9.8 6 14 6.5 10.9 9.3 11.7 13.4 8 11.4 4.3 13.4 5.1 9.3 2 6.5 6.2 6"/>',
+  'dot':           '<circle cx="8" cy="8" r="2.6" fill="currentColor"/>',
+};
+const COUNT_STK_GLYPH_NAMES = Object.keys(COUNT_STK_GLYPHS);
+const COUNT_STK_GLYPH_DEFAULT = 'chevron-right';
+const COUNT_STK_ICON_SVG_MAX = 200000;      // js/util/sanitize-svg.js SVG_MAX_LEN 과 같은 수
+
+/* 표기 값 3갈래 — 모르는 값은 num(옛 저장본·손댄 값이 조용히 다른 그림이 되지 않게). */
+function _cntStyle(v) {
+  return v === 'alpha' ? 'alpha' : v === 'icon' ? 'icon' : 'num';
+}
+/* 아이콘 이름 — 내장 글리프 이름 | 'custom'. 그 밖은 기본 글리프. */
+function _cntIconName(v) {
+  if (v === 'custom') return 'custom';
+  return Object.prototype.hasOwnProperty.call(COUNT_STK_GLYPHS, v) ? v : COUNT_STK_GLYPH_DEFAULT;
+}
+
+/* 글리프 한 개의 svg 문자열. 모르는 이름이면 ''.
+   opts.size  = 한 변 px(그릴 때 폰트 크기를 «숫자로» 굽는다 — 내보내기 클론이 em·상속에 기대지 않게)
+   opts.color = currentColor 가 가리킬 색(〃) · opts.stroke = 선 굵기(기본 2) */
+function countStickerGlyphSvg(name, opts) {
+  if (!Object.prototype.hasOwnProperty.call(COUNT_STK_GLYPHS, name)) return '';
+  const o = opts || {};
+  const size = Number.isFinite(+o.size) && +o.size > 0 ? +o.size : 16;
+  const stroke = Number.isFinite(+o.stroke) && +o.stroke > 0 ? +o.stroke : 2;
+  const color = o.color ? String(o.color).replace(/["<>;]/g, '') : '';
+  return `<svg viewBox="0 0 16 16" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="${stroke}"`
+    + ` stroke-linecap="round" stroke-linejoin="round" style="${color ? `color:${color};` : ''}display:block;flex:none;pointer-events:none;">`
+    + COUNT_STK_GLYPHS[name] + '</svg>';
+}
 
 function _cntInt(v, fallback) {
   const n = parseInt(v, 10);
@@ -81,14 +123,15 @@ function countStickerInheritFrom(sec) {
     shape: d.shape === 'square' ? 'square' : 'circle',
     countShape: d.countShape || (d.shape === 'square' ? 'square' : 'circle'),
     countStart: _cntInt(d.countStart, COUNT_STK_DEFAULTS.start),
-    countStyle: d.countStyle === 'alpha' ? 'alpha' : 'num',
+    countStyle: _cntStyle(d.countStyle),
     size,
     sizeW: _cntInt(d.sizeW, size),
     sizeH: _cntInt(d.sizeH, size),
     fontSize: _cntInt(d.fontSize, COUNT_STK_DEFAULTS.fontSize),
     fontWeight: _cntInt(d.fontWeight, COUNT_STK_DEFAULTS.fontWeight),
   };
-  ['bgColor', 'textColor', 'fontStyle', 'textDecoration'].forEach((k) => {
+  /* 아이콘(1013t2B5)도 물려받는다 — 표기가 icon 인 섹션에 이어 찍으면 같은 아이콘이다 */
+  ['bgColor', 'textColor', 'fontStyle', 'textDecoration', 'countIcon', 'countIconSvg'].forEach((k) => {
     if (d[k] !== undefined && d[k] !== '') out[k] = d[k];
   });
   return out;
@@ -100,7 +143,8 @@ function countStickerApplyText(block) {
   const d = block.dataset;
   const k = Math.max(1, _cntInt(d.count, 1));
   const start = Math.min(COUNT_STK_START_MAX, Math.max(COUNT_STK_START_MIN, _cntInt(d.countStart, COUNT_STK_DEFAULTS.start)));
-  d.text = countStickerLabel(start + k - 1, d.countStyle);
+  /* 표기가 icon 이면 글자를 비운다(번호 글자가 내보내기에 새지 않게). 순번(data-count)은 그대로라 1/A 로 돌아오면 번호가 산다. */
+  d.text = _cntStyle(d.countStyle) === 'icon' ? '' : countStickerLabel(start + k - 1, d.countStyle);
   delete d.textHtml;
 }
 
@@ -110,15 +154,36 @@ function _cntRerender(block) {
   if (block.classList.contains('selected')) window._addCornerHandles?.(block);
 }
 
-// 묶음 속성(표기·시작 번호) — 같은 섹션의 카운트 스티커 «전부»에 쓴다. 히스토리는 부르는 쪽이 한 번 찍는다.
+// 묶음 속성(표기·시작 번호·아이콘) — 같은 섹션의 카운트 스티커 «전부»에 쓴다. 히스토리는 부르는 쪽이 한 번 찍는다.
+//   patch.icon    = 내장 글리프 이름 | 'custom'
+//   patch.iconSvg = custom 의 svg 문자열 — ★쓸 때 거른다(window._sanitizeSvgString = js/util/sanitize-svg.js).
+//                   거르개가 안 실렸거나 걸러서 빈 문자열이면 «안 쓴다»(날것을 dataset 에 넣지 않는다).
 function countStickerSetGroup(sec, patch) {
   const list = _cntListOf(sec);
+  let iconSvg = null;
+  if (patch && patch.iconSvg != null) {
+    const raw = String(patch.iconSvg);
+    const clean = (typeof window._sanitizeSvgString === 'function' && raw.length <= COUNT_STK_ICON_SVG_MAX) ? window._sanitizeSvgString(raw) : '';
+    iconSvg = clean || '';
+  }
   list.forEach((b) => {
     if (patch && patch.start != null) {
       const s = _cntInt(patch.start, NaN);
       if (Number.isFinite(s)) b.dataset.countStart = String(Math.min(COUNT_STK_START_MAX, Math.max(COUNT_STK_START_MIN, s)));
     }
-    if (patch && patch.style != null) b.dataset.countStyle = patch.style === 'alpha' ? 'alpha' : 'num';
+    if (patch && patch.style != null) b.dataset.countStyle = _cntStyle(patch.style);
+    if (patch && patch.icon != null) {
+      const name = _cntIconName(patch.icon);
+      if (name === 'custom') {
+        /* custom 은 거른 svg 가 있을 때만 — 없으면 아이콘을 안 바꾼다 */
+        if (iconSvg) { b.dataset.countIcon = 'custom'; b.dataset.countIconSvg = iconSvg; }
+      } else {
+        b.dataset.countIcon = name;
+        delete b.dataset.countIconSvg;
+      }
+    }
+    /* 표기가 icon 인데 아이콘이 안 정해졌으면 기본 글리프 */
+    if (_cntStyle(b.dataset.countStyle) === 'icon' && !b.dataset.countIcon) b.dataset.countIcon = COUNT_STK_GLYPH_DEFAULT;
     countStickerApplyText(b);
     _cntRerender(b);
   });
@@ -293,7 +358,7 @@ function _cntStamp(e) {
     ...inh,
     x: pos[0], y: pos[1],
     count: k,
-    text: countStickerLabel(inh.countStart + k - 1, inh.countStyle),
+    text: inh.countStyle === 'icon' ? '' : countStickerLabel(inh.countStart + k - 1, inh.countStyle),
   });
   sec.appendChild(block);   // 섹션 직속(absolute → 섹션 기준)
   try { window.bindStickerSelect?.(block); } catch (err) { console.warn('[count-sticker] bindStickerSelect failed', err); }
@@ -349,6 +414,12 @@ window.CountSticker = {
   applyText: countStickerApplyText,
   setGroup: countStickerSetGroup,
   copyToGroup: countStickerCopyToGroup,
+  glyphSvg: countStickerGlyphSvg,
+  GLYPHS: COUNT_STK_GLYPHS,
+  GLYPH_NAMES: COUNT_STK_GLYPH_NAMES,
+  GLYPH_DEFAULT: COUNT_STK_GLYPH_DEFAULT,
+  styleOf: _cntStyle,
+  iconNameOf: _cntIconName,
   renumber: countStickerRenumber,
   START_MIN: COUNT_STK_START_MIN,
   START_MAX: COUNT_STK_START_MAX,

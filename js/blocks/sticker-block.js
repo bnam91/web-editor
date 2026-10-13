@@ -32,6 +32,36 @@ const STICKER_DEFAULTS = {
 import { stripCtlChars, sanitizeRichTextHtml, richTextHasFormatting } from '../util/sanitize-rich-text.js';
 window._sanitizeStickerHtml     = sanitizeRichTextHtml;
 window._stickerHtmlHasFormatting = richTextHasFormatting;
+/* ★svg 문자열 거르개 한 벌 = js/util/sanitize-svg.js (1013t2B5 · 마킹 블럭의 커스텀 아이콘).
+ *   그릴 때는 여기서 직접 부르고, 고전 스크립트(js/count-sticker-tool.js)는 dataset 에 «쓸 때» 아래 알리아스로 부른다(사본이 아니라 같은 함수). */
+import { sanitizeSvgString } from '../util/sanitize-svg.js';
+window._sanitizeSvgString = sanitizeSvgString;
+
+/* 마킹 블럭(data-count)의 아이콘 표기(data-count-style="icon") — .sticker-text 자리에 들어갈 마크업. (1013t2B5)
+ *   크기 = 폰트 크기, 색 = 글자색(투명 모양이면 배경색) — 그 두 칸이 아이콘에도 그대로 먹는다.
+ *   ★em·상속에 기대지 않고 px·색을 «숫자로» 굽는다(내보내기·미리보기 클론이 같은 그림을 내게).
+ *   · 내장 글리프: js/count-sticker-tool.js 의 표(CountSticker.glyphSvg).
+ *   · custom: data-count-icon-svg 를 «그릴 때마다» 다시 거른다 — 저장본을 손대 넣은 on*·script 가 여기서 걸린다. 거른 결과가 비면 기본 글리프.
+ *   ⚠️글리프 표가 안 실렸으면(고전 스크립트 사고) 콘솔에 알리고 null — 부르는 쪽이 옛 글자 길로 그린다(조용히 다른 그림을 안 그린다). */
+function _countIconHTML(block, sizePx, color) {
+  const CS = window.CountSticker;
+  if (!CS || typeof CS.glyphSvg !== 'function') {
+    console.error('[sticker] CountSticker(글리프 표)가 안 실렸다 — 마킹 아이콘을 그리지 못한다', block.id);
+    return null;
+  }
+  const safeColor = String(color || '').replace(/["<>;]/g, '');
+  let svg = '';
+  if (block.dataset.countIcon === 'custom') {
+    svg = sanitizeSvgString(block.dataset.countIconSvg || '', {
+      root: { width: String(sizePx), height: String(sizePx), style: `color:${safeColor};display:block;flex:none;pointer-events:none;` },
+    });
+  }
+  if (!svg) {
+    const name = CS.iconNameOf(block.dataset.countIcon);
+    svg = CS.glyphSvg(name === 'custom' ? CS.GLYPH_DEFAULT : name, { size: sizePx, color: safeColor });
+  }
+  return `<span class="sticker-count-icon" style="display:flex;align-items:center;justify-content:center;line-height:0;pointer-events:none;">${svg}</span>`;
+}
 
 function renderStickerBlock(block) {
   _renderStickerBlockInner(block);
@@ -379,7 +409,10 @@ function _renderStickerBlockInner(block) {
     // U6b: circle/square 뱃지도 편집 시 부분 서식이 붙을 수 있어 동일 분기(silent loss 방지).
     //   textHtml 있으면 재-sanitize, 없으면 기존 평문 text 그대로(무회귀).
     const bInner = block.dataset.textHtml ? _sanitizeStickerHtml(block.dataset.textHtml) : text;
-    block.innerHTML = `<span class="sticker-text" style="text-align:center;padding:4px;outline:none;text-decoration:${bTextDeco};">${bInner}</span>`;
+    /* 마킹 블럭의 아이콘 표기(1013t2B5) — 번호 글자 대신 아이콘. 못 그리면(null) 아래 옛 글자 길 그대로. */
+    const _cntIconHTML = (block.dataset.count && block.dataset.countStyle === 'icon') ? _countIconHTML(block, fontSize, _bCol) : null;
+    block.innerHTML = _cntIconHTML
+      || `<span class="sticker-text" style="text-align:center;padding:4px;outline:none;text-decoration:${bTextDeco};">${bInner}</span>`;
   }
 }
 
@@ -582,6 +615,12 @@ function makeStickerBlock(opts = {}) {
     block.dataset.countShape = opts.countShape ?? block.dataset.shape;
     block.dataset.sizeW      = opts.sizeW ?? block.dataset.size;
     block.dataset.sizeH      = opts.sizeH ?? block.dataset.size;
+    // 아이콘 표기(1013t2B5) — 준 것만 적는다(없으면 키가 안 생긴다 = 옛 저장본과 같은 꼴). svg 는 여기서도 거른다.
+    if (opts.countIcon !== undefined && opts.countIcon !== '') block.dataset.countIcon = opts.countIcon;
+    if (opts.countIconSvg !== undefined && opts.countIconSvg !== '') {
+      const _svg = sanitizeSvgString(String(opts.countIconSvg));
+      if (_svg) block.dataset.countIconSvg = _svg;
+    }
   }
   renderStickerBlock(block);
   // B13(Codex): 프리셋/메뉴로 생성한 스타일도 다음 스티커에 sticky하게 — 생성 직후 기억.

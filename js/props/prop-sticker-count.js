@@ -2,7 +2,10 @@
  *   ★사용자 표기 = Marking(마킹 블럭) · 1013t2B1 — 저장 키(data-count*)·id(stk-count-*)·파일명은 count 그대로다.
  *   prop-sticker.js 가 data-count 일 때 이 절을 끼우고 Shape·Text·이미지 모드 절과 «크기» 행을 숨긴다
  *   (폰트 크기·굵기·스타일·Colors 는 그대로 남는다).
- *   행(현빈 원문 순서): 표기(1 / A) · 모양(원 / 사각 / 투명) · 시작 번호 · 크기 · [번호 다시 매기기]
+ *   행: 섹션 전체(스위치) · 표기(1 / A / 아이콘) · [아이콘 — 표기가 아이콘일 때만] · 모양(원 / 사각 / 투명) · 시작 번호 · 크기 · [번호 다시 매기기]
+ *   ★표기 「아이콘」(1013t2B5) — 번호 대신 내장 글리프. 표기와 같이 «항상 묶음»이다. 크기 = 폰트 크기 칸 · 색 = 글자색 칸(새 칸 없음).
+ *     글리프 표·그 svg 는 js/count-sticker-tool.js(CountSticker.GLYPHS · glyphSvg) 한 자리 — 여기서 path 를 다시 적지 않는다.
+ *     아이콘일 때 「시작 번호」「번호 다시 매기기」 행은 숨긴다(뜻이 없다 — 순번은 그대로 세고 있어 1/A 로 돌아오면 산다).
  *   ★표기·시작 번호 = «묶음» 속성 — 같은 섹션의 카운트 스티커 전부에 쓴다(히스토리 1칸). 스위치와 무관하게 항상.
  *   ★모양·크기·폰트 크기·굵기·스타일·배경색·글자색 = 「섹션 전체」 스위치(1013t2B3 · 기본 켬)를 따른다.
  *     켬 = 같은 섹션의 마킹 전부 · 끔 = 고른 것 하나. 스위치는 UI 선호다 — 모듈 변수(세션 동안) · 저장본에 안 쓴다.
@@ -45,9 +48,24 @@ function shapeOf(block) {
   return block.dataset.shape === 'square' ? 'square' : 'circle';
 }
 
+/* 표기 3갈래 — 모르는 값은 num(js/count-sticker-tool.js _cntStyle 과 같은 뜻). */
+const styleOf = (v) => (v === 'alpha' ? 'alpha' : v === 'icon' ? 'icon' : 'num');
+
+/* 글리프 단추 줄 — 이웃 단추와 같은 꼴(14px · viewBox 0 0 16 16 · 선 굵기 1.4). 그림은 도구의 표에서 온다(개발자 상수 — 사용자 글자가 아니다). */
+const GLYPH_TITLE = { 'chevron-right': '꺾쇠 (>)', check: '체크', 'arrow-right': '화살표', plus: '더하기', star: '별', dot: '점' };
+function glyphButtonsHTML(active) {
+  const CS = window.CountSticker;
+  if (!CS || !CS.GLYPH_NAMES) return '';
+  return CS.GLYPH_NAMES.map((g) => `<button class="prop-align-btn${g === active ? ' active' : ''}" data-count-glyph="${g}" title="${GLYPH_TITLE[g] || g}">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${CS.GLYPHS[g]}</svg>
+          </button>`).join('');
+}
+
 export function countSectionHTML(block) {
   const d = block.dataset;
-  const style = d.countStyle === 'alpha' ? 'alpha' : 'num';
+  const style = styleOf(d.countStyle);
+  const isIcon = style === 'icon';
+  const glyph = window.CountSticker?.iconNameOf ? window.CountSticker.iconNameOf(d.countIcon) : (d.countIcon || '');
   const shape = shapeOf(block);
   const start = clamp(int(d.countStart, START_MIN), START_MIN, START_MAX);
   const size = clamp(int(d.sizeW, int(d.size, 56)), SIZE_MIN, SIZE_MAX);
@@ -65,6 +83,14 @@ export function countSectionHTML(block) {
         <div class="prop-align-group" id="stk-count-style">
           <button class="prop-align-btn${on(style === 'num')}" data-count-style="num" title="숫자 (1 · 2 · 3)">1</button>
           <button class="prop-align-btn${on(style === 'alpha')}" data-count-style="alpha" title="알파벳 (A · B · C)">A</button>
+          <button class="prop-align-btn${on(isIcon)}" data-count-style="icon" title="아이콘 (번호 대신 아이콘 — 크기는 폰트 크기, 색은 글자색)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><polyline points="7 5.5 9.5 8 7 10.5"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="prop-row" id="stk-count-glyph-row" style="display:${isIcon ? 'flex' : 'none'};"><span class="prop-label">아이콘</span>
+        <div class="prop-align-group" id="stk-count-glyph">
+          ${glyphButtonsHTML(isIcon ? glyph : '')}
         </div>
       </div>
       <div class="prop-row"><span class="prop-label">모양</span>
@@ -80,14 +106,14 @@ export function countSectionHTML(block) {
           </button>
         </div>
       </div>
-      <div class="prop-row"><span class="prop-label">시작 번호</span>
+      <div class="prop-row" id="stk-count-start-row" style="display:${isIcon ? 'none' : 'flex'};"><span class="prop-label">시작 번호</span>
         <input type="number" class="prop-number" id="stk-count-start" min="${START_MIN}" max="${START_MAX}" step="1" value="${start}" title="이 섹션의 첫 번호 (알파벳 표기에서는 1 = A)">
       </div>
       <div class="prop-row"><span class="prop-label">크기</span>
         <input type="range" class="prop-slider" id="stk-count-size" min="${SIZE_MIN}" max="${SIZE_MAX}" step="1" value="${size}">
         <input type="number" class="prop-number" id="stk-count-size-num" min="${SIZE_MIN}" max="${SIZE_MAX}" value="${size}">
       </div>
-      <div class="prop-row">
+      <div class="prop-row" id="stk-count-renumber-row" style="display:${isIcon ? 'none' : 'flex'};">
         <button class="prop-action-btn" id="stk-count-renumber" title="이 섹션의 번호를 지금 순서대로 1부터 다시 매긴다 (중간을 지운 뒤 빈 번호 메우기)">번호 다시 매기기</button>
       </div>
     </div>`;
@@ -106,14 +132,37 @@ export function wireCountSection(panel, block, rerender) {
   /* 「섹션 전체」 스위치 — UI 선호만 바꾼다(문서 무변 ⇒ 히스토리·저장 없음) */
   $('stk-count-group')?.addEventListener('change', (e) => { _groupOn = !!e.target.checked; });
 
-  /* 표기 — 묶음 */
+  /* 표기가 아이콘일 때만 보이는 행 / 숨는 행 — 패널을 통째로 다시 그리지 않고 그 자리에서 맞춘다 */
+  const syncIconRows = () => {
+    const isIcon = styleOf(block.dataset.countStyle) === 'icon';
+    const show = (id, on) => { const row = $(id); if (row) row.style.display = on ? 'flex' : 'none'; };
+    show('stk-count-glyph-row', isIcon);
+    show('stk-count-start-row', !isIcon);
+    show('stk-count-renumber-row', !isIcon);
+    const cur = CS?.iconNameOf ? CS.iconNameOf(block.dataset.countIcon) : '';
+    panel.querySelectorAll('#stk-count-glyph [data-count-glyph]').forEach(b => b.classList.toggle('active', isIcon && b.dataset.countGlyph === cur));
+  };
+
+  /* 표기 — 묶음(1 / A / 아이콘) */
   panel.querySelectorAll('#stk-count-style [data-count-style]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const style = btn.dataset.countStyle === 'alpha' ? 'alpha' : 'num';
-      if (!CS || (block.dataset.countStyle || 'num') === style) return;
+      const style = styleOf(btn.dataset.countStyle);
+      if (!CS || styleOf(block.dataset.countStyle) === style) return;
       CS.setGroup(sec(), { style });
       markActive('stk-count-style', btn);
+      syncIconRows();
       commit('마킹 표기');
+    });
+  });
+
+  /* 아이콘(내장 글리프) — 묶음. 표기가 아이콘이 아닐 때는 행이 숨어 있어 안 눌린다. */
+  panel.querySelectorAll('#stk-count-glyph [data-count-glyph]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.countGlyph;
+      if (!CS || (block.dataset.countIcon === name && styleOf(block.dataset.countStyle) === 'icon')) return;
+      CS.setGroup(sec(), { style: 'icon', icon: name });
+      syncIconRows();
+      commit('마킹 아이콘');
     });
   });
 
