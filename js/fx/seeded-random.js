@@ -6,7 +6,8 @@
      동시에 «저장한 모습은 다시 열어도 같아야» 한다(리로드·썸네일·내보내기·undo 가 매번 다시 그린다).
      ⇒ 모습의 흔들림은 Math.random 이 아니라 «저장된 seed» 에서만 뽑는다.
    ★왜 «공용»인가: 소비자마다 PRNG 를 따로 만들면 같은 seed 가 다른 그림을 낸다 = 명부가 둘이 된다.
-     소비자: ① js/fx/glow-render.js(글로우 스티커) · ② js/fx/particles-render.js(섹션 배경 파티클 · 2026-10-07).
+     소비자: ① js/fx/glow-render.js(글로우 스티커) · ② js/fx/particles-render.js(섹션 배경 파티클 · 2026-10-07)
+             · ③ js/fx/coin-draw.js(코인 스티커 — 무늬번호 → 보는 각도).
      회귀: tests/dom/fx-glow-sticker.dom.spec.js · tests/unit/fx-particles-render.test.mjs
        (무력화하면 소비자 수만큼 빨강 — 지금 ★2).
    레포 선례 0 (2026-10-06 · 판 5a859e11 · js·main·pages·index.html·main.js·preload.js·services·tools·scripts 에서
