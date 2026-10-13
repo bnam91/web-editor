@@ -1384,13 +1384,18 @@ function _grdWireLineBar(block, addr, host = null) {
  * ★다른 블록의 「이미지 선택…」과 같은 방식(FileReader→dataURL)을 재사용한다
  *   (prop-simple-card.js cvb-card-img-btn · prop-zoom.js 선례). goya-asset:// 외부화는
  *   여기서 하지 않는다(그 둘도 안 한다 — 외부화는 저장 시점의 별도 관심사). */
-function _grdImageSectionHtml(anyHit, block) {
+/* ★1013t1B2 C4 — 주인(host)을 받는다(laurel 이 첫 «남의 주인»). ⛔host 를 안 주면(그리드) 산출 바이트 그대로 —
+ *   tests/dom/bt2-safety T6 골든(tests/dom/fixtures/bt2-grid-panel-golden.json)이 증인.
+ *   남의 주인(foreign)에서 다른 것: 폭(%)·「이미지 표시/내용 자르기」 절 숨김(크기 = 높이 하나 · 결정 B2-4) · 높이 잠금 없음
+ *   (laurel 렌더가 높이를 «읽는다» — grid 의 E157 무시 규칙이 아니다) · 원 줄(채움·글자) 없음(그 손잡이는 grid 렌더 전용). */
+function _grdImageSectionHtml(anyHit, block, host = null) {
   if (!anyHit || anyHit.li === null || !anyHit.line || anyHit.line.type !== 'image') return '';
+  const foreign = !!host && host.kind !== 'grid';
   const { r, c, line } = anyHit;
   const h = Number(line.height) || '';
   const rad = Number(line.radius) || '';
   /* ★panel-height-disable — «크롭 없음» = 렌더러(grid-block.js _gridLineHtml 의 `cropped`)와 같은 판정: 세 값 중 하나라도 수면 크롭. 원은 따로(지름). */
-  const hLocked = line.imgShape !== 'circle' && ![line.imgSizePct, line.imgPosX, line.imgPosY].some(v => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v)));
+  const hLocked = !foreign && line.imgShape !== 'circle' && ![line.imgSizePct, line.imgPosX, line.imgPosY].some(v => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v)));
   /* ★2026-09-25 R6 — `widthPct` 는 «모델·렌더러가 이미 읽는» 이름인데 패널엔 그 값을 주는
    *   손잡이가 «0개»였다. 명부(grid-block.js GRID_LINE_FIELDS)에 있고, `_gridLineHtml` 이
    *   `Number(line.widthPct)` 를 읽고, 바로 아래 줄 꾸미기 절의 `imgFull` 판정도 그 값을 읽는다.
@@ -1407,7 +1412,7 @@ function _grdImageSectionHtml(anyHit, block) {
    * ⛔사각↔원 «바꾸기» 단추를 이 절에 두지 않는다 — 2026-09-25 현빈 「캔버스에서 다 직관적으로 조작이 가능한거잖아?」로
    *   이 절의 단추를 «이미지 선택/교체» 하나로 줄였다(grid-img-crop P1 이 잠금). 바꾸기는 캔버스 우클릭
    *   (#bcm-grid-img-circle — 이미지 줄 위에선 「원형으로/사각으로 바꾸기」)에 있다. 숨긴 칸도 «줄은 남는다»(P1 의 줄 수 4). */
-  const circle = line.imgShape === 'circle';
+  const circle = !foreign && line.imgShape === 'circle';
   /* ══ ★★G20 원 «채움색» · 원 «안 글자» (현빈 2026-10-07 · 길은 지디 ⒜「작은 길」 ＋ ㉠-a) ════════════
    * ★★왜 ★패널이고 ★캔버스가 아닌가 (지디 2026-10-07 ㉠-a 판정 — ⛔되돌리기 전에 이 네 줄을 읽어라)
    *   원형 줄의 ★더블클릭은 ★이미 ★둘 다 차 있다(실측 js/block-drag.js 2306~2319 ＋ 그 위 가지):
@@ -1471,13 +1476,13 @@ function _grdImageSectionHtml(anyHit, block) {
       <div class="prop-row">
         <button id="grd-img-pick-btn" class="prop-btn-full">${line.imgSrc ? '이미지 교체…' : '이미지 선택…'}</button>
       </div>
-      <div class="prop-row"${circle ? ' style="display:none"' : ''}>
+      <div class="prop-row"${(circle || foreign) ? ' style="display:none"' : ''}>
         <span class="prop-label" title="칸 안에서 그림이 차지하는 가로 폭(%). 100 이면 정렬이 안 보인다 — 줄일 데가 없어서다. 비우면 100.">폭(%)</span>
         <input type="number" class="prop-number" id="grd-img-width-pct" min="${IMG_MIN_PCT}" max="100" placeholder="100" value="${wp}">
       </div>
       <div class="prop-row">
         <span class="prop-label">${circle ? '지름(px)' : '높이(px)'}</span>
-        <input type="number" class="prop-number" id="grd-img-height" min="0" placeholder="${circle ? GRID_IMG_CIRCLE_D : 'auto'}" value="${h}"${hLocked ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
+        <input type="number" class="prop-number" id="grd-img-height" min="0" placeholder="${circle ? GRID_IMG_CIRCLE_D : foreign ? (host.imgDefaultH || 'auto') : 'auto'}" value="${h}"${hLocked ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
       </div>${/* ★panel-height-disable(2026-10-06 · APPROVED_BY: 지디 panel-height-disable) — E157 뒤 크롭 없는 그림 줄은 height 를 «그릴 때 무시»한다.
             칸이 열려 있으면 넣은 값이 «저장만» 되고 화면은 안 바뀐다(실측 B1: 645→645 · height:300 저장). ⇒ 막고 까닭을 보인다(말풍선 상하 여백 칸 선례 —
             prop-text-template.js txt-pv-bubble-hint). ⛔크롭 길로 커밋하는 ⒥ 는 새 동작 — 다음 판. 원(지름)·크롭된 줄은 그대로 읽으니 안 막는다.
@@ -1490,7 +1495,7 @@ function _grdImageSectionHtml(anyHit, block) {
              (바로 위 높이 칸이 GRID_IMG_CIRCLE_D 로 같은 꼴을 이미 쓴다 — 새 관용구 0.) */ ''}
         <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="${line.imgSrc ? 0 : GRID_IMG_EMPTY_RADIUS}" value="${rad}">
       </div>${circleRows}
-    </div>${_grdImageClipSectionHtml(anyHit, block)}`;
+    </div>${foreign ? '' : _grdImageClipSectionHtml(anyHit, block)}`;
 }
 
 /* ══ ★1012t1 B1 「내용 자르기」 (현빈 1010t1c2 ㈁ — 그리드 이미지줄) ═══════════════════════
@@ -1523,8 +1528,9 @@ function _grdImageClipSectionHtml(anyHit, block) {
     </div>`;
 }
 
-function _grdWireImageSection(block, addr) {
-  const hit = _grdResolveAnyAddr(block, addr);
+function _grdWireImageSection(block, addr, host = null) {
+  const foreign = !!host && host.kind !== 'grid';   // ★1013t1B2 C4 — 위 _grdImageSectionHtml 머리말
+  const hit = foreign ? host.resolveAny(addr) : _grdResolveAnyAddr(block, addr);
   if (!hit || hit.li === null || !hit.line || hit.line.type !== 'image') return;
   const { r, c, li } = hit;
 
@@ -1540,7 +1546,9 @@ function _grdWireImageSection(block, addr) {
       /* ★E91 — 값은 grdPickedImageSrc 한 벌(자산 URL · 없으면 data URL). */
       grdPickedImageSrc(file).then(got => {
         if (!got) return;
-        grdToastImgFail(window.updateGridBlock?.(block.id,
+        /* ★1013t1B2 — 남의 주인은 «그 주인의 문»(patchLine)으로 쓴다. ⛔trusted 는 그리드 문의 문자열 캡(GRID_IMG_MAX_CHARS) 면제다 —
+           남의 문엔 그 캡이 없다(laurel cellLines 는 MCP 에 안 열렸다 · 결정 B2-9). 게이트(grdImageFileOk)는 위에서 한 벌로 같이 지난다. */
+        grdToastImgFail(foreign ? host.patchLine(r, c, li, { imgSrc: got.src }) : window.updateGridBlock?.(block.id,
           { patchCell: { r, c, lineIndex: li, imgSrc: got.src } }, { trusted: true }));
       });
     };
@@ -1556,6 +1564,7 @@ function _grdWireImageSection(block, addr) {
       const raw = String(e.target.value).trim();
       const v = raw === '' ? undefined : Math.max(lo, Math.min(hi, parseInt(raw, 10) || 0));
       window.pushHistory?.();
+      if (foreign) { host.previewLine(r, c, li, { [field]: v }); host.mark(addr); window.scheduleAutoSave?.(); return; }   // ★1013t1B2 — 남의 주인(코너 핸들은 그리드 전용)
       gridPreviewLine(block, r, c, li, { [field]: v }, addr.np);
       _grdSyncLineMark(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
       window.scheduleAutoSave?.();
@@ -3012,9 +3021,19 @@ function _grdWireTypo(block, addr, host = null) {
     const a = Math.max(0, Math.min(1, _alpha / 100));
     return a >= 1 ? (cPick?.value || '#000000') : `rgba(${r},${g},${b},${a})`;
   };
+  /* ★1013t1B1② «부분 색» — 줄 글자 일부를 고른 채(편집 중 선택 · 패널로 가는 blur 는 세움) 색을 바꾸면 «고른 부분만».
+       텍스트블럭과 같은 길(저장 선택 → window.applyColorToSelection span → 커밋 식으로 textHtml) — 몸통은 line-host.js 한 자리
+       (⛔이 파일은 line-host 를 import 못 한다 — 순환 · unit 하네스). 선택이 없으면 false ⇒ 옛 갈래(줄 전체 color). */
+  const partialColor = (cc) => {
+    if (!window.lnApplyLinePartialColor?.(block, H, addr, cc, begin)) return false;
+    H.mark(addr);
+    H.refreshSummary(addr);
+    return true;
+  };
   const applyColor = () => {
     const cc = buildColor();
     if (cSwatch) cSwatch.style.background = cc;
+    if (partialColor(cc)) return;
     begin();                       // ★연속 input 의 «첫» 한 번만 히스토리를 찍는다
     setLine({ color: cc });
   };
@@ -3059,7 +3078,7 @@ function _grdWireTypo(block, addr, host = null) {
       getActiveName: () => parseColorVarName((H.line(addr) || {}).color || ''),
       getFallbackHex: (name, hex) => hex,
       onPick: (cssRef) => {
-        commit({ color: cssRef });
+        if (partialColor(cssRef)) end(); else commit({ color: cssRef });   // ★1013t1B1② 고른 글자가 있으면 그 부분만(대체 hex)
         const fb = (String(cssRef).match(/#[0-9a-fA-F]{6}/) || [])[0];
         if (fb && cPick) { cPick.value = fb; _grdLastHex = fb; if (cHex) cHex.value = fb.replace('#', '').toUpperCase(); }
         _alpha = 100; if (cAlpha) cAlpha.value = '100';
@@ -3807,5 +3826,7 @@ export const grdLineUi = {
   lineSectionHtml: _grdLineSectionHtml, wireLineSection: _grdWireLineSection,
   typoSectionsHtml: _grdTypoSectionsHtml, wireTypo: _grdWireTypo,
   addKindSelectHtml: _grdAddKindSelectHtml, summaryText: _grdSummaryText,
+  /* ★1013t1B2 C4 — 이미지 절(주인을 받는다) · 아이콘 SVG → data URI(K 단축키·피커 «한 벌»). */
+  imageSectionHtml: _grdImageSectionHtml, wireImageSection: _grdWireImageSection, svgToDataUri: _grdSvgToDataUri,
 };
 if (typeof window !== 'undefined') window.grdLineUi = grdLineUi;

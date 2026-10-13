@@ -191,17 +191,30 @@ function INSTALL_DEPTH() {
             if (typeof window.addLaurelBlock !== 'function') return 'no-entry';
             window.addLaurelBlock(); await U.settle(500);
             lid = document.querySelector('.laurel-block')?.id; return lid || 'no-laurel'; } },
+        /* 1013t1B2 — 패널 단추가 걷혀 캔버스 줄 길로: 줄 클릭(블럭 → 줄 2단) → 줄바(#grd-line-add-kind) → ⌘↑ */
         { name: '②줄추가', wait: 550, run: async () => { await U.pick(lid); await U.settle(250);
-            const b = document.querySelector('#panel-right .lrl-line-add');
-            return b ? U.realClick(b) : 'no-btn'; } },
-        { name: '③줄순서변경', wait: 550, run: async () => { await U.pick(lid); await U.settle(250);
-            /* 줄 카드가 접혀 있으면 ↑ 가 0×0 이다 — «사용자와 같은 경로»로 편다. */
-            const toggles = [...document.querySelectorAll('#panel-right .lrl-line-toggle')];
-            for (const t of toggles) { if (t.getAttribute('aria-expanded') !== 'true') U.realClick(t); }
-            await U.settle(300);
-            const ups = [...document.querySelectorAll('#panel-right .lrl-line-up')];
-            const up = ups[ups.length - 1];
-            return up ? U.realClick(up) : 'no-btn'; } },
+            const lineAt = () => window.grdGetActiveLine?.(U.byId(lid)) ?? null;
+            const row = U.byId(lid)?.querySelector('.ln-row[data-ln-m="0"][data-ln="0"]');
+            if (!row) return 'no-row';
+            /* 첫 클릭이 블럭을, 둘째가 줄을 고른다 — pick 이 이미 블럭을 골랐으면 첫 클릭에 줄이 잡힌다. */
+            for (let i = 0; i < 2 && !lineAt(); i++) {
+              const c = U.realClick(U.byId(lid).querySelector('.ln-row[data-ln-m="0"][data-ln="0"]'));
+              if (c !== true) return c;
+              await U.settle(250);
+            }
+            if (!lineAt()) return 'no-active-line';
+            const sel = document.getElementById('grd-line-add-kind');
+            if (!sel) return 'no-add-kind';
+            const n0 = JSON.parse(U.byId(lid).dataset.cells)[0].lines.length;
+            sel.value = 'body'; sel.dispatchEvent(new Event('change', { bubbles: true }));
+            await U.settle(250);
+            const n1 = JSON.parse(U.byId(lid).dataset.cells)[0].lines.length;
+            return n1 > n0 ? true : 'lines-not-grown'; } },
+        { name: '③줄순서변경', wait: 550, run: async () => { await U.settle(250);
+            /* 새 줄이 활성인 채(전제) — 사용자와 같은 키: ⌘↑ */
+            if (!(window.grdGetActiveLine?.(U.byId(lid)) ?? null)) return 'no-active-line';
+            document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', code: 'ArrowUp', metaKey: true, bubbles: true, cancelable: true }));
+            return true; } },
       ]);
     }
     return out;

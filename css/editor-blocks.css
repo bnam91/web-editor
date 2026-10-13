@@ -1864,7 +1864,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
    감싸개(.ln-row)에 붙인다. 클래스가 `-line-selected` 로 끝나 저장 직렬화가 벗긴다(section-serialize RUNTIME_MARKER_RE). */
 #canvas .speech-bubble-block .ln-row.ln-line-selected,
 #canvas .chat-block .ln-row.ln-line-selected,
-#canvas .comparison-block .ln-row.ln-line-selected {
+#canvas .comparison-block .ln-row.ln-line-selected,
+#canvas .laurel-block .ln-row.ln-line-selected {   /* ★1013t1B2 laurel(네 번째 주인) */
   box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
 }
 /* 빈 글자 줄이 «손에 닿게» — 그리드 빈 줄 안내문(아래 .grd-line:empty)과 같은 관용구. #canvas 스코프라 내보내기엔 안 샌다. */
