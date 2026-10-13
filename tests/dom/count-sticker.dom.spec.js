@@ -7,6 +7,7 @@
  *   C11 번호 다시 매기기 · C12 더블클릭해도 글자 편집이 안 열린다 · C13 일반 스티커 패널 무회귀(C13b 짝: A 블럭이면 Shape 5)
  *   C14·C15 크기를 키로 한 칸씩 바꿔도 폰트 비례 · C16·C17 다른 찍는 도구와 안 겹친다 · C18 키 리스너 짝·한 번에 하나
  *   C19 모서리를 찍어도 섹션 안 · C20 메뉴 재클릭·우클릭·⌘⇧Z · C21 시작 번호 칸은 확정 때 모델 값으로
+ *   C23~C25 Esc(1013t2B2) — 패널 칸(슬라이더·숫자칸·색 hex)에 포커스가 있어도 한 번에 꺼진다 · 임자가 따로 있는 Esc(패널 밖 칸·인라인 편집·색 팝오버)는 안 끈다 · 선택은 둘째 Esc 가 푼다
  *   C22 이름(1013t2B1) — 보이는 이름은 Marking(마킹 블럭): 패널 절 제목·패널 머리·레이어 행. 저장 키(data-count*)는 그대로
  * ★스티커는 기존 sticker-block(circle/square)의 변형이다 — data-count 가 붙었을 뿐이다.
  * ★자리 비교는 «레이아웃 px»로 한다(dataset.x·sizeW 와 offsetWidth). 화면 사각형은 «누를 점»을 정하는 데만 쓴다.
@@ -700,4 +701,94 @@ test('C22 이름 — 패널 절 제목·패널 머리·레이어 행이 Marking 
   expect(plainRows.length, '★전제: 일반 스티커의 레이어 행이 하나 있다').toBe(1);
   expect(plainRows[0].layerType, '일반 스티커의 레이어 행은 마킹으로 안 바뀐다(이번 범위 밖 · 표시 무변)').not.toBe('marking');
   expect(errs).toEqual([]);
+});
+
+const escState = (page) => page.evaluate(() => ({ mode: window._countStkState().mode, body: document.body.classList.contains('count-stk-mode'),
+  btn: document.getElementById('fp-pen-btn').classList.contains('active') }));
+
+test('C23 Esc — 패널 칸에 포커스가 있어도 한 번에 꺼진다(슬라이더 · 숫자칸 · 색 hex 칸)', async ({ page }) => {
+  const errs = await bootApp(page);
+  await setup(page);
+  /* ⛔여기서는 blur() 로 피해 가지 않는다(C9 는 다른 길) — 칸에 포커스가 있는 «채» Esc 를 누른다. */
+  const FIELDS = ['stk-count-size', 'stk-count-start', 'stk-bg-hex'];
+  for (const id of FIELDS) {
+    await page.evaluate(() => { document.querySelectorAll('#secA .sticker-block').forEach((b) => b.remove()); });
+    await toolOn(page);
+    await stamp(page, SEC_A, 0.3, 0.5);
+    await page.click('#' + id);
+    const pre = await page.evaluate((id) => ({ active: document.activeElement?.id, inPanel: !!document.activeElement?.closest('#panel-right'), mode: window._countStkState().mode }), id);
+    expect(pre, `★전제(${id}): 그 칸에 포커스가 있고 도구는 켜져 있다`).toEqual({ active: id, inPanel: true, mode: true });
+    await page.keyboard.press('Escape');
+    expect(await escState(page), `${id}: Esc 한 번에 도구가 꺼진다`).toEqual({ mode: false, body: false, btn: false });
+    expect(await page.evaluate(() => document.activeElement === document.body || !document.activeElement?.closest('#panel-right')), `${id}: 포커스가 칸에서 빠졌다`).toBe(true);
+    const r = await waitStableRect(page, SEC_A);
+    await clickAt(page, r.left + r.width * 0.7, r.top + r.height * 0.5, { sel: SEC_A }, { label: `${id}: 꺼진 뒤 클릭` });
+    expect(await countIn(page, 'secA'), `${id}: 꺼진 뒤 클릭은 개수를 안 바꾼다`).toBe(1);
+  }
+  expect(errs).toEqual([]);
+});
+
+test('C23b Esc(숫자칸) — 치던 값은 모델에 안 남고(되돌림) 도구는 같은 Esc 에 꺼진다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.3, 0.5);
+  await page.click('#stk-count-size-num');
+  await page.keyboard.press('Meta+a');
+  await page.keyboard.type('200');
+  const typed = await page.evaluate(() => ({ active: document.activeElement?.id, field: document.getElementById('stk-count-size-num').value }));
+  expect(typed, '★전제: 숫자칸에 200 을 쳤고 포커스가 그 칸에 있다').toEqual({ active: 'stk-count-size-num', field: '200' });
+  await page.keyboard.press('Escape');
+  expect((await escState(page)).mode, 'Esc 한 번에 도구가 꺼진다').toBe(false);
+  await page.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))));
+  const after = await page.evaluate(() => { const b = document.querySelector('#secA .sticker-block[data-count]'); return [b.dataset.sizeW, b.offsetWidth]; });
+  expect(after, '치던 값(200)이 확정되지 않았다 — 크기는 기본 그대로').toEqual([String(SIZE0), SIZE0]);
+});
+
+test('C24 Esc 충돌 없음 — 패널 밖 입력 칸·인라인 편집의 Esc 는 도구를 안 끈다 · 색 팝오버는 팝오버만 닫는다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.3, 0.5);
+
+  /* ① 우측 패널 «밖»의 입력 칸(모달·이름 바꾸기와 같은 처지) */
+  await page.evaluate(() => { const i = document.createElement('input'); i.id = 'c24-outside'; i.type = 'text'; document.body.appendChild(i); i.focus(); });
+  expect(await page.evaluate(() => [document.activeElement?.id, !!document.activeElement?.closest('#panel-right')]), '★전제①: 패널 밖 칸에 포커스').toEqual(['c24-outside', false]);
+  await page.keyboard.press('Escape');
+  expect((await escState(page)).mode, '① 패널 밖 칸의 Esc 는 도구를 안 끈다').toBe(true);
+  await page.evaluate(() => document.getElementById('c24-outside').remove());
+
+  /* ② 인라인 편집(contenteditable) */
+  await page.evaluate(() => { const d = document.createElement('div'); d.id = 'c24-edit'; d.setAttribute('contenteditable', 'true'); d.textContent = 'x'; document.body.appendChild(d); d.focus(); });
+  expect(await page.evaluate(() => document.activeElement?.id), '★전제②: 편집 요소에 포커스').toBe('c24-edit');
+  await page.keyboard.press('Escape');
+  expect((await escState(page)).mode, '② 인라인 편집 중의 Esc 는 도구를 안 끈다').toBe(true);
+  await page.evaluate(() => document.getElementById('c24-edit').remove());
+
+  /* ③ 색 팝오버 — 첫 Esc 는 팝오버만, 둘째 Esc 가 도구 */
+  const popOpen = () => page.evaluate(() => { const p = document.querySelector('.goya-cp-popover'); return !!p && !p.hidden; });
+  await page.click('#stk-colors-section .prop-color-swatch');
+  await expect.poll(popOpen, '★전제③: 색 팝오버가 열렸다').toBe(true);
+  expect((await escState(page)).mode, '★전제③: 도구는 켜진 채다').toBe(true);
+  await page.keyboard.press('Escape');
+  await expect.poll(popOpen, '③ 첫 Esc: 팝오버가 닫힌다').toBe(false);
+  expect((await escState(page)).mode, '③ 첫 Esc: 도구는 그대로 켜져 있다').toBe(true);
+  await page.keyboard.press('Escape');
+  expect(await escState(page), '③ 둘째 Esc: 도구가 꺼진다').toEqual({ mode: false, body: false, btn: false });
+});
+
+test('C25 Esc 뒤 — 방금 찍은 것은 골라진 채, 두 번째 Esc 가 선택을 푼다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.3, 0.5);
+  await page.click('#stk-count-size');
+  expect(await page.evaluate(() => document.activeElement?.id), '★전제: 슬라이더에 포커스').toBe('stk-count-size');
+  const sel = () => page.evaluate(() => document.querySelectorAll('#secA .sticker-block.selected').length);
+  expect(await sel(), '★전제: 방금 찍은 것이 골라져 있다').toBe(1);
+  await page.keyboard.press('Escape');
+  expect([(await escState(page)).mode, await sel()], '첫 Esc: 도구만 꺼지고 선택은 남는다').toEqual([false, 1]);
+  await page.keyboard.press('Escape');
+  await expect.poll(sel, '둘째 Esc: 선택이 풀린다').toBe(0);
+  expect(await countIn(page, 'secA'), '스티커는 그대로 있다').toBe(1);
 });

@@ -7,7 +7,7 @@
 //   data-count-style  num | alpha
 //   data-count-shape  circle | square | none(투명)
 // 표시 글자 = label(start + k − 1, style) 을 data-text 에 «구워» 넣는다 ⇒ 저장·내보내기가 그대로 탄다.
-// 종료: Esc · V · 우클릭 · 메뉴 재클릭. 골격은 js/highlight-line-tool.js 와 같다.
+// 종료: Esc(패널 칸에 포커스가 있어도 · 1013t2B2) · V · 우클릭 · 메뉴 재클릭. 골격은 js/highlight-line-tool.js 와 같다.
 // ⚠️최상위에서 DOM 을 건드리지 않는다(유닛이 vm 으로 이 파일을 싣는다).
 
 let _cntMode = false;
@@ -277,21 +277,37 @@ function _cntStamp(e) {
   return block;
 }
 
+/* 키 — Esc · V 로 도구를 끈다.
+   ★Esc(1013t2B2): 포커스가 우측 패널 칸(슬라이더·숫자·색)에 있어도 «한 번에» 꺼진다.
+     옛 판은 activeElement 가 INPUT/TEXTAREA/SELECT 면 아무것도 안 했다 — 캔버스 mousedown 은 도구가 켜진 동안
+     preventDefault 라 포커스가 칸에서 안 빠지고, 그래서 「패널을 한 번 만진 뒤엔 Esc 가 안 먹는」 꼴이 났다.
+     Esc 의 임자가 따로 있는 때는 그 임자에게 둔다(위에서부터 차례로):
+       ① 한글 조합 중                              — 조합을 끝내는 Esc 다
+       ② 앞선 임자가 이미 먹었다(defaultPrevented)  — 떠 있는 색 팝오버가 자기를 닫았다(js/props/color-picker.js · 같은 document capture 에 먼저 걸려 있다)
+       ③ 인라인 편집 중(contenteditable)            — 그 요소가 Esc 로 편집을 끝낸다(js/sticker-select.js)
+       ④ 우측 패널 «밖»의 입력 칸(모달·레이어 이름 바꾸기 등) — 그 칸의 Esc 다
+     그 밖(body · 단추 · 우측 패널 안의 칸)은 칸이면 포커스를 빼고 도구를 끈다. 선택은 안 푼다(방금 찍은 것을 바로 다듬게 — 한 번 더 Esc 가 푼다).
+     숫자칸의 「치던 값 되돌리기」(js/props/prop-number-commit-guard.js · document capture · 먼저 걸려 있다)는 그대로 먼저 돈다.
+   ★V 는 «칸에 치는 글자»라 칸·편집 중에는 먹지 않는다(옛 가드 그대로). */
 function _cntOnKeydown(e) {
   if (!_cntMode) return;
-  // 우측 패널 숫자칸 등에 입력 중이면 단축키를 먹지 않는다
   const ae = document.activeElement;
-  const editing = ae && (
-    ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' ||
-    ae.getAttribute?.('contenteditable') === 'true'
-  );
-  if (editing) return;
+  const tag = ae && ae.tagName;
+  const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  const ceAttr = ae && ae.getAttribute ? ae.getAttribute('contenteditable') : null;
+  const inEdit = !!(ae && (ae.isContentEditable || ceAttr === 'true' || ceAttr === 'plaintext-only'));
   if (e.key === 'Escape') {
+    if (e.isComposing) return;                                                  // ①
+    if (e.defaultPrevented) return;                                             // ②
+    if (inEdit) return;                                                         // ③
+    if (inField && !(ae.closest && ae.closest('#panel-right'))) return;         // ④
     e.stopPropagation();
     e.preventDefault();
+    if (inField && ae.blur) ae.blur();
     exitCountStickerMode();
     return;
   }
+  if (inField || inEdit) return;
   // V — 선택 도구로 복귀(⌘V 붙여넣기는 그대로 둔다)
   if ((e.key === 'v' || e.key === 'V') && !e.metaKey && !e.ctrlKey && !e.altKey) {
     e.stopPropagation();
