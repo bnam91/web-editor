@@ -312,7 +312,11 @@ test('LC9 단독 HTML — 손글씨 폴백 img 규칙이 콜라보 칸 img 를 �
 /* 1013t2A2 태양 지적 — 영상 경로(setAssetVideoFromSrc)의 콜라보 복원 줄을 꺼도 LC1~9 는 초록이었다(지키는 칸 0).
    칸1 을 «영상»으로 넣어도 ×·로고2 가 살고, 저장 왕복 뒤에도 영상 src·콜라보가 그대로인가. */
 const VID = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDE=';
-test('LC10 영상 칸1 — 콜라보 켠 채 칸1 을 영상으로 넣어도 ×·로고2 생존 · 저장 왕복 뒤 영상 src 유지', async ({ page }) => {
+/* ★LC10 장면 바로잡음(S2 재서, 판 5df53807): «저장 왕복 뒤 영상 src 유지»는 제품 결정과 반대다 —
+ *   «GIF로 적용» 전 영상(video-pending)은 T-012 로 저장 대상이 아니다(js/io/section-serialize.js · save-load.js goHome 경고).
+ *   재서: 가짜 mp4 · ffmpeg 로 만든 진짜 mp4 둘 다 저장본에 영상 src 0 — «영상 로드 실패» 경로가 아니라 T-012 세척이다.
+ *   ⇒ 영상 src 는 «안 실린다»를 단언하고(더 엄격), 콜라보(×·로고2)는 «실린다»를 단언한다 — 빠졌던 것은 그쪽(제품 결함). */
+test('LC10 영상 칸1 — 콜라보 켠 채 칸1 을 영상으로 넣어도 ×·로고2 생존 · 저장 왕복 뒤 영상은 T-012 대로 빠지고 ×·로고2 는 산다', async ({ page }) => {
   const errs = await setup(page);
   await assertLogoPre(page);
   await toCount(page, 2);
@@ -339,6 +343,8 @@ test('LC10 영상 칸1 — 콜라보 켠 채 칸1 을 영상으로 넣어도 ×�
     return typeof out === 'string' ? out : (out && out.outerHTML) || '';
   });
   expect(saved, '전제 — 저장본에 콜라보').toContain('data-collab="2"');
+  expect(saved.includes(VID), 'T-012 — 확정 전 영상 src 는 저장본에 안 실린다').toBe(false);
+  expect(saved.includes(BLUE), '저장본에 로고2 그림').toBe(true);
   await page.evaluate((html) => {
     const c = document.getElementById('canvas');
     c.querySelectorAll('.section-block').forEach((s) => s.remove());
@@ -349,12 +355,39 @@ test('LC10 영상 칸1 — 콜라보 켠 채 칸1 을 영상으로 넣어도 ×�
   const a = await page.evaluate(([BLUE, VID]) => {
     const ab = document.querySelector('#canvas .asset-block');
     return {
-      imgSrc: ab.dataset.imgSrc === VID,
+      imgSrc: ab.dataset.imgSrc ?? null, assetType: ab.dataset.assetType ?? null,
       collab: ab.dataset.collab,
       x: ab.querySelectorAll('.asset-collab-x').length,
       slot2: ab.querySelector('.asset-collab-slot[data-slot="2"] .asset-collab-img')?.getAttribute('src') === BLUE,
     };
   }, [BLUE, VID]);
-  expect(a, '저장 왕복 뒤 영상 src · 콜라보 · 로고2').toEqual({ imgSrc: true, collab: '2', x: 1, slot2: true });
+  expect(a, '저장 왕복 뒤 칸1 은 빈 업로드대기(T-012) · 콜라보 · 로고2').toEqual({ imgSrc: null, assetType: null, collab: '2', x: 1, slot2: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('LC10b 영상 칸1 ⌘Z — video-pending 을 되살리는 길(reattachVideoPendingBlocks)에서도 ×·로고2 생존', async ({ page }) => {
+  const errs = await setup(page);
+  await assertLogoPre(page);
+  await toCount(page, 2);
+  const r = await page.evaluate(([BLUE, VID]) => {
+    const ab = document.querySelector('#canvas .asset-block');
+    window.setCollabSlotSrc(ab, 2, BLUE);
+    window.setAssetVideoFromSrc(ab, VID);
+    window.pushHistory?.('영상');
+    return { type: ab.dataset.assetType, x: ab.querySelectorAll('.asset-collab-x').length };
+  }, [BLUE, VID]);
+  expect(r, '전제 — 영상(video-pending) · × 1').toEqual({ type: 'video-pending', x: 1 });
+  await page.evaluate(() => { document.querySelector('#canvas .asset-block').dataset.lc10bMark = '1'; window.pushHistory?.('표식'); });
+  await page.evaluate(() => window.undo?.());
+  await page.waitForFunction(() => { const ab = document.querySelector('#canvas .asset-block'); return !!ab && !ab.dataset.lc10bMark; });
+  const a = await page.evaluate(([BLUE, VID]) => {
+    const ab = document.querySelector('#canvas .asset-block');
+    return {
+      imgSrc: ab.dataset.imgSrc === VID, type: ab.dataset.assetType ?? null, video: ab.querySelectorAll('video.asset-video').length,
+      collab: ab.dataset.collab, x: ab.querySelectorAll('.asset-collab-x').length,
+      slot2: ab.querySelector('.asset-collab-slot[data-slot="2"] .asset-collab-img')?.getAttribute('src') === BLUE,
+    };
+  }, [BLUE, VID]);
+  expect(a, '⌘Z 뒤 영상 되살아남(T-031) · 콜라보 · 로고2').toEqual({ imgSrc: true, type: 'video-pending', video: 1, collab: '2', x: 1, slot2: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
