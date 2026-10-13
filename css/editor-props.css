@@ -601,6 +601,11 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+/* ★모양 칩도 같은 까닭으로 격자다 — 여섯째 「코인」이 들어와 한 줄(넷)을 넘기자 둘째 줄의 둘이 줄 전체로 늘어났다. 세 칸 × 두 줄 = 여섯이 같은 폭. */
+#sec-fxpart-shapes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .fxpart-chip-wrap {
   position: relative; display: inline-flex; flex-shrink: 0;
   width: var(--cv-chip-size); height: var(--cv-chip-size);

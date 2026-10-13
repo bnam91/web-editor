@@ -141,10 +141,11 @@ test('E3-b 「코인」을 누르면 코인 그림이 갯수만큼 난다 · 금
     dot: getComputedStyle(document.querySelector('#sec-fxpart-colors .fxpart-chip-dot')).backgroundColor,
     del: document.querySelectorAll('#sec-fxpart-colors [data-fxpart-color-del]').length,
     shapes: [...document.querySelectorAll('#sec-fxpart-shapes [data-fxpart-shape]')].map((b) => b.textContent.trim() + (b.classList.contains('active') ? '*' : '')),
+    shapeW: [...new Set([...document.querySelectorAll('#sec-fxpart-shapes [data-fxpart-shape]')].map((b) => Math.round(b.getBoundingClientRect().width * 10) + 'x' + Math.round(b.getBoundingClientRect().height * 10)))].length,
     count: document.querySelector('[data-fxpart-axis="count"]').value,
     size: [document.querySelector('[data-fxpart-axis="smin"]').value, document.querySelector('[data-fxpart-axis="smax"]').value],
   }));
-  expect(panel).toEqual({ chips: 1, dot: 'rgb(245, 197, 66)', del: 0, shapes: ['사각', '리본', '원', '별', '삼각', '코인*'], count: '14', size: ['28', '90'] });
+  expect(panel).toEqual({ chips: 1, dot: 'rgb(245, 197, 66)', del: 0, shapes: ['사각', '리본', '원', '별', '삼각', '코인*'], shapeW: 1, count: '14', size: ['28', '90'] });   /* shapeW 1 = 모양 칩 여섯의 폭·높이가 한 가지다 */
   /* 다른 프리셋으로 돌아가면 코인이 사라진다(프리셋은 통째로 깐다) */
   await page.click('#sec-fxpart-presets [data-fxpart-preset="gold"]');
   await expect.poll(async () => (await state(page)).coins).toBe(0);
