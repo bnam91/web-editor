@@ -20,7 +20,7 @@
 ═══════════════════════════════════════════════════════════════════════════ */
 import { gridLineHtml, GRID_ROLES, MAX_CELL_LINES, gridMergeLine, gridValidateLines, gridLineHasText, gridPlusLayer, GRID_RICH_TEXT_OPTS } from './grid-block.js';
 /* ★1013t1B1 — 줄 «부분 서식»(⌘B/I/U/S) 커밋. 공용 한 벌(grid-block.js 가 이미 들이는 모듈 · 새 그래프 0) · 허용목록은 그리드 줄과 같은 GRID_RICH_TEXT_OPTS. */
-import { sanitizeRichTextHtml, richTextHasFormatting } from '../util/sanitize-rich-text.js';
+import { sanitizeRichTextHtml, richTextHasFormatting, richTextBlocksToBreaks } from '../util/sanitize-rich-text.js';
 import { grdLineUi, grdSetActiveLine, grdGetActiveLine, grdIsSoleSelected } from '../props/prop-grid.js';
 import { escHtml } from '../props/_helpers.js';
 import { swatchHex } from '../props/color-picker.js';          // ★D2 — 비교 줄 Fill 스와치를 «그려진 색»으로(prop-grid 가 이미 들이는 모듈 · 새 그래프 0)
@@ -641,10 +641,12 @@ function _lineTextEl(row) {
   if (first.classList.contains('grd-line')) return first;
   return first.querySelector(':scope > .grd-badge');
 }
-/** ★1013t1B1 — 줄 글자 요소 → «걸러진» 부분 서식 HTML(그리드 block-drag.js _gridReadHtml 과 같은 식 · 같은 허용목록). */
+/** ★1013t1B1 — 줄 글자 요소 → «걸러진» 부분 서식 HTML(그리드 block-drag.js _gridReadHtml 과 같은 식 · 같은 허용목록).
+ *  ★거르기 «전»에 편집기 블럭 경계(Enter 가 만든 <div>·<p>·자리표시 <br>)를 <br> 로 편다 — 안 펴면 sanitize 가 DIV 를 언랩만 해
+ *    text('AAABBB\nCCC')와 textHtml('AAABBB<b>CCC</b>')이 줄 수에서 갈리고, 렌더는 textHtml 을 그리므로 줄바꿈이 사라진다(이벨류 지적 · LR8). */
 function _lnReadHtml(el) {
   const raw = el && el.innerHTML != null ? String(el.innerHTML) : '';
-  return raw ? sanitizeRichTextHtml(raw, GRID_RICH_TEXT_OPTS) : '';
+  return raw ? sanitizeRichTextHtml(richTextBlocksToBreaks(raw), GRID_RICH_TEXT_OPTS) : '';
 }
 export function lnBeginEdit(block, addr) {
   const host = lnHostFor(block);

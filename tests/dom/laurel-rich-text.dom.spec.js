@@ -15,6 +15,9 @@
  * 음성대조(1회 실측 · 생성기 B1): line-host.js finish 의 `host.previewLine(hit.r, hit.c, hit.li, { text, textHtml });`
  *   를 `{ text }` 로 되돌리면 → 실측 2026-10-13: 11 failed / 5 passed — 빨강 LR1×4·LR2·LR3·LR6·HB1·HB2·HC1·HM1 ·
  *   초록(이 깨뜨림과 무관한 칸) J0·LR1b·LR4·LR5·LR7. 되돌린 뒤 cmp 같음.
+ * LR8·LR9(이벨류 지적 뒤 · 1회 실측 2026-10-13 · 25칸 판):
+ *   · _lnReadHtml 의 richTextBlocksToBreaks(raw) 를 raw 로(블럭 경계 펴기 뺌) → 8 failed(LR8 네 주인 × 2줄·3줄 전부) / 17 passed
+ *   · _lnReadHtml 의 sanitize 를 건너뜀(펴기만) → 1 failed(LR9) / 24 passed · 둘 다 되돌린 뒤 cmp 같음.
  *
  * 실행: bash run-test.sh dom tests/dom/laurel-rich-text.dom.spec.js
  */
@@ -309,6 +312,125 @@ test.describe('laurel — 캔버스 부분 서식(B1)', () => {
     expect(/textHtml|<b|<span|font-weight:\s*normal/i.test(txt), `서식 마크업이 샜다 ${txt}`).toBe(false);
     expect(errs).toEqual([]);
   });
+});
+
+/* ══ LR8 — 한 줄 안 줄바꿈(Enter) + 부분 서식 (이벨류 지적 · 3f017a43 결함) ══════════════════════════════
+ * 몸짓: 더블클릭 → 전체 고르기 → 'AAABBB' → Enter → 'CCC' → CCC 고르기 → ⌘B → Esc.
+ * 결함: text 'AAABBB\nCCC' 는 사는데 textHtml 이 'AAABBB<b>CCC</b>'(줄바꿈 없음) — Chrome 의 Enter <div> 를 sanitize 가 언랩만 해서.
+ *   렌더가 textHtml 을 그리므로 화면이 한 줄이 된다(저장 왕복 뒤도). ⇒ line-host _lnReadHtml 이 거르기 전에 블럭 경계를 <br> 로 편다.
+ * 잰다: 네 주인(laurel·버블·챗·비교) 각각 — text = 'AAABBB\nCCC' · textHtml 에 <br> 와 서식 · 렌더 2줄(글자 사각형 윗변 수) · 저장 왕복 뒤 같음. + 3줄. */
+async function prepOwner(page, kind, id) {
+  if (kind === 'bubble') await page.evaluate((i) => window.updateSpeechBubbleBlock(i, { lines: [{ type: 'body', text: 'plain' }] }), id);
+  if (kind === 'chat') await page.evaluate((i) => window.updateChatBlock(i, { editMessage: { index: 0, lines: [{ type: 'body', text: 'plain' }] } }), id);
+  if (kind === 'cmp') await page.evaluate((i) => window.updateComparisonBlock(i, { rowLines: { col: 0, row: 0, lines: [{ type: 'body', text: 'plain' }] } }), id);
+  await page.waitForFunction((s) => !!document.querySelector(s), KIND[kind].sel(id));
+}
+/* parts = 줄들 · 마지막 줄 끝 3글자에 ⌘B */
+async function editMultiline(page, kind, id, parts) {
+  const sel = KIND[kind].sel(id);
+  await page.evaluate((s) => document.querySelector(s)?.scrollIntoView({ block: 'center' }), sel);
+  const r = await waitStableRect(page, sel);
+  await page.mouse.dblclick(r.cx, r.cy);
+  await page.waitForFunction((s) => document.querySelector(s)?.getAttribute('contenteditable') === 'true', sel);
+  await page.keyboard.press('ControlOrMeta+a');
+  for (let i = 0; i < parts.length; i++) {
+    if (i) { await page.keyboard.press('End'); await page.keyboard.press('Enter'); }
+    await page.keyboard.type(parts[i]);
+  }
+  const want = parts.join('\n');
+  await page.waitForFunction(([s, t]) => (document.querySelector(s)?.innerText || '').replace(/\n+$/, '') === t, [sel, want]);
+  await page.keyboard.press('End');
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowLeft');
+  await page.waitForFunction((t) => getSelection().toString() === t, parts[parts.length - 1].slice(-3));
+  await page.keyboard.press('ControlOrMeta+b');
+  await page.waitForFunction((s) => window._stickerHtmlHasFormatting?.(document.querySelector(s)?.innerHTML || '') === true, sel);
+  const live = await page.evaluate((s) => document.querySelector(s).innerHTML, sel);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(([i, s]) => !document.getElementById(i).classList.contains('editing') && document.querySelector(s)?.getAttribute('contenteditable') !== 'true', [id, sel]);
+  return live;
+}
+const renderedLines = (page, kind, id) => page.evaluate((s) => {
+  const el = document.querySelector(s); if (!el) return null;
+  /* 보이는 줄 수 = 글자 조각(텍스트 노드) 사각형들의 서로 다른 «윗변» 수 — 칸 늘임·패딩과 무관(비교 칸은 줄 요소가 칸 높이로 늘어난다) */
+  const tops = new Set();
+  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let t = tw.nextNode(); t; t = tw.nextNode()) {
+    if (!t.nodeValue.trim()) continue;
+    const rg = document.createRange(); rg.selectNodeContents(t);
+    for (const q of rg.getClientRects()) if (q.width > 0) tops.add(Math.round(q.top));
+  }
+  return { byHeight: tops.size, tops: [...tops], ws: getComputedStyle(el).whiteSpace };
+}, KIND[kind].sel(id));
+
+test.describe('LR8 줄바꿈 + 부분 서식 — 네 주인 같은 길', () => {
+  for (const kind of ['laurel', 'bubble', 'chat', 'cmp']) {
+    for (const parts of [['AAABBB', 'CCC'], ['AAA', 'BBB', 'CCC']]) {
+      test(`LR8 ${kind} ${parts.length}줄 — text·textHtml 줄 수 같음 · 렌더 ${parts.length}줄 · 저장 왕복 뒤 같음`, async ({ page }) => {
+        const errs = await setup(page);
+        const id = await addBlock(page, kind);
+        await prepOwner(page, kind, id);
+        const live = await editMultiline(page, kind, id, parts);
+        const s = await state(page, kind, id);
+        const n = parts.length;
+        const brs = (h) => ((h || '').match(/<br\s*\/?>/gi) || []).length;
+        const rl = await renderedLines(page, kind, id);
+        console.log(`  LR8 ${kind} ${n}:`, JSON.stringify({ live, text: s.text, textHtml: s.textHtml, rendered: s.rendered, rl }));
+        expect(s.text, 'text = 줄바꿈 든 평문').toBe(parts.join('\n'));
+        expect(s.fmtStored, `서식이 모델에 ${JSON.stringify(s)}`).toBe(true);
+        expect(brs(s.textHtml), `textHtml 의 줄바꿈 수 = ${n - 1} (text 와 같은 줄 수) — ${s.textHtml}`).toBe(n - 1);
+        expect(/<div|<p\b/i.test(s.textHtml), `블럭 태그가 남지 않는다 ${s.textHtml}`).toBe(false);
+        expect(s.shown.replace(/\n+$/, ''), '보이는 글 = text').toBe(parts.join('\n'));
+        expect(rl.byHeight, `렌더 ${n}줄(글자 사각형 윗변 수) ${JSON.stringify(rl)}`).toBe(n);
+        /* 저장 왕복 */
+        const snap = await page.evaluate(() => { window.flushCurrentPage?.(); return window.serializeProject(); });
+        const errs2 = await bootApp(page);
+        await page.evaluate((d) => window.applyProjectData(d), JSON.parse(snap));
+        await page.waitForFunction((q) => !!document.querySelector(q), KIND[kind].sel(id));
+        await page.evaluate((q) => document.querySelector(q)?.scrollIntoView({ block: 'center' }), KIND[kind].sel(id));
+        const s2 = await state(page, kind, id);
+        const rl2 = await renderedLines(page, kind, id);
+        expect([s2.text, s2.textHtml], '다시 연 뒤 모델 같음').toEqual([s.text, s.textHtml]);
+        expect(rl2.byHeight, `다시 연 뒤 렌더 ${n}줄 ${JSON.stringify(rl2)}`).toBe(n);
+        expect(errs).toEqual([]);
+        expect(errs2).toEqual([]);
+      });
+    }
+  }
+});
+
+/* ══ LR9 — 커밋 쪽 거르기(_lnReadHtml 의 sanitize)를 지키는 칸 (이벨류 지적 · 무가드) ═══════════════════════
+ * 편집 중 contenteditable 에 위험 마크업을 넣고(붙여넣기·확장 등이 낼 수 있는 꼴) 커밋 → 저장된 textHtml(모델 · serializeProject)에 없다.
+ * ⛔렌더 쪽 재-sanitize(LR5)와 다른 자리다 — 렌더가 걷어도 «저장본»에 남으면 다른 소비자(내보내기 등)로 샌다. */
+test('LR9 편집 중 끼운 위험 마크업 — 커밋된 textHtml·저장본에 없다 · 허용 <b> 는 산다', async ({ page }) => {
+  const errs = await setup(page);
+  const id = await addBlock(page, 'laurel');
+  const sel = KIND.laurel.sel(id);
+  const r = await waitStableRect(page, sel);
+  await page.mouse.dblclick(r.cx, r.cy);
+  await page.waitForFunction((s) => document.querySelector(s)?.getAttribute('contenteditable') === 'true', sel);
+  await page.evaluate((s) => {   // ★img 는 src 없이(로드·onerror 실행 0) — 재는 것은 «저장되나»다
+    document.querySelector(s).innerHTML = 'AAA<img onerror="window.__p9=1"><b onclick="window.__p9=2">BBB</b>'
+      + '<span style="background-color:url(x);color:#ff0000">CCC</span><script>window.__p9=3</script><a href="javascript:void 0">DDD</a>';
+  }, sel);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction((i) => !document.getElementById(i).classList.contains('editing'), id);
+  const s = await state(page, 'laurel', id);
+  const saved = await page.evaluate((i) => {
+    window.flushCurrentPage?.();
+    const snap = JSON.parse(window.serializeProject());
+    const doc = new DOMParser().parseFromString(snap.pages.map(p => p.canvas || '').join(''), 'text/html');
+    return doc.getElementById(i)?.dataset.cells || null;
+  }, id);
+  console.log('  LR9:', JSON.stringify({ textHtml: s.textHtml, saved }));
+  expect(saved, '전제 — 저장본에 그 블럭').toBeTruthy();
+  expect(s.fmtStored, `전제 — 서식이 커밋됐다 ${JSON.stringify(s)}`).toBe(true);
+  for (const [name, re] of [['img', /<img/i], ['on*', /onerror|onclick/i], ['script', /<script|__p9/i], ['url(', /url\(/i], ['a/href', /<a\b|href|javascript/i]]) {
+    expect(re.test(s.textHtml || ''), `«${name}» 가 모델 textHtml 에 저장됐다: ${s.textHtml}`).toBe(false);
+    expect(re.test(saved), `«${name}» 가 저장본 data-cells 에 들어갔다`).toBe(false);
+  }
+  expect(/<b>BBB<\/b>/.test(s.textHtml), `허용 <b> 까지 걷혔다 — 위 「없다」가 공짜 ${s.textHtml}`).toBe(true);
+  expect(/color:#ff0000/.test(s.textHtml), `허용 색 style 까지 걷혔다 ${s.textHtml}`).toBe(true);
+  expect(errs).toEqual([]);
 });
 
 test.describe('line-host 다른 주인 — 같은 길(버블 H2·H1a 고침 · 챗 · 비교)', () => {
