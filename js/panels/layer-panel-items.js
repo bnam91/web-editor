@@ -12,6 +12,7 @@
 ══════════════════════════════════════ */
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
+import { isBuzzFrame, buzzIconSvg } from '../blocks/buzz-mark.js';   /* 버즈(1012t1Z5) — 판정 · 아이콘 한 벌(패널 머리와 같은 것) */
 
 /* ═══════════════════════════════════
    LAYER PANEL
@@ -790,15 +791,20 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   const isBanner = !!ssEl.dataset.bannerPreset;
   const BANNER_ICON = `<svg class="layer-item-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="4" width="12" height="8" rx="1.5"/><line x1="2" y1="7.5" x2="9" y2="7.5"/></svg>`;
 
+  /* 버즈(1012t1Z5) — 버즈 표식(data-buzz) 프레임은 「Buzz」 이름 + 전용 아이콘. 그룹 · 배너 다음, 도형 · 보통 프레임 앞. */
+  const isBuzz = isBuzzFrame(ssEl);
+
   const iconHtml  = isGroup
     ? GROUP_ICON
     : (isBanner
       ? BANNER_ICON
+      : isBuzz
+      ? buzzIconSvg({ cls: 'layer-item-icon' })
       : (shapeKey && layerIcons[shapeKey]
         ? layerIcons[shapeKey]
         : `<svg class="layer-item-icon" viewBox="1.5 1.5 13 13" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg>`));
-  const typeLabel = isGroup ? 'Group' : (isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
-  const defaultName = isGroup ? (ssEl.dataset.name || 'Group') : (isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
+  const typeLabel = isGroup ? 'Group' : (isBanner ? 'Banner' : isBuzz ? 'Buzz' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
+  const defaultName = isGroup ? (ssEl.dataset.name || 'Group') : (isBanner ? 'Banner' : isBuzz ? 'Buzz' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
   const name = ssEl.dataset.layerName || defaultName;
 
   wrapper.innerHTML = `${iconHtml}<span class="layer-item-name"></span><span class="layer-item-type">${typeLabel}</span>`;
