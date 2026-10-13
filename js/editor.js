@@ -1183,6 +1183,8 @@ function toggleBlockSelect(block, sec) {
   /* ★0918r2 T-058 — ⌘클릭은 «블럭 단위» 선택이다. 그리드 줄 선택(활성줄)을 남겨 두면 다중선택
      상태에서 ⌫/⌘X 가 그 줄 하나로 샜다. Shift 범위선택(deselectAll 경유)과 똑같이 끝낸다. */
   window.grdDropLineSelection?.(canvasEl);
+  /* 1013t1C4 고침 — 원형 그래프 «조각 선택» 표식도 같은 까닭으로 걷는다(⌘클릭은 clearSelectionMarks 를 안 지난다 ⇒ 다중 선택인데 조각 점선이 남았다). */
+  canvasEl.querySelectorAll('.grb-pie-cell-selected').forEach(el => el.classList.remove('grb-pie-cell-selected'));
   const layerItem = _getBlockLayerItem(block);
   if (block.classList.contains('selected')) {
     block.classList.remove('selected');

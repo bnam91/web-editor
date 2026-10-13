@@ -404,6 +404,20 @@ test('S3 블럭을 떠나면 조각 선택이 풀린다 — deselectAll · 다�
   expect(errs).toEqual([]);
 });
 
+test('S8 ⌘클릭 다중 선택 — 조각을 고른 뒤 다른 블럭을 ⌘클릭하면 조각 표식이 걷힌다(두 블럭은 선택된 채)', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3 });
+  const id2 = await page.evaluate(() => { window.selectSection(document.getElementById('sG')); window.addGraphBlock({ chartType: 'bar-v' }); window.deselectAll(); return [...document.querySelectorAll('#sG .graph-block')].pop().id; });
+  expect(id2, '전제: 둘째 블럭').not.toBe(id);
+  await pickSlice(page, id, 1);
+  expect((await markOf(page, id)).marks, '전제: 조각 1 을 골랐다').toEqual([1]);
+  await waitStableRect(page, `#${id2}`);
+  await page.locator(`#${id2}`).click({ modifiers: ['Meta'] });
+  await expect.poll(() => page.evaluate(([a, b]) => [a, b].map(x => document.getElementById(x).classList.contains('selected')), [id, id2]), { message: '전제: ⌘클릭 = 두 블럭 다 선택(다중 선택)' }).toEqual([true, true]);
+  expect((await markOf(page, id)).marks, '다중 선택에서는 조각 표식이 없다').toEqual([]);
+  expect(await page.evaluate(() => document.querySelectorAll('#canvas .grb-pie-cell-selected').length)).toBe(0);
+  expect(errs).toEqual([]);
+});
+
 test('S4 저장본 — 조각을 고른 채 직렬화해도 표식이 안 실린다', async ({ page }) => {
   const { errs, id } = await setup(page, { type: 'pie', items: V3 });
   await pickSlice(page, id, 0);
