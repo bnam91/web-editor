@@ -844,6 +844,10 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     // ── LAUREL (laurel-block) : 월계관 잎 SVG + 중앙 텍스트 ──
     if (el.classList.contains('laurel-block')) {
       let cells = []; try { cells = JSON.parse(el.dataset.cells || '[]'); } catch {}
+      /* ★1013t1B2 C3 — 줄 저장 꼴이 그리드 줄(type·weight …)로 바뀌었다. 수신측(figma-renderer laurel)은 옛 이름(fontWeight)을 읽는다
+         ⇒ 글자 줄만 옛 꼴로 맞춰 보낸다(여백·구분선·그림은 빠진다 · 결정 B2-10). ⛔블럭 모듈을 import 하지 않는다 — window 로 부른다.
+         없으면(모듈 미적재) 옛 판처럼 그대로 보낸다. 지키는 검사: tests/dom/laurel-lines.dom.spec.js LL11. */
+      if (typeof window._lrlFigmaCells === 'function') cells = window._lrlFigmaCells(cells);
       const _live = (el.id && document.getElementById(el.id)) || el;
       const _br = _live.getBoundingClientRect();
       const _z = (_br.width / (_live.offsetWidth || 1)) || 1;

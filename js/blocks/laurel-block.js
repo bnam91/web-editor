@@ -168,6 +168,35 @@ function _lrlGridLine(l) {
   if (typeof o.textHtml === 'string') g.textHtml = o.textHtml;
   return g;
 }
+/** ★1013t1B2 C3 — 「글자 줄인가」 한 자리(역할표 GRID_ROLES 에 있는 종류). 여백·구분선·그림 = 아니다.
+ *  AI 채움(슬롯·쓰기)·Figma 내보내기·editLine 이 «같은 자»로 가른다(window 로 부른다 — 두 벌 금지). */
+function _lrlIsTextLine(l) {
+  return Object.prototype.hasOwnProperty.call(GRID_ROLES, _lrlGridLine(l).type);
+}
+/** ★1013t1B2 C3 — 새 꼴(그리드 줄) → 옛 꼴 필드 {text, fontSize, fontWeight:Number, color, letterSpacing?}.
+ *  Figma 수신측(figma-renderer/sangpe_to_figma.mjs laurel)이 «옛 이름»(fontWeight)을 읽는다 ⇒ 보내는 쪽이 옛 이름으로 맞춘다.
+ *  ★옛 꼴 줄은 _lrlGridLine 을 지나 다시 돌아오므로, 네 필드를 다 가진 옛 줄은 «원래 객체와 같은 값»이 된다(LL11).
+ *  ★빈 필드는 렌더와 같은 값으로 채운다: 크기·굵기 = 역할 기본 · 색 = laurel 글자색(스택 상속 #1a1a1a) · 자간 = 역할 em × 크기(px · 0 이면 뺀다). */
+function _lrlOldLine(l) {
+  const g = _lrlGridLine(l);
+  const role = GRID_ROLES[g.type] || GRID_ROLES.body;
+  const size = Number(g.fontSize) || role.size;
+  const o = {
+    text:       String(g.text ?? ''),
+    fontSize:   size,
+    fontWeight: Number(g.weight !== undefined ? g.weight : role.weight) || role.weight,
+    color:      (typeof g.color === 'string' && g.color.trim()) ? g.color.trim() : LAUREL_DEFAULTS.textColor,
+  };
+  if (g.letterSpacing !== undefined && g.letterSpacing !== '' && Number.isFinite(Number(g.letterSpacing))) o.letterSpacing = Number(g.letterSpacing);
+  else if (/em$/.test(String(role.ls))) { const em = parseFloat(role.ls); if (Number.isFinite(em) && em !== 0) o.letterSpacing = Math.round(em * size * 100) / 100; }
+  return o;
+}
+/** ★1013t1B2 C3 — Figma JSON 용 칸 배열: 글자 줄만(여백·구분선·그림은 뺀다 · 결정 B2-10) 옛 꼴로. lines 키 없는 칸은 그대로(수신측 폴백). */
+function _lrlFigmaCells(cells) {
+  return (Array.isArray(cells) ? cells : []).map(c => (c && Array.isArray(c.lines))
+    ? { ...c, lines: c.lines.filter(_lrlIsTextLine).map(_lrlOldLine) } : c);
+}
+
 /** 칸 하나의 줄(그리드 꼴).
  *  ★1013t1B2 C2 — 옛 「1위」 기본 줄 폴백은 «lines 키가 없을 때만»(아주 옛 저장본). `lines: []` = 빈 칸(잎만 · 결정 B2-3 · 그리드
  *    「마지막 줄까지 지우면 빈 칸」과 같은 뜻). ⚠️옛 판은 `[]` 도 「1위」로 그렸다 — 그 꼴은 옛 문(MCP 1~20줄 · 패널 마지막 줄 보호)으로는 안 생긴다. */
@@ -625,7 +654,7 @@ function updateLaurelBlock(blockId, partial = {}, opts = {}) {
       const patch = _normLine(e, 'editLine');
       /* ★1013t1B2 — 그 줄을 새 꼴로 보고 옛 필드를 새 이름으로 얹는다(fontWeight → weight). 글자 아닌 줄은 거절. */
       const g = { ..._lrlGridLine(curLines[li]) };
-      if (!Object.prototype.hasOwnProperty.call(GRID_ROLES, g.type)) {
+      if (!_lrlIsTextLine(g)) {
         return { ok: false, code: 'INVALID', message: `editLine: cell[${ci}].lines[${li}] is a '${g.type}' line (not a text line)` };
       }
       if (patch.text !== undefined) { g.text = patch.text; delete g.textHtml; }   // ★글자만 쓰는 자는 묵은 범위 서식을 지운다(B1 대비)
@@ -725,6 +754,9 @@ window._readLaurelCells    = _readLaurelCells;
 window._renderLaurelCellHtml = _renderLaurelCellHtml;
 window._lrlGridLine        = _lrlGridLine;    // ★1013t1B2 — line-host·내보내기·AI 채움이 window 로 부른다(순환 import 회피 관례)
 window._lrlGridLines       = _lrlGridLines;
+window._lrlIsTextLine      = _lrlIsTextLine;   // ★C3 — AI 채움·editLine 의 「글자 줄인가」
+window._lrlOldLine         = _lrlOldLine;      // ★C3 — Figma 내보내기(새 꼴 → 옛 이름)
+window._lrlFigmaCells      = _lrlFigmaCells;
 window.LAUREL_FILL_PRESETS = LAUREL_FILL_PRESETS;
 window.updateLaurelBlock   = updateLaurelBlock;
 /* ★«끝 표본» 래퍼(js/model-update-history.js — window.update*Block 을 감싸 호출마다 한 칸 더 쌓는다)를 «안 타는» 원본.

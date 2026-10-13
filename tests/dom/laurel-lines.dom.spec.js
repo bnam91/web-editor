@@ -431,3 +431,74 @@ test.describe('laurel 줄 — C2 네 번째 주인(캔버스 2단 선택 · 줄�
     expect(errs).toEqual([]);
   });
 });
+
+/* ══ C3 — 내보내기(Figma JSON) · AI 채움 ═════════════════════════════════════════════════════════
+ * 음성대조(1회 실측 · 생성기 C3): js/io/export-figma-json.js laurel 갈래의
+ *   `if (typeof window._lrlFigmaCells === 'function') cells = window._lrlFigmaCells(cells);` 를 빼면 → LL11 빨강
+ *   (새 꼴 블럭이 type·weight 를 그대로 보내 수신측이 읽는 fontWeight 가 없다 · 여백/구분선 줄이 섞인다). */
+const findLaurelJson = (page) => page.evaluate(() => {
+  const want = window.__bid; let hit = null;
+  const walk = (o) => { if (hit || !o || typeof o !== 'object') return; if (o.type === 'laurel' && o.id === want) { hit = o; return; } for (const k in o) walk(o[k]); };
+  window.flushCurrentPage?.();   // 내보내기는 state.pages(직렬화본)를 읽는다 — 지금 캔버스를 먼저 싣는다(asset-redact R10 과 같은 꼴)
+  walk(window.buildFigmaExportJSON(null));
+  return hit;
+});
+/* b6e85227 의 laurel 갈래 식 그대로(고정): `cells = JSON.parse(el.dataset.cells)` 를 «그대로» 실었다 — 옛 꼴 블럭의 옛 산출. */
+const OLD_FIGMA_CELLS = (page) => page.evaluate(() => JSON.parse(document.getElementById(window.__bid).dataset.cells));
+
+test.describe('laurel 줄 — C3 Figma JSON · AI 채움', () => {
+  test('LL11 C3 Figma JSON — 새 꼴 블럭의 cells 가 같은 내용 옛 꼴 블럭의 옛 산출(b6e85227 식)과 같다 · 글자 줄만 · 옛 이름(fontWeight 숫자)', async ({ page }) => {
+    const errs = await setup(page, C2_CELLS, 2, 2);
+    const oldOut = await OLD_FIGMA_CELLS(page);
+    expect(oldOut[0].lines[0].type, '전제 — 옛 꼴 블럭(type 없음)').toBe(undefined);
+    const j0 = await findLaurelJson(page);
+    expect(j0, '전제 — 내보내기에 그 laurel 이 있다').not.toBe(null);
+    expect(j0.cells, '옛 꼴 블럭 — 지금 산출 = 옛 산출(바이트 같은 값)').toEqual(oldOut);
+    // 같은 내용을 새 꼴로(아무 쓰기 한 번 — «쓰기 하나»)
+    const typed = await page.evaluate(() => { window.updateLaurelBlock(window.__bid, { layerName: 'L' });
+      return JSON.parse(document.getElementById(window.__bid).dataset.cells).every(c => c.lines.every(l => typeof l.type === 'string')); });
+    expect(typed, '전제 — 저장 꼴이 새 꼴이 됐다').toBe(true);
+    const j1 = await findLaurelJson(page);
+    expect(j1.cells, '새 꼴 블럭 — 옛 꼴 블럭의 옛 산출과 같다').toEqual(oldOut);
+    expect(typeof j1.cells[0].lines[0].fontWeight, 'fontWeight = 숫자(수신측이 읽는 이름)').toBe('number');
+    // 글자 아닌 줄은 빠지고, 색·꾸밈 없는 새 글자 줄은 렌더와 같은 값으로 채운다
+    await page.evaluate(() => window.updateLaurelBlock(window.__bid, { cellLines: { cell: 1, lines: [
+      { type: 'h3', text: '위' }, { type: 'gap', height: 16 }, { type: 'divider', height: 1 }, { type: 'body', text: '아래', weight: '600' }, { type: 'label', text: '라벨' }] } }));
+    const j2 = await findLaurelJson(page);
+    const rendered = await page.evaluate(() => [...document.querySelectorAll('#sB .laurel-block .ln-row[data-ln-m="1"] > .grd-line')].map(e => { const s = getComputedStyle(e); return { fs: parseFloat(s.fontSize), fw: Number(s.fontWeight), c: s.color }; }));
+    expect(j2.cells[1].lines.map(l => l.text), '글자 줄만 · 순서 그대로').toEqual(['위', '아래', '라벨']);
+    expect(j2.cells[1].lines.map(l => [l.fontSize, l.fontWeight]), '크기·굵기 = 화면에 그려진 값').toEqual(rendered.map(r => [r.fs, r.fw]));
+    expect(rendered.every(r => r.c === 'rgb(26, 26, 26)'), '전제 — 색 없는 줄은 laurel 글자색으로 그린다').toBe(true);
+    expect(j2.cells[1].lines.every(l => l.color === '#1a1a1a'), '색 = 그려진 laurel 글자색').toBe(true);
+    expect(j2.cells[1].lines[2].letterSpacing, '라벨 역할 자간 0.04em × 16 = 0.64px').toBe(0.64);
+    expect(j2.cells[1].lines.every(l => !('type' in l) && !('weight' in l)), '새 이름은 안 샌다').toBe(true);
+    expect(errs).toEqual([]);
+  });
+
+  test('LL12 C3 AI 채움 — 글자 줄만 슬롯 · 글자 아닌 줄엔 안 쓴다 · 쓰기/새 줄 = 새 꼴 · 글자 바꾸면 textHtml 지움', async ({ page }) => {
+    const errs = await setup(page, C2_CELLS, 2, 2);
+    await page.evaluate(() => window.updateLaurelBlockRaw(window.__bid, { cellLines: { cell: 0, lines: [
+      { type: 'h2', text: '제목', textHtml: '<b>제</b>목' }, { type: 'gap', height: 16 }, { type: 'body', text: '본문', color: '#333333' }] } }, { noHistory: true }));
+    const r = await page.evaluate(() => {
+      const sec = document.getElementById('sB'); const id = window.__bid;
+      const slots = window.collectSectionTextBlocks(sec).filter(x => x.id.startsWith(`lrl:${id}:`)).map(x => x.id.split(':').slice(2).join(':'));
+      const applied = window.applyAIReplacements(sec, [
+        { id: `lrl:${id}:0:1`, text: '여백에 쓰면 안 됨' },
+        { id: `lrl:${id}:0:0`, text: '새 제목' },
+        { id: `lrl:${id}:0:5`, text: '추가 줄' },
+        { id: `lrl:${id}:1:0`, text: '이위' },
+      ], [], {});
+      return { slots, applied, cells: JSON.parse(document.getElementById(id).dataset.cells) };
+    });
+    expect(r.slots, '슬롯 = 글자 줄만(칸0 의 여백 줄 1 은 없다)').toEqual(['0:0', '0:2', '1:0', '2:0', '3:0', '3:1']);
+    const c0 = r.cells[0].lines;
+    expect(c0[1], '여백 줄 무변(글자 안 생김)').toEqual({ type: 'gap', height: 16 });
+    expect(c0[0], '글자 줄 쓰기 — 역할 유지 · textHtml 지움').toEqual({ type: 'h2', text: '새 제목' });
+    expect(c0.length, '새 줄 하나').toBe(4);
+    expect(c0[3], '새 줄 = 마지막 글자 줄 꾸밈 시드 · 새 꼴').toEqual({ type: 'body', text: '추가 줄', color: '#333333' });
+    expect(r.cells[1].lines[0], '옛 꼴 줄 쓰기 → 새 꼴(값 그대로)').toEqual({ type: 'body', text: '이위', fontSize: 56, weight: '700', color: '#1a1a1a', lineHeight: 1.1 });
+    expect(r.cells.every(c => c.lines.every(l => typeof l.type === 'string')), '«쓰기 하나» — 모든 칸 새 꼴').toBe(true);
+    expect(await page.evaluate(() => document.querySelector('#sB .laurel-block .ln-row[data-ln-m="0"][data-ln="3"]')?.textContent), '화면에 새 줄').toBe('추가 줄');
+    expect(errs).toEqual([]);
+  });
+});
