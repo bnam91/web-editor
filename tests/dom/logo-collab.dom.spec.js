@@ -308,3 +308,53 @@ test('LC9 단독 HTML — 손글씨 폴백 img 규칙이 콜라보 칸 img 를 �
   expect(r.harvested, '앱 CSS 수확에 콜라보 규칙이 없다').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* 1013t2A2 태양 지적 — 영상 경로(setAssetVideoFromSrc)의 콜라보 복원 줄을 꺼도 LC1~9 는 초록이었다(지키는 칸 0).
+   칸1 을 «영상»으로 넣어도 ×·로고2 가 살고, 저장 왕복 뒤에도 영상 src·콜라보가 그대로인가. */
+const VID = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDE=';
+test('LC10 영상 칸1 — 콜라보 켠 채 칸1 을 영상으로 넣어도 ×·로고2 생존 · 저장 왕복 뒤 영상 src 유지', async ({ page }) => {
+  const errs = await setup(page);
+  await assertLogoPre(page);
+  await toCount(page, 2);
+  const r = await page.evaluate(([BLUE, VID]) => {
+    const ab = document.querySelector('#canvas .asset-block');
+    const set2 = window.setCollabSlotSrc(ab, 2, BLUE);
+    window.setAssetVideoFromSrc(ab, VID);
+    const v = ab.querySelector('.asset-img-clip video.asset-video');
+    return {
+      set2, hasFn: typeof window.setAssetVideoFromSrc === 'function',
+      video: !!v && v.getAttribute('src') === VID,
+      collab: !!ab.querySelector(':scope > .asset-collab'),
+      x: ab.querySelectorAll('.asset-collab-x').length,
+      slot2: ab.querySelector('.asset-collab-slot[data-slot="2"] .asset-collab-img')?.getAttribute('src') === BLUE,
+    };
+  }, [BLUE, VID]);
+  expect(r.hasFn, '전제 — 영상 넣기 문이 있다').toBe(true);
+  expect(r.set2, '전제 — 로고2 가 들어갔다').toBe(true);
+  expect(r.video, '전제 — 칸1 이 영상이 됐다').toBe(true);
+  expect({ collab: r.collab, x: r.x, slot2: r.slot2 }, '영상 넣은 뒤 ×·로고2 생존').toEqual({ collab: true, x: 1, slot2: true });
+  const saved = await page.evaluate(() => {
+    const sec = document.getElementById('sA');
+    const out = window.serializeSectionClone ? window.serializeSectionClone(sec) : sec.outerHTML;
+    return typeof out === 'string' ? out : (out && out.outerHTML) || '';
+  });
+  expect(saved, '전제 — 저장본에 콜라보').toContain('data-collab="2"');
+  await page.evaluate((html) => {
+    const c = document.getElementById('canvas');
+    c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    c.insertAdjacentHTML('beforeend', html);
+    window.rebindAll?.();
+  }, saved);
+  await page.waitForFunction(() => !!document.querySelector('#canvas .asset-block'));
+  const a = await page.evaluate(([BLUE, VID]) => {
+    const ab = document.querySelector('#canvas .asset-block');
+    return {
+      imgSrc: ab.dataset.imgSrc === VID,
+      collab: ab.dataset.collab,
+      x: ab.querySelectorAll('.asset-collab-x').length,
+      slot2: ab.querySelector('.asset-collab-slot[data-slot="2"] .asset-collab-img')?.getAttribute('src') === BLUE,
+    };
+  }, [BLUE, VID]);
+  expect(a, '저장 왕복 뒤 영상 src · 콜라보 · 로고2').toEqual({ imgSrc: true, collab: '2', x: 1, slot2: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
