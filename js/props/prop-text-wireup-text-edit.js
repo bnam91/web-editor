@@ -15,6 +15,7 @@
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 import { captureTextStyle, applyTextStyleVars } from './text-style-kinds.js';   /* ★«한 벌이 무슨 값인가»의 명부 하나 */
 import { wireAllTextStyleChips } from './text-style-chips.js';                     /* ★「최근 효과」 줄 — 컬러의 최근 줄 꼴 그대로 */
+import { wireTextStyleCodeFields } from './text-style-code-field.js';            /* ★스타일 번호 칸(1012t1E5) — 칩과 같은 입히기 길 */
 import { wireHexText, parseHex6, formatHex6, wireColorField } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { detectMix } from './prop-text-mix-detect.js';
@@ -974,6 +975,8 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     try { window.showTextProperties?.(tb); } catch (_) {}
   };
   wireAllTextStyleChips({ p: 'txt', onPick: _applyRecentStyle });
+  /* ★스타일 번호 칸(1012t1E5) — 붙여넣기도 «같은 입히기 함수»를 탄다(켜기 → 입히기 · 히스토리 1칸 · 패널 다시 그리기). */
+  wireTextStyleCodeFields({ p: 'txt', tb, contentEl: ctx.contentEl, onPick: _applyRecentStyle });
 
   /* ── ★점 찍기(방점) — 글자 ★위에 점, ★글자마다 하나 ─────────────────────────────────
    * (2026-10-08 수지 ⑥: 「텍스트 위 ★점 찍기(세 글자 선택→점 3개·간격·xy·크기·색상 변경)」 · ⚠️출처 2차)
