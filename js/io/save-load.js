@@ -7,6 +7,7 @@ import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 import { _resumeDragSave } from '../section-drag.js';   // [H6] 드래그 억제는 «켠 쪽»이 닫는다
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
+import { seedPaperTexturesOnce } from '../data/paper-textures.js';   /* 1013t2A4 종이 텍스처 8장 — «한 번만» 시드 · 보호 안 함 */
 import { applyFrameTransform } from '../frame-geometry.js';
 import { checkerBg } from '../checker-tokens.js';
 import { applyCanvasBackground, syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) · T6 섹션 안 글자 밝기 */
@@ -832,6 +833,8 @@ function applyProjectData(data) {
     }
     // 노트패널 하위폴더 + 배경 패턴 6종 멱등 시드 (안정 id로 재로드 중복 방지)
     seedNoteBgPatterns(_texFolder);
+    // 「texture paper」 하위폴더 + 종이 8장 — 프로젝트당 «한 번만»(표식 = background 폴더 seeded[]). 지우면 안 돌아온다.
+    seedPaperTexturesOnce(_texFolder);
     window.buildLayerPanel(); // also calls buildFilePageSection
     window.showPageProperties();
     window.renderChecklistPanel?.();

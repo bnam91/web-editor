@@ -2035,6 +2035,19 @@ ipcMain.handle('assets:readFile', (_e, { projectId, blobPath } = {}) => {
   }
 });
 
+/* 1013t2A4 — 앱 동봉 에셋(트리 노드의 `bundled`)을 data URL 로. 가드는 main/bundled-asset.js(assets/textures/ 안 · 이미지 확장자만).
+   asar 안에서도 fs.readFileSync 가 읽는다. */
+ipcMain.handle('assets:readBundled', (_e, { bundled } = {}) => {
+  try {
+    const r = require('./main/bundled-asset').resolveBundledAsset(__dirname, bundled);
+    if (!r.ok) return r;
+    if (!fs.existsSync(r.full)) return { ok: false, error: 'not_found' };
+    return { ok: true, dataUrl: `data:${r.mime};base64,${fs.readFileSync(r.full).toString('base64')}` };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.handle('assets:deleteFile', (_e, { projectId, blobPath } = {}) => {
   if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
   try {
@@ -7014,7 +7027,7 @@ async function _invokeRendererAssetsTree() {
                      favorite: !!n.favorite,
                      url: n.type === 'url' ? (n.url || null) : undefined,
                      /* ⛔src 는 «절대» 안 싣는다 — dataURL 이 응답에 실리면 대화가 터진다 */
-                     hasSrc: !!(n.src || n.blobPath), blobPath: n.blobPath || null,
+                     hasSrc: !!(n.src || n.blobPath || n.bundled), blobPath: n.blobPath || null, bundled: n.bundled || null,
                      children: (n.children || []).length });
           walk(n.children, depth + 1, n.id);
         }
