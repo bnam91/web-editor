@@ -856,7 +856,9 @@ test('M6d 인라인 편집 중 — 라벨에 점선 테두리가 실제로 그�
   await commitField(page);
   const outline = () => page.evaluate(() => { const lab = document.querySelectorAll('#secA .sticker-block[data-count]')[2].querySelector(':scope > .sticker-count-label');
     const c = getComputedStyle(lab); return { edit: lab.getAttribute('contenteditable'), style: c.outlineStyle, wide: parseFloat(c.outlineWidth) > 0, inline: /outline/.test(lab.getAttribute('style') || '') }; });
-  expect(await outline(), '★전제: 편집 전에는 테두리가 없다 · 인라인 style 에 outline 을 안 쓴다').toEqual({ edit: null, style: 'none', wide: false, inline: false });
+  /* 편집 전의 «굵기»는 안 본다 — outline-style 이 none 이어도 이 chromium 은 computed outline-width 를 3px 로 돌려준다(3차 첫 실행에서 쟀다). 그려지는가는 style 이 정한다. */
+  const idle = await outline();
+  expect([idle.edit, idle.style, idle.inline], '★전제: 편집 전에는 테두리가 없다(style none) · 인라인 style 에 outline 을 안 쓴다').toEqual([null, 'none', false]);
   const r = await waitStableRect(page, '#secA .sticker-block.selected');
   await clickAt(page, r.cx, r.cy, { sel: '.sticker-block[data-count]' }, { label: '마커 더블클릭', dbl: true });
   await expect.poll(() => page.evaluate(() => document.activeElement?.classList.contains('sticker-count-label') || false), '★전제: 라벨 편집이 열렸다').toBe(true);
