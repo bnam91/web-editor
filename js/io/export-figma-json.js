@@ -4,6 +4,8 @@ import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';
 import { getTextGradient, hasPaintingTextEffect, textShadowSource } from '../props/text-block-color.js';
 import { parseGradient } from '../props/gradient-model.js';
 import { readRedact, redactPx, normalizeRedact } from '../effects/image-redact.js';   /* ★이미지 블러(Redact, 1012t1 C1) */
+import { collabParams, collabSlotSrc } from '../blocks/logo-collab.js';   /* ★1013t2A2 로고 콜라보 */
+import { COLLAB_GLYPH } from '../blocks/logo-collab-model.js';
 
 const CANVAS_W = 860;
 
@@ -21,6 +23,42 @@ const _REDACT_COVER = '#4a4a4a';   // 모자이크 안전실패 색과 같은 �
 function _imageRedactField(el) {
   const v = readRedact(el);
   return v > 0 ? { intensity: v, blurPx: redactPx(v), cover: _REDACT_COVER } : null;
+}
+/* ★1013t2A2 로고 «콜라보» — [로고1 × 로고2 (× 로고3)] 를 «자유 프레임» 하나로 싸서 낸다(G14 icon-circle 선례 · 렌더러 무변경).
+ *   좌표는 «모델»(collabGeometry)에서 — DOM 측정 아님(줌 무관). 칸1 = 기존 이미지 블록 출력(블러 포함) · 칸2·3 = 그 칸 img src.
+ *   × = text 블록(키는 위 text 갈래와 같다) · 색·글꼴은 라이브 .asset-collab-x 의 computed 값(var() 를 푼 값).
+ *   ⛔꺼짐(data-collab 없음)이면 이 함수를 안 부른다 — 옛 type:'image' 바이트 그대로. */
+function _assetCollabFigmaFrame(el, slot1) {
+  const p = collabParams(el);
+  const H = Math.round(p.H), S = p.S;
+  const live = (el.id && document.getElementById(el.id)) || el;
+  const xEl = live.querySelector(':scope > .asset-collab > .asset-collab-x');
+  const cs = xEl ? getComputedStyle(xEl) : null;
+  const radius = parseFloat(el.style.borderRadius) || 0;
+  const children = [{ x: p.geo.slots[0], y: 0, w: S, block: { ...slot1, height: H, sizePct: 100, padX: 0 } }];
+  for (let k = 2; k <= p.n; k++) {
+    const xLeft = p.geo.xs[k - 2];
+    children.push({ x: Math.round(xLeft), y: Math.round((H - p.x) / 2), w: p.x, block: {
+      type: 'text', variant: 'body', id: (el.id || 'ab') + '__x' + (k - 1),
+      content: COLLAB_GLYPH, height: p.x, liveWidth: p.x,
+      style: {
+        fontSize: (cs && cs.fontSize) || (p.x + 'px'),
+        fontWeight: (cs && cs.fontWeight) || '400',
+        fontFamily: (cs && cs.fontFamily) || '',
+        color: (cs && cs.color) || p.color || '#555555',
+        textAlign: 'center',
+        lineHeight: (cs && cs.lineHeight) || (p.x + 'px'),
+        letterSpacing: '', textShadow: '',
+      },
+      padding: { top: 0, right: 0, bottom: 0, left: 0 },
+    } });
+    children.push({ x: Math.round(p.geo.slots[k - 1]), y: 0, w: S, block: {
+      type: 'image', id: (el.id || 'ab') + '__logo' + k, height: H, sizePct: 100, padX: 0,
+      style: { borderRadius: radius }, src: collabSlotSrc(live, k) || collabSlotSrc(el, k) || null,
+      overlayOn: false, overlayText: '', overlayColor: '', overlayBg: 0,
+    } });
+  }
+  return { type: 'frame', id: (el.id || slot1.id) + '__collab', width: Math.round(p.geo.width), height: H, bg: '', radius: 0, free: true, children };
 }
 function _shapeFigmaBlock(el) {
   const live = (el.id && document.getElementById(el.id)) || el;
@@ -467,7 +505,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       const overlayText    = overlayOn ? (ovEl?.innerText || '') : '';
       const overlayColor   = overlayOn ? (ovEl?.style.color || '#ffffff') : '';
       const overlayBg      = overlayOn ? parseFloat(ovEl?.dataset.ovOpacity ?? '0.35') : 0;
-      return {
+      const _assetOut = {
         type: 'image',
         id: el.id || ('ab_' + Math.random().toString(36).slice(2, 8)),
         height: parseFloat(el.style.height) || 780,
@@ -484,6 +522,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           return redact ? { src: null, redact } : {};
         })(),
       };
+      return el.dataset.collab ? _assetCollabFigmaFrame(el, _assetOut) : _assetOut;   // ★1013t2A2
     }
     if (el.classList.contains('icon-circle-block')) {
       const size    = parseInt(el.dataset.size) || 240;

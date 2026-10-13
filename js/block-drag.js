@@ -1473,6 +1473,13 @@ function bindBlock(block) {
       e.stopPropagation();
       // 영상 트림 미리보기 단계는 pan/zoom 편집 미지원(프로퍼티 패널 트림 UI로 조작) — enterImageEditMode 미스매치 방지
       if (block.dataset.assetType === 'video-pending') return;
+      /* ★1013t2A2 로고 콜라보 — 로고 2·3 칸을 더블클릭하면 그 칸에 넣는다. 칸1 은 «교체»(위치 조절 틀이 블록 전체 폭을 재서 틀린다). */
+      if (block.dataset.collab) {
+        const slot = e.target.closest?.('.asset-collab-slot');
+        if (slot && block.contains(slot)) { window.triggerCollabSlotUpload?.(block, parseInt(slot.dataset.slot)); return; }
+        window.triggerAssetUpload(block);
+        return;
+      }
       if (block.classList.contains('has-image')) {
         window.enterImageEditMode(block);
       } else {
@@ -1499,6 +1506,12 @@ function bindBlock(block) {
       // TODO-QA: 비이미지/영상 파일 드롭 시 사용자 피드백 없음(무시됨). 토스트 안내 추가 검토
       if (file && !file.type.startsWith('image/') && !file.type.startsWith('video/')) {
         window.showToast?.('이미지 또는 영상 파일만 업로드할 수 있습니다.');
+        return;
+      }
+      /* ★1013t2A2 — 콜라보 로고 2·3 칸 위에 떨어뜨리면 그 칸(이미지만 — 영상은 칸1 에만). */
+      const _collabSlot = block.dataset.collab ? e.target.closest?.('.asset-collab-slot') : null;
+      if (file && _collabSlot && block.contains(_collabSlot)) {
+        window.loadImageToCollabSlot?.(block, parseInt(_collabSlot.dataset.slot), file);
         return;
       }
       if (file && file.type.startsWith('video/')) window.loadVideoToAsset(block, file);

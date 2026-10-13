@@ -249,7 +249,8 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
    ⇒ 클리핑 임자(.asset-img)는 바로 윗줄의 폴백에 맡기고, 이 줄은 그 밖의 img 만 본다.
      CSSOM 이 막혀 appCss 가 비어도 윗줄이 cover 를 책임지므로 폴백은 그대로다.
    회귀: tests/dom/export-html-app-css.dom.spec.js A5·A5-src · tests/unit/export-html-asset-img.test.mjs */
-.asset-block.has-image img:not(.asset-img){display:block;max-width:100%;height:auto;}
+/* ★1013t2A2 — 콜라보 로고 2·3 칸 img(.asset-collab-img)도 칸 상자를 꽉 채워야 한다(앱 CSS 수확이 그린다) ⇒ 이 폴백에서 뺀다. */
+.asset-block.has-image img:not(.asset-img):not(.asset-collab-img){display:block;max-width:100%;height:auto;}
 /* group */
 .group-block{width:100%;}
 .group-inner{display:flex;flex-direction:column;}

@@ -896,6 +896,9 @@ function addAssetBlock(preset, opts = {}) {
     if (preset && ASSET_PRESETS[preset]) {
       block.style.height = ASSET_PRESETS[preset].height + 'px';
       if (ASSET_PRESETS[preset].width) block.style.width = ASSET_PRESETS[preset].width + 'px';
+      /* ★1013t2A2(decisions ② 덤) — 메뉴 「Logo」 로 «새로 만들 때만» 로고 표식을 붙인다(패널 Logo 단추와 같은 표식).
+         옛 블록·저장본은 안 건드린다 — 표식 없는 옛 로고는 inspector 근사(200×64)가 그대로 센다. */
+      if (preset === 'logo') block.dataset.preset = 'logo';
     }
     // preset 고정 width가 있으면(logo 등) opts.width로 덮어쓰지 않음
     if (opts.width && !ASSET_PRESETS[preset]?.width) block.style.width = opts.width + 'px';

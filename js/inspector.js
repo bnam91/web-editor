@@ -230,7 +230,8 @@ if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined' &
 }
 
 export function logoBlocksOf(assetBlocks) {
-  return [...assetBlocks].filter(ab => ab.dataset.preset === 'logo' || _isLogoSized(ab));
+  /* ★1013t2A2 — 콜라보 켠 로고는 폭이 200 이 아니라(로고 2~3 칸) 규격 근사에서 빠진다 ⇒ data-collab 도 로고로 센다(한 블록 = 1). */
+  return [...assetBlocks].filter(ab => ab.dataset.preset === 'logo' || _isLogoSized(ab) || !!ab.dataset.collab);
 }
 
 function renderInspectorPanel() {
