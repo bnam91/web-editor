@@ -97,6 +97,7 @@ function _renderStickerBlockInner(block) {
       metal: d.coinMetal || D.metal, face: d.coinFace, side: d.coinSide,
       glyph: d.coinGlyph ?? D.glyph,
       k: n(d.coinK, D.k) / 100, gloss: n(d.coinGloss, D.gloss),
+      blur: n(d.coinBlur, 0),   // 번짐(1013t2C3) — 없으면 0(= 옛 저장본은 그림이 그대로다)
       extRot: _stkRot,
     });
     return;
@@ -434,7 +435,7 @@ function rememberStickerStyle(block) {
      glow 와 같은 까닭으로 ⛔__last 에는 안 올린다 — 올리면 일반 「Sticker」 단추가 코인을 낳는다.
      각인은 빈 값('' = 각인 없음)도 뜻이 있어 put(빈 값 건너뜀)을 쓰지 않는다. */
   if (shape === 'coin') {
-    ['coinMetal', 'coinFace', 'coinSide', 'coinGlyph', 'coinK', 'coinGloss'].forEach((k) => { if (d[k] !== undefined) slot[k] = d[k]; });
+    ['coinMetal', 'coinFace', 'coinSide', 'coinGlyph', 'coinK', 'coinGloss', 'coinBlur'].forEach((k) => { if (d[k] !== undefined) slot[k] = d[k]; });
     slot.shape = shape;
     _lastStickerStyle.coin = slot;
     return;
@@ -536,6 +537,7 @@ function makeStickerBlock(opts = {}) {
     block.dataset.coinGlyph = opts.coinGlyph ?? D.glyph ?? '$';
     block.dataset.coinK     = opts.coinK     ?? D.k     ?? 22;
     block.dataset.coinGloss = opts.coinGloss ?? D.gloss ?? 22;
+    if (opts.coinBlur !== undefined) block.dataset.coinBlur = opts.coinBlur;   // 번짐 — 준 것만 적는다(없음 = 0)
     block.dataset.sizeW     = opts.sizeW     ?? opts.size ?? D.size ?? 120;
     block.dataset.sizeH     = opts.sizeH     ?? opts.size ?? D.size ?? 120;
     block.dataset.size      = Math.max(+block.dataset.sizeW || 0, +block.dataset.sizeH || 0);

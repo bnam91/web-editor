@@ -10,7 +10,9 @@
    CoinFx.DEFAULTS            { metal:'gold', glyph:'$', k:22, gloss:22, size:120 }
                               ★k·gloss 는 «퍼센트 정수»(dataset 에 적는 꼴)다. svg() 에는 k 만 ÷100 해서 넘긴다.
    CoinFx.GLYPH_MAX           2 — 각인 글자 수 상한. 그리개도 패널도 이 수를 읽는다.
-   CoinFx.LIMITS              { k:[8,40], gloss:[0,100] } — 두께 %·광택의 범위. 패널의 칸(min/max)과 그리개의 가두기가 «같은 표»를 읽는다.
+   CoinFx.LIMITS              { k:[8,40], gloss:[0,100], blur:[0,14] } — 두께 %·광택·번짐의 범위. 패널의 칸(min/max)과 그리개의 가두기가 «같은 표»를 읽는다.
+                              ★blur 의 범위는 섹션 파티클의 「번짐」(ParticlesFx.RANGES.blur)과 «같은 수»다(1013t2C3) — 두 표가 갈리면
+                                tests/unit/coin-sticker-draw.test.mjs 「번짐」 칸이 빨개진다.
    CoinFx.cutGlyph(s)         → 각인 글자 정리: 공백뿐이면 ''(= 각인 없음), 아니면 앞에서 GLYPH_MAX «글자»만.
                               글자 = 그래핌(Intl.Segmenter — 이음표로 묶인 이모지·결합 부호가 반쪽 나지 않는다), 없는 엔진에선 코드포인트.
                               그리개와 패널이 이 함수 하나를 쓴다(칸에 보이는 글자 = 그려지는 글자).
@@ -27,13 +29,29 @@
              glyph(각인 · 기본 '$' · '' = 없음 · cutGlyph 로 자르고 & < > " 를 이스케이프한다),
              metal('gold'|'silver'|'custom') + face · side,
              extRot(상자에 바깥에서 걸린 회전 · CSS 각도 = 시계가 + · «빛 방향 보정»에만 쓴다 — 그림을 돌리지는 않는다) }
-       · id 는 «접두에서만» 짓는다: <접두>s · f · d · h · i · g · cf · ch (접두의 [^A-Za-z0-9_-] 는 벗긴다).
+       · id 는 «접두에서만» 짓는다: <접두>s · f · d · h · i · g · cf · ch (＋번짐이 켜지면 b) (접두의 [^A-Za-z0-9_-] 는 벗긴다).
          ⛔전역 카운터 없음 — 같은 입력 = 같은 문자열. pushHistory 의 무변화 차단과 저장본 비교가 이 성질에 기댄다.
        · viewBox 는 각도와 무관하게 [-m,-m,2m,2m] (m = 100·(0.5+k)) «고정» ⇒ 다시뽑기에 코인 크기가 출렁이지 않는다.
          preserveAspectRatio="xMidYMid meet" 라 상자 비율이 깨져도 코인은 둥글다. 상자 한 변 S 일 때 지름 = S ÷ (1 + 2k).
        · class 속성을 내지 않는다(배송본의 CSS 쓸기 규칙에 안 걸리게).
        · ★어떤 입력에도 던지지 않는다 — 저장본을 다시 열 때 스티커를 차례로 그리는데(rebindAll), 하나가 던지면 뒤 스티커가 전부 안 그려진다.
          못 읽는 수(NaN·빈 값·무한)는 기본값, 범위 밖은 끝값, 모르는 재질·색은 금으로 떨어진다.
+
+   CoinFx.draw({ idPrefix, x, y, d, tilt, dir, extRot, metal, face, side, glyph, k, gloss })
+                              → <g> 글자 — 중심 (x,y) · 지름 d 인 코인 한 닢(<svg> 껍데기 없음). 남의 SVG 안에 여러 닢을 그릴 때 쓴다
+                                (섹션 파티클의 모양 'coin' — js/fx/particles-render.js · 1013t2E3). k 는 svg() 와 같은 «비율» · 같은 가두기.
+   CoinFx.lookFromColor(c)    → { metal } | { metal:'custom', face, side } — 색 한 칸에서 코인 생김새를 고른다(파티클 색 칩 → 코인).
+                                금/은 대표 앞면 색 그대로면 그 금속 표, 다른 색이면 그 색에서 만든 커스텀, 못 읽는 색이면 금.
+   CoinFx.inkBox({ tilt, dir, k, rot })
+                              → { x0, y0, x1, y1, m } — 코인 «그림»이 차지하는 상자(viewBox 단위 · 중심 0,0 · m = viewBox 반 변).
+                                상자(스티커)에는 그림 둘레에 빈 여백이 있다 — 「코인의 10% 를 섹션 안에 남긴다」(1013t2C2)는 이 상자로 잰다.
+                                rot = 스티커 상자의 CSS 회전(도). 번짐이 넓힌 만큼은 넣지 않는다.
+
+   ★번짐(svg 의 blur · 1013t2C3) — 섹션 파티클의 「번짐」과 같은 꼴이다: <filter><feGaussianBlur stdDeviation="0 v">(세로로만).
+       · 0 이면 필터도 감싸는 <g> 도 안 낸다 ⇒ 번짐 없는 코인의 글자는 한 자도 안 바뀐다(옛 저장본 그대로).
+       · 값 1 = 기본 크기(DEFAULTS.size) 상자에서 세로 1px. 상자를 키우면 번짐도 같이 커진다(그림과 함께 늘어난다) —
+         그리개가 상자 크기를 읽지 않으므로 같은 입력 = 같은 글자가 지켜진다.
+       · 필터 id = <접두>b. 상자의 CSS 회전이 걸리면 번지는 방향도 같이 돈다.
 
    ★난수는 window.FxSeed.mulberry32 «만» 쓴다(js/fx/seeded-random.js). ⛔이 파일에서 Math.random 을 부르지 마라
      — 리로드·undo·내보내기가 매번 다시 그리므로 그림이 달라진다. 새 무늬번호(FxSeed.newSeed)는 호출자가
@@ -61,7 +79,7 @@
   const WHITE = '#ffffff', BLACK = '#000000';
   const COIN_K = 0.22;      /* 두께 비율 기본값 */
   const GLYPH_MAX = 2;
-  const LIMITS = Object.freeze({ k: Object.freeze([8, 40]), gloss: Object.freeze([0, 100]) });
+  const LIMITS = Object.freeze({ k: Object.freeze([8, 40]), gloss: Object.freeze([0, 100]), blur: Object.freeze([0, 14]) });
   const DEFAULTS = Object.freeze({ metal: 'gold', glyph: '$', k: 22, gloss: 22, size: 120 });
 
   /** 색 문자열 → '#rrggbb' (알파 버림). 못 읽으면 null. */
@@ -97,6 +115,13 @@
       return customPalette(toHex6(o.face) || base.face, toHex6(o.side) || base.side);
     }
     return paletteOf(metal);
+  }
+  /** 색 한 칸 → 코인 생김새. 금/은 대표 앞면 색이면 그 금속, 다른 색이면 그 색의 커스텀(옆면 = 한 단 어둡게), 못 읽으면 금. */
+  function lookFromColor(c) {
+    const hex = toHex6(c);
+    if (!hex) return { metal: DEFAULTS.metal };
+    for (const m of Object.keys(PALETTES)) if (baseColors(m).face === hex) return { metal: m };
+    return { metal: 'custom', face: hex, side: mix(hex, BLACK, .3) };
   }
 
   /* 각인은 SVG <text> 의 글자로 들어간다 — 사용자가 친 글자를 그대로 마크업에 꽂지 않는다.
@@ -200,14 +225,46 @@
   }
 
   const SVG_D = 100;   /* viewBox 안에서의 코인 지름 */
+  const kOf = (o) => clamp(num(o && o.k, COIN_K), LIMITS.k[0] / 100, LIMITS.k[1] / 100);   /* 범위 밖이면 viewBox 가 0 이나 천문학적 수가 되어 코인이 안 보인다 */
   function svg(o) {
-    const k = clamp(num(o.k, COIN_K), LIMITS.k[0] / 100, LIMITS.k[1] / 100);   /* 범위 밖이면 viewBox 가 0 이나 천문학적 수가 되어 코인이 안 보인다 */
+    const k = kOf(o);
     const m = SVG_D * (0.5 + k);
+    let body = coin({ ...o, k }, SVG_D);
+    /* 번짐 — 세로로만(파티클 「번짐」과 같은 꼴). 0 이면 아무것도 안 붙는다. 필터 영역은 번지는 만큼 세로로 넓힌다(기본 영역은 번짐을 자른다). */
+    const blur = clamp(num(o.blur, 0), LIMITS.blur[0], LIMITS.blur[1]);
+    if (blur > 0) {
+      const sd = blur * (2 * m) / DEFAULTS.size;
+      const pm = Math.ceil(3 * sd) + 8;
+      const id = cleanId(o.idPrefix);
+      body = `<defs><filter id="${id}b" filterUnits="userSpaceOnUse" x="${f(-m)}" y="${f(-m - pm)}" width="${f(2 * m)}" height="${f(2 * m + 2 * pm)}" color-interpolation-filters="sRGB">`
+        + `<feGaussianBlur in="SourceGraphic" stdDeviation="0 ${f(sd)}"/></filter></defs>`
+        + `<g filter="url(#${id}b)">${body}</g>`;
+    }
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f(-m)} ${f(-m)} ${f(2 * m)} ${f(2 * m)}" preserveAspectRatio="xMidYMid meet"`
       + ' width="100%" height="100%" style="display:block;overflow:visible;pointer-events:none;">'
-      + coin({ ...o, k }, SVG_D)
+      + body
       + '</svg>';
   }
 
-  w.CoinFx = Object.freeze({ PALETTES, DEFAULTS, GLYPH_MAX, LIMITS, cutGlyph, toHex6, baseColors, paletteFor, angleFromSeed, svg });
+  /** 코인 한 닢을 <g> 로 — 중심 (x,y) · 지름 d. 남의 SVG 안에 그릴 때(섹션 파티클의 모양 'coin'). */
+  function draw(o) {
+    const q = o || {};
+    const d = Math.max(1, num(q.d, SVG_D));
+    return `<g transform="translate(${f(num(q.x, 0))} ${f(num(q.y, 0))})">` + coin({ ...q, k: kOf(q) }, d) + '</g>';
+  }
+
+  /** 코인 «그림»의 상자(viewBox 단위 · 중심 0,0). 앞면 타원 ＋ 옆띠만큼 밀린 뒷면 타원을 (dir ＋ rot) 만큼 돌린 것의 바깥 상자다. */
+  function inkBox(o) {
+    const q = o || {};
+    const k = kOf(q), r = SVG_D / 2, m = SVG_D * (0.5 + k);
+    const tau = clamp(num(q.tilt, 0), 0, 88) * Math.PI / 180;
+    const ry = r * Math.max(Math.cos(tau), 0.03), dep = SVG_D * k * Math.sin(tau);
+    const a = (-(num(q.dir, 0) % 360) + (num(q.rot, 0) % 360)) * Math.PI / 180;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const hx = Math.sqrt(r * r * ca * ca + ry * ry * sa * sa), hy = Math.sqrt(r * r * sa * sa + ry * ry * ca * ca);
+    const sx = -dep * sa, sy = dep * ca;           /* 옆띠 방향(코인 좌표 +y)을 화면으로 돌린 것 */
+    return { x0: Math.min(-hx, sx - hx), y0: Math.min(-hy, sy - hy), x1: Math.max(hx, sx + hx), y1: Math.max(hy, sy + hy), m };
+  }
+
+  w.CoinFx = Object.freeze({ PALETTES, DEFAULTS, GLYPH_MAX, LIMITS, cutGlyph, toHex6, baseColors, paletteFor, lookFromColor, angleFromSeed, svg, draw, inkBox });
 })(window);

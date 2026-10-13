@@ -1,14 +1,15 @@
-/* _coin-look.js — 코인의 «생김새» 행 묶음: 재질(금/은/커스텀 · 커스텀일 때만 앞면 색·옆면 색) · 각인 · 두께 · 광택.
+/* _coin-look.js — 코인의 «생김새» 행 묶음: 재질(금/은/커스텀 · 커스텀일 때만 앞면 색·옆면 색) · 각인 · 두께 · 광택 · 번짐.
  *   코인 스티커 패널(js/props/prop-sticker-coin.js)이 Coin 절 안에 끼운다.
  *   이 파일은 «어디에 저장하는지» 모른다 — 호출자가 id 접두와 get/set/commit 을 준다:
- *     coinLookHTML(idp, v)                     v = { metal, face, side, glyph, k, gloss }  (k·gloss 는 퍼센트 정수)
+ *     coinLookHTML(idp, v)                     v = { metal, face, side, glyph, k, gloss, blur }  (k·gloss 는 퍼센트 정수)
  *     wireCoinLook(panel, idp, { get, set, commit })
  *        get()         → 지금 값 v (위와 같은 꼴 · 빈 칸·범위 밖은 여기서 정리한다)
  *        set(patch)    → patch 의 키만 저장하고 다시 그린다(히스토리는 안 찍는다)
  *        commit(label) → 히스토리 한 칸(push-after) + 자동저장
  *   ⛔금/은의 색 값은 여기 없다 — js/fx/coin-draw.js 의 CoinFx.PALETTES 한 곳뿐이다(색칸의 첫 값도 CoinFx.baseColors 에서).
  *   색칸의 불투명도 칸은 숨긴다 — 코인 색은 불투명뿐이다(그리개가 알파를 버린다 — CoinFx.toHex6). 보이는 채 두면 값이 먹는 것처럼 보인다.
- *   두께·광택의 범위(CoinFx.LIMITS)와 각인 자르기(CoinFx.cutGlyph)는 그리개 것을 그대로 읽는다 — 칸에 보이는 값 = 그려지는 값.
+ *   번짐(1013t2C3) = 섹션 파티클의 「번짐」과 같은 꼴(라벨 · 슬라이더 ＋ 숫자칸) · 같은 범위(CoinFx.LIMITS.blur = ParticlesFx.RANGES.blur). 0 = 끔.
+ *   두께·광택·번짐의 범위(CoinFx.LIMITS)와 각인 자르기(CoinFx.cutGlyph)는 그리개 것을 그대로 읽는다 — 칸에 보이는 값 = 그려지는 값.
  *   각인 행은 「각인 + 직접 입력 칸」 한 줄, 그 아래 칩 다섯을 라벨 없이 한 줄(라벨 옆에는 칩 넷까지만 들어가 다섯째가 혼자 둘째 줄로 떨어진다).
  *   숫자칸의 범위·빈 값 처리는 칸의 min/max 를 읽는 공용 가드(prop-number-commit-guard.js)가 한다.
  */
@@ -38,6 +39,7 @@ function norm(v) {
     glyph: v?.glyph == null ? (D.glyph ?? '$') : cutGlyph(v.glyph),
     k: clamp(int(v?.k, D.k ?? 22), ...limits('k')),
     gloss: clamp(int(v?.gloss, D.gloss ?? 22), ...limits('gloss')),
+    blur: clamp(int(v?.blur, 0), ...limits('blur')),
   };
 }
 
@@ -46,7 +48,7 @@ export function coinLookHTML(idp, value) {
   const custom = v.metal === 'custom';
   const on = (c) => (c ? ' active' : '');
   const n = glyphMax();
-  const [K_MIN, K_MAX] = limits('k'), [GLOSS_MIN, GLOSS_MAX] = limits('gloss');
+  const [K_MIN, K_MAX] = limits('k'), [GLOSS_MIN, GLOSS_MAX] = limits('gloss'), [BLUR_MIN, BLUR_MAX] = limits('blur');
   return `
       <div class="prop-row"><span class="prop-label">재질</span>
         <div class="prop-align-group" id="${idp}-metal">
@@ -74,6 +76,10 @@ export function coinLookHTML(idp, value) {
       <div class="prop-row"><span class="prop-label">광택</span>
         <input type="range" class="prop-slider" id="${idp}-gloss" min="${GLOSS_MIN}" max="${GLOSS_MAX}" step="1" value="${v.gloss}">
         <input type="number" class="prop-number" id="${idp}-gloss-num" min="${GLOSS_MIN}" max="${GLOSS_MAX}" value="${v.gloss}">
+      </div>
+      <div class="prop-row"><span class="prop-label">번짐</span>
+        <input type="range" class="prop-slider" id="${idp}-blur" min="${BLUR_MIN}" max="${BLUR_MAX}" step="1" value="${v.blur}">
+        <input type="number" class="prop-number" id="${idp}-blur-num" min="${BLUR_MIN}" max="${BLUR_MAX}" value="${v.blur}" aria-label="번짐">
       </div>`;
 }
 
@@ -162,4 +168,5 @@ export function wireCoinLook(panel, idp, { get, set, commit }) {
 
   wireCoinPair(panel, `${idp}-k`, `${idp}-k-num`, (v) => set({ k: v }), () => commit('코인 두께'));
   wireCoinPair(panel, `${idp}-gloss`, `${idp}-gloss-num`, (v) => set({ gloss: v }), () => commit('코인 광택'));
+  wireCoinPair(panel, `${idp}-blur`, `${idp}-blur-num`, (v) => set({ blur: v }), () => commit('코인 번짐'));
 }

@@ -39,6 +39,41 @@ function _clampToSection(x, y, sec, blockW, blockH) {
 }
 window._clampToSection = _clampToSection;
 
+/* ── 코인 스티커 — 섹션 밖으로 나가도 «코인의 10% 는 섹션 안에 남긴다» (1013t2C2) ──────────────
+   패널의 X·Y 칸(js/props/prop-sticker-coin.js)과 ⌘ 자유 이동이 이 한 자리를 읽는다. 밖으로 나간 부분은
+   섹션 밖 크롭(--sec-clip · js/blocks/sticker-block.js _updateStickerSecClip)이 자른다.
+   ★재는 것은 «상자»가 아니라 «그림»이다 — 코인 상자에는 그림 둘레로 빈 여백이 있어(두께 22% 에서 한쪽 약 15%),
+     상자의 10% 를 남기면 그림은 통째로 밖에 있을 수 있다. 그림 상자는 그리개가 준다(CoinFx.inkBox · 기울기·방향·두께·회전 반영).
+   ★가로·세로를 따로 잰다(축마다 그림 폭·높이의 10%). 번짐이 넓힌 만큼은 세지 않는다.
+   좌표는 정수로 적히므로 안쪽으로 올림/내림한다(경계에서 10% 아래로 안 내려가게). */
+const COIN_KEEP_RATIO = 0.1;
+window.COIN_KEEP_RATIO = COIN_KEEP_RATIO;
+/** 코인 스티커의 x·y 가 가질 수 있는 범위. 코인이 아니거나 그리개가 없으면 null. */
+function _coinKeepRange(block, sec) {
+  const C = window.CoinFx;
+  if (!block || !sec || block.dataset.shape !== 'coin' || !C || typeof C.inkBox !== 'function') return null;
+  const d = block.dataset;
+  const n = (v, fb) => { const p = parseFloat(v); return Number.isFinite(p) ? p : fb; };
+  const W = n(d.sizeW, n(d.size, block.offsetWidth || 0)), H = n(d.sizeH, n(d.size, block.offsetHeight || 0));
+  if (!(W > 0) || !(H > 0)) return null;
+  const b = C.inkBox({ tilt: n(d.coinTilt, 0), dir: n(d.coinDir, 0), k: n(d.coinK, C.DEFAULTS.k) / 100, rot: n(d.rotation, 0) });
+  const s = Math.min(W, H) / (2 * b.m);              /* viewBox → 상자 px (preserveAspectRatio meet · 가운데) */
+  const ix0 = W / 2 + b.x0 * s, ix1 = W / 2 + b.x1 * s, iy0 = H / 2 + b.y0 * s, iy1 = H / 2 + b.y1 * s;
+  const kw = (ix1 - ix0) * COIN_KEEP_RATIO, kh = (iy1 - iy0) * COIN_KEEP_RATIO;
+  const range = (lo, hi) => { const a = Math.ceil(lo), z = Math.floor(hi); return a <= z ? [a, z] : [Math.round((lo + hi) / 2), Math.round((lo + hi) / 2)]; };
+  const [minX, maxX] = range(kw - ix1, (sec.clientWidth || 0) - ix0 - kw);
+  const [minY, maxY] = range(kh - iy1, (sec.clientHeight || 0) - iy0 - kh);
+  return { minX, maxX, minY, maxY };
+}
+/** 좌표를 그 범위로 가둔다 → [x, y]. 코인이 아니면 null(호출자가 제 길로 간다). */
+function _clampCoinKeep(block, x, y, sec) {
+  const r = _coinKeepRange(block, sec);
+  if (!r) return null;
+  return [Math.min(r.maxX, Math.max(r.minX, Math.round(x))), Math.min(r.maxY, Math.max(r.minY, Math.round(y)))];
+}
+window._coinKeepRange = _coinKeepRange;
+window._clampCoinKeep = _clampCoinKeep;
+
 function _selectSticker(block) {
   if (!block) return;
   // 다른 selected 풀기 (deselectAll이 sticker-block도 처리)
@@ -452,14 +487,16 @@ function bindStickerSelect(block) {
         block.style.left = origX + 'px';
         block.style.top  = origY + 'px';
         window._updateStickerSecClip?.(block); // 부모 섹션이 바뀌었으니 새 경계 기준 재계산
+        window._syncCoinPosFields?.(block);
         return;
       }
       // 같은 섹션 또는 섹션 밖 — 기존 섹션 유지 + clamp (⌘=clamp 없이 자유 이동)
       const secRect = sec.getBoundingClientRect();
       const newXraw = (ev.clientX - secRect.left) / zoom - grabOffX;
       const newYraw = (ev.clientY - secRect.top)  / zoom - grabOffY;
+      /* ⌘ 자유 이동도 코인은 10% 를 남긴다(1013t2C2) — 다른 스티커는 그대로 한도 없음 */
       const [cx, cy] = freeMove
-        ? [newXraw, newYraw]
+        ? (_clampCoinKeep(block, newXraw, newYraw, sec) || [newXraw, newYraw])
         : window._clampToSection(newXraw, newYraw, sec, blockW, blockH);
       const newX = Math.round(cx);
       const newY = Math.round(cy);
@@ -470,6 +507,7 @@ function bindStickerSelect(block) {
       // 위치 드래그는 render를 안 타므로 --sec-clip 직접 갱신
       // (드래그 중엔 .selected라 CSS가 clip 무시 — 놓고 선택 해제되는 즉시 반영되도록 준비)
       window._updateStickerSecClip?.(block);
+      window._syncCoinPosFields?.(block);   // 코인 패널의 X·Y 칸이 끄는 대로 따라온다(1013t2C2)
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
