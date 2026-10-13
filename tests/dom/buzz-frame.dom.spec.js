@@ -892,20 +892,33 @@ test('BZ-20 ★⑵ 패널 높이 칸으로 줄인 «직후» 말풍선이 프레
 });
 
 /* 판정서 H-1 — 내보낸 HTML 은 편집기의 글꼴(Pretendard)이 없는 화면에서도 열린다. 대체 글꼴은 글이 더 넓다.
-   폭 여유가 모자라면 마지막 글자가 다음 줄로 떨어진다 → 스타일 6종의 낱개마다 줄 수가 편집기와 같아야 한다. */
-test('BZ-21 내보낸 HTML 을 글꼴 없는 화면에서 열어도 말풍선 글의 줄 수가 편집기와 같다(스타일 6종)', async ({ page, context }) => {
-  test.setTimeout(120000);
+   폭 여유가 모자라면 마지막 글자가 다음 줄로 떨어진다 → 스타일 6종의 낱개마다 줄 수가 편집기와 같아야 한다.
+
+   ★「글꼴 없는 화면」은 이 칸이 «스스로» 만든다(태양 게이트 2026-10-13: Pretendard 가 깔린 맥에서 전제가 안 서 2/2 빨강이었다).
+     시스템에 깔린 글꼴은 요청 차단(page.route)으로 못 막는다 ⇒ 내보낸 글자에서 글꼴 «이름»을 이 세상에 없는 이름으로 바꾼다.
+     그러면 어떤 요소도 「Pretendard」를 가리키지 않아, 깔려 있든 @font-face 로 실려 있든 그 글꼴이 뽑힐 길이 없고 다음 대체 글꼴로 내려간다.
+   ★그 우회가 「Pretendard 가 있는 화면」에서도 먹는지를 매번 같이 잰다(대조 페이지 = 레인의 woff2 를 @font-face 로 실은 화면):
+     이름을 안 바꾸면 넓어진 낱개 0(= 게이트가 본 그 헛도는 꼴) · 이름을 바꾸면 넓어진 낱개 > 0. */
+const NO_FONT = 'BuzzNoSuchFont';
+const PRETENDARD_FILES = { 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold' };
+test('BZ-21 내보낸 HTML 을 글꼴 없는 화면에서 열어도 말풍선 글의 줄 수가 편집기와 같다(스타일 6종 · 글꼴 설치 여부와 무관)', async ({ page, context }) => {
+  test.setTimeout(150000);
+  const fs = require('fs');
+  const path = require('path');
   const { errs } = await setup(page);
   const fid = await insertBuzz(page);
   /* 줄 수 = 글 슬롯의 높이 ÷ 줄 높이. 글 폭은 그 화면의 글꼴로 canvas 에 재어 «다른 글꼴로 그려졌다»는 전제를 잡는다. */
-  const measure = (pg) => pg.evaluate((fid) => [...document.getElementById(fid).querySelectorAll(':scope > .row > .modal-block')].map((m) => {
-    const slot = m.querySelector('[data-mdl-slot="text"]');
-    const cs = getComputedStyle(slot);
-    const ctx = document.createElement('canvas').getContext('2d');
-    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-    const lh = parseFloat(cs.lineHeight);
-    return { id: m.id, lines: Math.round(slot.offsetHeight / lh), lh, textW: ctx.measureText(slot.textContent).width };
-  }), fid);
+  const measure = (pg) => pg.evaluate(async (fid) => {
+    await document.fonts.ready;
+    return [...document.getElementById(fid).querySelectorAll(':scope > .row > .modal-block')].map((m) => {
+      const slot = m.querySelector('[data-mdl-slot="text"]');
+      const cs = getComputedStyle(slot);
+      const ctx = document.createElement('canvas').getContext('2d');
+      ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const lh = parseFloat(cs.lineHeight);
+      return { id: m.id, lines: Math.round(slot.offsetHeight / lh), lh, textW: ctx.measureText(slot.textContent).width, family: cs.fontFamily };
+    });
+  }, fid);
   const exportHtml = () => page.evaluate(async () => {
     const origCreate = URL.createObjectURL; const origClick = HTMLAnchorElement.prototype.click;
     let captured = null;
@@ -914,24 +927,65 @@ test('BZ-21 내보낸 HTML 을 글꼴 없는 화면에서 열어도 말풍선 �
     try { await window.exportHTMLFile(); } finally { URL.createObjectURL = origCreate; HTMLAnchorElement.prototype.click = origClick; }
     return captured ? await captured.text() : null;
   });
+  const rename = (html) => html.replace(/Pretendard/g, NO_FONT);
+  /* ① 글꼴 없는 화면 — 바깥 자원 0 + 글꼴 이름을 없는 이름으로 */
   const bare = await context.newPage();
   await bare.setViewportSize({ width: 1200, height: 900 });
-  await bare.route('**/*', (r) => r.abort());          /* 글꼴 · 그 밖의 바깥 자원 0 — 대체 글꼴로 그려진다 */
-  let wider = 0;
+  await bare.route('**/*', (r) => r.abort());
+  /* ② 대조: Pretendard 가 «있는» 화면 — 레인의 woff2 를 @font-face 로 싣는다(설치된 셈). 그 밖의 바깥 자원은 0 */
+  const withFont = await context.newPage();
+  await withFont.setViewportSize({ width: 1200, height: 900 });
+  const FONT_DIR = path.join(__dirname, '..', '..', 'assets', 'fonts', 'woff2');
+  await withFont.route('**/*', (r) => {
+    const m = /\/buzz-font\/(Pretendard-[A-Za-z]+\.woff2)$/.exec(new URL(r.request().url()).pathname);
+    if (!m) return r.abort();
+    return r.fulfill({ contentType: 'font/woff2', headers: { 'access-control-allow-origin': '*' }, body: fs.readFileSync(path.join(FONT_DIR, m[1])) });
+  });
+  const FACE = '<style>' + Object.entries(PRETENDARD_FILES).map(([w, name]) =>
+    `@font-face{font-family:'Pretendard';font-weight:${w};src:url('http://buzz-font.test/buzz-font/Pretendard-${name}.woff2') format('woff2');}`).join('') + '</style>';
+  const withFace = (html) => html.replace(/<head[^>]*>/i, (h) => h + FACE);
+  const loadFaces = () => withFont.evaluate(async (weights) => {
+    await Promise.all(weights.map((w) => document.fonts.load(`${w} 28px Pretendard`, '가나다')));
+    return weights.filter((w) => [...document.fonts].some((f) => f.family.replace(/['"]/g, '') === 'Pretendard' && f.weight === String(w) && f.status === 'loaded')).length;
+  }, Object.keys(PRETENDARD_FILES).map(Number));
+
+  const count = { bare: 0, withFontAsIs: 0, withFontRenamed: 0 };
+  const widerThan = (ex, ed) => ex.filter((x, i) => x.textW > ed[i].textW * 1.005).length;
   for (const k of STYLE_KEYS) {
     await pickStyle(page, fid, k);
     const ed = await measure(page);
     expect(ed.length === 6 && ed.every((x) => Number.isFinite(x.lh) && x.lines >= 1), `${k} 전제: 편집기에서 낱개 6의 줄 수를 쟀다 ${JSON.stringify(ed.map((x) => x.lines))}`).toBe(true);
     const html = await exportHtml();
     expect(typeof html, `${k} 전제: 내보낸 HTML 을 가로챘다`).toBe('string');
-    await bare.setContent(html, { waitUntil: 'domcontentloaded' });
+    expect(html.split('Pretendard').length - 1 > 0 && /<head[^>]*>/i.test(html), `${k} 전제: 내보낸 글자가 Pretendard 를 가리키고 head 가 있다`).toBe(true);
+    const bareHtml = rename(html);
+    expect(bareHtml.includes('Pretendard'), `${k} 전제: 바꾼 글자에는 Pretendard 라는 이름이 하나도 없다`).toBe(false);
+
+    /* ① 글꼴 없는 화면 */
+    await bare.setContent(bareHtml, { waitUntil: 'domcontentloaded' });
     const ex = await measure(bare);
     expect(ex.map((x) => x.id), `${k} 전제: 내보낸 화면에 같은 낱개 6`).toEqual(ed.map((x) => x.id));
-    wider += ex.filter((x, i) => x.textW > ed[i].textW * 1.005).length;
+    expect(ex.every((x) => x.family.includes(NO_FONT) && !x.family.includes('Pretendard')), `${k} 전제: 글 슬롯의 글꼴 이름이 없는 이름으로 바뀌었다(${ex[0].family})`).toBe(true);
+    count.bare += widerThan(ex, ed);
     expect(ex.map((x) => x.lines), `${k}: 글꼴 없는 화면의 줄 수 = 편집기의 줄 수`).toEqual(ed.map((x) => x.lines));
+
+    /* ② 대조 — Pretendard 가 있는 화면: 그대로 열면 편집기와 같은 폭(넓어진 것 0) */
+    await withFont.setContent(withFace(html), { waitUntil: 'domcontentloaded' });
+    expect(await loadFaces(), `${k} 전제(대조): Pretendard 네 굵기가 그 화면에 실렸다`).toBe(4);
+    count.withFontAsIs += widerThan(await measure(withFont), ed);
+    /* 같은 화면(Pretendard 가 실려 있다)에 이름을 바꾼 글자를 넣으면 — 우회가 먹어 대체 글꼴로 그려진다 */
+    await withFont.setContent(withFace(bareHtml), { waitUntil: 'domcontentloaded' });
+    expect(await loadFaces(), `${k} 전제(대조): 이름을 바꾼 글자를 넣어도 그 화면에는 Pretendard 가 실려 있다`).toBe(4);
+    const ex2 = await measure(withFont);
+    count.withFontRenamed += widerThan(ex2, ed);
+    expect(ex2.map((x) => x.lines), `${k}: Pretendard 가 있는 화면에서 우회를 거쳐도 줄 수 = 편집기`).toEqual(ed.map((x) => x.lines));
   }
-  expect(wider > 0, `전제: 내보낸 화면은 다른(더 넓은) 글꼴로 그려졌다 — 넓어진 낱개 ${wider}/36. 0 이면 이 기기에 편집기 글꼴이 깔려 있어 이 칸은 아무것도 못 잰다`).toBe(true);
+  console.log(`[BZ-21] 넓어진 낱개 — 글꼴 없는 화면 ${count.bare}/36 · Pretendard 있는 화면(그대로) ${count.withFontAsIs}/36 · Pretendard 있는 화면(이름 바꿈) ${count.withFontRenamed}/36`);
+  expect(count.bare > 0, `전제: 내보낸 화면은 다른(더 넓은) 글꼴로 그려졌다 — 넓어진 낱개 ${count.bare}/36`).toBe(true);
+  expect(count.withFontAsIs, `전제(대조): Pretendard 가 있는 화면에 그대로 열면 편집기와 같은 폭이다(넓어진 낱개 0) — 이름을 안 바꾸면 이 칸은 헛돈다`).toBe(0);
+  expect(count.withFontRenamed > 0, `전제(대조): Pretendard 가 있는 화면에서도 이름을 바꾸면 대체 글꼴로 그려진다 — 넓어진 낱개 ${count.withFontRenamed}/36`).toBe(true);
   await bare.close();
+  await withFont.close();
   expect(errs).toEqual([]);
 });
 
