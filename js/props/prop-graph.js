@@ -1,11 +1,11 @@
 import '../graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
 import { propPanel, state } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
 
-const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
@@ -42,15 +42,16 @@ function gridColorRowHTML(block) {
       </div>`;
 }
 
-function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS_MAX, padX, itemGap, pctSize, pctMin, barColor, barAlpha, overlayToggles = '' }) {
+/* 1012t1G2 — hideThickness: 모양(실루엣)이 켜지면 «두께» 줄을 뺀다(폭은 실루엣의 비가 정한다 — 두께 키는 안 지운다). */
+function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS_MAX, padX, itemGap, pctSize, pctMin, barColor, barAlpha, overlayToggles = '', hideThickness = false }) {
   return `
     <div class="prop-section">
-      <div class="prop-section-title">Bar Settings</div>
+      <div class="prop-section-title">Bar Settings</div>${hideThickness ? '' : `
       <div class="prop-row">
         <span class="prop-label">두께</span>
         <input type="range" class="prop-slider" id="grb-bar-thickness-slider" min="${BAR_THICKNESS_MIN}" max="${thicknessMax}" step="2" value="${barThickness}">
         <input type="number" class="prop-number" id="grb-bar-thickness-number" min="${BAR_THICKNESS_MIN}" max="${thicknessMax}" value="${barThickness}">
-      </div>
+      </div>`}
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="grb-padx-slider" min="0" max="80" step="4" value="${padX}">
@@ -78,10 +79,11 @@ function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS
 const _isGrad = (c) => typeof c === 'string' && /gradient\(/i.test(c);
 /* GR1 — 항목(막대)마다 색 칸 = colorFieldHTML(단색·그라데이션). 「미지정 = 프리셋 색」은 예전 스와치처럼 체커(.swatch-none)
  * + hex 칸 비움(placeholder 「프리셋」)으로 보인다 — 모델(item.color 없음)은 손대지 않는다. 고르는 순간에만 item.color 가 생긴다. */
-function itemColorFieldHTML(item, i) {
-  const c = item.color || '';
-  return `<div class="grb-data-color" title="바 색상 (미지정 시 프리셋 색 · 그라데이션은 막대마다 따로)">${colorFieldHTML({
-    idPrefix: 'grb-data-color-' + i,
+/* 1012t1G1 — solidOnly(원형·도넛 조각): 단색 전용. 막대에서 넘어온 그라데이션 item.color 는 «미지정»으로 보인다(렌더 _renderPie 와 같은 판정 · 모델은 안 지운다). */
+function itemColorFieldHTML(item, i, { solidOnly = false, idPrefix = 'grb-data-color-' + i, title = '' } = {}) {
+  const c = (solidOnly && _isGrad(item.color)) ? '' : (item.color || '');
+  return `<div class="grb-data-color" title="${title || (solidOnly ? '조각 색상 (미지정 시 프리셋 색)' : '바 색상 (미지정 시 프리셋 색 · 그라데이션은 막대마다 따로)')}">${colorFieldHTML({
+    idPrefix,
     hex: c && !_isGrad(c) ? c : '#4dabf7',
     alpha: c && !_isGrad(c) ? parseAlphaFromColor(c) : 100,
     placeholder: c ? '' : '프리셋',
@@ -103,6 +105,82 @@ function _wireGraphColor(prefix, { unset = false, mixed = false, ...opts } = {})
   return wireColorField(prefix, { ...opts, onApply: (c) => { if (pending && alphaEvt) return; pending = false; onApply?.(c); } });
 }
 
+/* 1012t1G1 — 그래프 유형 표 «한 자리»: 버튼(마크업)과 배선(클릭)이 같은 표를 돈다. 새 유형은 여기 한 줄 + drag-utils.js GRAPH_RENDERERS 한 줄.
+ * 기존 넷의 id 는 그대로(검사·자동화가 id 로 누른다). 버튼 6개는 3칸 두 줄 — 기존 «프리셋 버튼이 섞인 유형 그룹» 그리드를 탄다(prop-asset 6버튼과 같은 꼴 · 새 CSS 0줄). */
+const GRAPH_TYPES = [
+  { type: 'bar-v',    id: 'grb-type-v',     label: '세로 막대' },
+  { type: 'bar-h',    id: 'grb-type-h',     label: '가로 막대' },
+  { type: 'line',     id: 'grb-type-line',  label: '꺾은선' },
+  { type: 'bar-pair', id: 'grb-type-pair',  label: '비교 막대' },
+  { type: 'pie',      id: 'grb-type-pie',   label: '원형' },
+  { type: 'donut',    id: 'grb-type-donut', label: '도넛' },
+];
+const _isPieType = (t) => t === 'pie' || t === 'donut';
+
+/* 1012t1G2 — Shape 절(세로 막대 전용): 막대를 SVG 실루엣으로. 쓰는 길은 window.setGraphShape «하나»(js/graph-shape.js — 소독·한도·키 삭제가 거기 산다).
+ * 목록 = 기본 막대 + 내장 실루엣(GRAPH_SHAPE_PRESETS 표 그대로) + 사용자 SVG. 파일은 숨은 input 하나를 블럭 모양·항목 모양이 같이 쓴다. */
+const SHAPE_FAIL_TOAST = { TOO_LARGE: '⚠️ SVG가 너무 큽니다', NOT_SVG: '⚠️ 유효한 SVG가 아닙니다', EMPTY: '⚠️ 그릴 도형이 없는 SVG입니다', NO_SIZE: '⚠️ SVG에 크기(viewBox)가 없습니다', TOO_COMPLEX: '⚠️ SVG가 너무 복잡합니다(겹쳐 쓴 use)' };
+/* 항목 줄의 작은 버튼 아이콘 — 블럭 헤더 아이콘과 같은 꼴(12 격자 · 선 1.3 · 채움 없음) */
+const ITEM_SHAPE_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V2M3.5 4.5 6 2l2.5 2.5M2 10h8"/></svg>';
+/* 1012t1G4 — 마디(막대·실루엣을 비율별로 나눈 조각) 편집 줄. 항목 줄 아래 같은 꼴의 줄(라벨 · 값 · ✕ · 색) + 「+ 마디 추가」.
+ * 0번이 맨 아래 마디다. 마디가 있으면 그 항목의 값 칸은 읽기 전용(합) — 합을 쓰는 자는 graph-shape.js segSum 한 곳. 세로 막대에서만 나온다.
+ * ★다른 유형(가로·꺾은선·비교·원형)에선 마디 줄도, 읽기 전용도, «합으로 되쓰기»도 없다 — 마디는 모델에 «보존만» 하고 값 칸은 자유롭다.
+ *   거기서 값을 확정(change)하면 마디를 그 값에 같은 비율로 맞춘다(값이 이긴다 · carryItemExtras 규칙 그대로). 세로 막대로 돌아올 때 한 번 더 맞춘다(reconcileItems)
+ *   ⇒ 세로 막대에선 늘 item.value === 마디 합. 값 0 은 비율을 담을 수 없어 마디를 그대로 두고, 돌아오면 값이 마디 합으로 선다. */
+const _segsOf = (item) => (item && Array.isArray(item.segments)) ? item.segments : [];
+const _segSum = (segs) => window.GRAPH_SHAPE.segSum(segs);
+function segListHTML(item, i) {
+  const segs = _segsOf(item);
+  return `
+          <div class="grb-data-list grb-seg-list" data-item="${i}">
+            ${segs.map((sg, j) => `
+            <div class="grb-data-item grb-seg-item" data-item="${i}" data-seg="${j}">
+              <input type="text" class="grb-data-label-input" value="${escHtml(sg && sg.label)}" placeholder="마디 라벨">
+              <input type="number" class="grb-data-val-input" value="${Number(sg && sg.value) || 0}" min="0" max="9999">
+              <button class="grb-data-del-btn" data-item="${i}" data-seg="${j}" title="이 마디 지우기">✕</button>
+              ${itemColorFieldHTML(sg || {}, j, { solidOnly: true, idPrefix: 'grb-seg-color-' + i + '-' + j, title: '마디 색상 (미지정 시 막대색을 위로 갈수록 옅게)' })}
+            </div>`).join('')}
+            <button class="prop-btn-full grb-seg-add" data-item="${i}" title="이 항목을 비율별 마디로 나눈다(아래부터 쌓인다)">+ 마디 추가</button>
+          </div>`;
+}
+
+/* 1012t1G3 — 트랙(안 찬 부분) 색 칸의 «보일 값». 키가 없으면 «지금 그려진» 색 = 채움과 같은 색 · 투명도 = SHAPE_TRACK_OPACITY(렌더 기본 그대로 — 격자선 색 칸과 같은 꼴). */
+const FILL_MAX_LIMIT = 9999;   // 항목 값 칸의 위 끝과 같다
+function _trackColorShown(block) {
+  if (block.dataset.trackColor) return { c: block.dataset.trackColor, a: parseAlphaFromColor(block.dataset.trackColor) };
+  return { c: graphFieldShown(block, 'track'), a: Math.round(SHAPE_TRACK_OPACITY * 100) };
+}
+function shapeSectionHTML(block) {
+  const cur = block.dataset.barShape || '';
+  const fm = parseFloat(block.dataset.fillMax);
+  const tk = _trackColorShown(block);
+  const presets = window.GRAPH_SHAPE.GRAPH_SHAPE_PRESETS;
+  const opt = (v, label) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${label}</option>`;
+  return `
+    <div class="prop-section">
+      <div class="prop-section-title">Shape</div>
+      <div class="prop-row" title="막대를 실루엣으로 바꾼다. 값만큼 아래부터 차오른다">
+        <span class="prop-label">모양</span>
+        <select class="prop-select" id="grb-shape-select">
+          ${opt('', '기본 막대')}${Object.keys(presets).map(k => opt(k, presets[k].label)).join('')}${opt('custom', '사용자 SVG')}
+        </select>
+      </div>
+      <div class="prop-row" title="SVG 파일을 실루엣으로 쓴다(색은 그래프 색을 따른다)">
+        <span class="prop-label">파일</span>
+        <button class="prop-btn-sm" id="grb-shape-file-btn">SVG 불러오기</button>
+        <input type="file" id="grb-shape-file-input" accept=".svg,image/svg+xml" hidden>
+      </div>${cur ? `
+      <div class="prop-row" title="실루엣이 꽉 차는 값. 비우면 ${SHAPE_FILL_MAX_DEFAULT}">
+        <span class="prop-label">최대값</span>
+        <input type="number" class="prop-number" id="grb-fillmax-number" min="1" max="${FILL_MAX_LIMIT}" placeholder="${SHAPE_FILL_MAX_DEFAULT}" value="${fm > 0 ? fm : ''}">
+      </div>
+      <div class="prop-row" title="안 찬 부분의 색(비우면 채움과 같은 색 · 투명도 ${Math.round(SHAPE_TRACK_OPACITY * 100)}%)">
+        <span class="prop-label">트랙 색</span>
+        ${colorFieldHTML({ idPrefix: 'grb-track', hex: tk.c, alpha: tk.a })}
+      </div>` : ''}
+    </div>`;
+}
+
 export function showGraphProperties(block) {
   const _vKey = (hKey, vKey) => (block.dataset.chartType === 'bar-v' || block.dataset.chartType === 'bar-pair') ? vKey : hKey;
   const chartType    = block.dataset.chartType    || 'bar-v';
@@ -119,7 +197,8 @@ export function showGraphProperties(block) {
   const _thkMax = (() => {
     if (!(_vOnly && BAR_THICKNESS_V_MAX === 'column')) return BAR_THICKNESS_MAX;
     const f = block.querySelector('.grb-bar-fill');
-    const w = f && f.parentElement ? Math.floor(f.parentElement.clientWidth) : 0;
+    const col = block.querySelector('.grb-shape-wrap') || (f && f.parentElement);   // 마디 쌓기(1012t1G4)에선 막대의 부모가 마디라 칸을 직접 잰다
+    const w = col ? Math.floor(col.clientWidth) : 0;
     return w > BAR_THICKNESS_MIN ? w : BAR_THICKNESS_MAX;
   })();
   const padX         = parseInt(block.dataset[_vOnly ? 'vPadX' : 'padX'])         || (chartType === 'line' ? LINE_PADX_DEFAULT : 0);   // E106 — 꺾은선은 렌더 16(막대는 0 그대로)
@@ -152,6 +231,10 @@ export function showGraphProperties(block) {
   const fillColorAlpha = parseAlphaFromColor(fillColor);
   const showVLabel   = block.dataset.showVLabel !== '0';
   const showXLabel   = block.dataset.showXLabel !== '0';
+  const _isPie       = _isPieType(chartType);
+  const _shapeOn     = chartType === 'bar-v' && window.GRAPH_SHAPE.shapeOn(block.dataset);   // 1012t1G2 — 실루엣이 «실제로» 켜졌나(세로 막대에서만 · 모르는 이름은 꺼진 것)
+  const _segOn       = chartType === 'bar-v';   // 1012t1G4 — 마디 편집(줄 · 읽기 전용 합 · 합으로 되쓰기)은 세로 막대에서만
+  const pieHole      = (h => Math.min(PIE_HOLE_MAX, Math.max(PIE_HOLE_MIN, Number.isFinite(h) ? h : PIE_HOLE_DEFAULT)))(parseInt(block.dataset.pieHole));   // 렌더(drag-utils.js _renderPie)와 «같은 식»
 
   const presets = [
     { id: 'default',  label: '기본' },
@@ -217,12 +300,10 @@ ${blockHeaderHTML({
     <div class="prop-section">
       <div class="prop-section-title">Chart Type</div>
       <div class="prop-type-group">
-        <button class="prop-type-btn ${chartType === 'bar-v' ? 'active' : ''}" id="grb-type-v">세로 막대</button>
-        <button class="prop-type-btn ${chartType === 'bar-h' ? 'active' : ''}" id="grb-type-h">가로 막대</button>
-        <button class="prop-type-btn ${chartType === 'line' ? 'active' : ''}" id="grb-type-line">꺾은선</button>
-        <button class="prop-type-btn ${chartType === 'bar-pair' ? 'active' : ''}" id="grb-type-pair">비교 막대</button>
+        ${GRAPH_TYPES.map(t => `<button class="prop-preset-btn prop-type-btn ${chartType === t.type ? 'active' : ''}" id="${t.id}">${t.label}</button>`).join('\n        ')}
       </div>
     </div>
+    ${chartType === 'bar-v' ? shapeSectionHTML(block) : ''}
     ${chartType === 'bar-pair' ? `
     <div class="prop-section">
       <div class="prop-section-title">Pair Settings</div>
@@ -296,7 +377,16 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="grb-fillalpha-number" min="0" max="100" value="${fillAlpha}">
       </div>
     </div>` : ''}
-    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '' }) : ''}
+    ${chartType === 'donut' ? `
+    <div class="prop-section">
+      <div class="prop-section-title">Pie Settings</div>
+      <div class="prop-row" title="도넛 가운데 구멍의 크기(바깥 반지름 대비 %)">
+        <span class="prop-label">구멍 크기</span>
+        <input type="range" class="prop-slider" id="grb-pie-hole-slider" min="${PIE_HOLE_MIN}" max="${PIE_HOLE_MAX}" step="1" value="${pieHole}">
+        <input type="number" class="prop-number" id="grb-pie-hole-number" min="${PIE_HOLE_MIN}" max="${PIE_HOLE_MAX}" value="${pieHole}">
+      </div>
+    </div>` : ''}
+    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn }) : ''}
     <div class="prop-section">
       <div class="prop-section-title">Preset</div>
       <div class="prop-preset-group">
@@ -311,39 +401,100 @@ ${blockHeaderHTML({
       <div class="grb-data-list" id="grb-data-list">
         ${items.map((item, i) => `
           <div class="grb-data-item" data-index="${i}">
-            <input type="text" class="grb-data-label-input" value="${item.label}" placeholder="라벨">
-            <input type="number" class="grb-data-val-input" value="${item.value}" min="0" max="9999">
-            ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${item.value2 ?? 0}" min="0" max="9999" title="시리즈 B 값">` : ''}
+            <input type="text" class="grb-data-label-input" value="${escHtml(item.label)}" placeholder="라벨">
+            <input type="number" class="grb-data-val-input" value="${_segOn && _segsOf(item).length ? _segSum(item.segments) : escHtml(item.value)}" min="0" max="9999"${_segOn && _segsOf(item).length ? ' readonly title="마디 값의 합"' : ''}>
+            ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${escHtml(item.value2 ?? 0)}" min="0" max="9999" title="시리즈 B 값">` : ''}
             <button class="grb-data-del-btn" data-index="${i}">✕</button>
-            ${(chartType === 'bar-v' || chartType === 'bar-h') ? itemColorFieldHTML(item, i) : ''}
-          </div>`).join('')}
+            ${_shapeOn ? `<button class="grb-data-icon-btn ${item.shape ? 'active' : ''}" data-shape-index="${i}" title="${item.shape ? '이 항목만 쓰는 모양 지우기(블럭 모양으로)' : '이 항목만 SVG 불러오기'}">${ITEM_SHAPE_ICON}</button>` : ''}
+            ${(chartType === 'bar-v' || chartType === 'bar-h') ? itemColorFieldHTML(item, i) : (_isPie ? itemColorFieldHTML(item, i, { solidOnly: true }) : '')}
+          </div>${_segOn ? segListHTML(item, i) : ''}`).join('')}
       </div>
       <button class="prop-btn-full" id="grb-add-item">+ 항목 추가</button>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
-  // 타입 토글
-  document.getElementById('grb-type-v').addEventListener('click', () => {
-    block.dataset.chartType = 'bar-v';
-    window.renderGraph(block);
-    showGraphProperties(block);
+  // 타입 토글 — 유형 표를 돈다(클릭 = 유형 쓰기 → 다시 그리기 → 패널 다시 열기 · 기존 넷과 같은 꼴)
+  GRAPH_TYPES.forEach(t => {
+    document.getElementById(t.id).addEventListener('click', () => {
+      block.dataset.chartType = t.type;
+      if (t.type === 'bar-v') {   // 1012t1G4 — 다른 유형에서 고친 값과 보존된 마디를 한 규칙으로 맞춘다(바뀔 때만 쓴다 — 마디 없는 블럭은 무변)
+        const _raw = block.dataset.items || '[]';
+        let _rec = _raw; try { _rec = JSON.stringify(window.GRAPH_SHAPE.reconcileItems(JSON.parse(_raw))); } catch (_) {}
+        if (_rec !== _raw) block.dataset.items = _rec;
+      }
+      window.renderGraph(block);
+      showGraphProperties(block);
+    });
   });
-  document.getElementById('grb-type-h').addEventListener('click', () => {
-    block.dataset.chartType = 'bar-h';
-    window.renderGraph(block);
-    showGraphProperties(block);
-  });
-  document.getElementById('grb-type-line').addEventListener('click', () => {
-    block.dataset.chartType = 'line';
-    window.renderGraph(block);
-    showGraphProperties(block);
-  });
-  document.getElementById('grb-type-pair').addEventListener('click', () => {
-    block.dataset.chartType = 'bar-pair';
-    window.renderGraph(block);
-    showGraphProperties(block);
-  });
+
+  // 1012t1G2 — Shape 절. 바꾸는 길은 setGraphShape 하나 · 바꾼 «뒤» 패널을 다시 열고 히스토리를 찍는다.
+  const shapeSel = document.getElementById('grb-shape-select');
+  const shapeFile = document.getElementById('grb-shape-file-input');
+  if (shapeSel && shapeFile) {
+    let fileIndex = null;   // null = 블럭 모양 · 수 = 그 항목만
+    shapeSel.addEventListener('change', () => {
+      const v = shapeSel.value;
+      if (v === 'custom' && !block.dataset.shapeSvg) {   // 아직 불러온 SVG 가 없다 — 고르기를 되돌리고 파일을 받는다
+        shapeSel.value = block.dataset.barShape || '';
+        fileIndex = null; shapeFile.click();
+        return;
+      }
+      const r = window.setGraphShape(block, { shape: v || null });
+      if (!r.ok) { shapeSel.value = block.dataset.barShape || ''; return; }
+      showGraphProperties(block);
+      window.pushHistory();
+    });
+    document.getElementById('grb-shape-file-btn').addEventListener('click', () => { fileIndex = null; shapeFile.click(); });
+    shapeFile.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      const index = fileIndex;
+      e.target.value = '';   // 같은 파일 재선택 허용
+      if (!file) return;
+      if (!(/\.svg$/i.test(file.name) || /svg/i.test(file.type))) { window.showToast?.('⚠️ SVG 파일만 지원합니다'); return; }
+      if (file.size > SHAPE_SVG_MAX * 8) { window.showToast?.(SHAPE_FAIL_TOAST.TOO_LARGE); return; }
+      const wasSelected = block.classList.contains('selected');
+      const text = await file.text();
+      if (!block.isConnected) return;   // 읽는 사이 블럭이 지워졌다
+      const r = window.setGraphShape(block, index == null ? { svg: text } : { svg: text, index });
+      if (!r.ok) { window.showToast?.(SHAPE_FAIL_TOAST[r.code] || ('⚠️ 불러오기 실패: ' + r.code)); return; }
+      /* 읽는 사이 선택이 다른 블럭으로 옮겨 갔으면 패널을 가로채지 않는다(「부를 때는 선택돼 있었는데 지금은 아니면 접는다」 — showSectionProperties 의 await 가드와 같은 꼴) */
+      if (!(wasSelected && !block.classList.contains('selected'))) showGraphProperties(block);
+      window.pushHistory();
+    });
+    // 항목별 모양(G2 — 실루엣이 항목마다 다른 그래프): 없으면 파일을 받고, 있으면 지운다(블럭 모양으로 돌아간다)
+    document.getElementById('grb-data-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('.grb-data-icon-btn[data-shape-index]');
+      if (!btn) return;
+      const i = parseInt(btn.dataset.shapeIndex);
+      if (!btn.classList.contains('active')) { fileIndex = i; shapeFile.click(); return; }
+      if (!window.setGraphShape(block, { index: i, shape: null }).ok) return;
+      showGraphProperties(block);
+      window.pushHistory();
+    });
+  }
+
+  // 1012t1G3 — 최대값(채움 분모). 빈 칸·0 이하 = 키 삭제(기본 100 으로 그린다). 숫자칸 change 에 적용하고 히스토리.
+  const fmNumber = document.getElementById('grb-fillmax-number');
+  if (fmNumber) {
+    fmNumber.addEventListener('change', () => {
+      const _before = block.dataset.fillMax ?? null;
+      const v = parseFloat(fmNumber.value);
+      if (Number.isFinite(v) && v > 0) block.dataset.fillMax = String(Math.min(FILL_MAX_LIMIT, Math.max(1, v)));
+      else delete block.dataset.fillMax;
+      window.renderGraph(block);
+      fmNumber.value = block.dataset.fillMax || '';
+      if ((block.dataset.fillMax ?? null) !== _before) window.pushHistory();   // 값이 안 바뀌었으면 히스토리를 안 찍는다
+    });
+  }
+  // 1012t1G3 — 트랙 색. 고르는 순간에만 키가 생긴다(안 고르면 채움색 × 기본 투명도 그대로).
+  if (document.getElementById('grb-track-color')) {
+    _wireGraphColor('grb-track', { unset: !_trackColorShown(block).c,
+      initialAlpha: _trackColorShown(block).a,
+      onApply: (c) => { block.dataset.trackColor = c; window.renderGraph(block); },
+      onCommit: () => window.pushHistory(),
+    });
+  }
 
   // bar-pair: 시리즈명 + 색상 B
   const seriesA = document.getElementById('grb-series-a');
@@ -384,7 +535,7 @@ ${blockHeaderHTML({
     const list = document.getElementById('grb-data-list');
     if (!list) return;
     const prevItems = JSON.parse(block.dataset.items || '[]');
-    const newItems = [...list.querySelectorAll('.grb-data-item')].map((row, i) => {
+    const newItems = [...list.querySelectorAll('.grb-data-item:not(.grb-seg-item)')].map((row, i) => {
       const it = {
         label: row.querySelector('.grb-data-label-input').value || '',
         value: parseFloat(row.querySelector('.grb-data-val-input').value) || 0,
@@ -397,6 +548,22 @@ ${blockHeaderHTML({
       //   다시 읽어, 그라데이션 항목이 라벨 한 글자에 #000000 이 됐다(GR-DESIGN 실측). 색을 바꾸는 길은 wireColorField 의
       //   onApply/onGradient «하나»(아래 _wireItemColor)다.
       if (prevItems[i] && prevItems[i].color) it.color = prevItems[i].color;
+      // 1012t1G2·G4 — 항목 모양·마디도 «모델에서» 보존한다(라벨 한 글자에 떨어지지 않게). 마디의 라벨·값만 마디 줄에서 읽고, 색은 모델 것 그대로.
+      const pv = prevItems[i] || {};
+      if (pv.shape) { it.shape = pv.shape; if (pv.shapeSvg) it.shapeSvg = pv.shapeSvg; }
+      if (_segsOf(pv).length && !_segOn) it.segments = pv.segments;   // 다른 유형: 마디는 «보존만»(값 칸은 자유 — 맞추기는 아래 change 와 유형 전환이 한다)
+      else if (_segsOf(pv).length) {
+        const segRows = [...list.querySelectorAll('.grb-seg-item[data-item="' + i + '"]')];
+        it.segments = pv.segments.map((sg, j) => {
+          const r = segRows[j];
+          const o = r ? { label: r.querySelector('.grb-data-label-input').value || '', value: parseFloat(r.querySelector('.grb-data-val-input').value) || 0 } : { label: sg.label, value: sg.value };
+          if (sg && sg.color) o.color = sg.color;
+          return o;
+        });
+        it.value = _segSum(it.segments);
+        const vEl = row.querySelector('.grb-data-val-input');
+        if (vEl && document.activeElement !== vEl) vEl.value = it.value;   // 읽기 전용 합 칸을 따라 쓴다(패널을 다시 안 그린다 — 치던 칸의 포커스 유지)
+      }
       return it;
     });
     block.dataset.items = JSON.stringify(newItems);
@@ -408,7 +575,8 @@ ${blockHeaderHTML({
   //   미지정(체커) 표시는 처음 고를 때 걷는다(.swatch-none 의 !important 배경이 고른 색을 가리므로).
   const _wireItemColor = (i) => {
     const pre = 'grb-data-color-' + i;
-    const cur = (JSON.parse(block.dataset.items || '[]')[i] || {}).color || '';
+    const _cur0 = (JSON.parse(block.dataset.items || '[]')[i] || {}).color || '';
+    const cur = (_isPie && _isGrad(_cur0)) ? '' : _cur0;   // 원형·도넛: 그라데이션 = 미지정(체커)
     const swatch = document.getElementById(pre + '-color')?.closest('.prop-color-swatch');
     const hexEl = document.getElementById(pre + '-hex');
     if (!cur) { swatch?.classList.add('swatch-none'); if (hexEl) hexEl.value = ''; }
@@ -423,16 +591,17 @@ ${blockHeaderHTML({
     wireColorField(pre, {
       initialAlpha: cur && !_isGrad(cur) ? parseAlphaFromColor(cur) : 100,
       onApply: (c) => setColor(c),
-      onGradient: (css, commit) => { setColor(css); if (commit) window.pushHistory(); },
-      gradientValue: _isGrad(cur) ? cur : '',
+      /* 원형·도넛 조각은 단색 전용 — onGradient 를 안 넘기면 피커가 그라데이션 탭을 잠근다(color-picker cpModes 'solid') */
+      ...(_isPie ? {} : { onGradient: (css, commit) => { setColor(css); if (commit) window.pushHistory(); }, gradientValue: _isGrad(cur) ? cur : '' }),
       onCommit: () => window.pushHistory(),
     });
   };
-  if (chartType === 'bar-v' || chartType === 'bar-h') items.forEach((_, i) => _wireItemColor(i));
+  if (chartType === 'bar-v' || chartType === 'bar-h' || _isPie) items.forEach((_, i) => _wireItemColor(i));
   dataList.addEventListener('input', syncItems);
   dataList.addEventListener('click', e => {
     const btn = e.target.closest('.grb-data-del-btn');
     if (!btn) return;
+    if (btn.dataset.seg !== undefined) return;   // 마디 ✕ 는 아래 마디 핸들러가 맡는다(항목을 지우지 않는다)
     const curItems = JSON.parse(block.dataset.items || '[]');
     if (curItems.length <= 1) return;
     curItems.splice(parseInt(btn.dataset.index), 1);
@@ -440,6 +609,66 @@ ${blockHeaderHTML({
     window.renderGraph(block);
     showGraphProperties(block);
   });
+
+  // 1012t1G4 — 마디: 추가 · 삭제 · 색. 전부 «바꾼 뒤» 패널을 다시 열고 히스토리를 찍는다. 값·라벨 타이핑은 위 syncItems 가 받고 change 에 히스토리.
+  const _editSegs = (i, fn) => {
+    const its = JSON.parse(block.dataset.items || '[]');
+    if (!its[i]) return false;
+    const segs = fn(_segsOf(its[i]).slice(), its[i]);
+    if (segs.length) { its[i].segments = segs; its[i].value = _segSum(segs); } else delete its[i].segments;   // 마지막 마디를 지우면 보통 막대로(값은 마지막 합 그대로)
+    block.dataset.items = JSON.stringify(its);
+    window.renderGraph(block);
+    return true;
+  };
+  dataList.addEventListener('click', e => {
+    const add = e.target.closest('.grb-seg-add');
+    const del = add ? null : e.target.closest('.grb-data-del-btn[data-seg]');
+    if (!add && !del) return;
+    const i = parseInt((add || del).dataset.item);
+    const ok = add
+      /* 첫 마디는 그 항목의 값을 통째로 받는다(막대 높이가 안 변한다) · 그 뒤로는 10 씩 */
+      ? _editSegs(i, (segs, it) => segs.concat([{ label: '마디 ' + (segs.length + 1), value: segs.length ? 10 : (parseFloat(it.value) > 0 ? parseFloat(it.value) : 10) }]))
+      : _editSegs(i, (segs) => { segs.splice(parseInt(del.dataset.seg), 1); return segs; });
+    if (!ok) return;
+    showGraphProperties(block);
+    window.pushHistory();
+  });
+  dataList.addEventListener('change', e => {
+    if (e.target.closest('.grb-seg-item') && e.target.matches('.grb-data-label-input, .grb-data-val-input')) window.pushHistory();
+  });
+  // 1012t1G4 — 다른 유형에서 값 칸을 «확정»하면 보존된 마디를 그 값에 같은 비율로 맞춘다(타이핑 중간값마다 맞추면 반올림이 쌓여 비율이 틀어진다 ⇒ change 에 한 번).
+  if (!_segOn) dataList.addEventListener('change', e => {
+    if (!e.target.matches('.grb-data-val-input:not(.grb-data-val2-input)')) return;
+    const row = e.target.closest('.grb-data-item');
+    const i = [...dataList.querySelectorAll('.grb-data-item:not(.grb-seg-item)')].indexOf(row);
+    const its = JSON.parse(block.dataset.items || '[]');
+    if (i < 0 || !_segsOf(its[i]).length || !(parseFloat(its[i].value) > 0)) return;   // 값 0 은 마디를 그대로 둔다(비율 보존)
+    const { segments: _old, ...rest } = its[i];
+    its[i] = window.GRAPH_SHAPE.carryItemExtras(rest, its[i], null);
+    block.dataset.items = JSON.stringify(its);
+  });
+  const _wireSegColor = (i, j) => {
+    const pre = 'grb-seg-color-' + i + '-' + j;
+    if (!document.getElementById(pre + '-color')) return;
+    const cur = (_segsOf(JSON.parse(block.dataset.items || '[]')[i])[j] || {}).color || '';
+    const swatch = document.getElementById(pre + '-color')?.closest('.prop-color-swatch');
+    const hexEl = document.getElementById(pre + '-hex');
+    if (!cur || _isGrad(cur)) { swatch?.classList.add('swatch-none'); if (hexEl) hexEl.value = ''; }
+    wireColorField(pre, {
+      initialAlpha: cur && !_isGrad(cur) ? parseAlphaFromColor(cur) : 100,
+      onApply: (c) => {
+        const its = JSON.parse(block.dataset.items || '[]');
+        const sg = _segsOf(its[i])[j];
+        if (!sg) return;
+        sg.color = c;
+        block.dataset.items = JSON.stringify(its);
+        swatch?.classList.remove('swatch-none');
+        window.renderGraph(block);
+      },
+      onCommit: () => window.pushHistory(),
+    });
+  };
+  if (_segOn) items.forEach((it, i) => _segsOf(it).forEach((_, j) => _wireSegColor(i, j)));
 
   document.getElementById('grb-add-item').addEventListener('click', () => {
     const curItems = JSON.parse(block.dataset.items || '[]');
@@ -549,6 +778,21 @@ ${blockHeaderHTML({
     swSlider.addEventListener('input',  () => applyStroke(parseInt(swSlider.value)));
     swNumber.addEventListener('change', () => { applyStroke(parseInt(swNumber.value)); window.pushHistory(); });
     swSlider.addEventListener('change', () => window.pushHistory());
+  }
+
+  // 구멍 크기 (donut 전용 · 1012t1G1) — 이웃 슬라이더와 같은 꼴: input 에 적용 · change 에 히스토리. 빈 칸(NaN)은 기본값.
+  const phSlider = document.getElementById('grb-pie-hole-slider');
+  const phNumber = document.getElementById('grb-pie-hole-number');
+  if (phSlider) {
+    const applyHole = v => {
+      v = Math.min(PIE_HOLE_MAX, Math.max(PIE_HOLE_MIN, Number.isFinite(v) ? v : PIE_HOLE_DEFAULT));
+      block.dataset.pieHole = v;
+      window.renderGraph(block);
+      phSlider.value = v; phNumber.value = v;
+    };
+    phSlider.addEventListener('input',  () => applyHole(parseInt(phSlider.value)));
+    phNumber.addEventListener('change', () => { applyHole(parseInt(phNumber.value)); window.pushHistory(); });
+    phSlider.addEventListener('change', () => window.pushHistory());
   }
 
   // 점 크기 (line 전용)

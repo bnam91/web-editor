@@ -16,6 +16,7 @@ export function buildTextPropsHtml(state) {
     isIconText, currentItbGap, itbVertical,
     mix,
     shadow,
+    stroke, strokeColorHtml,   /* ★1012t1E1 Stroke 절 — 상태(readStrokeState)·색 칸 마크업은 prop-text.js 가 준다. 없으면 절 0 ⇒ 골든 바이트 동일 */
     isLiner,
     isStrike,
     isUnderline,
@@ -26,6 +27,7 @@ export function buildTextPropsHtml(state) {
     hlColorHtml, hlH, hlY,          /* ★형광펜 «색 칸 마크업»·바 높이·★획 세로자리 (2026-10-06 ＋ ★hlY 2026-10-08). 마크업은 prop-text.js 가 만들어 준다 */
     ulColorHtml, ulThick, ulOffset, /* ★밑줄 «색 칸 마크업»·두께·위치 (2026-10-08). 같은 까닭으로 prop-text.js 가 만든다 */
     dotColorHtml, dotSize, dotGap, dotX, dotY,   /* ★점 찍기 «색 칸 마크업»·네 수 (⑥ · 2026-10-08). 같은 까닭으로 prop-text.js 가 만든다 */
+    showGlow, isGlow, glowColorHtml, glowK,      /* ★1012t1E2 범위 글로우 — prop-text.js 가 showGlow:true 로 켠다. 없으면 단추·칸 0 ⇒ 골든 바이트 동일 */
     isOverlayBlock,
   } = state;
 
@@ -40,6 +42,46 @@ export function buildTextPropsHtml(state) {
     const b = parseInt(h.slice(4,6), 16);
     const a = Math.max(0, Math.min(1, (_sh.alpha ?? 100) / 100));
     return a >= 1 ? _shHexLow : `rgba(${r},${g},${b},${a})`;
+  })();
+
+  /* ═══ ★1012t1E1 Stroke(외곽선) 절 — Fill 과 Shadow 사이(피그마 순서 Fill → Stroke → Effects) ═══
+   * ★«stroke 가 안 넘어오면 빈 문자열» ⇒ 단위 골든(typo-section-ssot T1)의 산출이 바이트 동일하다.
+   *   ⛔템플릿 «안»에 조건식을 줄로 넣지 마라(위 _bulletSec 머리말과 같은 까닭).
+   * 대상 밖 = 말풍선·라벨(Tag)·아이콘텍스트·곡선(liner) — Effects 절과 같은 조건 ＋ liner.
+   * 꼴 = 이웃 Shadow 절(제목 줄 + 토글) · 두께 = 스티커 Stroke 절(0.5 단계) · 위치 = prop-select(이웃 굵기·스타일 select 와 같은 꼴). */
+  const _strokeSec = (!stroke || isSpeechBubble || isLabel || isIconText || isLiner) ? '' : (() => {
+    const _al = stroke.align || 'outside';
+    const _opt = (v, t) => `<option value="${v}"${_al === v ? ' selected' : ''}>${t}</option>`;
+    return `
+
+    <div class="prop-section" id="txt-stroke-section">
+      <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div class="prop-section-title" style="margin-bottom:0">Stroke</div>
+        <label class="prop-toggle" title="외곽선 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
+          <input type="checkbox" id="txt-stroke-on" ${stroke.on ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div id="txt-stroke-controls" style="display:${stroke.on ? 'block' : 'none'}">
+        <div class="prop-row">
+          <span class="prop-label">두께</span>
+          <input type="range" class="prop-slider" id="txt-stroke-w-slider" min="0.5" max="20" step="0.5" value="${stroke.width}">
+          <input type="number" class="prop-number" id="txt-stroke-w-number" min="0.5" max="20" step="0.5" value="${stroke.width}">
+        </div>
+        <div class="prop-color-row">
+          <span class="prop-label">색상</span>
+          ${strokeColorHtml || ''}
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">위치</span>
+          <select class="prop-select" id="txt-stroke-align">
+            ${_opt('inside', '내부')}
+            ${_opt('center', '가운데')}
+            ${_opt('outside', '외부')}
+          </select>
+        </div>
+      </div>
+    </div>`;
   })();
 
   // Figma "Mix" 정책: 자식들의 스타일이 섞여있으면 input 을 빈 값 + placeholder="Mix" 로 표시
@@ -166,13 +208,15 @@ ${blockHeaderHTML({
       /* ★점 찍기(⑥)도 ★텍스트 패널만 — 배선(wireTextEditSection)이 여기에만 있다. 모달·그리드·챗은 기본 false ⇒ «바이트 동일».
          ★isLiner(곡선 텍스트)는 손잡이 칸을 안 준다 — 서식 그룹 자체가 숨는 판이라 칸만 떠 있으면 「눌리는데 아무 일 없음」이 된다. */
       showDots: true, showDotOpts: !isLiner, isDot, dotColorHtml, dotSize, dotGap, dotX, dotY,
+      /* ★범위 글로우(1012t1E2)도 ★텍스트 패널만 — 배선이 wireTextEditSection 에만 있다. 모달·그리드·챗은 기본 false ⇒ «바이트 동일». */
+      showGlow: !!showGlow, showGlowOpts: !!showGlow && !isLiner, isGlow: !!isGlow, glowColorHtml: glowColorHtml || '', glowK: glowK ?? 70,
       mix: _mix,
     })}
 
     ${buildFillSectionHtml({ p: 'txt', colorHex: currentColor, alpha: currentColorAlpha, mix: _mix,
       /* ★「최근 그라데이션」 줄도 ★텍스트 패널만 — 글자 그라데이션 배선이 wireTextEditSection 에만 있다.
          ⛔모달은 기본 false 라 마크업이 «바이트 동일»이다(형광펜 칸·밑줄 칸과 ★같은 규약). */
-      showGradRecent: true })}
+      showGradRecent: true })}${_strokeSec}
 
     <div class="prop-section" id="txt-shadow-section">
       <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">

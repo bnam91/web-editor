@@ -245,6 +245,9 @@
     'bn2-line-empty',                            // 빈 줄 플레이스홀더 (편집 전용)
     'stb-step-selected',                         // 스텝 마커의 «옛 이름» — 규칙 밖 이름이라 저장본에 샜다(2026-09-15). 새 이름 stb-line-selected 는 RE 가 잡는다
     'editing', 'img-editing', 'sec-bg-editing', 'group-selected', 'group-editing',
+    'cmp-img-editing',                           // ★1012t1D3 비교 이미지 칸 «편집 중»(js/blocks/comparison-img-edit.js) — 규칙 밖 이름이라 손으로 든다.
+                                                 //   안 들면 히스토리 스냅숏이 «클래스만 다른» 두 표본이 되어 무변화 중복 차단이 못 걸러 ⌘Z 첫 번이 무효(이벨류에이터 실측).
+                                                 //   편집 칩은 .img-edit-hint 라 아래 임시 DOM 철거 목록이 이미 걷는다.
     'star-mode',                                 // ★별 한 개 고르기 모드(1010t1b2) — ★규칙 밖 이름이라 ★손으로 든다.
                                                  //   ★짝 `star-cell-selected` 는 ★RE 가 잡는다(`-cell-selected`) ⇒ ★여기 안 적는다.
                                                  //   ★선례이자 경고: `stb-step-selected` 가 규칙 밖 이름이라 ★저장본에 샜다(2026-09-15).

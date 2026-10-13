@@ -11,7 +11,11 @@
  *
  * ★★안 재는 것(⛔「닫았다」로 적지 않는다)
  *   · ★★실제로 ★잘리나 — ★그건 ★DOM 이 ★행위로 잰다(★`asset-clip-toggle` 칸)
- *   · ★★그리드 ★평형의 ★토글 — ★★★범위 ★밖이다(★flex `min-height:auto` 0 붕괴 · ★별건으로 기록됨)
+ *   · ★★그리드 ★평형(★크롭 없는 줄)의 ★토글 — ★★넘칠 것이 ★없다(★그림 = 틀 · 실측 2026-10-12 331×248) ⇒ ★패널은 ★막고 ★까닭을 보인다
+ *     ★[정정 2026-10-12 · 1012t1 B1] ★옛 줄 「★그리드 평형의 토글 — 범위 밖(flex min-height:auto 0 붕괴)」은
+ *       ★«크롭 줄»에선 ★참이 아니었다: ★크롭 줄은 ★이미 hidden 이고 ★토글은 ★그것을 ★«떼는» 방향이라
+ *       ★프레임 높이 ★무변(★실측 200→200). ⇒ ★★크롭 줄 토글은 ★들어왔다(★계열 `gridCrop`) ·
+ *       ★행위는 ★`tests/dom/grid-img-clip-toggle.dom.spec.js` GC0~GC7 이 잰다
  *
  * ★★★표 ⑵ — ★★«칠(paint) 술어의 ★명부» (2026-10-10 ㈄ · ★합치기 ★전에 ★쟀다)
  *   ★제품 호출                  ★1건  ★`js/drag-utils.js`(effectiveSectionPadX 안)
@@ -51,13 +55,15 @@ const code = (p) => {
 function load() {
   const src = code('js/clip-content.js');
   const body = src.replace(/^\s*export\s+/gm, '').replace(/^if \(typeof window[\s\S]*$/m, '');
-  return new Function(body + '\nreturn { clipsContent, clipFamily, CLIP_DEFAULTS };')();
+  return new Function(body + '\nreturn { clipsContent, clipFamily, clipsContentFor, CLIP_DEFAULTS };')();
 }
 const el = (cls, ds) => ({ classList: { contains: (c) => cls.includes(c) }, dataset: ds || {} });
 
-test('A1 ★★계열 표가 ★★이 파일 ★하나에 있다 — ★★기본값 ★넷', () => {
+test('A1 ★★계열 표가 ★★이 파일 ★하나에 있다 — ★★기본값 ★다섯 (2026-10-12 gridCrop 추가)', () => {
   const { CLIP_DEFAULTS } = load();
-  assert.deepEqual(Object.keys(CLIP_DEFAULTS).sort(), ['asset', 'frame', 'gridCircle', 'gridPlain']);
+  assert.deepEqual(Object.keys(CLIP_DEFAULTS).sort(), ['asset', 'frame', 'gridCircle', 'gridCrop', 'gridPlain']);
+  assert.equal(CLIP_DEFAULTS.gridCrop, true,
+    '★그리드 ★크롭 줄 = 자름(렌더러 인라인 clipCss · ★실측 2026-10-12 computed overflow hidden)');
   /* ★★★행위로 ★잰 값 ★그대로 — ⛔여기 수를 ★바꾸려면 ★★다시 재라 */
   assert.equal(CLIP_DEFAULTS.frame, true, '★프레임 기본 = 자름(2026-10-10 ②)');
   assert.equal(CLIP_DEFAULTS.asset, true, '★에셋 기본 = 자름(`.asset-img-clip` · ★행위로 쟀다)');
@@ -143,6 +149,35 @@ test('A5 ★★★양성대조 — ★좁힌 자가 ★★«판정»을 ★정�
   assert.equal(RE.test('css.includes(\'[data-clip-content="true"]\')'), true, '★CSS 선택자 꼴도 ★잡아야');
   assert.equal(RE.test("ab.dataset.clipContent = 'true';"), false, '⛔대입을 ★판정으로 ★센다');
   assert.equal(RE.test('delete ab.dataset.clipContent;'), false, '⛔삭제를 ★판정으로 ★센다');
+});
+
+test('A6 ★★그리드 ★크롭 줄 — ★계열을 ★«렌더러가 그린 꼴»로 가르고, ★렌더러는 ★표의 ★순수 술어를 부른다 (1012t1 B1)', () => {
+  const { clipsContent, clipFamily, clipsContentFor } = load();
+  /* ★크롭 판정 = ★안쪽 img.grd-img 가 absolute(렌더러가 ★크롭일 때만 쓰는 꼴) */
+  const gel = (pos, ds) => ({
+    classList: { contains: (c) => c === 'grd-img-frame' },
+    dataset: ds || {},
+    querySelector: (sel) => (sel === ':scope > img.grd-img' && pos !== null ? { style: { position: pos } } : null),
+  });
+  assert.equal(clipFamily(gel('absolute')), 'gridCrop', '★크롭 프레임을 ★gridCrop 으로 못 가른다');
+  assert.equal(clipFamily(gel('')), 'gridPlain', '★크롭 없는 프레임이 ★gridCrop 으로 샜다');
+  assert.equal(clipFamily(gel(null)), 'gridPlain', '★빈 슬롯(안쪽 img 없음)이 ★gridCrop 으로 샜다');
+  assert.equal(clipsContent(gel('absolute')), true, '★크롭 프레임 ★미설정 = 자름 (★표가 거짓말하던 자리 — 옛 답 false)');
+  assert.equal(clipsContent(gel('absolute', { clipContent: 'false' })), false, "★크롭 프레임 'false' ⇒ 안 자름");
+  /* ★순수 술어 — ★모델의 불 값도 받는다(그리드는 JSON 모델에 false 로 싣는다) */
+  assert.equal(clipsContentFor('gridCrop', undefined), true);
+  assert.equal(clipsContentFor('gridCrop', false), false);
+  assert.equal(clipsContentFor('gridCrop', 'false'), false);
+  assert.equal(clipsContentFor('gridCrop', 'FALSE'), true, '★대문자는 ★끔이 ★아니다(A2 와 같은 규약)');
+  assert.equal(clipsContentFor('nope', false), null, '★모르는 계열은 ★null');
+  /* ★렌더러는 ★제 벌로 안 세고 ★표의 술어를 부른다 — A3 의 자가 ★비교식만 보므로 ★부르는 쪽도 ★잰다 */
+  const gb = code('js/blocks/grid-block.js');
+  assert.match(gb, /clipsContentFor\?\.\('gridCrop', line\.clipContent\)/,
+    "★그리드 렌더러가 ★표의 술어(clipsContentFor('gridCrop', …))를 ★안 부른다 — ★판정이 ★두 벌이 된다");
+  const pg = code('js/props/prop-grid.js');
+  assert.match(pg, /grd-img-clip-toggle/, '★그리드 패널 토글이 ★없다');
+  assert.match(pg, /clipsContentFor\?\.\('gridCrop', undefined\)/,
+    '★패널이 ★기본값을 ★표에서 ★안 묻는다 — ⛔손으로 든 true/false 는 ★표와 따로 늙는다');
 });
 
 test('A4 ★★에셋의 ★자름을 ★★«렌더러»가 ★먹인다 — ⛔`!important` 로 ★CSS 가 ★이기게 ★하지 ★않는다', () => {

@@ -231,6 +231,18 @@
   display: flex; align-items: center; justify-content: center;
 }
 .grb-data-del-btn:hover { border-color: var(--ui-danger); color: var(--ui-danger); }
+/* 1012t1G4 — 마디 줄: 항목 줄 아래에 한 단 들여 쓴다. 마디가 있는 항목의 값 칸은 합이라 읽기 전용. */
+.grb-seg-list { margin-bottom: 0; padding-left: var(--ui-row-gap); }
+.grb-data-val-input[readonly] { opacity: var(--ui-disabled-opacity); cursor: default; }
+/* 1012t1G2 — 항목 줄의 작은 아이콘 버튼(이 항목만 SVG). 삭제 버튼과 같은 상자, 위험색 대신 강조색. */
+.grb-data-icon-btn {
+  width: 20px; height: 20px; flex-shrink: 0; padding: 0;
+  background: none; border: 1px solid var(--ui-border-mid);
+  border-radius: var(--ui-radius-sm); color: var(--ui-text-dim); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.grb-data-icon-btn:hover,
+.grb-data-icon-btn.active { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
 
 /* ── U9: 2시리즈 비교 막대 (bar-pair) ── */
 .grb-pair-wrap { gap: 6px; }
@@ -259,6 +271,115 @@
   margin-right: 6px;
   background: var(--ui-accent-primary);
 }
+
+/* ── 원형 · 도넛 (1012t1G1) ──
+ * 조각 색 = 그 프리셋 막대와 같은 색 하나에 불투명도 사다리(다섯 단, 여섯째부터 되돈다). 컬러풀만 막대의 다섯 색을 그대로 돈다.
+ * 색 값은 변수 한 벌로 두고 조각(fill)과 범례 점(background)이 같이 읽는다. 항목에 색을 정하면 인라인이 이긴다.
+ * 범례 치수는 em — 라벨 크기(인라인 font-size)를 따라 같이 커진다. */
+.graph-block { --grb-pie-base: var(--ui-accent-primary); --grb-pie-1: #ff6b6b; --grb-pie-2: #ffa94d; --grb-pie-3: #69db7c; --grb-pie-4: #4dabf7; --grb-pie-5: #da77f2; }
+.graph-block[data-preset="dark"] { --grb-pie-base: #4f8ef7; }
+.graph-block[data-preset="minimal"] { --grb-pie-base: var(--ui-text-sub); }
+.grb-pie-wrap {
+  width: 100%;
+  height: 240px;
+}
+.grb-pie-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.grb-pie-slice { fill: var(--grb-pie-base); }
+.grb-pie-slice:nth-child(5n+1) { fill-opacity: 1; }
+.grb-pie-slice:nth-child(5n+2) { fill-opacity: 0.8; }
+.grb-pie-slice:nth-child(5n+3) { fill-opacity: 0.6; }
+.grb-pie-slice:nth-child(5n+4) { fill-opacity: 0.45; }
+.grb-pie-slice:nth-child(5n+5) { fill-opacity: 0.3; }
+.grb-pie-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35em 1.1em;
+  margin-top: 0.8em;
+  color: inherit;
+  line-height: 1.3;
+}
+.grb-pie-legend-item { display: inline-flex; align-items: center; min-width: 0; }
+.grb-pie-dot {
+  flex: none;
+  width: 0.6em; height: 0.6em;
+  border-radius: 50%;
+  margin-right: 0.4em;
+  background: var(--grb-pie-base);
+}
+.grb-pie-legend-item:nth-child(5n+1) .grb-pie-dot { opacity: 1; }
+.grb-pie-legend-item:nth-child(5n+2) .grb-pie-dot { opacity: 0.8; }
+.grb-pie-legend-item:nth-child(5n+3) .grb-pie-dot { opacity: 0.6; }
+.grb-pie-legend-item:nth-child(5n+4) .grb-pie-dot { opacity: 0.45; }
+.grb-pie-legend-item:nth-child(5n+5) .grb-pie-dot { opacity: 0.3; }
+.grb-pie-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grb-pie-val { font-weight: 600; margin-left: 0.4em; }
+.graph-block[data-preset="colorful"] .grb-pie-slice { fill-opacity: 1; }
+.graph-block[data-preset="colorful"] .grb-pie-slice:nth-child(5n+1) { fill: var(--grb-pie-1); }
+.graph-block[data-preset="colorful"] .grb-pie-slice:nth-child(5n+2) { fill: var(--grb-pie-2); }
+.graph-block[data-preset="colorful"] .grb-pie-slice:nth-child(5n+3) { fill: var(--grb-pie-3); }
+.graph-block[data-preset="colorful"] .grb-pie-slice:nth-child(5n+4) { fill: var(--grb-pie-4); }
+.graph-block[data-preset="colorful"] .grb-pie-slice:nth-child(5n+5) { fill: var(--grb-pie-5); }
+.graph-block[data-preset="colorful"] .grb-pie-dot { opacity: 1; }
+.graph-block[data-preset="colorful"] .grb-pie-legend-item:nth-child(5n+1) .grb-pie-dot { background: var(--grb-pie-1); }
+.graph-block[data-preset="colorful"] .grb-pie-legend-item:nth-child(5n+2) .grb-pie-dot { background: var(--grb-pie-2); }
+.graph-block[data-preset="colorful"] .grb-pie-legend-item:nth-child(5n+3) .grb-pie-dot { background: var(--grb-pie-3); }
+.graph-block[data-preset="colorful"] .grb-pie-legend-item:nth-child(5n+4) .grb-pie-dot { background: var(--grb-pie-4); }
+.graph-block[data-preset="colorful"] .grb-pie-legend-item:nth-child(5n+5) .grb-pie-dot { background: var(--grb-pie-5); }
+
+/* ── SVG 모양 · 채움 · 마디 (1012t1G2 · G3 · G4) ──
+ * 세로 막대의 덧 길 — 블럭에 모양 키나 항목에 마디가 있을 때만 이 요소들이 생긴다(없으면 위 세로 막대 그대로).
+ * 실루엣 = 마스크 그림(변수 한 벌을 블럭 줄에 한 번, 항목이 다르면 그 칸에 덮어쓴다). 채움·트랙·마디 잉크는 막대 채움 클래스를 그대로 달아
+ * 프리셋 색·항목 색·컬러풀 순번 색이 그대로 먹는다. 상자는 플롯 칸을 컨테이너로 삼아 높이에 맞추되 폭이 모자라면 같은 비로 줄어든다.
+ * 마디 라벨은 마스크 밖 층이라 글자가 실루엣에 잘리지 않는다. 라벨 글자색은 마디 바탕에 맞춰 canvas-contrast 가 변수로 준다(저장에선 걷힌다).
+ * 사각 쌓기(모양 없음)는 막대가 두께만큼만 넓어 그 위에 글자가 못 선다 — 라벨 층을 막대 «오른쪽 바깥»으로 뺀다(마디 높이 가운데는 그대로).
+ *   글자가 채움 위가 아니므로 색은 카테고리 라벨과 같은 길 — 라벨 층에 실린 색(xlabelColor || labelColor · 렌더가 인라인으로 준다)을, 없으면 블럭 글자색을 상속한다.
+ *   폭은 이웃 막대 앞까지만(칸 폭 − 막대 폭). «마지막 칸»은 오른쪽에 이웃이 없어 칸 끝까지만((칸 폭 − 막대 폭) / 2) — 블럭 가장자리를 안 넘는다.
+ *   넘는 글자는 말줄임(…)으로 끊는다(글자 칸 .grb-seg-text — 사각 쌓기에만 있다). 막대와의 틈은 범례 점↔글자와 같은 값(0.4em). */
+.grb-shape-wrap { justify-content: center; container-type: size; }
+.grb-shape-box { position: relative; flex: none; min-width: 0; }
+.grb-shape-mask { position: absolute; inset: 0; }
+.grb-shape-on > .grb-shape-mask {
+  -webkit-mask-image: var(--grb-shape);
+  mask-image: var(--grb-shape);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+.grb-shape-mask .grb-bar-fill { min-height: 0; margin: 0; max-width: none; }
+.grb-shape-on .grb-bar-fill,
+.grb-seg:not(:last-child) > .grb-seg-ink { border-radius: 0; }
+.grb-shape-track { position: absolute; inset: 0; width: auto; }
+.grb-shape-fill { position: absolute; left: 0; right: 0; bottom: 0; width: auto; }
+.grb-seg-stack,
+.grb-seg-labels { display: flex; flex-direction: column-reverse; }
+.grb-seg { flex: 0 1 0; min-height: 0; display: flex; }
+.grb-seg-ink { flex: 1; width: auto; }
+.grb-seg-labels { position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none; }
+.grb-seg-label {
+  flex: 0 1 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  white-space: nowrap;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--grb-seg-fg, inherit);
+}
+.grb-shape-box:not(.grb-shape-on) > .grb-seg-labels { left: 100%; right: auto; max-width: calc(100cqw - 100%); box-sizing: border-box; padding-left: 0.4em; }
+.grb-bar-col:nth-last-child(1 of .grb-bar-col) .grb-shape-box:not(.grb-shape-on) > .grb-seg-labels { max-width: calc((100cqw - 100%) / 2); }
+.grb-shape-box:not(.grb-shape-on) > .grb-seg-labels > .grb-seg-label { justify-content: flex-start; color: inherit; }
+.grb-seg-text { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.graph-block[data-preset="colorful"] .grb-shape-mask .grb-bar-fill { background: var(--grb-pie-1); }
 
 /* ── H6 자동 밝기(현빈 2026-10-05) — 맨 끝에 둔다: 프리셋 규칙(.graph-block[data-preset=…] …)과 세기(0,3,0)가 같아 «순서»로 이긴다.
  *   변수는 canvas-contrast.js syncGraphTone 이 «어두운 바탕 · 사용자 색 없음»일 때만 블럭 인라인에 쓴다. 저장에선 걷힌다(section-serialize) ⇒ 저장본에선 이 줄들이 아무것도 못 고른다.

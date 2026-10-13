@@ -72,7 +72,7 @@ test('여러 겹 SVG 필터: 겹마다 SourceAlpha 에서 따로(누적 없음) 
 
 test('배선: CSS .tgs 규칙 · 쓰기 경로 sync 호출 · Figma 원본 목록 · h2c 걷기 · showShadowBehindNode', () => {
   const src = (p) => fs.readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
-  assert.match(src('css/editor-blocks.css'), /\.tgs\s*\{[^}]*text-shadow:\s*none\s*!important;[^}]*filter:\s*var\(--tgs-filter\)\s*!important;/);
+  assert.match(src('css/editor-blocks.css'), /\.tgs\s*\{[^}]*text-shadow:\s*none\s*!important;[^}]*filter:\s*(?:var\(--gd-stroke-filter,\)\s*)?var\(--tgs-filter\)\s*!important;/);   // ★1012t1E1 내부 외곽선 필터가 앞에 합성될 수 있다
   assert.match(src('js/props/prop-text-wireup-shadow.js'), /syncTextGradShadow\?\.\(el\)/);
   const tfx = src('js/text-effect-transform.js');
   assert.equal((tfx.match(/syncTextGradShadow\?\.\(textEl\)/g) || []).length, 2, 'applyTextEffect·clearTextEffect 둘 다 sync');

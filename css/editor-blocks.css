@@ -79,6 +79,17 @@
        ★모서리 규칙은 ★225053c3 · ★2026-09-29 ⇒ ★★현빈은 ★이 끔을 ★한 번도 ★가져 본 적이 ★없다. */
   overflow: visible !important;
 }
+/* ★1012t1E4 — 점효과(tb-dot)가 든 텍스트 프레임은 비선택에도 안 자른다.
+   큰 제목(줄간격 1.1)은 점이 줄 상자 위로 나가 프레임 위변 밖에 그려진다 → 선택을 풀면 사라졌다.
+   ★자리 = 아래 모서리 규칙 «앞»(명시도 같음) ⇒ 둥근 프레임·「내용 자르기」 켬은 계속 자른다. */
+.frame-block[data-text-frame]:has(.tb-dot) {
+  overflow: visible;
+}
+/* ★1012t1E2 — 범위 글로우(tb-glow)가 든 텍스트 프레임도 같은 까닭으로 안 자른다(빛이 글자 상자 밖 최대 28px 로 번진다).
+   점 규칙과 같은 자리·같은 명시도 ⇒ 둥근 프레임·「내용 자르기」 켬은 계속 자른다. ⚠️잘림 자체는 안 쟀다. */
+.frame-block[data-text-frame]:has(.tb-glow) {
+  overflow: visible;
+}
 /* ★★끌는 ★동안만 ★푼다 (현빈 ㄴ 「자르되 ★끌 때는 ★보인다」).
    ★선례 = 이 파일 아래 «도형을 고르는 동안 조상 프레임의 overflow 를 푸는» 규칙 — 같은 :has 꼴이다.
      ⛔여기에 그 선택자를 ★글자로 적지 마라 — 이 파일을 indexOf 로 훑는 검사가 ★주석을 ★규칙으로 읽는다(실측 2회).
@@ -1571,7 +1582,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * ★＋ 는 블럭 «밖» 층 #grd-plus-layer(#canvas-scaler 안, #canvas 의 형제 — 선례 #todo-pin-overlay z 50)에 산다(E65·RG5 — grid-block.js 머리말).
  *   층은 손이 안 닿고(pointer-events:none) ＋ 만 받는다. 자리는 JS 가 스케일러 로컬 px 로 건다(left/top = 기준점) — 아래 transform 이 끝을 맞춘다. */
 #grd-plus-layer { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 60; }
-#grd-plus-layer > .grd-add-btn {
+#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn) {
   position: absolute;
   pointer-events: auto;
   display: flex; align-items: center; justify-content: center;
@@ -1586,7 +1597,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   cursor: pointer;
 }
 /* 글리프 «+» = 글자 노드가 아니라 ::before(E65 — 글자 '+' 가 PNG·MCP·검색으로 새지 않게). 옛: 안에 svg 14px(화면 고정). */
-#grd-plus-layer > .grd-add-btn::before { content: '+'; line-height: 1; pointer-events: none; }
+#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn)::before { content: '+'; line-height: 1; pointer-events: none; }
 /* ★E28(2026-10-06 · 태양/지디) — ＋ 의 «잡는 자리»만 화면 최소 24px(배율 40% 에서 16px 이던 것). 보이는 원 = 모델 40px 그대로(H9 · 현빈 10-05 «꼴»).
    태그블럭 ＋(editor-layout.css .label-group-add-btn::after)와 «같은 식» — 두 ＋ 가 같은 꼴·같은 손맛.
    ⇒ 그리드 ＋ 쪽은 바로 아래 E28-hit-G15 로 «뒤집혔다»(10-06) — 이제 두 ＋ 의 잡는 식이 다르다(태그 = 24px 최소 · 그리드 = 보이는 원). */
@@ -1595,14 +1606,38 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
      → 배율 40% 에서 보이는 원(16px) 밖 4px 까지 ＋ 가 잡혀, 원 밖 클릭이 행·열을 더했다(grid-plus-g15 K5·R1·R4).
    ⇒ 값(받아들인 비용): 40% 에서 잡는 자리 = 보이는 원 16px. ⛔＋ 를 크게 «그리는» 길(⒥)은 현빈 ㉡1 답 전엔 안 간다.
    ⛔태그블럭 ＋(editor-layout.css .label-group-add-btn::after)는 이 판정 밖 — 손대지 않았다. */
-#grd-plus-layer > .grd-add-btn::after { content: ''; position: absolute; border-radius: 50%; inset: 0; }
+#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn)::after { content: ''; position: absolute; border-radius: 50%; inset: 0; }
 /* 기준점: 오른쪽 ＋ = (블럭 오른쪽 끝, 껍데기 세로 가운데) → «중심을 기준점에»(H10 · 옛 translate(-100%, -50%) 안쪽 한 칸)
    아래 ＋ = (블럭 가로 가운데, 껍데기 아래 끝) → 왼쪽으로 반 칸(옛과 같다 — 위 ⛔ 까닭). */
-#grd-plus-layer > .grd-add-btn[data-grd-add="col"] { transform: translate(-50%, -50%); }
-#grd-plus-layer > .grd-add-btn[data-grd-add="row"] { transform: translateX(-50%); }
-#grd-plus-layer > .grd-add-btn:not(:disabled):hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
+#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn)[data-grd-add="col"] { transform: translate(-50%, -50%); }
+#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn)[data-grd-add="row"] { transform: translateX(-50%); }
+#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn):not(:disabled):hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
 /* 상한(4×4)에서는 흐리게 — 캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 참고 선례: layer-panel.js:559 disabled) */
-#grd-plus-layer > .grd-add-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn):disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+
+/* ── [1012t1K1] 카드 블럭 캔버스 ＋ — 빈 줄(설명/제목) 추가 ──────────────────────────────
+ * ★그리드 G15 ＋(바로 위)와 «같은 꼴·같은 토큰» — 40 모델px 점선 원 · ::before «+»(글자 노드 없음, E65).
+ * ★블럭 «밖» 층 #cvb-plus-layer(#canvas-scaler 끝)에 산다 — 까닭은 js/blocks/canvas-block.js [1012t1K1] 머리말.
+ * ★뜨는 조건은 여기 «없다» — canvas-block.js _cvbPlusShown 하나. 자리 = 텍스트 영역 아래 변 가운데(중심을 그 점에). */
+#cvb-plus-layer { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 60; }
+#cvb-plus-layer > .cvb-add-btn {
+  position: absolute;
+  pointer-events: auto;
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;   /* 모델 px — 그리드 ＋ 와 같은 단위 */
+  padding: 0; margin: 0; box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px dashed var(--ui-divider);
+  font-size: var(--ui-fs-20);
+  background: var(--ui-bg-elevated);
+  color: var(--ui-text-muted);
+  line-height: 0;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+#cvb-plus-layer > .cvb-add-btn::before { content: '+'; line-height: 1; pointer-events: none; }
+#cvb-plus-layer > .cvb-add-btn::after { content: ''; position: absolute; border-radius: 50%; inset: 0; }
+#cvb-plus-layer > .cvb-add-btn:hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
 
 /* ═══════════════════════════════════
    QA BLOCK — admin 전용 체크리스트 (2026-09-16)
@@ -1826,7 +1861,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 /* ★BT2(2026-10-04) 말풍선·챗 «줄» 선택 표시 — 그리드 줄과 «같은 그림·같은 토큰»(--sel-color · --inv-zoom).
    감싸개(.ln-row)에 붙인다. 클래스가 `-line-selected` 로 끝나 저장 직렬화가 벗긴다(section-serialize RUNTIME_MARKER_RE). */
 #canvas .speech-bubble-block .ln-row.ln-line-selected,
-#canvas .chat-block .ln-row.ln-line-selected {
+#canvas .chat-block .ln-row.ln-line-selected,
+#canvas .comparison-block .ln-row.ln-line-selected {
   box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
 }
 /* 빈 글자 줄이 «손에 닿게» — 그리드 빈 줄 안내문(아래 .grd-line:empty)과 같은 관용구. #canvas 스코프라 내보내기엔 안 샌다. */
@@ -2711,6 +2747,41 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
   border-radius: 4px;
   cursor: text;
 }
+/* ★D5 (현빈 2026-10-12) — 빈 칸 «안내» (시각 전용). 글자가 아니다: 모델·textContent·저장본 0.
+ * ⛔10-08 「플레이스홀더 제거」(지워도 되살아나는 진짜 글자)와 다르다 — 이건 :empty 일 때만 보이는 ::before 다.
+ * ★색 = var(--text-placeholder-canvas)(css/design-tokens.css) — 두 칼럼 «같은 규칙», 칼럼 글자색 상속 0 · opacity 로 흐리지 않는다
+ *   (흐림은 합성 대비가 배경마다 달라진다). 그리드 빈 줄 안내(#ccc)와 «떼어 낸» 까닭: #ccc 는 회색 칼럼(#e9ebef)에서 1.345:1,
+ *   흰 강조 칼럼에서 1.606:1 로 안 보였다. 기준(태양 정정) = 두 칼럼 모두 2.5 ≤ 대비 ≤ 4.5(본문처럼 보이면 안 된다).
+ *   실측은 tests/dom/cmp-placeholder-hint.dom.spec.js P9 가 잰다. ⚠️사용자가 칼럼 배경을 바꾼 경우(D1 칼럼 bg)는 이 범위 밖이다.
+ * ★#canvas 스코프: export 클론은 #canvas 밖이라 안내가 결과물에 안 샌다(그리드 안내와 같은 까닭).
+ * 문구는 js/blocks/comparison-block.js CMP_ROW_HINT / CMP_HD_HINT 와 두 벌 — 검사가 묶는다. */
+#canvas .comparison-block .cmp-row:not(.cmp-img):empty::before,
+#canvas .comparison-block .cmp-hd:empty::before,
+#canvas .comparison-block .ln-row > .grd-line:empty::before {
+  color: var(--text-placeholder-canvas);
+  font-weight: normal;
+  opacity: 1;
+  pointer-events: none;
+}
+#canvas .comparison-block .cmp-row:not(.cmp-img):empty::before { content: '내용을 입력하세요.'; }
+#canvas .comparison-block .cmp-hd:empty::before { content: '제목을 입력하세요'; }
+/* ★1012t1D2 칸 «줄»의 빈 줄 안내 — 공용 줄 규칙(.ln-row > .grd-line:empty · '글자를 입력하세요' · #ccc)을 비교 «안에서만» 덮어
+ * D5 칸 안내와 같은 문구·같은 선언(바로 위 색·굵기 묶음)으로 맞춘다. ⛔공용 규칙은 그대로(버블·챗 무접촉) — 이 셀렉터가 더 구체적이다. */
+#canvas .comparison-block .ln-row > .grd-line:empty::before { content: '내용을 입력하세요.'; }
+/* ★1012t1D3 이미지 칸 «선택» 표시 — 그리드 빈 칸 선택(.grd-cell-selected)과 같은 그림·같은 토큰(inset box-shadow · --sel-color · --inv-zoom).
+ * ⛔.selected 재활용 금지(editor.js 범용 조회) · ⛔outline 금지(.cmp-col overflow:hidden 이 바깥 offset 을 자른다).
+ * 클래스가 `-cell-selected` 로 끝나 저장 직렬화가 벗긴다(section-serialize RUNTIME_MARKER_RE). #canvas 스코프 = 내보내기 클론에 안 샌다. */
+#canvas .comparison-block .cmp-row.cmp-cell-selected {
+  box-shadow: inset 0 0 0 calc(2px * var(--inv-zoom, 1)) var(--sel-color);
+}
+/* ★1012t1D3 이미지 칸 «편집 중»(js/blocks/comparison-img-edit.js) — 카드 편집기 테두리 색(--color-handle)을 «토큰»으로.
+ * 칩은 에셋 편집 칩 .img-edit-hint 를 그대로 쓴다(absolute → 칸이 기준이 되게 position:relative). */
+#canvas .comparison-block .cmp-row.cmp-img.cmp-img-editing {
+  position: relative;
+  cursor: grab;
+  box-shadow: inset 0 0 0 calc(2px * var(--inv-zoom, 1)) var(--color-handle);
+}
+#canvas .comparison-block .cmp-row.cmp-img.cmp-img-editing:active { cursor: grabbing; }
 /* 이미지 행 빈 placeholder — 체커보드(사용자 자산 채움 신호). dataset.imgSrc는 비워둔다. */
 .comparison-block .cmp-row.cmp-img.cmp-img-empty {
   background-color: #f2f3f5;
@@ -3305,6 +3376,36 @@ textarea.cvb-card-input {
   padding-right: 22px;
   text-align: right;
 }
+/* ★1012t1M2-a — 말꼬리 「—」(가운데)면 몸통이 블럭 가운데로 간다(위 margin auto) ⇒ 이름도 가운데.
+   옛: 이 규칙이 없어 몸통만 가운데로 가고 이름은 왼쪽 끝에 남았다(실측 dLayout −40 → −337 · zoom 40/100 같음).
+   정렬 단추가 남긴 이름표 인라인 textAlign 은 말꼬리를 바꿀 때 지운다(prop-text-wireup-bubble.js _setTail). */
+.speech-bubble-block[data-tail="center"] .tb-sender-name {
+  text-align: center;
+}
+/* ★1012t1M2-b — 이름표가 «보일 때만» 이름과 몸통이 «한 열»을 같이 쓴다 ⇒ 정렬 단추 center = 이름이 «몸통 위 가운데».
+   뿌리: 이름표(블럭 전폭)와 몸통(fit-content)은 형제라, 이름에 건 text-align 은 «블럭» 기준이었다
+     (실측 9436 · dLayout 좁은 풍선 −40 → +287 · 넓은 풍선 −244 → +83 · 말꼬리 right −287, zoom 40/100 같음).
+   ★열 폭 = max(몸통, 이름) · 상한 80% — .tb-bubble 의 max-width 80% «결과»를 열이 대신 진다(몸통은 열을 안 넘는다).
+     블럭 width:100% · 선택 ::after · 말꼬리 SVG(블럭 기준 absolute)는 그대로다(.claude/rules/css-blocks.md 변경 금지 절).
+   ★이름표를 끈 말풍선(data-show-sender="false" — 기본값)은 이 규칙에 안 걸린다 ⇒ 렌더 그대로(시험 ⒮).
+   ⚠️한계: 이름이 몸통보다 길면 열 = 이름 폭이고 몸통은 말꼬리 쪽에 붙는다 ⇒ 그때 이름은 몸통 가운데가 아니다(결정 후보). */
+.speech-bubble-block[data-show-sender="true"] {
+  display: grid;
+  grid-template-columns: fit-content(80%);
+  justify-content: start;
+}
+.speech-bubble-block[data-show-sender="true"][data-tail="right"] { justify-content: end; }
+.speech-bubble-block[data-show-sender="true"][data-tail="center"] { justify-content: center; }
+.speech-bubble-block[data-show-sender="true"] .tb-bubble { max-width: 100%; }
+/* 정렬 단추 center 면 말꼬리 쪽 22px 들여쓰기를 뺀다 — 안 빼면 이름 글자가 11px 치우친다.
+   표식은 applyBubbleSenderAlign(prop-text-wireup-align.js) 한 곳이 쓴다. */
+/* ★둘째 선택자(결함 2) — 10-10 ~ M2-b 사이 저장본은 이름표 인라인 center 만 있고 표식이 없다(이벨 실측 dLayout +11).
+   불러오기·⌘Z·붙여넣기·템플릿 길이 여럿이라 JS 이행 대신 렌더(CSS)에서 인라인 값을 그대로 읽는다. */
+.speech-bubble-block[data-sender-align="center"] .tb-sender-name,
+.speech-bubble-block .tb-sender-name[style*="text-align: center"] {
+  padding-left: 0;
+  padding-right: 0;
+}
 .tb-bubble {
   background: var(--bubble-bg);
   color: #1c1c1e;
@@ -3475,6 +3576,13 @@ body.hlb-mode #canvas-scaler,
 body.hlb-mode .section-block,
 body.hlb-mode .section-block * { cursor: crosshair !important; }
 body.hlb-mode .hlb-preview { cursor: crosshair !important; pointer-events: none; }
+
+/* 카운트 스티커 도구가 켜진 동안 — 위 두 도구와 같은 십자 커서 (1012t1Z4) */
+body.count-stk-mode,
+body.count-stk-mode #canvas-wrap,
+body.count-stk-mode #canvas-scaler,
+body.count-stk-mode .section-block,
+body.count-stk-mode .section-block * { cursor: crosshair !important; }
 
 #fp-pen-btn.active {
   background: var(--ui-accent-primary);
@@ -3905,9 +4013,15 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
    text-shadow 는 배경(=그라데이션) 위에 칠해져 페이드를 덮는다 → 같은 목록을 filter 로 옮긴다
    (한 겹 = drop-shadow, 여러 겹 = 겹이 누적되지 않는 SVG 필터 url(#tgs-f-…)).
    클래스·변수는 js/props/text-block-color.js syncTextGradShadow 만 붙이고 뗀다(원본 그림자 값은 그대로 보존). */
+/* ★1012t1E1 텍스트 «내부» 외곽선 — SVG 필터(erode) 정의는 js/props/text-stroke-filter.js 보관소(#gdsk-svg-defs).
+   인라인 변수만 정본(⛔인라인 filter 금지 — clearTextEffect 가 지운다). 그림자가 있으면 바로 아래 그림자 규칙이 합성한다. */
+[style*="--gd-stroke-filter"] {
+  filter: var(--gd-stroke-filter);
+}
 .tgs {
   text-shadow: none !important;
-  filter: var(--tgs-filter) !important;
+  /* ★1012t1E1 — [내부 외곽선 → 그림자] 순서 합성. 외곽선이 없으면 var(...,) 가 비어 옛 값과 같다. */
+  filter: var(--gd-stroke-filter,) var(--tgs-filter) !important;
 }
 /* 편집 중 «펼친 선택»이 있는 동안: filter 가 선택 하이라이트 사각형까지 흐려 번지므로 잠시 원래 text-shadow 로
    (html.tgs-selecting 은 text-block-color.js 의 selectionchange 가 단다 — 캔버스 저장본에 안 실림). */

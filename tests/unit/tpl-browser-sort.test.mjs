@@ -253,3 +253,96 @@ test('F9 ★★고전 스크립트인가 — ⛔`export` 가 ★들어오면 ★
     assert.ok(!/^\s*(export|import)\s/m.test(body), `★${rel} 에 ★export·import 가 ★들어왔다`);
   }
 });
+
+/* ── 1012t1Z2 — 정렬 줄이 뎁스2(카드 칼럼) 머리로 옮겨 갔고, 고른 값을 기기에 기억한다 ── */
+
+/** 가짜 storage — `getItem`/`setItem` 호출을 센다 */
+function fakeStorage(init = {}) {
+  const m = new Map(Object.entries(init));
+  const st = { sets: 0, gets: 0,
+    getItem(k) { st.gets++; return m.has(k) ? m.get(k) : null; },
+    setItem(k, v) { st.sets++; m.set(k, String(v)); },
+    dump: () => Object.fromEntries(m) };
+  return st;
+}
+
+test('F11 고른 정렬을 기억한다 — 저장한 열쇠를 다시 읽는다', () => {
+  assert.strictEqual(typeof W.tplSortLoad, 'function', 'window.tplSortLoad 가 없다');
+  assert.strictEqual(typeof W.tplSortSave, 'function', 'window.tplSortSave 가 없다');
+  const st = fakeStorage();
+  /* 전제 — 저장 전에는 기본값이고, 그 기본값은 `name` 이 아니다(같으면 아래 단언이 항등식이다) */
+  assert.strictEqual(W.tplSortLoad(st), W.tplSortDefault, '전제 — 빈 storage 에서 기본값이 아니다');
+  assert.notStrictEqual(W.tplSortDefault, 'name', '전제 — 기본값이 name 이면 이 칸은 아무것도 안 잠근다');
+  assert.strictEqual(W.tplSortSave('name', st), true, '명부에 있는 열쇠인데 저장이 false 다');
+  assert.strictEqual(st.sets, 1, `setItem 이 1번이 아니다(잰 값 ${st.sets})`);
+  assert.strictEqual(W.tplSortLoad(st), 'name', `기억한 값이 안 돌아왔다 — storage: ${JSON.stringify(st.dump())}`);
+  /* 기본 열쇠로 되돌린 것도 기억한다 — 그래야 「기본」을 다시 고를 수 있다 */
+  assert.strictEqual(W.tplSortSave(W.tplSortDefault, st), true);
+  assert.strictEqual(W.tplSortLoad(st), W.tplSortDefault);
+  /* 명부의 열쇠 전부가 왕복한다 */
+  for (const k of Object.keys(W.TPL_SORTS)) {
+    const s2 = fakeStorage();
+    W.tplSortSave(k, s2);
+    assert.strictEqual(W.tplSortLoad(s2), k, `열쇠 ${k} 가 왕복하지 않는다`);
+  }
+});
+
+test('F12 쓰레기 기억값·던지는 storage ⇒ 기본값, 모르는 열쇠는 storage 를 안 건드린다', () => {
+  const key = Object.keys((() => { const s = fakeStorage(); W.tplSortSave('name', s); return s.dump(); })())[0];
+  assert.strictEqual(typeof key, 'string', '전제 — 저장 키 이름을 못 읽었다');
+  for (const junk of ['zzz', '', 'NAME', 'toString', 'constructor', '__proto__', '{"a":1}']) {
+    const st = fakeStorage({ [key]: junk });
+    assert.strictEqual(W.tplSortLoad(st), W.tplSortDefault, `쓰레기 값 ${JSON.stringify(junk)} 가 기본값으로 안 떨어졌다`);
+    assert.ok(st.gets > 0, '전제 — getItem 을 아예 안 불렀다(storage 를 안 읽는다)');
+  }
+  const throwing = { getItem() { throw new Error('막힘'); }, setItem() { throw new Error('막힘'); } };
+  assert.strictEqual(W.tplSortLoad(throwing), W.tplSortDefault, 'getItem 이 던지는데 기본값이 아니다');
+  assert.strictEqual(W.tplSortSave('name', throwing), false, 'setItem 이 던지는데 true 를 돌려줬다');
+  /* storage 가 아예 없는 window(이 하네스) — 던지지 않고 기본값 */
+  assert.strictEqual(W.tplSortLoad(), W.tplSortDefault, 'storage 없는 window 에서 기본값이 아니다');
+  assert.strictEqual(W.tplSortSave('name'), false, 'storage 없는 window 에서 저장이 true 다');
+  /* 명부에 없는 열쇠는 쓰지 않는다 */
+  const st = fakeStorage({ [key]: 'recent' });
+  for (const bad of ['zzz', '', undefined, null, 0, {}, 'toString']) {
+    assert.strictEqual(W.tplSortSave(bad, st), false, `모르는 열쇠 ${JSON.stringify(bad)} 를 저장했다`);
+  }
+  assert.strictEqual(st.sets, 0, `모르는 열쇠인데 setItem 이 ${st.sets}번 불렸다`);
+  assert.strictEqual(W.tplSortLoad(st), 'recent', '모르는 열쇠가 기억값을 덮어썼다');
+});
+
+test('F13 두 창 모두 정렬 select 가 뎁스2 칼럼(바디 안 · 카드 목록 앞)에 있고 라벨이 붙는다', () => {
+  for (const [nm, rel] of [['index.html', ['index.html']], ['별창', ['pages', 'template-browser.html']]]) {
+    const html = stripHtmlComments(readSrc(ROOT, ...rel));
+    const iSort = html.indexOf('id="tpl-browser-sort"');
+    const iBody = html.indexOf('class="tpl-browser-body"');
+    const iTree = html.indexOf('id="tpl-browser-tree"');
+    const iCards = html.indexOf('id="tpl-browser-cards"');
+    const iWrap = html.indexOf('class="tpl-browser-search-wrap"');
+    const iChips = html.indexOf('id="tpl-browser-tag-chips"');
+    for (const [k, v] of Object.entries({ iSort, iBody, iTree, iCards, iWrap, iChips })) {
+      assert.ok(v > 0, `${nm}: 전제 — ${k} 자리를 못 찾았다`);
+    }
+    assert.strictEqual(html.split('id="tpl-browser-sort"').length - 1, 1, `${nm}: 정렬 select 가 하나가 아니다`);
+    assert.ok(iBody < iSort, `${nm}: 정렬 select 가 바디보다 앞에 있다`);
+    assert.ok(iTree < iSort, `${nm}: 정렬 select 가 트리(뎁스1)보다 앞에 있다`);
+    assert.ok(iSort < iCards, `${nm}: 정렬 select 가 카드 목록보다 뒤에 있다`);
+    /* 검색 줄 구간(검색 줄 시작 ~ 태그 칩)에는 없다 */
+    assert.ok(iWrap < iChips, `${nm}: 전제 — 검색 줄이 태그 칩보다 앞이다`);
+    assert.ok(!html.slice(iWrap, iChips).includes('tpl-browser-sort'), `${nm}: 정렬 select 가 검색 줄에 남아 있다`);
+    /* 라벨 */
+    assert.ok(/<label[^>]*for="tpl-browser-sort"[^>]*>\s*정렬\s*<\/label>/.test(html), `${nm}: 「정렬」 라벨이 select 에 안 묶였다`);
+    /* 칼럼 래퍼가 select 와 카드 목록을 같이 품는다 */
+    const iCol = html.indexOf('class="tpl-browser-cards-col"');
+    assert.ok(iCol > iTree && iCol < iSort, `${nm}: 카드 칼럼 래퍼가 트리 뒤·select 앞에 없다`);
+  }
+});
+
+test('F14 제품이 기억값을 읽고(열 때) 쓴다(고를 때)', () => {
+  const src = stripComments(readSrc(ROOT, 'js', 'panels', 'template-browser.js'));
+  assert.ok(/_browserSort\s*=\s*window\.tplSortLoad\?\.\(\)/.test(src), '열 때 tplSortLoad 로 읽지 않는다');
+  const i = src.indexOf("getElementById('tpl-browser-sort')?.addEventListener('change'");
+  assert.ok(i > 0, '전제 — 정렬 change 리스너를 못 찾았다');
+  const handler = src.slice(i, src.indexOf('});', i));
+  assert.ok(/window\.tplSortSave\?\.\(_browserSort\)/.test(handler), '정렬 change 리스너가 tplSortSave 를 안 부른다');
+  assert.ok(handler.indexOf('_browserSort =') < handler.indexOf('tplSortSave'), '값을 정하기 전에 저장한다');
+});

@@ -17,7 +17,18 @@
        라벨 글자 크기 20 · 꺾은선 좌우 여백 16(SVG 가상폭 1000 단위 — 계산된 CSS 로 못 읽는다) · 가로 막대 숫자 크기 = 라벨 크기 × 3.
        렌더러(drag-utils renderGraph)와 패널(prop-graph)이 «이 값들»을 읽는다. 전엔 패널 13·0·60 을 각자 적어 그려지는 20·16·라벨×3 과 달랐다
        (명부 E105 = 13≠20 · E106 · E110 — PANEL-SHOWS-WRONG 꼴). 값은 렌더러의 옛 값 그대로 = 렌더 바이트 무변. */
-  var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3 });
+  /* ★PIE_HOLE_MIN · MAX · DEFAULT(1012t1G1 · 2026-10-12) — 도넛 그래프 가운데 구멍의 크기(바깥 반지름 대비 %). 패널 슬라이더·숫자칸(prop-graph.js)과
+       렌더러(drag-utils.js _renderPie)가 «이 세 값»을 읽는다. 20 미만은 원형과 구별이 안 되고 80 초과는 고리가 실처럼 가늘어진다(기획 값 — 현빈 확인 전). */
+  /* ★PIE_GAP(1012t1G1 고침 · 2026-10-13) — 원형·도넛 조각 사이 틈의 폭(viewBox 1000 단위 — 계산된 CSS 로 못 읽는다 · 높이 240 에서 약 2.4px).
+       색 순번이 5개 주기라 항목 수가 5n+1 이면 끝 조각이 첫 조각과 같은 색으로 맞닿는다 — 틈이 그 둘을 가른다. 렌더러(drag-utils.js _renderPie)가 읽는다(기획 값 — 현빈 확인 전). */
+  /* ★SHAPE_SVG_MAX · SHAPE_FILL_MAX_DEFAULT · SHAPE_TRACK_OPACITY · SEG_GAP_DEFAULT(1012t1G2·G3·G4 · 2026-10-12) — 「SVG 를 그래프 모양으로」(js/graph-shape.js).
+       SHAPE_SVG_MAX 60000 = 블럭에 실리는 «정규화된» 사용자 SVG 글자 수의 상한(마스크 URL 은 % 인코딩으로 그 세 배쯤까지 는다 — 저장본 비대 방지).
+       SHAPE_FILL_MAX_DEFAULT 100 = 모양일 때 채움 분모(값 하나짜리 채움 그래프가 늘 꽉 차지 않게 — 사각 막대의 max(items) 와 다르다).
+       SHAPE_TRACK_OPACITY 0.25 = 안 찬 부분(트랙)의 불투명도 — 색은 채움과 같은 색(새 색 0). SEG_GAP_DEFAULT 2 = 마디 사이 틈(px).
+       렌더러(drag-utils.js · graph-shape.js)와 패널(prop-graph.js)이 «이 값들»을 읽는다(기획 값 — 현빈 확인 전). */
+  var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3,
+    PIE_HOLE_MIN: 20, PIE_HOLE_MAX: 80, PIE_HOLE_DEFAULT: 55, PIE_GAP: 10,
+    SHAPE_SVG_MAX: 60000, SHAPE_FILL_MAX_DEFAULT: 100, SHAPE_TRACK_OPACITY: 0.25, SEG_GAP_DEFAULT: 2 });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_LIMITS;
   if (root) root.GRAPH_LIMITS = GRAPH_LIMITS;
 })(typeof window !== 'undefined' ? window : null);

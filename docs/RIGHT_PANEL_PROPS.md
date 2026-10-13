@@ -245,6 +245,16 @@
 | 스타일 | 바 색상 | — |
 | 스타일 | 배경 색상 | — |
 | 타입 | 그래프 형태 | Bar / Line 등 |
+| Shape (세로 막대 전용 · 1012t1G2·G3) | 모양 select | 기본 막대 / 사람 / 약통 / 물방울 / 사용자 SVG — `dataset.barShape` (끄면 키 삭제) |
+| Shape | SVG 불러오기 | `.svg` 파일을 소독·정규화해 실루엣으로 (`dataset.shapeSvg`, 상한 `GRAPH_LIMITS.SHAPE_SVG_MAX`). `<style>` 요소는 안 받는다 · `<use>` 겹쳐 부르기는 거절(TOO_COMPLEX). 읽는 사이 선택이 다른 블럭으로 옮겨 갔으면 패널을 다시 그리지 않는다 |
+| Shape | 최대값 | 채움 분모 `dataset.fillMax` (모양이 켜졌을 때만 · 빈 칸 = 기본 100 · 값이 안 바뀌면 히스토리를 안 찍는다) |
+| Shape | 트랙 색 | 안 찬 부분의 색 `dataset.trackColor` (비우면 채움과 같은 색 × 25%) |
+| Bar Settings | 두께 | 모양이 켜지면 숨는다(폭은 실루엣의 비가 정한다) |
+| 데이터 | 항목별 SVG 버튼 | 모양이 켜졌을 때만 — 그 항목만 다른 실루엣(`items[i].shape` / `shapeSvg`), 다시 누르면 지움 |
+| 데이터 (세로 막대 전용 · 1012t1G4) | 마디 줄 · + 마디 추가 | 항목을 비율별 마디로 — `items[i].segments = [{label, value, color?}]` (0번이 맨 아래). 마디가 있으면 항목 값 칸은 읽기 전용(합) |
+| 데이터 (다른 유형) | 값 칸 | 마디 있는 항목도 값 칸이 풀려 있다 — 마디는 «보존만». 값을 확정(change)하면 마디를 그 값에 같은 비율로 맞추고(값 0 은 그대로 둔다), 세로 막대로 돌아오면 값 = 마디 합 |
+
+> 쓰는 길은 `window.setGraphShape` 하나(패널 select · 파일 · 항목 버튼 공통). 상세: `docs/goditor-api-reference.md` 「그래프 모양 · 채움 · 마디」.
 
 ---
 

@@ -1490,6 +1490,36 @@ function _grdImageSectionHtml(anyHit, block) {
              (바로 위 높이 칸이 GRID_IMG_CIRCLE_D 로 같은 꼴을 이미 쓴다 — 새 관용구 0.) */ ''}
         <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="${line.imgSrc ? 0 : GRID_IMG_EMPTY_RADIUS}" value="${rad}">
       </div>${circleRows}
+    </div>${_grdImageClipSectionHtml(anyHit, block)}`;
+}
+
+/* ══ ★1012t1 B1 「내용 자르기」 (현빈 1010t1c2 ㈁ — 그리드 이미지줄) ═══════════════════════
+ * ★마크업·이름은 에셋(prop-asset.js asset-clip-toggle)·프레임(prop-frame.js)과 ★같다 — prop-row › prop-label 「내용 자르기」 › prop-toggle.
+ * ★자리 = Image 절 «아래» 따로 선 Layout 절(에셋도 이 토글을 Layout 절에 둔다).
+ *   ⛔Image 절 «안»에 넣지 않는다 — 그 절의 줄 수 4(선택·폭·높이·반경)는 현빈 2026-09-25 결정으로 잠겨 있다
+ *     (tests/dom/grid-img-crop P1 · grid-circle-text G20-4 가 수로 단언한다).
+ * ★판정은 ★렌더러가 그린 프레임에 묻는다 — js/clip-content.js 의 clipFamily/clipsContent(★표 한 자리).
+ *   ⛔모델의 크롭 값을 여기서 다시 세지 않는다(렌더러 `cropped` 판정이 두 벌이 된다).
+ *   ★window 로 부른다(import 0) — 이 파일을 싣는 유닛 하네스가 import 를 «필요한 이름만» 대역으로 싣는다.
+ * ★원은 ★절째 안 낸다 — 원은 «자름이 곧 모양»이라 끄면 원이 사각이 된다.
+ * ★크롭 없는 줄(gridPlain)은 그림 = 틀 크기라 잘릴 것이 없다 ⇒ 막고 까닭을 보인다(바로 위 「높이(px)」 hLocked 와 같은 꼴). */
+function _grdImageClipSectionHtml(anyHit, block) {
+  if (!anyHit || !anyHit.line || anyHit.line.imgShape === 'circle') return '';
+  const { r, c, li } = anyHit;
+  const frame = block?.querySelector?.(`.grd-img-frame[data-r="${r}"][data-c="${c}"][data-line="${li}"]`);
+  const fam = frame ? window.clipFamily?.(frame) : null;
+  const locked = fam !== 'gridCrop';
+  const on = !!(frame && window.clipsContent?.(frame));
+  return `
+    <div class="prop-section">
+      <div class="prop-section-title">이미지 표시</div>
+      <div class="prop-row">
+        <span class="prop-label">내용 자르기</span>
+        <label class="prop-toggle"${locked ? ' style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
+          <input type="checkbox" id="grd-img-clip-toggle" ${on ? 'checked' : ''}${locked ? ' disabled' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>${locked ? '\n      <div class="prop-hint" id="grd-img-clip-hint">자르기 전에는 그림이 틀에 꼭 맞아 잘릴 것이 없습니다</div>' : ''}
     </div>`;
 }
 
@@ -1548,6 +1578,20 @@ function _grdWireImageSection(block, addr) {
   numWire('grd-img-width-pct', 'widthPct', IMG_MIN_PCT, 100);
   numWire('grd-img-height', 'height');
   numWire('grd-img-radius', 'radius');
+
+  /* ★1012t1 B1 「내용 자르기」 — 값은 줄 모델 `clipContent`(= data-clip-content 의 dataset 이름 그대로 · 새 이름 0).
+   *   ★계열 기본값과 같아지면 ★키를 지운다(undefined = 키 삭제 · 에셋 prop-asset.js 와 같은 «옛 바이트 보존» 규약).
+   *   ★기본값은 표(js/clip-content.js gridCrop)에서 묻는다 — ⛔여기 true/false 를 손으로 들지 않는다.
+   *   ★push-after(적용 먼저, pushHistory 나중) — tests/unit/prop-push-after PA-1 규약 · 한 번 = 이력 한 걸음. */
+  document.getElementById('grd-img-clip-toggle')?.addEventListener('change', (e) => {
+    const want = !!e.target.checked;
+    const dflt = window.clipsContentFor?.('gridCrop', undefined);
+    gridPreviewLine(block, r, c, li, { clipContent: want === dflt ? undefined : want }, addr.np);
+    _grdSyncLineMark(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
+    window.scheduleAutoSave?.();
+    window.showGridImageResizeHandle?.(block);
+    window.pushHistory?.('그리드 이미지 내용 자르기');
+  });
 
   /* ══ ★★G20 원 «채움색» · 원 «안 글자» 배선 (현빈 2026-10-07) ═══════════════════════
    * ★이력은 ★제스처마다 ★«한 걸음»이다 — 이 레포의 두 관용구를 ★그대로 빌린다(새 꼴을 만들지 않는다):

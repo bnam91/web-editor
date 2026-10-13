@@ -128,6 +128,64 @@
   resize: vertical;
 }
 .smp-textarea:focus { outline: 1px solid var(--ui-accent-primary, #2d6fe8); border-color: var(--ui-accent-primary, #2d6fe8); }
+/* 메모 편집 칸 (1012t1A1) — 글상자가 아니라 편집 가능한 상자다. 줄바꿈·연속 공백을 글자 그대로 보인다. */
+.smp-editor {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+/* 빈 칸 안내 글 — 캐럿 자리를 밀지 않게 띄워 둔다 */
+.smp-editor.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--ui-text-muted);
+  pointer-events: none;
+}
+/* 메모 속 동그란 체크박스 — 글자 크기를 따라간다 */
+.smp-check {
+  display: inline-block;
+  box-sizing: border-box;
+  position: relative;
+  width: 1.1em;
+  height: 1.1em;
+  margin-right: var(--ui-row-gap);
+  border: 1px solid var(--ui-text-muted);
+  border-radius: 50%;
+  vertical-align: -0.18em;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background 120ms, border-color 120ms;
+}
+.smp-check:hover { border-color: var(--ui-text); }
+.smp-check[aria-checked="true"] {
+  background: var(--ui-accent-primary);
+  border-color: var(--ui-accent-primary);
+}
+.smp-check[aria-checked="true"]::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  width: 0.28em;
+  height: 0.52em;
+  border: solid var(--ui-text);
+  border-width: 0 0.12em 0.12em 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+/* 메모 속 참고 이미지 (1012t1A2) — 한 줄을 통째로 차지하고, 편집 칸 너비를 넘지 않는다 */
+.smp-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: var(--ui-row-gap) 0;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  cursor: default;
+}
 .smp-foot {
   display: flex; justify-content: space-between; align-items: center;
   font-size: var(--ui-fs-base);
@@ -423,6 +481,29 @@
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
   border-radius: 2px;
+}
+
+/* ── 텍스트 ★범위 글로우 (1012t1E2 · 2026-10-12 현빈: 「네온글로우 효과가 하나의 텍스트 블럭 전체에만 들어가는데
+     하이라이트 효과처럼 특정 영역선택후 입력도 가능하게」) ─────────────────────────────────────────
+   ★꼴 = 형광펜과 같다 — span.tb-glow 가 «여러 글자»를 두르고, 값은 .text-block 인라인 두 변수 한 벌:
+     색 = --tb-glow-color (불투명도는 색칸 % 가 rgba 로 싣는다)   세기 = --tb-glow-k (0~1)
+   ★겹 처방 = Effects 블럭 글로우(js/effects-glow.js)와 «같은 3겹 반경 비» 0.21 : 0.5 : 1 · 가장 큰 겹 = 28px × k
+     (k 0.7 → 19.6px ≈ Effects 기본 Blur 20). 흰 심·색수차·글자색 바꾸기는 안 한다(이스트에그 몫 · 계획 Q2/Q3 기본값).
+   ★★var(--tb-glow-base,) — text-shadow 는 «상속 덮어쓰기»라 span 이 글자칸의 그림자(Effects 글로우·Shadow 절 합성)를
+     잃는다 ⇒ 글자칸에 적어 둔 ", <글자칸 text-shadow>" 를 제 겹 «뒤에» 잇는다
+     (쓰는 자리 = js/props/prop-text-wireup-text-edit.js syncRangeGlowBase · 없으면 빈 값 = 제 겹만).
+   ★기본색 #ff00ff = 이스트에그 TEXT_EFFECT_DEFAULTS.glowColor · Effects FX_GLOW_DEFAULTS.color 와 같은 값
+     (효과 기본값 — design-tokens.css 에 맞는 토큰 0건 · grep ff00ff/neon/glow). ⛔다른 값으로 갈지 마라 — 셋이 갈린다.
+   ⚠️그라데이션 글자(투명 채움)에선 빛이 글자 «위»로 비쳐 그라데이션이 지워진다 ⇒ 단추가 막는다(_syncGradUi). */
+.text-block {
+  --tb-glow-color: #ff00ff;
+  --tb-glow-k: 0.7;
+}
+.tb-glow {
+  text-shadow:
+    0 0 calc(5.88px * var(--tb-glow-k)) var(--tb-glow-color),
+    0 0 calc(14px * var(--tb-glow-k)) var(--tb-glow-color),
+    0 0 calc(28px * var(--tb-glow-k)) var(--tb-glow-color) var(--tb-glow-base,);
 }
 
 /* ── 텍스트 위 ★점 찍기(방점) (2026-10-08 수지 피드백 ⑥ · ⚠️출처는 ★2차다:
@@ -726,6 +807,60 @@ span[style*="text-fill-color"] .tb-dot { -webkit-text-fill-color: currentColor; 
   mix-blend-mode: overlay;
   opacity: 0;
 }
+/* ── 블러(Redact) 효과 (1012t1 C1) ─────────────────────────────────────
+ * 상태는 에셋 블럭 자신의 data-redact(1~100) + 인라인 --redact-blur(px) 뿐이다
+ * (js/effects/image-redact.js applyRedact 가 둘을 같이 쓰고 같이 지운다).
+ * ★그림 «자신»을 filter 로 흐린다(뒤 막 흐리기 = backdrop 을 쓰지 않는다).
+ *   까닭(이벨류에이터 실측 2026-10-13): 캔버스 배율이 100% 를 넘으면(조상 변환) 뒤 막 흐리기가
+ *   아래·오른쪽 가장자리 띠를 «안 흐려» 원본이 보였다(켬/끔 sd 비 0.45) — 변환을 끄면 사라진다.
+ * 색보정도 같은 그림의 인라인 filter 를 쓴다 ⇒ 인라인 값은 image-redact.js writeImgFilter 한 자리가
+ *   «색보정 + 블러»를 이어 쓴다. 아래 규칙은 인라인이 비었을 때(그림을 갈아 끼운 직후 등)의 바닥이다.
+ * 흐림 가장자리 바램은 그림을 사방 3σ 키우고 클립 상자가 잘라 없앤다 — 크롭·편집(그림 자리를
+ *   인라인으로 쥔 상태)과 「내용 자르기」 끔(상자 밖이 보인다)에는 키우지 않는다.
+ * html2canvas 는 filter 를 못 그린다 ⇒ capture-safety.js neutralizeRedactForH2C 가 회색으로 덮는다. */
+.asset-block[data-redact] > .asset-img-clip > :is(.asset-img, canvas) {
+  filter: blur(var(--redact-blur, 8px));
+}
+.asset-block[data-redact]:not([data-img-w]):not([data-clip-content="false"]) > .asset-img-clip > :is(.asset-img, canvas) {
+  width: calc(100% + 6 * var(--redact-blur, 8px));
+  height: calc(100% + 6 * var(--redact-blur, 8px));
+  max-width: none;
+  margin: calc(-3 * var(--redact-blur, 8px));
+}
+/* ── 1012t1 D4 — 비교 블럭 이미지 칸의 블러(같은 상태: data-redact + --redact-blur · 렌더가 모델 row.redact 로 매번 칠한다)
+ * ⛔«뒤 막 흐리기»(backdrop · 에셋도 C1 2차에서 버렸다)를 쓰지 않는다 — 비교 블럭은 조상(블럭 안쪽 상자)에 배율 변환이 걸린다.
+ *   실측(D4 프로브 2026-10-13 · 배율 1.194): 뒤 막 흐리기는 칸 아래 약 8% 띠와 오른쪽 가장자리를 «안 흐렸다»
+ *   (높이 95%·98% 줄무늬 sd 11·36 — 원본 120) · 변환을 끄면 전 줄 1 · 불투명 단색 막은 칸 전체를 덮었다
+ *   ⇒ 막의 자리는 맞고 «뒤 그림을 읽는 영역»이 변환 아래에서 어긋난다.
+ * ⇒ 칸은 그림이 «자기 배경»이므로 막이 그 배경을 물려받아(inherit) 스스로 흐린다. 흐림 가장자리 바램은
+ *   막을 바깥으로 3σ 키우고 칸의 넘침 자르기(렌더 인라인)로 잘라 없앤다. 같은 프로브: 전 줄 sd 1~2 · 색보정 공존 1~2.
+ * 칸 자신의 선명한 그림은 막 아래에서 안쪽 여백만큼 덜 그린다(배율 경계의 반투명 머리카락 줄에 원본이 비치지 않게).
+ * html2canvas 길은 덮개(neutralize)가 칸 배경을 회색으로 바꾸고 막이 그 회색을 물려받는다. */
+.comparison-block .cmp-row.cmp-img[data-redact] {
+  position: relative;
+  padding: 2px;
+  background-clip: content-box;
+}
+.comparison-block .cmp-row.cmp-img[data-redact]::after {
+  content: '';
+  position: absolute;
+  inset: calc(-3 * var(--redact-blur, 8px));
+  pointer-events: none;
+  background: inherit;
+  background-clip: border-box;
+  filter: blur(var(--redact-blur, 8px));
+}
+/* 칸 선택·편집 표시(칸 자신의 안쪽 그림자)는 불투명한 막 아래에 묻힌다 — 앞 의사요소가 같은 그림자를 물려받아 막 위에 다시 그린다 */
+.comparison-block .cmp-row.cmp-img[data-redact]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  box-shadow: inherit;
+}
+/* 편집 칩은 칸의 자식이라 막보다 먼저 그려져 덮인다 — 칩만 한 층 위로 */
+.comparison-block .cmp-row.cmp-img[data-redact] > .img-edit-hint { z-index: 2; }
 /* 오버레이 내 블록은 페이지 padX/padY 무시 */
 .asset-overlay .text-block {
   padding: 4px 16px !important;

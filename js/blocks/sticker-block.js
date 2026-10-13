@@ -212,7 +212,15 @@ function _renderStickerBlockInner(block) {
     const y2 = parseFloat(block.dataset.y2) || 0;
     const thickness = parseInt(block.dataset.thickness) || 12;
     const hlColor   = block.dataset.hlColor || 'rgba(255, 235, 70, 0.7)';
-    const lineStyle = block.dataset.lineStyle || 'line';
+    /* ★1012t1J2 두들 다섯(js/fx/doodle-line-render.js DoodleLine) · ★모르는 값(앞날의 enum·손상)은 'line' 으로 떨어진다 —
+       옛 판은 pathD = '' 라 선이 «안 보였다». DoodleLine 이 안 실렸으면 두들도 line 으로(그리고 크게 알린다 — glow 선례). */
+    const _DL = window.DoodleLine;
+    const _rawStyle = block.dataset.lineStyle || 'line';
+    const _isDoodle = !!(_DL && _DL.STYLES.includes(_rawStyle));
+    if (!_DL && ['scribble', 'brush', 'circle', 'double', 'scratch'].includes(_rawStyle)) {
+      console.error('[sticker] DoodleLine 이 안 실렸다 — js/fx/doodle-line-render.js 의 script 태그를 확인하라. 두들을 직선으로 그린다.');
+    }
+    const lineStyle = (_isDoodle || ['line', 'wavy', 'marker'].includes(_rawStyle)) ? _rawStyle : 'line';
     const amplitude = parseFloat(block.dataset.amplitude) || 6;   // wavy 진폭(px)
     const period    = parseFloat(block.dataset.period)    || 30;  // wavy 주기(px)
     const dx = x2 - x1;
@@ -224,11 +232,19 @@ function _renderStickerBlockInner(block) {
     const padThick = Math.ceil(thickness / 2) + 2;
     const padAmp   = lineStyle === 'wavy' ? Math.ceil(amplitude) + 2 : 0;
     const padMarker = lineStyle === 'marker' ? 4 : 0; // 끝부분 roughness 여유
-    const pad = padThick + padAmp + padMarker;
-    const bboxLeft = Math.min(x1, x2) - pad;
-    const bboxTop  = Math.min(y1, y2) - pad;
-    const bboxW    = Math.abs(dx) + pad * 2;
-    const bboxH    = Math.abs(dy) + pad * 2;
+    const padDoodle = _isDoodle ? _DL.extraPad(lineStyle, { thickness, amplitude, length }) : 0;
+    const pad = padThick + padAmp + padMarker + padDoodle;
+    /* ★1012t1J2 D1 — 길이 방향 넘침(circle 타원이 선분 양끝 밖으로 나감)을 회전각으로 나눠 축별 pad 에 얹는다.
+       회전된 띠(길이 L+2·along, 두께 2·pad)의 축 정렬 외접 상자 = 끝점 상자 + (|cos|·along + |sin|·pad, |sin|·along + |cos|·pad).
+       두들이 아니거나 along=0 이면 padX = padY = pad (옛 판과 같은 bbox). */
+    const along = _isDoodle && _DL.extraPadAlong ? _DL.extraPadAlong(lineStyle, { thickness, amplitude, length }) : 0;
+    const _ca = length > 0 ? Math.abs(dx) / length : 1, _sa = length > 0 ? Math.abs(dy) / length : 0;
+    const padX = Math.max(pad, Math.ceil(_ca * along + _sa * pad));
+    const padY = Math.max(pad, Math.ceil(_sa * along + _ca * pad));
+    const bboxLeft = Math.min(x1, x2) - padX;
+    const bboxTop  = Math.min(y1, y2) - padY;
+    const bboxW    = Math.abs(dx) + padX * 2;
+    const bboxH    = Math.abs(dy) + padY * 2;
     block.style.cssText = `position:absolute;left:${bboxLeft}px;top:${bboxTop}px;`
       + `width:${bboxW}px;height:${bboxH}px;`
       + `background:transparent;pointer-events:auto;user-select:none;z-index:1;`;
@@ -238,7 +254,7 @@ function _renderStickerBlockInner(block) {
     const lineLeft = cx - bboxLeft;
     const lineTop  = cy - bboxTop;
     // SVG 내부 좌표: viewBox 0 0 length (svgH); y 중심 = svgH/2
-    const svgH = thickness + (padAmp + padMarker) * 2;
+    const svgH = thickness + (padAmp + padMarker + padDoodle) * 2;
     const yMid = svgH / 2;
 
     // path 생성 ──────────────────────────────
@@ -280,6 +296,20 @@ function _renderStickerBlockInner(block) {
       </defs>` : '';
     const filterAttr = (lineStyle === 'marker') ? ` filter="url(#${filterId})"` : '';
 
+    // ★두들 — 획 목록(DoodleLine.paths)을 <path> 마다 찍는다. 흔들림은 저장된 seed 에서만(없으면 block.id 해시 — 옛 블럭도 결정적).
+    let strokes;
+    if (_isDoodle) {
+      let seed = parseInt(block.dataset.seed, 10);
+      if (!(seed > 0)) { seed = 0; for (const ch of String(block.id || 'hlb')) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) >>> 0; seed = seed || 1; }
+      const rng = window.FxSeed ? window.FxSeed.mulberry32(seed) : (() => 0.5);
+      strokes = _DL.paths(lineStyle, { length, thickness, yMid, amplitude, rng });
+    } else {
+      strokes = [{ d: pathD, width: thickness, opacity: 1 }];
+    }
+    const pathsHTML = strokes.map(st => `<path class="sticker-hlb-line" d="${st.d}" `
+      + `fill="none" stroke="${hlColor}" stroke-width="${st.width}"${st.opacity !== 1 ? ` stroke-opacity="${st.opacity}"` : ''} `
+      + `stroke-linecap="round" stroke-linejoin="round"${filterAttr}/>`).join('');
+
     const svgNS = 'http://www.w3.org/2000/svg';
     block.innerHTML = `<svg class="sticker-hlb-svg" xmlns="${svgNS}" width="${length}" height="${svgH}" `
       + `viewBox="0 0 ${length} ${svgH}" preserveAspectRatio="none" `
@@ -288,9 +318,7 @@ function _renderStickerBlockInner(block) {
       + `transform:translate(-50%, -50%) rotate(${angle}deg);transform-origin:center center;`
       + `overflow:visible;cursor:move;pointer-events:auto;">`
       + filterDef
-      + `<path class="sticker-hlb-line" d="${pathD}" `
-      + `fill="none" stroke="${hlColor}" stroke-width="${thickness}" `
-      + `stroke-linecap="round" stroke-linejoin="round"${filterAttr}/>`
+      + pathsHTML
       + `</svg>`;
     return;
   }
@@ -310,8 +338,13 @@ function _renderStickerBlockInner(block) {
     const bFontStyle = block.dataset.fontStyle === 'italic' ? 'italic' : 'normal';
     const _B_TEXT_DECOS = ['none', 'underline', 'line-through', 'underline line-through'];
     const bTextDeco = _B_TEXT_DECOS.includes(block.dataset.textDecoration) ? block.dataset.textDecoration : 'none';
+    // 카운트 스티커(1012t1Z4)의 «투명» 모양 — 배경을 비우고 숫자를 배경색(bgColor)으로 칠한다.
+    //   모양은 dataset.countShape 가 든다(circle|square|none). none 일 때도 dataset.shape 는 circle/square 그대로다.
+    const _cntNone = !!block.dataset.count && block.dataset.countShape === 'none';
+    const _bBg  = _cntNone ? 'transparent' : bgColor;
+    const _bCol = _cntNone ? bgColor : textColor;
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`
-      + `background:${bgColor};color:${textColor};border-radius:${radius};`
+      + `background:${_bBg};color:${_bCol};border-radius:${radius};`
       + `display:flex;align-items:center;justify-content:center;`
       + `font-size:${fontSize}px;font-weight:${fontWeight};font-style:${bFontStyle};line-height:1;`
       + `${_stkRotCss}`
@@ -357,6 +390,9 @@ window._updateStickerSecClip = _updateStickerSecClip;
 // B13: 현재 sticker의 스타일 토큰을 shape별 슬롯에 저장 (위치/절대크기/text 제외)
 function rememberStickerStyle(block) {
   if (!block || !block.classList || !block.classList.contains('sticker-block')) return;
+  // 카운트 스티커는 기억하지 않는다 — 번호 뱃지의 크기·색이 다음 일반 「Sticker」로 새면 안 된다.
+  //   (카운트 스티커끼리의 물려받기는 js/count-sticker-tool.js 가 섹션에서 직접 읽는다.)
+  if (block.dataset.count) return;
   const d = block.dataset;
   const shape = d.shape || 'circle';
   const slot = {};
@@ -418,6 +454,8 @@ function makeStickerBlock(opts = {}) {
     block.dataset.lineStyle = opts.lineStyle ?? 'line';   // 'line' | 'wavy' | 'marker'
     block.dataset.amplitude = opts.amplitude ?? 6;
     block.dataset.period    = opts.period    ?? 30;
+    // ★1012t1J2 두들 흔들림의 seed — «만들 때» 한 번(찍을 때마다 다른 손맛 · 저장하면 같은 모습)
+    block.dataset.seed      = opts.seed      ?? (window.FxSeed ? window.FxSeed.newSeed() : 1);
   }
   // ★glow(이펙트) — 프리셋(js/fx/glow-render.js GlowFx.PRESETS)을 깔고 opts 로 덮는다. seed 는 «만들 때» 새로(찍을 때마다 다른 모습).
   if (opts.shape === 'glow') {
@@ -468,11 +506,23 @@ function makeStickerBlock(opts = {}) {
     if (opts.cornerRadius !== undefined) block.dataset.cornerRadius = opts.cornerRadius;
     block.dataset.rotation      = opts.rotation      ?? 0;
   }
+  // 카운트 스티커(1012t1Z4) — circle/square 의 변형. 순번·시작·표기·모양을 dataset 에 적는다(js/count-sticker-tool.js).
+  if (opts.count != null) {
+    block.dataset.count      = opts.count;
+    block.dataset.countStart = opts.countStart ?? 1;
+    block.dataset.countStyle = opts.countStyle ?? 'num';
+    block.dataset.countShape = opts.countShape ?? block.dataset.shape;
+    block.dataset.sizeW      = opts.sizeW ?? block.dataset.size;
+    block.dataset.sizeH      = opts.sizeH ?? block.dataset.size;
+  }
   renderStickerBlock(block);
   // B13(Codex): 프리셋/메뉴로 생성한 스타일도 다음 스티커에 sticky하게 — 생성 직후 기억.
   try { rememberStickerStyle(block); } catch (_) {}
   return block;
 }
+
+/* 선 형광펜(highlightB) 메뉴 생성 기본 길이 — shape 전환 기본값(updateStickerBlock · prop-sticker baseX+160)과 같은 수. */
+const HLB_DEFAULT_LEN = 160;
 
 function addStickerBlock(opts = {}) {
   // U6(b): 섹션 미선택 게이트 — sec 결정 우선순위(맨아래-섹션 자동 폴백 제거):
@@ -511,11 +561,23 @@ function addStickerBlock(opts = {}) {
     const n = sec.querySelectorAll('.sticker-block').length;
     let cx = 40 + (n % 8) * 24;
     let cy = 40 + (n % 8) * 24;
-    // highlight는 폭이 커서 clamp 가정 크기를 분기 (A27)
-    const bw = (opts.shape === 'highlight') ? 160 : 60;
-    const bh = (opts.shape === 'highlight') ? 28  : 60;
+    // highlight는 폭이 커서 clamp 가정 크기를 분기 (A27) · ★highlightB(선 형광펜)도 기본 길이 × 두께로 (1012t1J1)
+    const _isHlB = opts.shape === 'highlightB';
+    const bw = (opts.shape === 'highlight') ? 160 : _isHlB ? HLB_DEFAULT_LEN : 60;
+    const bh = (opts.shape === 'highlight') ? 28  : _isHlB ? (Number(opts.thickness) || 12) : 60;
     const [qx, qy] = window._clampToSection?.(cx, cy, sec, bw, bh) || [cx, cy];
     opts = { ...opts, x: qx, y: qy };
+  }
+  /* ★1012t1J1 — 선 형광펜은 «누르면 바로» 생긴다(현빈 「찍으면 선이 되는데 그냥 누르면 만들어지게 하고 그다음 조정」).
+     끝점 둘을 안 주면 계단식 자리(x,y)에서 기본 길이(HLB_DEFAULT_LEN) 수평선을 깐다. 조정은 생성 직후
+     _selectSticker 가 붙이는 끝점 핸들(.hlb-handle) 2개로 한다. 두 클릭 모드(highlight-line-tool.js)는 설정 이스터에그 입구로만 남았다.
+     ⚠️이 갈래가 없으면 makeStickerBlock 기본값 (0,0)→(100,0) 이 들어가 섹션 왼쪽 위 모서리에 박힌다(MCP·콘솔 호출도 같은 병).
+     회귀: tests/dom/highlight-line-j1j2.dom.spec.js J1-a. */
+  if (opts.shape === 'highlightB' && opts.x1 == null && opts.x2 == null) {
+    const t  = Number(opts.thickness) || 12;
+    const x1 = Number(opts.x) || 0;
+    const y1 = (Number(opts.y) || 0) + t / 2;
+    opts = { ...opts, x1, y1, x2: x1 + HLB_DEFAULT_LEN, y2: y1 };
   }
   window.pushHistory?.('스티커 추가');
   const block = makeStickerBlock(opts);
@@ -611,7 +673,7 @@ function updateStickerBlock(blockId, partial = {}) {
   const _MODES  = ['text','image'];
   const _WEIGHTS = ['300','400','500','600','700','800','900'];
   const _ALIGNS = ['left','center','right'];
-  const _LSTYLES = ['line','wavy','marker'];
+  const _LSTYLES = ['line','wavy','marker', ...(window.DoodleLine?.STYLES || [])];   // ★1012t1J2 두들 다섯
   const _FONTS = [
     "'Pretendard', sans-serif",
     "'Noto Sans KR', sans-serif",

@@ -11,8 +11,10 @@
  *   ⛔저장소(js/design-system.js)는 ★이것을 ★모른다 — 거기는 ★«꼴»(평평한 객체)만 본다.
  *     ★그래야 kind 를 늘려도 ★저장소가 ★안 바뀐다.
  *
- * ⚠️★네온글로우는 ★여기 ★없다 — ★정본 자리를 ★안 쟀다. ⛔빈 칸을 ★미리 열지 않는다
- *   (「표의 빈칸은 «없는 경우»가 아니라 «안 잰 경우»」 · 지디 판정 2026-10-08 ⒟ — ★2차로 간다).
+ * ★네온글로우 = ★2026-10-12 1012t1E2 로 들어왔다 — kind 'glow' · 정본 = .text-block 인라인 --tb-glow-color / --tb-glow-k
+ *   (형광펜과 같은 «한 span 여러 글자» 꼴 · span.tb-glow). ⚠️블럭 «전체» 글로우(Effects 카드 · dataset fxGlow*)는 ★여기 없다 —
+ *   그건 명부 effects-registry 의 식구이고 값이 dataset 이라 이 «CSS 변수 한 벌» 꼴이 아니다.
+ *   ⚠️스타일 «번호»(text-style-code.js) 버전 1 은 hl·dot·ul 3칸 못박음 그대로 — glow 를 번호에 싣는 건 E5(버전 2) 결정 대기.
  * ⚠️★기본 서식(폰트·크기·글자색·B/I/U/S)은 ★한 벌에 ★넣지 ★않는다.
  *   ★까닭 = 현빈이 「★그 ★형광펜 ★스타일」이라 했고, 폰트·크기를 같이 옮기면 ★받는 글의 ★역할(h1/body)이 깨진다.
  *   ★그 축은 tests/dom/text-style-recent.dom.spec.js ★C4 가 ★잠근다.
@@ -24,7 +26,7 @@
      ⛔그 이름을 ★표에 ★곧바로 ★적는 꼴로 ★되돌리지 마라 — ★그 순간 ★앱이 ★안 뜬다.
    ⛔문자열을 ★베끼지도 마라 — ★이름의 ★정본은 ★그 파일의 ★그 두 const 다(지디 판정 2026-10-08 ⒡).
    ★이 축은 tests/dom/text-style-recent.dom.spec.js 가 ★pageerror 0건으로 ★잰다. */
-import { isHighlightOn, isDotOn, HL_CLASS, DOT_CLASS } from './prop-text-wireup-text-edit.js';
+import { isHighlightOn, isDotOn, isGlowOn, HL_CLASS, DOT_CLASS, GLOW_CLASS } from './prop-text-wireup-text-edit.js';
 import { hasTextGradient, getTextGradient } from './text-block-color.js';
 
 /* ★미리보기 칩에 넣는 글자 — 한글 한 자. ★왜 한글인가: 이 패널의 글이 한글이고,
@@ -61,6 +63,13 @@ export const TEXT_STYLE_KINDS = [
          (css/editor-layout.css 의 `.text-block *, .ts-chip-prev` ★한 선언). */
     previewCss: 'text-decoration-line:underline',
     isOn: (contentEl) => String((contentEl && (contentEl.style.textDecorationLine || contentEl.style.textDecoration)) || '').includes('underline'),
+  },
+  {
+    k: 'glow',
+    label: '글로우',
+    vars: ['--tb-glow-color', '--tb-glow-k'],
+    clsOf: () => GLOW_CLASS,                 // ★«쓸 때» 읽는다 — 머리말의 그 TDZ
+    isOn: (contentEl) => isGlowOn(contentEl),
   },
   {
     k: 'grad',

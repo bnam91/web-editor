@@ -17,42 +17,79 @@ import { effSectionPadX as _effSectionPadX } from './outer-pad.js';   // ⛔사�
 //   - slot==='bottom' → card.titleBottom/descBottom (없으면 card.title/desc fallback), 색은 titleColorBottom/descColorBottom
 //   - slot===null     → 기존 단일 슬롯 (card.title/desc)
 // dataset.field/slot은 인라인 편집(_bindCvbDblEdit) 라우팅에 사용.
+/* ★[1012t1K1] slot → (필드 이름·글자) 를 «한 자리»에서 정한다 — 렌더(_appendCardTexts)와
+ *   「어느 줄이 비었나」 판정(cvbMissingTextSlots → 캔버스 ＋)이 «같은 폴백»을 쓰게 하려고 뽑았다.
+ *   (둘이 따로 폴백을 적으면 both 모드 descTop undefined→desc 폴백에서 ＋ 와 화면이 갈린다.) */
+const _cvbPick = (v, fb) => (v !== undefined && v !== null) ? v : fb;
+function _cvbSlotTexts(card, slot) {
+  card = card || {};
+  if (slot === 'top') {
+    return { titleField: 'titleTop', descField: 'descTop',
+      titleText: _cvbPick(card.titleTop, card.title), descText: _cvbPick(card.descTop, card.desc) };
+  }
+  if (slot === 'bottom') {
+    return { titleField: 'titleBottom', descField: 'descBottom',
+      titleText: _cvbPick(card.titleBottom, card.title), descText: _cvbPick(card.descBottom, card.desc) };
+  }
+  return { titleField: 'title', descField: 'desc', titleText: card.title, descText: card.desc };
+}
+// 렌더가 「글자가 있다」고 보는 술어 — 공백만이면 «없다»(요소를 안 그린다).
+const _cvbHasText = (t) => !!(t && String(t).trim() !== '');
+// 제목/설명 요소의 인라인 스타일 — 렌더와 캔버스 ＋ 의 임시 칸이 같은 꼴로 쓰게 한 줄로 둔다.
+function _cvbTextCss(kind, size, color, align) {
+  return kind === 'title'
+    ? `font-size:${size}px;font-weight:600;color:${color};text-align:${align};white-space:pre-wrap;word-break:break-word;line-height:1.3;font-family:Pretendard,-apple-system,sans-serif;`
+    : `font-size:${size}px;font-weight:400;color:${color};text-align:${align};white-space:pre-wrap;word-break:break-word;line-height:1.4;font-family:Pretendard,-apple-system,sans-serif;`;
+}
+
+/* ★[1012t1K1] 「캔버스에서 ＋ 로 채울 수 있는 빈 줄」 목록 — [{ slot: null|'top'|'bottom', field }].
+ *   · textHide → [] (글자 영역 자체가 없다)
+ *   · 제목·설명 «둘 다» 빔 → [] (그 칸은 안내문 .cvb-card-ph 가 맡는다 — 더블클릭 복구 경로)
+ *   · 설명만 빔 → 설명 필드 · 제목만 빔 → 제목 필드
+ *   · 영역 수: 세로(portrait) + labelPos 'both' → top·bottom 둘, 그 밖(가로 포함) → 하나(slot null).
+ *     (renderCanvas 가로 분기는 labelPos 를 안 보고 슬롯 하나만 그린다 — 그래서 orient 를 받는다.) */
+export function cvbMissingTextSlots(card, labelPos, textHide, orient) {
+  if (textHide === true || textHide === 'true') return [];
+  const slots = (labelPos === 'both' && orient !== 'landscape') ? ['top', 'bottom'] : [null];
+  const out = [];
+  for (const slot of slots) {
+    const t = _cvbSlotTexts(card, slot);
+    const hasT = _cvbHasText(t.titleText), hasD = _cvbHasText(t.descText);
+    if (hasT && !hasD) out.push({ slot, field: t.descField });
+    else if (!hasT && hasD) out.push({ slot, field: t.titleField });
+  }
+  return out;
+}
+
 function _appendCardTexts(container, card, titleSize, descSize, textAlign, titleColor, descColor, cardIdx, slot) {
-  let titleField = 'title', descField = 'desc';
-  let titleText = card.title, descText = card.desc;
+  const { titleField, descField, titleText, descText } = _cvbSlotTexts(card, slot);
   let _tc = titleColor, _dc = descColor;
   if (slot === 'top') {
-    titleField = 'titleTop'; descField = 'descTop';
-    titleText = (card.titleTop !== undefined && card.titleTop !== null) ? card.titleTop : card.title;
-    descText  = (card.descTop  !== undefined && card.descTop  !== null) ? card.descTop  : card.desc;
     if (card.titleColorTop) _tc = card.titleColorTop;
     if (card.descColorTop)  _dc = card.descColorTop;
   } else if (slot === 'bottom') {
-    titleField = 'titleBottom'; descField = 'descBottom';
-    titleText = (card.titleBottom !== undefined && card.titleBottom !== null) ? card.titleBottom : card.title;
-    descText  = (card.descBottom  !== undefined && card.descBottom  !== null) ? card.descBottom  : card.desc;
     if (card.titleColorBottom) _tc = card.titleColorBottom;
     if (card.descColorBottom)  _dc = card.descColorBottom;
   }
   _tc = _tc || '#ffffff';
   _dc = _dc || '#ffffff';
-  if (titleText && titleText.trim() !== '') {
+  if (_cvbHasText(titleText)) {
     const el = document.createElement('div');
     el.className = 'cvb-card-title';
     if (cardIdx != null) { el.dataset.cardIdx = cardIdx; el.dataset.field = titleField; if (slot) el.dataset.slot = slot; }
-    el.style.cssText = `font-size:${titleSize}px;font-weight:600;color:${_tc};text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.3;font-family:Pretendard,-apple-system,sans-serif;`;
+    el.style.cssText = _cvbTextCss('title', titleSize, _tc, textAlign);
     el.textContent = titleText;
     container.appendChild(el);
   }
-  if (descText && descText.trim() !== '') {
+  if (_cvbHasText(descText)) {
     const el = document.createElement('div');
     el.className = 'cvb-card-desc';
     if (cardIdx != null) { el.dataset.cardIdx = cardIdx; el.dataset.field = descField; if (slot) el.dataset.slot = slot; }
-    el.style.cssText = `font-size:${descSize}px;font-weight:400;color:${_dc};text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.4;font-family:Pretendard,-apple-system,sans-serif;`;
+    el.style.cssText = _cvbTextCss('desc', descSize, _dc, textAlign);
     el.textContent = descText;
     container.appendChild(el);
   }
-  if ((!titleText || titleText.trim() === '') && (!descText || descText.trim() === '')) {
+  if (!_cvbHasText(titleText) && !_cvbHasText(descText)) {
     // ★빈 문자열 함정 — 글자를 전부 지우면 렌더러가 위 두 요소를 «안 만든다». 그러면 캔버스에는
     //   겨냥할 것이 남지 않아 다시 못 고친다(duo 에서 실기로 재현된 것과 같은 성질).
     //   이 안내문은 «이미 있던 요소»다 → 새 룩을 만들지 않고 여기에 주소를 붙여 복구 경로로 쓴다.
@@ -210,14 +247,22 @@ function _cvbEndEdit(block, host) {
   const before = host._cvbBeforeText;
   const beforeDom = host._cvbBeforeDom;
   delete host._cvbBeforeText; delete host._cvbBeforeDom;
-  if (!hit) return;                                   // 주소를 잃었으면 데이터는 건드리지 않는다
+  // ★[1012t1K1] 캔버스 ＋ 가 만든 «임시 칸»(host._cvbTemp) — 데이터에 없던 요소다.
+  //   빈 채로 나가면 «그냥 걷는다»(재렌더·히스토리·저장 없음 = 안 누른 것과 같다).
+  const temp = host._cvbTemp === true;
+  if (!hit) { if (temp) host.remove(); return; }       // 주소를 잃었으면 데이터는 건드리지 않는다
   const text = _cvbReadText(host);
   if (before === undefined || text === before) {      // 안 바뀌었으면 재렌더도 히스토리도 없다
+    if (temp) { host.remove(); return; }
     if (beforeDom !== undefined) host.textContent = beforeDom;
     return;
   }
   // 화면을 «편집 전»으로 되돌린 뒤 커밋한다 — 실패해도 화면과 데이터가 갈라진 채 남지 않는다.
-  if (beforeDom !== undefined) host.textContent = beforeDom;
+  // ★[1012t1K1 · 이벨 D1] 임시 칸은 «편집 전» 화면에 없던 요소다 → 글자만 비우지 말고 «걷고» 커밋한다.
+  //   남겨 두면 updateCanvasBlock 의 push-before 표본에 빈 <div class="cvb-card-desc"> 가 찍혀 꼭대기와 달라지고
+  //   (무변화 중복 차단을 못 탄다) ＋ 커밋 한 번이 히스토리 «두 칸» — 두 번째 ⌘Z 가 화면 변화 없는 빈 걸음이 된다.
+  if (temp) host.remove();
+  else if (beforeDom !== undefined) host.textContent = beforeDom;
   // 렌더러는 cards[idx] 가 없어도 `cards[idx] || {}` 로 «셀은 그린다» → 그리드가 cards 보다 길면
   // 화면에 보이는 칸의 index 가 배열 밖일 수 있다. patchCards 는 그걸 NOT_FOUND 로 막으므로
   // 그 «한 경우»에만 같은 API 의 cards 전체교체로 채워 넣는다(새 경로를 만들지는 않는다).
@@ -303,6 +348,181 @@ function _bindCvbDblEdit(block) {
     if (e.key === 'Escape') { e.preventDefault(); host.blur(); }
     else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); host.blur(); }
   });
+}
+
+/* ══ [1012t1K1] 캔버스 ＋ — 카드의 «빈 줄»(설명/제목)을 캔버스에서 만든다 (안 ㉠ · 데이터 형식 불변) ══════════
+ * ★무엇: 제목만 있는 카드(기본)는 설명 줄 요소가 «아예 안 그려져서» 더블클릭할 곳이 없었다(우측 패널 textarea 만 길).
+ *   ⇒ 카드 블럭이 골라져 있으면 빈 줄마다 ＋ 하나 · 누르면 그 자리에 «임시 칸»을 열고 기존 인라인 편집(_cvbBeginEdit)에 넘긴다.
+ *   커밋은 기존 choke point(_cvbEndEdit → updateCanvasBlock patchCards) «한 길» — 빈 채로 나가면 임시 칸만 걷힌다.
+ * ★＋ 는 블럭 «밖» 층 #cvb-plus-layer(#canvas-scaler 끝 · #canvas 의 형제)에 산다 — 그리드 G15 ＋(grid-block.js
+ *   _gridPlusLayer) 와 같은 까닭(E65·RG5): 블럭 DOM 에 있으면 PNG·MCP·innerText·저장으로 샌다. 글리프도 CSS ::before.
+ * ★뜨는 조건은 _cvbPlusShown «하나» · 어느 줄인지는 cvbMissingTextSlots «하나»(렌더와 같은 폴백). */
+const CVB_PLUS_LAYER_ID = 'cvb-plus-layer';
+const CVB_ADD_BTN_CLS = 'cvb-add-btn';
+const _cvbPlusBtns = new Map();   // block → { sig, btns[] } — ＋ 가 떠 있는 블럭만
+
+function _cvbPlusLayer() {
+  let L = document.getElementById(CVB_PLUS_LAYER_ID);
+  if (L) return L;
+  const scaler = document.getElementById('canvas-scaler');
+  if (!scaler) return null;          // 스케일러 없는 하네스(단위 시험)에선 ＋ 없음
+  L = document.createElement('div');
+  L.id = CVB_PLUS_LAYER_ID;
+  scaler.appendChild(L);
+  return L;
+}
+
+function _cvbPlusShown(block) {
+  return !!(block?.classList?.contains('selected')
+    && block.dataset?.cardMode === 'simple'
+    && !block.classList.contains('editing'));
+}
+
+// 지금 블럭 데이터에서 «빈 줄» 전부 — [{ idx, slot, field }]
+function _cvbMissingAll(block) {
+  let cards = [];
+  try { const a = JSON.parse(block.dataset.cards || '[]'); if (Array.isArray(a)) cards = a; } catch (_) {}
+  const n = (parseInt(block.dataset.gridCols) || 1) * (parseInt(block.dataset.gridRows) || 1);
+  const out = [];
+  for (let idx = 0; idx < n; idx++) {
+    for (const m of cvbMissingTextSlots(cards[idx] || {}, block.dataset.labelPos || 'bottom', block.dataset.textHide, block.dataset.cardOrient || 'portrait')) {
+      out.push({ idx, slot: m.slot, field: m.field });
+    }
+  }
+  return out;
+}
+
+// 빈 줄의 «텍스트 영역» = 같은 카드·같은 슬롯에 «있는» 글자 요소의 부모(빈 줄은 한쪽만 비었으니 다른 쪽이 늘 있다).
+//   ⇒ 렌더 DOM 에 표식을 새로 달지 않는다(블럭 바이트 불변).
+function _cvbTextArea(block, idx, slot) {
+  for (const el of block.querySelectorAll('.cvb-card-title, .cvb-card-desc')) {
+    if (el.dataset.cardIdx === String(idx) && (el.dataset.slot || '') === (slot || '')) return el.parentElement;
+  }
+  return null;
+}
+
+function _cvbBlockMounts(block) {
+  _cvbBindPlusObserver(block);
+  const want = _cvbPlusShown(block) && block.isConnected ? _cvbMissingAll(block) : [];
+  if (!want.length) { _dropCvbPlus(block); return; }
+  const L = _cvbPlusLayer();
+  if (!L) return;
+  const sig = want.map(w => `${w.idx}:${w.slot || ''}:${w.field}`).join('|');
+  let p = _cvbPlusBtns.get(block);
+  // ⛔같은 목록이면 갈아끼우지 않는다(마우스 밑 노드를 빼지 않는다 — grid G15 2026-10-04 실측과 같은 까닭)
+  if (!p || p.sig !== sig || p.btns.some(b => !b.isConnected)) {
+    _dropCvbPlus(block);
+    p = { sig, btns: want.map(w => _makeCvbAddBtn(block, w)) };
+    L.append(...p.btns);
+    _cvbPlusBtns.set(block, p);
+  }
+  _placeCvbAddBtns(block);
+  _startCvbPlusRaf();
+}
+function _syncCvbAddBtns(block) { try { _cvbBlockMounts(block); } catch (_) {} }
+
+function _dropCvbPlus(block) {
+  const p = _cvbPlusBtns.get(block);
+  if (p) p.btns.forEach(b => b.remove());
+  _cvbPlusBtns.delete(block);
+}
+
+// 블럭마다 한 번 — class 가 바뀌면(골라짐·풀림·편집 진입/끝) 다시 맞춘다. 층은 #canvas 밖이라 자동저장 감시에 안 걸린다.
+const _cvbPlusBound = new WeakSet();
+function _cvbBindPlusObserver(block) {
+  if (!block?.addEventListener || _cvbPlusBound.has(block) || typeof MutationObserver !== 'function') return;
+  _cvbPlusBound.add(block);
+  let was = _cvbPlusShown(block);
+  new MutationObserver(() => {
+    const now = _cvbPlusShown(block);
+    if (now === was) return;
+    was = now;
+    _syncCvbAddBtns(block);
+  }).observe(block, { attributes: true, attributeFilter: ['class'] });
+}
+
+// 떠 있는 동안만 도는 rAF — 배율·스크롤·재렌더·삭제를 따라간다(grid _startGridPlusRaf 꼴).
+let _cvbPlusRaf = 0;
+function _startCvbPlusRaf() {
+  if (_cvbPlusRaf || typeof requestAnimationFrame !== 'function') return;
+  const loop = () => {
+    _cvbPlusRaf = 0;
+    for (const blk of [..._cvbPlusBtns.keys()]) {
+      if (!blk.isConnected || !_cvbPlusShown(blk)) { _dropCvbPlus(blk); continue; }
+      _placeCvbAddBtns(blk);
+    }
+    if (_cvbPlusBtns.size) _cvbPlusRaf = requestAnimationFrame(loop);
+  };
+  _cvbPlusRaf = requestAnimationFrame(loop);
+}
+
+// 자리 = 텍스트 영역 «아래 변 가운데»(CSS transform 이 중심을 그 점에 둔다). 좌표 = 스케일러 로컬(grid _placeGridAddBtns 와 같은 식).
+function _placeCvbAddBtns(block) {
+  const p = _cvbPlusBtns.get(block);
+  const scaler = p && p.btns[0]?.parentElement?.parentElement;
+  if (!p || !scaler) return;
+  const sr = scaler.getBoundingClientRect();
+  const scale = (window.currentZoom || 40) / 100;
+  for (const b of p.btns) {
+    const area = _cvbTextArea(block, parseInt(b.dataset.cvbIdx, 10), b.dataset.cvbSlot || null);
+    if (!area) { if (b.style.display !== 'none') b.style.display = 'none'; continue; }
+    if (b.style.display) b.style.display = '';
+    const r = area.getBoundingClientRect();
+    const l = ((r.left + r.right) / 2 - sr.left) / scale + 'px';
+    const t = (r.bottom - sr.top) / scale + 'px';
+    if (b.style.left !== l) b.style.left = l;
+    if (b.style.top !== t) b.style.top = t;
+  }
+}
+
+function _makeCvbAddBtn(block, w) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = CVB_ADD_BTN_CLS;
+  if (block.id) btn.dataset.cvbFor = block.id;
+  btn.dataset.cvbIdx = String(w.idx);
+  btn.dataset.cvbField = w.field;
+  btn.dataset.cvbSlot = w.slot || '';
+  const label = /^title/.test(w.field) ? '줄 추가 (제목)' : '줄 추가 (설명)';
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  // ⛔캔버스 쪽 손(마키·팬·선택 해제)으로 새지 않게 · 포커스를 뺏지 않게(grid _makeGridAddBtn 꼴)
+  btn.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
+  btn.addEventListener('dblclick', e => { e.stopPropagation(); e.preventDefault(); });
+  btn.addEventListener('click', e => {
+    e.stopPropagation(); e.preventDefault();
+    _cvbBeginAdd(block, w.idx, w.field, w.slot || null);
+  });
+  return btn;
+}
+
+// ＋ → 그 영역에 «임시 칸»(제목이면 맨 앞, 설명이면 맨 뒤)을 열고 기존 인라인 편집에 넘긴다.
+function _cvbBeginAdd(block, idx, field, slot) {
+  if (!_CVB_EDIT_FIELDS.includes(field)) return;
+  const area = _cvbTextArea(block, idx, slot);
+  if (!area) return;
+  const isTitle = /^title/.test(field);
+  // 글꼴 크기·정렬·색은 렌더(renderCanvas/_appendCardTexts)와 같은 차례로 고른다:
+  //   카드 슬롯색(titleColorTop 등) → 블럭색(dataset.titleColor/descColor) → 영역 바탕 휘도 자동(렌더와 같은 문턱 0.45·같은 값).
+  //   임시 칸은 커밋 순간 재렌더로 갈리므로, 여기 색은 «쓰는 동안» 보이는 색이다.
+  let card = {};
+  try { const a = JSON.parse(block.dataset.cards || '[]'); if (Array.isArray(a) && a[idx]) card = a[idx]; } catch (_) {}
+  const size = isTitle ? (parseInt(block.dataset.titleSize) || 20) : (parseInt(block.dataset.descSize) || 14);
+  const align = block.dataset.textAlign || 'left';
+  const slotKey = (isTitle ? 'titleColor' : 'descColor') + (slot === 'top' ? 'Top' : slot === 'bottom' ? 'Bottom' : '');
+  const lum = colorLuminance(area.style.backgroundColor || '');
+  const auto = lum === null ? (isTitle ? '#1a1a1a' : '#555555')
+    : (isTitle ? (lum < 0.45 ? '#ffffff' : '#1a1a1a') : (lum < 0.45 ? '#e0e0e0' : '#555555'));
+  const color = (slot && card[slotKey]) || (isTitle ? block.dataset.titleColor : block.dataset.descColor) || auto;
+  const host = document.createElement('div');
+  host.className = isTitle ? 'cvb-card-title' : 'cvb-card-desc';
+  host.dataset.cardIdx = String(idx);
+  host.dataset.field = field;
+  if (slot) host.dataset.slot = slot;
+  host.style.cssText = _cvbTextCss(isTitle ? 'title' : 'desc', size, color, align);
+  host._cvbTemp = true;
+  if (isTitle) area.insertBefore(host, area.firstChild); else area.appendChild(host);
+  _cvbBeginEdit(block, { host, idx, field });
 }
 
 // 카드 이미지 영역 더블클릭 → 파일 피커로 card.imgSrc 추가/교체
@@ -779,6 +999,7 @@ function renderCanvas(block) {
       }
     }
     _bindCvbDblEdit(block);
+    _syncCvbAddBtns(block);   // ★[1012t1K1] 캔버스 ＋ (블럭 밖 층 — 블럭 DOM 은 안 건드린다)
     return;
   }
   // ── End Simple Card Mode ───────────────────────────────────────────────────
@@ -1476,7 +1697,7 @@ window.updateCanvasBlock = updateCanvasBlock;
 window._triggerCvbCardImage = _triggerCvbCardImage;
 window._cvbBuildGrad = _cvbBuildGrad;
 
-export { makeCanvasBlock, addCanvasBlock, updateCanvasBlock, renderCanvas, CARD_DEFAULT_OPTS, _cvbBuildGrad };
+export { makeCanvasBlock, addCanvasBlock, updateCanvasBlock, renderCanvas, CARD_DEFAULT_OPTS, _cvbBuildGrad, _cvbBackgroundSize };   // _cvbBackgroundSize — 비교 이미지 칸(1012t1D3)이 같은 식을 쓴다
 // 인라인 편집의 «판정 술어»와 그 술어가 보는 상수 — 단위테스트가 리터럴을 다시 적지 않도록
 // 여기서 가져다 쓴다(테스트 기대값에 셀렉터/필드목록을 박으면 SSOT 가 둘로 갈린다).
 export { _cvbEditable, _cvbReadText, _appendCardTexts, _CVB_EDIT_SEL, _CVB_EDIT_FIELDS };

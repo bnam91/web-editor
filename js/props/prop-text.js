@@ -9,11 +9,12 @@ import { wireFontSection }     from './prop-text-wireup-font.js';
 import { wireTypeSection, wireBulletStyleSection } from './prop-text-wireup-type.js';
 import { wireLabelSection }    from './prop-text-wireup-label.js';
 import { wireAlignSection }    from './prop-text-wireup-align.js';
-import { wireTextEditSection, isHighlightOn, isDotOn } from './prop-text-wireup-text-edit.js';
+import { wireTextEditSection, isHighlightOn, isDotOn, isGlowOn } from './prop-text-wireup-text-edit.js';
 import { wireSpacingSection }  from './prop-text-wireup-spacing.js';
 import { wirePositionSection } from './prop-text-wireup-position.js';
 import { wirePaddingSection }  from './prop-text-wireup-padding.js';
 import { wireShadowSection, readShadowState } from './prop-text-wireup-shadow.js';
+import { wireStrokeSection, readStrokeState } from './prop-text-wireup-stroke.js';   /* ★1012t1E1 Stroke(외곽선 · 내부/가운데/외부) */
 import { wireOverlaySection }  from './prop-text-wireup-overlay.js';
 
 export function showTextProperties(tb) {
@@ -192,6 +193,14 @@ export function showTextProperties(tb) {
      (buildFillSectionHtml 머리말의 그 갈래: 스와치=진실 / hex 칸=누가 정했나.) */
   const _dotColorRaw = (tb.style.getPropertyValue('--tb-dot-color') || '').trim();
   const dotColor = /^(#|rgb)/i.test(_dotColorRaw) ? _dotColorRaw : currentColor;
+  /* ★범위 글로우(1012t1E2) — 정본은 ★.text-block 인라인 --tb-glow-color / --tb-glow-k(형광펜·점과 같은 규약).
+     ★켜짐 판정의 «식»은 여기 두지 않는다 — prop-text-wireup-text-edit.js isGlowOn 하나.
+     ★색·세기의 참값은 css/editor-layout.css 의 --tb-glow-* 기본값 ⇒ getComputedStyle 로 거기서 뽑는다(점과 같은 까닭 — 명부 둘 방지). */
+  const isGlow = isGlowOn(contentEl);
+  const _glowColorRaw = (_tbCs.getPropertyValue('--tb-glow-color') || '').trim();
+  const glowColor = /^(#|rgb)/i.test(_glowColorRaw) ? _glowColorRaw : '#ff00ff';   /* ⚠️바닥값 = css 가 안 실린 판에서만 · css 기본과 같은 값 */
+  const _glowKRaw = parseFloat(_tbCs.getPropertyValue('--tb-glow-k'));
+  const glowK = Number.isFinite(_glowKRaw) ? Math.max(0, Math.min(100, Math.round(_glowKRaw * 100))) : 70;
 
   // 위치/크기 — text-frame(래퍼)이 position/size를 보유
   const _tf         = tb.closest('.frame-block[data-text-frame="true"]');
@@ -212,6 +221,8 @@ export function showTextProperties(tb) {
 
   // Shadow 상태 — dataset에서 읽음 (저장본 복원 호환)
   const shadow = readShadowState(contentEl);
+  // ★1012t1E1 외곽선 — 읽기만 한다(레거시 API 외곽선은 «외부 · W/2» 로 해석 · 화면 무변화)
+  const stroke = readStrokeState(contentEl);
 
   propPanel.innerHTML = buildTextPropsHtml({
     tb, isOverlayTb, currentClass, currentAlign,
@@ -224,6 +235,9 @@ export function showTextProperties(tb) {
     isIconText, currentItbGap, itbVertical,
     mix,
     shadow,
+    stroke,
+    /* ★외곽선 «색 칸»도 형광펜·점·밑줄과 같은 까닭으로 여기서 만든다(템플릿은 color-picker 를 import 하면 안 된다). */
+    strokeColorHtml: colorFieldHTML({ idPrefix: 'txt-stroke-color', hex: stroke.color, alpha: parseAlphaFromColor(stroke.color) || 100 }),
     isLiner,
     isStrike,
     isUnderline,
@@ -243,6 +257,9 @@ export function showTextProperties(tb) {
     ulColorHtml: colorFieldHTML({ idPrefix: 'txt-ul-color', hex: (/^(#|rgb)/i.test(_ulColorRaw) ? _ulColorRaw : currentColor), alpha: parseAlphaFromColor(/^(#|rgb)/i.test(_ulColorRaw) ? _ulColorRaw : currentColor) || 100 }),
     ulThick: _ulThick,
     ulOffset: _ulOffset,
+    /* ★범위 글로우 «색 칸»도 같은 까닭으로 여기서 만든다(1012t1E2) — _typo-section.js 는 color-picker 를 import 하면 안 된다. */
+    showGlow: true, isGlow, glowK,
+    glowColorHtml: colorFieldHTML({ idPrefix: 'txt-glow-color', hex: glowColor, alpha: parseAlphaFromColor(glowColor) || 100 }),
     isOverlayBlock,
   });
 
@@ -263,6 +280,7 @@ export function showTextProperties(tb) {
   wireTextEditSection({ tb, ctx, currentColorAlpha });   // tb: 0920b textgrad-bar — 캔버스 그라데이션 바 대상 블럭
   wireSpacingSection({ ctx, isLiner }); // M6b: 라이너는 자간 바인딩 스킵(우리 슬라이더 단일소스)
   wireShadowSection({ ctx, initial: shadow });
+  wireStrokeSection({ ctx, initial: stroke });   // ★1012t1E1 — 절이 없으면(라벨·말풍선·아이콘텍스트·liner) 아무것도 안 한다
   window.wireFxSection?.(tb, 'txt', () => showTextProperties(tb));   // ★E1 Effects — 절이 없으면 아무것도 안 한다
   if (!isOverlayTb) wirePositionSection({ tb });
   if (!isOverlayTb) wirePaddingSection({ tb, phLinked });

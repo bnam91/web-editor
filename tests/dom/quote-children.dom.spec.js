@@ -93,22 +93,21 @@ test('QC2 ★★인용구 «밑»에 ★텍스트를 넣는다 — ★★렌더�
   await page.waitForFunction(() => !!document.getElementById('qt-shape-group'), null, { timeout: 5000 })
     .catch(() => { throw new Error('★고르기가 ★인용구 패널을 ★못 열었다'); });
 
-  /* ★★전제 — ★★그 입구가 ★패널에 ★있고 ★종류 명부가 ★★정본에서 ★파생됐다 */
+  /* ★★전제 — ★★1012t1H6: 패널의 select 입구는 ★걷혔고(0개), ★입구 함수·종류 명부 정본은 ★살아 있다
+     (자식을 가진 저장본이 열려야 한다 · 이 검사는 함수를 ★직접 부른다) */
   const pre = await page.evaluate(() => ({
     sel: document.querySelectorAll('#qt-kid-add-kind').length,
-    opts: [...(document.getElementById('qt-kid-add-kind')?.options || [])].map((o) => o.value),
     roster: window.QUOTE_CHILD_KINDS || null,
+    fn: typeof window.addQuoteChild,
     box: window.quoteKidsBox ? (window.quoteKidsBox(window.__q) ? 1 : 0) : '(window 에 없다)',
   }));
-  expect(pre.sel, `★전제 ㉠ — ★「＋ 블럭 넣기」 칸이 ★딱 ★하나다. 잰 값 ${pre.sel}`).toBe(1);
+  expect(pre.sel, `★전제 ㉠ — ★패널에 「＋ 블럭 넣기」 칸이 ★0개다(1012t1H6). 잰 값 ${pre.sel}`).toBe(0);
   expect(pre.roster, '★전제 ㉡ — ★종류 ★정본(`QUOTE_CHILD_KINDS`)이 ★`window` 에 ★있다').not.toBeNull();
-  expect(pre.opts.filter(Boolean),
-    `★★전제 ㉢ — ★칸의 ★종류가 ★★정본에서 ★파생됐다(⛔패널이 ★제 명부를 ★들지 ★않는다).`
-    + ` 잰 값 ${JSON.stringify(pre.opts)} · 정본 ${JSON.stringify(pre.roster)}`).toEqual(pre.roster);
+  expect(pre.fn, '★전제 ㉢ — ★`window.addQuoteChild` 가 ★살아 있다').toBe('function');
   expect(pre.box, '★전제 ㉣ — ★아직 ★그릇이 ★없다').toBe(0);
 
-  /* ★★패널에서 ★진짜로 ★고른다 — `select` 변경이 ★입구를 ★부른다 */
-  await page.selectOption('#qt-kid-add-kind', 'body');
+  /* ★★입구 함수를 ★직접 ★부른다(window 판 = 삽입 래퍼가 감싼 것) */
+  await page.evaluate(() => window.addQuoteChild(window.__q, 'body'));
   await page.waitForFunction(() => (window.quoteKids?.(window.__q) || []).length === 1, null, { timeout: 5000 })
     .catch(() => { throw new Error('★「＋ 텍스트」가 ★자식을 ★넣지 못했다 — ★`addQuoteChild` 배선을 보라'); });
 
@@ -167,7 +166,7 @@ test('QC3 ★★★인용구 ★안의 ★텍스트를 고르면 ★★밑줄(U)
   });
   const r = await waitStableRect(page, '[data-pq="1"]');
   await clickAt(page, r.cx, r.cy, { sel: '[data-pq="1"]' }, { label: 'QC3 인용구 고르기' });
-  await page.waitForFunction(() => !!document.getElementById('qt-kid-add-kind'), null, { timeout: 5000 });
+  await page.waitForFunction(() => !!document.getElementById('qt-shape-group'), null, { timeout: 5000 });
 
   /* ★★전제 — ★★인용구 ★제 패널엔 ★그 셋이 ★★없다(★`Q18` 이 ★그것을 ★이름으로 잠근다) */
   const qPanel = await page.evaluate(() => ({
@@ -178,7 +177,7 @@ test('QC3 ★★★인용구 ★안의 ★텍스트를 고르면 ★★밑줄(U)
   expect(qPanel, `★★전제 — ★인용구 ★제 패널엔 ★U·H·점이 ★★0 이다(★그래서 ★ㄷ 가 ★필요했다). 잰 값 ${JSON.stringify(qPanel)}`)
     .toEqual({ u: 0, h: 0, d: 0 });
 
-  await page.selectOption('#qt-kid-add-kind', 'body');
+  await page.evaluate(() => window.addQuoteChild(window.__q, 'body'));   /* 1012t1H6: select 입구 걷힘 → 같은 window 판 함수 */
   await page.waitForFunction(() => (window.quoteKids?.(window.__q) || []).length === 1, null, { timeout: 5000 });
   /* ★★넣으면 ★새 블럭이 ★★스스로 골라진다 — ★삽입 래퍼(`js/insert-select.js`)가 ★그 일을 한다.
      ⇒ ★그 래퍼가 ★★`addQuoteChild` 를 ★감싸는지도 ★★이 줄이 ★같이 잰다(★로스터 `EXTRA`). */
