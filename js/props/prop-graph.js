@@ -106,16 +106,19 @@ function _wireGraphColor(prefix, { unset = false, mixed = false, ...opts } = {})
 }
 
 /* 1012t1G1 — 그래프 유형 표 «한 자리»: 버튼(마크업)과 배선(클릭)이 같은 표를 돈다. 새 유형은 여기 한 줄 + drag-utils.js GRAPH_RENDERERS 한 줄.
- * 기존 넷의 id 는 그대로(검사·자동화가 id 로 누른다). 버튼 6개는 3칸 두 줄 — 기존 «프리셋 버튼이 섞인 유형 그룹» 그리드를 탄다(prop-asset 6버튼과 같은 꼴 · 새 CSS 0줄). */
+ * 기존 넷의 id 는 그대로(검사·자동화가 id 로 누른다). 버튼은 3칸 두 줄 — 기존 «프리셋 버튼이 섞인 유형 그룹» 그리드를 탄다(prop-asset 6버튼과 같은 꼴 · 새 CSS 0줄). */
 const GRAPH_TYPES = [
   { type: 'bar-v',    id: 'grb-type-v',     label: '세로 막대' },
   { type: 'bar-h',    id: 'grb-type-h',     label: '가로 막대' },
   { type: 'line',     id: 'grb-type-line',  label: '꺾은선' },
   { type: 'bar-pair', id: 'grb-type-pair',  label: '비교 막대' },
   { type: 'pie',      id: 'grb-type-pie',   label: '원형' },
-  { type: 'donut',    id: 'grb-type-donut', label: '도넛' },
 ];
+/* 1013t1C1 — 유형 버튼은 다섯(「원형」 하나). 도넛은 Pie Settings 의 「도너츠」 토글(dataset.pieDonut '1' · 끄면 키 삭제)이다.
+ * 옛 유형 'donut' 은 «읽을 때» 영구 별칭 — 열기·패널 열기·다른 칸 조작은 chartType 을 안 건드린다(옛 저장본 바이트 무변).
+ *   'donut' 을 'pie' + pieDonut 로 옮겨 쓰는 자리는 둘뿐: 유형 버튼 클릭 · 도너츠 토글. */
 const _isPieType = (t) => t === 'pie' || t === 'donut';
+const _isDonut = (ds) => ds.chartType === 'donut' || (ds.chartType === 'pie' && ds.pieDonut === '1');   // 렌더(drag-utils.js _renderPie)와 같은 뜻
 
 /* 1012t1G2 — Shape 절(세로 막대 전용): 막대를 SVG 실루엣으로. 쓰는 길은 window.setGraphShape «하나»(js/graph-shape.js — 소독·한도·키 삭제가 거기 산다).
  * 목록 = 기본 막대 + 내장 실루엣(GRAPH_SHAPE_PRESETS 표 그대로) + 사용자 SVG. 파일은 숨은 input 하나를 블럭 모양·항목 모양이 같이 쓴다. */
@@ -232,6 +235,7 @@ export function showGraphProperties(block) {
   const showVLabel   = block.dataset.showVLabel !== '0';
   const showXLabel   = block.dataset.showXLabel !== '0';
   const _isPie       = _isPieType(chartType);
+  const _donut       = _isDonut(block.dataset);   // 1013t1C1 — 옛 'donut' 또는 'pie' + pieDonut
   const _shapeOn     = chartType === 'bar-v' && window.GRAPH_SHAPE.shapeOn(block.dataset);   // 1012t1G2 — 실루엣이 «실제로» 켜졌나(세로 막대에서만 · 모르는 이름은 꺼진 것)
   const _segOn       = chartType === 'bar-v';   // 1012t1G4 — 마디 편집(줄 · 읽기 전용 합 · 합으로 되쓰기)은 세로 막대에서만
   const pieHole      = (h => Math.min(PIE_HOLE_MAX, Math.max(PIE_HOLE_MIN, Number.isFinite(h) ? h : PIE_HOLE_DEFAULT)))(parseInt(block.dataset.pieHole));   // 렌더(drag-utils.js _renderPie)와 «같은 식»
@@ -300,7 +304,7 @@ ${blockHeaderHTML({
     <div class="prop-section">
       <div class="prop-section-title">Chart Type</div>
       <div class="prop-type-group">
-        ${GRAPH_TYPES.map(t => `<button class="prop-preset-btn prop-type-btn ${chartType === t.type ? 'active' : ''}" id="${t.id}">${t.label}</button>`).join('\n        ')}
+        ${GRAPH_TYPES.map(t => `<button class="prop-preset-btn prop-type-btn ${(chartType === t.type || (t.type === 'pie' && chartType === 'donut')) ? 'active' : ''}" id="${t.id}">${t.label}</button>`).join('\n        ')}
       </div>
     </div>
     ${chartType === 'bar-v' ? shapeSectionHTML(block) : ''}
@@ -377,14 +381,21 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="grb-fillalpha-number" min="0" max="100" value="${fillAlpha}">
       </div>
     </div>` : ''}
-    ${chartType === 'donut' ? `
+    ${_isPie ? `
     <div class="prop-section">
       <div class="prop-section-title">Pie Settings</div>
-      <div class="prop-row" title="도넛 가운데 구멍의 크기(바깥 반지름 대비 %)">
+      <div class="prop-row" title="가운데를 뚫어 도너츠 모양으로">
+        <span class="prop-label">도너츠</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="grb-pie-donut-toggle" ${_donut ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>${_donut ? `
+      <div class="prop-row" title="도너츠 가운데 구멍의 크기(바깥 반지름 대비 %)">
         <span class="prop-label">구멍 크기</span>
         <input type="range" class="prop-slider" id="grb-pie-hole-slider" min="${PIE_HOLE_MIN}" max="${PIE_HOLE_MAX}" step="1" value="${pieHole}">
         <input type="number" class="prop-number" id="grb-pie-hole-number" min="${PIE_HOLE_MIN}" max="${PIE_HOLE_MAX}" value="${pieHole}">
-      </div>
+      </div>` : ''}
     </div>` : ''}
     ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn }) : ''}
     <div class="prop-section">
@@ -417,6 +428,7 @@ ${blockHeaderHTML({
   // 타입 토글 — 유형 표를 돈다(클릭 = 유형 쓰기 → 다시 그리기 → 패널 다시 열기 · 기존 넷과 같은 꼴)
   GRAPH_TYPES.forEach(t => {
     document.getElementById(t.id).addEventListener('click', () => {
+      if (block.dataset.chartType === 'donut') block.dataset.pieDonut = '1';   // 1013t1C1 — 옛 도넛이 다른 유형에 갔다 「원형」으로 돌아와도 도넛이다
       block.dataset.chartType = t.type;
       if (t.type === 'bar-v') {   // 1012t1G4 — 다른 유형에서 고친 값과 보존된 마디를 한 규칙으로 맞춘다(바뀔 때만 쓴다 — 마디 없는 블럭은 무변)
         const _raw = block.dataset.items || '[]';
@@ -780,7 +792,19 @@ ${blockHeaderHTML({
     swSlider.addEventListener('change', () => window.pushHistory());
   }
 
-  // 구멍 크기 (donut 전용 · 1012t1G1) — 이웃 슬라이더와 같은 꼴: input 에 적용 · change 에 히스토리. 빈 칸(NaN)은 기본값.
+  // 도너츠 토글 (원형 전용 · 1013t1C1) — 켜면 pieDonut '1', 끄면 키 삭제. 옛 유형 'donut' 은 여기서 'pie' 로 옮겨 쓴다(구멍 값 pieHole 은 꺼도 남는다).
+  const pdToggle = document.getElementById('grb-pie-donut-toggle');
+  if (pdToggle) {
+    pdToggle.addEventListener('change', () => {
+      block.dataset.chartType = 'pie';
+      if (pdToggle.checked) block.dataset.pieDonut = '1'; else delete block.dataset.pieDonut;
+      window.renderGraph(block);
+      window.pushHistory();
+      showGraphProperties(block);
+    });
+  }
+
+  // 구멍 크기 (도너츠 전용 · 1012t1G1) — 이웃 슬라이더와 같은 꼴: input 에 적용 · change 에 히스토리. 빈 칸(NaN)은 기본값.
   const phSlider = document.getElementById('grb-pie-hole-slider');
   const phNumber = document.getElementById('grb-pie-hole-number');
   if (phSlider) {

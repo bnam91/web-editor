@@ -1207,7 +1207,8 @@ function makeGraphBlock() {
 function addGraphBlock(opts = {}) {
   // U9(BL-BOL-03): 스타일/시리즈 옵션 → dataset 일괄 매핑 (smooth=곡선, bar-pair 2시리즈용 barColor2 등)
   const _applyGraphOpts = (block) => {
-    if (opts.chartType) block.dataset.chartType = opts.chartType; // 'bar-v' | 'bar-h' | 'line' | 'bar-pair' | 'pie' | 'donut'
+    if (opts.chartType) block.dataset.chartType = opts.chartType; // 'bar-v' | 'bar-h' | 'line' | 'bar-pair' | 'pie' | 'donut'(옛 별칭 = 'pie' + pieDonut)
+    if (opts.pieDonut) block.dataset.pieDonut = '1';   // 1013t1C1 — 원형의 「도너츠」 토글
     const map = { smooth: 'lineSmooth', fillArea: 'fillArea' };
     for (const [opt, key] of Object.entries(map)) {
       if (opts[opt] !== undefined) block.dataset[key] = opts[opt] ? '1' : '0';

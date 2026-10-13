@@ -846,12 +846,14 @@ function _graphLabelBeginEdit(block, el, idx) {
  * 조각 요소는 «항목마다 정확히 하나»(값 0 이면 d 가 빈 글자) ⇒ 형제 순번 = 항목 순서 — CSS 색 사다리와 범례가 같은 순번을 쓴다.
  * 색: item.color(단색)면 조각·범례 점에 인라인, 아니면 CSS 프리셋. 막대에서 넘어온 그라데이션 item.color 는 여기선 «미지정»으로 본다(모델은 안 지운다).
  * 범례 = 카테고리 라벨(.grb-pie-label · 더블클릭 편집 대상) + 비율 %(.grb-pie-val). 공통 키(showVLabel·showXLabel·라벨 색 셋·labelSize·chartHeight)를 그대로 따른다.
- * 사용자 글자는 _escGraphHtml · 색은 _safeGraphColor 만 지난다(E152 규약). */
+ * 사용자 글자는 _escGraphHtml · 색은 _safeGraphColor 만 지난다(E152 규약).
+ * 1013t1C — 도넛 여부 = chartType 'donut'(옛 별칭) 또는 dataset.pieDonut '1'. 새 키가 «하나도 없으면» 그림(innerHTML)은 1012 판과 바이트가 같다(골든 G0). */
 function _renderPie(block, { items, chartH, labelSize }) {
   const d = block.dataset;
   const L = window.GRAPH_LIMITS;
   const _h = parseInt(d.pieHole);
-  const hole = d.chartType === 'donut' ? Math.min(L.PIE_HOLE_MAX, Math.max(L.PIE_HOLE_MIN, Number.isFinite(_h) ? _h : L.PIE_HOLE_DEFAULT)) : 0;
+  const donut = d.chartType === 'donut' || d.pieDonut === '1';   // 1013t1C1 — 유형은 '원형' 하나 + 「도너츠」 토글(pieDonut='1'). 옛 유형 'donut' 은 «영구 별칭»(옛 저장본 그대로 그린다)
+  const hole = donut ? Math.min(L.PIE_HOLE_MAX, Math.max(L.PIE_HOLE_MIN, Number.isFinite(_h) ? _h : L.PIE_HOLE_DEFAULT)) : 0;
   const _vals = items.map(it => it && it.value);
   const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, L.PIE_GAP);   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
   const pcts = window.GRAPH_PIE_GEOM.piePercents(_vals);                // 합이 정확히 100(최대 잔여법)

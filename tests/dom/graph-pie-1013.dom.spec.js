@@ -3,6 +3,7 @@
  * 옛 칸(P0~P11)은 tests/dom/graph-pie-donut.dom.spec.js 에 그대로 — 여기는 «새 키»와 «옛 저장본이 안 변한다»만 잰다.
  * 기하는 «화면 좌표»가 아니라 SVG 사용자 좌표의 isPointInFill 로 잰다(0~1000 viewBox · 중심 500 · 12시 = 0° · 시계 방향) — 배율·패널 폭과 무관.
  * 기다림은 전부 조건(waitForFunction · expect.poll · 로케이터 자동 대기) — 고정 대기 0.
+ *   C1 — D1 옛 donut 패널 · D2 도너츠 토글 왕복 · D3 옛 donut → 막대 → 원형 = 도넛 · D4 ⌘Z · G1 옛 꼴 블럭 저장·다시 열기·패널 무변 · G2 구멍 슬라이더 왕복
  *   G0 골든 핀: 새 키가 «하나도 없는» 블럭의 그림(innerHTML)이 1012 판과 바이트가 같다 — 1013t1C0 에서 «고치기 전 판» 위에 박았다.
  * 실행: bash ~/taeyang-098/run-test.sh dom tests/dom/graph-pie-1013.dom.spec.js */
 const { test, expect } = require('@playwright/test');
@@ -80,5 +81,128 @@ test('G0 골든 핀 — 새 키가 없는 원형·도넛 일곱 표본의 그림
   expect(Object.keys(got).length, '전제: 표본 일곱을 다 쟀다').toBe(7);
   expect(new Set(Object.values(got)).size, '전제: 일곱 표본이 서로 다른 그림이다').toBe(7);
   expect(got).toEqual(GOLD);
+  expect(errs).toEqual([]);
+});
+
+/* ── C1 원형 하나 + 「도너츠」 토글 ── 옛 유형 'donut' 은 «읽을 때» 영구 별칭 · 쓰는 자리는 유형 버튼과 토글 둘뿐. */
+const typeGroup = (page) => page.evaluate(() => { const bs = [...document.getElementById('grb-type-v').closest('.prop-type-group').querySelectorAll('button')];
+  return { ids: bs.map(b => b.id), active: bs.filter(b => b.classList.contains('active')).map(b => b.id), labels: bs.map(b => b.textContent.trim()) }; });
+const clickToggle = (page, id) => page.locator(`#${id}`).locator('xpath=..').click();   // 보이는 것은 label(트랙) — 사용자가 누르는 자리
+const outerOf = (page, id) => page.evaluate((id) => document.getElementById(id).outerHTML, id);
+
+test('D1 옛 donut 블럭의 패널 — 「원형」이 켜져 있고 · 도너츠 토글 checked · 구멍 줄 1 · 블럭은 한 글자도 안 변한다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'donut', items: V3 });
+  expect(await ds(page, id, 'pieDonut'), '전제: 옛 꼴 — 새 키 없음').toBeNull();
+  const before = await outerOf(page, id);
+  await openPanel(page, id);
+  const g = await typeGroup(page);
+  expect(g.ids, '유형 버튼은 다섯').toEqual(['grb-type-v', 'grb-type-h', 'grb-type-line', 'grb-type-pair', 'grb-type-pie']);
+  expect(g.labels[4]).toBe('원형');
+  expect(g.active, '옛 donut = 「원형」 버튼이 켜진다').toEqual(['grb-type-pie']);
+  expect(await page.locator('#grb-type-donut').count(), '옛 도넛 버튼은 없다').toBe(0);
+  await expect(page.locator('#grb-pie-donut-toggle'), '도너츠 토글이 켜져 있다').toBeChecked();
+  expect(await page.evaluate(() => document.getElementById('grb-pie-donut-toggle').closest('.prop-row').querySelector('.prop-label').textContent.trim())).toBe('도너츠');
+  expect(await page.locator('#grb-pie-hole-slider').count()).toBe(1);
+  expect(await outerOf(page, id), '패널을 열기만 해서는 블럭(dataset 포함)이 안 변한다').toBe(before);
+  expect(await ds(page, id, 'chartType')).toBe('donut');
+  expect(errs).toEqual([]);
+});
+
+test('D2 도너츠 토글 왕복 — 끄면 가운데가 차고 · 켜면 옛 donut 과 «같은 그림» · 유형은 pie + pieDonut', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'donut', items: V3 });
+  const html0 = await htmlOf(page, id);
+  expect(await hit(page, id, 45, 0.02), '전제: 옛 donut 은 가운데가 빈다').toEqual([false, false, false]);
+  expect(await hit(page, id, 45, 0.8), '전제: 고리는 찬다').toEqual([true, false, false]);
+  await openPanel(page, id);
+  await clickToggle(page, 'grb-pie-donut-toggle');
+  await expect.poll(() => ds(page, id, 'chartType')).toBe('pie');
+  expect(await ds(page, id, 'pieDonut'), '끄면 키가 지워진다').toBeNull();
+  expect(await hit(page, id, 45, 0.02), '꺼짐: 가운데 점이 채움 안').toEqual([true, false, false]);
+  expect(await page.locator('#grb-pie-hole-slider').count(), '꺼짐: 구멍 줄 없음').toBe(0);
+  await expect(page.locator('#grb-pie-donut-toggle')).not.toBeChecked();
+  await clickToggle(page, 'grb-pie-donut-toggle');
+  await expect.poll(() => ds(page, id, 'pieDonut')).toBe('1');
+  expect(await ds(page, id, 'chartType'), '새로 쓰는 꼴은 pie + pieDonut').toBe('pie');
+  expect(await hit(page, id, 45, 0.02), '켜짐: 가운데가 다시 빈다').toEqual([false, false, false]);
+  expect(await htmlOf(page, id), "'pie' + pieDonut 의 그림 = 옛 'donut' 의 그림(바이트)").toBe(html0);
+  expect(await page.locator('#grb-pie-hole-slider').count()).toBe(1);
+  /* addGraphBlock 입구도 같은 키 */
+  const made = await page.evaluate(() => { window.selectSection(document.getElementById('sG')); window.addGraphBlock({ chartType: 'pie', pieDonut: true });
+    const g = [...document.querySelectorAll('#sG .graph-block')].pop(); return [g.dataset.chartType, g.dataset.pieDonut ?? null, g.querySelectorAll('.grb-pie-slice').length > 0]; });
+  expect(made).toEqual(['pie', '1', true]);
+  expect(errs).toEqual([]);
+});
+
+test('D3 옛 donut → 세로 막대 → 원형 — 도넛으로 돌아온다 · 처음부터 원형이던 블럭은 원형 그대로', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'donut', items: V3 });
+  const html0 = await htmlOf(page, id);
+  await openPanel(page, id);
+  await page.locator('#grb-type-v').click();
+  await expect.poll(() => ds(page, id, 'chartType')).toBe('bar-v');
+  expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll('.grb-pie-slice').length, id), '전제: 막대로 그려졌다(조각 0)').toBe(0);
+  expect(await page.locator('#grb-pie-donut-toggle').count(), '막대: Pie Settings 없음').toBe(0);
+  await page.locator('#grb-type-pie').click();
+  await expect.poll(() => ds(page, id, 'chartType')).toBe('pie');
+  expect(await ds(page, id, 'pieDonut')).toBe('1');
+  expect(await htmlOf(page, id), '돌아온 그림 = 처음 donut 그림').toBe(html0);
+  await expect(page.locator('#grb-pie-donut-toggle')).toBeChecked();
+  expect(await page.locator('#grb-pie-hole-slider').count()).toBe(1);
+  /* 처음부터 원형 — 막대에 갔다 와도 도넛이 되지 않는다 */
+  const id2 = await page.evaluate(() => { window.selectSection(document.getElementById('sG')); window.addGraphBlock({ chartType: 'pie' }); return [...document.querySelectorAll('#sG .graph-block')].pop().id; });
+  expect(id2, '전제: 둘째 블럭').not.toBe(id);
+  await openPanel(page, id2);
+  await page.locator('#grb-type-v').click();
+  await expect.poll(() => ds(page, id2, 'chartType')).toBe('bar-v');
+  await page.locator('#grb-type-pie').click();
+  await expect.poll(() => ds(page, id2, 'chartType')).toBe('pie');
+  expect(await ds(page, id2, 'pieDonut')).toBeNull();
+  await expect(page.locator('#grb-pie-donut-toggle')).not.toBeChecked();
+  expect(errs).toEqual([]);
+});
+
+test('D4 도너츠 토글 ⌘Z — 한 번에 켜기 전으로', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie' });
+  const html0 = await htmlOf(page, id);
+  await openPanel(page, id);
+  await expect(page.locator('#grb-pie-donut-toggle'), '전제: 새 원형은 토글이 꺼져 있다').not.toBeChecked();
+  await clickToggle(page, 'grb-pie-donut-toggle');
+  await expect.poll(() => ds(page, id, 'pieDonut')).toBe('1');
+  expect(await htmlOf(page, id), '전제: 켜면 그림이 바뀐다').not.toBe(html0);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate(() => { const g = document.querySelector('#sG .graph-block'); return g ? [g.dataset.chartType, g.dataset.pieDonut ?? null] : null; })).toEqual(['pie', null]);
+  expect(await page.evaluate(() => document.querySelector('#sG .graph-block').innerHTML), '되돌린 그림 = 켜기 전').toBe(html0);
+  expect(errs).toEqual([]);
+});
+
+test('G1 옛 꼴 블럭(chartType donut · 새 키 0) — 저장 → 다시 꽂기 → rebindAll → 패널 열기까지 블럭이 한 글자도 안 변한다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'donut', items: V3 });
+  const r = await page.evaluate((id) => {
+    const g = document.getElementById(id); const before = g.outerHTML; const row = g.parentElement; const html = row.outerHTML;
+    const saved = window.getSerializedCanvas();
+    row.insertAdjacentHTML('afterend', html); row.remove(); window.rebindAll?.();
+    const n = document.getElementById(id);
+    window.showGraphProperties(n);
+    return { same: n.outerHTML === before, isNew: n !== g, slices: n.querySelectorAll('.grb-pie-slice').length, panel: !!document.getElementById('grb-pie-donut-toggle'),
+      savedDonut: saved.includes('data-chart-type="donut"'), savedNewKeys: /data-pie-(donut|gap|start)/.test(saved), keys: Object.keys(n.dataset).filter(k => /^pie/.test(k)) };
+  }, id);
+  expect(r).toEqual({ same: true, isNew: true, slices: 3, panel: true, savedDonut: true, savedNewKeys: false, keys: [] });
+  expect(errs).toEqual([]);
+});
+
+test('G2 옛 꼴 블럭의 구멍 슬라이더 55 → 56 → 55 — 그림이 처음과 같다 · 유형은 donut 그대로', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'donut', items: V3 });
+  const html0 = await htmlOf(page, id);
+  await openPanel(page, id);
+  expect(await page.inputValue('#grb-pie-hole-slider'), '전제: 기본 구멍 55').toBe('55');
+  const slide = (v) => page.evaluate((v) => { const s = document.getElementById('grb-pie-hole-slider'); s.value = v; s.dispatchEvent(new Event('input', { bubbles: true })); }, v);
+  await slide('56');
+  expect(await ds(page, id, 'pieHole')).toBe('56');
+  expect(await htmlOf(page, id), '전제: 56 은 다른 그림').not.toBe(html0);
+  await slide('55');
+  expect(await ds(page, id, 'pieHole')).toBe('55');
+  expect(await htmlOf(page, id), '55 로 돌아오면 처음 그림(바이트)').toBe(html0);
+  expect(await ds(page, id, 'chartType'), '구멍만 만져서는 유형을 안 옮겨 쓴다').toBe('donut');
+  expect(await ds(page, id, 'pieDonut')).toBeNull();
   expect(errs).toEqual([]);
 });
