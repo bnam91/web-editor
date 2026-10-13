@@ -22,6 +22,7 @@ import { gridLineHtml, GRID_ROLES, MAX_CELL_LINES, gridMergeLine, gridValidateLi
 import { grdLineUi, grdSetActiveLine, grdGetActiveLine, grdIsSoleSelected } from '../props/prop-grid.js';
 import { escHtml } from '../props/_helpers.js';
 import { swatchHex } from '../props/color-picker.js';          // ★D2 — 비교 줄 Fill 스와치를 «그려진 색»으로(prop-grid 가 이미 들이는 모듈 · 새 그래프 0)
+import { _fontDisplayName } from '../props/prop-text-utils.js';   // ★1013t1B2 — 글꼴 «표시 이름» 한 벌(prop-grid 가 이미 들이는 모듈 · 새 그래프 0)
 import { panelRenderedColor } from '../props/_panel-rendered.js';   // ★D2 — «그려진 값»을 읽는 한 자리(E121)   // ⛔이스케이프 사본 금지(tests/unit/name-axes-to-markup X6·X9) — 정본을 쓴다
 
 /** D5 — 버블·챗이 내놓는 줄 종류. ★GRID_ROLES 에서 뜬다(손으로 안 적는다) + 여백. */
@@ -591,6 +592,24 @@ export function lnAugmentLaurelPanel(block) {
   if (!host.resolveAny(act)) { grdSetActiveLine(block, null); lnMark(block, null); return; }
   _mountLineUi(block, host, act);
   _lnFillShowsRendered(block, host, act);
+  _lnFontShowsRendered(block, host, act);
+}
+/* ★1013t1B2 (이벨류 지적) — 글꼴을 안 정한 laurel 줄(옛 꼴에서 온 줄 · fontFamily 없음)은 블럭에서 «이어받은» 글꼴(Pretendard)로 그린다.
+   그런데 공용 Typography 의 글꼴 칸은 값이 없으면 「기본 (시스템)」이라 적는다 ⇒ 패널이 화면과 다르다(색의 _lnFillShowsRendered 와 같은 병).
+   ⇒ laurel 에서만 글꼴 칸 «표시»를 그려진 계산 글꼴의 첫 이름으로 맞춘다. ⛔모델엔 안 쓴다(값만 표시 · 피커 목록의 선택은 그대로).
+   ⛔공용 절(prop-grid)은 안 고친다 — 그리드·버블·챗·비교의 같은 증상은 보고만(범위 밖). */
+function _lnFontShowsRendered(block, host, addr) {
+  const line = host.line(addr);
+  if (!line || (typeof line.fontFamily === 'string' && line.fontFamily.trim() !== '')) return;
+  const el = _lineTextEl(block.querySelector(_lnRowSel(block, addr.r, addr.c, addr.li)));
+  if (!el) return;
+  let ff = '';
+  try { ff = getComputedStyle(el).fontFamily || ''; } catch (_) { ff = ''; }
+  const name = ff ? _fontDisplayName(ff) : '';
+  const nameEl = document.getElementById('grd-typo-font-name');
+  if (!name || !nameEl) return;
+  nameEl.textContent = name;
+  nameEl.title = `${name} — 블럭에서 이어받은 글꼴(이 줄엔 따로 정하지 않았다)`;
 }
 /* ★D2 — 색 없는 비교 줄은 «칼럼 글자색»을 상속해 그린다(렌더러 useRoleColor=false). 그런데 공용 Fill 절은 역할 기본색(#555)을 보인다
    ⇒ 패널이 실제와 다르다. 비교에서만 스와치·피커·hex 안내값을 «그려진 계산색»으로 맞춘다(값만 표시 — 모델에 안 쓴다).

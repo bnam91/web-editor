@@ -363,14 +363,24 @@ test.describe('laurel 줄 — C2 네 번째 주인(캔버스 2단 선택 · 줄�
 
   test('LL9 C2 문 규칙 — cellLines 잣대(종류·범위)·noHistory·옛 꼴 연산(editLine fontWeight)이 새 꼴에 먹는다', async ({ page }) => {
     const errs = await setup2(page);
+    /* ★거절 칸을 «먼저·따로» 잰다(이벨류 지적) — 한 evaluate 에 다 넣으면, 거절이 깨졌을 때 뒤쪽 DOM 읽기
+       (getComputedStyle(null))가 먼저 던져 «엉뚱한 까닭»으로 빨개진다. 음성대조가 «이 단언»으로 빨개져야 한다. */
+    const rej = await page.evaluate(() => {
+      const id = window.__bid; const tip = () => window.getHistoryTip().len;
+      const t0 = tip();
+      const badType = window.updateLaurelBlock(id, { cellLines: { cell: 0, lines: [{ type: 'graph', items: [] }] } });
+      const badCell = window.updateLaurelBlock(id, { cellLines: { cell: 9, lines: [] } });
+      return { badType, badCell, histOnReject: tip() - t0 };
+    });
+    expect(rej.badType.ok, '명부 밖 종류(graph)는 거절(C4 부터 그림은 명부 안)').toBe(false);
+    expect(rej.badType.code).toBe('INVALID');
+    expect(rej.badType.message).toContain('laurel');
+    expect(rej.badCell.ok, '없는 칸').toBe(false);
+    expect(rej.histOnReject, '거절은 이력을 안 남긴다').toBe(0);
     const r = await page.evaluate(() => {
       const id = window.__bid; const tip = () => window.getHistoryTip().len;
       const out = {};
       let t0 = tip();
-      out.badType = window.updateLaurelBlock(id, { cellLines: { cell: 0, lines: [{ type: 'graph', items: [] }] } });
-      out.badCell = window.updateLaurelBlock(id, { cellLines: { cell: 9, lines: [] } });
-      out.histOnReject = tip() - t0;
-      t0 = tip();
       out.raw = window.updateLaurelBlockRaw(id, { cellLines: { cell: 2, lines: [{ type: 'h2', text: '제목' }, { type: 'divider', height: 2 }] } }, { noHistory: true });
       out.histNoHistory = tip() - t0;
       out.stored2 = JSON.parse(document.getElementById(id).dataset.cells)[2].lines;
@@ -378,18 +388,14 @@ test.describe('laurel 줄 — C2 네 번째 주인(캔버스 2단 선택 · 줄�
       out.edit = window.updateLaurelBlock(id, { editLine: { cellIndex: 0, lineIndex: 0, fontWeight: 800, text: '첫째' } });
       const c = JSON.parse(document.getElementById(id).dataset.cells);
       out.line0 = c[0].lines[0];
-      out.weight = getComputedStyle(document.querySelector('#sB .laurel-block .ln-row[data-ln-m="0"][data-ln="0"] > .grd-line')).fontWeight;
+      const w0 = document.querySelector('#sB .laurel-block .ln-row[data-ln-m="0"][data-ln="0"] > .grd-line');
+      out.weight = w0 ? getComputedStyle(w0).fontWeight : null;   // ⛔null 로 던지지 않는다 — 아래 단언이 까닭을 말하게
       out.allTyped = c.every(cell => cell.lines.every(l => typeof l.type === 'string'));
       out.editGap = window.updateLaurelBlock(id, { editLine: { cellIndex: 2, lineIndex: 1, text: 'x' } });
       out.add = window.updateLaurelBlock(id, { addLine: { cellIndex: 1, line: { text: '추가', fontSize: 30, fontWeight: 600 } } });
       out.added = JSON.parse(document.getElementById(id).dataset.cells)[1].lines.at(-1);
       return out;
     });
-    expect(r.badType.ok, '명부 밖 종류(graph)는 거절(C4 부터 그림은 명부 안)').toBe(false);
-    expect(r.badType.code).toBe('INVALID');
-    expect(r.badType.message).toContain('laurel');
-    expect(r.badCell.ok, '없는 칸').toBe(false);
-    expect(r.histOnReject, '거절은 이력을 안 남긴다').toBe(0);
     expect(r.raw.ok).toBe(true);
     expect(r.histNoHistory, 'Raw + noHistory = 이력 0칸').toBe(0);
     expect(r.stored2, '새 꼴 그대로 저장').toEqual([{ type: 'h2', text: '제목' }, { type: 'divider', height: 2 }]);
@@ -687,6 +693,35 @@ test.describe('laurel 줄 — C5 캔버스 ＋(칸 열·행)', () => {
     await expect.poll(async () => (await plusInfo(page)).all, '편집 중 = ＋ 0').toBe(0);
     await page.evaluate(() => { document.getElementById(window.__bid).classList.remove('editing'); window.deselectAll(); });
     await expect.poll(async () => (await plusInfo(page)).all, '풀림 = ＋ 0').toBe(0);
+    expect(errs).toEqual([]);
+  });
+});
+
+/* ══ 이벨류 고침 — 글꼴 칸이 «그려진 글꼴»을 보인다 ══════════════════════════════════════════════
+ * 음성대조(1회 실측): js/blocks/line-host.js lnAugmentLaurelPanel 의 `_lnFontShowsRendered(block, host, act);` 를 빼면
+ *   → LL17 빨강(글꼴 칸 「기본 (시스템)」 · 화면은 Pretendard).
+ *   실측 2026-10-13: LL17 1 failed — Expected "Pretendard" / Received "기본 (시스템)" · 되돌린 뒤 cmp 같음. */
+test.describe('laurel 줄 — 이벨류 고침', () => {
+  test('LL17 글꼴 안 정한 옛 꼴 줄 — 패널 글꼴 칸 = 화면에 그려진 글꼴(Pretendard) · 모델 무변 · 「기본 (시스템)」 고르기는 화면을 안 바꾼다(기록)', async ({ page }) => {
+    const errs = await setup2(page);
+    await pickLine(page, 0, 1);
+    const sel = '#sB .laurel-block .ln-row[data-ln-m="0"][data-ln="1"] > .grd-line';
+    const r = await page.evaluate((sel) => ({
+      ff: getComputedStyle(document.querySelector(sel)).fontFamily,
+      shown: document.getElementById('grd-typo-font-name')?.textContent?.trim() ?? null,
+      model: JSON.parse(document.getElementById(window.__bid).dataset.cells)[0].lines[1],
+    }), sel);
+    expect(r.model.fontFamily, '전제 — 이 줄엔 글꼴이 없다(옛 꼴)').toBe(undefined);
+    expect(r.ff.split(',')[0].replace(/['"]/g, '').trim(), '전제 — 화면은 블럭에서 이어받은 Pretendard').toBe('Pretendard');
+    expect(r.shown, '패널 글꼴 칸 = 그려진 글꼴').toBe('Pretendard');
+    expect((await cellsOf(page))[0].lines[1].type, '모델 무변 — 패널을 열기만 해서 새 꼴로 쓰지 않는다').toBe(undefined);
+    // 「기본 (시스템)」 고르기 = fontFamily 를 «안 정함»으로 — 이미 안 정한 줄에선 화면이 그대로다(OS 시스템 글꼴로 바뀌지 않는다)
+    await page.click('#grd-typo-font-trigger');
+    await page.locator('#grd-typo-font-list .font-item[data-value=""]').first().click();
+    await expect.poll(async () => (await cellsOf(page))[0].lines[1].type, '고르기 = 쓰기 한 번(새 꼴로)').toBe('body');
+    const after = await page.evaluate((sel) => ({ ff: getComputedStyle(document.querySelector(sel)).fontFamily, model: JSON.parse(document.getElementById(window.__bid).dataset.cells)[0].lines[1] }), sel);
+    expect('fontFamily' in after.model, '「기본 (시스템)」 = 키 없음').toBe(false);
+    expect(after.ff, '「기본 (시스템)」을 골라도 화면 글꼴은 그대로(블럭에서 이어받음 — 시스템 글꼴 아님)').toBe(r.ff);
     expect(errs).toEqual([]);
   });
 });
