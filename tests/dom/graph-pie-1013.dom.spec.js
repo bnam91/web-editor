@@ -12,6 +12,7 @@
  *   C5 밀어내기 — I1 piePull 이 그 조각만 이등분각 방향으로 옮긴다(d 무변 · transform · viewBox) · 옮긴 자리에서 눌러야 골라진다 · I2 Slice 절 「밀어내기」 칸 · ⌘Z
  *   C3 조각 안 라벨 — J1 순위·이름 토글(기본 꺼짐 · 덧층 · 「n위」) · J2 좁은 조각 자동 숨김 · 조각별 「라벨」 자동/항상/숨김 · J3 이름은 글자 그대로(주입 0)
  *     · J4 글자 톤이 조각 색을 따른다 · 저장본에 톤 변수 0 · J5 라벨이 제 조각 위에 앉고(크기·밀어내기·시작 각도) 클릭을 안 가로챈다 · J6 끄면 켜기 전 그림(바이트)
+ *   C7 그림자 — K1 Shadow 절 없음/부드럽게/강하게(dataset.dropShadow · 없음 = 키 삭제) · 그림(innerHTML) 무변 · ⌘Z · 저장 · K2 값 = 확대블럭 선례와 같다 · 막대에선 절도 그림자도 없다
  *   G0 골든 핀: 새 키가 «하나도 없는» 블럭의 그림(innerHTML)이 1012 판과 바이트가 같다 — 1013t1C0 에서 «고치기 전 판» 위에 박았다.
  * 실행: bash ~/taeyang-098/run-test.sh dom tests/dom/graph-pie-1013.dom.spec.js */
 const { test, expect } = require('@playwright/test');
@@ -860,5 +861,82 @@ test('J6 둘 다 끄면 켜기 전 그림과 바이트가 같다 · 두 번 그�
   expect(await htmlOf(page, id), "조각별 pieTag 'on' 만으로는 아무것도 안 그린다(블럭 토글이 꺼져 있다)").toBe(html0);
   await setDs(page, id, { pieRank: '0', pieName: 'yes' });
   expect(await htmlOf(page, id), "켜짐 = 정확히 '1' 만").toBe(html0);
+  expect(errs).toEqual([]);
+});
+
+/* ── C7 그림자(dataset.dropShadow 'soft' / 'strong' · 없음 = 키 없음) ── 칠하는 자리 = CSS(.grb-pie-svg 의 filter). 그림(innerHTML)은 안 바뀐다. */
+const filterOf = (page, id, sel = '.grb-pie-svg') => page.evaluate(([id, sel]) => { const e = document.getElementById(id).querySelector(sel); return e ? getComputedStyle(e).filter : null; }, [id, sel]);
+const dropGroup = (page) => page.evaluate(() => { const g = document.getElementById('grb-drop-group'); return g ? { title: g.closest('.prop-section').querySelector('.prop-section-title').textContent.trim(),
+  btns: [...g.querySelectorAll('.prop-align-btn')].map(b => [b.dataset.val, b.textContent.trim()]), active: [...g.querySelectorAll('.prop-align-btn.active')].map(b => b.dataset.val) } : null; });
+test('K1 그림자 — Shadow 절의 없음/부드럽게/강하게가 svg 에 그림자를 건다 · 없음 = 키 삭제 · 그림(innerHTML)은 한 글자도 안 바뀐다 · ⌘Z · 저장본에 키가 실린다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3 });
+  expect(await ds(page, id, 'dropShadow'), '전제: 키 없음').toBeNull();
+  expect(await filterOf(page, id), '전제: 그림자 없음').toBe('none');
+  const html0 = await htmlOf(page, id);
+  await openPanel(page, id);
+  expect(await dropGroup(page), 'Shadow 절 — 세 단계 · 「없음」이 켜져 있다').toEqual({ title: 'Shadow', btns: [['none', '없음'], ['soft', '부드럽게'], ['strong', '강하게']], active: ['none'] });
+  await page.locator('#grb-drop-group .prop-align-btn[data-val="soft"]').click();
+  await expect.poll(() => ds(page, id, 'dropShadow')).toBe('soft');
+  const fSoft = await filterOf(page, id);
+  expect(fSoft, '부드럽게: svg 에 drop-shadow').toContain('drop-shadow');
+  expect((await dropGroup(page)).active).toEqual(['soft']);
+  expect(await htmlOf(page, id), '그림(innerHTML)은 그대로 — 속성 하나만 바뀐다').toBe(html0);
+  expect(await filterOf(page, id, '.grb-pie-legend'), '범례에는 그림자가 없다').toBe('none');
+  await page.locator('#grb-drop-group .prop-align-btn[data-val="strong"]').click();
+  await expect.poll(() => ds(page, id, 'dropShadow')).toBe('strong');
+  const fStrong = await filterOf(page, id);
+  expect(fStrong).toContain('drop-shadow');
+  expect(fStrong, '강하게 ≠ 부드럽게').not.toBe(fSoft);
+  /* 저장본에 키가 실리고(파생 값이 아니다) 다시 꽂아도 그림자가 선다 */
+  expect(await page.evaluate(() => window.getSerializedCanvas().includes('data-drop-shadow="strong"'))).toBe(true);
+  /* ⌘Z 한 번 = 직전 단계 */
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate(() => document.querySelector('#sG .graph-block')?.dataset.dropShadow ?? null)).toBe('soft');
+  const id2 = await page.evaluate(() => document.querySelector('#sG .graph-block').id);
+  expect(await filterOf(page, id2), '되돌린 그림자 = 부드럽게').toBe(fSoft);
+  /* 없음 = 키 삭제(안 만진 블럭과 같은 꼴) */
+  await openPanel(page, id2);
+  expect((await dropGroup(page)).active, '전제: 다시 연 패널이 모델 값을 보인다').toEqual(['soft']);
+  await page.locator('#grb-drop-group .prop-align-btn[data-val="none"]').click();
+  await expect.poll(() => ds(page, id2, 'dropShadow')).toBeNull();
+  expect(await filterOf(page, id2)).toBe('none');
+  expect(await page.evaluate((id2) => document.getElementById(id2).hasAttribute('data-drop-shadow'), id2)).toBe(false);
+  expect(await htmlOf(page, id2)).toBe(html0);
+  /* 도너츠·조각 안 라벨과 같이 — 그림자는 svg 에만(라벨 덧층에는 없다) · 모르는 값은 그림자 없음 + 「없음」 */
+  await setDs(page, id2, { pieDonut: '1', pieRank: '1', dropShadow: 'soft' });
+  expect(await filterOf(page, id2)).toBe(fSoft);
+  expect(await filterOf(page, id2, '.grb-pie-tags')).toBe('none');
+  await setDs(page, id2, { dropShadow: 'banana' });
+  expect(await filterOf(page, id2)).toBe('none');
+  await openPanel(page, id2);
+  expect((await dropGroup(page)).active).toEqual(['none']);
+  expect(errs).toEqual([]);
+});
+
+test('K2 그림자 값은 확대블럭 선례와 같다(넷째 벌 없음) · 막대 유형에선 Shadow 절도 그림자도 없다(죽은 키)', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3 });
+  /* 선례 = css/editor-blocks.css `.zoom-block[data-drop-shadow] > .zoom-clip` — 같은 판에 탐침을 세워 «계산된 값»끼리 견준다(리터럴 없이) */
+  const ref = await page.evaluate(() => { const out = {}; for (const v of ['soft', 'strong']) { const z = document.createElement('div'); z.className = 'zoom-block'; z.dataset.dropShadow = v; z.innerHTML = '<div class="zoom-clip"></div>';
+    document.body.appendChild(z); out[v] = getComputedStyle(z.firstChild).filter; z.remove(); } return out; });
+  expect(ref.soft, '전제: 선례 값이 있다').toContain('drop-shadow');
+  expect(ref.strong, '전제').toContain('drop-shadow');
+  expect(ref.soft, '전제: 선례의 두 단계는 다르다').not.toBe(ref.strong);
+  await setDs(page, id, { dropShadow: 'soft' });
+  expect(await filterOf(page, id), '부드럽게 = 확대블럭 soft').toBe(ref.soft);
+  await setDs(page, id, { dropShadow: 'strong' });
+  expect(await filterOf(page, id), '강하게 = 확대블럭 strong').toBe(ref.strong);
+  /* 막대로 바꾸면 — 키는 남아도 걸리는 요소가 없다 · 패널에 절이 없다 */
+  await openPanel(page, id);
+  expect(await page.locator('#grb-drop-group').count(), '전제: 원형이면 절이 있다').toBe(1);
+  await page.locator('#grb-type-v').click();
+  await expect.poll(() => ds(page, id, 'chartType')).toBe('bar-v');
+  expect(await page.locator('#grb-drop-group').count(), '막대: Shadow 절 없음').toBe(0);
+  expect(await ds(page, id, 'dropShadow'), '전제: 키는 남아 있다').toBe('strong');
+  const any = await page.evaluate((id) => { const b = document.getElementById(id); return [b, ...b.querySelectorAll('*')].filter(e => getComputedStyle(e).filter !== 'none').length; }, id);
+  expect(any, '막대 그래프의 어느 요소에도 그림자가 없다').toBe(0);
+  await page.locator('#grb-type-pie').click();
+  await expect.poll(() => ds(page, id, 'chartType')).toBe('pie');
+  expect(await filterOf(page, id), '원형으로 돌아오면 그림자도 돌아온다').toBe(ref.strong);
   expect(errs).toEqual([]);
 });

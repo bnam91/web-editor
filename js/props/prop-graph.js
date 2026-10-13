@@ -157,6 +157,22 @@ function pieSliceRowsHTML(item) {   // 조각별 설정 줄 — 줄을 더하면
         </select>
       </div>`;
 }
+/* 1013t1C7 — Shadow 절(원형 전용): 없음 / 부드럽게 / 강하게. 모달(prop-modal.js mdl-drop-group)·확대블럭과 같은 꼴 · 같은 키(dataset.dropShadow).
+ *   칠하는 일은 CSS 가 한다(css/editor-graph.css `.graph-block[data-drop-shadow] .grb-pie-svg`) — 여기는 키만 쓴다. 없음 = 키 삭제(안 만진 블럭과 같은 꼴). */
+const PIE_DROP_OPTS = [['none', '없음'], ['soft', '부드럽게'], ['strong', '강하게']];
+const _pieDropOf = (ds) => (ds.dropShadow === 'soft' || ds.dropShadow === 'strong') ? ds.dropShadow : 'none';
+function pieShadowSectionHTML(ds) {
+  const cur = _pieDropOf(ds);
+  return `
+    <div class="prop-section">
+      <div class="prop-section-title">Shadow</div>
+      <div class="prop-row">
+        <div class="prop-align-group" id="grb-drop-group">
+          ${PIE_DROP_OPTS.map(([v, label]) => `<button class="prop-align-btn${cur === v ? ' active' : ''}" data-val="${v}">${label}</button>`).join('\n          ')}
+        </div>
+      </div>
+    </div>`;
+}
 function pieSliceSectionHTML(items, sel) {
   if (!(sel >= 0 && sel < items.length)) return '';
   return `
@@ -468,7 +484,7 @@ ${blockHeaderHTML({
           <span class="prop-toggle-track"></span>
         </label>
       </div>
-    </div>${pieSliceSectionHTML(items, _sliceSel)}` : ''}
+    </div>${pieSliceSectionHTML(items, _sliceSel)}${pieShadowSectionHTML(block.dataset)}` : ''}
     ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn }) : ''}
     <div class="prop-section">
       <div class="prop-section-title">Preset</div>
@@ -949,6 +965,14 @@ ${blockHeaderHTML({
       window.pushHistory();
     });
   }
+  // 1013t1C7 — 그림자. 값이 같으면 아무 것도 안 한다(히스토리에 빈 칸을 안 쌓는다 — 모달·확대블럭과 같다). 다시 그리지 않는다(그림은 그대로 · CSS 가 속성을 읽는다).
+  propPanel.querySelectorAll('#grb-drop-group .prop-align-btn').forEach(btn => btn.addEventListener('click', () => {
+    const next = btn.dataset.val;
+    if (_pieDropOf(block.dataset) === next) return;
+    propPanel.querySelectorAll('#grb-drop-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
+    if (next === 'soft' || next === 'strong') block.dataset.dropShadow = next; else delete block.dataset.dropShadow;
+    window.pushHistory();
+  }));
   const tagSel = document.getElementById('grb-pie-tag-select');
   if (tagSel && _sliceSel >= 0) tagSel.addEventListener('change', () => {
     const its = JSON.parse(block.dataset.items || '[]');
