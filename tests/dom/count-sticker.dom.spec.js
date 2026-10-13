@@ -7,6 +7,7 @@
  *   C11 번호 다시 매기기 · C12 더블클릭해도 글자 편집이 안 열린다 · C13 일반 스티커 패널 무회귀(C13b 짝: A 블럭이면 Shape 5)
  *   C14·C15 크기를 키로 한 칸씩 바꿔도 폰트 비례 · C16·C17 다른 찍는 도구와 안 겹친다 · C18 키 리스너 짝·한 번에 하나
  *   C19 모서리를 찍어도 섹션 안 · C20 메뉴 재클릭·우클릭·⌘⇧Z · C21 시작 번호 칸은 확정 때 모델 값으로
+ *   C22 이름(1013t2B1) — 보이는 이름은 Marking(마킹 블럭): 패널 절 제목·패널 머리·레이어 행. 저장 키(data-count*)는 그대로
  * ★스티커는 기존 sticker-block(circle/square)의 변형이다 — data-count 가 붙었을 뿐이다.
  * ★자리 비교는 «레이아웃 px»로 한다(dataset.x·sizeW 와 offsetWidth). 화면 사각형은 «누를 점»을 정하는 데만 쓴다.
  */
@@ -81,11 +82,11 @@ test('C0 전제 — 도구가 실렸고 켜고 끌 수 있다 · 오류 0건', a
   expect(errs).toEqual([]);
 });
 
-test('C1 찍기 — 메뉴 「Count Sticker」로 켜고 섹션을 세 번 누르면 1·2·3 이 찍힌다', async ({ page }) => {
+test('C1 찍기 — 메뉴 「Marking」으로 켜고 섹션을 세 번 누르면 1·2·3 이 찍힌다', async ({ page }) => {
   const errs = await bootApp(page);
   await setup(page);
   await page.click('#fp-pen-btn');
-  await page.click('#fp-pen-menu .fp-menu-item:text-is("Count Sticker")');
+  await page.click('#fp-pen-menu .fp-menu-item:text-is("Marking")');
   await page.waitForFunction(() => window._countStkState().mode === true && window._countStkState().armed === true);
   expect(await page.evaluate(() => getComputedStyle(document.getElementById('secA')).cursor), '도구가 켜지면 십자 커서').toBe('crosshair');
   await stamp3(page);
@@ -607,10 +608,10 @@ test('C20 종료 갈래 — 메뉴를 다시 누르면 꺼진다 · 우클릭은
   await bootApp(page);
   await setup(page);
   // 메뉴 재클릭
-  await penMenu(page, 'Count Sticker');
+  await penMenu(page, 'Marking');
   await page.waitForFunction(() => window._countStkState().mode === true && window._countStkState().armed === true);
   await stamp(page, SEC_A, 0.2, 0.5);
-  await penMenu(page, 'Count Sticker');
+  await penMenu(page, 'Marking');
   expect(await page.evaluate(() => ({ ...window._countStkState(), body: document.body.classList.contains('count-stk-mode'),
     btn: document.getElementById('fp-pen-btn').classList.contains('active') })), '메뉴를 다시 누르면 꺼진다').toEqual({ mode: false, armed: false, body: false, btn: false });
   expect(await countIn(page, 'secA'), '메뉴를 누른 것이 번호를 찍지 않는다').toBe(1);
@@ -652,4 +653,51 @@ test('C21 시작 번호 칸 — 2.7 을 넣고 확정하면 칸이 모델 값(2)
     model: [...document.querySelectorAll('#secA [data-count]')].map(b => b.dataset.countStart) }));
   expect(r.model, '★전제: 모델은 2').toEqual(['2', '2', '2']);
   expect(r.field, '칸에 2.7 이 남지 않는다').toBe('2');
+});
+
+/* ── 1013t2 B 묶음(마킹 블럭) ─────────────────────────────────────────────────────────────────────── */
+
+/* 그 블럭의 레이어 행(.layer-item) — 행이 드는 _dragTarget 으로 «그 블럭의 행»을 집는다(이름으로 찾지 않는다). */
+const layerRowOf = (page, sel) => page.evaluate((sel) => {
+  window.buildLayerPanel?.();
+  const b = document.querySelector(sel);
+  const rows = [...document.querySelectorAll('.layer-item')].filter((it) => it._dragTarget === b);
+  return rows.map((it) => ({ name: it.querySelector('.layer-item-name')?.textContent, type: it.querySelector('.layer-item-type')?.textContent, layerType: it.dataset.layerType }));
+}, sel);
+
+test('C22 이름 — 패널 절 제목·패널 머리·레이어 행이 Marking 이다 · 일반 스티커의 머리는 Sticker 그대로 · 저장 키는 count 그대로', async ({ page }) => {
+  const errs = await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.4, 0.5);
+  await page.evaluate(() => window.exitCountStickerMode());
+  const m = await page.evaluate(() => {
+    const b = document.querySelector('#secA .sticker-block[data-count]');
+    return { n: document.querySelectorAll('#secA .sticker-block[data-count]').length, selected: b.classList.contains('selected'),
+      title: document.querySelector('#stk-count-section .prop-section-title')?.textContent.trim(),
+      head: document.querySelector('#panel-right .prop-block-name')?.textContent.trim(),
+      keys: ['count', 'countStart', 'countStyle', 'countShape'].map((k) => k in b.dataset), type: b.dataset.type, cls: b.className.split(' ')[0] };
+  });
+  expect([m.n, m.selected], '★전제: 마킹 1개가 찍혔고 골라져 있다').toEqual([1, true]);
+  expect(m.title, '패널 절 제목').toBe('Marking');
+  expect(m.head, '패널 머리').toBe('Marking');
+  expect([m.keys, m.type, m.cls], '저장 키·종류·클래스는 그대로다').toEqual([[true, true, true, true], 'sticker', 'sticker-block']);
+  const rows = await layerRowOf(page, '#secA .sticker-block[data-count]');
+  expect(rows.length, '★전제: 그 블럭의 레이어 행이 정확히 하나 있다').toBe(1);
+  expect(rows[0], '레이어 행의 이름·종류').toEqual({ name: 'Marking', type: 'Sticker', layerType: 'marking' });
+
+  /* 짝: 일반 스티커의 머리는 Sticker 그대로 */
+  const plain = await page.evaluate(() => {
+    const sec = document.getElementById('secA');
+    const b = window.makeStickerBlock({ shape: 'circle', x: 20, y: 20 });
+    b.id = 'stkPlainName';
+    sec.appendChild(b); window.bindStickerSelect(b); window._selectSticker(b);
+    return { hasCount: 'count' in b.dataset, selected: b.classList.contains('selected'),
+      head: document.querySelector('#panel-right .prop-block-name')?.textContent.trim(), countSec: !!document.getElementById('stk-count-section') };
+  });
+  expect(plain, '일반 스티커: 머리는 Sticker · Marking 절 없음').toEqual({ hasCount: false, selected: true, head: 'Sticker', countSec: false });
+  const plainRows = await layerRowOf(page, '[id="stkPlainName"]');
+  expect(plainRows.length, '★전제: 일반 스티커의 레이어 행이 하나 있다').toBe(1);
+  expect(plainRows[0].layerType, '일반 스티커의 레이어 행은 마킹으로 안 바뀐다(이번 범위 밖 · 표시 무변)').not.toBe('marking');
+  expect(errs).toEqual([]);
 });

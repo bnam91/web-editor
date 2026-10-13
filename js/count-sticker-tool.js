@@ -1,5 +1,6 @@
 // count-sticker-tool.js — 카운트 스티커(번호 뱃지) «찍는 도구» (1012t1Z4)
-// 메뉴 「Count Sticker」로 켠 뒤 섹션을 누를 때마다 그 자리에 1·2·3… 번호 스티커가 찍힌다.
+// ★사용자 표기 = Marking(마킹 블럭) · 1013t2B1 — 저장 키(data-count*)·함수·파일명은 count 그대로다(옛 저장본 호환).
+// 메뉴 「Marking」으로 켠 뒤 섹션을 누를 때마다 그 자리에 1·2·3… 번호 스티커가 찍힌다.
 // 스티커는 기존 sticker-block(circle/square)의 «변형»이다 — data-count 가 붙었을 뿐 새 블록 타입이 아니다.
 //   data-count        섹션 안 순번 k (1부터)
 //   data-count-start  시작 번호 (기본 1)
@@ -261,7 +262,7 @@ function _cntStamp(e) {
   const rawY = Math.round(p.y - inh.sizeH / 2);
   const pos = window._clampToSection?.(rawX, rawY, sec, inh.sizeW, inh.sizeH) || [rawX, rawY];
   // ⌘Z 한 번 = 스티커 하나: 찍기 «앞»과 «뒤»를 다 찍는다(연속 찍기의 겹치는 표본은 무변화 차단이 버린다)
-  try { window.pushHistory?.('카운트 스티커'); } catch (err) { console.warn('[count-sticker] pushHistory failed', err); }
+  try { window.pushHistory?.('마킹 추가'); } catch (err) { console.warn('[count-sticker] pushHistory failed', err); }
   const block = window.makeStickerBlock({
     ...inh,
     x: pos[0], y: pos[1],
@@ -271,7 +272,7 @@ function _cntStamp(e) {
   sec.appendChild(block);   // 섹션 직속(absolute → 섹션 기준)
   try { window.bindStickerSelect?.(block); } catch (err) { console.warn('[count-sticker] bindStickerSelect failed', err); }
   try { window._selectSticker?.(block); } catch (err) { console.warn('[count-sticker] _selectSticker failed', err); }
-  try { window.pushHistory?.('카운트 스티커'); } catch (err) { console.warn('[count-sticker] pushHistory failed', err); }
+  try { window.pushHistory?.('마킹 추가'); } catch (err) { console.warn('[count-sticker] pushHistory failed', err); }
   try { window.scheduleAutoSave?.(); } catch (err) { console.warn('[count-sticker] scheduleAutoSave failed', err); }
   return block;
 }

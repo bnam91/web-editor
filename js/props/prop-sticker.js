@@ -191,7 +191,7 @@ export function showStickerProperties(block) {
 ${blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/></svg>`,
       name: block.dataset.layerName,
-      defaultName: 'Sticker',
+      defaultName: isCount ? 'Marking' : 'Sticker',   // 1013t2B1 — 마킹 블럭(data-count)은 자기 이름으로. data-layer-name 이 있으면 그것이 이긴다
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
     })}

@@ -3,6 +3,7 @@
  * ★무엇을 잠그나
  *   L1 숫자 표기 · L2 알파벳 표기(전단사 26진: 26=Z 다음이 AA 다 — 흔한 0-기반 26진은 여기서 「BA」나 「A@」를 낸다)
  *   L3 배선 — index.html 에 도구 스크립트가 정확히 한 번 실리고, 메뉴 단추가 스티커 패널(#fp-pen-menu) 안에 있다
+ *   L5 이름(1013t2B1) — 메뉴 글자는 Marking · title 은 「마킹 블럭 — 」으로 시작 · 옛 「Count Sticker」 0건 (키·함수명은 count 그대로 — L3·L4 가 문다)
  *   L4 서로 끄기 — 찍는 도구 넷(Count · Annotation · HighlightB · 벡터 펜)의 enter 가 서로를 끈다(행동은 DOM C16·C17 이 잰다)
  * ★기대값은 «글자로» 박았다(피검 함수에서 뽑으면 항등식이다).
  * ⛔앱 0 · 네트워크 0. js/count-sticker-tool.js 는 최상위에서 DOM 을 안 건드리므로 vm 으로 그대로 싣는다.
@@ -80,4 +81,21 @@ test('L4 서로 끄기 — 다른 찍는 도구 셋의 enter 가 Count 를 끄�
   for (const name of ['exitPenMode', 'exitHighlightBMode', 'exitVectorPenMode']) {
     assert.equal((mine.match(new RegExp(`window\\.${name}\\?\\.\\(\\)`, 'g')) || []).length, 1, `enterCountStickerMode 안의 ${name} 호출 수`);
   }
+});
+
+test('L5 이름 — 메뉴 글자는 Marking · title 은 「마킹 블럭 — 」으로 시작 · 옛 「Count Sticker」 0건', () => {
+  const html = readSrc(REPO, 'index.html');
+  const at = html.indexOf('id="fp-pen-menu"');
+  assert.ok(at > 0, '★전제: #fp-pen-menu 가 있다');
+  const next = html.indexOf('class="fp-dropdown-menu"', at + 1);
+  const menu = html.slice(at, next > at ? next : at + 6000).replace(/<!--[\s\S]*?-->/g, '');
+  const items = [...menu.matchAll(/<button class="fp-menu-item" onclick="([^"]*)" title="([^"]*)">([^<]*)<\/button>/g)]
+    .map((m) => ({ on: m[1], title: m[2], label: m[3] }));
+  const mine = items.filter((x) => x.on.includes('toggleCountStickerMode('));
+  assert.equal(mine.length, 1, '★전제: toggleCountStickerMode( 를 부르는 메뉴 단추가 정확히 하나다');
+  assert.equal(mine[0].label, 'Marking', '메뉴 글자');
+  assert.ok(mine[0].title.startsWith('마킹 블럭 — '), `title 이 「마킹 블럭 — 」으로 시작해야 한다: ${mine[0].title}`);
+  assert.equal(items.filter((x) => x.label === 'Marking').length, 1, '「Marking」 항목은 하나뿐이다');
+  assert.equal((html.match(/Count Sticker/g) || []).length, 0, 'index.html 에 옛 이름 「Count Sticker」가 남아 있다');
+  assert.equal((html.match(/카운트 스티커/g) || []).length, 0, 'index.html 에 옛 이름 「카운트 스티커」가 남아 있다');
 });

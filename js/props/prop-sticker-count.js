@@ -1,4 +1,5 @@
 /* prop-sticker-count.js — 카운트 스티커(data-count 가 붙은 circle/square 스티커)의 우측 패널 절 (1012t1Z4).
+ *   ★사용자 표기 = Marking(마킹 블럭) · 1013t2B1 — 저장 키(data-count*)·id(stk-count-*)·파일명은 count 그대로다.
  *   prop-sticker.js 가 data-count 일 때 이 절을 끼우고 Shape·Text·이미지 모드 절과 «크기» 행을 숨긴다
  *   (폰트 크기·굵기·스타일·Colors 는 그대로 남는다).
  *   행(현빈 원문 순서): 표기(1 / A) · 모양(원 / 사각 / 투명) · 시작 번호 · 크기 · [번호 다시 매기기]
@@ -42,7 +43,7 @@ export function countSectionHTML(block) {
   const on = (c) => (c ? ' active' : '');
   return `
     <div class="prop-section" id="stk-count-section">
-      <div class="prop-section-title">Count</div>
+      <div class="prop-section-title">Marking</div>
       <div class="prop-row"><span class="prop-label">표기</span>
         <div class="prop-align-group" id="stk-count-style">
           <button class="prop-align-btn${on(style === 'num')}" data-count-style="num" title="숫자 (1 · 2 · 3)">1</button>
@@ -92,7 +93,7 @@ export function wireCountSection(panel, block, rerender) {
       if (!CS || (block.dataset.countStyle || 'num') === style) return;
       CS.setGroup(sec(), { style });
       markActive('stk-count-style', btn);
-      commit('카운트 스티커 표기');
+      commit('마킹 표기');
     });
   });
 
@@ -103,7 +104,7 @@ export function wireCountSection(panel, block, rerender) {
       if (shapeOf(block) === shape) return;
       block.dataset.countShape = shape;
       if (shape === 'circle' || shape === 'square') block.dataset.shape = shape;
-      redraw(); commit('카운트 스티커 모양');
+      redraw(); commit('마킹 모양');
       window.showStickerProperties?.(block);   // Colors 절의 라벨(배경색 ↔ 숫자색)·글자색 행을 새 모양으로 다시 그린다
     });
   });
@@ -119,7 +120,7 @@ export function wireCountSection(panel, block, rerender) {
     startEl.addEventListener('change', () => {
       /* 확정할 때 칸을 모델 값으로 되쓴다 — 2.7 을 넣으면 모델은 2 인데 칸에 "2.7" 이 남던 것 */
       startEl.value = String(clamp(int(block.dataset.countStart, START_MIN), START_MIN, START_MAX));
-      commit('카운트 스티커 시작 번호');
+      commit('마킹 시작 번호');
     });
   }
 
@@ -144,7 +145,7 @@ export function wireCountSection(panel, block, rerender) {
       redraw();
       block.classList.toggle('tiny', next < 40);
     };
-    const done = () => commit('카운트 스티커 크기');
+    const done = () => commit('마킹 크기');
     sizeS.addEventListener('input', () => applySize(sizeS.value));
     sizeN.addEventListener('input', () => applySize(sizeN.value));
     sizeS.addEventListener('change', done);
@@ -155,6 +156,6 @@ export function wireCountSection(panel, block, rerender) {
   $('stk-count-renumber')?.addEventListener('click', () => {
     if (!CS) return;
     CS.renumber(sec());
-    commit('카운트 스티커 번호 다시 매기기');
+    commit('마킹 번호 다시 매기기');
   });
 }
