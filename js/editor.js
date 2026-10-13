@@ -1184,7 +1184,11 @@ function toggleBlockSelect(block, sec) {
      상태에서 ⌫/⌘X 가 그 줄 하나로 샜다. Shift 범위선택(deselectAll 경유)과 똑같이 끝낸다. */
   window.grdDropLineSelection?.(canvasEl);
   /* 1013t1C4 고침 — 원형 그래프 «조각 선택» 표식도 같은 까닭으로 걷는다(⌘클릭은 clearSelectionMarks 를 안 지난다 ⇒ 다중 선택인데 조각 점선이 남았다). */
-  canvasEl.querySelectorAll('.grb-pie-cell-selected').forEach(el => el.classList.remove('grb-pie-cell-selected'));
+  /* 1013t1C4 고침 2 — 표식이 걷혔으면 패널의 Slice 절도 같이 걷는다. 아래 «해제 가지»(같은 블럭을 ⌘클릭해 선택이 0 이 되는 때)는 패널을 다시 안 그린다
+     (_updateMultiSelPanel → _openSoleBlockPanel 이 선택 0 에서 아무것도 안 연다 — 블럭 종류와 무관한 기존 동작) ⇒ Slice 절이 남아 풀린 블럭에 썼다. 패널의 나머지는 안 건드린다. */
+  const _pieMarks = canvasEl.querySelectorAll('.grb-pie-cell-selected');
+  _pieMarks.forEach(el => el.classList.remove('grb-pie-cell-selected'));
+  if (_pieMarks.length) window.grbPieDropSlicePanel?.();
   const layerItem = _getBlockLayerItem(block);
   if (block.classList.contains('selected')) {
     block.classList.remove('selected');

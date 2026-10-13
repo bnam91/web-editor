@@ -174,6 +174,32 @@ function pieShadowSectionHTML(ds) {
       </div>
     </div>`;
 }
+/* 1013t1C4 고침 2 — 조각 표식이 걷혔는데 패널이 다시 안 그려지는 길(같은 블럭을 ⌘클릭해 푼 때 — editor.js toggleBlockSelect 의 해제 가지는 어느 블럭 종류든 패널을 그대로 둔다)에서
+ *   Slice 절이 남아 «풀린 블럭»에 썼다. 두 겹으로 막는다:
+ *   ① 걷기 — 표식을 걷는 자(toggleBlockSelect)가 window.grbPieDropSlicePanel() 을 부른다: Slice 절을 지우고 데이터 줄의 조각 버튼을 끈다(패널의 나머지는 안 건드린다).
+ *   ② 쓰기 가드 — Slice 절의 칸(크기 · 밀어내기 · 라벨)은 쓰기 전에 «그 조각이 지금도 고른 조각인가»(grbPieSelected(block) === 색인 · 블럭이 문서에 붙어 있다)를 본다.
+ *      아니면 절을 걷고 아무것도 안 쓴다(히스토리도 안 찍는다) — 표식이 걷히는 다른 길이 생겨도 여기서 걸린다. */
+function dropPieSlicePanel() {
+  document.getElementById('grb-pie-slice-section')?.remove();
+  document.querySelectorAll('#grb-data-list .grb-data-icon-btn[data-slice-index].active').forEach(b => { b.classList.remove('active'); b.title = '이 조각 고르기(조각별 설정)'; });
+}
+const _pieSliceLive = (block, i) => !!block && block.isConnected && i >= 0 && window.grbPieSelected?.(block) === i;
+/* 1013t1C4 고침 2 — 그려지는 조각이 «하나»(온 원)면 「크기」·「밀어내기」는 그림에 안 먹는다(렌더가 온 원은 안 키우고 안 민다 — graph-pie-geom.js piePaths).
+ *   ⇒ 두 줄의 칸을 비활성으로(이웃 패널의 disabled 꼴 — prop-modal.js 의 폭·높이 칸) + 안내 한 줄(기존 prop-hint). 값은 안 지운다(조각이 다시 여럿이 되면 그대로 먹는다).
+ *   판정 = 렌더와 같은 기하(piePaths 의 shares): 값 > 0 인 조각이 고른 조각 하나뿐. 패널을 그린 뒤와 항목 값을 칠 때마다 부른다(패널을 다시 안 그린다). */
+const PIE_SOLO_HINT = '조각이 하나라 적용되지 않음';
+function _syncPieSliceSolo(items, sel) {
+  const sec = document.getElementById('grb-pie-slice-section');
+  if (!sec || !(sel >= 0)) return;
+  const shares = window.GRAPH_PIE_GEOM?.piePaths?.((Array.isArray(items) ? items : []).map(it => it && it.value), 0, 0)?.shares || [];
+  const solo = shares[sel] > 0 && shares.filter(v => v > 0).length === 1;
+  const els = ['grb-pie-grow-slider', 'grb-pie-grow-number', 'grb-pie-pull-slider', 'grb-pie-pull-number'].map(id => document.getElementById(id)).filter(Boolean);
+  els.forEach(el => { if (el.disabled !== solo) el.disabled = solo; });
+  let hint = document.getElementById('grb-pie-slice-hint');
+  if (!solo) { hint?.remove(); return; }
+  const row = document.getElementById('grb-pie-pull-slider')?.closest('.prop-row');
+  if (!hint && row) { hint = document.createElement('div'); hint.className = 'prop-hint'; hint.id = 'grb-pie-slice-hint'; hint.textContent = PIE_SOLO_HINT; row.insertAdjacentElement('afterend', hint); }
+}
 function pieSliceSectionHTML(items, sel) {
   if (!(sel >= 0 && sel < items.length)) return '';
   return `
@@ -691,6 +717,7 @@ ${blockHeaderHTML({
     window.renderGraph(block);
     const _sn = document.getElementById('grb-pie-slice-name');   // 1013t1C4 — Slice 절 머리의 라벨을 따라 쓴다(패널을 다시 안 그린다 — 치던 칸의 포커스 유지)
     if (_sn && _sliceSel >= 0) _sn.textContent = _sliceName(newItems, _sliceSel);
+    _syncPieSliceSolo(newItems, _sliceSel);   // 1013t1C4 고침 2 — 값을 쳐서 조각이 하나가 되면(또는 다시 여럿이 되면) 「크기」·「밀어내기」 칸을 따라 잠근다/푼다
   }
 
   const dataList = document.getElementById('grb-data-list');
@@ -960,21 +987,24 @@ ${blockHeaderHTML({
   const _wireSliceInt = (pre, key, hi) => {
     const sl = document.getElementById(pre + '-slider'), nu = document.getElementById(pre + '-number');
     if (!sl || !nu || _sliceSel < 0) return;
-    const apply = v => {
+    const apply = v => {   // 썼으면 true
+      if (!_pieSliceLive(block, _sliceSel)) { dropPieSlicePanel(); return false; }   // 고침 2 — 그 조각이 더는 고른 조각이 아니면 절을 걷고 안 쓴다
       v = Math.min(hi, Math.max(0, Number.isFinite(v) ? v : 0));
       const its = JSON.parse(block.dataset.items || '[]');
-      if (!its[_sliceSel]) return;
+      if (!its[_sliceSel]) return false;
       if (v > 0) its[_sliceSel][key] = v; else delete its[_sliceSel][key];
       block.dataset.items = JSON.stringify(its);
       window.renderGraph(block);
       sl.value = v; nu.value = v;
+      return true;
     };
     sl.addEventListener('input',  () => apply(parseInt(sl.value)));
-    nu.addEventListener('change', () => { apply(parseInt(nu.value)); window.pushHistory(); });
-    sl.addEventListener('change', () => window.pushHistory());
+    nu.addEventListener('change', () => { if (apply(parseInt(nu.value))) window.pushHistory(); });
+    sl.addEventListener('change', () => { if (_pieSliceLive(block, _sliceSel)) window.pushHistory(); else dropPieSlicePanel(); });
   };
   _wireSliceInt('grb-pie-grow', 'pieGrow', PIE_GROW_MAX);
   _wireSliceInt('grb-pie-pull', 'piePull', PIE_PULL_MAX);   // 1013t1C5
+  if (_isPie) _syncPieSliceSolo(items, _sliceSel);   // 1013t1C4 고침 2 — 온 원이면 두 칸을 잠근다
   // 1013t1C3 — 조각 안 라벨: 블럭 수준 토글 둘(순위 · 이름 — 켜면 '1', 끄면 키 삭제) + 고른 조각의 「라벨」(자동 = 키 없음 · 항상 'on' · 숨김 'off').
   for (const [tid, key] of [['grb-pie-rank-toggle', 'pieRank'], ['grb-pie-name-toggle', 'pieName']]) {
     const tg = document.getElementById(tid);
@@ -999,6 +1029,7 @@ ${blockHeaderHTML({
   if (_isPie) _syncPieNameHint(block);
   const tagSel = document.getElementById('grb-pie-tag-select');
   if (tagSel && _sliceSel >= 0) tagSel.addEventListener('change', () => {
+    if (!_pieSliceLive(block, _sliceSel)) { dropPieSlicePanel(); return; }   // 1013t1C4 고침 2 — 위 _wireSliceInt 와 같은 가드
     const its = JSON.parse(block.dataset.items || '[]');
     if (!its[_sliceSel]) return;
     if (tagSel.value === 'on' || tagSel.value === 'off') its[_sliceSel].pieTag = tagSel.value; else delete its[_sliceSel].pieTag;
@@ -1147,6 +1178,7 @@ ${blockHeaderHTML({
 
 
 window.showGraphProperties = showGraphProperties;
+window.grbPieDropSlicePanel = dropPieSlicePanel;   // 1013t1C4 고침 2 — 조각 표식을 걷는데 패널을 다시 안 그리는 자리(editor.js toggleBlockSelect)가 부른다
 
 /* ⒥⒝(지디 2026-10-05) — 카테고리 라벨 편집(K8⒤ 더블클릭)에 들어가면 패널의 «기존» 두 줄(라벨 크기 · 카테고리 색상)로 데려간다.
  *   새 절 0 · 새 키 0 · 옮김 0. 강조 = 섹션 검색 «깜빡임»(ss-flash-pulse 0.7s ×3)과 같은 박자 · 선택 채움 토큰 --sel-color-fill.
