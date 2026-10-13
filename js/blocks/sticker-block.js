@@ -43,6 +43,9 @@ window._sanitizeSvgString = sanitizeSvgString;
  *   · 내장 글리프: js/count-sticker-tool.js 의 표(CountSticker.glyphSvg).
  *   · custom: data-count-icon-svg 를 «그릴 때마다» 다시 거른다 — 저장본을 손대 넣은 on*·script 가 여기서 걸린다. 거른 결과가 비면 기본 글리프.
  *   ⚠️글리프 표가 안 실렸으면(고전 스크립트 사고) 콘솔에 알리고 null — 부르는 쪽이 옛 글자 길로 그린다(조용히 다른 그림을 안 그린다). */
+/* 그릴 때마다 도는 세척을 줄인다(2차 · D1) — «같은 문자열 · 같은 크기 · 같은 색»이면 바로 앞 결과를 다시 쓴다(한 칸짜리).
+   섹션 일괄·로드·undo 는 같은 svg 를 든 블럭을 줄지어 그리므로 한 칸이면 거의 다 맞는다. 값은 «거른 결과»만 든다. */
+let _cntIconCacheKey = null, _cntIconCacheVal = '';
 function _countIconHTML(block, sizePx, color) {
   const CS = window.CountSticker;
   if (!CS || typeof CS.glyphSvg !== 'function') {
@@ -52,9 +55,15 @@ function _countIconHTML(block, sizePx, color) {
   const safeColor = String(color || '').replace(/["<>;]/g, '');
   let svg = '';
   if (block.dataset.countIcon === 'custom') {
-    svg = sanitizeSvgString(block.dataset.countIconSvg || '', {
-      root: { width: String(sizePx), height: String(sizePx), style: `color:${safeColor};display:block;flex:none;pointer-events:none;` },
-    });
+    const raw = block.dataset.countIconSvg || '';
+    const key = sizePx + '|' + safeColor + '|' + raw;
+    if (key !== _cntIconCacheKey) {
+      _cntIconCacheVal = sanitizeSvgString(raw, {
+        root: { width: String(sizePx), height: String(sizePx), style: `color:${safeColor};display:block;flex:none;pointer-events:none;` },
+      });
+      _cntIconCacheKey = key;
+    }
+    svg = _cntIconCacheVal;
   }
   if (!svg) {
     const name = CS.iconNameOf(block.dataset.countIcon);
