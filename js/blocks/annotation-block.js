@@ -219,6 +219,50 @@ function makeAnnotationBlock(opts = {}) {
 }
 window.makeAnnotationBlock = makeAnnotationBlock;
 
+/* ★1013t1A3-pre — 「dataset → makeAnnotationBlock 의 opts」 한 벌.
+   읽는 자리가 둘이었다(js/io/save-load.js rebindAll · js/props/prop-annotation.js _readState)인데
+   rebindAll 쪽이 labelMode · labelImageSrc/Size/Radius · labelBorderStyle/Width 여섯을 «안 읽어»,
+   리로드·⌘Z 복원(둘 다 rebindAll)마다 라벨이 기본값으로 다시 그려졌다
+   (2026-10-13 실측: 선 스타일=대시 → 리로드 → dataset dashed · 화면 solid).
+   ⛔새 칸을 더하면 «여기 한 곳»에만 더한다 — 두 자리가 다시 갈라지면 같은 병이 난다. */
+const _annNum = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+function annotPropsFromDataset(block) {
+  const ds = block.dataset, D = ANNOT_DEFAULTS;
+  let points = null;
+  try { points = JSON.parse(ds.points || 'null'); } catch (_) { points = null; }
+  if (!Array.isArray(points) || points.length < 2) {
+    points = [[_annNum(ds.anchorX, 0), _annNum(ds.anchorY, 0)], [_annNum(ds.labelX, 0), _annNum(ds.labelY, 0)]];
+  } else {
+    points = points.map(p => [Number(p[0]) || 0, Number(p[1]) || 0]);
+  }
+  const label = block.querySelector('.annot-label');
+  const labelMode = ds.labelMode === 'image' ? 'image' : 'text';
+  return {
+    points,
+    text:             ds.text || (label && labelMode === 'text' ? (label.textContent || '').trim() : '') || D.text,
+    strokeColor:      ds.strokeColor      || D.strokeColor,
+    strokeWidth:      _annNum(ds.strokeWidth, D.strokeWidth),
+    anchorShape:      ds.anchorShape      || D.anchorShape,
+    anchorSize:       _annNum(ds.anchorSize, D.anchorSize),
+    labelFontSize:    _annNum(ds.labelFontSize, D.labelFontSize),
+    labelColor:       ds.labelColor       || D.labelColor,
+    labelBg:          ds.labelBg          || D.labelBg,
+    labelBorderColor: ds.labelBorderColor || D.labelBorderColor,
+    labelMode,
+    labelImageSrc:    ds.labelImageSrc    || '',
+    labelImageSize:   parseInt(ds.labelImageSize, 10) || D.labelImageSize,
+    labelImageRadius: _annNum(ds.labelImageRadius, D.labelImageRadius),
+    labelBorderStyle: ds.labelBorderStyle || D.labelBorderStyle,
+    labelBorderWidth: _annNum(ds.labelBorderWidth, D.labelBorderWidth),
+  };
+}
+window.annotPropsFromDataset = annotPropsFromDataset;
+/* rebindAll 이 fresh 블럭에서 «되돌려 쓰는» dataset 키 — 팩토리가 쓰는 키 전부(순서 = 팩토리 순서). */
+const ANNOT_DATA_KEYS = ['points', 'anchorX', 'anchorY', 'labelX', 'labelY', 'text', 'strokeColor', 'strokeWidth',
+  'anchorShape', 'anchorSize', 'labelFontSize', 'labelColor', 'labelBg', 'labelBorderColor', 'labelMode',
+  'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius'];
+window.ANNOT_DATA_KEYS = ANNOT_DATA_KEYS;
+
 // 라벨박스 내부 컨텐츠 — text 모드 = 텍스트, image 모드 = <img> 또는 체크패턴 placeholder
 function _renderAnnotLabelInner(mode, { text, labelImageSrc, labelImageSize, labelImageRadius }) {
   if (mode === 'image') {

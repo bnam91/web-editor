@@ -42,27 +42,8 @@ const ANNOTATION_PRESETS = [
 
 // ── dataset → 정규화 상태 ─────────────────────────────────────────────
 function _readState(block) {
-  const D = window.ANNOT_DEFAULTS || {};
-  let points = [];
-  try { points = JSON.parse(block.dataset.points || '[]'); } catch (_) { points = []; }
-  return {
-    points,
-    text:             block.dataset.text             || D.text || '텍스트',
-    strokeColor:      block.dataset.strokeColor      || D.strokeColor,
-    strokeWidth:      parseFloat(block.dataset.strokeWidth) || D.strokeWidth,
-    anchorShape:      block.dataset.anchorShape      || D.anchorShape,
-    anchorSize:       parseFloat(block.dataset.anchorSize) || D.anchorSize,
-    labelFontSize:    parseFloat(block.dataset.labelFontSize) || D.labelFontSize,
-    labelColor:       block.dataset.labelColor       || D.labelColor,
-    labelBg:          block.dataset.labelBg          || D.labelBg,
-    labelBorderColor: block.dataset.labelBorderColor || D.labelBorderColor,
-    labelMode:        block.dataset.labelMode        || D.labelMode || 'text',
-    labelImageSrc:    block.dataset.labelImageSrc    || '',
-    labelImageSize:   parseInt(block.dataset.labelImageSize) || D.labelImageSize || 120,
-    labelImageRadius: parseFloat(block.dataset.labelImageRadius ?? D.labelImageRadius ?? 0),
-    labelBorderStyle: block.dataset.labelBorderStyle || D.labelBorderStyle || 'solid',
-    labelBorderWidth: parseFloat(block.dataset.labelBorderWidth ?? D.labelBorderWidth ?? 1),
-  };
+  // ★1013t1A3-pre — rebindAll 과 «같은 한 벌»(js/blocks/annotation-block.js annotPropsFromDataset)
+  return window.annotPropsFromDataset(block);
 }
 
 // ── dataset 갱신 + 재렌더 + autoSave ──────────────────────────────────

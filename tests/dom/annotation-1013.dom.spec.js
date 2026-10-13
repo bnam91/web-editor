@@ -6,6 +6,7 @@
  *   AN3 지우면 «죽은 행»이 안 남는다 (A1)
  *   AN4 기본 글자 크기 24 (dataset · 그려진 크기) · 프리셋을 눌러도 24 그대로 (A2)
  *   AN5 우측 패널에 글 입력칸이 없고, 캔버스 더블클릭으로 글을 고친다 (A2)
+ *   AN11 다시 그려도(rebindAll — 로드·⌘Z 복원이 같이 쓰는 길) 라벨 테두리 스타일이 남는다 (A3-pre)
  * ★만드는 길은 «사람 손» 그대로 — 펜 단추 → 메뉴 「Annotation」 → 섹션 두 점 → Enter → Esc.
  */
 const { test, expect } = require('@playwright/test');
@@ -136,4 +137,27 @@ test('AN5 우측 패널에 글 입력칸이 없다 — 글은 캔버스 더블�
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate((id) => { const b = document.getElementById(id); return { data: b.dataset.text, drawn: b.querySelector('.annot-label').textContent, ce: b.querySelector('.annot-label').getAttribute('contenteditable') }; }, id),
     '캔버스에서 쓴 글이 데이터·화면에 들어갔다').toEqual({ data: '캔버스입력', drawn: '캔버스입력', ce: 'false' });
+});
+
+/* 저장 → 다시 불러오기와 같은 길: 직렬화한 캔버스를 다시 넣고 rebindAll. */
+const reloadCanvas = (page) => page.evaluate(() => {
+  const c = document.getElementById('canvas');
+  c.innerHTML = window.getSerializedCanvas();
+  window.rebindAll();
+});
+
+test('AN11 다시 그려도 라벨 테두리 «대시»가 남는다 (rebindAll 이 dataset 을 전부 읽는다)', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+  await page.click('#annot-border-style-group .prop-align-btn[data-style="dashed"]');
+  const read = () => page.evaluate((id) => { const b = document.getElementById(id); const l = b.querySelector('.annot-label');
+    return { data: b.dataset.labelBorderStyle, drawn: getComputedStyle(l).borderTopStyle, css: l.style.cssText }; }, id);
+  const live = await read();
+  expect([live.data, live.drawn], '★전제: 패널에서 대시가 먹었다').toEqual(['dashed', 'dashed']);
+  await reloadCanvas(page);
+  const after = await read();
+  expect([after.data, after.drawn], '다시 그린 뒤에도 대시').toEqual(['dashed', 'dashed']);
+  expect(after.css, '다시 그린 라벨 style(정규화) = 라이브').toBe(live.css);
 });
