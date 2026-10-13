@@ -8,6 +8,7 @@
  *   AL5 한글 조합 중 Enter(isComposing · keyCode 229)는 줄바꿈을 넣지 않고 편집이 이어진다
  *   AL6 펜으로 만든 직후 편집도 같은 규약(만들기 → X · Enter · Y · Esc → 'X\nY' · 펜 종료)
  *   AL7 라벨 글은 «글자»다 — `<b>x</b>` 를 치고 다시 그려도 b 요소 0
+ *   AR0 (1013t2C7-pre) 끌기(전체 이동 · 점 손잡이) 뒤에도 삼각형이 선 방향을 가리킨다 · 다시 그린 것과 같다
  * ★만드는 길은 «사람 손» 그대로 — 펜 단추 → 메뉴 「Annotation」 → 섹션 두 점 → Enter → Esc (annotation-1013 과 같은 꼴).
  * ⛔waitForTimeout 0 — 모든 대기는 «재는 값» 자체를 expect.poll 로 기다린다.
  * ⛔줄 수는 rect 가 아니라 offsetHeight ÷ line-height 로 잰다(배율에 안 곱해지는 값 · modal-enter-newline 꼴).
@@ -221,4 +222,66 @@ test('AL7 라벨 글은 글자다 — <b>x</b> 를 치고 다시 그려도 b 요
   const s = await labelState(page, id);
   expect({ text: s.text, els: s.els, b: await page.evaluate((id) => document.querySelectorAll(`[id="${id}"] .annot-label b`).length, id) },
     '다시 그린 뒤에도 리터럴 글 · 요소 0').toEqual({ text: '<b>x</b>', els: 0, b: 0 });
+});
+
+/* ══ 1013t2C7 시작점 회전 ═══════════════════════════════════════════════════════
+ *   AR0 (C7-pre) 끌기(전체 이동 · 점 손잡이) 뒤에도 삼각형이 «선 방향»을 가리킨다 · 다시 그린 것과 같다
+ */
+/* 시작점 상태 — 그려진 transform 과 «그래야 할» transform(같은 산식: 자동각 + 회전 + 180). */
+const anchorState = (page, id) => page.evaluate((id) => {
+  const b = document.getElementById(id); const a = b.querySelector('.annot-anchor');
+  const pts = JSON.parse(b.dataset.points);
+  const auto = window._calcAnnotAnchorAngle(pts);
+  const rot = b.dataset.anchorRot === undefined ? 0 : Number(b.dataset.anchorRot);
+  return { tf: a ? a.getAttribute('transform') : null, want: `rotate(${auto + rot + 180} ${pts[0][0]} ${pts[0][1]})`,
+    auto, rot, rotKey: b.dataset.anchorRot ?? null, html: a ? a.outerHTML : null, points: b.dataset.points,
+    rotHandles: b.querySelectorAll('.annot-rot-handle').length };
+}, id);
+
+async function setShape(page, id, shape) {
+  await page.click(`#annot-shape-group .prop-align-btn[data-shape="${shape}"]`);
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).dataset.anchorShape, id), `★전제: 시작점 모양 = ${shape}`).toBe(shape);
+}
+
+/* 진짜 마우스로 (x,y) 에서 (dx,dy) 화면 px 만큼 끈다(여덟 걸음). */
+async function dragBy(page, x, y, dx, dy, { shift = false } = {}) {
+  await page.mouse.move(x, y);
+  if (shift) await page.keyboard.down('Shift');
+  await page.mouse.down();
+  for (let i = 1; i <= 8; i++) await page.mouse.move(x + dx * i / 8, y + dy * i / 8);
+  await page.mouse.up();
+  if (shift) await page.keyboard.up('Shift');
+}
+
+/* 그 점이 정말 그 손잡이 위인가(SVG 라 hitAt 의 className 이 비어 직접 잰다). */
+const hitIs = (page, x, y, sel) => page.evaluate(([x, y, sel]) => !!document.elementFromPoint(x, y)?.closest(sel), [x, y, sel]);
+
+test('AR0 끌기 뒤에도 삼각형이 선 방향을 가리킨다 — 전체 이동 · 점 손잡이 · 다시 그린 것과 같다 (C7-pre)', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+  await setShape(page, id, 'triangle');
+  const s0 = await anchorState(page, id);
+  expect(s0.tf, '★전제: 패널로 바꾼 직후엔 선 방향').toBe(s0.want);
+  expect(Math.abs(Math.sin(s0.auto * Math.PI / 180)) > 0.1, `★전제: 대각선(자동각 ${s0.auto}° 가 0·180 이 아니다 — 아니면 결함이 안 보인다)`).toBe(true);
+  // ① 라벨을 끌어 전체 이동(라벨을 «고르지» 않은 채)
+  const lr = await waitStableRect(page, labelSel(id));
+  expect(await hitIs(page, lr.cx, lr.cy, labelSel(id)), '★전제: 누르는 점이 라벨 위다').toBe(true);
+  await dragBy(page, lr.cx, lr.cy, 30, 20);
+  await expect.poll(async () => (await anchorState(page, id)).points, '전체 이동으로 점이 옮겨졌다').not.toBe(s0.points);
+  const s1 = await anchorState(page, id);
+  expect(s1.tf, '전체 이동 뒤 시작점 = 선 방향(각도 누락이면 rotate(180 …))').toBe(s1.want);
+  // ② 시작점 손잡이를 끌어 선 방향을 바꾼다
+  const hsel = `[id="${id}"] .annot-handle[data-point-idx="0"]`;
+  const hr = await waitStableRect(page, hsel);
+  expect(await hitIs(page, hr.cx, hr.cy, hsel), '★전제: 누르는 점이 시작점 손잡이 위다').toBe(true);
+  await dragBy(page, hr.cx, hr.cy, 25, -15);
+  await expect.poll(async () => (await anchorState(page, id)).auto, '점 손잡이로 선 방향이 바뀌었다').not.toBe(s1.auto);
+  const s2 = await anchorState(page, id);
+  expect(s2.tf, '점 끌기 뒤 시작점 = 새 선 방향').toBe(s2.want);
+  // ③ 다시 그린 것(rebindAll)과 같다 — 끌기가 남긴 시작점이 «복원의 입력 = 결과»
+  await reloadCanvas(page);
+  const s3 = await anchorState(page, id);
+  expect(s3.html, '다시 그린 시작점 outerHTML = 라이브').toBe(s2.html);
 });

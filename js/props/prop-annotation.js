@@ -84,8 +84,6 @@ function _writeProps(block, partial) {
 function _rerenderAnnotation(block) {
   const st = _readState(block);
   if (!st.points || st.points.length < 2) return;
-  const first = st.points[0];
-  const SVG_NS = 'http://www.w3.org/2000/svg';
 
   // 선 (polyline)
   const line = block.querySelector('.annot-line');
@@ -94,24 +92,8 @@ function _rerenderAnnotation(block) {
     line.setAttribute('stroke-width', String(st.strokeWidth));
   }
 
-  // anchor 노드 교체
-  const svg = block.querySelector('.annot-svg');
-  const oldAnchor = block.querySelector('.annot-anchor');
-  if (oldAnchor) oldAnchor.remove();
-  if (svg && st.anchorShape !== 'none' && typeof window._renderAnnotAnchorSVG === 'function') {
-    const angle = typeof window._calcAnnotAnchorAngle === 'function' ? window._calcAnnotAnchorAngle(st.points) : 0;
-    const html = window._renderAnnotAnchorSVG(st.anchorShape, st.anchorSize, first[0], first[1], st.strokeColor, angle);
-    if (html) {
-      const tmp = document.createElementNS(SVG_NS, 'svg');
-      tmp.innerHTML = html;
-      const node = tmp.firstElementChild;
-      if (node) {
-        const firstHandle = svg.querySelector('.annot-handle');
-        if (firstHandle) svg.insertBefore(node, firstHandle);
-        else svg.appendChild(node);
-      }
-    }
-  }
+  // anchor 노드 교체 — ★1013t2C7-pre 한 벌(js/blocks/annotation-block.js annotRedrawAnchor)
+  window.annotRedrawAnchor?.(block, st.points);
 
   // 라벨 스타일
   const label = block.querySelector('.annot-label');

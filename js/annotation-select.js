@@ -183,28 +183,8 @@
     const line = block.querySelector('.annot-line');
     if (line) line.setAttribute('points', points.map(p => `${p[0]},${p[1]}`).join(' '));
 
-    // anchor (시작점) SVG 노드 교체
-    const svg = block.querySelector('.annot-svg');
-    const oldAnchor = block.querySelector('.annot-anchor');
-    if (oldAnchor) oldAnchor.remove();
-    const shape = block.dataset.anchorShape || 'circle';
-    const size  = parseFloat(block.dataset.anchorSize) || 7;
-    const color = block.dataset.strokeColor || '#e74c3c';
-    if (shape !== 'none' && svg && typeof window._renderAnnotAnchorSVG === 'function') {
-      const html = window._renderAnnotAnchorSVG(shape, size, points[0][0], points[0][1], color);
-      if (html) {
-        // 임시 컨테이너로 SVG 노드 파싱
-        const tmp = document.createElementNS(SVG_NS, 'svg');
-        tmp.innerHTML = html;
-        const node = tmp.firstElementChild;
-        if (node) {
-          // line 다음에 anchor 배치 (handles 앞)
-          const firstHandle = svg.querySelector('.annot-handle');
-          if (firstHandle) svg.insertBefore(node, firstHandle);
-          else svg.appendChild(node);
-        }
-      }
-    }
+    // anchor (시작점) — ★1013t2C7-pre 한 벌(js/blocks/annotation-block.js annotRedrawAnchor · 각도 포함)
+    window.annotRedrawAnchor?.(block, points);
 
     // 라벨 위치 + 부착 방향 (마지막 segment 기반 4방향)
     // 이미지 원형 모드면 중앙 부착 — 모서리 없으니 자연스러움

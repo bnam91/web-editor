@@ -161,6 +161,35 @@ function _calcAnchorAngle(points) {
 }
 window._calcAnnotAnchorAngle = _calcAnchorAngle;
 
+/* ★1013t2C7-pre — 시작점(.annot-anchor) «다시 그리기» 한 벌.
+   그리는 자리가 셋이었다: 팩토리(각도 넘김) · 패널 재렌더(넘김) · 끌기 중 기하 갱신(js/annotation-select.js
+   _updateBlockGeometry — ★각도를 «안» 넘겼다). 그래서 점·전체·⌘ 끌기 때마다 삼각형/화살촉이 0° 로 그려졌고
+   onUp 도 다시 안 그려 그 틀린 방향이 히스토리·저장에 찍혔다(rebindAll 이 고쳐 그려 비멱등).
+   ⛔시작점을 그리는 자리는 여기 «한 곳»이다 — 각도 규칙(annotAnchorAngleOf)이 갈라지면 같은 병이 난다.
+   points 는 «지금 그릴» 점(끄는 중엔 dataset 보다 앞선다). 모양·크기·색은 dataset 에서 읽는다. */
+function annotAnchorAngleOf(block, points) {
+  return _calcAnchorAngle(points);
+}
+function annotRedrawAnchor(block, points) {
+  if (!block || !Array.isArray(points) || points.length < 2) return;
+  const svg = block.querySelector('.annot-svg');
+  block.querySelectorAll('.annot-anchor').forEach(n => n.remove());
+  const ds = block.dataset;
+  const shape = ds.anchorShape || ANNOT_DEFAULTS.anchorShape;
+  if (!svg || shape === 'none') return;
+  const html = _renderAnchorSVG(shape, _annNum(ds.anchorSize, ANNOT_DEFAULTS.anchorSize), points[0][0], points[0][1],
+    ds.strokeColor || ANNOT_DEFAULTS.strokeColor, annotAnchorAngleOf(block, points));
+  if (!html) return;
+  const tmp = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  tmp.innerHTML = html;
+  const node = tmp.firstElementChild;
+  if (!node) return;
+  // 선 다음 · 손잡이 앞(손잡이가 위에 그려져야 눌린다)
+  const firstHandle = svg.querySelector('.annot-handle');
+  if (firstHandle) svg.insertBefore(node, firstHandle); else svg.appendChild(node);
+}
+Object.assign(window, { annotAnchorAngleOf, annotRedrawAnchor });
+
 function makeAnnotationBlock(opts = {}) {
   // backward compat: ax/ay/lx/ly 입력 지원
   let points = opts.points;
