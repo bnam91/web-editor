@@ -9,7 +9,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { piePaths, piePercents, pieRanks, pieTagPlan, pieTagRoom, CENTER, RADIUS } = require('../../js/graph-pie-geom.js');
+const { piePaths, piePercents, pieRanks, pieTagPlan, pieTagRoom, pieTagFontSizes, CENTER, RADIUS } = require('../../js/graph-pie-geom.js');
 const LIM = require('../../js/graph-limits.js');
 
 const arcs = (d) => [...d.matchAll(/A ([\d.]+) ([\d.]+) 0 ([01]) ([01]) ([\d.]+) ([\d.]+)/g)].map(m => ({ r: +m[1], large: +m[3], sweep: +m[4], x: +m[5], y: +m[6] }));
@@ -453,4 +453,24 @@ test('U18 조각 안 라벨이 쓸 수 있는 사각형(1013t1C3 고침) — 낸
   const wild = pieTagRoom(piePaths([1e308, 1e308, 1, 1e17, 'x'], 55, 40, { start: 77, grow: [30, 'x'], pull: [30, 30, 30, 30] }));
   assert.equal(wild.length, 5, '전제'); assert.ok(wild.every(rm => rm.boxes.every(b => Number.isFinite(b.w) && Number.isFinite(b.h))));
   assert.equal(wild[0].fits(NaN, 10), false); assert.equal(wild[0].fits(-5, 10), false);
+});
+
+test('U19 조각 안 라벨이 써 보는 글자 크기(1013t1C3 고침 2) — 첫 값 = 라벨 크기 · 내림차순 정수 · 안 키운다 · LABEL_SIZE_MIN 밑으로 안 내려간다 · 험한 입력', () => {
+  assert.equal(LIM.LABEL_SIZE_MIN, 8, '그래프 라벨 글자 크기 칸의 아래 끝(패널 min · updateGraphBlock 과 같은 값)');
+  assert.ok(Array.isArray(LIM.PIE_TAG_FONT_STEPS) && LIM.PIE_TAG_FONT_STEPS.length >= 1, '전제: 줄이는 단계가 graph-limits 에 있다');
+  assert.ok(LIM.PIE_TAG_FONT_STEPS.every((q, i, a) => q > 0 && q < 1 && (i === 0 || q < a[i - 1])), '단계는 전부 1 미만(키우는 단계 없음) · 큰 것부터');
+  assert.equal(LIM.PIE_TAG_NAME_LINES, 2, '이름 줄 수의 위 끝');
+  assert.deepEqual(pieTagFontSizes(LIM.LABEL_SIZE_DEFAULT), [LIM.LABEL_SIZE_DEFAULT, ...LIM.PIE_TAG_FONT_STEPS.map(q => Math.max(LIM.LABEL_SIZE_MIN, Math.round(LIM.LABEL_SIZE_DEFAULT * q)))], '기본 라벨 크기 — 단계마다 하나');
+  assert.deepEqual(pieTagFontSizes(20), [20, 17, 14, 11, 8]);
+  for (const base of [8, 9, 10, 13, 20, 28, 40, 400]) {
+    const s = pieTagFontSizes(base);
+    assert.equal(s[0], base, `첫 값 = 라벨 크기(${base})`);
+    assert.ok(s.every(v => Number.isInteger(v) && v <= base && v >= Math.min(base, LIM.LABEL_SIZE_MIN)), `안 키우고 최소 밑으로 안 간다(${base}: ${s})`);
+    assert.ok(s.every((v, i) => i === 0 || v < s[i - 1]), `내림차순 · 중복 없음(${base}: ${s})`);
+  }
+  assert.deepEqual(pieTagFontSizes(LIM.LABEL_SIZE_MIN), [LIM.LABEL_SIZE_MIN], '이미 최소면 단계 하나');
+  assert.deepEqual(pieTagFontSizes(9), [9, 8], '최소에서 접힌 단계는 한 번만');
+  assert.deepEqual(pieTagFontSizes(6), [6], '라벨 크기가 최소보다 작으면 그대로 하나(더 줄이지 않는다)');
+  for (const bad of [NaN, 0, -5, 'abc', null, undefined, Infinity]) assert.deepEqual(pieTagFontSizes(bad), pieTagFontSizes(LIM.LABEL_SIZE_DEFAULT), `험한 라벨 크기 ${bad} → 기본`);
+  assert.deepEqual(pieTagFontSizes('20'), pieTagFontSizes(20), '글자 수는 수로');
 });

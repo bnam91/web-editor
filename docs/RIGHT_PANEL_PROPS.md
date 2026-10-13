@@ -249,7 +249,8 @@
 | Pie Settings | 구멍 크기 `grb-pie-hole-slider/number` | 도너츠일 때만 — `dataset.pieHole` 20~80 |
 | Pie Settings | 조각 간격 `grb-pie-gap-slider/number` | `dataset.pieGap` 0~40 (없음 = 10) |
 | Pie Settings | 시작 각도 `grb-pie-start-slider/number` | `dataset.pieStart` 0~359 |
-| Pie Settings | 순위 표시 `grb-pie-rank-toggle` · 이름 표시 `grb-pie-name-toggle` | 조각 안 라벨 — `dataset.pieRank` / `pieName` '1' (끄면 키 삭제 · 기본 꺼짐). 좁은 조각은 자동으로 숨는다 |
+| Pie Settings | 순위 표시 `grb-pie-rank-toggle` · 이름 표시 `grb-pie-name-toggle` | 조각 안 라벨 — `dataset.pieRank` / `pieName` '1' (끄면 키 삭제 · 기본 꺼짐). 라벨이 제 조각에 안 들면 «숨기기 전에» 줄바꿈(이름 2줄까지) → 글자 줄이기(`PIE_TAG_FONT_STEPS` · 라벨 크기 칸의 최소 `LABEL_SIZE_MIN` 8 위) → 이름 숨김 → 라벨 숨김 순으로 밟는다 |
+| Pie Settings | 안내 줄 `grb-pie-name-hint` (`prop-hint`) | 이름 표시 줄 바로 아래 「좁아서 이름 n개 숨김」 — n = 이름 표시가 켜졌는데 좁아서 이름이 안 보이는 조각 수(`window.grbPieHiddenNames(block)` · 「숨김」 조각·값 0 조각 제외). 0 이면 줄이 없다. 블럭 크기·글자가 바뀌어 다시 재면(`grb-pie-fit` 이벤트) 패널이 열린 채 숫자가 바뀐다 |
 | Slice (원형 · 조각을 골랐을 때만) | 조각 「n번 · 라벨」 `grb-pie-slice-name` | 고른 조각 = 캔버스 표식 `grb-pie-cell-selected` 하나(선택된 블럭의 조각 클릭 · 또는 데이터 줄의 조각 버튼 `[data-slice-index]`) |
 | Slice | 크기 `grb-pie-grow-slider/number` | `items[i].pieGrow` 0~30 % (0 = 키 삭제) |
 | Slice | 밀어내기 `grb-pie-pull-slider/number` | `items[i].piePull` 0~30 % (0 = 키 삭제) |

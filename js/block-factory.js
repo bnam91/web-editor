@@ -4386,7 +4386,7 @@ function updateGraphBlock(blockId, partial = {}) {
   };
   try {
     _intField('chartHeight',  'chartHeight',  80, 2000);
-    _intField('labelSize',    'labelSize',    8,  28);
+    _intField('labelSize',    'labelSize',    window.GRAPH_LIMITS.LABEL_SIZE_MIN,  28);
     _intField('barThickness', 'barThickness', BAR_THICKNESS_MIN, BAR_THICKNESS_MAX);
     _intField('padX',         'padX',         0,  80);
     _intField('itemGap',      'itemGap',      8,  80);

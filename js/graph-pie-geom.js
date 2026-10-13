@@ -1,6 +1,6 @@
 /* graph-pie-geom.js — 원형·도넛 그래프 조각 기하의 «한 자리» (1012t1G1 · 2026-10-12).
  * 순수 함수 둘: piePaths(값 목록 + 구멍 비율 % + 틈) → 조각마다 SVG path 의 d 문자열 · piePercents(값 목록) → 합이 100 인 정수 %. DOM·window 를 안 읽는다 ⇒ 유닛(node)과 렌더러(브라우저)가 «같은 식»을 쓴다.
- * 1013t1C3 이 셋을 보탰다: pieRanks(값 목록) → 값 내림차순 순위 · pieTagPlan(piePaths 산출) → 조각 안 라벨의 자리와 보임 · pieTagRoom(piePaths 산출) → 그 자리에서 라벨이 쓸 수 있는 사각형(아래 함수 머리말). 한도는 graph-limits.js 에서 읽는다(DOM 측정 0).
+ * 1013t1C3 이 셋을 보탰다: pieRanks(값 목록) → 값 내림차순 순위 · pieTagPlan(piePaths 산출) → 조각 안 라벨의 자리와 보임 · pieTagRoom(piePaths 산출) → 그 자리에서 라벨이 쓸 수 있는 사각형(아래 함수 머리말) · pieTagFontSizes(라벨 크기) → 라벨이 숨기 전에 써 보는 글자 크기들. 한도는 graph-limits.js 에서 읽는다(DOM 측정 0).
  * 싣는 길은 graph-limits.js 와 같다 — drag-utils.js 가 side-effect import 해 window.GRAPH_PIE_GEOM 을 받고, 유닛은 require.
  *
  * 규약
@@ -220,7 +220,26 @@
       return { boxes: boxes, best: best, fits: fits };
     });
   }
-  var GRAPH_PIE_GEOM = Object.freeze({ piePaths: piePaths, piePercents: piePercents, pieRanks: pieRanks, pieTagPlan: pieTagPlan, pieTagRoom: pieTagRoom, VIEW: VIEW, CENTER: C, RADIUS: R });
+  /** 조각 안 라벨이 써 보는 글자 크기들(1013t1C3 고침 2) — 블럭 라벨 크기 base(px)에서 시작해 PIE_TAG_FONT_STEPS 의 비로 줄인 «정수 px» 목록(큰 것부터 · 중복 없음).
+   *  첫 값은 늘 base 자신(= 안 줄임). 어느 값도 base 를 안 넘는다(키우지 않는다) · LABEL_SIZE_MIN 밑으로 안 내려간다(base 가 이미 그 밑이면 [base] 하나 — 더 줄이지 않는다).
+   *  base 가 유한한 양수가 아니면 LABEL_SIZE_DEFAULT. 비가 험하면(유한하지 않거나 0 이하 · 1 이상) 그 단계는 건너뛴다.
+   *  @param {number} base @returns {number[]} */
+  function pieTagFontSizes(base) {
+    var L = LIM();
+    var b = Number(base);
+    if (!(Number.isFinite(b) && b > 0)) b = Number(L.LABEL_SIZE_DEFAULT) || 0;
+    var min = Number(L.LABEL_SIZE_MIN);
+    if (!(Number.isFinite(min) && min > 0)) min = 0;
+    var out = [b];
+    (Array.isArray(L.PIE_TAG_FONT_STEPS) ? L.PIE_TAG_FONT_STEPS : []).forEach(function (q) {
+      var k = Number(q);
+      if (!(Number.isFinite(k) && k > 0 && k < 1)) return;
+      var v = Math.max(min, Math.round(b * k));
+      if (v < out[out.length - 1]) out.push(v);
+    });
+    return out;
+  }
+  var GRAPH_PIE_GEOM = Object.freeze({ piePaths: piePaths, piePercents: piePercents, pieRanks: pieRanks, pieTagPlan: pieTagPlan, pieTagRoom: pieTagRoom, pieTagFontSizes: pieTagFontSizes, VIEW: VIEW, CENTER: C, RADIUS: R });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_PIE_GEOM;
   if (root) root.GRAPH_PIE_GEOM = GRAPH_PIE_GEOM;
 })(typeof window !== 'undefined' ? window : null);

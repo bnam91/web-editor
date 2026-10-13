@@ -340,6 +340,7 @@
      위에 --grb-pie-tag-*(그려진 글자를 잰 결과 · drag-utils.js grbPieFitTags 가 쓴다 · 저장에서 걷힌다). 변수가 하나도 없으면 옛 값(덧층 정사각의 26 %).
      넘는 글자는 자른다(overflow) · 숨김(--grb-pie-tag-d: none)도 같은 변수 길. 긴 이름은 낱말 사이에서 줄을 바꾸고(keep-all), 띄어쓰기 없는 긴 낱말은 어디서든 꺾는다(anywhere). */
   display: var(--grb-pie-tag-d, flex);
+  font-size: var(--grb-pie-tag-fs, inherit);   /* 고침 2 — 제 조각에 안 들면 재는 쪽이 글자를 단계로 줄인다(배지·간격은 em 이라 같이 준다). 변수가 없으면 덧층의 글자 크기(= 라벨 크기) 그대로 */
   max-width: var(--grb-pie-tag-w, var(--grb-pie-box-w, 26%));
   max-height: var(--grb-pie-tag-h, var(--grb-pie-box-h, none));
   overflow: hidden;

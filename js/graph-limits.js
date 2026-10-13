@@ -34,13 +34,17 @@
        PIE_TAG_MIN_CHORD 150 = 라벨 자리에서 조각의 폭(현 · viewBox 1000 단위)이 이보다 좁으면 자동으로 숨긴다(원형은 약 28° · 구멍 55 도너츠는 약 22° 미만).
        PIE_TAG_MIN_RADIAL 150 = 고리 두께(바깥 − 구멍)가 이보다 얇으면 숨긴다(구멍 70 초과). 조각별 items[i].pieTag 'on'/'off' 가 자동을 이긴다(기획 값 — 현빈 확인 전).
        PIE_TAG_PAD 8(1013t1C3 고침) = 라벨 사각형과 조각 가장자리(두 변 · 바깥 호 · 구멍) 사이에 남기는 여백(viewBox 1000 단위 · 높이 240 에서 약 2px) — pieTagRoom 이 읽는다. */
+  /* ★LABEL_SIZE_MIN · PIE_TAG_FONT_STEPS · PIE_TAG_NAME_LINES(1013t1C3 고침 2 · 2026-10-14) — 조각 안 라벨이 «숨기 전에» 밟는 단계(graph-pie-geom.js pieTagFontSizes · drag-utils.js grbPieFitTags).
+       LABEL_SIZE_MIN 8 = 그래프 라벨 글자 크기 칸의 아래 끝 — 패널(prop-graph.js grb-label-slider/number 의 min)과 updateGraphBlock(block-factory.js _intField)이 적던 8 을 이리 옮겼다(값 그대로).
+       PIE_TAG_FONT_STEPS = 라벨이 제 조각에 안 들 때 써 보는 글자 크기(블럭 라벨 크기 대비 비 · 큰 것부터). 어느 단계도 LABEL_SIZE_MIN 밑으로는 안 내려간다 · 키우는 단계는 없다(전부 1 미만).
+       PIE_TAG_NAME_LINES 2 = 이름이 쓰는 줄 수의 위 끝(그보다 길면 글자를 줄이고, 끝까지 안 들면 이름을 숨긴다 · 「항상」 라벨은 이 줄 수에서 말줄임 — 기획 값 · 현빈 확인 전). */
   /* ★SHAPE_SVG_MAX · SHAPE_FILL_MAX_DEFAULT · SHAPE_TRACK_OPACITY · SEG_GAP_DEFAULT(1012t1G2·G3·G4 · 2026-10-12) — 「SVG 를 그래프 모양으로」(js/graph-shape.js).
        SHAPE_SVG_MAX 60000 = 블럭에 실리는 «정규화된» 사용자 SVG 글자 수의 상한(마스크 URL 은 % 인코딩으로 그 세 배쯤까지 는다 — 저장본 비대 방지).
        SHAPE_FILL_MAX_DEFAULT 100 = 모양일 때 채움 분모(값 하나짜리 채움 그래프가 늘 꽉 차지 않게 — 사각 막대의 max(items) 와 다르다).
        SHAPE_TRACK_OPACITY 0.25 = 안 찬 부분(트랙)의 불투명도 — 색은 채움과 같은 색(새 색 0). SEG_GAP_DEFAULT 2 = 마디 사이 틈(px).
        렌더러(drag-utils.js · graph-shape.js)와 패널(prop-graph.js)이 «이 값들»을 읽는다(기획 값 — 현빈 확인 전). */
-  var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3,
-    PIE_HOLE_MIN: 20, PIE_HOLE_MAX: 80, PIE_HOLE_DEFAULT: 55, PIE_GAP: 10, PIE_GAP_MIN: 0, PIE_GAP_MAX: 40, PIE_START_MIN: 0, PIE_START_MAX: 359, PIE_GROW_MAX: 30, PIE_PULL_MAX: 30, PIE_TAG_AT: 62, PIE_TAG_MIN_CHORD: 150, PIE_TAG_MIN_RADIAL: 150, PIE_TAG_PAD: 8,
+  var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LABEL_SIZE_MIN: 8, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3,
+    PIE_HOLE_MIN: 20, PIE_HOLE_MAX: 80, PIE_HOLE_DEFAULT: 55, PIE_GAP: 10, PIE_GAP_MIN: 0, PIE_GAP_MAX: 40, PIE_START_MIN: 0, PIE_START_MAX: 359, PIE_GROW_MAX: 30, PIE_PULL_MAX: 30, PIE_TAG_AT: 62, PIE_TAG_MIN_CHORD: 150, PIE_TAG_MIN_RADIAL: 150, PIE_TAG_PAD: 8, PIE_TAG_FONT_STEPS: Object.freeze([0.85, 0.7, 0.55, 0.4]), PIE_TAG_NAME_LINES: 2,
     SHAPE_SVG_MAX: 60000, SHAPE_FILL_MAX_DEFAULT: 100, SHAPE_TRACK_OPACITY: 0.25, SEG_GAP_DEFAULT: 2 });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_LIMITS;
   if (root) root.GRAPH_LIMITS = GRAPH_LIMITS;

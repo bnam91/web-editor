@@ -347,9 +347,9 @@ export function syncAllSectionCheckerTextTone(root) {
   return n;
 }
 
-/* 1013t1C3 고침 — 원형 조각 안 라벨을 «재서 맞춘» 결과(폭·높이 한계 · 라벨 숨김 · 이름 숨김 · 이름 줄 수). 쓰는 자 = drag-utils.js grbPieFitTags(이 이름들을 여기서 읽어 간다 — 목록은 한 벌).
+/* 1013t1C3 고침 — 원형 조각 안 라벨을 «재서 맞춘» 결과(폭·높이 한계 · 라벨 숨김 · 이름 숨김 · 이름 줄 수 · 고침 2: 줄인 글자 크기 --grb-pie-tag-fs). 쓰는 자 = drag-utils.js grbPieFitTags(이 이름들을 여기서 읽어 간다 — 목록은 한 벌).
    그려진 글자 크기에서 나온 값이라 저장에 굳히지 않는다(열면 아래 syncGraphTone 이 다시 재게 한다) ⇒ 파생 변수 목록에 올린다. 읽는 자 = css/editor-graph.css .grb-pie-tag / .grb-pie-name. */
-export const GRAPH_PIE_FIT_VARS = ['--grb-pie-tag-w', '--grb-pie-tag-h', '--grb-pie-tag-d', '--grb-pie-name-d', '--grb-pie-name-lines'];
+export const GRAPH_PIE_FIT_VARS = ['--grb-pie-tag-w', '--grb-pie-tag-h', '--grb-pie-tag-d', '--grb-pie-name-d', '--grb-pie-name-lines', '--grb-pie-tag-fs'];
 export const DERIVED_AUTO_VARS = ['--tbl-header-fg', ...GRAPH_AUTO_VARS, GRAPH_SEG_FG_VAR, GRAPH_PIE_RANK_INK_VAR, ...GRAPH_PIE_FIT_VARS];
 const _rgbOfCss = (v) => { const c = _parseWithAlpha(String(v || '')); return c && c.a > 0 ? c.rgb : null; };
 const _mixRgb = (a, b, t) => a.map((x, i) => x * (1 - t) + b[i] * t);

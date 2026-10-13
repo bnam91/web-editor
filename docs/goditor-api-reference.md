@@ -582,12 +582,12 @@ window.addGraphBlock({ chartType: 'bar-pair', seriesA: '우리', seriesB: 'A사'
 | `dropShadow` | `soft` / `strong` / 없음 | 그림자(`.grb-pie-svg` 의 CSS `filter: drop-shadow` — 확대블럭과 같은 값). 다른 유형에선 죽은 키 |
 | `items[i].pieGrow` | 1~30 (없음 = 0) | 그 조각만 바깥 반지름을 % 만큼 키운다(구멍은 그대로). viewBox 가 대칭으로 넓어져 나머지가 화면에서 조금 작아진다 |
 | `items[i].piePull` | 1~30 (없음 = 0) | 그 조각을 이등분각 방향으로 바깥 반지름의 % 만큼 밀어낸다(path 의 `transform` · `d` 는 그대로). viewBox 는 크기와 같은 길로 넓어진다 |
-| `items[i].pieTag` | `'on'` / `'off'` / 없음 | 그 조각의 라벨 — 항상 / 숨김 / 자동. 자동은 조각이 좁으면(현 < `PIE_TAG_MIN_CHORD` 또는 고리 두께 < `PIE_TAG_MIN_RADIAL`) 숨기고, 그려진 글자를 재서 제 조각 안에 안 들면 이름 → 라벨 순으로 숨긴다. `'on'` 은 안 숨기고 제 조각 안의 사각형으로 자른다(잰 결과는 인라인 변수 `--grb-pie-tag-*` · `--grb-pie-name-*` — 저장에 안 실린다) |
+| `items[i].pieTag` | `'on'` / `'off'` / 없음 | 그 조각의 라벨 — 항상 / 숨김 / 자동. 자동은 조각이 좁으면(현 < `PIE_TAG_MIN_CHORD` 또는 고리 두께 < `PIE_TAG_MIN_RADIAL`) 숨기고, 그려진 글자를 재서 제 조각 안에 안 들면 줄바꿈(이름 `PIE_TAG_NAME_LINES` 2줄까지) → 글자 줄이기(`pieTagFontSizes(라벨 크기)` · `LABEL_SIZE_MIN` 8 위 · 키우지 않는다) → 이름 숨김 → 라벨 숨김 순으로 밟는다. `'on'` 은 안 숨기고 가장 작은 글자에서 이름을 2줄 말줄임으로 자른다(잰 결과는 인라인 변수 `--grb-pie-tag-*`(`-fs` = 줄인 글자 크기 포함) · `--grb-pie-name-*` — 저장에 안 실린다). 좁아서 숨겨진 이름 수 = `window.grbPieHiddenNames(block)` · 다시 잴 때마다 블럭에서 `grb-pie-fit` 이벤트 |
 
 - 조각별 키 셋은 항목을 다시 써도 남는다(패널 `syncItems` · `GRAPH_SHAPE.carryItemExtras` — `updateGraphBlock({ items })` 포함).
 - 조각 고르기: 선택된 블럭의 조각을 누르면 그 조각에 표식 `grb-pie-cell-selected`(저장·내보내기에서 걷힌다)가 붙고 패널에 Slice 절이 선다. `window.grbPieSelect(block, i | null)` · `window.grbPieSelected(block)` · `window.grbPieSliceIndexAt(target, block)`.
 - 조각 안 라벨의 글자 톤은 조각 색에 맞춰 자동이다(인라인 변수 `--grb-seg-fg` · `--grb-pie-rank-ink` — 저장에 안 실린다). 직접 지정하는 키는 없다.
-- 순수 함수: `GRAPH_PIE_GEOM.piePaths(values, holePct, gap, { start, grow, pull })` → `{ paths, shares, angles, mids, outer, offsets, extent, … }` · `pieRanks(values)` · `pieTagRoom(geo)` → `[{ boxes: [{ w, h }], best, fits(w, h) }]`(그 자리에서 라벨이 쓸 수 있는 사각형 · viewBox 단위) · `pieTagPlan(geo, { tags })` → `[{ x, y, show }]` · `piePercents(values)`.
+- 순수 함수: `GRAPH_PIE_GEOM.piePaths(values, holePct, gap, { start, grow, pull })` → `{ paths, shares, angles, mids, outer, offsets, extent, … }` · `pieRanks(values)` · `pieTagRoom(geo)` → `[{ boxes: [{ w, h }], best, fits(w, h) }]`(그 자리에서 라벨이 쓸 수 있는 사각형 · viewBox 단위) · `pieTagPlan(geo, { tags })` → `[{ x, y, show }]` · `pieTagFontSizes(labelSize)` → `[20, 17, 14, 11, 8]`(라벨이 써 보는 글자 크기 · 큰 것부터) · `piePercents(values)`.
 - ⚠️`updateGraphBlock` 의 `chartType` 과 MCP 스키마는 아직 `bar-v` `bar-h` `line` 만 받는다(원형으로 «바꾸는» 길은 패널·`addGraphBlock` 뿐). 피그마 JSON 은 위 키를 싣지만 렌더러는 아직 안 읽는다(원형이 막대로 나간다).
 
 ```js

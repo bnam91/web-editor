@@ -876,15 +876,26 @@ function grbPieSelect(block, idx) {
 }
 /* 1013t1C3 고침 — 조각 안 라벨의 «둘째 단»: 그려진 글자를 재서 제 조각 안에 넣는다(첫 단 = pieTagPlan 의 기하 숨김 · 마크업의 display:none).
  *   첫 단은 viewBox 단위만 본다 ⇒ 차트가 작거나 · 라벨 글자가 크거나 · 이름이 길면 라벨이 조각을 넘고 서로 겹쳤다(이벨류에이터 실측 2026-10-13).
- *   라벨마다 차례로: ① pieTagRoom 의 사각형(넓적한 것부터)을 폭 한계로 주고 «잰 크기»가 그 조각 안이면(fits) 그 폭으로 둔다
- *     ② 어느 폭으로도 안 들면 이름을 숨기고(순위 배지만) 다시 잰다 ③ 그래도 안 들면: 자동 = 라벨을 숨긴다 · items[i].pieTag 'on' = 안 숨기고 가장 넓은 사각형 안으로 자른다(이름은 줄 수로 자른다).
+ *   라벨마다 차례로(고침 2 — «숨기기 전에» 단계를 밟는다):
+ *     ① 줄바꿈 — pieTagRoom 의 사각형(넓적한 것부터)을 폭 한계로 주고 «잰 크기»가 그 조각 안이면(fits) 그 폭으로 둔다. 이름은 PIE_TAG_NAME_LINES(2)줄까지.
+ *     ② 글자 줄이기 — 안 들면 글자 크기를 pieTagFontSizes(블럭 라벨 크기)의 다음 단계로 줄여 ①을 다시 한다(가장 작은 단계 = LABEL_SIZE_MIN 위). 키우는 단계는 없다.
+ *        줄인 크기는 라벨 전체(배지 + 이름)에 건다 — 배지·간격이 em 이라 같은 비로 준다(참고 그림도 작은 조각은 배지까지 작다).
+ *     ③ 어느 크기로도 안 들면 이름을 숨기고(순위 배지만) ①·②를 다시 한다 ④ 그래도 안 들면 라벨을 숨긴다.
+ *     items[i].pieTag 'on'(항상)은 ③·④ 대신: 가장 작은 글자 · 가장 넓은 사각형 안에서 이름을 «줄 수로 자른다»(line-clamp · 끝에 말줄임 · 많아야 PIE_TAG_NAME_LINES 줄). 한 줄도 안 들 때만 배지만 남긴다.
  *   결과는 «인라인 CSS 변수»에만 산다(canvas-contrast.js GRAPH_PIE_FIT_VARS — DERIVED_AUTO_VARS 에 올라 저장·히스토리에서 걷힌다 · 열면 관찰자가 다시 잰다). 마크업·dataset 은 안 건드린다.
  *   크기는 덧층 정사각에 대한 «비»로 잰다 ⇒ 줌·배율과 무관. 못 재면(떼어진 블럭 · 폭 0) 아무것도 안 쓴다 = CSS 가 기하 사각형으로 자른다.
- *   부르는 자: canvas-contrast.js syncGraphTone(다시 그린 뒤 · 블럭이 꽂힐 때) · 아래 ResizeObserver(블럭 크기가 바뀔 때) · 글꼴이 다 실렸을 때. 같은 판(덧층 폭 · 글꼴)에서 다시 부르면 아무것도 안 한다(멱등). */
+ *   부르는 자: canvas-contrast.js syncGraphTone(다시 그린 뒤 · 블럭이 꽂힐 때) · 아래 ResizeObserver(블럭 크기가 바뀔 때) · 글꼴이 다 실렸을 때. 같은 판(덧층 폭 · 글꼴)에서 다시 부르면 아무것도 안 한다(멱등).
+ *   잰 뒤 «좁아서 숨겨진 이름 수»를 덧층의 JS 속성(_grbPieHidden — DOM·저장에 0)에 적고 블럭에서 grb-pie-fit 을 올린다(듣는 자 = 패널의 안내 줄 · js/props/prop-graph.js). 읽는 길 = grbPieHiddenNames(block).
+ *     세는 것: 이름 표시가 켜진 블럭에서 «그려진 조각»(값 > 0)인데 이름이 안 보이는 것(첫 단의 기하 숨김 · 이름만 숨김 · 라벨째 숨김). 안 세는 것: 사용자가 「숨김」('off')으로 둔 조각 · 값 0 조각 · 말줄임으로 잘린 「항상」 라벨. */
 let _grbPieFontEpoch = 0;
 const _grbPieRO = (typeof ResizeObserver === 'function') ? new ResizeObserver((entries) => { for (const en of entries) if (en.target.isConnected) grbPieFitTags(en.target); }) : null;
 if (typeof document !== 'undefined' && document.fonts?.addEventListener) {
   document.fonts.addEventListener('loadingdone', () => { _grbPieFontEpoch++; document.querySelectorAll('.graph-block').forEach(b => { if (b.querySelector('.grb-pie-tags')) grbPieFitTags(b); }); });
+}
+/** 좁아서 숨겨진 이름 수(가장 최근에 잰 값 · 덧층이 없거나 아직 안 쟀으면 0). */
+function grbPieHiddenNames(block) {
+  const n = block?.querySelector?.('.grb-pie-tags')?._grbPieHidden;
+  return Number.isFinite(n) ? n : 0;
 }
 function grbPieFitTags(block) {
   const layer = block?.querySelector?.('.grb-pie-tags');
@@ -901,37 +912,57 @@ function grbPieFitTags(block) {
   const room = window.GRAPH_PIE_GEOM.pieTagRoom(geo);
   const side = 1000 + 2 * _m, unit = side / lr.width;   // 화면 px → viewBox 단위
   const pc = (v) => (Math.floor(v / side * 10000) / 100).toFixed(2) + '%';
-  const [W, H, D, ND, NL] = window.__gdTextTone?.GRAPH_PIE_FIT_VARS || [];   // 변수 이름의 한 벌 = canvas-contrast.js(저장에서 걷는 목록과 같은 자리)
-  if (!NL) return;
+  const [W, H, D, ND, NL, FS] = window.__gdTextTone?.GRAPH_PIE_FIT_VARS || [];   // 변수 이름의 한 벌 = canvas-contrast.js(저장에서 걷는 목록과 같은 자리)
+  if (!FS) return;
+  const L = window.GRAPH_LIMITS;
+  const sizes = window.GRAPH_PIE_GEOM.pieTagFontSizes(parseInt(block.dataset.labelSize) || L.LABEL_SIZE_DEFAULT);   // 큰 것부터 · 첫 값 = 라벨 크기(안 줄임) — renderGraph 와 같은 읽기
+  const fsOf = (k) => k > 0 ? sizes[k] + 'px' : '';   // 안 줄였으면 변수 자체가 없다(덧층의 글자 크기를 물려받는다)
+  const maxLines = Math.max(1, parseInt(L.PIE_TAG_NAME_LINES) || 1);
   const put = (el, v, want) => { if (!el || el.style.getPropertyValue(v).trim() === want) return; if (want) el.style.setProperty(v, want); else el.style.removeProperty(v); };
   const st = tags.map((tag, i) => ({ tag, i, name: tag.querySelector('.grb-pie-name'), rank: tag.querySelector('.grb-pie-rank'), on: items[i] && items[i].pieTag === 'on',
-    live: tag.style.display !== 'none', done: false, w: '', h: 'none', d: '', nd: '', nl: '' }));   // h 'none' = 재서 든 라벨은 높이 한계가 필요 없다(기하 사각형의 높이로 잘리지 않게 — 고른 폭의 사각형이 더 길 수 있다)
+    live: tag.style.display !== 'none', done: false, w: '', h: 'none', d: '', nd: '', nl: '', fs: '' }));   // h 'none' = 재서 든 라벨은 높이 한계가 필요 없다(기하 사각형의 높이로 잘리지 않게 — 고른 폭의 사각형이 더 길 수 있다)
   const open = () => st.filter(s => s.live && !s.done);
-  /* 잰 크기가 조각 안인가 — 가로로 넘친 글자(줄을 못 바꾸는 배지)는 사각형이 잘려 보이므로 따로 본다 */
-  const ok = (s) => { const r = s.tag.getBoundingClientRect(); return s.tag.scrollWidth <= s.tag.clientWidth && room[s.i].fits(r.width * unit, r.height * unit); };
-  open().forEach(s => { put(s.tag, D, ''); put(s.tag, H, 'none'); put(s.name, ND, ''); put(s.name, NL, ''); });
+  const lineH = (el) => { const v = parseFloat(getComputedStyle(el).lineHeight); return v > 0 ? v : 0; };   // 한 줄의 높이(배치 px — offsetHeight 와 같은 단위 · 줌과 무관)
+  /* 잰 크기가 조각 안인가 — 가로로 넘친 글자(줄을 못 바꾸는 배지)는 사각형이 잘려 보이므로 따로 본다 · 이름이 보이면 줄 수도 본다(maxLines 줄까지) */
+  const ok = (s) => {
+    if (s.tag.scrollWidth > s.tag.clientWidth) return false;
+    if (s.name && s.name.style.getPropertyValue(ND).trim() !== 'none') { const lh = lineH(s.name); if (lh > 0 && s.name.offsetHeight > lh * (maxLines + 0.5)) return false; }
+    const r = s.tag.getBoundingClientRect();
+    return room[s.i].fits(r.width * unit, r.height * unit);
+  };
+  open().forEach(s => { put(s.tag, D, ''); put(s.tag, H, 'none'); put(s.tag, FS, ''); put(s.name, ND, ''); put(s.name, NL, ''); });
   const nBox = room.length ? room[0].boxes.length : 0;
-  for (let k = 0; k < nBox && open().length; k++) {   // ① 이름까지 — 쓰기를 모아 하고 읽기를 모아 한다(판마다 리플로우 한 번)
-    const cur = open();
-    cur.forEach(s => put(s.tag, W, pc(room[s.i].boxes[k].w)));
-    cur.filter(ok).forEach(s => { s.done = true; s.w = pc(room[s.i].boxes[k].w); });
-  }
-  const both = open().filter(s => s.name && s.rank && s.rank.textContent);   // ② 이름을 숨기고 배지만
-  both.forEach(s => { put(s.name, ND, 'none'); put(s.tag, W, pc(room[s.i].boxes[0].w)); });
-  both.filter(ok).forEach(s => { s.done = true; s.nd = 'none'; s.w = pc(room[s.i].boxes[0].w); });
-  open().forEach(s => {   // ③ 자동 = 숨김 · 'on' = 가장 넓은 사각형으로 자른다
+  /* 글자 크기(큰 것부터) × 사각형(넓적한 것부터) — 쓰기를 모아 하고 읽기를 모아 한다(판마다 리플로우 한 번). pick = 이 판에서 맞춰 볼 라벨들 */
+  const sweep = (pick, nd) => {
+    for (let f = 0; f < sizes.length && pick().length; f++) {
+      pick().forEach(s => put(s.tag, FS, fsOf(f)));
+      for (let k = 0; k < nBox && pick().length; k++) {
+        const cur = pick();
+        cur.forEach(s => put(s.tag, W, pc(room[s.i].boxes[k].w)));
+        cur.filter(ok).forEach(s => { s.done = true; s.nd = nd; s.fs = fsOf(f); s.w = pc(room[s.i].boxes[k].w); });
+      }
+    }
+  };
+  sweep(open, '');   // ①·② 이름까지 — 줄바꿈 → 글자 줄이기
+  const both = () => open().filter(s => !s.on && s.name && s.rank && s.rank.textContent);   // ③ 이름을 숨기고 배지만(「항상」 라벨은 아래에서 이름을 자른다)
+  both().forEach(s => put(s.name, ND, 'none'));
+  sweep(both, 'none');
+  const last = sizes.length - 1;
+  open().forEach(s => {   // ④ 자동 = 숨김 · 'on' = 가장 작은 글자 · 가장 넓은 사각형으로 자른다
     if (!s.on) { s.d = 'none'; s.h = ''; return; }
     const bx = room[s.i].boxes[room[s.i].best];
-    s.w = pc(bx.w); s.h = pc(bx.h);
+    s.w = pc(bx.w); s.h = pc(bx.h); s.fs = fsOf(last);
     if (!s.name) return;
-    put(s.name, ND, ''); put(s.tag, W, s.w);
-    const lh = s.name.getClientRects()[0]?.height || 0;   // 한 줄의 높이(화면 px)
-    const head = (s.rank && s.rank.textContent) ? s.rank.getBoundingClientRect().height + (s.name.getBoundingClientRect().top - s.rank.getBoundingClientRect().bottom) : 0;
-    const lines = lh > 0 ? Math.floor((bx.h / unit - head) / lh + 0.02) : 0;
+    put(s.name, ND, ''); put(s.name, NL, ''); put(s.tag, W, s.w); put(s.tag, FS, s.fs);
+    const lh = lineH(s.name);
+    const head = (s.rank && s.rank.textContent) ? s.name.offsetTop : 0;   // 배지 + 간격(배치 px · 라벨이 offsetParent)
+    const lines = lh > 0 ? Math.min(maxLines, Math.floor((bx.h / side * layer.offsetWidth - head) / lh + 0.02)) : 0;
     if (lines >= 1) s.nl = String(lines); else if (head > 0) s.nd = 'none'; else s.nl = '1';
   });
-  st.forEach(s => { if (!s.live) return; put(s.tag, W, s.w); put(s.tag, H, s.h); put(s.tag, D, s.d); put(s.name, ND, s.nd); put(s.name, NL, s.nl); });
+  st.forEach(s => { if (!s.live) return; put(s.tag, W, s.w); put(s.tag, H, s.h); put(s.tag, D, s.d); put(s.tag, FS, s.fs); put(s.name, ND, s.nd); put(s.name, NL, s.nl); });
   layer._grbPieFitKey = key;
+  layer._grbPieHidden = st.filter(s => s.name && !(items[s.i] && items[s.i].pieTag === 'off') && geo.shares[s.i] > 0 && (!s.live || s.d === 'none' || s.nd === 'none')).length;
+  block.dispatchEvent(new CustomEvent('grb-pie-fit', { bubbles: true, detail: { hiddenNames: layer._grbPieHidden } }));
 }
 /* 조각 기하의 «한 자리»(1013t1C3 고침) — dataset + 항목 → piePaths 산출과 viewBox 여유(_m). 그리기(_renderPie)와 라벨 맞추기(grbPieFitTags)가 «같은 수»를 읽는다. */
 function _pieGeoOf(block, items) {
@@ -1474,6 +1505,7 @@ window.renderGraph                = renderGraph;
 window.grbPieSliceIndexAt         = grbPieSliceIndexAt;   // 1013t1C4 — 조각 고르기 셋(block-drag 클릭 · prop-graph 패널이 부른다)
 window.grbPieSelected             = grbPieSelected;
 window.grbPieSelect               = grbPieSelect;
+window.grbPieHiddenNames          = grbPieHiddenNames;     // 1013t1C3 고침 2 — 좁아서 숨겨진 이름 수(패널 안내 줄이 읽는다)
 window.grbPieFitTags              = grbPieFitTags;         // 1013t1C3 고침 — 조각 안 라벨을 재서 제 조각 안에 넣는다(canvas-contrast.js syncGraphTone 이 부른다)
 window.applyDividerStyle          = applyDividerStyle;
 window.ASSET_PRESETS              = ASSET_PRESETS;

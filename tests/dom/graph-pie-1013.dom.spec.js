@@ -14,6 +14,8 @@
  *     · J4 글자 톤이 조각 색을 따른다 · 저장본에 톤 변수 0 · J5 라벨이 제 조각 위에 앉고(크기·밀어내기·시작 각도) 클릭을 안 가로챈다 · J6 끄면 켜기 전 그림(바이트)
  *     · 고침(이벨류에이터 실측) — J7 참고 그림 꼴(도너츠 · 1위만 키움)에서 라벨이 제 조각 안(겹침 0 · 넘침 0 · 네 귀) · J8 기본 높이 240 에서 긴 이름은 숨고 배지만 · 저장본에 잰 결과 0 · 블럭 폭이 바뀌면 다시 잰다
  *       · J9 라벨 크기 40 + 긴 이름(띄어쓰기 없는 낱말 포함) × 높이 240/420/560 × 원형·도너츠 · 「항상」 라벨은 안 숨고 제 조각 안으로 잘린다 · 범례를 안 덮는다
+ *     · 고침 2(게이트 반려 — 숨기기 전에 단계) — J10 기본 240 에서 이름 5/5(도너츠·원형) · 저장본에 줄인 글자 변수 0 · J11 2줄 경로 · J12 줄인 글자 경로(< 라벨 크기 · ≥ 최소 · 넓으면 안 줄인다)
+ *       · J13 「항상」 라벨의 줄 수 자르기(line-clamp) · J14 패널 안내 줄 「좁아서 이름 n개 숨김」(n = 숨긴 수 · 0 이면 없음 · 크기가 바뀌면 따라간다)
  *     · S8 ⌘클릭 다중 선택에서도 조각 표식이 걷힌다 · K3 쓰레기 dropShadow 에서 「없음」 = 키 삭제 · Shadow 줄에 prop-label
  *   C7 그림자 — K1 Shadow 절 없음/부드럽게/강하게(dataset.dropShadow · 없음 = 키 삭제) · 그림(innerHTML) 무변 · ⌘Z · 저장 · K2 값 = 확대블럭 선례와 같다 · 막대에선 절도 그림자도 없다
  *   내보내기 — X1 단독 HTML 산출물에 조각 표식 0 · X2 피그마 JSON 이 새 키를 «있는 것만» 싣는다(옛 꼴은 무변) · X3 addGraphBlock 옵션
@@ -949,8 +951,8 @@ test('J7 참고 그림 꼴(도너츠 · 구멍 38 · 간격 4 · 시작 295 · 1
 });
 
 const LONG5 = [['처리 불가 음식물', 30], ['저소음/음소거 기능', 25], ['탈취 기능', 20], ['세척 편의성', 15], ['디자인', 10]].map(([label, value]) => ({ label, value }));
-const FIT_VARS = ['--grb-pie-tag-w', '--grb-pie-tag-h', '--grb-pie-tag-d', '--grb-pie-name-d', '--grb-pie-name-lines'];
-test('J8 기본 높이 240 · 라벨 20 · 도너츠 · 긴 이름 5 — 이름이 안 드는 조각은 배지만 · 겹침 0 · 저장본에 잰 결과가 안 실린다 · 다시 꽂으면 다시 잰다 · 블럭 폭이 바뀌면 다시 잰다', async ({ page }) => {
+const FIT_VARS = ['--grb-pie-tag-w', '--grb-pie-tag-h', '--grb-pie-tag-d', '--grb-pie-name-d', '--grb-pie-name-lines', '--grb-pie-tag-fs'];
+test('J8 기본 높이 240 · 라벨 20 · 도너츠 · 긴 이름 5 — 재서 제 조각 안에 넣는다 · 겹침 0 · 저장본에 잰 결과가 안 실린다 · 다시 꽂으면 다시 잰다 · 블럭 폭이 바뀌면 다시 잰다', async ({ page }) => {
   const { errs, id } = await setup(page, { type: 'pie', items: LONG5, extra: { pieDonut: '1', pieRank: '1', pieName: '1' } });
   expect([null, '240'], '전제: 높이는 기본(키 없음 또는 240)').toContain(await ds(page, id, 'chartHeight'));
   expect(await ds(page, id, 'labelSize'), '전제: 라벨 크기는 기본(키 없음)').toBeNull();
@@ -960,7 +962,7 @@ test('J8 기본 높이 240 · 라벨 20 · 도너츠 · 긴 이름 5 — 이름�
   expect(f.stage1.length, '전제: 첫 단(기하)은 라벨을 여럿 보이게 둔다').toBeGreaterThanOrEqual(4);
   expect(f.vis.length, '전제: 보이는 라벨이 있다').toBeGreaterThanOrEqual(1);
   expectFit(f, '기본 240');
-  expect(f.rankOnly.length, '긴 이름이 안 드는 조각은 이름을 숨기고 배지만 남긴다').toBeGreaterThanOrEqual(1);
+  expect(f.names.length, '고침 2: 글자를 줄이고 줄을 바꿔 이름이 든다(몇 개인가는 J10 · 배지만 남는 꼴은 아래 좁힌 판과 J14)').toBeGreaterThanOrEqual(1);
   expect(f.fitVars, '전제: 잰 결과가 인라인 변수로 섰다').toBeGreaterThan(0);
   /* 저장본 — 잰 결과(파생 변수)는 안 실리고 기하 사각형(마크업)은 실린다 · 화면은 그대로 */
   const r = await page.evaluate(([id, vars]) => { const saved = window.getSerializedCanvas(); const live = document.getElementById(id).innerHTML;
@@ -979,6 +981,7 @@ test('J8 기본 높이 240 · 라벨 20 · 도너츠 · 긴 이름 5 — 이름�
   await expect.poll(async () => { const g = await tagFit(page, id); return g.overlaps + g.out.length + g.badCorners.length + g.clipped.length; }, { message: '폭이 줄면 다시 재서 제 조각 안으로' }).toBe(0);
   const n = await tagFit(page, id);
   expect(n.names.length + n.vis.length, '줄어든 차트에서는 이름·라벨이 더 숨는다').toBeLessThan(f.names.length + f.vis.length);
+  expect(n.names.length, '줄어든 차트: 이름이 숨은 조각이 있다(배지만 남거나 라벨째 숨는다)').toBeLessThan(f.names.length);
   await page.evaluate(() => document.getElementById('j8-narrow').remove());
   await expect.poll(async () => { const g = await tagFit(page, id); return [g.layer, g.vis, g.names]; }, { message: '폭을 되돌리면 처음 결과로' }).toEqual([f.layer, f.vis, f.names]);
   expect(errs).toEqual([]);
@@ -1008,6 +1011,162 @@ test('J9 라벨 크기 40 + 긴 이름(띄어쓰기 없는 낱말 포함) — �
   const cut = await page.evaluate((id) => { const t = document.getElementById(id).querySelectorAll('.grb-pie-tag')[2]; const cs = getComputedStyle(t);
     return { display: cs.display !== 'none', overflow: cs.overflow, maxH: cs.maxHeight !== 'none', maxW: cs.maxWidth !== 'none' }; }, id);
   expect(cut, '「항상」: 보이고 · 넘는 것은 자른다 · 폭·높이 한계가 섰다').toEqual({ display: true, overflow: 'hidden', maxH: true, maxW: true });
+  expect(errs).toEqual([]);
+});
+
+/* ── C3 고침 2(게이트 반려) — «숨기기 전에» 단계를 밟는다: 줄바꿈(이름 2줄까지) → 글자 줄이기(pieTagFontSizes · LABEL_SIZE_MIN 위) → 이름 숨김 → 라벨 숨김. 「항상」은 가장 작은 글자에서 줄 수로 자른다.
+   재는 것(라벨마다): 계산된 글자 크기(px) · 이름 줄 수(높이 ÷ 줄 높이) · line-clamp · 실제로 잘렸는가. 견주는 수는 전부 앱의 한도(GRAPH_LIMITS · pieTagFontSizes)에서 읽는다(px 리터럴 없음). */
+const tagType = (page, id) => page.evaluate((id) => {
+  const b = document.getElementById(id), L = window.GRAPH_LIMITS, base = parseInt(b.dataset.labelSize) || L.LABEL_SIZE_DEFAULT;
+  const items = JSON.parse(b.dataset.items);
+  const tags = [...b.querySelectorAll('.grb-pie-tag')].map((t, i) => {
+    const vis = getComputedStyle(t).display !== 'none', name = t.querySelector('.grb-pie-name'), nameOn = vis && !!name && getComputedStyle(name).display !== 'none';
+    const lh = nameOn ? parseFloat(getComputedStyle(name).lineHeight) : 0;
+    return { i, vis, nameOn, fs: vis ? parseFloat(getComputedStyle(t).fontSize) : null, lines: nameOn ? Math.round(name.offsetHeight / lh) : 0, tall: nameOn ? name.offsetHeight / lh : 0,
+      clamp: nameOn ? getComputedStyle(name).webkitLineClamp : null, cut: nameOn && name.scrollHeight > name.clientHeight, nl: name ? name.style.getPropertyValue('--grb-pie-name-lines').trim() : '',
+      fsVar: t.style.getPropertyValue('--grb-pie-tag-fs').trim(), counted: !!name && !(items[i] && items[i].pieTag === 'off') && Number(items[i] && items[i].value) > 0 };
+  });
+  return { base, min: L.LABEL_SIZE_MIN, maxLines: L.PIE_TAG_NAME_LINES, sizes: window.GRAPH_PIE_GEOM.pieTagFontSizes(base), layerFs: parseFloat(getComputedStyle(b.querySelector('.grb-pie-tags')).fontSize), tags,
+    names: tags.filter(t => t.nameOn).map(t => t.i), hiddenByDom: tags.filter(t => t.counted && !t.nameOn).map(t => t.i), hiddenApi: window.grbPieHiddenNames(b) };
+}, id);
+const hintOf = (page) => page.evaluate(() => { const h = document.getElementById('grb-pie-name-hint'); const all = document.querySelectorAll('#grb-pie-name-hint').length;
+  return h ? { n: all, text: h.textContent, cls: h.className, afterName: h.previousElementSibling === document.getElementById('grb-pie-name-toggle').closest('.prop-row'), inline: h.getAttribute('style') } : { n: all }; });
+
+test('J10 기본 높이 240 · 라벨 20 · 긴 이름 5 — 도너츠·원형 모두 이름이 5/5 보인다(글자를 줄이고 줄을 바꿔서) · 전부 제 조각 안 · 저장본에 줄인 글자 변수 0', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: LONG5, extra: { pieDonut: '1', pieRank: '1', pieName: '1' } });
+  expect([null, '240'], '전제: 높이는 기본(키 없음 또는 240)').toContain(await ds(page, id, 'chartHeight'));
+  expect(await ds(page, id, 'labelSize'), '전제: 라벨 크기는 기본(키 없음)').toBeNull();
+  for (const [what, donut] of [['도너츠', '1'], ['원형', null]]) {
+    await setDs(page, id, { pieDonut: donut });
+    await waitStableRect(page, `#${id} .grb-pie-svg`);
+    const f = await tagFit(page, id), t = await tagType(page, id);
+    expect(f.n, `전제(${what}): 라벨 5`).toBe(5);
+    expect(f.stage1, `전제(${what}): 첫 단(기하)은 다섯 다 보이게 둔다`).toEqual([0, 1, 2, 3, 4]);
+    expect([t.base, t.layerFs], `전제(${what}): 덧층 글자 = 블럭 라벨 크기`).toEqual([t.base, t.base]);
+    expect(f.names.length, `${what}: 보이는 이름 5/5 (고치기 전 0/5 — 글자 크기가 하나라 숨겼다)`).toBeGreaterThanOrEqual(5);
+    expect(t.names, `${what}: 두 측정이 같은 이름을 본다`).toEqual(f.names);
+    expectFit(f, `${what} · 기본 240`);
+    expect(t.tags.every(x => t.sizes.includes(x.fs)), `${what}: 고른 글자 크기는 전부 단계 목록(pieTagFontSizes) 안`).toBe(true);
+    expect(t.tags.every(x => x.fs <= t.base && x.fs >= t.min), `${what}: 라벨 크기를 안 넘고(안 키운다) 최소 밑으로 안 내려간다`).toBe(true);
+    expect(t.tags.every(x => x.lines >= 1 && x.lines <= t.maxLines), `${what}: 이름은 1~${t.maxLines}줄`).toBe(true);
+    expect([t.hiddenByDom, t.hiddenApi], `${what}: 숨겨진 이름 0`).toEqual([[], 0]);
+  }
+  /* 저장본 — 줄인 글자 변수는 화면에만 산다 */
+  const r = await page.evaluate((id) => { const saved = window.getSerializedCanvas(); const live = document.getElementById(id).innerHTML; const v = '--grb-pie-tag-fs';
+    return { live: live.includes(v), saved: saved.includes(v), listed: window.__gdTextTone.DERIVED_AUTO_VARS.includes(v), fit: window.__gdTextTone.GRAPH_PIE_FIT_VARS.includes(v), savedTags: saved.includes('class="grb-pie-tag"') }; }, id);
+  expect(r, '화면에는 줄인 글자 변수가 있고 · 저장본에는 없고 · 파생 목록에 올랐다').toEqual({ live: true, saved: false, listed: true, fit: true, savedTags: true });
+  expect(errs).toEqual([]);
+});
+
+test('J11 2줄 경로 — 좁은 조각의 긴 이름은 «둘째 줄»로 꺾여 놓인다(높이가 두 줄) · 셋째 줄은 없다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: LONG5, extra: { pieRank: '1', pieName: '1' } });
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  const t = await tagType(page, id);
+  expect(t.maxLines, '전제: 이름 줄 수의 위 끝이 둘 이상(한도가 graph-limits 에 있다)').toBeGreaterThanOrEqual(2);
+  expect(t.names.length, '전제: 이름이 보이는 라벨이 있다').toBeGreaterThanOrEqual(1);
+  const two = t.tags.filter(x => x.nameOn && x.lines === 2);
+  expect(two.length, '두 줄로 놓인 이름이 있다').toBeGreaterThanOrEqual(1);
+  expect(two.every(x => x.tall > 1.5 && !x.cut && x.clamp === 'none'), '그 이름의 높이는 줄 높이의 1.5 배를 넘고 · 잘리지 않았고 · line-clamp 가 아니다(자동 라벨은 온전한 글자)').toBe(true);
+  expect(t.tags.filter(x => x.nameOn && x.lines > t.maxLines).map(x => x.i), '위 끝을 넘는 줄 수 0').toEqual([]);
+  expectFit(await tagFit(page, id), '원형 · 기본 240');
+  expect(errs).toEqual([]);
+});
+
+test('J12 줄인 글자 경로 — 어떤 라벨의 계산된 글자 크기 < 블럭 라벨 크기 · ≥ 최소 · 배지도 같은 비로 준다 · 넓은 차트에서는 안 줄인다 · 라벨 크기가 이미 최소면 더 안 줄인다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: LONG5, extra: { pieDonut: '1', pieRank: '1', pieName: '1' } });
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  let t = await tagType(page, id);
+  expect(t.sizes.length, '전제: 줄이는 단계가 있다(목록이 둘 이상)').toBeGreaterThanOrEqual(2);
+  expect(t.sizes[0], '전제: 첫 단계 = 블럭 라벨 크기').toBe(t.base);
+  const small = t.tags.filter(x => x.nameOn && x.fs < t.base);
+  expect(small.length, '이름이 보이는데 글자가 줄어든 라벨이 있다').toBeGreaterThanOrEqual(1);
+  expect(small.every(x => x.fs >= t.min && x.fsVar === x.fs + 'px'), '줄인 크기 ≥ 최소 · 인라인 변수가 그 값').toBe(true);
+  expect(t.tags.filter(x => x.vis && x.fs === t.base).every(x => x.fsVar === ''), '안 줄인 라벨에는 변수가 없다').toBe(true);
+  const badge = await page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.grb-pie-tag')].filter(x => getComputedStyle(x).display !== 'none')
+    .map(x => { const fs = parseFloat(getComputedStyle(x).fontSize), b = parseFloat(getComputedStyle(x.querySelector('.grb-pie-rank')).fontSize); return { fs, b, ratio: b / fs }; }), id);
+  expect(badge.length, '전제: 보이는 라벨마다 배지').toBe(t.tags.filter(x => x.vis).length);
+  expect(new Set(badge.map(x => x.fs)).size, '전제: 글자 크기가 다른 라벨이 섞여 있다').toBeGreaterThanOrEqual(2);
+  expect(Math.max(...badge.map(x => x.ratio)) - Math.min(...badge.map(x => x.ratio)), '배지 ÷ 라벨 글자의 비는 어느 라벨이나 같다(em — 줄인 라벨은 배지도 같이 준다)').toBeLessThan(0.01);
+  expect(badge.every(x => x.ratio > 0 && x.ratio < 1), '배지는 라벨 글자보다 작다').toBe(true);
+  /* 넓은 차트 — 줄일 까닭이 없다 */
+  await setDs(page, id, { chartHeight: '560' });
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  t = await tagType(page, id);
+  expect(t.names.length, '전제(높이 560): 이름 5').toBe(5);
+  expect(t.tags.map(x => x.fs), '높이 560: 전부 블럭 라벨 크기 그대로(키우지도 줄이지도 않는다)').toEqual(t.tags.map(() => t.base));
+  /* 라벨 크기가 이미 최소 — 단계가 하나뿐 */
+  await setDs(page, id, { chartHeight: '240', labelSize: String(t.min) });
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  t = await tagType(page, id);
+  expect([t.base, t.sizes], '전제: 라벨 크기 = 최소 → 단계 하나').toEqual([t.min, [t.min]]);
+  expect(t.tags.filter(x => x.vis).every(x => x.fs === t.min && x.fsVar === ''), '최소 밑으로는 안 줄인다').toBe(true);
+  expectFit(await tagFit(page, id), '라벨 크기 최소');
+  expect(errs).toEqual([]);
+});
+
+const WIDE3 = [['가나다라 마바사아 자차카타 파하가나 다라마바', 20], ['처리 불가 음식물 처리 불가 음식물 처리 불가', 20], ['x', 60]].map(([label, value]) => ({ label, value }));
+test('J13 「항상」 라벨의 줄 수 자르기 — 가장 작은 글자로도 안 드는 이름은 숨지 않고 2줄에서 말줄임으로 잘린다 · 자동이면 같은 이름이 숨는다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: WIDE3, extra: { pieRank: '1', pieName: '1' } });
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  let t = await tagType(page, id);
+  expect(t.tags.length, '전제: 라벨 3').toBe(3);
+  expect(t.tags.slice(0, 2).map(x => x.nameOn), '전제(자동): 긴 이름 둘은 어느 단계로도 안 들어 이름이 숨는다').toEqual([false, false]);
+  expect([t.hiddenByDom, t.hiddenApi], '전제(자동): 숨겨진 이름 2').toEqual([[0, 1], 2]);
+  await setDs(page, id, { items: WIDE3.map((it, i) => i < 2 ? { ...it, pieTag: 'on' } : it) });
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  t = await tagType(page, id);
+  const on = t.tags.slice(0, 2);
+  expect(on.map(x => [x.vis, x.nameOn]), '「항상」: 라벨도 이름도 보인다').toEqual([[true, true], [true, true]]);
+  expect(on.map(x => x.fs), '「항상」: 가장 작은 단계의 글자').toEqual([t.sizes[t.sizes.length - 1], t.sizes[t.sizes.length - 1]]);
+  expect(on.map(x => [x.nl, x.clamp]), '줄 수 한계가 인라인 변수로 서고 계산된 line-clamp 가 그 값').toEqual(on.map(() => [String(t.maxLines), String(t.maxLines)]));
+  expect(on.map(x => [x.lines, x.cut]), '보이는 것은 정확히 그 줄 수 · 글자가 실제로 잘렸다(scroll > client)').toEqual(on.map(() => [t.maxLines, true]));
+  expect(t.tags[2].clamp, '넉넉한 라벨에는 줄 수 한계가 없다').toBe('none');
+  expect([t.hiddenByDom, t.hiddenApi], '잘린 「항상」 라벨은 «숨김»으로 안 센다').toEqual([[], 0]);
+  expectFit(await tagFit(page, id), '「항상」 둘', [0, 1]);
+  expect(errs).toEqual([]);
+});
+
+test('J14 패널 안내 줄 「좁아서 이름 n개 숨김」 — n = 실제로 숨긴 수 · 「숨김」 조각과 값 0 조각은 안 센다 · 0 이면 줄이 없다 · 블럭이 커지면 줄고 좁아지면 는다(패널을 연 채)', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: LONG5, extra: { pieDonut: '1', pieRank: '1', pieName: '1', labelSize: '28' } });
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  let t = await tagType(page, id);
+  const n0 = t.hiddenByDom.length;
+  expect(n0, '전제: 라벨 28 · 높이 240 에서는 숨겨진 이름이 있다').toBeGreaterThanOrEqual(1);
+  expect(n0, '전제: 다 숨은 것은 아니다').toBeLessThan(5);
+  expect(t.hiddenApi, '재는 쪽이 센 수 = 화면에서 센 수').toBe(n0);
+  await openPanel(page, id);
+  await expect(page.locator('#grb-pie-name-toggle'), '전제: 이름 표시 켜짐').toBeChecked();
+  expect(await hintOf(page), '안내 줄 하나 · 이름 표시 줄 바로 아래 · prop-hint 그대로(인라인 꾸밈 없음)').toEqual({ n: 1, text: `좁아서 이름 ${n0}개 숨김`, cls: 'prop-hint', afterName: true, inline: null });
+  /* 사용자가 「숨김」으로 둔 조각 · 값 0 조각은 안 센다 */
+  const off = t.hiddenByDom[0];
+  await setDs(page, id, { items: [...LONG5.map((it, i) => i === off ? { ...it, pieTag: 'off' } : it), { label: '값 없는 항목', value: 0 }] });
+  await expect.poll(async () => (await tagType(page, id)).tags.length, { message: '전제: 라벨 6(값 0 항목 포함)' }).toBe(6);
+  t = await tagType(page, id);
+  expect(t.tags[5].nameOn, '전제: 값 0 조각의 이름은 안 보인다').toBe(false);
+  expect(t.tags[off].vis, '전제: 「숨김」 조각의 라벨은 안 보인다').toBe(false);
+  const n1 = t.hiddenByDom.length;
+  expect(n1, '「숨김」 하나를 빼면 하나 준다(값 0 은 처음부터 안 센다)').toBe(n0 - 1);
+  await expect.poll(async () => (await hintOf(page)).text ?? null, { message: '안내 줄이 다시 잰 수를 따라간다' }).toBe(n1 > 0 ? `좁아서 이름 ${n1}개 숨김` : null);
+  /* 블럭을 키운다(패널은 그대로 열려 있다) → 숨긴 이름 0 → 줄이 사라진다 */
+  await setDs(page, id, { items: LONG5, labelSize: null, chartHeight: '560' });
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  await expect.poll(async () => (await tagType(page, id)).hiddenByDom.length, { message: '전제: 높이 560 · 라벨 20 에서는 숨긴 이름 0' }).toBe(0);
+  await expect.poll(async () => (await hintOf(page)).n, { message: '0 이면 줄 자체가 없다' }).toBe(0);
+  /* 다시 그리지 않고 블럭 폭만 줄인다(크기 관찰자) → 숨긴 이름이 생기고 줄이 그 수로 선다 → 되돌리면 사라진다 */
+  const w0 = await page.evaluate((id) => document.getElementById(id).querySelector('.grb-pie-tags').offsetWidth, id);
+  await page.evaluate(([id, w0]) => { const st = document.createElement('style'); st.id = 'j14-narrow'; st.textContent = `#${id}{width:25% !important;max-width:calc(${w0}px / 4) !important}`; document.head.appendChild(st); }, [id, w0]);
+  await expect.poll(async () => page.evaluate((id) => document.getElementById(id).querySelector('.grb-pie-tags').offsetWidth, id), { message: '전제: 덧층이 줄었다' }).toBeLessThan(w0);
+  await expect.poll(async () => { const x = await tagType(page, id); return x.hiddenByDom.length > 0 && x.hiddenApi === x.hiddenByDom.length; }, { message: '전제: 좁아지면 숨긴 이름이 생긴다 · 두 셈이 같다' }).toBe(true);
+  await expect.poll(async () => { const x = await tagType(page, id), h = await hintOf(page); return [h.n, h.text ?? null, x.hiddenByDom.length > 0]; }, { message: '안내 줄이 관찰자가 다시 잰 수로 선다' })
+    .toEqual([1, `좁아서 이름 ${(await tagType(page, id)).hiddenByDom.length}개 숨김`, true]);
+  await page.evaluate(() => document.getElementById('j14-narrow').remove());
+  await expect.poll(async () => [(await tagType(page, id)).hiddenByDom.length, (await hintOf(page)).n], { message: '폭을 되돌리면 줄이 사라진다' }).toEqual([0, 0]);
+  /* 이름 표시를 끄면 줄도 없다 */
+  await setDs(page, id, { labelSize: '28', chartHeight: '240' });
+  await expect.poll(async () => (await hintOf(page)).n, { message: '전제: 다시 좁은 판 — 줄이 선다' }).toBe(1);
+  await clickToggle(page, 'grb-pie-name-toggle');
+  await expect.poll(() => ds(page, id, 'pieName')).toBeNull();
+  await expect.poll(async () => (await hintOf(page)).n, { message: '이름 표시를 끄면 안내 줄이 없다' }).toBe(0);
   expect(errs).toEqual([]);
 });
 

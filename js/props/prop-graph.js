@@ -5,7 +5,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
 
-const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, PIE_PULL_MAX, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LABEL_SIZE_MIN, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, PIE_PULL_MAX, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
@@ -245,6 +245,24 @@ function shapeSectionHTML(block) {
     </div>`;
 }
 
+/* 1013t1C3 고침 2 — Pie Settings 「이름 표시」 줄 아래의 안내 한 줄: 「좁아서 이름 n개 숨김」. n = 라벨을 잰 쪽(drag-utils.js grbPieFitTags)이 센 수(window.grbPieHiddenNames —
+   이름 표시가 켜져 있는데 조각이 좁아 이름이 안 보이는 조각 · 사용자가 「숨김」으로 둔 조각과 값 0 조각은 안 센다). 0 이면 줄 자체가 없다.
+   패널이 열린 채 블럭 크기·글자가 바뀌면 재는 쪽이 블럭에서 grb-pie-fit 을 올린다 ⇒ 문서에 건 듣는 자 «하나»가 지금 패널의 블럭일 때만 숫자를 고친다(패널을 다시 그릴 때마다 듣는 자가 쌓이지 않는다). */
+let _pieHintBlock = null;
+function _syncPieNameHint(block) {
+  const row = document.getElementById('grb-pie-name-toggle')?.closest('.prop-row');
+  if (!row || !block) return;
+  const n = (block.isConnected && block.dataset.pieName === '1') ? (window.grbPieHiddenNames?.(block) || 0) : 0;
+  let hint = document.getElementById('grb-pie-name-hint');
+  if (!(n > 0)) { hint?.remove(); return; }
+  if (!hint) { hint = document.createElement('div'); hint.className = 'prop-hint'; hint.id = 'grb-pie-name-hint'; row.insertAdjacentElement('afterend', hint); }
+  const txt = `좁아서 이름 ${n}개 숨김`;
+  if (hint.textContent !== txt) hint.textContent = txt;
+}
+if (typeof document !== 'undefined') document.addEventListener('grb-pie-fit', (e) => {
+  const b = _pieHintBlock, t = e.target;
+  if (b && t && (t === b || (b.id && t.id === b.id))) _syncPieNameHint(t);
+});
 export function showGraphProperties(block) {
   const _vKey = (hKey, vKey) => (block.dataset.chartType === 'bar-v' || block.dataset.chartType === 'bar-pair') ? vKey : hKey;
   const chartType    = block.dataset.chartType    || 'bar-v';
@@ -335,8 +353,8 @@ ${blockHeaderHTML({
       </div>
       <div class="prop-row">
         <span class="prop-label">라벨</span>
-        <input type="range" class="prop-slider" id="grb-label-slider" min="8" max="28" step="1" value="${labelSize}">
-        <input type="number" class="prop-number" id="grb-label-number" min="8" max="28" value="${labelSize}">
+        <input type="range" class="prop-slider" id="grb-label-slider" min="${LABEL_SIZE_MIN}" max="28" step="1" value="${labelSize}">
+        <input type="number" class="prop-number" id="grb-label-number" min="${LABEL_SIZE_MIN}" max="28" value="${labelSize}">
       </div>
       <div class="prop-row" title="값 라벨(숫자) + 카테고리 라벨 둘 다 일괄 적용. 아래 항목별로 따로 설정 가능">
         <span class="prop-label">라벨 색상</span>
@@ -478,7 +496,7 @@ ${blockHeaderHTML({
           <span class="prop-toggle-track"></span>
         </label>
       </div>
-      <div class="prop-row" title="조각 안에 항목 이름을 넣는다. 좁은 조각은 자동으로 숨는다">
+      <div class="prop-row" title="조각 안에 항목 이름을 넣는다. 좁은 조각은 줄을 바꾸고 글자를 줄여 보고, 그래도 안 들면 숨긴다">
         <span class="prop-label">이름 표시</span>
         <label class="prop-toggle">
           <input type="checkbox" id="grb-pie-name-toggle" ${block.dataset.pieName === '1' ? 'checked' : ''}>
@@ -963,6 +981,7 @@ ${blockHeaderHTML({
     if (tg) tg.addEventListener('change', () => {
       if (tg.checked) block.dataset[key] = '1'; else delete block.dataset[key];
       window.renderGraph(block);
+      _syncPieNameHint(block);   // 덧층이 사라지면(둘 다 끔) 재는 쪽이 안 돈다 ⇒ 여기서 한 번 걷는다
       window.pushHistory();
     });
   }
@@ -976,6 +995,8 @@ ${blockHeaderHTML({
     if (next === 'soft' || next === 'strong') block.dataset.dropShadow = next; else delete block.dataset.dropShadow;
     window.pushHistory();
   }));
+  _pieHintBlock = _isPie ? block : null;   // 1013t1C3 고침 2 — 「좁아서 이름 n개 숨김」 안내 줄(아래 _syncPieNameHint). 라벨을 다시 잴 때마다(grb-pie-fit) 숫자를 고친다
+  if (_isPie) _syncPieNameHint(block);
   const tagSel = document.getElementById('grb-pie-tag-select');
   if (tagSel && _sliceSel >= 0) tagSel.addEventListener('change', () => {
     const its = JSON.parse(block.dataset.items || '[]');
@@ -1054,7 +1075,7 @@ ${blockHeaderHTML({
   const lSlider = document.getElementById('grb-label-slider');
   const lNumber = document.getElementById('grb-label-number');
   const applyLabelSize = v => {
-    v = Math.min(28, Math.max(8, v));
+    v = Math.min(28, Math.max(LABEL_SIZE_MIN, v));
     block.dataset.labelSize = v;
     window.renderGraph(block);
     lSlider.value = v; lNumber.value = v;
