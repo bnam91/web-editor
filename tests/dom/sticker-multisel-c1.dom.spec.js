@@ -275,7 +275,7 @@ test('S5 ★「서로 맞춤」 왼쪽 정렬 — 고른 스티커 왼쪽(레이
   for (const a of after) {
     await test.step(`S5 ${a.shape}`, async () => {
       expect(Math.abs(a.left - minLeft), `${a.id}(${a.shape}) 왼쪽 = 가장 왼쪽(${minLeft})`).toBeLessThanOrEqual(1);
-      if (a.shape === 'highlightB') {
+      if (['highlightB', 'arrow'].includes(a.shape)) {   // ★1013t2C4 선 스티커 둘 — 위치 = 두 끝점
         const b = before.find(v => v.id === a.id);
         expect(a.x2 - a.x1, '선 형광펜 길이(x2−x1) 불변').toBe(b.x2 - b.x1);
         expect(Math.abs((a.x1 - b.x1) - (a.left - b.left)), '양 끝이 상자와 같은 양만큼 옮겨졌다').toBeLessThanOrEqual(1);
@@ -324,7 +324,7 @@ test('S8 ★여럿 고른 뒤 하나를 보통 클릭 → 그것 하나 · 그 �
 /* ═══ S9 ⌘드래그 무회귀 ═══ */
 test('S9 ★골라진 여럿 중 하나를 ⌘+끌기 = 자유 이동(섹션 밖) · 선택 수 그대로 · 안 골라진 것을 ⌘끌면 골라진다', async ({ page }) => {
   const { errs, made } = await setup(page);
-  const plain = made.filter(m => m.kind === 'sticker' && !['highlightB', 'text'].includes(m.shape));
+  const plain = made.filter(m => m.kind === 'sticker' && !['highlightB', 'arrow', 'text'].includes(m.shape));   // ★1013t2C4 화살표도 선 스티커(dataset.x 를 안 쓴다)
   test.skip(plain.length < 3, '끌 스티커 셋이 필요하다');
   const [a, b, c] = plain;
   await clickBlock(page, a.id, null);

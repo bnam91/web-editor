@@ -51,7 +51,7 @@ function _selectSticker(block) {
   });
   window.deselectAll?.();
   block.classList.add('selected');
-  if (block.dataset.shape === 'highlightB') {
+  if (_isLineStk(block)) {   // ★1013t2C4 선 스티커(highlightB · arrow) = 끝점 손잡이
     _addHlbHandles(block);
   } else {
     _addCornerHandles(block);
@@ -72,13 +72,18 @@ function _deselectAllStickers() {
 }
 window._deselectAllStickers = _deselectAllStickers;
 
-// ── HighlightB 끝점 핸들 ──
+// ── 선 스티커 끝점 핸들 (highlightB · ★1013t2C4 arrow) ──
+/* 선 스티커 판정의 정본 = js/blocks/sticker-block.js LINE_STICKER_SHAPES(window._isLineSticker). 이 파일은 고전 스크립트라
+   모듈보다 먼저 실리지만, 부르는 때(선택·끌기)는 모듈이 실린 뒤다. */
+const _isLineStk = (b) => !!window._isLineSticker?.(b);
+/* ⚠️끌기 히스토리 문구는 «글자 그대로» 둔다(선 스티커 공용) — tests/unit/drag-history-push-before.test.mjs 가
+   beginDragHistory 의 «글자 인자»로 제스처 자리를 센다(변수로 바꾸면 그 명부가 못 읽는다). */
 function _removeHlbHandles(block) {
   block.querySelectorAll('.hlb-handle').forEach(h => h.remove());
 }
 function _addHlbHandles(block) {
   _removeHlbHandles(block);
-  if (block.dataset.shape !== 'highlightB') return;
+  if (!_isLineStk(block)) return;
   const x1 = parseFloat(block.dataset.x1) || 0;
   const y1 = parseFloat(block.dataset.y1) || 0;
   const x2 = parseFloat(block.dataset.x2) || 0;
@@ -170,7 +175,7 @@ const _STK_ROTATE_CURSOR = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3
 
 function _addCornerHandles(block) {
   _removeCornerHandles(block);
-  if (!block || block.dataset.shape === 'highlightB') return;
+  if (!block || _isLineStk(block)) return;
   // 위치는 CSS의 .sticker-corner-handle[data-corner="..."]가 절대 px로 처리 (asset-handle과 동일 패턴)
   ['tl', 'tr', 'bl', 'br'].forEach(id => {
     const el = document.createElement('div');
@@ -432,8 +437,8 @@ function bindStickerSelect(block) {
     const startX = e.clientX;
     const startY = e.clientY;
 
-    // ── highlightB 전용 드래그 — 두 점을 함께 평행이동 + 섹션 내 clamp ──
-    if (block.dataset.shape === 'highlightB') {
+    // ── 선 스티커(highlightB · ★1013t2C4 arrow) 드래그 — 두 점을 함께 평행이동 + 섹션 내 clamp ──
+    if (_isLineStk(block)) {
       const ox1 = parseFloat(block.dataset.x1) || 0;
       const oy1 = parseFloat(block.dataset.y1) || 0;
       const ox2 = parseFloat(block.dataset.x2) || 0;
@@ -460,6 +465,8 @@ function bindStickerSelect(block) {
         block.dataset.x2 = String(Math.round(ox2 + dx));
         block.dataset.y2 = String(Math.round(oy2 + dy));
         window.renderStickerBlock?.(block);
+        // ★1013t2C4 — 그리기가 innerHTML 을 갈아 끼워 끝점 손잡이가 사라진다 → 골라져 있으면 다시 단다
+        if (block.classList.contains('selected')) _addHlbHandles(block);
       };
       const onUpB = () => {
         document.removeEventListener('mousemove', onMoveB);

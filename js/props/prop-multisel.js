@@ -381,13 +381,11 @@ function _overlayGeom(u) {
 }
 function _setOverlayPos(u, x, y) {
   if (_isStickerUnit(u)) {
-    if (u.dataset.shape === 'highlightB') {
-      // 선 형광펜은 위치가 두 끝점(x1,y1)(x2,y2)이다 — 상자가 옮겨 간 만큼(Δ) «양 끝을 같은 양» 옮기고 다시 그린다
+    if (window._isLineSticker?.(u)) {
+      // 선 스티커(선 형광펜 · ★1013t2C4 화살표)는 위치가 두 끝점(x1,y1)(x2,y2)이다 — 상자가 옮겨 간 만큼(Δ) «양 끝을 같은 양» 옮기고 다시 그린다
+      //   (옮기기 한 벌 = js/blocks/sticker-block.js _translateSticker)
       const g = _overlayGeom(u);
-      const dx = Math.round(x - g.x), dy = Math.round(y - g.y);
-      ['x1', 'x2'].forEach(k => { u.dataset[k] = String((parseFloat(u.dataset[k]) || 0) + dx); });
-      ['y1', 'y2'].forEach(k => { u.dataset[k] = String((parseFloat(u.dataset[k]) || 0) + dy); });
-      window.renderStickerBlock?.(u);
+      window._translateSticker(u, Math.round(x - g.x), Math.round(y - g.y));
     } else {
       // ⛔클램프하지 않는다 — «서로 맞춤»은 고른 것들의 상자 안으로만 옮긴다(코인 위치 규약은 sticker-select 쪽)
       u.dataset.x = String(Math.round(x)); u.dataset.y = String(Math.round(y));
