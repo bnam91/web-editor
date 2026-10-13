@@ -65,9 +65,32 @@ async function make(page, opts = {}, secId = 'secK') {
   }, { opts, secId });
 }
 
-/* 코인을 실제 마우스로 눌러 고른다(누르는 점이 그 코인 위인지 clickAt 이 단언한다). */
+/* 캔버스 스크롤이 «멈췄다» — #canvas-wrap 의 scrollTop 이 연속 12 프레임 같을 때까지.
+   섹션을 넣는 길(템플릿 넣기 → selectSection(sec, true))은 캔버스를 «부드럽게» 굴린다(js/editor.js selectSection 의 scrollTo smooth).
+   굴리기가 막 시작되기 전에는 사각형이 잠깐 가만히 있어, 사각형만 두 번 재는 자(waitStableRect)가 그 틈을 «멈춤»으로 읽을 수 있다. */
+async function scrollSettled(page) {
+  await page.waitForFunction(() => new Promise((resolve) => {
+    const w = document.getElementById('canvas-wrap');
+    let last = w.scrollTop, same = 0;
+    const tick = () => { const now = w.scrollTop; same = now === last ? same + 1 : 0; last = now; if (same >= 12) resolve(true); else requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }));
+}
+
+/* 코인을 실제 마우스로 눌러 고른다.
+   ① 굴리기가 멈추길 기다리고 ② 코인을 화면 가운데로 데려온 뒤(즉시 스크롤 — 진행 중인 부드러운 굴리기를 끊는다) ③ 다시 멈춤을 확인하고
+   ④ ★전제: 누를 점이 뷰포트 안이고 그 점의 맨 위 요소가 그 코인(또는 그 자손)이다 — 화면 밖·상단바 아래를 누르지 않는다. */
 async function pick(page, id) {
-  const r = await waitStableRect(page, `[id="${id}"]`);
+  const sel = `[id="${id}"]`;
+  await scrollSettled(page);
+  await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }), id);
+  await scrollSettled(page);
+  const r = await waitStableRect(page, sel);
+  const at = await page.evaluate(([x, y, id]) => {
+    const e = document.elementFromPoint(x, y), b = document.getElementById(id);
+    return { inView: x > 0 && y > 0 && x < window.innerWidth && y < window.innerHeight, onCoin: !!e && (e === b || b.contains(e)), hit: e ? (e.id || String(e.className) || e.tagName) : null };
+  }, [r.cx, r.cy, id]);
+  expect([at.inView, at.onCoin], `★전제: 누를 점 (${r.cx},${r.cy}) 이 뷰포트 안이고 그 코인 위다 — 맞힌 요소 «${at.hit}»`).toEqual([true, true]);
   await clickAt(page, r.cx, r.cy, { sel: '#' + id }, { label: '코인 고르기' });
   await expect.poll(() => page.evaluate((id) => document.getElementById(id)?.classList.contains('selected') && !!document.getElementById('stk-coin-section'), id),
     '★전제: 코인이 골라지고 Coin 절이 떴다').toBe(true);
