@@ -174,7 +174,8 @@ test('T9 동봉 파일: 8개가 레포에 있고 JPEG · main 가드가 받아�
     assert.equal(path.resolve(r.full), path.resolve(full));
   }
   for (const bad of ['../package.json', 'assets/textures/../../main.js', 'main.js', 'js/data/paper-textures.js',
-                     '/etc/passwd', 'assets/textures/paper/x.txt', '', null, 'assets/texturesX/a.png']) {
+                     '/etc/passwd', 'assets/textures/paper/x.txt', '', null, 'assets/texturesX/a.png',
+                     'assets/textures/a.jpg.js', 'assets/textures/paper/paper-01.jpg.js']) {
     assert.equal(resolveBundledAsset(ROOT, bad).ok, false, `거절해야 함: ${bad}`);
   }
 });
