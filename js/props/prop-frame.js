@@ -431,13 +431,14 @@ function _renderAutoPanel(ss) {
       </div>
     </div>
     ` : ''}
+    ${isBuzzFrame(ss) ? '' : `
     <div class="prop-section">
       <div class="prop-section-title">Layout</div>
       <div class="prop-row" style="gap:4px;">
         <span style="font-size:11px;color:${isFreeLayout ? '#9ca3af' : '#5fb4d8'};font-weight:500;flex:1;">${isFreeLayout ? 'free' : 'stack'}</span>
         ${isFreeLayout ? `<button class="prop-action-btn secondary" id="ss-to-stack-btn" style="height:24px;padding:0 10px;font-size:11px;width:auto;flex:0 0 auto;">stack</button>` : ''}
       </div>
-    </div>
+    </div>`}
     <div class="prop-section">
       <div class="prop-section-title">Background</div>
       <div class="prop-color-row">
@@ -606,6 +607,8 @@ function _renderAutoPanel(ss) {
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
+  /* 버즈 프레임에는 Layout 절(free → stack 변환)을 안 그린다 — 버즈는 자유배치여야 돌고, 쌓기는 Buzz 절의 배치 「스택」이 한다.
+     그 변환을 누르면 자리 · 높이가 풀리고 표식만 남은 보통 프레임이 된다(2026-10-13 실측) — 같은 말 「stack」이 두 뜻으로 나란히 서지 않게 한다. */
   if (isBuzzFrame(ss)) wireBuzzSection(ss);
 
   // ── Banner Preset 변경 ──

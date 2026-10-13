@@ -19,8 +19,11 @@ import { BUZZ_STYLES, BUZZ_STYLE_KEYS, BUZZ_COUNT, BUZZ_LIMITS, getBuzz, setBuzz
          relayoutBuzzFrame, applyBuzzStyle, setBuzzCount } from '../blocks/buzz-frame.js';
 
 /* ── 조각 — 이웃 패널과 같은 마크업 ───────────────────────────── */
-const _slider = (label, id, key, value) =>
-  sliderRowHTML(label, `${id}-slider`, `${id}-number`, { ...BUZZ_LIMITS[key], value });
+/* title 은 줄(.prop-row) 자체에 단다 — 클래스 없는 감싸는 div 를 만들지 않는다. */
+const _slider = (label, id, key, value, title = '') => {
+  const row = sliderRowHTML(label, `${id}-slider`, `${id}-number`, { ...BUZZ_LIMITS[key], value });
+  return title ? row.replace('<div class="prop-row">', `<div class="prop-row" title="${escHtml(title)}">`) : row;
+};
 
 /* 글자 단추 묶음 — .prop-align-group 은 절 «직속»에 둔다(라벨은 윗줄 .prop-field-label). opts = [[값, 라벨], …] */
 const _group = (id, label, opts, cur) => `<span class="prop-field-label">${escHtml(label)}</span>
@@ -72,9 +75,9 @@ export function buzzSectionHTML(frame) {
           <span class="prop-toggle-track"></span>
         </label>
       </div>`}
-      <div title="0 = 글 길이에 맞춤">${_slider('너비', 'bzf-width', 'width', getBuzz(frame, 'width'))}</div>
+      ${_slider('너비', 'bzf-width', 'width', getBuzz(frame, 'width'), '0 = 글 길이에 맞춤')}
       ${_slider('각도', 'bzf-angle', 'angle', getBuzz(frame, 'angle'))}
-      <div title="각도에 더하는 무작위 흔들림(±)">${_slider('범위', 'bzf-range', 'range', getBuzz(frame, 'range'))}</div>
+      ${_slider('범위', 'bzf-range', 'range', getBuzz(frame, 'range'), '각도에 더하는 무작위 흔들림(±)')}
       ${_group('bzf-dir', '방향', [['alt', '번갈아'], ['one', '한 방향'], ['rand', '무작위']], getBuzz(frame, 'dir'))}
       ${_group('bzf-depth', '깊이', [['none', '없음'], ['weak', '약하게'], ['strong', '강하게']], getBuzz(frame, 'depth'))}
       <div class="prop-hint" id="bzf-squeeze"${squeezed ? '' : ' hidden'}>${SQUEEZE_TEXT}</div>
@@ -158,7 +161,7 @@ export function wireBuzzSection(frame) {
     const v = Number.parseInt(seedInput.value, 10);
     if (!f) return;
     if (!Number.isFinite(v)) { seedInput.value = String(getBuzz(f, 'seed')); return; }
-    reseed(v >>> 0, '버즈 무늬번호');
+    reseed((Math.abs(v) % 100000) || 1, '버즈 무늬번호');   /* 음수 · 큰 수를 친 대로 두면 32비트로 말려 엉뚱한 수가 보인다 — 1~99999 로 접는다 */
   });
   seedInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') seedInput.blur(); });
   $('bzf-redraw')?.addEventListener('click', () => { const f = F(); if (f) reseed(getBuzz(f, 'seed'), '버즈 다시 그리기'); });

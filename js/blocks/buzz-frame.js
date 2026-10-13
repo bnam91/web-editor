@@ -147,9 +147,10 @@ export function relayoutBuzzFrame(frame, { dry = false, natural = false } = {}) 
   const stageW = frame.clientWidth;
   const stageH = natural ? undefined : frame.clientHeight;
   const tilt = Math.min(20, Math.abs(angle) + range);
+  const hasTail = rows.some((r) => _modalOf(r).dataset.decoTail);
   const out = getBuzz(frame, 'layout') === 'stack'
     ? stackLayout({ sizes, stageW, stageH, margin: BUZZ_MARGIN, offset: getBuzz(frame, 'offset'), gap: getBuzz(frame, 'gap'), tilt,
-        tailRoom: rows.some((r) => _modalOf(r).dataset.decoTail) ? BUZZ_TAIL_ROOM : 0 })
+        tailRoom: hasTail ? BUZZ_TAIL_ROOM : 0, topFirst: hasTail })
     : scatterLayout({ rng: _rng(seed), sizes, stageW, stageH, margin: BUZZ_MARGIN, spread: getBuzz(frame, 'spread'), tilt,
         overlap: getBuzz(frame, 'overlap') === 1, padY: parseFloat(_modalOf(rows[0]).dataset.padY) || 20 });
   const res = { ok: true, squeezed: !!out.squeezed, natural: out.natural };

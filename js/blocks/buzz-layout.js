@@ -98,7 +98,7 @@ export function scatterLayout(o) {
 }
 
 /**
- * 스택 — 세로로 쌓고 짝/홀을 ∓offset/2 로 엇갈린다. 아래 것이 위 것을 덮는다(z = 순서).
+ * 스택 — 세로로 쌓고 짝/홀을 ∓offset/2 로 엇갈린다. 아래 것이 위 것을 덮는다(z = 순서) · topFirst 면 반대.
  * @returns {{items:{x:number,y:number,z:number}[], natural:number, gapEff:number, squeezed:boolean}}
  */
 export function stackLayout(o) {
@@ -109,6 +109,7 @@ export function stackLayout(o) {
   const offset = Number(o.offset) || 0;
   const gap = _num(o.gap, 28);
   const tailRoom = Number(o.tailRoom) || 0;
+  const topFirst = !!o.topFirst;   /* 위 것이 아래 것을 덮는다 — 꼬리가 있을 때(겹쳐도 위 말풍선의 꼬리가 보이게) */
   const extra = Math.round(_maxW(sizes) * 0.5 * _sinOf(o.tilt));
   const top = margin + extra;
   const sumH = sizes.reduce((m, s) => m + s.h, 0);
@@ -128,7 +129,7 @@ export function stackLayout(o) {
     const x = Math.round(Math.max(0, Math.min(stageW - w, (stageW - w) / 2 + (i % 2 ? offset / 2 : -offset / 2))));
     const yy = Math.max(top, Math.min(y, bot - h));            /* 프레임보다 큰 낱개는 top */
     y += h + gapEff;
-    return { x, y: Math.round(yy), z: i + 1 };
+    return { x, y: Math.round(yy), z: topFirst ? n - i : i + 1 };
   });
   return { items, natural, gapEff, squeezed: gapEff < gap - 1e-6 };
 }

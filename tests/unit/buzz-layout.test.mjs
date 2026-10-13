@@ -90,6 +90,15 @@ test('U2 ★⑵ 흩어짐 — 프레임 높이가 얼마든 낱개는 프레임 
     if (out.squeezed) squeezedSeen++;
     assert.equal(out.squeezed, out.natural > stageH || sizes.some((s) => s.h > bot - top), `seed ${seed} n ${n} H ${stageH} squeezed 표시`);
   }
+  /* 프레임보다 큰 낱개가 섞여도 — 그것은 top(머리가 보인다), 나머지는 안 */
+  for (const seed of SEEDS) {
+    const sizes = [...sizesOf(4), { w: 300, h: 400 }];
+    const out = scatter(seed, sizes, 300);
+    const extra = extraOf(sizes, 4);
+    assert.equal(out.items[4].y, MARGIN + extra, `seed ${seed} 큰 낱개는 top`);
+    out.items.slice(0, 4).forEach((p, i) => assert.ok(p.y >= MARGIN + extra && p.y + sizes[i].h <= 300 - MARGIN - extra, `seed ${seed} #${i} 는 안`));
+    assert.equal(out.squeezed, true);
+  }
   assert.ok(checked > 800, `★전제: 실제로 잰 낱개 수 ${checked}`);
   assert.ok(squeezedSeen > 20, `★전제: 넘치는 판이 표본에 있다 ${squeezedSeen}`);
 });
@@ -147,6 +156,8 @@ test('U5 ★⑵ 스택 — 넘치면 간격을 고르게 줄이고(음수 = 겹�
   assert.ok(Math.abs(above - below) <= 1, `가운데가 아니다 위 ${above} 아래 ${below}`);
   assert.equal(fit.squeezed, false);
   assert.deepEqual(fit.items.map((p) => p.z), [1, 2, 3, 4, 5, 6], '아래 것이 위 것을 덮는다');
+  assert.deepEqual(stack(sizes, 400, { topFirst: true }).items.map((p) => p.z), [6, 5, 4, 3, 2, 1], 'topFirst(꼬리) — 위 것이 아래 것을 덮는다');
+  assert.deepEqual(stack(sizes, 400, { topFirst: true }).items.map((p) => p.y), over.items.map((p) => p.y), 'topFirst 는 자리를 안 바꾼다');
   /* 엇갈림: 짝은 가운데 − offset/2, 홀은 + offset/2 */
   fit.items.forEach((p, i) => assert.ok(Math.abs((p.x + sizes[i].w / 2) - (STAGE_W / 2 + (i % 2 ? 30 : -30))) <= 1, `#${i} 가로 중심`));
   /* 꼬리 자리 */

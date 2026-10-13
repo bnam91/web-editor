@@ -152,7 +152,7 @@ function _shadowStyles(block) {
 
 /* ── 장식(Decoration) — 꼬리 · 테이프 · 유리 (1012t1Z5 버즈) ─────────────────────────────
    모달의 «옵션»이다(버즈 묶음 안이든 밖이든 같다). dataset 이 진실이고 render 가 «실제 요소»로 그린다:
-     data-deco-tail = left | right      → <svg class="mdl-deco-tail">   (상자 밑변 아래로 21px 나오는 말꼬리)
+     data-deco-tail = left | right      → <img class="mdl-deco-tail">   (상자 밑변 아래로 21px 나오는 말꼬리 · svg data URL)
      data-deco-tape = left|center|right → <span class="mdl-deco-tape">  (윗변에 걸친 반투명 테이프)
      data-glass     = 1                 → cssText 의 backdrop-filter     (알약 스타일의 유리)
    ⛔의사요소(::before/::after)로 그리지 않는다 — ::after 는 hover 틴트의 자리이고(css/editor-blocks.css
@@ -196,8 +196,7 @@ function _glassStyles(block) {
 }
 
 /** 꼬리 + 테이프 마크업. 둘 다 없으면 ''(기존 모달의 innerHTML 이 한 글자도 안 달라진다).
-    ★꼬리의 좌우 뒤집기는 path 의 «SVG 속성» transform 이다 — svg 에 닿는 CSS transform 은 html2canvas 가
-      안 그린다(js/io/h2c-prep.js 머리말).
+    ★꼬리의 좌우 뒤집기는 path 의 «SVG 속성» transform 이다(CSS transform 이 아니다 — js/io/h2c-prep.js 머리말).
     ★꼬리를 감싸는 span 은 상자 밑변에서 «자른다»: 꼬리 그림자(drop-shadow)가 상자 «안»을 어둡게 하지 않고,
       반투명 배경에서 상자와 꼬리가 겹쳐 진해지는 띠도 안 생긴다.
     ★꼬리 그림자는 상자 그림자와 «같은 표»(MODAL_SHADOW_CSS)의 값이다 — 새 그림자 수를 만들지 않는다. */
@@ -208,11 +207,15 @@ function _decoHtml(block, bg) {
     const d = _tailPathD();
     if (d) {
       const sh = MODAL_SHADOW_CSS[_dropShadow(block.dataset.dropShadow)];
+      /* ★svg 를 «img 의 data URL»로 싣는다 — 인라인 <svg> 는 html2canvas(PNG 폴백 · 썸네일)가 이 자리에서 안 그렸다
+         (2026-10-13 실측: 인라인 svg 변형 다섯 전부 빠짐 · img(data:svg) 는 그려짐. reports/S5-buzz/gen-1-h2c.png).
+         색(fill)과 좌우 뒤집기는 svg 글자 안에 굳힌다 — 재렌더마다 dataset 에서 다시 짓는다. */
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19 16" width="40" height="34" preserveAspectRatio="none">`
+                + `<path d="${d}" fill="${_esc(bg)}"${tail === 'left' ? ' transform="translate(19 0) scale(-1 1)"' : ''}/></svg>`;
       out += `<span class="mdl-deco-tailwrap" aria-hidden="true" style="position:absolute;left:0;right:0;top:100%;height:200px;overflow:hidden;pointer-events:none;">`
-           + `<svg class="mdl-deco-tail" data-side="${tail}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19 16" width="40" height="34" preserveAspectRatio="none"`
-           + ` style="position:absolute;top:-13px;${tail === 'left' ? 'left' : 'right'}:52px;display:block;overflow:visible;${sh ? `filter:drop-shadow(${sh});` : ''}">`
-           + `<path d="${d}" fill="${_esc(bg)}"${tail === 'left' ? ' transform="translate(19 0) scale(-1 1)"' : ''}/>`
-           + `</svg></span>`;
+           + `<img class="mdl-deco-tail" data-side="${tail}" alt="" draggable="false" width="40" height="34" src="data:image/svg+xml,${encodeURIComponent(svg)}"`
+           + ` style="position:absolute;top:-13px;${tail === 'left' ? 'left' : 'right'}:52px;display:block;max-width:none;${sh ? `filter:drop-shadow(${sh});` : ''}">`
+           + `</span>`;
     }
   }
   out += _tapeHtml(block.dataset.decoTape);
