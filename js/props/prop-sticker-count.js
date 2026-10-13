@@ -8,7 +8,8 @@
  *     아이콘일 때 「시작 번호」「번호 다시 매기기」 행은 숨긴다(뜻이 없다 — 순번은 그대로 세고 있어 1/A 로 돌아오면 산다).
  *     「아이콘 고르기…」 = 레포의 기존 고르개(openIconifyModal · 인터넷 필요)를 그대로 부른다 — 받은 svg 는 쓸 때·그릴 때 거른다.
  *   ★프리셋(번호 · 포인트) — 절 맨 아래. 값은 도구의 표(CountSticker.PRESETS) 한 자리 · 누르면 이 섹션의 마킹 전부에(스위치와 무관) · 히스토리 한 칸.
- *   ★Label 절(1013t2B5) — 마커 옆 텍스트 라벨: 글자(블럭마다 · 일괄 안 함) · 위치 · 크기 · 글자색(이 셋은 「섹션 전체」 스위치를 따른다).
+ *   ★Label 절(1013t2B5) — 마커 옆 텍스트 라벨: 글자(블럭마다 · 일괄 안 함) · 위치 · 크기 · 굵기 · 글자색(이 넷은 「섹션 전체」 스위치를 따른다).
+ *   ★「모서리」 행(2차) — 사각 모양일 때만. 값 = 한 변의 %(data-count-radius). 키가 없는 옛 블럭은 고정 8px 그대로 그려진다.
  *     그리기는 js/blocks/sticker-block.js(_countLabelHTML) — 라벨은 마커 블럭 «안»의 자식이고 상자(선택·손잡이)는 마커 그대로다.
  *     캔버스에서 마커를 더블클릭해도 같은 글자를 고친다(js/sticker-select.js _enterCountLabelEdit).
  *   ★표기·시작 번호 = «묶음» 속성 — 같은 섹션의 카운트 스티커 전부에 쓴다(히스토리 1칸). 스위치와 무관하게 항상.
@@ -57,6 +58,20 @@ function shapeOf(block) {
   return block.dataset.shape === 'square' ? 'square' : 'circle';
 }
 
+/* 라벨의 보이는 값 — 정본은 그리기 쪽 한 자리. (그 모듈이 안 실린 일은 없다 — 패널은 그려진 블럭을 골라야 뜬다. 그래도 안 던지게 둔다.) */
+const labelLook = (block) => window._stickerCountLabelLook?.(block)
+  || { pos: 'right', gap: 0, size: int(block.dataset.fontSize, 26), weight: int(block.dataset.fontWeight, 700), color: block.dataset.bgColor || '' };
+
+/* 사각 모서리 % (0~50). 키가 없으면 옛 고정 8px 를 한 변의 % 로 고친 값(56px 면 14). */
+const RADIUS_MIN = 0, RADIUS_MAX = 50;
+function radiusOf(block) {
+  const d = block.dataset;
+  const raw = parseFloat(d.countRadius);
+  if (Number.isFinite(raw)) return clamp(Math.round(raw), RADIUS_MIN, RADIUS_MAX);
+  const w = int(d.sizeW, int(d.size, 56));
+  return clamp(Math.round(w > 0 ? 800 / w : 0), RADIUS_MIN, RADIUS_MAX);
+}
+
 /* 표기 3갈래 — 모르는 값은 num(js/count-sticker-tool.js _cntStyle 과 같은 뜻). */
 const styleOf = (v) => (v === 'alpha' ? 'alpha' : v === 'icon' ? 'icon' : 'num');
 
@@ -79,10 +94,12 @@ export function countSectionHTML(block) {
   const start = clamp(int(d.countStart, START_MIN), START_MIN, START_MAX);
   const size = clamp(int(d.sizeW, int(d.size, 56)), SIZE_MIN, SIZE_MAX);
   const on = (c) => (c ? ' active' : '');
-  /* 옆 라벨(1013t2B5) — 그리기(js/blocks/sticker-block.js _countLabelHTML)와 같은 폴백: 자리 = right · 크기 = 마커 폰트 크기 · 색 = 마커 배경색 */
-  const labelPos = LABEL_POS.includes(d.countLabelPos) ? d.countLabelPos : 'right';
-  const labelSize = clamp(int(d.countLabelSize, int(d.fontSize, 26)), FS_MIN, FS_MAX);
-  const labelColor = d.countLabelColor || d.bgColor || '#000000';
+  /* 옆 라벨(1013t2B5) — 보이는 값은 «그리기와 같은 한 자리»에서 읽는다(js/blocks/sticker-block.js _countLabelLook · 2차 D6).
+     ⛔폴백을 여기 다시 적지 마라 — 1차에 패널(검정)과 그리기(스티커 기본색)가 갈렸다. */
+  const lk = labelLook(block);
+  const labelPos = lk.pos, labelSize = clamp(lk.size, FS_MIN, FS_MAX), labelColor = lk.color, labelWeight = lk.weight;
+  /* 사각 모서리(data-count-radius = 한 변의 % · 없으면 옛 고정 8px) — 칸에는 지금 그려진 값에 가장 가까운 % 를 보인다 */
+  const radiusPct = radiusOf(block);
   return `
     <div class="prop-section" id="stk-count-section">
       <div class="prop-section-title">Marking</div>
@@ -121,6 +138,10 @@ export function countSectionHTML(block) {
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 2"><circle cx="8" cy="8" r="5.5"/></svg>
           </button>
         </div>
+      </div>
+      <div class="prop-row" id="stk-count-radius-row" style="display:${shape === 'square' ? 'flex' : 'none'};"><span class="prop-label">모서리</span>
+        <input type="range" class="prop-slider" id="stk-count-radius" min="${RADIUS_MIN}" max="${RADIUS_MAX}" step="1" value="${radiusPct}" title="사각 모서리의 둥글기 — 한 변의 % (50 = 원)">
+        <input type="number" class="prop-number" id="stk-count-radius-num" min="${RADIUS_MIN}" max="${RADIUS_MAX}" value="${radiusPct}" aria-label="모서리 %">
       </div>
       <div class="prop-row" id="stk-count-start-row" style="display:${isIcon ? 'none' : 'flex'};"><span class="prop-label">시작 번호</span>
         <input type="number" class="prop-number" id="stk-count-start" min="${START_MIN}" max="${START_MAX}" step="1" value="${start}" title="이 섹션의 첫 번호 (알파벳 표기에서는 1 = A)">
@@ -165,6 +186,12 @@ export function countSectionHTML(block) {
       <div class="prop-row"><span class="prop-label">크기</span>
         <input type="range" class="prop-slider" id="stk-count-label-size" min="${FS_MIN}" max="${FS_MAX}" step="1" value="${labelSize}">
         <input type="number" class="prop-number" id="stk-count-label-size-num" min="${FS_MIN}" max="${FS_MAX}" value="${labelSize}">
+      </div>
+      <div class="prop-row"><span class="prop-label">굵기</span>
+        <select class="prop-select" id="stk-count-label-weight" aria-label="라벨 굵기">
+          ${[[300, 'Light'], [400, 'Regular'], [500, 'Medium'], [600, 'Semibold'], [700, 'Bold'], [800, 'Extrabold'], [900, 'Black']]
+            .map(([w, t]) => `<option value="${w}"${labelWeight === w ? ' selected' : ''}>${t}</option>`).join('')}
+        </select>
       </div>
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
@@ -236,6 +263,25 @@ export function wireCountSection(panel, block, rerender) {
     });
   });
 
+  /* 모서리 — 사각 모양일 때만 보인다 · 스위치를 따른다. 값 = 한 변의 %. */
+  const radS = $('stk-count-radius'), radN = $('stk-count-radius-num');
+  if (radS && radN) {
+    const applyRadius = (raw) => {
+      const v = parseInt(raw, 10);
+      if (!Number.isFinite(v)) return;
+      const next = clamp(v, RADIUS_MIN, RADIUS_MAX);
+      block.dataset.countRadius = String(next);
+      radS.value = String(next); radN.value = String(next);
+      redraw();
+      syncCountGroup(block, ['countRadius']);
+    };
+    const doneRad = () => commit('마킹 모서리');
+    radS.addEventListener('input', () => applyRadius(radS.value));
+    radN.addEventListener('input', () => applyRadius(radN.value));
+    radS.addEventListener('change', doneRad);
+    radN.addEventListener('change', doneRad);
+  }
+
   /* 시작 번호 — 묶음 */
   const startEl = $('stk-count-start');
   if (startEl) {
@@ -288,8 +334,10 @@ export function wireCountSection(panel, block, rerender) {
     window.openIconifyModal((picked) => {
       const svg = picked && typeof picked.svg === 'string' ? picked.svg : '';
       if (!/^\s*<svg[\s>]/i.test(svg)) { window.showToast?.('⚠️ 아이콘을 받지 못했습니다'); return; }
-      CS.setGroup(sec(), { style: 'icon', icon: 'custom', iconSvg: svg });
-      if (block.dataset.countIcon !== 'custom' || block.dataset.countIconSvg === undefined) { window.showToast?.('⚠️ 쓸 수 없는 아이콘입니다'); return; }
+      /* setGroup 은 «쓴 블럭 수»를 돌려준다 — 걸러서 그릴 것이 안 남았거나 상한을 넘으면 0(아무것도 안 쓴다 · 2차 D8).
+         그때는 히스토리를 찍지 않고 알리기만 한다(아이콘이 안 바뀌었는데 「마킹 아이콘」 칸이 생기지 않게). */
+      const wrote = CS.setGroup(sec(), { style: 'icon', icon: 'custom', iconSvg: svg });
+      if (!wrote) { window.showToast?.('⚠️ 쓸 수 없는 아이콘입니다'); return; }
       syncIconRows();
       commit('마킹 아이콘');
     }, { hideSize: true });
@@ -352,9 +400,17 @@ export function wireCountSection(panel, block, rerender) {
     lsN.addEventListener('change', doneLs);
   }
 
+  /* 굵기 — 스위치를 따른다. 마커 안 글자·아이콘의 굵기와는 따로다(자기 키). */
+  $('stk-count-label-weight')?.addEventListener('change', (e) => {
+    block.dataset.countLabelWeight = e.target.value;
+    redraw();
+    syncCountGroup(block, ['countLabelWeight']);
+    commit('마킹 라벨 굵기');
+  });
+
   /* 글자색 — 스위치를 따른다 */
   wireColorField('stk-clabel', {
-    initialAlpha: parseAlphaFromColor(block.dataset.countLabelColor || block.dataset.bgColor || '#000000'),
+    initialAlpha: parseAlphaFromColor(labelLook(block).color),
     onApply: (c) => { block.dataset.countLabelColor = c; redraw(); syncCountGroup(block, ['countLabelColor']); },
     onCommit: () => commit('마킹 라벨 색'),
   });

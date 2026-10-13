@@ -11,6 +11,11 @@
  *   M8 섹션 경계 — 마커가 왼쪽 경계에 걸쳐도 오른쪽 라벨은 안 잘린다(오른쪽 inset 이 음수) · 라벨 없는 것의 --sec-clip 은 예전 값
  *   M9 프리셋 「포인트」 — 한 번에 사각·주황·흰 꺾쇠·흰 라벨(섹션 전부) · ⌘Z 한 칸 / 「번호」 = 기본 꼴로
  *   M9b 「아이콘 고르기…」 — 고르개가 준 svg 를 걸러서 섹션 전부에 넣는다 · img 폴백은 안 쓴다(고르개는 «대역» — 모달·네트워크를 안 연다)
+ *   ── 2차(이벨류에이터 재검 반영) ──
+ *   M5b 라벨 색 폴백 — 패널 칸이 보이는 색 = 그려진 색(배경색 키가 없는 블럭에서도 · D6)
+ *   M6c 인라인 붙여넣기 — html 을 붙여도 라벨 DOM 에 태그가 안 생긴다(평문만 · D7) · ⌘B 도 태그를 안 만든다
+ *   M7b 살아남기(빈 길) — ⌘C⌘V · A/B 변형 · 섹션 템플릿 넣기 뒤에도 아이콘·라벨이 같고 사본이 묶여 있다(더블클릭 편집이 열린다)
+ *   M9c 모서리·라벨 굵기 — 패널에서 바꿀 수 있다(모서리 = 한 변의 % · 라벨 굵기는 마커 굵기와 따로)
  *   M10 내보내기 클론 — 에디터 CSS 가 없는 문서에서도 라벨이 마커 오른쪽·세로 가운데(자리 스타일이 인라인)
  * ★자리·크기는 «레이아웃 px»(offset* · dataset)로 견준다. 화면 사각형은 «누를 점»과 «두 사각형의 상대 관계»에만 쓴다.
  * ⛔파일 선택창 · 네트워크 · Iconify 모달은 안 연다(아이콘은 내장 글리프와 setter 로만).
@@ -505,6 +510,7 @@ test('M10 내보내기 클론 — 에디터 CSS 가 없는 문서에서도 라�
 
 /* ── 프리셋 · 아이콘 고르기(1013t2B5) ────────────────────────────────────────────────────────────── */
 
+const DARK = 'rgb(26, 26, 26)';          // #1a1a1a — COUNT_STK_PRESETS.point.textColor(꺾쇠 색 · 그림의 꺾쇠는 짙다)
 const ORANGE = 'rgb(235, 98, 23)';       // #eb6217 — js/count-sticker-tool.js COUNT_STK_PRESETS.point.bgColor (글자로 박는다)
 
 /* 그 섹션 마킹들의 «꼴» — 모양·색·아이콘·라벨 색. */
@@ -512,10 +518,10 @@ const shapeLook = (page, secId) => page.evaluate((id) => [...document.querySelec
   const c = getComputedStyle(b), first = b.querySelector(':scope > .sticker-count-icon > svg')?.firstElementChild, lab = b.querySelector(':scope > .sticker-count-label');
   return { radius: c.borderRadius, bg: c.backgroundColor, points: first ? first.getAttribute('points') : null, stroke: first ? getComputedStyle(first).stroke : null,
     num: b.querySelector(':scope > .sticker-text')?.textContent ?? null, label: lab ? lab.textContent : null, labelColor: lab ? getComputedStyle(lab).color : null,
-    labelLeft: lab ? lab.offsetLeft - b.offsetWidth : null };
+    labelLeft: lab ? lab.offsetLeft - b.offsetWidth : null, labelFs: lab ? getComputedStyle(lab).fontSize : null, labelFw: lab ? getComputedStyle(lab).fontWeight : null };
 }), secId);
 
-test('M9 프리셋 「포인트」 — 한 번에 사각·주황·흰 꺾쇠·흰 라벨(섹션 전부) · ⌘Z 한 칸 / 「번호」는 기본 꼴로', async ({ page }) => {
+test('M9 프리셋 「포인트」 — 한 번에 주황 둥근 네모·짙은 꺾쇠·흰 굵은 라벨(섹션 전부) · ⌘Z 한 칸 / 「번호」는 기본 꼴로', async ({ page }) => {
   const errs = await three(page);
   await typeLabel(page, '메쉬포켓');
   await commitField(page);
@@ -525,18 +531,24 @@ test('M9 프리셋 「포인트」 — 한 번에 사각·주황·흰 꺾쇠·�
   expect([a0[2].label, a0[2].labelColor], '★전제: 셋째의 라벨은 마커 배경색(검정)').toEqual(['메쉬포켓', 'rgb(0, 0, 0)']);
   expect(await page.evaluate(() => document.querySelectorAll('#stk-count-presets [data-count-preset]').length), '★전제: 프리셋 단추 둘').toBe(2);
 
-  const point = { radius: '8px', bg: ORANGE, points: CHEVRON, stroke: WHITE, num: null };
+  /* 그림(ref/1013t2-img02.png)의 꼴 — 2차(D2): 꺾쇠는 «짙은색»(흰색이 아니다) · 모서리 = 한 변의 25% */
+  const point = { radius: '25%', bg: ORANGE, points: CHEVRON, stroke: DARK, num: null };
   const h = await expectOneUndoStep(page, async () => {
     await page.click('#stk-count-presets [data-count-preset="point"]');
     await expect.poll(async () => pluck(await shapeLook(page, 'secA'), 'bg'), '★전제: 셋 다 주황이 됐다').toEqual([ORANGE, ORANGE, ORANGE]);
     const a = await shapeLook(page, 'secA');
-    expect(a.map((m) => ({ radius: m.radius, bg: m.bg, points: m.points, stroke: m.stroke, num: m.num })), '포인트: 사각 · 주황 · 흰 꺾쇠(섹션 셋 다)').toEqual([point, point, point]);
+    expect(a.map((m) => ({ radius: m.radius, bg: m.bg, points: m.points, stroke: m.stroke, num: m.num })), '포인트: 둥근 네모 · 주황 · 짙은 꺾쇠(섹션 셋 다)').toEqual([point, point, point]);
     expect([a[2].label, a[2].labelColor, a[2].labelLeft], '포인트: 라벨 글자는 그대로 · 흰색 · 마커 오른쪽').toEqual(['메쉬포켓', WHITE, 11]);
+    expect([a[2].labelFs, a[2].labelFw], '포인트: 라벨 글자 = 마커 한 변(56)의 0.9배 · 굵게').toEqual(['50px', '700']);
+    expect(a[2].stroke === a[2].labelColor, '꺾쇠 색과 라벨 색은 따로다(짙은 꺾쇠 · 흰 글자)').toBe(false);
     expect(pluck(a, 'label').slice(0, 2), '라벨 글자가 없는 둘에는 라벨이 안 생긴다').toEqual([null, null]);
     const panel = await page.evaluate(() => ({ style: document.querySelector('#stk-count-style .active')?.dataset.countStyle, shape: document.querySelector('#stk-count-shape .active')?.dataset.countShape,
       glyph: document.querySelector('#stk-count-glyph .active')?.dataset.countGlyph, bgHex: document.getElementById('stk-bg-hex')?.value,
+      txtHex: document.getElementById('stk-txt-hex')?.value, radius: document.getElementById('stk-count-radius-num')?.value,
+      labelHex: document.getElementById('stk-clabel-hex')?.value, labelSize: document.getElementById('stk-count-label-size-num')?.value, labelWeight: document.getElementById('stk-count-label-weight')?.value,
       handles: document.querySelectorAll('#secA .sticker-block.selected .sticker-corner-handle').length }));
-    expect(panel, '패널이 새 꼴로 다시 그려졌다 · 손잡이 그대로').toEqual({ style: 'icon', shape: 'square', glyph: 'chevron-right', bgHex: 'EB6217', handles: 4 });
+    expect(panel, '패널이 새 꼴로 다시 그려졌다 · 손잡이 그대로')
+      .toEqual({ style: 'icon', shape: 'square', glyph: 'chevron-right', bgHex: 'EB6217', txtHex: '1A1A1A', radius: '25', labelHex: 'FFFFFF', labelSize: '50', labelWeight: '700', handles: 4 });
   }, '마킹 프리셋 포인트', { soft: true });
   expect(await shapeLook(page, 'secB'), '다른 섹션은 그대로(⌘Z 뒤에도)').toEqual(b0);
   expect(h.dPos >= 1 && h.seqNew, `A1 프리셋 직후 꼭대기가 새 칸 — Δpos=${h.dPos} top=${h.topAction}`).toBe(true);
@@ -594,5 +606,160 @@ test('M9b 아이콘 고르기 — 고르개가 준 svg 를 걸러 섹션 전부�
   await page.click('#stk-count-icon-pick');
   expect(pluck(await state(), 'stored'), 'img 문자열: 앞의 아이콘 그대로').toEqual([CLEAN, CLEAN, CLEAN]);
   expect(await page.evaluate(() => [window.__pickCalls.length, window.__pwned ?? null, document.querySelectorAll('#secA .sticker-block img').length]), '고르개는 불렀지만 쓰지 않았다 · img 0').toEqual([3, null, 0]);
+
+  /* ★거절(2차 · D8) — svg 꼴이지만 걸러 보니 «그릴 것»이 없는 것: 아이콘도 히스토리도 안 바뀐다(1차에는 「마킹 아이콘」 칸이 헛찍혔다) */
+  const tip0 = await page.evaluate(() => { const t = window.getHistoryTip(); return [t.pos, t.len, t.seq]; });
+  for (const bad of ['<svg viewBox="0 0 24 24"><script>window.__pwned=4</script><g><title>빈 껍데기</title></g></svg>', '<svg viewBox="0 0 24 24"><path d="M0 0" onclick="x']) {
+    await page.evaluate((svg) => { window.__pickReply = { name: 'x', svg }; }, bad);
+    await page.click('#stk-count-icon-pick');
+  }
+  expect(await page.evaluate(() => window.__pickCalls.length), '★전제: 고르개 입구를 두 번 더 불렀다').toBe(5);
+  expect(pluck(await state(), 'stored'), '거절: 앞의 아이콘 그대로').toEqual([CLEAN, CLEAN, CLEAN]);
+  expect(await page.evaluate(() => { const t = window.getHistoryTip(); return [t.pos, t.len, t.seq]; }), '거절: 히스토리가 한 칸도 안 생긴다').toEqual(tip0);
+  expect(await page.evaluate(() => window.__pwned ?? null)).toBeNull();
   expect(errs).toEqual([]);
+});
+
+/* ── 2차 — 이벨류에이터 재검 반영 ─────────────────────────────────────────────────────────────── */
+
+test('M5b 라벨 색 폴백 — 패널 칸이 보이는 색 = 그려진 색(배경색 키가 없는 블럭에서도)', async ({ page }) => {
+  await three(page);
+  await typeLabel(page, '포켓');
+  await commitField(page);
+  /* 색을 문자열(#RRGGBB)로 읽는 자 — 그려진 색과 패널 칸을 같은 꼴로 견준다 */
+  const both = () => page.evaluate(() => {
+    const b = document.querySelector('#secA .sticker-block.selected'), lab = b.querySelector(':scope > .sticker-count-label');
+    const hex = (rgb) => '#' + rgb.match(/\d+/g).slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('').toUpperCase();
+    return { drawn: hex(getComputedStyle(lab).color), field: '#' + document.getElementById('stk-clabel-hex').value.toUpperCase(), hasBg: 'bgColor' in b.dataset, hasLabelColor: 'countLabelColor' in b.dataset };
+  });
+  expect(await both(), '★전제: 배경색 키가 있는 보통 블럭 — 라벨 = 마커 배경색(검정) · 패널 칸도 같다').toEqual({ drawn: '#000000', field: '#000000', hasBg: true, hasLabelColor: false });
+  /* 손댄 옛 블럭처럼 배경색 키를 지우고 다시 그린 뒤 패널을 다시 연다 */
+  await page.evaluate(() => { const b = document.querySelector('#secA .sticker-block.selected'); delete b.dataset.bgColor; window.renderStickerBlock(b); window._addCornerHandles(b); window.showStickerProperties(b); });
+  const r = await both();
+  expect([r.hasBg, r.hasLabelColor], '★전제: 배경색 키도 라벨색 키도 없다').toEqual([false, false]);
+  expect(r.drawn, '★전제: 그리기의 폴백은 스티커 기본색(빨강)이다').toBe('#E74C3C');
+  expect(r.field, '패널 칸도 같은 색을 보인다(1차: 패널은 검정이었다)').toBe(r.drawn);
+});
+
+test('M6c 인라인 붙여넣기 — html 을 붙여도 라벨에 태그가 안 생긴다(평문만) · ⌘B 도 태그를 안 만든다', async ({ page }) => {
+  await three(page);
+  const r = await waitStableRect(page, '#secA .sticker-block.selected');
+  await clickAt(page, r.cx, r.cy, { sel: '.sticker-block[data-count]' }, { label: '마커 더블클릭', dbl: true });
+  await expect.poll(() => page.evaluate(() => document.activeElement?.classList.contains('sticker-count-label') || false), '★전제: 라벨 편집이 열렸다').toBe(true);
+  /* 합성 paste — text/html 과 text/plain 을 같이 싣는다(서식 있는 글을 복사했을 때의 꼴). 편집기는 평문 쪽만 넣어야 한다. */
+  const pasted = await page.evaluate(() => {
+    const lab = document.activeElement;
+    const dt = new DataTransfer();
+    dt.setData('text/html', '<b>굵게</b><img src="x" onerror="window.__pwned=1"><span style="color:red">빨강</span>');
+    dt.setData('text/plain', '굵게 빨강');
+    const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+    const notCancelled = lab.dispatchEvent(ev);
+    return { types: [...dt.types].sort(), prevented: !notCancelled, kids: lab.children.length, text: lab.textContent, html: lab.innerHTML };
+  });
+  expect(pasted.types, '★전제: 붙여넣기에 html 과 평문이 둘 다 실렸다').toEqual(['text/html', 'text/plain']);
+  expect([pasted.prevented, pasted.kids, pasted.text], '붙여넣기: 기본 동작을 막고 평문만 넣는다 — 자식 요소 0').toEqual([true, 0, '굵게 빨강']);
+  expect(/<|onerror/.test(pasted.html), `라벨 안에 태그가 없다 — ${pasted.html}`).toBe(false);
+  /* ⌘B — 글자를 골라 눌러도 서식 태그가 안 생긴다 */
+  await page.keyboard.press('Meta+a');
+  await page.keyboard.press('Meta+b');
+  expect(await page.evaluate(() => { const lab = document.activeElement; return [lab.classList.contains('sticker-count-label'), lab.children.length, lab.textContent]; }), '⌘B: 여전히 평문').toEqual([true, 0, '굵게 빨강']);
+  await page.keyboard.press('Enter');
+  const done = await page.evaluate(() => { const b = document.querySelectorAll('#secA .sticker-block[data-count]')[2]; const lab = b.querySelector(':scope > .sticker-count-label');
+    return { key: b.dataset.countLabel, text: lab.textContent, kids: lab.children.length, pwned: window.__pwned ?? null }; });
+  expect(done, '확정: 평문이 그대로 실린다 · 아무것도 실행되지 않았다').toEqual({ key: '굵게 빨강', text: '굵게 빨강', kids: 0, pwned: null });
+});
+
+test('M7b 살아남기(빈 길) — ⌘C⌘V · A/B 변형 · 섹션 템플릿 넣기 뒤에도 아이콘·라벨이 같고 사본이 묶여 있다', async ({ page }) => {
+  test.setTimeout(90000);
+  const errs = await three(page);
+  await page.click('#stk-count-style [data-count-style="icon"]');
+  await page.click('#stk-count-glyph [data-count-glyph="star"]');
+  await typeLabel(page, '방수포켓');
+  await commitField(page);
+  /* 라벨을 든 마킹들 — 자리(레이아웃)는 안 본다(변형 사본은 숨은 섹션일 수 있다). dataset · 그려진 svg · 라벨의 인라인 자리 · 묶임 표시. */
+  const STAR = '8 2.2 9.8 6 14 6.5 10.9 9.3 11.7 13.4 8 11.4 4.3 13.4 5.1 9.3 2 6.5 6.2 6';
+  const labeled = () => page.evaluate(() => [...document.querySelectorAll('#canvas .sticker-block[data-count]')].filter((b) => b.dataset.countLabel).map((b) => {
+    const lab = b.querySelector(':scope > .sticker-count-label'), first = b.querySelector(':scope > .sticker-count-icon > svg')?.firstElementChild;
+    return { id: b.id, style: b.dataset.countStyle, icon: b.dataset.countIcon, points: first ? first.getAttribute('points') : null,
+      label: lab ? lab.textContent : null, labelLeft: lab ? lab.style.left : null, labels: b.querySelectorAll('.sticker-count-label').length, bound: b._stickerBound === true };
+  }));
+  const want = { style: 'icon', icon: 'star', points: STAR, label: '방수포켓', labelLeft: '100%', labels: 1, bound: true };
+  const strip = (rows) => rows.map(({ id, ...rest }) => rest);
+  const total = () => page.evaluate(() => document.querySelectorAll('#canvas .sticker-block[data-count]').length);
+  const first = await labeled();
+  expect(strip(first), '★전제: 아이콘(star)과 라벨을 든 마킹이 하나 있다').toEqual([want]);
+  expect(await total(), '★전제: 마킹 4개(secA 3 + secB 1)').toBe(4);
+
+  /* ⑴ ⌘C ⌘V — 붙여넣은 사본도 같은 모습이고 묶여 있다 */
+  await pickMark(page, 2);
+  await page.keyboard.press('Meta+c');
+  await page.keyboard.press('Meta+v');
+  await expect.poll(total, '★전제: ⌘C⌘V 로 마킹이 하나 늘었다').toBe(5);
+  const two = await labeled();
+  expect(strip(two), '⌘C⌘V: 원본과 사본 둘 다 같은 아이콘·라벨(라벨은 하나씩)').toEqual([want, want]);
+  expect(new Set(two.map((x) => x.id)).size, '사본의 id 는 새로 지었다').toBe(2);
+  /* 사본의 편집 바인딩 — 실제 더블클릭으로 라벨 편집이 열린다 */
+  const copyId = two.find((x) => x.id !== first[0].id).id;
+  const cr = await waitStableRect(page, `[id="${copyId}"]`);
+  const onCopy = await page.evaluate(([x, y, id]) => { const e = document.elementFromPoint(x, y), b = document.getElementById(id);
+    return !!e && (e === b || b.contains(e)); }, [cr.cx, cr.cy, copyId]);
+  expect(onCopy, '★전제: 누를 점의 맨 위 요소가 붙여넣은 사본이다').toBe(true);
+  await clickAt(page, cr.cx, cr.cy, { sel: '.sticker-block[data-count]' }, { label: '사본 더블클릭', dbl: true });
+  await expect.poll(() => page.evaluate((id) => { const lab = document.getElementById(id)?.querySelector(':scope > .sticker-count-label');
+    return !!lab && lab.getAttribute('contenteditable') === 'true' && document.activeElement === lab; }, copyId), '사본을 더블클릭하면 라벨 편집이 열린다').toBe(true);
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => strip(await labeled()), '편집을 닫은 뒤에도 둘 다 그대로').toEqual([want, want]);
+
+  /* ⑵ A/B 변형 — 섹션 사본 안의 마킹도 다시 그려지고 묶인다 */
+  /* 붙여넣은 사본이 어느 섹션에 놓였는지는 이 칸이 정하지 않는다 — secA 안의 수를 «재서» 기대값을 짓는다 */
+  const inA = await page.evaluate(() => ({ all: document.querySelectorAll('#secA .sticker-block[data-count]').length,
+    labeled: [...document.querySelectorAll('#secA .sticker-block[data-count]')].filter((b) => b.dataset.countLabel).length }));
+  expect(inA.all >= 3 && inA.labeled >= 1, `★전제: secA 에 마킹 ${inA.all}개 · 그중 라벨 든 것 ${inA.labeled}개`).toBe(true);
+  const beforeVar = await total();
+  await page.evaluate(() => window.createVariation(document.getElementById('secA')));
+  await expect.poll(total, '★전제: 변형 사본이 생겨 마킹이 secA 몫만큼 늘었다').toBe(beforeVar + inA.all);
+  const afterVar = await labeled();
+  expect(strip(afterVar), '변형: 라벨을 든 마킹(원본 + 사본)이 전부 같은 모습 · 묶여 있다').toEqual(Array(2 + inA.labeled).fill(want));
+  expect(new Set(afterVar.map((x) => x.id)).size, '변형 사본의 id 가 원본과 안 겹친다').toBe(2 + inA.labeled);
+
+  /* ⑶ 섹션 템플릿 넣기 — 저장된 꼴(직렬화본)을 빈 캔버스에 넣는다(coin-sticker K11 과 같은 길) */
+  const tplHtml = await page.evaluate(() => window.serializeSectionClone(document.getElementById('secA')));
+  expect([/data-count-label="방수포켓"/.test(tplHtml), /data-count-icon="star"/.test(tplHtml), /contenteditable|sticker-corner-handle/.test(tplHtml)],
+    '★전제: 템플릿 본문에 라벨·아이콘 키가 실렸고 편집·손잡이 잔재는 없다').toEqual([true, true, false]);
+  await setup(page);
+  expect(await total(), '★전제: 캔버스에 마킹이 없다').toBe(0);
+  await page.evaluate((html) => {
+    const real = { loadTemplateCanvas: async () => html };
+    window.electronAPI = new Proxy(real, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) });
+  }, tplHtml);
+  await page.evaluate(() => window.insertTemplate({ id: 'tpl_marking', name: 'marking', type: 'section', tags: [] }));
+  await expect.poll(async () => (await labeled()).length, '★전제: 템플릿을 넣어 라벨 든 마킹이 생겼다').toBe(inA.labeled);
+  const tpl = await labeled();
+  expect(strip(tpl), '템플릿: 넣은 마킹도 같은 아이콘·라벨 · 묶여 있다').toEqual(Array(inA.labeled).fill(want));
+  expect(tpl.every((x) => !two.some((o) => o.id === x.id)), '템플릿으로 넣을 때 블럭 id 를 새로 짓는다').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('M9c 모서리·라벨 굵기 — 패널에서 바꿀 수 있다(모서리 = 한 변의 % · 라벨 굵기는 마커 굵기와 따로)', async ({ page }) => {
+  await three(page);
+  const rowShown = () => page.evaluate(() => getComputedStyle(document.getElementById('stk-count-radius-row')).display);
+  expect(await rowShown(), '★전제: 원 모양일 때 「모서리」 행은 숨어 있다').toBe('none');
+  await page.click('#stk-count-shape [data-count-shape="square"]');
+  expect(await rowShown(), '사각이면 「모서리」 행이 보인다').toBe('flex');
+  const radii = () => page.evaluate(() => [...document.querySelectorAll('#secA .sticker-block[data-count]')].map((b) => [getComputedStyle(b).borderRadius, b.dataset.countRadius ?? null]));
+  expect(await radii(), '★전제: 키가 없으면 옛 고정값 8px(옛 저장본과 같은 그림)').toEqual([['8px', null], ['8px', null], ['8px', null]]);
+  await typeNumber(page, '#stk-count-radius-num', 30);
+  await expect.poll(radii, '모서리 30 → 한 변의 30%(섹션 셋 다 · 스위치 켬)').toEqual([['30%', '30'], ['30%', '30'], ['30%', '30']]);
+  expect(await page.evaluate(() => document.getElementById('stk-count-radius').value), '슬라이더도 같은 값').toBe('30');
+
+  /* 라벨 굵기 — 마커 굵기(700)는 그대로 두고 라벨만 */
+  await typeLabel(page, '포켓');
+  await commitField(page);
+  const weights = () => page.evaluate(() => { const b = document.querySelector('#secA .sticker-block.selected'), lab = b.querySelector(':scope > .sticker-count-label');
+    return { label: getComputedStyle(lab).fontWeight, marker: getComputedStyle(b).fontWeight, key: b.dataset.countLabelWeight ?? null, markerKey: b.dataset.fontWeight }; });
+  expect(await weights(), '★전제: 굵기 키가 없으면 라벨은 마커 굵기를 따른다').toEqual({ label: '700', marker: '700', key: null, markerKey: '700' });
+  await page.selectOption('#stk-count-label-weight', '400');
+  expect(await weights(), '라벨 굵기만 바뀐다').toEqual({ label: '400', marker: '700', key: '400', markerKey: '700' });
+  await page.selectOption('#stk-fw', '900');
+  expect(await weights(), '마커 굵기를 바꿔도 라벨은 제 굵기 그대로').toEqual({ label: '400', marker: '900', key: '400', markerKey: '900' });
 });

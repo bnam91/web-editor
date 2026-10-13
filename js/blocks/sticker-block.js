@@ -69,32 +69,47 @@ function _countIconHTML(block, sizePx, color) {
  *   ★자리 스타일은 전부 «인라인»이다 — 저장본·미리보기·내보내기 클론이 에디터 CSS 없이도 같은 자리에 그린다.
  *     (CSS 에는 «편집 중» 표시만 있다 — css/editor-blocks.css.) ⛔편집 진입 때 인라인 style 을 쓰지 마라(저장본에 굳는다).
  *   자리 4갈래(data-count-label-pos): right(기본) · left · top · bottom — 마커 옆에 gap(= 마커 폭의 20%)만큼 띄운다.
- *   색(data-count-label-color)이 없으면 마커 배경색을, 크기(data-count-label-size)가 없으면 마커 폰트 크기를 따른다.
+ *   색(data-count-label-color)이 없으면 마커 배경색을, 크기(data-count-label-size)가 없으면 마커 폰트 크기를,
+ *   굵기(data-count-label-weight)가 없으면 마커 폰트 굵기를 따른다 — 폴백은 _countLabelLook 한 자리.
  *   글자는 «평문»이다 — 이스케이프해서 넣는다(\n 은 white-space:pre 가 줄바꿈으로 그린다).
  *   opts.empty = 글자가 없어도 빈 라벨을 만든다(더블클릭 인라인 편집의 진입 — js/sticker-select.js). */
 const COUNT_LABEL_POS = ['right', 'left', 'top', 'bottom'];
+/* 라벨의 «보이는 값» 한 자리(2차 · D6) — 그리기와 우측 패널(js/props/prop-sticker-count.js)이 같은 폴백을 읽는다.
+   ⛔패널에 폴백을 다시 적지 마라(1차에 패널은 검정, 그리기는 스티커 기본색이라 색 키 없는 블럭에서 둘이 갈렸다). */
+function _countLabelLook(block) {
+  const d = block.dataset;
+  const size0 = parseInt(d.size) || STICKER_DEFAULTS.size;
+  const sizeW = parseInt(d.sizeW) || size0;
+  const fs    = parseInt(d.fontSize) || STICKER_DEFAULTS.fontSize;
+  const fw    = parseInt(d.fontWeight) || STICKER_DEFAULTS.fontWeight;
+  const lsRaw = parseInt(d.countLabelSize);
+  const lwRaw = parseInt(d.countLabelWeight);
+  return {
+    pos:    COUNT_LABEL_POS.includes(d.countLabelPos) ? d.countLabelPos : 'right',
+    gap:    Math.round(sizeW * 0.2),
+    size:   Number.isFinite(lsRaw) ? Math.min(150, Math.max(6, lsRaw)) : fs,
+    weight: Number.isFinite(lwRaw) ? Math.min(900, Math.max(100, lwRaw)) : fw,
+    color:  d.countLabelColor || d.bgColor || STICKER_DEFAULTS.bgColor,
+  };
+}
+window._stickerCountLabelLook = _countLabelLook;
+
 function _countLabelHTML(block, opts) {
   const d = block.dataset;
   if (!d.count) return '';
   const raw = d.countLabel;
   const has = raw != null && raw !== '';
   if (!has && !(opts && opts.empty)) return '';
-  const size0 = parseInt(d.size) || STICKER_DEFAULTS.size;
-  const sizeW = parseInt(d.sizeW) || size0;
-  const fs    = parseInt(d.fontSize) || STICKER_DEFAULTS.fontSize;
-  const fw    = parseInt(d.fontWeight) || STICKER_DEFAULTS.fontWeight;
-  const pos   = COUNT_LABEL_POS.includes(d.countLabelPos) ? d.countLabelPos : 'right';
-  const gap   = Math.round(sizeW * 0.2);
-  const lsRaw = parseInt(d.countLabelSize);
-  const ls    = Number.isFinite(lsRaw) ? Math.min(150, Math.max(6, lsRaw)) : fs;
-  const color = String(d.countLabelColor || d.bgColor || STICKER_DEFAULTS.bgColor).replace(/["<>;]/g, '');
+  const look  = _countLabelLook(block);
+  const pos   = look.pos, gap = look.gap;
+  const color = String(look.color).replace(/["<>;]/g, '');
   const place = pos === 'left'   ? `right:100%;top:50%;transform:translateY(-50%);margin-right:${gap}px;text-align:right;`
               : pos === 'top'    ? `bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:${gap}px;text-align:center;`
               : pos === 'bottom' ? `top:100%;left:50%;transform:translateX(-50%);margin-top:${gap}px;text-align:center;`
               :                    `left:100%;top:50%;transform:translateY(-50%);margin-left:${gap}px;text-align:left;`;
   const safe = has ? stripCtlChars(String(raw)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
   return `<span class="sticker-count-label" data-pos="${pos}" style="position:absolute;${place}`
-    + `white-space:pre;line-height:1.2;font-size:${ls}px;font-weight:${fw};font-style:normal;text-decoration:none;color:${color};outline:none;">${safe}</span>`;
+    + `white-space:pre;line-height:1.2;font-size:${look.size}px;font-weight:${look.weight};font-style:normal;text-decoration:none;color:${color};outline:none;">${safe}</span>`;
 }
 window._stickerCountLabelHTML = _countLabelHTML;
 
@@ -412,7 +427,9 @@ function _renderStickerBlockInner(block) {
     return;
   }
 
-  const radius = shape === 'circle' ? '50%' : '8px';
+  /* 마킹 블럭의 사각 모서리(data-count-radius = 한 변의 % · 0~50 · 1013t2B5 2차) — 키가 없으면 옛 고정값 8px 그대로(옛 저장본·일반 스티커 무변). */
+  const _cntRadRaw = block.dataset.count ? parseFloat(block.dataset.countRadius) : NaN;
+  const radius = shape === 'circle' ? '50%' : (Number.isFinite(_cntRadRaw) ? `${Math.min(50, Math.max(0, _cntRadRaw))}%` : '8px');
   if (mode === 'image' && imgSrc) {
     // 이미지 모드 — 배경 색 무시, 이미지로 채움
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`
@@ -687,6 +704,8 @@ function makeStickerBlock(opts = {}) {
     if (opts.countLabelPos   !== undefined && opts.countLabelPos   !== '') block.dataset.countLabelPos   = opts.countLabelPos;
     if (opts.countLabelColor !== undefined && opts.countLabelColor !== '') block.dataset.countLabelColor = opts.countLabelColor;
     if (opts.countLabelSize  !== undefined && opts.countLabelSize  !== '') block.dataset.countLabelSize  = opts.countLabelSize;
+    if (opts.countLabelWeight !== undefined && opts.countLabelWeight !== '') block.dataset.countLabelWeight = opts.countLabelWeight;
+    if (opts.countRadius     !== undefined && opts.countRadius     !== '') block.dataset.countRadius     = opts.countRadius;
   }
   renderStickerBlock(block);
   // B13(Codex): 프리셋/메뉴로 생성한 스타일도 다음 스티커에 sticky하게 — 생성 직후 기억.

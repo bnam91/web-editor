@@ -11,6 +11,8 @@
 //   data-count-label        마커 옆 텍스트 라벨(평문 · 블럭마다) — 없으면 라벨 없음
 //   data-count-label-pos    right(기본) | left | top | bottom
 //   data-count-label-color  라벨 글자색(없으면 마커 배경색) · data-count-label-size  라벨 글자 크기 px(없으면 마커 폰트 크기)
+//   data-count-label-weight 라벨 글자 굵기(없으면 마커 폰트 굵기) — 마커 안 글자·아이콘과 «따로»
+//   data-count-radius       사각 모양의 모서리 반경 = 한 변의 % (0~50). 없으면 옛 고정값 8px(옛 저장본 그림 무변)
 // 표시 글자 = label(start + k − 1, style) 을 data-text 에 «구워» 넣는다 ⇒ 저장·내보내기가 그대로 탄다(icon 이면 '').
 // ★새 키는 전부 «더하기»다 — 없으면 옛 그림과 100% 같다. 모르는 표기 값은 num 으로 읽는다.
 // 종료: Esc(패널 칸에 포커스가 있어도 · 1013t2B2) · V · 우클릭 · 메뉴 재클릭. 골격은 js/highlight-line-tool.js 와 같다.
@@ -40,22 +42,28 @@ const COUNT_STK_GLYPHS = {
 };
 const COUNT_STK_GLYPH_NAMES = Object.keys(COUNT_STK_GLYPHS);
 const COUNT_STK_GLYPH_DEFAULT = 'chevron-right';
-const COUNT_STK_ICON_SVG_MAX = 200000;      // js/util/sanitize-svg.js SVG_MAX_LEN 과 같은 수
+const COUNT_STK_ICON_SVG_MAX = 20000;       // js/util/sanitize-svg.js SVG_MAX_LEN 과 같은 수(아이콘은 수 KB — 넘으면 거절)
 
 /* 프리셋(1013t2B5) — 「한 벌 만들기」: 누르면 그 섹션의 마킹 «전부»에 깐다(「섹션 전체」 스위치와 무관).
-   set = dataset 에 쓸 키 · unset = 지울 키. 라벨 «글자»·번호·자리·크기는 안 건드린다.
+   set = dataset 에 쓸 키 · unset = 지울 키 · labelSizeRatio = 라벨 글자 크기를 «그 마커의 한 변 × 비율»로 굽는다(블럭마다 크기가 다를 수 있다).
+   라벨 «글자»·번호·자리·마커 크기는 안 건드린다.
    ★색은 «내용» 기본값이다(UI 토큰 아님 — COUNT_STK_DEFAULTS · STICKER_DEFAULTS 와 같은 부류).
-     point 의 주황 = 현빈 예시 그림(ref/1013t2-img02.png)의 마커 색을 픽셀로 읽은 값(#eb6217 · 주황 픽셀 3158개의 최빈 235,98,23).
-   number = 기본(B4)으로 되돌리기 · point = 그림의 꼴(주황 둥근 네모 + 흰 꺾쇠 + 흰 굵은 라벨 글자 · 라벨은 오른쪽). */
+   number = 기본(B4)으로 되돌리기.
+   point  = 현빈 예시 그림(ref/1013t2-img02.png)의 꼴 — 2차에서 그림에 맞춰 고쳤다(이벨류에이터 D2):
+     · 주황 둥근 네모: #eb6217(그림의 주황 픽셀 3158개의 최빈 235,98,23) · 모서리 = 한 변의 25%(data-count-radius)
+     · 안의 꺾쇠는 «짙은색»(textColor #1a1a1a — 그림에서 눈으로 읽은 값 · 픽셀로 못 쟀다) — 1차의 「흰 꺾쇠」는 그림과 달랐다
+     · 옆 글자는 «흰색 굵게»: countLabelColor #ffffff · countLabelWeight 700(꺾쇠 색·마커 굵기와 «따로» 저장되는 키)
+     · 라벨 글자 높이 ≈ 마커 한 변: labelSizeRatio 0.9(마커 56 → 라벨 50px) · 라벨은 오른쪽 */
 const COUNT_STK_PRESETS = {
   number: {
     set: { countStyle: 'num', countShape: 'circle', shape: 'circle', bgColor: '#000000', textColor: '#ffffff' },
-    unset: ['countIcon', 'countIconSvg', 'countLabelColor'],
+    unset: ['countIcon', 'countIconSvg', 'countRadius', 'countLabelColor', 'countLabelWeight', 'countLabelSize'],
   },
   point: {
-    set: { countStyle: 'icon', countIcon: 'chevron-right', countShape: 'square', shape: 'square',
-      bgColor: '#eb6217', textColor: '#ffffff', countLabelColor: '#ffffff', countLabelPos: 'right' },
+    set: { countStyle: 'icon', countIcon: 'chevron-right', countShape: 'square', shape: 'square', countRadius: '25',
+      bgColor: '#eb6217', textColor: '#1a1a1a', countLabelColor: '#ffffff', countLabelWeight: '700', countLabelPos: 'right' },
     unset: ['countIconSvg'],
+    labelSizeRatio: 0.9,
   },
 };
 const COUNT_STK_PRESET_NAMES = Object.keys(COUNT_STK_PRESETS);
@@ -154,7 +162,7 @@ function countStickerInheritFrom(sec) {
   /* 아이콘·라벨 «꾸밈»(1013t2B5)도 물려받는다 — 표기가 icon 인 섹션에 이어 찍으면 같은 아이콘이고, 라벨을 달면 같은 자리·색·크기다.
      ⛔라벨 «글자»(countLabel)는 안 넘긴다 — 새로 찍은 것은 라벨이 없다(블럭마다의 것). */
   ['bgColor', 'textColor', 'fontStyle', 'textDecoration', 'countIcon', 'countIconSvg',
-    'countLabelPos', 'countLabelColor', 'countLabelSize'].forEach((k) => {
+    'countLabelPos', 'countLabelColor', 'countLabelSize', 'countLabelWeight', 'countRadius'].forEach((k) => {
     if (d[k] !== undefined && d[k] !== '') out[k] = d[k];
   });
   return out;
@@ -180,15 +188,19 @@ function _cntRerender(block) {
 // 묶음 속성(표기·시작 번호·아이콘) — 같은 섹션의 카운트 스티커 «전부»에 쓴다. 히스토리는 부르는 쪽이 한 번 찍는다.
 //   patch.icon    = 내장 글리프 이름 | 'custom'
 //   patch.iconSvg = custom 의 svg 문자열 — ★쓸 때 거른다(window._sanitizeSvgString = js/util/sanitize-svg.js).
-//                   거르개가 안 실렸거나 걸러서 빈 문자열이면 «안 쓴다»(날것을 dataset 에 넣지 않는다).
+//                   거르개가 안 실렸거나 · 상한을 넘거나 · 걸러서 «그릴 것»(path·circle·rect…)이 하나도 안 남으면 «거절»한다.
+// ★거절(2차 · D8): patch.icon 이 'custom' 인데 쓸 svg 가 없으면 그 patch 를 «통째로» 안 쓴다(표기 style 도 안 바꾼다) → 0 을 돌려준다.
+//   부르는 쪽(패널)은 0 이면 히스토리를 안 찍고 알린다. 돌려줌 = 쓴 블럭 수.
+const _CNT_SVG_DRAWABLE_RE = /<(?:path|circle|ellipse|rect|line|polyline|polygon)[\s/>]/;
 function countStickerSetGroup(sec, patch) {
   const list = _cntListOf(sec);
   let iconSvg = null;
   if (patch && patch.iconSvg != null) {
     const raw = String(patch.iconSvg);
     const clean = (typeof window._sanitizeSvgString === 'function' && raw.length <= COUNT_STK_ICON_SVG_MAX) ? window._sanitizeSvgString(raw) : '';
-    iconSvg = clean || '';
+    iconSvg = (clean && _CNT_SVG_DRAWABLE_RE.test(clean)) ? clean : '';
   }
+  if (patch && patch.icon === 'custom' && !iconSvg) return 0;
   list.forEach((b) => {
     if (patch && patch.start != null) {
       const s = _cntInt(patch.start, NaN);
@@ -198,8 +210,7 @@ function countStickerSetGroup(sec, patch) {
     if (patch && patch.icon != null) {
       const name = _cntIconName(patch.icon);
       if (name === 'custom') {
-        /* custom 은 거른 svg 가 있을 때만 — 없으면 아이콘을 안 바꾼다 */
-        if (iconSvg) { b.dataset.countIcon = 'custom'; b.dataset.countIconSvg = iconSvg; }
+        b.dataset.countIcon = 'custom'; b.dataset.countIconSvg = iconSvg;     // 위에서 빈 값은 이미 거절했다
       } else {
         b.dataset.countIcon = name;
         delete b.dataset.countIconSvg;
@@ -243,6 +254,10 @@ function countStickerApplyPreset(sec, name) {
   list.forEach((b) => {
     Object.keys(pre.set).forEach((k) => { b.dataset[k] = pre.set[k]; });
     pre.unset.forEach((k) => { delete b.dataset[k]; });
+    if (pre.labelSizeRatio) {
+      const side = _cntInt(b.dataset.sizeW, _cntInt(b.dataset.size, COUNT_STK_DEFAULTS.size));
+      b.dataset.countLabelSize = String(Math.min(150, Math.max(6, Math.round(side * pre.labelSizeRatio))));
+    }
     countStickerApplyText(b);
     _cntRerender(b);
   });

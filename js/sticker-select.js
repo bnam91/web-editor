@@ -610,7 +610,7 @@ window._enterStickerEdit = _enterStickerEdit;
 
 /* 마킹 블럭(data-count)의 옆 라벨 인라인 편집 (1013t2B5).
    · 라벨이 없으면 빈 라벨을 «그리기와 같은 꼴»로 만든다(js/blocks/sticker-block.js _stickerCountLabelHTML — 자리 스타일의 정본은 그쪽 하나).
-   · Enter = 확정 · Shift+Enter = 줄바꿈 · Esc = 확정(위로 안 올린다 — 선택 풀기·도구 끄기로 새지 않게) · 바깥을 누르면(blur) 확정.
+   · 붙여넣기 = 평문만 · ⌘B/⌘I/⌘U 는 먹는다(라벨은 평문) · Enter = 확정 · Shift+Enter = 줄바꿈 · Esc = 확정(위로 안 올린다 — 선택 풀기·도구 끄기로 새지 않게) · 바깥을 누르면(blur) 확정.
    · 확정: innerText 를 평문으로(제어문자 걷고 앞뒤 공백 정리) dataset.countLabel 에 — 비면 키를 지운다(라벨 사라짐). 그리고 dataset 에서 다시 그린다.
      글자가 실제로 바뀌었을 때만 히스토리 한 칸(push-after). 우측 패널의 라벨 칸도 맞춘다.
    ⛔편집 표시(점선·글자 커서)는 CSS 가 한다(css/editor-blocks.css) — 여기서 인라인 style 을 쓰지 않는다(직렬화에 굳는다).
@@ -638,6 +638,7 @@ function _enterCountLabelEdit(block) {
   const finish = () => {
     lab.removeEventListener('blur', finish);
     lab.removeEventListener('keydown', onKey);
+    lab.removeEventListener('paste', onPaste);
     lab.removeAttribute('contenteditable');
     const t = (lab.innerText || lab.textContent || '')
       .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '')
@@ -655,11 +656,22 @@ function _enterCountLabelEdit(block) {
   };
   const onKey = (ev) => {
     if (ev.isComposing) return;                  // 한글 조합 중의 Enter/Esc 는 조합의 것
+    /* 라벨은 평문이다 — ⌘B/⌘I/⌘U 가 편집 동안 서식 태그를 만들지 않게 먹는다(전역 단축키로도 안 올린다). (2차 · D7) */
+    if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && ['b', 'i', 'u'].includes((ev.key || '').toLowerCase())) { ev.preventDefault(); ev.stopPropagation(); return; }
     if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); ev.stopPropagation(); lab.blur(); }
     else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); lab.blur(); }
   };
+  /* 붙여넣기는 평문만(2차 · D7) — contenteditable="true" 라 그냥 두면 서식·그림이 편집 «동안» 라벨 안에 html 로 들어간다
+     (확정은 innerText 평문이라 저장값은 안전했지만 화면이 잠깐 깨진다). js/blocks/line-host.js onPaste 와 같은 꼴. */
+  const onPaste = (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const t = (ev.clipboardData?.getData('text/plain') || '').replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '');
+    if (t) document.execCommand('insertText', false, t);
+  };
   lab.addEventListener('blur', finish);
   lab.addEventListener('keydown', onKey);
+  lab.addEventListener('paste', onPaste);
 }
 window._enterCountLabelEdit = _enterCountLabelEdit;
 window.bindStickerSelect = bindStickerSelect;
