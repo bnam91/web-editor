@@ -8,6 +8,7 @@
  *   C14·C15 크기를 키로 한 칸씩 바꿔도 폰트 비례 · C16·C17 다른 찍는 도구와 안 겹친다 · C18 키 리스너 짝·한 번에 하나
  *   C19 모서리를 찍어도 섹션 안 · C20 메뉴 재클릭·우클릭·⌘⇧Z · C21 시작 번호 칸은 확정 때 모델 값으로
  *   C23~C25 Esc(1013t2B2) — 패널 칸(슬라이더·숫자칸·색 hex)에 포커스가 있어도 한 번에 꺼진다 · 임자가 따로 있는 Esc(패널 밖 칸·인라인 편집·색 팝오버)는 안 끈다 · 선택은 둘째 Esc 가 푼다
+ *   C26·C27 기본색(1013t2B4) — 빈 섹션 첫 찍기는 검정 배경·흰 글자 · 일반 Sticker 는 빨강 그대로 · 옛 저장본의 색은 그대로(색 키가 없어도 빨강)
  *   C22 이름(1013t2B1) — 보이는 이름은 Marking(마킹 블럭): 패널 절 제목·패널 머리·레이어 행. 저장 키(data-count*)는 그대로
  * ★스티커는 기존 sticker-block(circle/square)의 변형이다 — data-count 가 붙었을 뿐이다.
  * ★자리 비교는 «레이아웃 px»로 한다(dataset.x·sizeW 와 offsetWidth). 화면 사각형은 «누를 점»을 정하는 데만 쓴다.
@@ -791,4 +792,57 @@ test('C25 Esc 뒤 — 방금 찍은 것은 골라진 채, 두 번째 Esc 가 선
   await page.keyboard.press('Escape');
   await expect.poll(sel, '둘째 Esc: 선택이 풀린다').toBe(0);
   expect(await countIn(page, 'secA'), '스티커는 그대로 있다').toBe(1);
+});
+
+const RED = 'rgb(231, 76, 60)';      // #e74c3c — 일반 스티커 기본(js/blocks/sticker-block.js STICKER_DEFAULTS)
+const BLACK = 'rgb(0, 0, 0)', WHITE = 'rgb(255, 255, 255)';
+
+test('C26 기본색 — 빈 섹션 첫 찍기는 검정 배경·흰 글자(그려진 색) · 일반 Sticker 는 빨강 그대로', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.4, 0.5);
+  const m = await page.evaluate(() => {
+    const all = [...document.querySelectorAll('#secA .sticker-block[data-count]')];
+    const c = getComputedStyle(all[0]);
+    return { n: all.length, bg: c.backgroundColor, color: c.color, dBg: all[0].dataset.bgColor, dTxt: all[0].dataset.textColor };
+  });
+  expect(m.n, '★전제: 마킹이 하나 찍혔다').toBe(1);
+  expect([m.bg, m.color], '그려진 색 = 검정 배경 · 흰 글자').toEqual([BLACK, WHITE]);
+  expect([m.dBg, m.dTxt], '색이 dataset 에 실린다(저장본에 그대로 간다)').toEqual(['#000000', '#ffffff']);
+  /* 일반 스티커는 빨강 그대로 */
+  const plain = await page.evaluate(() => {
+    window.exitCountStickerMode();
+    const sec = document.getElementById('secB');
+    const b = window.makeStickerBlock({ shape: 'circle' });
+    sec.appendChild(b);
+    return { hasCount: 'count' in b.dataset, dBg: b.dataset.bgColor, bg: getComputedStyle(b).backgroundColor };
+  });
+  expect(plain, '일반 스티커의 기본색은 안 바뀐다').toEqual({ hasCount: false, dBg: '#e74c3c', bg: RED });
+});
+
+test('C27 옛 저장본 — 색을 든 옛 마킹은 다시 그려도 그 색 · 색 키가 없는 옛 것도 빨강 · 그 섹션의 다음 찍기는 옛 색을 물려받는다', async ({ page }) => {
+  await bootApp(page);
+  await page.evaluate(() => {
+    const old = (id, x, extra) => `<div class="sticker-block" id="${id}" data-type="sticker" data-shape="circle" data-size="56" data-size-w="56" data-size-h="56"`
+      + ` data-text="1" data-font-size="26" data-font-weight="700" data-x="${x}" data-y="40" data-count="1" data-count-start="1" data-count-style="num" data-count-shape="circle"${extra}></div>`;
+    document.getElementById('canvas').innerHTML =
+        '<div class="section-block" id="secA" style="position:relative;height:320px;background:#f4f4f6"><div class="section-inner"></div>'
+        + old('oldRed', 40, ' data-bg-color="#e74c3c" data-text-color="#ffffff"') + '</div>'
+      + '<div class="section-block" id="secB" style="position:relative;height:320px;background:#e9eef4"><div class="section-inner"></div>'
+        + old('oldBare', 40, '') + '</div>';
+    window.rebindAll?.();
+  });
+  const read = () => page.evaluate(() => ['oldRed', 'oldBare'].map((id) => { const b = document.getElementById(id);
+    return { drawn: !!b.querySelector('.sticker-text'), bg: getComputedStyle(b).backgroundColor, color: getComputedStyle(b).color, dBg: b.dataset.bgColor ?? null }; }));
+  const r = await read();
+  expect(r.map((x) => x.drawn), '★전제: 옛 마킹 둘이 다시 그려졌다').toEqual([true, true]);
+  expect(r[0], '색을 든 옛 것: 그 색 그대로').toEqual({ drawn: true, bg: RED, color: WHITE, dBg: '#e74c3c' });
+  expect(r[1], '색 키가 없는 옛 것: 빨강(폴백 무변) · 키를 지어 넣지 않는다').toEqual({ drawn: true, bg: RED, color: WHITE, dBg: null });
+  /* 옛 빨강 섹션의 다음 찍기는 빨강을 물려받는다(그 섹션 묶음과 한 벌) */
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.6, 0.5);
+  const next = await page.evaluate(() => { const all = [...document.querySelectorAll('#secA .sticker-block[data-count]')]; const b = all[all.length - 1];
+    return { n: all.length, count: b.dataset.count, dBg: b.dataset.bgColor, bg: getComputedStyle(b).backgroundColor }; });
+  expect(next, '옛 빨강 섹션에 찍으면 빨강 · 번호는 2').toEqual({ n: 2, count: '2', dBg: '#e74c3c', bg: RED });
 });

@@ -14,7 +14,10 @@ let _cntMode = false;
 let _cntBoundCanvas = false;
 let _cntEntryAt = 0;          // 모드 진입 직후 잔여 click 무시용 타임스탬프 가드
 
-const COUNT_STK_DEFAULTS = { size: 56, fontSize: 26, fontWeight: 700, start: 1, style: 'num', shape: 'circle' };
+/* 새로 찍는 마킹의 기본값. ★색(1013t2B4) = 검정 배경 · 흰 글자 — «내용» 기본값이다(UI 토큰 아님 · STICKER_DEFAULTS 와 같은 부류).
+   ⚠️일반 스티커의 기본(js/blocks/sticker-block.js STICKER_DEFAULTS · 빨강)과 그리기 폴백은 안 건드린다 —
+     옛 저장본은 색을 dataset 에 들고 있고(없으면 그 폴백 = 빨강), 그 그림이 바뀌면 안 된다. */
+const COUNT_STK_DEFAULTS = { size: 56, fontSize: 26, fontWeight: 700, start: 1, style: 'num', shape: 'circle', bgColor: '#000000', textColor: '#ffffff' };
 const COUNT_STK_START_MIN = 1;
 const COUNT_STK_START_MAX = 999;
 
@@ -60,7 +63,7 @@ function countStickerNextOrdinal(sec) {
 }
 
 // 다음 찍기가 물려받을 값 — 그 섹션에서 순번이 가장 큰 스티커의 모양·크기·색·폰트·표기·시작.
-// 없으면 기본값(색은 비워 둔다 ⇒ makeStickerBlock 이 스티커 기본색을 쓴다).
+// 없으면 기본값(색 = 검정 배경·흰 글자 · 1013t2B4). 앞선 것이 있으면 그 색을 물려받는다(옛 빨강 섹션은 빨강으로 이어진다).
 function countStickerInheritFrom(sec) {
   const last = _cntLastOf(sec);
   if (!last) {
@@ -69,6 +72,7 @@ function countStickerInheritFrom(sec) {
       countStart: COUNT_STK_DEFAULTS.start, countStyle: COUNT_STK_DEFAULTS.style,
       size: COUNT_STK_DEFAULTS.size, sizeW: COUNT_STK_DEFAULTS.size, sizeH: COUNT_STK_DEFAULTS.size,
       fontSize: COUNT_STK_DEFAULTS.fontSize, fontWeight: COUNT_STK_DEFAULTS.fontWeight,
+      bgColor: COUNT_STK_DEFAULTS.bgColor, textColor: COUNT_STK_DEFAULTS.textColor,
     };
   }
   const d = last.dataset;

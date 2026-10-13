@@ -4,6 +4,7 @@
  *   L1 숫자 표기 · L2 알파벳 표기(전단사 26진: 26=Z 다음이 AA 다 — 흔한 0-기반 26진은 여기서 「BA」나 「A@」를 낸다)
  *   L3 배선 — index.html 에 도구 스크립트가 정확히 한 번 실리고, 메뉴 단추가 스티커 패널(#fp-pen-menu) 안에 있다
  *   L5 이름(1013t2B1) — 메뉴 글자는 Marking · title 은 「마킹 블럭 — 」으로 시작 · 옛 「Count Sticker」 0건 (키·함수명은 count 그대로 — L3·L4 가 문다)
+ *   L6 기본색(1013t2B4) — 마킹이 없는 섹션의 첫 찍기는 검정 배경·흰 글자 · 앞선 것이 있으면 그 색을 물려받는다
  *   L4 서로 끄기 — 찍는 도구 넷(Count · Annotation · HighlightB · 벡터 펜)의 enter 가 서로를 끈다(행동은 DOM C16·C17 이 잰다)
  * ★기대값은 «글자로» 박았다(피검 함수에서 뽑으면 항등식이다).
  * ⛔앱 0 · 네트워크 0. js/count-sticker-tool.js 는 최상위에서 DOM 을 안 건드리므로 vm 으로 그대로 싣는다.
@@ -98,4 +99,27 @@ test('L5 이름 — 메뉴 글자는 Marking · title 은 「마킹 블럭 — �
   assert.equal(items.filter((x) => x.label === 'Marking').length, 1, '「Marking」 항목은 하나뿐이다');
   assert.equal((html.match(/Count Sticker/g) || []).length, 0, 'index.html 에 옛 이름 「Count Sticker」가 남아 있다');
   assert.equal((html.match(/카운트 스티커/g) || []).length, 0, 'index.html 에 옛 이름 「카운트 스티커」가 남아 있다');
+});
+
+/* 섹션 흉내 — 도구는 sec.querySelectorAll('.sticker-block[data-count]') 만 부른다. */
+const fakeSec = (blocks) => ({ querySelectorAll: () => blocks });
+
+test('L6 기본색 — 마킹이 없는 섹션의 inheritFrom 은 #000000 / #ffffff · 앞선 것이 있으면 그 색', () => {
+  const { inheritFrom } = load().CountSticker;
+  const empty = inheritFrom(fakeSec([]));
+  assert.equal(empty.bgColor, '#000000', '빈 섹션: 배경색');
+  assert.equal(empty.textColor, '#ffffff', '빈 섹션: 글자색');
+  assert.equal(empty.countStyle, 'num', '★전제: 기본 표기는 그대로다');
+  assert.equal(empty.sizeW, 56, '★전제: 기본 크기는 그대로다');
+
+  const old = { dataset: { count: '3', shape: 'circle', size: '56', bgColor: '#e74c3c', textColor: '#fffbe6' } };
+  const first = { dataset: { count: '1', shape: 'circle', size: '56', bgColor: '#123456', textColor: '#654321' } };
+  const inh = inheritFrom(fakeSec([first, old]));
+  assert.equal(inh.bgColor, '#e74c3c', '앞선 것(순번이 가장 큰 것)의 배경색을 물려받는다');
+  assert.equal(inh.textColor, '#fffbe6', '앞선 것의 글자색을 물려받는다');
+
+  /* 색 키가 «없는» 옛 것 — 물려줄 색이 없다 ⇒ 색을 안 넘긴다(만드는 쪽의 스티커 기본 = 옛 그림과 같은 빨강) */
+  const bare = inheritFrom(fakeSec([{ dataset: { count: '1', shape: 'circle', size: '56' } }]));
+  assert.equal('bgColor' in bare, false, '색 키 없는 옛 것: 배경색을 지어내지 않는다');
+  assert.equal('textColor' in bare, false, '색 키 없는 옛 것: 글자색을 지어내지 않는다');
 });
