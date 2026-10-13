@@ -15,6 +15,7 @@
  *   · 시작 각도(1013t1C2): opts.start(도 · 12시 = 0 · 시계 방향)만큼 첫 조각의 시작을 돌린다. 유한하지 않으면 0 · 360 으로 접는다(450 ≡ 90 · −90 ≡ 270).
  *     opts 를 안 주거나 start 가 0 이면 산출이 옛 판과 «바이트가 같다»(0 + x 는 x 와 같은 부동소수).
  *   · 조각 크기(1013t1C4): opts.grow[i](바깥 반지름에 더하는 %)만큼 «그 조각의 바깥 반지름만» 키운다 — Ro_i = R × (1 + grow_i / 100). 구멍 반지름은 모든 조각이 같다.
+ *     온 원 조각(항목 하나 · 점유율 ≥ 0.9999)은 «안 키운다»(Ro = R · extent 0) — 키우면 viewBox 만 넓어져 원 전체가 줄어든다.
  *     키운 조각은 viewBox(0~1000) 밖으로 나간다 ⇒ extent(가장 멀리 나간 길이 · viewBox 단위)를 같이 돌려준다 — 그리는 쪽이 viewBox 를 그만큼 넓힌다.
  *     grow 가 없거나 0 이면 그 조각의 d 는 옛 판과 «바이트가 같다»(Ro === R). 값 0 조각의 grow 는 안 센다. 유한하지 않거나 음수면 0 · 100 에서 잘린다.
  *   · 밀어내기(1013t1C5): opts.pull[i](바깥 반지름 R 대비 %)만큼 그 조각을 «이등분각 방향으로» 통째로 옮긴다 — d 는 «한 글자도 안 바뀌고» 옮길 양만 offsets[i] = [dx, dy](글자 · 소수 둘째 자리)로 돌려준다.
@@ -92,7 +93,7 @@
       out.shares.push(share);
       out.angles.push([a0, a1]);
       out.mids.push((a0 + a1) / 2);
-      var Ro = share > 0 ? R * (1 + pctOf(o.grow, i) / 100) : R;   // 값 0 조각은 안 키운다(그릴 것이 없다 — extent 에도 안 든다)
+      var Ro = (share > 0 && share < FULL) ? R * (1 + pctOf(o.grow, i) / 100) : R;   // 값 0 조각은 안 키운다(그릴 것이 없다 — extent 에도 안 든다) · 온 원 조각도 안 키운다(견줄 이웃이 없다 — 키우면 viewBox 만 넓어져 원 전체가 «줄어든다» · 1013t1C4 고침)
       out.outer.push(Ro);
       if (!(share > 0)) { out.paths.push(''); out.offsets.push(['0.00', '0.00']); return; }
       var pl = (share >= FULL || !(a1 - a0 > 0)) ? 0 : R * pctOf(o.pull, i) / 100;   // 온 원은 밀 방향이 없다 · 각 폭 0 조각은 그릴 것이 없다

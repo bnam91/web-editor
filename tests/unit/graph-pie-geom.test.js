@@ -267,13 +267,17 @@ test('U14 조각 크기 — grow 20 이면 그 조각의 바깥 반지름만 600
   assert.deepEqual(piePaths(V, 0, 10).mids, [54, 144, 207, 261, 306, 342], '이등분각(도)');
   assert.deepEqual(piePaths(V, 0, 10, { start: 90 }).mids[0], 144, '이등분각은 시작 각도를 따라 돈다');
   assert.match(piePaths(V, 0, 10, { grow: [20] }).paths[0], /^M 505\.00 [\d.]+ L 505\.00 -99\.98 A 600\.00 600\.00 0 0 1 /, '12시 변은 같은 세로선(x = 505) 위에서 600 까지');
-  /* 여럿을 키우면 extent = 가장 큰 것 · 값 0 조각의 grow 는 안 센다 · 온 원도 커진다 */
+  /* 여럿을 키우면 extent = 가장 큰 것 · 값 0 조각의 grow 는 안 센다 · 온 원은 안 키운다(1013t1C4 고침 — 키우면 viewBox 만 넓어져 원 전체가 줄어든다) */
   assert.equal(piePaths(V, 0, 10, { grow: [10, 0, 30] }).extent, 150);
   const z = piePaths([0, 3, 1], 0, 10, { grow: [30, 0, 0] });
   assert.equal(z.extent, 0, '값 0 조각은 안 키운다'); assert.deepEqual(z.outer, [500, 500, 500]); assert.equal(z.paths[0], '');
   const one = piePaths([7], 50, 10, { grow: [20] });
-  assert.equal(one.extent, 100);
-  assert.deepEqual(arcs(one.paths[0].replace(/-/g, '')).map(x => x.r), [600, 600, 250, 250], '온 원: 바깥만 커지고 구멍은 그대로');
+  assert.equal(one.paths.length, 1, '전제: 조각 하나'); assert.ok(one.shares[0] >= 0.9999, '전제: 온 원');
+  assert.equal(one.extent, 0, '온 원 조각의 grow 는 extent 에 안 든다(viewBox 가 안 넓어진다)');
+  assert.deepEqual(one.outer, [500]);
+  assert.equal(one.paths[0], piePaths([7], 50, 10).paths[0], '온 원: grow 를 줘도 안 준 것과 같은 글자');
+  assert.equal(piePaths([7, 0, 'x'], 0, 10, { grow: [30, 30, 30] }).extent, 0, '값 있는 항목이 하나뿐이어도 같다');
+  assert.equal(piePaths([7, 1], 0, 10, { grow: [20] }).extent, 100, '이웃이 있으면 커진다(온 원만 예외)');
   assert.equal(piePaths([0, 0], 0, 10, { grow: [20, 20] }).extent, 0, '합 0 이면 0');
   /* 험한 grow — 0 으로(음수·글자·NaN) · 100 에서 잘린다 · 문자열에 NaN 0건 */
   const base = piePaths(V, 0, 10);
