@@ -436,6 +436,8 @@ function _tplReapplyPagePad(sec) {
    ⑴ 정본 명부(js/block-bind-kinds.js) 종류 → bindBlock (+ 그리드·QA 는 다시 그리기 — 스냅샷과 CSS 가 어긋나지 않게)
    ⑵ .frame-block 전부 → bindFrameDropZone (프레임은 bindBlock 이 아니다)
    ⑶ 제 바인더 셋(그라데이션 · 스티커 · 어노테이션) → 제 바인더(묶기만 · 다시 그리기 안 함)
+      단 스티커는 다시 그린다 — 그림 안의 id(코인 gradient·clipPath · 글로우 필터)를 제 블럭 id 에서 짓는데,
+      넣을 때 id 를 다시 지어 url(#…) 참조가 끊긴다(원본이 문서에 없으면 그림이 안 보인다). 로드의 rebindAll 과 같은 길.
    root 자신도 포함한다(block 갈래는 넣는 것이 블록·프레임 하나다). */
 function _bindInsertedTree(root) {
   const each = (sel) => [...(root.matches?.(sel) ? [root] : []), ...root.querySelectorAll(sel)];
@@ -446,7 +448,7 @@ function _bindInsertedTree(root) {
   });
   each('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   each('.gradient-block').forEach(b => window.bindGradientSelect?.(b));
-  each('.sticker-block').forEach(b => window.bindStickerSelect?.(b));
+  each('.sticker-block').forEach(b => { window.renderStickerBlock?.(b); window.bindStickerSelect?.(b); });
   each('.annotation-block').forEach(b => window.bindAnnotationSelect?.(b));
 }
 

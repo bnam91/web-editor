@@ -937,6 +937,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .prop-action-btn.secondary:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); }
 .prop-action-btn.danger { background: var(--ui-danger-bg); border-color: var(--ui-danger-border); color: var(--ui-danger); }
 .prop-action-btn.danger:hover { background: var(--ui-danger-hover); border-color: var(--ui-danger-hover); color: #fff; }
+/* 비활성 표시 — 패널의 다른 단추·숫자칸과 같은 관례(흐리게 + 금지 커서). 첫 사용처 = 코인 스티커 「각도 잠금」이 끄는 다시뽑기 단추. */
+.prop-action-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
 
 /* ═══════════════════════════════════
    GAP BLOCK — 섹션과 에셋 사이 여백

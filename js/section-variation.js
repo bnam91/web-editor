@@ -92,7 +92,9 @@ function _bindVariantClone(clone) {
   clone.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   /* ★(2026-10-06 · 태양 ⑴ 이번 판) 제 바인더 셋 — 섹션 템플릿 넣기(18285a47)와 같은 줄. 실앱 ㉠: B 사본의 셋이 안 묶여 클릭하면 섹션만 골라졌다. */
   clone.querySelectorAll('.gradient-block').forEach(b => window.bindGradientSelect?.(b));
-  clone.querySelectorAll('.sticker-block').forEach(b => window.bindStickerSelect?.(b));
+  /* 스티커는 다시 그린다 — 그림 안의 id(코인 gradient·clipPath · 글로우 필터)를 제 블럭 id 에서 짓는데, 사본은 id 를 다시 지어
+     url(#…) 참조가 원본 것을 가리킨다(원본을 고치거나 지우면 사본 그림이 따라 깨진다). 로드의 rebindAll 과 같은 길. */
+  clone.querySelectorAll('.sticker-block').forEach(b => { window.renderStickerBlock?.(b); window.bindStickerSelect?.(b); });
   clone.querySelectorAll('.annotation-block').forEach(b => window.bindAnnotationSelect?.(b));
 }
 

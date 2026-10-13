@@ -691,6 +691,7 @@
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'text'});toggleFpDropdown('fp-pen-dropdown')" title="텍스트 스티커 — 캔버스에 자유 배치하는 텍스트 (폰트/외곽선/그림자 등 풀 옵션)">Text Sticker</button>
       <button class="fp-menu-item" onclick="openIconifyModal((p)=>{const o={shape:'icon', iconName:p.name, svg:p.svg, size:p.size}; if(p.iconColor!=null&&p.iconColor!=='') o.iconColor=p.iconColor; window.addStickerBlock(o);}, {favorites:true});toggleFpDropdown('fp-pen-dropdown')" title="아이콘 스티커 — Iconify에서 아이콘을 골라 캔버스에 스티커로 추가">Icon Sticker</button>
       <button class="fp-menu-item" onclick="toggleCountStickerMode();toggleFpDropdown('fp-pen-dropdown')" title="카운트 스티커 — 켠 뒤 섹션을 누를 때마다 1·2·3… 번호 스티커 추가 · ESC 종료 / 표기·모양·시작 번호·크기는 우측 패널에서">Count Sticker</button>
+      <button class="fp-menu-item" onclick="addStickerBlock({shape:'coin'});toggleFpDropdown('fp-pen-dropdown')" title="코인 스티커 — 누르면 코인 1개가 바로 생긴다 · 손잡이로 이동·크기·회전 / 다시뽑기(보는 각도)·재질·각인·두께·광택은 우측 패널에서">Coin</button>
       <!-- ★[숨김] 면 형광펜 A(shape:'highlight') · 1012t1J1 · 현빈 「b만 남겨줘」
            ⛔막는 것은 «새로 넣는 입구»뿐이다. 렌더·패널(Highlight Size)·코너 리사이즈·저장/로드·MCP 의
              shape:'highlight' 수용은 그대로 둔다 · 옛 프로젝트의 data-shape="highlight" 는 계속 열린다.
@@ -1115,6 +1116,7 @@
      sticker-block.js(모듈)의 glow 갈래가 읽는다. 2026-10-06 지디 발주 FOUR. -->
 <script src="js/fx/seeded-random.js"></script>
 <script src="js/fx/glow-render.js"></script>
+<script src="js/fx/coin-draw.js"></script><!-- ★코인 스티커 그림(CoinFx) — seeded-random 뒤 · 모듈 sticker-block.js 보다 먼저 -->
 <script src="js/fx/doodle-line-render.js"></script>   <!-- ★1012t1J2 선 형광펜 두들(DoodleLine) — 모듈 sticker-block.js 보다 먼저 -->
 <script src="js/fx/particles-render.js"></script><!-- ★파티클 그림(ParticlesFx) — 섹션 배경 파티클 · 2026-10-07 지디 발주 -->
 <script src="js/fx/particles-animate.js"></script><!-- ★파티클 움직임(ParticlesAnim) — v1.5 ⑴ rAF · 2026-10-09 · ⛔그림(위)보다 뒤 -->
