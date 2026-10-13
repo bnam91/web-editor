@@ -882,6 +882,10 @@ function grbPieSelect(block, idx) {
  *        줄인 크기는 라벨 전체(배지 + 이름)에 건다 — 배지·간격이 em 이라 같은 비로 준다(참고 그림도 작은 조각은 배지까지 작다).
  *     ③ 어느 크기로도 안 들면 이름을 숨기고(순위 배지만) ①·②를 다시 한다 ④ 그래도 안 들면 라벨을 숨긴다.
  *     items[i].pieTag 'on'(항상)은 ③·④ 대신: 가장 작은 글자 · 가장 넓은 사각형 안에서 이름을 «줄 수로 자른다»(line-clamp · 끝에 말줄임 · 많아야 PIE_TAG_NAME_LINES 줄). 한 줄도 안 들 때만 배지만 남긴다.
+ *   고침 3(1013t1C3 · 이벨류에이터 실측 2026-10-14) — «재서 든» 라벨에도 폭·높이 한계를 «쌍으로» 쓴다: fits(폭 한계, 높이 한계) 가 참인 쌍(아래 capOf).
+ *     전에는 높이 한계를 'none' 으로 썼다(잰 글자가 든다는 것만 믿었다) ⇒ 단독 HTML 내보내기는 이 인라인 변수를 그대로 싣는데 글꼴이 달라 줄이 하나 늘면 라벨이 조각을 넘었다
+ *     ('none' 이 CSS 의 기하 안전망 --grb-pie-box-h 까지 껐다). 이제 한계 사각형 자체가 조각 안이라 «글자가 어떻게 놓이든»(다른 글꼴 · 스크립트 없는 산출물) 넘는 만큼은 잘린다.
+ *     편집 화면의 결과는 그대로다 — 쌍은 «잰 크기 이상»으로만 잡는다(못 잡으면 그 판은 안 든 것으로 치고 다음 사각형·글자 크기로 간다).
  *   결과는 «인라인 CSS 변수»에만 산다(canvas-contrast.js GRAPH_PIE_FIT_VARS — DERIVED_AUTO_VARS 에 올라 저장·히스토리에서 걷힌다 · 열면 관찰자가 다시 잰다). 마크업·dataset 은 안 건드린다.
  *   크기는 덧층 정사각에 대한 «비»로 잰다 ⇒ 줌·배율과 무관. 못 재면(떼어진 블럭 · 폭 0) 아무것도 안 쓴다 = CSS 가 기하 사각형으로 자른다.
  *   부르는 자: canvas-contrast.js syncGraphTone(다시 그린 뒤 · 블럭이 꽂힐 때) · 아래 ResizeObserver(블럭 크기가 바뀔 때) · 글꼴이 다 실렸을 때. 같은 판(덧층 폭 · 글꼴)에서 다시 부르면 아무것도 안 한다(멱등).
@@ -920,15 +924,41 @@ function grbPieFitTags(block) {
   const maxLines = Math.max(1, parseInt(L.PIE_TAG_NAME_LINES) || 1);
   const put = (el, v, want) => { if (!el || el.style.getPropertyValue(v).trim() === want) return; if (want) el.style.setProperty(v, want); else el.style.removeProperty(v); };
   const st = tags.map((tag, i) => ({ tag, i, name: tag.querySelector('.grb-pie-name'), rank: tag.querySelector('.grb-pie-rank'), on: items[i] && items[i].pieTag === 'on',
-    live: tag.style.display !== 'none', done: false, w: '', h: 'none', d: '', nd: '', nl: '', fs: '' }));   // h 'none' = 재서 든 라벨은 높이 한계가 필요 없다(기하 사각형의 높이로 잘리지 않게 — 고른 폭의 사각형이 더 길 수 있다)
+    live: tag.style.display !== 'none', done: false, w: '', h: '', d: '', nd: '', nl: '', fs: '' }));   // w · h = 끝에 쓸 한계 쌍(재서 든 라벨은 capOf 가 낸다 — 'none' 을 남기지 않는다)
   const open = () => st.filter(s => s.live && !s.done);
   const lineH = (el) => { const v = parseFloat(getComputedStyle(el).lineHeight); return v > 0 ? v : 0; };   // 한 줄의 높이(배치 px — offsetHeight 와 같은 단위 · 줌과 무관)
-  /* 잰 크기가 조각 안인가 — 가로로 넘친 글자(줄을 못 바꾸는 배지)는 사각형이 잘려 보이므로 따로 본다 · 이름이 보이면 줄 수도 본다(maxLines 줄까지) */
-  const ok = (s) => {
+  /* 한계 쌍(고침 3) — 폭 한계 bw(지금 써 본 사각형의 폭) 아래에서 잰 크기 mw × mh 가 조각 안일 때, «한계 사각형 자체가 조각 안»인 { w, h }(덧층의 % 글자)를 낸다. 못 내면 null.
+       fits 는 같은 자리의 더 작은 사각형에 늘 참이다(작은 사각형은 큰 사각형 안) ⇒ fits(한계 폭, 한계 높이) 면 그 안에서 글자가 어떻게 놓여도 조각 안이다.
+       ① fits(bw, mh) 면 폭은 bw 그대로(글자 = 전과 같다) · 높이 = 그 폭에서 드는 가장 큰 높이(이분법).
+       ② 아니면 라벨이 bw 보다 좁아서 든 것이다(좁고 긴 꼴) ⇒ 폭 한계를 «mh 가 드는 가장 넓은 폭»으로 좁힌다. 좁힌 폭은 잰 폭보다 0.01 % 넘게 넓어야 한다(폭 한계가 줄바꿈을 건드리지 않게).
+       높이 한계는 잰 높이 이상이어야 한다(잘린 글자 0). 내림(0.01 %)으로 그 밑이 되는 «아슬아슬한» 판은 안 든 것으로 친다. */
+  const STEP = side / 10000;   // 0.01 % (pc 의 눈금)
+  const capOf = (fits, bw, mw, mh) => {
+    let w = bw, wTxt = pc(bw);
+    if (!fits(bw, mh)) {
+      if (!(mw < bw)) return null;
+      let lo = mw, hi = bw;
+      for (let k = 0; k < 24; k++) { const m = (lo + hi) / 2; if (fits(m, mh)) lo = m; else hi = m; }
+      const n = Math.floor(lo / STEP);
+      w = n * STEP;
+      if (!(w >= mw + STEP) || !fits(w, mh)) return null;
+      wTxt = (n / 100).toFixed(2) + '%';
+    }
+    let lo = mh, hi = side;
+    for (let k = 0; k < 24; k++) { const m = (lo + hi) / 2; if (fits(w, m)) lo = m; else hi = m; }
+    const hn = Math.floor(lo / STEP);
+    if (!(hn * STEP >= mh)) return null;
+    return { w: wTxt, h: (hn / 100).toFixed(2) + '%' };
+  };
+  /* 잰 크기가 조각 안인가 — 가로로 넘친 글자(줄을 못 바꾸는 배지)는 사각형이 잘려 보이므로 따로 본다 · 이름이 보이면 줄 수도 본다(maxLines 줄까지).
+     든다면 그 판의 한계 쌍을 s.cap 에 적는다(쌍을 못 내면 안 든 것). bw = 지금 써 본 사각형의 폭(viewBox 단위) */
+  const ok = (s, bw) => {
     if (s.tag.scrollWidth > s.tag.clientWidth) return false;
     if (s.name && s.name.style.getPropertyValue(ND).trim() !== 'none') { const lh = lineH(s.name); if (lh > 0 && s.name.offsetHeight > lh * (maxLines + 0.5)) return false; }
-    const r = s.tag.getBoundingClientRect();
-    return room[s.i].fits(r.width * unit, r.height * unit);
+    const r = s.tag.getBoundingClientRect(), mw = r.width * unit, mh = r.height * unit;
+    if (!room[s.i].fits(mw, mh)) return false;
+    s.cap = capOf(room[s.i].fits, bw, mw, mh);
+    return !!s.cap;
   };
   open().forEach(s => { put(s.tag, D, ''); put(s.tag, H, 'none'); put(s.tag, FS, ''); put(s.name, ND, ''); put(s.name, NL, ''); });
   const nBox = room.length ? room[0].boxes.length : 0;
@@ -939,7 +969,7 @@ function grbPieFitTags(block) {
       for (let k = 0; k < nBox && pick().length; k++) {
         const cur = pick();
         cur.forEach(s => put(s.tag, W, pc(room[s.i].boxes[k].w)));
-        cur.filter(ok).forEach(s => { s.done = true; s.nd = nd; s.fs = fsOf(f); s.w = pc(room[s.i].boxes[k].w); });
+        cur.filter(s => ok(s, room[s.i].boxes[k].w)).forEach(s => { s.done = true; s.nd = nd; s.fs = fsOf(f); s.w = s.cap.w; s.h = s.cap.h; });
       }
     }
   };
@@ -949,7 +979,7 @@ function grbPieFitTags(block) {
   sweep(both, 'none');
   const last = sizes.length - 1;
   open().forEach(s => {   // ④ 자동 = 숨김 · 'on' = 가장 작은 글자 · 가장 넓은 사각형으로 자른다
-    if (!s.on) { s.d = 'none'; s.h = ''; return; }
+    if (!s.on) { s.d = 'none'; s.w = ''; s.h = ''; return; }
     const bx = room[s.i].boxes[room[s.i].best];
     s.w = pc(bx.w); s.h = pc(bx.h); s.fs = fsOf(last);
     if (!s.name) return;
