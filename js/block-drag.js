@@ -1879,12 +1879,17 @@ function bindBlock(block) {
         window.showFrameProperties?.(ss);
         return;
       }
+      /* 1013t1C4 — 원형 조각 고르기(그리드 T-058 피그마식): 첫 클릭 = 블럭 선택, «이미 이 블럭만 선택된» 채 조각을 누르면 그 조각.
+         조각 밖(범례·여백)을 누르면 조각 선택 해제. 두 판정 다 deselectAll «전»에 잡는다(뒤에서 재면 selected 가 방금 지워져 늘 false). */
+      const _pieWas = _isSoleSelectedBlock(block);
+      const _pieIdx = window.grbPieSliceIndexAt?.(e.target, block) ?? -1;
       window.deselectAll();
       _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
+      window.grbPieSelect?.(block, (_pieWas && _pieIdx >= 0) ? _pieIdx : null);   // 패널을 열기 «전» — 패널이 표식을 읽어 Slice 절을 그린다
       window.showGraphProperties(block);
     });
   }

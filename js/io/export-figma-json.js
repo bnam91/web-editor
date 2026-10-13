@@ -729,6 +729,19 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           ? { showAxis: el.dataset.showAxis === '1', showGrid: el.dataset.showGrid === '1', showLine: el.dataset.showLine === '1' } : {}),
         // 1012t1G2·G3 — 실루엣·채움 분모도 «켜진 것만» 싣는다(옛 JSON 무변). ⚠️렌더러(sangpe_to_figma)는 아직 안 읽는다 — 피그마에선 보통 세로 막대.
         ...(window.GRAPH_SHAPE.shapeOn(el.dataset) ? { barShape: el.dataset.barShape, fillMax: window.GRAPH_SHAPE.fillMaxOf(el.dataset, items) } : {}),
+        // 1013t1C — 원형·도너츠의 블럭 수준 키도 «있는 것만» 싣는다(새 키가 없는 원형·옛 donut 의 JSON 은 예전과 같다 — pieHole 은 pieDonut 이 켜졌을 때만).
+        //   조각별 키(pieGrow · piePull · pieTag)는 items 에 이미 실린다. ⚠️렌더러(sangpe_to_figma)는 아직 안 읽는다 — 피그마에선 원형이 여전히 막대로 나간다.
+        ...(((ds) => {
+          const o = {};
+          if (ds.chartType !== 'pie' && ds.chartType !== 'donut') return o;
+          const int = (k) => { const n = parseInt(ds[k]); if (ds[k] !== undefined && Number.isFinite(n)) o[k] = n; };
+          if (ds.pieDonut === '1') { o.pieDonut = true; int('pieHole'); }
+          int('pieStart'); int('pieGap');
+          if (ds.pieRank === '1') o.pieRank = true;
+          if (ds.pieName === '1') o.pieName = true;
+          if (ds.dropShadow === 'soft' || ds.dropShadow === 'strong') o.dropShadow = ds.dropShadow;
+          return o;
+        })(el.dataset)),
       };
     }
     // ── SHAPE (shape-block) : 도형(선/사각/원) ──

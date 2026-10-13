@@ -125,7 +125,7 @@
 
   /* ── 항목을 «다시 쓰는» 자리가 덧필드를 안 떨구게 하는 한 자리(1012t1G4) ──
    * items 를 통째로 새로 짜는 길(AI 채움 js/ai-ext/graph.js · updateGraphBlock)은 { label, value } 만 남겨 왔다 — 마디·항목 모양이 사라진다.
-   * carryItemExtras(out, prev, incoming): out(새 항목)에 prev(같은 순번의 옛 항목)의 shape/shapeSvg/segments 를 옮긴다.
+   * carryItemExtras(out, prev, incoming): out(새 항목)에 prev(같은 순번의 옛 항목)의 shape/shapeSvg/segments 와 원형 조각별 키(pieGrow/piePull/pieTag · 1013t1C4)를 옮긴다.
    *   incoming.segments 가 배열이면 그것을 쓴다(라벨 80자 · 값 0 이상 유한 · 색은 단순 색 글자만 · 20개까지) → out.value = 합.
    *   옛 마디를 물려받는데 새 value 가 합과 다르면 마디를 «같은 비율로» 늘이거나 줄여 합을 새 value 에 맞춘다(그림은 마디 합을 그린다 — 새 값이 묻히지 않게).
    *     맞춘 합은 «정확히» 새 value 다(최대 잔여법 · fitSegments) — [10,10,10] → 100 은 [34,33,33] 이지 33.333333×3 이 아니다.
@@ -143,10 +143,18 @@
       return o;
     });
   }
+  var PIE_ITEM_INT_KEYS = ['pieGrow', 'piePull'];
+  var _piePct = function (v) { if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null; var n = Number(v); return (Number.isFinite(n) && n >= 0) ? Math.min(100, Math.round(n)) : null; };
+  var _pieTagOk = function (t) { return t === 'on' || t === 'off'; };
   function carryItemExtras(out, prev, incoming) {
     prev = (prev && typeof prev === 'object') ? prev : {};
     incoming = (incoming && typeof incoming === 'object') ? incoming : {};
     if (typeof prev.shape === 'string' && prev.shape) { out.shape = prev.shape; if (typeof prev.shapeSvg === 'string' && prev.shapeSvg) out.shapeSvg = prev.shapeSvg; }
+    /* 1013t1C4 — 원형 조각별 키(pieGrow · piePull = 0~100 정수 % · pieTag = 'on'|'off')도 같은 자리에서 옮긴다: 들어온 값이 유효하면 그것, 아니면 옛 값. 0·무효는 키를 안 남긴다.
+       아래 마디 분기가 일찍 돌아가므로 «그 앞»에 둔다. 한도(예: 크기 30)는 렌더·패널이 graph-limits 로 자른다 — 여기는 꼴만 본다. */
+    PIE_ITEM_INT_KEYS.forEach(function (k) { var v = _piePct(incoming[k]); if (v === null) v = _piePct(prev[k]); if (v > 0) out[k] = v; else delete out[k]; });
+    var _tag = _pieTagOk(incoming.pieTag) ? incoming.pieTag : (_pieTagOk(prev.pieTag) ? prev.pieTag : '');
+    if (_tag) out.pieTag = _tag; else delete out.pieTag;
     if (Array.isArray(incoming.segments)) {
       var own = normSegments(incoming.segments);
       if (own.length) { out.segments = own; out.value = segSum(own); }

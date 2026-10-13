@@ -243,6 +243,8 @@
 }
 .grb-data-icon-btn:hover,
 .grb-data-icon-btn.active { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
+/* 1013t1C4 — Slice 절 머리의 「n번 · 라벨」: 긴 라벨은 한 줄 말줄임(줄을 안 밀어낸다). */
+.grb-slice-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── U9: 2시리즈 비교 막대 (bar-pair) ── */
 .grb-pair-wrap { gap: 6px; }
@@ -280,6 +282,7 @@
 .graph-block[data-preset="dark"] { --grb-pie-base: #4f8ef7; }
 .graph-block[data-preset="minimal"] { --grb-pie-base: var(--ui-text-sub); }
 .grb-pie-wrap {
+  position: relative;
   width: 100%;
   height: 240px;
 }
@@ -289,11 +292,83 @@
   display: block;
 }
 .grb-pie-slice { fill: var(--grb-pie-base); }
+/* 1013t1C7 — 원형·도너츠 그림자. 운반체 = 블럭의 data-drop-shadow(soft / strong · 없음 = 키 없음) — 모달·확대블럭과 «같은 이름 · 같은 세 단계».
+   값은 확대블럭의 두 줄(css/editor-blocks.css `.zoom-block[data-drop-shadow] > .zoom-clip`)과 «같은 수»다 — 넷째 벌을 만들지 않는다(DOM 검사 K2 가 두 계산값이 같은지 잰다).
+   거는 자리가 블럭이 아니라 svg 인 까닭: ① 블럭에 걸면 선택 아웃라인·범례까지 그림자를 먹는다 ② drop-shadow 는 «그려진 꼴»(조각·구멍·틈)을 따라 진다 — box-shadow 는 네모로 진다.
+   svg 안 <filter> 를 안 쓰는 까닭: url(#id) 는 블럭을 복제하면 id 가 겹친다. 자리는 안 먹는다(번지는 것이 정상 — 아래 범례 뒤로 깔린다).
+   선택자가 .grb-pie-svg 라 다른 유형(막대·꺾은선)에선 죽은 키다. 그림(innerHTML)은 한 글자도 안 바뀐다. */
+.graph-block[data-drop-shadow="soft"]   .grb-pie-svg { filter: drop-shadow(0 20px 60px rgba(0, 0, 0, 0.25)); }
+.graph-block[data-drop-shadow="strong"] .grb-pie-svg { filter: drop-shadow(0 30px 80px rgba(0, 0, 0, 0.55)); }
+/* 1013t1C4 — 조각 고르기(선택된 블럭 안에서만): 조각마다 손가락 커서 · 고른 조각에 점선 테두리.
+   테두리 색은 선택색(--sel-color)이 «아니라» 블럭 글자색(currentColor)이다 — 기본 프리셋의 조각 색이 선택색과 같은 파랑이라 선택색 실선은 조각에 묻혀 안 보였다
+   (스샷 실측 2026-10-13). 글자색은 바탕과 늘 갈리고(범례가 읽히는 색) 점선은 조각 색이 무엇이든 «고른 것»으로 읽힌다. 칠 «위에» 그린다(paint-order 기본).
+   치수는 화면 px(non-scaling-stroke) — 배율·차트 높이와 무관. 표식 클래스는 -cell-selected 로 끝나 저장·내보내기에서 걷힌다(이 규칙도 export-css-collect 가 같은 이름으로 버린다). */
+.graph-block.selected .grb-pie-slice { cursor: pointer; }
+.graph-block.selected .grb-pie-slice.grb-pie-cell-selected {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
 .grb-pie-slice:nth-child(5n+1) { fill-opacity: 1; }
 .grb-pie-slice:nth-child(5n+2) { fill-opacity: 0.8; }
 .grb-pie-slice:nth-child(5n+3) { fill-opacity: 0.6; }
 .grb-pie-slice:nth-child(5n+4) { fill-opacity: 0.45; }
 .grb-pie-slice:nth-child(5n+5) { fill-opacity: 0.3; }
+/* 1013t1C3 — 조각 안 라벨(순위 배지 + 이름)의 HTML 덧층. svg 는 wrap 안에서 한 변 min(높이, 폭)인 정사각으로 가운데에 그려진다(preserveAspectRatio meet)
+   ⇒ 덧층도 «같은 정사각»: 폭 = 인라인 chartH px(폭이 모자라면 max-width 100 %) · 높이 = aspect-ratio 1 · 가운데. 라벨 자리는 그 정사각의 %(렌더가 viewBox 좌표에서 옮겨 쓴다).
+   클릭은 안 받는다(조각 고르기·블럭 끌기가 그대로 조각에 닿는다). 치수는 em·% 뿐 — 글자 크기(인라인 = 라벨 크기)를 따라 같이 커진다.
+   글자 톤: --grb-seg-fg(그 조각 위에서 읽히는 쪽 · 마디 라벨과 같은 변수)와 --grb-pie-rank-ink(그 반대 쪽)를 canvas-contrast.js _syncPieTagTone 이 라벨마다 인라인으로 쓴다.
+   배지 = 글자 톤으로 채운 알약 + 반대 톤 글자. 변수가 없으면(못 쟀을 때 · 앱 밖) 블럭 글자색의 «테두리 알약»으로 떨어진다. */
+.grb-pie-tags {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  aspect-ratio: 1;
+  max-width: 100%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.grb-pie-tag {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25em;
+  /* 1013t1C3 고침 — 라벨은 «제 조각 안의 사각형»을 못 넘는다. 한계는 변수 둘 겹: --grb-pie-box-*(렌더가 기하에서 낸 그 조각의 가장 넓은 사각형 · 마크업에 실린다)
+     위에 --grb-pie-tag-*(그려진 글자를 잰 결과 · drag-utils.js grbPieFitTags 가 쓴다 · 저장에서 걷힌다). 변수가 하나도 없으면 옛 값(덧층 정사각의 26 %).
+     넘는 글자는 자른다(overflow) · 숨김(--grb-pie-tag-d: none)도 같은 변수 길. 긴 이름은 낱말 사이에서 줄을 바꾸고(keep-all), 띄어쓰기 없는 긴 낱말은 어디서든 꺾는다(anywhere). */
+  display: var(--grb-pie-tag-d, flex);
+  font-size: var(--grb-pie-tag-fs, inherit);   /* 고침 2 — 제 조각에 안 들면 재는 쪽이 글자를 단계로 줄인다(배지·간격은 em 이라 같이 준다). 변수가 없으면 덧층의 글자 크기(= 라벨 크기) 그대로 */
+  max-width: var(--grb-pie-tag-w, var(--grb-pie-box-w, 26%));
+  max-height: var(--grb-pie-tag-h, var(--grb-pie-box-h, none));
+  overflow: hidden;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+  font-weight: var(--ui-fw-semibold);
+  color: var(--grb-seg-fg, inherit);
+}
+.grb-pie-rank {
+  font-size: 0.7em;
+  padding: 0 0.6em;
+  border-radius: 1em;
+  border: 1px solid var(--grb-seg-fg, currentColor);
+  background: var(--grb-seg-fg, transparent);
+  color: var(--grb-pie-rank-ink, inherit);
+  white-space: nowrap;
+}
+.grb-pie-rank:empty { display: none; }
+/* 이름 — 재서 안 들면 숨기고(--grb-pie-name-d: none), 「항상」 라벨은 줄 수로 자른다(--grb-pie-name-lines · 끝에 말줄임). 변수가 없으면 보통 블럭 글자. */
+.grb-pie-name {
+  display: var(--grb-pie-name-d, -webkit-box);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--grb-pie-name-lines, none);
+  max-width: 100%;
+  overflow: hidden;
+}
 .grb-pie-legend {
   display: flex;
   flex-wrap: wrap;
