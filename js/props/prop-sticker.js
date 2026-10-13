@@ -4,6 +4,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { panelRenderedColor } from './_panel-rendered.js';
 import { glowSectionHTML, wireGlowSection } from './prop-sticker-glow.js';
 import { countSectionHTML, wireCountSection } from './prop-sticker-count.js';
+import { coinSectionHTML, wireCoinSection } from './prop-sticker-coin.js';
 
 function _esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -134,7 +135,8 @@ export function showStickerProperties(block) {
   const isIcon    = shape === 'icon';
   const isGlow    = shape === 'glow';   // 이펙트 스티커 — 자기 절(prop-sticker-glow.js)만 보인다
   // circle/square 전용 섹션(mode/text/size/colors)을 가리는 통합 플래그
-  const hideBasic = isAnyHl || isText || isIcon || isGlow;
+  const isCoin    = shape === 'coin';   // 코인 스티커 — 자기 절(prop-sticker-coin.js)만 보인다
+  const hideBasic = isAnyHl || isText || isIcon || isGlow || isCoin;
   // 카운트 스티커(data-count · 1012t1Z4) — circle/square 의 변형. 자기 절(prop-sticker-count.js)을 끼우고
   //   글자·이미지 모드·Shape 절과 «크기» 행은 숨긴다(글자 = 번호, 모양·크기는 Count 절이 든다).
   const isCount   = !!block.dataset.count && !hideBasic;
@@ -247,7 +249,8 @@ ${blockHeaderHTML({
     </div>
     ${isGlow ? glowSectionHTML(block) : ''}
     ${isCount ? countSectionHTML(block) : ''}
-    <div class="prop-section" id="stk-shape-section" style="display:${(isGlow || isCount) ? 'none' : 'block'};">
+    ${isCoin ? coinSectionHTML(block) : ''}
+    <div class="prop-section" id="stk-shape-section" style="display:${(isGlow || isCount || isCoin) ? 'none' : 'block'};">
       <div class="prop-section-title">Shape</div>
       <div class="prop-row">
         <div class="prop-align-group" id="stk-shape-group">
@@ -562,6 +565,7 @@ ${blockHeaderHTML({
   };
   if (isGlow) wireGlowSection(propPanel, block, rerender);
   if (isCount) wireCountSection(propPanel, block, rerender);
+  if (isCoin) wireCoinSection(propPanel, block, rerender);
 
   // 텍스트 — textarea(멀티라인, \n 보존). input에선 .sticker-text textContent만 직접 갱신(rerender 시 캐럿 보존 X)
   //   초깃값은 HTML 본문 주입 대신 value 할당 — <input type=text>의 \n strip 함정 회피 +
