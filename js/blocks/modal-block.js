@@ -150,6 +150,79 @@ function _shadowStyles(block) {
   return css ? `box-shadow:${css};` : '';
 }
 
+/* ── 장식(Decoration) — 꼬리 · 테이프 · 유리 (1012t1Z5 버즈) ─────────────────────────────
+   모달의 «옵션»이다(버즈 묶음 안이든 밖이든 같다). dataset 이 진실이고 render 가 «실제 요소»로 그린다:
+     data-deco-tail = left | right      → <img class="mdl-deco-tail">   (상자 밑변 아래로 21px 나오는 말꼬리 · svg data URL)
+     data-deco-tape = left|center|right → <span class="mdl-deco-tape">  (윗변에 걸친 반투명 테이프)
+     data-glass     = 1                 → cssText 의 backdrop-filter     (알약 스타일의 유리)
+   ⛔의사요소(::before/::after)로 그리지 않는다 — ::after 는 hover 틴트의 자리이고(css/editor-blocks.css
+     `.modal-block:hover::after`), 캡처 클론은 #canvas 밖이라 #canvas 로 건 의사요소 규칙이 안 닿는다.
+   ⛔CSS 파일에 규칙을 두지 않는다 — 이 블럭의 규율(이 파일 머리말 「dataset 이 진실, render 가 그린다」).
+   ⛔클래스 이름을 `tb-` 로 시작하지 않는다 — Figma 폴백이 [class^="tb-"] 를 «글자»로 줍는다. */
+const MODAL_DECO_TAILS = ['none', 'left', 'right'];
+const MODAL_DECO_TAPES = ['none', 'left', 'center', 'right'];
+/* ★테이프 그리기는 «여기 한 곳»이다 — 모양(폭 · 높이 · 색 · 걸치는 깊이)은 MODAL_TAPE_SHAPE, 자리(좌/중/우 · 기울기)는
+   MODAL_TAPE_POS, 마크업은 _tapeHtml 하나. 모양을 바꾸려면 이 표와 그 함수만 갈아 끼운다(부르는 쪽 · 패널 · 버즈는 값만 안다).
+   모달의 «자식 실제 요소»라 모달의 회전 · 크기 · 캔버스 배율을 그대로 따라간다(자리는 전부 모달 상자 기준). */
+const MODAL_TAPE_SHAPE = { w: 132, h: 40, rise: 20, color: 'rgba(148,148,148,0.5)' };   /* rise = 윗변 위로 나오는 px(높이의 절반 = 윗변에 걸친다) */
+const MODAL_TAPE_POS = {
+  left:   { at: 'left:9%;',  deg: -4 },
+  center: { at: `left:calc(50% - ${MODAL_TAPE_SHAPE.w / 2}px);`, deg: 2 },
+  right:  { at: 'right:9%;', deg: 5 },
+};
+function _tapeHtml(side) {
+  /* 자기 키만 본다 — 'constructor' · 'toString' 같은 값이 프로토타입에서 참으로 읽히면 깨진 테이프가 그려진다(1012t1Z5 L-2). */
+  if (!Object.hasOwn(MODAL_TAPE_POS, side)) return '';
+  const pos = MODAL_TAPE_POS[side];
+  const T = MODAL_TAPE_SHAPE;
+  return `<span class="mdl-deco-tape" data-side="${side}" aria-hidden="true"`
+       + ` style="position:absolute;top:-${T.rise}px;${pos.at}transform:rotate(${pos.deg}deg);width:${T.w}px;height:${T.h}px;background:${T.color};pointer-events:none;z-index:1;"></span>`;
+}
+
+/* 꼬리 그림은 텍스트 말풍선의 그것 «하나»다(js/block-factory.js getBubbleTailSVG) — path 사본을 두지 않는다.
+   그 svg 의 클래스(tb-bubble-tail)에는 범위 없는 CSS 규칙이 걸려 있어 svg 째로 쓰지 않고 d 만 읽는다.
+   창구가 없으면(유닛 하네스 · 로드 순서) 꼬리를 안 그린다 — 다음 렌더에서 다시 읽는다(빈 값은 기억하지 않는다). */
+let _mdlTailD = '';
+function _tailPathD() {
+  if (_mdlTailD) return _mdlTailD;
+  const svg = (typeof window !== 'undefined' && typeof window.getBubbleTailSVG === 'function') ? window.getBubbleTailSVG('left') : '';
+  const m = /<path d="([^"]+)"/.exec(String(svg || ''));
+  if (m) _mdlTailD = m[1];
+  return _mdlTailD;
+}
+
+/** 유리 — 'none' 과 같은 규칙: 없으면 «빈 문자열»(기존 모달의 cssText 가 한 글자도 안 달라진다). */
+function _glassStyles(block) {
+  return block.dataset.glass === '1' ? '-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);' : '';
+}
+
+/** 꼬리 + 테이프 마크업. 둘 다 없으면 ''(기존 모달의 innerHTML 이 한 글자도 안 달라진다).
+    ★꼬리의 좌우 뒤집기는 path 의 «SVG 속성» transform 이다(CSS transform 이 아니다 — js/io/h2c-prep.js 머리말).
+    ★꼬리를 감싸는 span 은 상자 밑변에서 «자른다»: 꼬리 그림자(drop-shadow)가 상자 «안»을 어둡게 하지 않고,
+      반투명 배경에서 상자와 꼬리가 겹쳐 진해지는 띠도 안 생긴다.
+    ★꼬리 그림자는 상자 그림자와 «같은 표»(MODAL_SHADOW_CSS)의 값이다 — 새 그림자 수를 만들지 않는다. */
+function _decoHtml(block, bg) {
+  let out = '';
+  const tail = block.dataset.decoTail;
+  if (tail === 'left' || tail === 'right') {
+    const d = _tailPathD();
+    if (d) {
+      const sh = MODAL_SHADOW_CSS[_dropShadow(block.dataset.dropShadow)];
+      /* ★svg 를 «img 의 data URL»로 싣는다 — 인라인 <svg> 는 html2canvas(PNG 폴백 · 썸네일)가 이 자리에서 안 그렸다
+         (2026-10-13 실측: 인라인 svg 변형 다섯 전부 빠짐 · img(data:svg) 는 그려짐. reports/S5-buzz/gen-1-h2c.png).
+         색(fill)과 좌우 뒤집기는 svg 글자 안에 굳힌다 — 재렌더마다 dataset 에서 다시 짓는다. */
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19 16" width="40" height="34" preserveAspectRatio="none">`
+                + `<path d="${d}" fill="${_esc(bg)}"${tail === 'left' ? ' transform="translate(19 0) scale(-1 1)"' : ''}/></svg>`;
+      out += `<span class="mdl-deco-tailwrap" aria-hidden="true" style="position:absolute;left:0;right:0;top:100%;height:200px;overflow:hidden;pointer-events:none;">`
+           + `<img class="mdl-deco-tail" data-side="${tail}" alt="" draggable="false" width="40" height="34" src="data:image/svg+xml,${encodeURIComponent(svg)}"`
+           + ` style="position:absolute;top:-13px;${tail === 'left' ? 'left' : 'right'}:52px;display:block;max-width:none;${sh ? `filter:drop-shadow(${sh});` : ''}">`
+           + `</span>`;
+    }
+  }
+  out += _tapeHtml(block.dataset.decoTape);
+  return out;
+}
+
 const MODAL_VALIGNS = ['top', 'center', 'bottom'];
 const _MDL_JUSTIFY_V = { top: 'flex-start', center: 'center', bottom: 'flex-end' };
 const _MDL_JUSTIFY_H = { left: 'flex-start', center: 'center', right: 'flex-end' };
@@ -511,6 +584,7 @@ function renderModalBlock(block) {
     /* ★_alignStyles «앞»에 둔다 — 그 함수는 「맨 뒤여야 한다」는 계약을 갖고 있다
        (icon-stack 의 text-align:center 가 앞의 text-align 을 이겨야 한다).
        box-shadow 는 다른 어떤 선언과도 같은 자리를 다투지 않으므로 순서에 안 걸린다. */
+    + _glassStyles(block)   /* 유리(장식) — 그림자와 같은 까닭으로 _alignStyles 앞 */
     + _shadowStyles(block)
     + _alignStyles(v, align, vAlign, hMode);
   /* ★★회전을 ★여기서 ★다시 얹는다 — T11(현빈 2026-10-07 「모달블럭도 로테이트」).
@@ -602,6 +676,9 @@ function renderModalBlock(block) {
     html = _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text, _highlightCss(block.dataset), block.dataset.textHtml);
   }
   block.innerHTML = html;
+  /* 장식(꼬리 · 테이프)은 슬롯 «뒤»에 붙인다 — 첫 [class^="tb-"] 를 글 슬롯으로 찾는 자리들이 그대로다. */
+  const _deco = _decoHtml(block, bg);
+  if (_deco) block.insertAdjacentHTML('beforeend', _deco);
 
   /* ⑵ 아이콘 슬롯의 클릭 위임 — ★재렌더가 innerHTML 을 통째 갈아끼우므로 «여기서» 다시 건다
      (슬롯 인라인 편집이 block-drag 에서 위임으로 사는 것과 같은 이유).
@@ -766,6 +843,8 @@ window.MODAL_LIMITS     = MODAL_LIMITS;
 window.clampModal       = clampModal;
 window.setModalSizeMode = setModalSizeMode;
 window.MODAL_DROP_SHADOWS = MODAL_DROP_SHADOWS;
+window.MODAL_DECO_TAILS = MODAL_DECO_TAILS;
+window.MODAL_DECO_TAPES = MODAL_DECO_TAPES;
 window.applyPickedIconToModal = applyPickedIconToModal;
 window.openModalIconPicker    = openModalIconPicker;
 window.iconBlockNewColor      = iconBlockNewColor;
@@ -805,4 +884,5 @@ export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, apply
          MODAL_DEFAULTS, MODAL_VARIANTS, MODAL_VARIANT_IDENTITY, MODAL_PH, MODAL_LIMITS, clampModal,
          setModalSizeMode, _alignStyles, MODAL_VALIGNS,
          MODAL_DROP_SHADOWS, MODAL_SHADOW_CSS, _dropShadow, _shadowStyles,
+         MODAL_DECO_TAILS, MODAL_DECO_TAPES, MODAL_TAPE_SHAPE, MODAL_TAPE_POS, _glassStyles, _decoHtml, _tapeHtml,
          syncModalIconFirstLineOffset };

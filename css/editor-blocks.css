@@ -1823,6 +1823,17 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
      ⚠️블럭 제 배경은 ★★블럭에 있고 ★이 틴트는 ★★슬롯에 간다 ⇒ ★★블럭 배경을 ★안 덮는다. */
 #canvas .modal-block [data-mdl-slot][contenteditable="true"] { cursor: text; background: var(--sel-color-fill); }
 
+/* ── 버즈(1012t1Z5) 깊이 — 프레임의 data-buzz-depth × row 의 data-buzz-far ──
+   뒤쪽 말풍선을 작고 흐리게. row 에 건다 — 모달의 인라인 스타일은 재렌더가 통째로 갈기 때문이다.
+   캔버스 범위 접두를 붙이지 않는다: 내보낸 HTML 과 PNG 캡처 클론에도 같은 규칙이 닿아야 한다.
+   값은 «콘텐츠»의 생김새(축소 · 투명도 · 흐림)다 — 에디터 크롬 토큰과 무관하다. */
+.frame-block[data-buzz-depth="weak"] > .row[data-buzz-far="1"] { opacity: 0.9; }
+.frame-block[data-buzz-depth="weak"] > .row[data-buzz-far="2"] { transform: scale(0.92); opacity: 0.72; }
+.frame-block[data-buzz-depth="strong"] > .row[data-buzz-far="1"] { transform: scale(0.9); opacity: 0.8; }
+.frame-block[data-buzz-depth="strong"] > .row[data-buzz-far="2"] { transform: scale(0.74); opacity: 0.5; filter: blur(1.6px); }
+/* 고른 말풍선은 또렷하게 — 편집 화면 전용이다(내보내기 수확이 선택 상태 선택자를 버린다). */
+.frame-block[data-buzz-depth] > .row[data-buzz-far]:has(> .modal-block.selected) { opacity: 1; filter: none; }
+
 /* ── 그리드 캔버스 인라인 편집 (P1.5) ──
    ⛔여기서 «어느 줄이 편집 가능한가»를 판정하지 않는다 — 그 판정은 js/block-drag.js 의
      _gridEditable 하나뿐이고, 이 규칙은 그 결과로 «실제 켜진» contenteditable 상태에만 반응한다
