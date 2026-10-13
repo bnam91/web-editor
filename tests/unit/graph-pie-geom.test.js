@@ -177,3 +177,28 @@ test('U10 비율 % — 최대 잔여법: 합이 정확히 100 · 동률은 앞 �
   }
   assert.equal(n, 7, '전제: 묶음을 다 돌았다');
 });
+
+/* ── 1013t1C 원형·도너츠 7건 ──────────────────────────────────────────────
+ *   U11 골든 핀: 새 인자(opts)를 «안 준» 산출이 1012 판과 바이트가 같다(옛 저장본을 만져도 같은 그림) — 1013t1C0 에서 «고치기 전 판» 위에 박았다. */
+const sha = (s) => require('node:crypto').createHash('sha256').update(s).digest('hex');
+const GOLD = [
+  [[[30, 20, 15, 15, 10, 10], 0, 10], 'a5d84213c783230e084155b4a8d8332c97a0c2c244d0cfd3557f4749090f6bed'],
+  [[[30, 20, 15, 15, 10, 10], 55, 10], '7b99c098f908616f49f0c0f70fab4732657387e5990cb91d5ae3262aa2079568'],
+  [[[1, 1, 2], 0, 10], '2cf12b345950f4954aac01e3722e242e2f36e7433c5d8fd0908da0d8331d8b3a'],
+  [[[1, 1, 2], 55, 10], '9cead1c0f1bb19d1d3a76e4ebf3b6444f2e5289ae690989fee3db02c4c17efb4'],
+  [[[5], 55, 10], '277be82afdbc8a9330dd9208bc77b2ad42d972f8b3c287cb864d2ab500c07370'],
+  [[[], 0, 10], '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'],
+  [[[-5, 10, NaN, 'abc', null, '30', Infinity, 999, 1], 20, 10], '5a69e1bc3b53e7d17c7cc6a70ea2c0ba49ddeada1828e330d5a31a64b60f2e22'],
+  [[[30, 20, 15, 15, 10, 10], 0], '68405be88f6242d4ee4c24630560d04dde287356c61d49710a0ebe618498108d'],
+];
+test('U11 골든 핀 — 새 인자를 안 주면 조각 path 가 1012 판과 바이트가 같다(여덟 표본)', () => {
+  let n = 0;
+  for (const [args, want] of GOLD) {
+    const r = piePaths(...args);
+    assert.equal(r.paths.length, args[0].length, '전제: 조각 수 = 입력 수');
+    assert.equal(sha(JSON.stringify(r.paths)), want, `표본 ${n} ${JSON.stringify(args)}`);
+    n++;
+  }
+  assert.equal(n, 8, '전제: 표본을 다 돌았다');
+  assert.equal(piePaths([1, 1, 2], 0, 10).paths[0], 'M 505.00 495.00 L 505.00 0.03 A 500.00 500.00 0 0 1 999.97 495.00 Z', '해시가 재는 글자의 꼴(눈으로 읽는 한 줄)');
+});
