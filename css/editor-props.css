@@ -593,6 +593,14 @@
      ⚠️`display:none` 이 ★아니라 `opacity:0` 이다 — ★tests/dom/fx-particles-panel.dom.spec.js:557 이
        `[data-fxpart-color-del="0"]` 를 ★누른다. ★Playwright 의 보임 판정은 ★상자 크기·visibility 이고
        ★opacity 는 ★안 본다 ⇒ `display:none` 으로 두면 ★그 검사가 ★빨개진다. */
+/* ★파티클 프리셋 칩 — 두 칸 격자 (1013t2E3 · 현빈 「코인레시피의 경우 버튼의 유형이 달라보이니 디자인 일관성」).
+   칩 꼴(높이·테두리·글자)은 `.prop-align-btn` 그대로고 여기는 «자리»만 정한다 — 간격도 `.prop-align-group` 의 gap 을 그대로 쓴다.
+   ⛔flex 줄바꿈으로 두면 프리셋이 홀수일 때 혼자 남은 마지막 칩(코인)이 줄 전체로 늘어난다 — 다섯 칩이 같은 폭이어야 한다.
+   회귀: tests/dom/fx-particles-coin.dom.spec.js E3 칸(다섯 칩의 폭·높이·계산된 꼴이 같다). */
+#sec-fxpart-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .fxpart-chip-wrap {
   position: relative; display: inline-flex; flex-shrink: 0;
   width: var(--cv-chip-size); height: var(--cv-chip-size);

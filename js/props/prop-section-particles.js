@@ -58,6 +58,8 @@
      카드      `.prop-cell-card` ＋ `-header` ＋ `-body`   (★선례 effects-reflect.js:163)
      눈·접기·✕ `.prop-icon-btn`                            (★같은 선례)
      프리셋칩  `.prop-align-group` ＋ `.prop-align-btn.active` (★선례 prop-sticker-glow.js:24)
+               ★두 칸 격자(css `#sec-fxpart-presets`) — 프리셋이 홀수(다섯 · 1013t2E3)여도 마지막 칩이 다른 칩과 «같은 폭»이다.
+               ⛔칩에 `flex:1 0 46%` 를 다시 달지 마라 — 혼자 남은 마지막 칩이 줄 전체로 늘어나 꼴이 달라진다.
      슬라이더  `.prop-slider` ＋ `.prop-number`             (★선례 prop-sticker-glow.js:88)
      색 칩    `.fxpart-chip-wrap > .prop-color-swatch.fxpart-chip > .fxpart-chip-dot`
                (★크기는 css `--cv-chip-size`·`--cv-chip-dot-size` · 투명 color input · ✕ 는 ★호버 겹침)
@@ -92,6 +94,7 @@ const SHAPE_LABEL = {
   circle: { s: '원',   t: '원' },
   star4:  { s: '별',   t: '4갈래 별' },
   tri:    { s: '삼각', t: '삼각' },
+  coin:   { s: '코인', t: '3D 코인' },      /* 1013t2E3 — 그림은 CoinFx(js/fx/coin-draw.js) */
 };
 
 /* ★분포 글 — ★★시안 `:302~304` ★그대로. ★키는 ★`ParticlesFx.DISTS` 에서 읽는다. */
@@ -320,7 +323,7 @@ export function secParticlesHTML(sec) {
           <div class="prop-align-group" id="sec-fxpart-presets" role="group" aria-label="파티클 프리셋"
                style="margin-bottom:6px">
             ${kinds.map((k) => `<button class="prop-align-btn${k === cfg.preset ? ' active' : ''}"
-                    data-fxpart-preset="${escHtml(k)}" style="flex:1 0 46%"
+                    data-fxpart-preset="${escHtml(k)}"
                     title="${escHtml((P.PRESETS?.[k]?.label) || k)}">${
                     escHtml((P.PRESETS?.[k]?.label) || k)}</button>`).join('')}
           </div>

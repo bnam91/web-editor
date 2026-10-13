@@ -110,8 +110,9 @@ test('P0 전제 — 공용 부품·프리셋·상한이 판에 있다', () => {
   assert.equal(F.MAX_COUNT, 120,
     '상한 120/섹션 — ★현빈 2026-10-08 「60개 말고 ★120개까지하자 최대」'
     + ' (★옛 값: 320 → 60(2026-10-07 「개수는 상한 60개로 하자」) → ★120)');
-  assert.deepEqual([...F.KINDS], ['star', 'gold', 'party', 'dust']);
-  assert.deepEqual([...F.SHAPES], ['rect', 'ribbon', 'circle', 'star4', 'tri']);
+  /* ★1013t2E3 — 다섯째 프리셋·여섯째 모양 「coin」(현빈 노트 「별반짝이, 금색 컨패티, 컬러컨페티, 먼지/보케, 코인레시피」). 순서도 그 순서다. */
+  assert.deepEqual([...F.KINDS], ['star', 'gold', 'party', 'dust', 'coin']);
+  assert.deepEqual([...F.SHAPES], ['rect', 'ribbon', 'circle', 'star4', 'tri', 'coin']);
   assert.equal(F.RANGES.count.max, F.MAX_COUNT, '범위 표와 상한이 «한 수»다');
 });
 
@@ -135,7 +136,11 @@ test('P0b ★★프리셋 count 가 «상한을 참조»한다 — 상한을 바
   /* ★음성대조 — 원래 판은 ★치환 판과 ★다르다(치환이 «전역으로» 먹은 게 아니다) */
   const F = load();
   assert.notEqual(F.MAX_COUNT, CAP_PROBE, '⛔음성대조 실패 — 원래 판까지 바뀌었다');
-  for (const k of F.KINDS) assert.equal(F.PRESETS[k].count, F.MAX_COUNT, `${k}: 원래 판에서 상한과 다르다`);
+  /* ★1013t2E3 — 「coin」은 상한을 따라가지 «않는다»(한 닢이 SVG 요소 서른 안팎이라 120 닢이면 넷의 수십 배다).
+       14 닢으로 시작하되 상한보다 크지는 않다 ⇒ 위 치환 판(상한 7)에서는 7 이었다(그래서 위 고리를 그대로 지났다). */
+  for (const k of F.KINDS.filter((x) => x !== 'coin')) assert.equal(F.PRESETS[k].count, F.MAX_COUNT, `${k}: 원래 판에서 상한과 다르다`);
+  assert.equal(F.PRESETS.coin.count, 14, '코인 프리셋의 시작 갯수');
+  assert.equal(loadWithCap(3).PRESETS.coin.count, 3, '상한이 14 보다 낮은 판에서 코인 갯수가 상한을 넘었다');
 });
 
 test('P1a ★★배경색 계약 — PRESETS 어디에도 bg 가 없다 (프리셋은 파티클 값만 바꾼다)', () => {
@@ -378,7 +383,7 @@ test('P14b ★★`speed` 의 ★min 이 ★0 이어야 ★inert 가 산다 — �
     '★★clamp 가 0 을 10 으로 밀지 않았다 — 이 칸의 까닭(시안 min 10 을 안 쓴 이유)이 사라졌다');
 });
 
-test('P14c ★★PRESETS ★네 벌 × ★패닝 셋 = ★열두 칸이 ★전부 0 — ★한 벌만 빠져도 ★그 프리셋이 ★움직인다', () => {
+test('P14c ★★PRESETS ★다섯 벌(1013t2E3 코인 포함) × ★패닝 셋 = ★열다섯 칸이 ★전부 0 — ★한 벌만 빠져도 ★그 프리셋이 ★움직인다', () => {
   const F = load();
   /* ★★P14a 로는 ★이것을 ★못 잡는다 — ★1차에서 ★`speed`·`spin` 은 ★그림에 ★안 들어가서
      ★기본이 ★58 이어도 ★sha 가 ★안 바뀐다. ⇒ ★★그 둘은 ★«값»으로 ★직접 재야 한다.
@@ -392,7 +397,7 @@ test('P14c ★★PRESETS ★네 벌 × ★패닝 셋 = ★열두 칸이 ★전�
   }
   assert.deepEqual(bad, [], `★0 이 아닌 칸: ${bad.join(' · ')} — ★그 프리셋의 ★옛 저장본이 ★저절로 움직인다`);
   /* ★전제 — ★칸 수를 ★세서 ★「돌 게 없어 초록」을 ★막는다(★KINDS×AXES 만큼 ★정말 봤나) */
-  assert.equal(F.KINDS.length * AXES.length, 12, `★전제: 센 칸이 ${F.KINDS.length * AXES.length} 개다(프리셋 ${F.KINDS.length} × 축 ${AXES.length})`);
+  assert.equal(F.KINDS.length * AXES.length, 15, `★전제: 센 칸이 ${F.KINDS.length * AXES.length} 개다(프리셋 ${F.KINDS.length} × 축 ${AXES.length})`);
 });
 
 test('P15 ★방향성 번짐 — ★`blur` 가 ★0 이면 ★없고 ★크면 ★«두 값»으로 난다', () => {
@@ -508,4 +513,87 @@ test('P17c ★★필터 영역이 ★«묶인 번짐»을 따라온다 — ⛔�
   assert.ok(slow !== null && fast !== null, '★전제: 필터 영역을 ★못 읽었다');
   assert.ok(Math.abs(fast) > Math.abs(slow),
     `★★속도를 올려 ★번짐이 커졌는데 ★필터 영역이 ★안 넓어졌다 (${slow} → ${fast}) — ★번짐이 ★잘린다`);
+});
+
+/* ══ 1013t2 E3·E4 — 코인 프리셋 · 크기 상한 250 ══════════════════════════════════════════
+   코인 그림은 js/fx/coin-draw.js(CoinFx)가 짓는다 ⇒ 이 칸들은 그 파일을 «같이» 실은 판에서 잰다(index.html 의 순서: coin-draw → particles-render). */
+function loadWithCoin(errSink) {
+  const ctx = errSink ? { console: { error: (...a) => errSink.push(a.map(String).join(' ')) } } : {};
+  ctx.window = ctx; vm.createContext(ctx);
+  vm.runInContext(readSrc(REPO, 'js/fx/seeded-random.js'), ctx);
+  vm.runInContext(readSrc(REPO, 'js/fx/coin-draw.js'), ctx);
+  vm.runInContext(readSrc(REPO, 'js/fx/particles-render.js'), ctx);
+  assert.equal(typeof ctx.CoinFx?.draw, 'function', '★전제: CoinFx 를 실었다');
+  return { F: ctx.ParticlesFx, C: ctx.CoinFx };
+}
+const coinGroups = (s) => (s.match(/<g transform="translate\([^)]*\)"><g transform="rotate\(0\)"><defs><linearGradient id="[^"]*-c\d+s"/g) || []).length;
+
+test('P18 ★E3 코인 프리셋 — 코인 «그림»이 갯수만큼 나고 · 금색 하나 · 넷과 같은 저장 칸', () => {
+  const { F, C } = loadWithCoin();
+  const pre = F.PRESETS.coin;
+  assert.equal(pre.label, '코인');
+  assert.deepEqual([...pre.shapes], ['coin']);
+  /* ★E4 「색은 금색 은색 추가말고 디폴트로 금색」 — 색 칩이 «하나»고 그것이 코인 색의 정본에서 온 금이다(은 없음) */
+  assert.deepEqual([...pre.colors], ['#f5c542']);
+  assert.equal(pre.colors[0], C.baseColors('gold').face, '코인 프리셋의 색이 CoinFx 의 금 대표색이 아니다');
+  assert.ok(!pre.colors.includes(C.baseColors('silver').face), '은색이 기본에 들어 있다');
+  assert.deepEqual(Object.keys(pre).sort(), Object.keys(F.PRESETS.star).sort(), '코인 프리셋의 칸이 다른 프리셋과 다르다');
+
+  const cfg = { preset: 'coin', seed: 20261014, w: 860, h: 600, filterId: 'pfx-sec1' };
+  const s = F.svg(cfg);
+  assert.equal(coinGroups(s), 14, '코인이 갯수만큼 안 그려졌다');
+  assert.equal((s.match(/<ellipse rx="[^"]+" ry="[^"]+" fill="url\(#pfx-sec1-c\d+f\)"\/>/g) || []).length, 14, '앞면 타원이 코인마다 하나씩 있어야 한다');
+  assert.ok(!/<circle\b/.test(s), '코인 자리에 원이 났다(그리개가 안 불렸다)');
+  /* 금 표로 그려진다 — 금의 앞면 가운데 색이 있고 은의 것은 없다 */
+  assert.ok(s.includes(C.PALETTES.gold.face[1]) && !s.includes(C.PALETTES.silver.face[1]));
+  /* id — 코인마다 다르고 전부 필터 id 아래다(SVG id 는 문서 전역) */
+  const ids = [...s.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(new Set(ids).size, ids.length, '같은 id 가 두 번 났다');
+  assert.ok(ids.length >= 14 * 8 && ids.every((x) => x.startsWith('pfx-sec1-c')), 'id 가 섹션 필터 id 밖에서 났다');
+  assert.notDeepEqual(ids, [...F.svg({ ...cfg, filterId: 'pfx-sec2' }).matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+  /* 결정성 · 시드 */
+  assert.equal(F.svg(cfg), s);
+  assert.notEqual(F.svg({ ...cfg, seed: 20261015 }), s);
+  /* 색 칩을 바꾸면 그 색의 코인이 된다(칩이 코인 색을 쥔다) */
+  const blue = F.svg({ ...cfg, colors: ['#2D6FE8'] });
+  assert.ok(blue.includes('#2d6fe8') && !blue.includes(C.PALETTES.gold.face[1]));
+  /* 움직이는 판 — 꼬리표가 코인의 바깥 <g> 에 달린다(움직이개가 그 transform 을 덮어쓴다) */
+  const mv = F.svg({ ...cfg, speed: 40 });
+  assert.equal((mv.match(/<g[^>]* data-fxp="[^"]+">\s*<g transform="translate\(/g) || []).length, 14);
+  assert.equal((s.match(/data-fxp=/g) || []).length, 0, '멈춘 판에 꼬리표가 붙었다');
+});
+
+test('P18b ★E3 음성대조 — CoinFx 가 없는 판에서는 코인이 «원»으로 떨어지고 콘솔에 한 번 적는다', () => {
+  const errs = [];
+  const F = loadWithCap(null, errs);
+  const s = F.svg({ preset: 'coin', seed: 20261014, w: 860, h: 600, filterId: 'pfx-sec1' });
+  assert.equal(coinGroups(s), 0, '★자가 죽었다 — CoinFx 가 없는데 코인 그림을 셌다');
+  assert.equal((s.match(/<circle\b/g) || []).length, 14);
+  assert.equal(errs.filter((e) => e.includes('CoinFx')).length, 1, '콘솔에 한 번만 적어야 한다');
+  /* 다른 프리셋은 CoinFx 유무와 무관하게 같은 글자다(코인 갈래가 옛 그림을 안 건드린다) */
+  const { F: G } = loadWithCoin();
+  for (const k of ['star', 'gold', 'party', 'dust']) {
+    const c = { preset: k, seed: 7, count: 20, w: 860, h: 420, filterId: 'pfx-i' };
+    assert.equal(sha(G.svg(c)), sha(F.svg(c)), `${k}: CoinFx 를 실었더니 그림이 달라졌다`);
+  }
+});
+
+test('P19 ★E4 크기 상한 250 — 범위 표 · 가두기 · 실제 그림 · 옛 값 그대로', () => {
+  const { F } = loadWithCoin();
+  /* ★이 파일에서 「250」을 글자로 적는 자리 — 값을 여기서 잠근다 */
+  assert.deepEqual([F.RANGES.smin.min, F.RANGES.smin.max, F.RANGES.smax.min, F.RANGES.smax.max], [1, 250, 1, 250]);
+  assert.equal(F.normalize({ preset: 'coin', smax: 250 }).smax, 250, '250 이 깎였다');
+  assert.equal(F.normalize({ preset: 'coin', smax: 251 }).smax, 250);
+  assert.equal(F.normalize({ preset: 'coin', smin: 250, smax: 250 }).smin, 250);
+  /* 옛 저장본의 크기(≤ 90)는 그대로다 */
+  for (const k of F.KINDS) {
+    const n = F.normalize({ preset: k });
+    assert.ok(n.smax <= 90 && n.smin === F.PRESETS[k].smin && n.smax === F.PRESETS[k].smax, `${k}: 기본 크기가 바뀌었다`);
+  }
+  assert.equal(F.normalize({ preset: 'star', smin: 3, smax: 90 }).smax, 90);
+  /* 실제 그림 — 크기 250 으로 고정하면 코인 앞면 타원의 가로 반지름이 125 다 */
+  const s = F.svg({ preset: 'coin', seed: 5, count: 4, smin: 250, smax: 250, w: 860, h: 600, filterId: 'pfx-big' });
+  assert.equal((s.match(/<ellipse rx="125" ry="[^"]+" fill="url\(#pfx-big-c\d+f\)"\/>/g) || []).length, 4, '지름 250 코인이 안 그려졌다');
+  /* 다른 모양도 같은 표를 읽는다(범위 표는 하나) */
+  assert.ok(F.svg({ preset: 'dust', seed: 5, count: 3, smin: 250, smax: 250, glow: 0, w: 860, h: 600, filterId: 'p' }).includes(' r="125"'));
 });
