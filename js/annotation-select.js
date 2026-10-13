@@ -342,7 +342,7 @@
       if (document.body.classList.contains('pen-mode')) return;
       if (block.dataset.labelMode === 'image') return;
       e.stopPropagation();
-      _enterLabelEdit(block, label);
+      annotBeginLabelEdit(block, label);
     });
 
     // ── 라벨 드래그 (어노테이션 전체 평행 이동) ──────────────────────
@@ -511,33 +511,54 @@
   }
   window.bindAnnotationSelect = bindAnnotationSelect;
 
-  // ── 라벨 편집 진입 ──────────────────────────────────────────────────
-  function _enterLabelEdit(block, label) {
+  // ── 라벨 편집 진입 (★1013t2C6 — 한 벌: 더블클릭 · 펜으로 만든 직후 둘 다 여기로) ──────────
+  /* 키 규약 = 스텝·카드 블럭과 같다(js/blocks/step-block.js · canvas-block.js):
+       Enter / ⇧Enter = 줄바꿈 · ⌘/Ctrl+Enter · Esc · 바깥 클릭(blur) = 마침.
+     ⛔한글 조합 중 Enter(isComposing · keyCode 229)는 조합 확정이다 — 건드리지 않는다(그래프 라벨과 같은 가드).
+     확정 = innerText → annotNormalizeText → textContent 로 다시 쓰기(<br> 잔재 0) → 바뀌었으면 끝 표본.
+     히스토리: 들어갈 때 체크포인트(앞) + 바뀌었으면 '어노테이션 글'(끝) — 편집 한 번 = ⌘Z 한 걸음(그래프 라벨 꼴). */
+  function annotBeginLabelEdit(block, label) {
+    if (!block || !label) return;
+    if (label.getAttribute('contenteditable') === 'true') return;   // 이미 편집 중
+    window.ensureHistoryCheckpoint?.('어노테이션 글 편집 전');
+    const before = block.dataset.text || '';
     label.setAttribute('contenteditable', 'true');
+    let done = false;
     const onKey = (ev) => {
-      if (ev.key === 'Enter' && !ev.shiftKey) {
+      if (ev.isComposing || ev.keyCode === 229) return;
+      if (ev.key === 'Enter') {
         ev.preventDefault();
-        label.blur();
+        ev.stopPropagation();
+        if (ev.metaKey || ev.ctrlKey) { label.blur(); return; }
+        document.execCommand('insertText', false, '\n');
       } else if (ev.key === 'Escape') {
         ev.stopPropagation();
         label.blur();
       }
     };
-    const onBlur = () => {
-      label.setAttribute('contenteditable', 'false');
-      const txt = (label.textContent || '').trim();
-      if (!txt) {
-        label.textContent = '텍스트';
-        block.dataset.text = '텍스트';
-      } else {
-        block.dataset.text = txt;
-      }
+    // 붙여넣기는 평문만(line-host 꼴) — 서식·<div> 가 라벨에 들어오지 않게
+    const onPaste = (ev) => {
+      ev.preventDefault();
+      const t = ev.clipboardData?.getData('text/plain') || '';
+      if (t) document.execCommand('insertText', false, t);
+    };
+    const finish = () => {
+      if (done) return;
+      done = true;
       label.removeEventListener('keydown', onKey);
-      label.removeEventListener('blur',    onBlur);
+      label.removeEventListener('paste',   onPaste);
+      label.removeEventListener('blur',    finish);
+      const raw = label.innerText ?? label.textContent ?? '';
+      label.setAttribute('contenteditable', 'false');
+      const val = window.annotNormalizeText(raw) || (window.ANNOT_DEFAULTS?.text || '텍스트');
+      label.textContent = val;
+      block.dataset.text = val;
+      if (val !== before) window.pushHistory?.('어노테이션 글');
       window.scheduleAutoSave?.();
     };
     label.addEventListener('keydown', onKey);
-    label.addEventListener('blur',    onBlur);
+    label.addEventListener('paste',   onPaste);
+    label.addEventListener('blur',    finish);
     setTimeout(() => {
       label.focus();
       try {
@@ -549,4 +570,5 @@
       } catch (_) {}
     }, 0);
   }
+  window.annotBeginLabelEdit = annotBeginLabelEdit;
 })();

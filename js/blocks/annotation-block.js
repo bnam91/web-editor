@@ -4,6 +4,7 @@
 // 외부 의존: window.genId 하나(전역). window.* 노출은 기존과 동일 유지(annotation-tool.js / prop-annotation.js 호환).
 
 import { checkerBgBigColors } from '../checker-tokens.js';
+import { stripCtlChars } from '../util/sanitize-rich-text.js';   // ★1013t2C6 — 라벨 글 정화(스티커 글과 같은 한 벌)
 
 // ★«부를 때» 찾는다 — 모듈 로드 시점에 잡아두면 drag-utils 가 아직 window.genId 를
 //   안 심었을 때 폴백에 고정돼, 여기서 만든 블록만 actorId 조각이 빠진다(협업에서 출처 불명).
@@ -267,6 +268,10 @@ function makeAnnotationBlock(opts = {}) {
       ${anchorSvg}
     </svg>
     <div class="annot-label${labelExtraClass}" contenteditable="false" style="${labelStyle}">${labelInner}</div>`;
+  /* ★1013t2C6 — 글은 «항상 글자»로 넣는다(textContent). 예전엔 innerHTML 에 날로 넣어
+     라벨에 `<b>x</b>` 를 치면 다시 그릴 때(rebindAll · 리로드 · ⌘Z 복원) 태그가 됐다.
+     줄바꿈(\n)은 글자 그대로 두고 CSS(white-space: pre)가 줄로 그린다. */
+  if (labelMode !== 'image') block.querySelector('.annot-label').textContent = text;
   return block;
 }
 window.makeAnnotationBlock = makeAnnotationBlock;
@@ -329,6 +334,14 @@ function _renderAnnotLabelInner(mode, { text, labelImageSrc, labelImageSize, lab
     }
     return `<img class="annot-label-img" src="${labelImageSrc}" style="width:${size}px;height:${size}px;border-radius:${rCss};display:block;object-fit:cover;" draggable="false">`;
   }
-  return text;
+  return '';   // ★1013t2C6 — text 모드 글은 makeAnnotationBlock 이 textContent 로 넣는다(⛔innerHTML 로 되돌리지 마라 · 이스케이프 사본도 만들지 마라)
 }
 window._renderAnnotLabelInner = _renderAnnotLabelInner;
+
+/* ★1013t2C6 — 라벨 글 «확정 값» 한 벌. 편집 확정(annotation-select.js annotBeginLabelEdit)이 쓴다.
+   innerText 로 읽은 값을 받는다(<br>·<div> 잔재도 \n 으로 — textContent 는 <br> 을 잃는다).
+   \r\n → \n · 제어문자(\t·\n 빼고) 걷기 · 폭 0 공백 걷기 · 앞뒤 빈 줄 trim(스티커 글과 같다). */
+function annotNormalizeText(raw) {
+  return stripCtlChars(String(raw ?? '').replace(/\r\n?/g, '\n')).replace(/\u200B/g, '').trim();
+}
+window.annotNormalizeText = annotNormalizeText;

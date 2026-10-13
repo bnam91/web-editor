@@ -5,7 +5,7 @@
  *   AN2 그 행을 누르면 어노테이션 패널 + 점 핸들이 뜬다 (A1)
  *   AN3 지우면 «죽은 행»이 안 남는다 (A1)
  *   AN4 기본 글자 크기 24 (dataset · 그려진 크기) · 프리셋을 눌러도 24 그대로 (A2)
- *   AN5 우측 패널에 글 입력칸이 없고, 캔버스 더블클릭으로 글을 고친다 (A2)
+ *   AN5 우측 패널에 글 입력칸이 없고, 캔버스 더블클릭으로 글을 고친다 (A2) · 마침 = ⌘Enter (1013t2C6)
  *   AN6 고른 라벨을 끌면 라벨만 옮겨진다(dataset.labelDx/Dy · 선 점 불변) (A3)
  *   AN7 끌기 한 번 = ⌘Z 한 걸음 · ⌘⇧Z 로 다시 (A3)
  *   AN8 다시 그려도(rebindAll) 오프셋이 남고 라벨 style 이 라이브와 같다 (A3)
@@ -141,7 +141,7 @@ test('AN5 우측 패널에 글 입력칸이 없다 — 글은 캔버스 더블�
   await expect.poll(() => page.evaluate((id) => { const l = document.querySelector(`[id="${id}"] .annot-label`); return l.getAttribute('contenteditable') === 'true' && document.activeElement === l; }, id),
     '더블클릭으로 라벨 편집에 들어갔다').toBe(true);
   await page.keyboard.type('캔버스입력');
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('Meta+Enter');   // ★1013t2C6 — Enter 는 이제 줄바꿈이다. 마침 = ⌘Enter(스텝·카드 블럭과 같은 규약)
   await expect.poll(() => page.evaluate((id) => { const b = document.getElementById(id); return { data: b.dataset.text, drawn: b.querySelector('.annot-label').textContent, ce: b.querySelector('.annot-label').getAttribute('contenteditable') }; }, id),
     '캔버스에서 쓴 글이 데이터·화면에 들어갔다').toEqual({ data: '캔버스입력', drawn: '캔버스입력', ce: 'false' });
 });

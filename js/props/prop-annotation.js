@@ -263,7 +263,7 @@ ${blockHeaderHTML({
         </div>
       </div>
       ${st.labelMode === 'text' ? `
-      <div class="prop-hint">캔버스에서 라벨을 더블클릭해 글을 고칩니다</div>
+      <div class="prop-hint">캔버스에서 라벨을 더블클릭해 글을 고칩니다 · Enter 줄바꿈 · ⌘Enter/Esc 마침</div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
         <input type="range" class="prop-slider" id="annot-font-size" min="8" max="48" step="1" value="${st.labelFontSize}">
@@ -406,7 +406,7 @@ ${blockHeaderHTML({
   });
 
   /* ★1013t1A2 — 글 입력칸(#annot-text)은 걷었다(현빈 「우측패널에 굳이 텍스트 입력할 플레이스홀더는 필요없음」).
-     글은 캔버스에서 쓴다: 만든 직후 자동 편집(annotation-tool.js) · 라벨 더블클릭(annotation-select.js _enterLabelEdit). */
+     글은 캔버스에서 쓴다: 만든 직후 자동 편집(annotation-tool.js) · 라벨 더블클릭 — 둘 다 annotation-select.js annotBeginLabelEdit 한 벌(1013t2C6). */
   // ── 텍스트 모드 wireup (텍스트 모드일 때만 DOM 존재) ──
   const fs  = propPanel.querySelector('#annot-font-size');
   const fsN = propPanel.querySelector('#annot-font-size-num');

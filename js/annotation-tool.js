@@ -221,22 +221,9 @@ function _finalizeAnnotation({ enterLabelEdit = true, silent = false } = {}) {
   const block = window.makeAnnotationBlock({ points, text: '텍스트' });
   sec.appendChild(block);
 
-  // 라벨 즉시 편집 진입
+  // 라벨 즉시 편집 진입 — ★1013t2C6 더블클릭과 «같은 한 벌»(annotation-select.js annotBeginLabelEdit)
   const label = block.querySelector('.annot-label');
-  if (label && enterLabelEdit) {
-    label.setAttribute('contenteditable', 'true');
-    _bindLabelEdit(label, block);
-    setTimeout(() => {
-      label.focus();
-      try {
-        const range = document.createRange();
-        range.selectNodeContents(label);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-      } catch (_) {}
-    }, 0);
-  }
+  if (label && enterLabelEdit) window.annotBeginLabelEdit?.(block, label);
 
   window.bindAnnotationSelect?.(block);
   _cancelPending();
@@ -254,29 +241,6 @@ function _commitAndExitPenMode() {
   if (hadLine) _finalizeAnnotation({ enterLabelEdit: false, silent: true });
   exitPenMode(); // 잔여 pending/미리보기는 내부 _cancelPending이 정리
   if (hadLine) window.showToast?.('✏️ 어노테이션 확정 — 펜 모드 종료');
-}
-
-function _bindLabelEdit(label, block) {
-  label.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' && !ev.shiftKey) {
-      ev.preventDefault();
-      label.blur();
-    } else if (ev.key === 'Escape') {
-      ev.stopPropagation();
-      label.blur();
-    }
-  });
-  label.addEventListener('blur', () => {
-    label.setAttribute('contenteditable', 'false');
-    const txt = (label.textContent || '').trim();
-    if (!txt) {
-      label.textContent = '텍스트';
-      block.dataset.text = '텍스트';
-    } else {
-      block.dataset.text = txt;
-    }
-    window.scheduleAutoSave?.();
-  });
 }
 
 // ── 전역 keydown ─────────────────────────────────────────────────────────
