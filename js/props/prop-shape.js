@@ -217,7 +217,7 @@ ${blockHeaderHTML({
           ${colorFieldHTML({ idPrefix: 'shape-ellipse-c' + i, hex: ellColors[i] || (/gradient/.test(rawColor) ? color : rawColor) })}
         </div>`).join('')}
         <div class="prop-row" style="margin-top:8px;">
-          <button type="button" class="prop-btn" id="shape-ellipse-colors-reset">개별 색 지우기</button>
+          <button type="button" class="prop-btn" id="shape-ellipse-colors-reset" style="width:100%;">개별 색 지우기</button>
         </div>` : ''}
         <div class="prop-row" style="margin-top:8px;">
           <span class="prop-label prop-label--auto">이너 그림자</span>

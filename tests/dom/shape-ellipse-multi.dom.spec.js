@@ -321,3 +321,23 @@ test('E10 붙여넣기 id — block.id 가 바뀌면 relink 가 필터 id·url �
   expect(r.urls).toEqual(['url(#eish-shp_new)', 'url(#eish-shp_new)']);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* 1013t2A1 이벨류에이터 지적 — 「개별 색 지우기」가 .prop-btn(24px 아이콘 단추) 그대로라 글자가 접혀 「색/지」만 보였다.
+   이웃 글자 단추처럼 width:100% — 접히지 않고(한 줄) 줄 폭을 채운다. */
+test('E11 「개별 색 지우기」 단추가 접히지 않는다 — 한 줄 · 줄 폭을 채운다', async ({ page }) => {
+  const errs = await setup(page);
+  await toCount(page, 3);
+  await page.waitForFunction(() => !!document.getElementById('shape-ellipse-colors-reset'));
+  const m = await page.evaluate(() => {
+    const b = document.getElementById('shape-ellipse-colors-reset');
+    const row = b.parentElement.getBoundingClientRect();
+    const r = b.getBoundingClientRect();
+    const cs = getComputedStyle(b);
+    return { w: r.width, rowW: row.width, h: b.clientHeight, sh: b.scrollHeight, lh: parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.4, text: b.textContent };
+  });
+  expect(m.text, '전제 — 그 단추다').toBe('개별 색 지우기');
+  expect(m.rowW, '전제 — 줄이 그려졌다').toBeGreaterThan(100);
+  expect(m.sh, `접힘 — scrollHeight ${m.sh} > clientHeight ${m.h}`).toBeLessThanOrEqual(m.h + 1);
+  expect(m.w, `폭 ${m.w} / 줄 ${m.rowW}`).toBeGreaterThanOrEqual(m.rowW - 1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
