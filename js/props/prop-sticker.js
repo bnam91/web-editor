@@ -3,7 +3,7 @@ import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedColor } from './_panel-rendered.js';
 import { glowSectionHTML, wireGlowSection } from './prop-sticker-glow.js';
-import { countSectionHTML, wireCountSection } from './prop-sticker-count.js';
+import { countSectionHTML, wireCountSection, syncCountGroup } from './prop-sticker-count.js';
 import { coinSectionHTML, wireCoinSection } from './prop-sticker-coin.js';
 
 function _esc(s) {
@@ -555,6 +555,9 @@ ${blockHeaderHTML({
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   const rerender = () => { window.renderStickerBlock?.(block); window.rememberStickerStyle?.(block); };
+  /* 마킹 블럭의 섹션 일괄(1013t2B3) — 「섹션 전체」 스위치가 켜져 있으면 방금 쓴 키를 같은 섹션의 다른 마킹에 베낀다.
+     일반 스티커(isCount 거짓)에서는 아무것도 안 한다. 히스토리는 아래 기존 change·onCommit 이 한 번 찍는다. */
+  const syncGroup = (keys) => { if (isCount) syncCountGroup(block, keys); };
   // 선 형광펜 진폭·주기 칸 — 갈래별 노출·라벨(1012t1J2)
   const _syncHlbRows = (style) => {
     const lbl = _HLB_AMP_LABEL[style];
@@ -678,6 +681,7 @@ ${blockHeaderHTML({
         if (isOn('line-through')) decos.push('line-through');
         block.dataset.textDecoration = decos.length ? decos.join(' ') : 'none';
         rerender();
+        syncGroup(['fontStyle', 'textDecoration']);
         window.pushHistory?.('스티커 스타일'); window.scheduleAutoSave?.();
       });
     });
@@ -969,6 +973,7 @@ ${blockHeaderHTML({
       // 단일 size 슬라이더로 덮어써 균일 크기로 — 안 그러면 render가 sizeW/sizeH 우선해 슬라이더 무시됨)
       if (syncKeys) syncKeys.forEach(k => { block.dataset[k] = v; });
       rerender();
+      syncGroup([key, ...(syncKeys || [])]);
       s.value = Math.min(parseInt(s.max), v);
       n.value = v;
     };
@@ -983,18 +988,19 @@ ${blockHeaderHTML({
   propPanel.querySelector('#stk-fw').addEventListener('change', e => {
     block.dataset.fontWeight = e.target.value;
     rerender();
+    syncGroup(['fontWeight']);
     window.pushHistory?.('스티커 굵기'); window.scheduleAutoSave?.();
   });
 
   // Colors
   wireColorField('stk-bg', {
     initialAlpha: bgAlpha,
-    onApply: (c) => { block.dataset.bgColor = c; rerender(); },
+    onApply: (c) => { block.dataset.bgColor = c; rerender(); syncGroup(['bgColor']); },
     onCommit: () => { window.pushHistory?.('스티커 배경'); window.scheduleAutoSave?.(); },
   });
   wireColorField('stk-txt', {
     initialAlpha: txtAlpha,
-    onApply: (c) => { block.dataset.textColor = c; rerender(); },
+    onApply: (c) => { block.dataset.textColor = c; rerender(); syncGroup(['textColor']); },
     onCommit: () => { window.pushHistory?.('스티커 글자색'); window.scheduleAutoSave?.(); },
   });
 

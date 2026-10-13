@@ -5,6 +5,7 @@
  *   L3 배선 — index.html 에 도구 스크립트가 정확히 한 번 실리고, 메뉴 단추가 스티커 패널(#fp-pen-menu) 안에 있다
  *   L5 이름(1013t2B1) — 메뉴 글자는 Marking · title 은 「마킹 블럭 — 」으로 시작 · 옛 「Count Sticker」 0건 (키·함수명은 count 그대로 — L3·L4 가 문다)
  *   L6 기본색(1013t2B4) — 마킹이 없는 섹션의 첫 찍기는 검정 배경·흰 글자 · 앞선 것이 있으면 그 색을 물려받는다
+ *   L7 섹션 일괄(1013t2B3) — copyToGroup 이 키를 베끼고 · 없는 키는 지우고 · 자기 자신과 다른 섹션은 안 건드린다
  *   L4 서로 끄기 — 찍는 도구 넷(Count · Annotation · HighlightB · 벡터 펜)의 enter 가 서로를 끈다(행동은 DOM C16·C17 이 잰다)
  * ★기대값은 «글자로» 박았다(피검 함수에서 뽑으면 항등식이다).
  * ⛔앱 0 · 네트워크 0. js/count-sticker-tool.js 는 최상위에서 DOM 을 안 건드리므로 vm 으로 그대로 싣는다.
@@ -122,4 +123,36 @@ test('L6 기본색 — 마킹이 없는 섹션의 inheritFrom 은 #000000 / #fff
   const bare = inheritFrom(fakeSec([{ dataset: { count: '1', shape: 'circle', size: '56' } }]));
   assert.equal('bgColor' in bare, false, '색 키 없는 옛 것: 배경색을 지어내지 않는다');
   assert.equal('textColor' in bare, false, '색 키 없는 옛 것: 글자색을 지어내지 않는다');
+});
+
+/* 블럭 흉내 — 도구가 읽는 것만: dataset · closest('.section-block') · classList.contains. */
+function fakeGroup(datasets) {
+  const sec = { querySelectorAll: () => blocks };
+  const blocks = datasets.map((d) => ({ dataset: { ...d }, closest: () => sec, classList: { contains: () => false } }));
+  return { sec, blocks };
+}
+
+test('L7 copyToGroup — 키를 베끼고, block 에 없는 키는 지우고, 자기 자신·다른 섹션은 안 건드린다', () => {
+  const ctx = load();
+  const drawn = [];
+  ctx.renderStickerBlock = (b) => drawn.push(b);
+  const { copyToGroup } = ctx.CountSticker;
+  assert.equal(typeof copyToGroup, 'function', '★전제: copyToGroup 이 실렸다');
+  const A = fakeGroup([
+    { count: '1', bgColor: '#111111', fontStyle: 'italic', x: '10' },
+    { count: '2', bgColor: '#222222', fontStyle: 'italic', x: '20' },
+    { count: '3', bgColor: '#f26b1f', x: '30' },                       // 고른 것 — fontStyle 키가 없다
+  ]);
+  const B = fakeGroup([{ count: '1', bgColor: '#999999', fontStyle: 'italic', x: '40' }]);
+  const src = A.blocks[2];
+  const n = copyToGroup(src, ['bgColor', 'fontStyle']);
+  assert.equal(n, 2, '바뀐 수 = 같은 섹션의 «다른» 마킹 수');
+  assert.deepEqual(A.blocks.map((b) => b.dataset.bgColor), ['#f26b1f', '#f26b1f', '#f26b1f'], '배경색이 셋 다 같아졌다');
+  assert.deepEqual(A.blocks.map((b) => 'fontStyle' in b.dataset), [false, false, false], 'block 에 없는 키는 받는 쪽에서도 지운다');
+  assert.deepEqual(A.blocks.map((b) => [b.dataset.count, b.dataset.x]), [['1', '10'], ['2', '20'], ['3', '30']], '번호·자리는 안 건드린다(keys 에 없는 것)');
+  assert.deepEqual({ ...B.blocks[0].dataset }, { count: '1', bgColor: '#999999', fontStyle: 'italic', x: '40' }, '다른 섹션은 그대로');
+  assert.deepEqual(drawn, [A.blocks[0], A.blocks[1]], '다시 그린 것 = 바뀐 둘(자기 자신은 부르는 쪽이 이미 그렸다)');
+  /* 마킹이 아닌 블럭·빈 keys 는 아무것도 안 한다 */
+  assert.equal(copyToGroup({ dataset: { bgColor: '#000' }, closest: () => A.sec }, ['bgColor']), 0, 'data-count 가 없는 블럭은 안 베낀다');
+  assert.equal(copyToGroup(src, []), 0, '빈 keys');
 });

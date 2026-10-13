@@ -125,6 +125,28 @@ function countStickerSetGroup(sec, patch) {
   return list.length;
 }
 
+/* 섹션 일괄(1013t2B3) — `block` 의 dataset 에서 `keys` 를 읽어 같은 섹션의 «다른» 마킹에 그대로 베끼고 각자 다시 그린다.
+   block 에 그 키가 없으면(undefined) 받는 쪽에서도 지운다. 자기 자신·다른 섹션은 안 건드린다. 돌려줌 = 바뀐 블럭 수.
+   히스토리는 부르는 쪽이 한 번 찍는다(패널의 change·onCommit — 슬라이더·색은 input 마다 쓰고 한 번 찍는다).
+   ⚠️번호(data-count)·자리(x/y)·라벨 «글자»는 블럭마다의 것이다 — 부르는 쪽이 keys 에 넣지 않는다. */
+function countStickerCopyToGroup(block, keys) {
+  if (!block || !block.dataset || block.dataset.count == null) return 0;
+  if (!keys || !keys.length || !block.closest) return 0;
+  const sec = block.closest('.section-block');
+  let n = 0;
+  _cntListOf(sec).forEach((b) => {
+    if (b === block) return;
+    keys.forEach((k) => {
+      const v = block.dataset[k];
+      if (v === undefined) delete b.dataset[k];
+      else b.dataset[k] = v;
+    });
+    _cntRerender(b);
+    n += 1;
+  });
+  return n;
+}
+
 // 번호 다시 매기기 — 순번 오름차순(동률은 DOM 순)으로 1..n.
 function countStickerRenumber(sec) {
   const list = _cntListOf(sec).map((b, i) => ({ b, i, k: _cntInt(b.dataset.count, 0) }));
@@ -326,6 +348,7 @@ window.CountSticker = {
   inheritFrom: countStickerInheritFrom,
   applyText: countStickerApplyText,
   setGroup: countStickerSetGroup,
+  copyToGroup: countStickerCopyToGroup,
   renumber: countStickerRenumber,
   START_MIN: COUNT_STK_START_MIN,
   START_MAX: COUNT_STK_START_MAX,
