@@ -127,7 +127,7 @@ async function exportHTMLFile() {
      내보낸 HTML 은 이 파일이 직접 쓰는 <style> 만 갖는다. 앱 CSS(.sec-bg-proxy .asset-img{opacity:0},
      .asset-img-clip{overflow:hidden})가 «없으므로» 편집 중 내보내면 배경 이미지가 불투명하게
      한 번 더, 그것도 클리핑 없이 겹쳐 찍힌다. 클래스가 아니라 «노드»를 지워야 한다. */
-  clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary, .img-corner-handle, .img-edge-handle, .img-rotate-zone').forEach(el => el.remove());
+  clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary, .img-corner-handle, .img-edge-handle, .img-rotate-zone, .mdl-rotate-zone').forEach(el => el.remove());   /* .mdl-rotate-zone = 고른 모달의 회전 핫존 4개(1012t1Z5 M-1 · 불러오기 쪽 js/io/save-load.js 는 이미 걷는다) */
   clone.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
   clone.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   clone.querySelectorAll('.item-selected').forEach(el => el.classList.remove('item-selected'));
