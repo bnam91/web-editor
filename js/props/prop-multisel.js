@@ -344,11 +344,14 @@ window.hasFreeLayoutMultiSel = hasFreeLayoutMultiSel;
  * 표준 8개: 좌/가로중앙/우 · 상/세로중앙/하 · 가로 균등 · 세로 균등. 계산은 alignPositions/distributePositions 한 곳.
  * ⚠️이 갈래가 없을 때: 오버레이 글자는 «흐름 패널»로 가서 정렬이 text-align 만 바꿨다(editor.js _isFlowMultiSelUnit).
  * 좌표 정본: 오버레이 = dataset.offsetX/Y(overlay-float.js _applyOverlayPos 와 같은 두 칸 + style) · 줌 = dataset.x/y(zoom-block.js _applyZoomPos). */
+const _isStickerUnit = (u) => !!u?.classList?.contains('sticker-block');
 const _isSectionHost = (el) => !!el && (el.classList?.contains('section-block') || el.classList?.contains('section-merged-part'));
 function _overlayUnitOf(el) {
   const w = el.closest?.('[data-overlay-block="true"]');
   if (w && _isSectionHost(w.parentElement)) return w;
   if (el.classList?.contains('zoom-block') && _isSectionHost(el.parentElement)) return el;
+  // ★1013t2C1 — 섹션 직속 스티커도 «떠 있는 블럭» 단위(줌과 같은 꼴) — ⌘/⇧ 로 여럿 고르면 「서로 맞춤」
+  if (_isStickerUnit(el) && _isSectionHost(el.parentElement)) return el;
   return null;
 }
 /** 고른 것이 «전부» 같은 섹션에 떠 있는 블럭이면 그 단위들(2개 이상), 아니면 null. */
@@ -369,11 +372,30 @@ export function getSelectedOverlayUnits() {
 const _isZoomUnit = (u) => u.classList.contains('zoom-block');
 function _overlayGeom(u) {
   const num = (a, b) => { const v = parseFloat(a); return Number.isFinite(v) ? v : (parseFloat(b) || 0); };
+  /* 스티커: 렌더가 적은 style.left/top 이 «그려진 상자»의 왼쪽 위다 — highlightB 는 두 끝점 bbox(패딩 포함),
+     나머지는 dataset.x/y(js/blocks/sticker-block.js renderStickerBlock). 그래서 style 을 먼저 읽는다. */
+  if (_isStickerUnit(u)) return { x: num(u.style.left, u.dataset.x), y: num(u.style.top, u.dataset.y), w: u.offsetWidth, h: u.offsetHeight };
   return _isZoomUnit(u)
     ? { x: num(u.dataset.x, u.style.left), y: num(u.dataset.y, u.style.top), w: u.offsetWidth, h: u.offsetHeight }
     : { x: num(u.dataset.offsetX, u.style.left), y: num(u.dataset.offsetY, u.style.top), w: u.offsetWidth, h: u.offsetHeight };
 }
 function _setOverlayPos(u, x, y) {
+  if (_isStickerUnit(u)) {
+    if (u.dataset.shape === 'highlightB') {
+      // 선 형광펜은 위치가 두 끝점(x1,y1)(x2,y2)이다 — 상자가 옮겨 간 만큼(Δ) «양 끝을 같은 양» 옮기고 다시 그린다
+      const g = _overlayGeom(u);
+      const dx = Math.round(x - g.x), dy = Math.round(y - g.y);
+      ['x1', 'x2'].forEach(k => { u.dataset[k] = String((parseFloat(u.dataset[k]) || 0) + dx); });
+      ['y1', 'y2'].forEach(k => { u.dataset[k] = String((parseFloat(u.dataset[k]) || 0) + dy); });
+      window.renderStickerBlock?.(u);
+    } else {
+      // ⛔클램프하지 않는다 — «서로 맞춤»은 고른 것들의 상자 안으로만 옮긴다(코인 위치 규약은 sticker-select 쪽)
+      u.dataset.x = String(Math.round(x)); u.dataset.y = String(Math.round(y));
+      u.style.left = u.dataset.x + 'px';  u.style.top = u.dataset.y + 'px';
+    }
+    window._updateStickerSecClip?.(u);
+    return;
+  }
   if (_isZoomUnit(u)) {
     u.dataset.x = String(Math.round(x)); u.dataset.y = String(Math.round(y));
     u.style.left = u.dataset.x + 'px';  u.style.top = u.dataset.y + 'px';

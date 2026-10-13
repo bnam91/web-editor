@@ -57,6 +57,9 @@ function _selectSticker(block) {
     _addCornerHandles(block);
   }
   window.showStickerProperties?.(block);
+  // ★1013t2C1 — deselectAll 이 앵커(_lastClickedBlock)를 지운다 → ⇧ 범위의 시작점을 다시 박는다
+  //   (안 하면 다음 ⇧클릭이 rangeSelectBlocks 의 «단일 선택 폴백»으로 떨어진다)
+  window.setBlockAnchor?.(block);
 }
 window._selectSticker = _selectSticker;
 
@@ -345,6 +348,47 @@ function _bindCornerHandleDrag(handle, block, corner) {
 window._addCornerHandles = _addCornerHandles;
 window._removeCornerHandles = _removeCornerHandles;
 
+/* ★1013t2C1 — 스티커 복수 선택(⌘/Ctrl·⇧). 다른 블럭과 «같은 규약»(js/editor.js):
+     ⌘/Ctrl = toggleBlockSelect(하나 넣고 빼기) · ⇧ = rangeSelectBlocks(앵커~대상 범위).
+   mousedown 은 modifier 면 선택을 «안 바꾸고» 누른 자리(_stkDown)만 적는다. 가름은 여기(click)서 한다.
+   ★「제자리 클릭」만 가른다 — 3px 넘게 끈 것은 ⌘드래그 = 자유 이동이라 선택을 토글하지 않는다
+     (onMove 를 건드리지 않고 «누른 자리 ↔ 뗀 자리» 거리로 잰다).
+   @returns {boolean} 여기서 처리했으면 true(옛 길을 타지 않는다). */
+const _STK_CLICK_SLOP = 3;
+function _stkMoved(block, e) {
+  const d = block._stkDown;
+  return !!d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > _STK_CLICK_SLOP;
+}
+function _stickerModifierClick(block, e) {
+  const moved = _stkMoved(block, e);
+  block._stkDown = null;
+  if (e.target.closest?.('.sticker-text')?.isContentEditable) return false;   // 편집 클릭은 옛 길
+  const selected = block.classList.contains('selected');
+  const mod = e.metaKey || e.ctrlKey || e.shiftKey;
+  if (!mod) {
+    // 여럿 골라진 상태의 «보통 클릭» = 그것 하나만(흐름 블럭 규약). 끈 것은 «하나만 옮김» — 선택 유지.
+    if (moved || !selected) return false;
+    const others = [...document.querySelectorAll('#canvas .selected')].some(el => el !== block
+      && !el.classList.contains('section-block') && !el.classList.contains('section-merged-part'));
+    if (!others) return false;
+    _selectSticker(block);
+    return true;
+  }
+  if (moved) {                                  // ⌘드래그 끝 — 토글로 새지 않는다(옛 동작: 끈 스티커는 골라진다)
+    if (!selected) _selectSticker(block);
+    return true;
+  }
+  if (!window.toggleBlockSelect || !window.rangeSelectBlocks) return false;
+  const sec = block.closest('.section-block');
+  if (e.metaKey || e.ctrlKey) {
+    if (selected) { _removeHlbHandles(block); _removeCornerHandles(block); }   // 빠지는 스티커에 손잡이가 남지 않게
+    window.toggleBlockSelect(block, sec);
+  } else {
+    window.rangeSelectBlocks(block, sec);
+  }
+  return true;                                   // 패널은 두 정본 함수가 _updateMultiSelPanel 로 고른다
+}
+
 function bindStickerSelect(block) {
   if (!block || block._stickerBound) return;
   block._stickerBound = true;
@@ -353,6 +397,7 @@ function bindStickerSelect(block) {
   block.addEventListener('click', (e) => {
     e.stopPropagation();
     e.stopImmediatePropagation();
+    if (_stickerModifierClick(block, e)) return;
     if (!block.classList.contains('selected')) _selectSticker(block);
   }, true);
 
@@ -370,7 +415,16 @@ function bindStickerSelect(block) {
     e.stopImmediatePropagation();
     e.stopPropagation();
     e.preventDefault();
-    if (!block.classList.contains('selected')) _selectSticker(block);
+    // ★1013t2C1 — modifier 면 여기서 «하나만» 고르지 않는다(가름은 click 의 _stickerModifierClick).
+    block._stkDown = { x: e.clientX, y: e.clientY };
+    const _stkMod = e.metaKey || e.ctrlKey || e.shiftKey;
+    if (!_stkMod && !block.classList.contains('selected')) _selectSticker(block);
+    if (_stkMod && !block.classList.contains('selected')) {
+      // 끈 뒤 뗀 자리가 블럭 밖이면 click 이 안 온다 — 옛 동작(끈 스티커는 골라진다)을 mouseup 에서 지킨다
+      document.addEventListener('mouseup', (ev) => {
+        if (_stkMoved(block, ev) && !block.classList.contains('selected')) _selectSticker(block);
+      }, { capture: true, once: true });
+    }
 
     let sec = block.closest('.section-block');
     if (!sec) return;

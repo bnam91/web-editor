@@ -10,6 +10,7 @@ function _selectGradient(block) {
   block.classList.add('selected');
   _addGradientCornerHandles(block);
   window.showGradientProperties?.(block);
+  window.setBlockAnchor?.(block);   // ★1013t2C1-g — deselectAll 이 지운 ⇧ 범위 앵커를 다시 박는다
 }
 window._selectGradient = _selectGradient;
 
@@ -192,6 +193,39 @@ function _gradEdgeSnap(block, sec, x, y, bw, bh, secRect) {
   return { x: Math.round(snapX), y: Math.round(snapY), edgeX, edgeY };
 }
 
+/* ★1013t2C1-g — 그라데이션 복수 선택(⌘/Ctrl·⇧). js/sticker-select.js _stickerModifierClick 과 같은 꼴
+   (⌘/Ctrl = toggleBlockSelect · ⇧ = rangeSelectBlocks · 3px 넘게 끈 것은 토글하지 않는다).
+   ⛔공용 헬퍼로 묶지 않았다 — 두 파일(클래식 스크립트 ↔ 모듈)의 로드 순서 결합을 만들지 않으려고.
+   @returns {boolean} 여기서 처리했으면 true(옛 길을 타지 않는다). */
+const _GRD_CLICK_SLOP = 3;
+function _grdMoved(block, e) {
+  const d = block._grdDown;
+  return !!d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > _GRD_CLICK_SLOP;
+}
+function _gradientModifierClick(block, e) {
+  const moved = _grdMoved(block, e);
+  block._grdDown = null;
+  const selected = block.classList.contains('selected');
+  if (!(e.metaKey || e.ctrlKey || e.shiftKey)) {
+    if (moved || !selected) return false;
+    const others = [...document.querySelectorAll('#canvas .selected')].some(el => el !== block
+      && !el.classList.contains('section-block') && !el.classList.contains('section-merged-part'));
+    if (!others) return false;
+    _selectGradient(block);                      // 여럿 중 «보통 클릭» = 그것 하나만
+    return true;
+  }
+  if (moved) { if (!selected) _selectGradient(block); return true; }
+  if (!window.toggleBlockSelect || !window.rangeSelectBlocks) return false;
+  const sec = block.closest('.section-block');
+  if (e.metaKey || e.ctrlKey) {
+    if (selected) _removeGradientCornerHandles(block);
+    window.toggleBlockSelect(block, sec);
+  } else {
+    window.rangeSelectBlocks(block, sec);
+  }
+  return true;
+}
+
 function bindGradientSelect(block) {
   if (!block || block._gradientBound) return;
   block._gradientBound = true;
@@ -200,6 +234,7 @@ function bindGradientSelect(block) {
   block.addEventListener('click', (e) => {
     e.stopPropagation();
     e.stopImmediatePropagation();
+    if (_gradientModifierClick(block, e)) return;
     if (!block.classList.contains('selected')) _selectGradient(block);
   }, true);
 
@@ -212,7 +247,15 @@ function bindGradientSelect(block) {
     e.stopImmediatePropagation();
     e.stopPropagation();
     e.preventDefault();
-    if (!block.classList.contains('selected')) _selectGradient(block);
+    // ★1013t2C1-g — modifier 면 여기서 «하나만» 고르지 않는다(가름은 click 의 _gradientModifierClick)
+    block._grdDown = { x: e.clientX, y: e.clientY };
+    const _grdMod = e.metaKey || e.ctrlKey || e.shiftKey;
+    if (!_grdMod && !block.classList.contains('selected')) _selectGradient(block);
+    if (_grdMod && !block.classList.contains('selected')) {
+      document.addEventListener('mouseup', (ev) => {
+        if (_grdMoved(block, ev) && !block.classList.contains('selected')) _selectGradient(block);
+      }, { capture: true, once: true });
+    }
 
     let sec = block.closest('.section-block');
     if (!sec) return;
