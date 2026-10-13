@@ -16,7 +16,7 @@ const ANNOT_DEFAULTS = {
   strokeWidth:     1.5,
   anchorShape:     'circle',     // 'circle' | 'square' | 'triangle' | 'arrowhead' | 'glow' | 'none'
   anchorSize:      7,            // 시작점 도형 크기 (지름 또는 한 변)
-  labelFontSize:   20,
+  labelFontSize:   24,           // ★1013t1A2 현빈 「텍스트는 기본 24」 — 옛 저장본은 dataset.labelFontSize 를 들고 있어 그대로
   labelColor:      '#1a1a1a',
   labelBg:         '#ffffff',
   labelBorderColor:'#1a1a1a',

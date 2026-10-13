@@ -5,6 +5,8 @@ import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 // ── 프리셋 ───────────────────────────────────────────────────────────────
+/* ★1013t1A2 — 프리셋은 «색·선·시작점»만 바꾼다. 글자 크기(옛 16)는 뺐다: 기본이 24 가 됐는데
+   프리셋을 누르는 순간 16 으로 줄어드는 것을 막는다(크기는 「라벨 › 크기」에서만). */
 const ANNOTATION_PRESETS = [
   {
     name: '빨간 콜아웃',
@@ -12,7 +14,6 @@ const ANNOTATION_PRESETS = [
     strokeWidth: 1.5,
     anchorShape: 'circle',
     anchorSize:  7,
-    labelFontSize: 16,
     labelColor:  '#1a1a1a',
     labelBg:     '#ffffff',
     labelBorderColor: '#e74c3c',
@@ -23,7 +24,6 @@ const ANNOTATION_PRESETS = [
     strokeWidth: 2,
     anchorShape: 'square',
     anchorSize:  8,
-    labelFontSize: 16,
     labelColor:  '#ffffff',
     labelBg:     '#1592fe',
     labelBorderColor: '#1592fe',
@@ -34,7 +34,6 @@ const ANNOTATION_PRESETS = [
     strokeWidth: 2.5,
     anchorShape: 'triangle',
     anchorSize:  10,
-    labelFontSize: 16,
     labelColor:  '#1a1a1a',
     labelBg:     '#ffffff',
     labelBorderColor: '#1a1a1a',
@@ -278,9 +277,7 @@ ${blockHeaderHTML({
         </div>
       </div>
       ${st.labelMode === 'text' ? `
-      <div class="prop-row">
-        <textarea class="prop-textarea" id="annot-text" rows="2">${_escape(st.text)}</textarea>
-      </div>
+      <div class="prop-hint">캔버스에서 라벨을 더블클릭해 글을 고칩니다</div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
         <input type="range" class="prop-slider" id="annot-font-size" min="8" max="48" step="1" value="${st.labelFontSize}">
@@ -411,18 +408,9 @@ ${blockHeaderHTML({
     });
   });
 
+  /* ★1013t1A2 — 글 입력칸(#annot-text)은 걷었다(현빈 「우측패널에 굳이 텍스트 입력할 플레이스홀더는 필요없음」).
+     글은 캔버스에서 쓴다: 만든 직후 자동 편집(annotation-tool.js) · 라벨 더블클릭(annotation-select.js _enterLabelEdit). */
   // ── 텍스트 모드 wireup (텍스트 모드일 때만 DOM 존재) ──
-  const txt = propPanel.querySelector('#annot-text');
-  if (txt) {
-    txt.addEventListener('input',  () => {
-      block.dataset.text = txt.value;
-      const label = block.querySelector('.annot-label');
-      if (label && label.getAttribute('contenteditable') !== 'true') label.textContent = txt.value;
-      window.scheduleAutoSave?.();
-    });
-    txt.addEventListener('change', () => window.pushHistory?.('라벨 텍스트'));
-  }
-
   const fs  = propPanel.querySelector('#annot-font-size');
   const fsN = propPanel.querySelector('#annot-font-size-num');
   if (fs && fsN) {
@@ -552,9 +540,6 @@ function _hex(c) {
   const m = String(c).match(/\d+/g);
   if (!m || m.length < 3) return '#000000';
   return '#' + m.slice(0, 3).map(n => Math.max(0, Math.min(255, parseInt(n))).toString(16).padStart(2, '0')).join('');
-}
-function _escape(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 function _shapeIcon(s) {
   // currentColor 사용 → .prop-align-btn.active 시 흰색으로 자연스럽게 반전

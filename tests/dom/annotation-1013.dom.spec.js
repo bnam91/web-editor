@@ -4,6 +4,8 @@
  *   AN1 만들면 «바로» 좌측 레이어에 「Annotation」 행(아이콘·Sticker 태그)이 선다 (A1)
  *   AN2 그 행을 누르면 어노테이션 패널 + 점 핸들이 뜬다 (A1)
  *   AN3 지우면 «죽은 행»이 안 남는다 (A1)
+ *   AN4 기본 글자 크기 24 (dataset · 그려진 크기) · 프리셋을 눌러도 24 그대로 (A2)
+ *   AN5 우측 패널에 글 입력칸이 없고, 캔버스 더블클릭으로 글을 고친다 (A2)
  * ★만드는 길은 «사람 손» 그대로 — 펜 단추 → 메뉴 「Annotation」 → 섹션 두 점 → Enter → Esc.
  */
 const { test, expect } = require('@playwright/test');
@@ -90,4 +92,48 @@ test('AN3 지우면 레이어에 죽은 행이 안 남는다', async ({ page }) 
   await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#layer-panel-body .layer-item')].filter(i => i._dragTarget && !i._dragTarget.isConnected).length),
     '지운 블럭을 가리키는 행 0').toBe(0);
   expect(await rowOf(page, id), '그 블럭의 행이 없다').toBeNull();
+});
+
+/* 캔버스에서 라벨을 눌러 고른다(진짜 마우스). */
+async function selectByLabel(page, id) {
+  const sel = `[id="${id}"] .annot-label`;
+  const lr = await waitStableRect(page, sel);
+  await clickAt(page, lr.cx, lr.cy, { sel }, { label: '라벨' });
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('selected')
+    && !!document.querySelector('#panel-right [data-prop-panel="annotation"]'), id), '★전제: 골랐고 어노테이션 패널이 떴다').toBe(true);
+  return lr;
+}
+
+test('AN4 기본 글자 크기 24 — 만든 직후 · 프리셋을 눌러도 그대로', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  const fs = () => page.evaluate((id) => {
+    const b = document.getElementById(id); const l = b.querySelector('.annot-label');
+    return { data: b.dataset.labelFontSize, drawn: getComputedStyle(l).fontSize, panel: document.getElementById('annot-font-size-num')?.value ?? null };
+  }, id);
+  expect((await fs()).data, '만든 직후 dataset').toBe('24');
+  expect((await fs()).drawn, '만든 직후 그려진 크기').toBe('24px');
+  await selectByLabel(page, id);
+  expect((await fs()).panel, '패널 「크기」 칸').toBe('24');
+  const before = await page.evaluate((id) => document.getElementById(id).dataset.strokeColor, id);
+  await page.click('#panel-right .prop-preset-btn[data-preset-idx="0"]');
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).dataset.strokeColor, id), '★전제: 프리셋이 먹었다(선 색이 바뀜)').not.toBe(before);
+  expect(await fs(), '프리셋 뒤에도 24').toEqual({ data: '24', drawn: '24px', panel: '24' });
+});
+
+test('AN5 우측 패널에 글 입력칸이 없다 — 글은 캔버스 더블클릭으로 고친다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  const lr = await selectByLabel(page, id);
+  expect(await page.evaluate(() => ({ ta: document.querySelectorAll('#panel-right #annot-text, #panel-right [data-prop-panel="annotation"] ~ .prop-section textarea').length,
+    hint: [...document.querySelectorAll('#panel-right .prop-hint')].some(h => h.textContent.includes('더블클릭')) })), '입력칸 0 · 안내 한 줄').toEqual({ ta: 0, hint: true });
+  await page.mouse.dblclick(lr.cx, lr.cy);
+  await expect.poll(() => page.evaluate((id) => { const l = document.querySelector(`[id="${id}"] .annot-label`); return l.getAttribute('contenteditable') === 'true' && document.activeElement === l; }, id),
+    '더블클릭으로 라벨 편집에 들어갔다').toBe(true);
+  await page.keyboard.type('캔버스입력');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate((id) => { const b = document.getElementById(id); return { data: b.dataset.text, drawn: b.querySelector('.annot-label').textContent, ce: b.querySelector('.annot-label').getAttribute('contenteditable') }; }, id),
+    '캔버스에서 쓴 글이 데이터·화면에 들어갔다').toEqual({ data: '캔버스입력', drawn: '캔버스입력', ce: 'false' });
 });

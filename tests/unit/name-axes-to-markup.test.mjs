@@ -431,7 +431,6 @@ const ESC_DEFS = [
   "js/panels/template-browser.js|_esc",
   "js/panels/template-system.js|escHtml",
   "js/props/_helpers.js|escHtml",
-  "js/props/prop-annotation.js|_escape",
   "js/props/prop-banner02.js|_escAttr",
   "js/props/prop-infocard.js|_esc",
   "js/props/prop-innercard.js|_esc",
