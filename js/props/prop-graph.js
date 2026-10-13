@@ -5,7 +5,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
 
-const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, PIE_PULL_MAX, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
@@ -136,11 +136,17 @@ const PIE_ITEM_KEYS = ['pieGrow', 'piePull', 'pieTag'];
 const _slicePct = (v, hi) => { const n = parseInt(v); return Number.isFinite(n) ? Math.min(hi, Math.max(0, n)) : 0; };   // 렌더(_renderPie)와 «같은 식»
 function pieSliceRowsHTML(item) {   // 조각별 설정 줄 — 줄을 더하면 아래 배선(_wireSliceInt)도 한 줄
   const grow = _slicePct(item.pieGrow, PIE_GROW_MAX);
+  const pull = _slicePct(item.piePull, PIE_PULL_MAX);
   return `
       <div class="prop-row" title="이 조각만 바깥으로 키운다(바깥 반지름 대비 %)">
         <span class="prop-label">크기</span>
         <input type="range" class="prop-slider" id="grb-pie-grow-slider" min="0" max="${PIE_GROW_MAX}" step="1" value="${grow}">
         <input type="number" class="prop-number" id="grb-pie-grow-number" min="0" max="${PIE_GROW_MAX}" value="${grow}">
+      </div>
+      <div class="prop-row" title="이 조각만 중심에서 바깥으로 밀어낸다(바깥 반지름 대비 %)">
+        <span class="prop-label">밀어내기</span>
+        <input type="range" class="prop-slider" id="grb-pie-pull-slider" min="0" max="${PIE_PULL_MAX}" step="1" value="${pull}">
+        <input type="number" class="prop-number" id="grb-pie-pull-number" min="0" max="${PIE_PULL_MAX}" value="${pull}">
       </div>`;
 }
 function pieSliceSectionHTML(items, sel) {
@@ -911,6 +917,7 @@ ${blockHeaderHTML({
     sl.addEventListener('change', () => window.pushHistory());
   };
   _wireSliceInt('grb-pie-grow', 'pieGrow', PIE_GROW_MAX);
+  _wireSliceInt('grb-pie-pull', 'piePull', PIE_PULL_MAX);   // 1013t1C5
 
   // 점 크기 (line 전용)
   const ptSlider = document.getElementById('grb-point-slider');

@@ -886,7 +886,10 @@ function _renderPie(block, { items, chartH, labelSize }) {
        ⇒ 키운 조각 «말고는» path 글자가 그대로다(전체를 줄여 그리면 모든 d 가 바뀐다 · overflow:visible 은 아래 범례를 덮는다). 안 키웠으면 viewBox 글자도 옛 그대로. */
   const _pct = (v, hi) => { const n = parseInt(v); return Number.isFinite(n) ? Math.min(hi, Math.max(0, n)) : 0; };
   const grow = items.map(it => _pct(it && it.pieGrow, L.PIE_GROW_MAX));
-  const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, gap, { start, grow });   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
+  /* 1013t1C5 — 밀어내기(items[i].piePull · R 대비 % · 0~PIE_PULL_MAX). 조각을 이등분각 방향으로 «통째로» 옮긴다 — d 는 그대로 두고 path 의 transform 으로(geo.offsets).
+       안 민 조각은 속성 자체가 없다(옛 그림과 바이트가 같다). 민 만큼도 extent 에 들어 viewBox 가 같이 넓어진다. 조각 클릭은 브라우저가 «옮긴 자리»에서 맞힌다(e.target). */
+  const pull = items.map(it => _pct(it && it.piePull, L.PIE_PULL_MAX));
+  const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, gap, { start, grow, pull });   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
   const _m = Math.ceil(geo.extent);
   const viewBox = _m ? `${-_m} ${-_m} ${1000 + 2 * _m} ${1000 + 2 * _m}` : '0 0 1000 1000';
   const pcts = window.GRAPH_PIE_GEOM.piePercents(_vals);                // 합이 정확히 100(최대 잔여법)
@@ -901,7 +904,8 @@ function _renderPie(block, { items, chartH, labelSize }) {
     block.style.height = 'auto';
   }
 
-  const slices = geo.paths.map((p, i) => `<path class="grb-pie-slice" d="${p}"${colors[i] ? ` style="fill:${colors[i]};fill-opacity:1"` : ''}/>`).join('');
+  const _tf = (o) => (o[0] !== '0.00' || o[1] !== '0.00') ? ` transform="translate(${o[0]} ${o[1]})"` : '';
+  const slices = geo.paths.map((p, i) => `<path class="grb-pie-slice" d="${p}"${_tf(geo.offsets[i])}${colors[i] ? ` style="fill:${colors[i]};fill-opacity:1"` : ''}/>`).join('');
   const emptyEl = geo.empty ? `<circle class="grb-pie-empty" cx="500" cy="500" r="498" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="6 6" vector-effect="non-scaling-stroke"/>` : '';
   const legend = items.map((it, i) => `<span class="grb-pie-legend-item"><span class="grb-pie-dot"${colors[i] ? ` style="background:${colors[i]};opacity:1"` : ''}></span>`
     + `<span class="grb-pie-label" style="${_xCss}">${_escGraphHtml(it && it.label)}</span>`

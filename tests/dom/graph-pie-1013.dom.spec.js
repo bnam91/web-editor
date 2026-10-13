@@ -9,6 +9,7 @@
  *   조각 고르기(C4 전제) — S1 첫 클릭 = 블럭 · 둘째 클릭 = 조각(표식 + Slice 절) · S2 범례 클릭 = 해제 · S3 떠나면 해제 · S4 저장본에 표식 0
  *     · S5 패널 항목 줄 버튼 · S6 다시 그려도 표식 유지 · S7 조각을 잡고 끌기는 고르기가 아니다
  *   C4 조각 크기 — H1 pieGrow 가 그 조각만 바깥으로 키우고 viewBox 를 대칭으로 넓힌다 · H2 라벨을 쳐도·항목을 다시 써도 pieGrow 유지 · H3 Slice 절 「크기」 칸 · ⌘Z
+ *   C5 밀어내기 — I1 piePull 이 그 조각만 이등분각 방향으로 옮긴다(d 무변 · transform · viewBox) · 옮긴 자리에서 눌러야 골라진다 · I2 Slice 절 「밀어내기」 칸 · ⌘Z
  *   G0 골든 핀: 새 키가 «하나도 없는» 블럭의 그림(innerHTML)이 1012 판과 바이트가 같다 — 1013t1C0 에서 «고치기 전 판» 위에 박았다.
  * 실행: bash ~/taeyang-098/run-test.sh dom tests/dom/graph-pie-1013.dom.spec.js */
 const { test, expect } = require('@playwright/test');
@@ -49,11 +50,14 @@ const itemsOf = (page, id) => page.evaluate((id) => JSON.parse(document.getEleme
 const openPanel = (page, id) => page.evaluate((id) => window.showGraphProperties(document.getElementById(id)), id);
 const htmlOf = (page, id) => page.evaluate((id) => document.getElementById(id).innerHTML, id);
 const dOf = (page, id) => page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.grb-pie-slice')].map(p => p.getAttribute('d')), id);
-/* 각도 deg(12시 = 0 · 시계 방향) · 반지름 비율 rr(바깥 반지름 500 대비)의 점이 «어느 조각의 채움 안»인가 — 조각마다 true/false */
+/* 각도 deg(12시 = 0 · 시계 방향) · 반지름 비율 rr(바깥 반지름 500 대비)의 점이 «어느 조각의 채움 안»인가 — 조각마다 true/false.
+   isPointInFill 은 «요소 제 좌표»로 잰다 ⇒ 밀어낸 조각(1013t1C5 · transform translate)은 점에서 옮긴 양을 뺀다(안 민 조각은 0 을 뺀다 = 옛 판정 그대로). */
 const hit = (page, id, deg, rr) => page.evaluate(([id, deg, rr]) => {
   const a = deg * Math.PI / 180, x = 500 + 500 * rr * Math.sin(a), y = 500 - 500 * rr * Math.cos(a);
-  return [...document.getElementById(id).querySelectorAll('.grb-pie-slice')].map(p => !!p.getAttribute('d') && p.isPointInFill(new DOMPoint(x, y)));
+  return [...document.getElementById(id).querySelectorAll('.grb-pie-slice')].map(p => { const m = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(p.getAttribute('transform') || '');
+    return !!p.getAttribute('d') && p.isPointInFill(new DOMPoint(x - (m ? +m[1] : 0), y - (m ? +m[2] : 0))); });
 }, [id, deg, rr]);
+const tfOf = (page, id) => page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.grb-pie-slice')].map(p => p.getAttribute('transform')), id);
 
 /* ── G0 골든 핀 ── 새 키 0 인 블럭 일곱 표본의 innerHTML sha256. 이 수는 1013t1C0(제품 0줄) 판에서 잰 것 = 1012 판의 그림. */
 const GOLD = {
@@ -318,7 +322,8 @@ const slicePoint = (page, id, i, rr = 0.7) => page.evaluate(([id, i, rr]) => {
   const b = document.getElementById(id), items = JSON.parse(b.dataset.items);
   const geo = window.GRAPH_PIE_GEOM.piePaths(items.map(it => it.value), 0, 0, { start: parseInt(b.dataset.pieStart) || 0 });
   const mid = (geo.angles[i][0] + geo.angles[i][1]) / 2 * Math.PI / 180;
-  const p = new DOMPoint(500 + 500 * rr * Math.sin(mid), 500 - 500 * rr * Math.cos(mid)).matrixTransform(b.querySelector('.grb-pie-svg').getScreenCTM());
+  const tf = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(b.querySelectorAll('.grb-pie-slice')[i].getAttribute('transform') || '');   // 밀어낸 조각(C5)은 옮긴 자리에서 누른다
+  const p = new DOMPoint(500 + 500 * rr * Math.sin(mid) + (tf ? +tf[1] : 0), 500 - 500 * rr * Math.cos(mid) + (tf ? +tf[2] : 0)).matrixTransform(b.querySelector('.grb-pie-svg').getScreenCTM());
   const el = document.elementFromPoint(p.x, p.y);
   return { x: p.x, y: p.y, on: (el && el.matches('.grb-pie-slice')) ? [...b.querySelectorAll('.grb-pie-slice')].indexOf(el) : -1 };
 }, [id, i, rr]);
@@ -555,5 +560,88 @@ test('H3 Slice 절 「크기」 칸 — 고른 조각에만 쓰고 · 0 이면 �
   await page.evaluate(() => { const s = document.getElementById('grb-pie-grow-slider'); s.value = '0'; s.dispatchEvent(new Event('input', { bubbles: true })); });
   expect(await page.evaluate((id2) => 'pieGrow' in JSON.parse(document.getElementById(id2).dataset.items)[1], id2)).toBe(false);
   expect(await vbOf(page, id2)).toBe('0 0 1000 1000');
+  expect(errs).toEqual([]);
+});
+
+/* ── C5 밀어내기(items[i].piePull · 바깥 반지름 대비 % · 0 이면 키 없음) ── d 는 그대로 두고 path 의 transform 으로 옮긴다. */
+test('I1 밀어내기 — piePull 20: 그 조각만 transform 으로 옮겨진다(d 무변) · viewBox 대칭 확장 · 조각은 «옮긴 자리»에서 눌린다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3 });
+  expect(await tfOf(page, id), '전제: 안 민 원형은 transform 속성이 없다').toEqual([null, null, null]);
+  const none = [false, false, false], s0 = [true, false, false];
+  expect(await hit(page, id, 45, 0.1), '전제: 조각0 가운데 각의 0.1R 은 조각0 안').toEqual(s0);
+  expect(await hit(page, id, 45, 1.1), '전제: 1.1R 은 원 밖').toEqual(none);
+  const d0 = await dOf(page, id), html0 = await htmlOf(page, id);
+  await setDs(page, id, { items: V3.map((it, i) => i === 0 ? { ...it, piePull: 20 } : it) });
+  expect(await tfOf(page, id), '조각0 에만 · R × 20 % = 100 을 45° 방향으로').toEqual(['translate(70.71 -70.71)', null, null]);
+  expect(await dOf(page, id), 'd 는 한 글자도 안 변한다(세 조각 다)').toEqual(d0);
+  expect(await vbOf(page, id), 'viewBox 대칭 확장(나간 길이 100)').toBe('-100 -100 1200 1200');
+  expect(await hit(page, id, 45, 1.1), '옮긴 뒤: 1.1R 이 조각0 안').toEqual(s0);
+  expect(await hit(page, id, 45, 0.1), '옮긴 뒤: 0.1R 은 빈 자리(조각이 떠났다)').toEqual(none);
+  expect(await hit(page, id, 135, 0.9), '다른 조각은 제자리').toEqual([false, true, false]);
+  expect(await hit(page, id, 135, 1.1)).toEqual(none);
+  /* 화면에서도 옮겨졌다 — 옮긴 자리(1.1R)의 맨 위 요소가 조각0 · 떠난 자리(0.1R − 민 양 = 중심 쪽)는 조각0 이 아니다. 누르면 그 조각이 골라진다(판정이 옮긴 자리 기준) */
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  expect((await slicePoint(page, id, 0, 0.9)).on, '옮긴 자리의 맨 위 요소 = 조각0').toBe(0);
+  const left = await page.evaluate((id) => { const b = document.getElementById(id); const a = Math.PI / 4;
+    const p = new DOMPoint(500 + 50 * Math.sin(a), 500 - 50 * Math.cos(a)).matrixTransform(b.querySelector('.grb-pie-svg').getScreenCTM());
+    const el = document.elementFromPoint(p.x, p.y); return !!el && b.contains(el) && !el.matches('.grb-pie-slice'); }, id);
+  expect(left, '떠난 자리(0.1R)는 조각이 아니다(블럭 안의 빈 자리)').toBe(true);
+  await page.mouse.click((await slicePoint(page, id, 0, 0.9)).x, (await slicePoint(page, id, 0, 0.9)).y);
+  await expect.poll(async () => (await markOf(page, id)).sel, { message: '첫 클릭 = 블럭 선택' }).toBe(true);
+  const far = await slicePoint(page, id, 0, 0.95);   // 옮기기 전엔 원 밖이던 자리(0.95R + 0.2R 민 자리 = 원래 좌표 1.15R)
+  expect(far.on, '전제: 원래 원 밖이던 자리에 조각0 이 와 있다').toBe(0);
+  await page.mouse.click(far.x, far.y);
+  await expect.poll(async () => (await markOf(page, id)).marks, { message: '옮긴 자리에서 누르면 조각0 이 골라진다' }).toEqual([0]);
+  expect((await sliceSection(page)).name).toBe('1번 · 가');
+  expect(await tfOf(page, id), '고른 뒤(패널이 다시 그려도) 옮긴 양 그대로').toEqual(['translate(70.71 -70.71)', null, null]);
+  /* 크기와 같이 — extent 는 더해진다 · 한계 밖은 렌더가 자른다(999 → PIE_PULL_MAX) · 0·글자는 안 밂 = 옛 그림(바이트) */
+  await page.evaluate(() => window.deselectAll());
+  await setDs(page, id, { items: V3.map((it, i) => i === 0 ? { ...it, piePull: 20, pieGrow: 20 } : it) });
+  expect(await vbOf(page, id), '크기 20 + 밀어내기 20 = 200').toBe('-200 -200 1400 1400');
+  await setDs(page, id, { items: V3.map((it, i) => i === 1 ? { ...it, piePull: 999 } : it) });
+  expect(await vbOf(page, id)).toBe(await page.evaluate(() => { const m = 500 * window.GRAPH_LIMITS.PIE_PULL_MAX / 100; return `${-m} ${-m} ${1000 + 2 * m} ${1000 + 2 * m}`; }));
+  expect((await tfOf(page, id)).map(t => t === null), '둘째 조각에만').toEqual([true, false, true]);
+  await setDs(page, id, { items: V3.map((it, i) => i === 0 ? { ...it, piePull: 'abc' } : { ...it, piePull: 0 }) });
+  expect(await htmlOf(page, id), '안 밀면 옛 그림과 바이트가 같다(transform 속성 자체가 없다)').toBe(html0);
+  expect(await htmlOf(page, id)).not.toMatch(/NaN|Infinity|undefined/);
+  expect(errs).toEqual([]);
+});
+
+test('I2 Slice 절 「밀어내기」 칸 — 고른 조각에만 쓰고 · 999 → 30 되써지고 · ⌘Z 한 번에 돌아오고 · 0 이면 키와 transform 이 지워진다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie' });
+  expect(await page.locator('#grb-pie-pull-slider').count(), '전제: 조각을 안 골랐으면 칸이 없다').toBe(0);
+  await pickSlice(page, id, 2);
+  expect(await page.evaluate(() => { const s = document.getElementById('grb-pie-pull-slider'), n = document.getElementById('grb-pie-pull-number'); return [s.min, s.max, s.value, n.min, n.max, n.value]; }),
+    '칸의 한계 = GRAPH_LIMITS · 처음 값 0').toEqual(await page.evaluate(() => { const a = ['0', String(window.GRAPH_LIMITS.PIE_PULL_MAX), '0']; return [...a, ...a]; }));
+  expect(await page.evaluate(() => { const r = document.getElementById('grb-pie-pull-slider').closest('.prop-row'); return [r.closest('.prop-section').id, r.querySelector('.prop-label').textContent.trim()]; })).toEqual(['grb-pie-slice-section', '밀어내기']);
+  const pulls = async () => (await itemsOf(page, id)).map(i => i.piePull ?? null);
+  expect(await pulls(), '전제: 키 없음').toEqual([null, null, null, null, null]);
+  await page.evaluate(() => { const s = document.getElementById('grb-pie-pull-slider'); s.value = '12'; s.dispatchEvent(new Event('input', { bubbles: true })); });
+  expect(await pulls(), '고른 조각(2)에만').toEqual([null, null, 12, null, null]);
+  expect((await tfOf(page, id)).map(t => t === null)).toEqual([true, true, false, true, true]);
+  expect(await vbOf(page, id)).toBe('-60 -60 1120 1120');
+  expect(await page.inputValue('#grb-pie-pull-number')).toBe('12');
+  expect((await markOf(page, id)).marks, '칸을 움직여도 조각 선택 유지').toEqual([2]);
+  await page.evaluate(() => document.getElementById('grb-pie-pull-slider').dispatchEvent(new Event('change', { bubbles: true })));   // 놓기 = 히스토리 한 칸
+  await page.locator('#grb-pie-pull-number').fill('999');
+  await page.locator('#grb-pie-pull-number').press('Enter');
+  await expect.poll(pulls).toEqual([null, null, 30, null, null]);
+  expect(await page.inputValue('#grb-pie-pull-slider')).toBe('30');
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate(() => JSON.parse(document.querySelector('#sG .graph-block').dataset.items).map(i => i.piePull ?? null))).toEqual([null, null, 12, null, null]);
+  expect(await page.evaluate(() => document.querySelector('#sG .graph-block .grb-pie-svg').getAttribute('viewBox')), '되돌린 그림 = 12 때').toBe('-60 -60 1120 1120');
+  const id2 = await page.evaluate(() => document.querySelector('#sG .graph-block').id);
+  await page.evaluate((id2) => { const b = document.getElementById(id2); b.classList.add('selected'); window.grbPieSelect(b, 2); window.showGraphProperties(b); }, id2);
+  await expect(page.locator('#grb-pie-pull-slider'), '전제: 되돌린 뒤 Slice 절을 다시 열었다').toHaveValue('12');
+  await page.evaluate(() => { const s = document.getElementById('grb-pie-pull-slider'); s.value = '0'; s.dispatchEvent(new Event('input', { bubbles: true })); });
+  expect(await page.evaluate((id2) => 'piePull' in JSON.parse(document.getElementById(id2).dataset.items)[2], id2)).toBe(false);
+  expect(await tfOf(page, id2)).toEqual([null, null, null, null, null]);
+  expect(await vbOf(page, id2)).toBe('0 0 1000 1000');
+  /* 라벨을 쳐도 piePull 이 남는다(syncItems 보존 — pieGrow 와 같은 길) */
+  await page.evaluate(() => { const s = document.getElementById('grb-pie-pull-slider'); s.value = '9'; s.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.locator('#grb-data-list .grb-data-item:not(.grb-seg-item) .grb-data-label-input').nth(0).fill('새');
+  await expect.poll(() => page.evaluate((id2) => JSON.parse(document.getElementById(id2).dataset.items)[0].label, id2)).toBe('새');
+  expect(await page.evaluate((id2) => JSON.parse(document.getElementById(id2).dataset.items).map(i => i.piePull ?? null), id2)).toEqual([null, null, 9, null, null]);
   expect(errs).toEqual([]);
 });

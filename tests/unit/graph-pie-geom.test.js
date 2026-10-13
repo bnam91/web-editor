@@ -291,3 +291,44 @@ test('U14 조각 크기 — grow 20 이면 그 조각의 바깥 반지름만 600
     assert.ok(t.paths.slice(0, k).every(d => d.length > 0), '나머지 조각은 그대로 그려진다');
   }
 });
+
+test('U15 밀어내기 — pull 10 이면 offsets = 50 × (sin mid, −cos mid) · d 는 한 글자도 안 변한다 · extent 는 민 만큼 · 온 원·값 0 은 안 민다', () => {
+  const V = [1, 1, 2];
+  assert.equal(LIM.PIE_PULL_MAX, 30, '위 끝은 graph-limits 한 자리');
+  for (const [hole, gap] of [[0, 10], [55, 10], [0, 0]]) {
+    const b = piePaths(V, hole, gap), g = piePaths(V, hole, gap, { pull: [10] });
+    assert.equal(g.paths.length, 3, '전제');
+    assert.deepEqual(b.offsets, [['0.00', '0.00'], ['0.00', '0.00'], ['0.00', '0.00']], '전제: 안 밀면 전부 0');
+    assert.deepEqual(g.paths, b.paths, `d 는 그대로 — 옮길 양만 따로 (구멍 ${hole} · 틈 ${gap})`);
+    assert.equal(g.mids[0], 45, '전제: 조각0 의 이등분각');
+    const want = [(50 * Math.sin(Math.PI / 4)).toFixed(2), (-50 * Math.cos(Math.PI / 4)).toFixed(2)];
+    assert.deepEqual(g.offsets, [want, ['0.00', '0.00'], ['0.00', '0.00']], '그 조각만 · R × 10 % = 50 을 이등분각 방향으로');
+    assert.deepEqual(want, ['35.36', '-35.36'], '눈으로 읽는 한 줄(1시 반 방향 = 오른쪽 위)');
+    assert.equal(g.extent, 50, 'viewBox 밖으로 나간 길이 = 민 길이');
+    assert.deepEqual(g.outer, b.outer, '바깥 반지름은 밀어내기와 무관');
+    assert.deepEqual(piePaths(V, hole, gap, { pull: [0, 0, 0] }), b, 'pull 0 = 미지정');
+    assert.deepEqual(piePaths(V, hole, gap, { pull: [] }), b);
+  }
+  /* 방향은 시작 각도를 따라 돈다 · 12시/6시 방향은 x 가 '0.00'(−0.00 이 아니다) */
+  assert.deepEqual(piePaths([1, 1], 0, 10, { pull: [10, 10] }).offsets, [['50.00', '0.00'], ['-50.00', '0.00']]);
+  assert.deepEqual(piePaths([1, 1], 0, 10, { pull: [10, 10], start: 90 }).offsets, [['0.00', '50.00'], ['0.00', '-50.00']]);
+  assert.doesNotMatch(JSON.stringify(piePaths([1, 1], 0, 10, { pull: [10, 10], start: 270 }).offsets), /-0\.00/);
+  /* 크기와 같이 주면 extent 는 더해진다(그 조각의 Ro + 민 길이) · 여럿이면 가장 먼 것 */
+  assert.equal(piePaths(V, 0, 10, { grow: [20], pull: [10] }).extent, 150);
+  assert.equal(piePaths(V, 0, 10, { grow: [20], pull: [0, 30] }).extent, 150, 'max(600, 500 + 150) − 500');
+  /* 안 미는 것들 — 온 원(방향이 없다) · 값 0 · 합 0 */
+  const one = piePaths([7], 0, 10, { pull: [30] });
+  assert.deepEqual(one.offsets, [['0.00', '0.00']]); assert.equal(one.extent, 0);
+  const z = piePaths([0, 3, 1], 0, 10, { pull: [30, 0, 0] });
+  assert.deepEqual(z.offsets[0], ['0.00', '0.00']); assert.equal(z.extent, 0);
+  assert.equal(piePaths([0, 0], 0, 10, { pull: [30, 30] }).extent, 0);
+  /* 험한 pull — 0 으로(음수·글자·NaN·Infinity) · 100 에서 잘린다 · 글자 수도 받는다 · NaN 0건 */
+  const none = piePaths(V, 0, 10).offsets;
+  for (const bad of [[-5], ['x'], [NaN], [null], [Infinity], 'nope', null, 7]) assert.deepEqual(piePaths(V, 0, 10, { pull: bad }).offsets, none, `험한 pull ${JSON.stringify(bad)}`);
+  assert.equal(piePaths(V, 0, 10, { pull: [999] }).extent, 500);
+  assert.deepEqual(piePaths(V, 0, 10, { pull: ['10'] }).offsets[0], ['35.36', '-35.36']);
+  const wild = piePaths([1e308, 1e308, 1, 1e17], 55, 40, { start: 77, grow: [30, 'x', 30], pull: [30, 30, 30, 30] });
+  assert.equal(wild.offsets.length, 4, '전제');
+  assert.doesNotMatch(JSON.stringify(wild.offsets) + wild.paths.join('|'), /NaN|Infinity|undefined/);
+  assert.deepEqual(wild.offsets[2], ['0.00', '0.00'], '각 폭이 0 으로 접힌 조각은 안 민다');
+});

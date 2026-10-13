@@ -16,10 +16,14 @@
  *   · 조각 크기(1013t1C4): opts.grow[i](바깥 반지름에 더하는 %)만큼 «그 조각의 바깥 반지름만» 키운다 — Ro_i = R × (1 + grow_i / 100). 구멍 반지름은 모든 조각이 같다.
  *     키운 조각은 viewBox(0~1000) 밖으로 나간다 ⇒ extent(가장 멀리 나간 길이 · viewBox 단위)를 같이 돌려준다 — 그리는 쪽이 viewBox 를 그만큼 넓힌다.
  *     grow 가 없거나 0 이면 그 조각의 d 는 옛 판과 «바이트가 같다»(Ro === R). 값 0 조각의 grow 는 안 센다. 유한하지 않거나 음수면 0 · 100 에서 잘린다.
+ *   · 밀어내기(1013t1C5): opts.pull[i](바깥 반지름 R 대비 %)만큼 그 조각을 «이등분각 방향으로» 통째로 옮긴다 — d 는 «한 글자도 안 바뀌고» 옮길 양만 offsets[i] = [dx, dy](글자 · 소수 둘째 자리)로 돌려준다.
+ *     그리는 쪽이 path 의 transform="translate(dx dy)" 로 쓴다(좌표에 굽지 않는다 ⇒ d 의 바이트 동일성이 그대로). 값 0 조각 · 각 폭 0 조각 · 온 원 조각(밀 방향이 없다)은 ['0.00', '0.00'].
+ *     extent 는 민 만큼도 센다 — max(Ro_i + R × pull_i / 100) − R. 가드는 grow 와 같다(유한하지 않거나 음수면 0 · 100 에서 잘린다).
  *   · 산출 문자열에 NaN·Infinity 가 들어갈 길이 없다(모든 수가 위 가드를 지난 유한값에서 나온다). */
 (function (root) {
   var VIEW = 1000, C = 500, R = 500, FULL = 0.9999;
   var f = function (n) { return n.toFixed(2); };
+  var fz = function (n) { var t = n.toFixed(2); return t === '-0.00' ? '0.00' : t; };   // 옮길 양 — 0 은 늘 '0.00' 한 글자꼴(그리는 쪽이 «안 밀었다»를 글자로 가린다)
   var pt = function (deg, rad) {   // 12시 = 0° · 시계 방향(SVG 는 y 가 아래로 자란다)
     var a = deg * Math.PI / 180;
     return f(C + rad * Math.sin(a)) + ' ' + f(C - rad * Math.cos(a));
@@ -61,10 +65,10 @@
   /** @param {Array} values 항목 값(아무 꼴) @param {number} holePct 구멍 비율 %(0 = 꽉 찬 원형)
    *  @param {number} [gap] 조각 사이 틈의 폭(viewBox 단위 · 기본 0 = 틈 없음 — 옛 산출과 바이트가 같다). 값 있는 조각이 하나뿐이면 틈 0.
    *    조각이 틈보다 좁으면 «그 조각 쪽» 깎는 양을 줄인다(바깥 호가 제 폭의 절반은 남는다 — 사라지지 않는다).
-   *  @param {{ start?: number, grow?: number[] }} [opts] start = 시작 각도(도) · grow[i] = i 번 조각의 바깥 반지름에 더하는 %. (1013t1C5 밀어내기 pull[i] 가 같은 자리에 붙는다)
-   *  @returns {{ paths: string[], shares: number[], angles: number[][], total: number, empty: boolean, hole: number, gap: number, start: number, outer: number[], mids: number[], extent: number }}
+   *  @param {{ start?: number, grow?: number[], pull?: number[] }} [opts] start = 시작 각도(도) · grow[i] = i 번 조각의 바깥 반지름에 더하는 % · pull[i] = i 번 조각을 이등분각 방향으로 미는 양(R 대비 %).
+   *  @returns {{ paths: string[], shares: number[], angles: number[][], total: number, empty: boolean, hole: number, gap: number, start: number, outer: number[], mids: number[], offsets: string[][], extent: number }}
    *    angles 는 틈을 깎기 «전»의 경계각(이어 붙는다 · 폭의 합 360 · 첫 시작 = start). outer[i] = 그 조각의 바깥 반지름 · mids[i] = 이등분각(도)
-   *    · extent = 값 있는 조각 중 viewBox 밖으로 가장 멀리 나간 길이(max(outer) − R · 0 이상). */
+   *    · offsets[i] = 그 조각을 옮길 양 [dx, dy](글자) · extent = 값 있는 조각 중 viewBox 밖으로 가장 멀리 나간 길이(max(outer + 민 길이) − R · 0 이상). */
   function piePaths(values, holePct, gap, opts) {
     var o = (opts && typeof opts === 'object') ? opts : {};
     var st = Number(o.start);
@@ -77,7 +81,7 @@
     var g = Number(gap);
     var live = vals.filter(function (v) { return v > 0; }).length;
     var half = (Number.isFinite(g) && g > 0 && live > 1) ? Math.min(g, R / 5) / 2 : 0;
-    var out = { paths: [], shares: [], angles: [], total: total, empty: !(total > 0), hole: hole, gap: half * 2, start: start, outer: [], mids: [], extent: 0 };
+    var out = { paths: [], shares: [], angles: [], total: total, empty: !(total > 0), hole: hole, gap: half * 2, start: start, outer: [], mids: [], offsets: [], extent: 0 };
     var acc = 0;
     vals.forEach(function (v, i) {
       var share = total > 0 ? v / total : 0;
@@ -88,8 +92,11 @@
       out.mids.push((a0 + a1) / 2);
       var Ro = share > 0 ? R * (1 + pctOf(o.grow, i) / 100) : R;   // 값 0 조각은 안 키운다(그릴 것이 없다 — extent 에도 안 든다)
       out.outer.push(Ro);
-      if (!(share > 0)) { out.paths.push(''); return; }
-      if (Ro - R > out.extent) out.extent = Ro - R;
+      if (!(share > 0)) { out.paths.push(''); out.offsets.push(['0.00', '0.00']); return; }
+      var pl = (share >= FULL || !(a1 - a0 > 0)) ? 0 : R * pctOf(o.pull, i) / 100;   // 온 원은 밀 방향이 없다 · 각 폭 0 조각은 그릴 것이 없다
+      var ma = (a0 + a1) / 2 * Math.PI / 180;
+      out.offsets.push(pl > 0 ? [fz(pl * Math.sin(ma)), fz(-pl * Math.cos(ma))] : ['0.00', '0.00']);
+      if (Ro + pl - R > out.extent) out.extent = Ro + pl - R;
       if (share >= FULL) { out.paths.push(ring(Ro, 1) + (r > 0 ? ' ' + ring(r, 0) : '')); return; }
       if (half > 0) { out.paths.push(gapSlice(a0, a1, r, Math.min(half, R * Math.sin(Math.min(a1 - a0, 180) / 4 * Math.PI / 180)), Ro)); return; }
       var large = (a1 - a0) > 180 ? 1 : 0;
