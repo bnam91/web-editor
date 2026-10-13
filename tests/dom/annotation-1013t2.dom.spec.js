@@ -295,7 +295,7 @@ test('AR0 끌기 뒤에도 삼각형이 선 방향을 가리킨다 — 전체 �
  *   AR5 「자동 방향으로 되돌리기」 — 0 이면 꺼짐 · 누르면 키 삭제 · 히스토리 '시작점 방향 되돌리기'
  *   AR6 회전 손잡이는 저장 직렬화에 안 실린다
  *   AR7 점을 옮겨도 회전은 «선 방향 대비»로 따라 돈다(새 자동각 + rot)
- *   AR8 숫자칸 200 → 감긴 값 −160 이 데이터·슬라이더·숫자칸 «셋 다»에 보인다(이벨 D2)
+ *   AR8 숫자칸 200 — 프로그램 커밋은 셋 다 −160(이벨 D2) · 사람 타이핑은 가드 클램프로 셋 다 180
  */
 const ROT_NUM = '#annot-anchor-rot-num';
 const rotRow = (page) => page.evaluate(() => ({ slider: !!document.getElementById('annot-anchor-rot'), num: !!document.getElementById('annot-anchor-rot-num'),
@@ -463,15 +463,24 @@ test('AR7 점을 옮겨도 회전은 선 방향 대비로 따라 돈다 (새 자
   expect(s1.tf, '그려진 방향 = 새 자동각 + 30 + 180').toBe(s1.want);
 });
 
-test('AR8 숫자칸에 200 → 데이터·슬라이더·숫자칸 셋 다 감긴 값 −160', async ({ page }) => {
+/* AR8 — 숫자칸 커밋 길은 둘이다.
+ *   ① 프로그램 커밋(untrusted input·change — goditor-api·자동화) → 가드(js/props/prop-number-commit-guard.js)를 지나쳐
+ *      핸들러가 200 을 그대로 받아 −160 으로 감는다 ⇒ 숫자칸도 −160 이어야 한다(이벨 D2 · 고친 자리).
+ *   ② 사람 타이핑(trusted) → 가드가 max=180 으로 클램프해 칸에 되쓴 뒤 커밋 ⇒ 셋 다 180(감김 없음). */
+test('AR8 숫자칸 200 — 프로그램 커밋은 셋 다 −160 · 사람 타이핑은 셋 다 180(가드 클램프)', async ({ page }) => {
   await bootApp(page);
   await setup(page);
   const id = await makeAnnotation(page);
   await selectByLabel(page, id);
   await setShape(page, id, 'triangle');
   expect(await rotRow(page), '★전제: 회전 줄이 섰다').toEqual({ slider: true, num: true, reset: true });
+  const three = () => page.evaluate((id) => [document.getElementById(id).dataset.anchorRot ?? null,
+    document.getElementById('annot-anchor-rot').value, document.getElementById('annot-anchor-rot-num').value], id);
+  // ① 프로그램 커밋
+  await page.evaluate(() => { const n = document.getElementById('annot-anchor-rot-num'); n.value = '200';
+    n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); });
+  await expect.poll(three, '프로그램 커밋 200 → 데이터·슬라이더·숫자칸 셋 다 −160').toEqual(['-160', '-160', '-160']);
+  // ② 사람 타이핑
   await typeRot(page, 200);
-  await expect.poll(async () => (await anchorState(page, id)).rotKey, '데이터는 감긴 값').toBe('-160');
-  await expect.poll(() => page.evaluate(() => [document.getElementById('annot-anchor-rot').value, document.getElementById('annot-anchor-rot-num').value]),
-    '슬라이더·숫자칸도 감긴 값').toEqual(['-160', '-160']);
+  await expect.poll(three, '사람 타이핑 200 → 가드가 180 으로 클램프 · 셋 다 180').toEqual(['180', '180', '180']);
 });
