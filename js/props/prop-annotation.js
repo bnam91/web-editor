@@ -404,7 +404,8 @@ ${blockHeaderHTML({
     rotS.addEventListener('input',  () => { rotN.value = applyRot(rotS.value); });
     rotS.addEventListener('change', () => window.pushHistory?.('시작점 회전'));
     rotN.addEventListener('input',  () => { rotS.value = applyRot(rotN.value); });
-    rotN.addEventListener('change', () => { rotS.value = applyRot(rotN.value); window.pushHistory?.('시작점 회전'); });
+    // 확정(change) 때는 숫자칸에도 «감긴» 값을 되쓴다(200 → −160 · 이벨 D2). input 중엔 안 쓴다 — 치는 도중 '-' 등을 덮지 않게.
+    rotN.addEventListener('change', () => { const r = applyRot(rotN.value); rotS.value = r; rotN.value = r; window.pushHistory?.('시작점 회전'); });
   }
   rotReset?.addEventListener('click', () => {
     if (!window.annotResetAnchorRot?.(block)) return;

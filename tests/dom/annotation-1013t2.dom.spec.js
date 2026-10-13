@@ -295,6 +295,7 @@ test('AR0 끌기 뒤에도 삼각형이 선 방향을 가리킨다 — 전체 �
  *   AR5 「자동 방향으로 되돌리기」 — 0 이면 꺼짐 · 누르면 키 삭제 · 히스토리 '시작점 방향 되돌리기'
  *   AR6 회전 손잡이는 저장 직렬화에 안 실린다
  *   AR7 점을 옮겨도 회전은 «선 방향 대비»로 따라 돈다(새 자동각 + rot)
+ *   AR8 숫자칸 200 → 감긴 값 −160 이 데이터·슬라이더·숫자칸 «셋 다»에 보인다(이벨 D2)
  */
 const ROT_NUM = '#annot-anchor-rot-num';
 const rotRow = (page) => page.evaluate(() => ({ slider: !!document.getElementById('annot-anchor-rot'), num: !!document.getElementById('annot-anchor-rot-num'),
@@ -460,4 +461,17 @@ test('AR7 점을 옮겨도 회전은 선 방향 대비로 따라 돈다 (새 자
   const s1 = await anchorState(page, id);
   expect(s1.rotKey, '회전값은 그대로').toBe('30');
   expect(s1.tf, '그려진 방향 = 새 자동각 + 30 + 180').toBe(s1.want);
+});
+
+test('AR8 숫자칸에 200 → 데이터·슬라이더·숫자칸 셋 다 감긴 값 −160', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+  await setShape(page, id, 'triangle');
+  expect(await rotRow(page), '★전제: 회전 줄이 섰다').toEqual({ slider: true, num: true, reset: true });
+  await typeRot(page, 200);
+  await expect.poll(async () => (await anchorState(page, id)).rotKey, '데이터는 감긴 값').toBe('-160');
+  await expect.poll(() => page.evaluate(() => [document.getElementById('annot-anchor-rot').value, document.getElementById('annot-anchor-rot-num').value]),
+    '슬라이더·숫자칸도 감긴 값').toEqual(['-160', '-160']);
 });
