@@ -475,6 +475,36 @@ test('② --rev — ★체크아웃 없이 ref 를 잰다 · ⛔빈 블롭을 �
      ★★까닭: ★기준판은 ★`origin/main` 의 ★최신 릴리스 태그로 ★파생된다 ⇒ ★★릴리스 커밋에선 ★★범위가 ★★항상 ★0 이다
      ★★실측(판 bc7630d1): ★`--rev HEAD` ⇒ 「범위 안 CSS 줄이 ★0줄」 · ★`--base v0.9.5` ⇒ ★9파일 ★1073줄 ⇒ ★두 줄이 ★다 ★찍힌다
      ⛔기준판을 ★여기 ★박지 ★않는다 — ★자와 ★같은 ★`gatePremise`/`scopeLineCount` 를 ★쓴다(★명부 하나). */
+  /* ★★--rev 가 ★정말 ★그 ref 를 읽나 — ⛔안 읽고 작업트리를 재면 ★둘이 ★같은 수가 된다.
+   * ★닻 = `417d220e133f`(내 첫 커밋 · 고치기 ★전 판 · ★불변).
+   *
+   * ★★★2026-10-13 ★정정 (지디) — ★이 단언이 ★★«기준판»에 ★매달려 있었다.
+   *   ⛔무슨 일: ★기대값 「2」는 ★★파생 기준판이 ★`v0.9.6` 일 때의 수였다(아래 두 자리).
+   *     ⇒ ★`v0.9.7` 이 나가자 ★창이 ★좁아져 ★★그 닻이 ★창 ★밖으로 밀려났다:
+   *        ★실측(판 dc080a51): ★파생 기준판 `v0.9.6` → ★범위 ★7파일 ★545줄 · ★적발 ★2건
+   *                            ★파생 기준판 `v0.9.7` → ★범위 ★★0파일 ★0줄 · ★적발 ★★null ⇒ ★★빨강
+   *   ⇒ ★처방: ★★`--base` 를 ★★«손으로 고정»한다. ★이 단언의 물음은 ★「`--rev` 가 ref 를 ★읽나」이고
+   *     ★★기준판과 ★무관해야 한다. ⇒ ★판이 움직여도 ★「2 ↔ 0」이 ★참으로 남는다.
+   *   ⇒ ★그리고 ★★이 블록을 ★★«가드 ★앞»으로 ★옮겼다 — ★전엔 ★가드 뒤라 ★★릴리스 커밋(범위 0줄)에선
+   *     ★SKIP 되어 ★★이 잠금이 ★돌지 ★않았다(★0.9.7 판에서 ★그랬다).
+   *   ★내 교훈: 「★검사는 ★자기 전제를 ★단언해야 한다」·「★기대값은 ★«움직이는 판»에 ★매달지 마라」. */
+  const PRE_FIX = '417d220e133f';
+  const ANCHOR_BASE = 'v0.9.6';          // ★★손으로 고정 — ⛔파생에 ★맡기지 않는다
+  const L2 = (rev) => cp.spawnSync('node',
+    [path.join(REPO, 'tools/css-token-lint.mjs'), '--base', ANCHOR_BASE, '--rev', rev],
+    { encoding: 'utf8', cwd: REPO });
+  const atRef = L2(PRE_FIX);
+  const atWt  = L2('HEAD');
+  assert.notEqual(atRef.status, 3, `--rev ${PRE_FIX} 가 HARNESS_ERROR\n${atRef.stdout}${atRef.stderr}`);
+  assert.notEqual(atWt.status, 3, `--rev HEAD 가 HARNESS_ERROR\n${atWt.stdout}${atWt.stderr}`);
+  const n = (out) => { const m = /적발 (\d+)건/.exec(out); return m ? Number(m[1]) : (/적발 0건\./.test(out) ? 0 : null); };
+  assert.equal(n(atRef.stdout), 2,
+    `--base ${ANCHOR_BASE} --rev ${PRE_FIX} 에서 2건이 아니다 — --rev 가 ref 를 ★안 읽고 작업트리를 재는 것일 수 있다\n${atRef.stdout}`);
+  assert.equal(n(atWt.stdout), 0,
+    `--base ${ANCHOR_BASE} --rev HEAD 가 0건이 아니다 — 두 수가 같으면 --rev 를 ★못 믿는다\n${atWt.stdout}`);
+  assert.match(atRef.stdout, /editor-panels\.css:140/, '기대한 자리가 안 나온다');
+  assert.match(atRef.stdout, /editor-props\.css:626/, '기대한 자리가 안 나온다');
+
   const pre = gatePremise(null);
   const nScope = pre.ok ? scopeLineCount(pre.base) : null;
   if (!pre.ok || nScope === 0) {
@@ -487,21 +517,6 @@ test('② --rev — ★체크아웃 없이 ref 를 잰다 · ⛔빈 블롭을 �
     { encoding: 'utf8', cwd: REPO });
   assert.equal(bad.status, 3, `없는 ref 에 rc=${bad.status} — ⛔0 으로 접으면 「0건」이 거짓이 된다`);
 
-  /* ★★--rev 가 ★정말 ★그 ref 를 읽나 — ⛔안 읽고 작업트리를 재면 ★둘이 ★같은 수가 된다.
-   * ★닻 = `417d220e133f`(내 첫 커밋 · 고치기 ★전 판 · ★불변).
-   *   ★이 「2」는 ★자가 아니라 ★git 만으로 ★따로 세서 나온 수다(파생 기준판 v0.9.6 에서
-   *   적발 4건 중 ★2건이 창 안 — editor-panels:140 · editor-props:626).
-   * ⇒ 작업트리는 ★0건(고쳤다) · 그 ref 는 ★2건 ⇒ ★두 수가 ★달라야 --rev 가 산다. */
-  const PRE_FIX = '417d220e133f';
-  const atRef = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs'), '--rev', PRE_FIX],
-    { encoding: 'utf8', cwd: REPO });
-  assert.notEqual(atRef.status, 3, `--rev ${PRE_FIX} 가 HARNESS_ERROR\n${atRef.stdout}${atRef.stderr}`);
-  const n = (out) => { const m = /적발 (\d+)건/.exec(out); return m ? Number(m[1]) : (/적발 0건\./.test(out) ? 0 : null); };
-  assert.equal(n(atRef.stdout), 2,
-    `--rev ${PRE_FIX} 에서 2건이 아니다 — --rev 가 ref 를 ★안 읽고 작업트리를 재는 것일 수 있다\n${atRef.stdout}`);
-  assert.equal(n(r.stdout), 0, `작업트리가 0건이 아니다 — 두 수가 같으면 --rev 를 ★못 믿는다\n${r.stdout}`);
-  assert.match(atRef.stdout, /editor-panels\.css:140/, '기대한 자리가 안 나온다');
-  assert.match(atRef.stdout, /editor-props\.css:626/, '기대한 자리가 안 나온다');
 });
 
 test('③ 단언 ★본문에 명령이 들어 있다 — ⛔제목만으로는 «본문을 복사해 가는 사람»에게 안 간다', () => {

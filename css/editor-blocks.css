@@ -2390,9 +2390,23 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
    ⛔★`!important` 를 ★안 쓴다 — ★`[data-clip-content="true"]`(★사용자가 ★명시로 ★켠 자름)에 ★★★져야 ★한다.
    ★★지키는 자: ★`tests/dom/text-dot-over.dom.spec.js` ★「D4b ★배송본 꼴」 ＋ ★그 벌의 ★D4.
    ⛔안 쟀다: ★이 절이 ★다른 화면에 ★어떻게 보이나는 ★★사람 눈으로 ★안 쟀다(★현빈 몫). */
-.frame-block[data-text-frame="true"]:has(.tb-dot) {
-  overflow: visible;
-}
+/* ★★★2026-10-13 (지디) — ★이 절을 ★★«걷었다». ★대신 ★이 파일 ★85행의 ★S2 규칙이 ★맡는다:
+ *     `.frame-block[data-text-frame]:has(.tb-dot) { overflow: visible; }`   ← ★값 ★무관 ⇒ ★★내 것을 ★품는다
+ * ★왜 걷었나 (★1012t1E4 ★의미 충돌 · ★태양이 찾고 ★내가 쟀다):
+ *   ⑴ ★85 의 집합 ⊇ ★이 절의 집합(`[data-text-frame]` ⊇ `[data-text-frame="true"]`)
+ *      ⇒ ★현빈이 신고한 버그(★상자 밖 점이 ★배송본에서 잘림)는 ★85 ★하나로 ★고쳐진다.
+ *   ⑵ ★★명시도가 ★같아 ★«뒤»가 이긴다 ⇒ ★이 절이 ★파일 뒤라 ★99행
+ *      `.frame-block[data-radius]:not([data-radius="0"]) { overflow: hidden; }` 까지 ★덮었다
+ *      ⇒ ★★둥근 프레임에서도 ★점이 ★보이게 ★됐다. ★그건 ★내가 ★고르지 ★않은 ★부작용이다.
+ *   ⑶ ★★S2 는 ★그 축을 ★쟀고 ★잠갔다: `tests/dom/text-dot-frame-clip.dom.spec.js` ★F5
+ *      「★둥근 텍스트 프레임은 ★계속 자른다(0) — ★규칙 ★«자리» 잠금」 ⇒ ★이 절이 ★그 자를 ★깼다
+ *      ★실측(판 dc080a51 전수): ★F5 ★30.1s ★시간초과 ★2회(재시도 포함) — ★`overflow` 가 ★영원히 ★`hidden` 이 ★안 된다
+ *   ⑷ ★★그리고 ★이 절의 ★옛 주석이 ★스스로 적어 뒀다: 「⛔안 쟀다: ★이 절이 ★다른 화면에 ★어떻게
+ *      보이나는 ★사람 눈으로 ★안 쟀다(★현빈 몫)」 ⇒ ★★나는 ★그 축을 ★안 보고 ★파일 뒤에 ★놓았다.
+ * ★지키는 자(그대로 산다): `text-dot-over.dom.spec.js` ★D4b「배송본 꼴」 ＋ `text-dot-frame-clip` ★F1~F5
+ *   ⇒ ★걷은 뒤 ★그 둘을 ★같은 자로 ★다시 쟀다(★아래 커밋 메시지에 ★수).
+ * ⛔되돌릴 조건: ★「둥근 프레임에서도 ★점이 ★보여야 한다」가 ★현빈 결정으로 ★서면 ⇒ ★★이 절을 ★되살리지 ★말고
+ *   ★85 를 ★99행 ★«뒤»로 ★옮겨라(★한 명부로). ⇒ ★그리고 ★F5 를 ★그 뜻으로 ★고쳐라. */
 
 /* shape 리사이즈 핸들 — --inv-zoom calc()로 캔버스 배율 무관하게 고정 크기 유지 */
 .shape-handle {
