@@ -126,6 +126,36 @@ function _rangeFromOffsets(host, start, end) {
   r.setStart(sN, sO); r.setEnd(eN, eO);
   return r.collapsed ? null : r;
 }
+/* ★1013 D1 — 줄바꿈(\n 글자)을 «세지 않는» 오프셋. 편집 중 Enter 는 <div>(글자에 \n 없음)인데, 편집을 커밋해 «평문»으로 다시 그린
+ *   줄(line-host·그리드 줄 = white-space:pre/pre-wrap)은 줄바꿈을 \n 글자로 갖는다 — 둘은 «같은 글자»다.
+ *   ⇒ 아래 _alive 는 지문이 «그대로» 같으면 옛 길(_rangeFromOffsets)을, \n 만 다르면 이것으로 되찾는다.
+ *   끝점은 \n 건너뛰기 «전에» 본다(line-host.js _lnSelRestore 와 같은 규칙 — 뒤에 보면 끝이 \n 뒤로 밀려 줄바꿈이 범위에 든다).
+ *   시작은 «글자 위»에서만 잡는다(앞 글자 노드의 끝에 붙지 않는다). */
+const _noNl = (t) => String(t == null ? '' : t).replace(/\n/g, '');
+function _offsetsNoNl(range, host) {
+  const pre = document.createRange();
+  pre.selectNodeContents(host);
+  pre.setEnd(range.startContainer, range.startOffset);
+  const start = _noNl(pre.toString()).length;
+  return { startN: start, endN: start + _noNl(range.toString()).length };
+}
+function _rangeFromOffsetsNoNl(host, start, end) {
+  const w = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+  let pos = 0, sN = null, sO = 0, eN = null, eO = 0;
+  for (let n = w.nextNode(); n && !eN; n = w.nextNode()) {
+    const v = n.nodeValue;
+    for (let k = 0; k <= v.length; k++) {
+      if (sN && pos === end) { eN = n; eO = k; break; }
+      if (k < v.length && v[k] === '\n') continue;
+      if (!sN && pos === start && k < v.length) { sN = n; sO = k; }
+      if (k < v.length) pos++;
+    }
+  }
+  if (!sN || !eN) return null;
+  const r = document.createRange();
+  r.setStart(sN, sO); r.setEnd(eN, eO);
+  return r.collapsed ? null : r;
+}
 /* host 를 «id 를 가진 가장 가까운 조상 + 자식 순번 경로»로 적는다 — 다시 그려진 뒤 같은 자리를 찾는 열쇠.
  * ★경로는 «정체»가 아니다(적대QA B1, 2026-10-03): 줄 하나를 지우면 다음 줄이 같은 경로·같은 글자로 당겨와
  *   남의 줄에 붙었다. 그래서 되살림은 «조상 블럭의 글자 전체(지문)가 저장 때와 같을 때만» 한다 —
@@ -150,9 +180,10 @@ function _resolve(anchorId, path) {
 }
 function _record(range, host) {
   const { start, end } = _offsetsOf(range, host);
+  const { startN, endN } = _offsetsNoNl(range, host);
   const { anchorId, path } = _locate(host);
   const anchor = anchorId ? document.getElementById(anchorId) : null;
-  _saved = { range: range.cloneRange(), host, text: host.textContent, start, end, anchorId, path,
+  _saved = { range: range.cloneRange(), host, text: host.textContent, start, end, startN, endN, anchorId, path,
              print: anchor ? anchor.textContent : null };
 }
 
@@ -164,14 +195,22 @@ function _alive() {
   if (!host.isConnected) {
     const nh = _resolve(_saved.anchorId, _saved.path);
     const anchor = _saved.anchorId ? document.getElementById(_saved.anchorId) : null;
-    const sameStructure = !!anchor && anchor.textContent === _saved.print;   // ★지문 — 줄·칸이 늘거나 줄면 버린다
-    const nr = nh && sameStructure && nh.textContent === _saved.text ? _rangeFromOffsets(nh, _saved.start, _saved.end) : null;
+    /* ★지문 — 줄·칸이 늘거나 줄면 버린다. 그대로 같으면 옛 길.
+       ★1013 D1 — \n 만 다르면(편집 DOM <div> ↔ 커밋 뒤 평문 렌더 \n · 실측: 블럭 지문·글자칸 지문 «둘 다» \n 하나만큼 갈렸다)
+         같은 글자다 ⇒ \n 을 안 센 오프셋으로 되찾는다. ⛔이 갈래를 빼면 여러 줄 줄의 hex 칸·칩 부분 색이 «줄 전체 색»으로 빠진다
+         (패널 input 캡처의 flush 가 줄을 평문으로 다시 그린 뒤 이 대조가 저장 선택을 버렸다 — laurel-rich-text LR11-2·HB4h·HC3h·HM3h·GL2h·LR14). */
+    let nr = null;
+    if (nh && anchor) {
+      if (anchor.textContent === _saved.print && nh.textContent === _saved.text) nr = _rangeFromOffsets(nh, _saved.start, _saved.end);
+      else if (_noNl(anchor.textContent) === _noNl(_saved.print) && _noNl(nh.textContent) === _noNl(_saved.text)) nr = _rangeFromOffsetsNoNl(nh, _saved.startN, _saved.endN);
+    }
     if (!nr) { _saved = null; return null; }
     _saved.host = host = nh; _saved.range = range = nr;
   }
   if (range.collapsed || !host.contains(range.startContainer) || !host.contains(range.endContainer)) {
     // 글자가 바뀌어 범위가 접혔다 — 오프셋으로 한 번 더 찾는다(같은 글자일 때만)
-    const nr = host.textContent === _saved.text ? _rangeFromOffsets(host, _saved.start, _saved.end) : null;
+    const nr = host.textContent === _saved.text ? _rangeFromOffsets(host, _saved.start, _saved.end)
+      : _noNl(host.textContent) === _noNl(_saved.text) ? _rangeFromOffsetsNoNl(host, _saved.startN, _saved.endN) : null;   // ★1013 D1 — 위와 같은 뜻
     if (!nr) { _saved = null; return null; }
     _saved.range = range = nr;
   }

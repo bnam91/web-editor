@@ -50,10 +50,11 @@ async function addBlock(page, kind, { deselect = true } = {}) {
     if (kind === 'laurel') window.addLaurelBlock({});
     else if (kind === 'bubble') window.addSpeechBubbleBlock('left');
     else if (kind === 'chat') window.addChatBlock({ messages: [{ text: '첫 메시지', align: 'left' }] });
+    else if (kind === 'chat2') window.addChatBlock({ messages: [{ text: '첫 메시지', align: 'left' }, { text: '둘째', align: 'right' }] });   // HC3 — 메시지 1(오른쪽)
     else if (kind === 'cmp') window.addComparisonBlock({ cols: [
       { title: 'A', rows: [{ type: 'text', text: 'a0' }] }, { title: 'B', rows: [{ type: 'text', text: 'b0' }] }], featured: 1 });
     else if (kind === 'grid') window.addGridBlock({});
-    const cls = { laurel: 'laurel-block', bubble: 'speech-bubble-block', chat: 'chat-block', cmp: 'comparison-block', grid: 'grid-block' }[kind];
+    const cls = { laurel: 'laurel-block', bubble: 'speech-bubble-block', chat: 'chat-block', chat2: 'chat-block', cmp: 'comparison-block', grid: 'grid-block' }[kind];
     const fresh = [...document.querySelectorAll(`#sR .${cls}`)].filter(e => !before.has(e.id));
     const b = fresh.pop();
     if (deselect) window.deselectAll?.();
@@ -785,5 +786,370 @@ test.describe('LR10h·LR10n 부분 색 결함 둘', () => {
     expect(rl2.byHeight, '다시 연 뒤 2줄').toBe(2);
     expect(errs).toEqual([]);
     expect(errs2).toEqual([]);
+  });
+});
+
+/* ══ LR11 — 86ecc76c 재판정 칸 정식화(이벨류에이터 임시 EV86-1~9 → LR11-1~9) + D1 고침 ══════════════════════════════
+ * ★D1(이벨류 실측 8/8 · 1013 재판정): 두 줄 laurel 줄 'AAABBB⏎CCCDDD' 에서 BBB 를 고르고 패널 hex 칸에 FF0000 → 고른 글자가 아니라
+ *   «줄 전체» color(#ff0000) · textHtml 없음. 한 줄·스와치 길은 정상.
+ *   원인(계측 — _alive 에 탐침을 박아 잼 · 보고서): hex 칸 클릭 = 편집 blur → parkEditing(세움) → 첫 input 의 캡처(onPanelAct)가
+ *   flush = finish({keepPanel}) 로 줄을 «평문(\n 글자)»으로 다시 그린다 → _text-selection._alive 의 지문 둘
+ *   (블럭 textContent · 줄 글자칸 textContent)이 기록 때 편집 DOM(Enter = <div>, \n 없음)과 \n 하나만큼 갈려 저장 선택을 버렸다.
+ *   고침(js/props/_text-selection.js _alive): 지문이 «그대로» 같으면 옛 길 그대로 · 다르면 «\n 을 빼고» 견주어 같을 때만
+ *   \n 을 안 센 오프셋(_rangeFromOffsetsNoNl)으로 되찾는다 — 편집 DOM(<div>)↔평문 렌더(\n) 는 같은 글자다.
+ * 계측(고치기 전 · 탐침): 지문 «둘 다» 갈렸다 — 블럭 'AAABBBCCCDDD'↔'AAABBB\nCCCDDD' · 글자칸 같은 꼴(laurel·버블·챗·비교·그리드·칩 6/6).
+ * 음성대조(1회 실측 2026-10-14 · cp 백업/복원 · cmp 같음 · 이 묶음 -g 27칸):
+ *   · _alive 의 \n 무시 갈래 둘을 끔 → 6 failed: LR11-2 · HB4h · HC3h · HM3h · GL2h · LR14 (나머지 21 초록)
+ *   · line-host ②(_lnExactColorSpan) 를 null 로 → 1 failed: LR11-10(겹 span `<span fw><span color>CCC`) · 옛 ②(DOM 경계 비교)도 LR11-10 빨강(같은 바이트). */
+const R = 'rgb(255, 0, 0)', G = 'rgb(0, 255, 0)', B = 'rgb(0, 0, 255)';
+const SP = (rgb, t) => `<span style="color:${rgb}">${t}</span>`;
+const T2 = 'AAABBB\nCCCDDD', T3 = 'AAA\nBBB\nCCC';
+const lineK = (page, K, id) => page.evaluate(([i, src]) => { const b = document.getElementById(i); return b ? ((0, eval)(src))(b) : null; }, [id, K.line.toString()]);
+const colorsByChar = (page, sel) => page.evaluate((s) => {
+  const el = document.querySelector(s); if (!el) return null;
+  const m = {};
+  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let t = tw.nextNode(); t; t = tw.nextNode()) for (const ch of t.nodeValue) { if (/\s/.test(ch)) continue; const c = getComputedStyle(t.parentElement).color; m[c] = (m[c] || '') + ch; }
+  return m;
+}, sel);
+const linesAt = (page, sel) => page.evaluate((s) => {
+  const el = document.querySelector(s); if (!el) return null;
+  const tops = new Set();
+  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let t = tw.nextNode(); t; t = tw.nextNode()) {
+    if (!t.nodeValue.trim()) continue;
+    const rg = document.createRange(); rg.selectNodeContents(t);
+    for (const q of rg.getClientRects()) if (q.width > 0) tops.add(Math.round(q.top));
+  }
+  return { byHeight: tops.size, ws: getComputedStyle(el).whiteSpace };
+}, sel);
+async function waitSel(page, want) {
+  try { await page.waitForFunction((t) => getSelection().toString() === t, want, { timeout: 3000 }); }
+  catch (_) { const got = await page.evaluate(() => getSelection().toString()); throw new Error(`전제 — 선택 ${JSON.stringify(want)} 아님 · 받은 ${JSON.stringify(got)}`); }
+}
+/* 줄 더블클릭 → 편집. ★스크롤 재시도(이벨류에이터 도우미): 패널이 다시 그려지며 캔버스가 밀리면 첫 scrollIntoView 가 화면 밖 좌표를 줄 수 있다
+   ⇒ 글자칸이 화면 안에 멈출 때까지 최대 5번 다시 스크롤하고, 누르는 점이 그 줄 위인지 단언한 뒤 누른다. */
+async function openEditSel(page, sel, id) {
+  let r = null;
+  for (let k = 0; k < 5; k++) {
+    await page.evaluate((s) => document.querySelector(s)?.scrollIntoView({ block: 'center', behavior: 'instant' }), sel);
+    r = await waitStableRect(page, sel);
+    if (r.cy > 0 && r.cy < 1200) break;
+  }
+  const hit = await page.evaluate(([x, y, s]) => { const e = document.elementFromPoint(x, y); const w = document.querySelector(s);
+    return { on: !!(e && w && (e === w || w.contains(e))), at: String(e?.outerHTML || e).slice(0, 160), x, y }; }, [r.cx, r.cy, sel]);
+  expect(hit.on, `전제 — 누르는 점이 줄 위 ${JSON.stringify(hit)}`).toBe(true);
+  await page.mouse.dblclick(r.cx, r.cy);
+  try { await page.waitForFunction((s) => document.querySelector(s)?.getAttribute('contenteditable') === 'true', sel, { timeout: 5000 }); }
+  catch (_) {
+    const d = await page.evaluate(([s, i]) => ({ ce: document.querySelector(s)?.getAttribute('contenteditable'), editing: document.getElementById(i)?.classList.contains('editing'),
+      act: String(document.activeElement?.outerHTML || '').slice(0, 120), html: document.querySelector(s)?.innerHTML }), [sel, id]);
+    throw new Error('전제 — 더블클릭으로 편집에 안 들어감 ' + JSON.stringify(d));
+  }
+  expect(await page.evaluate((i) => document.getElementById(i).classList.contains('editing'), id), '전제 — 편집 중').toBe(true);
+}
+async function buildSel(page, sel, id, parts) {
+  await openEditSel(page, sel, id);
+  await page.keyboard.press('ControlOrMeta+a');
+  for (let i = 0; i < parts.length; i++) { if (i) { await page.keyboard.press('End'); await page.keyboard.press('Enter'); } await page.keyboard.type(parts[i]); }
+  await page.waitForFunction(([s, t]) => (document.querySelector(s)?.innerText || '').replace(/\n+$/, '') === t, [sel, parts.join('\n')]);
+}
+async function keys(page, list) { for (const k of list) await page.keyboard.press(k); }
+const shiftLeft = (n) => Array(n).fill('Shift+ArrowLeft');
+/* hex 칸을 «마우스로» 누르고(편집 blur → 세움) ⌘A → 타이핑(input 마다 적용) → Enter */
+async function hexColor(page, HEX6, want) {
+  const hx = await page.evaluate(() => { const e = document.getElementById('grd-typo-color-hex'); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
+  expect(hx, '전제 — Fill hex 칸').not.toBeNull();
+  await page.mouse.click(hx.x, hx.y);
+  expect(await page.evaluate(() => document.activeElement?.id), '전제 — hex 칸 포커스').toBe('grd-typo-color-hex');
+  if (want !== null) expect(await page.evaluate(() => window.__textSelection?.getSavedTextSelection?.()?.range?.toString() ?? null), '전제 — 저장 선택').toBe(want);
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.type(HEX6);
+  await page.keyboard.press('Enter');
+}
+/* 스와치를 누르고 피커 input 을 여러 번(스펙트럼 끌기 대용) → change 한 번 */
+async function swatchMulti(page, hexes, want) {
+  const sw = await page.evaluate(() => { const e = document.getElementById('grd-typo-color')?.closest('.prop-color-swatch'); if (!e) return null;
+    const b = e.getBoundingClientRect(); const x = b.x + b.width / 2, y = b.y + b.height / 2; const at = document.elementFromPoint(x, y); return { x, y, on: !!(at && (at === e || e.contains(at))) }; });
+  expect(sw, '전제 — 스와치').not.toBeNull(); expect(sw.on, '전제 — 누르는 점이 스와치 위').toBe(true);
+  await page.mouse.click(sw.x, sw.y);
+  expect(await page.evaluate(() => window.__textSelection?.getSavedTextSelection?.()?.range?.toString() ?? null), '전제 — 저장 선택').toBe(want);
+  await page.evaluate((hs) => { const p = document.getElementById('grd-typo-color');
+    for (const h of hs) { p.value = h; p.dispatchEvent(new Event('input', { bubbles: true })); }
+    p.dispatchEvent(new Event('change', { bubbles: true })); }, hexes);
+}
+/* 정확한 바이트를 기다리되(못 와도) 실제 값을 남기고 공통 단언 — 빈 span 0 · 평문 짝 · 줄 전체 color 불변 · 렌더 줄 수 · 글자별 색 */
+async function verdictK(page, K, id, label, want, { text, color0, lines, chars }) {
+  try { await expect.poll(async () => (await lineK(page, K, id))?.textHtml ?? null, { timeout: 5000 }).toBe(want); } catch (_) {}
+  const line = await lineK(page, K, id);
+  const rl = await linesAt(page, K.sel(id));
+  const cbc = await colorsByChar(page, K.sel(id));
+  console.log(`  ${label}:`, JSON.stringify({ want, textHtml: line?.textHtml ?? null, text: line?.text, color: line?.color ?? null, byHeight: rl?.byHeight, ws: rl?.ws, cbc }));
+  expect(line?.textHtml ?? null, `${label} textHtml 바이트`).toBe(want);
+  expect((String(line?.textHtml || '').match(/<span[^>]*><\/span>/g) || []).length, '빈 span 0').toBe(0);
+  expect(line?.text, '평문 짝').toBe(text);
+  expect(line?.color ?? null, '줄 전체 color 불변').toBe(color0);
+  expect(rl?.byHeight, '렌더 줄 수').toBe(lines);
+  for (const [c, s] of Object.entries(chars)) expect(cbc?.[c] ?? '', `글자색 ${c}`).toBe(s);
+  return line;
+}
+const KL = { sel: KIND.laurel.sel, line: KIND.laurel.line };
+async function prepL(page) { const errs = await setup(page); const id = await addBlock(page, 'laurel'); const color0 = (await lineK(page, KL, id))?.color ?? null; return { errs, id, color0 }; }
+const build = (page, id, parts) => buildSel(page, KL.sel(id), id, parts);
+const verdict = (page, id, label, want, o) => verdictK(page, KL, id, label, want, o);
+
+test.describe('LR11 86ecc76c 재판정 칸(EV86 → LR11) · D1', () => {
+  test('LR11-1 한 줄 끝 CCC · hex FF0000', async ({ page }) => {
+    const { errs, id, color0 } = await prepL(page);
+    await build(page, id, [TXT]); await keys(page, ['End', ...shiftLeft(3)]); await waitSel(page, 'CCC');
+    await hexColor(page, 'FF0000', 'CCC');
+    await verdict(page, id, 'LR11-1', 'AAABBB' + SP(R, 'CCC'), { text: TXT, color0, lines: 1, chars: { [R]: 'CCC' } });
+    expect(errs).toEqual([]);
+  });
+  test('LR11-2 ★D1 두 줄 BBB · hex FF0000 — 고른 BBB 만(줄 전체 아님)', async ({ page }) => {
+    const { errs, id, color0 } = await prepL(page);
+    await build(page, id, ['AAABBB', 'CCCDDD']); await keys(page, ['ArrowUp', 'End', ...shiftLeft(3)]); await waitSel(page, 'BBB');
+    await hexColor(page, 'FF0000', 'BBB');
+    await verdict(page, id, 'LR11-2', 'AAA' + SP(R, 'BBB') + '<br>CCCDDD', { text: T2, color0, lines: 2, chars: { [R]: 'BBB' } });
+    expect(errs).toEqual([]);
+  });
+  test('LR11-3 한 줄 CCC · 스와치 input 3번(R→G→B) · ⌘Z 1', async ({ page }) => {
+    const { errs, id, color0 } = await prepL(page);
+    await build(page, id, [TXT]); await keys(page, ['End', ...shiftLeft(3)]); await waitSel(page, 'CCC');
+    await swatchMulti(page, ['#ff0000', '#00ff00', '#0000ff'], 'CCC');
+    const line = await verdict(page, id, 'LR11-3', 'AAABBB' + SP(B, 'CCC'), { text: TXT, color0, lines: 1, chars: { [B]: 'CCC' } });
+    expect((line.textHtml.match(/<span/g) || []).length, 'span 1개').toBe(1);
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect.poll(async () => (await state(page, 'laurel', id)).hasKey, '⌘Z 1 → textHtml 없음').toBe(false);
+    expect((await state(page, 'laurel', id)).text).toBe(TXT);
+    expect(errs).toEqual([]);
+  });
+  test('LR11-4 ★①b 두 줄 BBB · 스와치 input 3번 · ⌘Z 1', async ({ page }) => {
+    const { errs, id, color0 } = await prepL(page);
+    await build(page, id, ['AAABBB', 'CCCDDD']); await keys(page, ['ArrowUp', 'End', ...shiftLeft(3)]); await waitSel(page, 'BBB');
+    await swatchMulti(page, ['#ff0000', '#00ff00', '#0000ff'], 'BBB');
+    await verdict(page, id, 'LR11-4', 'AAA' + SP(B, 'BBB') + '<br>CCCDDD', { text: T2, color0, lines: 2, chars: { [B]: 'BBB' } });
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect.poll(async () => (await state(page, 'laurel', id)).hasKey, '⌘Z 1 → textHtml 없음').toBe(false);
+    expect((await state(page, 'laurel', id)).text).toBe(T2);
+    expect(errs).toEqual([]);
+  });
+  test('LR11-5 ★③ CCC 빨강 → 다시 편집 BBBCCC 파랑(끝 = 옛 span 끝)', async ({ page }) => {
+    const { errs, id, color0 } = await prepL(page);
+    await build(page, id, [TXT]); await keys(page, ['End', ...shiftLeft(3)]); await waitSel(page, 'CCC');
+    await panelColor(page, '#ff0000', 'CCC');
+    await verdict(page, id, 'LR11-5a', 'AAABBB' + SP(R, 'CCC'), { text: TXT, color0, lines: 1, chars: { [R]: 'CCC' } });
+    await openEditSel(page, KL.sel(id), id); await keys(page, shiftLeft(6)); await waitSel(page, 'BBBCCC');
+    await panelColor(page, '#0000ff', 'BBBCCC');
+    await verdict(page, id, 'LR11-5', 'AAA' + SP(B, 'BBBCCC'), { text: TXT, color0, lines: 1, chars: { [B]: 'BBBCCC' } });
+    expect(errs).toEqual([]);
+  });
+  test('LR11-6 ★③ 가운데 BBB 빨강 → 다시 편집 BBBCCC 파랑(시작 = 옛 span 시작)', async ({ page }) => {
+    const { errs, id, color0 } = await prepL(page);
+    await build(page, id, [TXT]); await keys(page, ['End', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft', ...shiftLeft(3)]); await waitSel(page, 'BBB');
+    await panelColor(page, '#ff0000', 'BBB');
+    await verdict(page, id, 'LR11-6a', 'AAA' + SP(R, 'BBB') + 'CCC', { text: TXT, color0, lines: 1, chars: { [R]: 'BBB' } });
+    await openEditSel(page, KL.sel(id), id); await keys(page, shiftLeft(6)); await waitSel(page, 'BBBCCC');
+    await panelColor(page, '#0000ff', 'BBBCCC');
+    await verdict(page, id, 'LR11-6', 'AAA' + SP(B, 'BBBCCC'), { text: TXT, color0, lines: 1, chars: { [B]: 'BBBCCC' } });
+    expect(errs).toEqual([]);
+  });
+  test('LR11-7 ④ 세 줄 가운데 BBB · 스와치 · 저장 왕복', async ({ page }) => {
+    const { errs, id, color0 } = await prepL(page);
+    await build(page, id, ['AAA', 'BBB', 'CCC']); await keys(page, ['ArrowUp', 'End', ...shiftLeft(3)]); await waitSel(page, 'BBB');
+    await panelColor(page, '#ff0000', 'BBB');
+    const line = await verdict(page, id, 'LR11-7', 'AAA<br>' + SP(R, 'BBB') + '<br>CCC', { text: T3, color0, lines: 3, chars: { [R]: 'BBB' } });
+    const snap = await page.evaluate(() => { window.flushCurrentPage?.(); return window.serializeProject(); });
+    const errs2 = await bootApp(page);
+    await page.evaluate((d) => window.applyProjectData(d), JSON.parse(snap));
+    await page.waitForFunction((q) => !!document.querySelector(q), KL.sel(id));
+    const l2 = await lineK(page, KL, id);
+    expect([l2.text, l2.textHtml], '저장 왕복 같음').toEqual([line.text, line.textHtml]);
+    expect(errs).toEqual([]); expect(errs2).toEqual([]);
+  });
+  test('LR11-8 ④⑤ 세 줄 AAA\\nBBB(줄 넘음) · 스와치', async ({ page }) => {
+    const { errs, id, color0 } = await prepL(page);
+    await build(page, id, ['AAA', 'BBB', 'CCC']); await keys(page, ['ArrowUp', 'End', ...shiftLeft(7)]); await waitSel(page, 'AAA\nBBB');
+    await panelColor(page, '#ff0000', 'AAABBB');   // 저장 Range.toString 은 <div> 경계를 \n 으로 안 센다(이벨류 실측)
+    await verdict(page, id, 'LR11-8', SP(R, 'AAA<br>BBB') + '<br>CCC', { text: T3, color0, lines: 3, chars: { [R]: 'AAABBB' } });
+    expect(errs).toEqual([]);
+  });
+  /* ★갈래 ②(line-host _lnExactColorSpan — 범위 = 한 color span 의 글자 전체면 그 span 재사용)를 «혼자» 지키는 칸.
+     ①b·③ 가 가리는 까닭: 다른 칸들의 옛 span 은 style 이 color «하나»라, 재사용이 없어도 새 span 이 옛 span 안에 들고
+     _flattenAncestorWithPropIn 이 color 를 지우면 빈 style 의 옛 span 이 «벗겨져» 바이트가 같아진다.
+     ⇒ 옛 span 이 color «말고 다른 속성»(font-weight)도 가지면 벗겨지지 않아 겹 span 이 남는다 — 이 칸이 그 장면이다. */
+  test('LR11-10 ★② color+굵기 span 의 글자 전체를 다시 칠함 — 그 span 재사용(겹 span 0)', async ({ page }) => {
+    const { errs, id, color0 } = await prepL(page);
+    const sel = KL.sel(id);
+    await openEditSel(page, sel, id);
+    await page.evaluate((s) => { document.querySelector(s).innerHTML = 'AAABBB<span style="color:#ff0000;font-weight:700">CCC</span>'; }, sel);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction((i) => !document.getElementById(i).classList.contains('editing'), id);
+    const pre = await lineK(page, KL, id);
+    expect(pre?.textHtml, '전제 — color+굵기 span 이 커밋됐다').toBe('AAABBB<span style="color:#ff0000;font-weight:700">CCC</span>');
+    await openEditSel(page, sel, id); await keys(page, shiftLeft(3)); await waitSel(page, 'CCC');
+    await panelColor(page, '#0000ff', 'CCC');
+    const line = await verdict(page, id, 'LR11-10', 'AAABBB<span style="color:rgb(0, 0, 255);font-weight:700">CCC</span>', { text: TXT, color0, lines: 1, chars: { [B]: 'CCC' } });
+    expect((line.textHtml.match(/<span/g) || []).length, 'span 1개(겹 0)').toBe(1);
+    expect(errs).toEqual([]);
+  });
+  test('LR11-9 ①b 세 줄 BBB\\nCCC · 스와치 빨강 → 편집 닫힌 뒤 hex 00FF00', async ({ page }) => {
+    const { errs, id, color0 } = await prepL(page);
+    await build(page, id, ['AAA', 'BBB', 'CCC']); await keys(page, ['End', ...shiftLeft(7)]); await waitSel(page, 'BBB\nCCC');
+    await panelColor(page, '#ff0000', 'BBBCCC');   // 같은 까닭
+    await verdict(page, id, 'LR11-9a', 'AAA<br>' + SP(R, 'BBB<br>CCC'), { text: T3, color0, lines: 3, chars: { [R]: 'BBBCCC' } });
+    await hexColor(page, '00FF00', null);
+    const line = await verdict(page, id, 'LR11-9', 'AAA<br>' + SP(G, 'BBB<br>CCC'), { text: T3, color0, lines: 3, chars: { [G]: 'BBBCCC' } });
+    expect((line.textHtml.match(/<span/g) || []).length, 'span 1개(겹 0)').toBe(1);
+    expect(errs).toEqual([]);
+  });
+});
+
+/* ══ LR12 · HB4 · HC3 · HM3 — 줄바꿈 + 부분 색 두 번(경계 BBB · 둘째 줄 DDD) · ⌘Z 1 · 저장 왕복 (계획 plan-1013-gapfill §②) ══════════
+ * 몸짓(넷 공통): 더블클릭 → ⌘A → 'AAABBB' → Enter → 'CCCDDD' → ArrowUp·End·⇧←×3 = BBB → 스와치 빨강(A1)
+ *   → 다시 더블클릭(캐럿 끝) → ⇧←×3 = DDD → 스와치 파랑(A2) → 저장 → ⌘Z 1 = A1(색 한 걸음만) → 저장본 다시 열기 = A2.
+ * 주인별: 챗 = 메시지 «1»(오른쪽 · HC1·HC2·LR8 이 안 간 주소) · msgs[0] 그대로 · msgs[1].text 는 평문 거울(span 0).
+ *   비교 = 칼럼 «1»(featured) · cols[0] 그대로 · ★DDD 가 cmp-row(overflow:hidden) 안에서 실제로 보인다(byHeight 는 잘려도 2 를 센다 — 대리 지표 함정).
+ *   버블 = 줄을 직접 넣는다(prepOwner) ⇒ D2 «첫 줄 굽기»(_bakeFrom) 길은 안 탄다(그 길 뒤 부분 색은 안 쟀다).
+ * 음성대조(1회 실측 2026-10-14 · cp 백업/복원 · cmp 같음): line-host.js 칠한 뒤 `.replace(/\r?\n/g, '<br>')`(⑤) 를 빼면
+ *   이 넷(LR12·HB4·HC3·HM3) 다 빨강 + LR10n · LR11-2·4·7·8·9 · HB4h·HC3h·HM3h·GL2h·LR14 (-g 27칸 중 15 failed). */
+const OWN = {
+  laurel: { add: 'laurel', prep: null, sel: KIND.laurel.sel, line: KIND.laurel.line },
+  bubble: { add: 'bubble', prep: (i) => window.updateSpeechBubbleBlock(i, { lines: [{ type: 'body', text: 'plain' }] }), sel: KIND.bubble.sel, line: KIND.bubble.line },
+  chat:   { add: 'chat2', prep: (i) => window.updateChatBlock(i, { editMessage: { index: 1, lines: [{ type: 'body', text: 'plain' }] } }),
+            sel: (id) => `#${id} .ln-row[data-ln-m="1"][data-ln="0"] > .grd-line`,
+            line: (b) => JSON.parse(b.dataset.messages || '[]')[1]?.lines?.[0] ?? null },
+  cmp:    { add: 'cmp', prep: (i) => window.updateComparisonBlock(i, { rowLines: { col: 1, row: 0, lines: [{ type: 'body', text: 'plain' }] } }),
+            sel: (id) => `#${id} .cmp-row[data-col-idx="1"][data-row-idx="0"] > .ln-row[data-ln-c="1"][data-ln="0"] > .grd-line`,
+            line: (b) => window.getComparisonCols(b.dataset)[1]?.rows?.[0]?.lines?.[0] ?? null },
+};
+const OWN_NAME = { laurel: 'LR12 laurel', bubble: 'HB4 버블', chat: 'HC3 챗(메시지 1)', cmp: 'HM3 비교(칼럼 1)' };
+/* 주인 밖(다른 메시지·칼럼) — 손대지 않았나 */
+const sibling = (page, kind, id) => page.evaluate(([k, i]) => {
+  const b = document.getElementById(i);
+  if (k === 'chat') return JSON.stringify(JSON.parse(b.dataset.messages || '[]')[0] ?? null);
+  if (k === 'cmp') return JSON.stringify(window.getComparisonCols(b.dataset)[0]?.rows?.[0] ?? null);
+  return null;
+}, [kind, id]);
+/* 비교 — DDD 글자 사각형이 cmp-row(overflow:hidden) 안에 든다 */
+const dddVisible = (page, sel) => page.evaluate((s) => {
+  const el = document.querySelector(s); const row = el?.closest('.cmp-row'); if (!el || !row) return { ok: false, why: 'no el/row' };
+  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); let last = null;
+  for (let t = tw.nextNode(); t; t = tw.nextNode()) if (t.nodeValue.includes('DDD')) last = t;
+  if (!last) return { ok: false, why: 'no DDD' };
+  const i = last.nodeValue.indexOf('DDD'); const rg = document.createRange(); rg.setStart(last, i); rg.setEnd(last, i + 3);
+  const q = rg.getBoundingClientRect(), rb = row.getBoundingClientRect();
+  return { ok: q.height > 0 && q.bottom <= rb.bottom + 1 && q.top >= rb.top - 1, ddd: [Math.round(q.top), Math.round(q.bottom)], row: [Math.round(rb.top), Math.round(rb.bottom)], ov: getComputedStyle(row).overflow };
+}, sel);
+async function prepK(page, kind) {
+  const errs = await setup(page);
+  const K = OWN[kind];
+  const id = await addBlock(page, K.add);
+  if (K.prep) { const ok = await page.evaluate(K.prep, id); if (kind === 'cmp') expect(ok && ok.ok, `전제 — 비교 칸1 에 줄 ${JSON.stringify(ok)}`).toBe(true); }
+  await page.waitForFunction((s) => !!document.querySelector(s), K.sel(id));
+  const color0 = (await lineK(page, K, id))?.color ?? null;
+  return { errs, id, K, color0 };
+}
+const A1 = 'AAA' + SP(R, 'BBB') + '<br>CCCDDD';
+const A2 = 'AAA' + SP(R, 'BBB') + '<br>CCC' + SP(B, 'DDD');
+
+test.describe('LR12·HB4·HC3·HM3 줄바꿈 + 부분 색 두 번 — 경계(BBB)·둘째 줄(DDD) · ⌘Z 1 · 저장 왕복', () => {
+  for (const kind of ['laurel', 'bubble', 'chat', 'cmp']) {
+    test(`${OWN_NAME[kind]} — A1(BBB 빨강) → A2(+DDD 파랑) · ⌘Z 1 = A1 · 다시 열기 = A2`, async ({ page }) => {
+      const { errs, id, K, color0 } = await prepK(page, kind);
+      const sel = K.sel(id);
+      const sib0 = await sibling(page, kind, id);
+      await buildSel(page, sel, id, ['AAABBB', 'CCCDDD']);
+      const base = (await charColors(page, sel)).base;
+      expect([base === R, base === B], `전제 — 줄 기본색이 빨강·파랑이 아니다 ${base}`).toEqual([false, false]);
+      await keys(page, ['ArrowUp', 'End', ...shiftLeft(3)]); await waitSel(page, 'BBB');
+      await panelColor(page, '#ff0000', 'BBB');
+      expect(await page.evaluate((i) => document.getElementById(i).classList.contains('editing'), id), '전제 — 색 갈래가 열린 편집을 먼저 커밋').toBe(false);
+      await verdictK(page, K, id, `${kind} A1`, A1, { text: T2, color0, lines: 2, chars: { [R]: 'BBB' } });
+      if (kind === 'cmp') { const v = await dddVisible(page, sel); expect(v.ok, `A1 — DDD 가 비교 칸 안에서 보인다 ${JSON.stringify(v)}`).toBe(true); }
+      /* 둘째 칠하기 — 다시 편집(캐럿 끝) · ⛔⌘A 금지(서식이 날아간다) */
+      await openEditSel(page, sel, id); await keys(page, shiftLeft(3)); await waitSel(page, 'DDD');
+      await panelColor(page, '#0000ff', 'DDD');
+      const line2 = await verdictK(page, K, id, `${kind} A2`, A2, { text: T2, color0, lines: 2, chars: { [R]: 'BBB', [B]: 'DDD' } });
+      if (kind === 'cmp') { const v = await dddVisible(page, sel); expect(v.ok, `A2 — DDD 가 비교 칸 안에서 보인다 ${JSON.stringify(v)}`).toBe(true); }
+      expect(await sibling(page, kind, id), '이웃(메시지 0 · 칼럼 0) 그대로').toBe(sib0);
+      if (kind === 'chat') {
+        const t1 = await page.evaluate((i) => JSON.parse(document.getElementById(i).dataset.messages)[1].text, id);
+        expect(/<span|&lt;span/.test(t1 || ''), `메시지 1 text = 평문 거울(span 0) ${t1}`).toBe(false);
+      }
+      const snap = await page.evaluate(() => { window.flushCurrentPage?.(); return window.serializeProject(); });
+      /* ⌘Z 1 = 색 한 걸음만(DDD 파랑만 빠지고 BBB 빨강·두 줄 글자는 남는다) */
+      await page.evaluate(() => document.activeElement?.blur?.());
+      await page.keyboard.press('ControlOrMeta+z');
+      await expect.poll(async () => (await lineK(page, K, id))?.textHtml ?? null, '⌘Z 1 = A1').toBe(A1);
+      expect((await lineK(page, K, id))?.text, '⌘Z 1 뒤 글자 그대로').toBe(T2);
+      expect((await colorsByChar(page, sel))?.[B] ?? '', '⌘Z 1 뒤 파랑 0').toBe('');
+      /* 저장 왕복 */
+      const errs2 = await bootApp(page);
+      await page.evaluate((d) => window.applyProjectData(d), JSON.parse(snap));
+      await page.waitForFunction((q) => !!document.querySelector(q), sel);
+      await page.evaluate((q) => document.querySelector(q)?.scrollIntoView({ block: 'center' }), sel);
+      const l3 = await lineK(page, K, id);
+      expect([l3?.text, l3?.textHtml], '다시 연 뒤 모델 = A2').toEqual([T2, line2.textHtml]);
+      expect((await linesAt(page, sel))?.byHeight, '다시 연 뒤 2줄').toBe(2);
+      const cb3 = await colorsByChar(page, sel);
+      expect([cb3?.[R] ?? '', cb3?.[B] ?? ''], '다시 연 뒤 빨강 BBB · 파랑 DDD').toEqual(['BBB', 'DDD']);
+      if (kind === 'cmp') { const v = await dddVisible(page, sel); expect(v.ok, `다시 연 뒤 DDD 가 보인다 ${JSON.stringify(v)}`).toBe(true); }
+      expect(errs).toEqual([]);
+      expect(errs2).toEqual([]);
+    });
+  }
+});
+
+/* ══ D1 주인별 — hex 칸 길 두 줄 BBB (HB4h · HC3h · HM3h · GL2h) + 칩 길(LR14) ══════════════════════════════
+ * laurel 의 같은 장면은 LR11-2. 같은 _text-selection 지문(_alive)을 지나므로 같은 고침이 덮는다(보고서 = 고치기 전 실측). */
+test.describe('D1 주인별 — hex 칸 · 두 줄 BBB = 고른 글자만', () => {
+  for (const kind of ['bubble', 'chat', 'cmp']) {
+    const name = { bubble: 'HB4h 버블', chat: 'HC3h 챗(메시지 1)', cmp: 'HM3h 비교(칼럼 1)' }[kind];
+    test(`${name} — hex FF0000 → A1`, async ({ page }) => {
+      const { errs, id, K, color0 } = await prepK(page, kind);
+      const sel = K.sel(id);
+      await buildSel(page, sel, id, ['AAABBB', 'CCCDDD']);
+      await keys(page, ['ArrowUp', 'End', ...shiftLeft(3)]); await waitSel(page, 'BBB');
+      await hexColor(page, 'FF0000', 'BBB');
+      await verdictK(page, K, id, `${name}`, A1, { text: T2, color0, lines: 2, chars: { [R]: 'BBB' } });
+      expect(errs).toEqual([]);
+    });
+  }
+  test('GL2h 그리드 줄 — hex FF0000 · 두 줄 BBB → 고른 글자만', async ({ page }) => {
+    const errs = await setup(page);
+    const gid = await addBlock(page, 'grid', { deselect: false });
+    await page.evaluate((g) => { const b = document.getElementById(g); const cols = JSON.parse(b.dataset.cols);
+      cols[0].lines = [{ type: 'body', text: 'x' }]; b.dataset.cols = JSON.stringify(cols); window.renderGridBlock(b); window.deselectAll?.(); }, gid);
+    const sel = KIND_GRID.sel(gid);
+    await page.waitForFunction((s) => !!document.querySelector(s), sel);
+    const r = await waitStableRect(page, sel);
+    await page.mouse.click(r.cx, r.cy);
+    await page.mouse.click(r.cx, r.cy);
+    await page.waitForFunction(() => !!document.getElementById('grd-typo-color'));
+    const color0 = (await lineK(page, KIND_GRID, gid))?.color ?? null;
+    await buildSel(page, sel, gid, ['AAABBB', 'CCCDDD']);
+    await keys(page, ['ArrowUp', 'End', ...shiftLeft(3)]); await waitSel(page, 'BBB');
+    await hexColor(page, 'FF0000', 'BBB');
+    await page.evaluate(() => document.activeElement?.blur?.());   // 그리드 편집기는 커밋 때 싣는다(GL1 과 같은 끝냄)
+    await page.waitForFunction((i) => !document.getElementById(i).classList.contains('editing'), gid);
+    await verdictK(page, KIND_GRID, gid, 'GL2h', A1, { text: T2, color0, lines: 2, chars: { [R]: 'BBB' } });
+    expect(errs).toEqual([]);
+  });
+  test('LR14 laurel 칩(컬러 변수) 길 — 두 줄 BBB → 고른 글자만(대체 hex)', async ({ page }) => {
+    const errs = await setup(page);
+    await page.evaluate(() => window.DesignSystem.setColorVar('lr14', '#00ff00'));
+    const id = await addBlock(page, 'laurel');
+    const color0 = (await lineK(page, KL, id))?.color ?? null;
+    await build(page, id, ['AAABBB', 'CCCDDD']); await keys(page, ['ArrowUp', 'End', ...shiftLeft(3)]); await waitSel(page, 'BBB');
+    const chip = await page.evaluate(() => { const e = document.querySelector('#grd-typo-color-chips .cv-chip[data-cv-name="lr14"]'); if (!e) return null;
+      const b = e.getBoundingClientRect(); const x = b.x + b.width / 2, y = b.y + b.height / 2; const at = document.elementFromPoint(x, y); return { x, y, on: !!(at && (at === e || e.contains(at))) }; });
+    expect(chip, '전제 — 패널에 컬러 변수 칩 lr14').not.toBeNull();
+    expect(chip.on, '전제 — 누르는 점이 칩 위').toBe(true);
+    await page.mouse.click(chip.x, chip.y);
+    await verdict(page, id, 'LR14', 'AAA' + SP(G, 'BBB') + '<br>CCCDDD', { text: T2, color0, lines: 2, chars: { [G]: 'BBB' } });
+    expect(errs).toEqual([]);
   });
 });
