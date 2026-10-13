@@ -422,6 +422,7 @@ const ESC_DEFS = [
   "js/checklist-data.js|_escHtml",
   "js/component-shelf.js|_escHtml",
   "js/drag-utils.js|_escGraphHtml",
+  "js/fx/coin-draw.js|escText",   // 코인 각인 → SVG <text>. 고전 스크립트(index.html 에서 모듈보다 먼저 실린다)라 js/props/_helpers.js 의 escHtml(모듈 export)을 import 할 수 없다
   "js/io/font-substitute.js|_esc",
   "js/io/import-figma-json.js|_escapeAttr",
   "js/io/import-figma-json.js|_escapeHtml",

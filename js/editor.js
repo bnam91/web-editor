@@ -1759,6 +1759,15 @@ function _bindPastedEl(el) {
     el.id = `${prefix}_${rand()}`;
   }
 
+  /* 스티커는 그림 안의 id 를 «제 블럭 id»에서 짓는다(코인 gradient·clipPath 'coin-<id>…' · 글로우 필터 'fxg-<id>' · 마커 필터).
+     위에서 블럭 id 와 안쪽 id 를 따로따로 다시 지었으니 url(#…) 참조가 제 것을 못 가리킨다 — 원본의 것을 빌려 그리다가
+     원본이 지워지거나 바뀌면 사본 그림이 깨진다. ⇒ 새 id 로 다시 그린다(로드·undo 의 rebindAll 과 같은 길). 묶기도 같이.
+     회귀: tests/dom/coin-sticker.dom.spec.js 「복제」 칸. */
+  [...(el.matches?.('.sticker-block') ? [el] : []), ...el.querySelectorAll('.sticker-block')].forEach(b => {
+    window.renderStickerBlock?.(b);
+    window.bindStickerSelect?.(b);
+  });
+
   // frame-block 재바인딩 — el 자체 포함
   const frames = [...el.querySelectorAll('.frame-block')];
   if (el.classList.contains('frame-block')) frames.unshift(el);
