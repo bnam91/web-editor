@@ -154,7 +154,10 @@ function _svgReadTag(src, i) {
 /**
  * svg 문자열을 허용목록으로 «다시 지어» 돌려준다. 뿌리가 <svg> 가 아니거나 못 읽으면 ''.
  * @param {string} input
- * @param {{ root?: Record<string,string> }} [opts]  root = 뿌리 <svg> 에 «덮어쓸» 속성(같은 이름은 바꾸고 없으면 더한다 — 값은 이스케이프된다)
+ * opts.idPrefix(3차 · N2) = 남기는 id 와 그것을 가리키는 url(#…) 에 붙일 접두사([A-Za-z][A-Za-z0-9_-]* 꼴만 받는다).
+ *   같은 아이콘을 든 블럭이 한 문서에 여럿이면 id 가 겹쳐 뒤 블럭의 url(#g) 가 앞 블럭 것을 가리킨다 — 그리는 쪽이 블럭마다 다른 접두사를 준다.
+ *   ⚠️접두사를 준 결과는 «그 자리에서 그릴 것»이다 — dataset 에 되쓰면 걸 때마다 접두사가 자란다(쓰는 길은 이 옵션을 안 준다).
+ * @param {{ root?: Record<string,string>, idPrefix?: string }} [opts]  root = 뿌리 <svg> 에 «덮어쓸» 속성(같은 이름은 바꾸고 없으면 더한다 — 값은 이스케이프된다)
  */
 export function sanitizeSvgString(input, opts) {
   if (typeof input !== 'string') return '';
@@ -163,6 +166,7 @@ export function sanitizeSvgString(input, opts) {
   const len = src.length;
   let lowerSrc = null;      // script/style 의 닫는 자리를 찾을 때만 한 번 만든다
   /* 뿌리 덮어쓰기 — 이름은 소문자로 견준다(원문이 WIDTH 여도 한 번만 적힌다). 이름 꼴이 아닌 것은 안 받는다. */
+  const idPrefix = (opts && typeof opts.idPrefix === 'string' && /^[A-Za-z][A-Za-z0-9_-]*$/.test(opts.idPrefix)) ? opts.idPrefix : '';
   let overLower = null;
   if (opts && opts.root) {
     overLower = Object.create(null);
@@ -260,7 +264,13 @@ export function sanitizeSvgString(input, opts) {
       if (isRoot && overLower && overLower[key]) continue;   // 뿌리에서 덮어쓸 속성 — 원문 것은 버리고 아래에서 새로 적는다
       if (!_svgAttrOk(an, av, canon)) continue;
       seen[key] = true;
-      kept.push([an, av]);
+      /* 접두사(N2) — id 자신과, 값 안의 url(#…) 참조를 같이 고친다(여기까지 온 url( 은 전부 안쪽 참조다 — _svgAttrOk 가 걸렀다) */
+      let outV = av;
+      if (idPrefix) {
+        if (key === 'id') outV = idPrefix + av;
+        else if (av.indexOf('(') >= 0) outV = av.replace(/(url\(\s*['"]?\s*#)/gi, '$1' + idPrefix);
+      }
+      kept.push([an, outV]);
     }
     if (isRoot && overLower) Object.keys(overLower).forEach((k) => kept.push(overLower[k]));
     out += '<' + canon;

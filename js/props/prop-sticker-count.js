@@ -62,14 +62,23 @@ function shapeOf(block) {
 const labelLook = (block) => window._stickerCountLabelLook?.(block)
   || { pos: 'right', gap: 0, size: int(block.dataset.fontSize, 26), weight: int(block.dataset.fontWeight, 700), color: block.dataset.bgColor || '' };
 
+/* 라벨 굵기 선택지 — 저장값이 목록에 없으면(손댄 저장본의 100·200·550 …) «있는 그대로» 한 줄을 더해 보인다(3차 · N10).
+   1차·2차에는 그런 값이 아무 option 도 못 골라 칸이 첫 줄(Light 300)을 보였다 — 그림은 200 인데 칸은 300. */
+const LABEL_WEIGHTS = [[300, 'Light'], [400, 'Regular'], [500, 'Medium'], [600, 'Semibold'], [700, 'Bold'], [800, 'Extrabold'], [900, 'Black']];
+function labelWeightOptions(cur) {
+  if (LABEL_WEIGHTS.some(([w]) => w === cur)) return LABEL_WEIGHTS;
+  return [[cur, String(cur)], ...LABEL_WEIGHTS].sort((a, b) => a[0] - b[0]);
+}
+
 /* 사각 모서리 % (0~50). 키가 없으면 옛 고정 8px 를 한 변의 % 로 고친 값(56px 면 14). */
 const RADIUS_MIN = 0, RADIUS_MAX = 50;
 function radiusOf(block) {
   const d = block.dataset;
   const raw = parseFloat(d.countRadius);
   if (Number.isFinite(raw)) return clamp(Math.round(raw), RADIUS_MIN, RADIUS_MAX);
-  const w = int(d.sizeW, int(d.size, 56));
-  return clamp(Math.round(w > 0 ? 800 / w : 0), RADIUS_MIN, RADIUS_MAX);
+  const w = int(d.sizeW, int(d.size, 56)), h = int(d.sizeH, w);
+  const side = Math.min(w, h);                      // 그리기와 같은 기준 — 짧은 변(3차 · N3)
+  return clamp(Math.round(side > 0 ? 800 / side : 0), RADIUS_MIN, RADIUS_MAX);
 }
 
 /* 표기 3갈래 — 모르는 값은 num(js/count-sticker-tool.js _cntStyle 과 같은 뜻). */
@@ -140,7 +149,7 @@ export function countSectionHTML(block) {
         </div>
       </div>
       <div class="prop-row" id="stk-count-radius-row" style="display:${shape === 'square' ? 'flex' : 'none'};"><span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="stk-count-radius" min="${RADIUS_MIN}" max="${RADIUS_MAX}" step="1" value="${radiusPct}" title="사각 모서리의 둥글기 — 한 변의 % (50 = 원)">
+        <input type="range" class="prop-slider" id="stk-count-radius" min="${RADIUS_MIN}" max="${RADIUS_MAX}" step="1" value="${radiusPct}" title="사각 모서리의 둥글기 — 짧은 변의 % (50 = 반원 끝)">
         <input type="number" class="prop-number" id="stk-count-radius-num" min="${RADIUS_MIN}" max="${RADIUS_MAX}" value="${radiusPct}" aria-label="모서리 %">
       </div>
       <div class="prop-row" id="stk-count-start-row" style="display:${isIcon ? 'none' : 'flex'};"><span class="prop-label">시작 번호</span>
@@ -189,7 +198,7 @@ export function countSectionHTML(block) {
       </div>
       <div class="prop-row"><span class="prop-label">굵기</span>
         <select class="prop-select" id="stk-count-label-weight" aria-label="라벨 굵기">
-          ${[[300, 'Light'], [400, 'Regular'], [500, 'Medium'], [600, 'Semibold'], [700, 'Bold'], [800, 'Extrabold'], [900, 'Black']]
+          ${labelWeightOptions(labelWeight)
             .map(([w, t]) => `<option value="${w}"${labelWeight === w ? ' selected' : ''}>${t}</option>`).join('')}
         </select>
       </div>

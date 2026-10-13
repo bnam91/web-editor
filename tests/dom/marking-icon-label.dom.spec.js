@@ -16,6 +16,9 @@
  *   M6c 인라인 붙여넣기 — html 을 붙여도 라벨 DOM 에 태그가 안 생긴다(평문만 · D7) · ⌘B 도 태그를 안 만든다
  *   M7b 살아남기(빈 길) — ⌘C⌘V · A/B 변형 · 섹션 템플릿 넣기 뒤에도 아이콘·라벨이 같고 사본이 묶여 있다(더블클릭 편집이 열린다)
  *   M9c 모서리·라벨 굵기 — 패널에서 바꿀 수 있다(모서리 = 한 변의 % · 라벨 굵기는 마커 굵기와 따로)
+ *   ── 3차(이벨류에이터 2단계 반영) ──
+ *   M3b 손댄 저장본의 «빈 껍데기» svg 는 기본 글리프로(N11) · 커스텀 아이콘이 폰트 크기·글자색을 따라온다(T2 — 세척 캐시) · 같은 아이콘을 든 블럭끼리 id 가 안 겹친다(N2)
+ *   M6d 인라인 편집 중 점선 테두리가 실제로 그려진다(N1)
  *   M10 내보내기 클론 — 에디터 CSS 가 없는 문서에서도 라벨이 마커 오른쪽·세로 가운데(자리 스타일이 인라인)
  * ★자리·크기는 «레이아웃 px»(offset* · dataset)로 견준다. 화면 사각형은 «누를 점»과 «두 사각형의 상대 관계»에만 쓴다.
  * ⛔파일 선택창 · 네트워크 · Iconify 모달은 안 연다(아이콘은 내장 글리프와 setter 로만).
@@ -532,7 +535,7 @@ test('M9 프리셋 「포인트」 — 한 번에 주황 둥근 네모·짙은 �
   expect(await page.evaluate(() => document.querySelectorAll('#stk-count-presets [data-count-preset]').length), '★전제: 프리셋 단추 둘').toBe(2);
 
   /* 그림(ref/1013t2-img02.png)의 꼴 — 2차(D2): 꺾쇠는 «짙은색»(흰색이 아니다) · 모서리 = 한 변의 25% */
-  const point = { radius: '25%', bg: ORANGE, points: CHEVRON, stroke: DARK, num: null };
+  const point = { radius: '14px', bg: ORANGE, points: CHEVRON, stroke: DARK, num: null };   // 14px = 짧은 변 56 × 25%(3차 N3 — % 가 아니라 px 로 굽는다)
   const h = await expectOneUndoStep(page, async () => {
     await page.click('#stk-count-presets [data-count-preset="point"]');
     await expect.poll(async () => pluck(await shapeLook(page, 'secA'), 'bg'), '★전제: 셋 다 주황이 됐다').toEqual([ORANGE, ORANGE, ORANGE]);
@@ -607,7 +610,15 @@ test('M9b 아이콘 고르기 — 고르개가 준 svg 를 걸러 섹션 전부�
   expect(pluck(await state(), 'stored'), 'img 문자열: 앞의 아이콘 그대로').toEqual([CLEAN, CLEAN, CLEAN]);
   expect(await page.evaluate(() => [window.__pickCalls.length, window.__pwned ?? null, document.querySelectorAll('#secA .sticker-block img').length]), '고르개는 불렀지만 쓰지 않았다 · img 0').toEqual([3, null, 0]);
 
-  /* ★거절(2차 · D8) — svg 꼴이지만 걸러 보니 «그릴 것»이 없는 것: 아이콘도 히스토리도 안 바뀐다(1차에는 「마킹 아이콘」 칸이 헛찍혔다) */
+  /* ★거절(2차 · D8) — svg 꼴이지만 걸러 보니 «그릴 것»이 없는 것: 아이콘도 히스토리도 안 바뀐다(1차에는 「마킹 아이콘」 칸이 헛찍혔다)
+     ★3차(T1) — 「히스토리 0칸」만으로는 패널의 `if (!wrote) { toast; return; }` 줄을 못 가른다(문서가 안 바뀌면 pushHistory 의 무변화 차단이 어차피 안 쌓는다).
+       그래서 «부른 것» 자체를 센다: 거절 때는 pushHistory 를 «아예 안 부르고» toast 를 띄운다. */
+  await page.evaluate(() => {
+    window.__spy = { push: [], toast: [] };
+    const realPush = window.pushHistory;
+    window.pushHistory = function (label) { window.__spy.push.push(label ?? null); return realPush.apply(this, arguments); };
+    window.showToast = (msg) => { window.__spy.toast.push(String(msg)); };
+  });
   const tip0 = await page.evaluate(() => { const t = window.getHistoryTip(); return [t.pos, t.len, t.seq]; });
   for (const bad of ['<svg viewBox="0 0 24 24"><script>window.__pwned=4</script><g><title>빈 껍데기</title></g></svg>', '<svg viewBox="0 0 24 24"><path d="M0 0" onclick="x']) {
     await page.evaluate((svg) => { window.__pickReply = { name: 'x', svg }; }, bad);
@@ -616,7 +627,13 @@ test('M9b 아이콘 고르기 — 고르개가 준 svg 를 걸러 섹션 전부�
   expect(await page.evaluate(() => window.__pickCalls.length), '★전제: 고르개 입구를 두 번 더 불렀다').toBe(5);
   expect(pluck(await state(), 'stored'), '거절: 앞의 아이콘 그대로').toEqual([CLEAN, CLEAN, CLEAN]);
   expect(await page.evaluate(() => { const t = window.getHistoryTip(); return [t.pos, t.len, t.seq]; }), '거절: 히스토리가 한 칸도 안 생긴다').toEqual(tip0);
+  expect(await page.evaluate(() => window.__spy), '거절 두 번: pushHistory 를 한 번도 안 부르고 toast 를 두 번 띄운다')
+    .toEqual({ push: [], toast: ['⚠️ 쓸 수 없는 아이콘입니다', '⚠️ 쓸 수 없는 아이콘입니다'] });
   expect(await page.evaluate(() => window.__pwned ?? null)).toBeNull();
+  /* 대조 — 스파이가 살아 있다: 쓸 수 있는 아이콘을 고르면 pushHistory('마킹 아이콘') 이 한 번 불리고 toast 는 안 는다 */
+  await page.evaluate(() => { window.__pickReply = { name: 'ok', svg: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg>' }; });
+  await page.click('#stk-count-icon-pick');
+  expect(await page.evaluate(() => [window.__spy.push, window.__spy.toast.length]), '★대조: 받아들인 아이콘은 히스토리를 찍는다(스파이가 실제로 센다)').toEqual([['마킹 아이콘'], 2]);
   expect(errs).toEqual([]);
 });
 
@@ -749,7 +766,15 @@ test('M9c 모서리·라벨 굵기 — 패널에서 바꿀 수 있다(모서리 
   const radii = () => page.evaluate(() => [...document.querySelectorAll('#secA .sticker-block[data-count]')].map((b) => [getComputedStyle(b).borderRadius, b.dataset.countRadius ?? null]));
   expect(await radii(), '★전제: 키가 없으면 옛 고정값 8px(옛 저장본과 같은 그림)').toEqual([['8px', null], ['8px', null], ['8px', null]]);
   await typeNumber(page, '#stk-count-radius-num', 30);
-  await expect.poll(radii, '모서리 30 → 한 변의 30%(섹션 셋 다 · 스위치 켬)').toEqual([['30%', '30'], ['30%', '30'], ['30%', '30']]);
+  await expect.poll(radii, '모서리 30 → 짧은 변(56)의 30% = 17px(섹션 셋 다 · 스위치 켬)').toEqual([['17px', '30'], ['17px', '30'], ['17px', '30']]);
+  /* 비정사각(코너 드래그로 넓어진 것) — % 를 그대로 주면 타원 모서리가 된다. 짧은 변 기준 px 하나여야 한다(3차 · N3) */
+  const wide = await page.evaluate(() => { const b = document.querySelector('#secA .sticker-block.selected'); const keep = [b.dataset.sizeW, b.dataset.sizeH];
+    b.dataset.sizeW = '120'; b.dataset.sizeH = '56'; window.renderStickerBlock(b);
+    const c = getComputedStyle(b); const out = { w: b.offsetWidth, h: b.offsetHeight, tl: c.borderTopLeftRadius, br: c.borderBottomRightRadius };
+    b.dataset.sizeW = keep[0]; b.dataset.sizeH = keep[1]; window.renderStickerBlock(b); window._addCornerHandles(b);
+    return out; });
+  expect([wide.w, wide.h], '★전제: 가로로 넓은 마킹이 그려졌다').toEqual([120, 56]);
+  expect([wide.tl, wide.br], '넓은 마킹: 모서리가 가로·세로 같은 반경 하나(짧은 변 56 × 30% = 17px) — 타원이 아니다').toEqual(['17px', '17px']);
   expect(await page.evaluate(() => document.getElementById('stk-count-radius').value), '슬라이더도 같은 값').toBe('30');
 
   /* 라벨 굵기 — 마커 굵기(700)는 그대로 두고 라벨만 */
@@ -762,4 +787,81 @@ test('M9c 모서리·라벨 굵기 — 패널에서 바꿀 수 있다(모서리 
   expect(await weights(), '라벨 굵기만 바뀐다').toEqual({ label: '400', marker: '700', key: '400', markerKey: '700' });
   await page.selectOption('#stk-fw', '900');
   expect(await weights(), '마커 굵기를 바꿔도 라벨은 제 굵기 그대로').toEqual({ label: '400', marker: '900', key: '400', markerKey: '900' });
+  /* 목록에 없는 저장값(손댄 저장본의 200) — 칸이 «있는 그대로» 보인다(3차 · N10 · 예전: 그림은 200 인데 칸은 Light 300) */
+  const odd = await page.evaluate(() => { const b = document.querySelector('#secA .sticker-block.selected'); b.dataset.countLabelWeight = '200';
+    window.renderStickerBlock(b); window._addCornerHandles(b); window.showStickerProperties(b);
+    const sel = document.getElementById('stk-count-label-weight'), lab = b.querySelector(':scope > .sticker-count-label');
+    return { drawn: getComputedStyle(lab).fontWeight, field: sel.value, shown: sel.selectedOptions[0]?.textContent.trim(), options: sel.options.length }; });
+  expect(odd, '저장값 200: 그림 200 · 칸도 200(선택지 한 줄이 더해진다)').toEqual({ drawn: '200', field: '200', shown: '200', options: 8 });
+});
+
+/* ── 3차 — 이벨류에이터 2단계 반영 ─────────────────────────────────────────────────────────────── */
+
+test('M3b 빈 껍데기 svg 는 기본 글리프로 · 커스텀 아이콘이 폰트 크기·글자색을 따라온다 · 블럭끼리 id 가 안 겹친다', async ({ page }) => {
+  const errs = await three(page);
+  const drawn = () => page.evaluate(() => [...document.querySelectorAll('#secA .sticker-block[data-count]')].map((b) => {
+    const svg = b.querySelector(':scope > .sticker-count-icon > svg');
+    const shape = svg ? svg.querySelector('path, circle, polyline, rect') : null;
+    return { svg: !!svg, kids: svg ? svg.children.length : 0, tag: svg?.firstElementChild?.localName ?? null, points: svg?.querySelector('polyline')?.getAttribute('points') ?? null,
+      w: svg ? svg.getAttribute('width') : null, fill: shape ? getComputedStyle(shape).fill : null, color: svg ? getComputedStyle(svg).color : null };
+  }));
+  const poison = (svg) => page.evaluate((svg) => document.querySelectorAll('#secA .sticker-block[data-count]').forEach((b) => {
+    b.dataset.countStyle = 'icon'; b.dataset.countIcon = 'custom'; b.dataset.countIconSvg = svg; window.renderStickerBlock(b);
+  }), svg);
+
+  /* ⑴ N11 — 걸러 보니 그릴 것이 없는 svg(손댄 저장본): 빈 마커가 아니라 기본 글리프 */
+  for (const shell of ['<svg viewBox="0 0 24 24"></svg>', '<svg viewBox="0 0 24 24"><g><title>빈</title></g></svg>', '<svg>' + '<g x'.repeat(200), '<svg viewBox="0 0 24 24"><script>1</script><use href="#a"/></svg>']) {
+    await poison(shell);
+    const d = await drawn();
+    expect(d.map((x) => [x.svg, x.tag, x.points]), `빈 껍데기 «${shell.slice(0, 40)}»: 셋 다 기본 글리프(꺾쇠)로 그려진다`).toEqual(Array(3).fill([true, 'polyline', CHEVRON]));
+  }
+
+  /* ⑵ T2 — 같은 커스텀 svg 에 크기·색만 바꾼다(세척 캐시가 낡은 결과를 주면 여기서 빨개진다) */
+  const ICON = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M4 11h12v2H4z"/></svg>';
+  await page.evaluate((svg) => window.CountSticker.setGroup(document.getElementById('secA'), { style: 'icon', icon: 'custom', iconSvg: svg }), ICON);
+  await page.evaluate(() => window.showStickerProperties(document.querySelector('#secA .sticker-block.selected')));
+  let d = await drawn();
+  expect(d.map((x) => [x.tag, x.w, x.fill]), '★전제: 커스텀 아이콘이 폰트 크기 26 · 흰색으로 그려졌다').toEqual(Array(3).fill(['path', '26', WHITE]));
+  await typeNumber(page, '#stk-fs-num', 40);
+  await expect.poll(async () => pluck(await drawn(), 'w'), '폰트 크기 40 → 같은 svg 가 40 으로 다시 구워진다(셋 다)').toEqual(['40', '40', '40']);
+  await typeHex(page, '#stk-txt-hex', '00FF00');
+  await expect.poll(async () => pluck(await drawn(), 'fill'), '글자색 → 같은 svg 의 색이 따라온다(셋 다)').toEqual(Array(3).fill('rgb(0, 255, 0)'));
+  /* 한 블럭만 다른 크기 — 캐시 한 칸이 앞 블럭의 결과를 뒤 블럭에 주면 안 된다 */
+  d = await page.evaluate(() => { const all = [...document.querySelectorAll('#secA .sticker-block[data-count]')];
+    all[1].dataset.fontSize = '18'; all.forEach((b) => window.renderStickerBlock(b));
+    return all.map((b) => b.querySelector(':scope > .sticker-count-icon > svg').getAttribute('width')); });
+  expect(d, '가운데 블럭만 18 — 줄지어 그려도 제 크기').toEqual(['40', '18', '40']);
+  /* 다른 svg 로 바꾸면 바로 그 그림 */
+  await page.evaluate(() => window.CountSticker.setGroup(document.getElementById('secA'), { icon: 'custom', iconSvg: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg>' }));
+  expect(pluck(await drawn(), 'tag'), 'svg 를 바꾸면 새 그림').toEqual(['circle', 'circle', 'circle']);
+
+  /* ⑶ N2 — 같은 그라데이션 아이콘을 든 블럭 셋: 문서에서 id 가 안 겹치고 각자 제 것을 가리킨다 */
+  const GRAD = '<svg viewBox="0 0 24 24"><defs><linearGradient id="g"><stop offset="0" stop-color="#f00"/><stop offset="1" stop-color="#00f"/></linearGradient></defs><rect width="24" height="24" fill="url(#g)"/></svg>';
+  await page.evaluate((svg) => window.CountSticker.setGroup(document.getElementById('secA'), { icon: 'custom', iconSvg: svg }), GRAD);
+  const g = await page.evaluate(() => [...document.querySelectorAll('#secA .sticker-block[data-count]')].map((b) => {
+    const grad = b.querySelector('.sticker-count-icon linearGradient'), rect = b.querySelector('.sticker-count-icon rect');
+    const ref = (rect?.getAttribute('fill') || '').match(/#([^)'"]+)/)?.[1] ?? null;
+    return { id: grad?.id ?? null, ref, own: !!grad && ref === grad.id, hits: grad ? document.querySelectorAll(`[id="${grad.id}"]`).length : 0,
+      resolves: !!ref && document.getElementById(ref) === grad, stored: b.dataset.countIconSvg, blockIdIn: !!grad && grad.id.includes(b.id) };
+  }));
+  expect(g.every((x) => x.id && x.own && x.resolves && x.blockIdIn), `블럭마다: fill 이 «제» 그라데이션을 가리키고 그 id 는 블럭 id 에서 지었다 — ${JSON.stringify(g.map((x) => [x.id, x.ref]))}`).toBe(true);
+  expect([new Set(g.map((x) => x.id)).size, g.map((x) => x.hits)], '세 id 가 서로 다르고 문서에 하나씩뿐이다').toEqual([3, [1, 1, 1]]);
+  expect(g.every((x) => x.stored.includes('id="g"') && x.stored.includes('url(#g)')), '저장값(dataset)에는 접두사를 안 쓴다 — 그릴 때만 붙인다').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('M6d 인라인 편집 중 — 라벨에 점선 테두리가 실제로 그려진다 · 확정하면 사라진다', async ({ page }) => {
+  await three(page);
+  await typeLabel(page, '포켓');
+  await commitField(page);
+  const outline = () => page.evaluate(() => { const lab = document.querySelectorAll('#secA .sticker-block[data-count]')[2].querySelector(':scope > .sticker-count-label');
+    const c = getComputedStyle(lab); return { edit: lab.getAttribute('contenteditable'), style: c.outlineStyle, wide: parseFloat(c.outlineWidth) > 0, inline: /outline/.test(lab.getAttribute('style') || '') }; });
+  expect(await outline(), '★전제: 편집 전에는 테두리가 없다 · 인라인 style 에 outline 을 안 쓴다').toEqual({ edit: null, style: 'none', wide: false, inline: false });
+  const r = await waitStableRect(page, '#secA .sticker-block.selected');
+  await clickAt(page, r.cx, r.cy, { sel: '.sticker-block[data-count]' }, { label: '마커 더블클릭', dbl: true });
+  await expect.poll(() => page.evaluate(() => document.activeElement?.classList.contains('sticker-count-label') || false), '★전제: 라벨 편집이 열렸다').toBe(true);
+  expect(await outline(), '편집 중: 점선 테두리가 그려진다(예전: 인라인 outline:none 이 이겨 none 이었다)').toEqual({ edit: 'true', style: 'dashed', wide: true, inline: false });
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await outline()).edit, '★전제: 확정됐다').toBeNull();
+  expect((await outline()).style, '확정 뒤: 테두리 없음').toBe('none');
 });

@@ -56,11 +56,19 @@ function _countIconHTML(block, sizePx, color) {
   let svg = '';
   if (block.dataset.countIcon === 'custom') {
     const raw = block.dataset.countIconSvg || '';
-    const key = sizePx + '|' + safeColor + '|' + raw;
+    /* id 접두사(3차 · N2) — svg 가 id 를 쓸 때만(그라데이션·clipPath·mask). 같은 아이콘을 든 블럭이 여럿이어도 url(#…) 가 제 것을 가리키게
+       블럭 id 에서 짓는다(복제·붙여넣기는 블럭 id 를 새로 지은 뒤 다시 그린다). id 가 없는 아이콘은 접두사가 없어 캐시가 블럭을 넘어 맞는다. */
+    const _bid = /\bid\s*=/i.test(raw) ? String(block.id || '').replace(/[^A-Za-z0-9_-]/g, '') : '';
+    const idPrefix = _bid ? `mk-${_bid}-` : '';
+    const key = sizePx + '|' + safeColor + '|' + idPrefix + '|' + raw;
     if (key !== _cntIconCacheKey) {
-      _cntIconCacheVal = sanitizeSvgString(raw, {
+      const cleaned = sanitizeSvgString(raw, {
         root: { width: String(sizePx), height: String(sizePx), style: `color:${safeColor};display:block;flex:none;pointer-events:none;` },
+        idPrefix,
       });
+      /* 걸러 보니 «그릴 것»이 없으면(빈 껍데기 <svg></svg> 등) 빈 값으로 — 아래에서 기본 글리프로 떨어진다(3차 · N11).
+         판정은 쓰는 길(CountSticker.setGroup)과 같은 함수 하나다. */
+      _cntIconCacheVal = CS.svgDrawable(cleaned) ? cleaned : '';
       _cntIconCacheKey = key;
     }
     svg = _cntIconCacheVal;
@@ -118,7 +126,9 @@ function _countLabelHTML(block, opts) {
               :                    `left:100%;top:50%;transform:translateY(-50%);margin-left:${gap}px;text-align:left;`;
   const safe = has ? stripCtlChars(String(raw)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
   return `<span class="sticker-count-label" data-pos="${pos}" style="position:absolute;${place}`
-    + `white-space:pre;line-height:1.2;font-size:${look.size}px;font-weight:${look.weight};font-style:normal;text-decoration:none;color:${color};outline:none;">${safe}</span>`;
+    + `white-space:pre;line-height:1.2;font-size:${look.size}px;font-weight:${look.weight};font-style:normal;text-decoration:none;color:${color};">${safe}</span>`;
+  /* ⛔여기에 outline:none 을 인라인으로 넣지 마라(3차 · N1) — 인라인이 스타일시트를 이겨 «편집 중 점선»(css/editor-blocks.css)이 한 번도 안 그려졌다.
+     편집 중이 아닌 라벨은 포커스를 못 받으므로(contenteditable 없음) 포커스 링을 끌 것도 없다. */
 }
 window._stickerCountLabelHTML = _countLabelHTML;
 
@@ -436,9 +446,12 @@ function _renderStickerBlockInner(block) {
     return;
   }
 
-  /* 마킹 블럭의 사각 모서리(data-count-radius = 한 변의 % · 0~50 · 1013t2B5 2차) — 키가 없으면 옛 고정값 8px 그대로(옛 저장본·일반 스티커 무변). */
+  /* 마킹 블럭의 사각 모서리(data-count-radius = «짧은» 변의 % · 0~50 · 1013t2B5 2차) — 키가 없으면 옛 고정값 8px 그대로(옛 저장본·일반 스티커 무변). */
   const _cntRadRaw = block.dataset.count ? parseFloat(block.dataset.countRadius) : NaN;
-  const radius = shape === 'circle' ? '50%' : (Number.isFinite(_cntRadRaw) ? `${Math.min(50, Math.max(0, _cntRadRaw))}%` : '8px');
+  /* ★% 를 CSS 에 그대로 주지 않는다(3차 · N3) — border-radius 의 % 는 가로·세로를 따로 재서 비정사각(코너 드래그로 120×56)에서 타원 모서리가 된다.
+     «짧은 변 × %» 를 px 로 구워 어느 비율에서도 둥근 네모가 되게 한다. */
+  const radius = shape === 'circle' ? '50%'
+    : (Number.isFinite(_cntRadRaw) ? `${Math.round(Math.min(sizeW, sizeH) * Math.min(50, Math.max(0, _cntRadRaw)) / 100)}px` : '8px');
   if (mode === 'image' && imgSrc) {
     // 이미지 모드 — 배경 색 무시, 이미지로 채움
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`

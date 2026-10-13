@@ -13,6 +13,8 @@
  *   S12 멱등 — 두 번 걸러도 같은 글자(실체참조가 한 겹씩 자라지 않는다)
  *   S13 style 은 통째로 · 역슬래시(CSS 이스케이프) · image-set/var 같은 함수 · 이름에 ':' 가 든 속성(xml:base …)이 사라진다
  *   S14 class · data-* 는 사라지고 id 는 url(#…) 가 가리키는 태그에만 남는다
+ *   ── 3차(이벨류에이터 N2) ──
+ *   S15 idPrefix — 남는 id 와 그것을 가리키는 url(#…) 에 같은 접두사가 붙는다(블럭마다 다른 접두사 = 문서에서 id 가 안 겹친다)
  * ★기대값은 «글자로» 박았다. 출력 전체를 공통 술어(noDanger)로도 한 번 더 훑는다.
  * ⛔앱 0 · 네트워크 0. 이 모듈은 순수 문자열 함수라 export 만 걷어 그대로 돌린다(variant-ship-leak 과 같은 꼴 —
  *   이 레포의 js/*.js 는 package.json 이 commonjs 라 Node 가 import 하지 못한다).
@@ -231,4 +233,21 @@ test('S14 class · data-* 는 사라지고 id 는 url(#…) 가 가리키는 태
     + '<defs><clipPath id="c" class="x"><rect width="1"/></clipPath><linearGradient id="g"/><radialGradient id="r"/><mask id="m"/></defs></svg>');
   assert.equal(out, '<svg><g><path d="M0"/></g><defs><clipPath id="c"><rect width="1"/></clipPath><linearGradient id="g"/><radialGradient id="r"/><mask id="m"/></defs></svg>');
   assert.doesNotMatch(out, /class=|data-|sticker-block|canvas-wrap|stk-count-label/i, '에디터 셀렉터에 걸릴 것이 안 남는다');
+});
+
+test('S15 idPrefix — 남는 id 와 url(#…) 참조에 같은 접두사가 붙는다 · 접두사가 없으면 글자 그대로', () => {
+  const SRC = '<svg viewBox="0 0 8 8"><defs><linearGradient id="g"><stop offset="0" stop-color="#f00"/></linearGradient><clipPath id="c"><rect width="4" height="4"/></clipPath></defs>'
+    + '<path d="M0 0" fill="url(#g)" clip-path="url( \'#c\' )" stroke="URL(#g)" id="p"/></svg>';
+  const plainOut = '<svg viewBox="0 0 8 8"><defs><linearGradient id="g"><stop offset="0" stop-color="#f00"/></linearGradient><clipPath id="c"><rect width="4" height="4"/></clipPath></defs>'
+    + '<path d="M0 0" fill="url(#g)" clip-path="url( \'#c\' )" stroke="URL(#g)"/></svg>';
+  assert.equal(clean(SRC), plainOut, '★전제: 접두사 없이는 id 가 글자 그대로 남는다');
+  const a = clean(SRC, { idPrefix: 'mk-stk_aaa-' });
+  assert.equal(a, '<svg viewBox="0 0 8 8"><defs><linearGradient id="mk-stk_aaa-g"><stop offset="0" stop-color="#f00"/></linearGradient><clipPath id="mk-stk_aaa-c"><rect width="4" height="4"/></clipPath></defs>'
+    + '<path d="M0 0" fill="url(#mk-stk_aaa-g)" clip-path="url( \'#mk-stk_aaa-c\' )" stroke="URL(#mk-stk_aaa-g)"/></svg>');
+  const b = clean(SRC, { idPrefix: 'mk-stk_bbb-' });
+  const ids = (s) => [...s.matchAll(/ id="([^"]*)"/g)].map((m) => m[1]);
+  assert.deepEqual(ids(a).filter((x) => ids(b).includes(x)), [], '접두사가 다르면 두 결과의 id 가 하나도 안 겹친다');
+  /* 접두사 꼴이 아니면 안 받는다(값으로 속성을 못 깬다) */
+  for (const bad of ['"><script>', 'a b', '1abc', '', 'x"y']) assert.equal(clean(SRC, { idPrefix: bad }), plainOut, `접두사 «${bad}» 는 무시`);
+  assert.equal(clean(SRC, { idPrefix: 7 }), plainOut, '문자열이 아닌 접두사는 무시');
 });

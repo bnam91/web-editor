@@ -192,13 +192,18 @@ function _cntRerender(block) {
 // ★거절(2차 · D8): patch.icon 이 'custom' 인데 쓸 svg 가 없으면 그 patch 를 «통째로» 안 쓴다(표기 style 도 안 바꾼다) → 0 을 돌려준다.
 //   부르는 쪽(패널)은 0 이면 히스토리를 안 찍고 알린다. 돌려줌 = 쓴 블럭 수.
 const _CNT_SVG_DRAWABLE_RE = /<(?:path|circle|ellipse|rect|line|polyline|polygon)[\s/>]/;
+/* 「그릴 것이 있는 svg 인가」 — 쓰는 길(setGroup)과 그리는 길(js/blocks/sticker-block.js _countIconHTML)이 «같은 이 함수»로 묻는다(3차 · N11).
+   1차·2차에는 쓰는 길만 물어, 손댄 저장본의 빈 껍데기(<svg></svg>)가 기본 글리프가 아니라 «빈 마커»로 그려졌다. */
+function countStickerSvgDrawable(svg) {
+  return typeof svg === 'string' && svg.length > 0 && _CNT_SVG_DRAWABLE_RE.test(svg);
+}
 function countStickerSetGroup(sec, patch) {
   const list = _cntListOf(sec);
   let iconSvg = null;
   if (patch && patch.iconSvg != null) {
     const raw = String(patch.iconSvg);
     const clean = (typeof window._sanitizeSvgString === 'function' && raw.length <= COUNT_STK_ICON_SVG_MAX) ? window._sanitizeSvgString(raw) : '';
-    iconSvg = (clean && _CNT_SVG_DRAWABLE_RE.test(clean)) ? clean : '';
+    iconSvg = countStickerSvgDrawable(clean) ? clean : '';
   }
   if (patch && patch.icon === 'custom' && !iconSvg) return 0;
   list.forEach((b) => {
@@ -467,6 +472,7 @@ window.CountSticker = {
   setGroup: countStickerSetGroup,
   copyToGroup: countStickerCopyToGroup,
   glyphSvg: countStickerGlyphSvg,
+  svgDrawable: countStickerSvgDrawable,
   applyPreset: countStickerApplyPreset,
   PRESETS: COUNT_STK_PRESETS,
   PRESET_NAMES: COUNT_STK_PRESET_NAMES,
