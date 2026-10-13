@@ -43,6 +43,7 @@
         if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 삭제');
         sel.remove();
         window.hideAnnotationProperties?.();
+        window.buildLayerPanel?.();   // ★1013t1A1 — 지운 블럭을 가리키는 «죽은 행»을 남기지 않는다
         window.scheduleAutoSave?.();
       }
     }, true);
@@ -72,6 +73,8 @@
     block.classList.add('selected');
     _ensureHandles(block);
     window.showAnnotationProperties?.(block);
+    // ★1013t1A1 — 캔버스에서 골라도 좌측 레이어의 그 행이 켜진다(행은 makeLayerBlockItem 이 block._layerItem 에 단다)
+    if (block._layerItem?.isConnected) window.highlightBlock?.(block, block._layerItem);
   }
   window._selectAnnotation = _selectAnnotation;
 
@@ -385,12 +388,14 @@
         }
         _updateBlockGeometry(block, points);
       };
+      const startSec = sec;
       const onUp = () => {
         document.removeEventListener('mousemove', onMove, true);
         document.removeEventListener('mouseup',   onUp,   true);
         if (dragging) {
           _writePoints(block, points);
           if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 이동');
+          if (sec !== startSec) window.buildLayerPanel?.();   // ★1013t1A1 — 섹션을 건넜으면 행도 그 섹션 밑으로
           window.scheduleAutoSave?.();
         }
       };
