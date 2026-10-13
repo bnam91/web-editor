@@ -56,6 +56,7 @@ function layerDispatchBody() {
 const SPECIAL = {
   'gradient-block': '_selectGradient',   // 선택+핸들+패널을 자기 진입점이 한 벌로 처리
   'sticker-block':  '_selectSticker',
+  'annotation-block': '_selectAnnotation',   // ★1013t1A1 — 레이어 행이 생겼다(아래 U-LAYERPANEL-1 머리 참고)
 };
 
 test('U-LAYERPANEL-1 ★정본 표의 «모든» 타입이 레이어 분기에도 있다 (없으면 에셋 패널로 샌다)', () => {
@@ -71,13 +72,11 @@ test('U-LAYERPANEL-1 ★정본 표의 «모든» 타입이 레이어 분기에�
   for (const cls of panelTableClasses()) {
     if (cls === 'asset-block') continue;                     // 최종 갈래가 맡는다(아래 U-LAYERPANEL-2)
     if (cls === 'text-block') continue;                      // isText 로 이미 잡힌다(버블·라이너 포함)
-    /* ★annotation 은 «레이어 패널에 행 자체가 없다» — 펜 오버레이 하위체계라 자기 선택 경로를 쓴다.
-       근거(2026-09-21 실측): js/annotation-tool.js 는 `sec.appendChild(block)` 로 «섹션 직속»에
-       붙이는데, 레이어 패널은 `sec.querySelector('.section-inner')` 의 row 자식만 훑는다
-       (js/panels/layer-panel.js appendRowToLayer). js/editor.js 의 CANVAS_SEL_BLOCKS 에도 없다.
-       ⇒ 여기서 요구하면 «있을 수 없는 행»을 요구하는 게 된다. 대신 U-DISPATCH-3 가 이 타입이
-         정본 표에 «있는지»를 재고, 캔버스 경로는 js/annotation-select.js 가 맡는다. */
-    if (cls === 'annotation-block') continue;
+    /* ★전용 진입점 타입(SPECIAL)은 패널 함수 사슬이 아니라 그 앞 갈래에서 자기 진입점으로 간다 —
+       그 갈래는 U-LAYERPANEL-3 가 잰다. (★1013t1A1 전엔 annotation 을 «행 자체가 없다»며 건너뛰었다.
+       그 근거는 틀렸다: layer-panel.js 의 «섹션 직속 플로팅» 순회가 행을 만들되 'asset' 으로 떨어뜨렸고
+       — 2026-10-13 실측 Asset/Image · 누르면 패널 «Page» — 이제 isAnnotation 갈래가 _selectAnnotation 으로 보낸다.) */
+    if (SPECIAL[cls]) continue;
     const f = flagOf(cls);
     const hit = (f && new RegExp(`\\b${f}\\b`).test(body)) || body.includes(`'${cls}'`);
     if (!hit) missing.push(`${cls}${f ? ` (플래그 ${f} 는 선언돼 있는데 분기에 안 쓰임)` : ' (플래그도 없음)'}`);

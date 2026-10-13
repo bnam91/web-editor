@@ -240,6 +240,10 @@ function _finalizeAnnotation({ enterLabelEdit = true, silent = false } = {}) {
 
   window.bindAnnotationSelect?.(block);
   _cancelPending();
+  /* ★1013t1A1 — 좌측 레이어 패널에 행을 «바로» 세운다. 섹션 직속 플로팅 블럭(그라데이션·확대)은
+     만든 자리에서 buildLayerPanel 을 부르는데 여기만 빠져, 어노테이션은 다른 이유로 패널이 다시 그려질
+     때까지 레이어에 안 나타났다(2026-10-13 실측: 생성 직후 행 3 → 3). */
+  window.buildLayerPanel?.();
   window.scheduleAutoSave?.();
   if (!silent) window.showToast?.('✏️ 펜 모드 유지 중 — ESC로 종료');
 }
