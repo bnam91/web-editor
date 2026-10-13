@@ -10,7 +10,7 @@ import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignTo
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 /* 버즈(1012t1Z5) — 버즈 표식 프레임이면 머리 바로 뒤에 「Buzz」 절을 그린다(절의 마크업 · 배선은 그 파일의 것). */
 import { isBuzzFrame, buzzIconSvg } from '../blocks/buzz-mark.js';
-import { buzzSectionHTML, wireBuzzSection } from './prop-frame-buzz.js';
+import { buzzSectionHTML, wireBuzzSection, refitBuzzOnResize } from './prop-frame-buzz.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, framePadXData, isInlineAbsolute } from '../drag-utils.js';
 import { panelRenderedPx } from './_panel-rendered.js';
@@ -986,6 +986,8 @@ function _renderAutoPanel(ss) {
       }
     }
     ss.dataset.height = newH; ss.style.minHeight = newH + 'px'; ss.style.height = newH + 'px';
+    /* 버즈(1012t1Z5 D-1) — 높이를 줄여 말풍선이 밖으로 나가면 그 자리에서 안에 다시 맞춘다(안 나갔으면 무동작 · 히스토리는 이 높이 변경과 한 칸). */
+    refitBuzzOnResize(ss);
   };
   bindSlider(heightSlider, heightNum, applyHeight, { min: minHeight, max: 1200 });
 

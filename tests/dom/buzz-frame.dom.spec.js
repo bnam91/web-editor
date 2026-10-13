@@ -223,7 +223,8 @@ test('BZ-02 ★⑶ 레이어 줄과 패널 머리가 「Buzz」 + 전용 아이�
     const svg = it?.querySelector('svg.layer-item-icon');
     return svg ? { viewBox: svg.getAttribute('viewBox'), sw: svg.getAttribute('stroke-width'), fill: svg.getAttribute('fill') } : null;
   }, fid);
-  if (neighbor) expect({ viewBox: lay.viewBox, sw: lay.sw, fill: lay.fill }, '이웃(모달 줄) 아이콘과 같은 viewBox · 선 굵기 · fill').toEqual(neighbor);
+  expect(neighbor, '전제: 같은 레이어 패널에서 이웃(모달 줄) 아이콘을 찾았다').not.toBeNull();
+  expect({ viewBox: lay.viewBox, sw: lay.sw, fill: lay.fill }, '이웃(모달 줄) 아이콘과 같은 viewBox · 선 굵기 · fill').toEqual(neighbor);
   /* 같은 섹션의 보통 프레임 */
   const plain = await page.evaluate(() => {
     const before = new Set([...document.querySelectorAll('#canvas .frame-block')].map((f) => f.id));
@@ -435,6 +436,11 @@ test('BZ-08 배치 — 스택이면 DOM 순서대로 세로로 쌓고 ∓엇갈�
   await expect(page.locator('#bzf-spread-slider'), '스택에서는 흩어짐 줄이 없다').toHaveCount(0);
   await expect(page.locator('#bzf-overlap')).toHaveCount(0);
   await expect(page.locator('#bzf-layout .active')).toHaveText('스택');
+  /* 안내(판정서 L-1): 처음 높이의 카드 스택은 간격만 줄었을 뿐 상자가 안 겹친다 → 「겹쳐 놓았습니다」가 꺼져 있어야 한다 */
+  const gap0 = await page.evaluate(async (fid) => (await import('/js/blocks/buzz-frame.js')).getBuzz(document.getElementById(fid), 'gap'), fid);
+  const gaps = st.rows.slice(1).map((r, i) => r.ot - (st.rows[i].ot + st.rows[i].oh));
+  expect(gaps.every((g) => g >= 0) && Math.max(...gaps) < gap0, `전제: 간격이 설정(${gap0})보다 줄었지만 겹치지는 않았다 ${gaps}`).toBe(true);
+  await expect(page.locator('#bzf-squeeze'), '안 겹쳤으면 「겹쳐 놓았습니다」 안내는 꺼져 있다').toBeHidden();
   await page.locator('#bzf-layout [data-val="scatter"]').click();
   await expect.poll(() => page.evaluate((fid) => document.getElementById(fid).dataset.buzzLayout, fid)).toBe('scatter');
   await expect(page.locator('#bzf-spread-slider')).toHaveCount(1);
@@ -652,6 +658,11 @@ test('BZ-15 내보내기 — PNG(html2canvas 길)가 돈다 · HTML 에 장식 �
       left: [...document.body.children].filter((e) => e.classList?.contains('section-block')).length };
   }, secId);
   expect(cap, 'PNG(html2canvas 길): ok · PNG · 쓸 만한 그림 · 남은 클론 0').toEqual({ ok: true, reason: null, png: true, usable: true, left: 0 });
+  /* «새는 것»(판정서 M-1): 모달을 고른 채 내보낸다 — 캔버스에는 회전 핫존 · 선택 표시가 있다 */
+  await pickModal(page, st.rows[0].mid);
+  const live = await page.evaluate(() => ({ zones: document.querySelectorAll('#canvas .mdl-rotate-zone').length, selected: document.querySelectorAll('#canvas .selected').length }));
+  expect(live.zones, '전제: 고른 모달에 회전 핫존 넷이 붙어 있다').toBe(4);
+  expect(live.selected > 0, '전제: 캔버스에 선택 표시가 있다').toBe(true);
   const html = await page.evaluate(async () => {
     const origCreate = URL.createObjectURL; const origClick = HTMLAnchorElement.prototype.click;
     let captured = null;
@@ -662,6 +673,8 @@ test('BZ-15 내보내기 — PNG(html2canvas 길)가 돈다 · HTML 에 장식 �
   });
   expect(typeof html, '전제: 내보낸 HTML 을 가로챘다').toBe('string');
   expect(html.split('class="mdl-deco-tape"').length - 1, 'HTML: 테이프 요소 6').toBe(6);
+  const leaks = html.match(/class="[^"]*\b(?:mdl-rotate-zone|selected|[a-z-]*resize-handle|[a-z-]*overlay-handle|[a-z-]*rotate-zone)\b[^"]*"/g) || [];
+  expect(leaks, 'HTML: 편집 흔적(회전 핫존 · 선택 표시 · 손잡이)이 하나도 안 샌다').toEqual([]);
   expect(html.includes('data-buzz="1"') && html.includes('data-buzz-far="2"'), 'HTML: 표식 · 뒤쪽 단계 속성').toBe(true);
   expect(/data-buzz-depth="strong"\]\s*>\s*\.row\[data-buzz-far="2"\]\s*\{[^}]*opacity/.test(html), 'HTML: 깊이 규칙이 스타일로 실렸다').toBe(true);
   expect(/#canvas[^{]*data-buzz-far/.test(html), 'HTML: 깊이 규칙에 캔버스 접두가 없다').toBe(false);
@@ -835,5 +848,121 @@ test('BZ-19 개수 − 가 지운 말풍선은 ⌘Z 로 글째 돌아온다 · �
     await expect.poll(() => page.evaluate((fid) => document.getElementById(fid).dataset.buzzSeed, fid), { message: `무늬번호 ${typed} → ${want}` }).toBe(want);
     await expect(seed, '칸에도 접힌 값이 보인다').toHaveValue(want);
   }
+  expect(errs).toEqual([]);
+});
+
+/* 판정서 D-1 — 프레임 높이를 «줄인 직후»(다시 그리기를 누르기 전)에 말풍선이 프레임 밖에 남으면 안 된다.
+   밖으로 나간 것이 있으면 그 자리에서 같은 무늬번호로 안에 다시 놓고, 없으면(키웠으면) 손으로 옮긴 자리도 그대로 둔다. */
+test('BZ-20 ★⑵ 패널 높이 칸으로 줄인 «직후» 말풍선이 프레임 안 · 키울 때는 자리 불변 · 높이 변경과 히스토리 한 칸', async ({ page }) => {
+  const { errs } = await setup(page);
+  const fid = await insertBuzz(page);
+  const s0 = await stateOf(page, fid);
+  /* 한 개를 손으로 옮긴 뒤 높이를 «키운다» → 아무 자리도 안 변한다 */
+  await pickModal(page, s0.rows[0].mid);
+  const p = await pointOn(page, s0.rows[0].mid);
+  await page.mouse.move(p.x, p.y);
+  await page.mouse.down();
+  await page.mouse.move(p.x + 24, p.y + 14, { steps: 6 });
+  await page.mouse.up();
+  await pickFrame(page, fid);
+  const moved = await stateOf(page, fid);
+  expect(coordsOf(moved), '전제: 손으로 옮겨 자리가 변했다').not.toEqual(coordsOf(s0));
+  expect(outsideOf(moved), '전제: 옮긴 뒤에도 프레임 안이다').toEqual([]);
+  await setFrameHeight(page, fid, 1000);
+  const grown = await stateOf(page, fid);
+  expect([coordsOf(grown), grown.attrs['data-buzz-seed']], '키우면 자리 · 무늬번호 불변(손으로 옮긴 자리도)').toEqual([coordsOf(moved), moved.attrs['data-buzz-seed']]);
+  /* 1000 에 맞춰 펼친 뒤 300 으로 줄인다 — 줄인 «직후»를 잰다(↻ 를 누르지 않는다) */
+  await page.locator('#bzf-redraw').click();
+  const spread = await stateOf(page, fid);
+  expect(Math.max(...spread.rows.map((r) => r.ot + r.oh)) > 300, '전제: 1000 에서는 300 아래까지 펼쳐져 있다').toBe(true);
+  await expect(page.locator('#bzf-squeeze'), '전제: 1000 에서는 안내가 꺼져 있다').toBeHidden();
+  const r = await expectOneUndoStep(page, async () => {
+    await setFrameHeight(page, fid, 300);
+    const now = await stateOf(page, fid);
+    expect(now.h, '높이는 사용자가 정한 300').toEqual(['300', '300px', '300px', 300]);
+    expect(outsideOf(now), '줄인 직후 — 프레임 밖 말풍선 0(↻ 없이)').toEqual([]);
+    expect(Math.max(...now.rows.map((x) => x.ot + x.oh)) <= now.ch, '줄인 직후 — 맨 아래 밑변이 프레임 안').toBe(true);
+    expect(now.attrs['data-buzz-seed'], '같은 무늬번호로 다시 놓았다').toBe(spread.attrs['data-buzz-seed']);
+    await expect(page.locator('#bzf-squeeze'), '줄인 직후 — 겹쳐 놓았다는 안내가 켜진다').toBeVisible();
+  }, '버즈 프레임 높이 1000 → 300');
+  expect(r.undoDPos, '높이 변경 + 다시 놓기 = ⌘Z 한 칸').toBe(-1);
+  const back = await stateOf(page, fid);
+  expect([back.h, coordsOf(back)], '⌘Z 한 번 → 높이 1000 과 그때의 자리가 같이 돌아온다').toEqual([spread.h, coordsOf(spread)]);
+  expect(errs).toEqual([]);
+});
+
+/* 판정서 H-1 — 내보낸 HTML 은 편집기의 글꼴(Pretendard)이 없는 화면에서도 열린다. 대체 글꼴은 글이 더 넓다.
+   폭 여유가 모자라면 마지막 글자가 다음 줄로 떨어진다 → 스타일 6종의 낱개마다 줄 수가 편집기와 같아야 한다. */
+test('BZ-21 내보낸 HTML 을 글꼴 없는 화면에서 열어도 말풍선 글의 줄 수가 편집기와 같다(스타일 6종)', async ({ page, context }) => {
+  test.setTimeout(120000);
+  const { errs } = await setup(page);
+  const fid = await insertBuzz(page);
+  /* 줄 수 = 글 슬롯의 높이 ÷ 줄 높이. 글 폭은 그 화면의 글꼴로 canvas 에 재어 «다른 글꼴로 그려졌다»는 전제를 잡는다. */
+  const measure = (pg) => pg.evaluate((fid) => [...document.getElementById(fid).querySelectorAll(':scope > .row > .modal-block')].map((m) => {
+    const slot = m.querySelector('[data-mdl-slot="text"]');
+    const cs = getComputedStyle(slot);
+    const ctx = document.createElement('canvas').getContext('2d');
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const lh = parseFloat(cs.lineHeight);
+    return { id: m.id, lines: Math.round(slot.offsetHeight / lh), lh, textW: ctx.measureText(slot.textContent).width };
+  }), fid);
+  const exportHtml = () => page.evaluate(async () => {
+    const origCreate = URL.createObjectURL; const origClick = HTMLAnchorElement.prototype.click;
+    let captured = null;
+    URL.createObjectURL = (b) => { captured = b; return 'blob:buzz-spec'; };
+    HTMLAnchorElement.prototype.click = function () {};
+    try { await window.exportHTMLFile(); } finally { URL.createObjectURL = origCreate; HTMLAnchorElement.prototype.click = origClick; }
+    return captured ? await captured.text() : null;
+  });
+  const bare = await context.newPage();
+  await bare.setViewportSize({ width: 1200, height: 900 });
+  await bare.route('**/*', (r) => r.abort());          /* 글꼴 · 그 밖의 바깥 자원 0 — 대체 글꼴로 그려진다 */
+  let wider = 0;
+  for (const k of STYLE_KEYS) {
+    await pickStyle(page, fid, k);
+    const ed = await measure(page);
+    expect(ed.length === 6 && ed.every((x) => Number.isFinite(x.lh) && x.lines >= 1), `${k} 전제: 편집기에서 낱개 6의 줄 수를 쟀다 ${JSON.stringify(ed.map((x) => x.lines))}`).toBe(true);
+    const html = await exportHtml();
+    expect(typeof html, `${k} 전제: 내보낸 HTML 을 가로챘다`).toBe('string');
+    await bare.setContent(html, { waitUntil: 'domcontentloaded' });
+    const ex = await measure(bare);
+    expect(ex.map((x) => x.id), `${k} 전제: 내보낸 화면에 같은 낱개 6`).toEqual(ed.map((x) => x.id));
+    wider += ex.filter((x, i) => x.textW > ed[i].textW * 1.005).length;
+    expect(ex.map((x) => x.lines), `${k}: 글꼴 없는 화면의 줄 수 = 편집기의 줄 수`).toEqual(ed.map((x) => x.lines));
+  }
+  expect(wider > 0, `전제: 내보낸 화면은 다른(더 넓은) 글꼴로 그려졌다 — 넓어진 낱개 ${wider}/36. 0 이면 이 기기에 편집기 글꼴이 깔려 있어 이 칸은 아무것도 못 잰다`).toBe(true);
+  await bare.close();
+  expect(errs).toEqual([]);
+});
+
+/* 판정서 D-1 의 둘째 입구 — 크기 손잡이(아래 오른쪽 모서리)를 진짜로 끌어 줄인다. 놓는 순간 안에 맞는다. */
+test('BZ-22 ★⑵ 크기 손잡이를 끌어 줄이고 «놓은 직후» 말풍선이 프레임 안 · ⌘Z 한 번에 높이와 자리가 같이 돌아온다', async ({ page }) => {
+  const { errs } = await setup(page);
+  const fid = await insertBuzz(page);
+  await page.locator('#bzf-redraw').click();
+  const a = await stateOf(page, fid);
+  expect(a.selected, '전제: 프레임이 골라져 있다(손잡이가 떠 있다)').toBe(true);
+  await page.evaluate((fid) => document.getElementById(fid).scrollIntoView({ block: 'center' }), fid);
+  await waitStableRect(page, `[id="${fid}"]`);
+  const handle = page.locator('.ss-resize-handle.se');
+  await expect(handle, '전제: 아래 오른쪽 크기 손잡이가 하나 보인다').toHaveCount(1);
+  const scale = await page.evaluate(() => new DOMMatrix(getComputedStyle(document.getElementById('canvas-scaler')).transform).a);
+  const b = await handle.boundingBox();
+  const hx = b.x + b.width / 2, hy = b.y + b.height / 2;
+  const up = Math.round((a.ch / 2) * scale);                        /* 프레임 높이의 절반만큼 위로(화면 px) */
+  await page.mouse.move(hx, hy);
+  await page.mouse.down();
+  await page.mouse.move(hx, hy - up / 2, { steps: 5 });
+  await page.mouse.move(hx, hy - up, { steps: 5 });
+  await page.mouse.up();
+  const c = await stateOf(page, fid);
+  expect(c.ch < a.ch * 0.6, `전제: 손잡이로 높이가 줄었다 ${a.ch} → ${c.ch}`).toBe(true);
+  expect([c.h[1], c.h[2], c.h[3]], '높이 4값이 서로 맞다').toEqual([c.h[0] + 'px', c.h[0] + 'px', Number(c.h[0])]);
+  expect(outsideOf(c), '놓은 직후 — 프레임 밖 말풍선 0').toEqual([]);
+  expect(Math.max(...c.rows.map((x) => x.ot + x.oh)) <= c.ch, '놓은 직후 — 맨 아래 밑변이 프레임 안').toBe(true);
+  expect(c.attrs['data-buzz-seed'], '같은 무늬번호').toBe(a.attrs['data-buzz-seed']);
+  await undo(page);
+  await expect.poll(async () => (await stateOf(page, fid))?.h, { message: '⌘Z 한 번 → 높이가 돌아온다' }).toEqual(a.h);
+  expect(coordsOf(await stateOf(page, fid)), '⌘Z 한 번 → 자리도 같이 돌아온다(다시 놓기가 따로 한 칸이 아니다)').toEqual(coordsOf(a));
   expect(errs).toEqual([]);
 });

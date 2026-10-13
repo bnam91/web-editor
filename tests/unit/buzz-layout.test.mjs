@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import { readSrc } from './_srcread.js';
 import { mkTmpRoot } from './_tmproot.js';
 import { stripCommentsTA, templateBalanced } from './_strip-comments.js';
@@ -278,4 +279,21 @@ test('U11 ★⑶ 이름 · 아이콘 — 이웃과 같은 꼴(viewBox 12 · 선 
   assert.ok(/<button class="fp-menu-item" onclick="addBuzzBlock\(\);toggleFpDropdown\('fp-component-dropdown'\)">Buzz<\/button>/.test(menu), '메뉴 항목은 맨몸 button 이고 글자는 Buzz');
   assert.equal(IX.split('src="js/blocks/buzz-frame.js"').length - 1, 1, 'buzz-frame.js 스크립트 태그가 하나');
   assert.ok(IX.indexOf('src="js/blocks/modal-block.js"') < IX.indexOf('src="js/blocks/buzz-frame.js"'), 'buzz-frame.js 는 modal-block.js 뒤');
+});
+
+/* ⇐ 깨뜨리면: modal-block.js _tapeHtml 의 Object.hasOwn(MODAL_TAPE_POS, side) 를 MODAL_TAPE_POS[side] 로 */
+test('U12 테이프 자리 표는 «자기 키»만 본다 — constructor · toString 같은 값으로 깨진 테이프를 그리지 않는다(판정서 L-2)', () => {
+  const { loadModalModule, fakeBlock } = createRequire(import.meta.url)('./_modal-harness.js');
+  const M2 = loadModalModule();
+  for (const bad of ['constructor', 'toString', '__proto__', 'hasOwnProperty', 'middle', '']) {
+    const block = fakeBlock({ variant: 'plain', decoTape: bad, textText: '글' });
+    block.insertAdjacentHTML = (pos, html) => { block.innerHTML += html; };
+    M2.renderModalBlock(block);
+    assert.ok(!block.innerHTML.includes('mdl-deco-tape') && !block.innerHTML.includes('undefined'), `decoTape="${bad}" 에 테이프가 그려졌다: ${block.innerHTML.slice(-160)}`);
+  }
+  /* 양성대조 — 표에 있는 값은 그려진다(이 하네스가 장식을 실제로 지난다) */
+  const ok = fakeBlock({ variant: 'plain', decoTape: 'center', textText: '글' });
+  ok.insertAdjacentHTML = (pos, html) => { ok.innerHTML += html; };
+  M2.renderModalBlock(ok);
+  assert.ok(ok.innerHTML.includes('class="mdl-deco-tape" data-side="center"'), '★전제: 바른 값이면 테이프가 그려진다');
 });

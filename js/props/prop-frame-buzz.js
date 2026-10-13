@@ -16,7 +16,7 @@ import { propPanel } from '../globals.js';
 import { escHtml, bindSlider, sliderRowHTML } from './_helpers.js';
 import { isBuzzFrame } from '../blocks/buzz-mark.js';
 import { BUZZ_STYLES, BUZZ_STYLE_KEYS, BUZZ_COUNT, BUZZ_LIMITS, getBuzz, setBuzz, buzzRows,
-         relayoutBuzzFrame, applyBuzzStyle, setBuzzCount } from '../blocks/buzz-frame.js';
+         relayoutBuzzFrame, applyBuzzStyle, setBuzzCount, refitBuzzFrame, buzzCrowded } from '../blocks/buzz-frame.js';
 
 /* ── 조각 — 이웃 패널과 같은 마크업 ───────────────────────────── */
 /* title 은 줄(.prop-row) 자체에 단다 — 클래스 없는 감싸는 div 를 만들지 않는다. */
@@ -39,7 +39,7 @@ export function buzzSectionHTML(frame) {
   const style = frame.dataset.buzzStyle || '';
   const layout = getBuzz(frame, 'layout');
   const n = buzzRows(frame).length;
-  const squeezed = relayoutBuzzFrame(frame, { dry: true }).squeezed;
+  const squeezed = buzzCrowded(frame);
   return `<div class="prop-section" id="bzf-section">
       <div class="prop-section-title">Buzz</div>
       <div class="prop-row">
@@ -84,6 +84,20 @@ export function buzzSectionHTML(frame) {
     </div>`;
 }
 
+/**
+ * 사용자가 프레임 크기를 바꾼 직후(패널 높이 칸 · 크기 손잡이를 놓았을 때) — 밖으로 나간 말풍선이 있으면 같은 무늬번호로 안에 다시 놓고,
+ * 패널이 그 프레임의 Buzz 절을 보이고 있으면 안내 줄도 맞춘다. 히스토리는 안 찍는다 — 부른 쪽의 「크기 변경」 한 칸에 같이 들어간다.
+ * 창구를 window 로도 낸다: js/overlay-handles.js(크기 손잡이)가 패널 모듈을 수입하지 않고 부른다.
+ */
+export function refitBuzzOnResize(frame) {
+  if (!isBuzzFrame(frame)) return false;
+  const done = refitBuzzFrame(frame);
+  const el = propPanel?.querySelector('#bzf-squeeze');
+  if (el) el.hidden = !buzzCrowded(frame);
+  return done;
+}
+if (typeof window !== 'undefined') window.refitBuzzOnResize = refitBuzzOnResize;
+
 /** Buzz 절 배선. 패널에 절이 그려진 «뒤»에 부른다. */
 export function wireBuzzSection(frame) {
   if (!propPanel || !isBuzzFrame(frame) || !propPanel.querySelector('#bzf-section')) return;
@@ -93,7 +107,7 @@ export function wireBuzzSection(frame) {
   const save = (label) => { window.pushHistory?.(label); window.scheduleAutoSave?.(); };
   const hint = (squeezed) => { const el = $('bzf-squeeze'); if (el) el.hidden = !squeezed; };
   /* 다시 놓고 → 안내 갱신 → 선택 손잡이를 새 상자에 맞춘다 */
-  const again = (f) => { hint(relayoutBuzzFrame(f).squeezed); window.showFrameHandles?.(f); };
+  const again = (f) => { relayoutBuzzFrame(f); hint(buzzCrowded(f)); window.showFrameHandles?.(f); };
   /* 절만 다시 그린다(배치를 바꾸면 슬라이더 줄이 갈린다) */
   const redraw = (f) => {
     const old = $('bzf-section');
@@ -131,7 +145,7 @@ export function wireBuzzSection(frame) {
     $('bzf-n-count').textContent = String(n);
     $('bzf-n-minus').disabled = n <= BUZZ_COUNT[0];
     $('bzf-n-plus').disabled = n >= BUZZ_COUNT[1];
-    hint(relayoutBuzzFrame(f, { dry: true }).squeezed);
+    hint(buzzCrowded(f));
     window.showFrameHandles?.(f);
     save('버즈 개수');
   };

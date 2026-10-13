@@ -171,8 +171,9 @@ const MODAL_TAPE_POS = {
   right:  { at: 'right:9%;', deg: 5 },
 };
 function _tapeHtml(side) {
+  /* 자기 키만 본다 — 'constructor' · 'toString' 같은 값이 프로토타입에서 참으로 읽히면 깨진 테이프가 그려진다(1012t1Z5 L-2). */
+  if (!Object.hasOwn(MODAL_TAPE_POS, side)) return '';
   const pos = MODAL_TAPE_POS[side];
-  if (!pos) return '';
   const T = MODAL_TAPE_SHAPE;
   return `<span class="mdl-deco-tape" data-side="${side}" aria-hidden="true"`
        + ` style="position:absolute;top:-${T.rise}px;${pos.at}transform:rotate(${pos.deg}deg);width:${T.w}px;height:${T.h}px;background:${T.color};pointer-events:none;z-index:1;"></span>`;

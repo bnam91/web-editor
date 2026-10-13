@@ -114,14 +114,18 @@ function _styleModal(modal, S, i, seed) {
 }
 
 /* ── 배치 ───────────────────────────── */
-/* row 폭 = 「너비」가 0 이면 글 길이(max-content), 아니면 그 값. 어느 쪽이든 프레임 안쪽 폭을 넘지 않는다. */
+/* row 폭 = 「너비」가 0 이면 글 길이(max-content), 아니면 그 값. 어느 쪽이든 프레임 안쪽 폭을 넘지 않는다.
+   ★글 길이에 «비례하는» 여유를 둔다(BUZZ_WIDTH_SLACK). 내보낸 HTML 은 편집기의 글꼴(Pretendard)이 없는 화면에서도 열리는데,
+     대체 글꼴은 같은 글이 더 넓다(판정서 실측 324.6 → 330.6px ≈ +1.85%). 여유가 고정 2px 뿐이면 마지막 글자가 다음 줄로 떨어진다.
+     3% = 그 실측의 1.6배. 지키는 자: tests/dom/buzz-frame.dom.spec.js BZ-21. */
+const BUZZ_WIDTH_SLACK = 1.03;
 function _fitWidths(frame, rows) {
   const cap = (frame.clientWidth || 860) - 2 * BUZZ_MARGIN;
   const fixed = getBuzz(frame, 'width');
   rows.forEach((row) => {
     if (fixed > 0) { row.style.width = Math.min(cap, fixed) + 'px'; return; }
     row.style.width = 'max-content';
-    row.style.width = Math.min(cap, row.offsetWidth + 2) + 'px';
+    row.style.width = Math.min(cap, Math.ceil(row.offsetWidth * BUZZ_WIDTH_SLACK) + 2) + 'px';
   });
 }
 
@@ -169,6 +173,38 @@ export function relayoutBuzzFrame(frame, { dry = false, natural = false } = {}) 
     window.renderModalBlock?.(modal);
   });
   return res;
+}
+
+/** 프레임 «밖»으로 나간 말풍선이 있나(레이아웃 상자). */
+export function buzzOverflowing(frame) {
+  const cw = frame.clientWidth, ch = frame.clientHeight;
+  return buzzRows(frame).some((r) => r.offsetTop < 0 || r.offsetLeft < 0 || r.offsetLeft + r.offsetWidth > cw || r.offsetTop + r.offsetHeight > ch);
+}
+
+/**
+ * 사용자가 프레임 크기를 바꾼 «직후»에 부른다(패널 높이 칸 · 크기 손잡이를 놓았을 때).
+ * 밖으로 나간 말풍선이 있을 때만 «같은 무늬번호로» 그 안에 다시 놓는다. 다 안에 있으면(키웠거나 여유가 있으면) 아무것도 안 건드린다
+ * — 손으로 옮긴 자리를 까닭 없이 지우지 않는다. 프레임 높이는 여기서도 읽기만 한다.
+ * ⛔⌘Z/⌘⇧Z 길에서는 부르지 않는다(저장된 자리가 높이와 같이 돌아온다).
+ * @returns {boolean} 다시 놓았나
+ */
+export function refitBuzzFrame(frame) {
+  if (!isBuzzFrame(frame) || !buzzOverflowing(frame)) return false;
+  return relayoutBuzzFrame(frame).ok;
+}
+
+/**
+ * 「겹쳐 놓았습니다」 안내를 켤 때인가 — 프레임 높이에 눌렸고(자연 배치가 안 들어간다) «그리고» 상자가 실제로 겹쳐 있을 때만.
+ * 스택의 간격만 줄었을 뿐 서로 안 닿으면 끈다(문구가 사실과 달라진다).
+ */
+export function buzzCrowded(frame) {
+  if (!relayoutBuzzFrame(frame, { dry: true }).squeezed) return false;
+  const b = buzzRows(frame).map((r) => ({ x: r.offsetLeft, y: r.offsetTop, w: r.offsetWidth, h: r.offsetHeight }));
+  for (let i = 0; i < b.length; i++) for (let j = i + 1; j < b.length; j++) {
+    if (Math.min(b[i].x + b[i].w, b[j].x + b[j].w) - Math.max(b[i].x, b[j].x) > 0
+      && Math.min(b[i].y + b[i].h, b[j].y + b[j].h) - Math.max(b[i].y, b[j].y) > 0) return true;
+  }
+  return false;
 }
 
 /** 스타일을 묶음 전체에 건다(모달 dataset + 장식 + 배치 설정 + 프레임 배경) → 다시 놓는다. 높이는 그대로다. */
