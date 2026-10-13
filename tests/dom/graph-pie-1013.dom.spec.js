@@ -12,6 +12,9 @@
  *   C5 밀어내기 — I1 piePull 이 그 조각만 이등분각 방향으로 옮긴다(d 무변 · transform · viewBox) · 옮긴 자리에서 눌러야 골라진다 · I2 Slice 절 「밀어내기」 칸 · ⌘Z
  *   C3 조각 안 라벨 — J1 순위·이름 토글(기본 꺼짐 · 덧층 · 「n위」) · J2 좁은 조각 자동 숨김 · 조각별 「라벨」 자동/항상/숨김 · J3 이름은 글자 그대로(주입 0)
  *     · J4 글자 톤이 조각 색을 따른다 · 저장본에 톤 변수 0 · J5 라벨이 제 조각 위에 앉고(크기·밀어내기·시작 각도) 클릭을 안 가로챈다 · J6 끄면 켜기 전 그림(바이트)
+ *     · 고침(이벨류에이터 실측) — J7 참고 그림 꼴(도너츠 · 1위만 키움)에서 라벨이 제 조각 안(겹침 0 · 넘침 0 · 네 귀) · J8 기본 높이 240 에서 긴 이름은 숨고 배지만 · 저장본에 잰 결과 0 · 블럭 폭이 바뀌면 다시 잰다
+ *       · J9 라벨 크기 40 + 긴 이름(띄어쓰기 없는 낱말 포함) × 높이 240/420/560 × 원형·도너츠 · 「항상」 라벨은 안 숨고 제 조각 안으로 잘린다 · 범례를 안 덮는다
+ *     · S8 ⌘클릭 다중 선택에서도 조각 표식이 걷힌다 · K3 쓰레기 dropShadow 에서 「없음」 = 키 삭제 · Shadow 줄에 prop-label
  *   C7 그림자 — K1 Shadow 절 없음/부드럽게/강하게(dataset.dropShadow · 없음 = 키 삭제) · 그림(innerHTML) 무변 · ⌘Z · 저장 · K2 값 = 확대블럭 선례와 같다 · 막대에선 절도 그림자도 없다
  *   내보내기 — X1 단독 HTML 산출물에 조각 표식 0 · X2 피그마 JSON 이 새 키를 «있는 것만» 싣는다(옛 꼴은 무변) · X3 addGraphBlock 옵션
  *   G0 골든 핀: 새 키가 «하나도 없는» 블럭의 그림(innerHTML)이 1012 판과 바이트가 같다 — 1013t1C0 에서 «고치기 전 판» 위에 박았다.
@@ -876,6 +879,135 @@ test('J6 둘 다 끄면 켜기 전 그림과 바이트가 같다 · 두 번 그�
   expect(await htmlOf(page, id), "조각별 pieTag 'on' 만으로는 아무것도 안 그린다(블럭 토글이 꺼져 있다)").toBe(html0);
   await setDs(page, id, { pieRank: '0', pieName: 'yes' });
   expect(await htmlOf(page, id), "켜짐 = 정확히 '1' 만").toBe(html0);
+  expect(errs).toEqual([]);
+});
+
+/* ── C3 고침 — 라벨을 «재서» 제 조각 안에 넣는다(둘째 단 · drag-utils.js grbPieFitTags) ──
+   재는 것(보이는 라벨마다): 사각형이 svg 가 그려지는 정사각(viewBox 네 변) 밖으로 나간 양 · 네 귀(반 px 안쪽)가 제 조각의 채움 안인가(SVG 좌표 isPointInFill · 민 조각은 옮긴 양을 뺀다)
+   · 라벨 사각형끼리 겹치는 쌍 · 글자가 잘렸는가(scroll > client) · 이름이 보이는가 · 범례와 겹치는가. 화면 px 를 리터럴과 견주지 않는다(반 px 는 부동소수 여유). */
+const tagFit = (page, id) => page.evaluate((id) => {
+  const b = document.getElementById(id), svg = b.querySelector('.grb-pie-svg'), m = svg.getScreenCTM(), inv = m.inverse(), vb = svg.viewBox.baseVal, E = 0.5;
+  const p0 = new DOMPoint(vb.x, vb.y).matrixTransform(m), p1 = new DOMPoint(vb.x + vb.width, vb.y + vb.height).matrixTransform(m);
+  const slices = [...b.querySelectorAll('.grb-pie-slice')], lg = b.querySelector('.grb-pie-legend').getBoundingClientRect();
+  const hitRect = (a, c) => Math.min(a.right, c.right) - Math.max(a.left, c.left) > E && Math.min(a.bottom, c.bottom) - Math.max(a.top, c.top) > E;
+  const tags = [...b.querySelectorAll('.grb-pie-tag')].map((t, i) => {
+    const stage1 = t.style.display !== 'none', vis = getComputedStyle(t).display !== 'none';
+    if (!vis) return { i, stage1, vis };
+    const r = t.getBoundingClientRect(), name = t.querySelector('.grb-pie-name'), rank = t.querySelector('.grb-pie-rank');
+    const tf = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(slices[i].getAttribute('transform') || '');
+    const corner = (x, y) => { const q = new DOMPoint(x, y).matrixTransform(inv); return slices[i].isPointInFill(new DOMPoint(q.x - (tf ? +tf[1] : 0), q.y - (tf ? +tf[2] : 0))); };
+    const nameOn = !!name && getComputedStyle(name).display !== 'none';
+    return { i, stage1, vis, r: { left: r.left, right: r.right, top: r.top, bottom: r.bottom }, area: r.width * r.height,
+      out: Math.max(0, p0.x - r.left, r.right - p1.x, p0.y - r.top, r.bottom - p1.y),
+      cornersIn: [[r.left + E, r.top + E], [r.right - E, r.top + E], [r.left + E, r.bottom - E], [r.right - E, r.bottom - E]].filter(c => corner(c[0], c[1])).length,
+      clipped: t.scrollWidth > t.clientWidth || t.scrollHeight > t.clientHeight || (nameOn && name.scrollHeight > name.clientHeight),
+      nameOn, rankOn: !!rank && !!rank.textContent, lines: nameOn ? Math.round(name.getBoundingClientRect().height / parseFloat(getComputedStyle(name).lineHeight)) : 0,
+      legend: hitRect(r, lg), fitVars: [...t.style].filter(k => /^--grb-pie-(tag|name)-/.test(k)).length + (name ? [...name.style].filter(k => /^--grb-pie-name-/.test(k)).length : 0) };
+  });
+  const vis = tags.filter(t => t.vis);
+  let overlaps = 0; vis.forEach((a, x) => vis.forEach((c, y) => { if (y > x && hitRect(a.r, c.r)) overlaps++; }));
+  return { n: tags.length, layer: b.querySelector('.grb-pie-tags').offsetWidth, stage1: tags.filter(t => t.stage1).map(t => t.i), vis: vis.map(t => t.i), overlaps,
+    out: vis.filter(t => t.out > E).map(t => t.i), badCorners: vis.filter(t => t.cornersIn !== 4).map(t => [t.i, t.cornersIn]), clipped: vis.filter(t => t.clipped).map(t => t.i),
+    names: vis.filter(t => t.nameOn).map(t => t.i), rankOnly: vis.filter(t => !t.nameOn && t.rankOn).map(t => t.i), lines: vis.map(t => t.lines), legend: vis.filter(t => t.legend).map(t => t.i),
+    areas: vis.map(t => t.area > 0), fitVars: tags.map(t => t.fitVars || 0).reduce((a, c) => a + c, 0) };
+}, id);
+/* 불변식 — 겹침 0 · 정사각 밖 0 · 네 귀가 제 조각 위 · 범례를 안 덮는다. onIdx = 「항상」 라벨(잘려도 된다 — 그 밖의 라벨은 글자가 온전해야 한다) */
+const expectFit = (f, what, onIdx = []) => {
+  expect(f.overlaps, `${what}: 라벨 사각형끼리 겹치는 쌍 0`).toBe(0);
+  expect(f.out, `${what}: svg 정사각 밖으로 나간 라벨 0`).toEqual([]);
+  expect(f.badCorners, `${what}: 라벨 사각형의 네 귀가 전부 제 조각의 채움 안`).toEqual([]);
+  expect(f.legend, `${what}: 범례를 덮는 라벨 0`).toEqual([]);
+  expect(f.clipped.filter(i => !onIdx.includes(i)), `${what}: 자동 라벨은 글자가 안 잘린다(안 들면 이름 → 라벨 순으로 숨는다)`).toEqual([]);
+};
+const REF = [{ label: '탈취 기능', value: 60, color: '#f04e1f', pieGrow: 30 }, { label: '처리 불가 음식물', value: 10, color: '#a9a9a9' }, { label: '저소음/음소거 기능', value: 22, color: '#2b2b2b' },
+  { label: '기타 A', value: 3, color: '#ededed' }, { label: '기타 B', value: 3, color: '#f6f6f6' }, { label: '기타 C', value: 2, color: '#bcbcbc' }];
+test('J7 참고 그림 꼴(도너츠 · 구멍 38 · 간격 4 · 시작 295 · 1위만 크기 30 · 순위+이름) — 높이 560/420/240 에서 라벨이 제 조각 안 · 겹침 0 · 긴 이름은 제 조각 안에서 줄을 바꾼다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: REF, extra: { pieDonut: '1', pieHole: '38', pieGap: '4', pieStart: '295', chartHeight: '560', pieRank: '1', pieName: '1' } });
+  expect(await vbOf(page, id), '전제: 1위를 키워 viewBox 가 넓어졌다').not.toBe('0 0 1000 1000');
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  const f = await tagFit(page, id);
+  expect(f.n, '전제: 라벨 6').toBe(6);
+  expect(f.stage1, '전제: 기하(첫 단)는 넓은 셋을 보이게 둔다').toEqual([0, 1, 2]);
+  expect(f.vis, '높이 560: 1·2·3위 라벨이 다 보인다').toEqual([0, 1, 2]);
+  expect(f.areas.every(Boolean), '전제: 보이는 라벨에 넓이가 있다').toBe(true);
+  expectFit(f, '높이 560');
+  expect(f.names, '높이 560: 1위·2위는 이름까지').toEqual(expect.arrayContaining([0, 2]));
+  expect(f.lines[f.vis.indexOf(2)], '긴 이름(저소음/음소거 기능)은 제 조각 안에서 줄을 바꾼다(둘째 줄 이상)').toBeGreaterThan(1);
+  const seen = { 560: f };
+  for (const h of ['420', '240']) {
+    await setDs(page, id, { chartHeight: h });
+    await waitStableRect(page, `#${id} .grb-pie-svg`);
+    const g = await tagFit(page, id);
+    expect(g.stage1, `전제(높이 ${h}): 첫 단은 그대로 셋`).toEqual([0, 1, 2]);
+    expect(g.layer, `전제(높이 ${h}): 덧층이 작아졌다`).toBeLessThan(seen[560].layer);
+    expectFit(g, `높이 ${h}`);
+    seen[h] = g;
+  }
+  expect(seen[240].names.length + seen[240].vis.length, '작아지면 이름·라벨이 줄어든다(둘째 단이 px 를 본다)').toBeLessThan(seen[560].names.length + seen[560].vis.length);
+  expect(seen[240].vis, '높이 240 에서도 1위 라벨은 남는다').toContain(0);
+  expect(errs).toEqual([]);
+});
+
+const LONG5 = [['처리 불가 음식물', 30], ['저소음/음소거 기능', 25], ['탈취 기능', 20], ['세척 편의성', 15], ['디자인', 10]].map(([label, value]) => ({ label, value }));
+const FIT_VARS = ['--grb-pie-tag-w', '--grb-pie-tag-h', '--grb-pie-tag-d', '--grb-pie-name-d', '--grb-pie-name-lines'];
+test('J8 기본 높이 240 · 라벨 20 · 도너츠 · 긴 이름 5 — 이름이 안 드는 조각은 배지만 · 겹침 0 · 저장본에 잰 결과가 안 실린다 · 다시 꽂으면 다시 잰다 · 블럭 폭이 바뀌면 다시 잰다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: LONG5, extra: { pieDonut: '1', pieRank: '1', pieName: '1' } });
+  expect([null, '240'], '전제: 높이는 기본(키 없음 또는 240)').toContain(await ds(page, id, 'chartHeight'));
+  expect(await ds(page, id, 'labelSize'), '전제: 라벨 크기는 기본(키 없음)').toBeNull();
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  const f = await tagFit(page, id);
+  expect(f.n, '전제: 라벨 5').toBe(5);
+  expect(f.stage1.length, '전제: 첫 단(기하)은 라벨을 여럿 보이게 둔다').toBeGreaterThanOrEqual(4);
+  expect(f.vis.length, '전제: 보이는 라벨이 있다').toBeGreaterThanOrEqual(1);
+  expectFit(f, '기본 240');
+  expect(f.rankOnly.length, '긴 이름이 안 드는 조각은 이름을 숨기고 배지만 남긴다').toBeGreaterThanOrEqual(1);
+  expect(f.fitVars, '전제: 잰 결과가 인라인 변수로 섰다').toBeGreaterThan(0);
+  /* 저장본 — 잰 결과(파생 변수)는 안 실리고 기하 사각형(마크업)은 실린다 · 화면은 그대로 */
+  const r = await page.evaluate(([id, vars]) => { const saved = window.getSerializedCanvas(); const live = document.getElementById(id).innerHTML;
+    return { saved: vars.filter(v => saved.includes(v)), live: vars.some(v => live.includes(v)), box: saved.includes('--grb-pie-box-w') && saved.includes('--grb-pie-box-h'), listed: vars.every(v => window.__gdTextTone.DERIVED_AUTO_VARS.includes(v)) }; }, [id, FIT_VARS]);
+  expect(r, '저장본에 잰 변수 0 · 화면에는 있다 · 기하 사각형은 실린다 · 파생 목록에 다 올랐다').toEqual({ saved: [], live: true, box: true, listed: true });
+  expect(await tagFit(page, id), '직렬화가 화면을 안 바꾼다').toEqual(f);
+  /* 저장본을 다시 꽂으면(열기) 다시 잰다 — 넘친 채로 굳지 않는다 */
+  await page.evaluate((id) => { const g = document.getElementById(id); const row = g.parentElement; const tmp = document.createElement('div'); tmp.innerHTML = window.getSerializedCanvas();
+    const fresh = tmp.querySelector('#' + id); const html = fresh.parentElement.outerHTML; row.insertAdjacentHTML('afterend', html); row.remove(); window.rebindAll?.(); }, id);
+  expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll('.grb-pie-tag').length, id), '전제: 다시 꽂은 블럭에 라벨 5').toBe(5);
+  await expect.poll(async () => { const g = await tagFit(page, id); return [g.vis, g.names, g.rankOnly]; }, { message: '다시 꽂은 뒤 같은 결과로 돌아온다' }).toEqual([f.vis, f.names, f.rankOnly]);
+  expectFit(await tagFit(page, id), '다시 꽂은 뒤');
+  /* 다시 그리지 않고 블럭 폭만 줄인다(스타일 속성을 안 건드린다 — 문서 머리의 규칙 하나) ⇒ 크기 관찰자가 다시 잰다 */
+  await page.evaluate((id) => { const st = document.createElement('style'); st.id = 'j8-narrow'; st.textContent = `#${id}{width:50% !important;max-width:calc(${document.getElementById(id).querySelector('.grb-pie-tags').offsetWidth}px / 2) !important}`; document.head.appendChild(st); }, id);
+  await expect.poll(async () => (await tagFit(page, id)).layer, { message: '전제: 덧층이 줄었다' }).toBeLessThan(f.layer);
+  await expect.poll(async () => { const g = await tagFit(page, id); return g.overlaps + g.out.length + g.badCorners.length + g.clipped.length; }, { message: '폭이 줄면 다시 재서 제 조각 안으로' }).toBe(0);
+  const n = await tagFit(page, id);
+  expect(n.names.length + n.vis.length, '줄어든 차트에서는 이름·라벨이 더 숨는다').toBeLessThan(f.names.length + f.vis.length);
+  await page.evaluate(() => document.getElementById('j8-narrow').remove());
+  await expect.poll(async () => { const g = await tagFit(page, id); return [g.layer, g.vis, g.names]; }, { message: '폭을 되돌리면 처음 결과로' }).toEqual([f.layer, f.vis, f.names]);
+  expect(errs).toEqual([]);
+});
+
+const WORD = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ가나다라마바사아자차카타파하';   // 띄어쓰기 없는 긴 낱말 — keep-all 만으로는 블럭 폭을 가로질렀다
+const LONG6 = [['처리 불가 음식물 처리 불가 음식물', 34], [WORD, 26], ['저소음/음소거 기능 저소음/음소거 기능', 18], ['세척 편의성과 분리 세척', 12], ['디자인', 6], ['기타', 4]].map(([label, value]) => ({ label, value }));
+test('J9 라벨 크기 40 + 긴 이름(띄어쓰기 없는 낱말 포함) — 높이 240/420/560 × 원형·도너츠에서 겹침 0 · 차트 밖 0 · 범례를 안 덮는다 · 「항상」 라벨은 안 숨고 제 조각 안으로 잘린다', async ({ page }) => {
+  const items = LONG6.map((it, i) => i === 2 ? { ...it, pieTag: 'on' } : it);
+  const { errs, id } = await setup(page, { type: 'pie', items, extra: { labelSize: '40', pieRank: '1', pieName: '1' } });
+  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id).querySelector('.grb-pie-tags')).fontSize, id), '전제: 덧층 글자 크기 = 라벨 크기 40').toBe('40px');
+  const shown = {};
+  for (const donut of [null, '1']) for (const h of ['240', '420', '560']) {
+    await setDs(page, id, { pieDonut: donut, chartHeight: h });
+    await waitStableRect(page, `#${id} .grb-pie-svg`);
+    const f = await tagFit(page, id), what = `${donut ? '도너츠' : '원형'} · 높이 ${h}`;
+    expect(f.n, `전제(${what}): 라벨 6`).toBe(6);
+    expect(f.stage1, `전제(${what}): 첫 단은 넓은 조각들을 보이게 둔다(「항상」 포함)`).toEqual(expect.arrayContaining([0, 1, 2]));
+    expect(f.vis, `${what}: 「항상」 라벨(조각 2)은 안 숨는다`).toContain(2);
+    expectFit(f, what, [2]);
+    shown[what] = f.names.length + f.vis.length;
+  }
+  expect(shown['원형 · 높이 560'], '큰 차트일수록 더 많이 보인다(px 를 본다)').toBeGreaterThanOrEqual(shown['원형 · 높이 240']);
+  /* 「항상」 라벨의 이름은 줄 수로 잘린다(조각 밖으로 흘러넘치지 않는다) — 가장 작은 판에서 */
+  await setDs(page, id, { pieDonut: '1', chartHeight: '240' });
+  await waitStableRect(page, `#${id} .grb-pie-svg`);
+  const cut = await page.evaluate((id) => { const t = document.getElementById(id).querySelectorAll('.grb-pie-tag')[2]; const cs = getComputedStyle(t);
+    return { display: cs.display !== 'none', overflow: cs.overflow, maxH: cs.maxHeight !== 'none', maxW: cs.maxWidth !== 'none' }; }, id);
+  expect(cut, '「항상」: 보이고 · 넘는 것은 자른다 · 폭·높이 한계가 섰다').toEqual({ display: true, overflow: 'hidden', maxH: true, maxW: true });
   expect(errs).toEqual([]);
 });
 

@@ -9,7 +9,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { piePaths, piePercents, pieRanks, pieTagPlan, CENTER, RADIUS } = require('../../js/graph-pie-geom.js');
+const { piePaths, piePercents, pieRanks, pieTagPlan, pieTagRoom, CENTER, RADIUS } = require('../../js/graph-pie-geom.js');
 const LIM = require('../../js/graph-limits.js');
 
 const arcs = (d) => [...d.matchAll(/A ([\d.]+) ([\d.]+) 0 ([01]) ([01]) ([\d.]+) ([\d.]+)/g)].map(m => ({ r: +m[1], large: +m[3], sweep: +m[4], x: +m[5], y: +m[6] }));
@@ -397,4 +397,60 @@ test('U17 조각 안 라벨 자리 — 도너츠는 고리 한가운데 · 원�
   assert.equal(wild.length, 5, '전제');
   assert.ok(wild.every(t => Number.isFinite(t.x) && Number.isFinite(t.y)));
   assert.deepEqual(wild.map(t => t.show), [true, true, false, false, false], '각 폭이 0 으로 접힌 조각(셋째·넷째) · 값 없는 조각은 on 이어도 숨는다');
+});
+
+test('U18 조각 안 라벨이 쓸 수 있는 사각형(1013t1C3 고침) — 낸 사각형은 귀 넷이 그 조각 안 · 조금만 키워도 안 든다 · 구멍·이웃 조각·바깥으로 안 나간다 · 값 0 조각은 0', () => {
+  assert.equal(typeof LIM.PIE_TAG_PAD, 'number'); assert.ok(LIM.PIE_TAG_PAD >= 0, '여백 한도가 graph-limits 에 있다');
+  /* 독립 판정 — 점이 i 번 조각의 «그려진» 넓이 안인가(극좌표 · 틈의 절반은 변에서의 수직 거리로) */
+  const inSlice = (geo, i, x, y) => {
+    const dx = +geo.offsets[i][0], dy = +geo.offsets[i][1], qx = x - CENTER - dx, qy = y - CENTER - dy;
+    const rho = Math.hypot(qx, qy), r = RADIUS * geo.hole / 100;
+    if (rho > geo.outer[i] || rho < r) return false;
+    if (geo.shares[i] >= 0.9999) return true;
+    const [a0, a1] = geo.angles[i], rad = Math.PI / 180;
+    const d0 = qx * Math.cos(a0 * rad) + qy * Math.sin(a0 * rad), d1 = -(qx * Math.cos(a1 * rad) + qy * Math.sin(a1 * rad));
+    return (a1 - a0) > 180 ? (d0 >= geo.gap / 2 || d1 >= geo.gap / 2) : (d0 >= geo.gap / 2 && d1 >= geo.gap / 2);
+  };
+  const cases = [
+    [[60, 10, 22, 3, 3, 2], 38, 4, { start: 295, grow: [30] }],
+    [[30, 20, 15, 15, 10, 10], 0, 10, {}],
+    [[30, 20, 15, 15, 10, 10], 55, 40, { start: 77, grow: [30, 0, 10], pull: [0, 0, 15, 0, 30] }],
+    [[70, 20, 10], 0, 10, {}],
+    [[70, 20, 10], 80, 0, {}],
+  ];
+  let seen = 0;
+  for (const [vals, hole, gap, opts] of cases) {
+    const geo = piePaths(vals, hole, gap, opts), plan = pieTagPlan(geo), room = pieTagRoom(geo);
+    assert.equal(room.length, vals.length, '전제: 조각마다 하나');
+    room.forEach((rm, i) => {
+      assert.ok(rm.boxes.length >= 3, '전제: 가로세로비 후보가 여럿');
+      assert.ok(rm.best >= 0 && rm.best < rm.boxes.length);
+      assert.ok(rm.boxes.every(b => b.w * b.h <= rm.boxes[rm.best].w * rm.boxes[rm.best].h), 'best = 가장 넓은 것');
+      rm.boxes.forEach((b) => {
+        assert.ok(Number.isFinite(b.w) && Number.isFinite(b.h) && b.w >= 0 && b.h >= 0);
+        if (!(b.w > 0)) return;
+        seen++;
+        assert.equal(rm.fits(b.w, b.h), true, '낸 사각형은 든다');
+        assert.equal(rm.fits(b.w * 1.05 + 1, b.h * 1.05 + 1), false, '조금만 키워도 안 든다(가장 큰 것이다)');
+        for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]])
+          assert.equal(inSlice(geo, i, plan[i].x + sx * b.w / 2, plan[i].y + sy * b.h / 2), true, `사각형의 귀·변 가운데가 조각 ${i} 안(${JSON.stringify([vals, hole, gap, opts])})`);
+        for (let k = 0; k < vals.length; k++) if (k !== i)
+          for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) assert.equal(inSlice(geo, k, plan[i].x + sx * b.w / 2, plan[i].y + sy * b.h / 2), false, '다른 조각 위에는 안 걸친다');
+      });
+    });
+  }
+  assert.ok(seen >= 60, `전제: 사각형을 실제로 견줬다(${seen})`);
+  /* 넓적한 후보일수록 폭이 넓다(그리는 쪽이 줄바꿈이 적은 것부터 써 본다) */
+  const big = pieTagRoom(piePaths([1, 1], 0, 10))[0].boxes;
+  assert.ok(big[0].w / big[0].h > big[big.length - 1].w / big[big.length - 1].h);
+  /* 온 원 원형 — 자리가 중심이라 원에 내접한다 · 값 0 조각 · 빈 입력 */
+  const full = pieTagRoom(piePaths([5], 0, 10))[0];
+  assert.equal(full.fits(600, 600), true); assert.equal(full.fits(720, 720), false, '정사각 한 변 > R√2 는 원을 넘는다');
+  const z = pieTagRoom(piePaths([0, 3, 1], 0, 10));
+  assert.deepEqual(z[0].boxes.map(b => [b.w, b.h]), z[0].boxes.map(() => [0, 0]), '값 0 조각은 자리가 없다'); assert.equal(z[0].fits(1, 1), false);
+  assert.deepEqual(pieTagRoom(null), []); assert.deepEqual(pieTagRoom(piePaths([], 0)), []);
+  /* 험한 입력 — 수가 전부 유한 */
+  const wild = pieTagRoom(piePaths([1e308, 1e308, 1, 1e17, 'x'], 55, 40, { start: 77, grow: [30, 'x'], pull: [30, 30, 30, 30] }));
+  assert.equal(wild.length, 5, '전제'); assert.ok(wild.every(rm => rm.boxes.every(b => Number.isFinite(b.w) && Number.isFinite(b.h))));
+  assert.equal(wild[0].fits(NaN, 10), false); assert.equal(wild[0].fits(-5, 10), false);
 });

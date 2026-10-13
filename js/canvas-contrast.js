@@ -347,7 +347,10 @@ export function syncAllSectionCheckerTextTone(root) {
   return n;
 }
 
-export const DERIVED_AUTO_VARS = ['--tbl-header-fg', ...GRAPH_AUTO_VARS, GRAPH_SEG_FG_VAR, GRAPH_PIE_RANK_INK_VAR];
+/* 1013t1C3 고침 — 원형 조각 안 라벨을 «재서 맞춘» 결과(폭·높이 한계 · 라벨 숨김 · 이름 숨김 · 이름 줄 수). 쓰는 자 = drag-utils.js grbPieFitTags(이 이름들을 여기서 읽어 간다 — 목록은 한 벌).
+   그려진 글자 크기에서 나온 값이라 저장에 굳히지 않는다(열면 아래 syncGraphTone 이 다시 재게 한다) ⇒ 파생 변수 목록에 올린다. 읽는 자 = css/editor-graph.css .grb-pie-tag / .grb-pie-name. */
+export const GRAPH_PIE_FIT_VARS = ['--grb-pie-tag-w', '--grb-pie-tag-h', '--grb-pie-tag-d', '--grb-pie-name-d', '--grb-pie-name-lines'];
+export const DERIVED_AUTO_VARS = ['--tbl-header-fg', ...GRAPH_AUTO_VARS, GRAPH_SEG_FG_VAR, GRAPH_PIE_RANK_INK_VAR, ...GRAPH_PIE_FIT_VARS];
 const _rgbOfCss = (v) => { const c = _parseWithAlpha(String(v || '')); return c && c.a > 0 ? c.rgb : null; };
 const _mixRgb = (a, b, t) => a.map((x, i) => x * (1 - t) + b[i] * t);
 const _rgbCss = (c) => `rgb(${c.map(x => Math.min(255, Math.ceil(x - 1e-9))).join(', ')})`;   // 흰 쪽으로 «올림» — 반올림이면 4.49 로 목표 밑에 앉는다(실측 graph-h6 D1)
@@ -399,6 +402,7 @@ export function syncGraphTone(block) {
   GRAPH_AUTO_VARS.forEach((v, i) => { if (want[i]) block.style.setProperty(v, want[i]); });
   _syncSegLabelTone(block, stops);
   _syncPieTagTone(block, stops);
+  if (typeof window !== 'undefined') window.grbPieFitTags?.(block);   // 1013t1C3 고침 — 라벨을 재서 제 조각 안에 넣는다(다시 그린 뒤 · 블럭이 꽂힌 뒤 = 이 함수가 도는 때)
   return { prev, want };
 }
 /* 1013t1C3 — 원형 조각 안 라벨(.grb-pie-tag)의 글자 톤: «그 조각의 그려진 색»(fill × fill-opacity 를 바탕 위에 얹은 값) 위에서 읽히는 쪽으로. 짝 = 색인(라벨 i ↔ 조각 i).
@@ -548,7 +552,7 @@ if (typeof window !== 'undefined') {
     (typeof document !== 'undefined' && document.getElementById('canvas-wrap')?.style.background) || ''
   );
   /* ★G5·G6 글자 톤 — grid-block.js 는 import 대신 이 전역으로 받는다(그 파일 renderGridBlock 의 주석 참조). */
-  window.__gdTextTone = { backdropRgbAt, textToneOver, textToneAt, syncTableHeaderTone, syncGraphTone, DERIVED_AUTO_VARS, graphFieldShown };
+  window.__gdTextTone = { backdropRgbAt, textToneOver, textToneAt, syncTableHeaderTone, syncGraphTone, DERIVED_AUTO_VARS, graphFieldShown, GRAPH_PIE_FIT_VARS };
   /* ★한 깔때기 관찰자 — #canvas 가 생긴 뒤 한 번. 그리드는 window.renderGridBlock 으로 다시 그린다. */
   const _goTone = () => { const cv = document.getElementById('canvas');
     if (cv) installTextToneObserver(cv, { onGrid: (b) => window.renderGridBlock?.(b) }); };

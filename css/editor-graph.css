@@ -333,13 +333,19 @@
 .grb-pie-tag {
   position: absolute;
   transform: translate(-50%, -50%);
-  display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.25em;
-  max-width: 26%;   /* 덧층 정사각 대비 — 긴 이름은 낱말 사이에서 줄을 바꾼다(스샷 실측 2026-10-13: 34 % 면 「저소음/음소거 기능」이 한 줄로 조각을 넘었다) */
+  /* 1013t1C3 고침 — 라벨은 «제 조각 안의 사각형»을 못 넘는다. 한계는 변수 둘 겹: --grb-pie-box-*(렌더가 기하에서 낸 그 조각의 가장 넓은 사각형 · 마크업에 실린다)
+     위에 --grb-pie-tag-*(그려진 글자를 잰 결과 · drag-utils.js grbPieFitTags 가 쓴다 · 저장에서 걷힌다). 변수가 하나도 없으면 옛 값(덧층 정사각의 26 %).
+     넘는 글자는 자른다(overflow) · 숨김(--grb-pie-tag-d: none)도 같은 변수 길. 긴 이름은 낱말 사이에서 줄을 바꾸고(keep-all), 띄어쓰기 없는 긴 낱말은 어디서든 꺾는다(anywhere). */
+  display: var(--grb-pie-tag-d, flex);
+  max-width: var(--grb-pie-tag-w, var(--grb-pie-box-w, 26%));
+  max-height: var(--grb-pie-tag-h, var(--grb-pie-box-h, none));
+  overflow: hidden;
   text-align: center;
   word-break: keep-all;
+  overflow-wrap: anywhere;
   line-height: 1.2;
   font-weight: var(--ui-fw-semibold);
   color: var(--grb-seg-fg, inherit);
@@ -354,6 +360,14 @@
   white-space: nowrap;
 }
 .grb-pie-rank:empty { display: none; }
+/* 이름 — 재서 안 들면 숨기고(--grb-pie-name-d: none), 「항상」 라벨은 줄 수로 자른다(--grb-pie-name-lines · 끝에 말줄임). 변수가 없으면 보통 블럭 글자. */
+.grb-pie-name {
+  display: var(--grb-pie-name-d, -webkit-box);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--grb-pie-name-lines, none);
+  max-width: 100%;
+  overflow: hidden;
+}
 .grb-pie-legend {
   display: flex;
   flex-wrap: wrap;

@@ -1,6 +1,6 @@
 /* graph-pie-geom.js — 원형·도넛 그래프 조각 기하의 «한 자리» (1012t1G1 · 2026-10-12).
  * 순수 함수 둘: piePaths(값 목록 + 구멍 비율 % + 틈) → 조각마다 SVG path 의 d 문자열 · piePercents(값 목록) → 합이 100 인 정수 %. DOM·window 를 안 읽는다 ⇒ 유닛(node)과 렌더러(브라우저)가 «같은 식»을 쓴다.
- * 1013t1C3 이 둘을 보탰다: pieRanks(값 목록) → 값 내림차순 순위 · pieTagPlan(piePaths 산출) → 조각 안 라벨의 자리와 보임(아래 함수 머리말). 한도는 graph-limits.js 에서 읽는다(DOM 측정 0).
+ * 1013t1C3 이 셋을 보탰다: pieRanks(값 목록) → 값 내림차순 순위 · pieTagPlan(piePaths 산출) → 조각 안 라벨의 자리와 보임 · pieTagRoom(piePaths 산출) → 그 자리에서 라벨이 쓸 수 있는 사각형(아래 함수 머리말). 한도는 graph-limits.js 에서 읽는다(DOM 측정 0).
  * 싣는 길은 graph-limits.js 와 같다 — drag-utils.js 가 side-effect import 해 window.GRAPH_PIE_GEOM 을 받고, 유닛은 require.
  *
  * 규약
@@ -165,7 +165,62 @@
       return { x: Number.isFinite(x) ? x : C, y: Number.isFinite(y) ? y : C, show: show };
     });
   }
-  var GRAPH_PIE_GEOM = Object.freeze({ piePaths: piePaths, piePercents: piePercents, pieRanks: pieRanks, pieTagPlan: pieTagPlan, VIEW: VIEW, CENTER: C, RADIUS: R });
+  /** 조각 안 라벨이 «쓸 수 있는 자리»(1013t1C3 고침) — pieTagPlan 이 고른 자리를 가운데로 하는 «바로 선 사각형»(글자는 안 돈다)이 그 조각 안에 드는가.
+   *  pieTagPlan 의 숨김은 viewBox 단위의 현·두께만 본다 ⇒ 실제 글자(차트 px · 라벨 크기 · 이름 길이)가 조각을 넘어도 모른다. 이 함수가 그 «둘째 단»의 기하다 — DOM 은 여전히 안 잰다:
+   *  그리는 쪽이 잰 라벨 크기를 viewBox 단위로 바꿔 fits(w, h) 에 묻는다(drag-utils.js grbPieFitTags).
+   *  · fits(w, h): 폭 w · 높이 h 인 사각형의 둘레(귀 넷 + 변마다 가운데 점들)가 전부 ① 바깥 반지름 안 ② 구멍 밖(사각형에서 중심에 가장 가까운 점으로 잰다) ③ 두 변에서 틈의 절반 + PIE_TAG_PAD 만큼 안쪽.
+   *    폭이 180° 를 넘는 조각은 볼록하지 않다(두 반평면의 «합») ⇒ 귀만 보면 안 되고 변 위의 점도 본다. 값 0 조각 · 각 폭 0 조각은 늘 false.
+   *    틈은 geo.gap / 2 로 잰다 — 좁은 조각은 그리는 쪽이 틈을 덜 깎으므로(piePaths) 이 판정이 «더 빡빡한 쪽»이다(안이라고 하면 그려진 조각 안이다).
+   *  · boxes: 가로세로비(PIE_TAG_ASPECTS · 넓적한 것부터)마다 그 자리에 드는 «가장 큰» 사각형 { w, h }(이분법 · 안 들면 0 · 0). best = 그중 넓이가 가장 큰 것의 색인.
+   *  @param {ReturnType<typeof piePaths>} geo @returns {{ boxes: { w: number, h: number }[], best: number, fits: (w: number, h: number) => boolean }[]} */
+  var PIE_TAG_ASPECTS = [3, 2, 1.4, 1, 0.7, 0.5];   // 폭 ÷ 높이 — 순서 = 그리는 쪽이 먼저 써 보는 순서(넓적할수록 줄바꿈이 적다)
+  function pieTagRoom(geo) {
+    var L = LIM();
+    var lim = function (v) { var n = Number(v); return (Number.isFinite(n) && n > 0) ? n : 0; };
+    var at = Math.min(100, lim(L.PIE_TAG_AT)), pad = lim(L.PIE_TAG_PAD);
+    var g = (geo && typeof geo === 'object') ? geo : {};
+    var shares = Array.isArray(g.shares) ? g.shares : [];
+    var r = R * lim(g.hole) / 100, rad = Math.PI / 180, edge = lim(g.gap) / 2 + pad;
+    return shares.map(function (share, i) {
+      var Ro = (g.outer && lim(g.outer[i])) || R;
+      var a0 = g.angles && g.angles[i] ? Number(g.angles[i][0]) : 0, a1 = g.angles && g.angles[i] ? Number(g.angles[i][1]) : 0;
+      var span = (Number.isFinite(a1 - a0) && a1 - a0 > 0) ? a1 - a0 : 0;
+      var full = share >= FULL, live = share > 0 && span > 0;
+      var ra = r > 0 ? (r + Ro) / 2 : (full ? 0 : Ro * at / 100);
+      var mid = (a0 + a1) / 2 * rad;
+      var px = ra * Math.sin(mid), py = -ra * Math.cos(mid);   // 라벨 자리 — «그 조각의 중심» 기준(민 양은 조각과 라벨이 같이 움직이므로 서로 지워진다)
+      var n0x = Math.cos(a0 * rad), n0y = Math.sin(a0 * rad), n1x = Math.cos(a1 * rad), n1y = Math.sin(a1 * rad);   // 변의 법선(시계 쪽)
+      var inside = function (x, y) {
+        if (x * x + y * y > (Ro - pad) * (Ro - pad)) return false;
+        if (full) return true;
+        var d0 = x * n0x + y * n0y, d1 = -(x * n1x + y * n1y);
+        return span > 180 ? (d0 >= edge || d1 >= edge) : (d0 >= edge && d1 >= edge);
+      };
+      var fits = function (w, h) {
+        var a = Number(w) / 2, b = Number(h) / 2;
+        if (!live || !(a >= 0) || !(b >= 0) || !(Ro - pad > 0)) return false;
+        if (r > 0) {   // 구멍 — 사각형에서 중심에 가장 가까운 점
+          var nx = Math.max(px - a, Math.min(0, px + a)), ny = Math.max(py - b, Math.min(0, py + b));
+          if (nx * nx + ny * ny < (r + pad) * (r + pad)) return false;
+        }
+        for (var k = 0; k <= 6; k++) {
+          var t = k / 6, x = px - a + 2 * a * t, y = py - b + 2 * b * t;
+          if (!inside(x, py - b) || !inside(x, py + b) || !inside(px - a, y) || !inside(px + a, y)) return false;
+        }
+        return true;
+      };
+      var boxes = PIE_TAG_ASPECTS.map(function (asp) {
+        var q = Math.sqrt(asp), lo = 0, hi = 2 * Ro;
+        if (!fits(0, 0)) return { w: 0, h: 0 };
+        for (var k = 0; k < 24; k++) { var m = (lo + hi) / 2; if (fits(m * q, m / q)) lo = m; else hi = m; }
+        return { w: Math.floor(lo * q * 100) / 100, h: Math.floor(lo / q * 100) / 100 };
+      });
+      var best = 0;
+      boxes.forEach(function (bx, k) { if (bx.w * bx.h > boxes[best].w * boxes[best].h) best = k; });
+      return { boxes: boxes, best: best, fits: fits };
+    });
+  }
+  var GRAPH_PIE_GEOM = Object.freeze({ piePaths: piePaths, piePercents: piePercents, pieRanks: pieRanks, pieTagPlan: pieTagPlan, pieTagRoom: pieTagRoom, VIEW: VIEW, CENTER: C, RADIUS: R });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_PIE_GEOM;
   if (root) root.GRAPH_PIE_GEOM = GRAPH_PIE_GEOM;
 })(typeof window !== 'undefined' ? window : null);
