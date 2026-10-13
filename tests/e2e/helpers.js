@@ -52,7 +52,13 @@ async function launchIsolated({ port, profile, args = [], cwd = process.cwd() })
     cwd,
   });
   const root = await app.evaluate(({ app }) => app.getPath('userData'));
-  if (path.resolve(root) !== path.resolve(profile)) {
+  /* ★★macOS 는 /var ↔ /private/var · /tmp ↔ /private/tmp 가 ★심링크다 — ★같은 자리인데 ★문자열이 다르다.
+   *   ⛔path.resolve 는 ★심링크를 ★안 푼다 ⇒ ★격리가 맞는데도 ★여기서 던졌다
+   *   (2026-10-14 실측: userData=/private/var/folders/… vs 기대 /var/folders/… ⇒ D0 ★빨강 ＋ ★나머지 5칸이 ★안 돌았다).
+   *   ⇒ ★양쪽을 ★realpath 로 ★풀어 견준다. ★★가드 ★약화가 ★아니다 — ★«같은 자리»를 ★같다고 재는 것이고,
+   *     ★진짜 다른 자리(현빈 실계정)는 ★여전히 ★다르게 나온다(★양성대조로 쟀다). */
+  const _real = (q) => { try { return fs.realpathSync(q); } catch { return path.resolve(q); } };
+  if (_real(root) !== _real(profile)) {
     await app.close().catch(() => {});
     throw new Error(`★프로필 격리 실패 — userData=${root} (기대: ${profile}). 현빈 실계정일 수 있어 즉시 껐다.`);
   }
