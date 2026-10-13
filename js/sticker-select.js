@@ -71,8 +71,22 @@ function _clampCoinKeep(block, x, y, sec) {
   if (!r) return null;
   return [Math.min(r.maxX, Math.max(r.minX, Math.round(x))), Math.min(r.maxY, Math.max(r.minY, Math.round(y)))];
 }
+/** 지금 자리를 그 범위로 다시 가둔다 — 크기·회전·각도가 바뀌어 그림 상자가 달라진 뒤에 부른다. 옮겼으면 true.
+ *  이미 범위 안이면(거의 언제나) 아무것도 안 쓴다 ⇒ 히스토리 표본이 안 달라진다. */
+function _rekeepCoin(block) {
+  const sec = block && block.closest && block.closest('.section-block');
+  if (!sec) return false;
+  const x = parseInt(block.dataset.x, 10) || 0, y = parseInt(block.dataset.y, 10) || 0;
+  const c = _clampCoinKeep(block, x, y, sec);
+  if (!c || (c[0] === x && c[1] === y)) return false;
+  block.dataset.x = String(c[0]); block.dataset.y = String(c[1]);
+  block.style.left = c[0] + 'px'; block.style.top = c[1] + 'px';
+  window._updateStickerSecClip?.(block);
+  return true;
+}
 window._coinKeepRange = _coinKeepRange;
 window._clampCoinKeep = _clampCoinKeep;
+window._rekeepCoin = _rekeepCoin;
 
 function _selectSticker(block) {
   if (!block) return;
@@ -367,6 +381,7 @@ function _bindCornerHandleDrag(handle, block, corner) {
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      _rekeepCoin(block);   // 코인 — 줄어든 그림이 섹션 밖에 10% 아래로 남지 않게(1013t2C2)
       window.pushHistory?.('스티커 크기 조절');
       window.scheduleAutoSave?.();
       if (block.classList.contains('selected')) {

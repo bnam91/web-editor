@@ -105,8 +105,7 @@ export function wireCoinSection(panel, block, rerender) {
     const tiny = block.classList.contains('tiny');
     rerender();
     /* 각도·두께가 바뀌면 그림 상자가 달라진다 — 10% 남기기를 한 번 더 건다(이미 안이면 아무것도 안 바뀐다) */
-    const [px, py] = posOf(block);
-    writePos(block, px, py);
+    window._rekeepCoin?.(block);
     syncCoinPosFields(block);
     if (!block.classList.contains('selected')) return;
     window._addCornerHandles?.(block);

@@ -468,6 +468,7 @@ function _relightCoinAfterRotate() {
   document.querySelectorAll('.sticker-block.selected[data-shape="coin"]').forEach((b) => {
     if (b._coinLitRot === (parseFloat(b.dataset.rotation) || 0)) return;
     renderStickerBlock(b);
+    window._rekeepCoin?.(b);         // 돌면 그림 상자가 달라진다 — 섹션 밖 10% 남기기를 다시 건다(1013t2C2 · js/sticker-select.js)
     window._addCornerHandles?.(b);   // 그리기가 innerHTML 을 갈아 끼워 손잡이가 사라지므로 다시 단다
   });
 }

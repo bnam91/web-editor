@@ -11,6 +11,8 @@
  *   C3-a 「번짐」 행 — 광택 다음 · 섹션 파티클의 「번짐」 행과 같은 꼴(라벨·슬라이더·숫자칸의 class·min·max·step·높이)
  *   C3-b 값 → 그림 — 필터가 생기고 세로로만 번진다 · 0 이면 원래 그림 · 범위 밖은 14 · ⌘Z 한 걸음
  *   C3-c 저장 → 다시 열기 — 번짐이 그대로 · 번짐 없는 코인의 저장본에는 그 속성이 없다
+ *   C3-d ★내보내기 그림 두 길(PNG = CDP 오프스크린 · 썸네일 = html2canvas) — 번짐이 그림에 실린다(세로로만) · 대조 = 번짐 없는 코인
+ *   C2-f 크기를 줄여도 10% 가 남는다(손잡이로 줄인 뒤 다시 가둔다)
  * ★자리 비교는 «레이아웃 px»(dataset)로, 그림은 화면 사각형의 «비율»로 잰다(배율과 무관).
  */
 const { test, expect } = require('@playwright/test');
@@ -308,4 +310,80 @@ test('C3-c 저장 → 다시 열기 — 번짐이 그대로 · 번짐을 안 준
   const after = await page.evaluate(([id, plainId]) => [document.getElementById(id).querySelector('svg').outerHTML, document.getElementById(id).dataset.coinBlur,
     document.getElementById(plainId).querySelector('svg').outerHTML.includes('<filter')], [id, plainId]);
   expect([after[0] === before, after[1], after[2]], '다시 연 그림이 저장 전과 같다').toEqual([true, '9', false]);
+});
+
+test('C3-d ★내보내기 그림 두 길(PNG · CDP 오프스크린 / 썸네일 · html2canvas) — 번짐이 실린다(세로로만) · 대조 = 번짐 없는 코인', async ({ page }) => {
+  test.setTimeout(120000);
+  await bootApp(page);
+  await page.evaluate(() => {
+    document.getElementById('canvas').innerHTML = '<div class="section-block" id="secC" style="position:relative;height:420px;background:#101018"><div class="section-inner"></div></div>';
+    window.rebindAll?.();
+  });
+  /* 정면 · 각인·광택 없음 — 코인 = 지름 125(= 180 ÷ 1.44)의 금색 원. 왼쪽 = 번짐 없음(대조), 오른쪽 = 번짐 10(상자 180 에서 세로 15px) */
+  const common = { coinTilt: 0, coinDir: 0, sizeW: 180, sizeH: 180, y: 120, coinGloss: 0, coinGlyph: '' };
+  const ids = [await make(page, { ...common, x: 120 }), await make(page, { ...common, x: 480, coinBlur: 10 })];
+  const info = await page.evaluate((ids) => {
+    const sec = document.getElementById('secC');
+    const clone = sec.cloneNode(true);
+    clone.id = 'secC-clone';
+    clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;';
+    document.body.appendChild(clone);
+    const r = clone.getBoundingClientRect();
+    const centers = ids.map((id) => { const b = document.getElementById(id); return { x: (parseFloat(b.style.left) || 0) + b.offsetWidth / 2, y: (parseFloat(b.style.top) || 0) + b.offsetHeight / 2 }; });
+    return { rect: { x: r.left, y: r.top, w: Math.round(r.width), h: Math.round(r.height) }, centers, d: 180 / 1.44,
+      sd: document.getElementById(ids[1]).querySelector('feGaussianBlur')?.getAttribute('stdDeviation') };
+  }, ids);
+  expect(info.sd, '★전제: 오른쪽 코인에 번짐 10 이 그려졌다(10 × 144 ÷ 120)').toBe('0 12');
+  const cdp = await page.context().newCDPSession(page);
+  const shot = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true,
+    clip: { x: info.rect.x, y: info.rect.y, width: info.rect.w, height: info.rect.h, scale: 1 } });
+  const h2c = await page.evaluate(async () => {
+    const cv = await html2canvas(document.getElementById('secC-clone'), { scale: 1, useCORS: true, backgroundColor: '#101018', logging: false });
+    return cv.toDataURL('image/png').split(',')[1];
+  });
+  const measure = (b64) => page.evaluate(async ({ b64, info }) => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+    const k = img.width / info.rect.w;
+    const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+    const x = cv.getContext('2d'); x.drawImage(img, 0, 0);
+    const px = (X, Y) => [...x.getImageData(Math.round(X * k), Math.round(Y * k), 1, 1).data.slice(0, 3)];
+    const lum = (p) => 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
+    const bg = lum(px(4, 4)), r = info.d / 2;
+    const at = (c) => ({ mid: lum(px(c.x, c.y)) - bg, above: lum(px(c.x, c.y - r - 10)) - bg, below: lum(px(c.x, c.y + r + 10)) - bg, left: lum(px(c.x - r - 10, c.y)) - bg, right: lum(px(c.x + r + 10, c.y)) - bg });
+    return { bg, plain: at(info.centers[0]), blur: at(info.centers[1]) };
+  }, { b64, info });
+  for (const [path, b64] of [['cdp', shot.data], ['h2c', h2c]]) {
+    const m = await measure(b64);
+    const say = `${path}: ` + JSON.stringify(m, (k, v) => (typeof v === 'number' ? Math.round(v) : v));
+    expect(m.bg, `★전제(${path}): 바탕이 어둡다`).toBeLessThan(30);
+    expect([m.plain.mid > 80, m.blur.mid > 80], `★전제 — 두 코인 다 가운데가 금색으로 칠해졌다 · ${say}`).toEqual([true, true]);
+    /* 대조 — 번짐 없는 코인은 가장자리에서 10px 밖이 바탕이다(네 방향) */
+    expect([m.plain.above, m.plain.below, m.plain.left, m.plain.right].every((v) => Math.abs(v) < 6), `★대조 — 번짐 없는 코인의 바깥은 바탕이어야 한다 · ${say}`).toBe(true);
+    /* 번짐 — 위·아래로는 코인 밖 10px 까지 색이 번지고, 좌·우로는 안 번진다(세로로만) */
+    expect([m.blur.above > 12, m.blur.below > 12], `번짐이 그림에 안 실렸다(위·아래 10px 밖이 바탕이다) · ${say}`).toEqual([true, true]);
+    expect([Math.abs(m.blur.left) < 6, Math.abs(m.blur.right) < 6], `번짐이 가로로도 났다 · ${say}`).toEqual([true, true]);
+  }
+});
+
+test('C2-f 크기 손잡이로 줄여도 코인 그림의 10% 는 섹션 안에 남는다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await make(page, { sizeW: 240, sizeH: 240, x: 300, y: 80 });
+  await pick(page, id);
+  await typeInto(page, '#stk-coin-x', 99999);                             // 오른쪽 끝 — 그림의 10% 만 섹션 안
+  await expect.poll(async () => +(await ds(page, id)).x > 300).toBe(true);
+  const x0 = +(await ds(page, id)).x;
+  /* 왼쪽 위 손잡이(섹션 안쪽에 있다)를 오른쪽 아래로 끌어 줄인다 — 오른쪽 아래가 고정이라 그림이 섹션 밖으로 밀려난다 */
+  const h = await waitStableRect(page, `[id="${id}"] > .sticker-corner-handle[data-corner="tl"]`);
+  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.className, [h.cx, h.cy]), '★전제: 누르는 점이 크기 손잡이 위다').toBe('sticker-corner-handle');
+  const box = await waitStableRect(page, `[id="${id}"]`);
+  await page.mouse.move(h.cx, h.cy);
+  await page.mouse.down();
+  for (let i = 1; i <= 8; i++) await page.mouse.move(h.cx + box.width * 0.5 * i / 8, h.cy + box.height * 0.5 * i / 8);
+  await page.mouse.up();
+  const d = await ds(page, id);
+  expect(+d.sizeW < 200, `★전제: 줄었다(sizeW ${d.sizeW})`).toBe(true);
+  const got = await inkInside(page, id);
+  expect(got.fx >= 0.1 - 1e-3, `줄인 뒤 섹션 안에 남은 그림 ${(got.fx * 100).toFixed(2)}% — 10% 아래다(x ${x0} → ${d.x})`).toBe(true);
+  expect(await page.evaluate((id) => document.getElementById(id).style.left, id)).toBe(d.x + 'px');
 });
