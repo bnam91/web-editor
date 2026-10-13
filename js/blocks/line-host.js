@@ -744,9 +744,10 @@ function _lnSelRestore(snap, row) {
   for (let n = w.nextNode(); n; n = w.nextNode()) {
     const v = n.nodeValue;
     for (let k = 0; k <= v.length; k++) {
+      /* ★끝점은 줄바꿈 «건너뛰기 전에» 본다 — 뒤에 보면 끝이 \n 뒤로 밀려 줄바꿈이 span 안에 들어간다(이벨류 실측 `BBB\n</span>`). */
+      if (sN && !eN && pos === snap.end) { eN = n; eO = k; break; }
       if (k < v.length && v[k] === '\n') continue;
       if (!sN && pos === snap.start && k < v.length) { sN = n; sO = k; }
-      if (sN && !eN && pos === snap.end) { eN = n; eO = k; break; }
       if (k < v.length) pos++;
     }
     if (eN) break;
@@ -754,6 +755,17 @@ function _lnSelRestore(snap, row) {
   if (!sN || !eN) return false;
   const r = document.createRange(); r.setStart(sN, sO); r.setEnd(eN, eO);
   return setSavedTextSelection(r, host);
+}
+function _lnExactColorSpan(range, host) {
+  const t = range.toString();
+  if (!t) return null;
+  let n = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
+  for (; n && n !== host && host.contains(n); n = n.parentElement) {
+    if (n.tagName !== 'SPAN' || !n.style || !n.style.color || n.textContent !== t) continue;
+    const r = document.createRange(); r.selectNodeContents(n);
+    if (range.compareBoundaryPoints(Range.START_TO_START, r) <= 0 && range.compareBoundaryPoints(Range.END_TO_END, r) >= 0) return n;
+  }
+  return null;
 }
 export function lnApplyLinePartialColor(block, H, addr, color, before) {
   if (!block || !H || !addr || addr.li === null || addr.li === undefined || addr.np) return false;
@@ -778,13 +790,24 @@ export function lnApplyLinePartialColor(block, H, addr, color, before) {
   withTextSelection((range, host) => {
     if (!range || range.collapsed || !range.toString()) return null;
     if (typeof before === 'function') before();
-    const span = apply(c, host, range, null)?.span || null;
+    const snap = _lnSelSnapshot({ range, host }, row);   // 다시 그린 뒤 같은 글자로 저장 선택을 되세울 열쇠(\n 은 안 센다)
+    /* ★같은 글자에 «다시» 칠할 때(hex 칸 타이핑 = input 마다 · Enter 한 번 더 · 피커 드래그) 범위는 글자 오프셋으로 되찾은 것이라
+       경계가 앞 글자 노드 «끝»에 붙는다 ⇒ 옛 span 을 «부분 포함»으로 잘라 빈 껍데기 <span style="color"></span> 를 남겼다(이벨류 실측).
+       ⇒ 범위 글자가 정확히 한 color span 의 글자 전체면 그 span 을 다시 쓴다(텍스트블럭 spanExactlyCovering 과 같은 뜻 — 겹 span 금지).
+       그 밖의 경계 겹침(새 범위가 옛 span 끝에 정확히 닿는 경우)이 남기는 빈 span 은 아래에서 걷는다(글자 0 · br 0 인 span 만). */
+    const span = apply(c, host, range, _lnExactColorSpan(range, host))?.span || null;
+    host.querySelectorAll('span').forEach((sp) => { if (sp !== span && sp.textContent === '' && !sp.querySelector('br,img')) sp.remove(); });
     applied = true;
     if (host.getAttribute('contenteditable') === 'true') return span;   // 편집 중 — 커밋(finish/_gridEndEdit)이 싣는다
-    const html = _lnReadHtml(host);
+    /* 다시 그려진 «평문» 줄은 줄바꿈을 글자 \n 으로 갖는다(편집 중 DOM 은 <div>) — textHtml 쪽은 줄바꿈을 <br> 로만 쓴다(LR8 규약 ·
+       laurel 줄은 white-space:nowrap 이라 \n 글자는 한 줄로 뭉개진다). 거른 뒤라 \n 은 글자 노드에만 있다(속성값은 다시 지은 것). */
+    const html = _lnReadHtml(host).replace(/\r?\n/g, '<br>');
     const textHtml = richTextHasFormatting(html, GRID_RICH_TEXT_OPTS) ? html : '';
     H.previewLine(addr.r, addr.c, addr.li, { textHtml }, addr.np);
-    return span;
+    /* ★다시 그린 줄은 평문(\n 글자)↔textHtml(<br>) 로 글자 수가 갈릴 수 있어 _text-selection 의 «같은 글자» 대조가 다음 부름에서
+       저장 선택을 버린다(여러 줄 줄의 두 번째 칠하기가 줄 전체 색으로 빠짐) ⇒ 여기서 \n 없이 센 오프셋으로 바로 되세운다. */
+    _lnSelRestore(snap, rowOf());
+    return null;
   }, { within: row });
   return applied;
 }

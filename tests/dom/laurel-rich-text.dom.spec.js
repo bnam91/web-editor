@@ -557,7 +557,7 @@ async function editSelectTail3(page, sel, id) {
   expect(await page.evaluate((i) => document.getElementById(i).classList.contains('editing'), id), '전제 — 편집 중').toBe(true);
 }
 /* 패널 Fill 글자색 스와치를 마우스로 누르고(편집 blur) 피커 값을 바꾼다 */
-async function panelColor(page, hex) {
+async function panelColor(page, hex, want = 'CCC') {
   const sw = await page.evaluate(() => {
     const e = document.getElementById('grd-typo-color')?.closest('.prop-color-swatch');
     if (!e) return null;
@@ -570,7 +570,7 @@ async function panelColor(page, hex) {
   expect(sw.on, '전제 — 누르는 점이 스와치 위').toBe(true);
   await page.mouse.click(sw.x, sw.y);
   const saved = await page.evaluate(() => window.__textSelection?.getSavedTextSelection?.()?.range?.toString() ?? null);
-  expect(saved, '전제 — 패널을 눌러도 고른 글자(저장 선택)가 산다').toBe('CCC');
+  expect(saved, '전제 — 패널을 눌러도 고른 글자(저장 선택)가 산다').toBe(want);
   await page.evaluate((h) => {
     const p = document.getElementById('grd-typo-color');
     p.value = h;
@@ -666,6 +666,8 @@ test.describe('LR10 패널 부분 색 — laurel · 같은 길의 주인들', ()
     await editSelectTail3(page, sel, id);
     await page.keyboard.press('End');   // 선택 접기
     await page.waitForFunction(() => getSelection().isCollapsed);
+    /* ★전제 — «저장 선택»도 비었다(selectionchange 는 비동기라 DOM 선택이 접힌 직후엔 옛 CCC 가 남아 있을 수 있다 — 반복 5회 중 1회 실측) */
+    await page.waitForFunction(() => window.__textSelection?.getSavedTextSelection?.() === null);
     const sw = await page.evaluate(() => { const e = document.getElementById('grd-typo-color').closest('.prop-color-swatch'); const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
     await page.mouse.click(sw.x, sw.y);
     await page.evaluate(() => { const p = document.getElementById('grd-typo-color'); p.value = '#ff0000';
@@ -705,5 +707,83 @@ test.describe('LR10 패널 부분 색 — laurel · 같은 길의 주인들', ()
     await page.waitForFunction(() => !!document.getElementById('grd-typo-color'));
     await partialColorCase(page, 'grid', gid, KIND_GRID);
     expect(errs).toEqual([]);
+  });
+});
+
+/* ══ LR10h · LR10n — 부분 색 결함 둘(이벨류 · 76c8eded 뒤) ═════════════════════════════════════════════════════
+ * LR10h: hex 칸 길 — 타이핑 input 마다 + Enter 한 번 더 «같은 글자에 다시» 칠한다. 오프셋으로 되찾은 범위가 옛 span 을 부분 포함해
+ *   빈 껍데기 `<span style="color:…"></span>` 가 textHtml 에 남았다. 고침 = 정확히 그 글자 전체인 color span 은 다시 쓴다(+ 빈 span 걷기).
+ * LR10n: 줄바꿈 경계 선택(첫 줄 끝 3글자) — 되세우기 오프셋의 끝점이 \n 뒤로 밀려 `BBB\n</span>`. 고침 = 끝점을 \n 건너뛰기 «전에» 본다.
+ * 원인(LR10h · 실측): 다시 칠할 때 범위를 _text-selection _rangeFromOffsets 가 되찾는데, 시작이 «앞 글자 노드의 끝»에 붙어 옛 color span 을
+ *   «부분 포함»한다 → extractContents 가 span 을 복제해 가져가고 원본은 빈 껍데기로 남는다. 고침 셋(line-host.js lnApplyLinePartialColor):
+ *   ① 칠한 뒤 다시 그린 줄에 저장 선택을 \n 없이 센 오프셋으로 «span 안 글자에서 시작하게» 되세움(_lnSelRestore) ② 범위 글자 = 한 color span 의
+ *   글자 전체면 그 span 재사용(_lnExactColorSpan) ③ 남은 빈 span 걷기(새 범위가 옛 span 끝에 닿는 다른 선택 대비).
+ * 음성대조(1회씩 · cp 백업/복원 · cmp 같음 · LR10 묶음 8칸):
+ *   · ①만 끔 → 8 passed(②③ 가 막는다) · ①②③ 모두 끔(= 고치기 전) → 2 failed: LR10h(받은 값 `…CCC</span><span style="color:rgb(255, 0, 0)"></span>`)
+ *     + LR10b(색 대기 시간초과 — 이 깨뜨림과 무관한 갈래 · 흔들림으로 본다, 본 판 반복 실측은 보고서)
+ *   · _lnSelRestore 끝점 검사를 \n 건너뛰기 «뒤»로(옛 순서) → 1 failed: LR10n(받은 값 `AAA<span …>BBB<br></span>CCCDDD`) */
+const SWATCH_BYTES = 'AAABBB<span style="color:rgb(255, 0, 0)">CCC</span>';
+test.describe('LR10h·LR10n 부분 색 결함 둘', () => {
+  test('LR10h hex 칸으로 색 — textHtml 에 빈 span 0 · 스와치 길과 같은 바이트', async ({ page }) => {
+    const errs = await setup(page);
+    const id = await addBlock(page, 'laurel');
+    const sel = KIND.laurel.sel(id);
+    await editSelectTail3(page, sel, id);
+    const hx = await page.evaluate(() => { const e = document.getElementById('grd-typo-color-hex'); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
+    expect(hx, '전제 — 그 줄 Fill hex 칸').not.toBeNull();
+    await page.mouse.click(hx.x, hx.y);
+    expect(await page.evaluate(() => document.activeElement?.id), '전제 — hex 칸에 포커스').toBe('grd-typo-color-hex');
+    expect(await page.evaluate(() => window.__textSelection?.getSavedTextSelection?.()?.range?.toString() ?? null), '전제 — 고른 글자가 산다').toBe('CCC');
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.type('FF0000');      // input 마다 적용(유효한 3자리 FFF 도 한 번 칠한다)
+    await page.keyboard.press('Enter');      // Enter = onApply 한 번 더 + commit
+    await expect.poll(async () => (await state(page, 'laurel', id)).textHtml, 'hex 길 textHtml = 스와치 길과 같은 바이트').toBe(SWATCH_BYTES);
+    const s = await state(page, 'laurel', id);
+    const cc = await charColors(page, sel);
+    console.log('  LR10h:', JSON.stringify({ s, cc }));
+    expect((s.textHtml.match(/<span[^>]*><\/span>/g) || []).length, `빈 span 0 ${s.textHtml}`).toBe(0);
+    expect(cc.red, '빨강 = CCC 만').toBe('CCC');
+    expect(s.text).toBe(TXT);
+    expect(errs).toEqual([]);
+  });
+
+  test('LR10n 줄바꿈 경계 선택(첫 줄 끝 3글자) — span 은 BBB 에서 끝나고 줄바꿈은 밖 · 2줄 · 저장 왕복', async ({ page }) => {
+    const errs = await setup(page);
+    const id = await addBlock(page, 'laurel');
+    const sel = KIND.laurel.sel(id);
+    await page.evaluate((s) => document.querySelector(s)?.scrollIntoView({ block: 'center' }), sel);
+    const r = await waitStableRect(page, sel);
+    await page.mouse.dblclick(r.cx, r.cy);
+    await page.waitForFunction((s) => document.querySelector(s)?.getAttribute('contenteditable') === 'true', sel);
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.type('AAABBB');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('CCCDDD');
+    await page.waitForFunction((s) => (document.querySelector(s)?.innerText || '').replace(/\n+$/, '') === 'AAABBB\nCCCDDD', sel);
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('End');
+    for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowLeft');
+    await page.waitForFunction(() => getSelection().toString() === 'BBB');
+    await panelColor(page, '#ff0000', 'BBB');
+    await expect.poll(async () => /color/.test((await state(page, 'laurel', id)).textHtml || '')).toBe(true);
+    const s = await state(page, 'laurel', id);
+    const rl = await renderedLines(page, 'laurel', id);
+    const cc = await charColors(page, sel);
+    console.log('  LR10n:', JSON.stringify({ s, rl, cc }));
+    expect(s.text, 'text = 두 줄 평문').toBe('AAABBB\nCCCDDD');
+    expect(s.textHtml, 'span 은 BBB 에서 끝나고 줄바꿈(<br>)은 span 밖').toBe('AAA<span style="color:rgb(255, 0, 0)">BBB</span><br>CCCDDD');
+    expect(cc.red, '빨강 = BBB 만').toBe('BBB');
+    expect(rl.byHeight, `렌더 2줄 ${JSON.stringify(rl)}`).toBe(2);
+    const snap = await page.evaluate(() => { window.flushCurrentPage?.(); return window.serializeProject(); });
+    const errs2 = await bootApp(page);
+    await page.evaluate((d) => window.applyProjectData(d), JSON.parse(snap));
+    await page.waitForFunction((q) => !!document.querySelector(q), sel);
+    await page.evaluate((q) => document.querySelector(q)?.scrollIntoView({ block: 'center' }), sel);
+    const s2 = await state(page, 'laurel', id);
+    const rl2 = await renderedLines(page, 'laurel', id);
+    expect([s2.text, s2.textHtml], '다시 연 뒤 모델 같음').toEqual([s.text, s.textHtml]);
+    expect(rl2.byHeight, '다시 연 뒤 2줄').toBe(2);
+    expect(errs).toEqual([]);
+    expect(errs2).toEqual([]);
   });
 });
