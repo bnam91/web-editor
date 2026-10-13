@@ -2781,6 +2781,10 @@ function addShapeBlock(type = 'rectangle') {
 window.setSectionBg = function(sectionEl, color) {
   const sec = typeof sectionEl === 'string' ? document.getElementById(sectionEl) : sectionEl;
   if (!sec || !sec.classList.contains('section-block')) return false;
+  /* ★1013t2E1 — 그라데이션이 «끼면»(지금 값이든 새 값이든) 그리기를 prop-section.js _applySectionBg 한 자리에 맡긴다:
+     backgroundColor 만 쓰면 ⑴ 새 그라데이션은 안 그려지고 ⑵ 옛 그라데이션은 backgroundImage 에 남아 새 색을 덮는다.
+     ⛔단색→단색 길은 한 글자도 안 바꾼다(아래 그대로). */
+  const _gradInvolved = window.isSectionGradient?.(sec.dataset.bg) || window.isSectionGradient?.(color);
   if (color) {
     sec.style.backgroundColor = color;
     sec.dataset.bg = color;
@@ -2788,6 +2792,7 @@ window.setSectionBg = function(sectionEl, color) {
     sec.style.backgroundColor = '';
     delete sec.dataset.bg;
   }
+  if (_gradInvolved) window.applySectionBg?.(sec);
   window.triggerAutoSave?.();
   return true;
 };

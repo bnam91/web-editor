@@ -1131,6 +1131,12 @@ function rebindAll(opts = {}) {
     if (sec.dataset.bg && !sec.style.backgroundColor) {
       sec.style.backgroundColor = sec.dataset.bg;
     }
+    /* ★1013t2E1 — 색 자리에 그라데이션이 들어 있으면 위 줄은 무효 대입이다(backgroundColor 는 그라데이션을 못 받는다).
+       인라인 style 이 같이 저장돼 보통은 그대로 살아 오지만, dataset 이 정본이라 «인라인이 빠진» 길(템플릿·붙여넣기)에서도 다시 세운다.
+       ⛔그림이 있으면 건드리지 않는다 — 합성은 prop-section.js _applySectionBg 한 자리의 몫이다(아래 「배경 이미지 복원」). */
+    if (!sec.dataset.bgImg && !sec.style.backgroundImage && window.isSectionGradient?.(sec.dataset.bg)) {
+      sec.style.backgroundImage = sec.dataset.bg;
+    }
     // section-inner paddingX 복원
     const secInner = sec.querySelector('.section-inner');
     if (secInner && secInner.dataset.paddingX !== undefined && secInner.dataset.paddingX !== '') {
