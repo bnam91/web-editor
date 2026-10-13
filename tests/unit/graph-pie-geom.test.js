@@ -281,4 +281,13 @@ test('U14 조각 크기 — grow 20 이면 그 조각의 바깥 반지름만 600
   assert.equal(piePaths(V, 0, 10, { grow: [999] }).outer[0], 1000);
   assert.equal(piePaths(V, 0, 10, { grow: ['20'] }).outer[0], 600, '글자 수도 받는다');
   assert.doesNotMatch(piePaths([1e308, 1e308, 1], 55, 40, { start: 77, grow: [30, 'x', 30] }).paths.join('|'), /NaN|Infinity|undefined/);
+  /* 점유율은 양수인데 각 폭이 0 으로 접힌 조각(값 비 1e17 : 1) — 틈이 있으면 꼭짓점 식이 0/0 이 됐다(1012 판도 'M NaN NaN'). 그릴 폭이 없으니 d 는 빈 글자 */
+  for (const [v, k] of [[[1e17, 1], 1], [[1e308, 1e308, 1], 2]]) for (const hole of [0, 55]) {
+    const t = piePaths(v, hole, 10);
+    assert.equal(t.paths.length, v.length, '전제');
+    assert.ok(t.shares[k] > 0 && t.angles[k][1] === t.angles[k][0], `전제: 조각 ${k} 는 점유율 양수 · 각 폭 0 (${JSON.stringify(v)})`);
+    assert.equal(t.paths[k], '', '폭 0 조각은 안 그린다');
+    assert.doesNotMatch(t.paths.join('|'), /NaN|Infinity|undefined/);
+    assert.ok(t.paths.slice(0, k).every(d => d.length > 0), '나머지 조각은 그대로 그려진다');
+  }
 });

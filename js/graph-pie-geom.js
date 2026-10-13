@@ -47,6 +47,7 @@
    *   · 오목(180° 초과): 중심 둘레를 반지름 h 의 호로 돈다(두 변을 꼭짓점까지 늘이면 중심 «너머»로 홈이 파인다). */
   var gapSlice = function (a0, a1, r, h, Ro) {   // Ro = 이 조각의 바깥 반지름(1013t1C4 — 안 키웠으면 R 그대로)
     var span = a1 - a0, deg = 180 / Math.PI;
+    if (!(span > 0)) return '';   // 점유율은 양수인데 각 폭이 부동소수에서 0 으로 접힌 조각(1e17 : 1) — 그릴 폭이 없다(아래 꼭짓점 식이 0/0 = NaN 이 된다 · 1013t1C4 U14 가 잡았다)
     var dR = Math.asin(h / Ro) * deg;
     var o0 = a0 + dR, o1 = a1 - dR;
     var head = pt(o0, Ro) + ' A ' + f(Ro) + ' ' + f(Ro) + ' 0 ' + ((o1 - o0) > 180 ? 1 : 0) + ' 1 ' + pt(o1, Ro);
