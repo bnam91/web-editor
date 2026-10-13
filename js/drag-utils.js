@@ -882,7 +882,13 @@ function _renderPie(block, { items, chartH, labelSize }) {
   const gap = (d.pieGap !== undefined && Number.isFinite(_g)) ? Math.min(L.PIE_GAP_MAX, Math.max(L.PIE_GAP_MIN, _g)) : L.PIE_GAP;
   const _s = parseInt(d.pieStart);   // 1013t1C2 — 시작 각도(도 · 없으면 0). 범례·% 는 항목 순서 그대로다
   const start = Number.isFinite(_s) ? ((_s % 360) + 360) % 360 : 0;
-  const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, gap, { start });   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
+  /* 1013t1C4 — 조각 크기(items[i].pieGrow · 바깥 반지름에 더하는 % · 0~PIE_GROW_MAX). 키운 조각은 viewBox 밖으로 나가므로 viewBox 를 «대칭으로» 넓힌다
+       ⇒ 키운 조각 «말고는» path 글자가 그대로다(전체를 줄여 그리면 모든 d 가 바뀐다 · overflow:visible 은 아래 범례를 덮는다). 안 키웠으면 viewBox 글자도 옛 그대로. */
+  const _pct = (v, hi) => { const n = parseInt(v); return Number.isFinite(n) ? Math.min(hi, Math.max(0, n)) : 0; };
+  const grow = items.map(it => _pct(it && it.pieGrow, L.PIE_GROW_MAX));
+  const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, gap, { start, grow });   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
+  const _m = Math.ceil(geo.extent);
+  const viewBox = _m ? `${-_m} ${-_m} ${1000 + 2 * _m} ${1000 + 2 * _m}` : '0 0 1000 1000';
   const pcts = window.GRAPH_PIE_GEOM.piePercents(_vals);                // 합이 정확히 100(최대 잔여법)
   const _lc = d.labelColor || '';
   const _vCss = (d.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.vlabelColor || _lc)));
@@ -902,7 +908,7 @@ function _renderPie(block, { items, chartH, labelSize }) {
     + `<span class="grb-pie-val" style="${_vCss}">${pcts[i]}%</span></span>`).join('');
   block.innerHTML = `
       <div class="grb-pie-wrap" style="height:${chartH}px">
-        <svg class="grb-pie-svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">${slices}${emptyEl}</svg>
+        <svg class="grb-pie-svg" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet">${slices}${emptyEl}</svg>
       </div>
       <div class="grb-pie-legend" style="font-size:${labelSize}px">${legend}</div>`;
   if (_selIdx >= 0) grbPieSelect(block, _selIdx);

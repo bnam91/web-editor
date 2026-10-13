@@ -25,13 +25,15 @@
        0 = 틈 없음(조각이 맞닿는다) · 40 = 높이 240 에서 약 10px. 패널 슬라이더·숫자칸(prop-graph.js)과 렌더러(_renderPie)가 같이 읽는다(기획 값 — 현빈 확인 전). */
   /* ★PIE_START_MIN · MAX(1013t1C2 · 2026-10-13) — 시작 각도 칸(dataset.pieStart · 도 · 12시 = 0 · 시계 방향)의 한계. 키가 없으면 0(옛 저장본 그대로).
        360 은 0 과 같은 그림이라 위 끝은 359(기획 값 — 현빈 확인 전). */
+  /* ★PIE_GROW_MAX(1013t1C4 · 2026-10-13) — 조각 크기 칸(items[i].pieGrow · 바깥 반지름에 더하는 %)의 위 끝. 0 = 안 키움(키 없음).
+       키운 만큼 viewBox 를 대칭으로 넓혀 그린다 ⇒ 30 이면 나머지 조각이 화면에서 1/1.3 로 작아진다(기획 값 — 현빈 확인 전). */
   /* ★SHAPE_SVG_MAX · SHAPE_FILL_MAX_DEFAULT · SHAPE_TRACK_OPACITY · SEG_GAP_DEFAULT(1012t1G2·G3·G4 · 2026-10-12) — 「SVG 를 그래프 모양으로」(js/graph-shape.js).
        SHAPE_SVG_MAX 60000 = 블럭에 실리는 «정규화된» 사용자 SVG 글자 수의 상한(마스크 URL 은 % 인코딩으로 그 세 배쯤까지 는다 — 저장본 비대 방지).
        SHAPE_FILL_MAX_DEFAULT 100 = 모양일 때 채움 분모(값 하나짜리 채움 그래프가 늘 꽉 차지 않게 — 사각 막대의 max(items) 와 다르다).
        SHAPE_TRACK_OPACITY 0.25 = 안 찬 부분(트랙)의 불투명도 — 색은 채움과 같은 색(새 색 0). SEG_GAP_DEFAULT 2 = 마디 사이 틈(px).
        렌더러(drag-utils.js · graph-shape.js)와 패널(prop-graph.js)이 «이 값들»을 읽는다(기획 값 — 현빈 확인 전). */
   var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3,
-    PIE_HOLE_MIN: 20, PIE_HOLE_MAX: 80, PIE_HOLE_DEFAULT: 55, PIE_GAP: 10, PIE_GAP_MIN: 0, PIE_GAP_MAX: 40, PIE_START_MIN: 0, PIE_START_MAX: 359,
+    PIE_HOLE_MIN: 20, PIE_HOLE_MAX: 80, PIE_HOLE_DEFAULT: 55, PIE_GAP: 10, PIE_GAP_MIN: 0, PIE_GAP_MAX: 40, PIE_START_MIN: 0, PIE_START_MAX: 359, PIE_GROW_MAX: 30,
     SHAPE_SVG_MAX: 60000, SHAPE_FILL_MAX_DEFAULT: 100, SHAPE_TRACK_OPACITY: 0.25, SEG_GAP_DEFAULT: 2 });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_LIMITS;
   if (root) root.GRAPH_LIMITS = GRAPH_LIMITS;

@@ -245,3 +245,40 @@ test('U13 시작 각도 — start 90 이면 첫 조각이 3시에서 떠난다 �
   assert.deepEqual(piePaths([7], 0, 10, { start: 90 }).paths, piePaths([7], 0, 10).paths);
   assert.doesNotMatch(piePaths([1e308, 1e308, 0, 'x'], 55, 10, { start: 123 }).paths.join('|'), /NaN|Infinity|undefined/);
 });
+
+test('U14 조각 크기 — grow 20 이면 그 조각의 바깥 반지름만 600 · 다른 조각 d 무변 · extent 100 · grow 0 은 옛 산출 그대로', () => {
+  const V = [30, 20, 15, 15, 10, 10];
+  assert.equal(LIM.PIE_GROW_MAX, 30, '위 끝은 graph-limits 한 자리');
+  for (const [hole, gap] of [[0, 10], [55, 10], [0, 0], [55, 0]]) {
+    const b = piePaths(V, hole, gap), g = piePaths(V, hole, gap, { grow: [20] });
+    assert.equal(g.paths.length, 6, '전제');
+    assert.deepEqual(piePaths(V, hole, gap, { grow: [0, 0, 0, 0, 0, 0] }), b, `grow 0 = 미지정 (구멍 ${hole} · 틈 ${gap})`);
+    assert.deepEqual(piePaths(V, hole, gap, { grow: [] }), b);
+    assert.deepEqual(g.outer, [600, 500, 500, 500, 500, 500], '바깥 반지름은 그 조각만');
+    assert.equal(g.extent, 100, 'viewBox 밖으로 나간 길이');
+    assert.equal(b.extent, 0); assert.deepEqual(b.outer, [500, 500, 500, 500, 500, 500]);
+    assert.notEqual(g.paths[0], b.paths[0], '전제: 키운 조각의 d 는 다르다');
+    assert.deepEqual(g.paths.slice(1), b.paths.slice(1), '다른 조각의 d 는 한 글자도 안 변한다');
+    assert.deepEqual(g.angles, b.angles, '경계각은 크기와 무관'); assert.deepEqual(g.shares, b.shares);
+    const a = arcs(g.paths[0].replace(/-/g, ''));   // 바깥 호 반지름 600 · 구멍 호는 그대로(부호는 반지름과 무관)
+    assert.equal(a[0].r, 600);
+    if (hole) assert.equal(a[1].r, 275, '구멍 반지름은 모든 조각이 같다');
+  }
+  assert.deepEqual(piePaths(V, 0, 10).mids, [54, 144, 207, 261, 306, 342], '이등분각(도)');
+  assert.deepEqual(piePaths(V, 0, 10, { start: 90 }).mids[0], 144, '이등분각은 시작 각도를 따라 돈다');
+  assert.match(piePaths(V, 0, 10, { grow: [20] }).paths[0], /^M 505\.00 [\d.]+ L 505\.00 -99\.98 A 600\.00 600\.00 0 0 1 /, '12시 변은 같은 세로선(x = 505) 위에서 600 까지');
+  /* 여럿을 키우면 extent = 가장 큰 것 · 값 0 조각의 grow 는 안 센다 · 온 원도 커진다 */
+  assert.equal(piePaths(V, 0, 10, { grow: [10, 0, 30] }).extent, 150);
+  const z = piePaths([0, 3, 1], 0, 10, { grow: [30, 0, 0] });
+  assert.equal(z.extent, 0, '값 0 조각은 안 키운다'); assert.deepEqual(z.outer, [500, 500, 500]); assert.equal(z.paths[0], '');
+  const one = piePaths([7], 50, 10, { grow: [20] });
+  assert.equal(one.extent, 100);
+  assert.deepEqual(arcs(one.paths[0].replace(/-/g, '')).map(x => x.r), [600, 600, 250, 250], '온 원: 바깥만 커지고 구멍은 그대로');
+  assert.equal(piePaths([0, 0], 0, 10, { grow: [20, 20] }).extent, 0, '합 0 이면 0');
+  /* 험한 grow — 0 으로(음수·글자·NaN) · 100 에서 잘린다 · 문자열에 NaN 0건 */
+  const base = piePaths(V, 0, 10);
+  for (const bad of [[-5], ['x'], [NaN], [null], [Infinity], 'nope', null, 7]) assert.deepEqual(piePaths(V, 0, 10, { grow: bad }).paths, base.paths, `험한 grow ${JSON.stringify(bad)}`);
+  assert.equal(piePaths(V, 0, 10, { grow: [999] }).outer[0], 1000);
+  assert.equal(piePaths(V, 0, 10, { grow: ['20'] }).outer[0], 600, '글자 수도 받는다');
+  assert.doesNotMatch(piePaths([1e308, 1e308, 1], 55, 40, { start: 77, grow: [30, 'x', 30] }).paths.join('|'), /NaN|Infinity|undefined/);
+});

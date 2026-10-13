@@ -8,6 +8,7 @@
  *   C2 — F1 시작 각도가 조각을 돌린다(범례 순서·% 는 그대로) · 패널 칸
  *   조각 고르기(C4 전제) — S1 첫 클릭 = 블럭 · 둘째 클릭 = 조각(표식 + Slice 절) · S2 범례 클릭 = 해제 · S3 떠나면 해제 · S4 저장본에 표식 0
  *     · S5 패널 항목 줄 버튼 · S6 다시 그려도 표식 유지 · S7 조각을 잡고 끌기는 고르기가 아니다
+ *   C4 조각 크기 — H1 pieGrow 가 그 조각만 바깥으로 키우고 viewBox 를 대칭으로 넓힌다 · H2 라벨을 쳐도·항목을 다시 써도 pieGrow 유지 · H3 Slice 절 「크기」 칸 · ⌘Z
  *   G0 골든 핀: 새 키가 «하나도 없는» 블럭의 그림(innerHTML)이 1012 판과 바이트가 같다 — 1013t1C0 에서 «고치기 전 판» 위에 박았다.
  * 실행: bash ~/taeyang-098/run-test.sh dom tests/dom/graph-pie-1013.dom.spec.js */
 const { test, expect } = require('@playwright/test');
@@ -461,5 +462,93 @@ test('S7 조각을 잡고 블럭을 끄는 것은 조각 고르기가 아니다 
   const b = await page.evaluate(() => { const g = document.querySelector('#sG .graph-block'); return g ? { slices: g.querySelectorAll('.grb-pie-slice').length, marks: g.querySelectorAll('.grb-pie-cell-selected').length } : null; });
   expect(b, '끈 뒤에도 블럭은 있고 · 조각 표식은 없다').toEqual({ slices: 3, marks: 0 });
   expect(await page.evaluate(() => document.querySelectorAll('#canvas .grb-pie-cell-selected').length)).toBe(0);
+  expect(errs).toEqual([]);
+});
+
+/* ── C4 조각 크기(items[i].pieGrow · 바깥 반지름에 더하는 % · 0 이면 키 없음) ── */
+const vbOf = (page, id) => page.evaluate((id) => document.getElementById(id).querySelector('.grb-pie-svg').getAttribute('viewBox'), id);
+test('H1 조각 크기 — pieGrow 20: 그 조각의 1.1R 점이 채움 안 · viewBox 가 대칭으로 넓어진다 · 다른 조각은 그대로', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3 });
+  expect(await vbOf(page, id), '전제: 안 키운 원형의 viewBox').toBe('0 0 1000 1000');
+  const none = [false, false, false];
+  expect(await hit(page, id, 45, 1.1), '전제: 조각0 가운데 각의 1.1R 은 원 밖').toEqual(none);
+  expect(await hit(page, id, 45, 0.9), '전제: 0.9R 은 조각0 안').toEqual([true, false, false]);
+  const d0 = await dOf(page, id);
+  await setDs(page, id, { items: V3.map((it, i) => i === 0 ? { ...it, pieGrow: 20 } : it) });
+  expect(await hit(page, id, 45, 1.1), 'pieGrow 20: 1.1R 이 조각0 안').toEqual([true, false, false]);
+  expect(await hit(page, id, 45, 1.25), '1.2R 너머는 밖').toEqual(none);
+  expect(await vbOf(page, id), 'viewBox 대칭 확장(나간 길이 100)').toBe('-100 -100 1200 1200');
+  expect(await hit(page, id, 135, 1.1), '다른 조각은 1.1R 이 밖').toEqual(none);
+  expect(await hit(page, id, 270, 1.1)).toEqual(none);
+  const d1 = await dOf(page, id);
+  expect(d1[0], '전제: 키운 조각의 d 는 다르다').not.toBe(d0[0]);
+  expect(d1.slice(1), '다른 조각의 d 는 한 글자도 안 변한다').toEqual(d0.slice(1));
+  /* 도너츠에서도 — 바깥만 커지고 구멍은 같다 */
+  await setDs(page, id, { pieDonut: '1' });
+  expect(await hit(page, id, 45, 1.1)).toEqual([true, false, false]);
+  expect(await hit(page, id, 45, 0.5), '구멍(0.55R 안)은 그대로 빈다').toEqual(none);
+  /* 한계 밖은 렌더가 자른다(999 → PIE_GROW_MAX 30) · 0·글자는 안 키움 = 옛 viewBox */
+  await setDs(page, id, { pieDonut: null, items: V3.map((it, i) => i === 0 ? { ...it, pieGrow: 999 } : it) });
+  expect(await vbOf(page, id)).toBe(await page.evaluate(() => { const m = 500 * window.GRAPH_LIMITS.PIE_GROW_MAX / 100; return `${-m} ${-m} ${1000 + 2 * m} ${1000 + 2 * m}`; }));
+  await setDs(page, id, { items: V3.map((it, i) => i === 0 ? { ...it, pieGrow: 'abc' } : it) });
+  expect(await vbOf(page, id)).toBe('0 0 1000 1000');
+  expect(await dOf(page, id)).toEqual(d0);
+  expect(await htmlOf(page, id)).not.toMatch(/NaN|Infinity|undefined/);
+  expect(errs).toEqual([]);
+});
+
+test('H2 조각 크기 보존 — 패널에서 라벨·값을 쳐도 · updateGraphBlock 으로 항목을 다시 써도 pieGrow 가 남는다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie', items: V3.map((it, i) => i === 1 ? { ...it, pieGrow: 20 } : it) });
+  expect((await itemsOf(page, id)).map(i => i.pieGrow ?? null), '전제: 둘째 항목에 pieGrow').toEqual([null, 20, null]);
+  await openPanel(page, id);
+  const rows = page.locator('#grb-data-list .grb-data-item:not(.grb-seg-item)');
+  await expect(rows, '전제: 항목 줄 3').toHaveCount(3);
+  await rows.nth(1).locator('.grb-data-label-input').fill('나!');
+  await expect.poll(async () => (await itemsOf(page, id))[1].label).toBe('나!');
+  expect((await itemsOf(page, id)).map(i => i.pieGrow ?? null), '라벨 한 글자에 떨어지지 않는다').toEqual([null, 20, null]);
+  await rows.nth(0).locator('.grb-data-val-input').fill('3');
+  await expect.poll(async () => (await itemsOf(page, id))[0].value).toBe(3);
+  expect((await itemsOf(page, id)).map(i => i.pieGrow ?? null)).toEqual([null, 20, null]);
+  expect(await vbOf(page, id), '그림도 키운 채').toBe('-100 -100 1200 1200');
+  /* 항목을 통째로 다시 쓰는 길(carryItemExtras) */
+  const r = await page.evaluate((id) => { const fn = window.updateGraphBlock; if (typeof fn !== 'function') return 'no-fn';
+    try { const o = fn(id, { items: [{ label: 'x', value: 1 }, { label: 'y', value: 2 }, { label: 'z', value: 3 }] }); return (o && o.ok === false) ? 'fail: ' + o.code + ' ' + o.message : 'ok'; } catch (e) { return 'threw: ' + e.message; } }, id);
+  expect(r, '전제: updateGraphBlock 이 있다').toBe('ok');
+  await expect.poll(async () => (await itemsOf(page, id)).map(i => i.label)).toEqual(['x', 'y', 'z']);
+  expect((await itemsOf(page, id)).map(i => i.pieGrow ?? null), 'updateGraphBlock 뒤에도').toEqual([null, 20, null]);
+  expect(errs).toEqual([]);
+});
+
+test('H3 Slice 절 「크기」 칸 — 고른 조각에만 쓰고 · 0 이면 키가 지워지고 · 999 → 30 되써지고 · ⌘Z 한 번에 돌아온다', async ({ page }) => {
+  const { errs, id } = await setup(page, { type: 'pie' });
+  expect(await page.locator('#grb-pie-grow-slider').count(), '전제: 조각을 안 골랐으면 칸이 없다').toBe(0);
+  await pickSlice(page, id, 1);
+  expect(await page.evaluate(() => { const s = document.getElementById('grb-pie-grow-slider'), n = document.getElementById('grb-pie-grow-number'); return [s.min, s.max, s.value, n.min, n.max, n.value]; }),
+    '칸의 한계 = GRAPH_LIMITS · 처음 값 0').toEqual(await page.evaluate(() => { const a = ['0', String(window.GRAPH_LIMITS.PIE_GROW_MAX), '0']; return [...a, ...a]; }));
+  expect(await page.evaluate(() => document.getElementById('grb-pie-grow-slider').closest('.prop-section').id), '칸은 Slice 절 안').toBe('grb-pie-slice-section');
+  const grows = async () => (await itemsOf(page, id)).map(i => i.pieGrow ?? null);
+  expect(await grows(), '전제: 키 없음').toEqual([null, null, null, null, null]);
+  await page.evaluate(() => { const s = document.getElementById('grb-pie-grow-slider'); s.value = '15'; s.dispatchEvent(new Event('input', { bubbles: true })); });
+  expect(await grows(), '고른 조각(1)에만').toEqual([null, 15, null, null, null]);
+  expect(await vbOf(page, id)).toBe('-75 -75 1150 1150');
+  expect(await page.inputValue('#grb-pie-grow-number')).toBe('15');
+  expect((await markOf(page, id)).marks, '칸을 움직여도 조각 선택 유지').toEqual([1]);
+  await page.evaluate(() => document.getElementById('grb-pie-grow-slider').dispatchEvent(new Event('change', { bubbles: true })));   // 놓기 = 히스토리 한 칸
+  await page.locator('#grb-pie-grow-number').fill('999');
+  await page.locator('#grb-pie-grow-number').press('Enter');
+  await expect.poll(grows).toEqual([null, 30, null, null, null]);
+  expect(await page.inputValue('#grb-pie-grow-number')).toBe('30');
+  expect(await page.inputValue('#grb-pie-grow-slider')).toBe('30');
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate(() => JSON.parse(document.querySelector('#sG .graph-block').dataset.items).map(i => i.pieGrow ?? null))).toEqual([null, 15, null, null, null]);
+  expect(await page.evaluate(() => document.querySelector('#sG .graph-block .grb-pie-svg').getAttribute('viewBox')), '되돌린 그림 = 15 때').toBe('-75 -75 1150 1150');
+  /* 0 으로 내리면 키가 지워진다 — 안 만진 항목과 같은 꼴 · viewBox 도 옛 글자 */
+  const id2 = await page.evaluate(() => document.querySelector('#sG .graph-block').id);
+  await page.evaluate((id2) => { const b = document.getElementById(id2); b.classList.add('selected'); window.grbPieSelect(b, 1); window.showGraphProperties(b); }, id2);
+  await expect(page.locator('#grb-pie-grow-slider'), '전제: 되돌린 뒤 Slice 절을 다시 열었다').toHaveValue('15');
+  await page.evaluate(() => { const s = document.getElementById('grb-pie-grow-slider'); s.value = '0'; s.dispatchEvent(new Event('input', { bubbles: true })); });
+  expect(await page.evaluate((id2) => 'pieGrow' in JSON.parse(document.getElementById(id2).dataset.items)[1], id2)).toBe(false);
+  expect(await vbOf(page, id2)).toBe('0 0 1000 1000');
   expect(errs).toEqual([]);
 });

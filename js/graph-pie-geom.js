@@ -13,6 +13,9 @@
  *   · 틈: gap(viewBox 단위) > 0 이고 값 있는 조각이 둘 이상이면 조각의 두 변을 평행하게 안으로 민다(바탕색 선을 덧칠하지 않는다 ⇒ 어떤 바탕 위에서도 틈).
  *   · 시작 각도(1013t1C2): opts.start(도 · 12시 = 0 · 시계 방향)만큼 첫 조각의 시작을 돌린다. 유한하지 않으면 0 · 360 으로 접는다(450 ≡ 90 · −90 ≡ 270).
  *     opts 를 안 주거나 start 가 0 이면 산출이 옛 판과 «바이트가 같다»(0 + x 는 x 와 같은 부동소수).
+ *   · 조각 크기(1013t1C4): opts.grow[i](바깥 반지름에 더하는 %)만큼 «그 조각의 바깥 반지름만» 키운다 — Ro_i = R × (1 + grow_i / 100). 구멍 반지름은 모든 조각이 같다.
+ *     키운 조각은 viewBox(0~1000) 밖으로 나간다 ⇒ extent(가장 멀리 나간 길이 · viewBox 단위)를 같이 돌려준다 — 그리는 쪽이 viewBox 를 그만큼 넓힌다.
+ *     grow 가 없거나 0 이면 그 조각의 d 는 옛 판과 «바이트가 같다»(Ro === R). 값 0 조각의 grow 는 안 센다. 유한하지 않거나 음수면 0 · 100 에서 잘린다.
  *   · 산출 문자열에 NaN·Infinity 가 들어갈 길이 없다(모든 수가 위 가드를 지난 유한값에서 나온다). */
 (function (root) {
   var VIEW = 1000, C = 500, R = 500, FULL = 0.9999;
@@ -42,11 +45,11 @@
    *   (각도로 깎으면 안쪽이 좁아진다). 반지름 rad 인 원과 민 변이 만나는 각 = 변의 각 ± asin(h / rad).
    *   · 볼록(180° 이하): 두 변이 만나는 꼭짓점 = 이등분선 위 h / sin(폭/2). 구멍이 그 꼭짓점보다 안쪽이면 구멍은 틈에 묻힌다 ⇒ 꼭짓점 꼴.
    *   · 오목(180° 초과): 중심 둘레를 반지름 h 의 호로 돈다(두 변을 꼭짓점까지 늘이면 중심 «너머»로 홈이 파인다). */
-  var gapSlice = function (a0, a1, r, h) {
+  var gapSlice = function (a0, a1, r, h, Ro) {   // Ro = 이 조각의 바깥 반지름(1013t1C4 — 안 키웠으면 R 그대로)
     var span = a1 - a0, deg = 180 / Math.PI;
-    var dR = Math.asin(h / R) * deg;
+    var dR = Math.asin(h / Ro) * deg;
     var o0 = a0 + dR, o1 = a1 - dR;
-    var head = pt(o0, R) + ' A ' + f(R) + ' ' + f(R) + ' 0 ' + ((o1 - o0) > 180 ? 1 : 0) + ' 1 ' + pt(o1, R);
+    var head = pt(o0, Ro) + ' A ' + f(Ro) + ' ' + f(Ro) + ' 0 ' + ((o1 - o0) > 180 ? 1 : 0) + ' 1 ' + pt(o1, Ro);
     if (r > h && Math.asin(h / r) * deg < span / 2) {   // 고리 — 안쪽 호가 남는다
       var dr = Math.asin(h / r) * deg, i0 = a0 + dr, i1 = a1 - dr;
       return 'M ' + head + ' L ' + pt(i1, r) + ' A ' + f(r) + ' ' + f(r) + ' 0 ' + ((i1 - i0) > 180 ? 1 : 0) + ' 0 ' + pt(i0, r) + ' Z';
@@ -57,13 +60,15 @@
   /** @param {Array} values 항목 값(아무 꼴) @param {number} holePct 구멍 비율 %(0 = 꽉 찬 원형)
    *  @param {number} [gap] 조각 사이 틈의 폭(viewBox 단위 · 기본 0 = 틈 없음 — 옛 산출과 바이트가 같다). 값 있는 조각이 하나뿐이면 틈 0.
    *    조각이 틈보다 좁으면 «그 조각 쪽» 깎는 양을 줄인다(바깥 호가 제 폭의 절반은 남는다 — 사라지지 않는다).
-   *  @param {{ start?: number }} [opts] start = 시작 각도(도). (1013t1C — 조각별 크기 grow · 밀어내기 pull 이 같은 자리에 붙는다)
-   *  @returns {{ paths: string[], shares: number[], angles: number[][], total: number, empty: boolean, hole: number, gap: number, start: number }}
-   *    angles 는 틈을 깎기 «전»의 경계각(이어 붙는다 · 폭의 합 360 · 첫 시작 = start). */
+   *  @param {{ start?: number, grow?: number[] }} [opts] start = 시작 각도(도) · grow[i] = i 번 조각의 바깥 반지름에 더하는 %. (1013t1C5 밀어내기 pull[i] 가 같은 자리에 붙는다)
+   *  @returns {{ paths: string[], shares: number[], angles: number[][], total: number, empty: boolean, hole: number, gap: number, start: number, outer: number[], mids: number[], extent: number }}
+   *    angles 는 틈을 깎기 «전»의 경계각(이어 붙는다 · 폭의 합 360 · 첫 시작 = start). outer[i] = 그 조각의 바깥 반지름 · mids[i] = 이등분각(도)
+   *    · extent = 값 있는 조각 중 viewBox 밖으로 가장 멀리 나간 길이(max(outer) − R · 0 이상). */
   function piePaths(values, holePct, gap, opts) {
     var o = (opts && typeof opts === 'object') ? opts : {};
     var st = Number(o.start);
     var start = Number.isFinite(st) ? ((st % 360) + 360) % 360 : 0;
+    var pctOf = function (list, i) { var p = Number(Array.isArray(list) ? list[i] : 0); return (Number.isFinite(p) && p > 0) ? Math.min(100, p) : 0; };
     var n = norm(values), vals = n.vals, total = n.total;
     var h = Number(holePct);
     var hole = (Number.isFinite(h) && h > 0) ? Math.min(95, h) : 0;
@@ -71,22 +76,26 @@
     var g = Number(gap);
     var live = vals.filter(function (v) { return v > 0; }).length;
     var half = (Number.isFinite(g) && g > 0 && live > 1) ? Math.min(g, R / 5) / 2 : 0;
-    var out = { paths: [], shares: [], angles: [], total: total, empty: !(total > 0), hole: hole, gap: half * 2, start: start };
+    var out = { paths: [], shares: [], angles: [], total: total, empty: !(total > 0), hole: hole, gap: half * 2, start: start, outer: [], mids: [], extent: 0 };
     var acc = 0;
-    vals.forEach(function (v) {
+    vals.forEach(function (v, i) {
       var share = total > 0 ? v / total : 0;
       var a0 = start + acc * 360, a1 = start + (acc + share) * 360;
       acc += share;
       out.shares.push(share);
       out.angles.push([a0, a1]);
+      out.mids.push((a0 + a1) / 2);
+      var Ro = share > 0 ? R * (1 + pctOf(o.grow, i) / 100) : R;   // 값 0 조각은 안 키운다(그릴 것이 없다 — extent 에도 안 든다)
+      out.outer.push(Ro);
       if (!(share > 0)) { out.paths.push(''); return; }
-      if (share >= FULL) { out.paths.push(ring(R, 1) + (r > 0 ? ' ' + ring(r, 0) : '')); return; }
-      if (half > 0) { out.paths.push(gapSlice(a0, a1, r, Math.min(half, R * Math.sin(Math.min(a1 - a0, 180) / 4 * Math.PI / 180)))); return; }
+      if (Ro - R > out.extent) out.extent = Ro - R;
+      if (share >= FULL) { out.paths.push(ring(Ro, 1) + (r > 0 ? ' ' + ring(r, 0) : '')); return; }
+      if (half > 0) { out.paths.push(gapSlice(a0, a1, r, Math.min(half, R * Math.sin(Math.min(a1 - a0, 180) / 4 * Math.PI / 180)), Ro)); return; }
       var large = (a1 - a0) > 180 ? 1 : 0;
-      var arcOut = 'A ' + f(R) + ' ' + f(R) + ' 0 ' + large + ' 1 ' + pt(a1, R);
+      var arcOut = 'A ' + f(Ro) + ' ' + f(Ro) + ' 0 ' + large + ' 1 ' + pt(a1, Ro);
       out.paths.push(r > 0
-        ? 'M ' + pt(a0, R) + ' ' + arcOut + ' L ' + pt(a1, r) + ' A ' + f(r) + ' ' + f(r) + ' 0 ' + large + ' 0 ' + pt(a0, r) + ' Z'
-        : 'M ' + f(C) + ' ' + f(C) + ' L ' + pt(a0, R) + ' ' + arcOut + ' Z');
+        ? 'M ' + pt(a0, Ro) + ' ' + arcOut + ' L ' + pt(a1, r) + ' A ' + f(r) + ' ' + f(r) + ' 0 ' + large + ' 0 ' + pt(a0, r) + ' Z'
+        : 'M ' + f(C) + ' ' + f(C) + ' L ' + pt(a0, Ro) + ' ' + arcOut + ' Z');
     });
     return out;
   }

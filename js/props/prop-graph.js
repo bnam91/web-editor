@@ -5,7 +5,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
 
-const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
@@ -127,12 +127,21 @@ const SHAPE_FAIL_TOAST = { TOO_LARGE: '⚠️ SVG가 너무 큽니다', NOT_SVG:
 const ITEM_SHAPE_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V2M3.5 4.5 6 2l2.5 2.5M2 10h8"/></svg>';
 /* 1013t1C4 — 원형 «조각 고르기»의 패널 쪽. 고른 조각 = 캔버스 표식 하나(drag-utils.js grbPieSelected — 패널은 따로 안 든다).
  *   · Data 절 항목 줄의 작은 버튼(.grb-data-icon-btn[data-slice-index]) = 그 조각 고르기/풀기(캔버스에서 조각을 누르는 것과 같은 일).
- *   · Slice 절 = 고른 조각이 있을 때만 Pie Settings 뒤에. 머리 줄 「n번 · 라벨」 + 조각별 설정 줄(pieSliceRowsHTML — 크기 · 밀어내기 · 라벨이 여기 붙는다).
+ *   · Slice 절 = 고른 조각이 있을 때만 Pie Settings 뒤에. 머리 줄 「n번 · 라벨」 + 조각별 설정 줄(pieSliceRowsHTML — 「크기」 · 뒤로 밀어내기 · 라벨이 여기 붙는다).
  *   패널 쪽 클래스 이름에 selected 를 쓰지 않는다(켜짐 = 기존 .active) — 선택 마커 센서스가 캔버스 마커만 세게. */
 const ITEM_SLICE_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="4.5"/><path d="M6 1.5V6l3.2 3.2"/></svg>';
 const _sliceName = (items, i) => `${i + 1}번 · ${(items[i] && items[i].label) || ''}`;
-function pieSliceRowsHTML(item) {   // 조각별 설정 줄 — 지금은 없음(1013t1C4 「크기」가 첫 줄)
-  return '';
+/* 조각(항목) 수준 키 — items[i] 에 산다. 패널이 항목을 다시 짤 때(syncItems) 모델에서 옮겨 보존한다(graph-shape.js carryItemExtras 도 같은 셋을 옮긴다). */
+const PIE_ITEM_KEYS = ['pieGrow', 'piePull', 'pieTag'];
+const _slicePct = (v, hi) => { const n = parseInt(v); return Number.isFinite(n) ? Math.min(hi, Math.max(0, n)) : 0; };   // 렌더(_renderPie)와 «같은 식»
+function pieSliceRowsHTML(item) {   // 조각별 설정 줄 — 줄을 더하면 아래 배선(_wireSliceInt)도 한 줄
+  const grow = _slicePct(item.pieGrow, PIE_GROW_MAX);
+  return `
+      <div class="prop-row" title="이 조각만 바깥으로 키운다(바깥 반지름 대비 %)">
+        <span class="prop-label">크기</span>
+        <input type="range" class="prop-slider" id="grb-pie-grow-slider" min="0" max="${PIE_GROW_MAX}" step="1" value="${grow}">
+        <input type="number" class="prop-number" id="grb-pie-grow-number" min="0" max="${PIE_GROW_MAX}" value="${grow}">
+      </div>`;
 }
 function pieSliceSectionHTML(items, sel) {
   if (!(sel >= 0 && sel < items.length)) return '';
@@ -599,6 +608,7 @@ ${blockHeaderHTML({
       // 1012t1G2·G4 — 항목 모양·마디도 «모델에서» 보존한다(라벨 한 글자에 떨어지지 않게). 마디의 라벨·값만 마디 줄에서 읽고, 색은 모델 것 그대로.
       const pv = prevItems[i] || {};
       if (pv.shape) { it.shape = pv.shape; if (pv.shapeSvg) it.shapeSvg = pv.shapeSvg; }
+      for (const k of PIE_ITEM_KEYS) if (pv[k] !== undefined) it[k] = pv[k];   // 1013t1C4 — 원형 조각별 키(크기 …)도 «모델에서» 보존한다
       if (_segsOf(pv).length && !_segOn) it.segments = pv.segments;   // 다른 유형: 마디는 «보존만»(값 칸은 자유 — 맞추기는 아래 change 와 유형 전환이 한다)
       else if (_segsOf(pv).length) {
         const segRows = [...list.querySelectorAll('.grb-seg-item[data-item="' + i + '"]')];
@@ -883,6 +893,24 @@ ${blockHeaderHTML({
   };
   _wirePieInt('grb-pie-gap', 'pieGap', PIE_GAP_MIN, PIE_GAP_MAX, PIE_GAP);
   _wirePieInt('grb-pie-start', 'pieStart', PIE_START_MIN, PIE_START_MAX, 0);
+  // 1013t1C4 — Slice 절의 조각별 정수 칸(0~hi %). 고른 조각(items[_sliceSel])의 키를 쓴다 · 0 이면 키를 지운다(안 만진 항목과 같은 꼴) · input 에 적용 · change 에 히스토리.
+  const _wireSliceInt = (pre, key, hi) => {
+    const sl = document.getElementById(pre + '-slider'), nu = document.getElementById(pre + '-number');
+    if (!sl || !nu || _sliceSel < 0) return;
+    const apply = v => {
+      v = Math.min(hi, Math.max(0, Number.isFinite(v) ? v : 0));
+      const its = JSON.parse(block.dataset.items || '[]');
+      if (!its[_sliceSel]) return;
+      if (v > 0) its[_sliceSel][key] = v; else delete its[_sliceSel][key];
+      block.dataset.items = JSON.stringify(its);
+      window.renderGraph(block);
+      sl.value = v; nu.value = v;
+    };
+    sl.addEventListener('input',  () => apply(parseInt(sl.value)));
+    nu.addEventListener('change', () => { apply(parseInt(nu.value)); window.pushHistory(); });
+    sl.addEventListener('change', () => window.pushHistory());
+  };
+  _wireSliceInt('grb-pie-grow', 'pieGrow', PIE_GROW_MAX);
 
   // 점 크기 (line 전용)
   const ptSlider = document.getElementById('grb-point-slider');
