@@ -263,13 +263,15 @@ test('LC8 Figma export — 켜짐 = 자유 프레임 [image, ×, image] · 좌�
     walk(json); return hit;
   };
   const id = await page.evaluate(() => document.querySelector('#canvas .asset-block').id);
-  const off = await page.evaluate(() => window.buildFigmaExportJSON(null));
+  /* buildFigmaExportJSON 은 state.pages(저장된 캔버스)를 읽는다 — 라이브 DOM 을 먼저 흘려 넣는다(asset-redact R10 · effects-reflection R10 과 같은 꼴) */
+  const off = await page.evaluate(() => { window.flushCurrentPage?.(); return window.buildFigmaExportJSON(null); });
+  expect(off.sections.length, "전제 — 흘려 넣은 섹션이 JSON 에 실렸다").toBe(1);
   const offBlk = find(off, id);
   expect(offBlk?.type, '꺼짐 = 옛 type:image').toBe('image');
   expect(find(off, id + '__collab'), '꺼짐엔 콜라보 프레임 없음').toBe(null);
   await toCount(page, 2);
   await page.evaluate((BLUE) => window.setCollabSlotSrc(document.querySelector('#canvas .asset-block'), 2, BLUE), BLUE);
-  const on = await page.evaluate(() => window.buildFigmaExportJSON(null));
+  const on = await page.evaluate(() => { window.flushCurrentPage?.(); return window.buildFigmaExportJSON(null); });
   const fr = find(on, id + '__collab');
   expect(fr?.type).toBe('frame');
   expect(fr.free).toBe(true);

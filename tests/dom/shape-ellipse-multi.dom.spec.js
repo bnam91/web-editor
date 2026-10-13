@@ -88,6 +88,15 @@ const look = (page) => page.evaluate(() => {
   };
 });
 
+/** 스위치를 사람이 누르듯 — 체크박스는 opacity:0 · 0×0 으로 숨고(.prop-toggle input) 보이는 것은 label 의 track 이다.
+ *  label 을 누르면 그 안의 input 이 토글된다(frame-fullbleed-resize 「label.prop-toggle:has(#…)」 꼴). 패널이 다시 그려질 수 있어 id 로 다시 읽는다. */
+async function setToggle(page, id, want) {
+  const cur = await page.evaluate((id) => document.getElementById(id)?.checked ?? null, id);
+  expect(cur, '전제 — #' + id + ' 가 있다').not.toBe(null);
+  if (cur !== want) await page.locator('label.prop-toggle:has(#' + id + ')').click();
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id)?.checked ?? null, id)).toBe(want);
+}
+
 test('E1 원 패널에 「갯수」 칸이 있다 (1~10 · 기본 1)', async ({ page }) => {
   const errs = await setup(page);
   const r = await page.evaluate(() => {
@@ -142,7 +151,7 @@ test('E4 이너 그림자 — 켜기(35) · 세기 80 ⇒ 0.48 · 끄기 ⇒ 흔
   await toCount(page, 3);
   const pre = await look(page);
   expect(pre.nFilter, '전제 — 처음엔 필터가 없다').toBe(0);
-  await page.locator('#shape-ellipse-shadow-toggle').check();
+  await setToggle(page, 'shape-ellipse-shadow-toggle', true);
   await page.waitForFunction(() => !!document.querySelector('#canvas .shape-block svg filter'));
   let s = await look(page);
   expect(s.shadow).toBe('35');
@@ -153,7 +162,7 @@ test('E4 이너 그림자 — 켜기(35) · 세기 80 ⇒ 0.48 · 끄기 ⇒ 흔
   await page.waitForFunction(() => !!document.getElementById('shape-ellipse-shadow-num'));
   await setNum(page, 'shape-ellipse-shadow-num', 80);
   await expect.poll(async () => (await look(page)).flood).toBe('0.48');
-  await page.locator('#shape-ellipse-shadow-toggle').uncheck();
+  await setToggle(page, 'shape-ellipse-shadow-toggle', false);
   await page.waitForFunction(() => !document.querySelector('#canvas .shape-block svg filter'));
   s = await look(page);
   expect(s.shadow).toBe(null);
@@ -166,7 +175,7 @@ test('E5 저장 왕복 — 원 6개 · 색 · 그림자가 dataset 에서 «다�
   const errs = await setup(page);
   await toCount(page, 6);
   for (let i = 0; i < 6; i++) await typeHex(page, `shape-ellipse-c${i}`, PINS[i]);
-  await page.locator('#shape-ellipse-shadow-toggle').check();
+  await setToggle(page, 'shape-ellipse-shadow-toggle', true);
   await page.waitForFunction(() => !!document.querySelector('#canvas .shape-block svg filter'));
   const before = await look(page);
   expect(before.fills, '전제 — 저장 전 칠').toEqual(PINS);
@@ -244,7 +253,7 @@ test('E7 막기 — 갯수 3 이면 가림막 절 0 · 이미지 탭 없음 · �
   expect(r.note || '').toContain('원이 여러 개');
   await setNum(page, 'shape-ellipse-count-num', 1);
   await page.waitForFunction(() => !!document.getElementById('shape-redact-toggle'));
-  await page.locator('#shape-redact-toggle').check();
+  await setToggle(page, 'shape-redact-toggle', true);
   await page.evaluate(() => window.showShapeProperties?.(document.querySelector('#canvas .shape-block')));
   await page.waitForFunction(() => !!document.getElementById('shape-ellipse-count-hint'));
   const dis = await page.evaluate(() => [document.getElementById('shape-ellipse-count-num')?.disabled,
@@ -304,7 +313,7 @@ test('E9 PNG(html2canvas) — 이너 그림자 ON 이면 흰 원의 위쪽 안 �
 test('E10 붙여넣기 id — block.id 가 바뀌면 relink 가 필터 id·url 을 새 id 로 잇는다', async ({ page }) => {
   const errs = await setup(page);
   await toCount(page, 2);
-  await page.locator('#shape-ellipse-shadow-toggle').check();
+  await setToggle(page, 'shape-ellipse-shadow-toggle', true);
   await page.waitForFunction(() => !!document.querySelector('#canvas .shape-block svg filter'));
   const r = await page.evaluate(() => {
     const b = document.querySelector('#canvas .shape-block');
