@@ -8,6 +8,9 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 
 const KIND_LABEL = { star: '별 반짝이', flare: '렌즈 플레어', dot: '빛점' };
 
+/* 후광 색 바닥값 — 정본(GlowFx.PRESETS, js/fx/glow-render.js)에서 «그 종류» 것을 읽는다(1013t2C5 · 글자 한 벌). 부품이 안 실렸을 때만 글자. */
+const glowFloor = (kind) => window.GlowFx?.PRESETS?.[kind]?.glowColor || '#e0e0e0';
+
 export function glowSectionHTML(block) {
   const d = block.dataset;
   const kind = d.fxKind || 'star';
@@ -26,7 +29,7 @@ export function glowSectionHTML(block) {
         </div>
       </div>
       <div class="prop-row"><span class="prop-label">후광</span>
-        ${colorFieldHTML({ idPrefix: 'stk-glow-color', hex: d.glowColor || '#b06cff', alpha: parseAlphaFromColor(d.glowColor || '#b06cff') })}
+        ${colorFieldHTML({ idPrefix: 'stk-glow-color', hex: d.glowColor || glowFloor(kind), alpha: parseAlphaFromColor(d.glowColor || glowFloor(kind)) })}
       </div>
       <div class="prop-row"><span class="prop-label">심</span>
         ${colorFieldHTML({ idPrefix: 'stk-glow-core', hex: d.coreColor || '#ffffff', alpha: parseAlphaFromColor(d.coreColor || '#ffffff') })}
@@ -75,7 +78,7 @@ export function wireGlowSection(panel, block, rerender) {
   });
 
   wireColorField('stk-glow-color', {
-    initialAlpha: parseAlphaFromColor(block.dataset.glowColor || '#b06cff'),
+    initialAlpha: parseAlphaFromColor(block.dataset.glowColor || glowFloor(block.dataset.fxKind || 'star')),
     onApply: (c) => { block.dataset.glowColor = c; rerender(); },
     onCommit: () => commit('글로우 후광색'),
   });

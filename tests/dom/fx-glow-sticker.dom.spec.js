@@ -52,8 +52,8 @@ test('F1·F2 그리기·만들기 — 종류 셋 다 SVG 필터(fxg-<id>)로 그
     return { kind: b.dataset.fxKind, filterId: f?.id, blurs: b.querySelectorAll('feGaussianBlur').length,
       bodyUsesFilter: b.querySelector('.sticker-glow-body')?.getAttribute('filter'), seed: b.dataset.seed, glowColor: b.dataset.glowColor };
   }), ids);
-  // 프리셋 기본 색 — «글자로» 박는다(glow-render.js 에서 읽으면 항등식)
-  const WANT = { star: '#b06cff', flare: '#ff9a3c', dot: '#ffffff' };
+  // 프리셋 기본 색 — «글자로» 박는다(glow-render.js 에서 읽으면 항등식). 1013t2C5: star 보라 #b06cff → 무채색 #e0e0e0
+  const WANT = { star: '#e0e0e0', flare: '#ff9a3c', dot: '#ffffff' };
   for (const [i, x] of r.entries()) {
     expect(x.filterId, `${x.kind}: 필터 id`).toBe('fxg-' + ids[i]);
     expect(x.blurs, `${x.kind}: 후광 3겹`).toBe(3);

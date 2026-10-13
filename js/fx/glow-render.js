@@ -13,10 +13,12 @@
    ★필터 id 는 호출자가 준다(스티커 block.id 기반 'fxg-<id>' — highlightB 의 'hlb-rough-<id>' 와 같은 꼴).
 ═══════════════════════════════════════════════════════════════════════════ */
 (function (w) {
-  /* 프리셋 셋 — 현빈이 보낸 이미지 셋(렌즈 플레어 · 둥근 빛점 · 보라 별 반짝이). 색은 패널에서 바꿀 수 있다.
+  /* 프리셋 셋 — 현빈이 보낸 이미지 셋(렌즈 플레어 · 둥근 빛점 · 별 반짝이). 색은 패널에서 바꿀 수 있다.
+     ★1013t2C5 별 반짝이 기본 후광 = 무채색 #e0e0e0 (css/design-tokens.css --p-gray-50 의 «값» — 저장본 dataset 에 글자로 박히는 캔버스 콘텐츠 값이라 CSS 변수가 아닌 리터럴 · doodle-line-render.js:11 선례).
+     옛 저장본은 data-glow-color 에 색이 박혀 있어 그대로 열린다(이행 코드 없음) — 이 표는 «새로 만들 때·값이 비었을 때»만 쓰인다.
      ★기본 색은 «값만» 바꾸면 되게 여기 한 자리에 둔다(현빈이 시안을 보고 고르면 이 표만 고친다 — 지디 ②-2). */
   const PRESETS = Object.freeze({
-    star:  Object.freeze({ glowColor: '#b06cff', coreColor: '#ffffff', intensity: 70, spread: 6, rays: 4, chroma: '0', fxOpacity: 100, sizeW: 96,  sizeH: 96 }),
+    star:  Object.freeze({ glowColor: '#e0e0e0', coreColor: '#ffffff', intensity: 70, spread: 6, rays: 4, chroma: '0', fxOpacity: 100, sizeW: 96,  sizeH: 96 }),
     flare: Object.freeze({ glowColor: '#ff9a3c', coreColor: '#fff4e0', intensity: 70, spread: 7, rays: 6, chroma: '0', fxOpacity: 100, sizeW: 180, sizeH: 100 }),
     dot:   Object.freeze({ glowColor: '#ffffff', coreColor: '#ffffff', intensity: 60, spread: 5, rays: 0, chroma: '0', fxOpacity: 100, sizeW: 64,  sizeH: 64 }),
   });
