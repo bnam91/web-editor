@@ -291,14 +291,17 @@
   display: block;
 }
 .grb-pie-slice { fill: var(--grb-pie-base); }
-/* 1013t1C4 — 조각 고르기(선택된 블럭 안에서만): 조각마다 손가락 커서 · 고른 조각에 선택색 테두리. 꼴은 별 한 개 고르기(editor-blocks.css .star-cell-selected)와 같다.
-   표식 클래스는 -cell-selected 로 끝나 저장·내보내기에서 걷힌다(이 규칙도 export-css-collect 가 같은 이름으로 버린다). */
+/* 1013t1C4 — 조각 고르기(선택된 블럭 안에서만): 조각마다 손가락 커서 · 고른 조각에 점선 테두리.
+   테두리 색은 선택색(--sel-color)이 «아니라» 블럭 글자색(currentColor)이다 — 기본 프리셋의 조각 색이 선택색과 같은 파랑이라 선택색 실선은 조각에 묻혀 안 보였다
+   (스샷 실측 2026-10-13). 글자색은 바탕과 늘 갈리고(범례가 읽히는 색) 점선은 조각 색이 무엇이든 «고른 것»으로 읽힌다. 칠 «위에» 그린다(paint-order 기본).
+   치수는 화면 px(non-scaling-stroke) — 배율·차트 높이와 무관. 표식 클래스는 -cell-selected 로 끝나 저장·내보내기에서 걷힌다(이 규칙도 export-css-collect 가 같은 이름으로 버린다). */
 .graph-block.selected .grb-pie-slice { cursor: pointer; }
 .graph-block.selected .grb-pie-slice.grb-pie-cell-selected {
-  stroke: var(--sel-color);
+  stroke: currentColor;
   stroke-width: 2;
+  stroke-dasharray: 5 3;
+  stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
-  paint-order: stroke;
 }
 .grb-pie-slice:nth-child(5n+1) { fill-opacity: 1; }
 .grb-pie-slice:nth-child(5n+2) { fill-opacity: 0.8; }

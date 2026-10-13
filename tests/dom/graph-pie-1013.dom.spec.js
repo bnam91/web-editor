@@ -360,6 +360,11 @@ test('S1 조각 고르기 — 첫 클릭은 블럭 선택(표식 0) · 둘째 �
   await clickSlice(page, id, 0);
   await expect.poll(async () => (await markOf(page, id)).marks, { message: '다른 조각을 누르면 그 조각으로' }).toEqual([0]);
   expect((await sliceSection(page)).name).toBe('1번 · 가');
+  /* 테두리가 조각 색에 «묻히지 않는다» — 기본 프리셋의 첫 조각은 선택색과 같은 파랑이라, 선택색 테두리는 안 보였다. 테두리 색 ≠ 그 조각의 채움색 · 점선 */
+  const ink = await page.evaluate((id) => { const p = document.getElementById(id).querySelector('.grb-pie-cell-selected'); const c = getComputedStyle(p); return { stroke: c.stroke, fill: c.fill, dashed: c.strokeDasharray !== 'none', w: parseFloat(c.strokeWidth) > 0 }; }, id);
+  expect(ink.stroke, '전제: 테두리가 있다').not.toBe('none');
+  expect(ink.stroke, '테두리 색이 조각 채움색과 다르다').not.toBe(ink.fill);
+  expect({ dashed: ink.dashed, w: ink.w }).toEqual({ dashed: true, w: true });
   expect(errs).toEqual([]);
 });
 
