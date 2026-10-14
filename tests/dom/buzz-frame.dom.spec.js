@@ -8,6 +8,9 @@
  *   ⑵ 무엇을 바꿔도 프레임 높이 그대로 · 넘치면 안에서 맞춤   → BZ-04 · BZ-05 · BZ-09
  *   ⑶ 레이어 줄 · 패널 머리에 「Buzz」 + 전용 아이콘           → BZ-02 · BZ-17
  *   테이프의 자리(현빈 1013t1 「테이프 모양 및 위치 검수」)    → BZ-18
+ * ★1013t2 D1 · D2(현빈 2026-10-14) — 새 기본
+ *   D2 알약 프레임 기본 배경 = 솔리드 #5f564e · 합성 뒤 흰 글자 대비 ≥ 3.0 · 그라데이션은 프리셋   → BZ-23 · BZ-24 · BZ-25
+ *   D1 나머지 5종은 투명 배경 · 새 버즈는 「패딩 제외」 켬 · 이미 저장된 버즈는 그대로           → BZ-26 · BZ-27 · BZ-28
  *
  * ★재는 법
  *   · 삽입은 삽입 메뉴 「Buzz」를 진짜로 누른다. 패널 조작은 진짜 클릭 · 선택 · 키 입력이다.
@@ -1019,4 +1022,281 @@ test('BZ-22 ★⑵ 크기 손잡이를 끌어 줄이고 «놓은 직후» 말풍
   await expect.poll(async () => (await stateOf(page, fid))?.h, { message: '⌘Z 한 번 → 높이가 돌아온다' }).toEqual(a.h);
   expect(coordsOf(await stateOf(page, fid)), '⌘Z 한 번 → 자리도 같이 돌아온다(다시 놓기가 따로 한 칸이 아니다)').toEqual(coordsOf(a));
   expect(errs).toEqual([]);
+});
+
+/* ═══════════════ 1013t2 D1 · D2 — 버즈의 새 기본(현빈 2026-10-14) ═══════════════
+   D2 「알약 기본색은 솔리드로」 = 알약 스타일의 프레임 배경 #5f564e(그라데이션은 Buzz 절 「배경」 묶음의 프리셋으로 남는다)  → BZ-23 · BZ-24 · BZ-25
+   D1 「기본은 투명 배경 / 패딩제외 옵션」 = 나머지 5종은 투명 · 새 버즈는 「패딩 제외」가 켜진 채로                      → BZ-26 · BZ-27
+   이미 저장된 버즈는 안 건드린다(새로 넣을 때 · 스타일을 고를 때의 기본만 바뀐다)                                      → BZ-28 */
+const PILL_SOLID = 'rgb(95, 86, 78)';                               /* #5f564e */
+const PILL_GRADIENT = 'linear-gradient(165deg, rgb(184, 173, 160), rgb(167, 156, 145) 55%, rgb(159, 148, 138))';
+const CLEAR = 'rgba(0, 0, 0, 0)';
+/** 프레임 배경 — 값 칸(data-bg)과 «실제로 그려진» 색 · 그림(computed). */
+const bgOf = (page, fid) => page.evaluate((fid) => {
+  const f = document.getElementById(fid); const cs = getComputedStyle(f);
+  return { data: f.dataset.bg, color: cs.backgroundColor, image: cs.backgroundImage };
+}, fid);
+/** Buzz 절 「배경」 묶음 — 단추의 값과 켜진 것. 묶음이 없으면 null. */
+const bgGroupOf = (page) => page.evaluate(() => {
+  const g = document.getElementById('bzf-bg');
+  return g ? { vals: [...g.querySelectorAll('.prop-align-btn')].map((b) => b.dataset.val), active: [...g.querySelectorAll('.prop-align-btn.active')].map((b) => b.dataset.val) } : null;
+});
+/* 색 산수(WCAG 2.x 상대 휘도 · 대비) — 검사 «안»에서 계산한다. 색 문자열을 견주는 것으로 갈음하지 않는다. */
+const rgbaOf = (s) => {
+  const m = /^rgba?\(([^)]+)\)$/.exec(String(s).trim());
+  if (!m) return null;
+  const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+  return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+};
+const mix = (top, bot, a) => ({ r: top.r * a + bot.r * (1 - a), g: top.g * a + bot.g * (1 - a), b: top.b * a + bot.b * (1 - a), a: 1 });
+const lumOf = (c) => {
+  const f = (v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+};
+const contrastOf = (a, b) => { const la = lumOf(a), lb = lumOf(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); };
+const hexOf = (c) => '#' + [c.r, c.g, c.b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+/** 프레임 폭과 「패딩 제외」 — 섹션 안쪽 상자(.section-inner) 기준. gap = 프레임 변과 안쪽 상자 변 사이(레이아웃 px). */
+const bleedOf = (page, fid) => page.evaluate((fid) => {
+  const f = document.getElementById(fid); const inner = f.closest('.section-inner'); const ics = getComputedStyle(inner);
+  const sc = new DOMMatrix(getComputedStyle(document.getElementById('canvas-scaler')).transform).a;
+  const fr = f.getBoundingClientRect(), ir = inner.getBoundingClientRect();
+  const r1 = (v) => (Math.round(v * 10) / 10) || 0;      /* -0 을 0 으로 */
+  const t = document.getElementById('ss-fullbleed-toggle');
+  return { flag: f.dataset.fullBleed ?? null, cw: f.clientWidth, innerW: inner.clientWidth, padL: parseFloat(ics.paddingLeft), padR: parseFloat(ics.paddingRight),
+    gapL: r1((fr.left - ir.left) / sc), gapR: r1((ir.right - fr.right) / sc),
+    toggle: t ? [t.checked, t.disabled] : null };
+}, fid);
+/** 저장 → 새로 띄워 다시 열기. 다시 띄운 쪽의 페이지 오류 목록을 돌려준다. */
+async function reopen(page, fid) {
+  const snap = await page.evaluate(() => window.serializeProject());
+  const errs2 = await bootApp(page);
+  await page.evaluate((d) => window.applyProjectData(d), JSON.parse(snap));
+  await expect.poll(() => page.evaluate((fid) => { const f = document.getElementById(fid); return !!f && f.querySelectorAll('.modal-block').length > 0 && [...f.querySelectorAll('.modal-block')].every((m) => m._blockBound); }, fid),
+    { message: '전제: 다시 연 문서에 그 프레임이 있고 모달이 다시 묶였다' }).toBe(true);
+  return errs2;
+}
+
+test('BZ-23 1013t2D2⒜ 알약 스타일의 프레임 기본 배경 = 솔리드 #5f564e(그림 없음) · 패널 배경색 칸도 그 색 · 낱개 알약은 그대로', async ({ page }) => {
+  const { errs } = await setup(page);
+  const fid = await insertBuzz(page);
+  expect((await stateOf(page, fid)).attrs['data-buzz-style'], '전제: 삽입 기본은 카드다(알약으로 바로 들어오지 않는다)').toBe('card');
+  await pickStyle(page, fid, 'pill');
+  expect(await bgOf(page, fid), '알약: 프레임 배경이 솔리드 #5f564e 이고 배경 그림(그라데이션)이 없다').toEqual({ data: '#5f564e', color: PILL_SOLID, image: 'none' });
+  await expect(page.locator('#ss-bg-hex'), '패널 Background 배경색 글자 칸이 실제 색이다(그라데이션 자리 채움 FFFFFF 가 아니다)').toHaveValue(/^#?5f564e$/i);
+  /* 낱개는 그대로 — 흰 26% · 테두리 흰 55% 2px · 뒤 흐림 10px · 깊이 3단 */
+  const pills = await page.evaluate((fid) => [...document.getElementById(fid).querySelectorAll(':scope > .row > .modal-block')].map((m) => {
+    const cs = getComputedStyle(m);
+    return [cs.backgroundColor, cs.borderTopWidth + ' ' + cs.borderTopStyle + ' ' + cs.borderTopColor, cs.backdropFilter || cs.webkitBackdropFilter];
+  }), fid);
+  expect(pills.length, '전제: 알약 6').toBe(6);
+  expect([...new Set(pills.map((p) => p.join(' | ')))], '낱개 6개가 전부 같은 값: 흰 26% · 2px 흰 55% · blur(10px)').toEqual(['rgba(255, 255, 255, 0.26) | 2px solid rgba(255, 255, 255, 0.55) | blur(10px)']);
+  const st = await stateOf(page, fid);
+  expect([st.attrs['data-buzz-depth'], st.rows.map((r) => r.far).sort().join(',')], '깊이 「강하게」 · 3단(앞 2 · 가운데 2 · 뒤 2)').toEqual(['strong', ',,1,1,2,2']);
+  expect(errs).toEqual([]);
+});
+
+test('BZ-24 1013t2D2⒝ 알약 기본 배경 위에서 «알약을 합성한 뒤»의 흰 글자 대비 ≥ 3.0(큰 글자 기준) — 검사가 계산한다', async ({ page }) => {
+  const { errs } = await setup(page);
+  const fid = await insertBuzz(page);
+  await pickStyle(page, fid, 'pill');
+  /* 프레임 → row → 모달 → … → 글자를 직접 품은 요소까지, 층마다 computed 배경을 그대로 읽어 온다 */
+  const L = await page.evaluate((fid) => {
+    const f = document.getElementById(fid); const fcs = getComputedStyle(f);
+    const rows = [...f.querySelectorAll(':scope > .row')].filter((r) => r.querySelector(':scope > .modal-block'));
+    return { frame: { color: fcs.backgroundColor, image: fcs.backgroundImage, opacity: fcs.opacity },
+      rows: rows.map((r) => {
+        const m = r.querySelector(':scope > .modal-block');
+        const tw = document.createTreeWalker(m, NodeFilter.SHOW_TEXT);
+        let tn = null;
+        while (tw.nextNode()) { if (tw.currentNode.nodeValue.trim()) { tn = tw.currentNode; break; } }
+        const te = tn ? tn.parentElement : null;
+        const chain = [];
+        for (let e = te; e && e !== f; e = e.parentElement) { const cs = getComputedStyle(e); chain.unshift({ cls: String(e.className).split(' ')[0], color: cs.backgroundColor, image: cs.backgroundImage, opacity: cs.opacity }); }
+        const tcs = te ? getComputedStyle(te) : null;
+        return { far: r.dataset.buzzFar || '0', z: Number(r.style.zIndex), isRow: chain[0]?.cls === 'row', chain, text: tcs?.color || null, fontPx: tcs ? parseFloat(tcs.fontSize) : 0, weight: tcs ? Number(tcs.fontWeight) : 0, filter: getComputedStyle(r).filter };
+      }) };
+  }, fid);
+  const frameBg = rgbaOf(L.frame.color);
+  expect([L.frame.image, frameBg && frameBg.a, L.frame.opacity], `전제: 프레임 배경이 불투명한 단색이다(${L.frame.color}) — 그라데이션이면 이 산수가 성립하지 않는다`).toEqual(['none', 1, '1']);
+  expect(L.rows.length, '전제: 알약 6').toBe(6);
+  const out = L.rows.map((row) => {
+    expect(row.text && row.isRow, '전제: 글자를 품은 요소를 찾았고 사슬의 맨 바깥이 row 다').toBeTruthy();
+    const text = rgbaOf(row.text);
+    expect(text.a, `전제: 글자색이 불투명하다(${row.text})`).toBe(1);
+    expect(row.chain.every((c) => c.image === 'none'), '전제: 글자 뒤 어느 층에도 배경 그림이 없다(색만 합성하면 된다)').toBe(true);
+    expect(row.chain.slice(1).every((c) => c.opacity === '1'), '전제: 불투명도는 row 에만 걸린다(깊이)').toBe(true);
+    const fills = row.chain.map((c) => rgbaOf(c.color)).filter((c) => c.a > 0);
+    expect(fills.length >= 1 && fills.some((c) => c.a < 1), `전제: 글자 뒤에 «반투명» 채움 층이 있다(${row.chain.map((c) => c.color).join(' / ')})`).toBe(true);
+    /* ① 알약 합성: 프레임 배경 위에 채움 층을 아래부터 알파로 얹는다 */
+    let under = frameBg;
+    fills.forEach((c) => { under = mix(c, under, c.a); });
+    /* ② 깊이: row 의 opacity 는 알약 통째(채움 + 글자)에 걸린다 → 둘 다 프레임 배경 쪽으로 같은 비율만큼 섞인다 */
+    const op = Number(row.chain[0].opacity);
+    const bg = mix(under, frameBg, op), fg = mix(text, frameBg, op);
+    return { far: row.far, z: row.z, op, filter: row.filter, fontPx: row.fontPx, weight: row.weight, pill: hexOf(bg), fg: hexOf(fg), ratio: Math.round(contrastOf(fg, bg) * 1000) / 1000 };
+  });
+  const tier = (far) => out.filter((o) => o.far === far);
+  const front = tier('0'), mid = tier('1'), back = tier('2');
+  expect([front.length, mid.length, back.length], '전제: 깊이 3단이 2 · 2 · 2 로 갈렸다').toEqual([2, 2, 2]);
+  expect(front.every((o) => o.op === 1 && o.filter === 'none'), '전제: 맨 앞 묶음에는 불투명도 · 흐림이 안 걸린다').toBe(true);
+  expect(Math.min(...front.map((o) => o.z)) > Math.max(...mid.map((o) => o.z), ...back.map((o) => o.z)), '전제: 「맨 앞」 = 겹침 순서가 가장 높은 묶음').toBe(true);
+  expect(out.every((o) => o.fontPx >= 24), `전제: 큰 글자다(≥ 24px · 지금 ${out[0].fontPx}px ${out[0].weight}) — 그래서 기준이 3.0 이다`).toBe(true);
+  const report = `frame ${hexOf(frameBg)} | 앞 ${front.map((o) => o.ratio).join(' · ')} (알약 ${front[0].pill} · 글자 ${front[0].fg}) | 가운데(opacity ${mid[0].op}) ${mid.map((o) => o.ratio).join(' · ')} (알약 ${mid[0].pill} · 글자 ${mid[0].fg}) | 뒤(opacity ${back[0].op} · ${back[0].filter}) ${back.map((o) => o.ratio).join(' · ')} (알약 ${back[0].pill} · 글자 ${back[0].fg})`;
+  console.log('[BZ-24 대비] ' + report);
+  test.info().annotations.push({ type: 'BZ-24 대비', description: report });
+  /* ★단언은 맨 앞 묶음 기준이다. 가운데 · 뒤 묶음(깊이로 일부러 흐리게 한 것)의 수는 위 줄에 적기만 한다. */
+  front.forEach((o) => expect(o.ratio, `맨 앞 알약: 합성 뒤 흰 글자 대비 ${o.ratio} ≥ 3.0 (${report})`).toBeGreaterThanOrEqual(3.0));
+  expect(errs).toEqual([]);
+});
+
+test('BZ-25 1013t2D2⒞ Buzz 절 「배경」 묶음 — 그라데이션 프리셋을 고르면 그 그라데이션이 그려지고(⌘Z 한 칸) 솔리드로 돌아온다 · 저장 · ⌘D · HTML 에서 유지', async ({ page }) => {
+  test.setTimeout(90000);
+  const { errs } = await setup(page);
+  const fid = await insertBuzz(page);
+  expect(await bgGroupOf(page), '카드 스타일에는 「배경」 묶음이 없다').toBeNull();
+  await pickStyle(page, fid, 'pill');
+  expect(await bgGroupOf(page), '알약: 「배경」 묶음에 솔리드 · 그라데이션 두 단추 · 솔리드가 켜져 있다').toEqual({ vals: ['solid', 'gradient'], active: ['solid'] });
+  expect(await bgOf(page, fid), '전제: 지금은 솔리드').toEqual({ data: '#5f564e', color: PILL_SOLID, image: 'none' });
+  const GRAD = { data: 'linear-gradient(165deg,#b8ada0,#a79c91 55%,#9f948a)', color: CLEAR, image: PILL_GRADIENT };
+  /* 그라데이션 단추 = 히스토리 한 걸음. expectOneUndoStep 이 누르고 → ⌘Z 한 번 → 누르기 전과 같은지 본다 */
+  await expectOneUndoStep(page, async () => {
+    await page.locator('#bzf-bg [data-val="gradient"]').click();
+    await expect.poll(() => bgOf(page, fid), { message: '그라데이션 단추 → 프레임에 그 그라데이션이 그려진다' }).toEqual(GRAD);
+  }, '버즈 배경 프리셋(그라데이션)');
+  expect(await bgOf(page, fid), '⌘Z 한 번 → 솔리드로 돌아왔다').toEqual({ data: '#5f564e', color: PILL_SOLID, image: 'none' });
+  /* 다시 그라데이션으로 — 패널이 그 값을 보인다 */
+  await pickFrame(page, fid);
+  await page.locator('#bzf-bg [data-val="gradient"]').click();
+  await expect.poll(() => bgOf(page, fid), { message: '그라데이션이 그려진다' }).toEqual(GRAD);
+  expect(await bgGroupOf(page), '패널이 다시 그려져도 그라데이션 단추가 켜져 있다').toEqual({ vals: ['solid', 'gradient'], active: ['gradient'] });
+  expect((await stateOf(page, fid)).attrs['data-buzz-style'], '스타일은 알약 그대로').toBe('pill');
+  /* 프레임 ⌘D */
+  expect(await isSelected(page, fid), '전제: 프레임이 골라져 있다').toBe(true);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+d');
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('#canvas .frame-block[data-buzz="1"]').length), { message: '프레임 ⌘D → 버즈 프레임 둘' }).toBe(2);
+  const copyId = await page.evaluate((fid) => [...document.querySelectorAll('#canvas .frame-block[data-buzz="1"]')].map((f) => f.id).find((id) => id !== fid), fid);
+  expect(await bgOf(page, copyId), '사본도 그라데이션').toEqual(GRAD);
+  /* HTML 내보내기 */
+  const html = await page.evaluate(async () => {
+    const origCreate = URL.createObjectURL; const origClick = HTMLAnchorElement.prototype.click;
+    let captured = null;
+    URL.createObjectURL = (b) => { captured = b; return 'blob:buzz-spec'; };
+    HTMLAnchorElement.prototype.click = function () {};
+    try { await window.exportHTMLFile(); } finally { URL.createObjectURL = origCreate; HTMLAnchorElement.prototype.click = origClick; }
+    return captured ? await captured.text() : null;
+  });
+  expect(typeof html, '전제: 내보낸 HTML 을 가로챘다').toBe('string');
+  const tags = html.match(/<div[^>]*data-buzz="1"[^>]*>/g) || [];
+  expect(tags.length, '전제: 내보낸 HTML 에 버즈 프레임 둘').toBe(2);
+  expect(tags.map((t) => /style="[^"]*linear-gradient\(165deg/.test(t)), 'HTML: 두 프레임의 인라인 배경에 그라데이션이 실렸다').toEqual([true, true]);
+  /* 저장 → 다시 열기 */
+  const errs2 = await reopen(page, fid);
+  expect(await bgOf(page, fid), '다시 연 뒤에도 그라데이션').toEqual(GRAD);
+  await pickFrame(page, fid);
+  expect(await bgGroupOf(page), '다시 연 뒤 패널: 그라데이션 단추가 켜져 있다').toEqual({ vals: ['solid', 'gradient'], active: ['gradient'] });
+  /* 솔리드 단추 → 돌아온다 */
+  await page.locator('#bzf-bg [data-val="solid"]').click();
+  await expect.poll(() => bgOf(page, fid), { message: '솔리드 단추 → #5f564e 로 돌아오고 그림이 없다' }).toEqual({ data: '#5f564e', color: PILL_SOLID, image: 'none' });
+  expect(await bgGroupOf(page)).toEqual({ vals: ['solid', 'gradient'], active: ['solid'] });
+  await expect(page.locator('#ss-bg-hex'), 'Background 배경색 칸도 되읽혔다').toHaveValue(/^#?5f564e$/i);
+  expect(await bgOf(page, copyId), '사본은 그대로 그라데이션(원본만 바뀐다)').toEqual(GRAD);
+  expect([errs, errs2]).toEqual([[], []]);
+});
+
+test('BZ-26 1013t2D1⒜ 새 버즈(기본 스타일)의 프레임 배경 = 투명 · 알약만 #5f564e 이고 나머지 5종은 투명 · 저장 왕복에서 유지', async ({ page }) => {
+  const { errs, secId } = await setup(page);
+  const fid = await insertBuzz(page);
+  expect((await stateOf(page, fid)).attrs['data-buzz-style'], '전제: 삽입 기본 스타일은 카드').toBe('card');
+  expect(await bgOf(page, fid), '새 버즈: 프레임 배경이 투명(색 · 그림 없음)').toEqual({ data: 'transparent', color: CLEAR, image: 'none' });
+  const panel = () => page.evaluate(() => {
+    const hex = document.getElementById('ss-bg-hex');
+    return { label: hex?.closest('.prop-color-row')?.querySelector('.prop-label')?.textContent.trim() ?? null, alpha: document.getElementById('ss-bg-alpha')?.value ?? null };
+  });
+  expect(await panel(), '패널 Background: 「배경색 (투명)」 · 불투명도 0').toEqual({ label: '배경색 (투명)', alpha: '0' });
+  /* 투명이면 뒤의 섹션 색이 그대로 보인다 — 프레임의 빈 자리에서 «보이는 색» = 섹션 배경 */
+  const secBg = await page.evaluate((secId) => getComputedStyle(document.getElementById(secId)).backgroundColor, secId);
+  expect(rgbaOf(secBg)?.a, `전제: 섹션에 불투명한 배경이 있다(${secBg})`).toBe(1);
+  const seen = {};
+  for (const k of ['bubble', 'tail', 'tape', 'strip', 'pill', 'card']) {
+    await pickStyle(page, fid, k);
+    const b = await bgOf(page, fid);
+    seen[k] = [b.data, b.color, b.image];
+  }
+  const T = ['transparent', CLEAR, 'none'];
+  expect(seen, '스타일 6종의 프레임 기본 배경: 알약만 #5f564e · 나머지 5종은 투명').toEqual({ bubble: T, tail: T, tape: T, strip: T, pill: ['#5f564e', PILL_SOLID, 'none'], card: T });
+  expect(await panel(), '카드로 돌아온 뒤 패널도 투명').toEqual({ label: '배경색 (투명)', alpha: '0' });
+  const errs2 = await reopen(page, fid);
+  expect(await bgOf(page, fid), '다시 연 뒤에도 투명').toEqual({ data: 'transparent', color: CLEAR, image: 'none' });
+  expect([errs, errs2]).toEqual([[], []]);
+});
+
+test('BZ-27 1013t2D1⒝ 새 버즈는 「패딩 제외」가 켜져 있다 — 패널 표시 + 실제 폭(섹션 좌우 패딩을 넘어 가장자리까지) · 끄면 패딩 안으로 · ⌘Z · 저장 · ⌘D', async ({ page }) => {
+  const { errs } = await setup(page);
+  const fid = await insertBuzz(page);
+  const a = await bleedOf(page, fid);
+  expect(a.padL > 0 && a.padL === a.padR, `전제: 섹션에 좌우 패딩이 있다(${a.padL} · ${a.padR}) — 0 이면 「패딩 제외」가 켜져도 폭이 안 달라진다`).toBe(true);
+  expect(a.flag, '새 버즈: 「패딩 제외」 표식(data-full-bleed)이 켜져 있다').toBe('true');
+  expect(a.toggle, '패널 Size 절 「패딩 제외」 스위치가 켜져 있고 누를 수 있다').toEqual([true, false]);
+  expect([a.gapL, a.gapR, a.cw], `실제 폭: 프레임이 섹션 안쪽 상자의 양 끝까지 닿는다(패딩 ${a.padL} 을 넘는다)`).toEqual([0, 0, a.innerW]);
+  const st = await stateOf(page, fid);
+  expect(st.cw, '말풍선을 놓는 폭 = 그 넓어진 폭').toBe(a.innerW);
+  expect(outsideOf(st), '모든 낱개가 프레임 안').toEqual([]);
+  /* 프레임 ⌘D — 사본도 켜진 채 같은 폭 */
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+d');
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('#canvas .frame-block[data-buzz="1"]').length), { message: '프레임 ⌘D → 둘' }).toBe(2);
+  const copyId = await page.evaluate((fid) => [...document.querySelectorAll('#canvas .frame-block[data-buzz="1"]')].map((f) => f.id).find((id) => id !== fid), fid);
+  const c = await bleedOf(page, copyId);
+  expect([c.flag, c.gapL, c.gapR, c.cw], '사본: 켜짐 · 같은 폭').toEqual(['true', 0, 0, a.innerW]);
+  /* 저장 → 다시 열기 */
+  const errs2 = await reopen(page, fid);
+  await pickFrame(page, fid);
+  const b = await bleedOf(page, fid);
+  expect([b.flag, b.gapL, b.gapR, b.cw, b.toggle], '다시 연 뒤에도 켜짐 · 같은 폭 · 스위치 켜짐').toEqual(['true', 0, 0, a.innerW, [true, false]]);
+  /* 끄기(진짜 클릭) → 패딩 안으로 들어온다 · 말풍선은 좁아진 프레임 안에.
+     끄기 전에 말풍선 너비를 800 으로 — 좁아질 폭(안쪽 폭 − 패딩 둘)보다 넓어, 다시 놓지 않으면 반드시 밖으로 나간다 */
+  const wnum = page.locator('#bzf-width-number');
+  await wnum.fill('800');
+  await wnum.press('Tab');
+  const wide = await stateOf(page, fid);
+  expect(wide.rows.every((r) => r.ow > a.innerW - a.padL - a.padR) && outsideOf(wide).length === 0, `전제: 말풍선 폭(${wide.rows[0].ow})이 끈 뒤의 프레임 폭(${a.innerW - a.padL - a.padR})보다 넓고, 지금은 다 안에 있다`).toBe(true);
+  const sw = page.locator('label.prop-toggle:has(#ss-fullbleed-toggle)');
+  await sw.scrollIntoViewIfNeeded();
+  await sw.click();
+  await expect.poll(async () => (await bleedOf(page, fid)).flag, { message: '스위치를 끄면 표식이 없어진다' }).toBeNull();
+  const off = await bleedOf(page, fid);
+  expect([off.gapL, off.gapR, off.cw, off.toggle], `끈 뒤: 좌우로 패딩 ${a.padL} 만큼 들어온다`).toEqual([a.padL, a.padR, a.innerW - a.padL - a.padR, [false, false]]);
+  expect(outsideOf(await stateOf(page, fid)), '끈 직후 — 좁아진 프레임 밖으로 나간 말풍선 0').toEqual([]);
+  await undo(page);
+  await expect.poll(async () => { const u = await bleedOf(page, fid); return [u.flag, u.gapL, u.gapR, u.cw]; }, { message: '⌘Z → 다시 켜지고 폭이 돌아온다' }).toEqual(['true', 0, 0, a.innerW]);
+  expect([errs, errs2]).toEqual([[], []]);
+});
+
+test('BZ-28 1013t2D1·D2 이미 저장된 버즈는 그대로 — 옛 기본(카드 #f3f1ee · 패딩 제외 꺼짐)으로 저장된 프레임은 다시 열어도 · 다시 그려도 안 바뀐다', async ({ page }) => {
+  const { errs } = await setup(page);
+  const fid = await insertBuzz(page);
+  /* 옛 판이 만들던 꼴로 되돌려 저장본을 만든다(옛 addBuzzBlock: 배경 #f3f1ee · 폭 860px/max-width 100% · 표식 없음) */
+  await page.evaluate((fid) => {
+    const f = document.getElementById(fid);
+    f.dataset.bg = '#f3f1ee'; f.style.background = '#f3f1ee';
+    delete f.dataset.fullBleed; delete f.dataset.fbMaxW;
+    f.style.marginLeft = ''; f.style.marginRight = ''; f.style.margin = '0 auto'; f.style.width = '860px'; f.style.maxWidth = '100%';
+  }, fid);
+  const old = await bleedOf(page, fid);
+  expect([old.flag, old.gapL, old.cw], '전제: 옛 꼴 — 표식 없음 · 패딩 안쪽 폭').toEqual([null, old.padL, old.innerW - old.padL - old.padR]);
+  expect(old.padL > 0, '전제: 섹션에 좌우 패딩이 있다').toBe(true);
+  const errs2 = await reopen(page, fid);
+  const OLD_BG = { data: '#f3f1ee', color: 'rgb(243, 241, 238)', image: 'none' };
+  expect(await bgOf(page, fid), '다시 연 뒤: 배경이 저장된 그대로(#f3f1ee)').toEqual(OLD_BG);
+  await pickFrame(page, fid);
+  const b = await bleedOf(page, fid);
+  expect([b.flag, b.gapL, b.cw, b.toggle], '다시 연 뒤: 패딩 제외 꺼진 그대로 · 폭 그대로 · 스위치 꺼짐').toEqual([null, old.padL, old.cw, [false, false]]);
+  /* 다시 그리기 · 개수 + 는 배경과 폭을 안 건드린다 */
+  await page.locator('#bzf-redraw').click();
+  await page.locator('#bzf-n-plus').click();
+  await expect(page.locator('#bzf-n-count'), '전제: 개수 + 가 먹었다').toHaveText('7');
+  const c = await bleedOf(page, fid);
+  expect([await bgOf(page, fid), c.flag, c.cw], '다시 그리기 · 개수 + 뒤에도 배경 · 패딩 제외 · 폭 그대로').toEqual([OLD_BG, null, old.cw]);
+  expect([errs, errs2]).toEqual([[], []]);
 });
