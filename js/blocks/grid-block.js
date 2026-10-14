@@ -275,6 +275,40 @@ export const GRID_BORDER_W_MAX = 20;
 export const GRID_BORDER_STYLES = ['solid', 'dashed', 'dotted'];
 const GRID_BORDER_DEFAULT_COLOR = '#d0d0d0';
 
+/* ══ 칸 테두리의 «선 자리» — 1013t2F (2026-10-14 · 현빈 지적 「구분선이 우측패널에서 조절이 안 되네」) ══════════
+ * 뜻: 위 「모든 칸 테두리」(굵기·색·꼴 세 키)를 «어디에 긋나»만 고른다 — 넷째 선 축을 만들지 않는다.
+ *   키 «없음»      = 네 변(지금까지의 동작 그대로 · 아래 _gridCellBorderCss 의 옛 식) ⇒ 옛 저장본 바이트 무변.
+ *   'top'          = 칸 위 변(첫 행이면 블럭 위 변 자리 · 나머지는 행 사이 선)
+ *   'vsep'         = 칸 사이 세로 선(c>0 칸의 왼쪽 변 — 첫 열 왼쪽·마지막 열 오른쪽은 안 긋는다)
+ *   'top,vsep'     = 둘 다(구분선 프리셋 · 그림 1013t2-img04) · 'none' = 구분선 모드인데 둘 다 끔.
+ * ★굵기·색·꼴은 «새로 안 만든다» — cellBorder* 세 키를 그대로 쓴다(현빈 ⒝).
+ * ⛔「블럭 외곽선」(blockOutline · 블럭 바깥 네 변)·「칸 사이 줄」(간격 가운데 괘선)과 «다른 축»이다(현빈 ⒞).
+ * ⛔CSS 파일에 선을 두지 않는다(프로토 z3.css 의 고정 선이 패널과 안 이어진 뿌리) — 인라인이라 내보내기에도 실린다. */
+export const GRID_BORDER_EDGES = ['top', 'vsep'];
+
+/** 들어온 값을 «정본 꼴»로. 돌려주는 것:
+ *   'box'  = 키를 지운다(네 변 · null/undefined/'box')
+ *   'none' = 구분선 모드 · 둘 다 끔(''·'none'·[])
+ *   'top' | 'vsep' | 'top,vsep' = 명부 순서로 · null = 모르는 낱말(거절 — 대소문자도 가린다). */
+function _gridNormEdges(v) {
+  if (v === null || v === undefined) return 'box';
+  let parts;
+  if (Array.isArray(v)) parts = v.map(x => String(x).trim());
+  else {
+    const raw = String(v).trim();
+    if (raw === 'box') return 'box';
+    if (raw === '' || raw === 'none') return 'none';
+    parts = raw.split(',').map(x => x.trim()).filter(Boolean);
+  }
+  if (parts.some(x => !GRID_BORDER_EDGES.includes(x))) return null;
+  const out = GRID_BORDER_EDGES.filter(e => parts.includes(e)).join(',');
+  return out === '' ? 'none' : out;
+}
+
+/* ★인포그래픽 «레이아웃 프리셋» 표식의 명부 — 프리셋 «값»은 js/blocks/grid-infographic.js 에 있다(그쪽이 이 명부를 import 한다).
+ *   렌더러는 이 표식을 «안 읽는다» — 패널의 「지금 프리셋」 표시와 절 노출 조건뿐이다. 그림은 언제나 데이터(칸·줄·테두리 키)에서 나온다. */
+export const GRID_IFG_PRESET_KEYS = ['basic', 'lines'];
+
 /* ══ 칸 «사이»의 괘선 — 현빈 2026-09-30 ═══════════════════════════════════════
  * 원문: 「2*1인 셀이 있으면 각 칼럼 중간에 줄」 ＋ 「칼럼 간격외에도 로우 간격에도
  *   가로줄」 ＋ 「모든칸 일괄적용할수도 있지만 특정 경계에만 지정해서 넣거나 뺄수 있게도」.
@@ -374,7 +408,11 @@ function _gridCellBorder(block) {
   const cRaw = typeof ds.cellBorderColor === 'string' ? ds.cellBorderColor.trim() : '';
   const color = _GRID_COLOR_RE.test(cRaw) ? cRaw : GRID_BORDER_DEFAULT_COLOR;
   const style = GRID_BORDER_STYLES.includes(ds.cellBorderStyle) ? ds.cellBorderStyle : 'solid';
-  return { width: w, color, style };
+  /* ★1013t2F 선 자리 — null = 네 변(키 없음) · 배열 = 구분선 모드에서 켠 자리.
+     ⛔손으로 고친 쓰레기 값은 «네 변»으로 읽는다(옛 동작 쪽 · 외곽선의 「모르면 안 켠다」와 같은 결). */
+  const eNorm = _gridNormEdges(ds.cellBorderEdges);
+  const edges = (eNorm === null || eNorm === 'box') ? null : (eNorm === 'none' ? [] : eNorm.split(','));
+  return { width: w, color, style, edges };
 }
 
 /** 한 칸의 테두리 CSS. width 0 이면 «빈 문자열»(= 옛 저장본과 바이트가 같다).
@@ -389,9 +427,21 @@ function _gridCellBorder(block) {
 function _gridCellBorderCss(bd, r, c, rowGapPx, colGapPx) {
   if (!bd || !(bd.width > 0)) return '';
   const line = `${bd.width}px ${bd.style} ${bd.color}`;
+  if (bd.edges) return _gridCellEdgesCss(bd, line, r, c);   // ★1013t2F 구분선 모드 — 키가 없으면(null) 아래 옛 식 그대로(바이트 무변)
   const top  = (rowGapPx > 0 || r === 0) ? line : '0';
   const left = (colGapPx > 0 || c === 0) ? line : '0';
   return `border-top:${top};border-left:${left};border-right:${line};border-bottom:${line};`;
+}
+
+/** ★1013t2F 구분선 모드의 한 칸 — 켠 자리만 긋고 나머지 변은 0(오른쪽·아래는 «언제나» 0 — 바깥은 「블럭 외곽선」의 일).
+ *  ★간격과 무관하게 선은 «칸 가장자리»에 붙는다(간격 가운데 괘선은 「칸 사이 줄」의 일 — 축이 다르다).
+ *  ★겹침 — 블럭 외곽선 위 변이 켜져 있고 블럭 배경이 꺼져 있으면(bd.topShared) 첫 행의 칸 위 변은 «안 긋는다»:
+ *    외곽선(블럭 자기 border)과 칸 border 가 맞붙어 «두 배 굵기»가 되는 것을 막는다. 외곽선 굵기·색·꼴도
+ *    cellBorder 를 따르므로 보이는 선은 같다. 배경 켬이면 외곽선이 배경 바깥 가장자리(.grd-edge)로 가서 안 겹친다. */
+function _gridCellEdgesCss(bd, line, r, c) {
+  const top  = bd.edges.includes('top') && !(r === 0 && bd.topShared === true) ? line : '0';
+  const left = bd.edges.includes('vsep') && c > 0 ? line : '0';
+  return `border-top:${top};border-left:${left};border-right:0;border-bottom:0;`;
 }
 
 /* ══ ★블럭 외곽선 (G17 · 2026-10-03, 지디 2차 발주) ═══════════════════════════════
@@ -2187,7 +2237,9 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
   // 러너는 pass-through(계약: 스펙 필드 = API 필드)이므로 파서가 별칭을 수용하는 게 1:1 계약의 근본 해법.
   if (line.text === undefined && line.content !== undefined) line = { ...line, text: line.content };
   const mt = Number.isFinite(Number(line.marginTop)) ? Number(line.marginTop) : null;
-  const mtCss = mt !== null ? `margin-top:${mt}px;` : '';
+  /* ★1013t2F(D2 ⓐ) — 'auto' = 칸(세로 flex) 안에서 «아래로 민다»(구분선 프리셋의 아이콘·꼬리말 자리).
+     프로토는 이걸 CSS 표식(z3.css margin-top:auto !important)으로 걸었다 — 데이터로 옮긴다. 숫자·없음은 옛 식 그대로. */
+  const mtCss = line.marginTop === 'auto' ? 'margin-top:auto;' : (mt !== null ? `margin-top:${mt}px;` : '');
   const addrAttr = addr
     ? ` data-r="${addr.r}" data-c="${addr.c}" data-line="${addr.li}"`
     : (naddr ? ` data-r="${naddr.r}" data-c="${naddr.c}" data-nroot="${naddr.root}" data-npath="${naddr.path}"` : '');
@@ -2709,6 +2761,8 @@ function renderGridBlock(block) {
   const { row: rowGapPx, col: colGapPx } = _gridGaps(block);
   const blockValign = _gridEnum(_GRID_VALIGN, block.dataset.valign) || 'flex-start';
   const cellBorder = _gridCellBorder(block);   // ★T-172 — «블록» 축. 칸 축(pick)과 섞지 않는다.
+  /* ★1013t2F 구분선 모드에서만 — 블럭 외곽선 위 변과 첫 행 칸 위 변의 겹침(_gridCellEdgesCss 머리말). 네 변 모드는 안 본다(바이트 무변). */
+  if (cellBorder.edges) cellBorder.topShared = _gridBlockOutline(block).on.top && !_gridBlockBg(block).on;
   const cellPadY = getGridCellPadY(block);     // ★제4안 — 모든 칸 위아래에 «더함»(0 이면 칸 style 바이트 그대로)
 
   /* ★오버레이(떠 있음)면 폭을 «굳힌 px» 그대로 둔다 — 띄울 때 overlay-float.js _freezeWidth 가 px 로 굳히는데,
@@ -2997,6 +3051,16 @@ function makeGridBlock(opts = {}, drops = []) {
   if (opts.cellBorderWidth !== undefined) { const v = _gridValidateBorderWidth(opts.cellBorderWidth); if (v !== null) block.dataset.cellBorderWidth = String(v); }
   if (typeof opts.cellBorderColor === 'string' && _GRID_COLOR_RE.test(opts.cellBorderColor.trim())) block.dataset.cellBorderColor = opts.cellBorderColor.trim();
   if (GRID_BORDER_STYLES.includes(opts.cellBorderStyle)) block.dataset.cellBorderStyle = opts.cellBorderStyle;
+  /* ★1013t2F 선 자리·인포그래픽 표식도 «주어졌을 때만» — 안 주면 dataset 이 옛 파일과 같다. 모르는 값은 말하고 버린다. */
+  if (opts.cellBorderEdges !== undefined && opts.cellBorderEdges !== null) {
+    const v = _gridNormEdges(opts.cellBorderEdges);
+    if (v === null) drops.push({ path: 'cellBorderEdges', why: `${JSON.stringify(opts.cellBorderEdges)} is not a list from ${GRID_BORDER_EDGES.join('|')} — it was not written (all four sides)` });
+    else if (v !== 'box') block.dataset.cellBorderEdges = v;
+  }
+  if (opts.ifgPreset !== undefined && opts.ifgPreset !== null) {
+    if (GRID_IFG_PRESET_KEYS.includes(opts.ifgPreset)) block.dataset.ifgPreset = opts.ifgPreset;
+    else drops.push({ path: 'ifgPreset', why: `${JSON.stringify(opts.ifgPreset)} is not one of ${GRID_IFG_PRESET_KEYS.join('|')} — it was not written` });
+  }
   /* ★제4안 cellPadY — 주어졌고 0 보다 클 때만 쓴다(안 주면 옛 dataset 과 같음) · 범위 밖은 말하고 버린다 */
   if (opts.cellPadY !== undefined && opts.cellPadY !== null) {
     const v = _gridValidateCellPadY(opts.cellPadY);
@@ -3386,6 +3450,23 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     next.cellBorderStyle = partial.cellBorderStyle;
     applied.cellBorderStyle = partial.cellBorderStyle;
   }
+  /* ── ★1013t2F 칸 테두리 «선 자리» — null/'box' = 키 지움(네 변) · ''/'none'/[] = 'none' · 모르는 낱말 거절. ── */
+  let edgesUnset = false;
+  if (partial.cellBorderEdges !== undefined) {
+    const v = _gridNormEdges(partial.cellBorderEdges);
+    if (v === null) return { ok: false, code: 'INVALID', message: `cellBorderEdges must list from ${GRID_BORDER_EDGES.join('|')} (comma string or array), or 'none' / '' (= dividers mode, all off), or null / 'box' (= all four sides)` };
+    if (v === 'box') edgesUnset = true; else next.cellBorderEdges = v;
+    applied.cellBorderEdges = v === 'box' ? null : v;
+  }
+  /* ── ★1013t2F 인포그래픽 프리셋 표식 — 렌더 무관. null = 지움. ── */
+  let ifgUnset = false;
+  if (partial.ifgPreset !== undefined) {
+    if (partial.ifgPreset === null) ifgUnset = true;
+    else if (!GRID_IFG_PRESET_KEYS.includes(partial.ifgPreset)) {
+      return { ok: false, code: 'INVALID', message: `ifgPreset must be ${GRID_IFG_PRESET_KEYS.join('|')} or null` };
+    } else next.ifgPreset = partial.ifgPreset;
+    applied.ifgPreset = partial.ifgPreset;
+  }
   /* ── ★칸 «사이» 괘선 (현빈 2026-09-30) — 축 둘 × 다섯 키. 선언부(GRID_RULE_*)에 «왜»가 있다.
    *   ⛔열거를 손으로 열 번 적지 않는다: 축·키를 표로 돌린다. 그래야 축을 하나 더 늘릴 때
    *     「한 축만 고쳐진」 상태가 안 생긴다(이 레포의 고질). 거절 메시지는 키 이름을 담는다. */
@@ -3485,8 +3566,8 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     Object.assign(next, plan.set);
     bgDel = plan.del.filter(k => !(k in plan.set));
   }
-  if (Object.keys(next).length === 0 && !widthUnset && !outlineUnset && !bgDel.length && !cellPadYUnset) {
-    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/width/cellBorderWidth/cellBorderColor/cellBorderStyle/{col,row}Rule{On,Width,Color,Inset,Span}/blockOutline/blockBg' };
+  if (Object.keys(next).length === 0 && !widthUnset && !outlineUnset && !bgDel.length && !cellPadYUnset && !edgesUnset && !ifgUnset) {
+    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/width/cellBorderWidth/cellBorderColor/cellBorderStyle/cellBorderEdges/{col,row}Rule{On,Width,Color,Inset,Span}/blockOutline/blockBg/ifgPreset' };
   }
 
   /* ⛔되돌림 명부에 «새 키»를 같이 넣어라 — 빠지면 RENDER_ERROR 롤백이 테두리만 남겨
@@ -3498,6 +3579,8 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     cellBorderWidth: block.dataset.cellBorderWidth,
     cellBorderColor: block.dataset.cellBorderColor,
     cellBorderStyle: block.dataset.cellBorderStyle,
+    cellBorderEdges: block.dataset.cellBorderEdges,   // 1013t2F — 선 자리
+    ifgPreset: block.dataset.ifgPreset,               // 1013t2F — 인포그래픽 프리셋 표식
     /* ⛔괘선 열 키도 여기 있어야 한다 — 빠지면 RENDER_ERROR 롤백이 줄만 남겨
        「그리기에 실패했는데 화면엔 줄이 남는」 반쪽 상태를 만든다(바로 위 ⛔와 같은 까닭). */
     colRuleOn: block.dataset.colRuleOn,
@@ -3555,6 +3638,8 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   if (widthUnset) delete block.dataset.gridWidth;
   if (cellPadYUnset) delete block.dataset.cellPadY;
   if (outlineUnset) delete block.dataset.blockOutline;
+  if (edgesUnset) delete block.dataset.cellBorderEdges;
+  if (ifgUnset) delete block.dataset.ifgPreset;
   bgDel.forEach(k => { delete block.dataset[k]; });
   if (partial.width !== undefined) delete block.dataset.gridWidthAuto;   // 사람이 정한 폭 — 자동 출처 표시를 뗀다
   /* ★T5-⒜ — 폭을 «세울» 때만. ⛔widthUnset(width:null = 자동으로 되돌리기)은 제외한다 —

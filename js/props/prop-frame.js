@@ -1074,6 +1074,9 @@ function _renderAutoPanel(ss) {
         clearBlockFullBleed(ss);
         applyWidth(parseInt(ss.dataset.width) || width);   // 자연 폭 복원은 호출부 몫
       }
+      /* 버즈(1013t2 D1) — 새 버즈는 이 스위치가 켜진 채로 들어온다. 끄면 프레임이 패딩만큼 좁아지므로 밖으로 나간 말풍선이 있으면
+         같은 무늬번호로 안에 다시 놓는다(안 나갔으면 무동작 · 높이 칸의 그 길과 같다 · 히스토리는 위의 한 칸에 같이 든다). */
+      refitBuzzOnResize(ss);
       window.scheduleAutoSave?.();
     });
   }
