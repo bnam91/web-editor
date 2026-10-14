@@ -2,9 +2,12 @@
  *
  * ★무엇을 잠그나
  *   C2-a Position 절 — Coin 절 «위»에 있고 · 텍스트 패널 Position 과 같은 마크업 꼴 · 칸 = 저장값 · 쳐 넣으면 코인이 그 자리로 간다 · ⌘Z 한 걸음
- *   C2-b ★10% 남기기 — 섹션 밖으로 한참 나가는 값을 넣어도 «코인 그림»의 10% 는 섹션 안이다(네 변) · 가둔 값이 칸에 되적힌다
- *        ★그림을 화면에서 «직접» 잰다(앞면 타원 ＋ 옆띠의 화면 사각형 ∩ 섹션 사각형) — 제품의 계산식을 다시 부르지 않는다.
- *        ★상자가 아니라 그림이다 — 상자 기준이면 그림이 통째로 밖에 있을 수 있다(여백이 한쪽 15%).
+ *   C2-b ★10% 남기기 — 섹션 밖으로 한참 나가는 값을 넣어도 «코인 그림 면적»의 10% 는 섹션 안이다(네 변 ＋ ★네 모서리) · 가둔 값이 칸에 되적힌다
+ *        ★면적을 «따로» 잰다 — 그려진 SVG 를 캔버스에 찍어 그림 화소를 세고, 상자의 자리·회전으로 섹션 좌표에 옮겨 안/밖을 가른다.
+ *          제품의 계산(CoinFx.inkFrac · inkBox · _coinKeepRange)을 부르지 않는다.
+ *        ★구성 넷 — 기울기·방향·상자 회전·비정사각 상자(독립 평가가 0% 를 잰 꼴들).
+ *   C2-g ★회전한 코인의 잘림이 섹션 경계와 맞는다 — clip-path 의 네 점을 화면으로 옮기면 섹션의 네 귀다
+ *   C2-h 옛 저장본의 «처음부터 밖에 있던» 코인은 생김새를 바꿔도 안 튄다 · 지키고 있던 코인도 광택·번짐에는 안 움직인다
  *   C2-c 잘림 — 밖으로 나간 부분은 고르지 않은 동안 clip-path 로 잘린다 · 고른 동안은 안 잘린다(손잡이를 잡을 수 있게)
  *   C2-d ⌘ 끌기 — 코인은 10% 를 남기고 · X·Y 칸이 끄는 대로 따라온다 · 코인이 아닌 스티커는 이 한도를 안 받는다
  *   C2-e 각도가 바뀌어 그림 상자가 달라지면 다시 가둔다
@@ -77,22 +80,28 @@ async function oneUndo(page, id, label, action) {
 }
 const ds = (page, id) => page.evaluate((id) => ({ ...document.getElementById(id).dataset }), id);
 
-/* ★코인 «그림»이 섹션 안에 남은 비율 — 화면에서 직접 잰다.
-   그림 = 옆띠(첫 path) ∪ 앞면 타원(fill 이 gradient 인 첫 ellipse). 방향 0·회전 0 이라 각 요소의 화면 사각형이 딱 맞는다.
-   돌려줌: { fx, fy } = 가로·세로로 섹션 안에 남은 비율(0~1) · inkW/inkH = 그림의 레이아웃 px 크기. */
-const inkInside = (page, id) => page.evaluate((id) => {
+/* ★코인 «그림 면적»이 섹션 안에 남은 비율 — 제품 계산과 «다른 길»로 잰다.
+   ① 그려진 SVG 를 상자 크기 캔버스에 찍는다(그림 화소 = 알파 > 40) ② 화소마다 상자 중심 둘레로 data-rotation 만큼 돌리고 자리(left·top)를 더해
+   섹션 좌표로 옮긴다 ③ 섹션 사각형 안에 든 화소 수 ÷ 그림 화소 수. 번짐이 없는 코인에서만 쓴다. */
+const inkArea = (page, id) => page.evaluate(async (id) => {
   const b = document.getElementById(id), sec = b.closest('.section-block');
-  const side = b.querySelector('svg path'), face = b.querySelector('svg ellipse[fill^="url("]');
-  const rs = [side, face].map((e) => e.getBoundingClientRect());
-  const ink = { l: Math.min(...rs.map((r) => r.left)), r: Math.max(...rs.map((r) => r.right)), t: Math.min(...rs.map((r) => r.top)), b: Math.max(...rs.map((r) => r.bottom)) };
-  const s = sec.getBoundingClientRect();
-  const z = s.width / sec.clientWidth;
-  const ov = (a0, a1, b0, b1) => Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
-  const box = b.getBoundingClientRect();
-  return { fx: ov(ink.l, ink.r, s.left, s.right) / (ink.r - ink.l), fy: ov(ink.t, ink.b, s.top, s.bottom) / (ink.b - ink.t),
-    inkW: (ink.r - ink.l) / z, inkH: (ink.b - ink.t) / z,
-    boxFx: ov(box.left, box.right, s.left, s.right) / box.width, boxFy: ov(box.top, box.bottom, s.top, s.bottom) / box.height,
-    secW: sec.clientWidth, secH: sec.clientHeight };
+  const W = b.offsetWidth, H = b.offsetHeight, x = b.offsetLeft, y = b.offsetTop;
+  const src = b.querySelector(':scope > svg').outerHTML.replace('width="100%" height="100%"', `width="${W}" height="${H}"`);
+  const img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(src); await img.decode();
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d'); g.drawImage(img, 0, 0, W, H);
+  const px = g.getImageData(0, 0, W, H).data;
+  const th = (parseFloat(b.dataset.rotation) || 0) * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
+  const SW = sec.clientWidth, SH = sec.clientHeight;
+  let all = 0, inn = 0;
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    if (px[(j * W + i) * 4 + 3] <= 40) continue;
+    all++;
+    const dx = i + 0.5 - W / 2, dy = j + 0.5 - H / 2;
+    const X = x + W / 2 + dx * c - dy * s, Y = y + H / 2 + dx * s + dy * c;
+    if (X >= 0 && X <= SW && Y >= 0 && Y <= SH) inn++;
+  }
+  return { frac: all ? inn / all : -1, all, x, y };
 }, id);
 
 test('C2-a Position 절 — Coin 절 위 · 텍스트 Position 과 같은 꼴 · 쳐 넣으면 그 자리로 · ⌘Z 한 걸음', async ({ page }) => {
@@ -104,13 +113,15 @@ test('C2-a Position 절 — Coin 절 위 · 텍스트 Position 과 같은 꼴 ·
   const p = await page.evaluate(() => {
     const pos = document.getElementById('stk-coin-pos-section'), coin = document.getElementById('stk-coin-section');
     const sig = (inp) => { const w = inp.closest('.prop-icon-input'); return [inp.type, w?.className, w?.querySelector('.prop-xy-label')?.textContent, w?.parentElement.className, w?.parentElement.parentElement.className, inp.getAttribute('aria-label')]; };
-    return { before: !!(pos.compareDocumentPosition(coin) & Node.DOCUMENT_POSITION_FOLLOWING), label: pos.querySelector('.prop-field-label')?.textContent.trim(),
+    return { before: !!(pos.compareDocumentPosition(coin) & Node.DOCUMENT_POSITION_FOLLOWING), label: pos.querySelector(':scope > .prop-section-title')?.textContent.trim(), coinTitle: coin.querySelector(':scope > .prop-section-title')?.className,
+      posTitle: pos.querySelector(':scope > .prop-section-title')?.className,
       x: sig(document.getElementById('stk-coin-x')), y: sig(document.getElementById('stk-coin-y')),
       vals: [document.getElementById('stk-coin-x').value, document.getElementById('stk-coin-y').value],
       h: [...pos.querySelectorAll('.prop-icon-input')].map((e) => Math.round(e.getBoundingClientRect().height)),
       w: [...pos.querySelectorAll('.prop-icon-input')].map((e) => Math.round(e.getBoundingClientRect().width)) };
   });
   expect([p.before, p.label], 'Position 절이 Coin 절 위에 있다').toEqual([true, 'Position']);
+  expect(p.posTitle, 'Position 절의 제목이 바로 아래 Coin 절의 제목과 같은 꼴이다').toBe(p.coinTitle);
   /* 텍스트 패널 Position 칸(js/props/prop-text-template.js)과 같은 꼴: .prop-lhls-row > .prop-lhls-col > .prop-icon-input > .prop-xy-label + input[type=number] */
   expect(p.x).toEqual(['number', 'prop-icon-input', 'X', 'prop-lhls-col', 'prop-lhls-row', 'X position']);
   expect(p.y).toEqual(['number', 'prop-icon-input', 'Y', 'prop-lhls-col', 'prop-lhls-row', 'Y position']);
@@ -133,35 +144,45 @@ test('C2-a Position 절 — Coin 절 위 · 텍스트 Position 과 같은 꼴 ·
   expect(errs).toEqual([]);
 });
 
-test('C2-b ★10% 남기기 — 한참 밖의 값을 넣어도 코인 그림의 10% 는 섹션 안 · 가둔 값이 칸에 되적힌다(네 변)', async ({ page }) => {
+test('C2-b ★10% 남기기 — 한참 밖의 값을 넣어도 코인 그림 «면적»의 10% 는 섹션 안 · 네 변 ＋ 네 모서리 · 구성 넷', async ({ page }) => {
+  test.setTimeout(180000);
   await bootApp(page);
   await setup(page);
-  const id = await make(page);
-  await pick(page, id);
-  const base = await inkInside(page, id);
-  expect([base.fx > 0.999, base.fy > 0.999], '★전제: 처음엔 그림이 통째로 섹션 안이다').toEqual([true, true]);
-  expect(base.inkW > 70 && base.inkW < 90 && base.inkH > 50 && base.inkH < 65, `★전제: 그림 크기 ≈ 83×58 (받음 ${base.inkW}×${base.inkH}) — 상자 120 보다 작다`).toBe(true);
-
-  /* 좌표가 정수라 10% 에서 안쪽으로 최대 1px 더 들어온다 ⇒ 비율은 [10%, 10% + 1px/그림] */
-  const near = (f, ink) => f >= 0.1 - 1e-3 && f <= 0.1 + 1.01 / ink + 1e-3;
-  for (const [axis, v, key, ink] of [['x', 99999, 'fx', 'inkW'], ['x', -99999, 'fx', 'inkW'], ['y', 99999, 'fy', 'inkH'], ['y', -99999, 'fy', 'inkH']]) {
-    await typeInto(page, '#stk-coin-' + axis, 100);                       // 먼저 안으로 되돌려 놓는다
-    await expect.poll(async () => (await ds(page, id))[axis]).toBe('100');
-    await typeInto(page, '#stk-coin-' + axis, v);
-    await expect.poll(async () => (await ds(page, id))[axis] !== '100', `${axis}=${v}: 값이 안 먹었다`).toBe(true);
-    const got = await inkInside(page, id);
-    const d = await ds(page, id);
-    expect(near(got[key], got[ink]), `${axis}=${v} → 저장 ${d[axis]} · 섹션 안에 남은 그림 ${(got[key] * 100).toFixed(2)}% (10% 여야 한다)`).toBe(true);
-    expect(await page.inputValue('#stk-coin-' + axis), '가둔 값이 칸에 되적힌다').toBe(d[axis]);
-    expect(Math.abs(+d[axis]) < 5000, '넣은 값이 그대로 저장되지 않았다').toBe(true);
-    expect(await page.evaluate((id) => { const b = document.getElementById(id); return [b.style.left, b.style.top]; }, id)).toEqual([d.x + 'px', d.y + 'px']);
+  /* 독립 평가가 0% 를 잰 꼴들 — 정면이 아닌 기울기·방향, 상자 회전, 비정사각 상자 */
+  const CONFIGS = [
+    { name: '기울기 60', o: { coinTilt: 60, coinDir: 0 } },
+    { name: '기울기 80 · 방향 37', o: { coinTilt: 80, coinDir: 37, sizeW: 200, sizeH: 200 } },
+    { name: '기울기 60 · 상자 회전 90', o: { coinTilt: 60, coinDir: 0, rotation: 90, sizeW: 160, sizeH: 160 } },
+    { name: '기울기 30 · 방향 -120 · 회전 45 · 240×120', o: { coinTilt: 30, coinDir: -120, rotation: 45, sizeW: 240, sizeH: 120 } },
+  ];
+  const FAR = 99999;
+  const MOVES = [['왼쪽', -FAR, null], ['오른쪽', FAR, null], ['위', null, -FAR], ['아래', null, FAR],
+    ['왼쪽 위', -FAR, -FAR], ['오른쪽 위', FAR, -FAR], ['왼쪽 아래', -FAR, FAR], ['오른쪽 아래', FAR, FAR]];
+  const seen = [];
+  for (const cfg of CONFIGS) {
+    const id = await make(page, { x: 300, y: 150, ...cfg.o });
+    await page.evaluate((id) => window._selectSticker(document.getElementById(id)), id);   // 고르기 자체는 C2-a 가 마우스로 잰다 — 여기는 칸이 주제다
+    await page.waitForSelector(`#stk-coin-x[data-block-id="${id}"]`);
+    const base = await inkArea(page, id);
+    expect([base.frac, base.all > 1500], `★전제(${cfg.name}): 처음엔 그림이 통째로 섹션 안이고, 그림 화소를 셌다(${base.all})`).toEqual([1, true]);
+    for (const [where, vx, vy] of MOVES) {
+      await typeInto(page, '#stk-coin-x', 300); await typeInto(page, '#stk-coin-y', 150);          // 안으로 되돌려 놓고
+      await expect.poll(async () => { const d = await ds(page, id); return [d.x, d.y]; }).toEqual(['300', '150']);
+      if (vx != null) { await typeInto(page, '#stk-coin-x', vx); await expect.poll(async () => (await ds(page, id)).x !== '300', `${cfg.name} ${where}: X 가 안 먹었다`).toBe(true); }
+      if (vy != null) { await typeInto(page, '#stk-coin-y', vy); await expect.poll(async () => (await ds(page, id)).y !== '150', `${cfg.name} ${where}: Y 가 안 먹었다`).toBe(true); }
+      const got = await inkArea(page, id), d = await ds(page, id);
+      seen.push(`${cfg.name} · ${where}: (${d.x},${d.y}) ${(got.frac * 100).toFixed(1)}%`);
+      /* 10% 이상(화소 자의 오차 1%p) · 그리고 10% 근처다(좌표가 정수라 안쪽으로 1px 더 — 작은 그림에서 몇 %p) — 훨씬 많이 남기면 「밖으로 나갈 수 있다」가 깨진다 */
+      expect(got.frac >= 0.09 && got.frac <= 0.17, `${cfg.name} · ${where} → (${d.x},${d.y}) · 섹션 안에 남은 그림 면적 ${(got.frac * 100).toFixed(2)}% (10% 여야 한다)`).toBe(true);
+      expect([await page.inputValue('#stk-coin-x'), await page.inputValue('#stk-coin-y')], '가둔 값이 칸에 되적힌다').toEqual([d.x, d.y]);
+      expect(await page.evaluate((id) => { const b = document.getElementById(id); return [b.style.left, b.style.top]; }, id)).toEqual([d.x + 'px', d.y + 'px']);
+      expect(Math.abs(+d.x) < 5000 && Math.abs(+d.y) < 5000, '넣은 값이 그대로 저장되지 않았다').toBe(true);
+    }
+    await page.evaluate((id) => document.getElementById(id).remove(), id);
   }
-  /* ★「상자의 10%」가 아니다 — 세로로 끝까지 내렸을 때 상자는 10% 보다 훨씬 많이 남아 있다(그림이 상자 가운데에 있어서) */
-  const last = await inkInside(page, id);
-  expect(last.boxFy > 0.15, `위로 끝까지 올린 뒤 상자는 ${(last.boxFy * 100).toFixed(1)}% 남는다 — 상자 기준 10% 였다면 그림은 다 나갔다`).toBe(true);
-  /* 범위는 칸의 min/max 에도 적힌다(숫자칸 공용 가드가 읽는다) */
-  const lim = await page.evaluate(() => ['stk-coin-x', 'stk-coin-y'].map((i) => { const e = document.getElementById(i); return [+e.min < 0, +e.max > 0, +e.min < +e.max]; }));
-  expect(lim).toEqual([[true, true, true], [true, true, true]]);
+  test.info().annotations.push({ type: 'measured', description: seen.join(' | ') });
+  console.log('[C2-b] ' + seen.join('\n[C2-b] '));
+  expect(seen.length, '구성 4 × 방향 8 = 32 자리를 쟀다').toBe(32);
 });
 
 test('C2-c 잘림 — 밖으로 나간 부분은 고르지 않은 동안 잘리고 · 고른 동안은 안 잘린다', async ({ page }) => {
@@ -201,8 +222,8 @@ test('C2-d ⌘ 끌기 — 코인은 10% 를 남기고 · X·Y 칸이 따라온�
   await page.keyboard.up('Meta');
   const d = await ds(page, id);
   expect(+d.x < -50, `★전제: ⌘ 끌기로 섹션 밖까지 나갔다(x=${d.x})`).toBe(true);
-  const got = await inkInside(page, id);
-  expect(got.fx >= 0.1 - 1e-3 && got.fx <= 0.1 + 1.01 / got.inkW + 1e-3, `⌘ 끌기 뒤 섹션 안에 남은 그림 ${(got.fx * 100).toFixed(2)}% (10% 여야 한다)`).toBe(true);
+  const got = await inkArea(page, id);
+  expect(got.frac >= 0.09 && got.frac <= 0.17, `⌘ 끌기 뒤 섹션 안에 남은 그림 면적 ${(got.frac * 100).toFixed(2)}% (10% 여야 한다)`).toBe(true);
   expect(midX, 'X 칸이 끄는 동안 저장값을 따라온다').toBe(d.x);
   /* 놓은 뒤 — 패널이 그대로면 그 칸을, 다른 패널로 바뀌었으면 다시 골라서 본다(어느 쪽이었는지 적어 둔다) */
   const kept = await page.evaluate(() => !!document.getElementById('stk-coin-x'));
@@ -229,14 +250,14 @@ test('C2-e 생김새(두께)가 바뀌어 그림 상자가 달라지면 다시 �
   await typeInto(page, '#stk-coin-x', -99999);
   await expect.poll(async () => +(await ds(page, id)).x < 0).toBe(true);
   const x0 = +(await ds(page, id)).x;
-  expect((await inkInside(page, id)).fx, '★전제: 정면 코인이 왼쪽 끝에서 10% 남아 있다').toBeGreaterThanOrEqual(0.1 - 1e-3);
+  expect((await inkArea(page, id)).frac, '★전제: 정면 코인이 왼쪽 끝에서 10% 남아 있다').toBeGreaterThanOrEqual(0.09);
   /* 두께 22 → 40 — 상자 안에서 그림이 작아진다(viewBox 가 넓어진다) ⇒ 그림의 오른쪽 끝이 안쪽으로 들어와 같은 x 로는 10% 가 안 남는다 */
   await typeInto(page, '#stk-coin-k-num', 40);
   await expect.poll(async () => (await ds(page, id)).coinK).toBe('40');
   const d = await ds(page, id);
-  const lim = await page.evaluate((id) => { const b = document.getElementById(id); return window._coinKeepRange(b, b.closest('.section-block')); }, id);
   expect(+d.x > x0 + 5, `두께를 바꿨는데 자리가 그대로다(x ${x0} → ${d.x}) — 그림이 10% 아래로 남는다`).toBe(true);
-  expect(+d.x, '새 그림 상자의 왼쪽 한도로 왔다').toBe(lim.minX);
+  const after = await inkArea(page, id);
+  expect(after.frac >= 0.09 && after.frac <= 0.17, `두께를 바꾼 뒤 섹션 안에 남은 그림 면적 ${(after.frac * 100).toFixed(2)}%`).toBe(true);
   expect([await page.inputValue('#stk-coin-x'), await page.evaluate((id) => document.getElementById(id).style.left, id)]).toEqual([d.x, d.x + 'px']);
 });
 
@@ -401,7 +422,65 @@ test('C2-f 크기 손잡이로 줄여도 코인 그림의 10% 는 섹션 안에 
   await page.mouse.up();
   const d = await ds(page, id);
   expect(+d.sizeW < 200, `★전제: 줄었다(sizeW ${d.sizeW})`).toBe(true);
-  const got = await inkInside(page, id);
-  expect(got.fx >= 0.1 - 1e-3, `줄인 뒤 섹션 안에 남은 그림 ${(got.fx * 100).toFixed(2)}% — 10% 아래다(x ${x0} → ${d.x})`).toBe(true);
+  const got = await inkArea(page, id);
+  expect(got.frac >= 0.09, `줄인 뒤 섹션 안에 남은 그림 면적 ${(got.frac * 100).toFixed(2)}% — 10% 아래다(x ${x0} → ${d.x})`).toBe(true);
   expect(await page.evaluate((id) => document.getElementById(id).style.left, id)).toBe(d.x + 'px');
+});
+
+test('C2-g ★회전한 코인의 잘림이 섹션 경계와 맞는다 — clip-path 의 네 점을 화면으로 옮기면 섹션의 네 귀다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  for (const [rot, axis, v] of [[180, 'y', -99999], [90, 'x', -99999], [45, 'x', 99999], [-30, 'y', 99999]]) {
+    const id = await make(page, { rotation: rot, sizeW: 160, sizeH: 160, x: 300, y: 150 });
+    await page.evaluate((id) => window._selectSticker(document.getElementById(id)), id);
+    await page.waitForSelector(`#stk-coin-x[data-block-id="${id}"]`);
+    await typeInto(page, '#stk-coin-' + axis, v);
+    await expect.poll(async () => (await ds(page, id))[axis] !== (axis === 'x' ? '300' : '150')).toBe(true);
+    await page.evaluate(() => window.deselectAll?.());
+    await expect.poll(() => page.evaluate((id) => !document.getElementById(id).classList.contains('selected'), id), '★전제: 고르기가 풀렸다').toBe(true);
+    const r = await page.evaluate((id) => {
+      const b = document.getElementById(id), sec = b.closest('.section-block');
+      const clip = getComputedStyle(b).clipPath;
+      const nums = (clip.match(/polygon\((.*)\)/)?.[1] || '').split(',').map((p) => p.trim().split(/\s+/).map(parseFloat));
+      const W = b.offsetWidth, H = b.offsetHeight, th = (parseFloat(b.dataset.rotation) || 0) * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
+      /* 요소의 회전 전 좌표 → 섹션 좌표(중심 둘레로 회전) */
+      const toSec = ([lx, ly]) => { const dx = lx - W / 2, dy = ly - H / 2; return [b.offsetLeft + W / 2 + dx * c - dy * s, b.offsetTop + H / 2 + dx * s + dy * c].map((n) => Math.round(n)); };
+      return { clip, pts: nums.length === 4 ? nums.map(toSec) : null, sec: [[0, 0], [sec.clientWidth, 0], [sec.clientWidth, sec.clientHeight], [0, sec.clientHeight]] };
+    }, id);
+    expect(r.clip.startsWith('polygon('), `회전 ${rot}°: 잘림이 polygon 이 아니다 — ${r.clip}`).toBe(true);
+    const off = r.pts.map((p, i) => Math.max(Math.abs(p[0] - r.sec[i][0]), Math.abs(p[1] - r.sec[i][1])));
+    expect(Math.max(...off), `회전 ${rot}°: 잘리는 꼴을 화면으로 옮긴 네 점 ${JSON.stringify(r.pts)} 이 섹션의 네 귀 ${JSON.stringify(r.sec)} 와 다르다`).toBeLessThanOrEqual(1);
+    await page.evaluate((id) => document.getElementById(id).remove(), id);
+  }
+  /* 회전 0 은 예전 그대로 inset · 섹션 안에 통째로 있는 회전 코인은 잘림 값이 없다 */
+  const inId = await make(page, { rotation: 30, x: 300, y: 150 });
+  await expect.poll(() => page.evaluate((id) => getComputedStyle(document.getElementById(id)).clipPath, inId)).toBe('none');
+});
+
+test('C2-h 옛 저장본의 «처음부터 밖에 있던» 코인은 생김새를 바꿔도 안 튄다 · 지키던 코인도 광택·번짐에는 안 움직인다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  /* ① 통째로 밖(예전 ⌘ 자유 이동에는 한도가 없었다) */
+  const old = await make(page, { x: -500, y: 80 });
+  await page.evaluate((id) => window._selectSticker(document.getElementById(id)), old);
+  await page.waitForSelector(`#stk-coin-x[data-block-id="${old}"]`);
+  expect((await inkArea(page, old)).frac, '★전제: 그 코인은 통째로 섹션 밖이다').toBe(0);
+  await typeInto(page, '#stk-coin-gloss-num', 50);
+  await expect.poll(async () => (await ds(page, old)).coinGloss).toBe('50');
+  await typeInto(page, '#stk-coin-k-num', 40);
+  await expect.poll(async () => (await ds(page, old)).coinK).toBe('40');
+  expect([(await ds(page, old)).x, (await ds(page, old)).y], '밖에 있던 코인이 광택·두께를 바꿨다고 끌려왔다').toEqual(['-500', '80']);
+  /* 자리를 직접 고치면 그때부터는 가둔다 */
+  await typeInto(page, '#stk-coin-x', -400);
+  await expect.poll(async () => +(await ds(page, old)).x > -400, 'X 를 직접 넣었는데 안 가둬졌다').toBe(true);
+  expect((await inkArea(page, old)).frac).toBeGreaterThanOrEqual(0.09);
+  /* ② 10% 를 지키고 있는 코인 — 그림 크기를 안 바꾸는 조작(광택·번짐·재질)에는 자리가 그대로다 */
+  const x1 = (await ds(page, old)).x;
+  await typeInto(page, '#stk-coin-gloss-num', 80);
+  await expect.poll(async () => (await ds(page, old)).coinGloss).toBe('80');
+  await typeInto(page, '#stk-coin-blur-num', 5);
+  await expect.poll(async () => (await ds(page, old)).coinBlur).toBe('5');
+  await page.click('#stk-coin-metal [data-coin-metal="silver"]');
+  await expect.poll(async () => (await ds(page, old)).coinMetal).toBe('silver');
+  expect((await ds(page, old)).x, '광택·번짐·재질을 바꿨는데 자리가 움직였다').toBe(x1);
 });

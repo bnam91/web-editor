@@ -42,50 +42,93 @@ window._clampToSection = _clampToSection;
 /* ── 코인 스티커 — 섹션 밖으로 나가도 «코인의 10% 는 섹션 안에 남긴다» (1013t2C2) ──────────────
    패널의 X·Y 칸(js/props/prop-sticker-coin.js)과 ⌘ 자유 이동이 이 한 자리를 읽는다. 밖으로 나간 부분은
    섹션 밖 크롭(--sec-clip · js/blocks/sticker-block.js _updateStickerSecClip)이 자른다.
-   ★재는 것은 «상자»가 아니라 «그림»이다 — 코인 상자에는 그림 둘레로 빈 여백이 있어(두께 22% 에서 한쪽 약 15%),
-     상자의 10% 를 남기면 그림은 통째로 밖에 있을 수 있다. 그림 상자는 그리개가 준다(CoinFx.inkBox · 기울기·방향·두께·회전 반영).
-   ★가로·세로를 따로 잰다(축마다 그림 폭·높이의 10%). 번짐이 넓힌 만큼은 세지 않는다.
-   좌표는 정수로 적히므로 안쪽으로 올림/내림한다(경계에서 10% 아래로 안 내려가게). */
+   ★재는 것은 «그림의 면적»이다 — 섹션 안에 든 그림 면적 ÷ 그림 전체 면적 ≥ 10% (CoinFx.inkFrac · 기울기·방향·두께·회전 반영).
+     ⛔상자로 재지 마라: 코인 상자에는 그림 둘레로 빈 여백이 있어(두께 22% 에서 한쪽 약 15%) 상자의 10% 를 남기면 그림은 통째로 밖일 수 있다.
+     ⛔가로·세로를 따로 재지 마라: 모서리로 밀면 남는 자리가 그림 상자의 귀퉁이(10% × 10%)인데 타원은 거기에 그림이 없다
+       — 독립 평가 실측(2026-10-14): 모서리에서 0~0.2% · 한 변에서도 3.7~9.9% 였다.
+   ★가두는 법: 그 자리가 10% 를 못 채우면 «그림이 통째로 안에 드는 가장 가까운 자리»를 향해 곧게 되돌린다(10% 가 되는 첫 자리까지).
+     한 축만 되돌려서 되면 그 축만 움직인다(변을 따라 미끄러진다). 볼록한 그림이라 그 길 위에서 남는 면적은 줄지 않는다 ⇒ 이분 탐색.
+   번짐이 넓힌 만큼은 세지 않는다. 좌표는 정수로 적히므로 안쪽으로 맞춘다(10% 아래로 안 내려가게). */
 const COIN_KEEP_RATIO = 0.1;
 window.COIN_KEEP_RATIO = COIN_KEEP_RATIO;
-/** 코인 스티커의 x·y 가 가질 수 있는 범위. 코인이 아니거나 그리개가 없으면 null. */
-function _coinKeepRange(block, sec) {
+/** 코인의 재는 틀 — { frac(x,y) → 그 자리에서 섹션 안에 남는 그림 면적 비 · xi(x)·yi(y) → 그림이 통째로 안에 드는 가장 가까운 자리 }.
+ *  코인이 아니거나 · 그리개가 없거나 · 크기를 못 재면(섹션이 접혀 폭 0 등) null — 호출자는 «아무것도 옮기지 않는다». */
+function _coinKeepFrame(block, sec) {
   const C = window.CoinFx;
-  if (!block || !sec || block.dataset.shape !== 'coin' || !C || typeof C.inkBox !== 'function') return null;
+  if (!block || !sec || block.dataset.shape !== 'coin' || !C || typeof C.inkFrac !== 'function') return null;
   const d = block.dataset;
   const n = (v, fb) => { const p = parseFloat(v); return Number.isFinite(p) ? p : fb; };
   const W = n(d.sizeW, n(d.size, block.offsetWidth || 0)), H = n(d.sizeH, n(d.size, block.offsetHeight || 0));
-  if (!(W > 0) || !(H > 0)) return null;
-  const b = C.inkBox({ tilt: n(d.coinTilt, 0), dir: n(d.coinDir, 0), k: n(d.coinK, C.DEFAULTS.k) / 100, rot: n(d.rotation, 0) });
+  const SW = sec.clientWidth || 0, SH = sec.clientHeight || 0;
+  if (!(W > 0) || !(H > 0) || !(SW > 0) || !(SH > 0)) return null;
+  const look = { tilt: n(d.coinTilt, 0), dir: n(d.coinDir, 0), k: n(d.coinK, C.DEFAULTS.k) / 100, rot: n(d.rotation, 0) };
+  const b = C.inkBox(look);
   const s = Math.min(W, H) / (2 * b.m);              /* viewBox → 상자 px (preserveAspectRatio meet · 가운데) */
   const ix0 = W / 2 + b.x0 * s, ix1 = W / 2 + b.x1 * s, iy0 = H / 2 + b.y0 * s, iy1 = H / 2 + b.y1 * s;
-  const kw = (ix1 - ix0) * COIN_KEEP_RATIO, kh = (iy1 - iy0) * COIN_KEEP_RATIO;
-  const range = (lo, hi) => { const a = Math.ceil(lo), z = Math.floor(hi); return a <= z ? [a, z] : [Math.round((lo + hi) / 2), Math.round((lo + hi) / 2)]; };
-  const [minX, maxX] = range(kw - ix1, (sec.clientWidth || 0) - ix0 - kw);
-  const [minY, maxY] = range(kh - iy1, (sec.clientHeight || 0) - iy0 - kh);
-  return { minX, maxX, minY, maxY };
+  const inside = (v, lo, hi) => (lo <= hi ? Math.min(hi, Math.max(lo, v)) : (lo + hi) / 2);   /* 그림이 섹션보다 크면 가운데 */
+  return {
+    W, H, SW, SH,
+    frac: (x, y) => C.inkFrac(look, { x0: (0 - (x + W / 2)) / s, y0: (0 - (y + H / 2)) / s, x1: (SW - (x + W / 2)) / s, y1: (SH - (y + H / 2)) / s }),
+    xi: (x) => inside(x, -ix0, SW - ix1), yi: (y) => inside(y, -iy0, SH - iy1),
+  };
 }
-/** 좌표를 그 범위로 가둔다 → [x, y]. 코인이 아니면 null(호출자가 제 길로 간다). */
+/** 좌표를 가둔다 → [x, y](정수). 코인이 아니거나 못 재면 null(호출자가 제 길로 간다). */
 function _clampCoinKeep(block, x, y, sec) {
-  const r = _coinKeepRange(block, sec);
-  if (!r) return null;
-  return [Math.min(r.maxX, Math.max(r.minX, Math.round(x))), Math.min(r.maxY, Math.max(r.minY, Math.round(y)))];
+  const F = _coinKeepFrame(block, sec);
+  if (!F) return null;
+  const K = COIN_KEEP_RATIO;
+  x = Math.round(x); y = Math.round(y);
+  if (F.frac(x, y) >= K) return [x, y];
+  const xi = F.xi(x), yi = F.yi(y);
+  /* 되돌릴 곳 — 한 축만으로 되면 그 축만 */
+  const [tx, ty] = F.frac(xi, y) >= K ? [xi, y] : F.frac(x, yi) >= K ? [x, yi] : [xi, yi];
+  if (F.frac(tx, ty) < K) return [Math.round(tx), Math.round(ty)];   /* 섹션이 그림의 10% 보다도 작다 — 가운데가 최선 */
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 20; i++) { const t = (lo + hi) / 2; if (F.frac(x + (tx - x) * t, y + (ty - y) * t) >= K) hi = t; else lo = t; }
+  const toward = (v, t) => (t > v ? Math.ceil : Math.floor);
+  let cx = toward(x, tx)(x + (tx - x) * hi), cy = toward(y, ty)(y + (ty - y) * hi);
+  for (let i = 0; i < 6 && F.frac(cx, cy) < K; i++) { cx += Math.sign(tx - cx); cy += Math.sign(ty - cy); }   /* 정수 맞춤 뒤 모자라면 한 칸씩 안으로 */
+  return [cx, cy];
 }
-/** 지금 자리를 그 범위로 다시 가둔다 — 크기·회전·각도가 바뀌어 그림 상자가 달라진 뒤에 부른다. 옮겼으면 true.
- *  이미 범위 안이면(거의 언제나) 아무것도 안 쓴다 ⇒ 히스토리 표본이 안 달라진다. */
+/** 지금 자리에서 한 축만 움직일 때의 범위(패널 칸의 min/max 용). 못 재면 null. */
+function _coinKeepRange(block, sec) {
+  const F = _coinKeepFrame(block, sec);
+  if (!F) return null;
+  const x = parseInt(block.dataset.x, 10) || 0, y = parseInt(block.dataset.y, 10) || 0;
+  const far = F.W + F.H + F.SW + F.SH;
+  const edge = (cur, other, isX, dirSign) => {
+    const c = isX ? _clampCoinKeep(block, cur + dirSign * far, other, sec) : _clampCoinKeep(block, other, cur + dirSign * far, sec);
+    return c ? c[isX ? 0 : 1] : cur;
+  };
+  const minX = edge(x, y, true, -1), maxX = edge(x, y, true, 1), minY = edge(y, x, false, -1), maxY = edge(y, x, false, 1);
+  return { minX: Math.min(minX, maxX), maxX: Math.max(minX, maxX), minY: Math.min(minY, maxY), maxY: Math.max(minY, maxY) };
+}
+/** 「이 코인은 지금 10% 를 지키고 있나」를 적어 둔다(저장 안 됨) — 고를 때·자리를 쓸 때 부른다.
+ *  ★옛 저장본에는 통째로 밖에 있는 코인이 있을 수 있다(전에는 ⌘ 자유 이동에 한도가 없었다). 그런 코인을 «생김새만 바꿨는데» 끌어오지 않으려고
+ *    _rekeepCoin 은 «지키고 있던» 코인만 다시 가둔다. */
+function _markCoinKept(block) {
+  const sec = block && block.closest && block.closest('.section-block');
+  const F = _coinKeepFrame(block, sec);
+  if (!F) return;
+  block._coinKept = F.frac(parseInt(block.dataset.x, 10) || 0, parseInt(block.dataset.y, 10) || 0) >= COIN_KEEP_RATIO;
+}
+/** 크기·회전·각도·두께가 바뀌어 그림이 달라진 뒤 — «지키고 있던» 코인이면 다시 가둔다. 옮겼으면 true.
+ *  이미 10% 가 남아 있으면(거의 언제나) 아무것도 안 쓴다 ⇒ 히스토리 표본이 안 달라진다. */
 function _rekeepCoin(block) {
   const sec = block && block.closest && block.closest('.section-block');
-  if (!sec) return false;
+  if (!sec || block._coinKept === false) return false;
   const x = parseInt(block.dataset.x, 10) || 0, y = parseInt(block.dataset.y, 10) || 0;
   const c = _clampCoinKeep(block, x, y, sec);
   if (!c || (c[0] === x && c[1] === y)) return false;
   block.dataset.x = String(c[0]); block.dataset.y = String(c[1]);
   block.style.left = c[0] + 'px'; block.style.top = c[1] + 'px';
   window._updateStickerSecClip?.(block);
+  window._syncCoinPosFields?.(block);
   return true;
 }
 window._coinKeepRange = _coinKeepRange;
 window._clampCoinKeep = _clampCoinKeep;
+window._markCoinKept = _markCoinKept;
 window._rekeepCoin = _rekeepCoin;
 
 function _selectSticker(block) {
@@ -105,6 +148,7 @@ function _selectSticker(block) {
   } else {
     _addCornerHandles(block);
   }
+  if (block.dataset.shape === 'coin') _markCoinKept(block);
   window.showStickerProperties?.(block);
 }
 window._selectSticker = _selectSticker;
@@ -528,6 +572,7 @@ function bindStickerSelect(block) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       window._updateStickerSecClip?.(block);
+      if (block.dataset.shape === 'coin') _markCoinKept(block);
       window.pushHistory?.('스티커 이동');
       window.scheduleAutoSave?.();
     };

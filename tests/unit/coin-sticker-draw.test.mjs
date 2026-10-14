@@ -54,7 +54,7 @@ test('D0 전제 — DOM 없이 실리고, 계약한 이름만 낸다', () => {
   const { C } = load();
   assert.equal(typeof C?.svg, 'function');
   assert.deepEqual(Object.keys(C).sort(),
-    ['DEFAULTS', 'GLYPH_MAX', 'LIMITS', 'PALETTES', 'angleFromSeed', 'baseColors', 'cutGlyph', 'draw', 'inkBox', 'lookFromColor', 'paletteFor', 'svg', 'toHex6'],
+    ['DEFAULTS', 'GLYPH_MAX', 'LIMITS', 'PALETTES', 'angleFromSeed', 'baseColors', 'cutGlyph', 'draw', 'inkBox', 'inkFrac', 'lookFromColor', 'paletteFor', 'svg', 'toHex6'],
     '★스티커가 안 쓰는 API 가 붙었거나 계약한 것이 빠졌다 — 머리말의 계약과 같이 고쳐라');
   assert.deepEqual({ ...C.DEFAULTS }, { metal: 'gold', glyph: '$', k: 22, gloss: 22, size: 120 });
   assert.equal(C.GLYPH_MAX, 2);
@@ -361,4 +361,34 @@ test('D15 ★한 닢 그리기(draw · 1013t2E3) — 자리·지름 · svg 껍�
   assert.deepEqual({ ...C.lookFromColor(C.baseColors('silver').face) }, { metal: 'silver' });
   assert.deepEqual({ ...C.lookFromColor('#2D6FE8') }, { metal: 'custom', face: '#2d6fe8', side: '#204ea2' });
   for (const bad of ['', 'red', null, undefined, 12, '#12']) assert.deepEqual({ ...C.lookFromColor(bad) }, { metal: 'gold' }, `못 읽는 색 ${String(bad)}`);
+});
+
+test('D16 ★그림 면적 비(inkFrac · 1013t2C2) — 통째 = 1 · 반 = 0.5 · 귀퉁이 10%×10% 에는 그림이 없다 · 회전해도 같은 면적', () => {
+  const { C, calls } = load();
+  const face = { tilt: 0, dir: 0, k: 0.22, rot: 0 };                       // 정면 = 반지름 50 의 원
+  const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} (기대 ${b} ± ${tol})`);
+  assert.equal(C.inkFrac(face, { x0: -72, y0: -72, x1: 72, y1: 72 }), 1);
+  assert.equal(C.inkFrac(face, {}), 1, '사각형을 안 주면 전부 안이다');
+  assert.equal(C.inkFrac(face, { x0: 60, y0: -72, x1: 200, y1: 72 }), 0, '그림 밖의 사각형');
+  near(C.inkFrac(face, { x0: 0, y0: -72, x1: 72, y1: 72 }), 0.5, 0.01, '오른쪽 반');
+  near(C.inkFrac(face, { x0: 0, y0: 0, x1: 72, y1: 72 }), 0.25, 0.01, '오른쪽 아래 사분면');
+  /* 원에서 가장자리로부터 폭의 10%(= 10) 만큼의 띠는 면적으로 약 5.2% 다 — 「폭의 10%」와 「면적의 10%」는 다른 자다 */
+  near(C.inkFrac(face, { x0: 40, y0: -72, x1: 72, y1: 72 }), 0.052, 0.006, '폭 10% 띠의 면적');
+  /* ★그림 상자의 귀퉁이 10%×10% 에는 그림이 없다 — 가로·세로를 따로 10% 씩 남기면 코인이 통째로 사라지는 까닭 */
+  assert.equal(C.inkFrac(face, { x0: 40, y0: 40, x1: 72, y1: 72 }), 0);
+  /* 기울인 코인 — 반으로 가르면(가로 대칭) 0.5 · 상자를 90° 돌리면 그 반이 위아래로 간다 */
+  const tilted = { tilt: 60, dir: 0, k: 0.22, rot: 0 };
+  near(C.inkFrac(tilted, { x0: 0, y0: -72, x1: 72, y1: 72 }), 0.5, 0.01, '기울인 코인의 오른쪽 반');
+  near(C.inkFrac({ ...tilted, rot: 90 }, { x0: -72, y0: 0, x1: 72, y1: 72 }), 0.5, 0.01, '90° 돌린 코인의 아래쪽 반');
+  near(C.inkFrac({ ...tilted, rot: 90 }, { x0: 0, y0: -72, x1: 72, y1: 72 }), C.inkFrac(tilted, { x0: -72, y0: -72, x1: 72, y1: 0 }), 0.01, '돌린 코인의 오른쪽 = 안 돌린 코인의 위쪽');
+  /* 그림 상자(inkBox)와 맞물린다 — 그 상자로 자르면 전부 안, 한 변을 반으로 줄이면 줄어든다 */
+  for (const o of [tilted, { tilt: 80, dir: 37, k: 0.4, rot: 211 }, { tilt: 45, dir: -170, k: 0.08, rot: 33 }]) {
+    const b = C.inkBox(o);
+    near(C.inkFrac(o, { x0: b.x0 - 0.01, y0: b.y0 - 0.01, x1: b.x1 + 0.01, y1: b.y1 + 0.01 }), 1, 1e-9, '그림 상자 안 = 전부');
+    assert.ok(C.inkFrac(o, { x0: b.x0, y0: b.y0, x1: (b.x0 + b.x1) / 2, y1: b.y1 }) < 0.75);
+  }
+  /* 결정성 · 쓰레기 입력 */
+  assert.equal(C.inkFrac(tilted, { x0: 3, y0: -9, x1: 40, y1: 30 }), C.inkFrac(tilted, { x0: 3, y0: -9, x1: 40, y1: 30 }));
+  for (const [o, r] of [[null, null], [{}, {}], [{ tilt: 'x', k: 1e9 }, { x0: NaN, y1: 'q' }]]) { const v = C.inkFrac(o, r); assert.ok(v >= 0 && v <= 1); }
+  assert.equal(calls.random, 0);
 });

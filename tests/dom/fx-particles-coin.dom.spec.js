@@ -83,7 +83,8 @@ test('E3-a ★프리셋 칩 다섯이 같은 꼴이다 — 「코인」이 다�
       active: btns.map((b) => b.classList.contains('active')),
       fit: btns.map((b) => b.scrollWidth <= b.clientWidth + 1),
       gap: [g.columnGap, g.rowGap], groupDisplay: g.display,
-      siblingOther: [...group.parentElement.querySelectorAll('#sec-fxpart-recipe, [data-fxpart-recipe]')].length,
+      /* 프리셋 무리와 같은 카드 안에 「코인」이라 적힌 단추가 칩 말고 또 있나(따로 선 레시피 단추) */
+      coinButtons: [...document.querySelectorAll('#sec-fxpart-card button')].filter((b) => /코인|coin/i.test(b.textContent) && !b.dataset.fxpartShape).map((b) => b.className),
     };
   });
   /* 이름·순서 — 현빈 노트의 그 다섯 */
@@ -91,7 +92,7 @@ test('E3-a ★프리셋 칩 다섯이 같은 꼴이다 — 「코인」이 다�
   expect(r.keys).toEqual(r.kinds);
   expect(r.names).toEqual(['별 반짝이', '금색 컨페티', '컬러 컨페티', '먼지 / 보케', '코인']);
   /* 코인만 다른 단추 꼴(따로 떨어진 「레시피」 단추)이 아니다 — 같은 무리 안의 같은 칩이다 */
-  expect(r.siblingOther, '프리셋 무리 밖에 따로 선 코인 단추가 있다').toBe(0);
+  expect(r.coinButtons, '「코인」 단추는 프리셋 칩 하나뿐이다(따로 선 다른 꼴의 단추가 없다)').toEqual(['prop-align-btn']);
   expect([...new Set(r.tag)], '다섯이 같은 요소다').toEqual(['BUTTON']);
   expect([...new Set(r.cls)], '다섯이 같은 class 다').toEqual(['prop-align-btn']);
   expect([...new Set(r.inline)], '칩마다 다른 인라인 꼴이 없다').toEqual(['']);
@@ -224,9 +225,11 @@ test('E4-a ★크기 상한 250 — 칸의 max · 250 이 들어가고 그 크�
   await set('smax', 400);
   await expect.poll(() => page.inputValue('[data-fxpart-axis="smax"]'), '상한을 넘긴 값이 칸에서 250 으로 안 돌아왔다').toBe('250');
   expect((await state(page)).cfg.smax).toBe(250);
-  /* 옛 상한(90)을 넘는 값이 다른 프리셋에서도 같은 표를 읽는다 */
-  await set('smin', 91);
-  await expect.poll(async () => (await state(page)).cfg.smin).toBe(91);
+  /* 다른 프리셋도 같은 표를 읽는다 — 별 반짝이로 바꿔 옛 상한(90)을 넘는 값을 넣는다 */
+  await page.click('#sec-fxpart-presets [data-fxpart-preset="star"]');
+  await expect.poll(async () => (await state(page)).cfg.preset).toBe('star');
+  await set('smax', 200);
+  await expect.poll(async () => (await state(page)).cfg.smax, '별 반짝이에서 200 이 안 들어갔다').toBe(200);
   expect(errs).toEqual([]);
 });
 

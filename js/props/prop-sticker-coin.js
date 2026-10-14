@@ -4,10 +4,12 @@
  *   Coin 의 행(이 순서): [다시뽑기] · 무늬번호 · 재질(금/은/커스텀 · 색) · 각인 · 두께 · 광택 · 번짐(= _coin-look.js) · 각도 잠금
  *   크기·회전은 패널에 없다 — 캔버스의 스티커 손잡이(js/sticker-select.js)가 한다. 이동은 손잡이와 Position 칸 둘 다.
  *   ★Position(1013t2C2) — X·Y = 섹션 왼쪽 위에서 잰 상자의 자리(data-x · data-y · 정수 px). 마크업은 텍스트 패널의 Position 과 같은 꼴.
- *     섹션 밖으로 나가는 값도 받되 «코인 그림의 10% 는 섹션 안에 남게» 가둔다 — 범위는 js/sticker-select.js _coinKeepRange 한 자리
- *     (⌘ 자유 이동도 같은 범위). 칸의 min/max 에도 그 범위를 적는다(숫자칸 공용 가드가 읽는다) · 가둔 값은 칸에 되쓴다.
+ *     섹션 밖으로 나가는 값도 받되 «코인 그림 면적의 10% 는 섹션 안에 남게» 가둔다 — 가두기는 js/sticker-select.js _clampCoinKeep 한 자리
+ *     (⌘ 자유 이동도 같은 길). 칸의 min/max 에는 «지금 자리에서 그 축만 움직일 때»의 범위를 적는다(숫자칸 공용 가드가 읽는다) · 가둔 값은 칸에 되쓴다.
  *     밖으로 나간 부분은 섹션 밖 크롭(--sec-clip)이 자른다(고른 동안은 손잡이를 잡을 수 있게 안 자른다 — 기존 스티커 규약).
- *     각도·두께가 바뀌면 그림 상자가 달라지므로, 그리고 나서 한 번 더 가둔다(다시뽑기로 코인이 통째로 밖에 남지 않게).
+ *     각도·두께가 바뀌면 그림이 달라지므로, 그리고 나서 한 번 더 가둔다(다시뽑기로 코인이 통째로 밖에 남지 않게).
+ *     ⛔재질·각인·광택·번짐처럼 그림 크기를 안 바꾸는 조작은 자리를 건드리지 않는다. 그리고 옛 저장본의 «처음부터 밖에 있던» 코인은
+ *       자리를 직접 고치기 전에는 끌어오지 않는다(_rekeepCoin 의 block._coinKept).
  *   ★다시뽑기 = «보는 각도만» 바꾼다: 새 무늬번호 → CoinFx.angleFromSeed → data-coin-tilt · data-coin-dir.
  *     그림의 정본은 tilt·dir 두 값이고, 무늬번호 칸도 같은 길로 이 둘을 다시 쓴다(같은 번호 = 같은 각도).
  *   ★각도 잠금(data-coin-lock="1") = 이 코인의 각도를 굳힌다. 켜면 [다시뽑기]와 무늬번호 칸이 disabled 가 되고,
@@ -38,6 +40,7 @@ function writePos(block, x, y) {
   block.dataset.x = String(cx); block.dataset.y = String(cy);
   block.style.left = cx + 'px'; block.style.top = cy + 'px';
   window._updateStickerSecClip?.(block);
+  window._markCoinKept?.(block);
   return [cx, cy];
 }
 
@@ -61,7 +64,7 @@ export function coinSectionHTML(block) {
   const hint = '섹션 밖으로 나가도 코인의 10% 는 섹션 안에 남는다 · 밖으로 나간 부분은 잘려 보인다';
   return `
     <div class="prop-section" id="stk-coin-pos-section">
-      <span class="prop-field-label">Position</span>
+      <div class="prop-section-title">Position</div>
       <div class="prop-lhls-row">
         <div class="prop-lhls-col">
           <div class="prop-icon-input" title="${hint}">
@@ -101,12 +104,11 @@ export function wireCoinSection(panel, block, rerender) {
   const $ = (id) => panel.querySelector('#' + id);
   /* 그리기가 innerHTML 을 갈아 끼워 손잡이가 사라진다 — 고른 채면 다시 단다(카운트 절과 같은 꼴).
      손잡이를 다시 달 때 떨어지는 작은 상자 표시(tiny)는 지켜 준다. */
-  const redraw = () => {
+  const redraw = (shapeChanged = false) => {
     const tiny = block.classList.contains('tiny');
     rerender();
-    /* 각도·두께가 바뀌면 그림 상자가 달라진다 — 10% 남기기를 한 번 더 건다(이미 안이면 아무것도 안 바뀐다) */
-    window._rekeepCoin?.(block);
-    syncCoinPosFields(block);
+    /* 각도·두께가 바뀌면 그림이 달라진다 — 10% 남기기를 한 번 더 건다(이미 남아 있으면 아무것도 안 바뀐다). 색·각인·광택·번짐은 자리와 무관하다. */
+    if (shapeChanged) { window._rekeepCoin?.(block); syncCoinPosFields(block); }
     if (!block.classList.contains('selected')) return;
     window._addCornerHandles?.(block);
     block.classList.toggle('tiny', tiny);
@@ -116,8 +118,8 @@ export function wireCoinSection(panel, block, rerender) {
   const bindPos = (inp, axis) => {
     if (!inp) return;
     inp.addEventListener('input', () => {
-      const v = parseInt(inp.value, 10);
-      if (Number.isNaN(v)) return;             // 입력 도중(빈 칸·'-')은 아직 값이 아니다
+      const v = inp.value.trim() === '' ? NaN : Math.round(Number(inp.value));   // 1e2 같은 꼴도 수로 읽는다(parseInt 는 1 로 읽는다)
+      if (!Number.isFinite(v)) return;         // 입력 도중(빈 칸·'-')은 아직 값이 아니다
       const [x0, y0] = posOf(block);
       const got = writePos(block, axis === 'x' ? v : x0, axis === 'y' ? v : y0);
       const now = got[axis === 'x' ? 0 : 1];
@@ -141,7 +143,7 @@ export function wireCoinSection(panel, block, rerender) {
     block.dataset.seed = String(seed);
     block.dataset.coinTilt = String(tilt);
     block.dataset.coinDir = String(dir);
-    redraw();
+    redraw(true);
     return true;
   };
 
@@ -163,7 +165,7 @@ export function wireCoinSection(panel, block, rerender) {
 
   wireCoinLook(panel, 'stk-coin', {
     get: () => lookOf(block.dataset),
-    set: (patch) => { for (const [k, v] of Object.entries(patch)) block.dataset[LOOK_KEY[k]] = String(v); redraw(); },
+    set: (patch) => { for (const [k, v] of Object.entries(patch)) block.dataset[LOOK_KEY[k]] = String(v); redraw('k' in patch); },
     commit,
   });
 

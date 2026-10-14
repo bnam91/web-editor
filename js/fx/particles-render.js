@@ -43,8 +43,9 @@
      ★여섯째 'coin'(1013t2E3) — «3D 코인» 한 닢. 그림은 js/fx/coin-draw.js(window.CoinFx.draw)가 짓고 여기는 감싸기만 한다(coinSVG). */
   const SHAPES = Object.freeze(['rect', 'ribbon', 'circle', 'star4', 'tri', 'coin']);
 
-  /* ★프리셋 넷 — ⛔bg 키가 ★없다(위 머리말 ⒜ · 현빈 2026-10-07).
+  /* ★프리셋 넷(＋2026-10-14 다섯째 「코인」 — 아래 COIN_GOLD 머리말) — ⛔bg 키가 ★없다(위 머리말 ⒜ · 현빈 2026-10-07).
      ★현빈 확정 2026-10-07: 「프리셋은 넷이면 충분하다 · 알맹이모양도 지금 충분하다. 이대로 유지」 ⇒ ⛔더 늘리지 마라.
+       (★그때 받은 말이다 — 2026-10-14 현빈 노트 1013t2E3 이 「코인」 프리셋·모양을 더하라 했다. 아래 「넷 다」는 그 «넷»(star·gold·party·dust)을 가리킨다.)
      ★기본 색은 «값만» 바꾸면 되게 여기 한 자리에 둔다(글로우 PRESETS 와 같은 결).
      ★fxOpacity — 이름을 ★글로우와 «같게» 쓴다(지디 2026-10-06 · 9f062a5c 로 미리 맞춰 둔 이름).
        ⛔alpha·opacity 로 갈라 쓰면 다음 사람이 두 벌로 읽는다.
@@ -88,7 +89,8 @@
      · count 는 ★상한을 따라가지 «않는다»(넷과 다른 점) — 코인 한 닢은 조각 하나가 아니라 SVG 요소 서른 안팎(gradient 6 · clipPath 2 포함)이라
        120 닢이면 노드가 넷의 수십 배가 된다. 그래서 14 닢으로 시작한다(상한이 그보다 낮아지면 상한). 갯수 칸의 범위는 넷과 같다(0~MAX_COUNT).
      · 후광·번짐·움직임은 넷과 같이 0 에서 시작한다(패닝 셋 = 0 ⇒ 저장만 하고 멈춰 있다). */
-  const COIN_GOLD = (w.CoinFx && typeof w.CoinFx.baseColors === 'function') ? w.CoinFx.baseColors('gold').face : '#f5c542';
+  const GOLD_CONFETTI = Object.freeze(['#F5C542', '#E8B22A', '#FFE9A8', '#C98A14']);   /* 금색 컨페티의 색(아래 gold) — 코인 폴백이 첫 색을 같이 읽는다 */
+  const COIN_GOLD = (w.CoinFx && typeof w.CoinFx.baseColors === 'function') ? w.CoinFx.baseColors('gold').face : GOLD_CONFETTI[0].toLowerCase();
   const COIN_COUNT = Math.min(14, MAX_COUNT);
   const PRESETS = Object.freeze({
     star:  Object.freeze({ label: '별 반짝이',   count: MAX_COUNT, shapes: Object.freeze(['star4', 'star4', 'circle']),
@@ -96,7 +98,7 @@
                            smin: 3, smax: 14, rot: true,  dist: 'even', glow: 55, spread: 6,  fxOpacity: 100, jit: 60,
                            speed: 0, blur: 0, spin: 0 }),
     gold:  Object.freeze({ label: '금색 컨페티', count: MAX_COUNT, shapes: Object.freeze(['rect', 'ribbon']),
-                           colors: Object.freeze(['#F5C542', '#E8B22A', '#FFE9A8', '#C98A14']),
+                           colors: GOLD_CONFETTI,
                            smin: 6, smax: 22, rot: true,  dist: 'top',  glow: 0,  spread: 0,  fxOpacity: 100, jit: 25,
                            speed: 0, blur: 0, spin: 0 }),
     party: Object.freeze({ label: '컬러 컨페티', count: MAX_COUNT, shapes: Object.freeze(['rect', 'tri', 'ribbon']),

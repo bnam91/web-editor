@@ -46,6 +46,10 @@
                               → { x0, y0, x1, y1, m } — 코인 «그림»이 차지하는 상자(viewBox 단위 · 중심 0,0 · m = viewBox 반 변).
                                 상자(스티커)에는 그림 둘레에 빈 여백이 있다 — 「코인의 10% 를 섹션 안에 남긴다」(1013t2C2)는 이 상자로 잰다.
                                 rot = 스티커 상자의 CSS 회전(도). 번짐이 넓힌 만큼은 넣지 않는다.
+   CoinFx.inkFrac({ tilt, dir, k, rot }, { x0, y0, x1, y1 })
+                              → 0~1 — 코인 «그림의 면적» 중 그 사각형(같은 viewBox 단위 · 상자 중심이 0,0) 안에 든 비율.
+                                「10% 를 남긴다」의 자다(js/sticker-select.js). 그림 = 앞면 타원과 옆띠만큼 밀린 뒷면 타원을 이은 볼록한 꼴.
+                                코인 좌표에서 고른 격자(72×72)로 센다 — 돌려도 면적 비는 같다. 같은 입력 = 같은 수.
 
    ★번짐(svg 의 blur · 1013t2C3) — 섹션 파티클의 「번짐」과 같은 꼴이다: <filter><feGaussianBlur stdDeviation="0 v">(세로로만).
        · 0 이면 필터도 감싸는 <g> 도 안 낸다 ⇒ 번짐 없는 코인의 글자는 한 자도 안 바뀐다(옛 저장본 그대로).
@@ -266,5 +270,30 @@
     return { x0: Math.min(-hx, sx - hx), y0: Math.min(-hy, sy - hy), x1: Math.max(hx, sx + hx), y1: Math.max(hy, sy + hy), m };
   }
 
-  w.CoinFx = Object.freeze({ PALETTES, DEFAULTS, GLYPH_MAX, LIMITS, cutGlyph, toHex6, baseColors, paletteFor, lookFromColor, angleFromSeed, svg, draw, inkBox });
+  /** 그림 면적 중 사각형 안에 든 비율(0~1). 코인 좌표(u,w)의 고른 격자에서 «그림 안»인 점만 세고, 화면으로 돌려 사각형 안인지 본다. */
+  const INK_GRID = 72;
+  function inkFrac(o, rect) {
+    const q = o || {}, R = rect || {};
+    const k = kOf(q), r = SVG_D / 2;
+    const tau = clamp(num(q.tilt, 0), 0, 88) * Math.PI / 180;
+    const ry = r * Math.max(Math.cos(tau), 0.03), dep = SVG_D * k * Math.sin(tau);
+    const a = (-(num(q.dir, 0) % 360) + (num(q.rot, 0) % 360)) * Math.PI / 180;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const X0 = num(R.x0, -Infinity), Y0 = num(R.y0, -Infinity), X1 = num(R.x1, Infinity), Y1 = num(R.y1, Infinity);
+    let all = 0, hit = 0;
+    for (let i = 0; i < INK_GRID; i++) {
+      const u = -r + (i + 0.5) * (2 * r) / INK_GRID;
+      const e = ry * Math.sqrt(Math.max(0, 1 - (u * u) / (r * r)));      /* 그 u 에서 타원의 세로 반폭 — 그림은 w ∈ [-e, dep + e] */
+      for (let j = 0; j < INK_GRID; j++) {
+        const wv = -ry + (j + 0.5) * (dep + 2 * ry) / INK_GRID;
+        if (wv < -e || wv > dep + e) continue;
+        all++;
+        const X = u * ca - wv * sa, Y = u * sa + wv * ca;
+        if (X >= X0 && X <= X1 && Y >= Y0 && Y <= Y1) hit++;
+      }
+    }
+    return all ? hit / all : 0;
+  }
+
+  w.CoinFx = Object.freeze({ PALETTES, DEFAULTS, GLYPH_MAX, LIMITS, cutGlyph, toHex6, baseColors, paletteFor, lookFromColor, angleFromSeed, svg, draw, inkBox, inkFrac });
 })(window);
