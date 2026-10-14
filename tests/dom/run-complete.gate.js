@@ -112,7 +112,14 @@ function deriveKnownReds(dir) {
   return { names, files };
 }
 
-const { names: knownReds, files: knownFiles } = deriveKnownReds(__dirname);
+/* ★★261014 — ★spec 폴더를 ★`--specs <dir>` 로 ★받을 수 있게 한다.
+   ★까닭: ★이 파일을 ★레포 ★밖(예: /tmp)에 ★꺼내 돌리면 ★`__dirname` 이 ★거기를 가리켜
+     ★★명부 0칸 · ★디스크 0벌이 된다(★rc 3 으로 ★터지긴 하지만 ★까닭이 ★안 보인다).
+   ★다른 레인의 로그를 ★이 자로 재려는 쓰임이 ★실제로 났다(태양, 261014). */
+const _si = process.argv.indexOf('--specs');
+const SPEC_DIR = _si > 0 && process.argv[_si + 1] ? process.argv[_si + 1] : __dirname;
+console.log(`spec 폴더           : ${SPEC_DIR}${SPEC_DIR === __dirname ? '  (기본 = 이 파일 옆)' : '  (--specs)'}`);
+const { names: knownReds, files: knownFiles } = deriveKnownReds(SPEC_DIR);
 const redLines = [...log.matchAll(/^\s+(?:✘|×)\s+\d*\s*(\S+\.spec\.js):\d+:\d+\s+›\s+(.*?)(?:\s+\([\d.]+m?s\))?\s*$/gm)]
   .map((m) => ({ file: m[1].split('/').pop(), name: m[2].trim() }));
 
@@ -121,7 +128,8 @@ for (const n of knownReds) console.log(`   · ${n.slice(0, 90)}`);
 console.log(`로그의 ✘ 줄          : ${redLines.length}개`);
 
 if (knownReds.size === 0) {
-  console.error('\n⛔명부가 0칸이다 — ★test.fail() 을 하나도 못 뽑았다. ★파서가 깨졌거나 꼴이 바뀌었다(통과 아님).');
+  console.error(`\n⛔명부가 0칸이다 — ★test.fail() 을 하나도 못 뽑았다(★본 폴더: ${SPEC_DIR}).`);
+  console.error('   ⇒ ★이 파일을 ★레포 ★밖에서 돌렸다면 ★`--specs <레포>/tests/dom` 을 주어라.');
   console.error('   ⇒ ⛔「0칸」을 ★«일부러 빨강이 없다»로 ★읽지 마라. ★grep -c "test.fail(" 로 ★먼저 세라.');
   process.exit(3);
 }
@@ -158,7 +166,7 @@ const specsInLog = new Set(
 );
 let specsOnDisk = null;
 try {
-  specsOnDisk = fs.readdirSync(__dirname).filter((f) => f.endsWith('.dom.spec.js')).length;
+  specsOnDisk = fs.readdirSync(SPEC_DIR).filter((f) => f.endsWith('.dom.spec.js')).length;
 } catch { /* 못 세면 null — ⛔0 으로 접지 않는다 */ }
 
 console.log(`로그에 나온 spec   : ${specsInLog.size}벌`);
