@@ -8,6 +8,9 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
+/* 버즈(1012t1Z5) — 버즈 표식 프레임이면 머리 바로 뒤에 「Buzz」 절을 그린다(절의 마크업 · 배선은 그 파일의 것). */
+import { isBuzzFrame, buzzIconSvg } from '../blocks/buzz-mark.js';
+import { buzzSectionHTML, wireBuzzSection, refitBuzzOnResize } from './prop-frame-buzz.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, framePadXData, isInlineAbsolute } from '../drag-utils.js';
 import { panelRenderedPx } from './_panel-rendered.js';
@@ -48,8 +51,11 @@ function _headerHTML(el, mode) {
   // showFrameProperties는 frame-block 전용 패널.
   // banner-preset 변형은 컴포넌트 단위 — Banner 아이콘 + 'Banner' 라벨 사용.
   const isBanner = !!el.dataset.bannerPreset;
-  const icon = isBanner ? _BANNER_ICON : _FRAME_ICON;
-  const defaultName = isBanner ? 'Banner' : 'Frame';
+  /* 버즈(1012t1Z5) — 버즈 표식 프레임은 「Buzz」 + 전용 아이콘(이웃 모달 머리와 같은 꼴: 12px · viewBox 12 · 선 1.3 · #888).
+     레이어 줄(js/panels/layer-panel-items.js)과 같은 판정 · 같은 그림을 쓴다(js/blocks/buzz-mark.js). 배너가 먼저다. */
+  const isBuzz = !isBanner && isBuzzFrame(el);
+  const icon = isBanner ? _BANNER_ICON : (isBuzz ? buzzIconSvg({ size: 12, stroke: '#888' }) : _FRAME_ICON);
+  const defaultName = isBanner ? 'Banner' : (isBuzz ? 'Buzz' : 'Frame');
   return `
     <div class="prop-section">
 ${blockHeaderHTML({
@@ -405,6 +411,7 @@ function _renderAutoPanel(ss) {
   const bannerInnerXMax = isBannerInner ? Math.max(0, bannerOuterW - (parseInt(ss.style.width) || parseInt(ss.dataset.width) || 0)) : 0;
 
   propPanel.innerHTML = _headerHTML(ss, 'auto') + `
+    ${isBuzzFrame(ss) ? buzzSectionHTML(ss) : ''}
     ${isBanner ? `
     <div class="prop-section">
       <div class="prop-section-title">Banner Preset</div>
@@ -424,13 +431,14 @@ function _renderAutoPanel(ss) {
       </div>
     </div>
     ` : ''}
+    ${isBuzzFrame(ss) ? '' : `
     <div class="prop-section">
       <div class="prop-section-title">Layout</div>
       <div class="prop-row" style="gap:4px;">
         <span style="font-size:11px;color:${isFreeLayout ? '#9ca3af' : '#5fb4d8'};font-weight:500;flex:1;">${isFreeLayout ? 'free' : 'stack'}</span>
         ${isFreeLayout ? `<button class="prop-action-btn secondary" id="ss-to-stack-btn" style="height:24px;padding:0 10px;font-size:11px;width:auto;flex:0 0 auto;">stack</button>` : ''}
       </div>
-    </div>
+    </div>`}
     <div class="prop-section">
       <div class="prop-section-title">Background</div>
       <div class="prop-color-row">
@@ -599,6 +607,9 @@ function _renderAutoPanel(ss) {
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
+  /* 버즈 프레임에는 Layout 절(free → stack 변환)을 안 그린다 — 버즈는 자유배치여야 돌고, 쌓기는 Buzz 절의 배치 「스택」이 한다.
+     그 변환을 누르면 자리 · 높이가 풀리고 표식만 남은 보통 프레임이 된다(2026-10-13 실측) — 같은 말 「stack」이 두 뜻으로 나란히 서지 않게 한다. */
+  if (isBuzzFrame(ss)) wireBuzzSection(ss);
 
   // ── Banner Preset 변경 ──
   const bannerSel = document.getElementById('ss-banner-preset');
@@ -975,6 +986,8 @@ function _renderAutoPanel(ss) {
       }
     }
     ss.dataset.height = newH; ss.style.minHeight = newH + 'px'; ss.style.height = newH + 'px';
+    /* 버즈(1012t1Z5 D-1) — 높이를 줄여 말풍선이 밖으로 나가면 그 자리에서 안에 다시 맞춘다(안 나갔으면 무동작 · 히스토리는 이 높이 변경과 한 칸). */
+    refitBuzzOnResize(ss);
   };
   bindSlider(heightSlider, heightNum, applyHeight, { min: minHeight, max: 1200 });
 

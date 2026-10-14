@@ -152,11 +152,11 @@ test('K0 전제 — 그리개가 실렸고 오류 0건', async ({ page }) => {
 test('K1 메뉴 「Coin」 — 누르면 코인 스티커 1개가 생기고 골라진다 · 섹션을 안 골랐으면 안 생긴다', async ({ page }) => {
   const errs = await bootApp(page);
   await setup(page);
-  /* 메뉴 항목의 꼴 — Count Sticker 바로 다음, 같은 class */
+  /* 메뉴 항목의 꼴 — Marking(옛 Count Sticker · 1013t2B1) 바로 다음, 같은 class */
   const menu = await page.evaluate(() => [...document.querySelectorAll('#fp-pen-menu > .fp-menu-item')].map((b) => ({ t: b.textContent.trim(), c: b.className, title: !!b.title })));
   const at = menu.findIndex((m) => m.t === 'Coin');
   expect(at, '★전제: 메뉴에 「Coin」이 있다').toBeGreaterThan(0);
-  expect(menu[at - 1].t, '「Coin」은 Count Sticker 바로 다음').toBe('Count Sticker');
+  expect(menu[at - 1].t, '「Coin」은 Marking 바로 다음').toBe('Marking');
   expect([menu[at].c, menu[at].title]).toEqual([menu[at - 1].c, true]);
 
   /* 섹션을 안 골랐을 때 — 안 생긴다(맨 아래 섹션으로 떨어지지 않는다) */

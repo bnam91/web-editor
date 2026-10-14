@@ -32,6 +32,105 @@ const STICKER_DEFAULTS = {
 import { stripCtlChars, sanitizeRichTextHtml, richTextHasFormatting } from '../util/sanitize-rich-text.js';
 window._sanitizeStickerHtml     = sanitizeRichTextHtml;
 window._stickerHtmlHasFormatting = richTextHasFormatting;
+/* ★svg 문자열 거르개 한 벌 = js/util/sanitize-svg.js (1013t2B5 · 마킹 블럭의 커스텀 아이콘).
+ *   그릴 때는 여기서 직접 부르고, 고전 스크립트(js/count-sticker-tool.js)는 dataset 에 «쓸 때» 아래 알리아스로 부른다(사본이 아니라 같은 함수). */
+import { sanitizeSvgString } from '../util/sanitize-svg.js';
+window._sanitizeSvgString = sanitizeSvgString;
+
+/* 마킹 블럭(data-count)의 아이콘 표기(data-count-style="icon") — .sticker-text 자리에 들어갈 마크업. (1013t2B5)
+ *   크기 = 폰트 크기, 색 = 글자색(투명 모양이면 배경색) — 그 두 칸이 아이콘에도 그대로 먹는다.
+ *   ★em·상속에 기대지 않고 px·색을 «숫자로» 굽는다(내보내기·미리보기 클론이 같은 그림을 내게).
+ *   · 내장 글리프: js/count-sticker-tool.js 의 표(CountSticker.glyphSvg).
+ *   · custom: data-count-icon-svg 를 «그릴 때마다» 다시 거른다 — 저장본을 손대 넣은 on*·script 가 여기서 걸린다. 거른 결과가 비면 기본 글리프.
+ *   ⚠️글리프 표가 안 실렸으면(고전 스크립트 사고) 콘솔에 알리고 null — 부르는 쪽이 옛 글자 길로 그린다(조용히 다른 그림을 안 그린다). */
+/* 그릴 때마다 도는 세척을 줄인다(2차 · D1) — «같은 문자열 · 같은 크기 · 같은 색»이면 바로 앞 결과를 다시 쓴다(한 칸짜리).
+   섹션 일괄·로드·undo 는 같은 svg 를 든 블럭을 줄지어 그리므로 한 칸이면 거의 다 맞는다. 값은 «거른 결과»만 든다. */
+let _cntIconCacheKey = null, _cntIconCacheVal = '';
+function _countIconHTML(block, sizePx, color) {
+  const CS = window.CountSticker;
+  if (!CS || typeof CS.glyphSvg !== 'function') {
+    console.error('[sticker] CountSticker(글리프 표)가 안 실렸다 — 마킹 아이콘을 그리지 못한다', block.id);
+    return null;
+  }
+  const safeColor = String(color || '').replace(/["<>;]/g, '');
+  let svg = '';
+  if (block.dataset.countIcon === 'custom') {
+    const raw = block.dataset.countIconSvg || '';
+    /* id 접두사(3차 · N2) — svg 가 id 를 쓸 때만(그라데이션·clipPath·mask). 같은 아이콘을 든 블럭이 여럿이어도 url(#…) 가 제 것을 가리키게
+       블럭 id 에서 짓는다(복제·붙여넣기는 블럭 id 를 새로 지은 뒤 다시 그린다). id 가 없는 아이콘은 접두사가 없어 캐시가 블럭을 넘어 맞는다. */
+    const _bid = /\bid\s*=/i.test(raw) ? String(block.id || '').replace(/[^A-Za-z0-9_-]/g, '') : '';
+    const idPrefix = _bid ? `mk-${_bid}-` : '';
+    const key = sizePx + '|' + safeColor + '|' + idPrefix + '|' + raw;
+    if (key !== _cntIconCacheKey) {
+      const cleaned = sanitizeSvgString(raw, {
+        root: { width: String(sizePx), height: String(sizePx), style: `color:${safeColor};display:block;flex:none;pointer-events:none;` },
+        idPrefix,
+      });
+      /* 걸러 보니 «그릴 것»이 없으면(빈 껍데기 <svg></svg> 등) 빈 값으로 — 아래에서 기본 글리프로 떨어진다(3차 · N11).
+         판정은 쓰는 길(CountSticker.setGroup)과 같은 함수 하나다. */
+      _cntIconCacheVal = CS.svgDrawable(cleaned) ? cleaned : '';
+      _cntIconCacheKey = key;
+    }
+    svg = _cntIconCacheVal;
+  }
+  if (!svg) {
+    const name = CS.iconNameOf(block.dataset.countIcon);
+    svg = CS.glyphSvg(name === 'custom' ? CS.GLYPH_DEFAULT : name, { size: sizePx, color: safeColor });
+  }
+  return `<span class="sticker-count-icon" style="display:flex;align-items:center;justify-content:center;line-height:0;pointer-events:none;">${svg}</span>`;
+}
+
+/* 마킹 블럭(data-count)의 «옆 텍스트 라벨»(data-count-label) — 마커 블럭 «안»의 자식 한 개. (1013t2B5)
+ *   ★상자는 마커 그대로다 — 선택 outline·코너 손잡이·회전·찍는 중심·섹션 가두기는 전부 마커(sizeW×sizeH) 기준이고,
+ *     라벨은 마커의 자식이라 이동·회전·복제·삭제를 같이 탄다(라벨을 눌러도 블럭이 골라지고 끌린다).
+ *   ★자리 스타일은 전부 «인라인»이다 — 저장본·미리보기·내보내기 클론이 에디터 CSS 없이도 같은 자리에 그린다.
+ *     (CSS 에는 «편집 중» 표시만 있다 — css/editor-blocks.css.) ⛔편집 진입 때 인라인 style 을 쓰지 마라(저장본에 굳는다).
+ *   자리 4갈래(data-count-label-pos): right(기본) · left · top · bottom — 마커 옆에 gap(= 마커 폭의 20%)만큼 띄운다.
+ *   색(data-count-label-color)이 없으면 마커 배경색을, 크기(data-count-label-size)가 없으면 마커 폰트 크기를,
+ *   굵기(data-count-label-weight)가 없으면 마커 폰트 굵기를 따른다 — 폴백은 _countLabelLook 한 자리.
+ *   글자는 «평문»이다 — 이스케이프해서 넣는다(\n 은 white-space:pre 가 줄바꿈으로 그린다).
+ *   opts.empty = 글자가 없어도 빈 라벨을 만든다(더블클릭 인라인 편집의 진입 — js/sticker-select.js). */
+const COUNT_LABEL_POS = ['right', 'left', 'top', 'bottom'];
+/* 라벨의 «보이는 값» 한 자리(2차 · D6) — 그리기와 우측 패널(js/props/prop-sticker-count.js)이 같은 폴백을 읽는다.
+   ⛔패널에 폴백을 다시 적지 마라(1차에 패널은 검정, 그리기는 스티커 기본색이라 색 키 없는 블럭에서 둘이 갈렸다). */
+function _countLabelLook(block) {
+  const d = block.dataset;
+  const size0 = parseInt(d.size) || STICKER_DEFAULTS.size;
+  const sizeW = parseInt(d.sizeW) || size0;
+  const fs    = parseInt(d.fontSize) || STICKER_DEFAULTS.fontSize;
+  const fw    = parseInt(d.fontWeight) || STICKER_DEFAULTS.fontWeight;
+  const lsRaw = parseInt(d.countLabelSize);
+  const lwRaw = parseInt(d.countLabelWeight);
+  return {
+    pos:    COUNT_LABEL_POS.includes(d.countLabelPos) ? d.countLabelPos : 'right',
+    gap:    Math.round(sizeW * 0.2),
+    size:   Number.isFinite(lsRaw) ? Math.min(150, Math.max(6, lsRaw)) : fs,
+    weight: Number.isFinite(lwRaw) ? Math.min(900, Math.max(100, lwRaw)) : fw,
+    color:  d.countLabelColor || d.bgColor || STICKER_DEFAULTS.bgColor,
+  };
+}
+window._stickerCountLabelLook = _countLabelLook;
+
+function _countLabelHTML(block, opts) {
+  const d = block.dataset;
+  if (!d.count) return '';
+  const raw = d.countLabel;
+  const has = raw != null && raw !== '';
+  if (!has && !(opts && opts.empty)) return '';
+  const look  = _countLabelLook(block);
+  const pos   = look.pos, gap = look.gap;
+  const color = String(look.color).replace(/["<>;]/g, '');
+  const place = pos === 'left'   ? `right:100%;top:50%;transform:translateY(-50%);margin-right:${gap}px;text-align:right;`
+              : pos === 'top'    ? `bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:${gap}px;text-align:center;`
+              : pos === 'bottom' ? `top:100%;left:50%;transform:translateX(-50%);margin-top:${gap}px;text-align:center;`
+              :                    `left:100%;top:50%;transform:translateY(-50%);margin-left:${gap}px;text-align:left;`;
+  const safe = has ? stripCtlChars(String(raw)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+  return `<span class="sticker-count-label" data-pos="${pos}" style="position:absolute;${place}`
+    + `white-space:pre;line-height:1.2;font-size:${look.size}px;font-weight:${look.weight};font-style:normal;text-decoration:none;color:${color};">${safe}</span>`;
+  /* ⛔여기에 outline:none 을 인라인으로 넣지 마라(3차 · N1) — 인라인이 스타일시트를 이겨 «편집 중 점선»(css/editor-blocks.css)이 한 번도 안 그려졌다.
+     편집 중이 아닌 라벨은 포커스를 못 받으므로(contenteditable 없음) 포커스 링을 끌 것도 없다. */
+}
+window._stickerCountLabelHTML = _countLabelHTML;
 
 function renderStickerBlock(block) {
   _renderStickerBlockInner(block);
@@ -348,7 +447,12 @@ function _renderStickerBlockInner(block) {
     return;
   }
 
-  const radius = shape === 'circle' ? '50%' : '8px';
+  /* 마킹 블럭의 사각 모서리(data-count-radius = «짧은» 변의 % · 0~50 · 1013t2B5 2차) — 키가 없으면 옛 고정값 8px 그대로(옛 저장본·일반 스티커 무변). */
+  const _cntRadRaw = block.dataset.count ? parseFloat(block.dataset.countRadius) : NaN;
+  /* ★% 를 CSS 에 그대로 주지 않는다(3차 · N3) — border-radius 의 % 는 가로·세로를 따로 재서 비정사각(코너 드래그로 120×56)에서 타원 모서리가 된다.
+     «짧은 변 × %» 를 px 로 구워 어느 비율에서도 둥근 네모가 되게 한다. */
+  const radius = shape === 'circle' ? '50%'
+    : (Number.isFinite(_cntRadRaw) ? `${Math.round(Math.min(sizeW, sizeH) * Math.min(50, Math.max(0, _cntRadRaw)) / 100)}px` : '8px');
   if (mode === 'image' && imgSrc) {
     // 이미지 모드 — 배경 색 무시, 이미지로 채움
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`
@@ -380,7 +484,11 @@ function _renderStickerBlockInner(block) {
     // U6b: circle/square 뱃지도 편집 시 부분 서식이 붙을 수 있어 동일 분기(silent loss 방지).
     //   textHtml 있으면 재-sanitize, 없으면 기존 평문 text 그대로(무회귀).
     const bInner = block.dataset.textHtml ? _sanitizeStickerHtml(block.dataset.textHtml) : text;
-    block.innerHTML = `<span class="sticker-text" style="text-align:center;padding:4px;outline:none;text-decoration:${bTextDeco};">${bInner}</span>`;
+    /* 마킹 블럭의 아이콘 표기(1013t2B5) — 번호 글자 대신 아이콘. 못 그리면(null) 아래 옛 글자 길 그대로. */
+    const _cntIconHTML = (block.dataset.count && block.dataset.countStyle === 'icon') ? _countIconHTML(block, fontSize, _bCol) : null;
+    block.innerHTML = (_cntIconHTML
+      || `<span class="sticker-text" style="text-align:center;padding:4px;outline:none;text-decoration:${bTextDeco};">${bInner}</span>`)
+      + _countLabelHTML(block);   // 마킹 블럭의 옆 라벨(없으면 '') — 1013t2B5
   }
 }
 
@@ -419,6 +527,31 @@ function _updateStickerSecClip(block) {
   let x = 0, y = 0;
   for (let el = block; el && el !== sec && sec.contains(el); el = el.offsetParent) {
     x += el.offsetLeft; y += el.offsetTop;
+  }
+  /* ★마킹 블럭의 옆 라벨(1013t2B5) — 라벨은 마커 상자 «밖»에 그려진다. 아래 옛 식(inset ≥ 0)은 마커 상자 밖을 통째로 자르므로
+     마커가 섹션 경계에 걸치는 순간 라벨이 사라진다. ⇒ 라벨이 있으면 «마커+라벨을 합친 상자»를 섹션 상자와 겹친 만큼만 남긴다
+     (섹션 안쪽으로 나간 라벨 쪽은 inset 이 음수가 된다 — 섹션 밖으로 나간 부분만 잘린다).
+     라벨의 가운데 맞춤은 transform 이라 offset* 에 안 잡힌다 — 자리(data-pos)로 반 칸을 보정한다.
+     라벨이 없는 블럭은 이 가지를 안 탄다(아래 옛 식 그대로 = 값 무변). */
+  const lab = block.querySelector ? block.querySelector(':scope > .sticker-count-label') : null;
+  if (lab && lab.offsetWidth && lab.offsetHeight) {
+    const side = lab.dataset.pos === 'left' || lab.dataset.pos === 'top' || lab.dataset.pos === 'bottom' ? lab.dataset.pos : 'right';
+    const horiz = side === 'right' || side === 'left';
+    const lx = lab.offsetLeft - (horiz ? 0 : lab.offsetWidth / 2);
+    const ly = lab.offsetTop  - (horiz ? lab.offsetHeight / 2 : 0);
+    const uL = Math.min(0, lx), uT = Math.min(0, ly);
+    const uR = Math.max(w, lx + lab.offsetWidth), uB = Math.max(h, ly + lab.offsetHeight);
+    const secW = sec.clientWidth, secH = sec.clientHeight;
+    if (x + uL < 0 || y + uT < 0 || x + uR > secW || y + uB > secH) {
+      const ct = Math.round(Math.max(0, y + uT) - y);
+      const cl = Math.round(Math.max(0, x + uL) - x);
+      const cr = Math.round((x + w) - Math.min(secW, x + uR));
+      const cb = Math.round((y + h) - Math.min(secH, y + uB));
+      block.style.setProperty('--sec-clip', `inset(${ct}px ${cr}px ${cb}px ${cl}px)`);
+    } else {
+      block.style.removeProperty('--sec-clip');
+    }
+    return;
   }
   const t = Math.max(0, -y);
   const l = Math.max(0, -x);
@@ -603,6 +736,19 @@ function makeStickerBlock(opts = {}) {
     block.dataset.countShape = opts.countShape ?? block.dataset.shape;
     block.dataset.sizeW      = opts.sizeW ?? block.dataset.size;
     block.dataset.sizeH      = opts.sizeH ?? block.dataset.size;
+    // 아이콘 표기(1013t2B5) — 준 것만 적는다(없으면 키가 안 생긴다 = 옛 저장본과 같은 꼴). svg 는 여기서도 거른다.
+    if (opts.countIcon !== undefined && opts.countIcon !== '') block.dataset.countIcon = opts.countIcon;
+    if (opts.countIconSvg !== undefined && opts.countIconSvg !== '') {
+      const _svg = sanitizeSvgString(String(opts.countIconSvg));
+      if (_svg) block.dataset.countIconSvg = _svg;
+    }
+    // 옆 라벨(1013t2B5) — 준 것만 적는다. 라벨 «글자»는 도구가 안 넘긴다(새로 찍은 것은 라벨 없음) — 넘어오면 그대로 적는다.
+    if (opts.countLabel      !== undefined && opts.countLabel      !== '') block.dataset.countLabel      = opts.countLabel;
+    if (opts.countLabelPos   !== undefined && opts.countLabelPos   !== '') block.dataset.countLabelPos   = opts.countLabelPos;
+    if (opts.countLabelColor !== undefined && opts.countLabelColor !== '') block.dataset.countLabelColor = opts.countLabelColor;
+    if (opts.countLabelSize  !== undefined && opts.countLabelSize  !== '') block.dataset.countLabelSize  = opts.countLabelSize;
+    if (opts.countLabelWeight !== undefined && opts.countLabelWeight !== '') block.dataset.countLabelWeight = opts.countLabelWeight;
+    if (opts.countRadius     !== undefined && opts.countRadius     !== '') block.dataset.countRadius     = opts.countRadius;
   }
   renderStickerBlock(block);
   // B13(Codex): 프리셋/메뉴로 생성한 스타일도 다음 스티커에 sticky하게 — 생성 직후 기억.

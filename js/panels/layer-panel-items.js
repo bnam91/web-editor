@@ -12,6 +12,7 @@
 ══════════════════════════════════════ */
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
+import { isBuzzFrame, buzzIconSvg } from '../blocks/buzz-mark.js';   /* 버즈(1012t1Z5) — 판정 · 아이콘 한 벌(패널 머리와 같은 것) */
 
 /* ═══════════════════════════════════
    LAYER PANEL
@@ -63,6 +64,7 @@ const layerIcons = {
   zoom:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3.5" width="4.5" height="5" rx="0.6"/><path d="M5.5 4.6 L11 6 L5.5 7.4" stroke-linejoin="round"/></svg>`,
   step:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="2.5" cy="2.5" r="1.5"/><line x1="4.5" y1="2.5" x2="11" y2="2.5"/><circle cx="2.5" cy="6" r="1.5"/><line x1="4.5" y1="6" x2="11" y2="6"/><circle cx="2.5" cy="9.5" r="1.5"/><line x1="4.5" y1="9.5" x2="11" y2="9.5"/></svg>`,
   qa:                `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V3.5a2 2 0 0 1 4 0v2"/></svg>`,
+  marking:           `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/></svg>`,   // 마킹 블럭(1013t2B1) — 우측 패널 머리와 같은 원
 };
 
 /* 레이어 아이템 이름 더블클릭 인라인 편집 헬퍼 */
@@ -180,9 +182,12 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isQA         = block.classList.contains('qa-block');
   const isCoupon     = block.classList.contains('coupon-block');   // ★쿠폰(2026-10-07)
   const isQuote      = block.classList.contains('quote-block');    // ★인용구(2026-10-07 · QT1)
+  /* ★마킹 블럭(1013t2B1) — data-count 가 붙은 스티커만 자기 이름(Marking)으로 보인다.
+     ⚠️그 밖의 스티커는 예전처럼 맨 끝 갈래로 떨어진다(이번 범위 밖 — 표시를 안 건드린다). 누르는 길은 아래 sticker 분기 그대로다. */
+  const isMarking    = block.classList.contains('sticker-block') && !!block.dataset.count;
   const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
-  const type     = isShape ? `shape-${shapeType}` : isBubble ? 'speech-bubble' : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isBridge ? 'bridge' : isGrid ? 'grid' : isInfoCard ? 'infocard' : isInnerCard ? 'innercard' : isModal ? 'modal' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isZoom ? 'zoom' : isGradient ? 'gradient' : isCoupon ? 'coupon' : isQuote ? 'quote' : isQA ? 'qa' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', bridge:'Bridge', grid:'Grid', infocard:'Info Card', innercard:'Inner Card', modal:'Modal', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', zoom:'Zoom', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star', qa:'QA Check', coupon:'Coupon', quote:'Quote' };
+  const type     = isShape ? `shape-${shapeType}` : isBubble ? 'speech-bubble' : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isBridge ? 'bridge' : isGrid ? 'grid' : isInfoCard ? 'infocard' : isInnerCard ? 'innercard' : isModal ? 'modal' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isZoom ? 'zoom' : isGradient ? 'gradient' : isCoupon ? 'coupon' : isQuote ? 'quote' : isQA ? 'qa' : isMarking ? 'marking' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', bridge:'Bridge', grid:'Grid', infocard:'Info Card', innercard:'Inner Card', modal:'Modal', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', zoom:'Zoom', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star', qa:'QA Check', coupon:'Coupon', quote:'Quote', marking:'Marking' };
   /* ★[M55] grid 의 타입 라벨을 'Component' → 'Grid'. 현빈 2026-09-05:
        「여기에 컴퍼넌트라고 영어로 되어있는데 그리드라고 되어야되지 않겠니?」
      ★이 칸의 값어치는 «이름을 바꾼 뒤»에 나온다 — 레이어 이름은 「가격표」처럼 바꿀 수 있고,
@@ -195,7 +200,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
        현빈이 볼 화면을 통째로 바꾸는 일이라 별도 항목으로 올린다.
      ★안전 확인: 이 문자열을 «판정»에 쓰는 코드는 0건이다. 읽는 두 자리
        (layer-panel.js:614·:749)는 aria-label 문구를 조립하는 데만 쓴다 — 기능이 안 깨진다. */
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', bridge:'Component', grid:'Grid', infocard:'Component', innercard:'Component', modal:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', zoom:'Zoom', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape', qa:'Component', coupon:'Coupon', quote:'Quote' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', bridge:'Component', grid:'Grid', infocard:'Component', innercard:'Component', modal:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', zoom:'Zoom', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape', qa:'Component', coupon:'Coupon', quote:'Quote', marking:'Sticker' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -790,15 +795,20 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   const isBanner = !!ssEl.dataset.bannerPreset;
   const BANNER_ICON = `<svg class="layer-item-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="4" width="12" height="8" rx="1.5"/><line x1="2" y1="7.5" x2="9" y2="7.5"/></svg>`;
 
+  /* 버즈(1012t1Z5) — 버즈 표식(data-buzz) 프레임은 「Buzz」 이름 + 전용 아이콘. 그룹 · 배너 다음, 도형 · 보통 프레임 앞. */
+  const isBuzz = isBuzzFrame(ssEl);
+
   const iconHtml  = isGroup
     ? GROUP_ICON
     : (isBanner
       ? BANNER_ICON
+      : isBuzz
+      ? buzzIconSvg({ cls: 'layer-item-icon' })
       : (shapeKey && layerIcons[shapeKey]
         ? layerIcons[shapeKey]
         : `<svg class="layer-item-icon" viewBox="1.5 1.5 13 13" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg>`));
-  const typeLabel = isGroup ? 'Group' : (isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
-  const defaultName = isGroup ? (ssEl.dataset.name || 'Group') : (isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
+  const typeLabel = isGroup ? 'Group' : (isBanner ? 'Banner' : isBuzz ? 'Buzz' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
+  const defaultName = isGroup ? (ssEl.dataset.name || 'Group') : (isBanner ? 'Banner' : isBuzz ? 'Buzz' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
   const name = ssEl.dataset.layerName || defaultName;
 
   wrapper.innerHTML = `${iconHtml}<span class="layer-item-name"></span><span class="layer-item-type">${typeLabel}</span>`;

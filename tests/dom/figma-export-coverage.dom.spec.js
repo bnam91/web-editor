@@ -42,7 +42,9 @@ const ADD_FILES = sh(`grep -rlE 'window\\.add[A-Za-z0-9]*Block[[:space:]]*=' js/
 /* add*Block 을 정의하진 «않지만» 그 add fn 이 읽는 데이터를 공급하는 파일.
    ⛔없으면 addBannerBlock·addMockupBlock 이 «에러 없이» 아무것도 안 만든다(조용한 0) —
      그러면 양성대조가 38/38 에서 35/38 로 떨어져 그 자리에서 빨개진다. */
-const DEP_FILES = ['js/banner-presets.js', 'js/panels/mockup-devices.js'];
+/* ★js/fx/seeded-random.js(1012t1Z5) — addBuzzBlock 이 무늬번호 난수(window.FxSeed)를 여기서 읽는다.
+     없으면 그 함수는 조용히 null 을 돌려주고(만든 것 0) FX-1 이 「안 만들었다」로 빨개진다. */
+const DEP_FILES = ['js/banner-presets.js', 'js/panels/mockup-devices.js', 'js/fx/seeded-random.js'];
 
 /* ★★아직 «못 고친» 것 — 여기 이름이 있으면 그 종은 내보내기에서 빠진다는 뜻이다.
  *   2026-09-09 오후: «비었다». 한때 zoom·sticker·gradient 셋이 여기 있었다 —
