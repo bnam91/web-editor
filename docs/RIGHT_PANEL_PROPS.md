@@ -255,6 +255,7 @@
 | Slice | 크기 `grb-pie-grow-slider/number` | `items[i].pieGrow` 0~30 % (0 = 키 삭제) |
 | Slice | 밀어내기 `grb-pie-pull-slider/number` | `items[i].piePull` 0~30 % (0 = 키 삭제) |
 | Slice | 라벨 `grb-pie-tag-select` | 자동 / 항상 / 숨김 — `items[i].pieTag` 없음 / `'on'` / `'off'` |
+| Slice | (규칙) | 그려지는 조각이 하나(온 원)면 크기·밀어내기 칸은 `disabled` + 안내 줄 `grb-pie-slice-hint`(「조각이 하나라 적용되지 않음」 · 값은 안 지운다). Slice 칸은 쓰기 전에 `grbPieSelected(block) === 색인` 을 본다 — 아니면 절을 걷고 안 쓴다(`window.grbPieDropSlicePanel()` · 같은 블럭을 ⌘클릭해 풀 때도 부른다) |
 | Shadow (원형 전용 · 1013t1C7) | 없음 / 부드럽게 / 강하게 `grb-drop-group` | `dataset.dropShadow` 없음 / `soft` / `strong` — 모달·확대블럭과 같은 키·같은 값. 값이 같으면 히스토리를 안 찍는다 |
 | Shape (세로 막대 전용 · 1012t1G2·G3) | 모양 select | 기본 막대 / 사람 / 약통 / 물방울 / 사용자 SVG — `dataset.barShape` (끄면 키 삭제) |
 | Shape | SVG 불러오기 | `.svg` 파일을 소독·정규화해 실루엣으로 (`dataset.shapeSvg`, 상한 `GRAPH_LIMITS.SHAPE_SVG_MAX`). `<style>` 요소는 안 받는다 · `<use>` 겹쳐 부르기는 거절(TOO_COMPLEX). 읽는 사이 선택이 다른 블럭으로 옮겨 갔으면 패널을 다시 그리지 않는다 |

@@ -93,6 +93,7 @@
 | Text Sticker | `addStickerBlock({shape:'text'})` | 텍스트 스티커 — 캔버스 자유 배치 (폰트/외곽선/그림자 풀 옵션) |
 | Highlight | `addStickerBlock({shape:'highlight'})` | 형광펜 — 텍스트 뒤 색 사각형 |
 | HighlightB | `toggleHighlightBMode()` | 선 형광펜 — 두 점 클릭으로 직선 형광펜 (ESC 취소) |
+| Marking | `toggleCountStickerMode()` | 마킹 블럭 — 켠 뒤 섹션을 누를 때마다 하나씩 추가 (ESC 종료). 표기(1·A·아이콘)·모양·색·라벨은 우측 패널. 저장 키는 `data-count*` 그대로 |
 
 ---
 

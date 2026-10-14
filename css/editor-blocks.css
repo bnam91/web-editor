@@ -4204,6 +4204,22 @@ html.tgs-selecting .tgs:focus-within {
 }
 
 /* ──────────────────────────────────────────────
+   마킹 블럭의 옆 라벨 — «편집 중» 표시만 (1013t2B5)
+   자리·크기·색은 전부 인라인(js/blocks/sticker-block.js) — 저장본·미리보기·내보내기 클론이
+   이 파일 없이도 같은 자리에 그린다. 여기는 더블클릭 편집 동안의 글자 커서·점선(위 텍스트 스티커와 같은 토큰)과
+   빈 라벨의 캐럿 자리뿐이다. 편집 속성은 직렬화가 걷으므로 이 규칙은 저장본에 닿지 않는다.
+────────────────────────────────────────────── */
+.sticker-block > .sticker-count-label[contenteditable="true"] {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text !important;
+  min-width: 0.5em;
+  min-height: 1.2em;
+  outline: var(--sel-outline-w) dashed var(--ui-sel-overlay);
+  outline-offset: var(--sel-outline-w);
+}
+
+/* ──────────────────────────────────────────────
    섹션 밖 크롭 — 편집 캔버스에서도 잘림(현빈 확정).
    --sec-clip 은 렌더/드래그 시 JS(_updateStickerSecClip)가 인라인으로 계산해 넣는
    inset() 값. 선택 중인 스티커는 조작 가능하도록 해제, '섹션 밖 보이기' 섹션도 해제.
