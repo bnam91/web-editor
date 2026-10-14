@@ -50,7 +50,7 @@ test('D0 전제 — DOM 없이 실리고, 계약한 이름만 낸다', () => {
   const { C } = load();
   assert.equal(typeof C?.svg, 'function');
   assert.deepEqual(Object.keys(C).sort(),
-    ['DEFAULTS', 'GLYPH_MAX', 'LIMITS', 'PALETTES', 'angleFromSeed', 'baseColors', 'cutGlyph', 'paletteFor', 'svg', 'toHex6'],
+    ['DEFAULTS', 'GLYPH_MAX', 'LIMITS', 'PALETTES', 'angleFromSeed', 'baseColors', 'cutGlyph', 'draw', 'lookFromColor', 'paletteFor', 'svg', 'toHex6'],
     '★스티커가 안 쓰는 API 가 붙었거나 계약한 것이 빠졌다 — 머리말의 계약과 같이 고쳐라');
   assert.deepEqual({ ...C.DEFAULTS }, { metal: 'gold', glyph: '$', k: 22, gloss: 22, size: 120 });
   assert.equal(C.GLYPH_MAX, 2);
