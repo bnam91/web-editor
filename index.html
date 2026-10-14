@@ -690,7 +690,7 @@
       <button class="fp-menu-item" onclick="addStickerBlock();toggleFpDropdown('fp-pen-dropdown')" title="플로팅 스티커 — 클릭=마지막 스타일 / 색·프리셋은 우측 패널에서 선택">Sticker</button>
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'text'});toggleFpDropdown('fp-pen-dropdown')" title="텍스트 스티커 — 캔버스에 자유 배치하는 텍스트 (폰트/외곽선/그림자 등 풀 옵션)">Text Sticker</button>
       <button class="fp-menu-item" onclick="openIconifyModal((p)=>{const o={shape:'icon', iconName:p.name, svg:p.svg, size:p.size}; if(p.iconColor!=null&&p.iconColor!=='') o.iconColor=p.iconColor; window.addStickerBlock(o);}, {favorites:true});toggleFpDropdown('fp-pen-dropdown')" title="아이콘 스티커 — Iconify에서 아이콘을 골라 캔버스에 스티커로 추가">Icon Sticker</button>
-      <button class="fp-menu-item" onclick="toggleCountStickerMode();toggleFpDropdown('fp-pen-dropdown')" title="카운트 스티커 — 켠 뒤 섹션을 누를 때마다 1·2·3… 번호 스티커 추가 · ESC 종료 / 표기·모양·시작 번호·크기는 우측 패널에서">Count Sticker</button>
+      <button class="fp-menu-item" onclick="toggleCountStickerMode();toggleFpDropdown('fp-pen-dropdown')" title="마킹 블럭 — 켠 뒤 섹션을 누를 때마다 하나씩 추가 · ESC 종료 / 표기(1·A·아이콘)·모양·색·라벨은 우측 패널에서">Marking</button>
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'coin'});toggleFpDropdown('fp-pen-dropdown')" title="코인 스티커 — 누르면 코인 1개가 바로 생긴다 · 손잡이로 이동·크기·회전 / 다시뽑기(보는 각도)·재질·각인·두께·광택은 우측 패널에서">Coin</button>
       <!-- ★[숨김] 면 형광펜 A(shape:'highlight') · 1012t1J1 · 현빈 「b만 남겨줘」
            ⛔막는 것은 «새로 넣는 입구»뿐이다. 렌더·패널(Highlight Size)·코너 리사이즈·저장/로드·MCP 의
@@ -730,6 +730,7 @@
       <button class="fp-menu-item" onclick="addChatBlock();toggleFpDropdown('fp-component-dropdown')">Chat</button>
       <button class="fp-menu-item" onclick="addGridBlock();toggleFpDropdown('fp-component-dropdown')">Grid</button>
       <button class="fp-menu-item" onclick="addModalBlock();toggleFpDropdown('fp-component-dropdown')">Modal</button>
+      <button class="fp-menu-item" onclick="addBuzzBlock();toggleFpDropdown('fp-component-dropdown')">Buzz</button>
       <button class="fp-menu-item" onclick="addCouponBlock();toggleFpDropdown('fp-component-dropdown')">Coupon</button>
       <!-- ★Quote 는 텍스트 드롭다운으로 옮겼다(1012t1H1 · 현빈 「텍스트 패널위치로 옮기기」). -->
       <!-- ★[숨김] Info Card · Inner Card — 현빈 2026-09-07 「info카드와 이너카드도 일단 숨김처리해줘」
@@ -1146,6 +1147,7 @@
 <script type="module" src="js/blocks/innercard-block.js"></script>
 <script type="module" src="js/blocks/modal-block.js"></script>
 <script type="module" src="js/blocks/modal-frameify.js"></script>   <!-- M1 「프레임화 하기」 — modal-block.js «뒤» (tests/unit/modal-frameify-gates G7) -->
+<script type="module" src="js/blocks/buzz-frame.js"></script>   <!-- 버즈(1012t1Z5) 자유배치 프레임 + 모달 묶음 — modal-block.js «뒤» -->
 <script type="module" src="js/blocks/banner-block.js"></script>
 <script type="module" src="js/blocks/banner02-block.js"></script>
 <script type="module" src="js/blocks/comparison-block.js"></script>

@@ -2,11 +2,15 @@
  *
  * ★무엇을 잠그나
  *   C1 찍기(실제 메뉴 → 실제 마우스) · C2 찍힌 자리 = 누른 자리(배율을 먹는다) · C3 번호는 섹션별
- *   C4 표기 A/B/C(묶음) · C5 시작 번호(묶음) · C6 모양 원·사각·투명(개별) · C7 크기(폰트 비례)
+ *   C4 표기 A/B/C(묶음) · C5 시작 번호(묶음) · C6 모양 원·사각·투명(「섹션 전체」 스위치를 끈 채 = 고른 것만) · C7 크기(폰트 비례)
  *   C8 ⌘Z 한 번 = 스티커 하나 · C9 Esc 종료 · C10 다시 그려도 같은 글자(리로드·undo 와 같은 길)
  *   C11 번호 다시 매기기 · C12 더블클릭해도 글자 편집이 안 열린다 · C13 일반 스티커 패널 무회귀(C13b 짝: A 블럭이면 Shape 5)
  *   C14·C15 크기를 키로 한 칸씩 바꿔도 폰트 비례 · C16·C17 다른 찍는 도구와 안 겹친다 · C18 키 리스너 짝·한 번에 하나
  *   C19 모서리를 찍어도 섹션 안 · C20 메뉴 재클릭·우클릭·⌘⇧Z · C21 시작 번호 칸은 확정 때 모델 값으로
+ *   C23~C25 Esc(1013t2B2) — 패널 칸(슬라이더·숫자칸·색 hex)에 포커스가 있어도 한 번에 꺼진다 · 임자가 따로 있는 Esc(패널 밖 칸·인라인 편집·색 팝오버)는 안 끈다 · 선택은 둘째 Esc 가 푼다
+ *   C26·C27 기본색(1013t2B4) — 빈 섹션 첫 찍기는 검정 배경·흰 글자 · 일반 Sticker 는 빨강 그대로 · 옛 저장본의 색은 그대로(색 키가 없어도 빨강)
+ *   C28~C31 섹션 일괄(1013t2B3) — 모양·크기·폰트 크기·굵기·배경색·글자색이 같은 섹션 전부에(스위치 켬 · 기본) · ⌘Z 한 칸 · 스위치를 끄면 고른 것만 · 코너 드래그는 잡은 것만
+ *   C22 이름(1013t2B1) — 보이는 이름은 Marking(마킹 블럭): 패널 절 제목·패널 머리·레이어 행. 저장 키(data-count*)는 그대로
  * ★스티커는 기존 sticker-block(circle/square)의 변형이다 — data-count 가 붙었을 뿐이다.
  * ★자리 비교는 «레이아웃 px»로 한다(dataset.x·sizeW 와 offsetWidth). 화면 사각형은 «누를 점»을 정하는 데만 쓴다.
  */
@@ -32,6 +36,15 @@ async function setup(page) {
 async function toolOn(page) {
   await page.evaluate(() => window.enterCountStickerMode());
   await page.waitForFunction(() => window._countStkState().mode === true && window._countStkState().armed === true);
+}
+
+/* 「섹션 전체」 스위치(1013t2B3)를 실제로 눌러 원하는 상태로 만든다. 칸(input)은 크기가 0 이라 감싼 label 을 누른다. */
+async function groupSwitch(page, want) {
+  const read = () => page.evaluate(() => document.getElementById('stk-count-group')?.checked ?? null);
+  const now = await read();
+  expect(now, '★전제: 「섹션 전체」 스위치가 패널에 있다').not.toBeNull();
+  if (now !== want) await page.click('label.prop-toggle:has(#stk-count-group)');
+  expect(await read(), `「섹션 전체」 스위치 = ${want}`).toBe(want);
 }
 
 const countIn = (page, secId) => page.evaluate((id) => document.querySelectorAll(`#${id} .sticker-block[data-count]`).length, secId);
@@ -81,11 +94,11 @@ test('C0 전제 — 도구가 실렸고 켜고 끌 수 있다 · 오류 0건', a
   expect(errs).toEqual([]);
 });
 
-test('C1 찍기 — 메뉴 「Count Sticker」로 켜고 섹션을 세 번 누르면 1·2·3 이 찍힌다', async ({ page }) => {
+test('C1 찍기 — 메뉴 「Marking」으로 켜고 섹션을 세 번 누르면 1·2·3 이 찍힌다', async ({ page }) => {
   const errs = await bootApp(page);
   await setup(page);
   await page.click('#fp-pen-btn');
-  await page.click('#fp-pen-menu .fp-menu-item:text-is("Count Sticker")');
+  await page.click('#fp-pen-menu .fp-menu-item:text-is("Marking")');
   await page.waitForFunction(() => window._countStkState().mode === true && window._countStkState().armed === true);
   expect(await page.evaluate(() => getComputedStyle(document.getElementById('secA')).cursor), '도구가 켜지면 십자 커서').toBe('crosshair');
   await stamp3(page);
@@ -177,12 +190,14 @@ test('C5 시작 번호 — 5 로 바꾸면 5·6·7, 알파벳에서 26 이면 Z�
   expect(await texts(page, 'secA')).toEqual(['Z', 'AA', 'AB', 'AC']);
 });
 
-test('C6 모양 — 사각은 모서리 반경이 바뀌고, 투명은 배경이 비고 숫자가 배경색이 된다', async ({ page }) => {
+test('C6 모양(스위치 끔) — 사각은 모서리 반경이 바뀌고, 투명은 배경이 비고 숫자가 배경색이 된다 · 고른 것만 바뀐다', async ({ page }) => {
   await bootApp(page);
   await setup(page);
   await toolOn(page);
   await stamp(page, SEC_A, 0.3, 0.5);
   await stamp(page, SEC_A, 0.6, 0.5);
+  /* 1013t2B3 — 기본은 섹션 일괄(C28)이다. 이 칸은 「섹션 전체」 스위치를 «끈» 채의 개별 동작을 잰다. */
+  await groupSwitch(page, false);
   const read = () => page.evaluate(() => {
     const all = [...document.querySelectorAll('#secA .sticker-block[data-count]')];
     const probe = document.createElement('span'); probe.style.color = all[1].dataset.bgColor; document.body.appendChild(probe);
@@ -341,6 +356,8 @@ test('C11 번호 다시 매기기 — 2 를 지운 뒤 1·3 이 1·2 가 된다'
   expect(await page.evaluate(() => window.CountSticker.nextOrdinal(document.getElementById('secA')))).toBe(3);
 });
 
+/* 1013t2B5 뒤 — 마킹을 더블클릭하면 «옆 라벨»의 편집이 열린다(tests/dom/marking-icon-label.dom.spec.js M6).
+   이 칸이 지키는 것은 그대로다: 번호 글자(.sticker-text)는 편집이 안 열리고 번호가 안 바뀐다. */
 test('C12 더블클릭 — 카운트 스티커는 글자 편집이 안 열린다(일반 스티커는 열린다)', async ({ page }) => {
   await bootApp(page);
   await setup(page);
@@ -607,10 +624,10 @@ test('C20 종료 갈래 — 메뉴를 다시 누르면 꺼진다 · 우클릭은
   await bootApp(page);
   await setup(page);
   // 메뉴 재클릭
-  await penMenu(page, 'Count Sticker');
+  await penMenu(page, 'Marking');
   await page.waitForFunction(() => window._countStkState().mode === true && window._countStkState().armed === true);
   await stamp(page, SEC_A, 0.2, 0.5);
-  await penMenu(page, 'Count Sticker');
+  await penMenu(page, 'Marking');
   expect(await page.evaluate(() => ({ ...window._countStkState(), body: document.body.classList.contains('count-stk-mode'),
     btn: document.getElementById('fp-pen-btn').classList.contains('active') })), '메뉴를 다시 누르면 꺼진다').toEqual({ mode: false, armed: false, body: false, btn: false });
   expect(await countIn(page, 'secA'), '메뉴를 누른 것이 번호를 찍지 않는다').toBe(1);
@@ -652,4 +669,339 @@ test('C21 시작 번호 칸 — 2.7 을 넣고 확정하면 칸이 모델 값(2)
     model: [...document.querySelectorAll('#secA [data-count]')].map(b => b.dataset.countStart) }));
   expect(r.model, '★전제: 모델은 2').toEqual(['2', '2', '2']);
   expect(r.field, '칸에 2.7 이 남지 않는다').toBe('2');
+});
+
+/* ── 1013t2 B 묶음(마킹 블럭) ─────────────────────────────────────────────────────────────────────── */
+
+/* 그 블럭의 레이어 행(.layer-item) — 행이 드는 _dragTarget 으로 «그 블럭의 행»을 집는다(이름으로 찾지 않는다). */
+const layerRowOf = (page, sel) => page.evaluate((sel) => {
+  window.buildLayerPanel?.();
+  const b = document.querySelector(sel);
+  const rows = [...document.querySelectorAll('.layer-item')].filter((it) => it._dragTarget === b);
+  return rows.map((it) => ({ name: it.querySelector('.layer-item-name')?.textContent, type: it.querySelector('.layer-item-type')?.textContent, layerType: it.dataset.layerType }));
+}, sel);
+
+test('C22 이름 — 패널 절 제목·패널 머리·레이어 행이 Marking 이다 · 일반 스티커의 머리는 Sticker 그대로 · 저장 키는 count 그대로', async ({ page }) => {
+  const errs = await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.4, 0.5);
+  await page.evaluate(() => window.exitCountStickerMode());
+  const m = await page.evaluate(() => {
+    const b = document.querySelector('#secA .sticker-block[data-count]');
+    return { n: document.querySelectorAll('#secA .sticker-block[data-count]').length, selected: b.classList.contains('selected'),
+      title: document.querySelector('#stk-count-section .prop-section-title')?.textContent.trim(),
+      head: document.querySelector('#panel-right .prop-block-name')?.textContent.trim(),
+      keys: ['count', 'countStart', 'countStyle', 'countShape'].map((k) => k in b.dataset), type: b.dataset.type, cls: b.className.split(' ')[0] };
+  });
+  expect([m.n, m.selected], '★전제: 마킹 1개가 찍혔고 골라져 있다').toEqual([1, true]);
+  expect(m.title, '패널 절 제목').toBe('Marking');
+  expect(m.head, '패널 머리').toBe('Marking');
+  expect([m.keys, m.type, m.cls], '저장 키·종류·클래스는 그대로다').toEqual([[true, true, true, true], 'sticker', 'sticker-block']);
+  const rows = await layerRowOf(page, '#secA .sticker-block[data-count]');
+  expect(rows.length, '★전제: 그 블럭의 레이어 행이 정확히 하나 있다').toBe(1);
+  expect(rows[0], '레이어 행의 이름·종류').toEqual({ name: 'Marking', type: 'Sticker', layerType: 'marking' });
+
+  /* 짝: 일반 스티커의 머리는 Sticker 그대로 */
+  const plain = await page.evaluate(() => {
+    const sec = document.getElementById('secA');
+    const b = window.makeStickerBlock({ shape: 'circle', x: 20, y: 20 });
+    b.id = 'stkPlainName';
+    sec.appendChild(b); window.bindStickerSelect(b); window._selectSticker(b);
+    return { hasCount: 'count' in b.dataset, selected: b.classList.contains('selected'),
+      head: document.querySelector('#panel-right .prop-block-name')?.textContent.trim(), countSec: !!document.getElementById('stk-count-section') };
+  });
+  expect(plain, '일반 스티커: 머리는 Sticker · Marking 절 없음').toEqual({ hasCount: false, selected: true, head: 'Sticker', countSec: false });
+  const plainRows = await layerRowOf(page, '[id="stkPlainName"]');
+  expect(plainRows.length, '★전제: 일반 스티커의 레이어 행이 하나 있다').toBe(1);
+  expect(plainRows[0].layerType, '일반 스티커의 레이어 행은 마킹으로 안 바뀐다(이번 범위 밖 · 표시 무변)').not.toBe('marking');
+  expect(errs).toEqual([]);
+});
+
+const escState = (page) => page.evaluate(() => ({ mode: window._countStkState().mode, body: document.body.classList.contains('count-stk-mode'),
+  btn: document.getElementById('fp-pen-btn').classList.contains('active') }));
+
+test('C23 Esc — 패널 칸에 포커스가 있어도 한 번에 꺼진다(슬라이더 · 숫자칸 · 색 hex 칸)', async ({ page }) => {
+  const errs = await bootApp(page);
+  await setup(page);
+  /* ⛔여기서는 blur() 로 피해 가지 않는다(C9 는 다른 길) — 칸에 포커스가 있는 «채» Esc 를 누른다. */
+  const FIELDS = ['stk-count-size', 'stk-count-start', 'stk-bg-hex'];
+  for (const id of FIELDS) {
+    await page.evaluate(() => { document.querySelectorAll('#secA .sticker-block').forEach((b) => b.remove()); });
+    await toolOn(page);
+    await stamp(page, SEC_A, 0.3, 0.5);
+    await page.click('#' + id);
+    const pre = await page.evaluate((id) => ({ active: document.activeElement?.id, inPanel: !!document.activeElement?.closest('#panel-right'), mode: window._countStkState().mode }), id);
+    expect(pre, `★전제(${id}): 그 칸에 포커스가 있고 도구는 켜져 있다`).toEqual({ active: id, inPanel: true, mode: true });
+    await page.keyboard.press('Escape');
+    expect(await escState(page), `${id}: Esc 한 번에 도구가 꺼진다`).toEqual({ mode: false, body: false, btn: false });
+    expect(await page.evaluate(() => document.activeElement === document.body || !document.activeElement?.closest('#panel-right')), `${id}: 포커스가 칸에서 빠졌다`).toBe(true);
+    const r = await waitStableRect(page, SEC_A);
+    await clickAt(page, r.left + r.width * 0.7, r.top + r.height * 0.5, { sel: SEC_A }, { label: `${id}: 꺼진 뒤 클릭` });
+    expect(await countIn(page, 'secA'), `${id}: 꺼진 뒤 클릭은 개수를 안 바꾼다`).toBe(1);
+  }
+  expect(errs).toEqual([]);
+});
+
+test('C23b Esc(숫자칸) — 치던 값은 모델에 안 남고(되돌림) 도구는 같은 Esc 에 꺼진다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.3, 0.5);
+  await page.click('#stk-count-size-num');
+  await page.keyboard.press('Meta+a');
+  await page.keyboard.type('200');
+  const typed = await page.evaluate(() => ({ active: document.activeElement?.id, field: document.getElementById('stk-count-size-num').value }));
+  expect(typed, '★전제: 숫자칸에 200 을 쳤고 포커스가 그 칸에 있다').toEqual({ active: 'stk-count-size-num', field: '200' });
+  await page.keyboard.press('Escape');
+  expect((await escState(page)).mode, 'Esc 한 번에 도구가 꺼진다').toBe(false);
+  await page.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))));
+  const after = await page.evaluate(() => { const b = document.querySelector('#secA .sticker-block[data-count]'); return [b.dataset.sizeW, b.offsetWidth]; });
+  expect(after, '치던 값(200)이 확정되지 않았다 — 크기는 기본 그대로').toEqual([String(SIZE0), SIZE0]);
+});
+
+test('C24 Esc 충돌 없음 — 패널 밖 입력 칸·인라인 편집의 Esc 는 도구를 안 끈다 · 색 팝오버는 팝오버만 닫는다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.3, 0.5);
+
+  /* ① 우측 패널 «밖»의 입력 칸(모달·이름 바꾸기와 같은 처지) */
+  await page.evaluate(() => { const i = document.createElement('input'); i.id = 'c24-outside'; i.type = 'text'; document.body.appendChild(i); i.focus(); });
+  expect(await page.evaluate(() => [document.activeElement?.id, !!document.activeElement?.closest('#panel-right')]), '★전제①: 패널 밖 칸에 포커스').toEqual(['c24-outside', false]);
+  await page.keyboard.press('Escape');
+  expect((await escState(page)).mode, '① 패널 밖 칸의 Esc 는 도구를 안 끈다').toBe(true);
+  await page.evaluate(() => document.getElementById('c24-outside').remove());
+
+  /* ② 인라인 편집(contenteditable) */
+  await page.evaluate(() => { const d = document.createElement('div'); d.id = 'c24-edit'; d.setAttribute('contenteditable', 'true'); d.textContent = 'x'; document.body.appendChild(d); d.focus(); });
+  expect(await page.evaluate(() => document.activeElement?.id), '★전제②: 편집 요소에 포커스').toBe('c24-edit');
+  await page.keyboard.press('Escape');
+  expect((await escState(page)).mode, '② 인라인 편집 중의 Esc 는 도구를 안 끈다').toBe(true);
+  await page.evaluate(() => document.getElementById('c24-edit').remove());
+
+  /* ③ 색 팝오버 — 첫 Esc 는 팝오버만, 둘째 Esc 가 도구 */
+  const popOpen = () => page.evaluate(() => { const p = document.querySelector('.goya-cp-popover'); return !!p && !p.hidden; });
+  await page.click('#stk-colors-section .prop-color-swatch');
+  await expect.poll(popOpen, '★전제③: 색 팝오버가 열렸다').toBe(true);
+  expect((await escState(page)).mode, '★전제③: 도구는 켜진 채다').toBe(true);
+  await page.keyboard.press('Escape');
+  await expect.poll(popOpen, '③ 첫 Esc: 팝오버가 닫힌다').toBe(false);
+  expect((await escState(page)).mode, '③ 첫 Esc: 도구는 그대로 켜져 있다').toBe(true);
+  /* ★전제(2차) — 둘째 Esc 가 도구를 끄려면 포커스가 «패널 밖 입력 칸»(닫힌 팝오버 안의 칸 포함)에 남아 있으면 안 된다
+     (그 자리는 규칙 ④가 그 칸의 Esc 로 본다). 닫힌 팝오버가 포커스를 쥐고 있으면 여기서 빨개진다 — 아래 단언이 엉뚱한 까닭으로 빨개지지 않게. */
+  await expect.poll(() => page.evaluate(() => { const ae = document.activeElement; const tag = ae ? ae.tagName : '';
+    const field = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!(ae && ae.isContentEditable);
+    return { outsideField: field && !ae.closest('#panel-right'), inPopover: !!(ae && ae.closest && ae.closest('.goya-cp-popover')) }; }),
+    '★전제③: 팝오버가 닫힌 뒤 포커스가 패널 밖 입력 칸·팝오버 안에 남아 있지 않다').toEqual({ outsideField: false, inPopover: false });
+  await page.keyboard.press('Escape');
+  expect(await escState(page), '③ 둘째 Esc: 도구가 꺼진다').toEqual({ mode: false, body: false, btn: false });
+});
+
+test('C25 Esc 뒤 — 방금 찍은 것은 골라진 채, 두 번째 Esc 가 선택을 푼다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.3, 0.5);
+  await page.click('#stk-count-size');
+  expect(await page.evaluate(() => document.activeElement?.id), '★전제: 슬라이더에 포커스').toBe('stk-count-size');
+  const sel = () => page.evaluate(() => document.querySelectorAll('#secA .sticker-block.selected').length);
+  expect(await sel(), '★전제: 방금 찍은 것이 골라져 있다').toBe(1);
+  await page.keyboard.press('Escape');
+  expect([(await escState(page)).mode, await sel()], '첫 Esc: 도구만 꺼지고 선택은 남는다').toEqual([false, 1]);
+  await page.keyboard.press('Escape');
+  await expect.poll(sel, '둘째 Esc: 선택이 풀린다').toBe(0);
+  expect(await countIn(page, 'secA'), '스티커는 그대로 있다').toBe(1);
+});
+
+const RED = 'rgb(231, 76, 60)';      // #e74c3c — 일반 스티커 기본(js/blocks/sticker-block.js STICKER_DEFAULTS)
+const BLACK = 'rgb(0, 0, 0)', WHITE = 'rgb(255, 255, 255)';
+
+test('C26 기본색 — 빈 섹션 첫 찍기는 검정 배경·흰 글자(그려진 색) · 일반 Sticker 는 빨강 그대로', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.4, 0.5);
+  const m = await page.evaluate(() => {
+    const all = [...document.querySelectorAll('#secA .sticker-block[data-count]')];
+    const c = getComputedStyle(all[0]);
+    return { n: all.length, bg: c.backgroundColor, color: c.color, dBg: all[0].dataset.bgColor, dTxt: all[0].dataset.textColor };
+  });
+  expect(m.n, '★전제: 마킹이 하나 찍혔다').toBe(1);
+  expect([m.bg, m.color], '그려진 색 = 검정 배경 · 흰 글자').toEqual([BLACK, WHITE]);
+  expect([m.dBg, m.dTxt], '색이 dataset 에 실린다(저장본에 그대로 간다)').toEqual(['#000000', '#ffffff']);
+  /* 일반 스티커는 빨강 그대로 */
+  const plain = await page.evaluate(() => {
+    window.exitCountStickerMode();
+    const sec = document.getElementById('secB');
+    const b = window.makeStickerBlock({ shape: 'circle' });
+    sec.appendChild(b);
+    return { hasCount: 'count' in b.dataset, dBg: b.dataset.bgColor, bg: getComputedStyle(b).backgroundColor };
+  });
+  expect(plain, '일반 스티커의 기본색은 안 바뀐다').toEqual({ hasCount: false, dBg: '#e74c3c', bg: RED });
+});
+
+test('C27 옛 저장본 — 색을 든 옛 마킹은 다시 그려도 그 색 · 색 키가 없는 옛 것도 빨강 · 그 섹션의 다음 찍기는 옛 색을 물려받는다', async ({ page }) => {
+  await bootApp(page);
+  await page.evaluate(() => {
+    const old = (id, x, extra) => `<div class="sticker-block" id="${id}" data-type="sticker" data-shape="circle" data-size="56" data-size-w="56" data-size-h="56"`
+      + ` data-text="1" data-font-size="26" data-font-weight="700" data-x="${x}" data-y="40" data-count="1" data-count-start="1" data-count-style="num" data-count-shape="circle"${extra}></div>`;
+    document.getElementById('canvas').innerHTML =
+        '<div class="section-block" id="secA" style="position:relative;height:320px;background:#f4f4f6"><div class="section-inner"></div>'
+        + old('oldRed', 40, ' data-bg-color="#e74c3c" data-text-color="#ffffff"') + '</div>'
+      + '<div class="section-block" id="secB" style="position:relative;height:320px;background:#e9eef4"><div class="section-inner"></div>'
+        + old('oldBare', 40, '') + '</div>';
+    window.rebindAll?.();
+  });
+  const read = () => page.evaluate(() => ['oldRed', 'oldBare'].map((id) => { const b = document.getElementById(id);
+    return { drawn: !!b.querySelector('.sticker-text'), bg: getComputedStyle(b).backgroundColor, color: getComputedStyle(b).color, dBg: b.dataset.bgColor ?? null }; }));
+  const r = await read();
+  expect(r.map((x) => x.drawn), '★전제: 옛 마킹 둘이 다시 그려졌다').toEqual([true, true]);
+  expect(r[0], '색을 든 옛 것: 그 색 그대로').toEqual({ drawn: true, bg: RED, color: WHITE, dBg: '#e74c3c' });
+  expect(r[1], '색 키가 없는 옛 것: 빨강(폴백 무변) · 키를 지어 넣지 않는다').toEqual({ drawn: true, bg: RED, color: WHITE, dBg: null });
+  /* 옛 빨강 섹션의 다음 찍기는 빨강을 물려받는다(그 섹션 묶음과 한 벌) */
+  await toolOn(page);
+  await stamp(page, SEC_A, 0.6, 0.5);
+  const next = await page.evaluate(() => { const all = [...document.querySelectorAll('#secA .sticker-block[data-count]')]; const b = all[all.length - 1];
+    return { n: all.length, count: b.dataset.count, dBg: b.dataset.bgColor, bg: getComputedStyle(b).backgroundColor }; });
+  expect(next, '옛 빨강 섹션에 찍으면 빨강 · 번호는 2').toEqual({ n: 2, count: '2', dBg: '#e74c3c', bg: RED });
+});
+
+/* 그 섹션의 마킹 전부 — dataset 과 «그려진» 값을 같이 읽는다(둘이 따로 놀면 한쪽만 맞아도 초록이 되므로). */
+const groupLook = (page, secId) => page.evaluate((id) => [...document.querySelectorAll(`#${id} .sticker-block[data-count]`)].map((b) => {
+  const c = getComputedStyle(b), d = b.dataset;
+  const span = b.querySelector(':scope > .sticker-text');
+  return { countShape: d.countShape, sizeW: d.sizeW, fontSize: d.fontSize, fontWeight: d.fontWeight, bgColor: d.bgColor, textColor: d.textColor,
+    radius: c.borderRadius, w: b.offsetWidth, drawnFs: c.fontSize, drawnFw: c.fontWeight, bg: c.backgroundColor, color: c.color,
+    fontStyle: d.fontStyle ?? null, deco: d.textDecoration ?? null, drawnStyle: c.fontStyle, drawnDeco: span ? getComputedStyle(span).textDecorationLine : null };
+}), secId);
+const pluck = (rows, k) => rows.map((r) => r[k]);
+
+/* secB 1개 + secA 3개(마지막에 찍은 secA 셋째가 골라져 있다). */
+async function groupSetup(page) {
+  const errs = await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp(page, SEC_B, 0.4, 0.5);
+  await stamp3(page, SEC_A);
+  await page.evaluate(() => window.exitCountStickerMode());
+  const pre = await page.evaluate(() => ({ a: document.querySelectorAll('#secA .sticker-block[data-count]').length, b: document.querySelectorAll('#secB .sticker-block[data-count]').length,
+    sel: [...document.querySelectorAll('#secA .sticker-block[data-count]')].map((x) => x.classList.contains('selected')), sw: document.getElementById('stk-count-group')?.checked }));
+  expect(pre, '★전제: secA 3 · secB 1 · secA 셋째가 골라졌고 스위치는 켜져 있다(기본)').toEqual({ a: 3, b: 1, sel: [false, false, true], sw: true });
+  return errs;
+}
+
+async function typeHex(page, sel, hex) {
+  await page.click(sel);
+  await page.keyboard.press('Meta+a');
+  await page.keyboard.type(hex);
+  await page.keyboard.press('Enter');
+}
+
+test('C28 일괄(켬 · 기본) — 모양 · 크기 · 폰트 크기 · 굵기 · 스타일(이탤릭·밑줄) · 배경색 · 글자색이 같은 섹션 3개에 다 가고 다른 섹션은 그대로', async ({ page }) => {
+  const errs = await groupSetup(page);
+  const b0 = (await groupLook(page, 'secB'))[0];
+  const a0 = await groupLook(page, 'secA');
+  expect(pluck(a0, 'radius'), '★전제: 셋 다 원').toEqual(['50%', '50%', '50%']);
+
+  await page.click('#stk-count-shape [data-count-shape="square"]');
+  let a = await groupLook(page, 'secA');
+  expect([pluck(a, 'countShape'), pluck(a, 'radius')], '모양: 셋 다 사각').toEqual([['square', 'square', 'square'], ['8px', '8px', '8px']]);
+
+  await typeNumber(page, '#stk-count-size-num', 84);
+  await expect.poll(async () => pluck(await groupLook(page, 'secA'), 'sizeW'), '크기: 셋 다 84').toEqual(['84', '84', '84']);
+  a = await groupLook(page, 'secA');
+  expect([pluck(a, 'w'), pluck(a, 'fontSize'), pluck(a, 'drawnFs')], '크기: 그려진 폭 · 폰트(비례 26→39) 도 셋 다').toEqual([[84, 84, 84], ['39', '39', '39'], ['39px', '39px', '39px']]);
+
+  await typeNumber(page, '#stk-fs-num', 30);
+  await expect.poll(async () => pluck(await groupLook(page, 'secA'), 'fontSize'), '폰트 크기: 셋 다 30').toEqual(['30', '30', '30']);
+  expect(pluck(await groupLook(page, 'secA'), 'drawnFs'), '폰트 크기: 그려진 값').toEqual(['30px', '30px', '30px']);
+
+  await page.selectOption('#stk-fw', '900');
+  a = await groupLook(page, 'secA');
+  expect([pluck(a, 'fontWeight'), pluck(a, 'drawnFw')], '굵기: 셋 다 900').toEqual([['900', '900', '900'], ['900', '900', '900']]);
+
+  /* 스타일(이탤릭 · 밑줄) — 2차(이벨류에이터 D9): 이 줄이 없으면 prop-sticker.js 의 스타일 일괄 한 줄을 지워도 전부 초록이었다 */
+  expect([pluck(a, 'drawnStyle'), pluck(a, 'drawnDeco')], '★전제: 처음엔 셋 다 바로 선 글자 · 장식 없음').toEqual([['normal', 'normal', 'normal'], ['none', 'none', 'none']]);
+  await page.click('#stk-b-style-group [data-style="italic"]');
+  a = await groupLook(page, 'secA');
+  expect([pluck(a, 'fontStyle'), pluck(a, 'drawnStyle')], '이탤릭: 셋 다').toEqual([['italic', 'italic', 'italic'], ['italic', 'italic', 'italic']]);
+  await page.click('#stk-b-style-group [data-style="underline"]');
+  a = await groupLook(page, 'secA');
+  expect([pluck(a, 'deco'), pluck(a, 'drawnDeco')], '밑줄: 셋 다').toEqual([['underline', 'underline', 'underline'], ['underline', 'underline', 'underline']]);
+  expect(pluck(a, 'drawnStyle'), '밑줄을 켜도 이탤릭은 그대로').toEqual(['italic', 'italic', 'italic']);
+
+  await typeHex(page, '#stk-bg-hex', 'F26B1F');
+  await expect.poll(async () => pluck(await groupLook(page, 'secA'), 'bg'), '배경색: 셋 다').toEqual(Array(3).fill('rgb(242, 107, 31)'));
+  await typeHex(page, '#stk-txt-hex', '00FF00');
+  await expect.poll(async () => pluck(await groupLook(page, 'secA'), 'color'), '글자색: 셋 다').toEqual(Array(3).fill('rgb(0, 255, 0)'));
+  a = await groupLook(page, 'secA');
+  expect([new Set(pluck(a, 'bgColor')).size, new Set(pluck(a, 'textColor')).size], '색 dataset 도 셋이 같다').toEqual([1, 1]);
+
+  expect((await groupLook(page, 'secB'))[0], '다른 섹션의 마킹은 처음 그대로').toEqual(b0);
+  expect(await texts(page, 'secA'), '번호는 블럭마다의 것 — 안 섞인다').toEqual(['1', '2', '3']);
+  expect(errs).toEqual([]);
+});
+
+test('C29 일괄 undo — 묶음 변경 한 번 = ⌘Z 한 번에 3개가 다 돌아오고 스티커 수는 그대로', async ({ page }) => {
+  await groupSetup(page);
+  const reselect = () => page.evaluate(() => { const all = document.querySelectorAll('#secA .sticker-block[data-count]'); window._selectSticker(all[all.length - 1]); return !!document.getElementById('stk-count-section'); });
+  const CASES = [
+    { name: '모양', key: 'countShape', act: () => page.click('#stk-count-shape [data-count-shape="square"]'), want: 'square' },
+    { name: '크기', key: 'sizeW', act: () => typeNumber(page, '#stk-count-size-num', 84), want: '84' },
+    { name: '배경색', key: 'bgColor', act: () => typeHex(page, '#stk-bg-hex', 'F26B1F'), want: '#f26b1f' },
+  ];
+  for (const c of CASES) {
+    expect(await reselect(), `★전제(${c.name}): 셋째를 골랐고 패널이 떴다`).toBe(true);
+    const before = pluck(await groupLook(page, 'secA'), c.key);
+    const h = await expectOneUndoStep(page, async () => {
+      await c.act();
+      await expect.poll(async () => pluck(await groupLook(page, 'secA'), c.key).map((v) => String(v).toLowerCase()), `★전제(${c.name}): 셋 다 바뀌었다`).toEqual([c.want, c.want, c.want]);
+    }, `마킹 일괄 ${c.name}`, { soft: true });
+    expect(before.every((v) => String(v).toLowerCase() !== c.want), `★전제(${c.name}): 바꾸기 전 값이 달랐다`).toBe(true);
+    expect(h.dPos >= 1 && h.seqNew, `${c.name}: 바꾼 직후 꼭대기가 새 칸 — Δpos=${h.dPos}`).toBe(true);
+    expect([h.undoDLen, h.undoDPos], `${c.name}: ⌘Z 가 구제 칸 없이 정확히 한 칸`).toEqual([0, -1]);
+    await expect.poll(async () => pluck(await groupLook(page, 'secA'), c.key), `${c.name}: ⌘Z 한 번에 셋 다 돌아온다`).toEqual(before);
+    expect([await countIn(page, 'secA'), await countIn(page, 'secB')], `${c.name}: 스티커 수는 그대로`).toEqual([3, 1]);
+  }
+});
+
+test('C30 개별(끔) — 스위치를 끄면 고른 것만 바뀐다 · 패널을 다시 그려도 스위치가 꺼진 채다', async ({ page }) => {
+  await groupSetup(page);
+  await groupSwitch(page, false);
+  await page.click('#stk-count-shape [data-count-shape="square"]');      // 이 클릭이 패널을 통째로 다시 그린다
+  expect(await page.evaluate(() => document.getElementById('stk-count-group').checked), '패널을 다시 그려도 꺼진 채다').toBe(false);
+  let a = await groupLook(page, 'secA');
+  expect(pluck(a, 'countShape'), '모양: 고른 것(셋째)만').toEqual(['circle', 'circle', 'square']);
+  await typeNumber(page, '#stk-count-size-num', 84);
+  await expect.poll(async () => pluck(await groupLook(page, 'secA'), 'sizeW'), '크기: 고른 것만').toEqual(['56', '56', '84']);
+  await typeHex(page, '#stk-bg-hex', 'F26B1F');
+  await expect.poll(async () => pluck(await groupLook(page, 'secA'), 'bg'), '배경색: 고른 것만').toEqual(['rgb(0, 0, 0)', 'rgb(0, 0, 0)', 'rgb(242, 107, 31)']);
+  /* 표기는 스위치와 무관하게 항상 묶음이다 */
+  await page.click('#stk-count-style [data-count-style="alpha"]');
+  expect(await texts(page, 'secA'), '표기는 스위치가 꺼져 있어도 섹션 전부').toEqual(['A', 'B', 'C']);
+  /* 다시 켜면 다음 변경부터 전부 */
+  await groupSwitch(page, true);
+  await page.click('#stk-count-shape [data-count-shape="circle"]');
+  expect(pluck(await groupLook(page, 'secA'), 'countShape'), '다시 켠 뒤: 셋 다').toEqual(['circle', 'circle', 'circle']);
+});
+
+test('C31 일괄과 코너 드래그 — 손잡이로 키운 것은 그것만 변한다(스위치가 켜져 있어도)', async ({ page }) => {
+  await groupSetup(page);
+  const H = '#secA .sticker-block.selected .sticker-corner-handle[data-corner="br"]';
+  const r = await waitStableRect(page, H);
+  const onHandle = await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y);
+    return !!e && e.classList.contains('sticker-corner-handle') && e.dataset.corner === 'br'; }, [r.cx, r.cy]);
+  expect(onHandle, '★전제: 누를 점의 맨 위 요소가 오른쪽 아래 손잡이다').toBe(true);
+  const before = pluck(await groupLook(page, 'secA'), 'sizeW');
+  await page.mouse.move(r.cx, r.cy);
+  await page.mouse.down();
+  await page.mouse.move(r.cx + 12, r.cy + 12, { steps: 4 });
+  await page.mouse.move(r.cx + 24, r.cy + 24, { steps: 4 });
+  await page.mouse.up();
+  const after = pluck(await groupLook(page, 'secA'), 'sizeW');
+  expect(before, '★전제: 끌기 전엔 셋이 같다').toEqual([String(SIZE0), String(SIZE0), String(SIZE0)]);
+  expect(Number(after[2]) > Number(before[2]), `잡은 것(셋째)은 커졌다 — ${before[2]} → ${after[2]}`).toBe(true);
+  expect(after.slice(0, 2), '안 잡은 둘은 그대로').toEqual(before.slice(0, 2));
+  expect(await page.evaluate(() => document.getElementById('stk-count-group')?.checked), '★전제: 스위치는 켜진 채였다').toBe(true);
 });
