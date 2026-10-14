@@ -82,5 +82,42 @@ if (bad.length) {
   console.error('\n⚠️위 명부는 ★「skipped ＋ did not run」을 ★같이 센다 — 러너가 ★둘을 ★같은 `-` 로 찍는다.');
   process.exit(1);
 }
-console.log('\n✅전수가 끝까지 돌았다(did not run 0 · 선언=판정). ⛔「빨강 없다」는 뜻이 ★아니다.');
+/* ★★★2026-10-14 더한 자 — ★«전수인가»를 ★잰다.
+   ★왜: 위까지는 ★「선언 = 판정」만 재므로 ★★«선언 자체가 ★작아도» ★✅ 가 찍힌다.
+     ⇒ 실제로 ★내가 ★「전수 177/177 초록」을 ★여러 번 적었고, ★참 전수는 ★440벌이었다(4.6%).
+     ⇒ ★★«끝까지 돌았다»와 ★«전부를 돌았다»는 ★다른 물음이다. ★이 자가 ★뒤쪽을 잰다.
+   ★어떻게: ★로그에 찍힌 ★spec 파일 이름의 ★유일 수 ↔ ★디스크의 ★spec 파일 수.
+     ⛔숫자를 ★손으로 박지 않는다(EXPECT_N 이 묵은 그 병) — ★디스크가 ★참 명부고, ★여기서 ★파생한다.
+   ★모드: ★기본은 ★찍기만 하고 ★SKIP(묶음 QA 도 ★정당한 쓰임이다 — ★범위 밖은 FAIL 아니라 SKIP).
+     ★`--full` 을 ★주면 ★★«전수 주장»이 되고, ★모자라면 ★빨개진다. */
+const claimFull = process.argv.includes('--full');
+
+const specsInLog = new Set(
+  [...log.matchAll(/(?:^|\s)((?:[\w./-]*\/)?[\w.-]+\.spec\.js):\d+:\d+/gm)].map((m) => m[1].split('/').pop())
+);
+let specsOnDisk = null;
+try {
+  specsOnDisk = fs.readdirSync(__dirname).filter((f) => f.endsWith('.dom.spec.js')).length;
+} catch { /* 못 세면 null — ⛔0 으로 접지 않는다 */ }
+
+console.log(`로그에 나온 spec   : ${specsInLog.size}벌`);
+console.log(`디스크의 spec      : ${specsOnDisk === null ? '★못 셌다' : specsOnDisk + '벌'}`);
+
+if (!claimFull) {
+  console.log('\n✅끝까지 돌았다(did not run 0 · 선언=판정).');
+  console.log('⏭️★«전수인가»는 ★안 쟀다 — ★이 회차는 ★«전수 주장»이 ★아니다(--full 을 주면 잰다).');
+  console.log('⛔둘 다 「빨강 없다」는 뜻이 ★아니다.');
+  process.exit(0);
+}
+if (specsOnDisk === null) {
+  console.error('\n⛔디스크의 spec 수를 ★못 셌다 — ★`--full` 주장을 ★못 잰다(통과 아님).');
+  process.exit(3);
+}
+if (specsInLog.size !== specsOnDisk) {
+  console.error(`\n⛔★«전수»가 ★아니다 — ★로그 ${specsInLog.size}벌 ↔ ★디스크 ${specsOnDisk}벌 (★${specsOnDisk - specsInLog.size}벌이 ★로그에 없다).`);
+  console.error('   ⇒ ★이 회차의 초록은 ★«돌린 만큼»의 초록이다. ★보고에 ★«분모 ＋ sha»를 ★한 쌍으로 적어라.');
+  process.exit(1);
+}
+console.log(`\n✅끝까지 돌았다(did not run 0 · 선언=판정) ★그리고 ★★«전수»다(${specsOnDisk}벌 전부가 로그에 있다).`);
+console.log('⛔「빨강 없다」는 뜻이 ★아니다 — ★failed 수는 ★따로 보라.');
 process.exit(0);
