@@ -10,7 +10,7 @@
  *   D5 재질 — 금/은이 표의 색을 쓰고 서로 다르다 · 커스텀은 준 두 색에서 나온다 · 못 읽는 색/모르는 재질은 금
  *   D6 그림 축 — 두께·광택·기울기·방향·바깥 회전(빛 보정)이 각각 그림을 바꾼다 · viewBox 는 각도와 무관하게 고정
  *   D7 class 속성 0 · filter 0(배송본 쓸기·html2canvas 가 못 그리는 것에 기대지 않는다)
- *   D8 배선 — index.html 에 스크립트 1번(seeded-random 뒤 · sticker-block 모듈 앞) · 메뉴 「Coin」이 #fp-pen-menu 안, Count Sticker 바로 다음
+ *   D8 배선 — index.html 에 스크립트 1번(seeded-random 뒤 · sticker-block 모듈 앞) · 메뉴 「Coin」이 #fp-pen-menu 안, Marking(옛 Count Sticker) 바로 다음
  *   D9 색 표는 그리개 한 곳 — 금/은의 대표 색이 패널·블럭 파일에 글자로 없다
  *   D10 ★어떤 입력에도 안 던진다 — 객체 내장 이름 재질 · NaN·음수·아주 큰 수 · 빈 값 (손댄 저장본이 로드를 멈추지 않는다)
  *   D11 두께는 그리개가 가둔다(패널과 같은 표 LIMITS) · 방향·회전은 한 바퀴 안으로
@@ -186,7 +186,7 @@ test('D7 class 속성 0 · filter 0', () => {
   }
 });
 
-test('D8 배선 — 스크립트 1번(순서) · 메뉴 「Coin」이 스티커 패널 안, Count Sticker 바로 다음', () => {
+test('D8 배선 — 스크립트 1번(순서) · 메뉴 「Coin」이 스티커 패널 안, Marking(옛 Count Sticker) 바로 다음', () => {
   const html = readSrc(REPO, 'index.html');
   const tags = html.match(/<script[^>]*src="js\/fx\/coin-draw\.js"[^>]*>/g) || [];
   assert.equal(tags.length, 1, 'coin-draw.js script 태그 수');
@@ -201,9 +201,9 @@ test('D8 배선 — 스크립트 1번(순서) · 메뉴 「Coin」이 스티커 
   const i = items.findIndex((x) => x.label === 'Coin');
   assert.ok(i > 0, '「Coin」 항목이 #fp-pen-menu 에 없다(또는 class·title 꼴이 이웃과 다르다)');
   assert.equal(items.filter((x) => x.label === 'Coin').length, 1);
-  assert.equal(items[i - 1].label, 'Count Sticker', '「Coin」은 Count Sticker 바로 다음이다');
+  assert.equal(items[i - 1].label, 'Marking', '「Coin」은 Marking(마킹 블럭 · 옛 Count Sticker) 바로 다음이다');
   assert.equal(items[i].on, "addStickerBlock({shape:'coin'});toggleFpDropdown('fp-pen-dropdown')");
-  assert.match(items[i].title, /^코인 스티커 — /, 'title 문체가 이웃(「카운트 스티커 — …」)과 다르다');
+  assert.match(items[i].title, /^코인 스티커 — /, 'title 문체가 이웃(「마킹 블럭 — …」)과 다르다');
   assert.ok(!/프로토|proto/i.test(items[i].title + items[i].label));
 });
 
