@@ -193,10 +193,12 @@
       const grainEl = ab.querySelector('.asset-grain');
       const grainStyle = grainEl ? grainEl.getAttribute('style') || '' : '';
       const grainIntensity = grainEl ? grainEl.dataset.grainIntensity || '' : '';
+      const collabEl = ab.querySelector(':scope > .asset-collab');   /* ★1013t2A2 — ⌘Z·페이지전환으로 되살릴 때도 ×·로고2·3 을 살린다(LC10b) */
       ab.innerHTML = `
         <div class="asset-img-clip"><video class="asset-img asset-video" src="${cached.imgSrc}" style="object-fit:${ab.dataset.fit}" muted loop playsinline></video></div>
         <button class="asset-overlay-clear" title="영상 제거">✕</button>
         <div class="asset-overlay" ${overlayStyle ? `style="${overlayStyle}"` : ''}>${overlayHTML}</div>`;
+      if (collabEl) ab.insertBefore(collabEl, ab.querySelector(':scope > .asset-overlay'));
       if (grainEl) {
         const doc = ab.ownerDocument || document;
         const newGrain = doc.createElement('div');
@@ -335,7 +337,11 @@
       const grainEl = ab.querySelector('.asset-grain');
       const grainStyle = grainEl ? grainEl.getAttribute('style') || '' : '';
       const grainIntensity = grainEl ? grainEl.dataset.grainIntensity || '' : '';
+      /* ★1013t2A2 로고 콜라보(× + 로고2·3) 보존 — 그레인과 같은 이유. 칸1(영상)만 비우고 칸2·3 은 저장본에 남는다.
+         ⛔빠지면 영상 칸1 인 채 저장하면 data-collab 만 남고 ×·로고2·3 이 사라진다(LC10). 짝: js/blocks/logo-collab.js captureAssetCollab */
+      const collabEl = ab.querySelector(':scope > .asset-collab');
       ab.innerHTML = `<div class="asset-overlay" ${overlayStyle ? `style="${overlayStyle}"` : ''}>${overlayHTML}</div>`;
+      if (collabEl) ab.insertBefore(collabEl, ab.querySelector(':scope > .asset-overlay'));
       if (grainEl) {
         const doc = ab.ownerDocument || document;
         const newGrain = doc.createElement('div');

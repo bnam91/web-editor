@@ -6,6 +6,7 @@ import { alignBtn } from './props/_helpers.js';
 import { decodeGifFrames } from './io/export-image.js';
 import { applyAssetClip } from './clip-content.js';   /* ★「내용 자르기」 ★술어·표의 ★단 한 자리(2026-10-10 c2) */
 import { applyRedact } from './effects/image-redact.js';   /* ★「블러 (Redact)」 공용 모듈(1012t1 C1) */
+import { captureAssetCollab, restoreAssetCollab } from './blocks/logo-collab.js';   /* ★1013t2A2 로고 콜라보 — innerHTML 재작성 3자리에서 살린다(그레인 선례) */
 
 /* ── 이미지 업로드 로딩 오버레이 헬퍼 ── */
 export function showAssetLoading(block) {
@@ -681,11 +682,13 @@ function setAssetVideoFromSrc(ab, src) {
   const prevOverlayHTML = prevOverlayEl ? prevOverlayEl.innerHTML : '';
   const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
   const prevGrainSnap = captureAssetGrain(ab);
+  const prevCollab = captureAssetCollab(ab);   /* ★1013t2A2 — 콜라보(× + 로고2·3)도 그레인과 같이 살린다 */
   ab.innerHTML = `
     <div class="asset-img-clip"><video class="asset-img asset-video" src="${src}" style="object-fit:${ab.dataset.fit}" muted loop playsinline></video></div>
     <button class="asset-overlay-clear" title="영상 제거">✕</button>
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
   restoreAssetGrain(ab, prevGrainSnap);
+  restoreAssetCollab(ab, prevCollab);
   /* ★★★«내용 자르기» — ★★렌더러가 ★읽는다(지디 판정 2026-10-10 · ⛔`!important` 로 ★CSS 가 ★이기게 ★안 한다).
      ★★★속성이 ★없으면 ★★인라인을 ★안 쓴다 ⇒ ★CSS `.asset-img-clip { overflow: hidden }` 이 ★그대로 ★자른다
      ⇒ ★★옛 바이트 ★보존(지디 조건 ㉢). ★★표와 ★술어는 ★`js/clip-content.js` ★★한 자리다.
@@ -731,7 +734,8 @@ function setAssetImageFromSrc(ab, src, motionSrc) {
     delete ab.dataset.gifSrc;
     delete ab.dataset.gifPlaying;
   }
-  if (!ab.dataset.fit) ab.dataset.fit = 'cover';
+  /* ★1013t2A2 — 콜라보 켜짐의 로고 칸 기본 맞춤 = «원래 비율»(잘리지 않음). 꺼짐이면 옛 그대로 cover. */
+  if (!ab.dataset.fit) ab.dataset.fit = ab.dataset.collab ? 'contain' : 'cover';
   // 기존 위치/크기/포지션 초기화
   delete ab.dataset.imgW;
   delete ab.dataset.imgX;
@@ -745,12 +749,14 @@ function setAssetImageFromSrc(ab, src, motionSrc) {
   //   그 경로도 재사용) 때 그레인 층이 조용히 사라진다(적대적 QA a1-a3 지적, T-001 폭 잔존과
   //   같은 유형의 결함). captureAssetGrain/restoreAssetGrain 공용 헬퍼(위)를 쓴다.
   const prevGrainSnap = captureAssetGrain(ab);
+  const prevCollab = captureAssetCollab(ab);   /* ★1013t2A2 — ⛔빠지면 로고1 을 넣는 순간 ×·로고2·3 이 사라진다 */
   ab.innerHTML = `
     <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.style.opacity='0.3';this.alt='이미지 로드 실패'"></div>
     <button class="asset-overlay-clear" title="이미지 제거">✕</button>
     ${isGif ? '<button class="asset-gif-toggle" title="GIF 재생">▶ GIF 재생</button>' : ''}
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
   restoreAssetGrain(ab, prevGrainSnap);
+  restoreAssetCollab(ab, prevCollab);
   /* ★★★«내용 자르기» — ★★렌더러가 ★읽는다(지디 판정 2026-10-10 · ⛔`!important` 로 ★CSS 가 ★이기게 ★안 한다).
      ★★★속성이 ★없으면 ★★인라인을 ★안 쓴다 ⇒ ★CSS `.asset-img-clip { overflow: hidden }` 이 ★그대로 ★자른다
      ⇒ ★★옛 바이트 ★보존(지디 조건 ㉢). ★★표와 ★술어는 ★`js/clip-content.js` ★★한 자리다.
@@ -832,8 +838,10 @@ function clearAssetImage(ab) {
   const prevOverlayEl2 = ab.querySelector('.asset-overlay');
   const prevOverlayHTML2 = prevOverlayEl2 ? prevOverlayEl2.innerHTML : '';
   const prevOverlayStyle2 = prevOverlayEl2 ? prevOverlayEl2.getAttribute('style') || '' : '';
+  const prevCollab2 = captureAssetCollab(ab);   /* ★1013t2A2 — 로고1 을 지워도 ×·로고2·3 은 남는다 */
   ab.innerHTML = `
     <div class="asset-overlay" ${prevOverlayStyle2 ? `style="${prevOverlayStyle2}"` : ''}>${prevOverlayHTML2}</div>`;
+  restoreAssetCollab(ab, prevCollab2);
   ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
   showAssetProperties(ab);
   window.showToast?.('🗑 이미지 삭제됨 · ⌘Z로 되돌리기');
