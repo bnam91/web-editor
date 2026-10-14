@@ -130,12 +130,18 @@ const outside = redLines.filter((r) => ![...knownReds].some((k) => r.name.starts
 console.log(`★★명부 밖 빨강        : ${outside.length}개`);
 for (const o of outside) console.log(`   ⛔ ${o.file} › ${o.name.slice(0, 95)}`);
 
+/* ⛔★여기서 ★exit 하지 ★않는다 — ★★261014 실측: ★이 자가 ★먼저 터져서 ★아래 「전수인가」 자에
+   ★★도달조차 ★못 했고, ★★그 수가 ★로그에 ★안 찍혔다(★손으로 다시 재야 했다).
+   ⇒ ★★내 교훈 그대로: ★「계측기가 ★빨개지면 ★그 뒤가 ★덮인다」·「일부러 빨간 검사가 ★다음 빨강을 가린다」.
+   ⇒ ★★모든 자를 ★다 재고 ★★마지막에 ★한 번 ★판정한다. */
+const verdicts = [];
 if (outside.length) {
   console.error(`\n⛔★★명부 ★밖 빨강이 ★${outside.length}건 있다 — ★★「제품결함 0」을 ★적을 수 ★없다.`);
   console.error('   ★적을 말: ★★«아직 못 가렸다». ⛔「참 빨강」·「경합」·「검사 설계」 ★라벨 금지 — ★먼저 ★load<15 에서 ★같은 sha ×2.');
-  process.exit(1);
+  verdicts.push(`명부 밖 빨강 ${outside.length}건`);
+} else {
+  console.log('\n✅★★명부 밖 빨강 0건 — ★✘ 전부가 ★«일부러 빨강»이다.');
 }
-console.log('\n✅★★명부 밖 빨강 0건 — ★✘ 전부가 ★«일부러 빨강»이다.');
 
 /* ★★★2026-10-14 더한 자 — ★«전수인가»를 ★잰다.
    ★왜: 위까지는 ★「선언 = 판정」만 재므로 ★★«선언 자체가 ★작아도» ★✅ 가 찍힌다.
@@ -171,8 +177,16 @@ if (specsOnDisk === null) {
 if (specsInLog.size !== specsOnDisk) {
   console.error(`\n⛔★«전수»가 ★아니다 — ★로그 ${specsInLog.size}벌 ↔ ★디스크 ${specsOnDisk}벌 (★${specsOnDisk - specsInLog.size}벌이 ★로그에 없다).`);
   console.error('   ⇒ ★이 회차의 초록은 ★«돌린 만큼»의 초록이다. ★보고에 ★«분모 ＋ sha»를 ★한 쌍으로 적어라.');
+  verdicts.push(`전수 아님(로그 ${specsInLog.size} ↔ 디스크 ${specsOnDisk})`);
+} else {
+  console.log(`\n✅끝까지 돌았다(did not run 0 · 선언=판정) ★그리고 ★★«전수»다(${specsOnDisk}벌 전부가 로그에 있다).`);
+}
+console.log('⛔「빨강 없다」는 뜻이 ★아니다 — ★failed 수는 ★따로 보라.');
+
+/* ★★마지막에 ★한 번 ★판정 — ⛔「⛔를 찍으며 rc 0」을 막는다 */
+if (verdicts.length) {
+  console.error(`\n⛔★★이 회차는 ★통과가 ★아니다 — ★${verdicts.length}가지: ${verdicts.join(' · ')}`);
   process.exit(1);
 }
-console.log(`\n✅끝까지 돌았다(did not run 0 · 선언=판정) ★그리고 ★★«전수»다(${specsOnDisk}벌 전부가 로그에 있다).`);
-console.log('⛔「빨강 없다」는 뜻이 ★아니다 — ★failed 수는 ★따로 보라.');
+console.log('\n✅★이 회차의 ★자 전부 통과(완주 ＋ 전수 ＋ 명부 밖 0건).');
 process.exit(0);
