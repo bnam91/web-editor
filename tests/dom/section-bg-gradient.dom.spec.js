@@ -276,3 +276,78 @@ test('G10 setSectionBg(외부 API) — 그라데이션을 받으면 그리고, �
   expect(r.g.color).toBe('rgb(0, 255, 0)');
   expect(errs).toEqual([]);
 });
+
+/* ── 1013t2E1 중-1(보안) — 블럭 데이터(data-bg)가 패널 innerHTML 로 가며 스크립트를 돌리던 구멍 ──
+   E-eval J1: 섹션 data-bg 에 따옴표로 속성을 깨는 값 → 진짜 클릭으로 선택 → 고친 판(50117b6a) __pwn=1. 프레임은 바닥부터 ≥2.
+   X1  섹션 — 실행 0 · 패널에 주입 태그 0 (막는 자 = 공용 이스케이프 «와» 좁힌 isSectionGradient · 둘 중 하나만 있어도 초록)
+   X1b 섹션 — 그 값은 «그라데이션 아님»으로 걸러져 스와치·캔버스 어디에도 그라데이션으로 안 실린다(⑵ 좁힘의 몫)
+   X2  프레임 — 실행 0 · 주입 태그 0 (프레임 판정은 안 좁혔다 ⇒ 막는 자는 공용 이스케이프 하나 = ⑴ 의 단독 칸)
+   X3  이스케이프 뒤에도 정상 그라데이션 스와치는 그대로(프레임 · 섹션) */
+const EVIL = 'linear-gradient(90deg, #ff0000 0%, #0000ff 100%)"><img id="pwn" src="" onerror="window.__pwn=(window.__pwn||0)+1">';
+const EVIL_IN = 'linear-gradient(90deg, #ff0000 0%, #0000ff "><img id="pwn2" src="" onerror="window.__pwn=(window.__pwn||0)+1"> 100%)';
+const frameSec = (id, fid, bg) => `<div class="section-block" id="${id}" data-section="1"><div class="section-hitzone"></div><div class="section-inner" style="padding-left:40px;padding-right:40px"><div class="frame-block" id="${fid}" style="width:400px;height:200px"></div></div></div>`;
+async function setupEvil(page) {
+  const errs = await setup(page);
+  await page.evaluate(([e1, e2, gr, fs]) => {
+    const c = document.getElementById('canvas');
+    c.insertAdjacentHTML('beforeend', fs);
+    // 값은 DOM API 로 심는다 — 픽스처 HTML 에 적으면 그 자리에서 이미 깨진다(그건 이 시험이 재려는 길이 아니다)
+    const mk = (id) => { const s = document.createElement('div'); s.className = 'section-block'; s.id = id; s.dataset.section = '1'; s.innerHTML = '<div class="section-hitzone"></div><div class="section-inner" style="padding-left:40px;padding-right:40px"><div class="gap-block" data-type="gap" style="height:200px"></div></div>'; c.appendChild(s); return s; };
+    mk('eX').dataset.bg = e1; mk('eY').dataset.bg = e2;
+    document.getElementById('fE').dataset.bg = e1;
+    const fg = document.getElementById('fG'); fg.dataset.bg = gr; fg.style.background = gr;
+    window.rebindAll?.(); window.deselectAll?.(); window.__pwn = 0;
+  }, [EVIL, EVIL_IN, GR, frameSec('eF1', 'fE') + frameSec('eF2', 'fG')]);
+  await raf2(page);
+  return errs;
+}
+async function selectFrame(page, fid) {
+  await page.evaluate((i) => document.getElementById(i).scrollIntoView({ block: 'center' }), fid);
+  const b = await waitStableRect(page, '#' + fid);
+  await page.mouse.click(b.cx, b.cy);
+  await page.waitForFunction((i) => document.getElementById(i).classList.contains('selected') && !!document.getElementById('ss-bg-color'), fid, { timeout: 5000 });
+  await raf2(page);
+}
+const pwned = (page) => page.evaluate(() => ({ n: window.__pwn || 0, tags: document.querySelectorAll('#panel-right #pwn, #panel-right #pwn2, #panel-right img[onerror]').length }));
+
+test('X1 ★섹션 — 악성 data-bg 를 골라도 스크립트 실행 0 · 패널에 주입 태그 0', async ({ page }) => {
+  const errs = await setupEvil(page);
+  for (const id of ['eX', 'eY']) {
+    await selectSection(page, id);
+    expect(await page.evaluate((i) => document.getElementById(i).dataset.bg.includes('onerror'), id), '전제: 악성 값이 정본에 있다').toBe(true);
+    await raf2(page);
+    expect(await pwned(page), `${id}: 패널을 여는 순간 주입 코드가 돌았다`).toEqual({ n: 0, tags: 0 });
+  }
+  expect(errs).toEqual([]);
+});
+
+test('X1b 섹션 — 악성 값은 «그라데이션 아님»으로 걸러져 스와치·캔버스에 그라데이션으로 안 실린다', async ({ page }) => {
+  const errs = await setupEvil(page);
+  for (const id of ['eX', 'eY']) {
+    await selectSection(page, id);
+    const s = await state(page, id);
+    expect(s.swatch, `${id}: 스와치가 악성 값을 그라데이션으로 받았다`).not.toMatch(/gradient/);
+    expect(s.img, `${id}: 캔버스가 악성 값을 그라데이션으로 그렸다`).not.toMatch(/gradient/);
+    expect(await page.evaluate(() => window.isSectionGradient(document.getElementById('eY').dataset.bg))).toBe(false);
+  }
+  expect(errs).toEqual([]);
+});
+
+test('X2 ★프레임 — 악성 data-bg 를 골라도 스크립트 실행 0 · 패널에 주입 태그 0 (공용 이스케이프 단독)', async ({ page }) => {
+  const errs = await setupEvil(page);
+  await selectFrame(page, 'fE');
+  expect(await page.evaluate(() => document.getElementById('fE').dataset.bg.includes('onerror')), '전제: 악성 값이 정본에 있다').toBe(true);
+  await raf2(page);
+  expect(await pwned(page), '프레임 패널을 여는 순간 주입 코드가 돌았다').toEqual({ n: 0, tags: 0 });
+  expect(errs).toEqual([]);
+});
+
+test('X3 이스케이프 뒤에도 정상 그라데이션 스와치는 그대로(프레임 · 섹션)', async ({ page }) => {
+  const errs = await setupEvil(page);
+  await selectFrame(page, 'fG');
+  const fsw = await page.evaluate(() => document.getElementById('ss-bg-color').closest('.prop-color-swatch').style.background);
+  expect(fsw).toBe(GR_COMPUTED);
+  await selectSection(page, 'gG');
+  expect((await state(page, 'gG')).swatch).toBe(GR_COMPUTED);
+  expect(errs).toEqual([]);
+});

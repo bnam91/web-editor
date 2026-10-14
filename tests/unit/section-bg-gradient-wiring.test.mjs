@@ -60,3 +60,57 @@ test('G5 ★변이대조 — onGradient 를 빼면 G1 의 판정이 빨개진다
 test('G6 손 배선 사본이 돌아오지 않았다 — sec-bg-color 에 input 리스너를 직접 거는 자 0', () => {
   assert.doesNotMatch(SRC, /getElementById\('sec-bg-color'\)/, '손 배선이 다시 생기면 wireColorField 와 이중 적용된다');
 });
+
+/* ── 1013t2E1 중-1(보안) — isSectionGradient 를 «그라데이션 함수 하나»로 좁혔다. 판정 표 ──
+   함수 본문을 소스에서 떠내 그대로 돌린다(prop-section.js 는 브라우저 전역을 import 해 node 로 못 싣는다). */
+const RAW = readSrc(ROOT, 'js', 'props', 'prop-section.js');
+function loadIsSectionGradient() {
+  const i = RAW.indexOf('export function isSectionGradient(v)');
+  const j = RAW.indexOf('\nwindow.isSectionGradient', i);
+  assert.ok(i > 0 && j > i, 'isSectionGradient 를 못 떠냈다 — 판정 무효');
+  return new Function(RAW.slice(i, j).replace('export ', '') + '\nreturn isSectionGradient;')();
+}
+const TABLE = [
+  // [값, 기대, 까닭]
+  ['linear-gradient(90deg, #ff0000 0%, #0000ff 100%)', true, '피커가 쓰는 꼴'],
+  ['linear-gradient(90deg, #ffffff 0%, rgba(255,255,255,0.000) 100%)', true, '피커 기본값(알파 정지점)'],
+  ['radial-gradient(circle, #fff 0%, rgba(0,0,0,0.5) 100%)', true, '피커 radial'],
+  ['  linear-gradient(180deg, #000, #fff)  ', true, '앞뒤 공백'],
+  ['linear-gradient(90deg, #ff0000 0%, #0000ff 100%)"><img src="" onerror="window.__pwn=1">', false, '★따옴표로 속성 깨기(E-eval J1)'],
+  ["linear-gradient(#fff,#000)'><svg onload=x>", false, '홑따옴표'],
+  ['linear-gradient(#fff, #000 "><img src=x onerror=window.__pwn=1> 100%)', false, '★괄호 «안»에 숨긴 따옴표(괄호 짝·꼬리 검사로는 못 거른다)'],
+  ['linear-gradient(#fff,#000); color:red', false, '선언 꼬리(;)'],
+  ['linear-gradient(#fff,#000)} body{x:y', false, '중괄호'],
+  ['linear-gradient(#fff,#000), url(a.png)', false, '층 둘 + url(물들임 합성 결과)'],
+  ['linear-gradient(#fff,#000)) x', false, '괄호 짝 안 맞음 · 꼬리'],
+  ['linear-gradient(#fff,#000) linear-gradient(#000,#fff)', false, '함수 뒤에 꼬리'],
+  ['linear-gradient(#fff,\\22 #000)', false, '역슬래시(CSS 이스케이프)'],
+  ['linear-gradient(#fff, #000', false, '닫히지 않음'],
+  ['#ff0000', false, '단색'],
+  ['rgba(0,0,0,0.5)', false, '단색'],
+  ['', false, '빈 값'],
+  [null, false, 'null'],
+];
+test('X0 ★판정 표 — 정상 그라데이션은 통과, 속성/선언/층을 깨는 값은 거른다', () => {
+  const f = loadIsSectionGradient();
+  for (const [v, want, why] of TABLE) assert.strictEqual(f(v), want, `${why}: ${JSON.stringify(v)}`);
+});
+test('X0b 변이대조 — 금지 글자 검사를 빼면 X0 의 «괄호 안에 숨긴 따옴표» 줄이 통과해 버린다(이 표가 그 줄을 본다는 증거)', () => {
+  /* 괄호 꼬리 검사가 꼬리 공격은 따로 거른다 — 금지 글자 줄만의 몫은 «괄호 안에 숨긴» 값이다. */
+  const i = RAW.indexOf('export function isSectionGradient(v)');
+  const j = RAW.indexOf('\nwindow.isSectionGradient', i);
+  const body = RAW.slice(i, j).replace('export ', '');
+  const LINE = "if (/[;\"<>{}\\\\'`]/.test(s) || /url\\(/i.test(s)) return false;";
+  assert.ok(body.includes(LINE), '금지 글자 줄을 못 찾았다 — 판정 무효');
+  const mutated = body.replace(LINE, '');
+  assert.notStrictEqual(mutated, body, '변이가 한 글자도 안 잘랐다');
+  const g = new Function(mutated + '\nreturn isSectionGradient;')();
+  assert.strictEqual(g('linear-gradient(#fff, #000 "><img src=x onerror=window.__pwn=1> 100%)'), true, '변이 뒤에도 거른다 = 표가 그 줄을 안 본다');
+});
+test('X1 colorFieldHTML 이 style 속성 값을 이스케이프한다(공용 한 자리)', () => {
+  const cp = stripComments(readSrc(ROOT, 'js', 'props', 'color-picker.js'));
+  const i = cp.indexOf('export function colorFieldHTML');
+  const body = cp.slice(i, cp.indexOf('export function wireColorField', i));
+  assert.match(body, /const swatchBg = escHtml\(gradientCss \|\| h\)/);
+  assert.match(cp, /import \{ escHtml \} from '\.\/_helpers\.js'/);
+});
