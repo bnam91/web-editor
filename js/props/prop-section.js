@@ -101,14 +101,14 @@ window._showPadBHint = _showPadBHint;   /* ★짝을 맞춘다 — 좌우만 노
 /* ★1013t2E1 — 섹션 배경«색» 자리(dataset.bg)에 그라데이션 CSS 가 들어올 수 있다(프레임·배너02 와 같은 규약).
    판정은 여기 한 곳 — 패널·그리개·복원이 같이 쓴다. ⛔url( 이 낀 값(예: 물들임 합성 결과)은 그라데이션 «값»이 아니다. */
 /* ★1013t2E1 중-1(보안) — 앞머리만 보면 `linear-gradient(…)"><img onerror=…>` 같은 값도 통과해 패널 innerHTML 로 갔다.
-   ⇒ «그라데이션 함수 하나»로 좁힌다: ⑴ 앞머리 linear|radial-gradient( ⑵ 금지 글자(; " < > { } \\ ' ` 그리고 url()가 없다
+   ⇒ «그라데이션 함수 하나»로 좁힌다: ⑴ 앞머리 linear|radial-gradient( ⑵ 금지 글자(; " < > { } \\ ' 백틱 그리고 url()가 없다
    ⑶ 괄호 짝이 맞고, 맨 바깥 괄호가 «문자열 끝»에서 닫힌다(뒤에 다른 층·꼬리 없음). 통과 못 하면 «그라데이션 아님» —
    그리개는 그 값을 그리지 않고(backgroundColor 대입은 CSSOM 이 무효로 버린다) 패널도 스와치에 싣지 않는다.
    ⛔프레임 판정(prop-frame.js:322 · :817 · frame-bg.js:47 — /gradient\s*\(/ 만 본다)은 이번에 안 건드렸다(목록은 E-notes). */
 export function isSectionGradient(v) {
   const s = String(v || '').trim();
   if (!/^(linear|radial)-gradient\s*\(/i.test(s)) return false;
-  if (/[;"<>{}\\'`]/.test(s) || /url\(/i.test(s)) return false;
+  if (/[;"<>{}\\'\x60]/.test(s) || /url\(/i.test(s)) return false;   /* \x60 = 백틱 — 글자 그대로 쓰면 tests/unit/name-axes-to-markup 의 보간 스캐너가 템플릿 시작으로 읽어 이 파일을 못 본다 */
   let depth = 0;
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];

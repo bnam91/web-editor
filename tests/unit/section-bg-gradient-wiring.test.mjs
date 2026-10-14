@@ -100,7 +100,7 @@ test('X0b 변이대조 — 금지 글자 검사를 빼면 X0 의 «괄호 안에
   const i = RAW.indexOf('export function isSectionGradient(v)');
   const j = RAW.indexOf('\nwindow.isSectionGradient', i);
   const body = RAW.slice(i, j).replace('export ', '');
-  const LINE = "if (/[;\"<>{}\\\\'`]/.test(s) || /url\\(/i.test(s)) return false;";
+  const LINE = "if (/[;\"<>{}\\\\'\\x60]/.test(s) || /url\\(/i.test(s)) return false;";
   assert.ok(body.includes(LINE), '금지 글자 줄을 못 찾았다 — 판정 무효');
   const mutated = body.replace(LINE, '');
   assert.notStrictEqual(mutated, body, '변이가 한 글자도 안 잘랐다');
