@@ -26,6 +26,7 @@
  */
 'use strict';
 const fs = require('fs');
+const path = require('path');
 
 const file = process.argv[2];
 if (!file) { console.error('⛔쓰는 법: node tests/dom/run-complete.gate.js <전수 로그>'); process.exit(2); }
@@ -82,6 +83,60 @@ if (bad.length) {
   console.error('\n⚠️위 명부는 ★「skipped ＋ did not run」을 ★같이 센다 — 러너가 ★둘을 ★같은 `-` 로 찍는다.');
   process.exit(1);
 }
+/* ★★★2026-10-14 더한 자 ② — ★★«명부 밖 빨강 0건»을 ★잰다.
+   ★왜: 이 레포엔 ★«일부러 빨간 검사»가 산다(`test.fail(true, …)`) — ★「지금은 빨갛다」를 ★그냥 빨간 검사로
+     두면 ★다음 빨강을 ★가리므로 ★표시해 둔 것이다. ⇒ ★★그래서 ★★«failed 0»은 ★영원히 ★안 온다.
+   ⛔그런데 ★그 칸들은 ★`✘` 로 ★찍히면서 ★요약 `failed` 에는 ★★안 센다(예상대로 실패 = 통과로 집계).
+     ⇒ ★★「✘ 줄 수」와 ★「요약 failed」가 ★다르다. ★261014 실측: ★✘ 18 ↔ ★failed 15 ↔ ★test.fail 3칸 — ★차가 ★정확히 3.
+   ★그래서 ★재는 것: ★★✘ 줄의 ★이름이 ★★«명부»에 ★드나. ★★명부 밖이 ★1건이라도 있으면 ★빨강.
+   ⛔★명부를 ★손으로 ★박지 않는다 — ★★`test.fail(` 줄에서 ★위로 올라가 ★가장 가까운 `test('…'`/`it('…'` 의
+     ★이름을 ★뽑아 ★★«정의 자리»에서 ★파생한다(★「명부가 둘이면 파생시켜 하나로」).
+   ★★그리고 ★이 자도 ★자기 전제를 ★단언한다 — ★명부가 ★0칸이면 ★«파서가 깨졌다»로 ★터진다(⛔0 을 «없다»로 안 읽는다). */
+function deriveKnownReds(dir) {
+  const names = new Set();
+  let files = 0;
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.dom.spec.js'))) {
+    let src;
+    try { src = fs.readFileSync(path.join(dir, f), 'utf8'); } catch { continue; }
+    if (!src.includes('test.fail(')) continue;
+    files++;
+    const lines = src.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (!/^\s*test\.fail\(/.test(lines[i])) continue;      // ⛔주석 속 test.fail 은 안 센다(들여쓰기 뒤 바로)
+      for (let j = i; j >= 0; j--) {
+        const m = lines[j].match(/^\s*(?:test|it)\(\s*(['"`])([\s\S]*?)\1/);
+        if (m) { names.add(m[2].trim()); break; }
+      }
+    }
+  }
+  return { names, files };
+}
+
+const { names: knownReds, files: knownFiles } = deriveKnownReds(__dirname);
+const redLines = [...log.matchAll(/^\s+(?:✘|×)\s+\d*\s*(\S+\.spec\.js):\d+:\d+\s+›\s+(.*?)(?:\s+\([\d.]+m?s\))?\s*$/gm)]
+  .map((m) => ({ file: m[1].split('/').pop(), name: m[2].trim() }));
+
+console.log(`일부러 빨강 명부      : ${knownReds.size}칸 (${knownFiles}벌에서 파생 · 자 = test.fail())`);
+for (const n of knownReds) console.log(`   · ${n.slice(0, 90)}`);
+console.log(`로그의 ✘ 줄          : ${redLines.length}개`);
+
+if (knownReds.size === 0) {
+  console.error('\n⛔명부가 0칸이다 — ★test.fail() 을 하나도 못 뽑았다. ★파서가 깨졌거나 꼴이 바뀌었다(통과 아님).');
+  console.error('   ⇒ ⛔「0칸」을 ★«일부러 빨강이 없다»로 ★읽지 마라. ★grep -c "test.fail(" 로 ★먼저 세라.');
+  process.exit(3);
+}
+
+const outside = redLines.filter((r) => ![...knownReds].some((k) => r.name.startsWith(k.slice(0, 40))));
+console.log(`★★명부 밖 빨강        : ${outside.length}개`);
+for (const o of outside) console.log(`   ⛔ ${o.file} › ${o.name.slice(0, 95)}`);
+
+if (outside.length) {
+  console.error(`\n⛔★★명부 ★밖 빨강이 ★${outside.length}건 있다 — ★★「제품결함 0」을 ★적을 수 ★없다.`);
+  console.error('   ★적을 말: ★★«아직 못 가렸다». ⛔「참 빨강」·「경합」·「검사 설계」 ★라벨 금지 — ★먼저 ★load<15 에서 ★같은 sha ×2.');
+  process.exit(1);
+}
+console.log('\n✅★★명부 밖 빨강 0건 — ★✘ 전부가 ★«일부러 빨강»이다.');
+
 /* ★★★2026-10-14 더한 자 — ★«전수인가»를 ★잰다.
    ★왜: 위까지는 ★「선언 = 판정」만 재므로 ★★«선언 자체가 ★작아도» ★✅ 가 찍힌다.
      ⇒ 실제로 ★내가 ★「전수 177/177 초록」을 ★여러 번 적었고, ★참 전수는 ★440벌이었다(4.6%).
