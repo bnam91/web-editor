@@ -449,3 +449,23 @@ test('N8 ★음성대조 — 프로토 방식(CSS 고정 선 · 데이터 0)이�
   expect([r.s['00.T'], r.s['01.L']], '★전제: 프로토 CSS 선이 안 보인다 — 이 대조는 「보이는데 못 고친다」를 못 만든다').toEqual([LINE, LINE]);
   expect([r.p.top, r.p.vsep, r.p.modeLines], '★CSS 고정 판인데 패널에 선 자리 손잡이가 있다 — P1 의 패널 단언이 그 차이를 안 문다').toEqual([null, null, null]);
 });
+
+/* 이벨 D-1(6ab24cdf) — [위 변]/[칸 사이] 단추는 켜짐·꺼짐의 계산 스타일이 같았다(.prop-btn-sm 에 .active 꼴 없음).
+   눌러서 선이 사라졌는데 단추는 그대로라 «지금 켜져 있나»를 못 읽었다. 켜짐 = 바로 위 「구분선」(눌린 prop-type-btn)과 같은 바탕, 꺼짐 = 다른 바탕. */
+test('P11 ★[위 변] 단추 상태가 «보인다» — 켜짐 바탕 = 눌린 「구분선」 단추 바탕 · 끄면 바뀐다', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => { window.__lines(); });
+  const bg = (sel) => page.evaluate((s) => { const el = document.querySelector(s); return el ? getComputedStyle(el).backgroundColor : null; }, sel);
+  const TOP = '#grd-border-edges [data-edge="top"]';
+  const MODE_ON = '#grd-border-edges-mode [data-edges-mode="lines"]';
+  expect(await page.evaluate(() => window.__panel().top), '★전제: [위 변] 이 켜져 있다').toBe('true');
+  const pressed = await bg(MODE_ON);
+  expect(pressed, '★전제: 눌린 「구분선」 단추가 있다').toBeTruthy();
+  const onBg = await bg(TOP);
+  expect(onBg, '켜짐 = 눌린 단추와 같은 바탕').toBe(pressed);
+  await page.click(TOP);
+  await expect.poll(() => page.evaluate(() => window.__panel().top)).toBe('false');
+  const offBg = await bg(TOP);
+  expect(offBg, `꺼짐 바탕 ${offBg} 이 켜짐 ${onBg} 과 달라야 한다`).not.toBe(onBg);
+  expect(errs).toEqual([]);
+});

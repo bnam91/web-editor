@@ -2847,7 +2847,8 @@ function _borderEdgesRowHtml(bd) {
   const lines = !!bd.edges;
   const on = (e) => lines && bd.edges.includes(e);
   const mode = (m, ko, active, title) => `<button type="button" class="prop-type-btn${active ? ' active' : ''}" data-edges-mode="${m}" aria-pressed="${active ? 'true' : 'false'}" title="${title}">${ko}</button>`;
-  const edge = (e, ko, title, disabled) => `<button type="button" class="prop-btn-sm${on(e) ? ' active' : ''}" data-edge="${e}" style="padding:1px 6px;"
+  /* 켜짐/꺼짐이 «보이게» — 바로 위 「네 변|구분선」과 같은 prop-type-btn(.active = 강조색). prop-btn-sm 엔 .active 꼴이 없었다(이벨 D-1). */
+  const edge = (e, ko, title, disabled) => `<button type="button" class="prop-type-btn${on(e) ? ' active' : ''}" data-edge="${e}"
               aria-pressed="${on(e) ? 'true' : 'false'}"${disabled ? ' disabled' : ''} title="${title} — 굵기·색·꼴은 위 값을 따릅니다">${ko}</button>`;
   const noVsep = !(Number(bd.nCols) > 1);
   return `
@@ -2858,10 +2859,12 @@ function _borderEdgesRowHtml(bd) {
           ${mode('lines', '구분선', lines, '구분선 — 칸 위 변 · 칸 사이 세로 선만(바깥 좌우·아래는 안 긋습니다)')}
         </div>
       </div>${lines ? `
-      <div class="prop-row" style="gap:4px;flex-wrap:wrap;" id="grd-border-edges">
-        <span class="prop-label" style="flex:0 0 auto;">구분선</span>
-        ${edge('top', '위 변', '칸 위 변(첫 행은 블럭 위 변 자리 · 나머지는 행 사이 선) 켜기/끄기', false)}
-        ${edge('vsep', '칸 사이', noVsep ? '1열이라 칸 사이가 없습니다' : '칸 사이 세로 선 켜기/끄기', noVsep)}
+      <div class="prop-row" id="grd-border-edges">
+        <span class="prop-label">구분선</span>
+        <div class="prop-type-group" role="group" aria-label="구분선 켜기/끄기" style="flex:1;min-width:0;margin-bottom:0;">
+          ${edge('top', '위 변', '칸 위 변(첫 행은 블럭 위 변 자리 · 나머지는 행 사이 선) 켜기/끄기', false)}
+          ${edge('vsep', '칸 사이', noVsep ? '1열이라 칸 사이가 없습니다' : '칸 사이 세로 선 켜기/끄기', noVsep)}
+        </div>
       </div>` : ''}`;
 }
 
