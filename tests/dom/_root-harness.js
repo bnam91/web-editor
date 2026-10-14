@@ -6,6 +6,25 @@ const path = require('path');
 const ROOT = process.env.GD1001_ROOT || path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
 const MIME = { '.js': 'application/javascript', '.mjs': 'application/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png' };
+/* ★★워커 경합 고침(2026-10-14 지디) — ★route 핸들러가 ★goto 마다 ★2.6MB(111파일)를 ★디스크에서 다시 읽었다.
+ *   ★워커 4개가 ★동시에 치면 ★같은 검사가 ★3~12배 느려지고 ★timeout 턱을 넘는다
+ *   (★실측: workers=1 에서 177/177 초록 · workers=4 저부하에서 ✘1 · 인텔 고부하 전수에서 failed 15).
+ *   ⇒ ★읽은 것을 캐시하되 ★★키에 ★mtimeMs＋size 를 넣는다 — ★런 중 파일이 바뀌면 ★자동으로 다시 읽어
+ *     ★「옛 내용을 돌려주는 ★거짓 초록」이 ★나지 않는다. ⛔단순 Map 캐시였다면 그 위험이 있었다.
+ *   ★두 곳(boot · bootApp)이 같은 일을 하므로 ★여기 한 함수로 둔다(★명부가 둘이면 파생시켜 하나로). */
+const _fileCache = new Map();
+function _serveFile(f) {
+  let st;
+  try { st = fs.statSync(f); } catch { return null; }
+  if (st.isDirectory()) return null;
+  const key = f + '\0' + st.mtimeMs + '\0' + st.size;
+  const hit = _fileCache.get(f);
+  if (hit && hit.key === key) return hit.body;
+  const body = fs.readFileSync(f);
+  _fileCache.set(f, { key, body });
+  return body;
+}
+
 if (process.env.GD1001_ROOT) console.warn(`[1001] ★양성대조 모드 — ${ROOT}`);
 
 async function boot(page, html, { ready = true } = {}) {
@@ -15,8 +34,10 @@ async function boot(page, html, { ready = true } = {}) {
     const u = new URL(r.request().url());
     if (u.pathname === '/__h.html') return r.fulfill({ contentType: 'text/html', body: html });
     const f = path.join(ROOT, decodeURIComponent(u.pathname));
-    if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return r.fulfill({ status: 404, body: '' });
-    return r.fulfill({ contentType: MIME[path.extname(f)] || 'text/plain', body: fs.readFileSync(f) });
+    if (!f.startsWith(ROOT)) return r.fulfill({ status: 404, body: '' });
+    const b = _serveFile(f);
+    if (b === null) return r.fulfill({ status: 404, body: '' });
+    return r.fulfill({ contentType: MIME[path.extname(f)] || 'text/plain', body: b });
   });
   await page.goto(`${ORIGIN}/__h.html`);
   if (ready) await page.waitForFunction(() => window.__ready === true, null, { timeout: 15000 });
@@ -52,8 +73,10 @@ async function bootApp(page) {
   await page.route(`${ORIGIN}/**`, async (r) => {
     const u = new URL(r.request().url());
     const f = path.join(ROOT, decodeURIComponent(u.pathname));
-    if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return r.fulfill({ status: 404, body: '' });
-    return r.fulfill({ contentType: MIME[path.extname(f)] || 'application/octet-stream', body: fs.readFileSync(f) });
+    if (!f.startsWith(ROOT)) return r.fulfill({ status: 404, body: '' });
+    const b = _serveFile(f);
+    if (b === null) return r.fulfill({ status: 404, body: '' });
+    return r.fulfill({ contentType: MIME[path.extname(f)] || 'application/octet-stream', body: b });
   });
   await page.goto(`${ORIGIN}/index.html`);
   await page.waitForFunction(() => typeof window.rebindAll === 'function' && typeof window.groupSelectedBlocks === 'function', null, { timeout: 20000 });
