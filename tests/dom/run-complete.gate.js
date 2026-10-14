@@ -172,10 +172,21 @@ try {
 console.log(`로그에 나온 spec   : ${specsInLog.size}벌`);
 console.log(`디스크의 spec      : ${specsOnDisk === null ? '★못 셌다' : specsOnDisk + '벌'}`);
 
+/* ★★⛔261014 ★고침 — ★여기 ★`process.exit(0)` 이 ★있었다.
+   ★증상: ★`--full` 이 ★없으면 ★★«명부 밖 빨강»을 ★★찍고도 ★rc ★0 으로 ★끝났다.
+     ⇒ ★★내가 세운 규율 ★「⛔를 ★찍으며 ★rc 0 — ★자는 ★마지막이 ★exit」을 ★★이 코드가 ★범했다.
+     ⇒ ★★부분 런 rc 를 ★믿는 ★모든 자리가 ★이 구멍을 ★지났다(태양 S7 ⒞ 로그가 ★그 꼴).
+   ★고침: ★`--full` 이 ★없어도 ★★판정을 ★건너뛰지 ★않는다 —
+     ★★«전수인가»만 ★안 재고, ★★«명부 밖 0건»은 ★★그대로 ★잰다. */
 if (!claimFull) {
   console.log('\n✅끝까지 돌았다(did not run 0 · 선언=판정).');
   console.log('⏭️★«전수인가»는 ★안 쟀다 — ★이 회차는 ★«전수 주장»이 ★아니다(--full 을 주면 잰다).');
-  console.log('⛔둘 다 「빨강 없다」는 뜻이 ★아니다.');
+  console.log('⛔「빨강 없다」는 뜻이 ★아니다 — ★failed 수는 ★따로 보라.');
+  if (verdicts.length) {
+    console.error(`\n⛔★★이 회차는 ★통과가 ★아니다 — ★${verdicts.length}가지: ${verdicts.join(' · ')}`);
+    process.exit(1);
+  }
+  console.log('\n✅★명부 밖 빨강 0건(⏭️전수인가는 안 쟀다).');
   process.exit(0);
 }
 if (specsOnDisk === null) {
