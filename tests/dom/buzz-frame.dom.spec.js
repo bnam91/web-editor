@@ -11,6 +11,8 @@
  * ★1013t2 D1 · D2(현빈 2026-10-14) — 새 기본
  *   D2 알약 프레임 기본 배경 = 솔리드 #5f564e · 합성 뒤 흰 글자 대비 ≥ 3.0 · 그라데이션은 프리셋   → BZ-23 · BZ-24 · BZ-25
  *   D1 나머지 5종은 투명 배경 · 새 버즈는 「패딩 제외」 켬 · 이미 저장된 버즈는 그대로           → BZ-26 · BZ-27 · BZ-28
+ *   「패딩 제외」 스위치의 다시 놓기(js/props/prop-frame.js 의 refitBuzzOnResize 한 줄)가 닿는 범위:
+ *     버즈를 끌 때만 → BZ-27 · 보통 프레임의 자식은 안 건드린다 → BZ-29 · 열기 · 패널 그리기에서는 안 돈다 → BZ-30
  *
  * ★재는 법
  *   · 삽입은 삽입 메뉴 「Buzz」를 진짜로 누른다. 패널 조작은 진짜 클릭 · 선택 · 키 입력이다.
@@ -1298,5 +1300,83 @@ test('BZ-28 1013t2D1·D2 이미 저장된 버즈는 그대로 — 옛 기본(카
   await expect(page.locator('#bzf-n-count'), '전제: 개수 + 가 먹었다').toHaveText('7');
   const c = await bleedOf(page, fid);
   expect([await bgOf(page, fid), c.flag, c.cw], '다시 그리기 · 개수 + 뒤에도 배경 · 패딩 제외 · 폭 그대로').toEqual([OLD_BG, null, old.cw]);
+  expect([errs, errs2]).toEqual([[], []]);
+});
+
+/* ── 「패딩 제외」 스위치의 다시 놓기 한 줄(js/props/prop-frame.js · refitBuzzOnResize)이 «닿지 말아야 할» 두 자리 ── */
+/** 프레임 직속 row 의 자리 — 인라인 값과 레이아웃 px 둘 다. */
+const rowBoxesOf = (page, fid) => page.evaluate((fid) => [...document.getElementById(fid).querySelectorAll(':scope > .row')].map((r) =>
+  [r.id, r.style.left, r.style.top, r.style.width, r.style.zIndex, r.offsetLeft, r.offsetTop, r.offsetWidth, r.querySelector(':scope > .modal-block')?.dataset.rotation || '']), fid);
+
+test('BZ-29 1013t2D 게이트 — 버즈 «아닌» 보통 자유배치 프레임: 「패딩 제외」를 켜고 꺼도 자식 자리(left · top · width)는 그대로고 프레임 폭만 바뀐다', async ({ page }) => {
+  const { errs } = await setup(page);
+  /* 보통 자유배치 프레임 + 모달 둘. 둘째는 «패딩 제외를 켠 폭» 안에는 들고 «끈 폭» 밖으로는 걸친다 */
+  const fid = await page.evaluate(() => {
+    window.addFrameBlock();
+    const f = document.querySelector('#canvas .frame-block[data-free-layout="true"]');
+    [['보통 프레임 안의 모달 하나', 40, 40, 460], ['패딩 밖으로 걸친 모달', 560, 220, 280]].forEach(([t, x, y, w]) => {
+      const { row, block } = window.makeModalBlock({ variant: 'plain', text: t });
+      row.style.position = 'absolute'; row.style.left = x + 'px'; row.style.top = y + 'px'; row.style.width = w + 'px';
+      row.setAttribute('draggable', 'false');
+      f.appendChild(row); window.renderModalBlock(block); window.bindBlock(block);
+    });
+    window.bindFrameDropZone?.(f); window.buildLayerPanel?.(); window.deselectAll?.();
+    return f.id;
+  });
+  expect(await page.evaluate((fid) => { const f = document.getElementById(fid); return [f.dataset.buzz || null, f.dataset.fullBleed || null, f.querySelectorAll(':scope > .row > .modal-block').length]; }, fid),
+    '전제: 버즈 표식도 패딩 제외 표식도 없는 자유배치 프레임 + 모달 둘').toEqual([null, null, 2]);
+  await pickFrame(page, fid, { buzz: false });
+  await expect(page.locator('#bzf-section'), '전제: 보통 프레임이다(Buzz 절 없음)').toHaveCount(0);
+  const off0 = await bleedOf(page, fid);
+  const kids0 = await rowBoxesOf(page, fid);
+  expect(off0.padL > 0 && off0.padL === off0.padR, `전제: 섹션에 좌우 패딩이 있다(${off0.padL})`).toBe(true);
+  expect([off0.flag, off0.cw, off0.toggle], '전제: 패딩 제외 꺼짐 · 프레임이 패딩 안쪽 폭 · 스위치를 누를 수 있다').toEqual([null, off0.innerW - off0.padL - off0.padR, [false, false]]);
+  const right = kids0[1][5] + kids0[1][7];
+  expect(right > off0.cw && right <= off0.innerW, `전제: 둘째 모달의 오른쪽 끝(${right})이 끈 폭(${off0.cw}) 밖으로 걸치고 켠 폭(${off0.innerW}) 안에는 든다`).toBe(true);
+  const sw = page.locator('label.prop-toggle:has(#ss-fullbleed-toggle)');
+  await sw.scrollIntoViewIfNeeded();
+  /* 켬 */
+  await sw.click();
+  await expect.poll(async () => (await bleedOf(page, fid)).flag, { message: '스위치를 켜면 표식이 붙는다' }).toBe('true');
+  const on = await bleedOf(page, fid);
+  expect([on.gapL, on.gapR, on.cw, on.toggle], '켠 뒤: 프레임 폭만 섹션 안쪽 상자 끝까지 넓어진다').toEqual([0, 0, off0.innerW, [true, false]]);
+  expect(await rowBoxesOf(page, fid), '켠 뒤: 자식 자리(인라인 left · top · width · z-index · 실측 · 회전)가 그대로다').toEqual(kids0);
+  /* 끔 — 둘째 모달이 다시 밖으로 걸치지만, 보통 프레임의 자식은 «다시 놓지 않는다» */
+  await sw.click();
+  await expect.poll(async () => (await bleedOf(page, fid)).flag, { message: '스위치를 끄면 표식이 없어진다' }).toBeNull();
+  const off1 = await bleedOf(page, fid);
+  expect([off1.gapL, off1.gapR, off1.cw, off1.toggle], '끈 뒤: 프레임 폭만 패딩 안쪽으로 돌아온다').toEqual([off0.padL, off0.padR, off0.cw, [false, false]]);
+  const kids1 = await rowBoxesOf(page, fid);
+  expect(kids1, '끈 뒤: 자식 자리가 그대로다 — 밖으로 걸친 모달도 안 옮긴다(다시 놓기는 버즈만)').toEqual(kids0);
+  expect(kids1[1][5] + kids1[1][7] > off1.cw, '끈 뒤에도 둘째 모달은 걸친 그대로다(이 칸이 «걸친 꼴»을 실제로 지났다)').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('BZ-30 1013t2D 게이트 — 「패딩 제외」가 켜진 채 말풍선이 프레임 밖에 놓인 저장본은 열기만 해서는 · 프레임을 골라 패널이 그려져도 자리가 안 바뀐다', async ({ page }) => {
+  const { errs } = await setup(page);
+  const fid = await insertBuzz(page);
+  expect((await bleedOf(page, fid)).flag, '전제: 새 버즈는 패딩 제외가 켜져 있다').toBe('true');
+  /* 저장본의 꼴을 만든다 — 마지막 말풍선을 프레임 오른쪽 변 밖으로 걸치게(손으로 끌어다 놓은 것과 같은 인라인 값) */
+  const moved = await page.evaluate(async (fid) => {
+    const f = document.getElementById(fid);
+    const rows = [...f.querySelectorAll(':scope > .row')].filter((r) => r.querySelector(':scope > .modal-block'));
+    const last = rows[rows.length - 1];
+    last.style.left = (f.clientWidth - 60) + 'px';
+    const { buzzOverflowing } = await import('/js/blocks/buzz-frame.js');
+    return { id: last.id, left: last.style.left, right: last.offsetLeft + last.offsetWidth, cw: f.clientWidth, overflowing: buzzOverflowing(f) };
+  }, fid);
+  expect(moved.right > moved.cw && moved.overflowing, `전제: 그 말풍선의 오른쪽 끝(${moved.right})이 프레임(${moved.cw}) 밖이고, 다시 놓기의 판정(buzzOverflowing)도 「밖에 있다」고 본다`).toBe(true);
+  const a = await rowBoxesOf(page, fid);
+  const seed = (await stateOf(page, fid)).attrs['data-buzz-seed'];
+  const errs2 = await reopen(page, fid);
+  const o = await bleedOf(page, fid);
+  expect([o.flag, o.gapL, o.gapR, o.cw], '다시 연 뒤: 패딩 제외 켜진 그대로 · 같은 폭').toEqual(['true', 0, 0, moved.cw]);
+  expect(await rowBoxesOf(page, fid), '열기만 했다 — 밖에 놓인 말풍선을 포함해 모든 자리가 저장된 그대로다').toEqual(a);
+  /* 프레임을 고른다 = 패널(Buzz 절 · Size 절)이 그려진다. 그리기는 재기만 하고 옮기지 않는다 */
+  await pickFrame(page, fid);
+  await expect(page.locator('#ss-fullbleed-toggle'), '전제: 패널이 그려졌고 스위치가 켜져 있다').toBeChecked();
+  const b = await rowBoxesOf(page, fid);
+  expect(b, '프레임을 골라 패널이 그려진 뒤에도 자리가 그대로다').toEqual(a);
+  expect([b.find((r) => r[0] === moved.id)[1], (await stateOf(page, fid)).attrs['data-buzz-seed']], '밖에 놓인 말풍선의 left 와 무늬번호가 그대로다').toEqual([moved.left, seed]);
   expect([errs, errs2]).toEqual([[], []]);
 });
