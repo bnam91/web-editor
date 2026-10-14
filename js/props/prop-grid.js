@@ -9,6 +9,7 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
          gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_EMPTY_RADIUS, GRID_BADGE_RADIUS, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES, gridBlockOutline, GRID_OUTLINE_SIDES,
+         GRID_BORDER_EDGES, GRID_IFG_PRESET_KEYS,   /* ★1013t2F — 칸 테두리 «선 자리» · 인포그래픽 프리셋 표식 명부 */
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
          GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE, GRID_WIDTH_MIN, GRID_WIDTH_MAX, gridResizeTo,
@@ -2832,7 +2833,58 @@ function _borderRowHtml(bd) {
       <div class="prop-row">
         <span class="prop-label" title="파선·점선은 «조용히 실선으로» 떨어지지 않는다 — 저장값 그대로 그려진다">선 꼴</span>
         <select class="prop-select" id="grd-border-style" title="선 꼴">${styleOpts}</select>
-      </div>`;
+      </div>${_borderEdgesRowHtml(bd)}`;
+}
+
+/* ══ 칸 테두리 «선 자리» (1013t2F · 2026-10-14) — 현빈 지적: 「구분선 스타일의 … 윗변과 칼럼로우 중간 구분선들,
+ *   우측패널에서 이걸로 조절이 안 되네」. 프로토는 그 선을 CSS 로 고정했다 — 제품은 «이 절의 데이터»다.
+ * ★모델·읽는 문은 grid-block.js(gridCellBorder().edges · dataset.cellBorderEdges) 하나 — 여기선 목록을 만들어 updateGridBlock «한 문»으로.
+ * ★굵기·색·꼴은 바로 위 세 줄을 그대로 따른다(새 손잡이 0 · 현빈 ⒝). 그래서 굵기 0 이면 이 줄도 안 낸다(위 색·꼴과 같은 술어 —
+ *   G2 패널 순증 합격선 +60 · 켠 상태 폭은 grid-cell-border S7 이 잰다).
+ * ★「블럭 외곽선」(바깥 네 변)과 다른 축임을 title 이 말한다(현빈 ⒞) · ⛔새 아이콘 0(이 파일 머리말) — 글자 단추와 기존 부품만.
+ * ★「칸 사이」 단추는 1열이면 누를 데가 없다 → disabled(괘선 칩 «안 난다» 선례). */
+function _borderEdgesRowHtml(bd) {
+  const lines = !!bd.edges;
+  const on = (e) => lines && bd.edges.includes(e);
+  const mode = (m, ko, active, title) => `<button type="button" class="prop-type-btn${active ? ' active' : ''}" data-edges-mode="${m}" aria-pressed="${active ? 'true' : 'false'}" title="${title}">${ko}</button>`;
+  const edge = (e, ko, title, disabled) => `<button type="button" class="prop-btn-sm${on(e) ? ' active' : ''}" data-edge="${e}" style="padding:1px 6px;"
+              aria-pressed="${on(e) ? 'true' : 'false'}"${disabled ? ' disabled' : ''} title="${title} — 굵기·색·꼴은 위 값을 따릅니다">${ko}</button>`;
+  const noVsep = !(Number(bd.nCols) > 1);
+  return `
+      <div class="prop-row">
+        <span class="prop-label" title="선을 어디에 긋나 — 블럭 «바깥» 네 변은 아래 「블럭 외곽선」이 따로 켭니다">선 자리</span>
+        <div class="prop-type-group" id="grd-border-edges-mode" role="group" aria-label="칸 테두리 선 자리" style="flex:1;min-width:0;margin-bottom:0;">
+          ${mode('box', '네 변', !lines, '네 변 — 칸마다 네 변(표·카드)')}
+          ${mode('lines', '구분선', lines, '구분선 — 칸 위 변 · 칸 사이 세로 선만(바깥 좌우·아래는 안 긋습니다)')}
+        </div>
+      </div>${lines ? `
+      <div class="prop-row" style="gap:4px;flex-wrap:wrap;" id="grd-border-edges">
+        <span class="prop-label" style="flex:0 0 auto;">구분선</span>
+        ${edge('top', '위 변', '칸 위 변(첫 행은 블럭 위 변 자리 · 나머지는 행 사이 선) 켜기/끄기', false)}
+        ${edge('vsep', '칸 사이', noVsep ? '1열이라 칸 사이가 없습니다' : '칸 사이 세로 선 켜기/끄기', noVsep)}
+      </div>` : ''}`;
+}
+
+/* ══ 인포그래픽 「레이아웃 프리셋」 절 (1013t2F) — 표식(data-ifg-preset) 있는 그리드에서만, 머리 절 바로 아래.
+ * ★적용은 window.applyIfgPreset(js/blocks/grid-infographic.js) — updateGridBlock «한 문»(⌘Z 1회).
+ *   ⛔이 파일이 grid-infographic.js 를 import 하지 않는다 — 단위 하네스 여럿이 이 파일의 import 그래프를 손으로 세운다.
+ *   그래서 이름표도 그 모듈이 window 에 건 표(GRID_IFG_PRESETS)에서 «부를 때» 읽는다(없으면 키 그대로).
+ * ★표식이 없으면 «빈 문자열» — 보통 그리드 패널은 한 바이트도 안 바뀐다(bt2-grid-panel-golden). */
+function _grdIfgSectionHtml(block) {
+  const cur = block && block.dataset ? block.dataset.ifgPreset : '';
+  if (!GRID_IFG_PRESET_KEYS.includes(cur)) return '';
+  const label = (k) => (window.GRID_IFG_PRESETS && window.GRID_IFG_PRESETS[k] && window.GRID_IFG_PRESETS[k].label) || k;
+  const btn = (k) => `<button type="button" class="prop-type-btn${cur === k ? ' active' : ''}" data-ifg-pick="${k}" aria-pressed="${cur === k ? 'true' : 'false'}">${label(k)}</button>`;
+  return `
+    <div class="prop-section">
+      <div class="prop-section-title" title="인포그래픽 — 배치·글자·간격·칸 테두리를 한 번에 바꿉니다(글·아이콘은 그대로 · ⌘Z 한 번). 바꾼 뒤 선은 「모든 칸 테두리」에서 고칩니다">인포그래픽</div>
+      <div class="prop-row">
+        <span class="prop-label" title="레이아웃 프리셋">프리셋</span>
+        <div class="prop-type-group" id="grd-ifg-preset-group" role="group" aria-label="레이아웃 프리셋" style="flex:1;min-width:0;margin-bottom:0;">
+          ${GRID_IFG_PRESET_KEYS.map(btn).join('\n          ')}
+        </div>
+      </div>
+    </div>`;
 }
 
 /* ══ Typography·Fill 절 — 마크업은 «부품»이 낸다 ═══════════════════════════
@@ -3392,6 +3444,7 @@ export function showGridProperties(block, addrArg) {
    * 단축값으로 계속 산다(옛 프로젝트 호환), rowGap/colGap 없는 블록은 이 값으로 폴백한다. */
   const { row: _rowGap, col: _colGap } = gridGaps(block);
   const _cellBorder = gridCellBorder(block);   // ★T-172 — 읽는 문은 grid-block.js 하나뿐이다
+  _cellBorder.nCols = cols.length;              // ★1013t2F — 「칸 사이」 단추가 1열에서 죽는지(패널 표시용 · 모델 아님)
   const valign = block.dataset.valign || 'top';
   // 가로 정렬은 컬럼 모델(col.align)에 산다. 컬럼마다 다르면(혼합) 어느 버튼도 active 로 켜지 않는다.
   const _aligns = cols.map(c => c.align || 'left');
@@ -3433,7 +3486,7 @@ ${blockHeaderHTML({
       crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
       id: block.id,
     })}
-    </div>
+    </div>${_grdIfgSectionHtml(block)}
     <div class="prop-section"${_sizeOpen ? '' : ' style="padding-bottom:0;"'}>
 ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) — 칸 수 바꾸기`, _sizeOpen)}
       <div id="grd-size-body" style="display:${_sizeOpen ? 'block' : 'none'};">
@@ -3691,6 +3744,25 @@ ${_flattenRowHtml(rows, cols)}
     if (!GRID_BORDER_STYLES.includes(bdStyleSel.value)) return;   // ⛔모르는 꼴을 조용히 실선으로 떨구지 않는다
     _bdCommit({ cellBorderStyle: bdStyleSel.value });
   });
+
+  /* ── ★1013t2F 선 자리 — 「네 변 | 구분선」 + 구분선의 [위 변][칸 사이]. 목록을 만들어 «한 문»으로(⌘Z 1회). ── */
+  propPanel.querySelectorAll('[data-edges-mode]').forEach(btn => btn.addEventListener('click', () => {
+    const toLines = btn.dataset.edgesMode === 'lines';
+    if (!!gridCellBorder(block).edges === toLines) return;   // 이미 그 모드 — 히스토리를 안 쌓는다
+    _bdCommit({ cellBorderEdges: toLines ? GRID_BORDER_EDGES.join(',') : null });
+  }));
+  propPanel.querySelectorAll('[data-edge]').forEach(btn => btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    const cur = gridCellBorder(block).edges || [];
+    const e = btn.dataset.edge;
+    const list = GRID_BORDER_EDGES.filter(k => (k === e ? !cur.includes(k) : cur.includes(k)));
+    _bdCommit({ cellBorderEdges: list.length ? list.join(',') : 'none' });
+  }));
+  /* ── ★1013t2F 인포그래픽 레이아웃 프리셋 — window.applyIfgPreset(그 모듈이 updateGridBlock 한 문으로 보낸다). ── */
+  propPanel.querySelectorAll('[data-ifg-pick]').forEach(btn => btn.addEventListener('click', () => {
+    if (btn.dataset.ifgPick === block.dataset.ifgPreset) return;
+    _grdToastCellFail(window.applyIfgPreset?.(block, btn.dataset.ifgPick));
+  }));
 
   /* 세로 정렬 — «블록 통째»(block.dataset.valign). 렌더러는 pick('valign') 가 있으면 그것을 먼저
      쓰므로(_GRID_VALIGN[pick('valign')] || blockValign), 칸/열 오버라이드가 남아 있으면 이 단추가
