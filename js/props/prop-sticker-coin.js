@@ -124,10 +124,12 @@ export function wireCoinSection(panel, block, rerender) {
       const got = writePos(block, axis === 'x' ? v : x0, axis === 'y' ? v : y0);
       const now = got[axis === 'x' ? 0 : 1];
       if (now !== v) inp.value = now;          // 가둔 값을 칸에 되쓴다(칸 = 저장값)
+      syncCoinPosFields(block);                // 다른 축의 칸·두 칸의 범위도 따라온다(한 축을 밀면 다른 축의 범위가 달라진다 · 모서리에선 두 축이 같이 움직인다)
       window.scheduleAutoSave?.();
     });
     inp.addEventListener('change', () => {
       inp.value = posOf(block)[axis === 'x' ? 0 : 1];
+      syncCoinPosFields(block);
       commit('코인 위치');
     });
   };
