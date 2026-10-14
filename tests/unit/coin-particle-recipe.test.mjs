@@ -148,10 +148,17 @@ test('R8 배선 — 입구 스크립트 1번 · 패널 단추 · 프리셋 속�
   assert.ok(html.indexOf('js/fx/particles-render.js') < html.indexOf('js/coin-particle-recipe.js'), '입구는 그리개 뒤에 실린다');
   assert.ok(!/proto-coin-particles|protoCoinParticles/.test(html), 'index.html 에 프로토 이름이 남았다');
   const pan = readSrc(REPO, 'js/props/prop-section-particles.js');
+  /* ★금지 단언 — 레시피 단추의 «여는 태그 통째»에 프리셋 속성이 있나. 옛 자(/id="sec-fxpart-recipe"[^>]*data-fxpart-preset/)는
+     속성이 id «앞»에 오면 못 잡았다(아래 반례 ⑵). 그래서 여는 태그를 먼저 떼고 그 안을 본다. */
+  const recipeHasPreset = (src) => [...src.matchAll(/<button\b[^>]*>/g)].some((m) => /\bid="sec-fxpart-recipe"/.test(m[0]) && /\bdata-fxpart-preset\b/.test(m[0]));
+  /* 반례 한 쌍(걸려야 산 자다) — ⑴ 속성이 id 뒤 ⑵ 속성이 id 앞 · 그리고 음성: 프리셋 칩(다른 단추)의 속성은 안 걸린다 */
+  assert.equal(recipeHasPreset('<button class="prop-align-btn" id="sec-fxpart-recipe" data-fxpart-preset="coin">x</button>'), true, '★자가 죽었다 — 반례 ⑴(id 뒤)을 못 잡는다');
+  assert.equal(recipeHasPreset('<button data-fxpart-preset="coin" class="prop-align-btn"\n  id="sec-fxpart-recipe">x</button>'), true, '★자가 죽었다 — 반례 ⑵(id 앞 · 줄바꿈)를 못 잡는다');
+  assert.equal(recipeHasPreset('<button id="sec-fxpart-recipe" data-fxpart-recipe="coin">x</button><button data-fxpart-preset="gold">y</button>'), false, '★자가 너무 넓다 — 이웃 프리셋 칩을 레시피 단추로 읽었다');
+  assert.equal(recipeHasPreset(pan), false, '레시피 단추에 프리셋 속성이 붙었다');
   const btn = /<button class="([^"]+)" id="sec-fxpart-recipe" data-fxpart-recipe="coin"\s+title="코인 레시피 — 모양·갯수·크기·색을 3D 코인 묶음으로 바꿉니다\(무늬번호는 그대로\)">코인 레시피<\/button>/.exec(pan);
   assert.ok(btn, '패널에 코인 레시피 단추(id·data·title)가 없다');
   assert.equal(btn[1], 'prop-align-btn', '단추 꼴이 프리셋 칩과 같은 class 가 아니다');
-  assert.ok(!/id="sec-fxpart-recipe"[^>]*data-fxpart-preset/.test(pan), '레시피 단추에 프리셋 속성이 붙었다');
   assert.ok(/\$\('sec-fxpart-recipe'\)\?\.addEventListener\('click', \(\) => \{\s*window\.applyCoinParticleRecipe\?\.\(sec\);/.test(pan), '단추가 입구를 안 부른다');
   for (const f of ['js/fx/particles-render.js', 'js/props/prop-section-particles.js', 'js/coin-particle-recipe.js'])
     assert.ok(!/protoCoinParticles|proto-coin-particles\.js'|I1 프로토/.test(readSrc(REPO, f).replace(/프로토 3c3a25bb[^\n]*/g, '')), `${f} 에 프로토 이름이 남았다`);
