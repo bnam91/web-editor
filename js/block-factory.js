@@ -1211,7 +1211,12 @@ function makeGraphBlock() {
 function addGraphBlock(opts = {}) {
   // U9(BL-BOL-03): 스타일/시리즈 옵션 → dataset 일괄 매핑 (smooth=곡선, bar-pair 2시리즈용 barColor2 등)
   const _applyGraphOpts = (block) => {
-    if (opts.chartType) block.dataset.chartType = opts.chartType; // 'bar-v' | 'bar-h' | 'line' | 'bar-pair' | 'pie' | 'donut'
+    if (opts.chartType) block.dataset.chartType = opts.chartType; // 'bar-v' | 'bar-h' | 'line' | 'bar-pair' | 'pie' | 'donut'(옛 별칭 = 'pie' + pieDonut)
+    if (opts.pieDonut) block.dataset.pieDonut = '1';   // 1013t1C1 — 원형의 「도너츠」 토글
+    // 1013t1C3 · C7 — 조각 안 순위·이름 라벨(켜면 '1') · 그림자(soft / strong 만). 시작 각도·조각 간격은 아래 정수 묶음. 조각별 키(pieGrow · piePull · pieTag)는 items 에 실어 준다.
+    if (opts.pieRank) block.dataset.pieRank = '1';
+    if (opts.pieName) block.dataset.pieName = '1';
+    if (opts.dropShadow === 'soft' || opts.dropShadow === 'strong') block.dataset.dropShadow = opts.dropShadow;
     const map = { smooth: 'lineSmooth', fillArea: 'fillArea' };
     for (const [opt, key] of Object.entries(map)) {
       if (opts[opt] !== undefined) block.dataset[key] = opts[opt] ? '1' : '0';
@@ -1219,7 +1224,7 @@ function addGraphBlock(opts = {}) {
     for (const k of ['lineColor', 'fillColor', 'barColor', 'barColor2', 'seriesA', 'seriesB', 'labelColor', 'vlabelColor', 'xlabelColor']) {
       if (typeof opts[k] === 'string' && opts[k].length <= 64) block.dataset[k] = opts[k];
     }
-    for (const k of ['chartHeight', 'labelSize', 'strokeWidth', 'pointRadius', 'pieHole']) {
+    for (const k of ['chartHeight', 'labelSize', 'strokeWidth', 'pointRadius', 'pieHole', 'pieStart', 'pieGap']) {
       const n = Number(opts[k]);
       if (Number.isFinite(n) && n >= 0) block.dataset[k] = String(Math.floor(n));
     }
@@ -4418,7 +4423,7 @@ function updateGraphBlock(blockId, partial = {}) {
   };
   try {
     _intField('chartHeight',  'chartHeight',  80, 2000);
-    _intField('labelSize',    'labelSize',    8,  28);
+    _intField('labelSize',    'labelSize',    window.GRAPH_LIMITS.LABEL_SIZE_MIN,  28);
     _intField('barThickness', 'barThickness', BAR_THICKNESS_MIN, BAR_THICKNESS_MAX);
     _intField('padX',         'padX',         0,  80);
     _intField('itemGap',      'itemGap',      8,  80);

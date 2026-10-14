@@ -781,6 +781,19 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           ? { showAxis: el.dataset.showAxis === '1', showGrid: el.dataset.showGrid === '1', showLine: el.dataset.showLine === '1' } : {}),
         // 1012t1G2·G3 — 실루엣·채움 분모도 «켜진 것만» 싣는다(옛 JSON 무변). ⚠️렌더러(sangpe_to_figma)는 아직 안 읽는다 — 피그마에선 보통 세로 막대.
         ...(window.GRAPH_SHAPE.shapeOn(el.dataset) ? { barShape: el.dataset.barShape, fillMax: window.GRAPH_SHAPE.fillMaxOf(el.dataset, items) } : {}),
+        // 1013t1C — 원형·도너츠의 블럭 수준 키도 «있는 것만» 싣는다(새 키가 없는 원형·옛 donut 의 JSON 은 예전과 같다 — pieHole 은 pieDonut 이 켜졌을 때만).
+        //   조각별 키(pieGrow · piePull · pieTag)는 items 에 이미 실린다. ⚠️렌더러(sangpe_to_figma)는 아직 안 읽는다 — 피그마에선 원형이 여전히 막대로 나간다.
+        ...(((ds) => {
+          const o = {};
+          if (ds.chartType !== 'pie' && ds.chartType !== 'donut') return o;
+          const int = (k) => { const n = parseInt(ds[k]); if (ds[k] !== undefined && Number.isFinite(n)) o[k] = n; };
+          if (ds.pieDonut === '1') { o.pieDonut = true; int('pieHole'); }
+          int('pieStart'); int('pieGap');
+          if (ds.pieRank === '1') o.pieRank = true;
+          if (ds.pieName === '1') o.pieName = true;
+          if (ds.dropShadow === 'soft' || ds.dropShadow === 'strong') o.dropShadow = ds.dropShadow;
+          return o;
+        })(el.dataset)),
       };
     }
     // ── SHAPE (shape-block) : 도형(선/사각/원) ──
@@ -896,6 +909,10 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     // ── LAUREL (laurel-block) : 월계관 잎 SVG + 중앙 텍스트 ──
     if (el.classList.contains('laurel-block')) {
       let cells = []; try { cells = JSON.parse(el.dataset.cells || '[]'); } catch {}
+      /* ★1013t1B2 C3 — 줄 저장 꼴이 그리드 줄(type·weight …)로 바뀌었다. 수신측(figma-renderer laurel)은 옛 이름(fontWeight)을 읽는다
+         ⇒ 글자 줄만 옛 꼴로 맞춰 보낸다(여백·구분선·그림은 빠진다 · 결정 B2-10). ⛔블럭 모듈을 import 하지 않는다 — window 로 부른다.
+         없으면(모듈 미적재) 옛 판처럼 그대로 보낸다. 지키는 검사: tests/dom/laurel-lines.dom.spec.js LL11. */
+      if (typeof window._lrlFigmaCells === 'function') cells = window._lrlFigmaCells(cells);
       const _live = (el.id && document.getElementById(el.id)) || el;
       const _br = _live.getBoundingClientRect();
       const _z = (_br.width / (_live.offsetWidth || 1)) || 1;

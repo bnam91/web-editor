@@ -5,6 +5,8 @@ import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 // ── 프리셋 ───────────────────────────────────────────────────────────────
+/* ★1013t1A2 — 프리셋은 «색·선·시작점»만 바꾼다. 글자 크기(옛 16)는 뺐다: 기본이 24 가 됐는데
+   프리셋을 누르는 순간 16 으로 줄어드는 것을 막는다(크기는 「라벨 › 크기」에서만). */
 const ANNOTATION_PRESETS = [
   {
     name: '빨간 콜아웃',
@@ -12,7 +14,6 @@ const ANNOTATION_PRESETS = [
     strokeWidth: 1.5,
     anchorShape: 'circle',
     anchorSize:  7,
-    labelFontSize: 16,
     labelColor:  '#1a1a1a',
     labelBg:     '#ffffff',
     labelBorderColor: '#e74c3c',
@@ -23,7 +24,6 @@ const ANNOTATION_PRESETS = [
     strokeWidth: 2,
     anchorShape: 'square',
     anchorSize:  8,
-    labelFontSize: 16,
     labelColor:  '#ffffff',
     labelBg:     '#1592fe',
     labelBorderColor: '#1592fe',
@@ -34,7 +34,6 @@ const ANNOTATION_PRESETS = [
     strokeWidth: 2.5,
     anchorShape: 'triangle',
     anchorSize:  10,
-    labelFontSize: 16,
     labelColor:  '#1a1a1a',
     labelBg:     '#ffffff',
     labelBorderColor: '#1a1a1a',
@@ -43,27 +42,8 @@ const ANNOTATION_PRESETS = [
 
 // ── dataset → 정규화 상태 ─────────────────────────────────────────────
 function _readState(block) {
-  const D = window.ANNOT_DEFAULTS || {};
-  let points = [];
-  try { points = JSON.parse(block.dataset.points || '[]'); } catch (_) { points = []; }
-  return {
-    points,
-    text:             block.dataset.text             || D.text || '텍스트',
-    strokeColor:      block.dataset.strokeColor      || D.strokeColor,
-    strokeWidth:      parseFloat(block.dataset.strokeWidth) || D.strokeWidth,
-    anchorShape:      block.dataset.anchorShape      || D.anchorShape,
-    anchorSize:       parseFloat(block.dataset.anchorSize) || D.anchorSize,
-    labelFontSize:    parseFloat(block.dataset.labelFontSize) || D.labelFontSize,
-    labelColor:       block.dataset.labelColor       || D.labelColor,
-    labelBg:          block.dataset.labelBg          || D.labelBg,
-    labelBorderColor: block.dataset.labelBorderColor || D.labelBorderColor,
-    labelMode:        block.dataset.labelMode        || D.labelMode || 'text',
-    labelImageSrc:    block.dataset.labelImageSrc    || '',
-    labelImageSize:   parseInt(block.dataset.labelImageSize) || D.labelImageSize || 120,
-    labelImageRadius: parseFloat(block.dataset.labelImageRadius ?? D.labelImageRadius ?? 0),
-    labelBorderStyle: block.dataset.labelBorderStyle || D.labelBorderStyle || 'solid',
-    labelBorderWidth: parseFloat(block.dataset.labelBorderWidth ?? D.labelBorderWidth ?? 1),
-  };
+  // ★1013t1A3-pre — rebindAll 과 «같은 한 벌»(js/blocks/annotation-block.js annotPropsFromDataset)
+  return window.annotPropsFromDataset(block);
 }
 
 // ── dataset 갱신 + 재렌더 + autoSave ──────────────────────────────────
@@ -185,6 +165,8 @@ function _rerenderAnnotation(block) {
         if ((label.textContent || '').trim() !== st.text) label.textContent = st.text;
       }
     }
+    // ★1013t1A3 — 개별 위치(translate)를 style «맨 끝»으로 다시 붙인다(위에서 padding 등이 새로 붙었을 수 있다)
+    window.annotApplyLabelOffset?.(block);
   }
 }
 
@@ -219,6 +201,9 @@ export function showAnnotationProperties(block) {
   const labelBorderAlpha = parseAlphaFromColor(st.labelBorderColor);
   const strokeAlpha      = parseAlphaFromColor(st.strokeColor);
   const labelColorAlpha  = parseAlphaFromColor(st.labelColor);
+  // ★1013t1A3 라벨 개별 위치(방사형 블럭 호의 「라벨 간격」 · 「자동 배치로 되돌리기」 꼴)
+  const LIM    = window.ANNOT_LIMITS;
+  const manual = st.labelDx !== 0 || st.labelDy !== 0;
 
   propPanel.innerHTML = `
     <div class="prop-section" data-prop-panel="annotation">
@@ -278,9 +263,7 @@ ${blockHeaderHTML({
         </div>
       </div>
       ${st.labelMode === 'text' ? `
-      <div class="prop-row">
-        <textarea class="prop-textarea" id="annot-text" rows="2">${_escape(st.text)}</textarea>
-      </div>
+      <div class="prop-hint">캔버스에서 라벨을 더블클릭해 글을 고칩니다</div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
         <input type="range" class="prop-slider" id="annot-font-size" min="8" max="48" step="1" value="${st.labelFontSize}">
@@ -342,6 +325,17 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="annot-border-w" min="0" max="8" step="0.5" value="${st.labelBorderWidth}">
         <input type="number" class="prop-number" id="annot-border-w-num" min="0" max="8" step="0.5" value="${st.labelBorderWidth}">
       </div>
+    </div>
+
+    <div class="prop-section" id="annot-label-pos-section">
+      <div class="prop-section-title">라벨 위치</div>
+      <div class="prop-hint">캔버스에서 라벨을 한 번 더 누르면 골라지고, 끌면 라벨만 옮겨집니다</div>
+      <div class="prop-row">
+        <span class="prop-label">위치</span>
+        <input type="number" class="prop-number" id="annot-label-dx" min="${LIM.labelDx.min}" max="${LIM.labelDx.max}" step="1" value="${st.labelDx}" title="가로(dx)">
+        <input type="number" class="prop-number" id="annot-label-dy" min="${LIM.labelDy.min}" max="${LIM.labelDy.max}" step="1" value="${st.labelDy}" title="세로(dy)">
+      </div>
+      <button class="prop-btn-full" id="annot-label-reset"${manual ? '' : ' disabled'}>자동 배치로 되돌리기</button>
     </div>
   `;
 
@@ -411,18 +405,9 @@ ${blockHeaderHTML({
     });
   });
 
+  /* ★1013t1A2 — 글 입력칸(#annot-text)은 걷었다(현빈 「우측패널에 굳이 텍스트 입력할 플레이스홀더는 필요없음」).
+     글은 캔버스에서 쓴다: 만든 직후 자동 편집(annotation-tool.js) · 라벨 더블클릭(annotation-select.js _enterLabelEdit). */
   // ── 텍스트 모드 wireup (텍스트 모드일 때만 DOM 존재) ──
-  const txt = propPanel.querySelector('#annot-text');
-  if (txt) {
-    txt.addEventListener('input',  () => {
-      block.dataset.text = txt.value;
-      const label = block.querySelector('.annot-label');
-      if (label && label.getAttribute('contenteditable') !== 'true') label.textContent = txt.value;
-      window.scheduleAutoSave?.();
-    });
-    txt.addEventListener('change', () => window.pushHistory?.('라벨 텍스트'));
-  }
-
   const fs  = propPanel.querySelector('#annot-font-size');
   const fsN = propPanel.querySelector('#annot-font-size-num');
   if (fs && fsN) {
@@ -531,6 +516,22 @@ ${blockHeaderHTML({
       window.pushHistory?.('선 두께');
     });
   }
+
+  // ★1013t1A3 라벨 위치 — 쓰고 → 다시 그리고(패널 포함) → 찍는다(push-after · tests/unit/prop-push-after)
+  const dxIn = propPanel.querySelector('#annot-label-dx');
+  const dyIn = propPanel.querySelector('#annot-label-dy');
+  const onOffset = () => {
+    if (!window.annotSetLabelOffset?.(block, parseFloat(dxIn.value) || 0, parseFloat(dyIn.value) || 0)) return;
+    showAnnotationProperties(block);
+    window.pushHistory?.('라벨 위치');
+  };
+  dxIn?.addEventListener('change', onOffset);
+  dyIn?.addEventListener('change', onOffset);
+  propPanel.querySelector('#annot-label-reset')?.addEventListener('click', () => {
+    if (!window.annotResetLabelOffset?.(block)) return;
+    showAnnotationProperties(block);
+    window.pushHistory?.('라벨 위치 되돌리기');
+  });
 }
 window.showAnnotationProperties = showAnnotationProperties;
 
@@ -552,9 +553,6 @@ function _hex(c) {
   const m = String(c).match(/\d+/g);
   if (!m || m.length < 3) return '#000000';
   return '#' + m.slice(0, 3).map(n => Math.max(0, Math.min(255, parseInt(n))).toString(16).padStart(2, '0')).join('');
-}
-function _escape(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 function _shapeIcon(s) {
   // currentColor 사용 → .prop-align-btn.active 시 흰색으로 자연스럽게 반전

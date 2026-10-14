@@ -353,7 +353,11 @@
     });
     // ghost 섹션은 저장에서 제외
     root.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
-    root.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .sec-bg-proxy, .grd-add-btn, .section-height-badge').forEach(el => el.remove());
+    root.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox').forEach(el => el.remove());
+    /* ★.annot-handle · .annot-selbox (1013t1A3) — 어노테이션을 «고른 동안»만 사는 점 손잡이·선택 상자(js/annotation-select.js).
+       빠져 있어 선택 중 찍은 히스토리 표본에 손잡이가 실렸고, ⌘Z 복원(rebindAll 이 팩토리로 다시 그림 = 손잡이 없음)과
+       «내용이 다른» 표본이 되어 라벨 끌기 한 번의 ⌘Z 가 조작 전과 갈렸다(tests/dom/annotation-1013 AN7 실측: svg 자식 4 vs 2).
+       짝: js/io/save-load.js NON_CONTENT_UI_SELECTOR. */
     /* ★.section-height-badge (2026-10-07 (다)) — 섹션 머리의 «지금 몇 px» 칩. 파생 표시라 저장·히스토리·
        템플릿·협업 비교 ★어디에도 실리면 안 된다. save-load.js NON_CONTENT_UI_SELECTOR 의 ★계약 짝이다
        (거기 주석: 「여기에 추가할 때는 serializeProject 가 실제로 그걸 지우는지 먼저 확인하라」). */

@@ -643,7 +643,8 @@ function getSerializedCanvas() {
    ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
    ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
 export const NON_CONTENT_UI_SELECTOR =
-  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .sec-bg-proxy, .grd-add-btn, .section-height-badge';
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox';
+/* ★.annot-handle · .annot-selbox (1013t1A3) — 어노테이션 선택 중에만 사는 손잡이. serializeCleanRoot 의 remove 줄에 같이 올렸다(계약 짝). */
 /* ★.mdl-rotate-zone (2026-10-08 지디) — ★모달 블럭의 회전 손잡이. ⛔빠져 있었다.
    ★증상: modal-frameify U1·U3 가 ★origin/dev 에서 빨강이었다 — 「프레임화 → ⌘Z 한 번 = 앞 직렬화와
      글자 단위로 같다」가 ★앞 1,245자 vs ★뒤 4,373자로 갈렸고, 갈린 자리가 바로
@@ -1377,59 +1378,19 @@ function rebindAll(opts = {}) {
   // ── annotation-block 복원 (펜툴 Phase 2: 폴리라인 + 스타일 props) ──
   canvasEl.querySelectorAll('.annotation-block').forEach(block => {
     if (!block.id) block.id = 'ant_' + Math.random().toString(36).slice(2, 9);
-    const D = window.ANNOT_DEFAULTS || {};
-
-    // points: dataset.points(JSON) 우선, 없으면 anchorX/Y → labelX/Y 마이그
-    let points = null;
-    if (block.dataset.points) {
-      try { points = JSON.parse(block.dataset.points); } catch (_) { points = null; }
-    }
-    if (!Array.isArray(points) || points.length < 2) {
-      const ax = parseFloat(block.dataset.anchorX) || 0;
-      const ay = parseFloat(block.dataset.anchorY) || 0;
-      const lx = parseFloat(block.dataset.labelX)  || 0;
-      const ly = parseFloat(block.dataset.labelY)  || 0;
-      points = [[ax, ay], [lx, ly]];
-    }
-
-    // 텍스트는 기존 라벨 DOM에서도 복구
-    const existingLabel = block.querySelector('.annot-label');
-    const text = block.dataset.text
-      || (existingLabel ? (existingLabel.textContent || '').trim() : '')
-      || D.text || '텍스트';
-
-    const props = {
-      points,
-      text,
-      strokeColor:      block.dataset.strokeColor      || D.strokeColor,
-      strokeWidth:      parseFloat(block.dataset.strokeWidth) || D.strokeWidth,
-      anchorShape:      block.dataset.anchorShape      || D.anchorShape,
-      anchorSize:       parseFloat(block.dataset.anchorSize) || D.anchorSize,
-      labelFontSize:    parseFloat(block.dataset.labelFontSize) || D.labelFontSize,
-      labelColor:       block.dataset.labelColor       || D.labelColor,
-      labelBg:          block.dataset.labelBg          || D.labelBg,
-      labelBorderColor: block.dataset.labelBorderColor || D.labelBorderColor,
-    };
+    /* ★1013t1A3-pre — props 는 annotPropsFromDataset «한 벌»로 읽는다(js/blocks/annotation-block.js).
+       예전엔 여기서 손으로 열 줄을 읽으며 labelMode·이미지 셋·테두리 스타일/두께 여섯을 빠뜨려
+       리로드·⌘Z 복원마다 라벨이 기본값으로 다시 그려졌다(대시 → solid 실측). */
+    const props = window.annotPropsFromDataset(block);
 
     // 팩토리 결과를 그대로 사용 — innerHTML/dataset 통째 재구성
     const fresh = window.makeAnnotationBlock(props);
     block.innerHTML = fresh.innerHTML;
-    // dataset 동기화 (id는 유지)
-    block.dataset.type             = 'annotation';
-    block.dataset.points           = fresh.dataset.points;
-    block.dataset.anchorX          = fresh.dataset.anchorX;
-    block.dataset.anchorY          = fresh.dataset.anchorY;
-    block.dataset.labelX           = fresh.dataset.labelX;
-    block.dataset.labelY           = fresh.dataset.labelY;
-    block.dataset.text             = fresh.dataset.text;
-    block.dataset.strokeColor      = fresh.dataset.strokeColor;
-    block.dataset.strokeWidth      = fresh.dataset.strokeWidth;
-    block.dataset.anchorShape      = fresh.dataset.anchorShape;
-    block.dataset.anchorSize       = fresh.dataset.anchorSize;
-    block.dataset.labelFontSize    = fresh.dataset.labelFontSize;
-    block.dataset.labelColor       = fresh.dataset.labelColor;
-    block.dataset.labelBg          = fresh.dataset.labelBg;
-    block.dataset.labelBorderColor = fresh.dataset.labelBorderColor;
+    // dataset 동기화 (id는 유지) — 팩토리가 쓴 키 전부(표는 annotation-block.js 한 곳)
+    block.dataset.type = 'annotation';
+    for (const k of window.ANNOT_DATA_KEYS) {
+      if (fresh.dataset[k] !== undefined) block.dataset[k] = fresh.dataset[k];
+    }
 
     block.style.position = 'absolute';
     block.style.left = '0'; block.style.top = '0';

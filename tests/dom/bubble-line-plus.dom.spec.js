@@ -36,6 +36,17 @@ async function setup(page, zoom = 100) {
   }, { html: SEC, zoom });
   await waitFor(page, () => !!document.querySelector('#canvas .speech-bubble-block.selected'), undefined,
     '말풍선이 생기고 골라지지 않았다');
+  /* ★1013 S1-LP1 — 배율 전환이 «끝난 뒤»에 잰다. #canvas-scaler 는 `transition: transform .15s`(css/editor-canvas.css)라
+     applyZoom(40→100) 직후 한동안 «보간 중»이다. 그 사이 잰 ＋·줄 좌표는 클릭 순간엔 이미 15~23px 옮겨 가 있어
+     클릭이 말풍선 몸통(tb-bubble)에 떨어졌다(실측 dev 366fd826 · w1 · 빨강 4/4 모두 잰 순간 scale 0.746 → 누른 순간 0.845/0.911 ·
+     ＋ 는 교체 0 — 같은 요소). ⇒ «재는 그 값»(스케일러의 계산된 배율 = zoom/100 · 도는 전환 0)을 기다린다. ⛔고정 대기 없음. */
+  await waitFor(page, (z) => {
+    const S = document.getElementById('canvas-scaler');
+    if (!S || S.getAnimations().length) return false;
+    const tf = getComputedStyle(S).transform, m = /^matrix\(([^,]+),/.exec(tf);
+    const k = tf === 'none' ? 1 : m ? Number(m[1]) : NaN;
+    return Math.abs(k - z / 100) < 1e-3;
+  }, zoom, `배율 ${zoom}% 전환이 안 끝났다(#canvas-scaler 보간 중)`);
   const id = await page.evaluate(() => {
     const b = document.querySelector('#canvas .speech-bubble-block.selected');
     b.scrollIntoView({ block: 'center' });
@@ -143,6 +154,14 @@ test('LP2 고른 줄 다음 — 줄 3개 중 0번을 고르고 ＋ → 새 줄�
   }, id);
   await page.mouse.click(r0.x, r0.y);
   await waitFor(page, (id) => window.grdGetActiveLine?.(document.getElementById(id))?.li === 0, id, '줄 0 이 안 골라졌다');
+  /* ★전제 둘을 «단언»으로도 찍는다(1013 S1 · FLAKY 명부 LP2 ⒤) — 「＋ 직전 고른 줄 = 0」·「＋ 직전 줄 = 3 (데이터)」.
+     ⇒ 빨강이 나면 «＋ 의 자리 계산»인지 «전제(고르기·줄 수)»인지 줄 번호로 갈린다. */
+  const pre = await page.evaluate((id) => {
+    const b = document.getElementById(id);
+    return { li: window.grdGetActiveLine?.(b)?.li ?? null, n: JSON.parse(b.dataset.lines || '[]').length };
+  }, id);
+  expect(pre.li, '전제 — ＋ 직전 고른 줄 = 0').toBe(0);
+  expect(pre.n, '전제 — ＋ 직전 줄 수(dataset.lines) = 3').toBe(3);
   await clickPlus(page, id);
   await waitFor(page, (id) => JSON.parse(document.getElementById(id).dataset.lines).length === 4, id, '＋ 를 눌렀는데 줄이 안 늘었다');
   const texts = (await linesOf(page, id)).map(l => l.text);

@@ -21,13 +21,30 @@
        렌더러(drag-utils.js _renderPie)가 «이 세 값»을 읽는다. 20 미만은 원형과 구별이 안 되고 80 초과는 고리가 실처럼 가늘어진다(기획 값 — 현빈 확인 전). */
   /* ★PIE_GAP(1012t1G1 고침 · 2026-10-13) — 원형·도넛 조각 사이 틈의 폭(viewBox 1000 단위 — 계산된 CSS 로 못 읽는다 · 높이 240 에서 약 2.4px).
        색 순번이 5개 주기라 항목 수가 5n+1 이면 끝 조각이 첫 조각과 같은 색으로 맞닿는다 — 틈이 그 둘을 가른다. 렌더러(drag-utils.js _renderPie)가 읽는다(기획 값 — 현빈 확인 전). */
+  /* ★PIE_GAP_MIN · MAX(1013t1C6 · 2026-10-13) — 조각 간격 칸(dataset.pieGap · viewBox 1000 단위)의 한계. 키가 없으면 PIE_GAP(10)으로 그린다(옛 저장본 그대로).
+       0 = 틈 없음(조각이 맞닿는다) · 40 = 높이 240 에서 약 10px. 패널 슬라이더·숫자칸(prop-graph.js)과 렌더러(_renderPie)가 같이 읽는다(기획 값 — 현빈 확인 전). */
+  /* ★PIE_START_MIN · MAX(1013t1C2 · 2026-10-13) — 시작 각도 칸(dataset.pieStart · 도 · 12시 = 0 · 시계 방향)의 한계. 키가 없으면 0(옛 저장본 그대로).
+       360 은 0 과 같은 그림이라 위 끝은 359(기획 값 — 현빈 확인 전). */
+  /* ★PIE_GROW_MAX(1013t1C4 · 2026-10-13) — 조각 크기 칸(items[i].pieGrow · 바깥 반지름에 더하는 %)의 위 끝. 0 = 안 키움(키 없음).
+       키운 만큼 viewBox 를 대칭으로 넓혀 그린다 ⇒ 30 이면 나머지 조각이 화면에서 1/1.3 로 작아진다(기획 값 — 현빈 확인 전). */
+  /* ★PIE_PULL_MAX(1013t1C5 · 2026-10-13) — 밀어내기 칸(items[i].piePull · 바깥 반지름 대비 %)의 위 끝. 0 = 안 밂(키 없음).
+       민 만큼도 viewBox 를 대칭으로 넓혀 그린다(조각 크기와 같은 길 — 둘을 같이 주면 더해진다 · 기획 값 — 현빈 확인 전). */
+  /* ★PIE_TAG_AT · PIE_TAG_MIN_CHORD · PIE_TAG_MIN_RADIAL(1013t1C3 · 2026-10-13) — 조각 안 라벨(순위 배지 · 이름)의 자리와 «자동 숨김» 문턱(graph-pie-geom.js pieTagPlan 이 읽는다).
+       PIE_TAG_AT 62 = 꽉 찬 원형에서 라벨이 앉는 반지름(그 조각 바깥 반지름 대비 %) — 도너츠는 고리의 한가운데((구멍 + 바깥) / 2)라 이 값을 안 쓴다.
+       PIE_TAG_MIN_CHORD 150 = 라벨 자리에서 조각의 폭(현 · viewBox 1000 단위)이 이보다 좁으면 자동으로 숨긴다(원형은 약 28° · 구멍 55 도너츠는 약 22° 미만).
+       PIE_TAG_MIN_RADIAL 150 = 고리 두께(바깥 − 구멍)가 이보다 얇으면 숨긴다(구멍 70 초과). 조각별 items[i].pieTag 'on'/'off' 가 자동을 이긴다(기획 값 — 현빈 확인 전).
+       PIE_TAG_PAD 8(1013t1C3 고침) = 라벨 사각형과 조각 가장자리(두 변 · 바깥 호 · 구멍) 사이에 남기는 여백(viewBox 1000 단위 · 높이 240 에서 약 2px) — pieTagRoom 이 읽는다. */
+  /* ★LABEL_SIZE_MIN · PIE_TAG_FONT_STEPS · PIE_TAG_NAME_LINES(1013t1C3 고침 2 · 2026-10-14) — 조각 안 라벨이 «숨기 전에» 밟는 단계(graph-pie-geom.js pieTagFontSizes · drag-utils.js grbPieFitTags).
+       LABEL_SIZE_MIN 8 = 그래프 라벨 글자 크기 칸의 아래 끝 — 패널(prop-graph.js grb-label-slider/number 의 min)과 updateGraphBlock(block-factory.js _intField)이 적던 8 을 이리 옮겼다(값 그대로).
+       PIE_TAG_FONT_STEPS = 라벨이 제 조각에 안 들 때 써 보는 글자 크기(블럭 라벨 크기 대비 비 · 큰 것부터). 어느 단계도 LABEL_SIZE_MIN 밑으로는 안 내려간다 · 키우는 단계는 없다(전부 1 미만).
+       PIE_TAG_NAME_LINES 2 = 이름이 쓰는 줄 수의 위 끝(그보다 길면 글자를 줄이고, 끝까지 안 들면 이름을 숨긴다 · 「항상」 라벨은 이 줄 수에서 말줄임 — 기획 값 · 현빈 확인 전). */
   /* ★SHAPE_SVG_MAX · SHAPE_FILL_MAX_DEFAULT · SHAPE_TRACK_OPACITY · SEG_GAP_DEFAULT(1012t1G2·G3·G4 · 2026-10-12) — 「SVG 를 그래프 모양으로」(js/graph-shape.js).
        SHAPE_SVG_MAX 60000 = 블럭에 실리는 «정규화된» 사용자 SVG 글자 수의 상한(마스크 URL 은 % 인코딩으로 그 세 배쯤까지 는다 — 저장본 비대 방지).
        SHAPE_FILL_MAX_DEFAULT 100 = 모양일 때 채움 분모(값 하나짜리 채움 그래프가 늘 꽉 차지 않게 — 사각 막대의 max(items) 와 다르다).
        SHAPE_TRACK_OPACITY 0.25 = 안 찬 부분(트랙)의 불투명도 — 색은 채움과 같은 색(새 색 0). SEG_GAP_DEFAULT 2 = 마디 사이 틈(px).
        렌더러(drag-utils.js · graph-shape.js)와 패널(prop-graph.js)이 «이 값들»을 읽는다(기획 값 — 현빈 확인 전). */
-  var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3,
-    PIE_HOLE_MIN: 20, PIE_HOLE_MAX: 80, PIE_HOLE_DEFAULT: 55, PIE_GAP: 10,
+  var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LABEL_SIZE_MIN: 8, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3,
+    PIE_HOLE_MIN: 20, PIE_HOLE_MAX: 80, PIE_HOLE_DEFAULT: 55, PIE_GAP: 10, PIE_GAP_MIN: 0, PIE_GAP_MAX: 40, PIE_START_MIN: 0, PIE_START_MAX: 359, PIE_GROW_MAX: 30, PIE_PULL_MAX: 30, PIE_TAG_AT: 62, PIE_TAG_MIN_CHORD: 150, PIE_TAG_MIN_RADIAL: 150, PIE_TAG_PAD: 8, PIE_TAG_FONT_STEPS: Object.freeze([0.85, 0.7, 0.55, 0.4]), PIE_TAG_NAME_LINES: 2,
     SHAPE_SVG_MAX: 60000, SHAPE_FILL_MAX_DEFAULT: 100, SHAPE_TRACK_OPACITY: 0.25, SEG_GAP_DEFAULT: 2 });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_LIMITS;
   if (root) root.GRAPH_LIMITS = GRAPH_LIMITS;

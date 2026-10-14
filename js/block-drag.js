@@ -1892,12 +1892,17 @@ function bindBlock(block) {
         window.showFrameProperties?.(ss);
         return;
       }
+      /* 1013t1C4 — 원형 조각 고르기(그리드 T-058 피그마식): 첫 클릭 = 블럭 선택, «이미 이 블럭만 선택된» 채 조각을 누르면 그 조각.
+         조각 밖(범례·여백)을 누르면 조각 선택 해제. 두 판정 다 deselectAll «전»에 잡는다(뒤에서 재면 selected 가 방금 지워져 늘 false). */
+      const _pieWas = _isSoleSelectedBlock(block);
+      const _pieIdx = window.grbPieSliceIndexAt?.(e.target, block) ?? -1;
       window.deselectAll();
       _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
+      window.grbPieSelect?.(block, (_pieWas && _pieIdx >= 0) ? _pieIdx : null);   // 패널을 열기 «전» — 패널이 표식을 읽어 Slice 절을 그린다
       window.showGraphProperties(block);
     });
   }
@@ -1966,8 +1971,12 @@ function bindBlock(block) {
   }
 
   if (isLaurel) {
+    window.lnBindLineEdit?.(block);   // ★1013t1B2 — 칸 «줄»의 글자 편집(더블클릭, capture). 옛 자체 편집(_bindLaurelInlineEdit)은 걷었다
+    window.lrlBindPlus?.(block);      // ★1013t1B2 C5 — 캔버스 ＋(칸 열·행 · 그리드 ＋ 와 같은 층·꼴)
     block.addEventListener('click', e => {
       e.stopPropagation();
+      /* ★1013t1B2 — 그리드 2단 선택과 같은 규칙(챗·비교 꼴): 이미 «이것 하나»가 선택돼 있었으면 칸/줄을 고른다. deselectAll «전»에 잰다. */
+      const _lnAt = window.lnClickAddr?.(block, e.target, block.classList.contains('selected') && _isSoleSelectedBlock(block));
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
@@ -1989,6 +1998,7 @@ function bindBlock(block) {
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
+      if (_lnAt) window.grdSetActiveLine?.(block, _lnAt);   // ★1013t1B2 — 패널이 이 활성 줄/칸을 읽어 줄바(+ 줄 추가)를 띄운다
       window.showLaurelProperties?.(block);
     });
   }
