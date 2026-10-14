@@ -63,6 +63,23 @@ test('LPD1 ★진단 — ＋ 를 누른 «직후» 줄 추가 문이 window 에 
   /* ⛔★★261014 — ★여기 있던 ★«grdAddLine 직접 부름» 탐침을 ★★뺐다.
      ★까닭: ★그 탐침이 ★★시험을 ★오염시켰다 — ★누르기 ★전에 ★한 번 부르자 ★빨강이 ★1/3 → ★4/6 로 ★올랐다.
      ★★「조사가 ★증거를 ★지운다」. ★그리고 ★그 탐침의 ★`ok:false` 는 ★★내 인자가 틀린 값이었다(host=null). */
+  /* ★★261014 ★뿌리 후보 ② — ★`click` 은 ★mousedown·mouseup 이 ★★«같은 요소»에서 나야 ★생긴다.
+     ★`_lnStartPlusRaf` 가 ★매 프레임 ★`_lnPlacePlus` 로 ★버튼을 ★옮기므로, ★그 사이에 ★움직이면
+     ★★down 은 ★버튼에 ★닿고 ★up 은 ★딴 데 ★떨어져 ★★click 이 ★안 생길 수 있다.
+     ⇒ ★★세어 본다. ⛔읽기만 — ★상태를 바꾸지 않는다(앞서 탐침이 시험을 오염시켰다). */
+  await page.evaluate((id) => {
+    const btn = document.querySelector(`#grd-plus-layer > .ln-add-btn[data-ln-for="${id}"]`);
+    window.__ev = { down: 0, up: 0, click: 0, moved: 0, l0: btn.style.left, t0: btn.style.top };
+    btn.addEventListener('mousedown', () => { window.__ev.down++; }, true);
+    btn.addEventListener('mouseup', () => { window.__ev.up++; }, true);
+    btn.addEventListener('click', () => { window.__ev.click++; }, true);
+    document.addEventListener('mouseup', (e) => {
+      const b = document.querySelector(`#grd-plus-layer > .ln-add-btn[data-ln-for="${id}"]`);
+      if (b && (b.style.left !== window.__ev.l0 || b.style.top !== window.__ev.t0)) window.__ev.moved++;
+      window.__ev.upTop = e.target ? (e.target.className || e.target.tagName) : null;
+    }, true);
+  }, id);
+
   await page.mouse.click(cx, cy);
 
   /* ★★곧바로 찍는다 — ⛔기다리지 않는다. ★대기가 ★까닭을 ★덮는다 */
@@ -82,6 +99,7 @@ test('LPD1 ★진단 — ＋ 를 누른 «직후» 줄 추가 문이 window 에 
     lines: document.getElementById(id)?.dataset.lines ?? null,
   }), id);
   console.log('    LPD1 0.6s ★뒤: ' + JSON.stringify(later));
+  console.log('    LPD1 ★이벤트: ' + JSON.stringify(await page.evaluate(() => window.__ev ?? null)));
 
   /* ★★판정 — ★갈래를 ★단언으로 ★박는다 */
   expect(now.newLineSpec, '⒜ grdNewLineSpec 이 window 에 없다 — 모듈 부착 시점 경합').toBe('function');
