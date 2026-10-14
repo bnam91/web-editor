@@ -21,6 +21,11 @@
                                 그 밖은 표에 «제 열쇠로» 있는 재질만, 나머지(모르는 값 · constructor 같은 객체 내장 이름)는 gold.
    CoinFx.angleFromSeed(seed) → [tilt(0~80), dir(-180~180)] — 무늬번호 → 보는 각도. 같은 번호 = 같은 각도.
    CoinFx.svg(o)              → '<svg …>' 한 장(스티커 상자에 100% 로 깔린다).
+   CoinFx.draw({ idPrefix, x, y, d, tilt, dir, extRot, metal, face, side, glyph, k, gloss })
+                              → <g> 글자 — 중심 (x,y) · 지름 d 인 코인 한 닢(<svg> 껍데기 없음). 남의 SVG 안에 여러 닢을 그릴 때 쓴다
+                                (섹션 파티클의 모양 'coin' — js/fx/particles-render.js · 1012t1 I1-B). 그림은 svg() 와 같은 coin() 하나다.
+   CoinFx.lookFromColor(c)    → { metal } | { metal:'custom', face, side } — 색 한 칸에서 코인 생김새를 고른다(파티클 색 칩 → 코인).
+                                금/은 대표 앞면 색 그대로면 그 금속 표, 다른 색이면 그 색에서 만든 커스텀(옆면 = 한 단 어둡게), 못 읽는 색이면 금.
        o = { idPrefix(★필수 · 문서 안에서 고유),
              tilt(0~88 · 0 = 정면), dir(평면 안 회전 · 반시계가 +),
              k(두께 «비율» · 기본 0.22 · LIMITS.k ÷ 100 으로 가둔다), gloss(0~100 · 기본 22),
@@ -97,6 +102,13 @@
       return customPalette(toHex6(o.face) || base.face, toHex6(o.side) || base.side);
     }
     return paletteOf(metal);
+  }
+  /** 색 한 칸 → 코인 생김새(위 계약). */
+  function lookFromColor(c) {
+    const hex = toHex6(c);
+    if (!hex) return { metal: DEFAULTS.metal };
+    for (const m of Object.keys(PALETTES)) if (baseColors(m).face === hex) return { metal: m };
+    return { metal: 'custom', face: hex, side: mix(hex, BLACK, .3) };
   }
 
   /* 각인은 SVG <text> 의 글자로 들어간다 — 사용자가 친 글자를 그대로 마크업에 꽂지 않는다.
@@ -209,5 +221,13 @@
       + '</svg>';
   }
 
-  w.CoinFx = Object.freeze({ PALETTES, DEFAULTS, GLYPH_MAX, LIMITS, cutGlyph, toHex6, baseColors, paletteFor, angleFromSeed, svg });
+  /** 코인 한 닢을 <g> 로 — 중심 (x,y) · 지름 d. 두께는 svg() 와 같은 표(LIMITS.k)로 가둔다. */
+  function draw(o) {
+    const q = o || {};
+    const k = clamp(num(q.k, COIN_K), LIMITS.k[0] / 100, LIMITS.k[1] / 100);
+    const d = Math.max(1, num(q.d, SVG_D));
+    return `<g transform="translate(${f(num(q.x, 0))} ${f(num(q.y, 0))})">` + coin({ ...q, k }, d) + '</g>';
+  }
+
+  w.CoinFx = Object.freeze({ PALETTES, DEFAULTS, GLYPH_MAX, LIMITS, cutGlyph, toHex6, baseColors, paletteFor, lookFromColor, angleFromSeed, svg, draw });
 })(window);
