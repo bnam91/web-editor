@@ -65,17 +65,19 @@ console.log(`[C1] 명부 N=${K} · 메뉴 ${R.items.length} · 비스티커 ${R.
   + ` · ${ROSTER.map(r => `${r.label}=${r.kind === 'count' ? 'count' : r.shape}`).join(' | ')}`);
 
 /* ── 무대 ─────────────────────────────────────────────────────── */
+/* ⚠️section-inner 의 좌우 패딩(32px 기본)을 무대에 «미리» 적는다 — 안 적으면 ⌘Z 복원이 그 기본값을 써 넣어
+   expectOneUndoStep 의 «조작 전 = ⌘Z 뒤» 비교(S5·S7)가 정렬·삭제와 무관한 차이로 빨개진다(이벨류에이터 실측). */
 const SEC = `
 <div class="section-block" id="secA" data-section="1" style="height:1000px;background:#eee;">
   <div class="section-hitzone"><span class="section-label">A</span></div>
-  <div class="section-inner" id="innerA">
+  <div class="section-inner" id="innerA" style="padding-left:32px;padding-right:32px;">
     <div class="frame-block" id="tfA" data-text-frame="true"><div class="text-block" id="tbA" data-type="body"><div class="tb-body" contenteditable="false">글자 블럭</div></div></div>
     <div class="gap-block" id="gapA" data-type="gap" style="height:900px;"></div>
   </div>
 </div>
 <div class="section-block" id="secB" data-section="2" style="height:700px;background:#ddd;">
   <div class="section-hitzone"><span class="section-label">B</span></div>
-  <div class="section-inner" id="innerB"><div class="gap-block" id="gapB" data-type="gap" style="height:680px;"></div></div>
+  <div class="section-inner" id="innerB" style="padding-left:32px;padding-right:32px;"><div class="gap-block" id="gapB" data-type="gap" style="height:680px;"></div></div>
   <div class="zoom-block" id="zmA" data-type="zoom" data-x="60" data-y="380" data-w="200" data-h="100"
        style="position:absolute;left:60px;top:380px;width:200px;height:100px;"></div>
   <div class="zoom-block" id="zmB" data-type="zoom" data-x="420" data-y="380" data-w="200" data-h="100"
@@ -90,6 +92,13 @@ const panelName = (page) => page.evaluate(() => document.querySelector('#panel-r
 const panelCrumb = (page) => page.evaluate(() => document.querySelector('#panel-right .prop-breadcrumb')?.textContent?.trim() || '');
 const handleN = (page, id) => page.evaluate((id) => document.getElementById(id)
   .querySelectorAll(':scope > .sticker-corner-handle, :scope > .sticker-rotate-zone, :scope > .hlb-handle').length, id);
+/* 그라데이션 손잡이는 선택되면 #ss-handles-overlay 로 «탈출»한다(js/overlay-handles.js HANDLE_ESCAPE_SPECS) —
+   블럭 자식만 세면 늘 0 이다. 자식 + 탈출한 것 중 주인이 그 블럭인 것(window.__handleEscape.owners — 계측 진입점)을 센다. */
+const gradHandleN = (page, id) => page.evaluate((id) => {
+  const own = document.getElementById(id).querySelectorAll(':scope > .gradient-corner-handle').length;
+  const esc = (window.__handleEscape?.owners?.() || []).filter(o => o === id).length;
+  return own + esc;
+}, id);
 const stickerN = (page, sec = 'secA') => page.evaluate((s) => document.querySelectorAll(`#${s} > .sticker-block`).length, sec);
 
 async function center(page, id, inner) {
@@ -409,10 +418,10 @@ test('S13 ★그라데이션 — ⌘넣기 · ⌘빼기(손잡이 0) · ⇧범�
     await pollSel(page, [g1, g2], '⌘ 로 둘');
   });
   await test.step('S13 ⌘빼기', async () => {
-    expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll(':scope > .gradient-corner-handle').length, g1), '전제: 보통 클릭한 g1 에 손잡이').toBeGreaterThan(0);
+    await expect.poll(() => gradHandleN(page, g1), { message: '전제: 보통 클릭한 g1 에 손잡이' }).toBeGreaterThan(0);
     await clickBlock(page, g1, 'Meta');
     await pollSel(page, [g2], 'g1 만 빠진다');
-    expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll(':scope > .gradient-corner-handle').length, g1)).toBe(0);
+    await expect.poll(() => gradHandleN(page, g1), { message: '빠진 그라데이션에 손잡이가 남았다' }).toBe(0);
   });
   await test.step('S13 ⇧범위', async () => {
     await clickBlock(page, g1, null);

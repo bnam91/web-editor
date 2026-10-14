@@ -364,6 +364,21 @@ function _stkMoved(block, e) {
   const d = block._stkDown;
   return !!d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > _STK_CLICK_SLOP;
 }
+/* ★1013t2C1 고침(이벨류에이터 S9) — 안 골라진 스티커를 ⌘드래그해 섹션 밖에서 놓으면, 놓는 순간엔 아직 안 골라져
+   --sec-clip 이 걸려 있어 뗀 점이 canvas-wrap 을 맞힌다 → 뒤따르는 click 이 canvas-wrap 에 떨어져
+   editor.js 의 「빈 캔버스 클릭 = deselectAll」이 방금 고른 것을 지웠다(선택 0). C1 전엔 mousedown 에서 이미 골라
+   clip 이 풀려 있었다. ⇒ 드래그 끝 mouseup 에서 고른 뒤 «바로 다음 click 한 번»을 삼킨다.
+   (click 이 안 오면 다음 mousedown 이나 다음 틱에 걷는다 — 남은 삼킴이 엉뚱한 클릭을 먹지 않게) */
+function _stkSwallowNextClick() {
+  const done = () => {
+    window.removeEventListener('click', swallow, true);
+    window.removeEventListener('mousedown', done, true);
+  };
+  const swallow = (ce) => { ce.stopPropagation(); ce.stopImmediatePropagation(); ce.preventDefault(); done(); };
+  window.addEventListener('click', swallow, true);
+  window.addEventListener('mousedown', done, true);
+  setTimeout(done, 0);
+}
 function _stickerModifierClick(block, e) {
   const moved = _stkMoved(block, e);
   block._stkDown = null;
@@ -427,7 +442,7 @@ function bindStickerSelect(block) {
     if (_stkMod && !block.classList.contains('selected')) {
       // 끈 뒤 뗀 자리가 블럭 밖이면 click 이 안 온다 — 옛 동작(끈 스티커는 골라진다)을 mouseup 에서 지킨다
       document.addEventListener('mouseup', (ev) => {
-        if (_stkMoved(block, ev) && !block.classList.contains('selected')) _selectSticker(block);
+        if (_stkMoved(block, ev) && !block.classList.contains('selected')) { _selectSticker(block); _stkSwallowNextClick(); }
       }, { capture: true, once: true });
     }
 
