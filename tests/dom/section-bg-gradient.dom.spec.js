@@ -5,6 +5,7 @@
  *   같은 길의 프레임은 됐다. 원인·고침은 js/props/prop-section.js 「배경색 이벤트」 주석.
  * G1  탭이 켜져 있고 누르면 섹션에 그라데이션이 «그려진다»(computed) · 정본 dataset.bg · 패널 스와치
  * G1b 그 적용을 ⌘Z 한 번이 걷는다
+ * G1c 그라데이션 확정이 기록의 «한 칸»이다 — 이어서 Solid 로 바꾼 뒤 ⌘Z 한 번 = 그라데이션(그 전 단색이 아니라)
  * G2  이미 그라데이션이 든 섹션을 고르면 피커가 그라데이션 탭으로 열리고(열기만 해선 값 불변) hex = 첫 정지점 · 투명도를 치면 «첫 정지점 색»의 단색
  * G3  Solid 탭 = 단색 복귀(그라데이션 잔존 0) · ⌘Z 로 그라데이션이 돌아온다
  * G4  직렬화 왕복(저장→다시 열기 흉내: getSerializedCanvas → 캔버스 교체 → rebindAll)
@@ -111,6 +112,21 @@ test('G1b 그라데이션 적용을 ⌘Z 한 번이 걷는다', async ({ page })
   await undo(page);
   await expect.poll(() => bgImg(page, 'gA'), { message: '⌘Z 뒤에도 그라데이션이 남았다 = 확정이 기록에 안 쌓였다' }).toBe('none');
   expect(await page.evaluate(() => document.getElementById('gA').dataset.bg ?? null)).toBe(null);
+  expect(errs).toEqual([]);
+});
+
+test('G1c 그라데이션 확정이 기록의 한 칸이다 — 이어 Solid 로 바꾸고 ⌘Z 한 번 = 그라데이션으로 돌아온다', async ({ page }) => {
+  /* G1b 만으로는 onGradient 의 pushHistory 를 못 지킨다(음성대조 실측: 그 줄을 빼도 G1b 초록 — ⌘Z 가 «안 쌓인 지금 상태»도 한 번은 걷는다).
+     쌓였는지는 «그 다음 변경»을 되돌렸을 때 어디로 가는가로 잰다. */
+  const errs = await setup(page);
+  await page.evaluate(() => window.pushHistory?.());
+  await applyGradient(page, 'gA');
+  const grad = await bgImg(page, 'gA');
+  await clickTab(page, 'solid');
+  await expect.poll(() => bgImg(page, 'gA'), { message: '전제: Solid 탭으로 단색이 됐다' }).toBe('none');
+  await page.keyboard.press('Escape');
+  await undo(page);
+  await expect.poll(() => bgImg(page, 'gA'), { message: '⌘Z 한 번에 그라데이션을 건너뛰고 처음으로 갔다 = 그라데이션 확정이 기록에 없다' }).toBe(grad);
   expect(errs).toEqual([]);
 });
 
