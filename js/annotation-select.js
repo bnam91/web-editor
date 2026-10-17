@@ -228,6 +228,39 @@
   }
   window._updateAnnotBlockGeometry = _updateBlockGeometry;
 
+  // ★1017t1h1 — 점 손잡이 끌기 중 각도 라벨(.annot-svg 안 — 확정 블럭 생면, 선례 annotation-block.js:340).
+  //   선례 js/gradient-line-overlay.js:44-53 꼴로 --inv-zoom 배율 무관 크기.
+  function _pointAngleLabel(block) {
+    const svg = block.querySelector('.annot-svg');
+    if (!svg) return null;
+    let label = svg.querySelector('.annot-point-angle');
+    if (!label) {
+      label = document.createElementNS(SVG_NS, 'text');
+      label.setAttribute('class', 'annot-point-angle');
+      label.setAttribute('fill', '#1592fe');
+      label.setAttribute('text-anchor', 'middle');
+      label.style.fontSize = 'calc(11px * var(--inv-zoom,1))';
+      label.style.fontFamily = 'system-ui, sans-serif';
+      label.style.display = 'none';
+      svg.appendChild(label);
+    }
+    return label;
+  }
+  function _showPointAngleLabel(block, refArr, ptArr) {
+    const label = _pointAngleLabel(block);
+    if (!label || !refArr) return;
+    const dx = ptArr[0] - refArr[0], dy = ptArr[1] - refArr[1];
+    const degRaw = Math.atan2(dy, dx) * 180 / Math.PI;
+    const deg = Math.round((((degRaw % 360) + 360) % 360) * 10) / 10;
+    label.textContent = `${deg}°`;
+    label.setAttribute('x', (refArr[0] + ptArr[0]) / 2);
+    label.setAttribute('y', (refArr[1] + ptArr[1]) / 2 - 10);
+    label.style.display = '';
+  }
+  function _hidePointAngleLabel(block) {
+    block.querySelector('.annot-svg .annot-point-angle')?.remove();
+  }
+
   // ── 드래그 헬퍼 ─────────────────────────────────────────────────────
   function _zoom() {
     return (window.currentZoom || 40) / 100;
@@ -526,6 +559,10 @@
         const startPoint = [points[idx][0], points[idx][1]];
         let dragging = false;
 
+        // ★1017t1h1 — 이웃 점(drag 중 안 변하는 쪽)을 기준(ref)으로 8방향 자석.
+        const neighborIdx = idx > 0 ? idx - 1 : (points[idx + 1] ? idx + 1 : null);
+        const refArr = neighborIdx != null ? [points[neighborIdx][0], points[neighborIdx][1]] : null;
+
         const _hist = window.beginDragHistory?.('어노테이션 핸들 이동');
         const onMove = (ev) => {
           const dx = (ev.clientX - startX) / _zoom();
@@ -537,12 +574,16 @@
                다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
             _hist?.arm(dx, dy);
           }
-          points[idx] = [startPoint[0] + dx, startPoint[1] + dy];
+          const raw = { x: startPoint[0] + dx, y: startPoint[1] + dy };
+          const snapped = refArr ? window._snapVecToStep(raw, { x: refArr[0], y: refArr[1] }, { tolDeg: ev.shiftKey ? null : window.ANNOT_SNAP_TOL_DEG }) : raw;
+          points[idx] = [snapped.x, snapped.y];
           _updateBlockGeometry(block, points);
+          if (refArr) _showPointAngleLabel(block, refArr, points[idx]);
         };
         const onUp = () => {
           document.removeEventListener('mousemove', onMove, true);
           document.removeEventListener('mouseup',   onUp,   true);
+          _hidePointAngleLabel(block);
           if (dragging) {
             _writePoints(block, points);
             if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 핸들 이동');

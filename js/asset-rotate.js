@@ -17,6 +17,33 @@ window._snapRotate = function (deg, shift) {
   return shift ? Math.round(deg / step) * step : Math.round(deg);
 };
 
+/* ★1017t1h1 — 현빈 확정: 8방향(0/45/90/135/180/225/270/315) 자석, 자석 범위 = ±6°.
+   ★정의 자리 «한 곳»(명부가 둘이 되면 드리프트가 난다) — 소비자(annotation-tool.js ×2 ·
+   annotation-select.js ×1)는 전부 이 상수를 읽는다. ⛔각 자리에 6 을 또 적지 마라. */
+window.ANNOT_SNAP_TOL_DEG = 6;
+
+/* ★1017t1h1 — 벡터(두 점 사이 각) 스냅 공용화. 산식은 js/pen-tool.js:256-267 _applyShift 를
+   그대로 옮긴 것(새로 안 만든다) — 「Shift 때만」 조건을 떼어 tolDeg 인자로 갈랐다.
+   p, ref = {x, y}. tolDeg == null ⇒ 무조건 스냅(= 강제, Shift 꼴 그대로).
+   tolDeg 가 수면 ⇒ 가장 가까운 window._ROTATE_SNAP_STEP(기본 45°) 배수와의 오차가
+   그 안일 때만 스냅하고, 밖이면 p 를 «그대로» 돌려준다(★음성대조가 이 줄을 잠근다 — 자석의 «선»).
+   ⛔π/4 리터럴을 또 적지 않는다 — step 은 _ROTATE_SNAP_STEP 에서 뺀다. */
+window._snapVecToStep = function (p, ref, { tolDeg = null } = {}) {
+  if (!ref) return p;
+  const dx = p.x - ref.x;
+  const dy = p.y - ref.y;
+  if (dx === 0 && dy === 0) return p;
+  const step = (window._ROTATE_SNAP_STEP || 45) * Math.PI / 180;
+  const ang = Math.atan2(dy, dx);
+  const snap = Math.round(ang / step) * step;
+  if (tolDeg != null) {
+    const diffDeg = Math.abs((ang - snap) * 180 / Math.PI);
+    if (diffDeg > tolDeg) return p;
+  }
+  const len = Math.hypot(dx, dy);
+  return { x: ref.x + Math.cos(snap) * len, y: ref.y + Math.sin(snap) * len };
+};
+
 // shape-rotate-zone은 «선택 중»에만 히트영역을 갖는다 — 저장 HTML에 잔존하더라도
 // 선택 전에는 display:none 이라 미선택 shape의 코너 클릭을 가로채지 않는다.
 (function _injectRotateZoneCSS() {

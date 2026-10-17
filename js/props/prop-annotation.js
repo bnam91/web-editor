@@ -76,6 +76,10 @@ function _writeProps(block, partial) {
   if ('labelImageRadius' in partial) block.dataset.labelImageRadius = String(partial.labelImageRadius);
   if ('labelBorderStyle' in partial) block.dataset.labelBorderStyle = String(partial.labelBorderStyle);
   if ('labelBorderWidth' in partial) block.dataset.labelBorderWidth = String(partial.labelBorderWidth);
+  if ('labelPad' in partial) {   // ★1017t1h5 — null = CSS 기본으로 되돌림(키 삭제)
+    if (partial.labelPad == null) delete block.dataset.labelPad;
+    else block.dataset.labelPad = String(partial.labelPad);
+  }
   _rerenderAnnotation(block);
   window.scheduleAutoSave?.();
 }
@@ -114,7 +118,8 @@ function _rerenderAnnotation(block) {
       label.style.borderRadius = r + '%';
       label.style.overflow = 'hidden';
     } else {
-      label.style.padding = '';
+      // ★1017t1h5 — labelPad 가 null 이면 CSS 기본(4px 8px) 유지, 그 외엔 사방 동일로 이긴다.
+      label.style.padding = st.labelPad != null ? st.labelPad + 'px' : '';
       label.style.borderRadius = '';
       label.style.overflow = '';
     }
@@ -158,17 +163,9 @@ export function showAnnotationProperties(block) {
   const st = _readState(block);
   const id = block.id || '';
 
-  // 프리셋: 공용 .prop-preset-grid + .prop-preset-btn + .prop-preset-swatches(3 dots)
-  const presetBtns = ANNOTATION_PRESETS.map((p, i) => `
-    <button class="prop-preset-btn" data-preset-idx="${i}" title="${escHtml(p.name)}">
-      <div class="prop-preset-swatches">
-        <span class="prop-preset-dot" style="background:${p.strokeColor};"></span>
-        <span class="prop-preset-dot" style="background:${p.labelBg};"></span>
-        <span class="prop-preset-dot" style="background:${p.labelBorderColor};"></span>
-      </div>
-      <span class="prop-preset-name">${escHtml(p.name)}</span>
-    </button>
-  `).join('');
+  // ★1017t1h7 — 프리셋 드롭다운(정본 꼴 = js/props/prop-sticker.js #stk-preset-select).
+  // 현빈 확정: 「가려져도 OK」 — 색 점 미리보기는 버린다.
+  const presetOptions = ANNOTATION_PRESETS.map((p, i) => `<option value="${i}">${escHtml(p.name)}</option>`).join('');
 
   // 시작점 모양: 공용 .prop-align-group + .prop-align-btn (active 풀배경)
   const SHAPES = ['circle', 'glow', 'square', 'triangle', 'arrowhead', 'none'];
@@ -206,7 +203,12 @@ ${blockHeaderHTML({
 
     <div class="prop-section">
       <div class="prop-section-title">프리셋</div>
-      <div class="prop-preset-grid">${presetBtns}</div>
+      <div class="prop-row">
+        <select class="prop-select" id="annot-preset-select" style="flex:1;min-width:0;">
+          <option value="">프리셋 선택...</option>
+          ${presetOptions}
+        </select>
+      </div>
     </div>
 
     <div class="prop-section">
@@ -293,11 +295,11 @@ ${blockHeaderHTML({
       `}
       <div class="prop-color-row">
         <span class="prop-label">배경</span>
-        ${colorFieldHTML({ idPrefix: 'annot-label-bg', hex: _hex(st.labelBg), alpha: labelBgAlpha })}
+        ${colorFieldHTML({ idPrefix: 'annot-label-bg', hex: _hex(st.labelBg), alpha: labelBgAlpha, placeholder: '없음' })}
       </div>
       <div class="prop-color-row">
         <span class="prop-label">테두리</span>
-        ${colorFieldHTML({ idPrefix: 'annot-label-border', hex: _hex(st.labelBorderColor), alpha: labelBorderAlpha })}
+        ${colorFieldHTML({ idPrefix: 'annot-label-border', hex: _hex(st.labelBorderColor), alpha: labelBorderAlpha, placeholder: '없음' })}
       </div>
       <div class="prop-row">
         <span class="prop-label">선 스타일</span>
@@ -318,13 +320,16 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="annot-border-w" min="0" max="8" step="0.5" value="${st.labelBorderWidth}">
         <input type="number" class="prop-number" id="annot-border-w-num" min="0" max="8" step="0.5" value="${st.labelBorderWidth}">
       </div>
+      <div class="prop-row">
+        <span class="prop-label">여백</span>
+        <input type="range" class="prop-slider" id="annot-label-pad" min="0" max="24" step="1" value="${st.labelPad ?? 8}">
+        <input type="number" class="prop-number" id="annot-label-pad-num" min="0" max="24" step="1" value="${st.labelPad ?? 8}">
+      </div>
     </div>
 
     <div class="prop-section" id="annot-label-pos-section">
       <div class="prop-section-title">라벨 위치</div>
-      <div class="prop-hint">캔버스에서 라벨을 한 번 더 누르면 골라지고, 끌면 라벨만 옮겨집니다</div>
       <div class="prop-row">
-        <span class="prop-label">위치</span>
         <input type="number" class="prop-number" id="annot-label-dx" min="${LIM.labelDx.min}" max="${LIM.labelDx.max}" step="1" value="${st.labelDx}" title="가로(dx)">
         <input type="number" class="prop-number" id="annot-label-dy" min="${LIM.labelDy.min}" max="${LIM.labelDy.max}" step="1" value="${st.labelDy}" title="세로(dy)">
       </div>
@@ -335,16 +340,15 @@ ${blockHeaderHTML({
   if (window.setRpIdBadge) window.setRpIdBadge(id || null);
 
   // ── 이벤트 와이어링 ────────────────────────────────────────────────
-  // 프리셋
-  propPanel.querySelectorAll('.prop-preset-btn[data-preset-idx]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const idx = parseInt(btn.dataset.presetIdx, 10);
-      const p = ANNOTATION_PRESETS[idx];
-      if (!p) return;
-      if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 프리셋');
-      _writeProps(block, { ...p });
-      showAnnotationProperties(block);
-    });
+  // ★1017t1h7 — 프리셋(드롭다운) · push-after(쓰고 → 다시 그리고 → 찍는다 · :542-546 onOffset 과 같은 규약)
+  propPanel.querySelector('#annot-preset-select')?.addEventListener('change', (e) => {
+    const idx = parseInt(e.target.value, 10);
+    const p = ANNOTATION_PRESETS[idx];
+    if (!p) return;
+    _writeProps(block, { ...p });
+    showAnnotationProperties(block);
+    window.pushHistory?.('어노테이션 프리셋');
+    window.scheduleAutoSave?.();
   });
 
   // 선 색 — 공용 colorField
@@ -503,14 +507,20 @@ ${blockHeaderHTML({
     imgRN.addEventListener('change', () => window.pushHistory?.('라벨 이미지 라운드'));
   }
 
+  // ★1017t1h5 — 「없음」 발견 가능성: 알파 0 이면 스와치에 swatch-none(체커)을 켠다(prop-grid.js 꼴).
+  const bgSwatch = propPanel.querySelector('#annot-label-bg-color')?.closest('.prop-color-swatch');
+  bgSwatch?.classList.toggle('swatch-none', labelBgAlpha === 0);
+  const borderSwatch = propPanel.querySelector('#annot-label-border-color')?.closest('.prop-color-swatch');
+  borderSwatch?.classList.toggle('swatch-none', labelBorderAlpha === 0);
+
   wireColorField('annot-label-bg', {
     initialAlpha: labelBgAlpha,
-    onApply: (c) => _writeProps(block, { labelBg: c }),
+    onApply: (c) => { _writeProps(block, { labelBg: c }); bgSwatch?.classList.toggle('swatch-none', parseAlphaFromColor(c) === 0); },
     onCommit: () => window.pushHistory?.('라벨 배경'),
   });
   wireColorField('annot-label-border', {
     initialAlpha: labelBorderAlpha,
-    onApply: (c) => _writeProps(block, { labelBorderColor: c }),
+    onApply: (c) => { _writeProps(block, { labelBorderColor: c }); borderSwatch?.classList.toggle('swatch-none', parseAlphaFromColor(c) === 0); },
     onCommit: () => window.pushHistory?.('라벨 테두리'),
   });
 
@@ -533,6 +543,19 @@ ${blockHeaderHTML({
       const v = Math.min(8, Math.max(0, parseFloat(bwN.value) || 0));
       bw.value = v; _writeProps(block, { labelBorderWidth: v });
       window.pushHistory?.('선 두께');
+    });
+  }
+
+  // ★1017t1h5 — 여백(패딩). 건드려야만 CSS 기본(4px 8px)을 사방 동일 값으로 이긴다.
+  const pad = propPanel.querySelector('#annot-label-pad');
+  const padN = propPanel.querySelector('#annot-label-pad-num');
+  if (pad && padN) {
+    pad.addEventListener('input',  () => { padN.value = pad.value; _writeProps(block, { labelPad: parseFloat(pad.value) }); });
+    pad.addEventListener('change', () => window.pushHistory?.('라벨 여백'));
+    padN.addEventListener('change', () => {
+      const v = Math.min(24, Math.max(0, parseFloat(padN.value) || 0));
+      pad.value = v; _writeProps(block, { labelPad: v });
+      window.pushHistory?.('라벨 여백');
     });
   }
 
