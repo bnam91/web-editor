@@ -76,6 +76,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
   </div>
 </div>
 <span id="accent-probe" style="background: var(--ui-accent-primary)"></span>
+<span id="dim-probe" style="color: var(--ui-text-dim)"></span>
 <script src="/js/section-memo-format.js"></script>
 <script src="/js/section-memo.js"></script>
 <script>
@@ -575,9 +576,10 @@ const clipEvent = (page, type) => page.evaluate((type) => {
   document.querySelector('.smp-editor').dispatchEvent(ev);
   return { text: dt.getData('text/plain'), html: dt.getData('text/html'), prevented: ev.defaultPrevented };
 }, type);
-/* 편집 칸에 «글자·줄바꿈·원자 노드» 말고 남은 요소 수 */
+/* 편집 칸에 «글자·줄바꿈·원자 노드·체크완료 줄 래퍼» 말고 남은 요소 수.
+   ★smp-done(1017t1b1 _wrapDoneRuns)은 이름 붙인 확대다 — C12(음성대조)가 그 대가를 잰다. */
 const foreignCount = (page) => page.evaluate(() => [...document.querySelectorAll('.smp-editor *')]
-  .filter((el) => !el.matches('.smp-check, .smp-img, br')).length);
+  .filter((el) => !el.matches('.smp-check, .smp-img, br, span.smp-done')).length);
 
 test('D1a 글 가운데(캐럿 뒤에 글자)에서 `[]` 를 치면 체크박스는 정확히 하나, 뒤 글자는 그대로 뒤에', async ({ page }) => {
   await openMemo(page, 'abcdef');
@@ -886,6 +888,8 @@ const liveState = (page) => page.evaluate(() => {
       else if (n.matches('.smp-check')) s += n.getAttribute('aria-checked') === 'true' ? '[x]' : '[ ]';
       else if (n.matches('img.smp-img')) s += `![](${n.getAttribute('src')})`;
       else if (n.tagName === 'BR') s += '\n';
+      /* smp-done(1017t1b1)은 저장 글자에 투명해야 한다(js/section-memo.js _domToTokens 와 같은 성질 — C13) */
+      else if (n.matches('span.smp-done')) s += ser(n);
       else s += `<${n.tagName}>` + ser(n);
     }
     return s;
@@ -915,7 +919,7 @@ const liveState = (page) => page.evaluate(() => {
     checks: ed.querySelectorAll('.smp-check').length,
     imgs: ed.querySelectorAll('img.smp-img').length,
     atoms: ed.querySelectorAll('.smp-check, .smp-img').length,
-    foreign: [...ed.querySelectorAll('*')].filter((el) => !el.matches('.smp-check, .smp-img, br')).length,
+    foreign: [...ed.querySelectorAll('*')].filter((el) => !el.matches('.smp-check, .smp-img, br, span.smp-done')).length,
   };
 });
 /* 캐럿을 편집 칸의 i번째 자식 노드에 놓는다 — off 가 수면 그 글자 노드 안, 없으면 요소 경계(편집 칸, i).
@@ -942,7 +946,9 @@ const N_IMG = `![](${A2_URLS[0]})`;
 const N3_SAMPLES = {
   a: ['ab[ ]cd[x]', [2, 0], 'text:ab[ ]|cd[x]', 'abcd[x]', 'cd[x]'],
   b: ['[ ] 할일 [x]', [1, 0], 'text:[ ]| 할일 [x]', ' 할일 [x]', ' 할일 [x]'],
-  c: ['제목\n[x] 하나\n[ ]', [3, 0], 'text:제목\n[x]| 하나\n[ ]', '제목\n 하나\n[ ]', '제 하나\n[ ]'],
+  /* ★1017t1b1: [x] 뒤의 " 하나" 는 체크완료 줄이라 span.smp-done 으로 싸인다(_wrapDoneRuns) ⇒
+     ci=3 은 이제 그 래퍼 자신이고, 캐럿은 「요소 경계」로 보인다(edge:) — 글자 내용은 그대로다. */
+  c: ['제목\n[x] 하나\n[ ]', [3, 0], 'edge:제목\n[x]| 하나\n[ ]', '제목\n 하나\n[ ]', '제 하나\n[ ]'],
 };
 const N3_NAMES = {
   a: 'N3a `ab[ ]cd[x]` 의 c 앞에서 Backspace — 끝 체크박스가 복제되지 않는다(1회 · 3회)',
@@ -1208,4 +1214,194 @@ test('NR 고정 시드 무작위 — 캐럿 이동·타이핑·Backspace·Delete
   expect(ops, '전제: 조작 200회를 다 돌았다').toBe(ROUNDS * PER_ROUND);
   expect(atomDeletes, '전제: 원자 노드를 지우는 갈래를 실제로 지났다').toBeGreaterThan(0);
   expect(enters, '전제: Enter 갈래를 실제로 지났다').toBeGreaterThan(0);
+});
+
+/* ══ 1017t1b1 — 체크 완료 줄 글자 구분(취소선·딤) ══════════════════════════ */
+
+test('C10 체크된 줄의 글자는 취소선·딤색이 들고, 미체크 줄은 그대로다', async ({ page }) => {
+  await openMemo(page, '[x] 하나\n[ ] 둘');
+  await expect(page.locator('.smp-editor .smp-check')).toHaveCount(2);
+  const checked = await page.evaluate(() => [...document.querySelectorAll('.smp-editor .smp-check')].map((c) => c.getAttribute('aria-checked')));
+  expect(checked, '전제: 첫 줄 체크·둘째 줄 미체크').toEqual(['true', 'false']);
+  const dim = await page.evaluate(() => getComputedStyle(document.getElementById('dim-probe')).color);
+  expect(dim, '전제: 딤 토큰이 색으로 풀린다').toMatch(/^rgb\(/);
+  expect(dim, '전제: 투명이 아니다').not.toBe('rgba(0, 0, 0, 0)');
+  const done = await page.evaluate(() => {
+    const sp = document.querySelector('.smp-editor span.smp-done');
+    if (!sp) return null;
+    const cs = getComputedStyle(sp);
+    return { line: cs.textDecorationLine, color: cs.color, text: sp.textContent };
+  });
+  expect(done, '체크된 줄 나머지가 span.smp-done 하나로 싸인다').toEqual({ line: 'line-through', color: dim, text: ' 하나' });
+  /* 음성대조(같은 시험 안) — 미체크 줄은 래퍼가 없고 편집 칸 기본 스타일 그대로다 */
+  const plain = await page.evaluate(() => {
+    const cs = getComputedStyle(document.querySelector('.smp-editor'));
+    return { line: cs.textDecorationLine, color: cs.color };
+  });
+  expect(plain.line, '미체크 줄은 취소선이 없다').toBe('none');
+  expect(plain.color, '미체크 줄은 딤색이 아니다').not.toBe(dim);
+});
+
+test('C11 체크하면 그 자리에서 취소선이 들고, 닫고 다시 열어도 그대로다', async ({ page }) => {
+  await openMemo(page, '[ ] 하나');
+  const before = await page.evaluate(() => getComputedStyle(document.querySelector('.smp-editor')).textDecorationLine);
+  expect(before, '전제: 고치기 전 — 미체크라 취소선이 없다').toBe('none');
+  await page.locator('.smp-editor .smp-check').click();
+  await expect.poll(() => page.evaluate(() => {
+    const sp = document.querySelector('.smp-editor span.smp-done');
+    return sp ? getComputedStyle(sp).textDecorationLine : 'none';
+  }), '막 체크한 줄에도 래퍼가 없던 자리에서 취소선이 든다(_wrapDoneRuns)').toBe('line-through');
+  await expect.poll(() => memoOf(page), '왕복이 안 깨졌다(기존 C2 와 같은 자리)').toBe('[x] 하나');
+  await closeMemo(page);
+  await openMemo(page, '[x] 하나');
+  const after = await page.evaluate(() => {
+    const sp = document.querySelector('.smp-editor span.smp-done');
+    return sp ? getComputedStyle(sp).textDecorationLine : 'none';
+  });
+  expect(after, '닫고 다시 열어도 취소선이 그대로다(렌더 왕복)').toBe('line-through');
+});
+
+test('C12 class 없는 남의 span 은 그대로 걷히고, smp-done 래퍼는 안 걷힌다', async ({ page }) => {
+  await openMemo(page, '[x] 완료\nabc');
+  await expect(page.locator('.smp-editor span.smp-done'), '전제: 체크완료 래퍼가 하나 있다').toHaveCount(1);
+  const injected = await page.evaluate(() => {
+    const ed = document.querySelector('.smp-editor');
+    const sp = document.createElement('span');
+    sp.style.color = 'red';
+    sp.textContent = 'x';
+    ed.appendChild(sp);
+    /* .smp-check 도 <span> 이다 — 체크박스까지 세면 전제가 거짓 양성이 된다 */
+    return document.querySelectorAll('.smp-editor span:not(.smp-done):not(.smp-check)').length;
+  });
+  expect(injected, '전제: 심은 직후 그 span 이 하나다(원래 0 이었다와 구분)').toBe(1);
+  /* 아무 글자 입력이든 input 이벤트를 흘려 scrubForeign 을 돈다 */
+  await page.keyboard.type('!');
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('.smp-editor span:not(.smp-done):not(.smp-check)').length),
+    '꾸밈 없는 남의 span 은 걷힌다(글자는 남는다)').toBe(0);
+  expect(await page.evaluate(() => document.querySelectorAll('.smp-editor span.smp-done').length),
+    'smp-done 래퍼는 같이 안 걷힌다 — 1017t1b1 의 대가를 메우는 자리').toBe(1);
+});
+
+test('C13 체크완료 래퍼(span.smp-done)는 저장 글자에 흔적을 안 남긴다', async ({ page }) => {
+  const MEMO = '[x] 하나\n[ ] 둘';
+  await openMemo(page, MEMO);
+  const doneCount = await page.evaluate(() => document.querySelectorAll('.smp-editor span.smp-done').length);
+  expect(doneCount, '전제: span.smp-done 이 실재한다').toBeGreaterThanOrEqual(1);
+  await closeMemo(page);
+  expect(await memoOf(page), '왕복 — 래퍼가 글자를 안 바꾼다(_domToTokens 는 모르는 요소를 투명하게 재귀한다)').toBe(MEMO);
+
+  await openMemo(page, MEMO);
+  await page.evaluate(() => {
+    const ed = document.querySelector('.smp-editor');
+    const r = document.createRange();
+    r.setStart(ed, 0);
+    r.setEndBefore(ed.querySelector('br'));
+    const s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+  });
+  const copied = await clipEvent(page, 'copy');
+  expect(copied.text, '체크된 줄만 복사해도 평문은 그대로다(span 흔적 없음) — rangeAsMemo 도 같은 재귀').toBe('[x] 하나');
+});
+
+/* ══ 1017t1b2 — 참고 이미지 크기 상한·확대(⒜ 고정 크기 + 더블클릭 확대) ══════════ */
+
+test('P10 붙인 그림은 고정 상한을 안 넘는다 — 가로·세로 둘 다', async ({ page }) => {
+  await armA2(page);
+  /* 실제 가로세로 비율을 가진 PNG 를 만들어 armA2 의 고정 스텁(2x2) 대신 서브한다 —
+     그래야 .smp-img 의 max-height 가 «진짜 세로로 긴 그림»에서 듣는지를 잰다. */
+  const landscape = await page.evaluate(() => {
+    const cv = document.createElement('canvas'); cv.width = 2000; cv.height = 1000;
+    cv.getContext('2d').fillRect(0, 0, 2000, 1000);
+    return cv.toDataURL('image/png').split(',')[1];
+  });
+  const portrait = await page.evaluate(() => {
+    const cv = document.createElement('canvas'); cv.width = 1000; cv.height = 2000;
+    cv.getContext('2d').fillRect(0, 0, 1000, 2000);
+    return cv.toDataURL('image/png').split(',')[1];
+  });
+  await page.route('goya-asset://**', (route) => {
+    const body = Buffer.from(route.request().url().includes('aaaa') ? landscape : portrait, 'base64');
+    return route.fulfill({ contentType: 'image/png', body });
+  });
+  await openMemo(page, null);
+  const editorWidth = await page.evaluate(() => document.querySelector('.smp-editor').getBoundingClientRect().width);
+  await pasteFiles(page, [[2000, 1000]]);
+  await expect(page.locator('.smp-editor img.smp-img')).toHaveCount(1);
+  await page.waitForFunction(() => document.querySelector('.smp-editor img.smp-img').naturalWidth > 0);
+  const propsL = await page.evaluate(() => {
+    const i = document.querySelector('.smp-editor img.smp-img');
+    const cs = getComputedStyle(i);
+    const r = i.getBoundingClientRect();
+    return { display: cs.display, maxWidth: cs.maxWidth, w: r.width, h: r.height, natW: i.naturalWidth };
+  });
+  expect({ display: propsL.display, maxWidth: propsL.maxWidth }, 'P1 과 같은 값 — max-height 를 더해도 무회귀').toEqual({ display: 'block', maxWidth: '100%' });
+  expect(propsL.natW, '전제: 가로 그림(2000x1000)이 실제로 실렸다').toBe(2000);
+  expect(propsL.h, `가로 그림 높이 ${propsL.h}px — 상한 안`).toBeLessThanOrEqual(320);
+  expect(propsL.w, '편집 칸 너비를 안 넘는다').toBeLessThanOrEqual(editorWidth + 1);
+
+  await closeMemo(page);
+  await openMemo(page, null);
+  await pasteFiles(page, [[1000, 2000]]);
+  await expect(page.locator('.smp-editor img.smp-img')).toHaveCount(1);
+  await page.waitForFunction(() => document.querySelector('.smp-editor img.smp-img').naturalWidth > 0);
+  const propsP = await page.evaluate(() => {
+    const i = document.querySelector('.smp-editor img.smp-img');
+    const r = i.getBoundingClientRect();
+    return { w: r.width, h: r.height, natW: i.naturalWidth };
+  });
+  expect(propsP.natW, '전제: 세로 그림(1000x2000)이 실제로 실렸다').toBe(1000);
+  expect(propsP.h, `세로 그림 높이 ${propsP.h}px — 상한 안(현빈이 본 그 증상)`).toBeLessThanOrEqual(320);
+  expect(propsP.w, '편집 칸 너비를 안 넘는다').toBeLessThanOrEqual(editorWidth + 1);
+});
+
+test('P11a 그림을 더블클릭하면 같은 주소의 그림이 확대되어 뜨고, 바깥 클릭·Esc 로 닫힌다', async ({ page }) => {
+  await armA2(page);
+  await openMemo(page, `가![](${A2_URLS[0]})나`);
+  const img = page.locator('.smp-editor img.smp-img');
+  await page.waitForFunction(() => document.querySelector('.smp-editor img.smp-img').naturalWidth > 0);
+  expect(await page.evaluate(() => document.querySelectorAll('.smp-img-zoom-backdrop').length), '전제: 아직 확대는 없다').toBe(0);
+  await img.dblclick();
+  await page.waitForSelector('.smp-img-zoom-backdrop.open');
+  await expect(page.locator('.smp-img-zoom-backdrop')).toHaveCount(1);
+  const src = await page.evaluate(() => document.querySelector('.smp-img-zoom-backdrop img').getAttribute('src'));
+  expect(src, '확대 그림은 같은 goya-asset 주소다').toBe(A2_URLS[0]);
+  /* 바깥(backdrop) 클릭으로 닫힌다 — 실제 그림(스텁 2x2)은 작아서 (5,5) 는 반드시 바깥이다 */
+  await page.locator('.smp-img-zoom-backdrop').click({ position: { x: 5, y: 5 } });
+  await expect(page.locator('.smp-img-zoom-backdrop')).toHaveCount(0);
+  /* 다시 열고 Esc 로도 닫힌다 */
+  await img.dblclick();
+  await page.waitForSelector('.smp-img-zoom-backdrop.open');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.smp-img-zoom-backdrop')).toHaveCount(0);
+});
+
+test('P11b 확대가 열린 동안 Esc 는 메모 팝오버를 안 닫고 전역으로도 안 새며, 홑클릭은 여전히 그림을 선택한다', async ({ page }) => {
+  await armA2(page);
+  await openMemo(page, `가![](${A2_URLS[0]})나`);
+  const img = page.locator('.smp-editor img.smp-img');
+  await page.waitForFunction(() => document.querySelector('.smp-editor img.smp-img').naturalWidth > 0);
+
+  /* 회귀방지 — 홑클릭은 여전히 그림을 선택한다(P6 과 같은 식) */
+  await img.click();
+  expect(await page.evaluate(() => {
+    const s = window.getSelection();
+    const r = s.rangeCount ? s.getRangeAt(0) : null;
+    const im = document.querySelector('.smp-editor img.smp-img');
+    return !!r && !r.collapsed && r.cloneContents().querySelector('img') !== null && r.toString() === '' && r.intersectsNode(im);
+  }), '홑클릭은 선택이 그대로다(확대를 달면서 안 깼다)').toBe(true);
+  expect(await page.evaluate(() => document.querySelectorAll('.smp-img-zoom-backdrop').length), '홑클릭은 확대를 안 연다').toBe(0);
+
+  /* js/editor.js 의 전역 keydown 과 같은 자리(document·bubble)에 세는 자를 둔다(D3 의 꼴) —
+     이 하네스엔 editor.js 가 없어 이 자가 «새는가」를 직접 잰다. */
+  await page.evaluate(() => {
+    window.__escBubbled = 0;
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.__escBubbled++; });
+  });
+  await img.dblclick();
+  await page.waitForSelector('.smp-img-zoom-backdrop.open');
+  await page.keyboard.press('Escape');
+  expect(await page.evaluate(() => document.querySelectorAll('.smp-img-zoom-backdrop').length), 'Esc 는 확대부터 닫는다').toBe(0);
+  expect(await page.locator('.section-memo-popover').count(), 'Esc 가 모달까지 새면 메모가 날아간다 — 안 닫혔다').toBe(1);
+  expect(await page.evaluate(() => window.__escBubbled), 'Esc 는 document·bubble 까지 안 샌다(stopPropagation)').toBe(0);
 });
