@@ -283,7 +283,10 @@ const GRID_BORDER_DEFAULT_COLOR = '#d0d0d0';
  *   'top,vsep'     = 둘 다(구분선 프리셋 · 그림 1013t2-img04) · 'none' = 구분선 모드인데 둘 다 끔.
  * ★굵기·색·꼴은 «새로 안 만든다» — cellBorder* 세 키를 그대로 쓴다(현빈 ⒝).
  * ⛔「블럭 외곽선」(blockOutline · 블럭 바깥 네 변)·「칸 사이 줄」(간격 가운데 괘선)과 «다른 축»이다(현빈 ⒞).
- * ⛔CSS 파일에 선을 두지 않는다(프로토 z3.css 의 고정 선이 패널과 안 이어진 뿌리) — 인라인이라 내보내기에도 실린다. */
+ * ⛔CSS 파일에 선을 두지 않는다(프로토 z3.css 의 고정 선이 패널과 안 이어진 뿌리) — 인라인이라 내보내기에도 실린다.
+ * ⚠️★데이터 키 'top' ≠ 패널 이름표(1017t1i3 이전): 키는 ★그대로 'top' 이다(저장본 이전 비용 0 — 이게 그 까닭),
+ *   하지만 패널은 이제 그 단추를 「행 사이」로 보여준다(prop-grid.js _borderEdgesRowHtml) — 'top' 이 r=0 칸 위 변을
+ *   더는 긋지 않기 때문이다(_gridCellEdgesCss: r>0 일 때만). ★이름과 데이터 키가 갈리는 부조화를 여기 적어 둔다. */
 export const GRID_BORDER_EDGES = ['top', 'vsep'];
 
 /** 들어온 값을 «정본 꼴»로. 돌려주는 것:
@@ -435,11 +438,15 @@ function _gridCellBorderCss(bd, r, c, rowGapPx, colGapPx) {
 
 /** ★1013t2F 구분선 모드의 한 칸 — 켠 자리만 긋고 나머지 변은 0(오른쪽·아래는 «언제나» 0 — 바깥은 「블럭 외곽선」의 일).
  *  ★간격과 무관하게 선은 «칸 가장자리»에 붙는다(간격 가운데 괘선은 「칸 사이 줄」의 일 — 축이 다르다).
- *  ★겹침 — 블럭 외곽선 위 변이 켜져 있고 블럭 배경이 꺼져 있으면(bd.topShared) 첫 행의 칸 위 변은 «안 긋는다»:
- *    외곽선(블럭 자기 border)과 칸 border 가 맞붙어 «두 배 굵기»가 되는 것을 막는다. 외곽선 굵기·색·꼴도
- *    cellBorder 를 따르므로 보이는 선은 같다. 배경 켬이면 외곽선이 배경 바깥 가장자리(.grd-edge)로 가서 안 겹친다. */
+ *  ⚠️★이 문단은 2026-10-16(1017t1i3 전)까지 참이었다 — 지우지 않고 남긴다: 「겹침 — 블럭 외곽선 위 변이 켜져
+ *    있고 블럭 배경이 꺼져 있으면(bd.topShared) 첫 행의 칸 위 변은 «안 긋는다»: 외곽선(블럭 자기 border)과
+ *    칸 border 가 맞붙어 «두 배 굵기»가 되는 것을 막는다.」
+ *  ★1017t1i3(현빈 지적 — proj_1791778999148_grd_ts0he_gixosx9: 「상단에 있는 구분선 프리셋에 상단 라인은
+ *    없애줘도 된다」) — ★`top` 토큰의 뜻을 둘로 가른다: 첫 행(r=0)의 칸 위 변 = ★블럭 맨 위 선(그 자리는
+ *    이제 아래 「블럭 외곽선」 위 변의 일이다 · 칸은 안 긋는다) · 둘째 행부터(r>0) = ★행 사이 가로 선(칸이 긋는다).
+ *    그래서 겹침 가드(topShared)가 구조적으로 불필요해졌다(r===0 칸은 처음부터 top 을 안 그으므로 겹칠 수가 없다). */
 function _gridCellEdgesCss(bd, line, r, c) {
-  const top  = bd.edges.includes('top') && !(r === 0 && bd.topShared === true) ? line : '0';
+  const top  = bd.edges.includes('top') && r > 0 ? line : '0';
   const left = bd.edges.includes('vsep') && c > 0 ? line : '0';
   return `border-top:${top};border-left:${left};border-right:0;border-bottom:0;`;
 }
@@ -2761,8 +2768,10 @@ function renderGridBlock(block) {
   const { row: rowGapPx, col: colGapPx } = _gridGaps(block);
   const blockValign = _gridEnum(_GRID_VALIGN, block.dataset.valign) || 'flex-start';
   const cellBorder = _gridCellBorder(block);   // ★T-172 — «블록» 축. 칸 축(pick)과 섞지 않는다.
-  /* ★1013t2F 구분선 모드에서만 — 블럭 외곽선 위 변과 첫 행 칸 위 변의 겹침(_gridCellEdgesCss 머리말). 네 변 모드는 안 본다(바이트 무변). */
-  if (cellBorder.edges) cellBorder.topShared = _gridBlockOutline(block).on.top && !_gridBlockBg(block).on;
+  /* ⛔폐기(1017t1i3) — 「블럭 외곽선 위 변 ×첫 행 칸 위 변」 겹침 가드(cellBorder.topShared)가 여기 있었다.
+   * 까닭: _gridCellEdgesCss 가 이제 r===0 칸 위 변을 처음부터 안 긋는다(그 자리는 「블럭 외곽선」의 일로
+   * 옮겼다) — 겹칠 수가 없어져 가드가 구조적으로 불필요해졌다. 재는 자 = tests/unit/grid-cell-border-edges.test.js N9
+   * (★r>0 가드를 되돌리는 음성대조 — 되돌리면 이 자리의 겹침도 다시 필요해진다는 뜻이 되어 N9 가 빨개진다). */
   const cellPadY = getGridCellPadY(block);     // ★제4안 — 모든 칸 위아래에 «더함»(0 이면 칸 style 바이트 그대로)
 
   /* ★오버레이(떠 있음)면 폭을 «굳힌 px» 그대로 둔다 — 띄울 때 overlay-float.js _freezeWidth 가 px 로 굳히는데,
@@ -3889,12 +3898,17 @@ function gridResizeTo(block, nCols, nRows) {
   const curRows = _gridRows(block);
   if (nCols === curCols.length && nRows === curRows.length) return false;
   window.pushHistory?.();                     // ★변경 «전»에
+  /* ★1017t1i1 — 인포그래픽 표식이 있으면 늦은 이름(window seam, :4074 _grdAfterResize 와 같은 결)으로
+   * «이웃 칸의 꼴»을 한 번 뜬다(프리셋 표가 아니라 지금 그리드 — 사용자가 고친 값을 안 덮는다).
+   * ⛔import 금지 — grid-infographic.js 가 이 파일을 import 하므로 반대 방향은 순환이고,
+   *   loadGrid({withIfg:false}) 가 grid-block.js «한 파일»만 얹는 유닛 하네스 10곳을 깨뜨린다. */
+  const ifg = block.dataset.ifgPreset ? window.ifgNewShape?.(block, nCols, nRows) : null;
 
   const nextCols = [];
   for (let i = 0; i < nCols; i++) {
     /* ★[M41] 열을 늘릴 때의 기본값도 «정본 한 줄»을 쓴다 — 여긴 h2:'제목' 을 얹고 있어서
      * 블록 생성(grid-block.js)·열 추가(여기)·행 추가(아래)가 서로 «다른» 기본값이었다. */
-    nextCols.push(curCols[i] || { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] });
+    nextCols.push(curCols[i] || (ifg ? { ...ifg.col, lines: ifg.col.lines.map(l => ({ ...l })) } : { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] }));
   }
   // ⛔줄일 때 잘린 칸의 내용은 «버려진다» — undo 로 되돌아온다(pushHistory 를 먼저 부른 이유).
   block.dataset.cols = JSON.stringify(nextCols);
@@ -3909,13 +3923,13 @@ function gridResizeTo(block, nCols, nRows) {
     const keep = [];
     for (let c = 0; c < nCols; c++) {
       const cell = row0[c];
-      keep.push((cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell : {});
+      keep.push((cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell : (ifg ? { ...ifg.cellDecoOnly } : {}));
     }
     if (keep.some(cell => Object.keys(cell).length)) block.dataset.cells = _gridCellsToDataset([keep]);
     else delete block.dataset.cells;
   } else {
     const nextRows = [];
-    for (let i = 0; i < nRows; i++) nextRows.push(curRows[i] || { height: 'auto' });
+    for (let i = 0; i < nRows; i++) nextRows.push(curRows[i] || (ifg ? { height: ifg.rowHeight } : { height: 'auto' }));
     block.dataset.rows = JSON.stringify(nextRows);
     /* ★새로 생긴 행에 «기본 내용»을 넣는다(안 넣으면 높이 0 — 무슨 일이 났는지 안 보인다).
      * ⚠️옛 내용을 보존하지 않는다 — 잘린 행/열의 내용은 사라지고 undo 로만 돌아온다.
@@ -3927,7 +3941,8 @@ function gridResizeTo(block, nCols, nRows) {
       const row = Array.isArray(curCells[r]) ? curCells[r] : [];
       const outRow = [];
       for (let c = 0; c < nCols; c++) {
-        outRow.push(row[c] || (r === 0 ? {} : { lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] }));
+        outRow.push(row[c] || (r === 0 ? (ifg ? { ...ifg.cellDecoOnly } : {})
+          : (ifg ? { ...ifg.cellDecoOnly, lines: ifg.cell.lines.map(l => ({ ...l })) } : { lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] })));
       }
       nextCells.push(outRow);
     }

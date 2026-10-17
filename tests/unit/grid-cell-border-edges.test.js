@@ -105,21 +105,24 @@ test('E1 정규화·거절 — 정본 꼴로 저장 · 모르는 낱말은 INVAL
 });
 
 /* ══ E2·E3 ═══════════════════════════════════════════════════════════════ */
-test('E2 ★2×2 간격0 top,vsep — 칸별 네 변(그림 ②: 맨 위·행 사이·열 사이만, 바깥 좌우·아래 없음)', async () => {
+test('E2 ★2×2 간격0 top,vsep — 칸별 네 변(그림 ②: 행 사이·열 사이만. 1017t1i3 — 블럭 맨 위는 칸이 안 긋는다)', async () => {
   const { G } = await loadGrid();
   const t = table(await linesGrid(G, 'top,vsep'));
   assert.deepEqual(t, {
-    '00': { top: L1, left: '0', right: '0', bottom: '0' },
-    '01': { top: L1, left: L1, right: '0', bottom: '0' },
+    '00': { top: '0', left: '0', right: '0', bottom: '0' },
+    '01': { top: '0', left: L1, right: '0', bottom: '0' },
     '10': { top: L1, left: '0', right: '0', bottom: '0' },
     '11': { top: L1, left: L1, right: '0', bottom: '0' },
   });
 });
 
-test('E3 top 만 / vsep 만 / none — 켠 자리만 선, 나머지 0', async () => {
+test('E3 top 만 / vsep 만 / none — 켠 자리만 선, 나머지 0(1017t1i3 — top 은 r>0 에만)', async () => {
   const { G } = await loadGrid();
   const tTop = table(await linesGrid(G, 'top'));
-  for (const k of Object.keys(tTop)) assert.deepEqual(tTop[k], { top: L1, left: '0', right: '0', bottom: '0' }, `★top 만 ${k}`);
+  assert.deepEqual(tTop['00'], { top: '0', left: '0', right: '0', bottom: '0' }, `★top 만 00(블럭 맨 위 — 칸은 안 긋는다)`);
+  assert.deepEqual(tTop['01'], { top: '0', left: '0', right: '0', bottom: '0' }, `★top 만 01`);
+  assert.deepEqual(tTop['10'], { top: L1, left: '0', right: '0', bottom: '0' }, `★top 만 10(행 사이)`);
+  assert.deepEqual(tTop['11'], { top: L1, left: '0', right: '0', bottom: '0' }, `★top 만 11`);
   const tV = table(await linesGrid(G, 'vsep'));
   assert.deepEqual(tV['00'], { top: '0', left: '0', right: '0', bottom: '0' });
   assert.deepEqual(tV['01'], { top: '0', left: L1, right: '0', bottom: '0' });
@@ -133,18 +136,18 @@ test('E3 top 만 / vsep 만 / none — 켠 자리만 선, 나머지 0', async ()
 });
 
 /* ══ E4 ══════════════════════════════════════════════════════════════════ */
-test('E4 ★겹침 — 외곽선 위 변 켬 + 배경 꺼짐 → 첫 행 칸 위 변 0(한 겹) · 배경 켬 → 그대로', async () => {
+test('E4 ★1017t1i3 — 블럭 맨 위 선은 칸이 다시는 안 긋는다(외곽선·배경 유무와 무관) · 행 사이 선은 그대로', async () => {
   const { G } = await loadGrid();
   const b = await linesGrid(G, 'top,vsep', { blockOutline: 'top' });
   assert.equal(b.style.borderTop, L1, '★전제: 블럭 외곽선 위 변이 안 그려졌다');
-  assert.equal(sides(cellStyle(b, 0, 0)).top, '0', '★외곽선 위 변과 첫 행 칸 위 변이 «두 겹»이다');
+  assert.equal(sides(cellStyle(b, 0, 0)).top, '0', '★첫 행 칸 위 변은 이제 칸의 일이 아니다(블럭 외곽선의 일)');
   assert.equal(sides(cellStyle(b, 0, 1)).top, '0');
   assert.equal(sides(cellStyle(b, 1, 0)).top, L1, '★둘째 행 위 변(행 사이 선)까지 사라졌다');
-  assert.equal(sides(cellStyle(b, 0, 1)).left, L1, '★칸 사이 세로 선이 겹침 규칙에 휩쓸렸다');
+  assert.equal(sides(cellStyle(b, 0, 1)).left, L1, '★칸 사이 세로 선이 영향을 받았다');
   G.updateGridBlock(b.id, { blockBg: { on: true, color: '#ffffff' } });
-  assert.equal(sides(cellStyle(b, 0, 0)).top, L1, '★배경 켬(외곽선이 .grd-edge 로 감)인데 첫 행 칸 위 변이 숨었다');
+  assert.equal(sides(cellStyle(b, 0, 0)).top, '0', '★배경을 켜도 첫 행 칸 위 변은 여전히 0 이어야 한다(가드가 필요 없어졌다)');
   G.updateGridBlock(b.id, { blockBg: null, blockOutline: 'bottom' });
-  assert.equal(sides(cellStyle(b, 0, 0)).top, L1, '★외곽선 위 변을 껐는데 첫 행 칸 위 변이 안 돌아왔다');
+  assert.equal(sides(cellStyle(b, 0, 0)).top, '0', '★외곽선 위 변을 꺼도 첫 행 칸 위 변은 여전히 0 이어야 한다(처음부터 칸이 안 그린다)');
   /* 네 변 모드에서는 겹침 규칙을 «안» 탄다(옛 동작) */
   const { block: box } = G.makeGridBlock(FIX());
   G.updateGridBlock(box.id, { gap: 0, cellBorderWidth: 1, cellBorderColor: '#b3b1ae', blockOutline: 'top' });
@@ -221,9 +224,9 @@ const M_VSEP_ALL = (src) => {
   assert.notEqual(out, src, '★닻이 빗나갔다 — vsep c > 0');
   return out;
 };
-const M_NO_SHARE = (src) => {
-  const out = src.replace("!(r === 0 && bd.topShared === true)", '!(r === 0 && false)');
-  assert.notEqual(out, src, '★닻이 빗나갔다 — 겹침 규칙');
+const M_NO_R0_GUARD = (src) => {
+  const out = src.replace("bd.edges.includes('top') && r > 0 ? line : '0'", "bd.edges.includes('top') ? line : '0'");
+  assert.notEqual(out, src, '★닻이 빗나갔다 — r>0 가드');
   return out;
 };
 test('E8a ★음성대조 — edges 갈래를 지우면(늘 네 변) E2 의 표가 빨개진다', async () => {
@@ -237,8 +240,40 @@ test('E8b ★음성대조 — `c > 0` → `c >= 0` 이면 (0,0) 왼쪽이 빨개
   const t = table(await linesGrid(G, 'top,vsep'));
   assert.equal(t['00'].left, L1, `★변이가 (0,0) 왼쪽에 안 닿았다 — E2 의 (0,0) left:'0' 단언이 그 자리를 «안 잰다»: ${JSON.stringify(t['00'])}`);
 });
-test('E8c ★음성대조 — 겹침 규칙을 끄면 E4 의 첫 행 위 변이 빨개진다', async () => {
-  const { G } = await loadGrid({ mutate: M_NO_SHARE });
-  const b = await linesGrid(G, 'top,vsep', { blockOutline: 'top' });
-  assert.equal(sides(cellStyle(b, 0, 0)).top, L1, '★겹침 규칙을 껐는데도 첫 행 위 변이 0 — E4 는 그 규칙을 «안 재고 있다»');
+/* ⛔폐기(1017t1i3) — E8c 는 「겹침 가드(topShared)를 끄면 E4 가 빨개진다」를 쟀다. 그 가드가 _gridCellEdgesCss
+ * 에서 사라졌다(r>0 가드 자체가 r===0 칸의 top 을 «처음부터» 0 으로 만들어 겹침이 구조적으로 불가능해졌다 —
+ * 겹치려면 먼저 그려야 하는데 안 그린다). 재는 자 = 아래 N9(r>0 가드를 되돌리는 음성대조). */
+test('E8c ★폐기(1017t1i3) — topShared 겹침 가드가 삭제돼 이 대조는 무의미해졌다 · 자리는 N9 가 메운다', { skip: true }, () => {});
+
+/* ══ E9·N9·N10 — 1017t1i3(그리드 맨 위 선은 칸이 안 긋는다 · 행 사이는 그대로) ══════════════════════════ */
+test('E9 ★top,vsep — r=0 모든 칸 top=0(블럭 맨 위는 칸 몫이 아니다) · r>0 은 L1(행 사이). 3행에서도 r=0 만 0', async () => {
+  const { G } = await loadGrid();
+  const t2 = table(await linesGrid(G, 'top,vsep'));
+  assert.equal(t2['00'].top, '0'); assert.equal(t2['01'].top, '0');
+  assert.equal(t2['10'].top, L1); assert.equal(t2['11'].top, L1);
+  const { block: b3 } = G.makeGridBlock({
+    cols: [{ width: 1, lines: [{ type: 'body', text: 'A' }] }, { width: 1, lines: [{ type: 'body', text: 'B' }] }],
+    rows: [{ height: 'auto' }, { height: 'auto' }, { height: 'auto' }],
+    cells: [[{ lines: [{ type: 'body', text: 'A' }] }, { lines: [{ type: 'body', text: 'B' }] }],
+            [{ lines: [{ type: 'body', text: 'C' }] }, { lines: [{ type: 'body', text: 'D' }] }],
+            [{ lines: [{ type: 'body', text: 'E' }] }, { lines: [{ type: 'body', text: 'F' }] }]],
+  });
+  G.updateGridBlock(b3.id, { gap: 0, cellBorderWidth: 1, cellBorderColor: '#b3b1ae', cellBorderStyle: 'solid', cellBorderEdges: 'top' });
+  const s = (r, c) => sides(cellStyle(b3, r, c));
+  assert.equal(s(0, 0).top, '0', '★3행에서도 r=0 은 0');
+  assert.equal(s(0, 1).top, '0');
+  assert.equal(s(1, 0).top, L1, '★r=1 은 L1');
+  assert.equal(s(2, 0).top, L1, '★r=2 도 L1(모든 행 아니라 r>0 전부)');
+});
+test('N9 ★음성대조 — r>0 가드를 되돌리면(늘 top) E2·E3·E4·E9 가 빨개진다', async () => {
+  const { G } = await loadGrid({ mutate: M_NO_R0_GUARD });
+  const t = table(await linesGrid(G, 'top,vsep'));
+  assert.notEqual(t['00'].top, '0', `★r>0 가드를 되돌렸는데 (0,0) top 이 그대로 0 — E9/E2 가 그 가드를 «안 재고 있다»: ${JSON.stringify(t['00'])}`);
+  assert.notEqual(t['01'].top, '0', '★(0,1) top 도 되돌아와야 한다');
+});
+test('N10 ★범위 확인 — `c > 0`(vsep) 는 안 건드렸다(E8b 가 그대로 초록이어야 한다는 뜻을 여기서도 확인)', async () => {
+  const { G } = await loadGrid();   // 무변이 — N9 의 변이가 vsep 축을 «안» 건드렸음을 거울로 확인
+  const t = table(await linesGrid(G, 'top,vsep'));
+  assert.equal(t['00'].left, '0', '★세로축은 (0,0)에서 그대로 0');
+  assert.equal(t['01'].left, L1, '★세로축은 (0,1)에서 그대로 L1 — 1017t1i3 이 세로 축을 안 건드렸다');
 });

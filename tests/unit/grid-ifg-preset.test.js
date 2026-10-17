@@ -49,8 +49,9 @@ test('E6b ★applyIfgPreset(lines) — updateGridBlock 한 번 · 네 키 + gap 
   assert.equal(block.dataset.ifgPreset, 'lines');
   assert.equal(block.dataset.cellBorderEdges, 'top,vsep');
   const s = (r, c) => sides(cellStyle(block, r, c));
-  assert.deepEqual(s(0, 0), { top: L1, left: '0', right: '0', bottom: '0' });
-  assert.deepEqual(s(0, 1), { top: L1, left: L1, right: '0', bottom: '0' });
+  /* ★1017t1i3 — 블럭 맨 위 선은 칸이 더는 안 긋는다(r=0). 행 사이 선(r=1)은 그대로 산다 — 아래가 그 생존 증거. */
+  assert.deepEqual(s(0, 0), { top: '0', left: '0', right: '0', bottom: '0' });
+  assert.deepEqual(s(0, 1), { top: '0', left: L1, right: '0', bottom: '0' });
   assert.deepEqual(s(1, 1), { top: L1, left: L1, right: '0', bottom: '0' });
   /* 글은 그대로 · 순서는 [제목 · 아이콘 · 설명] · 아이콘은 아래로(marginTop auto) */
   const lines = G.getGridModel(block).cells[1][1].lines;
