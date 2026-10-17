@@ -496,3 +496,52 @@ export function sliderRowHTML(label, sliderId, numberId, { min, max, step, value
         <input type="number" class="prop-number" id="${numberId}" min="${min}" max="${max}" value="${value}">
       </div>`;
 }
+
+/* ══ 접이식 절 머리·몸 — «한 벌» (1017t1d2, 2026-10-17 태양) ═══════════════════════════════
+ * ★출처 — js/props/prop-grid.js `_grdOpenSections` / `_grdSecOpen` / `_grdSecToggle` /
+ *   `_grdDisclosureHtml` / `_grdWireDisclosure` 를 «여기 한 곳」으로 올렸다(2026-09-24 세운 부품,
+ *   그리드 패널 안 다섯 절이 이미 쓴다 — cellall·cell·rule·line·size). prop-grid.js 는 이제 이
+ *   함수들을 import 해 쓴다(사본 아님 · 몸통 글자 하나도 안 바꿨다).
+ * ★카드 패널(prop-simple-card.js)의 「Card Grid」 절도 ★같은 부품을 쓴다 — 두 번째 소비자가
+ *   생겨 비로소 «공용 자리»가 됐다(MEMORY: 명부가 둘이면 안 된다 — 파생시켜 하나로).
+ * ★WeakMap 은 «블록 엘리먼트」로 갈린다 — 그리드 블럭과 카드 블럭이 ★같은 WeakMap 을 쓰더라도
+ *   키(block)가 서로 다른 DOM 노드이므로 절대 섞이지 않는다. 절 이름(key)도 호출부가 각자 고른다
+ *   (그리드 = 'cellall'|'cell'|'rule'|'size'|줄 키, 카드 = 'cardgrid' 등) — 모듈이 같아도 이름이
+ *   같은 블록 안에서만 부딪힌다(한 블록이 그리드이면서 카드일 수는 없다).
+ * ⛔두 벌 만들지 마라 — 접이식 절이 또 필요하면 여기를 쓴다. */
+const _discOpenSections = new WeakMap();
+/** dflt — 사람이 아직 안 건드렸을 때의 기본(미지정 = 접힘). 한 번 눌러 상태가 생기면 그 값이 이긴다. */
+export function discSecOpen(block, key, dflt = false) {
+  const v = (_discOpenSections.get(block) || {})[key];
+  return v === undefined ? dflt === true : v === true;
+}
+export function discSecToggle(block, key, dflt = false) {
+  const cur = _discOpenSections.get(block) || {};
+  const next = { ...cur, [key]: !discSecOpen(block, key, dflt) };
+  _discOpenSections.set(block, next);
+  return next[key];
+}
+/** 접이식 절 머리글 HTML — ⛔산출 바이트를 바꾸지 마라(prop-grid.js 옛 `_grdDisclosureHtml`과 글자 그대로 같다 —
+ *   tests/unit/disclosure-chevron-ssot.test.mjs 와 그리드 쪽 그물이 이 바이트를 지킨다). */
+export function disclosureSectionHtml(id, title, open) {
+  return `
+      <div class="prop-section-title" id="${id}" role="button" tabindex="0"
+           style="display:flex;align-items:center;gap:6px;cursor:pointer;"
+           title="${open ? '접기' : '펼치기'}">
+        ${disclosureChevronHtml(open)}
+        <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</span>
+      </div>`;
+}
+/** 접이식 절의 배선 — 패널을 다시 그리지 않는다(재렌더는 곧 포커스 상실이다). ⛔각도 식은
+ *   disclosureSectionHtml 과 같은 값이어야 한다(갈리면 첫 클릭에 그림이 튄다). */
+export function wireDisclosureSection(block, key, headId, bodyId, dflt = false) {
+  const head = document.getElementById(headId);
+  const body = document.getElementById(bodyId);
+  const arrow = head?.querySelector('svg');
+  head?.addEventListener('click', () => {
+    const open = discSecToggle(block, key, dflt);
+    if (body) body.style.display = open ? 'block' : 'none';
+    if (arrow) arrow.style.transform = `rotate(${open ? 0 : -90}deg)`;
+    head.title = open ? '접기' : '펼치기';
+  });
+}

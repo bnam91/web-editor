@@ -1,7 +1,7 @@
 // prop-simple-card.js
 // prop-canvas.js에서 분리: 심플 카드 블록 프로퍼티 패널 (showSimpleCardProperties + _escHtml)
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
+import { blockHeaderHTML, disclosureChevronHtml, discSecOpen, wireDisclosureSection, disclosureSectionHtml } from './_helpers.js';
 /* 색 코드 칸의 배선은 «한 자리»에서 온다 — 이 파일 안에만 손복사본이 여섯 벌 있었다
    (input/blur 가 아예 없어 무효값이 영원히 남던 사본 포함). 2026-09-20 유닛 colorhex. */
 import { wireHexText, parseHex6, formatHex6, parseHex6OrTransparent, formatHex6OrTransparent, isCssBackgroundValue } from './color-picker.js';
@@ -263,6 +263,10 @@ function showSimpleCardProperties(block, expandCardArg) {
   `;
   }).join('');
 
+  /* ★1017t1d2 — 접힘이 기본(그리드 Grid(N×M) 절과 같은 dflt=false). 상태 집은 js/props/_helpers.js
+     의 공용 WeakMap(블록별로 갈린다 — 그리드 블럭과 섞이지 않는다). */
+  const _cardGridOpen = discSecOpen(block, 'cardgrid', false);
+
   propPanel.innerHTML = `
     <div class="prop-section">
 ${blockHeaderHTML({
@@ -276,6 +280,17 @@ ${blockHeaderHTML({
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
     })}
+    </div>
+
+    <!-- ★1017t1d2 — 「Card Grid」 절을 블럭머리 바로 뒤로(그리드블럭 Grid(N×M) 절과 같은 자리) +
+         접이식(그리드와 같은 부품 — js/props/_helpers.js disclosureSectionHtml/wireDisclosureSection,
+         prop-grid.js 가 2026-09-24 세운 것을 2026-10-17 공용으로 올렸다). ⛔복사본 금지. -->
+    <div class="prop-section"${_cardGridOpen ? '' : ' style="padding-bottom:0;"'}>
+${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})`, _cardGridOpen)}
+      <div id="cvb-grid-body" style="display:${_cardGridOpen ? 'block' : 'none'};">
+        <div class="grid-picker" id="cvb-grid-picker"></div>
+        <div class="grid-picker-label" id="cvb-grid-picker-label">—</div>
+      </div>
     </div>
 
     <div class="prop-section">
@@ -509,18 +524,15 @@ ${blockHeaderHTML({
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">Card Grid (${gridCols}×${gridRows})</div>
-      <div class="grid-picker" id="cvb-grid-picker"></div>
-      <div class="grid-picker-label" id="cvb-grid-picker-label">—</div>
-    </div>
-
-    <div class="prop-section">
       <div class="prop-section-title">Cards (${cards.length})</div>
       <div class="prop-hint">캔버스에서 ＋ 로 줄 추가 · 더블클릭으로 수정</div>
       <div id="cvb-card-items">${cardItemsHtml}</div>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
+
+  // ★1017t1d2 — 접이식 절 배선(그리드 _grdWireDisclosure 와 같은 규칙: 패널을 다시 그리지 않는다).
+  wireDisclosureSection(block, 'cardgrid', 'cvb-grid-toggle', 'cvb-grid-body', false);
 
   // ── Grid picker ─────────────────────────────────────────────────────────────
   const picker      = document.getElementById('cvb-grid-picker');
@@ -1409,6 +1421,10 @@ ${blockHeaderHTML({
       }
     }
   });
+
+  /* ★1017t1d1 — 고른 카드/줄이 있으면 헤더 바로 아래에 공용 줄 절(줄바 「+ 줄 추가▾」·줄 꾸미기·Typography)을
+     얹는다(laurel·비교와 같은 자리 — prop-laurel.js:414). */
+  window.lnAugmentCardPanel?.(block);
 }
 
 // HTML 특수문자 이스케이프 (textarea/input value 안전 삽입)

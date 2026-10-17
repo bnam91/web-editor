@@ -1,7 +1,8 @@
 /* ── Grid(다단) 블록 프로퍼티 패널 ──
    구조(컬럼/라인 추가·삭제)는 CDP/updateGridBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
 import { propPanel } from '../globals.js';
-import { parseRatio, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHeaderHTML, disclosureChevronHtml, sliderRowHTML } from './_helpers.js';
+import { parseRatio, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHeaderHTML, disclosureChevronHtml, sliderRowHTML,
+  discSecOpen as _grdSecOpen, discSecToggle as _grdSecToggle, disclosureSectionHtml as _grdDisclosureHtml, wireDisclosureSection as _grdWireDisclosure } from './_helpers.js';
 /* ★상·하한은 한 곳에서만 온다 — IMG_MIN_PCT 는 캔버스 코너 드래그(resizeGridImage)가 쓰는
    «그» 하한이다. 패널의 폭(%) 칸이 같은 수를 쓰게 import 한다(손으로 5 를 적지 않는다). */
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
@@ -1690,19 +1691,11 @@ function _grdWireImageSection(block, addr, host = null) {
  *   ⛔DOM 노드 참조·전역 Set 으로 들지 마라 — renderGridBlock 이 innerHTML 을 통째로 갈아끼워
  *     매 조작마다 죽는다(이 파일 머리글이 같은 말을 적어 뒀다).
  */
-const _grdOpenSections = new WeakMap();
-/* ★dflt — 사람이 «아직 안 건드렸을 때»의 기본(미지정 = 접힘). 한 번 눌러 상태가 생기면 그 값이 이긴다.
+/* ★[1017t1d2 · 2026-10-17] `_grdOpenSections`/`_grdSecOpen`/`_grdSecToggle` 몸통은
+ *   js/props/_helpers.js 로 옮겼다(카드 패널의 「Card Grid」 절이 ★같은 부품을 쓰면서 둘째
+ *   소비자가 생겨 «공용 자리»가 됐다). 이름은 import 별칭으로 그대로 유지해 아래 호출부를
+ *   한 글자도 안 고쳤다(머리 import 문 참조). ⛔여기 다시 적지 마라.
  *   (G3 현빈 「갭 줄 높이 조절이 안 된다」 — 갭 줄의 «높이» 칸이 접힌 「줄 꾸미기」 안에 숨어 있었다.) */
-const _grdSecOpen = (block, key, dflt = false) => {
-  const v = (_grdOpenSections.get(block) || {})[key];
-  return v === undefined ? dflt === true : v === true;
-};
-function _grdSecToggle(block, key, dflt = false) {
-  const cur = _grdOpenSections.get(block) || {};
-  const next = { ...cur, [key]: !_grdSecOpen(block, key, dflt) };
-  _grdOpenSections.set(block, next);
-  return next[key];
-}
 
 /** 접이식 절 머리글 — ⛔두 벌 만들지 마라. 칸 꾸미기·줄 꾸미기가 «이 부품 하나»를 쓴다.
  *
@@ -1742,29 +1735,10 @@ function _grdSecToggle(block, key, dflt = false) {
  *        접었다 폈다 할 때마다 옆의 제목이 좌우로 흔들린다.
  *   ⇒ 제목이 2px 오른쪽으로 간다. 그 값이 이 변경의 «전부»다.
  *
- * 지키는 그물: tests/dom/grid-panel-icon-spec.dom.spec.js (A2 선끝 · A3 잉크 · A3b 모양 · A4 색) */
-const _grdDisclosureHtml = (id, title, open) => `
-      <div class="prop-section-title" id="${id}" role="button" tabindex="0"
-           style="display:flex;align-items:center;gap:6px;cursor:pointer;"
-           title="${open ? '접기' : '펼치기'}">
-        ${disclosureChevronHtml(open)}
-        <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</span>
-      </div>`;
-
-/** 접이식 절의 배선 — 패널을 다시 그리지 않는다(재렌더는 곧 포커스 상실이다). */
-function _grdWireDisclosure(block, key, headId, bodyId, dflt = false) {
-  const head = document.getElementById(headId);
-  const body = document.getElementById(bodyId);
-  const arrow = head?.querySelector('svg');
-  head?.addEventListener('click', () => {
-    const open = _grdSecToggle(block, key, dflt);
-    if (body) body.style.display = open ? 'block' : 'none';
-    /* ⛔각도 식은 _grdDisclosureHtml 과 «같은 값»이어야 한다 — 갈리면 첫 클릭에 그림이 튄다.
-       접힘 = −90°(오른쪽) · 펼침 = 0°(아래). 쉐브론이 «아래» 그림이라 부호가 옛 것과 반대다. */
-    if (arrow) arrow.style.transform = `rotate(${open ? 0 : -90}deg)`;
-    head.title = open ? '접기' : '펼치기';
-  });
-}
+ * 지키는 그물: tests/dom/grid-panel-icon-spec.dom.spec.js (A2 선끝 · A3 잉크 · A3b 모양 · A4 색)
+ * ★[1017t1d2] `_grdDisclosureHtml`/`_grdWireDisclosure` 몸통도 js/props/_helpers.js 로
+ *   옮겼다(`disclosureSectionHtml`/`wireDisclosureSection` — import 별칭으로 이름은 그대로).
+ *   ⛔산출 바이트·각도식·호출부는 한 글자도 안 바꿨다. */
 
 /** 칸 값을 «지운다» — `null` = 그 키를 없앤다 = 열 기본값으로 되돌림.
  *  ~~[폐기 · T-178 2026-09-23] 이름 `_grdBlank(r, zero)` 와 그 주석
