@@ -82,7 +82,7 @@ const KNOWN_GAPS = {
   'js/block-factory.js BLOCK_SEL#1': ['gradient-block', 'modal-block', 'speech-bubble-block', 'sticker-block'],
   'js/editor.js CANVAS_SEL_BLOCKS#1': ['frame-block', 'shape-block'],
   'js/editor.js BLOCK_MULTI_SEL#1': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
-  'js/editor.js FLOW_BLOCK_SEL_SELECTED#1': ['joker-block', 'shape-block', 'sticker-block'],
+  'js/editor.js FLOW_BLOCK_SEL_SELECTED#1': ['joker-block', 'shape-block'],
   'js/editor.js _ALL_BLOCK_SEL#1': ['frame-block', 'joker-block', 'sticker-block'],
   'js/editor.js MULTI_SEL#1': ['frame-block'],
   'js/editor.js BLOCK_SEL#1': ['frame-block', 'sticker-block'],
