@@ -18,6 +18,13 @@
  *   ⇒ ★★여덜 뿌리 전부 `#canvas` 자신 또는 그 **후손**(특정 section/block)이다. `#cvb-plus-layer`는
  *   index.html:543-545·canvas-block.js:380-386 이 보여주듯 `#canvas-scaler`의 **형제**(`#canvas`의 자식이 아님)다
  *   ⇒ ★★구조상 L1~L8 어느 뿌리도 `#cvb-plus-layer`를 품을 수 없다 — **소스로 「안 샌다」가 선다**(실행 불필요).
+ *
+ * ★★★261018 07:52 — ★다른 기계에서 ★처음 돌렸다(★이 레인 밖의 ★첫 증명):
+ *   인텔(태양 창) · 판 d8e9dec5 · retries 0 · 「Running 1 test using 1 worker」 · ★★1 passed · rc 0 · gate rc 0
+ *   원자료 ~/taeyang-098/reports/WIN-GD-1018/d3-leak.log
+ *   ⇒ ★소스 가름(위)과 ★행위가 ★같은 답을 냈다 — ★★«안 샌다»가 ★두 길로 섰다.
+ *   ⚠️★아직 ★못 잰 것: ⒞ 무력화(「#cvb-plus-layer 를 #canvas 안에 넣으면 이 검사가 빨간가」) — ★계획만 있다.
+ *     ★까닭: 그때 인텔 swapU 가 ★89.9% 라 ★추가 런을 ★안 걸었다. ⛔「무해하다」로 ★닫지 않는다.
  *   grid-block.js:3848 자신의 주석도 이미 그렇게 적어 뒀다("cleanup 의 .grd-add-btn 줄은 «혹시 섞이면» 걷는
  *   방어" — 지금 막고 있는 구멍이 아니라 미래 회귀 보험이라는 뜻).
  * ★그래서 `.cvb-add-btn`을 cleanup 명부 4곳(save-load.js:646 등)에 «안 넣었다» — 지금 넣어도 무력화(그 줄을
