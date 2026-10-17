@@ -829,9 +829,12 @@ function _graphLabelBeginEdit(block, el, idx) {
     if (done) return; done = true;
     el.removeEventListener('keydown', onKey); el.removeEventListener('blur', onBlur);
     block.classList.remove('editing');
-    /* ★1017t1f6㉡ — 줄바꿈(⇧Enter)이 '\n' 로 들어오므로 ★그 글자만 살려 걷는다(옛 식은 \s+ 전부를 공백 하나로 접어 줄바꿈까지 지웠다).
-       붙여넣기(HTML) 는 여전히 textContent 라 서식이 안 남는다(옛 성질 그대로 — P 시험). */
-    const val = (el.textContent || '').replace(/[^\S\n]+/g, ' ').trim();
+    /* ★261018 1017t1f6 — execCommand('insertText','\n') 는 ★<br> 을 넣는다(실측 — 리터럴 '\n' 텍스트 노드가 아니다),
+       그런데 textContent 는 <br> 을 «건너뛴다»(기여 0) ⇒ 두 줄이 구분자 없이 붙어버렸다(N1 1차 빨강 — "첫줄\n둘째줄" 기대에 "첫줄둘째줄" 나옴).
+       ★innerText 는 <br> 을 '\n' 으로 바꿔 돌려준다(annotation-select.js 의 손과 같다) — 그래서 여기만 innerText 로 읽는다.
+       줄 안 공백은 그대로 걷는다(옛 식은 \s+ 전부를 공백 하나로 접어 줄바꿈까지 지웠다) · 붙여넣기(HTML) 는 서식이 안 남는다(옛 성질 그대로 — P 시험,
+       innerText 도 textContent 와 같이 인라인 요소 사이에 구분자를 안 넣는다 — <b>굵게</b><a>링크</a> → "굵게링크"). */
+    const val = (el.innerText ?? el.textContent ?? '').replace(/[^\S\n]+/g, ' ').trim();
     const items = JSON.parse(block.dataset.items || '[]');
     const changed = commit && val && items[idx] && val !== items[idx].label;
     if (changed) { items[idx].label = val; block.dataset.items = JSON.stringify(items); }
@@ -843,13 +846,13 @@ function _graphLabelBeginEdit(block, el, idx) {
   };
   const onKey = (ev) => {
     if (ev.isComposing || ev.keyCode === 229) return;   // 한글 조합 중 Enter 는 조합 확정이다
+    /* ★261018 1017t1f6 — 현빈 원문 「엔터쳐서 줄바꿈도 할수 있게해줘」= ★맨 Enter. 확정은 ⌘/Ctrl+Enter · blur · Esc(취소) 로 옮겼다
+       (선례 js/annotation-select.js:604-642 의 손 — execCommand 로 줄바꿈, 수식키 Enter 로 확정). ⛔축 눈금(.grb-ov-tick · 숫자)은
+       Enter=확정 그대로다 — 숫자엔 줄바꿈이 뜻이 없다(아래 _graphAxisTickBeginEdit 머리말 참조). 둘을 같게 맞추지 마라. */
     if (ev.key === 'Enter') {
       ev.preventDefault(); ev.stopPropagation();
-      /* ★1017t1f6㉡ — 맨 Enter 는 ★옛 그대로 «확정»(graph-label-edit.dom.spec.js E 네 벌이 이미 이 약속을 잠갔다 —
-         바꾸면 거짓빨강). ⇧Enter 만 줄바꿈(스티커 텍스트 반대쪽 — js/sticker-select.js — 와 같은 손〔execCommand〕,
-         다른 쪽 키 배정은 ★이미 선 계약을 깨지 않으려는 선택). */
-      if (ev.shiftKey) document.execCommand('insertText', false, '\n');
-      else finish(true);
+      if (ev.metaKey || ev.ctrlKey) finish(true);
+      else document.execCommand('insertText', false, '\n');
     }
     else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(false); }
   };
@@ -868,7 +871,9 @@ function _graphLabelBeginEdit(block, el, idx) {
  *     ★색인이 아니라 «값»으로 키를 잡는 이유: 데이터가 바뀌면 깔끔한 상한(_niceScale)이 다시 돌아 눈금 자체가 바뀐다
  *     — 옛 색인에 걸린 덮어쓴 글자가 «다른 숫자 자리»에 눌어붙는 것보다, 숫자가 바뀌면 덮어쓴 글자가 «조용히 빠지는» 쪽이 낫다.
  *   덮어쓴 적 없으면(dataset.axisTickText 없음) 옛 숫자 그대로 — 바이트 무변(GR-W0 은 축 자체가 꺼진 경우만 걸므로 안 걸린다).
- *   ⒥⒝ 패널 스크롤(reveal)은 안 쓴다 — 눈금엔 대응하는 패널 칸이 없다(라벨처럼 크기·색 줄로 데려갈 자리가 없다). */
+ *   ⒥⒝ 패널 스크롤(reveal)은 안 쓴다 — 눈금엔 대응하는 패널 칸이 없다(라벨처럼 크기·색 줄로 데려갈 자리가 없다).
+ *   ★261018 — 여기(축 눈금·숫자)는 ★Enter=확정 그대로다. 카테고리 라벨(글, _graphLabelBeginEdit)은 ★맨 Enter=줄바꿈·⌘Enter=확정으로
+ *     바뀌었다(1017t1f6㉡) — ★뜻이 달라서 키를 다르게 배정했다(숫자 한 줄엔 줄바꿈이 뜻이 없다). ⛔다음에 「일관성」이라며 둘을 맞추지 마라. */
 const GRB_AXIS_TICK_SEL = '.grb-ov-tick';
 function _bindGraphAxisTickEdit(block) {
   if (block._grbAxisTickEditBound) return;
