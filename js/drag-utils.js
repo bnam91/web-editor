@@ -934,7 +934,14 @@ function _graphAxisTickBeginEdit(block, el) {
  * 고르기 상태 = DOM 표식 «하나»뿐: .grb-line-vlabel.grb-vlabel-cell-selected(조각 고르기 grb-pie-cell-selected
  *   와 같은 두 진실 방지 — JS 쪽에 따로 안 둔다). 색인은 DOM 위치로만 센다 — data-* 속성 금지
  *   (위 K8⒤ 주석 「색인을 DOM 속성으로 안 박는다 — data-grb-idx 가 골든 5 빨강」과 같은 까닭).
- * 저장 자리 = dataset.items[i].vDx/vDy 한 곳(패널·MCP 캐리오버는 js/graph-shape.js carryItemExtras). */
+ * 저장 자리 = dataset.items[i].vDx/vDy 한 곳(패널·MCP 캐리오버는 js/graph-shape.js carryItemExtras).
+ * ★★261018 고침(태양 창 실측 V3 빨강) — ★«고르기»는 여기서 직접 하지 않는다. js/block-drag.js 의
+ *   isGraph click 핸들러(1013t1C4 조각 고르기와 같은 자리)가 매 클릭마다 deselectAll()→재선택을 통째로
+ *   돌린다(clearSelectionMarks 가 -cell-selected 전부를 쓸어낸다) — 내가 mouseup 에서 따로 골라 놓아도
+ *   그 직후(같은 제스처의) click 이 지워버렸다(실측: 2번째 누름 뒤 picked 가 false). 조각 고르기가 그 click
+ *   핸들러 «안에서» _pieWas/_pieIdx 로 지우기 직전 상태를 챙겨 지운 뒤 다시 거는 것과 같은 자리에,
+ *   grbVLabelIndexAt 로 값 라벨도 같이 챙겨 다시 건다 — 그래서 여기엔 «고르기 읽기»(grbVLabelIndexAt)만 두고
+ *   «고르기 쓰기»(grbVLabelPick)는 그 click 핸들러가 부른다. 이 파일의 mousedown 은 ★이미 고른 라벨을 끄는 것만 맡는다. */
 function _grbVLabelMarkIndex(block) {
   return [...block.querySelectorAll('.grb-line-vlabel')].findIndex(l => l.classList.contains('grb-vlabel-cell-selected'));
 }
@@ -942,6 +949,12 @@ function _grbVLabelMarkIndex(block) {
 function grbVLabelPick(block, idx) {
   if (!block) return;
   block.querySelectorAll('.grb-line-vlabel').forEach((l, i) => l.classList.toggle('grb-vlabel-cell-selected', i === idx));
+}
+/** 클릭 지점(target)이 어느 값 라벨 위인가(없으면 −1) — grbPieSliceIndexAt 과 같은 꼴·같은 부르는 자리(block-drag.js 클릭 핸들러). */
+function grbVLabelIndexAt(target, block) {
+  const p = target?.closest?.('.grb-line-vlabel');
+  if (!p || !block || !block.contains(p)) return -1;
+  return [...block.querySelectorAll('.grb-line-vlabel')].indexOf(p);
 }
 function _grbZoomFrac() { return (window.currentZoom || 40) / 100; }
 /** 골라 둔 값 라벨을 끈다(끄는 동안은 el.style.translate 만, 놓을 때 dataset 에 쓰고 «끝 표본»을 찍는다 — 어노테이션 라벨과 같은 길). */
@@ -989,7 +1002,9 @@ function _startVLabelOffsetDrag(block, el, idx, e) {
   document.addEventListener('mousemove', onMove, true);
   document.addEventListener('mouseup',   onUp,   true);
 }
-/** 블럭당 위임 1회(라벨은 렌더마다 새로 만들어진다 — _bindGraphLabelEdit 와 같은 가드 꼴). */
+/** 블럭당 위임 1회(라벨은 렌더마다 새로 만들어진다 — _bindGraphLabelEdit 와 같은 가드 꼴).
+ *  ★고르기는 안 한다(위 머리말 261018 고침) — js/block-drag.js isGraph click 핸들러가 한다.
+ *  여기는 «이미 고른» 라벨의 mousedown 만 가로채 끌기를 시작한다. */
 function _bindGraphVLabelDrag(block) {
   if (block._grbVLabelDragBound) return;
   block._grbVLabelDragBound = true;
@@ -1000,21 +1015,12 @@ function _bindGraphVLabelDrag(block) {
     if (!el || !block.contains(el)) return;
     const idx = [...block.querySelectorAll('.grb-line-vlabel')].indexOf(el);
     if (idx < 0) return;
-    const wasSelected = block.classList.contains('selected');
-    const picked = wasSelected && el.classList.contains('grb-vlabel-cell-selected');
+    const picked = block.classList.contains('selected') && el.classList.contains('grb-vlabel-cell-selected');
     if (picked && !(e.metaKey || e.ctrlKey)) {
       _startVLabelOffsetDrag(block, el, idx, e);
-      return;
     }
-    // 아직 안 골랐으면 — 보통 블럭 클릭/드래그 그대로 둔다(전파를 막지 않는다). «안 움직이고» 놓으면(이미 선택된 블럭일 때) 그 라벨을 고른다.
-    const startX = e.clientX, startY = e.clientY;
-    const onUp = (ev) => {
-      document.removeEventListener('mouseup', onUp, true);
-      if (Math.abs(ev.clientX - startX) >= 3 || Math.abs(ev.clientY - startY) >= 3) return;   // 움직였으면(블럭 드래그) — 고르지 않는다
-      if (!wasSelected || !block.classList.contains('selected')) return;   // 첫 클릭(이번에 막 선택된 것)은 고르기 전 단계
-      grbVLabelPick(block, idx);
-    };
-    document.addEventListener('mouseup', onUp, true);
+    // 아직 안 골랐으면 — 아무것도 안 한다(전파를 막지 않는다). 클릭은 그대로 block-drag.js 의 isGraph
+    // click 핸들러로 가서 「첫 클릭=블럭 선택 · 이미 선택된 블럭에서 또 누르면 그 라벨 고르기」를 거기서 맡는다.
   }, true);
 }
 
@@ -1796,7 +1802,8 @@ window.grbPieSliceIndexAt         = grbPieSliceIndexAt;   // 1013t1C4 — 조각
 window.grbPieSelected             = grbPieSelected;
 window.grbPieSelect               = grbPieSelect;
 window.grbPieHiddenNames          = grbPieHiddenNames;     // 1013t1C3 고침 2 — 좁아서 숨겨진 이름 수(패널 안내 줄이 읽는다)
-window.grbVLabelPick              = grbVLabelPick;          // ★1017t1f5 — 꺾은선 값 라벨 고르기(prop-graph.js 항목 수 변경 시 해제용)
+window.grbVLabelPick              = grbVLabelPick;          // ★1017t1f5 — 꺾은선 값 라벨 고르기(prop-graph.js 항목 수 변경 시 해제용 · block-drag.js click 핸들러의 재적용용)
+window.grbVLabelIndexAt           = grbVLabelIndexAt;       // ★1017t1f5(261018 고침) — 클릭 지점의 값 라벨 색인(block-drag.js isGraph click 핸들러가 읽는다)
 window.grbPieFitTags              = grbPieFitTags;         // 1013t1C3 고침 — 조각 안 라벨을 재서 제 조각 안에 넣는다(canvas-contrast.js syncGraphTone 이 부른다)
 window.applyDividerStyle          = applyDividerStyle;
 window.ASSET_PRESETS              = ASSET_PRESETS;

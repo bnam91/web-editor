@@ -10,6 +10,13 @@
  * 선례 = js/annotation-select.js _startLabelOffsetDrag(1013t1A3 · «이미 골라진 라벨을 안 움직이고
  *   한 번 더 누르면 라벨을 고른다, 다음 끌기 = 라벨만») + js/drag-utils.js grbPieSelect(여러 항목 중
  *   «하나 고르기» 표식 — 꺾은선은 항목이 어노테이션처럼 하나가 아니라 pie 조각처럼 여럿이라 이 꼴을 썼다).
+ * ★261018 고침(태양 창 1차 실측 — 판 dfaa8280 — V3~V9 빨강 7) — 「고르기 ★쓰기」는 js/drag-utils.js
+ *   의 mousedown 에 두지 않는다. js/block-drag.js 의 isGraph click 핸들러가 ★매 클릭마다 deselectAll()
+ *   →재선택을 돌리는데(1013t1C4 조각 고르기와 같은 자리) 그게 clearSelectionMarks 로 -cell-selected 를
+ *   전부 쓸어낸다 — mousedown/mouseup 에서 따로 골라 놔도 같은 제스처의 click 이 곧장 지웠다(V3 「2번째
+ *   누름 뒤 picked=false」가 그 증거). 조각 고르기가 그 click 핸들러 «안에서» _pieWas/_pieIdx 로 지우기
+ *   직전 상태를 챙겨 지운 뒤 다시 거는 것과 «같은 자리에» grbVLabelIndexAt(읽기)를 걸고 grbVLabelPick
+ *   (쓰기)을 그 click 핸들러가 부른다. js/drag-utils.js 의 mousedown 은 ★이미 고른 라벨을 끄는 것만 맡는다.
  *
  * ★무엇을 잠그나
  *   V1 전제 — 「값표시」(showVLabel)가 기본으로 켜져 있고 항목마다 .grb-line-vlabel 이 «정확히 하나» 있다
@@ -19,20 +26,25 @@
  *   V5 끌기 한 번 = ⌘Z 한 걸음(annotation AN7 과 같은 자)
  *   V6 다시 그려도(renderGraph 재호출 — 패널의 다른 값 바꾸기와 같은 길) 오프셋 · translate · 고른 표식이 남는다
  *   V7 저장→다시 열기(getSerializedCanvas → innerHTML → rebindAll)에선 오프셋(vDx/vDy)은 남지만 «고른 표식」은 안 남는다(런타임 마커 — annotation AN10 과 같은 자)
- *   V8 아직 안 고른 라벨을 그대로 끌면(두 번 안 누르고 바로 드래그) — 블럭 전체가 움직인다(라벨만 움직이지 않는다 · 어노테이션의 「한 번 더 눌러야」 원칙 재현)
+ *   V8 블럭이 absolute(자유배치)일 때, 선택만 되고 «안 고른» 라벨을 그대로 끌면 — 블럭 전체가 움직인다
+ *      (라벨만 움직이지 않는다 · 어노테이션의 「한 번 더 눌러야」 원칙 재현). ★원판은 블럭이 일반 흐름이라
+ *      애초에 마우스로 못 끄는 자리였다(js/block-drag.js:716-732, absolute 아닌 블럭은 드래그 시작이
+ *      early-return) — position:absolute 전제를 세운 뒤 다시 쟀다(261018 고침, 아래 V8 바로 위 주석).
  *   V9 항목을 지우면(패널 삭제 버튼) 고른 표식이 풀린다(grbVLabelPick(null) — pie 의 같은 까닭과 짝)
  *
  * ★⒞ 무력화 계획(실행은 다른 기계 — 지디) — 아래 중 하나를 깨뜨리면 몇 벌이 빨개져야 하는지:
  *   ⓐ js/drag-utils.js _startVLabelOffsetDrag 의 e.stopImmediatePropagation() 을 지운다
- *      → V4(라벨만 옮겨짐)·V8(안 고른 라벨은 블럭째 이동) 둘 다 빨강(블럭까지 같이 끌림 또는 반대로 안 끌림)
+ *      → V4(라벨만 옮겨짐) 빨강(블럭까지 같이 끌림) · V8 은 영향 없음(그쪽은 애초에 「안 고른」 경로 — picked 분기를 안 탄다)
  *   ⓑ css/editor-graph.css 의 `.grb-line-overlay .grb-line-vlabel { pointer-events: auto; }` 를 지운다
- *      → V2·V3·V4·V8 전부 빨강(라벨이 클릭을 못 받아 mousedown 이 전부 밑으로 샌다)
+ *      → V2·V3·V4·V8 전부 빨강(라벨이 클릭을 못 받아 mousedown/click 이 전부 밑으로 샌다)
  *   ⓒ js/drag-utils.js 값 쓰기에서 `if (cur.dx === 0) delete its[idx].vDx;` 가드를 지우고 늘 쓴다
  *      → V1(0,0 복귀 뒤에도 vDx:'0' 키가 남아 「없음」 전제가 깨진다 — 되돌리기 관련 보조 검사가 있다면 그쪽도 빨강)
  *   ⓓ js/drag-utils.js 의 `const _vSelIdx = _grbVLabelMarkIndex(block);` ~ 복원 줄(그 아래 `if (_vSelIdx >= 0) grbVLabelPick(...)`)을 지운다
  *      → V6 빨강(다시 그리면 고른 표식이 사라짐 — pie 의 S6 과 같은 자리)
  *   ⓔ js/io/section-serialize.js RUNTIME_MARKER_RE 에서 `cell-selected` 분기를 지운다(다른 표식도 다 같이 샌다 — 넓은 무력화)
  *      → V7 빨강(저장본에 grb-vlabel-cell-selected 가 실림) — ⚠️pie 의 S4·annotation 의 AN10 도 같이 빨개진다(겹치는 음성대조 자리 — 한 군데 고치면 셋 다 돌아온다)
+ *   ⓦ ★261018 고침으로 새로 생긴 자리 — js/block-drag.js isGraph click 핸들러의 `window.grbVLabelPick?.(block, (_pieWas && _vlabelIdx >= 0) ? _vlabelIdx : null);` 줄을 지운다
+ *      → V3 빨강(2번째 눌러도 안 골라짐) → V4·V5·V6·V7·V9 도 전부 같이 빨강(「고름」이 전제라 사슬로 넘어간다) — ★이 자리가 ★★진짜 뿌리다
  *   ⇒ 겹치는 음성대조: ⓔ 를 깨면 이 파일 V7 뿐 아니라 graph-pie-1013(S4)·annotation-1013(AN10) 도 같이 빨개져야 한다(묶음 판정 — 「뿌리 하나」를 이 세 자리로 검산).
  */
 const { test, expect } = require('@playwright/test');
@@ -216,8 +228,24 @@ test('V7 저장→다시 열기 — 오프셋은 남고 「고른 표식」은 �
   expect(s.picked, '다시 연 뒤엔 고른 표식 없음(런타임 마커라 저장에 안 실림)').toEqual([false, false, false]);
 });
 
-test('V8 안 고른 라벨을 그대로 끌면(두 번 안 누름) — 블럭 전체가 움직인다', async ({ page }) => {
+/* ★261018 고침 — V8 원판은 블럭이 «일반 흐름»(section-inner 에 그냥 붙인 row)이라 애초에 마우스로
+ *   끌 수 없는 자리였다(js/block-drag.js:716-732 — isShape/isText/isMockup 가 아닌 블럭은
+ *   `block.style.position !== 'absolute'` 면 드래그 시작 자체가 early-return 한다. 그래픽 블럭의
+ *   전체-이동은 freeLayout/absolute 블럭에만 있는 길이다). ⇒ ★자체가 못 쟀다(V3 수정과 무관하게
+ *   항상 빨강이었을 자리) — position:absolute 를 직접 줘서(부모 free-layout frame 없이도 이 조건
+ *   하나로 드래그 길이 열린다) 그 전제부터 세우고 다시 쟀다. */
+test('V8 안 고른 라벨을 그대로 끌면(두 번 안 누름) — 블럭 전체가 움직인다(블럭이 absolute 일 때)', async ({ page }) => {
   await setup(page);
+  await page.evaluate(() => {
+    const b = document.getElementById('lnG');
+    b.style.position = 'absolute'; b.style.left = '40px'; b.style.top = '40px';
+  });
+  const r1a = await vlabelRect(page, 1);
+  // 블럭을 «선택만»(고르기 전) — click 한 번(mousedown+mouseup+click)으로 블럭 선택, 라벨은 안 고름.
+  await clickAt(page, r1a.cx, r1a.cy, { sel: '#lnG .grb-line-vlabel' }, { label: '선택만' });
+  await expect.poll(async () => (await vlabelState(page)).sel, '★전제: 블럭이 선택됐다').toBe(true);
+  await expect.poll(async () => (await vlabelState(page)).picked, '★전제: 라벨은 안 골랐다').toEqual([false, false, false]);
+
   const z = await page.evaluate(() => (window.currentZoom || 40) / 100);
   const r1 = await vlabelRect(page, 1);
   const blk0 = await blockRect(page);
