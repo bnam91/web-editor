@@ -14,6 +14,7 @@ import {
   applyDividerStyle,
   showToast,
   selectAllEditableContents,
+  mdlReadText,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
 import { isBlurIntoPanel, parkEditing } from './props/_text-selection.js';
@@ -278,39 +279,8 @@ function _gridEndEdit(block, host, addr, opts = {}) {
   if (res && res.ok === false) window.showToast?.(`줄 수정 실패: ${res.message || res.code}`);
 }
 
-/* modal 슬롯 «글자 읽기» — contenteditable 의 div/br 를 «보이는 줄» 그대로의 \n 으로 바꾼다.
-   ★innerText 를 쓰지 마라: Enter 두 번이 만드는 `가<div><br></div><div>나</div>` 를 "가\n\n\n나"(줄바꿈 «하나 더»)로 읽고,
-     슬롯이 white-space:pre-wrap 인 지금은 그대로 그려져 편집 중 3줄이 blur 뒤 4줄이 된다(2026-10-03 적대QA).
-   규칙: 블록(div/p)은 줄을 «시작»하고 끝나면 줄바꿈이 «대기»한다(뒤에 뭔가 올 때만 실제 줄바꿈).
-         블록 안 «마지막» <br> 는 빈 줄의 자리표시일 뿐이라 줄을 더하지 않는다. 그 밖의 <br> 는 줄바꿈.
-         끝의 줄바꿈은 떼어 낸다 — pre-wrap 은 끝 «\n 하나»를 줄로 안 그려 편집 중 줄 수와 갈린다. */
-function _mdlReadText(host) {
-  const BLOCK = /^(DIV|P|LI|H[1-6])$/;
-  let out = '', pending = false;
-  const atLineStart = () => out === '' || out.endsWith('\n');
-  const walk = (n) => {
-    for (const c of n.childNodes) {
-      if (c.nodeType === 3) {
-        const t = c.nodeValue.replace(/\r\n?/g, '\n').replace(/\u200b/g, '');
-        if (t === '') continue;
-        if (pending) { out += '\n'; pending = false; }
-        out += t;
-      } else if (c.nodeType === 1) {
-        if (c.tagName === 'BR') {
-          const ph = BLOCK.test(n.tagName || '') && n !== host && !c.nextSibling;   // 블록 안 마지막 br = 자리표시
-          if (!ph) { pending = false; out += '\n'; }
-        } else if (BLOCK.test(c.tagName)) {
-          if (pending || (!atLineStart())) { out += '\n'; }
-          pending = false;
-          walk(c);
-          pending = true;
-        } else walk(c);
-      }
-    }
-  };
-  walk(host);
-  return out.replace(/\n+$/, '');
-}
+/* modal 슬롯 «글자 읽기» — ★1017t1c2 로 js/drag-utils.js mdlReadText 로 옮겼다(사본 0 · import 로 쓴다).
+   comparison-block.js 도 같은 함수를 쓴다(아래 import). */
 
 /* modal 슬롯 편집 종료 — dataset 에 커밋하고 재렌더.
    ★placeholder 지뢰 방지: 안내문구 그대로 두고 나가면(더블클릭 후 무입력) «아무것도 쓰지 않는다».
@@ -324,7 +294,7 @@ function _modalEndEdit(block, host) {
   const before = host._mdlBefore;
   const slot = host.dataset.mdlSlot;
   const ph = host.dataset.placeholder || '';
-  const text = _mdlReadText(host);
+  const text = mdlReadText(host);
   if (before == null || !slot) return;
   const isPh = text.trim() === '' || text.trim() === ph.trim();
   const next = isPh ? '' : text;
@@ -358,7 +328,7 @@ function _modalEndEdit(block, host) {
      이라 ★이름으로 적어 뒀다 ⇒ ★이 자는 ★그 결정을 ★뒤집는 것이고, ★근거는 ★현빈 원문이다.
    ★안내문구 지뢰 방지 — ★모달과 ★같은 까닭: 흐린 안내문구를 ★그대로 두고 나가면 ★아무것도 쓰지 않는다.
      ★그 문구를 데이터로 굳히면 ★그 블럭은 ★영영 「본문이 안내문구인」 블럭이 된다.
-   ★글자 읽기는 ★`_mdlReadText` ★한 벌을 ★그대로 쓴다 — ⛔제 사본을 만들지 않는다
+   ★글자 읽기는 ★`mdlReadText`(drag-utils.js) ★한 벌을 ★그대로 쓴다 — ⛔제 사본을 만들지 않는다
      (인용구 글덩이는 ★줄당 `<div class="tb-qt-line">` 이라 ★모달 슬롯과 ★같은 꼴 = 블록 경계가 `\n`).
    ⛔부분 서식(HTML)은 ★여기서 ★안 다룬다 — ★그건 `c1-②` 범위다(모달은 `nextHtml` 을 같이 커밋한다). */
 function _quoteEndEdit(block, host) {
@@ -368,7 +338,7 @@ function _quoteEndEdit(block, host) {
   block.classList.remove('editing');
   const before = host._qtBefore;
   if (before == null) return;
-  const text = _mdlReadText(host);
+  const text = mdlReadText(host);
   /* ★안내문구를 ★손 안 대고 나갔나 — ★그러면 dataset 은 ★빈 채로 둔다(render 가 다시 흐리게 그린다) */
   const isPh = !!host._qtWasPh && text.trim() === String(before).trim();
   const next = isPh ? '' : text;
@@ -2567,7 +2537,7 @@ function bindBlock(block) {
       host.setAttribute('contenteditable', 'true');
       // 부모 row 가 draggable 이라 안 끄면 «글자 드래그 선택»이 블록 드래그가 된다
       host.setAttribute('draggable', 'false');
-      host._mdlBefore = _mdlReadText(host);
+      host._mdlBefore = mdlReadText(host);
       host._mdlWasPh  = host.dataset.isPlaceholder === 'true';
       if (!host._mdlEditBound) {
         host._mdlEditBound = true;
@@ -2614,7 +2584,7 @@ function bindBlock(block) {
       block.classList.add('editing');          // 드래그·삭제키 가드가 이걸 본다
       host.setAttribute('contenteditable', 'true');
       host.setAttribute('draggable', 'false'); // 부모 row 가 draggable — 안 끄면 글자 드래그 선택이 블록 드래그가 된다
-      host._qtBefore = _mdlReadText(host);
+      host._qtBefore = mdlReadText(host);
       /* ★안내문구인가 — ★`_lineEl` 이 그때만 ★`data-is-placeholder` 를 박는다(quote-block.js:259) */
       host._qtWasPh = !!host.querySelector('[data-is-placeholder="true"]');
       if (!host._qtEditBound) {

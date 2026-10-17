@@ -1509,6 +1509,42 @@ function selectAllEditableContents(el) {
   } catch (_) { return false; }
 }
 
+/* ★1017t1c2 — js/block-drag.js 에서 ★옮겨 왔다(그 자리는 import 로 쓴다 · 사본 0).
+   modal 슬롯 «글자 읽기» — contenteditable 의 div/br 를 «보이는 줄» 그대로의 \n 으로 바꾼다.
+   ★innerText 를 쓰지 마라: Enter 두 번이 만드는 `가<div><br></div><div>나</div>` 를 "가\n\n\n나"(줄바꿈 «하나 더»)로 읽고,
+     슬롯이 white-space:pre-wrap 인 지금은 그대로 그려져 편집 중 3줄이 blur 뒤 4줄이 된다(2026-10-03 적대QA).
+   규칙: 블록(div/p)은 줄을 «시작»하고 끝나면 줄바꿈이 «대기»한다(뒤에 뭔가 올 때만 실제 줄바꿈).
+         블록 안 «마지막» <br> 는 빈 줄의 자리표시일 뿐이라 줄을 더하지 않는다. 그 밖의 <br> 는 줄바꿈.
+         끝의 줄바꿈은 떼어 낸다 — pre-wrap 은 끝 «\n 하나»를 줄로 안 그려 편집 중 줄 수와 갈린다.
+   ★1017t1c2 — 비교(comparison) 블럭의 칸·헤더 글자(Enter 줄바꿈)도 이 한 벌을 쓴다(사본 0). */
+function mdlReadText(host) {
+  const BLOCK = /^(DIV|P|LI|H[1-6])$/;
+  let out = '', pending = false;
+  const atLineStart = () => out === '' || out.endsWith('\n');
+  const walk = (n) => {
+    for (const c of n.childNodes) {
+      if (c.nodeType === 3) {
+        const t = c.nodeValue.replace(/\r\n?/g, '\n').replace(/​/g, '');
+        if (t === '') continue;
+        if (pending) { out += '\n'; pending = false; }
+        out += t;
+      } else if (c.nodeType === 1) {
+        if (c.tagName === 'BR') {
+          const ph = BLOCK.test(n.tagName || '') && n !== host && !c.nextSibling;   // 블록 안 마지막 br = 자리표시
+          if (!ph) { pending = false; out += '\n'; }
+        } else if (BLOCK.test(c.tagName)) {
+          if (pending || (!atLineStart())) { out += '\n'; }
+          pending = false;
+          walk(c);
+          pending = true;
+        } else walk(c);
+      }
+    }
+  };
+  walk(host);
+  return out.replace(/\n+$/, '');
+}
+
 export {
   genId,
   getActorId,
@@ -1541,6 +1577,7 @@ export {
   blockContextLuminance,
   suppressAncestorDrag,
   selectAllEditableContents,
+  mdlReadText,
 };
 
 window.genId                      = genId;
