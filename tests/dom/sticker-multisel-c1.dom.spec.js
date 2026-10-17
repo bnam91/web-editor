@@ -161,6 +161,24 @@ async function makeOne(page, r, i) {
   return id;
 }
 
+/* ★1013t2 r2 — 배율 전환이 «끝난 뒤»에 잰다(LNPLUS 718dc05a 와 같은 꼴 · tests/dom/FLAKY.md LP2 절).
+   #canvas-scaler 는 `transition: transform .15s`(css/editor-canvas.css)라 applyZoom(부팅·applyProjectData 가 부른다) 직후
+   한동안 «보간 중»이다 — 그 사이 잰 클릭 좌표는 누르는 순간 이미 옮겨 가 있다. ⇒ «재는 그 값»(스케일러 계산 배율
+   = window.currentZoom/100 · 도는 전환 0)을 기다린다. ⛔고정 대기 없음. */
+async function waitZoomSettled(page) {
+  try {
+    await page.waitForFunction(() => {
+      const S = document.getElementById('canvas-scaler');
+      const z = Number(window.currentZoom);
+      if (!S || !Number.isFinite(z) || S.getAnimations().length) return false;
+      const tf = getComputedStyle(S).transform, m = /^matrix\(([^,]+),/.exec(tf);
+      const k = tf === 'none' ? 1 : m ? Number(m[1]) : NaN;
+      return Math.abs(k - z / 100) < 1e-3;
+    }, null, { timeout: 5000 });
+  } catch (e) {
+    throw new Error(`배율 전환이 안 끝났다(#canvas-scaler 보간 중 · currentZoom 과 계산 배율 불일치) — ${e.message}`);
+  }
+}
 /** 무대 + 명부의 모든 종류를 secA 에 하나씩. 돌려줌: [{...r, id}] */
 async function setup(page, { stickers = true } = {}) {
   await page.setViewportSize({ width: 1600, height: 1000 });
@@ -169,6 +187,7 @@ async function setup(page, { stickers = true } = {}) {
     document.getElementById('canvas').insertAdjacentHTML('beforeend', html);
     window.rebindAll?.(); window.deselectAll?.();
   }, SEC);
+  await waitZoomSettled(page);   // ★한 자리 — stickers:false 길(S13·Z)도 여기를 지난다
   const made = [];
   if (stickers) {
     for (let i = 0; i < ROSTER.length; i++) {

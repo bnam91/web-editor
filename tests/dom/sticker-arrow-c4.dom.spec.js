@@ -3,7 +3,7 @@
  *
  * ★무엇을 잠그나 (계획 plan-1013t2-C4C5 C4-7 A1~A10)
  *   A1 메뉴 「Arrow Line」 실클릭 → 화살표 1 · 골라짐 · 끝점 손잡이 2(모서리 손잡이 0) · 섹션 안 골랐으면 0
- *      · 메뉴 자리 = Highlight 다음 · Glow 앞 · ★이웃 잠금 생존: Coin 은 Count Sticker 바로 다음(coin K1) · 살아 있는 /highlight/i 단추 1(HJ1)
+ *      · 메뉴 자리 = Highlight 다음 · Glow 앞 · ★이웃 잠금 생존: Coin 은 마킹(onclick toggleCountStickerMode) 바로 다음(coin K1 · 이름 아닌 정의로) · 살아 있는 /highlight/i 단추 1(HJ1)
  *   A2 패널 — Arrow Line 절만 · Shape·Size·Colors·Rotation 절 숨김 · 칩·칸이 dataset 과 그림(path d·머리 수·dasharray·stroke)에 닿는다 · 휨 행은 곡선만 · 다시 섞기는 손그림만
  *   A3 끝 손잡이 실마우스 끌기 → x2,y2 바뀜 · 머리 꼭짓점 = 새 끝점
  *   A4 몸통 끌기 → 네 끝점이 같은 Δ · 끈 뒤에도 손잡이 2
@@ -32,11 +32,30 @@ const { expectOneUndoStep } = require('./_history-step.js');
 const SEC_HTML = (id = 'secA', bg = '#ffffff', h = 480) =>
   `<div class="section-block" id="${id}" style="position:relative;height:${h}px;background:${bg}"><div class="section-inner"></div></div>`;
 
+/* ★1013t2 r2 — 배율 전환이 «끝난 뒤»에 잰다(LNPLUS 718dc05a 와 같은 꼴 · tests/dom/FLAKY.md LP2 절).
+   #canvas-scaler 는 `transition: transform .15s`(css/editor-canvas.css)라 applyZoom(부팅·applyProjectData 가 부른다) 직후
+   한동안 «보간 중»이다 — 그 사이 잰 클릭 좌표는 누르는 순간 이미 옮겨 가 있다. ⇒ «재는 그 값»(스케일러 계산 배율
+   = window.currentZoom/100 · 도는 전환 0)을 기다린다. ⛔고정 대기 없음. */
+async function waitZoomSettled(page) {
+  try {
+    await page.waitForFunction(() => {
+      const S = document.getElementById('canvas-scaler');
+      const z = Number(window.currentZoom);
+      if (!S || !Number.isFinite(z) || S.getAnimations().length) return false;
+      const tf = getComputedStyle(S).transform, m = /^matrix\(([^,]+),/.exec(tf);
+      const k = tf === 'none' ? 1 : m ? Number(m[1]) : NaN;
+      return Math.abs(k - z / 100) < 1e-3;
+    }, null, { timeout: 5000 });
+  } catch (e) {
+    throw new Error(`배율 전환이 안 끝났다(#canvas-scaler 보간 중 · currentZoom 과 계산 배율 불일치) — ${e.message}`);
+  }
+}
 async function setup(page, html = SEC_HTML()) {
   await page.evaluate((html) => {
     document.getElementById('canvas').innerHTML = html;
     window.rebindAll?.();
   }, html);
+  await waitZoomSettled(page);
   await waitStableRect(page, '.section-block');
 }
 const selectSection = (page, id = 'secA') => page.evaluate((id) => { window.deselectAll?.(); window.selectSection?.(document.getElementById(id)); return window.getSelectedSection?.()?.id; }, id);
@@ -114,12 +133,16 @@ const shown = (page, sel) => page.evaluate((sel) => { const e = document.querySe
 test('A1 메뉴 「Arrow Line」 — 한 번 누르면 화살표 1 · 골라짐 · 끝점 손잡이 2 · 섹션 안 골랐으면 0 · 메뉴 자리와 이웃 잠금', async ({ page }) => {
   const errs = await bootApp(page);
   await setup(page);
-  const menu = await page.evaluate(() => [...document.querySelectorAll('#fp-pen-menu > .fp-menu-item')].map(b => ({ t: b.textContent.trim(), html: b.outerHTML })));
+  const menu = await page.evaluate(() => [...document.querySelectorAll('#fp-pen-menu > .fp-menu-item')].map(b => ({ t: b.textContent.trim(), html: b.outerHTML, on: b.getAttribute('onclick') || '' })));
   const at = menu.findIndex(m => m.t === 'Arrow Line');
   expect(at, '★전제: 메뉴에 「Arrow Line」이 있다').toBeGreaterThan(0);
   expect([menu[at - 1].t, menu[at + 1]?.t], '「Arrow Line」 = Highlight 다음 · Glow 앞').toEqual(['Highlight', 'Glow']);
-  const coin = menu.findIndex(m => m.t === 'Coin');
-  expect(menu[coin - 1]?.t, '★이웃 잠금(coin K1): Coin 은 Count Sticker 바로 다음').toBe('Count Sticker');
+  /* ★이웃 잠금(coin K1)의 «뜻» = 「Coin 은 마킹 바로 다음」. 메뉴 «글자»는 바뀐다(dev 0.9.8: Count Sticker → Marking)
+     — 그래서 이름 대신 «정의»(단추의 onclick 갈래)로 찾는다: 코인 = addStickerBlock({shape:'coin'}) · 마킹 = toggleCountStickerMode(. */
+  const byDef = (re) => menu.map((m, i) => re.test(m.on) ? i : -1).filter(i => i >= 0);
+  const coinAt = byDef(/addStickerBlock\(\{\s*shape\s*:\s*'coin'/), markAt = byDef(/toggleCountStickerMode\(/);
+  expect([coinAt.length, markAt.length], '★전제: 코인 입구 1 · 마킹 입구 1 (onclick 정의로 셈)').toEqual([1, 1]);
+  expect(coinAt[0] - markAt[0], '★이웃 잠금(coin K1): Coin 은 마킹(toggleCountStickerMode) 바로 다음').toBe(1);
   expect(menu.filter(m => /highlight/i.test(m.html)).length, '★이웃 잠금(HJ1): 살아 있는 형광펜 입구는 하나').toBe(1);
 
   expect(await page.evaluate(() => document.querySelectorAll('.selected').length), '★전제: 아무것도 안 골랐다').toBe(0);
@@ -289,6 +312,7 @@ test('A6 저장 → 새 페이지에서 다시 열기 = 같은 값·같은 그�
   expect(await arrowIds(page), '★전제: 새 페이지엔 화살표가 없다').toEqual([]);
   await page.evaluate((d) => window.applyProjectData(JSON.parse(d)), snap);
   await expect.poll(async () => (await arrowIds(page)).length, '다시 열었는데 화살표가 없다').toBe(1);
+  await waitZoomSettled(page);   // ★두 번째 bootApp + applyProjectData 는 setup 을 안 지난다 — 여기서 따로 기다린다
   const after = await read(page, id);
   expect(after, '★같은 id 로 돌아왔다').not.toBeNull();
   expect(after.d, '값이 전부 같다').toEqual(before.d);
