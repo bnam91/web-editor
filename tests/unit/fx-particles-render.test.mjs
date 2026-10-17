@@ -510,3 +510,34 @@ test('P17c ★★필터 영역이 ★«묶인 번짐»을 따라온다 — ⛔�
   assert.ok(Math.abs(fast) > Math.abs(slow),
     `★★속도를 올려 ★번짐이 커졌는데 ★필터 영역이 ★안 넓어졌다 (${slow} → ${fast}) — ★번짐이 ★잘린다`);
 });
+
+/* ══ 1013t2 E4 — 크기 상한 250 (코인 레시피 = 모양 coin · 레시피 자체는 tests/unit/coin-particle-recipe.test.mjs) ══════════════════════════════════════════
+   코인 그림은 js/fx/coin-draw.js(CoinFx)가 짓는다 ⇒ 이 칸들은 그 파일을 «같이» 실은 판에서 잰다(index.html 의 순서: coin-draw → particles-render). */
+function loadWithCoin(errSink) {
+  const ctx = errSink ? { console: { error: (...a) => errSink.push(a.map(String).join(' ')) } } : {};
+  ctx.window = ctx; vm.createContext(ctx);
+  vm.runInContext(readSrc(REPO, 'js/fx/seeded-random.js'), ctx);
+  vm.runInContext(readSrc(REPO, 'js/fx/coin-draw.js'), ctx);
+  vm.runInContext(readSrc(REPO, 'js/fx/particles-render.js'), ctx);
+  assert.equal(typeof ctx.CoinFx?.draw, 'function', '★전제: CoinFx 를 실었다');
+  return { F: ctx.ParticlesFx, C: ctx.CoinFx };
+}
+test('P19 ★E4 크기 상한 250 — 범위 표 · 가두기 · 실제 그림 · 옛 값 그대로', () => {
+  const { F } = loadWithCoin();
+  /* ★이 파일에서 「250」을 글자로 적는 자리 — 값을 여기서 잠근다 */
+  assert.deepEqual([F.RANGES.smin.min, F.RANGES.smin.max, F.RANGES.smax.min, F.RANGES.smax.max], [1, 250, 1, 250]);
+  assert.equal(F.normalize({ shapes: ['coin'], smax: 250 }).smax, 250, '250 이 깎였다');
+  assert.equal(F.normalize({ shapes: ['coin'], smax: 251 }).smax, 250);
+  assert.equal(F.normalize({ shapes: ['coin'], smin: 250, smax: 250 }).smin, 250);
+  /* 옛 저장본의 크기(≤ 90)는 그대로다 */
+  for (const k of F.KINDS) {
+    const n = F.normalize({ preset: k });
+    assert.ok(n.smax <= 90 && n.smin === F.PRESETS[k].smin && n.smax === F.PRESETS[k].smax, `${k}: 기본 크기가 바뀌었다`);
+  }
+  assert.equal(F.normalize({ preset: 'star', smin: 3, smax: 90 }).smax, 90);
+  /* 실제 그림 — 크기 250 으로 고정하면 코인 앞면 타원의 가로 반지름이 125 다 */
+  const s = F.svg({ preset: 'gold', shapes: ['coin'], colors: ['#f5c542'], glow: 0, seed: 5, count: 4, smin: 250, smax: 250, w: 860, h: 600, filterId: 'pfx-big' });
+  assert.equal((s.match(/<ellipse rx="125" ry="[^"]+" fill="url\(#pfx-big-c\d+f\)"\/>/g) || []).length, 4, '지름 250 코인이 안 그려졌다');
+  /* 다른 모양도 같은 표를 읽는다(범위 표는 하나) */
+  assert.ok(F.svg({ preset: 'dust', seed: 5, count: 3, smin: 250, smax: 250, glow: 0, w: 860, h: 600, filterId: 'p' }).includes(' r="125"'));
+});

@@ -318,7 +318,7 @@ test('P9 라벨 편집 — 범례 라벨 더블클릭 → 타이핑 → Enter = 
   await expect.poll(() => page.evaluate((id) => { const a = document.activeElement; return !!a && a.matches('.grb-pie-label') && a.isContentEditable && document.getElementById(id).contains(a); }, id), { message: '라벨이 편집 상태로 포커스', timeout: 3000 }).toBe(true);
   await page.keyboard.press('Meta+a');
   await page.keyboard.type('새라벨G1');
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('Meta+Enter');   // ★261018 1017t1f6 — 캔버스 라벨 확정은 ⌘Enter(맨 Enter 는 줄바꿈 · graph-label-edit.dom.spec.js N1)
   await expect.poll(async () => (await itemsOf(page, id)).map(i => i.label)).toEqual(['가', '새라벨G1', '다']);
   expect((await legend(page, id)).map(l => l.label)).toEqual(['가', '새라벨G1', '다']);
   expect(await page.evaluate((id) => ({ ce: document.getElementById(id).querySelectorAll('[contenteditable]').length, ed: document.getElementById(id).classList.contains('editing') }), id)).toEqual({ ce: 0, ed: false });

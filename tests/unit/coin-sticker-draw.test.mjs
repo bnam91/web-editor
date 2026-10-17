@@ -15,6 +15,10 @@
  *   D10 ★어떤 입력에도 안 던진다 — 객체 내장 이름 재질 · NaN·음수·아주 큰 수 · 빈 값 (손댄 저장본이 로드를 멈추지 않는다)
  *   D11 두께는 그리개가 가둔다(패널과 같은 표 LIMITS) · 방향·회전은 한 바퀴 안으로
  *   D12 각인 자르기 한 벌(cutGlyph) — 공백뿐 = 없음 · 그래핌 기준 · 그리개가 그 함수를 쓴다
+ *   D13 ★번짐(1013t2C3) — 0 이면 글자가 한 자도 안 바뀐다(옛 저장본) · 켜면 세로로만 번지는 필터 하나(id = 접두+b) ·
+ *        범위가 섹션 파티클 「번짐」(ParticlesFx.RANGES.blur)과 같은 수 · 범위 밖은 끝값 · 패널·블럭이 그 축을 잇는다
+ *   D14 ★그림 상자(inkBox · 1013t2C2) — 정면은 지름 100 의 원 · 기울면 납작해지고 옆띠만큼 한쪽으로 늘어난다 · 상자 회전이 축을 바꾼다
+ *   D15 ★한 닢 그리기(draw · 1013t2E3) — 자리·지름이 그대로 들어가고 svg 껍데기가 없다 · 색 한 칸 → 생김새(lookFromColor)
  * ★기대값은 «글자로» 박았다(피검 함수에서 뽑으면 항등식이다).
  * ⛔앱 0 · 네트워크 0. 두 파일 다 최상위에서 DOM 을 안 건드리므로 vm 으로 그대로 싣는다.
  */
@@ -50,7 +54,7 @@ test('D0 전제 — DOM 없이 실리고, 계약한 이름만 낸다', () => {
   const { C } = load();
   assert.equal(typeof C?.svg, 'function');
   assert.deepEqual(Object.keys(C).sort(),
-    ['DEFAULTS', 'GLYPH_MAX', 'LIMITS', 'PALETTES', 'angleFromSeed', 'baseColors', 'cutGlyph', 'draw', 'lookFromColor', 'paletteFor', 'svg', 'toHex6'],
+    ['DEFAULTS', 'GLYPH_MAX', 'LIMITS', 'PALETTES', 'angleFromSeed', 'baseColors', 'cutGlyph', 'draw', 'inkBox', 'inkFrac', 'lookFromColor', 'paletteFor', 'svg', 'toHex6'],
     '★스티커가 안 쓰는 API 가 붙었거나 계약한 것이 빠졌다 — 머리말의 계약과 같이 고쳐라');
   assert.deepEqual({ ...C.DEFAULTS }, { metal: 'gold', glyph: '$', k: 22, gloss: 22, size: 120 });
   assert.equal(C.GLYPH_MAX, 2);
@@ -176,7 +180,7 @@ test('D6 ★그림 축 — 두께·광택·기울기·방향·바깥 회전이 �
   assert.ok(/pointer-events:none/.test(base), '그림이 마우스를 먹으면 스티커 끌기가 안 된다');
 });
 
-test('D7 class 속성 0 · filter 0', () => {
+test('D7 class 속성 0 · filter 0(번짐을 안 켠 코인 — 켠 것은 D13)', () => {
   const { C } = load();
   for (const o of [BASE, { ...BASE, metal: 'custom', face: '#123456', side: '#654321', tilt: 80, glyph: '' }]) {
     const s = C.svg(o);
@@ -241,7 +245,7 @@ test('D10 ★어떤 입력에도 안 던진다 — 손댄 저장본의 값들', 
 
 test('D11 ★두께는 그리개가 가둔다(LIMITS) · 방향·회전은 한 바퀴 안으로', () => {
   const { C } = load();
-  assert.deepEqual(JSON.parse(JSON.stringify(C.LIMITS)), { k: [8, 40], gloss: [0, 100] });
+  assert.deepEqual(JSON.parse(JSON.stringify(C.LIMITS)), { k: [8, 40], gloss: [0, 100], blur: [0, 14] });
   assert.ok(Object.isFrozen(C.LIMITS) && Object.isFrozen(C.LIMITS.k));
   const vb = (s) => /viewBox="([^"]+)"/.exec(s)[1];
   const lo = C.svg({ ...BASE, k: 0.08 }), hi = C.svg({ ...BASE, k: 0.4 });
@@ -279,4 +283,112 @@ test('D12 ★각인 자르기 한 벌(cutGlyph) — 공백뿐 = 없음 · 그래
   const look = readSrc(REPO, 'js/props/_coin-look.js');
   assert.ok(/fx\(\)\.cutGlyph\(/.test(look) && !/Array\.from\(/.test(look), '패널이 각인을 제 식으로 자른다 — CoinFx.cutGlyph 하나만');
   assert.ok(/LIMITS/.test(look) && !/\b(?:K_MIN|K_MAX)\s*=\s*\d/.test(look), '패널이 두께 범위를 제 숫자로 적었다 — CoinFx.LIMITS 하나만');
+});
+
+/* ── 1013t2 ─────────────────────────────────────────────────────────────── */
+
+test('D13 ★번짐(1013t2C3) — 0 은 그림 그대로 · 켜면 세로 필터 하나 · 범위 = 파티클 「번짐」', () => {
+  const { C } = load();
+  const plain = C.svg(BASE);
+  /* 0 · 없는 값 · 못 읽는 값 = 번짐 없음 ⇒ 글자가 한 자도 안 바뀐다(옛 저장본) */
+  for (const blur of [0, undefined, null, '', NaN, 'x', -5]) assert.equal(C.svg({ ...BASE, blur }), plain, `blur=${String(blur)} 인데 그림이 달라졌다`);
+  const on = C.svg({ ...BASE, blur: 6 });
+  assert.notEqual(on, plain, '번짐 6 인데 그림이 그대로다');
+  /* 필터는 하나, id 는 접두 + b, 감싸는 <g> 가 그 id 를 가리킨다 */
+  assert.equal((on.match(/<filter\b/g) || []).length, 1);
+  assert.ok(on.includes('<filter id="coin-stk_abc123b" filterUnits="userSpaceOnUse"'), '필터 id 가 접두+b 가 아니다');
+  assert.ok(on.includes('<g filter="url(#coin-stk_abc123b)">'), '코인이 그 필터에 안 감싸였다');
+  assert.deepEqual(idsOf(on).filter((x) => !x.startsWith('coin-stk_abc123')), [], 'id 가 접두 밖에서 났다');
+  for (const r of refsOf(on)) assert.ok(idsOf(on).includes(r), `url(#${r}) 가 가리키는 정의가 없다`);
+  /* 세로로만 — stdDeviation 의 첫 값(가로)이 0. 값 6 · 두께 22% → 6 × 144 ÷ 120 = 7.2 (기본 크기 상자에서 세로 6px) */
+  assert.deepEqual((on.match(/stdDeviation="([^"]+)"/g) || []), ['stdDeviation="0 7.2"']);
+  /* 필터 영역이 번지는 만큼 세로로 넓다(기본 영역이면 잘린다): pm = ceil(3×7.2)+8 = 30 → y = -72-30, height = 144+60 */
+  assert.ok(on.includes('x="-72" y="-102" width="144" height="204"'), '필터 영역이 번짐을 못 담는다');
+  /* 번짐을 벗기면 안쪽 그림은 번짐 없는 코인과 같다(번짐이 그림을 건드리지 않는다) */
+  const inner = on.replace(/<defs><filter id="coin-stk_abc123b"[\s\S]*?<\/filter><\/defs><g filter="url\(#coin-stk_abc123b\)">/, '').replace('</g></svg>', '</svg>');
+  assert.equal(inner, plain);
+  /* 범위 밖은 끝값 */
+  assert.equal(C.svg({ ...BASE, blur: 99 }), C.svg({ ...BASE, blur: 14 }));
+  assert.notEqual(C.svg({ ...BASE, blur: 14 }), C.svg({ ...BASE, blur: 13 }));
+  /* ★범위가 섹션 파티클의 「번짐」과 같은 수 — 두 표를 따로 싣고 견준다 */
+  const pctx = {}; pctx.window = pctx; vm.createContext(pctx);
+  vm.runInContext(readSrc(REPO, 'js/fx/seeded-random.js'), pctx);
+  vm.runInContext(readSrc(REPO, 'js/fx/particles-render.js'), pctx);
+  const R = pctx.ParticlesFx.RANGES.blur;
+  assert.deepEqual([R.min, R.max], [0, 14], '★전제: 파티클 「번짐」의 범위');
+  assert.deepEqual([...C.LIMITS.blur], [R.min, R.max], '코인 번짐의 범위가 파티클 「번짐」과 갈렸다');
+  /* 배선 — 패널 칸 · 저장 키 · 그리기 인자 · 스타일 기억 (글자로 잇는 자리라 소스에서 본다) */
+  const look = readSrc(REPO, 'js/props/_coin-look.js'), pan = readSrc(REPO, 'js/props/prop-sticker-coin.js'), blk = readSrc(REPO, 'js/blocks/sticker-block.js');
+  assert.ok(/<span class="prop-label">번짐<\/span>\s*<input type="range" class="prop-slider" id="\$\{idp\}-blur"/.test(look), '패널에 번짐 행(라벨 + 슬라이더)이 없다');
+  assert.ok(look.includes("limits('blur')") && look.includes("set({ blur: v })"), '번짐 칸이 범위 표·쓰기에 안 이어졌다');
+  assert.ok(/blur: 'coinBlur'/.test(pan) && /blur: d\.coinBlur/.test(pan), '패널이 data-coin-blur 를 읽고 쓰지 않는다');
+  assert.ok(/blur: n\(d\.coinBlur, 0\)/.test(blk), '그리기가 data-coin-blur 를 안 넘긴다');
+  assert.ok(/'coinGloss', 'coinBlur'\]\.forEach/.test(blk), '스타일 기억에 번짐이 빠졌다');
+});
+
+test('D14 ★그림 상자(inkBox · 1013t2C2) — 정면 원 · 기울면 납작 + 옆띠 · 회전이 축을 바꾼다', () => {
+  const { C } = load();
+  const r2 = (b) => Object.fromEntries(Object.entries(b).map(([k, v]) => [k, Math.round(v * 100) / 100 + 0]));
+  /* 정면(기울기 0) — 지름 100 의 원, viewBox 반 변 m = 100 × (0.5 + 0.22) = 72 */
+  assert.deepEqual(r2(C.inkBox({ tilt: 0, dir: 0, k: 0.22, rot: 0 })), { x0: -50, y0: -50, x1: 50, y1: 50, m: 72 });
+  /* 기울기 60° — 세로 반지름 50×cos60 = 25, 옆띠 100×0.22×sin60 = 19.05 가 아래로 */
+  assert.deepEqual(r2(C.inkBox({ tilt: 60, dir: 0, k: 0.22, rot: 0 })), { x0: -50, y0: -25, x1: 50, y1: 44.05, m: 72 });
+  /* 상자를 90° 돌리면 가로·세로가 바뀐다(옆띠는 왼쪽으로) */
+  assert.deepEqual(r2(C.inkBox({ tilt: 60, dir: 0, k: 0.22, rot: 90 })), { x0: -44.05, y0: -50, x1: 25, y1: 50, m: 72 });
+  /* 방향(dir)은 반대로 돈다 — dir 90 = rot -90 */
+  assert.deepEqual(r2(C.inkBox({ tilt: 60, dir: 90, k: 0.22, rot: 0 })), r2(C.inkBox({ tilt: 60, dir: 0, k: 0.22, rot: -90 })));
+  /* 그림은 언제나 viewBox 안이다(상자 밖으로 안 나간다) · 쓰레기 입력에도 수를 낸다 */
+  for (const o of [{ tilt: 88, dir: 37, k: 0.4, rot: 211 }, { tilt: 45, dir: -170, k: 0.08, rot: 33 }, {}, { tilt: 'x', dir: NaN, k: 1e9, rot: null }, null]) {
+    const b = C.inkBox(o);
+    for (const v of Object.values(b)) assert.ok(Number.isFinite(v), '수가 아니다');
+    assert.ok(b.x0 >= -b.m && b.y0 >= -b.m && b.x1 <= b.m && b.y1 <= b.m && b.x0 < b.x1 && b.y0 < b.y1, JSON.stringify(b));
+  }
+});
+
+test('D15 ★한 닢 그리기(draw · 1013t2E3) — 자리·지름 · svg 껍데기 없음 · 색 한 칸 → 생김새', () => {
+  const { C, calls } = load();
+  const g = C.draw({ idPrefix: 'pfx-s-c3', x: 120.5, y: 40, d: 250, tilt: 30, dir: 0, extRot: 15, metal: 'gold' });
+  assert.ok(g.startsWith('<g transform="translate(120.5 40)"><g transform="rotate(0)">') && g.endsWith('</g></g>'));
+  assert.ok(!/<svg|viewBox/.test(g), '한 닢 그리기에 svg 껍데기가 붙었다');
+  assert.ok(g.includes('<ellipse rx="125" ry="108.25" fill="url(#pfx-s-c3f)"/>'), '지름 250 이 앞면 타원에 안 들어갔다');
+  assert.ok(g.includes(C.PALETTES.gold.face[1]));
+  assert.deepEqual(idsOf(g).filter((x) => !x.startsWith('pfx-s-c3')), []);
+  assert.equal(C.draw({ idPrefix: 'a', x: 1, y: 2, d: 30 }), C.draw({ idPrefix: 'a', x: 1, y: 2, d: 30 }));
+  for (const o of [null, {}, { d: -5, x: 'q', k: 1e9 }]) assert.equal(typeof C.draw(o), 'string');
+  assert.equal(calls.random, 0);
+  /* 색 한 칸 → 생김새 */
+  assert.deepEqual({ ...C.lookFromColor('#F5C542') }, { metal: 'gold' }, '금 대표색인데 금 표로 안 간다');
+  assert.deepEqual({ ...C.lookFromColor(C.baseColors('silver').face) }, { metal: 'silver' });
+  assert.deepEqual({ ...C.lookFromColor('#2D6FE8') }, { metal: 'custom', face: '#2d6fe8', side: '#204ea2' });
+  for (const bad of ['', 'red', null, undefined, 12, '#12']) assert.deepEqual({ ...C.lookFromColor(bad) }, { metal: 'gold' }, `못 읽는 색 ${String(bad)}`);
+});
+
+test('D16 ★그림 면적 비(inkFrac · 1013t2C2) — 통째 = 1 · 반 = 0.5 · 귀퉁이 10%×10% 에는 그림이 없다 · 회전해도 같은 면적', () => {
+  const { C, calls } = load();
+  const face = { tilt: 0, dir: 0, k: 0.22, rot: 0 };                       // 정면 = 반지름 50 의 원
+  const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} (기대 ${b} ± ${tol})`);
+  assert.equal(C.inkFrac(face, { x0: -72, y0: -72, x1: 72, y1: 72 }), 1);
+  assert.equal(C.inkFrac(face, {}), 1, '사각형을 안 주면 전부 안이다');
+  assert.equal(C.inkFrac(face, { x0: 60, y0: -72, x1: 200, y1: 72 }), 0, '그림 밖의 사각형');
+  near(C.inkFrac(face, { x0: 0, y0: -72, x1: 72, y1: 72 }), 0.5, 0.01, '오른쪽 반');
+  near(C.inkFrac(face, { x0: 0, y0: 0, x1: 72, y1: 72 }), 0.25, 0.01, '오른쪽 아래 사분면');
+  /* 원에서 가장자리로부터 폭의 10%(= 10) 만큼의 띠는 면적으로 약 5.2% 다 — 「폭의 10%」와 「면적의 10%」는 다른 자다 */
+  near(C.inkFrac(face, { x0: 40, y0: -72, x1: 72, y1: 72 }), 0.052, 0.006, '폭 10% 띠의 면적');
+  /* ★그림 상자의 귀퉁이 10%×10% 에는 그림이 없다 — 가로·세로를 따로 10% 씩 남기면 코인이 통째로 사라지는 까닭 */
+  assert.equal(C.inkFrac(face, { x0: 40, y0: 40, x1: 72, y1: 72 }), 0);
+  /* 기울인 코인 — 반으로 가르면(가로 대칭) 0.5 · 상자를 90° 돌리면 그 반이 위아래로 간다 */
+  const tilted = { tilt: 60, dir: 0, k: 0.22, rot: 0 };
+  near(C.inkFrac(tilted, { x0: 0, y0: -72, x1: 72, y1: 72 }), 0.5, 0.01, '기울인 코인의 오른쪽 반');
+  near(C.inkFrac({ ...tilted, rot: 90 }, { x0: -72, y0: 0, x1: 72, y1: 72 }), 0.5, 0.01, '90° 돌린 코인의 아래쪽 반');
+  near(C.inkFrac({ ...tilted, rot: 90 }, { x0: 0, y0: -72, x1: 72, y1: 72 }), C.inkFrac(tilted, { x0: -72, y0: -72, x1: 72, y1: 0 }), 0.01, '돌린 코인의 오른쪽 = 안 돌린 코인의 위쪽');
+  /* 그림 상자(inkBox)와 맞물린다 — 그 상자로 자르면 전부 안, 한 변을 반으로 줄이면 줄어든다 */
+  for (const o of [tilted, { tilt: 80, dir: 37, k: 0.4, rot: 211 }, { tilt: 45, dir: -170, k: 0.08, rot: 33 }]) {
+    const b = C.inkBox(o);
+    near(C.inkFrac(o, { x0: b.x0 - 0.01, y0: b.y0 - 0.01, x1: b.x1 + 0.01, y1: b.y1 + 0.01 }), 1, 1e-9, '그림 상자 안 = 전부');
+    assert.ok(C.inkFrac(o, { x0: b.x0, y0: b.y0, x1: (b.x0 + b.x1) / 2, y1: b.y1 }) < 0.75);
+  }
+  /* 결정성 · 쓰레기 입력 */
+  assert.equal(C.inkFrac(tilted, { x0: 3, y0: -9, x1: 40, y1: 30 }), C.inkFrac(tilted, { x0: 3, y0: -9, x1: 40, y1: 30 }));
+  for (const [o, r] of [[null, null], [{}, {}], [{ tilt: 'x', k: 1e9 }, { x0: NaN, y1: 'q' }]]) { const v = C.inkFrac(o, r); assert.ok(v >= 0 && v <= 1); }
+  assert.equal(calls.random, 0);
 });

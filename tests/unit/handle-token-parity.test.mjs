@@ -80,7 +80,7 @@ const CORNER = RULES.filter(isCornerSquare);
    ⚠️.img-edge-handle 은 현빈 확인 전까지 «임의로 바꾸지 마라»(2026-09-21 경계). */
 const OUT_OF_SCOPE = [
   ['.img-edge-handle',  '이미지 가장자리 흰 동그라미 — 흰색 고정·원형(50%). 성격이 다른 부품이고 현빈 확인 대기.'],
-  ['.hlb-handle',       'highlightB 선 «끝점» — 12px 원형. 모서리 손잡이가 아니다.'],
+  ['.hlb-handle',       'highlightB 선 ★«끝점 2 ＋ 두께 1» — 12px 원형. 모서리 손잡이가 아니다. ★261018: 1017t1e1 이 두께 손잡이를 ★같은 클래스로 붙였다 — ★이 설명이 ★옛 사실이었다.'],
   ['.outpaint-handle',  'AI 스크래치 아웃페인트 — 12px 보라 원.'],
   ['.vtrim-handle',     '영상 트림 바 손잡이 — 12px.'],
   ['radius-handle',     '코너 반경 손잡이 — 원형(50%). 크기·두께는 이미 기준과 같고 모양은 건드리지 않는다.'],

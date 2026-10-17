@@ -1,0 +1,353 @@
+/* section-bg-gradient.dom.spec.js — 1013t2E1 (현빈 「섹션블럭에 배경색을 지정하려는데 왜 그라데이션이 적용이 안되는지?」)
+ *
+ * 바닥 8d2435c0 실측(진짜 클릭): 섹션 배경 스와치 → 피커의 그라데이션 탭이 disabled
+ *   (툴팁 「이 항목은 그라데이션 채우기를 지원하지 않아요」) · 눌러도 섹션 computed background-image = none.
+ *   같은 길의 프레임은 됐다. 원인·고침은 js/props/prop-section.js 「배경색 이벤트」 주석.
+ * G1  탭이 켜져 있고 누르면 섹션에 그라데이션이 «그려진다»(computed) · 정본 dataset.bg · 패널 스와치
+ * G1b 그 적용을 ⌘Z 한 번이 걷는다
+ * G1c 그라데이션 확정이 기록의 «한 칸»이다 — 이어서 Solid 로 바꾼 뒤 ⌘Z 한 번 = 그라데이션(그 전 단색이 아니라)
+ * G2  이미 그라데이션이 든 섹션을 고르면 피커가 그라데이션 탭으로 열리고(열기만 해선 값 불변) hex = 첫 정지점 · 투명도를 치면 «첫 정지점 색»의 단색
+ * G3  Solid 탭 = 단색 복귀(그라데이션 잔존 0) · ⌘Z 로 그라데이션이 돌아온다
+ * G4  직렬화 왕복(저장→다시 열기 흉내: getSerializedCanvas → 캔버스 교체 → rebindAll)
+ * G4c 인라인이 빠지고 dataset 만 남은 섹션도 복원이 다시 그린다
+ * G5  배경 그림과 같이 — 불투명 그라데이션이면 그림이 이기고, 그림을 지우면 돌아온다
+ * G5b 반투명 정지점이 있으면 그라데이션이 그림 «위» 층(물들임)
+ * G6  곁 결함: 그라데이션 섹션의 패널 hex 가 쓰레기 값(rgbToHex(그라데이션 문자열))이 아니고 스와치가 그라데이션이다
+ * G7  곁 결함: 그라데이션 섹션에서 투명도를 건드린 뒤 ⌘Z 하면 그라데이션이 돌아온다(잃지 않는다)
+ * G8  피커 팝업 안의 투명도가 섹션에 먹는다(바닥 판: 무시됐다)
+ * G9  투명(알파 0) 섹션에서 색을 치면 보이게 올라오고, 투명도 0 을 «직접» 친 뒤엔 그대로 둔다
+ * G10 외부 API setSectionBg — 그라데이션을 받으면 그리고, 그라데이션 섹션에 단색을 주면 그라데이션을 걷는다
+ * 하네스 = _root-harness bootApp(앱 통째 헤드리스 · ⛔Electron 아님 — 파일 저장·실앱 PNG 는 못 잰다).
+ * 음성대조(칸 ↔ 무력화한 줄)는 커밋 메시지와 reports/S5-1013t2/E-notes.md 에 수로 적었다.
+ */
+const { test, expect } = require('@playwright/test');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
+
+const PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const sec = (id, extra = '') => `<div class="section-block" id="${id}" data-section="1" ${extra}><div class="section-hitzone"></div><div class="section-inner" style="padding-left:40px;padding-right:40px"><div class="gap-block" data-type="gap" style="height:240px"></div></div></div>`;
+const GR = 'linear-gradient(90deg, #ff0000 0%, #0000ff 100%)';
+const GR_COMPUTED = 'linear-gradient(90deg, rgb(255, 0, 0) 0%, rgb(0, 0, 255) 100%)';
+const GRAD_ATTR = `data-bg="${GR}" style="background-image:${GR}"`;
+const raf2 = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+const state = (page, id) => page.evaluate((i) => {
+  const s = document.getElementById(i); const cs = getComputedStyle(s);
+  const sw = document.getElementById('sec-bg-color')?.closest('.prop-color-swatch');
+  return { dataBg: s.dataset.bg ?? null, img: cs.backgroundImage, color: cs.backgroundColor, swatch: sw ? sw.style.background : null,
+    hex: document.getElementById('sec-bg-hex')?.value ?? null, alpha: document.getElementById('sec-bg-alpha')?.value ?? null };
+}, id);
+const tabs = (page) => page.evaluate(() => {
+  const p = document.querySelector('.goya-cp-popover'); if (!p || p.hidden) return null;
+  return Object.fromEntries([...p.querySelectorAll('.goya-cp-tab')].map(t => [t.dataset.tab, { disabled: t.disabled, active: t.classList.contains('active') }]));
+});
+
+async function setup(page) {
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate((h) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove()); c.insertAdjacentHTML('beforeend', h); window.rebindAll?.(); window.deselectAll?.(); }, sec('gA') + sec('gB') + sec('gG', GRAD_ATTR) + sec('gT', `data-bg="rgba(255,255,255,0)" style="background-color:rgba(255,255,255,0)"`));
+  await raf2(page);
+  return errs;
+}
+/** 진짜 클릭으로 섹션을 고른다(왼쪽 패딩 띠 = 블럭이 없는 자리). 전제: 그 섹션이 골라지고 섹션 패널이 떴다. */
+async function selectSection(page, id) {
+  /* ★자리가 «멈춘 뒤»에 잰다 — bootApp 직후엔 배율 맞추기가 늦게 끝나, 먼저 잰 좌표를 누르면 빗나간다(_root-harness waitStableRect 머리말).
+     첫 실행에서 G8 이 이 자리에서 한 번 빗나갔다(재시도 초록) — 그래서 넣었다. */
+  await page.evaluate((i) => document.getElementById(i).scrollIntoView({ block: 'center' }), id);
+  const b = await waitStableRect(page, '#' + id);
+  const r = { x: b.left + 8, y: b.cy };
+  await page.mouse.click(r.x, r.y);
+  await page.waitForFunction((i) => document.getElementById(i).classList.contains('selected') && document.getElementById('sec-height-value')?.dataset.secId === i && !!document.getElementById('sec-bg-color'), id, { timeout: 5000 });
+  await raf2(page);
+}
+/** 진짜 스와치를 진짜 마우스로 — color-picker.js mousedown(capture) 델리게이션 길. 전제: 팝오버가 떴다. */
+async function openSwatch(page) {
+  const r = await page.evaluate(() => { const e = document.getElementById('sec-bg-color').closest('.prop-color-swatch'); e.scrollIntoView({ block: 'center' }); const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+  await page.mouse.click(r.x, r.y);
+  await page.waitForFunction(() => { const p = document.querySelector('.goya-cp-popover'); return !!p && !p.hidden; }, null, { timeout: 5000 });
+}
+/** 탭 단추 한가운데를 누른다. 전제: 그 점의 맨 위 요소가 그 탭이다(가려져 있으면 여기서 죽는다). */
+async function clickTab(page, name) {
+  const r = await page.evaluate((n) => { const t = document.querySelector(`.goya-cp-popover .goya-cp-tab[data-tab="${n}"]`); const b = t.getBoundingClientRect(); const x = b.left + b.width / 2, y = b.top + b.height / 2; return { x, y, hit: document.elementFromPoint(x, y)?.closest('.goya-cp-tab')?.dataset.tab || null }; }, name);
+  expect(r.hit, `누르는 점이 ${name} 탭 위가 아니다`).toBe(name);
+  await page.mouse.click(r.x, r.y);
+  await raf2(page);
+}
+async function applyGradient(page, id) {
+  await selectSection(page, id);
+  await openSwatch(page);
+  await clickTab(page, 'gradient');
+  await expect.poll(async () => (await state(page, id)).img, { message: '그라데이션 탭을 눌렀는데 섹션에 안 그려졌다' }).toMatch(/^linear-gradient\(/);
+}
+
+/** 패널 칸에 진짜로 쳐 넣고 Enter. */
+async function typeField(page, sel, text) {
+  await page.locator(sel).click(); await page.keyboard.press('Meta+A'); await page.keyboard.type(text); await page.keyboard.press('Enter'); await raf2(page);
+}
+/** 포커스를 칸에서 빼고 ⌘Z — 칸에 포커스가 남으면 editor.js 가 ⌘Z 를 돌려보낸다. */
+async function undo(page) { await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z'); await raf2(page); }
+const bgImg = (page, id) => page.evaluate((i) => getComputedStyle(document.getElementById(i)).backgroundImage, id);
+
+test('G1 ★섹션 배경 스와치 → 그라데이션 탭이 켜져 있고, 누르면 섹션에 그라데이션이 그려진다', async ({ page }) => {
+  const errs = await setup(page);
+  await selectSection(page, 'gA');
+  const before = await state(page, 'gA');
+  expect(before.img, '전제: 시작은 그라데이션이 아니다').toBe('none');
+  await openSwatch(page);
+  const t0 = await tabs(page);
+  expect(t0.solid.active, '전제: Solid 탭으로 열린다').toBe(true);
+  expect(t0.gradient.disabled, '★그라데이션 탭이 잠겨 있다 = 섹션 칸이 «받는다»를 선언하지 않았다').toBe(false);
+  await clickTab(page, 'gradient');
+  await expect.poll(async () => (await state(page, 'gA')).img, { message: '탭은 눌렸는데 섹션에 안 그려졌다' }).toMatch(/^linear-gradient\(/);
+  const after = await state(page, 'gA');
+  expect(after.dataBg, '정본(dataset.bg)에 그라데이션 CSS').toMatch(/^linear-gradient\(90deg, #ffffff 0%, rgba\(255,255,255,0(\.0+)?\) 100%\)$/);
+  expect(after.swatch, '패널 스와치도 그라데이션').toMatch(/linear-gradient\(/);
+  expect((await tabs(page)).gradient.active).toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('G1b 그라데이션 적용을 ⌘Z 한 번이 걷는다', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => window.pushHistory?.());   // 기준 스냅샷(그라데이션 «전»)
+  await applyGradient(page, 'gA');
+  await page.keyboard.press('Escape');
+  await undo(page);
+  await expect.poll(() => bgImg(page, 'gA'), { message: '⌘Z 뒤에도 그라데이션이 남았다 = 확정이 기록에 안 쌓였다' }).toBe('none');
+  expect(await page.evaluate(() => document.getElementById('gA').dataset.bg ?? null)).toBe(null);
+  expect(errs).toEqual([]);
+});
+
+test('G1c 그라데이션 확정이 기록의 한 칸이다 — 이어 Solid 로 바꾸고 ⌘Z 한 번 = 그라데이션으로 돌아온다', async ({ page }) => {
+  /* G1b 만으로는 onGradient 의 pushHistory 를 못 지킨다(음성대조 실측: 그 줄을 빼도 G1b 초록 — ⌘Z 가 «안 쌓인 지금 상태»도 한 번은 걷는다).
+     쌓였는지는 «그 다음 변경»을 되돌렸을 때 어디로 가는가로 잰다. */
+  const errs = await setup(page);
+  await page.evaluate(() => window.pushHistory?.());
+  await applyGradient(page, 'gA');
+  const grad = await bgImg(page, 'gA');
+  await clickTab(page, 'solid');
+  await expect.poll(() => bgImg(page, 'gA'), { message: '전제: Solid 탭으로 단색이 됐다' }).toBe('none');
+  await page.keyboard.press('Escape');
+  await undo(page);
+  await expect.poll(() => bgImg(page, 'gA'), { message: '⌘Z 한 번에 그라데이션을 건너뛰고 처음으로 갔다 = 그라데이션 확정이 기록에 없다' }).toBe(grad);
+  expect(errs).toEqual([]);
+});
+
+test('G2 그라데이션이 든 섹션 — 피커가 그라데이션 탭으로 열리고(값 불변) hex·투명도는 첫 정지점 기준', async ({ page }) => {
+  const errs = await setup(page);
+  await selectSection(page, 'gG');
+  const s0 = await state(page, 'gG');
+  expect(s0.img, '전제: 그라데이션 섹션').toBe(GR_COMPUTED);
+  expect(s0.hex, 'hex = 첫 정지점(Solid 복귀 색)').toBe('FF0000');
+  await openSwatch(page);
+  expect((await tabs(page)).gradient.active, '피커가 Solid 로 열렸다(시드 없음) — 그라데이션 탭을 누르면 기본값이 사용자 값을 덮는다').toBe(true);
+  await clickTab(page, 'gradient');   // 같은 탭 재클릭 = 값 불변
+  expect((await state(page, 'gG')).dataBg, '열고 같은 탭을 눌렀을 뿐인데 값이 바뀌었다').toBe(GR);
+  await page.keyboard.press('Escape');
+  await typeField(page, '#sec-bg-alpha', '90');
+  expect((await state(page, 'gG')).dataBg, '투명도를 치면 «첫 정지점 색»의 단색이다').toBe('rgba(255,0,0,0.9)');
+  expect(errs).toEqual([]);
+});
+
+test('G3 Solid 탭 = 단색 복귀(그라데이션 잔존 0) · ⌘Z 로 그라데이션이 돌아온다', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => window.pushHistory?.());
+  await selectSection(page, 'gG');
+  await openSwatch(page);
+  await clickTab(page, 'solid');
+  await expect.poll(() => bgImg(page, 'gG')).toBe('none');
+  const s = await state(page, 'gG');
+  expect(s.dataBg, '정본이 첫 정지점 단색').toBe('#ff0000');
+  expect(s.color).toBe('rgb(255, 0, 0)');
+  await page.keyboard.press('Escape');
+  await undo(page);
+  await expect.poll(() => bgImg(page, 'gG'), { message: '⌘Z 로 그라데이션이 안 돌아왔다' }).toBe(GR_COMPUTED);
+  expect(errs).toEqual([]);
+});
+
+test('G4 직렬화 왕복(저장→다시 열기 흉내)에도 그라데이션이 남는다', async ({ page }) => {
+  const errs = await setup(page);
+  const round = await page.evaluate(() => {
+    const html = window.getSerializedCanvas();
+    const c = document.getElementById('canvas');
+    c.innerHTML = html; window.rebindAll?.();
+    const s = document.getElementById('gG');
+    return { hasAttr: /data-bg="linear-gradient/.test(html), dataBg: s?.dataset.bg ?? null, img: s ? getComputedStyle(s).backgroundImage : null };
+  });
+  expect(round.hasAttr, '전제: 직렬화본에 data-bg 그라데이션이 실렸다').toBe(true);
+  expect(round.dataBg).toBe(GR);
+  expect(round.img).toBe(GR_COMPUTED);
+  // 다시 연 뒤에도 패널이 그라데이션으로 읽는다
+  await selectSection(page, 'gG');
+  expect((await state(page, 'gG')).swatch).toMatch(/^linear-gradient\(/);
+  expect(errs).toEqual([]);
+});
+
+test('G4c 인라인이 빠지고 dataset 만 남은 섹션도 복원(rebindAll)이 다시 그린다', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(() => { const s = document.getElementById('gG'); s.style.backgroundImage = ''; const none = getComputedStyle(s).backgroundImage; window.rebindAll?.(); return { none, img: getComputedStyle(s).backgroundImage }; });
+  expect(r.none, '전제: 인라인을 걷으면 그라데이션이 사라진다').toBe('none');
+  expect(r.img).toBe(GR_COMPUTED);
+  expect(errs).toEqual([]);
+});
+
+test('G5 배경 그림과 같이 — 불투명 그라데이션은 그림에 양보하고, 그림을 지우면 돌아온다', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(([px, gr]) => {
+    const s = document.getElementById('gA');
+    s.dataset.bg = gr; s.dataset.bgImg = px; window.applySectionBg(s);
+    const withImg = getComputedStyle(s).backgroundImage;
+    delete s.dataset.bgImg; window.applySectionBg(s);
+    return { withImg, back: getComputedStyle(s).backgroundImage, isG: window.isSectionGradient('linear-gradient(#fff, #000), url(a.png)') };
+  }, [PX, GR]);
+  expect(r.withImg, '불투명 그라데이션 + 그림 = 그림만').toMatch(/^url\(/);
+  expect(r.withImg).not.toMatch(/gradient/);
+  expect(r.back, '그림을 지우면 그라데이션이 돌아온다').toBe(GR_COMPUTED);
+  expect(r.isG, 'url 이 낀 합성 값은 그라데이션 «값»이 아니다').toBe(false);
+  expect(errs).toEqual([]);
+});
+
+test('G5b 반투명 정지점이 있는 그라데이션 + 그림 = 그라데이션이 그림 «위» 층(물들임)', async ({ page }) => {
+  const errs = await setup(page);
+  const img = await page.evaluate((px) => {
+    const s = document.getElementById('gA');
+    s.dataset.bg = 'linear-gradient(90deg, #ff0000 0%, rgba(0,0,255,0.500) 100%)'; s.dataset.bgImg = px; window.applySectionBg(s);
+    return getComputedStyle(s).backgroundImage;
+  }, PX);
+  expect(img).toMatch(/^linear-gradient\(.*\), url\(/);
+  expect(errs).toEqual([]);
+});
+
+test('G6 곁 결함 — 그라데이션 섹션의 패널: 스와치가 그라데이션이고 hex 가 쓰레기 값이 아니다', async ({ page }) => {
+  const errs = await setup(page);
+  await selectSection(page, 'gG');
+  const s = await state(page, 'gG');
+  expect(s.swatch, '스와치가 그라데이션이 아니다').toMatch(/^linear-gradient\(/);
+  expect(s.hex, '바닥 판은 rgbToHex(그라데이션 문자열) = 5A0000 을 냈다').not.toBe('5A0000');
+  expect(s.hex).toMatch(/^[0-9A-F]{6}$/);
+  expect(s.alpha).toBe('100');
+  expect(s.dataBg, '고르기만 해선 값 불변').toBe(GR);
+  expect(errs).toEqual([]);
+});
+
+test('G7 곁 결함 — 그라데이션 섹션에서 투명도를 건드려도 ⌘Z 로 그라데이션이 돌아온다', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => window.pushHistory?.());
+  await selectSection(page, 'gG');
+  await typeField(page, '#sec-bg-alpha', '90');
+  expect((await state(page, 'gG')).img, '전제: 투명도 입력 = 단색 전환(공용 배선 규약 — 프레임과 같다)').toBe('none');
+  await undo(page);
+  await expect.poll(() => bgImg(page, 'gG'), { message: '투명도를 건드렸더니 그라데이션을 영영 잃었다' }).toBe(GR_COMPUTED);
+  expect(await page.evaluate(() => document.getElementById('gG').dataset.bg)).toBe(GR);
+  expect(errs).toEqual([]);
+});
+
+test('G8 피커 팝업 안의 투명도가 섹션에 먹는다', async ({ page }) => {
+  const errs = await setup(page);
+  await selectSection(page, 'gA');
+  await openSwatch(page);
+  await page.locator('.goya-cp-popover .goya-cp-alpha-input').click();
+  await page.keyboard.press('Meta+A'); await page.keyboard.type('40'); await page.keyboard.press('Tab'); await raf2(page);
+  const s = await state(page, 'gA');
+  expect(s.dataBg).toBe('rgba(255,255,255,0.4)');
+  expect(s.alpha, '패널의 투명도 칸도 따라온다').toBe('40');
+  expect(errs).toEqual([]);
+});
+
+test('G9 투명(알파 0) 섹션 — 색을 치면 보이게 올라오고, 투명도 0 을 직접 친 뒤엔 그대로 둔다', async ({ page }) => {
+  const errs = await setup(page);
+  await selectSection(page, 'gT');
+  expect((await state(page, 'gT')).alpha, '전제: 투명 섹션').toBe('0');
+  await typeField(page, '#sec-bg-hex', 'FF0000');
+  expect((await state(page, 'gT')).dataBg, '고른 색이 안 보인다(알파 0 그대로)').toBe('#ff0000');
+  await typeField(page, '#sec-bg-alpha', '0');
+  await typeField(page, '#sec-bg-hex', '0000FF');
+  expect((await state(page, 'gT')).dataBg, '사용자가 직접 친 투명도 0 을 덮었다').toBe('rgba(0,0,255,0)');
+  expect(errs).toEqual([]);
+});
+
+test('G10 setSectionBg(외부 API) — 그라데이션을 받으면 그리고, 그라데이션 섹션에 단색을 주면 그라데이션을 걷는다', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate((gr) => {
+    const a = document.getElementById('gA'), g = document.getElementById('gG');
+    window.setSectionBg(a, gr); window.setSectionBg(g, '#00ff00');
+    const cs = (e) => ({ img: getComputedStyle(e).backgroundImage, color: getComputedStyle(e).backgroundColor, dataBg: e.dataset.bg });
+    return { a: cs(a), g: cs(g) };
+  }, GR);
+  expect(r.a.img, '그라데이션을 줬는데 안 그려졌다').toBe(GR_COMPUTED);
+  expect(r.g.img, '단색을 줬는데 옛 그라데이션이 그 위에 남았다').toBe('none');
+  expect(r.g.color).toBe('rgb(0, 255, 0)');
+  expect(errs).toEqual([]);
+});
+
+/* ── 1013t2E1 중-1(보안) — 블럭 데이터(data-bg)가 패널 innerHTML 로 가며 스크립트를 돌리던 구멍 ──
+   E-eval J1: 섹션 data-bg 에 따옴표로 속성을 깨는 값 → 진짜 클릭으로 선택 → 고친 판(50117b6a) __pwn=1. 프레임은 바닥부터 ≥2.
+   X1  섹션 — 실행 0 · 패널에 주입 태그 0 (막는 자 = 공용 이스케이프 «와» 좁힌 isSectionGradient · 둘 중 하나만 있어도 초록)
+   X1b 섹션 — 그 값은 «그라데이션 아님»으로 걸러져 스와치·캔버스 어디에도 그라데이션으로 안 실린다(⑵ 좁힘의 몫)
+   X2  프레임 — 실행 0 · 주입 태그 0 (프레임 판정은 안 좁혔다 ⇒ 막는 자는 공용 이스케이프 하나 = ⑴ 의 단독 칸)
+   X3  이스케이프 뒤에도 정상 그라데이션 스와치는 그대로(프레임 · 섹션) */
+const EVIL = 'linear-gradient(90deg, #ff0000 0%, #0000ff 100%)"><img id="pwn" src="" onerror="window.__pwn=(window.__pwn||0)+1">';
+const EVIL_IN = 'linear-gradient(90deg, #ff0000 0%, #0000ff "><img id="pwn2" src="" onerror="window.__pwn=(window.__pwn||0)+1"> 100%)';
+const frameSec = (id, fid, bg) => `<div class="section-block" id="${id}" data-section="1"><div class="section-hitzone"></div><div class="section-inner" style="padding-left:40px;padding-right:40px"><div class="frame-block" id="${fid}" style="width:400px;height:200px"></div></div></div>`;
+async function setupEvil(page) {
+  const errs = await setup(page);
+  await page.evaluate(([e1, e2, gr, fs]) => {
+    const c = document.getElementById('canvas');
+    c.insertAdjacentHTML('beforeend', fs);
+    // 값은 DOM API 로 심는다 — 픽스처 HTML 에 적으면 그 자리에서 이미 깨진다(그건 이 시험이 재려는 길이 아니다)
+    const mk = (id) => { const s = document.createElement('div'); s.className = 'section-block'; s.id = id; s.dataset.section = '1'; s.innerHTML = '<div class="section-hitzone"></div><div class="section-inner" style="padding-left:40px;padding-right:40px"><div class="gap-block" data-type="gap" style="height:200px"></div></div>'; c.appendChild(s); return s; };
+    mk('eX').dataset.bg = e1; mk('eY').dataset.bg = e2;
+    document.getElementById('fE').dataset.bg = e1;
+    const fg = document.getElementById('fG'); fg.dataset.bg = gr; fg.style.background = gr;
+    window.rebindAll?.(); window.deselectAll?.(); window.__pwn = 0;
+  }, [EVIL, EVIL_IN, GR, frameSec('eF1', 'fE') + frameSec('eF2', 'fG')]);
+  await raf2(page);
+  return errs;
+}
+async function selectFrame(page, fid) {
+  await page.evaluate((i) => document.getElementById(i).scrollIntoView({ block: 'center' }), fid);
+  const b = await waitStableRect(page, '#' + fid);
+  await page.mouse.click(b.cx, b.cy);
+  await page.waitForFunction((i) => document.getElementById(i).classList.contains('selected') && !!document.getElementById('ss-bg-color'), fid, { timeout: 5000 });
+  await raf2(page);
+}
+const pwned = (page) => page.evaluate(() => ({ n: window.__pwn || 0, tags: document.querySelectorAll('#panel-right #pwn, #panel-right #pwn2, #panel-right img[onerror]').length }));
+
+test('X1 ★섹션 — 악성 data-bg 를 골라도 스크립트 실행 0 · 패널에 주입 태그 0', async ({ page }) => {
+  const errs = await setupEvil(page);
+  for (const id of ['eX', 'eY']) {
+    await selectSection(page, id);
+    expect(await page.evaluate((i) => document.getElementById(i).dataset.bg.includes('onerror'), id), '전제: 악성 값이 정본에 있다').toBe(true);
+    await raf2(page);
+    expect(await pwned(page), `${id}: 패널을 여는 순간 주입 코드가 돌았다`).toEqual({ n: 0, tags: 0 });
+  }
+  expect(errs).toEqual([]);
+});
+
+test('X1b 섹션 — 악성 값은 «그라데이션 아님»으로 걸러져 스와치·캔버스에 그라데이션으로 안 실린다', async ({ page }) => {
+  const errs = await setupEvil(page);
+  for (const id of ['eX', 'eY']) {
+    await selectSection(page, id);
+    const s = await state(page, id);
+    expect(s.swatch, `${id}: 스와치가 악성 값을 그라데이션으로 받았다`).not.toMatch(/gradient/);
+    expect(s.img, `${id}: 캔버스가 악성 값을 그라데이션으로 그렸다`).not.toMatch(/gradient/);
+    expect(await page.evaluate(() => window.isSectionGradient(document.getElementById('eY').dataset.bg))).toBe(false);
+  }
+  expect(errs).toEqual([]);
+});
+
+test('X2 ★프레임 — 악성 data-bg 를 골라도 스크립트 실행 0 · 패널에 주입 태그 0 (공용 이스케이프 단독)', async ({ page }) => {
+  const errs = await setupEvil(page);
+  await selectFrame(page, 'fE');
+  expect(await page.evaluate(() => document.getElementById('fE').dataset.bg.includes('onerror')), '전제: 악성 값이 정본에 있다').toBe(true);
+  await raf2(page);
+  expect(await pwned(page), '프레임 패널을 여는 순간 주입 코드가 돌았다').toEqual({ n: 0, tags: 0 });
+  expect(errs).toEqual([]);
+});
+
+test('X3 이스케이프 뒤에도 정상 그라데이션 스와치는 그대로(프레임 · 섹션)', async ({ page }) => {
+  const errs = await setupEvil(page);
+  await selectFrame(page, 'fG');
+  const fsw = await page.evaluate(() => document.getElementById('ss-bg-color').closest('.prop-color-swatch').style.background);
+  expect(fsw).toBe(GR_COMPUTED);
+  await selectSection(page, 'gG');
+  expect((await state(page, 'gG')).swatch).toBe(GR_COMPUTED);
+  expect(errs).toEqual([]);
+});

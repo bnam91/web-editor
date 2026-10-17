@@ -22,6 +22,8 @@ const FILES = {
   '/js/gradient-line-overlay.js': read('js/gradient-line-overlay.js'),
   '/js/props/gradient-model.js': read('js/props/gradient-model.js'),
   '/js/props/color-picker.js': read('js/props/color-picker.js'),
+  /* 1013t2E1 중-1: color-picker.js 가 속성 이스케이프(escHtml)를 _helpers.js 에서 가져온다 — 이 하네스는 화이트리스트라 같이 실어야 모듈이 뜬다 */
+  '/js/props/_helpers.js': read('js/props/_helpers.js'),
 };
 const BLOCKS_CSS = read('css/editor-blocks.css');
 const CP_CSS = read('css/color-picker.css');

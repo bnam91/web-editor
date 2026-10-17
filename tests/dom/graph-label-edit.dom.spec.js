@@ -5,6 +5,13 @@
  * ★사용자 자리에서 «진짜» 더블클릭: _click-at.js clickAt(x,y,{sel},{dbl:true}) — 누르기 직전 elementFromPoint 가 그 라벨이어야 한다(합성 이벤트 ⛔).
  * 선택도 실클릭(블럭 클릭 → 패널). ⌘Z 는 키보드.
  * 양성대조: d1f642ff 나무 안 → E1~E4 · H-line 빨강 · X1 X2 초록 (predict: $S/fg/predict.md).
+ *
+ * ★★비석(261018 1017t1f6) — 현빈 원문 「항목(라벨) 추가하면 엔터쳐서 줄바꿈도 할수 있게해줘」 지시로
+ *   ★맨 Enter 의 뜻이 «확정»→«줄바꿈»으로 바뀌었다. 확정은 ⌘/Ctrl+Enter · blur 로 옮겼다(Esc=취소는 그대로).
+ *   ⛔이 파일이 2026-10-05 에 잠그던 것(맨 Enter=확정)은 ★더는 참이 아니다 — 아래 E·X2·X3·I*·P 는
+ *   전부 '엔터' 자리를 'Meta+Enter' 로 바꿔 ★새 사실에 맞췄다. 새 사실 자체는 N1 이 잠근다.
+ *   ⚠️축 눈금(.grb-ov-tick · 숫자, js/drag-utils.js _graphAxisTickBeginEdit)은 ★Enter=확정 그대로다 —
+ *   숫자 한 줄엔 줄바꿈이 뜻이 없어서 다르게 배정했다(graph-axis-tick-edit 쪽 시험이 그걸 잠근다).
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/graph-label-edit.dom.spec.js */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -58,13 +65,13 @@ async function stableCentre(page, id, sel, i, { interval = 150, tries = 40 } = {
 }
 
 for (const type of ['bar-v', 'bar-pair', 'bar-h', 'line']) {
-  test(`E ${type} — 라벨 더블클릭 → 타이핑 → Enter = items[i].label · 패널 · 저장 · ⌘Z 한 번`, async ({ page }) => {
+  test(`E ${type} — 라벨 더블클릭 → 타이핑 → ⌘Enter = items[i].label · 패널 · 저장 · ⌘Z 한 번`, async ({ page }) => {
     const { errs, id } = await setup(page, type);
     const before = await labels(page, id);
     const sel = await beginEdit(page, id, type, 1);
     await page.keyboard.press('Meta+a');
     await page.keyboard.type('새라벨K8');
-    await page.keyboard.press('Enter');
+    await page.keyboard.press('Meta+Enter');   // ★261018 — 맨 Enter 는 이제 줄바꿈(N1) · 확정은 ⌘Enter
     await expect.poll(() => labels(page, id)).toEqual(before.map((l, i) => i === 1 ? '새라벨K8' : l));
     // 캔버스 글자 · 패널 · 저장 — 같은 값
     expect(await page.evaluate(([id, sel]) => document.getElementById(id).querySelectorAll(sel)[1].textContent, [id, sel])).toBe('새라벨K8');
@@ -80,6 +87,29 @@ for (const type of ['bar-v', 'bar-pair', 'bar-h', 'line']) {
   });
 }
 
+/* ★261018 1017t1f6㉡ — 새 사실 자체를 잠근다: 맨 Enter = 줄바꿈(아직 미확정) · ⌘Enter = 확정 · 화면도 pre-wrap 으로 두 줄. */
+test('N1 ★맨 Enter = 줄바꿈(미확정) · ⌘Enter = 확정 — items[i].label 에 \\n 들어가고 화면도 두 줄', async ({ page }) => {
+  const { errs, id } = await setup(page, 'bar-v');
+  const before = await labels(page, id);
+  const sel = await beginEdit(page, id, 'bar-v', 1);
+  await page.keyboard.press('Meta+a');
+  await page.keyboard.type('첫줄');
+  await page.keyboard.press('Enter');   // ★맨 Enter — 줄바꿈일 뿐, 아직 편집 중이어야 한다(확정 아님)
+  await expect.poll(() => page.evaluate(([id, sel]) => document.getElementById(id).querySelectorAll(sel)[1]?.isContentEditable, [id, sel]), { message: '맨 Enter 뒤에도 편집 중 — 확정되지 않았다' }).toBe(true);
+  expect(await labels(page, id), '맨 Enter 만으로는 아직 커밋되지 않는다').toEqual(before);
+  await page.keyboard.type('둘째줄');
+  await page.keyboard.press('Meta+Enter');   // ★⌘Enter — 확정
+  await expect.poll(() => labels(page, id)).toEqual(before.map((l, i) => i === 1 ? '첫줄\n둘째줄' : l));
+  expect(await page.evaluate(([id, sel]) => document.getElementById(id).querySelectorAll(sel)[1].textContent, [id, sel])).toBe('첫줄\n둘째줄');
+  // pre-wrap — 두 줄이 된 라벨의 높이가 한 줄일 때보다 커진다(실제로 줄이 꺾여 «그려졌는지»까지 잰다)
+  const twoLineH = await page.evaluate(([id, sel]) => document.getElementById(id).querySelectorAll(sel)[1].getBoundingClientRect().height, [id, sel]);
+  const oneLineH = await page.evaluate(([id, sel]) => document.getElementById(id).querySelectorAll(sel)[0].getBoundingClientRect().height, [id, sel]);
+  expect(twoLineH, '두 줄 라벨이 한 줄 라벨보다 뚜렷이 높다(pre-wrap 이 실제로 줄을 그렸다)').toBeGreaterThan(oneLineH * 1.5);
+  // 편집 흔적 0
+  expect(await page.evaluate((id) => ({ ce: document.getElementById(id).querySelectorAll('[contenteditable]').length, ed: document.getElementById(id).classList.contains('editing') }), id)).toEqual({ ce: 0, ed: false });
+  expect(errs).toEqual([]);
+});
+
 test('X1 Esc = 무변(데이터·저장·글자)', async ({ page }) => {
   const { errs, id } = await setup(page, 'bar-v');
   const before = await labels(page, id); const s0 = await saved(page);
@@ -93,12 +123,12 @@ test('X1 Esc = 무변(데이터·저장·글자)', async ({ page }) => {
   expect(errs).toEqual([]);
 });
 
-test('X2 빈 글자 Enter = 무변(빈 라벨은 크기 0 — 다시 못 누른다)', async ({ page }) => {
+test('X2 빈 글자 ⌘Enter = 무변(빈 라벨은 크기 0 — 다시 못 누른다)', async ({ page }) => {
   const { errs, id } = await setup(page, 'line');
   const before = await labels(page, id);
   await beginEdit(page, id, 'line', 0);
   await page.keyboard.press('Meta+a'); await page.keyboard.press('Backspace');
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('Meta+Enter');   // ★261018 — 확정은 ⌘Enter(맨 Enter 는 줄바꿈 — 빈 칸에선 \n 하나가 생길 뿐 여전히 미확정)
   await page.waitForTimeout(100);
   expect(await labels(page, id)).toEqual(before);
   expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll('.grb-line-xlabel')[0].textContent, id)).toBe(before[0]);
@@ -110,14 +140,14 @@ test('X3 편집 중 Backspace/Delete 가 블럭을 지우지 않는다', async (
   await beginEdit(page, id, 'bar-v', 0);
   await page.keyboard.press('End'); await page.keyboard.press('Backspace'); await page.keyboard.press('Delete');
   expect(await page.evaluate((id) => !!document.getElementById(id), id)).toBe(true);
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('Meta+Enter');   // ★261018 — 확정으로 편집을 깨끗이 닫는다(맨 Enter 는 줄바꿈이라 안 닫힌다)
   expect(errs).toEqual([]);
 });
 
 /* ── 6f7f6476 뒤(색인 = 블럭 안 카테고리 라벨 순서) — «맞는 라벨»에 들어가나 (팀장 조건 ①) ── */
 async function editAt(page, id, type, i, text) {
   await beginEdit(page, id, type, i);
-  await page.keyboard.press('Meta+a'); await page.keyboard.type(text); await page.keyboard.press('Enter');
+  await page.keyboard.press('Meta+a'); await page.keyboard.type(text); await page.keyboard.press('Meta+Enter');   // ★261018 — 확정은 ⌘Enter
 }
 test('I1 ★꺾은선 «마지막» 라벨 → items[last] 만 바뀐다', async ({ page }) => {
   const { errs, id } = await setup(page, 'line');
@@ -168,7 +198,7 @@ test('P ★편집 중 HTML(굵게+링크) 붙여넣기 → 확정 뒤 items[i].l
   const during = await page.evaluate(() => document.activeElement.children.length);
   test.info().annotations.push({ type: 'paste-during', description: `편집 중 라벨 자식 요소 ${during}` });
   expect(during, '전제: 붙여넣기가 서식 요소를 실제로 들였다(구멍이 있다 — 확정이 닫아야 한다)').toBeGreaterThan(0);
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('Meta+Enter');   // ★261018 — 확정은 ⌘Enter
   await expect.poll(() => labels(page, id)).toEqual(expect.arrayContaining(['굵게링크']));
   const r = await page.evaluate((id) => { const e = document.getElementById(id).querySelectorAll('.grb-bar-label')[1]; return { label: JSON.parse(document.getElementById(id).dataset.items)[1].label, kids: e.children.length, text: e.textContent, html: e.innerHTML }; }, id);
   expect(r).toEqual({ label: '굵게링크', kids: 0, text: '굵게링크', html: '굵게링크' });

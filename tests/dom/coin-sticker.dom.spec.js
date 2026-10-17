@@ -222,8 +222,8 @@ test('K2 패널 구성 — 행 순서 · 기본 절과 Shape 는 숨고 · 크�
       head: document.querySelector('#stk-coin-section')?.closest('#prop-panel, .prop-panel, body').querySelector('.prop-block-name')?.textContent.trim() };
   });
   expect(r.title).toBe('Coin');
-  expect(r.rows, '보이는 행(금 코인 — 색 행은 숨는다)').toEqual(['다시뽑기', '무늬번호', '재질', '각인', '(각인 칩)', '두께', '광택', '각도 잠금']);
-  expect(r.all, '전체 행 — 색 둘은 재질 바로 아래').toEqual(['다시뽑기', '무늬번호', '재질', '앞면 색', '옆면 색', '각인', '(각인 칩)', '두께', '광택', '각도 잠금']);
+  expect(r.rows, '보이는 행(금 코인 — 색 행은 숨는다)').toEqual(['다시뽑기', '무늬번호', '재질', '각인', '(각인 칩)', '두께', '광택', '번짐', '각도 잠금']);
+  expect(r.all, '전체 행 — 색 둘은 재질 바로 아래').toEqual(['다시뽑기', '무늬번호', '재질', '앞면 색', '옆면 색', '각인', '(각인 칩)', '두께', '광택', '번짐', '각도 잠금']);
   expect(r.glyphRowHasInput, '직접 입력 칸은 「각인」 행에 있다').toBe('각인');
   expect(r.chipTops, '각인 칩 다섯이 한 줄이다(「없음」이 혼자 둘째 줄로 안 떨어진다)').toBe(1);
   expect(r.chipRowH, '칩 행의 높이가 이웃(재질) 행과 같다').toBe(r.metalRowH);
