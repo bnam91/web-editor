@@ -109,6 +109,9 @@ const ROSTER = {
   'graph-panel-defaults.dom.spec.js:24': 'loop',
   'asset-to-scratch-move.dom.spec.js:50': 'safe',
   'asset-to-scratch-move.dom.spec.js:102': 'safe',
+  /* ★1017t1c5(태양) — r0·r1 둘 다 같은 줌에서 getBoundingClientRect, 비교는 ★차(r1.left-r0.left) —
+     overlay-drag-rotation.dom.spec.js:224 와 같은 꼴(마우스 드래그 거리 ＋ 결과 rect 차). 배율이 상쇄된다. */
+  'cmp-overlay.dom.spec.js:142': 'safe',
   'drag-move-autosave.dom.spec.js:82': 'safe',
   'e130-float-cross-section-row.dom.spec.js:53': 'safe',
   'free-frame-fullwidth-drag.dom.spec.js:185': 'safe',
