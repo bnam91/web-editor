@@ -105,6 +105,17 @@ function _addHlbHandles(block) {
   };
   mk('start', x1, y1);
   mk('end',   x2, y2);
+  /* ★1017t1e1(현빈 「하이라이트 스티커 블럭 : 높이조절 핸들 필요하다 추가해줘」) — highlightB(선
+     형광펜)의 «높이» = thickness. 끝점 핸들과 «같은 클래스»(.hlb-handle)를 그대로 쓰고
+     data-endpoint="thick" 만 다르다 — :385 의 양보 가드가 그대로 먹는다(⛔새 클래스 금지).
+     자리 = 선 중점에서 ★법선(수직) 방향으로 thickness/2 만큼 띄운다 — 끌면 두께만 바뀌고
+     ★길이(x1/y1/x2/y2)는 불변이다(⛔끝점 핸들과 산식을 공유하지 않는다 — 역할이 다르다). */
+  const _thk = Number(block.dataset.thickness) || 12;
+  const _mx = (x1 + x2) / 2, _my = (y1 + y2) / 2;
+  const _ddx = x2 - x1, _ddy = y2 - y1;
+  const _len = Math.hypot(_ddx, _ddy) || 1;
+  const _nx = -_ddy / _len, _ny = _ddx / _len;   // 단위 법선
+  mk('thick', _mx + _nx * (_thk / 2), _my + _ny * (_thk / 2));
 }
 function _bindHlbHandleDrag(handle, block, endpoint) {
   handle.addEventListener('mousedown', (e) => {
@@ -116,6 +127,42 @@ function _bindHlbHandleDrag(handle, block, endpoint) {
     if (!sec) return;
     const zoom = (window.currentZoom || 40) / 100;
     const startCX = e.clientX, startCY = e.clientY;
+
+    if (endpoint === 'thick') {
+      const tx1 = parseFloat(block.dataset.x1) || 0, ty1 = parseFloat(block.dataset.y1) || 0;
+      const tx2 = parseFloat(block.dataset.x2) || 0, ty2 = parseFloat(block.dataset.y2) || 0;
+      const tddx = tx2 - tx1, tddy = ty2 - ty1;
+      const tlen = Math.hypot(tddx, tddy) || 1;
+      const ux = -tddy / tlen, uy = tddx / tlen;     // 단위 법선 — 끝점 불변이라 드래그 중 고정
+      const initThick = Number(block.dataset.thickness) || 12;
+      const _histT = window.beginDragHistory?.('선 형광펜 두께');
+      const onMoveThick = (ev) => {
+        const dx = (ev.clientX - startCX) / zoom;
+        const dy = (ev.clientY - startCY) / zoom;
+        _histT?.arm(dx, dy);
+        // 마우스 이동을 법선으로 투영 — 두께는 중심선 기준 대칭이라 투영거리의 2배만큼 바뀐다.
+        const proj = dx * ux + dy * uy;
+        const next = Math.min(200, Math.max(1, Math.round(initThick + proj * 2)));
+        block.dataset.thickness = String(next);
+        window.renderStickerBlock?.(block);
+        _addHlbHandles(block);   // 핸들 위치도 갱신(끝점 포함 — mk 가 처음부터 다시 그린다)
+        // 우측 패널 슬라이더 동기화(선택된 상태에서 패널이 열려있으면 — js/props/prop-sticker.js:312-313)
+        const s = document.getElementById('stk-hlb-thick');
+        const n = document.getElementById('stk-hlb-thick-num');
+        if (s) s.value = String(Math.min(parseInt(s.max, 10) || 100, next));
+        if (n) n.value = String(next);
+      };
+      const onUpThick = () => {
+        document.removeEventListener('mousemove', onMoveThick);
+        document.removeEventListener('mouseup', onUpThick);
+        window.pushHistory?.('선 형광펜 두께');
+        window.scheduleAutoSave?.();
+      };
+      document.addEventListener('mousemove', onMoveThick);
+      document.addEventListener('mouseup', onUpThick);
+      return;
+    }
+
     const initX = parseFloat(block.dataset['x' + (endpoint === 'start' ? '1' : '2')]) || 0;
     const initY = parseFloat(block.dataset['y' + (endpoint === 'start' ? '1' : '2')]) || 0;
     const otherX = parseFloat(block.dataset['x' + (endpoint === 'start' ? '2' : '1')]) || 0;
