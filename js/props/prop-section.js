@@ -9,6 +9,7 @@ import { collectBulkAlignTargets } from './bulk-align-targets.js';
 /* ★띠 변수의 «거두기»는 prop-page.js 한 벌에서 온다 — 여기서 이름 명부를 다시 적지 않는다.
    (그 파일이 패딩 비주얼 on/off 의 «단일 진실원»이기도 하다. 순환 없음: prop-page 는 이 파일을 안 부른다.) */
 import { sweepPadHintVars } from './prop-page.js';
+import { needsBgLayer, ensureBgLayer, removeBgLayer } from '../bg-layer.js';   /* ★1017t1k1·k2 — 배경 레이어 판정·관리의 ★한 자리 */
 
 /* ═══════════════════════════════════
    SECTION PROPERTIES PANEL
@@ -121,6 +122,21 @@ function _applySectionBg(sec) {
 
   // 항상 shorthand는 초기화 후 개별 속성으로 재설정 (이전 multi-layer 잔재 제거)
   sec.style.background = '';
+
+  /* ★1017t1k1·k2 — rotate·색보정이 ★필요하면 그림은 ★레이어(js/bg-layer.js)가 그린다.
+     섹션 본체는 ★색만(그림은 'none') — ⛔반투명 색의 «물들임» 합성(아래 분기)은 ★레이어가
+     설 때는 ★아직 ★미확정이다(열린 질문 — tint 층을 .sec-bg-clip::after 로 옮기는 안,
+     1017t1 Planner 설계서 ③). 지금은 ★불투명/무색 케이스만 정확하고, 반투명 tint 는 ★보류한다. */
+  if (needsBgLayer(sec)) {
+    ensureBgLayer(sec);
+    sec.style.backgroundImage = 'none';
+    sec.style.backgroundColor = color || '';
+    sec.style.backgroundSize = '';
+    sec.style.backgroundPosition = '';
+    sec.style.backgroundRepeat = '';
+    return;
+  }
+  removeBgLayer(sec);
 
   /* ★★2026-10-10 (현빈 「솔리드배경에서 ★즉각 바껴야지」) — ★«불투명» 색은 ★★그림 위에 ★안 깐다.
      ★★왜 — ★예전엔 ★색·그림이 ★둘 다 있으면 ★언제나 ★`linear-gradient(색,색), url(그림)` 로 합성했고,
