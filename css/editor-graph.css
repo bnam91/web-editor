@@ -17,6 +17,16 @@
 }
 .graph-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .graph-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); border-radius: 0; }
+/* 1017t1f3 — 그래프 라벨(값·카테고리·범례·조각 안 이름) 편집 중 테. css/editor-blocks.css:1858-1874 `#canvas .grid-block [contenteditable="true"]`
+   의 정본을 그대로 베낀다(그 주석이 「.text-block.editing 이 이미 outline + --sel-color-fill 두 겹으로 가는 관례다 — 그 관례를 따른다」고 적었다).
+   편집 전엔 테가 없고(브라우저 기본 focus ring 뿐 · 우리 규칙 아님), js/drag-utils.js _graphLabelBeginEdit 가 contenteditable="true" 를
+   건 «그 순간만» 이 규칙이 켜진다. #canvas 스코프 = export 클론엔 안 샌다(그리드와 같은 까닭). ⛔리터럴 hex 0. */
+#canvas .graph-block [contenteditable="true"] {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+  background: var(--sel-color-fill);
+  cursor: text;
+}
 
 /* ── 세로 막대 (bar-v) ── */
 .grb-bars-v {

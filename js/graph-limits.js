@@ -38,6 +38,11 @@
        LABEL_SIZE_MIN 8 = 그래프 라벨 글자 크기 칸의 아래 끝 — 패널(prop-graph.js grb-label-slider/number 의 min)과 updateGraphBlock(block-factory.js _intField)이 적던 8 을 이리 옮겼다(값 그대로).
        PIE_TAG_FONT_STEPS = 라벨이 제 조각에 안 들 때 써 보는 글자 크기(블럭 라벨 크기 대비 비 · 큰 것부터). 어느 단계도 LABEL_SIZE_MIN 밑으로는 안 내려간다 · 키우는 단계는 없다(전부 1 미만).
        PIE_TAG_NAME_LINES 2 = 이름이 쓰는 줄 수의 위 끝(그보다 길면 글자를 줄이고, 끝까지 안 들면 이름을 숨긴다 · 「항상」 라벨은 이 줄 수에서 말줄임 — 기획 값 · 현빈 확인 전). */
+  /* ★PIE_LEG_GAP_MIN · MAX · DEFAULT(1017t1f1 · 2026-10-17 · 현빈 「원형 그래프와 라벨 간의 간격 조절도 가능하게」) — 원형·도너츠 범례(.grb-pie-legend)와
+       차트 위(.grb-pie-wrap) 사이의 간격(px). 키가 없으면 CSS 기본(css/editor-graph.css `margin-top:0.8em`)이 그대로 먹는다 — 그 기본값은 이 파일이 안 들고 있다
+       (em 은 라벨 글자 크기에 따라 같이 움직이는 게 «지금 그대로 둔» 설계값이고, px 오버라이드는 그 위에 얹는 것뿐이다 — CSS 기본 규칙은 손대지 않는다).
+       DEFAULT 16 = 기본 라벨 크기(LABEL_SIZE_DEFAULT 20) 에서 0.8em 과 같은 px(슬라이더 시작값 · 그 값이면 키를 지운다 — 「없음 = 키 없음」 규약).
+       렌더러(drag-utils.js _renderPie)와 패널(prop-graph.js)이 이 세 값을 읽는다. */
   /* ★SHAPE_SVG_MAX · SHAPE_FILL_MAX_DEFAULT · SHAPE_TRACK_OPACITY · SEG_GAP_DEFAULT(1012t1G2·G3·G4 · 2026-10-12) — 「SVG 를 그래프 모양으로」(js/graph-shape.js).
        SHAPE_SVG_MAX 60000 = 블럭에 실리는 «정규화된» 사용자 SVG 글자 수의 상한(마스크 URL 은 % 인코딩으로 그 세 배쯤까지 는다 — 저장본 비대 방지).
        SHAPE_FILL_MAX_DEFAULT 100 = 모양일 때 채움 분모(값 하나짜리 채움 그래프가 늘 꽉 차지 않게 — 사각 막대의 max(items) 와 다르다).
@@ -45,6 +50,7 @@
        렌더러(drag-utils.js · graph-shape.js)와 패널(prop-graph.js)이 «이 값들»을 읽는다(기획 값 — 현빈 확인 전). */
   var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LABEL_SIZE_MIN: 8, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3,
     PIE_HOLE_MIN: 20, PIE_HOLE_MAX: 80, PIE_HOLE_DEFAULT: 55, PIE_GAP: 10, PIE_GAP_MIN: 0, PIE_GAP_MAX: 40, PIE_START_MIN: 0, PIE_START_MAX: 359, PIE_GROW_MAX: 30, PIE_PULL_MAX: 30, PIE_TAG_AT: 62, PIE_TAG_MIN_CHORD: 150, PIE_TAG_MIN_RADIAL: 150, PIE_TAG_PAD: 8, PIE_TAG_FONT_STEPS: Object.freeze([0.85, 0.7, 0.55, 0.4]), PIE_TAG_NAME_LINES: 2,
+    PIE_LEG_GAP_MIN: 0, PIE_LEG_GAP_MAX: 60, PIE_LEG_GAP_DEFAULT: 16,
     SHAPE_SVG_MAX: 60000, SHAPE_FILL_MAX_DEFAULT: 100, SHAPE_TRACK_OPACITY: 0.25, SEG_GAP_DEFAULT: 2 });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_LIMITS;
   if (root) root.GRAPH_LIMITS = GRAPH_LIMITS;
