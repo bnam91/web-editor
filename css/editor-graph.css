@@ -66,9 +66,11 @@
   margin-top: 6px;
   text-align: center;
   color: inherit;
-  white-space: nowrap;
+  /* ★1017t1f6㉡ — 명시한 줄바꿈(⇧Enter → \n)만 줄로 그린다(자동 줄바꿈도 같이 — annot-label 과 달리 칸이 좁다).
+     옛 nowrap+ellipsis 한 줄 자르기는 폐기 — 여러 줄과 같이 못 산다(ellipsis 는 nowrap 전제). */
+  white-space: pre-wrap;
+  word-break: keep-all;
   overflow: hidden;
-  text-overflow: ellipsis;
   max-width: 100%;
 }
 
@@ -95,6 +97,8 @@
   opacity: 0.85;
   line-height: 1.4;
   margin-bottom: 8px;
+  white-space: pre-wrap;   /* ★1017t1f6㉡ — 명시한 ⇧Enter 줄바꿈을 그린다(자동 줄바꿈은 옛날에도 있었다 — 성질 무변) */
+  word-break: keep-all;
 }
 .grb-bar-h-track {
   width: 100%;
@@ -193,6 +197,9 @@
   line-height: 1.1;
 }
 .grb-line-vlabel { font-weight: 600; }
+/* ★1017t1f6㉡ — xlabel(카테고리 라벨, 더블클릭 편집 대상)만 ⇧Enter 줄바꿈을 그린다.
+   vlabel(값 숫자, 편집 대상 아님)은 위 nowrap 그대로 — 선택자를 쪼갠다(한 줄에 묶으면 둘 다 바뀐다). */
+.grb-line-xlabel { white-space: pre-wrap; word-break: keep-all; }
 .grb-line-empty {
   width: 100%;
   height: 100%;
