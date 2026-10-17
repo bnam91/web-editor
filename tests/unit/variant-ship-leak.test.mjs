@@ -53,7 +53,18 @@ const {
 const HTMLSRC  = strip(rd('js/io/export-html.js'));
 const FIGSRC   = strip(rd('js/io/export-figma-json.js'));
 const INSPSRC  = strip(rd('js/inspector.js'));
-const PANELCSS = rd('css/editor-panels.css');
+/* ★editor-panels.css 는 2026-10-17 책임 단위 분리로 ★껍데기(@import 4줄)가 됐다 —
+ * .section-block[data-variation-active="0"] 규칙은 이제 css/panels/_panel-tree.css 에 산다.
+ * ⛔파일 이름을 손으로 ★네 벌 적어 넣지 않는다 — «그 폴더에 ★있는 것 전부»를 이어 붙인다
+ * (editor-base.css 의 @import './design-tokens.css' 선례와 같은 결 — 소비자는 여전히
+ *   editor-panels.css «이름»을 믿고, 그 이름이 ★실제로 불러오는 것을 그대로 따라간다). */
+const PANELCSS = (() => {
+  const dir = path.join(ROOT, 'css/panels');
+  const extra = fs.existsSync(dir)
+    ? fs.readdirSync(dir).filter((f) => f.endsWith('.css')).sort().map((f) => rd(`css/panels/${f}`))
+    : [];
+  return [rd('css/editor-panels.css'), ...extra].join('\n');
+})();
 
 /** 아주 작은 요소 대역 — closest 는 «부모를 타고» 올라간다(진짜 DOM 과 같은 뜻). */
 function mkEl({ active, parent = null, connected = true } = {}) {

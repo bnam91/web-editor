@@ -29,6 +29,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import path from 'node:path';
 import fs from 'node:fs';
+import { listCssFiles } from '../../tools/css-token-lint.mjs';
 
 const ROOT = path.join(import.meta.dirname, '..', '..');
 
@@ -49,10 +50,12 @@ const ROOT = path.join(import.meta.dirname, '..', '..');
  *        ★파일 칸은 ★★참 축(★짝이 ★맞나)만 ★잰다 · ★★«안 쟀다»는 ★★`O0` 가 ★막는다.
  *   ★★★그리고 ★명부를 ★★«파생»시켰다 — ⛔손으로 ★25줄을 ★적지 ★않는다.
  *     ★★까닭: ★CSS 파일이 ★하나 ★늘면 ★★손 명부는 ★조용히 ★그것을 ★빼고 ★초록이 된다. */
-const TARGETS = fs.readdirSync(path.join(ROOT, 'css'))
-  .filter(f => f.endsWith('.css'))
-  .sort()
-  .map(f => `css/${f}`);
+/* ★2026-10-17 ⒟ — ★listCssFiles(tools/css-token-lint.mjs) 로 ★파생처를 하나로 더 모았다.
+ *   ★까닭: 이 자(비재귀 readdirSync)는 editor-panels.css 책임 단위 분리로 생긴
+ *   `css/panels/` 하위 폴더를 ★안 본다 — ★같은 병을 ★또 ★다른 레인에서 ★낼 뻔했다.
+ *   ⇒ ★손으로 ★«재귀 걷기»를 ★또 적지 않고, ★이미 있는 ★재귀 걷기(css-token-lint 의
+ *   treeSource 가 쓰는 그 자)를 ★그대로 ★불러 쓴다. */
+const TARGETS = listCssFiles(ROOT);
 
 /* ★★★261011 ⒝ — ★★★«범위»를 ★★넓혔다. ★★★까닭을 ★적는다:
  *   ★★내가 ★★지디에게 ★★«쪽지로» ★「★CSS/HTML ★★3개 ★파일이 ★걸렸다」라 ★적었다. ★★★그 수는 ★★틀렸다 —
@@ -120,7 +123,9 @@ function orphanDeclarations(src) {
  *   ⇒ ★★★그래서 ★★«파일 수»와 ★★«규칙 총수»를 ★★★이 한 칸이 ★든다. ★★파일 칸은 ★참 축만 ★잰다. */
 test('O0 ★★★전제 — ★명부가 ★★파생돼 ★섰나 ＋ ★★셀 것이 ★있나 (⛔0건이 ★초록이 되지 않게)', () => {
   /* ★★명부가 ★★파생이다 — ⛔손으로 적은 수를 ★★여기 ★박지 않는다. ★★«있는 파일을 ★다 집었나»를 ★잰다 */
-  const onDisk = fs.readdirSync(path.join(ROOT, 'css')).filter(f => f.endsWith('.css')).length;
+  /* ★독립적으로 센다 — TARGETS 와 ★같은 길(listCssFiles)을 쓰면 ★항등식이라 ★이 자기검증이
+   * ★아무것도 못 잡는다. ⇒ Node 내장 재귀 readdir(다른 길)로 ★다시 센다(css/panels/ 포함). */
+  const onDisk = fs.readdirSync(path.join(ROOT, 'css'), { recursive: true }).filter(f => f.endsWith('.css')).length;
   assert.strictEqual(TARGETS.length, onDisk,
     `★★명부 ${TARGETS.length}벌 ≠ ★디스크 ${onDisk}벌 — ★★거르개가 ★빗나갔다(★파생이 ★깨졌다)`);
   assert.ok(TARGETS.length >= 20,

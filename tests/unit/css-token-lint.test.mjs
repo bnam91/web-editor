@@ -28,7 +28,7 @@ import {
   blankCssNoise, blankExemptSpans, scanDeclarations, makeLineIndex,
   collectRootTokens, resolveTokens, buildMaps, isSuggestable, normHex,
   lintCss, renderFinding, selfCheck, deriveBase, scanIntegrity, integrityReport,
-  collectKnownVarNames, unknownVarAt,
+  collectKnownVarNames, unknownVarAt, listCssFiles,
 } from '../../tools/css-token-lint.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -193,7 +193,7 @@ const MUTANTS = [
 test('★무력화: 가드 5개를 하나씩 끄면 --self 가 ★각각 빨개진다', async (t) => {
   // ⑴ 먼저 «안 깨뜨린» 자가 ★초록인지 — 바닥이 빨강이면 아래가 전부 거짓 양성이다
   const { maps, resolved } = (() => {
-    const files = fs.readdirSync(path.join(REPO, 'css')).filter((f) => f.endsWith('.css')).sort().map((f) => `css/${f}`);
+    const files = listCssFiles(REPO);
     const { defs } = collectRootTokens(files, read);
     const r = resolveTokens(defs);
     return { maps: buildMaps(r), resolved: r };
@@ -212,7 +212,7 @@ test('★무력화: 가드 5개를 하나씩 끄면 --self 가 ★각각 빨개�
     assert.notEqual(mutated, TOOL_SRC, `변이가 안 꽂혔다 — 「${m.name}」 의 통과는 0건짜리 거짓이다`);
     fs.writeFileSync(tmp, mutated);
     const mod = await import(`${tmp}?v=${m.name}`);
-    const files = fs.readdirSync(path.join(REPO, 'css')).filter((f) => f.endsWith('.css')).sort().map((f) => `css/${f}`);
+    const files = listCssFiles(REPO);
     const { defs } = mod.collectRootTokens(files, read);
     const r2 = mod.resolveTokens(defs);
     const rows = mod.selfCheck(mod.buildMaps(r2), r2);
@@ -222,7 +222,7 @@ test('★무력화: 가드 5개를 하나씩 끄면 --self 가 ★각각 빨개�
 });
 
 test('산 레포에서도 돈다 — 명부가 비거나 표가 비면 HARNESS 자리다', () => {
-  const files = fs.readdirSync(path.join(REPO, 'css')).filter((f) => f.endsWith('.css')).sort().map((f) => `css/${f}`);
+  const files = listCssFiles(REPO);
   const { defs } = collectRootTokens(files, read);
   assert.ok(defs.length > 100, `:root 토큰 ${defs.length}건 — 100 아래로 떨어지면 명부 파싱이 깨진 것이다`);
   const maps = buildMaps(resolveTokens(defs));
@@ -249,7 +249,7 @@ const SUBSTITUTIONS = [
 ];
 
 test('치환 잠금 ⑴ 바꿔 넣은 토큰의 «지금 값»이 ★바꾸기 전 리터럴과 같다', () => {
-  const files = fs.readdirSync(path.join(REPO, 'css')).filter((f) => f.endsWith('.css')).sort().map((f) => `css/${f}`);
+  const files = listCssFiles(REPO);
   const resolved = resolveTokens(collectRootTokens(files, read).defs);
   for (const s of SUBSTITUTIONS) {
     assert.equal(resolved.get(s.token), s.was,
@@ -259,7 +259,7 @@ test('치환 잠금 ⑴ 바꿔 넣은 토큰의 «지금 값»이 ★바꾸기 �
 });
 
 test('치환 잠금 ⑵ 그 토큰이 css 전체에서 ★한 번만 정의된다 (덮이면 var() 가 딴 값이 된다)', () => {
-  const files = fs.readdirSync(path.join(REPO, 'css')).filter((f) => f.endsWith('.css')).sort().map((f) => `css/${f}`);
+  const files = listCssFiles(REPO);
   const all = [];
   for (const f of files) {
     const blanked = blankCssNoise(read(f));
@@ -638,8 +638,8 @@ test('Ⓑ 계약 ⑴ — 거르개가 ★길이를 보존한다 (★astral 합�
     assert.equal(blankCssNoise(src).length, src.length, `길이가 달라졌다: ${JSON.stringify(src)}`);
   }
   // ★레포 전 파일 — ⛔한 파일만 재면 「한 환경에서만 참」이 된다
-  const files = fs.readdirSync(path.join(REPO, 'css')).filter((f) => f.endsWith('.css')).sort();
-  const bad = files.filter((f) => { const s = read(`css/${f}`); return blankCssNoise(s).length !== s.length; });
+  const files = listCssFiles(REPO);
+  const bad = files.filter((f) => { const s = read(f); return blankCssNoise(s).length !== s.length; });
   assert.deepEqual(bad, [], `길이가 어긋난 파일 — ⛔Array.from 으로 되돌아갔나: ${bad.join(', ')}`);
 });
 
@@ -730,7 +730,7 @@ test('⒊-① 배선 — ★CLI 가 var() 이름 명부를 ★실제로 만든�
 });
 
 test('⒊-① 명부 — ★없는 이름은 ★없고, ★css·★js 양쪽에서 ★있는 이름은 ★있다', () => {
-  const cssList = fs.readdirSync(path.join(REPO, 'css')).filter((f) => f.endsWith('.css')).sort().map((f) => `css/${f}`);
+  const cssList = listCssFiles(REPO);
   const code = ['js/canvas-contrast.js', 'css/editor-base.css'].filter((f) => fs.existsSync(path.join(REPO, f)));
   const { known } = collectKnownVarNames(cssList, read, code, (f) => read(f));
   assert.ok(known.size > 100, `명부 ${known.size}종 — 100 아래면 파싱이 깨진 것이다`);

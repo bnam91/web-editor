@@ -2,7 +2,7 @@
 /* ── 레이어 패널: A/B 베리에이션 그룹 ── */
 .layer-variation-group {
   border: 1px solid rgba(45,111,232,0.4);
-  border-radius: 4px;
+  border-radius: var(--ui-radius-sm);
   margin: 3px 0;
   overflow: hidden;
 }
@@ -150,12 +150,12 @@
 /* ★margin-bottom 2px 제거 — 다른 줄은 전부 붙어 있는데(간격 0) 프레임 그룹만 2px 떠서
    목록 리듬이 미세하게 깨졌다. 「간격은 0 아니면 4(섹션 구분)」 두 값만 쓴다(현빈 2026-09-04).
    그룹 구분은 이미 들여쓰기 가이드선 + 굵은 헤더가 하고 있다. */
-.layer-row-group { border-radius: 4px; overflow: hidden; }
+.layer-row-group { border-radius: var(--ui-radius-sm); overflow: hidden; }
 .layer-row-header {
   /* gap 은 .layer-item(7px)과 같게 — 8 이면 아이콘·이름이 한 칸씩 밀려 세로선이 흔들린다 */
   display: flex; align-items: center; gap: 7px;
   height: 28px; padding: 0 6px 0 8px;
-  cursor: pointer; border-radius: 4px;
+  cursor: pointer; border-radius: var(--ui-radius-sm);
   transition: background 0.1s; user-select: none;
 }
 .layer-row-header:hover { background: var(--ui-bg-hover); }
@@ -195,7 +195,7 @@
 .layer-item {
   display: flex; align-items: center; gap: 7px;
   height: 28px; padding: 0 8px;
-  cursor: pointer; border-radius: 4px;
+  cursor: pointer; border-radius: var(--ui-radius-sm);
   transition: background 0.1s; user-select: none;
 }
 .layer-item:hover { background: var(--ui-bg-hover, var(--ui-bg-card)); }

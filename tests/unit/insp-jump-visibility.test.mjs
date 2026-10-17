@@ -37,7 +37,16 @@ const strip = s => decomment(s).replace(/^\s*\/\/.*$/gm, '');
 const INSP      = strip(rd('js/inspector.js'));
 const BLOCKEDIT = strip(rd('js/block-edit.js'));
 const EDITOR    = strip(rd('js/editor.js'));
-const PANELCSS  = decomment(rd('css/editor-panels.css'));
+/* ★editor-panels.css 는 2026-10-17 책임 단위 분리로 ★껍데기(@import 4줄)가 됐다 —
+ * .insp-jump-flash 는 이제 css/panels/_panel-misc.css 에 산다. ⛔파일 이름을 손으로
+ * 네 벌 적어 넣지 않는다 — «그 폴더에 있는 것 전부»를 이어 붙인다. */
+const PANELCSS  = decomment((() => {
+  const dir = path.join(ROOT, 'css/panels');
+  const extra = fs.existsSync(dir)
+    ? fs.readdirSync(dir).filter((f) => f.endsWith('.css')).sort().map((f) => rd(`css/panels/${f}`))
+    : [];
+  return [rd('css/editor-panels.css'), ...extra].join('\n');
+})());
 const BLOCKCSS  = decomment(rd('css/editor-blocks.css'));
 
 /** `name(` 부터 괄호 짝을 세어 인자 전체를 잘라낸다(중첩 setTimeout 도 옳게 판다). */

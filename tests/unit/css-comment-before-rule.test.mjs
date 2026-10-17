@@ -35,6 +35,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { listCssFiles } from '../../tools/css-token-lint.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const COMMENT = /\/\*[\s\S]*?\*\//g;
@@ -90,9 +91,10 @@ test('X1 ★전제 — ★검사가 ★찾는 선택자가 ★0 이 아니다 (�
 test('X2 ★★주석이 ★그 규칙보다 ★먼저 집히는 자리가 ★★0건이다', () => {
   const sels = derivedSelectors();
   const all = [];
-  const dir = path.join(ROOT, 'css');
-  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.css')).sort()) {
-    const src = fs.readFileSync(path.join(dir, f), 'utf8');
+  /* ★2026-10-17 — ★재귀 명부(css/panels/ 포함)로 바꿨다. 비재귀면 책임 단위로 쪼갠
+   * 하위 폴더가 이 자의 범위에서 ★조용히 빠진다(css-no-orphan-block 과 같은 병). */
+  for (const f of listCssFiles(ROOT)) {
+    const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
     for (const o of offenders(src, sels)) all.push(`${f}:${o.commentLine} 주석이 «${o.sel}» (그 규칙은 ${o.ruleLine}행)`);
   }
   assert.deepEqual(all, [],
