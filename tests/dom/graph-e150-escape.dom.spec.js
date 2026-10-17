@@ -51,7 +51,8 @@ test('P2 ★꺾은선 · 캔버스 라벨 더블클릭 편집으로 `<b>x</b>` �
   const q = await stable(page, id, '.grb-line-xlabel', 0);
   await clickAt(page, q.x, q.y, { sel: '.grb-line-xlabel' }, { label: '라벨 더블클릭', dbl: true });
   await expect.poll(() => page.evaluate(() => !!document.activeElement?.matches('.grb-line-xlabel') && document.activeElement.isContentEditable), { message: '편집 진입', timeout: 3000 }).toBe(true);
-  await page.keyboard.press('Meta+a'); await page.keyboard.type(EVIL); await page.keyboard.press('Enter');
+  await page.keyboard.press('Meta+a'); await page.keyboard.type(EVIL);
+  await page.keyboard.press('Meta+Enter');   // ★261018 1017t1f6 — 캔버스 라벨 확정은 ⌘Enter(맨 Enter 는 줄바꿈으로 뜻이 바뀌었다 · graph-label-edit.dom.spec.js N1)
   await expect.poll(() => look(page, id, '.grb-line-xlabel')).toEqual({ text: EVIL, kids: 0 });
   expect(errs).toEqual([]);
 });
