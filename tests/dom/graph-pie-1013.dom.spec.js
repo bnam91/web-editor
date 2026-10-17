@@ -377,11 +377,24 @@ test('S1 조각 고르기 — 첫 클릭은 블럭 선택(표식 0) · 둘째 �
   await clickSlice(page, id, 0);
   await expect.poll(async () => (await markOf(page, id)).marks, { message: '다른 조각을 누르면 그 조각으로' }).toEqual([0]);
   expect((await sliceSection(page)).name).toBe('1번 · 가');
-  /* 테두리가 조각 색에 «묻히지 않는다» — 기본 프리셋의 첫 조각은 선택색과 같은 파랑이라, 선택색 테두리는 안 보였다. 테두리 색 ≠ 그 조각의 채움색 · 점선 */
+  /* [폐기 — 261018] 「기본 프리셋의 첫 조각은 선택색과 같은 파랑이라, 선택색 테두리는 안 보였다」— 더 이상 참이 아니다.
+     261018 현빈 확정으로 기본 프리셋 첫 조각색을 --p-green-500 으로 바꿨다(css/editor-graph.css --grb-pie-base 비석 참조) —
+     ⇒ 테두리를 --sel-color(파랑)로 되돌려도 더는 묻히지 않는다. 테두리 색 ≠ 그 조각의 채움색 · 점선 · ★테두리 색 = --sel-color. */
   const ink = await page.evaluate((id) => { const p = document.getElementById(id).querySelector('.grb-pie-cell-selected'); const c = getComputedStyle(p); return { stroke: c.stroke, fill: c.fill, dashed: c.strokeDasharray !== 'none', w: parseFloat(c.strokeWidth) > 0 }; }, id);
   expect(ink.stroke, '전제: 테두리가 있다').not.toBe('none');
   expect(ink.stroke, '테두리 색이 조각 채움색과 다르다').not.toBe(ink.fill);
   expect({ dashed: ink.dashed, w: ink.w }).toEqual({ dashed: true, w: true });
+  /* 261018 신규 단언 — 테두리 색이 «선택색(--sel-color)» 그 자체다(지금은 currentColor 라 안 잠겨 있던 자리).
+     음성대조: css/editor-graph.css 의 stroke 를 currentColor 로 되돌리면 이 단언이 빨강이어야 한다(실측함). */
+  const selRgb = await page.evaluate(() => {
+    const d = document.createElement('div');
+    d.style.color = 'var(--sel-color)';
+    document.body.appendChild(d);
+    const rgb = getComputedStyle(d).color;
+    d.remove();
+    return rgb;
+  });
+  expect(ink.stroke, '테두리 색이 선택색(--sel-color)이다').toBe(selRgb);
   expect(errs).toEqual([]);
 });
 
