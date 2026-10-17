@@ -712,6 +712,14 @@ function _niceScale(M) {
 }
 window.__grbNiceScale = _niceScale;   // graph-shape.js fillPlan 이 «같은 함수»로 눈금 상한을 읽는다(렌더와 graphFillModel 의 분모가 한 식 · 1012t1G3)
 
+/* ★1017t1f6㉠ — 축 눈금 글자의 «덮어쓴 값»(dataset.axisTickText). 키 = 계산된 눈금 숫자의 String()(예: "20") · 값 = 사용자가 고친 글자.
+   ★없으면 옛 그대로(숫자 그대로 그린다) — 덮어쓴 적 없는 그래프는 바이트가 그대로다. 망가진 글자(JSON 아님·배열·원시값)는 {}. */
+function _parseAxisTickOv(raw) {
+  if (!raw) return {};
+  try { const o = JSON.parse(raw); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch (_) { return {}; }
+}
+window.__grbParseAxisTickOv = _parseAxisTickOv;
+
 /* ★GR2·GR3 — bar-v 플롯 기하 «한 곳». 막대 높이(pct)와 오버레이(축·격자·꺾은선) 좌표가 이 함수 하나에서 나온다.
  *   좌표는 «렌더 때 DOM 을 재서 박는» 게 아니라 모델 수식 + CSS 앵커다(폭이 바뀌어도 맞는다 — GR-DESIGN 대조: px 박기 270px·비율 1.6px 오차).
  *   · 가로: 오버레이 상자 left/right = calc(P − gap/2) ⇒ i번째 막대 가운데 = 상자의 (i+0.5)/n.
@@ -742,7 +750,8 @@ function _barVPlotGeom(block, items, { maxVal, labelSize, vSize, bs }) {
   const n = Math.max(1, items.length);
   const xPct = (i) => ((i + 0.5) / n) * 100;
   const tickFont = Math.max(10, Math.round(labelSize * 0.75));
-  const fmt = (t) => String(t);
+  const axisOv = axis ? _parseAxisTickOv(d.axisTickText) : null;   // ★1017t1f6㉠
+  const fmt = (t) => { const k = String(t); return (axisOv && Object.prototype.hasOwnProperty.call(axisOv, k)) ? axisOv[k] : k; };
   const tickChars = nice ? Math.max(...nice.ticks.map(t => fmt(t).length)) : 0;
   // 눈금 글자 자리 — 오버레이 상자 왼쪽 밖(right:100% + 6px)에 그리므로, 그만큼 막대 띠를 오른쪽으로 민다(「11」이 잘리던 시제품 꼴 방지).
   const axisMargin = axis ? Math.ceil(tickChars * tickFont * 0.65 + 8) : 0;
@@ -762,7 +771,9 @@ function _barVPlotGeom(block, items, { maxVal, labelSize, vSize, bs }) {
     // 점 높이 = 막대 꼭대기와 같은 식: 값 0 막대는 height:4px + border-style:dashed(기본 medium 3px ×2, border-box) = 6px,
     //   그 밖은 min-height 4px ⇒ max(pct%, 4px).
     const dots = line ? pts.map((q, i) => `<div class="grb-ov-dot" style="position:absolute;left:${xPct(i).toFixed(4)}%;bottom:${q.p === 0 ? '6px' : `max(${q.p}%, 4px)`};width:10px;height:10px;transform:translate(-50%,50%);border-radius:50%;background:currentColor"></div>`).join('') : '';
-    const tickEls = axis ? ticks.map(t => `<div class="grb-ov-tick" style="position:absolute;right:100%;margin-right:6px;bottom:${((t / scaleMax) * 100).toFixed(4)}%;transform:translateY(50%);font-size:${tickFont}px;line-height:1;opacity:0.75;white-space:nowrap">${_escGraphHtml(fmt(t))}</div>`).join('') : '';
+    /* ★1017t1f6㉠ — data-grb-tick = 그 눈금의 «계산된» 숫자(String) · pointer-events:auto(부모 .grb-ov 는 none 이라 안 밝히면 더블클릭이 안 닿는다).
+       더블클릭 편집은 _bindGraphAxisTickEdit(아래)가 연다. */
+    const tickEls = axis ? ticks.map(t => `<div class="grb-ov-tick" data-grb-tick="${t}" title="더블클릭 — 이 눈금 글자만 고치기" style="position:absolute;right:100%;margin-right:6px;bottom:${((t / scaleMax) * 100).toFixed(4)}%;transform:translateY(50%);font-size:${tickFont}px;line-height:1;opacity:0.75;white-space:nowrap;pointer-events:auto;cursor:text;">${_escGraphHtml(fmt(t))}</div>`).join('') : '';
     return `<div class="grb-ov" style="position:absolute;left:${inset};right:${inset};top:${top}px;bottom:${bot}px;pointer-events:none;z-index:1;${ink ? `color:${ink};` : ''}">`
       + `<svg class="grb-ov-svg" viewBox="0 0 1000 1000" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">${axisEl}${lineEl}</svg>`
       + dots + tickEls + `</div>`;
@@ -785,6 +796,7 @@ function renderGraph(block) {
   _renderGraphBody(block);
   window.__gdTextTone?.syncGraphTone?.(block);
   _bindGraphLabelEdit(block);
+  _bindGraphAxisTickEdit(block);   // ★1017t1f6㉠
 }
 /* K8⒤ — 카테고리 라벨 캔버스 직접 편집(더블클릭). 저장 자리 = dataset.items[i].label 한 곳(패널 .grb-data-label-input 과 같은 키).
  *   라벨은 렌더마다 새로 만들어진다 ⇒ 블럭에 «위임» 한 번만 건다(요소 속성이라 복제·로드된 블럭은 첫 렌더에서 새로 건다).
@@ -817,7 +829,12 @@ function _graphLabelBeginEdit(block, el, idx) {
     if (done) return; done = true;
     el.removeEventListener('keydown', onKey); el.removeEventListener('blur', onBlur);
     block.classList.remove('editing');
-    const val = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    /* ★261018 1017t1f6 — execCommand('insertText','\n') 는 ★<br> 을 넣는다(실측 — 리터럴 '\n' 텍스트 노드가 아니다),
+       그런데 textContent 는 <br> 을 «건너뛴다»(기여 0) ⇒ 두 줄이 구분자 없이 붙어버렸다(N1 1차 빨강 — "첫줄\n둘째줄" 기대에 "첫줄둘째줄" 나옴).
+       ★innerText 는 <br> 을 '\n' 으로 바꿔 돌려준다(annotation-select.js 의 손과 같다) — 그래서 여기만 innerText 로 읽는다.
+       줄 안 공백은 그대로 걷는다(옛 식은 \s+ 전부를 공백 하나로 접어 줄바꿈까지 지웠다) · 붙여넣기(HTML) 는 서식이 안 남는다(옛 성질 그대로 — P 시험,
+       innerText 도 textContent 와 같이 인라인 요소 사이에 구분자를 안 넣는다 — <b>굵게</b><a>링크</a> → "굵게링크"). */
+    const val = (el.innerText ?? el.textContent ?? '').replace(/[^\S\n]+/g, ' ').trim();
     const items = JSON.parse(block.dataset.items || '[]');
     const changed = commit && val && items[idx] && val !== items[idx].label;
     if (changed) { items[idx].label = val; block.dataset.items = JSON.stringify(items); }
@@ -829,7 +846,14 @@ function _graphLabelBeginEdit(block, el, idx) {
   };
   const onKey = (ev) => {
     if (ev.isComposing || ev.keyCode === 229) return;   // 한글 조합 중 Enter 는 조합 확정이다
-    if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); finish(true); }
+    /* ★261018 1017t1f6 — 현빈 원문 「엔터쳐서 줄바꿈도 할수 있게해줘」= ★맨 Enter. 확정은 ⌘/Ctrl+Enter · blur · Esc(취소) 로 옮겼다
+       (선례 js/annotation-select.js:604-642 의 손 — execCommand 로 줄바꿈, 수식키 Enter 로 확정). ⛔축 눈금(.grb-ov-tick · 숫자)은
+       Enter=확정 그대로다 — 숫자엔 줄바꿈이 뜻이 없다(아래 _graphAxisTickBeginEdit 머리말 참조). 둘을 같게 맞추지 마라. */
+    if (ev.key === 'Enter') {
+      ev.preventDefault(); ev.stopPropagation();
+      if (ev.metaKey || ev.ctrlKey) finish(true);
+      else document.execCommand('insertText', false, '\n');
+    }
     else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(false); }
   };
   /* ⒥⒝ — 패널로 가는 blur 는 끝내지 «않고» 세운다(그리드 줄·텍스트블럭과 같은 술어 isBlurIntoPanel · prop-graph.js 가 _text-selection 을 잇는다).
@@ -838,6 +862,64 @@ function _graphLabelBeginEdit(block, el, idx) {
     if (window.__grbLabelEdit?.park?.(ev, el, () => finish(true), () => finish(true, { keepPanel: true }))) return;
     finish(true);
   };
+  el.addEventListener('keydown', onKey);
+  el.addEventListener('blur', onBlur);
+}
+/* ★1017t1f6㉠ — 「축 보이기」가 켜졌을 때 왼쪽에 뜨는 눈금 숫자(.grb-ov-tick)를 캔버스에서 더블클릭해 바로 고친다.
+ *   ★카테고리 라벨(_graphLabelBeginEdit 위)과 «같은 꼴»(더블클릭 → contenteditable → Enter/blur 확정 · Esc 취소)이되,
+ *     저장 자리가 다르다 — 라벨은 items[idx].label(색인), 눈금은 dataset.axisTickText(JSON · 키 = 「계산된 숫자」의 글자).
+ *     ★색인이 아니라 «값»으로 키를 잡는 이유: 데이터가 바뀌면 깔끔한 상한(_niceScale)이 다시 돌아 눈금 자체가 바뀐다
+ *     — 옛 색인에 걸린 덮어쓴 글자가 «다른 숫자 자리»에 눌어붙는 것보다, 숫자가 바뀌면 덮어쓴 글자가 «조용히 빠지는» 쪽이 낫다.
+ *   덮어쓴 적 없으면(dataset.axisTickText 없음) 옛 숫자 그대로 — 바이트 무변(GR-W0 은 축 자체가 꺼진 경우만 걸므로 안 걸린다).
+ *   ⒥⒝ 패널 스크롤(reveal)은 안 쓴다 — 눈금엔 대응하는 패널 칸이 없다(라벨처럼 크기·색 줄로 데려갈 자리가 없다).
+ *   ★261018 — 여기(축 눈금·숫자)는 ★Enter=확정 그대로다. 카테고리 라벨(글, _graphLabelBeginEdit)은 ★맨 Enter=줄바꿈·⌘Enter=확정으로
+ *     바뀌었다(1017t1f6㉡) — ★뜻이 달라서 키를 다르게 배정했다(숫자 한 줄엔 줄바꿈이 뜻이 없다). ⛔다음에 「일관성」이라며 둘을 맞추지 마라. */
+const GRB_AXIS_TICK_SEL = '.grb-ov-tick';
+function _bindGraphAxisTickEdit(block) {
+  if (block._grbAxisTickEditBound) return;
+  block._grbAxisTickEditBound = true;
+  block.addEventListener('dblclick', e => {
+    const el = e.target?.closest?.(GRB_AXIS_TICK_SEL);
+    if (!el || !block.contains(el) || el.isContentEditable) return;
+    e.stopPropagation(); e.preventDefault();
+    _graphAxisTickBeginEdit(block, el);
+  });
+}
+function _graphAxisTickBeginEdit(block, el) {
+  const key = el.dataset.grbTick;
+  if (key == null) return;
+  window.ensureHistoryCheckpoint?.('그래프 축 값 편집 전');
+  block.classList.add('editing');
+  el.setAttribute('contenteditable', 'true');
+  el.setAttribute('draggable', 'false');
+  el.focus();
+  const rg = document.createRange(); rg.selectNodeContents(el);
+  const sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg);
+  let done = false;
+  const finish = (commit) => {
+    if (done) return; done = true;
+    el.removeEventListener('keydown', onKey); el.removeEventListener('blur', onBlur);
+    block.classList.remove('editing');
+    const val = (el.textContent || '').replace(/\s+/g, ' ').trim();   // 눈금 글자는 한 줄(숫자·단위) — ㉡ 의 줄바꿈 대상이 아니다
+    const ov = _parseAxisTickOv(block.dataset.axisTickText);
+    const had = Object.prototype.hasOwnProperty.call(ov, key) ? ov[key] : null;
+    let changed = false;
+    if (commit) {
+      if (val === '' || val === key) { if (had != null) { delete ov[key]; changed = true; } }   // 빈 글자·원래 숫자로 되돌리면 덮어쓰기를 지운다
+      else if (val !== had) { ov[key] = val; changed = true; }
+    }
+    if (changed) {
+      if (Object.keys(ov).length) block.dataset.axisTickText = JSON.stringify(ov); else delete block.dataset.axisTickText;
+    }
+    renderGraph(block);   // 확정이든 취소든 눈금을 dataset 에서 다시 그린다(편집 흔적 0)
+    if (changed) { window.pushHistory?.('그래프 축 값'); window.scheduleAutoSave?.(); }
+  };
+  const onKey = (ev) => {
+    if (ev.isComposing || ev.keyCode === 229) return;
+    if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); finish(true); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(false); }
+  };
+  const onBlur = () => finish(true);
   el.addEventListener('keydown', onKey);
   el.addEventListener('blur', onBlur);
 }

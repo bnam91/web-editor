@@ -66,9 +66,11 @@
   margin-top: 6px;
   text-align: center;
   color: inherit;
-  white-space: nowrap;
+  /* ★1017t1f6㉡ — 명시한 줄바꿈(⇧Enter → \n)만 줄로 그린다(자동 줄바꿈도 같이 — annot-label 과 달리 칸이 좁다).
+     옛 nowrap+ellipsis 한 줄 자르기는 폐기 — 여러 줄과 같이 못 산다(ellipsis 는 nowrap 전제). */
+  white-space: pre-wrap;
+  word-break: keep-all;
   overflow: hidden;
-  text-overflow: ellipsis;
   max-width: 100%;
 }
 
@@ -95,6 +97,8 @@
   opacity: 0.85;
   line-height: 1.4;
   margin-bottom: 8px;
+  white-space: pre-wrap;   /* ★1017t1f6㉡ — 명시한 ⇧Enter 줄바꿈을 그린다(자동 줄바꿈은 옛날에도 있었다 — 성질 무변) */
+  word-break: keep-all;
 }
 .grb-bar-h-track {
   width: 100%;
@@ -193,6 +197,9 @@
   line-height: 1.1;
 }
 .grb-line-vlabel { font-weight: 600; }
+/* ★1017t1f6㉡ — xlabel(카테고리 라벨, 더블클릭 편집 대상)만 ⇧Enter 줄바꿈을 그린다.
+   vlabel(값 숫자, 편집 대상 아님)은 위 nowrap 그대로 — 선택자를 쪼갠다(한 줄에 묶으면 둘 다 바뀐다). */
+.grb-line-xlabel { white-space: pre-wrap; word-break: keep-all; }
 .grb-line-empty {
   width: 100%;
   height: 100%;
@@ -288,7 +295,11 @@
  * 조각 색 = 그 프리셋 막대와 같은 색 하나에 불투명도 사다리(다섯 단, 여섯째부터 되돈다). 컬러풀만 막대의 다섯 색을 그대로 돈다.
  * 색 값은 변수 한 벌로 두고 조각(fill)과 범례 점(background)이 같이 읽는다. 항목에 색을 정하면 인라인이 이긴다.
  * 범례 치수는 em — 라벨 크기(인라인 font-size)를 따라 같이 커진다. */
-.graph-block { --grb-pie-base: var(--ui-accent-primary); --grb-pie-1: #ff6b6b; --grb-pie-2: #ffa94d; --grb-pie-3: #69db7c; --grb-pie-4: #4dabf7; --grb-pie-5: #da77f2; }
+/* 261018 — 기본 프리셋 첫 조각색을 --ui-accent-primary(파랑)에서 --p-green-500 으로 바꿨다 —
+   --ui-accent-primary 는 --sel-color(= --color-selection = --p-blue-600 = #2d6fe8)와 «같은 값»이라
+   1013t1C4 의 선택 테두리(이제 var(--sel-color))가 조각에 묻힌다. 다른 프리셋 색과도 안 겹침을 전수 확인함:
+   dark #4f8ef7 · minimal var(--ui-text-sub)=#aaaaaa · colorful 다섯 색(#ff6b6b/#ffa94d/#69db7c/#4dabf7/#da77f2) 전부 다른 값. 현빈 261018 확정. */
+.graph-block { --grb-pie-base: var(--p-green-500); --grb-pie-1: #ff6b6b; --grb-pie-2: #ffa94d; --grb-pie-3: #69db7c; --grb-pie-4: #4dabf7; --grb-pie-5: #da77f2; }
 .graph-block[data-preset="dark"] { --grb-pie-base: #4f8ef7; }
 .graph-block[data-preset="minimal"] { --grb-pie-base: var(--ui-text-sub); }
 .grb-pie-wrap {
@@ -310,12 +321,14 @@
 .graph-block[data-drop-shadow="soft"]   .grb-pie-svg { filter: drop-shadow(0 20px 60px rgba(0, 0, 0, 0.25)); }
 .graph-block[data-drop-shadow="strong"] .grb-pie-svg { filter: drop-shadow(0 30px 80px rgba(0, 0, 0, 0.55)); }
 /* 1013t1C4 — 조각 고르기(선택된 블럭 안에서만): 조각마다 손가락 커서 · 고른 조각에 점선 테두리.
-   테두리 색은 선택색(--sel-color)이 «아니라» 블럭 글자색(currentColor)이다 — 기본 프리셋의 조각 색이 선택색과 같은 파랑이라 선택색 실선은 조각에 묻혀 안 보였다
-   (스샷 실측 2026-10-13). 글자색은 바탕과 늘 갈리고(범례가 읽히는 색) 점선은 조각 색이 무엇이든 «고른 것»으로 읽힌다. 칠 «위에» 그린다(paint-order 기본).
-   치수는 화면 px(non-scaling-stroke) — 배율·차트 높이와 무관. 표식 클래스는 -cell-selected 로 끝나 저장·내보내기에서 걷힌다(이 규칙도 export-css-collect 가 같은 이름으로 버린다). */
+   [폐기 — 261018] 테두리 색은 선택색(--sel-color)이 «아니라» 블럭 글자색(currentColor)이었다 — 기본 프리셋의 조각 색이 선택색과 같은 파랑이라 선택색 실선은 조각에 묻혀 안 보였다
+   (스샷 실측 2026-10-13). 글자색은 바탕과 늘 갈리고(범례가 읽히는 색) 점선은 조각 색이 무엇이든 «고른 것»으로 읽힌다.
+   [261018] 그 회피가 끝났다 — 현빈 확정: 「그래프 조각 선택 시 점선 아웃라인을 파란색으로」. 묻히는 원인(기본 프리셋 첫 조각색 = 선택색)을
+   위(--grb-pie-base 정의부, 261018 비석)에서 끊었으니 이제 테두리를 --sel-color 로 되돌릴 수 있다. 다른 블럭들과 같은 토큰(css-blocks.md DS-09)으로 합류.
+   칠 «위에» 그린다(paint-order 기본). 치수는 화면 px(non-scaling-stroke) — 배율·차트 높이와 무관. 표식 클래스는 -cell-selected 로 끝나 저장·내보내기에서 걷힌다(이 규칙도 export-css-collect 가 같은 이름으로 버린다). */
 .graph-block.selected .grb-pie-slice { cursor: pointer; }
 .graph-block.selected .grb-pie-slice.grb-pie-cell-selected {
-  stroke: currentColor;
+  stroke: var(--sel-color);
   stroke-width: 2;
   stroke-dasharray: 5 3;
   stroke-linejoin: round;

@@ -131,8 +131,10 @@ ${blockHeaderHTML({
 
   /* ★0920b grad-alpha: NaN 방어. Math.max/min 은 NaN 을 «그대로» 통과시키고, JSON.stringify 가
      그걸 null 로 적으면 gradient-block.js `_resolveStops` 의 `|| 0` 이 «완전 투명»으로 둔갑한다.
-     입력단(여기)에서 끊는다. ⚠️_resolveStops 자체의 `||0` 은 이 유닛 범위 밖 — MCP/임포트로
-     들어온 쓰레기는 여전히 0 으로 떨어진다(별도 카드). */
+     입력단(여기)에서 끊는다. [G6 — 261018 닫힘] _resolveStops 자체의 `||0` 은 그때 이 유닛 범위
+     밖이라 MCP/임포트로 들어온 쓰레기는 여전히 0 으로 떨어졌다(별도 카드로 남겨둠) — 이제
+     gradient-block.js `_resolveStops` 도 Number.isFinite 로 갈라 같은 기본값(alpha 1·offset 0)으로
+     끊는다(js/blocks/gradient-block.js _resolveStops 의 G6 비석 참조). 별도 카드 닫혔다. */
   const _clamp01 = (v, fallback) => { const n = Number(v); return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : fallback; };
 
   /* ★0920b grad-alpha(픽스 라운드) — «화면의 행 번호 → 지금 모델의 몇 번째 stop 인지» 보정표.
