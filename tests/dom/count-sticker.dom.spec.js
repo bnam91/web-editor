@@ -11,6 +11,8 @@
  *   C26·C27 기본색(1013t2B4) — 빈 섹션 첫 찍기는 검정 배경·흰 글자 · 일반 Sticker 는 빨강 그대로 · 옛 저장본의 색은 그대로(색 키가 없어도 빨강)
  *   C28~C31 섹션 일괄(1013t2B3) — 모양·크기·폰트 크기·굵기·배경색·글자색이 같은 섹션 전부에(스위치 켬 · 기본) · ⌘Z 한 칸 · 스위치를 끄면 고른 것만 · 코너 드래그는 잡은 것만
  *   C22 이름(1013t2B1) — 보이는 이름은 Marking(마킹 블럭): 패널 절 제목·패널 머리·레이어 행. 저장 키(data-count*)는 그대로
+ *   C32·C32b(1017t1j1) — 일괄 크기 조절·코너 드래그가 ★옆 라벨(countLabelSize)도 같은 비율로 키운다(음성대조: 꺼 두면 라벨은 그대로)
+ *   C33·C33b·C34(1017t1j3) — ★사람의 삭제 경로(혼자 Delete · 섞여서 Delete)는 지운 뒤 빈 번호를 당긴다(⌘Z 한 칸) · 당기기를 끄면(음성대조) 안 당겨진다
  * ★스티커는 기존 sticker-block(circle/square)의 변형이다 — data-count 가 붙었을 뿐이다.
  * ★자리 비교는 «레이아웃 px»로 한다(dataset.x·sizeW 와 offsetWidth). 화면 사각형은 «누를 점»을 정하는 데만 쓴다.
  */
@@ -337,7 +339,12 @@ test('C10 다시 그려도 같은 글자·모양 — 리로드·undo 와 같은 
   for (const x of r) expect(x.again).toEqual(x.first);
 });
 
-test('C11 번호 다시 매기기 — 2 를 지운 뒤 1·3 이 1·2 가 된다', async ({ page }) => {
+test('C11 번호 다시 매기기(수동 단추) — 2 를 지운 뒤 1·3 이 1·2 가 된다', async ({ page }) => {
+  /* ★1017t1j3(현빈) 비석 — 이 칸이 쓰는 `all[1].remove()` 는 ★날 DOM remove 다(사람의 삭제 경로가 아니다).
+     1017t1j3 부터 ★사람의 삭제 경로(마커 Delete 키 · ⌘A→Delete)는 지운 뒤 자동으로 당긴다 — 그 자는
+     C33·C33b(아래)다. 이 칸은 ★날 remove 로 자동 당기기를 «안 타는» 장면을 일부러 고정해 둬서
+     「수동 단추」가 잠그는 경로(붙여넣기·되돌리기·옛 저장본처럼 자동 경로가 못 닿는 자리)를 보존한다.
+     ⛔`all[1].remove()` 를 자동 경로로 바꾸지 마라 — 그러면 이 칸이 잠그는 것이 없어진다. */
   await bootApp(page);
   await setup(page);
   await toolOn(page);
@@ -347,7 +354,7 @@ test('C11 번호 다시 매기기 — 2 를 지운 뒤 1·3 이 1·2 가 된다'
     all[1].remove();
     window._selectSticker(all[0]);
   });
-  expect(await texts(page, 'secA'), '★전제: 지워도 저절로 다시 매기지 않는다').toEqual(['1', '3']);
+  expect(await texts(page, 'secA'), '★전제: 날 DOM remove 는 당기기를 안 탄다(사람의 경로가 아니다)').toEqual(['1', '3']);
   // 지운 뒤의 다음 번호는 max+1 이다(빈 번호를 메우지 않는다)
   expect(await page.evaluate(() => window.CountSticker.nextOrdinal(document.getElementById('secA')))).toBe(4);
   await page.click('#stk-count-renumber');
@@ -1004,4 +1011,125 @@ test('C31 일괄과 코너 드래그 — 손잡이로 키운 것은 그것만 �
   expect(Number(after[2]) > Number(before[2]), `잡은 것(셋째)은 커졌다 — ${before[2]} → ${after[2]}`).toBe(true);
   expect(after.slice(0, 2), '안 잡은 둘은 그대로').toEqual(before.slice(0, 2));
   expect(await page.evaluate(() => document.getElementById('stk-count-group')?.checked), '★전제: 스위치는 켜진 채였다').toBe(true);
+});
+
+/* ── 1017t1j1 — 일괄 크기 조절이 «옆 라벨»도 같이 키운다 ───────────────────────────────────── */
+
+/* 그 블럭의 라벨 크기 dataset·그려진 폰트·간격(= 마커 폭의 20%) — groupSetup 이 남긴 secA[idx]. */
+const labelOf = (page, idx) => page.evaluate((i) => {
+  const b = document.querySelectorAll('#secA .sticker-block[data-count]')[i];
+  const lab = b.querySelector(':scope > .sticker-count-label');
+  return { lsize: b.dataset.countLabelSize ?? null, w: Number(b.dataset.sizeW),
+    fs: lab ? getComputedStyle(lab).fontSize : null, gap: lab ? Math.round(lab.offsetLeft - b.offsetWidth) : null };
+}, idx);
+
+test('C32 일괄 크기 조절 — 라벨 글자도 같이 커진다(56→112) · 음성대조: rescaleLabel 을 끄면 그대로', async ({ page }) => {
+  const errs = await groupSetup(page);
+  // 셋째에 라벨을 친다(패널 Label 칸)
+  await page.click('#stk-count-label');
+  await page.fill('#stk-count-label', '포인트라벨');
+  await page.evaluate(() => document.activeElement?.blur?.());
+  // 「포인트」 프리셋 — countLabelSize = 56 × 0.9 = 50 을 섹션 전부에 깐다
+  await page.click('#stk-count-presets [data-count-preset="point"]');
+  await expect.poll(async () => pluck(await groupLook(page, 'secA'), 'countShape'), '★전제: 포인트 꼴이 깔렸다').toEqual(['square', 'square', 'square']);
+  const pre = await labelOf(page, 2);
+  expect([pre.lsize, pre.w], '★전제: 라벨 크기 50 · 마커 폭 56(재기 전 전제 — 지디 규칙)').toEqual(['50', 56]);
+
+  await typeNumber(page, '#stk-count-size-num', 112);
+  await expect.poll(async () => (await labelOf(page, 2)).fs, '라벨 글자도 같은 비율로 큰다(50 → 100)').toBe('100px');
+  const post = await labelOf(page, 2);
+  expect(post.gap, '간격도 마커 폭의 20% 그대로 같이 커진다(56×0.2=11 → 112×0.2=22)').toBe(22);
+  expect(post.lsize, 'dataset 도 100').toBe('100');
+
+  /* ★음성대조 ㉡ — rescaleLabel 을 꺼 두면 마커는 커져도 라벨은 그대로(자가 살아있다는 증거) */
+  expect(typeof (await page.evaluate(() => typeof window.CountSticker?.rescaleLabel)), '★전제: 끄기 전 함수다').toBe('string');
+  await page.evaluate(() => { window.CountSticker.rescaleLabel = () => false; });
+  await typeNumber(page, '#stk-count-size-num', 150);
+  await expect.poll(async () => (await labelOf(page, 2)).w, '마커 폭은 바뀐다(음성대조도 마커 자체는 정상)').toBe(150);
+  expect((await labelOf(page, 2)).fs, '껐을 땐 라벨 크기가 그대로(100px) — 안 끄면 달라졌을 값').toBe('100px');
+  expect(errs).toEqual([]);
+});
+
+test('C32b 코너 드래그로 키워도 라벨이 따라오고 ★안 잡은 둘은 그대로(1017t1j1 · C31 과 짝)', async ({ page }) => {
+  await groupSetup(page);
+  await page.click('#stk-count-label');
+  await page.fill('#stk-count-label', '라벨');
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await typeNumber(page, '#stk-count-label-size-num', 50);
+  const lsOf = (idx) => page.evaluate((i) => document.querySelectorAll('#secA .sticker-block[data-count]')[i].dataset.countLabelSize ?? null, idx);
+  const before = [await lsOf(0), await lsOf(1), await lsOf(2)];
+  expect(before, '★전제: 「섹션 전체」 스위치가 켜져 있어 셋 다 라벨 크기 50').toEqual(['50', '50', '50']);
+
+  const H = '#secA .sticker-block.selected .sticker-corner-handle[data-corner="br"]';
+  const r = await waitStableRect(page, H);
+  await page.mouse.move(r.cx, r.cy);
+  await page.mouse.down();
+  await page.mouse.move(r.cx + 12, r.cy + 12, { steps: 4 });
+  await page.mouse.move(r.cx + 24, r.cy + 24, { steps: 4 });
+  await page.mouse.up();
+
+  const after = [await lsOf(0), await lsOf(1), await lsOf(2)];
+  expect(Number(after[2]) > Number(before[2]), `잡은 것(셋째)의 라벨도 커졌다 — ${before[2]} → ${after[2]}`).toBe(true);
+  expect(after.slice(0, 2), '코너 드래그는 스위치와 무관하게 «잡은 것만» — 안 잡은 둘은 라벨 크기도 그대로').toEqual(before.slice(0, 2));
+});
+
+/* ── 1017t1j3 — 마커블럭을 지우면 빈 번호를 당긴다(현빈 「1~10 중 3을 지웠어. 4~10은 −1씩」) ────────── */
+
+async function stamp10(page, secSel = SEC_A) {
+  for (let i = 0; i < 10; i++) await stamp(page, secSel, 0.1 + i * 0.08, 0.5);
+}
+
+test('C33 사람의 삭제 경로(혼자 선택 · Delete 키) — 3을 지우면 1~9 로 당겨진다 · ⌘Z 한 칸', async ({ page }) => {
+  const errs = await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp10(page);
+  await page.evaluate(() => window.exitCountStickerMode());
+  expect(await texts(page, 'secA'), '★전제: 1..10').toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+
+  await page.evaluate(() => { const all = [...document.querySelectorAll('#secA .sticker-block[data-count]')]; window._selectSticker(all[2]); });
+  /* ⚠️expectOneUndoStep 은 ★soft:true 여도 ★내부에서 ⌘Z 를 «실제로» 한 번 누른다 — 돌아온 뒤(h) 의
+     화면은 이미 «지우기 전»으로 되돌아와 있다(C29 와 같은 꼴). ★지운 직후의 단언은 action «안»에서 해야 한다. */
+  const h = await expectOneUndoStep(page, async () => {
+    await page.keyboard.press('Delete');
+    await expect.poll(() => texts(page, 'secA'), '3을 지우면 1~9 로 당겨진다').toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+    expect(await page.evaluate(() => [...document.querySelectorAll('#secA .sticker-block[data-count]')].map((b) => b.dataset.count)), 'dataset.count 도 1..9').toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+    expect(await page.evaluate(() => window.CountSticker.nextOrdinal(document.getElementById('secA'))), '당긴 뒤 다음 번호는 10').toBe(10);
+  }, '마킹 삭제(혼자)', { soft: true });
+  expect([h.undoDLen, h.undoDPos], 'A2 ⌘Z 가 구제 칸 없이 정확히 한 칸(삭제+당기기가 한 칸)').toEqual([0, -1]);
+  await expect.poll(() => texts(page, 'secA'), '⌘Z 한 번에 1..10 으로 복귀(그 ⌘Z 는 위 헬퍼가 이미 눌렀다)').toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+  expect(await page.evaluate(() => window.CountSticker.nextOrdinal(document.getElementById('secA'))), '복귀 뒤 다음 번호는 다시 11').toBe(11);
+  expect(errs).toEqual([]);
+});
+
+test('C33b 사람의 삭제 경로(섞여서 · ⌘A 아닌 다건 선택 → Delete) — 두 개를 한 번에 지워도 당겨진다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp10(page);
+  await page.evaluate(() => window.exitCountStickerMode());
+  // 2번·5번 마커를 같이 고른다(_selectSticker 는 단일선택이라 class 를 직접 — «섞인 선택» 길을 재현)
+  await page.evaluate(() => {
+    const all = [...document.querySelectorAll('#secA .sticker-block[data-count]')];
+    document.querySelectorAll('.sticker-block.selected').forEach((b) => b.classList.remove('selected'));
+    [all[1], all[4]].forEach((b) => { b.classList.add('selected'); window._addCornerHandles(b); });
+  });
+  expect(await page.evaluate(() => document.querySelectorAll('#secA .sticker-block.selected').length), '★전제: 둘이 같이 골라졌다(«섞인» 길 — editor.js 공통 경로를 타게)').toBe(2);
+  await page.keyboard.press('Delete');
+  await expect.poll(() => texts(page, 'secA'), '2번·5번(두 개)을 같이 지워도 남은 8개가 1~8 로 당겨진다').toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
+  expect(await page.evaluate(() => window.CountSticker.nextOrdinal(document.getElementById('secA')))).toBe(9);
+});
+
+test('C34 음성대조 — renumberSections 를 꺼 두면 지워도 안 당겨진다(1,2,4..10 으로 남는다)', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  await toolOn(page);
+  await stamp10(page);
+  await page.evaluate(() => window.exitCountStickerMode());
+  expect(await page.evaluate(() => typeof window.CountSticker?.renumberSections), '★전제: 끄기 전 함수다').toBe('function');
+  await page.evaluate(() => { window.CountSticker.renumberSections = () => 0; });
+  await page.evaluate(() => { const all = [...document.querySelectorAll('#secA .sticker-block[data-count]')]; window._selectSticker(all[2]); });
+  await page.keyboard.press('Delete');
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('#secA .sticker-block[data-count]').length), '★전제: 실제로 하나 지워졌다').toBe(9);
+  expect(await texts(page, 'secA'), '당기기를 끄면 빈 3이 안 메워진 채 1,2,4..10 으로 남는다').toEqual(['1', '2', '4', '5', '6', '7', '8', '9', '10']);
 });

@@ -151,14 +151,20 @@ test('G4 프리셋 — 값은 글자로 · 섹션 전부에 깔고 라벨 글자
   ctx.renderStickerBlock = () => {};
   const CS = ctx.CountSticker;
   assert.deepEqual(plain(CS.PRESET_NAMES), ['number', 'point'], '프리셋 이름');
-  /* 「포인트」 = 그림의 꼴(2차 · D2): 주황 둥근 네모(모서리 = 한 변의 25%) · «짙은» 꺾쇠 · «흰 굵은» 라벨(오른쪽 · 마커 한 변의 0.9배) */
+  /* 「포인트」 — ★1017t1j2(현빈): 주황(#eb6217)·짙은 꺾쇠(#1a1a1a)를 검정 배경·흰 글자로(2차 D2 의 그림 꼴은 폐기가 아니라 대체 —
+     js/count-sticker-tool.js:53~55 의 픽셀 출처 주석과 같이 읽어라). 둥근 네모(모서리 25%) · «흰» 꺾쇠 · «흰 굵은» 라벨(오른쪽 · 0.9배)는 그대로다. */
   assert.deepEqual(plain(CS.PRESETS.point), {
     set: { countStyle: 'icon', countIcon: 'chevron-right', countShape: 'square', shape: 'square', countRadius: '25',
-      bgColor: '#eb6217', textColor: '#1a1a1a', countLabelColor: '#ffffff', countLabelWeight: '700', countLabelPos: 'right' },
+      bgColor: '#000000', textColor: '#ffffff', countLabelColor: '#ffffff', countLabelWeight: '700', countLabelPos: 'right' },
     unset: ['countIconSvg'],
     labelSizeRatio: 0.9,
   }, '「포인트」');
-  assert.notEqual(CS.PRESETS.point.set.textColor, CS.PRESETS.point.set.countLabelColor, '꺾쇠 색과 라벨 색은 «다른 키 · 다른 값»이다(그림: 꺾쇠는 짙고 글자는 희다)');
+  /* ★1017t1j2 뒤 — textColor(꺾쇠)와 countLabelColor(라벨)가 ★값으로는 같아졌다(둘 다 #ffffff).
+     그래도 ★키는 따로다 — 패널의 글자색 칸(#stk-txt-hex)과 라벨색 칸(#stk-clabel-hex)이 따로 쓴다
+     (js/props/prop-sticker-count.js). 값이 아니라 «두 키가 각자 산다»를 잠근다(★항등식 아님 — 키 이름이 다르다는 사실 자체를 단언). */
+  assert.ok(Object.prototype.hasOwnProperty.call(CS.PRESETS.point.set, 'textColor'), '꺾쇠 색(textColor) 키가 있다');
+  assert.ok(Object.prototype.hasOwnProperty.call(CS.PRESETS.point.set, 'countLabelColor'), '라벨 색(countLabelColor) 키가 있다');
+  assert.notEqual('textColor', 'countLabelColor', '꺾쇠와 라벨은 «다른 키»에 저장된다(값이 같아져도 독립적으로 쓴다)');
   assert.deepEqual(plain(CS.PRESETS.number), {
     set: { countStyle: 'num', countShape: 'circle', shape: 'circle', bgColor: '#000000', textColor: '#ffffff' },
     unset: ['countIcon', 'countIconSvg', 'countRadius', 'countLabelColor', 'countLabelWeight', 'countLabelSize'],
@@ -173,7 +179,7 @@ test('G4 프리셋 — 값은 글자로 · 섹션 전부에 깔고 라벨 글자
   for (const b of A.blocks) {
     const d = b.dataset;
     assert.deepEqual([d.countStyle, d.countIcon, d.countShape, d.shape, d.countRadius, d.bgColor, d.textColor, d.countLabelColor, d.countLabelWeight, d.countLabelPos, d.text, 'countIconSvg' in d],
-      ['icon', 'chevron-right', 'square', 'square', '25', '#eb6217', '#1a1a1a', '#ffffff', '700', 'right', '', false]);
+      ['icon', 'chevron-right', 'square', 'square', '25', '#000000', '#ffffff', '#ffffff', '700', 'right', '', false]);
   }
   assert.deepEqual(A.blocks.map((b) => b.dataset.countLabelSize), ['50', '72'], '라벨 크기 = 그 마커 한 변 × 0.9 (56 → 50 · 80 → 72)');
   assert.deepEqual(A.blocks.map((b) => [b.dataset.count, b.dataset.x, b.dataset.sizeW, b.dataset.countLabel ?? null]),
@@ -188,4 +194,20 @@ test('G4 프리셋 — 값은 글자로 · 섹션 전부에 깔고 라벨 글자
   }
   assert.equal(CS.applyPreset(A.sec, 'toString'), 0, '모르는 이름(객체 내장 이름 포함)은 무동작');
   assert.equal(CS.applyPreset(A.sec, '없는프리셋'), 0);
+});
+
+test('G5 프리셋 단추 title — 색말이 프리셋 값과 어긋나지 않는다 (1017t1j2 — 2차 D2 이후 한 번 썩었던 둘째 명부를 잠근다)', () => {
+  const CS = load().CountSticker;
+  const PANEL = readSrc(REPO, 'js/props/prop-sticker-count.js');
+  const titleOf = (name) => {
+    const m = PANEL.match(new RegExp(`data-count-preset="${name}"[^>]*title="([^"]*)"`));
+    assert.ok(m, `${name} 단추의 title 을 못 찾았다(prop-sticker-count.js)`);
+    return m[1];
+  };
+  assert.equal(CS.PRESETS.point.set.bgColor, '#000000', '★전제: 「포인트」 bgColor = 검정(1017t1j2)');
+  const pointTitle = titleOf('point');
+  const numberTitle = titleOf('number');
+  assert.ok(!pointTitle.includes('주황'), `title 이 ★지운 값(주황 #eb6217)을 아직 말한다 — 둘째 명부가 썩었다: "${pointTitle}"`);
+  assert.ok(pointTitle.includes('검정'), `title 이 지금 값(bgColor 검정)을 말하지 않는다: "${pointTitle}"`);
+  assert.ok(numberTitle.includes('검정'), `「번호」title 도 bgColor(검정)를 말해야 한다: "${numberTitle}"`);
 });

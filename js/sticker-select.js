@@ -264,6 +264,10 @@ function _bindCornerHandleDrag(handle, block, corner) {
     const aspect = initH > 0 ? initW / initH : 1;
     // B14: circle/square 리사이즈 시 내부 텍스트 폰트도 비례 스케일 (highlight는 글자 없음 → 제외)
     const initFs = parseInt(block.dataset.fontSize) || 14;
+    /* ★1017t1j1 — 마킹(data-count)의 «옆 라벨»도 폭 비율로 따라온다. countLabelSize 가 ★없으면 ⛔비율을 안 만든다
+       (라벨이 마커 폰트를 따르는 폴백이 이미 맞게 돈다 — js/blocks/sticker-block.js _countLabelLook). */
+    const initLsRaw = parseInt(block.dataset.countLabelSize);
+    const hasLabelSize = block.dataset.count != null && Number.isFinite(initLsRaw);
     const startCX = e.clientX, startCY = e.clientY;
     const MIN = 10;
     const _hist = window.beginDragHistory?.('스티커 크기 조절');
@@ -321,6 +325,11 @@ function _bindCornerHandleDrag(handle, block, corner) {
         const ratio = initW > 0 ? newW / initW : 1;
         const nextFs = Math.round(initFs * ratio);
         block.dataset.fontSize = String(Math.max(6, Math.min(150, nextFs)));
+        // ★1017t1j1 — 옆 라벨(countLabelSize)이 있으면 같은 비율로 같이 키운다. 식은 여기서 다시 안 적는다(발명 금지).
+        if (hasLabelSize) {
+          const lsRatio = initW > 0 ? initLsRaw / initW : 1;
+          window.CountSticker?.rescaleLabel?.(block.dataset, initW, newW, lsRatio);
+        }
       }
       window.renderStickerBlock?.(block);
       _addCornerHandles(block); // render가 innerHTML을 비워 핸들/회전존이 사라지므로 재추가 (hlb 패턴과 동일)
@@ -720,7 +729,11 @@ document.addEventListener('keydown', (e) => {
      실측: 스티커 1개 선택 → Delete → 1→0, ⌘Z → 0 (히스토리 tip 이 pos/len/seq 까지 그대로였다).
      고침 = 삭제 경로 공통 규약(js/editor.js deleteSelectedFromCanvas)과 같이 «삭제 전»을 먼저 찍는다. */
   window.ensureHistoryCheckpoint?.('삭제 전');
+  // ★1017t1j3(현빈) — 마킹을 지우면 빈 번호를 당긴다. ★지금(지우기 전) 섹션을 잡아 둬야 한다
+  //   (지운 «뒤»엔 거슬러 올라갈 수 없다 — js/editor.js:3589 _emptiedFrameCands 와 같은 까닭).
+  const _sec = sel.closest('.section-block');
   sel.remove();
+  if (sel.dataset.count && _sec) window.CountSticker?.renumberSections?.([_sec]);
   window.pushHistory?.('스티커 삭제');
   window.scheduleAutoSave?.();
 });

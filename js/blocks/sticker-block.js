@@ -88,6 +88,9 @@ function _countIconHTML(block, sizePx, color) {
  *   자리 4갈래(data-count-label-pos): right(기본) · left · top · bottom — 마커 옆에 gap(= 마커 폭의 20%)만큼 띄운다.
  *   색(data-count-label-color)이 없으면 마커 배경색을, 크기(data-count-label-size)가 없으면 마커 폰트 크기를,
  *   굵기(data-count-label-weight)가 없으면 마커 폰트 굵기를 따른다 — 폴백은 _countLabelLook 한 자리.
+ *   ★1017t1j1(현빈) — 크기(data-count-label-size)가 «있으면» 마커 크기(일괄 조절·코너 드래그)를 따라 ★비율로 같이 커진다
+ *     (js/count-sticker-tool.js countStickerRescaleLabel · 호출자 js/props/prop-sticker-count.js applySize · js/sticker-select.js 코너드래그).
+ *     키가 없을 때의 폴백(마커 폰트 크기를 따른다)은 그대로다 — 이건 «키가 있을 때»만의 추가 동작이다.
  *   글자는 «평문»이다 — 이스케이프해서 넣는다(\n 은 white-space:pre 가 줄바꿈으로 그린다).
  *   opts.empty = 글자가 없어도 빈 라벨을 만든다(더블클릭 인라인 편집의 진입 — js/sticker-select.js). */
 const COUNT_LABEL_POS = ['right', 'left', 'top', 'bottom'];

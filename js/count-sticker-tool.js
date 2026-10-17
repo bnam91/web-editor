@@ -53,7 +53,10 @@ const COUNT_STK_ICON_SVG_MAX = 20000;       // js/util/sanitize-svg.js SVG_MAX_L
      · 주황 둥근 네모: #eb6217(그림의 주황 픽셀 3158개의 최빈 235,98,23) · 모서리 = 한 변의 25%(data-count-radius)
      · 안의 꺾쇠는 «짙은색»(textColor #1a1a1a — 그림에서 눈으로 읽은 값 · 픽셀로 못 쟀다) — 1차의 「흰 꺾쇠」는 그림과 달랐다
      · 옆 글자는 «흰색 굵게»: countLabelColor #ffffff · countLabelWeight 700(꺾쇠 색·마커 굵기와 «따로» 저장되는 키)
-     · 라벨 글자 높이 ≈ 마커 한 변: labelSizeRatio 0.9(마커 56 → 라벨 50px) · 라벨은 오른쪽 */
+     · 라벨 글자 높이 ≈ 마커 한 변: labelSizeRatio 0.9(마커 56 → 라벨 50px) · 라벨은 오른쪽
+   ★1017t1j2(현빈): 위 주황(#eb6217)·짙은 꺾쇠(#1a1a1a)를 ★검정 배경·흰 글자로 바꿨다(바로 아래 bgColor/textColor) —
+     픽셀 측정(주황 3158개의 최빈 235,98,23)은 ★폐기가 아니라 ★대체됐다. 되돌릴 땐 이 줄과 위 두 줄을 같이 읽어라.
+     ⚠️그 결과 countLabelColor(#ffffff)와 textColor(#ffffff)가 ★값이 같아진다 — 그래도 ★키는 따로다(패널의 글자색·라벨색 칸이 따로 쓴다). */
 const COUNT_STK_PRESETS = {
   number: {
     set: { countStyle: 'num', countShape: 'circle', shape: 'circle', bgColor: '#000000', textColor: '#ffffff' },
@@ -61,7 +64,7 @@ const COUNT_STK_PRESETS = {
   },
   point: {
     set: { countStyle: 'icon', countIcon: 'chevron-right', countShape: 'square', shape: 'square', countRadius: '25',
-      bgColor: '#eb6217', textColor: '#1a1a1a', countLabelColor: '#ffffff', countLabelWeight: '700', countLabelPos: 'right' },
+      bgColor: '#000000', textColor: '#ffffff', countLabelColor: '#ffffff', countLabelWeight: '700', countLabelPos: 'right' },
     unset: ['countIconSvg'],
     labelSizeRatio: 0.9,
   },
@@ -126,7 +129,9 @@ function _cntLastOf(sec) {
   return best;
 }
 
-// 다음 순번 = 그 섹션 max(k) + 1 (없으면 1). 중간이 지워져도 자동으로 메우지 않는다.
+// 다음 순번 = 그 섹션 max(k) + 1 (없으면 1).
+// ★1017t1j3(현빈) — 사람의 삭제 경로(js/sticker-select.js·js/editor.js)는 이제 지운 «뒤» countStickerRenumberSections 로
+//   빈 번호를 당긴다. 이 함수 «자체»는 여전히 max+1 이다 — 당기기는 삭제 경로가 부른다(이 함수는 안 바뀐다).
 function countStickerNextOrdinal(sec) {
   let max = 0;
   _cntListOf(sec).forEach((b) => { max = Math.max(max, _cntInt(b.dataset.count, 0)); });
@@ -269,7 +274,21 @@ function countStickerApplyPreset(sec, name) {
   return list.length;
 }
 
-// 번호 다시 매기기 — 순번 오름차순(동률은 DOM 순)으로 1..n.
+/* 라벨 글자 크기를 마커 폭에 맞춰 다시 굽는다(1017t1j1 — 「일괄 크기 조절이 글자도 키우나」).
+   ★d.countLabelSize 가 «있을 때만» 다시 잡는다 — 없으면 ⛔만들지 않는다. 없음 = 라벨이 마커 폰트를 따르는
+     옛 폴백이 이미 맞게 돈다(js/blocks/sticker-block.js:107 _countLabelLook) — marking-glyph G3 가 그 제약을 잠근다.
+   ratio = countLabelSize / 그 마커의 «이전» 폭 — 호출자가 뽑아 넘긴다(js/props/prop-sticker-count.js _fsRatio 와
+     같은 WeakMap 항목에 얹은 소수 비율 · js/sticker-select.js 코너드래그의 initLs/initW). ⛔여기서 새 배율을 안 만든다.
+   clamp 6~150 = js/blocks/sticker-block.js _countLabelLook · js/props/prop-sticker-count.js FS_MIN/FS_MAX 와 같은 수. */
+function countStickerRescaleLabel(d, prevW, nextW, ratio) {
+  const lsRaw = parseInt(d.countLabelSize, 10);
+  if (!Number.isFinite(lsRaw)) return false;
+  d.countLabelSize = String(Math.min(150, Math.max(6, Math.round(nextW * ratio))));
+  return true;
+}
+
+// 번호 다시 매기기 — 순번 오름차순(동률은 DOM 순)으로 1..n. ★1017t1j3 부터 — 사람의 삭제 경로는
+//   자동으로 이 함수를 돈다(바로 아래 countStickerRenumberSections 를 통해). 이 함수 자체는 안 바뀐다.
 function countStickerRenumber(sec) {
   const list = _cntListOf(sec).map((b, i) => ({ b, i, k: _cntInt(b.dataset.count, 0) }));
   list.sort((p, q) => (p.k - q.k) || (p.i - q.i));
@@ -279,6 +298,22 @@ function countStickerRenumber(sec) {
     _cntRerender(it.b);
   });
   return list.length;
+}
+
+/* 여러 섹션에 countStickerRenumber 를 한 번에(1017t1j3) — 아직 문서에 붙어 있는 것만 돈다.
+   ★지우는 길이 조상을 «지우기 전에» 모아 뒀다가(js/editor.js:3592 _emptiedFrameCands 관용구와 같은 까닭 —
+     지운 뒤엔 거슬러 올라갈 수 없다) 여기로 넘긴다. 발명 금지 — countStickerRenumber 는 ★그대로 재사용한다. */
+function countStickerRenumberSections(secs) {
+  // ★Set 이든 배열이든 받는다 — «이터러블인가」로 가른다(⛔instanceof Set 금지: 다른 realm(vm 단위검사)의
+  //   Set 은 이 realm 의 Set 과 프로토타입이 달라 instanceof 가 거짓이 된다. Symbol.iterator 는 realm 과 무관하다).
+  const list = secs && typeof secs[Symbol.iterator] === 'function' ? [...secs] : [];
+  let n = 0;
+  list.forEach((sec) => {
+    if (!sec || sec.isConnected === false) return;
+    countStickerRenumber(sec);
+    n += 1;
+  });
+  return n;
 }
 
 // ── 도구 모드 ────────────────────────────────────────────────────────────────
@@ -482,6 +517,8 @@ window.CountSticker = {
   styleOf: _cntStyle,
   iconNameOf: _cntIconName,
   renumber: countStickerRenumber,
+  renumberSections: countStickerRenumberSections,
+  rescaleLabel: countStickerRescaleLabel,
   START_MIN: COUNT_STK_START_MIN,
   START_MAX: COUNT_STK_START_MAX,
 };

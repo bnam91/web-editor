@@ -513,8 +513,12 @@ test('M10 내보내기 클론 — 에디터 CSS 가 없는 문서에서도 라�
 
 /* ── 프리셋 · 아이콘 고르기(1013t2B5) ────────────────────────────────────────────────────────────── */
 
-const DARK = 'rgb(26, 26, 26)';          // #1a1a1a — COUNT_STK_PRESETS.point.textColor(꺾쇠 색 · 그림의 꺾쇠는 짙다)
-const ORANGE = 'rgb(235, 98, 23)';       // #eb6217 — js/count-sticker-tool.js COUNT_STK_PRESETS.point.bgColor (글자로 박는다)
+/* ★1017t1j2(현빈) — 아래 두 값(주황·짙은 꺾쇠)은 ★이제 쓰지 않는다. 2차(D2)에서 그림(ref/1013t2-img02.png)에
+   맞춰 골랐던 값이 검정 배경·흰 글자로 바뀌었다(js/count-sticker-tool.js COUNT_STK_PRESETS.point — 그 파일 :53~55 의
+   픽셀 출처 주석과 같이 읽어라). ★비석으로 남긴다 — 지우지 않는다. */
+const DARK = 'rgb(26, 26, 26)';          // #1a1a1a — ★옛 값(1017t1j2 이전의 COUNT_STK_PRESETS.point.textColor)
+const ORANGE = 'rgb(235, 98, 23)';       // #eb6217 — ★옛 값(1017t1j2 이전의 COUNT_STK_PRESETS.point.bgColor)
+const BLACK = 'rgb(0, 0, 0)';            // #000000 — js/count-sticker-tool.js COUNT_STK_PRESETS.point.bgColor(1017t1j2 이후 · 글자로 박는다)
 
 /* 그 섹션 마킹들의 «꼴» — 모양·색·아이콘·라벨 색. */
 const shapeLook = (page, secId) => page.evaluate((id) => [...document.querySelectorAll(`#${id} .sticker-block[data-count]`)].map((b) => {
@@ -534,34 +538,39 @@ test('M9 프리셋 「포인트」 — 한 번에 주황 둥근 네모·짙은 �
   expect([a0[2].label, a0[2].labelColor], '★전제: 셋째의 라벨은 마커 배경색(검정)').toEqual(['메쉬포켓', 'rgb(0, 0, 0)']);
   expect(await page.evaluate(() => document.querySelectorAll('#stk-count-presets [data-count-preset]').length), '★전제: 프리셋 단추 둘').toBe(2);
 
-  /* 그림(ref/1013t2-img02.png)의 꼴 — 2차(D2): 꺾쇠는 «짙은색»(흰색이 아니다) · 모서리 = 한 변의 25% */
-  const point = { radius: '14px', bg: ORANGE, points: CHEVRON, stroke: DARK, num: null };   // 14px = 짧은 변 56 × 25%(3차 N3 — % 가 아니라 px 로 굽는다)
+  /* ★1017t1j2(현빈) — 주황·짙은 꺾쇠(2차 D2 의 그림 꼴)를 검정 배경·흰 글자로. 모서리 = 한 변의 25%(안 바뀜). */
+  const point = { radius: '14px', bg: BLACK, points: CHEVRON, stroke: WHITE, num: null };   // 14px = 짧은 변 56 × 25%(3차 N3 — % 가 아니라 px 로 굽는다)
   const h = await expectOneUndoStep(page, async () => {
     await page.click('#stk-count-presets [data-count-preset="point"]');
-    await expect.poll(async () => pluck(await shapeLook(page, 'secA'), 'bg'), '★전제: 셋 다 주황이 됐다').toEqual([ORANGE, ORANGE, ORANGE]);
+    /* ★bg 는 이제 ★전제(검정)와 같아 변화 신호가 못 된다(1017t1j2) — 모양(radius 50%→14px)으로 「바뀌었다」를 잰다. */
+    await expect.poll(async () => pluck(await shapeLook(page, 'secA'), 'radius'), '★전제: 셋 다 모양이 바뀌었다(둥근 네모)').toEqual(['14px', '14px', '14px']);
     const a = await shapeLook(page, 'secA');
-    expect(a.map((m) => ({ radius: m.radius, bg: m.bg, points: m.points, stroke: m.stroke, num: m.num })), '포인트: 둥근 네모 · 주황 · 짙은 꺾쇠(섹션 셋 다)').toEqual([point, point, point]);
+    expect(a.map((m) => ({ radius: m.radius, bg: m.bg, points: m.points, stroke: m.stroke, num: m.num })), '포인트: 둥근 네모 · 검정 · 흰 꺾쇠(섹션 셋 다)').toEqual([point, point, point]);
     expect([a[2].label, a[2].labelColor, a[2].labelLeft], '포인트: 라벨 글자는 그대로 · 흰색 · 마커 오른쪽').toEqual(['메쉬포켓', WHITE, 11]);
     expect([a[2].labelFs, a[2].labelFw], '포인트: 라벨 글자 = 마커 한 변(56)의 0.9배 · 굵게').toEqual(['50px', '700']);
-    expect(a[2].stroke === a[2].labelColor, '꺾쇠 색과 라벨 색은 따로다(짙은 꺾쇠 · 흰 글자)').toBe(false);
+    /* ★1017t1j2 뒤 — 꺾쇠(stroke)와 라벨색(labelColor)이 ★값으로는 같아졌다(둘 다 흰색). 그래도 ★키는 따로다 —
+       바로 아래 panel 단언의 txtHex(글자색 칸)·labelHex(라벨색 칸)가 ★각자의 입력칸에서 따로 산다(값이 같아도 독립). */
+    expect([a[2].stroke, a[2].labelColor], '꺾쇠색·라벨색 — 값은 같아졌다(흰·흰) · 독립성은 아래 panel 의 txtHex≠없음·labelHex 가 본다').toEqual([WHITE, WHITE]);
     expect(pluck(a, 'label').slice(0, 2), '라벨 글자가 없는 둘에는 라벨이 안 생긴다').toEqual([null, null]);
     const panel = await page.evaluate(() => ({ style: document.querySelector('#stk-count-style .active')?.dataset.countStyle, shape: document.querySelector('#stk-count-shape .active')?.dataset.countShape,
       glyph: document.querySelector('#stk-count-glyph .active')?.dataset.countGlyph, bgHex: document.getElementById('stk-bg-hex')?.value,
       txtHex: document.getElementById('stk-txt-hex')?.value, radius: document.getElementById('stk-count-radius-num')?.value,
       labelHex: document.getElementById('stk-clabel-hex')?.value, labelSize: document.getElementById('stk-count-label-size-num')?.value, labelWeight: document.getElementById('stk-count-label-weight')?.value,
       handles: document.querySelectorAll('#secA .sticker-block.selected .sticker-corner-handle').length }));
-    expect(panel, '패널이 새 꼴로 다시 그려졌다 · 손잡이 그대로')
-      .toEqual({ style: 'icon', shape: 'square', glyph: 'chevron-right', bgHex: 'EB6217', txtHex: '1A1A1A', radius: '25', labelHex: 'FFFFFF', labelSize: '50', labelWeight: '700', handles: 4 });
+    expect(panel, '패널이 새 꼴로 다시 그려졌다 · 손잡이 그대로 · txtHex·labelHex 는 ★값이 같아도 ★각자의 칸(독립성)')
+      .toEqual({ style: 'icon', shape: 'square', glyph: 'chevron-right', bgHex: '000000', txtHex: 'FFFFFF', radius: '25', labelHex: 'FFFFFF', labelSize: '50', labelWeight: '700', handles: 4 });
   }, '마킹 프리셋 포인트', { soft: true });
   expect(await shapeLook(page, 'secB'), '다른 섹션은 그대로(⌘Z 뒤에도)').toEqual(b0);
   expect(h.dPos >= 1 && h.seqNew, `A1 프리셋 직후 꼭대기가 새 칸 — Δpos=${h.dPos} top=${h.topAction}`).toBe(true);
   expect([h.undoDLen, h.undoDPos], 'A2 ⌘Z 가 구제 칸 없이 정확히 한 칸').toEqual([0, -1]);
   await expect.poll(() => shapeLook(page, 'secA'), '⌘Z 한 번에 셋 다 프리셋 전으로').toEqual(a0);
 
-  /* 「번호」 — 포인트를 깐 뒤 기본 꼴로 */
+  /* 「번호」 — 포인트를 깐 뒤 기본 꼴로. ★이게 t1j2 의 진짜 음성대조다(바로 위 MEMORY 지적과 같은 자리) — 색이
+     「번호」와 같아져도(둘 다 검정·흰) 모양(원 50% vs 네모 14px)·표기(num vs icon)로 ★여전히 갈려야 한다.
+     두 프리셋이 구분 불가가 되면 이 되돌리기(아래 a0 로의 복귀)가 먼저 빨개진다. */
   await pickMark(page, 2);
   await page.click('#stk-count-presets [data-count-preset="point"]');
-  await expect.poll(async () => pluck(await shapeLook(page, 'secA'), 'bg'), '★전제: 다시 주황').toEqual([ORANGE, ORANGE, ORANGE]);
+  await expect.poll(async () => pluck(await shapeLook(page, 'secA'), 'radius'), '★전제: 다시 둥근 네모').toEqual(['14px', '14px', '14px']);
   await page.click('#stk-count-presets [data-count-preset="number"]');
   await expect.poll(() => shapeLook(page, 'secA'), '번호: 원 · 검정 · 번호 글자 · 라벨은 마커 색(검정)으로').toEqual(a0);
   expect(errs).toEqual([]);
