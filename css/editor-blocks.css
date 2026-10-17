@@ -2560,6 +2560,7 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 .frame-block:not(.selected) .mockup-block:hover::after,
 .frame-block:not(.selected) .vector-block:hover::after,
 .frame-block:not(.selected) .chat-block:hover::after,
+.frame-block:not(.selected) .laurel-block:hover::after,
 .frame-block:not(.selected) .qa-block:hover::after {
   display: none !important;
 }
@@ -3132,9 +3133,13 @@ textarea.cvb-card-input {
 .laurel-block .laurel-inner { min-width: 0; max-width: 100%; }
 .laurel-block .laurel-text-stack { min-width: 0; flex-shrink: 1; }
 .laurel-block .laurel-text-line { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.laurel-block:hover {
-  outline: 1px dashed var(--sel-color);
-  outline-offset: -1px;
+.laurel-block:hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sel-color-fill);
+  pointer-events: none;
+  z-index: 0;
 }
 .laurel-block.selected {
   outline: var(--sel-outline-w) solid var(--sel-color);

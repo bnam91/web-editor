@@ -725,3 +725,82 @@ test.describe('laurel 줄 — 이벨류 고침', () => {
     expect(errs).toEqual([]);
   });
 });
+
+/* ══ 1017t1g2 — 여백(gap) 줄도 손에 닿게(align-self:stretch) ══════════════════════════════════════
+ * ★현빈 원문(1017t1g2): 「갭블럭을 추가했는데 그건 선택이 안 되네?」
+ * ★원인(순서로 쟀다 — 닿나/불리나/맞는 갈래인가): ⑴«안 닿는다» — .laurel-text-stack 이 flex column
+ *   align-items:center 라 줄 감싸개 폭 = «내용 폭». 여백 줄은 내용이 없어 폭 0 ⇒ elementFromPoint 가
+ *   못 집는다(⑵⑶은 멀쩡 — line-host.js lnClickAddr 는 그대로 .ln-row 를 집으면 된다 — 단지 못 집힐 뿐).
+ *   선례 — 같은 함수(_lrlDecorateLinesHtml) 의 구분선(divider) 분기가 이미 같은 병을 고쳐 뒀다
+ *   (align-self:stretch). 처방은 그 분기에 gap 을 더하는 것 — 발명이 아니라 이웃 분기를 따른다.
+ * ★이웃 대조 — 같은 줄 구성의 grid-block 에서 .grd-gap 폭 = 칸 폭(그리드는 눌린다). laurel 만 0 이었다.
+ * ★음성대조(자가 살아 있음 — GD1001_ROOT 핀 판, HEAD 를 대조 판으로 쓰지 않는다):
+ *   GD1001_ROOT=<be2d2602 체크아웃 경로> npx playwright test --config=tests/dom/playwright.dom.config.js laurel-lines -g LL18
+ *   → 빨갛다(폭 0 · elementFromPoint 가 못 집는다 · 2단 클릭이 {li:null}). ×3 실측(흔들림 없음 확인).
+ * ⛔고정 대기 0 — waitForFunction / expect.poll / waitStableRect.
+ */
+/* ★grid-line(새) 꼴 — field 는 `weight`(문자열), ⛔옛 bubble 꼴 `fontWeight` 아니다(1차 실수로 밟음 — lnValidateLines
+ *   허용 명부(grid-block.js patchCell)엔 `fontWeight` 가 없어 ⌫ 커밋이 INVALID 로 조용히 거절됐다). */
+const G2_CELLS = [
+  { lines: [
+    { type: 'body', text: 'A본문', fontSize: 28, weight: '500', color: '#1a1a1a' },
+    { type: 'gap', height: 24 },
+    { type: 'divider', height: 2 },
+    { type: 'body', text: 'B본문', fontSize: 28, weight: '500', color: '#1a1a1a' },
+  ], leafColor: '#1a1a1a', gap: 24, height: 160 },
+];
+
+test.describe('laurel 줄 — 1017t1g2 여백 줄 선택', () => {
+  test('LL18 여백 줄도 손에 닿는다 — 폭(구분선과 같은 값) · elementFromPoint · 2단 클릭 · ⌫ · ⌘Z · dataset.cells 무변', async ({ page }) => {
+    const errs = await setup(page, G2_CELLS, 1, 1);
+    const zoom = await page.evaluate(() => window.currentZoom ?? null);
+    expect(zoom, '전제 — zoom 100').toBe(100);
+    const kinds = (await cellsOf(page))[0].lines.map(l => l.type);
+    expect(kinds, '전제 — 줄 구성 [body, gap, divider, body]').toEqual(['body', 'gap', 'divider', 'body']);
+
+    /* 전제 — 글자 줄(li0) 2단 클릭은 멀쩡하다(선택 길 자체가 살아 있음 — 없으면 아래 실패가
+       「선택이 통째로 죽었다」와 구분 안 된다). */
+    await pickLine(page, 0, 0);
+    await page.evaluate(() => window.deselectAll());
+
+    const before = await page.evaluate(() => document.getElementById(window.__bid).dataset.cells);
+
+    /* 양성 ⒜ — 여백 줄 감싸개 폭 > 0. 기대값은 «같은 칸 구분선 줄의 폭»에서 뜬다(손으로 안 적는다 — LL5 가
+       그리드 명부를 떠 오는 관용구와 같은 길). 구분선도 같은 align-self:stretch 처방을 먼저 받은 이웃이라
+       같은 스택 폭으로 펴진다 — 둘이 같다. */
+    const widths = await page.evaluate(() => {
+      const cell = document.querySelector('#sB .laurel-block .laurel-cell[data-cell-idx="0"]');
+      const gapRow = cell.querySelector('.ln-row[data-ln="1"]');
+      const divRow = cell.querySelector('.ln-row[data-ln="2"]');
+      return { gap: gapRow.getBoundingClientRect().width, divider: divRow.getBoundingClientRect().width };
+    });
+    console.log('[LL18 widths] ' + JSON.stringify(widths));
+    expect(widths.gap, '여백 줄 폭 > 0').toBeGreaterThan(0);
+    expect(widths.gap, '여백 줄 폭 = 구분선 줄 폭(같은 스택 — 기대값을 손으로 안 적는다)').toBeCloseTo(widths.divider, 0);
+
+    /* 양성 ⒝ — elementFromPoint(가운데) 가 그 줄을 집는다. */
+    const p = await waitStableRect(page, LSEL(0, 1));
+    const picked = await page.evaluate(([x, y]) => {
+      const e = document.elementFromPoint(x, y);
+      const row = e && e.closest ? e.closest('.ln-row') : null;
+      return row ? row.dataset.ln : null;
+    }, [p.cx, p.cy]);
+    expect(picked, 'elementFromPoint(가운데).closest(".ln-row").dataset.ln === "1"').toBe('1');
+
+    /* 양성 ⒞ — 2단 클릭 → {r:0,c:0,li:1}(pickLine 이 그 자체를 단언한다). */
+    await pickLine(page, 0, 1);
+
+    /* 양성 ⒟ — ⌫ 가 «그 줄만» 지우고 ⌘Z 한 걸음에 돌아온다. */
+    await page.keyboard.press('Delete');
+    await expect.poll(async () => (await cellsOf(page))[0].lines.map(l => l.type), '⌫ = 여백 줄만 사라짐').toEqual(['body', 'divider', 'body']);
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('Meta+z');
+    await expect.poll(async () => (await cellsOf(page))[0].lines.map(l => l.type), '⌘Z 한 걸음 = 전 그대로').toEqual(['body', 'gap', 'divider', 'body']);
+
+    /* 양성 ⒠ — dataset.cells 바이트 무변(꾸밈만 바꿨다 — LL3 와 같은 자. ⌫→⌘Z 왕복 뒤 ⌫ 전과 같은 바이트). */
+    const after = await page.evaluate(() => document.getElementById(window.__bid).dataset.cells);
+    expect(after, '⌘Z 한 걸음 뒤 — 저장 바이트가 ⌫ 전과 같다').toBe(before);
+
+    expect(errs).toEqual([]);
+  });
+});
