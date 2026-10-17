@@ -46,6 +46,7 @@
 
   /* ★프리셋 넷 — ⛔bg 키가 ★없다(위 머리말 ⒜ · 현빈 2026-10-07).
      ★현빈 확정 2026-10-07: 「프리셋은 넷이면 충분하다 · 알맹이모양도 지금 충분하다. 이대로 유지」 ⇒ ⛔더 늘리지 마라.
+       (★코인은 프리셋이 아니라 «레시피»다 — js/coin-particle-recipe.js · 1012t1 I1-B · 1013t2E3 도 그 꼴로 닫았다 ⇒ 넷은 그대로.)
      ★기본 색은 «값만» 바꾸면 되게 여기 한 자리에 둔다(글로우 PRESETS 와 같은 결).
      ★fxOpacity — 이름을 ★글로우와 «같게» 쓴다(지디 2026-10-06 · 9f062a5c 로 미리 맞춰 둔 이름).
        ⛔alpha·opacity 로 갈라 쓰면 다음 사람이 두 벌로 읽는다.
@@ -107,8 +108,10 @@
      ★명부가 둘이면 어느 날 갈린다 — 그 교훈이 레포 곳곳에 적혀 있다. */
   const RANGES = Object.freeze({
     count:     Object.freeze({ min: 0, max: MAX_COUNT }),
-    smin:      Object.freeze({ min: 1, max: 90 }),
-    smax:      Object.freeze({ min: 1, max: 90 }),
+    /* ★크기 상한 90 → 250 (현빈 노트 1013t2E4 「코인 레시피의 크기 … 최대 90밖에 안되는데 250까지」).
+       범위 표는 프리셋마다 따로 두지 않는다(명부 하나) ⇒ 네 프리셋과 코인 레시피가 같이 250 까지 간다. 옛 저장본(≤ 90)은 값이 그대로다. */
+    smin:      Object.freeze({ min: 1, max: 250 }),
+    smax:      Object.freeze({ min: 1, max: 250 }),
     glow:      Object.freeze({ min: 0, max: 100 }),
     spread:    Object.freeze({ min: 0, max: 20 }),
     fxOpacity: Object.freeze({ min: 0, max: 100 }),

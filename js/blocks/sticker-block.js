@@ -199,6 +199,7 @@ function _renderStickerBlockInner(block) {
       metal: d.coinMetal || D.metal, face: d.coinFace, side: d.coinSide,
       glyph: d.coinGlyph ?? D.glyph,
       k: n(d.coinK, D.k) / 100, gloss: n(d.coinGloss, D.gloss),
+      blur: n(d.coinBlur, 0),   // 번짐(1013t2C3) — 없으면 0(= 옛 저장본은 그림이 그대로다)
       extRot: _stkRot,
     });
     return;
@@ -498,12 +499,29 @@ function _renderStickerBlockInner(block) {
 // 침범량을 계산해 인라인 CSS 변수 --sec-clip(inset)에 기록한다. 실제 적용/해제는 CSS가 결정:
 // .selected(조작 중)와 [data-overflow-visible=true] 섹션은 clip-path:none으로 무시.
 // 인라인 변수라 저장 HTML·미리보기·Export 클론에 그대로 복제 → 세 화면이 한 소스로 잘림.
-// 한계: rotation 스티커는 clip이 요소와 함께 회전(경계선과 불일치) — 현행 사용례 0도.
+// ★회전한 스티커(data-rotation ≠ 0 · 섹션 직속)는 inset 이 아니라 polygon 으로 적는다(1013t2C2).
+//   clip-path 는 요소의 «회전 전» 좌표에 걸려 요소와 함께 돈다 — inset 으로 두면 잘리는 선이 섹션 경계와 어긋난다
+//   (독립 평가 실측 2026-10-14: 180° 돌린 코인을 위로 밀자 섹션 안 0% · 섹션 밖 36% 가 보였다).
+//   ⇒ 섹션 사각형의 네 귀를 요소의 회전 전 좌표로 옮겨 그 꼴로 자른다(요소 중심 둘레로 -회전). 섹션 안에 통째로 있으면 변수를 지운다.
+//   예전엔 「회전 스티커 사용례 0」이라 한계로 남겨 두었는데, 코인은 회전 손잡이가 있고 섹션 밖으로 나가는 길이 정식으로 열렸다.
 function _updateStickerSecClip(block) {
   const sec = block.closest('.section-block');
   if (!sec) return;
   const w = block.offsetWidth, h = block.offsetHeight;
   if (!w || !h) { block.style.removeProperty('--sec-clip'); return; }
+  const rotDeg = block.parentElement === sec && block.classList.contains('sticker-block') ? (parseFloat(block.dataset.rotation) || 0) % 360 : 0;
+  if (rotDeg) {
+    const th = rotDeg * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
+    const cx = block.offsetLeft + w / 2, cy = block.offsetTop + h / 2;
+    const hw = (Math.abs(w * c) + Math.abs(h * s)) / 2, hh = (Math.abs(w * s) + Math.abs(h * c)) / 2;   /* 돌아간 상자의 바깥 사각형 */
+    const SW = sec.clientWidth, SH = sec.clientHeight;
+    if (cx - hw >= 0 && cy - hh >= 0 && cx + hw <= SW && cy + hh <= SH) { block.style.removeProperty('--sec-clip'); return; }
+    const r1 = (v) => Math.round(v * 10) / 10;
+    /* 섹션 좌표의 점 → 요소의 회전 전 좌표: 중심 둘레로 -회전 */
+    const pt = (X, Y) => { const dx = X - cx, dy = Y - cy; return `${r1(dx * c + dy * s + w / 2)}px ${r1(-dx * s + dy * c + h / 2)}px`; };
+    block.style.setProperty('--sec-clip', `polygon(${pt(0, 0)}, ${pt(SW, 0)}, ${pt(SW, SH)}, ${pt(0, SH)})`);
+    return;
+  }
   /* ★섹션까지 «누적» 오프셋.
      스티커·목업은 섹션 «직속»이라 루프가 한 번 돌고 x=offsetLeft 로 «예전과 같은 값»이 나온다.
      확대블럭은 그려지는 층(.zoom-clip)이 블록 «안»에 있어 한 단계 더 올라가야 한다
@@ -570,7 +588,7 @@ function rememberStickerStyle(block) {
      glow 와 같은 까닭으로 ⛔__last 에는 안 올린다 — 올리면 일반 「Sticker」 단추가 코인을 낳는다.
      각인은 빈 값('' = 각인 없음)도 뜻이 있어 put(빈 값 건너뜀)을 쓰지 않는다. */
   if (shape === 'coin') {
-    ['coinMetal', 'coinFace', 'coinSide', 'coinGlyph', 'coinK', 'coinGloss'].forEach((k) => { if (d[k] !== undefined) slot[k] = d[k]; });
+    ['coinMetal', 'coinFace', 'coinSide', 'coinGlyph', 'coinK', 'coinGloss', 'coinBlur'].forEach((k) => { if (d[k] !== undefined) slot[k] = d[k]; });
     slot.shape = shape;
     _lastStickerStyle.coin = slot;
     return;
@@ -603,6 +621,8 @@ function _relightCoinAfterRotate() {
   document.querySelectorAll('.sticker-block.selected[data-shape="coin"]').forEach((b) => {
     if (b._coinLitRot === (parseFloat(b.dataset.rotation) || 0)) return;
     renderStickerBlock(b);
+    window._rekeepCoin?.(b);         // 돌면 그림이 달라진다 — 섹션 밖 10% 남기기를 다시 건다(1013t2C2 · js/sticker-select.js)
+    window._syncCoinPosFields?.(b);  // 돌면 X·Y 칸의 범위도 달라진다
     window._addCornerHandles?.(b);   // 그리기가 innerHTML 을 갈아 끼워 손잡이가 사라지므로 다시 단다
   });
 }
@@ -672,6 +692,7 @@ function makeStickerBlock(opts = {}) {
     block.dataset.coinGlyph = opts.coinGlyph ?? D.glyph ?? '$';
     block.dataset.coinK     = opts.coinK     ?? D.k     ?? 22;
     block.dataset.coinGloss = opts.coinGloss ?? D.gloss ?? 22;
+    if (opts.coinBlur !== undefined) block.dataset.coinBlur = opts.coinBlur;   // 번짐 — 준 것만 적는다(없음 = 0)
     block.dataset.sizeW     = opts.sizeW     ?? opts.size ?? D.size ?? 120;
     block.dataset.sizeH     = opts.sizeH     ?? opts.size ?? D.size ?? 120;
     block.dataset.size      = Math.max(+block.dataset.sizeW || 0, +block.dataset.sizeH || 0);
