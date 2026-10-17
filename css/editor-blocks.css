@@ -1658,6 +1658,34 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 #cvb-plus-layer > .cvb-add-btn::after { content: ''; position: absolute; border-radius: 50%; inset: 0; }
 #cvb-plus-layer > .cvb-add-btn:hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
 
+/* ── 1017t1d3 카드 블럭 캔버스 ＋ — 열·행 «성장»(그리드블럭 G15 선례의 짝 — 바로 위 .cvb-add-btn 과는 다른 클래스) ──
+ * ★꼴·토큰은 그리드 G15 ＋ 와 완전히 같다(40 모델px 점선 원 · ::before «+» · 상한에서 흐림) — 자리 기준점만
+ *   카드 블럭엔 G19 자식 그릇이 없어 «그리드의 자식 없을 때 가지»(= 블럭 자신의 바운딩박스)로 고정된다.
+ * ★클래스를 .cvb-add-btn(빈칸 채우기 ＋, 위)과 가른다 — 사용자·검사 모두 두 ＋ 를 헷갈리지 않게(d3 재확인 ⒉).
+ * ★뜨는 조건은 여기 «없다» — canvas-block.js _cvbPlusShown 하나(위 .cvb-add-btn 과 같은 조건 — 1017t1d3 재확인 ⒉). */
+#cvb-plus-layer > .cvb-grid-add-btn {
+  position: absolute;
+  pointer-events: auto;
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;   /* 모델 px — 그리드 ＋ 와 같은 단위 */
+  padding: 0; margin: 0; box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px dashed var(--ui-divider);
+  font-size: var(--ui-fs-20);
+  background: var(--ui-bg-elevated);
+  color: var(--ui-text-muted);
+  line-height: 0;
+  cursor: pointer;
+}
+#cvb-plus-layer > .cvb-grid-add-btn::before { content: '+'; line-height: 1; pointer-events: none; }
+#cvb-plus-layer > .cvb-grid-add-btn::after { content: ''; position: absolute; border-radius: 50%; inset: 0; }
+/* 기준점: 오른쪽(열) = (블럭 오른쪽 끝, 블럭 세로 가운데) → 중심을 기준점에. 아래(행) = (블럭 가로 가운데, 블럭 아래 끝) → 왼쪽으로 반 칸만(그리드와 같은 식 — editor-blocks.css:1631-1632). */
+#cvb-plus-layer > .cvb-grid-add-btn[data-cvb-grid-add="col"] { transform: translate(-50%, -50%); }
+#cvb-plus-layer > .cvb-grid-add-btn[data-cvb-grid-add="row"] { transform: translateX(-50%); }
+#cvb-plus-layer > .cvb-grid-add-btn:not(:disabled):hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
+/* 상한(열 4·행 4 — canvas-block.js CVB_GRID_MAX_COLS/ROWS)에서는 흐리게 — 그리드 G15 와 같은 결. */
+#cvb-plus-layer > .cvb-grid-add-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+
 /* ═══════════════════════════════════
    QA BLOCK — admin 전용 체크리스트 (2026-09-16)
    ★캔버스 콘텐츠 톤(흰 배경·어두운 글자)을 쓴다 — 앱 다크 크롬(--ui-*) 이 아니다.
