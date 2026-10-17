@@ -91,7 +91,7 @@ const selIds = (page) => page.evaluate(() => [...document.querySelectorAll('#can
 const panelName = (page) => page.evaluate(() => document.querySelector('#panel-right .prop-block-name')?.textContent?.trim() || '');
 const panelCrumb = (page) => page.evaluate(() => document.querySelector('#panel-right .prop-breadcrumb')?.textContent?.trim() || '');
 const handleN = (page, id) => page.evaluate((id) => document.getElementById(id)
-  .querySelectorAll(':scope > .sticker-corner-handle, :scope > .sticker-rotate-zone, :scope > .hlb-handle').length, id);
+  .querySelectorAll(':scope > .sticker-corner-handle, :scope > .sticker-rotate-zone, :scope > .hlb-handle[data-endpoint="start"], :scope > .hlb-handle[data-endpoint="end"]').length, id);
 /* 그라데이션 손잡이는 선택되면 #ss-handles-overlay 로 «탈출»한다(js/overlay-handles.js HANDLE_ESCAPE_SPECS) —
    블럭 자식만 세면 늘 0 이다. 자식 + 탈출한 것 중 주인이 그 블럭인 것(window.__handleEscape.owners — 계측 진입점)을 센다. */
 const gradHandleN = (page, id) => page.evaluate((id) => {
@@ -298,6 +298,9 @@ test('S5 ★「서로 맞춤」 왼쪽 정렬 — 고른 스티커 왼쪽(레이
   const { errs, made } = await setup(page);
   test.skip(made.length < 2, '둘 이상이어야 복수');
   await pickAll(page, made);
+  /* ★1013t2 S5 — 「서로 맞춤」 글귀만 기다리면 ⌘클릭 «도중»(2·5·7개)에 그린 패널에서도 맞는다. 그 패널의 정렬 버튼은
+     그린 때의 units 를 쥐고 있어 일부만 옮긴다(실측: 받은 5 · 받은 2). ⇒ «K개 선택됨» = 패널이 K개로 다시 그려진 상태를 기다린다. */
+  await expect.poll(() => panelName(page)).toBe(`${made.length}개 선택됨`);
   await expect.poll(() => panelCrumb(page)).toContain('서로 맞춤');
   const before = await page.evaluate((ids) => ids.map(id => { const b = document.getElementById(id); return { id, shape: b.dataset.shape, left: b.offsetLeft, x1: +b.dataset.x1, x2: +b.dataset.x2 }; }), made.map(m => m.id));
   const minLeft = Math.min(...before.map(b => b.left));
