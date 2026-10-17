@@ -196,6 +196,10 @@ function _addHlbHandles(block) {
     baseTop  = parseFloat(block.style.top)  || 0;
   }
   const mk = (endpoint, hx, hy) => {
+    /* 1013t2r2 — 텍스트 충돌 0 · 의미 충돌: e1 1d99a386 주석이 이미 highlightB 의 높이 = thickness 를 적었는데
+       C4 2277e494 가 가드를 _isLineStk 로 넓히며 안 읽었고 merge 가 조용히 합쳤다 → thick 은 highlightB 만.
+       (가드를 아래 mk('thick') 줄이 아니라 여기 둔다 — hlb-thickness-handle.dom.spec.js E1-n 이 그 여섯 줄을 글자 그대로 찾는다) */
+    if (endpoint === 'thick' && block.dataset.shape !== 'highlightB') return;
     const h = document.createElement('div');
     h.className = 'hlb-handle';
     h.dataset.endpoint = endpoint;

@@ -89,7 +89,9 @@ const read = (page, id) => page.evaluate((id) => {
     stroke: body?.getAttribute('stroke') || null, sw: body?.getAttribute('stroke-width') || null,
     heads: heads.map(h => ({ end: h.dataset.end, d: h.getAttribute('d'), fill: h.getAttribute('fill'), dash: h.getAttribute('stroke-dasharray') })),
     selected: b.classList.contains('selected'),
-    hlb: b.querySelectorAll(':scope > .hlb-handle').length,
+    /* ★끝점만 센다(1017t1e1 이 같은 클래스로 두께 손잡이 data-endpoint="thick" 를 붙인다 — census E1-C2) */
+    hlb: b.querySelectorAll(':scope > .hlb-handle[data-endpoint="start"], :scope > .hlb-handle[data-endpoint="end"]').length,
+    thick: b.querySelectorAll(':scope > .hlb-handle[data-endpoint="thick"]').length,
     corner: b.querySelectorAll(':scope > .sticker-corner-handle, :scope > .sticker-rotate-zone').length,
     pe: b.style.pointerEvents, parent: b.parentElement?.id || null,
   };
@@ -166,6 +168,14 @@ test('A1 메뉴 「Arrow Line」 — 한 번 누르면 화살표 1 · 골라짐 
   expect(a.heads.length, '머리 1').toBe(1);
   expect(a.pe, '상자는 pointer-events:none(맞힘은 그림 안 path)').toBe('none');
   expect(await shown(page, '#stk-arrow-section'), '우측 Arrow Line 절').toBe(true);
+  /* ★⒠ 반례 쌍(두께 손잡이 · 1013t2r2) — 같은 read().thick(`.hlb-handle[data-endpoint="thick"]` 수)으로
+     화살표 = 0 · highlightB = 1. 화살표 0 만 재면 mk('thick') 를 지워도 초록이다. */
+  expect(a.thick, '화살표엔 두께 손잡이 0(굵기는 우측 패널)').toBe(0);
+  const hid = await make(page, { shape: 'highlightB', x1: 100, y1: 400, x2: 300, y2: 400 });
+  await page.evaluate((hid) => window._selectSticker(document.getElementById(hid)), hid);
+  await expect.poll(async () => (await read(page, hid)).selected, '★짝 전제: highlightB 가 골라졌다').toBe(true);
+  const hb = await read(page, hid);
+  expect([hb.d.shape, hb.hlb, hb.thick], '★짝: highlightB = 끝점 2 · 두께 손잡이 1(같은 read)').toEqual(['highlightB', 2, 1]);
   expect(errs).toEqual([]);
 });
 
@@ -486,10 +496,11 @@ test('A10 Esc · deselectAll 뒤 .selected 0 · .hlb-handle 0 · 콘솔 오류 0
   expect((await read(page, id)).hlb, '★전제: 손잡이 2').toBe(2);
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('Escape');
-  await expect.poll(() => page.evaluate(() => [document.querySelectorAll('.sticker-block.selected').length, document.querySelectorAll('.hlb-handle').length])).toEqual([0, 0]);
+  /* ★«0 이어야» 칸은 thick 까지 전부 센다([data-endpoint] — 끝점만 세면 thick 이 남아도 0 · census E1-C2 꼴 통과) */
+  await expect.poll(() => page.evaluate(() => [document.querySelectorAll('.sticker-block.selected').length, document.querySelectorAll('.hlb-handle[data-endpoint]').length])).toEqual([0, 0]);
   await pick(page, id);
   await page.evaluate(() => window.deselectAll());
-  expect(await page.evaluate(() => [document.querySelectorAll('.sticker-block.selected').length, document.querySelectorAll('.hlb-handle').length])).toEqual([0, 0]);
+  expect(await page.evaluate(() => [document.querySelectorAll('.sticker-block.selected').length, document.querySelectorAll('.hlb-handle[data-endpoint]').length])).toEqual([0, 0]);
   expect(errs).toEqual([]);
   expect(cerr.filter(t => /arrow|ArrowFx|sticker/i.test(t)), '화살표·스티커 콘솔 오류').toEqual([]);
 });
