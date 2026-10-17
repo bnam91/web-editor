@@ -9,6 +9,14 @@
  *   J1-b 만든 직후 끝 핸들을 실제 마우스로 끌면 x2 가 는다(«그다음 조정»).
  *   J1-c 만든 직후 ⌘Z 한 번이면 블럭이 0개(삽입 이음매).
  *   J1-d 옛 프로젝트의 면 형광펜 A(data-shape="highlight")는 계속 그려지고 패널이 열린다 · Shape 토글의 A 단추는 «A 블럭에서만».
+ * ★★261018 — ★이 파일의 「끝점 핸들 2」 단언 ★네 곳(＋자리 map 하나)이 ★★«끝점만» 세도록 ★좁혀졌다.
+ *   ★까닭: ★1017t1e1(`1d99a386`)이 ★두께 손잡이를 ★★«같은 클래스» `.hlb-handle` 로 붙였다
+ *     (`data-endpoint="thick"` 만 다르다 — ★그 커밋이 ★일부러 그렇게 했다: `:385` 양보 가드를 그대로 쓰려고).
+ *   ⇒ ★`.hlb-handle` 을 ★★«맨 수»로 세면 ★2 가 아니라 ★★3 이 나온다(★261018 실측: Expected 2 / Received 3).
+ *   ★★그래서 ★★`[data-endpoint="start"], [data-endpoint="end"]` 로 ★★«더하기»로 명시한다 —
+ *     ⛔`:not([data-endpoint="thick"])`(빼기)로 하지 ★않았다. ★빼기는 ★새 endpoint 가 ★생기면 ★또 샌다.
+ *   ⛔이것은 ★「검사를 초록으로 만든 것」이 ★아니다 — ★이 단언이 ★★«재려던 것»이 ★★«끝점» 핸들이다
+ *     (제목·메시지가 ★「끝점 핸들 2」라 적고 있다). ★무력화 대조로 ★그것을 ★증명했다(아래).
  * 음성대조(보고에 수): sticker-block.js 의 끝점 주입 갈래를 지우면 J1-a 빨강 · prop-sticker.js 의 isHl 조건을 true 로 깨면 J1-d 빨강.
  */
 const { test, expect } = require('@playwright/test');
@@ -58,7 +66,7 @@ const hlbState = (page) => page.evaluate(() => {
     x1: +d.x1, y1: +d.y1, x2: +d.x2, y2: +d.y2,
     secW: sec.offsetWidth, secH: sec.offsetHeight,
     selected: b.classList.contains('selected'),
-    handles: b.querySelectorAll('.hlb-handle').length,
+    handles: b.querySelectorAll('.hlb-handle[data-endpoint="start"], .hlb-handle[data-endpoint="end"]').length,   /* ★261018 — ★«끝점만» (e1 이 더한 thick 은 제외) */
     panel: !!sec2 && getComputedStyle(sec2).display !== 'none',
     mode: document.body.classList.contains('hlb-mode'),
   };
@@ -93,7 +101,7 @@ test('J1-b 만든 직후 끝 핸들을 끌면 x2 가 는다(그다음 조정)', 
   await bootApp(page);
   await setupSection(page);
   await clickPenMenu(page, 'Highlight');
-  await page.waitForFunction(() => document.querySelectorAll('.sticker-block[data-shape="highlightB"] .hlb-handle').length === 2, null, { timeout: 3000 });
+  await page.waitForFunction(() => document.querySelectorAll('.sticker-block[data-shape="highlightB"] .hlb-handle[data-endpoint="start"], .sticker-block[data-shape="highlightB"] .hlb-handle[data-endpoint="end"]').length === 2, null, { timeout: 3000 });
   await waitStableRect(page, '.sticker-block[data-shape="highlightB"] .hlb-handle[data-endpoint="end"]');
   const h = await page.evaluate(() => {
     const e = document.querySelector('.sticker-block[data-shape="highlightB"] .hlb-handle[data-endpoint="end"]');
@@ -227,7 +235,7 @@ test('J2-b 칩 5개를 실제로 누르면 모양·두께·색이 깔리고 획 
         filters: b.querySelectorAll('[filter], filter').length,
         svgH: +svg.getAttribute('height'), top, bot,
         styleActive: document.querySelectorAll('#stk-hlb-style-group .prop-align-btn.active').length,
-        handles: b.querySelectorAll('.hlb-handle').length };
+        handles: b.querySelectorAll('.hlb-handle[data-endpoint="start"], .hlb-handle[data-endpoint="end"]').length };   /* ★261018 — ★«끝점만» */
     }, id);
     expect(r.ds, `${key}: 프리셋 값`).toEqual({ lineStyle: key, thickness: want.thickness, hlColor: want.hlColor });
     expect(r.paths, `${key}: 획 수`).toBe(want.paths);
@@ -276,12 +284,12 @@ test('J2-d 동그라미로 bbox 가 커져도 끝점 핸들이 (x1,y1)/(x2,y2) �
   await bootApp(page);
   const id = await makeSelectedB(page);
   await clickChip(page, 'circle');
-  await page.waitForFunction((id) => document.getElementById(id)?.dataset.lineStyle === 'circle' && document.querySelectorAll(`#${id} .hlb-handle`).length === 2, id, { timeout: 3000 });
+  await page.waitForFunction((id) => document.getElementById(id)?.dataset.lineStyle === 'circle' && document.querySelectorAll(`#${id} .hlb-handle[data-endpoint="start"], #${id} .hlb-handle[data-endpoint="end"]`).length === 2, id, { timeout: 3000 });
   const r = await page.evaluate((id) => {
     const b = document.getElementById(id);
     const sec = document.getElementById('secH').getBoundingClientRect();
     const z = (window.currentZoom || 40) / 100;
-    return [...b.querySelectorAll('.hlb-handle')].map(h => {
+    return [...b.querySelectorAll('.hlb-handle[data-endpoint="start"], .hlb-handle[data-endpoint="end"]')].map(h => {   /* ★261018 — ★«끝점만» */
       const q = h.getBoundingClientRect();
       const i = h.dataset.endpoint === 'start' ? '1' : '2';
       return { ep: h.dataset.endpoint, dx: Math.abs((q.left + q.width / 2) - (sec.left + (+b.dataset['x' + i]) * z)), dy: Math.abs((q.top + q.height / 2) - (sec.top + (+b.dataset['y' + i]) * z)) };
