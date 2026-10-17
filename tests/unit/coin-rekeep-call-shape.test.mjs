@@ -14,14 +14,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+
+/* ★주석 걷어내기는 «공용 부품» 하나다 — tests/unit/_strip-comments.js */
+const { stripComments } = createRequire(import.meta.url)('./_strip-comments.js');
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-function stripComments(src) {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
-    .replace(/(^|[\s;{}(),])\/\/.*$/gm, '$1');
-}
 /* 부르는 자리 — 정의(`function _rekeepCoin(`)와 대입(`= _rekeepCoin;`)은 호출이 아니다. */
 function callSites(src) {
   const out = [];
