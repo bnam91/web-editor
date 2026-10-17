@@ -1184,6 +1184,12 @@ function toggleBlockSelect(block, sec) {
   /* ★0918r2 T-058 — ⌘클릭은 «블럭 단위» 선택이다. 그리드 줄 선택(활성줄)을 남겨 두면 다중선택
      상태에서 ⌫/⌘X 가 그 줄 하나로 샜다. Shift 범위선택(deselectAll 경유)과 똑같이 끝낸다. */
   window.grdDropLineSelection?.(canvasEl);
+  /* 1013t1C4 고침 — 원형 그래프 «조각 선택» 표식도 같은 까닭으로 걷는다(⌘클릭은 clearSelectionMarks 를 안 지난다 ⇒ 다중 선택인데 조각 점선이 남았다). */
+  /* 1013t1C4 고침 2 — 표식이 걷혔으면 패널의 Slice 절도 같이 걷는다. 아래 «해제 가지»(같은 블럭을 ⌘클릭해 선택이 0 이 되는 때)는 패널을 다시 안 그린다
+     (_updateMultiSelPanel → _openSoleBlockPanel 이 선택 0 에서 아무것도 안 연다 — 블럭 종류와 무관한 기존 동작) ⇒ Slice 절이 남아 풀린 블럭에 썼다. 패널의 나머지는 안 건드린다. */
+  const _pieMarks = canvasEl.querySelectorAll('.grb-pie-cell-selected');
+  _pieMarks.forEach(el => el.classList.remove('grb-pie-cell-selected'));
+  if (_pieMarks.length) window.grbPieDropSlicePanel?.();
   const layerItem = _getBlockLayerItem(block);
   if (block.classList.contains('selected')) {
     block.classList.remove('selected');
@@ -2985,6 +2991,7 @@ document.addEventListener('keydown', e => {
     // ★아이콘 새 줄(K) — 그리드 전용, 하드코딩(설정 리매핑 레지스트리는 이번 범위 밖).
     if (e.code === 'KeyK' && !e.isComposing) {
       if (window.grdAddIconToSelectedCell?.()) { e.preventDefault(); return; }
+      if (window.lnAddIconToSelected?.()) { e.preventDefault(); return; }   // ★1013t1B2 C4 — laurel 칸/줄에도(그리드 다음 · T/G 와 같은 꼴)
     }
 
     // Enter → 선택된 텍스트 블록 편집 모드 진입
@@ -3249,7 +3256,7 @@ function _gridActiveOuterLine() {
    * ★아래 게이트 셋(단독선택 → 중첩(np) 막기 → 바깥 줄)은 ★한 글자도 안 바꿨다 — 블럭을 «찾는» 자리만 넓혔다.
    * ⛔버블·챗에는 중첩(np)이 ★없다 — 그 가지는 그리드에서만 선다(값이 안 들어온다). */
   const gridSel = document.querySelector('.grid-block.selected')
-    || document.querySelector('.speech-bubble-block.selected, .chat-block.selected, .comparison-block.selected');   // ★1012t1D2 비교 칸 줄도(line-host 세 번째 주인)
+    || document.querySelector('.speech-bubble-block.selected, .chat-block.selected, .comparison-block.selected, .laurel-block.selected');   // ★1012t1D2 비교 칸 줄도(line-host 세 번째 주인) · ★1013t1B2 laurel(네 번째)
   let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
   /* ★단독 선택일 때만 — ⌘클릭 다중선택·붙여넣기 뒤 [원본(활성줄)+사본] 은 사용자가 «블럭들»을
      보고 있다. 거기서 첫 그리드의 활성줄만 보고 줄을 옮기면 블럭은 그대로인데 줄만 조용히 바뀐다
@@ -3334,7 +3341,8 @@ function moveGridLineAcrossCells({ dir } = {}) {
      *   — ★그리드의 EDGE 와 ★같은 뜻이다(「맨 왼쪽에서 ⌘←」가 갑자기 «블럭 이동»이 되지 않게).
      * ★1012t1D2 비교 칸 줄도 이 갈래로 ★조용히 소진한다 — 「옆 칸으로」는 v1 제외(결정 ⑨ · 주인 moveLine 도 INVALID).
      *   ⛔false 로 흘리지 않는다 — 흘리면 ⌘←/→ 가 «블럭 이동»으로 샌다. */
-    if (!got.block.classList.contains('chat-block')) return true;
+    /* ★1013t1B2 laurel — 「옆 ★월계관(칸)으로」(결정 B2-6 · 챗과 같은 길 · 칸 순서는 선형 cells 순서). */
+    if (!got.block.classList.contains('chat-block') && !got.block.classList.contains('laurel-block')) return true;
     const H = window.lnHostFor?.(got.block);
     const step = dir < 0 ? -1 : 1;
     H?.moveLine?.({ r: got.addr.r, c: 0 }, got.addr.li, { r: got.addr.r + step, c: 0 }, null);
@@ -3981,6 +3989,8 @@ function clearSelectionMarks(root) {
   canvas.querySelectorAll('.grd-line-selected').forEach(el => el.classList.remove('grd-line-selected'));
   // 그리드 «빈 셀 선택» 마커도 같은 자리에서 해제 (T-A, _grdSyncLineMark 의 셀 모드 짝)
   canvas.querySelectorAll('.grd-cell-selected').forEach(el => el.classList.remove('grd-cell-selected'));
+  // 1013t1C4 — 원형 그래프 «조각 선택» 마커도 같은 자리에서 해제 (drag-utils.js grbPieSelect 와 짝 · 상태는 이 표식 하나뿐)
+  canvas.querySelectorAll('.grb-pie-cell-selected').forEach(el => el.classList.remove('grb-pie-cell-selected'));
   // ★0918 grid: 마커만 지우고 «모델»(활성줄 WeakMap)을 두면, 블럭으로 다시 골랐을 때 옛 줄이 살아나
   //   Backspace 가 줄 삭제 분기로 새서 블럭이 안 지워졌다. 블럭을 떠나면 줄 선택도 해제한다.
   window.grdClearAllActiveLines?.(canvas);

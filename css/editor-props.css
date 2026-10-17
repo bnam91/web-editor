@@ -31,6 +31,10 @@
      이 변형은 «라벨 하나 + 남는 폭을 다 쓰는 컨트롤» 인 줄에서만 쓴다. */
 .prop-label--auto { width: auto; flex: 0 0 auto; }
 .prop-field-label { font-size: var(--ui-fs-10); color: var(--ui-text-muted, #6b6b6b); margin-bottom: 4px; display: block; }
+/* 절 직속 단추 묶음 바로 다음에 또 「윗줄 라벨」이 오는 자리(Buzz 절의 방향 → 깊이 · 모달 Decoration 의 꼬리 → 테이프) —
+   묶음에는 아래 여백이 없어 라벨이 붙는다. .prop-row 의 줄 간격(margin-bottom)과 같은 값을 준다. 두 절에만 건다(다른 패널 불변). */
+#bzf-section > .prop-align-group + .prop-field-label,
+#mdl-deco-tail-group + .prop-field-label { margin-top: 6px; }
 
 /* 아이콘 prefix 인풋 (피그마 스타일 — LH/LS 등) */
 .prop-icon-input {

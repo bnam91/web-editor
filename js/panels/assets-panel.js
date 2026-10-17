@@ -318,6 +318,14 @@ async function assetsGetDataUrl(id) {
     window._assetsImgCache.set(id, f.node.src);
     return f.node.src;
   }
+  // 앱 동봉 에셋(1013t2A4 종이 텍스처) — 프로젝트 폴더가 아니라 앱 파일을 읽는다. 캔버스엔 data URL 로 들어가므로
+  // 섹션 배경·내보내기·썸네일·피그마는 손으로 넣은 그림과 같은 길을 탄다.
+  if (f.node.bundled && !f.node.blobPath) {
+    let d = null;
+    try { const r = await window.electronAPI?.assetsReadBundled?.({ bundled: f.node.bundled }); if (r?.ok && r.dataUrl) d = r.dataUrl; } catch (_) {}
+    if (d) window._assetsImgCache.set(id, d);
+    return d;
+  }
   if (!f.node.blobPath) return null;
   const dataUrl = await _assetsReadFile(f.node.blobPath);
   if (dataUrl) window._assetsImgCache.set(id, dataUrl);

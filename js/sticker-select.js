@@ -429,6 +429,13 @@ function bindStickerSelect(block) {
     // 만들 방법이 없고(=더블클릭해도 커서 안 생김 체감), 드래그 시 블록이 이동하며 selection이 파괴됨.
     // (span 밖 패딩 영역 mousedown은 기존대로 블록 이동)
     if (e.target.closest?.('.sticker-text')?.isContentEditable) return;
+    // 마킹 블럭의 옆 라벨 편집 중(1013t2B5) — 라벨 «안»은 캐럿·글자 선택에 양보하고,
+    //   라벨 «밖»(마커)을 누르면 편집을 먼저 확정한 뒤(blur → 다시 그림) 아래 선택·이동으로 간다.
+    const _editingLabel = block.querySelector(':scope > .sticker-count-label[contenteditable="true"]');
+    if (_editingLabel) {
+      if (_editingLabel.contains(e.target)) return;
+      _editingLabel.blur();
+    }
     // 코너 핸들(리사이즈)·회전 핫존·hlb 끝점 위에서 누른 경우는 각자 핸들러가 처리하도록 양보
     // (이 리스너는 capture+stopImmediatePropagation이라 가드 없으면 핸들 mousedown을 삼켜 리사이즈/회전이 안 됨)
     if (e.target.closest?.('.sticker-corner-handle, .sticker-rotate-zone, .hlb-handle')) return;
@@ -561,8 +568,9 @@ function bindStickerSelect(block) {
   // 더블클릭 → 텍스트 편집 (contenteditable)
   block.addEventListener('dblclick', (e) => {
     e.stopPropagation();
-    // 카운트 스티커(data-count)는 글자가 «번호»다 — 손으로 고치면 번호 매김과 어긋나므로 인라인 편집을 열지 않는다
-    if (block.dataset.count) return;
+    // 카운트 스티커(data-count · 마킹 블럭)는 글자가 «번호»다 — 손으로 고치면 번호 매김과 어긋나므로 번호 글자의 인라인 편집은 열지 않는다.
+    //   대신 마커 어디를 더블클릭해도 «옆 라벨»의 편집이 열린다(라벨이 없으면 새로 · 1013t2B5).
+    if (block.dataset.count) { _enterCountLabelEdit(block); return; }
     // 이미 편집 중이면 브라우저 기본 워드 선택에 양보 (재진입으로 selection 덮어쓰기 방지)
     if (block.querySelector('.sticker-text')?.isContentEditable) return;
     _enterStickerEdit(block, e);
@@ -675,6 +683,73 @@ function _enterStickerEdit(block, ev) {
   textEl.addEventListener('keydown', onKey);
 }
 window._enterStickerEdit = _enterStickerEdit;
+
+/* 마킹 블럭(data-count)의 옆 라벨 인라인 편집 (1013t2B5).
+   · 라벨이 없으면 빈 라벨을 «그리기와 같은 꼴»로 만든다(js/blocks/sticker-block.js _stickerCountLabelHTML — 자리 스타일의 정본은 그쪽 하나).
+   · 붙여넣기 = 평문만 · ⌘B/⌘I/⌘U 는 먹는다(라벨은 평문) · Enter = 확정 · Shift+Enter = 줄바꿈 · Esc = 확정(위로 안 올린다 — 선택 풀기·도구 끄기로 새지 않게) · 바깥을 누르면(blur) 확정.
+   · 확정: innerText 를 평문으로(제어문자 걷고 앞뒤 공백 정리) dataset.countLabel 에 — 비면 키를 지운다(라벨 사라짐). 그리고 dataset 에서 다시 그린다.
+     글자가 실제로 바뀌었을 때만 히스토리 한 칸(push-after). 우측 패널의 라벨 칸도 맞춘다.
+   ⛔편집 표시(점선·글자 커서)는 CSS 가 한다(css/editor-blocks.css) — 여기서 인라인 style 을 쓰지 않는다(직렬화에 굳는다).
+   ⚠️번호 글자(.sticker-text)는 여전히 편집이 안 열린다. */
+function _enterCountLabelEdit(block) {
+  if (!block || !block.dataset.count) return;
+  let lab = block.querySelector(':scope > .sticker-count-label');
+  if (lab && lab.isContentEditable) return;      // 이미 편집 중 — 브라우저의 낱말 선택에 양보
+  if (!lab) {
+    const html = window._stickerCountLabelHTML?.(block, { empty: true });
+    if (!html) return;
+    block.insertAdjacentHTML('beforeend', html);
+    lab = block.querySelector(':scope > .sticker-count-label');
+    if (!lab) return;
+  }
+  const before = block.dataset.countLabel ?? '';
+  lab.setAttribute('contenteditable', 'true');
+  lab.focus();
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  const range = document.createRange();
+  range.selectNodeContents(lab);
+  sel.addRange(range);
+
+  const finish = () => {
+    lab.removeEventListener('blur', finish);
+    lab.removeEventListener('keydown', onKey);
+    lab.removeEventListener('paste', onPaste);
+    lab.removeAttribute('contenteditable');
+    const t = (lab.innerText || lab.textContent || '')
+      .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '')
+      .trim();
+    if (t) block.dataset.countLabel = t;
+    else delete block.dataset.countLabel;
+    window.renderStickerBlock?.(block);
+    if (block.classList.contains('selected')) _addCornerHandles(block);   // 그리기가 innerHTML 을 갈아 끼워 손잡이가 사라진다
+    const propInp = document.querySelector('#stk-count-label');
+    if (propInp && document.querySelector('.sticker-block.selected') === block) propInp.value = block.dataset.countLabel ?? '';
+    if ((block.dataset.countLabel ?? '') !== before) {
+      window.pushHistory?.('마킹 라벨');
+      window.scheduleAutoSave?.();
+    }
+  };
+  const onKey = (ev) => {
+    if (ev.isComposing) return;                  // 한글 조합 중의 Enter/Esc 는 조합의 것
+    /* 라벨은 평문이다 — ⌘B/⌘I/⌘U 가 편집 동안 서식 태그를 만들지 않게 먹는다(전역 단축키로도 안 올린다). (2차 · D7) */
+    if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && ['b', 'i', 'u'].includes((ev.key || '').toLowerCase())) { ev.preventDefault(); ev.stopPropagation(); return; }
+    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); ev.stopPropagation(); lab.blur(); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); lab.blur(); }
+  };
+  /* 붙여넣기는 평문만(2차 · D7) — contenteditable="true" 라 그냥 두면 서식·그림이 편집 «동안» 라벨 안에 html 로 들어간다
+     (확정은 innerText 평문이라 저장값은 안전했지만 화면이 잠깐 깨진다). js/blocks/line-host.js onPaste 와 같은 꼴. */
+  const onPaste = (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const t = (ev.clipboardData?.getData('text/plain') || '').replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '');
+    if (t) document.execCommand('insertText', false, t);
+  };
+  lab.addEventListener('blur', finish);
+  lab.addEventListener('keydown', onKey);
+  lab.addEventListener('paste', onPaste);
+}
+window._enterCountLabelEdit = _enterCountLabelEdit;
 window.bindStickerSelect = bindStickerSelect;
 
 // ESC/v로 deselect

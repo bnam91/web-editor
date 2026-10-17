@@ -111,7 +111,8 @@ test('P0 전제 — 공용 부품·프리셋·상한이 판에 있다', () => {
     '상한 120/섹션 — ★현빈 2026-10-08 「60개 말고 ★120개까지하자 최대」'
     + ' (★옛 값: 320 → 60(2026-10-07 「개수는 상한 60개로 하자」) → ★120)');
   assert.deepEqual([...F.KINDS], ['star', 'gold', 'party', 'dust']);
-  assert.deepEqual([...F.SHAPES], ['rect', 'ribbon', 'circle', 'star4', 'tri']);
+  /* ★여섯째 모양 「coin」 — 1012t1 I1-B(코인 레시피). ⛔프리셋 명부(KINDS)는 그대로 넷이다 — 코인은 프리셋이 아니라 레시피다. */
+  assert.deepEqual([...F.SHAPES], ['rect', 'ribbon', 'circle', 'star4', 'tri', 'coin']);
   assert.equal(F.RANGES.count.max, F.MAX_COUNT, '범위 표와 상한이 «한 수»다');
 });
 

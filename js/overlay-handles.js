@@ -422,6 +422,9 @@ function _onHandleMouseDown(e, ss, dir) {
     document.removeEventListener('mouseup', onUp);
     /* ★끝 상태를 찍는다(기존 호출 유지). 시작 상태는 onMove 의 arm() 이 찍는다 —
        드래그는 «양쪽 끝»을 다 남겨야 어느 이웃 규약을 만나도 표본이 안 빈다(js/drag-history.js). */
+    /* 버즈(1012t1Z5 D-1) — 손잡이를 놓았을 때 말풍선이 프레임 밖이면 같은 무늬번호로 안에 다시 맞춘다(안 나갔으면 무동작).
+       ⛔끝 표본 «앞»이어야 한다 — 크기 변경과 다시 놓기가 히스토리 한 칸이 된다. */
+    window.refitBuzzOnResize?.(ss);
     window.pushHistory?.();
   }
   document.addEventListener('mousemove', onMove);
@@ -809,6 +812,8 @@ let _assetResizeBlock = null;
 let _assetResizeRafId = null;
 
 function showAssetResizeHandles(ab) {
+  /* ★1013t2A2 — 콜라보 켠 로고는 폭이 «칸 수»로 정해진다(모서리로 폭을 끌면 칸이 어긋난다) ⇒ 크기 핸들을 안 단다. 높이는 패널. */
+  if (ab?.dataset?.collab) { hideAssetResizeHandles(); return; }
   if (_assetResizeBlock === ab) return;
   hideAssetResizeHandles();
   _assetResizeBlock = ab;

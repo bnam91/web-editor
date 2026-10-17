@@ -90,6 +90,7 @@
 
 import { insertAfterSelected, genId, showNoSelectionHint } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
+import { fontChain } from '../props/prop-text-utils.js';
 
 /* ★부호 8종 — ★시안 goditor-quote-block.html 의 그 여덟이다(모양 줄 :qm-1~qm-8).
    ⛔순서를 바꾸지 마라 — 패널 단추 순서다.
@@ -135,7 +136,11 @@ export function quoteShapesAll() {
 
 const QUOTE_DEFAULTS = Object.freeze({
   text: '',
-  ph: '빠르게 입는 하루',          /* 안내문구 — 비면 이것을 그린다(coupon placeholder 규약) */
+  /* ★1013t2A5 현빈 원문 「기본 입력된 텍스트 → (옛 안내문구) → '내용을 입력하세요'」 — ★원문대로 마침표 없음
+     (옛 문구는 ⛔js/ 에 다시 적지 않는다 — tests/unit/quote-defaults-1013t2a5 U3 가 0건을 센다)
+     (이웃 CMP_ROW_HINT · GRID_CELL_DEFAULT_TEXT 는 「내용을 입력하세요.」 — 갈림을 여기 적어 둔다).
+     ★안내문구다(실제 글 아님): 저장하지 않는 값이라 ★옛 «빈» 인용구도 이 새 문구를 그린다(의도). */
+  ph: '내용을 입력하세요',          /* 안내문구 — 비면 이것을 그린다(coupon placeholder 규약) */
   shape: 'curly',
   layout: 'inline',                /* 'inline'(부호·글·부호 한 줄) | 'stack'(줄마다) */
   /* ★부호 — 글자 크기와 ★따로 간다 */
@@ -166,7 +171,10 @@ const QUOTE_DEFAULTS = Object.freeze({
        ⒊ `center` 를 ★세로에도 쓰면 ★이 블럭 안에서 `align:'center'`(가로)와 ★같은 낱말이 ★두 축을 뜻한다
      ⇒ ★★그래도 ★«갈렸다»는 사실은 ★적어 둔다 — ★합칠 때는 ★두 블럭을 ★같이 옮기고
        ★«합친 것을 재는 검사»를 ★같이 세워라(⛔한쪽만 바꾸면 ★저장본이 조용히 기본값으로 떨어진다). */
-  /* ★글 */
+  /* ★글 — ⚠️★1013t2A5: 여기 `fontSize`·`fontFamily` 는 ★«키가 없을 때 그리는 값»(옛 저장본 렌더 폴백)이다.
+     ⛔«새 블럭 기본값»으로 읽지 마라 — 새 블럭은 `QUOTE_NEW_FONT_SIZE`(36) · `quoteNewFontFamily()`(Pretendard)를
+     ★만들 때만 박는다(모달 db91f1b4 선례). ⛔`fontFamily` 를 여기서 바꾸면 ⑴ 옛 블럭 전부에 선언이 새로 붙고
+     ⑵ 패널 「기본 (시스템)」이 키를 지우는 길(prop-quote.js)이라 ★시스템 글꼴을 다시는 못 고른다. */
   fontSize: 21, textColor: '#1B1D22', weight: 400, align: 'center',
   /* ★★타이포 — 현빈 2026-10-10 `1010t2c1-②` 「우측에서는 ★타이포그래피 ★동적으로
        ★다른 텍스트블럭처럼 수정되게해줘」 ⇒ ★«다른 텍스트블럭»의 ★참값 명세 =
@@ -194,7 +202,8 @@ const QUOTE_DEFAULTS = Object.freeze({
 const QUOTE_LIMITS = Object.freeze({
   markSize: { min: 8,  max: 200 },
   /* ★1012t1H3 현빈 «간격 한도 늘려줘» — 80 → 200. 근거: ⑴ 같은 표 형제 markSize.max=200 ⑵ 이웃 블럭 간격 천장
-     GRID_GAP_MAX=200(grid-block.js) · 스텝 stb-gap 200 ⑶ 실측: 블럭 안쪽 716px 에서 기본 글이 안 눌리는 상한 269 → 200 이면 넘침 0. */
+     GRID_GAP_MAX=200(grid-block.js) · 스텝 stb-gap 200 ⑶ 실측: 블럭 안쪽 716px 에서 기본 글이 안 눌리는 상한 269 → 200 이면 넘침 0.
+     ⚠️⑶ 은 ★21px·옛 안내문구 시절 실측이다 — 1013t2A5 로 새 블럭이 36px·「내용을 입력하세요」가 된 뒤엔 ★안 쟀다. */
   gap:      { min: 0,  max: 200 },
   fontSize: { min: 10, max: 96  },
   /* ★±60 — ★부호 크기 천장(200)보다 ★작게 잡았다. ⚠️⛔이 수는 ★«줄 폭»을 잰 수가 ★아니다
@@ -202,6 +211,9 @@ const QUOTE_LIMITS = Object.freeze({
      ★그 까닭을 ★여기 적어 둔다: 다음 사람이 ★「실측값」으로 ★읽지 않게. */
   markDy:   { min: -60, max: 60 },
 });
+/* ★1013t2A5 «새로 만드는» 인용구의 글 크기 — 현빈 원문 「크기는 기본 36폰트로」.
+   ⛔QUOTE_DEFAULTS.fontSize(21)를 바꾸지 않는다 — 그건 키 없는 블럭의 렌더 폴백이다. */
+const QUOTE_NEW_FONT_SIZE = 36;
 const clampQuote = (v, lim) => Math.min(lim.max, Math.max(lim.min, Math.round(Number(v) || 0)));
 
 const _QT_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
@@ -225,6 +237,20 @@ function _col(block, key, def) {
    ⚠️★사본이다 — ★그 파일은 ★제 상수를 ★안 내보낸다(export 0). ★합치려면 ★모달 파일을 건드려야 하고
      ★그건 ★이 레인 밖이다 ⇒ ★갈림을 ★여기 적어 둔다(형광펜 색과 ★같은 자리의 ★같은 병). */
 const _QT_FONT_RE = /^[\w\s,'"\-().가-힣]+$/;
+/* ★1013t2A5 «새로 만드는» 인용구의 글꼴 — 현빈 원문 「quato블럭 기본 폰트 시스템이 아닌 프리텐다드로」.
+   ★꼴은 ★모달 `modalNewFontFamily`(modal-block.js · db91f1b4) 와 한 벌: `fontChain('Pretendard')` 를 ★같은 출처에서 받는다
+     (`_font-picker.js` 의 Pretendard 항목 value 와 같아야 패널이 「Pretendard」로 맞는다) · ⛔리터럴 폴백 없음 —
+     읽기 실패면 `''` ⇒ 아무것도 안 박고 상속(= 옛 화면). 한 번만 읽고 기억한다.
+   ★옛 저장본은 이 함수를 ★지나가지 않는다 — 로드는 makeQuoteBlock 이 아니라 renderQuoteBlock 이다(save-load). */
+let _qtNewFontMemo;
+function quoteNewFontFamily() {
+  if (_qtNewFontMemo !== undefined) return _qtNewFontMemo;
+  let v;
+  try { v = fontChain('Pretendard'); } catch { v = undefined; }
+  v = (typeof v === 'string') ? v.trim() : '';
+  _qtNewFontMemo = (v && _QT_FONT_RE.test(v)) ? v : '';
+  return _qtNewFontMemo;
+}
 function _font(block, def) {
   const v = String(block?.dataset?.fontFamily ?? '').trim();
   return (v && _QT_FONT_RE.test(v)) ? v : def;
@@ -501,7 +527,7 @@ function makeQuoteBlock(opts = {}) {
   block.dataset.preOn = (opts.preOn === false) ? '0' : '1';
   block.dataset.postOn = (opts.postOn === false) ? '0' : '1';
   block.dataset.fontSize = String(clampQuote(
-    Number.isFinite(Number(opts.fontSize)) ? Number(opts.fontSize) : QUOTE_DEFAULTS.fontSize, QUOTE_LIMITS.fontSize));
+    Number.isFinite(Number(opts.fontSize)) ? Number(opts.fontSize) : QUOTE_NEW_FONT_SIZE, QUOTE_LIMITS.fontSize));
   block.dataset.textColor = (typeof opts.textColor === 'string' && _QT_COLOR_RE.test(opts.textColor.trim()))
     ? opts.textColor.trim() : QUOTE_DEFAULTS.textColor;
   block.dataset.weight = String(Number.isFinite(Number(opts.weight)) ? Number(opts.weight) : QUOTE_DEFAULTS.weight);
@@ -513,7 +539,9 @@ function makeQuoteBlock(opts = {}) {
      살면 ★dataset 이 비고, ★나중에 기본값을 바꿀 때 ★이미 만든 블럭이 ★같이 움직인다).
      ★나머지는 ★«정했을 때만» 박는다 — ⛔빈 값을 박으면 ★`fontFamily:;` 같은 ★죽은 선언이 ★저장본에 쌓인다. */
   block.dataset.lineHeight = String(Number.isFinite(Number(opts.lineHeight)) ? Number(opts.lineHeight) : QUOTE_DEFAULTS.lineHeight);
+  /* ★1013t2A5 — «새로 만드는» 인용구만 Pretendard 로 태어난다(모달 선례). 옛 저장본은 여기를 안 지난다. */
   if (typeof opts.fontFamily === 'string' && opts.fontFamily.trim()) block.dataset.fontFamily = opts.fontFamily.trim();
+  else { const _nf = quoteNewFontFamily(); if (_nf) block.dataset.fontFamily = _nf; }
   if (Number.isFinite(Number(opts.letterSpacing))) block.dataset.letterSpacing = String(Number(opts.letterSpacing));
   for (const k of ['bold', 'italic', 'strike']) if (opts[k]) block.dataset[k] = '1';
   if (typeof opts.text === 'string') block.dataset.text = opts.text;

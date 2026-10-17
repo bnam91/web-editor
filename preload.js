@@ -172,6 +172,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Assets 트리 — 디스크 분리 (project/<id>/assets/ast_xxx.<ext>)
   assetsSaveFile:   ({ projectId, b64, mime, originalName }) => ipcRenderer.invoke('assets:saveFile',   { projectId, b64, mime, originalName }),
   assetsReadFile:   ({ projectId, blobPath })                => ipcRenderer.invoke('assets:readFile',   { projectId, blobPath }),
+  assetsReadBundled: ({ bundled })                          => ipcRenderer.invoke('assets:readBundled', { bundled }),   // 1013t2A4 앱 동봉 에셋(assets/textures/**)
   assetsDeleteFile: ({ projectId, blobPath })                => ipcRenderer.invoke('assets:deleteFile', { projectId, blobPath }),
   // 캔버스 이미지 외부화 — content-hash dedup 저장, goya-asset:// URL 반환
   assetsSaveCanvasImage: ({ projectId, b64, mime })          => ipcRenderer.invoke('assets:saveCanvasImage', { projectId, b64, mime }),

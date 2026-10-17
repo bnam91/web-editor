@@ -1,5 +1,5 @@
 /* e80-fix.dom.spec.js — E80 고침(처방 ⒤: 끝만 찍던 삭제 넷에 앞 «삭제 전» 체크포인트)의 짝 시험.
- *   F-K2 서브섹션 삭제(editor.js) · F-K6 행 삭제 · F-K7 열 삭제 · F-U1 월계 줄 삭제(prop-laurel.js) + F-U4 어노테이션(앞만 — 가설 대조, 고침 대상 아님).
+ *   F-K2 서브섹션 삭제(editor.js) · F-K6 행 삭제 · F-K7 열 삭제 · F-U1 월계 줄 삭제(★1013t1B2 부터 캔버스 줄 고르기 + ⌫ — line-host) + F-U4 어노테이션(앞만 — 가설 대조, 고침 대상 아님).
  * 꼴: S1 의 글자 eT 편집 → topbar 진짜 클릭으로 끝냄(끝 표본 없음 · clickAt) → 그 삭제(진짜 손) → [⌘Z 직전 재기] → ⌘Z 1.
  * 단언 둘(E80_FIX 가 있을 때):
  *   ⒜ 결과 — E80_FIX=1: 편집 남음 · E80_FIX=0(고치기 전 판): 사라짐
@@ -115,14 +115,25 @@ test('F-K7 열 삭제(⌘클릭 둘)', async ({ page }) => {
 });
 test('F-U1 월계 줄 삭제', async ({ page }) => {
   await scene(page, ``);
-  const ok = await page.evaluate(() => { window.selectSection(document.getElementById('S2')); window.addLaurelBlock?.({ cells: [{ lines: [{ text: '첫' }, { text: '둘' }] }] }); const b = document.querySelector('#S2 .laurel-block'); if (b) b.id = 'xL';
+  const ok = await page.evaluate(() => { window.selectSection(document.getElementById('S2')); window.addLaurelBlock?.({ cells: [{ lines: [{ text: '첫' }, { text: '둘' }] }] }); const b = document.querySelector('#S2 .laurel-block'); if (b) b.id = 'lrb_xL';   /* ★1013t1B2 — 줄 삭제가 이제 모델 문(updateLaurelBlock)을 지나고, 그 문은 id 가 lrb_ 로 시작해야 받는다 */
     window.deselectAll?.(); window.applyPageSettings?.(); window.clearHistory?.(); return !!b; });
   expect(ok, '전제 — 월계 블럭').toBe(true);
   await editAndEndWithoutRecord(page);
-  const l = await rect(page, '#xL'); await clickAt(page, l.l + l.w / 2, l.t + l.h / 2, { sel: '#xL, #xL *' }, { label: '월계 고름' }); await page.waitForTimeout(250);
-  if (!(await page.locator('.lrl-line-remove').count())) await page.evaluate(() => window.showLaurelProperties?.(document.getElementById('xL')));
-  await page.locator('.lrl-line-remove').first().click(); await page.waitForTimeout(250);
-  expect(await tip(page), '갈래').toMatch(/^줄 삭제@/);
+  /* ★1013t1B2 — 월계 줄 삭제의 «손»이 바뀌었다: 패널 칸 카드의 「×」(.lrl-line-remove)는 걷혔고, 이제 그리드·버블·챗·비교와 같은
+     캔버스 2단 선택(블럭 → 줄) + ⌫(line-host lnDeleteActiveLine → updateLaurelBlock{cellLines} 문)이다.
+     ★뜻은 그대로 — 「끝 표본 없이 끝낸 편집」 뒤의 줄 삭제가 그 편집을 «앞 칸»에 남겨 ⌘Z 가 편집을 지킨다(⒜⒝). */
+  const LINE = '#lrb_xL .ln-row[data-ln-m="0"][data-ln="0"]';
+  const nLines = () => page.evaluate(() => JSON.parse(document.getElementById('lrb_xL').dataset.cells)[0].lines.length);
+  const l = await rect(page, LINE); await clickAt(page, l.l + l.w / 2, l.t + l.h / 2, { sel: '#lrb_xL, #lrb_xL *' }, { label: '월계 고름' });
+  await page.waitForFunction(() => document.getElementById('lrb_xL')?.classList.contains('selected'));
+  const l2 = await rect(page, LINE); await clickAt(page, l2.l + l2.w / 2, l2.t + l2.h / 2, { sel: '#lrb_xL, #lrb_xL *' }, { label: '월계 줄 고름' });
+  await page.waitForFunction(() => window.grdGetActiveLine?.(document.getElementById('lrb_xL'))?.li === 0);
+  const n0 = await nLines();
+  expect(n0, '전제 — 줄이 둘 이상').toBeGreaterThan(1);
+  await page.keyboard.press('Delete');
+  await expect.poll(nLines, '줄 하나가 빠졌다').toBe(n0 - 1);
+  expect(await page.evaluate(() => document.querySelectorAll('#S2 .laurel-block').length), '블럭은 그대로(줄만 지웠다)').toBe(1);
+  expect(await tip(page), '갈래 — laurel 모델 문(updateLaurelBlock 끝 표본)').toMatch(/^(블럭 수정|Laurel 수정)@/);
   judge('F-U1', await finish(page, 'F-U1', '월계 줄 삭제'));
 });
 test('F-U4 어노테이션 삭제(앞만 — 가설 대조 · 고침 대상 아님)', async ({ page }) => {

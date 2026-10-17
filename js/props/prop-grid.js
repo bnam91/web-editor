@@ -9,6 +9,7 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
          gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_EMPTY_RADIUS, GRID_BADGE_RADIUS, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES, gridBlockOutline, GRID_OUTLINE_SIDES,
+         GRID_BORDER_EDGES, GRID_IFG_PRESET_KEYS,   /* ★1013t2F — 칸 테두리 «선 자리» · 인포그래픽 프리셋 표식 명부 */
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
          GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE, GRID_WIDTH_MIN, GRID_WIDTH_MAX, gridResizeTo,
@@ -1384,13 +1385,18 @@ function _grdWireLineBar(block, addr, host = null) {
  * ★다른 블록의 「이미지 선택…」과 같은 방식(FileReader→dataURL)을 재사용한다
  *   (prop-simple-card.js cvb-card-img-btn · prop-zoom.js 선례). goya-asset:// 외부화는
  *   여기서 하지 않는다(그 둘도 안 한다 — 외부화는 저장 시점의 별도 관심사). */
-function _grdImageSectionHtml(anyHit, block) {
+/* ★1013t1B2 C4 — 주인(host)을 받는다(laurel 이 첫 «남의 주인»). ⛔host 를 안 주면(그리드) 산출 바이트 그대로 —
+ *   tests/dom/bt2-safety T6 골든(tests/dom/fixtures/bt2-grid-panel-golden.json)이 증인.
+ *   남의 주인(foreign)에서 다른 것: 폭(%)·「이미지 표시/내용 자르기」 절 숨김(크기 = 높이 하나 · 결정 B2-4) · 높이 잠금 없음
+ *   (laurel 렌더가 높이를 «읽는다» — grid 의 E157 무시 규칙이 아니다) · 원 줄(채움·글자) 없음(그 손잡이는 grid 렌더 전용). */
+function _grdImageSectionHtml(anyHit, block, host = null) {
   if (!anyHit || anyHit.li === null || !anyHit.line || anyHit.line.type !== 'image') return '';
+  const foreign = !!host && host.kind !== 'grid';
   const { r, c, line } = anyHit;
   const h = Number(line.height) || '';
   const rad = Number(line.radius) || '';
   /* ★panel-height-disable — «크롭 없음» = 렌더러(grid-block.js _gridLineHtml 의 `cropped`)와 같은 판정: 세 값 중 하나라도 수면 크롭. 원은 따로(지름). */
-  const hLocked = line.imgShape !== 'circle' && ![line.imgSizePct, line.imgPosX, line.imgPosY].some(v => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v)));
+  const hLocked = !foreign && line.imgShape !== 'circle' && ![line.imgSizePct, line.imgPosX, line.imgPosY].some(v => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v)));
   /* ★2026-09-25 R6 — `widthPct` 는 «모델·렌더러가 이미 읽는» 이름인데 패널엔 그 값을 주는
    *   손잡이가 «0개»였다. 명부(grid-block.js GRID_LINE_FIELDS)에 있고, `_gridLineHtml` 이
    *   `Number(line.widthPct)` 를 읽고, 바로 아래 줄 꾸미기 절의 `imgFull` 판정도 그 값을 읽는다.
@@ -1407,7 +1413,7 @@ function _grdImageSectionHtml(anyHit, block) {
    * ⛔사각↔원 «바꾸기» 단추를 이 절에 두지 않는다 — 2026-09-25 현빈 「캔버스에서 다 직관적으로 조작이 가능한거잖아?」로
    *   이 절의 단추를 «이미지 선택/교체» 하나로 줄였다(grid-img-crop P1 이 잠금). 바꾸기는 캔버스 우클릭
    *   (#bcm-grid-img-circle — 이미지 줄 위에선 「원형으로/사각으로 바꾸기」)에 있다. 숨긴 칸도 «줄은 남는다»(P1 의 줄 수 4). */
-  const circle = line.imgShape === 'circle';
+  const circle = !foreign && line.imgShape === 'circle';
   /* ══ ★★G20 원 «채움색» · 원 «안 글자» (현빈 2026-10-07 · 길은 지디 ⒜「작은 길」 ＋ ㉠-a) ════════════
    * ★★왜 ★패널이고 ★캔버스가 아닌가 (지디 2026-10-07 ㉠-a 판정 — ⛔되돌리기 전에 이 네 줄을 읽어라)
    *   원형 줄의 ★더블클릭은 ★이미 ★둘 다 차 있다(실측 js/block-drag.js 2306~2319 ＋ 그 위 가지):
@@ -1471,13 +1477,13 @@ function _grdImageSectionHtml(anyHit, block) {
       <div class="prop-row">
         <button id="grd-img-pick-btn" class="prop-btn-full">${line.imgSrc ? '이미지 교체…' : '이미지 선택…'}</button>
       </div>
-      <div class="prop-row"${circle ? ' style="display:none"' : ''}>
+      <div class="prop-row"${(circle || foreign) ? ' style="display:none"' : ''}>
         <span class="prop-label" title="칸 안에서 그림이 차지하는 가로 폭(%). 100 이면 정렬이 안 보인다 — 줄일 데가 없어서다. 비우면 100.">폭(%)</span>
         <input type="number" class="prop-number" id="grd-img-width-pct" min="${IMG_MIN_PCT}" max="100" placeholder="100" value="${wp}">
       </div>
       <div class="prop-row">
         <span class="prop-label">${circle ? '지름(px)' : '높이(px)'}</span>
-        <input type="number" class="prop-number" id="grd-img-height" min="0" placeholder="${circle ? GRID_IMG_CIRCLE_D : 'auto'}" value="${h}"${hLocked ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
+        <input type="number" class="prop-number" id="grd-img-height" min="0" placeholder="${circle ? GRID_IMG_CIRCLE_D : foreign ? (host.imgDefaultH || 'auto') : 'auto'}" value="${h}"${hLocked ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
       </div>${/* ★panel-height-disable(2026-10-06 · APPROVED_BY: 지디 panel-height-disable) — E157 뒤 크롭 없는 그림 줄은 height 를 «그릴 때 무시»한다.
             칸이 열려 있으면 넣은 값이 «저장만» 되고 화면은 안 바뀐다(실측 B1: 645→645 · height:300 저장). ⇒ 막고 까닭을 보인다(말풍선 상하 여백 칸 선례 —
             prop-text-template.js txt-pv-bubble-hint). ⛔크롭 길로 커밋하는 ⒥ 는 새 동작 — 다음 판. 원(지름)·크롭된 줄은 그대로 읽으니 안 막는다.
@@ -1490,7 +1496,7 @@ function _grdImageSectionHtml(anyHit, block) {
              (바로 위 높이 칸이 GRID_IMG_CIRCLE_D 로 같은 꼴을 이미 쓴다 — 새 관용구 0.) */ ''}
         <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="${line.imgSrc ? 0 : GRID_IMG_EMPTY_RADIUS}" value="${rad}">
       </div>${circleRows}
-    </div>${_grdImageClipSectionHtml(anyHit, block)}`;
+    </div>${foreign ? '' : _grdImageClipSectionHtml(anyHit, block)}`;
 }
 
 /* ══ ★1012t1 B1 「내용 자르기」 (현빈 1010t1c2 ㈁ — 그리드 이미지줄) ═══════════════════════
@@ -1523,8 +1529,9 @@ function _grdImageClipSectionHtml(anyHit, block) {
     </div>`;
 }
 
-function _grdWireImageSection(block, addr) {
-  const hit = _grdResolveAnyAddr(block, addr);
+function _grdWireImageSection(block, addr, host = null) {
+  const foreign = !!host && host.kind !== 'grid';   // ★1013t1B2 C4 — 위 _grdImageSectionHtml 머리말
+  const hit = foreign ? host.resolveAny(addr) : _grdResolveAnyAddr(block, addr);
   if (!hit || hit.li === null || !hit.line || hit.line.type !== 'image') return;
   const { r, c, li } = hit;
 
@@ -1540,7 +1547,9 @@ function _grdWireImageSection(block, addr) {
       /* ★E91 — 값은 grdPickedImageSrc 한 벌(자산 URL · 없으면 data URL). */
       grdPickedImageSrc(file).then(got => {
         if (!got) return;
-        grdToastImgFail(window.updateGridBlock?.(block.id,
+        /* ★1013t1B2 — 남의 주인은 «그 주인의 문»(patchLine)으로 쓴다. ⛔trusted 는 그리드 문의 문자열 캡(GRID_IMG_MAX_CHARS) 면제다 —
+           남의 문엔 그 캡이 없다(laurel cellLines 는 MCP 에 안 열렸다 · 결정 B2-9). 게이트(grdImageFileOk)는 위에서 한 벌로 같이 지난다. */
+        grdToastImgFail(foreign ? host.patchLine(r, c, li, { imgSrc: got.src }) : window.updateGridBlock?.(block.id,
           { patchCell: { r, c, lineIndex: li, imgSrc: got.src } }, { trusted: true }));
       });
     };
@@ -1556,6 +1565,7 @@ function _grdWireImageSection(block, addr) {
       const raw = String(e.target.value).trim();
       const v = raw === '' ? undefined : Math.max(lo, Math.min(hi, parseInt(raw, 10) || 0));
       window.pushHistory?.();
+      if (foreign) { host.previewLine(r, c, li, { [field]: v }); host.mark(addr); window.scheduleAutoSave?.(); return; }   // ★1013t1B2 — 남의 주인(코너 핸들은 그리드 전용)
       gridPreviewLine(block, r, c, li, { [field]: v }, addr.np);
       _grdSyncLineMark(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
       window.scheduleAutoSave?.();
@@ -2832,7 +2842,61 @@ function _borderRowHtml(bd) {
       <div class="prop-row">
         <span class="prop-label" title="파선·점선은 «조용히 실선으로» 떨어지지 않는다 — 저장값 그대로 그려진다">선 꼴</span>
         <select class="prop-select" id="grd-border-style" title="선 꼴">${styleOpts}</select>
-      </div>`;
+      </div>${_borderEdgesRowHtml(bd)}`;
+}
+
+/* ══ 칸 테두리 «선 자리» (1013t2F · 2026-10-14) — 현빈 지적: 「구분선 스타일의 … 윗변과 칼럼로우 중간 구분선들,
+ *   우측패널에서 이걸로 조절이 안 되네」. 프로토는 그 선을 CSS 로 고정했다 — 제품은 «이 절의 데이터»다.
+ * ★모델·읽는 문은 grid-block.js(gridCellBorder().edges · dataset.cellBorderEdges) 하나 — 여기선 목록을 만들어 updateGridBlock «한 문»으로.
+ * ★굵기·색·꼴은 바로 위 세 줄을 그대로 따른다(새 손잡이 0 · 현빈 ⒝). 그래서 굵기 0 이면 이 줄도 안 낸다(위 색·꼴과 같은 술어 —
+ *   G2 패널 순증 합격선 +60 · 켠 상태 폭은 grid-cell-border S7 이 잰다).
+ * ★「블럭 외곽선」(바깥 네 변)과 다른 축임을 title 이 말한다(현빈 ⒞) · ⛔새 아이콘 0(이 파일 머리말) — 글자 단추와 기존 부품만.
+ * ★「칸 사이」 단추는 1열이면 누를 데가 없다 → disabled(괘선 칩 «안 난다» 선례). */
+function _borderEdgesRowHtml(bd) {
+  const lines = !!bd.edges;
+  const on = (e) => lines && bd.edges.includes(e);
+  const mode = (m, ko, active, title) => `<button type="button" class="prop-type-btn${active ? ' active' : ''}" data-edges-mode="${m}" aria-pressed="${active ? 'true' : 'false'}" title="${title}">${ko}</button>`;
+  /* 켜짐/꺼짐이 «보이게» — 바로 위 「네 변|구분선」과 같은 prop-type-btn(.active = 강조색). prop-btn-sm 엔 .active 꼴이 없었다(이벨 D-1). */
+  const edge = (e, ko, title, disabled) => `<button type="button" class="prop-type-btn${on(e) ? ' active' : ''}" data-edge="${e}"
+              aria-pressed="${on(e) ? 'true' : 'false'}"${disabled ? ' disabled' : ''} title="${title} — 굵기·색·꼴은 위 값을 따릅니다">${ko}</button>`;
+  const noVsep = !(Number(bd.nCols) > 1);
+  return `
+      <div class="prop-row">
+        <span class="prop-label" title="선을 어디에 긋나 — 블럭 «바깥» 네 변은 아래 「블럭 외곽선」이 따로 켭니다">선 자리</span>
+        <div class="prop-type-group" id="grd-border-edges-mode" role="group" aria-label="칸 테두리 선 자리" style="flex:1;min-width:0;margin-bottom:0;">
+          ${mode('box', '네 변', !lines, '네 변 — 칸마다 네 변(표·카드)')}
+          ${mode('lines', '구분선', lines, '구분선 — 칸 위 변 · 칸 사이 세로 선만(바깥 좌우·아래는 안 긋습니다)')}
+        </div>
+      </div>${lines ? `
+      <div class="prop-row" id="grd-border-edges">
+        <span class="prop-label">구분선</span>
+        <div class="prop-type-group" role="group" aria-label="구분선 켜기/끄기" style="flex:1;min-width:0;margin-bottom:0;">
+          ${edge('top', '위 변', '칸 위 변(첫 행은 블럭 위 변 자리 · 나머지는 행 사이 선) 켜기/끄기', false)}
+          ${edge('vsep', '칸 사이', noVsep ? '1열이라 칸 사이가 없습니다' : '칸 사이 세로 선 켜기/끄기', noVsep)}
+        </div>
+      </div>` : ''}`;
+}
+
+/* ══ 인포그래픽 「레이아웃 프리셋」 절 (1013t2F) — 표식(data-ifg-preset) 있는 그리드에서만, 머리 절 바로 아래.
+ * ★적용은 window.applyIfgPreset(js/blocks/grid-infographic.js) — updateGridBlock «한 문»(⌘Z 1회).
+ *   ⛔이 파일이 grid-infographic.js 를 import 하지 않는다 — 단위 하네스 여럿이 이 파일의 import 그래프를 손으로 세운다.
+ *   그래서 이름표도 그 모듈이 window 에 건 표(GRID_IFG_PRESETS)에서 «부를 때» 읽는다(없으면 키 그대로).
+ * ★표식이 없으면 «빈 문자열» — 보통 그리드 패널은 한 바이트도 안 바뀐다(bt2-grid-panel-golden). */
+function _grdIfgSectionHtml(block) {
+  const cur = block && block.dataset ? block.dataset.ifgPreset : '';
+  if (!GRID_IFG_PRESET_KEYS.includes(cur)) return '';
+  const label = (k) => (window.GRID_IFG_PRESETS && window.GRID_IFG_PRESETS[k] && window.GRID_IFG_PRESETS[k].label) || k;
+  const btn = (k) => `<button type="button" class="prop-type-btn${cur === k ? ' active' : ''}" data-ifg-pick="${k}" aria-pressed="${cur === k ? 'true' : 'false'}">${label(k)}</button>`;
+  return `
+    <div class="prop-section">
+      <div class="prop-section-title" title="인포그래픽 — 배치·글자·간격·칸 테두리를 한 번에 바꿉니다(글·아이콘은 그대로 · ⌘Z 한 번). 바꾼 뒤 선은 「모든 칸 테두리」에서 고칩니다">인포그래픽</div>
+      <div class="prop-row">
+        <span class="prop-label" title="레이아웃 프리셋">프리셋</span>
+        <div class="prop-type-group" id="grd-ifg-preset-group" role="group" aria-label="레이아웃 프리셋" style="flex:1;min-width:0;margin-bottom:0;">
+          ${GRID_IFG_PRESET_KEYS.map(btn).join('\n          ')}
+        </div>
+      </div>
+    </div>`;
 }
 
 /* ══ Typography·Fill 절 — 마크업은 «부품»이 낸다 ═══════════════════════════
@@ -3012,9 +3076,19 @@ function _grdWireTypo(block, addr, host = null) {
     const a = Math.max(0, Math.min(1, _alpha / 100));
     return a >= 1 ? (cPick?.value || '#000000') : `rgba(${r},${g},${b},${a})`;
   };
+  /* ★1013t1B1② «부분 색» — 줄 글자 일부를 고른 채(편집 중 선택 · 패널로 가는 blur 는 세움) 색을 바꾸면 «고른 부분만».
+       텍스트블럭과 같은 길(저장 선택 → window.applyColorToSelection span → 커밋 식으로 textHtml) — 몸통은 line-host.js 한 자리
+       (⛔이 파일은 line-host 를 import 못 한다 — 순환 · unit 하네스). 선택이 없으면 false ⇒ 옛 갈래(줄 전체 color). */
+  const partialColor = (cc) => {
+    if (!window.lnApplyLinePartialColor?.(block, H, addr, cc, begin)) return false;
+    H.mark(addr);
+    H.refreshSummary(addr);
+    return true;
+  };
   const applyColor = () => {
     const cc = buildColor();
     if (cSwatch) cSwatch.style.background = cc;
+    if (partialColor(cc)) return;
     begin();                       // ★연속 input 의 «첫» 한 번만 히스토리를 찍는다
     setLine({ color: cc });
   };
@@ -3059,7 +3133,7 @@ function _grdWireTypo(block, addr, host = null) {
       getActiveName: () => parseColorVarName((H.line(addr) || {}).color || ''),
       getFallbackHex: (name, hex) => hex,
       onPick: (cssRef) => {
-        commit({ color: cssRef });
+        if (partialColor(cssRef)) end(); else commit({ color: cssRef });   // ★1013t1B1② 고른 글자가 있으면 그 부분만(대체 hex)
         const fb = (String(cssRef).match(/#[0-9a-fA-F]{6}/) || [])[0];
         if (fb && cPick) { cPick.value = fb; _grdLastHex = fb; if (cHex) cHex.value = fb.replace('#', '').toUpperCase(); }
         _alpha = 100; if (cAlpha) cAlpha.value = '100';
@@ -3392,6 +3466,7 @@ export function showGridProperties(block, addrArg) {
    * 단축값으로 계속 산다(옛 프로젝트 호환), rowGap/colGap 없는 블록은 이 값으로 폴백한다. */
   const { row: _rowGap, col: _colGap } = gridGaps(block);
   const _cellBorder = gridCellBorder(block);   // ★T-172 — 읽는 문은 grid-block.js 하나뿐이다
+  _cellBorder.nCols = cols.length;              // ★1013t2F — 「칸 사이」 단추가 1열에서 죽는지(패널 표시용 · 모델 아님)
   const valign = block.dataset.valign || 'top';
   // 가로 정렬은 컬럼 모델(col.align)에 산다. 컬럼마다 다르면(혼합) 어느 버튼도 active 로 켜지 않는다.
   const _aligns = cols.map(c => c.align || 'left');
@@ -3433,7 +3508,7 @@ ${blockHeaderHTML({
       crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
       id: block.id,
     })}
-    </div>
+    </div>${_grdIfgSectionHtml(block)}
     <div class="prop-section"${_sizeOpen ? '' : ' style="padding-bottom:0;"'}>
 ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) — 칸 수 바꾸기`, _sizeOpen)}
       <div id="grd-size-body" style="display:${_sizeOpen ? 'block' : 'none'};">
@@ -3692,6 +3767,25 @@ ${_flattenRowHtml(rows, cols)}
     _bdCommit({ cellBorderStyle: bdStyleSel.value });
   });
 
+  /* ── ★1013t2F 선 자리 — 「네 변 | 구분선」 + 구분선의 [위 변][칸 사이]. 목록을 만들어 «한 문»으로(⌘Z 1회). ── */
+  propPanel.querySelectorAll('[data-edges-mode]').forEach(btn => btn.addEventListener('click', () => {
+    const toLines = btn.dataset.edgesMode === 'lines';
+    if (!!gridCellBorder(block).edges === toLines) return;   // 이미 그 모드 — 히스토리를 안 쌓는다
+    _bdCommit({ cellBorderEdges: toLines ? GRID_BORDER_EDGES.join(',') : null });
+  }));
+  propPanel.querySelectorAll('[data-edge]').forEach(btn => btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    const cur = gridCellBorder(block).edges || [];
+    const e = btn.dataset.edge;
+    const list = GRID_BORDER_EDGES.filter(k => (k === e ? !cur.includes(k) : cur.includes(k)));
+    _bdCommit({ cellBorderEdges: list.length ? list.join(',') : 'none' });
+  }));
+  /* ── ★1013t2F 인포그래픽 레이아웃 프리셋 — window.applyIfgPreset(그 모듈이 updateGridBlock 한 문으로 보낸다). ── */
+  propPanel.querySelectorAll('[data-ifg-pick]').forEach(btn => btn.addEventListener('click', () => {
+    if (btn.dataset.ifgPick === block.dataset.ifgPreset) return;
+    _grdToastCellFail(window.applyIfgPreset?.(block, btn.dataset.ifgPick));
+  }));
+
   /* 세로 정렬 — «블록 통째»(block.dataset.valign). 렌더러는 pick('valign') 가 있으면 그것을 먼저
      쓰므로(_GRID_VALIGN[pick('valign')] || blockValign), 칸/열 오버라이드가 남아 있으면 이 단추가
      그 칸에서만 «조용히 죽는다».
@@ -3807,5 +3901,7 @@ export const grdLineUi = {
   lineSectionHtml: _grdLineSectionHtml, wireLineSection: _grdWireLineSection,
   typoSectionsHtml: _grdTypoSectionsHtml, wireTypo: _grdWireTypo,
   addKindSelectHtml: _grdAddKindSelectHtml, summaryText: _grdSummaryText,
+  /* ★1013t1B2 C4 — 이미지 절(주인을 받는다) · 아이콘 SVG → data URI(K 단축키·피커 «한 벌»). */
+  imageSectionHtml: _grdImageSectionHtml, wireImageSection: _grdWireImageSection, svgToDataUri: _grdSvgToDataUri,
 };
 if (typeof window !== 'undefined') window.grdLineUi = grdLineUi;

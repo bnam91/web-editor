@@ -29,6 +29,15 @@
  *   ★M6 renderQuoteBlock stack 의 `grid-template-rows` 를 ★`-columns` 로 되돌린다 ⇒ ★Q9 빨강 기대
  *   ★M7 stack 의 `justify-items:${_qtSide(...)}` 를 ★`start` 고정으로            ⇒ ★Q10 빨강 기대
  *   ★N1(음성대조) quote-block.js ★주석 한 줄을 고친다(무해)                  ⇒ ★전부 초록 기대
+ *   ── 1013t2A5 (새 블럭 Pretendard · 36 · 「내용을 입력하세요」 — 계획 t2/plans/A5-plan.md §6) ──
+ *   MA1 makeQuoteBlock 의 `else { const _nf = quoteNewFontFamily(); … }` 를 뗀다       ⇒ ★Q23 ㉠ · Q1 빨강 기대
+ *   MA2 makeQuoteBlock 의 QUOTE_NEW_FONT_SIZE 를 QUOTE_DEFAULTS.fontSize(21)로 되돌린다 ⇒ ★Q23 ㉡ · Q5 · Q18 빨강 기대
+ *   MA3 ★QUOTE_DEFAULTS.fontFamily 에 fontChain('Pretendard') 를 넣는다(«기본값을 바꾸는» 틀린 설계)
+ *                                                                          ⇒ ★Q24 · Q25 · unit U2 빨강 기대 (Q23 은 초록일 것)
+ *   MA4 QUOTE_DEFAULTS.ph 를 옛 문구로 되돌린다                                ⇒ ★Q23 ㉢ · Q24(빈 옛 블럭) · U3 · U4 빨강 기대
+ *   MA5 makeQuoteBlock 에서 opts.text 가 없으면 dataset.text = ph(실제 글로 넣기) ⇒ ★Q23 ㉢ · Q17 ㉣ 빨강 기대
+ *   MA6 renderQuoteBlock 머리에 `if (!block.dataset.fontFamily) block.dataset.fontFamily = …Pretendard` («로드 시 박기»)
+ *                                                                          ⇒ ★Q24 · Q25 빨강 기대
  *
  * ══ ★★⚰️2026-10-09 — ★★Q4 의 불변식이 ★«죽었다»(⛔뒤집힌 것이 아니다) ════════════
  *   ★옛 문장: 「★stack — 줄마다 부호가 따라붙는다 ⇒ ★★그려진 줄 수 == ★부호 쌍 수」
@@ -86,7 +95,7 @@ test('Q1 ★컴포넌트 메뉴 함수로 만들어지고 ★상태가 dataset �
       cls: b.className, type: b.dataset.type, id: b.id,
       shape: b.dataset.shape, layout: b.dataset.layout,
       markSize: b.dataset.markSize, gap: b.dataset.gap, fontSize: b.dataset.fontSize,
-      preOn: b.dataset.preOn, postOn: b.dataset.postOn,
+      preOn: b.dataset.preOn, postOn: b.dataset.postOn, fontFamily: b.dataset.fontFamily,
       marks: b.querySelectorAll('.tb-qt-mark').length,
       lines: b.querySelectorAll('.tb-qt-line').length,
       /* ★내보내기 보험 — 글자·부호가 ★`tb-` 접두를 갖나(figma generic 폴백이 그것만 모은다) */
@@ -99,7 +108,8 @@ test('Q1 ★컴포넌트 메뉴 함수로 만들어지고 ★상태가 dataset �
   expect(m.shape, '★기본 모양 = curly').toBe('curly');
   expect(m.layout, '★기본 꼴 = inline').toBe('inline');
   /* ★전부 박혀 있어야 한다 — 안 박으면 기본값을 바꿀 때 이미 만든 블럭이 같이 움직인다 */
-  for (const k of ['markSize', 'gap', 'fontSize', 'preOn', 'postOn']) {
+  /* ★1013t2A5 — `fontFamily` 도 박힌다(새 블럭만 Pretendard · 옛 저장본은 렌더 폴백 '' 그대로 — Q23·Q24) */
+  for (const k of ['markSize', 'gap', 'fontSize', 'preOn', 'postOn', 'fontFamily']) {
     expect(m[k], `★dataset.${k} 가 박혀 있다`).toBeTruthy();
   }
   expect(m.marks, '★부호 한 쌍 = 2').toBe(2);
@@ -266,7 +276,8 @@ test('Q5 ★부호 크기를 키워도 ★글자 크기는 ★안 움직인다(�
   const before = await read();
   /* ★단언을 걸기 전에 «바꾸기 전» 값을 쥔다 — ⛔항상 참인 단언을 만들지 않는다 */
   expect(before.markPx, '★전제 — 부호 46px').toBe(46);
-  expect(before.linePx, '★전제 — 글 21px').toBe(21);
+  /* ★1013t2A5 — 새 블럭 글 크기 21 → 36 (현빈 「크기는 기본 36폰트로」 · QUOTE_NEW_FONT_SIZE) */
+  expect(before.linePx, '★전제 — 글 36px (1013t2A5 새 블럭 기본)').toBe(36);
 
   await page.evaluate(() => { window.__qt.dataset.markSize = '120'; window.renderQuoteBlock(window.__qt); });
   const big = await read();
@@ -1429,7 +1440,7 @@ test('Q18 ★★타이포그래피 절 — ★정본에서 나오고(명부) ★
   /* ★범위가 ★QUOTE_LIMITS ★한 표에서 왔나 — ⛔리터럴이면 여기서 갈린다 */
   const lim = await page.evaluate(() => window.QUOTE_LIMITS.fontSize);
   expect([cen.sizeMin, cen.sizeMax], `★크기 범위는 ★QUOTE_LIMITS 에서 온다(${JSON.stringify(lim)})`).toEqual([String(lim.min), String(lim.max)]);
-  expect(cen.sizeVal, '★크기 칸이 ★지금 값을 비춘다').toBe('21');
+  expect(cen.sizeVal, '★크기 칸이 ★지금 값을 비춘다(1013t2A5 새 블럭 = 36)').toBe('36');
   expect(cen.weightVal, '★굵기 select 가 ★모델(weight=400)을 비춘다').toBe('400');
 
   /* ── ㉡ ★닿나 (자 ㉢ — Q6·Q14 와 ★같은 자) ────────────────────────────────── */
@@ -1896,5 +1907,204 @@ test('Q22 ★1012t1H1 텍스트 드롭다운 → Quote 를 진짜 클릭하면 �
   await expect(page.locator('#fp-text-dropdown')).not.toHaveClass(/open/);
   /* toggleFpDropdown 은 «전부 닫고 인자만 연다» — 닫는 인자가 틀리면 남의 메뉴가 열린 채 남는다(음성대조: 닫는 인자를 component 로 바꾸면 빨강) */
   await expect(page.locator('.fp-dropdown.open'), '★Quote 를 누른 뒤 열린 드롭다운이 0 이다').toHaveCount(0);
+  expect(errs.map(e => String(e)), '★오류 0').toEqual([]);
+});
+
+/* ══════ 1013t2A5 ★새 인용구 기본값 — Pretendard · 36 · 「내용을 입력하세요」 (현빈 1013t2A5) ═══════════
+   ★원문: 「quato블럭 기본 폰트 시스템이 아닌 프리텐다드로 해주고, 크기는 기본 36폰트로 해줄 것
+           / 기본 입력된 텍스트 → (옛 문구) → '내용을 입력하세요'」
+   ★설계 = 모달 db91f1b4 선례(modal-font.dom.spec.js T1-NEW / T1-OLD 꼴): ★만들 때만 새 값을 박는다.
+     QUOTE_DEFAULTS.fontFamily('')·fontSize(21)는 ★키 없는 옛 블럭의 렌더 폴백으로 ★그대로 둔다.
+   ★변이표 MA1~MA6 은 이 파일 머리말에 있다. */
+
+/** 블럭 하나를 진짜 클릭으로 골라 인용구 패널을 연다 — openPanel 과 같은 길(다른 블럭의 표식은 먼저 지운다). */
+async function openPanelFor(page, pick) {
+  await page.evaluate((p) => {
+    document.querySelectorAll('[data-pnl]').forEach(e => { delete e.dataset.pnl; });
+    window.__qt = p === 'last' ? [...document.querySelectorAll('#sQ .quote-block')].pop() : document.getElementById(p);
+  }, pick);
+  const ok = await page.evaluate(() => !!window.__qt && window.__qt.isConnected);
+  expect(ok, `★전제 — 고를 인용구(${pick})가 DOM 에 있다`).toBe(true);
+  /* ★«새로 그려진 패널»을 기다리려고 옛 표식을 치운다 — 클릭은 매번 showQuoteProperties 로 패널을 다시 짓는다(block-drag.js) */
+  await page.evaluate(() => { document.getElementById('qt-shape-group')?.remove(); });
+  await openPanel(page);
+  const pid = await page.evaluate(() => document.querySelector('#panel-right .prop-block-id')?.dataset.copyId ?? null);
+  const want = await page.evaluate(() => window.__qt.id);
+  expect(pid, '★전제 — 열린 패널이 «그» 블럭의 것이다(헤더 id)').toBe(want);
+}
+
+/** 인용구 «글» 한 줄과 패널 글꼴·크기를 같이 읽는다. */
+const QT_READ = () => {
+  const b = window.__qt;
+  const ln = b.querySelector('.tb-qt-line');
+  const cs = ln ? getComputedStyle(ln) : null;
+  return {
+    id: b.id,
+    hasFamilyKey: Object.prototype.hasOwnProperty.call(b.dataset, 'fontFamily'),
+    dsFamily: b.dataset.fontFamily ?? null,
+    dsSize: b.dataset.fontSize ?? null,
+    dsText: b.dataset.text ?? '',
+    inlineFamily: ln ? ln.style.fontFamily : null,
+    cssFamily: cs ? cs.fontFamily : null,
+    cssSize: cs ? cs.fontSize : null,
+    lineText: ln ? ln.textContent : null,
+    isPh: ln ? ln.getAttribute('data-is-placeholder') : null,
+    phOpacity: (() => { const e = b.querySelector('[data-is-placeholder="true"]'); return e ? parseFloat(getComputedStyle(e).opacity) : null; })(),
+    panelFont: document.getElementById('qt-typo-font-name')?.textContent.trim() ?? null,
+    panelSize: document.getElementById('qt-typo-size-number')?.value ?? null,
+  };
+};
+
+/** 저장 왕복 — Q18 ㉣ 와 같은 길(outerHTML → rebindAll = 로드 경로 · save-load 는 renderQuoteBlock 만 부른다). */
+async function roundTrip(page) {
+  await page.evaluate(() => {
+    const b = window.__qt;
+    const id = b.id;
+    const host = b.parentElement;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = b.outerHTML;
+    host.replaceChild(tmp.firstElementChild, b);
+    window.rebindAll && window.rebindAll();
+    window.__qt = document.getElementById(id);
+  });
+  const ok = await page.evaluate(() => !!window.__qt && !!window.__qt.querySelector('.tb-qt-line'));
+  expect(ok, '★전제 — 왕복 뒤 블럭이 같은 id 로 다시 그려졌다').toBe(true);
+}
+
+test('Q23 ★1013t2A5 새 블럭(진짜 메뉴 클릭) = Pretendard · 36 · 안내문구 「내용을 입력하세요」(실제 글 아님)', async ({ page }) => {
+  const errs = await setup(page, { text: '먼저' });
+  const count = () => page.evaluate(() => document.querySelectorAll('#sQ .quote-block').length);
+  await page.evaluate(() => { window.deselectAll && window.deselectAll(); window.selectSection(document.getElementById('sQ')); });
+  expect(await count(), '★전제 — 인용구가 하나 있다').toBe(1);
+  /* ★Q22 의 그 길 — 텍스트 드롭다운 → Quote */
+  const t = await waitStableRect(page, '#fp-text-dropdown .fp-dropdown-trigger');
+  await clickAt(page, t.cx, t.cy, { sel: '#fp-text-dropdown .fp-dropdown-trigger' }, { label: 'Q23 Text 펼치기' });
+  const item = page.locator('#fp-text-menu .fp-menu-item', { hasText: /^Quote$/ });
+  await expect(item).toBeVisible();
+  const ib = await item.boundingBox();
+  await clickAt(page, ib.x + ib.width / 2, ib.y + ib.height / 2, { sel: '#fp-text-menu .fp-menu-item' }, { label: 'Q23 Quote 누르기' });
+  await expect.poll(count, { message: '★전제 — Quote 를 눌러 인용구가 +1' }).toBe(2);
+  await page.waitForFunction(() => document.querySelectorAll('.fp-dropdown.open').length === 0, null, { timeout: 3000 });
+
+  await openPanelFor(page, 'last');
+  const m = await page.evaluate(QT_READ);
+
+  /* ㉠ 글꼴 — 기대값은 ★같은 페이지 피커의 Pretendard 항목 값(⛔리터럴로 비교하지 않는다) */
+  const fp = await waitStableRect(page, '#qt-typo-font-trigger');
+  await clickAt(page, fp.cx, fp.cy, { sel: '[id="qt-typo-font-trigger"]' }, { label: 'Q23 글꼴 목록 열기' });
+  await page.waitForFunction(() => document.querySelectorAll('#qt-typo-font-dropdown .font-item').length > 0, null, { timeout: 3000 });
+  const pick = await page.evaluate(() => {
+    const items = [...document.querySelectorAll('#qt-typo-font-dropdown .font-item')];
+    const pre = items.find(e => (e.querySelector('.font-item-name')?.textContent || '').trim() === 'Pretendard');
+    const sel = items.find(e => e.classList.contains('selected'));
+    return { n: items.length, preVal: pre ? pre.dataset.value : null,
+      selName: sel ? (sel.querySelector('.font-item-name')?.textContent || '').trim() : null };
+  });
+  expect(pick.preVal, `★전제 — 피커에 Pretendard 항목이 있다(항목 ${pick.n})`).toBeTruthy();
+  expect(m.dsFamily, `★★새 블럭 dataset.fontFamily = 피커 Pretendard 값. 잰 값 ${JSON.stringify(m)}`).toBe(pick.preVal);
+  expect(m.inlineFamily, '★그 값이 글 줄에 인라인으로 선언됐다(_QT_FONT_RE 검문 통과)').not.toBe('');
+  expect(/^["']?Pretendard/.test(m.cssFamily || ''), `★그려진 글꼴이 Pretendard 로 시작. 잰 값 「${m.cssFamily}」`).toBe(true);
+  expect(m.panelFont, '★★패널 라벨 = 「Pretendard」').toBe('Pretendard');
+  expect(m.panelFont, '★★증상 라벨 「기본 (시스템)」이 아니다').not.toBe('기본 (시스템)');
+  expect(pick.selName, '★피커 목록에서도 Pretendard 가 선택 표시').toBe('Pretendard');
+
+  /* ㉡ 크기 36 */
+  expect(m.dsSize, '★dataset.fontSize = 36').toBe('36');
+  expect(m.cssSize, '★그려진 글 크기 36px').toBe('36px');
+  expect(m.panelSize, '★패널 크기 칸 = 36').toBe('36');
+
+  /* ㉢ 안내문구 — 실제 글이 아니다 */
+  expect(m.lineText, '★★안내문구 = 「내용을 입력하세요」(원문대로 마침표 없음)').toBe('내용을 입력하세요');
+  expect(m.isPh, '★안내문구 표식이 달렸다').toBe('true');
+  expect(m.dsText, '★★dataset.text 는 비었다 — 안내문구가 데이터가 아니다').toBe('');
+  expect(m.phOpacity !== null && m.phOpacity < 1, `★캔버스에서 흐리게 그린다. 잰 opacity ${m.phOpacity}`).toBe(true);
+
+  /* ㉣ 전제 — Pretendard 가 실제로 실렸다(load 로 끌어온 뒤 check · fonts.check 단독으로 닫지 않는다) */
+  const loaded = await page.evaluate(async () => {
+    const faces = await document.fonts.load('36px Pretendard');
+    return { faces: faces.length, check: document.fonts.check('36px Pretendard') };
+  });
+  expect(loaded.faces > 0 && loaded.check, `★전제 — Pretendard @font-face 가 실렸다. 잰 값 ${JSON.stringify(loaded)}`).toBe(true);
+  expect(errs.map(e => String(e)), '★오류 0').toEqual([]);
+});
+
+test('Q24 ★1013t2A5 옛 저장본(fontFamily 키 없음 · 21)은 안 움직인다 — 같은 판의 새 블럭과 갈린다', async ({ page }) => {
+  const errs = await setup(page);                       /* ★양성대조 — 같은 판의 새 블럭 */
+  const OLD_KEYS = ' data-type="quote" data-shape="curly" data-layout="inline"'
+    + ' data-mark-size="46" data-mark-color="#C9CDD4" data-gap="14" data-pre-on="1" data-post-on="1"'
+    + ' data-font-size="21" data-text-color="#1B1D22" data-weight="400" data-align="center"'
+    + ' data-mark-dy="0" data-v-align="middle" data-line-height="1.5"';
+  await page.evaluate((k) => {
+    const inner = document.querySelector('#sQ .section-inner');
+    inner.insertAdjacentHTML('beforeend',
+      '<div class="quote-block" id="qtOldTxt"' + k + ' data-text="옛 글"></div>'
+      + '<div class="quote-block" id="qtOldEmpty"' + k + ' data-text=""></div>');
+    window.rebindAll && window.rebindAll();              /* ★로드 경로 — makeQuoteBlock 을 지나지 않는다 */
+  }, OLD_KEYS);
+  const fresh = await page.evaluate(() => {
+    const b = [...document.querySelectorAll('#sQ .quote-block')].find(e => !/^qtOld/.test(e.id));
+    return b ? { fam: b.dataset.fontFamily ?? null, size: b.dataset.fontSize } : null;
+  });
+  expect(fresh, '★전제 — 새 블럭이 있다').not.toBe(null);
+  expect(!!fresh.fam && fresh.size === '36', `★★양성대조 — 같은 판의 새 블럭은 Pretendard·36 이다. 잰 값 ${JSON.stringify(fresh)}`).toBe(true);
+
+  for (const id of ['qtOldTxt', 'qtOldEmpty']) {
+    await openPanelFor(page, id);
+    const checkOld = async (when) => {
+      const m = await page.evaluate(QT_READ);
+      expect(m.hasFamilyKey, `★★${id}(${when}) dataset.fontFamily 키가 없다 — 로드가 새 값을 안 박았다. 잰 값 ${JSON.stringify(m)}`).toBe(false);
+      expect(m.inlineFamily, `★${id}(${when}) 글 줄에 font-family 선언이 없다(상속)`).toBe('');
+      expect(m.dsSize, `★${id}(${when}) dataset.fontSize 그대로 21`).toBe('21');
+      expect(m.cssSize, `★${id}(${when}) 그려진 크기 21px`).toBe('21px');
+      return m;
+    };
+    const m = await checkOld('로드');
+    expect(m.panelFont, `★★${id} 패널 라벨 = 「기본 (시스템)」 그대로`).toBe('기본 (시스템)');
+    expect(m.panelSize, `★${id} 패널 크기 = 21`).toBe('21');
+    if (id === 'qtOldEmpty') {
+      /* ★결정(계획 §3) — 안내문구는 저장하지 않는 값이라 옛 «빈» 인용구도 새 문구를 그린다 */
+      expect(m.lineText, '★옛 빈 인용구도 새 안내문구를 그린다').toBe('내용을 입력하세요');
+      expect(m.isPh, '★안내문구 표식').toBe('true');
+    } else {
+      expect(m.lineText, '★옛 글은 그대로').toBe('옛 글');
+    }
+    await roundTrip(page);
+    await checkOld('왕복');
+  }
+  expect(errs.map(e => String(e)), '★오류 0').toEqual([]);
+});
+
+test('Q25 ★1013t2A5 새 블럭에서도 「기본 (시스템)」을 고를 수 있고 왕복 뒤 Pretendard 로 안 돌아간다', async ({ page }) => {
+  const errs = await setup(page, { text: '안녕' });
+  await openPanelFor(page, 'last');
+  const before = await page.evaluate(QT_READ);
+  expect(before.dsFamily, `★전제 — 새 블럭은 글꼴이 박혀 있다. 잰 값 ${JSON.stringify(before)}`).toBeTruthy();
+  expect(before.panelFont, '★전제 — 라벨 Pretendard').toBe('Pretendard');
+
+  const fp = await waitStableRect(page, '#qt-typo-font-trigger');
+  await clickAt(page, fp.cx, fp.cy, { sel: '[id="qt-typo-font-trigger"]' }, { label: 'Q25 글꼴 목록 열기' });
+  await page.waitForFunction(() => document.querySelectorAll('#qt-typo-font-dropdown .font-item').length > 0, null, { timeout: 3000 });
+  /* ⚠️고르기는 mousedown 이다(Q18 의 그 경로) — 진짜 마우스로 누른다 */
+  const sys = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('#qt-typo-font-dropdown .font-item')]
+      .find(e => (e.querySelector('.font-item-name')?.textContent || '').trim() === '기본 (시스템)');
+    if (!el) return null;
+    el.scrollIntoView({ block: 'nearest' });
+    const r = el.getBoundingClientRect();
+    return { cx: r.left + Math.min(40, r.width / 3), cy: r.top + r.height / 2, val: el.dataset.value };
+  });
+  expect(sys, '★전제 — 목록에 「기본 (시스템)」 항목이 있다').not.toBe(null);
+  expect(sys.val, '★전제 — 그 항목 값은 빈 값').toBe('');
+  await clickAt(page, sys.cx, sys.cy, { sel: '.font-item' }, { label: 'Q25 기본 (시스템)' });
+  await page.waitForFunction(() => !Object.prototype.hasOwnProperty.call(window.__qt.dataset, 'fontFamily'), null, { timeout: 3000 })
+    .catch(() => { throw new Error('★「기본 (시스템)」을 골랐는데 dataset.fontFamily 가 안 지워졌다'); });
+  const after = await page.evaluate(QT_READ);
+  expect(after.inlineFamily, `★★인라인 font-family 선언이 없다(렌더 폴백 '' 로 떨어짐). 잰 값 ${JSON.stringify(after)}`).toBe('');
+  expect(after.panelFont, '★라벨 = 「기본 (시스템)」').toBe('기본 (시스템)');
+
+  await roundTrip(page);
+  const rt = await page.evaluate(QT_READ);
+  expect(rt.hasFamilyKey, `★★왕복 뒤에도 Pretendard 로 되돌아가지 않는다. 잰 값 ${JSON.stringify(rt)}`).toBe(false);
+  expect(rt.inlineFamily, '★왕복 뒤에도 선언 없음').toBe('');
   expect(errs.map(e => String(e)), '★오류 0').toEqual([]);
 });

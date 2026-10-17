@@ -1823,6 +1823,17 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
      ⚠️블럭 제 배경은 ★★블럭에 있고 ★이 틴트는 ★★슬롯에 간다 ⇒ ★★블럭 배경을 ★안 덮는다. */
 #canvas .modal-block [data-mdl-slot][contenteditable="true"] { cursor: text; background: var(--sel-color-fill); }
 
+/* ── 버즈(1012t1Z5) 깊이 — 프레임의 data-buzz-depth × row 의 data-buzz-far ──
+   뒤쪽 말풍선을 작고 흐리게. row 에 건다 — 모달의 인라인 스타일은 재렌더가 통째로 갈기 때문이다.
+   캔버스 범위 접두를 붙이지 않는다: 내보낸 HTML 과 PNG 캡처 클론에도 같은 규칙이 닿아야 한다.
+   값은 «콘텐츠»의 생김새(축소 · 투명도 · 흐림)다 — 에디터 크롬 토큰과 무관하다. */
+.frame-block[data-buzz-depth="weak"] > .row[data-buzz-far="1"] { opacity: 0.9; }
+.frame-block[data-buzz-depth="weak"] > .row[data-buzz-far="2"] { transform: scale(0.92); opacity: 0.72; }
+.frame-block[data-buzz-depth="strong"] > .row[data-buzz-far="1"] { transform: scale(0.9); opacity: 0.8; }
+.frame-block[data-buzz-depth="strong"] > .row[data-buzz-far="2"] { transform: scale(0.74); opacity: 0.5; filter: blur(1.6px); }
+/* 고른 말풍선은 또렷하게 — 편집 화면 전용이다(내보내기 수확이 선택 상태 선택자를 버린다). */
+.frame-block[data-buzz-depth] > .row[data-buzz-far]:has(> .modal-block.selected) { opacity: 1; filter: none; }
+
 /* ── 그리드 캔버스 인라인 편집 (P1.5) ──
    ⛔여기서 «어느 줄이 편집 가능한가»를 판정하지 않는다 — 그 판정은 js/block-drag.js 의
      _gridEditable 하나뿐이고, 이 규칙은 그 결과로 «실제 켜진» contenteditable 상태에만 반응한다
@@ -1864,7 +1875,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
    감싸개(.ln-row)에 붙인다. 클래스가 `-line-selected` 로 끝나 저장 직렬화가 벗긴다(section-serialize RUNTIME_MARKER_RE). */
 #canvas .speech-bubble-block .ln-row.ln-line-selected,
 #canvas .chat-block .ln-row.ln-line-selected,
-#canvas .comparison-block .ln-row.ln-line-selected {
+#canvas .comparison-block .ln-row.ln-line-selected,
+#canvas .laurel-block .ln-row.ln-line-selected {   /* ★1013t1B2 laurel(네 번째 주인) */
   box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
 }
 /* 빈 글자 줄이 «손에 닿게» — 그리드 빈 줄 안내문(아래 .grd-line:empty)과 같은 관용구. #canvas 스코프라 내보내기엔 안 샌다. */
@@ -2176,6 +2188,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
    한정자는 js/overlay-float.js 가 찍는 data-sel-variant — 선택 오버레이가 색을 고르는 바로 그 표식이다. */
 .shape-block.selected[data-shape-type="ellipse"][data-sel-variant="sticker"]::before {
   border-color: var(--ui-sel-overlay, #9966ff);
+}
+/* ★1013t2A1 — 원이 여러 개(data-ellipse-count 는 2 이상일 때만 있다)면 «상자에 내접한 원 하나» 링은 거짓이다
+   ⇒ 링을 숨기고 공통 네모 선택선만 남긴다. 위 두 규칙은 그대로 둔다(유닛이 그 선택자 글자를 잡는다). */
+.shape-block.selected[data-shape-type="ellipse"][data-ellipse-count]::before {
+  display: none;
 }
 .shape-block .shape-svg {
   display: block;
@@ -3630,7 +3647,7 @@ body.count-stk-mode .section-block * { cursor: crosshair !important; }
   border-radius: 4px;
   color: #1a1a1a;
   /* JS 인라인(makeAnnotationBlock) 우선, 인라인 없을 때 fallback — ANNOT_DEFAULTS와 동기 */
-  font-size: 20px;
+  font-size: 24px;
   font-family: 'Pretendard', sans-serif;
   line-height: 1.3;
   white-space: nowrap;
@@ -3660,6 +3677,15 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 }
 .annotation-block.selected .annot-line {
   stroke-width: 2.5;
+}
+/* ★1013t1A3 고른 라벨(선택된 어노테이션의 라벨을 한 번 더 누름) — 끌면 라벨만 옮겨진다.
+   방사형 블럭 호의 «고른 항목 라벨»과 같은 꼴(점선 테 · grab). 클래스는 런타임 표식이라 저장본에 안 남는다
+   (js/io/section-serialize.js RUNTIME_MARKER_RE 의 -cell-selected). */
+.annotation-block.selected .annot-label.annot-cell-selected {
+  outline: var(--sel-outline-w) dashed var(--sel-color);
+  outline-offset: 6px;
+  box-shadow: none;
+  cursor: grab;
 }
 
 /* 핸들 (각 점 드래그) */
@@ -4179,6 +4205,22 @@ html.tgs-selecting .tgs:focus-within {
   -webkit-user-select: text !important;
   cursor: text !important;
   outline: var(--sel-outline-w) dashed var(--ui-sel-overlay, #9966ff);
+  outline-offset: var(--sel-outline-w);
+}
+
+/* ──────────────────────────────────────────────
+   마킹 블럭의 옆 라벨 — «편집 중» 표시만 (1013t2B5)
+   자리·크기·색은 전부 인라인(js/blocks/sticker-block.js) — 저장본·미리보기·내보내기 클론이
+   이 파일 없이도 같은 자리에 그린다. 여기는 더블클릭 편집 동안의 글자 커서·점선(위 텍스트 스티커와 같은 토큰)과
+   빈 라벨의 캐럿 자리뿐이다. 편집 속성은 직렬화가 걷으므로 이 규칙은 저장본에 닿지 않는다.
+────────────────────────────────────────────── */
+.sticker-block > .sticker-count-label[contenteditable="true"] {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text !important;
+  min-width: 0.5em;
+  min-height: 1.2em;
+  outline: var(--sel-outline-w) dashed var(--ui-sel-overlay);
   outline-offset: var(--sel-outline-w);
 }
 

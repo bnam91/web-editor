@@ -127,7 +127,7 @@ async function exportHTMLFile() {
      내보낸 HTML 은 이 파일이 직접 쓰는 <style> 만 갖는다. 앱 CSS(.sec-bg-proxy .asset-img{opacity:0},
      .asset-img-clip{overflow:hidden})가 «없으므로» 편집 중 내보내면 배경 이미지가 불투명하게
      한 번 더, 그것도 클리핑 없이 겹쳐 찍힌다. 클래스가 아니라 «노드»를 지워야 한다. */
-  clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary, .img-corner-handle, .img-edge-handle, .img-rotate-zone').forEach(el => el.remove());
+  clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary, .img-corner-handle, .img-edge-handle, .img-rotate-zone, .mdl-rotate-zone').forEach(el => el.remove());   /* .mdl-rotate-zone = 고른 모달의 회전 핫존 4개(1012t1Z5 M-1 · 불러오기 쪽 js/io/save-load.js 는 이미 걷는다) */
   clone.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
   clone.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   clone.querySelectorAll('.item-selected').forEach(el => el.classList.remove('item-selected'));
@@ -168,6 +168,7 @@ async function exportHTMLFile() {
      ⛔«명부 둘을 합치기»는 ★범위 밖이다 — ★지디 판정 · ★티켓은 지디가 든다. */
   clone.querySelectorAll('.star-mode').forEach(el => el.classList.remove('star-mode'));
   clone.querySelectorAll('.star-cell-selected').forEach(el => el.classList.remove('star-cell-selected'));
+  clone.querySelectorAll('.grb-pie-cell-selected').forEach(el => el.classList.remove('grb-pie-cell-selected'));   // 1013t1C4 — 원형 그래프 조각 선택(같은 까닭 — 이 파일은 제 명부를 든다)
 
   /* ★가림막(Redact)을 «설계로» 불투명하게 만든다 (2026-09-21 최종통합 QA medium)
      이 파일의 <style> 은 앱 CSS 를 «안» 싣는다 — .shape-block/.shape-redact/.shape-svg 규칙이
@@ -249,7 +250,8 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
    ⇒ 클리핑 임자(.asset-img)는 바로 윗줄의 폴백에 맡기고, 이 줄은 그 밖의 img 만 본다.
      CSSOM 이 막혀 appCss 가 비어도 윗줄이 cover 를 책임지므로 폴백은 그대로다.
    회귀: tests/dom/export-html-app-css.dom.spec.js A5·A5-src · tests/unit/export-html-asset-img.test.mjs */
-.asset-block.has-image img:not(.asset-img){display:block;max-width:100%;height:auto;}
+/* ★1013t2A2 — 콜라보 로고 2·3 칸 img(.asset-collab-img)도 칸 상자를 꽉 채워야 한다(앱 CSS 수확이 그린다) ⇒ 이 폴백에서 뺀다. */
+.asset-block.has-image img:not(.asset-img):not(.asset-collab-img){display:block;max-width:100%;height:auto;}
 /* group */
 .group-block{width:100%;}
 .group-inner{display:flex;flex-direction:column;}

@@ -288,3 +288,24 @@ test("U12 setGraphShape index 검증 — 정수 · 0 이상 · 항목 수 미만
   const nul = { classList: { contains: () => true }, dataset: { items: '[null]' } };
   assert.deepEqual(setGraphShape(nul, { index: 0, shape: 'drop' }), { ok: false, code: 'NO_ITEM' }, '자리는 있는데 객체가 아니면 NO_ITEM');
 });
+
+/* 1013t1C4 — 원형 조각별 키(items[i].pieGrow · piePull · pieTag)도 항목을 다시 쓰는 길에서 안 떨어진다 */
+test('GS-U carryItemExtras 원형 조각 키 — 옛 항목의 pieGrow/piePull/pieTag 를 옮긴다 · 들어온 값이 유효하면 그것 · 0·무효는 키를 안 남긴다', () => {
+  const { carryItemExtras, reconcileItems } = GS;
+  const prev = { label: 'a', value: 30, pieGrow: 20, piePull: 10, pieTag: 'on' };
+  assert.equal(prev.pieGrow, 20, '전제: 옛 항목에 조각 키가 있다');
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 5 }, prev, { label: 'n', value: 5 }), { label: 'n', value: 5, pieGrow: 20, piePull: 10, pieTag: 'on' }, '라벨·값만 들어오면 옛 키를 물려받는다');
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 5 }, prev, null), { label: 'n', value: 5, pieGrow: 20, piePull: 10, pieTag: 'on' });
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 5 }, prev, { pieGrow: 7, pieTag: 'off' }), { label: 'n', value: 5, pieGrow: 7, piePull: 10, pieTag: 'off' }, '들어온 유효 값이 이긴다');
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 5 }, prev, { pieGrow: 0, piePull: '0' }), { label: 'n', value: 5, pieTag: 'on' }, '들어온 0 = 키를 걷는다');
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 5, pieGrow: 'abc' }, prev, { pieGrow: 'abc', piePull: -3, pieTag: 'yes' }), { label: 'n', value: 5, pieGrow: 20, piePull: 10, pieTag: 'on' }, '무효 입력은 옛 값으로');
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 5, pieGrow: 'abc', pieTag: 1 }, { label: 'p', value: 1 }, { pieGrow: 'abc' }), { label: 'n', value: 5 }, '옛 값도 없으면 키 없음(쓰레기를 안 싣는다)');
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 5 }, { pieGrow: 7.6, piePull: 999 }, {}), { label: 'n', value: 5, pieGrow: 8, piePull: 100 }, '정수로 · 100 에서 잘린다');
+  /* 마디 분기(일찍 돌아간다)에서도 옮긴다 */
+  const seg = { label: 'a', value: 10, pieGrow: 15, segments: [{ label: 'x', value: 4 }, { label: 'y', value: 6 }] };
+  assert.equal(carryItemExtras({ label: 'n', value: 99 }, seg, { segments: [{ label: 'k', value: 3 }] }).pieGrow, 15, '들어온 마디가 있어도');
+  assert.equal(carryItemExtras({ label: 'n', value: 20 }, seg, {}).pieGrow, 15, '옛 마디를 물려받아도');
+  assert.equal(reconcileItems([seg])[0].pieGrow, 15, 'reconcileItems 도 안 떨군다');
+  /* 조각 키가 없는 항목은 한 글자도 안 변한다(옛 호출부 무변) */
+  assert.deepEqual(carryItemExtras({ label: 'n', value: 9 }, { label: 'p', value: 1 }, {}), { label: 'n', value: 9 });
+});
