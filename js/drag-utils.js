@@ -1016,8 +1016,38 @@ function _pieGeoOf(block, items) {
   const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, gap, { start, grow, pull });   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
   return { geo, _vals, _m: Math.ceil(geo.extent) };
 }
+/* 1017t1f4 — 그림자 x/y/blur/색상 조절(원형 전용 · 프리셋 soft/strong 위에 얹는다). 값·범위의 임자는 js/effects-shadow.js
+   FX_SHADOW_DEFAULTS/RANGES — 아래 네 수는 그 «사본»이다(drag-utils.js 는 독립 서빙 DOM 하네스 6곳이 있어 그 파일을 import
+   하면 404 로 모듈 그래프가 죽는다 — 파일 머리말의 _isCssBg 주석과 같은 까닭). 두 값이 갈리면
+   tests/unit/graph-shadow-xy-derived.test.mjs 가 빨개진다. ⛔여기서 손으로 다른 수를 적지 마라.
+   불투명도 조절칸은 없다 — 지금 켠 프리셋(soft 0.25 · strong 0.55)의 값을 그대로 쓴다(css/editor-graph.css 두 줄과
+   같은 수 · K2 가 그 두 수가 확대블럭과 같은지 잠근다 — 이 오버레이는 K2 가 재는 가치를 안 바꾼다). */
+const _PIE_SH_RANGE = { x: [-20, 20], y: [-20, 20], blur: [0, 40] };
+const _PIE_SH_DEFAULT = { x: 2, y: 2, blur: 4 };
+const _pieShInt = (raw, [lo, hi], dflt) => { const n = parseInt(raw); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt; };
+/* 색상은 패널의 colorFieldHTML/wireColorField(js/props/color-picker.js — 색 코드 칸 배선의 «한 자리» · tests/unit/color-hex-wiring-ssot.test.mjs
+   가 손사본을 막는다)를 지나 hex 또는 rgba(…) 문자열로 저장된다 — 그 안에 이미 불투명도가 있다. 여기선 그 문법만 검증한다(저장본이 손으로
+   바뀐 경우의 방어 · 험한 값은 프리셋의 기본 틴트로 떨어진다). */
+const _pieShColor = (raw) => {
+  const s = String(raw || '').trim();
+  if (/^#[0-9a-f]{6}$/i.test(s)) return s;
+  const m = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(0|1|0?\.\d+)\s*)?\)$/i.exec(s);
+  if (m) { const c = (n) => Math.max(0, Math.min(255, +n)); const a = m[4] !== undefined ? Math.max(0, Math.min(1, +m[4])) : 1; return `rgba(${c(m[1])},${c(m[2])},${c(m[3])},${a})`; }
+  return '';
+};
+function _pieShadowFilterStyle(d) {
+  const preset = (d.dropShadow === 'soft' || d.dropShadow === 'strong') ? d.dropShadow : 'none';
+  const hasOverride = d.pieShadowX !== undefined || d.pieShadowY !== undefined || d.pieShadowBlur !== undefined || d.pieShadowColor !== undefined;
+  if (preset === 'none' || !hasOverride) return '';   // 키 없음 = CSS 프리셋 그대로(그림 무변 · K1·K2·K3 유지)
+  const x = _pieShInt(d.pieShadowX, _PIE_SH_RANGE.x, _PIE_SH_DEFAULT.x);
+  const y = _pieShInt(d.pieShadowY, _PIE_SH_RANGE.y, _PIE_SH_DEFAULT.y);
+  const blur = _pieShInt(d.pieShadowBlur, _PIE_SH_RANGE.blur, _PIE_SH_DEFAULT.blur);
+  const col = _pieShColor(d.pieShadowColor) || `rgba(0,0,0,${preset === 'strong' ? 0.55 : 0.25})`;   // css/editor-graph.css:310-311 과 같은 틴트(기본값)
+  return ` style="filter:drop-shadow(${x}px ${y}px ${blur}px ${col})"`;
+}
 function _renderPie(block, { items, chartH, labelSize }) {
   const d = block.dataset;
+  const L = window.GRAPH_LIMITS;
   const _selIdx = _grbPieMarkIndex(block);   // 다시 그리기 «전»의 조각 선택 — 아래에서 innerHTML 을 덮은 뒤 되붙인다
   const { geo, _vals, _m } = _pieGeoOf(block, items);
   const viewBox = _m ? `${-_m} ${-_m} ${1000 + 2 * _m} ${1000 + 2 * _m}` : '0 0 1000 1000';
@@ -1055,11 +1085,17 @@ function _renderPie(block, { items, chartH, labelSize }) {
   const legend = items.map((it, i) => `<span class="grb-pie-legend-item"><span class="grb-pie-dot"${colors[i] ? ` style="background:${colors[i]};opacity:1"` : ''}></span>`
     + `<span class="grb-pie-label" style="${_xCss}">${_escGraphHtml(it && it.label)}</span>`
     + `<span class="grb-pie-val" style="${_vCss}">${pcts[i]}%</span></span>`).join('');
+  /* 1017t1f1 — 원형↔범례 간격. 키(dataset.pieLegendGap)가 있을 때만 인라인 margin-top 을 더한다(키 없으면 한 글자도 안 바뀐다 ⇒ G0 골든 유지).
+     패널(prop-graph.js)이 기본값(PIE_LEG_GAP_DEFAULT)과 같으면 키를 지우므로, 여기 올 때는 늘 «기본과 다른» 값이다. */
+  const _lg = parseInt(d.pieLegendGap);
+  const _legGapCss = (d.pieLegendGap !== undefined && Number.isFinite(_lg))
+    ? `;margin-top:${Math.min(L.PIE_LEG_GAP_MAX, Math.max(L.PIE_LEG_GAP_MIN, _lg))}px` : '';
+  const _shStyle = _pieShadowFilterStyle(d);   // 1017t1f4 — 키 없으면 '' = 프리셋 CSS 그대로(바이트 무변)
   block.innerHTML = `
       <div class="grb-pie-wrap" style="height:${chartH}px">
-        <svg class="grb-pie-svg" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet">${slices}${emptyEl}</svg>${tagsHTML}
+        <svg class="grb-pie-svg" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet"${_shStyle}>${slices}${emptyEl}</svg>${tagsHTML}
       </div>
-      <div class="grb-pie-legend" style="font-size:${labelSize}px">${legend}</div>`;
+      <div class="grb-pie-legend" style="font-size:${labelSize}px${_legGapCss}">${legend}</div>`;
   if (_selIdx >= 0) grbPieSelect(block, _selIdx);
 }
 /* ── 1012t1G2 · G3 · G4 「SVG 를 그래프 모양으로」 ─────────────────────────
