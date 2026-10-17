@@ -2,16 +2,6 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
-const FONT_WEIGHTS = [
-  { v: 300, label: 'Light' },
-  { v: 400, label: 'Regular' },
-  { v: 500, label: 'Medium' },
-  { v: 600, label: 'Semibold' },
-  { v: 700, label: 'Bold' },
-  { v: 800, label: 'Extrabold' },
-  { v: 900, label: 'Black' },
-];
-
 function _readCells(block) {
   if (typeof window._readLaurelCells === 'function') return window._readLaurelCells(block);
   try { return JSON.parse(block.dataset.cells || '[]'); } catch (_) { return []; }
@@ -30,66 +20,16 @@ function _writeCells(block, cells) {
   delete block.dataset.color;
 }
 
-function _esc(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 // ── 셀 내부 lines/gap/height/leafColor UI 렌더 ──────────────────────────────
 function _cellInnerHtml(cell, cellIdx) {
-  const linesArr = Array.isArray(cell.lines) && cell.lines.length > 0
-    ? cell.lines
-    : [{ text: '1위', fontSize: 56, fontWeight: 700, color: '#1a1a1a' }];
   const leafColor = cell.leafColor || '#1a1a1a';
   const leafAlpha = parseAlphaFromColor(leafColor);
   const gap       = parseInt(cell.gap)    || 24;
   const height    = parseInt(cell.height) || 140;
 
-  const linesHtml = linesArr.map((ln, i) => {
-    const lineColor = ln.color || '#1a1a1a';
-    const lineAlpha = parseAlphaFromColor(lineColor);
-    return `
-      <div class="prop-line-card" data-cell="${cellIdx}" data-line="${i}">
-        <div class="prop-row prop-line-card-header">
-          <button class="prop-icon-btn lrl-line-up" data-cell="${cellIdx}" data-line="${i}" title="위로 이동 (맨 위에서 누르면 맨 아래로)">↑</button>
-          <input type="text" class="prop-input lrl-line-text" data-cell="${cellIdx}" data-line="${i}" value="${_esc(ln.text)}" placeholder="줄 ${i + 1}">
-          <button class="prop-icon-btn lrl-line-toggle" title="스타일 펼치기/접기" aria-expanded="false">
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="2,3.5 5,6.5 8,3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          ${linesArr.length > 1 ? `<button class="prop-icon-btn lrl-line-remove" data-cell="${cellIdx}" data-line="${i}" title="줄 삭제">×</button>` : ''}
-        </div>
-        <div class="prop-line-card-details" hidden>
-          <div class="prop-row">
-            <span class="prop-label">크기</span>
-            <input type="range" class="prop-slider lrl-line-fs" data-cell="${cellIdx}" data-line="${i}" min="8" max="200" step="2" value="${parseInt(ln.fontSize) || 56}">
-            <input type="number" class="prop-number lrl-line-fs-num" data-cell="${cellIdx}" data-line="${i}" min="8" max="400" value="${parseInt(ln.fontSize) || 56}">
-          </div>
-          <div class="prop-row">
-            <span class="prop-label">굵기</span>
-            <select class="prop-select lrl-line-fw" data-cell="${cellIdx}" data-line="${i}">
-              ${FONT_WEIGHTS.map(w => `<option value="${w.v}" ${parseInt(ln.fontWeight) === w.v ? 'selected' : ''}>${w.label}</option>`).join('')}
-            </select>
-          </div>
-          <div class="prop-row">
-            <span class="prop-label">자간</span>
-            <input type="range" class="prop-slider lrl-line-ls" data-cell="${cellIdx}" data-line="${i}" min="-10" max="30" step="0.5" value="${parseFloat(ln.letterSpacing) || 0}">
-            <input type="number" class="prop-number lrl-line-ls-num" data-cell="${cellIdx}" data-line="${i}" min="-20" max="50" step="0.5" value="${parseFloat(ln.letterSpacing) || 0}">
-          </div>
-          <div class="prop-color-row">
-            <span class="prop-label">색</span>
-            ${colorFieldHTML({ idPrefix: `lrl-line-color-${cellIdx}-${i}`, hex: lineColor, alpha: lineAlpha })}
-          </div>
-        </div>
-      </div>`;
-  }).join('');
-
+  /* ★1013t1B2 C2 — 칸 카드의 Lines 묶음(줄 카드·↑·×·「+ 줄 추가」)을 걷었다. 줄은 캔버스에서 칸/줄을 고르면 헤더 아래에 뜨는
+     공용 줄 절(line-host lnAugmentLaurelPanel — 그리드·버블·챗·비교와 같은 함수·같은 id)로 더하고 고친다. 잎 설정은 여기 남는다(결정 B2-7). */
   return `
-    <div class="prop-row">
-      <span class="prop-label" style="font-size:10px;color:var(--ui-text-muted);">Lines</span>
-    </div>
-    <div class="lrl-lines-container" data-cell="${cellIdx}">${linesHtml}</div>
-    <div class="prop-row">
-      <button class="prop-action-btn primary lrl-line-add" data-cell="${cellIdx}" style="width:100%;">+ 줄 추가</button>
-    </div>
     <div class="prop-row">
       <span class="prop-label">잎 간격</span>
       <input type="range" class="prop-slider lrl-cell-gap" data-cell="${cellIdx}" min="0" max="800" step="4" value="${gap}">
@@ -146,6 +86,9 @@ export function showLaurelProperties(block) {
   Object.keys(block._laurelCellExpanded).forEach(k => {
     if (parseInt(k) >= cells.length) delete block._laurelCellExpanded[k];
   });
+  /* ★1013t1B2 — 캔버스에서 칸/줄을 고르면 그 칸 카드를 펼친다(결정 B2-7). */
+  const _act = window.grdGetActiveLine?.(block);
+  if (_act && Number.isInteger(_act.r) && _act.r >= 0 && _act.r < cells.length) block._laurelCellExpanded[_act.r] = true;
   const expandedMap = block._laurelCellExpanded;
   const isExpanded = (i) => !!expandedMap[i];
 
@@ -327,169 +270,6 @@ ${blockHeaderHTML({
     });
   });
 
-  // ── 줄별 wireup (모든 cell의 모든 line) ─────────────────────────
-  propPanel.querySelectorAll('.lrl-line-text').forEach(inp => {
-    const ci = parseInt(inp.dataset.cell), li = parseInt(inp.dataset.line);
-    inp.addEventListener('input', () => {
-      const cur = _readCells(block);
-      if (!cur[ci]?.lines?.[li]) return;
-      cur[ci].lines[li].text = inp.value;
-      _writeCells(block, cur);
-      rerender();
-    });
-    inp.addEventListener('change', () => window.pushHistory?.('줄 텍스트'));
-  });
-
-  propPanel.querySelectorAll('.lrl-line-fs').forEach(sl => {
-    const ci = parseInt(sl.dataset.cell), li = parseInt(sl.dataset.line);
-    const num = propPanel.querySelector(`.lrl-line-fs-num[data-cell="${ci}"][data-line="${li}"]`);
-    sl.addEventListener('input', () => {
-      const v = parseInt(sl.value);
-      if (num) num.value = v;
-      const cur = _readCells(block);
-      cur[ci].lines[li].fontSize = v;
-      _writeCells(block, cur);
-      rerender();
-    });
-    sl.addEventListener('change', () => window.pushHistory?.('줄 크기'));
-    if (num) {
-      num.addEventListener('input', () => {
-        const v = Math.min(400, Math.max(8, parseInt(num.value) || 8));
-        sl.value = Math.min(parseInt(sl.max), v);
-        const cur = _readCells(block);
-        cur[ci].lines[li].fontSize = v;
-        _writeCells(block, cur);
-        rerender();
-      });
-      num.addEventListener('change', () => window.pushHistory?.('줄 크기'));
-    }
-  });
-
-  propPanel.querySelectorAll('.lrl-line-fw').forEach(sel => {
-    const ci = parseInt(sel.dataset.cell), li = parseInt(sel.dataset.line);
-    sel.addEventListener('change', () => {
-      const cur = _readCells(block);
-      cur[ci].lines[li].fontWeight = parseInt(sel.value);
-      _writeCells(block, cur);
-      rerender();
-      window.pushHistory?.('줄 굵기');   // ★쓰기 «뒤»에 찍는다 — 위 prop-text-wireup-align.js 의 같은 까닭
-    });
-  });
-
-  // 줄별 자간 (letterSpacing)
-  propPanel.querySelectorAll('.lrl-line-ls').forEach(sl => {
-    const ci = parseInt(sl.dataset.cell), li = parseInt(sl.dataset.line);
-    const num = propPanel.querySelector(`.lrl-line-ls-num[data-cell="${ci}"][data-line="${li}"]`);
-    sl.addEventListener('input', () => {
-      const v = parseFloat(sl.value);
-      if (num) num.value = v;
-      const cur = _readCells(block);
-      cur[ci].lines[li].letterSpacing = v;
-      _writeCells(block, cur);
-      rerender();
-    });
-    sl.addEventListener('change', () => window.pushHistory?.('줄 자간'));
-    if (num) {
-      num.addEventListener('input', () => {
-        const v = Math.min(50, Math.max(-20, parseFloat(num.value) || 0));
-        sl.value = Math.min(parseFloat(sl.max), v);
-        const cur = _readCells(block);
-        cur[ci].lines[li].letterSpacing = v;
-        _writeCells(block, cur);
-        rerender();
-      });
-      num.addEventListener('change', () => window.pushHistory?.('줄 자간'));
-    }
-  });
-
-  // 줄별 색상
-  cells.forEach((cell, ci) => {
-    (cell.lines || []).forEach((ln, li) => {
-      const lineColor = ln.color || '#1a1a1a';
-      const lineAlpha = parseAlphaFromColor(lineColor);
-      wireColorField(`lrl-line-color-${ci}-${li}`, {
-        initialAlpha: lineAlpha,
-        onApply: (c) => {
-          const cur = _readCells(block);
-          if (!cur[ci]?.lines?.[li]) return;
-          cur[ci].lines[li].color = c;
-          _writeCells(block, cur);
-          rerender();
-        },
-        onCommit: () => window.pushHistory?.('줄 색'),
-      });
-    });
-  });
-
-  // 줄별 토글
-  propPanel.querySelectorAll('.lrl-line-toggle').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const card = btn.closest('.prop-line-card');
-      if (!card) return;
-      const details = card.querySelector('.prop-line-card-details');
-      const expanded = btn.getAttribute('aria-expanded') === 'true';
-      btn.setAttribute('aria-expanded', String(!expanded));
-      card.classList.toggle('expanded', !expanded);
-      if (details) details.hidden = expanded;
-    });
-  });
-
-  // 줄 삭제
-  propPanel.querySelectorAll('.lrl-line-remove').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const ci = parseInt(btn.dataset.cell), li = parseInt(btn.dataset.line);
-      const cur = _readCells(block);
-      if (!cur[ci]?.lines || cur[ci].lines.length <= 1) return;
-      /* ★E80 — «끝 표본만»이던 자리. 앞 «삭제 전»을 먼저 찍는다(editor.js 블록 삭제 :3396 과 같은 꼴 · 2026-10-04). */
-      window.ensureHistoryCheckpoint?.('삭제 전');
-      cur[ci].lines.splice(li, 1);
-      _writeCells(block, cur);
-      rerender();
-      window.pushHistory?.('줄 삭제');   // ★쓰기 «뒤»에 찍는다 — 위 prop-text-wireup-align.js 의 같은 까닭
-      showLaurelProperties(block);
-    });
-  });
-
-  // 줄 추가
-  propPanel.querySelectorAll('.lrl-line-add').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const ci = parseInt(btn.dataset.cell);
-      const cur = _readCells(block);
-      if (!cur[ci]) return;
-      const lastColor = cur[ci].lines?.[cur[ci].lines.length - 1]?.color || '#1a1a1a';
-      cur[ci].lines = cur[ci].lines || [];
-      cur[ci].lines.push({ text: '텍스트', fontSize: 28, fontWeight: 500, color: lastColor });
-      _writeCells(block, cur);
-      rerender();
-      window.pushHistory?.('줄 추가');   // ★쓰기 «뒤»에 찍는다 — 위 prop-text-wireup-align.js 의 같은 까닭
-      showLaurelProperties(block);
-    });
-  });
-
-  // ── 줄 카드 ↑ 순서 변경 (맨 위에서 누르면 맨 아래로 wrap-around) ──
-  propPanel.querySelectorAll('.lrl-line-up').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const ci = parseInt(btn.dataset.cell);
-      const li = parseInt(btn.dataset.line);
-      const cur = _readCells(block);
-      const lines = cur[ci]?.lines;
-      if (!Array.isArray(lines) || lines.length < 2) return;
-      if (li === 0) {
-        // 맨 위 → 맨 아래로 (배열 회전)
-        const first = lines.shift();
-        lines.push(first);
-      } else {
-        // 위와 swap
-        [lines[li], lines[li - 1]] = [lines[li - 1], lines[li]];
-      }
-      _writeCells(block, cur);
-      rerender();
-      window.pushHistory?.('줄 순서 변경');   // ★쓰기 «뒤»에 찍는다 — 위 prop-text-wireup-align.js 의 같은 까닭
-      showLaurelProperties(block);
-    });
-  });
-
   // ── 일괄 (All Cells) gap / height ──
   const bindAllNumPair = (sliderId, numberId, key, min, max) => {
     const s = propPanel.querySelector('#' + sliderId);
@@ -629,6 +409,9 @@ ${blockHeaderHTML({
       remove: (b) => { delete b.dataset.textEffect; window.renderLaurelBlock?.(b); },
     });
   }
+
+  /* ★1013t1B2 — 고른 칸/줄이 있으면 헤더 바로 아래에 공용 줄 절(줄바 「+ 줄 추가▾」·줄 꾸미기·Typography)을 얹는다. */
+  window.lnAugmentLaurelPanel?.(block);
 }
 
 window.showLaurelProperties = showLaurelProperties;

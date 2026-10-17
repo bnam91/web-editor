@@ -62,18 +62,19 @@ const state = (page, id = 'pS') => page.evaluate((id) => {
   };
 }, id);
 
-test('E3-a ★프리셋 칩 다섯이 같은 꼴이다 — 「코인」이 다른 넷과 폭·높이·class·글자·테두리가 같고 같은 격자에 선다', async ({ page }) => {
+test('E3-a ★칸 다섯이 같은 꼴이다 — 「코인 레시피」가 프리셋 넷과 폭·높이·class·글자·테두리가 같고 같은 격자에 선다', async ({ page }) => {
   const errs = await setup(page);
   const r = await page.evaluate(() => {
     const group = document.getElementById('sec-fxpart-presets');
-    const btns = [...group.querySelectorAll('[data-fxpart-preset]')];
+    const btns = [...group.querySelectorAll(':scope > button')];
     const cs = (e) => { const s = getComputedStyle(e); return [s.fontSize, s.fontWeight, s.fontFamily, s.borderTopWidth, s.borderTopStyle, s.borderRadius, s.paddingLeft, s.paddingRight, s.display, s.justifyContent, s.cursor].join(' | '); };
     const paint = (e) => { const s = getComputedStyle(e); return [s.backgroundColor, s.borderTopColor, s.color].join(' | '); };
     const g = getComputedStyle(group);
     return {
       kinds: [...window.ParticlesFx.KINDS],
       names: btns.map((b) => b.textContent.trim()),
-      keys: btns.map((b) => b.dataset.fxpartPreset),
+      keys: btns.map((b) => b.dataset.fxpartPreset || ('recipe:' + b.dataset.fxpartRecipe)),
+      presetAttr: btns.map((b) => b.hasAttribute('data-fxpart-preset')),
       cls: btns.map((b) => b.className.replace(/\s*\bactive\b/, '').trim()),
       inline: btns.map((b) => b.getAttribute('style') || ''),
       tag: btns.map((b) => b.tagName),
@@ -87,12 +88,15 @@ test('E3-a ★프리셋 칩 다섯이 같은 꼴이다 — 「코인」이 다�
       coinButtons: [...document.querySelectorAll('#sec-fxpart-card button')].filter((b) => /코인|coin/i.test(b.textContent) && !b.dataset.fxpartShape).map((b) => b.className),
     };
   });
-  /* 이름·순서 — 현빈 노트의 그 다섯 */
-  expect(r.keys).toEqual(['star', 'gold', 'party', 'dust', 'coin']);
-  expect(r.keys).toEqual(r.kinds);
-  expect(r.names).toEqual(['별 반짝이', '금색 컨페티', '컬러 컨페티', '먼지 / 보케', '코인']);
+  /* 이름·순서 — 현빈 노트의 그 다섯(별반짝이 · 금색 컨페티 · 컬러 컨페티 · 먼지/보케 · 코인레시피).
+     ★코인은 프리셋이 «아니다»(1012t1 I1-B 결정 · KINDS 그대로 넷) — 같은 무리의 다섯째 «칸»이다. */
+  expect(r.keys).toEqual(['star', 'gold', 'party', 'dust', 'recipe:coin']);
+  expect(r.keys.slice(0, 4)).toEqual(r.kinds);
+  expect(r.presetAttr, '레시피 칸엔 프리셋 속성이 없다').toEqual([true, true, true, true, false]);
+  expect(r.names).toEqual(['별 반짝이', '금색 컨페티', '컬러 컨페티', '먼지 / 보케', '코인 레시피']);
   /* 코인만 다른 단추 꼴(따로 떨어진 「레시피」 단추)이 아니다 — 같은 무리 안의 같은 칩이다 */
   expect(r.coinButtons, '「코인」 단추는 프리셋 칩 하나뿐이다(따로 선 다른 꼴의 단추가 없다)').toEqual(['prop-align-btn']);
+  expect(r.coinButtons.length, '★반례 쪽 전제 — 센 것이 정말 레시피 칸 하나다').toBe(1);
   expect([...new Set(r.tag)], '다섯이 같은 요소다').toEqual(['BUTTON']);
   expect([...new Set(r.cls)], '다섯이 같은 class 다').toEqual(['prop-align-btn']);
   expect([...new Set(r.inline)], '칩마다 다른 인라인 꼴이 없다').toEqual(['']);
@@ -112,11 +116,12 @@ test('E3-a ★프리셋 칩 다섯이 같은 꼴이다 — 「코인」이 다�
   expect(r.fit, '글자가 칩 안에 들어간다').toEqual([true, true, true, true, true]);
 
   /* 고른 뒤 — 「코인」의 켜진 칠이 다른 칩이 켜졌을 때의 칠과 같다 */
-  const paintOf = (k) => page.evaluate((k) => { const s = getComputedStyle(document.querySelector(`#sec-fxpart-presets [data-fxpart-preset="${k}"]`)); return [s.backgroundColor, s.borderTopColor, s.color].join(' | '); }, k);
+  const paintOf = (k) => page.evaluate((k) => { const s = getComputedStyle(document.querySelector(k === 'coin' ? '#sec-fxpart-recipe' : `#sec-fxpart-presets [data-fxpart-preset="${k}"]`)); return [s.backgroundColor, s.borderTopColor, s.color].join(' | '); }, k);
   await page.hover('#sec-fxpart-seed');                       // 마우스를 칩 밖으로(호버 칠이 섞이지 않게)
   const starOn = await paintOf('star');
-  await page.click('#sec-fxpart-presets [data-fxpart-preset="coin"]');
-  await expect.poll(() => page.evaluate(() => document.querySelector('#sec-fxpart-presets .active')?.dataset.fxpartPreset)).toBe('coin');
+  await page.click('#sec-fxpart-recipe');
+  /* 켜진 칸은 레시피 «하나» — 레시피가 적어 둔 preset:'gold' 때문에 「금색 컨페티」가 같이 켜지면 거짓이다 */
+  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#sec-fxpart-presets .active')].map((b) => b.id || b.dataset.fxpartPreset))).toEqual(['sec-fxpart-recipe']);
   await page.hover('#sec-fxpart-seed');
   await expect.poll(() => paintOf('coin'), '「코인」이 켜졌을 때의 칠이 다른 칩과 같다').toBe(starOn);
   expect(errs).toEqual([]);
@@ -127,7 +132,7 @@ test('E3-b 「코인」을 누르면 코인 그림이 갯수만큼 난다 · 금
   const before = await state(page);
   expect([before.cfg.preset, before.coins], '★전제: 첫 프리셋이고 코인이 없다').toEqual(['star', 0]);
 
-  await page.click('#sec-fxpart-presets [data-fxpart-preset="coin"]');
+  await page.click('#sec-fxpart-recipe');
   await expect.poll(async () => (await state(page)).cfg.preset).toBe('coin');
 
   const s = await state(page);
@@ -155,12 +160,12 @@ test('E3-b 「코인」을 누르면 코인 그림이 갯수만큼 난다 · 금
 
 test('E3-c 저장 → 다시 열기 — 같은 그림이 다시 난다 · 섹션 둘의 코인 id 가 안 겹친다', async ({ page }) => {
   const errs = await setup(page, ['pS', 'pT']);
-  await page.click('#sec-fxpart-presets [data-fxpart-preset="coin"]');
+  await page.click('#sec-fxpart-recipe');
   await expect.poll(async () => (await state(page)).coins).toBe(14);
   await openPanel(page, 'pT');
   await page.click('#sec-fxpart-toggle');
-  await page.waitForSelector('#sec-fxpart-presets [data-fxpart-preset="coin"]');
-  await page.click('#sec-fxpart-presets [data-fxpart-preset="coin"]');
+  await page.waitForSelector('#sec-fxpart-recipe');
+  await page.click('#sec-fxpart-recipe');
   await expect.poll(async () => (await state(page, 'pT')).coins).toBe(14);
   const a = await state(page, 'pS'), b = await state(page, 'pT');
   expect(a.ids.filter((x) => b.ids.includes(x)), '두 섹션의 코인 id 가 겹친다').toEqual([]);
@@ -178,7 +183,7 @@ test('E3-c 저장 → 다시 열기 — 같은 그림이 다시 난다 · 섹션
 
 test('E3-d 움직임 — 속도를 주면 꼬리표가 코인마다 달리고 움직이개가 코인을 옮긴다', async ({ page }) => {
   await setup(page);
-  await page.click('#sec-fxpart-presets [data-fxpart-preset="coin"]');
+  await page.click('#sec-fxpart-recipe');
   await expect.poll(async () => (await state(page)).coins).toBe(14);
   await page.fill('[data-fxpart-axis="speed"]', '60');
   await page.dispatchEvent('[data-fxpart-axis="speed"]', 'input');
@@ -202,7 +207,7 @@ test('E3-d 움직임 — 속도를 주면 꼬리표가 코인마다 달리고 �
 
 test('E4-a ★크기 상한 250 — 칸의 max · 250 이 들어가고 그 크기로 그려진다 · 넘기면 250', async ({ page }) => {
   const errs = await setup(page);
-  await page.click('#sec-fxpart-presets [data-fxpart-preset="coin"]');
+  await page.click('#sec-fxpart-recipe');
   await expect.poll(async () => (await state(page)).coins).toBe(14);
   const lim = await page.evaluate(() => ['smin', 'smax'].map((k) => { const e = document.querySelector(`[data-fxpart-axis="${k}"]`); return [e.min, e.max]; }));
   expect(lim, '크기 칸의 범위 — 1~250').toEqual([['1', '250'], ['1', '250']]);
@@ -210,10 +215,29 @@ test('E4-a ★크기 상한 250 — 칸의 max · 250 이 들어가고 그 크�
   /* 회전을 끈다 — 돌아간 코인은 화면 사각형이 지름보다 넓게 재진다 */
   await page.uncheck('#sec-fxpart-rot');
   await expect.poll(async () => (await state(page)).cfg.rot).toBe(false);
+  const secBefore = await page.evaluate(() => { const e = document.getElementById('pS'); return { h: Math.round(e.offsetHeight), w: Math.round(e.offsetWidth) }; });
   await set('smax', 250);
   await expect.poll(async () => (await state(page)).cfg.smax, '250 을 넣었는데 저장값이 250 이 아니다').toBe(250);
   await set('smin', 250);
   await expect.poll(async () => (await state(page)).cfg.smin).toBe(250);
+  /* ★250 에서 레이아웃을 잰다(태양 「한계값만 올리면 레이아웃이 깨질 수 있다」) — 패널: 세 자리 수가 칸 안에 다 보이고 행이 카드 밖으로 안 나간다 ·
+     캔버스: 층이 섹션 상자를 못 벗어나고(overflow hidden) 섹션 높이·폭이 그대로다 */
+  const lay = await page.evaluate(() => {
+    const card = document.getElementById('sec-fxpart-card').getBoundingClientRect();
+    const cells = ['smin', 'smax'].map((k) => document.querySelector(`[data-fxpart-axis="${k}"]`));
+    const row = cells[0].closest('.prop-row').getBoundingClientRect();
+    const sec = document.getElementById('pS'), wrap = sec.querySelector(':scope > .sec-fxpart-wrap');
+    const sr = sec.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+    /* 세 자리가 칸에 다 들어가나 — 칸 안쪽 폭 ≥ 「250」 글자 폭 */
+    const fits = cells.map((c) => { const cs = getComputedStyle(c); const m = document.createElement('canvas').getContext('2d'); m.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      return c.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) >= m.measureText(c.value).width; });
+    return { vals: cells.map((c) => c.value), fits, rowIn: row.right <= card.right + 0.5 && row.left >= card.left - 0.5, rowH: Math.round(row.height),
+      wrapIn: wr.left >= sr.left - 0.5 && wr.right <= sr.right + 0.5 && wr.top >= sr.top - 0.5 && wr.bottom <= sr.bottom + 0.5,
+      wrapOverflow: getComputedStyle(wrap).overflow, secH: Math.round(sec.offsetHeight), secW: Math.round(sec.offsetWidth) };
+  });
+  expect([lay.vals, lay.fits, lay.rowIn, lay.wrapIn, lay.wrapOverflow], `250 에서 패널·캔버스 레이아웃 ${JSON.stringify(lay)}`).toEqual([['250', '250'], [true, true], true, true, 'hidden']);
+  expect([lay.secH, lay.secW], '250 코인이 섹션 크기를 바꾸지 않았다').toEqual([secBefore.h, secBefore.w]);
+  test.info().annotations.push({ type: 'measured', description: `250 레이아웃 ${JSON.stringify(lay)}` });
   const big = await state(page);
   expect([...new Set(big.faceRx)], '코인 지름 250 → 앞면 가로 반지름 125').toEqual([125]);
   /* 화면에서도 그 크기다 — 섹션 폭(레이아웃 px) 대비 코인 한 닢의 폭 */
@@ -235,7 +259,7 @@ test('E4-a ★크기 상한 250 — 칸의 max · 250 이 들어가고 그 크�
 
 test('E4-b 색 — 기본은 금 하나(은 없음) · 칩을 바꾸면 코인 색이 따라간다', async ({ page }) => {
   await setup(page);
-  await page.click('#sec-fxpart-presets [data-fxpart-preset="coin"]');
+  await page.click('#sec-fxpart-recipe');
   await expect.poll(async () => (await state(page)).coins).toBe(14);
   const gold = await page.evaluate(() => [window.CoinFx.baseColors('gold').face, window.CoinFx.baseColors('silver').face]);
   const s = await state(page);

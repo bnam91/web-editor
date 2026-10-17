@@ -846,14 +846,181 @@ function _graphLabelBeginEdit(block, el, idx) {
  * 조각 요소는 «항목마다 정확히 하나»(값 0 이면 d 가 빈 글자) ⇒ 형제 순번 = 항목 순서 — CSS 색 사다리와 범례가 같은 순번을 쓴다.
  * 색: item.color(단색)면 조각·범례 점에 인라인, 아니면 CSS 프리셋. 막대에서 넘어온 그라데이션 item.color 는 여기선 «미지정»으로 본다(모델은 안 지운다).
  * 범례 = 카테고리 라벨(.grb-pie-label · 더블클릭 편집 대상) + 비율 %(.grb-pie-val). 공통 키(showVLabel·showXLabel·라벨 색 셋·labelSize·chartHeight)를 그대로 따른다.
- * 사용자 글자는 _escGraphHtml · 색은 _safeGraphColor 만 지난다(E152 규약). */
-function _renderPie(block, { items, chartH, labelSize }) {
+ * 사용자 글자는 _escGraphHtml · 색은 _safeGraphColor 만 지난다(E152 규약).
+ * 1013t1C — 도넛 여부 = chartType 'donut'(옛 별칭) 또는 dataset.pieDonut '1'. 새 키가 «하나도 없으면» 그림(innerHTML)은 1012 판과 바이트가 같다(골든 G0).
+ * 1013t1C3 — 조각 안 라벨(순위 배지 「n위」 · 이름): dataset.pieRank / pieName 이 '1' 일 때만 svg 바로 뒤에 HTML 덧층 .grb-pie-tags 를 낸다(둘 다 꺼지면 덧층 자체가 없다 = 옛 바이트).
+ *   덧층 안은 «항목마다 정확히 하나»의 .grb-pie-tag(색인 = 조각 색인 — 글자 톤 canvas-contrast.js _syncPieTagTone 이 색인으로 짝짓는다). 자리·보임은 graph-pie-geom.js pieTagPlan,
+ *   순위는 pieRanks. 자리는 viewBox 좌표를 % 로 옮겨 쓴다(덧층 = svg 가 그려지는 정사각과 겹치는 정사각 · css/editor-graph.css). 덧층은 클릭을 안 받는다(pointer-events:none — 조각 고르기·블럭 끌기 그대로).
+ *   클래스 이름에 grb-pie-label 을 안 쓴다 — 그 이름은 범례 라벨이고 더블클릭 편집·패널 색 칸이 «그 이름으로» 색인을 센다. 이름 글자는 사용자 글자 ⇒ _escGraphHtml. */
+/* 1013t1C4 전제 — 조각 고르기. 상태는 DOM 표식 «하나»뿐이다: path.grb-pie-slice.grb-pie-cell-selected (JS 쪽에 따로 들지 않는다 — 두 진실 방지).
+ *   이름이 -cell-selected 로 끝나 저장·복사 때 section-serialize 의 RUNTIME_MARKER_RE 가 벗긴다(별 한 개 고르기 star-cell-selected 와 같은 길).
+ *   세우는 자: block-drag.js 그래프 클릭(이미 이 블럭만 선택된 채 조각을 누르면) · 패널 Data 줄의 조각 버튼. 걷는 자: editor.js clearSelectionMarks «한 곳».
+ *   다시 그리기(_renderPie)는 표식을 색인으로 옮겨 붙인다 — 마크업 문자열에는 안 넣는다(「두 번 그려 같다」 무변). */
+function grbPieSliceIndexAt(target, block) {
+  const p = target?.closest?.('.grb-pie-slice');
+  if (!p || !block || !block.contains(p)) return -1;
+  return [...block.querySelectorAll('.grb-pie-slice')].indexOf(p);
+}
+function _grbPieMarkIndex(block) {
+  return [...block.querySelectorAll('.grb-pie-slice')].findIndex(p => p.classList.contains('grb-pie-cell-selected'));
+}
+/** 고른 조각의 색인(항목 순서) — 블럭이 선택돼 있고 표식이 있을 때만. 없으면 −1. */
+function grbPieSelected(block) {
+  if (!block || !block.classList.contains('selected')) return -1;
+  return _grbPieMarkIndex(block);
+}
+/** idx 번 조각을 고른다. null·범위 밖 = 해제. */
+function grbPieSelect(block, idx) {
+  if (!block) return;
+  block.querySelectorAll('.grb-pie-slice').forEach((p, i) => p.classList.toggle('grb-pie-cell-selected', i === idx));
+}
+/* 1013t1C3 고침 — 조각 안 라벨의 «둘째 단»: 그려진 글자를 재서 제 조각 안에 넣는다(첫 단 = pieTagPlan 의 기하 숨김 · 마크업의 display:none).
+ *   첫 단은 viewBox 단위만 본다 ⇒ 차트가 작거나 · 라벨 글자가 크거나 · 이름이 길면 라벨이 조각을 넘고 서로 겹쳤다(이벨류에이터 실측 2026-10-13).
+ *   라벨마다 차례로(고침 2 — «숨기기 전에» 단계를 밟는다):
+ *     ① 줄바꿈 — pieTagRoom 의 사각형(넓적한 것부터)을 폭 한계로 주고 «잰 크기»가 그 조각 안이면(fits) 그 폭으로 둔다. 이름은 PIE_TAG_NAME_LINES(2)줄까지.
+ *     ② 글자 줄이기 — 안 들면 글자 크기를 pieTagFontSizes(블럭 라벨 크기)의 다음 단계로 줄여 ①을 다시 한다(가장 작은 단계 = LABEL_SIZE_MIN 위). 키우는 단계는 없다.
+ *        줄인 크기는 라벨 전체(배지 + 이름)에 건다 — 배지·간격이 em 이라 같은 비로 준다(참고 그림도 작은 조각은 배지까지 작다).
+ *     ③ 어느 크기로도 안 들면 이름을 숨기고(순위 배지만) ①·②를 다시 한다 ④ 그래도 안 들면 라벨을 숨긴다.
+ *     items[i].pieTag 'on'(항상)은 ③·④ 대신: 가장 작은 글자 · 가장 넓은 사각형 안에서 이름을 «줄 수로 자른다»(line-clamp · 끝에 말줄임 · 많아야 PIE_TAG_NAME_LINES 줄). 한 줄도 안 들 때만 배지만 남긴다.
+ *   고침 3(1013t1C3 · 이벨류에이터 실측 2026-10-14) — «재서 든» 라벨에도 폭·높이 한계를 «쌍으로» 쓴다: fits(폭 한계, 높이 한계) 가 참인 쌍(아래 capOf).
+ *     전에는 높이 한계를 'none' 으로 썼다(잰 글자가 든다는 것만 믿었다) ⇒ 단독 HTML 내보내기는 이 인라인 변수를 그대로 싣는데 글꼴이 달라 줄이 하나 늘면 라벨이 조각을 넘었다
+ *     ('none' 이 CSS 의 기하 안전망 --grb-pie-box-h 까지 껐다). 이제 한계 사각형 자체가 조각 안이라 «글자가 어떻게 놓이든»(다른 글꼴 · 스크립트 없는 산출물) 넘는 만큼은 잘린다.
+ *     편집 화면의 결과는 그대로다 — 쌍은 «잰 크기 이상»으로만 잡는다(못 잡으면 그 판은 안 든 것으로 치고 다음 사각형·글자 크기로 간다).
+ *   결과는 «인라인 CSS 변수»에만 산다(canvas-contrast.js GRAPH_PIE_FIT_VARS — DERIVED_AUTO_VARS 에 올라 저장·히스토리에서 걷힌다 · 열면 관찰자가 다시 잰다). 마크업·dataset 은 안 건드린다.
+ *   크기는 덧층 정사각에 대한 «비»로 잰다 ⇒ 줌·배율과 무관. 못 재면(떼어진 블럭 · 폭 0) 아무것도 안 쓴다 = CSS 가 기하 사각형으로 자른다.
+ *   부르는 자: canvas-contrast.js syncGraphTone(다시 그린 뒤 · 블럭이 꽂힐 때) · 아래 ResizeObserver(블럭 크기가 바뀔 때) · 글꼴이 다 실렸을 때. 같은 판(덧층 폭 · 글꼴)에서 다시 부르면 아무것도 안 한다(멱등).
+ *   잰 뒤 «좁아서 숨겨진 이름 수»를 덧층의 JS 속성(_grbPieHidden — DOM·저장에 0)에 적고 블럭에서 grb-pie-fit 을 올린다(듣는 자 = 패널의 안내 줄 · js/props/prop-graph.js). 읽는 길 = grbPieHiddenNames(block).
+ *     세는 것: 이름 표시가 켜진 블럭에서 «그려진 조각»(값 > 0)인데 이름이 안 보이는 것(첫 단의 기하 숨김 · 이름만 숨김 · 라벨째 숨김). 안 세는 것: 사용자가 「숨김」('off')으로 둔 조각 · 값 0 조각 · 말줄임으로 잘린 「항상」 라벨. */
+let _grbPieFontEpoch = 0;
+const _grbPieRO = (typeof ResizeObserver === 'function') ? new ResizeObserver((entries) => { for (const en of entries) if (en.target.isConnected) grbPieFitTags(en.target); }) : null;
+if (typeof document !== 'undefined' && document.fonts?.addEventListener) {
+  document.fonts.addEventListener('loadingdone', () => { _grbPieFontEpoch++; document.querySelectorAll('.graph-block').forEach(b => { if (b.querySelector('.grb-pie-tags')) grbPieFitTags(b); }); });
+}
+/** 좁아서 숨겨진 이름 수(가장 최근에 잰 값 · 덧층이 없거나 아직 안 쟀으면 0). */
+function grbPieHiddenNames(block) {
+  const n = block?.querySelector?.('.grb-pie-tags')?._grbPieHidden;
+  return Number.isFinite(n) ? n : 0;
+}
+function grbPieFitTags(block) {
+  const layer = block?.querySelector?.('.grb-pie-tags');
+  if (!layer) return;
+  _grbPieRO?.observe(block);   // 같은 요소를 또 보라고 해도 한 번만 본다
+  const lr = layer.getBoundingClientRect();
+  if (!(lr.width > 0) || !(layer.offsetWidth > 0)) return;
+  const key = layer.offsetWidth + '|' + _grbPieFontEpoch;
+  if (layer._grbPieFitKey === key) return;
+  let items; try { items = JSON.parse(block.dataset.items || '[]'); } catch (_) { return; }
+  const tags = [...layer.children];
+  if (!Array.isArray(items) || tags.length !== items.length) return;
+  const { geo, _m } = _pieGeoOf(block, items);
+  const room = window.GRAPH_PIE_GEOM.pieTagRoom(geo);
+  const side = 1000 + 2 * _m, unit = side / lr.width;   // 화면 px → viewBox 단위
+  const pc = (v) => (Math.floor(v / side * 10000) / 100).toFixed(2) + '%';
+  const [W, H, D, ND, NL, FS] = window.__gdTextTone?.GRAPH_PIE_FIT_VARS || [];   // 변수 이름의 한 벌 = canvas-contrast.js(저장에서 걷는 목록과 같은 자리)
+  if (!FS) return;
+  const L = window.GRAPH_LIMITS;
+  const sizes = window.GRAPH_PIE_GEOM.pieTagFontSizes(parseInt(block.dataset.labelSize) || L.LABEL_SIZE_DEFAULT);   // 큰 것부터 · 첫 값 = 라벨 크기(안 줄임) — renderGraph 와 같은 읽기
+  const fsOf = (k) => k > 0 ? sizes[k] + 'px' : '';   // 안 줄였으면 변수 자체가 없다(덧층의 글자 크기를 물려받는다)
+  const maxLines = Math.max(1, parseInt(L.PIE_TAG_NAME_LINES) || 1);
+  const put = (el, v, want) => { if (!el || el.style.getPropertyValue(v).trim() === want) return; if (want) el.style.setProperty(v, want); else el.style.removeProperty(v); };
+  const st = tags.map((tag, i) => ({ tag, i, name: tag.querySelector('.grb-pie-name'), rank: tag.querySelector('.grb-pie-rank'), on: items[i] && items[i].pieTag === 'on',
+    live: tag.style.display !== 'none', done: false, w: '', h: '', d: '', nd: '', nl: '', fs: '' }));   // w · h = 끝에 쓸 한계 쌍(재서 든 라벨은 capOf 가 낸다 — 'none' 을 남기지 않는다)
+  const open = () => st.filter(s => s.live && !s.done);
+  const lineH = (el) => { const v = parseFloat(getComputedStyle(el).lineHeight); return v > 0 ? v : 0; };   // 한 줄의 높이(배치 px — offsetHeight 와 같은 단위 · 줌과 무관)
+  /* 한계 쌍(고침 3) — 폭 한계 bw(지금 써 본 사각형의 폭) 아래에서 잰 크기 mw × mh 가 조각 안일 때, «한계 사각형 자체가 조각 안»인 { w, h }(덧층의 % 글자)를 낸다. 못 내면 null.
+       fits 는 같은 자리의 더 작은 사각형에 늘 참이다(작은 사각형은 큰 사각형 안) ⇒ fits(한계 폭, 한계 높이) 면 그 안에서 글자가 어떻게 놓여도 조각 안이다.
+       ① fits(bw, mh) 면 폭은 bw 그대로(글자 = 전과 같다) · 높이 = 그 폭에서 드는 가장 큰 높이(이분법).
+       ② 아니면 라벨이 bw 보다 좁아서 든 것이다(좁고 긴 꼴) ⇒ 폭 한계를 «mh 가 드는 가장 넓은 폭»으로 좁힌다. 좁힌 폭은 잰 폭보다 0.01 % 넘게 넓어야 한다(폭 한계가 줄바꿈을 건드리지 않게).
+       높이 한계는 잰 높이 이상이어야 한다(잘린 글자 0). 내림(0.01 %)으로 그 밑이 되는 «아슬아슬한» 판은 안 든 것으로 친다. */
+  const STEP = side / 10000;   // 0.01 % (pc 의 눈금)
+  const capOf = (fits, bw, mw, mh) => {
+    let w = bw, wTxt = pc(bw);
+    if (!fits(bw, mh)) {
+      if (!(mw < bw)) return null;
+      let lo = mw, hi = bw;
+      for (let k = 0; k < 24; k++) { const m = (lo + hi) / 2; if (fits(m, mh)) lo = m; else hi = m; }
+      const n = Math.floor(lo / STEP);
+      w = n * STEP;
+      if (!(w >= mw + STEP) || !fits(w, mh)) return null;
+      wTxt = (n / 100).toFixed(2) + '%';
+    }
+    let lo = mh, hi = side;
+    for (let k = 0; k < 24; k++) { const m = (lo + hi) / 2; if (fits(w, m)) lo = m; else hi = m; }
+    const hn = Math.floor(lo / STEP);
+    if (!(hn * STEP >= mh)) return null;
+    return { w: wTxt, h: (hn / 100).toFixed(2) + '%' };
+  };
+  /* 잰 크기가 조각 안인가 — 가로로 넘친 글자(줄을 못 바꾸는 배지)는 사각형이 잘려 보이므로 따로 본다 · 이름이 보이면 줄 수도 본다(maxLines 줄까지).
+     든다면 그 판의 한계 쌍을 s.cap 에 적는다(쌍을 못 내면 안 든 것). bw = 지금 써 본 사각형의 폭(viewBox 단위) */
+  const ok = (s, bw) => {
+    if (s.tag.scrollWidth > s.tag.clientWidth) return false;
+    if (s.name && s.name.style.getPropertyValue(ND).trim() !== 'none') { const lh = lineH(s.name); if (lh > 0 && s.name.offsetHeight > lh * (maxLines + 0.5)) return false; }
+    const r = s.tag.getBoundingClientRect(), mw = r.width * unit, mh = r.height * unit;
+    if (!room[s.i].fits(mw, mh)) return false;
+    s.cap = capOf(room[s.i].fits, bw, mw, mh);
+    return !!s.cap;
+  };
+  open().forEach(s => { put(s.tag, D, ''); put(s.tag, H, 'none'); put(s.tag, FS, ''); put(s.name, ND, ''); put(s.name, NL, ''); });
+  const nBox = room.length ? room[0].boxes.length : 0;
+  /* 글자 크기(큰 것부터) × 사각형(넓적한 것부터) — 쓰기를 모아 하고 읽기를 모아 한다(판마다 리플로우 한 번). pick = 이 판에서 맞춰 볼 라벨들 */
+  const sweep = (pick, nd) => {
+    for (let f = 0; f < sizes.length && pick().length; f++) {
+      pick().forEach(s => put(s.tag, FS, fsOf(f)));
+      for (let k = 0; k < nBox && pick().length; k++) {
+        const cur = pick();
+        cur.forEach(s => put(s.tag, W, pc(room[s.i].boxes[k].w)));
+        cur.filter(s => ok(s, room[s.i].boxes[k].w)).forEach(s => { s.done = true; s.nd = nd; s.fs = fsOf(f); s.w = s.cap.w; s.h = s.cap.h; });
+      }
+    }
+  };
+  sweep(open, '');   // ①·② 이름까지 — 줄바꿈 → 글자 줄이기
+  const both = () => open().filter(s => !s.on && s.name && s.rank && s.rank.textContent);   // ③ 이름을 숨기고 배지만(「항상」 라벨은 아래에서 이름을 자른다)
+  both().forEach(s => put(s.name, ND, 'none'));
+  sweep(both, 'none');
+  const last = sizes.length - 1;
+  open().forEach(s => {   // ④ 자동 = 숨김 · 'on' = 가장 작은 글자 · 가장 넓은 사각형으로 자른다
+    if (!s.on) { s.d = 'none'; s.w = ''; s.h = ''; return; }
+    const bx = room[s.i].boxes[room[s.i].best];
+    s.w = pc(bx.w); s.h = pc(bx.h); s.fs = fsOf(last);
+    if (!s.name) return;
+    put(s.name, ND, ''); put(s.name, NL, ''); put(s.tag, W, s.w); put(s.tag, FS, s.fs);
+    const lh = lineH(s.name);
+    const head = (s.rank && s.rank.textContent) ? s.name.offsetTop : 0;   // 배지 + 간격(배치 px · 라벨이 offsetParent)
+    const lines = lh > 0 ? Math.min(maxLines, Math.floor((bx.h / side * layer.offsetWidth - head) / lh + 0.02)) : 0;
+    if (lines >= 1) s.nl = String(lines); else if (head > 0) s.nd = 'none'; else s.nl = '1';
+  });
+  st.forEach(s => { if (!s.live) return; put(s.tag, W, s.w); put(s.tag, H, s.h); put(s.tag, D, s.d); put(s.tag, FS, s.fs); put(s.name, ND, s.nd); put(s.name, NL, s.nl); });
+  layer._grbPieFitKey = key;
+  layer._grbPieHidden = st.filter(s => s.name && !(items[s.i] && items[s.i].pieTag === 'off') && geo.shares[s.i] > 0 && (!s.live || s.d === 'none' || s.nd === 'none')).length;
+  block.dispatchEvent(new CustomEvent('grb-pie-fit', { bubbles: true, detail: { hiddenNames: layer._grbPieHidden } }));
+}
+/* 조각 기하의 «한 자리»(1013t1C3 고침) — dataset + 항목 → piePaths 산출과 viewBox 여유(_m). 그리기(_renderPie)와 라벨 맞추기(grbPieFitTags)가 «같은 수»를 읽는다. */
+function _pieGeoOf(block, items) {
   const d = block.dataset;
   const L = window.GRAPH_LIMITS;
   const _h = parseInt(d.pieHole);
-  const hole = d.chartType === 'donut' ? Math.min(L.PIE_HOLE_MAX, Math.max(L.PIE_HOLE_MIN, Number.isFinite(_h) ? _h : L.PIE_HOLE_DEFAULT)) : 0;
+  const donut = d.chartType === 'donut' || d.pieDonut === '1';   // 1013t1C1 — 유형은 '원형' 하나 + 「도너츠」 토글(pieDonut='1'). 옛 유형 'donut' 은 «영구 별칭»(옛 저장본 그대로 그린다)
+  const hole = donut ? Math.min(L.PIE_HOLE_MAX, Math.max(L.PIE_HOLE_MIN, Number.isFinite(_h) ? _h : L.PIE_HOLE_DEFAULT)) : 0;
   const _vals = items.map(it => it && it.value);
-  const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, L.PIE_GAP);   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
+  const _g = parseInt(d.pieGap);   // 1013t1C6 — 조각 간격(없으면 기본 PIE_GAP · 0 = 맞닿는다)
+  const gap = (d.pieGap !== undefined && Number.isFinite(_g)) ? Math.min(L.PIE_GAP_MAX, Math.max(L.PIE_GAP_MIN, _g)) : L.PIE_GAP;
+  const _s = parseInt(d.pieStart);   // 1013t1C2 — 시작 각도(도 · 없으면 0). 범례·% 는 항목 순서 그대로다
+  const start = Number.isFinite(_s) ? ((_s % 360) + 360) % 360 : 0;
+  /* 1013t1C4 — 조각 크기(items[i].pieGrow · 바깥 반지름에 더하는 % · 0~PIE_GROW_MAX). 키운 조각은 viewBox 밖으로 나가므로 viewBox 를 «대칭으로» 넓힌다
+       ⇒ 키운 조각 «말고는» path 글자가 그대로다(전체를 줄여 그리면 모든 d 가 바뀐다 · overflow:visible 은 아래 범례를 덮는다). 안 키웠으면 viewBox 글자도 옛 그대로. */
+  const _pct = (v, hi) => { const n = parseInt(v); return Number.isFinite(n) ? Math.min(hi, Math.max(0, n)) : 0; };
+  const grow = items.map(it => _pct(it && it.pieGrow, L.PIE_GROW_MAX));
+  /* 1013t1C5 — 밀어내기(items[i].piePull · R 대비 % · 0~PIE_PULL_MAX). 조각을 이등분각 방향으로 «통째로» 옮긴다 — d 는 그대로 두고 path 의 transform 으로(geo.offsets).
+       안 민 조각은 속성 자체가 없다(옛 그림과 바이트가 같다). 민 만큼도 extent 에 들어 viewBox 가 같이 넓어진다. 조각 클릭은 브라우저가 «옮긴 자리»에서 맞힌다(e.target). */
+  const pull = items.map(it => _pct(it && it.piePull, L.PIE_PULL_MAX));
+  const geo = window.GRAPH_PIE_GEOM.piePaths(_vals, hole, gap, { start, grow, pull });   // 조각 사이 틈 — 색 주기(5)로 같은 색이 맞닿아도 갈린다
+  return { geo, _vals, _m: Math.ceil(geo.extent) };
+}
+function _renderPie(block, { items, chartH, labelSize }) {
+  const d = block.dataset;
+  const _selIdx = _grbPieMarkIndex(block);   // 다시 그리기 «전»의 조각 선택 — 아래에서 innerHTML 을 덮은 뒤 되붙인다
+  const { geo, _vals, _m } = _pieGeoOf(block, items);
+  const viewBox = _m ? `${-_m} ${-_m} ${1000 + 2 * _m} ${1000 + 2 * _m}` : '0 0 1000 1000';
   const pcts = window.GRAPH_PIE_GEOM.piePercents(_vals);                // 합이 정확히 100(최대 잔여법)
   const _lc = d.labelColor || '';
   const _vCss = (d.showVLabel !== '0' ? '' : 'display:none;') + ((_c => _c ? `color:${_c};` : '')(_safeGraphColor(d.vlabelColor || _lc)));
@@ -866,16 +1033,34 @@ function _renderPie(block, { items, chartH, labelSize }) {
     block.style.height = 'auto';
   }
 
-  const slices = geo.paths.map((p, i) => `<path class="grb-pie-slice" d="${p}"${colors[i] ? ` style="fill:${colors[i]};fill-opacity:1"` : ''}/>`).join('');
+  const _tf = (o) => (o[0] !== '0.00' || o[1] !== '0.00') ? ` transform="translate(${o[0]} ${o[1]})"` : '';
+  let tagsHTML = '';
+  const _tagRank = d.pieRank === '1', _tagName = d.pieName === '1';
+  if (_tagRank || _tagName) {
+    const ranks = window.GRAPH_PIE_GEOM.pieRanks(_vals);
+    const plan = window.GRAPH_PIE_GEOM.pieTagPlan(geo, { tags: items.map(it => it && it.pieTag) });
+    const _side = 1000 + 2 * _m;
+    const _at = (v) => ((v + _m) / _side * 100).toFixed(2);   // viewBox 좌표 → 덧층 정사각의 %
+    /* 1013t1C3 고침 — 라벨마다 «그 조각 안에서 쓸 수 있는 사각형»(pieTagRoom 의 가장 넓은 것 · 덧층 정사각의 %)을 인라인 변수 둘로 싣는다: 읽는 자 = css/editor-graph.css 의 max-width / max-height.
+         기하에서만 나온 값이라 «두 번 그려 같다»·저장본에 실려도 된다(JS 없는 내보내기에서도 라벨이 제 조각을 안 넘는다). 실제 글자를 잰 결과(grbPieFitTags)는 다른 변수(저장에서 걷힘)에 산다. */
+    const room = window.GRAPH_PIE_GEOM.pieTagRoom(geo);
+    const _pc = (v) => (Math.floor(v / _side * 10000) / 100).toFixed(2);
+    tagsHTML = `<div class="grb-pie-tags" style="width:${chartH}px;font-size:${labelSize}px">` + items.map((it, i) =>
+      `<div class="grb-pie-tag" style="left:${_at(plan[i].x)}%;top:${_at(plan[i].y)}%;--grb-pie-box-w:${_pc(room[i].boxes[room[i].best].w)}%;--grb-pie-box-h:${_pc(room[i].boxes[room[i].best].h)}%${plan[i].show ? '' : ';display:none'}">`
+      + (_tagRank ? `<span class="grb-pie-rank">${ranks[i] > 0 ? ranks[i] + '위' : ''}</span>` : '')
+      + (_tagName ? `<span class="grb-pie-name">${_escGraphHtml(it && it.label)}</span>` : '') + `</div>`).join('') + `</div>`;
+  }
+  const slices = geo.paths.map((p, i) => `<path class="grb-pie-slice" d="${p}"${_tf(geo.offsets[i])}${colors[i] ? ` style="fill:${colors[i]};fill-opacity:1"` : ''}/>`).join('');
   const emptyEl = geo.empty ? `<circle class="grb-pie-empty" cx="500" cy="500" r="498" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="6 6" vector-effect="non-scaling-stroke"/>` : '';
   const legend = items.map((it, i) => `<span class="grb-pie-legend-item"><span class="grb-pie-dot"${colors[i] ? ` style="background:${colors[i]};opacity:1"` : ''}></span>`
     + `<span class="grb-pie-label" style="${_xCss}">${_escGraphHtml(it && it.label)}</span>`
     + `<span class="grb-pie-val" style="${_vCss}">${pcts[i]}%</span></span>`).join('');
   block.innerHTML = `
       <div class="grb-pie-wrap" style="height:${chartH}px">
-        <svg class="grb-pie-svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">${slices}${emptyEl}</svg>
+        <svg class="grb-pie-svg" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet">${slices}${emptyEl}</svg>${tagsHTML}
       </div>
       <div class="grb-pie-legend" style="font-size:${labelSize}px">${legend}</div>`;
+  if (_selIdx >= 0) grbPieSelect(block, _selIdx);
 }
 /* ── 1012t1G2 · G3 · G4 「SVG 를 그래프 모양으로」 ─────────────────────────
  * 세로 막대의 «덧 길» — dataset.barShape(실루엣) 또는 items[i].segments(마디)가 있을 때만 온다. chartType 은 'bar-v' 그대로.
@@ -1347,6 +1532,11 @@ window.showToast                  = showToast;
 window.getSectionAlign            = getSectionAlign;
 window.GRAPH_DEFAULT_ITEMS        = GRAPH_DEFAULT_ITEMS;
 window.renderGraph                = renderGraph;
+window.grbPieSliceIndexAt         = grbPieSliceIndexAt;   // 1013t1C4 — 조각 고르기 셋(block-drag 클릭 · prop-graph 패널이 부른다)
+window.grbPieSelected             = grbPieSelected;
+window.grbPieSelect               = grbPieSelect;
+window.grbPieHiddenNames          = grbPieHiddenNames;     // 1013t1C3 고침 2 — 좁아서 숨겨진 이름 수(패널 안내 줄이 읽는다)
+window.grbPieFitTags              = grbPieFitTags;         // 1013t1C3 고침 — 조각 안 라벨을 재서 제 조각 안에 넣는다(canvas-contrast.js syncGraphTone 이 부른다)
 window.applyDividerStyle          = applyDividerStyle;
 window.ASSET_PRESETS              = ASSET_PRESETS;
 window.suppressAncestorDrag       = suppressAncestorDrag;

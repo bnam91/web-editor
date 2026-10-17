@@ -39,13 +39,14 @@
   /** ★섹션 하나에 그리는 입자 수의 상한. ⛔막지 않는다 — 넘으면 자른다. */
   const MAX_COUNT = 120;
 
-  /* ★모양 다섯 — 이름은 시안과 «같게» 둔다(시안이 사람에게 보여 준 어휘가 그대로 저장본에 들어간다).
-     ★여섯째 'coin'(1013t2E3) — «3D 코인» 한 닢. 그림은 js/fx/coin-draw.js(window.CoinFx.draw)가 짓고 여기는 감싸기만 한다(coinSVG). */
+  /* ★모양 다섯 — 이름은 시안과 «같게» 둔다(시안이 사람에게 보여 준 어휘가 그대로 저장본에 들어간다). */
+  /* ★여섯째 'coin'(1012t1 I1-B · 프로토 3c3a25bb 를 정식으로) — «3D 코인» 한 닢. 그림은 js/fx/coin-draw.js(window.CoinFx.draw)가 짓고 여기는 감싸기만 한다.
+     ⛔KINDS·PRESETS 에는 코인이 없다(프리셋 명부 그대로) — 「코인」은 레시피(js/coin-particle-recipe.js · 섹션 패널의 「코인 레시피」 단추)다. */
   const SHAPES = Object.freeze(['rect', 'ribbon', 'circle', 'star4', 'tri', 'coin']);
 
-  /* ★프리셋 넷(＋2026-10-14 다섯째 「코인」 — 아래 COIN_GOLD 머리말) — ⛔bg 키가 ★없다(위 머리말 ⒜ · 현빈 2026-10-07).
+  /* ★프리셋 넷 — ⛔bg 키가 ★없다(위 머리말 ⒜ · 현빈 2026-10-07).
      ★현빈 확정 2026-10-07: 「프리셋은 넷이면 충분하다 · 알맹이모양도 지금 충분하다. 이대로 유지」 ⇒ ⛔더 늘리지 마라.
-       (★그때 받은 말이다 — 2026-10-14 현빈 노트 1013t2E3 이 「코인」 프리셋·모양을 더하라 했다. 아래 「넷 다」는 그 «넷»(star·gold·party·dust)을 가리킨다.)
+       (★코인은 프리셋이 아니라 «레시피»다 — js/coin-particle-recipe.js · 1012t1 I1-B · 1013t2E3 도 그 꼴로 닫았다 ⇒ 넷은 그대로.)
      ★기본 색은 «값만» 바꾸면 되게 여기 한 자리에 둔다(글로우 PRESETS 와 같은 결).
      ★fxOpacity — 이름을 ★글로우와 «같게» 쓴다(지디 2026-10-06 · 9f062a5c 로 미리 맞춰 둔 이름).
        ⛔alpha·opacity 로 갈라 쓰면 다음 사람이 두 벌로 읽는다.
@@ -82,23 +83,13 @@
          ⇒ ★★무게를 가르는 것은 ★«후광»이다 — ★star·dust 는 ★후광이 켜져 ★조각을 ★두 벌 그린다
            (★count 가 넷 다 같으니 ★밀도 차이는 ★없다). ★후광 끈 둘 = ★`count + 3` · ★켠 둘 = ★`count*2 + 13`.
          ⛔★안 잰 것: ★섹션 ★여럿(N개)에 ★깔릴 때의 ★프레임·메모리 ⇒ ★★미측정. */
-  /* ★★다섯째 프리셋 「코인」 (현빈 노트 1013t2E3 「코인 파티클 기능도 추가 — 별반짝이, 금색 컨패티, 컬러컨페티, 먼지/보케, 코인레시피」
-       · 1013t2E4 「색은 금색 은색 추가말고 디폴트로 금색」). ⇒ 위 「⛔더 늘리지 마라」(2026-10-07)를 그 뒤의 현빈 말이 넷 → 다섯으로 바꿨다.
-     · 색 = 금 «하나». 값은 코인 색의 정본(CoinFx.baseColors)에서 읽는다 — CoinFx 가 없는 판(vm 하네스)에서는 금색 컨페티의 첫 색으로 떨어진다(같은 금).
-       그 색 칩이 금 대표색 그대로면 코인은 CoinFx 의 금 표로 그려지고, 사용자가 칩을 바꾸면 그 색의 코인이 된다(CoinFx.lookFromColor).
-     · count 는 ★상한을 따라가지 «않는다»(넷과 다른 점) — 코인 한 닢은 조각 하나가 아니라 SVG 요소 서른 안팎(gradient 6 · clipPath 2 포함)이라
-       120 닢이면 노드가 넷의 수십 배가 된다. 그래서 14 닢으로 시작한다(상한이 그보다 낮아지면 상한). 갯수 칸의 범위는 넷과 같다(0~MAX_COUNT).
-     · 후광·번짐·움직임은 넷과 같이 0 에서 시작한다(패닝 셋 = 0 ⇒ 저장만 하고 멈춰 있다). */
-  const GOLD_CONFETTI = Object.freeze(['#F5C542', '#E8B22A', '#FFE9A8', '#C98A14']);   /* 금색 컨페티의 색(아래 gold) — 코인 폴백이 첫 색을 같이 읽는다 */
-  const COIN_GOLD = (w.CoinFx && typeof w.CoinFx.baseColors === 'function') ? w.CoinFx.baseColors('gold').face : GOLD_CONFETTI[0].toLowerCase();
-  const COIN_COUNT = Math.min(14, MAX_COUNT);
   const PRESETS = Object.freeze({
     star:  Object.freeze({ label: '별 반짝이',   count: MAX_COUNT, shapes: Object.freeze(['star4', 'star4', 'circle']),
                            colors: Object.freeze(['#FFFFFF', '#FFE9FF', '#C9A8FF', '#8E6BE0']),
                            smin: 3, smax: 14, rot: true,  dist: 'even', glow: 55, spread: 6,  fxOpacity: 100, jit: 60,
                            speed: 0, blur: 0, spin: 0 }),
     gold:  Object.freeze({ label: '금색 컨페티', count: MAX_COUNT, shapes: Object.freeze(['rect', 'ribbon']),
-                           colors: GOLD_CONFETTI,
+                           colors: Object.freeze(['#F5C542', '#E8B22A', '#FFE9A8', '#C98A14']),
                            smin: 6, smax: 22, rot: true,  dist: 'top',  glow: 0,  spread: 0,  fxOpacity: 100, jit: 25,
                            speed: 0, blur: 0, spin: 0 }),
     party: Object.freeze({ label: '컬러 컨페티', count: MAX_COUNT, shapes: Object.freeze(['rect', 'tri', 'ribbon']),
@@ -109,10 +100,6 @@
                            colors: Object.freeze(['#FFFFFF', '#FFE6B8', '#BFD8FF']),
                            smin: 4, smax: 28, rot: false, dist: 'edge', glow: 70, spread: 14, fxOpacity: 80, jit: 85,
                            speed: 0, blur: 0, spin: 0 }),
-    coin:  Object.freeze({ label: '코인',        count: COIN_COUNT, shapes: Object.freeze(['coin']),
-                           colors: Object.freeze([COIN_GOLD]),
-                           smin: 28, smax: 90, rot: true,  dist: 'even', glow: 0,  spread: 0,  fxOpacity: 100, jit: 0,
-                           speed: 0, blur: 0, spin: 0 }),
   });
   const KINDS = Object.freeze(Object.keys(PRESETS));
   const DISTS = Object.freeze(['even', 'top', 'edge']);
@@ -122,7 +109,7 @@
   const RANGES = Object.freeze({
     count:     Object.freeze({ min: 0, max: MAX_COUNT }),
     /* ★크기 상한 90 → 250 (현빈 노트 1013t2E4 「코인 레시피의 크기 … 최대 90밖에 안되는데 250까지」).
-       범위 표는 프리셋마다 따로 두지 않는다(명부 하나) ⇒ 다섯 프리셋이 같이 250 까지 간다. 옛 저장본(≤ 90)은 값이 그대로다. */
+       범위 표는 프리셋마다 따로 두지 않는다(명부 하나) ⇒ 네 프리셋과 코인 레시피가 같이 250 까지 간다. 옛 저장본(≤ 90)은 값이 그대로다. */
     smin:      Object.freeze({ min: 1, max: 250 }),
     smax:      Object.freeze({ min: 1, max: 250 }),
     glow:      Object.freeze({ min: 0, max: 100 }),
@@ -166,7 +153,7 @@
    *  ★지디 2026-10-07: 「후광을 켜면 그리는 양이 약 2배」를 안내로 두되 ★그 수를 상수에서 끌어내라.
    *    ⇒ 상한이 또 바뀌어도 문구가 ★조용히 거짓이 되지 않는다(★산문은 말만 쓰고 수는 데이터에서).
    *  ★후광이 켜지면 조각을 ★두 벌 그린다(번짐 층 + 또렷 층) ＋ 필터 정의가 9 요소.
-   *  ⚠️모양 'coin' 은 이 어림에 «안 들어간다» — 코인 한 닢의 요소 수는 기울기에 따라 달라진다(톱니·양각 벽).
+   *  ⚠️모양 'coin' 은 이 어림에 «안 들어간다» — 한 닢이 SVG 요소 서른 안팎이고 기울기에 따라 달라진다(톱니·양각 벽).
    *    코인이 섞인 설정에서 이 수는 «조각 수» 기준의 아랫값이다(코인이 없는 설정에서만 실제와 같다 — P10).
    *  ⚠️★태양 표의 공식(갯수×2+14)과 ★1 씩 다르다 — ★시안엔 ★배경 rect 가 하나 더 있었고 ★우리는 그것을 뺐다.
    *    ⇒ ★이 수가 맞는지는 ⛔공식을 믿지 말고 ★svg() 를 돌려 센 값과 견준다(tests/unit/fx-particles-render P10). */
@@ -198,15 +185,15 @@
     return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
   }
 
-  /** ★코인 한 닢(모양 'coin' · 1013t2E3) — 그림은 CoinFx.draw 가 짓고 여기는 «감싸기»만 한다.
-   *  · 바깥 <g> 가 회전(rot)·진하기·움직이개 꼬리표(data-fxp)를 쥔다 — 다른 모양이 제 요소에 다는 것과 같은 셋이다.
+  /** ★코인 한 닢(모양 'coin') — 그림은 CoinFx.draw 가 짓고 여기는 «감싸기»만 한다.
+   *  · 바깥 <g> 가 회전(rot)·진하기·움직이개 꼬리표(data-fxp)를 쥔다 — 다른 모양이 제 요소에 다는 것과 같은 셋.
    *    움직이개(js/fx/particles-animate.js)는 그 transform 을 통째로 덮어쓰므로 바깥에는 «회전만» 담는다(자리 x·y 는 안쪽 translate).
    *  · 안쪽은 dir:0 ＋ extRot:rot — 바깥에서 돌아간 만큼 «빛 방향만» 보정한다(코인이 돌아도 빛은 왼쪽 위).
-   *  · 크기 s = 코인 지름. 기울기 = 그 입자의 열 번째 난수(qv)에서 0~80° — 뽑는 횟수는 그대로다.
+   *  · 크기 s = 지름 · 기울기 = 그 입자의 열 번째 난수(qv)에서 0~80° — 뽑는 횟수는 그대로다(같은 시드 = 같은 그림).
    *  · 색 = 파티클 색 칩 한 칸 → CoinFx.lookFromColor. ⛔코인 색을 여기 적지 않는다(표는 CoinFx 에만).
    *  · id 접두는 호출자가 준다(<필터 id>-c<순번>) — 섹션마다·코인마다 다르다(SVG id 는 문서 전역).
-   *    ⚠️후광이 켜지면 조각을 두 벌 그리므로 같은 id 가 두 번 난다 — 두 벌이 같은 정의라 그림은 같다.
-   *  @returns {string} CoinFx 가 없으면 '' (호출자가 원으로 떨어뜨린다 — 그리고 콘솔에 한 번 적는다) */
+   *    ⚠️후광을 켜면 조각을 두 벌 그리므로 같은 id 가 두 번 난다(두 벌이 같은 정의 — 그림은 같다). 레시피는 후광 0 이다.
+   *  @returns {string} CoinFx 가 없으면 '' (호출자가 원으로 떨어뜨린다 · 콘솔에 한 번) */
   let coinWarned = false;
   function coinSVG(x, y, s, rot, c, op, mv, tilt, idp) {
     const C = w.CoinFx;
@@ -236,7 +223,7 @@
     if (kind === 'coin') {
       const g = coinSVG(x, y, s, rot, c, op, mv, tilt, idp);
       if (g) return g;
-      kind = 'circle';                                   /* CoinFx 가 없는 판 — 원으로 떨어진다 */
+      kind = 'circle';                                   /* CoinFx 가 없는 판(vm 하네스) — 원으로 떨어진다 */
     }
     const o = ' fill="' + c + '"' + (op < 0.999 ? ' opacity="' + (Math.round(op * 100) / 100) + '"' : '')
             + (mv ? ' data-fxp="' + mv + '"' : '');

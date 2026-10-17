@@ -32,6 +32,9 @@
       if (e.key === 'Escape' || e.key === 'v' || e.key === 'V') {
         e.preventDefault();
         e.stopImmediatePropagation();
+        // ★1013t1A3 — 라벨을 «골라» 둔 상태면 ESC 한 번은 그 고르기만 푼다(다음 ESC 에 블럭 해제)
+        const picked = sel.querySelector('.annot-label.annot-cell-selected');
+        if (e.key === 'Escape' && picked) { picked.classList.remove('annot-cell-selected'); return; }
         _deselectAllAnnotations();
         return;
       }
@@ -43,6 +46,7 @@
         if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 삭제');
         sel.remove();
         window.hideAnnotationProperties?.();
+        window.buildLayerPanel?.();   // ★1013t1A1 — 지운 블럭을 가리키는 «죽은 행»을 남기지 않는다
         window.scheduleAutoSave?.();
       }
     }, true);
@@ -52,6 +56,7 @@
   function _deselectAllAnnotations() {
     document.querySelectorAll('.annotation-block.selected').forEach(b => {
       b.classList.remove('selected');
+      b.querySelectorAll('.annot-cell-selected').forEach(l => l.classList.remove('annot-cell-selected'));   // ★1013t1A3
       _removeHandles(b);
       _removeSelectionBox(b);
     });
@@ -72,6 +77,8 @@
     block.classList.add('selected');
     _ensureHandles(block);
     window.showAnnotationProperties?.(block);
+    // ★1013t1A1 — 캔버스에서 골라도 좌측 레이어의 그 행이 켜진다(행은 makeLayerBlockItem 이 block._layerItem 에 단다)
+    if (block._layerItem?.isConnected) window.highlightBlock?.(block, block._layerItem);
   }
   window._selectAnnotation = _selectAnnotation;
 
@@ -265,6 +272,49 @@
     return { adjX, adjY };
   }
 
+  // ── ★1013t1A3 라벨만 옮기기 (방사형 블럭 호 「항목 위치 조절」 차용 · b67106ab _startItemDrag) ──
+  // 조건: 블럭이 선택돼 있고 라벨이 «이미 골라진»(.annot-cell-selected) 상태에서 누를 때만. 첫 클릭은 고르기다.
+  // 끄는 동안엔 label.style.translate 만 바꾸고, 놓을 때 dataset(labelDx/Dy)에 쓰고 «끝 표본»을 찍는다.
+  // 시작 표본은 onMove 첫 틱의 arm() — 끌기 한 번 = ⌘Z 한 걸음(js/CLAUDE.md 「드래그는 양쪽 끝」).
+  function _startLabelOffsetDrag(block, label, e) {
+    e.stopImmediatePropagation();
+    e.stopPropagation();
+    e.preventDefault();
+    const startX = e.clientX, startY = e.clientY;
+    const off0 = window.annotLabelOffsetOf?.(block) || { dx: 0, dy: 0 };
+    const L = window.ANNOT_LIMITS;
+    const clamp = (v, k) => Math.min(L[k].max, Math.max(L[k].min, Math.round(v)));
+    let moved = false, cur = null;
+    const _hist = window.beginDragHistory?.('어노테이션 라벨 위치');
+    const onMove = (ev) => {
+      const ddx = (ev.clientX - startX) / _zoom();
+      const ddy = (ev.clientY - startY) / _zoom();
+      if (!moved) {
+        if (Math.abs(ev.clientX - startX) < 3 && Math.abs(ev.clientY - startY) < 3) return;
+        moved = true;
+        _hist?.arm(ddx, ddy);
+      }
+      cur = { dx: clamp(off0.dx + ddx, 'labelDx'), dy: clamp(off0.dy + ddy, 'labelDy') };
+      label.style.translate = `${cur.dx}px ${cur.dy}px`;
+      ev.preventDefault();
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove, true);
+      document.removeEventListener('mouseup',   onUp,   true);
+      if (!moved || !cur) return;
+      // 끌기 끝의 click 은 삼킨다 — 라벨 밖에서 놓으면 그 click 이 선택을 풀어 버린다(radial 과 같은 처방).
+      const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+      window.addEventListener('click', eat, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener('click', eat, true), 0);
+      window.annotSetLabelOffset?.(block, cur.dx, cur.dy);
+      window.showAnnotationProperties?.(block);
+      if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 라벨 위치');
+      window.scheduleAutoSave?.();
+    };
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('mouseup',   onUp,   true);
+  }
+
   // ── 블록당 바인딩 ───────────────────────────────────────────────────
   function bindAnnotationSelect(block) {
     if (!block || block._annotSelBound) return;
@@ -305,8 +355,15 @@
       let sec = block.closest('.section-block');
       if (!sec) return;
 
+      // ★1013t1A3 — 골라 둔 라벨을 누르면(⌘ 없이) «라벨만» 옮긴다
+      const wasSelected = block.classList.contains('selected');
+      if (wasSelected && label.classList.contains('annot-cell-selected') && !(e.metaKey || e.ctrlKey)) {
+        _startLabelOffsetDrag(block, label, e);
+        return;
+      }
+
       // 선택되지 않았다면 선택만 하고 드래그는 다음 mousedown부터
-      if (!block.classList.contains('selected')) {
+      if (!wasSelected) {
         _selectAnnotation(block);
       }
 
@@ -385,13 +442,18 @@
         }
         _updateBlockGeometry(block, points);
       };
+      const startSec = sec;
       const onUp = () => {
         document.removeEventListener('mousemove', onMove, true);
         document.removeEventListener('mouseup',   onUp,   true);
         if (dragging) {
           _writePoints(block, points);
           if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 이동');
+          if (sec !== startSec) window.buildLayerPanel?.();   // ★1013t1A1 — 섹션을 건넜으면 행도 그 섹션 밑으로
           window.scheduleAutoSave?.();
+        } else if (wasSelected && !lastOnly) {
+          // ★1013t1A3 — 이미 선택된 어노테이션의 라벨을 «안 움직이고» 한 번 더 누르면 라벨을 고른다(다음 끌기 = 라벨만)
+          label.classList.add('annot-cell-selected');
         }
       };
       document.addEventListener('mousemove', onMove, true);
