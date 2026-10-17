@@ -2865,13 +2865,13 @@ function _borderEdgesRowHtml(bd) {
         <span class="prop-label" title="선을 어디에 긋나 — 블럭 «바깥» 네 변은 아래 「블럭 외곽선」이 따로 켭니다">선 자리</span>
         <div class="prop-type-group" id="grd-border-edges-mode" role="group" aria-label="칸 테두리 선 자리" style="flex:1;min-width:0;margin-bottom:0;">
           ${mode('box', '네 변', !lines, '네 변 — 칸마다 네 변(표·카드)')}
-          ${mode('lines', '구분선', lines, '구분선 — 칸 위 변 · 칸 사이 세로 선만(바깥 좌우·아래는 안 긋습니다)')}
+          ${mode('lines', '구분선', lines, '구분선 — 행 사이 가로 선 · 칸 사이 세로 선만(블럭 맨 위·바깥 좌우·아래는 안 긋습니다)')}
         </div>
       </div>${lines ? `
       <div class="prop-row" id="grd-border-edges">
         <span class="prop-label">구분선</span>
         <div class="prop-type-group" role="group" aria-label="구분선 켜기/끄기" style="flex:1;min-width:0;margin-bottom:0;">
-          ${edge('top', '위 변', '칸 위 변(첫 행은 블럭 위 변 자리 · 나머지는 행 사이 선) 켜기/끄기', false)}
+          ${edge('top', '행 사이', '행 사이 가로 선 켜기/끄기 — 블럭 맨 위 선은 아래 「블럭 외곽선」 위 변입니다', false)}
           ${edge('vsep', '칸 사이', noVsep ? '1열이라 칸 사이가 없습니다' : '칸 사이 세로 선 켜기/끄기', noVsep)}
         </div>
       </div>` : ''}`;
@@ -3767,7 +3767,7 @@ ${_flattenRowHtml(rows, cols)}
     _bdCommit({ cellBorderStyle: bdStyleSel.value });
   });
 
-  /* ── ★1013t2F 선 자리 — 「네 변 | 구분선」 + 구분선의 [위 변][칸 사이]. 목록을 만들어 «한 문»으로(⌘Z 1회). ── */
+  /* ── ★1013t2F 선 자리 — 「네 변 | 구분선」 + 구분선의 [행 사이(데이터 키는 'top')][칸 사이]. 목록을 만들어 «한 문»으로(⌘Z 1회). ── */
   propPanel.querySelectorAll('[data-edges-mode]').forEach(btn => btn.addEventListener('click', () => {
     const toLines = btn.dataset.edgesMode === 'lines';
     if (!!gridCellBorder(block).edges === toLines) return;   // 이미 그 모드 — 히스토리를 안 쌓는다
