@@ -604,7 +604,8 @@ function _renderAutoPanel(ss) {
     </div>
     <div class="prop-section">
       <div class="prop-hint">Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.</div>
-    </div>`;
+    </div>
+    ${window.fxSectionHtml?.(ss, 'ss') || ''}`;   /* ★1017a7 Effects — ★맨 끝(prop-shape.js:356 과 같은 자리 · 지디 승인분 그대로) */
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
   /* 버즈 프레임에는 Layout 절(free → stack 변환)을 안 그린다 — 버즈는 자유배치여야 돌고, 쌓기는 Buzz 절의 배치 「스택」이 한다.
@@ -1129,6 +1130,10 @@ function _renderAutoPanel(ss) {
     ssTplSaveBtn.disabled = true;
     setTimeout(() => { if (ssTplSaveBtn) { ssTplSaveBtn.textContent = '컴포넌트로 저장'; ssTplSaveBtn.disabled = false; } }, 1500);
   });
+
+  /* ★1017a7 Effects — 그리개와 ★같은 자리(prop-shape.js:357 본). ⛔명부 다리는 import 하지 않고 window.* 로
+     (단위 하네스가 이 패널 파일을 대역으로 싣기 때문 — js/effects-registry.js 머리말 :29). */
+  window.wireFxSection?.(ss, 'ss', () => showFrameProperties(ss));
 }
 
 /* ════════════════════════════════════════
