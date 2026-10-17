@@ -1,6 +1,6 @@
 // comparison-block.js — 1급 비교 블록 (banner02 패턴). N칼럼 비교(1:1, 1:1:1 …).
 // 한 칼럼(featured)이 더 크게 떠보임(그림자·overlap·스케일↑). 칼럼은 cols 배열로 관리.
-import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
+import { genId, showNoSelectionHint, insertAfterSelected, mdlReadText } from '../drag-utils.js';   /* ★1017t1c2 — Enter 줄바꿈 읽기 한 벌(모달·block-drag.js 와 같은 자리 · 사본 0) */
 import { bindBlock } from '../drag-drop.js';
 import { _cvbBackgroundSize } from './canvas-block.js';   // ★D3 — 이미지 확대 식 한 벌(카드와 같은 필드 imgScale/imgFit)
 import { normalizeRedact, applyRedact } from '../effects/image-redact.js';   // ★D4 — 셀 이미지 블러(Redact) 공용 모듈(C1 · 에셋과 한 벌)
@@ -334,7 +334,13 @@ function renderComparison(block, _lnNeed = null) {
 
   block.style.position = 'relative';
   block.style.overflow = 'visible';
-  block.style.width = '100%';
+  /* ★1017t1c5 — 오버레이(떠 있음)면 폭을 «굳힌 px» 그대로 둔다(grid-block.js:2781-2791 와 같은 꼴).
+     띄울 때 overlay-float.js _freezeWidth 가 px 로 굳히는데, 아래에서 100% 를 또 박으면 매 재렌더(renderComparison
+     은 거의 모든 조작마다 다시 불린다)가 그 폭을 섹션 전폭으로 펴 버린다. ⛔scale 식(applyScale)은 안 건드린다
+     — block.offsetWidth 를 읽으므로 굳힌 px 를 자동으로 따른다. */
+  const floating = block.dataset.overlayBlock === 'true';
+  if (!floating) block.style.width = '100%';
+  else if (block.dataset.overlayFrozenWidth) block.style.width = block.dataset.overlayFrozenWidth;
   block.style.maxWidth = 'none';   // 테이블 등 일반 블록과 동일하게 컨테이너 폭을 꽉 채움 (designW는 내부 좌표 기준일 뿐)
   block.style.margin = '0';
 
@@ -401,7 +407,8 @@ function renderComparison(block, _lnNeed = null) {
       hd.textContent = c.title || '';
       hd.style.cssText = `height:${hH}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
         `font-size:${tFont}px;font-weight:${isFeat ? 800 : 700};color:${hdColor};${hdBg ? `background:${hdBg};` : ''}` +
-        `padding:0 ${16 + insetR}px 0 ${16 + insetL}px;box-sizing:border-box;line-height:1.2;`;
+        `padding:0 ${16 + insetR}px 0 ${16 + insetL}px;box-sizing:border-box;line-height:1.2;` +
+        `white-space:pre-wrap;word-break:keep-all;`;   /* ★1017t1c2 — 캡션 모드(:392)와 ★같은 선언. Enter 줄바꿈이 헤더(header)에서도 그려지게 */
       _editableTitle(hd, block, idx);
       col.appendChild(hd);
     }
@@ -442,7 +449,8 @@ function renderComparison(block, _lnNeed = null) {
         r.textContent = (row && row.text != null) ? row.text : '';
         r.style.cssText = `height:${effRowH}px;margin-top:${gap}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
           `font-size:${rFont}px;font-weight:${isFeat ? 600 : 400};color:${textColor};` +
-          `padding:0 ${12 + insetR}px 0 ${12 + insetL}px;box-sizing:border-box;`;
+          `padding:0 ${12 + insetR}px 0 ${12 + insetL}px;box-sizing:border-box;` +
+          `white-space:pre-wrap;word-break:keep-all;`;   /* ★1017t1c2 — 캡션 헤더(:392)와 ★같은 선언. Enter 줄바꿈이 그려지게 */
         _editableRow(r, block, idx, ri);
       }
       col.appendChild(r);
@@ -526,8 +534,9 @@ function _editableTitle(el, block, colIdx) {
   });
   el.addEventListener('blur', () => {
     el.setAttribute('contenteditable', 'false');
-    /* ★D5 — 다 지우고 나가면 contenteditable 이 <br> 을 남겨 :empty 가 깨진다(실측) → 안내 ::before 가 안 돌아온다. 진짜로 비운다. */
-    if (el.textContent === '' && el.firstChild) el.textContent = '';
+    /* ★D5 — 다 지우고 나가면 contenteditable 이 <br> 을 남겨 :empty 가 깨진다(실측) → 안내 ::before 가 안 돌아온다. 진짜로 비운다.
+       ★1017t1c2 — mdlReadText 로 재므로 ★textContent 가 아니라 ★같은 자로 비었는지 본다(두 자가 갈리면 뜻이 안 맞는다). */
+    if (mdlReadText(el) === '' && el.firstChild) el.textContent = '';
     const cols = getComparisonCols(block.dataset);
     if (cols[colIdx]) {
       /* ★⒝ 빈 칸을 기본문구로 ★«되돌리지 않는다» (현빈 2026-10-08).
@@ -535,8 +544,9 @@ function _editableTitle(el, block, colIdx) {
          ★그 한 줄이 현빈이 불편해한 «지워도 되살아난다»의 ★바로 그 자리다
            (실측 — 비우고 blur → DOM·모델 둘 다 '새 칼럼'으로 돌아왔다).
          ⛔「빈 칸이 레이아웃 빈칸이 된다」는 ★여기서 막지 않는다 — 면적은 renderComparison 이 준다:
-           header 모드 = hd 의 `height:${hH}px` · 캡션 모드 = capIn 의 ⒟ 최소 면적. */
-      cols[colIdx].title = el.textContent;
+           header 모드 = hd 의 `height:${hH}px` · 캡션 모드 = capIn 의 ⒟ 최소 면적.
+         ★1017t1c2 — ★el.textContent 대신 ★mdlReadText(el) — Enter 줄바꿈이 \n 으로 산다(모달 한 벌). */
+      cols[colIdx].title = mdlReadText(el);
       setComparisonCols(block, cols);
     }
     window.pushHistory?.(); window.scheduleAutoSave?.();
@@ -561,8 +571,9 @@ function _editableRow(el, block, colIdx, rowIdx) {
   });
   el.addEventListener('blur', () => {
     el.setAttribute('contenteditable', 'false');
-    /* ★D5 — 다 지우고 나가면 contenteditable 이 <br> 을 남겨 :empty 가 깨진다(실측) → 안내 ::before 가 안 돌아온다. 진짜로 비운다. */
-    if (el.textContent === '' && el.firstChild) el.textContent = '';
+    /* ★D5 — 다 지우고 나가면 contenteditable 이 <br> 을 남겨 :empty 가 깨진다(실측) → 안내 ::before 가 안 돌아온다. 진짜로 비운다.
+       ★1017t1c2 — mdlReadText 로 재므로 ★textContent 가 아니라 ★같은 자로 비었는지 본다(두 자가 갈리면 뜻이 안 맞는다). */
+    if (mdlReadText(el) === '' && el.firstChild) el.textContent = '';
     const cols = getComparisonCols(block.dataset);
     const row = cols[colIdx]?.rows?.[rowIdx];
     // 객체행이면 .text만 갱신(이미지행 imgSrc 유실 방지). getComparisonCols가 항상 객체로 정규화하므로 항상 객체.
@@ -571,8 +582,9 @@ function _editableRow(el, block, colIdx, rowIdx) {
         /* ★⒝ 빈 칸을 기본문구로 ★«되돌리지 않는다» (현빈 2026-10-08).
            ~~예전: `if (val.trim()==='') { val = CMP_PLACEHOLDER_ROW; el.textContent = val; }`~~
            ★실측 — 비우고 blur → DOM·모델 둘 다 '내용 입력'으로 돌아왔다.
-           ⛔행은 ★면적을 잃지 않는다 — r 의 `height:${effRowH}px` 가 늘 박혀 있다(캡션 모드에서도). */
-        row.text = el.textContent;
+           ⛔행은 ★면적을 잃지 않는다 — r 의 `height:${effRowH}px` 가 늘 박혀 있다(캡션 모드에서도).
+           ★1017t1c2 — ★el.textContent 대신 ★mdlReadText(el) — Enter 줄바꿈이 \n 으로 산다(모달 한 벌). */
+        row.text = mdlReadText(el);
       }
       setComparisonCols(block, cols);
     }

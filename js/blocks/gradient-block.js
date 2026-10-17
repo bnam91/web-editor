@@ -6,12 +6,27 @@
 // 부모: .section-block 직접 자식 (sticker와 동일 패턴)
 // 위치: absolute, left/top dataset 기반
 // 디폴트: 860 × 300, 좌상단 (0, 0), linear, 위→아래, 검정 100% → 검정 0%
-// z-index: 2 (텍스트/콘텐츠 아래, 배경 위 — 페이드 용도)
+// z-index: 2 — ★2026-10-17 G-N0 DOM 실측으로 정정(옛 주석은 반대였다: 「텍스트/콘텐츠 아래」).
+//   .section-block 이 쌓임맥락(z-index:2)을 만들고, .section-inner/.row 는 쌓임맥락을 «안」
+//   만들어(.row 는 z-index:auto) 안의 .text-block(z-index:2) 과 이 블럭(인라인 z-index:2) 이
+//   «같은» 쌓임맥락에서 동점 비교된다 — 동점이면 DOM 뒤가 이긴다(js/overlay-handles.js:3648-3654
+//   의 같은 타이브레이크). addGradientBlock 이 sec.appendChild(block) 으로 .section-inner «뒤»에
+//   붙이므로 ★그라데이션이 텍스트 «위»에 그려진다(실측: tests/dom/grad-g1g7-cascade-stop.dom.spec.js G-N0,
+//   elementsFromPoint 와 실제 클릭 둘 다 동의). G1(cascade 없음)과 겹치면 「나머지 블록이 글자 위에
+//   깔려 배경이미지처럼 보인다」(현빈 2026-10-17 제보)로 이어진다 — G-NEW 참조.
 //
+
 // 의존성:
 //   - window.getSelectedSection, window.showNoSelectionHint,
 //     window.pushHistory, window.scheduleAutoSave,
-//     window.bindGradientSelect (gradient-select.js)
+//     window.bindGradientSelect (gradient-select.js), window.genId (drag-utils.js)
+
+// G10(261018) — id 가 Math.random() 직접 호출이라 다른 블럭처럼 genId() 를 안 썼다 — actorId 조각이
+// 빠져 협업에서 출처 불명(annotation-block.js:9-13 의 같은 병 참조). 「부를 때」 찾는다 — 모듈 로드
+// 시점에 잡아두면 drag-utils 가 아직 window.genId 를 안 심었을 때 폴백에 고정된다(같은 까닭).
+const genId = (p) => (typeof window.genId === 'function'
+  ? window.genId(p)
+  : p + '_' + Math.random().toString(36).slice(2, 9));
 
 const GRADIENT_DEFAULTS = {
   style:       'linear',
@@ -42,12 +57,20 @@ function _resolveStops(block) {
     try {
       const arr = JSON.parse(raw);
       if (Array.isArray(arr) && arr.length >= 2) {
+        /* G6(261018) — 「별도 카드」 닫힘(js/props/prop-gradient.js:132~135 ★0920b grad-alpha 주석 참조).
+           그 주석이 말한 «이 유닛 범위 밖」이 여기다: `|| 0` 은 NaN 과 참 0 을 구분 못 해, MCP/임포트로
+           들어온 쓰레기 alpha(예: {offset:'abc'})가 parseFloat 로 NaN → Math.max/min 을 통과한 NaN →
+           `|| 0` 에서 「완전 투명」으로 떨어졌다. Number.isFinite 로 갈라 끊는다 — 입력단(prop-gradient.js
+           _clamp01)과 같은 처방·같은 기본값(alpha 기본 1 = GRADIENT_DEFAULTS.startAlpha · offset 기본 0). */
         const clean = arr
-          .map(s => ({
-            color: /^#[0-9a-fA-F]{6}$/.test(s.color) ? s.color : '#000000',
-            alpha: Math.max(0, Math.min(1, parseFloat(s.alpha))) || 0,
-            offset: Math.max(0, Math.min(1, parseFloat(s.offset))) || 0,
-          }))
+          .map(s => {
+            const pa = parseFloat(s.alpha), po = parseFloat(s.offset);
+            return {
+              color: /^#[0-9a-fA-F]{6}$/.test(s.color) ? s.color : '#000000',
+              alpha: Number.isFinite(pa) ? Math.max(0, Math.min(1, pa)) : GRADIENT_DEFAULTS.startAlpha,
+              offset: Number.isFinite(po) ? Math.max(0, Math.min(1, po)) : 0,
+            };
+          })
           .sort((a, b) => a.offset - b.offset);
         if (clean.length >= 2) return clean;
       }
@@ -82,9 +105,16 @@ function renderGradientBlock(block, hint) {
 
   let bg;
   if (style === 'radial') {
-    // 비네트: 중앙(0%)이 마지막 stop(투명), 외곽(100%)이 첫 stop(불투명) — 기존 2-stop 동작과 동일 순서 유지.
-    // Codex 반영: 등간격 재배치 대신 user offset 보존 — radial은 방향만 반전(1-offset)해 중앙=마지막stop 유지.
-    const radialStops = stops.map(s => ({ ...s, offset: Math.max(0, Math.min(1, 1 - s.offset)) })).sort((a, b) => a.offset - b.offset);
+    /* ★1017t1 G7 — 2026-10-17 현빈 승인(「고침」).
+       ★왜 뒤집혀 있었나: 2-stop 시절 「중앙=투명, 외곽=불투명」 비네트를 ★offset 반전(1-offset)으로
+         흉내냈다. 2-stop(0/1)에서는 집합이 자기 자신이라 ★보이지 않았고, ★3-stop 부터 사용자가
+         중간색을 0.2 에 두면 ★0.8 로 뒤집혔다.
+       ★언제 고쳤나: 2026-10-17.
+       ★★기존 저장본의 보이는 그림이 달라진다 — radial ＋ 3-stop 이상인 그라데이션은
+         중간색 자리가 ★입력값대로 그려진다(더는 반전하지 않는다).
+       ★「중앙=마지막 stop」을 다시 원하면 ★패널에서 stop 순서를 바꿔라 — ⛔코드가 몰래 뒤집지 않는다.
+       회귀: tests/dom/grad-g1g7-cascade-stop.dom.spec.js G7-a/G7-n. */
+    const radialStops = stops;   // ★자리 보존 — 사용자가 준 offset 그대로
     bg = `radial-gradient(circle at center, ${stopCss(radialStops)})`;
   } else {
     bg = `linear-gradient(${direction}, ${stopCss(stops)})`;
@@ -126,7 +156,7 @@ function renderGradientBlock(block, hint) {
 function makeGradientBlock(opts = {}) {
   const block = document.createElement('div');
   block.className = 'gradient-block';
-  block.id = 'grad_' + Math.random().toString(36).slice(2, 8);
+  block.id = genId('grad');
   block.dataset.type           = 'gradient';
   block.dataset.gradStyle      = opts.style       ?? GRADIENT_DEFAULTS.style;
   block.dataset.gradDirection  = opts.direction   ?? GRADIENT_DEFAULTS.direction;
@@ -155,6 +185,27 @@ function addGradientBlock(opts = {}) {
   const sec = window.getSelectedSection?.();
   if (!sec) { window.showNoSelectionHint?.(); return; }
   window.pushHistory?.('그라데이션 추가');
+  /* ★1017t1 G1 — 같은 자리 겹침 방지. «스티커의 cascade 와 같은 어휘」(24px 씩, 8칸 주기).
+     선례 둘: js/blocks/zoom-block.js:461-464 · js/blocks/sticker-block.js:775-789.
+     ⚠️기본 폭 860 = 섹션 폭이라 _clampToSection(js/sticker-select.js:28-39) 이 x 를 0 으로
+       되클램프한다 — ★x 오프셋은 «일부러» 죽는다. 보이는 분리는 y 뿐이다.
+     ⛔x 를 살리려 clamp 를 빼지 마라(fill clipPath 가 좌측에 빈 띠를 만든다).
+     회귀: tests/dom/grad-g1g7-cascade-stop.dom.spec.js G1-a/G1-n. */
+  if (opts.x == null && opts.y == null) {
+    const n = sec.querySelectorAll('.gradient-block').length;
+    const cx = 40 + (n % 8) * 24, cy = 40 + (n % 8) * 24;
+    const bw = Number(opts.width ?? GRADIENT_DEFAULTS.width);
+    const bh = Number(opts.height ?? GRADIENT_DEFAULTS.height);
+    const [qx, qy] = window._clampToSection?.(cx, cy, sec, bw, bh) || [cx, cy];
+    opts = { ...opts, x: qx, y: qy };
+  }
+  /* ★1017t1 G2 — 「추가한 블럭을 안 고른다」는 2026-09-22 에 ★이미 닫혔다.
+     ⛔여기에 selectBlock 을 더하지 마라(두 벌이 된다).
+     부르는 자: js/insert-history.js:91 MATCH(=addGradientBlock) → js/insert-select.js:114
+       window.selectBlock → js/block-edit.js getBlockById → js/panel-dispatch.js:103
+       _selectGradient(손잡이·패널 둘 다 그 안에서).
+     게이트: tests/dom/panel-route-on-add.dom.spec.js:128 ·
+       tests/dom/insert-select-follows.dom.spec.js · tests/unit/insert-select-roster.test.mjs */
   const block = makeGradientBlock(opts);
   sec.appendChild(block); // 섹션 직접 자식 (absolute → 섹션 기준)
   window.bindGradientSelect?.(block);

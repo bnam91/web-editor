@@ -5,16 +5,21 @@
  *   AN2 그 행을 누르면 어노테이션 패널 + 점 핸들이 뜬다 (A1)
  *   AN3 지우면 «죽은 행»이 안 남는다 (A1)
  *   AN4 기본 글자 크기 24 (dataset · 그려진 크기) · 프리셋을 눌러도 24 그대로 (A2)
- *   AN5 우측 패널에 글 입력칸이 없고, 캔버스 더블클릭으로 글을 고친다 (A2)
+ *   AN5 우측 패널에 글 입력칸이 없고, 캔버스 더블클릭으로 글을 고친다 (A2) · 마침 = ⌘Enter (1013t2C6)
  *   AN6 고른 라벨을 끌면 라벨만 옮겨진다(dataset.labelDx/Dy · 선 점 불변) (A3)
  *   AN7 끌기 한 번 = ⌘Z 한 걸음 · ⌘⇧Z 로 다시 (A3)
  *   AN8 다시 그려도(rebindAll) 오프셋이 남고 라벨 style 이 라이브와 같다 (A3)
  *   AN9 패널 숫자칸으로 옮기기 · 「자동 배치로 되돌리기」(없으면 꺼짐) (A3)
  *   AN10 «고른 라벨» 표식은 저장 직렬화에 안 실린다 (A3)
  *   AN11 다시 그려도(rebindAll — 로드·⌘Z 복원이 같이 쓰는 길) 라벨 테두리 스타일이 남는다 (A3-pre)
+ *   AN12(1017t1h4) 라벨 위치 절에 「한 번 더 누르면」 힌트가 없다(패널이 뜬 전제에서)
+ *   AN13(1017t1h6) 라벨 위치 절 — span.prop-label 0개 · dx/dy/되돌리기 입력칸은 살아있다
+ *   AN14(1017t1h7) 프리셋 드롭다운 — option 수(정의 자리 파생) · 값 리터럴 · .prop-preset-btn 0 · 공용 CSS/다른 패널 무접촉
  * ★만드는 길은 «사람 손» 그대로 — 펜 단추 → 메뉴 「Annotation」 → 섹션 두 점 → Enter → Esc.
  */
 const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 const { clickAt, hitAt } = require('./_click-at.js');
 const { expectOneUndoStep } = require('./_history-step.js');
@@ -125,7 +130,7 @@ test('AN4 기본 글자 크기 24 — 만든 직후 · 프리셋을 눌러도 �
   await selectByLabel(page, id);
   expect((await fs()).panel, '패널 「크기」 칸').toBe('24');
   const before = await page.evaluate((id) => document.getElementById(id).dataset.strokeColor, id);
-  await page.click('#panel-right .prop-preset-btn[data-preset-idx="0"]');
+  await page.selectOption('#panel-right #annot-preset-select', '0');
   await expect.poll(() => page.evaluate((id) => document.getElementById(id).dataset.strokeColor, id), '★전제: 프리셋이 먹었다(선 색이 바뀜)').not.toBe(before);
   expect(await fs(), '프리셋 뒤에도 24').toEqual({ data: '24', drawn: '24px', panel: '24' });
 });
@@ -141,7 +146,7 @@ test('AN5 우측 패널에 글 입력칸이 없다 — 글은 캔버스 더블�
   await expect.poll(() => page.evaluate((id) => { const l = document.querySelector(`[id="${id}"] .annot-label`); return l.getAttribute('contenteditable') === 'true' && document.activeElement === l; }, id),
     '더블클릭으로 라벨 편집에 들어갔다').toBe(true);
   await page.keyboard.type('캔버스입력');
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('Meta+Enter');   // ★1013t2C6 — Enter 는 이제 줄바꿈이다. 마침 = ⌘Enter(스텝·카드 블럭과 같은 규약)
   await expect.poll(() => page.evaluate((id) => { const b = document.getElementById(id); return { data: b.dataset.text, drawn: b.querySelector('.annot-label').textContent, ce: b.querySelector('.annot-label').getAttribute('contenteditable') }; }, id),
     '캔버스에서 쓴 글이 데이터·화면에 들어갔다').toEqual({ data: '캔버스입력', drawn: '캔버스입력', ce: 'false' });
 });
@@ -280,4 +285,69 @@ test('AN10 «고른 라벨» 표식은 저장 직렬화에 안 실린다', async
   await page.keyboard.press('Escape');
   await expect.poll(() => page.evaluate((id) => ({ picked: !!document.querySelector('.annot-cell-selected'), sel: document.getElementById(id).classList.contains('selected') }), id),
     'ESC 한 번은 라벨 고르기만 푼다').toEqual({ picked: false, sel: true });
+});
+
+/* ★1017t1h4 — 안내 문구("한 번 더 누르면…") 삭제. 돌아오는 것을 막는 래칫. */
+test('AN12(1017t1h4) 라벨 위치 절에 「한 번 더 누르면」 힌트가 없다 (패널이 뜬 전제에서)', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+  const r = await page.evaluate(() => {
+    const hints = [...document.querySelectorAll('#panel-right .prop-hint')];
+    return { total: hints.length, hasDbl: hints.some(h => h.textContent.includes('더블클릭')), hasOld: hints.some(h => h.textContent.includes('한 번 더 누르면')) };
+  });
+  expect(r.total >= 1 && r.hasDbl, '★전제: 패널이 떴다(다른 힌트가 살아있다 — 0건을 「없다」로 닫지 않는다)').toBe(true);
+  expect(r.hasOld, '지운 문구는 없다').toBe(false);
+});
+
+/* ★1017t1h6 — 「위치」span 만 걷는다. 같은 절을 째 지우면 AN9(dx/dy/되돌리기)가 깨진다. */
+test('AN13(1017t1h6) 라벨 위치 절 — span.prop-label 0개 · dx/dy/되돌리기는 살아있다', async ({ page }) => {
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+  const r = await page.evaluate(() => {
+    const sec = document.getElementById('annot-label-pos-section');
+    const dx = document.getElementById('annot-label-dx');
+    const dy = document.getElementById('annot-label-dy');
+    return {
+      labelCount: sec ? sec.querySelectorAll('.prop-label').length : null,
+      dx: !!dx, dy: !!dy, reset: !!document.getElementById('annot-label-reset'),
+      dxTitle: dx?.title ?? null, dyTitle: dy?.title ?? null,
+    };
+  });
+  expect(r).toEqual({ labelCount: 0, dx: true, dy: true, reset: true, dxTitle: '가로(dx)', dyTitle: '세로(dy)' });
+});
+
+/* ★1017t1h7 — 프리셋 드롭다운. option 수는 «정의 자리에서 파생»(손으로 3 을 박지 않는다),
+   값은 따로 리터럴로 한 번 더 잠근다(항등식 방지). 공용 .prop-preset-btn CSS/다른 소비자는 무접촉. */
+test('AN14(1017t1h7) 프리셋 드롭다운 — option 수 · 값 리터럴 · .prop-preset-btn 0 · 공용 CSS 무접촉', async ({ page }) => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'props', 'prop-annotation.js'), 'utf8');
+  const m = src.match(/const ANNOTATION_PRESETS = \[([\s\S]*?)\n\];/);
+  expect(m, '★전제: ANNOTATION_PRESETS 정의를 소스에서 찾았다').not.toBeNull();
+  const presetCount = (m[1].match(/name:\s*'/g) || []).length;
+  expect(presetCount, '★전제: 정의 자리 프리셋 수 > 0').toBeGreaterThan(0);
+
+  await bootApp(page);
+  await setup(page);
+  const id = await makeAnnotation(page);
+  await selectByLabel(page, id);
+
+  const optCount = await page.evaluate(() => document.querySelectorAll('#panel-right #annot-preset-select option').length);
+  expect(optCount, 'option 수 = 머리(빈 값) 1 + 정의 자리 프리셋 수').toBe(presetCount + 1);
+  const headVal = await page.evaluate(() => document.querySelector('#panel-right #annot-preset-select option')?.value);
+  expect(headVal, '머리 option 값은 빈 문자열').toBe('');
+
+  await page.selectOption('#panel-right #annot-preset-select', '0');
+  const stroke = await page.evaluate((id) => document.getElementById(id).dataset.strokeColor, id);
+  expect(stroke, "'0'을 고르면 strokeColor 가 '#e74c3c'(값 자체를 리터럴로 잠근다 — 같은 소스 파싱만으론 항등식)").toBe('#e74c3c');
+
+  const btnCountHere = await page.evaluate(() => document.querySelectorAll('#panel-right .prop-preset-btn').length);
+  expect(btnCountHere, '어노테이션 패널엔 .prop-preset-btn 0개(공용 단추를 썼었지만 이제 드롭다운이다)').toBe(0);
+
+  // ★음성대조 — 공용 .prop-preset-btn 소비자(prop-asset.js)는 그대로다(분모 출처: grid-guide-radio.test.js).
+  const assetSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'props', 'prop-asset.js'), 'utf8');
+  const assetBtnCount = (assetSrc.match(/prop-preset-btn prop-type-btn/g) || []).length;
+  expect(assetBtnCount, '다른 패널(prop-asset.js)의 .prop-preset-btn 소비는 ≥4 그대로').toBeGreaterThanOrEqual(4);
 });

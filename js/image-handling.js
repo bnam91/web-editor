@@ -7,6 +7,7 @@ import { decodeGifFrames } from './io/export-image.js';
 import { applyAssetClip } from './clip-content.js';   /* ★「내용 자르기」 ★술어·표의 ★단 한 자리(2026-10-10 c2) */
 import { applyRedact } from './effects/image-redact.js';   /* ★「블러 (Redact)」 공용 모듈(1012t1 C1) */
 import { captureAssetCollab, restoreAssetCollab } from './blocks/logo-collab.js';   /* ★1013t2A2 로고 콜라보 — innerHTML 재작성 3자리에서 살린다(그레인 선례) */
+import { needsBgLayer, ensureBgLayer, getBgLayerImg } from './bg-layer.js';   /* ★1017t1k1·k2 — 배경이미지 ★레이어 판정·관리의 ★한 자리 */
 
 /* ── 이미지 업로드 로딩 오버레이 헬퍼 ── */
 export function showAssetLoading(block) {
@@ -467,7 +468,9 @@ function enterImageEditMode(ab, opts = {}) {
   });
 
   renderImgPanel();
-  if (!opts.noColorAdjust) window.showColorAdjustPanel?.(ab);
+  /* ★1017t1k2 — 배경이미지 편집은 ★adjHost 로 ★«진짜 레이어»를 돌려받아 거기에 패널을 띄운다
+     (opts.adjHost 가 없으면 ★옛 그대로 ab 자신 — 에셋·그리드크롭은 ★무변경). */
+  if (!opts.noColorAdjust) window.showColorAdjustPanel?.(opts.adjHost ? opts.adjHost() : ab);
 
   // RAF 루프 — 캔버스 패닝/줌 시에도 핸들·경계선 위치 계속 동기화
   let _syncRafId = null;
@@ -1256,6 +1259,9 @@ function _enterBgEditMode(host, ad) {
     proxy.dataset.imgW = dw;
     proxy.dataset.imgX = x0;
     proxy.dataset.imgY = y0;
+    // ★1017t1k1 — 기존 회전값을 ★프록시에 씨앗으로 둔다. 안 그러면 ★회전존 위치(syncHandles)와
+    //   ★onRotateDown 의 baseRot 이 ★0부터 다시 시작해 ★재진입마다 회전이 ★날아간다.
+    proxy.dataset.imgRotate = parseFloat(host.dataset.bgRotate || 0);
 
     // ── 고스트(프레임 밖 원본) — 오버레이(#canvas 밖)에 둔다
     //    래퍼는 «캔버스 뷰포트»로 잘라낸다 — auto 사이즈처럼 큰 원본이면 고스트가
@@ -1276,7 +1282,7 @@ function _enterBgEditMode(host, ad) {
 
     /* 프레임 «안» = 진짜 배경 갱신 · 프레임 «밖» = 고스트 갱신 */
     const ratio = (nw && nh) ? nh / nw : 1;   // 높이 = 너비 × ratio
-    let _lastSize = '', _lastPos = '', _lastClip = null;
+    let _lastSize = '', _lastPos = '', _lastClip = null, _lastRot = null;
     function syncBg() {
       if (!proxy.isConnected) return;
       // ★offsetWidth 는 «정수 반올림»이라 그대로 쓰면 편집을 켜는 것만으로 배경이 최대 0.5px 튄다.
@@ -1286,20 +1292,27 @@ function _enterBgEditMode(host, ad) {
       const px = parseFloat(img.style.left) || 0, py = parseFloat(img.style.top) || 0;
       const nextSize = twoLayer ? `cover, ${w}px ${h}px`    : `${w}px ${h}px`;
       const nextPos  = twoLayer ? `center, ${px}px ${py}px` : `${px}px ${py}px`;
-      // ★값이 같으면 «쓰지 않는다» — style 속성 변경은 autoSaveObserver 가 유의미 변경으로 읽어
-      //   RAF 루프가 60fps 로 scheduleAutoSave 를 두들기게 된다(디바운스가 영영 안 끝남).
-      if (nextSize !== _lastSize) {
-        ad.writeLive(host, 'size', nextSize);
-        // dataset 도 같이 — 편집 «중»에 자동저장이 돌면 인라인 style 만 px 로 저장되고
-        // data-bg-size 는 'cover' 로 남아 다음 _applySectionBg 한 번에 되돌아간다.
-        host.dataset.bgSize = `${_r1(w)}px ${_r1(h)}px`;
-        _lastSize = nextSize;
+      const deg = parseFloat(proxy.dataset.imgRotate || 0);
+      const sizeChanged = nextSize !== _lastSize, posChanged = nextPos !== _lastPos, rotChanged = deg !== _lastRot;
+      // dataset 은 ★항상 같이 둔다 — 편집 «중»에 자동저장이 돌면 인라인 style 만 px 로 저장되고
+      // data-bg-size 는 'cover' 로 남아 다음 _applySectionBg 한 번에 되돌아간다.
+      if (sizeChanged) host.dataset.bgSize = `${_r1(w)}px ${_r1(h)}px`;
+      if (posChanged)  host.dataset.bgPos  = `${_r1(px)}px ${_r1(py)}px`;
+      // ★1017t1k1 — 회전 중(또는 ★색보정 적용 중)엔 ★레이어가 그린다. proxy.dataset.imgRotate 는
+      //   onRotateDown 이 드래그마다 쓴다(없으면 0 — 씨앗 값).
+      const layerActive = !!deg || needsBgLayer(host);
+      if (layerActive) {
+        if (sizeChanged || posChanged || rotChanged) ensureBgLayer(host);
+        // ★레이어가 그리는 동안 host 자신의 그림은 ★비운다(이중 그림 방지) — 색은 그대로 둔다.
+        if (host.style.backgroundImage && host.style.backgroundImage !== 'none') {
+          host.style.backgroundImage = 'none';
+        }
+      } else {
+        // ★레이어가 ★필요 없을 때만 host 가 직접 그린다(지금까지와 ★동일).
+        if (sizeChanged) ad.writeLive(host, 'size', nextSize);
+        if (posChanged)  ad.writeLive(host, 'pos',  nextPos);
       }
-      if (nextPos !== _lastPos) {
-        ad.writeLive(host, 'pos', nextPos);
-        host.dataset.bgPos = `${_r1(px)}px ${_r1(py)}px`;
-        _lastPos = nextPos;
-      }
+      _lastSize = nextSize; _lastPos = nextPos; _lastRot = deg;
       if (!overlay || !ghostWrap.isConnected) return;
       const aR = proxy.getBoundingClientRect();
       const oR = overlay.getBoundingClientRect();
@@ -1342,10 +1355,13 @@ function _enterBgEditMode(host, ad) {
     });
 
     enterImageEditMode(proxy, {
-      noRotate: true,          // background-image 는 CSS 로 회전 불가 → 회전존 자체를 만들지 않는다
-      noColorAdjust: true,     // 색보정은 <img> 필터 기반 — 배경엔 적용 경로가 없다
+      /* ★1017t1k1·k2(1017t1) — 현빈 「에셋블럭의 이미지 편집하는 것과 기능이 같아야」:
+         회전·색보정을 ★더 끈다. 보이는 것(그리는 자)은 ★옵트인 레이어(js/bg-layer.js)로 갈린다
+         — 키가 없으면 레이어도 없다. ⛔그리드 칸 크롭(js/image-handling.js:1552~ 근방)은
+         ★같은 사고(「크롭 모델에 회전 축이 없다」)가 ★아직 맞아 그 자리는 ★그대로 둔다. */
       keepAliveSel: '#panel-right',
       historyLabel: ad.historyLabel,
+      adjHost: () => ensureBgLayer(host),   // ★색보정 패널이 ★진짜 레이어를 잡게 — 없으면 이 호출이 짓는다
       beforeCommit: () => {
         // style.width 가 정본 (dataset.imgW 는 exitImageEditMode 가 offsetWidth 로 반올림해 둔 값)
         const w  = parseFloat(img.style.width) || parseFloat(proxy.dataset.imgW) || 0;
@@ -1362,6 +1378,10 @@ function _enterBgEditMode(host, ad) {
           if (origSize) host.dataset.bgSize = origSize; else delete host.dataset.bgSize;
           if (origPos)  host.dataset.bgPos  = origPos;  else delete host.dataset.bgPos;
         }
+        // ★1017t1k1 — 회전값을 되옮긴다. 0(또는 거의 0)이면 키를 지운다(옛 저장본 바이트 보존).
+        const rot = parseFloat(proxy.dataset.imgRotate || 0);
+        if (Math.abs(rot) > 0.01) host.dataset.bgRotate = String(_r1(rot));
+        else delete host.dataset.bgRotate;
         _teardownBgEdit(host, _restore);         // ★pushHistory 전에 임시 DOM 을 0 으로
         ad.commit(host);
       },

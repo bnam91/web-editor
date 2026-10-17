@@ -60,11 +60,14 @@ const ROSTER = {
     /* 2026-10-05 제4안 — 같은 손잡이가 높이(칸 위아래 여백)도 끌게 되어 라벨 '그리드 폭' → '그리드 크기'. */
     '그리드 크기',
   ],
-  'js/sticker-select.js': ['형광펜 선 끝점 이동', '스티커 회전', '스티커 크기 조절', '선 형광펜 이동', '스티커 이동'],
+  /* ★1017t1e1 — «두께» 손잡이(.hlb-handle[data-endpoint="thick"])가 끝점 갈래 «앞»에 산다
+     (_bindHlbHandleDrag 안에서 if (endpoint==='thick') 가 끝점 분기보다 먼저 나온다) ⇒ 소스 등장 순서로 맨 앞. */
+  'js/sticker-select.js': ['선 형광펜 두께', '형광펜 선 끝점 이동', '스티커 회전', '스티커 크기 조절', '선 형광펜 이동', '스티커 이동'],
   'js/asset-rotate.js': ['이미지 블록 회전', '쉐이프 회전', "(cfg.historyLabel || '회전')"],
   'js/gradient-select.js': ['그라데이션 리사이즈', '그라데이션 이동'],
   /* 2026-10-13 1013t1A3 — 라벨만 옮기기(방사형 호 차용). 처음부터 양쪽 끝 규약. ★자리 = 소스 등장 순서(그 함수가 바인딩보다 위). */
-  'js/annotation-select.js': ['어노테이션 라벨 위치', '어노테이션 이동', '어노테이션 핸들 이동'],
+  /* 2026-10-14 1013t2C7 — 시작점 회전 손잡이(A3 와 같은 길). 처음부터 양쪽 끝 규약. ★자리 = 소스 등장 순서(_startLabelOffsetDrag 바로 뒤). */
+  'js/annotation-select.js': ['어노테이션 라벨 위치', '어노테이션 시작점 회전', '어노테이션 이동', '어노테이션 핸들 이동'],
   'js/blocks/canvas-block.js': ['카드 이미지 위치'],
   /* 2026-10-12 1012t1D3 — 비교 이미지 칸 편집기(카드 편집기 꼴). 처음부터 양쪽 끝 규약(onMove arm ＋ onUp pushHistory). */
   'js/blocks/comparison-img-edit.js': ['비교 이미지 위치'],

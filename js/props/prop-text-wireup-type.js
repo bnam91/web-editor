@@ -94,6 +94,55 @@ export function wireTypeSection({ tb, propPanel, ctx }) {
   });
 }
 
+/* ═══ 1017t1m1 ★텍스트 → Quote 블럭 전환 (현빈 「텍스트블럭에서 quato블럭으로 바꿀수도
+ *   있게 위에 type절에 넣기」) ════════════════════════════════════════════════════════
+ * ★타입 전환(위 wireTypeSection)과 ★다르다 — ul↔div 는 ★같은 .text-block 안의 ★태그 교체지만
+ *   quote 는 ★다른 블럭 «타입»이다(.quote-block, js/blocks/quote-block.js). ⇒ ★블럭 자체를 ★갈아끼운다.
+ * ★이력 = push-before(이웃 wireTypeSection 과 같은 규약 — ★구조를 바꾸는 전환이라 삽입류와 같다).
+ * ★잃는 것(⛔되돌릴 수 없다 — ⌘Z 로만 복구) — quote 는 .text-block 의 서식 그릇을 «안» 받는다:
+ *   타입 클래스(tb-h1…) 와 그 표준 크기 · 글자 효과(.tgs·.text-effect) · 글자 그라데이션/스트로크/그림자 ·
+ *   형광펜·방점·밑줄 인라인 서식 · 불릿이면 li 구조(quote 는 quoteLines 줄 모델). ★하나라도 있으면 토스트로 알린다.
+ * ⛔라이너/말풍선 변형은 ★전환 대상이 아니다 — 템플릿의 #type-section 이 그 둘에서 ★이미 통째로 숨어 있다
+ *   (isLiner||isIconText 로 display:none, 게다가 isLiner 는 wireTypeSection 자체가 안 불린다 — prop-text.js:275).
+ */
+export function wireTextToQuote({ tb, propPanel, ctx }) {
+  const btn = propPanel.querySelector('#txt-to-quote');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const contentEl = ctx.contentEl;
+    if (!contentEl || !tb) return;
+
+    // ★글 추출 — 불릿(ul)이면 li 를 줄바꿈으로, 아니면 textContent 그대로(서식은 여기서 이미 버려진다).
+    const text = contentEl.tagName === 'UL'
+      ? [...contentEl.querySelectorAll('li')].map((li) => li.textContent.trim()).filter(Boolean).join('\n')
+      : contentEl.textContent.trim();
+
+    // ★잃는 서식이 있었는지 — 있으면 되돌릴 수 없는 손실을 토스트로 알린다(비가역 앞 고지).
+    const losesFormatting = !!(
+      contentEl.querySelector?.('.tgs, .text-effect, u, s, strike, mark')
+      || contentEl.tagName === 'UL'
+      || /font-weight\s*:\s*(bold|[6-9]00)/i.test(contentEl.style.fontWeight || getComputedStyle(contentEl).fontWeight || '')
+      || contentEl.style.fontStyle === 'italic'
+      || !!contentEl.dataset?.gradStops
+    );
+
+    window.pushHistory?.();   // ★push-before — 이웃 wireTypeSection 과 같은 규약(구조 전환)
+
+    const made = window.makeQuoteBlock?.({ text });
+    if (!made) return;
+    const wrapper = tb.closest('.frame-block[data-text-frame="true"]') || tb;
+    wrapper.replaceWith(made.row);
+    try { window.bindBlock?.(made.block); } catch (_) {}
+    window.buildLayerPanel?.();
+    try { window.selectBlock?.(made.block.id); } catch (_) {}
+    window.triggerAutoSave?.();
+
+    if (losesFormatting) {
+      window.showToast?.('일부 글자 서식이 사라졌습니다 — ⌘Z 로 되돌릴 수 있습니다');
+    }
+  });
+}
+
 /* ═══ T7 ★불릿 «글머리» 배선 — 현빈 2026-10-07 ═══════════════════════════════════════
  * ★명부·판정은 ★text-type-class.js 한 자리(BULLET_LIST_STYLES · bulletListStyleOf). ⛔여기 베끼지 마라.
  * ★★이력은 ★push-after 다 — ★적용 먼저, `pushHistory` ★나중. ⛔순서를 되돌리지 마라:

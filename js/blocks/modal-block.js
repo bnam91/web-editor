@@ -10,6 +10,9 @@
 //   글자도 dataset(titleText/textText/cell1/cell2)에 산다 — 재렌더가 타이핑을 지우지 않게.
 //
 import { sanitizeRichTextHtml, richTextHasFormatting } from '../util/sanitize-rich-text.js';
+/* ★1017a5 — 배경이미지 값·이름의 정본은 js/frame-bg.js «하나»다(⛔사본 금지 · 그 머리말 :22).
+   ★읽는 자만 빌린다(frameBgSize/frameBgPos/FRAME_BG_SIZE_DEFAULT) — 그리는 자는 이 파일(cssText)이다. */
+import { frameBgSize, frameBgPos, FRAME_BG_SIZE_DEFAULT } from '../frame-bg.js';
 
 // ★텍스트 요소 클래스가 `tb-mdl-*` 인 이유 = «내보내기 보험».
 //   export-figma-json 의 generic 폴백이 [class^="tb-"] 만 텍스트로 수집한다.
@@ -194,6 +197,17 @@ function _tailPathD() {
 /** 유리 — 'none' 과 같은 규칙: 없으면 «빈 문자열»(기존 모달의 cssText 가 한 글자도 안 달라진다). */
 function _glassStyles(block) {
   return block.dataset.glass === '1' ? '-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);' : '';
+}
+
+/* ★1017a5 — 배경이미지(현빈 발주 「모달블럭에 배경 이미지 입힐 수 있게」).
+ *   없으면 «빈 문자열»(그림자·유리와 같은 규약 — 기존 모달의 cssText 가 한 글자도 안 달라진다).
+ *   ⛔★이 함수는 ★★«background:${bg} 뒤»에만 끼워야 한다 — background 단축 속성이 뒤에 오면
+ *     background-image 를 ★되돌린다(renderModalBlock cssText 조립 쪽 주석 참조 · 순서가 계약이다).
+ *   ★값은 js/frame-bg.js 가 정본(frameBgSize/frameBgPos) — ⛔문자열 'cover' 를 여기 다시 적지 않는다. */
+function _bgImageStyles(block) {
+  const img = block.dataset && block.dataset.bgImg;
+  if (!img) return '';
+  return `background-image:url("${img}");background-size:${frameBgSize(block)};background-position:${frameBgPos(block)};`;
 }
 
 /** 꼬리 + 테이프 마크업. 둘 다 없으면 ''(기존 모달의 innerHTML 이 한 글자도 안 달라진다).
@@ -577,6 +591,7 @@ function renderModalBlock(block) {
     + (wMode === 'fixed' ? `width:${_num(block, 'width', MODAL_DEFAULTS.width)}px;max-width:100%;margin-left:auto;margin-right:auto;` : 'width:100%;')
     + (hMode === 'fixed' ? `min-height:${_num(block, 'height', MODAL_DEFAULTS.height)}px;` : '')
     + `background:${bg};color:${textColor};font-size:${fontSize}px;text-align:${align};`
+    + _bgImageStyles(block)   /* ★★background 단축 «바로 뒤» — 안 그러면 단축이 이미지를 되돌린다 */
     + _typoStyles(block)
     + (radius > 0 ? `border-radius:${radius}px;` : '')
     + `padding:${rootPad};`
@@ -885,4 +900,5 @@ export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, apply
          setModalSizeMode, _alignStyles, MODAL_VALIGNS,
          MODAL_DROP_SHADOWS, MODAL_SHADOW_CSS, _dropShadow, _shadowStyles,
          MODAL_DECO_TAILS, MODAL_DECO_TAPES, MODAL_TAPE_SHAPE, MODAL_TAPE_POS, _glassStyles, _decoHtml, _tapeHtml,
+         _bgImageStyles,
          syncModalIconFirstLineOffset };

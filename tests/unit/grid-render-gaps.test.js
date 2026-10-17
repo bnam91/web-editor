@@ -1252,7 +1252,13 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
 /* ★2026-10-14 1013t2F(인포블럭 · 칸 테두리 «선 자리»): 409 → 427. ⛔지운 것 0 — 더한 것 = 새 두 파일 ＋18
  *   · grid-cell-border-edges.test.js ＋12 (E0 바이트 무변 · E1 · E2 · E3 · E4 · E5 ×2 · E5b · E7 · E8a·b·c 음성대조)
  *   · grid-ifg-preset.test.js ＋6 (E6a~e · E6f 음성대조) */
-const GRID_BASELINE_TESTS = 427;
+/* ★2026-10-17 1017t1i1·i3(새 로우/칼럼이 인포그래픽 포맷 상속 · 구분선 상단 라인 제거): 427 → 439. ⛔지운 것 0.
+ *   · grid-ifg-resize.test.js ＋9(새 파일 — R0~R5 양성 · N-R1~N-R3 음성대조)
+ *   · grid-cell-border-edges.test.js ＋3(E9 양성 · N9·N10 음성대조) − ⛔삭제 아님 — E8c 는 ★폐기(tombstone)해
+ *     `test(..., {skip:true})` 로 바꿨다(topShared 겹침 가드가 구조적으로 사라져 그 대조가 무의미해졌다 · 자리는 N9).
+ *   ⇒ total(439) ≠ pass(438) 가 «처음으로» 생겼다 — skip 1건(E8c). 등호 래칫을 total/pass 둘로 가른 까닭. */
+const GRID_BASELINE_TOTAL = 439;
+const GRID_BASELINE_PASS = 438;   // ★439 − skip 1(E8c 폐기, DOM 쪽 쌍 N4 도 같은 까닭으로 skip)
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
@@ -1442,8 +1448,8 @@ test('G5 ★기존 grid 검사들이 «여전히 전부 통과하는가»(양성
   const total = Number((r.out.match(/^(?:ℹ|#) tests (\d+)$/m) || [])[1]);
   const pass = Number((r.out.match(/^(?:ℹ|#) pass (\d+)$/m) || [])[1]);
   assert.ok(Number.isFinite(total) && Number.isFinite(pass), '★하위 프로세스의 셈을 못 읽었다 — 래칫이 헛돈다');
-  assert.deepEqual([total, pass], [GRID_BASELINE_TESTS, GRID_BASELINE_TESTS],
-    `★기존 grid 검사 수가 기준선(86dce84)의 ${GRID_BASELINE_TESTS}/${GRID_BASELINE_TESTS} 과 다르다 — 지금 ${pass}/${total}.\n`
+  assert.deepEqual([total, pass], [GRID_BASELINE_TOTAL, GRID_BASELINE_PASS],
+    `★기존 grid 검사 수가 기준선(86dce84 → 1017t1i3)의 ${GRID_BASELINE_TOTAL}/${GRID_BASELINE_PASS} 과 다르다 — 지금 ${total}/${pass}.\n`
     + '  줄었다면: 남의 그물을 지웠거나 한 파일이 통째로 안 돌고 있다(그건 초록이 아니라 «안 봤다»다).\n'
     + '  늘었다면: 잘한 것이다 — 이 수를 같이 올려라(그 손이 한 번은 세게 만든다).');
 });

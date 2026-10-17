@@ -3591,7 +3591,11 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
            사용자가 일부러 비워 둔 프레임(내용을 넣기 전의 새 Frame 등)은 후보에 없어 그대로 산다.
          ★지금 잡아 둬야 한다 — 지운 «뒤»엔 부모를 거슬러 올라갈 수 없다. */
       const _emptiedFrameCands = new Set();
+      // ★1017t1j3(현빈) — 마킹(data-count)이 섞여 지워지면 그 섹션의 빈 번호를 당긴다. ★같은 루프 안에서
+      //   «지우기 전» 조상 섹션을 같이 담는다(새 루프 금지 — 지운 «뒤»엔 거슬러 올라갈 수 없다, 바로 위 머리말과 같은 까닭).
+      const _markSecs = new Set();
       [...allSelShapes, ...allSelBlocks, ...allSelFrames].forEach(el => {
+        if (el.dataset?.count) { const s = el.closest('.section-block'); if (s) _markSecs.add(s); }
         for (let p = el.parentElement; p; p = p.parentElement) {
           if (p.classList?.contains('frame-block')) _emptiedFrameCands.add(p);
         }
@@ -3688,6 +3692,7 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
       window._activeFrame = null;
       deselectAll();
       window.buildLayerPanel();
+      window.CountSticker?.renumberSections?.(_markSecs);   // ★1017t1j3 — 히스토리 칸 수는 그대로(pushHistory 는 바로 아래)
       pushHistory('블록 삭제');
     } else {
       const selRow = document.querySelector('.row.row-active');
@@ -4449,6 +4454,8 @@ function deleteBlock(blockIdOrEl) {
   pushHistory('블록 삭제 전');
   // 삭제 전 부모 text-frame 캡처 — 삭제 후 빈 wrapper(orphan) 정리용
   const parentTf = block.closest?.('.frame-block[data-text-frame="true"]');
+  // ★1017t1j3(현빈) — MCP·js/section-cleanup.js 가 쓰는 이 길도 마킹이면 지우기 전에 섹션을 잡는다.
+  const _markSec = block.dataset?.count ? block.closest?.('.section-block') : null;
   block.remove();
   // text-block을 지워 부모 text-frame이 비면(=.text-block 0개) 그 빈 프레임도 제거.
   // freeLayout 직속 flow(position relative, h0) 유령 wrapper 잔존 방지.
@@ -4458,6 +4465,7 @@ function deleteBlock(blockIdOrEl) {
       && !parentTf.querySelector('.text-block')) {
     parentTf.remove();
   }
+  if (_markSec) window.CountSticker?.renumberSections?.([_markSec]);
   window.buildLayerPanel?.();
   window.triggerAutoSave?.();
   return true;

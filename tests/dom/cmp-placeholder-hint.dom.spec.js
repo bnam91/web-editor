@@ -168,16 +168,34 @@ test('P7 저장본(serializeProject)에 안내 문구가 0', async ({ page }) =>
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
-test('P8 우측 패널 입력칸 placeholder 속성', async ({ page }) => {
+/* ⚰️P8 — 1017t1c1 로 우측 패널의 「글자 입력칸」(.cmp-row-input · .cmp-col-title)이 통째로 빠졌다
+ * (현빈 원문 「칼럼별 플레이스홀더·인풋박스들이 모두 있을 필요가 있을까」).
+ * ⚰️옛 단언:
+ *   `expect(r.rows.length, '전제 — 행 입력칸 8개').toBe(8);`
+ *   `expect(r.rows.every(p => p === h.row), ...).toBe(true);`
+ *   `expect(r.titles.length).toBeGreaterThan(0);`
+ *   `expect(r.titles.every(p => p === h.hdHint), ...).toBe(true);`
+ * ★새 참값: 두 셀렉터 전부 0 ＋ 음성으로만 닫지 않는다 — 양성 둘을 같이 잰다:
+ *   ㉠ 캔버스 더블클릭으로 고치는 길은 ★그대로 산다(이 파일 P5·P5b 가 이미 그 자를 문다 — 사본 금지).
+ *   ㉡ 「고른 글자 칸」 절(#cmp-text-section)의 placeholder 가 ★그 두 벌 중 하나(window.CMP_ROW_HINT)에서 온다. */
+test('P8 ⚰️우측 패널 입력칸 — «글자 입력칸» 0 · 「고른 글자 칸」 절 placeholder = CMP_ROW_HINT', async ({ page }) => {
   const errs = await setup(page, NEW);
   const h = await assertRuler(page);
   const r = await page.evaluate(() => { window.showComparisonProperties(window.__blk);
-    return { rows: [...document.querySelectorAll('.cmp-row-input')].map(e => e.getAttribute('placeholder')),
-             titles: [...document.querySelectorAll('.cmp-col-title')].map(e => e.getAttribute('placeholder')) }; });
-  expect(r.rows.length, '전제 — 행 입력칸 8개').toBe(8);
-  expect(r.rows.every(p => p === h.row), JSON.stringify(r.rows)).toBe(true);
-  expect(r.titles.length).toBeGreaterThan(0);
-  expect(r.titles.every(p => p === h.hdHint), JSON.stringify(r.titles)).toBe(true);
+    return { rows: document.querySelectorAll('.cmp-row-input').length,
+             titles: document.querySelectorAll('.cmp-col-title').length }; });
+  expect(r.rows, '1017t1c1 — 행 입력칸 0').toBe(0);
+  expect(r.titles, '1017t1c1 — 제목 입력칸 0').toBe(0);
+  /* ㉡ — 글자 칸(li:null)을 고른 뒤 「고른 글자 칸」 절이 뜨고, 그 placeholder = CMP_ROW_HINT */
+  const act = await page.evaluate(() => {
+    window.grdSetActiveLine(window.__blk, { r: 0, c: 0, li: null });
+    window.showComparisonProperties(window.__blk);
+    const ta = document.getElementById('cmp-text-input');
+    return { sections: document.querySelectorAll('#cmp-text-section').length, placeholder: ta?.getAttribute('placeholder'), value: ta?.value };
+  });
+  expect(act.sections, '「고른 글자 칸」 절 1').toBe(1);
+  expect(act.placeholder, 'placeholder = CMP_ROW_HINT(두 벌 중 하나가 한 자리에서 온다)').toBe(h.row);
+  expect(act.value, '값 = 그 칸의 글자(처음엔 빈 문자열)').toBe('');
   expect(errs, errs.join('\n')).toEqual([]);
 });
 

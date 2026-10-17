@@ -1,0 +1,226 @@
+
+/* ── 레이어 패널: A/B 베리에이션 그룹 ── */
+.layer-variation-group {
+  border: 1px solid rgba(45,111,232,0.4);
+  border-radius: var(--ui-radius-sm);
+  margin: 3px 0;
+  overflow: hidden;
+}
+.layer-variation-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  background: #141e2e;
+  font-size: var(--ui-fs-9);
+  color: #5a8ab8;
+  user-select: none;
+}
+.layer-variation-header span { flex: 1; }
+.layer-variation-toggle {
+  background: none;
+  border: 1px solid #5a8ab8;
+  border-radius: 2px;
+  color: #5a8ab8;
+  font-size: var(--ui-fs-9);
+  padding: 1px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.layer-variation-toggle:hover { background: #1f3a60; color: var(--ui-accent); border-color: var(--ui-accent); }
+.layer-variation-add {
+  background: none;
+  border: 1px solid #3a5a3a;
+  border-radius: 2px;
+  color: #5a9a5a;
+  font-size: var(--ui-fs-base);
+  padding: 1px 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+}
+.layer-variation-add:hover { background: #1a3a1a; color: #7acb7a; border-color: #7acb7a; }
+.layer-variation-add:disabled { opacity: var(--ui-disabled-opacity); cursor: default; }
+.layer-variation-del {
+  background: none; border: 1px solid var(--ui-danger-border); border-radius: 2px;
+  color: var(--ui-danger); font-size: var(--ui-fs-base); padding: 1px 5px; cursor: pointer;
+}
+.layer-variation-del:hover { background: var(--ui-danger-bg); color: var(--ui-danger-hover); border-color: var(--ui-danger-hover); }
+.layer-variant-del {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: none; border: 1px solid var(--ui-danger-border); border-radius: 2px;
+  color: var(--ui-danger); font-size: var(--ui-fs-10); padding: 0 4px; cursor: pointer;
+  opacity: 0; transition: opacity 0.15s; line-height: 16px;
+}
+.layer-section-header:hover .layer-variant-del { opacity: 1; }
+.layer-variant-del:hover { background: var(--ui-danger-bg); color: var(--ui-danger-hover); border-color: var(--ui-danger-hover); }
+.layer-variation-resolve {
+  background: none; border: 1px solid #4a7a5a; border-radius: 2px;
+  color: #7acba0; font-size: var(--ui-fs-base); padding: 1px 6px; cursor: pointer; white-space: nowrap;
+}
+.layer-variation-resolve:hover { background: #1a3a2a; color: #9ee8c0; border-color: #9ee8c0; }
+.layer-variation-group.active { border-color: var(--sel-color); }
+.layer-variation-group.active .layer-variation-header { background: rgba(45,111,232,0.08); }
+.layer-variation-group .layer-section { margin: 0; border-radius: 0; }
+.layer-variation-group .layer-section-header { padding-left: 16px; }
+.layer-section.layer-section-inactive-var { opacity: 0.45; }
+.layer-section.layer-section-inactive-var .layer-section-name::after {
+  content: ' (숨김)';
+  color: var(--ui-text-dim);
+  font-size: var(--ui-fs-9);
+}
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; height: 120px; gap: 8px;
+  color: var(--ui-border-strong); font-size: var(--ui-fs-12); text-align: center; padding: 16px;
+}
+.empty-state svg { opacity: 0.3; }
+
+/* ── Layer Tree ── */
+.layer-section {
+  margin-bottom: 4px;
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+}
+
+.layer-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  cursor: pointer;
+  border-radius: var(--ui-radius-sm);
+  transition: background 0.1s;
+  user-select: none;
+  position: relative;
+}
+.layer-section-header:hover { background: var(--ui-bg-hover); }
+.layer-section-header.active {
+  background: var(--ui-accent-fill);
+  border-left: 2px solid var(--p-blue-alpha-40);
+  padding-left: 6px;
+}
+
+.layer-chevron {
+  /* 크기는 --ui-chevron 하나에서 온다 — 예전엔 12(레이어)/10(절 머리)로 갈려
+     세로로 이어지는 좌측 패널에서 «같은 화살표»가 20% 크게 보였다(현빈 2026-09-04). */
+  width: var(--ui-chevron); height: var(--ui-chevron);
+  opacity: 0.5; transition: transform 0.15s; flex-shrink: 0;
+}
+.layer-section.collapsed .layer-chevron { transform: rotate(-90deg); }
+
+.layer-section-icon { width: 14px; height: 14px; opacity: 0.6; color: var(--ui-text-sub); flex-shrink: 0; }
+/* ★긴 섹션 이름은 «잘려서» 이름표로 볼 수 있어야 한다 (T-101 ②, 2026-09-22)
+     실측(실앱 9644, 섹션 이름을 길게 바꾼 뒤): .layer-item-name 은 nowrap+ellipsis 라
+       clientWidth 125 < scrollWidth 223 으로 «잘림»이 잡히는데, .layer-section-name 은
+       그 셋이 없어 white-space:normal 로 «흘렀다» — clientHeight 가 13→26→39 로 늘고
+       헤더(.layer-section-header height:28px)를 11px 넘겨 이웃 행 위에 겹쳐 그려졌다.
+     ⇒ 그 자리는 scrollWidth == clientWidth(185==185) 라 «가로로 잘린 적이 없고»,
+       syncLayerNameTooltip 의 (scrollWidth > clientWidth) 가 영영 거짓이었다 —
+       installLayerNameTooltips 가 '.layer-section-name' 을 셀렉터에 «넣어 뒀는데도»
+       그 가지는 한 번도 안 탔다(죽은 가지).
+     ⇒ .layer-item-name(아래 1250) 과 «같은 결»로 자른다. 자르면 잘림이 값으로 잡히고
+       이름표가 그 자리를 따라온다 — 툴팁 코드는 한 줄도 안 고친다.
+     ★min-width:0 — flex item 의 min-width:auto 는 nowrap 콘텐츠 폭이라, 안 주면
+       이번엔 헤더가 «가로로» 밀린다(세로 넘침을 가로 넘침으로 옮기는 꼴). */
+.layer-section-name { font-size: var(--ui-fs-base); font-weight: var(--ui-fw-semibold); color: #ccc; flex: 1; min-width: 0; letter-spacing: 0.02em; cursor: default; border-radius: 3px; padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.layer-section-header.active .layer-section-name { color: var(--ui-accent-text); }
+.layer-section-name.editing { background: #2a3a55; color: #aecbff; outline: none; cursor: text; }
+
+.layer-eye-btn {
+  display: none;
+  align-items: center; justify-content: center;
+  width: 18px; height: 18px; flex-shrink: 0;
+  background: none; border: none; padding: 0;
+  color: var(--ui-text-dim); cursor: pointer; border-radius: 3px;
+  transition: color 0.1s;
+}
+.layer-eye-btn svg { width: 12px; height: 12px; }
+.layer-eye-btn:hover { color: var(--ui-text-sub); }
+.layer-section-header:hover .layer-eye-btn { display: flex; }
+.layer-section-hidden .layer-eye-btn { display: flex; color: var(--ui-border-strong); }
+.layer-section-hidden .layer-section-name { color: var(--ui-text-dim); text-decoration: line-through; }
+
+.layer-children { padding-left: 16px; overflow: hidden; }
+.layer-section.collapsed .layer-children { display: none; }
+
+/* ── Layer Row Group (멀티컬럼 컨테이너) ── */
+/* ★margin-bottom 2px 제거 — 다른 줄은 전부 붙어 있는데(간격 0) 프레임 그룹만 2px 떠서
+   목록 리듬이 미세하게 깨졌다. 「간격은 0 아니면 4(섹션 구분)」 두 값만 쓴다(현빈 2026-09-04).
+   그룹 구분은 이미 들여쓰기 가이드선 + 굵은 헤더가 하고 있다. */
+.layer-row-group { border-radius: var(--ui-radius-sm); overflow: hidden; }
+.layer-row-header {
+  /* gap 은 .layer-item(7px)과 같게 — 8 이면 아이콘·이름이 한 칸씩 밀려 세로선이 흔들린다 */
+  display: flex; align-items: center; gap: 7px;
+  height: 28px; padding: 0 6px 0 8px;
+  cursor: pointer; border-radius: var(--ui-radius-sm);
+  transition: background 0.1s; user-select: none;
+}
+.layer-row-header:hover { background: var(--ui-bg-hover); }
+.layer-row-header.active { background: var(--ui-accent-fill); border-left: 2px solid var(--p-blue-alpha-40); padding-left: 6px; }
+.layer-row-header.active .layer-item-name { color: var(--ui-accent-text); font-weight: var(--ui-fw-medium); }
+.layer-row-header.active .layer-item-type { color: var(--ui-accent-text); }
+.layer-row-header.active .layer-item-icon { opacity: 0.7; }
+.layer-row-children { padding-left: 0; overflow: hidden; }
+.layer-row-group.collapsed .layer-row-children { display: none; }
+.layer-row-group.collapsed .layer-chevron { transform: rotate(-90deg); }
+/* ★토글이 «자리를 안 먹게» 들여쓰기 칸 위로 당긴다.
+   −18px 은 셈이 안 맞았다: chevron 폭 + gap 만큼 당겨야 하는데 2px 이 남았고,
+   거기에 gap 8/7 혼재가 1px 씩 더해져 토글 있는 줄이 «4px 더 들어가» 보였다(실측).
+   chevron 10 + gap 7 = 17 ⇒ 정확히 상쇄돼 토글 유무와 무관하게 아이콘 31 · 이름 52 로 맞는다. */
+.layer-row-header .layer-chevron { margin-left: calc(-1 * (var(--ui-chevron) + 7px)); position: relative; z-index: 1; }
+/* Frame 그룹(sub-section)의 chevron은 보여야 함 */
+.layer-row-group.layer-dragging { opacity: 0.3; }
+.layer-item-nested { padding-left: 0; }
+
+/* ── 피그마 스타일 depth 들여쓰기 ── */
+.layer-indents { display: flex; flex-shrink: 0; align-items: stretch; align-self: stretch; }
+.layer-indent {
+  width: 16px;
+  flex-shrink: 0;
+  position: relative;
+}
+.layer-indent::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 0; bottom: 0;
+  border-left: 1px solid rgba(255,255,255,0.15);
+}
+/* 마지막 indent는 가이드 라인 없음 (자기 자신 레벨) */
+.layer-indent:last-child::before { border-left: none; }
+
+.layer-item {
+  display: flex; align-items: center; gap: 7px;
+  height: 28px; padding: 0 8px;
+  cursor: pointer; border-radius: var(--ui-radius-sm);
+  transition: background 0.1s; user-select: none;
+}
+.layer-item:hover { background: var(--ui-bg-hover, var(--ui-bg-card)); }
+.layer-item.active { background: var(--ui-accent-fill); border-left: 2px solid var(--p-blue-alpha-40); padding-left: 6px; }
+
+.layer-item-icon { width: 14px; height: 14px; opacity: 0.5; flex-shrink: 0; }
+.layer-item.active .layer-item-icon { opacity: 0.7; }
+.layer-item-name { font-size: var(--ui-fs-base); color: var(--ui-text-sub); flex: 1; border-radius: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.layer-item.active .layer-item-name { color: var(--ui-accent-text); font-weight: var(--ui-fw-medium); }
+.layer-row-header .layer-item-name { font-weight: var(--ui-fw-semibold); }
+/* frame group 헤더 안의 layer-item이 헤더를 꽉 채우도록 */
+.layer-row-header .layer-item { flex: 1; padding: 0; height: 100%; border-radius: 0; }
+.layer-row-header .layer-item:hover { background: transparent; }
+.layer-item-name.editing { background: #2a3a55; color: #aecbff; outline: none; cursor: text; padding: 0 2px; }
+/* type 태그(항목별 반복 메타 — 패널 최약 위계): name(--ui-text-sub) + 섹션헤더(9px볼드 #969696)보다 더 눌러
+   8px + 한 톤 darker(#6e6e6e)로 크기·명도 모두 하위. 우측 여백으로 가장자리 붙음 완화 — 현빈 2026-06-14 */
+.layer-item-type { font-size: 8px; color: #6e6e6e; letter-spacing: 0.06em; text-transform: uppercase; margin-right: 10px; }
+/* 선택된 줄은 이름과 «타입»이 함께 액센트로 간다.
+   .layer-row-header.active 는 이미 그러는데(:1199) .layer-item.active 는 이름만 바꿔 왔다 — 맞춘다. */
+.layer-item.active .layer-item-type { color: var(--ui-accent-text); }
+.layer-ungroup-btn {
+  display: none; margin-left: auto; padding: 2px 4px;
+  width: 20px; height: 20px;
+  background: transparent; border: none; color: var(--ui-text-dim); border-radius: 3px; cursor: pointer;
+}
+.layer-row-header:hover .layer-ungroup-btn { display: flex; align-items: center; }
+.layer-ungroup-btn:hover { background: var(--ui-border-mid); color: #ccc; }
+.layer-item.active .layer-item-type { color: var(--ui-accent-text); }

@@ -52,6 +52,18 @@ function fsRatioOf(block) {
   return w > 0 ? fs / w : 1;
 }
 
+/* ★1017t1j1(현빈) — «옆 라벨»(countLabelSize) 도 같은 함정·같은 해법이다(위 _fsRatio 머리말과 같은 WeakMap 항목에 얹는다).
+   없으면(키가 없으면) ★null — 지어내지 않는다(그 마커는 라벨이 마커 폰트를 따르는 폴백 그대로다 · marking-glyph G3). */
+function lsRatioOf(block) {
+  const d = block.dataset;
+  const lsRaw = parseInt(d.countLabelSize, 10);
+  if (!Number.isFinite(lsRaw)) return null;
+  const w = int(d.sizeW, int(d.size, 56));
+  const kept = _fsRatio.get(block);
+  if (kept && kept.w === String(w) && kept.ls === String(lsRaw)) return kept.lsRatio;
+  return w > 0 ? lsRaw / w : 1;
+}
+
 function shapeOf(block) {
   const s = block.dataset.countShape;
   if (s === 'square' || s === 'none' || s === 'circle') return s;
@@ -160,13 +172,19 @@ export function countSectionHTML(block) {
         <input type="number" class="prop-number" id="stk-count-size-num" min="${SIZE_MIN}" max="${SIZE_MAX}" value="${size}">
       </div>
       <div class="prop-row" id="stk-count-renumber-row" style="display:${isIcon ? 'none' : 'flex'};">
-        <button class="prop-action-btn" id="stk-count-renumber" title="이 섹션의 번호를 지금 순서대로 1부터 다시 매긴다 (중간을 지운 뒤 빈 번호 메우기)">번호 다시 매기기</button>
+        <!-- ★1017t1j3 — 사람의 삭제 경로(마커 하나 Delete · ⌘A→Delete · deleteBlock)는 이제 자동으로 당긴다
+             (js/count-sticker-tool.js countStickerRenumberSections). 이 단추는 그 경로가 못 닿는 자리를
+             위해 ⛔지우지 않고 남긴다 — 붙여넣기·되돌리기·옛 저장본처럼 번호가 비어 «남은» 경우용. -->
+        <button class="prop-action-btn" id="stk-count-renumber" title="붙여넣기·되돌리기·옛 저장본처럼 번호가 비어 남았을 때 1부터 다시 매긴다">번호 다시 매기기</button>
       </div>
+      <!-- ★프리셋 title 은 ★값의 둘째 명부다(1013t2 D2 이후 한 번 썩었다 — 코드는 고치고 title 은 안 고쳤다).
+           ★값은 js/count-sticker-tool.js COUNT_STK_PRESETS 가 정본 — 여기 title 은 그 값을 «말로」 베낀 것뿐이니
+           프리셋 값을 고치면 이 title 도 같이 고쳐라(tests/unit/marking-glyph.test.mjs G5 가 둘을 맞댄다). -->
       <div class="prop-type-group prop-preset-group" id="stk-count-presets">
         <button class="prop-preset-btn" data-count-preset="number" title="번호 — 원 · 검정 배경 · 흰 숫자 (기본 꼴로 되돌린다 · 이 섹션의 마킹 전부)">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><line x1="8" y1="5.5" x2="8" y2="10.5"/></svg><span>번호</span>
         </button>
-        <button class="prop-preset-btn" data-count-preset="point" title="포인트 — 주황 둥근 네모 · 흰 꺾쇠 · 흰 라벨 글자 (이 섹션의 마킹 전부)">
+        <button class="prop-preset-btn" data-count-preset="point" title="포인트 — 둥근 네모(모서리 25%) · 검정 배경 · 흰 꺾쇠 아이콘 + 흰 라벨 글자 (이 섹션의 마킹 전부)">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><polyline points="7 5.5 9.5 8 7 10.5"/></svg><span>포인트</span>
         </button>
       </div>
@@ -316,17 +334,20 @@ export function wireCountSection(panel, block, rerender) {
       if (!Number.isFinite(v)) return;
       const next = clamp(v, SIZE_MIN, SIZE_MAX);
       const d = block.dataset;
+      const prevW = int(d.sizeW, int(d.size, 56));
       const ratio = fsRatioOf(block);
+      const lsRatio = lsRatioOf(block);   // ★1017t1j1 — null 이면 그 마커엔 countLabelSize 가 없다(지어내지 않는다)
       d.size = String(next); d.sizeW = String(next); d.sizeH = String(next);
       d.fontSize = String(clamp(Math.round(next * ratio), FS_MIN, FS_MAX));
-      _fsRatio.set(block, { w: d.sizeW, fs: d.fontSize, ratio });
+      if (lsRatio !== null) window.CountSticker?.rescaleLabel?.(d, prevW, next, lsRatio);
+      _fsRatio.set(block, { w: d.sizeW, fs: d.fontSize, ratio, ls: d.countLabelSize, lsRatio: lsRatio === null ? undefined : lsRatio });
       sizeS.value = String(next); sizeN.value = String(next);
       const fsS = $('stk-fs'), fsN = $('stk-fs-num');
       if (fsS) fsS.value = d.fontSize;
       if (fsN) fsN.value = d.fontSize;
       redraw();
       block.classList.toggle('tiny', next < 40);
-      syncCountGroup(block, ['size', 'sizeW', 'sizeH', 'fontSize']);
+      syncCountGroup(block, ['size', 'sizeW', 'sizeH', 'fontSize', 'countLabelSize']);
     };
     const done = () => commit('마킹 크기');
     sizeS.addEventListener('input', () => applySize(sizeS.value));
@@ -398,6 +419,11 @@ export function wireCountSection(panel, block, rerender) {
       if (!Number.isFinite(v)) return;
       const next = clamp(v, FS_MIN, FS_MAX);
       block.dataset.countLabelSize = String(next);
+      /* ★1017t1j1 — 사용자가 라벨 크기를 손으로 바꾸면 비율이 «바뀐 것»이다(_fsRatio 머리말의 fsRatioOf 와 같은 논리).
+         여기서 다시 잡아 둬야 다음 마커 크기 변경이 round(…)=… 되풀이로 고착되지 않는다. */
+      const w = int(block.dataset.sizeW, int(block.dataset.size, 56));
+      const kept = _fsRatio.get(block) || {};
+      _fsRatio.set(block, { ...kept, w: String(w), ls: String(next), lsRatio: w > 0 ? next / w : 1 });
       lsS.value = String(next); lsN.value = String(next);
       redraw();
       syncCountGroup(block, ['countLabelSize']);

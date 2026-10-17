@@ -8,11 +8,15 @@
        «상자»에 그림자를 치면 모양이 틀린다(선례: js/blocks/modal-block.js:96 주석 — 줌은 clip-path 라
        box-shadow 를 못 써 drop-shadow 로 갔다).
      ★인라인이라 저장본에 그대로 남는다 ⇒ 문서를 열 때 다시 그릴 일이 없다(반사와 같다).
-   ★대상 = ★도형·에셋만. ⛔텍스트에는 «안» 올린다 —
+   ★대상 = ★도형·에셋·프레임(1017a7, 현빈 발주 「프레임블럭에 이펙트에 쉐도우 추가기능」).
+     ⛔텍스트에는 «안» 올린다 —
      텍스트는 「Shadow」 절이 Effects 절 «바로 위»에 이미 있다(js/props/prop-text-template.js:131).
      거기 또 카드를 만들면 같은 것이 두 벌이 된다(이 레포의 고질). 그리고 텍스트는 style.filter 를
      글자 그라데이션이 이미 쓴다(js/props/text-block-color.js:268,371) — 우리가 덮으면 그걸 끈다.
      ⇒ 명부의 `supports(el)` 가 그 가름을 «한 자리»에서 한다.
+   ★★미해결 — frame-block 은 자식을 가진 «컨테이너»다. drop-shadow 는 «실루엣»(자식 포함) 전체에
+     그림자를 친다. ⌘G 그룹처럼 배경이 투명한 프레임은 상자가 아니라 ★자식마다 그림자가 생긴다.
+     box-shadow 로 바꾸는 길은 위 ⛔(도형·에셋 때문)이 막는다 ⇒ ★사실만 적어 둔다(별건으로 안 뗀다).
    ★값 — ⛔내가 지어내지 않았다. 텍스트 「Shadow」 절의 정본을 그대로 빌렸다:
      기본값 = js/props/prop-text-wireup-shadow.js `SHADOW_DEFAULTS`(x 2 · y 2 · blur 4 · #000000 · 50%)
      범위   = 그 절의 슬라이더 그대로(x·y −20~20 · blur 0~40 · 불투명도 0~100)
@@ -174,8 +178,8 @@ function _wireShadowCard(el, P, again) {
 registerFxType({
   key: 'shadow',
   label: '그림자',
-  /* ★도형·에셋만 — 텍스트는 제 「Shadow」 절이 있다(위 머리말). ⛔허용 목록으로 적는다(막는 목록은 블럭이 늘면 샌다). */
-  supports: (el) => !!(el && el.classList && (el.classList.contains('shape-block') || el.classList.contains('asset-block'))),
+  /* ★도형·에셋·프레임만 — 텍스트는 제 「Shadow」 절이 있다(위 머리말). ⛔허용 목록으로 적는다(막는 목록은 블럭이 늘면 샌다). */
+  supports: (el) => !!(el && el.classList && (el.classList.contains('shape-block') || el.classList.contains('asset-block') || el.classList.contains('frame-block'))),
   has:  (el) => fxShadowOf(el).state !== 'none',
   add:  (el) => setFxShadow(el, { state: 'on' }),
   card: _shadowCardHtml,

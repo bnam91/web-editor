@@ -861,10 +861,30 @@ function codeFiles(rev) {
   return out;
 }
 
+/** css/ 를 ★재귀로 훑어 .css 목록을 만든다 — ★하나뿐인 파생처(treeSource 와
+ *  tests/unit/*.test.mjs 의 여러 칸이 같이 쓴다. 명부가 둘이 되지 않게).
+ *  ⛔비재귀 `fs.readdirSync(css/)` 그대로 두면 `css/panels/` 같은 하위 폴더가
+ *  ★안 보인다(2026-10-17 editor-panels.css 책임 단위 분리로 실측). */
+export function listCssFiles(rootDir, subdir = CSS_DIR) {
+  const base = path.join(rootDir, subdir);
+  if (!fs.existsSync(base)) return [];
+  const out = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (e.isDirectory()) { walk(path.join(d, e.name)); continue; }
+      if (e.name.endsWith('.css')) {
+        out.push(path.relative(rootDir, path.join(d, e.name)).split(path.sep).join('/'));
+      }
+    }
+  };
+  walk(base);
+  return out.sort();
+}
+
 function treeSource() {
   const dir = path.join(ROOT, CSS_DIR);
   if (!fs.existsSync(dir)) harness(`${CSS_DIR}/ 가 없다`);
-  const list = fs.readdirSync(dir).filter((f) => f.endsWith('.css')).sort().map((f) => `${CSS_DIR}/${f}`);
+  const list = listCssFiles(ROOT);
   if (!list.length) harness(`${CSS_DIR}/*.css 가 0개다 — 자가 빈 자리를 재고 있다`);
   return { label: '작업트리', files: () => list, read: (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8') };
 }

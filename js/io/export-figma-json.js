@@ -779,6 +779,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         // GR2·GR3 — 축·격자·꺾은선 토글은 «켜진 것만» 싣는다(꺼진 그래프의 JSON 은 예전과 같다). ⚠️렌더러(sangpe_to_figma)는 아직 안 읽는다(E11).
         ...(['showAxis', 'showGrid', 'showLine'].some(k => el.dataset[k] === '1')
           ? { showAxis: el.dataset.showAxis === '1', showGrid: el.dataset.showGrid === '1', showLine: el.dataset.showLine === '1' } : {}),
+        // ★1017t1f6㉠ — 축이 켜져 있고 사용자가 눈금 글자를 고친 게 있을 때만 싣는다(옛 그래프 JSON 은 무변). ⚠️렌더러는 아직 안 읽는다(위와 같은 사정).
+        ...(el.dataset.showAxis === '1' && el.dataset.axisTickText
+          ? { axisTickText: (window.__grbParseAxisTickOv ? window.__grbParseAxisTickOv(el.dataset.axisTickText) : {}) } : {}),
         // 1012t1G2·G3 — 실루엣·채움 분모도 «켜진 것만» 싣는다(옛 JSON 무변). ⚠️렌더러(sangpe_to_figma)는 아직 안 읽는다 — 피그마에선 보통 세로 막대.
         ...(window.GRAPH_SHAPE.shapeOn(el.dataset) ? { barShape: el.dataset.barShape, fillMax: window.GRAPH_SHAPE.fillMaxOf(el.dataset, items) } : {}),
         // 1013t1C — 원형·도너츠의 블럭 수준 키도 «있는 것만» 싣는다(새 키가 없는 원형·옛 donut 의 JSON 은 예전과 같다 — pieHole 은 pieDonut 이 켜졌을 때만).
@@ -1376,7 +1379,13 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
 
     const bgColor = secEl.style.backgroundColor || '';
     const styleAttr = secEl.getAttribute('style') || '';
-    const bgImgRaw = secEl.style.backgroundImage || (/background(-image)?:\s*([^;]+)/.exec(styleAttr) || [])[2] || '';
+    /* ★1017t1k1·k2 — rotate·색보정이 ★걸린 섹션은 ★레이어(.sec-bg-img, js/bg-layer.js)가 그림을
+       들고 있고 본체(secEl)의 backgroundImage 는 'none' 이다 — ★레이어를 ★먼저 본다. */
+    const _bgLayerEl = secEl.querySelector?.(':scope > .sec-bg-clip > .sec-bg-img') || null;
+    const _bgLayerImg = _bgLayerEl ? (_bgLayerEl.style.backgroundImage || '') : '';
+    const bgImgRaw = (_bgLayerImg && _bgLayerImg !== 'none')
+      ? _bgLayerImg
+      : (secEl.style.backgroundImage || (/background(-image)?:\s*([^;]+)/.exec(styleAttr) || [])[2] || '');
     // 섹션 배경: 이미지(data URI 또는 goya-asset://) / 그라디언트 / 솔리드 분기
     // ★goya-asset URL은 buildFigmaExportJSONInlined 후처리에서 data URI로 치환된다.
     let bgImage = '';

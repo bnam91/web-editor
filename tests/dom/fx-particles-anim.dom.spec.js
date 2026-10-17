@@ -15,13 +15,17 @@ const { bootApp } = require('./_root-harness.js');
 
 const VIEW_W = 1440, VIEW_H = 1000;
 
-/** 섹션 하나를 만들고 ★파티클을 ★켠다. ⛔층을 손으로 만들지 않는다 — ★앱이 그리는 그 길이다. */
+/** 섹션 하나를 만들고 ★파티클을 ★켠다. ⛔층을 손으로 만들지 않는다 — ★앱이 그리는 그 길이다.
+ *  ★`cfg.play`(1017t1a6) — ★true 면 ★«사람이 ▶를 누른 뒤»로 옮긴다(★기본값=정지가 됐으므로).
+ *    ⛔`play` 를 ★`writeParticles` 로 ★같이 넘기지 않는다 — ★그러면 ★저장 설정(JSON)에 ★엉뚱한
+ *    키가 샌다(1017t1a6 의 ★«저장물 무접촉» 계약과 ★충돌). */
 async function setup(page, cfg) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
   await page.setViewportSize({ width: VIEW_W, height: VIEW_H });
   await bootApp(page);
   await page.evaluate((c) => {
+    const { play, ...particleCfg } = c || {};
     const canvas = document.getElementById('canvas');
     canvas.querySelectorAll('.section-block').forEach((s) => s.remove());
     canvas.insertAdjacentHTML('beforeend',
@@ -31,8 +35,10 @@ async function setup(page, cfg) {
       + '<div class="gap-block" data-type="gap" style="height:300px"></div></div></div>');
     window.rebindAll?.();
     const sec = document.getElementById('pS');
-    window.writeParticles(sec.dataset, { preset: 'party', seed: 7, ...c });
+    window.writeParticles(sec.dataset, { preset: 'party', seed: 7, ...particleCfg });
     window.applySectionParticles?.(sec) ?? window.watchAllParticles?.(document);
+    /* ★1017t1a6 — ★기본값이 ★정지라 ★손으로 step() 재는 수트는 ★먼저 ★눌러야 ★움직인다. */
+    if (play) window.ParticlesAnim?.setPaused?.(sec, false);
     /* ★★살아 있는 ★rAF 루프를 ★세운다 — ⛔안 세우면 ★그 루프가 ★내 step() 사이에 ★덮어쓴다.
        ★2026-10-09 실측: ★V2 의 ★결정성 줄이 ★그래서 ★빨갰다(★제품 흠이 아니라 ★내 자의 흠).
        ⇒ ★이 수트는 ★시각을 ★손으로 넣어 잰다 ⇒ ★★«쓰는 자»가 ★하나여야 한다. */
@@ -90,7 +96,7 @@ test('V1 ★★패닝 축이 ★전부 0 이면 ★루프가 ★건드리지 않
 
   /* ⒝ ★★양성 — ★같은 자가 ★축이 있으면 ★움직여야 한다.
      ⛔이것이 없으면 ★「늘 0 을 내는 죽은 자」와 ★구분이 안 된다. */
-  await setup(page, { speed: 58, spin: 190 });
+  await setup(page, { speed: 58, spin: 190, play: true });
   const movedSome = await page.evaluate(() => window.ParticlesAnim.step(2000));
   expect(movedSome, '★★축을 줬는데도 ★루프가 ★0개를 움직였다 — 이 자는 아무것도 안 재고 있다')
     .toBeGreaterThan(0);
@@ -105,7 +111,7 @@ test('V1 ★★패닝 축이 ★전부 0 이면 ★루프가 ★건드리지 않
 });
 
 test('V2 ★★정말 움직인다 — ★시각이 다르면 ★자리가 다르고, ★같으면 ★같다(결정성)', async ({ page }) => {
-  const errs = await setup(page, { speed: 58, spin: 190 });
+  const errs = await setup(page, { speed: 58, spin: 190, play: true });
   await assertOnlyWriter(page);
 
   await page.evaluate(() => window.ParticlesAnim.step(0));
@@ -127,7 +133,7 @@ test('V2 ★★정말 움직인다 — ★시각이 다르면 ★자리가 다�
 
 test('V3 ★★회전만 켜면 ★돌고, ★떨어짐만 켜면 ★떨어진다 — 두 축이 ★따로 먹는다', async ({ page }) => {
   /* ⒜ ★회전만 */
-  await setup(page, { speed: 0, spin: 300 });
+  await setup(page, { speed: 0, spin: 300, play: true });
   await page.evaluate(() => window.ParticlesAnim.step(0));
   const s0 = await marks(page);
   await page.evaluate(() => window.ParticlesAnim.step(2000));
@@ -137,7 +143,7 @@ test('V3 ★★회전만 켜면 ★돌고, ★떨어짐만 켜면 ★떨어진�
   expect(dy(s1.t[0]), `★spin 만 켰는데 ★세로로 움직였다 (dy=${dy(s1.t[0])})`).toBe(0);
 
   /* ⒝ ★떨어짐만 — ★각도가 ★안 바뀌어야 한다(처음 각 그대로) */
-  await setup(page, { speed: 100, spin: 0 });
+  await setup(page, { speed: 100, spin: 0, play: true });
   await page.evaluate(() => window.ParticlesAnim.step(0));
   const f0 = await marks(page);
   await page.evaluate(() => window.ParticlesAnim.step(2000));
@@ -168,6 +174,7 @@ test('V4 ★★살아 있는 루프가 ★정말 돈다 — ★`step` 을 손으
     const sec = document.getElementById('pS');
     window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
     window.applySectionParticles(sec);           /* ⛔stop() 을 ★안 부른다 — ★루프가 ★살아 있어야 한다 */
+    window.ParticlesAnim?.setPaused?.(sec, false);  /* ★1017t1a6 — 기본값이 정지라 ★눌러야(★여기서는 setPaused 로) 돈다 */
   });
   const first = await page.evaluate(() => {
     const e = document.querySelector('.sec-fxpart-wrap [data-fxp]');
@@ -268,6 +275,7 @@ test('V5 ★★저장본에 ★«시각»이 ★안 들어간다 — ★언제 �
     const sec = document.getElementById('pS');
     window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
     window.applySectionParticles(sec);
+    window.ParticlesAnim.setPaused(sec, false);  /* ★1017t1a6 — 기본값이 정지라 ★눌러야 돈다 */
     window.ParticlesAnim.stop();
   });
 
@@ -369,6 +377,7 @@ test('V6 ★★움직임이 ★자동저장을 ★깨우지 않는다 — ★★
     const sec = document.getElementById('pS');
     window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
     window.applySectionParticles(sec);
+    window.ParticlesAnim.setPaused(sec, false);  /* ★1017t1a6 — 기본값이 정지라 ★눌러야 돈다 */
   });
   /* ★다시그리기(진짜 편집)가 ★건 저장이 ★끝나게 둔다 — ⛔그것까지 세면 ★내 수가 아니다 */
   await page.waitForTimeout(3000);
@@ -421,6 +430,7 @@ async function mkMoving(page) {
     const sec = document.getElementById('pS');
     window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
     window.applySectionParticles(sec);
+    window.ParticlesAnim.setPaused(sec, false);  /* ★1017t1a6 — 기본값이 정지라 ★눌러야 돈다 */
   });
   await page.waitForTimeout(150);
 }
@@ -508,6 +518,7 @@ async function twoSections(page) {
       /* ★같은 씨값·같은 설정 — ★두 섹션이 ★같은 그림이어야 ⒟ 가 ★뜻을 갖는다 */
       window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
       window.applySectionParticles(sec);
+      window.ParticlesAnim.setPaused(sec, false);  /* ★1017t1a6 — 기본값이 정지라 ★눌러야 돈다 */
     }
     window.ParticlesAnim.stop();                   /* ★쓰는 자를 ★나 하나로 */
     /* ★★굴리는 것은 ★`window` 가 ★아니라 ★`#canvas-wrap` 이다(실측: overflowY auto).
@@ -621,6 +632,7 @@ test('V9 ★★HTML 내보내기는 ★언제 해도 ★같은 글자 — ★움
     const sec = document.getElementById('pS');
     window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
     window.applySectionParticles(sec);
+    window.ParticlesAnim.setPaused(sec, false);  /* ★1017t1a6 — 기본값이 정지라 ★눌러야 돈다 */
     /* ⛔`stop()` 을 ★안 부른다 — ★사람이 쓰는 그 꼴(★루프가 ★돌고 있다)에서 내보낸다 */
     window.__blobs = [];
     const oc = URL.createObjectURL;
@@ -683,8 +695,10 @@ test('V9 ★★HTML 내보내기는 ★언제 해도 ★같은 글자 — ★움
  *    · ★멈춘 동안 ★★메모리가 ★정말 줄나 — ★★안 쟀다(★현빈의 둘째 물음). ★프레임 수는 ★실앱에서 쟀다.
  *    · ★썸네일·PNG — ★V9 머리말의 ★그 한계 ★그대로(★하네스에 ★네이티브 캡처가 ★없다).
  */
-async function twoVisible(page) {
-  await page.evaluate(() => {
+/** ★`play`(1017t1a6) — ★true(기본) 면 ★둘 다 ★미리 켠다(V10 이 쓰는 꼴 — 「둘 다 돌다가 한쪽만 멈춘다」).
+ *  ★false 면 ★★아무도 ★안 켠다(V11 이 쓰는 꼴 — 「기본값이 정지인가」를 ★그대로 잰다). */
+async function twoVisible(page, { play = true } = {}) {
+  await page.evaluate((playArg) => {
     const canvas = document.getElementById('canvas');
     canvas.querySelectorAll('.section-block').forEach((s) => s.remove());
     const mk = (id) => '<div class="section-block" id="' + id + '" data-section="1" style="background:#0A0A0C">'
@@ -697,9 +711,10 @@ async function twoVisible(page) {
       /* ★같은 씨값·설정 — ★두 섹션이 ★같은 그림이어야 ★「한쪽만 멈췄다」가 ★뜻을 갖는다 */
       window.writeParticles(sec.dataset, { preset: 'party', seed: 7, speed: 80, spin: 200 });
       window.applySectionParticles(sec);
+      if (playArg) window.ParticlesAnim.setPaused(sec, false);  /* ★1017t1a6 — 기본값이 정지라 ★눌러야 돈다 */
     }
     document.getElementById('pA').scrollIntoView({ block: 'start' });
-  });
+  }, play);
   await page.waitForTimeout(250);
 }
 /** 섹션 패널을 ★사람이 ★여는 그 길로 연다 — ⛔패널 HTML 을 ★손으로 만들지 않는다. */
@@ -753,7 +768,7 @@ test('V10 ★★사람 멈춤 — ★누르면 ★멈추고 ★다시 누르면 
     await page.setViewportSize({ width: VIEW_W, height: VIEW_H });
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await bootApp(page);
-    await twoVisible(page);
+    await twoVisible(page, { play: true });   /* ★V10 — 둘 다 ★미리 켠 뒤 ★한쪽만 멈춘다 */
 
     /* ═══ ⒜ ★★전제 ═════════════════════════════════════════════════════════
        ⛔이 넷이 안 서면 ★아래가 ★전부 뜻이 없다. */
@@ -862,4 +877,73 @@ test('V10 ★★사람 멈춤 — ★누르면 ★멈추고 ★다시 누르면 
 
     expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
   });
+
+/* ═══ V11 — ★★자동재생 금지 (1017t1a6 · 2026-10-17 현빈 발주) ═══════════════════
+ *  현빈: 「파티클이 ★사람이 누르지 않았는데 ★자동재생된다 ⇒ ★자동재생 금지」.
+ *  ★★위 V1~V10(8벌)은 ★setup({play:true})로 ★«사람이 ▶를 누른 뒤»로 ★옮겨 ★그대로 산다
+ *    ⇒ ★★그 8벌이 ★★«안 꺼졌다»의 ★음성대조를 ★겸한다(명부 밖 0건) — ★여기선 ★다시 안 잰다.
+ *  ★이 칸이 ★★새로 재는 것 = ★★«안 누르면 ★정지», ★«누르면 ★정말 돈다», ★«섹션별». */
+test('V11 ★★자동재생 금지 — ★안 누르면 ★정지, ★누르면 ★정말 돈다(섹션별)', async ({ page }) => {
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e)));
+  await page.setViewportSize({ width: VIEW_W, height: VIEW_H });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await bootApp(page);
+  await twoVisible(page, { play: false });   /* ★V11 — ★아무도 ★안 켠다(기본값=정지를 그대로 잰다) */
+
+  /* ★전제 — ★잴 알맹이가 있고, ★지금 쓰는 자가 ★나 하나다(루프가 ★따로 안 쓴다) */
+  const pre = await marks(page);
+  expect(pre.n, '★전제: 잴 알맹이가 없다').toBeGreaterThan(0);
+  await assertOnlyWriter(page);
+
+  /* ═══ ★양성 — ★안 누른 채로는 ★★정지다 ═══════════════════════════════════ */
+  const scan0 = await page.evaluate(() => window.ParticlesAnim.scan(document).length);
+  expect(scan0, `★★자동재생이다 — ★안 눌렀는데 ★scan() 이 ★${scan0}개를 ★돌 명부에 올렸다`).toBe(0);
+  const moved0 = await page.evaluate(() => window.ParticlesAnim.step(5000));
+  expect(moved0, '★★자동재생이다 — ★안 눌렀는데 ★step() 이 ★알맹이를 ★움직였다').toBe(0);
+  /* ⛔250ms 고정대기 중복 금지(dom-fixed-wait-census 래칫) — ★위 `assertOnlyWriter(page)` 가
+     ★★같은 자(250ms 동안 ★안 썼는데 ★자리가 ★바뀌나)를 ★이미 ★전제로 ★세웠다. ★여기선 ★재지 않는다. */
+  await openSecPanel(page, 'pA');
+  const btn0 = await page.evaluate(() => {
+    const el = document.getElementById('sec-fxpart-pause');
+    return { pressed: el?.getAttribute('aria-pressed'), label: el?.textContent.trim() };
+  });
+  const G = await page.evaluate(() => window.SEC_PARTICLES_GLYPH);
+  expect(btn0.pressed, `★★기본값이 ★재생(aria-pressed=false)으로 뜬다 — 자동재생이다. 잰 값 ${JSON.stringify(btn0)}`).toBe('true');
+  expect(btn0.label, `★★기본값 단추 글자가 ★「재생」(▶) 꼴이 ★아니다. 잰 값 ${JSON.stringify(btn0)}`).toBe(G.play);
+
+  /* ═══ ★음성 — ★누르면 ★정말 돈다(⛔전부 꺼 버린 것이 아니다) ═══════════════ */
+  await page.click('#sec-fxpart-pause', { timeout: 5000 });
+  /* ★★무엇을 기다리는가 — ★클릭 핸들러(js/props/prop-section-particles.js:409)는 ★★동기로
+     `aria-pressed` 를 ★뒤집는다(togglePaused 도 ★동기 — WeakSet 추가 ＋ kick() 호출뿐,
+     ★rAF 가 ★돌기를 ★기다리지 않는다). ⇒ ★고정 150ms 대신 ★★그 뒤집힘 자체를 ★조건으로
+     삼는다 — ★느린 판에서 ★150ms 로 ★안 끝나도 ★거짓이 되지 않고, ★빠른 판에서도 ★헛되이
+     기다리지 않는다(1318→1326 래칫 적발분, W3). */
+  await page.waitForFunction(
+    () => document.getElementById('sec-fxpart-pause')?.getAttribute('aria-pressed') === 'false',
+    null, { timeout: 5000 },
+  ).catch(() => { throw new Error('★★눌렀는데 ★aria-pressed 가 ★false(재생)로 ★안 섰다 — 클릭 길이 죽었다'); });
+  const scan1 = await page.evaluate(() => window.ParticlesAnim.scan(document).length);
+  expect(scan1, `★★눌렀는데 ★scan() 이 ★1개(이 섹션)를 ★안 돌 명부에 올렸다. 잰 값 ${scan1}`).toBe(1);
+  const moved1 = await page.evaluate(() => window.ParticlesAnim.step(5000));
+  expect(moved1, '★★눌렀는데 ★step() 이 ★알맹이를 ★0개 움직였다 — 누르는 길이 죽었다').toBeGreaterThan(0);
+  await movesIn(page, 'pA', '★★눌렀는데(재생) ★화면이 ★안 움직인다');
+  const after = await page.evaluate(() => {
+    const el = document.getElementById('sec-fxpart-pause');
+    return { pressed: el.getAttribute('aria-pressed'), label: el.textContent.trim() };
+  });
+  expect(after.pressed, `★눌렀는데 ★aria-pressed 가 ★여전히 true(정지)다. 잰 값 ${JSON.stringify(after)}`).toBe('false');
+  expect(after.label, `★눌렀는데 ★단추 글자가 ★「일시정지」(⏸) 꼴이 ★아니다. 잰 값 ${JSON.stringify(after)}`).toBe(G.pause);
+
+  /* ═══ ★둘째 음성 — ★섹션별이다(옆 섹션 pB 는 ★여전히 ★정지) ═══════════════
+     ★자 = ★V8/V10 과 ★같은 결 — ★움직인 수가 ★★«켠 한 섹션 몫»이다(⛔둘 다 켜지면 두 배). */
+  const bitsA = await page.evaluate(() => document.querySelectorAll('#pA .sec-fxpart-wrap [data-fxp]').length);
+  const movedN = await page.evaluate(() => window.ParticlesAnim.step(5000));
+  expect(bitsA, '★전제: pA 의 알맹이 수가 0 이다').toBeGreaterThan(0);
+  expect(movedN, `★움직인 수 ${movedN} 가 ★★«켠 한 섹션 몫»(${bitsA}) 이 ★아니다`
+    + ' — ⛔두 배면 ★pB 도 ★같이 켜졌다(★명부가 전역이다)').toBe(bitsA);
+  await stillIn(page, 'pB', '★★pA 만 눌렀는데 ★pB 도 ★같이 돈다 — ★명부가 전역이다');
+
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
 

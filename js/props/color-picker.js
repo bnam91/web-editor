@@ -7,6 +7,7 @@
 ═══════════════════════════════════ */
 
 import { parseGradientStrict } from './gradient-model.js';
+import { escHtml } from './_helpers.js';   /* ★1013t2E1 중-1 — 속성 이스케이프는 그 한 벌(& < > " ')을 쓴다 */
 
 /* ─── 유틸: color math ─── */
 function hexToRgb(hex) {
@@ -1245,13 +1246,18 @@ export function colorFieldHTML({ idPrefix, hex, alpha = 100, placeholder = '', g
   // gradientCss가 있으면 swatch 배경을 그라데이션으로, picker/hex는 첫 stop 색
   const h = _hex6(hex);
   const hexUp = h.replace('#','').toUpperCase();
-  const swatchBg = gradientCss || h;
+  /* ★1013t2E1 중-1(보안) — gradientCss 는 «블럭 데이터»(dataset.bg 등 · 남이 준 프로젝트·템플릿·붙여넣기)에서 온다.
+     예전엔 그대로 style="…" 에 박혀, `"` 로 속성을 깨고 태그·핸들러를 넣으면 패널을 여는 순간 스크립트가 돌았다
+     (독립 판정 E-eval 실측: 섹션 __pwn=1 · 프레임은 바닥부터 ≥2). ⇒ 속성 이스케이프. 정상 그라데이션/색 문자열엔 이 다섯 글자가 없어
+     표시가 한 글자도 안 바뀐다(속성 값은 파서가 엔티티를 되돌린다). ⛔이스케이프를 빼지 마라 — tests/dom/section-bg-gradient X2.
+     h 는 _hex6 를 거친 #rrggbb 라 안전하다. placeholder 는 호출측 상수지만 같은 자리라 같이 감싼다. */
+  const swatchBg = escHtml(gradientCss || h);
   return `
     <div class="prop-color-field">
       <div class="prop-color-swatch" style="background:${swatchBg}">
         <input type="color" id="${idPrefix}-color" value="${h}">
       </div>
-      <input type="text" class="prop-color-hex" id="${idPrefix}-hex" value="${hexUp}" maxlength="7" aria-label="Color"${placeholder ? ` placeholder="${placeholder}"` : ''}>
+      <input type="text" class="prop-color-hex" id="${idPrefix}-hex" value="${hexUp}" maxlength="7" aria-label="Color"${placeholder ? ` placeholder="${escHtml(placeholder)}"` : ''}>
       <label class="prop-color-alpha" title="Opacity">
         <input type="text" class="prop-color-alpha-input" id="${idPrefix}-alpha" value="${alpha}" aria-label="Opacity">
         <span class="prop-color-alpha-suffix">%</span>

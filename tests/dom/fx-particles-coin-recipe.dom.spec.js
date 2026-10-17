@@ -123,6 +123,11 @@ async function loopAfterReopen(page, useRecipe) {
   await bootApp(page);
   await page.evaluate((d) => window.applyProjectData(JSON.parse(d)), snap);
   await expect.poll(async () => (await state(page)).cfg?.speed, '★전제: 다시 열었고 속도 60 이 실렸다').toBe(60);
+  /* ★1017t1a6 — ★«사람 멈춤»(v1.5 ⑷)은 ★★저장물 무접촉이라 ★다시 열면 ★언제나 ★기본값(정지)이다.
+     ★이 칸이 재려는 것은 ★«레시피가 ac725710 을 악화시키나»(★전혀 ★다른 미비) ⇒ ★그 미비를 ★가리지 않도록
+     ★다시 연 뒤 ★한 번 ★켜 준다(⛔고치는 게 아니라 ★재는 조건을 ★맞추는 것 — 저장 전에 눌러도 ★이 상태는
+     ★저장에 안 실리므로 ★무의미하다). */
+  await page.evaluate(() => window.ParticlesAnim?.setPaused?.(document.getElementById('pS'), false));
   const n = await page.evaluate(() => new Promise((res) => {
     let calls = 0; const raf = window.requestAnimationFrame.bind(window);
     window.requestAnimationFrame = (cb) => { calls++; return raf(cb); };

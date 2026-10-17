@@ -11,6 +11,9 @@ import { genId, showNoSelectionHint, insertAfterSelected, colorLuminance } from 
 import { bindBlock } from '../drag-drop.js';
 import { checkerBg } from '../checker-tokens.js';
 import { effSectionPadX as _effSectionPadX } from './outer-pad.js';   // ⛔사본을 되만들지 마라 — 챗과 «한 글자도 안 다른» 두 벌이었다(그 파일 머리말)
+/* ★1017t1d1 — 심플카드가 line-host 의 «다섯 번째 주인». comparison-block.js·laurel-block.js·chat-block.js 가
+ *   이미 쓰는 같은 ESM import(사본 아님) — 순환 없음(line-host.js 는 grid-block.js 만 import 한다). */
+import { lnHasLines, lnLinesHtml, lnValidateLines, lnRemark, LN_KINDS } from './line-host.js';
 
 // slot: null | 'top' | 'bottom' — labelPos='both'일 때 상/하단 라벨이 서로 다른 내용·색을 갖도록 분리.
 //   - slot==='top'    → card.titleTop/descTop (없으면 card.title/desc fallback), 색은 titleColorTop/descColorTop (없으면 블록색)
@@ -50,6 +53,9 @@ function _cvbTextCss(kind, size, color, align) {
  *     (renderCanvas 가로 분기는 labelPos 를 안 보고 슬롯 하나만 그린다 — 그래서 orient 를 받는다.) */
 export function cvbMissingTextSlots(card, labelPos, textHide, orient) {
   if (textHide === true || textHide === 'true') return [];
+  /* ★1017t1d1 — 줄(line-host)이 있으면 ★「빈 슬롯」 개념이 없다(그리드가 줄 모드에서 빈칸 ＋ 를
+     안 쓰는 것과 같은 뜻 — 줄 추가는 T/G 단축키·줄바 「+ 줄 추가」로 간다). */
+  if (lnHasLines(card && card.lines)) return [];
   const slots = (labelPos === 'both' && orient !== 'landscape') ? ['top', 'bottom'] : [null];
   const out = [];
   for (const slot of slots) {
@@ -62,6 +68,14 @@ export function cvbMissingTextSlots(card, labelPos, textHide, orient) {
 }
 
 function _appendCardTexts(container, card, titleSize, descSize, textAlign, titleColor, descColor, cardIdx, slot) {
+  /* ★1017t1d1 D1 갈음 — 줄(line-host 다섯 번째 주인)이 있으면 ★본문 대신 줄만 그린다(그리드·버블·
+     laurel 과 같은 규칙 · line-host.js 머리말). ⛔「both」 라벨(slot 있음)은 글자 그릇이 카드 하나에
+     둘이라 이 모델 밖이다 — slot 이 있으면 항상 옛 길(아래)로 간다(line-host lnCardHost.rowOk 의
+     _cvbSingleSlot 가름과 같은 뜻을 렌더 쪽에서도 지킨다). */
+  if (!slot && cardIdx != null && lnHasLines(card.lines)) {
+    container.innerHTML = lnLinesHtml(card.lines, cardIdx, null, textAlign);
+    return;
+  }
   const { titleField, descField, titleText, descText } = _cvbSlotTexts(card, slot);
   let _tc = titleColor, _dc = descColor;
   if (slot === 'top') {
@@ -1000,6 +1014,7 @@ function renderCanvas(block) {
     }
     _bindCvbDblEdit(block);
     _syncCvbAddBtns(block);   // ★[1012t1K1] 캔버스 ＋ (블럭 밖 층 — 블럭 DOM 은 안 건드린다)
+    lnRemark(block);   // ★1017t1d1 — 다시 그리면 줄 선택 표시가 지워진다. 선택된 블럭의 활성 줄만 되붙인다(챗·비교·laurel 과 같은 자리 · 줄 없으면 DOM 무변)
     return;
   }
   // ── End Simple Card Mode ───────────────────────────────────────────────────
@@ -1491,6 +1506,12 @@ function updateCanvasBlock(blockId, partial = {}) {
     if (c.iconColor !== undefined && c.iconColor !== null && c.iconColor !== '') {
       if (!_isColor(c.iconColor)) return { ok: false, code: 'INVALID', message: `${ctx}.iconColor invalid color` };
     }
+    /* ★1017t1d1 — 카드 「줄」(line-host 다섯 번째 주인). 잣대는 다른 세 주인과 같은 lnValidateLines
+       한 벌(comparison-block.js :88·laurel-block.js :615 과 같은 꼴). null = 그 키를 지운다(줄 모드 해제). */
+    if (c.lines !== undefined && c.lines !== null) {
+      const lr = lnValidateLines(c.lines, `${ctx}.lines`, LN_KINDS, 'a card line');
+      if (lr) return { ok: false, code: lr.code, message: lr.message };
+    }
     return { ok: true };
   };
 
@@ -1694,6 +1715,11 @@ window.addCanvasBlock   = addCanvasBlock;
 window.renderCanvas     = renderCanvas;
 // window 노출 — banner02 패턴 미러
 window.updateCanvasBlock = updateCanvasBlock;
+/* ★1017t1d1 — 「끝 표본」 래퍼(js/model-update-history.js, window.update*Block 전부를 감싼다)를
+   «안 타는» 원본. chat-block.js updateChatBlockRaw·laurel-block.js updateLaurelBlockRaw 와 같은 관용구
+   (이름이 그 정규식에 안 걸리게 Raw 로 끝낸다). line-host.js lnCardHost 의 moveLine «다른 카드로» 가지
+   (한 제스처가 두 문으로 나가는 호출자) 전용 — ⛔일반 호출부는 window.updateCanvasBlock 를 쓴다. */
+window.updateCanvasBlockRaw = updateCanvasBlock;
 window._triggerCvbCardImage = _triggerCvbCardImage;
 window._cvbBuildGrad = _cvbBuildGrad;
 

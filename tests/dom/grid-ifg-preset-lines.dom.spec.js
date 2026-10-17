@@ -23,6 +23,7 @@
  * 실행(인텔): bash ~/taeyang-098/run-test.sh dom tests/dom/grid-ifg-preset-lines.dom.spec.js --retries=0
  */
 const { test, expect } = require('@playwright/test');
+const { bootApp } = require('./_root-harness.js');   // ★P13 만 — 캔버스 ＋ 는 앱 통째(진짜 선택·진짜 클릭)로만 재진다
 const fs = require('fs');
 const path = require('path');
 
@@ -136,10 +137,11 @@ const INSTALL = () => {
 
 const LINE = '1px solid rgb(179, 177, 174)';
 const OFF = '0px none';
-/** P1 의 칸 표(2×2 · gap 0 · top,vsep) — 외곽선 꺼짐. */
+/** P1 의 칸 표(2×2 · gap 0 · top,vsep) — 외곽선 꺼짐.
+ *  ★1017t1i3 — 블럭 맨 위 선(r=0)은 칸이 더는 안 긋는다(「블럭 외곽선」 위 변의 일로 옮겼다). 행 사이(r=1)는 그대로. */
 const P1_TABLE = {
-  '00.T': LINE, '00.R': OFF, '00.B': OFF, '00.L': OFF,
-  '01.T': LINE, '01.R': OFF, '01.B': OFF, '01.L': LINE,
+  '00.T': OFF, '00.R': OFF, '00.B': OFF, '00.L': OFF,
+  '01.T': OFF, '01.R': OFF, '01.B': OFF, '01.L': LINE,
   '10.T': LINE, '10.R': OFF, '10.B': OFF, '10.L': OFF,
   '11.T': LINE, '11.R': OFF, '11.B': OFF, '11.L': LINE,
   'B.T': OFF, 'B.R': OFF, 'B.B': OFF, 'B.L': OFF,
@@ -208,7 +210,7 @@ test('P3 ★패널 [칸 사이] — 누르면 칸 사이 세로가 사라지고 
 });
 
 /* ══ P4 ══════════════════════════════════════════════════════════════════ */
-test('P4 ★「블럭 외곽선」과 독립 — 바깥 변은 블럭 자기 border · 위 변만 두 겹 방지', async ({ page }) => {
+test('P4 ★「블럭 외곽선」과 독립 — 바깥 변은 블럭 자기 border · 1017t1i3: 위를 켜도 칸 표는 «무변»(가드가 필요 없어졌다)', async ({ page }) => {
   const errs = await boot(page);
   await page.evaluate(() => { window.__lines(); });
   for (const sd of ['bottom', 'left', 'right']) await page.click(`#grd-outline-group [data-outline-side="${sd}"]`);
@@ -217,12 +219,27 @@ test('P4 ★「블럭 외곽선」과 독립 — 바깥 변은 블럭 자기 bor
     .toEqual(with_(P1_TABLE, { 'B.B': LINE, 'B.L': LINE, 'B.R': LINE }));
   await page.click('#grd-outline-group [data-outline-side="top"]');
   const b = await page.evaluate(() => window.__screen(document.querySelector('#host .grid-block')));
-  expect(b, '★외곽선 위를 켜면 블럭 위 1px · 첫 행 칸 위 변 0(두 겹 방지) · 둘째 행 위 변 그대로')
-    .toEqual(with_(P1_TABLE, { 'B.T': LINE, 'B.B': LINE, 'B.L': LINE, 'B.R': LINE, '00.T': OFF, '01.T': OFF }));
+  /* ★항등식 주의(설계서 지적) — '00.T'/'01.T' 는 P1_TABLE 에서 이미 OFF 라 이 단언 «하나만»으론 아무것도 못 잠근다.
+   * 그래서 a(외곽선 위 켜기 전)와 칸 표가 «완전히 같다»는 것까지 같이 잠근다 — 켜고 꺼도 칸 쪽은 바이트 무변이어야 한다. */
+  const cellKeys = Object.keys(P1_TABLE).filter(k => !k.startsWith('B.'));
+  for (const k of cellKeys) expect(b[k], `★외곽선 위를 켰는데 칸 쪽(${k})이 바뀌었다 — 가드가 다시 필요해졌다`).toBe(a[k]);
+  expect(b, '★외곽선 위를 켜면 블럭 위 1px 가 서야 한다').toEqual(with_(a, { 'B.T': LINE }));
   await page.click('#grd-border-edges [data-edge="top"]');
   const c = await page.evaluate(() => window.__screen(document.querySelector('#host .grid-block')));
-  expect(c['B.T'], '★칸 [위 변] 을 껐는데 블럭 외곽선 위 변까지 꺼졌다 — 두 축이 엉켰다').toBe(LINE);
-  expect([c['10.T'], c['11.T']], '★칸 [위 변] 을 껐는데 행 사이 선이 남았다').toEqual([OFF, OFF]);
+  expect(c['B.T'], '★칸 [행 사이] 를 껐는데 블럭 외곽선 위 변까지 꺼졌다 — 두 축이 엉켰다').toBe(LINE);
+  expect([c['10.T'], c['11.T']], '★칸 [행 사이] 를 껐는데 행 사이 선이 남았다').toEqual([OFF, OFF]);
+  expect(errs).toEqual([]);
+});
+/* ══ Y2(P12) ═══════════════════════════════════════════════════════════ */
+test('Y2(P12) ★손잡이는 「뺀」게 아니라 「옮겼다」 — 「블럭 외곽선」 위 변을 켜면 B.T=LINE · 칸 표는 무변', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => { window.__lines(); });
+  const before = await page.evaluate(() => window.__screen(document.querySelector('#host .grid-block')));
+  await page.click('#grd-outline-group [data-outline-side="top"]');
+  const after = await page.evaluate(() => window.__screen(document.querySelector('#host .grid-block')));
+  expect(after['B.T'], '★블럭 외곽선 위 변을 켰는데 안 섰다 — 맨 위 선을 되찾을 길이 없다').toBe(LINE);
+  const cellKeys = Object.keys(P1_TABLE).filter(k => !k.startsWith('B.'));
+  for (const k of cellKeys) expect(after[k], `★칸 쪽(${k})이 손잡이 토글로 바뀌었다`).toBe(before[k]);
   expect(errs).toEqual([]);
 });
 
@@ -377,7 +394,9 @@ test('N2 ★음성대조 — 패널 [위 변]/[칸 사이] 클릭 배선을 끊�
   await page.click('#grd-border-edges [data-edge="top"]');
   const s = await page.evaluate(() => window.__screen(document.querySelector('#host .grid-block')));
   expect(errs).toEqual([]);
-  expect(s['00.T'], '★배선을 끊었는데 위 변이 꺼졌다 — P2 가 단추가 아닌 딴 길을 잰다').toBe(LINE);
+  /* ★1017t1i3 — r=0('00.T')은 이제 늘 OFF라 이 자리로는 「클릭이 안 먹었다」를 못 잰다(항등식).
+   * r=1('10.T' 행 사이)이 토글이 «보이는» 유일한 자리다 — 배선이 끊겼으면 LINE 그대로(안 꺼짐). */
+  expect(s['10.T'], '★배선을 끊었는데 행 사이 선이 꺼졌다 — P2 가 단추가 아닌 딴 길을 잰다').toBe(LINE);
 });
 
 test('N3 ★음성대조 — [칸 사이] 단추가 엉뚱한 자리(top)를 가리키면 P3 이 빨개진다', async ({ page }) => {
@@ -389,13 +408,16 @@ test('N3 ★음성대조 — [칸 사이] 단추가 엉뚱한 자리(top)를 가
   expect([s['01.L'], s['11.L']], '★[칸 사이] 가 위 변을 겨눴는데 세로가 꺼졌다 — P3 가 그 배선을 안 문다').toEqual([LINE, LINE]);
 });
 
-test('N4 ★음성대조 — 외곽선 겹침 규칙을 끄면 P4 의 첫 행 위 변이 빨개진다(두 겹)', async ({ page }) => {
-  const errs = await boot(page, mut(GB, 'cellBorder.topShared = _gridBlockOutline(block).on.top && !_gridBlockBg(block).on;', 'cellBorder.topShared = false;'));
+/* ⛔폐기(1017t1i3 · e0e32dd4) — N4 는 「겹침 규칙(cellBorder.topShared)을 끄면 P4 가 빨개진다」를 쟀다. 그 규칙이
+ * _gridCellEdgesCss 에서 사라졌다(r===0 칸은 처음부터 top 을 안 그어 겹칠 수가 없다). 재는 자 = 아래 N9. */
+test.skip('N4 ★폐기(1017t1i3) — topShared 겹침 가드가 삭제돼 이 대조는 무의미해졌다 · 자리는 N9 가 메운다', () => {});
+
+test('N9 ★음성대조 — r>0 가드를 되돌리면(늘 top) P1·P2·P4·P5(간접)·P6·P9 가 빨개진다', async ({ page }) => {
+  const errs = await boot(page, mut(GB, "bd.edges.includes('top') && r > 0 ? line : '0'", "bd.edges.includes('top') ? line : '0'"));
   await page.evaluate(() => { window.__lines(); });
-  await page.click('#grd-outline-group [data-outline-side="top"]');
   const s = await page.evaluate(() => window.__screen(document.querySelector('#host .grid-block')));
   expect(errs).toEqual([]);
-  expect([s['B.T'], s['00.T']], '★겹침 규칙을 껐는데 첫 행 위 변이 0 — P4 가 그 규칙을 안 잰다').toEqual([LINE, LINE]);
+  expect([s['00.T'], s['01.T']], '★r>0 가드를 되돌렸는데 (0,0)/(0,1) 위 변이 그대로 0 — P1 이 그 가드를 안 잰다').toEqual([LINE, LINE]);
 });
 
 test('N5 ★음성대조 — 선 자리를 dataset 아닌 JS 속성에 두면 화면은 초록인데 P6 왕복이 빨개진다', async ({ page }) => {
@@ -468,4 +490,68 @@ test('P11 ★[위 변] 단추 상태가 «보인다» — 켜짐 바탕 = 눌린
   const offBg = await bg(TOP);
   expect(offBg, `꺼짐 바탕 ${offBg} 이 켜짐 ${onBg} 과 달라야 한다`).not.toBe(onBg);
   expect(errs).toEqual([]);
+});
+
+/* ══ P13(1017t1i1) ══════════════════════════════════════════════════════
+ * ★캔버스 ＋(오른쪽) «진짜 클릭» — 인포 블럭(lines)의 새 열이 포맷(3줄·padding·align·height)을 물려받나.
+ * 하네스 = bootApp(앱 통째) — 이 파일의 다른 시험(가벼운 미니 하네스)과 달리 ＋ 는 실제 선택·레이어·좌표 경로를
+ *   지나야 해서 그걸 재는 grid-plus-g15.dom.spec.js 와 같은 길을 빌린다(새 하네스 발명 금지).
+ * 실행: 이 한 벌만 — `playwright test --config=tests/dom/playwright.dom.config.js grid-ifg-preset-lines -g P13` */
+test('P13 ★캔버스 ＋(오른쪽) 진짜 클릭 — 새 열이 줄 3개·padding 48·히스토리 1장을 받는다', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1400 });
+  const errs = await bootApp(page);
+  const SEC = `<div class="section-block" id="sP13" data-section="1" data-name="sP13"><div class="section-hitzone"></div><div class="section-inner" id="innerP13">
+    <div class="gap-block" data-type="gap" style="height:60px"></div><div id="slotP13"></div>
+    <div class="gap-block" data-type="gap" style="height:200px"></div></div></div>`;
+  await page.evaluate((html) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
+    c.insertAdjacentHTML('beforeend', html); window.rebindAll?.(); window.deselectAll?.(); window.applyZoom?.(100);
+  }, SEC);
+  await page.waitForFunction(() => window.currentZoom === 100 && !!document.getElementById('innerP13'));
+  const id = await page.evaluate(async () => {
+    const IFG = await import('/js/blocks/grid-infographic.js');
+    const { row, block } = window.makeGridBlock(IFG.ifgBuildOpts(
+      [{ title: 'T1', desc: 'D1' }, { title: 'T2', desc: 'D2' }], 2, 2, 'lines'));
+    document.getElementById('slotP13').replaceWith(row); window.bindBlock(block); window.rebindAll?.();
+    return block.id;
+  });
+  await page.waitForFunction((id) => !!document.getElementById(id)?.querySelector(':scope > .grd-inner'), id);
+  /* 선택 — 그리드 안쪽 왼쪽 1/4 지점을 진짜 클릭(grid-plus-g15 의 gridPoint/force 와 같은 자리). */
+  const [px, py] = await page.evaluate((id) => {
+    const g = document.getElementById(id); g.scrollIntoView({ block: 'center' });
+    const r = (g.querySelector(':scope > .grd-inner') || g).getBoundingClientRect();
+    return [r.left + r.width * 0.25, r.top + r.height / 2];
+  }, id);
+  await page.mouse.click(px, py);
+  await page.waitForFunction((id) => document.getElementById(id).classList.contains('selected')
+    && document.querySelectorAll(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"][data-grd-add="col"]`).length === 1,
+    id, { timeout: 3000 });
+  const [cx, cy] = await page.evaluate((id) => {
+    const b = document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"][data-grd-add="col"]`);
+    const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2];
+  }, id);
+  await page.mouse.click(cx, cy);
+  await page.waitForFunction((id) => window.getGridModel(document.getElementById(id)).cols.length === 3, id);
+  const r = await page.evaluate((id) => {
+    const g = document.getElementById(id);
+    const model = window.getGridModel(g);
+    const cell = g.querySelector('.grd-cell[data-r="0"][data-c="2"]');
+    return {
+      nCols: model.cols.length,
+      newColLineTypes: model.cols[2].lines.map(l => l.type),
+      newCellPaddingPx: cell ? getComputedStyle(cell).paddingTop : null,
+      domLineCount: cell ? cell.children.length : 0,
+    };
+  }, id);
+  expect(errs).toEqual([]);
+  expect(r.nCols, '★열이 안 늘었다').toBe(3);
+  expect(r.newColLineTypes, '★새 열 줄이 3개(아이콘·제목·설명)가 아니다').toEqual(['h3', 'image', 'body']);
+  expect(r.domLineCount, '★DOM 에 줄 3개가 없다').toBe(3);
+  expect(r.newCellPaddingPx, '★새 칸 padding 이 48px 가 아니다').toBe('48px');
+  /* ⌘Z 한 번 — def01-pair-grid 선례와 같은 결(ifgNewShape 가 순수 읽기라 두 번 안 든다는 간접 증거). */
+  await page.keyboard.press('Meta+z');
+  await page.waitForFunction((id) => window.getGridModel(document.getElementById(id)).cols.length === 2, id, { timeout: 3000 })
+    .catch(() => {});   // ★단언에서 실제 값을 또 읽는다 — 여기서 못 돼도 아래가 숫자로 말한다(⛔찍기만 하는 대기가 아니다)
+  const after = await page.evaluate((id) => window.getGridModel(document.getElementById(id)).cols.length, id);
+  expect(after, '★⌘Z 한 번으로 2열로 안 돌아갔다 — 히스토리가 두 장 들었다').toBe(2);
 });

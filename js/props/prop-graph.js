@@ -1,11 +1,12 @@
 import '../graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML, escHtml } from './_helpers.js';
-import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
+import { FX_SHADOW_DEFAULTS, FX_SHADOW_RANGES } from '../effects-shadow.js';   // 1017t1f4 — 그림자 x/y/blur 값·범위의 임자(⛔새 수 0 — 그 쪽을 그대로 읽는다)
 
-const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LABEL_SIZE_MIN, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, PIE_PULL_MAX, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LABEL_SIZE_MIN, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, PIE_PULL_MAX, PIE_LEG_GAP_MIN, PIE_LEG_GAP_MAX, PIE_LEG_GAP_DEFAULT, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
@@ -161,8 +162,25 @@ function pieSliceRowsHTML(item) {   // 조각별 설정 줄 — 줄을 더하면
  *   칠하는 일은 CSS 가 한다(css/editor-graph.css `.graph-block[data-drop-shadow] .grb-pie-svg`) — 여기는 키만 쓴다. 없음 = 키 삭제(안 만진 블럭과 같은 꼴). */
 const PIE_DROP_OPTS = [['none', '없음'], ['soft', '부드럽게'], ['strong', '강하게']];
 const _pieDropOf = (ds) => (ds.dropShadow === 'soft' || ds.dropShadow === 'strong') ? ds.dropShadow : 'none';
+/* 1017t1f4 — 그림자 세기(soft/strong) 위에 x/y/blur/색상을 더 얹는다. x/y/blur 값·범위 = js/effects-shadow.js FX_SHADOW_DEFAULTS/RANGES 그대로(⛔새 수 0).
+   색상은 colorFieldHTML/wireColorField(알파 내장 — 새 「불투명도」 글자 0) 로 배선한다 — 키가 없을 때 보일 기본값은 지금 켠 세기의 틴트
+   (soft 0.25 · strong 0.55 · css/editor-graph.css:310-311 과 같은 수)라 오버레이를 처음 켜도 그림이 안 튄다. */
+const PIE_SH_PRESET_ALPHA = { soft: 0.25, strong: 0.55 };
+const _pieShOf = (ds) => {
+  const preset = _pieDropOf(ds);
+  const a0 = PIE_SH_PRESET_ALPHA[preset] ?? 0.25;
+  const curColor = ds.pieShadowColor || `rgba(0,0,0,${a0})`;
+  return {
+    x: (n => Number.isFinite(n) ? Math.min(FX_SHADOW_RANGES.x[1], Math.max(FX_SHADOW_RANGES.x[0], n)) : FX_SHADOW_DEFAULTS.x)(parseInt(ds.pieShadowX)),
+    y: (n => Number.isFinite(n) ? Math.min(FX_SHADOW_RANGES.y[1], Math.max(FX_SHADOW_RANGES.y[0], n)) : FX_SHADOW_DEFAULTS.y)(parseInt(ds.pieShadowY)),
+    blur: (n => Number.isFinite(n) ? Math.min(FX_SHADOW_RANGES.blur[1], Math.max(FX_SHADOW_RANGES.blur[0], n)) : FX_SHADOW_DEFAULTS.blur)(parseInt(ds.pieShadowBlur)),
+    color: swatchHex(curColor, FX_SHADOW_DEFAULTS.color),
+    alpha: ds.pieShadowColor ? parseAlphaFromColor(curColor) : Math.round(a0 * 100),
+  };
+};
 function pieShadowSectionHTML(ds) {
   const cur = _pieDropOf(ds);
+  const sh = _pieShOf(ds);
   return `
     <div class="prop-section">
       <div class="prop-section-title">Shadow</div>
@@ -171,7 +189,26 @@ function pieShadowSectionHTML(ds) {
         <div class="prop-align-group" id="grb-drop-group">
           ${PIE_DROP_OPTS.map(([v, label]) => `<button class="prop-align-btn${cur === v ? ' active' : ''}" data-val="${v}">${label}</button>`).join('\n          ')}
         </div>
+      </div>${cur !== 'none' ? `
+      <div class="prop-row">
+        <span class="prop-label">X</span>
+        <input type="range" class="prop-slider" id="grb-pie-sh-x-slider" min="${FX_SHADOW_RANGES.x[0]}" max="${FX_SHADOW_RANGES.x[1]}" step="1" value="${sh.x}">
+        <input type="number" class="prop-number" id="grb-pie-sh-x-number" min="${FX_SHADOW_RANGES.x[0]}" max="${FX_SHADOW_RANGES.x[1]}" value="${sh.x}">
       </div>
+      <div class="prop-row">
+        <span class="prop-label">Y</span>
+        <input type="range" class="prop-slider" id="grb-pie-sh-y-slider" min="${FX_SHADOW_RANGES.y[0]}" max="${FX_SHADOW_RANGES.y[1]}" step="1" value="${sh.y}">
+        <input type="number" class="prop-number" id="grb-pie-sh-y-number" min="${FX_SHADOW_RANGES.y[0]}" max="${FX_SHADOW_RANGES.y[1]}" value="${sh.y}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">Blur</span>
+        <input type="range" class="prop-slider" id="grb-pie-sh-blur-slider" min="${FX_SHADOW_RANGES.blur[0]}" max="${FX_SHADOW_RANGES.blur[1]}" step="1" value="${sh.blur}">
+        <input type="number" class="prop-number" id="grb-pie-sh-blur-number" min="${FX_SHADOW_RANGES.blur[0]}" max="${FX_SHADOW_RANGES.blur[1]}" value="${sh.blur}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">색상</span>
+        ${colorFieldHTML({ idPrefix: 'grb-pie-sh', hex: sh.color, alpha: sh.alpha })}
+      </div>` : ''}
     </div>`;
 }
 /* 1013t1C4 고침 2 — 조각 표식이 걷혔는데 패널이 다시 안 그려지는 길(같은 블럭을 ⌘클릭해 푼 때 — editor.js toggleBlockSelect 의 해제 가지는 어느 블럭 종류든 패널을 그대로 둔다)에서
@@ -348,6 +385,7 @@ export function showGraphProperties(block) {
   const _shapeOn     = chartType === 'bar-v' && window.GRAPH_SHAPE.shapeOn(block.dataset);   // 1012t1G2 — 실루엣이 «실제로» 켜졌나(세로 막대에서만 · 모르는 이름은 꺼진 것)
   const _segOn       = chartType === 'bar-v';   // 1012t1G4 — 마디 편집(줄 · 읽기 전용 합 · 합으로 되쓰기)은 세로 막대에서만
   const pieHole      = (h => Math.min(PIE_HOLE_MAX, Math.max(PIE_HOLE_MIN, Number.isFinite(h) ? h : PIE_HOLE_DEFAULT)))(parseInt(block.dataset.pieHole));   // 렌더(drag-utils.js _renderPie)와 «같은 식»
+  const pieLegGap    = (g => Number.isFinite(g) ? Math.min(PIE_LEG_GAP_MAX, Math.max(PIE_LEG_GAP_MIN, g)) : PIE_LEG_GAP_DEFAULT)(parseInt(block.dataset.pieLegendGap));   // 1017t1f1
 
   const presets = [
     { id: 'default',  label: '기본' },
@@ -514,6 +552,11 @@ ${blockHeaderHTML({
         <span class="prop-label">시작 각도</span>
         <input type="range" class="prop-slider" id="grb-pie-start-slider" min="${PIE_START_MIN}" max="${PIE_START_MAX}" step="1" value="${pieStart}">
         <input type="number" class="prop-number" id="grb-pie-start-number" min="${PIE_START_MIN}" max="${PIE_START_MAX}" value="${pieStart}">
+      </div>
+      <div class="prop-row" title="원형과 범례 사이의 간격(px)">
+        <span class="prop-label">범례 간격</span>
+        <input type="range" class="prop-slider" id="grb-pie-leggap-slider" min="${PIE_LEG_GAP_MIN}" max="${PIE_LEG_GAP_MAX}" step="1" value="${pieLegGap}">
+        <input type="number" class="prop-number" id="grb-pie-leggap-number" min="${PIE_LEG_GAP_MIN}" max="${PIE_LEG_GAP_MAX}" value="${pieLegGap}">
       </div>
       <div class="prop-row" title="조각 안에 순위 배지(1위·2위…)를 넣는다. 좁은 조각은 자동으로 숨는다">
         <span class="prop-label">순위 표시</span>
@@ -983,6 +1026,21 @@ ${blockHeaderHTML({
   };
   _wirePieInt('grb-pie-gap', 'pieGap', PIE_GAP_MIN, PIE_GAP_MAX, PIE_GAP);
   _wirePieInt('grb-pie-start', 'pieStart', PIE_START_MIN, PIE_START_MAX, 0);
+  // 1017t1f1 — 범례 간격. 기본값(PIE_LEG_GAP_DEFAULT)과 같으면 키를 지운다(「없음 = 키 없음」 — 그래야 G0 골든이 안 흔들린다).
+  {
+    const sl = document.getElementById('grb-pie-leggap-slider'), nu = document.getElementById('grb-pie-leggap-number');
+    if (sl && nu) {
+      const apply = v => {
+        v = Math.min(PIE_LEG_GAP_MAX, Math.max(PIE_LEG_GAP_MIN, Number.isFinite(v) ? v : PIE_LEG_GAP_DEFAULT));
+        if (v === PIE_LEG_GAP_DEFAULT) delete block.dataset.pieLegendGap; else block.dataset.pieLegendGap = v;
+        window.renderGraph(block);
+        sl.value = v; nu.value = v;
+      };
+      sl.addEventListener('input',  () => apply(parseInt(sl.value)));
+      nu.addEventListener('change', () => { apply(parseInt(nu.value)); window.pushHistory(); });
+      sl.addEventListener('change', () => window.pushHistory());
+    }
+  }
   // 1013t1C4 — Slice 절의 조각별 정수 칸(0~hi %). 고른 조각(items[_sliceSel])의 키를 쓴다 · 0 이면 키를 지운다(안 만진 항목과 같은 꼴) · input 에 적용 · change 에 히스토리.
   const _wireSliceInt = (pre, key, hi) => {
     const sl = document.getElementById(pre + '-slider'), nu = document.getElementById(pre + '-number');
@@ -1015,7 +1073,7 @@ ${blockHeaderHTML({
       window.pushHistory();
     });
   }
-  // 1013t1C7 — 그림자. 값이 같으면 아무 것도 안 한다(히스토리에 빈 칸을 안 쌓는다 — 모달·확대블럭과 같다). 다시 그리지 않는다(그림은 그대로 · CSS 가 속성을 읽는다).
+  // 1013t1C7 — 그림자. 값이 같으면 아무 것도 안 한다(히스토리에 빈 칸을 안 쌓는다 — 모달·확대블럭과 같다).
   propPanel.querySelectorAll('#grb-drop-group .prop-align-btn').forEach(btn => btn.addEventListener('click', () => {
     const next = btn.dataset.val;
     /* 1013t1C7 고침 — 키에 쓰레기 값('abc')이 있으면 «없음»으로 보이지만 키는 남아 있다 ⇒ 「없음」을 누르면 그 키를 지운다(같은 값이라고 돌아가지 않는다). */
@@ -1023,8 +1081,37 @@ ${blockHeaderHTML({
     if (_pieDropOf(block.dataset) === next && !(_junk && next === 'none')) return;
     propPanel.querySelectorAll('#grb-drop-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
     if (next === 'soft' || next === 'strong') block.dataset.dropShadow = next; else delete block.dataset.dropShadow;
+    /* 1017t1f4 — 세기를 끄면 x/y/blur/색상 오버라이드도 함께 지운다(고아 방지). 세기가 바뀌면(켜짐 포함) 다시 그려 인라인 filter 를 최신 상태로 — 같은 데이터의 재계산이라 바이트는 그대로다(K1 「그림 무변」은 함수를 안 부르는 것이 아니라 «같은 결과»를 뜻한다). */
+    if (next === 'none') { ['pieShadowX', 'pieShadowY', 'pieShadowBlur', 'pieShadowColor'].forEach(k => { delete block.dataset[k]; }); }
+    window.renderGraph(block);
     window.pushHistory();
+    showGraphProperties(block);   // x/y/blur/색상 칸의 보임/숨김을 다시 그린다
   }));
+  // 1017t1f4 — 그림자 x/y/blur/색상(세기가 켜진 때만 패널에 보인다). 이웃 슬라이더와 같은 꼴: input 에 적용 · change 에 히스토리.
+  for (const [pre, key, R, D] of [
+    ['grb-pie-sh-x', 'pieShadowX', FX_SHADOW_RANGES.x, FX_SHADOW_DEFAULTS.x],
+    ['grb-pie-sh-y', 'pieShadowY', FX_SHADOW_RANGES.y, FX_SHADOW_DEFAULTS.y],
+    ['grb-pie-sh-blur', 'pieShadowBlur', FX_SHADOW_RANGES.blur, FX_SHADOW_DEFAULTS.blur],
+  ]) {
+    const sl = document.getElementById(pre + '-slider'), nu = document.getElementById(pre + '-number');
+    if (!sl || !nu) continue;
+    const apply = v => {
+      v = Math.min(R[1], Math.max(R[0], Number.isFinite(v) ? v : D));
+      block.dataset[key] = v;
+      window.renderGraph(block);
+      sl.value = v; nu.value = v;
+    };
+    sl.addEventListener('input',  () => apply(parseInt(sl.value)));
+    nu.addEventListener('change', () => { apply(parseInt(nu.value)); window.pushHistory(); });
+    sl.addEventListener('change', () => window.pushHistory());
+  }
+  if (_isPie && _pieDropOf(block.dataset) !== 'none') {
+    wireColorField('grb-pie-sh', {
+      initialAlpha: _pieShOf(block.dataset).alpha,
+      onApply: (c) => { block.dataset.pieShadowColor = c; window.renderGraph(block); },
+      onCommit: () => window.pushHistory(),
+    });
+  }
   _pieHintBlock = _isPie ? block : null;   // 1013t1C3 고침 2 — 「좁아서 이름 n개 숨김」 안내 줄(아래 _syncPieNameHint). 라벨을 다시 잴 때마다(grb-pie-fit) 숫자를 고친다
   if (_isPie) _syncPieNameHint(block);
   const tagSel = document.getElementById('grb-pie-tag-select');

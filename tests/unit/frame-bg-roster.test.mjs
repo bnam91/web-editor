@@ -34,7 +34,9 @@ const strip = (src) => { const s = makeStripper(); return src.split('\n').map(s)
 
 const SHARED = 'js/frame-bg.js';
 /* ★소비자 명부 — ⛔손으로 늘려 ★빨강을 끄지 ★마라. ★늘리려면 ★그 자리가 ★무엇을 하는지 ★보고 넣어라 */
-const CONSUMERS = ['js/props/prop-frame.js', 'js/block-factory.js', 'js/io/save-load.js'];
+/* ★1017a5 — modal-block.js 가 ★넷째 소비자로 들어왔다(frameBgSize/frameBgPos/FRAME_BG_SIZE_DEFAULT
+   를 ★빌려 쓴다 — 모달블럭 배경이미지). ★보고 넣었다(이 주석이 허락하는 그 행위). */
+const CONSUMERS = ['js/props/prop-frame.js', 'js/block-factory.js', 'js/io/save-load.js', 'js/blocks/modal-block.js'];
 
 function loadFn(name) {
   const src = strip(readSrc(ROOT, SHARED));

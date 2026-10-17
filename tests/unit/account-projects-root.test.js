@@ -6,6 +6,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFileSync } = require('node:child_process');
 
 const { readSrc } = require('./_srcread.js');
 const { mkTmpRoot } = require('./_tmproot.js');   /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs` */   // ★CRLF 체크아웃 방어(윈도우 core.autocrlf=true)
@@ -173,15 +174,27 @@ test('M9 ★PROJECTS_DIR 을 «한 번만 읽고 보관»하는 자리가 없다
    ⇒ 「고쳤다」가 아니라 «전수»로 잰다 — projects 를 직접 이어 붙이는 곳을 «세어» 본다. */
 test('M10 ★projects 경로를 «직접 조립»하는 곳이 남아 있지 않다 (전수)', () => {
   const root = path.join(__dirname, '..', '..');
-  const files = [];
-  (function walk(d) {
-    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-      if (e.name === 'node_modules' || e.name === '.git' || e.name === 'tests') continue;
-      const f = path.join(d, e.name);
-      if (e.isDirectory()) walk(f);
-      else if (/\.(js|cjs|mjs)$/.test(e.name)) files.push(f);
-    }
-  })(root);
+  /* ⚰️2026-10-17 — 분모를 «파일시스템 walk» 에서 «git 추적 파일» 로 바꿨다.
+     ★옛 꼴: readdirSync 재귀 + node_modules/.git/tests «셋만» 제외.
+     ★흠   : 그 셋 밖의 «기계마다 다른 것» 이 분모에 섞였다 — 수지맥(a2ui-Macmini)에
+             6월 worktree 잔재 `.claude/worktrees/feat-section-memo/` 가 남아 있어
+             offenders 6건이 올라 ★M10 이 빨갰다. ★아이맥(깨끗한 클론)은 통과했다.
+             ⇒ ★같은 판인데 ★기계마다 수가 달랐다. ★그 초록은 「안 재고 있다」와 구분이 안 된다.
+     ★왜 제외 명부를 «늘리지» 않았나 — 그것도 ★또 다른 명부다. 다음 잔재(.vscode·dist·
+             tools/qa-screens 산출물…)를 ★또 못 센다. ★실측: 이 맥에서도 walk 가 git 보다 1건 더 셌다.
+     ★왜 git 인가 — ★이 검사가 재는 것은 ★«레포의 상태» 다. 추적되지 않는 것은 레포가 아니다.
+             그리고 `.gitignore:16` 이 ★이미 `.claude/worktrees/` 를 무시한다 ⇒ 딱 맞는다.
+             ★`.claude/**` 는 이 레포의 ★무접촉 대역이라 애초에 walk 가 들어가면 안 됐다.
+     ⛔폴백을 두지 «않는다» — git 이 없으면 ★빨개져야 한다. 조용히 다른 분모로 돌아가는 것이
+             바로 이 사고다. */
+  const lsOut = execFileSync('git', ['-C', root, 'ls-files', '-z', '--', '*.js', '*.cjs', '*.mjs'],
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const tracked = lsOut.split('\0').filter(Boolean);
+  /* ★전제 — git 이 «답» 을 냈나. ⛔빈 출력을 「0건」으로 읽지 않는다. */
+  assert.ok(tracked.length > 0, '★git ls-files 가 빈 출력을 냈다 — 「0건」이 아니라 «못 잰» 것이다');
+  const files = tracked
+    .filter((rel) => !rel.startsWith('tests/') && !rel.startsWith('node_modules/'))
+    .map((rel) => path.join(root, rel));
   assert.ok(files.length > 20, `★파일을 ${files.length}개밖에 못 셌다 — 「0건」이 아니라 «못 잰» 것이다`);
 
   const offenders = [];

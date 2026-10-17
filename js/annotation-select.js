@@ -149,7 +149,23 @@
       c.dataset.pointIdx = String(idx);
       svg.appendChild(c);
     });
+    /* ★1013t2C7 — 시작점이 삼각형·화살촉이면 회전 손잡이 하나. 클래스에 annot-handle 을 같이 달아
+       _removeHandles · 저장 철거 목록(save-load NON_CONTENT_UI_SELECTOR · section-serialize)이 저절로 덮는다.
+       자리는 annotRedrawAnchor 가 시작점과 같이 옮긴다(annotRotHandlePos 한 벌). */
+    const shape = block.dataset.anchorShape;
+    if (shape === 'triangle' || shape === 'arrowhead') {
+      const rh = document.createElementNS(SVG_NS, 'circle');
+      rh.setAttribute('class', 'annot-handle annot-rot-handle');
+      const [hx, hy] = window.annotRotHandlePos?.(block, points) || points[0];
+      rh.setAttribute('cx', String(hx));
+      rh.setAttribute('cy', String(hy));
+      rh.setAttribute('r', '5');
+      if (window._ROTATE_CURSOR) rh.style.cursor = window._ROTATE_CURSOR;
+      svg.appendChild(rh);
+    }
   }
+  /* 모양을 바꾼 뒤(패널) 손잡이를 다시 세운다 — 고른 블럭만. */
+  window.annotRefreshHandles = (block) => { if (block?.classList.contains('selected')) _ensureHandles(block); };
   function _removeHandles(block) {
     block.querySelectorAll('.annot-handle').forEach(h => h.remove());
   }
@@ -183,28 +199,8 @@
     const line = block.querySelector('.annot-line');
     if (line) line.setAttribute('points', points.map(p => `${p[0]},${p[1]}`).join(' '));
 
-    // anchor (시작점) SVG 노드 교체
-    const svg = block.querySelector('.annot-svg');
-    const oldAnchor = block.querySelector('.annot-anchor');
-    if (oldAnchor) oldAnchor.remove();
-    const shape = block.dataset.anchorShape || 'circle';
-    const size  = parseFloat(block.dataset.anchorSize) || 7;
-    const color = block.dataset.strokeColor || '#e74c3c';
-    if (shape !== 'none' && svg && typeof window._renderAnnotAnchorSVG === 'function') {
-      const html = window._renderAnnotAnchorSVG(shape, size, points[0][0], points[0][1], color);
-      if (html) {
-        // 임시 컨테이너로 SVG 노드 파싱
-        const tmp = document.createElementNS(SVG_NS, 'svg');
-        tmp.innerHTML = html;
-        const node = tmp.firstElementChild;
-        if (node) {
-          // line 다음에 anchor 배치 (handles 앞)
-          const firstHandle = svg.querySelector('.annot-handle');
-          if (firstHandle) svg.insertBefore(node, firstHandle);
-          else svg.appendChild(node);
-        }
-      }
-    }
+    // anchor (시작점) — ★1013t2C7-pre 한 벌(js/blocks/annotation-block.js annotRedrawAnchor · 각도 포함)
+    window.annotRedrawAnchor?.(block, points);
 
     // 라벨 위치 + 부착 방향 (마지막 segment 기반 4방향)
     // 이미지 원형 모드면 중앙 부착 — 모서리 없으니 자연스러움
@@ -231,6 +227,39 @@
     });
   }
   window._updateAnnotBlockGeometry = _updateBlockGeometry;
+
+  // ★1017t1h1 — 점 손잡이 끌기 중 각도 라벨(.annot-svg 안 — 확정 블럭 생면, 선례 annotation-block.js:340).
+  //   선례 js/gradient-line-overlay.js:44-53 꼴로 --inv-zoom 배율 무관 크기.
+  function _pointAngleLabel(block) {
+    const svg = block.querySelector('.annot-svg');
+    if (!svg) return null;
+    let label = svg.querySelector('.annot-point-angle');
+    if (!label) {
+      label = document.createElementNS(SVG_NS, 'text');
+      label.setAttribute('class', 'annot-point-angle');
+      label.setAttribute('fill', '#1592fe');
+      label.setAttribute('text-anchor', 'middle');
+      label.style.fontSize = 'calc(11px * var(--inv-zoom,1))';
+      label.style.fontFamily = 'system-ui, sans-serif';
+      label.style.display = 'none';
+      svg.appendChild(label);
+    }
+    return label;
+  }
+  function _showPointAngleLabel(block, refArr, ptArr) {
+    const label = _pointAngleLabel(block);
+    if (!label || !refArr) return;
+    const dx = ptArr[0] - refArr[0], dy = ptArr[1] - refArr[1];
+    const degRaw = Math.atan2(dy, dx) * 180 / Math.PI;
+    const deg = Math.round((((degRaw % 360) + 360) % 360) * 10) / 10;
+    label.textContent = `${deg}°`;
+    label.setAttribute('x', (refArr[0] + ptArr[0]) / 2);
+    label.setAttribute('y', (refArr[1] + ptArr[1]) / 2 - 10);
+    label.style.display = '';
+  }
+  function _hidePointAngleLabel(block) {
+    block.querySelector('.annot-svg .annot-point-angle')?.remove();
+  }
 
   // ── 드래그 헬퍼 ─────────────────────────────────────────────────────
   function _zoom() {
@@ -315,6 +344,53 @@
     document.addEventListener('mouseup',   onUp,   true);
   }
 
+  // ── ★1013t2C7 시작점 회전 끌기 (A3 라벨 위치와 같은 길 · asset-rotate 의 atan2 꼴) ──
+  // 중심 = 시작점의 화면 좌표(섹션 rect + 점 × 배율). 끄는 동안 annotSetAnchorRot 이 dataset·그림을 같이 바꾼다.
+  // ⇧ = «절대» 방향(자동 + 회전)을 45° 단위로(window._snapRotate) — 그 값에서 자동각을 빼 회전으로 환산한다.
+  // 시작 표본은 첫 움직임의 arm(), 끝 표본은 onUp 의 pushHistory — 끌기 한 번 = ⌘Z 한 걸음.
+  function _startAnchorRotateDrag(block, e) {
+    e.stopImmediatePropagation();
+    e.stopPropagation();
+    e.preventDefault();
+    const sec = block.closest('.section-block');
+    if (!sec) return;
+    const points = _readPoints(block);
+    const sr = sec.getBoundingClientRect();
+    const cx = sr.left + points[0][0] * _zoom();
+    const cy = sr.top  + points[0][1] * _zoom();
+    const auto = window._calcAnnotAnchorAngle?.(points) || 0;
+    const rot0 = window.annotAnchorRotOf?.(block) || 0;
+    const snap = window._snapRotate || ((d, sh) => Math.round(d));
+    const startX = e.clientX, startY = e.clientY;
+    const startA = Math.atan2(startY - cy, startX - cx) * 180 / Math.PI;
+    let moved = false;
+    const _hist = window.beginDragHistory?.('어노테이션 시작점 회전');
+    const onMove = (ev) => {
+      if (!moved) {
+        if (Math.abs(ev.clientX - startX) < 2 && Math.abs(ev.clientY - startY) < 2) return;
+        moved = true;
+        _hist?.arm((ev.clientX - startX) / _zoom(), (ev.clientY - startY) / _zoom());
+      }
+      const d = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI - startA;
+      const rot = ev.shiftKey ? snap(auto + rot0 + d, true) - auto : rot0 + snap(d, false);
+      window.annotSetAnchorRot?.(block, rot);
+      ev.preventDefault();
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove, true);
+      document.removeEventListener('mouseup',   onUp,   true);
+      if (!moved) return;
+      const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+      window.addEventListener('click', eat, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener('click', eat, true), 0);
+      window.showAnnotationProperties?.(block);
+      if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 시작점 회전');
+      window.scheduleAutoSave?.();
+    };
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('mouseup',   onUp,   true);
+  }
+
   // ── 블록당 바인딩 ───────────────────────────────────────────────────
   function bindAnnotationSelect(block) {
     if (!block || block._annotSelBound) return;
@@ -342,7 +418,7 @@
       if (document.body.classList.contains('pen-mode')) return;
       if (block.dataset.labelMode === 'image') return;
       e.stopPropagation();
-      _enterLabelEdit(block, label);
+      annotBeginLabelEdit(block, label);
     });
 
     // ── 라벨 드래그 (어노테이션 전체 평행 이동) ──────────────────────
@@ -468,6 +544,8 @@
         const h = e.target.closest('.annot-handle');
         if (!h) return;
         if (e.button !== 0) return;
+        // ★1013t2C7 — 회전 손잡이는 점 번호가 없다 → 점 끌기 판정보다 «먼저» 가른다
+        if (h.classList.contains('annot-rot-handle')) { _startAnchorRotateDrag(block, e); return; }
         e.stopPropagation();
         e.preventDefault();
 
@@ -481,6 +559,10 @@
         const startPoint = [points[idx][0], points[idx][1]];
         let dragging = false;
 
+        // ★1017t1h1 — 이웃 점(drag 중 안 변하는 쪽)을 기준(ref)으로 8방향 자석.
+        const neighborIdx = idx > 0 ? idx - 1 : (points[idx + 1] ? idx + 1 : null);
+        const refArr = neighborIdx != null ? [points[neighborIdx][0], points[neighborIdx][1]] : null;
+
         const _hist = window.beginDragHistory?.('어노테이션 핸들 이동');
         const onMove = (ev) => {
           const dx = (ev.clientX - startX) / _zoom();
@@ -492,12 +574,16 @@
                다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
             _hist?.arm(dx, dy);
           }
-          points[idx] = [startPoint[0] + dx, startPoint[1] + dy];
+          const raw = { x: startPoint[0] + dx, y: startPoint[1] + dy };
+          const snapped = refArr ? window._snapVecToStep(raw, { x: refArr[0], y: refArr[1] }, { tolDeg: ev.shiftKey ? null : window.ANNOT_SNAP_TOL_DEG }) : raw;
+          points[idx] = [snapped.x, snapped.y];
           _updateBlockGeometry(block, points);
+          if (refArr) _showPointAngleLabel(block, refArr, points[idx]);
         };
         const onUp = () => {
           document.removeEventListener('mousemove', onMove, true);
           document.removeEventListener('mouseup',   onUp,   true);
+          _hidePointAngleLabel(block);
           if (dragging) {
             _writePoints(block, points);
             if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 핸들 이동');
@@ -511,33 +597,54 @@
   }
   window.bindAnnotationSelect = bindAnnotationSelect;
 
-  // ── 라벨 편집 진입 ──────────────────────────────────────────────────
-  function _enterLabelEdit(block, label) {
+  // ── 라벨 편집 진입 (★1013t2C6 — 한 벌: 더블클릭 · 펜으로 만든 직후 둘 다 여기로) ──────────
+  /* 키 규약 = 스텝·카드 블럭과 같다(js/blocks/step-block.js · canvas-block.js):
+       Enter / ⇧Enter = 줄바꿈 · ⌘/Ctrl+Enter · Esc · 바깥 클릭(blur) = 마침.
+     ⛔한글 조합 중 Enter(isComposing · keyCode 229)는 조합 확정이다 — 건드리지 않는다(그래프 라벨과 같은 가드).
+     확정 = innerText → annotNormalizeText → textContent 로 다시 쓰기(<br> 잔재 0) → 바뀌었으면 끝 표본.
+     히스토리: 들어갈 때 체크포인트(앞) + 바뀌었으면 '어노테이션 글'(끝) — 편집 한 번 = ⌘Z 한 걸음(그래프 라벨 꼴). */
+  function annotBeginLabelEdit(block, label) {
+    if (!block || !label) return;
+    if (label.getAttribute('contenteditable') === 'true') return;   // 이미 편집 중
+    window.ensureHistoryCheckpoint?.('어노테이션 글 편집 전');
+    const before = block.dataset.text || '';
     label.setAttribute('contenteditable', 'true');
+    let done = false;
     const onKey = (ev) => {
-      if (ev.key === 'Enter' && !ev.shiftKey) {
+      if (ev.isComposing || ev.keyCode === 229) return;
+      if (ev.key === 'Enter') {
         ev.preventDefault();
-        label.blur();
+        ev.stopPropagation();
+        if (ev.metaKey || ev.ctrlKey) { label.blur(); return; }
+        document.execCommand('insertText', false, '\n');
       } else if (ev.key === 'Escape') {
         ev.stopPropagation();
         label.blur();
       }
     };
-    const onBlur = () => {
-      label.setAttribute('contenteditable', 'false');
-      const txt = (label.textContent || '').trim();
-      if (!txt) {
-        label.textContent = '텍스트';
-        block.dataset.text = '텍스트';
-      } else {
-        block.dataset.text = txt;
-      }
+    // 붙여넣기는 평문만(line-host 꼴) — 서식·<div> 가 라벨에 들어오지 않게
+    const onPaste = (ev) => {
+      ev.preventDefault();
+      const t = ev.clipboardData?.getData('text/plain') || '';
+      if (t) document.execCommand('insertText', false, t);
+    };
+    const finish = () => {
+      if (done) return;
+      done = true;
       label.removeEventListener('keydown', onKey);
-      label.removeEventListener('blur',    onBlur);
+      label.removeEventListener('paste',   onPaste);
+      label.removeEventListener('blur',    finish);
+      const raw = label.innerText ?? label.textContent ?? '';
+      label.setAttribute('contenteditable', 'false');
+      const val = window.annotNormalizeText(raw) || (window.ANNOT_DEFAULTS?.text || '텍스트');
+      label.textContent = val;
+      block.dataset.text = val;
+      if (val !== before) window.pushHistory?.('어노테이션 글');
       window.scheduleAutoSave?.();
     };
     label.addEventListener('keydown', onKey);
-    label.addEventListener('blur',    onBlur);
+    label.addEventListener('paste',   onPaste);
+    label.addEventListener('blur',    finish);
     setTimeout(() => {
       label.focus();
       try {
@@ -549,4 +656,5 @@
       } catch (_) {}
     }, 0);
   }
+  window.annotBeginLabelEdit = annotBeginLabelEdit;
 })();

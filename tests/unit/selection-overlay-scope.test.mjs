@@ -53,9 +53,16 @@ const CSS = decomment(CANVAS_CSS_FILES.map(rd).join('\n'));
 /* ★근거를 찾을 때 쓰는 corpus 는 «폴더를 읽는다» — 파일 목록을 손으로 적으면 그 목록이 썩는다.
    실제로 그 병이 났다: .insp-jump-flash 는 editor-panels.css 에 사는데 위 5파일에 없어서
    「상태 동거」 검사가 그 상태를 «한 번도 안 봤다»(2026-09-09). */
-/* ⛔경로는 «문자열로 붙이지» 않는다 — path.join 을 쓴다(win-portability Ⓐ-4 가 이걸 막는다). */
-const lsCss = d => fs.readdirSync(path.join(ROOT, d))
-  .filter(f => f.endsWith('.css')).map(f => path.join(d, f));
+/* ⛔경로는 «문자열로 붙이지» 않는다 — path.join 을 쓴다(win-portability Ⓐ-4 가 이걸 막는다).
+ * ★재귀로 훑는다 — ★비재귀였을 때 css/panels/ 하위 폴더(2026-10-17 editor-panels.css
+ * 책임 단위 분리)가 corpus 에서 빠졌다. lsJs(아래)와 ★같은 결로 맞춘다. */
+function lsCss(dir, acc = []) {
+  for (const e of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+    if (e.isDirectory()) lsCss(path.join(dir, e.name), acc);
+    else if (e.name.endsWith('.css')) acc.push(path.join(dir, e.name));
+  }
+  return acc;
+}
 const CSS_ALL = decomment(lsCss('css').map(rd).join('\n'));
 /** js/ 전체(하위 폴더 포함) — «런타임에 실제로 붙는 클래스인가»의 근거를 여기서 찾는다. */
 function lsJs(dir, acc = []) {

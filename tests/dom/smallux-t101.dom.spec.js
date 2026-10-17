@@ -313,3 +313,125 @@ test('③-T6 테두리 표시도 같이 남아 있다(배경만 고치다 테두
   const off = await btnPaint(page, 'pb-off');
   expect(on.border, `켜진/꺼진 테두리 색이 같다(${on.border})`).not.toBe(off.border);
 });
+
+/* ═══════════════ ③-b2 1017t1a2+a3 — «떨어뜨린 프리셋 그룹»의 왼쪽 테두리가 ★다른 색으로 샌다 ═══════════════
+ * ★2026-09-09 가 ★page-grid-col-presets(칼럼 12) ★하나만 ★반쪽으로 고쳤다(border-left-color 를 안 적어
+ *   currentcolor(#969696)로 남았다) ⇒ ★같은 꼴(.prop-type-btn ★+ .prop-preset-btn, ★gap 으로 떨어진 그룹)인
+ *   prop-asset Preset(6개) · prop-graph Chart Type(5개)에도 ★같은 병이 있었다(치료가 ★없어 0px none 이었다).
+ * ★마크업은 ★실물(prop-page.js:419-421 · prop-asset.js:220-225 · prop-graph.js:415-417+:110-116)에서 ★그대로 떠 온다.
+ * ⛔JS 는 ★안 부른다(★위 ③-T5/T6 머리말의 그 까닭 그대로) — ★재는 것은 ★CSS 명시도다. */
+const HARNESS_PRESET_CSS2 = `<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="/css/editor-base.css">
+<link rel="stylesheet" href="/css/editor-props.css">
+</head><body>
+<div class="prop-section">
+  <!-- prop-page.js:418-421 — 칼럼 프리셋 2개(12 는 disabled 로 뜬다) -->
+  <div class="prop-type-group" id="page-grid-col-presets">
+    <button class="prop-preset-btn prop-type-btn" id="g6" data-cols="6">6</button>
+    <button class="prop-preset-btn prop-type-btn" id="g12" data-cols="12" disabled>12</button>
+  </div>
+  <!-- prop-asset.js:220-225 — Preset 6개 -->
+  <div class="prop-type-group">
+    <button class="prop-preset-btn prop-type-btn" id="a1">Standard</button>
+    <button class="prop-preset-btn prop-type-btn" id="a2">Square</button>
+    <button class="prop-preset-btn prop-type-btn active" id="a3">Tall</button>
+    <button class="prop-preset-btn prop-type-btn" id="a4">Wide</button>
+    <button class="prop-preset-btn prop-type-btn" id="a5">Logo</button>
+    <button class="prop-preset-btn prop-type-btn" id="a6">A4</button>
+  </div>
+  <!-- prop-graph.js:415-417 ＋ GRAPH_TYPES(:110-116) — Chart Type 5개 -->
+  <div class="prop-type-group">
+    <button class="prop-preset-btn prop-type-btn active" id="c1">세로 막대</button>
+    <button class="prop-preset-btn prop-type-btn" id="c2">가로 막대</button>
+    <button class="prop-preset-btn prop-type-btn" id="c3">꺾은선</button>
+    <button class="prop-preset-btn prop-type-btn" id="c4">비교 막대</button>
+    <button class="prop-preset-btn prop-type-btn" id="c5">원형</button>
+  </div>
+  <!-- ★음성대조 ⑴ — 진짜 이어붙은 세그먼트(.prop-preset-btn 이 ★없다). prop-quote.js:213-215 「한 줄/스택」과 같은 꼴 -->
+  <div class="prop-type-group">
+    <button class="prop-type-btn active" id="s1">한 줄</button>
+    <button class="prop-type-btn" id="s2">스택</button>
+  </div>
+</div>
+<script>window.__ready = true;</script></body></html>`;
+
+const GROUPS2 = {
+  page: ['g6', 'g12'],
+  asset: ['a1', 'a2', 'a3', 'a4', 'a5', 'a6'],
+  graph: ['c1', 'c2', 'c3', 'c4', 'c5'],
+};
+
+const borderOf = (page, id) => page.evaluate((i) => {
+  const s = getComputedStyle(document.getElementById(i));
+  return { top: s.borderTopColor, left: s.borderLeftColor, lw: s.borderLeftWidth, ls: s.borderLeftStyle, br: s.borderTopLeftRadius };
+}, id);
+
+test('③-T7 떨어뜨린 프리셋 그룹(칼럼·Preset·Chart Type) — 네 변이 같은 색 1px 테두리다', async ({ page }) => {
+  await boot(page, HARNESS_PRESET_CSS2);
+  /* ★전제 — 세 그룹 다 «떨어뜨린» 그룹이다(gap>0). ⛔붙은 그룹에 이 자를 대면 틀린다. */
+  for (const [name, ids] of Object.entries(GROUPS2)) {
+    const gap = await page.evaluate((i) => getComputedStyle(document.getElementById(i).parentElement).gap, ids[0]);
+    expect(parseFloat(gap), `★전제 — ${name} 그룹이 ★떨어진 그룹이 아니다(gap=${gap})`).toBeGreaterThan(0);
+  }
+  const all = [].concat(...Object.values(GROUPS2));
+  const rows = [];
+  for (const id of all) rows.push({ id, ...(await borderOf(page, id)) });
+  for (const r of rows) {
+    expect(r.ls, `★${r.id} 의 border-left-style 이 none 이다 — 왼쪽 테두리가 없다. 잰 값 ${JSON.stringify(r)}`).not.toBe('none');
+    expect(parseFloat(r.lw), `★${r.id} 의 border-left-width 가 0 이다. 잰 값 ${JSON.stringify(r)}`).toBeGreaterThan(0);
+    expect(r.left, `★${r.id} 의 왼쪽 테두리 색이 위쪽과 다르다(left=${r.left} top=${r.top}) — 왼쪽만 어긋나 보인다. 잰 값 ${JSON.stringify(r)}`).toBe(r.top);
+  }
+});
+
+test('③-T7-음성 ⑴ 진짜 세그먼트(프리셋 아님)는 ★그대로 border-left:none 이다', async ({ page }) => {
+  await boot(page, HARNESS_PRESET_CSS2);
+  const s2 = await borderOf(page, 's2');
+  expect(s2.ls, `★s2(진짜 세그먼트 가운데/끝)가 border-left:none 을 잃었다 — 공용 규칙을 통째로 걷은 것이다. 잰 값 ${JSON.stringify(s2)}`).toBe('none');
+  const s1 = await borderOf(page, 's1');
+  expect(s1.left, `★s1(첫째)의 왼쪽 테두리까지 none 이면 안 된다. 잰 값 ${JSON.stringify(s1)}`).not.toBe('rgba(0, 0, 0, 0)');
+});
+
+test('③-T7-음성 ⑵ .active 단추는 ★네 변이 같이 accent 색이다(왼쪽만 회색으로 때우지 않는다)', async ({ page }) => {
+  await boot(page, HARNESS_PRESET_CSS2);
+  const a3 = await borderOf(page, 'a3');   // active
+  const a1 = await borderOf(page, 'a1');   // idle
+  expect(a3.left, `★active(a3) 의 왼쪽이 위쪽과 다른 색이다. 잰 값 ${JSON.stringify(a3)}`).toBe(a3.top);
+  expect(a3.left, `★active 의 왼쪽이 ★idle 의 회색(--ui-border #333)으로 때워졌다. 잰 값 ${JSON.stringify(a3)}`).not.toBe('rgb(51, 51, 51)');
+  expect(a3.left, `★active 와 idle 의 왼쪽 테두리 색이 같다 — active 가 ★안 켜졌다`).not.toBe(a1.left);
+});
+
+test('③-T7-음성 ⑶ border-radius 는 ★고치기 전후 동일(4px) — 모서리를 바꾸지 않았다', async ({ page }) => {
+  await boot(page, HARNESS_PRESET_CSS2);
+  const all = [].concat(...Object.values(GROUPS2));
+  for (const id of all) {
+    const r = await borderOf(page, id);
+    expect(r.br, `★${id} 의 border-radius 가 4px 가 아니다(${r.br}) — 모서리가 바뀌었다`).toBe('4px');
+  }
+});
+
+test('③-T8 ★무력화 대조 — :not(.prop-preset-btn) 을 빼면 세 그룹이 전부 빨개지고, 음성대조는 초록이다', async ({ page }) => {
+  const css = fs.readFileSync(path.join(REPO, 'css', 'editor-props.css'), 'utf8');
+  const broken = css.replace(
+    /\.prop-type-btn:not\(\.prop-preset-btn\):first-child \{ border-radius: var\(--ui-radius-sm\) 0 0 var\(--ui-radius-sm\); \}\n\.prop-type-btn:not\(\.prop-preset-btn\):not\(:first-child\):not\(:last-child\) \{ border-radius: 0; border-left: none; \}\n\.prop-type-btn:not\(\.prop-preset-btn\):last-child \{ border-radius: 0 var\(--ui-radius-sm\) var\(--ui-radius-sm\) 0; border-left: none; \}/,
+    '.prop-type-btn:first-child { border-radius: 4px 0 0 4px; }\n'
+    + '.prop-type-btn:not(:first-child):not(:last-child) { border-radius: 0; border-left: none; }\n'
+    + '.prop-type-btn:last-child { border-radius: 0 4px 4px 0; border-left: none; }',
+  );
+  expect(broken, '★무력화 전제 — 치환 대상을 못 찾았다(정규식이 소스와 어긋났다)').not.toBe(css);
+  const base = fs.readFileSync(path.join(REPO, 'css', 'editor-base.css'), 'utf8');
+  const harness = HARNESS_PRESET_CSS2.replace(
+    '<link rel="stylesheet" href="/css/editor-base.css">\n<link rel="stylesheet" href="/css/editor-props.css">',
+    `<style>${base}\n${broken}</style>`,
+  );
+  await boot(page, harness);
+  let redCount = 0;
+  for (const [name, ids] of Object.entries(GROUPS2)) {
+    const r = await borderOf(page, ids[ids.length - 1]);  // 각 그룹 마지막 단추(:last-child 가 가장 먼저 걸린다)
+    if (r.ls === 'none' || r.left !== r.top) redCount++;
+    else throw new Error(`★무력화했는데 ${name} 그룹이 ★여전히 초록이다 — ③-T7 이 공용 본문을 안 잰다. 잰 값 ${JSON.stringify(r)}`);
+  }
+  expect(redCount, '★무력화 ⇒ 세 그룹(칼럼·Preset·Chart Type) 전부 빨개져야 한다').toBe(3);
+  /* ★음성대조는 ★여전히 초록 — 무력화가 공용 .prop-type-btn 규칙은 안 건드렸다(:not() 만 뺐다) */
+  const s2 = await borderOf(page, 's2');
+  expect(s2.ls, '★무력화해도 진짜 세그먼트(s2)는 여전히 border-left:none 이어야 한다').toBe('none');
+});

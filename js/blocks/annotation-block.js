@@ -4,6 +4,7 @@
 // 외부 의존: window.genId 하나(전역). window.* 노출은 기존과 동일 유지(annotation-tool.js / prop-annotation.js 호환).
 
 import { checkerBgBigColors } from '../checker-tokens.js';
+import { stripCtlChars } from '../util/sanitize-rich-text.js';   // ★1013t2C6 — 라벨 글 정화(스티커 글과 같은 한 벌)
 
 // ★«부를 때» 찾는다 — 모듈 로드 시점에 잡아두면 drag-utils 가 아직 window.genId 를
 //   안 심었을 때 폴백에 고정돼, 여기서 만든 블록만 actorId 조각이 빠진다(협업에서 출처 불명).
@@ -27,6 +28,7 @@ const ANNOT_DEFAULTS = {
   labelImageRadius: 0,           // image 모드 border-radius (0~50, %)
   labelBorderStyle: 'solid',     // 'solid' | 'dashed' | 'dotted'
   labelBorderWidth: 1,           // border 두께 (px)
+  labelPad:        null,         // ★1017t1h5 — 라벨 여백(px, 0..24, 사방 동일). null = CSS 기본(4px 8px) 유지 — 안 건드리면 키를 안 단다.
 };
 window.ANNOT_DEFAULTS = ANNOT_DEFAULTS;
 
@@ -36,7 +38,8 @@ window.ANNOT_DEFAULTS = ANNOT_DEFAULTS;
    (transform 과 따로 노는 속성이라 4방향 부착 transform 을 안 건드린다).
    ⛔style 에서 translate 는 «맨 끝»이다 — makeAnnotationBlock 도, 라이브 쓰기(annotApplyLabelOffset)도.
      순서가 갈리면 다시 그린 라벨과 라이브 라벨의 style 문자열이 달라 ⌘Z 유령 칸이 난다(아래 F2 주석과 같은 병). */
-const ANNOT_LIMITS = { labelDx: { min: -600, max: 600 }, labelDy: { min: -600, max: 600 } };
+const ANNOT_LIMITS = { labelDx: { min: -600, max: 600 }, labelDy: { min: -600, max: 600 },
+  anchorRot: { min: -180, max: 180 } };   // ★1013t2C7 — 시작점 회전(°) · −180..180 으로 감는다
 window.ANNOT_LIMITS = ANNOT_LIMITS;
 function _annClampOff(v, key) {
   const n = Math.round(Number(v));
@@ -75,6 +78,39 @@ function annotResetLabelOffset(block) {
   return annotSetLabelOffset(block, 0, 0);
 }
 Object.assign(window, { annotLabelOffsetOf, annotLabelIsManual, annotApplyLabelOffset, annotSetLabelOffset, annotResetLabelOffset });
+
+/* ★1013t2C7 — 시작점(삼각형·화살촉) «회전». A3 라벨 위치와 같은 길이다.
+   뜻: 자동 방향(첫 선분의 각 · _calcAnchorAngle)에 «더하는» 각(°). 선을 움직이면 화살촉이 따라 돈다.
+   저장: dataset.anchorRot — 0 이면 키를 안 단다(= 자동 방향). −180..180 으로 감는다(asset-rotate.js 꼴).
+   값은 소수 둘째 자리까지 — 보통 끌기·숫자칸은 정수, ⇧ 끌기는 «절대» 방향을 45° 에 맞추느라 소수가 남는다.
+   그리기는 annotRedrawAnchor 한 벌(라이브 = rebindAll · F2 멱등). */
+function _annWrapRot(v) {
+  let n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  n = Math.round(n * 100) / 100;
+  n = ((n % 360) + 360) % 360;
+  if (n > ANNOT_LIMITS.anchorRot.max) n -= 360;
+  n = Math.round(n * 100) / 100;
+  return n === 0 ? 0 : n;   // −0 을 0 으로
+}
+/** 시작점 회전 읽기(없으면 0). */
+function annotAnchorRotOf(block) {
+  return _annWrapRot(block?.dataset?.anchorRot || 0);
+}
+/** 회전 쓰기(dataset + 시작점·회전 손잡이 다시 그리기). 0 이면 키를 지운다. 바뀌었으면 true. */
+function annotSetAnchorRot(block, deg) {
+  if (!block) return false;
+  const before = annotAnchorRotOf(block);
+  const r = _annWrapRot(deg);
+  if (r === 0) delete block.dataset.anchorRot; else block.dataset.anchorRot = String(r);
+  annotRedrawAnchor(block, annotPropsFromDataset(block).points);
+  return before !== r;
+}
+/** 자동 방향으로 되돌리기 — 바뀌었으면 true. */
+function annotResetAnchorRot(block) {
+  return annotSetAnchorRot(block, 0);
+}
+Object.assign(window, { annotAnchorRotOf, annotSetAnchorRot, annotResetAnchorRot });
 
 // shape별 SVG anchor 노드 문자열
 // angleDeg: 첫 segment 방향(도). triangle / arrowhead 회전에 사용. 그 외 shape는 무관.
@@ -160,6 +196,44 @@ function _calcAnchorAngle(points) {
 }
 window._calcAnnotAnchorAngle = _calcAnchorAngle;
 
+/* ★1013t2C7-pre — 시작점(.annot-anchor) «다시 그리기» 한 벌.
+   그리는 자리가 셋이었다: 팩토리(각도 넘김) · 패널 재렌더(넘김) · 끌기 중 기하 갱신(js/annotation-select.js
+   _updateBlockGeometry — ★각도를 «안» 넘겼다). 그래서 점·전체·⌘ 끌기 때마다 삼각형/화살촉이 0° 로 그려졌고
+   onUp 도 다시 안 그려 그 틀린 방향이 히스토리·저장에 찍혔다(rebindAll 이 고쳐 그려 비멱등).
+   ⛔시작점을 그리는 자리는 여기 «한 곳»이다 — 각도 규칙(annotAnchorAngleOf)이 갈라지면 같은 병이 난다.
+   points 는 «지금 그릴» 점(끄는 중엔 dataset 보다 앞선다). 모양·크기·색은 dataset 에서 읽는다. */
+function annotAnchorAngleOf(block, points) {
+  return _calcAnchorAngle(points) + annotAnchorRotOf(block);   // ★1013t2C7 — 자동(선 방향) + 회전
+}
+/* ★1013t2C7 — 회전 손잡이(.annot-rot-handle · 고른 동안만 산다 · js/annotation-select.js _ensureHandles)의 자리.
+   시작점에서 «화살촉이 가리키는 쪽»(그리는 각 + 180°)으로 anchorSize×1.5+14 캔버스 px. */
+function annotRotHandlePos(block, points) {
+  const eff = (annotAnchorAngleOf(block, points) + 180) * Math.PI / 180;
+  const d = _annNum(block.dataset.anchorSize, ANNOT_DEFAULTS.anchorSize) * 1.5 + 14;
+  return [points[0][0] + d * Math.cos(eff), points[0][1] + d * Math.sin(eff)];
+}
+function annotRedrawAnchor(block, points) {
+  if (!block || !Array.isArray(points) || points.length < 2) return;
+  const svg = block.querySelector('.annot-svg');
+  block.querySelectorAll('.annot-anchor').forEach(n => n.remove());
+  const rh = block.querySelector('.annot-rot-handle');   // ★1013t2C7 — 회전 손잡이도 같이 따라간다
+  if (rh) { const [hx, hy] = annotRotHandlePos(block, points); rh.setAttribute('cx', String(hx)); rh.setAttribute('cy', String(hy)); }
+  const ds = block.dataset;
+  const shape = ds.anchorShape || ANNOT_DEFAULTS.anchorShape;
+  if (!svg || shape === 'none') return;
+  const html = _renderAnchorSVG(shape, _annNum(ds.anchorSize, ANNOT_DEFAULTS.anchorSize), points[0][0], points[0][1],
+    ds.strokeColor || ANNOT_DEFAULTS.strokeColor, annotAnchorAngleOf(block, points));
+  if (!html) return;
+  const tmp = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  tmp.innerHTML = html;
+  const node = tmp.firstElementChild;
+  if (!node) return;
+  // 선 다음 · 손잡이 앞(손잡이가 위에 그려져야 눌린다)
+  const firstHandle = svg.querySelector('.annot-handle');
+  if (firstHandle) svg.insertBefore(node, firstHandle); else svg.appendChild(node);
+}
+Object.assign(window, { annotAnchorAngleOf, annotRedrawAnchor, annotRotHandlePos });
+
 function makeAnnotationBlock(opts = {}) {
   // backward compat: ax/ay/lx/ly 입력 지원
   let points = opts.points;
@@ -190,8 +264,10 @@ function makeAnnotationBlock(opts = {}) {
   const labelImageRadius = opts.labelImageRadius ?? ANNOT_DEFAULTS.labelImageRadius;
   const labelBorderStyle = opts.labelBorderStyle ?? ANNOT_DEFAULTS.labelBorderStyle;
   const labelBorderWidth = opts.labelBorderWidth ?? ANNOT_DEFAULTS.labelBorderWidth;
+  const labelPad         = opts.labelPad         ?? ANNOT_DEFAULTS.labelPad;   // ★1017t1h5
   const labelDx          = _annClampOff(opts.labelDx ?? 0, 'labelDx');   // ★1013t1A3
   const labelDy          = _annClampOff(opts.labelDy ?? 0, 'labelDy');
+  const anchorRot        = _annWrapRot(opts.anchorRot ?? 0);           // ★1013t2C7
 
   const block = document.createElement('div');
   block.className = 'annotation-block';
@@ -236,9 +312,11 @@ function makeAnnotationBlock(opts = {}) {
   }
   if (labelDx !== 0) block.dataset.labelDx = String(labelDx);   // ★1013t1A3 — 0 이면 키 없음(= 자동 배치)
   if (labelDy !== 0) block.dataset.labelDy = String(labelDy);
+  if (anchorRot !== 0) block.dataset.anchorRot = String(anchorRot);   // ★1013t2C7 — 0 이면 키 없음(= 자동 방향)
+  if (labelPad != null) block.dataset.labelPad = String(labelPad);   // ★1017t1h5 — null 이면 키 없음(= CSS 기본 4px 8px 유지)
 
   const ptsAttr = points.map(p => `${p[0]},${p[1]}`).join(' ');
-  const anchorAngle = _calcAnchorAngle(points);
+  const anchorAngle = _calcAnchorAngle(points) + anchorRot;   // ★1013t2C7 — annotAnchorAngleOf 와 같은 산식(F2 멱등)
   const anchorSvg = _renderAnchorSVG(anchorShape, anchorSize, first[0], first[1], strokeColor, anchorAngle);
   // 이미지 원형(라운드 50% 또는 충분히 큰 라운드) 모드면 라벨 중앙에 부착 — 원에 모서리 없으니 중앙이 자연스러움
   const isImgCircleish = labelMode === 'image' && (parseFloat(labelImageRadius) || 0) >= 25;
@@ -256,6 +334,9 @@ function makeAnnotationBlock(opts = {}) {
   if (imgWrapping) {
     const r = Math.max(0, Math.min(50, parseFloat(labelImageRadius) || 0));
     labelStyle += `padding:0;border-radius:${r}%;overflow:hidden;`;
+  } else if (labelPad != null) {
+    // ★1017t1h5 — 사용자가 「여백」을 건드렸을 때만 사방 동일 padding 으로 CSS 기본(4px 8px)을 이긴다.
+    labelStyle += `padding:${labelPad}px;`;
   }
   // ★1013t1A3 — 개별 위치는 «맨 끝»(annotApplyLabelOffset 과 같은 자리)
   if (labelDx !== 0 || labelDy !== 0) labelStyle += `translate:${labelDx}px ${labelDy}px;`;
@@ -267,6 +348,10 @@ function makeAnnotationBlock(opts = {}) {
       ${anchorSvg}
     </svg>
     <div class="annot-label${labelExtraClass}" contenteditable="false" style="${labelStyle}">${labelInner}</div>`;
+  /* ★1013t2C6 — 글은 «항상 글자»로 넣는다(textContent). 예전엔 innerHTML 에 날로 넣어
+     라벨에 `<b>x</b>` 를 치면 다시 그릴 때(rebindAll · 리로드 · ⌘Z 복원) 태그가 됐다.
+     줄바꿈(\n)은 글자 그대로 두고 CSS(white-space: pre)가 줄로 그린다. */
+  if (labelMode !== 'image') block.querySelector('.annot-label').textContent = text;
   return block;
 }
 window.makeAnnotationBlock = makeAnnotationBlock;
@@ -306,15 +391,17 @@ function annotPropsFromDataset(block) {
     labelImageRadius: _annNum(ds.labelImageRadius, D.labelImageRadius),
     labelBorderStyle: ds.labelBorderStyle || D.labelBorderStyle,
     labelBorderWidth: _annNum(ds.labelBorderWidth, D.labelBorderWidth),
+    labelPad:         (ds.labelPad != null && ds.labelPad !== '') ? _annNum(ds.labelPad, D.labelPad) : D.labelPad,   // ★1017t1h5 — 키 없으면 null(CSS 기본)
     labelDx:          annotLabelOffsetOf(block).dx,   // ★1013t1A3 — 안 읽으면 리로드·⌘Z 복원 때 오프셋이 화면에서 사라진다
     labelDy:          annotLabelOffsetOf(block).dy,
+    anchorRot:        annotAnchorRotOf(block),        // ★1013t2C7 — 안 읽으면 리로드·⌘Z 복원 때 회전이 사라진다
   };
 }
 window.annotPropsFromDataset = annotPropsFromDataset;
 /* rebindAll 이 fresh 블럭에서 «되돌려 쓰는» dataset 키 — 팩토리가 쓰는 키 전부(순서 = 팩토리 순서). */
 const ANNOT_DATA_KEYS = ['points', 'anchorX', 'anchorY', 'labelX', 'labelY', 'text', 'strokeColor', 'strokeWidth',
   'anchorShape', 'anchorSize', 'labelFontSize', 'labelColor', 'labelBg', 'labelBorderColor', 'labelMode',
-  'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy'];
+  'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy', 'anchorRot', 'labelPad'];
 window.ANNOT_DATA_KEYS = ANNOT_DATA_KEYS;
 
 // 라벨박스 내부 컨텐츠 — text 모드 = 텍스트, image 모드 = <img> 또는 체크패턴 placeholder
@@ -329,6 +416,14 @@ function _renderAnnotLabelInner(mode, { text, labelImageSrc, labelImageSize, lab
     }
     return `<img class="annot-label-img" src="${labelImageSrc}" style="width:${size}px;height:${size}px;border-radius:${rCss};display:block;object-fit:cover;" draggable="false">`;
   }
-  return text;
+  return '';   // ★1013t2C6 — text 모드 글은 makeAnnotationBlock 이 textContent 로 넣는다(⛔innerHTML 로 되돌리지 마라 · 이스케이프 사본도 만들지 마라)
 }
 window._renderAnnotLabelInner = _renderAnnotLabelInner;
+
+/* ★1013t2C6 — 라벨 글 «확정 값» 한 벌. 편집 확정(annotation-select.js annotBeginLabelEdit)이 쓴다.
+   innerText 로 읽은 값을 받는다(<br>·<div> 잔재도 \n 으로 — textContent 는 <br> 을 잃는다).
+   \r\n → \n · 제어문자(\t·\n 빼고) 걷기 · 폭 0 공백 걷기 · 앞뒤 빈 줄 trim(스티커 글과 같다). */
+function annotNormalizeText(raw) {
+  return stripCtlChars(String(raw ?? '').replace(/\r\n?/g, '\n')).replace(/\u200B/g, '').trim();
+}
+window.annotNormalizeText = annotNormalizeText;

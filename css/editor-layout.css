@@ -176,15 +176,46 @@
   border-width: 0 0.12em 0.12em 0;
   transform: translate(-50%, -50%) rotate(45deg);
 }
-/* 메모 속 참고 이미지 (1012t1A2) — 한 줄을 통째로 차지하고, 편집 칸 너비를 넘지 않는다 */
+/* 체크 완료 줄(1017t1b1) — 체크박스 바로 다음 형제(.smp-done, js/section-memo.js _wrapDoneRuns)
+   에만 긋는다. 값은 체크리스트 패널의 완료 항목과 같은 정본(css/panels/_panel-misc.css:68-70). */
+.smp-check[aria-checked="true"] + .smp-done {
+  text-decoration: line-through;
+  color: var(--ui-text-dim);
+}
+/* 메모 속 참고 이미지 (1012t1A2) — 한 줄을 통째로 차지하고, 편집 칸 너비를 넘지 않는다.
+   1017t1b2: 세로로 긴 그림이 팝오버보다 길어지지 않게 높이도 상한(고정 크기 + 더블클릭 확대 —
+   핸들 리사이즈는 저장 포맷에 크기 칸이 없어 더 비싸다, 비용 비교는 Planner 설계서). */
 .smp-img {
   display: block;
   max-width: 100%;
+  max-height: 320px;
+  width: auto;
   height: auto;
   margin: var(--ui-row-gap) 0;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-md);
   cursor: default;
+}
+/* 참고 이미지 확대 오버레이(1017t1b2) — 더블클릭으로 임시로 크게. 선례 그대로
+   (css/assets-panel.css .assets-import-modal-backdrop). 메모 팝오버가 z-index:10000 이라
+   그 위로(js/section-memo.js _openMemoImgZoom). */
+.smp-img-zoom-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.smp-img-zoom-backdrop.open { opacity: 1; }
+.smp-img-zoom-backdrop img {
+  max-width: calc(100vw - 80px);
+  max-height: calc(100vh - 80px);
+  border-radius: var(--ui-radius-md);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
 }
 .smp-foot {
   display: flex; justify-content: space-between; align-items: center;

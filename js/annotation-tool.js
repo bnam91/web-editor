@@ -9,6 +9,7 @@ let _penMode = false;
 let _pendingPoints = null;       // { sec, points: [[x,y], ...] }
 let _pendingPreviewEl = null;    // 임시 SVG 미리보기 DOM (sec 내부)
 let _penClickBound = false;      // 캔버스 캡처 리스너 1회 바인딩 가드
+let _cursor = null;              // ★1017t1h1 — 그리는 중 «아직 안 찍은» 다음 점(고무줄 끝) [x,y] 섹션 좌표(스냅 적용됨)
 
 // 자체 더블클릭 검출 (native dblclick는 1번째 click이 점 추가로 소모되기 때문)
 let _lastClickAt = 0;
@@ -54,6 +55,7 @@ function _cancelPending() {
   _pendingPoints = null;
   if (_pendingPreviewEl) { _pendingPreviewEl.remove(); _pendingPreviewEl = null; }
   _lastClickAt = 0;
+  _cursor = null;   // ★1017t1h1
 }
 
 // clientX/Y → 특정 section 좌상단 기준 px (zoom 보정)
@@ -71,6 +73,7 @@ function _initCanvasClickListener() {
   if (!wrap) return;
   wrap.addEventListener('click',     _onCanvasClickCapture, true);
   wrap.addEventListener('mousedown', _onMouseDownCapture,   true);
+  wrap.addEventListener('mousemove', _onMouseMoveCapture,   true);   // ★1017t1h1 — 그리는 중 고무줄 + 각도 라벨
   wrap.addEventListener('dblclick',  _onDblClickCapture,    true);
   wrap.addEventListener('contextmenu', _onContextMenuCapture, true);
   _penClickBound = true;
@@ -93,6 +96,21 @@ function _onMouseDownCapture(e) {
   if (!e.target.closest('.section-block')) return;
   e.stopPropagation();
   e.preventDefault();
+}
+
+// ★1017t1h1 — 선례 js/pen-tool.js:175-178(_cursor + _renderDraw 고무줄)과 같은 꼴.
+//   클릭 사이에도 각(과 자석)을 보여준다 — 「각을 모르니 답답함」을 그리는 중에 푼다.
+function _onMouseMoveCapture(e) {
+  if (!_penMode || !_pendingPoints || _pendingPoints.points.length === 0) {
+    if (_cursor) { _cursor = null; _updatePreviewSvg(); }
+    return;
+  }
+  const { sec, points } = _pendingPoints;
+  const { x, y } = _clientToSectionCoord(e.clientX, e.clientY, sec);
+  const prev = points[points.length - 1];
+  const snapped = window._snapVecToStep({ x, y }, { x: prev[0], y: prev[1] }, { tolDeg: e.shiftKey ? null : window.ANNOT_SNAP_TOL_DEG });
+  _cursor = [snapped.x, snapped.y];
+  _updatePreviewSvg();
 }
 
 function _onDblClickCapture(e) {
@@ -127,13 +145,11 @@ function _handlePenClick(e) {
     _cancelPending();
   }
 
-  // Shift constrain — 이전 점으로부터 수평/수직 snap
-  if (e.shiftKey && _pendingPoints && _pendingPoints.points.length > 0 && _pendingPoints.sec === sec) {
+  // ★1017t1h1 — 8방향(0/45/90/135/180/225/270/315) 자석. Shift = 강제(지금 꼴 유지) · 평시 = ±6° 안일 때만.
+  if (_pendingPoints && _pendingPoints.points.length > 0 && _pendingPoints.sec === sec) {
     const prev = _pendingPoints.points[_pendingPoints.points.length - 1];
-    const dx = x - prev[0];
-    const dy = y - prev[1];
-    if (Math.abs(dx) >= Math.abs(dy)) y = prev[1]; // 수평
-    else x = prev[0];                              // 수직
+    const snapped = window._snapVecToStep({ x, y }, { x: prev[0], y: prev[1] }, { tolDeg: e.shiftKey ? null : window.ANNOT_SNAP_TOL_DEG });
+    x = snapped.x; y = snapped.y;
   }
 
   // 더블클릭 검출: 같은 위치 + 짧은 시간 + 이미 2점 이상이면 finalize
@@ -181,15 +197,54 @@ function _updatePreviewSvg() {
     poly.setAttribute('stroke-linejoin', 'round');
     poly.setAttribute('stroke-linecap', 'round');
     svg.appendChild(poly);
+    // ★1017t1h1 — 고무줄(마지막 점 → 커서) + 각도 라벨. UI 오버레이라 --inv-zoom 으로 배율 무관 크기(선례 js/gradient-line-overlay.js:44-53).
+    const guide = document.createElementNS(svgNS, 'line');
+    guide.setAttribute('class', 'annot-preview-guide');
+    guide.setAttribute('stroke', '#1592fe');
+    guide.setAttribute('stroke-dasharray', '3 3');
+    guide.setAttribute('stroke-linecap', 'round');
+    guide.style.strokeWidth = 'calc(1.5px * var(--inv-zoom,1))';
+    guide.style.display = 'none';
+    const label = document.createElementNS(svgNS, 'text');
+    label.setAttribute('class', 'annot-preview-angle');
+    label.setAttribute('fill', '#1592fe');
+    label.setAttribute('text-anchor', 'middle');
+    label.style.fontSize = 'calc(11px * var(--inv-zoom,1))';
+    label.style.fontFamily = 'system-ui, sans-serif';
+    label.style.display = 'none';
+    svg.appendChild(guide);
+    svg.appendChild(label);
     wrap.appendChild(svg);
     wrap._poly = poly;
     wrap._svg = svg;
+    wrap._guide = guide;
+    wrap._label = label;
     sec.appendChild(wrap);
     _pendingPreviewEl = wrap;
   }
   const poly = _pendingPreviewEl._poly;
   const svg = _pendingPreviewEl._svg;
+  const guide = _pendingPreviewEl._guide;
+  const label = _pendingPreviewEl._label;
   poly.setAttribute('points', points.map(p => `${p[0]},${p[1]}`).join(' '));
+
+  // 고무줄 + 각도 라벨 — _cursor(아직 안 찍은 다음 점)가 있을 때만.
+  if (_cursor && points.length > 0) {
+    const prev = points[points.length - 1];
+    guide.setAttribute('x1', prev[0]); guide.setAttribute('y1', prev[1]);
+    guide.setAttribute('x2', _cursor[0]); guide.setAttribute('y2', _cursor[1]);
+    guide.style.display = '';
+    const dx = _cursor[0] - prev[0], dy = _cursor[1] - prev[1];
+    const degRaw = Math.atan2(dy, dx) * 180 / Math.PI;
+    const deg = Math.round((((degRaw % 360) + 360) % 360) * 10) / 10;
+    label.textContent = `${deg}°`;
+    label.setAttribute('x', (prev[0] + _cursor[0]) / 2);
+    label.setAttribute('y', (prev[1] + _cursor[1]) / 2 - 10);
+    label.style.display = '';
+  } else {
+    guide.style.display = 'none';
+    label.style.display = 'none';
+  }
 
   // 각 점 dot — 매번 다시 그림 (적은 수이므로 OK)
   // 기존 dot 제거
@@ -221,22 +276,9 @@ function _finalizeAnnotation({ enterLabelEdit = true, silent = false } = {}) {
   const block = window.makeAnnotationBlock({ points, text: '텍스트' });
   sec.appendChild(block);
 
-  // 라벨 즉시 편집 진입
+  // 라벨 즉시 편집 진입 — ★1013t2C6 더블클릭과 «같은 한 벌»(annotation-select.js annotBeginLabelEdit)
   const label = block.querySelector('.annot-label');
-  if (label && enterLabelEdit) {
-    label.setAttribute('contenteditable', 'true');
-    _bindLabelEdit(label, block);
-    setTimeout(() => {
-      label.focus();
-      try {
-        const range = document.createRange();
-        range.selectNodeContents(label);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-      } catch (_) {}
-    }, 0);
-  }
+  if (label && enterLabelEdit) window.annotBeginLabelEdit?.(block, label);
 
   window.bindAnnotationSelect?.(block);
   _cancelPending();
@@ -254,29 +296,6 @@ function _commitAndExitPenMode() {
   if (hadLine) _finalizeAnnotation({ enterLabelEdit: false, silent: true });
   exitPenMode(); // 잔여 pending/미리보기는 내부 _cancelPending이 정리
   if (hadLine) window.showToast?.('✏️ 어노테이션 확정 — 펜 모드 종료');
-}
-
-function _bindLabelEdit(label, block) {
-  label.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' && !ev.shiftKey) {
-      ev.preventDefault();
-      label.blur();
-    } else if (ev.key === 'Escape') {
-      ev.stopPropagation();
-      label.blur();
-    }
-  });
-  label.addEventListener('blur', () => {
-    label.setAttribute('contenteditable', 'false');
-    const txt = (label.textContent || '').trim();
-    if (!txt) {
-      label.textContent = '텍스트';
-      block.dataset.text = '텍스트';
-    } else {
-      block.dataset.text = txt;
-    }
-    window.scheduleAutoSave?.();
-  });
 }
 
 // ── 전역 keydown ─────────────────────────────────────────────────────────

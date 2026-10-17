@@ -39,6 +39,98 @@ function _clampToSection(x, y, sec, blockW, blockH) {
 }
 window._clampToSection = _clampToSection;
 
+/* ── 코인 스티커 — 섹션 밖으로 나가도 «코인의 10% 는 섹션 안에 남긴다» (1013t2C2) ──────────────
+   패널의 X·Y 칸(js/props/prop-sticker-coin.js)과 ⌘ 자유 이동이 이 한 자리를 읽는다. 밖으로 나간 부분은
+   섹션 밖 크롭(--sec-clip · js/blocks/sticker-block.js _updateStickerSecClip)이 자른다.
+   ★재는 것은 «그림의 면적»이다 — 섹션 안에 든 그림 면적 ÷ 그림 전체 면적 ≥ 10% (CoinFx.inkFrac · 기울기·방향·두께·회전 반영).
+     ⛔상자로 재지 마라: 코인 상자에는 그림 둘레로 빈 여백이 있어(두께 22% 에서 한쪽 약 15%) 상자의 10% 를 남기면 그림은 통째로 밖일 수 있다.
+     ⛔가로·세로를 따로 재지 마라: 모서리로 밀면 남는 자리가 그림 상자의 귀퉁이(10% × 10%)인데 타원은 거기에 그림이 없다
+       — 독립 평가 실측(2026-10-14): 모서리에서 0~0.2% · 한 변에서도 3.7~9.9% 였다.
+   ★가두는 법: 그 자리가 10% 를 못 채우면 «그림이 통째로 안에 드는 가장 가까운 자리»를 향해 곧게 되돌린다(10% 가 되는 첫 자리까지).
+     한 축만 되돌려서 되면 그 축만 움직인다(변을 따라 미끄러진다). 볼록한 그림이라 그 길 위에서 남는 면적은 줄지 않는다 ⇒ 이분 탐색.
+   번짐이 넓힌 만큼은 세지 않는다. 좌표는 정수로 적히므로 안쪽으로 맞춘다(10% 아래로 안 내려가게). */
+const COIN_KEEP_RATIO = 0.1;
+window.COIN_KEEP_RATIO = COIN_KEEP_RATIO;
+/** 코인의 재는 틀 — { frac(x,y) → 그 자리에서 섹션 안에 남는 그림 면적 비 · xi(x)·yi(y) → 그림이 통째로 안에 드는 가장 가까운 자리 }.
+ *  코인이 아니거나 · 그리개가 없거나 · 크기를 못 재면(섹션이 접혀 폭 0 등) null — 호출자는 «아무것도 옮기지 않는다». */
+function _coinKeepFrame(block, sec) {
+  const C = window.CoinFx;
+  if (!block || !sec || block.dataset.shape !== 'coin' || !C || typeof C.inkFrac !== 'function') return null;
+  const d = block.dataset;
+  const n = (v, fb) => { const p = parseFloat(v); return Number.isFinite(p) ? p : fb; };
+  const W = n(d.sizeW, n(d.size, block.offsetWidth || 0)), H = n(d.sizeH, n(d.size, block.offsetHeight || 0));
+  const SW = sec.clientWidth || 0, SH = sec.clientHeight || 0;
+  if (!(W > 0) || !(H > 0) || !(SW > 0) || !(SH > 0)) return null;
+  const look = { tilt: n(d.coinTilt, 0), dir: n(d.coinDir, 0), k: n(d.coinK, C.DEFAULTS.k) / 100, rot: n(d.rotation, 0) };
+  const b = C.inkBox(look);
+  const s = Math.min(W, H) / (2 * b.m);              /* viewBox → 상자 px (preserveAspectRatio meet · 가운데) */
+  const ix0 = W / 2 + b.x0 * s, ix1 = W / 2 + b.x1 * s, iy0 = H / 2 + b.y0 * s, iy1 = H / 2 + b.y1 * s;
+  const inside = (v, lo, hi) => (lo <= hi ? Math.min(hi, Math.max(lo, v)) : (lo + hi) / 2);   /* 그림이 섹션보다 크면 가운데 */
+  return {
+    W, H, SW, SH,
+    frac: (x, y) => C.inkFrac(look, { x0: (0 - (x + W / 2)) / s, y0: (0 - (y + H / 2)) / s, x1: (SW - (x + W / 2)) / s, y1: (SH - (y + H / 2)) / s }),
+    xi: (x) => inside(x, -ix0, SW - ix1), yi: (y) => inside(y, -iy0, SH - iy1),
+  };
+}
+/** 좌표를 가둔다 → [x, y](정수). 코인이 아니거나 못 재면 null(호출자가 제 길로 간다). */
+function _clampCoinKeep(block, x, y, sec) {
+  const F = _coinKeepFrame(block, sec);
+  if (!F) return null;
+  const K = COIN_KEEP_RATIO;
+  x = Math.round(x); y = Math.round(y);
+  if (F.frac(x, y) >= K) return [x, y];
+  const xi = F.xi(x), yi = F.yi(y);
+  /* 되돌릴 곳 — 한 축만으로 되면 그 축만 */
+  const [tx, ty] = F.frac(xi, y) >= K ? [xi, y] : F.frac(x, yi) >= K ? [x, yi] : [xi, yi];
+  if (F.frac(tx, ty) < K) return [Math.round(tx), Math.round(ty)];   /* 섹션이 그림의 10% 보다도 작다 — 가운데가 최선 */
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 20; i++) { const t = (lo + hi) / 2; if (F.frac(x + (tx - x) * t, y + (ty - y) * t) >= K) hi = t; else lo = t; }
+  const toward = (v, t) => (t > v ? Math.ceil : Math.floor);
+  let cx = toward(x, tx)(x + (tx - x) * hi), cy = toward(y, ty)(y + (ty - y) * hi);
+  for (let i = 0; i < 6 && F.frac(cx, cy) < K; i++) { cx += Math.sign(tx - cx); cy += Math.sign(ty - cy); }   /* 정수 맞춤 뒤 모자라면 한 칸씩 안으로 */
+  return [cx, cy];
+}
+/** 지금 자리에서 한 축만 움직일 때의 범위(패널 칸의 min/max 용). 못 재면 null. */
+function _coinKeepRange(block, sec) {
+  const F = _coinKeepFrame(block, sec);
+  if (!F) return null;
+  const x = parseInt(block.dataset.x, 10) || 0, y = parseInt(block.dataset.y, 10) || 0;
+  const far = F.W + F.H + F.SW + F.SH;
+  const edge = (cur, other, isX, dirSign) => {
+    const c = isX ? _clampCoinKeep(block, cur + dirSign * far, other, sec) : _clampCoinKeep(block, other, cur + dirSign * far, sec);
+    return c ? c[isX ? 0 : 1] : cur;
+  };
+  const minX = edge(x, y, true, -1), maxX = edge(x, y, true, 1), minY = edge(y, x, false, -1), maxY = edge(y, x, false, 1);
+  return { minX: Math.min(minX, maxX), maxX: Math.max(minX, maxX), minY: Math.min(minY, maxY), maxY: Math.max(minY, maxY) };
+}
+/** 「이 코인은 지금 10% 를 지키고 있나」를 적어 둔다(저장 안 됨) — 고를 때·자리를 쓸 때 부른다.
+ *  ★옛 저장본에는 통째로 밖에 있는 코인이 있을 수 있다(전에는 ⌘ 자유 이동에 한도가 없었다). 그런 코인을 «생김새만 바꿨는데» 끌어오지 않으려고
+ *    _rekeepCoin 은 «지키고 있던» 코인만 다시 가둔다. */
+function _markCoinKept(block) {
+  const sec = block && block.closest && block.closest('.section-block');
+  const F = _coinKeepFrame(block, sec);
+  if (!F) return;
+  block._coinKept = F.frac(parseInt(block.dataset.x, 10) || 0, parseInt(block.dataset.y, 10) || 0) >= COIN_KEEP_RATIO;
+}
+/** 크기·회전·각도·두께가 바뀌어 그림이 달라진 뒤 — «지키고 있던» 코인이면 다시 가둔다. 옮겼으면 true.
+ *  이미 10% 가 남아 있으면(거의 언제나) 아무것도 안 쓴다 ⇒ 히스토리 표본이 안 달라진다. */
+function _rekeepCoin(block) {
+  const sec = block && block.closest && block.closest('.section-block');
+  if (!sec || block._coinKept === false) return false;
+  const x = parseInt(block.dataset.x, 10) || 0, y = parseInt(block.dataset.y, 10) || 0;
+  const c = _clampCoinKeep(block, x, y, sec);
+  if (!c || (c[0] === x && c[1] === y)) return false;
+  block.dataset.x = String(c[0]); block.dataset.y = String(c[1]);
+  block.style.left = c[0] + 'px'; block.style.top = c[1] + 'px';
+  window._updateStickerSecClip?.(block);
+  window._syncCoinPosFields?.(block);
+  return true;
+}
+window._coinKeepRange = _coinKeepRange;
+window._clampCoinKeep = _clampCoinKeep;
+window._markCoinKept = _markCoinKept;
+window._rekeepCoin = _rekeepCoin;
+
 function _selectSticker(block) {
   if (!block) return;
   // 다른 selected 풀기 (deselectAll이 sticker-block도 처리)
@@ -56,6 +148,7 @@ function _selectSticker(block) {
   } else {
     _addCornerHandles(block);
   }
+  if (block.dataset.shape === 'coin') _markCoinKept(block);
   window.showStickerProperties?.(block);
   // ★1013t2C1 — deselectAll 이 앵커(_lastClickedBlock)를 지운다 → ⇧ 범위의 시작점을 다시 박는다
   //   (안 하면 다음 ⇧클릭이 rangeSelectBlocks 의 «단일 선택 폴백»으로 떨어진다)
@@ -113,6 +206,17 @@ function _addHlbHandles(block) {
   };
   mk('start', x1, y1);
   mk('end',   x2, y2);
+  /* ★1017t1e1(현빈 「하이라이트 스티커 블럭 : 높이조절 핸들 필요하다 추가해줘」) — highlightB(선
+     형광펜)의 «높이» = thickness. 끝점 핸들과 «같은 클래스»(.hlb-handle)를 그대로 쓰고
+     data-endpoint="thick" 만 다르다 — :385 의 양보 가드가 그대로 먹는다(⛔새 클래스 금지).
+     자리 = 선 중점에서 ★법선(수직) 방향으로 thickness/2 만큼 띄운다 — 끌면 두께만 바뀌고
+     ★길이(x1/y1/x2/y2)는 불변이다(⛔끝점 핸들과 산식을 공유하지 않는다 — 역할이 다르다). */
+  const _thk = Number(block.dataset.thickness) || 12;
+  const _mx = (x1 + x2) / 2, _my = (y1 + y2) / 2;
+  const _ddx = x2 - x1, _ddy = y2 - y1;
+  const _len = Math.hypot(_ddx, _ddy) || 1;
+  const _nx = -_ddy / _len, _ny = _ddx / _len;   // 단위 법선
+  mk('thick', _mx + _nx * (_thk / 2), _my + _ny * (_thk / 2));
 }
 function _bindHlbHandleDrag(handle, block, endpoint) {
   handle.addEventListener('mousedown', (e) => {
@@ -124,6 +228,42 @@ function _bindHlbHandleDrag(handle, block, endpoint) {
     if (!sec) return;
     const zoom = (window.currentZoom || 40) / 100;
     const startCX = e.clientX, startCY = e.clientY;
+
+    if (endpoint === 'thick') {
+      const tx1 = parseFloat(block.dataset.x1) || 0, ty1 = parseFloat(block.dataset.y1) || 0;
+      const tx2 = parseFloat(block.dataset.x2) || 0, ty2 = parseFloat(block.dataset.y2) || 0;
+      const tddx = tx2 - tx1, tddy = ty2 - ty1;
+      const tlen = Math.hypot(tddx, tddy) || 1;
+      const ux = -tddy / tlen, uy = tddx / tlen;     // 단위 법선 — 끝점 불변이라 드래그 중 고정
+      const initThick = Number(block.dataset.thickness) || 12;
+      const _histT = window.beginDragHistory?.('선 형광펜 두께');
+      const onMoveThick = (ev) => {
+        const dx = (ev.clientX - startCX) / zoom;
+        const dy = (ev.clientY - startCY) / zoom;
+        _histT?.arm(dx, dy);
+        // 마우스 이동을 법선으로 투영 — 두께는 중심선 기준 대칭이라 투영거리의 2배만큼 바뀐다.
+        const proj = dx * ux + dy * uy;
+        const next = Math.min(200, Math.max(1, Math.round(initThick + proj * 2)));
+        block.dataset.thickness = String(next);
+        window.renderStickerBlock?.(block);
+        _addHlbHandles(block);   // 핸들 위치도 갱신(끝점 포함 — mk 가 처음부터 다시 그린다)
+        // 우측 패널 슬라이더 동기화(선택된 상태에서 패널이 열려있으면 — js/props/prop-sticker.js:312-313)
+        const s = document.getElementById('stk-hlb-thick');
+        const n = document.getElementById('stk-hlb-thick-num');
+        if (s) s.value = String(Math.min(parseInt(s.max, 10) || 100, next));
+        if (n) n.value = String(next);
+      };
+      const onUpThick = () => {
+        document.removeEventListener('mousemove', onMoveThick);
+        document.removeEventListener('mouseup', onUpThick);
+        window.pushHistory?.('선 형광펜 두께');
+        window.scheduleAutoSave?.();
+      };
+      document.addEventListener('mousemove', onMoveThick);
+      document.addEventListener('mouseup', onUpThick);
+      return;
+    }
+
     const initX = parseFloat(block.dataset['x' + (endpoint === 'start' ? '1' : '2')]) || 0;
     const initY = parseFloat(block.dataset['y' + (endpoint === 'start' ? '1' : '2')]) || 0;
     const otherX = parseFloat(block.dataset['x' + (endpoint === 'start' ? '2' : '1')]) || 0;
@@ -272,6 +412,10 @@ function _bindCornerHandleDrag(handle, block, corner) {
     const aspect = initH > 0 ? initW / initH : 1;
     // B14: circle/square 리사이즈 시 내부 텍스트 폰트도 비례 스케일 (highlight는 글자 없음 → 제외)
     const initFs = parseInt(block.dataset.fontSize) || 14;
+    /* ★1017t1j1 — 마킹(data-count)의 «옆 라벨»도 폭 비율로 따라온다. countLabelSize 가 ★없으면 ⛔비율을 안 만든다
+       (라벨이 마커 폰트를 따르는 폴백이 이미 맞게 돈다 — js/blocks/sticker-block.js _countLabelLook). */
+    const initLsRaw = parseInt(block.dataset.countLabelSize);
+    const hasLabelSize = block.dataset.count != null && Number.isFinite(initLsRaw);
     const startCX = e.clientX, startCY = e.clientY;
     const MIN = 10;
     const _hist = window.beginDragHistory?.('스티커 크기 조절');
@@ -329,6 +473,11 @@ function _bindCornerHandleDrag(handle, block, corner) {
         const ratio = initW > 0 ? newW / initW : 1;
         const nextFs = Math.round(initFs * ratio);
         block.dataset.fontSize = String(Math.max(6, Math.min(150, nextFs)));
+        // ★1017t1j1 — 옆 라벨(countLabelSize)이 있으면 같은 비율로 같이 키운다. 식은 여기서 다시 안 적는다(발명 금지).
+        if (hasLabelSize) {
+          const lsRatio = initW > 0 ? initLsRaw / initW : 1;
+          window.CountSticker?.rescaleLabel?.(block.dataset, initW, newW, lsRatio);
+        }
       }
       window.renderStickerBlock?.(block);
       _addCornerHandles(block); // render가 innerHTML을 비워 핸들/회전존이 사라지므로 재추가 (hlb 패턴과 동일)
@@ -340,6 +489,7 @@ function _bindCornerHandleDrag(handle, block, corner) {
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      window._rekeepCoin?.(block);   // 코인 — 줄어든 그림이 섹션 밖에 10% 아래로 남지 않게(1013t2C2)
       window.pushHistory?.('스티커 크기 조절');
       window.scheduleAutoSave?.();
       if (block.classList.contains('selected')) {
@@ -535,14 +685,16 @@ function bindStickerSelect(block) {
         block.style.left = origX + 'px';
         block.style.top  = origY + 'px';
         window._updateStickerSecClip?.(block); // 부모 섹션이 바뀌었으니 새 경계 기준 재계산
+        window._syncCoinPosFields?.(block);
         return;
       }
       // 같은 섹션 또는 섹션 밖 — 기존 섹션 유지 + clamp (⌘=clamp 없이 자유 이동)
       const secRect = sec.getBoundingClientRect();
       const newXraw = (ev.clientX - secRect.left) / zoom - grabOffX;
       const newYraw = (ev.clientY - secRect.top)  / zoom - grabOffY;
+      /* ⌘ 자유 이동도 코인은 10% 를 남긴다(1013t2C2) — 다른 스티커는 그대로 한도 없음 */
       const [cx, cy] = freeMove
-        ? [newXraw, newYraw]
+        ? (_clampCoinKeep(block, newXraw, newYraw, sec) || [newXraw, newYraw])
         : window._clampToSection(newXraw, newYraw, sec, blockW, blockH);
       const newX = Math.round(cx);
       const newY = Math.round(cy);
@@ -553,11 +705,13 @@ function bindStickerSelect(block) {
       // 위치 드래그는 render를 안 타므로 --sec-clip 직접 갱신
       // (드래그 중엔 .selected라 CSS가 clip 무시 — 놓고 선택 해제되는 즉시 반영되도록 준비)
       window._updateStickerSecClip?.(block);
+      window._syncCoinPosFields?.(block);   // 코인 패널의 X·Y 칸이 끄는 대로 따라온다(1013t2C2)
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       window._updateStickerSecClip?.(block);
+      if (block.dataset.shape === 'coin') _markCoinKept(block);
       window.pushHistory?.('스티커 이동');
       window.scheduleAutoSave?.();
     };
@@ -796,7 +950,11 @@ document.addEventListener('keydown', (e) => {
      실측: 스티커 1개 선택 → Delete → 1→0, ⌘Z → 0 (히스토리 tip 이 pos/len/seq 까지 그대로였다).
      고침 = 삭제 경로 공통 규약(js/editor.js deleteSelectedFromCanvas)과 같이 «삭제 전»을 먼저 찍는다. */
   window.ensureHistoryCheckpoint?.('삭제 전');
+  // ★1017t1j3(현빈) — 마킹을 지우면 빈 번호를 당긴다. ★지금(지우기 전) 섹션을 잡아 둬야 한다
+  //   (지운 «뒤»엔 거슬러 올라갈 수 없다 — js/editor.js:3589 _emptiedFrameCands 와 같은 까닭).
+  const _sec = sel.closest('.section-block');
   sel.remove();
+  if (sel.dataset.count && _sec) window.CountSticker?.renumberSections?.([_sec]);
   window.pushHistory?.('스티커 삭제');
   window.scheduleAutoSave?.();
 });
