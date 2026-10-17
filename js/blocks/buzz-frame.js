@@ -20,7 +20,7 @@ import { isBuzzFrame } from './buzz-mark.js';
 import { scatterLayout, stackLayout, pickSpot, buzzRotations, depthTiers, BUZZ_MARGIN, BUZZ_TAIL_ROOM } from './buzz-layout.js';
 
 export const BUZZ_COUNT = [1, 12];
-export const BUZZ_DEFAULTS = { style: 'card', layout: 'scatter', seed: 2291, spread: 60, overlap: 1, offset: 60, gap: 28, width: 0, angle: 0, range: 4, dir: 'alt', depth: 'none' };
+export const BUZZ_DEFAULTS = { style: 'card', layout: 'scatter', seed: 2291, spread: 60, overlap: 1, offset: 60, gap: 28, width: 0, angle: 0, range: 4, dir: 'alt', depth: 'none', scale: 100 };
 /* 숫자 칸의 범위 — 패널의 min/max 도 여기서 찍는다(값 표를 두 벌 두지 않는다). */
 export const BUZZ_LIMITS = {
   spread: { min: 0,   max: 100, step: 1 },
@@ -29,6 +29,7 @@ export const BUZZ_LIMITS = {
   width:  { min: 0,   max: 800, step: 10 },
   angle:  { min: -15, max: 15,  step: 1 },
   range:  { min: 0,   max: 15,  step: 1 },
+  scale:  { min: 50,  max: 200, step: 5 },
 };
 const _STR_KEYS = ['style', 'layout', 'dir', 'depth'];
 const _key = (k) => 'buzz' + k[0].toUpperCase() + k.slice(1);
@@ -108,6 +109,38 @@ export function buzzRows(frame) {
 }
 const _modalOf = (row) => row.querySelector(':scope > .modal-block');
 const _rng = (seed) => window.FxSeed.mulberry32((seed >>> 0) || 1);
+
+/* ── 카드 크기 일괄 스케일(1017t1l1 · 현빈 「버즈블럭 - 카드크기(폰트크기 포함) 일괄로 카드의
+   크기(스케일) 조절도 가능하게」) ─────────────────────────────────────────────────
+   ★「폰트크기 포함」이 핵심 — 도형만 키우고 글자가 안 따라오는 것을 막는다.
+   ★선례: js/count-sticker-tool.js countStickerRescaleLabel · js/props/prop-sticker-count.js _fsRatio
+     (1017t1j1, 마커블럭의 같은 요구) — 그 꼴은 «비율을 어딘가 들고 있어야만」 하는 자리(라벨 크기가
+     마커 폭의 «파생값»이라 자기 자신으로는 전 비율을 못 되살린다)에 쓴 것이다. 버즈는 그 자리가
+     필요 없다 — frame.dataset.buzzScale(=prevPct) 자체가 ★이미 저장되는 persist 필드라
+     «그 자체가 앵커」다(마커의 WeakMap 이 흉내 내려던 것을 프레임이 이미 갖고 있다). ⇒ 새 WeakMap ·
+     새 배율 변수를 ★안 만든다 — getBuzz(frame,'scale') 을 그대로 prevPct 로 쓴다.
+   ⛔lineHeight 는 안 건드린다(무차원 — 2배로 키우면 줄간격이 글자 대비 2배로 벌어진다).
+   ⛔width(row 폭)는 안 건드린다 — _fitWidths 가 폰트 변화를 글 길이로 스스로 따라간다(이중 확대 방지). */
+const BUZZ_SCALE_KEYS = ['fontSize', 'padX', 'padY', 'radius', 'borderW'];
+/** prevPct → nextPct 비율로 모든 카드(모달)의 치수칸을 다시 쓴다. frame.dataset.buzzScale 은
+ *  호출자가 쓴다(여기선 안 쓴다 — setBuzz 가 단일 쓰기 자리다). */
+export function rescaleBuzzCards(frame, prevPct, nextPct) {
+  if (!frame || !Number.isFinite(prevPct) || !Number.isFinite(nextPct) || prevPct <= 0) return false;
+  const ratio = nextPct / prevPct;
+  if (!Number.isFinite(ratio) || ratio === 1) return false;
+  const rows = buzzRows(frame);
+  rows.forEach((row) => {
+    const modal = _modalOf(row);
+    if (!modal) return;
+    BUZZ_SCALE_KEYS.forEach((k) => {
+      const cur = parseFloat(modal.dataset[k]);
+      if (!Number.isFinite(cur)) return;
+      modal.dataset[k] = String(Math.max(0, Math.round(cur * ratio)));
+    });
+    window.renderModalBlock?.(modal);
+  });
+  return rows.length > 0;
+}
 
 /* ── 장식 ───────────────────────────── */
 function _setDeco(modal, key, v) {
@@ -233,6 +266,7 @@ export function applyBuzzStyle(frame, key) {
   setBuzz(frame, 'style', key);
   Object.keys(S.frame).forEach((k) => setBuzz(frame, k, S.frame[k]));
   if (frame.dataset.buzzSeed === undefined) setBuzz(frame, 'seed', BUZZ_DEFAULTS.seed);
+  setBuzz(frame, 'scale', BUZZ_DEFAULTS.scale);   // ★1017t1l1 — 스타일을 새로 걸면 _styleModal 이 치수를 S.modal 기본값으로 «다시 쓴다» ⇒ 스케일도 100%로
   setBuzzFrameBg(frame, S.frameBg);
   const seed = getBuzz(frame, 'seed');
   buzzRows(frame).forEach((row, i) => _styleModal(_modalOf(row), S, i, seed));

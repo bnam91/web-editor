@@ -17,7 +17,8 @@ import { propPanel } from '../globals.js';
 import { escHtml, bindSlider, sliderRowHTML } from './_helpers.js';
 import { isBuzzFrame } from '../blocks/buzz-mark.js';
 import { BUZZ_STYLES, BUZZ_STYLE_KEYS, BUZZ_COUNT, BUZZ_LIMITS, getBuzz, setBuzz, buzzRows,
-         relayoutBuzzFrame, applyBuzzStyle, setBuzzFrameBg, setBuzzCount, refitBuzzFrame, buzzCrowded } from '../blocks/buzz-frame.js';
+         relayoutBuzzFrame, applyBuzzStyle, setBuzzFrameBg, setBuzzCount, refitBuzzFrame, buzzCrowded,
+         rescaleBuzzCards } from '../blocks/buzz-frame.js';
 
 /* ── 조각 — 이웃 패널과 같은 마크업 ───────────────────────────── */
 /* title 은 줄(.prop-row) 자체에 단다 — 클래스 없는 감싸는 div 를 만들지 않는다. */
@@ -68,6 +69,7 @@ export function buzzSectionHTML(frame) {
         <span class="prop-count-val" id="bzf-n-count">${n}</span>
         <button class="prop-count-btn" id="bzf-n-plus" aria-label="개수 늘리기"${n >= BUZZ_COUNT[1] ? ' disabled' : ''}>+</button>
       </div>
+      ${_slider('카드 크기', 'bzf-scale', 'scale', getBuzz(frame, 'scale'), '글자크기 포함 — 카드 전체를 비율로 키우거나 줄입니다(1017t1l1)')}
       ${_group('bzf-layout', '배치', [['scatter', '흩어짐'], ['stack', '스택']], layout)}
       <div class="prop-row">
         <button class="prop-action-btn" id="bzf-reroll" title="자리를 전부 새로 뿌린다(직접 놓은 자리도 · 문구와 스타일은 그대로)">🎲 다시 뿌리기</button>
@@ -203,6 +205,18 @@ export function wireBuzzSection(frame) {
 
   const slide = (id, key) => bindSlider($(`${id}-slider`), $(`${id}-number`),
     (v) => { const f = F(); if (!f) return; setBuzz(f, key, v); again(f); }, BUZZ_LIMITS[key]);
+  /* ★1017t1l1 — «카드 크기」는 다른 슬라이더와 달리 ratio(prev→next)가 필요하다. prev 는 덮어쓰기
+     «전»에 읽어야 한다(순서를 바꾸면 ratio 가 항상 1이 된다). 다시 놓기(again)는 안 부른다 —
+     자리는 그대로, 치수칸만 바뀐다(relayoutBuzzFrame 을 또 돌리면 흩어짐이 다시 뿌려진다). */
+  bindSlider($('bzf-scale-slider'), $('bzf-scale-number'), (v) => {
+    const f = F();
+    if (!f) return;
+    const prev = getBuzz(f, 'scale');
+    if (v === prev) return;
+    rescaleBuzzCards(f, prev, v);
+    setBuzz(f, 'scale', v);
+    hint(buzzCrowded(f));
+  }, BUZZ_LIMITS.scale);
   slide('bzf-spread', 'spread');
   slide('bzf-offset', 'offset');
   slide('bzf-gap', 'gap');
