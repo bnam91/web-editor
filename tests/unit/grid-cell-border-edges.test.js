@@ -240,7 +240,7 @@ test('E8b ★음성대조 — `c > 0` → `c >= 0` 이면 (0,0) 왼쪽이 빨개
   const t = table(await linesGrid(G, 'top,vsep'));
   assert.equal(t['00'].left, L1, `★변이가 (0,0) 왼쪽에 안 닿았다 — E2 의 (0,0) left:'0' 단언이 그 자리를 «안 잰다»: ${JSON.stringify(t['00'])}`);
 });
-/* ⛔폐기(1017t1i3) — E8c 는 「겹침 가드(topShared)를 끄면 E4 가 빨개진다」를 쟀다. 그 가드가 _gridCellEdgesCss
+/* ⛔폐기(1017t1i3 · e0e32dd4) — E8c 는 「겹침 가드(topShared)를 끄면 E4 가 빨개진다」를 쟀다. 그 가드가 _gridCellEdgesCss
  * 에서 사라졌다(r>0 가드 자체가 r===0 칸의 top 을 «처음부터» 0 으로 만들어 겹침이 구조적으로 불가능해졌다 —
  * 겹치려면 먼저 그려야 하는데 안 그린다). 재는 자 = 아래 N9(r>0 가드를 되돌리는 음성대조). */
 test('E8c ★폐기(1017t1i3) — topShared 겹침 가드가 삭제돼 이 대조는 무의미해졌다 · 자리는 N9 가 메운다', { skip: true }, () => {});

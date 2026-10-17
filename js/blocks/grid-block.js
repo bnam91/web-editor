@@ -2768,7 +2768,7 @@ function renderGridBlock(block) {
   const { row: rowGapPx, col: colGapPx } = _gridGaps(block);
   const blockValign = _gridEnum(_GRID_VALIGN, block.dataset.valign) || 'flex-start';
   const cellBorder = _gridCellBorder(block);   // ★T-172 — «블록» 축. 칸 축(pick)과 섞지 않는다.
-  /* ⛔폐기(1017t1i3) — 「블럭 외곽선 위 변 ×첫 행 칸 위 변」 겹침 가드(cellBorder.topShared)가 여기 있었다.
+  /* ⛔폐기(1017t1i3 · e0e32dd4) — 「블럭 외곽선 위 변 ×첫 행 칸 위 변」 겹침 가드(cellBorder.topShared)가 여기 있었다.
    * 까닭: _gridCellEdgesCss 가 이제 r===0 칸 위 변을 처음부터 안 긋는다(그 자리는 「블럭 외곽선」의 일로
    * 옮겼다) — 겹칠 수가 없어져 가드가 구조적으로 불필요해졌다. 재는 자 = tests/unit/grid-cell-border-edges.test.js N9
    * (★r>0 가드를 되돌리는 음성대조 — 되돌리면 이 자리의 겹침도 다시 필요해진다는 뜻이 되어 N9 가 빨개진다). */

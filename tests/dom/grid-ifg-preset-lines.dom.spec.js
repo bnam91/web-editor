@@ -408,7 +408,7 @@ test('N3 ★음성대조 — [칸 사이] 단추가 엉뚱한 자리(top)를 가
   expect([s['01.L'], s['11.L']], '★[칸 사이] 가 위 변을 겨눴는데 세로가 꺼졌다 — P3 가 그 배선을 안 문다').toEqual([LINE, LINE]);
 });
 
-/* ⛔폐기(1017t1i3) — N4 는 「겹침 규칙(cellBorder.topShared)을 끄면 P4 가 빨개진다」를 쟀다. 그 규칙이
+/* ⛔폐기(1017t1i3 · e0e32dd4) — N4 는 「겹침 규칙(cellBorder.topShared)을 끄면 P4 가 빨개진다」를 쟀다. 그 규칙이
  * _gridCellEdgesCss 에서 사라졌다(r===0 칸은 처음부터 top 을 안 그어 겹칠 수가 없다). 재는 자 = 아래 N9. */
 test.skip('N4 ★폐기(1017t1i3) — topShared 겹침 가드가 삭제돼 이 대조는 무의미해졌다 · 자리는 N9 가 메운다', () => {});
 
