@@ -118,7 +118,8 @@ export function wireCoinSection(panel, block, rerender) {
   const bindPos = (inp, axis) => {
     if (!inp) return;
     inp.addEventListener('input', () => {
-      const v = inp.value.trim() === '' ? NaN : Math.round(Number(inp.value));   // 1e2 같은 꼴도 수로 읽는다(parseInt 는 1 로 읽는다)
+      const t = inp.value.trim();
+      const v = t ? Math.round(Number(t)) : NaN;   // 1e2 같은 꼴도 수로 읽는다(parseInt 는 1 로 읽는다) · 빈 칸은 값이 아니다(숫자칸 가드 규약)
       if (!Number.isFinite(v)) return;         // 입력 도중(빈 칸·'-')은 아직 값이 아니다
       const [x0, y0] = posOf(block);
       const got = writePos(block, axis === 'x' ? v : x0, axis === 'y' ? v : y0);
