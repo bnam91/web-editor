@@ -173,9 +173,30 @@ test('A1 메뉴 「Arrow Line」 — 한 번 누르면 화살표 1 · 골라짐 
 test('A2 패널 — Arrow Line 절만 · 칩/칸이 dataset 과 그림에 닿는다 · 휨은 곡선만 · 다시 섞기는 손그림만', async ({ page }) => {
   const errs = await bootApp(page);
   await setup(page);
+  const SEVEN = ['#stk-shape-section', '#stk-size-section', '#stk-colors-section', '#stk-text-rot-section', '#stk-hlb-section', '#stk-mode-section', '#stk-text-section'];
+  /* ★⒠ 반례 쌍 — 아래 «7개 절이 숨는다»(shown=false)는 요소가 «없어도» false 다. 그래서 같은 읽기(shown)로
+     그 7개가 «보이는» 패널을 먼저 보인다: circle = 모양·크기·색·모드·글자 · highlightB = 선 형광펜 절 · text = 글자 회전 절
+     (prop-sticker.js showStickerProperties 의 display 갈래 그대로). 보인 뒤 그 스티커는 치운다. */
+  const SHOWN_BY = {
+    circle: ['#stk-shape-section', '#stk-size-section', '#stk-colors-section', '#stk-mode-section', '#stk-text-section'],
+    highlightB: ['#stk-hlb-section'],
+    text: ['#stk-text-rot-section'],
+  };
+  expect(Object.values(SHOWN_BY).flat().sort(), '★쌍이 7개 절을 다 덮는다').toEqual([...SEVEN].sort());
+  for (const [shape, sels] of Object.entries(SHOWN_BY)) {
+    const pid = await page.evaluate((shape) => {
+      const b = window.makeStickerBlock({ shape });
+      document.getElementById('secA').appendChild(b);
+      window.renderStickerBlock?.(b);
+      window.showStickerProperties(b);
+      return b.id;
+    }, shape);
+    for (const s of sels) expect(await shown(page, s), `★쌍: ${shape} 패널에선 ${s} 가 보인다`).toBe(true);
+    await page.evaluate((pid) => document.getElementById(pid).remove(), pid);
+  }
   const id = await make(page, { x1: 100, y1: 200, x2: 400, y2: 260, seed: 7 });
   await pick(page, id);
-  for (const s of ['#stk-shape-section', '#stk-size-section', '#stk-colors-section', '#stk-text-rot-section', '#stk-hlb-section', '#stk-mode-section', '#stk-text-section'])
+  for (const s of SEVEN)
     expect(await shown(page, s), `${s} 는 숨는다`).toBe(false);
   expect(await shown(page, '#stk-arrow-section')).toBe(true);
   expect(await shown(page, '#stk-arrow-bend-row'), '직선에선 휨 행이 없다').toBe(false);
@@ -205,6 +226,16 @@ test('A2 패널 — Arrow Line 절만 · 칩/칸이 dataset 과 그림에 닿는
   await page.click('#stk-arrow-dash [data-arrow-dash="dashed"]');
   r = await read(page, id);
   expect([r.d.arrowDash, !!r.dash, r.heads.every(h => h.dash === null)], '파선은 몸통에만').toEqual(['dashed', true, true]);
+  /* ★⒠ 반례 쌍 — 머리 dash===null 은 read 가 머리에서 dasharray 를 «못 읽어도» 참이다. 같은 read 에
+     «머리 요소에 dasharray 를 넣은» 가짜 그림(문자열 조각)을 먹이면 거짓이 되는지 한 번 본다. */
+  await page.evaluate(() => {
+    const f = document.createElement('div'); f.id = 'fake-arrow-dash';
+    f.innerHTML = '<svg><path class="arrow-body" d="M0 0L10 0" stroke-dasharray="4 4"/><path class="arrow-head" data-end="end" d="M10 0L5 3L5 -3Z" stroke-dasharray="4 4"/></svg>';
+    document.body.appendChild(f);
+  });
+  const fake = await read(page, 'fake-arrow-dash');
+  await page.evaluate(() => document.getElementById('fake-arrow-dash').remove());
+  expect([fake.heads.length, fake.heads.every(h => h.dash === null)], '★쌍: 머리에 dasharray 가 있으면 같은 읽기가 빨개진다').toEqual([1, false]);
 
   await typeInto(page, '#stk-arrow-thick-num', 10);
   r = await read(page, id);
@@ -303,6 +334,11 @@ test('A6 저장 → 새 페이지에서 다시 열기 = 같은 값·같은 그�
   await setup(page);
   const id = await make(page, { x1: 80, y1: 100, x2: 360, y2: 300, arrowKind: 'curve', arrowHead: 'both', arrowTip: 'open', arrowDash: 'dotted', thickness: 6, arrowBend: -30, arrowColor: '#3366ff', seed: 42 });
   const before = await read(page, id);
+  /* ★⒠ 반례 쌍 — 아래 «저장본에 hlb-handle 없음»은 손잡이가 처음부터 없으면 늘 초록이다. 저장 «전»에 실제로 골라
+     손잡이가 DOM 에(블럭 HTML 에도) «있음»을 먼저 보이고, 고른 채로 직렬화한다. */
+  await pick(page, id);
+  expect((await read(page, id)).hlb, '★쌍: 저장 전 골라서 끝점 손잡이 2 가 DOM 에 있다').toBe(2);
+  expect(await page.evaluate((id) => /hlb-handle/.test(document.getElementById(id).outerHTML), id), '★쌍: 같은 정규식이 살아 있는 블럭 HTML 에선 맞는다').toBe(true);
   const snap = await page.evaluate(() => window.serializeProject());
   for (const attr of ['data-shape="arrow"', 'data-arrow-kind="curve"', 'data-arrow-head="both"', 'data-arrow-tip="open"', 'data-arrow-dash="dotted"', 'data-arrow-bend="-30"', 'data-arrow-color="#3366ff"', 'data-x1="80"', 'data-y2="300"'])
     expect(snap.includes(attr.replace(/"/g, '\\"')), `저장본에 ${attr} 가 없다`).toBe(true);
@@ -429,9 +465,12 @@ test('A9 기억 — 다음 「Arrow Line」이 스타일을 잇고 · 일반 「
 
   await selectSection(page);
   const n0 = await page.evaluate(() => document.querySelectorAll('.sticker-block').length);
+  const lastShape = () => page.evaluate(() => { const all = [...document.querySelectorAll('.sticker-block')]; return all[all.length - 1]?.dataset.shape ?? null; });
+  /* ★⒠ 반례 쌍 — 아래 not.toBe('arrow') 앞에, 같은 읽기(lastShape)가 화살표가 마지막일 땐 'arrow' 를 낸다는 것을 먼저 보인다 */
+  expect(await lastShape(), '★쌍: 같은 읽기가 방금 만든 화살표에선 «arrow»').toBe('arrow');
   await clickPenMenu(page, 'Sticker');
   await expect.poll(() => page.evaluate(() => document.querySelectorAll('.sticker-block').length)).toBe(n0 + 1);
-  const last = await page.evaluate(() => { const all = [...document.querySelectorAll('.sticker-block')]; return all[all.length - 1].dataset.shape; });
+  const last = await lastShape();
   expect(last, '일반 「Sticker」가 화살표를 낳았다(__last 에 올라갔다)').not.toBe('arrow');
   expect(errs).toEqual([]);
 });

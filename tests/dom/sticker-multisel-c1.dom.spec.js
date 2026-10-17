@@ -24,8 +24,8 @@ const read = (...p) => fs.readFileSync(path.join(REPO, ...p), 'utf8');
 
 /* ── 명부: 정의에서 읽기 ─────────────────────────────────────────── */
 const NON_STICKER = { togglePenMode: 'annotation', addGradientBlock: 'gradient', addZoomBlock: 'zoom' };
-function readRoster() {
-  const html = read('index.html');
+function readRoster(htmlOverride) {   // htmlOverride = R0 자기검사 쌍(가짜 메뉴 항목을 넣은 index.html)만 쓴다
+  const html = htmlOverride ?? read('index.html');
   const i = html.indexOf('id="fp-pen-menu"');
   if (i < 0) throw new Error('#fp-pen-menu 를 index.html 에서 못 찾음 — 명부를 못 읽었다');
   const body = html.slice(i, html.indexOf('</div>', i)).replace(/<!--[\s\S]*?-->/g, '');
@@ -212,6 +212,14 @@ const kindName = (m) => `${m.label}[${m.kind === 'count' ? 'count' : m.shape}]`;
 test('R0 ★명부 — 스티커 패널 메뉴가 전부 분류된다(분류 안 된 입구 0) · N≥1', async () => {
   expect(R.items.length, '메뉴 버튼을 못 읽었다').toBeGreaterThan(0);
   expect(R.unclassified, `분류 안 된 메뉴(새 입구? 개명?) — 명부 파서를 갱신하라`).toEqual([]);
+  /* ★⒠ 반례 쌍 — unclassified=[] 는 파서가 아무것도 못 걸러도 참이다. 같은 분류 함수에 «모르는 onclick» 가짜 항목
+     하나를 #fp-pen-menu 맨 앞에 넣은 index.html 을 먹이면 분류 안 된 메뉴가 정확히 1 이 되는지 본다. */
+  const realHtml = read('index.html');
+  const at = realHtml.indexOf('>', realHtml.indexOf('id="fp-pen-menu"')) + 1;
+  const FAKE = `<button class="fp-menu-item" onclick="mysteryEntry1013();toggleFpDropdown('fp-pen-dropdown')">Mystery</button>`;
+  const F = readRoster(realHtml.slice(0, at) + FAKE + realHtml.slice(at));
+  expect(F.items.length, '★쌍: 가짜 항목이 같은 파서에 읽혔다').toBe(R.items.length + 1);
+  expect(F.unclassified, '★쌍: 모르는 onclick 하나 → 분류 안 된 메뉴 1').toEqual(['Mystery (mysteryEntry1013)']);
   expect(K, '스티커 명부가 비었다').toBeGreaterThanOrEqual(1);
   expect(R.defShape, 'STICKER_DEFAULTS.shape 를 못 읽었다').toBeTruthy();
   expect(R.cnt.toggle && R.cnt.enter && R.cnt.exit, 'count-sticker-tool.js 의 window 진입 함수 이름을 못 읽었다').toBeTruthy();

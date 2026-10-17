@@ -15,13 +15,29 @@ async function section(page) {
     window.rebindAll?.();
   });
 }
+/* 스티커 버튼 → 메뉴 항목(글자로 찾음)을 «실제 마우스»로 누른다(sticker-arrow-c4 clickPenMenu 와 같은 꼴). */
+async function clickPenMenu(page, label) {
+  const btn = await page.evaluate(() => { const r = document.getElementById('fp-pen-btn').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  await page.mouse.click(btn.x, btn.y);
+  await page.waitForFunction((label) => [...document.querySelectorAll('#fp-pen-menu .fp-menu-item')].some(e => e.textContent.trim() === label && e.getBoundingClientRect().width > 0), label, { timeout: 3000 });
+  const it = await page.evaluate((label) => {
+    const items = [...document.querySelectorAll('#fp-pen-menu .fp-menu-item')].filter(e => e.textContent.trim() === label && e.getBoundingClientRect().width > 0);
+    const r = items[0].getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    return { n: items.length, x, y, hit: document.elementFromPoint(x, y) === items[0] };
+  }, label);
+  expect(it.n, `★전제: 보이는 «${label}» 메뉴 항목이 하나다`).toBe(1);
+  expect(it.hit, '★전제: 누르는 점이 그 메뉴 항목 위다').toBe(true);
+  await page.mouse.click(it.x, it.y);
+}
 const gray = (hex) => { const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)); return r === g && g === b; };
 
 test('G1 새 별 반짝이 — 메뉴 Glow 클릭 → 후광 #e0e0e0 (무채색) · feFlood · 패널', async ({ page }) => {
   await bootApp(page);
   await section(page);
-  await page.evaluate(() => document.getElementById('secG').click());
-  await page.evaluate(() => window.addStickerBlock({ shape: 'glow' }));
+  /* ★실클릭 길(제목과 같게) — 섹션을 고른 뒤 #fp-pen-btn → 메뉴 「Glow」를 진짜 마우스로 누른다(⛔addStickerBlock 직접 호출) */
+  expect(await page.evaluate(() => { window.deselectAll?.(); window.selectSection?.(document.getElementById('secG')); return window.getSelectedSection?.()?.id; }), '★전제: 섹션을 골랐다').toBe('secG');
+  await clickPenMenu(page, 'Glow');
   await expect.poll(() => page.evaluate(() => document.querySelectorAll('#secG .sticker-block[data-fx-kind="star"]').length)).toBe(1);
   const r = await page.evaluate(() => {
     const b = document.querySelector('#secG .sticker-block[data-fx-kind="star"]');
