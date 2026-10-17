@@ -5,6 +5,8 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor,
          wireHexText, parseHex6, formatHex6 } from './color-picker.js';
+/* ★1017a5 — ★배경 크기 칸의 ★현재값·기본값은 js/frame-bg.js 가 정본(⛔사본 금지 · 그 머리말 :22). */
+import { frameBgSize } from '../frame-bg.js';
 import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML } from './_helpers.js';
 /* ★오버레이(플로팅) — T3(현빈 섹션메모 `sec_3e0suk0` 「모달 오버레이 기능이 안 보인다」 · 2026-10-07).
    ★★진입·이탈·드래그를 ★여기서 짜지 않는다 — `js/overlay-float.js` 가 ★정본이고 ★그 파일이
@@ -63,6 +65,11 @@ export function showModalProperties(block) {
   const bg = block.dataset.bg || _effDefault(v, 'bg');
   const textColor = block.dataset.textColor || '#1c1c1e';
   const borderColor = block.dataset.borderColor || '#c3c3ca';
+  /* ★1017a5 — 배경이미지. ★꼴은 프레임 패널(prop-frame.js:455~) ★그대로 · id 접두만 `mdl-`(실측 3벌의 관례).
+     ★「직접 조절」 select 함정도 같다 — px 쌍을 안 넣으면 select 가 Cover 로 거짓말한다. */
+  const hasBgImg = !!block.dataset.bgImg;
+  const _bgSizeNow = frameBgSize(block);
+  const _bgSizeCustom = /px/.test(_bgSizeNow);
   // ⛔리터럴 금지 — 폴백은 modal-block.js 의 표에서 온다(같은 수가 두 벌이 되는 자리였다).
   const iconColor = block.dataset.iconColor || MODAL_DEFAULTS.iconColor;
   const _i = (k, d) => { const n = parseInt(block.dataset[k]); return Number.isFinite(n) ? n : d; };
@@ -218,6 +225,24 @@ ${blockHeaderHTML({
     </div>
 
     <div class="prop-section">
+      <div class="prop-section-title">Bg Image</div>
+      <button class="prop-action-btn secondary" id="mdl-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
+      <input type="file" id="mdl-bg-img-input" accept="image/*" style="display:none">
+      ${hasBgImg ? `
+        <div class="prop-row">
+          <span class="prop-label">사이즈</span>
+          <select class="prop-select" id="mdl-bg-size">
+            <option value="cover"   ${_bgSizeNow === 'cover'   ? 'selected' : ''}>Cover</option>
+            <option value="contain" ${_bgSizeNow === 'contain' ? 'selected' : ''}>Contain</option>
+            <option value="auto"    ${_bgSizeNow === 'auto'    ? 'selected' : ''}>Auto</option>
+            ${_bgSizeCustom ? `<option value="${_bgSizeNow}" selected>직접 조절</option>` : ''}
+          </select>
+        </div>
+        <button class="prop-action-btn danger" id="mdl-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
+      ` : ''}
+    </div>
+
+    <div class="prop-section">
       <div class="prop-section-title">Border</div>
       <div class="prop-row">
         <span class="prop-label">두께</span>
@@ -317,6 +342,40 @@ ${blockHeaderHTML({
   wireColor('mdl-bg', 'bg');
   wireColor('mdl-bc', 'borderColor');
   if (isIcon && !isRaster) wireColor('mdl-ic', 'iconColor');
+
+  /* ── 배경이미지(1017a5) — ★★꼴은 prop-frame.js:833~901 을 ★본으로(발주서 design_refs).
+     ★모달은 ★cssText 가 정본이라 ★두 draw 경로(프레임의 ::before/본체) 대신 ★renderModalBlock 하나만 부른다. */
+  const bgImgBtn   = document.getElementById('mdl-bg-img-btn');
+  const bgImgInput = document.getElementById('mdl-bg-img-input');
+  const bgImgClear = document.getElementById('mdl-bg-img-clear');
+  const bgSizeSel  = document.getElementById('mdl-bg-size');
+  bgImgBtn?.addEventListener('click', () => bgImgInput.click());
+  bgImgInput?.addEventListener('change', () => {
+    const file = bgImgInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      block.dataset.bgImg = e.target.result;
+      rerender();
+      commit();
+      showModalProperties(block);   /* ★사이즈 칸·제거 버튼이 새로 뜬다(prop-frame 과 같은 결) */
+    };
+    reader.readAsDataURL(file);
+  });
+  bgImgClear?.addEventListener('click', () => {
+    delete block.dataset.bgImg;
+    delete block.dataset.bgSize;
+    delete block.dataset.bgPos;
+    rerender();
+    commit();
+    showModalProperties(block);
+  });
+  bgSizeSel?.addEventListener('change', () => {
+    block.dataset.bgSize = bgSizeSel.value;
+    if (!/px/.test(bgSizeSel.value)) delete block.dataset.bgPos;
+    rerender();
+    commit();
+  });
 
   // ── 슬라이더 + 숫자 «쌍» ──
   const wireNum = (prefix, key, min, max) => {

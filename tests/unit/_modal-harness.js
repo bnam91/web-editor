@@ -31,6 +31,9 @@ const MODAL_REL = 'js/blocks/modal-block.js';
       같이 올리는 ★그 까닭과 같다 · 2026-10-06 실측된 함정).
    ★이름 충돌은 ★없음을 확인했다(공용 모듈 최상위 13개 ∩ modal-block.js 최상위 = ★0). */
 const SANITIZE_REL = 'js/util/sanitize-rich-text.js';
+/* ★1017a5 — modal-block.js 가 ★배경이미지를 ★js/frame-bg.js(frameBgSize/frameBgPos/FRAME_BG_SIZE_DEFAULT)
+   에서 빌리게 됐다(⛔사본 금지 — 그 파일 머리말 :22). ★같은 까닭으로 ★같이 올린다(sanitize 와 같은 결). */
+const FRAME_BG_REL = 'js/frame-bg.js';
 
 /** modal-block.js 의 «원본 소스»(LF 정규화). 소스 문자열을 재는 검사가 같은 것을 보게. */
 function modalSrc() {
@@ -59,8 +62,12 @@ function loadModalModule(opts) {
     .replace(/export\s*\{[\s\S]*?\};/, '')
     .replace(/^export\s+/gm, '');
   const dep = strip(readSrc(ROOT, SANITIZE_REL));
+  /* ★1017a5 — frame-bg.js 는 ★`./bg-layer.js` 를 import 한다(needsBgLayer 등). ★strip 이 ★그 import 줄도
+     ★지우지만, ★여기서 ★쓰는 frameBgSize/frameBgPos/FRAME_BG_SIZE_DEFAULT 는 ★그 이름들을 ★안 쓴다
+     (dataset 만 읽는다) ⇒ ★undefined 로 남아도 ★이 하네스가 ★부르는 길에서 ★안 걸린다. */
+  const bgDep = strip(readSrc(ROOT, FRAME_BG_REL));
   const body = strip(modalSrc());
-  for (const [what, src] of [['공용 sanitizer', dep], ['modal-block.js', body]]) {
+  for (const [what, src] of [['공용 sanitizer', dep], ['frame-bg.js', bgDep], ['modal-block.js', body]]) {
     assert.ok(!/^\s*import\s/m.test(src), `${what}: import 줄을 다 못 벗겼다 — 하네스를 고쳐라`);
     assert.ok(!/^\s*export\s/m.test(src), `${what}: export 문을 다 못 벗겼다 — 하네스를 고쳐라`);
   }
@@ -82,11 +89,11 @@ function loadModalModule(opts) {
   };
   vm.createContext(ctx);
   vm.runInContext(
-    dep + '\n;' + body
+    dep + '\n;' + bgDep + '\n;' + body
          + '\n;globalThis.__M = { MODAL_VARIANT_IDENTITY, MODAL_IDENTITY_KEYS, MODAL_DEFAULTS,'
          + ' MODAL_VARIANTS, _effDefault, applyModalVariant, makeModalBlock, renderModalBlock,'
          + ' applyPickedIconToModal, iconBlockNewColor, syncModalIconFirstLineOffset,'
-         + ' MODAL_SLOT_KEYS, commitModalSlot };',
+         + ' MODAL_SLOT_KEYS, commitModalSlot, _bgImageStyles, frameBgSize, frameBgPos, FRAME_BG_SIZE_DEFAULT };',
     ctx, { filename: MODAL_REL });
   return ctx.__M;
 }
