@@ -5,6 +5,7 @@ import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows, CMP_ROW_HINT, CMP_HD_HINT, cmpGetActiveCell, cmpPickRowImage } from '../blocks/comparison-block.js';
 import { panelRenderedColor } from './_panel-rendered.js';
 import { redactSectionHTML, wireRedactSection, normalizeRedact } from '../effects/image-redact.js';   /* ★1012t1D4 셀 이미지 「블러 (Redact)」 — 에셋과 같은 공용 절(C1) */
+import { grdGetActiveLine } from './prop-grid.js';   /* ★1017t1c1 — 「고른 글자 칸」 절의 활성 주소(line-host.js 가 이미 들이는 모듈 · 새 그래프 간선 0 — line-host.js 가 같은 자리에서 이미 import 한다) */
 
 /* ★옛 사본은 «닫는 꺾쇠»와 홑따옴표를 안 덮었다 — 이 파일이 쓰는 세 자리에서는 무력한
    글자들이라 새지는 않았지만, 다음 사람이 이 사본을 홑따옴표 속성 자리에 쓰면 그때 뚫린다.
@@ -30,7 +31,11 @@ export function showComparisonProperties(block) {
       const heightInput = idx === 0
         ? `<input type="number" class="prop-number cmp-row-h" data-idx="${i}" min="16" max="400" placeholder="${parseInt(d.rowH) || 64}" value="${rhVal}" title="행 높이(비우면 기본)" style="width:52px;">`
         : '';
-      let body;
+      /* ★1017t1c1 — 글자 칸의 입력칸(.cmp-row-input)을 ★뺐다(현빈 원문 「칼럼별 플레이스홀더·인풋박스들이
+         모두 있을 필요가 있을까」). ★대체 수단 = 캔버스 더블클릭(_editableRow, comparison-block.js) ·
+         줄 있는 칸은 캔버스에서 칸/줄을 고르면 뜨는 줄 절(line-host.js) · 「고른 글자 칸」 절(아래 textSection).
+         ⛔이미지 칸은 그대로(교체·꽉채우기/원본비율 — 캔버스에 대체 수단이 없다). */
+      let body = '';
       if (isImg) {
         const fit = row.imgFit === 'contain' ? 'contain' : 'cover';
         body = `
@@ -42,12 +47,6 @@ export function showComparisonProperties(block) {
             <button class="prop-align-btn cmp-row-fit${fit === 'cover' ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-fit="cover" style="flex:1;font-size:10px;">꽉 채우기</button>
             <button class="prop-align-btn cmp-row-fit${fit === 'contain' ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-fit="contain" style="flex:1;font-size:10px;">원본 비율</button>
           </div>`;
-      } else if (row && Array.isArray(row.lines) && row.lines.length) {
-        /* ★1012t1D2 — 줄 칸: 글자는 줄마다 산다(캔버스 줄 더블클릭 · 칸을 고르면 위 줄 절). 여기는 거울(text)을 «읽기만» 보인다.
-           한 줄 input 은 \n 을 지워 붙여 보이므로 줄 사이를 ' / ' 로 잇는다(값만 표시 — 모델은 그대로). 글자 줄이 다 비면 placeholder 가 줄 수를 말한다. */
-        body = `<input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" data-lines="${row.lines.length}" value="${_esc(String(row.text ?? '').split('\n').filter(Boolean).join(' / '))}" placeholder="줄 ${row.lines.length}개 — 캔버스에서 편집" disabled title="줄 ${row.lines.length}개 — 캔버스에서 칸을 고르면 줄 편집" style="flex:1;">`;
-      } else {
-        body = `<input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" placeholder="${_esc(CMP_ROW_HINT)}" value="${_esc(row && row.text)}" style="flex:1;">`;
       }
       return `
         <div class="cmp-row-edit" style="margin-bottom:6px;border-bottom:1px solid var(--border-subtle,#2a2a2a);padding-bottom:6px;">
@@ -55,7 +54,7 @@ export function showComparisonProperties(block) {
             ${typeToggle}${heightInput}
             <button class="prop-btn prop-btn-danger cmp-row-del" data-col="${idx}" data-idx="${i}" style="width:24px;margin-left:auto;">×</button>
           </div>
-          <div class="prop-row" style="gap:4px;margin-top:4px;">${body}</div>
+          ${body ? `<div class="prop-row" style="gap:4px;margin-top:4px;">${body}</div>` : ''}
         </div>`;
     }).join('');
     /* 묶음 B #18 — 칸 색이 비면 «그려진» 색(렌더: 강조 칸 #fff/#1a1a1a · 나머지 #e9ebef/#9aa0a8). 옛 표시는 늘 #fff/#1a1a1a. */
@@ -76,7 +75,6 @@ export function showComparisonProperties(block) {
           <span>칼럼 ${idx + 1}${idx === featuredIdx ? ' ★' : ''}</span>
           ${canDelete ? `<button class="prop-btn prop-btn-danger cmp-col-del" data-col="${idx}" title="칼럼 삭제" style="width:24px;">×</button>` : ''}
         </div>
-        <textarea class="prop-textarea cmp-col-title" data-col="${idx}" rows="1" placeholder="${_esc(CMP_HD_HINT)}" style="width:100%;box-sizing:border-box;">${_esc(col.title)}</textarea>
         <div class="prop-color-row"><span class="prop-label">헤더 배경</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'HdBg', hex: hdBgVal })}</div>
         <div class="prop-color-row"><span class="prop-label">헤더 글자</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'HdText', hex: hdTextVal })}</div>
         <div class="prop-color-row--aux">
@@ -120,6 +118,21 @@ export function showComparisonProperties(block) {
      색보정은 에셋·카드처럼 «편집기(더블클릭)에 들어가면» 뜨는 플로팅 패널이다(js/blocks/comparison-img-edit.js) — 우측 패널 자리 0. */
   const redactSection = (imgSection && _actRow.imgSrc)
     ? redactSectionHTML({ idPrefix: 'cmp-cell', value: normalizeRedact(_actRow.redact) }) : '';
+  /* ★1017t1c1 — 「고른 글자 칸」 절. ★Image 절(바로 위)과 ★같은 자리·같은 꼴 — 활성 «글자 칸» 하나에만 뜬다.
+   * ★출처 — 이미지 칸은 cmpGetActiveCell(block._cmpActiveCell · D3) 를 읽고, 글자 칸은 grdGetActiveLine
+   *   (addr.li===null · D2, line-host.js lnClickAddr) 를 읽는다 — «둘»이다, 섞지 않는다(아래 한 줄 주석).
+   * ⚠️block-drag.js:2143-2144 — 이미지 칸을 고르면 cmpSetActiveCell 만 갈리고 grdSetActiveLine 은
+   *   «그대로»(이전 글자 칸 주소가 남는다 · _lnAt 이 거짓이면 안 지운다). ⇒ ★imgSection 이 섰으면
+   *   textSection 은 ★무조건 끈다(아래 `!imgSection &&`) — 안 그러면 두 절이 동시에 뜬다. */
+  const _lnAct = grdGetActiveLine(block);
+  const _lnActRow = (!imgSection && _lnAct && _lnAct.li === null) ? cols[_lnAct.c]?.rows?.[_lnAct.r] : null;
+  const textSection = (_lnActRow && _lnActRow.type !== 'image') ? `
+    <div class="prop-section" id="cmp-text-section">
+      <div class="prop-section-title">Text</div>
+      <div class="prop-row">
+        <textarea class="prop-textarea" id="cmp-text-input" rows="2" placeholder="${_esc(CMP_ROW_HINT)}" style="width:100%;box-sizing:border-box;">${_esc(_lnActRow.text)}</textarea>
+      </div>
+    </div>` : '';
 
   // ★flex:1 은 basis 0 이라 «축소»가 아니라 «균등분배»를 한다 — 칼럼이 «6개 이상»이면 각자 몫이
   //   글자보다 좁아져 「칼럼 N」이 잘린다(comparison-block.js:480 이 상한을 8 로 허용한다).
@@ -142,7 +155,7 @@ ${blockHeaderHTML({
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
     })}
-    </div>${imgSection}${redactSection}
+    </div>${imgSection}${redactSection}${textSection}
     <div class="prop-section">
       <div class="prop-section-title">강조 칼럼 (떠보이는 쪽)</div>
       <div class="prop-align-group" id="cmp-feat-group" style="display:flex;gap:4px;flex-wrap:wrap;">${featBtns}</div>
@@ -231,11 +244,8 @@ ${blockHeaderHTML({
   pair('cmp-rowh', 'cmp-rowh-num', 'rowH', 24, 140);
   pair('cmp-rowgap', 'cmp-rowgap-num', 'rowGap', 0, 40);
 
-  // 칼럼별: 제목 / 배경 / 텍스트
+  // 칼럼별: 배경 / 텍스트 (★1017t1c1 — 제목 입력칸은 뺐다. 캔버스 헤더 더블클릭 _editableTitle 이 대체 수단)
   cols.forEach((col, idx) => {
-    const ta = propPanel.querySelector(`.cmp-col-title[data-col="${idx}"]`);
-    ta?.addEventListener('input', () => { const c = getCols(); if (c[idx]) { c[idx].title = ta.value; saveCols(c); rerender(); } });
-    ta?.addEventListener('change', commit);
     wireColorField('cmp-c' + idx + 'Bg', {
       gradientValue: col.bg,   // T-059 2라운드: featured 아닌 칼럼도 재오픈 시드(전엔 featured 한 칸만 부수효과로 받았다)
       onApply: v => { const c = getCols(); if (c[idx]) { c[idx].bg = v; saveCols(c); rerender(); } },
@@ -268,15 +278,6 @@ ${blockHeaderHTML({
       saveCols(c); rerender(); commit(); showComparisonProperties(block);
     }));
 
-  // 행 텍스트 편집 (text행만 .text 갱신)
-  propPanel.querySelectorAll('.cmp-row-input').forEach(inp => {
-    inp.addEventListener('input', () => {
-      const c = getCols(); const ci = +inp.dataset.col; const ri = +inp.dataset.idx;
-      const row = c[ci]?.rows?.[ri];
-      if (row && row.type !== 'image' && !(Array.isArray(row.lines) && row.lines.length)) { row.text = inp.value; saveCols(c); rerender(); }   // ★D2 줄 칸은 거울이라 안 쓴다
-    });
-    inp.addEventListener('change', commit);
-  });
   // 행 type 토글 (text ↔ image)
   propPanel.querySelectorAll('.cmp-row-type').forEach(btn =>
     btn.addEventListener('click', () => {
@@ -319,6 +320,16 @@ ${blockHeaderHTML({
       getHost: () => block.querySelector(`.cmp-row.cmp-img[data-col-idx="${aci}"][data-row-idx="${ari}"]`),
       onCommit: (v) => { if (withRow(row => { if (v > 0) row.redact = v; else delete row.redact; })) window.scheduleAutoSave?.(); },
     });
+  }
+  /* ★1017t1c1 — 「고른 글자 칸」 절 배선. push-after(이미지 절 패턴과 같다 — input=라이브·change=commit). */
+  if (textSection) {
+    const { r: tr, c: tc } = _lnAct;
+    const ta = propPanel.querySelector('#cmp-text-input');
+    ta?.addEventListener('input', () => {
+      const c = getCols(); const row = c[tc]?.rows?.[tr];
+      if (row && row.type !== 'image') { row.text = ta.value; saveCols(c); rerender(); }
+    });
+    ta?.addEventListener('change', commit);
   }
   propPanel.querySelectorAll('.cmp-row-img-clear').forEach(btn =>
     btn.addEventListener('click', () => {

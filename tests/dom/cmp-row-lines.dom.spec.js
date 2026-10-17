@@ -348,10 +348,14 @@ test('L11 비교 칸 줄 고른 채 ⌘←/⌘→ = 아무것도 안 함(블럭 
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
-test('L12 패널 — 칼럼 절 거울 입력은 줄을 « / » 로 잇는다 · 색 없는 줄의 Fill 스와치 = 그려진 칼럼 글자색', async ({ page }) => {
+/* ⚰️L12 — 1017t1c1 로 「칼럼 절 거울 입력」(.cmp-row-input, 줄 칸용 disabled 거울)이 ★없어졌다
+ * (prop-comparison.js 글자 입력칸을 통째로 뺐다 — 쓰는 칸 :50 과 ★같이 사라진다, 발주서 그대로).
+ * ⚰️옛 단언: `expect(await page.evaluate(() => document.querySelector('.cmp-row-input[data-col="1"][data-idx="0"]')?.value), '거울 = A / B / C').toBe('A / B / C');`
+ * ★새 참값: 그 셀렉터 자체가 패널에 0건(아래). ★나머지(Fill 스와치 = 그려진 칼럼 글자색)는 ★무변 — 그대로 잰다. */
+test('L12 ⚰️패널 — 줄 칸 거울 입력은 사라졌다(1017t1c1) · 색 없는 줄의 Fill 스와치 = 그려진 칼럼 글자색', async ({ page }) => {
   const errs = await setupLines(page);
   await pickLine(page, 1, 0, 0);
-  expect(await page.evaluate(() => document.querySelector('.cmp-row-input[data-col="1"][data-idx="0"]')?.value), '거울 = A / B / C').toBe('A / B / C');
+  expect(await count(page, '.cmp-row-input'), '1017t1c1 — 글자 입력칸 통째로 0').toBe(0);
   const r = await page.evaluate((s) => {
     const el = document.querySelector(s);
     const rgb = getComputedStyle(el).color.match(/\d+/g).slice(0, 3).map(n => (+n).toString(16).padStart(2, '0')).join('');
