@@ -496,6 +496,9 @@ test('C1 ★fullBleed 식구를 «기계로» 센다 — 다섯째가 오면 빨
   const users = harvestFullBleedUsers();
   const expected = [
     'js/blocks/banner02-block.js',   // 배너2 — 렌더 안에서 적용 (2026-09-10 신규)
+    'js/blocks/buzz-frame.js',       // 버즈 — «삽입 때 켠 채로» 넣는다(1013t2 D1 · 현빈 2026-10-14 「기본은 … 패딩제외 옵션」). 식구는 여전히 프레임이다:
+                                     //   ⑴ 렌더 함수가 폭을 다시 박지 않는다(프레임과 같다) ⑵ 끄기 = 프레임 패널의 그 스위치(prop-frame.js) ⑶ 프레임의 기본은 여전히 «꺼짐» —
+                                     //   켜는 것은 addBuzzBlock 한 자리뿐이고 이미 저장된 버즈는 안 건드린다(tests/dom/buzz-frame.dom.spec.js BZ-27 · BZ-28)
     'js/blocks/canvas-block.js',     // 카드  — renderCanvas 가 통합 처리
     'js/blocks/chat-block.js',       // 채팅  — renderChatBlock 안에서 적용
     'js/blocks/grid-block.js',       // 그리드 — renderGridBlock 안에서 적용 (2026-10-01 — 렌더가 width=100% 를 다시 박아 배너2 와 같은 병이 났다, grd_ts0he_lvy913j)

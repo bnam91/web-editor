@@ -134,9 +134,12 @@ function collectSectionTextBlocks(sec) {
     if (el.classList.contains('laurel-block')) {
       let cells = [];
       try { cells = JSON.parse(el.dataset.cells || '[]'); } catch (_) {}
+      /* ★1013t1B2 C3 — 슬롯은 «글자 줄»만(여백·구분선·그림 줄엔 글자를 안 쓴다). 번호(li)는 저장 배열의 진짜 번호 그대로 — 쓰기가 그 번호로 간다. */
+      const isText = (ln) => (typeof window._lrlIsTextLine === 'function' ? window._lrlIsTextLine(ln) : true);
       cells.forEach((cell, ci) => {
         const lines = Array.isArray(cell.lines) ? cell.lines : [];
         lines.forEach((ln, li) => {
+          if (!isText(ln)) return;
           items.push({ id: `lrl:${el.id}:${ci}:${li}`, style: 'laurel-line', current: (ln.text || '').trim() });
         });
       });
@@ -409,20 +412,29 @@ function applyAIReplacements(sec, replacements, additions, stats) {
         const text = lineMap.get(li);
         // 빈 텍스트 응답은 무시 — 기존 슬롯도 push도 모두. AI가 빈 응답 보내는 garbage 방지.
         if (typeof text !== 'string' || text.trim() === '') return;
+        /* ★1013t1B2 C3 — 쓰기는 새 꼴(그리드 줄)로(laurel «쓰기 하나» — updateLaurelBlock 과 같은 규약).
+           ⛔글자 아닌 줄(여백·구분선·그림)엔 안 쓴다(원형 그림 줄은 글자를 «보여 준다» — 쓰면 그림 위에 글자가 뜬다).
+           ★글자를 바꾸면 textHtml(범위 서식 · B1)을 지운다 — 묵은 서식이 새 글자를 가리지 않게. */
+        const G = window._lrlGridLine || ((l) => l);
+        const isText = window._lrlIsTextLine || (() => true);
         if (li < lines.length) {
-          lines[li].text = text;
+          if (!isText(lines[li])) return;
+          const g = { ...G(lines[li]), text };
+          delete g.textHtml;
+          lines[li] = g;
         } else {
-          // 새 line 추가 — 마지막 line 스타일 시드로
-          const seed = lines[lines.length - 1] || { fontSize: 28, fontWeight: 500, color: '#1a1a1a' };
-          lines.push({
-            text,
-            fontSize: parseInt(seed.fontSize) || 28,
-            fontWeight: parseInt(seed.fontWeight) || 500,
-            color: seed.color || '#1a1a1a',
-          });
+          // 새 line 추가 — 마지막 «글자» 줄 꾸밈을 시드로(새 꼴 · textHtml 은 안 옮긴다)
+          const seedRaw = [...lines].reverse().find(l => isText(l)) || { fontSize: 28, fontWeight: 500, color: '#1a1a1a' };
+          const g = { ...G(seedRaw), text };
+          delete g.textHtml;
+          lines.push(g);
         }
       });
     });
+    // «쓰기 하나» — 줄이 있는 모든 칸을 새 꼴로(lines 키 없는 칸은 그대로 · 렌더 폴백)
+    if (typeof window._lrlGridLine === 'function') {
+      cells = cells.map(c => (c && Array.isArray(c.lines)) ? { ...c, lines: c.lines.map(window._lrlGridLine) } : c);
+    }
     lrb.dataset.cells = JSON.stringify(cells);
     window.renderLaurelBlock?.(lrb);
   });

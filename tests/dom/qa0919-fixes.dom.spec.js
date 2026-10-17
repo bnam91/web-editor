@@ -24,6 +24,11 @@ const NEXT_GROUP_SRC = sliceBlock(BF, 'function _nextGroupName(');
 const RELINK_SRC = sliceBlock(BF, 'function relinkShapeGradient(');
 const KEEP_SRC = sliceBlock(read('js/editor.js'), 'function _keepOnlyPastedSelected(');
 const STOP_SRC = sliceBlock(read('js/props/prop-shape.js'), 'export function shapeStopPaint(').replace(/^export /, '');
+/* ★★1013t2A1 이 relinkShapeGradient 안에서 `ellipseFilterId()` 를 부르기 시작했다(원 이너 그림자 필터).
+   ★그 함수는 ★다른 파일(js/shape-ellipse.js)에 살고 block-factory 는 ★import 로 쓴다 —
+   ⇒ ★★함수만 잘라 얹는 이 하네스에는 ★정의가 ★없어 ★ReferenceError 가 났다(261014 전수 ×2 에서 G1·G2·G3).
+   ⛔손으로 스텁을 쓰지 않는다 — ★★정본에서 ★같이 잘라 온다(★위 STOP_SRC 와 ★같은 관용구). */
+const FILTER_ID_SRC = sliceBlock(read('js/shape-ellipse.js'), 'export function ellipseFilterId(').replace(/^export /, '');
 
 const HARNESS_JS = `
 import { isShapeFrame, shapeFrameOf, topLevelBlocksOf, isEmptyShell } from '/js/shape-frame.js';
@@ -44,6 +49,7 @@ window.buildLayerPanel = () => {};
 window.deselectAll = () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected'));
 ${NEXT_GROUP_SRC}
 ${WRAP_SRC}
+${FILTER_ID_SRC}
 ${RELINK_SRC}
 const canvasEl = document.getElementById('canvas');
 ${KEEP_SRC}
@@ -121,6 +127,51 @@ test('W2 자유배치 프레임 안 두 블럭 ⌘G → 새 그룹 dataset.width
   expect(out.dw).toBe('260');
   expect(out.dh).toBe('110');
   expect(errs).toEqual([]);
+});
+
+/* ★★★G0 — ★이 spec 이 ★«잘라 얹는» 꼴이라 ★생기는 ★구멍을 ★잰다.
+   ★261014: A1 이 relinkShapeGradient 안에 ★다른 파일 함수 호출을 더하자 ★G1·G2·G3 가 ★한꺼번에
+     `ReferenceError: ellipseFilterId is not defined` 로 ★죽었다. ★제품은 ★멀쩡했는데(앱은 import 가 잇는다)
+     ★★그라데이션 재잇기 ★회귀 방어가 ★조용히 ★꺼진 채 ★dev 로 갈 뻔했다.
+   ⇒ ★★이 칸이 ★★«무엇이 없는지»를 ★이름으로 ★말한다. ⛔「G1 이 빨갛다」보다 ★훨씬 많이 말한다.
+   ⛔완벽한 정적 분석은 ★하지 않는다 — ★우리가 ★실제로 당한 꼴(★함수 호출)만 잡으면 ★된다. */
+const _JS_BUILTINS = new Set(['document','window','Number','String','Object','Array','JSON','Math','console',
+  'parseInt','parseFloat','Boolean','Set','Map','RegExp','Error','Date','Promise','Symbol','isNaN','getComputedStyle']);
+/* ⛔★문자열·주석 ★안의 ★`이름(` 을 ★호출로 ★읽으면 ★거짓양성이 난다 —
+   ★실측(261014): `fill="url(#grad-…)"` 의 ★`url(` 이 ★★「없는 이름」으로 ★올라왔다.
+   ⇒ ★★세는 ★전에 ★문자열·템플릿·주석을 ★비운다. */
+function _stripLiterals(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ')
+    .replace(/`(?:\\.|\$\{[^}]*\}|[^`\\])*`/g, '``')
+    .replace(/'(?:\\.|[^'\\])*'/g, "''")
+    .replace(/"(?:\\.|[^"\\])*"/g, '""');
+}
+function freeCalls(rawSrc) {
+  const src = _stripLiterals(rawSrc);
+  const declared = new Set([...src.matchAll(/\b(?:function|const|let|var|class)\s+([A-Za-z_$][\w$]*)/g)].map((m) => m[1]));
+  return [...new Set([...src.matchAll(/(?:^|[^.\w$])([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1]))]
+    .filter((n) => !declared.has(n) && !_JS_BUILTINS.has(n)
+      && !/^(if|for|while|switch|catch|return|typeof|new|function|do|else)$/.test(n));
+}
+
+test('G0 ★★전제 — 잘라 얹은 조각이 부르는 이름이 하네스에 전부 있다 (★다음 import 에 또 꺼지지 않게)', async () => {
+  /* ★★⛔261014 ★실측으로 ★고친 자리 — ★처음엔 ★`[NEXT_GROUP_SRC, WRAP_SRC, FILTER_ID_SRC, …]` 라는
+     ★★«손으로 적은 목록»에서 ★이름을 뽑았다. ⇒ ★★양성대조가 ★★실패했다:
+       ★하네스 주입(`${FILTER_ID_SRC}`)을 ★떼도 ★그 목록엔 ★여전히 ★FILTER_ID_SRC 가 있어
+       ★★G0 가 ★초록이고 ★G1~G3 만 ★빨갰다 — ★★자가 ★그 구멍을 ★못 잡았다.
+     ⇒ ★★«하네스가 ★정말 ★얹는 것» = ★★`HARNESS_JS` ★하나뿐이다(★`${...}` 가 ★이미 전개된 ★문자열).
+       ★★거기서만 ★뽑는다 — ★★「명부가 ★둘이면 ★파생시켜 ★하나로」. */
+  const injected = new Set();
+  {
+    const h = _stripLiterals(HARNESS_JS);
+    for (const m of h.matchAll(/\b(?:function|const|let|var|class)\s+([A-Za-z_$][\w$]*)/g)) injected.add(m[1]);
+    for (const m of HARNESS_JS.matchAll(/\bimport\s*\{([^}]*)\}/g)) m[1].split(',').forEach((x) => injected.add(x.trim()));
+    for (const m of h.matchAll(/\bwindow\.([A-Za-z_$][\w$]*)\s*=/g)) injected.add(m[1]);
+  }
+  const missing = freeCalls(RELINK_SRC).filter((n) => !injected.has(n));
+  expect(missing, '★조각이 ★부르는데 ★하네스에 ★없는 이름 — ★이게 ★ReferenceError 가 된다').toEqual([]);
 });
 
 test('G1 ★붙여넣기 사본(def id 새로 지음 + fill 은 원본 참조) → 둘 다 grad-<사본 id> 로', async ({ page }) => {

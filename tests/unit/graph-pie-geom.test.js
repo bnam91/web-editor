@@ -5,11 +5,12 @@
  *   U5 각도 합 360 · 이어 붙음                  U6 large-arc: 180° 초과만 1
  *   U7 구멍: 0 이면 중심에서 시작 · >0 이면 고리  U8 한계 상수가 graph-limits 에 있다(패널·렌더가 같이 읽는 자리)
  *   U9 틈: 변을 평행하게 민다(폭 일정) · 값 있는 조각 하나면 0 · 실조각이 안 사라진다   U10 비율 %: 최대 잔여법 — 합 100
+ *   U20 라벨 여백 PIE_TAG_PAD: 0 이 아니다 · 낸 사각형은 가장자리에서 여백 이상 · 여백보다 가까이 닿으면 안 든다(1013t1C3 검사 칸 메우기)
  * 전제 단언: 칸마다 «조각 수 = 입력 수»를 먼저 본다 — 빈 배열이 통과로 읽히지 않게. */
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { piePaths, piePercents, CENTER, RADIUS } = require('../../js/graph-pie-geom.js');
+const { piePaths, piePercents, pieRanks, pieTagPlan, pieTagRoom, pieTagFontSizes, CENTER, RADIUS } = require('../../js/graph-pie-geom.js');
 const LIM = require('../../js/graph-limits.js');
 
 const arcs = (d) => [...d.matchAll(/A ([\d.]+) ([\d.]+) 0 ([01]) ([01]) ([\d.]+) ([\d.]+)/g)].map(m => ({ r: +m[1], large: +m[3], sweep: +m[4], x: +m[5], y: +m[6] }));
@@ -176,4 +177,369 @@ test('U10 비율 % — 최대 잔여법: 합이 정확히 100 · 동률은 앞 �
     n++;
   }
   assert.equal(n, 7, '전제: 묶음을 다 돌았다');
+});
+
+/* ── 1013t1C 원형·도너츠 7건 ──────────────────────────────────────────────
+ *   U11 골든 핀: 새 인자(opts)를 «안 준» 산출이 1012 판과 바이트가 같다(옛 저장본을 만져도 같은 그림) — 1013t1C0 에서 «고치기 전 판» 위에 박았다. */
+const sha = (s) => require('node:crypto').createHash('sha256').update(s).digest('hex');
+const GOLD = [
+  [[[30, 20, 15, 15, 10, 10], 0, 10], 'a5d84213c783230e084155b4a8d8332c97a0c2c244d0cfd3557f4749090f6bed'],
+  [[[30, 20, 15, 15, 10, 10], 55, 10], '7b99c098f908616f49f0c0f70fab4732657387e5990cb91d5ae3262aa2079568'],
+  [[[1, 1, 2], 0, 10], '2cf12b345950f4954aac01e3722e242e2f36e7433c5d8fd0908da0d8331d8b3a'],
+  [[[1, 1, 2], 55, 10], '9cead1c0f1bb19d1d3a76e4ebf3b6444f2e5289ae690989fee3db02c4c17efb4'],
+  [[[5], 55, 10], '277be82afdbc8a9330dd9208bc77b2ad42d972f8b3c287cb864d2ab500c07370'],
+  [[[], 0, 10], '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'],
+  [[[-5, 10, NaN, 'abc', null, '30', Infinity, 999, 1], 20, 10], '5a69e1bc3b53e7d17c7cc6a70ea2c0ba49ddeada1828e330d5a31a64b60f2e22'],
+  [[[30, 20, 15, 15, 10, 10], 0], '68405be88f6242d4ee4c24630560d04dde287356c61d49710a0ebe618498108d'],
+];
+test('U11 골든 핀 — 새 인자를 안 주면 조각 path 가 1012 판과 바이트가 같다(여덟 표본)', () => {
+  let n = 0;
+  for (const [args, want] of GOLD) {
+    const r = piePaths(...args);
+    assert.equal(r.paths.length, args[0].length, '전제: 조각 수 = 입력 수');
+    assert.equal(sha(JSON.stringify(r.paths)), want, `표본 ${n} ${JSON.stringify(args)}`);
+    n++;
+  }
+  assert.equal(n, 8, '전제: 표본을 다 돌았다');
+  assert.equal(piePaths([1, 1, 2], 0, 10).paths[0], 'M 505.00 495.00 L 505.00 0.03 A 500.00 500.00 0 0 1 999.97 495.00 Z', '해시가 재는 글자의 꼴(눈으로 읽는 한 줄)');
+});
+
+test('U12 조각 간격 한계 — graph-limits 한 자리 · 틈 0 이면 조각이 중심에서 맞닿고 · 위 끝(40)에서도 조각이 남는다', () => {
+  assert.equal(LIM.PIE_GAP, 10, '기본 틈은 그대로(옛 저장본)');
+  assert.equal(LIM.PIE_GAP_MIN, 0);
+  assert.equal(LIM.PIE_GAP_MAX, 40);
+  assert.ok(LIM.PIE_GAP_MIN <= LIM.PIE_GAP && LIM.PIE_GAP <= LIM.PIE_GAP_MAX, '기본값이 한계 안');
+  const V = [30, 20, 15, 15, 10, 10];
+  const g0 = piePaths(V, 0, LIM.PIE_GAP_MIN), gd = piePaths(V, 0, LIM.PIE_GAP), gx = piePaths(V, 0, LIM.PIE_GAP_MAX);
+  assert.equal(g0.paths.length, 6, '전제'); assert.equal(gx.paths.length, 6, '전제');
+  assert.equal(g0.gap, 0); assert.equal(gd.gap, 10); assert.equal(gx.gap, 40);
+  for (const d of g0.paths) assert.match(d, /^M 500\.00 500\.00 L /, '틈 0: 모든 조각이 중심에서 떠난다(맞닿는다)');
+  assert.match(g0.paths[0], /^M 500\.00 500\.00 L 500\.00 0\.00 A /, '틈 0: 첫 변은 x = 500 세로선');
+  assert.match(gd.paths[0], /^M 505\.00 [\d.]+ L 505\.00 0\.03 A /, '기본 10: 첫 변이 5 만큼 밀린다');
+  assert.match(gx.paths[0], /^M 520\.00 [\d.]+ L 520\.00 0\.40 A /, '40: 첫 변이 20 만큼 밀린다');
+  assert.ok(gx.paths.every(d => d.length > 0 && arcs(d).length >= 1), '40 에서도 여섯 조각이 다 그려진다');
+  assert.deepEqual(gx.angles, g0.angles, '경계각은 틈과 무관');
+});
+
+test('U13 시작 각도 — start 90 이면 첫 조각이 3시에서 떠난다 · 0/미지정은 옛 산출 그대로 · 360 으로 접는다 · 험한 값은 0', () => {
+  const V = [1, 1, 2];
+  const p0 = piePaths(V, 0, 0), p90 = piePaths(V, 0, 0, { start: 90 });
+  assert.equal(p90.paths.length, 3, '전제');
+  assert.equal(p0.start, 0); assert.equal(p90.start, 90);
+  assert.deepEqual(piePaths(V, 0, 0, { start: 0 }), p0, 'start 0 = 미지정');
+  assert.deepEqual(piePaths(V, 0, 0, {}), p0); assert.deepEqual(piePaths(V, 0, 0, null), p0);
+  assert.deepEqual(piePaths(V, 55, 10, { start: 0 }).paths, piePaths(V, 55, 10).paths, '도넛·틈에서도 start 0 은 바이트가 같다');
+  assert.equal(p90.angles[0][0], 90, '첫 조각의 시작각');
+  assert.deepEqual(p90.angles, [[90, 180], [180, 270], [270, 450]]);
+  assert.deepEqual(p90.shares, p0.shares, '점유율은 시작 각도와 무관');
+  assert.match(p90.paths[0], /^M 500\.00 500\.00 L 1000\.00 500\.00 A 500\.00 500\.00 0 0 1 500\.00 1000\.00 Z$/, '첫 점 = 3시(1000,500) · 시계 방향으로 90° 돌아 6시');
+  assert.notDeepEqual(p90.paths, p0.paths, '전제: 90 은 다른 그림');
+  assert.deepEqual(piePaths(V, 0, 0, { start: 450 }).paths, p90.paths, '450 ≡ 90');
+  assert.deepEqual(piePaths(V, 0, 0, { start: -270 }).paths, p90.paths, '−270 ≡ 90');
+  assert.deepEqual(piePaths(V, 0, 0, { start: '90' }).paths, p90.paths, '글자 수도 받는다');
+  for (const bad of [NaN, Infinity, 'x', null, undefined, {}]) assert.deepEqual(piePaths(V, 0, 0, { start: bad }).paths, p0.paths, `험한 start ${String(bad)} = 0`);
+  /* 틈·도넛에서도 통째로 돈다 — 조각마다 호의 수·반지름이 같다 */
+  const d0 = piePaths(V, 55, 10), d90 = piePaths(V, 55, 10, { start: 90 });
+  assert.deepEqual(d90.paths.map(d => arcs(d).map(a => [a.r, a.large, a.sweep])), d0.paths.map(d => arcs(d).map(a => [a.r, a.large, a.sweep])));
+  assert.match(d90.paths[0], /^M 999\.97 505\.00 A /, '도넛·틈 10: 첫 변이 3시 방향 가로선(y = 505)');
+  /* 온 원(항목 하나)은 시작 각도와 무관 */
+  assert.deepEqual(piePaths([7], 0, 10, { start: 90 }).paths, piePaths([7], 0, 10).paths);
+  assert.doesNotMatch(piePaths([1e308, 1e308, 0, 'x'], 55, 10, { start: 123 }).paths.join('|'), /NaN|Infinity|undefined/);
+});
+
+test('U14 조각 크기 — grow 20 이면 그 조각의 바깥 반지름만 600 · 다른 조각 d 무변 · extent 100 · grow 0 은 옛 산출 그대로', () => {
+  const V = [30, 20, 15, 15, 10, 10];
+  assert.equal(LIM.PIE_GROW_MAX, 30, '위 끝은 graph-limits 한 자리');
+  for (const [hole, gap] of [[0, 10], [55, 10], [0, 0], [55, 0]]) {
+    const b = piePaths(V, hole, gap), g = piePaths(V, hole, gap, { grow: [20] });
+    assert.equal(g.paths.length, 6, '전제');
+    assert.deepEqual(piePaths(V, hole, gap, { grow: [0, 0, 0, 0, 0, 0] }), b, `grow 0 = 미지정 (구멍 ${hole} · 틈 ${gap})`);
+    assert.deepEqual(piePaths(V, hole, gap, { grow: [] }), b);
+    assert.deepEqual(g.outer, [600, 500, 500, 500, 500, 500], '바깥 반지름은 그 조각만');
+    assert.equal(g.extent, 100, 'viewBox 밖으로 나간 길이');
+    assert.equal(b.extent, 0); assert.deepEqual(b.outer, [500, 500, 500, 500, 500, 500]);
+    assert.notEqual(g.paths[0], b.paths[0], '전제: 키운 조각의 d 는 다르다');
+    assert.deepEqual(g.paths.slice(1), b.paths.slice(1), '다른 조각의 d 는 한 글자도 안 변한다');
+    assert.deepEqual(g.angles, b.angles, '경계각은 크기와 무관'); assert.deepEqual(g.shares, b.shares);
+    const a = arcs(g.paths[0].replace(/-/g, ''));   // 바깥 호 반지름 600 · 구멍 호는 그대로(부호는 반지름과 무관)
+    assert.equal(a[0].r, 600);
+    if (hole) assert.equal(a[1].r, 275, '구멍 반지름은 모든 조각이 같다');
+  }
+  assert.deepEqual(piePaths(V, 0, 10).mids, [54, 144, 207, 261, 306, 342], '이등분각(도)');
+  assert.deepEqual(piePaths(V, 0, 10, { start: 90 }).mids[0], 144, '이등분각은 시작 각도를 따라 돈다');
+  assert.match(piePaths(V, 0, 10, { grow: [20] }).paths[0], /^M 505\.00 [\d.]+ L 505\.00 -99\.98 A 600\.00 600\.00 0 0 1 /, '12시 변은 같은 세로선(x = 505) 위에서 600 까지');
+  /* 여럿을 키우면 extent = 가장 큰 것 · 값 0 조각의 grow 는 안 센다 · 온 원은 안 키운다(1013t1C4 고침 — 키우면 viewBox 만 넓어져 원 전체가 줄어든다) */
+  assert.equal(piePaths(V, 0, 10, { grow: [10, 0, 30] }).extent, 150);
+  const z = piePaths([0, 3, 1], 0, 10, { grow: [30, 0, 0] });
+  assert.equal(z.extent, 0, '값 0 조각은 안 키운다'); assert.deepEqual(z.outer, [500, 500, 500]); assert.equal(z.paths[0], '');
+  const one = piePaths([7], 50, 10, { grow: [20] });
+  assert.equal(one.paths.length, 1, '전제: 조각 하나'); assert.ok(one.shares[0] >= 0.9999, '전제: 온 원');
+  assert.equal(one.extent, 0, '온 원 조각의 grow 는 extent 에 안 든다(viewBox 가 안 넓어진다)');
+  assert.deepEqual(one.outer, [500]);
+  assert.equal(one.paths[0], piePaths([7], 50, 10).paths[0], '온 원: grow 를 줘도 안 준 것과 같은 글자');
+  assert.equal(piePaths([7, 0, 'x'], 0, 10, { grow: [30, 30, 30] }).extent, 0, '값 있는 항목이 하나뿐이어도 같다');
+  assert.equal(piePaths([7, 1], 0, 10, { grow: [20] }).extent, 100, '이웃이 있으면 커진다(온 원만 예외)');
+  assert.equal(piePaths([0, 0], 0, 10, { grow: [20, 20] }).extent, 0, '합 0 이면 0');
+  /* 험한 grow — 0 으로(음수·글자·NaN) · 100 에서 잘린다 · 문자열에 NaN 0건 */
+  const base = piePaths(V, 0, 10);
+  for (const bad of [[-5], ['x'], [NaN], [null], [Infinity], 'nope', null, 7]) assert.deepEqual(piePaths(V, 0, 10, { grow: bad }).paths, base.paths, `험한 grow ${JSON.stringify(bad)}`);
+  assert.equal(piePaths(V, 0, 10, { grow: [999] }).outer[0], 1000);
+  assert.equal(piePaths(V, 0, 10, { grow: ['20'] }).outer[0], 600, '글자 수도 받는다');
+  assert.doesNotMatch(piePaths([1e308, 1e308, 1], 55, 40, { start: 77, grow: [30, 'x', 30] }).paths.join('|'), /NaN|Infinity|undefined/);
+  /* 점유율은 양수인데 각 폭이 0 으로 접힌 조각(값 비 1e17 : 1) — 틈이 있으면 꼭짓점 식이 0/0 이 됐다(1012 판도 'M NaN NaN'). 그릴 폭이 없으니 d 는 빈 글자 */
+  for (const [v, k] of [[[1e17, 1], 1], [[1e308, 1e308, 1], 2]]) for (const hole of [0, 55]) {
+    const t = piePaths(v, hole, 10);
+    assert.equal(t.paths.length, v.length, '전제');
+    assert.ok(t.shares[k] > 0 && t.angles[k][1] === t.angles[k][0], `전제: 조각 ${k} 는 점유율 양수 · 각 폭 0 (${JSON.stringify(v)})`);
+    assert.equal(t.paths[k], '', '폭 0 조각은 안 그린다');
+    assert.doesNotMatch(t.paths.join('|'), /NaN|Infinity|undefined/);
+    assert.ok(t.paths.slice(0, k).every(d => d.length > 0), '나머지 조각은 그대로 그려진다');
+  }
+});
+
+test('U15 밀어내기 — pull 10 이면 offsets = 50 × (sin mid, −cos mid) · d 는 한 글자도 안 변한다 · extent 는 민 만큼 · 온 원·값 0 은 안 민다', () => {
+  const V = [1, 1, 2];
+  assert.equal(LIM.PIE_PULL_MAX, 30, '위 끝은 graph-limits 한 자리');
+  for (const [hole, gap] of [[0, 10], [55, 10], [0, 0]]) {
+    const b = piePaths(V, hole, gap), g = piePaths(V, hole, gap, { pull: [10] });
+    assert.equal(g.paths.length, 3, '전제');
+    assert.deepEqual(b.offsets, [['0.00', '0.00'], ['0.00', '0.00'], ['0.00', '0.00']], '전제: 안 밀면 전부 0');
+    assert.deepEqual(g.paths, b.paths, `d 는 그대로 — 옮길 양만 따로 (구멍 ${hole} · 틈 ${gap})`);
+    assert.equal(g.mids[0], 45, '전제: 조각0 의 이등분각');
+    const want = [(50 * Math.sin(Math.PI / 4)).toFixed(2), (-50 * Math.cos(Math.PI / 4)).toFixed(2)];
+    assert.deepEqual(g.offsets, [want, ['0.00', '0.00'], ['0.00', '0.00']], '그 조각만 · R × 10 % = 50 을 이등분각 방향으로');
+    assert.deepEqual(want, ['35.36', '-35.36'], '눈으로 읽는 한 줄(1시 반 방향 = 오른쪽 위)');
+    assert.equal(g.extent, 50, 'viewBox 밖으로 나간 길이 = 민 길이');
+    assert.deepEqual(g.outer, b.outer, '바깥 반지름은 밀어내기와 무관');
+    assert.deepEqual(piePaths(V, hole, gap, { pull: [0, 0, 0] }), b, 'pull 0 = 미지정');
+    assert.deepEqual(piePaths(V, hole, gap, { pull: [] }), b);
+  }
+  /* 방향은 시작 각도를 따라 돈다 · 12시/6시 방향은 x 가 '0.00'(−0.00 이 아니다) */
+  assert.deepEqual(piePaths([1, 1], 0, 10, { pull: [10, 10] }).offsets, [['50.00', '0.00'], ['-50.00', '0.00']]);
+  assert.deepEqual(piePaths([1, 1], 0, 10, { pull: [10, 10], start: 90 }).offsets, [['0.00', '50.00'], ['0.00', '-50.00']]);
+  assert.doesNotMatch(JSON.stringify(piePaths([1, 1], 0, 10, { pull: [10, 10], start: 270 }).offsets), /-0\.00/);
+  /* 크기와 같이 주면 extent 는 더해진다(그 조각의 Ro + 민 길이) · 여럿이면 가장 먼 것 */
+  assert.equal(piePaths(V, 0, 10, { grow: [20], pull: [10] }).extent, 150);
+  assert.equal(piePaths(V, 0, 10, { grow: [20], pull: [0, 30] }).extent, 150, 'max(600, 500 + 150) − 500');
+  /* 안 미는 것들 — 온 원(방향이 없다) · 값 0 · 합 0 */
+  const one = piePaths([7], 0, 10, { pull: [30] });
+  assert.deepEqual(one.offsets, [['0.00', '0.00']]); assert.equal(one.extent, 0);
+  const z = piePaths([0, 3, 1], 0, 10, { pull: [30, 0, 0] });
+  assert.deepEqual(z.offsets[0], ['0.00', '0.00']); assert.equal(z.extent, 0);
+  assert.equal(piePaths([0, 0], 0, 10, { pull: [30, 30] }).extent, 0);
+  /* 험한 pull — 0 으로(음수·글자·NaN·Infinity) · 100 에서 잘린다 · 글자 수도 받는다 · NaN 0건 */
+  const none = piePaths(V, 0, 10).offsets;
+  for (const bad of [[-5], ['x'], [NaN], [null], [Infinity], 'nope', null, 7]) assert.deepEqual(piePaths(V, 0, 10, { pull: bad }).offsets, none, `험한 pull ${JSON.stringify(bad)}`);
+  assert.equal(piePaths(V, 0, 10, { pull: [999] }).extent, 500);
+  assert.deepEqual(piePaths(V, 0, 10, { pull: ['10'] }).offsets[0], ['35.36', '-35.36']);
+  const wild = piePaths([1e308, 1e308, 1, 1e17], 55, 40, { start: 77, grow: [30, 'x', 30], pull: [30, 30, 30, 30] });
+  assert.equal(wild.offsets.length, 4, '전제');
+  assert.doesNotMatch(JSON.stringify(wild.offsets) + wild.paths.join('|'), /NaN|Infinity|undefined/);
+  assert.deepEqual(wild.offsets[2], ['0.00', '0.00'], '각 폭이 0 으로 접힌 조각은 안 민다');
+});
+
+test('U16 순위 — 값 내림차순 · 동률은 같은 순위(다음은 건너뛴다) · 값 0·험한 값은 0(순위 없음)', () => {
+  assert.deepEqual(pieRanks([30, 20, 15, 15, 10, 10]), [1, 2, 3, 3, 5, 5]);
+  assert.deepEqual(pieRanks([10, 30, 20]), [3, 1, 2], '항목 순서와 무관 — 값으로');
+  assert.deepEqual(pieRanks([5, 5, 5]), [1, 1, 1]);
+  assert.deepEqual(pieRanks([0, 7, 0, 3]), [0, 1, 0, 2], '값 0 은 순위 없음 · 남은 것끼리 센다');
+  assert.deepEqual(pieRanks([-5, 10, NaN, 'abc', null, '30', Infinity]), [0, 2, 0, 0, 0, 1, 0], '가드는 piePaths 와 같다(글자 수는 수로)');
+  assert.deepEqual(pieRanks([]), []); assert.deepEqual(pieRanks(undefined), []); assert.deepEqual(pieRanks([0, 0]), [0, 0]);
+  assert.deepEqual(pieRanks([1e308, 1e308, 1]), [1, 1, 3], '넘치는 큰 값도 비율로');
+  const V = [3, 1, 2];
+  assert.deepEqual(pieRanks(V).map((r, i) => r > 0 === piePaths(V, 0, 10).shares[i] > 0), [true, true, true], '순위가 있는 것 = 그려지는 조각');
+});
+
+test('U17 조각 안 라벨 자리 — 도너츠는 고리 한가운데 · 원형은 PIE_TAG_AT % · 좁은 조각은 자동 숨김 · on/off 가 이긴다 · 크기·밀어내기를 따라간다', () => {
+  assert.equal(LIM.PIE_TAG_AT, 62); assert.equal(LIM.PIE_TAG_MIN_CHORD, 150); assert.equal(LIM.PIE_TAG_MIN_RADIAL, 150);
+  const near = (a, b, m) => assert.ok(Math.abs(a - b) < 1e-6, `${m}: ${a} ≈ ${b}`);
+  const rOf = (t) => Math.hypot(t.x - CENTER, t.y - CENTER);
+  /* 원형 — 반지름 = 500 × 62 % = 310 · 방향 = 이등분각 */
+  const V = [50, 30, 12, 5, 3];   // 각 폭 180 · 108 · 43.2 · 18 · 10.8
+  const pie = piePaths(V, 0, 10), pp = pieTagPlan(pie);
+  assert.equal(pp.length, 5, '전제: 라벨 수 = 조각 수');
+  pp.forEach((t, i) => near(rOf(t), RADIUS * LIM.PIE_TAG_AT / 100, `원형 조각 ${i} 의 라벨 반지름`));
+  near(pp[0].x, CENTER + 310, '조각0(0~180°)의 이등분각 90° = 3시'); near(pp[0].y, CENTER, '');
+  /* 자동 숨김 — 현 = 2 × 310 × sin(폭/2): 43.2° → 228(보임) · 18° → 97(숨김) · 10.8° → 58(숨김) */
+  assert.ok(2 * 310 * Math.sin(43.2 / 2 * Math.PI / 180) >= LIM.PIE_TAG_MIN_CHORD && 2 * 310 * Math.sin(18 / 2 * Math.PI / 180) < LIM.PIE_TAG_MIN_CHORD, '전제: 표본이 문턱 양쪽에 걸쳐 있다');
+  assert.deepEqual(pp.map(t => t.show), [true, true, true, false, false]);
+  /* on/off 가 자동을 이긴다 · 모르는 값은 자동 */
+  assert.deepEqual(pieTagPlan(pie, { tags: ['off', undefined, 'auto', 'on', null] }).map(t => t.show), [false, true, true, true, false]);
+  assert.deepEqual(pieTagPlan(pie, { tags: 'on' }).map(t => t.show), pp.map(t => t.show), '배열이 아니면 전부 자동');
+  /* 도너츠 — 고리 한가운데 (r + R) / 2 */
+  const dn = piePaths(V, 55, 10), dp = pieTagPlan(dn);
+  dp.forEach((t, i) => near(rOf(t), (275 + 500) / 2, `도너츠 조각 ${i}`));
+  assert.deepEqual(dp.map(t => t.show), [true, true, true, false, false], '387.5 × 2 × sin(9°) = 121 < 150');
+  /* 고리가 얇으면(구멍 80 → 두께 100 < 150) 자동은 전부 숨는다 · on 은 그래도 보인다 */
+  const thin = piePaths(V, 80, 10);
+  assert.deepEqual(pieTagPlan(thin).map(t => t.show), [false, false, false, false, false]);
+  assert.deepEqual(pieTagPlan(thin, { tags: ['on'] }).map(t => t.show), [true, false, false, false, false]);
+  /* 크기(C4) — 그 조각만 바깥으로: 원형 600 × 62 % · 도너츠 (275 + 600) / 2. 밀어내기(C5) — 옮긴 양만큼 더 */
+  near(rOf(pieTagPlan(piePaths(V, 0, 10, { grow: [0, 20] }))[1]), 600 * 0.62, '키운 원형 조각');
+  near(rOf(pieTagPlan(piePaths(V, 55, 10, { grow: [0, 20] }))[1]), (275 + 600) / 2, '키운 도너츠 조각');
+  near(rOf(pieTagPlan(piePaths(V, 0, 10, { grow: [0, 20] }))[0]), 310, '안 키운 조각은 그대로');
+  const pulled = piePaths(V, 0, 10, { pull: [20] }), pl = pieTagPlan(pulled);
+  assert.deepEqual(pulled.offsets[0], ['100.00', '0.00'], '전제: 조각0 을 3시 방향으로 100 밀었다');
+  near(pl[0].x, CENTER + 310 + 100, '민 조각의 라벨은 같이 간다'); near(pl[0].y, CENTER, '');
+  near(pl[1].x, pp[1].x, '안 민 조각은 제자리');
+  /* 시작 각도를 따라 돈다 */
+  near(pieTagPlan(piePaths(V, 0, 10, { start: 90 }))[0].y, CENTER + 310, 'start 90: 조각0 의 라벨은 6시');
+  /* 온 원 — 원형은 중심 · 도너츠는 고리 위 · 둘 다 보인다. 값 0·합 0 은 on 이어도 숨는다 */
+  const one = pieTagPlan(piePaths([7], 0, 10));
+  assert.deepEqual(one, [{ x: CENTER, y: CENTER, show: true }]);
+  const oneD = pieTagPlan(piePaths([7], 55, 10));
+  near(rOf(oneD[0]), 387.5, '온 원 도너츠'); assert.equal(oneD[0].show, true);
+  assert.deepEqual(pieTagPlan(piePaths([0, 4, 0], 0, 10), { tags: ['on', 'on', 'on'] }).map(t => t.show), [false, true, false]);
+  assert.deepEqual(pieTagPlan(piePaths([0, 0], 0, 10), { tags: ['on', 'on'] }).map(t => t.show), [false, false]);
+  assert.deepEqual(pieTagPlan(piePaths([], 0, 10)), []);
+  /* 험한 입력 — 안 죽고 · 수는 전부 유한 */
+  for (const bad of [null, undefined, {}, { shares: [0.5, 0.5] }, 7]) assert.ok(pieTagPlan(bad).every(t => Number.isFinite(t.x) && Number.isFinite(t.y) && typeof t.show === 'boolean'), `험한 geo ${JSON.stringify(bad)}`);
+  const wild = pieTagPlan(piePaths([1e308, 1e308, 1, 1e17, 'x'], 55, 40, { start: 77, grow: [30, 'x'], pull: [30, 30, 30, 30] }), { tags: ['on', 'on', 'on', 'on', 'on'] });
+  assert.equal(wild.length, 5, '전제');
+  assert.ok(wild.every(t => Number.isFinite(t.x) && Number.isFinite(t.y)));
+  assert.deepEqual(wild.map(t => t.show), [true, true, false, false, false], '각 폭이 0 으로 접힌 조각(셋째·넷째) · 값 없는 조각은 on 이어도 숨는다');
+});
+
+test('U18 조각 안 라벨이 쓸 수 있는 사각형(1013t1C3 고침) — 낸 사각형은 귀 넷이 그 조각 안 · 조금만 키워도 안 든다 · 구멍·이웃 조각·바깥으로 안 나간다 · 값 0 조각은 0', () => {
+  assert.equal(typeof LIM.PIE_TAG_PAD, 'number'); assert.ok(LIM.PIE_TAG_PAD >= 0, '여백 한도가 graph-limits 에 있다');
+  /* 독립 판정 — 점이 i 번 조각의 «그려진» 넓이 안인가(극좌표 · 틈의 절반은 변에서의 수직 거리로) */
+  const inSlice = (geo, i, x, y) => {
+    const dx = +geo.offsets[i][0], dy = +geo.offsets[i][1], qx = x - CENTER - dx, qy = y - CENTER - dy;
+    const rho = Math.hypot(qx, qy), r = RADIUS * geo.hole / 100;
+    if (rho > geo.outer[i] || rho < r) return false;
+    if (geo.shares[i] >= 0.9999) return true;
+    const [a0, a1] = geo.angles[i], rad = Math.PI / 180;
+    const d0 = qx * Math.cos(a0 * rad) + qy * Math.sin(a0 * rad), d1 = -(qx * Math.cos(a1 * rad) + qy * Math.sin(a1 * rad));
+    return (a1 - a0) > 180 ? (d0 >= geo.gap / 2 || d1 >= geo.gap / 2) : (d0 >= geo.gap / 2 && d1 >= geo.gap / 2);
+  };
+  const cases = [
+    [[60, 10, 22, 3, 3, 2], 38, 4, { start: 295, grow: [30] }],
+    [[30, 20, 15, 15, 10, 10], 0, 10, {}],
+    [[30, 20, 15, 15, 10, 10], 55, 40, { start: 77, grow: [30, 0, 10], pull: [0, 0, 15, 0, 30] }],
+    [[70, 20, 10], 0, 10, {}],
+    [[70, 20, 10], 80, 0, {}],
+  ];
+  let seen = 0;
+  for (const [vals, hole, gap, opts] of cases) {
+    const geo = piePaths(vals, hole, gap, opts), plan = pieTagPlan(geo), room = pieTagRoom(geo);
+    assert.equal(room.length, vals.length, '전제: 조각마다 하나');
+    room.forEach((rm, i) => {
+      assert.ok(rm.boxes.length >= 3, '전제: 가로세로비 후보가 여럿');
+      assert.ok(rm.best >= 0 && rm.best < rm.boxes.length);
+      assert.ok(rm.boxes.every(b => b.w * b.h <= rm.boxes[rm.best].w * rm.boxes[rm.best].h), 'best = 가장 넓은 것');
+      rm.boxes.forEach((b) => {
+        assert.ok(Number.isFinite(b.w) && Number.isFinite(b.h) && b.w >= 0 && b.h >= 0);
+        if (!(b.w > 0)) return;
+        seen++;
+        assert.equal(rm.fits(b.w, b.h), true, '낸 사각형은 든다');
+        assert.equal(rm.fits(b.w * 1.05 + 1, b.h * 1.05 + 1), false, '조금만 키워도 안 든다(가장 큰 것이다)');
+        for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]])
+          assert.equal(inSlice(geo, i, plan[i].x + sx * b.w / 2, plan[i].y + sy * b.h / 2), true, `사각형의 귀·변 가운데가 조각 ${i} 안(${JSON.stringify([vals, hole, gap, opts])})`);
+        for (let k = 0; k < vals.length; k++) if (k !== i)
+          for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) assert.equal(inSlice(geo, k, plan[i].x + sx * b.w / 2, plan[i].y + sy * b.h / 2), false, '다른 조각 위에는 안 걸친다');
+      });
+    });
+  }
+  assert.ok(seen >= 60, `전제: 사각형을 실제로 견줬다(${seen})`);
+  /* 넓적한 후보일수록 폭이 넓다(그리는 쪽이 줄바꿈이 적은 것부터 써 본다) */
+  const big = pieTagRoom(piePaths([1, 1], 0, 10))[0].boxes;
+  assert.ok(big[0].w / big[0].h > big[big.length - 1].w / big[big.length - 1].h);
+  /* 온 원 원형 — 자리가 중심이라 원에 내접한다 · 값 0 조각 · 빈 입력 */
+  const full = pieTagRoom(piePaths([5], 0, 10))[0];
+  assert.equal(full.fits(600, 600), true); assert.equal(full.fits(720, 720), false, '정사각 한 변 > R√2 는 원을 넘는다');
+  const z = pieTagRoom(piePaths([0, 3, 1], 0, 10));
+  assert.deepEqual(z[0].boxes.map(b => [b.w, b.h]), z[0].boxes.map(() => [0, 0]), '값 0 조각은 자리가 없다'); assert.equal(z[0].fits(1, 1), false);
+  assert.deepEqual(pieTagRoom(null), []); assert.deepEqual(pieTagRoom(piePaths([], 0)), []);
+  /* 험한 입력 — 수가 전부 유한 */
+  const wild = pieTagRoom(piePaths([1e308, 1e308, 1, 1e17, 'x'], 55, 40, { start: 77, grow: [30, 'x'], pull: [30, 30, 30, 30] }));
+  assert.equal(wild.length, 5, '전제'); assert.ok(wild.every(rm => rm.boxes.every(b => Number.isFinite(b.w) && Number.isFinite(b.h))));
+  assert.equal(wild[0].fits(NaN, 10), false); assert.equal(wild[0].fits(-5, 10), false);
+});
+
+test('U19 조각 안 라벨이 써 보는 글자 크기(1013t1C3 고침 2) — 첫 값 = 라벨 크기 · 내림차순 정수 · 안 키운다 · LABEL_SIZE_MIN 밑으로 안 내려간다 · 험한 입력', () => {
+  assert.equal(LIM.LABEL_SIZE_MIN, 8, '그래프 라벨 글자 크기 칸의 아래 끝(패널 min · updateGraphBlock 과 같은 값)');
+  assert.ok(Array.isArray(LIM.PIE_TAG_FONT_STEPS) && LIM.PIE_TAG_FONT_STEPS.length >= 1, '전제: 줄이는 단계가 graph-limits 에 있다');
+  assert.ok(LIM.PIE_TAG_FONT_STEPS.every((q, i, a) => q > 0 && q < 1 && (i === 0 || q < a[i - 1])), '단계는 전부 1 미만(키우는 단계 없음) · 큰 것부터');
+  assert.equal(LIM.PIE_TAG_NAME_LINES, 2, '이름 줄 수의 위 끝');
+  assert.deepEqual(pieTagFontSizes(LIM.LABEL_SIZE_DEFAULT), [LIM.LABEL_SIZE_DEFAULT, ...LIM.PIE_TAG_FONT_STEPS.map(q => Math.max(LIM.LABEL_SIZE_MIN, Math.round(LIM.LABEL_SIZE_DEFAULT * q)))], '기본 라벨 크기 — 단계마다 하나');
+  assert.deepEqual(pieTagFontSizes(20), [20, 17, 14, 11, 8]);
+  for (const base of [8, 9, 10, 13, 20, 28, 40, 400]) {
+    const s = pieTagFontSizes(base);
+    assert.equal(s[0], base, `첫 값 = 라벨 크기(${base})`);
+    assert.ok(s.every(v => Number.isInteger(v) && v <= base && v >= Math.min(base, LIM.LABEL_SIZE_MIN)), `안 키우고 최소 밑으로 안 간다(${base}: ${s})`);
+    assert.ok(s.every((v, i) => i === 0 || v < s[i - 1]), `내림차순 · 중복 없음(${base}: ${s})`);
+  }
+  assert.deepEqual(pieTagFontSizes(LIM.LABEL_SIZE_MIN), [LIM.LABEL_SIZE_MIN], '이미 최소면 단계 하나');
+  assert.deepEqual(pieTagFontSizes(9), [9, 8], '최소에서 접힌 단계는 한 번만');
+  assert.deepEqual(pieTagFontSizes(6), [6], '라벨 크기가 최소보다 작으면 그대로 하나(더 줄이지 않는다)');
+  for (const bad of [NaN, 0, -5, 'abc', null, undefined, Infinity]) assert.deepEqual(pieTagFontSizes(bad), pieTagFontSizes(LIM.LABEL_SIZE_DEFAULT), `험한 라벨 크기 ${bad} → 기본`);
+  assert.deepEqual(pieTagFontSizes('20'), pieTagFontSizes(20), '글자 수는 수로');
+});
+
+/* 1013t1C3 검사 칸 메우기 — U18 은 «조각 안인가»만 본다(여백 0 이어도 초록). 이 칸은 여백 PIE_TAG_PAD 자체를 잰다: 낸 사각형의 둘레가 조각 가장자리(바깥 호 · 구멍 · 두 변)에서
+   여백 이상 떨어져 있고, 여백보다 «덜» 떨어지게 키운 사각형(맨 조각 안에는 아직 든다)은 fits 가 거절한다. 거리는 이 파일이 따로 센다(pieTagRoom 의 식을 안 부른다). */
+test('U20 라벨 여백 PIE_TAG_PAD(1013t1C3) — 0 이 아니다 · 낸 사각형은 조각 가장자리에서 여백 이상 떨어진다 · 여백 안쪽까지만 든다(온 원 · 4분 조각의 닫힌 식) · 여백보다 가까이 닿으면 맨 조각 안이어도 안 든다', () => {
+  const PAD = LIM.PIE_TAG_PAD;
+  assert.ok(Number.isFinite(PAD) && PAD > 0, `여백 한도가 0 이 아니다(${PAD}) — 0 이면 라벨이 조각 변·틈에 닿는다`);
+  assert.ok(PAD < LIM.PIE_TAG_MIN_RADIAL / 2, '전제: 여백이 자동 숨김 문턱(고리 두께)의 절반보다 작다 — 보이는 조각에 자리가 남는다');
+  /* 점 (x, y) 에서 i 번 조각의 «그려진» 가장자리까지 남은 거리(음수 = 밖) — 바깥 호 · 구멍 · 두 변(틈의 절반을 뺀 수직 거리) */
+  const margin = (geo, i, x, y) => {
+    const qx = x - CENTER - (+geo.offsets[i][0]), qy = y - CENTER - (+geo.offsets[i][1]);
+    const rho = Math.hypot(qx, qy), r = RADIUS * geo.hole / 100, rad = Math.PI / 180;
+    const out = { outer: geo.outer[i] - rho, hole: r > 0 ? rho - r : Infinity, side: Infinity };
+    if (geo.shares[i] < 0.9999) {
+      const [a0, a1] = geo.angles[i];
+      const d0 = qx * Math.cos(a0 * rad) + qy * Math.sin(a0 * rad) - geo.gap / 2, d1 = -(qx * Math.cos(a1 * rad) + qy * Math.sin(a1 * rad)) - geo.gap / 2;
+      out.side = (a1 - a0) > 180 ? Math.max(d0, d1) : Math.min(d0, d1);
+    }
+    return out;
+  };
+  const ring = (w, h) => { const o = []; for (let k = 0; k <= 12; k++) { const t = k / 12 - 0.5; o.push([t * w, -h / 2], [t * w, h / 2], [-w / 2, t * h], [w / 2, t * h]); } return o; };   // 사각형 둘레의 점들(귀 + 변 위)
+  const least = (geo, i, cx, cy, w, h) => { const m = { outer: Infinity, hole: Infinity, side: Infinity };
+    for (const [ox, oy] of ring(w, h)) { const p = margin(geo, i, cx + ox, cy + oy); for (const k of Object.keys(m)) m[k] = Math.min(m[k], p[k]); } return m; };
+  const cases = [
+    [[60, 10, 22, 3, 3, 2], 38, 4, { start: 295, grow: [30] }],
+    [[30, 20, 15, 15, 10, 10], 0, 10, {}],
+    [[30, 20, 15, 15, 10, 10], 55, 40, { start: 77, grow: [30, 0, 10], pull: [0, 0, 15, 0, 30] }],
+    [[70, 20, 10], 0, 10, {}],
+    [[70, 20, 10], 80, 0, {}],
+  ];
+  const EPS = 1e-6, tight = { outer: Infinity, hole: Infinity, side: Infinity };
+  let seen = 0;
+  for (const [vals, hole, gap, opts] of cases) {
+    const geo = piePaths(vals, hole, gap, opts), plan = pieTagPlan(geo), room = pieTagRoom(geo);
+    assert.equal(room.length, vals.length, '전제: 조각마다 하나');
+    room.forEach((rm, i) => rm.boxes.forEach((b) => {
+      if (!(b.w > 0)) return;
+      seen++;
+      const what = `조각 ${i} · ${b.w}×${b.h} (${JSON.stringify([vals, hole, gap, opts])})`;
+      const m = least(geo, i, plan[i].x, plan[i].y, b.w, b.h);
+      for (const k of Object.keys(m)) { assert.ok(m[k] >= PAD - EPS, `낸 사각형의 둘레가 ${k} 가장자리에서 여백(${PAD}) 이상 떨어진다 — ${m[k]} · ${what}`); tight[k] = Math.min(tight[k], m[k]); }
+      /* 폭·높이를 여백만큼 키운다 = 변마다 여백의 절반씩 밖으로(귀는 여백 × 0.71) ⇒ 맨 조각 안에는 아직 들지만 가장자리까지는 여백보다 가깝다 */
+      const g = least(geo, i, plan[i].x, plan[i].y, b.w + PAD, b.h + PAD), gMin = Math.min(g.outer, g.hole, g.side);
+      assert.ok(gMin > 0 && gMin < PAD, `전제: 키운 사각형은 맨 조각 안이면서(> 0) 여백보다 가깝다(< ${PAD}) — ${gMin} · ${what}`);
+      assert.equal(rm.fits(b.w + PAD, b.h + PAD), false, `여백보다 가까이 닿는 사각형은 안 든다 — ${what}`);
+    }));
+  }
+  assert.ok(seen >= 60, `전제: 사각형을 실제로 견줬다(${seen})`);
+  for (const k of Object.keys(tight)) assert.ok(tight[k] < PAD + 1, `전제: ${k} 가장자리에 여백까지 바짝 붙은 사각형이 표본에 있다(가장 가까운 것 ${tight[k]}) — 세 가장자리 모두 여백이 «묶는» 조건이다`);
+  /* 닫힌 식 ① 온 원 원형(자리 = 중심): 정사각의 귀가 바깥 호에서 여백만큼 — 한 변 = √2 × (R − 여백) */
+  const full = pieTagRoom(piePaths([5], 0, 10))[0], s = Math.SQRT2 * (RADIUS - PAD);
+  assert.equal(full.fits(s - 0.01, s - 0.01), true, '바깥 호에서 여백만큼 들어온 정사각은 든다');
+  assert.equal(full.fits(s + 0.01, s + 0.01), false, '여백을 조금이라도 먹으면 안 든다');
+  const half = Math.SQRT2 * (RADIUS - PAD / 2);
+  assert.ok(half / Math.SQRT2 < RADIUS, '전제: 귀가 아직 원 안(반지름 R 미만)');
+  assert.equal(full.fits(half, half), false, '원 안이어도 바깥 호에서 여백의 절반까지 다가간 정사각은 안 든다');
+  /* 닫힌 식 ② 4분 조각(값 넷이 같다 · 틈 0 · 구멍 0 — 0°~90°): 두 변이 축이라 변까지의 거리 = 자리의 좌표 − 사각형의 반 폭(반 높이) */
+  const q = piePaths([1, 1, 1, 1], 0, 0), qp = pieTagPlan(q)[0], qr = pieTagRoom(q)[0];
+  assert.deepEqual([q.gap, q.angles[0][0], q.angles[0][1]], [0, 0, 90], '전제: 틈 0 · 첫 조각은 0°~90°');
+  const ax = qp.x - CENTER, ay = CENTER - qp.y, thin = 10;
+  assert.ok(ax > PAD * 4 && ay > PAD * 4, '전제: 자리가 두 변에서 여백보다 훨씬 멀다');
+  assert.ok(Math.hypot(ax + ax, thin / 2) < RADIUS - PAD && Math.hypot(thin / 2, ay + ay) < RADIUS - PAD, '전제: 아래 사각형들은 바깥 호에 안 닿는다(변만 묶는다)');
+  assert.equal(qr.fits(2 * (ax - PAD) - 0.01, thin), true, '시작 변에서 여백만큼 떨어진 사각형은 든다');
+  assert.equal(qr.fits(2 * (ax - PAD) + 0.01, thin), false, '시작 변 쪽 여백을 먹으면 안 든다');
+  assert.equal(qr.fits(2 * (ax - PAD / 2), thin), false, '조각 안이어도 시작 변에서 여백의 절반까지 다가가면 안 든다');
+  assert.equal(qr.fits(thin, 2 * (ay - PAD) - 0.01), true, '끝 변에서 여백만큼 떨어진 사각형은 든다');
+  assert.equal(qr.fits(thin, 2 * (ay - PAD) + 0.01), false, '끝 변 쪽 여백을 먹으면 안 든다');
+  assert.equal(qr.fits(thin, 2 * (ay - PAD / 2)), false, '조각 안이어도 끝 변에서 여백의 절반까지 다가가면 안 든다');
 });

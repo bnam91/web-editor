@@ -297,3 +297,38 @@ test('U12 테이프 자리 표는 «자기 키»만 본다 — constructor · to
   M2.renderModalBlock(ok);
   assert.ok(ok.innerHTML.includes('class="mdl-deco-tape" data-side="center"'), '★전제: 바른 값이면 테이프가 그려진다');
 });
+
+/* 1013t2 D1 · D2(현빈 2026-10-14) — 스타일 표의 «프레임 기본 배경». 행동(computed 색 · 진짜 클릭)은 tests/dom/buzz-frame.dom.spec.js BZ-23~28 이 잰다.
+   ⇐ 깨뜨리면: BUZZ_PILL_BG.solid 를 '#a79c91'(옛 그라데이션의 가운데 색 · 대비 2.00)로 · card 의 frameBg 를 '#f3f1ee' 로 · gradient 줄을 지운다 */
+test('U13 1013t2 D1·D2 — 프레임 기본 배경: 알약만 솔리드(알약 합성 뒤 흰 글자 대비 ≥ 3.0) · 나머지 5종 투명 · 그라데이션은 프리셋으로 남는다', () => {
+  const code = stripCommentsTA(FRAME_SRC);
+  const bgs = [...code.matchAll(/^\s*(\w+): \{ label: '[^']+', frameBg: ([^,]+),/gm)].map((m) => [m[1], m[2].trim()]);
+  assert.deepEqual(bgs, [['card', "'transparent'"], ['pill', 'BUZZ_PILL_BG.solid'], ['bubble', "'transparent'"], ['tail', "'transparent'"], ['tape', "'transparent'"], ['strip', "'transparent'"]],
+    '스타일 6종의 frameBg — 알약만 솔리드 프리셋 · 나머지는 투명');
+  const P = /BUZZ_PILL_BG = \{\s*solid: '(#[0-9a-fA-F]{6})',\s*gradient: '([^']+)',?\s*\}/.exec(code);
+  assert.ok(P, '★전제: BUZZ_PILL_BG 가 { solid, gradient } 꼴이다');
+  assert.equal(P[2], 'linear-gradient(165deg,#b8ada0,#a79c91 55%,#9f948a)', '옛 기본 그라데이션이 프리셋으로 그대로 남아 있다');
+  const pill = code.slice(code.indexOf('  pill: {'), code.indexOf('  bubble: {'));
+  assert.ok(pill.includes('frameBgPresets: BUZZ_PILL_BG'), '알약 스타일이 프리셋 묶음을 가리킨다');
+  const fill = /bg: 'rgba\((\d+),(\d+),(\d+),([\d.]+)\)'/.exec(pill), ink = /textColor: '#([0-9a-fA-F]{6})'/.exec(pill);
+  assert.ok(fill && ink, '★전제: 알약 낱개의 채움(rgba)과 글자색(hex)을 표에서 읽었다');
+  /* WCAG 2.x — 프레임 솔리드 위에 알약 채움을 알파로 얹은 색 ↔ 글자색 */
+  const hex = (h) => [0, 2, 4].map((i) => parseInt(h.replace('#', '').slice(i, i + 2), 16));
+  const lum = (c) => { const f = (v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+  const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+  const a = Number(fill[4]), base = hex(P[1]);
+  assert.ok(a > 0 && a < 1, '★전제: 알약 채움이 반투명이다');
+  const under = [1, 2, 3].map((i, k) => Number(fill[i]) * a + base[k] * (1 - a));
+  const got = ratio(hex(ink[1]), under);
+  assert.ok(got >= 3.0, `알약 합성 뒤 글자 대비 ${got.toFixed(3)} < 3.0 (프레임 ${P[1]} · 채움 흰 ${a} · 글자 #${ink[1]})`);
+  /* 양성대조 — 이 산수가 옛 그라데이션 가운데 색에서는 3.0 아래를 낸다(자가 무디지 않다) */
+  const old = hex('#a79c91');
+  assert.ok(ratio(hex(ink[1]), [1, 2, 3].map((i, k) => Number(fill[i]) * a + old[k] * (1 - a))) < 3.0, '★전제: 같은 산수가 #a79c91 에서는 3.0 아래다');
+  /* 패널 — 프리셋 묶음이 Buzz 절에 배선돼 있다 */
+  const panel = stripCommentsTA(PANEL_SRC);
+  assert.ok(panel.includes("_group('bzf-bg'") && panel.includes("group('bzf-bg'") && panel.includes('frameBgPresets'), 'Buzz 절에 「배경」 프리셋 묶음(#bzf-bg)의 마크업 · 배선이 있다');
+  /* 삽입 — 새 버즈는 「패딩 제외」를 켠 채로(D1) */
+  const ins = code.slice(code.indexOf('\nfunction addBuzzBlock('));
+  assert.ok(/frame\.dataset\.fullBleed = 'true';\s*applyBlockFullBleed\(frame\);/.test(ins), '삽입이 패딩 제외를 켜고 폭을 건다');
+  assert.ok(ins.indexOf('applyBlockFullBleed(frame)') < ins.indexOf('applyBuzzStyle(frame, style)'), '폭을 «먼저» 걸고 말풍선을 놓는다(놓는 폭 = 프레임 폭)');
+});

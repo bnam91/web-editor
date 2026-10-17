@@ -812,6 +812,8 @@ let _assetResizeBlock = null;
 let _assetResizeRafId = null;
 
 function showAssetResizeHandles(ab) {
+  /* ★1013t2A2 — 콜라보 켠 로고는 폭이 «칸 수»로 정해진다(모서리로 폭을 끌면 칸이 어긋난다) ⇒ 크기 핸들을 안 단다. 높이는 패널. */
+  if (ab?.dataset?.collab) { hideAssetResizeHandles(); return; }
   if (_assetResizeBlock === ab) return;
   hideAssetResizeHandles();
   _assetResizeBlock = ab;

@@ -92,6 +92,7 @@ const SHAPE_LABEL = {
   circle: { s: '원',   t: '원' },
   star4:  { s: '별',   t: '4갈래 별' },
   tri:    { s: '삼각', t: '삼각' },
+  coin:   { s: '코인', t: '3D 코인' },      /* 1012t1 I1-B — 그림은 CoinFx(js/fx/coin-draw.js) */
 };
 
 /* ★분포 글 — ★★시안 `:302~304` ★그대로. ★키는 ★`ParticlesFx.DISTS` 에서 읽는다. */
@@ -324,6 +325,11 @@ export function secParticlesHTML(sec) {
                     title="${escHtml((P.PRESETS?.[k]?.label) || k)}">${
                     escHtml((P.PRESETS?.[k]?.label) || k)}</button>`).join('')}
           </div>
+          ${typeof window.applyCoinParticleRecipe !== 'function' ? '' : `
+          <div class="prop-align-group" style="margin-bottom:6px">
+            <button class="prop-align-btn" id="sec-fxpart-recipe" data-fxpart-recipe="coin"
+                    title="코인 레시피 — 모양·갯수·크기·색을 3D 코인 묶음으로 바꿉니다(무늬번호는 그대로)">코인 레시피</button>
+          </div>`}
           <button class="prop-action-btn" id="sec-fxpart-reroll" style="margin-bottom:6px;"
                   title="모양만 새로 뿌린다(설정은 그대로)">🎲 다시 뿌리기</button>
           <div class="prop-row">
@@ -420,6 +426,15 @@ export function wireSecParticles(sec, rerender) {
       window.writeParticles(sec.dataset, { preset: k, seed: cur().seed });
       draw(); again();
     });
+  });
+
+  /* ★코인 레시피(1012t1 I1-B) — 값·쓰기·그리기·기록은 입구(js/coin-particle-recipe.js) 한 자리가 한다.
+     ⛔프리셋 단추가 아니다(프리셋 명부는 그대로) — 그래서 data-fxpart-preset 을 달지 않았다.
+     ★꼴은 바로 위 프리셋 칩과 같은 `.prop-align-btn`(현빈 1013t2E3 「코인레시피의 경우 버튼의 유형이 달라보이니 디자인 일관성」 —
+       프로토는 `.prop-action-btn secondary` 라 칩 넷 아래에서 다른 꼴로 보였다). */
+  $('sec-fxpart-recipe')?.addEventListener('click', () => {
+    window.applyCoinParticleRecipe?.(sec);
+    again();
   });
 
   /* ★다시 뿌리기 — ★seed 만 새로. ★선례 prop-sticker-glow.js:109 */

@@ -15,6 +15,10 @@ import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          starScaleList, starScalesAttr, clampStarScale,
          STAR_SCALE_MIN, STAR_SCALE_MAX, STAR_SCALE_DEFAULT } from '../shape-star.js';
 import { starSelectedIndex, starModeBlock, exitStarMode } from '../star-select.js';
+import { clampEllipseCount, ELLIPSE_COUNT_MIN, ELLIPSE_COUNT_MAX,
+         clampEllipseGap, ELLIPSE_GAP_MIN, ELLIPSE_GAP_MAX, ELLIPSE_GAP_DEFAULT,
+         ellipseFrameWidthFor, ellipseColorList, ellipseColorsAttr,
+         clampEllipseShadow, ELLIPSE_SHADOW_MIN, ELLIPSE_SHADOW_MAX, ELLIPSE_SHADOW_ON_DEFAULT } from '../shape-ellipse.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
@@ -111,7 +115,14 @@ export function showShapeProperties(block) {
   // 가림막(redact) — 얼굴/주민번호 등 밑에 깔린 콘텐츠를 backdrop-filter로 흐리는 모드.
   // rect/ellipse만 지원: backdrop-filter는 요소의 border-box(+border-radius)로만 클립되어
   // polygon/star/line/arrow처럼 실제 윤곽이 사각형이 아닌 도형엔 시각적으로 안 맞는다.
-  const canRedact   = shapeType === 'rectangle' || shapeType === 'ellipse';
+  /* ★1013t2A1 원 «갯수·간격·원마다 색·이너 그림자» — 상태는 dataset, 그리개는 refreshShapeInnerSVG 하나. */
+  const isEllipse   = shapeType === 'ellipse';
+  const ellCount    = isEllipse ? clampEllipseCount(block.dataset.ellipseCount) : 1;   // 키 없음 = 1 = 옛 원
+  const ellGap      = clampEllipseGap(block.dataset.ellipseGap);                        // 키 없음 = 기본 20
+  const ellShadow   = isEllipse ? clampEllipseShadow(block.dataset.ellipseShadow) : null; // null = 꺼짐
+  const ellColors   = ellipseColorList(block.dataset.ellipseColors, ellCount) || [];
+  /* 가림막은 «상자 하나»를 border-radius 50% 로 자른다 ⇒ 원이 여러 개면 모양이 안 맞는다 → 원 1개일 때만. */
+  const canRedact   = shapeType === 'rectangle' || (isEllipse && ellCount === 1);
   const isRedact    = canRedact && block.dataset.shapeRedact === 'true';
   const redactBlur  = parseInt(block.dataset.shapeRedactBlur || '8');
   // 모드: 'blur'(기본, backdrop-filter 실시간) | 'mosaic'(스냅샷 픽셀화, js/effects/redact-mosaic.js)
@@ -199,6 +210,28 @@ ${blockHeaderHTML({
         <span class="prop-label">색상</span>
         ${colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha, gradientCss })}
       </div>
+      ${isEllipse ? `<div id="shape-ellipse-fx" style="${isRedact ? 'display:none' : ''}">
+        ${ellCount > 1 ? `<!-- 1013t2A1 원마다 색 — 꼴은 바로 위 「색상」 줄(prop-color-row + colorFieldHTML)과 같다. 빈 칸 = 블록 색을 따른다. -->
+        ${Array.from({ length: ellCount }, (_, i) => `<div class="prop-color-row" id="shape-ellipse-c${i}-row" style="margin-top:8px;">
+          <span class="prop-label">${i + 1}번 원</span>
+          ${colorFieldHTML({ idPrefix: 'shape-ellipse-c' + i, hex: ellColors[i] || (/gradient/.test(rawColor) ? color : rawColor) })}
+        </div>`).join('')}
+        <div class="prop-row" style="margin-top:8px;">
+          <button type="button" class="prop-btn" id="shape-ellipse-colors-reset" style="width:100%;">개별 색 지우기</button>
+        </div>` : ''}
+        <div class="prop-row" style="margin-top:8px;">
+          <span class="prop-label prop-label--auto">이너 그림자</span>
+          <label class="prop-toggle">
+            <input type="checkbox" id="shape-ellipse-shadow-toggle" ${ellShadow !== null ? 'checked' : ''}>
+            <span class="prop-toggle-track"></span>
+          </label>
+        </div>
+        ${ellShadow !== null ? `<div class="prop-row">
+          <span class="prop-label">세기</span>
+          <input type="range" class="prop-slider" id="shape-ellipse-shadow-slider" min="${ELLIPSE_SHADOW_MIN}" max="${ELLIPSE_SHADOW_MAX}" step="1" value="${ellShadow}">
+          <input type="number" class="prop-number" id="shape-ellipse-shadow-num" min="${ELLIPSE_SHADOW_MIN}" max="${ELLIPSE_SHADOW_MAX}" value="${ellShadow}">
+        </div>` : ''}
+      </div>` : ''}
       <div class="prop-color-row" style="margin-top:${isRedact ? '0' : '8px'};">
         <span class="prop-label">외곽선</span>
         ${colorFieldHTML({ idPrefix: 'shape-stroke-color', hex: strokeColor, alpha: strokeColorAlpha })}
@@ -225,6 +258,19 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="shape-h-slider" min="10" max="860" step="1" value="${h}">
         <input type="number" class="prop-number" id="shape-h-num" min="10" max="860" value="${h}">
       </div>
+      ${isEllipse ? `<!-- 1013t2A1 원 «갯수»·«간격» — 별의 「갯수」·「간격」과 같은 slider+number 쌍·같은 범위(1~10).
+           갯수를 늘리면 블록이 옆으로 넓어진다(원 크기 유지). 간격 줄은 갯수>1 일 때만. -->
+      <div class="prop-row">
+        <span class="prop-label">갯수</span>
+        <input type="range" class="prop-slider" id="shape-ellipse-count-slider" min="${ELLIPSE_COUNT_MIN}" max="${ELLIPSE_COUNT_MAX}" step="1" value="${ellCount}"${isRedact ? ' disabled' : ''}>
+        <input type="number" class="prop-number" id="shape-ellipse-count-num" min="${ELLIPSE_COUNT_MIN}" max="${ELLIPSE_COUNT_MAX}" value="${ellCount}"${isRedact ? ' disabled' : ''}>
+      </div>
+      ${isRedact ? `<div class="prop-hint" id="shape-ellipse-count-hint" style="margin-top:4px;">가림막이 켜져 있으면 원은 1개만 쓸 수 있습니다.</div>` : ''}
+      ${ellCount > 1 ? `<div class="prop-row">
+        <span class="prop-label">간격</span>
+        <input type="range" class="prop-slider" id="shape-ellipse-gap-slider" min="${ELLIPSE_GAP_MIN}" max="${ELLIPSE_GAP_MAX}" step="1" value="${ellGap}">
+        <input type="number" class="prop-number" id="shape-ellipse-gap-num" min="${ELLIPSE_GAP_MIN}" max="${ELLIPSE_GAP_MAX}" value="${ellGap}">
+      </div>` : ''}` : ''}
       ${shapeType === 'star' ? `<div class="prop-row">
         <span class="prop-label">꼭짓점</span>
         <input type="range" class="prop-slider" id="shape-star-slider" min="${STAR_MIN}" max="${STAR_MAX}" step="1" value="${starN}">
@@ -437,6 +483,8 @@ ${blockHeaderHTML({
       applyRedact(on, redactBlur, redactMode);
       const fillRow = document.getElementById('shape-fill-row');
       if (fillRow) fillRow.style.display = on ? 'none' : '';
+      const ellFx = document.getElementById('shape-ellipse-fx');
+      if (ellFx) ellFx.style.display = on ? 'none' : '';
       const controls = document.getElementById('shape-redact-controls');
       if (controls) controls.style.display = on ? '' : 'none';
       window.pushHistory?.();
@@ -583,9 +631,11 @@ ${blockHeaderHTML({
          ⛔「조용히 첫 별 하나만 칠한다」가 더 나쁘다 ⇒ 탭을 닫고 ★까닭을 화면에 적는다.
          ★기존 부품을 쓴다 — cpModes/cpModesNote 가 그 일을 하는 자리다(color-picker.js _applyModeGate,
            선례 prop-text-wireup-text-edit.js:283). 새 UI 언어 0. */
-      const hasFace = !!SHAPE_FACE_TYPES[shapeType] && !(shapeType === 'star' && starCount > 1);
+      const hasFace = !!SHAPE_FACE_TYPES[shapeType] && !(shapeType === 'star' && starCount > 1)
+        && !(isEllipse && ellCount > 1);   // 1013t2A1 — 원 여러 개도 clip 하나로는 못 자른다(별과 같은 까닭)
       inp.dataset.cpModes = hasFace ? 'solid,gradient,image' : 'solid,gradient';
       if (shapeType === 'star' && starCount > 1) inp.dataset.cpModesNote = '별이 여러 개면 이미지 채우기를 쓸 수 없습니다.';
+      else if (isEllipse && ellCount > 1) inp.dataset.cpModesNote = '원이 여러 개면 이미지 채우기를 쓸 수 없습니다.';
       else delete inp.dataset.cpModesNote;
       // 패널을 다시 그리면 native input 이 새로 만들어져 시드가 사라진다 → 블럭 dataset 에서 다시 채운다
       if (block.dataset.shapeGradient) inp.dataset.cpGradient = block.dataset.shapeGradient;
@@ -1001,6 +1051,121 @@ ${blockHeaderHTML({
     });
   }
 
+  /* ── 원 «갯수·간격·원마다 색·이너 그림자» (1013t2A1) ──
+   * ★배선 꼴은 위 별과 같다: dataset 쓰기 → refreshShapeInnerSVG(★유일한 그리개) → 폭이면 applySize.
+   *   input = 적용, change = pushHistory. 키는 기본값이면 지운다(옛 저장본 바이트 보존). */
+  if (isEllipse) {
+    const _ellRedraw = () => window.refreshShapeInnerSVG?.(block);
+    /* 원 하나의 비를 지키는 폭 — 식은 ellipseFrameWidthFor 하나. ⚠️dataset 쓰기 «전»에 부른다(prev 를 거기서 읽는다). */
+    const _ellWantW = (nextC, nextG) => {
+      const curW = _shapeFrameSize(ss || block, 'w');
+      const raw = ellipseFrameWidthFor(curW, block.dataset.ellipseCount, block.dataset.ellipseGap, nextC, nextG);
+      if (raw === null) return null;
+      return { curW, wantW: Math.max(10, Math.min(860, Math.round(raw))) };
+    };
+    const ellCSlider = document.getElementById('shape-ellipse-count-slider');
+    const ellCNum    = document.getElementById('shape-ellipse-count-num');
+    if (ellCSlider && ellCNum) {
+      const applyEllCount = (raw) => {
+        if (ellCSlider.disabled) return;
+        const prev = clampEllipseCount(block.dataset.ellipseCount);
+        const c = clampEllipseCount(raw);
+        ellCSlider.value = c; ellCNum.value = c;
+        if (c === prev) return;
+        const _w = _ellWantW(c, block.dataset.ellipseGap);
+        if (c === 1) { if (block.dataset.ellipseCount !== undefined) delete block.dataset.ellipseCount; }
+        else if (block.dataset.ellipseCount !== String(c)) block.dataset.ellipseCount = String(c);
+        _ellRedraw();
+        if (_w && _w.wantW !== _w.curW) applySize(_w.wantW, null);
+        if (c > 1 && block.dataset.shapeFill === 'image') {
+          _clearShapeImage(block);
+          const svg2 = block.querySelector('svg.shape-svg') || block.querySelector('svg');
+          if (svg2 && svg2.style.fill === 'transparent') svg2.style.fill = 'currentColor';
+          window.showToast?.('원이 여러 개면 이미지 채우기를 쓸 수 없습니다 — 색 채우기로 되돌렸어요');
+        }
+        window.scheduleAutoSave?.();
+        showShapeProperties(block);   // 색 칸 수·간격 줄·가림막 절이 바뀐다 → 패널 다시
+      };
+      ellCSlider.addEventListener('input',  () => applyEllCount(ellCSlider.value));
+      ellCSlider.addEventListener('change', () => window.pushHistory?.());
+      ellCNum.addEventListener('input',  () => { if (ellCNum.value !== '') applyEllCount(ellCNum.value); });
+      ellCNum.addEventListener('change', () => { applyEllCount(ellCNum.value); window.pushHistory?.(); });
+    }
+    const ellGSlider = document.getElementById('shape-ellipse-gap-slider');
+    const ellGNum    = document.getElementById('shape-ellipse-gap-num');
+    if (ellGSlider && ellGNum) {
+      const applyEllGap = (raw) => {
+        const g = clampEllipseGap(raw);
+        const prevG = clampEllipseGap(block.dataset.ellipseGap);
+        ellGSlider.value = g; ellGNum.value = g;
+        if (g === prevG) return;
+        const _w = _ellWantW(block.dataset.ellipseCount, g);
+        if (g === ELLIPSE_GAP_DEFAULT) { if (block.dataset.ellipseGap !== undefined) delete block.dataset.ellipseGap; }
+        else if (block.dataset.ellipseGap !== String(g)) block.dataset.ellipseGap = String(g);
+        _ellRedraw();
+        if (_w && _w.wantW !== _w.curW) applySize(_w.wantW, null);
+        window.scheduleAutoSave?.();
+      };
+      ellGSlider.addEventListener('input',  () => applyEllGap(ellGSlider.value));
+      ellGSlider.addEventListener('change', () => window.pushHistory?.());
+      ellGNum.addEventListener('input',  () => { if (ellGNum.value !== '') applyEllGap(ellGNum.value); });
+      ellGNum.addEventListener('change', () => { applyEllGap(ellGNum.value); window.pushHistory?.(); });
+    }
+    /* 원마다 색 — 읽기 starColorList · 쓰기 starColorsAttr(같은 명부). 전부 비면 키를 지운다. */
+    const writeEllColor = (idx, hex) => {
+      const count = clampEllipseCount(block.dataset.ellipseCount);
+      const list = (ellipseColorList(block.dataset.ellipseColors, count) || new Array(count).fill(null)).slice(0, count);
+      while (list.length < count) list.push(null);
+      if (idx !== null) list[idx] = hex || null;
+      const attr = idx === null ? null : ellipseColorsAttr(list);
+      if (attr === null) { if (block.dataset.ellipseColors !== undefined) delete block.dataset.ellipseColors; }
+      else if (block.dataset.ellipseColors !== attr) block.dataset.ellipseColors = attr;
+      _ellRedraw();
+      window.scheduleAutoSave?.();
+    };
+    for (let i = 0; i < ellCount; i++) {
+      if (!document.getElementById(`shape-ellipse-c${i}-color`)) continue;
+      wireColorField('shape-ellipse-c' + i, {
+        onApply:  (hex) => writeEllColor(i, hex),
+        onCommit: () => window.pushHistory?.('원 색'),
+      });
+    }
+    document.getElementById('shape-ellipse-colors-reset')?.addEventListener('click', () => {
+      writeEllColor(null, null);
+      window.pushHistory?.('원 개별 색 지우기');
+      showShapeProperties(block);
+    });
+    /* 이너 그림자 — 토글(가림막 토글과 같은 꼴) + 세기 slider/number. 끄면 키를 지운다. */
+    const ellShToggle = document.getElementById('shape-ellipse-shadow-toggle');
+    if (ellShToggle) {
+      ellShToggle.addEventListener('change', () => {
+        if (ellShToggle.checked) block.dataset.ellipseShadow = String(ELLIPSE_SHADOW_ON_DEFAULT);
+        else delete block.dataset.ellipseShadow;
+        _ellRedraw();
+        window.pushHistory?.('이너 그림자');
+        window.scheduleAutoSave?.();
+        showShapeProperties(block);   // 세기 줄이 생기고/사라진다
+      });
+    }
+    const ellShSlider = document.getElementById('shape-ellipse-shadow-slider');
+    const ellShNum    = document.getElementById('shape-ellipse-shadow-num');
+    if (ellShSlider && ellShNum) {
+      const applyEllShadow = (raw) => {
+        const v = clampEllipseShadow(raw);
+        if (v === null) return;   // 빈 칸·0 은 「지우는 중」 — 끄기는 토글로
+        ellShSlider.value = v; ellShNum.value = v;
+        if (block.dataset.ellipseShadow === String(v)) return;
+        block.dataset.ellipseShadow = String(v);
+        _ellRedraw();
+        window.scheduleAutoSave?.();
+      };
+      ellShSlider.addEventListener('input',  () => applyEllShadow(ellShSlider.value));
+      ellShSlider.addEventListener('change', () => window.pushHistory?.());
+      ellShNum.addEventListener('input',  () => { if (ellShNum.value !== '') applyEllShadow(ellShNum.value); });
+      ellShNum.addEventListener('change', () => { applyEllShadow(ellShNum.value); window.pushHistory?.(); });
+    }
+  }
+
   // ── 회전 ──
   // 사용자 의도: 회전해도 frame 자체 크기는 변하지 않아야 함.
   // 시각적 잘림은 부모 frame이 overflow:visible 되도록 CSS에서 처리 (회전된 shape를 가진 frame).
@@ -1154,6 +1319,7 @@ function _restoreShapeGradientFill(block) {
   let n = 0;
   svg.querySelectorAll(FILLABLE_SEL).forEach(el => {
     if (el.getAttribute('fill') === 'none') return;   // 테두리 전용은 건드리지 않는다
+    if (el.hasAttribute('data-ell-own')) return;      // 1013t2A1 원마다 색은 그대로
     el.setAttribute('fill', `url(#${id})`);
     n++;
   });
@@ -1256,6 +1422,7 @@ function _applyShapeGradient(block, svg, detail) {
     const el = nodes[i];
     const f = el.getAttribute('fill');
     if (f === 'none') continue;
+    if (el.hasAttribute('data-ell-own')) continue;   // ★1013t2A1 명시(원마다 색) > 파생(그라데이션)
     if (f !== urlVal) el.setAttribute('fill', urlVal);
   }
 }
