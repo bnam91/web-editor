@@ -19,7 +19,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js sec-bg-parity.dom
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const PNG1 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
@@ -41,21 +41,33 @@ async function setupSection(page, { withImage = true } = {}) {
     }
     window.__sec = sec;
   }, { src: PNG1, withImage });
-  await page.waitForTimeout(150);
+  // ★레이아웃 settle — bootApp 직후엔 canvas-scaler/zoom 배율이 아직 확정 전이라 섹션 자리가
+  //   한두 프레임 더 움직인다(js/io/save-load.js rebindAll 의 「zoom 레이아웃 아직 확정 안됨」
+  //   주석과 같은 병 — 색보정 준비 클릭 빗나감의 선례). 자리가 두 번 연속 같을 때까지 기다린다.
+  await waitStableRect(page, '#secA');
   return errs;
 }
 
 /** 배경이미지 편집 진입 — enterSectionBgEditMode 는 img.load 이후 비동기로 임시 DOM 을 짓는다. */
 async function enterEdit(page) {
   await page.evaluate(() => { window.enterSectionBgEditMode(window.__sec); });
-  await page.waitForFunction(() => !!document.querySelector('.sec-bg-proxy .asset-img'), null, { timeout: 5000 });
-  await page.waitForTimeout(120);   // start() 의 1차 RAF 틱 + 이미지 decode 여유
+  // ★존재만으론 로드 전에도 참이다(innerHTML 로 <img> 가 먼저 생기고 src 는 뒤에 붙는다)
+  //   ⇒ complete && naturalWidth>0 까지 재야 「이미지 decode」가 끝난 것이다.
+  await page.waitForFunction(() => {
+    const img = document.querySelector('.sec-bg-proxy .asset-img');
+    return !!img && img.complete && img.naturalWidth > 0;
+  }, null, { timeout: 5000 });
+  // ★start() 의 1차 RAF 틱 — enterImageEditMode 가 ★예약만 해 둔 syncHandles 첫 호출이 돌아
+  //   회전존·코너핸들의 «자리»(syncHandles)를 잡는 순간까지(js/image-handling.js:477-478
+  //   `_syncRafId = requestAnimationFrame(_syncLoop)` — 존 자체는 동기 생성이지만 좌표는 RAF 뒤).
+  await page.waitForFunction(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
 }
 
 /** Esc 로 편집을 끝낸다(beforeCommit → _teardownBgEdit → applySectionBg). */
 async function exitEdit(page) {
   await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
-  await page.waitForTimeout(80);
+  // ★_teardownBgEdit(js/image-handling.js:1413)이 프록시·고스트를 치울 때까지 — 그게 테어다운 완료의 정의다.
+  await page.waitForFunction(() => document.querySelectorAll('.sec-bg-proxy, .sec-bg-ghost-wrap, .sec-bg-ghost').length === 0, null, { timeout: 5000 });
 }
 
 /** 회전존 하나를 «중심 기준 각도 0°→targetDeg» 로 드래그한다(45 단위·5° 이내 스냅과 맞춰 정확히 떨어지게). */
@@ -108,7 +120,16 @@ async function dragRotate(page, targetDeg) {
   const moveY = r.cy + radius * Math.sin(moveAng);
   await page.mouse.move(moveX, moveY, { steps: 6 });
   await page.mouse.up();
-  await page.waitForTimeout(60);
+  // ★드래그가 실제로 먹었는지 — onRotateDown(js/image-handling.js:429)은 mousemove 마다
+  //   동기로 proxy.dataset.imgRotate 를 쓴다. 그 값이 targetDeg(45° 단위 스냅 뒤)로
+  //   떨어질 때까지 재서, «이벤트는 보냈지만 핸들러가 아직 안 돈» 창을 없앤다.
+  await page.waitForFunction((want) => {
+    const proxy = document.querySelector('.sec-bg-proxy');
+    if (!proxy) return false;
+    const rot = ((parseFloat(proxy.dataset.imgRotate || '0') % 360) + 360) % 360;
+    const w = ((want % 360) + 360) % 360;
+    return Math.abs(rot - w) < 0.5;
+  }, targetDeg, { timeout: 3000 });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -136,7 +157,16 @@ test('D1 ★섹션 배경 편집 진입 ⇒ 회전존 4개 (★음성 — 그리
       try { window.setGridModel?.(block, { cells: [[{ lines: [{ type: 'image', imgSrc: src }] }]] }); } catch (_) {}
       window.enterGridImageEditMode?.(block, { r: 0, c: 0, li: 0 });
     }, PNG1);
-    await page.waitForTimeout(150);
+    /* ⚠️★조건으로 못 바꾼 자리 — 적어 둔다(보고용): `window.setGridModel` 은 이 레포에 ★없다
+     *   (grep 전수 — `js/**`엔 `getGridModel` 뿐, `setGridModel` 정의가 없다). 위 두 호출은
+     *   둘 다 `?.` 라 조용히 no-op 이고, 그래서 gridA 는 실제 셀/줄 데이터가 ★없다.
+     *   enterGridImageEditMode(js/image-handling.js:1502)는 `_grdImgLine` 이 null 이면
+     *   ★곧바로 return 한다 — «코너핸들이 생긴다»는 조건은 ★영원히 안 선다(실측: 5000ms
+     *   waitForFunction 이 2회 전부 타임아웃). ⇒ 기다릴 비동기 자체가 없다(동기 no-op) —
+     *   그래서 고정 대기를 ★조건으로 바꾸지 않고 ★그냥 없앴다(아래는 즉시 읽기, 0 이 나오는
+     *   까닭이 바뀌지 않는다: 예전엔 「150ms 동안 아무 일도 없어서 0」, 지금은 「호출 즉시
+     *   no-op 이라 0」). ★음성대조 자체가 vacuous 하다는 점은 이 시험의 별도 결함이라 이번
+     *   과업(고정 대기 치환) 범위 밖으로 남긴다. */
     const n2 = await page.evaluate(() => document.querySelectorAll('#ss-handles-overlay .img-rotate-zone').length);
     expect(n2, '★그리드 칸 크롭에 회전존이 생겼다 — 별건(noRotate)이 깨졌다').toBe(0);
   }
@@ -170,11 +200,11 @@ test('D2 ★회전존 드래그 45° → Esc → dataset.bgRotate===45 · 레이
     expect(r.ser, '★직렬화 결과에 data-bg-rotate="45" 가 없다').toContain('data-bg-rotate="45"');
   }
 
-  // ★왕복 — rebindAll 로 다시 그려도 45 가 산다
+  // ★왕복 — rebindAll 로 다시 그려도 45 가 산다(rebindAll 자체는 동기이지만 poll 로 재 —
+  //   고정 ms 대신 조건으로 두면 다음에 rebindAll 이 비동기화돼도 이 시험이 거짓 빨강을 안 낸다)
   await page.evaluate(() => { window.rebindAll?.(); });
-  await page.waitForTimeout(100);
-  const after = await page.evaluate(() => document.getElementById('secA')?.dataset.bgRotate ?? null);
-  expect(after, '★rebindAll 왕복 뒤 bgRotate 가 사라졌다').toBe('45');
+  await expect.poll(() => page.evaluate(() => document.getElementById('secA')?.dataset.bgRotate ?? null),
+    { message: '★rebindAll 왕복 뒤 bgRotate 가 사라졌다' }).toBe('45');
   expect(errs).toEqual([]);
 });
 
@@ -217,9 +247,10 @@ test('D3 ★배경이미지 편집 진입 ⇒ 색보정 패널이 뜨고 슬라�
     const panel = document.getElementById('color-adjust-panel');
     panel.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
-  await page.waitForTimeout(80);
-  const stillEditing = await page.evaluate(() => !!document.querySelector('.sec-bg-proxy'));
-  expect(stillEditing, '★색보정 패널 클릭으로 편집이 끝났다').toBe(true);
+  // ★isColorPanel 가드(js/image-handling.js:499)는 같은 click dispatch 안에서 동기로 판정한다 —
+  //   poll 로 재면 «판정이 아직 안 돈» 창과 «판정이 실제로 틀렸다»를 가른다(둘 다 즉시 안 흔들림).
+  await expect.poll(() => page.evaluate(() => !!document.querySelector('.sec-bg-proxy')),
+    { message: '★색보정 패널 클릭으로 편집이 끝났다' }).toBe(true);
   await exitEdit(page);
   expect(errs).toEqual([]);
 });
@@ -243,7 +274,12 @@ test('D4 ★채도 -100 ⇒ 레이어 filter 는 url(#...) · 섹션 자신 filt
     slider.value = -100;
     slider.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  await page.waitForTimeout(80);
+  // ★applyImgColorAdjust→writeImgFilter(js/effects/image-redact.js:80)는 동기지만, poll 로 재면
+  //   레이어 filter 가 실제로 바뀌었다는 «조건»이 되지(= asset-redact.dom.spec.js 와 같은 관용구)
+  await expect.poll(() => page.evaluate(() => {
+    const layer = window.__sec.querySelector(':scope > .sec-bg-clip > .sec-bg-img');
+    return layer ? layer.style.filter : null;
+  }), { message: '★채도 조정이 레이어 filter 에 반영되지 않았다' }).toMatch(/url\(["']?#img-color-adj-/);
   const r = await page.evaluate(() => {
     const sec = window.__sec;
     const layer = sec.querySelector(':scope > .sec-bg-clip > .sec-bg-img');
@@ -327,7 +363,11 @@ test('D7 ★bakeImgFilterToCanvas — 레이어 background-image 가 data: 로 �
     slider.value = 40;
     slider.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  await page.waitForTimeout(80);
+  // ★같은 자(D4 와 동일) — 레이어 filter 에 반영됐다는 조건으로 재고 exit 한다
+  await expect.poll(() => page.evaluate(() => {
+    const layer = window.__sec.querySelector(':scope > .sec-bg-clip > .sec-bg-img');
+    return layer ? layer.style.filter : null;
+  }), { message: '★대비 조정이 레이어 filter 에 반영되지 않았다' }).toMatch(/url\(["']?#img-color-adj-/);
   await exitEdit(page);
 
   const pre = await page.evaluate(() => {
