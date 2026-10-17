@@ -134,6 +134,11 @@ ${blockHeaderHTML({
         <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Tag</button>
         <button class="prop-type-btn ${currentClass==='tb-bullet'?'active':''}"  data-cls="tb-bullet">List</button>
       </div>
+      <!-- ★1017t1m1(현빈 「텍스트블럭에서 quato블럭으로 바꿀수도 있게 위에 type절에 넣기」) —
+           ★data-cls 를 ★안 준다. 주면 js/props/prop-text-wireup-type.js 의 .prop-type-btn 루프가
+           ★클래스 교체로 처리해 ★조용히 반쪽 동작한다(quote 는 ★다른 블럭 타입이라 ★블럭 교체가 필요하다).
+           ★별도 리스너 = wireTextToQuote(js/props/prop-text-wireup-type.js). -->
+      <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다">Quote</button>
     </div>${_bulletSec}
 
     <div class="prop-section">

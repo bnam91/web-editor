@@ -6,7 +6,7 @@ import { buildTextPropsHtml } from './prop-text-template.js';
 import { detectMix } from './prop-text-mix-detect.js';
 import { wireBubbleSection }   from './prop-text-wireup-bubble.js';
 import { wireFontSection }     from './prop-text-wireup-font.js';
-import { wireTypeSection, wireBulletStyleSection } from './prop-text-wireup-type.js';
+import { wireTypeSection, wireBulletStyleSection, wireTextToQuote } from './prop-text-wireup-type.js';
 import { wireLabelSection }    from './prop-text-wireup-label.js';
 import { wireAlignSection }    from './prop-text-wireup-align.js';
 import { wireTextEditSection, isHighlightOn, isDotOn, isGlowOn } from './prop-text-wireup-text-edit.js';
@@ -273,6 +273,7 @@ export function showTextProperties(tb) {
   wireFontSection({ propPanel, ctx });
   // 라이너 블록은 Type 토글 숨김 — 클릭 시 contentEl.className 교체로 .tb-liner가 깨지는 회귀 방지 (M2)
   if (!isLiner) wireTypeSection({ tb, propPanel, ctx });
+  if (!isLiner) wireTextToQuote({ tb, propPanel, ctx });   // 1017t1m1 — #type-section 안, 라이너면 그 절 자체가 없다
   wireBulletStyleSection({ propPanel, ctx });   // T7 — 절이 없으면(불릿 아니면) 아무것도 안 한다
 
   wireLabelSection({ ctx });
