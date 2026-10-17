@@ -2037,8 +2037,12 @@ function bindBlock(block) {
   // (block-drag.js의 bindBlock click 핸들러는 적용하지 않음)
 
   if (isCanvas) {
+    window.lnBindLineEdit?.(block);   // ★1017t1d1 — 심플카드 「줄」의 글자 편집(더블클릭, capture) · line-host 다섯 번째 주인(laurel 과 같은 자리)
     block.addEventListener('click', e => {
       e.stopPropagation();
+      /* ★1017t1d1 — 그리드 2단 선택과 같은 규칙(laurel·비교·챗 꼴): 이미 «이것 하나»가 선택돼 있었으면 카드/줄을 고른다.
+         deselectAll «전»에 잰다(그 전에 .selected 가 걷히면 wasSole 판정이 어긋난다). */
+      const _lnAt = window.lnClickAddr?.(block, e.target, block.classList.contains('selected') && _isSoleSelectedBlock(block));
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
@@ -2059,6 +2063,7 @@ function bindBlock(block) {
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
+      if (_lnAt) window.grdSetActiveLine?.(block, _lnAt);   // ★1017t1d1 — 패널이 이 활성 줄/카드를 읽어 줄바(+ 줄 추가)를 띄운다
       // simple card mode면 전용 prop 패널, 아니면 일반 canvas prop 패널
       if (block.dataset.cardMode === 'simple' && typeof window.showSimpleCardProperties === 'function') {
         window.showSimpleCardProperties(block);

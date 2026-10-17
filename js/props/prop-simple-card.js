@@ -1421,6 +1421,10 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})
       }
     }
   });
+
+  /* ★1017t1d1 — 고른 카드/줄이 있으면 헤더 바로 아래에 공용 줄 절(줄바 「+ 줄 추가▾」·줄 꾸미기·Typography)을
+     얹는다(laurel·비교와 같은 자리 — prop-laurel.js:414). */
+  window.lnAugmentCardPanel?.(block);
 }
 
 // HTML 특수문자 이스케이프 (textarea/input value 안전 삽입)

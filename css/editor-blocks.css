@@ -1893,7 +1893,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 #canvas .speech-bubble-block .ln-row.ln-line-selected,
 #canvas .chat-block .ln-row.ln-line-selected,
 #canvas .comparison-block .ln-row.ln-line-selected,
-#canvas .laurel-block .ln-row.ln-line-selected {   /* ★1013t1B2 laurel(네 번째 주인) */
+#canvas .laurel-block .ln-row.ln-line-selected,
+#canvas .canvas-block .ln-row.ln-line-selected {   /* ★1013t1B2 laurel(네 번째 주인) · ★1017t1d1 심플카드(다섯 번째 주인) */
   box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
 }
 /* 빈 글자 줄이 «손에 닿게» — 그리드 빈 줄 안내문(아래 .grd-line:empty)과 같은 관용구. #canvas 스코프라 내보내기엔 안 샌다. */
@@ -2885,6 +2886,13 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 .canvas-block .cvb-card-title,
 .canvas-block .cvb-card-desc,
 .canvas-block .cvb-card-ph {
+  pointer-events: auto;
+}
+/* ★1017t1d1 — 줄(line-host 다섯 번째 주인)이 있으면 위 세 요소 대신 .ln-row 가 그 자리를 대신한다
+   (D1 갈음 · canvas-block.js _appendCardTexts). ⛔같은 cvb-inner pointer-events:none 아래 있어
+   위와 «같은 까닭»으로 되살려야 한다 — 안 그러면 줄 클릭이 카드 본체로 통과해 line-host 2단 클릭이
+   영영 안 선다(실측: elementFromPoint 가 .canvas-block 자신을 집었다). */
+.canvas-block .ln-row {
   pointer-events: auto;
 }
 /* 편집 중 커서 — «어느 요소가 편집 가능한가»를 CSS 가 다시 판정하지 않는다.

@@ -41,7 +41,12 @@ export const LN_ROW_CLASS = 'ln-row';
 export const LN_MARK_CLASS = 'ln-line-selected';
 /* ★1012t1D2 — 비교(comparison) 칸이 «세 번째 주인»이다(행 안 줄 추가 · 그리드 칸처럼). ⛔버블·챗의 산출·동작은 그대로다(아래 cAxis). */
 /* ★1013t1B2 — laurel(월계관) 칸이 «네 번째 주인»이다(챗과 같은 주소 꼴 {r: 칸 번호(선형), c: 0, li} · cAxis 없음). */
-const HOST_SEL = '.speech-bubble-block, .chat-block, .comparison-block, .laurel-block';
+/* ★1017t1d1 — 심플카드(canvas-block[data-card-mode="simple"])가 «다섯 번째 주인»이다(laurel 과 같은 주소 꼴
+ *   {r: 카드 번호(선형 · gridCols×gridRows), c: 0, li}). ⛔`.canvas-block` 통째가 아니라 `[data-card-mode="simple"]`
+ *   로 좁힌다 — Figma 임포트(레이어 모드) 카드까지 줄 숙주가 되면 안 된다(canvas-block.js _cvbPlusShown 이
+ *   이미 쓰는 그 가름과 같다). «both」 라벨(상/하 두 슬롯)은 카드 하나에 글자 그릇이 둘이라 이 모델이 못 담는다
+ *   ⇒ lnCardHost 가 그 모드에서는 rowOk 를 전부 거짓으로 둔다(글자 둘 다 안전하게 보존 · 범위는 open_questions). */
+const HOST_SEL = '.speech-bubble-block, .chat-block, .comparison-block, .laurel-block, .canvas-block[data-card-mode="simple"]';
 
 export function lnHasLines(v) { return Array.isArray(v) && v.length > 0; }
 
@@ -79,8 +84,8 @@ export function lnLinesHtml(lines, m = null, c = null, align = 'left') {
 /** 줄 감싸개 셀렉터 — 주인마다 주소 속성이 다르다(버블 = li · 챗 = m+li · 비교 = c+m+li). */
 function _lnRowSel(block, r, c, li) {
   if (block.classList.contains('comparison-block')) return `.${LN_ROW_CLASS}[data-ln-c="${c}"][data-ln-m="${r}"][data-ln="${li}"]`;
-  /* ★1013t1B2 laurel = 챗과 같은 꼴(data-ln-m = 칸 번호) */
-  return (block.classList.contains('chat-block') || block.classList.contains('laurel-block'))
+  /* ★1013t1B2 laurel · ★1017t1d1 카드 = 챗과 같은 꼴(data-ln-m = 칸 번호) */
+  return (block.classList.contains('chat-block') || block.classList.contains('laurel-block') || block.classList.contains('canvas-block'))
     ? `.${LN_ROW_CLASS}[data-ln-m="${r}"][data-ln="${li}"]` : `.${LN_ROW_CLASS}[data-ln="${li}"]`;
 }
 
@@ -456,12 +461,90 @@ export function lnLaurelHost(block) {
   });
 }
 
+/* ══ 심플카드 — ★1017t1d1 (현빈 1017t1 「그리드블럭·모달블럭과 같다 … 한번 클릭시엔 해당 텍스트 줄에
+ *    핸들이 생기면 좋겠다」) ══════════════════════════════════════════════════════════════
+ * ★주소 = {r: 카드 번호(선형 · gridCols×gridRows), c: 0, li} — laurel 과 같은 꼴(cAxis 없음).
+ * ★저장: dataset.cards[r].lines(선택 필드) · 없으면 지금 그대로(title/desc 문자열 두 칸 · D1 규약).
+ * ★쓰는 문 = updateCanvasBlock({patchCards:[{index,lines}]}) 한 길(canvas-block.js _validateCard 가 검증).
+ * ★다른 칸(카드)으로 옮기기도 다른 주인과 같은 길(commitRaw)로 연다 — chat-block.js updateChatBlockRaw
+ *   주석의 그 까닭(한 제스처 = 이력 한 칸)과 같다.
+ * ⛔image·divider 줄 없음(LN_KINDS = 역할 + gap 만, laurel 과 달리 LAUREL_LN_KINDS 를 안 쓴다 — 1017t1d1 범위 밖).
+ * ⛔「Both」 라벨(상/하 두 슬롯)은 글자 그릇이 카드 하나에 둘이라 이 r 하나짜리 모델이 못 담는다
+ *   — rowOk 가 그 모드에서 전부 거짓을 돌려줘 호스트 자체가 «그 카드들에선 안 선다»(옛 동작 보존). */
+function _cvbSingleSlot(block) {
+  return !(block.dataset.labelPos === 'both' && (block.dataset.cardOrient || 'portrait') !== 'landscape');
+}
+function _cvbCardsArr(block) { try { const a = JSON.parse(block.dataset.cards || '[]'); return Array.isArray(a) ? a : []; } catch (_) { return []; } }
+function _cvbCardCount(block) { return Math.max(1, parseInt(block.dataset.gridCols) || 1) * Math.max(1, parseInt(block.dataset.gridRows) || 1); }
+export function lnCardLines(block, r) {
+  const card = _cvbCardsArr(block)[r];
+  return card && lnHasLines(card.lines) ? card.lines : null;
+}
+export function lnCardHost(block) {
+  return _baseHost(block, {
+    kind: 'card', limitLabel: '카드 한 칸에',
+    noHitHint: '카드를 한 번 더 누르면 줄 편집 · 줄을 두 번 누르면 글자 편집',
+    head: (r, c, li) => (li === null ? `카드 ${r + 1} · 줄을 고르거나 더하세요` : `카드 ${r + 1} · ${li + 1}번째 줄`),
+    getLines: (r) => lnCardLines(block, r),
+    rowOk: (r) => _cvbSingleSlot(block) && Number.isInteger(r) && r >= 0 && r < _cvbCardCount(block),
+    /* D2 첫 전환 — ★지금 «화면에 그려진» 제목·설명 요소에서 꼴(_bakeFrom, 다른 세 주인과 같은 함수)을 굽는다.
+       둘 다 있으면 ★제목 요소의 꼴(폰트크기·굵기 등)을 쓰고 글자는 「제목\n설명」으로 같이 담는다 —
+       ⛔한쪽만 베끼면 다른 쪽 글자가 조용히 사라진다(데이터 손실 금지). 색은 다른 세 주인의 _bakeFrom 도
+       안 담는다(역할 기본색으로 — 이 레포의 기존 단순화와 같다, 새로 만든 격차가 아니다). */
+    bake: (r) => {
+      const titleEl = block.querySelector(`.cvb-card-title[data-card-idx="${r}"]`);
+      const descEl = block.querySelector(`.cvb-card-desc[data-card-idx="${r}"]`);
+      if (!titleEl && !descEl) return { type: 'body', text: '' };
+      const line = _bakeFrom(titleEl || descEl);
+      if (titleEl && descEl) {
+        const t = String(titleEl.innerText || '').replace(/\r\n?/g, '\n').replace(/\n+$/, '');
+        const d = String(descEl.innerText || '').replace(/\r\n?/g, '\n').replace(/\n+$/, '');
+        line.text = [t, d].filter(Boolean).join('\n');
+      }
+      return line;
+    },
+    commit: (r, lines, opts) => window.updateCanvasBlock?.(block.id, { patchCards: [{ index: r, lines }] }, opts),
+    /* ★Raw — chat-block.js updateChatBlockRaw 와 같은 까닭(한 제스처가 두 문으로 나가는 호출자 전용). */
+    commitRaw: (r, lines, opts) => window.updateCanvasBlockRaw?.(block.id, { patchCards: [{ index: r, lines }] }, opts),
+    write: (r, lines) => {
+      const cards = _cvbCardsArr(block);
+      if (!cards[r]) return;
+      cards[r] = { ...cards[r], lines };
+      block.dataset.cards = JSON.stringify(cards);
+      window.renderCanvas?.(block);
+    },
+    show: () => window.showSimpleCardProperties?.(block),
+    rowSel: (r, li) => `.${LN_ROW_CLASS}[data-ln-m="${r}"][data-ln="${li}"]`,
+    /* ★줄이 있으면 그 줄들의 공통 부모(렌더러가 심은 글자 그릇) · 줄이 없으면 null(아직 그릇을 못 찾는다 —
+       챗 boxOf 와 같은 한계. 줄 없는 카드에 드래그 손잡이가 뜨지 않는 것도 다른 세 주인과 같다). */
+    boxOf: (r) => {
+      const row = block.querySelector(`.${LN_ROW_CLASS}[data-ln-m="${r}"]`);
+      return row ? row.parentElement : null;
+    },
+    rowAt: (el) => {
+      if (!el || !el.closest || !block.contains(el)) return null;
+      const row = el.closest('.' + LN_ROW_CLASS);
+      if (row && row.dataset.lnM !== undefined) {
+        const r = Number(row.dataset.lnM);
+        return Number.isInteger(r) ? { r, c: 0, box: row.parentElement } : null;
+      }
+      const host = el.closest('[data-card-idx]');
+      if (host && block.contains(host)) {
+        const r = Number(host.dataset.cardIdx);
+        return Number.isInteger(r) ? { r, c: 0, box: host.parentElement } : null;
+      }
+      return null;
+    },
+  });
+}
+
 export function lnHostFor(block) {
   if (!block || !block.classList) return null;
   if (block.classList.contains('speech-bubble-block')) return lnBubbleHost(block);
   if (block.classList.contains('chat-block')) return lnChatHost(block);
   if (block.classList.contains('comparison-block')) return lnCmpHost(block);
   if (block.classList.contains('laurel-block')) return lnLaurelHost(block);
+  if (block.classList.contains('canvas-block') && block.dataset.cardMode === 'simple') return lnCardHost(block);
   return null;
 }
 
@@ -509,6 +592,12 @@ export function lnClickAddr(block, target, wasSole) {
   if (block.classList.contains('laurel-block')) {             // ★1013t1B2 laurel: 줄 밖(잎·여백) = 칸 선택(li:null)
     const cell = target.closest('.laurel-cell[data-cell-idx]');
     if (cell && block.contains(cell)) { const r = Number(cell.dataset.cellIdx); return Number.isInteger(r) ? { r, c: 0, li: null } : null; }
+  }
+  if (block.classList.contains('canvas-block') && block.dataset.cardMode === 'simple') {
+    /* ★1017t1d1 카드: 아직 줄이 없는 카드의 제목·설명(옛 꼴) 위 = 카드 선택(li:null) — laurel 의 빈 칸과 같은 뜻.
+       ⛔`.ln-row` 위는 ★위의 범용 첫 분기(575행)가 ★이미 먼저 잡는다(여기까지 안 내려온다). */
+    const host = target.closest('[data-card-idx]');
+    if (host && block.contains(host)) { const r = Number(host.dataset.cardIdx); return Number.isInteger(r) ? { r, c: 0, li: null } : null; }
   }
   return null;
 }
@@ -597,6 +686,16 @@ export function lnAugmentLaurelPanel(block) {
   _mountLineUi(block, host, act);
   _lnFillShowsRendered(block, host, act);
   _lnFontShowsRendered(block, host, act);
+}
+/** ★1017t1d1 심플카드 — 비교·laurel 과 같은 규칙: 캔버스에서 「카드」나 「줄」을 골랐을 때만 줄 절을 얹는다.
+ *  ⛔기본 주소를 세우지 않는다(위 비교·laurel 주석과 같은 까닭 — 패널이 먼저 주소를 세우면 단축키가
+ *  «사람이 고른 것»으로 잘못 읽는다). */
+export function lnAugmentCardPanel(block) {
+  const act = grdGetActiveLine(block);
+  if (!act) { lnMark(block, null); return; }
+  const host = lnCardHost(block);
+  if (!host.resolveAny(act)) { grdSetActiveLine(block, null); lnMark(block, null); return; }
+  _mountLineUi(block, host, act);
 }
 /* ★1013t1B2 (이벨류 지적) — 글꼴을 안 정한 laurel 줄(옛 꼴에서 온 줄 · fontFamily 없음)은 블럭에서 «이어받은» 글꼴(Pretendard)로 그린다.
    그런데 공용 Typography 의 글꼴 칸은 값이 없으면 「기본 (시스템)」이라 적는다 ⇒ 패널이 화면과 다르다(색의 _lnFillShowsRendered 와 같은 병).
@@ -952,7 +1051,7 @@ export function lnEnterEdit(block) {
 
 /* ══ 단축키 (D10) — 그리드의 줄 단축키와 «같은 뜻» ════════════════════════════ */
 function _soleSelectedHost() {
-  const sel = [...document.querySelectorAll('.speech-bubble-block.selected, .chat-block.selected, .comparison-block.selected, .laurel-block.selected')];
+  const sel = [...document.querySelectorAll('.speech-bubble-block.selected, .chat-block.selected, .comparison-block.selected, .laurel-block.selected, .canvas-block[data-card-mode="simple"].selected')];
   if (sel.length !== 1 || !grdIsSoleSelected(sel[0])) return null;
   return sel[0];
 }
@@ -1052,7 +1151,7 @@ if (typeof window !== 'undefined') {
   Object.assign(window, {
     lnHasLines, lnLinesHtml, lnValidateLines, lnPlainText, lnTextMirrorHtml,
     lnRenderBubble, lnBubbleLines, lnHostFor, lnMark, lnRemark, lnClearAllActive, lnClickAddr,
-    lnAugmentBubblePanel, lnAugmentChatPanel, lnAugmentCmpPanel, lnAugmentLaurelPanel, lnCmpLines, lnLaurelLines, LAUREL_LN_KINDS, lnBindLineEdit, lnBeginEdit, lnEnterEdit,
+    lnAugmentBubblePanel, lnAugmentChatPanel, lnAugmentCmpPanel, lnAugmentLaurelPanel, lnAugmentCardPanel, lnCmpLines, lnLaurelLines, lnCardLines, LAUREL_LN_KINDS, lnBindLineEdit, lnBeginEdit, lnEnterEdit,
     lnDeleteActiveLine, lnAddLineToSelected, lnEscLine, lnSyncPlus, lnAddIconToSelected,
   });
 }

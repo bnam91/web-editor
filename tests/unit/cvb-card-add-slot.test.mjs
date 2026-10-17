@@ -40,6 +40,11 @@ before(async () => {
     ["import { genId, showNoSelectionHint, insertAfterSelected, colorLuminance } from '../drag-utils.js';\nimport { bindBlock } from '../drag-drop.js';\nimport { checkerBg } from '../checker-tokens.js';",
      "const checkerBg = () => ''; const genId = (p) => p + '_x'; const showNoSelectionHint = () => {}; const insertAfterSelected = () => {}; const colorLuminance = () => null; const bindBlock = () => {};"],
     ["import { effSectionPadX as _effSectionPadX } from './outer-pad.js';", 'const _effSectionPadX = () => 0;'],
+    /* ★1017t1d1 — canvas-block.js 가 line-host.js 를 import 하기 시작했다(심플카드 「줄」). 이 시험은
+       cvbMissingTextSlots 만 보고 어느 카드도 .lines 를 안 쓴다 ⇒ lnHasLines 는 항상 false 로 충분하다.
+       ⇒ ⒜-2 주석의 그 규약 그대로 — import 가 늘면 이 하네스 명부를 세고 스텁을 더한다. */
+    ["import { lnHasLines, lnLinesHtml, lnValidateLines, lnRemark, LN_KINDS } from './line-host.js';",
+     "const lnHasLines = () => false; const lnLinesHtml = () => ''; const lnValidateLines = () => null; const lnRemark = () => {}; const LN_KINDS = [];"],
   ], 'cvb-add-slot');
   globalThis.window = globalThis.window || globalThis;
   globalThis.document = globalThis.document || { createElement: makeEl, getElementById: () => null };
