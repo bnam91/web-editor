@@ -146,6 +146,8 @@
   var PIE_ITEM_INT_KEYS = ['pieGrow', 'piePull'];
   var _piePct = function (v) { if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null; var n = Number(v); return (Number.isFinite(n) && n >= 0) ? Math.min(100, Math.round(n)) : null; };
   var _pieTagOk = function (t) { return t === 'on' || t === 'off'; };
+  var VLABEL_OFFSET_KEYS = ['vDx', 'vDy'];   // ★1017t1f5 — 꺾은선 값 라벨 개별 위치(js/drag-utils.js _startVLabelOffsetDrag)
+  var _vOffsetNum = function (v) { if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null; var n = Math.round(Number(v)); return Number.isFinite(n) ? n : null; };
   function carryItemExtras(out, prev, incoming) {
     prev = (prev && typeof prev === 'object') ? prev : {};
     incoming = (incoming && typeof incoming === 'object') ? incoming : {};
@@ -153,6 +155,8 @@
     /* 1013t1C4 — 원형 조각별 키(pieGrow · piePull = 0~100 정수 % · pieTag = 'on'|'off')도 같은 자리에서 옮긴다: 들어온 값이 유효하면 그것, 아니면 옛 값. 0·무효는 키를 안 남긴다.
        아래 마디 분기가 일찍 돌아가므로 «그 앞»에 둔다. 한도(예: 크기 30)는 렌더·패널이 graph-limits 로 자른다 — 여기는 꼴만 본다. */
     PIE_ITEM_INT_KEYS.forEach(function (k) { var v = _piePct(incoming[k]); if (v === null) v = _piePct(prev[k]); if (v > 0) out[k] = v; else delete out[k]; });
+    // ★1017t1f5 — 값 라벨 오프셋도 같은 자리에서 옮긴다(MCP partial update 가 items 를 통째로 다시 지어도 드래그로 옮긴 자리를 잃지 않게). 한도(±600)는 여기서 안 자른다(「꼴만 본다」 — 위와 같은 규약).
+    VLABEL_OFFSET_KEYS.forEach(function (k) { var v = _vOffsetNum(incoming[k]); if (v === null) v = _vOffsetNum(prev[k]); if (v) out[k] = v; else delete out[k]; });
     var _tag = _pieTagOk(incoming.pieTag) ? incoming.pieTag : (_pieTagOk(prev.pieTag) ? prev.pieTag : '');
     if (_tag) out.pieTag = _tag; else delete out.pieTag;
     if (Array.isArray(incoming.segments)) {
