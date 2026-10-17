@@ -28,6 +28,7 @@ const ANNOT_DEFAULTS = {
   labelImageRadius: 0,           // image 모드 border-radius (0~50, %)
   labelBorderStyle: 'solid',     // 'solid' | 'dashed' | 'dotted'
   labelBorderWidth: 1,           // border 두께 (px)
+  labelPad:        null,         // ★1017t1h5 — 라벨 여백(px, 0..24, 사방 동일). null = CSS 기본(4px 8px) 유지 — 안 건드리면 키를 안 단다.
 };
 window.ANNOT_DEFAULTS = ANNOT_DEFAULTS;
 
@@ -263,6 +264,7 @@ function makeAnnotationBlock(opts = {}) {
   const labelImageRadius = opts.labelImageRadius ?? ANNOT_DEFAULTS.labelImageRadius;
   const labelBorderStyle = opts.labelBorderStyle ?? ANNOT_DEFAULTS.labelBorderStyle;
   const labelBorderWidth = opts.labelBorderWidth ?? ANNOT_DEFAULTS.labelBorderWidth;
+  const labelPad         = opts.labelPad         ?? ANNOT_DEFAULTS.labelPad;   // ★1017t1h5
   const labelDx          = _annClampOff(opts.labelDx ?? 0, 'labelDx');   // ★1013t1A3
   const labelDy          = _annClampOff(opts.labelDy ?? 0, 'labelDy');
   const anchorRot        = _annWrapRot(opts.anchorRot ?? 0);           // ★1013t2C7
@@ -311,6 +313,7 @@ function makeAnnotationBlock(opts = {}) {
   if (labelDx !== 0) block.dataset.labelDx = String(labelDx);   // ★1013t1A3 — 0 이면 키 없음(= 자동 배치)
   if (labelDy !== 0) block.dataset.labelDy = String(labelDy);
   if (anchorRot !== 0) block.dataset.anchorRot = String(anchorRot);   // ★1013t2C7 — 0 이면 키 없음(= 자동 방향)
+  if (labelPad != null) block.dataset.labelPad = String(labelPad);   // ★1017t1h5 — null 이면 키 없음(= CSS 기본 4px 8px 유지)
 
   const ptsAttr = points.map(p => `${p[0]},${p[1]}`).join(' ');
   const anchorAngle = _calcAnchorAngle(points) + anchorRot;   // ★1013t2C7 — annotAnchorAngleOf 와 같은 산식(F2 멱등)
@@ -331,6 +334,9 @@ function makeAnnotationBlock(opts = {}) {
   if (imgWrapping) {
     const r = Math.max(0, Math.min(50, parseFloat(labelImageRadius) || 0));
     labelStyle += `padding:0;border-radius:${r}%;overflow:hidden;`;
+  } else if (labelPad != null) {
+    // ★1017t1h5 — 사용자가 「여백」을 건드렸을 때만 사방 동일 padding 으로 CSS 기본(4px 8px)을 이긴다.
+    labelStyle += `padding:${labelPad}px;`;
   }
   // ★1013t1A3 — 개별 위치는 «맨 끝»(annotApplyLabelOffset 과 같은 자리)
   if (labelDx !== 0 || labelDy !== 0) labelStyle += `translate:${labelDx}px ${labelDy}px;`;
@@ -385,6 +391,7 @@ function annotPropsFromDataset(block) {
     labelImageRadius: _annNum(ds.labelImageRadius, D.labelImageRadius),
     labelBorderStyle: ds.labelBorderStyle || D.labelBorderStyle,
     labelBorderWidth: _annNum(ds.labelBorderWidth, D.labelBorderWidth),
+    labelPad:         (ds.labelPad != null && ds.labelPad !== '') ? _annNum(ds.labelPad, D.labelPad) : D.labelPad,   // ★1017t1h5 — 키 없으면 null(CSS 기본)
     labelDx:          annotLabelOffsetOf(block).dx,   // ★1013t1A3 — 안 읽으면 리로드·⌘Z 복원 때 오프셋이 화면에서 사라진다
     labelDy:          annotLabelOffsetOf(block).dy,
     anchorRot:        annotAnchorRotOf(block),        // ★1013t2C7 — 안 읽으면 리로드·⌘Z 복원 때 회전이 사라진다
@@ -394,7 +401,7 @@ window.annotPropsFromDataset = annotPropsFromDataset;
 /* rebindAll 이 fresh 블럭에서 «되돌려 쓰는» dataset 키 — 팩토리가 쓰는 키 전부(순서 = 팩토리 순서). */
 const ANNOT_DATA_KEYS = ['points', 'anchorX', 'anchorY', 'labelX', 'labelY', 'text', 'strokeColor', 'strokeWidth',
   'anchorShape', 'anchorSize', 'labelFontSize', 'labelColor', 'labelBg', 'labelBorderColor', 'labelMode',
-  'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy', 'anchorRot'];
+  'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy', 'anchorRot', 'labelPad'];
 window.ANNOT_DATA_KEYS = ANNOT_DATA_KEYS;
 
 // 라벨박스 내부 컨텐츠 — text 모드 = 텍스트, image 모드 = <img> 또는 체크패턴 placeholder

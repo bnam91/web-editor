@@ -251,6 +251,8 @@ function _onContextMenu(e) {
 }
 
 // Shift 45° 제약 — base(기본은 직전 앵커, 드래그면 dragStart) 기준
+// ★1017t1h1 — 산식은 window._snapVecToStep(js/asset-rotate.js) 으로 옮겼다(공용화). 여기는 위임만.
+//   tolDeg: null = 무조건 스냅(= 기존 Shift 꼴 그대로, 「Shift = 지금 꼴 유지」).
 function _applyShift(p, e, base) {
   if (!e.shiftKey) return p;
   let ref = base;
@@ -259,12 +261,7 @@ function _applyShift(p, e, base) {
     ref = { x: prev.x, y: prev.y };
   }
   if (!ref) return p;
-  const dx = p.x - ref.x;
-  const dy = p.y - ref.y;
-  const ang = Math.atan2(dy, dx);
-  const snap = Math.round(ang / (Math.PI / 4)) * (Math.PI / 4);
-  const len = Math.hypot(dx, dy);
-  return { x: ref.x + Math.cos(snap) * len, y: ref.y + Math.sin(snap) * len };
+  return window._snapVecToStep(p, ref, { tolDeg: null });
 }
 
 // ════════════════════════════════════════════════════════════════════════════
