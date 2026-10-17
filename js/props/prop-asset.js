@@ -1,5 +1,5 @@
 import { propPanel, state } from '../globals.js';
-import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
 import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
@@ -9,6 +9,10 @@ import { clipsContent, CLIP_DEFAULTS, applyAssetClip } from '../clip-content.js'
    (선례: prop-modal.js 가 MODAL_LIMITS 를, prop-gap.js 가 GAP_MIN/MAX 를 그렇게 쓴다.) */
 import { ASSET_W_MIN } from '../blocks/asset-width-limits.js';
 import { redactSectionHTML, wireRedactSection, readRedact } from '../effects/image-redact.js';   /* ★「블러 (Redact)」 공용 모듈(1012t1 C1) */
+/* ★1013t2A2 로고 «콜라보» — 모델 수(1~3·간격·× 크기)는 logo-collab-model.js 한 자리, DOM 조작은 logo-collab.js */
+import { COLLAB_MIN, COLLAB_MAX, COLLAB_GAP_MIN, COLLAB_GAP_MAX, COLLAB_X_MIN, COLLAB_X_MAX } from '../blocks/logo-collab-model.js';
+import { isLogoBlock, collabParams, collabSlotSrc, setCollabCount, setCollabStyle, disableCollab,
+         triggerCollabSlotUpload, clearCollabSlot, applyAssetCollab } from '../blocks/logo-collab.js';
 
 export function applyAssetPadX(ab, padX) {
   const canvasW = 860;
@@ -133,7 +137,7 @@ export function showAssetProperties(ab) {
           <button class="prop-align-btn${currentFit==='contain'?' active':''}" data-fit="contain" title="원본 비율">원본 비율</button>
         </div>
       </div>
-      ${isVideo ? '' : '<button class="prop-action-btn secondary" id="asset-pos-btn">이미지 위치 조절</button>'}
+      ${(isVideo || ab.dataset.collab) ? '' : '<button class="prop-action-btn secondary" id="asset-pos-btn">이미지 위치 조절</button>'}<!-- ★1013t2A2 콜라보면 숨김 — 위치 조절 틀이 블록 전체 폭을 잰다 -->
       <button class="prop-action-btn secondary" id="asset-replace-btn">${isVideo ? '영상' : '이미지'} 교체</button>
       <button class="prop-action-btn danger"    id="asset-remove-btn">${isVideo ? '영상' : '이미지'} 제거</button>
     </div>
@@ -144,6 +148,57 @@ export function showAssetProperties(ab) {
       <button class="prop-action-btn secondary" id="asset-upload-btn" style="margin-top:4px;">이미지 선택...</button>
       <div class="prop-hint" style="text-align:center;margin-top:4px;">또는 파일을 블록에 드래그</div>
     </div>`;
+
+  /* ★1013t2A2 「Collab」 절 — 로고 블록(켜짐 ∪ data-preset=logo ∪ 200×64)에만. 꼴 = 별 「갯수」(prop-shape.js) 그대로. */
+  const showCollab = isLogoBlock(ab);
+  const cp = showCollab ? collabParams(ab) : null;
+  const collabOn = !!cp && cp.n >= 2;
+  const collabXHex = collabOn
+    ? swatchHex(cp.color || getComputedStyle(ab.querySelector('.asset-collab-x') || ab).color, '#555555')
+    : '#555555';
+  const collabSlotRows = () => {
+    let h = '';
+    for (let k = 2; k <= cp.n; k++) {
+      const has = !!collabSlotSrc(ab, k);
+      h += `
+      <div class="prop-row"><span class="prop-label">로고 ${k}</span></div>
+      <button class="prop-action-btn secondary" data-collab-upload="${k}">${has ? '이미지 교체' : '이미지 선택...'}</button>
+      ${has ? `<button class="prop-action-btn danger" data-collab-remove="${k}">이미지 제거</button>` : ''}`;
+    }
+    return h;
+  };
+  const collabSection = showCollab ? `
+    <div class="prop-section" id="asset-collab-section">
+      <div class="prop-section-title">Collab</div>
+      <div class="prop-row">
+        <span class="prop-label">콜라보</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="asset-collab-toggle" ${collabOn ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">갯수</span>
+        <input type="range" class="prop-slider" id="asset-collab-count-slider" min="${COLLAB_MIN}" max="${COLLAB_MAX}" step="1" value="${cp.n}">
+        <input type="number" class="prop-number" id="asset-collab-count-num" min="${COLLAB_MIN}" max="${COLLAB_MAX}" value="${cp.n}">
+      </div>
+      ${collabOn ? `
+      <div class="prop-row">
+        <span class="prop-label">간격</span>
+        <input type="range" class="prop-slider" id="asset-collab-gap-slider" min="${COLLAB_GAP_MIN}" max="${COLLAB_GAP_MAX}" step="1" value="${cp.gap}">
+        <input type="number" class="prop-number" id="asset-collab-gap-num" min="${COLLAB_GAP_MIN}" max="${COLLAB_GAP_MAX}" value="${cp.gap}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">X 크기</span>
+        <input type="range" class="prop-slider" id="asset-collab-xsize-slider" min="${COLLAB_X_MIN}" max="${COLLAB_X_MAX}" step="1" value="${cp.x}">
+        <input type="number" class="prop-number" id="asset-collab-xsize-num" min="${COLLAB_X_MIN}" max="${COLLAB_X_MAX}" value="${cp.x}">
+      </div>
+      <div class="prop-color-row">
+        <span class="prop-label">X 색</span>
+        ${colorFieldHTML({ idPrefix: 'asset-collab-xcolor', hex: collabXHex, alpha: 100 })}
+      </div>
+      ${collabSlotRows()}` : ''}
+    </div>` : '';
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -170,6 +225,7 @@ ${blockHeaderHTML({
         <button class="prop-preset-btn prop-type-btn" data-preset="a4" data-w="410" data-h="580">A4</button>
       </div>
     </div>
+    ${collabSection}
     <div class="prop-section">
       <div class="prop-section-title prop-ph-header">
         <span>Size</span>
@@ -359,9 +415,12 @@ ${blockHeaderHTML({
       const hN = document.getElementById('asset-h-number');
       if (hS) hS.value = 64;
       if (hN) hN.value = 64;
+      applyAssetCollab(ab);           // ★1013t2A2 — 콜라보면 폭을 «칸 수»대로 다시(위 200 은 칸 하나 폭)
       window.pushHistory();
       return;                         // ★아래 폭·높이 재계산을 «안» 탄다(usePadx 무시가 정의다)
     }
+    /* ★1013t2A2 — 콜라보 켠 (표식 없는 옛) 로고: 폭은 «칸 수»가 정한다 ⇒ 아래 폭 재계산을 안 탄다(로고 갈래와 같은 정의). */
+    if (ab.dataset.collab) { window.pushHistory(); return; }
     // 이 블록이 속한 section-inner의 padX 값 결정
     const inner = ab.closest('.section-inner');
     const hasPadXOverride = inner?.dataset.paddingX !== '' && inner?.dataset.paddingX !== undefined;
@@ -396,6 +455,7 @@ ${blockHeaderHTML({
 
   const applyH = v => {
     ab.style.height = v + 'px';
+    applyAssetCollab(ab);   // ★1013t2A2 — × 기본 크기가 높이를 따른다(꺼짐이면 아무것도 안 한다)
     hSlider.value = v;
     hNumber.value = v;
   };
@@ -414,12 +474,15 @@ ${blockHeaderHTML({
   };
 
   // 초기 상태: Logo 프리셋이면 width 슬라이더 비활성화
-  if (ab.dataset.preset === 'logo') setWSliderDisabled(true);
+  if (ab.dataset.preset === 'logo' || ab.dataset.collab) setWSliderDisabled(true);   // ★1013t2A2 콜라보 폭 = 칸 수로 정해진다
 
   propPanel.querySelectorAll('.prop-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const isLogo = btn.dataset.preset === 'logo';
       const isA4   = btn.dataset.preset === 'a4';
+      /* ★1013t2A2 — 프리셋은 «블록 하나의 크기»다. 콜라보를 켠 채 크기를 바꾸면 칸 폭이 어긋나므로 먼저 끈다. */
+      const hadCollab = !!ab.dataset.collab;
+      if (hadCollab) disableCollab(ab);
       const w = parseInt(btn.dataset.w);
       const h = parseInt(btn.dataset.h);
       ab.dataset.size       = '100';
@@ -489,6 +552,7 @@ ${blockHeaderHTML({
         }
       }
       window.pushHistory();
+      if (hadCollab) showAssetProperties(ab);   // Collab 절을 «꺼짐»으로 다시 그린다
     });
   });
 
@@ -626,6 +690,7 @@ ${blockHeaderHTML({
       ab.dataset.fit = fit;
       const img = ab.querySelector('.asset-img');
       if (img) img.style.objectFit = fit;
+      applyAssetCollab(ab);   // ★1013t2A2 — 로고 2·3 칸도 같은 맞춤
       document.querySelectorAll('#asset-fit-group [data-fit]').forEach(b => b.classList.toggle('active', b === btn));
       window.pushHistory?.();
     });
@@ -745,6 +810,68 @@ ${blockHeaderHTML({
   });
   /* 떠 있을 때만 나오는 X/Y 두 칸 — 텍스트 Position 절과 «같은 규약»(overlay-float.js). */
   wireFloatPosition({ block: ab, xId: 'asset-x-number', yId: 'asset-y-number' });
+
+  if (showCollab) wireCollabSection(ab);
+}
+
+/* ★1013t2A2 「Collab」 절 배선 — 갯수는 별 「갯수」(prop-shape.js applyStarCount)와 같은 꼴:
+   slider input → 적용 · slider change → pushHistory · 숫자칸 input(빈칸 아니면) → 적용 · 숫자칸 change → 적용 ＋ pushHistory.
+   갯수가 바뀌면 줄(간격·X·로고 칸)이 생기고 사라지므로 패널을 다시 그린다. */
+function wireCollabSection(ab) {
+  /* 크기 핸들은 콜라보면 숨고(overlay-handles.js) 끄면 다시 단다 — 블록을 다시 누르지 않아도 맞게 */
+  const syncHandles = () => {
+    if (ab.dataset.collab) window.hideAssetResizeHandles?.();
+    else if (ab.classList.contains('selected')) window.showAssetResizeHandles?.(ab);
+  };
+  const cSlider = document.getElementById('asset-collab-count-slider');
+  const cNum    = document.getElementById('asset-collab-count-num');
+  const applyCount = (raw) => {
+    const before = ab.dataset.collab || '1';
+    setCollabCount(ab, raw);
+    if ((ab.dataset.collab || '1') === before) { cSlider.value = before; cNum.value = before; return; }
+    syncHandles();
+    window.scheduleAutoSave?.();
+    showAssetProperties(ab);
+  };
+  cSlider?.addEventListener('input',  () => applyCount(cSlider.value));
+  cSlider?.addEventListener('change', () => window.pushHistory?.());
+  cNum?.addEventListener('input',  () => { if (cNum.value !== '') applyCount(cNum.value); });
+  cNum?.addEventListener('change', () => { applyCount(cNum.value); window.pushHistory?.(); });
+  document.getElementById('asset-collab-toggle')?.addEventListener('change', e => {
+    setCollabCount(ab, e.target.checked ? Math.max(2, parseInt(ab.dataset.collab) || 2) : 1);
+    syncHandles();
+    window.pushHistory?.('로고 콜라보');
+    window.scheduleAutoSave?.();
+    showAssetProperties(ab);
+  });
+  if (!ab.dataset.collab) return;
+  const pair = (sid, nid, key) => {
+    const sl = document.getElementById(sid), nu = document.getElementById(nid);
+    if (!sl || !nu) return;
+    const apply = (raw) => { setCollabStyle(ab, { [key]: raw }); const v = collabParams(ab)[key === 'xSize' ? 'x' : 'gap']; sl.value = v; nu.value = v; };
+    sl.addEventListener('input',  () => apply(sl.value));
+    sl.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+    nu.addEventListener('input',  () => { if (nu.value !== '') apply(nu.value); });
+    nu.addEventListener('change', () => { apply(nu.value); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  };
+  pair('asset-collab-gap-slider', 'asset-collab-gap-num', 'gap');
+  pair('asset-collab-xsize-slider', 'asset-collab-xsize-num', 'xSize');
+  wireColorField('asset-collab-xcolor', {
+    initialAlpha: 100,
+    onApply: (c) => setCollabStyle(ab, { xColor: c }),
+    onCommit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); },
+  });
+  propPanel.querySelectorAll('[data-collab-upload]').forEach(btn => {
+    btn.addEventListener('click', () => triggerCollabSlotUpload(ab, parseInt(btn.dataset.collabUpload)));
+  });
+  propPanel.querySelectorAll('[data-collab-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!clearCollabSlot(ab, parseInt(btn.dataset.collabRemove))) return;
+      window.pushHistory?.('로고 제거');
+      window.scheduleAutoSave?.();
+      showAssetProperties(ab);
+    });
+  });
 }
 
 // Backward compat: classic scripts call these via window.*

@@ -1249,7 +1249,10 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *     ⇒ ★고치면서 ★«눈을 떴음»과 ★«닻이 깨지면 운다»를 ★대조로 잠갔다 — 그게 더한 ★4 다.
  *   ⛔이 파일에 더한 D0-c(갱신 판정) ★1 개는 ★여기 ★안 센다 — ★자기 자신은 분모 밖이다(위 SELF).
  *     ⇒ `grep` 델타(＋5)와 이 수의 델타(＋4)가 ★갈리는 까닭이 ★그것이다. */
-const GRID_BASELINE_TESTS = 409;
+/* ★2026-10-14 1013t2F(인포블럭 · 칸 테두리 «선 자리»): 409 → 427. ⛔지운 것 0 — 더한 것 = 새 두 파일 ＋18
+ *   · grid-cell-border-edges.test.js ＋12 (E0 바이트 무변 · E1 · E2 · E3 · E4 · E5 ×2 · E5b · E7 · E8a·b·c 음성대조)
+ *   · grid-ifg-preset.test.js ＋6 (E6a~e · E6f 음성대조) */
+const GRID_BASELINE_TESTS = 427;
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {

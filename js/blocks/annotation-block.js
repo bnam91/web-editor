@@ -16,7 +16,7 @@ const ANNOT_DEFAULTS = {
   strokeWidth:     1.5,
   anchorShape:     'circle',     // 'circle' | 'square' | 'triangle' | 'arrowhead' | 'glow' | 'none'
   anchorSize:      7,            // 시작점 도형 크기 (지름 또는 한 변)
-  labelFontSize:   20,
+  labelFontSize:   24,           // ★1013t1A2 현빈 「텍스트는 기본 24」 — 옛 저장본은 dataset.labelFontSize 를 들고 있어 그대로
   labelColor:      '#1a1a1a',
   labelBg:         '#ffffff',
   labelBorderColor:'#1a1a1a',
@@ -29,6 +29,52 @@ const ANNOT_DEFAULTS = {
   labelBorderWidth: 1,           // border 두께 (px)
 };
 window.ANNOT_DEFAULTS = ANNOT_DEFAULTS;
+
+/* ★1013t1A3 — 라벨 «개별 위치»(방사형 블럭 호의 항목 라벨 간격 labelDx/labelDy 를 차용 · b67106ab).
+   뜻: 자동 위치(마지막 점 + 4방향 부착 transform)로부터의 차이(px, 섹션 좌표). 선 끝점은 그대로 두고 라벨만 떨어진다.
+   저장: dataset.labelDx / labelDy — 0 이면 키를 안 단다(= 자동 배치). 그리기: CSS `translate` 속성
+   (transform 과 따로 노는 속성이라 4방향 부착 transform 을 안 건드린다).
+   ⛔style 에서 translate 는 «맨 끝»이다 — makeAnnotationBlock 도, 라이브 쓰기(annotApplyLabelOffset)도.
+     순서가 갈리면 다시 그린 라벨과 라이브 라벨의 style 문자열이 달라 ⌘Z 유령 칸이 난다(아래 F2 주석과 같은 병). */
+const ANNOT_LIMITS = { labelDx: { min: -600, max: 600 }, labelDy: { min: -600, max: 600 } };
+window.ANNOT_LIMITS = ANNOT_LIMITS;
+function _annClampOff(v, key) {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(ANNOT_LIMITS[key].max, Math.max(ANNOT_LIMITS[key].min, n));
+}
+/** 라벨 오프셋 읽기 → { dx, dy } (없으면 0). */
+function annotLabelOffsetOf(block) {
+  const ds = block?.dataset || {};
+  return { dx: _annClampOff(ds.labelDx || 0, 'labelDx'), dy: _annClampOff(ds.labelDy || 0, 'labelDy') };
+}
+/** 개별 위치가 있나. */
+function annotLabelIsManual(block) {
+  const o = annotLabelOffsetOf(block);
+  return o.dx !== 0 || o.dy !== 0;
+}
+/** 라벨 DOM 에 오프셋을 칠한다 — translate 를 떼고 «맨 끝»에 다시 붙인다(0 이면 뗀 채). */
+function annotApplyLabelOffset(block) {
+  const label = block?.querySelector?.('.annot-label');
+  if (!label) return;
+  const { dx, dy } = annotLabelOffsetOf(block);
+  label.style.removeProperty('translate');
+  if (dx !== 0 || dy !== 0) label.style.translate = `${dx}px ${dy}px`;
+}
+/** 오프셋 쓰기(dataset + 그리기). 0 이면 키를 지운다. 바뀌었으면 true. */
+function annotSetLabelOffset(block, dx, dy) {
+  const before = annotLabelOffsetOf(block);
+  const x = _annClampOff(dx, 'labelDx'), y = _annClampOff(dy, 'labelDy');
+  if (x === 0) delete block.dataset.labelDx; else block.dataset.labelDx = String(x);
+  if (y === 0) delete block.dataset.labelDy; else block.dataset.labelDy = String(y);
+  annotApplyLabelOffset(block);
+  return before.dx !== x || before.dy !== y;
+}
+/** 자동 배치로 되돌리기 — 바뀌었으면 true. */
+function annotResetLabelOffset(block) {
+  return annotSetLabelOffset(block, 0, 0);
+}
+Object.assign(window, { annotLabelOffsetOf, annotLabelIsManual, annotApplyLabelOffset, annotSetLabelOffset, annotResetLabelOffset });
 
 // shape별 SVG anchor 노드 문자열
 // angleDeg: 첫 segment 방향(도). triangle / arrowhead 회전에 사용. 그 외 shape는 무관.
@@ -144,6 +190,8 @@ function makeAnnotationBlock(opts = {}) {
   const labelImageRadius = opts.labelImageRadius ?? ANNOT_DEFAULTS.labelImageRadius;
   const labelBorderStyle = opts.labelBorderStyle ?? ANNOT_DEFAULTS.labelBorderStyle;
   const labelBorderWidth = opts.labelBorderWidth ?? ANNOT_DEFAULTS.labelBorderWidth;
+  const labelDx          = _annClampOff(opts.labelDx ?? 0, 'labelDx');   // ★1013t1A3
+  const labelDy          = _annClampOff(opts.labelDy ?? 0, 'labelDy');
 
   const block = document.createElement('div');
   block.className = 'annotation-block';
@@ -186,6 +234,8 @@ function makeAnnotationBlock(opts = {}) {
     block.dataset.labelImageSize   = String(labelImageSize);
     block.dataset.labelImageRadius = String(labelImageRadius);
   }
+  if (labelDx !== 0) block.dataset.labelDx = String(labelDx);   // ★1013t1A3 — 0 이면 키 없음(= 자동 배치)
+  if (labelDy !== 0) block.dataset.labelDy = String(labelDy);
 
   const ptsAttr = points.map(p => `${p[0]},${p[1]}`).join(' ');
   const anchorAngle = _calcAnchorAngle(points);
@@ -207,6 +257,8 @@ function makeAnnotationBlock(opts = {}) {
     const r = Math.max(0, Math.min(50, parseFloat(labelImageRadius) || 0));
     labelStyle += `padding:0;border-radius:${r}%;overflow:hidden;`;
   }
+  // ★1013t1A3 — 개별 위치는 «맨 끝»(annotApplyLabelOffset 과 같은 자리)
+  if (labelDx !== 0 || labelDy !== 0) labelStyle += `translate:${labelDx}px ${labelDy}px;`;
   const labelInner = _renderAnnotLabelInner(labelMode, { text, labelImageSrc, labelImageSize, labelImageRadius });
   const labelExtraClass = labelMode === 'image' ? ' annot-label-image' : '';
   block.innerHTML = `
@@ -218,6 +270,52 @@ function makeAnnotationBlock(opts = {}) {
   return block;
 }
 window.makeAnnotationBlock = makeAnnotationBlock;
+
+/* ★1013t1A3-pre — 「dataset → makeAnnotationBlock 의 opts」 한 벌.
+   읽는 자리가 둘이었다(js/io/save-load.js rebindAll · js/props/prop-annotation.js _readState)인데
+   rebindAll 쪽이 labelMode · labelImageSrc/Size/Radius · labelBorderStyle/Width 여섯을 «안 읽어»,
+   리로드·⌘Z 복원(둘 다 rebindAll)마다 라벨이 기본값으로 다시 그려졌다
+   (2026-10-13 실측: 선 스타일=대시 → 리로드 → dataset dashed · 화면 solid).
+   ⛔새 칸을 더하면 «여기 한 곳»에만 더한다 — 두 자리가 다시 갈라지면 같은 병이 난다. */
+const _annNum = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+function annotPropsFromDataset(block) {
+  const ds = block.dataset, D = ANNOT_DEFAULTS;
+  let points = null;
+  try { points = JSON.parse(ds.points || 'null'); } catch (_) { points = null; }
+  if (!Array.isArray(points) || points.length < 2) {
+    points = [[_annNum(ds.anchorX, 0), _annNum(ds.anchorY, 0)], [_annNum(ds.labelX, 0), _annNum(ds.labelY, 0)]];
+  } else {
+    points = points.map(p => [Number(p[0]) || 0, Number(p[1]) || 0]);
+  }
+  const label = block.querySelector('.annot-label');
+  const labelMode = ds.labelMode === 'image' ? 'image' : 'text';
+  return {
+    points,
+    text:             ds.text || (label && labelMode === 'text' ? (label.textContent || '').trim() : '') || D.text,
+    strokeColor:      ds.strokeColor      || D.strokeColor,
+    strokeWidth:      _annNum(ds.strokeWidth, D.strokeWidth),
+    anchorShape:      ds.anchorShape      || D.anchorShape,
+    anchorSize:       _annNum(ds.anchorSize, D.anchorSize),
+    labelFontSize:    _annNum(ds.labelFontSize, D.labelFontSize),
+    labelColor:       ds.labelColor       || D.labelColor,
+    labelBg:          ds.labelBg          || D.labelBg,
+    labelBorderColor: ds.labelBorderColor || D.labelBorderColor,
+    labelMode,
+    labelImageSrc:    ds.labelImageSrc    || '',
+    labelImageSize:   parseInt(ds.labelImageSize, 10) || D.labelImageSize,
+    labelImageRadius: _annNum(ds.labelImageRadius, D.labelImageRadius),
+    labelBorderStyle: ds.labelBorderStyle || D.labelBorderStyle,
+    labelBorderWidth: _annNum(ds.labelBorderWidth, D.labelBorderWidth),
+    labelDx:          annotLabelOffsetOf(block).dx,   // ★1013t1A3 — 안 읽으면 리로드·⌘Z 복원 때 오프셋이 화면에서 사라진다
+    labelDy:          annotLabelOffsetOf(block).dy,
+  };
+}
+window.annotPropsFromDataset = annotPropsFromDataset;
+/* rebindAll 이 fresh 블럭에서 «되돌려 쓰는» dataset 키 — 팩토리가 쓰는 키 전부(순서 = 팩토리 순서). */
+const ANNOT_DATA_KEYS = ['points', 'anchorX', 'anchorY', 'labelX', 'labelY', 'text', 'strokeColor', 'strokeWidth',
+  'anchorShape', 'anchorSize', 'labelFontSize', 'labelColor', 'labelBg', 'labelBorderColor', 'labelMode',
+  'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy'];
+window.ANNOT_DATA_KEYS = ANNOT_DATA_KEYS;
 
 // 라벨박스 내부 컨텐츠 — text 모드 = 텍스트, image 모드 = <img> 또는 체크패턴 placeholder
 function _renderAnnotLabelInner(mode, { text, labelImageSrc, labelImageSize, labelImageRadius }) {

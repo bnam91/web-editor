@@ -72,12 +72,16 @@ const EXC_SEL = FOCUS_TAKING_EXCEPTIONS.map(e => e.sel).join(', ');
  *    아직 커밋 안 된 글자가 사라진다. 그곳들은 blur 가 «패널로» 가면 제 표면의 규칙대로 세우거나
  *    (그리드 — parkEditing + flush, block-drag.js) 예전대로 커밋한다(모달 — 다시 그린 뒤 저장 선택을 글자 오프셋으로 옮겨 단다).
  *  ⛔줄을 더하기 전에: 그 블럭의 패널 적용이 글자칸을 다시 그리지 않는가? */
-export const KEEP_FOCUS_HOST_SEL = '.text-block [contenteditable="true"], .table-block [contenteditable="true"]';
+/*  ★1013t1B1② — `:not(.ln-row > *)`: 말풍선은 .text-block 이지만 «줄 모드» 줄 글자칸(line-host)은 진실이 dataset 이고 패널 적용이
+ *    블럭을 다시 그린다(위 ⛔ 그대로) ⇒ 붙잡지 않고 그리드 줄처럼 세운다(laurel·챗·비교 줄과 같은 길 · RETAIN 의 .ln-row). */
+export const KEEP_FOCUS_HOST_SEL = '.text-block [contenteditable="true"]:not(.ln-row > *), .table-block [contenteditable="true"]';
 /** 「패널로 가는 blur」 뒤에도 저장 선택을 «들고 있는» 글자칸 — 패널 값이 그 글자에 다시 쓰이는 표면.
  *  KEEP_FOCUS 칸(텍스트블럭·표 칸) + 그리드 줄(세워 둠) + 모달 슬롯(다시 그린 뒤 옮겨 단다 — T7).
  *  ⛔여기 없는 표면(채팅·배너2·카드 …)은 blur 가 곧 «진짜 편집 종료»라 저장 선택·하이라이트를 버린다(적대QA ⑥). */
 /*  ⚠️contenteditable 로 거르지 않고 «블럭 꼴»로 가른다 — 표 칸은 blur 핸들러가 focusout «보다 먼저» contenteditable 을 끈다. */
-export const RETAIN_ON_PANEL_BLUR_SEL = '.text-block, .table-block, .grid-block, .modal-block';
+/*  ★1013t1B1② — `.ln-row` = line-host 줄(laurel·버블·챗·비교)의 글자칸 «만» — 그리드 줄과 같은 «세움»(line-host.js lnBeginEdit onBlur)이라
+ *    패널 글자색이 고른 글자에만 간다(lnApplyLinePartialColor). ⛔블럭 꼴(.chat-block 등)로 넓히지 않았다 — 줄 없는 옛 챗·버블 편집은 그대로 버린다. */
+export const RETAIN_ON_PANEL_BLUR_SEL = '.text-block, .table-block, .grid-block, .modal-block, .ln-row';
 const _el = (n) => (n && n.nodeType === 1 ? n : n && n.parentElement) || null;
 export function isInPanelSurface(node) {
   const e = _el(node);
@@ -122,6 +126,36 @@ function _rangeFromOffsets(host, start, end) {
   r.setStart(sN, sO); r.setEnd(eN, eO);
   return r.collapsed ? null : r;
 }
+/* ★1013 D1 — 줄바꿈(\n 글자)을 «세지 않는» 오프셋. 편집 중 Enter 는 <div>(글자에 \n 없음)인데, 편집을 커밋해 «평문»으로 다시 그린
+ *   줄(line-host·그리드 줄 = white-space:pre/pre-wrap)은 줄바꿈을 \n 글자로 갖는다 — 둘은 «같은 글자»다.
+ *   ⇒ 아래 _alive 는 지문이 «그대로» 같으면 옛 길(_rangeFromOffsets)을, \n 만 다르면 이것으로 되찾는다.
+ *   끝점은 \n 건너뛰기 «전에» 본다(line-host.js _lnSelRestore 와 같은 규칙 — 뒤에 보면 끝이 \n 뒤로 밀려 줄바꿈이 범위에 든다).
+ *   시작은 «글자 위»에서만 잡는다(앞 글자 노드의 끝에 붙지 않는다). */
+const _noNl = (t) => String(t == null ? '' : t).replace(/\n/g, '');
+function _offsetsNoNl(range, host) {
+  const pre = document.createRange();
+  pre.selectNodeContents(host);
+  pre.setEnd(range.startContainer, range.startOffset);
+  const start = _noNl(pre.toString()).length;
+  return { startN: start, endN: start + _noNl(range.toString()).length };
+}
+function _rangeFromOffsetsNoNl(host, start, end) {
+  const w = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+  let pos = 0, sN = null, sO = 0, eN = null, eO = 0;
+  for (let n = w.nextNode(); n && !eN; n = w.nextNode()) {
+    const v = n.nodeValue;
+    for (let k = 0; k <= v.length; k++) {
+      if (sN && pos === end) { eN = n; eO = k; break; }
+      if (k < v.length && v[k] === '\n') continue;
+      if (!sN && pos === start && k < v.length) { sN = n; sO = k; }
+      if (k < v.length) pos++;
+    }
+  }
+  if (!sN || !eN) return null;
+  const r = document.createRange();
+  r.setStart(sN, sO); r.setEnd(eN, eO);
+  return r.collapsed ? null : r;
+}
 /* host 를 «id 를 가진 가장 가까운 조상 + 자식 순번 경로»로 적는다 — 다시 그려진 뒤 같은 자리를 찾는 열쇠.
  * ★경로는 «정체»가 아니다(적대QA B1, 2026-10-03): 줄 하나를 지우면 다음 줄이 같은 경로·같은 글자로 당겨와
  *   남의 줄에 붙었다. 그래서 되살림은 «조상 블럭의 글자 전체(지문)가 저장 때와 같을 때만» 한다 —
@@ -146,9 +180,10 @@ function _resolve(anchorId, path) {
 }
 function _record(range, host) {
   const { start, end } = _offsetsOf(range, host);
+  const { startN, endN } = _offsetsNoNl(range, host);
   const { anchorId, path } = _locate(host);
   const anchor = anchorId ? document.getElementById(anchorId) : null;
-  _saved = { range: range.cloneRange(), host, text: host.textContent, start, end, anchorId, path,
+  _saved = { range: range.cloneRange(), host, text: host.textContent, start, end, startN, endN, anchorId, path,
              print: anchor ? anchor.textContent : null };
 }
 
@@ -160,14 +195,22 @@ function _alive() {
   if (!host.isConnected) {
     const nh = _resolve(_saved.anchorId, _saved.path);
     const anchor = _saved.anchorId ? document.getElementById(_saved.anchorId) : null;
-    const sameStructure = !!anchor && anchor.textContent === _saved.print;   // ★지문 — 줄·칸이 늘거나 줄면 버린다
-    const nr = nh && sameStructure && nh.textContent === _saved.text ? _rangeFromOffsets(nh, _saved.start, _saved.end) : null;
+    /* ★지문 — 줄·칸이 늘거나 줄면 버린다. 그대로 같으면 옛 길.
+       ★1013 D1 — \n 만 다르면(편집 DOM <div> ↔ 커밋 뒤 평문 렌더 \n · 실측: 블럭 지문·글자칸 지문 «둘 다» \n 하나만큼 갈렸다)
+         같은 글자다 ⇒ \n 을 안 센 오프셋으로 되찾는다. ⛔이 갈래를 빼면 여러 줄 줄의 hex 칸·칩 부분 색이 «줄 전체 색»으로 빠진다
+         (패널 input 캡처의 flush 가 줄을 평문으로 다시 그린 뒤 이 대조가 저장 선택을 버렸다 — laurel-rich-text LR11-2·HB4h·HC3h·HM3h·GL2h·LR14). */
+    let nr = null;
+    if (nh && anchor) {
+      if (anchor.textContent === _saved.print && nh.textContent === _saved.text) nr = _rangeFromOffsets(nh, _saved.start, _saved.end);
+      else if (_noNl(anchor.textContent) === _noNl(_saved.print) && _noNl(nh.textContent) === _noNl(_saved.text)) nr = _rangeFromOffsetsNoNl(nh, _saved.startN, _saved.endN);
+    }
     if (!nr) { _saved = null; return null; }
     _saved.host = host = nh; _saved.range = range = nr;
   }
   if (range.collapsed || !host.contains(range.startContainer) || !host.contains(range.endContainer)) {
     // 글자가 바뀌어 범위가 접혔다 — 오프셋으로 한 번 더 찾는다(같은 글자일 때만)
-    const nr = host.textContent === _saved.text ? _rangeFromOffsets(host, _saved.start, _saved.end) : null;
+    const nr = host.textContent === _saved.text ? _rangeFromOffsets(host, _saved.start, _saved.end)
+      : _noNl(host.textContent) === _noNl(_saved.text) ? _rangeFromOffsetsNoNl(host, _saved.startN, _saved.endN) : null;   // ★1013 D1 — 위와 같은 뜻
     if (!nr) { _saved = null; return null; }
     _saved.range = range = nr;
   }
@@ -218,6 +261,16 @@ export function replaceSavedTextSelection(node) {
   r.selectNodeContents(node);
   if (r.collapsed) return false;
   _record(r, host);
+  _schedulePaint();
+  return true;
+}
+
+/** ★1013t1B1② — 저장 범위를 «직접» 세운다(편집이 아닌 글자칸도). line-host 색 갈래가 열린 편집을 커밋하면
+ *  contenteditable 을 끄는 순간 blur → focusout 이 저장 선택을 버린다(실측 probe) ⇒ 다시 그려진 줄의 같은 글자로 되세운다.
+ *  ⛔부르는 자가 «같은 글자»임을 확인한 뒤에만 부른다(이 함수는 확인하지 않는다). */
+export function setSavedTextSelection(range, host) {
+  if (!range || range.collapsed || !host || !host.isConnected || !host.contains(range.startContainer)) return false;
+  _record(range, host);
   _schedulePaint();
   return true;
 }

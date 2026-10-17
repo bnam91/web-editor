@@ -238,6 +238,11 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <input type="range" class="prop-slider" id="${p}-hl-y" min="-40" max="40" step="1" value="${hlY}">
         <input type="number" class="prop-number" id="${p}-hl-y-num" min="-40" max="40" value="${hlY}">
       </div>
+      <div class="prop-row ts-code-row" id="${p}-hl-code-row" title="스타일 번호 — 복사해 다른 글의 같은 칸에 붙여넣고 Enter">
+        <span class="prop-label">번호</span>
+        <input type="text" class="prop-text" id="${p}-hl-code" value="" placeholder="형광펜 번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="형광펜 스타일 번호">
+        <button type="button" class="prop-icon-btn" id="${p}-hl-code-copy" title="번호 복사" aria-label="형광펜 번호 복사">⧉</button>
+      </div>
       <div class="cv-chips ts-recent-row" id="${p}-hl-recent-row" hidden></div>
 ` : ''}${showDotOpts ? `      <!-- ★점 찍기 손잡이 넷 (2026-10-08 수지 ⑥: 「세 글자 선택→점 3개·★간격·★xy·★크기·★색상 변경」).
            ★★⛔이 showDotOpts 분기가 ★앞 블록의 ★끝에 ★붙어 있는 것은 ★일부러다 —
@@ -280,6 +285,11 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
           <input type="number" id="${p}-dot-y" min="-40" max="40" value="${dotY}" aria-label="점 Y">
         </div>
       </div>
+      <div class="prop-row ts-code-row" id="${p}-dot-code-row" title="스타일 번호 — 복사해 다른 글의 같은 칸에 붙여넣고 Enter">
+        <span class="prop-label">번호</span>
+        <input type="text" class="prop-text" id="${p}-dot-code" value="" placeholder="점 번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="점 스타일 번호">
+        <button type="button" class="prop-icon-btn" id="${p}-dot-code-copy" title="번호 복사" aria-label="점 번호 복사">⧉</button>
+      </div>
       <div class="cv-chips ts-recent-row" id="${p}-dot-recent-row" hidden></div>
 ` : ''}${showUnderlineOpts ? `      <div class="prop-color-row" id="${p}-ul-color-row" style="margin-top:6px;display:${isUnderline?'flex':'none'}">
         <span class="prop-label">밑줄 색</span>
@@ -295,6 +305,11 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
           <span class="prop-xy-label">위치</span>
           <input type="number" id="${p}-ul-offset" min="-10" max="20" step="1" value="${ulOffset}" placeholder="auto" aria-label="밑줄 위치">
         </div>
+      </div>
+      <div class="prop-row ts-code-row" id="${p}-ul-code-row" title="스타일 번호 — 복사해 다른 글의 같은 칸에 붙여넣고 Enter">
+        <span class="prop-label">번호</span>
+        <input type="text" class="prop-text" id="${p}-ul-code" value="" placeholder="밑줄 번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="밑줄 스타일 번호">
+        <button type="button" class="prop-icon-btn" id="${p}-ul-code-copy" title="번호 복사" aria-label="밑줄 번호 복사">⧉</button>
       </div>
       <div class="cv-chips ts-recent-row" id="${p}-ul-recent-row" hidden></div>
 ` : ''}${showGlowOpts ? `      <div class="prop-color-row" id="${p}-glow-color-row" style="margin-top:6px;display:${isGlow?'flex':'none'}">

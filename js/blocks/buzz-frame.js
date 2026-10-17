@@ -15,7 +15,7 @@
         사용자가 패널이나 손잡이로 높이를 바꾸면 그 값이 곧 새 기준이다 — 따로 기억하는 값이 없다.
    저장: 설정은 프레임의 data-buzz-* · 뒤쪽 단계는 row 의 data-buzz-far · 장식은 모달의 data-deco-* / data-glass.
          자리는 row 인라인(left/top/width/z-index) · 회전은 모달 data-rotation — 기존 모델 그대로. */
-import { insertAfterSelected, showNoSelectionHint } from '../drag-utils.js';
+import { insertAfterSelected, showNoSelectionHint, applyBlockFullBleed } from '../drag-utils.js';
 import { isBuzzFrame } from './buzz-mark.js';
 import { scatterLayout, stackLayout, pickSpot, buzzRotations, depthTiers, BUZZ_MARGIN, BUZZ_TAIL_ROOM } from './buzz-layout.js';
 
@@ -46,29 +46,39 @@ export function setBuzz(frame, k, v) { frame.dataset[_key(k)] = String(v); }
 
 /* ── 스타일 6종(묶음 전체에 한 번에) ─────────────────────────────
    modal = 모달 dataset 에 쓰는 값(모달 패널이 아는 그 칸들) · deco = 장식 · frame = 배치 설정.
-   색은 «콘텐츠»의 색이다(상세페이지에 실리는 말풍선) — 에디터 크롬 토큰과 무관하다. */
+   색은 «콘텐츠»의 색이다(상세페이지에 실리는 말풍선) — 에디터 크롬 토큰과 무관하다.
+   ★frameBg = 그 스타일의 «프레임 기본 배경»(1013t2 D1 · D2 · 현빈 2026-10-14):
+     · 알약만 솔리드 BUZZ_PILL_BG.solid — 알약 낱개가 흰 26% 채움 + 흰 글자라 어두운 바탕이 있어야 읽힌다
+       (합성 뒤 흰 글자 대비 ≥ 3.0 · 지키는 자: tests/dom/buzz-frame.dom.spec.js BZ-24 · tests/unit/buzz-layout.test.mjs U13).
+     · 나머지 5종은 투명 — 섹션 배경이 그대로 비친다.
+   ⛔이미 저장된 버즈는 안 바꾼다. 이 값은 «새로 넣을 때 · 스타일을 고를 때»에만 쓰인다(applyBuzzStyle). */
+/* 알약 프레임 배경의 고를 거리 — 솔리드가 기본이고, 옛 기본이던 그라데이션은 Buzz 절 「배경」 묶음의 프리셋으로 남는다. */
+export const BUZZ_PILL_BG = {
+  solid: '#5f564e',
+  gradient: 'linear-gradient(165deg,#b8ada0,#a79c91 55%,#9f948a)',
+};
 export const BUZZ_STYLES = {
-  card: { label: '카드', frameBg: '#f3f1ee',
+  card: { label: '카드', frameBg: 'transparent',
     modal: { bg: '#ffffff', radius: 12, padX: 28, padY: 20, borderW: 0, borderColor: '#dddddd', dropShadow: 'soft', align: 'center', textColor: '#222222', fontSize: 28, fontWeight: '500', lineHeight: 1.4 },
     deco: { tail: 'none', tape: 'none', glass: 0 },
     frame: { layout: 'scatter', spread: 60, overlap: 1, angle: 0, range: 4, dir: 'alt', depth: 'none', width: 0 } },
-  pill: { label: '알약', frameBg: 'linear-gradient(165deg,#b8ada0,#a79c91 55%,#9f948a)',
+  pill: { label: '알약', frameBg: BUZZ_PILL_BG.solid, frameBgPresets: BUZZ_PILL_BG,
     modal: { bg: 'rgba(255,255,255,0.26)', radius: 60, padX: 40, padY: 20, borderW: 2, borderColor: 'rgba(255,255,255,0.55)', dropShadow: 'none', align: 'center', textColor: '#ffffff', fontSize: 30, fontWeight: '700', lineHeight: 1.4 },
     deco: { tail: 'none', tape: 'none', glass: 1 },
     frame: { layout: 'scatter', spread: 85, overlap: 0, angle: 0, range: 0, dir: 'alt', depth: 'strong', width: 0 } },
-  bubble: { label: '버블', frameBg: '#eef0f3',
+  bubble: { label: '버블', frameBg: 'transparent',
     modal: { bg: '#ffffff', radius: 40, padX: 36, padY: 24, borderW: 0, borderColor: '#dddddd', dropShadow: 'soft', align: 'center', textColor: '#333333', fontSize: 28, fontWeight: '500', lineHeight: 1.4 },
     deco: { tail: 'none', tape: 'none', glass: 0 },
     frame: { layout: 'scatter', spread: 70, overlap: 0, angle: 0, range: 2, dir: 'alt', depth: 'none', width: 0 } },
-  tail: { label: '꼬리 말풍선', frameBg: '#f1f1f1',
+  tail: { label: '꼬리 말풍선', frameBg: 'transparent',
     modal: { bg: '#ffffff', radius: 60, padX: 44, padY: 30, borderW: 0, borderColor: '#dddddd', dropShadow: 'soft', align: 'center', textColor: '#333333', fontSize: 28, fontWeight: '500', lineHeight: 1.45 },
     deco: { tail: 'alt', tape: 'none', glass: 0 },
     frame: { layout: 'stack', offset: 0, gap: 46, overlap: 0, angle: 0, range: 0, dir: 'alt', depth: 'none', width: 700 } },
-  tape: { label: '테이프 메모', frameBg: '#e9e9e9',
+  tape: { label: '테이프 메모', frameBg: 'transparent',
     modal: { bg: '#ffffff', radius: 0, padX: 36, padY: 40, borderW: 0, borderColor: '#dddddd', dropShadow: 'soft', align: 'left', textColor: '#222222', fontSize: 24, fontWeight: '600', lineHeight: 1.6 },
     deco: { tail: 'none', tape: 'cycle', glass: 0 },
     frame: { layout: 'scatter', spread: 70, overlap: 1, angle: 0, range: 5, dir: 'alt', depth: 'none', width: 0 } },
-  strip: { label: '띠', frameBg: '#ffffff',
+  strip: { label: '띠', frameBg: 'transparent',
     modal: { bg: '#ffffff', radius: 0, padX: 46, padY: 22, borderW: 0, borderColor: '#dddddd', dropShadow: 'strong', align: 'center', textColor: '#111111', fontSize: 32, fontWeight: '800', lineHeight: 1.3 },
     deco: { tail: 'none', tape: 'none', glass: 0 },
     frame: { layout: 'stack', offset: 50, gap: 30, overlap: 0, angle: -5, range: 0, dir: 'one', depth: 'none', width: 0 } },
@@ -207,15 +217,23 @@ export function buzzCrowded(frame) {
   return false;
 }
 
-/** 스타일을 묶음 전체에 건다(모달 dataset + 장식 + 배치 설정 + 프레임 배경) → 다시 놓는다. 높이는 그대로다. */
+/** 프레임 배경을 쓴다 — 값 칸(data-bg)과 인라인 배경을 «같이». 솔리드 · 투명 · 그라데이션 어느 것이든 background 한 줄이 앞 값을 지운다. */
+export function setBuzzFrameBg(frame, css) {
+  if (!frame || !css) return false;
+  frame.dataset.bg = css;
+  frame.style.background = css;
+  return true;
+}
+
+/** 스타일을 묶음 전체에 건다(모달 dataset + 장식 + 배치 설정 + 프레임 배경) → 다시 놓는다. 높이는 그대로다.
+ *  프레임 배경은 «그 스타일의 기본»으로 간다 — 손으로 바꾼 배경도 덮는다(1012t1Z5 부터의 동작 그대로). */
 export function applyBuzzStyle(frame, key) {
   const S = BUZZ_STYLES[key];
   if (!frame || !S) return false;
   setBuzz(frame, 'style', key);
   Object.keys(S.frame).forEach((k) => setBuzz(frame, k, S.frame[k]));
   if (frame.dataset.buzzSeed === undefined) setBuzz(frame, 'seed', BUZZ_DEFAULTS.seed);
-  frame.dataset.bg = S.frameBg;
-  frame.style.background = S.frameBg;
+  setBuzzFrameBg(frame, S.frameBg);
   const seed = getBuzz(frame, 'seed');
   buzzRows(frame).forEach((row, i) => _styleModal(_modalOf(row), S, i, seed));
   relayoutBuzzFrame(frame);
@@ -304,6 +322,11 @@ function addBuzzBlock(opts = {}) {
   frame.dataset.buzz = '1';
   setBuzz(frame, 'seed', window.FxSeed.newSeed() % 10000 || 1);
   insertAfterSelected(sec, frame);                          /* DOM 에 붙어야 실측이 된다 */
+  /* 1013t2 D1 — 새 버즈는 「패딩 제외」(프레임 패널 Size 절의 그 스위치)가 켜진 채로 들어간다: 섹션 좌우 패딩을 넘어 가장자리까지.
+     ★말풍선을 놓기 «전»에 건다 — 놓는 폭이 프레임의 clientWidth 다. 뚫을 패딩이 없는 자리면 표식만 남고 폭은 그대로다.
+     끄기 · 폭 바꾸기 · 저장 복원은 프레임의 기존 길(js/props/prop-frame.js · js/overlay-handles.js) 그대로다. */
+  frame.dataset.fullBleed = 'true';
+  applyBlockFullBleed(frame);
   const count = Math.max(BUZZ_COUNT[0], Math.min(BUZZ_COUNT[1], Math.round(Number(opts.count)) || 6));
   BUZZ_SAMPLES.slice(0, count).forEach((text) => _newModalRow(frame, text));
   applyBuzzStyle(frame, style);

@@ -244,7 +244,19 @@
 | 데이터 | 데이터 편집 | 값, 라벨 입력 |
 | 스타일 | 바 색상 | — |
 | 스타일 | 배경 색상 | — |
-| 타입 | 그래프 형태 | Bar / Line 등 |
+| 타입 | 그래프 형태 | 세로 막대 / 가로 막대 / 꺾은선 / 비교 / 원형 — 버튼 다섯(`grb-type-*`). 도넛은 유형이 아니라 원형의 토글이다(옛 `chartType: 'donut'` 블럭은 「원형」이 켜진 채 열린다) |
+| Pie Settings (원형 전용 · 1013t1C) | 도너츠 토글 `grb-pie-donut-toggle` | `dataset.pieDonut` '1' (끄면 키 삭제). 옛 `donut` 은 여기서 `pie` + `pieDonut` 로 옮겨 쓴다 |
+| Pie Settings | 구멍 크기 `grb-pie-hole-slider/number` | 도너츠일 때만 — `dataset.pieHole` 20~80 |
+| Pie Settings | 조각 간격 `grb-pie-gap-slider/number` | `dataset.pieGap` 0~40 (없음 = 10) |
+| Pie Settings | 시작 각도 `grb-pie-start-slider/number` | `dataset.pieStart` 0~359 |
+| Pie Settings | 순위 표시 `grb-pie-rank-toggle` · 이름 표시 `grb-pie-name-toggle` | 조각 안 라벨 — `dataset.pieRank` / `pieName` '1' (끄면 키 삭제 · 기본 꺼짐). 라벨이 제 조각에 안 들면 «숨기기 전에» 줄바꿈(이름 2줄까지) → 글자 줄이기(`PIE_TAG_FONT_STEPS` · 라벨 크기 칸의 최소 `LABEL_SIZE_MIN` 8 위) → 이름 숨김 → 라벨 숨김 순으로 밟는다 |
+| Pie Settings | 안내 줄 `grb-pie-name-hint` (`prop-hint`) | 이름 표시 줄 바로 아래 「좁아서 이름 n개 숨김」 — n = 이름 표시가 켜졌는데 좁아서 이름이 안 보이는 조각 수(`window.grbPieHiddenNames(block)` · 「숨김」 조각·값 0 조각 제외). 0 이면 줄이 없다. 블럭 크기·글자가 바뀌어 다시 재면(`grb-pie-fit` 이벤트) 패널이 열린 채 숫자가 바뀐다 |
+| Slice (원형 · 조각을 골랐을 때만) | 조각 「n번 · 라벨」 `grb-pie-slice-name` | 고른 조각 = 캔버스 표식 `grb-pie-cell-selected` 하나(선택된 블럭의 조각 클릭 · 또는 데이터 줄의 조각 버튼 `[data-slice-index]`) |
+| Slice | 크기 `grb-pie-grow-slider/number` | `items[i].pieGrow` 0~30 % (0 = 키 삭제) |
+| Slice | 밀어내기 `grb-pie-pull-slider/number` | `items[i].piePull` 0~30 % (0 = 키 삭제) |
+| Slice | 라벨 `grb-pie-tag-select` | 자동 / 항상 / 숨김 — `items[i].pieTag` 없음 / `'on'` / `'off'` |
+| Slice | (규칙) | 그려지는 조각이 하나(온 원)면 크기·밀어내기 칸은 `disabled` + 안내 줄 `grb-pie-slice-hint`(「조각이 하나라 적용되지 않음」 · 값은 안 지운다). Slice 칸은 쓰기 전에 `grbPieSelected(block) === 색인` 을 본다 — 아니면 절을 걷고 안 쓴다(`window.grbPieDropSlicePanel()` · 같은 블럭을 ⌘클릭해 풀 때도 부른다) |
+| Shadow (원형 전용 · 1013t1C7) | 없음 / 부드럽게 / 강하게 `grb-drop-group` | `dataset.dropShadow` 없음 / `soft` / `strong` — 모달·확대블럭과 같은 키·같은 값. 값이 같으면 히스토리를 안 찍는다 |
 | Shape (세로 막대 전용 · 1012t1G2·G3) | 모양 select | 기본 막대 / 사람 / 약통 / 물방울 / 사용자 SVG — `dataset.barShape` (끄면 키 삭제) |
 | Shape | SVG 불러오기 | `.svg` 파일을 소독·정규화해 실루엣으로 (`dataset.shapeSvg`, 상한 `GRAPH_LIMITS.SHAPE_SVG_MAX`). `<style>` 요소는 안 받는다 · `<use>` 겹쳐 부르기는 거절(TOO_COMPLEX). 읽는 사이 선택이 다른 블럭으로 옮겨 갔으면 패널을 다시 그리지 않는다 |
 | Shape | 최대값 | 채움 분모 `dataset.fillMax` (모양이 켜졌을 때만 · 빈 칸 = 기본 100 · 값이 안 바뀌면 히스토리를 안 찍는다) |

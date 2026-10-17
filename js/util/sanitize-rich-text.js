@@ -21,6 +21,8 @@
  *   ⑴ `js/blocks/sticker-block.js` — `dataset.textHtml`
  *      (★2026-10-08 이사 시점의 ★유일한 소비자. ★행위로 셌다: 이 모듈을 import 하는 파일 1)
  *   ⑵ (예정) 모달 슬롯 — 수지② `js/blocks/modal-block.js` · `js/block-drag.js`
+ *   ⑶ 그리드 줄 — `js/blocks/grid-block.js`(렌더 gridLineHtml) · `js/block-drag.js`(커밋 _gridEndEdit) · opts = GRID_RICH_TEXT_OPTS (수지⑦ 2026-10-08)
+ *   ⑷ line-host 줄(버블·챗·비교·laurel) — `js/blocks/line-host.js` lnBeginEdit 커밋 · 렌더는 ⑶ 의 gridLineHtml · 같은 opts (1013t1B1 2026-10-13)
  *
  * ★★★2026-10-08 ★정정 — ★내가 여기 적었던 문장이 ★틀렸다(★지디가 ★자기 QA 로 잡았다)
  *   ⛔틀린 문장: 「이 본문을 ★무력화하면 ★소비자 ★«수»만큼 빨강이어야 한다 · 실측 = 소비자 1 이라 빨강도 1」
@@ -173,6 +175,57 @@ function sanitizeInto(srcParent, dstParent, cfg) {
       sanitizeInto(node, dstParent, cfg); // 비허용 태그 = 언랩(자식만 재귀 편입)
     }
   });
+}
+
+/* ★1013t1B1 — 편집기(contenteditable) «블럭 경계»를 줄바꿈 <br> 로 펴는 «한 벌» (sanitize ★앞에서 부른다 · 옵트인).
+ *   ★왜: Chrome 은 한 줄 편집 칸에서 Enter 를 `AAABBB<div>CCC</div>`(또는 `<div><br></div>` 빈 줄)로 만든다.
+ *     DIV 는 허용목록에 없어 sanitizeRichTextHtml 이 «언랩»만 한다 ⇒ 줄바꿈 없이 `AAABBBCCC` 가 된다.
+ *     평문 쪽(innerText → text)은 \n 을 지키므로 «text 는 두 줄인데 textHtml 은 한 줄»로 갈린다(이벨류 실측 · 서식 든 줄만).
+ *   ★규칙(= innerText 와 같은 줄 수 · block-drag.js _mdlReadText 와 같은 뜻):
+ *     블럭(DIV·P·LI·H1~6)은 줄을 «시작»하고(앞 줄에 글이 있으면), 끝나면 줄바꿈이 «대기»한다(뒤에 뭔가 올 때만 실제 <br>).
+ *     블럭 안 «마지막» <br> 는 빈 줄 자리표시(그 줄 자체가 줄이다) — 대기 중인 줄바꿈만 꺼낸다. 그 밖의 <br> 는 그대로.
+ *   ★인라인(b·i·span…)은 얕게 복사해 그 안에서 이어 간다 — 속성은 그대로 두고 ★거르는 것은 뒤의 sanitize 몫이다.
+ *   ⛔sanitizeRichTextHtml 자체는 안 바꾼다(스티커·모달·그리드 산출 무변) — 부르는 자만 영향(현재 line-host 커밋 한 곳). */
+const BLOCK_BREAK_RE = /^(DIV|P|LI|H[1-6])$/;
+export function richTextBlocksToBreaks(html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = String(html == null ? '' : html);
+  const out = document.createElement('div');
+  const doc = out.ownerDocument || document;
+  let pending = false, lineOpen = false;
+  const flush = (dst) => { if (pending) { dst.appendChild(doc.createElement('br')); pending = false; lineOpen = false; } };
+  const walk = (src, dst, inBlock) => {
+    src.childNodes.forEach((n) => {
+      if (n.nodeType === 3) {
+        if (n.nodeValue === '') return;
+        flush(dst);
+        dst.appendChild(doc.createTextNode(n.nodeValue));
+        lineOpen = !/\n$/.test(n.nodeValue);   // 글자 \n 으로 끝나면(pre 칸의 Enter) 줄이 이미 닫혔다
+        return;
+      }
+      if (n.nodeType !== 1) return;
+      const tag = n.tagName.toUpperCase();
+      if (tag === 'BR') {
+        if (inBlock && !n.nextSibling) { flush(dst); return; }   // 블럭 끝 자리표시 — 줄은 블럭 자신이 낸다
+        flush(dst);
+        dst.appendChild(doc.createElement('br'));
+        lineOpen = false;
+        return;
+      }
+      if (BLOCK_BREAK_RE.test(tag)) {
+        if (lineOpen) pending = true;
+        walk(n, dst, true);
+        pending = true;
+        return;
+      }
+      if (n.textContent !== '' || n.querySelector('br')) flush(dst);   // 대기 줄바꿈은 인라인 «밖»에 — <b><br>CCC</b> 가 아니라 <br><b>CCC</b>
+      const shallow = n.cloneNode(false);
+      dst.appendChild(shallow);
+      walk(n, shallow, false);
+    });
+  };
+  walk(tpl.content, out, false);
+  return out.innerHTML;
 }
 
 // 문자열 HTML → sanitize된 문자열 HTML. template.content(inert DocumentFragment)에서 파싱.

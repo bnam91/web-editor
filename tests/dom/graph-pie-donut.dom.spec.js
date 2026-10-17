@@ -101,26 +101,33 @@ test('P2 구멍 — 도넛은 가운데가 «실제로» 비고 원형은 찬다
   expect(errs).toEqual([]);
 });
 
-test('P3 패널 배치 — 유형 버튼 6개가 안 넘치고 · 구멍 줄은 도넛에서만 · 막대 설정은 숨는다', async ({ page }) => {
+/* 1013t1C1 «의도된 변경» — 유형 버튼은 다섯(「원형」 하나) · 도넛은 Pie Settings 의 「도너츠」 토글(chartType 'pie' + pieDonut '1'). 옛 버튼 #grb-type-donut 은 없다. */
+test('P3 패널 배치 — 유형 버튼 5개가 안 넘치고 · 구멍 줄은 도너츠 토글을 켰을 때만 · 막대 설정은 숨는다', async ({ page }) => {
   const { errs, id } = await setup(page, { type: 'bar-v' });
   await openPanel(page, id);
   const grp = () => page.evaluate(() => { const g = document.getElementById('grb-type-v').closest('.prop-type-group'); const bs = [...g.querySelectorAll('button')];
     return { ids: bs.map(b => b.id), active: bs.filter(b => b.classList.contains('active')).map(b => b.id), fits: g.scrollWidth <= g.clientWidth, widths: bs.every(b => b.offsetWidth > 0 && b.scrollWidth <= b.clientWidth),
       labels: bs.map(b => b.textContent.trim()) }; });
   const g0 = await grp();
-  expect(g0.ids).toEqual(['grb-type-v', 'grb-type-h', 'grb-type-line', 'grb-type-pair', 'grb-type-pie', 'grb-type-donut']);
-  expect(g0.labels.slice(4)).toEqual(['원형', '도넛']);
+  expect(g0.ids).toEqual(['grb-type-v', 'grb-type-h', 'grb-type-line', 'grb-type-pair', 'grb-type-pie']);
+  expect(g0.labels.slice(4)).toEqual(['원형']);
   expect(g0).toMatchObject({ active: ['grb-type-v'], fits: true, widths: true });
   expect(await page.locator('#grb-bar-thickness-slider').count(), '전제: 막대에선 두께 줄이 있다').toBe(1);
-  await page.locator('#grb-type-donut').click();
-  await expect.poll(() => ds(page, id, 'chartType')).toBe('donut');
-  expect(await grp()).toMatchObject({ active: ['grb-type-donut'], fits: true, widths: true });
+  await page.locator('#grb-type-pie').click();
+  await expect.poll(() => ds(page, id, 'chartType')).toBe('pie');
+  expect(await page.locator('#grb-pie-donut-toggle').count(), '전제: 원형이면 도너츠 토글이 있다').toBe(1);
+  expect(await page.locator('#grb-pie-hole-slider').count(), '전제: 토글을 켜기 전엔 구멍 줄 없음').toBe(0);
+  await page.locator('#grb-pie-donut-toggle').locator('xpath=..').click();
+  await expect.poll(() => ds(page, id, 'pieDonut')).toBe('1');
+  expect(await ds(page, id, 'chartType'), '도너츠 = 원형 + 토글(유형은 pie 그대로)').toBe('pie');
+  expect(await grp()).toMatchObject({ active: ['grb-type-pie'], fits: true, widths: true });
   expect(await page.locator('#grb-pie-hole-slider').count()).toBe(1);
   expect(await page.locator('#grb-pie-hole-number').count()).toBe(1);
   expect(await page.locator('#grb-bar-thickness-slider').count(), '도넛: 막대 설정 없음').toBe(0);
   expect((await dOf(page, id)).filter(Boolean).length, '캔버스도 도넛으로 그려졌다 — 기본 5항목이 다 조각').toBe(5);
-  await page.locator('#grb-type-pie').click();
-  await expect.poll(() => ds(page, id, 'chartType')).toBe('pie');
+  await page.locator('#grb-pie-donut-toggle').locator('xpath=..').click();
+  await expect.poll(() => ds(page, id, 'pieDonut')).toBeNull();
+  expect(await ds(page, id, 'chartType')).toBe('pie');
   expect(await grp()).toMatchObject({ active: ['grb-type-pie'], fits: true, widths: true });
   expect(await page.locator('#grb-pie-hole-slider').count(), '원형: 구멍 줄 없음').toBe(0);
   expect(await page.locator('#grb-bar-thickness-slider').count()).toBe(0);

@@ -827,6 +827,33 @@ span[style*="text-fill-color"] .tb-dot { -webkit-text-fill-color: currentColor; 
   max-width: none;
   margin: calc(-3 * var(--redact-blur, 8px));
 }
+/* ── 1013t2A2 로고 «콜라보» [로고1 × 로고2 (× 로고3)] — 한 에셋 블록 안(js/blocks/logo-collab.js)
+ * 칸1 = 기존 그림(.asset-img-clip)을 왼쪽 한 칸 폭으로 좁힌다 · 칸2·3 과 「×」 는 .asset-collab 이 그 오른쪽에 가로로 놓는다.
+ * 폭·간격·× 크기는 JS 가 인라인 변수로 칠한다(모델 한 자리 = js/blocks/logo-collab-model.js).
+ * ★--collab-gap 폴백 16px 은 COLLAB_GAP_DEFAULT 와 같은 수여야 한다(tests/unit/logo-collab-model.test.mjs LM3).
+ * × 글꼴·색 = 본문 텍스트와 같은 출처(--preset-body-*) — 새 색 하드코딩 0. */
+.asset-block[data-collab] > .asset-img-clip { right: auto; width: var(--collab-slot-w); }
+.asset-block[data-collab] > .asset-collab {
+  position: absolute; top: 0; bottom: 0; left: var(--collab-slot-w); right: 0;
+  display: flex; align-items: center;
+  gap: var(--collab-gap, 16px); padding-left: var(--collab-gap, 16px);
+  pointer-events: none; z-index: 1; border-radius: inherit;
+}
+.asset-collab-x {
+  flex: 0 0 var(--collab-x-size); text-align: center;
+  font-size: var(--collab-x-size); line-height: 1; font-weight: 400;
+  color: var(--collab-x-color, var(--preset-body-color));
+  font-family: var(--preset-body-family);
+  user-select: none;
+}
+.asset-collab-slot {
+  position: relative; flex: 0 0 var(--collab-slot-w); height: 100%;
+  overflow: hidden; border-radius: inherit; pointer-events: auto;
+}
+.asset-collab-slot:not(:has(.asset-collab-img)) {
+  background: repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) 0 0 / var(--goya-checker-big-size) var(--goya-checker-big-size);
+}
+.asset-collab-img { width: 100%; height: 100%; display: block; object-fit: contain; }
 /* ── 1012t1 D4 — 비교 블럭 이미지 칸의 블러(같은 상태: data-redact + --redact-blur · 렌더가 모델 row.redact 로 매번 칠한다)
  * ⛔«뒤 막 흐리기»(backdrop · 에셋도 C1 2차에서 버렸다)를 쓰지 않는다 — 비교 블럭은 조상(블럭 안쪽 상자)에 배율 변환이 걸린다.
  *   실측(D4 프로브 2026-10-13 · 배율 1.194): 뒤 막 흐리기는 칸 아래 약 8% 띠와 오른쪽 가장자리를 «안 흐렸다»

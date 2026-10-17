@@ -30,6 +30,7 @@ import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.j
 import { GRID_CIRCLE_ICON_INNER, GRID_CIRCLE_ICON_STROKE_WIDTH } from './blocks/grid-circle-icon.js';
 import { isImageMemoHost, getImageMemo, setImageMemo, openImageMemoEditor } from './image-memo.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, topLevelBlocksOf, isEmptyShell } from './shape-frame.js';
+import { ellipseInnerSVG, ellipseViewBox, ellipseFilterId } from './shape-ellipse.js';   /* 1013t2A1 원 N개·개별 색·이너 그림자 */
 
 /* ═══════════════════════════════════
    BLOCK FACTORY — make* / add* / addSection
@@ -895,6 +896,9 @@ function addAssetBlock(preset, opts = {}) {
     if (preset && ASSET_PRESETS[preset]) {
       block.style.height = ASSET_PRESETS[preset].height + 'px';
       if (ASSET_PRESETS[preset].width) block.style.width = ASSET_PRESETS[preset].width + 'px';
+      /* ★1013t2A2(decisions ② 덤) — 메뉴 「Logo」 로 «새로 만들 때만» 로고 표식을 붙인다(패널 Logo 단추와 같은 표식).
+         옛 블록·저장본은 안 건드린다 — 표식 없는 옛 로고는 inspector 근사(200×64)가 그대로 센다. */
+      if (preset === 'logo') block.dataset.preset = 'logo';
     }
     // preset 고정 width가 있으면(logo 등) opts.width로 덮어쓰지 않음
     if (opts.width && !ASSET_PRESETS[preset]?.width) block.style.width = opts.width + 'px';
@@ -1207,7 +1211,12 @@ function makeGraphBlock() {
 function addGraphBlock(opts = {}) {
   // U9(BL-BOL-03): 스타일/시리즈 옵션 → dataset 일괄 매핑 (smooth=곡선, bar-pair 2시리즈용 barColor2 등)
   const _applyGraphOpts = (block) => {
-    if (opts.chartType) block.dataset.chartType = opts.chartType; // 'bar-v' | 'bar-h' | 'line' | 'bar-pair' | 'pie' | 'donut'
+    if (opts.chartType) block.dataset.chartType = opts.chartType; // 'bar-v' | 'bar-h' | 'line' | 'bar-pair' | 'pie' | 'donut'(옛 별칭 = 'pie' + pieDonut)
+    if (opts.pieDonut) block.dataset.pieDonut = '1';   // 1013t1C1 — 원형의 「도너츠」 토글
+    // 1013t1C3 · C7 — 조각 안 순위·이름 라벨(켜면 '1') · 그림자(soft / strong 만). 시작 각도·조각 간격은 아래 정수 묶음. 조각별 키(pieGrow · piePull · pieTag)는 items 에 실어 준다.
+    if (opts.pieRank) block.dataset.pieRank = '1';
+    if (opts.pieName) block.dataset.pieName = '1';
+    if (opts.dropShadow === 'soft' || opts.dropShadow === 'strong') block.dataset.dropShadow = opts.dropShadow;
     const map = { smooth: 'lineSmooth', fillArea: 'fillArea' };
     for (const [opt, key] of Object.entries(map)) {
       if (opts[opt] !== undefined) block.dataset[key] = opts[opt] ? '1' : '0';
@@ -1215,7 +1224,7 @@ function addGraphBlock(opts = {}) {
     for (const k of ['lineColor', 'fillColor', 'barColor', 'barColor2', 'seriesA', 'seriesB', 'labelColor', 'vlabelColor', 'xlabelColor']) {
       if (typeof opts[k] === 'string' && opts[k].length <= 64) block.dataset[k] = opts[k];
     }
-    for (const k of ['chartHeight', 'labelSize', 'strokeWidth', 'pointRadius', 'pieHole']) {
+    for (const k of ['chartHeight', 'labelSize', 'strokeWidth', 'pointRadius', 'pieHole', 'pieStart', 'pieGap']) {
       const n = Number(opts[k]);
       if (Number.isFinite(n) && n >= 0) block.dataset[k] = String(Math.floor(n));
     }
@@ -2569,7 +2578,12 @@ const SHAPE_DEFS = {
 
 // stroke 두께에 맞춘 rectangle/ellipse inner SVG 생성
 // strokeWidth는 user-space(viewBox) 단위로 해석됨. 절반만 inset해서 stroke 잘림 방지.
+/* ★1013t2A1 — ellipse 는 셋째 인자 opts({count,gap,colors,shadow,id})를 받아 원 N개를 그린다(js/shape-ellipse.js).
+   opts 가 없으면 옛 글자 그대로다(makeShapeBlock · updateShapeBlock swap 이 이 길을 탄다).
+   ⚠️서명 글자 `(type, strokeWidth)` 는 그대로 둔다 — tests/unit/shape-frame-wiring.test.mjs 가 이 머리로 잘라
+     «혼자» 실행한다(그 자리엔 ellipseInnerSVG 가 없다) ⇒ opts 는 arguments[2] 로 받고 없는 길은 옛 리터럴. */
 function _shapeInnerSVG(type, strokeWidth) {
+  const opts = arguments[2];
   const sw = Math.max(0, Number(strokeWidth) || 0);
   // stroke=0일 때 미세한 inset도 없음 (풀폭 100%)
   const half = sw / 2;
@@ -2579,8 +2593,9 @@ function _shapeInnerSVG(type, strokeWidth) {
     return `<rect x="${half}" y="${half}" width="${w}" height="${h}" rx="0"/>`;
   }
   if (type === 'ellipse') {
+    if (opts) return ellipseInnerSVG({ ...opts, sw });
     const r = Math.max(0, 50 - half);
-    return `<ellipse cx="50" cy="50" rx="${r}" ry="${r}"/>`;
+    return `<ellipse cx="50" cy="50" rx="${r}" ry="${r}"/>`;   // = ellipseInnerSVG({sw}) (유닛 U1 이 같은 글자를 잠근다)
   }
   // 다른 타입은 SHAPE_DEFS의 정적 inner 사용
   return SHAPE_DEFS[type]?.inner || '';
@@ -2597,11 +2612,25 @@ function relinkShapeGradient(block) {
   if (!block || !block.classList?.contains('shape-block')) return false;
   const svg = block.querySelector('svg');
   if (!svg) return false;
+  /* ★1013t2A1 — 원 이너 그림자 필터도 같은 병(붙여넣기·⌘D 가 [id] 를 새로 짓는다)·같은 처방.
+     필터 1개 = eish-<지금 block.id>, filter="url(#eish-…)" 를 전부 그 id 로. */
+  let fxChanged = false;
+  {
+    const fWant = ellipseFilterId(block.id);
+    const flts = [...svg.querySelectorAll('filter[id^="eish-"]')];
+    if (flts.length) {
+      if (flts[0].id !== fWant) { flts[0].id = fWant; fxChanged = true; }
+      flts.slice(1).forEach(f => { f.remove(); fxChanged = true; });
+      svg.querySelectorAll('[filter^="url(#eish-"]').forEach(el => {
+        if (el.getAttribute('filter') !== `url(#${fWant})`) { el.setAttribute('filter', `url(#${fWant})`); fxChanged = true; }
+      });
+    }
+  }
   const defsGrads = [...svg.querySelectorAll('linearGradient, radialGradient')];
   const fills = [...svg.querySelectorAll('[fill^="url(#"]')];
-  if (!defsGrads.length && !fills.length) return false;
+  if (!defsGrads.length && !fills.length) return fxChanged;
   const want = `grad-${block.id || 'shp_anon'}`;
-  let changed = false;
+  let changed = fxChanged;
   if (defsGrads.length) {
     // 정본 def = 이미 want 인 것 > 지금 fill 이 가리키는 것 > 첫 번째
     const ref = (fills[0]?.getAttribute('fill') || '').match(/^url\(#([^)]+)\)/)?.[1];
@@ -2625,14 +2654,17 @@ window.relinkShapeGradient = relinkShapeGradient;
    ★영영 같지 않다 ⇒ 가드가 한 번도 안 걸린다. 같은 표현끼리 재려고 한 번 «넣었다 읽어»
    canon 을 만든다(type|strokeWidth 당 한 번, 캐시). */
 const _shapeInnerCanonCache = new Map();
-function _shapeInnerSVGCanon(type, strokeWidth) {
-  const key = `${type}|${strokeWidth}`;
-  let v = _shapeInnerCanonCache.get(key);
+function _shapeInnerSVGCanon(type, strokeWidth, opts) {
+  /* ★1013t2A1 — 캐시 키 = «생성 문자열» 자체. 옛 `type|sw` 키는 opts(갯수·색·그림자)를 몰라
+     다른 원 줄의 canon 을 돌려준다. 같은 문자열 → 같은 canon 이라 F2 멱등은 그대로다. */
+  const raw = _shapeInnerSVG(type, strokeWidth, opts);
+  let v = _shapeInnerCanonCache.get(raw);
   if (v === undefined) {
     const probe = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    probe.innerHTML = _shapeInnerSVG(type, strokeWidth);
+    probe.innerHTML = raw;
     v = probe.innerHTML;
-    _shapeInnerCanonCache.set(key, v);
+    if (_shapeInnerCanonCache.size > 300) _shapeInnerCanonCache.clear();   // 색 조합이 많아도 무한히 안 큰다
+    _shapeInnerCanonCache.set(raw, v);
   }
   return v;
 }
@@ -2658,12 +2690,22 @@ function refreshShapeInnerSVG(block) {
      ⇒ 쓸 값이 지금 값과 같으면 «안» 쓴다. 이 함수를 멱등으로 만든다.
      ⚠️그라데이션이 걸린 도형은 아래에서 fill 을 url(#…) 로 다시 칠하므로 가드에 안 걸려
        계속 다시 쓰지만, 다시 쓴 «결과»가 매번 같으므로(공백이 원래 없다) 멱등은 유지된다. */
-  const _next = defsHTML + _shapeInnerSVGCanon(type, sw);
+  /* ★1013t2A1 — 원 N개·개별 색·이너 그림자는 dataset 이 정본이고 «여기서» 그린다(유일한 그리개).
+     ⛔패널에만 그리개를 두면 로드·⌘Z 가 이 함수를 지나며 원 1개로 주저앉는다. */
+  let opts;
+  if (type === 'ellipse') {
+    const d = block.dataset;
+    opts = { count: d.ellipseCount, gap: d.ellipseGap, colors: d.ellipseColors, shadow: d.ellipseShadow, id: block.id };
+    const vb = ellipseViewBox(d.ellipseCount, d.ellipseGap);
+    if (svg.getAttribute('viewBox') !== vb) svg.setAttribute('viewBox', vb);
+  }
+  const _next = defsHTML + _shapeInnerSVGCanon(type, sw, opts);
   if (svg.innerHTML !== _next) svg.innerHTML = _next;
   if (gradMeta) {
     const id = `grad-${block.id || 'shp_anon'}`;
     svg.querySelectorAll('rect,ellipse,circle,polygon,path').forEach(el => {
       if (el.getAttribute('fill') === 'none') return;
+      if (el.hasAttribute('data-ell-own')) return;   // ★명시(원마다 색) > 파생(그라데이션)
       el.setAttribute('fill', `url(#${id})`);
     });
   }
@@ -4386,7 +4428,7 @@ function updateGraphBlock(blockId, partial = {}) {
   };
   try {
     _intField('chartHeight',  'chartHeight',  80, 2000);
-    _intField('labelSize',    'labelSize',    8,  28);
+    _intField('labelSize',    'labelSize',    window.GRAPH_LIMITS.LABEL_SIZE_MIN,  28);
     _intField('barThickness', 'barThickness', BAR_THICKNESS_MIN, BAR_THICKNESS_MAX);
     _intField('padX',         'padX',         0,  80);
     _intField('itemGap',      'itemGap',      8,  80);
@@ -5033,6 +5075,11 @@ function updateShapeBlock(blockId, partial = {}) {
        viewBox 를 def.vb(= 별 1개분)로 되돌린다. 안 지우면 「SVG 별 1개 · dataset 3개」로 어긋나고,
        패널이 갯수 3 을 보여주면서 캔버스는 1개인 상태가 된다. */
     delete block.dataset.starCount;
+    /* ★1013t2A1 — 원 갯수·간격·개별 색·이너 그림자도 같은 까닭(swap 은 원 한 벌 · viewBox 1개분)으로 지운다. */
+    delete block.dataset.ellipseCount;
+    delete block.dataset.ellipseGap;
+    delete block.dataset.ellipseColors;
+    delete block.dataset.ellipseShadow;
     applied.shapeType = partial.shapeType;
     // 이미지(에셋) 채우기 모드(0918 picker) — 면 없는 타입(선·화살표)이면 해제, 면 있으면 모양 clip 을 새 타입으로
     if (block.dataset.shapeFill) {

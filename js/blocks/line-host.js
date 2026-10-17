@@ -18,32 +18,44 @@
      D10 ⌫·T·G·Esc 는 «줄»에 먹는다 · D11 역할 크기는 절대값(챗 fontSize 를 안 따른다).
    ⛔옛 버블·챗(줄 없음)은 이 파일의 어떤 코드도 «그리지» 않는다 — 렌더 문은 전부 lnHasLines 로 막혀 있다(T1·T1b).
 ═══════════════════════════════════════════════════════════════════════════ */
-import { gridLineHtml, GRID_ROLES, MAX_CELL_LINES, gridMergeLine, gridValidateLines, gridLineHasText, gridPlusLayer } from './grid-block.js';
+import { gridLineHtml, GRID_ROLES, MAX_CELL_LINES, gridMergeLine, gridValidateLines, gridLineHasText, gridPlusLayer, GRID_RICH_TEXT_OPTS } from './grid-block.js';
+/* ★1013t1B1 — 줄 «부분 서식»(⌘B/I/U/S) 커밋. 공용 한 벌(grid-block.js 가 이미 들이는 모듈 · 새 그래프 0) · 허용목록은 그리드 줄과 같은 GRID_RICH_TEXT_OPTS. */
+import { sanitizeRichTextHtml, richTextHasFormatting, richTextBlocksToBreaks } from '../util/sanitize-rich-text.js';
+/* ★1013t1B1② — 패널 «부분 색»: 캔버스 글자 선택 한 벌(텍스트블럭·표·그리드와 같은 모듈 · 의존 0 · unit 하네스는 이 파일을 안 얹는다 — grep 확인). */
+import { isBlurIntoPanel, parkEditing, withTextSelection, getSavedTextSelection, setSavedTextSelection } from '../props/_text-selection.js';
 import { grdLineUi, grdSetActiveLine, grdGetActiveLine, grdIsSoleSelected } from '../props/prop-grid.js';
 import { escHtml } from '../props/_helpers.js';
 import { swatchHex } from '../props/color-picker.js';          // ★D2 — 비교 줄 Fill 스와치를 «그려진 색»으로(prop-grid 가 이미 들이는 모듈 · 새 그래프 0)
+import { _fontDisplayName } from '../props/prop-text-utils.js';   // ★1013t1B2 — 글꼴 «표시 이름» 한 벌(prop-grid 가 이미 들이는 모듈 · 새 그래프 0)
 import { panelRenderedColor } from '../props/_panel-rendered.js';   // ★D2 — «그려진 값»을 읽는 한 자리(E121)   // ⛔이스케이프 사본 금지(tests/unit/name-axes-to-markup X6·X9) — 정본을 쓴다
 
 /** D5 — 버블·챗이 내놓는 줄 종류. ★GRID_ROLES 에서 뜬다(손으로 안 적는다) + 여백. */
 export const LN_KINDS = Object.freeze([...Object.keys(GRID_ROLES), 'gap']);
+/** ★1013t1B2 — laurel(월계관) 칸이 내놓는 줄 종류 = 그리드와 같은 명부(글자 역할 + 그림 + 여백 + 구분선 · prop-grid _GRD_KINDS 와 같은 순서).
+ *  ★GRID_ROLES 에서 뜬다(손으로 안 적는다). 그림(image)은 C4 에서 laurel 그림 크기 규칙(높이 px · laurel-block.js 꾸밈)과 함께 열었다. */
+export const LAUREL_LN_KINDS = Object.freeze([...Object.keys(GRID_ROLES), 'image', 'gap', 'divider']);
+/** ★1013t1B2 C4 — laurel 그림 줄 기본 높이(px · 결정 B2-4) = 아이콘 피커 크기(picked.size)가 없을 때 그리드 K 와 같은 64. */
+export const LAUREL_IMG_DEFAULT_H = 64;
 export const LN_ROW_CLASS = 'ln-row';
 /** 줄 선택 표시 — `-line-selected` 로 끝나 저장 직렬화가 «알아서» 벗긴다(section-serialize.js RUNTIME_MARKER_RE). */
 export const LN_MARK_CLASS = 'ln-line-selected';
 /* ★1012t1D2 — 비교(comparison) 칸이 «세 번째 주인»이다(행 안 줄 추가 · 그리드 칸처럼). ⛔버블·챗의 산출·동작은 그대로다(아래 cAxis). */
-const HOST_SEL = '.speech-bubble-block, .chat-block, .comparison-block';
+/* ★1013t1B2 — laurel(월계관) 칸이 «네 번째 주인»이다(챗과 같은 주소 꼴 {r: 칸 번호(선형), c: 0, li} · cAxis 없음). */
+const HOST_SEL = '.speech-bubble-block, .chat-block, .comparison-block, .laurel-block';
 
 export function lnHasLines(v) { return Array.isArray(v) && v.length > 0; }
 
 
-/** 줄 배열 검사 — 그리드 잣대(gridValidateLines) ＋ D5 종류 제한. null = 통과. */
-export function lnValidateLines(lines, where = 'lines') {
+/** 줄 배열 검사 — 그리드 잣대(gridValidateLines) ＋ D5 종류 제한. null = 통과.
+ *  ★1013t1B2 — kinds·what 는 주인별(laurel = LAUREL_LN_KINDS). ⛔안 주면(버블·챗·비교) 옛 산출 바이트 그대로. */
+export function lnValidateLines(lines, where = 'lines', kinds = LN_KINDS, what = 'a speech bubble / chat line') {
   const r = gridValidateLines(lines, where);
   if (r) return r;
   for (let i = 0; i < lines.length; i++) {
     const t = lines[i].type === undefined ? 'body' : lines[i].type;
-    if (!LN_KINDS.includes(t)) {
+    if (!kinds.includes(t)) {
       return { ok: false, code: 'INVALID',
-        message: `${where}[${i}].type '${t}' is not allowed in a speech bubble / chat line — allowed: ${LN_KINDS.join('|')}` };
+        message: `${where}[${i}].type '${t}' is not allowed in ${what} — allowed: ${kinds.join('|')}` };
     }
   }
   return null;
@@ -67,7 +79,9 @@ export function lnLinesHtml(lines, m = null, c = null, align = 'left') {
 /** 줄 감싸개 셀렉터 — 주인마다 주소 속성이 다르다(버블 = li · 챗 = m+li · 비교 = c+m+li). */
 function _lnRowSel(block, r, c, li) {
   if (block.classList.contains('comparison-block')) return `.${LN_ROW_CLASS}[data-ln-c="${c}"][data-ln-m="${r}"][data-ln="${li}"]`;
-  return block.classList.contains('chat-block') ? `.${LN_ROW_CLASS}[data-ln-m="${r}"][data-ln="${li}"]` : `.${LN_ROW_CLASS}[data-ln="${li}"]`;
+  /* ★1013t1B2 laurel = 챗과 같은 꼴(data-ln-m = 칸 번호) */
+  return (block.classList.contains('chat-block') || block.classList.contains('laurel-block'))
+    ? `.${LN_ROW_CLASS}[data-ln-m="${r}"][data-ln="${li}"]` : `.${LN_ROW_CLASS}[data-ln="${li}"]`;
 }
 
 /* ══ 버블 ══════════════════════════════════════════════════════════════════ */
@@ -137,8 +151,8 @@ export function lnBakeChat(block, m) {
 function _baseHost(block, o) {
   const C = (c) => (o.cAxis ? c : 0);
   const host = {
-    kind: o.kind, kinds: LN_KINDS, maxLines: MAX_CELL_LINES, limitLabel: o.limitLabel, noHitHint: o.noHitHint,
-    head: o.head, cAxis: !!o.cAxis,
+    kind: o.kind, kinds: o.kinds || LN_KINDS, maxLines: MAX_CELL_LINES, limitLabel: o.limitLabel, noHitHint: o.noHitHint,
+    head: o.head, cAxis: !!o.cAxis, imgDefaultH: o.imgDefaultH,   // ★1013t1B2 C4 — imgDefaultH 는 laurel 만(이미지 절 높이 안내값)
     getLines: (r, c) => o.getLines(r, C(c)) || [],
     commitLines: (r, c, lines, opts) => {
       let next = Array.isArray(lines) ? lines.slice() : lines;
@@ -396,11 +410,58 @@ export function lnCmpHost(block) {
   });
 }
 
+/* ══ laurel(월계관) 칸 — ★1013t1B2 (현빈 1013t1 「그리드의 칸과 줄을 삽입하는 것과 같은 방식으로 … 줄 추가하는 부분 일관성 유지해줘」) ══
+ * ★주소 = {r: 칸 번호(선형 · cells 배열 순서), c: 0, li} — 챗과 같은 꼴(cAxis 없음). 「칸」 = 월계관 하나.
+ * ★저장: dataset.cells[r].lines. 읽기는 옛 꼴·새 꼴 둘 다(laurel-block.js _lrlGridLines «보기») · 쓰기는 새 꼴(그리드 줄)만.
+ * ★쓰는 문 = updateLaurelBlock({cellLines}) 한 길(push-before + 래퍼 끝 표본 = ⌘Z 한 걸음 · Raw = 래퍼 밖, 칸 사이 옮기기 문1).
+ * ★다른 칸으로 옮기기 허용(결정 B2-6 · 챗 길). ★마지막 줄도 지운다 → 빈 칸(잎만 · 결정 B2-3).
+ * 모델 읽기는 window 로 간다(순환 import 회피 — laurel-block.js 가 이 파일을 import 한다). */
+function _lrlCells(block) { try { const a = window._readLaurelCells?.(block); return Array.isArray(a) ? a : []; } catch (_) { return []; } }
+export function lnLaurelLines(block, r) {
+  const cell = _lrlCells(block)[r];
+  return cell ? (window._lrlGridLines?.(cell) || []) : null;
+}
+export function lnLaurelHost(block) {
+  const cols = () => Math.max(1, parseInt(block.dataset.gridCols) || 1);
+  const where = (r) => `칸 ${r + 1} (${(r % cols()) + 1},${Math.floor(r / cols()) + 1})`;   // 패널 칸 카드 「Cell N (c,r)」 와 같은 수
+  const cellLines = (r, lines) => ({ cellLines: { cell: r, lines } });
+  return _baseHost(block, {
+    kind: 'laurel', kinds: LAUREL_LN_KINDS, limitLabel: '칸 한 개에', imgDefaultH: LAUREL_IMG_DEFAULT_H,
+    noHitHint: '칸을 한 번 더 누르면 줄 편집 · 줄을 두 번 누르면 글자 편집',
+    head: (r, c, li) => (li === null ? `${where(r)} · 줄을 고르거나 더하세요` : `${where(r)} · ${li + 1}번째 줄`),
+    getLines: (r) => lnLaurelLines(block, r),
+    rowOk: (r) => Number.isInteger(r) && r >= 0 && r < _lrlCells(block).length,
+    /* ⛔안 불린다 — getLines 가 있는 칸엔 늘 배열을 준다(빈 칸 = []). 계약을 반쪽으로 두지 않으려고 둔다(버블 commitRaw 주석과 같은 까닭). */
+    bake: () => ({ type: 'body', text: '' }),
+    commit: (r, lines, opts) => window.updateLaurelBlock?.(block.id, cellLines(r, lines), opts),
+    commitRaw: (r, lines, opts) => window.updateLaurelBlockRaw?.(block.id, cellLines(r, lines), opts),
+    write: (r, lines) => {
+      const cells = _lrlCells(block);
+      if (!cells[r]) return;
+      cells[r] = { ...cells[r], lines };
+      block.dataset.cells = JSON.stringify(cells);
+      window.renderLaurelBlock?.(block);
+    },
+    show: () => window.showLaurelProperties?.(block),
+    rowSel: (r, li) => `.${LN_ROW_CLASS}[data-ln-m="${r}"][data-ln="${li}"]`,
+    boxOf: (r) => block.querySelector(`.laurel-cell[data-cell-idx="${r}"] .laurel-text-stack`),
+    rowAt: (el) => {
+      if (!el || !el.closest || !block.contains(el)) return null;
+      const cell = el.closest('.laurel-cell[data-cell-idx]');
+      if (!cell || !block.contains(cell)) return null;
+      const r = Number(cell.dataset.cellIdx);
+      const box = cell.querySelector('.laurel-text-stack');
+      return Number.isInteger(r) && box ? { r, c: 0, box } : null;
+    },
+  });
+}
+
 export function lnHostFor(block) {
   if (!block || !block.classList) return null;
   if (block.classList.contains('speech-bubble-block')) return lnBubbleHost(block);
   if (block.classList.contains('chat-block')) return lnChatHost(block);
   if (block.classList.contains('comparison-block')) return lnCmpHost(block);
+  if (block.classList.contains('laurel-block')) return lnLaurelHost(block);
   return null;
 }
 
@@ -445,6 +506,10 @@ export function lnClickAddr(block, target, wasSole) {
       return Number.isInteger(r) && Number.isInteger(c) ? { r, c, li: null } : null;
     }
   }
+  if (block.classList.contains('laurel-block')) {             // ★1013t1B2 laurel: 줄 밖(잎·여백) = 칸 선택(li:null)
+    const cell = target.closest('.laurel-cell[data-cell-idx]');
+    if (cell && block.contains(cell)) { const r = Number(cell.dataset.cellIdx); return Number.isInteger(r) ? { r, c: 0, li: null } : null; }
+  }
   return null;
 }
 
@@ -466,12 +531,16 @@ function _mountLineUi(block, host, addr, { synthetic = false } = {}) {
   const hit = anyHit && anyHit.line && gridLineHasText(anyHit.line) ? anyHit : null;
   const cur = anyHit ? { r: anyHit.r, c: anyHit.c, li: anyHit.li } : null;   // c = 버블·챗 0 · 비교 칼럼
   if (!synthetic) grdSetActiveLine(block, cur);
+  /* ★1013t1B2 C4 — 그림 줄이면 이미지 절(주인을 받는 그리드 절 «그 함수»)도 얹는다. ⛔그림 종류를 안 가진 주인(버블·챗·비교)은 산출 무변. */
+  const img = !!(anyHit && anyHit.li !== null && anyHit.line && anyHit.line.type === 'image' && host.kinds.includes('image'));
   const html = grdLineUi.lineBarHtml(anyHit, block, host)
     + (anyHit && anyHit.li !== null ? grdLineUi.lineSectionHtml(anyHit, block, host) : '')
+    + (img ? grdLineUi.imageSectionHtml(anyHit, block, host) : '')
     + (hit ? grdLineUi.typoSectionsHtml(hit, block) : '');
   if (!_insertAfterHeader(html)) return;
   if (cur) grdLineUi.wireLineBar(block, cur, host);
   if (cur && cur.li !== null) grdLineUi.wireLineSection(block, cur, host);
+  if (img) grdLineUi.wireImageSection(block, cur, host);
   if (hit) grdLineUi.wireTypo(block, cur, host);
   if (!synthetic) lnMark(block, cur);
   /* ★⑵-B② — 줄을 고르면 ★끄는 손잡이도 같이 뜬다(그리드는 prop-grid.js 가 같은 자리에서 부른다).
@@ -516,12 +585,40 @@ export function lnAugmentCmpPanel(block) {
   const host = lnCmpHost(block);
   if (!host.resolveAny(act)) { grdSetActiveLine(block, null); return; }
   _mountLineUi(block, host, act);
-  _lnCmpFillShowsRendered(block, host, act);
+  _lnFillShowsRendered(block, host, act);
+}
+/** ★1013t1B2 laurel — 비교와 같은 규칙: 캔버스에서 «칸»이나 «줄»을 골랐을 때만 줄 절(줄바·줄 꾸미기·Typography)을 얹는다.
+ *  ⛔기본 주소를 세우지 않는다(위 비교 주석과 같은 까닭). 낡은 주소(그리드를 줄여 칸이 사라짐)는 비운다. */
+export function lnAugmentLaurelPanel(block) {
+  const act = grdGetActiveLine(block);
+  if (!act) { lnMark(block, null); return; }   // ★Esc(줄 선택만 풀기)가 여기로 온다 — 표시도 같이 걷는다(LL6)
+  const host = lnLaurelHost(block);
+  if (!host.resolveAny(act)) { grdSetActiveLine(block, null); lnMark(block, null); return; }
+  _mountLineUi(block, host, act);
+  _lnFillShowsRendered(block, host, act);
+  _lnFontShowsRendered(block, host, act);
+}
+/* ★1013t1B2 (이벨류 지적) — 글꼴을 안 정한 laurel 줄(옛 꼴에서 온 줄 · fontFamily 없음)은 블럭에서 «이어받은» 글꼴(Pretendard)로 그린다.
+   그런데 공용 Typography 의 글꼴 칸은 값이 없으면 「기본 (시스템)」이라 적는다 ⇒ 패널이 화면과 다르다(색의 _lnFillShowsRendered 와 같은 병).
+   ⇒ laurel 에서만 글꼴 칸 «표시»를 그려진 계산 글꼴의 첫 이름으로 맞춘다. ⛔모델엔 안 쓴다(값만 표시 · 피커 목록의 선택은 그대로).
+   ⛔공용 절(prop-grid)은 안 고친다 — 그리드·버블·챗·비교의 같은 증상은 보고만(범위 밖). */
+function _lnFontShowsRendered(block, host, addr) {
+  const line = host.line(addr);
+  if (!line || (typeof line.fontFamily === 'string' && line.fontFamily.trim() !== '')) return;
+  const el = _lineTextEl(block.querySelector(_lnRowSel(block, addr.r, addr.c, addr.li)));
+  if (!el) return;
+  let ff = '';
+  try { ff = getComputedStyle(el).fontFamily || ''; } catch (_) { ff = ''; }
+  const name = ff ? _fontDisplayName(ff) : '';
+  const nameEl = document.getElementById('grd-typo-font-name');
+  if (!name || !nameEl) return;
+  nameEl.textContent = name;
+  nameEl.title = `${name} — 블럭에서 이어받은 글꼴(이 줄엔 따로 정하지 않았다)`;
 }
 /* ★D2 — 색 없는 비교 줄은 «칼럼 글자색»을 상속해 그린다(렌더러 useRoleColor=false). 그런데 공용 Fill 절은 역할 기본색(#555)을 보인다
    ⇒ 패널이 실제와 다르다. 비교에서만 스와치·피커·hex 안내값을 «그려진 계산색»으로 맞춘다(값만 표시 — 모델에 안 쓴다).
    ⛔공용 절(prop-grid _grdTypoSectionsHtml)은 안 고친다 — 그리드·버블·챗 동작 불변(이 함수는 lnAugmentCmpPanel 만 부른다). */
-function _lnCmpFillShowsRendered(block, host, addr) {
+function _lnFillShowsRendered(block, host, addr) {   // ★1013t1B2 — 비교·laurel 공용(색 없는 줄은 상속색으로 그린다)
   const line = host.line(addr);
   if (!line || (line.color !== undefined && line.color !== null && String(line.color).trim() !== '')) return;
   const el = _lineTextEl(block.querySelector(_lnRowSel(block, addr.r, addr.c, addr.li)));
@@ -546,6 +643,13 @@ function _lineTextEl(row) {
   if (first.classList.contains('grd-line')) return first;
   return first.querySelector(':scope > .grd-badge');
 }
+/** ★1013t1B1 — 줄 글자 요소 → «걸러진» 부분 서식 HTML(그리드 block-drag.js _gridReadHtml 과 같은 식 · 같은 허용목록).
+ *  ★거르기 «전»에 편집기 블럭 경계(Enter 가 만든 <div>·<p>·자리표시 <br>)를 <br> 로 편다 — 안 펴면 sanitize 가 DIV 를 언랩만 해
+ *    text('AAABBB\nCCC')와 textHtml('AAABBB<b>CCC</b>')이 줄 수에서 갈리고, 렌더는 textHtml 을 그리므로 줄바꿈이 사라진다(이벨류 지적 · LR8). */
+function _lnReadHtml(el) {
+  const raw = el && el.innerHTML != null ? String(el.innerHTML) : '';
+  return raw ? sanitizeRichTextHtml(richTextBlocksToBreaks(raw), GRID_RICH_TEXT_OPTS) : '';
+}
 export function lnBeginEdit(block, addr) {
   const host = lnHostFor(block);
   const hit = host && host.resolveAny(addr);
@@ -556,6 +660,9 @@ export function lnBeginEdit(block, addr) {
   const el = _lineTextEl(row);
   if (!el) return false;
   window.pushHistory?.('줄 글자 편집');
+  /* ★1013t1B1 — 편집 «전» HTML 도 기억한다(그리드 _gridBeginEdit 의 _gridBeforeHtml 꼴).
+     ⛔평문만 견주면 «글자는 그대로, 서식만 바뀐» 커밋(⌘B 만 눌렀다)을 «안 바뀌었다»로 읽어 서식이 날아간다(플래너 실측 H2). */
+  const beforeHtml = _lnReadHtml(el);
   block.classList.add('editing');
   el.setAttribute('contenteditable', 'true');
   el.style.userSelect = 'text'; el.style.cursor = 'text';
@@ -563,20 +670,166 @@ export function lnBeginEdit(block, addr) {
   try { const s = window.getSelection(); s.selectAllChildren(el); s.collapseToEnd(); } catch (_) {}
   const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); el.blur(); } };
   const onPaste = (ev) => { ev.preventDefault(); const t = ev.clipboardData?.getData('text/plain') || ''; if (t) document.execCommand('insertText', false, t); };
-  const finish = () => {
-    el.removeEventListener('keydown', onKey); el.removeEventListener('paste', onPaste); el.removeEventListener('blur', finish);
+  let done = false;
+  const finish = ({ keepPanel = false } = {}) => {
+    if (done) return;
+    done = true;
+    el.removeEventListener('keydown', onKey); el.removeEventListener('paste', onPaste); el.removeEventListener('blur', onBlur);
     el.removeAttribute('contenteditable'); el.style.userSelect = ''; el.style.cursor = '';
     block.classList.remove('editing');
     const text = String(el.innerText || '').replace(/\r\n?/g, '\n').replace(/​/g, '').replace(/\n+$/, '');
-    if (text !== String(hit.line.text ?? '')) {
-      host.previewLine(hit.r, hit.c, hit.li, { text });
+    /* ★1013t1B1 — 부분 서식을 같이 싣는다(그리드 _gridEndEdit 와 같은 규약):
+       · textHtml = sanitize 한 innerHTML · «서식이 실제로 있을 때만» — 없으면 '' ⇒ gridMergeLine 이 키를 지운다(평문 경로 복귀)
+       · 견주는 것은 «저장할 값»(둘 다 같은 판정을 지난 뒤) — 브라우저가 끼운 마크업만으로 커밋이 나가지 않게
+       ⇒ ⌘B 만 눌러도 커밋된다(H2) · 서식 든 줄에 글자를 치면 그 순간의 DOM 서식으로 다시 쓴다 — 묵은 textHtml 이 새 글자를 가리지 않는다(H1a). */
+    const html = _lnReadHtml(el);
+    const textHtml = richTextHasFormatting(html, GRID_RICH_TEXT_OPTS) ? html : '';
+    const beforeTextHtml = richTextHasFormatting(beforeHtml, GRID_RICH_TEXT_OPTS) ? beforeHtml : '';
+    if (text !== String(hit.line.text ?? '') || textHtml !== beforeTextHtml) {
+      host.previewLine(hit.r, hit.c, hit.li, { text, textHtml });
       window.scheduleAutoSave?.();
-    } else if (isChat) window.renderChatBlock?.(block); else if (isCmp) window.renderComparison?.(block); else lnRenderBubble(block);
-    if (block.classList.contains('selected')) host.show({ r: hit.r, c: hit.c, li: hit.li });
+    } else if (isChat) window.renderChatBlock?.(block); else if (isCmp) window.renderComparison?.(block);
+    else if (block.classList.contains('laurel-block')) window.renderLaurelBlock?.(block);   // ★1013t1B2 — ⛔버블 갈래로 떨어지면 안 다시 그린다(편집 흔적이 남는다)
+    else lnRenderBubble(block);
+    /* ★keepPanel — 패널 조작 «직전»의 flush(아래 onBlur 의 parkEditing)에서만 켠다(그리드 _gridEndEdit 의 keepPanel 과 같은 뜻):
+       그 순간 패널을 다시 그리면 지금 눌린 칸(색 피커·버튼)이 DOM 에서 떨어져 그 조작이 «먹힌다». */
+    if (!keepPanel && block.classList.contains('selected')) host.show({ r: hit.r, c: hit.c, li: hit.li });
   };
-  el.addEventListener('keydown', onKey); el.addEventListener('paste', onPaste); el.addEventListener('blur', finish);
+  /* ★1013t1B1② — 「패널로 가는 blur」는 끝내지 않고 «세운다»(그리드 줄 _gridBeginEdit 와 같은 길 · 판정은 _text-selection.js 한 곳).
+     ⇒ 고른 글자(저장 선택)가 살아 패널 글자색이 «고른 부분만» 칠할 수 있다(lnApplyLinePartialColor).
+       패널 값이 핸들러에 닿기 직전 flush 가 커밋한다(패널은 다시 안 그림) · 바깥을 누르면 그때 end. */
+  const onBlur = (ev) => {
+    if (isBlurIntoPanel(ev)) { parkEditing(el, () => finish(), { flush: () => finish({ keepPanel: true }) }); return; }
+    finish();
+  };
+  el.addEventListener('keydown', onKey); el.addEventListener('paste', onPaste); el.addEventListener('blur', onBlur);
+  /* ★1013t1B1② — 패널 글자색은 blur 없이 온다(color-picker.js 스와치 위임이 mousedown 을 막아 포커스가 이 칸에 남는다 — 실측 probe:
+     스와치 클릭에 blur·focusout 0). 그 채로 줄을 다시 그리면 친 글자가 «화면에서» 사라진다 ⇒ 색 갈래가 먼저 이걸로 커밋한다(lnApplyLinePartialColor). */
+  el._lnCommit = () => finish({ keepPanel: true });
   return true;
 }
+
+/* ══ ★1013t1B1② 패널 «부분 색» — 줄 글자 일부를 고르고 Fill 글자색을 바꾸면 «고른 부분만» ═══════════════════════
+ * ★텍스트블럭과 같은 길: 저장 선택(_text-selection.js getSavedTextSelection) → window.applyColorToSelection(부분 색 span 한 벌)
+ *   → 그 줄 글자 요소의 HTML 을 커밋 때와 같은 식(_lnReadHtml = 블럭 경계 펴기 + GRID_RICH_TEXT_OPTS sanitize)으로 읽어 textHtml 로 쓴다.
+ * ★주인 무관 — H 는 prop-grid _grdWireTypo 가 받은 주인(line-host 네 주인 · 그리드). 쓰는 것은 계약 칸 rowEl·previewLine 뿐.
+ * ★선택이 «그 줄» 안에 없으면 false ⇒ 부르는 자가 옛 갈래(줄 전체 색)를 탄다.
+ * ★편집이 아직 열려 있으면(contenteditable) DOM 에만 칠한다 — 커밋(finish/_gridEndEdit)이 textHtml 로 싣는다.
+ *   패널 input/change/click 은 flush 가 «먼저» 커밋하므로 보통은 다시 그려진 줄에 칠하고 여기서 바로 쓴다.
+ * ★색 값: var(--color-x, #hex)(컬러 변수 칩)는 공용 sanitizer 가 안 받는다(VAL_FUNC 는 rgb·hsl 만) ⇒ 부분 적용엔 대체 hex 를 쓴다.
+ * ★before = 부르는 자의 «제스처 첫 적용 전 pushHistory» — 칠하기 «전»에 부른다(스냅샷이 칠하기 전 상태). */
+function _lnPartialColorValue(color) {
+  const s = String(color || '').trim();
+  if (/^var\(/i.test(s)) { const m = s.match(/#[0-9a-fA-F]{3,8}\b/); return m ? m[0] : ''; }
+  return s;
+}
+/* 저장 선택 → { path(줄 안 글자칸 자리), start, end, text } — 줄바꿈(\n)은 세지 않는다
+   (편집 중 Enter 는 <div> 라 글자에 \n 이 없고, 커밋 뒤 평문 렌더는 \n 글자를 쓴다 — 둘을 같은 글자로 본다). */
+const _lnNoNl = (t) => String(t || '').replace(/\n/g, '');
+function _lnSelSnapshot(s, row) {
+  if (!s || !s.range || s.range.collapsed || !row || !(row === s.host || row.contains(s.host))) return null;
+  const path = [];
+  for (let n = s.host; n && n !== row; n = n.parentElement) path.unshift(Array.prototype.indexOf.call(n.parentElement.children, n));
+  const pre = document.createRange(); pre.selectNodeContents(s.host); pre.setEnd(s.range.startContainer, s.range.startOffset);
+  const start = _lnNoNl(pre.toString()).length;
+  return { path, start, end: start + _lnNoNl(s.range.toString()).length, text: _lnNoNl(s.host.textContent) };
+}
+function _lnSelRestore(snap, row) {
+  if (!snap || !row) return false;
+  let host = row;
+  for (const i of snap.path) { host = host && host.children[i]; }
+  if (!host || _lnNoNl(host.textContent) !== snap.text) return false;
+  const w = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+  let pos = 0, sN = null, sO = 0, eN = null, eO = 0;
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    const v = n.nodeValue;
+    for (let k = 0; k <= v.length; k++) {
+      /* ★끝점은 줄바꿈 «건너뛰기 전에» 본다 — 뒤에 보면 끝이 \n 뒤로 밀려 줄바꿈이 span 안에 들어간다(이벨류 실측 `BBB\n</span>`). */
+      if (sN && !eN && pos === snap.end) { eN = n; eO = k; break; }
+      if (k < v.length && v[k] === '\n') continue;
+      if (!sN && pos === snap.start && k < v.length) { sN = n; sO = k; }
+      if (k < v.length) pos++;
+    }
+    if (eN) break;
+  }
+  if (!sN || !eN) return false;
+  const r = document.createRange(); r.setStart(sN, sO); r.setEnd(eN, eO);
+  return setSavedTextSelection(r, host);
+}
+/* 두 경계 사이에 글자가 0 인가 — 「같은 글자 자리」(경계의 DOM 꼴은 달라도: (span,0) ↔ (span 안 글자,0) ↔ (앞 글자 노드, 끝)). */
+function _lnSameTextPoint(c1, o1, c2, o2) {
+  const g = document.createRange(); g.setStart(c1, o1); g.collapse(true);
+  if (g.comparePoint(c2, o2) < 0) g.setStart(c2, o2); else g.setEnd(c2, o2);
+  return g.toString() === '';
+}
+/* 갈래 ② — 범위 글자 = 한 color span 의 글자 «전체»면 그 span(재사용 = 겹 span 0).
+   ★1013 바로잡음(재판정 · LR11-10): 옛 판정은 DOM 경계 비교(compareBoundaryPoints)라 «span 안 글자 노드 (0..n)» 범위
+     — ①a·①b(_lnSelRestore)가 세우는 바로 그 꼴 — 를 «span 을 덮지 않는다»로 읽어 늘 null 이었다(밖에서 시작하는 _rangeFromOffsets 꼴만 걸림).
+     그 꼴에선 ③(빈 span 걷기)·_flattenAncestorWithPropIn 이 대신 같은 바이트를 냈으나, 옛 span 이 color «말고 다른 속성»(font-weight 등)도
+     가지면 벗겨지지 않아 겹 span(`<span fw><span color>…`)이 남았다 ⇒ 경계를 «글자 자리»로 견준다. 지키는 칸 = LR11-10. */
+function _lnExactColorSpan(range, host) {
+  const t = range.toString();
+  if (!t) return null;
+  const ec = range.endContainer, eo = range.endOffset;
+  let n = (ec.nodeType === 1 && eo > 0 && ec.childNodes[eo - 1]) ? ec.childNodes[eo - 1] : ec;   // (요소, k) 꼴 끝 = 그 앞 자식
+  n = n.nodeType === 1 ? n : n.parentElement;
+  for (; n && n !== host && host.contains(n); n = n.parentElement) {
+    if (n.tagName !== 'SPAN' || !n.style || !n.style.color || n.textContent !== t) continue;
+    const r = document.createRange(); r.selectNodeContents(n);
+    if (_lnSameTextPoint(range.startContainer, range.startOffset, r.startContainer, r.startOffset)
+        && _lnSameTextPoint(range.endContainer, range.endOffset, r.endContainer, r.endOffset)) return n;
+  }
+  return null;
+}
+export function lnApplyLinePartialColor(block, H, addr, color, before) {
+  if (!block || !H || !addr || addr.li === null || addr.li === undefined || addr.np) return false;
+  const rowOf = () => (typeof H.rowEl === 'function' ? H.rowEl(addr) : null);
+  /* ★열린 line-host 편집이 그 줄이면 «먼저» 커밋한다(패널은 다시 안 그림) — 그 뒤 칠하기·이력이 «커밋된 줄» 위에서 돈다.
+     저장 선택은 다시 그려진 줄로 글자 오프셋으로 옮겨 간다(_alive). 선택이 없어도 커밋은 한다 — 부르는 자의 줄 전체 갈래가
+     친 글자를 지우지 않게(옛 결함: 편집 중 줄 전체 색 = 화면 글자가 편집 전으로). 그리드 편집기(_lnCommit 없음)는 손대지 않는다. */
+  const r0 = rowOf();
+  const ed = r0 && (r0.getAttribute('contenteditable') === 'true' ? r0 : r0.querySelector('[contenteditable="true"]'));
+  if (ed && typeof ed._lnCommit === 'function') {
+    const pre = _lnSelSnapshot(getSavedTextSelection(r0), r0);
+    ed._lnCommit();
+    _lnSelRestore(pre, rowOf());   // contenteditable 을 끄며 난 blur 가 버린 저장 선택을 «같은 글자»로 되세운다
+  }
+  const row = rowOf();
+  const apply = typeof window !== 'undefined' ? window.applyColorToSelection : null;
+  const c = _lnPartialColorValue(color);
+  if (!row || typeof apply !== 'function' || !c) return false;
+  let applied = false;
+  /* withTextSelection — 칠한 span 으로 저장 범위를 바꾸고(편집 중일 때) 칠하기를 되살린다. 다시 그려진 줄이면 다음 부름이
+     글자 오프셋으로 같은 글자를 다시 찾는다(_text-selection.js _alive — 같은 글자·같은 구조일 때만). */
+  withTextSelection((range, host) => {
+    if (!range || range.collapsed || !range.toString()) return null;
+    if (typeof before === 'function') before();
+    const snap = _lnSelSnapshot({ range, host }, row);   // 다시 그린 뒤 같은 글자로 저장 선택을 되세울 열쇠(\n 은 안 센다)
+    /* ★같은 글자에 «다시» 칠할 때(hex 칸 타이핑 = input 마다 · Enter 한 번 더 · 피커 드래그) 범위는 글자 오프셋으로 되찾은 것이라
+       경계가 앞 글자 노드 «끝»에 붙는다 ⇒ 옛 span 을 «부분 포함»으로 잘라 빈 껍데기 <span style="color"></span> 를 남겼다(이벨류 실측).
+       ⇒ 범위 글자가 정확히 한 color span 의 글자 전체면 그 span 을 다시 쓴다(텍스트블럭 spanExactlyCovering 과 같은 뜻 — 겹 span 금지).
+       그 밖의 경계 겹침(새 범위가 옛 span 끝에 정확히 닿는 경우)이 남기는 빈 span 은 아래에서 걷는다(글자 0 · br 0 인 span 만). */
+    const span = apply(c, host, range, _lnExactColorSpan(range, host))?.span || null;
+    host.querySelectorAll('span').forEach((sp) => { if (sp !== span && sp.textContent === '' && !sp.querySelector('br,img')) sp.remove(); });
+    applied = true;
+    if (host.getAttribute('contenteditable') === 'true') return span;   // 편집 중 — 커밋(finish/_gridEndEdit)이 싣는다
+    /* 다시 그려진 «평문» 줄은 줄바꿈을 글자 \n 으로 갖는다(편집 중 DOM 은 <div>) — textHtml 쪽은 줄바꿈을 <br> 로만 쓴다(LR8 규약).
+       ⚠️«화면» 때문이 아니다(1013 바로잡음 · 옛 주석 「laurel 줄은 nowrap 이라 \n 은 한 줄로 뭉개진다」는 틀렸다): laurel-block.js 는
+         text 에 \n 이 든 줄을 white-space:pre 로 그려(버블·챗·비교 줄은 pre-wrap) \n 글자도 두 줄로 보인다(실측 LR11-2 · ws 'pre' · 2줄).
+         ⇒ 이 치환은 «바이트 규약»(textHtml 의 줄바꿈 = <br> · text 와 줄 수 같음 · 저장본·다른 소비자) 을 지키는 것이다 —
+           지키는 칸 = laurel-rich-text LR12·HB4·HC3·HM3(빼면 A1 바이트에 \n 이 남는다).
+       거른 뒤라 \n 은 글자 노드에만 있다(속성값은 다시 지은 것). */
+    const html = _lnReadHtml(host).replace(/\r?\n/g, '<br>');
+    const textHtml = richTextHasFormatting(html, GRID_RICH_TEXT_OPTS) ? html : '';
+    H.previewLine(addr.r, addr.c, addr.li, { textHtml }, addr.np);
+    /* ★다시 그린 줄은 평문(\n 글자)↔textHtml(<br>) 로 글자 수가 갈릴 수 있어 _text-selection 의 «같은 글자» 대조가 다음 부름에서
+       저장 선택을 버린다(여러 줄 줄의 두 번째 칠하기가 줄 전체 색으로 빠짐) ⇒ 여기서 \n 없이 센 오프셋으로 바로 되세운다. */
+    _lnSelRestore(snap, rowOf());
+    return null;
+  }, { within: row });
+  return applied;
+}
+if (typeof window !== 'undefined') window.lnApplyLinePartialColor = lnApplyLinePartialColor;   // prop-grid 는 이 파일을 import 못 한다(순환)
 
 export function lnBindLineEdit(block) {
   if (!block || block._lnEditBound) return;
@@ -699,7 +952,7 @@ export function lnEnterEdit(block) {
 
 /* ══ 단축키 (D10) — 그리드의 줄 단축키와 «같은 뜻» ════════════════════════════ */
 function _soleSelectedHost() {
-  const sel = [...document.querySelectorAll('.speech-bubble-block.selected, .chat-block.selected, .comparison-block.selected')];
+  const sel = [...document.querySelectorAll('.speech-bubble-block.selected, .chat-block.selected, .comparison-block.selected, .laurel-block.selected')];
   if (sel.length !== 1 || !grdIsSoleSelected(sel[0])) return null;
   return sel[0];
 }
@@ -768,6 +1021,23 @@ export function lnAddLineToSelected(type) {
   if (res && res.ok) host.show(grdGetActiveLine(block));
   return !!(res && res.ok);
 }
+/** K — 고른 줄 «다음»(칸만 골랐으면 끝)에 아이콘 그림 줄. 그림 종류를 가진 주인(laurel)만. 반환 = 게이트를 지나 피커를 열었나
+ *  (그리드 grdAddIconToSelectedCell 과 같은 뜻 — 삽입 성공 여부가 아니다). ★1013t1B2 C4 */
+export function lnAddIconToSelected() {
+  const block = _soleSelectedHost();
+  if (!block) return false;
+  const host = lnHostFor(block);
+  if (!host || !host.kinds.includes('image')) return false;
+  const addr = _lnPickedLine(block);
+  if (!addr) return false;
+  window.openIconifyModal?.((picked) => {
+    const imgSrc = grdLineUi.svgToDataUri(picked.svg);
+    const res = window.grdAddLine?.(block, { r: addr.r, c: host.cAxis ? addr.c : 0 }, addr.li === null ? null : addr.li,
+      { type: 'image', imgSrc, height: picked.size || host.imgDefaultH || LAUREL_IMG_DEFAULT_H }, {}, host);
+    if (res && res.ok) host.show(grdGetActiveLine(block)); else window.grdToastImgFail?.(res);
+  });
+  return true;
+}
 /** Esc — 줄 선택만 풀고 블럭은 남긴다(그리드 «상위 선택»과 같은 규칙). 먹었으면 true. */
 export function lnEscLine() {
   const block = _soleSelectedHost();
@@ -782,7 +1052,7 @@ if (typeof window !== 'undefined') {
   Object.assign(window, {
     lnHasLines, lnLinesHtml, lnValidateLines, lnPlainText, lnTextMirrorHtml,
     lnRenderBubble, lnBubbleLines, lnHostFor, lnMark, lnRemark, lnClearAllActive, lnClickAddr,
-    lnAugmentBubblePanel, lnAugmentChatPanel, lnAugmentCmpPanel, lnCmpLines, lnBindLineEdit, lnBeginEdit, lnEnterEdit,
-    lnDeleteActiveLine, lnAddLineToSelected, lnEscLine, lnSyncPlus,
+    lnAugmentBubblePanel, lnAugmentChatPanel, lnAugmentCmpPanel, lnAugmentLaurelPanel, lnCmpLines, lnLaurelLines, LAUREL_LN_KINDS, lnBindLineEdit, lnBeginEdit, lnEnterEdit,
+    lnDeleteActiveLine, lnAddLineToSelected, lnEscLine, lnSyncPlus, lnAddIconToSelected,
   });
 }

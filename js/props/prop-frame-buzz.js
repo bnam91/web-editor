@@ -7,6 +7,7 @@
      스타일 · 배치 · 다시 뿌리기 · 무늬번호 · ↻ · 흩어짐 · 겹침 · 엇갈림 · 간격 · 너비 · 각도 · 범위 · 방향 = «전부» 다시 놓는다
      개수 +/−  = 흩어짐에서는 새 것만 놓는다(남은 것 불변) · 스택에서는 다시 쌓는다
      깊이      = 표식만 바꾼다(자리 불변)
+     배경      = 알약 스타일일 때만 뜨는 묶음(솔리드 · 그라데이션) — 프레임 배경만 바꾼다(자리 · 낱개 불변 · 1013t2 D2)
    어느 것도 프레임 높이를 안 바꾼다 — 넘치면 그 안에서 겹쳐 놓고 절 끝의 안내 한 줄(#bzf-squeeze)을 켠다.
 
    히스토리: 단추 · 선택 · 토글 = 값 쓰기 → 다시 놓기 → pushHistory(push-after) → scheduleAutoSave.
@@ -16,7 +17,7 @@ import { propPanel } from '../globals.js';
 import { escHtml, bindSlider, sliderRowHTML } from './_helpers.js';
 import { isBuzzFrame } from '../blocks/buzz-mark.js';
 import { BUZZ_STYLES, BUZZ_STYLE_KEYS, BUZZ_COUNT, BUZZ_LIMITS, getBuzz, setBuzz, buzzRows,
-         relayoutBuzzFrame, applyBuzzStyle, setBuzzCount, refitBuzzFrame, buzzCrowded } from '../blocks/buzz-frame.js';
+         relayoutBuzzFrame, applyBuzzStyle, setBuzzFrameBg, setBuzzCount, refitBuzzFrame, buzzCrowded } from '../blocks/buzz-frame.js';
 
 /* ── 조각 — 이웃 패널과 같은 마크업 ───────────────────────────── */
 /* title 은 줄(.prop-row) 자체에 단다 — 클래스 없는 감싸는 div 를 만들지 않는다. */
@@ -30,6 +31,17 @@ const _group = (id, label, opts, cur) => `<span class="prop-field-label">${escHt
       <div class="prop-align-group" id="${id}" role="group" aria-label="${escHtml(label)}">${
   opts.map(([v, text]) => `<button class="prop-align-btn${v === cur ? ' active' : ''}" data-val="${escHtml(v)}">${escHtml(text)}</button>`).join('')
 }</div>`;
+
+/* 프레임 배경 프리셋(1013t2 D2) — 스타일 표에 frameBgPresets 가 있는 스타일(지금은 알약)에서만 뜬다.
+   켜진 단추 = 지금 data-bg 와 «같은 글자»인 프리셋. 사용자가 Background 절에서 다른 색을 고르면 둘 다 꺼진다. */
+const BG_PRESET_LABELS = { solid: '솔리드', gradient: '그라데이션' };
+const _bgPresets = (frame) => BUZZ_STYLES[frame.dataset.buzzStyle]?.frameBgPresets || null;
+const _bgGroup = (frame) => {
+  const P = _bgPresets(frame);
+  if (!P) return '';
+  const cur = Object.keys(P).find((k) => P[k] === frame.dataset.bg) || '';
+  return _group('bzf-bg', '배경', Object.keys(P).map((k) => [k, BG_PRESET_LABELS[k] || k]), cur);
+};
 
 const SQUEEZE_TEXT = '말풍선이 프레임 높이보다 많아 겹쳐 놓았습니다. 높이를 키우거나 개수를 줄이세요.';
 
@@ -49,6 +61,7 @@ export function buzzSectionHTML(frame) {
           ${BUZZ_STYLE_KEYS.map((k) => `<option value="${k}"${k === style ? ' selected' : ''}>${escHtml(BUZZ_STYLES[k].label)}</option>`).join('')}
         </select>
       </div>
+      ${_bgGroup(frame)}
       <div class="prop-row">
         <span class="prop-label">개수</span>
         <button class="prop-count-btn" id="bzf-n-minus" aria-label="개수 줄이기"${n <= BUZZ_COUNT[0] ? ' disabled' : ''}>−</button>
@@ -155,6 +168,14 @@ export function wireBuzzSection(frame) {
   group('bzf-layout', (f, v) => { setBuzz(f, 'layout', v); again(f); save('버즈 배치'); redraw(f); });
   group('bzf-dir', (f, v) => { setBuzz(f, 'dir', v); again(f); save('버즈 방향'); });
   group('bzf-depth', (f, v) => { setBuzz(f, 'depth', v); save('버즈 깊이'); });
+  /* 배경 프리셋 — 값 쓰기 → 히스토리 한 칸 → 패널을 통째로 되읽는다(Background 절의 배경색 칸이 같이 바뀐다) */
+  group('bzf-bg', (f, v) => {
+    const css = _bgPresets(f)?.[v];
+    if (!css) return;
+    setBuzzFrameBg(f, css);
+    save('버즈 배경');
+    window.showFrameProperties?.(f);
+  });
 
   /* 무늬번호 — 다시 뿌리기(새 번호) · 번호 직접 입력 · ↻(같은 번호로 다시). 셋 다 전부 다시 놓는다. */
   const seedInput = $('bzf-seed');
