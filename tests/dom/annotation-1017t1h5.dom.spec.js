@@ -36,6 +36,10 @@ async function makeAnnotation(page, { p1 = [0.2, 0.3], p2 = [0.45, 0.6] } = {}) 
   await clickAt(page, r.left + r.width * p2[0], r.top + r.height * p2[1], { sel: SEC }, { label: '둘째 점' });
   await page.keyboard.press('Enter');
   await expect.poll(() => annotCount(page), 'Enter 로 어노테이션 하나가 생겼다').toBe(before + 1);
+  // ★전제 — 라벨 편집(focus)이 실제로 들어선 뒤에 Escape (annotation-1013.dom.spec.js makeAnnotation
+  //   과 같은 교훈 · annotation-1017t1h1 에서 실측: 안 기다리면 Escape 가 펜모드 종료와 경합해
+  //   contenteditable=true 가 남고, 그 뒤 라벨 클릭이 섹션 클릭으로 버블돼 선택이 풀린다 — flaky).
+  await expect.poll(() => page.evaluate(() => document.activeElement?.classList?.contains('annot-label')), '생성 직후 라벨 편집에 들어갔다').toBe(true);
   await page.keyboard.press('Escape');
   await expect.poll(() => page.evaluate(() => document.body.classList.contains('pen-mode')), 'Esc 로 펜 모드 종료').toBe(false);
   return page.evaluate(() => { const all = document.querySelectorAll('#secA .annotation-block'); return all[all.length - 1].id; });
