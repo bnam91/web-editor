@@ -914,7 +914,15 @@ test('V11 ★★자동재생 금지 — ★안 누르면 ★정지, ★누르면
 
   /* ═══ ★음성 — ★누르면 ★정말 돈다(⛔전부 꺼 버린 것이 아니다) ═══════════════ */
   await page.click('#sec-fxpart-pause', { timeout: 5000 });
-  await page.waitForTimeout(150);
+  /* ★★무엇을 기다리는가 — ★클릭 핸들러(js/props/prop-section-particles.js:409)는 ★★동기로
+     `aria-pressed` 를 ★뒤집는다(togglePaused 도 ★동기 — WeakSet 추가 ＋ kick() 호출뿐,
+     ★rAF 가 ★돌기를 ★기다리지 않는다). ⇒ ★고정 150ms 대신 ★★그 뒤집힘 자체를 ★조건으로
+     삼는다 — ★느린 판에서 ★150ms 로 ★안 끝나도 ★거짓이 되지 않고, ★빠른 판에서도 ★헛되이
+     기다리지 않는다(1318→1326 래칫 적발분, W3). */
+  await page.waitForFunction(
+    () => document.getElementById('sec-fxpart-pause')?.getAttribute('aria-pressed') === 'false',
+    null, { timeout: 5000 },
+  ).catch(() => { throw new Error('★★눌렀는데 ★aria-pressed 가 ★false(재생)로 ★안 섰다 — 클릭 길이 죽었다'); });
   const scan1 = await page.evaluate(() => window.ParticlesAnim.scan(document).length);
   expect(scan1, `★★눌렀는데 ★scan() 이 ★1개(이 섹션)를 ★안 돌 명부에 올렸다. 잰 값 ${scan1}`).toBe(1);
   const moved1 = await page.evaluate(() => window.ParticlesAnim.step(5000));
