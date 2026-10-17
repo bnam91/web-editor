@@ -1376,7 +1376,13 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
 
     const bgColor = secEl.style.backgroundColor || '';
     const styleAttr = secEl.getAttribute('style') || '';
-    const bgImgRaw = secEl.style.backgroundImage || (/background(-image)?:\s*([^;]+)/.exec(styleAttr) || [])[2] || '';
+    /* ★1017t1k1·k2 — rotate·색보정이 ★걸린 섹션은 ★레이어(.sec-bg-img, js/bg-layer.js)가 그림을
+       들고 있고 본체(secEl)의 backgroundImage 는 'none' 이다 — ★레이어를 ★먼저 본다. */
+    const _bgLayerEl = secEl.querySelector?.(':scope > .sec-bg-clip > .sec-bg-img') || null;
+    const _bgLayerImg = _bgLayerEl ? (_bgLayerEl.style.backgroundImage || '') : '';
+    const bgImgRaw = (_bgLayerImg && _bgLayerImg !== 'none')
+      ? _bgLayerImg
+      : (secEl.style.backgroundImage || (/background(-image)?:\s*([^;]+)/.exec(styleAttr) || [])[2] || '');
     // 섹션 배경: 이미지(data URI 또는 goya-asset://) / 그라디언트 / 솔리드 분기
     // ★goya-asset URL은 buildFigmaExportJSONInlined 후처리에서 data URI로 치환된다.
     let bgImage = '';

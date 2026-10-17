@@ -17,7 +17,7 @@ const SVG_EL_ID     = 'img-color-adj-svg';
 //   이 두 상수를 저장복원(save-load)·내보내기(export-image)가 그대로 재사용한다.
 //   (예전엔 7개 속성 셀렉터가 3곳에 복사돼 있었고, 카드가 생기면 세 곳을 다 고쳐야 했다.)
 const ADJ_KEYS       = ['exposure','contrast','saturation','temperature','tint','highlights','shadows'];
-const ADJ_TARGET_SEL = '.asset-img, .cvb-card-img, .comparison-block .cmp-img';   // ★1012t1D4 — 비교 블럭 이미지 칸(배경이미지 div · 카드와 같은 꼴)
+const ADJ_TARGET_SEL = '.asset-img, .cvb-card-img, .comparison-block .cmp-img, .sec-bg-img';   // ★1012t1D4 — 비교 블럭 이미지 칸(배경이미지 div · 카드와 같은 꼴) · ★1017t1k2 — 섹션/프레임 배경 레이어(js/bg-layer.js, 배경이미지 div 과 같은 꼴)
 const ADJ_DIRTY_SEL  = ADJ_TARGET_SEL.split(',').map(s => s.trim())
   .flatMap(base => ADJ_KEYS.map(k => `${base}[data-adj-${k}]`)).join(', ');
 

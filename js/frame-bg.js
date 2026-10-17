@@ -20,7 +20,12 @@
  *   ★★`tests/unit/frame-bg-roster.test.mjs` 가 ★★«소비자 수»와 ★«제 벌로 다시 세는 자 0건»을 ★잠근다.
  * ⚠️★이름은 ★섹션과 ★★같게 썼다 — ★`dataset.bgSize`(⛔`bgFit`·`bgScale` 같은 ★새 이름 ★금지).
  *   ★값꼴도 ★섹션과 같다: ★`cover` · `contain` · `auto` · ★`<n>px <n>px`(「배경이미지 편집」 결과).
+ *
+ * ★1017t1k1 — `dataset.bgRotate` 도 ★같은 꼴로 ★이 파일에 둔다(⛔`bgAngle`·`bgDeg` 금지).
+ *   ★rotate·색보정이 ★필요하면 그림은 ★레이어(js/bg-layer.js)가 그리고, 본체는 ★그림을 비운다
+ *   (섹션의 ★같은 분기 — js/props/prop-section.js `_applySectionBg`).
  */
+import { needsBgLayer, ensureBgLayer, removeBgLayer } from './bg-layer.js';   /* ★레이어 판정·관리의 ★한 자리 */
 
 /* ★기본값 ★한 자리 — ⛔문자열 `'cover'` 를 ★부르는 자리에 ★다시 적지 ★마라 */
 export const FRAME_BG_SIZE_DEFAULT = 'cover';
@@ -43,6 +48,20 @@ export function frameBgPos(el) {
    ⚠️★본체 배경을 ★비우는 ★세 줄은 ★★이 함수의 ★일부다 — ⛔빼면 ★이중 배경이 된다. */
 export function syncFrameBgVars(el) {
   if (!el || !el.classList || !el.classList.contains('has-bg-opacity')) return false;
+  /* ★1017t1k1·k2 — rotate·색보정이 ★필요하면 그림은 ★레이어가 그린다. ⛔tint(반투명 색 물들임)는
+     이 경로에 없다(has-bg-opacity 는 «색 자체»가 반투명이라 섹션의 그 열린 질문과 다른 자리). */
+  if (needsBgLayer(el)) {
+    ensureBgLayer(el);
+    el.style.setProperty('--frame-bg', (el.dataset && el.dataset.bg) || el.style.backgroundColor || 'transparent');
+    el.style.setProperty('--frame-bg-img', 'none');
+    el.style.setProperty('--frame-bg-pos', frameBgPos(el));
+    el.style.setProperty('--frame-bg-size', frameBgSize(el));
+    el.style.backgroundColor = '';
+    el.style.backgroundImage = '';
+    el.style.background = '';
+    return true;
+  }
+  removeBgLayer(el);
   const bgVal = (el.dataset && el.dataset.bg) || el.style.backgroundColor || 'transparent';
   if (/gradient\s*\(/i.test(bgVal)) {
     /* 그라데이션: 색은 비우고 이미지 슬롯에 gradient css */
@@ -68,6 +87,13 @@ export function syncFrameBgVars(el) {
    ★그림이 ★있을 때만 ★크기·위치를 ★쓴다(⛔없는데 쓰면 ★빈 longhand 가 ★저장본에 남는다). */
 export function applyFrameBgImageInline(el) {
   if (!el || !el.dataset || !el.dataset.bgImg) return false;
+  /* ★1017t1k1·k2 — needsBgLayer 면 ★레이어가 그린다, 본체는 그림을 비운다(섹션과 같은 분기). */
+  if (needsBgLayer(el)) {
+    ensureBgLayer(el);
+    el.style.backgroundImage = 'none';
+    return true;
+  }
+  removeBgLayer(el);
   el.style.backgroundImage = `url("${el.dataset.bgImg}")`;
   el.style.backgroundSize = frameBgSize(el);
   el.style.backgroundPosition = frameBgPos(el);
