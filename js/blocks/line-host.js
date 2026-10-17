@@ -39,6 +39,12 @@ export const LAUREL_IMG_DEFAULT_H = 64;
 export const LN_ROW_CLASS = 'ln-row';
 /** 줄 선택 표시 — `-line-selected` 로 끝나 저장 직렬화가 «알아서» 벗긴다(section-serialize.js RUNTIME_MARKER_RE). */
 export const LN_MARK_CLASS = 'ln-line-selected';
+/** ★1017t1c3 — «칸(줄 없음)» 선택 표시. 그리드 짝(prop-grid.js grd-cell-selected)과 같은 계약(host.mark, li===null=칸 모드).
+ *  ★새 공용 이름(.cmp-cell-selected 재사용 금지 — cmp-img-edit.dom.spec.js/cmp-row-lines.dom.spec.js 의 음성 단언 둘을 살린다).
+ *  `-cell-selected` 로 끝나 저장 직렬화가 벗긴다(RUNTIME_MARKER_RE). */
+export const LN_CELL_MARK_CLASS = 'ln-cell-selected';
+/** lnMark/lnClearAllActive 가 걷는 선택 표시 명부 — ★한 배열에서 파생(두 벌로 풀지 않는다). */
+const _LN_SEL_CLASSES = [LN_MARK_CLASS, LN_CELL_MARK_CLASS];
 /* ★1012t1D2 — 비교(comparison) 칸이 «세 번째 주인»이다(행 안 줄 추가 · 그리드 칸처럼). ⛔버블·챗의 산출·동작은 그대로다(아래 cAxis). */
 /* ★1013t1B2 — laurel(월계관) 칸이 «네 번째 주인»이다(챗과 같은 주소 꼴 {r: 칸 번호(선형), c: 0, li} · cAxis 없음). */
 /* ★1017t1d1 — 심플카드(canvas-block[data-card-mode="simple"])가 «다섯 번째 주인»이다(laurel 과 같은 주소 꼴
@@ -158,6 +164,7 @@ function _baseHost(block, o) {
   const host = {
     kind: o.kind, kinds: o.kinds || LN_KINDS, maxLines: MAX_CELL_LINES, limitLabel: o.limitLabel, noHitHint: o.noHitHint,
     head: o.head, cAxis: !!o.cAxis, imgDefaultH: o.imgDefaultH,   // ★1013t1B2 C4 — imgDefaultH 는 laurel 만(이미지 절 높이 안내값)
+    cellMark: !!o.cellMark,   // ★1017t1c3 — li===null 을 «칸 모드 표시»로 그릴지(기본 거짓 · 비교만 참 — open_questions ①)
     getLines: (r, c) => o.getLines(r, C(c)) || [],
     commitLines: (r, c, lines, opts) => {
       let next = Array.isArray(lines) ? lines.slice() : lines;
@@ -387,7 +394,7 @@ export function lnBakeCmp(block, r, c) {
 }
 export function lnCmpHost(block) {
   return _baseHost(block, {
-    kind: 'comparison', cAxis: true, limitLabel: '칸 한 개에',
+    kind: 'comparison', cAxis: true, cellMark: true, limitLabel: '칸 한 개에',
     noHitHint: '칸을 한 번 더 누르면 줄 편집 · 줄을 두 번 누르면 글자 편집',
     head: (r, c, li) => (li === null ? `칼럼 ${c + 1} · ${r + 1}행 · 줄 없음 — 줄을 더하면 지금 글이 첫 줄이 된다` : `칼럼 ${c + 1} · ${r + 1}행 · ${li + 1}번째 줄`),
     getLines: (r, c) => lnCmpLines(block, r, c),
@@ -551,8 +558,15 @@ export function lnHostFor(block) {
 /* ══ 줄 표시 ═══════════════════════════════════════════════════════════════ */
 export function lnMark(block, addr) {
   if (!block) return;
-  block.querySelectorAll('.' + LN_MARK_CLASS).forEach(el => el.classList.remove(LN_MARK_CLASS));
-  if (!addr || addr.li === null || addr.li === undefined) return;
+  _LN_SEL_CLASSES.forEach(cls => block.querySelectorAll('.' + cls).forEach(el => el.classList.remove(cls)));
+  if (!addr || addr.li === undefined) return;
+  /* ★1017t1c3 — li===null = «줄이 아니라 칸 자체»(그리드 짝 prop-grid.js grd-cell-selected 와 같은 계약).
+   *  ⛔칸 모드는 host.cellMark 가 참인 주인만(기본안 = 비교만 · open_questions ①) — 다른 주인은 예전처럼 «걷고 끝». */
+  if (addr.li === null) {
+    const host = lnHostFor(block);
+    if (host && host.cellMark) host.linesBox(addr.r, addr.c)?.classList.add(LN_CELL_MARK_CLASS);
+    return;
+  }
   block.querySelector(_lnRowSel(block, addr.r, addr.c, addr.li))?.classList.add(LN_MARK_CLASS);
 }
 /** 다시 그린 뒤 표시를 되붙인다(렌더가 innerHTML 을 갈아 표시를 지운다). 선택된 블럭만. */
@@ -564,7 +578,7 @@ export function lnRemark(block) {
 export function lnClearAllActive(root) {
   const scope = root || document;
   scope.querySelectorAll(HOST_SEL).forEach(b => { if (grdGetActiveLine(b)) grdSetActiveLine(b, null); });
-  scope.querySelectorAll('.' + LN_MARK_CLASS).forEach(el => el.classList.remove(LN_MARK_CLASS));
+  _LN_SEL_CLASSES.forEach(cls => scope.querySelectorAll('.' + cls).forEach(el => el.classList.remove(cls)));
 }
 
 /** 캔버스 클릭 한 번이 «어느 줄»인가 — wasSole = 클릭 «직전» 이 블럭 하나만 선택돼 있었나(그리드 2단 선택과 같은 규칙). */
@@ -670,7 +684,7 @@ export function lnAugmentChatPanel(block) {
  *  ⛔기본 주소를 세우지 않는다(버블 _lnPickedLine 주석의 그 병 — 패널이 세운 주소를 단축키가 «사람이 고른 것»으로 읽는다). */
 export function lnAugmentCmpPanel(block) {
   const act = grdGetActiveLine(block);
-  if (!act) return;
+  if (!act) { lnMark(block, null); return; }   // ★1017t1c3 — Esc 뒤 칸 표시 잔류 방지(laurel/카드와 같은 꼴)
   const host = lnCmpHost(block);
   if (!host.resolveAny(act)) { grdSetActiveLine(block, null); return; }
   _mountLineUi(block, host, act);
