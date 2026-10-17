@@ -144,7 +144,14 @@ test('V4 고른 라벨을 끌면 그 라벨만 옮겨진다 — 다른 라벨·�
 
   const hit = await hitAt(page, r1.cx, r1.cy);
   expect(hit && /grb-line-vlabel/.test(hit.cls), `★전제: 누르는 점이 라벨 위다(${JSON.stringify(hit)})`).toBe(true);
-  const DX = 30, DY = -18;
+  /* ★261018 고침(태양 창 2차 실측 — dy: -18 기대, -17 받음) — ★제품 산식 탓이 아니었다(㉡). DY=-18 은
+     기본 배율 40%(z=0.4)에서 DX*z=−7.2(정수가 아닌 화면 px 목표) — 사람 손이면 안 날 값이지만 8틱으로
+     쪽자른 synthetic mouse.move 가 그 비정수 목표에 닿을 때 브라우저가 소수점 화면 px 를 1px 단위로 또
+     한 번 반올림한다(테스트 하네스의 입력 경로에서 드는 반올림 — 코드 쪽 clamp()의 Math.round 1회는
+     건드리지 않았다). 선례 annotation-1013.dom.spec.js AN6 은 DX=40·DY=20(둘 다 5의 배수 ⇒ ×0.4 가 항상
+     정수: 16·8)만 쓴다 — ★그 규칙을 그대로 가져온다: 5의 배수만 쓰면 ×0.4 가 항상 정수라 이 반올림 자리가
+     생기지 않는다(㉠ 처럼 보였지만 실은 ★테스트 값의 흠 — 제품 clamp() 자체는 안 고쳤다). */
+  const DX = 30, DY = -20;
   await page.mouse.move(r1.cx, r1.cy);
   await page.mouse.down();
   for (let i = 1; i <= 8; i++) await page.mouse.move(r1.cx + DX * z * i / 8, r1.cy + DY * z * i / 8);
@@ -192,7 +199,7 @@ test('V6 다시 그려도(renderGraph 재호출) 오프셋·고른 표식이 남
   const r1 = await vlabelRect(page, 1);
   await clickAt(page, r1.cx, r1.cy, { sel: '#lnG .grb-line-vlabel' }, {});
   await clickAt(page, r1.cx, r1.cy, { sel: '#lnG .grb-line-vlabel' }, {});
-  const DX = 12, DY = 8;
+  const DX = 10, DY = 10;   // ★261018 고침 — 5의 배수(위 V4 주석과 같은 까닭). 원값 12/8 은 ×0.4 가 4.8/3.2(비정수)이라 테스트 쪽에서 ±1 반올림이 났다.
   const z = await page.evaluate(() => (window.currentZoom || 40) / 100);
   await page.mouse.move(r1.cx, r1.cy); await page.mouse.down();
   for (let i = 1; i <= 8; i++) await page.mouse.move(r1.cx + DX * z * i / 8, r1.cy + DY * z * i / 8);
@@ -211,7 +218,7 @@ test('V7 저장→다시 열기 — 오프셋은 남고 「고른 표식」은 �
   const r1 = await vlabelRect(page, 1);
   await clickAt(page, r1.cx, r1.cy, { sel: '#lnG .grb-line-vlabel' }, {});
   await clickAt(page, r1.cx, r1.cy, { sel: '#lnG .grb-line-vlabel' }, {});
-  const DX = 7, DY = -5;
+  const DX = 10, DY = -5;   // ★261018 고침 — 5의 배수(위 V4 주석과 같은 까닭). 원값 DX=7 은 ×0.4 가 2.8(비정수)이라 테스트 쪽에서 ±1 반올림이 났다(DY=-5 는 원래부터 5의 배수라 안 깨졌다).
   const z = await page.evaluate(() => (window.currentZoom || 40) / 100);
   await page.mouse.move(r1.cx, r1.cy); await page.mouse.down();
   for (let i = 1; i <= 8; i++) await page.mouse.move(r1.cx + DX * z * i / 8, r1.cy + DY * z * i / 8);
