@@ -155,6 +155,35 @@ test('N3 다른 블럭 클릭(블럭 떠남) → ln-cell-selected 0', async ({ p
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
+/** 내보낸 단독 HTML 문자열을 가로챈다(다운로드는 막는다). grid-cell-selected-leak.dom.spec.js L1 의 grabExport 와 같은 꼴. */
+const grabExport = (page) => page.evaluate(async () => {
+  const OrigBlob = window.Blob;
+  const origClick = HTMLAnchorElement.prototype.click;
+  let body = null;
+  HTMLAnchorElement.prototype.click = function () {};
+  window.Blob = function (parts, o) { body = (parts || []).join(''); return new OrigBlob(parts, o); };
+  try { await window.exportHTMLFile(); } catch (e) { body = 'THREW:' + (e && e.message); }
+  window.Blob = OrigBlob;
+  HTMLAnchorElement.prototype.click = origClick;
+  return body;
+});
+
+test('L1 배송본 — 칸 고른 채 단독HTML 내보내기에 ln-cell-selected·cmp-cell-selected 0건(음성대조 포함)', async ({ page }) => {
+  const errs = await setup(page);
+  await pickCell(page, 0, 1);
+  expect(await count(page, '.ln-cell-selected'), '전제 — 캔버스엔 표식 1').toBe(1);
+  const body = await grabExport(page);
+  expect(body, 'exportHTMLFile 가 던지지 않았다').not.toMatch(/^THREW:/);
+  const C = (s, re) => (String(s).match(re) || []).length;
+  expect(C(body, /ln-cell-selected/g), '단독HTML 에 ln-cell-selected 0').toBe(0);
+  expect(C(body, /cmp-cell-selected/g), '단독HTML 에 cmp-cell-selected 0(기존에도 빠져 있던 자리)').toBe(0);
+  /* ★음성대조 — 선택을 풀면 «당연히» 0 이어야 한다. 둘이 같이 0 이면 자가 항등식이다. */
+  await page.evaluate(() => window.deselectAll?.());
+  const body2 = await grabExport(page);
+  expect(C(body2, /ln-cell-selected/g), '음성대조 — 선택 없어도 0').toBe(0);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
 test('N4 줄이 있는 칸(0,2)의 «줄»을 고르면 ln-line-selected 1 + ln-cell-selected 0(줄 모드·칸 모드 안 겹침)', async ({ page }) => {
   const errs = await setup(page);
   /* 클릭1 — 블럭만 고른다(어디를 눌러도 무방, lnClickAddr 가 wasSole=false 로 null 을 돌린다) */
