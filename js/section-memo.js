@@ -179,6 +179,41 @@
       const n = _tokenToNode(t);
       if (n) ed.appendChild(n);
     }
+    _wrapDoneRuns(ed);
+  }
+
+  /* 체크 완료 줄 감싸기(1017t1b1) — 줄(= <br> 까지)의 «첫 노드»가 체크된 체크박스면
+     그 줄의 나머지를 <span class="smp-done"> 하나로 싼다. 취소선·딤색은 CSS 인접 형제 선택자
+     (.smp-check[aria-checked="true"] + .smp-done)가 긋는다 — 그래서 래퍼는 체크박스 바로 다음
+     형제여야 한다. ★매번 먼저 풀고 다시 싼다(토글 양방향 — 체크↔해제 — 을 한 함수로 다룬다).
+     렌더 직후(_renderMemo)와 토글 클릭 뒤에만 부른다 — 글자를 치는 매 input 마다는 안 부른다
+     (글자 치는 중엔 그 줄의 체크 여부가 안 바뀌므로 다시 쌀 까닭이 없다 · 캐럿 보존도 그래서 쉽다). */
+  function _wrapDoneRuns(ed) {
+    /* 1) 기존 래퍼를 먼저 모두 풀어 둔다 — 늘 같은 바닥에서 다시 쌀 수 있게 */
+    Array.from(ed.querySelectorAll(':scope > span.smp-done')).forEach((sp) => {
+      while (sp.firstChild) ed.insertBefore(sp.firstChild, sp);
+      sp.remove();
+    });
+    /* 2) 맨 위 자식을 <br> 경계로 줄로 가른다 — 각 줄의 첫 노드가 체크된 체크박스면 나머지를 싼다 */
+    const kids = Array.from(ed.childNodes);
+    let i = 0;
+    while (i < kids.length) {
+      let j = i;
+      while (j < kids.length && !(kids[j].nodeType === 1 && kids[j].tagName === 'BR')) j++;
+      const first = kids[i];
+      const isDoneHead = !!(first && first.nodeType === 1 && first.classList
+        && first.classList.contains('smp-check') && first.getAttribute('aria-checked') === 'true');
+      if (isDoneHead) {
+        const rest = kids.slice(i + 1, j);
+        if (rest.length) {
+          const span = document.createElement('span');
+          span.className = 'smp-done';
+          ed.insertBefore(span, rest[0]);
+          rest.forEach((n) => span.appendChild(n));
+        }
+      }
+      i = j + 1;
+    }
   }
 
   /* 노드 → 토큰. ★새 원자 노드는 여기에 한 갈래를 더한다. */
@@ -448,7 +483,7 @@
        ⇒ 그 밖의 요소는 껍데기만 벗긴다(글자는 남긴다). DIV/P 는 줄바꿈 뜻이라 두되 꾸밈만 뗀다. */
     const scrubForeign = () => {
       const all = Array.from(ta.querySelectorAll('*')).filter((el) => !el.matches(ATOM_SEL) && el.tagName !== 'BR');
-      const bad = all.filter((el) => el.tagName !== 'DIV' && el.tagName !== 'P');
+      const bad = all.filter((el) => el.tagName !== 'DIV' && el.tagName !== 'P' && !el.classList.contains('smp-done'));
       all.forEach((el) => { if (el.hasAttribute('style')) el.removeAttribute('style'); });
       if (!bad.length) return false;
       /* 껍데기를 벗기면 그 안의 캐럿이 밖으로 밀린다 — 글자 노드 기준으로 쥐었다가 되놓는다 */
@@ -500,8 +535,16 @@
       if (n.nodeType === 3) {
         if (dir < 0 ? off > 0 : off < n.data.length) return null;
         c = dir < 0 ? n.previousSibling : n.nextSibling;
+        /* 글자 노드가 smp-done 래퍼(1017t1b1)의 안쪽 끝이면 — 래퍼는 투명, 래퍼 자신의 형제로 넘어간다 */
+        if (!c && n.parentNode && n.parentNode.nodeType === 1 && n.parentNode.classList.contains('smp-done')) {
+          c = dir < 0 ? n.parentNode.previousSibling : n.parentNode.nextSibling;
+        }
       } else if (n.nodeType === 1) {
         c = n.childNodes[dir < 0 ? off - 1 : off] || null;
+        /* 캐럿이 smp-done 래퍼 자체의 안쪽 경계(맨 앞·맨 끝)면 — 같은 투명 규칙 */
+        if (!c && n.classList && n.classList.contains('smp-done')) {
+          c = dir < 0 ? n.previousSibling : n.nextSibling;
+        }
       } else {
         return null;
       }
@@ -756,6 +799,7 @@
       if (!c || !ta.contains(c)) return;
       c.setAttribute('aria-checked', c.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
       delete c.dataset.raw;
+      _wrapDoneRuns(ta);
       scheduleCommit();
     });
     /* 그림을 누르면 그 그림 하나가 선택된다 — 이어서 Delete/Backspace 로 지운다(자산 파일은 안 지운다) */
@@ -766,6 +810,12 @@
       r.selectNode(im);
       const sel = window.getSelection();
       if (sel) { sel.removeAllRanges(); sel.addRange(r); }
+    });
+    /* 참고 이미지 확대(1017t1b2) — 더블클릭으로 임시 확대. 홑클릭은 위 선택을 그대로 둔다(P6 무회귀). */
+    ta.addEventListener('dblclick', (e) => {
+      const im = e.target.closest && e.target.closest('.smp-img');
+      if (!im || !ta.contains(im)) return;
+      _openMemoImgZoom(im.getAttribute('src'));
     });
     /* 복사·잘라내기 — 고른 범위를 «저장 글자»로 싣는다(체크박스 `[ ]`/`[x]` · 그림 표식).
        기본 복사는 화면 글자만 실어 원자 노드가 빠진다 ⇒ 다시 붙이면 체크박스·그림이 사라진다.
@@ -833,7 +883,26 @@
     document.body.appendChild(backdrop);
     pop._backdrop = backdrop;
 
+    /* 참고 이미지 확대(1017t1b2) — 이 팝오버 하나에 딸린 상태.
+       document·capture 의 Esc 리스너는 «등록 차례»로 돈다(같은 노드 — stopPropagation 으론
+       먼저 등록된 쪽을 못 막는다) ⇒ 모달의 onKey 자체를 확대 여부로 가른다(아래). */
+    let zoomBackdrop = null;
+    const closeZoom = () => { if (zoomBackdrop) { zoomBackdrop.remove(); zoomBackdrop = null; } };
+    const _openMemoImgZoom = (src) => {
+      if (zoomBackdrop) return;
+      const zb = document.createElement('div');
+      zb.className = 'smp-img-zoom-backdrop';
+      const zi = document.createElement('img');
+      zi.src = src;
+      zb.appendChild(zi);
+      zb.addEventListener('mousedown', (e) => { if (e.target === zb) closeZoom(); });
+      document.body.appendChild(zb);
+      zoomBackdrop = zb;
+      requestAnimationFrame(() => zb.classList.add('open'));
+    };
+
     const closeModal = () => {
+      closeZoom();
       clearTimeout(saveTimer); commit();
       document.removeEventListener('keydown', onKey, true);
       backdrop.classList.remove('open');
@@ -852,8 +921,13 @@
     backdrop.addEventListener('mousedown', (e) => {
       if (e.target === backdrop) closeModal();
     });
-    // Esc 키로 닫기
-    const onKey = (ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); closeModal(); } };
+    // Esc 키로 닫기 — 확대가 열려 있으면 확대부터(모달은 그대로 둔다)
+    const onKey = (ev) => {
+      if (ev.key !== 'Escape') return;
+      if (zoomBackdrop) { ev.stopPropagation(); closeZoom(); return; }
+      ev.stopPropagation();
+      closeModal();
+    };
     document.addEventListener('keydown', onKey, true);
 
     _activePop = pop;
