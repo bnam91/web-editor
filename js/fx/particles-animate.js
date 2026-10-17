@@ -127,12 +127,27 @@
        ★그 되돌리개의 ★임자는 ★여기가 ★아니다 — ★`restNow()`(아래) ★한 다리로만 부른다.
        ⛔사본을 ★짓지 않는다(★위 「모션 감소」 절의 ★그 계약 ★그대로).
 
-     ⚠️⛔「편집 중 ★저절로 멈춤」은 ★★안 한다 — ★현빈 ★기각. ★사람이 ★누른 것만 ★멈춘다. */
-  const pausedSecs = new WeakSet();
+     ⚠️⛔「편집 중 ★저절로 멈춤」은 ★★안 한다 — ★현빈 ★기각. ★사람이 ★누른 것만 ★멈춘다.
 
-  /** 이 섹션을 ★사람이 ★세웠나. ⛔못 읽으면 ★«안 세웠다»로 — ★기능이 ★조용히 죽지 않게. */
+     ★★⚰️2026-10-17 현빈 1017t1a6 — ★기본값이 ★★«재생»이었다(사람이 ★누르지 않았는데 ★자동재생).
+       ★현빈: 「파티클이 ★사람이 누르지 않았는데 ★자동재생된다 ⇒ ★자동재생 금지」.
+       ⇒ ★★기본값이 ★이제 ★★«정지»다. ★위 :141-143 의 ★«다시 열면 ★다시 돈다»가 ★★뒤집혔다 —
+         ★이제 ★★«다시 열면 ★다시 멈춰 있다»(⛔섹션마다 ★따로인 것은 ★그대로다 — ★그 축은 ★안 건드렸다).
+       ★그래서 ★명부의 ★이름도 바꾼다: ★`pausedSecs`(멈춘 것들) → ★`playingSecs`(★★사람이 ★켠 것들).
+         ★`isPaused(sec)` = ★«이 섹션이 ★playingSecs 에 ★없다» — ★빈 WeakSet 이면 ★전부 ★«정지»로 읽힌다.
+       ⛔못 읽으면(catch) ★★«정지»로 — ★위 A7b 의 「못 읽으면 안 세웠다로」와 ★방향이 ★반대가 됐다:
+         ★예전엔 ★«못 읽으면 ★안 멈췄다»(= 자동재생이 ★안전망)였는데, ★이제 ★«못 읽으면 ★안 켰다»
+         (= ★정지가 ★안전망)다 — ★자동재생이 ★조용히 ★되살아나지 않게 ★방어 방향을 ★맞춘다. */
+  const playingSecs = new WeakSet();
+
+  /** 이 섹션이 ★★멈춤인가 — ★★기본값은 ★정지다(사람이 ★켠 적이 없으면 ★true).
+   *  ⛔못 읽으면 ★«정지»로 — ★자동재생이 ★조용히 ★되살아나지 않게(1017t1a6). */
   function isPaused(sec) {
-    try { return !!(sec && pausedSecs.has(sec)); } catch (_) { return false; }
+    /* ⛔섹션이 ★없으면 ★false — ★A7b 계약(2026-10-09)은 ★★안 뒤집는다: 「섹션이 없다」와
+       「섹션은 있는데 ★사람이 ★안 켰다」는 ★다른 물음이다. ★뒤는 ★위 ★playingSecs 가 답하고,
+       ★앞은 ★예전부터 ★그대로 ★«안전하게 false»다(null 을 섹션으로 읽지 않는다). */
+    if (!sec) return false;
+    try { return !playingSecs.has(sec); } catch (_) { return true; }
   }
 
   /** 이 섹션의 ★멈춤을 ★세우거나 ★푼다. @returns {boolean} ★세운 뒤의 상태.
@@ -142,8 +157,8 @@
     if (!sec) return false;
     const next = !!on;
     try {
-      if (next) { pausedSecs.add(sec); restNow(sec); }
-      else { pausedSecs.delete(sec); kick(); }
+      if (next) { playingSecs.delete(sec); restNow(sec); }
+      else { playingSecs.add(sec); kick(); }
     } catch (_) { /* WeakSet 이 없는 판 — ★아래 상태만 돌려준다 */ }
     return next;
   }

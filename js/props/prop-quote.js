@@ -154,8 +154,16 @@ export function showQuoteProperties(block) {
         ★이 칸만 쓰던 지역변수 `lines = quoteLines(block)` · `isPh = quoteIsPlaceholder(block)` 와 그 import 도 같이 걷었다.
      ★★잃은 축 하나: 「캔버스에서 줄을 나누면 패널의 줄 수 안내가 따라온다」(Q17) — 보여 줄 안내가 없어 뜻이 사라졌다.
         ★대신 «캔버스 → 패널 재그림»(`_quoteEndEdit` → `showQuoteProperties`)을 `#qt-shape-group` 도장으로 잰다.
-     ★남긴 것: 「부호만 위아래로 밀립니다…」 · 스택의 「세로 정렬은 스택에서 쓰지 않습니다…」 (현빈 목록 밖).
+     ★남긴 것(1012t1H2 당시): 「부호만 위아래로 밀립니다…」 · 스택의 「세로 정렬은 스택에서 쓰지 않습니다…」 (현빈 목록 밖).
      ★되살리는 법: git 에서 이 커밋의 부모 판 prop-quote.js 의 ⒤⒥ 마크업과 위 두 지역변수·import 를 되돌려라. */
+
+  /* ★★⚰️2026-10-17 현빈 1017t1a1 — 1012t1H2 가 「현빈 목록 밖」이라 남겨 둔 두 안내 중 ★하나(부호 y 바로 밑)를 ★이제 지운다.
+     ★이번 발주가 ★그 판정을 ★뒤집는다 — 현빈이 이 문구를 ★직접 집어 없애 달라고 했다(ref: 「부호만 위아래로 밀립니다 — 글은 제자리입니다. 한 줄·스택 둘 다 먹습니다.」).
+     ★지운 원문(바이트 그대로 — ⛔grep 오염 방지로 class 속성 인용부호는 전각 「"」로 적는다):
+       <div class=”prop-hint” style="padding:2px 8px;line-height:1.5">부호만 위아래로 밀립니다 — <b>글은 제자리</b>입니다. 한 줄·스택 <b>둘 다</b> 먹습니다.</div>
+     ★있던 자리: 「부호 y」(`qt-markdy`) 줄 바로 다음, 「간격」(`qt-gap`) 줄 바로 앞.
+     ⛔:233(스택 전용 「세로 정렬은 스택에서 쓰지 않습니다…」)은 ★그대로 남는다 — 현빈이 이번에 집은 것은 ★이 문구 하나뿐이다.
+     ★되살리는 법: 위 원문 그 줄을 `qt-markdy` pairRow 다음에 그대로 되돌려라. */
 
   /* ★★⚰️2026-10-12 현빈 1012t1H5 — 「글」 절(글자 색 한 칸만 남아 있었다)을 걷고 ★글자색을 텍스트블럭과 ★같은 자리로 옮겼다.
      ★원문(1012t1H5): 「quato 블럭 : 글자색 위치가 우측패널에서 이상하게 되어있는거 같은데 확인 및 텍스트 블럭처럼 해주면 될듯」(ref/body.txt). ★텍스트블럭 패널 = Typography 바로 다음의 `Fill` 절 · 라벨 「글자색」.
@@ -202,7 +210,6 @@ ${_pairRow('qt-marksize', '부호 크기', markSize, L.markSize.min, L.markSize.
         ${colorFieldHTML({ idPrefix: 'qt-markcol', hex: _swatchHex(markColor, QUOTE_DEFAULTS.markColor), alpha: parseAlphaFromColor(markColor) })}
       </div>
 ${_pairRow('qt-markdy', '부호 y', markDy, L.markDy.min, L.markDy.max)}
-      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">부호만 위아래로 밀립니다 — <b>글은 제자리</b>입니다. 한 줄·스택 <b>둘 다</b> 먹습니다.</div>
 ${_pairRow('qt-gap', '간격', gap, L.gap.min, L.gap.max)}
       <div class="prop-row">
         <span class="prop-label">꼴</span>

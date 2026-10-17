@@ -141,7 +141,9 @@ const PLAY_GLYPH  = '\u25B6';           /* ▶ 재생 */
 if (typeof window !== 'undefined') { window.SEC_PARTICLES_GLYPH = { pause: PAUSE_GLYPH, play: PLAY_GLYPH }; }
 
 const _anim = () => (typeof window !== 'undefined' && window.ParticlesAnim) || null;
-const _isPaused = (sec) => { try { return !!_anim()?.isPaused?.(sec); } catch (_) { return false; } };
+/* 1017t1a6 — catch 폴백을 true(=멈춤)로. 움직이개가 없으면 단추 자체를 안 내므로(바로 위 템플릿의
+   `${!_anim() ? '' : …}`) 겉보기엔 안 보이지만, 새 계약(기본값=정지)과 글자를 맞춰 둔다. */
+const _isPaused = (sec) => { try { return !!_anim()?.isPaused?.(sec); } catch (_) { return true; } };
 const _lbl = (k) => AXIS_LABEL[k] || k;
 
 /** ★그릴 줄 전수 — ★시안 순서 ＋ ★★«명부에 없던 RANGES 키»를 ★끝에 붙인다.

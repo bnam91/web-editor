@@ -136,15 +136,15 @@ test('A7 ★★사람 멈춤은 ★섹션마다 ★따로 선다 — ★★한 �
   /* ★가짜 섹션 — ★제품이 ★섹션에서 ★읽는 것은 ★`dataset` 뿐이다(⛔이름을 지어내지 않았다) */
   const a = { dataset: {} }, b = { dataset: {} };
 
-  /* ★★전제 — ★아무도 ★안 세운 판에서 ★둘 다 ★false. ⛔이게 안 서면 ★아래가 ★공짜다 */
-  assert.equal(A.isPaused(a), false, '★전제: 안 세웠는데 ★멈춤으로 읽힌다');
-  assert.equal(A.isPaused(b), false, '★전제: 안 세웠는데 ★멈춤으로 읽힌다');
+  /* ★★전제 — ★★1017t1a6 뒤: ★아무도 ★안 켠 판에서 ★둘 다 ★true(기본값=정지). ⛔이게 안 서면 ★아래가 ★공짜다 */
+  assert.equal(A.isPaused(a), true, '★전제: 아무도 안 켰는데 ★재생으로 읽힌다(기본값이 정지가 아니다)');
+  assert.equal(A.isPaused(b), true, '★전제: 아무도 안 켰는데 ★재생으로 읽힌다(기본값이 정지가 아니다)');
 
   /* ⒜ ★하나만 세운다 */
   assert.equal(A.setPaused(a, true), true, '★`setPaused` 가 ★세운 뒤 상태를 ★안 돌려준다');
   assert.equal(A.isPaused(a), true, '★세웠는데 ★안 세워졌다');
-  /* ★★음성대조 — ★★«옆 섹션»은 ★그대로다. ⛔전역 참거짓 하나로 두면 ★이 줄이 ★빨개진다 */
-  assert.equal(A.isPaused(b), false, '★★한 섹션을 세웠는데 ★옆 섹션도 ★멈췄다 — ★명부가 ★섹션별이 아니다');
+  /* ★★음성대조 — ★★«옆 섹션»은 ★그대로다(기본값 그대로 멈춤). ⛔전역 참거짓 하나로 두면 ★이 줄이 ★빨개진다 */
+  assert.equal(A.isPaused(b), true, '★★한 섹션을 세웠는데 ★옆 섹션도 ★멈췄다 — ★명부가 ★섹션별이 아니다');
 
   /* ⒝ ★푼다 */
   assert.equal(A.setPaused(a, false), false, '★`setPaused(false)` 가 ★false 를 ★안 돌려준다');
@@ -168,4 +168,33 @@ test('A7b ★★섹션이 ★없으면 ★안 터진다 — ★null·undefined �
     assert.equal(A.isPaused(bad), false, `★${String(bad)} 가 ★멈춤으로 읽힌다`);
     assert.equal(A.setPaused(bad, true), false, `★${String(bad)} 를 ★세웠다고 한다`);
   }
+});
+
+/* ═══ A8 — ★★자동재생 금지(1017t1a6 · 2026-10-17 현빈 발주) ═══════════════════════
+ *  현빈: 「파티클이 ★사람이 누르지 않았는데 ★자동재생된다 ⇒ ★자동재생 금지」.
+ *  ★이 칸이 재는 것 = ★★«기본값이 정지»＋★«누르면 정말 돈다»＋★«섹션별»＋★«A7b 계약 유지»＋★«저장물 무접촉».
+ *  ⛔A7 을 고쳐 쓰지 않는다(전제 3줄만 뒤집어 유지) — ★이 칸이 ★새 축을 ★따로 세운다. */
+test('A8 ★★파티클은 ★기본값이 ★정지다 — ★사람이 ★눌러야 ★돈다(⇒ 자동재생 금지)', () => {
+  const A = load();
+  const a = { dataset: {} }, b = { dataset: {} };
+
+  /* ★양성 — ★아무도 안 눌렀는데 ★멈춤이다 */
+  assert.equal(A.isPaused({ dataset: {} }), true, '★★아무도 안 눌렀는데 ★재생으로 읽힌다 — 자동재생이다');
+
+  /* ★음성 ① — ★누르면 ★정말 돈다(⛔전부 꺼 버린 것이 아니다) */
+  assert.equal(A.setPaused(a, false), false, '★`setPaused(a,false)`(=켜기) 가 ★false 를 ★안 돌려준다');
+  assert.equal(A.isPaused(a), false, '★★눌렀는데(켰는데) ★여전히 ★멈춤으로 읽힌다 — 누르는 길이 ★죽었다');
+
+  /* ★음성 ② — ★섹션별이다(옆 섹션이 ★같이 켜지지 않는다) */
+  assert.equal(A.isPaused(b), true, '★★한 섹션을 ★켰는데 ★옆 섹션도 ★같이 켜졌다 — ★명부가 ★전역이다');
+
+  /* ★음성 ③ — ★A7b 계약 유지(⛔null 을 섹션으로 읽지 않는다) */
+  for (const bad of [null, undefined, 0, '']) {
+    assert.equal(A.isPaused(bad), false, `★${String(bad)} 가 ★멈춤으로 읽힌다 — A7b 계약이 ★깨졌다`);
+  }
+
+  /* ★계약 유지 — ★저장물 무접촉(지디 ②, v1.5 ⑷ 그대로) */
+  assert.equal(Object.keys(a.dataset).length, 0,
+    `★★켬이 ★dataset 에 ★샜다 (${JSON.stringify(a.dataset)}) — ★남이 열면 ★켠 채로 보인다`);
+  assert.equal(Object.keys(b.dataset).length, 0, '★★안 건드린 섹션의 dataset 이 ★바뀌었다');
 });
