@@ -789,7 +789,7 @@ function addStickerBlock(opts = {}) {
   }
   /* ★1012t1J1 — 선 형광펜은 «누르면 바로» 생긴다(현빈 「찍으면 선이 되는데 그냥 누르면 만들어지게 하고 그다음 조정」).
      끝점 둘을 안 주면 계단식 자리(x,y)에서 기본 길이(HLB_DEFAULT_LEN) 수평선을 깐다. 조정은 생성 직후
-     _selectSticker 가 붙이는 끝점 핸들(.hlb-handle) 2개로 한다. 두 클릭 모드(highlight-line-tool.js)는 설정 이스터에그 입구로만 남았다.
+     _selectSticker 가 붙이는 끝점 핸들 2개로 한다 — ★261018 정정: .hlb-handle 은 ★이제 ★3개다(1017t1e1 이 ★두께 손잡이에 ★같은 클래스를 썼다 · data-endpoint="thick") ⇒ ★«끝점»만 셀 때는 [data-endpoint="start"],[data-endpoint="end"] 로 ★좁혀라. 두 클릭 모드(highlight-line-tool.js)는 설정 이스터에그 입구로만 남았다.
      ⚠️이 갈래가 없으면 makeStickerBlock 기본값 (0,0)→(100,0) 이 들어가 섹션 왼쪽 위 모서리에 박힌다(MCP·콘솔 호출도 같은 병).
      회귀: tests/dom/highlight-line-j1j2.dom.spec.js J1-a. */
   if (opts.shape === 'highlightB' && opts.x1 == null && opts.x2 == null) {
