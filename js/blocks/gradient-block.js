@@ -19,7 +19,14 @@
 // 의존성:
 //   - window.getSelectedSection, window.showNoSelectionHint,
 //     window.pushHistory, window.scheduleAutoSave,
-//     window.bindGradientSelect (gradient-select.js)
+//     window.bindGradientSelect (gradient-select.js), window.genId (drag-utils.js)
+
+// G10(261018) — id 가 Math.random() 직접 호출이라 다른 블럭처럼 genId() 를 안 썼다 — actorId 조각이
+// 빠져 협업에서 출처 불명(annotation-block.js:9-13 의 같은 병 참조). 「부를 때」 찾는다 — 모듈 로드
+// 시점에 잡아두면 drag-utils 가 아직 window.genId 를 안 심었을 때 폴백에 고정된다(같은 까닭).
+const genId = (p) => (typeof window.genId === 'function'
+  ? window.genId(p)
+  : p + '_' + Math.random().toString(36).slice(2, 9));
 
 const GRADIENT_DEFAULTS = {
   style:       'linear',
@@ -50,12 +57,20 @@ function _resolveStops(block) {
     try {
       const arr = JSON.parse(raw);
       if (Array.isArray(arr) && arr.length >= 2) {
+        /* G6(261018) — 「별도 카드」 닫힘(js/props/prop-gradient.js:132~135 ★0920b grad-alpha 주석 참조).
+           그 주석이 말한 «이 유닛 범위 밖」이 여기다: `|| 0` 은 NaN 과 참 0 을 구분 못 해, MCP/임포트로
+           들어온 쓰레기 alpha(예: {offset:'abc'})가 parseFloat 로 NaN → Math.max/min 을 통과한 NaN →
+           `|| 0` 에서 「완전 투명」으로 떨어졌다. Number.isFinite 로 갈라 끊는다 — 입력단(prop-gradient.js
+           _clamp01)과 같은 처방·같은 기본값(alpha 기본 1 = GRADIENT_DEFAULTS.startAlpha · offset 기본 0). */
         const clean = arr
-          .map(s => ({
-            color: /^#[0-9a-fA-F]{6}$/.test(s.color) ? s.color : '#000000',
-            alpha: Math.max(0, Math.min(1, parseFloat(s.alpha))) || 0,
-            offset: Math.max(0, Math.min(1, parseFloat(s.offset))) || 0,
-          }))
+          .map(s => {
+            const pa = parseFloat(s.alpha), po = parseFloat(s.offset);
+            return {
+              color: /^#[0-9a-fA-F]{6}$/.test(s.color) ? s.color : '#000000',
+              alpha: Number.isFinite(pa) ? Math.max(0, Math.min(1, pa)) : GRADIENT_DEFAULTS.startAlpha,
+              offset: Number.isFinite(po) ? Math.max(0, Math.min(1, po)) : 0,
+            };
+          })
           .sort((a, b) => a.offset - b.offset);
         if (clean.length >= 2) return clean;
       }
@@ -141,7 +156,7 @@ function renderGradientBlock(block, hint) {
 function makeGradientBlock(opts = {}) {
   const block = document.createElement('div');
   block.className = 'gradient-block';
-  block.id = 'grad_' + Math.random().toString(36).slice(2, 8);
+  block.id = genId('grad');
   block.dataset.type           = 'gradient';
   block.dataset.gradStyle      = opts.style       ?? GRADIENT_DEFAULTS.style;
   block.dataset.gradDirection  = opts.direction   ?? GRADIENT_DEFAULTS.direction;
