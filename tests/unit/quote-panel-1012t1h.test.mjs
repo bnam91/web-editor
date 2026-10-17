@@ -72,13 +72,28 @@ test('T-H6 prop-quote.js 코드에 qt-kid-add-kind·addQuoteChild·QUOTE_CHILD_K
 });
 
 /* T-H2 — 설명 문구 둘(「글 양옆에 부호가 섭니다」 · 「한 줄 꼴에서는 부호가 한 쌍」)과 #qt-lines-hint 가 코드에서 걷혔다.
-   되돌리면 빨강: 그 마크업을 한 줄이라도 되살리면. 「부호만 위아래로…」는 현빈 목록 밖이라 남는다(입력 생존 단언). */
-test('T-H2 prop-quote.js 코드에 삭제한 두 문장·qt-lines-hint 가 0건이고, 남기기로 한 안내는 산다', () => {
+   ⚠️2026-10-17 1017t1a1 이 「부호만 위아래로…」도 지웠다 — 이 단언을 뒤집는다(T-H7 이 그 교체 단언을 잇는다).
+   되돌리면 빨강: 그 마크업을 한 줄이라도 되살리면. */
+test('T-H2 prop-quote.js 코드에 삭제한 두 문장·qt-lines-hint 가 0건이다', () => {
   const code = propCode();
-  assert.ok(code.includes('부호만 위아래로 밀립니다'), '입력이 죽었다 — 남기기로 한 안내가 사라졌다(너무 많이 지웠다)');
   for (const needle of ['글 양옆에 부호가', '한 줄 꼴에서는', 'qt-lines-hint']) {
     assert.equal(code.split(needle).length - 1, 0, `${needle} 가 prop-quote.js 코드에 남아 있다`);
   }
+});
+
+/* T-H7 — 1017t1a1: 「부호만 위아래로…」(1012t1H2 가 남겨 두었던 안내)도 이번에 지웠다.
+   ⛔다른 prop-hint 를 쓸어가지 마라 — 스택 전용 안내(「세로 정렬은 스택에서 쓰지 않습니다…」, :233 선례)는 ★산다.
+   양성: 지운 문장이 0건.
+   음성: ⑴ 남긴 문장은 1건 생존 ⑵ 이 파일의 살아 있는 prop-hint 렌더 자리가 정확히 1(=그 남긴 것 하나)
+         ⑶ 입력 전제(0바퀴 자기통과 방지, :39 와 같은 자) */
+test('T-H7 prop-quote.js 코드에 「부호만 위아래로…」가 0건이고, 남긴 안내(세로 정렬)만 1건 산다', () => {
+  const code = propCode();
+  assert.equal(code.split('부호만 위아래로 밀립니다').length - 1, 0,
+    '1017t1a1 이 지운 안내가 아직 코드에 있다');
+  assert.equal(code.split('세로 정렬').length - 1 >= 1 && code.split('스택에서 쓰지 않습니다').length - 1 >= 1, true,
+    '★남기기로 한 안내(스택 전용 세로 정렬)가 사라졌다 — 너무 많이 지웠다');
+  const hintCount = code.split('class="prop-hint').length - 1;
+  assert.equal(hintCount, 1, `prop-quote.js 안 살아 있는 prop-hint 가 1 이어야 한다(남은 것 하나). 잰 값 ${hintCount}`);
 });
 
 /* T-H5 — 글자색(qt-textcol)이 «Fill» 절 안, Typography 절 «뒤»에 있고, 「글」 절·「글자 색」 라벨은 0건이다.

@@ -1830,12 +1830,31 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
   expect(pn.layout, '★전제 — inline 꼴이다').toBe('inline');
   expect(pn.hasPanel, '★전제 — 인용구 패널이 열렸다').toBe(true);
   /* ⑴ H2 — 설명 문구 둘 삭제(.prop-hint 전수에 두 문장이 0건 · #qt-lines-hint 0) */
-  expect(pn.hints.length, `★전제 — 남은 안내(prop-hint)는 읽힌다(「부호만 위아래로…」). 잰 값 ${JSON.stringify(pn.hints)}`).toBeGreaterThanOrEqual(1);
   expect({
     sentence1: pn.hints.filter(h => /글 양옆에 부호가/.test(h)).length,
     sentence2: pn.hints.filter(h => /한 줄 꼴에서는/.test(h)).length,
     linesHint: pn.linesHint,
   }, `★H2 — 삭제한 두 문장과 #qt-lines-hint 가 0. 잰 값 ${JSON.stringify(pn.hints)}`).toEqual({ sentence1: 0, sentence2: 0, linesHint: 0 });
+  /* ⑴-b 1017t1a1 — inline 꼴에서는 ★★prop-hint 가 ★0개다(「부호만 위아래로…」까지 지웠다).
+     ⛔양성만 세우면 .prop-hint 를 CSS 로 숨겨도 초록이 된다 ⇒ 아래 stack 음성(남은 안내 1건)과 짝을 짓는다. */
+  expect(pn.hints.length, `★1017t1a1 — inline 꼴 패널엔 prop-hint 가 0개여야 한다. 잰 값 ${JSON.stringify(pn.hints)}`).toBe(0);
+  expect(pn.hints.filter(h => /부호만 위아래로/.test(h)).length,
+    `★1017t1a1 — 「부호만 위아래로…」가 inline 패널에 남아 있다. 잰 값 ${JSON.stringify(pn.hints)}`).toBe(0);
+  /* ⑴-c ★음성대조 — 같은 블럭을 stack 으로 바꾸면 ★남긴 안내(세로 정렬은 스택에서…) 1건이 ★그대로 읽힌다.
+     ⇒ 「hint 를 통째로 날렸다」와 「이것만 지웠다」가 갈린다. */
+  await setup(page, { layout: 'stack', text: '안녕' });
+  await openPanel(page);
+  const pnStack = await page.evaluate(() => ({
+    layout: window.__qt.dataset.layout,
+    hints: [...document.getElementById('panel-right').querySelectorAll('.prop-hint')].map(e => e.textContent),
+  }));
+  expect(pnStack.layout, '★전제 — stack 꼴로 바뀌었다').toBe('stack');
+  expect(pnStack.hints.length, `★1017t1a1 음성 — stack 패널엔 남긴 안내 1건이 있어야 한다. 잰 값 ${JSON.stringify(pnStack.hints)}`).toBe(1);
+  expect(/세로 정렬/.test(pnStack.hints[0]), `★1017t1a1 음성 — 남은 안내가 「세로 정렬」 문구가 아니다. 잰 값 ${JSON.stringify(pnStack.hints)}`).toBe(true);
+  /* ★★원복 — 아래 H3(⑷)가 ★`window.__qt` 를 ★★다시 ★live 로 읽는다(`dist()`). stack 으로 바꿔 둔 채
+     두면 그 칸이 ★엉뚱한 블럭(stack)을 재게 된다 ⇒ inline 으로 ★되돌린다(패널은 안 열어도 된다 — dist() 는
+     패널 DOM 이 아니라 block 자체와 renderQuoteBlock 만 쓴다). */
+  await setup(page, { text: '안녕' });
   /* ⑵ H5 — 글자색 = Typography 바로 다음의 Fill 절(텍스트블럭과 같은 자리 · 같은 라벨) */
   const iq = pn.titles.indexOf('Typography');
   expect(iq, `★전제 — Typography 절이 있다. 잰 제목 ${JSON.stringify(pn.titles)}`).toBeGreaterThanOrEqual(0);
