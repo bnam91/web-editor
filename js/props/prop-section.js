@@ -2,7 +2,7 @@ import { propPanel } from '../globals.js';
 import { syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* T6 — 섹션 안 글자 밝기 자동(판정은 그 파일 한 자리) */
 import { blockHeaderHTML, escHtml, sliderRowHTML } from './_helpers.js';
 import { forgetLabelAutoColor } from './label-auto-color.js';
-import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
+import { wireHexText, parseHex6, formatHex6, colorFieldHTML, wireColorField } from './color-picker.js';
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
 import { alignFlowBlock } from './prop-multisel.js';
 import { collectBulkAlignTargets } from './bulk-align-targets.js';
@@ -91,15 +91,51 @@ window._showPadBHint = _showPadBHint;   /* ★짝을 맞춘다 — 좌우만 노
  * - 이미지 + ★«불투명» 색: ★★이미지가 이긴다. 색은 dataset 에 남고 그림 «아래» 받침으로만 쓰인다
  * - 이미지만: backgroundImage = url(...), backgroundColor = (색 있으면 그 색, 없으면 transparent)
  * - 색만: backgroundColor = <color>, backgroundImage = none
+ * - ★그라데이션(1013t2E1): 색 자리(dataset.bg)에 그라데이션 CSS 가 오면 `backgroundImage` 에 그린다.
+ *   그림과 같이 있으면 위 두 줄 규약을 그대로 잇는다 — 반투명 정지점이 있으면 그림 «위» 물들임, 전부 불투명이면 그림이 이긴다.
  * - 둘 다 없음: 모두 클리어
  *
  * 색은 sec.dataset.bg, 이미지는 sec.dataset.bgImg, 사이즈는 sec.dataset.bgSize에서 읽는다.
  */
 /* ★섹션 색이 «불투명»인가 — 불투명이면 _applySectionBg 규약상 색 층이 그림 위라 배경 이미지를 덮는다.
    판정은 여기 한 곳(패널 상시 한 줄 · 에셋→배경 토스트가 같이 쓴다, 2026-10-01 C2). */
+/* ★1013t2E1 — 섹션 배경«색» 자리(dataset.bg)에 그라데이션 CSS 가 들어올 수 있다(프레임·배너02 와 같은 규약).
+   판정은 여기 한 곳 — 패널·그리개·복원이 같이 쓴다. ⛔url( 이 낀 값(예: 물들임 합성 결과)은 그라데이션 «값»이 아니다. */
+/* ★1013t2E1 중-1(보안) — 앞머리만 보면 `linear-gradient(…)"><img onerror=…>` 같은 값도 통과해 패널 innerHTML 로 갔다.
+   ⇒ «그라데이션 함수 하나»로 좁힌다: ⑴ 앞머리 linear|radial-gradient( ⑵ 금지 글자(; " < > { } \\ ' 백틱 그리고 url()가 없다
+   ⑶ 괄호 짝이 맞고, 맨 바깥 괄호가 «문자열 끝»에서 닫힌다(뒤에 다른 층·꼬리 없음). 통과 못 하면 «그라데이션 아님» —
+   그리개는 그 값을 그리지 않고(backgroundColor 대입은 CSSOM 이 무효로 버린다) 패널도 스와치에 싣지 않는다.
+   ⛔프레임 판정(prop-frame.js:322 · :817 · frame-bg.js:47 — /gradient\s*\(/ 만 본다)은 이번에 안 건드렸다(목록은 E-notes). */
+export function isSectionGradient(v) {
+  const s = String(v || '').trim();
+  if (!/^(linear|radial)-gradient\s*\(/i.test(s)) return false;
+  if (/[;"<>{}\\'\x60]/.test(s) || /url\(/i.test(s)) return false;   /* \x60 = 백틱 — 글자 그대로 쓰면 tests/unit/name-axes-to-markup 의 보간 스캐너가 템플릿 시작으로 읽어 이 파일을 못 본다 */
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '(') depth++;
+    else if (ch === ')') {
+      depth--;
+      if (depth < 0) return false;
+      if (depth === 0 && i !== s.length - 1) return false;   // 함수가 끝났는데 뒤에 뭔가 있다
+    }
+  }
+  return depth === 0;
+}
+window.isSectionGradient = isSectionGradient;
+
 export function isOpaqueSectionColor(color) {
   const c = String(color || '').trim().toLowerCase();
   if (!c || c === 'transparent') return false;
+  /* 그라데이션 — 정지점이 «하나라도» 반투명이면 불투명이 아니다(그 틈으로 그림이 비친다 = 물들임).
+     피커가 쓰는 꼴은 `#rrggbb` 와 `rgba(r,g,b,a)` 둘뿐이다(color-picker.js _buildGradientCSS). */
+  if (isSectionGradient(c)) {
+    if (/\btransparent\b/.test(c)) return false;
+    const re = /rgba\(([^)]+)\)/g;
+    let g;
+    while ((g = re.exec(c))) { if (parseFloat(g[1].split(',')[3]) < 1) return false; }
+    return true;
+  }
   const m = c.match(/^rgba\(([^)]+)\)$/);
   if (m) { const a = parseFloat(m[1].split(',')[3]); return !(a < 1); }
   return true;
@@ -119,6 +155,7 @@ function _applySectionBg(sec) {
   //   ⚠️★★이 줄의 ★「위치 편집」은 ★★«그때의 이름»이다 — ⛔2026-10-10 의 ★이름 변경으로
   //     ★★바꾸지 ★마라. ★바꾸면 ★★그때 ★일어난 일을 ★★거짓으로 적게 된다(★역사 문장).
   const pos   = sec.dataset.bgPos || 'center';
+  const grad  = isSectionGradient(color);   /* ★1013t2E1 — 색 자리에 그라데이션 */
 
   // 항상 shorthand는 초기화 후 개별 속성으로 재설정 (이전 multi-layer 잔재 제거)
   sec.style.background = '';
@@ -150,7 +187,7 @@ function _applySectionBg(sec) {
        ★배경색은 ★언제나 ★그림 ★«아래»라 ★가릴 일이 없고, ★그림이 ★못 뜨면 ★그 색이 ★받쳐 준다. */
   if (img && color && !isOpaqueSectionColor(color)) {
     // multi-background: gradient(색) 위, url(이미지) 아래 — ★반투명 색의 ★물들임
-    sec.style.background = `linear-gradient(${color}, ${color}), url(${img})`;
+    sec.style.background = `${grad ? color : `linear-gradient(${color}, ${color})`}, url(${img})`;
     // 색 layer 는 gradient — 고유 크기가 없어 어떤 키워드든 박스 전체다. 'cover' 로 고정해야
     // 이미지 layer 가 px 값(「배경이미지 편집」 결과)일 때 색이 박스 일부만 덮는 사고가 없다.
     sec.style.backgroundSize = `cover, ${size}`;
@@ -158,13 +195,16 @@ function _applySectionBg(sec) {
     sec.style.backgroundRepeat = 'no-repeat, no-repeat';
   } else if (img) {
     sec.style.backgroundImage = `url(${img})`;
-    sec.style.backgroundColor = color || 'transparent';   /* ★그림 «아래» 받침 — 불투명 색도 여기서는 안 가린다 */
+    /* ★그림 «아래» 받침 — 불투명 색도 여기서는 안 가린다. 그라데이션은 backgroundColor 에 못 실린다 ⇒ 받침 없음(dataset 에 남는다) */
+    sec.style.backgroundColor = grad ? 'transparent' : (color || 'transparent');
     sec.style.backgroundSize = size;
     sec.style.backgroundPosition = pos;
     sec.style.backgroundRepeat = 'no-repeat';
   } else if (color) {
-    sec.style.backgroundImage = 'none';
-    sec.style.backgroundColor = color;
+    /* ★1013t2E1 — 그라데이션은 «그림 칸»에 그린다(backgroundColor 는 그라데이션을 못 받는다 = 예전엔 여기서 조용히 버려졌다).
+       backgroundColor 는 비워 .section-block 기본 바탕(흰색)이 반투명 정지점을 받친다. */
+    sec.style.backgroundImage = grad ? color : 'none';
+    sec.style.backgroundColor = grad ? '' : color;
     sec.style.backgroundSize = '';
     sec.style.backgroundPosition = '';
     sec.style.backgroundRepeat = '';
@@ -225,11 +265,15 @@ async function showSectionProperties(sec) {
   if (_wasSelected && !sec.classList.contains('selected')) return;   // 더 최신 선택이 패널 주인이다
   // dataset.bg(헬퍼가 기록한 색)를 우선, 없으면 인라인 스타일에서 추출
   const rawBg = sec.dataset.bg || sec.style.backgroundColor || sec.style.background || '';
-  const hexBg = rawBg
+  /* ★1013t2E1 — 그라데이션이면 rawBg 는 색이 아니다(rgbToHex 가 쓰레기 hex 를 낸다 — 프레임 T-059 와 같은 병).
+     그라데이션 CSS 를 따로 잡아 wireColorField(gradientValue)로 넘긴다: 스와치 = 그라데이션 · 피커 = 그라데이션 탭 · Solid 복귀 = 첫 정지점.
+     ⛔그림이 있을 땐 인라인 backgroundImage 를 보지 않는다(거긴 그림/물들임 합성이 산다) — dataset.bg 만 본다. */
+  const bgGradCss = [sec.dataset.bg, sec.dataset.bgImg ? '' : sec.style.backgroundImage].find(isSectionGradient) || '';
+  const hexBg = bgGradCss ? '#ffffff' : rawBg
     ? (/^#[0-9a-f]{6}$/i.test(rawBg) ? rawBg : rgbToHex(rawBg))
     : '#ffffff';
   const _secBgM = rawBg.match(/rgba?\(([^)]+)\)/i);
-  const secBgAlpha = _secBgM && _secBgM[1].split(',').length === 4
+  const secBgAlpha = !bgGradCss && _secBgM && _secBgM[1].split(',').length === 4
     ? Math.round(parseFloat(_secBgM[1].split(',')[3]) * 100)
     : 100;
   const hasBgImg  = !!sec.dataset.bgImg;
@@ -360,16 +404,7 @@ ${blockHeaderHTML({
       <div class="prop-section-title">Background</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
-        <div class="prop-color-field">
-          <div class="prop-color-swatch" style="background:${hexBg}">
-            <input type="color" id="sec-bg-color" value="${hexBg}">
-          </div>
-          <input type="text" class="prop-color-hex" id="sec-bg-hex" value="${hexBg.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
-          <label class="prop-color-alpha" title="Opacity">
-            <input type="text" class="prop-color-alpha-input" id="sec-bg-alpha" value="${secBgAlpha}" aria-label="Opacity">
-            <span class="prop-color-alpha-suffix">%</span>
-          </label>
-        </div>
+        ${colorFieldHTML({ idPrefix: 'sec-bg', hex: hexBg, alpha: secBgAlpha, gradientCss: bgGradCss })}
       </div>
       <span class="prop-field-label" style="margin-top:8px">Background Image</span>
       ${bgImgHTML}
@@ -521,54 +556,25 @@ ${blockHeaderHTML({
     pushHistory();
   });
 
-  // 배경색 이벤트
-  const picker = document.getElementById('sec-bg-color');
-  const hex    = document.getElementById('sec-bg-hex');
-  const alphaInp = document.getElementById('sec-bg-alpha');
-  const swatch = picker.closest('.prop-color-swatch');
-  let _secAlpha = secBgAlpha;
-
-  const _buildSecBg = () => {
-    const h = (picker.value || '#000000').replace('#','');
-    const r = parseInt(h.slice(0,2), 16);
-    const g = parseInt(h.slice(2,4), 16);
-    const b = parseInt(h.slice(4,6), 16);
-    const a = Math.max(0, Math.min(1, _secAlpha / 100));
-    return a >= 1 ? picker.value : `rgba(${r},${g},${b},${a})`;
-  };
-  const _applySecBg = () => {
-    const c = _buildSecBg();
-    sec.dataset.bg = c;
-    _applySectionBg(sec);
-    swatch.style.background = c;
-  };
-
-  picker.addEventListener('input', () => {
-    hex.value = picker.value.replace('#','').toUpperCase();
-    _applySecBg();
-  });
-  picker.addEventListener('change', () => pushHistory());
-  /* 배경색 hex — 배선은 color-picker.js 의 wireHexText 한 자리에서 온다(손복사 금지).
-     이 세 줄이 예전엔 wireColorField 와 「거의 같지만 조금 다른」 사본이었다. */
-  wireHexText(hex, {
-    parse: parseHex6,
-    format: formatHex6,
-    getCurrent: () => picker.value || '#000000',
-    onApply: (v) => { picker.value = v; _applySecBg(); },
+  // 배경색 이벤트 (solid + gradient)
+  /* ★1013t2E1 (현빈 「섹션블럭에 배경색을 지정하려는데 왜 그라데이션이 적용이 안되는지?」)
+     ★왜 안 됐나 — 이 칸만 손으로 쓴 배선이라 ⑴ «그라데이션을 받는다»를 선언하지 않았고(native input 의 data-cp-modes 없음
+       ⇒ color-picker.js _applyModeGate 가 그라데이션 탭을 disabled 로 잠근다) ⑵ goya-cp:gradient 를 듣는 자도 없었고
+       ⑶ _applySectionBg 가 값을 backgroundColor 에만 실어 그라데이션을 그릴 길도 없었다.
+       프레임·에셋·배너02·비교는 wireColorField(onGradient) 한 자리로 받는다 — 에셋도 같은 병을 앓았다(T-011).
+     ⇒ 손 배선을 걷고 그 한 자리를 쓴다. 값은 dataset.bg 에 그라데이션 CSS 그대로(프레임과 같은 규약) · 그리기는 _applySectionBg 한 곳.
+     ⛔onGradient 를 빼면 탭이 다시 잠긴다(tests/unit/section-bg-gradient-wiring.test.mjs · tests/dom/section-bg-gradient.dom.spec.js). */
+  const _setSecBg = (v) => { sec.dataset.bg = v; _applySectionBg(sec); };
+  wireColorField('sec-bg', {
+    initialAlpha: secBgAlpha,
+    gradientValue: bgGradCss,   // 재선택 뒤에도 그라데이션 탭·정지점으로 열린다(T-059 2라운드 규약)
+    onApply: (c) => _setSecBg(c),
+    onGradient: (css, commit) => {
+      _setSecBg(css);
+      if (commit) pushHistory();
+    },
     onCommit: () => pushHistory(),
   });
-  alphaInp.addEventListener('input', () => {
-    const m = alphaInp.value.match(/(\d+)/);
-    if (!m) return;
-    _secAlpha = Math.max(0, Math.min(100, parseInt(m[1])));
-    _applySecBg();
-  });
-  /* ★Enter = 확정하고 포커스를 뺀다 (현빈 2026-09-30 「투명으로 했는데 ⌘Z 가 안 된다」).
-     포커스가 이 칸에 남으면 editor.js 단축키가 INPUT 포커스에서 ⌘Z 를 «돌려보내» 편집기 undo 가 안 돈다.
-     blur 가 change(=onCommit·pushHistory)를 낸다 — Enter 에 change 가 이미 났으면 값이 같아 다시 안 난다. */
-  alphaInp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); alphaInp.blur(); } });
-  alphaInp.addEventListener('blur', () => { alphaInp.value = String(_secAlpha); });
-  alphaInp.addEventListener('change', () => pushHistory());
 
   // 배경 이미지 이벤트
   const bgImgBtn    = document.getElementById('sec-bg-img-btn');
