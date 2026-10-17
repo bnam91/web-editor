@@ -127,13 +127,14 @@ test('E3-a ★칸 다섯이 같은 꼴이다 — 「코인 레시피」가 프�
   expect(errs).toEqual([]);
 });
 
-test('E3-b 「코인」을 누르면 코인 그림이 갯수만큼 난다 · 금 하나 · 무늬번호 그대로', async ({ page }) => {
+test('E3-b 「코인 레시피」를 누르면 코인 그림이 갯수만큼 난다 · 금 하나 · 무늬번호 그대로', async ({ page }) => {
   const errs = await setup(page);
   const before = await state(page);
   expect([before.cfg.preset, before.coins], '★전제: 첫 프리셋이고 코인이 없다').toEqual(['star', 0]);
 
   await page.click('#sec-fxpart-recipe');
-  await expect.poll(async () => (await state(page)).cfg.preset).toBe('coin');
+  /* 레시피 = 모양 coin 하나 · preset 칸은 normalize 가 요구해 'gold' 로 적힌다(프리셋이 아니다 — 1012t1 I1-B) */
+  await expect.poll(async () => { const c = (await state(page)).cfg; return [c.shapes, c.preset]; }).toEqual([['coin'], 'gold']);
 
   const s = await state(page);
   expect([s.cfg.count, s.cfg.shapes, s.cfg.colors, s.cfg.seed], '저장값 — 14 닢 · 모양 coin · 금 하나 · 무늬번호 그대로').toEqual([14, ['coin'], ['#f5c542'], before.cfg.seed]);
