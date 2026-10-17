@@ -425,7 +425,7 @@ function _bindCornerHandleDrag(handle, block, corner) {
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      _rekeepCoin(block);   // 코인 — 줄어든 그림이 섹션 밖에 10% 아래로 남지 않게(1013t2C2)
+      window._rekeepCoin?.(block);   // 코인 — 줄어든 그림이 섹션 밖에 10% 아래로 남지 않게(1013t2C2)
       window.pushHistory?.('스티커 크기 조절');
       window.scheduleAutoSave?.();
       if (block.classList.contains('selected')) {
