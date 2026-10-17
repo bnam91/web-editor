@@ -18,6 +18,7 @@ export function showComparisonProperties(block) {
   const cols = getComparisonCols(block.dataset);
   const N = cols.length;
   const featuredIdx = getComparisonFeaturedIdx(d, N);
+  const floating = d.overlayBlock === 'true';   // ★1017t1c5 — prop-iconify.js·prop-grid.js 와 같은 자리·같은 이름
 
   const rowHeights = _rowHeights(d);
   const colSection = (col, idx) => {
@@ -157,7 +158,10 @@ ${blockHeaderHTML({
     })}
     </div>${imgSection}${redactSection}${textSection}
     <div class="prop-section">
-      <div class="prop-section-title">강조 칼럼 (떠보이는 쪽)</div>
+      <div class="prop-section-title prop-ph-header">
+        <span>강조 칼럼 (떠보이는 쪽)</span>
+        ${window.overlayToggleBtnHTML?.({ id: 'cmp-float-toggle', active: floating, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.' }) || ''}
+      </div>
       <div class="prop-align-group" id="cmp-feat-group" style="display:flex;gap:4px;flex-wrap:wrap;">${featBtns}</div>
       <button class="prop-btn" id="cmp-col-add" style="width:100%;margin-top:6px;">+ 칼럼 추가</button>
       <div class="prop-row"><span class="prop-label">강조 크기</span>
@@ -187,6 +191,7 @@ ${blockHeaderHTML({
       <div class="prop-row"><span class="prop-label">행 간격</span>
         <input type="range" class="prop-slider" id="cmp-rowgap" min="0" max="40" step="1" value="${parseInt(d.rowGap) || 8}">
         <input type="number" class="prop-number" id="cmp-rowgap-num" min="0" max="40" value="${parseInt(d.rowGap) || 8}"></div>
+      ${window.floatPositionRowHTML?.({ prefix: 'cmp', posEl: block }) || ''}
     </div>
     ${cols.map((c, i) => colSection(c, i)).join('')}`;
 
@@ -377,6 +382,11 @@ ${blockHeaderHTML({
       const c = getCols(); const ci = +btn.dataset.col;
       if (c[ci]) { c[ci].rows.push(cmpEmptyRow()); saveCols(c); rerender(); commit(); showComparisonProperties(block); }
     }));
+
+  /* ★1017t1c5 — 오버레이 토글·X/Y. prop-grid.js:2778-2779 · prop-iconify.js 와 같은 꼴 — window 경유(정적 import 금지 ·
+     prop-grid.js:2626 주석의 그 까닭 — unit 하네스가 import 를 늘리면 통째 죽는다). */
+  window.wireFloatToggle?.({ block, buttonId: 'cmp-float-toggle', rerender: () => { showComparisonProperties(block); window.showHandlesFor?.(block); } });
+  window.wireFloatPosition?.({ block, xId: 'cmp-x-number', yId: 'cmp-y-number' });
 
   /* ★1012t1D2 — 캔버스에서 «글자 칸»이나 «줄»을 골랐으면 블럭 헤더 바로 아래에 줄 절(줄바 「+ 줄 추가」·줄 꾸미기·Typography).
      ★그리드·버블·챗과 «같은 함수»(js/blocks/line-host.js → prop-grid.js grdLineUi) — 이름·순서 그대로 · 사본 0. 블럭만 고른 상태 = 0. */

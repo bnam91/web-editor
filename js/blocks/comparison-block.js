@@ -334,7 +334,13 @@ function renderComparison(block, _lnNeed = null) {
 
   block.style.position = 'relative';
   block.style.overflow = 'visible';
-  block.style.width = '100%';
+  /* ★1017t1c5 — 오버레이(떠 있음)면 폭을 «굳힌 px» 그대로 둔다(grid-block.js:2781-2791 와 같은 꼴).
+     띄울 때 overlay-float.js _freezeWidth 가 px 로 굳히는데, 아래에서 100% 를 또 박으면 매 재렌더(renderComparison
+     은 거의 모든 조작마다 다시 불린다)가 그 폭을 섹션 전폭으로 펴 버린다. ⛔scale 식(applyScale)은 안 건드린다
+     — block.offsetWidth 를 읽으므로 굳힌 px 를 자동으로 따른다. */
+  const floating = block.dataset.overlayBlock === 'true';
+  if (!floating) block.style.width = '100%';
+  else if (block.dataset.overlayFrozenWidth) block.style.width = block.dataset.overlayFrozenWidth;
   block.style.maxWidth = 'none';   // 테이블 등 일반 블록과 동일하게 컨테이너 폭을 꽉 채움 (designW는 내부 좌표 기준일 뿐)
   block.style.margin = '0';
 
