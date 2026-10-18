@@ -221,7 +221,7 @@ function _addHlbHandles(block) {
   const _len = Math.hypot(_ddx, _ddy) || 1;
   const _nx = -_ddy / _len, _ny = _ddx / _len;   // 단위 법선
   mk('thick', _mx + _nx * (_thk / 2), _my + _ny * (_thk / 2));
-  // ↑ 가드는 mk 안(위 :199) — 호출부 아님. 화살표에도 부르는 꼴로 보이나 mk 가 highlightB 아니면 돌려보낸다. 까닭 = 지디 hlb-thickness-handle E1-n 이 _thk~mk('thick') 여섯 줄을 소스 글자 needle 로 찾아, 호출부를 고치면 로드 단계에서 죽는다([1018-NEEDLE] 지디가 따로 고침).
+  // ↑ 가드는 mk 안(위 :202) — 호출부 아님. 화살표에도 부르는 꼴로 보이나 mk 가 highlightB 아니면 돌려보낸다. 까닭 = 지디 hlb-thickness-handle E1-n 이 _thk~mk('thick') 여섯 줄을 소스 글자 needle 로 찾아, 호출부를 고치면 로드 단계에서 죽는다([1018-NEEDLE] 지디가 따로 고침).
 }
 function _bindHlbHandleDrag(handle, block, endpoint) {
   handle.addEventListener('mousedown', (e) => {
