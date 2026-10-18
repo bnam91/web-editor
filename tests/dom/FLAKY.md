@@ -167,8 +167,8 @@
 
 | 이름 | 집(spec) | 판 A | 판 B | 재측정(저부하·같은 판) | 전 회차 |
 |---|---|---|---|---|---|
-| `D5` | `tests/dom/bt2-lines.dom.spec.js` | ✘ | ✘ | — | ★1013t1 전수(9a5e50e6)에도 명부 밖 |
-| `G1` ×2 | `tests/dom/canvas-ui-under-panels.dom.spec.js` | ✘✘ | ✘✘ | — | ★같음 |
+| `D5` | ⚠️`tests/dom/bt2-lines.dom.spec.js` **＋** `tests/dom/grid-img-circle-outline.dom.spec.js` | ✘ | ✘ | — | ★1013t1 전수(9a5e50e6)에도 명부 밖 · ★★261018 정정: 실제 빨간 것은 **grid-img-circle-outline** 쪽이다(이름 충돌 — 두 파일에 같은 `D5` 가 있다) |
+| `G1` ×2 | ⚠️`tests/dom/canvas-ui-under-panels.dom.spec.js` **＋** `tests/dom/modal-frameify-pixel.dom.spec.js` | ✘✘ | ✘✘ | — | ★같음 · ★★261018 정정: 실제 빨간 것은 **modal-frameify-pixel** 의 `G1 section`·`G1 grid` 다(이름 충돌) |
 | `G18-1` | `tests/dom/grid-block-outline.dom.spec.js` | — | ✘ | — | ★위 1픽셀 항목과 ★같은 이름 |
 | `P13` | `tests/dom/grid-ifg-preset-lines.dom.spec.js` | — | ✘ | ★`a60d0c05`·workers 1 ★×3 ⇒ ★3/3 초록 | — |
 | `LR12`·`HB4`·`HC3`·`HM3` | `tests/dom/laurel-rich-text.dom.spec.js` | — | ✘×4 | ★같은 런 ★×3 ⇒ ★3/3 초록(74 passed) | — |
@@ -298,3 +298,20 @@
    (★rc 1 · `connectOverCDP: connect ECONNREFUSED ::1:9334`). ⛔「무해하다」로 ★닫지 않는다.
    ★단 ★내 diff 가 ★`tests/e2e/` 를 ★★0줄 건드렸다(확정) ⇒ ★그 자리 ★동작은 ★안 바뀐다.
 ```
+
+## ★★★261018 정정 — ⛔«이름»만으로 명부를 맞추면 ★거짓 「명부 안」이 된다
+
+★261018 릴리스 런(판 212cf369)에서 ★태양이 ★★파일까지 대조해 ★잡았다:
+```
+★이 표의 :170 `D5` 칸은 ★`bt2-lines.dom.spec.js` 로,  :171 `G1`×2 칸은 ★`canvas-ui-under-panels.dom.spec.js` 로
+  적혀 있었다. ★★그런데 ★실제로 빨간 것은
+    ・`D5`  → ★`grid-img-circle-outline.dom.spec.js`
+    ・`G1` section · `G1` grid → ★`modal-frameify-pixel.dom.spec.js`
+⇒ ★★★«시험 이름»이 ★두 파일에 ★같이 있다(이름 충돌).
+⇒ ★★그래서 ★9a5e50e6 · r2 · r3 · r4 · 최종 전수 · 릴리스 런 ★★매 회차에서
+   ★「FLAKY 안 = ★알려진 흔들림」으로 ★넘겼던 것이 ★★«이름만 맞춘 판정»이었다.
+   ★★★파일까지 대조하면 ★그 셋은 ★★«명부 밖»이다 — ★조사해야 할 빨강이었다.
+```
+★★★규율: ★흔들림 명부 대조는 ★★«이름 ＋ ★파일» ★둘로 한다. ⛔이름 하나로 ★맞추지 마라.
+  ★내 교훈 「★대조는 ★«정체»로 재라 — ★표시로 재면 ★죽는다」 · 「★1차출처 대조에서 틀리는 건 ★«이름»이다」 그 자리.
+★★그리고 ★이 셋(D5 · G1×2)은 ★★여전히 ★«라벨 없음» — ★까닭을 ★안 지었다. ★다음 사람이 ★재라.
