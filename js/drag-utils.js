@@ -797,6 +797,7 @@ function renderGraph(block) {
   window.__gdTextTone?.syncGraphTone?.(block);
   _bindGraphLabelEdit(block);
   _bindGraphAxisTickEdit(block);   // ★1017t1f6㉠
+  _bindGraphVLabelDrag(block);   // ★1017t1f5 — 꺾은선 값 라벨 개별 드래그(아래)
 }
 /* K8⒤ — 카테고리 라벨 캔버스 직접 편집(더블클릭). 저장 자리 = dataset.items[i].label 한 곳(패널 .grb-data-label-input 과 같은 키).
  *   라벨은 렌더마다 새로 만들어진다 ⇒ 블럭에 «위임» 한 번만 건다(요소 속성이라 복제·로드된 블럭은 첫 렌더에서 새로 건다).
@@ -923,6 +924,106 @@ function _graphAxisTickBeginEdit(block, el) {
   el.addEventListener('keydown', onKey);
   el.addEventListener('blur', onBlur);
 }
+
+/* ── ★1017t1f5 꺾은선 값 라벨(.grb-line-vlabel) «개별 드래그» ──────────────────────────
+ * 현빈 티켓(1017t1f5) 「값표시 값들 개별 드래그로 위치이동, 어노테이션의 라벨과 같은 원리로」.
+ * 선례 = js/annotation-select.js _startLabelOffsetDrag(1013t1A3) — 「이미 골라진 라벨을 «안 움직이고»
+ *   한 번 더 누르면 라벨을 고른다(다음 끌기 = 라벨만)」. 어노테이션은 라벨이 블럭당 «하나»라 직접 바인딩해도
+ *   되지만, 꺾은선은 항목마다 하나(«여럿»)이고 렌더마다 innerHTML 로 다시 만들어진다 ⇒ 카테고리 라벨 편집
+ *   (_bindGraphLabelEdit)과 같은 꼴로 블럭에 «위임 한 번»만 건다.
+ * 고르기 상태 = DOM 표식 «하나»뿐: .grb-line-vlabel.grb-vlabel-cell-selected(조각 고르기 grb-pie-cell-selected
+ *   와 같은 두 진실 방지 — JS 쪽에 따로 안 둔다). 색인은 DOM 위치로만 센다 — data-* 속성 금지
+ *   (위 K8⒤ 주석 「색인을 DOM 속성으로 안 박는다 — data-grb-idx 가 골든 5 빨강」과 같은 까닭).
+ * 저장 자리 = dataset.items[i].vDx/vDy 한 곳(패널·MCP 캐리오버는 js/graph-shape.js carryItemExtras).
+ * ★★261018 고침(태양 창 실측 V3 빨강) — ★«고르기»는 여기서 직접 하지 않는다. js/block-drag.js 의
+ *   isGraph click 핸들러(1013t1C4 조각 고르기와 같은 자리)가 매 클릭마다 deselectAll()→재선택을 통째로
+ *   돌린다(clearSelectionMarks 가 -cell-selected 전부를 쓸어낸다) — 내가 mouseup 에서 따로 골라 놓아도
+ *   그 직후(같은 제스처의) click 이 지워버렸다(실측: 2번째 누름 뒤 picked 가 false). 조각 고르기가 그 click
+ *   핸들러 «안에서» _pieWas/_pieIdx 로 지우기 직전 상태를 챙겨 지운 뒤 다시 거는 것과 같은 자리에,
+ *   grbVLabelIndexAt 로 값 라벨도 같이 챙겨 다시 건다 — 그래서 여기엔 «고르기 읽기»(grbVLabelIndexAt)만 두고
+ *   «고르기 쓰기»(grbVLabelPick)는 그 click 핸들러가 부른다. 이 파일의 mousedown 은 ★이미 고른 라벨을 끄는 것만 맡는다. */
+function _grbVLabelMarkIndex(block) {
+  return [...block.querySelectorAll('.grb-line-vlabel')].findIndex(l => l.classList.contains('grb-vlabel-cell-selected'));
+}
+/** idx 번 값 라벨을 고른다. null·범위 밖 = 전부 해제(grbPieSelect 와 같은 꼴). */
+function grbVLabelPick(block, idx) {
+  if (!block) return;
+  block.querySelectorAll('.grb-line-vlabel').forEach((l, i) => l.classList.toggle('grb-vlabel-cell-selected', i === idx));
+}
+/** 클릭 지점(target)이 어느 값 라벨 위인가(없으면 −1) — grbPieSliceIndexAt 과 같은 꼴·같은 부르는 자리(block-drag.js 클릭 핸들러). */
+function grbVLabelIndexAt(target, block) {
+  const p = target?.closest?.('.grb-line-vlabel');
+  if (!p || !block || !block.contains(p)) return -1;
+  return [...block.querySelectorAll('.grb-line-vlabel')].indexOf(p);
+}
+function _grbZoomFrac() { return (window.currentZoom || 40) / 100; }
+/** 골라 둔 값 라벨을 끈다(끄는 동안은 el.style.translate 만, 놓을 때 dataset 에 쓰고 «끝 표본»을 찍는다 — 어노테이션 라벨과 같은 길). */
+function _startVLabelOffsetDrag(block, el, idx, e) {
+  e.stopImmediatePropagation(); e.stopPropagation(); e.preventDefault();
+  const startX = e.clientX, startY = e.clientY;
+  let items; try { items = JSON.parse(block.dataset.items || '[]'); } catch (_) { return; }
+  if (!items[idx]) return;
+  const L = window.GRAPH_LIMITS;
+  const clamp = (v) => Math.min(L.VLABEL_OFFSET_MAX, Math.max(L.VLABEL_OFFSET_MIN, Math.round(v)));
+  const off0 = { dx: Number(items[idx].vDx) || 0, dy: Number(items[idx].vDy) || 0 };
+  let moved = false, cur = null;
+  const _hist = window.beginDragHistory?.('그래프 값 라벨 위치');
+  const onMove = (ev) => {
+    const ddx = (ev.clientX - startX) / _grbZoomFrac();
+    const ddy = (ev.clientY - startY) / _grbZoomFrac();
+    if (!moved) {
+      if (Math.abs(ev.clientX - startX) < 3 && Math.abs(ev.clientY - startY) < 3) return;
+      moved = true;
+      _hist?.arm(ddx, ddy);
+    }
+    cur = { dx: clamp(off0.dx + ddx), dy: clamp(off0.dy + ddy) };
+    el.style.translate = `${cur.dx}px ${cur.dy}px`;
+    ev.preventDefault();
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove, true);
+    document.removeEventListener('mouseup',   onUp,   true);
+    if (!moved || !cur) return;
+    // 끌기 끝의 click 은 삼킨다 — 라벨 밖에서 놓으면 그 click 이 고르기/선택을 풀어 버린다(annotation-select.js 와 같은 처방).
+    const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+    window.addEventListener('click', eat, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', eat, true), 0);
+    const its = JSON.parse(block.dataset.items || '[]');
+    if (!its[idx]) return;
+    if (cur.dx === 0) delete its[idx].vDx; else its[idx].vDx = cur.dx;
+    if (cur.dy === 0) delete its[idx].vDy; else its[idx].vDy = cur.dy;
+    block.dataset.items = JSON.stringify(its);
+    renderGraph(block);
+    grbVLabelPick(block, idx);   // 다시 그린 새 엘리먼트에 고르기 표식을 되붙인다
+    if (typeof window.pushHistory === 'function') window.pushHistory('그래프 값 라벨 위치');
+    window.scheduleAutoSave?.();
+    if (block.classList.contains('selected')) window.showGraphProperties?.(block);
+  };
+  document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('mouseup',   onUp,   true);
+}
+/** 블럭당 위임 1회(라벨은 렌더마다 새로 만들어진다 — _bindGraphLabelEdit 와 같은 가드 꼴).
+ *  ★고르기는 안 한다(위 머리말 261018 고침) — js/block-drag.js isGraph click 핸들러가 한다.
+ *  여기는 «이미 고른» 라벨의 mousedown 만 가로채 끌기를 시작한다. */
+function _bindGraphVLabelDrag(block) {
+  if (block._grbVLabelDragBound) return;
+  block._grbVLabelDragBound = true;
+  // capture:true — 블럭의 일반 mousedown(드래그 시작) 보다 «먼저» 받아야 고른 라벨에서 가로챌 수 있다(annotation-select.js 의 label mousedown 과 같은 길).
+  block.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    const el = e.target?.closest?.('.grb-line-vlabel');
+    if (!el || !block.contains(el)) return;
+    const idx = [...block.querySelectorAll('.grb-line-vlabel')].indexOf(el);
+    if (idx < 0) return;
+    const picked = block.classList.contains('selected') && el.classList.contains('grb-vlabel-cell-selected');
+    if (picked && !(e.metaKey || e.ctrlKey)) {
+      _startVLabelOffsetDrag(block, el, idx, e);
+    }
+    // 아직 안 골랐으면 — 아무것도 안 한다(전파를 막지 않는다). 클릭은 그대로 block-drag.js 의 isGraph
+    // click 핸들러로 가서 「첫 클릭=블럭 선택 · 이미 선택된 블럭에서 또 누르면 그 라벨 고르기」를 거기서 맡는다.
+  }, true);
+}
+
 /* ── 1012t1G1 원형(pie) · 도넛(donut) ─────────────────────────────────────
  * 조각 = 인라인 SVG path(기하는 graph-pie-geom.js piePaths 한 자리) · 도넛 구멍은 고리 path 로 실제로 뚫는다(바탕색 원으로 덮지 않는다).
  * 조각 요소는 «항목마다 정확히 하나»(값 0 이면 d 가 빈 글자) ⇒ 형제 순번 = 항목 순서 — CSS 색 사다리와 범례가 같은 순번을 쓴다.
@@ -1304,12 +1405,12 @@ function _renderGraphBody(block) {
     const smoothD = smooth ? _smoothD(points) : '';
 
     // %-좌표 (오버레이 HTML 점/라벨 배치용)
-    const overlayItems = points.map(p => {
+    const overlayItems = points.map((p, i) => {
       const leftPct  = (p.x / innerW) * 100;
       const topPct   = (p.y / innerH) * 100;
       const yLabelTop = (plotB + 4) / innerH * 100;
       const yValTop  = Math.max(0, (p.y - valSize - pointRadius - 4)) / innerH * 100;
-      return { p, leftPct, topPct, yLabelTop, yValTop };
+      return { p, i, leftPct, topPct, yLabelTop, yValTop };
     });
 
     // 선/면 색상 분리 — lineColor가 선(stroke)·점, fillColor가 면(area). fallback은 barColor.
@@ -1359,11 +1460,20 @@ function _renderGraphBody(block) {
     const xlabelColorCss = _safeGraphColor(xlabelColor) ? `color:${_safeGraphColor(xlabelColor)};` : '';
     const vlabelDisp = showVLabel ? '' : 'display:none;';
     const xlabelDisp = showXLabel ? '' : 'display:none;';
+    // ★1017t1f5 — 값 라벨 «개별 위치»(items[i].vDx/vDy, px). 0(또는 없음)이면 키를 안 달아 옛 바이트 그대로.
+    //   translate 는 transform(가운데 정렬 translate(-50%,0))과 «따로 노는» 속성 — 어노테이션 라벨과 같은 길(js/blocks/annotation-block.js annotApplyLabelOffset).
+    const _vOffCss = (it) => {
+      const L = window.GRAPH_LIMITS;
+      const clamp = (v) => Math.min(L.VLABEL_OFFSET_MAX, Math.max(L.VLABEL_OFFSET_MIN, Math.round(v)));
+      const dx = Number(it && it.vDx) || 0, dy = Number(it && it.vDy) || 0;
+      return (dx || dy) ? `translate:${clamp(dx)}px ${clamp(dy)}px;` : '';
+    };
     const labelsHTML = overlayItems.map(o =>
-      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${vlabelColorCss}${vlabelDisp}">${_escGraphHtml(o.p.v)}</div>
+      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${vlabelColorCss}${vlabelDisp}${_vOffCss(items[o.i])}">${_escGraphHtml(o.p.v)}</div>
        <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${xlabelColorCss}${xlabelDisp}">${_escGraphHtml(o.p.label)}</div>`   /* E150 — 사용자 글자는 이스케이프(막대 셋과 같은 _escGraphHtml). 옛: `<b>` 가 태그로 읽혔다 */
     ).join('');
 
+    const _vSelIdx = _grbVLabelMarkIndex(block);   // ★1017t1f5 — 다시 그리기 «전»의 값 라벨 «고르기» 표식(조각 고르기 _grbPieMarkIndex 와 같은 길)
     block.innerHTML = `
       <div class="grb-line-wrap" style="height:${chartH}px">
         <svg class="grb-line-svg" viewBox="0 0 ${innerW} ${innerH}" preserveAspectRatio="none">
@@ -1373,6 +1483,7 @@ function _renderGraphBody(block) {
         </svg>
         <div class="grb-line-overlay">${pointDots}${labelsHTML}</div>
       </div>`;
+    if (_vSelIdx >= 0) grbVLabelPick(block, _vSelIdx);   // 다시 그린 뒤 같은 색인에 되붙인다(항목 수가 줄었으면 자동으로 안 붙는다 — querySelectorAll 범위 밖)
   } else if (chartType === 'bar-pair') {
     // ── U9(BL-BOL-03): 2시리즈 비교 세로 막대 (자사 vs 경쟁) — items: [{label, value, value2}]
     const _lc = block.dataset.labelColor || '';
@@ -1691,6 +1802,8 @@ window.grbPieSliceIndexAt         = grbPieSliceIndexAt;   // 1013t1C4 — 조각
 window.grbPieSelected             = grbPieSelected;
 window.grbPieSelect               = grbPieSelect;
 window.grbPieHiddenNames          = grbPieHiddenNames;     // 1013t1C3 고침 2 — 좁아서 숨겨진 이름 수(패널 안내 줄이 읽는다)
+window.grbVLabelPick              = grbVLabelPick;          // ★1017t1f5 — 꺾은선 값 라벨 고르기(prop-graph.js 항목 수 변경 시 해제용 · block-drag.js click 핸들러의 재적용용)
+window.grbVLabelIndexAt           = grbVLabelIndexAt;       // ★1017t1f5(261018 고침) — 클릭 지점의 값 라벨 색인(block-drag.js isGraph click 핸들러가 읽는다)
 window.grbPieFitTags              = grbPieFitTags;         // 1013t1C3 고침 — 조각 안 라벨을 재서 제 조각 안에 넣는다(canvas-contrast.js syncGraphTone 이 부른다)
 window.applyDividerStyle          = applyDividerStyle;
 window.ASSET_PRESETS              = ASSET_PRESETS;

@@ -3996,6 +3996,8 @@ function clearSelectionMarks(root) {
   canvas.querySelectorAll('.grd-cell-selected').forEach(el => el.classList.remove('grd-cell-selected'));
   // 1013t1C4 — 원형 그래프 «조각 선택» 마커도 같은 자리에서 해제 (drag-utils.js grbPieSelect 와 짝 · 상태는 이 표식 하나뿐)
   canvas.querySelectorAll('.grb-pie-cell-selected').forEach(el => el.classList.remove('grb-pie-cell-selected'));
+  // ★1017t1f5 — 꺾은선 «값 라벨 선택» 마커도 같은 자리에서 해제 (drag-utils.js grbVLabelPick 와 짝 · 같은 까닭)
+  canvas.querySelectorAll('.grb-vlabel-cell-selected').forEach(el => el.classList.remove('grb-vlabel-cell-selected'));
   // ★0918 grid: 마커만 지우고 «모델»(활성줄 WeakMap)을 두면, 블럭으로 다시 골랐을 때 옛 줄이 살아나
   //   Backspace 가 줄 삭제 분기로 새서 블럭이 안 지워졌다. 블럭을 떠나면 줄 선택도 해제한다.
   window.grdClearAllActiveLines?.(canvas);

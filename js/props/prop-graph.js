@@ -800,6 +800,7 @@ ${blockHeaderHTML({
     curItems.splice(parseInt(btn.dataset.index), 1);
     block.dataset.items = JSON.stringify(curItems);
     window.grbPieSelect?.(block, null);   // 1013t1C4 — 항목 수가 바뀌면 조각 선택을 푼다(색인이 다른 조각을 가리키지 않게)
+    window.grbVLabelPick?.(block, null);   // ★1017t1f5 — 같은 까닭(값 라벨 고르기도 색인이 다른 항목을 가리키지 않게)
     window.renderGraph(block);
     showGraphProperties(block);
   });
@@ -877,6 +878,7 @@ ${blockHeaderHTML({
     curItems.push({ label: '항목 ' + (curItems.length + 1), value: 50 });
     block.dataset.items = JSON.stringify(curItems);
     window.grbPieSelect?.(block, null);   // 1013t1C4 — 위 삭제와 같은 까닭
+    window.grbVLabelPick?.(block, null);   // ★1017t1f5 — 위 삭제와 같은 까닭
     window.renderGraph(block);
     showGraphProperties(block);
   });

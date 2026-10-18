@@ -48,10 +48,15 @@
        SHAPE_FILL_MAX_DEFAULT 100 = 모양일 때 채움 분모(값 하나짜리 채움 그래프가 늘 꽉 차지 않게 — 사각 막대의 max(items) 와 다르다).
        SHAPE_TRACK_OPACITY 0.25 = 안 찬 부분(트랙)의 불투명도 — 색은 채움과 같은 색(새 색 0). SEG_GAP_DEFAULT 2 = 마디 사이 틈(px).
        렌더러(drag-utils.js · graph-shape.js)와 패널(prop-graph.js)이 «이 값들»을 읽는다(기획 값 — 현빈 확인 전). */
+  /* ★VLABEL_OFFSET_MIN · MAX(1017t1f5 · 2026-10-18 · 현빈 「꺾은선 그래프의 값표시 값들 개별 드래그로 위치이동, 어노테이션의 라벨과 같은 원리로」) —
+       꺾은선 항목별 값 라벨(.grb-line-vlabel)의 «개별 위치» 오프셋(items[i].vDx/vDy, px, 블럭 자체 좌표 — 줌과 무관) 한계.
+       어노테이션 라벨 오프셋(js/blocks/annotation-block.js ANNOT_LIMITS.labelDx/labelDy)과 같은 범위를 그대로 썼다(같은 원리 = 같은 한계).
+       0 이면 키를 안 단다(= 자동 위치). 드래그 쓰기(js/drag-utils.js _startVLabelOffsetDrag)와 패널·MCP 캐리오버(js/graph-shape.js carryItemExtras)가 읽는다. */
   var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LABEL_SIZE_MIN: 8, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3,
     PIE_HOLE_MIN: 20, PIE_HOLE_MAX: 80, PIE_HOLE_DEFAULT: 55, PIE_GAP: 10, PIE_GAP_MIN: 0, PIE_GAP_MAX: 40, PIE_START_MIN: 0, PIE_START_MAX: 359, PIE_GROW_MAX: 30, PIE_PULL_MAX: 30, PIE_TAG_AT: 62, PIE_TAG_MIN_CHORD: 150, PIE_TAG_MIN_RADIAL: 150, PIE_TAG_PAD: 8, PIE_TAG_FONT_STEPS: Object.freeze([0.85, 0.7, 0.55, 0.4]), PIE_TAG_NAME_LINES: 2,
     PIE_LEG_GAP_MIN: 0, PIE_LEG_GAP_MAX: 60, PIE_LEG_GAP_DEFAULT: 16,
-    SHAPE_SVG_MAX: 60000, SHAPE_FILL_MAX_DEFAULT: 100, SHAPE_TRACK_OPACITY: 0.25, SEG_GAP_DEFAULT: 2 });
+    SHAPE_SVG_MAX: 60000, SHAPE_FILL_MAX_DEFAULT: 100, SHAPE_TRACK_OPACITY: 0.25, SEG_GAP_DEFAULT: 2,
+    VLABEL_OFFSET_MIN: -600, VLABEL_OFFSET_MAX: 600 });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_LIMITS;
   if (root) root.GRAPH_LIMITS = GRAPH_LIMITS;
 })(typeof window !== 'undefined' ? window : null);

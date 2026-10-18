@@ -1866,6 +1866,12 @@ function bindBlock(block) {
          조각 밖(범례·여백)을 누르면 조각 선택 해제. 두 판정 다 deselectAll «전»에 잡는다(뒤에서 재면 selected 가 방금 지워져 늘 false). */
       const _pieWas = _isSoleSelectedBlock(block);
       const _pieIdx = window.grbPieSliceIndexAt?.(e.target, block) ?? -1;
+      /* ★1017t1f5(261018 고침) — 꺾은선 값 라벨 고르기도 «같은 자리」에서 같은 꼴로. 조각 고르기와 똑같이
+         deselectAll() 이 모든 -cell-selected 표식(grb-vlabel-cell-selected 포함)을 쓸어내므로, 지우기
+         «전»에 클릭 지점의 라벨 색인을 챙겨 지운 뒤 다시 건다. 처음엔 js/drag-utils.js _bindGraphVLabelDrag
+         의 mouseup 에서 직접 골랐는데, 그 직후(같은 제스처의) 이 click 핸들러가 늘 돌며 방금 고른 표식을
+         지워버렸다(태양 창 실측 V3 빨강, 2026-10-18) — «고르기 쓰기»는 여기 한 곳으로 모았다. */
+      const _vlabelIdx = window.grbVLabelIndexAt?.(e.target, block) ?? -1;
       window.deselectAll();
       _restoreParentFrameSelected(block);
       block.classList.add('selected');
@@ -1873,6 +1879,7 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.grbPieSelect?.(block, (_pieWas && _pieIdx >= 0) ? _pieIdx : null);   // 패널을 열기 «전» — 패널이 표식을 읽어 Slice 절을 그린다
+      window.grbVLabelPick?.(block, (_pieWas && _vlabelIdx >= 0) ? _vlabelIdx : null);   // ★1017t1f5 — 위와 같은 까닭
       window.showGraphProperties(block);
     });
   }
