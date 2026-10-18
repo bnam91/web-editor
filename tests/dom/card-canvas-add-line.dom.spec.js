@@ -346,11 +346,16 @@ test('B1b 회귀 — 기본 카드(빈칸채우기 ＋ 1개)에서도 행 성장
   await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
   const fill = await plusGeom(page, id);
   const row = await gridPlusGeom(page, id, 'row');
-  expect(fill.hitIsPlus, '★빈칸채우기 ＋ 가 여전히 누를 수 있다(행 성장 ＋ 에 안 덮인다)').toBe(true);
-  expect(row.hitIsBtn, '★행 성장 ＋ 도 누를 수 있다').toBe(true);
   // ★둘이 실제로 떨어져 있는지도 수로 — «우연히 안 겹쳤다»가 아니라 비킴이 작동했음을 잰다
   const dx = Math.abs(fill.cx - row.cx), dy = Math.abs(fill.cy - row.cy);
-  expect(dx >= 40 || dy >= 40, `★두 ＋ 가 40px(지름) 미만으로 가깝다 — dx=${dx} dy=${dy}`).toBe(true);
+  // ★261018(지디·태양 지적) — ★통과해도 값이 로그에 남아야 한다(「단언에 잰 값을 찍어라」). 실패 메시지
+  //   «안에만» 값이 있으면 통과 회차엔 그 수가 사라진다 — 사람이 따로 재는 자는 다음 회차에 없어진다.
+  console.log(`[B1b] dx=${dx} dy=${dy} · fillHit=${fill.hitIsPlus} growHit=${row.hitIsBtn}`);
+  expect(fill.hitIsPlus, '★빈칸채우기 ＋ 가 여전히 누를 수 있다(행 성장 ＋ 에 안 덮인다)').toBe(true);
+  expect(row.hitIsBtn, '★행 성장 ＋ 도 누를 수 있다').toBe(true);
+  // ⛔`dx>=40 || dy>=40`(불값만)을 `Math.max(dx,dy)>=40`(수)로 — 뜻은 같다(둘 중 하나라도 40 이상이면 참:
+  //   max 가 40 이상 ⇔ dx 나 dy 중 적어도 하나가 40 이상). 이러면 실패 메시지·단언 자체에 값이 남는다.
+  expect(Math.max(dx, dy), `비킴 — 두 ＋ 가 40px 이상 떨어져야 한다(dx=${dx} dy=${dy})`).toBeGreaterThanOrEqual(40);
   // ⚠️261018 — 이 검사는 ★행★ 성장 ＋ 만 잰다. ★열 성장 ＋(블럭 우측)가 빈칸채우기 ＋ 와 같은 식으로
   //   겹칠 수 있는지는 ★미측정이다(기하적으로 더 드문 조건으로 보이지만 그건 추론이고, 수로 재지 않았다
   //   — 「낮은 확률」을 「문제 없다」로 적지 않는다). 다음 사람의 출발선: 열 쪽도 이 B1b 와 같은 틀로
