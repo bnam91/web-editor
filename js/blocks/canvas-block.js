@@ -375,6 +375,26 @@ const CVB_PLUS_LAYER_ID = 'cvb-plus-layer';
 const CVB_ADD_BTN_CLS = 'cvb-add-btn';
 const _cvbPlusBtns = new Map();   // block → { sig, btns[] } — ＋ 가 떠 있는 블럭만
 
+/* ══ [1017t1d3] 캔버스 ＋ — 카드그리드(gridCols×gridRows) 열·행 «성장»(그리드블럭 G15 선례의 짝) ══════
+ * ★현빈 1017t1d3: 「그리드 블럭 보면 칼럼 추가를 할 수 있게 우측에도 있지 않니? 우측에도 추가해줘.」
+ *   d3 재확인(2026-10-18)으로 가린 답: 위 cvbMissingTextSlots ＋(하단 중심 하나)는 ★«빈 줄 채우기»라
+ *   title/desc 가 항상 세로로만 쌓여 우측에 채울 필드가 구조적으로 없었다 — ★진짜 선례는 gridCols/gridRows
+ *   (카드 여러 장의 r×c 배치)뿐이고, 그건 지금 ★패널 피커(prop-canvas.js insertCanvasGrid)로만 늘었다.
+ *   ⇒ 그리드블럭처럼 ★«늘리는» ＋ 를 캔버스 우측(열)·하단(행) 양쪽에 새로 둔다.
+ * ★클래스를 CVB_ADD_BTN_CLS(빈칸 채우기)와 가른다 — 사용자·검사 모두 두 ＋ 를 헷갈리지 않게.
+ *   ⛔grid-block.js 의 .grd-add-btn 도 재사용하지 않는다 — 문서 전체 개수를 전제단언하는 시험이 있다
+ *   (tests/dom/grid-plus-g15-leak.dom.spec.js:38 `querySelectorAll('.grd-add-btn').length===2`).
+ * ★층은 기존 #cvb-plus-layer 를 그대로 빌린다(새 층 안 만듦 — line-host.js 가 #grd-plus-layer 를 빌리는
+ *   것과 같은 결, line-host.js:972).
+ * ★상한 — d3 census 로 UI 피커(prop-canvas.js:134·prop-simple-card.js:541) 4×4 / API 검증(updateCanvasBlock
+ *   :1437,1443) cols≤4·rows≤20 / 생성경로(makeCanvasBlock) 무제한, 세 곳이 불일치했다. 지디 판정(2026-10-18):
+ *   ★«참값»=UI 피커의 4×4(사용자가 보는 값·이미 쓰임) — API·생성 경로 불일치는 ⛔이 묶음에서 안 건드린다(별건).
+ *   ⇒ 아래 두 상수가 그 ★«한 자리»다 — 새 ＋ 의 disabled 판정이 이 값을 읽는다(숫자를 또 안 박는다). */
+const CVB_GRID_MAX_COLS = 4;
+const CVB_GRID_MAX_ROWS = 4;
+const CVB_GRID_ADD_BTN_CLS = 'cvb-grid-add-btn';
+const _cvbGridPlusBtns = new Map();   // block → { col, row } — ＋ 가 떠 있는 블럭만(그리드 _gridPlusBtns 와 같은 꼴)
+
 function _cvbPlusLayer() {
   let L = document.getElementById(CVB_PLUS_LAYER_ID);
   if (L) return L;
@@ -452,6 +472,7 @@ function _cvbBindPlusObserver(block) {
     if (now === was) return;
     was = now;
     _syncCvbAddBtns(block);
+    _syncCvbGridAddBtns(block);   // ★1017t1d3 — 같은 관측자가 두 ＋ 묶음을 같이 맞춘다(조건이 같다 — _cvbPlusShown)
   }).observe(block, { attributes: true, attributeFilter: ['class'] });
 }
 
@@ -509,6 +530,107 @@ function _makeCvbAddBtn(block, w) {
   });
   return btn;
 }
+
+/* ══ [1017t1d3] 열·행 성장 ＋ — 몸통(그리드 _syncGridAddBtns/_makeGridAddBtn/_placeGridAddBtns/gridAddAtEnd 짝) ══ */
+
+// 블럭마다 한 번 — 떠 있으면(두 버튼이 아직 없거나 끊겼으면) 새로 만들고, 상한에 따라 disabled·자리를 맞춘다.
+function _syncCvbGridAddBtns(block) {
+  if (!block?.addEventListener) return;
+  let p = _cvbGridPlusBtns.get(block);
+  if (!_cvbPlusShown(block) || !block.isConnected) { _dropCvbGridPlus(block); return; }
+  const L = _cvbPlusLayer();
+  if (!L) return;
+  // ⛔이미 떠 있으면 갈아끼우지 않는다(마우스 밑 노드를 빼지 않는다 — grid G15 2026-10-04 실측과 같은 까닭)
+  if (!p || !p.col.isConnected || !p.row.isConnected) {
+    _dropCvbGridPlus(block);
+    p = { col: _makeCvbGridAddBtn(block, 'col'), row: _makeCvbGridAddBtn(block, 'row') };
+    L.append(p.col, p.row);
+    _cvbGridPlusBtns.set(block, p);
+  }
+  const nC = parseInt(block.dataset.gridCols) || 1, nR = parseInt(block.dataset.gridRows) || 1;
+  const full = { col: nC >= CVB_GRID_MAX_COLS, row: nR >= CVB_GRID_MAX_ROWS };   // ★상한 판정은 이 한 줄 — grid 와 같은 결
+  for (const b of [p.col, p.row]) b.disabled = !!full[b.dataset.cvbGridAdd];
+  _placeCvbGridAddBtns(block);
+  _startCvbGridPlusRaf();
+}
+function _dropCvbGridPlus(block) {
+  const p = _cvbGridPlusBtns.get(block);
+  if (p) { p.col.remove(); p.row.remove(); }
+  _cvbGridPlusBtns.delete(block);
+}
+
+// 떠 있는 동안만 도는 rAF — 배율·스크롤·재렌더·삭제를 따라간다(grid _startGridPlusRaf 꼴 그대로).
+let _cvbGridPlusRaf = 0;
+function _startCvbGridPlusRaf() {
+  if (_cvbGridPlusRaf || typeof requestAnimationFrame !== 'function') return;
+  const loop = () => {
+    _cvbGridPlusRaf = 0;
+    for (const blk of [..._cvbGridPlusBtns.keys()]) {
+      if (!blk.isConnected || !_cvbPlusShown(blk)) { _dropCvbGridPlus(blk); continue; }
+      _placeCvbGridAddBtns(blk);
+    }
+    if (_cvbGridPlusBtns.size) _cvbGridPlusRaf = requestAnimationFrame(loop);
+  };
+  _cvbGridPlusRaf = requestAnimationFrame(loop);
+}
+
+/* 자리 = 블럭 자신의 바운딩박스 기준(그리드 G15 의 «자식 없을 때» 가지와 같다 — 카드 블럭엔 G19 자식 그릇이 없다):
+ *   오른쪽(열) = (블럭 오른쪽 끝, 블럭 세로 가운데) · 중심을 기준점에(transform translate(-50%,-50%)).
+ *   아래(행)  = (블럭 가로 가운데, 블럭 아래 끝) · 왼쪽으로 반 칸만(transform translateX(-50%)).
+ * 좌표 = 스케일러 로컬 — 기존 _placeCvbAddBtns 와 같은 식(zoom 재확인 ⒉: 이미 같은 식이라 안전 재사용). */
+function _placeCvbGridAddBtns(block) {
+  const p = _cvbGridPlusBtns.get(block);
+  const scaler = p && p.col.parentElement && p.col.parentElement.parentElement;
+  if (!p || !scaler) return;
+  const sr = scaler.getBoundingClientRect();
+  const scale = (window.currentZoom || 40) / 100;
+  const br = block.getBoundingClientRect();
+  const put = (b, x, y) => { const l = (x - sr.left) / scale + 'px', t = (y - sr.top) / scale + 'px'; if (b.style.left !== l) b.style.left = l; if (b.style.top !== t) b.style.top = t; };
+  put(p.col, br.right, (br.top + br.bottom) / 2);
+  put(p.row, (br.left + br.right) / 2, br.bottom);
+}
+
+// ＋ 글리프 = CSS ::before «+»(그리드·빈칸채우기 ＋ 와 같은 꼴) — 글자 노드 없음(E65).
+function _makeCvbGridAddBtn(block, axis) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = CVB_GRID_ADD_BTN_CLS;
+  btn.dataset.cvbGridAdd = axis;
+  if (block.id) btn.dataset.cvbGridFor = block.id;
+  const label = axis === 'col' ? '열 추가' : '행 추가';
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  // ⛔캔버스 쪽 손(마키·팬·선택 해제)으로 새지 않게 — mousedown/dblclick 을 여기서 멈춘다(grid _makeGridAddBtn 꼴)
+  btn.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
+  btn.addEventListener('dblclick', e => { e.stopPropagation(); e.preventDefault(); });
+  btn.addEventListener('click', e => {
+    e.stopPropagation(); e.preventDefault();
+    if (btn.disabled) return;
+    _cvbGridAddAtEnd(block, axis);
+  });
+  return btn;
+}
+
+/* ＋ 한 번 = 끝에 열(axis 'col') 또는 행(axis 'row') 하나. 상한이면 아무것도 안 한다(grid gridAddAtEnd 꼴).
+ * ★뮤테이션은 insertCanvasGrid(prop-canvas.js:344-358) «재사용» — d3 재확인 ⒉: 그 함수가 dataset.gridCols/
+ *   gridRows·cards 길이를 실제로 같이 바꾸고 renderCanvas 를 완전히 다시 불러(⒊: gridCols===1 전용 CSS 폭
+ *   분기(:808-816 대역)도 그 재렌더가 그대로 흡수한다 — 부분 패치 지름길 없음).
+ * ★pushHistory — ★«변경 전»(그리드식)으로 부른다. insertCanvasGrid 자신의 «후» 호출(prop-canvas.js:356)은
+ *   그대로 둔다(별건 — 그 함수의 다른 호출자인 패널 피커까지 바꾸는 건 범위 밖). 이 둘이 한 클릭에 같이 돌아도
+ *   ⌘Z 가 두 칸을 먹지 않는다: 이 호출(«전» 상태)은 직전 액션이 이미 찍은 히스토리 꼭대기와 글자 하나 다르지
+ *   않아 pushHistory 의 무변화 중복차단(js/history.js:250-256)에 걸려 조용히 버려지고, 실제로 쌓이는 건
+ *   insertCanvasGrid 내부의 «후» 호출(=바뀐 뒤 상태) 하나뿐이다 — js/CLAUDE.md 히스토리 규약의 ⑴ 이음매
+ *   (바뀌기 전 상태가 «빠진 칸»으로 남는 꼴)가 아니다. */
+function _cvbGridAddAtEnd(block, axis) {
+  const nC = parseInt(block.dataset.gridCols) || 1, nR = parseInt(block.dataset.gridRows) || 1;
+  const nextC = axis === 'col' ? nC + 1 : nC;
+  const nextR = axis === 'row' ? nR + 1 : nR;
+  if (nextC > CVB_GRID_MAX_COLS || nextR > CVB_GRID_MAX_ROWS) return false;   // 상한 — 버튼은 disabled 로 이미 막지만 직접호출 대비
+  window.pushHistory?.(axis === 'col' ? '카드 열 추가' : '카드 행 추가');
+  window.insertCanvasGrid?.(block, nextC, nextR);
+  return true;
+}
+window.cvbGridAddAtEnd = _cvbGridAddAtEnd;   // ★grid 의 window.gridAddAtEnd 와 같은 결 — CDP·시험이 직접 부를 수 있게
 
 // ＋ → 그 영역에 «임시 칸»(제목이면 맨 앞, 설명이면 맨 뒤)을 열고 기존 인라인 편집에 넘긴다.
 function _cvbBeginAdd(block, idx, field, slot) {
@@ -1014,6 +1136,7 @@ function renderCanvas(block) {
     }
     _bindCvbDblEdit(block);
     _syncCvbAddBtns(block);   // ★[1012t1K1] 캔버스 ＋ (블럭 밖 층 — 블럭 DOM 은 안 건드린다)
+    _syncCvbGridAddBtns(block);   // ★[1017t1d3] 열·행 성장 ＋ — 재렌더마다 gridCols/gridRows 를 다시 읽어 disabled·자리를 맞춘다
     lnRemark(block);   // ★1017t1d1 — 다시 그리면 줄 선택 표시가 지워진다. 선택된 블럭의 활성 줄만 되붙인다(챗·비교·laurel 과 같은 자리 · 줄 없으면 DOM 무변)
     return;
   }

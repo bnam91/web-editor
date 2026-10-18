@@ -1,9 +1,16 @@
 /* card-canvas-add-line.dom.spec.js — 카드 블럭 캔버스 ＋ 로 «빈 줄»(설명/제목) 추가 (1012t1K1 · 안 ㉠)
+ *                                    ＋ 열·행 «성장» ＋ (1017t1d3 — B1~B6, 아래)
  *
  * ★재현(고치기 전): 제목만 있는 기본 카드는 .cvb-card-desc 요소가 «안 그려져» 캔버스에서 설명을 쓸 곳이 없었다
  *   (우측 패널 textarea 만 길). ＋ 는 블럭 밖 층 #cvb-plus-layer 에, 골라져 있을 때만, 빈 줄마다 하나.
  * ★누르기는 진짜 마우스(page.mouse.click) — 누르는 점이 ＋ 위인지 elementFromPoint 로 먼저 단언한다.
  * ⛔고정 대기(waitForTimeout) 없음 — waitForFunction 으로 «무엇을» 기다리는지 쓴다(dom-fixed-wait-census).
+ *
+ * ★261018 — B1~B6(열·행 성장 ＋)은 ★★작성 시점에 «안 돌렸다»(이 맥 swap 95%+ ⇒ Playwright 금지 — 지디 지시).
+ *   처음 돌리는 사람이 ★초록/빨강을 결과에 먼저 적어라. 선례: grid-block.js _makeGridAddBtn/_placeGridAddBtns/
+ *   gridAddAtEnd(:4160,4143,4085) — 카드 쪽 짝은 js/blocks/canvas-block.js _makeCvbGridAddBtn/
+ *   _placeCvbGridAddBtns/_cvbGridAddAtEnd. 상한 4×4 는 canvas-block.js CVB_GRID_MAX_COLS/ROWS(d3 census 재확인
+ *   ⒈ — UI 피커 4×4 를 참값으로 지디가 고정). 뮤테이션은 prop-canvas.js insertCanvasGrid 재사용(window 브리지).
  */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
@@ -261,4 +268,112 @@ test('A9 회귀 — 진짜 dblclick 제목 편집은 그대로', async ({ page }
   await page.keyboard.insertText('X');
   await page.keyboard.press('Escape');
   await page.waitForFunction((id) => JSON.parse(document.getElementById(id).dataset.cards)[0].title === '카드 제목X', id);
+});
+
+/* ══ [1017t1d3] 열·행 성장 ＋ ══════════════════════════════════════════════════════════
+ * ★현빈 1017t1d3 GO — 그리드블럭(G15)처럼 캔버스 우측(열)·하단(행)에 「진짜 늘리는」 ＋ 를 새로 둔다.
+ *   클래스는 `.cvb-grid-add-btn`(위 .cvb-add-btn 「빈칸 채우기」와 다른 클래스 — d3 재확인 ⒉). */
+const gridPlusSel = (id, axis) => `#cvb-plus-layer > .cvb-grid-add-btn[data-cvb-grid-for="${id}"][data-cvb-grid-add="${axis}"]`;
+const gridDims = (page, id) => page.evaluate((id) => {
+  const b = document.getElementById(id);
+  return { cols: parseInt(b.dataset.gridCols) || 1, rows: parseInt(b.dataset.gridRows) || 1, nCards: JSON.parse(b.dataset.cards || '[]').length };
+}, id);
+
+async function gridPlusGeom(page, id, axis) {
+  return page.evaluate(([id, s]) => {
+    const b = document.querySelector(s);
+    if (!b) return null;
+    const r = b.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const hit = document.elementFromPoint(cx, cy);
+    const br = document.getElementById(id).getBoundingClientRect();
+    return { cx, cy, hitIsBtn: hit === b, disabled: b.disabled, title: b.title, blockRight: br.right, blockBottom: br.bottom, blockMidY: (br.top + br.bottom) / 2, blockMidX: (br.left + br.right) / 2 };
+  }, [id, gridPlusSel(id, axis)]);
+}
+
+async function clickGridPlus(page, id, axis) {
+  const g = await gridPlusGeom(page, id, axis);
+  expect(g, `전제 — ${axis} 성장 ＋ 가 문서에 있다`).toBeTruthy();
+  expect(g.hitIsBtn, '전제 — 누르는 점이 ＋ 위다').toBe(true);
+  await page.mouse.click(g.cx, g.cy);
+  return g;
+}
+
+test('B1 카드를 고르면 열·행 성장 ＋ 가 각 1개 — 열=블럭 우측 세로가운데 · 행=블럭 하단 가로가운데', async ({ page }) => {
+  const { id } = await setup(page);
+  expect(await page.evaluate((s) => document.querySelectorAll(s).length, '#cvb-plus-layer > .cvb-grid-add-btn'), '고르기 전엔 0').toBe(0);
+  await select(page, id, 1);   // 기본 카드(설명 빔) ＋ 1개가 전제 — 성장 ＋ 는 그와 별도로 2개 더 뜬다
+  await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
+  const col = await gridPlusGeom(page, id, 'col'), row = await gridPlusGeom(page, id, 'row');
+  expect(col.title).toBe('열 추가');
+  expect(row.title).toBe('행 추가');
+  expect(Math.abs(col.cx - col.blockRight)).toBeLessThan(2);
+  expect(Math.abs(col.cy - col.blockMidY)).toBeLessThan(2);
+  expect(Math.abs(row.cy - row.blockBottom)).toBeLessThan(2);
+  expect(Math.abs(row.cx - row.blockMidX)).toBeLessThan(2);
+  expect(col.hitIsBtn).toBe(true);
+  expect(row.hitIsBtn).toBe(true);
+});
+
+test('B2 열 ＋ 클릭 → gridCols 1→2 · cards 1→2(기본값) · 블럭 폭 모드가 100%로 전환(gridCols===1 분기)', async ({ page }) => {
+  const { id } = await setup(page);
+  await select(page, id, 1);
+  await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
+  const before = await gridDims(page, id);
+  expect(before).toEqual({ cols: 1, rows: 1, nCards: 1 });
+  const widthBefore = await page.evaluate((id) => document.getElementById(id).style.width, id);
+  expect(widthBefore, '전제 — 1열일 땐 고정 px 폭(canvas-block.js renderCanvas gridCols===1 분기)').toMatch(/px$/);
+  await clickGridPlus(page, id, 'col');
+  await page.waitForFunction((id) => (parseInt(document.getElementById(id).dataset.gridCols) || 1) === 2, id);
+  const after = await gridDims(page, id);
+  expect(after).toEqual({ cols: 2, rows: 1, nCards: 2 });
+  const widthAfter = await page.evaluate((id) => document.getElementById(id).style.width, id);
+  expect(widthAfter, '★⒊ 재확인 — cols 1→2 전환이 완전 재렌더를 타 폭 모드가 100%로 바뀐다(부분패치 지름길이면 여기서 안 바뀐 채 남는다)').toBe('100%');
+  const newCard = (await cards(page, id))[1];
+  expect(newCard).toEqual({ title: '카드 제목', desc: '', imgSrc: '', cellBg: '' });
+});
+
+test('B3 행 ＋ 클릭 → gridRows 1→2 · cards 1→2(기본값) · 열 그대로', async ({ page }) => {
+  const { id } = await setup(page);
+  await select(page, id, 1);
+  await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
+  await clickGridPlus(page, id, 'row');
+  await page.waitForFunction((id) => (parseInt(document.getElementById(id).dataset.gridRows) || 1) === 2, id);
+  expect(await gridDims(page, id)).toEqual({ cols: 1, rows: 2, nCards: 2 });
+});
+
+test('B4 상한(4×4)에서는 disabled — 눌러도 안 늘어난다', async ({ page }) => {
+  const { id } = await setup(page);
+  await page.evaluate((id) => { window.insertCanvasGrid(document.getElementById(id), 4, 1); }, id);   // 패널 피커와 같은 길로 열 4까지 미리 올린다
+  await select(page, id, 1);
+  await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
+  const col = await gridPlusGeom(page, id, 'col');
+  expect(col.disabled, '열 4 = 상한 — disabled').toBe(true);
+  await page.mouse.click(col.cx, col.cy);   // disabled 버튼 위 클릭 — 브라우저가 click 이벤트 자체를 안 보낸다
+  const after = await gridDims(page, id);
+  expect(after.cols, '눌러도 4 그대로').toBe(4);
+});
+
+test('B5 ⌘Z 한 번 = 열 추가 전으로 — pushHistory 전/후 두 호출이 두 칸을 안 먹는다(d3 재확인 ⒉ 무변화중복차단)', async ({ page }) => {
+  const { id } = await setup(page);
+  await select(page, id, 1);
+  await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
+  await clickGridPlus(page, id, 'col');
+  await page.waitForFunction((id) => (parseInt(document.getElementById(id).dataset.gridCols) || 1) === 2, id);
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+  await page.waitForFunction((id) => (parseInt(document.getElementById(id).dataset.gridCols) || 1) === 1, id, { timeout: 3000 });
+  expect((await gridDims(page, id)).cols, '한 번으로 충분 — 두 번째 ⌘Z 가 더 되돌릴 게 없어야 다음 단언이 참').toBe(1);
+});
+
+test('B6 성장 ＋ 도 블럭 DOM·글자·#canvas 에 새지 않는다(A5 와 같은 단언 — 새 클래스 짝)', async ({ page }) => {
+  const { id } = await setup(page);
+  await select(page, id, 1);
+  await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
+  const r = await page.evaluate((id) => {
+    const b = document.getElementById(id), c = document.getElementById('canvas');
+    return { inBlock: b.outerHTML.includes('cvb-grid-add-btn'), inCanvas: c.innerHTML.includes('cvb-grid-add-btn'),
+      plusInText: b.innerText.includes('+') || b.innerText.includes('＋'),
+      layerParent: document.getElementById('cvb-plus-layer')?.parentElement?.id };
+  }, id);
+  expect(r).toEqual({ inBlock: false, inCanvas: false, plusInText: false, layerParent: 'canvas-scaler' });
 });

@@ -356,3 +356,7 @@ function insertCanvasGrid(block, cols, rows) {
   window.pushHistory?.();
   window.scheduleAutoSave?.();
 }
+window.insertCanvasGrid = insertCanvasGrid;   // ★1017t1d3 — canvas-block.js 의 열·행 성장 ＋(_cvbGridAddAtEnd)가
+  // 이 뮤테이션을 «재사용»한다(d3 census ③: prop-simple-card.js:562-576 의 중복 사본은 합치지 않는다 — 별건).
+  // 블록 모듈 → 패널 모듈 직접 import 는 레이어를 거스른다(이 레포의 기존 다리 — window.showCanvasProperties 등
+  // — 와 같은 결로 window 브리지를 썼다).

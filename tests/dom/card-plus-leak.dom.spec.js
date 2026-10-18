@@ -45,7 +45,7 @@
  *   L6 AI 채우기 읽기면(collectSectionTextBlocks — ai-section-fill.js 가 canvas-block simple 카드를
  *      dataset.cards 에서 직접 읽어 item 을 만든다. DOM 의 .cvb-add-btn 과는 다른 길이라 따로 잰다)
  *   L7 MCP get_canvas_state·read_section        L8 검색(블럭 innerText)
- * 새는 표지: 'cvb-add-btn' 문자열 · 카드 글(기본값 '카드 제목')에 없는 '+' 글자.
+ * 새는 표지: 'cvb-add-btn'/'cvb-grid-add-btn'(1017t1d3 열·행 성장 ＋, 아래) 문자열 · 카드 글(기본값 '카드 제목')에 없는 '+' 글자.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -66,16 +66,23 @@ async function setup(page) {
     block.scrollIntoView({ block: 'center' });
     return block.id;
   }, SEC);
-  await page.waitForTimeout(200);
+  /* ★261018 — grid-plus-g15-leak.dom.spec.js:33 의 고정 대기(waitForTimeout(200))를 그대로 안 베꼈다 —
+   * ★이 저장소는 고정 대기 0건이 규율(W3 래칫·dom-fixed-wait-census) ⇒ «무엇을» 기다리는지로 바꿨다:
+   * 블럭 크기(canvas-block.js renderCanvas 의 ResizeObserver applyScale)가 settle 했는가. */
+  await page.waitForFunction((id) => { const r = document.getElementById(id).getBoundingClientRect(); return r.width > 0 && r.height > 0; }, id);
   const [x, y] = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height * 0.3]; }, id);
   /* ＋ 는 «고르면» 뜬다(grid 의 H8 과 같은 결) — 진짜 클릭으로 고른다. */
   await page.mouse.click(x, y);
-  await page.waitForFunction(() => document.querySelectorAll('.cvb-add-btn').length === 1, null, { timeout: 3000 });
-  expect(await page.evaluate(() => document.querySelectorAll('.cvb-add-btn').length), '전제 — 골라서 ＋ 가 떠 있다(문서 어딘가에 하나 · 카드 1장·빈 필드 1개)').toBe(1);
+  await page.waitForFunction(() => document.querySelectorAll('.cvb-add-btn').length === 1
+    && document.querySelectorAll('.cvb-grid-add-btn').length === 2, null, { timeout: 3000 });
+  /* ★1017t1d3 — 열·행 성장 ＋(.cvb-grid-add-btn)도 같은 층에 같이 뜬다(d3 재확인 ⒋: 같은 조건 _cvbPlusShown).
+   * 이 누수시험이 새 ＋ 도 재는지 물었던 지시(지디) — 아래 전제를 둘 다 걸어 L1~L8 정규식을 두 클래스 다 본다. */
+  expect(await page.evaluate(() => document.querySelectorAll('.cvb-add-btn').length), '전제 — 빈칸채우기 ＋ 하나(카드 1장·빈 필드 1개)').toBe(1);
+  expect(await page.evaluate(() => document.querySelectorAll('.cvb-grid-add-btn').length), '전제 — 성장 ＋ 둘(열+행)').toBe(2);
   return { errs, id };
 }
 
-test('L1~L8 ★카드 ＋ 가 떠 있는 동안 제품의 읽기·내보내기 길 어디에도 ＋ 가 없다', async ({ page }) => {
+test('L1~L8 ★카드 ＋(빈칸채우기·성장 둘 다) 가 떠 있는 동안 제품의 읽기·내보내기 길 어디에도 ＋ 가 없다', async ({ page }) => {
   test.setTimeout(120000);
   const { errs, id } = await setup(page);
   const r = await page.evaluate(async (id) => {
@@ -84,9 +91,10 @@ test('L1~L8 ★카드 ＋ 가 떠 있는 동안 제품의 읽기·내보내기 �
     const out = {};
     // L1 저장 문자열
     const proj = window.serializeProject();
-    out.L1 = { markup: /cvb-add-btn/.test(proj), cardText: (() => { const p = JSON.parse(proj); return cardOnly(p.pages[0].canvas).split('')[1]; })() };
+    // star note: /cvb-(?:grid-)?add-btn/ also partial-matches 'cvb-grid-add-btn' (shared prefix) -- one regex covers both classes
+    out.L1 = { markup: /cvb-(?:grid-)?add-btn/.test(proj), cardText: (() => { const p = JSON.parse(proj); return cardOnly(p.pages[0].canvas).split('')[1]; })() };
     // L2 히스토리
-    out.L2 = { markup: /cvb-add-btn/.test(window.getSerializedCanvas()), cardText: cardOnly(window.getSerializedCanvas()).split('')[1] };
+    out.L2 = { markup: /cvb-(?:grid-)?add-btn/.test(window.getSerializedCanvas()), cardText: cardOnly(window.getSerializedCanvas()).split('')[1] };
     // L3 HTML 내보내기(진짜 exportHTMLFile, 내려받기 대신 Blob 가로채기)
     let blob = null;
     const oC = URL.createObjectURL, oR = URL.revokeObjectURL, oClick = HTMLAnchorElement.prototype.click;
@@ -94,19 +102,20 @@ test('L1~L8 ★카드 ＋ 가 떠 있는 동안 제품의 읽기·내보내기 �
     try { await window.exportHTMLFile(); } finally { URL.createObjectURL = oC; URL.revokeObjectURL = oR; HTMLAnchorElement.prototype.click = oClick; }
     const html = blob ? await blob.text() : '';
     const body = html.replace(/<style[\s\S]*?<\/style>/gi, '');   // 숨김 CSS 줄(만약 있다면 .cvb-add-btn{display:none})은 «노드»가 아니다 — 본문만 본다
-    out.L3 = { got: !!html, markup: /class="[^"]*cvb-add-btn/.test(body), cardText: cardOnly(body.slice(body.indexOf('<body'))).split('')[1] };
+    // star note: same reason as L1 -- plain substring match would miss .cvb-grid-add-btn, so the pattern above is /cvb-(?:grid-)?add-btn/
+    out.L3 = { got: !!html, markup: /class="[^"]*cvb-(?:grid-)?add-btn/.test(body), cardText: cardOnly(body.slice(body.indexOf('<body'))).split('')[1] };
     // L4 PNG 클론
     const { prepareCloneForCapture } = await import('/js/io/export-image.js');
     let clone = null;
     try { clone = await prepareCloneForCapture(sec, 860, false); } catch (e) { out.L4err = String(e); }
     const cr = clone && (clone.root || clone.clone || clone);
     const cg = cr && cr.querySelector ? cr.querySelector('#' + id) || cr.querySelector('.canvas-block') : null;
-    out.L4 = { got: !!cg, markup: !!(cr && cr.querySelector && cr.querySelector('.cvb-add-btn')), cardText: cg ? cg.textContent : '' };
+    out.L4 = { got: !!cg, markup: !!(cr && cr.querySelector && cr.querySelector('.cvb-add-btn, .cvb-grid-add-btn')), cardText: cg ? cg.textContent : '' };
     try { clone?.remove?.(); } catch (_) {}   // prepareCloneForCapture 는 클론을 body 에 붙인다 — 재고 걷는다
     // L5 피그마 JSON — 제품 길(flushCurrentPage → state.pages canvas → build)
     window.flushCurrentPage?.();
     const fj = JSON.stringify(window.buildFigmaExportJSON(null));
-    out.L5 = { markup: /cvb-add-btn/.test(fj), plusInJson: /"\+"|\+"/.test(fj) };
+    out.L5 = { markup: /cvb-(?:grid-)?add-btn/.test(fj), plusInJson: /"\+"|\+"/.test(fj) };
     // L6 AI 채우기 읽기면 — ai-section-fill.js 가 canvas-block simple 카드를 dataset.cards 에서 직접 읽는다(DOM 과 다른 길)
     const items = window.collectSectionTextBlocks(sec) || [];
     out.L6 = { n: items.length, plus: items.some(it => /\+/.test(JSON.stringify(it))),
@@ -114,16 +123,18 @@ test('L1~L8 ★카드 ＋ 가 떠 있는 동안 제품의 읽기·내보내기 �
     // L7 MCP get_canvas_state / read_section
     const cs = window.getCanvasState(sec.id);
     const csStr = JSON.stringify(cs);
-    out.L7 = { markup: /cvb-add-btn/.test(csStr), plus: /\+/.test(csStr) };
+    out.L7 = { markup: /cvb-(?:grid-)?add-btn/.test(csStr), plus: /\+/.test(csStr) };
     // L8 검색 — 블럭 innerText
     out.L8 = { innerText: g.innerText };
-    out.btnsInBlock = g.querySelectorAll('.cvb-add-btn').length;
+    out.btnsInBlock = g.querySelectorAll('.cvb-add-btn, .cvb-grid-add-btn').length;
     out.btnsDoc = document.querySelectorAll('.cvb-add-btn').length;
+    out.gridBtnsDoc = document.querySelectorAll('.cvb-grid-add-btn').length;
     return out;
   }, id);
   const msg = JSON.stringify(r);
   console.log('E65-card', msg);
-  expect(r.btnsDoc, `전제 — 재는 내내 ＋ 가 떠 있다 ${msg}`).toBe(1);
+  expect(r.btnsDoc, `전제 — 빈칸채우기 ＋ 가 재는 내내 떠 있다 ${msg}`).toBe(1);
+  expect(r.gridBtnsDoc, `전제 — 성장 ＋ 둘이 재는 내내 떠 있다 ${msg}`).toBe(2);
   expect(r.L1.markup || /\+/.test(r.L1.cardText), `★L1 저장 문자열 ${msg}`).toBe(false);
   expect(r.L2.markup || /\+/.test(r.L2.cardText), `★L2 히스토리 ${msg}`).toBe(false);
   expect(r.L3.got, '전제 — HTML 내보내기가 문자열을 냈다').toBe(true);
