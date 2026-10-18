@@ -299,6 +299,21 @@ async function clickGridPlus(page, id, axis) {
   return g;
 }
 
+/* ★1018 B1 빨강에서 찾은 자리 — 고른 뒤엔 패널이 열리며 캔버스 폭·카드 배율이 한동안 바뀐다(위 settled()
+ * 머리말과 같은 까닭). select(page,id,0)(빈칸채우기 ＋ 기대 0개)은 expectPlus 가 falsy 라 settled() 호출
+ * 자체를 건너뛴다(select() 의 `if (expectPlus) await settled(...)`) — 그래서 B1 은 그 settle 을 «안» 기다리고
+ * 있었다. ⇒ 성장 ＋ 자신의 자리가 연속 두 rAF 틱에서 «그대로»일 때까지 따로 기다린다(기대값과 견주지
+ * 않는다 — settled() 와 같은 방식, «무엇을» 기다리는지는 안정 수렴이다). */
+async function gridSettled(page, id) {
+  await page.waitForFunction(() => {
+    const bs = [...document.querySelectorAll('#cvb-plus-layer > .cvb-grid-add-btn')];
+    if (bs.length < 2) return false;
+    const key = bs.map(b => { const r = b.getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.top)}`; }).join('|');
+    const prev = window.__gridK1Prev; window.__gridK1Prev = key;
+    return key === prev;
+  }, null, { polling: 'raf', timeout: 8000 });
+}
+
 test('B1 카드를 고르면 열·행 성장 ＋ 가 각 1개 — 열=블럭 우측 세로가운데 · 행=블럭 하단 가로가운데(빈칸 없는 카드 — 비킴 없는 «순수» 자리)', async ({ page }) => {
   // ★1018 수정 — title·desc 둘 다 채운 카드를 쓴다(빈칸채우기 ＋ 가 안 떠서 비킴 로직이 안 걸린다).
   //   순수 자리(그리드 선례와 같은 식)는 이 조건에서만 성립 — 비킴이 걸리는 경우는 B1b가 잰다.
@@ -307,6 +322,11 @@ test('B1 카드를 고르면 열·행 성장 ＋ 가 각 1개 — 열=블럭 우
   await select(page, id, 0);   // 빈칸채우기 ＋ 기대 0개(둘 다 채운 카드라 안 뜬다)
   await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
   expect(await page.evaluate(() => document.querySelectorAll('.cvb-add-btn').length), '전제 — 빈칸채우기 ＋ 는 0개(둘 다 채운 카드)').toBe(0);
+  // ★1018 — select(page,id,0) 은 settled() 를 안 기다린다(expectPlus falsy). 패널이 열리며 캔버스 폭·배율이
+  //   한동안 바뀌므로 성장 ＋ 자신의 자리가 안정될 때까지 따로 기다린다(열 쪽 19.65px 빨강의 진짜 원인 —
+  //   CSS 확인 결과 열 ＋ 는 row 처럼 반쪽 중심정렬이 아니라 translate(-50%,-50%) 완전 중심정렬이라, +20
+  //   류 보정은 틀린 처방이었다. 안정 대기가 맞는 처방).
+  await gridSettled(page, id);
   const col = await gridPlusGeom(page, id, 'col'), row = await gridPlusGeom(page, id, 'row');
   expect(col.title).toBe('열 추가');
   expect(row.title).toBe('행 추가');
