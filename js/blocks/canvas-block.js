@@ -577,7 +577,20 @@ function _startCvbGridPlusRaf() {
 /* 자리 = 블럭 자신의 바운딩박스 기준(그리드 G15 의 «자식 없을 때» 가지와 같다 — 카드 블럭엔 G19 자식 그릇이 없다):
  *   오른쪽(열) = (블럭 오른쪽 끝, 블럭 세로 가운데) · 중심을 기준점에(transform translate(-50%,-50%)).
  *   아래(행)  = (블럭 가로 가운데, 블럭 아래 끝) · 왼쪽으로 반 칸만(transform translateX(-50%)).
- * 좌표 = 스케일러 로컬 — 기존 _placeCvbAddBtns 와 같은 식(zoom 재확인 ⒉: 이미 같은 식이라 안전 재사용). */
+ * 좌표 = 스케일러 로컬 — 기존 _placeCvbAddBtns 와 같은 식(zoom 재확인 ⒉: 이미 같은 식이라 안전 재사용).
+ *
+ * ★1018 버그(태양·지디 가름 · card-canvas-add-line A1~A4b·A8) — 기본 생성 상태(gridCols=1·gridRows=1·
+ *   카드 하나)에서 행 성장 ＋(블럭 바닥 가운데)와 빈칸 채우기 ＋(그 카드 텍스트 영역 바닥 가운데)가
+ *   «같은 점»에 겹친다 — 카드가 하나면 카드 중심=블럭 중심이고, labelPos='bottom'(기본)이면 텍스트
+ *   영역 바닥=블럭 바닥이기 때문. ⇒ DOM 에 나중에 붙는 행 성장 ＋(_syncCvbGridAddBtns 가
+ *   _syncCvbAddBtns 뒤에 돈다 — :474,1139)가 ★위에 덮여 elementFromPoint 가 행 성장 ＋ 를 집고,
+ *   빈칸 채우기 ＋ 가 영영 못 눌린다.
+ * ★고침 — 행 성장 ＋ 의 자리만 비킨다(⛔빈칸 채우기 ＋ 의 자리는 안 건드린다 — 그게 먼저 있던,
+ *   이미 쓰이는 기능이다. 새 기능이 비켜야 한다): 놓기 «직전»에 기존 빈칸 채우기 ＋ 들의 자리
+ *   (스케일러 로컬 — 같은 좌표계)와 겹치는지 보고, 겹치면 가로로 한 칸(지름+여유) 민다.
+ * ⚠️첫 손질 — 겹침 문턱(40px)·민 거리(50px)는 소스로만 재서 정한 값이다. 실 DOM(태양 인텔)에서
+ *   시각 확인 뒤 조정이 필요할 수 있다. */
+const CVB_GRID_ROW_DODGE_PX = 50;   // ★버튼 지름 40 + 여유 10 — 겹치면 이만큼 가로로 민다
 function _placeCvbGridAddBtns(block) {
   const p = _cvbGridPlusBtns.get(block);
   const scaler = p && p.col.parentElement && p.col.parentElement.parentElement;
@@ -587,7 +600,20 @@ function _placeCvbGridAddBtns(block) {
   const br = block.getBoundingClientRect();
   const put = (b, x, y) => { const l = (x - sr.left) / scale + 'px', t = (y - sr.top) / scale + 'px'; if (b.style.left !== l) b.style.left = l; if (b.style.top !== t) b.style.top = t; };
   put(p.col, br.right, (br.top + br.bottom) / 2);
-  put(p.row, (br.left + br.right) / 2, br.bottom);
+
+  let rowX = (br.left + br.right) / 2;
+  const rowY = br.bottom;
+  const rowLocalX = (rowX - sr.left) / scale, rowLocalY = (rowY - sr.top) / scale;
+  const fillBtns = _cvbPlusBtns.get(block)?.btns || [];
+  for (const fb of fillBtns) {
+    const fx = parseFloat(fb.style.left), fy = parseFloat(fb.style.top);
+    if (!Number.isFinite(fx) || !Number.isFinite(fy)) continue;
+    if (Math.abs(fx - rowLocalX) < 40 && Math.abs(fy - rowLocalY) < 40) {
+      rowX += CVB_GRID_ROW_DODGE_PX * scale;   // ★화면px 더하기 — put() 이 다시 /scale 하므로 로컬 기준 50px 이동
+      break;
+    }
+  }
+  put(p.row, rowX, rowY);
 }
 
 // ＋ 글리프 = CSS ::before «+»(그리드·빈칸채우기 ＋ 와 같은 꼴) — 글자 노드 없음(E65).

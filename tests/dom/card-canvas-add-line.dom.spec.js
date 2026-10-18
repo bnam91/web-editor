@@ -299,20 +299,67 @@ async function clickGridPlus(page, id, axis) {
   return g;
 }
 
-test('B1 카드를 고르면 열·행 성장 ＋ 가 각 1개 — 열=블럭 우측 세로가운데 · 행=블럭 하단 가로가운데', async ({ page }) => {
-  const { id } = await setup(page);
+/* ★1018 B1 빨강에서 찾은 자리 — 고른 뒤엔 패널이 열리며 캔버스 폭·카드 배율이 한동안 바뀐다(위 settled()
+ * 머리말과 같은 까닭). select(page,id,0)(빈칸채우기 ＋ 기대 0개)은 expectPlus 가 falsy 라 settled() 호출
+ * 자체를 건너뛴다(select() 의 `if (expectPlus) await settled(...)`) — 그래서 B1 은 그 settle 을 «안» 기다리고
+ * 있었다. ⇒ 성장 ＋ 자신의 자리가 연속 두 rAF 틱에서 «그대로»일 때까지 따로 기다린다(기대값과 견주지
+ * 않는다 — settled() 와 같은 방식, «무엇을» 기다리는지는 안정 수렴이다). */
+async function gridSettled(page, id) {
+  await page.waitForFunction(() => {
+    const bs = [...document.querySelectorAll('#cvb-plus-layer > .cvb-grid-add-btn')];
+    if (bs.length < 2) return false;
+    const key = bs.map(b => { const r = b.getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.top)}`; }).join('|');
+    const prev = window.__gridK1Prev; window.__gridK1Prev = key;
+    return key === prev;
+  }, null, { polling: 'raf', timeout: 8000 });
+}
+
+test('B1 카드를 고르면 열·행 성장 ＋ 가 각 1개 — 열=블럭 우측 세로가운데 · 행=블럭 하단 가로가운데(빈칸 없는 카드 — 비킴 없는 «순수» 자리)', async ({ page }) => {
+  // ★1018 수정 — title·desc 둘 다 채운 카드를 쓴다(빈칸채우기 ＋ 가 안 떠서 비킴 로직이 안 걸린다).
+  //   순수 자리(그리드 선례와 같은 식)는 이 조건에서만 성립 — 비킴이 걸리는 경우는 B1b가 잰다.
+  const { id } = await setup(page, { cards: [{ title: '제목', desc: '설명', imgSrc: '', cellBg: '' }] });
   expect(await page.evaluate((s) => document.querySelectorAll(s).length, '#cvb-plus-layer > .cvb-grid-add-btn'), '고르기 전엔 0').toBe(0);
-  await select(page, id, 1);   // 기본 카드(설명 빔) ＋ 1개가 전제 — 성장 ＋ 는 그와 별도로 2개 더 뜬다
+  await select(page, id, 0);   // 빈칸채우기 ＋ 기대 0개(둘 다 채운 카드라 안 뜬다)
   await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
+  expect(await page.evaluate(() => document.querySelectorAll('.cvb-add-btn').length), '전제 — 빈칸채우기 ＋ 는 0개(둘 다 채운 카드)').toBe(0);
+  // ★1018 — select(page,id,0) 은 settled() 를 안 기다린다(expectPlus falsy). 패널이 열리며 캔버스 폭·배율이
+  //   한동안 바뀌므로 성장 ＋ 자신의 자리가 안정될 때까지 따로 기다린다(열 쪽 19.65px 빨강의 진짜 원인 —
+  //   CSS 확인 결과 열 ＋ 는 row 처럼 반쪽 중심정렬이 아니라 translate(-50%,-50%) 완전 중심정렬이라, +20
+  //   류 보정은 틀린 처방이었다. 안정 대기가 맞는 처방).
+  await gridSettled(page, id);
   const col = await gridPlusGeom(page, id, 'col'), row = await gridPlusGeom(page, id, 'row');
   expect(col.title).toBe('열 추가');
   expect(row.title).toBe('행 추가');
   expect(Math.abs(col.cx - col.blockRight)).toBeLessThan(2);
   expect(Math.abs(col.cy - col.blockMidY)).toBeLessThan(2);
-  expect(Math.abs(row.cy - row.blockBottom)).toBeLessThan(2);
+  expect(Math.abs(row.cy - row.blockBottom - 20)).toBeLessThan(2);   // ★행 ＋ 는 translateX(-50%) 뿐(수직 중앙정렬 없음) — 중심은 바닥에서 반 지름(20px) 아래(연산순서 조심 — cy-(bottom+20))
   expect(Math.abs(row.cx - row.blockMidX)).toBeLessThan(2);
   expect(col.hitIsBtn).toBe(true);
   expect(row.hitIsBtn).toBe(true);
+});
+
+test('B1b 회귀 — 기본 카드(빈칸채우기 ＋ 1개)에서도 행 성장 ＋ 가 그 위에 안 덮인다(1018 버그의 그 자리)', async ({ page }) => {
+  // ★1018 버그 재현 조건 그대로: gridCols=1·gridRows=1·카드 하나·desc 빔(기본 setup()) — 카드 중심=블럭
+  //   중심이고 labelPos='bottom'(기본)이라 텍스트 영역 바닥=블럭 바닥 ⇒ 비킴 없으면 행 ＋ 가 겹쳐 덮는다.
+  const { id } = await setup(page);
+  await select(page, id, 1);   // 빈칸채우기 ＋ 1개(전제) — A1~A4b·A8 이 실제로 재는 그 자리
+  await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
+  const fill = await plusGeom(page, id);
+  const row = await gridPlusGeom(page, id, 'row');
+  // ★둘이 실제로 떨어져 있는지도 수로 — «우연히 안 겹쳤다»가 아니라 비킴이 작동했음을 잰다
+  const dx = Math.abs(fill.cx - row.cx), dy = Math.abs(fill.cy - row.cy);
+  // ★261018(지디·태양 지적) — ★통과해도 값이 로그에 남아야 한다(「단언에 잰 값을 찍어라」). 실패 메시지
+  //   «안에만» 값이 있으면 통과 회차엔 그 수가 사라진다 — 사람이 따로 재는 자는 다음 회차에 없어진다.
+  console.log(`[B1b] dx=${dx} dy=${dy} · fillHit=${fill.hitIsPlus} growHit=${row.hitIsBtn}`);
+  expect(fill.hitIsPlus, '★빈칸채우기 ＋ 가 여전히 누를 수 있다(행 성장 ＋ 에 안 덮인다)').toBe(true);
+  expect(row.hitIsBtn, '★행 성장 ＋ 도 누를 수 있다').toBe(true);
+  // ⛔`dx>=40 || dy>=40`(불값만)을 `Math.max(dx,dy)>=40`(수)로 — 뜻은 같다(둘 중 하나라도 40 이상이면 참:
+  //   max 가 40 이상 ⇔ dx 나 dy 중 적어도 하나가 40 이상). 이러면 실패 메시지·단언 자체에 값이 남는다.
+  expect(Math.max(dx, dy), `비킴 — 두 ＋ 가 40px 이상 떨어져야 한다(dx=${dx} dy=${dy})`).toBeGreaterThanOrEqual(40);
+  // ⚠️261018 — 이 검사는 ★행★ 성장 ＋ 만 잰다. ★열 성장 ＋(블럭 우측)가 빈칸채우기 ＋ 와 같은 식으로
+  //   겹칠 수 있는지는 ★미측정이다(기하적으로 더 드문 조건으로 보이지만 그건 추론이고, 수로 재지 않았다
+  //   — 「낮은 확률」을 「문제 없다」로 적지 않는다). 다음 사람의 출발선: 열 쪽도 이 B1b 와 같은 틀로
+  //   (fill vs col 의 dx/dy ≥40) 재는 케이스를 추가할 것.
 });
 
 test('B2 열 ＋ 클릭 → gridCols 1→2 · cards 1→2(기본값) · 블럭 폭 모드가 100%로 전환(gridCols===1 분기)', async ({ page }) => {
@@ -345,7 +392,9 @@ test('B3 행 ＋ 클릭 → gridRows 1→2 · cards 1→2(기본값) · 열 그�
 test('B4 상한(4×4)에서는 disabled — 눌러도 안 늘어난다', async ({ page }) => {
   const { id } = await setup(page);
   await page.evaluate((id) => { window.insertCanvasGrid(document.getElementById(id), 4, 1); }, id);   // 패널 피커와 같은 길로 열 4까지 미리 올린다
-  await select(page, id, 1);
+  // ★1018 수정 — insertCanvasGrid 가 늘린 3장도 똑같이 desc='' 기본값이라(prop-canvas.js:349) 빈칸채우기 ＋ 는
+  //   1개가 아니라 4개(카드마다 하나)가 뜬다. select() 의 전제 수를 그 실제 수로 맞춘다(짐작 1 은 틀린 전제였다).
+  await select(page, id, 4);
   await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
   const col = await gridPlusGeom(page, id, 'col');
   expect(col.disabled, '열 4 = 상한 — disabled').toBe(true);
