@@ -4329,6 +4329,10 @@ html.tgs-selecting .tgs:focus-within {
 .sticker-block.selected[data-shape="highlightB"] {
   outline: none;
 }
+/* ★1013t2C4 화살표(arrow)도 선 스티커 — 상자 outline 없이 양 끝점 핸들(.hlb-handle)만 */
+.sticker-block.selected[data-shape="arrow"] {
+  outline: none;
+}
 /* highlightB 양 끝점 핸들 (JS에서 .hlb-handle 추가) */
 .hlb-handle {
   position: absolute;

@@ -52,6 +52,18 @@ const UNROT_SRC = sliceBlock(OH, 'function _unrotateDelta(').replace(/^export /,
 const STK_RM_SRC   = sliceBlock(SK, 'function _removeCornerHandles(');
 const STK_CURSOR   = SK.split('\n').find(l => l.startsWith('const _STK_ROTATE_CURSOR'));
 const STK_ADD_SRC  = sliceBlock(SK, 'function _addCornerHandles(');
+/* ★1013t2C4 — _addCornerHandles 가 «선 스티커» 판정을 모듈 상수 _isLineStk(sticker-select.js) → window._isLineSticker
+   (js/blocks/sticker-block.js 정본 LINE_STICKER_SHAPES) 로 묻게 됐다. 함수만 떼면 ReferenceError 라 그 사슬도 «정본에서» 떠 온다
+   (손으로 베끼면 표가 늘 때 같이 안 늙는다 — 위 머리말의 «화석» 이유와 같다). */
+const SB = read('js/blocks/sticker-block.js');
+const _pickLine = (src, head, file) => {
+  const l = src.split('\n').find(x => x.startsWith(head));
+  if (!l) throw new Error(`하네스: ${file} 에 「${head}」 줄이 없다 — 정의가 옮겨졌다`);
+  return l;
+};
+const STK_ISLINE   = _pickLine(SK, 'const _isLineStk', 'js/sticker-select.js');
+const LINE_SHAPES  = _pickLine(SB, 'const LINE_STICKER_SHAPES', 'js/blocks/sticker-block.js');
+const LINE_FN_SRC  = sliceBlock(SB, 'function _isLineSticker(');
 const STK_CNR_SRC  = sliceBlock(SK, 'function _bindCornerHandleDrag(');
 const STK_ROTB_SRC = sliceBlock(SK, 'function _bindRotateDrag(');
 
@@ -110,6 +122,10 @@ ${SHAPE_PRE}
 ${FRAME_PRE}
 function applyFrameRotationMargin() {}
 ${STK_CURSOR}
+${LINE_SHAPES}
+${LINE_FN_SRC}
+window._isLineSticker = _isLineSticker;
+${STK_ISLINE}
 ${STK_RM_SRC}
 ${STK_ROTB_SRC}
 ${STK_CNR_SRC}

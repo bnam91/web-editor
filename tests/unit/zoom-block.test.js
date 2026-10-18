@@ -90,6 +90,7 @@ const RAW = {
   sticker: readSrc(ROOT, 'js', 'blocks', 'sticker-block.js'),
   stickerSel: readSrc(ROOT, 'js', 'sticker-select.js'),
   gradientSel: readSrc(ROOT, 'js', 'gradient-select.js'),
+  annotSel:    readSrc(ROOT, 'js', 'annotation-select.js'),   // ⓑ-20b 음성 계열(1013t2C1)
   layout:  readSrc(ROOT, 'css', 'editor-layout.css'),
   extra:   readSrc(ROOT, 'css', 'editor-extra.css'),
   /* ★2026-09-20 — _blockRotationDeg 의 «본체»가 js/frame-geometry.js 로 옮겨졌다
@@ -1229,6 +1230,10 @@ test('ⓑ-20b ★흐름 목록의 기준 — «규칙»을 재서 판정한다(�
     'gradient-block': SRC.gradientSel,
     'zoom-block':     handler(SRC.drag, 'if (isZoom) {'),
     'laurel-block':   handler(SRC.drag, 'if (isLaurel) {'), // 양성대조(흐름 계열)
+    /* ★1013t2C1 — 음성 계열. 스티커·그라데이션에 ⌘/⇧ 복수 선택이 들어가 위 넷이 «모두 true» 가 되자
+       아래 「상수면 빨강」이 계측을 못 가르게 됐다. 어노테이션은 자기 선택 모델(⌘드래그 = 끝점 이동)이라
+       복수선택 분기가 없고 흐름 목록에도 없다 — «false 쪽»을 실물로 하나 둔다(답을 박는 게 아니라 갈림을 되살린다). */
+    'annotation-block': SRC.annotSel,
   };
   const multiSel = {};
   for (const [cls, src] of Object.entries(PATHS)) {
@@ -1243,7 +1248,7 @@ test('ⓑ-20b ★흐름 목록의 기준 — «규칙»을 재서 판정한다(�
   /* ★못박는 것 — «도출한 값»으로 판정한다. 리터럴 true/false 를 쓰면 규칙이 아니라
      「오늘 배치」를 잠그는 것이고, 훗날 스티커 복수선택을 «옳게» 구현한 사람이 빨간 검사를 보고
      「내가 틀렸나」로 읽는다(⑽의 「거꾸로 잠금」과 같은 모양 — Evaluator 가 M60 으로 증명했다). */
-  for (const cls of ['zoom-block', 'sticker-block']) {
+  for (const cls of ['zoom-block', 'sticker-block', 'gradient-block', 'annotation-block']) {
     assert.equal(inList(cls), multiSel[cls],
       multiSel[cls]
         ? `${cls} 는 복수선택이 되는데 흐름 목록에 없다 — 2개 고르면 패널이 조용히 빈다`
@@ -1252,7 +1257,8 @@ test('ⓑ-20b ★흐름 목록의 기준 — «규칙»을 재서 판정한다(�
 
   /* ⛔gradient 는 규칙과 «어긋난다»(복수선택 분기 없음인데 목록에 있음). ★이건 이 브랜치 밖의
      «기존 자리»라 여기서 고치지도, 어긋남을 «고정»하지도 않는다(고정하면 남이 고쳤을 때 빨개진다).
-     대신 「어긋난 계열이 늘지 않는다」만 잰다 — 지디 백로그. */
+     대신 「어긋난 계열이 늘지 않는다」만 잰다 — 지디 백로그.
+     ★1013t2C1-g 에서 gradient 에도 복수선택 분기가 들어가 이제 규칙과 맞는다(off = 0) — 위 루프가 그것을 잰다. */
   const off = Object.keys(PATHS).filter(c => multiSel[c] !== inList(c));
   assert.ok(off.length <= 1, `규칙과 어긋나는 계열이 늘었다: ${off.join(', ')}`);
   if (off.length === 1) {

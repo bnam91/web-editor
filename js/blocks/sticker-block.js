@@ -205,6 +205,24 @@ function _renderStickerBlockInner(block) {
     return;
   }
 
+  /* ★arrow(화살표 스티커 · 1013t2C4) — 그림은 js/fx/arrow-render.js(ArrowFx.svg · 순수 SVG 문자열 · marker/필터 0).
+     위치 = 두 끝점(x1,y1)(x2,y2) — 선 형광펜(highlightB)과 같은 «선 스티커» 기계(끝점 손잡이 .hlb-handle · 몸통 끌기 = 두 점 평행이동).
+     상자 = 그리개가 준 bbox(끝점·제어점·머리 외접 + pad). ★상자는 pointer-events:none — 맞힘은 그림 안 투명 굵은 path(stroke)만
+     (대각선 화살표의 빈 귀퉁이가 아래 블럭 클릭을 먹지 않는다 · 캡처 리스너는 조상이라 그대로 돈다).
+     ⚠️ArrowFx 가 안 실렸으면 빈 상자 + 콘솔 — 조용히 다른 그림을 그리지 않는다(glow·coin 선례). */
+  if (shape === 'arrow') {
+    const d = block.dataset;
+    const fx = window.ArrowFx;
+    const out = fx ? fx.svg({ x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, kind: d.arrowKind, head: d.arrowHead, tip: d.arrowTip,
+      dash: d.arrowDash, thickness: d.thickness, bend: d.arrowBend, color: d.arrowColor, seed: d.seed }) : null;
+    const bb = out ? out.bbox : { left: x, top: y, w: 0, h: 0 };
+    block.style.cssText = `position:absolute;left:${bb.left}px;top:${bb.top}px;width:${bb.w}px;height:${bb.h}px;`
+      + `background:transparent;overflow:visible;user-select:none;cursor:move;z-index:55;pointer-events:none;`;
+    if (!out) { console.error('[sticker/arrow] ArrowFx 가 안 실렸다 — index.html 고전 스크립트 순서(js/fx/arrow-render.js)'); block.innerHTML = ''; return; }
+    block.innerHTML = out.html;
+    return;
+  }
+
   if (shape === 'highlight') {
     // 형광펜 모드 — 색 사각형 (글자 없음), W/H 별도, z-index 낮음 (텍스트 아래)
     const hlW = parseInt(block.dataset.hlW) || 160;
@@ -593,6 +611,14 @@ function rememberStickerStyle(block) {
     _lastStickerStyle.coin = slot;
     return;
   }
+  /* ★arrow(1013t2C4): 스타일 축만 기억(끝점·seed 제외 — 위치는 계단식 자리, 손그림 흔들림은 찍을 때마다 새로).
+     glow·coin 과 같은 까닭으로 ⛔__last 에는 안 올린다 — 올리면 일반 「Sticker」 단추가 화살표를 낳는다. */
+  if (shape === 'arrow') {
+    ['arrowKind', 'arrowHead', 'arrowTip', 'arrowDash', 'thickness', 'arrowBend', 'arrowColor'].forEach(put);
+    slot.shape = shape;
+    _lastStickerStyle.arrow = slot;
+    return;
+  }
   if (shape === 'highlight') {
     put('hlColor');
   } else if (shape === 'highlightB') {
@@ -664,7 +690,7 @@ function makeStickerBlock(opts = {}) {
     const kind = (window.GlowFx && window.GlowFx.KINDS.includes(opts.fxKind)) ? opts.fxKind : 'star';
     const pre = (window.GlowFx && window.GlowFx.PRESETS[kind]) || {};
     block.dataset.fxKind    = kind;
-    block.dataset.glowColor = opts.glowColor ?? pre.glowColor ?? '#b06cff';
+    block.dataset.glowColor = opts.glowColor ?? pre.glowColor ?? '#e0e0e0';
     block.dataset.coreColor = opts.coreColor ?? pre.coreColor ?? '#ffffff';
     block.dataset.intensity = opts.intensity ?? pre.intensity ?? 70;
     block.dataset.spread    = opts.spread    ?? pre.spread    ?? 6;
@@ -698,6 +724,23 @@ function makeStickerBlock(opts = {}) {
     block.dataset.size      = Math.max(+block.dataset.sizeW || 0, +block.dataset.sizeH || 0);
     if (opts.rotation !== undefined) block.dataset.rotation = opts.rotation;
     block.dataset.text      = '';   // coin 은 글자 없음(각인은 data-coin-glyph)
+  }
+  // ★arrow(1013t2C4) — 두 끝점 + 스타일. 기본값 표는 그리개 한 자리(ArrowFx.DEFAULTS). seed 는 «만들 때» 새로(손그림 흔들림).
+  if (opts.shape === 'arrow') {
+    const D = (window.ArrowFx && window.ArrowFx.DEFAULTS) || {};
+    block.dataset.x1         = opts.x1         ?? 0;
+    block.dataset.y1         = opts.y1         ?? 0;
+    block.dataset.x2         = opts.x2         ?? (D.len ?? 160);
+    block.dataset.y2         = opts.y2         ?? 0;
+    block.dataset.arrowKind  = opts.arrowKind  ?? D.kind  ?? 'straight';
+    block.dataset.arrowHead  = opts.arrowHead  ?? D.head  ?? 'end';
+    block.dataset.arrowTip   = opts.arrowTip   ?? D.tip   ?? 'fill';
+    block.dataset.arrowDash  = opts.arrowDash  ?? D.dash  ?? 'solid';
+    block.dataset.thickness  = opts.thickness  ?? D.thickness ?? 4;
+    block.dataset.arrowBend  = opts.arrowBend  ?? D.bend  ?? 40;
+    block.dataset.arrowColor = opts.arrowColor ?? D.color ?? '#1a1a1a';
+    block.dataset.seed       = opts.seed       ?? (window.FxSeed ? window.FxSeed.newSeed() : 1);
+    block.dataset.text       = '';   // arrow 는 글자 없음
   }
   // U6(e): 아이콘 스티커 — Iconify에서 고른 SVG/이름 보관 (size는 위 size dataset 공유)
   if (opts.shape === 'icon') {
@@ -761,6 +804,8 @@ function makeStickerBlock(opts = {}) {
 
 /* 선 형광펜(highlightB) 메뉴 생성 기본 길이 — shape 전환 기본값(updateStickerBlock · prop-sticker baseX+160)과 같은 수. */
 const HLB_DEFAULT_LEN = 160;
+/* 화살표 스티커(arrow · 1013t2C4) 메뉴 생성 기본 길이 — 그리개 기본값(ArrowFx.DEFAULTS.len) 한 자리에서 읽는다. */
+const ARROW_DEFAULT_LEN = (window.ArrowFx && window.ArrowFx.DEFAULTS && window.ArrowFx.DEFAULTS.len) || 160;
 
 function addStickerBlock(opts = {}) {
   // U6(b): 섹션 미선택 게이트 — sec 결정 우선순위(맨아래-섹션 자동 폴백 제거):
@@ -803,8 +848,11 @@ function addStickerBlock(opts = {}) {
     const _isHlB = opts.shape === 'highlightB';
     // coin 은 기본 상자가 60 보다 크다 — 60 으로 재면 섹션 오른쪽·아래 끝에서 상자가 밖으로 나간다
     const _coinBox = opts.shape === 'coin' ? (Number(opts.sizeW ?? opts.size) || window.CoinFx?.DEFAULTS?.size || 60) : 60;
-    const bw = (opts.shape === 'highlight') ? 160 : _isHlB ? HLB_DEFAULT_LEN : _coinBox;
-    const bh = (opts.shape === 'highlight') ? 28  : _isHlB ? (Number(opts.thickness) || 12) : _coinBox;
+    // ★arrow(1013t2C4)도 선 스티커 — 기본 길이 × 머리 높이(두께에서 · ArrowFx.headLen)로 재야 오른쪽·아래 끝에서 밖으로 안 나간다
+    const _isArw = opts.shape === 'arrow';
+    const _arwH = _isArw ? (window.ArrowFx?.headLen?.(Number(opts.thickness) || window.ArrowFx?.DEFAULTS?.thickness || 4) || 12) : 0;
+    const bw = (opts.shape === 'highlight') ? 160 : _isHlB ? HLB_DEFAULT_LEN : _isArw ? ARROW_DEFAULT_LEN : _coinBox;
+    const bh = (opts.shape === 'highlight') ? 28  : _isHlB ? (Number(opts.thickness) || 12) : _isArw ? _arwH : _coinBox;
     const [qx, qy] = window._clampToSection?.(cx, cy, sec, bw, bh) || [cx, cy];
     opts = { ...opts, x: qx, y: qy };
   }
@@ -818,6 +866,14 @@ function addStickerBlock(opts = {}) {
     const x1 = Number(opts.x) || 0;
     const y1 = (Number(opts.y) || 0) + t / 2;
     opts = { ...opts, x1, y1, x2: x1 + HLB_DEFAULT_LEN, y2: y1 };
+  }
+  /* ★1013t2C4 — 화살표도 «누르면 바로» 생긴다(선 형광펜 J1 과 같은 꼴): 끝점을 안 주면 계단식 자리에서 기본 길이 가로 화살표.
+     세로 가운데 = 머리 높이의 절반(위 cascade 의 bh) — 상자가 계단 자리 안에 앉는다. 조정은 끝점 손잡이 둘. */
+  if (opts.shape === 'arrow' && opts.x1 == null && opts.x2 == null) {
+    const hh = window.ArrowFx?.headLen?.(Number(opts.thickness) || window.ArrowFx?.DEFAULTS?.thickness || 4) || 12;
+    const x1 = Number(opts.x) || 0;
+    const y1 = (Number(opts.y) || 0) + hh / 2;
+    opts = { ...opts, x1, y1, x2: x1 + ARROW_DEFAULT_LEN, y2: y1 };
   }
   window.pushHistory?.('스티커 추가');
   const block = makeStickerBlock(opts);
@@ -1229,6 +1285,32 @@ function updateStickerBlock(blockId, partial = {}) {
 }
 
 window.updateStickerBlock = updateStickerBlock;
+
+/* ★«선 스티커» = 위치가 두 끝점(x1,y1)(x2,y2)인 스티커 — 선 형광펜(highlightB) · 화살표(arrow · 1013t2C4).
+     끝점 손잡이(.hlb-handle)·몸통 끌기(두 점 평행이동)·복수 선택 「서로 맞춤」(js/props/prop-multisel.js _setOverlayPos)이
+     이 판정 «한 자리»를 읽는다 — 새 선 스티커는 이 표에만 더한다. */
+const LINE_STICKER_SHAPES = Object.freeze(['highlightB', 'arrow']);
+function _isLineSticker(block) {
+  return !!block && LINE_STICKER_SHAPES.includes(block.dataset?.shape);
+}
+/** 스티커를 (dx, dy) 만큼 옮긴다 — 선 스티커는 네 끝점 + 다시 그리기, 나머지는 x/y(+style). ⛔클램프 없음(호출자 몫). */
+function _translateSticker(block, dx, dy) {
+  if (!block) return;
+  dx = Math.round(Number(dx) || 0); dy = Math.round(Number(dy) || 0);
+  if (_isLineSticker(block)) {
+    ['x1', 'x2'].forEach(k => { block.dataset[k] = String((parseFloat(block.dataset[k]) || 0) + dx); });
+    ['y1', 'y2'].forEach(k => { block.dataset[k] = String((parseFloat(block.dataset[k]) || 0) + dy); });
+    renderStickerBlock(block);
+    return;
+  }
+  block.dataset.x = String((parseInt(block.dataset.x) || 0) + dx);
+  block.dataset.y = String((parseInt(block.dataset.y) || 0) + dy);
+  block.style.left = block.dataset.x + 'px';
+  block.style.top  = block.dataset.y + 'px';
+  _updateStickerSecClip(block);
+}
+window._isLineSticker    = _isLineSticker;
+window._translateSticker = _translateSticker;
 
 // ── window 노출 ────────────────────────────────────────────────────────────
 window.makeStickerBlock   = makeStickerBlock;

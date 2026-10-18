@@ -36,20 +36,34 @@ const FILES = ['js/block-factory.js', 'js/editor.js', 'js/block-drag.js'];
 const DECL = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*((?:'[^']*'|"[^"]*"|\s*\+\s*|\s*\n\s*)+);/g;
 const MIN_TOKENS = 10;
 
-function rosters() {
+/* ★★키에 «줄 번호»를 ★쓰지 않는다 — ★261018 S1 이 잡았다:
+     editor.js 에 ★한 줄이 들어가자 ★아래 키가 ★전부 밀려 ★A2 가 ★엉뚱한 자리를 ★짝지었다.
+   ★내 정본에 「줄번호 말고 앵커로 가리켜라」가 ★있는데 ★쓰고도 ★안 지켰다.
+   ⇒ ★키 = `파일 이름#등장순번`. ★같은 파일에 ★같은 이름이 ★둘 있다(js/editor.js BLOCK_SEL ×2) ⇒ ★순번이 ★가른다.
+   ★자리(줄 번호)는 ★★LINES 에 따로 담아 ★실패 메시지에만 쓴다 — ⛔단언에는 ★안 쓴다. */
+const LINES = new Map();
+function rosters(inject) {
   const out = new Map();
+  const seen = new Map();
+  if (!inject) LINES.clear();
   for (const rel of FILES) {
-    const src = readFileSync(path.join(ROOT, rel), 'utf8');
+    const src = inject?.[rel] ?? readFileSync(path.join(ROOT, rel), 'utf8');
     for (const m of src.matchAll(DECL)) {
       const toks = new Set([...m[2].matchAll(/\.([a-z0-9][\w-]*-block)\b/g)].map((x) => x[1]));
       if (toks.size >= MIN_TOKENS) {
         const line = src.slice(0, m.index).split('\n').length;
-        out.set(`${rel}:${line} ${m[1]}`, toks);
+        const base = `${rel} ${m[1]}`;
+        const n = (seen.get(base) || 0) + 1;
+        seen.set(base, n);
+        const key = `${base}#${n}`;
+        out.set(key, toks);
+        if (!inject) LINES.set(key, line);
       }
     }
   }
   return out;
 }
+const at = (k) => `${k}${LINES.has(k) ? ` (${LINES.get(k)}행)` : ''}`;
 
 /* ★★손으로 박은 참 명부 — ⛔코드에서 구하지 않는다(위 ⒝ 참조) */
 const ALL_SEEN = [
@@ -65,17 +79,17 @@ const ALL_SEEN = [
 /* ★★현 구멍 표 — 261018 ★실측. ★이 표가 ★「허용」이 아니라 ★★«지금 이러하다»의 ★기록이다.
    ⒉ 파생이 끝나면 ★이 표는 ★«전부 명부» 쪽에서 ★비어야 한다. */
 const KNOWN_GAPS = {
-  'js/block-factory.js:2097 BLOCK_SEL': ['gradient-block', 'modal-block', 'speech-bubble-block', 'sticker-block'],
-  'js/editor.js:15 CANVAS_SEL_BLOCKS': ['frame-block', 'shape-block'],
-  'js/editor.js:1011 BLOCK_MULTI_SEL': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
-  'js/editor.js:1111 FLOW_BLOCK_SEL_SELECTED': ['joker-block', 'shape-block', 'sticker-block'],
-  'js/editor.js:1486 _ALL_BLOCK_SEL': ['frame-block', 'joker-block', 'sticker-block'],
-  'js/editor.js:1545 MULTI_SEL': ['frame-block'],
-  'js/editor.js:1756 BLOCK_SEL': ['frame-block', 'sticker-block'],
-  'js/editor.js:2134 _ALL': ['frame-block', 'joker-block', 'sticker-block'],
-  'js/editor.js:4187 BLOCK_SEL': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
-  'js/block-drag.js:2788 CHILD_BLOCK_SEL': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'joker-block', 'laurel-block', 'qa-block', 'quote-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
-  'js/block-drag.js:3007 BLOCK_SEL': ['chat-block', 'coupon-block', 'frame-block', 'gradient-block', 'laurel-block', 'qa-block', 'quote-block', 'speech-bubble-block', 'sticker-block', 'zoom-block'],
+  'js/block-factory.js BLOCK_SEL#1': ['gradient-block', 'modal-block', 'speech-bubble-block', 'sticker-block'],
+  'js/editor.js CANVAS_SEL_BLOCKS#1': ['frame-block', 'shape-block'],
+  'js/editor.js BLOCK_MULTI_SEL#1': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
+  'js/editor.js FLOW_BLOCK_SEL_SELECTED#1': ['joker-block', 'shape-block'],
+  'js/editor.js _ALL_BLOCK_SEL#1': ['frame-block', 'joker-block', 'sticker-block'],
+  'js/editor.js MULTI_SEL#1': ['frame-block'],
+  'js/editor.js BLOCK_SEL#1': ['frame-block', 'sticker-block'],
+  'js/editor.js _ALL#1': ['frame-block', 'joker-block', 'sticker-block'],
+  'js/editor.js BLOCK_SEL#2': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
+  'js/block-drag.js CHILD_BLOCK_SEL#1': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'joker-block', 'laurel-block', 'qa-block', 'quote-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
+  'js/block-drag.js BLOCK_SEL#1': ['chat-block', 'coupon-block', 'frame-block', 'gradient-block', 'laurel-block', 'qa-block', 'quote-block', 'speech-bubble-block', 'sticker-block', 'zoom-block'],
 };
 const EXPECT_ROSTERS = 11;
 
@@ -101,9 +115,9 @@ test('A2 ★각 명부의 ★빠진 집합이 ★KNOWN_GAPS 와 ★같다 — �
        ★채워진 것   = ★누가 고쳤다 ⇒ ★★KNOWN_GAPS 를 ★줄여라(⛔표를 ★안 줄이면 ★다음 구멍을 ★가린다) */
     const fresh = missing.filter((b) => !known.includes(b));
     const fixed = known.filter((b) => !missing.includes(b));
-    if (fresh.length) problems.push(`★${where} — ★★새로 빠졌다: ${fresh.join(',')} (★블럭을 더했으면 ★이 자리에도 넣어라)`);
-    if (fixed.length) problems.push(`★${where} — ★채워졌다: ${fixed.join(',')} (★KNOWN_GAPS 에서 ★지워라)`);
-    if (!(where in KNOWN_GAPS)) problems.push(`★${where} — ★★표에 없는 명부다 (★KNOWN_GAPS 에 ★더해라)`);
+    if (fresh.length) problems.push(`★${at(where)} — ★★새로 빠졌다: ${fresh.join(',')} (★블럭을 더했으면 ★이 자리에도 넣어라)`);
+    if (fixed.length) problems.push(`★${at(where)} — ★채워졌다: ${fixed.join(',')} (★KNOWN_GAPS 에서 ★지워라)`);
+    if (!(where in KNOWN_GAPS)) problems.push(`★${at(where)} — ★★표에 없는 명부다 (★KNOWN_GAPS 에 ★더해라)`);
   }
   assert.deepEqual(problems, [], `\n  ${problems.join('\n  ')}\n`);
 });
@@ -122,4 +136,18 @@ test('A3 ★★KNOWN_GAPS 가 ★장식이 아니다 — ★표 자체가 ★비
   const worst = ALL_SEEN.filter((b) => Object.values(KNOWN_GAPS).filter((v) => v.includes(b)).length >= 8);
   assert.deepEqual(worst.sort(), ['frame-block', 'sticker-block'],
     `★8곳 이상에서 빠진 블럭이 달라졌다: ${worst.join(',')} — ★261018 실측은 frame·sticker 둘이었다`);
+});
+
+test('A4 ★★키가 «줄 번호»에 ★안 묶였다 — ★줄이 밀려도 ★같은 키가 나온다 (261018 S1 이 잡은 흠)', () => {
+  /* ★★양성대조 기록: ★이 단언을 ★고치기 «전» 판(aec88542)에 얹으니 ★★빨강이었다(fail 1 · rc 1).
+     ★★⛔첫 시도는 ★초록이었다 — ★그때 rosters 가 ★inject 를 ★안 받아 ★★같은 것을 두 번 잰 ★항등식이었다.
+     ⇒ ★단언을 걸기 전에 ★«이 식이 거짓이 되는 판»을 ★먼저 만들어라. */
+  const base = [...rosters().keys()].sort();
+  assert.equal(base.length, EXPECT_ROSTERS,
+    `★전제 — ★먼저 ${EXPECT_ROSTERS}곳이 나와야 ★이 검사가 뜻을 갖는다(나온 수 ${base.length})`);
+  const pad = {};
+  for (const rel of FILES) pad[rel] = '\n'.repeat(7) + readFileSync(path.join(ROOT, rel), 'utf8');
+  const moved = [...rosters(pad).keys()].sort();
+  assert.deepEqual(moved, base,
+    '★모든 파일을 ★7줄 밀었더니 ★키가 달라졌다 — ★키가 ★줄 번호에 ★묶여 있다(⛔KNOWN_GAPS 가 ★한 줄씩 밀린다)');
 });
