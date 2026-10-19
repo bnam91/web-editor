@@ -34,6 +34,8 @@ export function showZoomProperties(block) {
   const fillAlpha = parseAlphaFromColor(fillHex);
   const bdcAlpha  = parseAlphaFromColor(st.bdc);
   const shcAlpha  = parseAlphaFromColor(st.shc);
+  const txcAlpha  = parseAlphaFromColor(st.txc);
+  const txOn      = st.tx === 'on';
   const shadowOn  = st.shadow !== 'off';
   const bdOn      = st.bd === 'on';
   const hasImg    = !!st.imgSrc;
@@ -164,6 +166,53 @@ ${blockHeaderHTML({
              막으면 기능이 하나 사라진다. 둘은 같은 _applyZoomImage 로 모인다. -->
       <button class="prop-action-btn secondary" id="zm-img-btn" style="width:100%;margin-top:6px;">이미지 선택...</button>
       ${hasImg ? `<div class="prop-row"><button class="prop-action-btn" id="zm-img-clear" style="width:100%;">이미지 제거</button></div>` : ''}
+    </div>
+
+    <!-- ⚠️이 주석은 템플릿 리터럴 «안»이다 — ⛔백틱을 쓰면 리터럴이 «거기서 끝나» 터진다.
+           ★2026-10-19 에 ★내가 실제로 그랬다(발주 아이디를 백틱으로 감쌌다가 SyntaxError).
+           ★이 파일이 아래 두 자리에 ★이미 같은 경고를 적어 뒀는데 ★그걸 읽고도 밟았다.
+           ★잡아 준 자 = tests/unit/inspector-t17.test.mjs T5 ＋ renderer-js-parses.test.mjs P1.
+         ★★글자 — 현빈 2026-10-18 1018t1-h8c 「기존의 줌블럭은 이미지 에셋블럭에 줌이 들어가는건데,
+           ★모달블럭 처럼 텍스트를 넣을 수 있게도 해줄 것」.
+         ★자리 = Shape 바로 «뒤». 글자는 ★도형 «안»에 담긴다(이미지와 같은 층 위) ⇒ 도형의 식구다.
+         ⛔«내용» 입력칸(textarea)을 ★두지 않았다 — ★이 레포의 ★선 결정이다:
+           ① 모달에도 ★없다(js/props/prop-modal.js 의 Text 절 = 정렬 ＋ Typography 뿐 · 글은 캔버스에서 넣는다)
+           ② 인용구엔 ★있었다가 ★현빈이 ★걷게 했다 — 1011t1a-2 「그리고 캔버스에서 바로 수정가능하니
+              ★없어도 우측패널에서는 될듯함」(js/props/prop-quote.js:134~ 의 ⚰️ 주석이 정본)
+           ⇒ 글은 ★캔버스 더블클릭으로 넣는다. 이 절은 ★«입구(켬/끔)»와 ★«꾸밈»을 진다.
+         ★켬/끔 라디오를 둔 까닭 = ★글자가 ★꺼져 있으면 ★더블클릭할 과녁이 ★없다(빈 확대블럭엔 글자 층이 0개).
+           ⛔새 컨트롤이 아니다 — 줌 이펙트·테두리가 쓰는 ★그 라디오 꼴 그대로다. -->
+    <div class="prop-section">
+      <div class="prop-section-title">Text</div>
+      <div class="prop-row">
+        <span class="prop-label">글자</span>
+        <div class="prop-radio-group" id="zm-tx-group">
+          <label class="prop-radio"><input type="radio" name="zm-tx" value="on"${txOn ? ' checked' : ''}> 켬</label>
+          <label class="prop-radio"><input type="radio" name="zm-tx" value="off"${txOn ? '' : ' checked'}> 끔</label>
+        </div>
+      </div>
+      <div id="zm-tx-fields" style="${dim(txOn)}">
+        <!-- ⛔안내문을 prop-label 안에 넣으면 «폭 56px 라벨 칸»에서 잘린다(이 파일 아래 실측 주석).
+             ⇒ 폭을 다 쓰는 행에 둔다 — 「손잡이」 절이 쓰는 그 꼴 그대로. -->
+        <div class="prop-row">
+          <span style="font-size:10px;color:var(--ui-text-muted);line-height:1.5;">
+            글은 캔버스에서 넣는다 — 도형을 더블클릭하면 글자가 열린다.
+          </span>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">정렬</span>
+          <div class="prop-align-group" id="zm-txa-group">
+            <button class="prop-align-btn${st.txa === 'left'   ? ' active' : ''}" data-txa="left">왼쪽</button>
+            <button class="prop-align-btn${st.txa === 'center' ? ' active' : ''}" data-txa="center">가운데</button>
+            <button class="prop-align-btn${st.txa === 'right'  ? ' active' : ''}" data-txa="right">오른쪽</button>
+          </div>
+        </div>
+        ${_pairRow('zm-txs', '크기', st.txs, 8, 200, 1)}
+        <div class="prop-color-row">
+          <span class="prop-label">색</span>
+          ${colorFieldHTML({ idPrefix: 'zm-txc', hex: st.txc, alpha: txcAlpha })}
+        </div>
+      </div>
     </div>
 
     <div class="prop-section">
@@ -339,6 +388,7 @@ ${bdrRow}
   bindPair('zm-curve',  'curve',  '확대블럭 농도곡선',  10, 400);
   // ★[숨김] 위 narrowRow 와 «짝». ⛔상태 키 st.narrow 와 기본값 62 는 «살아 있다».
   // bindPair('zm-narrow', 'narrow', '확대블럭 좁아짐',     0, 100);
+  bindPair('zm-txs',    'txs',    '확대블럭 글자 크기',    8, 200);
   bindPair('zm-bdw',    'bdw',    '확대블럭 테두리 두께',  0, 80);
   // ★[숨김] 위 _pairRow 와 «짝»이다 — UI 가 없는데 바인딩만 남기면 안 된다. 같이 가린다.
   //   (bindPair 는 querySelector 결과가 없으면 조용히 return 하므로 남겨도 «오류는 안 난다» —
@@ -375,6 +425,32 @@ ${bdrRow}
     });
   });
   bindRadio('zm-bd',     'bd',     '확대블럭 테두리');
+  /* ★글자 켬/끔 — ★줌 이펙트·테두리와 ★같은 bindRadio 한 벌이다(⛔값은 안 지운다 ⇒ 껐다 켜도 글이 돌아온다).
+     ★켜면 ★글이 비어 있어도 ★안내문구 층이 서서 ★더블클릭할 과녁이 생긴다
+       (그리는 판정은 js/blocks/zoom-geometry.js `zoomTextVisible` ★한 자리). */
+  bindRadio('zm-tx',     'tx',     '확대블럭 글자');
+
+  /* 글자 정렬 3단 — ★Shape 프리셋·도형 그림자 토글과 ★같은 하네스다(새 관용구를 안 만든다).
+     ★여기는 rerender() 를 ★부른다 — 도형 그림자와 ★다른 까닭: 정렬은 ★마크업의 text-align 으로 나간다
+       (그림자는 CSS 가 data-drop-shadow 를 보고 칠해서 다시 그릴 일이 없었다). */
+  propPanel.querySelectorAll('#zm-txa-group .prop-align-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const next = btn.dataset.txa;
+      if ((block.dataset.txa || D().txa) === next) return;
+      window.pushHistory?.('확대블럭 글자 정렬');
+      propPanel.querySelectorAll('#zm-txa-group .prop-align-btn')
+        .forEach(b => b.classList.toggle('active', b === btn));
+      block.dataset.txa = next;
+      rerender();
+      window.triggerAutoSave?.();
+    });
+  });
+
+  wireColorField('zm-txc', {
+    initialAlpha: txcAlpha,
+    onApply: (c) => { block.dataset.txc = c; rerender(); },
+    onCommit: () => { window.pushHistory?.('확대블럭 글자 색'); window.triggerAutoSave?.(); },
+  });
 
   wireColorField('zm-fill', {
     initialAlpha: fillAlpha,

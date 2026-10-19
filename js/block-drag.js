@@ -359,6 +359,40 @@ function _quoteEndEdit(block, host) {
   }
 }
 
+/* ★확대블럭 글자 편집 종료 — ★모달·인용구와 ★한 벌의 규율이다(dataset 에 커밋하고 재렌더).
+   ★현빈 2026-10-18 `1018t1-h8c` 「기존의 줌블럭은 이미지 에셋블럭에 줌이 들어가는건데,
+     ★모달블럭 처럼 텍스트를 넣을 수 있게도 해줄 것」.
+   ★안내문구 지뢰 방지 — ★모달·인용구와 ★같은 까닭: 흐린 안내문구를 ★그대로 두고 나가면
+     ★아무것도 쓰지 않는다. 그 문구를 데이터로 굳히면 그 블럭은 영영 「본문이 안내문구인」 블럭이 된다.
+   ★글자 읽기는 ★`mdlReadText`(js/drag-utils.js) ★한 벌을 그대로 쓴다 — ⛔제 사본을 만들지 않는다
+     (글자 층도 `white-space:pre-wrap` 이라 ★모달 슬롯과 ★같은 꼴 = 블록 경계가 `\n`).
+   ⛔부분 서식(HTML)은 ★여기서 ★안 다룬다 — ★인용구와 ★같은 범위다(모달만 `nextHtml` 을 같이 커밋한다).
+     ★글자 층은 `_esc` 평문이라 ★층 전체가 ★한 단위다(js/blocks/zoom-geometry.js textMarkup 주석). */
+function _zoomEndEdit(block, host) {
+  if (host.getAttribute('contenteditable') !== 'true') return;
+  host.setAttribute('contenteditable', 'false');
+  host.removeAttribute('draggable');
+  block.classList.remove('editing');
+  const before = host._zmBefore;
+  if (before == null) return;
+  const text = mdlReadText(host);
+  const ph = host.dataset.placeholder || '';
+  /* ★안내문구를 ★손 안 대고 나갔나 — ★모달의 판정(`isPh`)을 ★그대로 쓴다:
+     ★비었거나 ★안내문구 그대로면 ★dataset 은 ★빈 채로 둔다(render 가 다시 흐리게 그린다). */
+  const isPh = text.trim() === '' || text.trim() === ph.trim();
+  const next = isPh ? '' : text;
+  if (text === before || (block.dataset.text || '') === next) {
+    if (isPh) window.renderZoomBlock?.(block);      // 안내문구 복원(흐린 상태)만 다시 그린다
+    return;
+  }
+  host.innerText = before;                          // 커밋 «전» DOM 을 편집 전으로
+  window.pushHistory?.('확대블럭 글자');
+  if (window.commitZoomText?.(block, next)) {
+    window.renderZoomBlock?.(block);
+    window.triggerAutoSave?.();
+  }
+}
+
 function _gridBeginEdit(hit, e) {
   const { block, host, r, c, li, np } = hit;   // ★np = 중첩 «안» 줄의 주소(없으면 undefined)
   if (host.getAttribute('contenteditable') === 'true') return;
@@ -2613,6 +2647,54 @@ function bindBlock(block) {
           r.selectNodeContents(host); r.collapse(false);
         }
         sel.addRange(r);
+      }
+    });
+  }
+
+  /* ── ★확대블럭(zoom): 글자 층 인라인 편집 (현빈 2026-10-18 `1018t1-h8c`) ──
+     ★모달 dblclick(위 `isModal`)의 ★꼴을 본뜬다 — 다만 ★과녁 찾기가 ★다르다. ★까닭을 적는다:
+       ★모달 슬롯은 ★포인터를 ★받는다 ⇒ `document.elementFromPoint` 가 ★슬롯을 준다.
+       ★확대블럭의 글자 층은 ★평소 `pointer-events:none` 이다(css/editor-blocks.css `.zoom-text`)
+         — ★그래야 ★글자 위를 ★끌어서 ★블록을 ★옮길 수 있다(이 블럭은 ★플로팅이라 ★끌기가 본업이다).
+       ⇒ ★`elementFromPoint`·`e.target` 은 ★둘 다 ★«블록»을 준다 ⇒ ★모달 꼴로는 ★한 번도 안 열린다.
+       ⇒ ★층을 ★직접 집고(`querySelector`) ★누른 점이 ★그 상자 안인가를 ★사각형으로 잰다.
+     ★층이 ★없으면(글자 끔 · `textMarkup` 이 빈 문자열) ★조용히 지나간다 — ★옛 블록의 더블클릭은 ★그대로다.
+     ⛔`contenteditable="true"` 가 되는 ★그 순간 ★CSS 가 `pointer-events:auto` 로 바꾼다
+       ⇒ ★캐럿·드래그 선택이 ★그때부터 ★먹는다. ★끝나면 ★속성이 떨어져 ★다시 ★none 이다. */
+  if (isZoom) {
+    block.addEventListener('dblclick', e => {
+      const host = block.querySelector?.(':scope > .zoom-clip > .zoom-text');
+      if (!host) return;
+      const r = host.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+      e.stopPropagation();
+      if (host.getAttribute('contenteditable') === 'true') return;
+      block.classList.add('editing');          // ★이동 드래그·삭제키 가드가 이걸 본다
+      host.setAttribute('contenteditable', 'true');
+      host.setAttribute('draggable', 'false'); // 모달·인용구와 같은 까닭(조상이 draggable 일 수 있다)
+      host._zmBefore = mdlReadText(host);
+      host._zmWasPh  = host.dataset.isPlaceholder === 'true';
+      /* ⚠️리스너는 ★이 노드에 ★한 번만 건다 — ★renderZoomBlock 이 innerHTML 을 통째로 갈아끼우므로
+         ★층은 ★매 렌더마다 ★새 노드다 ⇒ ★중복이 안 쌓인다(모달 슬롯과 ★같은 규약). */
+      if (!host._zmEditBound) {
+        host._zmEditBound = true;
+        host.addEventListener('blur', () => _zoomEndEdit(block, host));
+        host.addEventListener('keydown', ev => {
+          if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); host.blur(); }
+        });
+      }
+      host.focus();
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        const rg = document.createRange();
+        if (host._zmWasPh) rg.selectNodeContents(host);   // 안내문구면 전체 선택 → 타이핑으로 즉시 교체
+        else {
+          const cr = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
+          if (cr) { sel.addRange(cr); return; }
+          rg.selectNodeContents(host); rg.collapse(false);
+        }
+        sel.addRange(rg);
       }
     });
   }

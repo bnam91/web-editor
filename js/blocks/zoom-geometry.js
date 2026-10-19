@@ -722,6 +722,87 @@ export function hasZoomImage(st) {
   return !!safeImgSrc(st.imgSrc);
 }
 
+/* ★글자를 마크업에 넣기 전 이스케이프한다 — ★모달의 `_esc`(js/blocks/modal-block.js:365)와 «같은 다섯 글자»다.
+   ⛔`js/props/_helpers.js` 의 `escHtml` 을 ★import 하지 «못한다» — ★소스 독해가 아니라 ★실측이다:
+     ★이 파일을 ★검사 하네스 ★여섯이 ★tmpdir 로 ★바이트 복사해 ★standalone `.mjs` 로 문다
+       tests/unit/zoom-block.test.js:126 · zoom-state.test.js:58 · zoom-tangent.test.mjs:66
+       zoom-narrow-limit.test.mjs:28 · zoom-spread-outline.test.mjs:34 · zoom-panel-slim.test.mjs:50
+     ⇒ 상대경로 import 는 ★레포 «밖»을 가리켜 ★그 여섯이 통째로 죽는다(이 파일에 import 가 ★0건인 까닭).
+   ⇒ 그래서 ★`tests/unit/name-axes-to-markup.test.mjs` 의 ★`ESC_DEFS` 명부에 ★이 자리를 ★이름으로 적었다.
+     ★`js/fx/coin-draw.js|escText` 와 ★같은 갈래의 예외다(그 줄의 까닭도 「import 할 수 없다」). */
+function _esc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/* ★글자 안내문구 — ⛔«평문 리터럴»이다(사람이 넣은 값이 아니다). 모달의 MODAL_PH 와 같은 갈래. */
+export const ZOOM_TEXT_PH = '텍스트를 입력하세요';
+/** 글자 가로 정렬 — 모르는 값은 기본(center)으로 떨어뜨린다(저장본 변조 대비 · _onOff 와 같은 규율). */
+export const ZOOM_TEXT_ALIGNS = ['left', 'center', 'right'];
+
+/* ★글자 층이 «그려지나» — ⛔기본은 «안 그린다».
+   ★옛 저장본에는 `tx` 키가 ★없다 ⇒ readZoomState 가 'off' 로 떨어뜨리고 ⇒ 여기서 0 개다.
+     그래서 ★이미 저장된 확대블럭의 화면은 ★한 픽셀도 안 바뀐다.
+   ★「글자가 비었나」로 재지 «않는다» — 비었을 때 ★안내문구를 그려야 ★더블클릭할 과녁이 생긴다
+     (모달이 바로 그 꼴이다: 빈 슬롯도 흐린 안내문구로 «있다»).
+     ⇒ 켬/끔은 ★tx 가 가른다(줌 이펙트·테두리와 ★같은 라디오 어휘). */
+export function zoomTextVisible(st) {
+  return st.tx === 'on';
+}
+
+/* ★도형 상자(클리핑 층 기준) — ★`.zoom-bg` 와 ★`.zoom-text` 가 ★«한 표»를 쓴다.
+   ⛔전엔 이 셈이 bgMarkup «안»에만 있었다. 글자 층이 ★같은 상자를 써야 하는데 베끼면
+     ★명부가 둘이 된다(모서리·회전·테두리 보정이 ★따로 썩는다) ⇒ ★파생시켜 하나로. */
+export function shapeBoxInClip(st, pinned) {
+  const bw = borderWidthOf(st);
+  const half = shapeHalf(st);
+  const circle = st.shape === 'circle';
+  const bdr = Math.max(0, Number(st.bdr) || 0);
+  const o = svgOffset(st, pinned);
+  return {
+    left:   bw - o.left,
+    top:    bw - o.top,
+    w:      half.hw * 2,
+    h:      (circle ? half.hw : half.hh) * 2,
+    radius: circle ? '50%' : bdr.toFixed(2) + 'px',
+    rot:    circle ? 0 : (Number(st.rot) || 0),
+  };
+}
+
+/* ★글자 층 — 현빈 2026-10-18 `1018t1-h8c` 「기존의 줌블럭은 이미지 에셋블럭에 줌이 들어가는건데,
+     ★모달블럭 처럼 텍스트를 넣을 수 있게도 해줄 것」.
+   ★모달의 ★슬롯 꼴을 그대로 본뜬다(js/blocks/modal-block.js `_textHtml`):
+     `contenteditable="false"` 로 내고, ★더블클릭이 'true' 로 바꾼다 · `data-placeholder` ＋
+     비었으면 `data-is-placeholder="true"`(CSS `#canvas [data-is-placeholder="true"]` 가 흐리게 그린다).
+   ⚠️슬롯 이름은 ★`data-zoom-slot` 이다 — ⛔`data-mdl-slot` 을 ★빌리지 마라:
+     그 이름은 ★모달의 정체 칸이고(js/props/_text-selection.js:163 이 그렇게 적어 뒀다),
+     js/block-drag.js:2536 의 ★모달 전용 dblclick 이 그 셀렉터로 찾는다 ⇒ 두 블럭이 한 명부가 된다.
+   ⚠️글자는 ★`_esc` 평문이라 ★«부분 선택»은 원리적으로 불가하다 — 층 전체가 한 단위다
+     (모달도 같은 자리에 같은 주석을 달아 뒀다 · 모달의 `…Html` 부분서식 경로는 ★이번 범위가 아니다).
+   ★상자는 ★shapeBoxInClip «한 표» — 도형이 돌면 글자도 같이 돈다(이미지와 같은 결).
+   ⛔크기·색·정렬만 인라인으로 낸다. ★가운데 맞춤(flex)·여백·줄바꿈은 ★CSS 가 맡는다
+     (css/editor-blocks.css `.zoom-block .zoom-text`) — 그리는 규칙을 둘로 만들지 않는다. */
+export function textMarkup(st, pinned) {
+  if (!zoomTextVisible(st)) return '';
+  const b = shapeBoxInClip(st, pinned);
+  const raw = String(st.text ?? '');
+  const empty = raw.trim() === '';
+  const align = ZOOM_TEXT_ALIGNS.includes(st.txa) ? st.txa : 'center';
+  const size = Number(st.txs);
+  const fs = (Number.isFinite(size) && size > 0) ? size : 24;
+  return `<div class="zoom-text" data-zoom-slot="text" contenteditable="false"` +
+    ` data-placeholder="${_esc(ZOOM_TEXT_PH)}"${empty ? ' data-is-placeholder="true"' : ''}` +
+    ` style="left:${b.left.toFixed(2)}px;top:${b.top.toFixed(2)}px;` +
+    `width:${b.w.toFixed(2)}px;height:${b.h.toFixed(2)}px;` +
+    (b.rot ? `transform:rotate(${b.rot}deg);` : '') +
+    `color:${safeColor(st.txc, '#ffffff')};font-size:${fs}px;text-align:${align};">` +
+    `${_esc(empty ? ZOOM_TEXT_PH : raw)}</div>`;
+}
+
 /* 도형 «안»을 채우는 층 — 체크패턴 또는 이미지. «도형» 상자다(테두리 제외).
    ★현빈 2026-09-08: 「이미지를 넣으면 에셋블럭처럼 도형이라는 프레임 «안»에서 나오니
      도형이랑 같은 거 아닌가?」 ⇒ 맞다. 바깥 윤곽은 여전히 «도형»이라 ★기하가 한 줄도 안 바뀐다.
@@ -734,17 +815,13 @@ export function hasZoomImage(st) {
 export function bgMarkup(st, pinned) {
   const img = safeImgSrc(st.imgSrc);
   if (st.fill !== ZOOM_CHECKER && !img) return '';
-  const bw = borderWidthOf(st);
-  const half = shapeHalf(st);
-  const bdr = Math.max(0, Number(st.bdr) || 0);
-  const hw = half.hw, hh = (st.shape === 'circle') ? half.hw : half.hh;
-  const o = svgOffset(st, pinned);
-  const rot = (st.shape === 'circle') ? 0 : (Number(st.rot) || 0);
-  const radius = st.shape === 'circle' ? '50%' : bdr.toFixed(2) + 'px';
+  /* ★상자 셈은 ★shapeBoxInClip «한 표»다(글자 층과 공용) — ⛔여기서 다시 세지 마라.
+     ★옮긴 날(2026-10-19) 내보내는 ★바이트는 ★그대로다: 순서·toFixed(2)·세미콜론을 안 바꿨다. */
+  const b = shapeBoxInClip(st, pinned);
   const inner = img ? `<img class="zoom-img" src="${img}" draggable="false">` : '';
-  return `<div class="zoom-bg" style="left:${(bw - o.left).toFixed(2)}px;top:${(bw - o.top).toFixed(2)}px;` +
-    `width:${(hw * 2).toFixed(2)}px;height:${(hh * 2).toFixed(2)}px;border-radius:${radius};` +
-    (rot ? `transform:rotate(${rot}deg);` : '') + `">${inner}</div>`;
+  return `<div class="zoom-bg" style="left:${b.left.toFixed(2)}px;top:${b.top.toFixed(2)}px;` +
+    `width:${b.w.toFixed(2)}px;height:${b.h.toFixed(2)}px;border-radius:${b.radius};` +
+    (b.rot ? `transform:rotate(${b.rot}deg);` : '') + `">${inner}</div>`;
 }
 
 /* a·b 핸들 — ★별도 층이다.
@@ -776,7 +853,10 @@ export function handleLayerMarkup(st, pinned, picked) {
 }
 
 /** 블록 안에 들어가는 것 전부.
- *  ★쌓는 순서 = 그림자·테두리·도형(SVG) → 체크배경 → a·b 핸들.
+ *  ★쌓는 순서 = 그림자·테두리·도형(SVG) → 체크배경 → ★글자 → a·b 핸들.
+ *    ★글자가 ★체크배경·이미지 «위»인 이유: 도형 «안»에 담기는 글이다(이미지 위 자막 꼴).
+ *    ★글자가 ★손잡이 «아래»인 이유: 손잡이(빛·a·b)를 글자가 덮으면 ★집을 수가 없다
+ *      — 손잡이는 끌어야 하는 것이고 글자는 더블클릭으로 들어간다(끌기가 이긴다).
  *    체크가 SVG «위»인 이유: 테두리판은 «도형보다 큰 판»이라 SVG 안에서 도형 자리를 덮는다.
  *    아래 깔면 테두리를 켠 순간 체크가 사라진다. 그래서 핸들도 체크 «뒤»로 뒀다.
  *
@@ -795,7 +875,8 @@ export function buildZoomInner(st, pinned, picked) {
   const off = svgOffset(st, pinned);
   return `<div class="zoom-clip" style="left:${off.left.toFixed(2)}px;top:${off.top.toFixed(2)}px;` +
     `width:${box.w.toFixed(2)}px;height:${box.h.toFixed(2)}px;">` +
-    `${buildZoomSvg(st, pinned)}${bgMarkup(st, pinned)}${handleLayerMarkup(st, pinned, picked)}</div>`;
+    `${buildZoomSvg(st, pinned)}${bgMarkup(st, pinned)}${textMarkup(st, pinned)}` +
+    `${handleLayerMarkup(st, pinned, picked)}</div>`;
 }
 
 export function buildZoomSvg(st, pinned) {

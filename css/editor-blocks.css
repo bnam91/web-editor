@@ -3225,9 +3225,37 @@ textarea.cvb-card-input {
 .zoom-block .zoom-clip,
 .zoom-block .zoom-svg,
 .zoom-block .zoom-bg,
+.zoom-block .zoom-text,
 .zoom-block .zoom-handle-layer {
   position: absolute;
   pointer-events: none;
+}
+/* ★글자 층 — 현빈 2026-10-18 `1018t1-h8c` 「모달블럭 처럼 텍스트를 넣을 수 있게도 해줄 것」.
+   ★상자(left/top/width/height)·색·크기·정렬은 JS 가 인라인으로 낸다(js/blocks/zoom-geometry.js
+     textMarkup) — dataset 이 진실이고, 여기엔 «그 값들이 없는» 규칙만 둔다(규칙을 둘로 만들지 않는다).
+   ★가운데 맞춤을 flex 로 한다 — 세로 가운데를 line-height 로 흉내 내면 두 줄에서 깨진다.
+     가로는 JS 가 주는 text-align 이 먹어야 하므로 ⛔justify-content 를 여기서 주지 않는다
+     (주면 세 정렬 버튼이 «안 먹는다» — 모달의 icon 행이 그 반대 함정을 적어 뒀다).
+   ★`white-space: pre-wrap` = 모달 슬롯(:1850~1852)과 «같은 값»이다. 그 값이어야
+     `mdlReadText`(js/drag-utils.js)가 읽는 줄 수와 그려지는 줄 수가 같다.
+   ⛔`pointer-events` 는 위 규칙에서 `none` 이다 — 그래야 글자 위를 끌어 블록을 옮긴다.
+     편집에 들어가는 «그 순간»에만 아래 규칙이 되살린다(블럭은 `user-select:none` 이라 같이 푼다). */
+.zoom-block .zoom-text {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;   /* 세로 가운데 — flex-direction:column 이라 이 축이 «세로»다 */
+  padding: 6px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: hidden;
+  outline: none;             /* 모달 슬롯(:1846)과 같은 까닭 — 편집 포커스 테두리를 끈다 */
+}
+#canvas .zoom-block .zoom-text[contenteditable="true"] {
+  pointer-events: auto;
+  user-select: text;
+  cursor: text;
+  background: var(--sel-color-fill);   /* 모달 슬롯(:1873)과 «같은 값» — 편집 중임을 같은 말로 보인다 */
 }
 /* 그리는 것 전부를 담는 층 = SVG 상자. 여기에만 «섹션 밖 크롭»이 걸린다(위 규칙). */
 .zoom-block .zoom-clip { left: 0; top: 0; }

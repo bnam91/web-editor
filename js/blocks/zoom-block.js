@@ -34,7 +34,8 @@
 import { bindBlock } from '../drag-drop.js';
 // ★배율은 «한 곳»에서만 읽는다 — 베끼면 핸들과 갈라진다(overlay-handles.js 주석 참조).
 import { _canvasScaleNow } from '../overlay-handles.js';
-import { buildZoomInner, blockBoxSpec, computeZoomGeometry, hasZoomImage, ZOOM_CHECKER } from './zoom-geometry.js';
+import { buildZoomInner, blockBoxSpec, computeZoomGeometry, hasZoomImage, ZOOM_CHECKER,
+         ZOOM_TEXT_ALIGNS } from './zoom-geometry.js';
 
 const ZOOM_DEFAULTS = {
   shape:  'rect',   // ★기본은 사각형. 프리셋 = rect | circle | square
@@ -91,6 +92,27 @@ const ZOOM_DEFAULTS = {
      ⛔체크패턴과 «같은 층»(.zoom-bg)이다 — 이미지가 들어오면 체크를 끈다(Export PNG 함정). */
   imgSrc: '',
   bdr:    0,        // 모서리(px) — 도형·테두리판이 «같이» 둥글어야 링 두께가 일정하다
+  /* ★★글자 — 현빈 2026-10-18 `1018t1-h8c` 「기존의 줌블럭은 이미지 에셋블럭에 줌이 들어가는건데,
+       ★모달블럭 처럼 텍스트를 넣을 수 있게도 해줄 것」.
+     ★tx = 켬/끔 라디오. ⛔기본이 'off' 인 것이 ★무회귀의 전부다 — 옛 저장본엔 이 키가 «없고»
+       _onOff 가 'off' 로 떨어뜨리므로 ★zoomTextVisible 이 false ⇒ ★글자 층을 ★한 개도 안 그린다.
+       ⇒ ★이미 저장된 확대블럭의 화면은 ★한 픽셀도 안 바뀐다(검사 음성대조가 그 자리를 잰다).
+     ★왜 「글자가 비었나」가 아니라 ★라디오로 가르나 — 비었을 때 ★안내문구를 그려야 ★더블클릭할
+       과녁이 생긴다(모달이 바로 그 꼴). 그런데 확대블럭은 ★글자가 본질이 아니라 ★이미지가 본질이라
+       안내문구를 «언제나» 그리면 ★옛 블록 전부에 글자가 돋는다. ⇒ 입구를 라디오로 둔다.
+       ★라디오 어휘는 ★이 블럭이 이미 쓰는 그것이다(shadow·bd) — 새 컨트롤을 만들지 않았다.
+     ⛔끔이어도 text/txc/txs/txa 를 «지우지 않는다» — shadow·bd 와 ★같은 규율(다시 켜면 그대로).
+     ★`text` 는 ★평문 한 덩이다(모달 slot `text` ↔ dataset `textText` 와 같은 자리).
+       ⛔모달의 `…Html` «부분 서식» 경로는 ★이번 범위가 아니다 — 글자 층 전체가 한 단위다. */
+  tx:     'off',
+  text:   '',
+  /* ⚠️★글자색 기본이 ★모달(MODAL_DEFAULTS.textColor = '#1c1c1e')과 ★다르다 — ★일부러다.
+     ★모달의 바닥은 «흰 카드»(MODAL_DEFAULTS.bg)라 어두운 글자가 맞고,
+     ★확대블럭의 바닥은 ★체크패턴(ZOOM_CHECKER) 또는 ★사람이 넣은 ★사진이다(imgSrc).
+     ⇒ 같은 값을 쓰면 사진 위에서 ★안 보이는 쪽이 기본이 된다. ★바닥이 다르면 기본도 다르다. */
+  txc:    '#ffffff',
+  txs:    24,          // 글자 크기(px)
+  txa:    'center',    // 가로 정렬 — left | center | right
   /* ★플로팅 좌표 — 섹션 좌상단 기준(px). 스티커와 «같은 규약»(dataset.x/y + style.left/top). */
   x:      40,
   y:      40,
@@ -147,7 +169,29 @@ function readZoomState(block) {
     bdc:    d.bdc || ZOOM_DEFAULTS.bdc,
     shc:    d.shc || ZOOM_DEFAULTS.shc,
     bdr:    _num(d.bdr, ZOOM_DEFAULTS.bdr),
+    /* ★글자 — ⛔`d.text ?? ''` 가 아니라 `?? ZOOM_DEFAULTS.text` 다: 기본값은 «한 자리»에만 산다.
+       ⚠️`||` 를 쓰면 안 된다 — 사람이 지운 빈 문자열과 「없음」이 같아지는 건 지금은 같은 뜻이지만,
+         기본값이 빈 문자열이 아니게 되는 날 조용히 갈린다. */
+    tx:     _onOff(d.tx, ZOOM_DEFAULTS.tx),
+    text:   d.text ?? ZOOM_DEFAULTS.text,
+    txc:    d.txc || ZOOM_DEFAULTS.txc,
+    txs:    _num(d.txs, ZOOM_DEFAULTS.txs),
+    txa:    ZOOM_TEXT_ALIGNS.includes(d.txa) ? d.txa : ZOOM_DEFAULTS.txa,
   };
+}
+
+/* ★글자 커밋 — ⛔DOM 이 아니라 ★dataset 에 쓴다.
+   ★modal `commitModalSlot`(js/blocks/modal-block.js:836) · quote `commitQuoteText` 와 ★같은 규율이다:
+     dataset 이 진실이고 render 가 DOM 을 다시 그린다 ⇒ 재렌더가 타이핑을 지우지 않는다.
+   ★값이 그대로면 ★false 를 돌려준다 — 부르는 쪽이 ★재렌더·히스토리·저장을 ★안 돈다
+     (quote 가 같은 꼴로 참/거짓을 쓴다 · js/block-drag.js `_quoteEndEdit`).
+   ⛔빈 문자열이면 ★키를 지운다 — 기본값과 같은 값을 저장본에 남기지 않는다(fill·shc 와 같은 어휘). */
+function commitZoomText(block, text) {
+  const next = String(text ?? '');
+  if ((block.dataset.text || '') === next) return false;
+  if (next === '') delete block.dataset.text;
+  else block.dataset.text = next;
+  return true;
 }
 
 /* ★손잡이 셋(L·a·b)은 「끌기 전까지 «언제나» 자동」이다.
@@ -299,6 +343,19 @@ function _bindZoomMoveDrag(block) {
   block._zoomMoveBound = true;
   block.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
+    /* ★★글자 편집 중에는 ★이 드래그가 ★비켜 준다 — ⛔안 비키면 ★글자를 드래그해 고르는 동작이
+         ★블록 이동이 된다(캐럿도 안 선다).
+       ★모달은 ★`draggable="false"` ★하나로 막는다 — 그건 ★브라우저 네이티브 HTML5 드래그이고,
+         ★확대블럭의 이동은 ★자기 mousedown 드래그(이 함수)라 ★그 속성이 ★닿지 않는다.
+         ⇒ ★같은 뜻을 ★이 블럭의 자리에서 집행한다. 규약은 ★`.editing` 클래스 ★한 벌이다
+           (js/block-drag.js:645 공통 드래그 가드 · grid·modal·quote 가 모두 그걸 본다).
+       ★둘째 줄은 ★«겹 가드»다 — ★지금 집행되는 선은 ★첫 줄(`.editing`) ★하나다:
+         ★글자 층은 ★평소 `pointer-events:none` 이라(css/editor-blocks.css) ★e.target 이 ★블록이 되고,
+         ★`contenteditable="true"` 가 되는 ★그 순간에만 ★auto 가 되는데 ★그때는 ★이미 `.editing` 이다.
+       ⇒ ★그 CSS 가 ★언젠가 ★auto 로 바뀌어도 ★이동 드래그가 ★글자를 삼키지 않게 ★먼저 적어 둔다.
+         ⛔「둘 다 지금 작동한다」로 ★읽지 마라 — ★작동한 것은 ★첫 줄이다. */
+    if (block.classList.contains('editing')) return;
+    if (e.target.closest?.('.zoom-text')) return;
     if (e.target.closest?.('.zoom-handle, .asset-overlay-handle')) return;
     // 앵커 밖을 누르면 집은 표시를 «푼다»(일러스트와 같다).
     if (block._zoomPicked) { block._zoomPicked = null; renderZoomBlock(block); }
@@ -445,6 +502,15 @@ function makeZoomBlock(opts = {}) {
   block.dataset.bdw    = String(opts.bdw    ?? ZOOM_DEFAULTS.bdw);
   block.dataset.bdc    = String(opts.bdc    ?? ZOOM_DEFAULTS.bdc);
   if (opts.shc != null) block.dataset.shc = String(opts.shc);
+  /* ★글자 다섯 칸은 ★«줄 때만» 박는다 — ★`shc` 와 ★같은 꼴이다.
+     ⛔기본값을 박으면 ★새 블록마다 `data-tx="off" data-text=""` 가 ★저장본에 실린다
+       ⇒ 「글자를 ★한 번도 안 쓴 블록」과 「껐다 켠 블록」이 ★구분이 안 된다.
+     ★기본값은 여전히 ★ZOOM_DEFAULTS 한 자리에 산다(readZoomState 가 그걸 읽는다). */
+  if (opts.tx   != null) block.dataset.tx   = _onOff(opts.tx, ZOOM_DEFAULTS.tx);
+  if (opts.text != null) block.dataset.text = String(opts.text);
+  if (opts.txc  != null) block.dataset.txc  = String(opts.txc);
+  if (opts.txs  != null) block.dataset.txs  = String(opts.txs);
+  if (opts.txa  != null) block.dataset.txa  = String(opts.txa);
   block.dataset.bdr    = String(opts.bdr    ?? ZOOM_DEFAULTS.bdr);
   block.dataset.x      = String(opts.x      ?? ZOOM_DEFAULTS.x);
   block.dataset.y      = String(opts.y      ?? ZOOM_DEFAULTS.y);
@@ -487,6 +553,7 @@ window.makeZoomBlock          = makeZoomBlock;
 window.addZoomBlock           = addZoomBlock;
 window.renderZoomBlock        = renderZoomBlock;
 window.readZoomState          = readZoomState;
+window.commitZoomText         = commitZoomText;
 window.readPinnedZoomShortEdge = readPinnedShortEdge;
 window.clearPinnedZoomShortEdge = clearPinnedShortEdge;
 window.clearZoomSizeOverride  = clearZoomSizeOverride;
@@ -499,6 +566,7 @@ export {
   addZoomBlock,
   renderZoomBlock,
   readZoomState,
+  commitZoomText,
   readPinnedShortEdge,
   clearPinnedShortEdge,
   clearZoomSizeOverride,

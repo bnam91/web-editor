@@ -418,6 +418,7 @@ const ESC_DEFS = [
   "js/blocks/grid-block.js|_esc",
   "js/blocks/infocard-block.js|_esc",
   "js/blocks/modal-block.js|_esc",
+  "js/blocks/zoom-geometry.js|_esc",   // 확대블럭 글자층(textMarkup) → 검사 하네스 여섯이 이 파일을 tmpdir 로 바이트 복사해 standalone .mjs 로 문다(zoom-block/-state/-tangent/-narrow-limit/-spread-outline/-panel-slim) ⇒ 상대경로 import 가 레포 밖을 가리켜 죽는다. 그래서 이 파일엔 import 가 0건이고 _helpers.js 의 escHtml 을 못 쓴다(coin-draw.js|escText 와 같은 갈래)
   "js/blocks/qa-block.js|_escHtml",
   "js/checklist-data.js|_escHtml",
   "js/component-shelf.js|_escHtml",
