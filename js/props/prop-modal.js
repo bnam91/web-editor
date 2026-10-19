@@ -7,7 +7,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor,
          wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 /* ★1017a5 — ★배경 크기 칸의 ★현재값·기본값은 js/frame-bg.js 가 정본(⛔사본 금지 · 그 머리말 :22). */
 import { frameBgSize } from '../frame-bg.js';
-import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML } from './_helpers.js';
+import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML, escHtml } from './_helpers.js';
 /* ★오버레이(플로팅) — T3(현빈 섹션메모 `sec_3e0suk0` 「모달 오버레이 기능이 안 보인다」 · 2026-10-07).
    ★★진입·이탈·드래그를 ★여기서 짜지 않는다 — `js/overlay-float.js` 가 ★정본이고 ★그 파일이
      「사본을 만들면 ★그 11개(후속 P0 수정)를 ★두 번 더 만든다」고 ★막아 뒀다.
@@ -29,6 +29,13 @@ import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
    패널이 자기 배열을 갖는 순간, 표에 단계를 하나 더해도 패널이 안 따라온다. */
 import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS, clampModal, setModalSizeMode,
          MODAL_DROP_SHADOWS, MODAL_DECO_TAILS, MODAL_DECO_TAPES } from '../blocks/modal-block.js';
+/* ★프로필(1017t1l2) — 값·경계·착지점은 전부 modal-block.js 한 표에서 온다.
+     ⛔패널이 제 식(×1.6)·제 경계(24~400)를 갖는 순간 화면과 캔버스가 갈라진다.
+   ★★줄을 «따로» 놨다 — 위 줄에 붙이면 tests/unit/modal-shadow.test.mjs S-4 가 발갬다.
+     그 검사는 「MODAL_DROP_SHADOWS 와 from '../blocks/modal-block.js' 가 ★200자 이내」로
+     «한 표에서 벌려 연다»를 재는다(실제로 발개졌다 · 2026-10-19). ⛔다시 붙이지 마라. */
+import { MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT,
+         modalProfileSize, modalProfileSide, modalProfileKind } from '../blocks/modal-block.js';
 const L = MODAL_LIMITS;
 
 /* 스와치·hex 칸에 «보여 줄» 색.
@@ -109,6 +116,12 @@ export function showModalProperties(block) {
   const isIcon = (v === 'icon' || v === 'icon-stack');
   const isGrid = (v === 'grid-2');
   const isRaster = block.dataset.raster === '1';
+  /* ★프로필(1017t1l2) — «지금 값»은 전부 modal-block.js 의 창구에서 읽는다(그리는 자와 같은 착지점).
+     isPlainish = 그리는 자리가 있는 변형만 — modal-block.js 의 plain · dashed 갈래와 ★같은 집합이어야 한다. */
+  const isPlainish = !isIcon && !isGrid && v !== 'titled';
+  const pfKind = modalProfileKind(block);
+  const pfSide = modalProfileSide(block);
+  const pfSize = modalProfileSize(block);
 
   /* ★M1 「프레임화 하기」(2026-10-04) — 「형태」 드롭다운 안에, optgroup 「구조」로 가른다(설계 M1-DESIGN §3).
        · optgroup 머리는 고를 수 없는 줄 ⇒ 「점선 테두리」에서 미끄러져도 «동작»에 바로 닿지 않는다
@@ -302,6 +315,43 @@ ${blockHeaderHTML({
         <button class="prop-align-btn${decoTape === 'right'  ? ' active' : ''}" data-tape="right">오른쪽</button>
       </div>
     </div>
+
+    <!-- 프로필(1017t1l2 · 현빈 1018t1-l2a/b/c) — 장식 절과 같은 꼴·같은 하네스.
+         버즈 낱개는 진짜 모달이라 ★여기가 «낱개마다» 고치는 자리다(묶음 전체는 프레임 패널의 Buzz 절).
+         ⚠plain · dashed 에서만 뜨게 했다 — 그리는 자리가 그 갈래 하나라(modal-block.js), 다른 변형에서
+           칸만 보이면 «화면이 거짓말하는» 자리가 된다(이 파일 그림자·표 밖 값 주석의 그 까닭).
+         ★없는 칸 — 꼴(원형/네모/둥근네모)과 이모지 크기 갈래는 ★현빈 미결이라 안 놓았다(⛔지어내지 말 것 · 근거는 modal-block.js 프로필 머리말 ②). -->
+    ${isPlainish ? `
+    <div class="prop-section">
+      <div class="prop-section-title">Profile</div>
+      <button class="prop-action-btn secondary" id="mdl-pf-img-btn" style="margin-top:6px;">이미지 선택</button>
+      <input type="file" id="mdl-pf-img-input" accept="image/*" style="display:none">
+      <div class="prop-row">
+        <span class="prop-label">이모지</span>
+        <input type="text" class="prop-input" id="mdl-pf-emoji" maxlength="8" style="flex:1;min-width:0"
+               value="${escHtml(block.dataset.profileEmoji || '')}" placeholder="예: 😊" aria-label="이모지">
+      </div>
+      ${pfKind ? `
+      <span class="prop-field-label">자리</span>
+      <div class="prop-align-group" id="mdl-pf-side-group" role="group" aria-label="프로필 자리">
+        ${MODAL_PROFILE_SIDES.map((sd) => `<button class="prop-align-btn${sd === pfSide ? ' active' : ''}" data-pside="${sd}">${sd === 'left' ? '왼쪽' : '오른쪽'}</button>`).join('')}
+      </div>
+      <div class="prop-row" title="본문 글자와 따로 움직인다(현빈 l2c 「프로필 크기만 키울 수 있도록」)">
+        <span class="prop-label">크기</span>
+        <input type="range" class="prop-slider" id="mdl-pf-size-slider"
+               min="${MODAL_PROFILE_SIZE_LIMIT.min}" max="${MODAL_PROFILE_SIZE_LIMIT.max}" step="${MODAL_PROFILE_SIZE_LIMIT.step}" value="${pfSize}">
+        <input type="number" class="prop-number" id="mdl-pf-size-number"
+               min="${MODAL_PROFILE_SIZE_LIMIT.min}" max="${MODAL_PROFILE_SIZE_LIMIT.max}" value="${pfSize}">
+      </div>
+      <div class="prop-row" title="켜면 카드 높이를 안 늘린다 — 커지면 배경 위아래로 넘쳐 걸친다(현빈 l2c)">
+        <span class="prop-label">오버레이</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="mdl-pf-overlay"${block.dataset.profileOverlay === '1' ? ' checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <button class="prop-action-btn danger" id="mdl-pf-clear" style="margin-top:4px;">프로필 제거</button>` : ''}
+    </div>` : ''}
 
     <div class="prop-section">
       <div class="prop-section-title">Text</div>
@@ -617,6 +667,59 @@ ${blockHeaderHTML({
   };
   wireDeco('mdl-deco-tail-group', 'tail', 'decoTail');
   wireDeco('mdl-deco-tape-group', 'tape', 'decoTape');
+
+  /* ── 프로필(1017t1l2) ── 배경이미지 절과 ★같은 결이다: 고르면 → dataset → 다시 그리기 → commit → 패널 되읽기.
+     ★폭이 변하므로 버즈 묶음 안이면 그 row 폭만 다시 재다(⛔자리를 다시 놓지 않는다 — 그러면 흔어짐이 다시 뿌려진다). */
+  const pfAfter = (reopen) => {
+    rerender();
+    window.refitBuzzRowWidth?.(block);
+    commit();
+    if (reopen) showModalProperties(block);
+  };
+  const pfImgBtn   = document.getElementById('mdl-pf-img-btn');
+  const pfImgInput = document.getElementById('mdl-pf-img-input');
+  pfImgBtn?.addEventListener('click', () => pfImgInput?.click());
+  pfImgInput?.addEventListener('change', () => {
+    const file = pfImgInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      block.dataset.profileImg = e.target.result;
+      delete block.dataset.profileEmoji;   /* 둘 중 하나 — 그리는 쪽의 우선순위와 같은 규칙을 쓰는 자리에서 맞춘다 */
+      pfAfter(true);                       /* 자리·크기 칸이 새로 뜨고 «제거» 단추가 생긴다 */
+    };
+    reader.readAsDataURL(file);
+  });
+  const pfEmoji = document.getElementById('mdl-pf-emoji');
+  pfEmoji?.addEventListener('change', () => {
+    const next = String(pfEmoji.value || '').trim();
+    const had = !!modalProfileKind(block);
+    if (next) { block.dataset.profileEmoji = next; delete block.dataset.profileImg; }
+    else delete block.dataset.profileEmoji;
+    /* «있다 ↔ 없다»가 바뎀 때만 패널을 다시 그린다 — 글자만 고쳐 놓고 다시 그리면 칸이 포커스를 잃는다. */
+    pfAfter(had !== !!modalProfileKind(block));
+  });
+  propPanel.querySelectorAll('#mdl-pf-side-group .prop-align-btn').forEach((btn) => btn.addEventListener('click', () => {
+    const next = btn.dataset.pside;
+    if (modalProfileSide(block) === next) return;   /* 값이 같으면 아무 것도 — 히스토리에 빈 칸을 안 쌓는다(그림자 3단과 같다) */
+    propPanel.querySelectorAll('#mdl-pf-side-group .prop-align-btn').forEach((b) => b.classList.toggle('active', b === btn));
+    block.dataset.profileSide = next;
+    pfAfter(false);
+  }));
+  wireNum('pf-size', 'profileSize', MODAL_PROFILE_SIZE_LIMIT.min, MODAL_PROFILE_SIZE_LIMIT.max);
+  /* 크기를 바꾸면 카드 폭도 바뀐다 — wireNum 은 공용이라 건드리지 않고 «끝»에만 한 줄 더한다. */
+  ['mdl-pf-size-slider', 'mdl-pf-size-number'].forEach((id) =>
+    document.getElementById(id)?.addEventListener('change', () => { window.refitBuzzRowWidth?.(block); }));
+  document.getElementById('mdl-pf-overlay')?.addEventListener('change', (e) => {
+    if (e.target.checked) block.dataset.profileOverlay = '1';
+    else delete block.dataset.profileOverlay;
+    pfAfter(false);
+  });
+  document.getElementById('mdl-pf-clear')?.addEventListener('click', () => {
+    delete block.dataset.profileImg;
+    delete block.dataset.profileEmoji;
+    pfAfter(true);
+  });
   propPanel.querySelectorAll('[data-al]').forEach(btn => btn.addEventListener('click', () => {
     block.dataset.align = btn.dataset.al;
     propPanel.querySelectorAll('[data-al]').forEach(b => b.classList.toggle('active', b === btn));

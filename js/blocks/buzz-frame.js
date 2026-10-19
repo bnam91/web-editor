@@ -172,6 +172,58 @@ function _fitWidths(frame, rows) {
   });
 }
 
+/* ── 프로필(1017t1l2 · 현빈 1018t1-l2a/b/c) ────────────────────────
+   ★그리는 자는 «모달»이다(js/blocks/modal-block.js _profileHtml) — 여기서는 ★칸만 쓰고 재렌더를 시킨다.
+   ⛔그리는 규칙의 사본을 여기 두지 않는다(장식·유리와 같은 결 — 버즈는 «값»만 안다).
+   ★묶음 전체에 걸기 — 현빈의 l2a·l2c 는 「버즈블럭」 에 대한 말씀이라 패널은 묶음 단위로 준다.
+     낱개만 다르게 하려면 그 카드를 골라 모달 패널에서 고친다(사진·이모지가 가장 흔한 갈래다).
+   ★스타일을 다시 걸어도 프로필은 ★안 지워진다 — _styleModal 은 S.modal 의 칸만 다시 쓰고
+     프로필 칸은 그 표에 없다(BUZZ_STYLES 전수 실측 — profile* ★항목 없음).
+   ⚠새 낱개는 «마지막 모달의 dataset 그대로» 예전 규약(_newModalRow · _COPY_SKIP)을 따라
+     ★앞 카드의 얼굴을 물려받는다 — _COPY_SKIP 을 ★안 건드렸기 때문이다(= 예전 규칙 그대로).
+     ★★「같은 얼굴이 여럿 카드에 가도 되나」는 ★현빈께 안 여쭤 칸이다 — ⛔지어내서 따로 규칙을 만들지 말고 물어라. */
+export const BUZZ_PROFILE_KEYS = ['profileImg', 'profileEmoji', 'profileSide', 'profileSize', 'profileOverlay'];
+
+/** 묶음 안 모든 낱개에 프로필 칸 하나를 건다. 빈 값('' · null · undefined)은 칸을 «지운다».
+ *  @returns {number} 고친 낱개 수 */
+export function setBuzzProfile(frame, key, v) {
+  if (!frame || !BUZZ_PROFILE_KEYS.includes(key)) return 0;
+  const rows = buzzRows(frame);
+  rows.forEach((row) => {
+    const modal = _modalOf(row);
+    if (!modal) return;
+    if (v === '' || v === null || v === undefined) delete modal.dataset[key];
+    else modal.dataset[key] = String(v);
+    /* 사진과 이모지는 ★둘 중 하나다 — 그리는 쪽이 사진을 먼저 본다(_profileKind)
+       ⇒ 쓰는 자리에서 반대 칸을 비운다. 안 비우면 «이모지를 넣었는데 사진이 뜨는» 자리가 생긴다. */
+    if (key === 'profileImg' && v) delete modal.dataset.profileEmoji;
+    if (key === 'profileEmoji' && v) delete modal.dataset.profileImg;
+    window.renderModalBlock?.(modal);
+  });
+  return rows.length;
+}
+
+/** 묶음의 «지금 값» — 낱개가 갈라져 있으면 ★첫 낱개의 값(패널은 한 값만 보여 준다). */
+export function getBuzzProfile(frame, key) {
+  const row = frame ? buzzRows(frame)[0] : null;
+  const modal = row ? _modalOf(row) : null;
+  return modal ? modal.dataset[key] : undefined;
+}
+
+/** 낱개 하나의 row 폭만 다시 재는다 — ★자리·회전·겹침 순서는 ★안 건드린다.
+ *  현빈 l2b 「x 를 누르면 글이 당겨짐」 — 칸이 사라진 만큼 상자도 줄어야 «자리가 안 남는다».
+ *  창구를 window 로 낸다 — js/blocks/modal-block.js 가 버즈를 import 하지 않고 부른다(refitBuzzOnResize 와 같은 꼴).
+ *  @param {HTMLElement} modal  낱개(모달)
+ *  @returns {boolean} 다시 재었나 */
+export function refitBuzzRowWidth(modal) {
+  const row = modal?.parentElement;
+  const frame = row?.parentElement;
+  if (!row || !row.classList?.contains('row') || !isBuzzFrame(frame)) return false;
+  _fitWidths(frame, [row]);
+  return true;
+}
+if (typeof window !== 'undefined') window.refitBuzzRowWidth = refitBuzzRowWidth;
+
 /**
  * 자리 · 회전 · 겹침 순서 · 뒤쪽 단계를 무늬번호로 «전부» 다시 놓는다(손으로 옮긴 것도).
  * 프레임 높이는 읽기만 한다 — 넘치면 그 안에서 자리를 줄여 맞춘다.

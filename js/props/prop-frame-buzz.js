@@ -18,7 +18,11 @@ import { escHtml, bindSlider, sliderRowHTML } from './_helpers.js';
 import { isBuzzFrame } from '../blocks/buzz-mark.js';
 import { BUZZ_STYLES, BUZZ_STYLE_KEYS, BUZZ_COUNT, BUZZ_LIMITS, getBuzz, setBuzz, buzzRows,
          relayoutBuzzFrame, applyBuzzStyle, setBuzzFrameBg, setBuzzCount, refitBuzzFrame, buzzCrowded,
-         rescaleBuzzCards } from '../blocks/buzz-frame.js';
+         rescaleBuzzCards, setBuzzProfile, getBuzzProfile } from '../blocks/buzz-frame.js';
+/* ★프로필(1017t1l2) — 경계·착지점은 모달 한 표에서 온다(⛔패널이 제 수를 갖지 않는다).
+   그리는 자도 모달이다 — 버즈는 «값»만 알고 묶음 전체에 건다(js/blocks/buzz-frame.js setBuzzProfile). */
+import { MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT, modalProfileSize, modalProfileSide,
+         modalProfileKind } from '../blocks/modal-block.js';
 
 /* ── 조각 — 이웃 패널과 같은 마크업 ───────────────────────────── */
 /* title 은 줄(.prop-row) 자체에 단다 — 클래스 없는 감싸는 div 를 만들지 않는다. */
@@ -45,6 +49,52 @@ const _bgGroup = (frame) => {
 };
 
 const SQUEEZE_TEXT = '말풍선이 프레임 높이보다 많아 겹쳐 놓았습니다. 높이를 키우거나 개수를 줄이세요.';
+
+/* ── 프로필 묶음(1017t1l2 · 현빈 1018t1-l2a/b/c) ──────────────────────
+   현빈의 말씀은 「버즈블럭」 단위라 여기서는 ★묶음 전체에 건다 — 낱개마다 다르게 하는 길은
+   그 카드를 골랐을 때 뜨는 모달 패널의 Profile 절이다(js/props/prop-modal.js).
+   ★값의 진실은 «낱개의 dataset» 한 자리다 — 프레임에 data-buzz-profile* 을 따로 두면 모델이 두 벌이 된다.
+   ★없는 칸 — 꼴(원형/네모/둥근네모) · 이모지 크기 갈래는 ★현빈 미결(시안 ②)이라 ⛔안 지어냈다.
+   ★말풍선 높이차(시안 ④)도 미결이라 ★그대로 둔다 — «오버레이» 스위치를 ④의 답으로 읽지 마라(l2c 별건). */
+const PROFILE_HINT = '카드를 하나 골라 모달 패널에서 낱개마다 다르게 할 수도 있습니다.';
+/** 묶음의 «첫 낱개» — 지금 값을 보여 줄 한 사람(모델은 낱개마다라 갈라져 있을 수 있다). */
+const _pfHead = (frame) => buzzRows(frame)[0]?.querySelector(':scope > .modal-block') || null;
+function _profileRows(frame) {
+  const head = _pfHead(frame);
+  const kind = head ? modalProfileKind(head) : null;
+  const side = head ? modalProfileSide(head) : MODAL_PROFILE_SIDES[0];
+  const size = head ? modalProfileSize(head) : MODAL_PROFILE_SIZE_LIMIT.min;
+  /* 낱개 dataset 에 손을 직접 넣지 않는다 — 버즈의 창구를 쓴다(값을 읽는 자리가 두 벌이 안 되게). */
+  const emoji = getBuzzProfile(frame, 'profileEmoji') || '';
+  const overlay = getBuzzProfile(frame, 'profileOverlay') === '1';
+  const L = MODAL_PROFILE_SIZE_LIMIT;
+  return `<span class="prop-field-label" title="${escHtml(PROFILE_HINT)}">프로필</span>
+      <div class="prop-row">
+        <button class="prop-action-btn secondary" id="bzf-pf-img" style="flex:1">이미지 선택</button>
+        <input type="file" id="bzf-pf-file" accept="image/*" style="display:none">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">이모지</span>
+        <input type="text" class="prop-input" id="bzf-pf-emoji" maxlength="8" style="flex:1;min-width:0"
+               value="${escHtml(emoji)}" placeholder="예: 😊" aria-label="프로필 이모지">
+      </div>
+      ${kind ? `${_group('bzf-pf-side', '프로필 자리', [['left', '왼쪽'], ['right', '오른쪽']], side)}
+      <div class="prop-row" title="본문 글자와 따로 움직인다(현빈 l2c 「프로필 크기만 키울 수 있도록」)">
+        <span class="prop-label">프로필 크기</span>
+        <input type="range" class="prop-slider" id="bzf-pfsize-slider" min="${L.min}" max="${L.max}" step="${L.step}" value="${size}">
+        <input type="number" class="prop-number" id="bzf-pfsize-number" min="${L.min}" max="${L.max}" value="${size}">
+      </div>
+      <div class="prop-row" title="켜면 카드 높이를 안 늘린다 — 커지면 배경 위아래로 넘쳐 걸친다(현빈 l2c)">
+        <span class="prop-label">오버레이</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="bzf-pf-overlay"${overlay ? ' checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div class="prop-row">
+        <button class="prop-action-btn danger" id="bzf-pf-clear" style="flex:1">프로필 제거</button>
+      </div>` : ''}`;
+}
 
 /** Buzz 절 마크업. 버즈 프레임이 아니면 ''. */
 export function buzzSectionHTML(frame) {
@@ -95,6 +145,7 @@ export function buzzSectionHTML(frame) {
       ${_slider('범위', 'bzf-range', 'range', getBuzz(frame, 'range'), '각도에 더하는 무작위 흔들림(±)')}
       ${_group('bzf-dir', '방향', [['alt', '번갈아'], ['one', '한 방향'], ['rand', '무작위']], getBuzz(frame, 'dir'))}
       ${_group('bzf-depth', '깊이', [['none', '없음'], ['weak', '약하게'], ['strong', '강하게']], getBuzz(frame, 'depth'))}
+      ${_profileRows(frame)}
       <div class="prop-hint" id="bzf-squeeze"${squeezed ? '' : ' hidden'}>${SQUEEZE_TEXT}</div>
     </div>`;
 }
@@ -229,5 +280,56 @@ export function wireBuzzSection(frame) {
     setBuzz(f, 'overlap', e.target.checked ? 1 : 0);
     again(f);
     save('버즈 겹침');
+  });
+
+  /* ── 프로필 묶음 ── 값을 모든 낱개에 쓰고 → 다시 놓고 → 히스토리 한 칸(이 절의 다른 단추·토글과 같은 규약).
+     ★프로필이 들고 나면 카드 폭이 변한다 ⇒ again(f) 가 _fitWidths 를 다시 돌린다(이 절의 모든 값 변경과 같은 길). */
+  const pfSet = (key, v, label, redrawPanel) => {
+    const f = F();
+    if (!f) return;
+    setBuzzProfile(f, key, v);
+    again(f);
+    save(label);
+    if (redrawPanel) redraw(f);
+  };
+  $('bzf-pf-img')?.addEventListener('click', () => $('bzf-pf-file')?.click());
+  $('bzf-pf-file')?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => pfSet('profileImg', ev.target.result, '버즈 프로필 이미지', true);
+    reader.readAsDataURL(file);
+  });
+  const pfEmoji = $('bzf-pf-emoji');
+  pfEmoji?.addEventListener('change', () => {
+    const f = F();
+    if (!f) return;
+    const head = _pfHead(f);
+    const had = !!(head && modalProfileKind(head));
+    const next = String(pfEmoji.value || '').trim();
+    setBuzzProfile(f, 'profileEmoji', next);
+    again(f);
+    save('버즈 프로필 이모지');
+    /* «있다 ↔ 없다»가 바뎀 때만 절을 다시 그린다 — 글자만 고쳐 놓고 다시 그리면 칸이 포커스를 잃는다. */
+    const head2 = _pfHead(f);
+    if (had !== !!(head2 && modalProfileKind(head2))) redraw(f);
+  });
+  pfEmoji?.addEventListener('keydown', (e) => { if (e.key === 'Enter') pfEmoji.blur(); });
+  group('bzf-pf-side', (f, v) => { setBuzzProfile(f, 'profileSide', v); again(f); save('버즈 프로필 자리'); });
+  bindSlider($('bzf-pfsize-slider'), $('bzf-pfsize-number'), (v) => {
+    const f = F();
+    if (!f) return;
+    setBuzzProfile(f, 'profileSize', v);
+    again(f);
+  }, MODAL_PROFILE_SIZE_LIMIT);
+  $('bzf-pf-overlay')?.addEventListener('change', (e) => pfSet('profileOverlay', e.target.checked ? '1' : '', '버즈 프로필 오버레이', false));
+  $('bzf-pf-clear')?.addEventListener('click', () => {
+    const f = F();
+    if (!f) return;
+    setBuzzProfile(f, 'profileImg', '');
+    setBuzzProfile(f, 'profileEmoji', '');
+    again(f);
+    save('버즈 프로필 제거');
+    redraw(f);
   });
 }

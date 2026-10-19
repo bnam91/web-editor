@@ -21,7 +21,7 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const vm = require('node:vm');
-const { readSrc } = require('./_srcread.js');
+const { readSrc, normalizeEol } = require('./_srcread.js');
 
 const ROOT = path.join(__dirname, '../..');
 const MODAL_REL = 'js/blocks/modal-block.js';
@@ -53,6 +53,13 @@ function modalSrc() {
  *     그 길이 «검사에서만» 폴백으로 새어, 두 색이 갈라져도 초록이 뜬다 — 그게 제일 나쁜 통과다.
  *   ⚠️인자를 «그대로» ctx.window 로 쓴다(복사 X) — 호출자가 같은 객체를 계속 들여다볼 수 있게.
  *   ⚠️인자 없이 부르면 종전과 «완전히» 같다(기존 세 검사 무영향). */
+/* @param {string} [opts.src]  modal-block.js 소스를 «디스크 대신» 이 글자로 올린다.
+ *   ★왜 열었나 (2026-10-19, 1017t1l2 프로필)
+ *     「옆 저장본이 한 글자도 안 달라졌다」를 ★재려면 «고치기 전 판»과 ★같은 하네스로
+ *     나란히 돌려야 한다. 하네스를 한 벌 더 만들면 이 파일 머리말의 «사본 11벌» 병을 다시 얻는다
+ *     ⇒ ★인자 하나를 여는 쪽을 골랐다(opts.win 을 열었던 그 까닭과 같다).
+ *   ⚠️주는 글자도 ★LF 로 정규화한다 — 안 그랬다가 윈도우에서 바이트 비교가 ★개행으로 갈라진다.
+ *   ⛔안 주면 종전과 «완전히» 같다. */
 function loadModalModule(opts) {
   /* ★ESM 문법 세 가지를 벗긴다 — ⑴ import 줄 ⑵ 끝의 export 문 ⑶ ★`export const/function` 의 접두사.
      ⑶ 은 2026-10-08 에 더했다: `export const MODAL_SLOT_KEYS` 가 생기면서 ⑵ 로는 안 벗겨져
@@ -66,7 +73,7 @@ function loadModalModule(opts) {
      ★지우지만, ★여기서 ★쓰는 frameBgSize/frameBgPos/FRAME_BG_SIZE_DEFAULT 는 ★그 이름들을 ★안 쓴다
      (dataset 만 읽는다) ⇒ ★undefined 로 남아도 ★이 하네스가 ★부르는 길에서 ★안 걸린다. */
   const bgDep = strip(readSrc(ROOT, FRAME_BG_REL));
-  const body = strip(modalSrc());
+  const body = strip((opts && typeof opts.src === 'string') ? normalizeEol(opts.src) : modalSrc());
   for (const [what, src] of [['공용 sanitizer', dep], ['frame-bg.js', bgDep], ['modal-block.js', body]]) {
     assert.ok(!/^\s*import\s/m.test(src), `${what}: import 줄을 다 못 벗겼다 — 하네스를 고쳐라`);
     assert.ok(!/^\s*export\s/m.test(src), `${what}: export 문을 다 못 벗겼다 — 하네스를 고쳐라`);

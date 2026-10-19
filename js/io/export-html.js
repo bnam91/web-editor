@@ -122,7 +122,7 @@ async function exportHTMLFile() {
   clone.querySelectorAll('.section-hitzone, .shape-handle, .asset-overlay-handle, .icb-overlay-handle, .zm-overlay-handle, .mdl-overlay-handle, .grd-img-overlay-handle, .tfo-overlay-handle, .grid-cell-resize-handle').forEach(el => el.remove());
   // BL-CD-10: label-group은 render-재생성형이 아니라 직렬 DOM 보존형 — 에디터 전용 ✕삭제/＋추가
   // 버튼 노드가 저장 HTML에 남아 export에서 그대로 노출됐음. 노드 자체를 제거한다.
-  clone.querySelectorAll('.label-item-delete-btn, .label-group-add-btn, .grd-add-btn').forEach(el => el.remove());
+  clone.querySelectorAll('.label-item-delete-btn, .label-group-add-btn, .grd-add-btn, .mdl-profile-x').forEach(el => el.remove());   /* .mdl-profile-x = 버즈 카드 프로필의 × — ★에디터 크롬(1017t1l2). 그 생김새를 주는 CSS 가 내보낸 쪽에 같이 안 실릴 수 있어 «요소 자체»를 걷는다 (저장 쪽 쌍은 js/io/save-load.js NON_CONTENT_UI_SELECTOR). */
   /* ★편집 전용 임시 DOM — 이 클론은 «라이브 캔버스»에서 뜨고(=serializeCleanRoot 를 안 거친다),
      내보낸 HTML 은 이 파일이 직접 쓰는 <style> 만 갖는다. 앱 CSS(.sec-bg-proxy .asset-img{opacity:0},
      .asset-img-clip{overflow:hidden})가 «없으므로» 편집 중 내보내면 배경 이미지가 불투명하게

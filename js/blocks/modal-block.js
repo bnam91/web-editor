@@ -237,6 +237,94 @@ function _decoHtml(block, bg) {
   return out;
 }
 
+/* ── 프로필(1017t1l2 · 현빈 1018t1-l2a/b/c) ────────────────────
+   장식(꼬리 · 테이프 · 유리)과 ★같은 결이다 — 모달의 «옵션»이고 dataset 이 진실, render 가 그린다.
+   발주는 「버즈블럭에 프로필 이미지도 혹은 이모지도」였지만 버즈 낱개는 ★진짜 모달이라
+   (js/blocks/buzz-frame.js 머리말) 그릴 자리는 여기 ★한 곳뿐이다 — 버즈 쪽에 사본을 두지 않는다.
+
+   dataset:
+     data-profile-img     사진(data URL 등) — 있으면 이모지보다 ★이긴다
+     data-profile-emoji   이모지(사진이 없을 때)
+     data-profile-side    left | right  (기본 left · 현빈 l2a 「지금은 좌측에 있는데 우측에도」)
+     data-profile-size    px — ★본문 글자와 ★독립(현빈 l2c 「프로필 크기만 키울 수 있도록」).
+                          ★안 적으면 본문 글자 × MODAL_PROFILE_SIZE_RATIO 로 글자를 따라간다(= 시안의 그 식).
+     data-profile-overlay 1 = 카드 높이를 ★안 늘린다 ⇒ 커지면 배경 위아래로 넘쳐 걸친다
+                          (현빈 l2c 「배경을 벗어나서 오버레이도 가능하게」)
+
+   ★선례 — 「말풍선 옆 프로필」은 이 레포에 이미 있다: js/blocks/chat-block.js:74~117 · :143
+     (showProfile · profileSize = max(48, fontSize×1.6) · 좌/우를 «차례 바꾸기»로 낸다).
+     크기 식(×1.6 · 하한 48)과 경계(24~400, js/blocks/chat-bounds.js:28)를 ★그 자리에서 가져왔다.
+     ⛔카드블럭·줌블럭의 imgSrc 꼴은 ★안 베겨다 — 그쪽은 「블럭이 곳 그림」이고 여기는 「글 옆의 얼굴」이다.
+
+   ★★현빈 ★미결 둘(2026-10-18 시안이 물었으나 ★답이 안 온 칸) — ⛔다음 사람이 ★지어내지 마라:
+     ② ★꼴 — 사진이 원형·네모·둥근네모 중 무엇인가 · 이모지가 「사진과 같은 크기 상자」인가
+        「글자 크기」인가. ⇒ 지금은 ★시안의 기본(원형 · 사진과 ★같은 상자)으로 둔다.
+        그 두 값은 바로 아래 MODAL_PROFILE_RADIUS · MODAL_PROFILE_EMOJI_RATIO ★한 자리씩이다.
+     ④ ★섞인 줄 — 프로필 있는 카드와 없는 카드의 ★높이 차(시안 실측 100%에서 6px)를 ★그대로
+        둘까 맞출까. ⇒ ★그대로 둔다(기본 갈래에서 프로필이 줄 높이를 ★밀다 — 시안과 같다).
+        ⛔`data-profile-overlay` 를 ★「④의 답」으로 읽지 마라 — 그건 l2c 의 ★별건이고 ★기본이 아니다. */
+const MODAL_PROFILE_SIDES = ['left', 'right'];
+/* ② 미결 — 시안의 기본값(원형). 사진 꼴을 네모로 바꾸려면 여기 한 줄이다. */
+const MODAL_PROFILE_RADIUS = '50%';
+/* ② 미결 — 이모지는 「사진과 같은 상자」이고 글리프만 그 상자의 이 비율로 그린다. */
+const MODAL_PROFILE_EMOJI_RATIO = 0.72;
+const MODAL_PROFILE_SIZE_RATIO = 1.6;
+const MODAL_PROFILE_SIZE_MIN = 48;
+const MODAL_PROFILE_SIZE_LIMIT = { min: 24, max: 400, step: 2 };
+/* 사진 주소는 속성에 «그대로» 들어간다. 따옴표·꺾쇠는 _esc 가 막고, 줄바꿈과 길이는 여기서 막는다
+   (선례 js/blocks/chat-block.js _isImgSrcOk — 같은 짝의 상한 200000). */
+const MODAL_PROFILE_SRC_MAX = 200000;
+/* 프로필·아이콘이 글자와 나란히 설 때의 사이. ★한 자리다 — 가로 래퍼 둘이 같이 읽는다. */
+const MODAL_ROW_GAP = 11;
+
+function _profileSide(ds) {
+  return MODAL_PROFILE_SIDES.includes(ds.profileSide) ? ds.profileSide : MODAL_PROFILE_SIDES[0];
+}
+/** 프로필 상자 한 변(px). dataset 에 적혀 있으면 ★그 값(글자와 무관) · 없으면 글자에서 파생. */
+function _profileSize(ds, fontSize) {
+  const raw = parseFloat(ds.profileSize);
+  if (Number.isFinite(raw)) {
+    return Math.round(Math.max(MODAL_PROFILE_SIZE_LIMIT.min, Math.min(MODAL_PROFILE_SIZE_LIMIT.max, raw)));
+  }
+  return Math.max(MODAL_PROFILE_SIZE_MIN, Math.round(fontSize * MODAL_PROFILE_SIZE_RATIO));
+}
+function _profileSrcOk(v) {
+  return typeof v === 'string' && v.length > 0 && v.length <= MODAL_PROFILE_SRC_MAX && !/[\n\r]/.test(v);
+}
+/** 사진·이모지 중 ★무엇을 그리나. 둘 다 없으면 null(= 칸 자체가 안 난다 ⇒ 글이 당겨진다). */
+function _profileKind(ds) {
+  if (_profileSrcOk(ds.profileImg)) return 'img';
+  if (String(ds.profileEmoji ?? '').trim() !== '') return 'emoji';
+  return null;
+}
+
+/**
+ * 프로필 칸의 마크업. 사진도 이모지도 없으면 ''(기존 모달의 innerHTML 이 한 글자도 안 달라진다).
+ * ★바깥 상자는 «폭»만 자리를 먹고, 얼굴은 그 안에 ★절대배치로 세로 가운데에 건다.
+ *   ⇒ 오버레이(바깥 높이 0)와 기본(높이 = 한 변)이 ★같은 마크업에서 ★숫자 하나로 갈린다.
+ *   ⇒ 모달은 overflow 규칙이 한 줄도 없다(실측 2026-10-19) — 넘친 얼굴은 배경 밖에 그대로 그려진다.
+ *     ⚠프레임 바깥까지 나가면 거기서 잘린다(현빈 2026-10-10 결정 · css/editor-blocks.css 프레임 머리말) — ⛔그 줄은 안 건드렸다.
+ * ★× 단추는 ★에디터 크롬이다 — 생김새·호버 규칙은 css/editor-blocks.css 에 있고 여기선 자리만 낸다
+ *   (⛔인라인으로 못 그린다: 호버는 인라인 style 로 표현할 수 없다. 장식과 달리 ★내보내는 그림이 아니다).
+ */
+function _profileHtml(block, fontSize) {
+  const ds = block.dataset;
+  const kind = _profileKind(ds);
+  if (!kind) return '';
+  const size = _profileSize(ds, fontSize);
+  const box = `width:${size}px;height:${size}px;`;
+  const face = kind === 'img'
+    ? `<img class="mdl-profile-img" src="${_esc(ds.profileImg)}" alt="" draggable="false" style="display:block;${box}object-fit:cover;border-radius:${MODAL_PROFILE_RADIUS};">`
+    : `<span class="mdl-profile-emoji" style="display:flex;align-items:center;justify-content:center;${box}font-size:${Math.round(size * MODAL_PROFILE_EMOJI_RATIO)}px;line-height:1;">${_esc(String(ds.profileEmoji).trim())}</span>`;
+  const outerH = ds.profileOverlay === '1' ? 0 : size;
+  return `<span class="mdl-profile" data-side="${_profileSide(ds)}"`
+       + ` style="position:relative;flex:0 0 auto;width:${size}px;height:${outerH}px;">`
+       + `<span class="mdl-profile-face" style="position:absolute;left:0;top:50%;transform:translateY(-50%);${box}">`
+       + face
+       + `<button type="button" class="mdl-profile-x" title="프로필 제거" aria-label="프로필 제거">✕</button>`
+       + `</span></span>`;
+}
+
 const MODAL_VALIGNS = ['top', 'center', 'bottom'];
 const _MDL_JUSTIFY_V = { top: 'flex-start', center: 'center', bottom: 'flex-end' };
 const _MDL_JUSTIFY_H = { left: 'flex-start', center: 'center', right: 'flex-end' };
@@ -684,11 +772,28 @@ function renderModalBlock(block) {
        ⛔icon-stack 은 감싸지 않는다 — 세로쌓기라 이미 align-items:center 다. 감싸면
          기존 icon-stack 전부의 생김새가 달라진다(별도 승인 사안, :150-152). */
     html = (v === 'icon')
-      ? `<div class="mdl-iconrow" style="display:flex;flex-direction:row;align-items:flex-start;justify-content:${_MDL_JUSTIFY_H[align] || _MDL_JUSTIFY_H.left};gap:11px;">${_inner}</div>`
+      ? `<div class="mdl-iconrow" style="display:flex;flex-direction:row;align-items:flex-start;justify-content:${_MDL_JUSTIFY_H[align] || _MDL_JUSTIFY_H.left};gap:${MODAL_ROW_GAP}px;">${_inner}</div>`
       : _inner;
   } else {
     // plain · dashed
-    html = _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text, _highlightCss(block.dataset), block.dataset.textHtml);
+    /* ★프로필(1017t1l2) — 사진도 이모지도 없으면 ★래퍼 자체가 안 난다 ⇒ ★예전 모달의 innerHTML 이 한 글자도 안 달라진다.
+       ★그리고 그것이 곧 현빈 l2b 「x 를 누르면 글이 당겨짐(자리 사라짐)」의 그림이다 — 칸이 사라지니 빈 자리가 안 남는다.
+       ⚠다른 변형(titled · icon · icon-stack · grid-2)은 ★범위 밖이다 — 버즈 낱개는 ★항상 plain 이다
+         (js/blocks/buzz-frame.js _newModalRow — makeModalBlock({ variant: 'plain' })). ⛔안 재셔도 범위를 넓히지 마라. */
+    const _pf = _profileHtml(block, fontSize);
+    /* 프로필이 있을 때만 글 칸을 «flex 아이템»으로 만든다 — 안 그러면 줄에서 내용 폭으로 줄어
+       text-align 이 보이는 것과 달라진다. 프로필이 없으면 extraCss 가 ★예전 그대로다. */
+    /* ⚠그래서 아래 래퍼의 justify-content 는 ★지금은 일을 안 한다(글 칸이 남은 자리를 다 먹는다).
+       ⛔그렇다고 지우지 마라 — 옆 래퍼(아이콘 행)와 ★같은 꼴이고, 글 칸의 flex 가 언제든
+       빠지면 그때 «정렬»을 받을 자리가 거기다. 지금 보이는 정렬은 뿌리의 text-align 이 맡는다. */
+    const _ptxt = _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text,
+      _highlightCss(block.dataset) + (_pf ? 'flex:1 1 auto;min-width:0;' : ''), block.dataset.textHtml);
+    html = _pf
+      ? `<div class="mdl-profilerow" style="display:flex;flex-direction:row;align-items:center;`
+        + `justify-content:${_MDL_JUSTIFY_H[align] || _MDL_JUSTIFY_H.left};gap:${MODAL_ROW_GAP}px;">`
+        + (_profileSide(block.dataset) === 'right' ? `${_ptxt}${_pf}` : `${_pf}${_ptxt}`)
+        + `</div>`
+      : _ptxt;
   }
   block.innerHTML = html;
   /* 장식(꼬리 · 테이프)은 슬롯 «뒤»에 붙인다 — 첫 [class^="tb-"] 를 글 슬롯으로 찾는 자리들이 그대로다. */
@@ -704,6 +809,32 @@ function renderModalBlock(block) {
       if (block.classList?.contains('editing')) return;   // 글자 편집 중이면 비켜준다
       if (e.metaKey || e.ctrlKey || e.shiftKey) return;    // 다중선택 제스처는 블록에 양보
       openModalIconPicker(block);
+    });
+  }
+
+  /* ③ 프로필 × — 현빈 1018t1-l2b 「x 단추는 호버시 나타나게 / 누르면 글이 당겨짐(자리 사라짐)」.
+     ★아이콘 슬롯과 ★같은 자리·같은 까닭으로 여기서 다시 건다(재렌더가 innerHTML 을 통째 갈아끼운다).
+     ★「글이 당겨짐」 = 칸을 ★지우는 것이다 — «빈 자리로 남기기»가 아니다(래퍼 자체가 안 난다).
+     ★낱개가 버즈 묶음 안에 있으면 그 row 의 «폭»도 같이 줄여야 ★자리가 안 남는다
+       ⇒ window.refitBuzzRowWidth(js/blocks/buzz-frame.js) — ★자리·회전·겹침 순서는 안 건드린다.
+       ⛔버즈를 import 하지 않는다 — 모달은 버즈를 모른다(창구는 window · 그 파일의 관례 그대로).
+     ★히스토리는 push-after — 우측 패널 다수·버즈 패널의 그 관례다(js/CLAUDE.md · js/props/prop-frame-buzz.js:13).
+     ⚠mousedown 까지 세운 까닭 = 버즈 낱개는 «끌 수 있는 .row» 안에 산다 — 단추에서 누른 채 미끄러지면
+       끌기가 시작되고 click 이 안 온다(에셋의 지우기 단추는 .row 안이 아니라 그 칸이 없었다). */
+  const _pxBtn = block.querySelector?.('.mdl-profile-x');
+  if (_pxBtn?.addEventListener) {
+    _pxBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); });
+    _pxBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (block.classList?.contains('editing')) return;   // 글자 편집 중이면 비켜준다(아이콘 슬롯과 같은 규약)
+      delete block.dataset.profileImg;
+      delete block.dataset.profileEmoji;
+      renderModalBlock(block);
+      window.refitBuzzRowWidth?.(block);
+      window.pushHistory?.();
+      window.scheduleAutoSave?.();
+      if (block.classList?.contains('selected')) window.showModalProperties?.(block);
     });
   }
 }
@@ -876,6 +1007,22 @@ window.iconBlockNewColor      = iconBlockNewColor;
    ⚠️같은 값이면 «안 쓴다» — 이 함수는 MutationObserver 안에서 불린다. 같은 값이라도
      쓰면 속성 변경 기록이 또 나서 감시자가 자기 자신을 깨우는 무한 고리가 된다.
    ★크기는 «슬롯의 인라인 width»를 먼저 본다 — 세션 중에는 그게 진실이다(dataset 은 그 뒤를 따른다). */
+/* ── 프로필 «지금 값» 창구 — 패널·버즈가 읽는다. ⛔패널이 제 식·제 표를 갖지 않게
+   (그리는 자와 보여 주는 자가 갈라지면 «화면이 거짓말하는» 자리가 된다 — 이 파일 그림자·장식 주석의 그 까닭). */
+/** 그 모달의 «지금 프로필 한 변»(px) — dataset 에 없으면 글자에서 파생된 값. */
+function modalProfileSize(block) {
+  return _profileSize(block?.dataset || {}, _num(block, 'fontSize', MODAL_DEFAULTS.fontSize));
+}
+/** 그 모달의 «지금 자리»(left|right) — 표 밖의 값은 left 로 착지한다(그리는 쪽과 같은 착지점). */
+function modalProfileSide(block) { return _profileSide(block?.dataset || {}); }
+/** 'img' | 'emoji' | null — 패널이 「지금 프로필이 있나」를 이 한 자로 묻는다. */
+function modalProfileKind(block) { return _profileKind(block?.dataset || {}); }
+if (typeof window !== 'undefined') {
+  window.modalProfileSize = modalProfileSize;
+  window.modalProfileSide = modalProfileSide;
+  window.modalProfileKind = modalProfileKind;
+}
+
 function syncModalIconFirstLineOffset(block) {
   if (!block || block.dataset?.variant !== 'icon') return false;
   const row  = block.querySelector?.('.mdl-iconrow');
@@ -901,4 +1048,5 @@ export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, apply
          MODAL_DROP_SHADOWS, MODAL_SHADOW_CSS, _dropShadow, _shadowStyles,
          MODAL_DECO_TAILS, MODAL_DECO_TAPES, MODAL_TAPE_SHAPE, MODAL_TAPE_POS, _glassStyles, _decoHtml, _tapeHtml,
          _bgImageStyles,
+         MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT, modalProfileSize, modalProfileSide, modalProfileKind,
          syncModalIconFirstLineOffset };

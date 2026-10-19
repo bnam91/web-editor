@@ -643,7 +643,7 @@ function getSerializedCanvas() {
    ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
    ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
 export const NON_CONTENT_UI_SELECTOR =
-  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox';
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .mdl-profile-x, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox';
 /* ★.annot-handle · .annot-selbox (1013t1A3) — 어노테이션 선택 중에만 사는 손잡이. serializeCleanRoot 의 remove 줄에 같이 올렸다(계약 짝). */
 /* ★.mdl-rotate-zone (2026-10-08 지디) — ★모달 블럭의 회전 손잡이. ⛔빠져 있었다.
    ★증상: modal-frameify U1·U3 가 ★origin/dev 에서 빨강이었다 — 「프레임화 → ⌘Z 한 번 = 앞 직렬화와
@@ -654,6 +654,11 @@ export const NON_CONTENT_UI_SELECTOR =
    ★위 ⛔계약대로 section-serialize.js serializeCleanRoot 의 remove 줄에도 ★같이 올렸다 —
      그쪽에도 0건이었다. ⇒ 두 자리를 한 커밋에.
    ★그 쌍은 S3(「NON_CONTENT_UI_SELECTOR 의 모든 항목이 저장에서 0건」)가 ★자동으로 잠근다. */
+/* ★.mdl-profile-x (1017t1l2 · 2026-10-19) — 버즈 카드 프로필의 × 단추. ★에디터 크롬이다
+   (호버할 때만 보이고, 그리는 자는 renderModalBlock 이다 — 로드가 모달을 다시 그리므로 저장본에 남길 까닭이 없다).
+   ★위 ⛔계약대로 «serializeProject 가 실제로 지우는지»를 먼저 확인하고 넣었다 —
+     js/io/section-serialize.js serializeCleanRoot 의 remove 줄에 같이 올렸다(mdl-rotate-zone 과 같은 쌍).
+   ★내보내기는 또 다른 자리다 — js/io/export-html.js 에도 같이 올렸다(그쪽은 이 상수를 안 읽는다). */
 /* ★.section-height-badge (2026-10-07 (다)) — 위 ⛔계약대로 «serializeProject 가 실제로 지우는지»를
    먼저 확인하고 넣었다: js/io/section-serialize.js serializeCleanRoot 의 remove 줄에 같이 올렸다.
    (그 쌍을 tests/dom/section-height-display.dom.spec.js S1 이 잠근다 — 저장본·히스토리에 배지 0건.) */
