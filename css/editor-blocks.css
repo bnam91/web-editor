@@ -1531,6 +1531,14 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
      `document.activeElement` = ★`BODY` · ★`contenteditable=true` ★0개) ⇒ ★`.editing` 이 ★안 붙어 ★이 줄이 ★무의미하다. */
 .grid-block.selected.editing,
 .modal-block.selected.editing,
+/* ★1020t1a-⑤ 비교 블럭 — ★이 명부에 ★빠져 있었다. ★없으면 ★편집 중에 ★파란 테두리가 ★새로 생긴다.
+   ★실측(2026-10-20 · 진짜 앱 · 자유배치 비교 블럭 평문 칸 편집 중):
+     `.editing` ★없을 때 계산 아웃라인 = `solid 2px rgba(0,0,0,0)` ← 위 `:not(.editing)` 중화 절(:383)이 투명으로
+     `.editing` ★붙이면        = `solid 2px rgb(45,111,232)` ← ★중화가 풀려 ★되살아난다
+   ⇒ ★`.editing` 을 ★붙이는 커밋과 ★★같은 커밋에 ★이 한 줄이 있어야 한다(JS 만 넣으면 그 커밋이 ★시각 회귀다).
+   ★위 주석의 가름(「coupon·infocard·innercard 는 ★편집 길이 없어서 안 넣었다 — 실측」)을 ★그 자로 다시 재면
+     ★비교는 ★★«넣어야 하는 쪽»이다: 더블클릭 뒤 `contenteditable="true"` ★1개 · `.editing` ★붙는다(이제). */
+.comparison-block.selected.editing,
 .quote-block.selected.editing { outline-color: transparent; }
 /* ★★«편집 중»임을 ★무엇으로 ★보이나 — ★블럭마다 ★★다르다. ★★재서 ★갈랐다(⛔한 꼴로 ★밀지 ★않았다):
    ★`quote` ⇒ ★위 줄 뒤 ★선이 ★1겹이고 ★★고른 상태도 ★1겹 ⇒ ★★구별이 ★안 된다 ⇒ ★★블럭에 ★틴트.

@@ -485,6 +485,10 @@ function renderComparison(block, _lnNeed = null) {
     block._cmpScale = scale;
   };
   applyScale();
+  /* ★1020t1a-⑤ 자가치유 — ★통째 재렌더는 편집 중이던 요소를 ★떼어간다(그때 Chromium 은 blur 를 안 준다).
+     ★다시 그린 칸엔 `contenteditable="true"` 가 ★0개이므로 여기서 걷는 것이 ★맞다(⛔render 시작 자리면
+     아직 살아 있는 칸을 보고 ★안 걷어 고착된다). ★끄기 술어는 ★위 한 벌을 쓴다. */
+  _cmpEditingOff(block);
   if (block._cmpRO) block._cmpRO.disconnect();
   block._cmpRO = new ResizeObserver(applyScale);
   block._cmpRO.observe(block);
@@ -527,11 +531,41 @@ function _cmpLinesNeed(inner, featuredIdx, featScale, cols) {
   return grow ? need : null;
 }
 
+/* ══ ★1020t1a-⑤ ★«편집 중» 표식 `.editing` — ★켜기·끄기·자가치유를 ★이 ★한 자리에 둔다 ════════
+ * ★왜 필요한가(★실측 2026-10-20 · 헤드리스 크롬 · 진짜 index.html):
+ *   ★자유배치 프레임 안 비교 블럭의 ★평문 칸을 ★편집하는 ★중에 ★끌면 ★★블럭이 ★움직였다
+ *     (★단위 좌표 `0px,0px → 150px,100px` = 화면 60px/40px ÷ 배율 0.4 — ★진짜 이동).
+ *   ★★같은 블럭 ★안에서 갈렸다: ★줄모드 칸(`lnBeginEdit` 이 `.editing` 을 붙인다)은 ★안 움직였고
+ *     ★평문 칸(이 파일)만 ★움직였다 ⇒ ★차이는 ★`.editing` ★하나.
+ *   ★막는 자 = `js/block-drag.js:680`(공통 mousedown 절대배치 이동 드래그) — ★거기서 `.editing` 은 ★단독 가드다.
+ * ★★무엇이 ★안 고쳐지나(⛔넓게 읽지 마라 — ★전수로 쟀다):
+ *   ⑴ ★HTML5 `dragstart` 는 ★이미 막혀 있었다 — `block-drag.js:515` 의 `activeElement.contentEditable` 가 ★먼저.
+ *   ⑵ ★Delete/Backspace 도 ★이미 안전했다 — `editor.js:3227` 의 `e.target.isContentEditable` 가 막는다
+ *      (⛔`block-drag.js:404` 주석의 「삭제키 가드가 이걸 본다」는 ★지금 사실이 아니다 ·
+ *        그 선택자는 `.text-block.editing`·`.label-group-block.editing` ★둘뿐이다).
+ *   ⑶ ★「편집 중 단축키 차단」(editor.js 2473~3228 · 32자리)은 ★★타입이 손으로 박힌 명부라
+ *      ★이 클래스를 붙여도 ★★안 켜진다. ★그건 ★별 카드다(그리드·모달·laurel 도 ★같이 빠져 있다).
+ * ★★끄기가 ★«살아 있는 contenteditable 이 0일 때만»인 까닭 ★둘:
+ *   ⒜ ★재렌더가 편집 요소를 떼어가면 Chromium 은 ★blur 를 ★안 준다 ⇒ `.editing` 이 ★고착되고
+ *      ★그러면 ★★«편집이 끝났는데 드래그가 영영 안 되는» ★더 나쁜 결함이 된다.
+ *   ⒝ ★이 블럭은 ★편집 길이 ★둘이다(이 파일의 칸·헤더 ＋ line-host 의 줄) — ★한쪽 끄기가 ★다른쪽을 ★끄면 안 된다.
+ *   ★선례 ★둘과 ★같은 세 줄이다: `js/blocks/canvas-block.js:349 _cvbHealEditing` · `js/block-drag.js:2391`.
+ *     ⚠️★그래서 ★이 꼴이 ★이제 ★세 자리다 — ★합치는 일은 ★별 단계(설계 ⒜)로 ★남겼다. ⛔여기서 ★또 베끼지 마라. */
+function _cmpEditingOn(block) {
+  if (block) block.classList.add('editing');
+}
+function _cmpEditingOff(block) {
+  if (!block || !block.classList.contains('editing')) return;
+  if (block.querySelector('[contenteditable="true"]')) return;   // 다른 칸이 아직 편집 중 — 안 끈다
+  block.classList.remove('editing');
+}
+
 function _editableTitle(el, block, colIdx) {
   el.setAttribute('contenteditable', 'false');
   el.addEventListener('dblclick', e => {
     e.stopPropagation();
     el.setAttribute('contenteditable', 'true');
+    _cmpEditingOn(block);   // ★1020t1a-⑤ — 편집 중엔 이동 드래그를 막는다(머리말)
     el.focus();
     /* placeholder(기본문구)면 전체선택 → 첫 타이핑이 즉시 교체.
        ★1020t1a — ~~「실데이터면 caret 유지」~~ ★그 말이 ★틀렸다(실측): 더블클릭 «전»의 이 요소는
@@ -543,6 +577,12 @@ function _editableTitle(el, block, colIdx) {
   });
   el.addEventListener('blur', () => {
     el.setAttribute('contenteditable', 'false');
+    /* ★★1020t1a-⑤ ★이 줄은 ★«여기» 여야 한다 — ★`window.pushHistory()` ★«앞»이다. ⛔뒤로 옮기지 마라.
+       ★까닭(실측): `js/history.js:170` `_captureSelection` 이 ★`canvas.querySelector('.editing')` 이
+         ★참이면 ★«선택 복원»을 ★null 로 돌린다 ⇒ ★`.editing` 을 ★쥔 채 pushHistory 하면
+         ★그 항목에 ★선택이 ★안 실려 ★★⌘Z 뒤 ★선택이 ★안 돌아온다(★조용한 회귀).
+       ★위 `contenteditable='false'` 바로 ★옆에 둔 것도 ★그 짝을 ★한눈에 보이게 하려는 것이다. */
+    _cmpEditingOff(block);
     /* ★D5 — 다 지우고 나가면 contenteditable 이 <br> 을 남겨 :empty 가 깨진다(실측) → 안내 ::before 가 안 돌아온다. 진짜로 비운다.
        ★1017t1c2 — mdlReadText 로 재므로 ★textContent 가 아니라 ★같은 자로 비었는지 본다(두 자가 갈리면 뜻이 안 맞는다). */
     if (mdlReadText(el) === '' && el.firstChild) el.textContent = '';
@@ -574,6 +614,7 @@ function _editableRow(el, block, colIdx, rowIdx) {
   el.addEventListener('dblclick', e => {
     e.stopPropagation();
     el.setAttribute('contenteditable', 'true');
+    _cmpEditingOn(block);   // ★1020t1a-⑤ — 편집 중엔 이동 드래그를 막는다(머리말)
     el.focus();
     /* placeholder(기본문구)면 전체선택. ★1020t1a — 실데이터면 «누른 그 글자»에 캐럿(_editableTitle 과 같은 까닭·같은 한 벌).
        ★여러 줄 칸(Enter 줄바꿈 · white-space:pre-wrap)도 ★같은 식 하나로 선다 — 실측 Δ글자 −14 → 0. */
@@ -582,6 +623,12 @@ function _editableRow(el, block, colIdx, rowIdx) {
   });
   el.addEventListener('blur', () => {
     el.setAttribute('contenteditable', 'false');
+    /* ★★1020t1a-⑤ ★이 줄은 ★«여기» 여야 한다 — ★`window.pushHistory()` ★«앞»이다. ⛔뒤로 옮기지 마라.
+       ★까닭(실측): `js/history.js:170` `_captureSelection` 이 ★`canvas.querySelector('.editing')` 이
+         ★참이면 ★«선택 복원»을 ★null 로 돌린다 ⇒ ★`.editing` 을 ★쥔 채 pushHistory 하면
+         ★그 항목에 ★선택이 ★안 실려 ★★⌘Z 뒤 ★선택이 ★안 돌아온다(★조용한 회귀).
+       ★위 `contenteditable='false'` 바로 ★옆에 둔 것도 ★그 짝을 ★한눈에 보이게 하려는 것이다. */
+    _cmpEditingOff(block);
     /* ★D5 — 다 지우고 나가면 contenteditable 이 <br> 을 남겨 :empty 가 깨진다(실측) → 안내 ::before 가 안 돌아온다. 진짜로 비운다.
        ★1017t1c2 — mdlReadText 로 재므로 ★textContent 가 아니라 ★같은 자로 비었는지 본다(두 자가 갈리면 뜻이 안 맞는다). */
     if (mdlReadText(el) === '' && el.firstChild) el.textContent = '';
