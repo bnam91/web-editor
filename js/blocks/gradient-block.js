@@ -135,9 +135,26 @@ function renderGradientBlock(block, hint) {
   }
   gradFill.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:0;background:${bg};`;
 
-  // 섹션 박스를 기준으로 fill 클리핑 (선택 outline + 코너 핸들은 블록 요소에 있어 영향 없음)
-  // hint.secW/secH: 드래그 중 호출자가 캐싱해둔 값. 없으면 즉시 읽는다(레이아웃 강제 재계산 —
-  // 드래그가 아닌 1회성 호출에서만 감내: 프로퍼티 패널 슬라이더, MCP 갱신 등).
+  /* 섹션 박스를 기준으로 fill 클리핑 (선택 outline + 코너 핸들은 블록 요소에 있어 영향 없음)
+     hint.secW/secH: 드래그 중 호출자가 캐싱해둔 값. 없으면 즉시 읽는다(레이아웃 강제 재계산 —
+     드래그가 아닌 1회성 호출에서만 감내: 프로퍼티 패널 슬라이더, MCP 갱신 등).
+
+     ★★1020t1b ㉲ (2026-10-20) — ★맨 `clip-path` 인라인을 ★`--sec-clip` ★변수로 옮겼다.
+       ★값·식은 ★한 글자도 안 바뀐다(같은 inset). 바뀌는 것은 ★«무엇에 실어 보내나» 하나다.
+       ★스티커·목업·확대가 ★이미 쓰는 ★그 레일이다(css/editor-blocks.css 「섹션 밖 크롭」 절).
+     ★★왜 옮기나 — ★인라인 `clip-path` 는 ★세 가지를 ★구조적으로 ★못 하게 했다(전부 실측):
+       ① ★이력 비교가 ★이걸 ★«편집»으로 읽는다. `js/history.js:63` 의 `_NON_EDIT_ATTR_RE` 는
+          ★`--sec-clip` «만» 벗긴다 ⇒ 실측(그 비교자를 떠서 돌린 값):
+            맨 clip-path 만 다른 두 판 → `_sameEdit` = ★false (= ⌘Z 가 ★먹통 한 칸을 만든다)
+            ★같은 차이를 `--sec-clip` 으로  → ★★true  (= 안 쌓인다)
+       ② 「★섹션 밖 보이기 (미리보기)」(js/props/prop-section.js:451 · `data-overflow-visible`)는
+          ★CSS 가 `clip-path:none` 으로 ★해제하는데, ★인라인은 ★CSS 로 ★못 이긴다(!important 없이)
+          ⇒ ★그 체크를 켜도 ★그라데이션만 ★잘린 채 남았다.
+       ③ ★선택 중 해제(조작 가능하게)도 ★같은 까닭으로 ★안 됐다 — 형제 셋은 `.selected` 에서 푼다.
+     ⛔`js/history.js` 는 ★안 건드렸다 — `--sec-clip` 은 ★이미 벗겨진다(위 ① 대조값).
+     ⚠️★★이번 고침은 ★«무효화»를 ★안 닫는다 — ★섹션이 자라도 ★이 값은 ★다시 계산되지 않는다
+       (★이 함수를 ★부르는 자가 ★전부 «그라데이션 자신» 또는 «로드»다 · 섹션 높이 감시자 ★0건).
+       ⇒ ★★현빈이 겪은 ★그 증상은 ★남아 있다. ★감시자는 ★다음 칸이다(1020t1b 설계 ㉯＋㉮). */
   const sec = block.closest('.section-block');
   if (sec) {
     const secW = hint?.secW ?? sec.offsetWidth;
@@ -146,10 +163,12 @@ function renderGradientBlock(block, hint) {
     const clipRight  = Math.max(0, (x + width)  - secW);
     const clipBottom = Math.max(0, (y + height) - secH);
     const clipLeft   = Math.max(0, -x);
-    gradFill.style.clipPath =
-      `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px)`;
+    /* ★cssText 대입(위)이 인라인 스타일을 통째로 갈아치우므로 ★그 뒤에 심어야 한다 —
+       순서를 바꾸면 변수가 조용히 사라진다(스티커 sticker-block.js:140 이 같은 함정을 적어 뒀다). */
+    gradFill.style.setProperty('--sec-clip',
+      `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px)`);
   } else {
-    gradFill.style.clipPath = '';
+    gradFill.style.removeProperty('--sec-clip');
   }
 }
 
