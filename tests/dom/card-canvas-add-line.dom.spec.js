@@ -11,6 +11,13 @@
  *   gridAddAtEnd(:4160,4143,4085) — 카드 쪽 짝은 js/blocks/canvas-block.js _makeCvbGridAddBtn/
  *   _placeCvbGridAddBtns/_cvbGridAddAtEnd. 상한 4×4 는 canvas-block.js CVB_GRID_MAX_COLS/ROWS(d3 census 재확인
  *   ⒈ — UI 피커 4×4 를 참값으로 지디가 고정). 뮤테이션은 prop-canvas.js insertCanvasGrid 재사용(window 브리지).
+ *
+ * ★★★261019 — ★입구가 ★바뀌었다(현빈: 「그리드블럭에서 줄추가하는 것과 같은 로직이면 될 것 같은데
+ *   굳이 (cvb-add-btn) 이거는 필요없지 않겠어?」). ★「빈칸채우기 ＋」(.cvb-add-btn) 단추를 ★없앴고
+ *   (canvas-block.js _cvbBlockMounts 의 `const want = [];`), ★그 자리를 ★«빈 칸의 텍스트 영역
+ *   더블클릭»이 ★대신한다(_bindCvbDblEdit 의 `if (!hit)` 가지 — 좌표가 _cvbTextArea 사각형 안이면
+ *   _cvbBeginAdd). ⇒ ★A 묶음은 ★«그 입구»로 옮겨 ★같은 것을 잰다. ★위 2~8행의 역사 서술은 ★그대로
+ *   둔다(그때 잰 것은 그때의 참이다) — ★지금 사실은 ★이 문단이다.
  */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
@@ -50,101 +57,158 @@ async function setup(page, opts = {}, html = null) {
   return { id, errs };
 }
 
-const plusSel = (id) => `#cvb-plus-layer > .cvb-add-btn[data-cvb-for="${id}"]`;
-const plusCount = (page, id) => page.evaluate((s) => document.querySelectorAll(s).length, plusSel(id));
 const cards = (page, id) => page.evaluate((id) => JSON.parse(document.getElementById(id).dataset.cards || '[]'), id);
 
-/* 진짜 클릭으로 고른다 — 이미지 영역 가운데(＋ 와 안 겹치는 자리) */
-async function select(page, id, expectPlus) {
+/* ══ ★261019 새 입구용 헬퍼 — 옛 plusSel/plusCount/plusGeom/clickPlus 의 자리 ══════════════════
+ * ⛔옛 이름을 ★뜻만 갈아 끼워 쓰지 않았다 — 「＋ 개수」라는 이름으로 「빈 칸 개수」를 세면 다음
+ *   사람이 틀린다. 이름·뜻을 ★같이 바꾼다(expectPlus → expectEmpty, clickPlus → dblclickEmpty).
+ *
+ * ★「빈 칸」의 정의 = ★렌더된 DOM «만» 보고 센다: 같은 텍스트 영역(= .cvb-card-title /
+ *   .cvb-card-desc 의 ★부모)에 ★둘 중 ★하나만 있는 자리. 제목만 있으면 ★설명 자리가 빈 칸,
+ *   설명만 있으면 ★제목 자리가 빈 칸. 둘 다 있으면(또는 둘 다 없어 .cvb-card-ph 가 선 칸이면)
+ *   ★빈 칸이 아니다 — 제품의 cvbMissingTextSlots 가 그 둘을 각각 ‘안 센다/[] 로 낸다’와 같은 뜻.
+ * ⛔제품의 cvbMissingTextSlots 를 ★불러다 세지 않는다 — 그러면 기대값을 ★피검 대상과 ★같은 자에서
+ *   뽑는 ★항등식이 된다. 그 순수 함수 자체는 tests/unit/cvb-card-add-slot.test.mjs 가 따로 잠근다.
+ *
+ * ★더블클릭 점 = 있는 글자 요소 ★바깥 여백(설명이 비면 글자 ★아래, 제목이 비면 글자 ★위)의 세로
+ *   가운데 · 가로는 영역 ★왼쪽 1/4. ⛔★가로 «가운데»를 안 쓴다: ★행 성장 ＋(블럭 바닥 가로 가운데 ·
+ *   40px · pointer-events:auto · mousedown/dblclick 을 stopPropagation)가 ★거기 있다. ★그 겹침
+ *   자체는 ★B1b 가 따로 잰다 — ★여기서 가운데를 피해 가는 것은 ‘A 묶음은 ★입구 기구를 잰다’는
+ *   분업이지 ‘덮임이 없다’는 주장이 ★아니다(그래서 atCenter 를 ★같이 재서 들고 나온다).
+ * ★순서 = document 순서(카드 idx 오름차 · 한 카드 안에서는 top 슬롯이 bottom 보다 먼저) —
+ *   옛 plusGeom(page,id,i) 의 i 와 ★같은 차례다(_cvbMissingAll 의 순회 순서와 일치). */
+const emptyCells = (page, id) => page.evaluate((id) => {
+  const b = document.getElementById(id);
+  const areas = new Map();
+  for (const el of b.querySelectorAll('.cvb-card-title, .cvb-card-desc')) {
+    const a = el.parentElement;
+    if (!areas.has(a)) areas.set(a, { title: null, desc: null });
+    areas.get(a)[el.classList.contains('cvb-card-title') ? 'title' : 'desc'] = el;
+  }
+  const probe = (px, py) => {
+    const e = document.elementFromPoint(px, py);
+    return { cls: e ? (e.getAttribute('class') || e.tagName) : null,
+      // ★더블클릭 리스너는 ★블럭에 걸려 있다(_bindCvbDblEdit) ⇒ 그 점에서 잡히는 것이 블럭(또는 그 후손)이
+      //   아니면 ★이벤트가 리스너에 ★안 닿는다. ⛔「글자도 아니고 성장 ＋ 도 아니다」만으로는 못 가린다 —
+      //   핸들 오버레이 같은 ★제3의 층이 위에 있으면 조용히 아무 일도 안 일어난다.
+      inBlock: !!(e && (e === b || b.contains(e))),
+      onGrow: !!(e && e.closest && e.closest('.cvb-grid-add-btn')),
+      onText: !!(e && e.closest && e.closest('.cvb-card-title, .cvb-card-desc, .cvb-card-ph')) };
+  };
+  const out = [];
+  for (const [area, rec] of areas) {
+    if (!!rec.title === !!rec.desc) continue;                 // 둘 다 있다 ⇒ 빈 칸 아님
+    const el = rec.title || rec.desc;
+    const missing = rec.title ? 'desc' : 'title';
+    const ar = area.getBoundingClientRect(), er = el.getBoundingClientRect();
+    const bandTop    = missing === 'desc' ? er.bottom : ar.top;
+    const bandBottom = missing === 'desc' ? ar.bottom : er.top;
+    const y  = (bandTop + bandBottom) / 2;
+    const x  = ar.left + ar.width * 0.25;
+    const cx = (ar.left + ar.right) / 2;
+    out.push({ idx: el.dataset.cardIdx, slot: el.dataset.slot || '', missing, haveField: el.dataset.field,
+      x, y, cx, bandH: bandBottom - bandTop, areaW: ar.width, areaBottom: ar.bottom,
+      at: probe(x, y), atCenter: probe(cx, y) });
+  }
+  return out;
+}, id);
+
+const emptyCount = async (page, id) => (await emptyCells(page, id)).length;
+
+/* 진짜 클릭으로 고른다 — 이미지 영역 가운데(글자·성장 ＋ 와 안 겹치는 자리).
+ * ★expectEmpty 는 ★기다릴 조건이 ★아니라 ★전제 단언이다: 옛 ＋ 개수는 «고르면 0→N» 이라 기다릴
+ *   수 있었지만, ★빈 칸 수는 ★고르기와 무관하게 ★처음부터 참이다(렌더된 데이터의 성질).
+ *   ⛔처음부터 참인 것을 waitForFunction 으로 걸면 ★아무것도 안 재는 기다림이 된다. */
+async function select(page, id, expectEmpty) {
   const [x, y] = await page.evaluate((id) => {
     const b = document.getElementById(id), r = b.getBoundingClientRect();
     return [r.left + r.width / 2, r.top + r.height * 0.3];
   }, id);
   await page.mouse.click(x, y);
-  await page.waitForFunction(([id, s, n]) => document.getElementById(id).classList.contains('selected')
-    && document.querySelectorAll(s).length === n, [id, plusSel(id), expectPlus], { timeout: 4000 });
-  if (expectPlus) await settled(page, id);
+  await page.waitForFunction((id) => document.getElementById(id).classList.contains('selected'), id, { timeout: 4000 });
+  await settled(page, id);
+  expect(await emptyCount(page, id), `전제 — 빈 칸 ${expectEmpty}개`).toBe(expectEmpty);
 }
 
-/* 고른 뒤엔 패널이 열리며 캔버스 폭·카드 배율이 한동안 바뀐다 → ＋ 는 rAF 로 따라간다.
-   «＋ 중심 = 영역 아래 변 가운데»가 연속 두 번(값 그대로) 성립할 때까지 기다린다 — 고정 대기 대신 «무엇을» 기다리나. */
+/* 고른 뒤엔 패널이 열리며 캔버스 폭·카드 배율이 한동안 바뀐다 → 그 «전»에 더블클릭 점을 재면
+   엉뚱한 데를 누른다. ★빈 칸들의 텍스트 영역 사각형이 연속 두 rAF 틱에서 «그대로»일 때까지 기다린다
+   (옛 settled() 와 ★같은 방식 — 기대값과 견주지 않고 «안정 수렴»을 기다린다. 고정 대기 아님). */
 async function settled(page, id) {
-  await page.waitForFunction(([id, s]) => {
-    const bs = [...document.querySelectorAll(s)];
-    if (!bs.length) return false;
-    const key = bs.map(b => {
-      const r = b.getBoundingClientRect();
-      const txt = [...document.getElementById(id).querySelectorAll('.cvb-card-title, .cvb-card-desc')]
-        .find(e => e.dataset.cardIdx === b.dataset.cvbIdx && (e.dataset.slot || '') === b.dataset.cvbSlot);
-      if (!txt) return 'x';
-      const a = txt.parentElement.getBoundingClientRect();
-      const ok = Math.abs(r.top + r.height / 2 - a.bottom) < 2 && Math.abs(r.left + r.width / 2 - (a.left + a.right) / 2) < 2;
-      return ok ? `${Math.round(r.left)},${Math.round(r.top)}` : 'x';
+  await page.waitForFunction((id) => {
+    const b = document.getElementById(id);
+    if (!b) return false;
+    const els = [...b.querySelectorAll('.cvb-card-title, .cvb-card-desc')];
+    if (!els.length) return false;
+    const key = els.map(e => {
+      const r = e.parentElement.getBoundingClientRect();
+      return `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)}`;
     }).join('|');
     const prev = window.__k1Prev; window.__k1Prev = key;
-    return !key.includes('x') && key === prev;
-  }, [id, plusSel(id)], { polling: 'raf', timeout: 8000 });
+    return key === prev;
+  }, id, { polling: 'raf', timeout: 8000 });
 }
 
-/* ＋ 의 중심 · 그 점에서 잡히는 것 · 그 ＋ 가 가리키는 텍스트 영역(같은 카드·같은 슬롯의 글자 요소 부모)의 아래 변 */
-const plusGeom = (page, id, i = 0) => page.evaluate(([id, s, i]) => {
-  const b = document.querySelectorAll(s)[i]; const r = b.getBoundingClientRect();
-  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-  const hit = document.elementFromPoint(cx, cy);
-  const slot = b.dataset.cvbSlot;
-  const txt = [...document.getElementById(id).querySelectorAll('.cvb-card-title, .cvb-card-desc')]
-    .find(e => e.dataset.cardIdx === b.dataset.cvbIdx && (e.dataset.slot || '') === slot);
-  const ar = txt.parentElement.getBoundingClientRect();
-  return { cx, cy, hitIsPlus: hit === b, areaBottom: ar.bottom, areaCx: (ar.left + ar.right) / 2,
-    field: b.dataset.cvbField, slot, idx: b.dataset.cvbIdx, title: b.title, text: b.textContent };
-}, [id, plusSel(id), i]);
-
-async function clickPlus(page, id, i = 0) {
-  const g = await plusGeom(page, id, i);
-  expect(g.hitIsPlus, '전제 — 누르는 점이 ＋ 위다').toBe(true);
-  await page.mouse.click(g.cx, g.cy);
+/* 빈 칸 i 번의 여백을 진짜 마우스로 더블클릭한다. ★전제 셋을 먼저 수로 건다:
+ *   ㉠ 누를 여백이 ★실제로 있다(띠 높이 > 2) — 0 이면 이 입구는 ★손에 닿지 않는다.
+ *   ㉡ 그 점이 ★이미 있는 글자 위가 ★아니다 — 거기면 «글자 편집»으로 새서 새 줄이 안 생긴다.
+ *   ㉢ 그 점이 ★성장 ＋ 에 ★안 가린다 — 가리면 더블클릭이 블럭에 ★안 닿는다.
+ *   ㉣ 그 점에서 잡히는 것이 ★블럭(또는 후손)이다 — ㉢ 이 못 보는 ★다른 층(핸들 오버레이 등)까지 덮는다. */
+async function dblclickEmpty(page, id, i = 0) {
+  const cs = await emptyCells(page, id);
+  const g = cs[i];
+  expect(g, `전제 — 빈 칸 ${i}번이 있다(전체 ${cs.length}개)`).toBeTruthy();
+  expect(g.bandH, `전제 — 누를 여백 띠가 있다(글자 ${g.missing === 'desc' ? '아래' : '위'}, 잰 값 ${g.bandH}px)`).toBeGreaterThan(2);
+  expect(g.at.onText, `전제 — 누르는 점이 이미 있는 글자 위가 아니다(거기 있는 것=${g.at.cls})`).toBe(false);
+  expect(g.at.onGrow, `전제 — 누르는 점이 성장 ＋ 에 안 가린다(거기 있는 것=${g.at.cls})`).toBe(false);
+  expect(g.at.inBlock, `전제 — 누르는 점에서 잡히는 것이 블럭(또는 후손)이다 ⇒ dblclick 이 리스너에 닿는다(거기 있는 것=${g.at.cls})`).toBe(true);
+  await page.mouse.dblclick(g.x, g.y);
   return g;
 }
 
-test('A1 기본 카드(제목만)를 고르면 ＋ 1개 — 텍스트 영역 아래 변 가운데', async ({ page }) => {
+/* ★261019 — 옛 A1 은 「고르면 ＋ 1개 · 그 ＋ 의 중심이 텍스트 영역 아래 변 가운데」를 잠갔다.
+ *   단추가 없어졌으니 ★같은 것(= 입구가 ★있고 · ★어느 필드를 가리키며 · ★손에 닿는다)을 ★새 입구로 잰다.
+ *   A2 와 겹치는 것은 「열린다」 한 줄뿐이고, ★A1 만 재는 것은 ★입구의 ★기하 전제(dblclickEmpty 의 ㉠㉡㉢)와
+ *   ★빈 칸의 ★정체(몇 개 · 어느 슬롯 · 무엇이 비었나)다. */
+test('A1 기본 카드(제목만) — 빈 칸 1개(설명 자리) · 글자 아래 여백 더블클릭이 설명 칸을 연다', async ({ page }) => {
   const { id } = await setup(page);
   expect((await cards(page, id))[0].desc, '전제 — 설명이 비어 있다').toBe('');
-  expect(await plusCount(page, id), '고르기 전엔 ＋ 0').toBe(0);
   await select(page, id, 1);
   expect(await page.evaluate((id) => document.querySelectorAll(`#${id}.selected`).length, id)).toBe(1);
-  const g = await plusGeom(page, id);
-  expect(g.field).toBe('desc');
-  expect(g.title).toBe('줄 추가 (설명)');
-  expect(g.text, '글리프는 CSS ::before — 글자 노드 없음').toBe('');
-  expect(Math.abs(g.cy - g.areaBottom)).toBeLessThan(2);
-  expect(Math.abs(g.cx - g.areaCx)).toBeLessThan(2);
-  expect(g.hitIsPlus).toBe(true);
+  const cs = await emptyCells(page, id);
+  expect(cs.length).toBe(1);
+  expect([cs[0].missing, cs[0].haveField, cs[0].slot], '빈 칸 = 설명 자리(제목만 그려져 있다)').toEqual(['desc', 'title', '']);
+  const g = await dblclickEmpty(page, id);
+  // ★통과 회차에도 수가 남아야 한다(「단언에 잰 값을 찍어라」) — atCenter 는 B1b 가 단언으로 잠근다.
+  console.log(`[A1] bandH=${g.bandH} x=${g.x} y=${g.y} areaW=${g.areaW} at=${g.at.cls} atCenter=${g.atCenter.cls}`);
+  await page.waitForFunction(() => document.activeElement?.classList?.contains('cvb-card-desc'));
+  expect(await page.evaluate(() => document.activeElement.dataset.field), '열린 칸이 설명(desc)이다').toBe('desc');
 });
 
-test('A2 ＋ 클릭 → 설명 칸이 열리고 → 입력 → Escape 로 커밋: cards[0].desc 저장 · 다시 골라도 ＋ 0', async ({ page }) => {
+test('A2 빈 칸 더블클릭 → 설명 칸이 열리고 → 입력 → Escape 로 커밋: cards[0].desc 저장 · 다시 봐도 빈 칸 0', async ({ page }) => {
   const { id, errs } = await setup(page);
   await select(page, id, 1);
-  await clickPlus(page, id);
+  await dblclickEmpty(page, id);
   await page.waitForFunction(() => document.activeElement?.classList?.contains('cvb-card-desc'));
   const ae = await page.evaluate(() => ({ ce: document.activeElement.contentEditable, field: document.activeElement.dataset.field }));
   expect(ae).toEqual({ ce: 'true', field: 'desc' });
-  expect(await plusCount(page, id), '편집 중엔 ＋ 를 걷는다').toBe(0);
+  // ★261019 — 옛 단언 「편집 중엔 ＋ 를 걷는다」의 ★같은 뜻: 임시 칸(_cvbBeginAdd 가 넣는 .cvb-card-desc)이
+  //   영역에 들어가면 그 자리는 ★더는 «빈 칸»이 아니다 ⇒ 같은 자리가 ★두 번 열리지 않는다.
+  expect(await emptyCount(page, id), '편집 중엔 그 자리가 더는 빈 칸이 아니다(임시 칸이 들어가 있다)').toBe(0);
   await page.keyboard.insertText('설명');
   await page.keyboard.press('Escape');
   await page.waitForFunction((id) => JSON.parse(document.getElementById(id).dataset.cards)[0].desc === '설명', id);
   expect((await cards(page, id))[0].title).toBe('카드 제목');
   expect(await page.evaluate((id) => document.querySelector(`#${id} .cvb-card-desc`)?.textContent, id)).toBe('설명');
-  // Esc 는 커밋 뒤 블럭 선택도 푼다(editor.js 전역 Esc — 기존 동작). 다시 골라도 빈 줄이 없으니 ＋ 0.
-  await select(page, id, 0);
-  expect(await plusCount(page, id)).toBe(0);
+  // Esc 는 커밋 뒤 블럭 선택도 푼다(editor.js 전역 Esc — 기존 동작). 다시 골라도 빈 줄이 없다.
+  await select(page, id, 0);   // ← select() 안의 전제 단언이 «빈 칸 0» 을 잰다(옛 plusCount 단언과 같은 자리)
   expect(errs).toEqual([]);
 });
 
-test('A3 빈 채로 나가면 아무 일도 없다 — cards 바이트 · 히스토리 길이 그대로 · 임시 칸 0 · 다시 고르면 ＋ 1', async ({ page }) => {
+test('A3 빈 채로 나가면 아무 일도 없다 — cards 바이트 · 히스토리 길이 그대로 · 임시 칸 0 · 다시 봐도 빈 칸 1', async ({ page }) => {
   const { id } = await setup(page);
   await select(page, id, 1);
   const before = await page.evaluate((id) => ({ cards: document.getElementById(id).dataset.cards, len: window.getHistoryTip().len }), id);
-  await clickPlus(page, id);
+  await dblclickEmpty(page, id);
   await page.waitForFunction(() => document.activeElement?.classList?.contains('cvb-card-desc'));
   await page.keyboard.press('Escape');
   await page.waitForFunction((id) => !document.getElementById(id).classList.contains('editing') && !document.querySelector('[contenteditable="true"]'), id);
@@ -153,13 +217,13 @@ test('A3 빈 채로 나가면 아무 일도 없다 — cards 바이트 · 히스
   expect(after.cards).toBe(before.cards);
   expect(after.len).toBe(before.len);
   expect(after.desc).toBe(0);
-  await select(page, id, 1);                          // 다시 고르면 ＋ 가 그대로 있다(빈 줄 그대로)
+  await select(page, id, 1);                          // 다시 골라도 빈 칸이 그대로 하나(빈 줄 그대로)
 });
 
 test('A4 ⌘Z 한 번에 설명이 빈다', async ({ page }) => {
   const { id } = await setup(page);
   await select(page, id, 1);
-  await clickPlus(page, id);
+  await dblclickEmpty(page, id);
   await page.waitForFunction(() => document.activeElement?.classList?.contains('cvb-card-desc'));
   await page.keyboard.insertText('설명');
   await page.keyboard.press('Escape');
@@ -169,9 +233,10 @@ test('A4 ⌘Z 한 번에 설명이 빈다', async ({ page }) => {
   expect((await cards(page, id))[0].title).toBe('카드 제목');
 });
 
-/* A4b (이벨 D1 · 2026-10-12) — ＋ 커밋 «한 번» = 히스토리 «한 칸». 두 번째 ⌘Z 는 «직전 변경»으로 간다(빈 걸음 없음).
- *   직전 변경 = 패널 길과 같은 updateCanvasBlock(titleSize 20→30). 커밋은 이벨 재현대로 «바깥 클릭»(blur). ⌘Z 는 진짜 키. */
-test('A4b ＋ 커밋 1회 = 히스토리 +1 · 두 번째 ⌘Z 는 직전 변경(제목 크기)을 되돌린다', async ({ page }) => {
+/* A4b (이벨 D1 · 2026-10-12) — 줄 추가 커밋 «한 번» = 히스토리 «한 칸». 두 번째 ⌘Z 는 «직전 변경»으로 간다(빈 걸음 없음).
+ *   직전 변경 = 패널 길과 같은 updateCanvasBlock(titleSize 20→30). 커밋은 이벨 재현대로 «바깥 클릭»(blur). ⌘Z 는 진짜 키.
+ *   ★261019 — 커밋을 여는 손만 ＋ 클릭 → «빈 칸 더블클릭»으로 바뀌었다(커밋 길은 그대로 _cvbBeginAdd→_cvbEndEdit). */
+test('A4b 줄 추가 커밋 1회 = 히스토리 +1 · 두 번째 ⌘Z 는 직전 변경(제목 크기)을 되돌린다', async ({ page }) => {
   const { id } = await setup(page);
   await select(page, id, 1);
   const pre = await page.evaluate((id) => {
@@ -183,12 +248,12 @@ test('A4b ＋ 커밋 1회 = 히스토리 +1 · 두 번째 ⌘Z 는 직전 변경
   }, id);
   expect(pre, '전제 — 직전 변경이 들어갔다').toEqual({ ok: true, size: '30' });
   /* updateCanvasBlock 래퍼(js/model-update-history.js _scheduleRestamp)가 «rAF 두 번 뒤 매크로태스크»에 꼭대기를 되쓴다.
-     그 되쓰기가 ＋ 편집 «중»에 떨어지면 꼭대기에 임시 칸이 찍혀 +1 이 시험 속도 탓으로 생긴다(실측 진단 꼭대기 tempDiv:true).
+     그 되쓰기가 줄 추가 편집 «중»에 떨어지면 꼭대기에 임시 칸이 찍혀 +1 이 시험 속도 탓으로 생긴다(실측 진단 꼭대기 tempDiv:true).
      ⇒ 그 되쓰기가 «지나간 뒤»를 기다린다(같은 꼴의 예약: rAF·rAF·setTimeout 0 뒤 한 번 더). 사람 손 속도에선 이 창이 안 겹친다. */
   await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => setTimeout(r, 0), 0)))));
   await settled(page, id);
   const len0 = await page.evaluate(() => window.getHistoryTip().len);
-  await clickPlus(page, id);
+  await dblclickEmpty(page, id);
   await page.waitForFunction(() => document.activeElement?.classList?.contains('cvb-card-desc'));
   await page.keyboard.insertText('Q');
   const out = await page.evaluate(() => { const r = document.getElementById('gapBelow').getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2]; });
@@ -204,7 +269,7 @@ test('A4b ＋ 커밋 1회 = 히스토리 +1 · 두 번째 ⌘Z 는 직전 변경
       size: (tag.match(/data-title-size="(\d+)"/) || [])[1] || null, hasQ: /&quot;desc&quot;:&quot;Q&quot;/.test(tag),
       sameAsPrev: i > 0 ? c === a[i - 1].canvas : null, len: c.length };
   }), len0);
-  expect(len1 - len0, `＋ 커밋 한 번에 쌓인 히스토리 칸 수 · 새 표본별 빈 임시 칸 찍힘=${JSON.stringify(diag)}`).toBe(1);
+  expect(len1 - len0, `줄 추가 커밋 한 번에 쌓인 히스토리 칸 수 · 새 표본별 빈 임시 칸 찍힘=${JSON.stringify(diag)}`).toBe(1);
   const st = () => page.evaluate((id) => { const b = document.getElementById(id); return b ? { desc: JSON.parse(b.dataset.cards)[0].desc, size: b.dataset.titleSize } : null; }, id);
   await page.keyboard.press('ControlOrMeta+z');
   await expect.poll(st).toEqual({ desc: '', size: '30' });
@@ -212,24 +277,28 @@ test('A4b ＋ 커밋 1회 = 히스토리 +1 · 두 번째 ⌘Z 는 직전 변경
   await expect.poll(st, '두 번째 ⌘Z = 직전 변경(제목 크기 30→20)').toEqual({ desc: '', size: '20' });
 });
 
-test('A5 ＋ 는 블럭 DOM·글자·#canvas 에 새지 않는다', async ({ page }) => {
-  const { id } = await setup(page);
-  await select(page, id, 1);
-  const r = await page.evaluate((id) => {
-    const b = document.getElementById(id), c = document.getElementById('canvas');
-    return { inBlock: b.outerHTML.includes('cvb-add-btn'), inCanvas: c.innerHTML.includes('cvb-add-btn') || c.innerHTML.includes('cvb-plus-layer'),
-      plusInText: b.innerText.includes('+') || b.innerText.includes('＋'),
-      layerParent: document.getElementById('cvb-plus-layer')?.parentElement?.id };
-  }, id);
-  expect(r).toEqual({ inBlock: false, inCanvas: false, plusInText: false, layerParent: 'canvas-scaler' });
-});
+/* ★★261019 — ★«A5 ＋ 는 블럭 DOM·글자·#canvas 에 새지 않는다» 는 ★지웠다. ⛔조용히 지운 게 아니라
+ *   ★여기 까닭을 남긴다:
+ *   ⑴ 잰 대상(.cvb-add-btn)이 ★사라졌다 ⇒ 네 단언이 ★전부 ★항등식이 된다(측정 0). 「초록이니 됐다」로
+ *      두면 ★다음 사람이 「누수를 재고 있다」고 믿는다.
+ *   ⑵ ★살아 있는 ＋(.cvb-grid-add-btn)에 대한 ★같은 단언이 ★이 파일 아래 ★B6 에 ★이미 있다
+ *      (inBlock·inCanvas·plusInText·layerParent) ⇒ 옮기면 ★중복이다. ⚠️단 A5 에만 있던 칸 하나
+ *      (`#canvas` 안에 'cvb-plus-layer' 문자열이 없다)는 ★B6 로 ★넘겼다 — 그걸 안 넘기면 삭제가
+ *      ★커버리지를 ★조용히 줄인다.
+ *   ⑶ 내보내기·저장 길 전체(L1~L8)의 누수는 tests/dom/card-plus-leak.dom.spec.js 가 잰다(그쪽도 261019 에
+ *      성장 ＋ 로 옮겼다).
+ *   ⚠️★못 잰 것: ★편집 «중»에 블럭 ★안에 사는 ★임시 칸(_cvbBeginAdd 가 넣는 빈 .cvb-card-desc)이
+ *     저장·내보내기에 실리는가 — ★A5 도 ★B6 도 ★그건 안 쟀다(둘 다 «편집 중»이 아닌 상태에서 잰다).
+ *     A3 가 「나간 뒤 임시 칸 0」을, A4b 진단이 「히스토리 표본에 빈 임시 칸이 찍혔나」를 볼 뿐이다. */
 
-test('A6 both 모드 — 위 설명만 비면 top 슬롯 descTop ＋ 하나 → 쓰면 descTop 저장', async ({ page }) => {
+test('A6 both 모드 — 위 설명만 비면 top 슬롯 빈 칸 하나 → 더블클릭해 쓰면 descTop 저장', async ({ page }) => {
   const { id } = await setup(page, { labelPos: 'both', cards: [{ title: '제목', desc: '', descTop: '', descBottom: '아래', imgSrc: '', cellBg: '' }] });
   await select(page, id, 1);
-  const g = await plusGeom(page, id);
-  expect([g.slot, g.field]).toEqual(['top', 'descTop']);
-  await clickPlus(page, id);
+  const cs = await emptyCells(page, id);
+  // ★필드 이름(descTop)은 ★제품이 정하는 이름이라 ★여기서 다시 적지 않는다(둘째 명부가 된다) —
+  //   DOM 으로 잴 수 있는 것(어느 슬롯 · 무엇이 비었나 · 있는 쪽 필드)만 걸고, ★이름은 ★열린 칸으로 잰다.
+  expect([cs[0].slot, cs[0].missing, cs[0].haveField], '위 슬롯의 설명이 비었다').toEqual(['top', 'desc', 'titleTop']);
+  await dblclickEmpty(page, id);
   await page.waitForFunction(() => document.activeElement?.dataset?.field === 'descTop');
   await page.keyboard.insertText('위 설명');
   await page.keyboard.press('Escape');
@@ -238,20 +307,26 @@ test('A6 both 모드 — 위 설명만 비면 top 슬롯 descTop ＋ 하나 → 
   expect([c.desc, c.descBottom]).toEqual(['', '아래']);
 });
 
-test('A7 선택을 풀면 ＋ 0', async ({ page }) => {
+/* ★★261019 — 옛 A7 「선택을 풀면 빈칸채우기 ＋ 0」은 ★대상이 사라져 ★항등식이 된다(.cvb-add-btn 은
+ *   이제 ★언제나 0). ⛔지우지 않고 ★뜻을 ★살아 있는 ＋ 로 옮긴다: 「고르면 뜨는 ＋ 는 ★풀면 걷힌다」.
+ *   ★중복 아님 — B1 은 「★고르기 ★전엔 0」을, 여기는 「★풀면 ★다시 0」을 잰다(_dropCvbGridPlus 경로).
+ *   ★새 입구(빈 칸 더블클릭)에는 ★대응물이 없다 — 떴다 사라지는 UI 가 아니라 ★영역 자체이기 때문. */
+test('A7 선택을 풀면 성장 ＋ 0 (옛 「빈칸채우기 ＋ 0」의 뜻을 살아 있는 ＋ 로 옮김)', async ({ page }) => {
+  const GROW = '#cvb-plus-layer > .cvb-grid-add-btn';
   const { id } = await setup(page);
   await select(page, id, 1);
+  await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, GROW);
   await page.evaluate(() => window.deselectAll());
-  await page.waitForFunction((s) => document.querySelectorAll(s).length === 0, plusSel(id));
-  expect(await plusCount(page, id)).toBe(0);
+  await page.waitForFunction((s) => document.querySelectorAll(s).length === 0, GROW);
+  expect(await page.evaluate((s) => document.querySelectorAll(s).length, GROW)).toBe(0);
 });
 
-test('A8 옛 카드(저장본 HTML · tpl-pagepad-e81 골든)도 ＋ 로 설명을 쓴다', async ({ page }) => {
+test('A8 옛 카드(저장본 HTML · tpl-pagepad-e81 골든)도 빈 칸 더블클릭으로 설명을 쓴다', async ({ page }) => {
   const gold = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'tpl-pagepad-e81-golden.json'), 'utf8'));
   const { id } = await setup(page, {}, gold.card);
   expect(id).toBe('cvb_old');
   await select(page, id, 1);
-  await clickPlus(page, id);
+  await dblclickEmpty(page, id);
   await page.waitForFunction(() => document.activeElement?.classList?.contains('cvb-card-desc'));
   await page.keyboard.insertText('옛 카드 설명');
   await page.keyboard.press('Escape');
@@ -303,7 +378,10 @@ async function clickGridPlus(page, id, axis) {
  * 머리말과 같은 까닭). select(page,id,0)(빈칸채우기 ＋ 기대 0개)은 expectPlus 가 falsy 라 settled() 호출
  * 자체를 건너뛴다(select() 의 `if (expectPlus) await settled(...)`) — 그래서 B1 은 그 settle 을 «안» 기다리고
  * 있었다. ⇒ 성장 ＋ 자신의 자리가 연속 두 rAF 틱에서 «그대로»일 때까지 따로 기다린다(기대값과 견주지
- * 않는다 — settled() 와 같은 방식, «무엇을» 기다리는지는 안정 수렴이다). */
+ * 않는다 — settled() 와 같은 방식, «무엇을» 기다리는지는 안정 수렴이다).
+ * ★261019 정정 — 위 둘째·셋째 줄은 ★그때의 사실이다. ★지금 select() 는 ★expectEmpty 와 무관하게
+ *   ★언제나 settled() 를 부른다(건너뛰는 가지가 없다). ★그래도 gridSettled 는 ★따로 필요하다:
+ *   settled() 는 ★텍스트 영역 사각형을, 이 함수는 ★성장 ＋ 버튼 자리를 재는 ★다른 자다. */
 async function gridSettled(page, id) {
   await page.waitForFunction(() => {
     const bs = [...document.querySelectorAll('#cvb-plus-layer > .cvb-grid-add-btn')];
@@ -317,12 +395,19 @@ async function gridSettled(page, id) {
 test('B1 카드를 고르면 열·행 성장 ＋ 가 각 1개 — 열=블럭 우측 세로가운데 · 행=블럭 하단 가로가운데(빈칸 없는 카드 — 비킴 없는 «순수» 자리)', async ({ page }) => {
   // ★1018 수정 — title·desc 둘 다 채운 카드를 쓴다(빈칸채우기 ＋ 가 안 떠서 비킴 로직이 안 걸린다).
   //   순수 자리(그리드 선례와 같은 식)는 이 조건에서만 성립 — 비킴이 걸리는 경우는 B1b가 잰다.
+  // ★261019 정정 — 위 괄호 안 까닭은 ★그때의 사실이다. 지금은 빈칸채우기 ＋ 가 ★아예 없어서 비킴 로직이
+  //   ★어느 카드에서도 안 걸린다(_cvbPlusBtns 가 언제나 빔). ⇒ ★이 픽스처를 고른 까닭은 바뀌어도
+  //   ★이 검사가 재는 것(순수 자리의 좌표)은 ★그대로다. ★덮임은 B1b 가 ★새 입구 기준으로 잰다.
   const { id } = await setup(page, { cards: [{ title: '제목', desc: '설명', imgSrc: '', cellBg: '' }] });
   expect(await page.evaluate((s) => document.querySelectorAll(s).length, '#cvb-plus-layer > .cvb-grid-add-btn'), '고르기 전엔 0').toBe(0);
-  await select(page, id, 0);   // 빈칸채우기 ＋ 기대 0개(둘 다 채운 카드라 안 뜬다)
+  await select(page, id, 0);   // 빈 칸 기대 0개(제목·설명 둘 다 채운 카드) — select() 안에서 전제로 단언한다
   await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
-  expect(await page.evaluate(() => document.querySelectorAll('.cvb-add-btn').length), '전제 — 빈칸채우기 ＋ 는 0개(둘 다 채운 카드)').toBe(0);
-  // ★1018 — select(page,id,0) 은 settled() 를 안 기다린다(expectPlus falsy). 패널이 열리며 캔버스 폭·배율이
+  /* ★261019 — 여기 있던 `.cvb-add-btn 0개` 전제 한 줄을 ★지웠다: 빈칸채우기 ＋ 가 ★제품에서 사라져
+     ★어느 카드에서도 0 이라 ★항등식이다(「둘 다 채운 카드라 안 뜬다」를 더는 안 잰다). ★그 뜻은 바로 위
+     select(page,id,0) 의 «빈 칸 0개» 전제가 ★그대로 이어받는다. */
+  // ★1018 — select(page,id,0) 은 settled() 를 안 기다린다(expectPlus falsy ★— 261019 에 그 가지가
+  //   없어졌다: select() 가 언제나 settled() 를 부른다. 아래 gridSettled 는 ★버튼 자리를 재는 다른 자라
+  //   여전히 필요하다). 패널이 열리며 캔버스 폭·배율이
   //   한동안 바뀌므로 성장 ＋ 자신의 자리가 안정될 때까지 따로 기다린다(열 쪽 19.65px 빨강의 진짜 원인 —
   //   CSS 확인 결과 열 ＋ 는 row 처럼 반쪽 중심정렬이 아니라 translate(-50%,-50%) 완전 중심정렬이라, +20
   //   류 보정은 틀린 처방이었다. 안정 대기가 맞는 처방).
@@ -332,34 +417,63 @@ test('B1 카드를 고르면 열·행 성장 ＋ 가 각 1개 — 열=블럭 우
   expect(row.title).toBe('행 추가');
   expect(Math.abs(col.cx - col.blockRight)).toBeLessThan(2);
   expect(Math.abs(col.cy - col.blockMidY)).toBeLessThan(2);
-  expect(Math.abs(row.cy - row.blockBottom - 20)).toBeLessThan(2);   // ★행 ＋ 는 translateX(-50%) 뿐(수직 중앙정렬 없음) — 중심은 바닥에서 반 지름(20px) 아래(연산순서 조심 — cy-(bottom+20))
+  // ★★261019 현빈 — 「★로우추가 ＋ 의 위치는 50%가 아니여가꼬 ★통일시켜주는게 좋을것 같아」
+  //   ★옛 단언은 ★«바닥 + 반지름 20»을 ★잠그고 있었다 — ★즉 ★★«비대칭인 채로 있어라»를 ★검사가 ★지키고 있었다.
+  //   ★CSS 를 ★열 ＋ 와 ★같은 translate(-50%,-50%) 로 ★고쳤으므로 ★중심이 ★바닥 선에 ★온다.
+  //   ⇒ ★이 줄을 ★안 고치면 ★빨강이 ★난다(★그 빨강이 ★이 짝의 ★양성대조다).
+  expect(Math.abs(row.cy - row.blockBottom)).toBeLessThan(2);   // ★행 ＋ 도 ★완전 중심정렬 — ★중심이 ★블럭 바닥 선 위
   expect(Math.abs(row.cx - row.blockMidX)).toBeLessThan(2);
   expect(col.hitIsBtn).toBe(true);
   expect(row.hitIsBtn).toBe(true);
 });
 
-test('B1b 회귀 — 기본 카드(빈칸채우기 ＋ 1개)에서도 행 성장 ＋ 가 그 위에 안 덮인다(1018 버그의 그 자리)', async ({ page }) => {
+/* ★★★261019 — 옛 B1b 「기본 카드(빈칸채우기 ＋ 1개)에서도 행 성장 ＋ 가 그 위에 안 덮인다」는
+ *   ★전제(＋ 1개)가 사라졌다. ⛔지우지 않는다 — ★지키려던 것은 「＋ 단추 둘」이 아니라
+ *   ★★«같은 자리에 있는 ★두 입구가 서로를 덮지 않는다»였고, ★입구 하나가 ★단추 → ★«빈 칸 더블클릭
+ *   자리»로 ★바뀌었을 뿐 ★위험은 ★같은 자리에 ★남아 있다(오히려 둘 커졌다, 아래).
+ *
+ * ★★소스로 잰 것(261019 · ⚠️행위로는 ★안 쟀다 — 아래 「못 잰 것」):
+ *   ⑴ css/editor-blocks.css 가 행 ＋ 를 translateX(-50%) → translate(-50%,-50%) 로 바꿨다 ⇒ ★중심이
+ *      ★블럭 바닥 ★선 위에 온다 ⇒ 버튼의 ★아래 절반이 아니라 ★위 절반(20px)이 ★텍스트 영역 ★안으로
+ *      들어온다(옛 자리에서는 버튼 전체가 블럭 ★밖이었다).
+ *   ⑵ 비킴 로직(canvas-block.js _placeCvbGridAddBtns 의 `fillBtns` 루프)은 ★«빈칸채우기 ＋ 목록»
+ *      (_cvbPlusBtns)을 보고 비킨다. 그 목록이 이제 ★언제나 비어서(_cvbBlockMounts 의 want=[])
+ *      ★비킴이 ★한 번도 안 돈다 — ★살아 있는 코드가 아니라 ★죽은 가드다.
+ *   ⇒ 기본 카드에서 ★영역 가로 ★가운데 · 글자 아래 여백 ★한가운데가 ★행 성장 ＋ 에 ★가릴 수 있다.
+ *      그 버튼은 mousedown·dblclick 을 ★stopPropagation 한다(_makeCvbGridAddBtn) ⇒ 가리면 그 점의
+ *      더블클릭은 ★블럭 리스너에 ★안 닿고 ★아무 일도 안 일어난다(= 1018 버그와 ★같은 실패 꼴).
+ *
+ * ⚠️★★못 잰 것 — ★이 검사를 ★작성 시점에 ★안 돌렸다(이 맥 Playwright 금지 · 지디 지시).
+ *   ★소스 기하로만 ★셈한 예상은 ★빨강이다: 기본 카드 designH 400 · imgRatio 76 ⇒ 텍스트 영역 96px ·
+ *   padding 10 · titleSize 20 · line-height 1.3 ⇒ 글자 아래 띠 ≈35px · 그 한가운데는 영역 바닥에서
+ *   ≈17.5px 위 · 버튼 반지름 20px ⇒ ★안쪽(17.5 < 20). ★이 셈은 ★추정이지 ★측정이 아니다.
+ *   ★빨강이 나면 ★검사의 흠이 아니라 ★제품의 흠이다. 처방 후보: ㉠ 비킴 기준을 «빈칸채우기 ＋ 목록»
+ *   대신 ★«빈 칸의 텍스트 영역 사각형»으로 바꾼다 ㉡ 행 ＋ 를 다시 블럭 밖으로 뺀다.
+ *   ⛔검사를 느슨하게 해서 통과시키지 마라(그러면 1018 과 같은 구멍이 조용히 돌아온다).
+ * ⚠️261018 에 적어 둔 ★열 성장 ＋ 쪽 미측정은 ★그대로 남는다(아래 꼬리 주석). */
+test('B1b 회귀 — 행 성장 ＋ 가 «빈 칸 더블클릭 자리»를 덮지 않는다(1018 버그의 그 자리 — 입구만 바뀌었다)', async ({ page }) => {
   // ★1018 버그 재현 조건 그대로: gridCols=1·gridRows=1·카드 하나·desc 빔(기본 setup()) — 카드 중심=블럭
   //   중심이고 labelPos='bottom'(기본)이라 텍스트 영역 바닥=블럭 바닥 ⇒ 비킴 없으면 행 ＋ 가 겹쳐 덮는다.
   const { id } = await setup(page);
-  await select(page, id, 1);   // 빈칸채우기 ＋ 1개(전제) — A1~A4b·A8 이 실제로 재는 그 자리
+  await select(page, id, 1);   // 빈 칸 1개(전제) — A1~A4b·A8 이 실제로 더블클릭하는 그 자리
   await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
-  const fill = await plusGeom(page, id);
+  await gridSettled(page, id);
+  const cs = await emptyCells(page, id);
+  expect(cs.length, '전제 — 빈 칸 하나').toBe(1);
+  const g = cs[0];
   const row = await gridPlusGeom(page, id, 'row');
-  // ★둘이 실제로 떨어져 있는지도 수로 — «우연히 안 겹쳤다»가 아니라 비킴이 작동했음을 잰다
-  const dx = Math.abs(fill.cx - row.cx), dy = Math.abs(fill.cy - row.cy);
+  // ★둘이 실제로 떨어져 있는지도 수로 — «우연히 안 겹쳤다»가 아니라 자리가 갈렸음을 잰다
+  const dx = Math.abs(g.cx - row.cx), dy = Math.abs(g.y - row.cy);
   // ★261018(지디·태양 지적) — ★통과해도 값이 로그에 남아야 한다(「단언에 잰 값을 찍어라」). 실패 메시지
   //   «안에만» 값이 있으면 통과 회차엔 그 수가 사라진다 — 사람이 따로 재는 자는 다음 회차에 없어진다.
-  console.log(`[B1b] dx=${dx} dy=${dy} · fillHit=${fill.hitIsPlus} growHit=${row.hitIsBtn}`);
-  expect(fill.hitIsPlus, '★빈칸채우기 ＋ 가 여전히 누를 수 있다(행 성장 ＋ 에 안 덮인다)').toBe(true);
-  expect(row.hitIsBtn, '★행 성장 ＋ 도 누를 수 있다').toBe(true);
-  // ⛔`dx>=40 || dy>=40`(불값만)을 `Math.max(dx,dy)>=40`(수)로 — 뜻은 같다(둘 중 하나라도 40 이상이면 참:
-  //   max 가 40 이상 ⇔ dx 나 dy 중 적어도 하나가 40 이상). 이러면 실패 메시지·단언 자체에 값이 남는다.
-  expect(Math.max(dx, dy), `비킴 — 두 ＋ 가 40px 이상 떨어져야 한다(dx=${dx} dy=${dy})`).toBeGreaterThanOrEqual(40);
-  // ⚠️261018 — 이 검사는 ★행★ 성장 ＋ 만 잰다. ★열 성장 ＋(블럭 우측)가 빈칸채우기 ＋ 와 같은 식으로
+  console.log(`[B1b] cx=${g.cx} y=${g.y} bandH=${g.bandH} rowCx=${row.cx} rowCy=${row.cy} dx=${dx} dy=${dy} atCenter=${g.atCenter.cls} atLeftQuarter=${g.at.cls}`);
+  expect(row.hitIsBtn, '★행 성장 ＋ 는 여전히 누를 수 있다').toBe(true);
+  expect(g.atCenter.onText, `★빈 칸의 가운데 자리가 이미 있는 글자 위가 아니다(거기 있는 것=${g.atCenter.cls})`).toBe(false);
+  expect(g.atCenter.onGrow, `★빈 칸의 «가로 가운데» 더블클릭 자리가 행 성장 ＋ 에 가리면 안 된다 — 거기 있는 것=${g.atCenter.cls} (bandH=${g.bandH} dx=${dx} dy=${dy})`).toBe(false);
+  // ⚠️261018 — 이 검사는 ★행★ 성장 ＋ 만 잰다. ★열 성장 ＋(블럭 우측)가 빈 칸 자리와 같은 식으로
   //   겹칠 수 있는지는 ★미측정이다(기하적으로 더 드문 조건으로 보이지만 그건 추론이고, 수로 재지 않았다
   //   — 「낮은 확률」을 「문제 없다」로 적지 않는다). 다음 사람의 출발선: 열 쪽도 이 B1b 와 같은 틀로
-  //   (fill vs col 의 dx/dy ≥40) 재는 케이스를 추가할 것.
+  //   (빈 칸의 오른쪽 가장자리 자리 vs col ＋) 재는 케이스를 추가할 것.
 });
 
 test('B2 열 ＋ 클릭 → gridCols 1→2 · cards 1→2(기본값) · 블럭 폭 모드가 100%로 전환(gridCols===1 분기)', async ({ page }) => {
@@ -414,13 +528,17 @@ test('B5 ⌘Z 한 번 = 열 추가 전으로 — pushHistory 전/후 두 호출�
   expect((await gridDims(page, id)).cols, '한 번으로 충분 — 두 번째 ⌘Z 가 더 되돌릴 게 없어야 다음 단언이 참').toBe(1);
 });
 
-test('B6 성장 ＋ 도 블럭 DOM·글자·#canvas 에 새지 않는다(A5 와 같은 단언 — 새 클래스 짝)', async ({ page }) => {
+/* ★261019 — A5(빈칸채우기 ＋ 짝)를 ★지우면서, A5 에만 있던 칸 하나(`#canvas` 안에 'cvb-plus-layer'
+ *   문자열이 없다)를 ★여기로 넘겨받았다. ⛔안 넘기면 A5 삭제가 ★커버리지를 조용히 줄인다
+ *   (layerParent 단언이 뜻을 겹쳐 덮지만, 겹침은 «같음»이 아니다). */
+test('B6 성장 ＋ 도 블럭 DOM·글자·#canvas 에 새지 않는다(옛 A5 와 같은 단언 — 새 클래스 짝)', async ({ page }) => {
   const { id } = await setup(page);
   await select(page, id, 1);
   await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
   const r = await page.evaluate((id) => {
     const b = document.getElementById(id), c = document.getElementById('canvas');
-    return { inBlock: b.outerHTML.includes('cvb-grid-add-btn'), inCanvas: c.innerHTML.includes('cvb-grid-add-btn'),
+    return { inBlock: b.outerHTML.includes('cvb-grid-add-btn'),
+      inCanvas: c.innerHTML.includes('cvb-grid-add-btn') || c.innerHTML.includes('cvb-plus-layer'),
       plusInText: b.innerText.includes('+') || b.innerText.includes('＋'),
       layerParent: document.getElementById('cvb-plus-layer')?.parentElement?.id };
   }, id);

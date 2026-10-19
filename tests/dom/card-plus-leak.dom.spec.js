@@ -1,5 +1,18 @@
 /* card-plus-leak.dom.spec.js — E65 짝(카드블럭): ＋ 가 «떠 있는 동안»(카드 선택) 제품의 읽기·내보내기 길로 새는가
  *
+ * ★★★261019 — ★「빈칸채우기 ＋」(.cvb-add-btn)가 ★없어졌다(현빈: 「그리드블럭에서 줄추가하는 것과 같은
+ *   로직이면 될 것 같은데 굳이 (cvb-add-btn) 이거는 필요없지 않겠어?」). 제품에서 ★_cvbBlockMounts 가
+ *   `const want = [];` 로 ★생성을 끊었고, 그 입구는 ★«빈 칸의 텍스트 영역 더블클릭»으로 옮겼다
+ *   (canvas-block.js _bindCvbDblEdit). ⛔아래 2026-10-18 서술은 ★지우지 않는다 — ★그때 잰 것은 그때의
+ *   참이고, ★그 측정(소스 가름·인텔 1회 실행)은 ★그 판에서 유효했다. ★지금 사실은 이 문단이다:
+ *   ⒜ 이 시험이 ★실제로 재는 ＋ 는 ★성장 ＋(.cvb-grid-add-btn) ★둘뿐이다 — 전제·단언을 거기로 옮겼다.
+ *   ⒝ L1~L8 정규식 `/cvb-(?:grid-)?add-btn/` 은 ★그대로 둔다: 값은 이제 ★grid 쪽이 지고, 빈칸채우기 ＋ 가
+ *      ★되살아나 블럭 안으로 들어오면 ★같은 자가 잡는다(장식이 아니라 ★양쪽을 덮는 한 자다).
+ *   ⒞ 아래 「★이 시험이 빨개지는 날 = 누가 .cvb-add-btn 을 블럭 안으로 옮긴 날」은 ★이제 ★.cvb-grid-add-btn
+ *      ★에 대해 참이다(그 클래스가 ★지금 떠 있는 ＋ 다).
+ *   ⚠️★못 잰 것(새로 생김) — ★새 입구가 여는 ★«임시 칸»(_cvbBeginAdd 가 블럭 ★안에 넣는 빈
+ *      .cvb-card-desc)이 ★편집 «중»에 저장·내보내기에 실리는가. ★이 시험은 ★편집 중이 아닌 상태만 잰다.
+ *
  * ★까닭(지디 2026-10-18 지시 — d3 ②) — 첫 독해 「cvb-plus-layer 는 블럭 밖 층이라 안 샌다」를 지디가 반증했다:
  *   .grd-add-btn(그리드 ＋)도 똑같이 #canvas-scaler 에 붙는 «밖» 층(grid-block.js:3843 #grd-plus-layer)인데,
  *   거기는 cleanup 4자리(save-load.js:646 · export-css-collect.js:46 · export-html.js:125/270/299 ·
@@ -45,7 +58,8 @@
  *   L6 AI 채우기 읽기면(collectSectionTextBlocks — ai-section-fill.js 가 canvas-block simple 카드를
  *      dataset.cards 에서 직접 읽어 item 을 만든다. DOM 의 .cvb-add-btn 과는 다른 길이라 따로 잰다)
  *   L7 MCP get_canvas_state·read_section        L8 검색(블럭 innerText)
- * 새는 표지: 'cvb-add-btn'/'cvb-grid-add-btn'(1017t1d3 열·행 성장 ＋, 아래) 문자열 · 카드 글(기본값 '카드 제목')에 없는 '+' 글자.
+ * 새는 표지: 'cvb-grid-add-btn'(1017t1d3 열·행 성장 ＋ — ★지금 실제로 떠 있는 ＋) 및 'cvb-add-btn'(261019 에
+ *   제품에서 없어진 빈칸채우기 ＋ — 되살아남 감지용으로 정규식에 남겨 둔다) 문자열 · 카드 글(기본값 '카드 제목')에 없는 '+' 글자.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -60,7 +74,7 @@ async function setup(page) {
   const id = await page.evaluate((html) => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', html); window.rebindAll?.(); window.deselectAll?.(); window.applyZoom?.(100);
-    const { row, block } = window.makeCanvasBlock({ cardMode: 'simple' });   // 기본 카드: title='카드 제목' · desc='' (전제 — 설명이 비어 ＋ 가 뜬다)
+    const { row, block } = window.makeCanvasBlock({ cardMode: 'simple' });   // 기본 카드: title='카드 제목' · desc='' (261019 전까지는 이 «빈 설명»이 빈칸채우기 ＋ 를 띄웠다. 지금은 성장 ＋ 둘만 뜬다)
     document.getElementById('slotM').replaceWith(row); window.bindBlock(block); window.rebindAll?.();
     window.renderCanvas(block);
     block.scrollIntoView({ block: 'center' });
@@ -73,16 +87,17 @@ async function setup(page) {
   const [x, y] = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height * 0.3]; }, id);
   /* ＋ 는 «고르면» 뜬다(grid 의 H8 과 같은 결) — 진짜 클릭으로 고른다. */
   await page.mouse.click(x, y);
-  await page.waitForFunction(() => document.querySelectorAll('.cvb-add-btn').length === 1
-    && document.querySelectorAll('.cvb-grid-add-btn').length === 2, null, { timeout: 3000 });
-  /* ★1017t1d3 — 열·행 성장 ＋(.cvb-grid-add-btn)도 같은 층에 같이 뜬다(d3 재확인 ⒋: 같은 조건 _cvbPlusShown).
-   * 이 누수시험이 새 ＋ 도 재는지 물었던 지시(지디) — 아래 전제를 둘 다 걸어 L1~L8 정규식을 두 클래스 다 본다. */
-  expect(await page.evaluate(() => document.querySelectorAll('.cvb-add-btn').length), '전제 — 빈칸채우기 ＋ 하나(카드 1장·빈 필드 1개)').toBe(1);
+  await page.waitForFunction(() => document.querySelectorAll('.cvb-grid-add-btn').length === 2, null, { timeout: 3000 });
+  /* ★1017t1d3 — 열·행 성장 ＋(.cvb-grid-add-btn)가 선택과 함께 뜬다(d3 재확인 ⒋: _cvbPlusShown 조건).
+   * ★261019 — 여기 있던 「.cvb-add-btn 하나」 기다림·전제는 ★지웠다: 제품에서 그 단추가 ★사라져
+   *   ★언제나 0 이라 ★항등식이고, 「하나」를 걸면 ★무조건 빨강이 된다. ⇒ 이 시험이 ★떠 있다고 주장하는
+   *   ＋ 는 ★성장 ＋ 둘뿐이다. (빈칸채우기 ＋ 수는 아래에서 ★로그로만 남긴다 — 단언하지 않는다. 되살아나는
+   *   것 자체는 ★누수가 아니므로 그걸로 이 시험을 빨갛게 만들면 ★거짓 빨강이다.) */
   expect(await page.evaluate(() => document.querySelectorAll('.cvb-grid-add-btn').length), '전제 — 성장 ＋ 둘(열+행)').toBe(2);
   return { errs, id };
 }
 
-test('L1~L8 ★카드 ＋(빈칸채우기·성장 둘 다) 가 떠 있는 동안 제품의 읽기·내보내기 길 어디에도 ＋ 가 없다', async ({ page }) => {
+test('L1~L8 ★카드 성장 ＋(열·행)가 떠 있는 동안 제품의 읽기·내보내기 길 어디에도 ＋ 가 없다', async ({ page }) => {
   test.setTimeout(120000);
   const { errs, id } = await setup(page);
   const r = await page.evaluate(async (id) => {
@@ -91,7 +106,9 @@ test('L1~L8 ★카드 ＋(빈칸채우기·성장 둘 다) 가 떠 있는 동안
     const out = {};
     // L1 저장 문자열
     const proj = window.serializeProject();
-    // star note: /cvb-(?:grid-)?add-btn/ also partial-matches 'cvb-grid-add-btn' (shared prefix) -- one regex covers both classes
+    // star note: /cvb-(?:grid-)?add-btn/ also partial-matches 'cvb-grid-add-btn' (shared prefix) -- one regex covers both classes.
+    // 261019: .cvb-add-btn is gone from the product, so the live value of this pattern rests on the grid class;
+    // the fill-+ half is kept on purpose as a tripwire for its revival (it is not what makes this assertion non-identity).
     out.L1 = { markup: /cvb-(?:grid-)?add-btn/.test(proj), cardText: (() => { const p = JSON.parse(proj); return cardOnly(p.pages[0].canvas).split('')[1]; })() };
     // L2 히스토리
     out.L2 = { markup: /cvb-(?:grid-)?add-btn/.test(window.getSerializedCanvas()), cardText: cardOnly(window.getSerializedCanvas()).split('')[1] };
@@ -102,7 +119,7 @@ test('L1~L8 ★카드 ＋(빈칸채우기·성장 둘 다) 가 떠 있는 동안
     try { await window.exportHTMLFile(); } finally { URL.createObjectURL = oC; URL.revokeObjectURL = oR; HTMLAnchorElement.prototype.click = oClick; }
     const html = blob ? await blob.text() : '';
     const body = html.replace(/<style[\s\S]*?<\/style>/gi, '');   // 숨김 CSS 줄(만약 있다면 .cvb-add-btn{display:none})은 «노드»가 아니다 — 본문만 본다
-    // star note: same reason as L1 -- plain substring match would miss .cvb-grid-add-btn, so the pattern above is /cvb-(?:grid-)?add-btn/
+    // star note: same reason as L1 -- plain substring match would miss .cvb-grid-add-btn, so the pattern above is /cvb-(?:grid-)?add-btn/ (see the 261019 note at L1)
     out.L3 = { got: !!html, markup: /class="[^"]*cvb-(?:grid-)?add-btn/.test(body), cardText: cardOnly(body.slice(body.indexOf('<body'))).split('')[1] };
     // L4 PNG 클론
     const { prepareCloneForCapture } = await import('/js/io/export-image.js');
@@ -133,8 +150,14 @@ test('L1~L8 ★카드 ＋(빈칸채우기·성장 둘 다) 가 떠 있는 동안
   }, id);
   const msg = JSON.stringify(r);
   console.log('E65-card', msg);
-  expect(r.btnsDoc, `전제 — 빈칸채우기 ＋ 가 재는 내내 떠 있다 ${msg}`).toBe(1);
+  /* ★261019 — 옛 전제 `r.btnsDoc === 1`(빈칸채우기 ＋ 가 떠 있다)은 ★지웠다: 그 단추가 제품에서 사라져
+     ★항상 0 이라 그대로 두면 ★이 시험이 통째로 빨개진다(측정이 아니라 고장). 수는 ★msg 로 남는다
+     (btnsDoc) — ★로그에는 있고 ★판정에는 없다. ⇒ 이 시험의 전제는 ★성장 ＋ 둘 «하나»다. */
   expect(r.gridBtnsDoc, `전제 — 성장 ＋ 둘이 재는 내내 떠 있다 ${msg}`).toBe(2);
+  /* ★261019 — 이 수(btnsInBlock)는 전부터 «모으기만» 하고 ★단언이 없었다. 머리말이 「이 시험이 빨개지는 날 =
+     누가 ＋ 를 블럭 안으로 옮긴 날」이라 적어 둔 ★바로 그 자가 ★여기다 — 명시로 건다. 항등식이 아니다:
+     버튼을 블럭 안에 붙이는 변경 하나로 ★뒤집힌다(A5 를 지우며 그 네 칸 중 inBlock 을 여기로 옮긴 셈). */
+  expect(r.btnsInBlock, `★＋ 는 블럭 DOM 안에 살지 않는다(#cvb-plus-layer = #canvas-scaler 의 자식) ${msg}`).toBe(0);
   expect(r.L1.markup || /\+/.test(r.L1.cardText), `★L1 저장 문자열 ${msg}`).toBe(false);
   expect(r.L2.markup || /\+/.test(r.L2.cardText), `★L2 히스토리 ${msg}`).toBe(false);
   expect(r.L3.got, '전제 — HTML 내보내기가 문자열을 냈다').toBe(true);

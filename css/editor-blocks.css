@@ -1681,7 +1681,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 #cvb-plus-layer > .cvb-grid-add-btn::after { content: ''; position: absolute; border-radius: 50%; inset: 0; }
 /* 기준점: 오른쪽(열) = (블럭 오른쪽 끝, 블럭 세로 가운데) → 중심을 기준점에. 아래(행) = (블럭 가로 가운데, 블럭 아래 끝) → 왼쪽으로 반 칸만(그리드와 같은 식 — editor-blocks.css:1631-1632). */
 #cvb-plus-layer > .cvb-grid-add-btn[data-cvb-grid-add="col"] { transform: translate(-50%, -50%); }
-#cvb-plus-layer > .cvb-grid-add-btn[data-cvb-grid-add="row"] { transform: translateX(-50%); }
+/* ★★261019 현빈 — 「★로우추가 ＋ 의 위치는 50%가 아니여가꼬 ★통일시켜주는게 좋을것 같아」
+   ★전: translateX(-50%) 뿐 ⇒ ★세로 중심이 ★블럭 바닥에서 ★반지름(20px) ★아래에 섰다(비대칭).
+   ★후: 열 ＋ 와 ★같은 translate(-50%,-50%) — ★변에 ★반쯤 걸친다. ⛔짝 검사도 같이 고쳤다
+        (tests/dom/card-canvas-add-line.dom.spec.js B2 — 옛 단언이 ★«바닥+20»을 잠그고 있었다). */
+#cvb-plus-layer > .cvb-grid-add-btn[data-cvb-grid-add="row"] { transform: translate(-50%, -50%); }
 #cvb-plus-layer > .cvb-grid-add-btn:not(:disabled):hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
 /* 상한(열 4·행 4 — canvas-block.js CVB_GRID_MAX_COLS/ROWS)에서는 흐리게 — 그리드 G15 와 같은 결. */
 #cvb-plus-layer > .cvb-grid-add-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }

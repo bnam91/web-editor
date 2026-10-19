@@ -346,7 +346,29 @@ function _bindCvbDblEdit(block) {
     // → 실제 화면 좌표에 «지금» 있는 요소를 먼저 본다(duo 와 같은 이유·같은 순서).
     const at = document.elementFromPoint?.(e.clientX, e.clientY);
     const hit = _cvbEditable(at, block) || _cvbEditable(e.target, block);
-    if (!hit) return;
+    if (!hit) {
+      // ★★261019 현빈 — 「★그리드블럭에서 줄추가하는 것과 ★같은 로직이면 될 것 같은데
+      //   ★굳이 (cvb-add-btn) 이거는 ★필요없지 않겠어?」
+      //   ⇒ ★빈칸채우기 ＋ 단추를 ★없앴다(_cvbBlockMounts 의 want=[]).
+      //   ★그런데 ★그 단추가 ★«빈 줄을 캔버스에서 만드는 ★유일한 입구»였다(실측) —
+      //     ★_cvbEditable 은 ★«이미 있는» 글자 요소만 잡는다.
+      //   ⇒ ★★입구만 ★옮긴다: ★빈 줄의 ★텍스트 영역(_cvbTextArea)을 ★더블클릭하면 ★만든다.
+      //   ★한 영역에 ★빈 칸은 ★최대 ★하나다 — ★_cvbTextArea 는 ★«있는» 형제의 부모를 쓰므로
+      //     ★둘 다 비면 ★영역이 ★null 이다(그때는 ★옛 ＋ 도 ★안 떴다). ⇒ ★첫 일치로 ★충분.
+      //   ⛔★«요소 포함»으로 ★재면 ★안 된다 — ★실측(261019): ★빈 줄 자리의
+      //     ★elementFromPoint 는 ★영역이 아니라 ★★블럭 자신('canvas-block selected')을 준다
+      //     (★영역이 ★그 지점에서 ★맨 위가 ★아니다). ⇒ ★★«좌표가 ★영역 ★사각형 안인가»로 ★잰다.
+      for (const w of _cvbMissingAll(block)) {
+        const area = _cvbTextArea(block, w.idx, w.slot);
+        if (!area) continue;
+        const r = area.getBoundingClientRect();
+        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) continue;
+        e.stopPropagation();
+        _cvbBeginAdd(block, w.idx, w.field, w.slot || null);
+        return;
+      }
+      return;
+    }
     e.stopPropagation();
     _cvbBeginEdit(block, hit, e);
   });
@@ -437,7 +459,11 @@ function _cvbTextArea(block, idx, slot) {
 
 function _cvbBlockMounts(block) {
   _cvbBindPlusObserver(block);
-  const want = _cvbPlusShown(block) && block.isConnected ? _cvbMissingAll(block) : [];
+  // ★★261019 현빈 — ★빈칸채우기 ＋(.cvb-add-btn)는 ★더 안 띄운다.
+  //   ★입구는 ★_bindCvbDblEdit 의 ★«빈 칸 더블클릭»으로 ★옮겼다(기능은 그대로).
+  //   ⛔_cvbMissingAll 은 ★죽지 않았다 — ★그 더블클릭 판정이 ★여전히 ★쓴다.
+  //   ★성장 ＋(.cvb-grid-add-btn)는 ★별도 자(_syncCvbGridAddBtns)라 ★여기 영향 없다.
+  const want = [];
   if (!want.length) { _dropCvbPlus(block); return; }
   const L = _cvbPlusLayer();
   if (!L) return;
@@ -603,16 +629,16 @@ function _placeCvbGridAddBtns(block) {
 
   let rowX = (br.left + br.right) / 2;
   const rowY = br.bottom;
-  const rowLocalX = (rowX - sr.left) / scale, rowLocalY = (rowY - sr.top) / scale;
-  const fillBtns = _cvbPlusBtns.get(block)?.btns || [];
-  for (const fb of fillBtns) {
-    const fx = parseFloat(fb.style.left), fy = parseFloat(fb.style.top);
-    if (!Number.isFinite(fx) || !Number.isFinite(fy)) continue;
-    if (Math.abs(fx - rowLocalX) < 40 && Math.abs(fy - rowLocalY) < 40) {
-      rowX += CVB_GRID_ROW_DODGE_PX * scale;   // ★화면px 더하기 — put() 이 다시 /scale 하므로 로컬 기준 50px 이동
-      break;
-    }
-  }
+  /* ★★261019 — ★★비킴을 ★★없앴다(현빈 「★로우추가하는 ＋는 ★위치가 ★이상한데? ★중앙이 ★아니지 않니?」).
+       ★경위를 ★적는다 — ★★내가 ★한 번 ★과하게 ★고쳤다:
+       ⑴ ★빈칸채우기 ＋(.cvb-add-btn)를 ★없애고 ★입구를 ★«빈 칸 ★더블클릭»으로 ★옮겼다.
+       ⑵ ★행 ＋ 를 ★translate(-50%,-50%) 로 ★통일하자 ★위 절반 20px 이 ★텍스트 영역에 ★들어왔다.
+       ⑶ ★실측하니 ★«글자 아래 띠 ★가운데» 한 점이 ★버튼에 ★덮였다 ⇒ ★★비킴을 ★되살렸다.
+       ⑷ ★★그런데 ★그 처방이 ★틀렸다 — ★★내 더블클릭 판정은 ★★«영역 ★사각형 ★안 ★아무 데나»다.
+          ★영역 ★≈144×46 · ★버튼이 ★가리는 ★부분 ★≈40×20 ⇒ ★★나머지 ★어디를 ★눌러도 ★열린다.
+          ⇒ ★★비킬 ★까닭이 ★없었고, ★비키니 ★★현빈 눈에 ★«중앙이 ★아닌» ★꼴이 ★됐다.
+       ⇒ ★★행 ＋ 는 ★★언제나 ★블럭 ★하단 ★가로 ★가운데다(열 ＋ 와 ★대칭).
+       ⛔CVB_GRID_ROW_DODGE_PX 는 ★이제 ★안 쓴다 — ★되살릴 일이 ★생기면 ★위 ⑷를 ★먼저 ★읽어라. */
   put(p.row, rowX, rowY);
 }
 
