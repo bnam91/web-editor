@@ -451,30 +451,51 @@ test('B1 카드를 고르면 열·행 성장 ＋ 가 각 1개 — 열=블럭 우
  *   대신 ★«빈 칸의 텍스트 영역 사각형»으로 바꾼다 ㉡ 행 ＋ 를 다시 블럭 밖으로 뺀다.
  *   ⛔검사를 느슨하게 해서 통과시키지 마라(그러면 1018 과 같은 구멍이 조용히 돌아온다).
  * ⚠️261018 에 적어 둔 ★열 성장 ＋ 쪽 미측정은 ★그대로 남는다(아래 꼬리 주석). */
-test('B1b 회귀 — 행 성장 ＋ 가 «빈 칸 더블클릭 자리»를 덮지 않는다(1018 버그의 그 자리 — 입구만 바뀌었다)', async ({ page }) => {
-  // ★1018 버그 재현 조건 그대로: gridCols=1·gridRows=1·카드 하나·desc 빔(기본 setup()) — 카드 중심=블럭
-  //   중심이고 labelPos='bottom'(기본)이라 텍스트 영역 바닥=블럭 바닥 ⇒ 비킴 없으면 행 ＋ 가 겹쳐 덮는다.
+test('B1b 회귀 — 행 성장 ＋ 가 «실제로 쓰는» 더블클릭 자리를 덮지 않는다 · ＋ 는 가로 가운데(261019 현빈)', async ({ page }) => {
+  /* ★★261019 — ★이 칸의 ★뜻을 ★바꿨다. ★경위를 ★적는다(⛔조용히 고치지 ★않는다).
+       ⑴ ★처음 이 칸은 ★「가로 ★가운데 자리가 ★행 ＋ 에 ★가리면 ★안 된다」를 ★잠갔다.
+          ★그때는 ★★비킴 가드가 ★있었다 — ★행 ＋ 가 ★겹치면 ★오른쪽으로 ★50px 비켰다.
+       ⑵ ★그 뒤 ★현빈이 ★9334 에서 ★보시고 ★★「로우추가하는 ＋는 ★위치가 ★이상한데? ★중앙이 ★아니지 않니?」
+          ⇒ ★★비킴을 ★걷었다. ★행 ＋ 는 ★★언제나 ★블럭 ★하단 ★가로 ★가운데다.
+       ⑶ ⇒ ★★가운데 자리는 ★★가려진다. ★그게 ★★설계다(⛔결함이 ★아니다).
+          ★★괜찮은 까닭 — ★더블클릭 판정이 ★★«영역 ★사각형 ★안 ★아무 데나»다.
+          ★영역 ★≈144×46 · ★버튼이 ★가리는 ★부분 ★≈40×20 ⇒ ★★나머지 ★어디를 ★눌러도 ★열린다.
+          ★실측(261019 · 9334): ★영역 ★왼쪽 ★20% 지점에서 ★편집이 ★열렸다.
+       ⇒ ★★그래서 ★★잠글 것이 ★바뀐다:
+          ⛔「가운데가 ★안 가려진다」  →  ★★「★A 묶음이 ★실제로 ★누르는 자리(at)가 ★안 가려진다」
+          ＋ ★★「행 ＋ 가 ★정말 ★가로 ★가운데에 ★선다」(★현빈 지시를 ★잠근다)
+       ★★atCenter 는 ★★단언하지 ★않고 ★로그로만 ★남긴다 — ★가려도 ★되고 ★안 가려도 ★되기 때문이다.
+         ⛔「가려야 한다」로 ★뒤집어 ★잠그지도 ★않았다: ★그건 ★블럭 크기·배율에 ★따라 ★갈려
+         ★★흔들리는 단언이 ★된다(★내 명부: 「★흔들리는 것이 든 명부에 ★등호 금지」). */
   const { id } = await setup(page);
-  await select(page, id, 1);   // 빈 칸 1개(전제) — A1~A4b·A8 이 실제로 더블클릭하는 그 자리
+  await select(page, id, 1);   // 빈 칸 1개(전제)
   await page.waitForFunction((s) => document.querySelectorAll(s).length === 2, '#cvb-plus-layer > .cvb-grid-add-btn');
   await gridSettled(page, id);
   const cs = await emptyCells(page, id);
   expect(cs.length, '전제 — 빈 칸 하나').toBe(1);
   const g = cs[0];
   const row = await gridPlusGeom(page, id, 'row');
-  // ★둘이 실제로 떨어져 있는지도 수로 — «우연히 안 겹쳤다»가 아니라 자리가 갈렸음을 잰다
-  const dx = Math.abs(g.cx - row.cx), dy = Math.abs(g.y - row.cy);
-  // ★261018(지디·태양 지적) — ★통과해도 값이 로그에 남아야 한다(「단언에 잰 값을 찍어라」). 실패 메시지
-  //   «안에만» 값이 있으면 통과 회차엔 그 수가 사라진다 — 사람이 따로 재는 자는 다음 회차에 없어진다.
-  console.log(`[B1b] cx=${g.cx} y=${g.y} bandH=${g.bandH} rowCx=${row.cx} rowCy=${row.cy} dx=${dx} dy=${dy} atCenter=${g.atCenter.cls} atLeftQuarter=${g.at.cls}`);
+  const blockMidX = await page.evaluate((id) => {
+    const r = document.getElementById(id).getBoundingClientRect(); return (r.left + r.right) / 2;
+  }, id);
+  const dx = Math.abs(g.x - row.cx), dy = Math.abs(g.y - row.cy);
+  // ★통과해도 값이 로그에 남아야 한다(「단언에 잰 값을 찍어라」)
+  console.log(`[B1b] at=(${g.x},${g.y}) bandH=${g.bandH} rowCx=${row.cx} rowCy=${row.cy} blockMidX=${blockMidX} `
+    + `dx=${dx} dy=${dy} at.onGrow=${g.at.onGrow} atCenter.onGrow=${g.atCenter.onGrow} atCenter.cls=${g.atCenter.cls}`);
+
   expect(row.hitIsBtn, '★행 성장 ＋ 는 여전히 누를 수 있다').toBe(true);
-  expect(g.atCenter.onText, `★빈 칸의 가운데 자리가 이미 있는 글자 위가 아니다(거기 있는 것=${g.atCenter.cls})`).toBe(false);
-  expect(g.atCenter.onGrow, `★빈 칸의 «가로 가운데» 더블클릭 자리가 행 성장 ＋ 에 가리면 안 된다 — 거기 있는 것=${g.atCenter.cls} (bandH=${g.bandH} dx=${dx} dy=${dy})`).toBe(false);
-  // ⚠️261018 — 이 검사는 ★행★ 성장 ＋ 만 잰다. ★열 성장 ＋(블럭 우측)가 빈 칸 자리와 같은 식으로
-  //   겹칠 수 있는지는 ★미측정이다(기하적으로 더 드문 조건으로 보이지만 그건 추론이고, 수로 재지 않았다
-  //   — 「낮은 확률」을 「문제 없다」로 적지 않는다). 다음 사람의 출발선: 열 쪽도 이 B1b 와 같은 틀로
-  //   (빈 칸의 오른쪽 가장자리 자리 vs col ＋) 재는 케이스를 추가할 것.
+  // ★★현빈 지시 — 행 ＋ 는 블럭 가로 가운데(비킴 없음)
+  expect(Math.abs(row.cx - blockMidX), `★행 ＋ 가 가로 가운데가 아니다(rowCx=${row.cx} blockMidX=${blockMidX}) — 비킴이 되살아났나?`)
+    .toBeLessThan(2);
+  // ★★진짜 값 — A 묶음이 실제로 누르는 자리가 살아 있나
+  expect(g.at.inBlock, `★더블클릭 자리가 블럭(또는 후손)이 아니다 — 거기 있는 것=${g.at.cls} ⇒ 리스너에 안 닿는다`).toBe(true);
+  expect(g.at.onGrow, `★A 묶음이 누르는 자리가 행 성장 ＋ 에 가렸다 — 거기 있는 것=${g.at.cls} (bandH=${g.bandH} areaW=${g.areaW})`).toBe(false);
+  expect(g.at.onText, `★그 자리가 이미 있는 글자 위다(거기 있는 것=${g.at.cls})`).toBe(false);
+  /* ⚠️261018 — 이 검사는 ★행★ 성장 ＋ 만 잰다. ★열 성장 ＋(블럭 우측)가 빈 칸 자리와 같은 식으로
+       겹칠 수 있는지는 ★미측정이다(기하적으로 더 드문 조건으로 보이지만 그건 추론이고, 수로 재지 않았다).
+       다음 사람의 출발선: 열 쪽도 이 B1b 와 같은 틀로 (빈 칸의 오른쪽 가장자리 자리 vs col ＋) 재는 케이스를 추가할 것. */
 });
+
 
 test('B2 열 ＋ 클릭 → gridCols 1→2 · cards 1→2(기본값) · 블럭 폭 모드가 100%로 전환(gridCols===1 분기)', async ({ page }) => {
   const { id } = await setup(page);
