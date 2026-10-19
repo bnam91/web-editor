@@ -2,7 +2,10 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
-import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows, CMP_ROW_HINT, CMP_HD_HINT, cmpGetActiveCell, cmpPickRowImage } from '../blocks/comparison-block.js';
+import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows, CMP_ROW_HINT, CMP_HD_HINT, cmpGetActiveCell, cmpPickRowImage, cmpRowHeights } from '../blocks/comparison-block.js';
+/* ★1017t1c4 — 행 높이의 바닥·천장과 «쓰는 한 벌». 캔버스 행 경계 드래그(overlay-handles.js)와 ★같은 함수·같은 수를 쓴다.
+   ⛔여기 16·400 을 다시 적지 마라(그 둘이 갈리면 「패널에서는 되는데 끌면 다른 값」이 된다). */
+import { CMP_ROW_H_MIN, CMP_ROW_H_MAX, setCmpRowHeight } from '../grid-cell-resize.js';
 import { panelRenderedColor } from './_panel-rendered.js';
 import { redactSectionHTML, wireRedactSection, normalizeRedact } from '../effects/image-redact.js';   /* ★1012t1D4 셀 이미지 「블러 (Redact)」 — 에셋과 같은 공용 절(C1) */
 import { grdGetActiveLine } from './prop-grid.js';   /* ★1017t1c1 — 「고른 글자 칸」 절의 활성 주소(line-host.js 가 이미 들이는 모듈 · 새 그래프 간선 0 — line-host.js 가 같은 자리에서 이미 import 한다) */
@@ -11,7 +14,8 @@ import { grdGetActiveLine } from './prop-grid.js';   /* ★1017t1c1 — 「고�
    글자들이라 새지는 않았지만, 다음 사람이 이 사본을 홑따옴표 속성 자리에 쓰면 그때 뚫린다.
    ⛔사본을 고치는 대신 «지웠다» — 공용 한 벌(_helpers.js escHtml)이 다섯 글자를 다 덮는다. */
 const _esc = escHtml;
-const _rowHeights = d => { try { const a = JSON.parse(d.rowHeights || 'null'); return Array.isArray(a) ? a : []; } catch { return []; } };
+/* ★1017t1c4 — 사본을 지웠다. 읽는 자는 comparison-block.js cmpRowHeights ★한 벌(렌더러가 쓰는 바로 그 함수)이다. */
+const _rowHeights = cmpRowHeights;
 
 export function showComparisonProperties(block) {
   const d = block.dataset;
@@ -30,7 +34,7 @@ export function showComparisonProperties(block) {
         <button class="prop-align-btn cmp-row-type${!isImg ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-type="text" style="flex:0 0 auto;font-size:10px;padding:2px 6px;">텍스트</button>
         <button class="prop-align-btn cmp-row-type${isImg ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-type="image" style="flex:0 0 auto;font-size:10px;padding:2px 6px;">이미지</button>`;
       const heightInput = idx === 0
-        ? `<input type="number" class="prop-number cmp-row-h" data-idx="${i}" min="16" max="400" placeholder="${parseInt(d.rowH) || 64}" value="${rhVal}" title="행 높이(비우면 기본)" style="width:52px;">`
+        ? `<input type="number" class="prop-number cmp-row-h" data-idx="${i}" min="${CMP_ROW_H_MIN}" max="${CMP_ROW_H_MAX}" placeholder="${parseInt(d.rowH) || 64}" value="${rhVal}" title="행 높이(비우면 기본)" style="width:52px;">`
         : '';
       /* ★1017t1c1 — 글자 칸의 입력칸(.cmp-row-input)을 ★뺐다(현빈 원문 「칼럼별 플레이스홀더·인풋박스들이
          모두 있을 필요가 있을까」). ★대체 수단 = 캔버스 더블클릭(_editableRow, comparison-block.js) ·
@@ -352,12 +356,11 @@ ${blockHeaderHTML({
   propPanel.querySelectorAll('.cmp-row-h').forEach(inp => {
     const apply = () => {
       const ri = +inp.dataset.idx;
-      const arr = _rowHeights(block.dataset);
       const raw = inp.value.trim();
-      if (raw === '') { arr[ri] = null; }
-      else { let v = Math.max(16, Math.min(400, parseInt(raw) || 0)); arr[ri] = v; }
-      // trailing null 정리 (최대 인덱스까지만 보존)
-      while (arr.length && arr[arr.length - 1] == null) arr.pop();
+      /* ★1017t1c4 — 클램프·꼬리정리·「다른 행 불변」은 ★한 함수(setCmpRowHeight)가 한다.
+         캔버스 행 경계 드래그도 ★같은 함수를 쓴다 ⇒ 패널과 드래그가 갈릴 수 없다.
+         ⚠️빈 칸 = null(기본 높이) · 숫자 아닌 글자 = `parseInt(raw) || 0` → 바닥으로(옛 동작 그대로). */
+      const arr = setCmpRowHeight(_rowHeights(block.dataset), ri, raw === '' ? null : (parseInt(raw) || 0));
       block.dataset.rowHeights = JSON.stringify(arr);
       rerender();
     };
@@ -400,6 +403,11 @@ ${blockHeaderHTML({
     const _fi = window.getComparisonFeaturedIdx?.(block.dataset, _n) ?? (_n - 1);
     window.bindGradientLinePicker?.(block, document.getElementById('cmp-c' + _fi + 'Bg-color'));
   }
+  /* ★1017t1c4 — 캔버스 «행 경계 드래그» 거터(js/overlay-handles.js). 패널이 뜨는 자리마다 같이 띄운다
+     (클릭 선택·레이어패널 선택·updateComparisonBlock 뒤 재선택이 전부 이 함수를 거친다 — 그리드
+      showGridProperties 꼬리의 showGridGutters 와 ★같은 자리·같은 까닭).
+     해제는 editor.js deselectAll() 의 hideCmpGutters 로 일괄. window 경유 = 이 파일의 관례(renderComparison 과 같다). */
+  window.showCmpGutters?.(block);
 }
 
 // 캔버스에서 그라데이션 라인을 드래그하면(source==='canvas') 활성 칼럼 스와치만 동기화.

@@ -56,6 +56,43 @@ function resizeRowHeight(startH, deltaPx, minPx = ROW_H_MIN, maxPx = ROW_H_MAX) 
   return Math.round(Math.max(minPx, Math.min(maxPx, h + d)));
 }
 
+// ── 비교(컴패리전) 블록 행 높이 — 캔버스 «행 경계 드래그» (1017t1c4, 2026-10-20) ─────────
+// ★왜 이 파일인가 — 이 레포의 «순수 계산부»가 여기 한 자리다(DOM 무의존 ⇒ 단위검사가 실물
+//   소스를 그대로 import 한다). 비교 블록의 행 높이도 «가중치»가 아니라 ★px 고정높이라
+//   그리드 행과 ★같은 산식이다 ⇒ ⛔새 산식을 짜지 않고 «바닥·천장»만 갈아 끼운다.
+// ★비교의 바닥·천장은 그리드와 ★다르다(16/400 ↔ ROW_H_MIN 24 / ROW_H_MAX 4000). 일부러 다르다:
+//   비교 행 높이는 ★전 칼럼 공통이고, 패널 숫자칸(.cmp-row-h)·MCP 문(updateComparisonBlock)이
+//   ★이미 16~400 으로 받아 왔다. ⛔통일하지 마라 — 통일하면 이미 저장된 프로젝트에서
+//   패널 입력과 캔버스 드래그가 서로 다른 값을 받는다(그리드가 「패널 4000 / 드래그 2000」으로
+//   갈렸던 바로 그 결함의 거울상).
+// ★★이 두 수가 비교 행 높이의 ★SSOT 다 — 소비자 셋이 전부 여기서 가져온다:
+//     js/blocks/comparison-block.js (문 검증) · js/props/prop-comparison.js (패널 min/max·클램프)
+//     js/overlay-handles.js (캔버스 드래그)
+//   ⛔호출부에 16·400 을 다시 적지 마라. 잠금 = tests/unit/cmp-row-drag.test.mjs.
+const CMP_ROW_H_MIN = 16;
+const CMP_ROW_H_MAX = 400;
+
+/** 비교 행 경계 드래그 — 그리드 행과 ★같은 함수(resizeRowHeight)에 비교의 바닥·천장만 먹인다.
+ *  ⛔호출부에서 min/max 를 넘기지 마라(그러면 이 자물쇠가 풀린다). NaN 가드·반올림은 그쪽 계약 그대로. */
+function resizeCmpRowHeight(startH, deltaPx) {
+  return resizeRowHeight(startH, deltaPx, CMP_ROW_H_MIN, CMP_ROW_H_MAX);
+}
+
+/** 행 인덱스 ri 의 높이만 갈아 끼운 ★새 배열(rowHeights). ⛔받은 배열을 안 건드린다.
+ *  h = 수(클램프) · null/'' = 「기본 높이로 되돌림」. 꼬리의 null 은 걷는다(패널 `.cmp-row-h` 규약 그대로).
+ *  ★«다른 행은 안 바뀐다»가 이 함수의 계약이다(음성대조 ⑷가 이걸 잰다).
+ *  ★클램프를 ★여기서 따로 셈하지 않는다 — 델타 0 으로 resizeCmpRowHeight 를 지나간다
+ *    (그리드 grid-block.js:2670 「행 높이를 다른 자리에서 따로 셈하지 마라」와 같은 규율). */
+function setCmpRowHeight(arr, ri, h) {
+  const out = Array.isArray(arr) ? arr.slice() : [];
+  if (!Number.isInteger(ri) || ri < 0) return out;
+  while (out.length < ri) out.push(null);
+  const n = (h == null || h === '') ? null : Number(h);
+  out[ri] = (n != null && Number.isFinite(n)) ? resizeCmpRowHeight(n, 0) : null;
+  while (out.length && out[out.length - 1] == null) out.pop();
+  return out;
+}
+
 // ── 그리드 이미지/아이콘 줄 리사이즈 (T-C, 코너 핸들) ────────────────────────
 // ⛔ROW_H_MIN 을 빌려 쓰지 않는다(위 26행 주석 참조 — 「행 드래그 전용 바닥」이라 통일 금지).
 //   값이 24 로 같아도 별도 상수로 둔다.
@@ -101,4 +138,5 @@ function resizeGridImage({ startW, startH, dir, dx, dy, cellW, aspect, lockAspec
 
 export {
   ROW_H_MAX, ROW_H_MIN, COL_MIN_PX, resizeColBoundary, resizeRowHeight,
+  CMP_ROW_H_MIN, CMP_ROW_H_MAX, resizeCmpRowHeight, setCmpRowHeight,
   IMG_MIN_PX, IMG_MIN_PCT, resizeGridImage };

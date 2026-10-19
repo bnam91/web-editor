@@ -5,7 +5,8 @@
 ═══════════════════════════════════ */
 import { applyFrameTransform, applyFrameRotationMargin, blockRotationDeg } from './frame-geometry.js';
 
-import { resizeColBoundary, resizeRowHeight, resizeGridImage } from './grid-cell-resize.js';
+import { resizeColBoundary, resizeRowHeight, resizeGridImage,
+         resizeCmpRowHeight, setCmpRowHeight } from './grid-cell-resize.js';   /* ★1017t1c4 비교 행 경계 드래그 — ★같은 모듈(새 import 간선 0) */
 // ★grid-block.js → drag-drop.js → overlay-handles.js(이 파일) 로 이미 순환 임포트가 있다
 //   (grid-block.js 가 drag-drop.js 의 bindBlock 을 쓰고, drag-drop.js 는 `export * from
 //   './overlay-handles.js'`). 여기서 grid-block.js 를 다시 임포트해도 사이클이 «닫힐» 뿐
@@ -2229,6 +2230,224 @@ function _onGridRowMouseDown(e, block, i) {
 window.showGridGutters = showGridGutters;
 window.hideGridGutters = hideGridGutters;
 
+/* ═══ ★1017t1c4 — 비교(컴패리전) 블록 «행 경계 드래그» (현빈 2026-10-20) ══════════════
+ *   원문: 「칸의 높이도 그리드블럭 처럼 ⒜우측패널에서 일괄 높이 조절되게 혹은
+ *          ⒝캔버스에서 특정 칸 높이를 동적으로 조절할 수 있게해줄래?」
+ *   ★현빈 직접 결정 = 「c4 - 캔버스에서 끌어서」 ⇒ ⒝ ★하나만 만든다.
+ *   ⛔⒜ 「패널 일괄 조절」은 ★안 만든다 — ★이미 있다(내 손으로 잰 것, 2026-10-20):
+ *        · 전역 기본 높이  `#cmp-rowh` 슬라이더＋숫자칸 (prop-comparison.js:189-190 · dataset.rowH · 24~140)
+ *        · ★행마다 따로    `.cmp-row-h` 숫자칸      (prop-comparison.js:33     · dataset.rowHeights[ri] · 첫 칼럼 줄에만 노출)
+ *
+ * ★이미 있던 것 — ⛔새 필드 0 · 새 산식 0 · 새 저장 키 0
+ *   · 모델 = `block.dataset.rowHeights` (행 인덱스→px 배열 · null = 기본 · ★전 칼럼 공통)
+ *     ⇒ renderComparison 의 `_baseRowH0` 가 ★이미 읽는다. 저장은 `data-*` 라 섹션 직렬화가 그대로 싣는다
+ *       (⇒ 「저장/불러오기에 실린다」가 ★새 배선이 아니라 ★이미 선 것이다 — 패널 숫자칸이 같은 키를 쓴다).
+ *   · 문 = `updateComparisonBlock({rowHeights})` · 바닥·천장 = `CMP_ROW_H_MIN/MAX`(grid-cell-resize.js)
+ *   ⇒ ★없던 것은 «끄는 손» 하나뿐이다. 이 아래가 그 손이다.
+ *
+ * ★그리드 행 거터(showGridGutters · _onGridRowMouseDown)를 ★형틀로 쓴다 — 고정층(#ss-handles-overlay) ·
+ *   rAF 위치갱신 · 「블록이 죽거나 선택이 풀리면 스스로 정리」 · mousedown/up 에서 pushHistory 1회씩 ·
+ *   «드래그 중 패널 재렌더 금지, 그 칸만 되쓰기» · 띠 계산 `_rowGutterBand`(사본 0) · 우클릭 전달(_wireGutterContextMenu).
+ *
+ * ★★비교가 그리드와 ★다른 셋 — 여기만의 것이라 적어 둔다:
+ *   ⑴ 비교는 `.cmp-inner` 가 ★한 번 더 scale 된다(`block._cmpScale`, renderComparison 이 심는다)
+ *      ⇒ 화면 px → 설계 px 는 `_canvasScaleNow() × _cmpScale` 로 나눈다.
+ *   ⑵ ★칼럼마다 행의 y 가 ★다르다 — 카드들은 «공통 중심선»에 맞춰 세로 가운데 정렬되고(renderComparison
+ *      `top = … + (totalH - h)/2`) muted 칼럼엔 stagger 가 더해진다. 그리드는 grid-template-rows 라
+ *      한 줄이 전 열에서 같은 y 였지만 ★여기선 아니다 ⇒ 거터를 ★칼럼마다 둔다(그 칼럼 폭만 덮는다).
+ *      ⛔블럭 전폭 띠 하나로 두면 강조 칼럼에서 «경계가 아닌 자리»에 앉아 그 칸 글자를 덮는다.
+ *   ⑶ ★강조(featured) 칼럼의 렌더 높이엔 featScale 이 ★이미 곱해져 있다 ⇒ 설계 높이로 되돌릴 때
+ *      ★그 수를 나눠야 한다. 그 수는 ★한 자리(comparison-block.js cmpFeatScale)에서 온다 —
+ *      ⛔여기서 parseFloat·클램프를 다시 적지 않는다.
+ *
+ * ★값을 ★쓰는 자리는 ★한 함수(setCmpRowHeight, grid-cell-resize.js)다 — 패널 `.cmp-row-h` 도 ★같은 것을 쓴다
+ *   ⇒ 「행 높이를 다른 자리에서 따로 셈하지 마라」(grid-block.js:2670)를 비교에서도 지킨다.
+ * ⛔`window.updateComparisonBlock` 을 ★부르지 않는다 — model-update-history.js 가 그걸 감싸 ★호출마다
+ *   이력 한 칸을 쌓는다(mousemove 수만큼 = ⌘Z 가 픽셀 단위로 끊긴다). 그리드 바깥 거터·패널 숫자칸과
+ *   ★같이 dataset 직접 쓰기 + renderComparison 이다(이력은 mousedown/up 에서 1회씩).
+ * ⛔거터 DOM 을 블록 «안»에 넣지 않는다 — #ss-handles-overlay 는 #canvas-scaler 밖이라 저장본·export 에 안 샌다.
+ */
+let _cmpGutterBlock = null;
+let _cmpGutterRafId = null;
+
+/** 이 블럭의 칼럼별 «행 경계» 전수 — [{ci, ri}] (칼럼 ci 의 행 ri|ri+1 사이).
+ *  ★DOM 에서 센다 — 그려진 것이 참값이다(_gridNestedLines 와 같은 규약 · 칼럼마다 행 수가 다를 수 있다). */
+function _cmpRowBoundaries(block) {
+  const out = [];
+  block.querySelectorAll('.cmp-inner > .cmp-col[data-col-idx]').forEach(col => {
+    const ci = Number(col.dataset.colIdx);
+    if (!Number.isInteger(ci)) return;
+    const n = col.querySelectorAll(':scope > .cmp-row[data-row-idx]').length;
+    for (let ri = 0; ri < n - 1; ri++) out.push({ ci, ri });
+  });
+  return out;
+}
+
+/** 칼럼 ci · 행 ri 의 칸 DOM. ⛔DOM 순서 역산 금지 — 렌더러가 심은 data-* 가 정본(cmpCellAddrAt 과 같은 규약). */
+function _cmpRowEl(block, ci, ri) {
+  return block.querySelector(`.cmp-row[data-col-idx="${ci}"][data-row-idx="${ri}"]`);
+}
+
+/** 칼럼 ci 가 «강조»인가 — 렌더러가 정규화해 둔 `dataset.featured` 를 그대로 읽는다(⛔여기서 다시 판정하지 않는다). */
+function _cmpIsFeat(block, ci) { return String(ci) === String(block.dataset.featured); }
+
+/** 강조 배율 — comparison-block.js ★한 자리에서. 없으면 null(= 강조 칼럼엔 거터를 안 세운다 · 머리말 ⑶). */
+function _cmpFeatFactor(block, ci) {
+  if (!_cmpIsFeat(block, ci)) return 1;
+  const f = window.cmpFeatScale ? window.cmpFeatScale(block.dataset) : NaN;
+  return (Number.isFinite(f) && f > 0) ? f : null;
+}
+
+/** 화면 px → «설계 px» 나누개(캔버스 배율 × .cmp-inner 배율 × 강조 배율). 머리말 ⑴⑶. */
+function _cmpPxFactor(block, featFactor) {
+  const s = Number(block._cmpScale);
+  return _canvasScaleNow() * (Number.isFinite(s) && s > 0 ? s : 1) * featFactor;
+}
+
+/** 칼럼 ci · 행 ri 의 «글자 중앙»(화면 y) — 비교 칸은 세로 가운데 정렬이라 칸 rect 의 중앙이 그 자리다.
+ *  그리드 `_rowContentEdge` 와 ★같은 뜻·같은 eps(GUT_CONTENT_EPS) — 낮은 배율에서 거터가 더블클릭을 삼키는
+ *  [M64] 와 ★같은 병을 같은 약으로 막는다. 거터가 ★그 칼럼만 덮으므로 그 칼럼의 두 칸만 본다. */
+function _cmpRowContentEdge(block, ci, ri, dir) {
+  const el = _cmpRowEl(block, ci, ri);
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  if (!(r.height > 0)) return null;
+  const mid = r.top + r.height / 2;
+  return dir === 'up' ? mid + GUT_CONTENT_EPS : mid - GUT_CONTENT_EPS;
+}
+
+function showCmpGutters(block) {
+  /* ★강조 배율을 못 구하는 칼럼은 ★여기서 뺀다 — ⛔「대충 1 로 두고 끌기」 금지
+     (그러면 끌린 양이 featScale 배만큼 어긋나고, 사용자는 「조금 끌었는데 많이 늘었다」로 본다).
+     ★빼기를 «세기 전»에 한다 — 아래 조기 return 이 「세운 수」와 「세울 수」를 견주므로,
+       뺀 것을 세면 둘이 영영 안 맞아 매 호출마다 거터를 지웠다 다시 세운다(끌는 중이면 끊긴다). */
+  const need = _cmpRowBoundaries(block).filter(({ ci }) => _cmpFeatFactor(block, ci) !== null);
+  /* ★같은 블럭이어도 «경계 수»가 바뀌었으면 다시 세운다 — 행/칼럼을 더하거나 지우면 수가 바뀐다
+     (그리드가 「3x3 으로 바꿔도 거터가 옛 개수 그대로」였던 그 회귀와 ★같은 자리다). */
+  if (_cmpGutterBlock === block) {
+    const ovl = _getOverlay();
+    const have = ovl ? ovl.querySelectorAll('.cmp-gutter').length : 0;
+    if (have === need.length) { _updateCmpGutterPositions(); return; }
+  }
+  hideCmpGutters();
+  if (!need.length) return;            // 칼럼마다 행이 하나뿐이면 경계가 없다
+  _cmpGutterBlock = block;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  for (const { ci, ri } of need) {
+    const g = document.createElement('div');
+    g.className = 'cmp-gutter';
+    g.dataset.axis = 'row';            // ★그리드 거터와 같은 이름 — 축이 늘면 검사가 축별로 센다
+    g.dataset.ci = String(ci);
+    g.dataset.i = String(ri);
+    // ★position:absolute — #ss-handles-overlay 자체가 fixed;inset:0 이라 자식 좌표계가 뷰포트와 같다(.grd-gutter 와 같은 관례).
+    g.style.cssText = 'position:absolute;height:8px;cursor:row-resize;z-index:97;pointer-events:auto;';
+    overlay.appendChild(g);
+    g.addEventListener('mousedown', e => _onCmpRowMouseDown(e, block, ci, ri));
+    _wireGutterContextMenu(g, block);   // ★거터 위 우클릭도 «블록의» 메뉴로(그리드와 같은 부품)
+  }
+  _updateCmpGutterPositions();
+  _startCmpGutterRaf();
+}
+
+function hideCmpGutters() {
+  if (_cmpGutterRafId) { cancelAnimationFrame(_cmpGutterRafId); _cmpGutterRafId = null; }
+  _cmpGutterBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.cmp-gutter').forEach(g => g.remove());
+}
+
+function _startCmpGutterRaf() {
+  function loop() {
+    if (!_cmpGutterBlock) return;
+    if (!_cmpGutterBlock.isConnected || !_cmpGutterBlock.classList.contains('selected')) {
+      hideCmpGutters();
+      return;
+    }
+    _updateCmpGutterPositions();
+    _cmpGutterRafId = requestAnimationFrame(loop);
+  }
+  _cmpGutterRafId = requestAnimationFrame(loop);
+}
+
+function _updateCmpGutterPositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_cmpGutterBlock) return;
+  const block = _cmpGutterBlock;
+  overlay.querySelectorAll('.cmp-gutter').forEach(g => {
+    const ci = Number(g.dataset.ci), ri = Number(g.dataset.i);
+    const a = _cmpRowEl(block, ci, ri), b = _cmpRowEl(block, ci, ri + 1);
+    const col = block.querySelector(`.cmp-inner > .cmp-col[data-col-idx="${ci}"]`);
+    if (!a || !b || !col) { g.style.display = 'none'; return; }
+    g.style.display = '';
+    const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect(), cr = col.getBoundingClientRect();
+    const cy = (ar.bottom + br.top) / 2;   // 두 칸 사이 gap 의 중앙
+    /* [M64] 와 같은 약 — 칸이 충분히 크면 8px 거터가 글자 중앙까지 닿을 수 없어 rect 를 ★안 읽는다. */
+    const probe = ar.height < GUT_PROBE_H || br.height < GUT_PROBE_H;
+    const band = _rowGutterBand(
+      cy,
+      probe ? _cmpRowContentEdge(block, ci, ri, 'up') : null,
+      probe ? _cmpRowContentEdge(block, ci, ri + 1, 'down') : null,
+    );
+    g.style.top = band.top + 'px';
+    g.style.height = band.height + 'px';
+    g.style.left = cr.left + 'px';
+    g.style.width = cr.width + 'px';     // ★그 칼럼만 덮는다(머리말 ⑵)
+  });
+}
+
+/* 경계 ri|ri+1 을 끌면 «위» 행(rowHeights[ri])의 높이만 바뀐다 — 아래 행은 손대지 않는다(그리드 행과 같은 모델,
+   재분배 없음). ★행 높이는 ★전 칼럼 공통이라 어느 칼럼에서 끌어도 그 행 인덱스가 전 칼럼에서 같이 바뀐다
+   (comparison-img-edit.js:12 가 적어 둔 그 모델 — 그래서 «칸 하나 코너»가 아니라 «행 경계»가 맞는 손잡이다). */
+function _onCmpRowMouseDown(e, block, ci, ri) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const el = _cmpRowEl(block, ci, ri);
+  const featFactor = _cmpFeatFactor(block, ci);
+  if (!el || featFactor === null) return;
+  /* ★읽는 자가 없으면 ⛔아무것도 쓰지 않는다 — 빈 배열로 떨어지면 «다른 행의 높이»를 통째로 지운다
+     (「없다」를 고장난 계측기로 재지 마라 — 여기선 「못 읽었다」를 「높이가 없다」로 쓰면 소실이다). */
+  const arr0 = window.cmpRowHeights ? window.cmpRowHeights(block.dataset) : null;
+  if (!Array.isArray(arr0)) return;
+
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+  /* ★offsetHeight = «설계 px»(transform 영향 없음). 강조 칼럼은 round(기본높이 × featScale) 가 박혀 있어
+     되돌려 나눈다 ⇒ 그 반올림만큼(≤0.5/featScale px) 시작값이 어긋날 수 있고, 결과는 다시 정수로 반올림된다. */
+  const startH0 = el.offsetHeight / featFactor;
+  const startY = e.clientY;
+  window.pushHistory?.();   // ★드래그 «시작 직전» 1회만 — mousemove 마다 쌓이면 undo 가 픽셀 단위로 끊긴다
+
+  function onMove(ev) {
+    const f = _cmpPxFactor(block, featFactor);   // 드래그 중 줌이 바뀌는 경우까지 방어(매 move 재조회)
+    if (!(f > 0)) return;
+    const delta = (ev.clientY - startY) / f;
+    const h = resizeCmpRowHeight(startH0, delta);   // ★바닥·천장은 모듈 기본값(CMP_ROW_H_MIN/MAX) — ⛔여기서 리터럴로 덮지 않는다
+    /* ★쓰는 자리는 한 함수 — 패널 `.cmp-row-h` 와 ★같은 setCmpRowHeight(다른 행·꼬리 null 규약 포함). */
+    block.dataset.rowHeights = JSON.stringify(setCmpRowHeight(arr0, ri, h));
+    window.renderComparison?.(block);
+    _updateCmpGutterPositions();
+    /* 패널이 열려 있으면 ★그 행의 입력값만 되쓴다 — ⛔패널 재렌더 금지(포커스·드래그가 끊긴다.
+       그리드 거터·prop-grid.js 의 「드래그 중 패널 재렌더 금지」와 같은 규약). */
+    const inp = document.querySelector(`.cmp-row-h[data-idx="${ri}"]`);
+    if (inp) inp.value = String(h);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    restoreDrag();
+    /* ★끝 상태도 찍는다 — 시작만 찍으면 «다음»이 push-after 일 때 그 사이 표본이 없어 ⌘Z 한 번이 둘을
+       같이 먹는다(js/drag-history.js · js/CLAUDE.md 히스토리 규약). 안 움직였으면 무변화 차단이 버린다. */
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showCmpGutters = showCmpGutters;
+window.hideCmpGutters = hideCmpGutters;
+
 /* ═══════════════════════════════════════════════════════════════════════════
    GRID 이미지/아이콘 줄 — 코너 리사이즈 핸들 (T-C, 2026-09-16)
    ───────────────────────────────────────────────────────────────────────────
@@ -3856,6 +4075,8 @@ export {
   hideVectorResizeHandles,
   showGridGutters,
   hideGridGutters,
+  showCmpGutters,
+  hideCmpGutters,
   showGridImageResizeHandle,
   hideGridImageResizeHandle,
   showGridLineGrip,

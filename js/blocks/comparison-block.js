@@ -6,6 +6,9 @@ import { _cvbBackgroundSize } from './canvas-block.js';   // ★D3 — 이미지
 import { normalizeRedact, applyRedact } from '../effects/image-redact.js';   // ★D4 — 셀 이미지 블러(Redact) 공용 모듈(C1 · 에셋과 한 벌)
 import { lnHasLines, lnLinesHtml, lnValidateLines, lnPlainText, lnRemark } from './line-host.js';   // ★D2 — 칸 안 «줄»(버블·챗과 같은 주인 계약 · 사본 금지)
 import { GRID_ROLES } from './grid-block.js';   // ★D2 — 문서에 안 붙은 블럭의 줄 높이 근사(역할 크기 × 줄높이)
+/* ★1017t1c4 — 행 높이의 바닥·천장은 ★한 곳에서 온다(js/grid-cell-resize.js). 패널(.cmp-row-h)·캔버스 드래그(overlay-handles.js)와 ★같은 수를 쓴다.
+   ⛔여기 16·400 을 다시 적지 마라 — 그리드가 「패널 4000 / 드래그 2000」으로 갈렸던 그 결함의 거울상이다. */
+import { CMP_ROW_H_MIN, CMP_ROW_H_MAX } from '../grid-cell-resize.js';
 
 // ── cmp 셀 placeholder(기본문구) 식별 ───────────────────────────────────────
 // comparison 셀은 일반 텍스트블럭과 달리 cols 모델에 텍스트가 들어있어 data-isPlaceholder
@@ -154,8 +157,10 @@ function normalizeRow(r) {
 }
 const _rows = s => { try { const a = JSON.parse(s || '[]'); return Array.isArray(a) ? a.map(normalizeRow) : []; } catch { return []; } };
 const _colsParse = s => { try { const a = JSON.parse(s || 'null'); return Array.isArray(a) && a.length ? a : null; } catch { return null; } };
-// per-row 높이 오버라이드 배열 (행 인덱스→px, null/0이면 기본 rowH). data-rowHeights JSON.
-function _rowHeights(d) { try { const a = JSON.parse(d.rowHeights || 'null'); return Array.isArray(a) ? a : []; } catch { return []; } }
+/* per-row 높이 오버라이드 배열 (행 인덱스→px, null/0이면 기본 rowH). data-rowHeights JSON.
+   ★1017t1c4 — «읽는 자»를 한 벌로 모았다(전엔 여기와 prop-comparison.js 에 ★같은 한 줄이 두 벌이었다).
+   패널·캔버스 드래그가 이 함수를 쓴다(드래그는 window.cmpRowHeights 로 — 순환 import 회피 관례). */
+export function cmpRowHeights(d) { try { const a = JSON.parse(d.rowHeights || 'null'); return Array.isArray(a) ? a : []; } catch { return []; } }
 
 /* cols 배열 획득 (없으면 구버전 left/right dataset → 배열로 마이그레이션). rows는 객체로 정규화.
  *
@@ -191,6 +196,15 @@ function setComparisonCols(block, cols) { block.dataset.cols = JSON.stringify(co
  * 몸짓 = 그리드(2번째 클릭 = 칸 선택 + 패널 「Image」 절 · 더블클릭 = 편집기 · 우클릭 「이미지 교체」),
  * 편집기 = 카드블럭(드래그 = imgX/imgY · 휠 = imgScale) — js/blocks/comparison-img-edit.js.
  * ★상태의 정본은 모델(행 필드)이다 — renderComparison 이 .cmp-inner 를 통째로 다시 그리므로 DOM 에 둔 값은 사라진다. */
+/* ★1017t1c4 — 강조(featured) 칼럼 배율. ★한 자리에서만 셈한다 — 렌더(renderComparison)와
+   캔버스 «행 경계 드래그»(js/overlay-handles.js)가 ★같은 수를 봐야 한다. 강조 칼럼의 렌더 높이는
+   `round(기본높이 × 이 수)`라, 드래그가 이 수를 모르면 끌린 양이 featScale 배만큼 어긋난다.
+   ⛔쓰는 쪽에서 parseFloat·클램프를 다시 적지 마라(그리드 grid-block.js:2670 과 같은 규율). */
+export function cmpFeatScale(d) {
+  let v = parseFloat(d && d.featScale);
+  if (!(v >= 1)) v = 1.2;
+  return Math.min(1.5, Math.max(1.0, v));
+}
 export function cmpImgBgSize(row) { return _cvbBackgroundSize(row || {}); }
 export function cmpImgBgPos(row) {
   if (!row || (row.imgX == null && row.imgY == null)) return 'center';   // ⛔옛 행 바이트 불변(E7)
@@ -268,9 +282,7 @@ function renderComparison(block, _lnNeed = null) {
   const headerH   = parseInt(d.headerH) || 72;
   const rowH      = parseInt(d.rowH) || 64;
   const rowGap    = parseInt(d.rowGap) || 8;
-  let featScale   = parseFloat(d.featScale);
-  if (!(featScale >= 1)) featScale = 1.2;          // 기본 1.2배
-  featScale = Math.min(1.5, Math.max(1.0, featScale));
+  const featScale = cmpFeatScale(d);               // ★1017t1c4 — 한 자리에서(아래 cmpFeatScale) · 기본 1.2배 · 1.0~1.5
   const padX = Math.max(0, parseInt(d.padX) || 0); // 전체 좌우 패딩 (블록 ↔ 카드)
   const padY = Math.max(0, parseInt(d.padY) || 0); // 패널 상하 패딩 (카드 내부)
   const baseTitleFont = parseInt(d.titleFont) || 26; // 제목 기본 폰트 (featured는 ×featScale)
@@ -287,7 +299,7 @@ function renderComparison(block, _lnNeed = null) {
   // 칼럼 모델 (없으면 left/right에서 마이그레이션 → cols로 영속화)
   const cols = getComparisonCols(d);
   if (!_colsParse(d.cols)) d.cols = JSON.stringify(cols);
-  const rowHeights = _rowHeights(d);        // 행 인덱스별 높이 오버라이드 (전 칼럼 공통)
+  const rowHeights = cmpRowHeights(d);     // 행 인덱스별 높이 오버라이드 (전 칼럼 공통)
   const N = cols.length;
   const featuredIdx = getComparisonFeaturedIdx(d, N);
   if (d.featured !== String(featuredIdx)) d.featured = String(featuredIdx);
@@ -659,7 +671,7 @@ function addComparisonBlock(opts = {}) {
 //       rows 항목: 문자열(=text행) 또는 {type:'text'|'image', text?, imgSrc?, imgFit?'cover'|'contain'}
 //       칼럼·행의 확장 필드(titleBg/titleColor · 행 imgX/imgY/imgScale …)는 보존 명부 CMP_COL_KEEP/CMP_ROW_KEEP 대로 실린다(파일 머리).
 //   - 칼럼 단위 patch: columnPatch [{index, title?, bg?, text?, titleBg?, titleColor?, rows?}, ...] (rows 항목 동일 규칙 · titleBg/titleColor '' = 지우기)
-//   - 행 높이: rowHeights (행 인덱스→px 배열, null/0이면 기본 rowH, 16~400, ≤ 20개)
+//   - 행 높이: rowHeights (행 인덱스→px 배열, null/0이면 기본 rowH, 범위는 CMP_ROW_H_MIN~CMP_ROW_H_MAX, ≤ 20개)
 //   - 칸 하나의 줄: rowLines {col, row, lines|null} (★1012t1D2 — 그 칸만 바꾼다 · 다른 행·필드 무접촉 · null/[] = 줄 걷기 · 이미지 칸 거절)
 //       rows 항목의 lines 도 받는다(보존 명부 CMP_ROW_KEEP.lines — 잣대 lnValidateLines). 줄이 있으면 text 는 줄 글자 거울.
 //   - 메타: layerName
@@ -921,8 +933,8 @@ function updateComparisonBlock(blockId, partial = {}, opts = {}) {
       const v = partial.rowHeights[ri];
       if (v == null || v === 0 || v === '') { safeRH.push(null); continue; } // 기본 rowH 사용
       const n = Number(v);
-      if (!Number.isFinite(n) || n < 16 || n > 400) {
-        return { ok: false, code: 'INVALID', message: `rowHeights[${ri}] out of range (16~400 or null)` };
+      if (!Number.isFinite(n) || n < CMP_ROW_H_MIN || n > CMP_ROW_H_MAX) {
+        return { ok: false, code: 'INVALID', message: `rowHeights[${ri}] out of range (${CMP_ROW_H_MIN}~${CMP_ROW_H_MAX} or null)` };
       }
       safeRH.push(Math.round(n));
     }
@@ -992,6 +1004,10 @@ window.cmpPickRowImage        = cmpPickRowImage;
 window.cmpImgBgSize           = cmpImgBgSize;
 window.cmpImgBgPos            = cmpImgBgPos;
 window.cmpRowSetLines         = cmpRowSetLines;   // ★D2 — line-host 비교 주인(write)이 부른다(순환 import 회피 관례)
+/* ★1017t1c4 — 캔버스 «행 경계 드래그»(js/overlay-handles.js)가 읽는다. ⛔그쪽에서 JSON.parse 를 다시 적지 않게 하려고 문을 연다.
+   ★읽는 자가 없으면 드래그는 ★아무것도 안 쓴다(빈 배열로 떨어지면 «다른 행의 높이»를 지운다) — 그 가드는 그쪽에 있다. */
+window.cmpRowHeights          = cmpRowHeights;
+window.cmpFeatScale           = cmpFeatScale;   // ★1017t1c4 — 드래그가 강조 칼럼 높이를 되돌려 셈할 때 쓴다
 
 /* ⛔isCmpPlaceholderText 를 여기 더하지 마라 — 위에서 이미 `export function` 이다(중복 export = 문법 오류).
    2026-10-08 에 내가 실제로 이 줄로 깨뜨렸고, ★자가 그걸 ★못 잡았다. 실측(★어느 판인지 같이 적는다 —
