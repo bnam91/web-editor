@@ -75,6 +75,13 @@ const layerIcons = {
        ★★같은 병이 ★이 키들에도 ★있다(261019 전수): ★comparison · coupon · gradient · quote · bullet · banner02
          ⇒ ★그 여섯은 ★★우측 패널에 ★아이콘 칸 ★자체가 ★없어 ★«베낄 원본»이 ★없다 ⇒ ★★따로 ★명부에 올렸다. */
   laurel:            `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 10c0-3 0-6 3-8M9 10c0-3 0-6-3-8" stroke-linecap="round"/></svg>`,
+  /* ★★261020 — ★`iconify` 레이어 아이콘. ★261019 laurel 과 ★같은 병이었다(키가 없어 `|| layerIcons.body` 로 떨어진다).
+     ★원본 = `js/props/prop-iconify.js` 의 `blockHeaderHTML({icon})` — ★그대로 옮겼다(★stroke 를 currentColor 로만).
+     ⚠️★★같은 병이 ★아직 ★5종 남아 있다: banner02 · comparison · coupon · quote · radial.
+       ⇒ ★그 다섯은 ★prop 패널에도 ★icon 원본이 ★없다(실측) ⇒ ★★디자인이 필요하다 = ★현빈 몫.
+     ⚠️★★`gradient` 는 ★원본이 ★있으나 ★`<defs><linearGradient id="grad-ico">` 를 쓴다 —
+       ★레이어 패널에 ★여럿 뜨면 ★★id 가 ★중복된다. ⇒ ★★«한 자리 고침»이 ★아니라 ★★보류한다. */
+  iconify:           `<svg class="layer-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
   marking:           `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/></svg>`,   // 마킹 블럭(1013t2B1) — 우측 패널 머리와 같은 원
 };
 
