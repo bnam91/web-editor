@@ -1009,7 +1009,8 @@ test.describe('LR11 86ecc76c 재판정 칸(EV86 → LR11) · D1', () => {
 
 /* ══ LR12 · HB4 · HC3 · HM3 — 줄바꿈 + 부분 색 두 번(경계 BBB · 둘째 줄 DDD) · ⌘Z 1 · 저장 왕복 (계획 plan-1013-gapfill §②) ══════════
  * 몸짓(넷 공통): 더블클릭 → ⌘A → 'AAABBB' → Enter → 'CCCDDD' → ArrowUp·End·⇧←×3 = BBB → 스와치 빨강(A1)
- *   → 다시 더블클릭(캐럿 끝) → ⇧←×3 = DDD → 스와치 파랑(A2) → 저장 → ⌘Z 1 = A1(색 한 걸음만) → 저장본 다시 열기 = A2.
+ *   → 다시 더블클릭 → ★↓·End(캐럿을 «끝»으로 ★세운다 — 1020t1a 뒤 비교는 ★누른 글자에 선다) → ⇧←×3 = DDD
+ *   → 스와치 파랑(A2) → 저장 → ⌘Z 1 = A1(색 한 걸음만) → 저장본 다시 열기 = A2.
  * 주인별: 챗 = 메시지 «1»(오른쪽 · HC1·HC2·LR8 이 안 간 주소) · msgs[0] 그대로 · msgs[1].text 는 평문 거울(span 0).
  *   비교 = 칼럼 «1»(featured) · cols[0] 그대로 · ★DDD 가 cmp-row(overflow:hidden) 안에서 실제로 보인다(byHeight 는 잘려도 2 를 센다 — 대리 지표 함정).
  *   버블 = 줄을 직접 넣는다(prepOwner) ⇒ D2 «첫 줄 굽기»(_bakeFrom) 길은 안 탄다(그 길 뒤 부분 색은 안 쟀다).
@@ -1069,8 +1070,19 @@ test.describe('LR12·HB4·HC3·HM3 줄바꿈 + 부분 색 두 번 — 경계(BBB
       expect(await page.evaluate((i) => document.getElementById(i).classList.contains('editing'), id), '전제 — 색 갈래가 열린 편집을 먼저 커밋').toBe(false);
       await verdictK(page, K, id, `${kind} A1`, A1, { text: T2, color0, lines: 2, chars: { [R]: 'BBB' } });
       if (kind === 'cmp') { const v = await dddVisible(page, sel); expect(v.ok, `A1 — DDD 가 비교 칸 안에서 보인다 ${JSON.stringify(v)}`).toBe(true); }
-      /* 둘째 칠하기 — 다시 편집(캐럿 끝) · ⛔⌘A 금지(서식이 날아간다) */
-      await openEditSel(page, sel, id); await keys(page, shiftLeft(3)); await waitSel(page, 'DDD');
+      /* 둘째 칠하기 — 다시 편집 · ⛔⌘A 금지(서식이 날아간다)
+         ★★1020t1a 고침 — ~~「다시 편집(캐럿 끝)」~~ ★그 전제를 ★«말로» 두지 않고 ★키로 ★세운다.
+           ★왜: `d9ead6e9`(현빈 1020t1a 「비교 블럭 더블클릭시 커서가 적절한 곳에 위치하지 않는 문제」)로
+             ★비교 줄은 ★더블클릭한 ★«그 글자»에 캐럿이 선다(텍스트블럭·그리드 칸의 관용과 같게).
+             `openEditSel` 은 ★줄 상자의 ★«중심»을 누르는데, 이 줄은 ★시각 두 줄이라 중심이 ★줄 경계다
+             ⇒ ★캐럿 off=3 («AAA|BBB») ⇒ ⇧←×3 이 ★「AAA」를 골랐다(실측 2026-10-20 · 헤드리스 크롬 · 진짜 앱).
+           ★고친 꼴은 ★이 파일이 ★이미 쓰는 관용구다 — 위 A1 단계의 `['ArrowUp', 'End', ...shiftLeft(3)]`.
+           ★실측으로 골랐다(네 후보 중 ★주인 둘에서 ★모두 DDD 인 것은 ★이것뿐):
+             ⇧←×3        → cmp "AAA" ❌ / laurel "DDD" ✅
+             End,⇧←×3    → cmp "BBB" ❌ / laurel "DDD" ✅
+             ↓,End,⇧←×3  → cmp "DDD" ✅ / laurel "DDD" ✅   ← ★주인과 무관하다
+           ⇒ ★옛 동작(줄 끝 캐럿)인 laurel·버블·챗도 ★그대로 초록이다(이 키는 끝에서 ★무동작). */
+      await openEditSel(page, sel, id); await keys(page, ['ArrowDown', 'End', ...shiftLeft(3)]); await waitSel(page, 'DDD');
       await panelColor(page, '#0000ff', 'DDD');
       const line2 = await verdictK(page, K, id, `${kind} A2`, A2, { text: T2, color0, lines: 2, chars: { [R]: 'BBB', [B]: 'DDD' } });
       if (kind === 'cmp') { const v = await dddVisible(page, sel); expect(v.ok, `A2 — DDD 가 비교 칸 안에서 보인다 ${JSON.stringify(v)}`).toBe(true); }
