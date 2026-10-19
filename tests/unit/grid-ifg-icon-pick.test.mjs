@@ -31,6 +31,9 @@
  *   C8  ★iconify 아이콘을 넣은 뒤 ★프리셋 적용이 그 색을 ★간다(색 계약이 끝까지 선다)
  *   D1~D8 ★변이(음성대조) — 이 파일 «안»에서 소스를 비틀어 위 단언들이 ★빨개지는지 본다
  */
+
+/* ★★261020 — ★커밋 `5b6d2f63` 메시지의 ★「내장 36종」은 ★오기다. ★참값 ★35(아래 단언이 참값).
+   ★자세한 까닭은 `js/blocks/grid-ifg-icon-pick.js` 머리말의 ★정정 비석. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
