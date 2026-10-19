@@ -763,7 +763,16 @@ function _lnReadHtml(el) {
   const raw = el && el.innerHTML != null ? String(el.innerHTML) : '';
   return raw ? sanitizeRichTextHtml(richTextBlocksToBreaks(raw), GRID_RICH_TEXT_OPTS) : '';
 }
-export function lnBeginEdit(block, addr) {
+/* ★1020t1a — «누른 글자에 캐럿» 을 받는 주인 명부. ★지금은 ★비교 블럭 ★하나다(현빈 요구 범위).
+ *   ★실측(1020t1a): line-host 의 캐럿은 ★주인 다섯 모두 «줄 끝»에 선다 — 버블·챗·laurel·심플카드도 ★같은 증상이다.
+ *     ⇒ ★넓히려면 ★이 배열에 클래스 한 줄을 더하면 된다(⛔다른 곳을 고칠 필요가 없다).
+ *     ★그런데 ★안 넓혔다 — 요구가 ★비교 블럭이었고, 나머지 넷은 ★내가 재지 않았다(칸 꼴·안내문구 규칙이 다르다).
+ *   ⛔이 명부를 «전역 플래그»로 바꾸지 마라 — 주인별 예외를 못 만든다. */
+const LN_CARET_AT_POINT_OWNERS = ['comparison-block'];
+function _lnCaretAtPointOwner(block) {
+  return !!block && LN_CARET_AT_POINT_OWNERS.some(c => block.classList.contains(c));
+}
+export function lnBeginEdit(block, addr, opts) {
   const host = lnHostFor(block);
   const hit = host && host.resolveAny(addr);
   if (!hit || hit.li === null || !gridLineHasText(hit.line)) return false;
@@ -780,7 +789,16 @@ export function lnBeginEdit(block, addr) {
   el.setAttribute('contenteditable', 'true');
   el.style.userSelect = 'text'; el.style.cursor = 'text';
   el.focus();
-  try { const s = window.getSelection(); s.selectAllChildren(el); s.collapseToEnd(); } catch (_) {}
+  /* ★1020t1a — 캐럿. 현빈 「컴패리전 블럭 더블클릭시 … 커서가 적절한 곳에 위치하지읺는 문제」.
+     ⒜ 더블클릭으로 들어왔고(opts.caretFrom) 그 주인이 명부에 있으면 → «누른 그 글자»에 꽂는다.
+        ★식은 `drag-utils.js placeCaretAtClickPoint` ★한 벌이다(비교 칸·헤더도 ★같은 자를 쓴다 · 사본 0).
+        ⛔import 가 아니라 ★window 로 간다 — 이 파일의 기존 관용구다(line-host.js:575 · grid-block.js:78 주석).
+          다리가 없으면 ⒝로 떨어진다 = ★옛 동작(새 손상 0). 다리가 서 있음은 검사가 따로 잠근다.
+     ⒝ 그 밖(Enter 로 들어온 lnEnterEdit · 명부 밖 주인) → ★옛 동작 그대로 «줄 끝». */
+  const _caretEv = opts && opts.caretFrom;
+  if (!(_caretEv && _lnCaretAtPointOwner(block) && window.placeCaretAtClickPoint?.(el, _caretEv))) {
+    try { const s = window.getSelection(); s.selectAllChildren(el); s.collapseToEnd(); } catch (_) {}
+  }
   const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); el.blur(); } };
   const onPaste = (ev) => { ev.preventDefault(); const t = ev.clipboardData?.getData('text/plain') || ''; if (t) document.execCommand('insertText', false, t); };
   let done = false;
@@ -957,7 +975,7 @@ export function lnBindLineEdit(block) {
       const r = row.dataset.lnM !== undefined ? Number(row.dataset.lnM) : 0;
       const c = row.dataset.lnC !== undefined ? Number(row.dataset.lnC) : 0;   // ★D2 비교
       if (_lineTextEl(row)?.getAttribute('contenteditable') === 'true') return;
-      lnBeginEdit(block, { r, c, li });
+      lnBeginEdit(block, { r, c, li }, { caretFrom: e });   // ★1020t1a — «누른 점»을 넘긴다(명부 주인만 쓴다)
       return;
     }
     /* ★줄 모드 버블의 «줄 밖»(본체 패딩) 더블클릭도 여기서 막는다 — 안 막으면 일반 핸들러가 .tb-bubble 을 통째로 켠다. */

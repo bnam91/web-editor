@@ -1,6 +1,6 @@
 // comparison-block.js — 1급 비교 블록 (banner02 패턴). N칼럼 비교(1:1, 1:1:1 …).
 // 한 칼럼(featured)이 더 크게 떠보임(그림자·overlap·스케일↑). 칼럼은 cols 배열로 관리.
-import { genId, showNoSelectionHint, insertAfterSelected, mdlReadText } from '../drag-utils.js';   /* ★1017t1c2 — Enter 줄바꿈 읽기 한 벌(모달·block-drag.js 와 같은 자리 · 사본 0) */
+import { genId, showNoSelectionHint, insertAfterSelected, mdlReadText, selectAllEditableContents, placeCaretAtClickPoint } from '../drag-utils.js';   /* ★1017t1c2 — Enter 줄바꿈 읽기 한 벌(모달·block-drag.js 와 같은 자리 · 사본 0) · ★1020t1a — 전체선택·더블클릭 캐럿도 ★같은 한 벌 */
 import { bindBlock } from '../drag-drop.js';
 import { _cvbBackgroundSize } from './canvas-block.js';   // ★D3 — 이미지 확대 식 한 벌(카드와 같은 필드 imgScale/imgFit)
 import { normalizeRedact, applyRedact } from '../effects/image-redact.js';   // ★D4 — 셀 이미지 블러(Redact) 공용 모듈(C1 · 에셋과 한 벌)
@@ -117,17 +117,9 @@ export function isCmpPlaceholderText(t) {
   if (s === '') return true;
   return CMP_PLACEHOLDERS.includes(s);
 }
-// focus된 contenteditable el의 내용 전체를 선택 (block-drag.js:617-624 미러).
-// focus 직후 동기 실행 필수 — 비동기면 caret이 선택을 덮는다.
-function _selectAllContents(el) {
-  try {
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-  } catch (_) {}
-}
+/* ★1020t1a — 여기 있던 지역 사본 `_selectAllContents`(「block-drag.js:617-624 미러」)를 ★걷었다.
+   정본은 `drag-utils.js selectAllEditableContents` ★하나다 — 그 파일 주석이 ★바로 이 사본 때문에
+   배너·그리드가 빠진 채 나갔던 일을 적어 뒀는데, 비교 블럭이 ★그 사본으로 남아 있었다. */
 
 // 행 모델 정규화: 문자열 rows(구버전)는 {type:'text', text} 객체로 무손실 마이그레이션.
 // 객체면 type 화이트리스트(text|image)·필드 보정 후 반환. 비교블록 칼럼 간 행 정렬 유지를 위해
@@ -541,8 +533,13 @@ function _editableTitle(el, block, colIdx) {
     e.stopPropagation();
     el.setAttribute('contenteditable', 'true');
     el.focus();
-    // placeholder(기본문구)면 전체선택 → 첫 타이핑이 즉시 교체. 실데이터면 caret 유지.
-    if (isCmpPlaceholderText(el.textContent)) _selectAllContents(el);
+    /* placeholder(기본문구)면 전체선택 → 첫 타이핑이 즉시 교체.
+       ★1020t1a — ~~「실데이터면 caret 유지」~~ ★그 말이 ★틀렸다(실측): 더블클릭 «전»의 이 요소는
+         `contenteditable="false"` 라 브라우저 낱말선택이 ★이 칸 안에 안 남고, `focus()` 뿐이면
+         캐럿이 ★칸 ★맨 앞(오프셋 0)에 섰다 — 줌 40·100·200% ★여섯 칸 전부 Δ글자 = −4.
+       ⇒ 텍스트블럭·그리드 칸과 ★같은 관용으로 «누른 그 글자»에 꽂는다(식은 drag-utils 한 벌). */
+    if (isCmpPlaceholderText(el.textContent)) selectAllEditableContents(el);
+    else placeCaretAtClickPoint(el, e);
   });
   el.addEventListener('blur', () => {
     el.setAttribute('contenteditable', 'false');
@@ -578,8 +575,10 @@ function _editableRow(el, block, colIdx, rowIdx) {
     e.stopPropagation();
     el.setAttribute('contenteditable', 'true');
     el.focus();
-    // placeholder(기본문구)면 전체선택 → 첫 타이핑이 즉시 교체. 실데이터면 caret 유지.
-    if (isCmpPlaceholderText(el.textContent)) _selectAllContents(el);
+    /* placeholder(기본문구)면 전체선택. ★1020t1a — 실데이터면 «누른 그 글자»에 캐럿(_editableTitle 과 같은 까닭·같은 한 벌).
+       ★여러 줄 칸(Enter 줄바꿈 · white-space:pre-wrap)도 ★같은 식 하나로 선다 — 실측 Δ글자 −14 → 0. */
+    if (isCmpPlaceholderText(el.textContent)) selectAllEditableContents(el);
+    else placeCaretAtClickPoint(el, e);
   });
   el.addEventListener('blur', () => {
     el.setAttribute('contenteditable', 'false');

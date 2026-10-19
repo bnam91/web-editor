@@ -1702,6 +1702,48 @@ function selectAllEditableContents(el) {
   } catch (_) { return false; }
 }
 
+/* ★1020t1a — 더블클릭으로 켠 contenteditable 의 캐럿을 «누른 그 글자»에 꽂는다.
+ *   현빈 원문(2026-10-20): 「컴패리전 블럭 더블클릭시 텍스트 수정하려는데 커서가 적절한 곳에 위치하지읺는 문제」
+ *
+ * ★«적절한 곳»은 취향이 아니라 ★이 앱의 관용이고, ★실측으로 정했다(1020t1a · 헤드리스 크롬 · 진짜 Input 더블클릭):
+ *   대조군 ⑴ 텍스트블럭 본문 ⑵ 그리드 칸 줄(.grd-line) — 줌 40·100·200% ★여섯 칸 전부
+ *     「캐럿 글자오프셋 − 누른 글자 인덱스 = ★0」, collapsed(낱말 선택 아님).
+ *   비교 블럭은 ★같은 자로 ★36칸 전부 0 이 아니었다 — 칸 맨 앞(−4·−14) 또는 줄 끝(+10·+9).
+ *
+ * ★★좌표 변환을 ★«하지 않는다» — `caretRangeFromPoint` 는 ★뷰포트 좌표를 받고, 브라우저가
+ *   CSS transform 을 ★스스로 지나 히트테스트한다. 비교 블럭엔 배율이 ★세 겹이지만
+ *   (캔버스 줌 `#canvas-scaler` scale · `.cmp-inner` scale(`block._cmpScale`) · 강조칼럼 featScale)
+ *   ★한 겹도 나눌 필요가 없다. ★실측이 그걸 말한다: 어긋남이 줌 40·100·200% 에서 ★똑같았다
+ *   (−4 / −14 / +10 고정) ⇒ 어긋남이 배율에 ★안 비례한다 ⇒ ★좌표 변환이 원인이 아니다.
+ *   ⛔`/ scale` 을 더하지 마라 — 그게 식이 네 벌로 갈리는 자리다(1020t1c 카드 색의 주범).
+ *
+ * ★점이 ★이 요소 «안»이 아니면 쓰지 않는다 — 안 그러면 ★옆 블럭 글자에 캐럿을 꽂는다
+ *   (겹친 강조 칼럼·overlap 존이 있는 비교 블럭에서 실제로 닿는 자리다).
+ * ★폴백은 «끝으로 모으기» — 선례 `_cvbBeginEdit`(canvas-block.js)·`_enterStickerEdit`(sticker-select.js) 와 같다.
+ * ⚠️`focus()` 직후 «동기»로 불러야 한다 — `selectAllEditableContents` 와 같은 규약(비동기면 기본 캐럿이 덮는다).
+ * ⚠️«안내문구인가»의 판정은 ★여기 없다 — 블록마다 데이터모델이 달라서(위 주석과 같은 까닭)
+ *   호출자가 재고, 안내문구면 ★`selectAllEditableContents` 를 부른다.
+ * 반환: 누른 점에 꽂았으면 true, 폴백으로 끝에 모았으면 false. */
+function placeCaretAtClickPoint(el, e) {
+  if (!el) return false;
+  const sel = window.getSelection();
+  if (!sel) return false;
+  let r = null;
+  if (e && Number.isFinite(e.clientX) && typeof document.caretRangeFromPoint === 'function') {
+    try { r = document.caretRangeFromPoint(e.clientX, e.clientY); } catch (_) { r = null; }
+  }
+  const inEl = !!(r && r.startContainer && el.contains(r.startContainer));
+  try {
+    sel.removeAllRanges();
+    if (inEl) { r.collapse(true); sel.addRange(r); return true; }
+    const rr = document.createRange();
+    rr.selectNodeContents(el);
+    rr.collapse(false);
+    sel.addRange(rr);
+  } catch (_) {}
+  return false;
+}
+
 /* ★1017t1c2 — js/block-drag.js 에서 ★옮겨 왔다(그 자리는 import 로 쓴다 · 사본 0).
    modal 슬롯 «글자 읽기» — contenteditable 의 div/br 를 «보이는 줄» 그대로의 \n 으로 바꾼다.
    ★innerText 를 쓰지 마라: Enter 두 번이 만드는 `가<div><br></div><div>나</div>` 를 "가\n\n\n나"(줄바꿈 «하나 더»)로 읽고,
@@ -1770,6 +1812,7 @@ export {
   blockContextLuminance,
   suppressAncestorDrag,
   selectAllEditableContents,
+  placeCaretAtClickPoint,
   mdlReadText,
 };
 
@@ -1809,3 +1852,4 @@ window.applyDividerStyle          = applyDividerStyle;
 window.ASSET_PRESETS              = ASSET_PRESETS;
 window.suppressAncestorDrag       = suppressAncestorDrag;
 window.selectAllEditableContents  = selectAllEditableContents;
+window.placeCaretAtClickPoint     = placeCaretAtClickPoint;   // ★1020t1a — 더블클릭 캐럿 «한 벌»(비교 칸·헤더·줄이 쓴다)
