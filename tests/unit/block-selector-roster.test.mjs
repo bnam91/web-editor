@@ -19,6 +19,13 @@
  *        그러면 ★「명부가 저를 잰다」가 되어 ★★항등식이 된다).
  *      ⇒ ★블럭을 ★새로 만들면 ★ALL_SEEN 에 ★손으로 ★더해라. ★A1 이 ★그때 ★알려 준다.
  *   ⒞ ★「그룹설정이 안 된다」를 ★고치지 ★않는다 — ★이 검사는 ★현 상태를 ★잠글 뿐이다.
+ *
+ * ★★261020 ★갱신 — ★방사형 블럭 이식(`b8055ada` · 1018t1B-2)으로 ★ALL_SEEN 이 ★33 → ★34종.
+ *   ★A1 이 ★설계대로 ★빨강을 내 ★알려 줬고(「★명부에만: radial-block」), ★A2 가 ★빠진 ★네 자리를 ★짚었다:
+ *     editor.js BLOCK_MULTI_SEL · editor.js BLOCK_SEL#2 · block-drag.js CHILD_BLOCK_SEL · block-drag.js BLOCK_SEL
+ *   ⇒ ★그 넷은 ★★«일부만»을 뜻하는 명부다(여러고르기 · 자식 가능) — ★원본 분기도 ★안 넣었다(양쪽 9자리로 확인).
+ *   ⇒ ★그래서 ★«넣는» 것이 아니라 ★KNOWN_GAPS 에 ★★«지금 이러하다»로 ★적었다.
+ *   ⚠️★★방사형을 ★여러고르기·자식 배치에 ★넣을지는 ★★현빈 뜻이다 — ★정해지면 ★그때 ★네 자리에 넣고 ★이 표에서 뺀다.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -71,7 +78,7 @@ const ALL_SEEN = [
   'comparison-block', 'coupon-block', 'divider-block', 'frame-block', 'gap-block',
   'gradient-block', 'graph-block', 'grid-block', 'icon-block', 'icon-circle-block',
   'icon-text-block', 'infocard-block', 'innercard-block', 'joker-block', 'label-group-block',
-  'laurel-block', 'mockup-block', 'modal-block', 'qa-block', 'quote-block',
+  'laurel-block', 'mockup-block', 'modal-block', 'qa-block', 'quote-block', 'radial-block',
   'shape-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'table-block',
   'text-block', 'vector-block', 'zoom-block',
 ];
@@ -81,15 +88,15 @@ const ALL_SEEN = [
 const KNOWN_GAPS = {
   'js/block-factory.js BLOCK_SEL#1': ['gradient-block', 'modal-block', 'speech-bubble-block', 'sticker-block'],
   'js/editor.js CANVAS_SEL_BLOCKS#1': ['frame-block', 'shape-block'],
-  'js/editor.js BLOCK_MULTI_SEL#1': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
+  'js/editor.js BLOCK_MULTI_SEL#1': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
   'js/editor.js FLOW_BLOCK_SEL_SELECTED#1': ['joker-block', 'shape-block'],
   'js/editor.js _ALL_BLOCK_SEL#1': ['frame-block', 'joker-block', 'sticker-block'],
   'js/editor.js MULTI_SEL#1': ['frame-block'],
   'js/editor.js BLOCK_SEL#1': ['frame-block', 'sticker-block'],
   'js/editor.js _ALL#1': ['frame-block', 'joker-block', 'sticker-block'],
-  'js/editor.js BLOCK_SEL#2': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
-  'js/block-drag.js CHILD_BLOCK_SEL#1': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'joker-block', 'laurel-block', 'qa-block', 'quote-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
-  'js/block-drag.js BLOCK_SEL#1': ['chat-block', 'coupon-block', 'frame-block', 'gradient-block', 'laurel-block', 'qa-block', 'quote-block', 'speech-bubble-block', 'sticker-block', 'zoom-block'],
+  'js/editor.js BLOCK_SEL#2': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
+  'js/block-drag.js CHILD_BLOCK_SEL#1': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'joker-block', 'laurel-block', 'qa-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
+  'js/block-drag.js BLOCK_SEL#1': ['chat-block', 'coupon-block', 'frame-block', 'gradient-block', 'laurel-block', 'qa-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'sticker-block', 'zoom-block'],
 };
 const EXPECT_ROSTERS = 11;
 
