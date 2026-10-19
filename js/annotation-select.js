@@ -608,6 +608,10 @@
     if (label.getAttribute('contenteditable') === 'true') return;   // 이미 편집 중
     window.ensureHistoryCheckpoint?.('어노테이션 글 편집 전');
     const before = block.dataset.text || '';
+    /* ★1017t1h3 — 편집 «전» 부분 서식도 기억한다(line-host `beforeHtml` · 그리드 `_gridBeforeHtml` 꼴).
+       ⛔평문만 견주면 «글자는 그대로, 서식만 바뀐» 커밋(⌘B 만 눌렀다 · 고른 글자만 색을 바꿨다)을
+         «안 바뀌었다»로 읽어 ★그 서식이 ⌘Z 표본에 안 들어간다. */
+    const beforeHtml = block.dataset.labelHtml || '';
     label.setAttribute('contenteditable', 'true');
     let done = false;
     const onKey = (ev) => {
@@ -635,11 +639,21 @@
       label.removeEventListener('paste',   onPaste);
       label.removeEventListener('blur',    finish);
       const raw = label.innerText ?? label.textContent ?? '';
+      /* ★1017t1h3 — 부분 서식을 ★같이 싣는다(line-host lnBeginEdit finish 와 ★같은 규약).
+         ★읽기는 contenteditable 을 ★끄기 «전»에 — 끄고 나면 브라우저가 편집 잔재를 ★정리할 수 있다.
+         ★`annotReadLabelHtml` = 블럭 경계 펴기 ＋ 공용 sanitize(ANNOT_RICH_TEXT_OPTS) ★한 벌. */
+      const html = window.annotReadLabelHtml(label);
       label.setAttribute('contenteditable', 'false');
       const val = window.annotNormalizeText(raw) || (window.ANNOT_DEFAULTS?.text || '텍스트');
-      label.textContent = val;
+      /* ★서식이 ★실제로 있을 때만 싣는다 — 없으면 '' ⇒ 키를 ★지워 ★평문 경로로 돌아간다(스티커 textHtml 규약).
+         ⇒ ★서식을 ★전부 지우면(⌘B 두 번) ★키가 ★사라져 ★옛 저장본과 ★같은 꼴이 된다. */
+      const nextHtml = window.annotLabelHtmlToStore(html);
+      if (nextHtml) label.innerHTML = nextHtml;
+      else label.textContent = val;      // ★평문 갈래는 ★예전 그대로(<br> 잔재 0)
       block.dataset.text = val;
-      if (val !== before) window.pushHistory?.('어노테이션 글');
+      if (nextHtml) block.dataset.labelHtml = nextHtml;
+      else delete block.dataset.labelHtml;
+      if (val !== before || nextHtml !== beforeHtml) window.pushHistory?.('어노테이션 글');
       window.scheduleAutoSave?.();
     };
     label.addEventListener('keydown', onKey);

@@ -81,7 +81,12 @@ export const KEEP_FOCUS_HOST_SEL = '.text-block [contenteditable="true"]:not(.ln
 /*  ⚠️contenteditable 로 거르지 않고 «블럭 꼴»로 가른다 — 표 칸은 blur 핸들러가 focusout «보다 먼저» contenteditable 을 끈다. */
 /*  ★1013t1B1② — `.ln-row` = line-host 줄(laurel·버블·챗·비교)의 글자칸 «만» — 그리드 줄과 같은 «세움»(line-host.js lnBeginEdit onBlur)이라
  *    패널 글자색이 고른 글자에만 간다(lnApplyLinePartialColor). ⛔블럭 꼴(.chat-block 등)로 넓히지 않았다 — 줄 없는 옛 챗·버블 편집은 그대로 버린다. */
-export const RETAIN_ON_PANEL_BLUR_SEL = '.text-block, .table-block, .grid-block, .modal-block, .ln-row';
+/*  ★1017t1h3 — `.annot-label` = 어노테이션 라벨. 진실이 dataset(`text`·`labelHtml`)이라 KEEP_FOCUS 는 ★아니고(위 ⛔ 그대로),
+ *    blur 가 라벨 편집을 ★끝내지만(annotation-select.js finish) ★저장 선택은 ★들고 있어야 패널 글자색·크기가
+ *    «고른 글자만» 칠할 수 있다(prop-annotation.js _annotApplyToSelection). finish 는 ★같은 라벨 요소의 ★자식만 다시 쓰므로
+ *    `_alive()` 가 ★지문(글자 전체)이 같을 때 ★오프셋으로 되찾는다 — 그리드 줄·모달이 쓰는 ★그 길이다.
+ *    ⛔블럭 꼴(.annotation-block)로 넓히지 않았다 — 라벨 ★하나만 글자칸이다. */
+export const RETAIN_ON_PANEL_BLUR_SEL = '.text-block, .table-block, .grid-block, .modal-block, .ln-row, .annot-label';
 const _el = (n) => (n && n.nodeType === 1 ? n : n && n.parentElement) || null;
 export function isInPanelSurface(node) {
   const e = _el(node);

@@ -68,8 +68,11 @@ test('N3-음성(계측기 자가검사) ★ANNOT_DATA_KEYS 에서 한 키를 빼
   const written = writtenKeys(body);
   const { literalBlock, arr } = declaredKeys(src);
   assert.ok(arr.includes('labelPad'), '★전제: 1017t1h5 가 추가한 키가 지금 명부에 있다');
-  // ★문자열 수술 — 포맷(줄바꿈·들여쓰기)은 그대로 두고 그 키 하나만 ", 'labelPad'" 꼴로 걷어낸다.
-  const sabotagedLiteral = literalBlock.replace(/,\s*'labelPad'(?=\s*\])/, '');
+  /* ★문자열 수술 — 포맷(줄바꿈·들여쓰기)은 그대로 두고 그 키 하나만 ", 'labelPad'" 꼴로 걷어낸다.
+     ★1017t1h3 정정 — 옛 꼴은 `(?=\s*\])` 로 ★«명부의 ★맨 끝»을 전제했다. 뒤에 키가 ★하나 붙자
+       (labelHtml) ★수술이 ★아무것도 안 바꿔 ★이 음성대조가 ★자기 전제 단언에서 빨개졌다.
+       ⇒ ★자리에 기대지 않게 ★다음 글자를 `,` 또는 `]` 둘 다로 넓힌다 — ★걷어내는 키는 ★그대로 하나다. */
+  const sabotagedLiteral = literalBlock.replace(/,\s*'labelPad'(?=\s*[,\]])/, '');
   assert.notEqual(sabotagedLiteral, literalBlock, '★전제: 걷어내기가 실제로 문자열을 바꿨다');
   const sabotagedSrc = src.replace(literalBlock, sabotagedLiteral);
   assert.notEqual(sabotagedSrc, src, '★전제: 변형본이 실제로 소스를 바꿨다');

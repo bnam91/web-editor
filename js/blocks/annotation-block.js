@@ -4,7 +4,10 @@
 // 외부 의존: window.genId 하나(전역). window.* 노출은 기존과 동일 유지(annotation-tool.js / prop-annotation.js 호환).
 
 import { checkerBgBigColors } from '../checker-tokens.js';
-import { stripCtlChars } from '../util/sanitize-rich-text.js';   // ★1013t2C6 — 라벨 글 정화(스티커 글과 같은 한 벌)
+/* ★1013t2C6 — 라벨 글 정화(스티커 글과 같은 한 벌)
+   ★1017t1h3 — ＋라벨 «부분 서식»(고른 글자만 색·크기·⌘B/I/U/S). ⛔새 거르개를 ★만들지 않았다 —
+     스티커·그리드 줄·line-host 가 쓰는 ★그 모듈 ★한 벌을 그대로 들인다(그 파일 머리말 소비자 명부 ⑸). */
+import { stripCtlChars, sanitizeRichTextHtml, richTextHasFormatting, richTextBlocksToBreaks } from '../util/sanitize-rich-text.js';
 
 // ★«부를 때» 찾는다 — 모듈 로드 시점에 잡아두면 drag-utils 가 아직 window.genId 를
 //   안 심었을 때 폴백에 고정돼, 여기서 만든 블록만 actorId 조각이 빠진다(협업에서 출처 불명).
@@ -31,6 +34,50 @@ const ANNOT_DEFAULTS = {
   labelPad:        null,         // ★1017t1h5 — 라벨 여백(px, 0..24, 사방 동일). null = CSS 기본(4px 8px) 유지 — 안 건드리면 키를 안 단다.
 };
 window.ANNOT_DEFAULTS = ANNOT_DEFAULTS;
+
+/* ★★1017t1h3 — 라벨 글 «부분 서식» (현빈 원문: 「라벨의 텍스트인 경우 선택한 영역만 색지정 혹은
+ *   폰트크기 등 각 다르게 입력할수 있게해줘. 일반 텍스트 블럭 처럼 말야.」) ─────────────────
+ *
+ * ★★«평문 한 덩이»는 ★그대로 산다 — `dataset.text` 가 ★정본이고 ★labelHtml 은 ★덧붙는 칸이다.
+ *   ⇒ ★옛 저장본(labelHtml 키 없음)은 ★한 글자도 안 달라진다(아래 팩토리의 갈림 ＋ 스티커 `textHtml` 과 같은 규약).
+ *
+ * ★★1013t2C6 의 금지는 ★살아 있다 — 그 커밋이 막은 것은 ★«평문 글자열을 ★innerHTML 에 ★날로 넣기»다
+ *   (라벨에 `<b>x</b>` 를 ★치면 다시 그릴 때 ★태그가 됐다). ★여기도 ★날로 넣지 않는다 —
+ *   ★넣는 것은 ★«편집기가 만든 ★마크업»이고, ★그릴 때마다 ★다시 거른다(저장본·.gdt 변조 대비).
+ *   ★사용자가 ★타이핑한 `<` 는 ★contenteditable 직렬화가 ★`&lt;` 로 내므로 ★글자로 남는다
+ *   (⇒ 1013t2C6 의 ★증상이 ★돌아오지 않는다 — ★그 축을 검사가 잰다).
+ *   ⛔«이스케이프 사본»도 ★여전히 금지다 — ★거르개는 ★공용 한 벌(sanitizeRichTextHtml) ★하나다.
+ *
+ * ★허용목록 — ★`font-size` 는 ★기본 명부(RICH_TEXT_ALLOWED_STYLE_PROPS)에 ★없다.
+ *   ⛔기본 명부에 ★더하지 않았다 — 더하면 ★스티커·모달·그리드 줄·line-host ★네 소비자의 ★공격면이 ★같이 넓어진다.
+ *   ⇒ ★`opts.styleProps` 로 ★이 소비자만 연다(점 찍기의 `--tb-dot-i` 선례). 값은 ★«수+px»만 —
+ *     ★그 좁히기는 ★sanitize-rich-text.js 의 ★`RICH_TEXT_STRICT_STYLE_VALS` 가 한다(⛔VAL_WORD 를 안 탄다).
+ *   ⛔`classes` 는 ★열지 않았다 — 라벨엔 ★형광펜·점이 ★없다(열 까닭이 ★지금 ★0 이다).
+ */
+export const ANNOT_RICH_TEXT_OPTS = Object.freeze({ styleProps: Object.freeze(['font-size']) });
+window.ANNOT_RICH_TEXT_OPTS = ANNOT_RICH_TEXT_OPTS;
+
+/** ★그릴 때 쓰는 거르개 — 저장본·.gdt 를 손대 넣은 script·on*·javascript:·url( 이 ★여기서 걸린다. */
+function annotLabelHtml(raw) {
+  return raw ? sanitizeRichTextHtml(String(raw), ANNOT_RICH_TEXT_OPTS) : '';
+}
+window.annotLabelHtml = annotLabelHtml;
+
+/** ★편집기(contenteditable) 산출 → ★저장할 HTML. ★거르기 «전»에 블럭 경계(Enter 가 만든 `<div>`·자리표시 `<br>`)를
+ *  `<br>` 로 ★먼저 편다 — 안 펴면 sanitize 가 DIV 를 ★언랩만 해 `text`(\n 둘)와 `labelHtml`(한 줄)이 ★줄 수에서 갈린다
+ *  (line-host `_lnReadHtml` 과 ★같은 식 · 그쪽 LR8 과 ★같은 함정). */
+function annotReadLabelHtml(el) {
+  const raw = el && el.innerHTML != null ? String(el.innerHTML) : '';
+  return raw ? sanitizeRichTextHtml(richTextBlocksToBreaks(raw), ANNOT_RICH_TEXT_OPTS) : '';
+}
+window.annotReadLabelHtml = annotReadLabelHtml;
+
+/** ★저장할 값인가 — ★«서식이 ★실제로 있을 때»만 싣는다. 없으면 `''` ⇒ 부르는 자가 ★키를 ★지우고 ★평문 경로로 돌아간다
+ *  (`<br>` 만 든 줄바꿈은 ★서식이 ★아니다 — 그건 `text` 의 \n 이 ★이미 들고 있다). */
+function annotLabelHtmlToStore(html) {
+  return richTextHasFormatting(html, ANNOT_RICH_TEXT_OPTS) ? html : '';
+}
+window.annotLabelHtmlToStore = annotLabelHtmlToStore;
 
 /* ★1013t1A3 — 라벨 «개별 위치»(방사형 블럭 호의 항목 라벨 간격 labelDx/labelDy 를 차용 · b67106ab).
    뜻: 자동 위치(마지막 점 + 4방향 부착 transform)로부터의 차이(px, 섹션 좌표). 선 끝점은 그대로 두고 라벨만 떨어진다.
@@ -258,6 +305,9 @@ function makeAnnotationBlock(opts = {}) {
   const labelBg          = opts.labelBg          ?? ANNOT_DEFAULTS.labelBg;
   const labelBorderColor = opts.labelBorderColor ?? ANNOT_DEFAULTS.labelBorderColor;
   const text             = opts.text             ?? ANNOT_DEFAULTS.text;
+  /* ★1017t1h3 — 부분 서식 HTML. ★받은 값을 ★그대로 믿지 않는다: ★거른 뒤 ★«서식이 남았을 때»만 든다.
+     ⇒ 키가 없던 옛 저장본은 `''` 이고, 아래 dataset·렌더 ★두 갈래가 ★예전 그대로 돈다. */
+  const labelHtml        = annotLabelHtmlToStore(annotLabelHtml(opts.labelHtml ?? ''));
   const labelMode        = opts.labelMode        ?? ANNOT_DEFAULTS.labelMode;
   const labelImageSrc    = opts.labelImageSrc    ?? ANNOT_DEFAULTS.labelImageSrc;
   const labelImageSize   = opts.labelImageSize   ?? ANNOT_DEFAULTS.labelImageSize;
@@ -314,6 +364,9 @@ function makeAnnotationBlock(opts = {}) {
   if (labelDy !== 0) block.dataset.labelDy = String(labelDy);
   if (anchorRot !== 0) block.dataset.anchorRot = String(anchorRot);   // ★1013t2C7 — 0 이면 키 없음(= 자동 방향)
   if (labelPad != null) block.dataset.labelPad = String(labelPad);   // ★1017t1h5 — null 이면 키 없음(= CSS 기본 4px 8px 유지)
+  /* ★1017t1h3 — 서식이 ★없으면 키를 ★안 단다(= 옛 저장본과 ★같은 바이트). 이미지 모드엔 ★글이 없다.
+     ⛔순서는 ANNOT_DATA_KEYS 의 ★마지막과 ★같아야 한다(위 F2 주석 — 직렬화 문자열이 갈리면 ⌘Z 유령 칸이 난다). */
+  if (labelMode !== 'image' && labelHtml) block.dataset.labelHtml = labelHtml;
 
   const ptsAttr = points.map(p => `${p[0]},${p[1]}`).join(' ');
   const anchorAngle = _calcAnchorAngle(points) + anchorRot;   // ★1013t2C7 — annotAnchorAngleOf 와 같은 산식(F2 멱등)
@@ -350,8 +403,15 @@ function makeAnnotationBlock(opts = {}) {
     <div class="annot-label${labelExtraClass}" contenteditable="false" style="${labelStyle}">${labelInner}</div>`;
   /* ★1013t2C6 — 글은 «항상 글자»로 넣는다(textContent). 예전엔 innerHTML 에 날로 넣어
      라벨에 `<b>x</b>` 를 치면 다시 그릴 때(rebindAll · 리로드 · ⌘Z 복원) 태그가 됐다.
-     줄바꿈(\n)은 글자 그대로 두고 CSS(white-space: pre)가 줄로 그린다. */
-  if (labelMode !== 'image') block.querySelector('.annot-label').textContent = text;
+     줄바꿈(\n)은 글자 그대로 두고 CSS(white-space: pre)가 줄로 그린다.
+     ★★1017t1h3 — ★그 금지는 ★그대로다. 달라진 것은 ★«부분 서식이 ★있을 때»의 ★한 갈래뿐이고,
+       그때 넣는 것도 ★날것이 아니라 ★`annotLabelHtml` 로 ★다시 거른 ★마크업이다(위 머리말).
+       ⇒ 서식 ★없으면 ★이 줄은 ★예전과 ★한 글자도 다르지 않다. */
+  if (labelMode !== 'image') {
+    const labelEl = block.querySelector('.annot-label');
+    if (labelHtml) labelEl.innerHTML = labelHtml;
+    else labelEl.textContent = text;
+  }
   return block;
 }
 window.makeAnnotationBlock = makeAnnotationBlock;
@@ -377,6 +437,9 @@ function annotPropsFromDataset(block) {
   return {
     points,
     text:             ds.text || (label && labelMode === 'text' ? (label.textContent || '').trim() : '') || D.text,
+    /* ★1017t1h3 — ★안 읽으면 리로드·⌘Z 복원(둘 다 rebindAll)마다 ★부분 서식이 사라진다(labelDx 가 밟은 그 함정).
+       ⛔라이브 DOM(`label.innerHTML`)으로 ★폴백하지 않는다 — 평문 저장본의 ★`<` 가 ★태그로 되살아나는 길이 된다(1013t2C6). */
+    labelHtml:        ds.labelHtml || '',
     strokeColor:      ds.strokeColor      || D.strokeColor,
     strokeWidth:      _annNum(ds.strokeWidth, D.strokeWidth),
     anchorShape:      ds.anchorShape      || D.anchorShape,
@@ -401,7 +464,8 @@ window.annotPropsFromDataset = annotPropsFromDataset;
 /* rebindAll 이 fresh 블럭에서 «되돌려 쓰는» dataset 키 — 팩토리가 쓰는 키 전부(순서 = 팩토리 순서). */
 const ANNOT_DATA_KEYS = ['points', 'anchorX', 'anchorY', 'labelX', 'labelY', 'text', 'strokeColor', 'strokeWidth',
   'anchorShape', 'anchorSize', 'labelFontSize', 'labelColor', 'labelBg', 'labelBorderColor', 'labelMode',
-  'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy', 'anchorRot', 'labelPad'];
+  'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy', 'anchorRot', 'labelPad',
+  'labelHtml'];   // ★1017t1h3 — 팩토리가 «맨 끝»에 쓴다(순서 = 팩토리 순서)
 window.ANNOT_DATA_KEYS = ANNOT_DATA_KEYS;
 
 // 라벨박스 내부 컨텐츠 — text 모드 = 텍스트, image 모드 = <img> 또는 체크패턴 placeholder
@@ -416,7 +480,10 @@ function _renderAnnotLabelInner(mode, { text, labelImageSrc, labelImageSize, lab
     }
     return `<img class="annot-label-img" src="${labelImageSrc}" style="width:${size}px;height:${size}px;border-radius:${rCss};display:block;object-fit:cover;" draggable="false">`;
   }
-  return '';   // ★1013t2C6 — text 모드 글은 makeAnnotationBlock 이 textContent 로 넣는다(⛔innerHTML 로 되돌리지 마라 · 이스케이프 사본도 만들지 마라)
+  /* ★1013t2C6 — text 모드 글은 makeAnnotationBlock 이 넣는다(⛔여기서 innerHTML 로 되돌리지 마라 · 이스케이프 사본도 만들지 마라).
+     ★1017t1h3 — 그 자리는 이제 ★두 갈래다: 서식 없으면 ★textContent(예전 그대로) · 있으면 ★거른 labelHtml.
+       ⛔그래도 ★이 함수는 ★글을 ★안 뱉는다 — ★여기서 뱉으면 `${labelInner}` 로 ★템플릿에 박혀 ★날것이 된다(그게 1013t2C6 의 병이다). */
+  return '';
 }
 window._renderAnnotLabelInner = _renderAnnotLabelInner;
 

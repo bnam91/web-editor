@@ -3,6 +3,8 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+/* ★1017t1h3 — 「고른 글자만」 한 벌. ⛔선택을 여기서 따로 저장하지 않는다(_text-selection.js 머리말 ⛔). */
+import { getSavedTextSelection, withTextSelection, applyStyleToRange } from './_text-selection.js';
 
 // ── 프리셋 ───────────────────────────────────────────────────────────────
 /* ★1013t1A2 — 프리셋은 «색·선·시작점»만 바꾼다. 글자 크기(옛 16)는 뺐다: 기본이 24 가 됐는데
@@ -66,6 +68,9 @@ function _writeProps(block, partial) {
       delete block.dataset.labelImageSize;
     } else {
       block.dataset.text = (window.ANNOT_DEFAULTS?.text) || '텍스트';
+      /* ★1017t1h3 — 글을 기본값으로 되돌리니 ★부분 서식도 같이 버린다(위 「반대편 데이터 폐기」와 같은 규약).
+         ⛔안 지우면 image 로 갔다 text 로 돌아올 때 ★없는 글의 서식이 되살아난다. */
+      delete block.dataset.labelHtml;
       if (!block.dataset.labelImageSize) {
         block.dataset.labelImageSize = String((window.ANNOT_DEFAULTS?.labelImageSize) || 120);
       }
@@ -82,6 +87,47 @@ function _writeProps(block, partial) {
   }
   _rerenderAnnotation(block);
   window.scheduleAutoSave?.();
+}
+
+/* ══ ★★1017t1h3 패널 «부분 서식» — 라벨 글자 일부를 고르고 크기·색을 바꾸면 «고른 글자만» ═══════════
+ * ★현빈 원문: 「라벨의 텍스트인 경우 선택한 영역만 색지정 혹은 폰트크기 등 각 다르게 … 일반 텍스트 블럭 처럼」
+ * ★일반 텍스트 블럭과 ★같은 길이다 — 저장 선택(_text-selection.js ★한 벌) → `applyStyleToRange`(★한 벌)
+ *   → 그 라벨 HTML 을 ★커밋 때와 ★같은 식(`annotReadLabelHtml`)으로 읽어 `dataset.labelHtml` 로 쓴다
+ *   (line-host `lnApplyLinePartialColor` 와 ★같은 꼴 · ⛔새 거르개·새 저장 장치 0).
+ * ★★선택이 «이 블럭의 라벨» 안에 없으면 ★false ⇒ 부르는 자가 ★옛 갈래(라벨 전체 dataset)를 탄다.
+ *   ⇒ ★선택 없이 쓰던 손짓은 ★한 글자도 안 바뀐다(「편집 밖에서 바꾼 값은 블럭 전체」 — 핀·피그마와 같은 규약).
+ * ★★«편집이 아직 열려 있나»로 ★두 갈래다 — ★line-host lnApplyLinePartialColor 가 ★같은 갈림을 쓴다.
+ *   ⑴ ★열려 있으면(contenteditable=true) ★DOM 에만 칠하고 ★다시 그리지 ★않는다.
+ *      ★왜 — 색 피커 스와치는 ★mousedown 을 막아 ★포커스가 라벨에 ★남는다(line-host 실측 probe:
+ *        스와치 클릭에 blur·focusout 0). ★그 채로 라벨을 다시 그리면 ★방금 ★친 글자가 ★사라진다.
+ *      ⇒ ★싣는 것은 ★커밋(annotation-select.js finish)이 한다. ★dataset 은 ★미리 써 둔다(편집 중 autoSave 가 들고 가게).
+ *   ⑵ ★닫혀 있으면(패널로 간 blur 가 이미 커밋했다) ★다시 그린다 — ★«화면»과 ★«저장값»이 ★갈리지 않게
+ *      (거르개가 떨군 것이 화면에만 남으면 다음 리로드에 ★조용히 사라진다).
+ *      ★저장 선택은 `_alive()` 가 ★오프셋으로 되찾는다(글자 전체가 그대로라 ★지문이 같다)
+ *      ⇒ ★연달아 두 번째 조작도 ★같은 글자에 간다(TX1 이 고친 그 증상).
+ * ★★이 패널은 ★적용이 ★블럭을 ★통째로 다시 그리지 ★않는다(_rerenderAnnotation 은 ★라벨 «스타일»만 만진다)
+ *   ⇒ ★그래서 line-host 처럼 ★«먼저 커밋»할 ★필요가 없다 — ⑴ 이 ★더 적게 건드린다.
+ * ⛔`_writeProps` 를 부르지 않는다 — 그건 ★라벨 ★전체(labelFontSize·labelColor)를 바꾼다.
+ */
+function _annotApplyToSelection(block, prop, value) {
+  const label = block.querySelector('.annot-label');
+  if (!label || block.dataset.labelMode === 'image') return false;
+  if (!getSavedTextSelection(label)) return false;
+  const span = withTextSelection(
+    (range, host) => (range ? applyStyleToRange(range, host, prop, value) : null),
+    { within: label },
+  );
+  if (!span) return false;
+  const next = window.annotLabelHtmlToStore?.(window.annotReadLabelHtml?.(label) || '') || '';
+  if (next) block.dataset.labelHtml = next;
+  else delete block.dataset.labelHtml;
+  // ⑴ 편집이 열려 있으면 ★다시 그리지 않는다(위 머리말) — 커밋이 싣는다.
+  if (label.getAttribute('contenteditable') !== 'true') {
+    if (next) label.innerHTML = next;
+    else label.textContent = block.dataset.text || '';
+  }
+  window.scheduleAutoSave?.();
+  return true;
 }
 
 // ── 블록 재렌더 (innerHTML 보존, 부분 갱신) ────────────────────────────
@@ -434,11 +480,19 @@ ${blockHeaderHTML({
   const fs  = propPanel.querySelector('#annot-font-size');
   const fsN = propPanel.querySelector('#annot-font-size-num');
   if (fs && fsN) {
-    fs.addEventListener('input',  () => { fsN.value = fs.value; _writeProps(block, { labelFontSize: parseFloat(fs.value) }); });
+    /* ★1017t1h3 — 고른 글자가 있으면 ★그 글자만, 없으면 ★예전 그대로 라벨 전체(_annotApplyToSelection 머리말). */
+    fs.addEventListener('input',  () => {
+      fsN.value = fs.value;
+      const v = parseFloat(fs.value);
+      if (_annotApplyToSelection(block, 'fontSize', v + 'px')) return;
+      _writeProps(block, { labelFontSize: v });
+    });
     fs.addEventListener('change', () => window.pushHistory?.('라벨 크기'));
     fsN.addEventListener('input', () => {
       const v = Math.min(48, Math.max(8, parseFloat(fsN.value) || 8));
-      fs.value = v; _writeProps(block, { labelFontSize: v });
+      fs.value = v;
+      if (_annotApplyToSelection(block, 'fontSize', v + 'px')) return;
+      _writeProps(block, { labelFontSize: v });
     });
     fsN.addEventListener('change', () => window.pushHistory?.('라벨 크기'));
   }
@@ -446,7 +500,8 @@ ${blockHeaderHTML({
   if (propPanel.querySelector('[data-color-field="annot-label-color"]') || document.getElementById('annot-label-color-hex')) {
     wireColorField('annot-label-color', {
       initialAlpha: labelColorAlpha,
-      onApply: (c) => _writeProps(block, { labelColor: c }),
+      // ★1017t1h3 — 크기와 같은 규약: 고른 글자가 있으면 그 글자만.
+      onApply: (c) => { if (_annotApplyToSelection(block, 'color', c)) return; _writeProps(block, { labelColor: c }); },
       onCommit: () => window.pushHistory?.('라벨 색'),
     });
   }

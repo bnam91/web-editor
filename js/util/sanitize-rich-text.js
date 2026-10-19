@@ -23,6 +23,8 @@
  *   ⑵ (예정) 모달 슬롯 — 수지② `js/blocks/modal-block.js` · `js/block-drag.js`
  *   ⑶ 그리드 줄 — `js/blocks/grid-block.js`(렌더 gridLineHtml) · `js/block-drag.js`(커밋 _gridEndEdit) · opts = GRID_RICH_TEXT_OPTS (수지⑦ 2026-10-08)
  *   ⑷ line-host 줄(버블·챗·비교·laurel) — `js/blocks/line-host.js` lnBeginEdit 커밋 · 렌더는 ⑶ 의 gridLineHtml · 같은 opts (1013t1B1 2026-10-13)
+ *   ⑸ 어노테이션 라벨 — `js/blocks/annotation-block.js` `dataset.labelHtml`(렌더 ＋ `annotReadLabelHtml` 커밋) ·
+ *      opts = ANNOT_RICH_TEXT_OPTS (★`styleProps:['font-size']` — ★이 소비자가 ★`RICH_TEXT_STRICT_STYLE_VALS` 의 ★첫 손님이다) (1017t1h3 2026-10-19)
  *
  * ★★★2026-10-08 ★정정 — ★내가 여기 적었던 문장이 ★틀렸다(★지디가 ★자기 QA 로 잡았다)
  *   ⛔틀린 문장: 「이 본문을 ★무력화하면 ★소비자 ★«수»만큼 빨강이어야 한다 · 실측 = 소비자 1 이라 빨강도 1」
@@ -89,6 +91,26 @@ const VAL_NUM  = /^[0-9]{1,3}$/;
      ★이 패턴은 ★«소비자가 명시한 prop»에만 ★추가로 열린다. */
 const VAL_SNUM = /^-?(?:[0-9]{1,4})(?:\.[0-9]{1,4})?$/;
 
+/* ★1017t1h3 — ★«좁히는» 값 검사 표. ★소비자가 `opts.styleProps` 로 ★이름을 연 prop 가운데
+ *   ★이 표에 ★이름이 있는 것은 ★이 패턴 ★하나만 본다 — ★`safeStyleValue` 를 ★타지 않는다.
+ * ★왜 필요했나 — ★어노테이션 라벨이 ★`font-size` 를 열어야 했다(현빈 1017t1h3 「폰트크기 등 각 다르게」).
+ *   ★그런데 ★`--tb-dot-i` 와 ★같은 길로 열면 ★두 가지가 ★동시에 틀어진다(1017t1h3 음성대조 실측 —
+ *     이 표를 ★비운 판에서 ★직접 재서 ★확인했다. ⛔코드를 읽고 「그럼 된다」로 적지 않았다):
+ *     ㉠ ★샌다 — `safeStyleValue` 의 ★`VAL_WORD`(`/^[a-z]+([ -][a-z]+)*$/i`)가
+ *        `font-size:inherit`·`larger`·`xx-large` 를 ★통과시킨다(수가 아니라 ★낱말이다).
+ *        ★위험(스크립트 실행)은 ★아니지만 ★요구가 「고른 글자만 ★몇 px」이고, 저장본을 손대 넣으면
+ *        ★그 글자가 ★제 뜻 없이 ★조상 크기를 ★물려받는다.
+ *     ㉡ ★★못 쓴다 — ★`14px` 가 ★막힌다. 옛 네 패턴(HEX·FUNC·WORD·NUM)과 `VAL_SNUM` ★어디에도
+ *        ★«수 + 단위» 꼴이 ★없다(WORD 는 글자로 시작 · NUM·SNUM 은 단위 없는 수).
+ *   ⇒ ★★이 표는 ★«샘을 막는 자»이면서 ★동시에 ★«이 기능을 ★서게 하는 자»다 — ★«수 + 단위»로만 받는다.
+ * ★`px` ★하나만 — ★`em`·`%`·`rem` 은 ★조상에 달린 상대값이라 ★위와 같은 병이다. ★`calc(`·`url(` 은 ★꼴이 아니다.
+ *   ★앞자리 0 금지(`[1-9]`) ⇒ ★`0px`·`0.5px`(안 보이는 글자)도 ★안 통과한다. ★1~999px.
+ *   ⚠️★이 자는 ★«안전»과 ★«꼴»만 잰다 — ★UI 범위(패널 슬라이더 8~48)는 ★패널이 잰다(여기서 또 재면 명부가 둘이 된다).
+ * ⛔★표에 ★없는 prop 은 ★한 줄도 안 달라진다 — ★기본 명부와 ★`--tb-dot-i` 는 ★옛 길 그대로다.
+ *   ★★그 무변을 ★tests/unit/annot-label-rich-text-1017t1h3.test.mjs 가 ★기본 명부 ★다섯을 ★전수로 잰다. */
+const VAL_FONT_SIZE_PX = /^[1-9][0-9]{0,2}(?:\.[0-9]{1,3})?px$/;
+export const RICH_TEXT_STRICT_STYLE_VALS = new Map([['font-size', VAL_FONT_SIZE_PX]]);
+
 function safeStyleValue(rawVal) {
   const v = String(rawVal).trim();
   if (!v) return null;
@@ -140,7 +162,12 @@ function sanitizeStyle(styleStr, cfg) {
     if (!isBase && !isExtra) continue;
     /* ★기본 명부의 값 검사는 ★그대로. ★소비자가 더한 prop 만 ★부호 있는 수도 받는다.
        ⛔그래도 ★화이트리스트다 — `url(`·`javascript:` 는 ★두 패턴 ★어느 쪽도 ★통과 못 한다. */
-    const safe = safeStyleValue(val) ?? (isExtra && VAL_SNUM.test(val) ? val : null);
+    /* ★1017t1h3 — ★소비자가 연 prop 이고 ★좁히는 표에 ★이름이 있으면 ★그 패턴 ★하나만(위 머리말).
+       ⛔`isBase` 면 ★이 갈래를 ★타지 않는다 — ★기본 명부는 ★아래 한 줄이 ★그대로 잰다. */
+    const strictRe = (isExtra && !isBase) ? RICH_TEXT_STRICT_STYLE_VALS.get(prop) : null;
+    const safe = strictRe
+      ? (strictRe.test(val) ? val : null)
+      : safeStyleValue(val) ?? (isExtra && VAL_SNUM.test(val) ? val : null);
     if (safe == null) continue;
     kept.push(`${prop}:${safe}`);
   }
