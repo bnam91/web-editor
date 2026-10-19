@@ -63,6 +63,7 @@ const _PANEL_BY_CLASS = [
   ['coupon-block',      (el) => window.showCouponProperties?.(el)],
   /* ★인용구(2026-10-07 · QT1 · 현빈 발주) — 부호 8종·크기·간격·앞뒤 끄기는 ★전부 우측 패널이다. */
   ['quote-block',       (el) => window.showQuoteProperties?.(el)],
+  ['radial-block',      (el) => window.showRadialProperties?.(el)],   /* 프로토 Z6-A 방사형 블럭 */
   ['joker-block',       (el) => window.showJokerProperties?.(el)],          // :720
   ['canvas-block',      (el) => ((el.dataset.cardMode === 'simple' && window.showSimpleCardProperties)
                                   ? window.showSimpleCardProperties(el)

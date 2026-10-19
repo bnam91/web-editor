@@ -43,6 +43,7 @@
     '.laurel-block',
     '.coupon-block',
     '.quote-block',
+    '.radial-block',
     '.zoom-block',
     '.shape-block',
     '.joker-block',

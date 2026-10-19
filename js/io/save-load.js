@@ -1428,7 +1428,7 @@ function rebindAll(opts = {}) {
     window.bindGradientSelect?.(block);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .qa-block, .coupon-block, .quote-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .qa-block, .coupon-block, .quote-block, .radial-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -1453,6 +1453,7 @@ function rebindAll(opts = {}) {
         : b.classList.contains('infocard-block') ? 'ifc'
         : b.classList.contains('innercard-block') ? 'icd'
         : b.classList.contains('coupon-block') ? 'cpn'   /* ★쿠폰 — genId('cpn') 과 ★같은 토큰이어야 한다(js/blocks/coupon-block.js) */
+        : b.classList.contains('radial-block') ? 'rdl'  /* 프로토 Z6-A — genId('rdl') 과 같은 토큰(js/blocks/radial-block.js) */
         : b.classList.contains('quote-block') ? 'qt'     /* ★인용구 — genId('qt') 과 ★같은 토큰이어야 한다(js/blocks/quote-block.js) */
         : b.classList.contains('qa-block') ? 'qa' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
@@ -1463,6 +1464,9 @@ function rebindAll(opts = {}) {
        새 dataset 과 어긋난다(laurel/zoom 과 같은 패턴). V4 변이가 이 줄을 잰다. */
     if (b.classList.contains('coupon-block')) window.renderCouponBlock?.(b);
     if (b.classList.contains('quote-block')) window.renderQuoteBlock?.(b);
+    /* 프로토 Z6 — 방사형 블럭(A)은 dataset 에서 통째로 다시 그린다. 그래프(B)는 «방사형 유형일 때만» 다시 그린다(다른 유형은 저장본 그대로 — 바이트 무변). */
+    if (b.classList.contains('radial-block')) window.renderRadialBlock?.(b);
+    if (b.classList.contains('graph-block') && b.dataset.chartType === 'radial') window.renderGraph?.(b);
     /* zoom(확대블럭): 저장본은 SVG 스냅샷이라 «그림은 맞지만» a·b 핸들 드래그 위임이 없다
        (_bindZoomHandleDrag 는 renderZoomBlock 안에서 건다) → laurel/chat 과 같은 패턴으로 재렌더. */
     if (b.classList.contains('zoom-block')) window.renderZoomBlock?.(b);

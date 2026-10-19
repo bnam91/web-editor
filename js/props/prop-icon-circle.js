@@ -76,11 +76,13 @@ ${blockHeaderHTML({
       <button class="prop-action-btn secondary" id="icb-pos-btn">이미지 위치 조절</button>
       <button class="prop-action-btn secondary" id="icb-replace-btn">이미지 교체</button>
       <button class="prop-action-btn danger"    id="icb-remove-btn">이미지 제거</button>
+      ${window.circleSampleRowHTML?.(block) || ''}
     </div>` : `
     <div class="prop-section">
       <div class="prop-section-title">Image</div>
       <button class="prop-action-btn primary" id="icb-upload-btn">이미지 선택</button>
       <div class="prop-hint" style="margin-top:6px;">또는 블록에 파일을 드래그</div>
+      ${window.circleSampleRowHTML?.(block) || ''}
     </div>`}
     <div class="prop-section">
       <div class="prop-section-title">Color</div>
@@ -121,6 +123,8 @@ ${blockHeaderHTML({
   /* B1 — 오버레이(플로팅) 토글: prop-iconify.js 와 «같은» 공용 길(js/overlay-float.js · posElOf = 서클 «자기 자신»).
      ⛔정적 import 안 한다(같은 까닭 — unit 하네스 축소 복사). 원 안 자식(G14)은 블럭 안이라 통째로 뜬다. */
   window.wireFloatToggle?.({ block, buttonId: 'icb-float-toggle', rerender: () => showIconCircleProperties(block) });
+  /* 프로토 Z6-C — 샘플 그림 줄(js/radial-arrange.js · 배치 프레임의 칸에서만 나온다). */
+  window.wireCircleSampleRow?.(block, () => showIconCircleProperties(block));
 
   if (hasImage) {
     propPanel.querySelector('#icb-pos-btn').addEventListener('click', () => window.enterCircleImageEditMode(block));

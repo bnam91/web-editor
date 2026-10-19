@@ -4,6 +4,7 @@ import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
+import '../graph-radial.js';   // 프로토 Z6-B — 「방사형」 유형의 렌더 · 패널 절(window.renderGraphRadial · graphRadialSectionHTML · wireGraphRadialSection)
 import { FX_SHADOW_DEFAULTS, FX_SHADOW_RANGES } from '../effects-shadow.js';   // 1017t1f4 — 그림자 x/y/blur 값·범위의 임자(⛔새 수 0 — 그 쪽을 그대로 읽는다)
 
 const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LABEL_SIZE_MIN, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, PIE_PULL_MAX, PIE_LEG_GAP_MIN, PIE_LEG_GAP_MAX, PIE_LEG_GAP_DEFAULT, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
@@ -114,6 +115,7 @@ const GRAPH_TYPES = [
   { type: 'line',     id: 'grb-type-line',  label: '꺾은선' },
   { type: 'bar-pair', id: 'grb-type-pair',  label: '비교 막대' },
   { type: 'pie',      id: 'grb-type-pie',   label: '원형' },
+  { type: 'radial',   id: 'grb-type-radial', label: '방사형' },   // 프로토 Z6-B — 그리는 것 · 패널 절은 js/graph-radial.js
 ];
 /* 1013t1C1 — 유형 버튼은 다섯(「원형」 하나). 도넛은 Pie Settings 의 「도너츠」 토글(dataset.pieDonut '1' · 끄면 키 삭제)이다.
  * 옛 유형 'donut' 은 «읽을 때» 영구 별칭 — 열기·패널 열기·다른 칸 조작은 chartType 을 안 건드린다(옛 저장본 바이트 무변).
@@ -331,7 +333,7 @@ export function showGraphProperties(block) {
   const chartType    = block.dataset.chartType    || 'bar-v';
   const preset       = block.dataset.preset       || 'default';
   const items        = JSON.parse(block.dataset.items || '[]');
-  const chartH       = parseInt(block.dataset.chartHeight)  || 240;
+  const chartH       = parseInt(block.dataset.chartHeight)  || (chartType === 'radial' ? 520 : 240);   // 방사형은 키가 없으면 520 으로 그린다(js/graph-radial.js 와 같은 값)
   const labelSize    = parseInt(block.dataset.labelSize)    || LABEL_SIZE_DEFAULT;   // E105 = 13≠20 — 렌더러와 같은 한 자리(옛 13 은 그려지는 20 과 달랐다)
   // B7r: bar-v·bar-pair 는 «자기 키»(vXxx)만 읽고 쓴다 — bar-h 키(itemGap·barThickness·padX·pctSize·barColor)와 겹치면
   //      타입 전환 때 단위가 다른 값이 딸려 온다(가로 숫자 크기 60 ↔ 세로 값 글자 21 …).
@@ -377,6 +379,7 @@ export function showGraphProperties(block) {
   const showVLabel   = block.dataset.showVLabel !== '0';
   const showXLabel   = block.dataset.showXLabel !== '0';
   const _isPie       = _isPieType(chartType);
+  const _rdHide      = chartType === 'radial' ? ' style="display:none"' : '';   // 프로토 Z6-B — 방사형이 안 쓰는 칸(값 색상 · 값 표시 · Data 값)은 숨긴다. 칸은 DOM 에 남는다(배선 · syncItems 가 읽는다)
   const _donut       = _isDonut(block.dataset);   // 1013t1C1 — 옛 'donut' 또는 'pie' + pieDonut
   const _pieInt      = (raw, lo, hi, dflt) => { const n = parseInt(raw); return Math.min(hi, Math.max(lo, (raw !== undefined && Number.isFinite(n)) ? n : dflt)); };   // 렌더(_renderPie)와 «같은 식» — 키 없음·NaN = 기본
   const pieGap       = _pieInt(block.dataset.pieGap, PIE_GAP_MIN, PIE_GAP_MAX, PIE_GAP);
@@ -424,7 +427,7 @@ ${blockHeaderHTML({
         <span class="prop-label">라벨 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-label', hex: labelColor, alpha: labelAlpha })}
       </div>
-      <div class="prop-row" title="값 라벨(숫자)만 별도 색상">
+      <div class="prop-row" title="값 라벨(숫자)만 별도 색상"${_rdHide}>
         <span class="prop-label">값 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-vlabel', hex: _vlabelShown, alpha: parseAlphaFromColor(_vlabelShown) })}
       </div>
@@ -433,7 +436,7 @@ ${blockHeaderHTML({
         <span class="prop-label prop-label--auto">카테고리 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-xlabel', hex: _xlabelShown, alpha: parseAlphaFromColor(_xlabelShown) })}
       </div>
-      <div class="prop-row">
+      <div class="prop-row"${_rdHide}>
         <span class="prop-label">값 표시</span>
         <label class="prop-toggle">
           <input type="checkbox" id="grb-show-vlabel" ${showVLabel ? 'checked' : ''}>
@@ -573,6 +576,7 @@ ${blockHeaderHTML({
         </label>
       </div>
     </div>${pieSliceSectionHTML(items, _sliceSel)}${pieShadowSectionHTML(block.dataset)}` : ''}
+    ${chartType === 'radial' ? (window.graphRadialSectionHTML?.(block) || '') : ''}
     ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn }) : ''}
     <div class="prop-section">
       <div class="prop-section-title">Preset</div>
@@ -589,7 +593,7 @@ ${blockHeaderHTML({
         ${items.map((item, i) => `
           <div class="grb-data-item" data-index="${i}">
             <input type="text" class="grb-data-label-input" value="${escHtml(item.label)}" placeholder="라벨">
-            <input type="number" class="grb-data-val-input" value="${_segOn && _segsOf(item).length ? _segSum(item.segments) : escHtml(item.value)}" min="0" max="9999"${_segOn && _segsOf(item).length ? ' readonly title="마디 값의 합"' : ''}>
+            <input type="number" class="grb-data-val-input" value="${_segOn && _segsOf(item).length ? _segSum(item.segments) : escHtml(item.value)}" min="0" max="9999"${_segOn && _segsOf(item).length ? ' readonly title="마디 값의 합"' : ''}${_rdHide}>
             ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${escHtml(item.value2 ?? 0)}" min="0" max="9999" title="시리즈 B 값">` : ''}
             <button class="grb-data-del-btn" data-index="${i}">✕</button>
             ${_isPie ? `<button class="grb-data-icon-btn ${_sliceSel === i ? 'active' : ''}" data-slice-index="${i}" title="${_sliceSel === i ? '조각 고르기 풀기' : '이 조각 고르기(조각별 설정)'}">${ITEM_SLICE_ICON}</button>` : ''}
@@ -601,6 +605,7 @@ ${blockHeaderHTML({
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
+  if (chartType === 'radial') window.wireGraphRadialSection?.(block, () => showGraphProperties(block));   // 프로토 Z6-B
 
   // 타입 토글 — 유형 표를 돈다(클릭 = 유형 쓰기 → 다시 그리기 → 패널 다시 열기 · 기존 넷과 같은 꼴)
   GRAPH_TYPES.forEach(t => {
@@ -740,6 +745,7 @@ ${blockHeaderHTML({
       // 1012t1G2·G4 — 항목 모양·마디도 «모델에서» 보존한다(라벨 한 글자에 떨어지지 않게). 마디의 라벨·값만 마디 줄에서 읽고, 색은 모델 것 그대로.
       const pv = prevItems[i] || {};
       if (pv.shape) { it.shape = pv.shape; if (pv.shapeSvg) it.shapeSvg = pv.shapeSvg; }
+      if (pv.img) it.img = pv.img;   // 프로토 Z6-B — 방사형 마커 그림(샘플 키)도 모델에서 보존
       for (const k of PIE_ITEM_KEYS) if (pv[k] !== undefined) it[k] = pv[k];   // 1013t1C4 — 원형 조각별 키(크기 …)도 «모델에서» 보존한다
       if (_segsOf(pv).length && !_segOn) it.segments = pv.segments;   // 다른 유형: 마디는 «보존만»(값 칸은 자유 — 맞추기는 아래 change 와 유형 전환이 한다)
       else if (_segsOf(pv).length) {

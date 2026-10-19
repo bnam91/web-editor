@@ -410,6 +410,9 @@ function _renderAutoPanel(ss) {
   const bannerOuterW = isBannerInner ? (parseInt(ss.parentElement.style.width) || parseInt(ss.parentElement.dataset?.width) || 0) : 0;
   const bannerInnerXMax = isBannerInner ? Math.max(0, bannerOuterW - (parseInt(ss.style.width) || parseInt(ss.dataset.width) || 0)) : 0;
 
+  /* 프로토 Z6-C — 「Radial Arrange」 절(문자열은 js/radial-arrange.js). 이미 배치된 프레임이면 Layout 바로 아래에, 아니면 Child Align 아래에 「배치 시작」 단추만 둔다. */
+  const _radialSec = (isFreeLayout && !isShapeFrame) ? (window.radialArrangeSectionHTML?.(ss) || '') : '';
+  const _radialTop = ss.dataset.radialArrange === '1';
   propPanel.innerHTML = _headerHTML(ss, 'auto') + `
     ${isBuzzFrame(ss) ? buzzSectionHTML(ss) : ''}
     ${isBanner ? `
@@ -439,6 +442,7 @@ function _renderAutoPanel(ss) {
         ${isFreeLayout ? `<button class="prop-action-btn secondary" id="ss-to-stack-btn" style="height:24px;padding:0 10px;font-size:11px;width:auto;flex:0 0 auto;">stack</button>` : ''}
       </div>
     </div>`}
+    ${_radialTop ? _radialSec : ''}
     <div class="prop-section">
       <div class="prop-section-title">Background</div>
       <div class="prop-color-row">
@@ -566,6 +570,7 @@ function _renderAutoPanel(ss) {
         <input type="number" class="prop-number" id="ss-gap-num" min="0" max="80" value="${parseInt(ss.style.gap) || 0}">
       </div>
     </div>
+    ${_radialTop ? '' : _radialSec}
     <div class="prop-section">
       <div class="prop-section-title">Rotate / Flip</div>
       <div class="prop-row" style="gap:4px;">
@@ -608,6 +613,8 @@ function _renderAutoPanel(ss) {
     ${window.fxSectionHtml?.(ss, 'ss') || ''}`;   /* ★1017a7 Effects — ★맨 끝(prop-shape.js:356 과 같은 자리 · 지디 승인분 그대로) */
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
+  /* 프로토 Z6-C — 「Radial Arrange」 절 배선(절 문자열·동작은 js/radial-arrange.js · index.html 이 싣는다). 절이 없으면 아무 일도 안 한다. */
+  window.wireRadialArrangeSection?.(ss, () => _renderAutoPanel(ss));
   /* 버즈 프레임에는 Layout 절(free → stack 변환)을 안 그린다 — 버즈는 자유배치여야 돌고, 쌓기는 Buzz 절의 배치 「스택」이 한다.
      그 변환을 누르면 자리 · 높이가 풀리고 표식만 남은 보통 프레임이 된다(2026-10-13 실측) — 같은 말 「stack」이 두 뜻으로 나란히 서지 않게 한다. */
   if (isBuzzFrame(ss)) wireBuzzSection(ss);

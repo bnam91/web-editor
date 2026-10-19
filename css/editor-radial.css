@@ -1,0 +1,202 @@
+@charset "UTF-8";
+/* editor-radial.css — 방사형 에셋 블럭 (프로토 · 1012t1 → 1013t2A3 V3). 위치·크기·색은 렌더가 인라인으로 쓰고, 여기는 꼴만 든다.
+ * 호 모드 스테이지는 자르지 않는다(V3) — 높이·원 중심·반지름을 내용 상자에 맞추는 것은 js/radial-arc-geom.js 다. */
+.radial-block {
+  position: relative;
+  width: 100%;
+  cursor: pointer;
+  box-sizing: border-box;
+  padding: 12px 0;
+}
+.radial-block:hover::after { content: ''; position: absolute; inset: 0; background: var(--sel-color-fill); pointer-events: none; z-index: 0; }
+.radial-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+
+/* 스테이지 — 칸·가운데·연결선이 전부 절대 좌표로 선다 */
+.rdl-stage {
+  position: relative;
+  margin: 0 auto;
+  font-family: 'Pretendard', sans-serif;
+}
+.rdl-lines {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* 가운데 */
+.rdl-center {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-shadow: 0 10px 28px rgba(40, 30, 90, 0.18);
+}
+.rdl-center--image > svg { display: block; width: 100%; height: 100%; }
+/* 자르기 없음 — 그림을 네모 그대로(투명 배경 그림은 실루엣만) */
+.rdl-center--noclip { border-radius: 0; overflow: visible; box-shadow: none; }
+.rdl-center-sub { font-weight: 500; line-height: 1.3; opacity: 0.85; padding: 0 12%; }
+.rdl-center-main { font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; padding: 0 10%; word-break: keep-all; }
+
+/* 칸 */
+.rdl-item {
+  position: absolute;
+  z-index: 2;
+}
+.rdl-cell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 5px solid #ffffff;
+  box-shadow: 0 6px 18px rgba(40, 30, 90, 0.16);
+}
+.rdl-cell-img {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.rdl-cell-img > svg { display: block; width: 100%; height: 100%; }
+.rdl-ph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(0, 0, 0, 0.28);
+}
+
+/* 고른 칸 — 블럭이 선택돼 있을 때만 고리가 보인다 */
+.radial-block.selected .rdl-cell-selected .rdl-cell {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: 3px;
+}
+
+/* 고른 항목은 끌 수 있다 — 라벨에는 점선 테와 손잡이(가상요소라 저장본에 안 남는다)가 선다 */
+.radial-block.selected .rdl-cell-selected { cursor: grab; z-index: 3; }
+.radial-block.selected .rdl-cell-selected .rdl-label {
+  outline: 1px dashed var(--sel-color);
+  outline-offset: 6px;
+}
+.radial-block.selected .rdl-cell-selected .rdl-label::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 12px;
+  box-sizing: border-box;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: var(--sel-color);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: move;
+}
+.rdl-label-ico--custom { border-radius: 0; }
+
+/* 라벨 */
+.rdl-label {
+  position: absolute;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.rdl-label--below {
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+.rdl-label--outside { width: max-content; }
+.rdl-label--inside {
+  left: 12%;
+  right: 12%;
+  bottom: 15%;
+  text-align: center;
+  max-height: 2.6em;
+  overflow: hidden;
+}
+/* 라벨이 칸 안에 들어가면 그림은 위쪽의 작은 동그라미로 줄어든다 */
+.rdl-item--inside .rdl-cell-img {
+  inset: auto;
+  left: 29%;
+  top: 13%;
+  width: 42%;
+  height: 42%;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.rdl-item--inside .rdl-ph {
+  inset: auto;
+  left: 29%;
+  top: 13%;
+  width: 42%;
+  height: 42%;
+}
+
+/* 점 마커 — 그림 칸의 흰 테와 그림자를 걷은 작은 원 */
+.rdl-cell--dot {
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px rgba(160, 170, 190, 0.18);
+}
+/* 라벨 덩어리 — 아이콘 + 여러 줄 글 */
+.rdl-label-ico {
+  display: block;
+  margin: 0 auto 10px;
+  border-radius: 24%;
+  overflow: hidden;
+}
+.rdl-label-ico > svg { display: block; width: 100%; height: 100%; }
+.rdl-label-text { display: block; }
+.rdl-label b { font-weight: 800; }
+.rdl-label[data-rdl-align="left"] .rdl-label-ico { margin-left: 0; }
+.rdl-label[data-rdl-align="right"] .rdl-label-ico { margin-right: 0; }
+.rdl-label--side { line-height: 1.45; }
+
+/* 패널 — 샘플 그림 고르기 줄 */
+.rdl-samples {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  width: 100%;
+}
+.rdl-sample-btn {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: 1px solid var(--ui-border-mid);
+  border-radius: 50%;
+  background: var(--ui-bg-input);
+  color: var(--ui-text-dim);
+  font-size: var(--ui-fs-base);
+  cursor: pointer;
+  overflow: hidden;
+}
+.rdl-sample-btn > svg { display: block; width: 100%; height: 100%; }
+.rdl-sample-btn--plain { border-radius: var(--ui-radius-md); background: #ffffff; }
+.rdl-sample-btn:hover { border-color: var(--ui-divider); }
+.rdl-sample-btn.active { border-color: var(--ui-accent-primary); box-shadow: 0 0 0 2px var(--ui-accent-primary); }
+.rdl-data-item.active .grb-data-label-input { border-color: var(--ui-accent-primary); }
+.rdl-data-dot {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-mid);
+  cursor: pointer;
+}
+.rdl-data-dot > svg { display: block; width: 100%; height: 100%; }

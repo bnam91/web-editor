@@ -1312,7 +1312,7 @@ function _renderGraphShape(block, { items, chartH, labelSize, valSize }) {
       </div>`;
 }
 /* 유형 등록표 — 새 그래프 유형은 여기 한 줄(이름 → 그리는 함수)로 붙는다. 표에 없는 유형은 아래 기존 사슬(세로·꺾은선·비교·가로)이 그대로 그린다. */
-const GRAPH_RENDERERS = Object.assign(Object.create(null), { pie: _renderPie, donut: _renderPie });   // 원형 없는 표 — 'constructor' 같은 유형 이름이 상속 함수를 부르지 않게
+const GRAPH_RENDERERS = Object.assign(Object.create(null), { pie: _renderPie, donut: _renderPie, radial: (b, ctx) => window.renderGraphRadial?.(b, ctx) });   // 원형 없는 표 — 'constructor' 같은 유형 이름이 상속 함수를 부르지 않게
 function _renderGraphBody(block) {
   const items      = JSON.parse(block.dataset.items || '[]');
   const chartType  = block.dataset.chartType  || 'bar-v';

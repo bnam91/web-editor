@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="css/editor-props.css">
 <link rel="stylesheet" href="css/color-picker.css">
 <link rel="stylesheet" href="css/editor-blocks.css">
+<link rel="stylesheet" href="css/editor-radial.css">
 <link rel="stylesheet" href="css/editor-toast.css">
 <link rel="stylesheet" href="css/editor-graph.css">
 <link rel="stylesheet" href="css/editor-extra.css">
@@ -765,6 +766,9 @@
       <button class="fp-menu-item" onclick="addComparisonBlock();toggleFpDropdown('fp-component-dropdown')">Comparison</button>
       <button class="fp-menu-item" onclick="addLaurelBlock();toggleFpDropdown('fp-component-dropdown')">Laurel</button>
       <button class="fp-menu-item" onclick="addBridgeBlock();toggleFpDropdown('fp-component-dropdown')">Bridge</button>
+      <button class="fp-menu-item" onclick="addRadialBlock();toggleFpDropdown('fp-component-dropdown')" title="방사형 에셋 블럭 (프로토)">Proto: Radial Block</button>
+      <button class="fp-menu-item" onclick="addGraphBlock({chartType:'radial'});toggleFpDropdown('fp-component-dropdown')" title="방사형 에셋 블럭 — 그래프 「방사형」 안 (프로토)">Proto: Graph · Radial</button>
+      <button class="fp-menu-item" onclick="window.insertRadialArrangeFrame?.();toggleFpDropdown('fp-component-dropdown')" title="방사형 에셋 블럭 — 방사 배치 안 (프로토)">Proto: Radial Arrange</button>
     </div>
   </div>
   <!-- Component Shelf 버튼 숨김 처리
@@ -1138,6 +1142,7 @@
 <script type="module" src="js/props/prop-laurel.js"></script>
 <script type="module" src="js/props/prop-coupon.js"></script>
 <script type="module" src="js/props/prop-quote.js"></script>
+<script type="module" src="js/props/prop-radial.js"></script>
 <script type="module" src="js/props/prop-zoom.js"></script>
 <script type="module" src="js/props/prop-gradient.js"></script>
 <script type="module" src="js/props/prop-label-group.js"></script>
@@ -1172,6 +1177,9 @@
 <script type="module" src="js/blocks/coupon-block.js"></script>
 <script type="module" src="js/blocks/coupon-presets.js"></script>
 <script type="module" src="js/blocks/quote-block.js"></script>
+<script type="module" src="js/blocks/radial-block.js"></script>
+<script type="module" src="js/graph-radial.js"></script>
+<script type="module" src="js/radial-arrange.js"></script>
 <script type="module" src="js/blocks/zoom-block.js"></script>
 <script type="module" src="js/blocks/sticker-block.js"></script>
 <script type="module" src="js/blocks/vector-block.js"></script>

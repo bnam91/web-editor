@@ -91,6 +91,7 @@ const WEIGHT = Object.freeze({
      쪽으로 뒀다. ⛔글줄(body:1)로 두면 양옆 부호가 먹는 높이만큼 여백이 모자란다.
      ★템플릿 조합 표본이 생기면 ★이 줄부터 고쳐라. */
   quote: 3,         // .quote-block — 부호·글·부호가 한 덩이
+  radial: 3,        // .radial-block — 프로토 Z6-A 방사형 블럭(1012t1Z6). 실측 근거 없음 · 판단: 칸·연결선·가운데가 한 덩이로 서는 그림이라 graph·modal 과 같은 «덩어리»
   joker: 3,         // .joker-block(sb_) — 피그마 컴포넌트 자리, 통짜 그림
   // 3 — 덩어리
   table: 3,
