@@ -102,7 +102,7 @@ test('P2 구멍 — 도넛은 가운데가 «실제로» 비고 원형은 찬다
 });
 
 /* 1013t1C1 «의도된 변경» — 유형 버튼은 여섯(「원형」 하나 ＋ ★261020 방사형)  · 도넛은 Pie Settings 의 「도너츠」 토글(chartType 'pie' + pieDonut '1'). 옛 버튼 #grb-type-donut 은 없다. */
-test('P3 패널 배치 — 유형 버튼 5개가 안 넘치고 · 구멍 줄은 도너츠 토글을 켰을 때만 · 막대 설정은 숨는다', async ({ page }) => {
+test('P3 패널 배치 — 유형 버튼 ★6개가 안 넘치고 · 구멍 줄은 도너츠 토글을 켰을 때만 · 막대 설정은 숨는다', async ({ page }) => {
   const { errs, id } = await setup(page, { type: 'bar-v' });
   await openPanel(page, id);
   const grp = () => page.evaluate(() => { const g = document.getElementById('grb-type-v').closest('.prop-type-group'); const bs = [...g.querySelectorAll('button')];
@@ -110,7 +110,7 @@ test('P3 패널 배치 — 유형 버튼 5개가 안 넘치고 · 구멍 줄은 
       labels: bs.map(b => b.textContent.trim()) }; });
   const g0 = await grp();
   expect(g0.ids).toEqual(['grb-type-v', 'grb-type-h', 'grb-type-line', 'grb-type-pair', 'grb-type-pie', 'grb-type-radial']);
-  expect(g0.labels.slice(4)).toEqual(['원형']);
+  expect(g0.labels.slice(4)).toEqual(['원형', '방사형']);   /* ★261020 b8055ada 방사형 이식으로 ＋1 — ⛔slice(4) 는 «마지막부터»가 아니라 «5번째부터»다 */
   expect(g0).toMatchObject({ active: ['grb-type-v'], fits: true, widths: true });
   expect(await page.locator('#grb-bar-thickness-slider').count(), '전제: 막대에선 두께 줄이 있다').toBe(1);
   await page.locator('#grb-type-pie').click();
