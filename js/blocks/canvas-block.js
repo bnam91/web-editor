@@ -38,6 +38,24 @@ function _cvbSlotTexts(card, slot) {
 }
 // 렌더가 「글자가 있다」고 보는 술어 — 공백만이면 «없다»(요소를 안 그린다).
 const _cvbHasText = (t) => !!(t && String(t).trim() !== '');
+/* ★★[1020t1c] 카드 글자색 «자동»의 ★한 자리 — 밴드·칸·슬롯·줄추가가 ★모두 이 식을 쓴다.
+ *   ★왜 모았나(현빈 「★카드블럭 ★줄추가하면 ★텍스트 색이 ★바뀌네?」 261020):
+ *     식이 ★네 벌이었고 ★null 갈래가 ★갈렸다 — 렌더 셋은 null 일 때 ★«밴드 색»으로 떨어졌는데
+ *     줄추가(_cvbBeginAdd)만 ★'#1a1a1a'/'#555555' 를 ★손으로 박았다.
+ *     ⇒ ★어두운 밴드 ＋ ★휘도를 못 재는 칸 배경에서 ★기존 줄은 ★흰 글자, ★새 줄은 ★검은 글자였다
+ *       (실측 261020: 배경 꼴 21가지 중 ★4가지에서 갈렸다 · 명시 색 지정 시 0/21).
+ *   ⛔사본을 ★다시 만들지 마라 — 주석으로는 못 막는다. 네 자리가 ★이 함수를 부른다.
+ * bg       : 그 글자가 ★«실제로» 앉는 배경(평색이면 휘도를 잰다)
+ * kind     : 'title' | 'desc'
+ * fallback : ★bg 의 휘도를 ★못 잴 때 쓸 색(그라데이션 · transparent · 이름색 navy · var() · 빈값).
+ *            ★상위 단계가 ★이미 정한 색을 넘긴다 — 칸·슬롯·줄추가는 ★밴드 색, 밴드 자신은 ★최종 기본색. */
+const CVB_TEXT_LUM_DARK = 0.45;   // ★문턱 한 자리 — 이 아래면 «어두운 배경»으로 본다
+function cvbAutoTextColor(bg, kind, fallback) {
+  const lum = colorLuminance(bg);
+  if (lum === null) return fallback;
+  const dark = lum < CVB_TEXT_LUM_DARK;
+  return kind === 'title' ? (dark ? '#ffffff' : '#1a1a1a') : (dark ? '#e0e0e0' : '#555555');
+}
 // 제목/설명 요소의 인라인 스타일 — 렌더와 캔버스 ＋ 의 임시 칸이 같은 꼴로 쓰게 한 줄로 둔다.
 function _cvbTextCss(kind, size, color, align) {
   return kind === 'title'
@@ -691,16 +709,21 @@ function _cvbBeginAdd(block, idx, field, slot) {
   if (!area) return;
   const isTitle = /^title/.test(field);
   // 글꼴 크기·정렬·색은 렌더(renderCanvas/_appendCardTexts)와 같은 차례로 고른다:
-  //   카드 슬롯색(titleColorTop 등) → 블럭색(dataset.titleColor/descColor) → 영역 바탕 휘도 자동(렌더와 같은 문턱 0.45·같은 값).
-  //   임시 칸은 커밋 순간 재렌더로 갈리므로, 여기 색은 «쓰는 동안» 보이는 색이다.
+  //   카드 슬롯색(titleColorTop 등) → 블럭색(dataset.titleColor/descColor) → 영역 바탕 휘도 자동(cvbAutoTextColor 한 자리).
+  //   임시 칸은 커밋 순간 재렌더로 갈리므로, 여기 색은 «쓰는 동안» 보이는 색이다 — 그래서 ★재렌더가 고를 색과 같아야 한다.
   let card = {};
   try { const a = JSON.parse(block.dataset.cards || '[]'); if (Array.isArray(a) && a[idx]) card = a[idx]; } catch (_) {}
   const size = isTitle ? (parseInt(block.dataset.titleSize) || 20) : (parseInt(block.dataset.descSize) || 14);
   const align = block.dataset.textAlign || 'left';
   const slotKey = (isTitle ? 'titleColor' : 'descColor') + (slot === 'top' ? 'Top' : slot === 'bottom' ? 'Bottom' : '');
-  const lum = colorLuminance(area.style.backgroundColor || '');
-  const auto = lum === null ? (isTitle ? '#1a1a1a' : '#555555')
-    : (isTitle ? (lum < 0.45 ? '#ffffff' : '#1a1a1a') : (lum < 0.45 ? '#e0e0e0' : '#555555'));
+  /* ★★1020t1c — ★fallback 은 ★«밴드 색»이다. ⛔여기에 '#1a1a1a'/'#555555' 를 ★다시 박지 마라:
+       렌더러(cell·slot)는 휘도를 못 잴 때 ★밴드 색으로 떨어지므로, 손으로 박으면 ★어두운 밴드에서
+       ★기존 줄(흰 글자) ↔ ★새 줄(검은 글자)로 ★갈린다(현빈 보고 261020 · 21꼴 중 4꼴). */
+  const _textBg = block.dataset.textBg || '#f5f5f5';
+  const _band = isTitle
+    ? (block.dataset.titleColor || cvbAutoTextColor(_textBg, 'title', '#1a1a1a'))
+    : (block.dataset.descColor  || cvbAutoTextColor(_textBg, 'desc',  '#555555'));
+  const auto = cvbAutoTextColor(area.style.backgroundColor || '', isTitle ? 'title' : 'desc', _band);
   const color = (slot && card[slotKey]) || (isTitle ? block.dataset.titleColor : block.dataset.descColor) || auto;
   const host = document.createElement('div');
   host.className = isTitle ? 'cvb-card-title' : 'cvb-card-desc';
@@ -948,10 +971,11 @@ function renderCanvas(block) {
     const textAlign  = block.dataset.textAlign || 'left';
     // 테마어웨어 기본 텍스트색 (2026-07-04 제니 발주): 명시 색(dataset/per-card) 최우선,
     // 미지정 시 텍스트 밴드 bg 휘도로 자동 — 구 #ffffff 고정은 라이트 카드에서 화이트온화이트 붕괴(bench S12)
-    const _bandLum   = colorLuminance(textBg);
-    const _bandDark  = _bandLum !== null && _bandLum < 0.45;
-    const titleColor = block.dataset.titleColor || (_bandDark ? '#ffffff' : '#1a1a1a');
-    const descColor  = block.dataset.descColor  || (_bandDark ? '#e0e0e0' : '#555555');
+    // ★1020t1c — 식은 cvbAutoTextColor 한 자리. 밴드는 «더 위»가 없으므로 최종 기본색을 fallback 으로 준다.
+    //   ★옛 판과 같은 값이다: 옛 밴드식은 «휘도가 null 이면 어둡지 않다»로 보아 밝은 쪽 기본색을 썼다.
+    //   ⛔이 주석에 ★문턱 숫자를 ★적지 마라 — 짝 검사가 소스에서 그 숫자를 ★세어 사본을 막는다.
+    const titleColor = block.dataset.titleColor || cvbAutoTextColor(textBg, 'title', '#1a1a1a');
+    const descColor  = block.dataset.descColor  || cvbAutoTextColor(textBg, 'desc',  '#555555');
     // 텍스트 세로위치(px) — 기존 padding 위에 가산. 0이면 회귀 없음(하위호환).
     const textVOffset = Math.min(100, Math.max(0, parseInt(block.dataset.textVOffset) || 0));
     // 아이콘 모드(이스터에그) 블록 레벨 설정 — 크기(%)·색·이미지 배경
@@ -1034,9 +1058,8 @@ function renderCanvas(block) {
         // 블록 기본(textBg) 휘도만 보던 기존 로직은 다크온다크로 붕괴(현빈 리포트, cvb_gs1mt76).
         // 명시 색(dataset.titleColor / per-card 슬롯색)은 여전히 최우선. 그라데이션 등 휘도 계산
         // 불가(null)면 기존 블록 레벨 색으로 폴백(무회귀).
-        const _cellLum  = colorLuminance(cardBg);
-        const cellTitleColor = block.dataset.titleColor || (_cellLum === null ? titleColor : (_cellLum < 0.45 ? '#ffffff' : '#1a1a1a'));
-        const cellDescColor  = block.dataset.descColor  || (_cellLum === null ? descColor  : (_cellLum < 0.45 ? '#e0e0e0' : '#555555'));
+        const cellTitleColor = block.dataset.titleColor || cvbAutoTextColor(cardBg, 'title', titleColor);
+        const cellDescColor  = block.dataset.descColor  || cvbAutoTextColor(cardBg, 'desc',  descColor);
         // desc 비었으면 title 세로 중앙 정렬 (공백만 있어도 비었다고 판단)
         const descEmpty = !card.desc || card.desc.trim() === '';
         const justifyMode = descEmpty ? 'center' : 'flex-start';
@@ -1125,9 +1148,8 @@ function renderCanvas(block) {
             div.style.cssText = `width:100%;height:${h}px;background:${slotBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:4px;border-radius:${br};`;
             if (textVOffset) div.style.paddingTop = Math.min(10 + textVOffset, Math.max(10, h - 30)) + 'px';
             // 슬롯 실제 배경(textBgTop override 포함) 휘도 기준 자동 대비 — cell과 동일 규칙
-            const _slotLum = colorLuminance(slotBg);
-            const slotTitleColor = block.dataset.titleColor || (_slotLum === null ? titleColor : (_slotLum < 0.45 ? '#ffffff' : '#1a1a1a'));
-            const slotDescColor  = block.dataset.descColor  || (_slotLum === null ? descColor  : (_slotLum < 0.45 ? '#e0e0e0' : '#555555'));
+            const slotTitleColor = block.dataset.titleColor || cvbAutoTextColor(slotBg, 'title', titleColor);
+            const slotDescColor  = block.dataset.descColor  || cvbAutoTextColor(slotBg, 'desc',  descColor);
             _appendCardTexts(div, card, titleSize, descSize, textAlign, slotTitleColor, slotDescColor, idx, slot || null);
             return div;
           };
@@ -1902,3 +1924,5 @@ export { makeCanvasBlock, addCanvasBlock, updateCanvasBlock, renderCanvas, CARD_
 // 인라인 편집의 «판정 술어»와 그 술어가 보는 상수 — 단위테스트가 리터럴을 다시 적지 않도록
 // 여기서 가져다 쓴다(테스트 기대값에 셀렉터/필드목록을 박으면 SSOT 가 둘로 갈린다).
 export { _cvbEditable, _cvbReadText, _appendCardTexts, _CVB_EDIT_SEL, _CVB_EDIT_FIELDS };
+/* ★1020t1c — 글자색 자동의 한 자리. 짝 검사(tests/unit/cvb-card-auto-text-color.test.mjs)가 ★실물을 불러 잰다. */
+export { cvbAutoTextColor, CVB_TEXT_LUM_DARK };
