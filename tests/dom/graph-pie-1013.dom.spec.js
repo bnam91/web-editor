@@ -117,7 +117,7 @@ test('D1 옛 donut 블럭의 패널 — 「원형」이 켜져 있고 · 도너�
   const before = await outerOf(page, id);
   await openPanel(page, id);
   const g = await typeGroup(page);
-  expect(g.ids, '유형 버튼은 다섯').toEqual(['grb-type-v', 'grb-type-h', 'grb-type-line', 'grb-type-pair', 'grb-type-pie']);
+  expect(g.ids, '유형 버튼은 여섯(★261020 b8055ada 방사형 이식으로 +1)').toEqual(['grb-type-v', 'grb-type-h', 'grb-type-line', 'grb-type-pair', 'grb-type-pie', 'grb-type-radial']);
   expect(g.labels[4]).toBe('원형');
   expect(g.active, '옛 donut = 「원형」 버튼이 켜진다').toEqual(['grb-type-pie']);
   expect(await page.locator('#grb-type-donut').count(), '옛 도넛 버튼은 없다').toBe(0);

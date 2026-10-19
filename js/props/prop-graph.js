@@ -117,7 +117,7 @@ const GRAPH_TYPES = [
   { type: 'pie',      id: 'grb-type-pie',   label: '원형' },
   { type: 'radial',   id: 'grb-type-radial', label: '방사형' },   // 프로토 Z6-B — 그리는 것 · 패널 절은 js/graph-radial.js
 ];
-/* 1013t1C1 — 유형 버튼은 다섯(「원형」 하나). 도넛은 Pie Settings 의 「도너츠」 토글(dataset.pieDonut '1' · 끄면 키 삭제)이다.
+/* 1013t1C1 — 유형 버튼은 ★여섯(「원형」 하나 ＋ ★261020 `b8055ada` 방사형 이식으로 +1). 도넛은 Pie Settings 의 「도너츠」 토글(dataset.pieDonut '1' · 끄면 키 삭제)이다.
  * 옛 유형 'donut' 은 «읽을 때» 영구 별칭 — 열기·패널 열기·다른 칸 조작은 chartType 을 안 건드린다(옛 저장본 바이트 무변).
  *   'donut' 을 'pie' + pieDonut 로 옮겨 쓰는 자리는 둘뿐: 유형 버튼 클릭 · 도너츠 토글. */
 const _isPieType = (t) => t === 'pie' || t === 'donut';
