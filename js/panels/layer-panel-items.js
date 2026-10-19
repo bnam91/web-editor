@@ -66,6 +66,15 @@ const layerIcons = {
   qa:                `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V3.5a2 2 0 0 1 4 0v2"/></svg>`,
   /* ★1013t1A1 — 어노테이션: 우측 패널 머리(prop-annotation.js)의 «점 + 사선 + 화살촉»과 같은 그림. 색은 currentColor. */
   annotation:        `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="3" cy="9" r="1.5" fill="currentColor" stroke="none"/><line x1="4" y1="8" x2="9.5" y2="2.5"/><path d="M8 1.5 L10.5 4 L9.5 2.5 Z" fill="currentColor" stroke="none"/></svg>`,
+  /* ★★261019 현빈 — 「★lrb_0d6fbm 이거 캔버스의 ★월계수 Svg 모양이 ★왜이래??」
+       ★★실측: ★`layerIcons` 에 ★`laurel` 키가 ★★없어 ★212행의 ★`|| layerIcons.body` 로 ★떨어졌다
+         ⇒ ★레이어 패널에 ★★«가로줄 셋»(글자 아이콘)이 ★나왔다.
+       ★그림은 ★우측 패널(`js/props/prop-laurel.js:116-118`)의 ★★«두 줄기 곡선»과 ★★같은 것을 쓴다
+         (★선례: ★바로 아래 ★`annotation` 도 ★「우측 패널 머리와 ★같은 그림」이라 ★적혀 있다).
+       ⛔stroke 는 ★`currentColor` 다 — ★패널 쪽은 ★`#888` 고정이지만 ★레이어는 ★선택 상태로 ★색이 바뀐다.
+       ★★같은 병이 ★이 키들에도 ★있다(261019 전수): ★comparison · coupon · gradient · quote · bullet · banner02
+         ⇒ ★그 여섯은 ★★우측 패널에 ★아이콘 칸 ★자체가 ★없어 ★«베낄 원본»이 ★없다 ⇒ ★★따로 ★명부에 올렸다. */
+  laurel:            `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 10c0-3 0-6 3-8M9 10c0-3 0-6-3-8" stroke-linecap="round"/></svg>`,
   marking:           `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/></svg>`,   // 마킹 블럭(1013t2B1) — 우측 패널 머리와 같은 원
 };
 

@@ -511,6 +511,19 @@ test('② --rev — ★체크아웃 없이 ref 를 잰다 · ⛔빈 블롭을 �
     process.stdout.write(`\n⚠️ ★SKIP — ★안 쟀다(통과가 ★아니다): ${pre.ok ? `범위 안 CSS 줄이 0줄이다(base=${pre.base})` : pre.reason}\n`);
     t.skip(`안 쟀다: ${pre.ok ? '범위 0줄' : pre.reason}`); return;
   }
+  /* ★★261019 — ★★거짓 빨강을 ★막는다. ★경위:
+       ★오늘 ★v0.9.8 을 ★릴리스하자 ★`gatePremise` 의 ★base 가 ★★v0.9.8 이 ★됐고,
+       ★이 칸이 ★재는 ★`--rev` 대상도 ★같은 ★v0.9.8 이다 ⇒ ★★base == rev.
+       ⇒ ★★창이 ★0줄이 되어 ★린트가 ★「범위 안 CSS 줄이 0줄이다」만 찍고
+         ★「토큰 명부 :root N건」은 ★안 찍는다(★rc 는 ★0 — ★도구는 ★정상이다).
+       ⇒ ★★윗 SKIP(508~512)은 ★`gatePremise(null)` ★기준이라 ★이 경우를 ★못 덮었다.
+       ⛔「못 읽었다」로 ★빨강을 내면 ★★릴리스 ★직후마다 ★거짓 빨강이 ★난다.
+       ★★그래서 ★«볼 것이 ★없다»를 ★★SKIP 으로 ★가른다 — ⛔「통과」로 ★접지 ★않는다. */
+  if (/범위 안 CSS 줄이 0줄이다/.test(r.stdout)) {
+    process.stdout.write(`\n⚠️ ★SKIP — ★안 쟀다(통과가 ★아니다): --rev 대상이 base 와 같은 판이라 창이 0줄\n`);
+    t.skip('안 쟀다: base == rev 로 창이 0줄');
+    return;
+  }
   assert.match(r.stdout, /토큰 명부 :root \d+건/, 'ref 에서 토큰 명부를 못 읽었다');
   // ★없는 ref 는 ★조용히 0 이 아니라 ★3 이어야 한다
   const bad = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs'), '--rev', 'nope-ref-1009t3'],
