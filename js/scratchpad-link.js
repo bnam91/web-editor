@@ -431,6 +431,46 @@
     for (const u of _units()) if (u.ids.includes(scratchId)) return u;
     return null;
   }
+
+  /* ═══ ★1018t1a3 — 「이 묶음을 ★«움직일» 때 ★무엇이 함께 가나」 ★한 자리 ══════════════════
+   * 현빈 원문(2026-10-20): 「링크설정 된 스크래치패드 하나랑 ★링크 연결이 ★안 된 스크래치패드들을
+   *   ★그룹 설정을 한 경우 … ★링크를 더블클릭 하면은 ★그룹 전체가 움직이는 게 아니고
+   *   ★그룹 안에서 ★링크 연결된 스크래치패드만 이동이 되는데 ★★그룹 전체가 움직였으면 좋겠어」
+   *
+   * ★★무엇이 문제였나 (★고치기 «전» 실측 — 실물 `_units` 를 하네스에서 돌렸다):
+   *     그룹 g_A 4장(s1~s4) · 링크는 s1 ★하나 ⇒ `_unitOf('s1').ids` = ★★['s1'] (★1장)
+   *   까닭 = `_units()` 는 ★`allLinks()` 를 돌며 짓는다 ⇒ ★★«링크 토큰이 없는 멤버»는 ★ids 에
+   *   ★애초에 들어올 수 없다. 그룹은 토큰을 ★묶는 데만 쓰였다.
+   *   ⇒ `pullLink` 가 ★ids 만 옮기므로 ★4장 중 ★1장만 갔다.
+   *
+   * ★「그룹째」의 ★뜻 = ★★«그룹 전원이 ★상대 배치를 쥔 채 ★같은 걸음으로»(조정자 ⑴안).
+   *   ★그렇게 ★고른 까닭 — ⛔내 취향이 아니라 ★★«이미 도는 길»이 그것이다:
+   *     ★전원이 링크된 그룹(#16-G, 2026-10-09)은 ★이미 ★묶음 겉상자를 섹션에 붙이고
+   *     ★각자 제 오프셋을 들고 간다. ⇒ ★«일부만 링크된 그룹»을 ★그 ★같은 길로 보내면
+   *     ★전원링크 그룹과 ★단독 한 장은 ★★한 글자도 안 바뀐다(아래 둘이 그 음성대조다).
+   *   ⛔«델타 평행이동»(링크된 장을 오늘 자리로 보내고 나머지를 그만큼 밀기)은 ★안 골랐다 —
+   *     그러면 ★전원링크 그룹의 ★오늘 동작이 ★바뀐다(#16-G 회귀).
+   *
+   * ★그룹은 ★DOM 에서 읽는다 — `_groupMembers` ★그 한 벌(⛔사본 금지 · `_cmdLinkTargets`·
+   *   `_cmdLinkUnits` 가 쓰는 ★같은 출처·같은 CSS.escape).
+   * ⛔«그리는 선»은 ★안 건드린다 — 선·겉테두리는 여전히 `_unitBox(unit)`(=토큰 쥔 장)으로 잰다.
+   *   까닭: 현빈이 말한 것은 ★«움직임»이고, 「보이는 선과 눌리는 선이 갈리지 않는다」가
+   *   이 파일의 규약이다(:881). 선까지 넓히는 것은 ★별건이고 ★현빈 뜻을 물을 자리다.
+   * ⛔«토큰(refLinks)»도 ★안 늘린다 — 링크는 그대로 1개다(이 파일 :396 의 그 세 까닭). */
+  function _unitMoveIds(unit) {
+    if (!unit || !Array.isArray(unit.ids)) return [];
+    if (!unit.group) return unit.ids.slice();        // 그룹 없는 묶음 = 오늘 그대로(단독 길)
+    const mem = _groupMembers(unit.group);
+    /* ★DOM 에서 그룹을 못 찾으면 ★오늘 그대로 간다 — ⛔「없다」를 「전부」로 지어내지 않는다. */
+    if (!mem.length) return unit.ids.slice();
+    /* ★`unit.ids ⊆ mem` 은 ★구조로 보장된다 — ⛔「빠진 것을 더하는」 줄을 두지 마라.
+       까닭: `_units()` 의 묶음 키가 `sectionId|g:<그룹>` 이다 ⇒ ★한 묶음의 ids 는 ★전부 같은 그룹이고,
+       그 그룹을 ★같은 DOM 질의(`_groupMembers`)로 뽑으므로 ★빠질 수가 없다. 그룹이 없는 장은
+       키가 `#<id>` 라 ★애초에 다른 묶음이다(위 ⑴의 조기 return 이 그 길이다).
+       ★실측 근거: 처음엔 「빠진 토큰을 더하는」 줄을 뒀는데, ★그 줄을 ★떼는 변이(M4)가
+       ★★어떤 검사도 못 빨갛게 했다 ⇒ ★도달 불가 = ★장식. ⇒ 지웠다(「발동 안 한 방어는 장식이다」). */
+    return mem.slice();
+  }
   /* 묶음의 «겉 상자» — `_edgeEnds` 에 ★요소 대신 넘기는 자다(getBoundingClientRect 만 있으면 된다).
      ★0×0(숨김·접힘) 멤버는 ★안 센다 — 「없다」가 아니라 「안 보인다」이고, 안 보이는 것을 상자에
        넣으면 선이 허공으로 뻗는다. 전원이 0×0 이면 상자도 0×0 ⇒ `_edgeEnds` 의 가드가 null 을 준다.
@@ -1060,7 +1100,10 @@
     /* 섹션 기준 세로 간격을 «목표 자리»로 다시 잡아 준다 — 안 하면 추종루프가 다음 프레임에
        옛 linkDy 로 되돌려 당긴 것이 «튕겨» 나간다. */
 
-    if (unit.ids.length === 1) {
+    /* ★1018t1a3 — ★움직이는 집합은 ★«그룹째»다(위 `_unitMoveIds` 머리말). ⛔토큰 수(unit.ids)로 갈래를 고르지 마라
+       — 그러면 「그룹 4장 중 1장만 링크」가 ★단독 길로 떨어져 ★한 장만 간다(그게 바로 이 결함이었다). */
+    const moveIds = _unitMoveIds(unit);
+    if (moveIds.length === 1) {
       const item = _scEl(scratchId);
       if (!item) return { ok: false, reason: 'NO_EL' };
       const dest = _pullDest(sec, item, e.attachRight);
@@ -1070,21 +1113,34 @@
     }
 
     if (typeof window._scratchAnimateItemsTo !== 'function') return { ok: false, reason: 'NO_API' };
-    /* 묶음의 겉 상자를 scaler-local 로 옮긴다 — `_pullDest` 는 그 좌표계로 자리를 잡는다. */
-    const br = box.getBoundingClientRect();
+    /* ★옮기는 자들의 겉 상자를 scaler-local 로 — `_pullDest` 는 그 좌표계로 자리를 잡는다.
+       ⛔위의 `box`(=선을 그리는 상자, 토큰 쥔 장만)를 ★쓰지 않는다: 그걸 쓰면 그룹의 «안 링크된» 장들이
+         ★상자 밖 오프셋을 받아 섹션에서 엉뚱하게 멀리 앉는다. ★전원링크 그룹에서는 두 상자가 ★같다(회귀 0). */
+    const moveBox = _unitBox({ ids: moveIds });
+    const br = moveBox.getBoundingClientRect();
     const boxX = (br.left - scRect.left) / scale, boxY = (br.top - scRect.top) / scale;
     const size = { w: br.width / scale, h: br.height / scale };
-    const members = unit.ids.map(id => _scEl(id)).filter(Boolean);
+    const members = moveIds.map(id => _scEl(id)).filter(Boolean);
     const visible = members.filter(el => { const q = el.getBoundingClientRect(); return !(q.width === 0 && q.height === 0); });
     const dest = _pullDest(sec, null, e.attachRight, size, new Set(members));
     /* ★«상대 배치»는 묶음 겉 상자의 좌상단을 기준으로 잰다 — 각자 제 오프셋을 그대로 들고 간다.
        ⛔0×0(숨김·접힘) 멤버는 ★안 옮긴다: 상자에도 안 들어갔으니 기준이 없다(지어내지 않는다). */
+    /* ★★`linkDy`(섹션 추종 앵커)는 ★«링크 토큰을 쥔 장»에만 싣는다 — ⛔안 링크된 멤버에 심지 마라.
+         까닭(실측 근거 = js/scratch-pad.js `_applyFollow` :543): 그 장이 ★나중에 링크될 때
+         `if (!_num(it.linkDy))` 가 ★거짓이 되어 「현재 자리에서 유도(무이동)」 길을 ★건너뛰고
+         ★y = 섹션top + ★묵은 linkDy 로 ★한 번 튄다. 추종루프는 링크만 돌므로 ★지금은 무해하지만
+         ★저장본(SCRATCH_ITEM_KEYS 에 linkDy 가 있다)에 ★남아 ★그 날 터진다.
+       ★`_scratchAnimateItemsTo` 는 `Number.isFinite(linkDy)` 일 때만 쓴다 ⇒ ★안 주면 그 장의 값은 ★무변. */
+    const anchored = new Set(unit.ids);
     const moves = visible.map(el => {
       const q = el.getBoundingClientRect();
       const ox = (q.left - scRect.left) / scale - boxX;
       const oy = (q.top - scRect.top) / scale - boxY;
       const y = dest.y + oy;
-      return { id: el.dataset.scratchId, x: Math.round(dest.x + ox), y: Math.round(y), linkDy: y - secTop };
+      const id = el.dataset.scratchId;
+      const m = { id, x: Math.round(dest.x + ox), y: Math.round(y) };
+      if (anchored.has(id)) m.linkDy = y - secTop;
+      return m;
     });
     return window._scratchAnimateItemsTo(moves, { label: '참고이미지 당기기' });
   }
@@ -1451,5 +1507,8 @@
     /* [#16-G] 연결의 «단위» — 검사가 「선이 몇 개여야 하나」를 소스 말고 ★여기로 물을 수 있게 연다.
        ⛔그룹 id 값을 기대하지 마라(`'g_'+Math.random()`) — 존재/개수로 재라. */
     _units, _unitOf, _unitBox, _groupOf,
+    /* ★1018t1a3 — 「묶음을 ★움직일 때 ★무엇이 함께 가나」. ★검사가 ★소스 말고 ★여기로 묻는다.
+       ⛔그룹 id 값을 기대하지 마라 — ★개수·포함으로 재라(위 [#16-G] 줄과 같은 규약). */
+    _unitMoveIds,
   };
 })();
