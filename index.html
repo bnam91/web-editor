@@ -728,7 +728,15 @@
       <button class="fp-menu-item" onclick="addCanvasBlock();toggleFpDropdown('fp-component-dropdown')">Card</button>
 <button class="fp-menu-item" onclick="addGraphBlock();toggleFpDropdown('fp-component-dropdown')">Graph</button>
       <button class="fp-menu-item" onclick="addDividerBlock();toggleFpDropdown('fp-component-dropdown')">Divider</button>
-      <button class="fp-menu-item" onclick="addGapBlock(undefined,{asSibling:true});toggleFpDropdown('fp-component-dropdown')" title="여백(갭) 추가 — 단축키 G">Gap</button>
+      <!-- ★★261019 현빈 — 「★중앙 플로팅 패널에서 컴퍼넌트 패널에서 ★gap 블럭 버튼은 ★숨기기 해줘.
+             ★주로 단축키로 눌러서 ★안보여도 될듯해.」
+           ★이 항목은 ★2026-10-05 에 ★내가 ★넣었다 — ★까닭: 「갭 추가가 ★«g 키로만» 됐다(찾느라 5곳 헤맴)」
+             (UserLens 0.9.6 ⑷3 · toolbar-gap-entry.dom.spec.js 머리 주석).
+           ⇒ ★★그 까닭이 ★다했다(현빈이 ★단축키에 ★익으셨다). ★★단추만 ★숨기고 ★★기능(g 키)은 ★그대로다.
+           ⛔지우지 ★않고 ★주석으로 ★둔다 — ★되살릴 때 ★「무엇이 있었나」를 ★다시 ★찾지 ★않게.
+           ★짝 검사: toolbar-gap-entry.dom.spec.js 의 ★T0 을 ★「항목이 ★없다」로 ★뒤집었고,
+             ★T1·T2 는 ★★g 키로 ★갈았다(동작은 ★여전히 ★잠근다) · ★T3 은 ★★중복이라 ★지웠다. -->
+      <!-- <button class="fp-menu-item" onclick="addGapBlock(undefined,{asSibling:true});toggleFpDropdown('fp-component-dropdown')" title="여백(갭) 추가 — 단축키 G">Gap</button> -->
       <button class="fp-menu-item" onclick="addStepBlock();toggleFpDropdown('fp-component-dropdown')">Step</button>
       <button class="fp-menu-item" onclick="addChatBlock();toggleFpDropdown('fp-component-dropdown')">Chat</button>
       <button class="fp-menu-item" onclick="addGridBlock();toggleFpDropdown('fp-component-dropdown')">Grid</button>

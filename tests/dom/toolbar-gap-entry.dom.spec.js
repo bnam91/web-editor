@@ -46,51 +46,48 @@ async function pickFrame(page) {
   await clickAt(page, x, y, { sel: '[id="FR"]', not: '[id="kid"]' }, { label: '프레임 고르기' });
   await expect.poll(() => page.evaluate(() => document.getElementById('FR').classList.contains('selected'))).toBe(true);
 }
-async function clickToolbarGap(page) {
-  const t = await waitStableRect(page, '#fp-component-dropdown .fp-dropdown-trigger');
-  await clickAt(page, t.cx, t.cy, { sel: '#fp-component-dropdown .fp-dropdown-trigger' }, { label: 'Component 펼치기' });
-  await expect(page.locator('#fp-component-dropdown')).toHaveClass(/open/);
-  const item = page.locator('#fp-component-menu .fp-menu-item', { hasText: /^Gap$/ });
-  await expect(item).toBeVisible();
-  const b = await item.boundingBox();
-  await clickAt(page, b.x + b.width / 2, b.y + b.height / 2, { sel: '#fp-component-menu .fp-menu-item' }, { label: 'Gap 누르기' });
+/* ★★261019 현빈 — 「★컴퍼넌트 패널에서 ★gap 블럭 버튼은 ★숨기기 해줘. ★주로 단축키로 눌러서 ★안보여도 될듯해.」
+   ⇒ ★index.html 의 ★Gap 항목을 ★주석으로 ★숨겼다. ★★기능(g 키)은 ★그대로다.
+   ⇒ ★★그래서 ★동작 검사(T1·T2)는 ★★«툴바 클릭»에서 ★★«g 키»로 ★갈았다 — ★잠그는 것은 ★같다.
+   ⛔이 파일을 ★통째로 ★지우지 ★않았다: ★「글자 다음에 ★갭 하나」·「⌘Z ★한 번」은 ★여전히 ★값이 있다. */
+async function pressGapKey(page) {
+  await page.keyboard.press('g');
 }
 
-test('T0 ★Component 메뉴에 「Gap」이 Divider 바로 아래에 있고 툴팁이 단축키 G 를 말한다', async ({ page }) => {
+
+test('T0 ★Component 메뉴에 「Gap」 항목이 ★없다 — 단축키 G 로만 넣는다(261019 현빈)', async ({ page }) => {
   const errs = await setup(page);
   const items = await page.locator('#fp-component-menu .fp-menu-item').allTextContents();
-  const i = items.indexOf('Divider');
-  expect(i, `Divider 가 없다: ${JSON.stringify(items)}`).toBeGreaterThanOrEqual(0);
-  expect(items[i + 1], `Divider 다음이 Gap 이 아니다: ${JSON.stringify(items)}`).toBe('Gap');
-  await expect(page.locator('#fp-component-menu .fp-menu-item', { hasText: /^Gap$/ })).toHaveAttribute('title', '여백(갭) 추가 — 단축키 G');
+  // ★★양성대조 — ★메뉴 자체는 ★살아 있다(★「0건」이 ★«메뉴를 못 찾아서»가 ★아님을 ★먼저 ★보인다)
+  expect(items.length, `Component 메뉴가 비었다 — 선택자가 죽었나: ${JSON.stringify(items)}`).toBeGreaterThan(3);
+  expect(items, 'Divider 는 있어야 한다(메뉴가 멀쩡하다는 증거)').toContain('Divider');
+  // ★본 단언 — ★Gap 이 ★없다
+  expect(items, `Gap 항목이 아직 있다: ${JSON.stringify(items)}`).not.toContain('Gap');
+  await expect(page.locator('#fp-component-menu .fp-menu-item', { hasText: /^Gap$/ })).toHaveCount(0);
   expect(errs).toEqual([]);
 });
 
-test('T1 ★글자를 고르고 툴바 Gap → 그 글자 «바로 다음»에 갭 하나 · 메뉴 닫힘', async ({ page }) => {
+test('T1 ★글자를 고르고 ★g → 그 글자 «바로 다음»에 갭 하나', async ({ page }) => {
   const errs = await setup(page);
   await selectText(page);
   const before = await order(page);
   expect(before, '전제: 배치').toEqual(['g0', 'tfA', 'rowF', 'gEnd']);
-  await clickToolbarGap(page);
+  await pressGapKey(page);
   await expect.poll(() => order(page)).toEqual(['g0', 'tfA', 'NEWGAP', 'rowF', 'gEnd']);
-  await expect(page.locator('#fp-component-dropdown')).not.toHaveClass(/open/);
   expect(errs).toEqual([]);
 });
 
-test('T2 ★툴바 Gap 한 번 = ⌘Z 한 번에 정확히 되돌아간다', async ({ page }) => {
+test('T2 ★g 한 번 = ⌘Z 한 번에 정확히 되돌아간다', async ({ page }) => {
   await setup(page);
   await selectText(page);
-  await clickToolbarGap(page);
+  await pressGapKey(page);
   await expect.poll(() => order(page)).toEqual(['g0', 'tfA', 'NEWGAP', 'rowF', 'gEnd']);
   await page.keyboard.press('Meta+z');
   await expect.poll(() => order(page), { message: '⌘Z 한 번에 갭이 안 빠졌다(또는 더 빠졌다)' }).toEqual(['g0', 'tfA', 'rowF', 'gEnd']);
 });
 
-test('T3 ★프레임을 오브젝트로 골라 툴바 Gap → g 키와 같이 프레임 «밖 다음 형제»(안에 안 들어감)', async ({ page }) => {
-  await setup(page);
-  await pickFrame(page);
-  const kidsBefore = await page.evaluate(() => document.getElementById('FR').children.length);
-  await clickToolbarGap(page);
-  await expect.poll(() => order(page)).toEqual(['g0', 'tfA', 'rowF', 'NEWGAP', 'gEnd']);
-  expect(await page.evaluate(() => document.getElementById('FR').children.length), '프레임 안으로 들어갔다').toBe(kidsBefore);
-});
+/* ⛔★★T3 삭제 (261019) — 「★프레임을 오브젝트로 골라 ★툴바 Gap → ★g 키와 ★같이 ★밖 다음 형제」
+     ★이 검사의 값은 ★★«툴바가 ★g 키와 ★같은가»였다. ★★툴바 입구가 ★없어졌으므로 ★잴 대상이 ★사라졌다.
+     ★g 키 자신의 ★그 규칙(F1)은 ★★`frame-insert-sibling.dom.spec.js` 가 ★잠근다 —
+       ★이 파일 ★머리 주석이 ★처음부터 ★그렇게 적어 뒀다("여기 T3 이 ★툴바도 ★같은지 ★잰다").
+     ⇒ ★★중복이라 ★지웠다. ⛔조용히 ★지우지 ★않고 ★이 비석을 ★남긴다. */
