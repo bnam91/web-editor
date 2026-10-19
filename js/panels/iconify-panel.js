@@ -105,6 +105,15 @@ function openIconifyModal(onPick, options = {}) {
     [_sz?.previousElementSibling, _sz, _sz?.nextElementSibling].forEach(el => { if (el) el.style.display = options?.hideSize ? 'none' : ''; }); }
   const favTab = _modal.querySelector('.iconify-subtab[data-subtab="favorite"]');
   if (favTab) favTab.style.display = _favEnabled ? '' : 'none';
+  /* ★1017t1i2 — `options.prefix` 로 ★세트를 미리 걸러 연다(인포그래픽이 블럭에 기억한 세트).
+     ★왜 여기냐 — 세트 상태(`_currentPrefix`)와 필터 행의 `.active` 는 ★이 모달의 것이다. 바깥에서 못 민다.
+     ★순수 ★추가다 — 안 주면 ★한 글자도 안 바뀐다(소비자 12곳 중 11곳이 안 준다 · 전수는 그 레인 보고에).
+     ⛔명부(COLLECTIONS)에 ★없는 prefix 도 받는다(API 에는 243세트가 있다) — 그때는 필터 행에
+       ★active 가 없고, 그게 ★정직하다(「All 이 켜진 채 걸러진다」가 더 나쁘다). */
+  if (typeof options?.prefix === 'string') {
+    _currentPrefix = options.prefix;
+    _modal.querySelectorAll('.iconify-col-btn').forEach(b => b.classList.toggle('active', b.dataset.prefix === _currentPrefix));
+  }
   _selectedIcon = null;
   _updateSelectedPreview(null);
   _setSubTab('iconify');                 // 기본 탭 = Iconify

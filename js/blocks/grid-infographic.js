@@ -7,7 +7,11 @@
      · 칸 안 자리(아이콘·꼬리말을 아래로) = 줄 marginTop:'auto'(grid-block.js _gridLineHtml)
      · 줄 순서 = 모델에 그림 순서대로 저장.
    ⛔프로토 CSS(proto/z3.css)를 붙이지 않는다 · ⛔프로토의 13.6% 광학 보정(translate)은 버렸다.
-   ⛔범위 밖(현빈 결정 D1): 키워드 자동 채움 · ⌘V SVG 아이콘 · 아이콘 팝오버 · 아이콘 크기/색 일괄 · 열×행 전용 손잡이 · 꼬리말 토글.
+   ⛔범위 밖(현빈 결정 D1): 키워드 자동 채움 · ⌘V SVG 아이콘 · ~~아이콘 팝오버~~ · 아이콘 크기/색 일괄 · 열×행 전용 손잡이 · 꼬리말 토글.
+     ★[정정 2026-10-20 · 1017t1i2] ★「아이콘 고르개」는 ★범위 안으로 들어왔다 — 현빈 「아이콘을 더블클릭하면 svg를 바로
+       교체할수 패널이 … 이 방식이 좋은것 같아」 ＋ 「원래는 ★iconify 플러그인이 연결되어있어야되는거야」.
+       ⇒ js/blocks/grid-ifg-icon-pick.js (더블클릭 → window.openIconifyModal). ⛔이 줄을 「범위 밖」으로 읽지 마라.
+       ⛔「내장 아이콘 35종 명부」는 ★없다 — 시안의 35종은 ★프로토가 API 를 못 써서 박아 둔 ★샘플이었다(현빈 정정).
    ★고치는 문은 언제나 window.updateGridBlock «한 번»(⌘Z 한 번 · 표식도 같은 문 = 같은 히스토리).
 ═══════════════════════════════════ */
 import { GRID_IFG_PRESET_KEYS } from './grid-block.js';
@@ -53,10 +57,17 @@ export function ifgPreset(key, nCols) {
   return { ...base, iconSize: t[4], rowH: t[5], title: { ...base.title, fontSize: t[1] }, desc: { ...base.desc, fontSize: t[2] }, cell: { ...base.cell, padding: t[3] } };
 }
 
-/* ── 자리표시 아이콘 «하나»(check-circle · 프로토 z3-icons.js 의 그 선 그림). 나머지 아이콘 표는 D1(범위 밖). ── */
+/* ── 자리표시 아이콘 «하나»(check-circle · 프로토 z3-icons.js 의 그 선 그림). 아이콘 «고르기»는 iconify 다. ──
+ * ★★1017t1i2 — 한때 이 넷을 `./grid-ifg-icons.js`(내장 35종 명부)로 옮겼다가 ★되돌렸다.
+ *   까닭: 현빈 정정 「35종은 샘플이라 그런거고 원래는 ★iconify 플러그인이 연결되어있어야되는거야」
+ *   ⇒ 내장 명부는 ★없다. 아이콘은 `window.openIconifyModal`(js/panels/iconify-panel.js)에서 온다.
+ *   ⇒ 자리표시 ★하나뿐이니 명부가 둘이 될 일도 없다 — ★여기 그대로 둔다.
+ * ★★색 자리(`style="color:…"`)는 ★계약이다 — 아래 `_recolor` 가 그 자리를 찾아 프리셋 색으로 갈아낀다.
+ *   ⇒ iconify 에서 받은 svg 도 ★그 자리를 갖춰야 프리셋 적용에서 색을 안 잃는다.
+ *     그 일은 js/blocks/grid-ifg-icon-pick.js `ifgPaintSvgRoot` 가 한다(⛔두 벌로 적지 마라). */
+const _URI_HEAD = 'data:image/svg+xml;base64,';
 const _ICON_D = '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>';
 const _ICON_VB = '-4.5 -4.5 33 33';   // 원형 틀에 안 잘리게 24 상자 둘레 4.5 여백
-const _URI_HEAD = 'data:image/svg+xml;base64,';
 const _hexOk = (c) => /^#[0-9a-f]{6}$/i.test(String(c || ''));
 const _b64 = (s) => btoa(unescape(encodeURIComponent(s)));
 const _unb64 = (s) => decodeURIComponent(escape(atob(s)));

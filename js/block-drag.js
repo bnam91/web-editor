@@ -2479,6 +2479,22 @@ function bindBlock(block) {
          텍스트 블록의 dblclick 도 같은 이유로 elementFromPoint 로 대상을 고른다(이 파일 isText 분기). */
       const atPoint = document.elementFromPoint(e.clientX, e.clientY);
       const node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
+      /* ★★인포그래픽 «아이콘» 더블클릭 → 내장 아이콘 고르개 팝오버 (1017t1i2 · 2026-10-20)
+         현빈 원문: 「인포그래픽 블럭의 경우 특수하게 ★아이콘을 더블클릭하면 svg를 바로 교체할수
+           패널이 나타났었지 않니?? … 이 방식이 좋은것 같아」 ＋ 「인포그라피 블럭에서는 이미지 넣을 일이 없어」.
+         ★아래 두 가지(⑴빈 슬롯 파일창 ⑵프레임 크롭 편집)보다 ★먼저 묻는다 — ★가로채는 자리다.
+         ★판정은 ★js/blocks/grid-ifg-icons.js `ifgIconDblclick` ★한 곳이 쥔다(⛔여기서 갈라 두 벌로 만들지 마라):
+           ⒜ 블럭에 `data-ifg-preset` 표식이 있나  ⒝ 그 줄의 imgSrc 가 ★아이콘(빈 값 ∪ svg data URI)인가.
+         ★⒝가 ★왜 있나 — 「인포그래픽엔 사진이 없다」는 ★전제이지 ★가드가 아니다. 사진이 들어오는 길
+           (우클릭 교체 · 패널 · 스크래치 끌어놓기 · MCP)은 ★표식을 안 본다 ⇒ ⒝ 없이 가로채면
+           ★2026-09-25 현빈의 «프레임 안 크롭 편집»이 그 사진에서 ★영영 안 열린다. 까닭은 그 파일 머리말.
+         ★false = 「내 일이 아니다」 ⇒ ★아래 옛 두 가지로 ★그대로 흘러간다. ⛔return 을 위로 올리지 마라.
+         ⛔이 파일은 grid-ifg-icons.js 를 import 하지 않는다 — window 다리는 기존 관례 그대로. */
+      const ifgFrame = node && node.closest ? node.closest('.grd-img-frame[data-line]') : null;
+      if (ifgFrame && block.contains(ifgFrame) && window.ifgIconDblclick?.(block, ifgFrame)) {
+        e.stopPropagation();
+        return;
+      }
       /* ★빈 이미지 슬롯 더블클릭 → 파일 선택(T-B, prop-table.js `_bindTableRowImg` 의
          더블클릭 관용구 재사용). 우클릭 메뉴·프로퍼티 패널 [이미지 선택…]과 같은
          FileReader→dataURL→patchCell{lineIndex,imgSrc} 경로다. */
