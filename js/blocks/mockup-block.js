@@ -10,6 +10,9 @@
 import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import { checkerBg } from '../checker-tokens.js';
+/* ★1020t1d-W2B — 화면 Δ/넘침 → ★목업의 로컬 좌표. ★조상 프레임의 flip·rotate 를 ★측정으로 되돌린다
+   (block-drag.js 와 ★같은 도구 · ⛔여기서 새 식을 짓지 않는다 — frame-geometry.js 머리말). */
+import { measureLocalBasis, localDeltaFromBasis } from '../frame-geometry.js';
 
 // ── 가로 중앙정렬 (대칭 블리드) ─────────────────────────────────────────────
 // 버그: `margin:0 auto`는 블럭 width가 부모(콘텐츠칸) 폭보다 넓으면 가운데정렬을
@@ -115,20 +118,36 @@ function makeDeviceMockupBlock(deviceKey, width) {
 // 섹션 밖 크롭(⌘드래그) — 흐름 블록은 자유좌표가 없어 translateX 오프셋으로 섹션 경계 밖으로 민다.
 // clip은 rect 기반(스티커의 offsetLeft식과 달리 translateX 반영). 편집=보임(선택 중)/미리보기·Export=크롭
 // (스티커와 동일 시스템: .mockup-block{clip-path:var(--sec-clip)} + .selected·[data-overflow-visible] 해제).
-function _updateMockupSecClip(block) {
+function _updateMockupSecClip(block, basis) {
   const sec = block.closest('.section-block');
   if (!sec) return;
   const er = block.getBoundingClientRect();
   const sr = sec.getBoundingClientRect();
   if (!er.width || !er.height) { block.style.removeProperty('--sec-clip'); return; }
-  const scale = block.offsetWidth ? er.width / block.offsetWidth : 1;  // 캔버스 zoom 보정
-  const t = Math.max(0, (sr.top    - er.top)    / scale);
-  const l = Math.max(0, (sr.left   - er.left)   / scale);
-  const r = Math.max(0, (er.right  - sr.right)  / scale);
-  const b = Math.max(0, (er.bottom - sr.bottom) / scale);
-  if (t || l || r || b) {
-    block.style.setProperty('--sec-clip', `inset(${Math.round(t)}px ${Math.round(r)}px ${Math.round(b)}px ${Math.round(l)}px)`);
-  } else block.style.removeProperty('--sec-clip');
+  /* ★넘침은 ★화면 px 로 먼저 잰다(섹션은 변환이 없다). ★0 이면 ★기저를 안 잰다 —
+     measureLocalBasis 는 style.left/top 을 잠깐 쓴다 ⇒ ★넘침 없는 평상시엔 ★쓰기 0(옛 판과 같다). */
+  const st = Math.max(0, sr.top - er.top), sl = Math.max(0, sr.left - er.left);
+  const sR = Math.max(0, er.right - sr.right), sb = Math.max(0, er.bottom - sr.bottom);
+  if (!(st || sl || sR || sb)) { block.style.removeProperty('--sec-clip'); return; }
+  /* ★★W2B — inset() 은 ★목업 «자기» 상자의 변(로컬)이다. ★조상 프레임이 flip 이면 화면 왼쪽 = 로컬 오른쪽,
+     rotate90 이면 화면 위/아래 = 로컬 왼/오른쪽이다. ⛔화면 변을 그대로 로컬 변에 쓰면 ★잘리는 쪽이 거울상으로 간다.
+     ⇒ 화면 넘침 벡터 넷을 ★기저 역변환(localDeltaFromBasis)으로 로컬로 옮겨 ★부호로 변을 정한다.
+     ★기저는 줌까지 품는다 ⇒ 옛 `er.width / offsetWidth` 배율(회전 90 에서 가로·세로가 뒤바뀌어 틀린다)도 안 쓴다.
+     ★못 구하면(null · 퇴화) ★옛 식 그대로 — 무회귀. ★변환이 없으면 기저 = 줌·항등이라 옛 식과 같은 값이 나온다. */
+  const _b = basis || measureLocalBasis(block);
+  let t = 0, r = 0, b = 0, l = 0, ok = !!_b;
+  for (const [vx, vy] of [[-sl, 0], [sR, 0], [0, -st], [0, sb]]) {
+    if (!ok || (!vx && !vy)) continue;
+    const d = localDeltaFromBasis(_b, vx, vy);
+    if (!d) { ok = false; break; }
+    if (d.dx < 0) l = Math.max(l, -d.dx); else r = Math.max(r, d.dx);
+    if (d.dy < 0) t = Math.max(t, -d.dy); else b = Math.max(b, d.dy);
+  }
+  if (!ok) {
+    const scale = block.offsetWidth ? er.width / block.offsetWidth : 1;  // 캔버스 zoom 보정(옛 식 · 폴백)
+    t = st / scale; l = sl / scale; r = sR / scale; b = sb / scale;
+  }
+  block.style.setProperty('--sec-clip', `inset(${Math.round(t)}px ${Math.round(r)}px ${Math.round(b)}px ${Math.round(l)}px)`);
 }
 window._updateMockupSecClip = _updateMockupSecClip;
 
@@ -163,12 +182,23 @@ function _bindMockupOffsetDrag(block) {
     document.addEventListener('dragstart', killDragStart, true);
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-    const startX = e.clientX;
+    const startX = e.clientX, startY = e.clientY;
     const startOff = parseInt(block.dataset.offsetX) || 0;
     let moved = false;
+    /* ★★W2B — 화면 Δ → ★목업의 로컬 Δ. ★조상 프레임이 flip/rotate 면 translateX(로컬 +x)가 화면에서
+         flipH ⇒ 왼쪽 · rotate90 ⇒ 아래로 그려진다 ⇒ 옛 `clientX / scale` 은 ★거꾸로·엉뚱한 축으로 갔다.
+       ★기저는 ★제스처당 ★한 번(강제 레이아웃 2회) — ⛔onMove 매 틱 재지 마라. ★mousedown 이 아니라
+         ★첫 «실제 움직임»에 잰다: ⌘+클릭(다중선택)만 하고 안 끌면 ★style 쓰기 0(옛 판과 같다).
+       ★두 화면 축을 다 넣는다 — rotate90 에선 로컬 x 가 화면 y 다(★축 뒤바뀜).
+       ★null(퇴화·못 잼) ⇒ ★옛 식(`/ scale`) — 무회귀. ★변환이 없으면 기저 = [s,0]·[0,s] ⇒ 옛 식과 같다. */
+    let _basis; // undefined = 아직 안 잼 · null = 못 구함
     const _hist = window.beginDragHistory?.('목업 오프셋');
     const onMove = ev => {
-      const dx = (ev.clientX - startX) / scale;
+      const sx = ev.clientX - startX, sy = ev.clientY - startY;
+      if (!moved && Math.hypot(sx, sy) / scale < 3) return;   // 옛 문턱(|Δ|/줌 < 3)과 같은 자 — 안 움직였으면 기저도 안 잰다
+      if (_basis === undefined) _basis = measureLocalBasis(block);
+      const _l = localDeltaFromBasis(_basis, sx, sy);
+      const dx = _l ? _l.dx : sx / scale;
       if (!moved && Math.abs(dx) < 3) return;
       moved = true;
       /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
@@ -177,7 +207,7 @@ function _bindMockupOffsetDrag(block) {
       const off = Math.round(startOff + dx);
       block.dataset.offsetX = String(off);
       block.style.transform = off ? `translateX(${off}px)` : '';
-      _updateMockupSecClip(block);
+      _updateMockupSecClip(block, _basis);   // ★같은 기저(제스처당 1회) — 틱마다 다시 재지 않는다
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
@@ -185,7 +215,7 @@ function _bindMockupOffsetDrag(block) {
       document.removeEventListener('dragstart', killDragStart, true);
       if (row) setTimeout(() => { row.draggable = prevDraggable; }, 0);
       if (moved) {
-        _updateMockupSecClip(block);
+        _updateMockupSecClip(block, _basis);
         window.pushHistory?.('목업 오프셋');
         window.scheduleAutoSave?.();
         const killClick = ce => { ce.stopPropagation(); ce.preventDefault(); };

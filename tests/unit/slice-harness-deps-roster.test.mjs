@@ -44,9 +44,6 @@ const KNOWN_GAPS = {
   'redact-mosaic-killswitch.dom.spec.js':
     '★261021 — ★아직 안 걸었다. ★그 spec 을 ★돌릴 창이 없다(srv DOM 금지) ⇒ ★그 레인이 ★손댈 때 같이 걸어라.'
     + ' ★그때까지 ★이 spec 의 초록은 ★「안 재고 있다」일 수 있다.',
-  'resize-undo-history.dom.spec.js':
-    '★261021 — ★아직 안 걸었다. ★그 spec 을 ★돌릴 창이 없다(srv DOM 금지) ⇒ ★그 레인이 ★손댈 때 같이 걸어라.'
-    + ' ★그때까지 ★이 spec 의 초록은 ★「안 재고 있다」일 수 있다.',
   'shape-frame-wrap-group.dom.spec.js':
     '★261021 — ★아직 안 걸었다. ★그 spec 을 ★돌릴 창이 없다(srv DOM 금지) ⇒ ★그 레인이 ★손댈 때 같이 걸어라.'
     + ' ★그때까지 ★이 spec 의 초록은 ★「안 재고 있다」일 수 있다.',
