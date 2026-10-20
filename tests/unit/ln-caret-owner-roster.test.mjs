@@ -17,6 +17,11 @@
  *   ⒤ ★«캐럿이 어디 서나»는 ★여기서 못 잰다 — ★그건 ★DOM/CDP 만이 잰다.
  *      행동 게이트는 ★레포 «밖»에 있다: `…/scratchpad/t1a/gate-hm3.mjs`(헤드리스 크롬 · 진짜 index.html).
  *      ⇒ ★이 자가 초록이어도 ★그 게이트를 ★따로 돌려야 한다. ★그게 ★이번에 ★배운 값이다.
+ *   ⒤′ ★★2026-10-20 ★«죽은 초록» 자백 — ★이 파일의 ⑶ 은 ★처음에 ★「HM3 재편집 캐럿을 ★키로 세운다」는
+ *      ★이름을 달고 ★★«그 줄에 'End' 라는 글자가 있나»만 ★쟀다. ★그 사이 ★DOM 은 ★빨강이었다
+ *      (받은 선택이 ★"CCC" — ★그 판에서 ★End 가 ★안 먹었다). ★★이름이 ★단언을 ★넘었다.
+ *      ⇒ ★이름을 ★단언에 ★맞췄고(아래 ⑶), ★★이제 ★그 spec 은 ★캐럿을 ★아예 ★안 쓴다(pickText).
+ *      ⇒ ★★교훈: ★★«효과»를 못 재는 자는 ★★«효과»를 ★이름에 ★담지 마라. ★그리고 ★초록을 ★양성으로 ★읽지 마라.
  *   ⒥ ★spec 의 ★다른 암묵 전제(스크롤·레이아웃)는 ★안 본다.
  */
 import { test } from 'node:test';
@@ -35,9 +40,17 @@ const OWNERS = ['comparison-block'];
 
 /* ★★«암묵 캐럿»에 기대는 spec 자리 — ★지금 이러하다.
  *   꼴 = 한 줄에 openEditSel 과 shiftLeft 가 같이 있고 'End' 가 ★없다(= 캐럿 자리를 ★안 세운다).
+ *   ★명부는 ★«줄 내용»으로 적는다(⛔줄 번호 금지 — 실제로 밀려 깨졌다).
  *   ★셋 다 ★laurel 전용 시험이라 ★지금은 참이다(laurel 은 명부 밖 = 옛 동작 = 줄 끝).
  *   ★★명부에 주인을 ★더하면 ★이 셋을 ★먼저 보라 — ★그게 ★이 기록의 몫이다. */
-const IMPLICIT_CARET_SPEC_LINES = [944, 954, 992];
+const IMPLICIT_CARET_SPEC_CODE = [
+  "await openEditSel(page, KL.sel(id), id); await keys(page, shiftLeft(6)); await waitSel(page, 'BBBCCC');",
+  "await openEditSel(page, KL.sel(id), id); await keys(page, shiftLeft(6)); await waitSel(page, 'BBBCCC');",
+  "await openEditSel(page, sel, id); await keys(page, shiftLeft(3)); await waitSel(page, 'CCC');",
+];
+/* ⚠️★처음엔 ★줄 번호로 적었다(944·954·992). ★그러자 ★내가 ★헬퍼 26줄을 끼운 ★그 순간
+   ★970·980·1018 로 밀려 ★이 검사가 ★빨개졌다 — ★자기 경고대로. ⇒ ★★«내용»으로 적는다.
+   ★내 명부: 「★줄번호로 가리키지 마라 — ★앵커로」. */
 
 test('⑴ 주인 명부가 ★손으로 박은 것과 같다(넓히면 ★일부러 넓힌 것이어야 한다)', () => {
   const t = src(LH);
@@ -66,26 +79,29 @@ test('⑵ lnBeginEdit — 점 분기는 ★더블클릭 ＋ ★명부 주인일 
     '★lnBindLineEdit 의 더블클릭이 ★caretFrom 을 안 넘긴다 ⇒ ★1020t1a 고침이 ★조용히 죽는다');
 });
 
-test('⑶ HM3 공용 루프의 재편집은 ★캐럿을 ★키로 세운다(⛔암묵 전제 금지)', () => {
+test('⑶ HM3 공용 루프의 재편집은 ★캐럿에 ★안 매달린다 — ★«꼴»만 잠근다(⛔효과는 여기서 못 잰다)', () => {
   const t = src(SPEC);
   const lines = t.split('\n');
-  /* 꼴 — openEditSel 과 shiftLeft 가 같은 줄 */
-  const sites = [];
-  lines.forEach((l, k) => { if (/openEditSel\(/.test(l) && /shiftLeft\(/.test(l)) sites.push({ ln: k + 1, l }); });
-  assert.ok(sites.length >= 3,
-    '★그 꼴의 자리를 ' + sites.length + '곳 찾았다 — 3곳 이상이어야 이 검사가 뜻을 갖는다(spec 이 바뀌었는지 보라)');
-  /* ★암묵 캐럿에 기대는 자리 = 기록과 ★정확히 같아야 한다 */
-  const implicit = sites.filter(s => !/'End'/.test(s.l)).map(s => s.ln);
-  assert.deepEqual(implicit, IMPLICIT_CARET_SPEC_LINES,
-    '★암묵 캐럿 자리가 달라졌다. 지금: ' + JSON.stringify(implicit) + ' / 적힌 것: ' + JSON.stringify(IMPLICIT_CARET_SPEC_LINES) + '\n' +
-    '  ★늘었으면 — ★그 자리가 ★명부 주인(지금 comparison)에서도 참인지 ★재라. 아니면 ArrowDown·End 로 ★세워라.\n' +
-    '  ★줄었으면 — 좋은 일이다. ★이 줄을 고쳐라.\n' +
-    '  ⚠️줄 번호로 적은 명부다 — spec 에 줄이 끼면 ★여기도 같이 고쳐야 한다(그게 ★사람에게 알리는 몫이다).');
-  /* ★HM3(네 주인 공용)의 그 한 자리는 ★반드시 End 를 갖는다 — ★이 회귀의 ★바로 그 줄 */
-  const hm3 = sites.filter(s => /'End'/.test(s.l));
+  /* ★이 자가 ★잠그는 것 ★딱 하나: ★HM3 의 재진입이 ★«키로 캐럿을 옮겨» 글자를 고르지 ★않는다.
+     ⛔이 자는 ★«그래서 DDD 가 골라지나»를 ★못 잰다 — ★그건 DOM(이 spec 자신)과 ★레포 밖 gate-hm3.mjs 의 몫이다. */
+  const reopen = lines
+    .map((l, k) => ({ ln: k + 1, l }))
+    .filter(x => /openEditSel\(/.test(x.l));
+  assert.ok(reopen.length >= 4,
+    '★재진입 자리를 ' + reopen.length + '곳 찾았다 — 4곳 이상이어야 뜻을 갖는다(spec 꼴이 바뀌었는지 보라)');
+  /* ★HM3 공용 루프의 그 줄 — ★pickText 로 ★곧장 집는다 */
+  const hm3 = reopen.filter(x => /pickText\(/.test(x.l));
   assert.ok(hm3.length >= 1,
-    '★캐럿을 ★키로 세우는 자리가 ★0곳이다 ⇒ ★HM3(비교)가 ★다시 빨개진다. 실측으로 고른 손짓은 ' +
-    "['ArrowDown', 'End', ...shiftLeft(3)] 이다(네 후보 중 ★주인 둘에서 모두 DDD 인 것은 이것뿐).");
-  for (const s of hm3) assert.match(s.l, /'ArrowDown'/,
-    '★' + s.ln + '행: End 는 있는데 ArrowDown 이 없다 ⇒ ★캐럿이 ★첫 시각 줄에 있으면 ★그 줄 끝으로 간다(실측: "BBB" 를 골랐다)');
+    '★HM3 재진입이 ★pickText(명시 선택)를 ★안 쓴다 ⇒ ★캐럿 위치에 ★다시 매달린다.\n' +
+    '  ★실측으로 ★두 번 틀렸다: ⇧←×3 → "AAA" · ↓·End·⇧←×3 → "CCC". ⇒ ★Range 로 곧장 집어라.');
+  for (const x of hm3) assert.ok(!/shiftLeft\(/.test(x.l),
+    '★' + x.ln + '행: pickText 와 shiftLeft 가 ★같이 있다 — ★둘 중 하나만. 키를 섞으면 ★다시 캐럿에 기댄다.');
+  /* ★아직 ★캐럿에 기대는 자리 = 기록과 ★정확히 같아야 한다(★laurel 전용이라 지금은 참) */
+  const implicit = reopen.filter(x => /shiftLeft\(/.test(x.l) && !/'End'/.test(x.l)).map(x => x.l.trim());
+  assert.deepEqual(implicit, IMPLICIT_CARET_SPEC_CODE,
+    '★캐럿에 기대는 자리가 달라졌다. 지금: ' + JSON.stringify(implicit, null, 1) + '\n  적힌 것: ' + JSON.stringify(IMPLICIT_CARET_SPEC_CODE, null, 1) + '\n' +
+    '  ★늘었으면 — ★그 자리가 ★명부 주인(지금 comparison)에서도 참인지 ★재라. 아니면 pickText 로 바꿔라.\n' +
+    '  ★줄었으면 — 좋은 일이다. ★이 줄을 고쳐라.\n' +
+    '  ★★«내용»으로 적은 명부다 — ★줄이 끼어도 안 흔들린다(앞서 줄번호로 적었다가 ★헬퍼를 끼운 순간 깨졌다).\n' +
+    '  ⚠️★이 꼴은 ★«openEditSel 과 같은 줄»만 본다 — ★A1 단계처럼 ★다음 줄에서 키를 누르는 자리는 ★★안 보인다.');
 });

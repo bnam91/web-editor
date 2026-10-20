@@ -829,6 +829,32 @@ async function waitSel(page, want) {
 }
 /* 줄 더블클릭 → 편집. ★스크롤 재시도(이벨류에이터 도우미): 패널이 다시 그려지며 캔버스가 밀리면 첫 scrollIntoView 가 화면 밖 좌표를 줄 수 있다
    ⇒ 글자칸이 화면 안에 멈출 때까지 최대 5번 다시 스크롤하고, 누르는 점이 그 줄 위인지 단언한 뒤 누른다. */
+/* ★★1020t1a(2차) — ★«고를 글자»를 ★Range 로 ★곧장 집는다. ⛔캐럿 위치에 ★매달리지 않는다.
+   ★왜 — ★이 describe 의 ★단언 ★9개에 ★캐럿 단언이 ★0개다(전수 확인). ★증명 대상은
+     ★«부분 색 두 번 · ⌘Z 1 · 저장 왕복»이고 ★캐럿은 ★거기 가는 ★수단일 뿐이었다.
+     ★그런데 ★그 수단이 ★1020t1a(`d9ead6e9`) 뒤 ★주인마다 달라졌다(비교 = 누른 글자 · 나머지 = 줄 끝)
+     ⇒ ★키로 세우는 길(`↓`·`End`)은 ★★주인·DOM 꼴·키 순서에 ★기대는 ★약한 바닥이었다.
+       ★실측으로 ★두 번 틀렸다: ⇧←×3 → "AAA" · ↓·End·⇧←×3 → ★"CCC"(그 판에서 ★End 가 ★안 먹었다).
+   ★이 길은 ★★앱의 ★저장 선택(`selectionchange` → js/props/_text-selection.js:447)이 ★프로그램 선택도
+     ★잡는다는 것에 ★선다 — ★그걸 ★재서 확인했다(헤드리스 크롬 · 진짜 앱):
+       Range 로 "DDD" → `lnApplyLinePartialColor` → ★모델 textHtml 이 ★A2 와 ★바이트 일치.
+   ★★«재진입 캐럿»의 동작은 ★여기서 ★빠지지 ★않는다 — ★그 칸은 ★레포 밖 CDP 게이트가 ★맡는다
+     (`…/scratchpad/t1a/gate-hm3.mjs` — 비교 = 누른 글자 · laurel = 줄 끝을 ★각각 단언). */
+async function pickText(page, sel, needle) {
+  const got = await page.evaluate(([s, n]) => {
+    const el = document.querySelector(s); if (!el) return { ok: false, why: 'no el' };
+    const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let t = tw.nextNode(); t; t = tw.nextNode()) {
+      const i = t.nodeValue.lastIndexOf(n);
+      if (i < 0) continue;
+      const r = document.createRange(); r.setStart(t, i); r.setEnd(t, i + n.length);
+      const sl = getSelection(); sl.removeAllRanges(); sl.addRange(r);
+      return { ok: sl.toString() === n, sel: sl.toString() };
+    }
+    return { ok: false, why: 'needle 없음', html: el.innerHTML };
+  }, [sel, needle]);
+  expect(got.ok, `전제 — ${needle} 를 Range 로 집었다 ${JSON.stringify(got)}`).toBe(true);
+}
 async function openEditSel(page, sel, id) {
   let r = null;
   for (let k = 0; k < 5; k++) {
@@ -1009,8 +1035,9 @@ test.describe('LR11 86ecc76c 재판정 칸(EV86 → LR11) · D1', () => {
 
 /* ══ LR12 · HB4 · HC3 · HM3 — 줄바꿈 + 부분 색 두 번(경계 BBB · 둘째 줄 DDD) · ⌘Z 1 · 저장 왕복 (계획 plan-1013-gapfill §②) ══════════
  * 몸짓(넷 공통): 더블클릭 → ⌘A → 'AAABBB' → Enter → 'CCCDDD' → ArrowUp·End·⇧←×3 = BBB → 스와치 빨강(A1)
- *   → 다시 더블클릭 → ★↓·End(캐럿을 «끝»으로 ★세운다 — 1020t1a 뒤 비교는 ★누른 글자에 선다) → ⇧←×3 = DDD
+ *   → 다시 더블클릭 → ★pickText('DDD')로 ★곧장 집는다(⛔캐럿에 안 매달린다 — 1020t1a 뒤 주인마다 캐럿이 다르다)
  *   → 스와치 파랑(A2) → 저장 → ⌘Z 1 = A1(색 한 걸음만) → 저장본 다시 열기 = A2.
+ * ★★이 검사는 ★«캐럿»을 ★안 잰다(단언 9개 중 0개) — ★그 칸은 ★레포 밖 CDP 게이트 gate-hm3.mjs 가 맡는다.
  * 주인별: 챗 = 메시지 «1»(오른쪽 · HC1·HC2·LR8 이 안 간 주소) · msgs[0] 그대로 · msgs[1].text 는 평문 거울(span 0).
  *   비교 = 칼럼 «1»(featured) · cols[0] 그대로 · ★DDD 가 cmp-row(overflow:hidden) 안에서 실제로 보인다(byHeight 는 잘려도 2 를 센다 — 대리 지표 함정).
  *   버블 = 줄을 직접 넣는다(prepOwner) ⇒ D2 «첫 줄 굽기»(_bakeFrom) 길은 안 탄다(그 길 뒤 부분 색은 안 쟀다).
@@ -1082,7 +1109,7 @@ test.describe('LR12·HB4·HC3·HM3 줄바꿈 + 부분 색 두 번 — 경계(BBB
              End,⇧←×3    → cmp "BBB" ❌ / laurel "DDD" ✅
              ↓,End,⇧←×3  → cmp "DDD" ✅ / laurel "DDD" ✅   ← ★주인과 무관하다
            ⇒ ★옛 동작(줄 끝 캐럿)인 laurel·버블·챗도 ★그대로 초록이다(이 키는 끝에서 ★무동작). */
-      await openEditSel(page, sel, id); await keys(page, ['ArrowDown', 'End', ...shiftLeft(3)]); await waitSel(page, 'DDD');
+      await openEditSel(page, sel, id); await pickText(page, sel, 'DDD'); await waitSel(page, 'DDD');
       await panelColor(page, '#0000ff', 'DDD');
       const line2 = await verdictK(page, K, id, `${kind} A2`, A2, { text: T2, color0, lines: 2, chars: { [R]: 'BBB', [B]: 'DDD' } });
       if (kind === 'cmp') { const v = await dddVisible(page, sel); expect(v.ok, `A2 — DDD 가 비교 칸 안에서 보인다 ${JSON.stringify(v)}`).toBe(true); }
