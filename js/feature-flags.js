@@ -206,3 +206,30 @@
  *   원본 노출은 어느 쪽으로도 0.
  */
 (function (w) { w.REDACT_MOSAIC_ENABLED = false; })(window);
+
+/* ★「애니메이션 GIF 만들기」를 ★이 화면에 ★보일지 — 킬스위치 ∧ 어드민.
+ *
+ * ★★2026-10-21 현빈: 「gif는 우선 ★어드민용으로만 ★공개」.
+ *   ⚰️2026-08-28 에 현빈이 「이번 MVP 제외」로 껐던 스위치를 ★다시 켠 것이다
+ *   (깃발 = `js/globals.js` 의 `ANIM_GIF_ENABLED` · 이제 true).
+ *
+ * ★★이것은 «공개 범위»다 — ★접근통제가 ★아니다.
+ *   `js/settings/settings-admin.js` 머리말이 같은 말을 적어 뒀다(「이 파일의 판정은 보안이 아니다 —
+ *   서버가 DB 의 지금 role 로 거부한다」). ⛔그런데 GIF 만들기는 ★서버를 안 탄다 ⇒ ★거부할 서버가
+ *   ★없다. 콘솔에서 `window.openAnimModal(…)` 은 ★여전히 부를 수 있다.
+ *   ⇒ 현빈 원문이 「공개」였으니 그 말 그대로 «화면에 보이는 범위»만 좁힌다.
+ *   ⛔이 함수를 «권한 검사»라 부르지 마라 — 그렇게 읽으면 다음 사람이 서버 검사를 뺀다.
+ *
+ * ★`adminState` = `window.__admin.state()` 의 ★캐시(★로그인 전·조회 전엔 `null`).
+ *   ⇒ ★모르면 «아님»(좁은 쪽). 「모르니 일단 보여주자」는 현빈 말보다 ★넓어진다.
+ * ★`hasRoleField` 3값(true=일반 / false=구버전 서버 / null=못 봄)은 ⛔여기서 안 쓴다 —
+ *   보일지는 `isAdmin === true` 하나로 족하고 「왜 안 보이나」는 settings-admin 이 이미 가려 남긴다.
+ *
+ * ★깃발을 ★인자로 받는 까닭 = ⑴순수해서 단위에서 재진다 ⑵깃발의 ★정본이 둘이 되지 않는다.
+ * ★쓰는 자리 = `js/props/prop-text.js` 의 `_applyAnimGate` 한 자리. */
+(function (w) {
+  w.animGifVisible = function (enabled, adminState) {
+    if (enabled !== true) return false;
+    return !!(adminState && adminState.isAdmin === true);
+  };
+})(window);

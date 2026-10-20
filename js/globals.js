@@ -53,11 +53,19 @@ window.MARKET_ENABLED = MARKET_ENABLED;
 export const FIGMA_ENABLED = false;
 window.FIGMA_ENABLED = FIGMA_ENABLED;
 
-/** ★킬스위치: 애니메이션 GIF 만들기 — 이번 MVP 에서 제외(현빈 2026-08-28).
+/** ★킬스위치: 애니메이션 GIF 만들기.
+ * ⚰️2026-08-28 현빈이 «이번 MVP 제외»로 ★껐다. ★★2026-10-21 현빈이 ★다시 켰다 —
+ *   원문 「gif는 우선 ★어드민용으로만 ★공개」. ⇒ 스위치는 true 이고, ★누구에게 보이나는
+ *   아래 `animGifVisible` 이 가른다. ⛔그 둘을 한 플래그에 묶지 않는다(아래 ★까닭).
  * Figma 와 «별개 스위치»다 — 서로 다른 결정을 한 플래그에 묶으면
- * 나중에 Figma 를 켤 때 GIF 도 같이 살아난다. 되돌리기 = true 하나. */
-export const ANIM_GIF_ENABLED = false;
+ * 나중에 Figma 를 켤 때 GIF 도 같이 살아난다. */
+export const ANIM_GIF_ENABLED = true;
 window.ANIM_GIF_ENABLED = ANIM_GIF_ENABLED;
+
+/* ★「누구에게 보이나」를 가르는 자리는 ★여기가 아니다 — `js/feature-flags.js` 의 `animGifVisible` 이다.
+ *   ★거기 둔 까닭: 이 파일은 ESM 이라 단위 검사에서 ★실리지 않는다(최상위에서 document 를 읽는다).
+ *   feature-flags.js 는 플레인 스크립트라 레인의 `vm` 관용구로 ★잴 수 있다.
+ *   ⛔둘째 명부가 아니다 — 그 함수는 ★순수하고, 이 깃발을 ★인자로 받는다. */
 
 /* ── 블록 클릭 «위임» 셀렉터 (SSOT) ────────────────────────────────────────
  * 컨테이너(컬럼 `.col` / 서브섹션 프레임)의 click 핸들러가 «자식 블록 클릭은

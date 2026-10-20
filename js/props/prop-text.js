@@ -292,19 +292,48 @@ export function showTextProperties(tb) {
   // onclick을 직접 교체하는 방식으로 단일 핸들러 보장
   const animBtn = document.getElementById('open-anim-btn');
   if (animBtn) {
-    /* ★[MVP 제외] 「애니메이션 GIF 만들기」는 이번 버전에서 «보이되 안 눌린다»(현빈 2026-08-28).
+    /* ⚰️★[MVP 제외] 「애니메이션 GIF 만들기」는 이번 버전에서 «보이되 안 눌린다»(현빈 2026-08-28).
+     *   ★★261021 에 ★철회됨 — 아래 ★어드민 게이트가 정본이다. ⛔이 줄은 그때의 사실로 남긴다.
      *   Figma·개발자·협업과 같은 방식 — 감추면 「있었다」는 것조차 사라진다.
      *   ⛔이 버튼은 우측 패널이 그려질 때마다 «새로 만들어진다»(prop-text-template.js:361).
      *     그래서 로드 시점 IIFE 로는 못 막고 «여기서» 막아야 한다. */
-    if (window.ANIM_GIF_ENABLED === false || window.ANIM_GIF_ENABLED === undefined) {
-      animBtn.onclick = null;
-      animBtn.disabled = true;
-      animBtn.setAttribute('aria-disabled', 'true');
-      animBtn.style.opacity = '0.4';
-      animBtn.style.cursor = 'default';
-      animBtn.title = '이번 버전에서는 사용할 수 없습니다';
-    } else {
-      animBtn.onclick = () => window.openAnimModal(tb);
+    /* ★★261021 — 현빈이 이 킬스위치를 ★다시 켰다: 원문 「gif는 우선 ★어드민용으로만 ★공개」.
+     *   ⇒ 「보일지」 = 킬스위치 ∧ 어드민. 가르는 자리는 ★한 자리(js/globals.js animGifVisible).
+     *   ⛔여기서 `isAdmin` 을 손으로 다시 판정하지 않는다 — ★둘째 명부가 된다.
+     *   ★어드민 상태는 ★늦게 온다(로그인 직후·세션 재검증 뒤). 캐시가 ∅ 면 «아님»으로 그리고,
+     *     ★한 번 당겨 와서 ★이 버튼만 다시 그린다(패널 전체를 다시 그리지 않는다 — 이 함수가
+     *     그 패널을 만드는 자라 재진입하면 꼬인다). 버튼이 이미 떨어졌으면(isConnected false) 아무것도 안 한다. */
+    const _adminState = () => (window.__admin && typeof window.__admin.state === 'function' ? window.__admin.state() : null);
+    const _applyAnimGate = (btn) => {
+      const visible = window.animGifVisible
+        ? window.animGifVisible(window.ANIM_GIF_ENABLED, _adminState())
+        : false;   /* ★globals 가 안 실렸으면 «아님» — ⛔「없으니 열어두자」로 가면 현빈 말보다 넓어진다 */
+      if (visible) {
+        btn.onclick = () => window.openAnimModal(tb);
+        btn.disabled = false;
+        btn.removeAttribute('aria-disabled');
+        btn.style.opacity = '';
+        btn.style.cursor = '';
+        btn.title = '';
+        return;
+      }
+      btn.onclick = null;
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
+      btn.style.opacity = '0.4';
+      btn.style.cursor = 'default';
+      /* ★「왜 안 눌리나」를 가려서 적는다 — 스위치가 꺼진 것과 «내 계정이 아닌 것»은 할 일이 다르다. */
+      btn.title = window.ANIM_GIF_ENABLED === true
+        ? '어드민 계정에서만 사용할 수 있습니다'
+        : '이번 버전에서는 사용할 수 없습니다';
+    };
+    _applyAnimGate(animBtn);
+    /* ★캐시가 ∅ 일 때만 한 번 당긴다(매 패널 렌더마다 IPC 를 때리지 않는다). */
+    if (window.ANIM_GIF_ENABLED === true && !_adminState()
+        && window.__admin && typeof window.__admin.refresh === 'function') {
+      Promise.resolve(window.__admin.refresh())
+        .then(() => { if (animBtn.isConnected) _applyAnimGate(animBtn); })
+        .catch(() => {});
     }
   }
 
