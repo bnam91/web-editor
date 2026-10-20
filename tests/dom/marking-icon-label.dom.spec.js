@@ -607,7 +607,10 @@ test('M9d 프리셋은 앞만 바꾸고 라벨은 유지(D2 굳힘 · D3 라벨 
     expect([a[2].label, a[2].labelColor, a[2].labelFs, a[2].labelFw, a[2].labelLeft], '라벨은 같다(빨강 · 26px · 700 · 오른쪽)').toEqual(['메쉬포켓', 'rgb(255, 0, 0)', '26px', '700', a0[2].labelLeft]);
     const d = await dsLabel(page);
     expect(d[2], 'D2: 보이던 색(#ff0000)이 라벨 색 키로 굳었다 · 크기·굵기·자리 키는 안 만든다').toEqual(['#000000', '#ff0000', null, null, null]);
-    expect(d.slice(0, 2), 'D3: 라벨 없는 둘에는 포인트 라벨 꼴(#ffffff · 56×0.9=50 · 700 · right)').toEqual([['#000000', '#ffffff', '50', '700', 'right'], ['#000000', '#ffffff', '50', '700', 'right']]);
+    /* ★261021 ⒝ (현빈 「포인트 프리셋 흰색 글자로 바뀌던 부분만 걷어내기」) — 라벨 «색»만 걷혔다.
+       ★이 단언도 그 고침에 ★빨강으로 울렸다(단위 셋 ＋ 여기 = ★넷) ⇒ 프리셋이 정말 흰색을 칠하고 있었다는 양성대조.
+       ⛔50(0.9배)·700·right 는 ★그대로다 — 원문이 「흰색 글자로 바뀌던 부분«만»」이다. */
+    expect(d.slice(0, 2), 'D3: 라벨 없는 둘에는 포인트 라벨 꼴(★색 없이 · 56×0.9=50 · 700 · right)').toEqual([['#000000', null, '50', '700', 'right'], ['#000000', null, '50', '700', 'right']]);
   }, '마킹 프리셋 포인트(h1)', { soft: true });
   expect(h.dPos >= 1 && h.seqNew, `A1 프리셋 직후 꼭대기가 새 칸 — Δpos=${h.dPos} top=${h.topAction}`).toBe(true);
   expect([h.undoDLen, h.undoDPos], 'A2 ⌘Z 가 구제 칸 없이 정확히 한 칸').toEqual([0, -1]);
