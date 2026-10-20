@@ -93,10 +93,41 @@ async function setup(page, { type = 'bar-v', extra = {}, items = ITEMS, padX = 3
   await page.waitForTimeout(200);
   return errs;
 }
+/* ★가라앉기는 «단언하는 그 값»으로 재라 — ★261021 GR3-zoom 100% 가 아이맥 전수에서
+   `matrix(0.981641)`(거의 끝난 보간)·`matrix(0.4)`(시작 전)을 받았다.
+   ★까닭: `css/editor-canvas.css:260`  `#canvas-scaler { transition: transform 0.15s ease }`
+     ⇒ 배율을 올린 «직후» 의 computed transform 은 «보간 중» 값이다.
+   ⛔옛 꼴의 흠 둘: ⑴`waitForTimeout(300)` ★고정 대기 — 부하가 오르면 늦게 터진다
+                   ⑵가라앉았는지를 `window.currentZoom`(★모델값)으로 재면서
+                     벌은 `getComputedStyle(#canvas-scaler).transform`(★렌더값)을 단언한다
+                     ⇒ ★모델은 섰는데 렌더는 보간 중이다. 병의 이름 = ★「대리지표 ≠ 상태」.
+   ★제품은 ★이 길을 이미 쓴다 — `js/editor.js:291`(＋`zoomStep` :583):
+     전환을 `none` 으로 끄고 `void offsetWidth` 로 리플로를 한 번 돌려 «최종값»을 만든 뒤 되살린다.
+     ⇒ ★같은 규약을 빌린다. ⛔하네스가 제 벌로 다시 짜면 ★명부가 둘이 된다.
+   ⛔「기대 행렬과 같아질 때까지 기다리기」는 ★안 쓴다 — 그러면 벌의 단언이 ★항등식이 된다.
+     ⇒ 여기서는 «가라앉았나»만 재고, «그 값이 맞나»는 ★벌이 단언한다. */
 async function setZoom(page, z) {
-  await page.evaluate((z) => window.applyZoom(z), z);
-  await page.waitForTimeout(300);
+  const read = () => page.evaluate(() => {
+    const s = document.getElementById('canvas-scaler');
+    return s ? getComputedStyle(s).transform : null;
+  });
+  await page.evaluate((z) => {
+    window.applyZoom(z);
+    const s = document.getElementById('canvas-scaler');
+    if (s) { const prev = s.style.transition; s.style.transition = 'none'; void s.offsetWidth; s.style.transition = prev; }
+  }, z);
+  /* ★두 번 읽어 같은가 — 제품의 길을 빌렸으면 첫 읽기에 이미 최종값이라 한 바퀴에 선다.
+     ⛔그래도 «한 번 읽고 믿지» 않는다. 안 가라앉으면 ★전제 단언이 터져 원인이 드러난다. */
+  let a = await read(), b = null;
+  for (let i = 0; i < 20; i++) {           // 최대 ~1초
+    b = await read();
+    if (b === a) break;
+    a = b; b = null;
+    await page.waitForTimeout(50);
+  }
+  expect(b, `전제: ${z}% 적용 후 #canvas-scaler transform 이 1초 안에 가라앉았다(마지막 읽기 ${a})`).not.toBeNull();
   expect(await page.evaluate(() => window.currentZoom), `전제: 배율이 실제로 ${z}% 로 섰다`).toBe(z);
+  return b;
 }
 const openPanel = (page) => page.evaluate(() => window.showGraphProperties(document.getElementById('grG')));
 const itemsOf = (page) => page.evaluate(() => JSON.parse(document.getElementById('grG').dataset.items));
