@@ -154,18 +154,29 @@ test('G4 프리셋 — 값은 글자로 · 섹션 전부에 깔고 라벨(글자
   const CS = ctx.CountSticker;
   assert.deepEqual(plain(CS.PRESET_NAMES), ['number', 'point'], '프리셋 이름');
   /* 「포인트」 — ★1017t1j2(현빈): 주황(#eb6217)·짙은 꺾쇠(#1a1a1a)를 검정 배경·흰 글자로(2차 D2 의 그림 꼴은 폐기가 아니라 대체 —
-     js/count-sticker-tool.js:53~55 의 픽셀 출처 주석과 같이 읽어라). 둥근 네모(모서리 25%) · «흰» 꺾쇠 · «흰 굵은» 라벨(오른쪽 · 0.9배)는 그대로다. */
+     js/count-sticker-tool.js:53~55 의 픽셀 출처 주석과 같이 읽어라). 둥근 네모(모서리 25%) · «흰» 꺾쇠는 그대로다.
+   ★261021 ⒝ — 라벨은 ★«굵은»(700 · 오른쪽 · 0.9배)만 남고 ★«흰»은 걷혔다(현빈 「흰색 글자로 바뀌던 부분만 걷어내기」). */
   assert.deepEqual(plain(CS.PRESETS.point), {
     set: { countStyle: 'icon', countIcon: 'chevron-right', countShape: 'square', shape: 'square', countRadius: '25',
-      bgColor: '#000000', textColor: '#ffffff', countLabelColor: '#ffffff', countLabelWeight: '700', countLabelPos: 'right' },
+      bgColor: '#000000', textColor: '#ffffff', countLabelWeight: '700', countLabelPos: 'right' },
     unset: ['countIconSvg'],
     labelSizeRatio: 0.9,
   }, '「포인트」');
   /* ★1017t1j2 뒤 — textColor(꺾쇠)와 countLabelColor(라벨)가 ★값으로는 같아졌다(둘 다 #ffffff).
      그래도 ★키는 따로다 — 패널의 글자색 칸(#stk-txt-hex)과 라벨색 칸(#stk-clabel-hex)이 따로 쓴다
      (js/props/prop-sticker-count.js). 값이 아니라 «두 키가 각자 산다»를 잠근다(★항등식 아님 — 키 이름이 다르다는 사실 자체를 단언). */
-  assert.ok(Object.prototype.hasOwnProperty.call(CS.PRESETS.point.set, 'textColor'), '꺾쇠 색(textColor) 키가 있다');
-  assert.ok(Object.prototype.hasOwnProperty.call(CS.PRESETS.point.set, 'countLabelColor'), '라벨 색(countLabelColor) 키가 있다');
+  assert.ok(Object.prototype.hasOwnProperty.call(CS.PRESETS.point.set, 'textColor'), '꺾쇠 색(textColor) 키는 ★그대로 있다');
+  /* ★261021 ⒝ (현빈 원문 「포인트 프리셋 흰색 글자로 바뀌던 부분만 걷어내기」) — 라벨 «색»만 걷었다.
+     ★증상: 검은 사각 마커 «밖»에 놓인 흰 라벨은 흰 캔버스에서 ★안 보인다(countLabelPos 'right').
+     ⛔굵기(countLabelWeight '700')와 0.9배(labelSizeRatio)는 ★안 걷었다 — 원문이 「흰색 글자로 바뀌던 부분«만»」이다.
+     ★★그래서 이 줄은 이제 「키가 ★없다」를 잠근다. ★옛 판은 「★있다」를 잠갔고(261017 j2),
+       그 단언이 이 고침에 ★빨강으로 울렸다 — ★그 빨강이 곧 «프리셋이 그 값을 쓰고 있었다»는 양성대조다. */
+  assert.ok(!Object.prototype.hasOwnProperty.call(CS.PRESETS.point.set, 'countLabelColor'),
+    '★라벨 색(countLabelColor)은 ★걷었다 — 프리셋이 라벨을 ★흰색으로 안 만든다');
+  assert.ok(Object.prototype.hasOwnProperty.call(CS.PRESETS.point.set, 'countLabelWeight'),
+    '⛔굵기는 ★안 걷었다 — 원문이 «흰색 글자…만»이다(★범위를 넓히면 그때 이 줄이 빨개진다)');
+  assert.ok(CS.PRESETS.number.unset.includes('countLabelColor'),
+    '★「번호」는 ★여전히 라벨 색을 걷는다 — ★이미 흰 라벨이 박힌 마킹을 되돌리는 ★유일한 자리다(⛔지우면 그 빚이 영구화된다)');
   assert.notEqual('textColor', 'countLabelColor', '꺾쇠와 라벨은 «다른 키»에 저장된다(값이 같아져도 독립적으로 쓴다)');
   assert.deepEqual(plain(CS.PRESETS.number), {
     set: { countStyle: 'num', countShape: 'circle', shape: 'circle', bgColor: '#000000', textColor: '#ffffff' },
@@ -188,7 +199,7 @@ test('G4 프리셋 — 값은 글자로 · 섹션 전부에 깔고 라벨(글자
       ['icon', 'chevron-right', 'square', 'square', '25', '#000000', '#ffffff', '', false], '마커는 두 블럭 다 포인트 꼴');
   }
   assert.deepEqual(A.blocks.map((b) => [b.dataset.countLabelColor ?? null, b.dataset.countLabelWeight ?? null, b.dataset.countLabelPos ?? null]),
-    [[null, null, null], ['#ffffff', '700', 'right']], '라벨 꾸밈: 라벨 있는 첫째는 그대로(키 없음) · 라벨 없는 둘째만 흰·700·오른쪽(261020 h1)');
+    [[null, null, null], [null, '700', 'right']], '라벨 꾸밈: 라벨 있는 첫째는 그대로(키 없음) · 라벨 없는 둘째는 ★색 없이 700·오른쪽만(261020 h1 ＋ ★261021 ⒝ 로 흰색 걷힘)');
   assert.deepEqual(A.blocks.map((b) => b.dataset.countLabelSize ?? null), [null, '72'], '라벨 크기: 라벨 있는 첫째는 안 굽는다 · 라벨 없는 둘째만 한 변 × 0.9 (80 → 72)(261020 h1)');
   assert.deepEqual(A.blocks.map((b) => [b.dataset.count, b.dataset.x, b.dataset.sizeW, b.dataset.countLabel ?? null]),
     [['1', '10', '56', '메쉬포켓'], ['2', '90', '80', null]], '번호·자리·크기·라벨 글자는 그대로');

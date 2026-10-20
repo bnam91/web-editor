@@ -53,11 +53,13 @@ const COUNT_STK_ICON_SVG_MAX = 20000;       // js/util/sanitize-svg.js SVG_MAX_L
      · 주황 둥근 네모: #eb6217(그림의 주황 픽셀 3158개의 최빈 235,98,23) · 모서리 = 한 변의 25%(data-count-radius)
      · 안의 꺾쇠는 «짙은색»(textColor #1a1a1a — 그림에서 눈으로 읽은 값 · 픽셀로 못 쟀다) — 1차의 「흰 꺾쇠」는 그림과 달랐다
      · 옆 글자는 «흰색 굵게»: countLabelColor #ffffff · countLabelWeight 700(꺾쇠 색·마커 굵기와 «따로» 저장되는 키)
+       ⚰️★261021 ⒝ — ★«흰색»은 걷혔다(현빈 「포인트 프리셋 흰색 글자로 바뀌던 부분만 걷어내기」). 위 줄은 ★1013t2B5 당시의 사실로 남긴다.
+       ★까닭: 검은 사각 마커 «밖»(countLabelPos right)의 흰 라벨은 흰 캔버스에서 ★안 보인다. ⛔굵게 700 은 ★그대로다.
      · 라벨 글자 높이 ≈ 마커 한 변: labelSizeRatio 0.9(마커 56 → 라벨 50px) · 라벨은 오른쪽
    ★1017t1j2(현빈): 위 주황(#eb6217)·짙은 꺾쇠(#1a1a1a)를 ★검정 배경·흰 글자로 바꿨다(바로 아래 bgColor/textColor) —
      픽셀 측정(주황 3158개의 최빈 235,98,23)은 ★폐기가 아니라 ★대체됐다. 되돌릴 땐 이 줄과 위 두 줄을 같이 읽어라.
      ⚠️그 결과 countLabelColor(#ffffff)와 textColor(#ffffff)가 ★값이 같아진다 — 그래도 ★키는 따로다(패널의 글자색·라벨색 칸이 따로 쓴다).
-   ★261020 h1(현빈 「유지해주고 앞에 모양과 표기들만 바껴야지」) — 이 표의 «라벨 칸»(set 의 countLabelColor·countLabelWeight·
+   ★261020 h1(현빈 「유지해주고 앞에 모양과 표기들만 바껴야지」) — 이 표의 «라벨 칸»(set 의 countLabelWeight·
      countLabelPos · labelSizeRatio · unset 의 countLabelColor·countLabelWeight·countLabelSize)은 ★값 그대로 둔다. 다만 이제
      적용 함수가 ★라벨 글자가 있는 마킹에는 안 쓴다(쓰지도 지우지도 않는다) — ★라벨 글자가 없는 마킹에만 쓴다
      (앞으로 칠 라벨이 그 꼴로 나온다 · 1013t2B5 의 «흰 굵은 라벨»이 거기서 산다). 거르는 자리 = 아래 _cntPresetTouchesLabel 한 자리. */
@@ -68,7 +70,7 @@ const COUNT_STK_PRESETS = {
   },
   point: {
     set: { countStyle: 'icon', countIcon: 'chevron-right', countShape: 'square', shape: 'square', countRadius: '25',
-      bgColor: '#000000', textColor: '#ffffff', countLabelColor: '#ffffff', countLabelWeight: '700', countLabelPos: 'right' },
+      bgColor: '#000000', textColor: '#ffffff', countLabelWeight: '700', countLabelPos: 'right' },
     unset: ['countIconSvg'],
     labelSizeRatio: 0.9,
   },

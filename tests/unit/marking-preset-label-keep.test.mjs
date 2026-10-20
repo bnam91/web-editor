@@ -106,7 +106,10 @@ test('P3 D2 굳힘 — 폴백 라벨 색이 바뀌려 하면 전환 순간 보�
   assert.deepEqual(labelOf(y), [null, null, null, null, null], 'Y: 라벨이 없으면 굳히지 않는다');
 });
 
-test('P4 D3 짝 — 라벨 없는 마커에만 포인트의 라벨 꼴(흰·700·한 변×0.9·오른쪽)을 깔고 번호가 걷는다 · 라벨 있는 이웃은 그대로', () => {
+/* ★261021 ⒝ (현빈 「포인트 프리셋 흰색 글자로 바뀌던 부분만 걷어내기」) — 제목에서 ★«흰»을 뗐다.
+   ★이 검사는 ★그 고침에 ★빨강으로 울렸다(`[null,'#ffffff',…]` → `[null,null,…]`) ⇒ ★그 빨강이 곧
+     «프리셋이 정말로 라벨을 흰색으로 ★칠하고 있었다»는 ★양성대조다. ⛔700·0.9배·오른쪽은 ★그대로다. */
+test('P4 D3 짝 — 라벨 없는 마커에만 포인트의 라벨 꼴(★색 없이 700·한 변×0.9·오른쪽)을 깔고 번호가 걷는다 · 라벨 있는 이웃은 그대로', () => {
   const CS = load().CountSticker;
   const G = fakeGroup([
     { ...NUMBER_MARK },                                           // 라벨 없음
@@ -116,8 +119,8 @@ test('P4 D3 짝 — 라벨 없는 마커에만 포인트의 라벨 꼴(흰·700�
   const [a, b, c] = G.blocks.map((x) => x.dataset);
   assert.equal(CS.applyPreset(G.sec, 'point'), 3);
   assert.deepEqual([a.countShape, b.countShape, c.countShape], ['square', 'square', 'square'], 'point: 마커는 셋 다 바뀌었다');
-  assert.deepEqual(labelOf(a), [null, '#ffffff', '50', '700', 'right'], '라벨 없음: 포인트 라벨 꼴이 깔린다(56×0.9=50)');
-  assert.deepEqual(labelOf(b), ['', '#ffffff', '72', '700', 'right'], "라벨 '': 없음으로 친다(80×0.9=72)");
+  assert.deepEqual(labelOf(a), [null, null, '50', '700', 'right'], '라벨 없음: 포인트 라벨 꼴이 깔린다 — ★색은 ★안 깔린다(261021 ⒝) · 56×0.9=50');
+  assert.deepEqual(labelOf(b), ['', null, '72', '700', 'right'], "라벨 '': 없음으로 친다 — ★색 없이(261021 ⒝) · 80×0.9=72");
   assert.deepEqual(labelOf(c), [' ', null, null, null, null], '공백 라벨: 있음 — 안 건드린다');
 
   CS.applyPreset(G.sec, 'number');
