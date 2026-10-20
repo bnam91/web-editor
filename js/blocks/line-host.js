@@ -1133,13 +1133,21 @@ export function lnDeleteActiveLine() {
   if (res && res.ok === false) { grdSetActiveLine(block, prev); window.showToast?.('⚠️ 줄 삭제 실패 — ' + (res.message || res.code)); }
   return true;
 }
-/** T / G — 고른 줄 «다음»에 본문/여백 줄. 챗에서 메시지만 고른 상태(li:null)면 그 메시지 끝에. 먹었으면 true. */
+/** T / G — 고른 줄 «다음»에 본문/여백 줄. 챗에서 메시지만 고른 상태(li:null)면 그 메시지 끝에. 먹었으면 true.
+ *  ★1020t2i1 — 몸통은 ★lnAddLineAt 한 곳(우클릭 «줄 추가»와 ★한 길). 여기 남는 건 «누가 골랐나» 게이트 둘뿐. */
 export function lnAddLineToSelected(type) {
   const block = _soleSelectedHost();
   if (!block) return false;
   const addr = _lnPickedLine(block);   // ★«사람이 고른 줄»만 — 줄 없는 말풍선의 기본 주소는 «없음»(위 주석)
   if (!addr) return false;
+  return lnAddLineAt(block, addr, type);
+}
+/** ★1020t2i1 — 주소를 «받는» 줄 추가: T 단축키(위)와 우클릭 «아래에 줄 추가»(block-factory.js openMenu)가 같이 쓴다.
+ *  addr = {r, c, li|null} — li 가 숫자면 그 줄 «다음», null 이면 그 칸 끝(줄 0 카드면 D2 첫 전환이 제목·설명을 첫 줄로 굽는다).
+ *  ⛔새 줄 넣기를 다시 짜지 않는다 — prop-grid.js grdAddLine(host 인자)이 상한·활성줄 원복·commitLines 를 한 자리에서 한다. */
+export function lnAddLineAt(block, addr, type) {
   const host = lnHostFor(block);
+  if (!host || !addr) return false;
   /* ★★spec 을 ★손으로 짓지 않는다 — ★`prop-grid.js grdNewLineSpec` ★한 곳에서 뜬다(2026-10-07).
      ★왜: 현빈 GO 로 ★버블·챗 새 글자 줄도 ★Pretendard 로 태어나야 한다. ★전엔 ★여기가 ★제 표를 들어
        ★패널 「+ 줄 추가」와 ★두 벌이었다 — ★「패널로는 되는데 ★T 로는 안 되는」 갈림이 ★생긴다.
@@ -1151,6 +1159,27 @@ export function lnAddLineToSelected(type) {
   const res = window.grdAddLine?.(block, { r: addr.r, c: host.cAxis ? addr.c : 0 }, addr.li === null ? null : addr.li, spec, {}, host);
   if (res && res.ok) host.show(grdGetActiveLine(block));
   return !!(res && res.ok);
+}
+/* ══ ★1020t2i1 우클릭 «아래에 줄 추가» — 카드블럭 (현빈 「카드블럭에 우클릭에 줄추가 가능하게」 · 기준 = 그리드 우클릭) ══
+ * ★주인 명부 — 지금은 ★카드만. 버블·챗·비교·laurel 메뉴 산출은 그대로(넓히는 건 별 카드 — ⛔조용히 넓히지 않는다). */
+const LN_CTX_ADD_OWNERS = ['canvas-block'];
+/** 우클릭한 점 → 줄 주소 {r, c, li|null} · 메뉴 항목을 띄울 수 없으면 null.
+ *  ★판정은 2단 선택이 쓰는 ★그 술어(lnClickAddr) — 우클릭은 «그 자리를 가리킨 것»이라 wasSole=true 로 묻는다.
+ *  ★누른 노드 = elementsFromPoint 중 블럭 안 첫 것(block-factory.js _gridCellAddrAt 과 같은 까닭 — 좌측 핸들(.grd-line-grip)은
+ *    #ss-handles-overlay 소속이라 e.target 이 블럭 밖이다) · 거기서 못 찾으면 «지금 고른 줄»(핸들 위 우클릭 = 그 줄).
+ *  ★마지막에 host.resolveAny — both 라벨(rowOk 거짓)·낡은 li 는 null(항목 숨김). */
+export function lnCtxAddAddr(block, e) {
+  if (!block || !block.classList || !LN_CTX_ADD_OWNERS.some(c => block.classList.contains(c))) return null;
+  const host = lnHostFor(block);   // 레이어 모드 카드(cardMode 없음)는 null — 줄 숙주가 아니다
+  if (!host || !e) return null;
+  let node = null;
+  if (typeof document !== 'undefined' && typeof document.elementsFromPoint === 'function') {
+    for (const el of document.elementsFromPoint(e.clientX, e.clientY) || []) { if (block.contains(el)) { node = el; break; } }
+  }
+  if (!node) node = e.target;
+  const addr = lnClickAddr(block, node, true) || (grdIsSoleSelected(block) ? _lnPickedLine(block) : null);
+  const hit = addr ? host.resolveAny(addr) : null;
+  return hit ? { r: hit.r, c: hit.c, li: hit.li } : null;
 }
 /** K — 고른 줄 «다음»(칸만 골랐으면 끝)에 아이콘 그림 줄. 그림 종류를 가진 주인(laurel)만. 반환 = 게이트를 지나 피커를 열었나
  *  (그리드 grdAddIconToSelectedCell 과 같은 뜻 — 삽입 성공 여부가 아니다). ★1013t1B2 C4 */
@@ -1184,6 +1213,6 @@ if (typeof window !== 'undefined') {
     lnHasLines, lnLinesHtml, lnValidateLines, lnPlainText, lnTextMirrorHtml,
     lnRenderBubble, lnBubbleLines, lnHostFor, lnMark, lnRemark, lnClearAllActive, lnClickAddr,
     lnAugmentBubblePanel, lnAugmentChatPanel, lnAugmentCmpPanel, lnAugmentLaurelPanel, lnAugmentCardPanel, lnCmpLines, lnLaurelLines, lnCardLines, LAUREL_LN_KINDS, lnBindLineEdit, lnBeginEdit, lnEnterEdit,
-    lnDeleteActiveLine, lnAddLineToSelected, lnEscLine, lnSyncPlus, lnAddIconToSelected,
+    lnDeleteActiveLine, lnAddLineToSelected, lnEscLine, lnSyncPlus, lnAddIconToSelected, lnAddLineAt, lnCtxAddAddr,
   });
 }

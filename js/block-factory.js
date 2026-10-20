@@ -5507,6 +5507,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
   let _targetCell = null; // #5-b: 우클릭한 테이블 바디셀 (병합/해제 대상)
   let _targetGridAddr = null; // 그리드 블록: 우클릭한 셀 {r,c,li} — li는 «기존 이미지 줄»이 있을 때만 숫자
   let _targetCmpAddr = null;  // 비교 블록: 우클릭한 «행 셀» {colIdx,rowIdx} — 헤더·여백이면 null
+  let _targetLnAddr = null;   // ★1020t2i1 line-host 주인(카드): 우클릭한 줄 {r,c,li|null} — 판정 = window.lnCtxAddAddr
 
   // 메뉴 닫기
   function closeMenu() {
@@ -5515,6 +5516,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     _targetCell = null;
     _targetGridAddr = null;
     _targetCmpAddr = null;
+    _targetLnAddr = null;
   }
 
   /* 비교 블록 우클릭 → 「어느 ★행 셀인가」. 헤더(.cmp-hd)·카드 여백·캡션이면 null.
@@ -5762,6 +5764,11 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       if (delItem)  delItem.style.display  = hasSrc ? 'flex' : 'none';
     }
 
+    /* ★1020t2i1 카드 «아래에 줄 추가 (T)» — 판정은 line-host.js lnCtxAddAddr ★하나(2단 선택의 lnClickAddr 를 그대로 쓴다).
+       ⛔기존 항목은 안 건드린다(표시 조건 하나를 더할 뿐). 그룹 프레임이 대상이면 lnCtxAddAddr 가 null 이라 숨는다. */
+    _targetLnAddr = window.lnCtxAddAddr?.(block, e) || null;
+    { const lnAddItem = document.getElementById('bcm-ln-add'); if (lnAddItem) lnAddItem.style.display = _targetLnAddr ? 'flex' : 'none'; }
+
     // 보일 항목이 하나도 없으면 빈 상자를 띄우지 않는다(자유배치 프레임 안 프레임 = 저장·갭 둘 다 숨김)
     if (![...menu.querySelectorAll(':scope > .bcm-item')].some(it => it.style.display !== 'none')) { closeMenu(); return; }
 
@@ -5961,6 +5968,17 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
              { width: 1, lines: [{ type: 'body', text: '' }] }],
     });
     window.grdToastImgFail?.(res);
+  });
+
+  /* ★1020t2i1 「아래에 줄 추가 (T)」 — T 단축키와 ★한 길(line-host.js lnAddLineAt → prop-grid.js grdAddLine(host)).
+     ⛔여기서 줄을 짓지 않는다 — 짓는 자리가 둘이 되면 한쪽만 늙는다. window 로 부르는 까닭 = line-host ↔ prop-grid 순환 import 회피(lnAddLineToSelected 와 같은 관용구). */
+  document.getElementById('bcm-ln-add')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    const addr = _targetLnAddr;
+    closeMenu();
+    if (!block || !addr) return;
+    window.lnAddLineAt?.(block, addr, 'body');
   });
 
   /* ★「원형 이미지 추가」(현빈 2026-10-01) — 늘 «새 줄»: 누른 줄 뒤(줄 위에서 눌렀으면 그 뒤, 빈 칸이면 «이미지 추가»와 같은 자리).
