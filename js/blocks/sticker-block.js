@@ -844,6 +844,28 @@ function addStickerBlock(opts = {}) {
     const n = sec.querySelectorAll('.sticker-block').length;
     let cx = 40 + (n % 8) * 24;
     let cy = 40 + (n % 8) * 24;
+    /* ★1020t2f2(현빈 「항상 섹션 상단에 고정위치에 추가되는거 같은데 ★현재 보는 화면 중간에 추가되게」) — 계단의 «출발점»을
+       섹션 왼위(40,40)가 아니라 «지금 보이는 캔버스 창(#canvas-wrap)의 가운데»로 옮긴다(섹션 좌표 · 줌 보정).
+       계단(n%8 × 24)은 그대로 — 같은 자리 겹침 방지(A25)는 살린다. 상자 크기(bw·bh)는 아래에서 정해지므로 «가운데 점»만 여기서 잡고
+       상자 반만큼은 아래에서 뺀다. 창이 없거나(하네스) 섹션이 안 보이면 옛 자리로 떨어지고, 끝 clamp 가 섹션 안으로 넣는다. */
+    let _viewCenter = null;
+    {
+      const wrap = document.getElementById('canvas-wrap');
+      const z = (window.currentZoom || 100) / 100;
+      if (wrap && z > 0) {
+        const wr = wrap.getBoundingClientRect(), sr = sec.getBoundingClientRect();
+        /* ★창 가운데가 «이 섹션 위»면 그 점 · 아니면(섹션이 창보다 짧아 가운데가 섹션 밖) «섹션의 보이는 부분»의 가운데 ·
+             하나도 안 보이면 옛 자리(40,40 계단). ⛔창 가운데를 섹션 안으로 clamp 만 하면 섹션 «끝»에 붙는다 —
+             그러면 끌 여유가 없고(coin K12: 420 섹션에서 y 300 = 바닥) 선 스티커는 어림 높이(bh)보다 큰 상자가 밖으로 샌다(arrow A1). */
+        const vx = wr.left + wr.width / 2, vy = wr.top + wr.height / 2;
+        const inSec = vx >= sr.left && vx <= sr.right && vy >= sr.top && vy <= sr.bottom;
+        const L = Math.max(wr.left, sr.left), R = Math.min(wr.right, sr.right), T = Math.max(wr.top, sr.top), B = Math.min(wr.bottom, sr.bottom);
+        const pt = inSec ? [vx, vy] : (R > L && B > T ? [(L + R) / 2, (T + B) / 2] : null);
+        if (pt) {
+          _viewCenter = [(pt[0] - sr.left) / z + (n % 8) * 24, (pt[1] - sr.top) / z + (n % 8) * 24];
+        }
+      }
+    }
     // highlight는 폭이 커서 clamp 가정 크기를 분기 (A27) · ★highlightB(선 형광펜)도 기본 길이 × 두께로 (1012t1J1)
     const _isHlB = opts.shape === 'highlightB';
     // coin 은 기본 상자가 60 보다 크다 — 60 으로 재면 섹션 오른쪽·아래 끝에서 상자가 밖으로 나간다
@@ -853,6 +875,7 @@ function addStickerBlock(opts = {}) {
     const _arwH = _isArw ? (window.ArrowFx?.headLen?.(Number(opts.thickness) || window.ArrowFx?.DEFAULTS?.thickness || 4) || 12) : 0;
     const bw = (opts.shape === 'highlight') ? 160 : _isHlB ? HLB_DEFAULT_LEN : _isArw ? ARROW_DEFAULT_LEN : _coinBox;
     const bh = (opts.shape === 'highlight') ? 28  : _isHlB ? (Number(opts.thickness) || 12) : _isArw ? _arwH : _coinBox;
+    if (_viewCenter) { cx = _viewCenter[0] - bw / 2; cy = _viewCenter[1] - bh / 2; }   // ★1020t2f2 — 상자 가운데가 창 가운데
     const [qx, qy] = window._clampToSection?.(cx, cy, sec, bw, bh) || [cx, cy];
     opts = { ...opts, x: qx, y: qy };
   }
