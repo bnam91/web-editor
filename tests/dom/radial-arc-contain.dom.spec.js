@@ -373,7 +373,9 @@ test.describe('방사형 에셋 블럭 — 호 모드: 기본 꼴 = 반원 · �
     expect(/Z6/i.test(m.text), '화면 글자에 옛 이름이 없다').toBe(false);
     /* ★261020 1020t2e1: 삽입 메뉴가 ★셋 → ★하나가 됐다(Proto: Graph·Radial / Proto: Radial Arrange 제거).
      * ★기대값 1 의 출처 = ★실브라우저 실측(남은 버튼 title 「방사형 에셋 블럭」 ★하나 · 앱의 제 문으로 눌러 ×3).
-     * ⚠️이 spec ★자체는 그 변경 때 ★못 돌렸다(srv swap 98% · DOM 전수 금지) ⇒ ★인텔에서 재는 것이 ★남았다. */
+     * ★261020 21:42 인텔에서 ★돌려서 섰다 — 판 `0cc12eab` · 이 파일 ★하나(13 tests) ·
+     *   ★13 passed / 0 failed · rc 0 · ★같이 빨개진 것 ★0건. (태양/인텔 gate-rc5 · 미커밋 0 · retries 0)
+     *   ★「부등호(`>= 5`)라 안전」이라 ★소스로만 읽었던 소비자들도 ★돌려서 초록이었다. */
     expect(m.protoTitles, '전제: 방사형 삽입 메뉴의 풍선말이 ★하나다').toBe(1);
     expect(m.oldTitles, '풍선말에 옛 이름이 없다').toEqual([]);
   });
