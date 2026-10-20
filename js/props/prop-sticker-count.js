@@ -184,7 +184,7 @@ export function countSectionHTML(block) {
         <button class="prop-preset-btn" data-count-preset="number" title="번호 — 원 · 검정 배경 · 흰 숫자 (기본 꼴로 되돌린다 · 이 섹션의 마킹 전부)">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><line x1="8" y1="5.5" x2="8" y2="10.5"/></svg><span>번호</span>
         </button>
-        <button class="prop-preset-btn" data-count-preset="point" title="포인트 — 둥근 네모(모서리 25%) · 검정 배경 · 흰 꺾쇠 아이콘 + 흰 라벨 글자 (이 섹션의 마킹 전부)">
+        <button class="prop-preset-btn" data-count-preset="point" title="포인트 — 둥근 네모(모서리 25%) · 검정 배경 · 흰 꺾쇠 아이콘 + 흰 라벨 글자(라벨이 없을 때) (이 섹션의 마킹 전부)">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><polyline points="7 5.5 9.5 8 7 10.5"/></svg><span>포인트</span>
         </button>
       </div>

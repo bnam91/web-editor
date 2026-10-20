@@ -8,6 +8,8 @@
  *      · custom svg 는 거르개가 실렸을 때만, 거른 것만 쓴다(날것을 dataset 에 안 넣는다)
  *   G3 물려받기 — 다음 찍기는 아이콘·라벨 «꾸밈»(자리·색·크기)을 물려받고 라벨 «글자»는 안 물려받는다
  *   G4 프리셋 — 「번호」「포인트」의 값(글자로) · 섹션 전부에 깔고 라벨 글자·번호·자리는 안 건드린다 · 모르는 이름은 무동작
+ *      ★261020 h1 — 라벨 글자가 있는 마킹엔 라벨 꾸밈(색·크기·굵기·자리)도 안 건드린다 · 라벨 없는 마킹만 표의 라벨 칸을 받는다
+ *      (새 자: tests/unit/marking-preset-label-keep.test.mjs P1~P4)
  * ★기대값은 «글자로» 박았다. ⛔앱 0 · 네트워크 0 — js/count-sticker-tool.js 를 vm 으로 그대로 싣는다(count-sticker-label 과 같은 꼴).
  */
 import { test } from 'node:test';
@@ -146,7 +148,7 @@ test('G3 inheritFrom — 아이콘·라벨 꾸밈은 넘기고 라벨 글자는 
   assert.equal(inheritFrom({ querySelectorAll: () => [{ dataset: { count: '1', countStyle: 'emoji' } }] }).countStyle, 'num');
 });
 
-test('G4 프리셋 — 값은 글자로 · 섹션 전부에 깔고 라벨 글자·번호·자리는 안 건드린다', () => {
+test('G4 프리셋 — 값은 글자로 · 섹션 전부에 깔고 라벨(글자·꾸밈 — 라벨이 있을 때)·번호·자리는 안 건드린다', () => {
   const ctx = load();
   ctx.renderStickerBlock = () => {};
   const CS = ctx.CountSticker;
@@ -176,12 +178,18 @@ test('G4 프리셋 — 값은 글자로 · 섹션 전부에 깔고 라벨 글자
   ]);
   const B = fakeGroup([{ count: '1', countStyle: 'num', shape: 'circle', bgColor: '#000000', text: '1' }]);
   assert.equal(CS.applyPreset(A.sec, 'point'), 2, '바뀐 수');
+  /* ★261020 h1 — 이 기대값은 프리셋이 라벨을 덮던 동작을 잠그고 있었다 · 현빈 «유지해주고 앞에 모양과 표기들만» ⇒ 기대값 바꿈 · 덮지 않는 것이 참.
+     옛: 두 블럭 다 countLabelColor/Weight/Pos = '#ffffff'/'700'/'right' · countLabelSize ['50','72'].
+     새: 라벨 글자가 있는 첫째(메쉬포켓)는 라벨 꾸밈 키를 안 받는다(undefined 그대로) · 라벨 없는 둘째만 표의 라벨 칸을 받는다(D3 · 80×0.9=72).
+     마커 쪽(표기·아이콘·모양·모서리·배경·글자색·data-text·svg 걷기)은 두 블럭 다 그대로 단언한다(«마커는 바뀌었다» 짝). */
   for (const b of A.blocks) {
     const d = b.dataset;
-    assert.deepEqual([d.countStyle, d.countIcon, d.countShape, d.shape, d.countRadius, d.bgColor, d.textColor, d.countLabelColor, d.countLabelWeight, d.countLabelPos, d.text, 'countIconSvg' in d],
-      ['icon', 'chevron-right', 'square', 'square', '25', '#000000', '#ffffff', '#ffffff', '700', 'right', '', false]);
+    assert.deepEqual([d.countStyle, d.countIcon, d.countShape, d.shape, d.countRadius, d.bgColor, d.textColor, d.text, 'countIconSvg' in d],
+      ['icon', 'chevron-right', 'square', 'square', '25', '#000000', '#ffffff', '', false], '마커는 두 블럭 다 포인트 꼴');
   }
-  assert.deepEqual(A.blocks.map((b) => b.dataset.countLabelSize), ['50', '72'], '라벨 크기 = 그 마커 한 변 × 0.9 (56 → 50 · 80 → 72)');
+  assert.deepEqual(A.blocks.map((b) => [b.dataset.countLabelColor ?? null, b.dataset.countLabelWeight ?? null, b.dataset.countLabelPos ?? null]),
+    [[null, null, null], ['#ffffff', '700', 'right']], '라벨 꾸밈: 라벨 있는 첫째는 그대로(키 없음) · 라벨 없는 둘째만 흰·700·오른쪽(261020 h1)');
+  assert.deepEqual(A.blocks.map((b) => b.dataset.countLabelSize ?? null), [null, '72'], '라벨 크기: 라벨 있는 첫째는 안 굽는다 · 라벨 없는 둘째만 한 변 × 0.9 (80 → 72)(261020 h1)');
   assert.deepEqual(A.blocks.map((b) => [b.dataset.count, b.dataset.x, b.dataset.sizeW, b.dataset.countLabel ?? null]),
     [['1', '10', '56', '메쉬포켓'], ['2', '90', '80', null]], '번호·자리·크기·라벨 글자는 그대로');
   assert.equal(B.blocks[0].dataset.bgColor, '#000000', '다른 섹션은 그대로');
