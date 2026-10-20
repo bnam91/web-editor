@@ -5,7 +5,7 @@
  *   radialCenter '0'|'1' · radialCenterSize · radialFill '1'(새 칸에도 샘플 그림을 채운다)
  * 자식 표식 = 프레임 직속 서클 블럭의 data-radial-role = item(DOM 순서가 항목 순서) | center.
  * 계약(window):
- *   insertRadialArrangeFrame(opts) → 프레임 | null     동기 · 삽입 메뉴 「Proto: Radial Arrange」
+ *   insertRadialArrangeFrame(opts) → 프레임 | null     동기 · ⚠️★261020(1020t2e1) 이후 ★삽입 메뉴 없음(고아 · 아래 참조)
  *   applyRadialArrange(frame) → void                    칸 수 맞추기 → 크기 → 프레임 높이 → 좌표 → 가운데 칸
  *   setCircleSampleImage(icb, key) → boolean            샘플 그림을 동기로 넣는다 · '' 는 비우기 · 히스토리는 부르는 쪽이 쌓는다
  *   radialArrangeSectionHTML(ss) · wireRadialArrangeSection(ss, reopen)   프레임 패널 절
@@ -223,6 +223,10 @@ function startRadialArrange(frame) {
   applyRadialArrange(frame);
 }
 
+/* 261020 1020t2e1 로 컴포넌트 메뉴 버튼이 빠졌다 — 이 함수는 ★내부 호출자 0(고아)이다.
+ * 실사용 경로 = js/props/prop-frame.js 의 「원형으로 배치 시작」(startRadialArrange) · window 바인딩은 유지한다.
+ * ★함수를 ⛔지우지 않은 까닭: 기능이 그 패널로 ★살아 있고 현빈 요구는 ★「버튼 셋 중 하나만」이었다.
+ * ★머리 주석의 계약 줄도 ★같이 고쳤다 — 그 메뉴를 가리키던 문장이 ★거짓이 되었다. */
 function insertRadialArrangeFrame(opts = {}) {
   const G = _G();
   const sec = window.getSelectedSection?.();

@@ -29,12 +29,12 @@ import '../radial-samples.js';
 import '../radial-arc-geom.js';
 
 const RADIAL_DEFAULT_ITEMS = Object.freeze([
-  { label: '피부 장벽 강화', img: 'leaf' },
-  { label: '72시간 보습', img: 'drop' },
-  { label: '진정 케어', img: 'molecule' },
-  { label: '탄력 개선', img: 'pill' },
-  { label: '톤 균형', img: 'shield' },
-  { label: '저자극 테스트 완료', img: 'moon' },
+  { label: '피부 장벽 강화', img: '' },
+  { label: '72시간 보습', img: '' },
+  { label: '진정 케어', img: '' },
+  { label: '탄력 개선', img: '' },
+  { label: '톤 균형', img: '' },
+  { label: '저자극 테스트 완료', img: '' },
 ]);
 
 const RADIAL_DEFAULTS = Object.freeze({

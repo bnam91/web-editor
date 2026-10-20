@@ -371,7 +371,10 @@ test.describe('방사형 에셋 블럭 — 호 모드: 기본 꼴 = 반원 · �
     expect(m.text).toContain('V4 반원');
     expect(/V3/.test(m.text), '옛 판 표시가 남지 않았다').toBe(false);
     expect(/Z6/i.test(m.text), '화면 글자에 옛 이름이 없다').toBe(false);
-    expect(m.protoTitles, '전제: 프로토 메뉴 셋의 풍선말이 있다').toBe(3);
+    /* ★261020 1020t2e1: 삽입 메뉴가 ★셋 → ★하나가 됐다(Proto: Graph·Radial / Proto: Radial Arrange 제거).
+     * ★기대값 1 의 출처 = ★실브라우저 실측(남은 버튼 title 「방사형 에셋 블럭」 ★하나 · 앱의 제 문으로 눌러 ×3).
+     * ⚠️이 spec ★자체는 그 변경 때 ★못 돌렸다(srv swap 98% · DOM 전수 금지) ⇒ ★인텔에서 재는 것이 ★남았다. */
+    expect(m.protoTitles, '전제: 방사형 삽입 메뉴의 풍선말이 ★하나다').toBe(1);
     expect(m.oldTitles, '풍선말에 옛 이름이 없다').toEqual([]);
   });
 
@@ -581,7 +584,7 @@ test.describe('방사형 에셋 블럭 — 호 모드: 기본 꼴 = 반원 · �
     const made = await page.evaluate((sid) => {
       if (window.deselectAll) window.deselectAll();
       window.selectSection(document.getElementById(sid));
-      const r = window.addRadialBlock();   // 삽입 메뉴 「Proto: Radial Block」 이 부르는 꼴 그대로(원)
+      const r = window.addRadialBlock();   // 삽입 메뉴 「Radial」 이 부르는 꼴 그대로(원 · 261020 전 이름 「Proto: Radial Block」)
       return (r && r.block) ? { id: r.block.id, head: (document.querySelector('#rdl-shape-group') ? 1 : 0) } : null;
     }, CIRCLE_SEC);
     expect(made, '전제: 원 블럭이 만들어졌다').not.toBeNull();
