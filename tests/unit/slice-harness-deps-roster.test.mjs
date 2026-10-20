@@ -33,28 +33,52 @@ const read = (p) => fs.readFileSync(p, 'utf8');
  *   ★비어 있는 것이 ★정상이고, ★한 줄이 늘면 ★누가·왜·언제 를 ★같이 적어라. */
 const KNOWN_GAPS = {
   'frame-float-group.dom.spec.js':
-    '★261021 — ★아직 안 걸었다. ★그 spec 을 ★돌릴 창이 없다(srv DOM 금지) ⇒ ★그 레인이 ★손댈 때 같이 걸어라.'
+    '★261021 — ★아직 안 걸었다. ★★검토 판 = ★`0.9.9`.'
+    + ' ⚠️★막던 까닭은 ★죽었다 — ★「srv DOM 금지라 ★돌릴 창이 없다」였는데 ★261021 에 ★창이 ★둘 생겼다'
+    + ' (아이맥 · 인텔). ⇒ ★★이제는 ★「아직 안 했다」이지 ★「못 한다」가 ★아니다.'
+    + ' ★걸는 법 = `overlay-float-frame-drag-conflict` 와 같은 꼴(probe → sliceExternalDeps → assertDepsProvided).'
     + ' ★그때까지 ★이 spec 의 초록은 ★「안 재고 있다」일 수 있다.',
   'overlay-group-zorder.dom.spec.js':
-    '★261021 — ★아직 안 걸었다. ★그 spec 을 ★돌릴 창이 없다(srv DOM 금지) ⇒ ★그 레인이 ★손댈 때 같이 걸어라.'
+    '★261021 — ★아직 안 걸었다. ★★검토 판 = ★`0.9.9`.'
+    + ' ⚠️★막던 까닭은 ★죽었다 — ★「srv DOM 금지라 ★돌릴 창이 없다」였는데 ★261021 에 ★창이 ★둘 생겼다'
+    + ' (아이맥 · 인텔). ⇒ ★★이제는 ★「아직 안 했다」이지 ★「못 한다」가 ★아니다.'
+    + ' ★걸는 법 = `overlay-float-frame-drag-conflict` 와 같은 꼴(probe → sliceExternalDeps → assertDepsProvided).'
     + ' ★그때까지 ★이 spec 의 초록은 ★「안 재고 있다」일 수 있다.',
   'qa0919-fixes.dom.spec.js':
-    '★261021 — ★아직 안 걸었다. ★그 spec 을 ★돌릴 창이 없다(srv DOM 금지) ⇒ ★그 레인이 ★손댈 때 같이 걸어라.'
+    '★261021 — ★아직 안 걸었다. ★★검토 판 = ★`0.9.9`.'
+    + ' ⚠️★막던 까닭은 ★죽었다 — ★「srv DOM 금지라 ★돌릴 창이 없다」였는데 ★261021 에 ★창이 ★둘 생겼다'
+    + ' (아이맥 · 인텔). ⇒ ★★이제는 ★「아직 안 했다」이지 ★「못 한다」가 ★아니다.'
+    + ' ★걸는 법 = `overlay-float-frame-drag-conflict` 와 같은 꼴(probe → sliceExternalDeps → assertDepsProvided).'
     + ' ★그때까지 ★이 spec 의 초록은 ★「안 재고 있다」일 수 있다.',
   'redact-mosaic-killswitch.dom.spec.js':
-    '★261021 — ★아직 안 걸었다. ★그 spec 을 ★돌릴 창이 없다(srv DOM 금지) ⇒ ★그 레인이 ★손댈 때 같이 걸어라.'
+    '★261021 — ★아직 안 걸었다. ★★검토 판 = ★`0.9.9`.'
+    + ' ⚠️★막던 까닭은 ★죽었다 — ★「srv DOM 금지라 ★돌릴 창이 없다」였는데 ★261021 에 ★창이 ★둘 생겼다'
+    + ' (아이맥 · 인텔). ⇒ ★★이제는 ★「아직 안 했다」이지 ★「못 한다」가 ★아니다.'
+    + ' ★걸는 법 = `overlay-float-frame-drag-conflict` 와 같은 꼴(probe → sliceExternalDeps → assertDepsProvided).'
     + ' ★그때까지 ★이 spec 의 초록은 ★「안 재고 있다」일 수 있다.',
   'shape-frame-wrap-group.dom.spec.js':
-    '★261021 — ★아직 안 걸었다. ★그 spec 을 ★돌릴 창이 없다(srv DOM 금지) ⇒ ★그 레인이 ★손댈 때 같이 걸어라.'
+    '★261021 — ★아직 안 걸었다. ★★검토 판 = ★`0.9.9`.'
+    + ' ⚠️★막던 까닭은 ★죽었다 — ★「srv DOM 금지라 ★돌릴 창이 없다」였는데 ★261021 에 ★창이 ★둘 생겼다'
+    + ' (아이맥 · 인텔). ⇒ ★★이제는 ★「아직 안 했다」이지 ★「못 한다」가 ★아니다.'
+    + ' ★걸는 법 = `overlay-float-frame-drag-conflict` 와 같은 꼴(probe → sliceExternalDeps → assertDepsProvided).'
     + ' ★그때까지 ★이 spec 의 초록은 ★「안 재고 있다」일 수 있다.',
   'shape-handle-resize.dom.spec.js':
-    '★261021 — ★아직 안 걸었다. ★그 spec 을 ★돌릴 창이 없다(srv DOM 금지) ⇒ ★그 레인이 ★손댈 때 같이 걸어라.'
+    '★261021 — ★아직 안 걸었다. ★★검토 판 = ★`0.9.9`.'
+    + ' ⚠️★막던 까닭은 ★죽었다 — ★「srv DOM 금지라 ★돌릴 창이 없다」였는데 ★261021 에 ★창이 ★둘 생겼다'
+    + ' (아이맥 · 인텔). ⇒ ★★이제는 ★「아직 안 했다」이지 ★「못 한다」가 ★아니다.'
+    + ' ★걸는 법 = `overlay-float-frame-drag-conflict` 와 같은 꼴(probe → sliceExternalDeps → assertDepsProvided).'
     + ' ★그때까지 ★이 spec 의 초록은 ★「안 재고 있다」일 수 있다.',
   'shape-rotate-minheight.dom.spec.js':
-    '★261021 — ★아직 안 걸었다. ★그 spec 을 ★돌릴 창이 없다(srv DOM 금지) ⇒ ★그 레인이 ★손댈 때 같이 걸어라.'
+    '★261021 — ★아직 안 걸었다. ★★검토 판 = ★`0.9.9`.'
+    + ' ⚠️★막던 까닭은 ★죽었다 — ★「srv DOM 금지라 ★돌릴 창이 없다」였는데 ★261021 에 ★창이 ★둘 생겼다'
+    + ' (아이맥 · 인텔). ⇒ ★★이제는 ★「아직 안 했다」이지 ★「못 한다」가 ★아니다.'
+    + ' ★걸는 법 = `overlay-float-frame-drag-conflict` 와 같은 꼴(probe → sliceExternalDeps → assertDepsProvided).'
     + ' ★그때까지 ★이 spec 의 초록은 ★「안 재고 있다」일 수 있다.',
   'ul-groupdup.dom.spec.js':
-    '★261021 — ★아직 안 걸었다. ★그 spec 을 ★돌릴 창이 없다(srv DOM 금지) ⇒ ★그 레인이 ★손댈 때 같이 걸어라.'
+    '★261021 — ★아직 안 걸었다. ★★검토 판 = ★`0.9.9`.'
+    + ' ⚠️★막던 까닭은 ★죽었다 — ★「srv DOM 금지라 ★돌릴 창이 없다」였는데 ★261021 에 ★창이 ★둘 생겼다'
+    + ' (아이맥 · 인텔). ⇒ ★★이제는 ★「아직 안 했다」이지 ★「못 한다」가 ★아니다.'
+    + ' ★걸는 법 = `overlay-float-frame-drag-conflict` 와 같은 꼴(probe → sliceExternalDeps → assertDepsProvided).'
     + ' ★그때까지 ★이 spec 의 초록은 ★「안 재고 있다」일 수 있다.',
 };
 
@@ -155,6 +179,36 @@ test('SHD5 ★래칫 — ★면제 명부는 ★줄기만 한다(⛔늘면 빨�
     unguarded.length <= listed.length,
     `★미호출 ${unguarded.length} > 명부 ${listed.length}`
   );
+});
+
+/* ★★★SHD7 — ★면제에 ★«상대 참조»를 ★못 쓰게 ★구조로 막는다 (261021)
+ *   ★까닭: 같은 날 `tests/dom/EXPECT_N.md` 에서 ★「떼는 조건 = ★«다음 버전»」으로 미뤄 둔 것 ★둘을 찾았다.
+ *     ★그 ★«다음 버전»이 ★이미 ★0.9.9(= 지금 만드는 판)였는데 ★★아무도 안 꺼냈다 — ★한 건은
+ *     ★이미 한도를 ★4~6 넘어 ★두 칸이 ★영구 빨강이었다(modal-frameify-pixel `빈칸` px 704~706 vs 700).
+ *   ★★까닭의 까닭: ★「다음」은 ★★상대 참조다. ★판 번호로 ★고정되지 않으면 ★그 판이 ★조용히 지나간다.
+ *   ⇒ ★그리고 ★★이 파일의 면제 8줄도 ★같은 병이었다 — ★「그 레인이 ★손댈 때」였다. ★판 번호로 바꿨다.
+ *   ⇒ ★★이 자가 ★그 재발을 막는다: ★면제 줄에 ★판 번호가 ★없으면 ★빨강.
+ *   ⛔「다음 버전」·「나중에」·「그때」·「손댈 때」로 ★미루지 마라 — ★★재는 자가 없는 조건은 ★안 지켜진다. */
+test('SHD7 ★면제 줄은 ★«판 번호»를 ★갖는다 (⛔「다음 버전」 같은 상대 참조 금지)', () => {
+  const REL = ['다음 버전', '다음번', '나중에', '그때 가서', '손댈 때', '언젠가', '추후'];
+  const bad = [];
+  for (const [f, why] of Object.entries(KNOWN_GAPS)) {
+    if (!/0\.\d+\.\d+/.test(why)) bad.push(`  · ${f} — ★판 번호가 없다`);
+    const hit = REL.filter((r) => why.includes(r));
+    if (hit.length) bad.push(`  · ${f} — ★상대 참조: ${hit.join(', ')}`);
+  }
+  assert.deepEqual(
+    bad, [],
+    '★면제 줄에 ★판 번호가 없거나 ★상대 참조가 있다 — ★★「다음 버전」은 ★조용히 지나간다'
+      + '(261021 EXPECT_N.md 실사고: ★그 «다음»이 이미 0.9.9 였고 두 칸이 영구 빨강이었다):\n'
+      + bad.join('\n')
+  );
+  /* ★★자가 사는지 — ★양성·음성 ★둘 다 ★이 자리에서 */
+  const probe = (why) => !/0\.\d+\.\d+/.test(why) || REL.some((r) => why.includes(r));
+  assert.equal(probe('★검토 판 = 0.9.9 · 아직 안 걸었다'), false, '★음성대조: 판 번호가 있으면 ★통과해야 한다');
+  assert.equal(probe('★다음 버전에 뗀다'), true, '★★양성대조: 「다음 버전」은 ★잡혀야 한다');
+  assert.equal(probe('★그 레인이 손댈 때'), true, '★★양성대조: 「손댈 때」는 ★잡혀야 한다');
+  assert.equal(probe('★아직 안 걸었다'), true, '★★양성대조: 판 번호가 ★없으면 ★잡혀야 한다');
 });
 
 test('SHD6 ★★가드 ★자체를 ★잰다 — ⛔「세워 둔 방어」는 ★「발동한 방어」가 아니다', async () => {
