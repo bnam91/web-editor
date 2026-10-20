@@ -23,7 +23,7 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
-const { sliceBlock } = require('../unit/_slice-block.js');
+const { sliceBlock, sliceExternalDeps, assertDepsProvided, declaresName } = require('../unit/_slice-block.js');
 
 const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
@@ -90,7 +90,7 @@ const SHAPE_PRE = toNoStartSample(SHAPE_SRC, '_onShapeHandleMouseDown');
 const FRAME_PRE = toNoStartSample(FRAME_SRC, '_onHandleMouseDown');
 const STK_CNR_PRE = toNoStartSample(STK_CNR_SRC, '_bindCornerHandleDrag');
 
-const HARNESS_JS = `
+const harnessJs = (deps = '') => `
 import './globals.js';
 import './history.js';
 
@@ -116,6 +116,8 @@ window.renderStickerBlock = (b) => {
 
 ${UNROT_SRC}
 ${ROT_SRC}
+/* ★조각이 부르는 외부 이름 중 ★이 하네스가 안 주는 것 — ★파생(아래 FRAME_DEPS) · ★대역이 아니라 ★진짜 구현 */
+${deps}
 ${SHAPE_SRC}
 ${FRAME_SRC}
 ${SHAPE_PRE}
@@ -141,6 +143,30 @@ window.__handlers = {
 window.__stk = { add: _addCornerHandles, bind: _bindCornerHandleDrag, bindPre: _bindCornerHandleDrag_PRE };
 window.__ready = true;
 `;
+
+/* ══ ★★1020t1d W2B — ★조각이 부르는 ★외부 이름을 ★파생으로 채운다 (지디 4f0857b4 overlay-float-frame-drag-conflict 와 같은 꼴) ══
+ *  ★잠복: W2B ⒝ 가 `_onHandleMouseDown` 에 «조상 기저» 갈래를 넣으며 measureLocalBasis·localDeltaFromBasis(frame-geometry.js
+ *    import)와 cornerSign(overlay-handles.js 같은 파일 함수)을 새로 부른다. 이 하네스 프레임은 relative 라 그 갈래 조건이
+ *    거짓 → 단락 평가로 안 불려 «초록»이었다(= 안 재고 있었다). T1c(absolute)를 넣자 바닥+고침·하네스 미수정에서
+ *    `ReferenceError: measureLocalBasis is not defined` 로 빨갰다(실측 · W2B 보고서).
+ *  ★처방: ⑴ deps 없이 한 번 불러(probe) ★하네스가 제 손으로 주는 것을 먼저 잰다 ⑵ 안 주는 것만 원본에서 떼어 심는다
+ *    — ⛔전부 심으면 하네스 대역(예: applyFrameRotationMargin 빈 함수)을 덮어 동작이 바뀐다 ⑶ assertDepsProvided 로 잠근다.
+ *  ★import 이름은 sliceExternalDeps 가 import 줄에서 끌어온다. ★같은 파일 함수(cornerSign)는 import 가 아니라 그 자가 안 보므로
+ *    «overlay-handles.js 의 export function 중 조각이 부르고 하네스가 안 주는 것»으로 ★같은 꼴로 파생한다(⛔이름을 손으로 적지 않는다). */
+const _PROBE = harnessJs('');                                                    // ★deps 없이 — 하네스가 ★제 손으로 주는 것만
+const _FRAME_NEED = sliceExternalDeps(OH, FRAME_SRC);                             // import 이름 중 조각이 부르는 것
+const _FRAME_MISSING = _FRAME_NEED.filter((n) => !declaresName(_PROBE, n));       // ★하네스가 안 주는 것
+const _OH_LOCAL_MISSING = [...OH.matchAll(/^export function ([\w$]+)\(/gm)].map((m) => m[1])
+  .filter((n) => new RegExp('\\b' + n + '\\s*\\(').test(FRAME_SRC) && !declaresName(_PROBE, n));
+const FRAME_DEPS = [
+  ..._FRAME_MISSING.filter((n) => FG.includes(`export function ${n}(`))
+    .map((n) => sliceBlock(FG, `export function ${n}(`, `★조각이 부르는 외부 이름 — ${n}`)),
+  ..._OH_LOCAL_MISSING.map((n) => sliceBlock(OH, `export function ${n}(`, `★조각이 부르는 같은 파일 함수 — ${n}`)),
+].join('\n').replace(/^export /gm, '');                                          // 일반 script 라 export 를 뗀다
+const HARNESS_JS = harnessJs(FRAME_DEPS);
+/* ★★파생 가드 — ★여기서 던지면 ★페이지 안 ReferenceError ★전에 ★이름을 ★찍어 준다. */
+assertDepsProvided(FRAME_SRC, OH, HARNESS_JS, 'resize-undo-history 하네스(_onHandleMouseDown)');
+if (_OH_LOCAL_MISSING.some((n) => !declaresName(HARNESS_JS, n))) throw new Error(`resize-undo-history 하네스: 같은 파일 함수를 안 준다 — ${_OH_LOCAL_MISSING}`);
 
 const BODY = `
 <div id="canvas-scaler" style="transform:scale(1);transform-origin:0 0">
@@ -180,7 +206,7 @@ async function boot(page) {
 }
 
 /* 브라우저 안에서 도는 «시나리오» — which='shape'|'shapePre'|'frame'|'framePre' */
-const SCENARIO = (which, zoom, moveBy) => {
+const SCENARIO = (which, zoom, moveBy, opts = {}) => {
   const inner = document.getElementById('inner');
   const scaler = document.getElementById('canvas-scaler');
   scaler.style.transform = `scale(${zoom})`;
@@ -196,6 +222,8 @@ const SCENARIO = (which, zoom, moveBy) => {
   ss.id = 'ss_circle';
   ss.dataset.width = '100'; ss.dataset.height = '100';
   ss.style.width = '100px'; ss.style.height = '100px';
+  /* ★1020t1d W2B — 자유배치(absolute) 프레임이면 _onHandleMouseDown 이 «조상 기저» 갈래(measureLocalBasis)를 탄다 */
+  if (opts.abs) { ss.style.position = 'absolute'; ss.style.left = '0px'; ss.style.top = '0px'; }
   const blk = document.createElement('div');
   blk.className = 'shape-block';
   blk.id = 'shp_circle';
@@ -212,7 +240,10 @@ const SCENARIO = (which, zoom, moveBy) => {
   // ③ 첫 리사이즈 — se 핸들을 잡고 «한 번에» 끌지 않고 두 틱으로 민다(실제 마우스처럼).
   const target = which.startsWith('shape') ? blk : ss;
   const md = new MouseEvent('mousedown', { button: 0, clientX: 300, clientY: 300, bubbles: true });
+  /* 갈래 표식 — 기저 갈래는 mousedown 안에서 그 프레임 style 을 탐침으로 쓴다(옛 갈래 0번) */
+  const _mo = new MutationObserver(() => {}); _mo.observe(ss, { attributes: true, attributeFilter: ['style'] });
   window.__handlers[which](md, target, 'se');
+  const mdStyleWrites = _mo.takeRecords().length; _mo.disconnect();
   const step = (dx, dy) => document.dispatchEvent(
     new MouseEvent('mousemove', { clientX: 300 + dx, clientY: 300 + dy, bubbles: true }));
   step(moveBy[0] / 2, moveBy[1] / 2);
@@ -236,13 +267,13 @@ const SCENARIO = (which, zoom, moveBy) => {
   window.redo();
   const redo2 = { alive: !!document.getElementById('ss_circle'), liveW: w('ss_circle') };
 
-  return { afterInsert, afterDrag, undo1, undo2, redo1, redo2 };
+  return { afterInsert, afterDrag, undo1, undo2, redo1, redo2, mdStyleWrites };
 };
 
 const SCENARIO_SRC = SCENARIO.toString();
-const run = (page, which, zoom, moveBy) => page.evaluate(
-  ({ src, which, zoom, moveBy }) => eval('(' + src + ')')(which, zoom, moveBy),
-  { src: SCENARIO_SRC, which, zoom, moveBy });
+const run = (page, which, zoom, moveBy, opts = {}) => page.evaluate(
+  ({ src, which, zoom, moveBy, opts }) => eval('(' + src + ')')(which, zoom, moveBy, opts),
+  { src: SCENARIO_SRC, which, zoom, moveBy, opts });
 
 /* ═══════════════════════════════════════════════════════════════════════════
    T1b — 현빈 재현 그대로(도형 블록 .shape-handle)
@@ -292,6 +323,23 @@ test('T1a-음성대조 ★프레임도 dev 모양이면 첫 ⌘Z 가 삽입을 �
   await boot(page);
   const r = await run(page, 'framePre', 1, [80, 60]);
   expect(r.undo1.alive, '★음성대조 실패').toBe(false);
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   T1c — ★1020t1d W2B: 자유배치(absolute) 프레임. T1a 의 프레임은 relative 라 _onHandleMouseDown 의
+   «조상 기저» 갈래(measureLocalBasis · localDeltaFromBasis · cornerSign)를 안 탄다 ⇒ 하네스가 그 이름들을
+   안 심어도 초록이었다(잠복). 이 칸이 그 갈래를 «실제로» 돌린다 — 갈래 표식 = mousedown 안 style 쓰기 수.
+═══════════════════════════════════════════════════════════════════════════ */
+test('T1c ★자유배치(absolute) 프레임도 같다 — 조상 기저 갈래가 돈다', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await run(page, 'frame', 1, [80, 60], { abs: true });
+  expect(errs).toEqual([]);
+  expect(r.mdStyleWrites, '갈래 표식: 기저 탐침이 mousedown 안에서 style 을 썼다(옛 갈래면 0)').toBeGreaterThan(0);
+  expect(r.afterDrag.len).toBe(3);
+  expect(r.afterDrag.liveW, '무변환 줌 1 — 화면 +80 = 로컬 +80').toBe('180px');
+  expect(r.undo1.alive, '첫 ⌘Z 에 프레임이 통째로 사라졌다').toBe(true);
+  expect(r.undo1.liveW).toBe('100px');
+  expect(r.undo2.alive).toBe(false);
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════

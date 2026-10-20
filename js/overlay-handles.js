@@ -3,7 +3,8 @@
    Resize / radius handles for frames, mockups, icons, assets, canvas, vectors
    Extracted from drag-drop.js (lines ~13–988)
 ═══════════════════════════════════ */
-import { applyFrameTransform, applyFrameRotationMargin, blockRotationDeg } from './frame-geometry.js';
+import { applyFrameTransform, applyFrameRotationMargin, blockRotationDeg,
+         measureLocalBasis, localDeltaFromBasis } from './frame-geometry.js';
 
 import { resizeColBoundary, resizeRowHeight, resizeGridImage,
          resizeCmpRowHeight, setCmpRowHeight } from './grid-cell-resize.js';   /* ★1017t1c4 비교 행 경계 드래그 — ★같은 모듈(새 import 간선 0) */
@@ -308,8 +309,32 @@ function _onHandleMouseDown(e, ss, dir) {
   const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
   // 회전 시 getBoundingClientRect는 AABB(부풀림) → 미회전 layout 크기(offset*)를 기준으로.
   const _rotStart = _blockRotationDeg(ss);
-  const startW = _rotStart ? Math.round(ss.offsetWidth)  : Math.round(ssRect.width  / scale0);
-  const startH = _rotStart ? Math.round(ss.offsetHeight) : Math.round(ssRect.height / scale0);
+  /* ★1020t1d W2B ⒝ — 회전한 «조상» 프레임 안의 자유배치 자식 프레임 (실측: 핀 a42d76d5 · 줌 40% · 화면 (+40,+20)).
+     조상 rot90 이면 ⑴ 시작 크기를 화면 AABB 로 읽어 W·H 가 ★뒤바뀌고(300×200 → startW 200·startH 300)
+     ⑵ 화면 Δ 를 줌으로만 나눠 ★축이 뒤바뀐다 ⇒ 화면 상자 Δ [60,0]·[20,0]·[60,−80]·[20,−80] (기대 [±40,±20]).
+     조상 flipH/flipV/둘다 는 ★결함이 아니었다(4손잡이×3꼴 전부 맞음): 손잡이는 `_cornerScreen` 이 화면 AABB
+     꼭지점에 두므로 data-dir 은 «화면 자리» 이름이고, Δ 부호 뒤집힘과 ★상쇄된다.
+     ⇒ 고침 = frame-geometry.js 의 기저를 제스처당 1회 재서(measureLocalBasis — left/top 을 쓰는 absolute 자식만)
+       ⒜ Δ 를 로컬로(localDeltaFromBasis) ⒝ 손잡이의 «화면 바깥 방향»(cornerSign)도 ★같은 기저로 로컬로 옮겨
+          로컬 꼭지점(_dirL)을 정한다. ⛔Δ 만 바꾸면 flip 3꼴이 새로 깨진다(flipH: se 가 로컬 sw 라 W 가 준다).
+       ⒞ 시작 크기는 회전 갈래와 같은 offsetWidth/Height(변환 무관 layout 크기).
+     자기 회전이 있으면(_rotStart) 이 길을 안 탄다 — 그때 손잡이는 _cornerScreen 이 로컬 꼭지점에 두고
+       _unrotateDelta 가 맞다(양성대조 tests/dom/resize-handle-rot-1020w2b ×3). 기저 null(흐름 자식·퇴화) = 옛 식.
+     ⚠️무변환 판에서도 탄다(absolute 면 조상 변환이 없어도) · 제스처당 강제 레이아웃 2회 ·
+       실측 ×30 중앙 1.5ms · p90 3ms · 최대 4ms (1,820 요소 · 줌 40%) · 비교 ⒜⒝ 1,724 요소 중앙 1.8 · 최대 7.5 ·
+       판정선 100ms ⇒ 조건을 더하지 않았다.
+       더럽힌 뒤 중앙 38ms — 이 갈래가 없어도 치를 몫으로 읽었다 · 쪼개서 재지는 않았다. */
+  let _basis = (!_rotStart && ss.style.position === 'absolute') ? measureLocalBasis(ss) : null;
+  let _dirL = dir;
+  if (_basis) {
+    const _cs = cornerSign(dir);
+    const _lo = localDeltaFromBasis(_basis, _cs.sx, _cs.sy);
+    if (_lo) _dirL = (_lo.dy >= 0 ? 's' : 'n') + (_lo.dx >= 0 ? 'e' : 'w');
+    else _basis = null;
+  }
+  const _layoutStart = _rotStart || _basis;
+  const startW = _layoutStart ? Math.round(ss.offsetWidth)  : Math.round(ssRect.width  / scale0);
+  const startH = _layoutStart ? Math.round(ss.offsetHeight) : Math.round(ssRect.height / scale0);
   const secInner = ss.closest('.section-inner') || ss.closest('.section-block');
   const secInnerCS = secInner ? getComputedStyle(secInner) : null;
   const paddingH = secInnerCS ? parseFloat(secInnerCS.paddingLeft) + parseFloat(secInnerCS.paddingRight) : 0;
@@ -353,18 +378,20 @@ function _onHandleMouseDown(e, ss, dir) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     // 회전된 프레임: 스크린 델타를 블록 로컬축으로 역회전(회전 0이면 그대로 → 회귀 0)
-    const _rd = _unrotateDelta(ss, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
+    //   ★1020t1d W2B ⒝ — 조상 기저가 있으면 화면 Δ → 로컬 Δ (줌 포함 · 위 _basis 주석)
+    const _ld = _basis ? localDeltaFromBasis(_basis, ev.clientX - startX, ev.clientY - startY) : null;
+    const _rd = _ld || _unrotateDelta(ss, (ev.clientX - startX) / scale, (ev.clientY - startY) / scale);
     const dx = _rd.dx;
     const dy = _rd.dy;
     /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
        — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
     _hist?.arm(dx, dy);
     let newW = startW, newH = startH;
-    if (dir.includes('e')) newW = Math.min(maxW, Math.max(60, startW + dx));
-    if (dir.includes('w')) newW = Math.min(maxW, Math.max(60, startW - dx));
+    if (_dirL.includes('e')) newW = Math.min(maxW, Math.max(60, startW + dx));
+    if (_dirL.includes('w')) newW = Math.min(maxW, Math.max(60, startW - dx));
     if (!isFullWidth) {
-      if (dir.includes('s')) newH = Math.max(40, startH + dy);
-      if (dir.includes('n')) newH = Math.max(40, startH - dy);
+      if (_dirL.includes('s')) newH = Math.max(40, startH + dy);
+      if (_dirL.includes('n')) newH = Math.max(40, startH - dy);
     }
     newW = Math.round(newW); newH = Math.round(newH);
     ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
