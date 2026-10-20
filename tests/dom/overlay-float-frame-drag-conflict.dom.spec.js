@@ -21,7 +21,7 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
-const { sliceBlock } = require('../unit/_slice-block.js');
+const { sliceBlock, sliceExternalDeps, assertDepsProvided, declaresName } = require('../unit/_slice-block.js');
 
 const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
@@ -67,7 +67,7 @@ function elastic(raw, boundMax, zone = RESIST_ZONE) {
 }
 const HARD_MAX_LEFT = SEC_W - BOX_W;   // bindFrameDropZone 의 하드 클램프 정확값
 
-function harness(preMode) {
+function harness(preMode, deps = '') {
   return `<!doctype html><html><head><meta charset="utf-8">
     <style>
       * { box-sizing: border-box; }
@@ -126,6 +126,9 @@ function harness(preMode) {
          그 이웃 이름(block-drag.js 의 import 별칭)을 앱과 같은 실체(window._bindOverlayMoveDrag = overlay-float.js bindFloatMoveDrag)로 잇는다.
          같은 posEl 에 두 번 안 걸리므로(_overlayMoveBound) boot 의 선행 바인딩과 겹쳐도 리스너는 하나다. */
       const _bindFloatMoveDrag = (el) => window._bindOverlayMoveDrag(el);
+      /* ★조각이 부르는 외부 이름 중 ★이 하네스가 안 주는 것 — ★파생(아래 FG_DEPS) ·
+         ★대역이 아니라 ★진짜 구현이다(frame-geometry.js 는 ★import 0건 · ★순수 계산) */
+      ${deps}
       ${preMode ? BIND_FRAME_DROPZONE_PRE : BIND_FRAME_DROPZONE}
       window.__bindFrameDropZone = bindFrameDropZone;
       window.__frameZoneReady = true;
@@ -133,12 +136,40 @@ function harness(preMode) {
     </body></html>`;
 }
 
+/* ══ ★★261021 — ★조각이 부르는 ★외부 이름을 ★파생으로 채운다 ═════════════════════════
+ *  ★사고: 이 spec 이 `bindFrameDropZone`(★555줄)을 ★일반 `<script>` 로 심는데,
+ *    ★그 조각은 ★`js/block-drag.js` 의 ★import 이름을 ★★17개 부른다.
+ *    ★이 하네스는 ★「무관한 것만 ★최소로」 세웠고(위 주석 그대로) ★8개를 ★안 줬다.
+ *    ★그 8개는 ★안 닿는 갈래에 있어 ★조용했다 — ★★그런데 `a42d76d5`(지디 · 1020t1d ⒞)가
+ *    ★`localStartFromStyle` 을 ★★닿는 갈래에 넣었다 ⇒ ★ReferenceError(F2) ＋
+ *    ★F1 음성대조가 ★예외에 먼저 걸려 ★「탄성이 안 사라진다」로 ★거짓 자가신고.
+ *  ★★정직하게: ★화약(안 준 이름 ★5개)은 ★내 커밋보다 ★앞에 있었고 ★내가 ★도화선을 당겼다.
+ *  ★가드가 ★있었는데 ★안 울렸다 — 아래 `GUARD_LINE` ★한 줄만 봤다.
+ *  ★★처방: ⑴ ★빠진 것을 ★파생으로 ★채운다(⛔이름을 손으로 적지 않는다) ·
+ *          ⑵ ★가드를 ★「호출하는 외부 이름 ★전부」로 ★넓힌다.
+ *  ★왜 ★대역이 아니라 ★★진짜 구현인가 — 위 주석이 「드래그 ★본체는 ★진짜 코드 그대로」라 했다.
+ *    ★`js/frame-geometry.js` 는 ★import ★0건(그 파일 머리말: 「다른 모듈을 import 하지 않는
+ *    ★순수 계산 ＋ 얇은 DOM 어댑터」) ⇒ ★떼어 심어도 ★그래프가 안 끌려온다. */
+const FG = read('js/frame-geometry.js');
+const _PROBE = harness(false, '');                                  // ★deps 없이 — 하네스가 ★제 손으로 주는 것만
+const NEED = sliceExternalDeps(BD, BIND_FRAME_DROPZONE);            // ★17
+const MISSING = NEED.filter((n) => !declaresName(_PROBE, n));       // ★하네스가 안 주는 것
+const FG_DEPS = MISSING
+  .filter((n) => FG.includes(`export function ${n}(`))
+  .map((n) => sliceBlock(FG, `export function ${n}(`, `★조각이 부르는 외부 이름 — ${n}`))
+  .join('\n')
+  .replace(/^export /gm, '');                                       // 일반 script 라 export 를 뗀다
+/* ★★파생 가드 — ⛔「가드 줄 하나」만 보던 위 가드는 ★이 결함을 ★못 잡았다.
+ *  ★여기서 던지면 ★페이지 안 ReferenceError ★전에 ★이름을 ★찍어 준다. */
+assertDepsProvided(BIND_FRAME_DROPZONE, BD, _PROBE + FG_DEPS, 'overlay-float-frame-drag-conflict 하네스');
+
+
 async function boot(page, { pre = false } = {}) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname === '/__harness.html') return route.fulfill({ contentType: 'text/html', body: harness(pre) });
+    if (url.pathname === '/__harness.html') return route.fulfill({ contentType: 'text/html', body: harness(pre, FG_DEPS) });
     if (url.pathname === '/overlay-float.js') return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_FLOAT_JS });
     if (url.pathname === '/frame-geometry.js') return route.fulfill({ contentType: 'application/javascript', body: FRAME_GEOMETRY_JS });
     if (url.pathname === '/shape-frame.js') return route.fulfill({ contentType: 'application/javascript', body: SHAPE_FRAME_JS });

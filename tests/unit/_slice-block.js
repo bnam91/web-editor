@@ -199,4 +199,67 @@ function sliceCall(src, header, note) {
   return src.slice(i, end + 1);
 }
 
-module.exports = { sliceBlock, sliceCall, findBlockEnd };
+/* ══ ★★조각이 ★부르는 ★«외부 import 이름»을 ★파생시킨다 ═════════════════════════
+ *  ★왜 — ★261021 사고: `overlay-float-frame-drag-conflict.dom.spec.js` 가
+ *    `bindFrameDropZone`(555줄)을 떼어 ★일반 `<script>` 로 심는데, ★그 조각이
+ *    `js/block-drag.js:22` 의 ★import 이름 셋(measureLocalBasis·localDeltaFromBasis·
+ *    ★localStartFromStyle)을 ★부른다 ⇒ ★모듈 범위가 없어 ★ReferenceError.
+ *  ★★그 spec 엔 ★가드가 ★있었다 — 「하네스가 늙었다」. ★그런데 ★가드 ★줄 하나만 봤다.
+ *    ⇒ ★그 결함을 ★못 잡았다. ★★「세워 둔 방어」와 ★「발동한 방어」는 다르다.
+ *  ⇒ ★여기에 ★파생으로 둔다 — ⛔이름을 ★손으로 적지 않는다. ★원본의 import 줄에서 ★끌어온다.
+ *    ★그러면 ★원본에 import 가 ★하나 늘어도 ★자가 ★따라온다.
+ *  ★`localStartFromStyle` 을 들여온 커밋 = `a42d76d5`(지디 · 1020t1d ⒞) —
+ *    ★그 커밋이 ★「DOM 전수 안 돌렸다」라 적혀 있었고 ★바로 이 자리가 ★잡힐 자리였다. */
+function _importedNames(src) {
+  const out = new Set();
+  const re = /^\s*import\s+([^;]+?)\s+from\s+['"][^'"]+['"]/gm;
+  let m;
+  while ((m = re.exec(src))) {
+    const clause = m[1];
+    const brace = clause.match(/\{([^}]*)\}/);
+    if (brace) {
+      for (const part of brace[1].split(',')) {
+        const name = part.trim().split(/\s+as\s+/).pop().trim();
+        if (name) out.add(name);
+      }
+    }
+    const bare = clause.replace(/\{[^}]*\}/g, '').replace(/^\s*,|,\s*$/g, '').trim();
+    if (bare && /^[A-Za-z_$][\w$]*$/.test(bare)) out.add(bare);
+  }
+  return out;
+}
+
+/** 조각이 ★실제로 부르는 외부 import 이름만 (★호출 꼴 `name(` 으로 센다 · 주석도 포함될 수 있어 ★넉넉히 잡는다) */
+function sliceExternalDeps(src, slice) {
+  const need = [];
+  for (const n of _importedNames(src)) {
+    if (new RegExp('\\b' + n + '\\s*\\(').test(slice)) need.push(n);
+  }
+  return need.sort();
+}
+
+/** ★어떤 글에 그 이름이 ★선언돼 있나 — ★판정이 ★한 자리다(⛔두 벌이면 조용히 갈린다). */
+function declaresName(text, name) {
+  return new RegExp(
+    '\\b(?:function|const|let|var)\\s+' + name + '\\b' +      // function x / const x
+    '|\\b' + name + '\\s*=\\s*(?:\\(|function|async)' +      // x = (…) => / x = function
+    '|\\bwindow\\.' + name + '\\s*='                          // window.x =
+  ).test(text);
+}
+
+/** ★하네스가 그 이름들을 ★주는지 단언한다. ⛔안 주면 ★던진다(★페이지 안 ReferenceError 보다 ★먼저). */
+function assertDepsProvided(slice, src, providedText, where = '(이름 없음)') {
+  const need = sliceExternalDeps(src, slice);
+  const missing = need.filter((n) => !declaresName(providedText, n));
+  if (missing.length) {
+    throw new Error(
+      `_slice-block: ★하네스가 조각의 외부 이름을 안 준다 — ${where}\n` +
+      `  ★필요: ${need.join(', ')}\n  ★빠짐: ${missing.join(', ')}\n` +
+      `  ⇒ 그 이름들을 ★같은 <script> 에 같이 심거나, 하네스를 ★모듈로 심어 import 를 살려라.\n` +
+      `  ⛔«가드 줄 하나»만 보는 가드로는 이 결함을 못 잡는다(261021 실측).`
+    );
+  }
+  return need;
+}
+
+module.exports = { sliceBlock, sliceCall, findBlockEnd, sliceExternalDeps, assertDepsProvided, declaresName };
