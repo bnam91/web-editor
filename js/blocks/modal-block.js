@@ -675,8 +675,17 @@ function renderModalBlock(block) {
   // titled 는 제목 줄이 자기 패딩을 갖는다 → 루트 패딩 0, 안쪽에서 준다
   const rootPad = (v === 'titled') ? '0' : `${padY}px ${padX}px`;
 
+  /* ★1020t2f4 폭 — 떠 있는(오버레이) 모달은 «굳힌 폭»(dataset.overlayFrozenWidth)이 정본이다 — 지디 결정 2026-10-04 ㉠
+       「떠 있는 것은 굳힌 폭이 정본」(grid-block.js:774) · 선례 grid-block.js:2791 · comparison-block.js:347.
+     ★삼항 «모양»은 그대로 두고 width 의 «값»만 갈아끼운다 — 두 갈래가 내는 선언이 다르다(fixed 는 max-width·margin 까지 낸다).
+       ⛔width 만 내는 셋째 갈래를 두지 않는다 — «떠 있고 fixed» 에서 max-width 가 빠진다(overlay-float.js 는 wMode 를 안 건드린다 · 0건).
+       결과: 떠 있고 full → width:<굳힌 폭> / 떠 있고 fixed → width 값만 바뀜 / 안 떠 있음 → 한 글자도 안 바뀜.
+     ⛔cssText 뒤에 block.style.width = … 를 따로 붙이지 않는다(위 :332~334 「두 번째 진실」).
+     ★렌더는 그 키를 «읽기만» 한다 — ⛔없는 표식을 새로 심지 않는다(grid-block.js:781 · 해제 때 치울 주인은 overlay-float.js).
+     ⚠️재면(2026-10-21 · w2c-frzW3): 이 값이 없으면 ⌘Z·패널 변경 뒤 width:796px → 100% (섹션 폭으로 늘어난다). */
+  const _frozenW = (block.dataset.overlayBlock === 'true' && block.dataset.overlayFrozenWidth) || '';
   block.style.cssText = 'box-sizing:border-box;position:relative;'
-    + (wMode === 'fixed' ? `width:${_num(block, 'width', MODAL_DEFAULTS.width)}px;max-width:100%;margin-left:auto;margin-right:auto;` : 'width:100%;')
+    + (wMode === 'fixed' ? `width:${_frozenW || _num(block, 'width', MODAL_DEFAULTS.width) + 'px'};max-width:100%;margin-left:auto;margin-right:auto;` : `width:${_frozenW || '100%'};`)
     + (hMode === 'fixed' ? `min-height:${_num(block, 'height', MODAL_DEFAULTS.height)}px;` : '')
     + `background:${bg};color:${textColor};font-size:${fontSize}px;text-align:${align};`
     + _bgImageStyles(block)   /* ★★background 단축 «바로 뒤» — 안 그러면 단축이 이미지를 되돌린다 */
@@ -726,6 +735,21 @@ function renderModalBlock(block) {
   if (Number.isFinite(_mdlRot) && _mdlRot !== 0) {
     block.style.transform = `rotate(${_mdlRot}deg)`;
     block.style.transformOrigin = 'center center';
+  }
+  /* ★★오버레이(띄운) 모달의 자리를 ★여기서 ★다시 얹는다 — 1020t2f4(현빈 「mdl_ts0he_rxyvw2u 모달블럭을 오버레이 시켰는데
+       쾌적하지가 않네? 이동이?」) · 지디 판정 2026-10-21 ㉮. 위 회전(T11)과 ★같은 꼴이다.
+     ⛔위 `block.style.cssText = …` 가 ★position:absolute · left/top 을 ★통째로 지운다 ⇒ ⌘Z(restoreSnapshot → rebindAll →
+       renderModalBlock → bindBlock) · 패널 변경 뒤 ★overlayBlock='true' 인데 ★흐름(relative)으로 떨어지고,
+       bindPlacementDrag 가 ★draggable="true" 를 붙여 ★네이티브 끌기가 선다(가운데를 잡으면 안 따라오고 놓을 때 튄다).
+     ★자리의 출처는 ★dataset.offsetX/offsetY ★하나다(overlay-float.js _applyOverlayPos 의 SSOT) — ⛔제 칸을 만들지 않는다.
+     ⛔_applyOverlayPos 를 ★부르지 않는다 — 그 함수는 열린 패널의 X/Y 칸까지 만진다(렌더 안 부작용). ★문자열만 얹는다.
+     ⚠️★근본은 ★cssText 통째 쓰기다 · ㉮ 는 ★«지운 뒤 다시 얹기»라, ★지워지는 것이 또 생기면 ★또 빠진다 · ★T11 과 같은 병.
+       (오버레이 진입이 얹는 인라인 = position · left · top · width · max-width · margin-left/right — 무엇이 지워지는지는
+        tests/dom/w2c-1020t2 F4b 의 lost 명부가 잰다.) */
+  if (block.dataset.overlayBlock === 'true') {
+    block.style.position = 'absolute';
+    block.style.left = (parseInt(block.dataset.offsetX, 10) || 0) + 'px';
+    block.style.top  = (parseInt(block.dataset.offsetY, 10) || 0) + 'px';
   }
 
   const title = block.dataset.titleText;

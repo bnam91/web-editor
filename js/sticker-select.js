@@ -658,6 +658,19 @@ function bindStickerSelect(block) {
 
     let origX = parseInt(block.dataset.x) || 0;
     let origY = parseInt(block.dataset.y) || 0;
+    /* ★1020t2f3(현빈 「스티커 블럭은 ★섹션 밖으로 이동이 안되니? ★오버레이된 블럭들과 비교해봐」) — ⌘ 없는 끌기도 오버레이와
+       «같은 탄성»으로 섹션 밖에 나간다(경계에서 턱 → 저항 → 넘으면 자유). 곡선은 js/overlay-float.js 한 벌(window.OverlayFloat.elastic).
+       ★시작 자리는 «출력»이라 raw 로 되돌려 놓는다(overlay-float.js _elasticAxisInverse 머리말 — 안 그러면 밖에 있던 스티커가 잡는 순간 튄다).
+       그 차이(rawShift)를 매 틱 raw 에 더한다. 섹션을 갈아타면(재부모) 그 자리는 섹션 안이라 차이가 0 이 된다.
+       ⚠️선 스티커(highlightB·arrow)는 위 갈래에서 끝난다 — 여기 안 온다(그대로 섹션 안 clamp · 안 넓혔다). */
+    const _el = (window.OverlayFloat && window.OverlayFloat.elastic) || null;
+    const _zoneOf = () => (_el ? _el.zoneScreenPx / zoom : 0);
+    let rawShift = [0, 0];
+    if (_el) {
+      const bw0 = block.offsetWidth || 0, bh0 = block.offsetHeight || 0;
+      const mx0 = Math.max(0, (sec.clientWidth || 0) - bw0), my0 = Math.max(0, (sec.clientHeight || 0) - bh0);
+      rawShift = [_el.axisInverse(origX, mx0, _zoneOf()) - origX, _el.axisInverse(origY, my0, _zoneOf()) - origY];
+    }
     // 드래그 시작 시 마우스가 블록 내부 어디를 잡았는지 (offset)
     const blockRect = block.getBoundingClientRect();
     const grabOffX = (startX - blockRect.left) / zoom;
@@ -683,6 +696,7 @@ function bindStickerSelect(block) {
         const newXraw = (ev.clientX - secRect.left) / zoom - grabOffX;
         const newYraw = (ev.clientY - secRect.top)  / zoom - grabOffY;
         const [cx, cy] = window._clampToSection(newXraw, newYraw, sec, blockW, blockH);
+        rawShift = [0, 0];   // ★1020t2f3 — 새 섹션 안에 놓았으니 raw = 출력
         origX = Math.round(cx);
         origY = Math.round(cy);
         block.dataset.x = String(origX);
@@ -698,9 +712,12 @@ function bindStickerSelect(block) {
       const newXraw = (ev.clientX - secRect.left) / zoom - grabOffX;
       const newYraw = (ev.clientY - secRect.top)  / zoom - grabOffY;
       /* ⌘ 자유 이동도 코인은 10% 를 남긴다(1013t2C2) — 다른 스티커는 그대로 한도 없음 */
-      const [cx, cy] = freeMove
+      let [cx, cy] = freeMove
         ? (_clampCoinKeep(block, newXraw, newYraw, sec) || [newXraw, newYraw])
-        : window._clampToSection(newXraw, newYraw, sec, blockW, blockH);
+        : (_el ? _el.clamp(newXraw + rawShift[0], newYraw + rawShift[1], sec, blockW, blockH, _zoneOf())   // ★1020t2f3 — 탄성(오버레이와 같은 곡선)
+               : window._clampToSection(newXraw, newYraw, sec, blockW, blockH));
+      /* 코인은 ⌘ 없이 끌어도 그림의 10% 를 섹션 안에 남긴다(1013t2C2 규칙을 탄성 위에 그대로) */
+      if (!freeMove && _el) [cx, cy] = _clampCoinKeep(block, cx, cy, sec) || [cx, cy];
       const newX = Math.round(cx);
       const newY = Math.round(cy);
       block.dataset.x = String(newX);

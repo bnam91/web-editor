@@ -5,7 +5,7 @@ import { propPanel } from '../globals.js';
 import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline } from '../frame-bg.js';
 import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
+import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 /* 버즈(1012t1Z5) — 버즈 표식 프레임이면 머리 바로 뒤에 「Buzz」 절을 그린다(절의 마크업 · 배선은 그 파일의 것). */
@@ -413,6 +413,12 @@ function _renderAutoPanel(ss) {
   /* 프로토 Z6-C — 「Radial Arrange」 절(문자열은 js/radial-arrange.js). 이미 배치된 프레임이면 Layout 바로 아래에, 아니면 Child Align 아래에 「배치 시작」 단추만 둔다. */
   const _radialSec = (isFreeLayout && !isShapeFrame) ? (window.radialArrangeSectionHTML?.(ss) || '') : '';
   const _radialTop = ss.dataset.radialArrange === '1';
+  /* ★1020t2f1(현빈 「그룹설정된 블럭들도 오버레이할 수 있는 버튼」) — ⌘G 그룹(.frame-block[data-group])의 패널에도
+     오버레이 단추를 단다. ★동작은 js/overlay-float.js 한 벌(wireFloatToggle → enterFloat/exitFloat) — 여기선 «겉모습»만.
+     그룹을 띄울 받침은 이미 있다: posElOf(그룹) = 그룹 자신 · 떠 있는 프레임의 끌기는 block-drag.js(absolute 셀 프레임 갈래)가 건다.
+     ⛔그룹 «아닌» 프레임엔 아직 안 단다 — 요청이 그룹이다(넓히려면 현빈 확인). */
+  const _isGroupFrame = ss.dataset.group === 'true';
+  const _groupFloat = _isGroupFrame && ss.dataset.overlayBlock === 'true';
   propPanel.innerHTML = _headerHTML(ss, 'auto') + `
     ${isBuzzFrame(ss) ? buzzSectionHTML(ss) : ''}
     ${isBanner ? `
@@ -436,7 +442,10 @@ function _renderAutoPanel(ss) {
     ` : ''}
     ${isBuzzFrame(ss) ? '' : `
     <div class="prop-section">
-      <div class="prop-section-title">Layout</div>
+      ${_isGroupFrame ? `<div class="prop-section-title prop-ph-header">
+        <span>Layout</span>
+        ${overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: '그룹을 오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다. 다시 누르면 원래 있던 자리로 돌아갑니다.' })}
+      </div>` : '<div class="prop-section-title">Layout</div>'}
       <div class="prop-row" style="gap:4px;">
         <span style="font-size:11px;color:${isFreeLayout ? '#9ca3af' : '#5fb4d8'};font-weight:500;flex:1;">${isFreeLayout ? 'free' : 'stack'}</span>
         ${isFreeLayout ? `<button class="prop-action-btn secondary" id="ss-to-stack-btn" style="height:24px;padding:0 10px;font-size:11px;width:auto;flex:0 0 auto;">stack</button>` : ''}
@@ -651,6 +660,8 @@ function _renderAutoPanel(ss) {
   }
 
   // ── Layout: 스택 변환 ──
+  /* ★1020t2f1 — 그룹 오버레이 단추 배선(텍스트·도형·모달과 «같은 함수»). ⛔window.* 로 — 이 패널 파일은 단위 하네스가 대역으로 싣는다. */
+  if (ss.dataset.group === 'true') window.wireFloatToggle?.({ block: ss, buttonId: 'ss-float-toggle', rerender: () => { showFrameProperties(ss); window.showHandlesFor?.(ss); } });
   document.getElementById('ss-to-stack-btn')?.addEventListener('click', () => {
     _convertFreeLayoutToStack(ss);
   });

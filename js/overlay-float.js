@@ -810,6 +810,9 @@ export function floatPositionRowHTML({ prefix, posEl }) {
 if (typeof window !== 'undefined') {
   window._bindOverlayMoveDrag = bindFloatMoveDrag;
   window.OverlayFloat = { posElOf, isFloat, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, floatPositionRowHTML };
+  /* ★1020t2f3 — 스티커 끌기(classic script js/sticker-select.js)가 오버레이와 «같은 탄성 곡선»을 쓰게 낸다.
+     ⛔사본을 만들지 않는다 — 곡선이 둘이면 손맛이 조용히 갈라진다(T-068 이 이동·크기조절을 한 벌로 묶은 까닭과 같다). */
+  window.OverlayFloat.elastic = { clamp: _elasticClampToSection, axisInverse: _elasticAxisInverse, zoneScreenPx: OVERLAY_RESIST_ZONE_SCREEN_PX };
 }
 
 /* ★window 로도 낸다 — 정적 import 를 늘리면 unit 하네스(축소판 복사)가 깨지는 자리(prop-grid.js 그리드 오버레이)가 부른다. */
