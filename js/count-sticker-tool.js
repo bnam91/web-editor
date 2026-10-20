@@ -56,7 +56,11 @@ const COUNT_STK_ICON_SVG_MAX = 20000;       // js/util/sanitize-svg.js SVG_MAX_L
      · 라벨 글자 높이 ≈ 마커 한 변: labelSizeRatio 0.9(마커 56 → 라벨 50px) · 라벨은 오른쪽
    ★1017t1j2(현빈): 위 주황(#eb6217)·짙은 꺾쇠(#1a1a1a)를 ★검정 배경·흰 글자로 바꿨다(바로 아래 bgColor/textColor) —
      픽셀 측정(주황 3158개의 최빈 235,98,23)은 ★폐기가 아니라 ★대체됐다. 되돌릴 땐 이 줄과 위 두 줄을 같이 읽어라.
-     ⚠️그 결과 countLabelColor(#ffffff)와 textColor(#ffffff)가 ★값이 같아진다 — 그래도 ★키는 따로다(패널의 글자색·라벨색 칸이 따로 쓴다). */
+     ⚠️그 결과 countLabelColor(#ffffff)와 textColor(#ffffff)가 ★값이 같아진다 — 그래도 ★키는 따로다(패널의 글자색·라벨색 칸이 따로 쓴다).
+   ★261020 h1(현빈 「유지해주고 앞에 모양과 표기들만 바껴야지」) — 이 표의 «라벨 칸»(set 의 countLabelColor·countLabelWeight·
+     countLabelPos · labelSizeRatio · unset 의 countLabelColor·countLabelWeight·countLabelSize)은 ★값 그대로 둔다. 다만 이제
+     적용 함수가 ★라벨 글자가 있는 마킹에는 안 쓴다(쓰지도 지우지도 않는다) — ★라벨 글자가 없는 마킹에만 쓴다
+     (앞으로 칠 라벨이 그 꼴로 나온다 · 1013t2B5 의 «흰 굵은 라벨»이 거기서 산다). 거르는 자리 = 아래 _cntPresetTouchesLabel 한 자리. */
 const COUNT_STK_PRESETS = {
   number: {
     set: { countStyle: 'num', countShape: 'circle', shape: 'circle', bgColor: '#000000', textColor: '#ffffff' },
@@ -70,6 +74,9 @@ const COUNT_STK_PRESETS = {
   },
 };
 const COUNT_STK_PRESET_NAMES = Object.keys(COUNT_STK_PRESETS);
+/* 프리셋 표의 «라벨 칸» 키(261020 h1) — 라벨 글자가 있는 마킹에서는 프리셋이 이 키를 쓰지도 지우지도 않는다.
+   위치(countLabelPos)도 넣는다(D1 — 원문 「앞에 모양과 표기들만」: 라벨 자리는 앞의 것이 아니다). */
+const COUNT_STK_PRESET_LABEL_KEYS = ['countLabelColor', 'countLabelSize', 'countLabelWeight', 'countLabelPos'];
 
 /* 표기 값 3갈래 — 모르는 값은 num(옛 저장본·손댄 값이 조용히 다른 그림이 되지 않게). */
 function _cntStyle(v) {
@@ -256,15 +263,50 @@ function countStickerCopyToGroup(block, keys) {
   return n;
 }
 
+/* «라벨 글자가 있나» — 정의 자리는 그리기 js/blocks/sticker-block.js _countLabelHTML 의 `has`(raw != null && raw !== '')다.
+   ⇒ data-count-label 이 없거나 '' 이면 «라벨 없음» · 공백만이어도 «있음»(그리기가 white-space:pre 로 그 공백을 그린다). */
+function _cntHasLabel(d) {
+  return d.countLabel != null && d.countLabel !== '';
+}
+/* ★D3 한 자리(261020 h1 · 지디 판정): 프리셋 표의 «라벨 칸»을 이 마킹에 쓰나.
+   라벨 글자가 «없는» 마킹에만 쓴다(1013t2B5 의 흰·굵게·0.9배가 앞으로 칠 라벨에 산다) ·
+   라벨 글자가 «있으면» 안 쓰고 안 지운다(손 값이든 폴백이든 그대로 — 현빈 「유지해주고」). */
+function _cntPresetTouchesLabel(d) {
+  return !_cntHasLabel(d);
+}
+/* ★D2 굳힘(261020 h1) — 라벨 글자가 있고 꾸밈 키가 «없는»(폴백으로 보이던) 라벨은, 프리셋이 바꾼 마커 값(배경색 등)을
+   폴백이 따라가 모습이 달라지면 ★전환 순간 보이던 값을 그 키에 적는다. 보이던 값 = 그리기의 폴백 한 자리
+   window._stickerCountLabelLook(js/blocks/sticker-block.js _countLabelLook — 라벨 인라인 style 이 이 값 그대로다)이 돌려준 값.
+   ⛔새 값을 지어내지 않는다 — 달라진 칸만, 전 값으로만 적는다. 라벨 글자가 없으면 굳히지 않는다(look0 = null).
+   ★지금 표로 실제로 굳는 것 = 색 하나: 두 프리셋 모두 bgColor 를 #000000 으로 깐다 ⇒ 전환 전 마커 배경이 #000000 이 아니고
+     countLabelColor 가 없던 라벨에 «그 전 배경색»(예: 배경 #ff0000 → countLabelColor '#ff0000')이 적힌다.
+     크기(마커 fontSize)·굵기(마커 fontWeight)는 프리셋이 안 건드리므로 지금은 굳을 일이 없다(표가 바뀌면 같은 줄이 그것도 굳힌다). */
+function _cntLabelLookIfShown(b) {
+  if (!_cntHasLabel(b.dataset)) return null;
+  const f = window._stickerCountLabelLook;
+  return typeof f === 'function' ? f(b) : null;             // vm 단위처럼 그리기가 안 실린 곳에서는 굳힘만 건너뛴다
+}
+function _cntKeepLabelLook(b, look0) {
+  const look1 = window._stickerCountLabelLook(b), d = b.dataset;
+  if (String(look1.color) !== String(look0.color)) d.countLabelColor = String(look0.color);
+  if (look1.size !== look0.size) d.countLabelSize = String(look0.size);
+  if (look1.weight !== look0.weight) d.countLabelWeight = String(look0.weight);
+}
+
 // 프리셋 깔기 — 그 섹션의 마킹 전부에. 모르는 이름이면 아무것도 안 한다(0). 히스토리는 부르는 쪽이 한 번 찍는다.
+// ★261020 h1 — 라벨 글자가 있는 마킹에서는 «앞의 모양·표기»만 바꾸고 라벨 꾸밈 키는 그대로 둔다(_cntPresetTouchesLabel).
 function countStickerApplyPreset(sec, name) {
   if (!Object.prototype.hasOwnProperty.call(COUNT_STK_PRESETS, name)) return 0;
   const pre = COUNT_STK_PRESETS[name];
   const list = _cntListOf(sec);
   list.forEach((b) => {
-    Object.keys(pre.set).forEach((k) => { b.dataset[k] = pre.set[k]; });
-    pre.unset.forEach((k) => { delete b.dataset[k]; });
-    if (pre.labelSizeRatio) {
+    const touchLabel = _cntPresetTouchesLabel(b.dataset);
+    const skip = (k) => !touchLabel && COUNT_STK_PRESET_LABEL_KEYS.includes(k);
+    const look0 = _cntLabelLookIfShown(b);
+    Object.keys(pre.set).forEach((k) => { if (!skip(k)) b.dataset[k] = pre.set[k]; });
+    pre.unset.forEach((k) => { if (!skip(k)) delete b.dataset[k]; });
+    if (look0) _cntKeepLabelLook(b, look0);
+    if (pre.labelSizeRatio && touchLabel) {
       const side = _cntInt(b.dataset.sizeW, _cntInt(b.dataset.size, COUNT_STK_DEFAULTS.size));
       b.dataset.countLabelSize = String(Math.min(150, Math.max(6, Math.round(side * pre.labelSizeRatio))));
     }

@@ -1025,13 +1025,16 @@ const labelOf = (page, idx) => page.evaluate((i) => {
 
 test('C32 일괄 크기 조절 — 라벨 글자도 같이 커진다(56→112) · 음성대조: rescaleLabel 을 끄면 그대로', async ({ page }) => {
   const errs = await groupSetup(page);
+  /* ★261020 h1 — 이 기대값은 프리셋이 라벨을 덮던 동작을 잠그고 있었다 · 현빈 «유지해주고 앞에 모양과 표기들만» ⇒ 기대값 바꿈 · 덮지 않는 것이 참.
+     옛 순서: 라벨 치기 → 「포인트」(라벨 있는 셋째에도 countLabelSize 50 을 깔았다 = 덮기).
+     새 순서: 「포인트」 먼저(라벨 없는 마킹에만 50 을 깐다 — D3 · 1013t2B5) → 그 뒤 라벨 치기. 아래 전제·단언 값(50 · 56 · 100 · 22)은 그대로. */
+  // 「포인트」 프리셋 — 라벨이 아직 없으니 countLabelSize = 56 × 0.9 = 50 을 섹션 전부에 깐다
+  await page.click('#stk-count-presets [data-count-preset="point"]');
+  await expect.poll(async () => pluck(await groupLook(page, 'secA'), 'countShape'), '★전제: 포인트 꼴이 깔렸다').toEqual(['square', 'square', 'square']);
   // 셋째에 라벨을 친다(패널 Label 칸)
   await page.click('#stk-count-label');
   await page.fill('#stk-count-label', '포인트라벨');
   await page.evaluate(() => document.activeElement?.blur?.());
-  // 「포인트」 프리셋 — countLabelSize = 56 × 0.9 = 50 을 섹션 전부에 깐다
-  await page.click('#stk-count-presets [data-count-preset="point"]');
-  await expect.poll(async () => pluck(await groupLook(page, 'secA'), 'countShape'), '★전제: 포인트 꼴이 깔렸다').toEqual(['square', 'square', 'square']);
   const pre = await labelOf(page, 2);
   expect([pre.lsize, pre.w], '★전제: 라벨 크기 50 · 마커 폭 56(재기 전 전제 — 지디 규칙)').toEqual(['50', 56]);
 

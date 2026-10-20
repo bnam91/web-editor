@@ -10,6 +10,9 @@
  *   M7 살아남기 — ⌘Z/⌘⇧Z · ⌘D 복제 · 직렬화→다시 싣기 뒤에도 아이콘·라벨이 같다 · 손잡이·편집 잔재가 직렬화에 0
  *   M8 섹션 경계 — 마커가 왼쪽 경계에 걸쳐도 오른쪽 라벨은 안 잘린다(오른쪽 inset 이 음수) · 라벨 없는 것의 --sec-clip 은 예전 값
  *   M9 프리셋 「포인트」 — 한 번에 사각·주황·흰 꺾쇠·흰 라벨(섹션 전부) · ⌘Z 한 칸 / 「번호」 = 기본 꼴로
+ *      ★261020 h1 — 라벨 글자가 있는 마킹의 라벨(색·크기·굵기·자리)은 프리셋이 안 바꾼다(흰 라벨은 라벨 없는 마킹에만)
+ *   M9d 261020 h1 — 프리셋이 «앞»만 바꾸고 라벨은 유지 · 폴백 라벨은 보이던 색을 굳힘(D2) · 라벨 없는 마킹엔 포인트 라벨 꼴(D3)
+ *       · ⌘Z 한 번(히스토리 한 칸)에 마커·라벨 키가 함께 돌아온다
  *   M9b 「아이콘 고르기…」 — 고르개가 준 svg 를 걸러서 섹션 전부에 넣는다 · img 폴백은 안 쓴다(고르개는 «대역» — 모달·네트워크를 안 연다)
  *   ── 2차(이벨류에이터 재검 반영) ──
  *   M5b 라벨 색 폴백 — 패널 칸이 보이는 색 = 그려진 색(배경색 키가 없는 블럭에서도 · D6)
@@ -528,7 +531,7 @@ const shapeLook = (page, secId) => page.evaluate((id) => [...document.querySelec
     labelLeft: lab ? lab.offsetLeft - b.offsetWidth : null, labelFs: lab ? getComputedStyle(lab).fontSize : null, labelFw: lab ? getComputedStyle(lab).fontWeight : null };
 }), secId);
 
-test('M9 프리셋 「포인트」 — 한 번에 주황 둥근 네모·짙은 꺾쇠·흰 굵은 라벨(섹션 전부) · ⌘Z 한 칸 / 「번호」는 기본 꼴로', async ({ page }) => {
+test('M9 프리셋 「포인트」 — 한 번에 주황 둥근 네모·짙은 꺾쇠(섹션 전부) · 라벨 있는 마킹의 라벨은 그대로(261020 h1) · ⌘Z 한 칸 / 「번호」는 기본 꼴로', async ({ page }) => {
   const errs = await three(page);
   await typeLabel(page, '메쉬포켓');
   await commitField(page);
@@ -546,11 +549,14 @@ test('M9 프리셋 「포인트」 — 한 번에 주황 둥근 네모·짙은 �
     await expect.poll(async () => pluck(await shapeLook(page, 'secA'), 'radius'), '★전제: 셋 다 모양이 바뀌었다(둥근 네모)').toEqual(['14px', '14px', '14px']);
     const a = await shapeLook(page, 'secA');
     expect(a.map((m) => ({ radius: m.radius, bg: m.bg, points: m.points, stroke: m.stroke, num: m.num })), '포인트: 둥근 네모 · 검정 · 흰 꺾쇠(섹션 셋 다)').toEqual([point, point, point]);
-    expect([a[2].label, a[2].labelColor, a[2].labelLeft], '포인트: 라벨 글자는 그대로 · 흰색 · 마커 오른쪽').toEqual(['메쉬포켓', WHITE, 11]);
-    expect([a[2].labelFs, a[2].labelFw], '포인트: 라벨 글자 = 마커 한 변(56)의 0.9배 · 굵게').toEqual(['50px', '700']);
+    /* ★261020 h1 — 이 기대값은 프리셋이 라벨을 덮던 동작을 잠그고 있었다 · 현빈 «유지해주고 앞에 모양과 표기들만» ⇒ 기대값 바꿈 · 덮지 않는 것이 참.
+       옛 → 새: labelColor WHITE → BLACK(a0 그대로 · 폴백 = 마커 배경 #000) · [labelFs, labelFw] ['50px','700'] → ['26px','700'](a0 그대로 · 마커 폰트 26)
+       · [stroke, labelColor] [WHITE, WHITE] → [WHITE, BLACK] · panel labelHex 'FFFFFF' → '000000' · labelSize '50' → '26'. labelLeft 11 · labelWeight '700' 은 그대로. */
+    expect([a[2].label, a[2].labelColor, a[2].labelLeft], '포인트: 라벨 글자·색·자리 그대로(검정 · 마커 오른쪽 — 261020 h1)').toEqual(['메쉬포켓', BLACK, 11]);
+    expect([a[2].labelFs, a[2].labelFw], '포인트: 라벨 크기·굵기 그대로(마커 폰트 26 · 700 — 261020 h1)').toEqual(['26px', '700']);
     /* ★1017t1j2 뒤 — 꺾쇠(stroke)와 라벨색(labelColor)이 ★값으로는 같아졌다(둘 다 흰색). 그래도 ★키는 따로다 —
        바로 아래 panel 단언의 txtHex(글자색 칸)·labelHex(라벨색 칸)가 ★각자의 입력칸에서 따로 산다(값이 같아도 독립). */
-    expect([a[2].stroke, a[2].labelColor], '꺾쇠색·라벨색 — 값은 같아졌다(흰·흰) · 독립성은 아래 panel 의 txtHex≠없음·labelHex 가 본다').toEqual([WHITE, WHITE]);
+    expect([a[2].stroke, a[2].labelColor], '꺾쇠색·라벨색 — 꺾쇠는 흰색으로 바뀌고 라벨은 그대로 검정(261020 h1 · 두 키가 따로 산다)').toEqual([WHITE, BLACK]);
     expect(pluck(a, 'label').slice(0, 2), '라벨 글자가 없는 둘에는 라벨이 안 생긴다').toEqual([null, null]);
     const panel = await page.evaluate(() => ({ style: document.querySelector('#stk-count-style .active')?.dataset.countStyle, shape: document.querySelector('#stk-count-shape .active')?.dataset.countShape,
       glyph: document.querySelector('#stk-count-glyph .active')?.dataset.countGlyph, bgHex: document.getElementById('stk-bg-hex')?.value,
@@ -558,7 +564,7 @@ test('M9 프리셋 「포인트」 — 한 번에 주황 둥근 네모·짙은 �
       labelHex: document.getElementById('stk-clabel-hex')?.value, labelSize: document.getElementById('stk-count-label-size-num')?.value, labelWeight: document.getElementById('stk-count-label-weight')?.value,
       handles: document.querySelectorAll('#secA .sticker-block.selected .sticker-corner-handle').length }));
     expect(panel, '패널이 새 꼴로 다시 그려졌다 · 손잡이 그대로 · txtHex·labelHex 는 ★값이 같아도 ★각자의 칸(독립성)')
-      .toEqual({ style: 'icon', shape: 'square', glyph: 'chevron-right', bgHex: '000000', txtHex: 'FFFFFF', radius: '25', labelHex: 'FFFFFF', labelSize: '50', labelWeight: '700', handles: 4 });
+      .toEqual({ style: 'icon', shape: 'square', glyph: 'chevron-right', bgHex: '000000', txtHex: 'FFFFFF', radius: '25', labelHex: '000000', labelSize: '26', labelWeight: '700', handles: 4 });
   }, '마킹 프리셋 포인트', { soft: true });
   expect(await shapeLook(page, 'secB'), '다른 섹션은 그대로(⌘Z 뒤에도)').toEqual(b0);
   expect(h.dPos >= 1 && h.seqNew, `A1 프리셋 직후 꼭대기가 새 칸 — Δpos=${h.dPos} top=${h.topAction}`).toBe(true);
@@ -573,6 +579,40 @@ test('M9 프리셋 「포인트」 — 한 번에 주황 둥근 네모·짙은 �
   await expect.poll(async () => pluck(await shapeLook(page, 'secA'), 'radius'), '★전제: 다시 둥근 네모').toEqual(['14px', '14px', '14px']);
   await page.click('#stk-count-presets [data-count-preset="number"]');
   await expect.poll(() => shapeLook(page, 'secA'), '번호: 원 · 검정 · 번호 글자 · 라벨은 마커 색(검정)으로').toEqual(a0);
+  expect(errs).toEqual([]);
+});
+
+/* ★261020 h1 — 「번호 → 포인트」가 «앞의 모양·표기»만 바꾸고 라벨 글자 꾸밈은 유지 · ⌘Z 한 번에 함께 돌아온다.
+   장면(앱의 제 문): 셋 찍기 → 셋째에 라벨 → 셋째 마커 배경을 패널에서 FF0000(라벨 꾸밈 키 0 = 폴백이 빨강으로 보인다) → 「포인트」.
+   기대값은 글자로: 셋째 라벨 빨강·26px·700 그대로(D2 — 보이던 색 #ff0000 이 countLabelColor 로 굳는다) · 마커 배경 빨강→검정 · 모양 50%→14px
+   · 라벨 없는 첫째·둘째에는 포인트 라벨 꼴 #ffffff·50·700·right 가 dataset 에 깔린다(D3 · 1013t2B5). */
+const dsLabel = (page) => page.evaluate(() => [...document.querySelectorAll('#secA .sticker-block[data-count]')].map((b) => [b.dataset.bgColor ?? null,
+  b.dataset.countLabelColor ?? null, b.dataset.countLabelSize ?? null, b.dataset.countLabelWeight ?? null, b.dataset.countLabelPos ?? null]));
+test('M9d 프리셋은 앞만 바꾸고 라벨은 유지(D2 굳힘 · D3 라벨 없는 마킹만) · ⌘Z 한 칸에 마커·라벨이 함께 돌아온다 (261020 h1)', async ({ page }) => {
+  const errs = await three(page);
+  await typeLabel(page, '메쉬포켓');
+  await commitField(page);
+  await typeHex(page, '#stk-bg-hex', 'FF0000');
+  await commitField(page);
+  await expect.poll(async () => (await shapeLook(page, 'secA'))[2].bg, '★전제: 셋째 마커 배경이 빨강').toBe('rgb(255, 0, 0)');
+  const a0 = await shapeLook(page, 'secA');
+  const d0 = await dsLabel(page);
+  expect([a0[2].labelColor, a0[2].labelFs, a0[2].labelFw, a0[2].radius], '★전제: 셋째 라벨은 폴백(마커 배경 빨강 · 마커 폰트 26) · 원').toEqual(['rgb(255, 0, 0)', '26px', '700', '50%']);
+  expect(d0[2].slice(1), '★전제: 셋째 라벨 꾸밈 키 0(폴백 갈래가 돈다)').toEqual([null, null, null, null]);
+  const h = await expectOneUndoStep(page, async () => {
+    await page.click('#stk-count-presets [data-count-preset="point"]');
+    await expect.poll(async () => pluck(await shapeLook(page, 'secA'), 'radius'), '마커는 바뀌었다(둥근 네모)').toEqual(['14px', '14px', '14px']);
+    const a = await shapeLook(page, 'secA');
+    expect([a[2].bg, a[2].points, a[2].num], '마커는 바뀌었다(배경 검정 · 꺾쇠 · 번호 글자 없음)').toEqual([BLACK, CHEVRON, null]);
+    expect([a[2].label, a[2].labelColor, a[2].labelFs, a[2].labelFw, a[2].labelLeft], '라벨은 같다(빨강 · 26px · 700 · 오른쪽)').toEqual(['메쉬포켓', 'rgb(255, 0, 0)', '26px', '700', a0[2].labelLeft]);
+    const d = await dsLabel(page);
+    expect(d[2], 'D2: 보이던 색(#ff0000)이 라벨 색 키로 굳었다 · 크기·굵기·자리 키는 안 만든다').toEqual(['#000000', '#ff0000', null, null, null]);
+    expect(d.slice(0, 2), 'D3: 라벨 없는 둘에는 포인트 라벨 꼴(#ffffff · 56×0.9=50 · 700 · right)').toEqual([['#000000', '#ffffff', '50', '700', 'right'], ['#000000', '#ffffff', '50', '700', 'right']]);
+  }, '마킹 프리셋 포인트(h1)', { soft: true });
+  expect(h.dPos >= 1 && h.seqNew, `A1 프리셋 직후 꼭대기가 새 칸 — Δpos=${h.dPos} top=${h.topAction}`).toBe(true);
+  expect([h.undoDLen, h.undoDPos], 'A2 ⌘Z 가 구제 칸 없이 정확히 한 칸').toEqual([0, -1]);
+  await expect.poll(() => shapeLook(page, 'secA'), '⌘Z 한 번에 마커·라벨 그림이 프리셋 전으로').toEqual(a0);
+  expect(await dsLabel(page), '⌘Z 한 번에 라벨 키(굳힘·D3)도 프리셋 전으로').toEqual(d0);
   expect(errs).toEqual([]);
 });
 
