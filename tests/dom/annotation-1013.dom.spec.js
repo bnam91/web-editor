@@ -295,10 +295,19 @@ test('AN12(1017t1h4) 라벨 위치 절에 「한 번 더 누르면」 힌트가 
   await selectByLabel(page, id);
   const r = await page.evaluate(() => {
     const hints = [...document.querySelectorAll('#panel-right .prop-hint')];
-    return { total: hints.length, hasDbl: hints.some(h => h.textContent.includes('더블클릭')), hasOld: hints.some(h => h.textContent.includes('한 번 더 누르면')) };
+    return { total: hints.length, hasDbl: hints.some(h => h.textContent.includes('더블클릭')), hasOld: hints.some(h => h.textContent.includes('한 번 더 누르면')),
+      /* ★1020t2c3 — 현빈 2026-10-20 「프롭힌트 없애주기」로 지운 ★회전 손잡이 힌트. */
+      hasRot: hints.some(h => h.textContent.includes('손잡이를 끌어 돌립니다')) };
   });
   expect(r.total >= 1 && r.hasDbl, '★전제: 패널이 떴다(다른 힌트가 살아있다 — 0건을 「없다」로 닫지 않는다)').toBe(true);
   expect(r.hasOld, '지운 문구는 없다').toBe(false);
+  /* ★★1020t2c3 래칫 — ★이 힌트는 ★파티클 패널이 아니라 ★여기(주석/화살표 블럭 「고정점」 절, rotatable 분기)에 있었다.
+     ★현빈 노트 제목은 「프롭힌트 없애주기 : 파티클 추가시」였지만 ★그 글자의 ★유일한 자리는 ★이 패널이다
+       (실측 2026-10-20 · NFC/NFD 양쪽으로 전 레포 1건) ⇒ ★지디 판정 ⑵로 ★여기를 지웠다.
+     ★전제는 ★위 줄(total>=1 && hasDbl)이 ★이미 받친다 — `:307`(더블클릭) 힌트가 살아있다.
+     ⛔`:307` 까지 지우면 ★이 칸이 ★전제에서 죽는다(그것이 ★이 칸을 믿을 수 있는 까닭이다).
+     ★항등식이 아님 — ★핀 a42d76d59f45a70eb3ee0e1f68a8ed37650f7565 에서 hasRot 은 ★true 였다. */
+  expect(r.hasRot, '★지운 문구(「시작점 옆 손잡이를 끌어 돌립니다 · ⇧ 45°」)가 되돌아왔다 — 핀에서는 있었다').toBe(false);
 });
 
 /* ★1017t1h6 — 「위치」span 만 걷는다. 같은 절을 째 지우면 AN9(dx/dy/되돌리기)가 깨진다. */

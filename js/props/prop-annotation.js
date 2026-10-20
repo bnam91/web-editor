@@ -286,7 +286,6 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="annot-anchor-rot" min="${LIM.anchorRot.min}" max="${LIM.anchorRot.max}" step="1" value="${st.anchorRot}">
         <input type="number" class="prop-number" id="annot-anchor-rot-num" min="${LIM.anchorRot.min}" max="${LIM.anchorRot.max}" step="1" value="${st.anchorRot}">
       </div>
-      <div class="prop-hint">캔버스에서 시작점 옆 손잡이를 끌어 돌립니다 · ⇧ 45°</div>
       <button class="prop-btn-full" id="annot-anchor-rot-reset"${st.anchorRot !== 0 ? '' : ' disabled'}>자동 방향으로 되돌리기</button>
       ` : ''}
     </div>

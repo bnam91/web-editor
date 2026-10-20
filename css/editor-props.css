@@ -14,6 +14,25 @@
   font-size: var(--ui-fs-10); font-weight: var(--ui-fw-bold); letter-spacing: 0.02em;
   color: var(--ui-text-muted, #6b6b6b); padding: 8px 0 4px; margin-bottom: 0;
 }
+/* ── 절 머리줄 — 제목 ＋ 오른쪽 손잡이 한 줄 ──────────────────────────────────────
+   ★1020t2c1 (현빈 2026-10-20 「prop-toggle-track … 조금씩 올라간 게 있어 · 전체 살펴봐봐」)
+   ★왜 CSS 에 새로 정의하나 — 이 클래스 이름은 마크업 ★5곳에 있는데 css/** 에 선언이 ★0줄이었고,
+     5곳이 `style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"` 를
+     ★글자 그대로 ★5번 되풀이했다(실측: 전부 동일 문자열). ⇒ ★명부가 ★다섯 ⇒ ★한 자리로 파생시킨다.
+     ⛔경고 주석으로 막지 않는다 — 다음 절이 또 손으로 베낀다. 지키는 자 = tests/unit/prop-title-row-align.test.mjs T4.
+   ★★어긋남의 뿌리는 ★둘이고 ★서로를 가렸다 (헤드리스 실앱 실측 · 핀 a42d76d59f45a70eb3ee0e1f68a8ed37650f7565 · ×3):
+     R1 위 `.prop-section-title` 의 `padding: 8px 0 4px` 가 ★비대칭이다. 이 줄은 `align-items:center` 로
+        ★«상자»를 맞추므로 제목 ★«글자» 중심은 상자 중심보다 (8−4)/2 = ★2px 아래가 된다
+        ⇒ 손잡이가 글자보다 ★2px 떠 보인다. 실측 dGlyph ★−2.00 (Stroke · Shadow ×2 · Effects).
+     R2 `css/editor-blocks.css` 의 `.prop-action-btn { margin-top: 6px }`(절 리듬용)이 ★이 줄에서도 걸려
+        단추를 ★3px 내린다. 실측 dGlyph ★+1.00 ( = R1 −2 ＋ R2 +3 ) · dBox ★+3.00 (Favorites).
+     ⇒ ★★R1 만 고치면 Favorites 가 ★+3 으로 ★더 나빠진다(실측). ★둘을 ★같이 꺼야 0.00 이 된다.
+   ★대가 — 이 줄의 제목 padding 이 8/4 → 8/8 이라 ★절 머리 높이가 ★+4px 다(68 → 72 · 5곳).
+   ★★「절이 길어졌다」면 ★아래 한 줄의 `8px 0` 을 ★`6px 0` 으로만 바꿔라(⒝안) — 높이 68 보존 ·
+     수직 0.00 은 ★둘 다 같다(실측). ⛔두 벌을 같이 넣지 마라(명부가 둘이 된다). */
+.prop-section-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.prop-section-title-row > .prop-section-title { padding: 8px 0; }     /* ★대칭(⒜안) — ⒝안이면 이 한 줄만 `6px 0` */
+.prop-section-title-row > .prop-action-btn { margin-top: 0; }         /* ★R2 끄기 — 위 머리말 R2 */
 .prop-row {
   display: flex; align-items: center; gap: 4px;
   min-height: 24px; margin-bottom: 6px; overflow: hidden;

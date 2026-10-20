@@ -55,8 +55,8 @@ export function buildTextPropsHtml(state) {
     return `
 
     <div class="prop-section" id="txt-stroke-section">
-      <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div class="prop-section-title" style="margin-bottom:0">Stroke</div>
+      <div class="prop-section-title-row">
+        <div class="prop-section-title">Stroke</div>
         <label class="prop-toggle" title="외곽선 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
           <input type="checkbox" id="txt-stroke-on" ${stroke.on ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
@@ -224,8 +224,8 @@ ${blockHeaderHTML({
       showGradRecent: true })}${_strokeSec}
 
     <div class="prop-section" id="txt-shadow-section">
-      <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div class="prop-section-title" style="margin-bottom:0">Shadow</div>
+      <div class="prop-section-title-row">
+        <div class="prop-section-title">Shadow</div>
         <label class="prop-toggle" title="그림자 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
           <input type="checkbox" id="txt-shadow-on" ${_sh.enabled ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>

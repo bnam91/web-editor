@@ -199,8 +199,8 @@ ${blockHeaderHTML({
     })}
     </div>
     <div class="prop-section" id="stk-fav-section">
-      <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div class="prop-section-title" style="margin-bottom:0">Favorites (즐겨찾기)</div>
+      <div class="prop-section-title-row">
+        <div class="prop-section-title">Favorites (즐겨찾기)</div>
         <button class="prop-action-btn" id="stk-fav-add" title="현재 스티커 스타일을 즐겨찾기에 추가"
           style="width:auto;padding:2px 8px;font-size:11px;${FAV_ALLOWED_SHAPES.includes(shape) ? '' : 'opacity:0.4;cursor:not-allowed;'}">★ 추가</button>
       </div>
@@ -499,8 +499,8 @@ ${blockHeaderHTML({
       </div>
     </div>
     <div class="prop-section" id="stk-text-shadow-section" style="display:${isText ? 'block' : 'none'};">
-      <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div class="prop-section-title" style="margin-bottom:0">Shadow</div>
+      <div class="prop-section-title-row">
+        <div class="prop-section-title">Shadow</div>
         <label class="prop-toggle" title="그림자 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
           <input type="checkbox" id="stk-t-shadow-on" ${tShadowOn ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>

@@ -346,8 +346,7 @@ export function secParticlesHTML(sec) {
           </div>
           <div class="prop-hint" style="font-size:11px;color:#888;">이 번호가 같으면 같은 그림이 나옵니다 — 번호만 저장하면 됩니다.</div>
           ${body}
-          <div class="prop-hint" style="font-size:11px;color:#888;">불투명도는 파티클 층 통째(0 이면 안 보임) · 흔들림은 조각마다 진하기를 섞어 앞뒤 깊이를 냅니다.</div>
-          <div class="prop-hint" style="font-size:11px;color:#888;">글로우(세기)와 퍼짐(반경)은 따로입니다 — 퍼짐만 키우면 같은 빛이 넓게 흩어져 되레 옅어집니다. 밝게 하려면 글로우를 올리십시오. 둘 중 하나가 0 이면 또렷합니다.</div>${drew ? '' : `
+          ${drew ? '' : `
           <div class="prop-hint" style="font-size:11px;color:#888;">섹션 크기를 아직 못 재서 그림을 미뤘습니다 — 이 섹션이 화면에 들어오면 그려집니다.</div>`}
           <button class="prop-action-btn danger" id="sec-fxpart-off" style="margin-top:4px;"
                   title="파티클을 끄고 저장 값을 지웁니다">파티클 끄기</button>

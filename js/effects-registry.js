@@ -92,8 +92,8 @@ export function fxSectionHtml(el, prefix) {
         </select>` : '';
   return `
     <div class="prop-section" id="${P}-fx-section">
-      <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div class="prop-section-title" style="margin-bottom:0">Effects</div>${add}
+      <div class="prop-section-title-row">
+        <div class="prop-section-title">Effects</div>${add}
       </div>${present.length ? `
       <div id="${P}-fx-list">${present.map(t => t.card(el, P)).join('')}
       </div>` : ''}

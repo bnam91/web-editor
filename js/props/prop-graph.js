@@ -331,7 +331,17 @@ if (typeof document !== 'undefined') document.addEventListener('grb-pie-fit', (e
 export function showGraphProperties(block) {
   const _vKey = (hKey, vKey) => (block.dataset.chartType === 'bar-v' || block.dataset.chartType === 'bar-pair') ? vKey : hKey;
   const chartType    = block.dataset.chartType    || 'bar-v';
-  const preset       = block.dataset.preset       || 'default';
+  /* ★1020t2c2 — 「Preset」 절(우측 패널)을 ★지웠다(현빈 2026-10-20 「우측 프로퍼티에 프리셋 절은 없어도 될듯」).
+     ★★기능은 ★안 지웠다 — ★절(UI)만 지웠다. `data-preset` 를 ★쓰는 자리가 ★그대로 남아 있다:
+       ㉠ css/editor-graph.css  `.graph-block[data-preset="…"]`  ← ★그림을 주는 자리(저장본이 이걸로 그려진다)
+       ㉡ js/block-factory.js   `const PRESETS = [...]` ＋ `grb.dataset.preset = 'default'`
+       ㉢ js/io/export-design-json.js  `preset: el.dataset.preset || 'default'`
+       ㉣ main/claude-pm/mcp-server.js  add_graph_block·update_graph_block 의 `enum` ★3곳 — ★PM/MCP 로는 ★여전히 걸 수 있다
+     ⇒ ★`dark`/`minimal`/`colorful` 로 저장된 그래프는 ★열 때 모습이 ★그대로다(고아가 안 된다).
+       ★잃은 것 하나: ★패널에서 ★되돌릴 UI 가 없다(MCP 로는 가능) — ★지디 판정 ⑷에서 ★받아들였다.
+     ★지키는 자: tests/unit/graph-preset-roster.test.mjs (GP1·GP2·★GP4 래칫) ＋ tests/dom/graph-saved-preset-applies.dom.spec.js
+     ⛔`dataset.preset` 은 ★임자가 셋인 ★공용 이름이다(그래프 / 에셋 logo·a4 / 섹션 디자인시스템) —
+       ★이름 grep 으로 지우지 마라. ★`.graph-block[data-preset=` 로 ★한정해야 한다. */
   const items        = JSON.parse(block.dataset.items || '[]');
   const chartH       = parseInt(block.dataset.chartHeight)  || (chartType === 'radial' ? 520 : 240);   // 방사형은 키가 없으면 520 으로 그린다(js/graph-radial.js 와 같은 값)
   const labelSize    = parseInt(block.dataset.labelSize)    || LABEL_SIZE_DEFAULT;   // E105 = 13≠20 — 렌더러와 같은 한 자리(옛 13 은 그려지는 20 과 달랐다)
@@ -389,13 +399,6 @@ export function showGraphProperties(block) {
   const _segOn       = chartType === 'bar-v';   // 1012t1G4 — 마디 편집(줄 · 읽기 전용 합 · 합으로 되쓰기)은 세로 막대에서만
   const pieHole      = (h => Math.min(PIE_HOLE_MAX, Math.max(PIE_HOLE_MIN, Number.isFinite(h) ? h : PIE_HOLE_DEFAULT)))(parseInt(block.dataset.pieHole));   // 렌더(drag-utils.js _renderPie)와 «같은 식»
   const pieLegGap    = (g => Number.isFinite(g) ? Math.min(PIE_LEG_GAP_MAX, Math.max(PIE_LEG_GAP_MIN, g)) : PIE_LEG_GAP_DEFAULT)(parseInt(block.dataset.pieLegendGap));   // 1017t1f1
-
-  const presets = [
-    { id: 'default',  label: '기본' },
-    { id: 'dark',     label: '다크' },
-    { id: 'minimal',  label: '미니멀' },
-    { id: 'colorful', label: '컬러풀' },
-  ];
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -579,15 +582,6 @@ ${blockHeaderHTML({
     ${chartType === 'radial' ? (window.graphRadialSectionHTML?.(block) || '') : ''}
     ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn }) : ''}
     <div class="prop-section">
-      <div class="prop-section-title">Preset</div>
-      <div class="prop-preset-group">
-        ${presets.map(p => `
-          <button class="prop-preset-btn ${preset === p.id ? 'active' : ''}" data-preset-id="${p.id}" id="grb-preset-${p.id}">
-            ${p.label}
-          </button>`).join('')}
-      </div>
-    </div>
-    <div class="prop-section">
       <div class="prop-section-title">Data</div>
       <div class="grb-data-list" id="grb-data-list">
         ${items.map((item, i) => `
@@ -714,15 +708,6 @@ ${blockHeaderHTML({
       window.pushHistory();
     });
   }
-
-  // 프리셋
-  presets.forEach(p => {
-    document.getElementById('grb-preset-' + p.id).addEventListener('click', () => {
-      block.dataset.preset = p.id;
-      window.renderGraph(block);  // 차트도 갱신
-      showGraphProperties(block);
-    });
-  });
 
   // 데이터 편집
   function syncItems() {

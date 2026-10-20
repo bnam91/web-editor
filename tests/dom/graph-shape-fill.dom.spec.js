@@ -272,9 +272,15 @@ test('G2-2 패널 — 「모양」을 고르면 실루엣이 되고 두께 줄�
   expect(await page.inputValue('#grb-shape-select'), '전제: 기본 막대').toBe('');
   expect(await page.locator('#grb-bar-thickness-slider').count(), '전제: 두께 줄이 있다').toBe(1);
   expect(await page.evaluate(() => [...document.getElementById('grb-shape-select').options].map(o => [o.value, o.textContent.trim()]))).toEqual([['', '기본 막대'], ['person', '사람'], ['bottle', '약통'], ['drop', '물방울'], ['custom', '사용자 SVG']]);
-  /* 절 순서: Size → Chart Type → Shape → Bar Settings → Preset → Data */
-  expect(await page.evaluate(() => [...document.querySelectorAll('#grb-h-slider, #grb-type-v, #grb-shape-select, #grb-padx-slider, #grb-preset-default, #grb-data-list')].map(e => e.closest('.prop-section').querySelector('.prop-section-title').textContent.trim())))
-    .toEqual(['Size', 'Chart Type', 'Shape', 'Bar Settings', 'Preset', 'Data']);
+  /* 절 순서: Size → Chart Type → Shape → Bar Settings → Data
+     ★1020t2c2 — 「Preset」 절을 지웠다(현빈 2026-10-20). ★이 주석도 같이 고친 것이다 —
+       ⛔주석을 안 고치면 다음 사람이 「Preset 절이 아직 있다」로 읽는다. */
+  expect(await page.evaluate(() => [...document.querySelectorAll('#grb-h-slider, #grb-type-v, #grb-shape-select, #grb-padx-slider, #grb-data-list')].map(e => e.closest('.prop-section').querySelector('.prop-section-title').textContent.trim())))
+    .toEqual(['Size', 'Chart Type', 'Shape', 'Bar Settings', 'Data']);
+  /* ★래칫 — 절이 ★되돌아오면 ★빨강. ⛔이 줄이 없으면 절이 돌아와도 ★초록이다(위 배열은 ★없는 id 를 그냥 건너뛴다).
+     ★핀 a42d76d59f45a70eb3ee0e1f68a8ed37650f7565 에서는 ★4개였다(default·dark·minimal·colorful). */
+  expect(await page.locator('[id^="grb-preset-"]').count(), '★Preset 절이 되돌아왔다 — 핀에서는 4개였다').toBe(0);
+  expect(await page.locator('#panel-right .prop-section-title', { hasText: /^Preset$/ }).count(), '★「Preset」 제목이 되돌아왔다').toBe(0);
   await page.locator('#grb-shape-select').selectOption('person');
   await expect.poll(() => ds(page, id, 'barShape')).toBe('person');
   expect(await count(page, id, '.grb-shape-box.grb-shape-on'), '상자 = 항목 수').toBe(n);
