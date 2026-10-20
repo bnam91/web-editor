@@ -17,6 +17,9 @@ import {
   mdlReadText,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
+/* ★1020t1d — 화면 Δ → «담은 상자의 로컬» Δ. ★조상 프레임의 flip·rotate 를 ★측정으로 되돌린다.
+   ★frame-geometry.js 는 「다른 모듈을 import 하지 않는 순수 계산 + 얇은 DOM 어댑터」라 그래프가 안 무거워진다(그 파일 머리말). */
+import { measureLocalBasis, localDeltaFromBasis } from './frame-geometry.js';
 import { isBlurIntoPanel, parkEditing } from './props/_text-selection.js';
 /* ★«부분 서식 HTML» 한 벌 = js/util/sanitize-rich-text.js — ★이 파일의 ★소비자가 ★둘이다:
  *   ★수지②(모달 슬롯) ＋ ★수지⑦(그리드 줄) — ★2026-10-08 에 ★둘이 ★같은 날 ★들어왔다.
@@ -810,6 +813,10 @@ function bindBlock(block) {
     let draggedOutside = false;    // 프레임 밖 드래그 상태 플래그
     let _dropInsertBefore = null;  // 삽입 기준 element (null=끝에 추가)
     let _shiftAxis = null;         // Shift 수직/수평 잠금 축
+    /* ★★1020t1d — ★제스처당 ★한 번만 잰다(강제 레이아웃 2회). ⛔onMove 안에서 재면 틱마다 2회가 된다.
+       ★여기(mousedown 안 · onMove 밖)가 그 자리다 — `_hist` 가 제스처당 하나인 것과 ★같은 층.
+       ★null = 「못 구했다」(퇴화 변환 등) ⇒ 아래에서 ★옛 식(`/ scale`)으로 떨어진다. */
+    const _localBasis = measureLocalBasis(dragEl);
     const _hist = window.beginDragHistory?.('블록 이동');
     function onMove(ev) {
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
@@ -824,9 +831,14 @@ function bindBlock(block) {
       if (_dragOutParentFrame) dragEl.classList.add('frame-child-dragging');
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+      /* ★★1020t1d — 화면 Δ → ★로컬 Δ. ★조상 프레임에 flip/rotate 가 걸렸으면 ★그 역을 거친다.
+         ★기저는 ★제스처 시작에 ★한 번 쟀다(_localBasis). ★못 구했으면 ★옛 식 그대로(`/ scale`) — ★무회귀.
+         ★변환이 없으면 기저가 `ex=[scale,0] ey=[0,scale]` 이라 ★결과가 `/ scale` 과 ★한 픽셀도 다르지 않다
+           (실측: h=1·5·25·100 에서 기저 전부 0.4 · 줌 40% 에서 제안식 = [150,100] = 지금식). */
+      const _toLocal = (sx, sy) => localDeltaFromBasis(_localBasis, sx, sy) || { dx: sx / scale, dy: sy / scale };
       /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
          다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
-      _hist?.arm(dx / scale, dy / scale);
+      { const _h = _toLocal(dx, dy); _hist?.arm(_h.dx, _h.dy); }
 
       // Shift 수직/수평 이동 제한
       if (!ev.shiftKey) { _shiftAxis = null; }
@@ -837,8 +849,9 @@ function bindBlock(block) {
       const cdy = (ev.shiftKey && _shiftAxis === 'h') ? 0 : dy;
 
       if (_fullWidthTf && cdx !== 0) { startLeft += _fitFullWidthTextFrame(_fullWidthTf); _fullWidthTf = null; }   // D3
-      const rawLeft = Math.round(startLeft + cdx / scale);
-      const rawTop  = Math.round(startTop  + cdy / scale);
+      const _d = _toLocal(cdx, cdy);   // ★1020t1d — 위 머리말
+      const rawLeft = Math.round(startLeft + _d.dx);
+      const rawTop  = Math.round(startTop  + _d.dy);
 
       // 드래그아웃 감지 (단일 선택 + 다중선택 없을 때만)
       // 커서 화면 좌표 대신 요소 중심의 캔버스 좌표로 판단 — scale 오탐 방지

@@ -390,6 +390,87 @@ export function applyFrameRotationMargin(ss, sizeHint) {
   return m;
 }
 
+/* ══ ★1020t1d ★화면 Δ → ★«그 요소를 담은 상자의 로컬» Δ ═══════════════════════════════════
+ * ★현빈 원문(2026-10-20): 「프레임블럭 안에서 특정블럭을 추가한 후 ★플립을 했는데 …
+ *   내가 ★플립된 요소를 ★이동시키려고 보니, ★★움직임도 ★반대로 되더라」
+ *
+ * ★무엇이 깨졌나 — ★불변식 ★「화면에서 끈 거리 = 모델이 움직인 거리」.
+ *   이동 드래그는 ★화면 Δ 를 ★캔버스 줌 ★하나로만 나눠 `style.left/top` 에 썼다
+ *   (`js/block-drag.js` `startLeft + cdx / scale`). 그런데 `left/top` 은 ★«프레임의 로컬 좌표»고,
+ *   그 프레임엔 `scale(fx,fy)`·`rotate()` 가 걸릴 수 있다(위 composeFrameTransformString).
+ *   ⇒ 로컬 +x 가 화면 −x 로 그려지므로 ★모델은 맞게 쓰이고 ★화면만 반대로 간다.
+ *   ★실측(2026-10-20 · 헤드리스 크롬 · 진짜 앱 · 줌 40% · 화면 (+60,+40) 끌기):
+ *       변환 없음  모델 Δ[150,100] · 화면 Δ[+60,+40]
+ *       flipH      모델 Δ[150,100] · 화면 Δ[★−60,+40]
+ *       flipV      모델 Δ[150,100] · 화면 Δ[+60,★−40]
+ *       flipH+V    모델 Δ[150,100] · 화면 Δ[★−60,★−40]
+ *       rotate90   모델 Δ[150,100] · 화면 Δ[★−40,+60]   ← ★회전도 ★같은 뿌리다
+ *     ★모델 Δ 가 ★언제나 같다는 것이 ★「조상 변환을 아예 안 본다」의 증거다.
+ *
+ * ★★식을 ★다시 짓지 않는다 — ★★«잰다».
+ *   ⛔조상들의 transform 을 파싱해 행렬을 곱하는 길은 ★안 간다: 사본이 늘고
+ *     transform-origin·skew·중첩 프레임·줌이 ★전부 함정이 된다. 대신 ★그 요소를
+ *     ★로컬 +h px 옮겨 ★화면이 얼마 가나 ★실측해 ★기저(ex, ey)를 얻고 ★역행렬을 쓴다.
+ *   ★선례와의 관계: `js/overlay-handles.js` `_unrotateDelta` 는 ★회전만 보고,
+ *     그 각을 주는 위 `blockRotationDeg` 는 ★«그 요소 자신의 dataset»만 본다(★조상은 못 본다).
+ *     ⇒ 이 함수는 ★그 둘이 못 덮는 ★«조상까지의 누적 변환»을 ★측정으로 덮는다.
+ *
+ * ★두 조각으로 ★갈라 둔다 — ★이 파일의 규약(「순수 계산 ＋ 얇은 DOM 어댑터」)대로:
+ *   `localDeltaFromBasis` = ★순수 계산(★단위검사가 DOM 없이 잰다)
+ *   `measureLocalBasis`   = ★얇은 DOM 어댑터(★제스처당 ★한 번)
+ *   `screenDeltaToLocal`  = 둘을 ★묶은 입구(기저를 ★캐시해 받는다) */
+
+/** 기저(ex,ey) 로 화면 Δ 를 로컬 Δ 로. ★퇴화(det≈0)면 null — 부르는 자가 ★옛 식으로 떨어진다.
+ *  ex = 로컬 +1px(x) 가 화면에서 간 벡터 · ey = 로컬 +1px(y) 가 화면에서 간 벡터.
+ *  ⚠️null 을 ★0 으로 읽지 마라 — 「못 구했다」와 「안 움직인다」는 ★다르다. */
+export function localDeltaFromBasis(basis, dx, dy) {
+  if (!basis) return null;
+  const { ex, ey } = basis;
+  if (!Array.isArray(ex) || !Array.isArray(ey) || ex.length !== 2 || ey.length !== 2) return null;
+  if (![ex[0], ex[1], ey[0], ey[1], dx, dy].every(Number.isFinite)) return null;
+  const det = ex[0] * ey[1] - ex[1] * ey[0];
+  /* ★문턱 — `scale(0)`·`width:0` 프레임은 det 0 이 되고, 아주 작은 det 는 ★증폭 잡음이 된다.
+     ★줌 10%(이 앱의 바닥)에서 변환이 없으면 det = 0.1×0.1 = 0.01 이므로 ★1e-6 은 ★넉넉히 아래다. */
+  if (!Number.isFinite(det) || Math.abs(det) < 1e-6) return null;
+  return {
+    dx: (dx * ey[1] - dy * ey[0]) / det,
+    dy: (-dx * ex[1] + dy * ex[0]) / det,
+  };
+}
+
+/** 그 요소를 ★로컬 h px 움직여 ★화면 변위를 ★실측 → 기저. ★제스처당 ★한 번만 불러라(강제 레이아웃 2회).
+ *  ⚠️기준선은 ★움직이기 직전에 읽는다 — ★가라앉지 않은 기준선을 읽으면 기저가 ★틀린다
+ *    (2026-10-20 에 내가 ★그렇게 1.1% 거짓 회귀를 냈다 · h=1·5·25·100 에서 참값은 모두 같다).
+ *  ⚠️`style.left/top` 을 ★쓰는 요소여야 한다(= 드래그가 쓰는 ★그 요소). 못 재면 null. */
+export function measureLocalBasis(el, h = 50) {
+  if (!el || !el.style || typeof el.getBoundingClientRect !== 'function') return null;
+  const L0 = el.style.left, T0 = el.style.top;
+  const l0 = parseFloat(L0) || 0, t0 = parseFloat(T0) || 0;
+  const at = () => { const q = el.getBoundingClientRect(); return [q.left, q.top]; };
+  try {
+    const p0 = at();
+    el.style.left = (l0 + h) + 'px';
+    const px = at();
+    el.style.left = L0;
+    el.style.top = (t0 + h) + 'px';
+    const py = at();
+    el.style.top = T0;
+    const ex = [(px[0] - p0[0]) / h, (px[1] - p0[1]) / h];
+    const ey = [(py[0] - p0[0]) / h, (py[1] - p0[1]) / h];
+    if (![...ex, ...ey].every(Number.isFinite)) return null;
+    return { ex, ey };
+  } catch (_) {
+    try { el.style.left = L0; el.style.top = T0; } catch (__) {}
+    return null;
+  }
+}
+
+/** 입구 — `basis` 를 주면 그걸 쓰고, 없으면 ★여기서 잰다(제스처 시작에 한 번).
+ *  반환 null = 「못 구했다」 ⇒ ★부르는 자는 ★옛 식(`/ scale`)으로 떨어져야 한다. */
+export function screenDeltaToLocal(el, dx, dy, basis) {
+  return localDeltaFromBasis(basis || measureLocalBasis(el), dx, dy);
+}
+
 /* dataset(translateX/Y·rotateDeg·flipH/V) → transform 문자열.
    항등(아무 것도 안 걸림)이면 null. */
 export function composeFrameTransformString(ss) {
