@@ -19,7 +19,7 @@ import {
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
 /* ★1020t1d — 화면 Δ → «담은 상자의 로컬» Δ. ★조상 프레임의 flip·rotate 를 ★측정으로 되돌린다.
    ★frame-geometry.js 는 「다른 모듈을 import 하지 않는 순수 계산 + 얇은 DOM 어댑터」라 그래프가 안 무거워진다(그 파일 머리말). */
-import { measureLocalBasis, localDeltaFromBasis } from './frame-geometry.js';
+import { measureLocalBasis, localDeltaFromBasis, localStartFromStyle } from './frame-geometry.js';
 import { isBlurIntoPanel, parkEditing } from './props/_text-selection.js';
 /* ★«부분 서식 HTML» 한 벌 = js/util/sanitize-rich-text.js — ★이 파일의 ★소비자가 ★둘이다:
  *   ★수지②(모달 슬롯) ＋ ★수지⑦(그리드 줄) — ★2026-10-08 에 ★둘이 ★같은 날 ★들어왔다.
@@ -934,8 +934,15 @@ function bindBlock(block) {
       dragEl.dataset.offsetY = String(newTop);
 
       // 다중선택 피어 동시 이동
-      const scaledDx = Math.round(cdx / scale);
-      const scaledDy = Math.round(cdy / scale);
+      /* ★★1020t1d-⒞ — 피어도 ★같은 로컬 Δ 를 쓴다. ⛔`cdx / scale` 을 ★다시 세지 ★마라.
+         ★피어는 ★dragEl 과 ★같은 프레임의 ★형제다(위 :786 `[..._parentFrameForMulti.children]`)
+           ⇒ ★조상까지의 변환이 ★같으니 ★기저도 ★같다. 그래서 ★위에서 이미 구한 `_d` 를 ★그대로 쓴다
+           (★둘째 명부를 만들면 조용히 갈린다 — 2026-09-30 교훈).
+         ★실측(c97ee65c · 줌 40% · 화면 (+60,+40) 끌기 · 피어 1): ★고치기 전 ★피어 화면Δ 가
+           flipH [−60,+40] · flipV [+60,−40] · 둘다 [−60,−40] · rot90 [−40,+60] = ★반대 4칸이었다.
+           ★끄는 놈은 ⒜⒝ 가 고쳐 [+60,+40] 로 맞는데 ★피어만 ★거꾸로 날아가 ★선택이 찢어졌다. */
+      const scaledDx = Math.round(_d.dx);
+      const scaledDy = Math.round(_d.dy);
       multiPeers.forEach(peer => {
         const pLeft = peer.startLeft + scaledDx;
         const pTop  = peer.startTop  + scaledDy;
@@ -1111,6 +1118,14 @@ function bindBlock(block) {
       const startTop  = parseInt(block.style.top  || '0');
       let moved = false;
       let _shiftAxis2 = null;
+      /* ★★1020t1d-⒞ — ★제스처당 ★한 번만 잰다(강제 레이아웃 2회). ⛔onMove 안에서 재면 틱마다 2회다.
+         ★여기(mousedown 안 · onMove 밖)가 그 자리다 — ★위 일반 블록 끌기(:826)와 ★같은 층·같은 꼴.
+         ★조커는 ★프레임 ★직속 absolute 자식이다(block-factory.js:1636~1641 addJokerBlock)
+           ⇒ ★그 프레임에 flip/rotate 가 걸리면 ★left/top 이 ★로컬 좌표라 ★화면만 반대로 간다.
+         ★실측(c97ee65c · 줌 40% · 화면 (+60,+40) 끌기): ★모델Δ 가 ★다섯 꼴 ★전부 [150,100] 이고
+           화면Δ 가 flipH [−60,+40] · flipV [+60,−40] · 둘다 [−60,−40] · rot90 [−40,+60] = ★반대 4칸.
+         ★null = 「못 구했다」 ⇒ 아래에서 ★옛 식(`/ scale`)으로 떨어진다(★무회귀). */
+      const _jokerBasis = measureLocalBasis(block);
       const _hist = window.beginDragHistory?.('블록 이동');
 
       function onMove(ev) {
@@ -1123,7 +1138,11 @@ function bindBlock(block) {
         const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
         /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
            다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
-        _hist?.arm(dx / scale, dy / scale);
+        /* ★★1020t1d-⒞ — 화면 Δ → ★로컬 Δ. ★기저는 ★제스처 시작에 ★한 번 쟀다(_jokerBasis).
+           ★못 구했으면 ★옛 식 그대로(`/ scale`) — ★무회귀. ★변환이 없으면 기저가 `ex=[s,0] ey=[0,s]` 라
+             ★결과가 `/ scale` 과 ★한 픽셀도 다르지 않다(그 불변식은 단위검사 ⑴ 이 잠근다). */
+        const _toLocalJ = (sx, sy) => localDeltaFromBasis(_jokerBasis, sx, sy) || { dx: sx / scale, dy: sy / scale };
+        { const _h = _toLocalJ(dx, dy); _hist?.arm(_h.dx, _h.dy); }
         // Shift 수직/수평 이동 제한
         if (!ev.shiftKey) { _shiftAxis2 = null; }
         if (ev.shiftKey && !_shiftAxis2 && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
@@ -1131,8 +1150,9 @@ function bindBlock(block) {
         }
         const cdx = (ev.shiftKey && _shiftAxis2 === 'v') ? 0 : dx;
         const cdy = (ev.shiftKey && _shiftAxis2 === 'h') ? 0 : dy;
-        const newLeft = Math.round(startLeft + cdx / scale);
-        const newTop  = Math.round(startTop  + cdy / scale);
+        const _dj = _toLocalJ(cdx, cdy);
+        const newLeft = Math.round(startLeft + _dj.dx);
+        const newTop  = Math.round(startTop  + _dj.dy);
         block.style.left = `${newLeft}px`;
         block.style.top  = `${newTop}px`;
         block.dataset.offsetX = String(newLeft);
@@ -2988,8 +3008,21 @@ function bindFrameDropZone(ss) {
       const _parentEl = ss.parentElement;
       const _parentRect = _parentEl ? _parentEl.getBoundingClientRect() : { left: 0, top: 0 };
       const _ssRect = ss.getBoundingClientRect();
-      const origLeft = (_ssRect.left - _parentRect.left) / scale;
-      const origTop  = (_ssRect.top  - _parentRect.top)  / scale;
+      /* ★★1020t1d-⒞ — ★자리(시작점)도 ★틀렸다. 위 OSS 패턴은 ★화면 rect 차를 ★캔버스 줌으로만 나눈다.
+         ★조상 프레임에 flip/rotate 가 걸리면 ★그 차는 ★로컬 좌표가 ★아니다 — ★AABB 꼭지점이
+           ★변환 원점과 ★다른 자리로 간다. ★실측(c97ee65c · 줌 40% · style.left='0px' 인 속프레임):
+             플립없음 origLeft ★0 ✅ / flipH ★496 / flipV origTop ★100 / 둘다 ★496·100 / rot90 ★100
+           ⇒ 첫 틱에 ★496px 이 ★더해져 속프레임이 ★프레임 밖으로 ★튀었다(모델 0 → 521).
+         ★고침 — ★style.left/top 이 ★있으면 ★그것이 ★곧 로컬 좌표다(★변환과 무관). ★없을 때만
+           ★옛 rect 길로 떨어진다. ⛔rect 길을 ★지우지 않는다: 그 길이 막아 둔 것은
+           ★「style.left 가 ★아예 없는(흐름 자식) 요소가 ★마우스에 붙어 이동」 이었다(위 주석).
+         ★★무회귀 — ★변환이 없을 때 ★한 픽셀도 안 바뀌는지는 ★실측으로 확인했다(아래 보고 ㉣). */
+      /* ★판정은 ★frame-geometry.js `localStartFromStyle` ★한 자리다(단위 거르개·까닭·실측값 전부 그 머리말에).
+         ⛔여기서 ★제 벌로 다시 세지 마라 — 그게 ★둘째 명부가 된다. */
+      const origLeft = localStartFromStyle(ss.style.left, (_ssRect.left - _parentRect.left) / scale);
+      const origTop  = localStartFromStyle(ss.style.top,  (_ssRect.top  - _parentRect.top)  / scale);
+      /* ★★기저 — ★제스처당 ★한 번(강제 레이아웃 2회). ⛔onMove 안에서 재지 마라. */
+      const _ssBasis = measureLocalBasis(ss);
       let moved = false;
       let _shiftAxisF = null;
       const _hist = window.beginDragHistory?.('블록 이동');
@@ -3001,7 +3034,9 @@ function bindFrameDropZone(ss) {
         moved = true;
         /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
            다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
-        _hist?.arm(dx / scale, dy / scale);
+        /* ★★1020t1d-⒞ — 화면 Δ → ★로컬 Δ(기저는 mousedown 에서 ★1회). ★못 구했으면 ★옛 식 — ★무회귀. */
+        const _toLocalF = (sx, sy) => localDeltaFromBasis(_ssBasis, sx, sy) || { dx: sx / scale, dy: sy / scale };
+        { const _h = _toLocalF(dx, dy); _hist?.arm(_h.dx, _h.dy); }
         // Shift 수직/수평 이동 제한
         if (!ev.shiftKey) { _shiftAxisF = null; }
         if (ev.shiftKey && !_shiftAxisF && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
@@ -3009,8 +3044,9 @@ function bindFrameDropZone(ss) {
         }
         const cdx = (ev.shiftKey && _shiftAxisF === 'v') ? 0 : dx;
         const cdy = (ev.shiftKey && _shiftAxisF === 'h') ? 0 : dy;
-        let newLeft = Math.round(origLeft + cdx / scale);
-        let newTop  = Math.round(origTop  + cdy / scale);
+        const _df = _toLocalF(cdx, cdy);
+        let newLeft = Math.round(origLeft + _df.dx);
+        let newTop  = Math.round(origTop  + _df.dy);
         /* ★★2026-10-10 — ★★«끌는 ★동안»의 ★죔을 ★걷었다(★위 일반 블록 끌기와 ★같은 까닭 · 현빈 10-09).
            ★★⛔그리고 ★이 자리는 ★★«제 벌 명부»였다 — ★`clampChildIntoFrame` 을 ★★안 쓰고
              ★`Math.max(0, Math.min(_max, …))` 를 ★손으로 ★다시 셌다(★★프레임 ★안쪽 여백도 ★안 봤다).
@@ -3023,9 +3059,12 @@ function bindFrameDropZone(ss) {
         ss.dataset.offsetY = String(newTop);
 
         // multiPeers 동시 이동
+        /* ★★1020t1d-⒞ — 피어는 ★ss 와 ★같은 부모(parentFreeFrame)의 ★형제다(위 :2975
+             `[...parentFreeFrame.children]`) ⇒ ★조상 변환이 같으니 ★`_df` 를 ★그대로 쓴다.
+           ⛔`cdx / scale` 을 ★다시 세지 ★마라(둘째 명부). */
         multiPeers.forEach(peer => {
-          peer.el.style.left = Math.round(peer.startLeft + cdx / scale) + 'px';
-          peer.el.style.top  = Math.round(peer.startTop  + cdy / scale) + 'px';
+          peer.el.style.left = Math.round(peer.startLeft + _df.dx) + 'px';
+          peer.el.style.top  = Math.round(peer.startTop  + _df.dy) + 'px';
         });
 
         // 스마트 가이드 (단일 선택일 때만)

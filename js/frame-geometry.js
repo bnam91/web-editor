@@ -471,6 +471,36 @@ export function screenDeltaToLocal(el, dx, dy, basis) {
   return localDeltaFromBasis(basis || measureLocalBasis(el), dx, dy);
 }
 
+/** 1020t1d-⒞ — 절대배치 자식의 ★«로컬 시작 좌표». ★순수 계산(DOM 안 본다).
+ *
+ *  ★왜 필요한가 — 끌기 시작점을 ★화면 rect 차로 구하던 자리가 있었다(block-drag.js 속프레임 갈래):
+ *      origLeft = (ssRect.left − parentRect.left) / zoom
+ *    ★그 식은 ★두 군데서 틀린다:
+ *      ⑴ ★조상에 flip/rotate 가 걸리면 ★AABB 꼭지점이 ★변환 원점과 다른 자리로 간다
+ *         ★실측(2026-10-20 · 줌 40% · style.left='0px' 인 속프레임):
+ *           변환없음 0 ✅ / flipH ★496 / flipV(top) ★100 / 둘다 ★496·100 / rot90 ★100
+ *         ⇒ 첫 틱에 496px 이 더해져 속프레임이 ★프레임 밖으로 튀었다(모델 0 → 521).
+ *         ⚠️★기저 역변환(localDeltaFromBasis)만으로는 ★이게 ★안 닫힌다 — 그건 ★Δ 를 고치고
+ *           496 은 ★시작값에서 왔다(실측: 기저만 넣은 변이판에서 flipH 모델 ★[471,15], 반대 4칸 잔존).
+ *      ⑵ ★부모에 ★보더가 있으면 ★보더 너비만큼 더해진다 — `getBoundingClientRect` 는 ★보더 박스
+ *         ★바깥을 뜨는데 absolute 자식의 left 는 ★패딩 박스 기준이다.
+ *         ★실측: 보더 2px → 어긋남 ★[2,2] · 패딩 8px → [0,0](패딩은 무관) · 꾸밈 없음 → [0,0]
+ *         ⇒ 보더 걸린 프레임은 ★플립과 무관하게 첫 틱에 2px 튀었다(핀 [27,17] vs 고친 판 [25,15]).
+ *
+ *  ★그래서 ★`style.left/top` 이 ★px 면 ★그것이 참값이다(변환·보더와 ★무관한 ★모델값이고,
+ *    끌기가 ★되써 넣는 ★바로 그 칸이다). ★px 가 아니면 ★`rectFallback` 으로 떨어진다.
+ *
+ *  ⚠️★`px` ★만 받는다 — ⛔`parseFloat` ★단독은 `'50%'` 에서 ★50 을 주고 `Number.isFinite` 가 ★참이 된다
+ *    ⇒ ★퍼센트를 ★픽셀로 읽어 ★새 손상이 된다(실측 2026-10-20 · 헤드리스 크롬).
+ *    ★브라우저가 정규화하므로 `endsWith('px')` 로 충분하다(실측: `'0'`→`'0px'` · `'1e2px'`→`'100px'`).
+ *    ★`calc(…)`·`''`·`auto` 는 NaN ⇒ 폴백. ★`''` 가 중요하다 — `js/overlay-float.js:484` 가 프레임의
+ *    `style.left` 를 ★비운다. ★폴백을 ★지우면 ★「style.left 가 아예 없는 흐름 자식이 마우스에 붙어
+ *    이동」하던 옛 결함이 ★되살아난다(block-drag.js 그 자리 주석). */
+export function localStartFromStyle(styleVal, rectFallback) {
+  const px = (typeof styleVal === 'string' && styleVal.endsWith('px')) ? parseFloat(styleVal) : NaN;
+  return Number.isFinite(px) ? px : rectFallback;
+}
+
 /* dataset(translateX/Y·rotateDeg·flipH/V) → transform 문자열.
    항등(아무 것도 안 걸림)이면 null. */
 export function composeFrameTransformString(ss) {
