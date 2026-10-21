@@ -223,10 +223,16 @@ test('SHD7 ★면제 줄은 ★«판 번호»를 ★갖는다 (⛔「다음 버�
 test('SHD8 ★EXPECT_N.md 의 ★미룸 절도 ★«판 번호»를 ★갖는다 (⛔상대 참조 금지)', () => {
   const REL = ['다음 버전', '다음번', '나중에', '그때 가서', '손댈 때', '언젠가', '추후'];
   const VER = /0\.\d+\.\d+/;
-  /* ★분모 — 「미룸 절」의 ★정의 자리를 여기 둔다. ⛔낱말 하나로 grep 하지 않는다. */
-  const DEFERRING = /미룬다|미룬 것|가리는 이름|떼는 법/;
+  /* ★★분모 — ⛔★261021 ★고쳤다: 처음엔 ★「미룸 절처럼 ★보이는 낱말」로 쟀다(아래 WORDS).
+     ★그런데 ★같은 날 내가 ★EXPECT_N 에 ★새 절(★「기계 의존이 측정됐다」)을 넣었더니
+     ★그 절은 ★WORDS 중 ★아무것도 안 써서 ★분모에서 ★빠졌다 — ★그 안의 ★「떼는 조건」 줄이
+     ★★**무방비**가 됐다(분모 3 → 3 으로 ★안 늘었다).
+     ⇒ ★★**재는 대상은 ★«절»이 아니라 ★«「떼는 조건」 줄»이다.** ⇒ ★분모를 ★그 줄 자체로 바꾼다.
+     ★WORDS 는 ★남긴다 — ★「떼는 조건」 줄을 ★아예 안 쓴 미룸 절도 ★잡아야 한다. */
+  const WORDS = /미룬다|미룬 것|가리는 이름|떼는 법/;
+  const DEFERRING = (b) => /떼는 조건/.test(b) || WORDS.test(b);
   const judge = (md) => {
-    const secs = md.split(/^## /m).slice(1).filter((b) => DEFERRING.test(b));
+    const secs = md.split(/^## /m).slice(1).filter((b) => DEFERRING(b));
     const bad = [];
     for (const b of secs) {
       const title = b.split('\n')[0].slice(0, 60);
@@ -254,6 +260,11 @@ test('SHD8 ★EXPECT_N.md 의 ★미룸 절도 ★«판 번호»를 ★갖는다
     '★음성대조: 판이 박혀 있으면 ★통과해야 한다');
   assert.equal(judge('## 현재값\n- 아무 미룸도 없다\n').n, 0,
     '⛔음성대조: 미룸이 아닌 절을 ★분모에 넣으면 안 된다');
+  /* ★★261021 추가 — ★「떼는 조건」만 있고 ★WORDS 가 ★없는 절도 ★분모에 든다(★내 새 절이 그 꼴이었다) */
+  assert.equal(judge('## ★기계 의존\n- 떼는 조건 = ★판 0.9.9\n').n, 1,
+    '★★양성대조: 「떼는 조건」 줄만 있어도 ★분모에 ★들어야 한다');
+  assert.ok(judge('## ★기계 의존\n- 떼는 조건 = ★«다음 버전»\n').bad.length > 0,
+    '★★양성대조: 그 절의 상대 참조도 ★잡혀야 한다');
 
   const md = read(path.join(ROOT, 'tests/dom/EXPECT_N.md'));
   const got = judge(md);
