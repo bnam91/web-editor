@@ -216,7 +216,7 @@ ${blockHeaderHTML({
       <div class="prop-row">
         <textarea class="prop-textarea" id="rdl-center-textarea" rows="2" style="flex:1" placeholder="첫 줄은 작게, 다음 줄은 크게">${_esc(st.centerText)}</textarea>
       </div>
-      ${_colorRow('rdl-center-bg', '배경', st.centerBg, RADIAL_DEFAULTS.centerBg)}
+      ${/* 블럭 배경(:192) 꼴 — 가운데 기본값만 'transparent' 라 먼저 '' 로 바꿔 같은 빈 값 표시(#ffffff)에 닿게 한다 */ _colorRow('rdl-center-bg', '배경', (st.centerBg === 'transparent' ? '' : st.centerBg) || '#ffffff', '#ffffff')}
       ${_colorRow('rdl-center-color', '글자 색', st.centerColor, RADIAL_DEFAULTS.centerColor)}` : ''}
       ${st.centerMode === 'image' ? `
       ${_typeRow('자르기', 'rdl-centerclip', [['circle', '원형'], ['none', '없음 (네모)']], st.centerClip)}
@@ -423,7 +423,14 @@ ${blockHeaderHTML({
   const ta = $("rdl-center-textarea");
   ta?.addEventListener('input', () => { block.dataset.centerText = ta.value; rerender(); });
   ta?.addEventListener('change', commit);
-  wireColor('rdl-center-bg', 'centerBg');
+  if ($('rdl-center-bg-color')) {
+    const cb = block.dataset.centerBg;
+    wireColorField('rdl-center-bg', {
+      initialAlpha: cb && cb !== 'transparent' ? parseAlphaFromColor(cb) : 100,
+      onApply: (c) => { block.dataset.centerBg = c; rerender(); },
+      onCommit: commit,
+    });
+  }
   wireColor('rdl-center-color', 'centerColor');
   $('rdl-center-samples')?.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-sample]');
