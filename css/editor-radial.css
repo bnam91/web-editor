@@ -41,6 +41,8 @@
   box-shadow: 0 10px 28px rgba(40, 30, 90, 0.18);
 }
 .rdl-center--image > svg { display: block; width: 100%; height: 100%; }
+/* t4-04 앞 — 가운데 글의 배경이 투명이면(새 블럭 기본) 원판이 없으니 원판 그림자도 없다. 옛 저장 블럭(칠한 배경)은 그대로 그림자를 둔다. */
+.rdl-center--text[data-rdl-nobg] { box-shadow: none; }
 /* 자르기 없음 — 그림을 네모 그대로(투명 배경 그림은 실루엣만) */
 .rdl-center--noclip { border-radius: 0; overflow: visible; box-shadow: none; }
 .rdl-center-sub { font-weight: 500; line-height: 1.3; opacity: 0.85; padding: 0 12%; }

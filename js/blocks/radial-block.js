@@ -37,16 +37,24 @@ const RADIAL_DEFAULT_ITEMS = Object.freeze([
   { label: '저자극 테스트 완료', img: '' },
 ]);
 
+/* t4-02 · t4-04 앞(2026-10-21 · 현빈 원문 «선 색 … 점색과 통일» · «핵심효능 6가지 텍스트도 바꿔줘 · 6B4DE0 배경색도 없애줘»):
+ *   선 색은 점 색과 «한 자리»에서 온다(RADIAL_DOT_COLOR) — 둘이 다시 갈리지 않게 파생한다.
+ *   가운데 글은 저장값 '' + 안내문구(인용구 블럭 규약 · data-is-placeholder) · 가운데 배경 투명 · 글자 색 = 라벨 색(RADIAL_TEXT_COLOR).
+ *   ⚠️기본값만 바뀐다 — 이미 저장된 블럭은 dataset 이 진실이라 그대로다(옮기기 0). */
+const RADIAL_DOT_COLOR = '#c8cdd6';
+const RADIAL_TEXT_COLOR = '#222222';
+const RADIAL_CENTER_PH = '내용을 입력하세요';   /* 가운데 글 안내문구 — 비면 이것을 흐리게 그린다(저장 안 함 · quote-block QUOTE_DEFAULTS.ph 와 같은 말) */
+
 const RADIAL_DEFAULTS = Object.freeze({
   shape: 'circle', count: 6, radius: 250, startDeg: -90,
-  line: 'orbit', lineColor: '#c9bdf5', lineStyle: 'dashed', lineWidth: 2, bg: '',
+  line: 'orbit', lineColor: RADIAL_DOT_COLOR, lineStyle: 'dashed', lineWidth: 2, bg: '',
   cellSize: 160, cellShape: 'circle', cellRadius: 24, cellFill: '#e8e8e8',
   centerMode: 'text', centerSize: 220, centerImg: 'bottle', centerClip: 'circle',
-  centerText: '핵심 효능\n6가지', centerBg: '#6b4de0', centerColor: '#ffffff',
-  labelPos: 'below', labelSize: 16, labelColor: '#222222', labelGap: 10,
+  centerText: '', centerBg: 'transparent', centerColor: RADIAL_TEXT_COLOR,
+  labelPos: 'below', labelSize: 16, labelColor: RADIAL_TEXT_COLOR, labelGap: 10,
   labelWidth: 96, labelWeight: 'bold',
   endDeg: 60, centerX: 50, lineExtend: 0, centerDx: 0,
-  marker: 'cell', dotSize: 18, dotColor: '#c8cdd6', iconSize: 36,
+  marker: 'cell', dotSize: 18, dotColor: RADIAL_DOT_COLOR, iconSize: 36,
 });
 /* 호 모드의 기본 꼴(V4) = 반원 · 점 + 글. 새 호 블럭의 기본값이고, 패널에서 호로 처음 바꿀 때 쓰는 값이다.
  *   꼴(각도 · 원 중심 · 선 연장)의 수는 RADIAL_ARC_GEOM.HALF 한 자리에서 온다. */
@@ -90,6 +98,17 @@ const RADIAL_CENTER_MODES = Object.freeze(['none', 'image', 'text']);
 const _RDL_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
 const _color = (v, def) => (typeof v === 'string' && _RDL_COLOR_RE.test(v.trim())) ? v.trim() : def;
 const _oneOf = (v, list, def) => (list.includes(v) ? v : def);
+/** 보이지 않는 색인가 — transparent · 알파 0 의 #rgba/#rrggbbaa · rgba/hsla(…, 0). */
+function _isClearColor(c) {
+  const v = String(c || '').trim().toLowerCase();
+  if (v === '' || v === 'transparent') return true;
+  if (/^#[0-9a-f]{4}$/.test(v)) return v[4] === '0';
+  if (/^#[0-9a-f]{8}$/.test(v)) return v.slice(7) === '00';
+  const m = v.match(/^(?:rgba|hsla)\(([^)]*)\)$/);
+  if (!m) return false;
+  const parts = m[1].split(/[\s,/]+/).filter(Boolean);
+  return parts.length === 4 && parseFloat(parts[3]) === 0;
+}
 const _shapeOf = (v) => _oneOf(v, RADIAL_SHAPES, 'circle');
 /** 항목 수 한도 — 원 3~10 · 다각형 3~8 · 호 2~10. */
 function radialCountLimits(shape) {
@@ -379,9 +398,13 @@ function _centerHTML(st, g) {
   const lines = String(st.centerText).split(/\r?\n/).filter((l) => l.trim() !== '');
   const sub = lines.length > 1 ? lines[0] : '';
   const main = lines.length > 1 ? lines.slice(1).join('\n') : (lines[0] || '');
-  return `<div class="rdl-center rdl-center--text" style="${box}background:${st.centerBg};color:${st.centerColor};">`
+  /* 글이 비면 안내문구 — 인용구 블럭과 같은 표식(data-is-placeholder · 흐림은 editor-blocks.css · 내보내기에선 capture-safety 가 숨긴다). */
+  const ph = lines.length === 0 ? ` data-is-placeholder="true" data-placeholder="${RADIAL_CENTER_PH}"` : '';
+  /* 배경이 투명하면 원판 그림자도 없다(그림자는 원판의 것 — css .rdl-center--text[data-rdl-nobg]). */
+  const nobg = _isClearColor(st.centerBg) ? ' data-rdl-nobg="1"' : '';
+  return `<div class="rdl-center rdl-center--text"${nobg} style="${box}background:${st.centerBg};color:${st.centerColor};">`
     + (sub ? `<span class="rdl-center-sub" style="font-size:${Math.max(11, Math.round(s * 0.085))}px">${escHtml(sub)}</span>` : '')
-    + `<span class="rdl-center-main" style="font-size:${Math.max(14, Math.round(s * (sub ? 0.2 : 0.14)))}px">${_multiline(main)}</span>`
+    + `<span class="rdl-center-main"${ph} style="font-size:${Math.max(14, Math.round(s * (sub ? 0.2 : 0.14)))}px">${ph ? RADIAL_CENTER_PH : _multiline(main)}</span>`
     + `</div>`;
 }
 
@@ -722,5 +745,5 @@ export {
   radialStateOf, radialItemsOf, radialSetCount, radialLayoutOf, radialArcSpec, radialArcLabelRects, radialArcLabelMaxW, RADIAL_ARC_PAD, RADIAL_ARC_PAD_LEFT, radialCountLimits, radialLabelHTML,
   radialNormDeg, radialAutoDegs, radialDegsOf, radialItemIsManual, radialResetPlacement,
   radialSanitizeSvg, radialCenterKeys, radialCenterSvg, radialCenterLabel, RADIAL_CENTER_PICS, RADIAL_ICON_SVG_MAX,
-  RADIAL_DEFAULTS, RADIAL_LIMITS, RADIAL_LINES, RADIAL_LABEL_POS, RADIAL_CENTER_MODES, RADIAL_SHAPES, RADIAL_ARC_PRESET, RADIAL_LOOK_KEYS, RADIAL_ARC_DEFAULT_ITEMS,
+  RADIAL_DEFAULTS, RADIAL_DOT_COLOR, RADIAL_TEXT_COLOR, RADIAL_CENTER_PH, RADIAL_LIMITS, RADIAL_LINES, RADIAL_LABEL_POS, RADIAL_CENTER_MODES, RADIAL_SHAPES, RADIAL_ARC_PRESET, RADIAL_LOOK_KEYS, RADIAL_ARC_DEFAULT_ITEMS,
 };
