@@ -7,6 +7,8 @@
 //   S1 secTop — 짧은 섹션을 화면 위쪽에 올려(섹션 아래 끝 < 캔버스 가운데) ⌘V 하면 사본 상자가 제 섹션 상자 안
 //   S3 두 번  — secTop 에서 ⌘V 를 한 번 더 하면 두 사본이 같은 자리가 아니고 둘 다 섹션 안
 //   S2 가운데 — 섹션을 캔버스 가운데로 굴려(섹션 rect 가 캔버스 가운데 점을 덮는다) 같은 클립보드로 ⌘V → 사본 상자가 섹션 안(바닥에서도 초록 — 음성 짝)
+//   S2-x 가운데 맞춤 — 그 ⌘V 의 사본 왼위 = (캔버스 가운데를 섹션 로컬로 ÷ 줌) − 크기/2 (±1) — 프레임 갈래·새 스티커 넣기와 같은 «크기 절반» 꼴.
+//                      변이 대조 M2(크기 절반 안 뺌)가 v3 를 다 초록으로 지나간 자리를 막는다. 바닥(vp 그대로 왼위)에서는 빨강.
 //   S5 끌기 경계 — 스티커 끌기 클램프 _clampToSection(js/sticker-select.js:30)의 아래 끝 = 섹션 clientHeight − 사본 높이
 //                  (붙이기 클램프 _placePastedOverlay 의 maxY 와 같은 자). 바닥에서도 초록이어야 지키는 칸.
 //   S4 자란 섹션 — 섹션에 Frame 을 넣어(플로팅 패널 «Frame 추가») 섹션 clientHeight 가 늘어난 뒤 S1 장면 → 사본이 «늘어난» 섹션 안.
@@ -138,6 +140,11 @@ async function scrollSecTop(page, secId) {
   }
   return { reached, iters, g };
 }
+// 캔버스 가운데를 섹션 로컬(모델 px)로 — js/editor.js _viewportCenterInContainerLocal 과 같은 식(읽기만)
+async function vpLocal(page, secId) {
+  return page.evaluate((s) => { const w = document.getElementById('canvas-wrap').getBoundingClientRect(); const r = document.getElementById(s).getBoundingClientRect();
+    const z = (window.currentZoom ?? 100) / 100; return { x: (w.left + w.width / 2 - r.left) / z, y: (w.top + w.height / 2 - r.top) / z }; }, secId);
+}
 // 판정 자 — 모델 px
 async function boxOf(page, id) {
   return page.evaluate((id) => { const e = document.getElementById(id); const sec = e?.closest('.section-block');
@@ -195,13 +202,16 @@ for (const label of ['Sticker', 'Text Sticker']) {
     log('S2-scroll', { label, g: g2 });
     expect(g2.bTop < g2.wMid && g2.bBot > g2.wMid, '전제: 섹션 rect 가 캔버스 가운데 점을 덮는다').toBe(true);
     expect(await page.evaluate(() => window.getSelectedSection?.()?.id ?? null), '전제: S2 붙일 섹션 = 원본 섹션').toBe(secA);
+    const vp2 = await vpLocal(page, secA);
     const p2 = await paste(page);
     const b2 = await boxOf(page, p2);
-    log('S2', { label, b: b2, inside: inside(b2) });
+    const want2 = { x: Math.round(vp2.x - b2.w / 2), y: Math.round(vp2.y - b2.h / 2) };
+    log('S2', { label, b: b2, inside: inside(b2), vp: vp2, want: want2 });
 
     expect(errs, '페이지 에러 0').toEqual([]);
     expect.soft(b2.sec, 'S2: 사본이 원본 섹션에 붙었다').toBe(secA);
     expect.soft(inside(b2), `S2 가운데: 사본 상자가 섹션 안 (x ${b2.x} y ${b2.y} w ${b2.w} h ${b2.h} · 섹션 ${b2.secW}×${b2.secH})`).toBe(true);
+    expect.soft(Math.abs(b2.x - want2.x) <= 1 && Math.abs(b2.y - want2.y) <= 1, `S2-x 가운데 맞춤: 사본 왼위 (${b2.x},${b2.y}) = vp − 크기/2 (${want2.x},${want2.y}) ±1`).toBe(true);
     expect.soft(b1.sec, 'S1: 사본이 원본 섹션에 붙었다').toBe(secA);
     expect.soft(inside(b1), `S1 secTop: 사본 상자가 섹션 안 (x ${b1.x} y ${b1.y} w ${b1.w} h ${b1.h} · 섹션 ${b1.secW}×${b1.secH})`).toBe(true);
     expect.soft(inside(b3), `S3: 두 번째 사본도 섹션 안 (x ${b3.x} y ${b3.y} · 섹션 ${b3.secW}×${b3.secH})`).toBe(true);
