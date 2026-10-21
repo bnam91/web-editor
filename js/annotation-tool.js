@@ -7,6 +7,11 @@
 // ── 모듈 상태 ─────────────────────────────────────────────────────────────
 let _penMode = false;
 let _pendingPoints = null;       // { sec, points: [[x,y], ...] }
+/* ★★t3-01 사이즈 스티커 — ★같은 펜 모드를 쓰고 ★둘째 점에서 ★스스로 끝낸다.
+   ★현빈 원문 「★어노테이션처럼 ★점 2개 찍어」 ⇒ ★점 추가·자석·미리보기는 ★그대로 재사용하고
+     ★다른 것은 ⑴끝나는 때(2점) ⑵만드는 꼴(annotKind:'dim') ★둘뿐이다.
+   ⛔별 모드를 새로 만들지 않는다 — 그러면 자석·미리보기·ESC·섹션 가드가 ★둘째 명부가 된다. */
+let _dimMode = false;
 let _pendingPreviewEl = null;    // 임시 SVG 미리보기 DOM (sec 내부)
 let _penClickBound = false;      // 캔버스 캡처 리스너 1회 바인딩 가드
 let _cursor = null;              // ★1017t1h1 — 그리는 중 «아직 안 찍은» 다음 점(고무줄 끝) [x,y] 섹션 좌표(스냅 적용됨)
@@ -36,6 +41,7 @@ function enterPenMode() {
 function exitPenMode() {
   if (!_penMode) return;
   _penMode = false;
+  _dimMode = false;   /* ★t3-01 — ⛔안 끄면 ★다음에 펜을 켤 때 ★치수선이 나온다 */
   document.body.classList.remove('pen-mode');
   const btn = document.getElementById('fp-pen-btn');
   if (btn) btn.classList.remove('active');
@@ -173,6 +179,9 @@ function _handlePenClick(e) {
   }
   _lastClickAt = now;
   _lastClickXY = { x, y };
+  /* ★★t3-01 — ★치수 모드면 ★둘째 점에서 ★바로 끝낸다(더블클릭을 ★기다리지 않는다).
+     ⛔미리보기를 그리고 ★나서 끝내면 ★한 프레임 깜빡인다 ⇒ ★여기서 ★먼저 가른다. */
+  if (_dimMode && _pendingPoints.points.length >= 2) { _finalizeAnnotation(); return; }
   _updatePreviewSvg();
 }
 
@@ -272,8 +281,12 @@ function _finalizeAnnotation({ enterLabelEdit = true, silent = false } = {}) {
   const { sec, points } = _pendingPoints;
   if (points.length < 2) { _cancelPending(); return; }
 
-  if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 추가');
-  const block = window.makeAnnotationBlock({ points, text: '텍스트' });
+  /* ★★t3-01 — ★치수 모드면 ★표식과 ★첫 글을 달리 준다. ⛔`_cancelPending()` ★뒤에 읽으면 ∅ 가 된다 ⇒ ★여기서 떠 둔다. */
+  const asDim = _dimMode;
+  if (typeof window.pushHistory === 'function') window.pushHistory(asDim ? '치수선 추가' : '어노테이션 추가');
+  const block = asDim
+    ? window.makeAnnotationBlock({ points, text: '수치입력', annotKind: 'dim' })
+    : window.makeAnnotationBlock({ points, text: '텍스트' });
   sec.appendChild(block);
 
   // 라벨 즉시 편집 진입 — ★1013t2C6 더블클릭과 «같은 한 벌»(annotation-select.js annotBeginLabelEdit)
@@ -287,7 +300,7 @@ function _finalizeAnnotation({ enterLabelEdit = true, silent = false } = {}) {
      때까지 레이어에 안 나타났다(2026-10-13 실측: 생성 직후 행 3 → 3). */
   window.buildLayerPanel?.();
   window.scheduleAutoSave?.();
-  if (!silent) window.showToast?.('✏️ 펜 모드 유지 중 — ESC로 종료');
+  if (!silent) window.showToast?.(asDim ? '📐 치수선 — 점 2개마다 하나씩 · ESC로 종료' : '✏️ 펜 모드 유지 중 — ESC로 종료');
 }
 
 // ESC / V 공통 — 그리던 선(≥2점)은 확정해 보존하고 펜 모드 종료 (1점 이하는 폐기)
@@ -367,6 +380,21 @@ function _onKeydown(e) {
 }
 
 // ── window export ────────────────────────────────────────────────────────
+/* ★★t3-01 — 치수 모드. ★펜 모드를 ★그대로 켜고 ★끝나는 때만 바꾼다.
+   ⛔`enterPenMode()` 가 ★이미 켜져 있으면 ★바로 돌아오므로(`if (_penMode) return`)
+     ★`_dimMode` 를 ★그 뒤에 세운다 — 순서를 바꾸면 ★펜으로 켜 둔 상태에서 ★치수로 안 넘어간다. */
+function enterDimMode() {
+  enterPenMode();
+  _dimMode = true;
+  window.showToast?.('📐 치수선 — 섹션에서 점 2개를 찍으면 하나가 생긴다 · ESC로 종료');
+}
+function toggleDimMode() {
+  if (_penMode && _dimMode) { exitPenMode(); return; }
+  if (window.isEasterEggEnabled && !window.isEasterEggEnabled('penMode')) return;
+  enterDimMode();
+}
+window.enterDimMode  = enterDimMode;
+window.toggleDimMode = toggleDimMode;
 window.enterPenMode  = enterPenMode;
 window.exitPenMode   = exitPenMode;
 window.togglePenMode = togglePenMode;

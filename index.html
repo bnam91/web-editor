@@ -688,6 +688,8 @@
     </button>
     <div class="fp-dropdown-menu" id="fp-pen-menu">
       <button class="fp-menu-item" onclick="togglePenMode();toggleFpDropdown('fp-pen-dropdown')" title="펜툴 어노테이션 — 클릭으로 점 추가 · 더블클릭/Enter 종료 · ESC 취소">Annotation</button>
+      <!-- ★★t3-01 사이즈 스티커 — 어노테이션의 ★변형(점 2개). 기하는 js/blocks/annot-dim-geometry.js -->
+      <button class="fp-menu-item" onclick="toggleDimMode();toggleFpDropdown('fp-pen-dropdown')" title="사이즈 스티커(치수선) — 섹션에서 점 2개를 찍으면 하나 · 치우침·좌우·보조선은 우측 패널에서 · ESC 종료">Dimension</button>
       <button class="fp-menu-item" onclick="addStickerBlock();toggleFpDropdown('fp-pen-dropdown')" title="플로팅 스티커 — 클릭=마지막 스타일 / 색·프리셋은 우측 패널에서 선택">Sticker</button>
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'text'});toggleFpDropdown('fp-pen-dropdown')" title="텍스트 스티커 — 캔버스에 자유 배치하는 텍스트 (폰트/외곽선/그림자 등 풀 옵션)">Text Sticker</button>
       <button class="fp-menu-item" onclick="openIconifyModal((p)=>{const o={shape:'icon', iconName:p.name, svg:p.svg, size:p.size}; if(p.iconColor!=null&&p.iconColor!=='') o.iconColor=p.iconColor; window.addStickerBlock(o);}, {favorites:true});toggleFpDropdown('fp-pen-dropdown')" title="아이콘 스티커 — Iconify에서 아이콘을 골라 캔버스에 스티커로 추가">Icon Sticker</button>
