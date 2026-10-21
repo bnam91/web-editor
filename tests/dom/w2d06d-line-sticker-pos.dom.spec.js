@@ -192,6 +192,7 @@ for (const label of ['Highlight', 'Arrow Line']) {
     expect(errs).toEqual([]);
   });
 
+  // ★얇은 데(2026-10-22 변이 실측): O2(end 손잡이 · x2<x1 · y2<y1 이 되는 칸)가 M3(min → 첫 점 x1,y1)을 혼자 잡는다 — 지우면 그 변이가 안 잡힌다.
   for (const ep of ['end', 'start']) {
     test(`W06D ${ep === 'end' ? 'O2' : 'O3'} ${label} — 끝점(${ep}) 손잡이 끌기`, async ({ page }) => {
       test.setTimeout(120000);
@@ -261,6 +262,7 @@ test('W06D O4 Highlight — 두께 손잡이 끌기', async ({ page }) => {
   expect(errs).toEqual([]);
 });
 
+// ★얇은 데(2026-10-22 변이 실측): O8(화살표 패널 두께)이 M6(prop-sticker-arrow.js 의 두께 줄 지움)을 혼자 잡는다 — 지우면 그 변이가 안 잡힌다.
 for (const c of [{ cell: 'O7', label: 'Highlight', num: '#stk-hlb-thick-num', v: 30 }, { cell: 'O8', label: 'Arrow Line', num: '#stk-arrow-thick-num', v: 8 }]) {
   test(`W06D ${c.cell} ${c.label} — 우측 패널 두께`, async ({ page }) => {
     test.setTimeout(120000);
