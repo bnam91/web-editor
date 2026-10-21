@@ -211,6 +211,60 @@ test('SHD7 ★면제 줄은 ★«판 번호»를 ★갖는다 (⛔「다음 버�
   assert.equal(probe('★아직 안 걸었다'), true, '★★양성대조: 판 번호가 ★없으면 ★잡혀야 한다');
 });
 
+/* ★★★SHD8 (261021) — ★SHD7 의 자를 ★`tests/dom/EXPECT_N.md` 까지 넓힌다.
+ *   ★까닭(★실측): SHD7 은 ★이 파일의 `KNOWN_GAPS` ★만 재고, ★미룸 장부인 EXPECT_N.md 는 ★안 쟀다.
+ *     그 사이 그쪽 두 줄은 ★「떼는 조건 = ★«다음 버전»」으로 남아 있었다.
+ *   ★★그 「다음」이 ★몇 판 지나갔나 — ★태그로 쟀다:
+ *     `DEFER_PX` 들인 날 ★2026-10-12(eaab4bbe) · 그때 나간 판 ★0.9.6(v0.9.6 = 10-06)
+ *     ⇒ 당시 「다음 버전」 = ★0.9.7 → ★v0.9.7 이 ★10-13 에 나갔다 · ★v0.9.8 도 ★10-19 에 나갔다
+ *   ⇒ ★★★「다음 버전」이 ★★두 판 지나갔다. ⛔내가 261021 아침 SHD7 주석에 「그 다음이 이미 0.9.9」라
+ *     적은 것은 ★★한 판 ★덜 센 것이다 — 그 수를 여기서 고친다.
+ *   ⇒ ★★재는 자가 없는 조건은 ★안 지켜진다. 그래서 ★장부 쪽에도 자를 둔다. */
+test('SHD8 ★EXPECT_N.md 의 ★미룸 절도 ★«판 번호»를 ★갖는다 (⛔상대 참조 금지)', () => {
+  const REL = ['다음 버전', '다음번', '나중에', '그때 가서', '손댈 때', '언젠가', '추후'];
+  const VER = /0\.\d+\.\d+/;
+  /* ★분모 — 「미룸 절」의 ★정의 자리를 여기 둔다. ⛔낱말 하나로 grep 하지 않는다. */
+  const DEFERRING = /미룬다|미룬 것|가리는 이름|떼는 법/;
+  const judge = (md) => {
+    const secs = md.split(/^## /m).slice(1).filter((b) => DEFERRING.test(b));
+    const bad = [];
+    for (const b of secs) {
+      const title = b.split('\n')[0].slice(0, 60);
+      const lines = b.split('\n').filter((l) => l.includes('떼는 조건'));
+      if (!lines.length) { bad.push(`  · ${title} — ★「떼는 조건」 줄이 ★없다`); continue; }
+      for (const l of lines) {
+        if (!VER.test(l)) bad.push(`  · ${title} — ★판 번호가 없다: ${l.trim().slice(0, 70)}`);
+        const hit = REL.filter((r) => l.includes(r));
+        if (hit.length) bad.push(`  · ${title} — ★상대 참조(${hit.join(', ')})`);
+      }
+    }
+    return { n: secs.length, bad };
+  };
+
+  /* ★★자가 사는지 — ★양성 셋 ＋ ★음성 하나를 ★이 자리에서.
+     ⛔★261021 실측: 첫 판은 양성 ⒜ 의 기대값을 ★`1` 이라 적어 ★스스로 빨개졌다 — 참값은 ★`2` 다
+       (「떼는 조건 = 다음 버전」은 ★⑴판 번호 없음 ＋ ⑵상대 참조 ★둘을 낸다).
+       ⇒ ★★양성대조가 묻는 것은 「★몇 건이냐」가 아니라 「★잡혔나」다 ⇒ ★`> 0` 으로 적는다.
+       ★「대조군을 돌리는 자도 대조가 필요하다」 — 그 비석이다. */
+  assert.ok(judge('## ★미룬 것 A\n- 떼는 조건 = ★«다음 버전»\n- 떼는 법 = 한 줄\n').bad.length > 0,
+    '★★양성대조: 「다음 버전」이 ★잡혀야 한다');
+  assert.ok(judge('## ★미룬 것 B\n- 떼는 법 = 한 줄\n').bad.length > 0,
+    '★★양성대조: 「떼는 조건」 줄이 ★없으면 잡혀야 한다');
+  assert.equal(judge('## ★미룬 것 C\n- 떼는 조건 = ★판 0.9.9\n- 떼는 법 = 한 줄\n').bad.length, 0,
+    '★음성대조: 판이 박혀 있으면 ★통과해야 한다');
+  assert.equal(judge('## 현재값\n- 아무 미룸도 없다\n').n, 0,
+    '⛔음성대조: 미룸이 아닌 절을 ★분모에 넣으면 안 된다');
+
+  const md = read(path.join(ROOT, 'tests/dom/EXPECT_N.md'));
+  const got = judge(md);
+  assert.ok(got.n > 0,
+    '★★EXPECT_N.md 에서 ★미룸 절을 ★0개 찾았다 ⇒ ★★아래 초록은 «안 쟀다»다(제목 꼴이 바뀌었으면 ★분모를 고쳐라)');
+  assert.deepEqual(got.bad, [],
+    `★EXPECT_N.md 의 미룸 절 ${got.n}개 중 ★판이 안 박힌 곳이 있다 — ★★「다음」은 ★조용히 지나간다`
+      + '(★실측: 2026-10-12 에 쓴 「다음 버전」이 ★v0.9.7·v0.9.8 ★두 판을 지나쳤다):\n'
+      + got.bad.join('\n'));
+});
+
 test('SHD6 ★★가드 ★자체를 ★잰다 — ⛔「세워 둔 방어」는 ★「발동한 방어」가 아니다', async () => {
   const { createRequire } = await import('node:module');
   const req = createRequire(import.meta.url);
