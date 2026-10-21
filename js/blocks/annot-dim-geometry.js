@@ -76,12 +76,23 @@
     var baseDeg = Math.atan2(u[1], u[0]) * 180 / Math.PI;
     var tilt = Math.atan2(slide, Math.abs(off) || 1) * 180 / Math.PI;
 
+    /* ★★261021 현빈 지적 — 「왜 라벨텍스트 박스가 ★바로 선 중간에 위치하는지??」
+       ⛔첫 판은 라벨을 ★치수선 ★정중앙(mid)에 ★겹쳐 놓았다. ★제도에서는 치수 문자가 ★선 위에 ★겹치지 않는다 —
+         ⑴선이 그 자리에서 ★끊기거나 ⑵문자가 ★선 바깥으로 ★살짝 떠 있거나 ★둘 중 하나다.
+       ⇒ `mid` 는 ★그대로 두고(기하의 중점이라 ★다른 것도 쓴다) ★라벨 자리는 ★`labelAt` 으로 ★따로 낸다.
+       ★띄우는 쪽 = ★치우침과 ★같은 쪽(선 바깥). ★치우침이 0 이면 ★위쪽(n 의 반대)으로 둔다. */
+    var lift = Math.max(0, num(o.dimLabelLift, 11));
+    var lsgn = off === 0 ? -1 : (off > 0 ? 1 : -1);
+    var mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    var labelAt = [mid[0] + n[0] * lift * lsgn, mid[1] + n[1] * lift * lsgn];
+
     return {
       axis: axis, len: len, degenerate: degenerate,
       u: u, n: n, off: off, slide: slide, snapped: snapped, snapWidth: SNAP,
       line: [a, b],                          /* ★치수선 — 두 점과 ★평행 */
       ext: [ext(A, a), ext(Bp, b)],          /* ★보조선 둘 — 치수선에 ★수직 */
-      mid: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],   /* ★라벨 자리 */
+      mid: mid,                              /* ★치수선 ★중점(기하) — ⛔라벨 자리가 ★아니다 */
+      labelAt: labelAt, lift: lift, lsgn: lsgn,   /* ★라벨 자리 = 중점에서 ★선 바깥으로 lift 만큼 */
       pipeDeg: [baseDeg + 90 + tilt, baseDeg + 90 + tilt],
       sgn: sgn,
     };

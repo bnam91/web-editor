@@ -110,6 +110,40 @@ test('D6 ★라벨 자리 = ★치수선 ★중심 — ⛔`points[last]` 가 ★
     '★★라벨 자리가 ★마지막 점과 같다 — annotation-select.js:190-192 의 그 함정이다');
 });
 
+test('D6b ★라벨이 ★치수선에 ★겹치지 않는다 — ★★261021 현빈 지적을 ★자로 잠근다', () => {
+  /* ★현빈 원문: 「왜 라벨텍스트 박스가 ★바로 선 중간에 위치하는지??」
+     ⇒ ★제도에서 치수 문자는 ★선 위에 ★겹치지 않는다. ★여기서는 ★선 바깥으로 ★띄우는 쪽을 골랐다. */
+  const g = G([[0, 0], [100, 0]], { dimOffset: 24 });
+  assert.deepEqual(norm(g.mid), [50, 24], '★전제: 중점은 그대로다(다른 것도 이 값을 쓴다)');
+  const d = Math.hypot(g.labelAt[0] - g.mid[0], g.labelAt[1] - g.mid[1]);
+  assert.ok(d > 6, `★라벨이 ★중점에서 ${d.toFixed(1)}px 밖에 안 떨어졌다 — ★선에 ★겹친다(현빈이 지적한 그 증상)`);
+  assert.ok(Math.abs(d - g.lift) < 1e-6, `★띄운 거리가 ★lift(${g.lift}) 와 다르다 — 산식이 ★어긋났다`);
+
+  /* ★★점과 ★선분의 거리로 ★겹침을 ★직접 잰다 — ⛔「떨어졌다」만으로는 ★선이 ★긴 쪽으로 못 잡는다 */
+  const distToLine = (p, a, b) => {
+    const vx = b[0] - a[0], vy = b[1] - a[1], L = Math.hypot(vx, vy) || 1;
+    return Math.abs((p[0] - a[0]) * vy - (p[1] - a[1]) * vx) / L;
+  };
+  assert.ok(distToLine(g.labelAt, g.line[0], g.line[1]) > 6,
+    '★라벨이 ★치수선 ★위에 있다 — ★문자가 선을 ★가린다');
+  assert.ok(distToLine(g.mid, g.line[0], g.line[1]) < 1e-6, '★전제: 중점은 ★선 위에 있다(자가 산다)');
+
+  /* ★치우침 ★부호를 뒤집으면 ★띄우는 쪽도 ★뒤집힌다 — ★선 ★안쪽으로 들어가면 안 된다 */
+  const up = G([[0, 0], [100, 0]], { dimOffset: 24 });
+  const dn = G([[0, 0], [100, 0]], { dimOffset: -24 });
+  assert.ok((up.labelAt[1] - up.mid[1]) * (dn.labelAt[1] - dn.mid[1]) < 0,
+    '★★자가 죽었다 — 치우침을 뒤집어도 ★라벨이 ★같은 쪽에 있다');
+
+  /* ⛔음성대조 — ★치우침 0 이어도 ★겹치지 않는다(그때도 어딘가로 띄워야 한다) */
+  const flat = G([[0, 0], [100, 0]], { dimOffset: 0 });
+  assert.ok(distToLine(flat.labelAt, flat.line[0], flat.line[1]) > 6,
+    '★치우침 0 일 때 ★라벨이 ★선에 겹친다 — ★그 갈래를 안 다뤘다');
+
+  /* ★끄고 싶으면 ★0 으로 — ★그 길이 ★열려 있는지도 잰다(⒟ 패널이 쓸 칸) */
+  const zero = G([[0, 0], [100, 0]], { dimOffset: 24, dimLabelLift: 0 });
+  assert.deepEqual(norm(zero.labelAt), norm(zero.mid), '★lift 0 인데 ★중점과 다르다 — ★칸이 안 먹는다');
+});
+
 test('D7 ★axis 고정 — 비뚤은 두 점에 ★h 를 주면 ★수평으로 잰다', () => {
   const skew = [[0, 0], [100, 60]];
   const auto = G(skew, {});

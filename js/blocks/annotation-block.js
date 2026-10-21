@@ -420,8 +420,10 @@ function makeAnnotationBlock(opts = {}) {
   // 이미지 원형(라운드 50% 또는 충분히 큰 라운드) 모드면 라벨 중앙에 부착 — 원에 모서리 없으니 중앙이 자연스러움
   const isImgCircleish = labelMode === 'image' && (parseFloat(labelImageRadius) || 0) >= 25;
   /* ★★t3-01 — ★라벨 자리는 ★치수선 ★중심이다. ⛔`points[last]` 가 ★아니다
-     (annotation-select.js:190-192 가 last 를 쓰는 그 함정 — 단위 검사 D6 가 ★중심≠마지막점을 단언한다). */
-  const labelPos = dimGeo ? dimGeo.mid : last;
+     (annotation-select.js:190-192 가 last 를 쓰는 그 함정 — 단위 검사 D6 가 ★중심≠마지막점을 단언한다).
+     ★★261021 현빈 지적 뒤 정정 — ★정확히는 ★`labelAt` 이다(중점에서 ★선 바깥으로 띄운 자리).
+       ★`mid` 에 그대로 두면 ★문자가 ★치수선에 ★겹친다. */
+  const labelPos = dimGeo ? (dimGeo.labelAt || dimGeo.mid) : last;
   const labelTf = dimGeo ? 'translate(-50%,-50%)'
     : (isImgCircleish ? 'translate(-50%,-50%)' : _calcLabelTransform(points));
   // 이미지 모드 + radius > 0이면 라벨박스 padding 0 + border-radius 동기화 → 이미지+테두리가 같은 모양
