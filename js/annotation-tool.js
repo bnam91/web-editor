@@ -12,6 +12,13 @@ let _pendingPoints = null;       // { sec, points: [[x,y], ...] }
      ★다른 것은 ⑴끝나는 때(2점) ⑵만드는 꼴(annotKind:'dim') ★둘뿐이다.
    ⛔별 모드를 새로 만들지 않는다 — 그러면 자석·미리보기·ESC·섹션 가드가 ★둘째 명부가 된다. */
 let _dimMode = false;
+/* ★★261021 현빈 설계 — 치수선은 ★3클릭이다.
+     클릭1 ★첫 점 · 클릭2 ★둘째 점(= ★길이가 정해진다) · ⇒ ★여기서 ★끝나지 않는다.
+     그 뒤 ★마우스를 따라 ★임시 치수선이 ★선 밖으로 왔다갔다 한다 ·
+     클릭3 ★그 자리에 ★고정 ＋ ★원래 두 점에서 ★보조선이 ★거기로 연결된다.
+   ★★첫 판은 ★2클릭에 ★바로 만들고 치우침을 ★24px 로 ★박았다 — 현빈 원문으로 ★정정했다.
+   ⇒ `_dimPlacing` = 「길이는 정해졌고 ★자리를 ★고르는 중」. ⛔이 동안 ★블럭은 ★아직 없다. */
+let _dimPlacing = false;
 let _pendingPreviewEl = null;    // 임시 SVG 미리보기 DOM (sec 내부)
 let _penClickBound = false;      // 캔버스 캡처 리스너 1회 바인딩 가드
 let _cursor = null;              // ★1017t1h1 — 그리는 중 «아직 안 찍은» 다음 점(고무줄 끝) [x,y] 섹션 좌표(스냅 적용됨)
@@ -42,6 +49,7 @@ function exitPenMode() {
   if (!_penMode) return;
   _penMode = false;
   _dimMode = false;   /* ★t3-01 — ⛔안 끄면 ★다음에 펜을 켤 때 ★치수선이 나온다 */
+  _dimPlacing = false;
   document.body.classList.remove('pen-mode');
   const btn = document.getElementById('fp-pen-btn');
   if (btn) btn.classList.remove('active');
@@ -58,6 +66,7 @@ function togglePenMode() {
 
 // ── 내부 유틸 ─────────────────────────────────────────────────────────────
 function _cancelPending() {
+  _dimPlacing = false;   /* ★t3-01 — ⛔안 끄면 ★다음 치수선이 ★첫 클릭부터 ★자리 고르기로 들어간다 */
   _pendingPoints = null;
   if (_pendingPreviewEl) { _pendingPreviewEl.remove(); _pendingPreviewEl = null; }
   _lastClickAt = 0;
@@ -113,6 +122,12 @@ function _onMouseMoveCapture(e) {
   }
   const { sec, points } = _pendingPoints;
   const { x, y } = _clientToSectionCoord(e.clientX, e.clientY, sec);
+  if (_dimPlacing) {
+    /* ★t3-01 — ★자리 고르기. ⛔각도 자석을 ★안 탄다(각도는 ★이미 두 점이 정했다). */
+    _cursor = [x, y];
+    _updatePreviewSvg();
+    return;
+  }
   const prev = points[points.length - 1];
   const snapped = window._snapVecToStep({ x, y }, { x: prev[0], y: prev[1] }, { tolDeg: e.shiftKey ? null : window.ANNOT_SNAP_TOL_DEG });
   _cursor = [snapped.x, snapped.y];
@@ -140,7 +155,12 @@ function _onContextMenuCapture(e) {
 
 // ── 클릭 핸들러 (N-step) ─────────────────────────────────────────────────
 function _handlePenClick(e) {
-  const sec = e.target.closest('.section-block');
+  /* ★★t3-01 261021 실측 — ★자리 고르기(③번째 클릭)는 ★섹션 ★밖에 떨어지기 쉽다.
+     치수선은 ★선 바깥으로 빼는 것이라 ★경계를 ★자주 넘는다. ⛔예전엔 여기서 ★조용히 return 해서
+     ★아무 일도 안 났다(임시 치수선만 ★남아 떠 있었다 — ★「먹통」으로 보인다).
+     ⇒ ★고르는 중이면 ★이미 정해진 ★그 섹션을 쓴다. 좌표는 ★그 섹션 기준으로 ★음수·초과도 ★그대로 받는다
+       (치우침이 ★섹션 밖을 가리키는 것은 ★정상이다 — 블럭은 ★섹션에 붙고 ★그림만 넘는다). */
+  const sec = (_dimPlacing && _pendingPoints) ? _pendingPoints.sec : e.target.closest('.section-block');
   if (!sec) return;
 
   let { x, y } = _clientToSectionCoord(e.clientX, e.clientY, sec);
@@ -149,6 +169,17 @@ function _handlePenClick(e) {
   // 다른 섹션에서 시작 → pending 초기화
   if (_pendingPoints && _pendingPoints.sec !== sec) {
     _cancelPending();
+  }
+
+  /* ★★t3-01 — ★자리를 ★고르는 중이면 ★이 클릭이 ★마지막이다.
+     ★커서 자리를 ★부호 있는 수직거리(dimOffset)로 바꿔 ★그 값으로 만든다.
+     ⛔각도 자석을 ★타지 않는다 — 자리 고르기는 ★「두 점을 잇는 각도」와 ★무관하다. */
+  if (_dimPlacing && _pendingPoints && _pendingPoints.sec === sec) {
+    const off = (typeof window.annotDimOffsetFromPoint === 'function')
+      ? window.annotDimOffsetFromPoint(_pendingPoints.points, [x, y], {})
+      : 24;
+    _finalizeAnnotation({ dimOffset: off });
+    return;
   }
 
   // ★1017t1h1 — 8방향(0/45/90/135/180/225/270/315) 자석. Shift = 강제(지금 꼴 유지) · 평시 = ±6° 안일 때만.
@@ -181,7 +212,9 @@ function _handlePenClick(e) {
   _lastClickXY = { x, y };
   /* ★★t3-01 — ★치수 모드면 ★둘째 점에서 ★바로 끝낸다(더블클릭을 ★기다리지 않는다).
      ⛔미리보기를 그리고 ★나서 끝내면 ★한 프레임 깜빡인다 ⇒ ★여기서 ★먼저 가른다. */
-  if (_dimMode && _pendingPoints.points.length >= 2) { _finalizeAnnotation(); return; }
+  /* ★★t3-01 — ★두 점이 모이면 ★길이가 정해진 것이다. ⛔여기서 ★만들지 않는다 —
+     ★자리 고르기로 ★넘어가고, ★다음 클릭이 ★그 자리를 정한다(위 갈래). */
+  if (_dimMode && _pendingPoints.points.length >= 2) { _dimPlacing = true; }
   _updatePreviewSvg();
 }
 
@@ -238,7 +271,32 @@ function _updatePreviewSvg() {
   poly.setAttribute('points', points.map(p => `${p[0]},${p[1]}`).join(' '));
 
   // 고무줄 + 각도 라벨 — _cursor(아직 안 찍은 다음 점)가 있을 때만.
-  if (_cursor && points.length > 0) {
+  /* ★★t3-01 — ★자리 고르기 동안의 ★임시 치수선. ★제품과 ★같은 기하(annotDimGeometry)를 쓴다
+     ⇒ ⛔미리보기와 ★만들어진 것이 ★다른 자리에 서는 일이 ★없다(명부가 ★하나다). */
+  svg.querySelectorAll('.annot-preview-dim').forEach(d => d.remove());
+  if (_dimPlacing && _cursor && points.length >= 2 && typeof window.annotDimGeometry === 'function') {
+    const off = window.annotDimOffsetFromPoint(points, _cursor, {});
+    const g = window.annotDimGeometry(points, { dimOffset: off });
+    if (g) {
+      const ns = 'http://www.w3.org/2000/svg';
+      const mk = (x1, y1, x2, y2, dash) => {
+        const l = document.createElementNS(ns, 'line');
+        l.setAttribute('class', 'annot-preview-dim');
+        l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+        l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+        l.setAttribute('stroke', '#e74c3c');
+        l.setAttribute('stroke-width', dash ? 1 : 1.8);
+        if (dash) l.setAttribute('stroke-dasharray', '3 3');
+        l.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(l);
+      };
+      mk(g.line[0][0], g.line[0][1], g.line[1][0], g.line[1][1], false);
+      g.ext.forEach(([p0, p1]) => mk(p0[0], p0[1], p1[0], p1[1], true));
+    }
+    /* ★자리를 고르는 동안엔 ★고무줄·각도 라벨을 ★끈다 — ★각도는 ★이미 정해졌다 */
+    guide.style.display = 'none';
+    label.style.display = 'none';
+  } else if (_cursor && points.length > 0) {
     const prev = points[points.length - 1];
     guide.setAttribute('x1', prev[0]); guide.setAttribute('y1', prev[1]);
     guide.setAttribute('x2', _cursor[0]); guide.setAttribute('y2', _cursor[1]);
@@ -257,6 +315,9 @@ function _updatePreviewSvg() {
 
   // 각 점 dot — 매번 다시 그림 (적은 수이므로 OK)
   // 기존 dot 제거
+  /* ★t3-01 — 자리 고르는 동안엔 ★두 점을 잇는 점선 폴리라인을 ★옅게 둔다(원래 잰 구간을 ★보여야 한다) */
+  poly.setAttribute('opacity', _dimPlacing ? '0.35' : '1');
+
   svg.querySelectorAll('.annot-preview-dot').forEach(d => d.remove());
   const svgNS = 'http://www.w3.org/2000/svg';
   points.forEach((p, idx) => {
@@ -276,7 +337,7 @@ function _updatePreviewSvg() {
 // ── 어노테이션 확정 ──────────────────────────────────────────────────────
 // enterLabelEdit=false: 라벨 자동 편집 진입 생략 (ESC/V로 "작업 종료" 커밋 시)
 // silent=true: "펜 모드 유지 중" 토스트 생략 (모드를 곧바로 종료하는 경로)
-function _finalizeAnnotation({ enterLabelEdit = true, silent = false } = {}) {
+function _finalizeAnnotation({ enterLabelEdit = true, silent = false, dimOffset = null } = {}) {
   if (!_pendingPoints) return;
   const { sec, points } = _pendingPoints;
   if (points.length < 2) { _cancelPending(); return; }
@@ -285,7 +346,8 @@ function _finalizeAnnotation({ enterLabelEdit = true, silent = false } = {}) {
   const asDim = _dimMode;
   if (typeof window.pushHistory === 'function') window.pushHistory(asDim ? '치수선 추가' : '어노테이션 추가');
   const block = asDim
-    ? window.makeAnnotationBlock({ points, text: '수치입력', annotKind: 'dim' })
+    ? window.makeAnnotationBlock(Object.assign({ points, text: '수치입력', annotKind: 'dim' },
+        dimOffset != null ? { dimOffset } : {}))
     : window.makeAnnotationBlock({ points, text: '텍스트' });
   sec.appendChild(block);
 
@@ -300,7 +362,7 @@ function _finalizeAnnotation({ enterLabelEdit = true, silent = false } = {}) {
      때까지 레이어에 안 나타났다(2026-10-13 실측: 생성 직후 행 3 → 3). */
   window.buildLayerPanel?.();
   window.scheduleAutoSave?.();
-  if (!silent) window.showToast?.(asDim ? '📐 치수선 — 점 2개마다 하나씩 · ESC로 종료' : '✏️ 펜 모드 유지 중 — ESC로 종료');
+  if (!silent) window.showToast?.(asDim ? '📐 치수선 생성 — 다음 것도 바로 찍을 수 있다 · ESC로 종료' : '✏️ 펜 모드 유지 중 — ESC로 종료');
 }
 
 // ESC / V 공통 — 그리던 선(≥2점)은 확정해 보존하고 펜 모드 종료 (1점 이하는 폐기)
@@ -386,7 +448,7 @@ function _onKeydown(e) {
 function enterDimMode() {
   enterPenMode();
   _dimMode = true;
-  window.showToast?.('📐 치수선 — 섹션에서 점 2개를 찍으면 하나가 생긴다 · ESC로 종료');
+  window.showToast?.('📐 치수선 — ①점 ②점으로 길이를 정하고 ③한 번 더 눌러 자리를 정한다 · ESC로 종료');
 }
 function toggleDimMode() {
   if (_penMode && _dimMode) { exitPenMode(); return; }

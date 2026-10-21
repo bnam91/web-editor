@@ -98,6 +98,25 @@
     };
   }
 
+  /* ★★261021 현빈 설계 — ★3클릭이다.
+       클릭1 ★첫 점 · 클릭2 ★둘째 점(= ★길이 확정) · ★그 뒤 마우스를 따라 치수선이 ★왔다갔다 ·
+       클릭3 ★그 자리에 ★고정 ＋ ★원래 두 점에서 ★보조선이 ★연결된다.
+     ⇒ ★클릭3 의 자리를 ★`dimOffset`(부호 있는 ★수직거리)으로 ★바꾸는 자가 ★여기다.
+     ⛔`dimSlide`(선 따라)는 ★여기서 안 정한다 — 치수선은 ★두 점과 ★평행해야 하고,
+       선 따라 미는 것은 ★보기 값이라 ★패널(⒟)에서 고른다. */
+  function annotDimOffsetFromPoint(points, pt, o) {
+    if (!Array.isArray(points) || points.length < 2 || !pt) return 0;
+    var A = points[0], B = points[points.length - 1];
+    var dx = B[0] - A[0], dy = B[1] - A[1];
+    var axis = (o && (o.dimAxis === 'h' || o.dimAxis === 'v')) ? o.dimAxis : 'auto';
+    if (axis === 'h') dy = 0; else if (axis === 'v') dx = 0;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1e-9) { dx = 1; dy = 0; len = 1; }
+    var nx = -dy / len, ny = dx / len;          /* 선의 ★수직 */
+    return (pt[0] - A[0]) * nx + (pt[1] - A[1]) * ny;   /* ★부호 있는 거리 — 어느 쪽인지까지 담는다 */
+  }
+
   w.annotDimGeometry = annotDimGeometry;
+  w.annotDimOffsetFromPoint = annotDimOffsetFromPoint;
   w.ANNOT_DIM_SNAP = SNAP;
 })(typeof window !== 'undefined' ? window : globalThis);
