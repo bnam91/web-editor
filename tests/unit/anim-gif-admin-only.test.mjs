@@ -99,3 +99,44 @@ test('A4 ★쓰는 자리가 ★한 자리다 — prop-text 가 술어를 ★부
     '⛔이 블록의 ★코드가 권한 필드를 ★손으로 본다 — 판정은 feature-flags.js ★한 자리다');
   assert.equal(HAND.test(codeOnly('if (st.isAdmin === true) {}')), true, '★★양성대조 — 금지 꼴이 ★잡혀야 한다');
 });
+
+/* ═══ A5 ★「술어의 집」을 말하는 ★모든 줄이 ★참 집을 가리킨다 ════════════════
+   ⛔2026-10-21 실측 사고: `prop-text.js:301` 주석이 「가르는 자리는 ★한 자리
+     (js/globals.js animGifVisible)」라 적혀 있었다. ★참 집은 feature-flags.js 다.
+     A3·A4 는 ★행위와 ★금지꼴을 재지만 ★「어디에 있다고 적혀 있나」는 ★안 쟀다.
+   ★★왜 이게 검사거리인가 — 이 레포에서 ★주석은 «소스 파싱 게이트»의 ★입력이다.
+     사람도 그 줄을 읽고 고칠 파일을 고른다. 틀린 주소는 ★다음 사람을 ★빈 파일로 보낸다.
+   ★자의 꼴: 「animGifVisible 과 *.js 가 ★같은 줄에 있으면 그 파일명은 참 집이어야」.
+     ⇒ 예외 없음. 코드 호출(window.animGifVisible(…))엔 파일명이 없어 ★안 걸린다. */
+const ANIM_HOME = 'feature-flags.js';
+const homeMisses = (lines) => {
+  const out = [];
+  lines.forEach((ln, i) => {
+    if (!ln.includes('animGifVisible')) return;
+    for (const hit of ln.match(/[\w-]+\.js/g) || []) if (hit !== ANIM_HOME) out.push(`${i + 1}:${hit}`);
+  });
+  return out;
+};
+
+test('A5 ★술어의 ★집을 가리키는 줄이 ★전부 참 집이다 — ⛔낡은 주석이 단언보다 오래 산다', () => {
+  /* ⑴ ★자부터 — 같은 함수에 ★양성·음성을 걸어 ★살아 있음을 증명한다 */
+  assert.deepEqual(homeMisses([' * 가르는 자리는 js/globals.js 의 animGifVisible 이다']), ['1:globals.js'],
+    '★★자가 죽었다 — ★틀린 주소를 ★못 잡는다(이 아래 전수는 ★「안 쟀다」가 된다)');
+  assert.deepEqual(homeMisses([' * 집은 js/feature-flags.js 의 animGifVisible 이다']), [],
+    '⛔음성대조 — ★맞는 주소를 ★거짓으로 잡는다');
+  assert.deepEqual(homeMisses(['      const v = window.animGifVisible(flag, st);']), [],
+    '⛔음성대조 — ★파일명 없는 ★코드 호출을 잡는다');
+  assert.deepEqual(homeMisses([' * js/globals.js 는 ESM 이다 (술어 얘기 아님)']), [],
+    '⛔음성대조 — ★그 이름이 ★없는 줄을 잡는다');
+
+  /* ⑵ ★참 집을 ★정의 자리로 센다 — ⛔사용 자리 grep 은 거짓양·음성이 ★같이 온다 */
+  const FILES = ['js/feature-flags.js', 'js/globals.js', 'js/props/prop-text.js'];
+  const defs = FILES.filter((f) => /\b(?:w|window)\.animGifVisible\s*=/.test(read(f)));
+  assert.deepEqual(defs, ['js/feature-flags.js'],
+    `★술어를 ★정의하는 파일이 ${defs.length}곳이다 — ★한 곳이어야 한다(명부가 둘이면 주석으론 못 막는다)`);
+
+  /* ⑶ 전수 */
+  const bad = FILES.flatMap((f) => homeMisses(read(f).split('\n')).map((h) => `${f}:${h}`));
+  assert.deepEqual(bad, [],
+    `★술어의 집을 ★틀리게 가리키는 줄 ${bad.length}건 (참 집 = js/${ANIM_HOME}):\n  ${bad.join('\n  ')}`);
+});
