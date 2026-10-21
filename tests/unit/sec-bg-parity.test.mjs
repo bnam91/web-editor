@@ -103,7 +103,8 @@ test('P3 ★needsBgLayer — 정의 1개(js/bg-layer.js) · 호출자 수(실측
       `★${f} 에 needsBgLayer 가 ★제 벌로 또 정의돼 있다`);
   }
   /* ★호출자 수 — ★정의 자리(이 파일들)에서 ★직접 센다. ⛔맨숫자로 적지 않는다 —
-     2026-10-17 실측: js/frame-bg.js 2 · js/image-handling.js 1 · js/props/prop-section.js 1 = ★4. */
+     2026-10-17 실측: js/frame-bg.js 2 · js/image-handling.js 1 · js/props/prop-section.js 1 = ★4.
+     ★b1a(2026-10-22) — image-handling.js adjHost 가 검문 삼항을 더해 1→2 ⇒ ★5 (bg-layer-guard G8 짝). */
   const CONSUMERS = ['js/frame-bg.js', 'js/image-handling.js', 'js/props/prop-section.js'];
   let total = 0;
   const perFile = {};
@@ -112,7 +113,7 @@ test('P3 ★needsBgLayer — 정의 1개(js/bg-layer.js) · 호출자 수(실측
     perFile[f] = n;
     total += n;
   }
-  assert.equal(total, 4, `★needsBgLayer 호출자 수가 ★실측 4와 다르다(지금: ${JSON.stringify(perFile)})`);
+  assert.equal(total, 5, `★needsBgLayer 호출자 수가 ★실측 5와 다르다(지금: ${JSON.stringify(perFile)})`);
 });
 
 /* ══ P4 ══════════════════════════════════════════════════════════════════ */
