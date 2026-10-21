@@ -147,8 +147,12 @@ test('㉢3 ★★[옛 저장본 무회귀] 로드가 ★모든 그라데이션�
   const code = stripComments(SRC.load);
   assert.match(code, /querySelectorAll\('\.gradient-block'\)\.forEach/,
     '★로드가 그라데이션 전수를 돌지 않는다');
-  assert.match(code, /window\.renderGradientBlock\?\.\(block\)/,
-    '★로드가 renderGradientBlock 을 부르지 않는다 — 옛 인라인 clip-path 가 그대로 남는다');
+  /* ★CLONE-RERENDER-01(261022) — 다시 그리기가 한 벌(RERENDER_KINDS)로 옮겨 갔다: 로드의 그라데이션 구간은 rerenderBlock(block) 을 부르고,
+     그 한 벌의 gradient 줄이 window.renderGradientBlock 을 부른다 ⇒ 두 자리를 다 잰다(어느 하나가 빠져도 옛 인라인이 남는다). */
+  assert.match(code, /querySelectorAll\('\.gradient-block'\)\.forEach\(block => \{[^}]*rerenderBlock\(block\)/,
+    '★로드의 그라데이션 구간이 rerenderBlock 을 부르지 않는다 — 옛 인라인 clip-path 가 그대로 남는다');
+  assert.match(code, /\['gradient-block',\s*\(b\) => \{ window\.renderGradientBlock\?\.\(b\); \}\]/,
+    '★다시 그리기 한 벌에 gradient → renderGradientBlock 줄이 없다 — 옛 인라인 clip-path 가 그대로 남는다');
 });
 
 test('㉢4 ★무효화의 «지금 상태»가 ★문서와 코드에서 ★같은 말을 한다(1020 W2A 에 갱신)', () => {

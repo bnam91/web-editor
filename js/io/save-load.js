@@ -1067,6 +1067,68 @@ function migrateColsFromDOM(canvasEl) {
   ejectShapeFrameIntruders(canvasEl);
 }
 
+/* ★CLONE-RERENDER-01 — «다시 그릴 종류» 한 벌(정본). 소비자 4:
+ *   rebindAll(아래 · 로드·undo) · _bindVariantClone(js/section-variation.js · A/B 사본) ·
+ *   _bindInsertedTree(js/panels/template-system.js · 템플릿 넣기) · _bindPastedEl(js/editor.js · 붙여넣기).
+ * 왜 한 벌인가 — 네 자리가 «다시 그릴 종류»를 손으로 따로 적어 서로 달랐다(rebindAll 21 · 변형 sticker 1 ·
+ *   템플릿 3 · 붙여넣기 11). 바인더(칸 누르기·dblclick 편집·끌기)를 render 안에서 거는 종류는 «안 그리면» 사본에서 죽는다
+ *   (W2D-01b radial 칸 · 실측 핀 002d9725 명부 18 — reports/S5-CLONE-RERENDER-01.md).
+ * ⛔소비자에 render 줄을 다시 따로 적지 마라 — 두 번 그려진다(이 표에 없는 종류만 거기서 따로).
+ * ⛔바인드(bindBlock · bind*Select)는 여기서 안 한다 — 소비자마다 순서가 다르다(그 몫은 그 자리).
+ * 조건 셋은 rebindAll 에서 옮긴 그대로다: graph 는 «방사형일 때만»(다른 유형은 저장본 그대로 — 바이트 무변 · 의도) ·
+ *   말풍선은 dataset.lines 가 «있을 때만»(옛 말풍선은 저장된 DOM 그대로) · bridge 는 그린 뒤 full-bleed 를 다시 맞춘다. */
+const RERENDER_KINDS = [
+  ['sticker-block',       (b) => { window.renderStickerBlock?.(b); }],
+  ['gradient-block',      (b) => { window.renderGradientBlock?.(b); }],
+  ['laurel-block',        (b) => { window.renderLaurelBlock?.(b); }],
+  /* 쿠폰: 저장본 HTML 은 «그때의 그림»이다 — 배경 SVG·글자 자리·글자 크기가 전부 dataset ＋ 폭 비율에서 다시 나온다.
+     ⛔재렌더를 빼면 로드 뒤 «옛 폭으로 그린 그림»이 새 dataset 과 어긋난다(laurel/zoom 과 같은 패턴). V4 변이가 이 줄을 잰다. */
+  ['coupon-block',        (b) => { window.renderCouponBlock?.(b); }],
+  ['quote-block',         (b) => { window.renderQuoteBlock?.(b); }],
+  /* 프로토 Z6 — 방사형 블럭(A)은 dataset 에서 통째로 다시 그린다(칸 누르기 _bindCellHit 도 여기서 걸린다). */
+  ['radial-block',        (b) => { window.renderRadialBlock?.(b); }],
+  /* 그래프(B)는 «방사형 유형일 때만» 다시 그린다(다른 유형은 저장본 그대로 — 바이트 무변). 별건 GRAPH-RELOAD-BIND-01. */
+  ['graph-block',         (b) => { if (b.dataset.chartType === 'radial') window.renderGraph?.(b); }],
+  /* zoom(확대블럭): 저장본은 SVG 스냅샷이라 «그림은 맞지만» 이동·a·b 핸들 드래그 위임이 없다(renderZoomBlock 안에서 건다). */
+  ['zoom-block',          (b) => { window.renderZoomBlock?.(b); }],
+  // bridge: data-bridge-*로 path 재생성 + 항상 full-bleed 재적용 (지금 섹션 패딩 반영)
+  ['bridge-block',        (b) => { window.renderBridgeBlock?.(b); window.applyBridgeFullBleed?.(b); }],
+  // grid/infocard/innercard: dataset 모델로 재렌더 (직렬 HTML은 스냅샷일 뿐 — dataset이 진실)
+  ['grid-block',          (b) => { window.renderGridBlock?.(b); }],
+  ['infocard-block',      (b) => { window.renderInfoCardBlock?.(b); }],
+  ['innercard-block',     (b) => { window.renderInnerCardBlock?.(b); }],
+  // modal: dataset 이 진실 — 재렌더가 아이콘 슬롯 클릭·프로필 × 를 «슬롯 노드에 직접» 다시 건다
+  ['modal-block',         (b) => { window.renderModalBlock?.(b); }],
+  // chat-block: 저장본 innerHTML은 정적이라 dblclick 편집 핸들러가 없음 → 재렌더로 위임 바인딩
+  ['chat-block',          (b) => { window.renderChatBlock?.(b); }],
+  /* ★BT2 말풍선 «줄» — dataset.lines 가 진실. ⛔속성이 «있을 때만» 부른다:
+     옛 말풍선(줄 없음)은 이 줄을 «안 지난다» = 저장된 DOM 그대로(tests/dom/bt2-safety T1b, 설계 조건 ㈎). */
+  ['speech-bubble-block', (b) => { if (b.dataset.lines !== undefined) window.lnRenderBubble?.(b); }],
+  // banner02/comparison: scale-to-fit ResizeObserver + 줄 dblclick 편집(줄 노드에 직접) 재바인딩
+  ['banner02-block',      (b) => { window.renderBanner02?.(b); }],
+  ['comparison-block',    (b) => { window.renderComparison?.(b); }],
+  // canvas-block(cvb): 더블클릭 인라인 편집(_bindCvbDblEdit) 위임 바인딩
+  ['canvas-block',        (b) => { window.renderCanvas?.(b); }],
+  /* qa-block(admin QA): dataset이 진실 — 저장본 innerHTML은 스냅샷일 뿐(id 칩도 지금 id 로).
+     ⚠️체크박스/피드백/접기 클릭 위임(bindQABlockEvents)은 재렌더가 «아니라» bindBlock 이 건다(js/block-drag.js:672 · _qaBound). */
+  ['qa-block',            (b) => { window.renderQABlock?.(b); }],
+  // step-block: data-* → DOM 복원 + 제목·설명 dblclick 편집(_stbDblBound)
+  ['step-block',          (b) => { window.renderStepBlock?.(b); }],
+];
+const RERENDER_SEL = RERENDER_KINDS.map(([c]) => '.' + c).join(', ');
+/** 블럭 «하나»를 제 종류대로 다시 그린다 — 표에 없는 종류면 아무것도 안 한다.
+ *  맞는 종류를 «전부» 부른다(옛 rebindAll 의 if 줄들과 같은 뜻 — 클래스가 둘인 블럭이 있어도 줄이 빠지지 않게). */
+function rerenderBlock(b) {
+  if (!b?.classList) return;
+  for (const [cls, fn] of RERENDER_KINDS) { if (b.classList.contains(cls)) fn(b); }
+}
+/** root «안»(root 자신 포함)의 다시 그릴 블럭을 문서 순서대로 다시 그린다 — 사본·템플릿·붙여넣기 문이 부른다. */
+function rerenderTree(root) {
+  if (!root) return;
+  const list = [...(root.matches?.(RERENDER_SEL) ? [root] : []), ...(root.querySelectorAll?.(RERENDER_SEL) || [])];
+  list.forEach(rerenderBlock);
+}
+
 function rebindAll(opts = {}) {
   migrateColsFromDOM(canvasEl);
   // 구버전 마이그레이션: .asset-img-clip 래퍼 없는 경우 추가 (undo/redo 복원 후에도 항상 실행)
@@ -1415,7 +1477,7 @@ function rebindAll(opts = {}) {
   // sticker-block 복원 (플로팅 오버레이)
   canvasEl.querySelectorAll('.sticker-block').forEach(block => {
     if (!block.id) block.id = 'stk_' + Math.random().toString(36).slice(2, 8);
-    window.renderStickerBlock?.(block);
+    rerenderBlock(block);   // ★CLONE-RERENDER-01 — 그리기는 한 벌(RERENDER_KINDS)에서
     window.bindStickerSelect?.(block);
   });
 
@@ -1424,7 +1486,7 @@ function rebindAll(opts = {}) {
   window.migrateLegacyGradientBlocks?.(canvasEl);
   canvasEl.querySelectorAll('.gradient-block').forEach(block => {
     if (!block.id) block.id = 'grad_' + Math.random().toString(36).slice(2, 8);
-    window.renderGradientBlock?.(block);
+    rerenderBlock(block);   // ★CLONE-RERENDER-01 — 그리기는 한 벌(RERENDER_KINDS)에서
     window.bindGradientSelect?.(block);
   });
 
@@ -1458,40 +1520,11 @@ function rebindAll(opts = {}) {
         : b.classList.contains('qa-block') ? 'qa' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
-    if (b.classList.contains('laurel-block')) window.renderLaurelBlock?.(b);
-    /* ★쿠폰: 저장본 HTML 은 «그때의 그림»이다 — 배경 SVG·글자 자리·글자 크기가 전부
-       dataset ＋ 폭 비율에서 다시 나온다. ⛔재렌더를 빼면 로드 뒤 «옛 폭으로 그린 그림»이
-       새 dataset 과 어긋난다(laurel/zoom 과 같은 패턴). V4 변이가 이 줄을 잰다. */
-    if (b.classList.contains('coupon-block')) window.renderCouponBlock?.(b);
-    if (b.classList.contains('quote-block')) window.renderQuoteBlock?.(b);
-    /* 프로토 Z6 — 방사형 블럭(A)은 dataset 에서 통째로 다시 그린다. 그래프(B)는 «방사형 유형일 때만» 다시 그린다(다른 유형은 저장본 그대로 — 바이트 무변). */
-    if (b.classList.contains('radial-block')) window.renderRadialBlock?.(b);
-    if (b.classList.contains('graph-block') && b.dataset.chartType === 'radial') window.renderGraph?.(b);
-    /* zoom(확대블럭): 저장본은 SVG 스냅샷이라 «그림은 맞지만» a·b 핸들 드래그 위임이 없다
-       (_bindZoomHandleDrag 는 renderZoomBlock 안에서 건다) → laurel/chat 과 같은 패턴으로 재렌더. */
-    if (b.classList.contains('zoom-block')) window.renderZoomBlock?.(b);
-    // bridge: data-bridge-*로 path 재생성 + 항상 full-bleed 재적용 (로드 후 현재 섹션 패딩 반영)
-    if (b.classList.contains('bridge-block')) { window.renderBridgeBlock?.(b); window.applyBridgeFullBleed?.(b); }
-    // grid/infocard: dataset 모델로 재렌더 (직렬 HTML은 스냅샷일 뿐 — 로드 시 dataset이 진실)
-    if (b.classList.contains('grid-block')) window.renderGridBlock?.(b);
-    if (b.classList.contains('infocard-block')) window.renderInfoCardBlock?.(b);
-    if (b.classList.contains('innercard-block')) window.renderInnerCardBlock?.(b);
-    // modal: dataset 이 진실 — 저장본 innerHTML 은 스냅샷일 뿐이고, 재렌더가 슬롯 편집 위임도 되살린다
-    if (b.classList.contains('modal-block')) window.renderModalBlock?.(b);
-    // chat-block: 저장본 innerHTML은 정적이라 dblclick 편집 핸들러가 없음 → 재렌더로 위임 바인딩
-    if (b.classList.contains('chat-block')) window.renderChatBlock?.(b);
-    /* ★BT2 말풍선 «줄» — dataset.lines 가 진실(grid/innercard 와 같은 규약). ⛔속성이 «있을 때만» 부른다:
-       옛 말풍선(줄 없음)은 이 줄을 «안 지난다» = 저장된 DOM 그대로(tests/dom/bt2-safety T1b, 설계 조건 ㈎). */
-    if (b.classList.contains('speech-bubble-block') && b.dataset.lines !== undefined) window.lnRenderBubble?.(b);
-    // banner02/comparison: scale-to-fit ResizeObserver + dblclick 편집 핸들러 재바인딩
-    if (b.classList.contains('banner02-block')) window.renderBanner02?.(b);
-    if (b.classList.contains('comparison-block')) window.renderComparison?.(b);
-    // canvas-block(cvb): 저장본 innerHTML은 정적이라 더블클릭 인라인 편집 핸들러(_bindCvbDblEdit)가
-    // 없음 → renderCanvas로 재렌더해 위임 바인딩 (chat/banner02와 동일 패턴, 누락돼 있던 것)
-    if (b.classList.contains('canvas-block')) window.renderCanvas?.(b);
-    // qa-block(admin QA): dataset이 진실 — 저장본 innerHTML은 스냅샷일 뿐이고,
-    // 재렌더가 체크박스/피드백/접기 클릭 위임(bindQABlockEvents)도 되살린다.
-    if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
+    /* ★CLONE-RERENDER-01 — 종류별 다시 그리기는 한 벌(위 RERENDER_KINDS)로 옮겼다(laurel · coupon · quote · radial ·
+       graph(방사형만) · zoom · bridge(+full-bleed) · grid · infocard · innercard · modal · chat · speech-bubble(lines 있을 때만) ·
+       banner02 · comparison · canvas · qa · step). ⛔여기 if 줄을 다시 적지 마라 — 두 번 그려진다.
+       ★step 은 예전엔 아래 «step-block 로드 후» 구간에서 따로 그렸다 — 이제 여기서 한 번(그 구간은 지웠다). */
+    rerenderBlock(b);
     window.bindBlock(b);
   });
 
@@ -1654,10 +1687,7 @@ function rebindAll(opts = {}) {
     window.centerMockupBlock?.(block);
   });
 
-  // step-block 로드 후 재렌더링 (data-* → DOM 복원)
-  canvasEl.querySelectorAll('.step-block').forEach(block => {
-    window.renderStepBlock?.(block);
-  });
+  // step-block 재렌더링은 위 블럭 구간의 rerenderBlock 이 한다(★CLONE-RERENDER-01 — 여기 따로 부르면 두 번 그려진다).
 
   // 가로 중앙정렬 지연 재계산 — 로드 직후엔 canvas-scaler/zoom 레이아웃이
   // 아직 확정 안 돼 parent.clientWidth가 잘못 측정될 수 있음(저장된 stale 음수마진
@@ -2535,6 +2565,11 @@ window.serializeProject = serializeProject;
 window.applyProjectData = applyProjectData;
 window.applyPageSettings = applyPageSettings;
 window.rebindAll = rebindAll;
+/* ★CLONE-RERENDER-01 — «다시 그릴 종류» 한 벌의 창구. 소비자(section-variation.js · panels/template-system.js · editor.js)는
+   이 창구로 부르고, ⛔없으면 ?. 로 건너뛰지 말고 던진다(«안 그림»이 조용히 초록으로 숨지 않게 — 발주 ⒠). */
+window.rerenderBlock = rerenderBlock;
+window.rerenderTree = rerenderTree;
+window.RERENDER_KIND_CLASSES = Object.freeze(RERENDER_KINDS.map(([c]) => c));
 window.scheduleAutoSave = scheduleAutoSave;
 window.triggerAutoSave = scheduleAutoSave; // alias used by drag-drop.js, prop-layout.js
 

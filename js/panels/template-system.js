@@ -455,14 +455,15 @@ function _tplReapplyPagePad(sec) {
    root 자신도 포함한다(block 갈래는 넣는 것이 블록·프레임 하나다). */
 function _bindInsertedTree(root) {
   const each = (sel) => [...(root.matches?.(sel) ? [root] : []), ...root.querySelectorAll(sel)];
-  each(BLOCK_BIND_SEL).forEach(b => {
-    window.bindBlock?.(b);
-    if (b.classList.contains('grid-block')) window.renderGridBlock?.(b);
-    if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
-  });
+  each(BLOCK_BIND_SEL).forEach(b => { window.bindBlock?.(b); });
+  /* ★CLONE-RERENDER-01 — 다시 그리기는 한 벌(js/io/save-load.js RERENDER_KINDS · window.rerenderTree)로 한다.
+     예전엔 여기서 grid · qa · sticker 만 그렸다 → radial · zoom · modal · chat · canvas · banner02 · step · comparison 이
+     넣은 템플릿에서 죽었다(실측 핀 002d9725). ⛔창구가 없으면 던진다 · ⛔render 줄을 여기 따로 적지 마라(두 번 그려진다). */
+  if (typeof window.rerenderTree !== 'function') throw new Error('[CLONE-RERENDER-01] window.rerenderTree 가 없다 — js/io/save-load.js 가 안 실렸다');
+  window.rerenderTree(root);
   each('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   each('.gradient-block').forEach(b => window.bindGradientSelect?.(b));
-  each('.sticker-block').forEach(b => { window.renderStickerBlock?.(b); window.bindStickerSelect?.(b); });
+  each('.sticker-block').forEach(b => window.bindStickerSelect?.(b));
   each('.annotation-block').forEach(b => window.bindAnnotationSelect?.(b));
 }
 

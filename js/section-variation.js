@@ -92,9 +92,13 @@ function _bindVariantClone(clone) {
   clone.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   /* ★(2026-10-06 · 태양 ⑴ 이번 판) 제 바인더 셋 — 섹션 템플릿 넣기(18285a47)와 같은 줄. 실앱 ㉠: B 사본의 셋이 안 묶여 클릭하면 섹션만 골라졌다. */
   clone.querySelectorAll('.gradient-block').forEach(b => window.bindGradientSelect?.(b));
-  /* 스티커는 다시 그린다 — 그림 안의 id(코인 gradient·clipPath · 글로우 필터)를 제 블럭 id 에서 짓는데, 사본은 id 를 다시 지어
-     url(#…) 참조가 원본 것을 가리킨다(원본을 고치거나 지우면 사본 그림이 따라 깨진다). 로드의 rebindAll 과 같은 길. */
-  clone.querySelectorAll('.sticker-block').forEach(b => { window.renderStickerBlock?.(b); window.bindStickerSelect?.(b); });
+  /* ★CLONE-RERENDER-01 — 다시 그리기는 한 벌(js/io/save-load.js RERENDER_KINDS · window.rerenderTree)로 한다.
+     예전엔 여기서 스티커만 그렸다 → radial 칸 누르기 · zoom 끌기 · modal 아이콘 · chat/canvas/banner02/step/comparison 편집이
+     B 사본에서 죽었다(실측 핀 002d9725). 스티커도 이 한 벌이 그린다(그림 안 id 를 제 블럭 id 로 다시 짓는다 — 로드와 같은 길).
+     ⛔창구가 없으면 ?. 로 건너뛰지 않고 던진다 — «안 그림»이 조용히 숨지 않게. ⛔여기 render 줄을 따로 적지 마라(두 번 그려진다). */
+  if (typeof window.rerenderTree !== 'function') throw new Error('[CLONE-RERENDER-01] window.rerenderTree 가 없다 — js/io/save-load.js 가 안 실렸다');
+  window.rerenderTree(clone);
+  clone.querySelectorAll('.sticker-block').forEach(b => window.bindStickerSelect?.(b));
   clone.querySelectorAll('.annotation-block').forEach(b => window.bindAnnotationSelect?.(b));
 }
 
