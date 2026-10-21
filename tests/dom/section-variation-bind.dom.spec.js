@@ -135,3 +135,41 @@ test('V3 ★A/B 사본의 그라데이션 · 스티커 · 어노테이션은 «�
   });
   expect(r.own, `사본 제 바인더 부름=${JSON.stringify(r.own)} (고치기 전 실앱 B 사본: 셋 다 안 묶여 클릭해도 섹션만 골라짐)`).toEqual(r.want);
 });
+
+// V4 — W2D-01: A/B 사본(B · C)의 방사형 블럭(radial-block)이 bindBlock 으로 묶이나.
+// _bindVariantClone 은 정본 명부 BLOCK_BIND_SEL(js/block-bind-kinds.js)로만 bindBlock 을 건다 — 그 명부에 'radial-block' 이 없으면 사본 radial 은 안 묶인다.
+// 성공 = B · C 사본의 radial._blockBound === true (base 6acfb9e4 에서 빨강 · 명부에 'radial-block' 을 넣으면 초록).
+// 대조 = 같은 사본의 graph._blockBound === true (명부에 이미 있는 종류 — base 에서도 초록이어야 한다).
+test('V4 ★A/B 사본(B·C)의 방사형 블럭이 묶인다 — 대조 graph', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(() => {
+    // HARNESS 는 건드리지 않는다 — 원본(A) innerA 에 .row > .radial-block 과 .graph-block 을 얹고 «로드 경로»처럼 묶어 둔다
+    const inner = document.getElementById('innerA');
+    const row = document.createElement('div');
+    row.className = 'row'; row.id = 'rowRdlA'; row.dataset.layout = 'stack';
+    const rdl = document.createElement('div');
+    rdl.className = 'radial-block'; rdl.id = 'rdlA';
+    row.appendChild(rdl);
+    inner.appendChild(row);
+    const grb = document.createElement('div');
+    grb.className = 'graph-block'; grb.id = 'grbA';
+    inner.appendChild(grb);
+    window.bindBlock(rdl); window.bindBlock(grb);
+    const A = document.getElementById('secA');
+    window.createVariation(A);
+    window.addVariation(A);
+    const all = [...document.querySelectorAll('.section-block')].filter(s => s.dataset.variationGroup === A.dataset.variationGroup);
+    const pick = (sec) => {
+      const rd = sec.querySelector('.row > .radial-block'), gr = sec.querySelector('.graph-block');
+      return { radial: !!(rd && rd._blockBound === true), graph: !!(gr && gr._blockBound === true), rdNew: !!rd && rd !== rdl, grNew: !!gr && gr !== grb };
+    };
+    return { n: all.length, A: pick(all[0]), B: pick(all[1]), C: pick(all[2]) };
+  });
+  expect(r.n, `변형 수=${r.n} (A · B · C)`).toBe(3);
+  expect(r.A.radial && r.A.graph, `전제: A 원본 radial · graph 묶임=${JSON.stringify(r.A)}`).toBe(true);
+  expect(r.B.rdNew && r.B.grNew && r.C.rdNew && r.C.grNew, `전제: B · C 는 원본과 다른 사본=${JSON.stringify({ B: r.B, C: r.C })}`).toBe(true);
+  expect.soft(r.B.graph, '대조: B 사본 graph._blockBound === true').toBe(true);
+  expect.soft(r.C.graph, '대조: C 사본 graph._blockBound === true').toBe(true);
+  expect.soft(r.B.radial, '성공: B 사본 radial._blockBound === true').toBe(true);
+  expect.soft(r.C.radial, '성공: C 사본 radial._blockBound === true').toBe(true);
+});

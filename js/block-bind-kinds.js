@@ -9,9 +9,12 @@
  *   rebindAll(save-load.js)이 이 셋을 따로 묶는다. gradient 를 처음 판에 넣었다가 실앱에서 «묶였는데 클릭해도 안 골라지고 끌면 움직임»을 재서 뺐다.
  * ★명부에 없다 ≠ 빠뜨림 — 제 바인더를 쓰는 종류는 «일부러» 뺀다(그 셋은 섹션 템플릿 넣기·rebindAll 이 제 바인더로 따로 묶는다).
  * ★수 맞추기(2026-10-06 실앱): 섹션 템플릿 넣기 base 13 종 안 묶임 → 고친 판 12 종 묶임 + 1 = gradient(뺌 · 제 바인더) — 수가 맞다.
- * 쓰는 곳(2026-10-06): panels/template-system.js 섹션 갈래 · section-variation.js A/B 사본 둘. 손 명부 6 곳은 잠금 시험 아래 0.9.7.
+ * 쓰는 곳(2026-10-06): panels/template-system.js 섹션 갈래 · section-variation.js A/B 사본 둘. 손 명부 7 곳은 잠금 시험 아래 0.9.7.
+ * ★2026-10-21(S3 t4 ⒡) 30 → 31 종 — radial-block 을 더했다. 까닭(W2D-01): A/B 사본 B 의 radial 이 안 묶임 · radial-block.js addRadialBlock 이 bindBlock 을 부른다.
+ *   명부 8 곳(정본 1 + 손 7)의 기준표와 양방향 차집합 자 = tests/unit/block-bind-lists-ruler.test.mjs (기준표 파일 이름은 그 자가 import 하는 곳에 — 제품 코드는 그 이름조차 안 적는다 · 자 R0).
+ *   명부 줄마다 bind-list 표식(이름 붙음)이 붙는다(자 R5) — 정본의 표식은 아래 export 줄 끝에 있다.
  */
-export const BLOCK_BIND_KINDS = Object.freeze([
+export const BLOCK_BIND_KINDS = Object.freeze([ // bind-list:CANON
   'text-block', 'asset-block', 'gap-block', 'icon-circle-block', 'icon-block', 'table-block', 'label-group-block',
   'graph-block', 'divider-block', 'bridge-block', 'grid-block', 'infocard-block', 'innercard-block', 'modal-block',
   'icon-text-block', 'qa-block', 'shape-block', 'vector-block', 'step-block', 'chat-block', 'laurel-block', 'zoom-block',
@@ -22,6 +25,9 @@ export const BLOCK_BIND_KINDS = Object.freeze([
   /* ★인용구블럭(2026-10-07 · QT1) — makeQuoteBlock 이 만들고 addQuoteBlock 이 bindBlock 을 건다
      (js/blocks/quote-block.js). 제 바인더를 따로 쓰지 않으므로 ★이 명부에 든다. */
   'quote-block',
+  /* ★방사형 블럭(2026-10-21 · S3 t4 ⒡ · W2D-01) — addRadialBlock 이 bindBlock 을 건다
+     (js/blocks/radial-block.js). 제 바인더를 따로 쓰지 않으므로 ★이 명부에 든다. 빠져 있어 A/B 사본·템플릿 넣기에서 안 묶였다. */
+  'radial-block',
 ]);
 export const BLOCK_BIND_SEL = BLOCK_BIND_KINDS.map(k => '.' + k).join(', ');
 if (typeof window !== 'undefined') { window.BLOCK_BIND_KINDS = BLOCK_BIND_KINDS; window.BLOCK_BIND_SEL = BLOCK_BIND_SEL; }
