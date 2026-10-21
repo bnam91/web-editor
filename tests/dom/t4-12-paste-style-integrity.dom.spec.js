@@ -167,19 +167,29 @@ async function caretToEnd(page, id) {
 const activeTag = (page) => page.evaluate(() => { const a = document.activeElement; return a ? { tag: a.tagName, id: a.id || null, ce: !!a.isContentEditable } : null; });
 
 // ── 재기 ──
-// ⑴ 바깥 프레임(.frame-block[data-text-frame] 있으면 그것, 없으면 text-block)의 정규화 outerHTML
-//    (selected · editing · multi-selected class 와 contenteditable 속성을 뺀다) → node 에서 sha1
+// ⑴ «데이터» = 앱이 저장하는 꼴 — window.serializeProject() 의 현재 페이지 canvas 문자열을 <template> 에 풀어
+//    그 id 의 바깥 프레임(.frame-block[data-text-frame] 있으면 그것, 없으면 text-block) outerHTML.
+//    저장 직렬화가 선택 손잡이(.tb-rotate-zone 등 NON_CONTENT_UI)를 이미 걷는다 — 살아있는 DOM 을 재면
+//    «골라졌던 블럭이 풀린 것»(손잡이 4개가 빠짐)이 데이터 변화로 잡혔다(고친 판 런 D1 진단).
+//    그 위에 상태 표지(selected · editing · multi-selected class · contenteditable · draggable)만 더 뺀다 → node 에서 sha1
 // ⑵ 글자 칸 computed fontSize · fontWeight · color · fontFamily ⑶ 글자 노드 부모들 · 인라인 서식 요소 수
 async function measure(page, id) {
   const m = await page.evaluate((id) => {
     const tb = document.getElementById(id); if (!tb) return { exists: false, id };
     const tf = tb.parentElement?.matches?.('.frame-block[data-text-frame]') ? tb.parentElement : null;
     const outer = tf || tb;
+    const proj = JSON.parse(window.serializeProject());
+    const pg = (proj.pages || []).find(x => x.id === proj.currentPageId) || (proj.pages || [])[0] || {};
+    const tpl = document.createElement('template'); tpl.innerHTML = String(pg.canvas || '');
+    const sTb = tpl.content.querySelector(`[id="${id}"]`);
+    const sOuter = sTb ? (sTb.parentElement?.matches?.('.frame-block[data-text-frame]') ? sTb.parentElement : sTb) : null;
     const norm = (root, dropIds) => {
+      if (!root) return '';
       const cl = root.cloneNode(true);
       [cl, ...cl.querySelectorAll('*')].forEach(e => {
         if (e.classList) { ['selected', 'editing', 'multi-selected'].forEach(k => e.classList.remove(k)); if (e.getAttribute('class') === '') e.removeAttribute('class'); }
         e.removeAttribute?.('contenteditable');
+        e.removeAttribute?.('draggable');
         if (dropIds) e.removeAttribute?.('id');
       });
       return cl.outerHTML;
@@ -203,7 +213,8 @@ async function measure(page, id) {
     return {
       exists: true, id, idParts: tb.id.split('_').length, inFrame: !!tf, frameId: tf ? tf.id : null,
       selected: tb.classList.contains('selected'), editing: tb.classList.contains('editing'),
-      normHtml: norm(outer, false), normHtmlNoIds: norm(outer, true),
+      saved: !!sOuter, savedHasUi: sOuter ? sOuter.querySelectorAll('.tb-rotate-zone').length : null,
+      normHtml: norm(sOuter, false), normHtmlNoIds: norm(sOuter, true),
       text: ce ? ce.textContent : null, ce: ce ? pick(ce) : null, textParents: parents,
       inlineStyled: ce ? ce.querySelectorAll('span[style], font, b, strong').length : null,
       pre: { varAttrs, strokeAttrs, ceStyleHasVar: !!(ceStyle && /var\(--/.test(ceStyle)), tbStyleHasVar: /var\(--/.test(tb.getAttribute('style') || '') },
@@ -212,7 +223,7 @@ async function measure(page, id) {
   if (m.exists) { m.sha1 = sha1(m.normHtml); m.sha1NoIds = sha1(m.normHtmlNoIds); delete m.normHtml; delete m.normHtmlNoIds; }
   return m;
 }
-const view = (m) => m && m.exists ? { sha1: m.sha1, ce: m.ce } : null;
+const view = (m) => m && m.exists ? { saved: m.saved, sha1: m.sha1, ce: m.ce } : null;
 
 // ── 패널 조작(앱 제 문 — 패널 칸) ──
 const OPS = {
@@ -226,33 +237,34 @@ const A_STYLE = { fontSize: '40px', fontWeight: '700', color: 'rgb(225, 29, 72)'
 // 장면: 새 섹션 → Heading(A) → 섹션 다시 고름 → Body(B) → A 를 패널로 꾸밈(크기·굵기·색) → 전제 단언
 async function scene(page, o) {
   o.menu = await menuItems(page);
-  expect(o.menu.found && o.menu.items.includes('Heading') && o.menu.items.includes('Body'), `[전제] 텍스트 메뉴에 Heading·Body 가 있다 ${JSON.stringify(o.menu)}`).toBe(true);
+  expect(o.menu.found && o.menu.items.includes('Heading') && o.menu.items.includes('Body'), `장면 미성립: 텍스트 메뉴에 Heading·Body 가 있다 ${JSON.stringify(o.menu)}`).toBe(true);
   o.sec = await newSection(page);
-  expect(o.sec.id && o.sec.picked, `[전제] 새 섹션이 생기고 골라졌다 ${JSON.stringify(o.sec)}`).toBeTruthy();
+  expect(o.sec.id && o.sec.picked, `장면 미성립: 새 섹션이 생기고 골라졌다 ${JSON.stringify(o.sec)}`).toBeTruthy();
   o.insA = await insText(page, 'Heading');
-  expect(o.insA.id, `[전제] Heading 하나가 생겼다 ${JSON.stringify(o.insA.fresh)}`).toBeTruthy();
+  expect(o.insA.id, `장면 미성립: Heading 하나가 생겼다 ${JSON.stringify(o.insA.fresh)}`).toBeTruthy();
   o.pickForB = await pickSec(page, o.sec.id);
-  expect(o.pickForB.ok, '[전제] B 를 넣기 전 섹션을 다시 골랐다').toBe(true);
+  expect(o.pickForB.ok, '장면 미성립: B 를 넣기 전 섹션을 다시 골랐다').toBe(true);
   o.insB = await insText(page, 'Body');
-  expect(o.insB.id, `[전제] Body 하나가 생겼다 ${JSON.stringify(o.insB.fresh)}`).toBeTruthy();
+  expect(o.insB.id, `장면 미성립: Body 하나가 생겼다 ${JSON.stringify(o.insB.fresh)}`).toBeTruthy();
   const A = o.insA.id, B = o.insB.id;
   o.ids = { A, B };
   o.styleClickA = await clickText(page, A);
-  expect(o.styleClickA.selected && o.styleClickA.panelOk, `[전제] A 를 누르면 A 의 글자 패널 ${JSON.stringify(o.styleClickA.panel)}`).toBe(true);
+  expect(o.styleClickA.selected && o.styleClickA.panelOk, `장면 미성립: A 를 누르면 A 의 글자 패널 ${JSON.stringify(o.styleClickA.panel)}`).toBe(true);
   { const l = page.locator('#txt-size-number'); await l.fill('40'); await l.press('Enter'); }
-  await expect.poll(async () => (await measure(page, A)).ce?.fontSize, { message: '[전제] A 크기 40 적용' }).toBe(A_STYLE.fontSize);
+  await expect.poll(async () => (await measure(page, A)).ce?.fontSize, { message: '장면 미성립: A 크기 40 적용' }).toBe(A_STYLE.fontSize);
   await page.locator('#txt-font-weight').selectOption('700');
-  await expect.poll(async () => (await measure(page, A)).ce?.fontWeight, { message: '[전제] A 굵기 700 적용' }).toBe(A_STYLE.fontWeight);
+  await expect.poll(async () => (await measure(page, A)).ce?.fontWeight, { message: '장면 미성립: A 굵기 700 적용' }).toBe(A_STYLE.fontWeight);
   { const l = page.locator('#txt-color-hex'); await l.fill('E11D48'); await l.press('Enter'); }
-  await expect.poll(async () => (await measure(page, A)).ce?.color, { message: '[전제] A 색 E11D48 적용' }).toBe(A_STYLE.color);
+  await expect.poll(async () => (await measure(page, A)).ce?.color, { message: '장면 미성립: A 색 E11D48 적용' }).toBe(A_STYLE.color);
   await settle(page);
   o.styledA = await measure(page, A);
   o.styledB = await measure(page, B);
-  expect(o.styledA.inFrame, '[전제] A 는 흐름 글자 프레임 안').toBe(true);
-  expect(o.styledA.pre.varAttrs, '[전제] A 에 변수 바인딩(data-var-*) 0').toEqual([]);
-  expect(o.styledA.pre.ceStyleHasVar || o.styledA.pre.tbStyleHasVar, '[전제] A 인라인 style 에 var(--) 0').toBe(false);
-  expect(o.styledA.pre.strokeAttrs, '[전제] A 에 외곽선(data-stroke*) 0').toEqual([]);
-  expect(o.styledB.ce?.fontSize !== A_STYLE.fontSize || o.styledB.ce?.color !== A_STYLE.color, '[전제] B 는 A 와 다른 꼴').toBe(true);
+  expect(o.styledA.inFrame, '장면 미성립: A 는 흐름 글자 프레임 안').toBe(true);
+  expect(o.styledA.saved && o.styledB.saved, '장면 미성립: A · B 가 저장 직렬화(serializeProject 현재 페이지 canvas)에 있다').toBe(true);
+  expect(o.styledA.pre.varAttrs, '장면 미성립: A 에 변수 바인딩(data-var-*) 0').toEqual([]);
+  expect(o.styledA.pre.ceStyleHasVar || o.styledA.pre.tbStyleHasVar, '장면 미성립: A 인라인 style 에 var(--) 0').toBe(false);
+  expect(o.styledA.pre.strokeAttrs, '장면 미성립: A 에 외곽선(data-stroke*) 0').toEqual([]);
+  expect(o.styledB.ce?.fontSize !== A_STYLE.fontSize || o.styledB.ce?.color !== A_STYLE.color, '장면 미성립: B 는 A 와 다른 꼴').toBe(true);
   return { A, B };
 }
 
@@ -265,7 +277,7 @@ async function pasteAndFindCopies(page, o, n = 1) {
   await settle(page);
   const now = await textIds(page);
   o.pastedFresh = now.filter(i => !before.includes(i));
-  expect(o.pastedFresh.length, `[전제] ⌘V 로 새 글자 블럭 정확히 ${n}개 ${JSON.stringify(o.pastedFresh)}`).toBe(n);
+  expect(o.pastedFresh.length, `장면 미성립: ⌘V 로 새 글자 블럭 정확히 ${n}개 ${JSON.stringify(o.pastedFresh)}`).toBe(n);
   return o.pastedFresh;
 }
 // 조작 뒤: A·B·C 중 누가(조작 전 값과 다르게) 새 값이 될 때까지(최대 4s · 못 오면 그대로) → 가라앉힘
@@ -286,7 +298,7 @@ async function waitAnyChanged(page, ids, op, base) {
 }
 async function premiseNotInInput(page, o) {
   o.activeBeforeCopy = await activeTag(page);
-  expect(['INPUT', 'TEXTAREA', 'SELECT'].includes(o.activeBeforeCopy?.tag) || !!o.activeBeforeCopy?.ce, `[전제] ⌘C 때 포커스가 입력칸이 아니다 ${JSON.stringify(o.activeBeforeCopy)}`).toBe(false);
+  expect(['INPUT', 'TEXTAREA', 'SELECT'].includes(o.activeBeforeCopy?.tag) || !!o.activeBeforeCopy?.ce, `장면 미성립: ⌘C 때 포커스가 입력칸이 아니다 ${JSON.stringify(o.activeBeforeCopy)}`).toBe(false);
 }
 
 // ───────────────────────── B0 판 정체 (EXPECT_SHA 있을 때만) ─────────────────────────
@@ -326,7 +338,7 @@ for (const k of ['size', 'weight', 'color']) {
     try {
       const { A, B } = await scene(page, o);
       o.clickA = await clickText(page, A);
-      expect(o.clickA.selected && o.clickA.panelOk, '[전제] A 골라짐 · 패널 = A').toBe(true);
+      expect(o.clickA.selected && o.clickA.panelOk, '장면 미성립: A 골라짐 · 패널 = A').toBe(true);
       await premiseNotInInput(page, o);
       o.before = { A: await measure(page, A), B: await measure(page, B) };
       await page.keyboard.press('Meta+c');
@@ -359,11 +371,11 @@ test('P2 copy A click B paste then panel size change goes to copy not paste targ
   try {
     const { A, B } = await scene(page, o);
     o.clickA = await clickText(page, A);
-    expect(o.clickA.selected && o.clickA.panelOk, '[전제] A 골라짐 · 패널 = A').toBe(true);
+    expect(o.clickA.selected && o.clickA.panelOk, '장면 미성립: A 골라짐 · 패널 = A').toBe(true);
     await premiseNotInInput(page, o);
     await page.keyboard.press('Meta+c');
     o.clickB = await clickText(page, B);
-    expect(o.clickB.selected && o.clickB.panelOk, '[전제] B 골라짐 · 패널 = B').toBe(true);
+    expect(o.clickB.selected && o.clickB.panelOk, '장면 미성립: B 골라짐 · 패널 = B').toBe(true);
     o.before = { A: await measure(page, A), B: await measure(page, B) };
     const [C] = await pasteAndFindCopies(page, o, 1);
     o.ids.C = C;
@@ -393,19 +405,19 @@ test('P3 edit mode paste of styled html into another text keeps target own style
   try {
     const { A, B } = await scene(page, o);
     o.dblA = await dblText(page, A);
-    expect(o.dblA.editing, '[전제] A 편집 들어감').toBe(true);
+    expect(o.dblA.editing, '장면 미성립: A 편집 들어감').toBe(true);
     o.caretA = await caretToEnd(page, A);
-    expect(o.caretA, '[전제] A 글자 칸 끝에 캐럿').toBe(true);
+    expect(o.caretA, '장면 미성립: A 글자 칸 끝에 캐럿').toBe(true);
     for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowLeft');
     o.chars = await page.evaluate(() => window.getSelection().toString());
-    expect(o.chars.length, `[전제] Shift+← ×3 으로 글자 3개 골라짐 «${o.chars}»`).toBe(3);
+    expect(o.chars.length, `장면 미성립: Shift+← ×3 으로 글자 3개 골라짐 «${o.chars}»`).toBe(3);
     await page.keyboard.press('Meta+c');
     o.dblB = await dblText(page, B);
-    expect(o.dblB.editing, '[전제] B 편집 들어감').toBe(true);
+    expect(o.dblB.editing, '장면 미성립: B 편집 들어감').toBe(true);
     o.aLeftEditing = await page.evaluate((a) => !document.getElementById(a)?.classList.contains('editing'), A);
-    expect(o.aLeftEditing, '[전제] A 는 편집에서 나왔다').toBe(true);
+    expect(o.aLeftEditing, '장면 미성립: A 는 편집에서 나왔다').toBe(true);
     o.caretB = await caretToEnd(page, B);
-    expect(o.caretB, '[전제] B 글자 칸 끝에 캐럿').toBe(true);
+    expect(o.caretB, '장면 미성립: B 글자 칸 끝에 캐럿').toBe(true);
     await settle(page);   // A 가 편집에서 나온 뒤의 정리(있다면)가 끝난 뒤를 «전»으로 삼는다
     o.before ={ A: await measure(page, A), B: await measure(page, B) };
     const html = `<meta charset='utf-8'><span style="color: ${A_STYLE.color}; font-size: ${A_STYLE.fontSize}; font-weight: ${A_STYLE.fontWeight}; font-family: Georgia, serif;">${o.chars}</span>`;
@@ -451,17 +463,17 @@ test('P4 edit mode copy then block paste leaves original and target intact @t412
   try {
     const { A, B } = await scene(page, o);
     o.dblA = await dblText(page, A);
-    expect(o.dblA.editing, '[전제] A 편집 들어감').toBe(true);
+    expect(o.dblA.editing, '장면 미성립: A 편집 들어감').toBe(true);
     o.caretA = await caretToEnd(page, A);
-    expect(o.caretA, '[전제] A 글자 칸 끝에 캐럿').toBe(true);
+    expect(o.caretA, '장면 미성립: A 글자 칸 끝에 캐럿').toBe(true);
     for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowLeft');
     o.chars = await page.evaluate(() => window.getSelection().toString());
-    expect(o.chars.length, `[전제] Shift+← ×3 으로 글자 3개 골라짐 «${o.chars}»`).toBe(3);
+    expect(o.chars.length, `장면 미성립: Shift+← ×3 으로 글자 3개 골라짐 «${o.chars}»`).toBe(3);
     await page.keyboard.press('Meta+c');
     o.clickB = await clickText(page, B);
-    expect(o.clickB.selected, '[전제] B 블럭 골라짐(편집 아님)').toBe(true);
+    expect(o.clickB.selected, '장면 미성립: B 블럭 골라짐(편집 아님)').toBe(true);
     o.aLeftEditing = await page.evaluate((a) => !document.getElementById(a)?.classList.contains('editing'), A);
-    expect(o.aLeftEditing, '[전제] A 는 편집에서 나왔다').toBe(true);
+    expect(o.aLeftEditing, '장면 미성립: A 는 편집에서 나왔다').toBe(true);
     o.activeBeforePaste = await activeTag(page);
     o.before = { A: await measure(page, A), B: await measure(page, B) };
     const beforeIds = await textIds(page);
@@ -490,10 +502,10 @@ test('P5 multi select copy paste releases panel to page and keeps originals @t41
   try {
     const { A, B } = await scene(page, o);
     o.clickA = await clickText(page, A);
-    expect(o.clickA.selected && o.clickA.panelOk, '[전제] A 골라짐 · 패널 = A').toBe(true);
+    expect(o.clickA.selected && o.clickA.panelOk, '장면 미성립: A 골라짐 · 패널 = A').toBe(true);
     o.shiftB = await clickText(page, B, { modifier: 'Shift' });
     o.multiOk = await pollTrue(page, ([a, b]) => !!document.getElementById(a)?.classList.contains('selected') && !!document.getElementById(b)?.classList.contains('selected'), [A, B], 3000);
-    expect(o.multiOk, '[전제] ⇧클릭으로 A · B 둘 다 골라짐').toBe(true);
+    expect(o.multiOk, '장면 미성립: ⇧클릭으로 A · B 둘 다 골라짐').toBe(true);
     await settle(page);
     o.panelBeforeCopy = await panelRead(page);
     await premiseNotInInput(page, o);
