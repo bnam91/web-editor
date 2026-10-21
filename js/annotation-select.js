@@ -152,6 +152,31 @@
     /* ★1013t2C7 — 시작점이 삼각형·화살촉이면 회전 손잡이 하나. 클래스에 annot-handle 을 같이 달아
        _removeHandles · 저장 철거 목록(save-load NON_CONTENT_UI_SELECTOR · section-serialize)이 저절로 덮는다.
        자리는 annotRedrawAnchor 가 시작점과 같이 옮긴다(annotRotHandlePos 한 벌). */
+    /* ★★t3-01 261021 현빈 2차 — ★치수선 양끝(a·b)도 ★각각 끈다.
+         원문: 「★최초에 찍은 d,c 앞의 점의 위치도 ★나중에 ★각각 잡고 ★위치 이동시킬 수 있어야해」
+       ★d·c 는 ★위 `.annot-handle` 이 ★이미 끈다(pointIdx). ★여기는 ★a·b 다.
+       ⛔`annot-handle` 클래스를 ★같이 단다 — ★철거·저장 제외 목록이 ★그 이름으로 덮는다(회전 손잡이 선례). */
+    if (block.dataset.annotKind === 'dim' && typeof window.annotDimGeometry === 'function') {
+      const st = window.annotPropsFromDataset?.(block);
+      const g = st && window.annotDimGeometry(st.points, {
+        dimAxis: st.dimAxis, dimOffset: st.dimOffset, dimSlide: st.dimSlide,
+        dimGap: st.dimGap, dimOver: st.dimOver, dimLabelLift: st.dimLabelLift,
+        dimA: st.dimA, dimB: st.dimB,
+      });
+      if (g) ['A', 'B'].forEach((end, i) => {
+        const dh = document.createElementNS(SVG_NS, 'circle');
+        dh.setAttribute('class', 'annot-handle annot-dim-handle');
+        dh.setAttribute('cx', String(g.line[i][0]));
+        dh.setAttribute('cy', String(g.line[i][1]));
+        dh.setAttribute('r', '5');
+        dh.setAttribute('fill', '#1592fe');       /* ★d·c(흰 속)와 ★눈으로 갈린다 */
+        dh.setAttribute('stroke', '#ffffff');
+        dh.setAttribute('stroke-width', '1.5');
+        dh.dataset.dimEnd = end;
+        svg.appendChild(dh);
+      });
+    }
+
     const shape = block.dataset.anchorShape;
     if (shape === 'triangle' || shape === 'arrowhead') {
       const rh = document.createElementNS(SVG_NS, 'circle');
@@ -546,6 +571,8 @@
         if (e.button !== 0) return;
         // ★1013t2C7 — 회전 손잡이는 점 번호가 없다 → 점 끌기 판정보다 «먼저» 가른다
         if (h.classList.contains('annot-rot-handle')) { _startAnchorRotateDrag(block, e); return; }
+        /* ★t3-01 — 치수선 양끝 손잡이도 ★점 번호가 ★없다 ⇒ ★점 끌기 판정보다 ★먼저 가른다 */
+        if (h.classList.contains('annot-dim-handle')) { _startDimEndDrag(block, h, e); return; }
         e.stopPropagation();
         e.preventDefault();
 
@@ -595,6 +622,52 @@
       }, true);
     }
   }
+  /* ★★t3-01 — 치수선 ★양끝(a·b) 끌기. ★자리는 ★절대좌표로 `dimA`/`dimB` 에 ★그대로 넣는다.
+     ⛔각도 자석을 ★안 탄다 — a·b 는 ★「보기 좋은 자리」지 ★각도를 재는 점이 ★아니다(현빈 2차 설계).
+     ★한쪽만 끌면 ★치수선이 ★기울고 ★보조선 길이가 ★갈린다 — ★그것이 ★요구된 동작이다. */
+  function _startDimEndDrag(block, handle, e) {
+    e.stopPropagation(); e.preventDefault();
+    const end = handle.dataset.dimEnd === 'B' ? 'dimB' : 'dimA';
+    const startX = e.clientX, startY = e.clientY;
+    const from = [parseFloat(handle.getAttribute('cx')), parseFloat(handle.getAttribute('cy'))];
+    if (!Number.isFinite(from[0]) || !Number.isFinite(from[1])) return;
+    let dragging = false;
+    const _hist = window.beginDragHistory?.('치수선 끝 이동');
+    const onMove = (ev) => {
+      const dx = (ev.clientX - startX) / _zoom();
+      const dy = (ev.clientY - startY) / _zoom();
+      if (!dragging) {
+        if (Math.abs(ev.clientX - startX) < 2 && Math.abs(ev.clientY - startY) < 2) return;
+        dragging = true; _hist?.arm(dx, dy);
+      }
+      const pt = [Math.round((from[0] + dx) * 10) / 10, Math.round((from[1] + dy) * 10) / 10];
+      block.dataset[end] = JSON.stringify(pt);
+      /* ★한 끝만 끌면 ★나머지는 ★계산값이다 — ★그 값을 ★고정해 둬야 ★다음에 안 흔들린다 */
+      const other = end === 'dimA' ? 'dimB' : 'dimA';
+      if (!block.dataset[other]) {
+        const st0 = window.annotPropsFromDataset?.(block);
+        const g0 = st0 && window.annotDimGeometry?.(st0.points, {
+          dimAxis: st0.dimAxis, dimOffset: st0.dimOffset, dimSlide: st0.dimSlide,
+          dimA: st0.dimA, dimB: st0.dimB,
+        });
+        if (g0) block.dataset[other] = JSON.stringify(g0.line[other === 'dimA' ? 0 : 1]);
+      }
+      const st = window.annotPropsFromDataset?.(block);
+      if (st) window.annotRedrawDim?.(block, st);
+      window.annotRefreshHandles?.(block);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove, true);
+      document.removeEventListener('mouseup',   onUp,   true);
+      if (dragging) {
+        window.pushHistory?.('치수선 끝 이동');
+        window.scheduleAutoSave?.();
+      }
+    };
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('mouseup',   onUp,   true);
+  }
+
   window.bindAnnotationSelect = bindAnnotationSelect;
 
   // ── 라벨 편집 진입 (★1013t2C6 — 한 벌: 더블클릭 · 펜으로 만든 직후 둘 다 여기로) ──────────
