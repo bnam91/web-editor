@@ -13,7 +13,7 @@
 //  - 장면은 앱 제 문(새 섹션 단추 · 플로팅 텍스트 메뉴 · 섹션 꼬리표 · 글자 클릭/더블클릭 · 키보드 · 패널 칸)으로만 짓는다.
 //    생성 함수(add·make 계열) evaluate 호출 0. evaluate 는 읽기와 scrollIntoView 뿐 — 예외는 F1 의 «심은 꼴» 한 번(제목·주석에 표시).
 //  - 고정 대기 0줄 — 기다림은 waitForFunction(polling) / expect.poll / 하네스 waitStableRect 뿐.
-//  - 전제는 hard expect, 성공 칸은 expect.soft.
+//  - 장면(전제)은 hard expect — 메시지 머리 «장면 미성립:» (빨강이면 제품 결함이 아니라 장면이 안 선 것) · 제품 단언은 expect.soft — 머리 «성공:».
 //  - 블록 주석을 쓰지 않는다(별-슬래시 사고 방지) — 줄 주석만.
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
@@ -107,33 +107,35 @@ async function clickText(page, id) {
 // 새 섹션 → Body 하나 → 고르고 더블클릭으로 편집 → ⌘A 뒤 TEXT 를 친다
 async function sceneEditing(page) {
   const sec = await newSection(page);
-  expect(sec.id && sec.picked, `[전제] 새 섹션이 생기고 골라졌다 ${JSON.stringify(sec)}`).toBeTruthy();
+  expect(sec.id && sec.picked, `장면 미성립: 새 섹션이 생기고 골라졌다 ${JSON.stringify(sec)}`).toBeTruthy();
   const id = await insText(page, 'Body');
-  expect(id, '[전제] 플로팅 텍스트 메뉴로 Body 하나가 생겼다').toBeTruthy();
-  expect(await clickText(page, id), '[전제] Body 를 누르면 골라지고 패널 = 그 블럭').toBe(true);
+  expect(id, '장면 미성립: 플로팅 텍스트 메뉴로 Body 하나가 생겼다').toBeTruthy();
+  expect(await clickText(page, id), '장면 미성립: Body 를 누르면 골라지고 패널 = 그 블럭').toBe(true);
   const r = await stableTwice(page, CE(id));
   await clickAt(page, r.left + r.width - 4, r.cy, { sel: `[id="${id}"]` }, { label: '편집 더블클릭', dbl: true });
-  expect(await pollTrue(page, (s) => document.querySelector(s)?.getAttribute('contenteditable') === 'true', CE(id)), '[전제] 더블클릭 = 편집').toBe(true);
+  expect(await pollTrue(page, (s) => document.querySelector(s)?.getAttribute('contenteditable') === 'true', CE(id)), '장면 미성립: 더블클릭 = 편집').toBe(true);
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.type(TEXT);
-  expect(await pollTrue(page, ([s, t]) => document.querySelector(s)?.textContent === t, [CE(id), TEXT]), `[전제] 글자 = ${TEXT}`).toBe(true);
+  expect(await pollTrue(page, ([s, t]) => document.querySelector(s)?.textContent === t, [CE(id), TEXT]), `장면 미성립: 글자 = ${TEXT}`).toBe(true);
   return { sec: sec.id, id };
 }
 // 편집 중 글자칸 안에서 낱말 하나를 ⇧→ 로 고른다
+// 캐럿을 맨 앞으로 = ← 를 글자 수만큼(맥 Chromium 은 Home 이 캐럿을 안 옮긴다 — 첫 판 ×3 빨강의 원인) · 맨 앞에서 더 누른 ← 는 아무 일도 안 한다
 async function selWord(page, id, word) {
-  await page.keyboard.press('Home');
+  for (let i = 0; i <= TEXT.length; i++) await page.keyboard.press('ArrowLeft');
   for (let i = 0; i < WORD_AT[word]; i++) await page.keyboard.press('ArrowRight');
   for (let i = 0; i < word.length; i++) await page.keyboard.press('Shift+ArrowRight');
   const ok = await pollTrue(page, ([s, w]) => { const g = getSelection(); const h = document.querySelector(s);
     return g.rangeCount === 1 && g.toString() === w && !!h && h.contains(g.anchorNode) && h.contains(g.focusNode); }, [CE(id), word], 3000);
-  expect(ok, `[전제] 글자칸 안에 ${word} 가 선택됐다`).toBe(true);
+  const now = ok ? null : await page.evaluate(() => ({ sel: getSelection().toString(), act: document.activeElement?.className || document.activeElement?.tagName }));
+  expect(ok, `장면 미성립: 글자칸 안에 ${word} 가 선택됐다 ${JSON.stringify(now)}`).toBe(true);
 }
 // 패널 칸에 있다가 세워 둔 편집 글자칸으로 돌아온다(글자를 한 번 누름)
 async function backToText(page, id) {
   const r = await stableTwice(page, CE(id));
   await clickAt(page, r.left + Math.min(30, r.width / 3), r.cy, { sel: CE(id) }, { label: '편집 글자칸으로 돌아옴' });
   expect(await pollTrue(page, (s) => { const h = document.querySelector(s); return !!h && h.getAttribute('contenteditable') === 'true' && (document.activeElement === h || h.contains(document.activeElement)); }, CE(id), 3000),
-    '[전제] 편집 글자칸에 포커스가 돌아왔다').toBe(true);
+    '장면 미성립: 편집 글자칸에 포커스가 돌아왔다').toBe(true);
 }
 // 패널 칸을 진짜 마우스로 누른다(왼쪽 가까이)
 async function clickField(page, sel) {
@@ -154,13 +156,22 @@ async function partialWeightLight(page) {
   await clickField(page, '#txt-font-weight');
   await page.keyboard.press('l');
 }
-// 편집을 끝낸다(섹션 꼬리표 = 편집 밖) → 블럭을 다시 눌러 패널을 새로 그린다
+// 선택 풀기 — 편집 밖 Esc(전역 deselectAll) → 그 블럭이 안 골라진 상태가 될 때까지
+async function escDeselect(page, id) {
+  await page.keyboard.press('Escape');
+  expect(await pollTrue(page, (i) => !document.getElementById(i)?.classList.contains('selected'), id, 3000), '장면 미성립: 편집 밖 Esc = 블럭 선택 풀림').toBe(true);
+}
+// 편집을 끝낸다 — 글자칸으로 돌아와 Esc(블럭 Esc = 편집 끝 · 블럭 선택 유지 · block-drag.js 규약) → Esc 한 번 더(선택 풀기)
+//   → 블럭을 다시 눌러 패널을 새로 그린다(Mix 판정은 패널을 그릴 때 한다)
+// ⚠️첫 판은 섹션 꼬리표를 눌렀다 — 섹션이 골라져 있으면 꼬리표는 pointer-events:none(css/editor-extra.css .section-block.selected .section-hitzone)이라 canvas-wrap 이 맞았다(F1 빨강)
 async function endEditAndReselect(page, sec, id) {
-  expect(await pickSec(page, sec), '[전제] 섹션 꼬리표를 누르면 섹션이 골라진다').toBe(true);
+  await backToText(page, id);
+  await page.keyboard.press('Escape');
   expect(await pollTrue(page, ([i, s]) => !document.getElementById(i)?.classList.contains('editing') && document.querySelector(s)?.getAttribute('contenteditable') !== 'true', [id, CE(id)], 3000),
-    '[전제] 편집이 끝났다').toBe(true);
-  expect(await clickText(page, id), '[전제] 블럭을 다시 누르면 골라지고 패널 = 그 블럭').toBe(true);
-  expect(await page.evaluate((s) => document.querySelector(s)?.getAttribute('contenteditable') === 'true', CE(id)), '[전제] 다시 누른 뒤 편집 중이 아니다(전체 갈래)').toBe(false);
+    '장면 미성립: 편집이 끝났다').toBe(true);
+  await escDeselect(page, id);
+  expect(await clickText(page, id), '장면 미성립: 블럭을 다시 누르면 골라지고 패널 = 그 블럭').toBe(true);
+  expect(await page.evaluate((s) => document.querySelector(s)?.getAttribute('contenteditable') === 'true', CE(id)), '장면 미성립: 다시 누른 뒤 편집 중이 아니다(전체 갈래)').toBe(false);
 }
 
 // ── 재기 ──
@@ -199,7 +210,7 @@ test('B0 board identity head sha and served blob sha1 of touched files @t416', a
   test.skip(!EXPECT_SHA, 'EXPECT_SHA env 가 없으면 판 정체를 건너뛴다');
   test.setTimeout(60000);
   await boot(page);
-  expect(EXPECT_SHA, '판 정체: EXPECT_SHA 가 풀 sha 40자').toMatch(/^[0-9a-f]{40}$/);
+  expect(EXPECT_SHA, '장면 미성립: 판 정체: EXPECT_SHA 가 풀 sha 40자').toMatch(/^[0-9a-f]{40}$/);
   const head = execFileSync('git', ['-C', ROOT, 'rev-parse', 'HEAD']).toString().trim();
   expect(head, '판 정체 ⑴: ROOT 의 HEAD === EXPECT_SHA').toBe(EXPECT_SHA);
   for (const f of IDENT_FILES) {
@@ -227,20 +238,20 @@ test('W1 partial weight span and partial color then whole weight 700 applies to 
   const base = await inspect(page, id);
   await selWord(page, id, 'CCC');
   await partialHex(page, RED.hex);
-  await expect.poll(async () => (await inspect(page, id)).word.CCC?.color, { message: '[전제] 부분 색 — CCC 가 E11D48' }).toBe(RED.rgb);
+  await expect.poll(async () => (await inspect(page, id)).word.CCC?.color, { message: '장면 미성립: 부분 색 — CCC 가 E11D48' }).toBe(RED.rgb);
   await backToText(page, id);
   await selWord(page, id, 'AAA');
   await partialWeightLight(page);
-  await expect.poll(async () => (await inspect(page, id)).word.AAA?.fontWeight, { message: '[전제] 부분 굵기 — AAA 가 300' }).toBe('300');
+  await expect.poll(async () => (await inspect(page, id)).word.AAA?.fontWeight, { message: '장면 미성립: 부분 굵기 — AAA 가 300' }).toBe('300');
   await endEditAndReselect(page, sec, id);
   const pre = await inspect(page, id);
-  expect(pre.word.BBB?.fontWeight, `[전제] BBB 는 바탕 굵기 ${base.ce.fontWeight} ${pre.html}`).toBe(base.ce.fontWeight);
-  expect(pre.counts.fwSpan, `[전제] 부분 굵기 span 이 있다 ${pre.html}`).toBeGreaterThan(0);
-  expect(pre.counts.colorSpan, `[전제] 부분 색 span 이 있다 ${pre.html}`).toBeGreaterThan(0);
+  expect(pre.word.BBB?.fontWeight, `장면 미성립: BBB 는 바탕 굵기 ${base.ce.fontWeight} ${pre.html}`).toBe(base.ce.fontWeight);
+  expect(pre.counts.fwSpan, `장면 미성립: 부분 굵기 span 이 있다 ${pre.html}`).toBeGreaterThan(0);
+  expect(pre.counts.colorSpan, `장면 미성립: 부분 색 span 이 있다 ${pre.html}`).toBeGreaterThan(0);
   await expect.poll(() => page.evaluate(() => { const s = document.getElementById('txt-font-weight'); return s ? s.value + '|' + (s.selectedOptions[0]?.textContent || '').trim() : null; }),
-    { message: '[전제] 패널 굵기 칸 = Mix (value "" · 글자 Mix)' }).toBe('|Mix');
+    { message: '장면 미성립: 패널 굵기 칸 = Mix (value "" · 글자 Mix)' }).toBe('|Mix');
   await page.locator('#txt-font-weight').selectOption('700');
-  await expect.poll(async () => (await inspect(page, id)).ce.fontWeight, { message: '[전제] 블럭 굵기 700 적용' }).toBe('700');
+  await expect.poll(async () => (await inspect(page, id)).ce.fontWeight, { message: '장면 미성립: 블럭 굵기 700 적용' }).toBe('700');
   await settle(page);
   const after = await inspect(page, id);
   expect.soft(uniq(after.parents, 'fontWeight'), `성공: 글자 부모 전부 computed 700 ${after.html}`).toEqual(['700']);
@@ -260,13 +271,13 @@ test('W2 partial bold tag via cmd B then whole weight 300 applies to all text @t
   const { sec, id } = await sceneEditing(page);
   await selWord(page, id, 'BBB');
   await page.keyboard.press('ControlOrMeta+b');
-  await expect.poll(async () => (await inspect(page, id)).counts.bStrong, { message: '[전제] ⌘B 로 부분 <b>/<strong> 이 생겼다' }).toBeGreaterThan(0);
+  await expect.poll(async () => (await inspect(page, id)).counts.bStrong, { message: '장면 미성립: ⌘B 로 부분 <b>/<strong> 이 생겼다' }).toBeGreaterThan(0);
   await endEditAndReselect(page, sec, id);
   const pre = await inspect(page, id);
-  expect(pre.counts.bStrong, `[전제] 편집 뒤에도 <b>/<strong> 이 있다 ${pre.html}`).toBeGreaterThan(0);
-  expect(pre.word.BBB?.fontWeight, `[전제] BBB 가 굵다 ${pre.html}`).toBe('700');
+  expect(pre.counts.bStrong, `장면 미성립: 편집 뒤에도 <b>/<strong> 이 있다 ${pre.html}`).toBeGreaterThan(0);
+  expect(pre.word.BBB?.fontWeight, `장면 미성립: BBB 가 굵다 ${pre.html}`).toBe('700');
   await page.locator('#txt-font-weight').selectOption('300');
-  await expect.poll(async () => (await inspect(page, id)).ce.fontWeight, { message: '[전제] 블럭 굵기 300 적용' }).toBe('300');
+  await expect.poll(async () => (await inspect(page, id)).ce.fontWeight, { message: '장면 미성립: 블럭 굵기 300 적용' }).toBe('300');
   await settle(page);
   const after = await inspect(page, id);
   expect.soft(uniq(after.parents, 'fontWeight'), `성공: 글자 부모 전부 computed 300 ${after.html}`).toEqual(['300']);
@@ -296,16 +307,16 @@ test('F1 [전제: 심은 꼴] planted font-family span then font pick applies to
     }
     return false;
   }, CE(id));
-  expect(planted, '[전제: 심은 꼴] BBB 를 font-family span 으로 감쌌다').toBe(true);
-  expect(await pickSec(page, sec), '[전제] 섹션 꼬리표').toBe(true);
-  expect(await clickText(page, id), '[전제] 블럭을 다시 누르면 패널 = 그 블럭').toBe(true);
+  expect(planted, '장면 미성립: [전제: 심은 꼴] BBB 를 font-family span 으로 감쌌다').toBe(true);
+  await escDeselect(page, id);
+  expect(await clickText(page, id), '장면 미성립: 블럭을 다시 누르면 패널 = 그 블럭').toBe(true);
   const pre = await inspect(page, id);
-  expect(pre.counts.ffInline, `[전제: 심은 꼴] 안쪽 인라인 font-family 1 ${pre.html}`).toBe(1);
-  expect(pre.word.BBB?.fontFamily, `[전제: 심은 꼴] BBB 글꼴이 바깥과 다르다 ${pre.html}`).not.toBe(pre.word.AAA?.fontFamily);
+  expect(pre.counts.ffInline, `장면 미성립: [전제: 심은 꼴] 안쪽 인라인 font-family 1 ${pre.html}`).toBe(1);
+  expect(pre.word.BBB?.fontFamily, `장면 미성립: [전제: 심은 꼴] BBB 글꼴이 바깥과 다르다 ${pre.html}`).not.toBe(pre.word.AAA?.fontFamily);
   await clickField(page, '#txt-font-trigger');
-  await expect(page.locator('#txt-font-dropdown'), '[전제] 글꼴 목록이 열렸다').toBeVisible();
+  await expect(page.locator('#txt-font-dropdown'), '장면 미성립: 글꼴 목록이 열렸다').toBeVisible();
   await page.locator('#txt-font-list .font-item .font-item-name').filter({ hasText: reExact('Inter') }).first().click();
-  await expect.poll(async () => (await inspect(page, id)).ce.fontFamily, { message: '[전제] 글자칸 글꼴 = Inter 체인' }).toMatch(/^"?Inter"?,/);
+  await expect.poll(async () => (await inspect(page, id)).ce.fontFamily, { message: '장면 미성립: 글자칸 글꼴 = Inter 체인' }).toMatch(/^"?Inter"?,/);
   await settle(page);
   const after = await inspect(page, id);
   expect.soft(uniq(after.parents, 'fontFamily'), `성공: 글자 부모 전부 computed fontFamily = 고른 체인 ${after.html}`).toEqual([after.ce.fontFamily]);
@@ -326,12 +337,12 @@ test('G1 guard whole size change over mixed sizes makes all the same @t416', asy
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.type('20');
   await page.keyboard.press('Enter');
-  await expect.poll(async () => (await inspect(page, id)).word.BBB?.fontSize, { message: '[전제] 부분 크기 — BBB 20px' }).toBe('20px');
+  await expect.poll(async () => (await inspect(page, id)).word.BBB?.fontSize, { message: '장면 미성립: 부분 크기 — BBB 20px' }).toBe('20px');
   await endEditAndReselect(page, sec, id);
   const pre = await inspect(page, id);
-  expect(uniq(pre.parents, 'fontSize').length, `[전제] 크기가 섞였다 ${pre.html}`).toBeGreaterThan(1);
+  expect(uniq(pre.parents, 'fontSize').length, `장면 미성립: 크기가 섞였다 ${pre.html}`).toBeGreaterThan(1);
   { const l = page.locator('#txt-size-number'); await l.fill('48'); await l.press('Enter'); }
-  await expect.poll(async () => (await inspect(page, id)).ce.fontSize, { message: '[전제] 블럭 크기 48 적용' }).toBe('48px');
+  await expect.poll(async () => (await inspect(page, id)).ce.fontSize, { message: '장면 미성립: 블럭 크기 48 적용' }).toBe('48px');
   await settle(page);
   const after = await inspect(page, id);
   expect.soft(uniq(after.parents, 'fontSize'), `성공: 글자 부모 전부 48px ${after.html}`).toEqual(['48px']);
@@ -344,12 +355,12 @@ test('G2 guard whole color change over mixed colors makes all the same @t416', a
   const { sec, id } = await sceneEditing(page);
   await selWord(page, id, 'BBB');
   await partialHex(page, RED.hex);
-  await expect.poll(async () => (await inspect(page, id)).word.BBB?.color, { message: '[전제] 부분 색 — BBB 가 E11D48' }).toBe(RED.rgb);
+  await expect.poll(async () => (await inspect(page, id)).word.BBB?.color, { message: '장면 미성립: 부분 색 — BBB 가 E11D48' }).toBe(RED.rgb);
   await endEditAndReselect(page, sec, id);
   const pre = await inspect(page, id);
-  expect(uniq(pre.parents, 'color').length, `[전제] 색이 섞였다 ${pre.html}`).toBeGreaterThan(1);
+  expect(uniq(pre.parents, 'color').length, `장면 미성립: 색이 섞였다 ${pre.html}`).toBeGreaterThan(1);
   { const l = page.locator('#txt-color-hex'); await l.fill(BLUE.hex); await l.press('Enter'); }
-  await expect.poll(async () => (await inspect(page, id)).ce.color, { message: '[전제] 블럭 색 2563EB 적용' }).toBe(BLUE.rgb);
+  await expect.poll(async () => (await inspect(page, id)).ce.color, { message: '장면 미성립: 블럭 색 2563EB 적용' }).toBe(BLUE.rgb);
   await settle(page);
   const after = await inspect(page, id);
   expect.soft(uniq(after.parents, 'color'), `성공: 글자 부모 전부 2563EB ${after.html}`).toEqual([BLUE.rgb]);
@@ -363,7 +374,7 @@ test('G3 guard weight change with partial selection changes only the range @t416
   const base = await inspect(page, id);
   await selWord(page, id, 'BBB');
   await partialWeightLight(page);
-  await expect.poll(async () => (await inspect(page, id)).word.BBB?.fontWeight, { message: '부분 굵기 — BBB 가 300' }).toBe('300');
+  await expect.poll(async () => (await inspect(page, id)).word.BBB?.fontWeight, { message: '성공: 부분 굵기 — BBB 가 300' }).toBe('300');
   await settle(page);
   const mid = await inspect(page, id);
   expect.soft(mid.word.AAA?.fontWeight, `성공: AAA 는 바탕 굵기 ${mid.html}`).toBe(base.ce.fontWeight);
