@@ -180,10 +180,11 @@ function _handlePenClick(e) {
      ★커서 자리를 ★부호 있는 수직거리(dimOffset)로 바꿔 ★그 값으로 만든다.
      ⛔각도 자석을 ★타지 않는다 — 자리 고르기는 ★「두 점을 잇는 각도」와 ★무관하다. */
   if (_dimPlacing && _pendingPoints && _pendingPoints.sec === sec) {
-    const off = (typeof window.annotDimOffsetFromPoint === 'function')
-      ? window.annotDimOffsetFromPoint(_pendingPoints.points, [x, y], {})
-      : 24;
-    _finalizeAnnotation({ dimOffset: off });
+    /* ★★261021 현빈 3차 — ⛔예전엔 `annotDimOffsetFromPoint`(수직 성분 ★하나)만 썼다 ⇒ ★위아래로만 밀렸다.
+       ⇒ ★커서를 ★치수선 ★중점으로 삼아 ★a·b 를 ★그 자리에 놓는다 — ★좌우로도 ★따라온다. */
+    const place = window.annotDimPlaceAt?.(_pendingPoints.points, [x, y], {});
+    if (place) _finalizeAnnotation({ dimA: place.dimA, dimB: place.dimB });
+    else _finalizeAnnotation({ dimOffset: 24 });
     return;
   }
 
@@ -280,8 +281,8 @@ function _updatePreviewSvg() {
      ⇒ ⛔미리보기와 ★만들어진 것이 ★다른 자리에 서는 일이 ★없다(명부가 ★하나다). */
   svg.querySelectorAll('.annot-preview-dim').forEach(d => d.remove());
   if (_dimPlacing && _cursor && points.length >= 2 && typeof window.annotDimGeometry === 'function') {
-    const off = window.annotDimOffsetFromPoint(points, _cursor, {});
-    const g = window.annotDimGeometry(points, { dimOffset: off });
+    const place = window.annotDimPlaceAt?.(points, _cursor, {});
+    const g = place ? window.annotDimGeometry(points, place) : null;
     if (g) {
       const ns = 'http://www.w3.org/2000/svg';
       const mk = (x1, y1, x2, y2, dash) => {
@@ -342,7 +343,7 @@ function _updatePreviewSvg() {
 // ── 어노테이션 확정 ──────────────────────────────────────────────────────
 // enterLabelEdit=false: 라벨 자동 편집 진입 생략 (ESC/V로 "작업 종료" 커밋 시)
 // silent=true: "펜 모드 유지 중" 토스트 생략 (모드를 곧바로 종료하는 경로)
-function _finalizeAnnotation({ enterLabelEdit = true, silent = false, dimOffset = null } = {}) {
+function _finalizeAnnotation({ enterLabelEdit = true, silent = false, dimOffset = null, dimA = null, dimB = null } = {}) {
   if (!_pendingPoints) return;
   const { sec, points } = _pendingPoints;
   if (points.length < 2) { _cancelPending(); return; }
@@ -352,7 +353,7 @@ function _finalizeAnnotation({ enterLabelEdit = true, silent = false, dimOffset 
   if (typeof window.pushHistory === 'function') window.pushHistory(asDim ? '치수선 추가' : '어노테이션 추가');
   const block = asDim
     ? window.makeAnnotationBlock(Object.assign({ points, text: '수치입력', annotKind: 'dim' },
-        dimOffset != null ? { dimOffset } : {}))
+        dimOffset != null ? { dimOffset } : {}, dimA ? { dimA } : {}, dimB ? { dimB } : {}))
     : window.makeAnnotationBlock({ points, text: '텍스트' });
   sec.appendChild(block);
 

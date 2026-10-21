@@ -19,7 +19,8 @@ let _dimWarned = false;   /* ★t3-01 — 적재 누락 경고는 ★한 번만(
 const ANNOT_DEFAULTS = {
   strokeColor:     '#1a1a1a',    // 디폴트: 검정 (프리셋에서 빨강/파랑 등 선택 가능)
   strokeWidth:     1.5,
-  anchorShape:     'circle',     // 'circle' | 'square' | 'triangle' | 'arrowhead' | 'glow' | 'none'
+  anchorShape:     'circle',     // 'circle' | 'square' | 'triangle' | 'arrowhead' | 'glow' | 'pipe' | 'slash' | 'none'
+                                 //   ★pipe·slash 는 ★치수선(annotKind='dim')의 ★끝 막음 표시다(angleDeg 를 그대로 쓴다)
   anchorSize:      7,            // 시작점 도형 크기 (지름 또는 한 변)
   labelFontSize:   24,           // ★1013t1A2 현빈 「텍스트는 기본 24」 — 옛 저장본은 dataset.labelFontSize 를 들고 있어 그대로
   labelColor:      '#1a1a1a',
@@ -222,6 +223,24 @@ function _renderAnchorSVG(shape, size, x, y, color, angleDeg = 0) {
          + `</radialGradient></defs>`
          + `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#${gradId})"/>`
          + `</g>`;
+  }
+  if (shape === 'pipe') {
+    /* ★★t3-01 — ★제도 치수선의 ★끝 막음 표시. ★현빈 원문: 「그 선 양끝에는 ★파이프 같은 게 붙어 있어야 돼」
+       ★angleDeg 를 ★그대로 쓴다 — 부르는 쪽(치수선)이 ★이미 「선에 ★수직」으로 계산해 준다.
+       ⛔여기서 ★다시 90 을 더하지 않는다(그러면 ★선과 ★나란해져 ★안 보인다). */
+    const len = s * 1.6;          /* ★크기 슬라이더가 ★길이를 민다 — 현빈 「움직이면 길어졌다 줄어들었다」 */
+    const sw = Math.max(1, s * 0.26);
+    return `<line class="annot-anchor" x1="${x - len / 2}" y1="${y}" x2="${x + len / 2}" y2="${y}"`
+         + ` stroke="${color}" stroke-width="${sw}" stroke-linecap="round"`
+         + ` transform="rotate(${angleDeg} ${x} ${y})"/>`;
+  }
+  if (shape === 'slash') {
+    /* ★제도에서 흔한 ★빗금 꼴 — 파이프를 ★45° 기울인 것 */
+    const len = s * 1.6;
+    const sw = Math.max(1, s * 0.26);
+    return `<line class="annot-anchor" x1="${x - len / 2}" y1="${y}" x2="${x + len / 2}" y2="${y}"`
+         + ` stroke="${color}" stroke-width="${sw}" stroke-linecap="round"`
+         + ` transform="rotate(${angleDeg + 45} ${x} ${y})"/>`;
   }
   // default circle
   return `<circle class="annot-anchor" cx="${x}" cy="${y}" r="${half}" fill="${color}"/>`;

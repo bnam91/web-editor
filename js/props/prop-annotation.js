@@ -248,7 +248,9 @@ export function showAnnotationProperties(block) {
   const presetOptions = ANNOTATION_PRESETS.map((p, i) => `<option value="${i}">${escHtml(p.name)}</option>`).join('');
 
   // 시작점 모양: 공용 .prop-align-group + .prop-align-btn (active 풀배경)
-  const SHAPES = ['circle', 'glow', 'square', 'triangle', 'arrowhead', 'none'];
+  /* ★t3-01 — ★pipe·slash 는 ★치수선의 ★끝 막음 표시(현빈 「파이프 같은 게 양끝에」).
+     ⛔일반 어노테이션에도 ★뜨지만 ★해롭지 않다(끝 모양이 ★하나 더 느는 것뿐이다). */
+  const SHAPES = ['circle', 'glow', 'square', 'triangle', 'arrowhead', 'pipe', 'slash', 'none'];
   const shapeBtns = SHAPES.map(s => `
     <button class="prop-align-btn ${st.anchorShape === s ? 'active' : ''}" data-shape="${s}" title="${s}">
       ${_shapeIcon(s)}

@@ -282,3 +282,62 @@ test('G2 ★패널 소스에 ★죽은 템플릿(\\${…})이 ★0 건이다', (
     assert.ok(src.includes(id), `★패널에 ★${id} 칸이 ★없다`);
   }
 });
+
+/* ═══ D9 ★③클릭 자리가 ★치수선 ★중점이 된다 — ★2D 자유 ═══════════════════
+   ★★★2026-10-21 현빈 3차 지적: 「★아직 ★수직으로밖에 안 움직이는데 ★QA한 거야?」
+     ⛔내 ③클릭은 `annotDimOffsetFromPoint`(★수직 성분 ★하나)만 썼다 ⇒ ★선 밖으로만 밀렸다.
+     ★2차 설계(a·b 자유)를 ★기하와 ★손잡이에는 넣고 ★③클릭에는 ★안 넣은 것이다.
+   ★★그리고 ★내 QA 는 ★손잡이 드래그만 쟀다 — ★사용자가 ★실제로 하는 ★③클릭을 ★안 쟀다.
+     ⇒ ★이 벌이 ★그 자리를 ★대신 잰다(★사람이 하는 순서의 ★마지막 걸음). */
+test('D9 ★커서가 ★치수선 ★중점이 된다 — ★위아래뿐 아니라 ★좌우로도 (현빈 3차)', () => {
+  const P = W.annotDimPlaceAt;
+  assert.equal(typeof P, 'function', '★전제: annotDimPlaceAt 이 없다 — ③클릭이 ★쓸 자가 없다');
+  const pts = [[0, 0], [100, 0]];
+  const mid = (r) => [(r.dimA[0] + r.dimB[0]) / 2, (r.dimA[1] + r.dimB[1]) / 2];
+
+  /* ★네 방향 — ⛔「아래·위」만 재면 ★수직만 되는 판도 ★통과한다 */
+  for (const c of [[50, 60], [50, -40], [-30, -50], [180, 90]]) {
+    const r = P(pts, c, {});
+    assert.deepEqual(norm(mid(r)).map((v) => Math.round(v * 10) / 10), c,
+      `★커서 ${JSON.stringify(c)} 인데 중점이 ${JSON.stringify(mid(r))} 다 — ★그 자리로 ★안 간다`);
+  }
+
+  /* ★★좌우가 ★진짜 먹는지 — ★같은 높이에서 ★x 만 옮기면 ★중점 x 가 ★따라와야 한다 */
+  const a = mid(P(pts, [10, 60], {})), b = mid(P(pts, [190, 60], {}));
+  assert.ok(Math.abs(b[0] - a[0] - 180) < 1e-6,
+    `★★좌우가 ★안 먹는다 — x 를 180 옮겼는데 중점이 ${(b[0] - a[0]).toFixed(1)} 만 움직였다(=수직만 되는 판)`);
+
+  /* ★길이는 ★잰 구간과 ★같다(치수선이 ★늘거나 줄면 ★「치수」의 뜻이 흔들린다) */
+  const r = P(pts, [-30, -50], {});
+  assert.ok(Math.abs(Math.hypot(r.dimB[0] - r.dimA[0], r.dimB[1] - r.dimA[1]) - 100) < 1e-6,
+    '★놓은 치수선의 ★길이가 ★잰 구간과 ★다르다');
+
+  /* ★그 결과를 ★기하에 ★넣으면 ★그 자리에 ★선다(★두 자가 ★이어진다) */
+  const g = G(pts, P(pts, [-30, -50], {}));
+  assert.deepEqual(norm(g.mid).map((v) => Math.round(v * 10) / 10), [-30, -50],
+    '★annotDimPlaceAt 과 ★annotDimGeometry 가 ★서로 다른 자리를 말한다');
+
+  /* ⛔음성 — 점이 모자라거나 커서가 없으면 ★∅ */
+  assert.equal(P([[0, 0]], [10, 10], {}), null, '★점 하나로 ★자리를 냈다');
+  assert.equal(P(pts, null, {}), null, '★커서 ∅ 인데 ★자리를 냈다');
+});
+
+test('D10 ★파이프(치수선 끝 막음) — ★꼴과 ★각도 (현빈 「파이프 같은 게 양끝에」)', () => {
+  const src = readRoot('js/blocks/annotation-block.js');
+  /* ★그리는 자리에 ★pipe 갈래가 ★있다 — ⛔없으면 ★circle 로 ★조용히 떨어진다 */
+  assert.match(src, /shape === 'pipe'/, '★팩토리에 ★pipe 갈래가 ★없다');
+  assert.match(src, /shape === 'slash'/, '★팩토리에 ★slash 갈래가 ★없다');
+  /* ★⛔각도를 ★다시 90 더하지 않는다 — 부르는 쪽이 ★이미 수직으로 준다 */
+  const at = src.indexOf("shape === 'pipe'");
+  const blk = src.slice(at, at + 700);
+  assert.match(blk, /rotate\(\$\{angleDeg\}/, '★pipe 가 ★angleDeg 를 ★그대로 안 쓴다(선과 나란해질 수 있다)');
+  /* ★패널 고르개 명부에도 ★있어야 ★고를 수 있다 */
+  const panel = readRoot('js/props/prop-annotation.js');
+  const m = panel.match(/const SHAPES = (\[[^\]]*\]);/);
+  assert.ok(m, '★전제: SHAPES 명부를 찾았다');
+  const shapes = JSON.parse(m[1].replace(/'/g, '"'));
+  for (const want of ['pipe', 'slash']) {
+    assert.ok(shapes.includes(want), `★고르개 명부에 ★${want} 가 ★없다 — ★그리기만 되고 ★못 고른다`);
+  }
+  assert.equal(shapes.includes('ZZZ없는모양'), false, '⛔음성대조 — 명부 파싱이 죽었다');
+});

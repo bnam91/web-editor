@@ -138,7 +138,29 @@
     return (pt[0] - A[0]) * nx + (pt[1] - A[1]) * ny;   /* ★부호 있는 거리 — 어느 쪽인지까지 담는다 */
   }
 
+  /* ★★★261021 현빈 ★3차 지적: 「★아직 ★수직으로밖에 안 움직이는데 ★QA한 거야?」
+     ⛔내 ③클릭은 `annotDimOffsetFromPoint` ★하나만 썼다 ⇒ ★수직 성분만 뽑혀 ★선 밖으로만 밀렸다.
+       ★2차 설계(a·b 자유)를 ★기하와 ★손잡이에는 넣고 ★③클릭에는 ★안 넣었다. ★그 자리를 닫는다.
+     ★꼴: ★커서가 ★치수선의 ★중점이다. a·b 는 ★잰 구간과 ★평행·같은 길이로 ★그 자리에 선다.
+       ⇒ ★위아래뿐 아니라 ★좌우로도 ★따라온다. ★기울이는 것은 ★그 뒤 ★손잡이로. */
+  function annotDimPlaceAt(points, cursor, o) {
+    if (!Array.isArray(points) || points.length < 2 || !pt(cursor)) return null;
+    var D = points[0], C = points[points.length - 1];
+    var dx = C[0] - D[0], dy = C[1] - D[1];
+    var axis = (o && (o.dimAxis === 'h' || o.dimAxis === 'v')) ? o.dimAxis : 'auto';
+    if (axis === 'h') dy = 0; else if (axis === 'v') dx = 0;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1e-9) { dx = 1; dy = 0; len = 1; }
+    var ux = dx / len, uy = dy / len;
+    var c = pt(cursor);
+    return {
+      dimA: [c[0] - ux * len / 2, c[1] - uy * len / 2],
+      dimB: [c[0] + ux * len / 2, c[1] + uy * len / 2],
+    };
+  }
+
   w.annotDimGeometry = annotDimGeometry;
+  w.annotDimPlaceAt = annotDimPlaceAt;
   w.annotDimOffsetFromPoint = annotDimOffsetFromPoint;
   w.ANNOT_DIM_SNAP = SNAP;
 })(typeof window !== 'undefined' ? window : globalThis);
