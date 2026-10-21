@@ -27,8 +27,15 @@ const SRC = stripComments(RAW);
 function mkFn() {
   const m = /function _mkTplId\(prefix\)\s*\{[\s\S]*?\n\}/.exec(SRC);
   assert.ok(m, '★전제 깨짐 — ★`_mkTplId` 를 ★소스에서 ★못 찾았다');
+  // 떠낸 판은 같은 모듈의 다른 최상위 이름을 못 본다 — ReferenceError 면 빠진 이름을 찍는다(duplicate-zoom 하네스와 같은 꼴).
+  const named = (e) => {
+    const x = (e instanceof ReferenceError) ? ((/^(\S+) is not defined/.exec(e.message) || [])[1]) : null;
+    return x ? new Error(`떠낸 판에 «${x}» 가 없다 — 이 시험의 new Function 인자(스텁 명부)에 더해라 (${e.message})`) : e;
+  };
+  let f;
   // eslint-disable-next-line no-new-func
-  return new Function(`${m[0]}; return _mkTplId;`)();
+  try { f = new Function(`${m[0]}; return _mkTplId;`)(); } catch (e) { throw named(e); }
+  return (...a) => { try { return f(...a); } catch (e) { throw named(e); } };
 }
 
 test('C1 ★★★같은 ms 를 ★가짜로 ★고정해도 ★id 가 ★다르다 (★t4quote 조건 — ⛔경쟁을 ★맞추지 ★않는다)', () => {

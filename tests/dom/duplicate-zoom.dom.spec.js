@@ -90,6 +90,8 @@ async function runDuplicate(page) {
       showMultiSelPanel: () => {}, clearMultiSel: () => {},
       shapeFrameOf: window.ShapeFrame.shapeFrameOf,
       resolveInsertFrame: window.ShapeFrame.resolveInsertFrame,
+      // t4-12(C1): duplicateSelected 자유배치 갈래가 같은 모듈의 _panelFollowsPasted 를 부른다 — 떠낸 판에는 정의가 없어 스텁.
+      _panelFollowsPasted: () => {},
     };
     window.pushHistory = (t) => calls.pushHistory.push(t);
     window.genId = (p) => p + '_' + Math.random().toString(36).slice(2, 9);
@@ -97,7 +99,15 @@ async function runDuplicate(page) {
     window.buildLayerPanel = () => {}; window.renderChatBlock = () => {};
 
     const names = Object.keys(scope);
-    const fn = new Function(...names, `${dupSrc}; return duplicateSelected;`)(...names.map(n => scope[n]));
+    // 떠낸 판은 같은 모듈의 다른 최상위 함수를 못 본다 — 빠진 이름이 ReferenceError 로 나면 그 이름을 찍는다(무엇을 더할지 바로 보이게).
+    const _named = (e) => {
+      const x = (e instanceof ReferenceError) ? ((/^(\S+) is not defined/.exec(e.message) || [])[1]) : null;
+      return x ? new Error('떠낸 판의 스텁 명부(scope)에 «' + x + '» 가 빠졌다 — 여기 더해라 (' + e.message + ')') : e;
+    };
+    let fn0;
+    try { fn0 = new Function(...names, `${dupSrc}; return duplicateSelected;`)(...names.map(n => scope[n])); }
+    catch (e) { throw _named(e); }
+    const fn = (...a) => { try { return fn0(...a); } catch (e) { throw _named(e); } };
 
     const before = document.querySelector('.zoom-block');
     before._zoomPicked = 'tl';                       // 사람이 집어 둔 앵커 — 따라오면 안 된다
