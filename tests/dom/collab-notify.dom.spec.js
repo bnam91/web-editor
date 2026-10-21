@@ -4,7 +4,11 @@
  *   ⑶ S7 술어(isSettingsTabEnabled)가 초대 배지 boot 시점(DOMContentLoaded)에 «이미» 닿는다
  *
  * ★하네스 = bootApp(진짜 index.html · electronAPI 는 null 을 돌려주는 가짜). 앱·포트·서버 0.
- * ⛔COLLAB_ENABLED·MVP_DISABLED_TABS 값은 건드리지 않는다 — 지금 값(false · ['dev','collab'])에서 잰다.
+ * ⛔COLLAB_ENABLED·MVP_DISABLED_TABS 값은 건드리지 않는다 — ★지금 값에서 잰다.
+ *   ⚰️★261021 정정: 이 줄은 「지금 값(false · ['dev','collab'])」이라 적고 있었다 — ★거짓이다.
+ *     ★`b0211621`(2026-10-06 「협업 다시 켬」 · 현빈 승인)로 ★`COLLAB_ENABLED = true` ·
+ *     ★`MVP_DISABLED_TABS = ['dev']` 가 됐다. ★아래 `:21` 의 단언은 ★이미 `true` 를 전제한다 —
+ *     ★주석만 ★낡아 있었다. ⇒ ★★틀린 주석은 ★다음 사람이 ★그대로 인용한다.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -87,7 +91,7 @@ async function bootWithFakeCollab(page) {
       push: async () => ({ ok: true, seq: 5 }),
       seq: async () => ({ ok: true }),
     } });
-    window.COLLAB_ENABLED = true;   // ★검사 페이지 안에서만(제품 js/feature-flags.js 는 false 그대로)
+    window.COLLAB_ENABLED = true;   // ★검사 페이지 안에서만 세운다(★제품도 261006 b0211621 로 true 다 — ⚰️옛 주석은 「false 그대로」라 적고 있었다)
   });
 }
 
