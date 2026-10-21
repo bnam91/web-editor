@@ -1510,6 +1510,7 @@ function duplicateSelected() {
       cloneBlock.classList.add('selected');
       parentFrame.closest('.section-block')?.classList.add('selected');
       window.buildLayerPanel?.();
+      _panelFollowsPasted([clone]);   // ★t4-12 — 복제본 패널(deselectAll 이 띄운 페이지 패널 대신)
       window.pushHistory('복제 완료');
       return;
     }
@@ -1961,6 +1962,33 @@ function _keepOnlyPastedSelected(roots) {
   window._activeFrame = null;
 }
 
+// ★t4-12 — 붙여넣기·⌘D 뒤 우측 패널은 «사본»을 따른다.
+//   옛 판: 흐름·배너·다중 갈래는 .selected 만 사본으로 옮기고 패널은 안 다시 그렸다.
+//   텍스트 패널은 그릴 때 잡은 contentEl 에 쓰므로(js/props/prop-text.js ctx) 붙인 직후 패널을 만지면
+//   «패널을 마지막으로 연 블럭»(원본 A 또는 붙일 자리 B)이 바뀌었다(판 A 측정 · 핀 f7355b4e).
+//   ★표는 새로 안 짓는다 — 클릭·⌘Z 복원과 같은 js/panel-dispatch.js openPanelForBlock 한 벌.
+//     핸들은 js/history.js _restoreSelection 과 같은 순서(그라데이션·스티커는 자기 진입점이 핸들까지 한다).
+//   ★고른 사본 블럭이 정확히 1개일 때만 그 패널. 0개거나 2개 이상이면 페이지 패널로 옛 블럭을 놓는다
+//     (다중 붙여넣기 뒤 패널을 무엇으로 할지는 결정거리 — 기본은 페이지).
+//   ⛔_keepOnlyPastedSelected «뒤»에 부른다 — 앞이면 원본의 .selected 가 아직 남아 있다.
+function _panelFollowsPasted(roots) {
+  const list = (roots || []).filter(r => r && r.isConnected);
+  const picked = [];
+  list.forEach(r => {
+    [r, ...r.querySelectorAll('.selected')].forEach(el => {
+      if (!el.classList.contains('selected')) return;
+      if (el.classList.contains('section-block')) return;
+      if (!window.hasPanelForBlock?.(el)) return;
+      if (!picked.includes(el)) picked.push(el);
+    });
+  });
+  if (picked.length !== 1) { window.showPageProperties?.(); return; }
+  const b = picked[0];
+  if (window.openPanelForBlock?.(b) !== true) { window.showPageProperties?.(); return; }
+  if (b.classList.contains('gradient-block') || b.classList.contains('sticker-block')) return;
+  window.showHandlesFor?.(b);
+}
+
 /* ★섹션 사본 «하나»를 DOM 에 넣는 한 벌 — 단건(type:'section')과 여러 개(type:'multi-section')가
  *   ★같은 코드를 돈다. 두 갈래가 각자 id 재발급·바인딩 목록을 적으면 그게 둘째 명부가 되고,
  *   «단건은 되는데 여러 개는 반쪽만 살아있는» 꼴로 갈린다(C④ 를 고치며 구조로 합쳤다).
@@ -2060,6 +2088,7 @@ function pasteClipboard() {
     });
     _keepOnlyPastedSelected(_pastedRoots);
     window.buildLayerPanel();
+    _panelFollowsPasted(_pastedRoots);   // ★t4-12 — 패널도 사본으로(2개 이상이면 페이지)
     pushHistory('붙여넣기');
     return;
   }
@@ -2224,6 +2253,8 @@ function pasteClipboard() {
     }
   }
   window.buildLayerPanel();
+  // ★t4-12 — 블럭 갈래(흐름·배너·스티커·자유프레임·오버레이)는 패널도 사본으로. 섹션 갈래는 오늘 그대로.
+  if (clipboard.type !== 'section' && clipboard.type !== 'multi-section') _panelFollowsPasted([el]);
   /* [#16-DUP] 스크래치 사본은 «캔버스 밖»(ScratchPadDB) 이라 캔버스 스냅샷이 못 되돌린다 —
      onUndo=사본 제거 / onRedo=id 그대로 복원. 복제 0건이면 null 이라 오늘과 같다. */
   pushHistory('붙여넣기', _spl?.sideEffects || null);
