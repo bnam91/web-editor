@@ -2624,9 +2624,14 @@ document.addEventListener('keydown', e => {
       duplicateSelected();
       return;
     }
+    /* ★세 번째 갈래 — 스크래치 항목(#canvas-scaler 직계 · .scratch-selected)의 레이어 순서 (1020t2a2 · 현빈 「스크래치패드 간
+         커맨드 '[',']' 이것만으로도 레이어 순서 변경」). moveSelectedBlocks 의 ㈎㈏ 는 «해당 없음» — 그 함수 주석대로 갈래를 «더한다».
+       ★선례 = 위 ⌘X(`window.scratchCutSelected`) — 스크래치가 골라져 있으면 그쪽이 가져간다. ⇧ 는 캔버스처럼 무시(한 칸).
+       ⛔이 줄들은 가드 «뒤» · preventDefault «앞» 에만 — 갈래 안에 주석을 두면 W1(400자 창)을 넘는다. */
     if (e.code === 'BracketLeft') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      if (window.scratchLayerOrder?.('up')) { e.preventDefault(); return; }
       e.preventDefault();
       moveSelectedBlocks('up');
       return;
@@ -2634,6 +2639,7 @@ document.addEventListener('keydown', e => {
     if (e.code === 'BracketRight') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      if (window.scratchLayerOrder?.('down')) { e.preventDefault(); return; }
       e.preventDefault();
       moveSelectedBlocks('down');
       return;
@@ -2873,6 +2879,9 @@ document.addEventListener('keydown', e => {
     deselectAll();
   }
 
+  /* ⚠️이 갈래는 도달하지 않는다 — :2510 metaKey 블록의 :2631/:2639 가 먼저 잡고 return 한다.
+     행위 증거: 히스토리 '레이어 순서'가 앱에서 0회. 실제 이름은 '뒤로 보내기/앞으로 가져오기'.
+     261021 — 지디가 이 갈래를 «살아 있다»고 읽어 a2 발주서 전제를 틀렸다. ⛔지우는 것은 별건(도달 불가 전수 미측정). */
   // Cmd/Ctrl + [ / ] : free 모드 frame 안의 selected 블록 z-order 변경
   // Shift 조합 시 맨 앞/뒤로. stack(flow) 모드는 영향 X (free 자식만).
   if ((e.metaKey || e.ctrlKey) && (e.key === '[' || e.key === ']')) {
