@@ -5,7 +5,8 @@
  *   ⇒ 공용 H1·H2 가 대신 덮지 못한다 — 제 짝(F1)을 둔다.
  * F2 — 측정(soft): 앞 표본이 없는 그 갈래에서 «날 변화 뒤» 프레임 삭제 → ⌘Z 한 번이 어디까지 가나. 수만 남긴다(단언 없음 — 판정은 리드).
  * E1 — E1 R7⒝(반사 켠 에셋 고름 → Delete): 공용 «블록 삭제» 길을 타는지 «재서» 가른다(꼭대기 「블록 삭제」) — 타면 공용 짝의 변이(editor.js `pushHistory('블록 삭제')` 지움)로 빨강.
- * T1 — 글자 편집(E55 C · G14 K17c 의 편집 ⌫ · 텍스트블럭 공통): block-drag.js dblclick «편집 시작 전» pushHistory 하나뿐(끝 표본 없음 — 설계) → beforeOnly.
+ * T1 — 글자 편집(E55 C · G14 K17c 의 편집 ⌫ · 텍스트블럭 공통): block-drag.js dblclick «편집 시작 전» pushHistory(앞 표본) + _endTextEdit «바뀌었으면» pushHistory('글자 편집')(끝 표본) — 양쪽 끝(js/CLAUDE.md:32 정본) → 기본 A2.
+ *   비석: 2026-10-22 W2D-08 이 제품을 규약 쪽으로 고쳐 이 계약을 뒤집었다 — 전 beforeOnly · ⌘Z [undoDLen,undoDPos] = [1,0](구제 한 번) / 후 기본 A2 · [0,−1](끝 표본 · 구제 0).
  * C1 — G14 K6 「＋ 블럭 넣기」 = addCircleChild → _insertToFlowFrame({into}) 의 `if (_into) { window.pushHistory();`(앞 · 실측으로 그 갈래) + 삽입 래퍼 끝 표본(insert-history.js). */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -83,7 +84,7 @@ test('E1 R7⒝ 반사 켠 에셋 Delete — 공용 «블록 삭제» 길 · 한 
   expect(await page.evaluate(() => document.getElementById('qA')?.dataset.fxReflect), '⌘Z 로 효과까지').toBe('on');
 });
 
-test('T1 글자 편집(앞 표본만 · dblclick) — 날 변화 뒤 편집 → ⌘Z 가 날 변화 «뒤»(편집 전)에서 멈춘다', async ({ page }) => {
+test('T1 글자 편집(양쪽 끝 · dblclick 앞 표본 + 끝 표본) — 날 변화 뒤 편집 → ⌘Z 가 날 변화 «뒤»(편집 전)에서 멈춘다', async ({ page }) => {
   await setup(page, TEXT);
   await raw(page, 71);
   const p = await page.evaluate(() => { const e = document.querySelector('#qT [class^="tb-"]'); e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return [q.right - 4, q.top + q.height / 2]; });
@@ -91,7 +92,7 @@ test('T1 글자 편집(앞 표본만 · dblclick) — 날 변화 뒤 편집 → 
     await page.mouse.dblclick(p[0], p[1]); await page.waitForTimeout(150);
     await page.keyboard.press('End'); await page.keyboard.type('XYZ'); await page.waitForTimeout(100);
     await page.evaluate(() => document.activeElement?.blur?.()); await page.waitForTimeout(150);
-  }, '글자 편집', { beforeOnly: true });
+  }, '글자 편집');   // W2D-08(2026-10-22) — 전 { beforeOnly: true } · [1,0] / 후 기본 A2 · [0,−1]
 });
 
 test('C1 G14 원 안 「＋ 블럭 넣기」(addCircleChild) — 끝 표본: 한 걸음 · 앞 표본: 날 변화 뒤 넣기 → ⌘Z 가 날 변화 «뒤»에서', async ({ page }) => {

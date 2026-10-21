@@ -1,6 +1,8 @@
 /* e80-fix.dom.spec.js — E80 고침(처방 ⒤: 끝만 찍던 삭제 넷에 앞 «삭제 전» 체크포인트)의 짝 시험.
  *   F-K2 서브섹션 삭제(editor.js) · F-K6 행 삭제 · F-K7 열 삭제 · F-U1 월계 줄 삭제(★1013t1B2 부터 캔버스 줄 고르기 + ⌫ — line-host) + F-U4 어노테이션(앞만 — 가설 대조, 고침 대상 아님).
- * 꼴: S1 의 글자 eT 편집 → topbar 진짜 클릭으로 끝냄(끝 표본 없음 · clickAt) → 그 삭제(진짜 손) → [⌘Z 직전 재기] → ⌘Z 1.
+ * 꼴: S1 의 글자 eT 편집 → topbar 진짜 클릭으로 끝냄(clickAt) → 그 삭제(진짜 손) → [⌘Z 직전 재기] → ⌘Z 1.
+ *   ★끝 표본이 있다 — js/CLAUDE.md:32 정본 · 2026-10-22 W2D-08 커밋에서 갱신(전: 없었다 — 도우미 이름이 editAndEndWithoutRecord 였다).
+ *   ⚠️그래서 F-K2·F-K6·F-K7·F-U1 의 «편집이 앞 칸에 남는다»(⒝)는 이제 E80 앞 체크포인트가 아니라 글자 편집 끝 표본으로도 선다 — E80 고침을 가르는 힘은 따로 재야 한다(S3-W2D08-FIX.md).
  * 단언 둘(E80_FIX 가 있을 때):
  *   ⒜ 결과 — E80_FIX=1: 편집 남음 · E80_FIX=0(고치기 전 판): 사라짐
  *   ⒝ 까닭 — ⌘Z 직전 «꼭대기 바로 아래 칸»에 편집(EDIT)이 있나: 고친 뒤 있음 · 고치기 전 없음.
@@ -45,12 +47,12 @@ async function scene(page, build) {
 }
 const rect = (page, sel) => page.evaluate((sel) => { const e = document.querySelector(sel); e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height }; }, sel);
 const editing = (page) => page.evaluate(() => !!document.querySelector('#canvas [contenteditable="true"]'));
-async function editAndEndWithoutRecord(page) {
+async function editAndEnd(page) {
   const q = await rect(page, '#eT [class^="tb-"]');
   for (let n = 0; n < 3 && !(await editing(page)); n++) { await clickAt(page, q.r - 4, q.t + q.h / 2, { sel: '#eT, #eT *, #S1R .frame-block' }, { label: '글자 dblclick', dbl: true }); await page.waitForTimeout(150); }
   expect(await editing(page), '전제 — 편집 중').toBe(true);
   await page.keyboard.press('End'); await page.keyboard.type('EDIT'); await page.waitForTimeout(100);
-  await clickAt(page, 300, 4, { sel: '#topbar, .topbar' }, { label: 'topbar(끝 표본 없이 끝냄)' }); await page.waitForTimeout(250);
+  await clickAt(page, 300, 4, { sel: '#topbar, .topbar' }, { label: 'topbar(끝냄 — 끝 표본이 있다 · js/CLAUDE.md:32 정본 · W2D-08 커밋에서 갱신(전: 없었다))' }); await page.waitForTimeout(250);
   expect(await page.evaluate(() => document.querySelector('#eT [class^="tb-"]').textContent), '전제 — 편집 글자').toBe('편집글EDIT');
 }
 /* ⌘Z 직전 — 화면 vs 꼭대기 표본 · 꼭대기 아래 칸 */
@@ -82,7 +84,7 @@ function judge(key, out, { target = true } = {}) {
 
 test('F-K2 서브섹션 삭제', async ({ page }) => {
   await scene(page, `const f = window.makeFrameBlock({ fullWidth: true }); f.id = 'xF'; f.style.minHeight = '120px'; f.style.padding = '20px'; f.appendChild(TX('xFT', '프레임 안')); document.getElementById('S2R').appendChild(f);`);
-  await editAndEndWithoutRecord(page);
+  await editAndEnd(page);
   const pt = await page.evaluate(() => { const f = document.getElementById('xF'); f.scrollIntoView({ block: 'center' }); const r = f.getBoundingClientRect();
     for (let y = r.bottom - 6; y > r.top + 4; y -= 6) { const x = r.left + r.width / 2; if (document.elementFromPoint(x, y) === f) return [x, y]; } return null; });
   await clickAt(page, pt[0], pt[1], { sel: '#xF' }, { label: '프레임 안 빈 곳' }); await page.waitForTimeout(200);
@@ -96,7 +98,7 @@ const COLS = `const r = document.getElementById('S2R'); r.dataset.layout = 'flex
   document.getElementById('xC1').appendChild(TX('xCT', '열 글'));`;
 test('F-K6 행 삭제(옛 다열 행)', async ({ page }) => {
   await scene(page, COLS);
-  await editAndEndWithoutRecord(page);
+  await editAndEnd(page);
   const c = await rect(page, '#xC2'); await clickAt(page, c.l + c.w / 2, c.t + c.h / 2, { sel: '#xC2' }, { label: '빈 열' }); await page.waitForTimeout(200);
   expect(await page.evaluate(() => document.getElementById('S2R').classList.contains('row-active')), '전제 — 행 활성').toBe(true);
   await page.keyboard.press('Delete'); await page.waitForTimeout(250);
@@ -105,7 +107,7 @@ test('F-K6 행 삭제(옛 다열 행)', async ({ page }) => {
 });
 test('F-K7 열 삭제(⌘클릭 둘)', async ({ page }) => {
   await scene(page, COLS);
-  await editAndEndWithoutRecord(page);
+  await editAndEnd(page);
   for (const id of ['xC1', 'xC2']) { const c = await rect(page, '#' + id); const y = id === 'xC1' ? c.b - 8 : c.t + c.h / 2;
     await page.keyboard.down('Meta'); await clickAt(page, c.l + c.w / 2, y, { sel: '#' + id }, { label: '⌘ ' + id }); await page.keyboard.up('Meta'); await page.waitForTimeout(150); }
   expect(await page.evaluate(() => window.multiSel?.cols?.size), '전제 — 열 둘').toBe(2);
@@ -118,7 +120,7 @@ test('F-U1 월계 줄 삭제', async ({ page }) => {
   const ok = await page.evaluate(() => { window.selectSection(document.getElementById('S2')); window.addLaurelBlock?.({ cells: [{ lines: [{ text: '첫' }, { text: '둘' }] }] }); const b = document.querySelector('#S2 .laurel-block'); if (b) b.id = 'lrb_xL';   /* ★1013t1B2 — 줄 삭제가 이제 모델 문(updateLaurelBlock)을 지나고, 그 문은 id 가 lrb_ 로 시작해야 받는다 */
     window.deselectAll?.(); window.applyPageSettings?.(); window.clearHistory?.(); return !!b; });
   expect(ok, '전제 — 월계 블럭').toBe(true);
-  await editAndEndWithoutRecord(page);
+  await editAndEnd(page);
   /* ★1013t1B2 — 월계 줄 삭제의 «손»이 바뀌었다: 패널 칸 카드의 「×」(.lrl-line-remove)는 걷혔고, 이제 그리드·버블·챗·비교와 같은
      캔버스 2단 선택(블럭 → 줄) + ⌫(line-host lnDeleteActiveLine → updateLaurelBlock{cellLines} 문)이다.
      ★뜻은 그대로 — 「끝 표본 없이 끝낸 편집」 뒤의 줄 삭제가 그 편집을 «앞 칸»에 남겨 ⌘Z 가 편집을 지킨다(⒜⒝). */
@@ -136,16 +138,23 @@ test('F-U1 월계 줄 삭제', async ({ page }) => {
   expect(await tip(page), '갈래 — laurel 모델 문(updateLaurelBlock 끝 표본)').toMatch(/^(블럭 수정|Laurel 수정)@/);
   judge('F-U1', await finish(page, 'F-U1', '월계 줄 삭제'));
 });
-test('F-U4 어노테이션 삭제(앞만 — 가설 대조 · 고침 대상 아님)', async ({ page }) => {
+// F-U4 — 뜻 옮김(2026-10-22 W2D-08 · 지디 ⒜): 전 «끝 표본 없는 편집 뒤 «앞만» 삭제(어노테이션)는 제 앞 표본이 편집을 담는다(E80 고침 대상 아님 · 가설 대조)».
+//   끝 표본이 생긴 뒤의 뜻 = «끝 표본 있는 판에서 어노테이션 삭제(앞만)의 ⌘Z 가 어디까지»: 앞 push 는 꼭대기(글자 편집)와 같아 무변화 차단에 먹히고,
+//   ⌘Z 는 undo 첫머리 구제로 «삭제 뒤»를 쌓고 한 칸 내려와 어노테이션이 돌아오고 편집도 남는다.
+//   비석: 갈래 꼭대기 — 전 «어노테이션 삭제@…» / 후 «글자 편집@…».
+test('F-U4 어노테이션 삭제(앞만 — 끝 표본 있는 판에서 ⌘Z 가 어디까지)', async ({ page }) => {
   await scene(page, ``);
   const ok = await page.evaluate(() => { const r = window.makeAnnotationBlock?.({ ax: 10, ay: 10, lx: 120, ly: 40, text: '주석' }); const b = r && (r.block || r); if (!b || !b.classList) return false;
     b.id = 'xAn'; document.getElementById('S2I').appendChild(b); window.rebindAll?.(); window.deselectAll?.(); window.applyPageSettings?.(); window.clearHistory?.(); return true; });
   expect(ok, '전제 — 어노테이션').toBe(true);
-  await editAndEndWithoutRecord(page);
+  await editAndEnd(page);
   await page.evaluate(() => window._selectAnnotation?.(document.getElementById('xAn')));
   await page.keyboard.press('Delete'); await page.waitForTimeout(250);
-  expect(await tip(page), '갈래').toMatch(/^어노테이션 삭제@/);
-  judge('F-U4', await finish(page, 'F-U4', '어노테이션 삭제'), { target: false });
+  expect(await tip(page), '갈래 — 앞만 push 가 꼭대기(글자 편집)와 같아 먹힌다(전: 어노테이션 삭제@)').toMatch(/^글자 편집@/);
+  expect(await page.evaluate(() => !!document.getElementById('xAn')), '전제 — 어노테이션이 지워졌다').toBe(false);
+  const out = await finish(page, 'F-U4', '어노테이션 삭제');
+  expect(await page.evaluate(() => !!document.getElementById('xAn')), '⌘Z 1번 — 어노테이션이 돌아온다').toBe(true);
+  expect(out.result, '⌘Z 1번 — 편집이 남는다').toBe('남음');
 });
 
 /* F-S1 에셋 → 스크래치 이동(scratch-pad.js _moveAssetToScratch · 범위 다섯째 · 승인 approvals/lane-e80-fix).
