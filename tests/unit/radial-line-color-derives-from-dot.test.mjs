@@ -226,16 +226,30 @@ test('⛔D7 음성대조 — 없는 객체 이름으로는 전제가 서지 않�
   assert.deepEqual(m.broken, ['전제: 객체를 못 찾음']);
 });
 
-test('R0 기록 — 실파일이 ★지금 어느 꼴인가 (⛔판정이 아니라 ★기록이다)', () => {
+/* ★★R1 — ★실파일 단언. ★2026-10-21 S6 ⒜ 머지(5169d756)에서 ★R0 를 ★이것으로 ★바꿨다.
+ *   ★R0 는 ★머지 전 dev 의 ★오른쪽 토큰 둘(`'#c9bdf5'` · `'#c8cdd6'`)을 ★못 박아 두었고,
+ *   ★머지가 들어온 ★순간 ★★스스로 빨개져(실측: rc 1 · fail 1 · R0 하나) ★이 변환을 ★강제했다.
+ *   ⇒ ★★주석이 아니라 ★검사가 ★다음 사람에게 ★할 일을 ★알렸다. ★그 꼴을 ★여기 남긴다. */
+test('★R1 실파일 — 선 색이 점 색에서 파생된다(㉠ 같은 식별자 · ㉡ ⛔리터럴 아님 · ㉢ 정의 = #c8cdd6)', () => {
   const code = strip(fs.readFileSync(path.join(REPO, SRC_REL), 'utf8'));
   const m = measure(code);
-  assert.equal(m.premise, true);
-  /* ⛔여기서 `broken` 이 0 이라고 ★단언하지 않는다 — 상수가 들어오는 것은 S6 ⒜ 머지다.
-     ★대신 «오른쪽 토큰 둘»을 단언해 ★판을 못 박는다. 머지가 들어오면 ★이 줄이 빨강이 되고,
-     그때 ★여기를 «파생 단언»으로 바꾸는 것이 ⒜ 머지 커밋의 ★할 일이다(BACKLOG 머지 게이트). */
-  assert.deepEqual(
-    [m.line, m.dot],
-    ["'#c9bdf5'", "'#c8cdd6'"],
-    '★이 줄이 빨개지면 = 라디얼 기본값이 움직였다 ⇒ T4-02-DERIVE-LOCK 의 «실파일 단언»으로 바꿔라(BACKLOG)',
+  assert.equal(m.premise, true, `전제: ${SRC_REL} 의 RADIAL_DEFAULTS 를 찾아야 한다`);
+  assert.deepEqual(m.broken, [], `실파일에서 깨진 칸이 없어야 한다 — 잡힌 것: ${JSON.stringify(m.broken)}`);
+  /* ★잰 값을 ★단언에 ★찍어 둔다 — 빨개질 때 «무엇이었나»가 로그에 남게. */
+  assert.equal(m.line, m.dot, `선 색(${m.line})과 점 색(${m.dot})이 같은 식별자여야 한다`);
+});
+
+test('★R2 양성대조 — 실파일 사본에서 선 색을 리터럴로 되돌리면 빨강 (★R1 이 무엇을 잠그나)', () => {
+  const raw = fs.readFileSync(path.join(REPO, SRC_REL), 'utf8');
+  const ident = measure(strip(raw)).line;
+  assert.match(ident, /^[A-Z_][A-Z0-9_]*$/, `전제: 지금 오른쪽이 식별자다 — 잡힌 것: ${ident}`);
+  /* ★값은 ★그대로 두고 ★파생만 끊는다 — ⛔값을 재는 자는 ★이 꼴을 ★못 잡는다. */
+  const broken = raw.replace(
+    new RegExp(`(lineColor\\s*:\\s*)${ident}`),
+    "$1'#c8cdd6'",
   );
+  assert.notEqual(broken, raw, '전제: 사본이 실제로 바뀌어야 한다');
+  const m = measure(strip(broken));
+  assert.ok(m.broken.some((b) => b.startsWith('㉡')), `㉡ 가 잡아야 한다 — 잡힌 것: ${JSON.stringify(m.broken)}`);
+  assert.ok(m.broken.some((b) => b.startsWith('㉠')), `㉠ 도 잡아야 한다 — 잡힌 것: ${JSON.stringify(m.broken)}`);
 });
