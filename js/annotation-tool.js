@@ -69,6 +69,11 @@ function _cancelPending() {
   _dimPlacing = false;   /* ★t3-01 — ⛔안 끄면 ★다음 치수선이 ★첫 클릭부터 ★자리 고르기로 들어간다 */
   _pendingPoints = null;
   if (_pendingPreviewEl) { _pendingPreviewEl.remove(); _pendingPreviewEl = null; }
+  /* ★★t3-01 261021 실측 — ★치수선을 만든 뒤 ★빨간 임시선이 ★남는 것을 봤다(3개).
+     ★위 한 줄이 ★층을 통째로 지우는데도 남았다 ⇒ ★층이 ★둘 이상 생기는 길이 ★있다는 뜻이다.
+     ⛔그 길을 ★아직 못 찾았으므로 ★증상을 ★막는 안전망을 ★여기 둔다 — ★원인 규명은 ★따로 한다.
+     ★안전망임을 ★숨기지 않는다: ★이 줄이 ★0 이 아닌 수를 지우면 ★그 길이 ★살아 있다는 것이다. */
+  document.querySelectorAll('.annot-preview').forEach((el) => el.remove());
   _lastClickAt = 0;
   _cursor = null;   // ★1017t1h1
 }
