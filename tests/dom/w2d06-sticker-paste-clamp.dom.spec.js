@@ -18,6 +18,14 @@
 // 판 정체 — ⑴ git -C ROOT rev-parse HEAD === EXPECT_SHA
 //           ⑵ 페이지가 받은 js/editor.js 의 sha1 === ROOT 작업트리 js/editor.js 의 sha1 === EXPECT_FILE_SHA1
 //   (고침은 js/editor.js 에 든다 — 바닥 판과 고친 판에서 이 파일이 다르다. HEAD 는 두 판이 같다.)
+//
+// ⛔★EXPECT_FILE_SHA1 은 ★«순수» sha1(파일 ★내용)이다 — ★2026-10-21 에 지디가 ★두 번 틀렸다.
+//   ★맞는 길:  shasum -a 1 js/editor.js | awk '{print $1}'
+//   ⛔틀린 길:  git hash-object js/editor.js
+//     ★까닭: `git hash-object` 는 ★내용 앞에 ★«blob <바이트수>\0» ★헤더를 붙여 ★해시한다
+//       ⇒ ★같은 파일인데 ★다른 40자가 나온다. ★그러면 :52 단언이 ★★「판이 다르다」로 빨개지고,
+//         ★그 빨강을 ★«제품 결함»으로 ★읽는다(★판 정체 자가 ★스스로 거짓말을 한 꼴).
+//   ★이 spec 안에서 재는 쪽(:49·:52)은 ★crypto 로 ★내용만 해시한다 ⇒ ★★넘기는 env 도 ★같은 자여야 한다.
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
