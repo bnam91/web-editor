@@ -908,6 +908,13 @@ function addStickerBlock(opts = {}) {
   if ((opts.shape ?? STICKER_DEFAULTS.shape) === 'text') {
     requestAnimationFrame(() => window._enterStickerEdit?.(block));
   }
+  /* ★★W2D-04a — 좌측 레이어 패널에 행을 ★「바로」 세운다.
+     ⛔없으면 ★다른 까닭으로 패널이 ★다시 그려질 때까지 ★스티커가 ★레이어에 ★안 나타난다.
+     ★실측(2026-10-21 · 9421): 스티커 1→2 인데 ★줄은 16→★16(직후) → ★17(다시 그린 뒤).
+     ★★어노테이션이 ★2026-10-13(1013t1A1)에 ★똑같은 병을 ★이 한 줄로 고쳤다 —
+       「섹션 직속 플로팅 블럭(그라데이션·확대)은 ★만든 자리에서 buildLayerPanel 을 부르는데 ★여기만 빠졌다」.
+     ⇒ ★스티커도 ★섹션 직속 플로팅이다. ★같은 자리에 ★같은 줄. */
+  window.buildLayerPanel?.();
   window.scheduleAutoSave?.();
 }
 

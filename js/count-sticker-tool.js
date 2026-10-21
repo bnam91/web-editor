@@ -500,6 +500,9 @@ function _cntStamp(e) {
   try { window.bindStickerSelect?.(block); } catch (err) { console.warn('[count-sticker] bindStickerSelect failed', err); }
   try { window._selectSticker?.(block); } catch (err) { console.warn('[count-sticker] _selectSticker failed', err); }
   try { window.pushHistory?.('마킹 추가'); } catch (err) { console.warn('[count-sticker] pushHistory failed', err); }
+  /* ★★W2D-04a — 마킹도 ★섹션 직속 플로팅이라 ★레이어 행을 ★여기서 세운다(스티커·어노테이션과 ★같은 자리).
+     ⛔없으면 ★다른 까닭으로 패널이 ★다시 그려질 때까지 ★레이어에 ★안 나타난다. */
+  try { window.buildLayerPanel?.(); } catch (err) { console.warn('[count-sticker] buildLayerPanel failed', err); }
   try { window.scheduleAutoSave?.(); } catch (err) { console.warn('[count-sticker] scheduleAutoSave failed', err); }
   return block;
 }
