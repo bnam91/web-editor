@@ -125,10 +125,80 @@ const DEFER_PX = Object.freeze({ '꾸밈': 1100, '빈칸': 700 });
    ★★★떼는 조건 = ★★«다음 버전». ★자리: `tests/dom/EXPECT_N.md`
    ⚠️★이 상한은 ★★`icon-stack · 40%` 의 ★`작은글`(★9)도 ★같이 ★가린다 — ★★의도된 것이다(★같은 꼬리 계열). */
 const TAIL_PX_40 = 10;
+/* ★★★`icon-stack · 100%` 의 `꾸밈` — ★★«기계 의존»이다(261021 실측 · ★상수가 아니라 ★그 사실이 요점)
+   ★★어느 판에서 들어왔나 — ★이등분으로 ★집었다:
+     머지 `50194997`(10-10 10:14)의 두 부모를 ★각 ×3 (아이맥 · workers1 · retries0)
+       ★`^1` `87c1bb65` ⇒ px ★0,0,0 (first=null · rc 0)
+       ★`^2` `bcd8e786` ⇒ px ★6,6,6 (first=★[158,221] · rc 1)   ← ★★범인
+     ★`bcd8e786` = 「fix(frame): 명시도 구멍 하나를 닫고 하나는 범위 밖이라 안 닫았다」
+       — `css/editor-blocks.css` 에 `overflow: visible !important` 와
+         `.frame-block:has(> .frame-child-dragging):not([data-clip-content="true"])` 를 들였다.
+       ⇒ ★이 벌 위쪽 ⑴ 주석의 «자르기 층»(`[data-radius]:not([data-radius="0"]){overflow:hidden}`)과 ★같은 기계다.
+   ★★★그런데 ★값이 ★기계마다 ★다르다 — ★★같은 판 `013fef98` 에서:
+     ★아이맥 ★6 (★20/20 · dev `013fef98` ＋ 핀 `eaab4bbe` 각 ×10) · ★srv ★0 (★3/3 · load1 2.75)
+   ⇒ ★★그래서 ★`0` 으로 둘 수도 없고(아이맥이 빨강) ★`6` 은 ★★여유가 ★0 이다(1px 늘면 빨강).
+     ⛔그 ★여유 0 을 ★숨기지 않는다 — ★그게 이 줄의 ★가장 중요한 사실이다.
+   ★그래도 ★1100 → ★6 으로 ★★183배 ★좁혔고, ★덮는 자리를 ★12 → ★1 로 줄였다(아래 조기반환).
+   ★★★떼는 조건 = ★★판 `0.9.9` — ⑴`bcd8e786` 의 자르기 층을 고치거나 ⑵두 기계가 ★같은 값을 내게 되면.
+     ★자리: `tests/dom/EXPECT_N.md` · ★재는 자 = `tests/unit/slice-harness-deps-roster.test.mjs` `SHD8`
+   ⛔★「래스터다」로 닫지 마라 — ★100% 는 ★정수배율이다. ⛔「플래키다」로도 닫지 마라 — ★두 기계 모두 ★결정적이다(20/20 · 3/3). */
+const ICON100_KKUMIM_PX = 6;
+/* ★★★`ALLOW` — ★조기반환으로 ★「100% 는 무접촉」을 ★★구조에 박는다 (261021 · Codex 리뷰 ＋ 지디 재확인)
+   ⛔★옛 꼴은 `DEFER_PX[name]` 을 ★배율과 무관하게 ★먼저 봤다 ⇒ ★「40% 꼬리」 면제가 ★100% 까지 ★덮었다.
+     ★실측(★56쌍 = VARIANTS 4 × CFGS 14): ★고치기 ★전 ★100% 에서 ★★8자리가 ★0 이 아니었다 —
+       plain|꾸밈 1100 · plain|빈칸 700 · titled|꾸밈 1100 · titled|빈칸 700
+       dashed|꾸밈 1100 · dashed|빈칸 700 · icon-stack|꾸밈 1100 · icon-stack|빈칸 700
+     ⇒ ★★네 형태 ★전부였다. ★그 8 이 ★아래 `A1` 의 ★비공허성 핀이다.
+   ★★왜 ★재키잉(`'꾸밈|40'` 같은 키)이 ★아니라 ★조기반환인가 — ★★취향이 아니라 ★돌연변이 측정이다:
+     `'꾸밈|100': 1100`(배율 오타) ⇒ 조기반환 ★0/56 · 재키잉 ★4/56
+     `'색|100': 9999`(100% 에 새 면제)  ⇒ 조기반환 ★0/56 · 재키잉 ★4/56
+   ⇒ ★재키잉은 「100% 무접촉」을 ★«표 안의 철자»로 들고 있어 ★현실적인 실수 둘에 ★뚫린다.
+     ★조기반환은 ★그 불변식을 ★구조상 ★표현 불가능하게 만든다 — ★표를 ★아무리 늘려도 ★100% 는 ★안 샌다.
+   ⛔★★「A1 의 56개 단언이 이 수정을 잠근다」로 적지 마라 — ★48/56 은 ★항등식이다. ★★8 이 잠그고 ★48 이 지킨다. */
 const ALLOW = (variant, name, zoom) => (
-  DEFER_PX[name] !== undefined ? DEFER_PX[name]
-  : zoom === 40 ? TAIL_PX_40
-  : variant !== 'icon-stack' ? 0 : (name === '모서리' && zoom === 100) ? 64 : 0);
+  zoom === 100
+    ? (variant !== 'icon-stack' ? 0
+      : name === '모서리' ? 64
+      : name === '꾸밈' ? ICON100_KKUMIM_PX
+      : 0)
+    : (DEFER_PX[name] !== undefined ? DEFER_PX[name] : TAIL_PX_40));
+/* ══ ★`ALLOW` 자체를 ★재는 단언 셋 — ★브라우저 ★없이 돈다(순수 함수다) ═════════════
+   ★이름을 ★정확히 붙인다 — ⛔「셋이 이 수정을 잠근다」가 ★아니다:
+     ★A1 = ★잠그는 자 (고치기 전 ★8/56 비일치 · 고친 뒤 ★0/56)
+     ★A2 = ★★«40% 를 안 건드렸다»의 ★음성대조 — ★★완전한 항등식이다(40% 56쌍 ★전부 before===after).
+           ⛔「수정이 됐다」의 ★증거로 ★쓰지 마라.
+     ★A3 = ★명부 자기검산(오타·NFD 키) — ★예방용 · 항등식 */
+test('A1 ★★`ALLOW` 전제 — ★100% 는 ★무접촉이다 (★56쌍 ★전수 · ★예외는 ★이름 붙은 ★둘)', () => {
+  const want = (v, n) => (v !== 'icon-stack' ? 0
+    : n === '모서리' ? 64
+    : n === '꾸밈' ? ICON100_KKUMIM_PX
+    : 0);
+  const bad = [];
+  for (const v of VARIANTS) for (const [name] of CFGS) {
+    const got = ALLOW(v, name, 100);
+    if (got !== want(v, name)) bad.push(`${v}|${name} ${got}≠${want(v, name)}`);
+  }
+  /* ★★비공허성 핀 = ★8. ★고치기 ★전 판에서 ★이 목록이 ★그 8쌍이었다(261021 실측 · 계산):
+       plain|꾸밈 1100 · plain|빈칸 700 · titled|꾸밈 1100 · titled|빈칸 700
+       dashed|꾸밈 1100 · dashed|빈칸 700 · icon-stack|꾸밈 1100 · icon-stack|빈칸 700
+     ⇒ ★이 단언을 ★옛 `ALLOW` 에 되돌려 돌리면 ★반드시 ★8 이 나와야 한다. ★0·7·9 면 ★분모가 바뀐 것이다. */
+  expect(bad, `★100% 가 샌다 — ★이 자리들이 0(또는 이름 붙은 예외)이 ★아니다:\n  ${bad.join('\n  ')}`).toEqual([]);
+  expect(VARIANTS.length * CFGS.length, '★분모 — ★56쌍(4×14)이 아니면 ★위 핀 8 이 뜻을 잃는다').toBe(56);
+});
+test('A2 ★`ALLOW` ★음성대조 — ★★«40% 를 ★안 건드렸다» (⛔이 수정의 ★증거가 ★아니다 · ★항등식)', () => {
+  expect(ALLOW('titled', '꾸밈', 40)).toBe(1100);
+  expect(ALLOW('icon-stack', '빈칸', 40)).toBe(700);
+  expect(ALLOW('plain', '기본', 40)).toBe(TAIL_PX_40);
+  expect(ALLOW('icon-stack', '작은글', 40)).toBe(TAIL_PX_40);
+  /* ★꼬리가 ★64 를 이긴다 — ★위 ⚠️ 주석이 「의도된 것」이라 적은 ★그 자리다 */
+  expect(ALLOW('icon-stack', '모서리', 40)).toBe(TAIL_PX_40);
+});
+test('A3 ★`DEFER_PX` 명부는 ★`CFGS` 밖 이름을 ★담지 않는다 (★오타·NFD 를 ★그 자리에서)', () => {
+  const names = CFGS.map(([n]) => n);
+  expect(Object.keys(DEFER_PX).filter((k) => !names.includes(k)),
+    '★면제 명부에 ★CFGS 에 없는 이름이 있다 — ★오타이거나 ★NFD/NFC 가 갈렸다(macOS)').toEqual([]);
+});
+
 for (const variant of VARIANTS) for (const where of PLACES) for (const zoom of ZOOMS) {
   test(`G1 픽셀 동일 — ${variant} · ${where} · ${zoom}%`, async ({ page }) => {
     test.setTimeout(120000);
