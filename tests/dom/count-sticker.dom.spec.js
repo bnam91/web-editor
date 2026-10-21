@@ -688,7 +688,7 @@ const layerRowOf = (page, sel) => page.evaluate((sel) => {
   return rows.map((it) => ({ name: it.querySelector('.layer-item-name')?.textContent, type: it.querySelector('.layer-item-type')?.textContent, layerType: it.dataset.layerType }));
 }, sel);
 
-test('C22 이름 — 패널 절 제목·패널 머리·레이어 행이 Marking 이다 · 일반 스티커의 머리는 Sticker 그대로 · 저장 키는 count 그대로', async ({ page }) => {
+test('C22 이름 — 패널 절 제목·패널 머리·레이어 행이 Marking 이다 · ★일반 스티커는 머리도 ★레이어 줄도 Sticker(⛔Asset/Image 아님) · 저장 키는 count 그대로', async ({ page }) => {
   const errs = await bootApp(page);
   await setup(page);
   await toolOn(page);
@@ -721,7 +721,10 @@ test('C22 이름 — 패널 절 제목·패널 머리·레이어 행이 Marking 
   expect(plain, '일반 스티커: 머리는 Sticker · Marking 절 없음').toEqual({ hasCount: false, selected: true, head: 'Sticker', countSec: false });
   const plainRows = await layerRowOf(page, '[id="stkPlainName"]');
   expect(plainRows.length, '★전제: 일반 스티커의 레이어 행이 하나 있다').toBe(1);
-  expect(plainRows[0].layerType, '일반 스티커의 레이어 행은 마킹으로 안 바뀐다(이번 범위 밖 · 표시 무변)').not.toBe('marking');
+  /* ★★261021 — ★범위가 ★들어왔다. 옛 단언은 `.not.toBe('marking')` ★하나뿐이라
+     ★「Asset/Image 로 보이는 것」을 ★통과시켰다(그게 바로 ★제보된 병이다) ⇒ ★값을 ★못 박는다. */
+  expect(plainRows[0], '★일반 스티커의 레이어 줄 — 이름·종류·layerType').toEqual({ name: 'Sticker', type: 'Sticker', layerType: 'sticker' });
+  expect(plainRows[0].layerType, '마킹으로 바뀌지 않는다(마킹 표시 무변)').not.toBe('marking');
   expect(errs).toEqual([]);
 });
 
