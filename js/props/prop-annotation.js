@@ -59,6 +59,15 @@ function _writeProps(block, partial) {
   if ('labelBg'          in partial) block.dataset.labelBg          = String(partial.labelBg);
   if ('labelBorderColor' in partial) block.dataset.labelBorderColor = String(partial.labelBorderColor);
   if ('text'             in partial) block.dataset.text             = String(partial.text);
+  /* ★★t3-01 치수선 칸 — ⛔`annotKind` 는 ★여기서 안 바꾼다(치수선을 ★일반 어노테이션으로 ★되돌리는 길은
+     ★패널이 아니라 ★지우고 다시 찍기다 — 두 꼴은 ★점 수·라벨 뜻이 ★다르다). */
+  if ('dimAxis'      in partial) block.dataset.dimAxis      = String(partial.dimAxis);
+  if ('dimOffset'    in partial) block.dataset.dimOffset    = String(partial.dimOffset);
+  if ('dimSlide'     in partial) block.dataset.dimSlide     = String(partial.dimSlide);
+  if ('dimGap'       in partial) block.dataset.dimGap       = String(partial.dimGap);
+  if ('dimOver'      in partial) block.dataset.dimOver      = String(partial.dimOver);
+  if ('dimShowExt'   in partial) block.dataset.dimShowExt   = partial.dimShowExt ? '1' : '0';
+  if ('dimLabelLift' in partial) block.dataset.dimLabelLift = String(partial.dimLabelLift);
   if ('labelMode' in partial) {
     const mode = partial.labelMode === 'image' ? 'image' : 'text';
     block.dataset.labelMode = mode;
@@ -134,6 +143,14 @@ function _annotApplyToSelection(block, prop, value) {
 function _rerenderAnnotation(block) {
   const st = _readState(block);
   if (!st.points || st.points.length < 2) return;
+
+  /* ★★t3-01 — 치수선은 ★그림이 통째로 다르다(폴리라인이 ★아니라 치수선＋보조선＋양끝).
+     ⇒ ★한 자리(annotation-block.js annotRedrawDim)에서 ★다시 그린다. ⛔여기서 ★따로 그리지 않는다.
+     ★아래 폴리라인·앵커 갈래는 ★일반 어노테이션의 것이라 ★치수선에는 ★해당이 없다. */
+  if (window.annotRedrawDim?.(block, st)) {
+    window.annotApplyLabelOffset?.(block);
+    return;
+  }
 
   // 선 (polyline)
   const line = block.querySelector('.annot-line');
@@ -246,6 +263,51 @@ ${blockHeaderHTML({
       id: id,
     })}
     </div>
+
+    ${st.annotKind === 'dim' ? `
+    <!-- ★★t3-01 사이즈 스티커(치수선) — ★이 절은 ★annotKind==='dim' 일 때만 그린다.
+         ⛔일반 어노테이션에는 ★한 줄도 안 뜬다(회귀 0 — 검사가 그 축을 잰다).
+         ★현빈 「패널 간소화」 — 겉에 ★방향 하나, 나머지는 ★「자세히」 안으로. -->
+    <div class="prop-section" data-prop-panel="annot-dim">
+      <div class="prop-section-title">치수선</div>
+      <div class="prop-row">
+        <span class="prop-label">방향</span>
+        <div class="prop-align-group" id="annot-dim-axis">
+          ${['auto', 'h', 'v'].map((a) => `<button class="prop-align-btn${st.dimAxis === a ? ' active' : ''}" data-axis="${a}" title="${a === 'auto' ? '두 점을 잇는 방향 그대로' : a === 'h' ? '가로로만 잰다' : '세로로만 잰다'}">${a === 'auto' ? '자동' : a === 'h' ? '가로' : '세로'}</button>`).join('')}
+        </div>
+      </div>
+      <details class="prop-details" id="annot-dim-more">
+        <summary class="prop-label" style="cursor:pointer;padding:4px 0">자세히</summary>
+        <div class="prop-row">
+          <span class="prop-label">치우침</span>
+          <input type="range" class="prop-slider" id="annot-dim-off" min="-200" max="200" step="1" value="\${st.dimOffset}">
+          <input type="number" class="prop-number" id="annot-dim-off-num" min="-200" max="200" step="1" value="\${st.dimOffset}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">좌우</span>
+          <input type="range" class="prop-slider" id="annot-dim-slide" min="-200" max="200" step="1" value="\${st.dimSlide}">
+          <input type="number" class="prop-number" id="annot-dim-slide-num" min="-200" max="200" step="1" value="\${st.dimSlide}">
+        </div>
+        <div class="prop-row">
+          <label class="prop-label" style="cursor:pointer"><input type="checkbox" id="annot-dim-ext" \${st.dimShowExt ? 'checked' : ''}> 보조선</label>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">간격</span>
+          <input type="range" class="prop-slider" id="annot-dim-gap" min="0" max="40" step="1" value="\${st.dimGap}">
+          <input type="number" class="prop-number" id="annot-dim-gap-num" min="0" max="40" step="1" value="\${st.dimGap}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">넘침</span>
+          <input type="range" class="prop-slider" id="annot-dim-over" min="0" max="40" step="1" value="\${st.dimOver}">
+          <input type="number" class="prop-number" id="annot-dim-over-num" min="0" max="40" step="1" value="\${st.dimOver}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">글 띄움</span>
+          <input type="range" class="prop-slider" id="annot-dim-lift" min="0" max="40" step="1" value="\${st.dimLabelLift}">
+          <input type="number" class="prop-number" id="annot-dim-lift-num" min="0" max="40" step="1" value="\${st.dimLabelLift}">
+        </div>
+      </details>
+    </div>` : ''}
 
     <div class="prop-section">
       <div class="prop-section-title">프리셋</div>
@@ -395,6 +457,40 @@ ${blockHeaderHTML({
     window.pushHistory?.('어노테이션 프리셋');
     window.scheduleAutoSave?.();
   });
+
+  /* ★★t3-01 치수선 배선 — ⛔`annotKind!=='dim'` 이면 ★이 요소들이 ★없다(절을 안 그렸다).
+     ⇒ ★`?.` 없이 ★존재를 ★먼저 보고 나간다 — ★일반 어노테이션에서 ★에러가 나면 ★패널 전체가 죽는다. */
+  const dimAxisGrp = propPanel.querySelector('#annot-dim-axis');
+  if (dimAxisGrp) {
+    dimAxisGrp.querySelectorAll('.prop-align-btn').forEach((b) => {
+      b.addEventListener('click', () => {
+        dimAxisGrp.querySelectorAll('.prop-align-btn').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        _writeProps(block, { dimAxis: b.dataset.axis });
+        window.pushHistory?.('치수선 방향');
+      });
+    });
+    /* ★슬라이더 ＋ 숫자 ★한 쌍 — 위 「선 두께」와 ★같은 관용구를 ★돌려 쓴다(⛔복붙 다섯 벌 금지) */
+    const pair = (id, prop, lo, hi, label) => {
+      const r = propPanel.querySelector('#' + id), n = propPanel.querySelector('#' + id + '-num');
+      if (!r || !n) return;
+      const put = (v) => { const c = Math.min(hi, Math.max(lo, v)); r.value = c; n.value = c; _writeProps(block, { [prop]: c }); };
+      r.addEventListener('input',  () => put(parseFloat(r.value)));
+      n.addEventListener('input',  () => put(parseFloat(n.value) || 0));
+      r.addEventListener('change', () => window.pushHistory?.(label));
+      n.addEventListener('change', () => window.pushHistory?.(label));
+    };
+    pair('annot-dim-off',   'dimOffset',    -200, 200, '치수선 치우침');
+    pair('annot-dim-slide', 'dimSlide',     -200, 200, '치수선 좌우');
+    pair('annot-dim-gap',   'dimGap',          0,  40, '보조선 간격');
+    pair('annot-dim-over',  'dimOver',         0,  40, '보조선 넘침');
+    pair('annot-dim-lift',  'dimLabelLift',    0,  40, '치수 글 띄움');
+    const ext = propPanel.querySelector('#annot-dim-ext');
+    if (ext) ext.addEventListener('change', () => {
+      _writeProps(block, { dimShowExt: ext.checked });
+      window.pushHistory?.('보조선 보임');
+    });
+  }
 
   // 선 색 — 공용 colorField
   wireColorField('annot-stroke', {

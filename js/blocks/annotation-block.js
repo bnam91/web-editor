@@ -44,6 +44,13 @@ const ANNOT_DEFAULTS = {
   dimGap:          4,            // 보조선이 원래 점에서 띄는 간격(px)
   dimOver:         6,            // 보조선이 치수선을 지나가는 넘침(px)
   dimShowExt:      true,         // 보조선을 그리나
+  dimLabelLift:    11,           // 글을 치수선에서 띄우는 거리(px) — 0 이면 선 위에 겹친다(현빈 261021 지적)
+  /* ★★치수선 ★양끝의 ★절대좌표(섹션 기준). ⛔`points`(=잰 기준점 d·c)와 ★다른 것이다.
+     ★현빈 261021 2차: 「d점과 c점은 ★기준점으로 찍지만 ★치수선(a,b)를 놓고 봤을때 ★da, cb 의 길이는
+       ★달라질수 있어」 ⇒ ★a·b 를 ★각각 끌 수 있어야 하므로 ★따로 저장한다.
+     ★∅ 이면 ★치우침·좌우로 ★계산한다(③클릭 직후의 첫 자리 · 옛 저장본도 그 길로 간다). */
+  dimA:            null,
+  dimB:            null,
 };
 window.ANNOT_DEFAULTS = ANNOT_DEFAULTS;
 
@@ -220,6 +227,49 @@ function _renderAnchorSVG(shape, size, x, y, color, angleDeg = 0) {
 }
 window._renderAnnotAnchorSVG = _renderAnchorSVG;
 
+/* ★★t3-01 — 치수선 SVG 를 ★한 자리에서 만든다. ★팩토리와 ★패널 재렌더가 ★같이 쓴다.
+   ⛔두 자리에서 따로 그리면 ★패널로 고친 값이 ★화면에 ★안 먹는 병이 난다
+     (2026-10-21 실측: `_rerenderAnnotation` 이 ★부분 갱신이라 ★치수선을 ★안 다시 그렸다 —
+      dataset 은 -70 인데 화면은 ★30 자리 그대로였다). ⇒ `annotRedrawAnchor` 와 ★같은 꼴. */
+function _renderDimSVG(g, o) {
+  const [da, db] = g.line;
+  const sw = o.strokeWidth, sc = o.strokeColor;
+  const extW = Math.max(0.5, sw * 0.7);
+  const ext = o.dimShowExt !== false ? g.ext.map(([p0, p1]) =>
+    `<line class="annot-dim-ext" x1="${p0[0]}" y1="${p0[1]}" x2="${p1[0]}" y2="${p1[1]}" stroke="${sc}" stroke-width="${extW}" stroke-linecap="round"/>`
+  ).join('') : '';
+  return `<line class="annot-dim-line" x1="${da[0]}" y1="${da[1]}" x2="${db[0]}" y2="${db[1]}" stroke="${sc}" stroke-width="${sw}" stroke-linecap="round"/>`
+    + ext
+    + _renderAnchorSVG(o.anchorShape, o.anchorSize, da[0], da[1], sc, g.pipeDeg[0])
+    + _renderAnchorSVG(o.anchorShape, o.anchorSize, db[0], db[1], sc, g.pipeDeg[1]);
+}
+
+/* ★패널이 부른다 — ★치수선 ★그림과 ★라벨 자리를 ★다시 낸다. ★치수선이 아니면 ★아무것도 안 한다. */
+window.annotRedrawDim = function (block, st) {
+  if (!block || !st || st.annotKind !== 'dim') return false;
+  if (typeof window.annotDimGeometry !== 'function') return false;
+  const g = window.annotDimGeometry(st.points, {
+    dimAxis: st.dimAxis, dimOffset: st.dimOffset, dimSlide: st.dimSlide,
+    dimGap: st.dimGap, dimOver: st.dimOver, dimLabelLift: st.dimLabelLift,
+    dimA: st.dimA, dimB: st.dimB,
+  });
+  if (!g) return false;
+  const svg = block.querySelector('.annot-svg');
+  if (!svg) return false;
+  svg.innerHTML = _renderDimSVG(g, {
+    strokeColor: st.strokeColor, strokeWidth: st.strokeWidth,
+    anchorShape: st.anchorShape, anchorSize: st.anchorSize, dimShowExt: st.dimShowExt,
+  });
+  const label = block.querySelector('.annot-label');
+  if (label) {
+    const at = g.labelAt || g.mid;
+    label.style.left = at[0] + 'px';
+    label.style.top = at[1] + 'px';
+    label.style.transform = 'translate(-50%,-50%)';
+  }
+  return true;
+};
+
 // 라벨 부착 모서리 = 마지막 segment 방향으로 결정 (좌/우/상/하 중앙 4방향)
 // 중복점(같은 좌표) skip — 펜툴 더블클릭 종료 시 마지막 점이 중복으로 push되는 케이스 방어
 function _calcLabelTransform(points) {
@@ -387,8 +437,11 @@ function makeAnnotationBlock(opts = {}) {
   const dimSlide   = opts.dimSlide   ?? ANNOT_DEFAULTS.dimSlide;
   const dimGap     = opts.dimGap     ?? ANNOT_DEFAULTS.dimGap;
   const dimOver    = opts.dimOver    ?? ANNOT_DEFAULTS.dimOver;
+  const dimLabelLift = opts.dimLabelLift ?? ANNOT_DEFAULTS.dimLabelLift;
+  const dimA = _annPtOf(opts.dimA);
+  const dimB = _annPtOf(opts.dimB);
   const dimGeo = (isDim && typeof window !== 'undefined' && typeof window.annotDimGeometry === 'function')
-    ? window.annotDimGeometry(points, { dimAxis, dimOffset, dimSlide, dimGap, dimOver })
+    ? window.annotDimGeometry(points, { dimAxis, dimOffset, dimSlide, dimGap, dimOver, dimLabelLift, dimA, dimB })
     : null;
   /* ⚠️`isDim` 인데 `dimGeo` 가 ∅ = 기하 파일(js/blocks/annot-dim-geometry.js)이 ★안 실렸다.
      ⛔dataset 에 ★진단 칸을 만들지 않는다 — ANNOT_DATA_KEYS 명부가 ★닫혀 있고(N3 검사),
@@ -410,6 +463,10 @@ function makeAnnotationBlock(opts = {}) {
     block.dataset.dimGap     = String(dimGap);
     block.dataset.dimOver    = String(dimOver);
     block.dataset.dimShowExt = dimShowExt ? '1' : '0';
+    block.dataset.dimLabelLift = String(dimLabelLift);
+    /* ⛔∅ 면 ★키를 ★안 단다 — 「아직 안 끌었다」와 「0,0 으로 끌었다」를 ★가른다 */
+    if (dimA) block.dataset.dimA = JSON.stringify(dimA); else delete block.dataset.dimA;
+    if (dimB) block.dataset.dimB = JSON.stringify(dimB); else delete block.dataset.dimB;
   }
 
   if (labelMode !== 'image' && labelHtml) block.dataset.labelHtml = labelHtml;
@@ -449,18 +506,7 @@ function makeAnnotationBlock(opts = {}) {
   const labelExtraClass = labelMode === 'image' ? ' annot-label-image' : '';
   /* ★★t3-01 — 치수선 그림. ★폴리라인 ★대신 ⑴치수선 ⑵보조선 둘 ⑶★양끝 파이프(각도는 기하가 센다).
      ★기존 경로는 ★앵커를 ★첫 점에만 건다(anchorSvg) — ★여기선 ★양끝 둘이다. */
-  let dimSvg = '';
-  if (dimGeo) {
-    const [da, db] = dimGeo.line;
-    const extW = Math.max(0.5, strokeWidth * 0.7);
-    const ext = dimShowExt ? dimGeo.ext.map(([p0, p1]) =>
-      `<line class="annot-dim-ext" x1="${p0[0]}" y1="${p0[1]}" x2="${p1[0]}" y2="${p1[1]}" stroke="${strokeColor}" stroke-width="${extW}" stroke-linecap="round"/>`
-    ).join('') : '';
-    dimSvg = `<line class="annot-dim-line" x1="${da[0]}" y1="${da[1]}" x2="${db[0]}" y2="${db[1]}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linecap="round"/>`
-      + ext
-      + _renderAnchorSVG(anchorShape, anchorSize, da[0], da[1], strokeColor, dimGeo.pipeDeg[0])
-      + _renderAnchorSVG(anchorShape, anchorSize, db[0], db[1], strokeColor, dimGeo.pipeDeg[1]);
-  }
+  const dimSvg = dimGeo ? _renderDimSVG(dimGeo, { strokeColor, strokeWidth, anchorShape, anchorSize, dimShowExt }) : '';
   block.innerHTML = `
     <svg class="annot-svg" xmlns="http://www.w3.org/2000/svg">
       ${dimGeo ? dimSvg : `<polyline class="annot-line" points="${ptsAttr}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linejoin="round" stroke-linecap="round"/>
@@ -489,6 +535,13 @@ window.makeAnnotationBlock = makeAnnotationBlock;
    (2026-10-13 실측: 선 스타일=대시 → 리로드 → dataset dashed · 화면 solid).
    ⛔새 칸을 더하면 «여기 한 곳»에만 더한다 — 두 자리가 다시 갈라지면 같은 병이 난다. */
 const _annNum = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+/* ★t3-01 — dataset 의 `"[x,y]"` 를 점으로. ⛔깨진 글은 ★∅ 로 떨어뜨린다(조용한 NaN 금지) */
+const _annPtOf = (v) => {
+  if (!Array.isArray(v) || v.length < 2) return null;
+  const x = parseFloat(v[0]), y = parseFloat(v[1]);
+  return (Number.isFinite(x) && Number.isFinite(y)) ? [x, y] : null;
+};
+const _annPt = (raw) => { try { return _annPtOf(JSON.parse(raw || 'null')); } catch (_) { return null; } };
 function annotPropsFromDataset(block) {
   const ds = block.dataset, D = ANNOT_DEFAULTS;
   let points = null;
@@ -533,6 +586,9 @@ function annotPropsFromDataset(block) {
     dimGap:           _annNum(ds.dimGap,    D.dimGap),
     dimOver:          _annNum(ds.dimOver,   D.dimOver),
     dimShowExt:       ds.dimShowExt === '0' ? false : D.dimShowExt,
+    dimLabelLift:     _annNum(ds.dimLabelLift, D.dimLabelLift),
+    dimA:             _annPt(ds.dimA),
+    dimB:             _annPt(ds.dimB),
   };
 }
 window.annotPropsFromDataset = annotPropsFromDataset;
@@ -545,7 +601,7 @@ window.annotPropsFromDataset = annotPropsFromDataset;
 const ANNOT_DATA_KEYS = ['points', 'anchorX', 'anchorY', 'labelX', 'labelY', 'text', 'strokeColor', 'strokeWidth',
   'anchorShape', 'anchorSize', 'labelFontSize', 'labelColor', 'labelBg', 'labelBorderColor', 'labelMode',
   'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy', 'anchorRot', 'labelPad',
-  'annotKind', 'dimAxis', 'dimOffset', 'dimSlide', 'dimGap', 'dimOver', 'dimShowExt',
+  'annotKind', 'dimAxis', 'dimOffset', 'dimSlide', 'dimGap', 'dimOver', 'dimShowExt', 'dimLabelLift', 'dimA', 'dimB',
   'labelHtml'];   // ★1017t1h3 — 팩토리가 «맨 끝»에 쓴다(순서 = 팩토리 순서)
 window.ANNOT_DATA_KEYS = ANNOT_DATA_KEYS;
 

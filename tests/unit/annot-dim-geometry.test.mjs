@@ -82,12 +82,50 @@ test('D3 ★치우침 ★부호를 뒤집으면 ★보조선 쪽이 ★뒤집힌
   assert.ok(uy * dy < 0, `★★자가 죽었다 — 보조선이 ★안 뒤집혔다 (up=${uy} dn=${dy})`);
 });
 
-test('D4 ★좌우 0 ⇒ 파이프가 ★선에 수직 · ★밀면 ★각도가 바뀐다', () => {
-  const g0 = G([[0, 0], [100, 0]], { dimOffset: 20, dimSlide: 0 });
-  assert.ok(near(g0.pipeDeg[0], 90, 1e-6), `★좌우 0 인데 파이프가 ★수직이 아니다 (${g0.pipeDeg[0]}°)`);
-  const g1 = G([[0, 0], [100, 0]], { dimOffset: 20, dimSlide: 40 });
-  assert.ok(Math.abs(g1.pipeDeg[0] - 90) > 1,
-    `★★자가 죽었다 — ★좌우를 40 밀어도 ★각도가 그대로다 (${g1.pipeDeg[0]}°)`);
+test('D4 ★파이프 = ★치수선 방향에 ★수직 — ★a·b 를 끌면 ★각도가 ★따라 바뀐다', () => {
+  /* ★★261021 현빈 2차 지적: 「치수선 양끝에 ★파이프인 경우 ★지금 너가 한건 ★무조건 90도만 되는데
+       ★각도도 달라지겠지?」 ⇒ ★파이프는 ★(b−a) 에 ★수직이지 ★(c−d) 에 수직이 ★아니다. */
+  const g0 = G([[0, 0], [100, 0]], { dimOffset: 20 });
+  assert.ok(near(g0.pipeDeg[0], 90, 1e-6), `★평행한 판에서 파이프가 ★수직이 아니다 (${g0.pipeDeg[0]}°)`);
+
+  /* ★치수선을 ★기울이면(a·b 를 각각 끌면) ★각도가 ★바뀌어야 한다 */
+  const g1 = G([[0, 0], [100, 0]], { dimA: [-20, 60], dimB: [140, 20] });
+  assert.ok(Math.abs(g1.pipeDeg[0] - 90) > 5,
+    `★★자가 죽었다 — ★치수선을 기울였는데 파이프가 ★그대로다 (${g1.pipeDeg[0]}°)`);
+
+  /* ★★단언으로 ★못 박는다 — 파이프와 ★치수선의 ★사잇각이 ★언제나 ★90° */
+  const between = (deg, p, q) => {
+    const ld = Math.atan2(q[1] - p[1], q[0] - p[0]) * 180 / Math.PI;
+    return Math.abs(((deg - ld) % 360 + 360) % 360 - 90);
+  };
+  for (const g of [g0, g1, G([[10, 20], [90, 70]], { dimA: [0, 0], dimB: [50, 120] })]) {
+    assert.ok(between(g.pipeDeg[0], g.line[0], g.line[1]) < 1e-6,
+      `★파이프가 ★치수선에 ★수직이 아니다 (${g.pipeDeg[0]}° · line ${JSON.stringify(g.line)})`);
+  }
+
+  /* ⛔음성대조 — ★좌우(slide)는 ★평행이동이라 ★각도를 ★안 바꾼다(그게 ★맞다) */
+  const g2 = G([[0, 0], [100, 0]], { dimOffset: 20, dimSlide: 40 });
+  assert.ok(near(g2.pipeDeg[0], 90, 1e-6),
+    `★좌우로 민 것은 ★평행이동이다 — 각도가 ★바뀌면 안 된다 (${g2.pipeDeg[0]}°)`);
+});
+
+test('D4b ★보조선 길이가 ★서로 달라도 된다 — d→a, c→b 를 ★직접 잇는다 (현빈 2차 요구)', () => {
+  /* ★현빈 원문: 「★da, cb의 길이는 ★달라질수 있어」 */
+  const g = G([[0, 0], [100, 0]], { dimA: [-20, 60], dimB: [140, 20] });
+  const L = ([p, q]) => Math.hypot(q[0] - p[0], q[1] - p[1]);
+  const [da, cb] = g.ext.map(L);
+  assert.ok(Math.abs(da - cb) > 5, `★두 보조선 길이가 ★같다 (${da.toFixed(1)} · ${cb.toFixed(1)}) — ★평행 모형이 살아 있다`);
+
+  /* ★전제 — 보조선은 ★기준점에서 ★치수선 끝으로 ★간다(엉뚱한 곳을 잇지 않는다) */
+  const near2 = (p, q, tol) => Math.hypot(p[0] - q[0], p[1] - q[1]) <= tol;
+  assert.ok(near2(g.ext[0][0], [0, 0], g.lift + 10), '★첫 보조선이 ★d 에서 ★안 떠난다');
+  assert.ok(near2(g.ext[1][0], [100, 0], g.lift + 10), '★둘째 보조선이 ★c 에서 ★안 떠난다');
+
+  /* ⛔음성 — a·b 를 ★안 주면 ★예전 꼴(평행·같은 길이)로 ★돌아간다(옛 저장본 회귀 0) */
+  const flat = G([[0, 0], [100, 0]], { dimOffset: 40 });
+  const [fa, fb] = flat.ext.map(L);
+  assert.ok(Math.abs(fa - fb) < 1e-6, `★a·b 없는 판에서 길이가 ★갈렸다 (${fa} · ${fb})`);
+  assert.deepEqual(norm(flat.line), [[0, 40], [100, 40]], '★a·b 없는 판이 ★예전 자리가 아니다');
 });
 
 test('D5 ★자석 — ★경계값 ★양쪽을 잰다 (|slide| < 12 ⇒ 0)', () => {
