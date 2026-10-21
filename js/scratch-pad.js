@@ -1735,6 +1735,27 @@ async function initScratchPad(projectId, pageId) {
     return true;
   };
 
+  /* ── ★⌘[ / ⌘] 레이어 순서 (1020t2a2) — 몸은 모듈 최상위 _scratchLayerNext · _applyScratchOrder(그 머리 주석 참고).
+   * ★여기 두는 까닭 = ⌘C·⌘X 와 «같은 잣대»(_scratchKeyGuardOk — 이 함수 안 지역)를 쓰려고. 갈리면 한쪽만 먹는다.
+   * ★editor.js 의 ⌘[ / ⌘] 갈래가 «먼저» 물어보고, 참이면 moveSelectedBlocks 로 안 간다(⌘X scratchCutSelected 와 같은 꼴).
+   *   ⇒ 여기서는 keydown 을 또 듣지 않는다. 끝이라 안 움직여도 키는 가져간다(true · 히스토리 0 — ㈎ 의 «맨 끝» 규칙). */
+  window.scratchLayerOrder = function scratchLayerOrder(direction) {
+    if (!_scratchKeyGuardOk()) return false;          // 내 일이 아니다 — 캔버스 갈래가 종전대로 돈다
+    if (!SCRATCH_LAYER_SCRATCH_FIRST && document.querySelector('#canvas .selected')) return false;   // ⑶
+    const before = _scratchLayerOrderNow().map(s => s.id);                                          // ⑷
+    const picked = [..._selectedItems].map(s => s.id);
+    const next = _scratchLayerNext(before, picked, direction);   // ⑴ ⇧ 무시 — 캔버스와 같다
+    if (!next) return true;
+    _applyScratchOrder(next);
+    try {
+      window.pushHistory?.(SCRATCH_LAYER_HISTORY_NAME[direction], {                                            // ⑵
+        onUndo: () => _applyScratchOrder(before),
+        onRedo: () => _applyScratchOrder(next),
+      });
+    } catch (_) {}
+    return true;
+  };
+
   /* ── C1(현빈 2026-10-01): 에셋을 «섹션 밖»(스크래치 바닥)에 놓으면 스크래치패드로 «이동» ─────────────
      · 우클릭 「스크래치로 보내기」는 «복사»(블럭이 남는다). 이건 «이동» — 블럭은 섹션에서 빠지고 스크래치로 돌아간다.
      · ★이미지 효과(크롭·맞춤·회전·모서리·오버레이·그레인·색보정·GIF)를 항목에 fx 로 담아 간다
@@ -2356,6 +2377,68 @@ function _applyScratchGeomSnapshot(snaps) {
   _saveScratch();
   // #16 follow — 복원된 좌표/오프셋을 추종루프의 기준선으로 재동기화(루프가 재앵커로 오인하지 않게)
   try { window.SPLink && window.SPLink.resyncFollow && window.SPLink.resyncFollow(); } catch (_) {}
+}
+
+/* ── ★⌘[ / ⌘] 스크래치 레이어 순서 (1020t2a2 · 현빈 「스크래치패드 간 커맨드 '[',']' 이것만으로도 레이어 순서 변경」) ──
+ * ★왜 따로인가 — editor.js moveSelectedBlocks 의 겹침 갈래(㈎ 오버레이 · ㈏ 자유배치 프레임)는 `.selected` 를 고르고
+ *   섹션·프레임 형제를 본다. 스크래치 항목은 `#canvas-scaler` 직계 · 표식 `.scratch-selected` ⇒ 두 갈래 다 «해당 없음».
+ *   그 함수 주석 「갈래를 «더한다»」 꼴대로 «세 번째 갈래»를 여기 둔다(editor.js 가 ⌘X 처럼 먼저 묻고 양보한다).
+ * ★무엇이 위인가 — 항목은 전부 css z-index 100(editor-canvas.css .scratch-item) ⇒ «DOM 뒤 = 위»(행위 ×3 실측).
+ *   ⛔z-index 를 새로 쓰지 않는다. 순서의 정본은 배열 `_scratchItems`(저장·재열기 = 배열 순) ⇒ 배열과 DOM 을 «같이» 바꾼다.
+ * ★판정(지디 a2 · 261021) — 바뀌면 아래 이름 붙은 자리 «하나»만 바꾼다:
+ *   ⑴ ⇧ 맨 앞/뒤 ⛔없음 — 캔버스 갈래처럼 ⇧ 를 무시한다(⌘⇧] = ⌘] 한 칸). shift 를 읽는 자리 0.
+ *   ⑵ 히스토리 이름 = 캔버스 갈래(moveSelectedBlocks ㈎㈏)와 같은 글자 → SCRATCH_LAYER_HISTORY_NAME
+ *   ⑶ 스크래치·캔버스 섞인 선택이면 스크래치가 가져간다(⌘X·⌘G 선례) → SCRATCH_LAYER_SCRATCH_FIRST
+ *   ⑷ «항목끼리»(패드끼리 아님 — 패드는 페이지당 한 벌)            → _scratchLayerOrderNow (형제 = 이 페이지 항목 전부)
+ *   ⑸ 죽은 editor.js «Cmd/Ctrl + [ / ]» 핸들러는 남긴다(비석만) — 이 갈래와 무관 */
+const SCRATCH_LAYER_HISTORY_NAME = { up: '뒤로 보내기', down: '앞으로 가져오기' };   // ⑵ — editor.js moveSelectedBlocks 의 pushHistory 와 같은 글자
+const SCRATCH_LAYER_SCRATCH_FIRST = true;           // ⑶ — false 면 캔버스 선택이 있을 때 캔버스에 양보
+
+/* 순수 — order·picked = id 배열. 새 id 배열 또는 null(무변). 규칙은 ㈎ 갈래(moveSelectedBlocks _stackUnits)와 같다:
+ *   'up'(⌘[)   = 고른 덩어리를 «첫 고른 것 바로 앞 형제» 앞으로 — 뒤로 보내기 · 첫 것이 이미 맨 앞(맨 아래)이면 null
+ *   'down'(⌘]) = «마지막 고른 것 바로 뒤 형제» 뒤로 — 앞으로 가져오기 · 마지막이 이미 맨 끝(맨 위)이면 null
+ *   여럿은 «한 덩어리»(상대 순서 유지) · 형제 < 2 면 null. */
+function _scratchLayerNext(order, picked, direction) {
+  if (!Array.isArray(order) || order.length < 2) return null;
+  const pickSet = new Set(picked || []);
+  const pk = order.filter(id => pickSet.has(id));
+  if (pk.length === 0) return null;
+  const rest = order.filter(id => !pickSet.has(id));
+  let next;
+  if (direction === 'up') {
+    const firstIdx = order.indexOf(pk[0]);
+    if (firstIdx <= 0) return null;
+    const at = rest.indexOf(order[firstIdx - 1]);
+    next = [...rest.slice(0, at), ...pk, ...rest.slice(at)];
+  } else {
+    const lastIdx = order.indexOf(pk[pk.length - 1]);
+    if (lastIdx >= order.length - 1) return null;
+    const at = rest.indexOf(order[lastIdx + 1]) + 1;
+    next = [...rest.slice(0, at), ...pk, ...rest.slice(at)];
+  }
+  return next.every((id, i) => id === order[i]) ? null : next;
+}
+
+// ⑷ 형제 = 이 페이지의 스크래치 항목 전부 — DOM 위치 순(배열 순을 믿지 않는다 · ㈎ 가 DOM 형제를 읽는 것과 같다)
+function _scratchLayerOrderNow() {
+  return _scratchItems.filter(s => s.el?.isConnected)
+    .sort((a, b) => (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);
+}
+
+/* ids 순으로 배열 `_scratchItems` 와 DOM 을 «같이» 바꾸고 저장한다(배열만 저장된다 — DOM 만 바꾸면 재열기에 옛 순서).
+ * DOM 은 «슬롯 바꿔 끼우기» — 스크래치 항목이 지금 앉은 자리들에 새 순서로 앉힌다.
+ * ⛔«마지막 항목 뒤로 몰기»가 아니다 — scaler 엔 다른 자식(그리드·캔버스 블록 오버레이·검색 표식)도 붙어,
+ *   몰면 그들과의 상대 순서까지 바뀐다. 없는 id 는 무시 · ids 에 없는 항목은 지금 순서대로 뒤에. */
+function _applyScratchOrder(ids) {
+  const cur = _scratchLayerOrderNow();
+  const byId = new Map(cur.map(s => [s.id, s]));
+  const head = (ids || []).map(id => byId.get(id)).filter(Boolean);
+  const next = [...new Set([...head, ...cur])];
+  const slots = cur.map(s => { const m = document.createComment('sp-layer'); s.el.before(m); return m; });
+  next.forEach((s, i) => slots[i].replaceWith(s.el));
+  const loose = _scratchItems.filter(s => !byId.has(s.id));   // DOM 밖 항목(있다면) — 순서 무관, 뒤에 그대로
+  _scratchItems.splice(0, _scratchItems.length, ...next, ...loose);   // 제자리 재배열(배열을 쥔 다른 자리가 있어도 같은 것을 본다)
+  _saveScratch();
 }
 
 window._scratchGroupAndAlign = () => {
