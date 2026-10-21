@@ -15,6 +15,7 @@ const genId = (p) => (typeof window.genId === 'function'
   ? window.genId(p)
   : p + '_' + Math.random().toString(36).slice(2, 9));
 
+let _dimWarned = false;   /* ★t3-01 — 적재 누락 경고는 ★한 번만(콘솔을 ★안 채운다) */
 const ANNOT_DEFAULTS = {
   strokeColor:     '#1a1a1a',    // 디폴트: 검정 (프리셋에서 빨강/파랑 등 선택 가능)
   strokeWidth:     1.5,
@@ -32,6 +33,17 @@ const ANNOT_DEFAULTS = {
   labelBorderStyle: 'solid',     // 'solid' | 'dashed' | 'dotted'
   labelBorderWidth: 1,           // border 두께 (px)
   labelPad:        null,         // ★1017t1h5 — 라벨 여백(px, 0..24, 사방 동일). null = CSS 기본(4px 8px) 유지 — 안 건드리면 키를 안 단다.
+
+  /* ★★t3-01 사이즈 스티커(치수선) — ★`annotKind: 'dim'` 일 때만 쓰인다.
+     ⛔그 표식이 없으면 ★이 칸들은 ★한 번도 읽히지 않고 ★기존 어노테이션은 ★한 글자도 안 달라진다.
+     ★기하는 ★js/blocks/annot-dim-geometry.js ★한 자리에서 센다(단위 검사가 vm 으로 ★진짜 부른다). */
+  annotKind:       '',           // '' (기존 어노테이션) | 'dim' (치수선)
+  dimAxis:         'auto',       // 'auto' | 'h' | 'v' — 두 점이 비뚤어도 가로/세로로 재게 한다
+  dimOffset:       24,           // 수직 치우침(px, 부호) — 치수선을 선 밖으로 밀어낸다
+  dimSlide:        0,            // 선 따라 밀기(px) — |값| < 12 면 0 으로 붙는다(자석)
+  dimGap:          4,            // 보조선이 원래 점에서 띄는 간격(px)
+  dimOver:         6,            // 보조선이 치수선을 지나가는 넘침(px)
+  dimShowExt:      true,         // 보조선을 그리나
 };
 window.ANNOT_DEFAULTS = ANNOT_DEFAULTS;
 
@@ -366,6 +378,40 @@ function makeAnnotationBlock(opts = {}) {
   if (labelPad != null) block.dataset.labelPad = String(labelPad);   // ★1017t1h5 — null 이면 키 없음(= CSS 기본 4px 8px 유지)
   /* ★1017t1h3 — 서식이 ★없으면 키를 ★안 단다(= 옛 저장본과 ★같은 바이트). 이미지 모드엔 ★글이 없다.
      ⛔순서는 ANNOT_DATA_KEYS 의 ★마지막과 ★같아야 한다(위 F2 주석 — 직렬화 문자열이 갈리면 ⌘Z 유령 칸이 난다). */
+  /* ★★t3-01 — ★표식이 ★있을 때만 ★다른 그림을 낸다. ⛔없으면 ★아래가 ★예전 그대로다(회귀 0 · 검사가 그 축을 잰다). */
+  const annotKind  = opts.annotKind  ?? ANNOT_DEFAULTS.annotKind;
+  const isDim      = annotKind === 'dim';
+  const dimShowExt = (opts.dimShowExt ?? ANNOT_DEFAULTS.dimShowExt) !== false;
+  const dimAxis    = (opts.dimAxis === 'h' || opts.dimAxis === 'v') ? opts.dimAxis : ANNOT_DEFAULTS.dimAxis;
+  const dimOffset  = opts.dimOffset  ?? ANNOT_DEFAULTS.dimOffset;
+  const dimSlide   = opts.dimSlide   ?? ANNOT_DEFAULTS.dimSlide;
+  const dimGap     = opts.dimGap     ?? ANNOT_DEFAULTS.dimGap;
+  const dimOver    = opts.dimOver    ?? ANNOT_DEFAULTS.dimOver;
+  const dimGeo = (isDim && typeof window !== 'undefined' && typeof window.annotDimGeometry === 'function')
+    ? window.annotDimGeometry(points, { dimAxis, dimOffset, dimSlide, dimGap, dimOver })
+    : null;
+  /* ⚠️`isDim` 인데 `dimGeo` 가 ∅ = 기하 파일(js/blocks/annot-dim-geometry.js)이 ★안 실렸다.
+     ⛔dataset 에 ★진단 칸을 만들지 않는다 — ANNOT_DATA_KEYS 명부가 ★닫혀 있고(N3 검사),
+       ★진단은 ★라운드트립 「값」이 ★아니다. ⇒ ★한 번 소리치고, ★적재는 ★검사가 잠근다(G1).
+     ★조용히 기존 꼴로 떨어지면 「켰는데 그대로다」의 ★까닭이 ★안 보인다 — 그래서 warn 이다. */
+  if (isDim && !dimGeo && typeof console !== 'undefined' && !_dimWarned) {
+    _dimWarned = true;
+    console.warn('[annot] annotKind=dim 인데 window.annotDimGeometry 가 없다 — js/blocks/annot-dim-geometry.js 가 안 실렸다(index.html)');
+  }
+
+  /* ★★t3-01 — ★치수선 칸을 ★dataset 에 쓴다. ⛔안 쓰면 ★리로드·⌘Z 복원에서 ★기존 어노테이션으로 돌아간다.
+     ⛔순서는 ★`labelHtml` ★앞이다 — 그 키가 ★「맨 끝」이어야 한다는 단언이 ★따로 있다(1017t1h3 · :379 까닭).
+     ★`isDim` 이 아니면 ★키를 ★하나도 달지 않는다 ⇒ 옛 저장본·기존 어노테이션은 ★한 글자도 안 달라진다. */
+  if (isDim) {
+    block.dataset.annotKind  = 'dim';
+    block.dataset.dimAxis    = dimAxis;
+    block.dataset.dimOffset  = String(dimOffset);
+    block.dataset.dimSlide   = String(dimSlide);
+    block.dataset.dimGap     = String(dimGap);
+    block.dataset.dimOver    = String(dimOver);
+    block.dataset.dimShowExt = dimShowExt ? '1' : '0';
+  }
+
   if (labelMode !== 'image' && labelHtml) block.dataset.labelHtml = labelHtml;
 
   const ptsAttr = points.map(p => `${p[0]},${p[1]}`).join(' ');
@@ -373,10 +419,14 @@ function makeAnnotationBlock(opts = {}) {
   const anchorSvg = _renderAnchorSVG(anchorShape, anchorSize, first[0], first[1], strokeColor, anchorAngle);
   // 이미지 원형(라운드 50% 또는 충분히 큰 라운드) 모드면 라벨 중앙에 부착 — 원에 모서리 없으니 중앙이 자연스러움
   const isImgCircleish = labelMode === 'image' && (parseFloat(labelImageRadius) || 0) >= 25;
-  const labelTf = isImgCircleish ? 'translate(-50%,-50%)' : _calcLabelTransform(points);
+  /* ★★t3-01 — ★라벨 자리는 ★치수선 ★중심이다. ⛔`points[last]` 가 ★아니다
+     (annotation-select.js:190-192 가 last 를 쓰는 그 함정 — 단위 검사 D6 가 ★중심≠마지막점을 단언한다). */
+  const labelPos = dimGeo ? dimGeo.mid : last;
+  const labelTf = dimGeo ? 'translate(-50%,-50%)'
+    : (isImgCircleish ? 'translate(-50%,-50%)' : _calcLabelTransform(points));
   // 이미지 모드 + radius > 0이면 라벨박스 padding 0 + border-radius 동기화 → 이미지+테두리가 같은 모양
   const imgWrapping = labelMode === 'image' && (parseFloat(labelImageRadius) || 0) > 0;
-  let labelStyle = `left:${last[0]}px;top:${last[1]}px;`
+  let labelStyle = `left:${labelPos[0]}px;top:${labelPos[1]}px;`
     + `transform:${labelTf};`
     + `font-size:${labelFontSize}px;`
     + `color:${labelColor};`
@@ -395,10 +445,24 @@ function makeAnnotationBlock(opts = {}) {
   if (labelDx !== 0 || labelDy !== 0) labelStyle += `translate:${labelDx}px ${labelDy}px;`;
   const labelInner = _renderAnnotLabelInner(labelMode, { text, labelImageSrc, labelImageSize, labelImageRadius });
   const labelExtraClass = labelMode === 'image' ? ' annot-label-image' : '';
+  /* ★★t3-01 — 치수선 그림. ★폴리라인 ★대신 ⑴치수선 ⑵보조선 둘 ⑶★양끝 파이프(각도는 기하가 센다).
+     ★기존 경로는 ★앵커를 ★첫 점에만 건다(anchorSvg) — ★여기선 ★양끝 둘이다. */
+  let dimSvg = '';
+  if (dimGeo) {
+    const [da, db] = dimGeo.line;
+    const extW = Math.max(0.5, strokeWidth * 0.7);
+    const ext = dimShowExt ? dimGeo.ext.map(([p0, p1]) =>
+      `<line class="annot-dim-ext" x1="${p0[0]}" y1="${p0[1]}" x2="${p1[0]}" y2="${p1[1]}" stroke="${strokeColor}" stroke-width="${extW}" stroke-linecap="round"/>`
+    ).join('') : '';
+    dimSvg = `<line class="annot-dim-line" x1="${da[0]}" y1="${da[1]}" x2="${db[0]}" y2="${db[1]}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linecap="round"/>`
+      + ext
+      + _renderAnchorSVG(anchorShape, anchorSize, da[0], da[1], strokeColor, dimGeo.pipeDeg[0])
+      + _renderAnchorSVG(anchorShape, anchorSize, db[0], db[1], strokeColor, dimGeo.pipeDeg[1]);
+  }
   block.innerHTML = `
     <svg class="annot-svg" xmlns="http://www.w3.org/2000/svg">
-      <polyline class="annot-line" points="${ptsAttr}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linejoin="round" stroke-linecap="round"/>
-      ${anchorSvg}
+      ${dimGeo ? dimSvg : `<polyline class="annot-line" points="${ptsAttr}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linejoin="round" stroke-linecap="round"/>
+      ${anchorSvg}`}
     </svg>
     <div class="annot-label${labelExtraClass}" contenteditable="false" style="${labelStyle}">${labelInner}</div>`;
   /* ★1013t2C6 — 글은 «항상 글자»로 넣는다(textContent). 예전엔 innerHTML 에 날로 넣어
@@ -458,13 +522,28 @@ function annotPropsFromDataset(block) {
     labelDx:          annotLabelOffsetOf(block).dx,   // ★1013t1A3 — 안 읽으면 리로드·⌘Z 복원 때 오프셋이 화면에서 사라진다
     labelDy:          annotLabelOffsetOf(block).dy,
     anchorRot:        annotAnchorRotOf(block),        // ★1013t2C7 — 안 읽으면 리로드·⌘Z 복원 때 회전이 사라진다
+    /* ★★t3-01 — ★여기 안 읽으면 ★리로드·⌘Z 복원마다 ★치수선이 ★기존 어노테이션으로 ★되돌아간다
+       (labelDx·anchorRot 가 밟은 ★그 함정이다 — 위 머리말 「새 칸을 더하면 여기 한 곳에만」). */
+    annotKind:        ds.annotKind === 'dim' ? 'dim' : D.annotKind,
+    dimAxis:          (ds.dimAxis === 'h' || ds.dimAxis === 'v') ? ds.dimAxis : D.dimAxis,
+    dimOffset:        _annNum(ds.dimOffset, D.dimOffset),
+    dimSlide:         _annNum(ds.dimSlide,  D.dimSlide),
+    dimGap:           _annNum(ds.dimGap,    D.dimGap),
+    dimOver:          _annNum(ds.dimOver,   D.dimOver),
+    dimShowExt:       ds.dimShowExt === '0' ? false : D.dimShowExt,
   };
 }
 window.annotPropsFromDataset = annotPropsFromDataset;
 /* rebindAll 이 fresh 블럭에서 «되돌려 쓰는» dataset 키 — 팩토리가 쓰는 키 전부(순서 = 팩토리 순서). */
+/* ★★t3-01 — 치수선 칸 일곱('annotKind'~'dimShowExt')을 ★labelHtml ★앞에 넣었다.
+   ★순서 = 팩토리가 dataset 에 쓰는 순서여야 한다(:379 까닭 — 직렬화 문자열이 갈리면 ⌘Z 유령 칸).
+   ⛔이 명부에 안 넣으면 save-load.js 의 rebindAll 이 ★안 되돌려 ★리로드·⌘Z 에서 ★조용히 사라진다.
+   ⛔⛔이 배열 ★안에 ★주석을 넣지 마라 — tests/unit/annot-data-keys-closed.test.mjs 가 이 리터럴을
+     ★JSON.parse 로 읽는다(2026-10-21 에 ★그 함정을 밟아 ★두 벌이 SyntaxError 로 빨개졌다). */
 const ANNOT_DATA_KEYS = ['points', 'anchorX', 'anchorY', 'labelX', 'labelY', 'text', 'strokeColor', 'strokeWidth',
   'anchorShape', 'anchorSize', 'labelFontSize', 'labelColor', 'labelBg', 'labelBorderColor', 'labelMode',
   'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy', 'anchorRot', 'labelPad',
+  'annotKind', 'dimAxis', 'dimOffset', 'dimSlide', 'dimGap', 'dimOver', 'dimShowExt',
   'labelHtml'];   // ★1017t1h3 — 팩토리가 «맨 끝»에 쓴다(순서 = 팩토리 순서)
 window.ANNOT_DATA_KEYS = ANNOT_DATA_KEYS;
 

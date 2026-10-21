@@ -1076,6 +1076,10 @@
 <!-- 환경설정 「공지」 탭(어드민 전용). settings-modal «뒤» — openSettingsModal 이 여기 함수를 부른다.
      ★어드민이 아니면 탭을 아예 안 만든다(A-e). 권한은 서버가 지킨다. -->
 <script src="js/settings/settings-admin.js"></script>
+<!-- ★★t3-01 사이즈 스티커 — 치수선 ★기하 한 자리. ★플레인인 까닭 = annotation-block.js 가 ESM 이라
+     단위 검사에서 안 실린다(그 파일 머리말 참조). ⛔ESM 모듈보다 ★먼저 돌아야 한다 — plain 은 즉시,
+     module 은 defer 라 ★이 자리면 순서가 선다(gif 의 feature-flags.js 와 ★같은 관용구). -->
+<script src="js/blocks/annot-dim-geometry.js"></script>
 <script src="js/report-modal.js"></script><!-- [Unit B] 버그·피드백 신고 창 -->
 <!-- Section Search (⌘F 팔레트) — editor.js(module) 이전에 window.openSectionSearch 정의 -->
 <script src="js/section-search.js"></script>

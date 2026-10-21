@@ -132,3 +132,51 @@ test('D8 ⛔음성대조 — ★점이 ★모자라면 ★안 그린다 · ★�
   /* ★양성대조 — 이 자가 degenerate 를 ★아무 판에나 붙이지 않는다 */
   assert.equal(G([[0, 0], [100, 0]], {}).degenerate, false, '★★정상 판을 ★degenerate 라 한다');
 });
+
+/* ═══ G1 ★적재 — ★「쓰는 자리가 ★있다」를 잠근다 ══════════════════════════
+   ★★왜 이 벌이 ★있어야 하나 — `annotation-block.js` 는 기하가 ∅ 면 ★console.warn 하고
+     ★기존 꼴로 떨어진다(그 자리 주석에 ★「적재는 검사가 잠근다(G1)」이라 적었다).
+     ⇒ ★그 문장을 ★참으로 만드는 자가 ★여기다. ⛔안 만들면 ★주석이 ★거짓이 된다.
+   ★꼴: ⑴ index.html 이 ★플레인으로 싣는다 ⑵ ★ESM 모듈보다 ★먼저다(plain 즉시 · module defer)
+        ⑶ 팩토리가 ★그 이름을 ★부른다 ⑷ 명부(ANNOT_DATA_KEYS)에 ★치수 칸이 있다 */
+const readRoot = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+test('G1 ★적재 — index.html 이 기하를 ★싣고 ★모듈보다 ★먼저다', () => {
+  const html = readRoot('index.html');
+  const geo = html.indexOf('js/blocks/annot-dim-geometry.js');
+  const mod = html.indexOf('js/blocks/annotation-block.js');
+  assert.ok(geo >= 0, '★index.html 이 기하 파일을 ★안 싣는다 ⇒ 치수선은 ★조용히 기존 꼴로 떨어진다');
+  assert.ok(mod >= 0, '★전제: index.html 이 annotation-block.js 를 싣는다(앵커가 살아 있다)');
+  assert.ok(geo < mod, `★기하가 ★모듈보다 ★뒤에 있다 (geo=${geo} mod=${mod})`);
+
+  /* ★플레인이어야 vm 으로 잴 수 있다 — ⛔type="module" 이면 이 벌 전체가 ★못 돈다 */
+  const tag = html.slice(geo - 120, geo + 60);
+  assert.equal(/type\s*=\s*["']module["']/.test(tag), false,
+    '★기하를 ★모듈로 싣고 있다 — 그러면 ★D0~D8 이 재는 그 파일과 ★다른 것이 앱에서 돈다');
+
+  /* ★★플레인임을 ★파일 자신에서도 잰다(★두 자리가 어긋나는 것을 막는다) */
+  assert.equal(/^\s*(import|export)\b/m.test(readRoot('js/blocks/annot-dim-geometry.js')), false,
+    '★기하 파일에 ESM 낱말이 생겼다 — 플레인이 ★깨졌다');
+});
+
+test('G1b ★부르는 자리 ＋ ★명부 — ⛔안 걸면 리로드에서 ★조용히 사라진다', () => {
+  const src = readRoot('js/blocks/annotation-block.js');
+  assert.match(src, /window\.annotDimGeometry\(/,
+    '★팩토리가 기하를 ★안 부른다 ⇒ 게이트가 ★그 자리에 없다');
+
+  /* ★명부를 ★소스에서 파생한다 — ⛔손으로 옮겨 적지 않는다(둘째 명부가 된다) */
+  const m = src.match(/const ANNOT_DATA_KEYS = (\[[\s\S]*?\]);/);
+  assert.ok(m, '★전제: ANNOT_DATA_KEYS 리터럴을 찾았다');
+  const keys = JSON.parse(m[1].replace(/'/g, '"'));
+  const DIM = ['annotKind', 'dimAxis', 'dimOffset', 'dimSlide', 'dimGap', 'dimOver', 'dimShowExt'];
+  const missing = DIM.filter((k) => !keys.includes(k));
+  assert.deepEqual(missing, [], `★명부에 없는 치수 칸 = ${JSON.stringify(missing)} ⇒ ★리로드·⌘Z 에서 사라진다`);
+
+  /* ★★순서 — 치수 칸은 ★labelHtml ★앞이어야 한다(그 키가 「맨 끝」이라는 단언이 ★따로 있다) */
+  assert.ok(keys.indexOf('dimShowExt') < keys.indexOf('labelHtml'),
+    '★치수 칸이 labelHtml ★뒤에 있다 — 1017t1h3 의 「맨 끝」 단언과 ★부딪친다');
+
+  /* ⛔음성대조 — 이 자가 ★아무 이름이나 있다고 하지 않는다 */
+  assert.equal(keys.includes('ZZZ없는칸'), false, '★★명부 파싱이 죽었다 — 허수 칸을 ★있다고 한다');
+  assert.ok(keys.length >= 24, `★명부가 ${keys.length}개다 — ★너무 적다(파싱이 잘렸다)`);
+});
