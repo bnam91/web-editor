@@ -1771,10 +1771,7 @@ function _bindPastedEl(el) {
      위에서 블럭 id 와 안쪽 id 를 따로따로 다시 지었으니 url(#…) 참조가 제 것을 못 가리킨다 — 원본의 것을 빌려 그리다가
      원본이 지워지거나 바뀌면 사본 그림이 깨진다. ⇒ 새 id 로 다시 그린다(로드·undo 의 rebindAll 과 같은 길). 묶기도 같이.
      회귀: tests/dom/coin-sticker.dom.spec.js 「복제」 칸. */
-  [...(el.matches?.('.sticker-block') ? [el] : []), ...el.querySelectorAll('.sticker-block')].forEach(b => {
-    window.renderStickerBlock?.(b);
-    window.bindStickerSelect?.(b);
-  });
+  /* ★CLONE-RERENDER-01 — 스티커 «그리기»도 아래 한 벌(window.rerenderTree)이 한다. 묶기(bindStickerSelect)는 그린 «뒤»에 아래에서. */
 
   // frame-block 재바인딩 — el 자체 포함
   const frames = [...el.querySelectorAll('.frame-block')];
@@ -1789,22 +1786,18 @@ function _bindPastedEl(el) {
   if (el.matches?.(BLOCK_SEL)) blocks.unshift(el);
   blocks.forEach(b => {
     b._blockBound = false;
+    // chat-block: 더블클릭 편집 위임 가드를 푼다 — 아래 다시 그리기가 새로 건다 (복사본 수정 불가 버그 수정 — bindBlock은 드래그만 처리)
+    if (b.classList.contains('chat-block')) delete b._chatEditBound;
     window.bindBlock(b);
-    // canvas-block: renderCanvas로 ResizeObserver 재연결
-    if (b.classList.contains('canvas-block')) window.renderCanvas?.(b);
-    // banner02-block: renderBanner02로 ResizeObserver 재연결
-    if (b.classList.contains('banner02-block')) window.renderBanner02?.(b);
-    if (b.classList.contains('comparison-block')) window.renderComparison?.(b);
-    // chat-block: 더블클릭 편집 위임 재바인딩 (복사본 수정 불가 버그 수정 — bindBlock은 드래그만 처리)
-    if (b.classList.contains('chat-block')) { delete b._chatEditBound; window.renderChatBlock?.(b); }
-    // bridge-block: data-bridge-*로 path 재생성 + 대상 섹션 패딩 기준 full-bleed 재적용 (붙여넣기, 코덱스 b3-2)
-    if (b.classList.contains('bridge-block')) { window.renderBridgeBlock?.(b); window.applyBridgeFullBleed?.(b); }
-    if (b.classList.contains('grid-block')) window.renderGridBlock?.(b);
-    if (b.classList.contains('infocard-block')) window.renderInfoCardBlock?.(b);
-    if (b.classList.contains('innercard-block')) window.renderInnerCardBlock?.(b);
-    // qa-block: 위에서 id 를 재발급했다 — 풋터 ID칩(.qa-id-chip)이 옛 id 를 그대로 보여주지 않게 재렌더.
-    if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
   });
+  /* ★CLONE-RERENDER-01 — 다시 그리기는 한 벌(js/io/save-load.js RERENDER_KINDS · window.rerenderTree)로 한다.
+     예전엔 여기 손 명부 11 종(canvas · banner02 · comparison · chat · bridge(+full-bleed) · grid · infocard · innercard · qa · sticker)만 그렸다
+     → radial 칸 누르기 · zoom 끌기 · modal 아이콘 · step 편집이 붙여넣은 사본에서 죽었다(실측 핀 002d9725).
+     qa 는 위에서 id 를 재발급했으니 풋터 ID칩도 이 다시 그리기로 새 id 가 된다. bridge 는 그린 뒤 대상 섹션 패딩 기준 full-bleed 를 다시 맞춘다.
+     ⛔창구가 없으면 ?. 로 건너뛰지 않고 던진다 · ⛔render 줄을 여기 따로 적지 마라(두 번 그려진다). */
+  if (typeof window.rerenderTree !== 'function') throw new Error('[CLONE-RERENDER-01] window.rerenderTree 가 없다 — js/io/save-load.js 가 안 실렸다');
+  window.rerenderTree(el);
+  [...(el.matches?.('.sticker-block') ? [el] : []), ...el.querySelectorAll('.sticker-block')].forEach(b => window.bindStickerSelect?.(b));
   window.syncAutoGridWidth?.(el);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — 붙여넣기·복제가 이 문을 지난다(넣은 «뒤»에 불린다)
 }
 
