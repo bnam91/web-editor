@@ -67,10 +67,24 @@ const measure = (page) => page.evaluate(() => {
     ? [...box.querySelectorAll('[data-mdl-slot]')]
     : [...box.querySelectorAll('.text-block [class^="tb-"]')];
   for (const s of slots) { const rg = document.createRange(); rg.selectNodeContents(s); for (const q of rg.getClientRects()) lines.push([q.left, q.top, q.width, q.height].map(v => Math.round(v * 100) / 100)); }
+  /* ★★«칠» 상태 — ★261021. ★`geo`(상자·줄·아이콘)는 ★510/510 어긋난 적이 없는데 ★«칠»만 달랐다.
+     ★9일간 설명되지 않은 자리가 ★여기다 — ★`measure()` 가 ★칠을 ★안 걷고 있었다(Codex 리뷰 4회차).
+     ★까닭: `css/editor-blocks.css:2167` `#canvas [data-is-placeholder="true"] { opacity: 0.45 }`
+       ＋ `:2170` `[contenteditable="true"] { opacity: 1 }` ⇒ ★★`빈칸` 은 한글 ~20자를
+       ★알파 ★0.45 로 ★합성해 그린다(그 문구는 `modal-block.js` `MODAL_PH` 가 ★내용으로 넣는다).
+     ⇒ ★분수 알파 위 글자 안티앨리어싱은 ★합성 라운딩을 타므로 ★이 계열에서 ★가장 기계에 민감하다
+       (★실측: `빈칸` ★srv 686 · ★아이맥 701/703).
+     ⇒ ★★그리고 ★`contenteditable` 이 그 알파를 ★1 로 ★뒤집는다 — ★`frameify` 전후로 그것이 바뀌면
+       ★그건 ★래스터가 아니라 ★**제품 결함**이다. ⇒ ★그래서 ★A·B 양쪽에서 걷어 ★따로 단언한다. */
+  const paint = slots.map((s) => [
+    s.getAttribute('data-is-placeholder'),
+    s.getAttribute('contenteditable'),
+    getComputedStyle(s).opacity,
+  ]);
   const ic = box.querySelector('.mdl-icon, .icon-block');
   const icr = ic ? ic.getBoundingClientRect() : null;
   return { clip: { x: Math.floor(r.left), y: Math.floor(r.top), width: Math.ceil(r.width), height: Math.ceil(r.height) },
-           box: [b.left, b.top, b.width, b.height].map(v => Math.round(v * 100) / 100), lines, icon: icr && [icr.left, icr.top, icr.width, icr.height].map(v => Math.round(v * 100) / 100) };
+           box: [b.left, b.top, b.width, b.height].map(v => Math.round(v * 100) / 100), lines, paint, icon: icr && [icr.left, icr.top, icr.width, icr.height].map(v => Math.round(v * 100) / 100) };
 });
 async function diffPng(page, a, b) {
   return page.evaluate(async ([a, b]) => {
@@ -113,6 +127,7 @@ const settle = async (page) => {
      ★`빈칸`(title:'' text:'') — ★★`text:''` ★하나가 ★거의 ★전부(★titled grid 만 ★`title:''`)
         ★최댓값 ★686px(icon-stack 40%)
      ★★`geo` 는 ★★어긋난 적이 ★★0건(★510/510) ⇒ ★★상자·줄·아이콘은 ★같고 ★★«칠»만 ★다르다
+     ★★★261021 — ★그 «칠»을 ★이제 ★걷는다(`measure().paint`). ★`geo` 가 ★그것을 ★안 재고 있었다.
    ★★★떼는 조건 = ★★«정식 릴리스 ★전». ★그 자리: `tests/dom/EXPECT_N.md` 의 ★그 줄.
    ★★상한을 ★무한이 아니라 ★★«잰 값 ＋ 여유»로 ★둔 ★까닭: ★★더 ★커지면 ★여기가 ★잡는다(★미룸 ≠ 눈감기). */
 const DEFER_PX = Object.freeze({ '꾸밈': 1100, '빈칸': 700 });
@@ -224,6 +239,14 @@ for (const variant of VARIANTS) for (const where of PLACES) for (const zoom of Z
       const b = await page.screenshot({ clip: m0.clip });
       const d = await diffPng(page, a, b);
       const geo = JSON.stringify([m0.box, m0.lines, m0.icon]) === JSON.stringify([m1.box, m1.lines, m1.icon]);
+      /* ★★«칠» 상태는 ★`geo` 와 ★따로 단언한다 — ★그래야 빨강 글이 ★어느 갈래인지 ★말한다:
+         ★㉠ paint ★같음 ＋ px>0 ⇒ ★순수 합성 래스터(⇒ 기계 의존으로 닫는다)
+         ★㉡ paint ★다름        ⇒ ★★`frameify` 가 ★칠 상태를 ★뒤집었다 = ★제품 결함 */
+      /* ★★자기 전제 — ★`slots` 가 비면 `paint` 가 `[]` 이고 ★`paintSame` 이 ★항등식이 된다.
+         ⇒ ★그 초록은 ★「칠이 같다」가 아니라 ★「★안 쟀다」다. ⇒ ★그래서 ★칸 수를 ★먼저 단언한다. */
+      if (!m0.paint.length) bad.push(`${name}: ★칠을 걷을 슬롯이 ★0개다 — ★아래 paint 판정은 «안 쟀다»다`);
+      const paintSame = JSON.stringify(m0.paint) === JSON.stringify(m1.paint);
+      if (!paintSame) bad.push(`${name}: ★칠 상태가 갈렸다(★제품 결함 — 래스터 ★아님) a=${JSON.stringify(m0.paint)} b=${JSON.stringify(m1.paint)}`);
       const allow = ALLOW(variant, name, zoom);
       if (d.n > allow || !geo) bad.push(`${name}: px=${d.n} first=${JSON.stringify(d.first)} geo=${geo ? 'ok' : JSON.stringify({ a: [m0.box, m0.lines.slice(0, 3), m0.icon], b: [m1.box, m1.lines.slice(0, 3), m1.icon] })}`);
     }
