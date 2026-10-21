@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { K_BIND, OWN_BINDER, LISTS, NOT_BIND } from './_block-bind-lists-def.mjs';
+import { sliceBlock } from './_slice-block.js';   // 구간 끝은 공용 부품(균형괄호)으로 — 꼬리 문자열로 찾지 않는다(slice-block-shared SB-16)
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const LOCK_REL = 'tests/unit/block-bind-kinds-lock.test.mjs';
@@ -216,8 +217,8 @@ function reconcile(candidates, entries, sources) {
 function parseFrozen(lockText) {
   const a = lockText.indexOf('const FROZEN = {');
   if (a < 0) return [];
-  const b = lockText.indexOf('\n};', a);
-  const body = lockText.slice(a, b < 0 ? undefined : b);
+  // C1b: 끝을 꼬리 문자열로 찾던 것을 sliceBlock(균형괄호)으로 바꿈 — C1 unit 에서 SB-16 이 이 파일을 짚었다
+  const body = sliceBlock(lockText, 'const FROZEN = {', 'block-bind-lists-ruler parseFrozen');
   const out = [];
   const re = /file:\s*'([^']+)'\s*,\s*anchor:\s*("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')([^\n]*)/g;
   for (const m of body.matchAll(re)) {
