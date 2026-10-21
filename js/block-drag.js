@@ -1184,6 +1184,16 @@ function bindBlock(block) {
     return; // 편집 불가 — 이벤트 바인딩 여기서 종료
   }
 
+  // ★W2D-08 — 글자 편집 «편집 전» 값(평문 + HTML + 자리표시·blank 플래그). 진입 때 기억하고 _endTextEdit 끝에서 맞댄다.
+  //   HTML 도 보는 까닭: ⌘U 처럼 스스로 push 하지 않는 «서식만» 바뀐 편집도 끝 표본을 남겨야 한다.
+  //   플래그도 보는 까닭: data-blank 승격(글자는 같아도 상태가 바뀜)도 편집이다.
+  function _textEditSnap(el, block) {
+    return {
+      text: el.textContent,
+      html: el.innerHTML,
+      flags: (el.dataset.isPlaceholder || '') + '|' + (el.dataset.blank || '') + '|' + (block.dataset.blank || ''),
+    };
+  }
   // ── 텍스트 편집 이벤트 바인딩 헬퍼 (최초 1회) ──
   function _bindTextEditEl(el, block) {
     if (el._editBound) return;
@@ -1237,6 +1247,20 @@ function bindBlock(block) {
       } else if (el.textContent.trim() !== '' && el.textContent.trim() !== (el.dataset.placeholder || '').trim()) {
         // placeholder 문구와 동일하면(더블클릭 전체선택 후 무입력 blur 등) isPlaceholder 유지 — 안내문구가 본문으로 굳는 지뢰 방지
         delete el.dataset.isPlaceholder;
+      }
+      // ★W2D-08 «끝 표본» — 편집이 무언가를 바꿨으면 «끝 상태»를 여기서 한 번 찍는다.
+      //   시작 표본은 진입(dblclick · _enterTextEditMode)의 pushHistory 가 이미 찍었다 ⇒ js/CLAUDE.md 양쪽 끝 규약의 «끝» 쪽.
+      //   ⛔되돌린 뒤 push 하고 다시 적용하지 마라(그리드 _gridBeginEdit 꼴): 텍스트 블럭은 진실이 DOM 이고 시작 표본이
+      //     이미 있어 그 push 는 무변화 차단에 먹히고 끝 표본은 여전히 0 이 된다(S3-W2D08-FIX 플래너).
+      //   자리: 자리표시 복원 · data-blank 승격 «뒤»(최종 상태를 비교·찍는다) · .editing 제거 «뒤»(_captureSelection 이 null 이 되지 않게).
+      //   읽자마자 지운다 — parkEditing 등으로 _endTextEdit 가 두 번 불려도 두 번째는 0 이다.
+      const _before = el._textEditBefore;
+      el._textEditBefore = null;
+      if (_before) {
+        const _after = _textEditSnap(el, block);
+        if (_before.text !== _after.text || _before.html !== _after.html || _before.flags !== _after.flags) {
+          window.pushHistory?.('글자 편집');
+        }
       }
     }
     // (EMPTY) Enter(또는 시각적 빈 줄을 만드는 입력) 감지 → 의도적 빈 줄 신호.
@@ -1391,6 +1415,8 @@ function bindBlock(block) {
     }
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
+      // ★W2D-08 — 이미 편집 중에 낱말을 dblclick 한 것이면 «편집 전» 기억을 덮지 않는다(아래 clicked 자리).
+      const _wasEditing = block.classList.contains('editing');
       window.pushHistory?.(); // 편집 시작 전 상태 저장 → Cmd+Z로 복원 가능
       block.classList.add('editing');
       const editEls = block.querySelectorAll('[contenteditable]');
@@ -1400,6 +1426,8 @@ function bindBlock(block) {
       const clicked = [...editEls].find(el => el.contains(document.elementFromPoint(e.clientX, e.clientY))) || editEls[0];
       if (clicked) {
         clicked._userPressedEnter = false; // (EMPTY) 편집 진입마다 Enter 신호 초기화
+        // ★W2D-08 — «편집 전» 값을 기억한다(끝 표본 비교용 · _endTextEdit). js/CLAUDE.md 양쪽 끝.
+        if (!_wasEditing || !clicked._textEditBefore) clicked._textEditBefore = _textEditSnap(clicked, block);
         clicked.focus();
         // placeholder 상태면 전체 선택 (즉시 타이핑으로 교체 가능)
         if (clicked.dataset.isPlaceholder === 'true') {
@@ -1436,6 +1464,8 @@ function bindBlock(block) {
       const target = editEls[0];
       if (!target) return;
       target._userPressedEnter = false; // (EMPTY) 편집 진입마다 Enter 신호 초기화
+      // ★W2D-08 — Enter 진입도 «편집 전» 값을 기억한다(끝 표본 비교용 · _endTextEdit). js/CLAUDE.md 양쪽 끝.
+      target._textEditBefore = _textEditSnap(target, block);
       _bindTextEditEl(target, block);
       target.focus();
       // 커서를 끝으로 이동
