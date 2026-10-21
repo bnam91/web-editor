@@ -152,25 +152,121 @@ function renderGradientBlock(block, hint) {
           ⇒ ★그 체크를 켜도 ★그라데이션만 ★잘린 채 남았다.
        ③ ★선택 중 해제(조작 가능하게)도 ★같은 까닭으로 ★안 됐다 — 형제 셋은 `.selected` 에서 푼다.
      ⛔`js/history.js` 는 ★안 건드렸다 — `--sec-clip` 은 ★이미 벗겨진다(위 ① 대조값).
-     ⚠️★★이번 고침은 ★«무효화»를 ★안 닫는다 — ★섹션이 자라도 ★이 값은 ★다시 계산되지 않는다
-       (★이 함수를 ★부르는 자가 ★전부 «그라데이션 자신» 또는 «로드»다 · 섹션 높이 감시자 ★0건).
-       ⇒ ★★현빈이 겪은 ★그 증상은 ★남아 있다. ★감시자는 ★다음 칸이다(1020t1b 설계 ㉯＋㉮). */
+     ★★1020 W2A — ★«무효화»를 ★잰 문 8곳에서 닫았다(아래 섹션 감시자 ★1벌 · 등록은 ★한 점).
+       ⛔전엔 이 함수를 부르는 자가 ★전부 «그라데이션 자신» 또는 «로드»였고 섹션 높이 감시자가 ★0건이라
+         ★섹션이 자라도(글을 더 쓰면) ★이 값이 그대로 굳었다 — 현빈 「잘린 자리가 안 따라온다 ·
+         저장했다 다시 열면 제자리로」(다시 열면 로드가 다시 그려서 맞았던 것이다).
+       ★등록은 ★한 점 — 아래 `_gradSecOnAdded`(#canvas MutationObserver · childList·subtree) 뿐이다.
+         ⛔이 함수(렌더)는 감시자에 ★안 올린다 — 등록이 둘이면 «한 점을 끄면 전부 빨강»이 안 선다
+         (tests/unit/grad-sec-clip-watch.test.mjs S1 · M1). 바인더마다 render 를 덧대는 열거도 안 한다.
+       ★잰 문 8곳(S5 W2A 재작업 탐침 · 그 문으로 들어온 뒤 섹션을 키워 기대=실측 · 등록점을 끄면 8곳 전부 빨강 — 그 끈 판은 ×1 잼):
+         메뉴 추가 · 저장→재열기(applyProjectData) · 페이지 전환(switchPage) · ⌘z 되돌리기(전체 복원) ·
+         섹션 복제 ⌘D(js/editor.js _insertPastedSection) · A/B 사본(js/section-variation.js createVariation) ·
+         섹션 템플릿 넣기(js/panels/template-system.js insertTemplate 섹션 갈래) · 섹션 사이 끌어 옮기기 ·
+         (같은 섹션 안의 글·Enter·블럭·글꼴·패딩 변화는 위 «메뉴 추가» 문 위의 ResizeObserver 로 잼).
+       ⛔안 잰 문(0.9.9 에 잰다): 블럭 붙여넣기의 «성장 추종»(⌘c/⌘v — 붙인 그라데이션이 .section-inner 흐름에 position:static 으로 들어가
+         섹션이 그만큼 자라 기대 0 고정 ⇒ 이 자로 못 가름 · ★«넣는 순간 다시 내기»는 잼: 등록점 끄면 300 · 켜면 0) ·
+         A/B 셋째 안(addVariation) · 블럭 템플릿 넣기 · 탭(프로젝트) 전환 · 브랜치 전환 · 협업 원격 반영(js/collab/sync.js) ·
+         MCP/AI 채우기 · 스코프 되돌리기(_applyScopedDiff) · 프레임·그룹 감싸기.
+       ⚠️남은 빈틈: ResizeObserver 는 ★화면에 안 그려지는 창에선 안 온다(js/editor.js:716 의 실측) — 그 창에서
+         섹션이 바뀌고 ★그 사이 저장되면 저장본엔 옛 값이 남는다(로드가 다시 그리므로 열면 맞다). */
   const sec = block.closest('.section-block');
   if (sec) {
     const secW = hint?.secW ?? sec.offsetWidth;
     const secH = hint?.secH ?? sec.offsetHeight;
-    const clipTop    = Math.max(0, -y);
-    const clipRight  = Math.max(0, (x + width)  - secW);
-    const clipBottom = Math.max(0, (y + height) - secH);
-    const clipLeft   = Math.max(0, -x);
     /* ★cssText 대입(위)이 인라인 스타일을 통째로 갈아치우므로 ★그 뒤에 심어야 한다 —
        순서를 바꾸면 변수가 조용히 사라진다(스티커 sticker-block.js:140 이 같은 함정을 적어 뒀다). */
-    gradFill.style.setProperty('--sec-clip',
-      `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px)`);
+    gradFill.style.setProperty('--sec-clip', _gradSecClipValue(block, secW, secH));
+    /* ⛔여기서 감시자에 올리지 않는다 — 등록은 ★한 점(`_gradSecOnAdded`)뿐이다(아래 ⑵ 머리말). */
   } else {
     gradFill.style.removeProperty('--sec-clip');
   }
 }
+
+/* ★섹션 밖 크롭 식 ★한 벌 — 렌더와 감시자가 ★같은 자를 읽는다(⛔둘째 식을 만들지 마라). */
+function _gradSecClipValue(block, secW, secH) {
+  const width  = parseInt(block.dataset.gradWidth)  || GRADIENT_DEFAULTS.width;
+  const height = parseInt(block.dataset.gradHeight) || GRADIENT_DEFAULTS.height;
+  const x      = parseInt(block.dataset.x) || 0;
+  const y      = parseInt(block.dataset.y) || 0;
+  const clipTop    = Math.max(0, -y);
+  const clipRight  = Math.max(0, (x + width)  - secW);
+  const clipBottom = Math.max(0, (y + height) - secH);
+  const clipLeft   = Math.max(0, -x);
+  return `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px)`;
+}
+
+/* ══ ★1020 W2A 섹션 감시자 — 섹션 상자가 바뀌면 그 섹션의 그라데이션 클립을 다시 낸다 ══════
+   ★왜 ResizeObserver 인가 — 섹션 높이를 바꾸는 «까닭»은 열거가 안 된다(글 추가·Enter·블럭 추가·
+     글꼴 크기·섹션 패딩·이미지 로드 …). js/section-height.js ⒝ 가 같은 까닭으로 같은 자를 쓴다.
+   ★`box:'border-box'` — 클립 식이 읽는 자가 `offsetHeight`(= border-box)다. 기본값(content-box)으로
+     두면 ★섹션 «패딩»만 바뀔 때 감시자가 ★안 운다(패딩은 content-box 를 안 바꾼다).
+   ★debounce 없음 — ResizeObserver 는 ★한 프레임에 한 번으로 이미 묶여 온다(타이핑 한 글자마다가
+     아니라 «크기가 바뀐 프레임마다»). 그리고 ★같은 값이면 안 쓴다 ⇒ 자동저장 감시자
+     (js/io/save-load.js autoSaveObserver — style 쓰기를 편집으로 센다)를 헛되이 깨우지 않는다.
+   ★고리 없음 — `--sec-clip`(clip-path)은 레이아웃을 안 바꾼다 ⇒ 쓴 것이 감시자를 다시 부르지 않는다.
+   ★떼어진 섹션(undo·페이지 전환으로 갈린 옛 DOM)은 감시에서 내린다 — 새 DOM 은 아래 등록점
+     (#canvas MutationObserver)이 «들어오는 순간» 다시 올린다. */
+let _gradSecRO = null;
+const _gradSecWatched = new WeakSet();
+
+function _refreshGradSecClips(sec) {
+  if (!sec.isConnected) {
+    _gradSecRO?.unobserve(sec);
+    _gradSecWatched.delete(sec);
+    return;
+  }
+  const secW = sec.offsetWidth, secH = sec.offsetHeight;
+  sec.querySelectorAll('.gradient-block').forEach((block) => {
+    if (block.closest('.section-block') !== sec) return;
+    const fill = block.querySelector(':scope > .grad-fill');
+    if (!fill) return;
+    const v = _gradSecClipValue(block, secW, secH);
+    if (fill.style.getPropertyValue('--sec-clip') !== v) fill.style.setProperty('--sec-clip', v);
+  });
+}
+
+function _watchGradSec(sec) {
+  if (typeof ResizeObserver !== 'function' || _gradSecWatched.has(sec)) return;
+  if (!_gradSecRO) {
+    _gradSecRO = new ResizeObserver((entries) => {
+      for (const en of entries) _refreshGradSecClips(en.target);
+    });
+  }
+  _gradSecWatched.add(sec);
+  _gradSecRO.observe(sec, { box: 'border-box' });
+}
+
+/* ══ ★단일 등록점 — #canvas 에 그라데이션이 «들어오면»(어느 넣기 길이든) 그 섹션을 올리고 바로 다시 낸다 ══
+   ★왜 여기 — 1020 W2A 평가 D1(실측): 섹션 복제(⌘D)는 js/editor.js _bindPastedEl 을 지나고 그 길은
+     bindBlock 만 불러 render 를 안 탄다 ⇒ 사본 섹션이 감시에 안 올라 사본에 글을 쓰면 ★+300px.
+     같은 꼴 둘(js/section-variation.js _bindVariantClone · js/panels/template-system.js _bindInsertedTree).
+     ⛔바인더마다 render 를 덧대면 «다음 넣기 길»이 또 빠진다 — DOM 에 «들어온다»는 사실로 받는다.
+   ★바로 다시 낸다(_refreshGradSecClips) — 이미 감시 중인 섹션에 «다른 섹션에서 복사한» 그라데이션이
+     붙으면 섹션 크기가 안 바뀌어 ResizeObserver 가 안 온다(옛 섹션 높이로 굳은 값이 남는다).
+   ★가볍게 — childList 만 본다(우리 쓰기는 style 속성이라 자신을 다시 부르지 않는다). 글자 노드는 건너뛰고,
+     요소라도 그라데이션이 없으면 레이아웃을 안 읽는다(타이핑 중 <br>·<div> 는 querySelectorAll 한 번). */
+function _gradSecOnAdded(node) {
+  if (!node || node.nodeType !== 1 || !node.classList) return;
+  const grads = node.classList.contains('gradient-block') ? [node] : [...node.querySelectorAll('.gradient-block')];
+  if (!grads.length) return;
+  const secs = new Set();
+  for (const g of grads) { const s = g.closest('.section-block'); if (s) secs.add(s); }
+  secs.forEach((s) => { _watchGradSec(s); _refreshGradSecClips(s); });
+}
+
+function _initGradSecInsertWatch() {
+  const canvasEl = typeof document !== 'undefined' && typeof document.getElementById === 'function'
+    ? document.getElementById('canvas') : null;
+  if (!canvasEl || typeof MutationObserver !== 'function' || canvasEl.__gradSecMo) return;
+  const mo = new MutationObserver((muts) => {
+    for (const m of muts) for (const n of m.addedNodes) _gradSecOnAdded(n);
+  });
+  mo.observe(canvasEl, { childList: true, subtree: true });
+  canvasEl.__gradSecMo = mo;
+  _gradSecOnAdded(canvasEl);   // 이미 있는 것(모듈이 늦게 실린 경우)
+}
+_initGradSecInsertWatch();
 
 function makeGradientBlock(opts = {}) {
   const block = document.createElement('div');
@@ -227,6 +323,8 @@ function addGradientBlock(opts = {}) {
        tests/dom/insert-select-follows.dom.spec.js · tests/unit/insert-select-roster.test.mjs */
   const block = makeGradientBlock(opts);
   sec.appendChild(block); // 섹션 직접 자식 (absolute → 섹션 기준)
+  /* ★1020 W2A — makeGradientBlock 의 렌더는 ★붙이기 «전»이라 섹션이 없어 `--sec-clip` 을 지운다(추가 직후 '').
+     ⛔여기서 다시 렌더하지 않는다 — 붙이는 순간 단일 등록점(_gradSecOnAdded)이 섹션 기준으로 다시 낸다(W0). */
   window.bindGradientSelect?.(block);
   window.scheduleAutoSave?.();
   window.buildLayerPanel?.();
