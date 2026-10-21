@@ -1,7 +1,7 @@
 /* block-bind-kinds-lock.test.mjs — R7b 잠금 (lane-drag · 2026-10-05 · 지디 ⒜ + 잠금 시험)
  *
  * js/block-bind-kinds.js 가 «bindBlock 걸 종류»의 정본이다. 지금 그 명부를 쓰는 곳은 섹션 템플릿 넣기 하나뿐이고,
- * 손으로 적은 명부 8 곳 중 A/B 변형 둘(section-variation.js)은 0.9.6 에 정본으로 옮겼고, 남은 6 곳은 0.9.7. 그 사이 «더 벌어지지» 않게, 손 명부마다 «오늘 빠진 종류»를 얼린다.
+ * 손으로 적은 명부 8 곳 중 A/B 변형 둘(section-variation.js)은 0.9.6 에 정본으로 옮겼고, 남은 손 명부는 0.9.7(이 줄을 쓸 때 6 곳 · 2026-10-21 다시 세어 7 곳 — 아래 괄호). 그 사이 «더 벌어지지» 않게, 손 명부마다 «오늘 빠진 종류»를 얼린다.
  *   (2026-10-21 S3 t4 ⒡ 다시 셈: 손 명부는 7 곳이다 — ⌘D 절대 위치 갈래 editor.js _ALL_BLOCK_SEL 이 처음부터 이 표에 없었다 ⇒ FROZEN 에 넣어 7 칸.
  *    명부 8 곳(정본 1 + 손 7)의 기준표 = tests/unit/_block-bind-lists-def.mjs · 양방향 차집합 자 = tests/unit/block-bind-lists-ruler.test.mjs(R4 가 FROZEN 이 손 7 곳을 다 덮는지 잰다).)
  *   - 손 명부가 종류를 «더» 빠뜨리면(줄 하나 지움) → 빨강.
