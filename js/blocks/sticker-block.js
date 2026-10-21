@@ -1323,6 +1323,29 @@ const LINE_STICKER_SHAPES = Object.freeze(['highlightB', 'arrow']);
 function _isLineSticker(block) {
   return !!block && LINE_STICKER_SHAPES.includes(block.dataset?.shape);
 }
+/* ★W2D-06d(지디 다시 걸기 · S7 실측) — 선 스티커의 «자리»(dataset.x/y)를 끝점에서 다시 셈하는 ★한 벌.
+ *   선 스티커는 끝점(x1..y2)으로 그린다 — 그런데 끌기·끝점/두께 손잡이·정렬·패널 두께·모양 바꾸기가 끝점(또는 두께)만 바꾸고
+ *   dataset.x/y 는 «만든 자리»에 남겼다(실측: 몸통 끌기 뒤 끝점 500,283 · dataset 350,229). dataset.x/y 를 읽는 쪽(붙여넣기 계단
+ *   _stkPos · 저장 serialize)이 «옛 자리»를 봤다.
+ *   ⇒ 식 = addStickerBlock 의 선 갈래와 «같다»(x = min(x1,x2) · y = min(y1,y2) − 보정) · 보정 = highlightB 두께/2 · arrow ArrowFx.headLen(두께)/2.
+ *   ⛔이 식을 다른 파일에 베끼지 마라 — 쓰는 자리는 window._syncLineStickerPos 를 부른다. 끝점을 모르면(NaN) 아무것도 안 쓴다(⛔0 으로 메우지 않는다). */
+function _lineStickerBox(block) {
+  if (!block || !_isLineSticker(block)) return null;
+  const d = block.dataset;
+  const x1 = parseFloat(d.x1), y1 = parseFloat(d.y1), x2 = parseFloat(d.x2), y2 = parseFloat(d.y2);
+  if ([x1, y1, x2, y2].some(Number.isNaN)) return null;
+  const corr = d.shape === 'highlightB'
+    ? (Number(d.thickness) || 12) / 2
+    : (window.ArrowFx?.headLen?.(Number(d.thickness) || window.ArrowFx?.DEFAULTS?.thickness || 4) || 12) / 2;
+  return { x: Math.min(x1, x2), y: Math.min(y1, y2) - corr };
+}
+function _syncLineStickerPos(block) {
+  const b = _lineStickerBox(block);
+  if (!b) return;
+  block.dataset.x = String(b.x);
+  block.dataset.y = String(b.y);
+}
+
 /** 스티커를 (dx, dy) 만큼 옮긴다 — 선 스티커는 네 끝점 + 다시 그리기, 나머지는 x/y(+style). ⛔클램프 없음(호출자 몫). */
 function _translateSticker(block, dx, dy) {
   if (!block) return;
@@ -1330,6 +1353,7 @@ function _translateSticker(block, dx, dy) {
   if (_isLineSticker(block)) {
     ['x1', 'x2'].forEach(k => { block.dataset[k] = String((parseFloat(block.dataset[k]) || 0) + dx); });
     ['y1', 'y2'].forEach(k => { block.dataset[k] = String((parseFloat(block.dataset[k]) || 0) + dy); });
+    _syncLineStickerPos(block);   // ★W2D-06d — 끝점을 민 만큼 자리도
     renderStickerBlock(block);
     return;
   }
@@ -1341,6 +1365,8 @@ function _translateSticker(block, dx, dy) {
 }
 window._isLineSticker    = _isLineSticker;
 window._translateSticker = _translateSticker;
+window._lineStickerBox    = _lineStickerBox;
+window._syncLineStickerPos = _syncLineStickerPos;
 
 // ── window 노출 ────────────────────────────────────────────────────────────
 window.makeStickerBlock   = makeStickerBlock;
