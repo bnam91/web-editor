@@ -1181,6 +1181,12 @@ const BG_EDIT_HOSTS = {
     boxClass: 'prop-section',
     doneId: 'sec-bg-pos-done',
     /* ★솔리드 ＋ 이미지를 ★★두 «배경 레이어»로 겹쳐 그리는 꼴 ⇒ longhand 를 ★둘씩 쓴다 */
+    /* ★비석(b1a · 지디 판정 j2 ②) — ⛔코드 몸은 그대로 · 걷기는 별건.
+         (1) ★js/props/prop-section.js:188 과 ★갈렸다(7d3cbfbd · 2026-10-10) — 그쪽은 «반투명일 때만» 두 층,
+             여기는 색＋그림이면 늘 두 층 ⇒ 불투명이면 숙주 계산값이 `cover` 로 굳는다(㉯).
+         (2) ★b1a 처방 뒤로 ★편집 중엔 안 닿는다 — needsBgLayer 가 편집 세션에 참이라 syncBg 가 늘 레이어
+             갈래로 간다(writeLive 갈래 0) = S1-b1a 처방판 측정(tests/dom/sec-bg-live.dom.spec.js G9 스파이).
+         (3) ★고치려면 «누가 닿나» 를 ★먼저 재라 — 0 이면 ★걷는다(고치지 말고). */
     twoLayer: (el) => !!(el.dataset.bg && el.dataset.bgImg),
     writeLive: (el, which, v) => {
       if (which === 'size') el.style.backgroundSize = v; else el.style.backgroundPosition = v;
@@ -1300,9 +1306,13 @@ function _enterBgEditMode(host, ad) {
       if (posChanged)  host.dataset.bgPos  = `${_r1(px)}px ${_r1(py)}px`;
       // ★1017t1k1 — 회전 중(또는 ★색보정 적용 중)엔 ★레이어가 그린다. proxy.dataset.imgRotate 는
       //   onRotateDown 이 드래그마다 쓴다(없으면 0 — 씨앗 값).
-      const layerActive = !!deg || needsBgLayer(host);
+      // ★b1a — 판정은 ★needsBgLayer 한 자리(편집 세션 키 포함 ⇒ 편집 중엔 늘 참). ⛔`!!deg ||` 를
+      //   다시 붙이지 마라 — 판정이 두 자리가 되고, 옛 꼴에선 needs=false 인데 레이어가 서서(:adjHost)
+      //   숙주에 쓴 그림이 ★레이어 아래로 숨었다(화면 굳음). 편집 중 회전은 ★인자로 넘긴다(rot) —
+      //   ⛔dataset.bgRotate 로 베끼지 않는다(저장 키는 beforeCommit 한 자리).
+      const layerActive = needsBgLayer(host);
       if (layerActive) {
-        if (sizeChanged || posChanged || rotChanged) ensureBgLayer(host);
+        if (sizeChanged || posChanged || rotChanged) ensureBgLayer(host, { rot: deg });
         // ★레이어가 그리는 동안 host 자신의 그림은 ★비운다(이중 그림 방지) — 색은 그대로 둔다.
         if (host.style.backgroundImage && host.style.backgroundImage !== 'none') {
           host.style.backgroundImage = 'none';
@@ -1361,7 +1371,13 @@ function _enterBgEditMode(host, ad) {
          ★같은 사고(「크롭 모델에 회전 축이 없다」)가 ★아직 맞아 그 자리는 ★그대로 둔다. */
       keepAliveSel: '#panel-right',
       historyLabel: ad.historyLabel,
-      adjHost: () => ensureBgLayer(host),   // ★색보정 패널이 ★진짜 레이어를 잡게 — 없으면 이 호출이 짓는다
+      // ★색보정 패널이 ★진짜 레이어를 잡게 — 없으면 이 호출이 짓는다.
+      //   ★b1a — 검문(needsBgLayer)과 ★짝으로만 짓는다(편집 중엔 참 갈래). 거짓 갈래 proxy 는 옛 꼴과 같은 뜻.
+      //   ★조건부 예외(b1a N1 · 지디 판정 n1) — 반투명 프레임(has-bg-opacity)만 핀 꼴로 레이어에 건다. needsBgLayer 의
+      //     has-bg-opacity 예외와 «한 예외의 두 얼굴» — 둘 다 있거나 둘 다 없다(tests/unit/bg-layer-guard.test.mjs G8d).
+      //     이 처방은 결함을 고치는 것이 아니라 «조용한 결함»을 «시끄러운 결함»(핀 꼴 · 그림이 사라짐)으로 바꾸는 것이다 — 근본은 HAS-BG-OPACITY-LAYER-ZERO(css/editor-blocks.css:327 ↔ :751 · e4bb4594 부터 · 반투명 프레임은 어느 판에서도 회전·색보정이 제대로 안 된다).
+      //     ⇒ 그 결함이 고쳐지면 이 예외를 거둔다(needsBgLayer 쪽과 함께). 묶음 HAS-BG-OPACITY-GUARD-ROSTER-01 = 같은 꼴 셋: image-handling.js:1184 근방 twoLayer · adjHost(이 예외) · frame-bg.js:88 applyFrameBgImageInline.
+      adjHost: () => (needsBgLayer(host) || host.classList.contains('has-bg-opacity') ? ensureBgLayer(host) : proxy),
       beforeCommit: () => {
         // style.width 가 정본 (dataset.imgW 는 exitImageEditMode 가 offsetWidth 로 반올림해 둔 값)
         const w  = parseFloat(img.style.width) || parseFloat(proxy.dataset.imgW) || 0;
