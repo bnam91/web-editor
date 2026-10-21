@@ -2169,9 +2169,17 @@ function pasteClipboard() {
       sec.appendChild(el);
       // ID 재생성 (기존 _bindPastedEl이 처리)
       _bindPastedEl(el);
-      // 위치 — vp 있으면 뷰포트 중앙, 없으면 기존 +20px 오프셋
-      el.dataset.x = String(vp ? Math.round(vp.x) : curX + 20);
-      el.dataset.y = String(vp ? Math.round(vp.y) : curY + 20);
+      /* ★W2D-06(현빈 「스티커를 붙여넣으면 섹션 높이 밖에 놓인다」) — 옛 판은 vp 를 그대로 dataset.x/y 에 썼다(클램프 0 · 크기 절반 안 뺌).
+       *   섹션이 짧고 화면 위쪽에 있으면 «뷰포트 중앙»이 섹션 높이를 넘는다 — 오버레이 갈래가 2026-09-20 에 고친 바로 그 병(_placePastedOverlay 머리말).
+       *   ⇒ 프레임 갈래(F2)와 같은 꼴: (중앙 − 크기/2) → _placePastedOverlay(섹션 clientWidth/Height 안 · 같은 자리면 20px 계단). 새 식 0.
+       *   크기는 _bindPastedEl 이 이미 renderStickerBlock 을 부른 뒤라 잴 수 있다. 계단 판정은 «다른 스티커의 dataset.x/y»로 한다.
+       *   ⚠️선 스티커(highlightB·arrow)는 dataset.x/y 가 아니라 x1/y1/x2/y2 로 그려서 이 자리를 안 따른다 — 옛 판과 같다(별건). */
+      const _sw = el.offsetWidth || 0, _sh = el.offsetHeight || 0;
+      const _stkPos = (c) => (c.classList && c.classList.contains('sticker-block'))
+        ? { x: parseInt(c.dataset.x) || 0, y: parseInt(c.dataset.y) || 0 } : null;
+      const { x: nx, y: ny } = _placePastedOverlay(sec, el, vp ? vp.x - _sw / 2 : curX + 20, vp ? vp.y - _sh / 2 : curY + 20, _stkPos);
+      el.dataset.x = String(nx);
+      el.dataset.y = String(ny);
       window.renderStickerBlock?.(el);
       window.bindStickerSelect?.(el);
     } else if (el.dataset.overlayBlock === 'true') {
