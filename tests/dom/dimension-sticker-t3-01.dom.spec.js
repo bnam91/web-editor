@@ -81,10 +81,21 @@ const toSec = (page, cx, cy) => page.evaluate(([x, y]) => {
  *  ★그 상태에서 ★누르면 ★캐럿만 옮고 ★선택이 ★안 된다 — ★그 판이 ★flaky 였다(T3 1/3).
  *  ⇒ ★편집에서 ★빠져나온 것을 ★기다린 뒤 ★고른다. ★사람도 ★한 번 빠져나와야 고를 수 있다. */
 async function selectDim(page) {
+  /* ★★★261021 — ★이 벌의 ★흔들림은 ★여기 ★한 단언에 ★몰렸다(6회 중 T4 4 · T3 1 · 다른 칸 ★0).
+     ★까닭: `Escape` 는 ★라벨에 ★걸린 keydown 이다(annotation-select.js:697 → label.blur() → finish).
+       ⇒ ★★라벨에 ★포커스가 ★가기 ★전에 누르면 ★안 닿는다. ★사람은 ★포커스가 간 ★뒤에 누른다.
+     ⇒ ★★「편집이 ★시작됐다」를 ★먼저 기다린다. ⛔그 전에 Escape 를 쏘면 ★제품이 아니라 ★검사가 ★빠른 것이다. */
+  await expect.poll(() => page.evaluate(() =>
+    document.querySelector('#secA .annot-label')?.getAttribute('contenteditable') ?? 'none'),
+    '★전제: 라벨이 ★편집에 ★들어갔다(만든 직후 enterLabelEdit)', { timeout: 15000 }).toBe('true');
+  /* ★★261021 ★대조 실측 — ★「라벨 밖(섹션 빈 모서리) 클릭」으로 ★바꿔 봤더니 ★★6/6 이 ★빨강이었다
+     (T3·T4 ★둘 다 · unexpected). ⇒ ★★되돌렸다. ★Escape 쪽이 ★낫다(T4 ★2/6).
+     ⚠️`Escape` 는 ★두 곳이 듣는다(라벨 편집 :697 · 고르기 해제 :32) — ★그 경쟁이 ★남은 2/6 로 보이나
+       ★★대조로 ★증명하지 ★못했다. ⛔「그래서다」라 ★적지 않는다. */
   await page.keyboard.press('Escape');                       // 라벨 편집 종료
   await expect.poll(() => page.evaluate(() =>
     document.querySelector('#secA .annot-label')?.getAttribute('contenteditable') ?? 'none'),
-    '★전제: 라벨이 ★편집에서 빠져나왔다').not.toBe('true');
+    '★전제: 라벨이 ★편집에서 빠져나왔다', { timeout: 15000 }).not.toBe('true');
   await page.keyboard.press('Escape');                       // 펜 모드 종료
   await expect.poll(() => page.evaluate(() => document.body.classList.contains('pen-mode')),
     '★전제: 펜 모드가 꺼졌다').toBe(false);
