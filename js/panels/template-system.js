@@ -568,7 +568,7 @@ async function insertTemplate(tpl, opts = {}) {
     // 내부 블록 이벤트 핸들러 재등록 (Section 삽입과 동일 수준)
     // ★rebindAll 비경유 문 — 승격을 직접 한다(2026-09-05 개명).
     window.migrateGridIdentity?.(ss);
-    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .qa-block, .coupon-block, .quote-block, .radial-block').forEach(b => {
+    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .qa-block, .coupon-block, .quote-block, .radial-block').forEach(b => { // bind-list:FRAME_TEMPLATE
       window.bindBlock?.(b);
       if (b.classList.contains('qa-block')) window.renderQABlock?.(b);
     });
@@ -723,7 +723,7 @@ async function insertTemplate(tpl, opts = {}) {
   // ★rebindAll 비경유 문 — 승격을 직접 한다(2026-09-05 개명).
   window.migrateGridIdentity?.(sec);
   /* ★R7b(2026-10-05 lane-drag · 지디 ⒜) — 손 명부(15 종 · 도형·스텝·챗·목업·확대 등 14 종 빠짐) 대신 정본 명부(js/block-bind-kinds.js).
-     나머지 손 명부 8 곳은 0.9.7 — 그 사이 tests/unit/block-bind-kinds-lock.test.mjs 가 자리마다 오늘 빠짐을 얼려 둔다. */
+     나머지 손 명부 7 곳(2026-10-21 다시 셈 · 정본 1 + 손 7 = 명부 8)은 0.9.7 — 그 사이 tests/unit/block-bind-kinds-lock.test.mjs 가 자리마다 오늘 빠짐을 얼려 둔다. */
   _bindInsertedTree(sec);   // ★section · block 갈래 «한 도우미»(R7 · R7b · ② 를 모은 것 — 아래 정의 머리말)
   sec.querySelectorAll('.group-block').forEach(g => {
     if (!g.querySelector(':scope > .group-block-label')) {

@@ -2,8 +2,10 @@
  *
  * js/block-bind-kinds.js 가 «bindBlock 걸 종류»의 정본이다. 지금 그 명부를 쓰는 곳은 섹션 템플릿 넣기 하나뿐이고,
  * 손으로 적은 명부 8 곳 중 A/B 변형 둘(section-variation.js)은 0.9.6 에 정본으로 옮겼고, 남은 6 곳은 0.9.7. 그 사이 «더 벌어지지» 않게, 손 명부마다 «오늘 빠진 종류»를 얼린다.
+ *   (2026-10-21 S3 t4 ⒡ 다시 셈: 손 명부는 7 곳이다 — ⌘D 절대 위치 갈래 editor.js _ALL_BLOCK_SEL 이 처음부터 이 표에 없었다 ⇒ FROZEN 에 넣어 7 칸.
+ *    명부 8 곳(정본 1 + 손 7)의 기준표 = tests/unit/_block-bind-lists-def.mjs · 양방향 차집합 자 = tests/unit/block-bind-lists-ruler.test.mjs(R4 가 FROZEN 이 손 7 곳을 다 덮는지 잰다).)
  *   - 손 명부가 종류를 «더» 빠뜨리면(줄 하나 지움) → 빨강.
- *   - 정본에 «새 종류»를 더하면 → 손 명부 8 곳이 전부 한 칸씩 더 벌어져 빨강(= 이 시험이 정본을 읽는다는 증거).
+ *   - 정본에 «새 종류»를 더하면 → 손 명부 7 곳이 전부 한 칸씩 더 벌어져 빨강(= 이 시험이 정본을 읽는다는 증거).
  *     그때 할 일: 손 명부에 그 종류를 넣거나, 아래 표에 «까닭»과 함께 얼린 칸을 늘린다.
  * 까닭 표기(지디 ㉠ — «의도» 를 짐작으로 적지 않는다):
  *   covered = 다른 클래스로 이미 걸림(잰 것: speech-bubble-block 은 text-block 을 같이 단다 — block-factory.js makeSpeechBubbleBlock)
@@ -39,6 +41,7 @@ const C = 'covered', D = 'debt', U = 'unconfirmed';
 const FROZEN = {
   'editor.js _bindPastedEl BLOCK_SEL': { file: 'js/editor.js', anchor: "const BLOCK_SEL = '.text-block", gaps: {} },
   'editor.js 붙여넣기 _ALL': { file: 'js/editor.js', anchor: "const _ALL = '.text-block", gaps: { 'joker-block': U } },
+  'editor.js ⌘D 절대 _ALL_BLOCK_SEL': { file: 'js/editor.js', anchor: "const _ALL_BLOCK_SEL = '.text-block", gaps: { 'joker-block': U } },
   'save-load.js rebindAll': { file: 'js/io/save-load.js', anchor: "canvasEl.querySelectorAll('.text-block, .asset-block", gaps: { 'speech-bubble-block': C } },
   'editor.js 초기 바인딩': { file: 'js/editor.js', anchor: "document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block", gaps: { 'joker-block': U, 'shape-block': U, 'speech-bubble-block': C } },
   'block-factory.js 섹션 바인딩': { file: 'js/block-factory.js', anchor: "sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block", gaps: { 'banner02-block': U, 'canvas-block': U, 'comparison-block': U, 'icon-block': U, 'joker-block': U, 'mockup-block': U, 'modal-block': U, 'speech-bubble-block': C } },
@@ -49,9 +52,11 @@ const FROZEN = {
    ★손 명부 6 곳에는 «얼린 칸을 늘리지 않고» `.coupon-block` 을 ★넣었다(빚을 늘리지 않는 쪽).
      ⇒ 아래 FROZEN 의 gaps 에 coupon-block 이 ★한 건도 없는 것이 ★그 증거다.
    ★인용구도 ★같은 쪽으로 갔다 — ★손 명부 6 곳에 `.quote-block` 을 ★넣었다
-     ⇒ gaps 에 quote-block 이 ★한 건도 없는 것이 ★그 증거다(2026-10-07 · QT1). */
-test('정본 명부가 서 있다(30 종 · 만드는 자리가 있고 bindBlock 으로 묶이는 종류)', () => {
-  assert.equal(ROSTER.size, 30, `정본 ${ROSTER.size} 종`);
+     ⇒ gaps 에 quote-block 이 ★한 건도 없는 것이 ★그 증거다(2026-10-07 · QT1).
+   ★2026-10-21(S3 t4 ⒡ · W2D-01) — 방사형 블럭(radial-block)을 정본에 넣어 30 → 31. 손 명부 7 곳에는 이미 `.radial-block` 이 들어 있다
+     ⇒ gaps 에 radial-block 이 ★한 건도 없는 것이 ★그 증거다. */
+test('정본 명부가 서 있다(31 종 · 만드는 자리가 있고 bindBlock 으로 묶이는 종류)', () => {
+  assert.equal(ROSTER.size, 31, `정본 ${ROSTER.size} 종`);
 });
 
 test('★A/B 변형 사본(section-variation.js createVariation·addVariation)도 정본에서 끌어온다(0.9.6)', () => {
