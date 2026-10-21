@@ -11,7 +11,7 @@
  *   ★프레임        ★★자른다   — `css/editor-blocks.css` `.frame-block { overflow: hidden }` (★2026-10-10 ②)
  *   ★에셋          ★★자른다   — `.asset-img-clip { overflow: hidden }` (★실측: ov hidden · ovInline null ·
  *                               ★밖에 잉크 ★false · ★★양성대조(자름 떼면) ★true)
- *   ★그리드 ★원형   ★★자른다   — ★★렌더러가 ★인라인으로 박는다(`js/blocks/grid-block.js:2296`)
+ *   ★그리드 ★원형   ★★자른다   — ★★렌더러가 ★인라인으로 박는다(`js/blocks/grid-block.js` 의 ★앵커 「`class="grd-img-frame grd-img-circle" style="${box}overflow:hidden;"`」)
  *                               ★까닭(그 파일 ㈏): ★CSS 에 두면 ★★내보낸 HTML·캡처 클론이 ★못 들고 간다
  *   ★★그리드 ★평형 ★★★안 자른다 — ★★★일부러 ★안 붙였다(그 파일 ㈐). ★★실측으로 ★두 번 ★고쳐 세운 자리다
  *                               ★까닭: ★붙이면 ★★flex 항목의 `min-height:auto` 가 ★★통째로 ★0 이 된다
@@ -45,7 +45,7 @@
  * ★★그래서 ★여기 적을 것은 ★★«문장»이 ★아니라 ★★★«계열별 ★자리»다 (2026-10-22 지디 실측 · ★정본의 ⑴⑵⑶ 에 ★붙인다)
  *   ★계열        ★자리(⑴⑵⑶)   ★★어디
  *   frame        ⑴             `css/editor-blocks.css:5` 블록 → `:31 overflow: hidden`
- *   asset        ⑴ ＋ ★⑶       `:666 overflow: hidden`(`.asset-img-clip`) ＋ ★이 파일 `:129 applyAssetClip`
+ *   asset        ⑴ ＋ ★⑶       `:666 overflow: hidden`(`.asset-img-clip`) ＋ ★이 파일의 ★앵커 「`export function applyAssetClip(ab) {`」
  *   gridCircle   ⑵             `js/blocks/grid-block.js:2355` (`style="…overflow:hidden;"`)
  *   gridCrop     ⑵             `js/blocks/grid-block.js:2513` (`clipCss` · ★크롭일 때만)
  *   gridPlain    ★없음         ⛔일부러 (위 ㈐)
@@ -82,7 +82,7 @@ export const CLIP_DEFAULTS = Object.freeze({
   frame: true,       /* `.frame-block` — ★현빈 1009t3-② 로 ★기본이 ★자름이 됐다(★CSS 맨 위) */
   asset: true,       /* `.asset-block` — ★`.asset-img-clip { overflow: hidden }` 래퍼가 ★자른다
                         ★＋ `io/save-load.js` 가 ★옛 데이터에 ★그 래퍼를 ★마이그레이션으로 ★붙인다 */
-  gridCircle: true,  /* `.grd-img-frame.grd-img-circle` — ★렌더러가 ★인라인으로 ★박는다(grid-block.js:2296)
+  gridCircle: true,  /* `.grd-img-frame.grd-img-circle` — ★렌더러가 ★인라인으로 ★박는다(grid-block.js · ★앵커 「`grd-img-circle" style="${box}overflow:hidden;`」)
                         ★까닭(그 파일 ㈏): ★CSS 에 두면 ★★내보낸 HTML·캡처 클론이 ★그 규칙을 ★못 들고 간다 */
   gridPlain: false,  /* `.grd-img-frame`(원형 아님) — ★★★일부러 ★false 다. ⛔«빠뜨린 것»이 ★아니다.
                         ★까닭(그 파일 ㈐ · ★실측으로 ★두 번 ★고쳐 세운 자리):
