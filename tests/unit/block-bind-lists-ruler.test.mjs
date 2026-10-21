@@ -382,7 +382,9 @@ test('R6 음성대조 4 — 글자를 일부러 깨면 자 함수가 그 자리�
   assert.ok(!lockUncovered(lockWith, SOURCES, HANDS).includes('DUP_ABS'), '⒟ 합성 칸을 꽂았는데도 DUP_ABS 가 안 덮였다(R4 함수가 칸을 못 읽는다)');
   const drop = parseFrozen(lockWith).filter((f) => { const a = locate(SOURCES.get(f.file), f.anchor, f.occurrence); return f.file === dup.file && a && a.line === dupAt.line; });
   let lockMut = lockWith;
-  for (const f of [...drop].sort((x, y) => y.start - x.start)) lockMut = lockMut.slice(0, f.start) + lockMut.slice(f.end);
+  // C1b: FROZEN 은 한 줄 한 칸 꼴 — 칸이 든 «줄 통째»를 걷는다(줄 일부만 걷으면 여는 괄호만 남아 sliceBlock 이 짝을 못 찾는다)
+  const lineSpan = (t, f) => { const s0 = t.lastIndexOf('\n', f.start) + 1; const e0 = t.indexOf('\n', f.end); return [s0, e0 < 0 ? t.length : e0 + 1]; };
+  for (const f of [...drop].sort((x, y) => y.start - x.start)) { const [s0, e0] = lineSpan(lockMut, f); lockMut = lockMut.slice(0, s0) + lockMut.slice(e0); }
   assert.notEqual(lockMut, lockWith, '⒟ 변이가 안 꽂혔다');
   assert.ok(lockUncovered(lockMut, SOURCES, HANDS).includes('DUP_ABS'), '⒟ R4 함수가 DUP_ABS 를 못 짚었다');
 });
