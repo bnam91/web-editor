@@ -14,6 +14,8 @@
 // 판 정체 — ⑴ git -C ROOT rev-parse HEAD === EXPECT_SHA
 //           ⑵ IDENT_FILES 마다 페이지가 받은 sha1 === ROOT 파일 sha1 === EXPECT_FILE_SHA1S 의 같은 자리 값
 //   EXPECT_FILE_SHA1S = 순수 sha1(파일 내용) — `shasum -a 1 <파일>` · ⛔`git hash-object`(blob 머리가 붙어 값이 다르다).
+//   ★판 정체 ⑴ 의 양성대조 — 2026-10-22 fixG-1: EXPECT_SHA 를 한 판 전 것(04ce0b74)으로 준 채 레인이 커밋(b3800aea)되자
+//     12 칸 전부 «판 정체 ⑴» 그 자리에서 멈췄다(무효 런) ⇒ 이 단언은 엉뚱한 판을 잡는다 — ⛔지우지 마라.
 //   IDENT_NO_GIT=1 (변이 사본 전용 · .git 없는 나무) — ⑴ 을 건너뛰고 그 사실을 로그에 남긴다 · 판 정체는 ⑵(서빙 파일 sha1)로만 묶는다.
 //     (사본 나무에 .git 파일을 두면 git 이 레인 worktree 의 HEAD 를 읽어 사본 내용을 안 묶는다 — 태양 22:5x 실측)
 const { test, expect } = require('@playwright/test');
