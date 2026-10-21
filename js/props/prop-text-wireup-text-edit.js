@@ -18,6 +18,7 @@ import { wireAllTextStyleChips } from './text-style-chips.js';                  
 import { wireTextStyleCodeFields } from './text-style-code-field.js';            /* ★스타일 번호 칸(1012t1E5) — 칩과 같은 입히기 길 */
 import { wireHexText, parseHex6, formatHex6, wireColorField } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 import { forgetLabelAutoColor } from './label-auto-color.js';
+import { _stripInlineResidue } from './prop-text-utils.js';   // 부분서식 잔재 걷기 한 벌(t4-16 에서 이 파일 클로저를 옮김)
 import { detectMix } from './prop-text-mix-detect.js';
 import {
   withTextSelection, getSavedTextSelection, clearTextSelection, spanExactlyCovering, applyStyleToRange,
@@ -606,28 +607,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
    *     토큰이 바뀌면 같이 따라온다(옛 판은 단추를 누른 순간 hex 가 굳었다).
    */
 
-  // 부분서식 잔재 정리: 지정 태그를 언랩하고, 지정 style prop 을 가진 span 을 벗긴다.
-  const _stripInlineResidue = (el, tagSel, styleProp) => {
-    if (!el) return;
-    if (tagSel) {
-      el.querySelectorAll(tagSel).forEach(n => {
-        const parent = n.parentNode;
-        while (n.firstChild) parent.insertBefore(n.firstChild, n);
-        parent.removeChild(n);
-      });
-    }
-    if (styleProp) {
-      el.querySelectorAll(`span[style*="${styleProp}"]`).forEach(sp => {
-        sp.style.removeProperty(styleProp);
-        const styleStr = sp.getAttribute('style') || '';
-        if (!styleStr.replace(/;|\s/g, '')) {
-          const parent = sp.parentNode;
-          while (sp.firstChild) parent.insertBefore(sp.firstChild, sp);
-          parent.removeChild(sp);
-        }
-      });
-    }
-  };
+  // 부분서식 잔재 정리(_stripInlineResidue)는 잎 모듈 prop-text-utils.js 한 벌이다 — 굵기·글꼴 전체 갈래(prop-text-wireup-font.js)도 같은 것을 쓴다.
 
   // btnId 버튼 하나를 «부분=execCommand / 전체=블록 인라인 스타일» 규약으로 배선한다.
   const wireInlineStyleBtn = ({ btnId, cmd, cmdVal = null, tagSel, styleProp, isOn, setOn, setOff }) => {

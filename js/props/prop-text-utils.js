@@ -45,3 +45,28 @@ export function fontChain(family) {
 export function _fontKey(fontValue) {
   return _fontDisplayName(String(fontValue || '')).toLowerCase();
 }
+
+// 부분서식 잔재 정리: 지정 태그를 언랩하고, 지정 style prop 을 가진 span 을 벗긴다.
+// (옛 자리: prop-text-wireup-text-edit.js 의 클로저 — t4-16 에서 굵기·글꼴 전체 갈래도 같은 규칙을 쓰려고 잎 모듈로 옮겼다.
+//  이 파일은 import 0 이라 누가 가져와도 순환이 생기지 않는다.)
+export function _stripInlineResidue(el, tagSel, styleProp) {
+  if (!el) return;
+  if (tagSel) {
+    el.querySelectorAll(tagSel).forEach(n => {
+      const parent = n.parentNode;
+      while (n.firstChild) parent.insertBefore(n.firstChild, n);
+      parent.removeChild(n);
+    });
+  }
+  if (styleProp) {
+    el.querySelectorAll(`span[style*="${styleProp}"]`).forEach(sp => {
+      sp.style.removeProperty(styleProp);
+      const styleStr = sp.getAttribute('style') || '';
+      if (!styleStr.replace(/;|\s/g, '')) {
+        const parent = sp.parentNode;
+        while (sp.firstChild) parent.insertBefore(sp.firstChild, sp);
+        parent.removeChild(sp);
+      }
+    });
+  }
+}
