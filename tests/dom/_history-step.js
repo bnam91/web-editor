@@ -35,8 +35,9 @@ async function readHistory(page) {
 }
 
 /** @returns {{label, dPos, dLen, seqNew, undoDPos, undoDLen, changed, restored, restoredRaw, topAction}} */
-/* ★beforeOnly — «앞 표본만» 찍는 조작(글자 편집 진입·슬라이더 mousedown·G15 ＋ 등 · 설계상 끝 표본이 없다).
- *   이 조작의 «끝 표본»은 설계상 undo 첫머리 체크포인트(DEF-01)다 — 그래서 A2 를 «구제가 정확히 한 번 일어난다»로 바꿔 단언한다:
+/* ★beforeOnly — «앞 표본만» 찍는 조작(슬라이더 mousedown·G15 ＋ 등) — 아직 끝 표본이 없는 자리(정본은 js/CLAUDE.md:32 양쪽 끝 · 남은 자리는 HISTORY-BOTH-ENDS-01).
+ *   (글자 편집 진입은 2026-10-22 W2D-08 이 끝 표본을 더해 이 목록에서 빠졌다.)
+ *   이 조작의 «끝 표본»은 지금은 undo 첫머리 체크포인트(DEF-01)가 대신한다 — 그래서 A2 를 «구제가 정확히 한 번 일어난다»로 바꿔 단언한다:
  *     undoDLen === 1 · undoDPos === 0(구제 칸을 쌓고 한 칸 내려옴). 앞 표본 자체는 A3 가 잰다 — 부르는 쪽이 조작 «앞»에
  *     날 변화(표본 없는 변화)를 두면 앞 표본이 그 상태를 쌓아야만 ⌘Z 가 거기서 멈춘다(빠지면 날 변화 전까지 간다 = A3 빨강). */
 async function expectOneUndoStep(page, action, label, { settleMs = 300, soft = false, beforeOnly = false } = {}) {
