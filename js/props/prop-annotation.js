@@ -85,6 +85,7 @@ function _writeProps(block, partial) {
   if ('dimShowExt'   in partial) block.dataset.dimShowExt   = partial.dimShowExt ? '1' : '0';
   if ('dimLabelLift' in partial) block.dataset.dimLabelLift = String(partial.dimLabelLift);
   if ('dimUnit'      in partial) block.dataset.dimUnit      = String(partial.dimUnit);
+  if ('dimExtStyle'  in partial) block.dataset.dimExtStyle  = String(partial.dimExtStyle);
   if ('labelMode' in partial) {
     const mode = partial.labelMode === 'image' ? 'image' : 'text';
     block.dataset.labelMode = mode;
@@ -277,7 +278,7 @@ ${blockHeaderHTML({
             <path d="M8 1.5 L10.5 4 L9.5 2.5 Z" fill="#888" stroke="none"/>
           </svg>`,
       name: block.dataset.layerName,
-      defaultName: 'Annotation',
+      defaultName: st.annotKind === 'dim' ? 'Dimension' : 'Annotation',   /* ★261021 현빈 — 치수선은 ★Annotation 이 아니다 */
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: id,
     })}
@@ -319,6 +320,9 @@ ${blockHeaderHTML({
         </div>
         <div class="prop-row">
           <label class="prop-label" style="cursor:pointer"><input type="checkbox" id="annot-dim-ext" ${st.dimShowExt ? 'checked' : ''}> 보조선</label>
+          <select class="prop-select" id="annot-dim-extstyle">
+            ${[['solid', '실선'], ['dashed', '대시'], ['dotted', '점선']].map(([v, n]) => `<option value="${v}"${st.dimExtStyle === v ? ' selected' : ''}>${n}</option>`).join('')}
+          </select>
         </div>
         <div class="prop-row">
           <span class="prop-label">간격</span>
@@ -533,6 +537,12 @@ ${blockHeaderHTML({
       const g = window.annotDimGeometry(st.points, { dimAxis: st.dimAxis });
       if (g) meas.textContent = `잰 길이 ${Math.round(g.len)}px (참고)`;
     }
+
+    const exs = propPanel.querySelector('#annot-dim-extstyle');
+    if (exs) exs.addEventListener('change', () => {
+      _writeProps(block, { dimExtStyle: exs.value });
+      window.pushHistory?.('보조선 선꼴');
+    });
 
     const ext = propPanel.querySelector('#annot-dim-ext');
     if (ext) ext.addEventListener('change', () => {
