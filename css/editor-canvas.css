@@ -527,6 +527,16 @@ body.gdt-pad-on .frame-block:not(.has-bg-opacity)[style*="--gdt-pad-l"]::before 
      바꾸는 좌우 쪽과 달리 여기선 건드릴 것이 없다.
    ⛔::after 는 쓸 수 없다 — hover fill(위 :285)과 선택 아웃라인(.selected::after, z-index 90)이
      이미 ::after 를 쓴다. ⇒ ::before 를 쓴다(센서스: .section-block::before 사용 0건).
+   ⚠️★★★정정(2026-10-22 지디) — ⛔위 「센서스: .section-block::before 사용 0건」은 ★★쓴 시점의 사실이고,
+     ★★★바로 아래 규칙(이 블록이 여는 그 규칙)이 ★그 센서스를 ★스스로 ★거짓으로 만들었다.
+     ⇒ ★지금 참값: `.section-block` ★자신의 `::before` ★임자 = ★★1(= 아래 규칙) · `::after` = ★6.
+     ⛔그러니 ★★«새 `.section-block::before` 를 더하지 마라» — 한 요소에 `::before` 는 ★하나뿐이고,
+       ★더 센 특이성(예: `#canvas …`)이 이기면 ★★이 패딩 띠가 ★★조용히 ★사라진다.
+     ★필요하면 ★빈 자리를 쓰라(2026-10-22 실측 · dev 38636b64 · 작업트리 grep):
+       `.section-inner::after` ★0 · `.sec-head::before/after` ★0 · `.section-toolbar::before/after` ★0
+       ⚠️단 `.section-inner` 는 ★`position: relative` 가 ★`body.gdt-pad-on` 에서만 선다(위 :494)
+         ⇒ ★포함블록이 ★모드에 따라 ★바뀐다. ★그 자리를 쓸 땐 ★그것부터 재라.
+     ⇒ ★★이 정정 줄은 ★«역사 문장»(위 센서스)을 ★★지우지 않는다 — ★그때 센 수는 ★그때 참이었다.
    ★`[style*="--gdt-pad-b"]` 가드 — 변수를 가진 섹션에만 의사요소를 만든다
      (바로 위 프레임 규칙이 쓰는 그 관용구와 같다). 변수가 없으면 띠도 상자도 생기지 않는다.
    ★색은 좌우와 «같은 변수»(--gdt-padhint-color)를 쓴다 — 패딩 띠는 하나의 개념이고,
