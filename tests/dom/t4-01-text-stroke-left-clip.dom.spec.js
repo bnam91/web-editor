@@ -15,6 +15,8 @@
 //   P2r 오른쪽 변도 같은 자로 사라진 px ≤ 1 (지디: 처방 overflow 류는 양쪽을 같이 푼다 — 오른쪽 전/후 수를 같이 낸다)
 //   줌 — 100%(⌘0) 와 40%(⌘0 뒤 줌 «−» 단추 6번) 둘: 스트로크 폭이 배율에 곱해져 잘리는 양이 다르다
 //   P3(지키는 칸) 프레임 data-clip-content="true"(사용자가 켠 자름)면 계속 잘린다: R_desel = 0
+//   P3b(지키는 칸) 반대편 — data-clip-content="false"(현빈 2026-09-28 의 «끔»)면 프레임이 이미 열려 획이 안 잘린다:
+//       overflow visible · R_desel > 0 · 사라진 px ≤ 1 (바닥에서도 초록 · 새 규칙이 끔 쪽을 망치지 않는다 · frame-clip-axis-roster R2 의 «끔 쪽 칸»)
 //   P4(지키는 칸) 둥근 텍스트 프레임(data-radius≠0)은 계속 자른다: R_desel = 0
 //   P5(지키는 칸) 외곽선 없는 텍스트 프레임은 overflow 가 그대로 hidden
 //   ⒜ 앱 길 값: 외부 두께 N → 글자칸 인라인 -webkit-text-stroke-width = 2N · paint-order «stroke fill» (진단의 손 값 6px = N 3 과 같은 꼴)
@@ -322,6 +324,23 @@ for (const g of [{ name: 'P3-clip-content', key: 'clipContent', val: 'true' }, {
     expect(des.R, `${g.name}: 경계 밖 스트로크 열 0`).toBe(0);
   });
 }
+
+test('T401 P3b-clip-off — 지키는 칸: 내용 자르기 끔이면 획이 안 잘린다', async ({ page }) => {
+  test.setTimeout(120000);
+  const errs = await boot(page);
+  const s = await scene(page);
+  await setStroke(page, { w: 8, align: 'outside' });
+  const sel = await measure(page, s.frId, s.tbId, 'P3b-clip-off-sel');
+  expect(await deselect(page), '전제: 선택이 다 풀렸다').toBe(true);
+  await page.evaluate((i) => { document.getElementById(i).dataset.clipContent = 'false'; }, s.frId);
+  expect(await pollTrue(page, (i) => getComputedStyle(document.getElementById(i)).overflow === 'visible', s.frId), 'P3b: 끔이면 프레임 overflow visible').toBe(true);
+  const des = await measure(page, s.frId, s.tbId, 'P3b-clip-off-desel');
+  log('P', { name: 'P3b-clip-off', R_sel: sel.R, R_desel: des.R, lost: sel.R - des.R, overflow: des.overflow });
+  expect(errs, '페이지 에러 0').toEqual([]);
+  expect(sel.R, '전제(자): 고른 상태에서 경계 밖 스트로크 열이 있다').toBeGreaterThan(0);
+  expect.soft(des.R, `P3b: 끔 · 선택 푼 뒤 경계 밖 스트로크 열 > 0 (R_desel ${des.R})`).toBeGreaterThan(0);
+  expect.soft(sel.R - des.R, `P3b: 사라진 px = ${sel.R} − ${des.R} ≤ 1`).toBeLessThanOrEqual(1);
+});
 
 test('T401 P5 — 지키는 칸: 외곽선 없는 텍스트 프레임은 overflow hidden 그대로', async ({ page }) => {
   test.setTimeout(120000);
