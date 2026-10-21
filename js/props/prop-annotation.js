@@ -43,6 +43,22 @@ const ANNOTATION_PRESETS = [
 ];
 
 // ── dataset → 정규화 상태 ─────────────────────────────────────────────
+/* ★★t3-01 — ★「크기」 칸은 ★`text`(라벨 글)를 ★만드는 ★도우미다. ⛔값을 ★따로 저장하지 않는다
+   — 그러면 ★라벨에 직접 친 글과 ★패널 값이 ★둘째 명부가 되어 ★어긋난다(현빈이 라벨을 ★직접 칠 수 있다).
+   ⇒ ★저장은 ★`text` ★하나 ＋ ★단위만 ★기억(dimUnit). */
+function _dimValOf(st) {
+  const t = String(st.text ?? '').trim();
+  if (!t || t === '수치입력') return '';
+  const u = String(st.dimUnit || '');
+  return (u && t.endsWith(u)) ? t.slice(0, -u.length).trim() : t;
+}
+function _dimTextOf(val, unit) {
+  const v = String(val ?? '').trim();
+  if (!v) return '수치입력';
+  const u = String(unit || '').trim();
+  return u ? v + u : v;
+}
+
 function _readState(block) {
   // ★1013t1A3-pre — rebindAll 과 «같은 한 벌»(js/blocks/annotation-block.js annotPropsFromDataset)
   return window.annotPropsFromDataset(block);
@@ -68,6 +84,7 @@ function _writeProps(block, partial) {
   if ('dimOver'      in partial) block.dataset.dimOver      = String(partial.dimOver);
   if ('dimShowExt'   in partial) block.dataset.dimShowExt   = partial.dimShowExt ? '1' : '0';
   if ('dimLabelLift' in partial) block.dataset.dimLabelLift = String(partial.dimLabelLift);
+  if ('dimUnit'      in partial) block.dataset.dimUnit      = String(partial.dimUnit);
   if ('labelMode' in partial) {
     const mode = partial.labelMode === 'image' ? 'image' : 'text';
     block.dataset.labelMode = mode;
@@ -271,6 +288,16 @@ ${blockHeaderHTML({
     <div class="prop-section" data-prop-panel="annot-dim">
       <div class="prop-section-title">치수선</div>
       <div class="prop-row">
+        <span class="prop-label">크기</span>
+        <input type="text" class="prop-text" id="annot-dim-val" placeholder="수치입력" value="${_dimValOf(st)}" style="flex:1;min-width:0">
+        <select class="prop-select" id="annot-dim-unit">
+          ${['mm', 'cm', 'm', 'inch', 'px', ''].map((u) => `<option value="${u}"${st.dimUnit === u ? ' selected' : ''}>${u || '(없음)'}</option>`).join('')}
+        </select>
+      </div>
+      <div class="prop-row">
+        <span class="prop-help" id="annot-dim-measured" style="opacity:.6;font-size:11px"></span>
+      </div>
+      <div class="prop-row">
         <span class="prop-label">방향</span>
         <div class="prop-align-group" id="annot-dim-axis">
           ${['auto', 'h', 'v'].map((a) => `<button class="prop-align-btn${st.dimAxis === a ? ' active' : ''}" data-axis="${a}" title="${a === 'auto' ? '두 점을 잇는 방향 그대로' : a === 'h' ? '가로로만 잰다' : '세로로만 잰다'}">${a === 'auto' ? '자동' : a === 'h' ? '가로' : '세로'}</button>`).join('')}
@@ -280,31 +307,31 @@ ${blockHeaderHTML({
         <summary class="prop-label" style="cursor:pointer;padding:4px 0">자세히</summary>
         <div class="prop-row">
           <span class="prop-label">치우침</span>
-          <input type="range" class="prop-slider" id="annot-dim-off" min="-200" max="200" step="1" value="\${st.dimOffset}">
-          <input type="number" class="prop-number" id="annot-dim-off-num" min="-200" max="200" step="1" value="\${st.dimOffset}">
+          <input type="range" class="prop-slider" id="annot-dim-off" min="-200" max="200" step="1" value="${st.dimOffset}">
+          <input type="number" class="prop-number" id="annot-dim-off-num" min="-200" max="200" step="1" value="${st.dimOffset}">
         </div>
         <div class="prop-row">
           <span class="prop-label">좌우</span>
-          <input type="range" class="prop-slider" id="annot-dim-slide" min="-200" max="200" step="1" value="\${st.dimSlide}">
-          <input type="number" class="prop-number" id="annot-dim-slide-num" min="-200" max="200" step="1" value="\${st.dimSlide}">
+          <input type="range" class="prop-slider" id="annot-dim-slide" min="-200" max="200" step="1" value="${st.dimSlide}">
+          <input type="number" class="prop-number" id="annot-dim-slide-num" min="-200" max="200" step="1" value="${st.dimSlide}">
         </div>
         <div class="prop-row">
-          <label class="prop-label" style="cursor:pointer"><input type="checkbox" id="annot-dim-ext" \${st.dimShowExt ? 'checked' : ''}> 보조선</label>
+          <label class="prop-label" style="cursor:pointer"><input type="checkbox" id="annot-dim-ext" ${st.dimShowExt ? 'checked' : ''}> 보조선</label>
         </div>
         <div class="prop-row">
           <span class="prop-label">간격</span>
-          <input type="range" class="prop-slider" id="annot-dim-gap" min="0" max="40" step="1" value="\${st.dimGap}">
-          <input type="number" class="prop-number" id="annot-dim-gap-num" min="0" max="40" step="1" value="\${st.dimGap}">
+          <input type="range" class="prop-slider" id="annot-dim-gap" min="0" max="40" step="1" value="${st.dimGap}">
+          <input type="number" class="prop-number" id="annot-dim-gap-num" min="0" max="40" step="1" value="${st.dimGap}">
         </div>
         <div class="prop-row">
           <span class="prop-label">넘침</span>
-          <input type="range" class="prop-slider" id="annot-dim-over" min="0" max="40" step="1" value="\${st.dimOver}">
-          <input type="number" class="prop-number" id="annot-dim-over-num" min="0" max="40" step="1" value="\${st.dimOver}">
+          <input type="range" class="prop-slider" id="annot-dim-over" min="0" max="40" step="1" value="${st.dimOver}">
+          <input type="number" class="prop-number" id="annot-dim-over-num" min="0" max="40" step="1" value="${st.dimOver}">
         </div>
         <div class="prop-row">
           <span class="prop-label">글 띄움</span>
-          <input type="range" class="prop-slider" id="annot-dim-lift" min="0" max="40" step="1" value="\${st.dimLabelLift}">
-          <input type="number" class="prop-number" id="annot-dim-lift-num" min="0" max="40" step="1" value="\${st.dimLabelLift}">
+          <input type="range" class="prop-slider" id="annot-dim-lift" min="0" max="40" step="1" value="${st.dimLabelLift}">
+          <input type="number" class="prop-number" id="annot-dim-lift-num" min="0" max="40" step="1" value="${st.dimLabelLift}">
         </div>
       </details>
     </div>` : ''}
@@ -485,6 +512,26 @@ ${blockHeaderHTML({
     pair('annot-dim-gap',   'dimGap',          0,  40, '보조선 간격');
     pair('annot-dim-over',  'dimOver',         0,  40, '보조선 넘침');
     pair('annot-dim-lift',  'dimLabelLift',    0,  40, '치수 글 띄움');
+    /* ★크기 ＋ 단위 — 둘 중 ★무엇이 바뀌어도 ★`text` 를 ★다시 만든다(한 자리) */
+    const dv = propPanel.querySelector('#annot-dim-val');
+    const du = propPanel.querySelector('#annot-dim-unit');
+    const applyDimText = () => {
+      _writeProps(block, { text: _dimTextOf(dv?.value, du?.value) });
+      if (du) _writeProps(block, { dimUnit: du.value });
+    };
+    if (dv) {
+      dv.addEventListener('input', applyDimText);
+      dv.addEventListener('change', () => window.pushHistory?.('치수 값'));
+    }
+    if (du) du.addEventListener('change', () => { applyDimText(); window.pushHistory?.('치수 단위'); });
+
+    /* ★잰 길이를 ★참고로 보여준다 — ⛔값을 ★자동으로 채우지 않는다(현빈이 ★실제 크기를 적는 칸이다) */
+    const meas = propPanel.querySelector('#annot-dim-measured');
+    if (meas && typeof window.annotDimGeometry === 'function') {
+      const g = window.annotDimGeometry(st.points, { dimAxis: st.dimAxis });
+      if (g) meas.textContent = `잰 길이 ${Math.round(g.len)}px (참고)`;
+    }
+
     const ext = propPanel.querySelector('#annot-dim-ext');
     if (ext) ext.addEventListener('change', () => {
       _writeProps(block, { dimShowExt: ext.checked });

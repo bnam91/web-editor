@@ -49,6 +49,7 @@ const ANNOT_DEFAULTS = {
      ★현빈 261021 2차: 「d점과 c점은 ★기준점으로 찍지만 ★치수선(a,b)를 놓고 봤을때 ★da, cb 의 길이는
        ★달라질수 있어」 ⇒ ★a·b 를 ★각각 끌 수 있어야 하므로 ★따로 저장한다.
      ★∅ 이면 ★치우침·좌우로 ★계산한다(③클릭 직후의 첫 자리 · 옛 저장본도 그 길로 간다). */
+  dimUnit:         'mm',         // ★단위만 기억한다 — ★값은 `text` 로 들어간다(⛔둘째 명부를 안 만든다)
   dimA:            null,
   dimB:            null,
 };
@@ -266,6 +267,13 @@ window.annotRedrawDim = function (block, st) {
     label.style.left = at[0] + 'px';
     label.style.top = at[1] + 'px';
     label.style.transform = 'translate(-50%,-50%)';
+    /* ★★t3-01 — ★글도 ★여기서 갱신한다. ⛔안 하면 ★패널로 고친 「120mm」가 ★화면에 ★안 뜬다
+       (치수선은 `_rerenderAnnotation` 의 ★아래 갈래를 ★안 타고 ★여기서 ★빠져나가기 때문이다).
+       ⛔편집 중(contenteditable=true)이면 ★건드리지 않는다 — ★타이핑을 ★덮어쓴다. */
+    if (label.getAttribute('contenteditable') !== 'true' && st.labelMode !== 'image') {
+      const want = String(st.text ?? '');
+      if ((label.textContent || '') !== want) label.textContent = want;
+    }
   }
   return true;
 };
@@ -438,6 +446,7 @@ function makeAnnotationBlock(opts = {}) {
   const dimGap     = opts.dimGap     ?? ANNOT_DEFAULTS.dimGap;
   const dimOver    = opts.dimOver    ?? ANNOT_DEFAULTS.dimOver;
   const dimLabelLift = opts.dimLabelLift ?? ANNOT_DEFAULTS.dimLabelLift;
+  const dimUnit = opts.dimUnit ?? ANNOT_DEFAULTS.dimUnit;
   const dimA = _annPtOf(opts.dimA);
   const dimB = _annPtOf(opts.dimB);
   const dimGeo = (isDim && typeof window !== 'undefined' && typeof window.annotDimGeometry === 'function')
@@ -465,6 +474,7 @@ function makeAnnotationBlock(opts = {}) {
     block.dataset.dimShowExt = dimShowExt ? '1' : '0';
     block.dataset.dimLabelLift = String(dimLabelLift);
     /* ⛔∅ 면 ★키를 ★안 단다 — 「아직 안 끌었다」와 「0,0 으로 끌었다」를 ★가른다 */
+    block.dataset.dimUnit = dimUnit;
     if (dimA) block.dataset.dimA = JSON.stringify(dimA); else delete block.dataset.dimA;
     if (dimB) block.dataset.dimB = JSON.stringify(dimB); else delete block.dataset.dimB;
   }
@@ -587,6 +597,7 @@ function annotPropsFromDataset(block) {
     dimOver:          _annNum(ds.dimOver,   D.dimOver),
     dimShowExt:       ds.dimShowExt === '0' ? false : D.dimShowExt,
     dimLabelLift:     _annNum(ds.dimLabelLift, D.dimLabelLift),
+    dimUnit:          ds.dimUnit || D.dimUnit,
     dimA:             _annPt(ds.dimA),
     dimB:             _annPt(ds.dimB),
   };
@@ -601,7 +612,7 @@ window.annotPropsFromDataset = annotPropsFromDataset;
 const ANNOT_DATA_KEYS = ['points', 'anchorX', 'anchorY', 'labelX', 'labelY', 'text', 'strokeColor', 'strokeWidth',
   'anchorShape', 'anchorSize', 'labelFontSize', 'labelColor', 'labelBg', 'labelBorderColor', 'labelMode',
   'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy', 'anchorRot', 'labelPad',
-  'annotKind', 'dimAxis', 'dimOffset', 'dimSlide', 'dimGap', 'dimOver', 'dimShowExt', 'dimLabelLift', 'dimA', 'dimB',
+  'annotKind', 'dimAxis', 'dimOffset', 'dimSlide', 'dimGap', 'dimOver', 'dimShowExt', 'dimLabelLift', 'dimUnit', 'dimA', 'dimB',
   'labelHtml'];   // ★1017t1h3 — 팩토리가 «맨 끝»에 쓴다(순서 = 팩토리 순서)
 window.ANNOT_DATA_KEYS = ANNOT_DATA_KEYS;
 

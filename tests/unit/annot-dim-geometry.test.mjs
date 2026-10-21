@@ -252,3 +252,33 @@ test('G1b ★부르는 자리 ＋ ★명부 — ⛔안 걸면 리로드에서 �
   assert.equal(keys.includes('ZZZ없는칸'), false, '★★명부 파싱이 죽었다 — 허수 칸을 ★있다고 한다');
   assert.ok(keys.length >= 24, `★명부가 ${keys.length}개다 — ★너무 적다(파싱이 잘렸다)`);
 });
+
+/* ═══ G2 ★패널 HTML 의 ★템플릿이 ★죽어 있지 않다 ════════════════════════════
+   ★★2026-10-21 실측 사고 — 내가 치수 절을 ★heredoc 으로 써 넣으면서 `\${…}` 로 ★이스케이프했고,
+     ★12 칸이 ★전부 ★글자 그대로 `${st.dimOffset}` 를 ★value 에 넣고 있었다.
+   ⚠️★그런데 ★내 실측은 ★「칸 7/7 있다」로 ★초록이었다 — ★★존재만 재고 ★값을 ★안 쟀다.
+   ⇒ ★★「칸이 ★있다」 ≠ 「칸이 ★맞는 값을 ★보여준다」. ★그 틈을 ★이 자가 막는다.
+   ★소스 게이트(약한 자)지만 ★이 사고 꼴은 ★소스에 ★그대로 남으므로 ★잡힌다. */
+test('G2 ★패널 소스에 ★죽은 템플릿(\\${…})이 ★0 건이다', () => {
+  const src = readRoot('js/props/prop-annotation.js');
+  const DEAD = /\\\$\{/g;
+  const hits = src.match(DEAD) || [];
+  assert.equal(hits.length, 0,
+    `★이스케이프된 템플릿이 ${hits.length} 건 — ★그 칸은 ★글자 그대로 「\${…}」를 ★화면에 낸다`);
+
+  /* ★★자 자신 — ★가짜 글에서 ★잡히는지 ★먼저 본다(⛔안 그러면 「0 건」이 ★「안 쟀다」와 구분 안 된다) */
+  assert.equal(('value="\\${st.dimOffset}"'.match(DEAD) || []).length, 1,
+    '★★자가 죽었다 — ★죽은 템플릿을 ★못 잡는다');
+  assert.equal(('value="${st.dimOffset}"'.match(DEAD) || []).length, 0,
+    '⛔음성대조 — ★살아 있는 템플릿을 ★잡는다');
+
+  /* ★전제 — 그 파일이 ★정말 템플릿을 ★쓰고 있다(앵커가 살아 있다) */
+  assert.ok((src.match(/\$\{st\./g) || []).length > 10,
+    '★전제: 패널이 ★st.* 템플릿을 ★여럿 쓴다 — ★0 이면 ★이 벌이 ★빈 글을 재고 있다');
+
+  /* ★치수 칸이 ★실제로 ★거기 있는지도 — ⛔이름이 바뀌면 ★위 전수가 ★다른 글을 잰다 */
+  for (const id of ['annot-dim-val', 'annot-dim-unit', 'annot-dim-off', 'annot-dim-gap',
+                    'annot-dim-over', 'annot-dim-lift', 'annot-dim-ext', 'annot-dim-axis']) {
+    assert.ok(src.includes(id), `★패널에 ★${id} 칸이 ★없다`);
+  }
+});
