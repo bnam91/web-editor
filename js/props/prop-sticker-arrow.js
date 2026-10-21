@@ -122,7 +122,9 @@ export function wireArrowSection(panel, block, rerender) {
     if (!s || !n) return;
     const apply = (v) => {
       v = Math.min(+s.max, Math.max(+s.min, Math.round(+v || 0)));
-      block.dataset[key] = String(v); s.value = v; n.value = v; redraw();
+      block.dataset[key] = String(v); s.value = v; n.value = v;
+      if (key === 'thickness') window._syncLineStickerPos?.(block);   // ★W2D-06d — 머리 높이 보정
+      redraw();
     };
     s.addEventListener('input', () => apply(s.value));
     n.addEventListener('input', () => apply(n.value));

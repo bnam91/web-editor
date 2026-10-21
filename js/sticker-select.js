@@ -250,6 +250,7 @@ function _bindHlbHandleDrag(handle, block, endpoint) {
         const proj = dx * ux + dy * uy;
         const next = Math.min(200, Math.max(1, Math.round(initThick + proj * 2)));
         block.dataset.thickness = String(next);
+        window._syncLineStickerPos?.(block);   // ★W2D-06d — 두께가 바뀌면 보정(두께/2)이 바뀐다
         window.renderStickerBlock?.(block);
         _addHlbHandles(block);   // 핸들 위치도 갱신(끝점 포함 — mk 가 처음부터 다시 그린다)
         // 우측 패널 슬라이더 동기화(선택된 상태에서 패널이 열려있으면 — js/props/prop-sticker.js:312-313)
@@ -289,6 +290,7 @@ function _bindHlbHandleDrag(handle, block, endpoint) {
       }
       block.dataset['x' + (endpoint === 'start' ? '1' : '2')] = String(Math.round(nx));
       block.dataset['y' + (endpoint === 'start' ? '1' : '2')] = String(Math.round(ny));
+      window._syncLineStickerPos?.(block);   // ★W2D-06d — 끝점 하나가 움직이면 상자(min)가 바뀐다
       window.renderStickerBlock?.(block);
       _addHlbHandles(block); // 핸들 위치도 갱신
     };
@@ -641,6 +643,7 @@ function bindStickerSelect(block) {
         block.dataset.y1 = String(Math.round(oy1 + dy));
         block.dataset.x2 = String(Math.round(ox2 + dx));
         block.dataset.y2 = String(Math.round(oy2 + dy));
+        window._syncLineStickerPos?.(block);   // ★W2D-06d — 끝점을 민 만큼 자리(dataset.x/y)도
         window.renderStickerBlock?.(block);
         // ★1013t2C4 — 그리기가 innerHTML 을 갈아 끼워 끝점 손잡이가 사라진다 → 골라져 있으면 다시 단다
         if (block.classList.contains('selected')) _addHlbHandles(block);

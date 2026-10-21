@@ -856,6 +856,7 @@ ${blockHeaderHTML({
         block.dataset.y2 = baseY + 20;
         block.dataset.thickness = block.dataset.thickness || 12;
         block.dataset.hlColor   = block.dataset.hlColor   || 'rgba(255, 235, 70, 0.7)';
+        window._syncLineStickerPos?.(block);   // ★W2D-06d — 끝점을 새로 박았으니 자리도 같은 식으로
       }
       rerender();
       window.pushHistory?.('스티커 모양'); window.scheduleAutoSave?.();
@@ -896,6 +897,7 @@ ${blockHeaderHTML({
     const apply = v => {
       v = Math.min(200, Math.max(1, v));
       block.dataset.thickness = v;
+      window._syncLineStickerPos?.(block);   // ★W2D-06d — 두께 보정
       rerender();
       s.value = Math.min(parseInt(s.max), v);
       n.value = v;
