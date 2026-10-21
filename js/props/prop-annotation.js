@@ -366,12 +366,12 @@ ${blockHeaderHTML({
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">시작점</div>
+      <div class="prop-section-title">${st.annotKind === 'dim' ? '양끝' : '시작점'}</div>
       <div class="prop-row">
         <div class="prop-align-group" id="annot-shape-group">${shapeBtns}</div>
       </div>
       <div class="prop-row">
-        <span class="prop-label">크기</span>
+        <span class="prop-label">${st.annotKind === 'dim' ? '길이' : '크기'}</span>
         <input type="range" class="prop-slider" id="annot-anchor-size" min="2" max="24" step="1" value="${st.anchorSize}">
         <input type="number" class="prop-number" id="annot-anchor-size-num" min="2" max="24" step="1" value="${st.anchorSize}">
       </div>
