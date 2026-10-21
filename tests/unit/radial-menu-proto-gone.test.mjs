@@ -3,11 +3,14 @@
  *   ⑴ 컴포넌트 드롭다운의 radial 관련 «버튼 줄»이 ★정확히 1개(addRadialBlock)
  *   ⑵ 그 버튼 이름 = "Radial" (Proto 접두 없음) · ★title 에도 「프로토」가 없다
  *   ⑶ RADIAL_DEFAULT_ITEMS 의 img 가 ★전부 '' — ★명부 구동(길이를 박지 않는다)
- *   ⑷ 그 명부의 label 은 ★남아 있다 (지디 판정 ⑶ · 라벨은 현빈 결정 대기)
+ *   ⑷′ 그 명부의 label 은 ★전부 '' · ⑷″ 비면 안내문구 «내용을 입력하세요» 를 그리는 줄(가운데 · 라벨 둘 다)이 ★살아 있다
+ *      ⚰️t4-03(현빈 원문) — 디폴트 값 0 ＋ 안내문구 유지. 2026-10-21 지디가 «대기»를 잘못 걸었다(원문 미독).
+ *      ⛔⑷′ 만으로는 «라벨이 비고 ★안내문구도 없어진» 판이 통과한다 ⇒ ⑷″ 를 따로 둔다.
  * ⛔항등식 방지 — index.html 을 읽어 「현재 값」을 기대값으로 삼지 않는다. 기대값은 이 파일에 문자로 박는다.
  * ⛔주석 오염 방지 — 메뉴 영역엔 다른 입구를 설명하는 ★주석 덩어리가 있다(Info/Inner Card 건).
  *    그래서 줄 추출은 ★`<button` 이 든 줄로만 한다(261007 교훈: 주석이 소스 파싱 게이트의 입력이 된다). */
 import { test } from 'node:test';
+import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -59,7 +62,7 @@ test('T1 실측 — radial 메뉴 버튼이 1개뿐이고 이름이 "Radial" · 
     'insertRadialArrangeFrame 버튼 줄이 0 이어야 한다');
 });
 
-test('T4 샘플 img 가 0개다 — ★명부 구동(길이를 박지 않는다) · label 은 ★남아 있다', () => {
+test('T4 샘플 img 가 0개다 — ★명부 구동(길이를 박지 않는다) · ⑷′ label 은 ★전부 \'\'', () => {
   const { declCount, entries, looseCount } = parseDefaultItems();
   assert.equal(declCount, 1, `★전제: RADIAL_DEFAULT_ITEMS 선언이 ★정확히 1개 — 실제 ${declCount}`);
   assert.ok(entries.length >= 1, `★전제: 항목을 ${entries.length}개 파싱했다 — 0이면 아래 「전부 비었다」가 ★공허하게 통과한다`);
@@ -70,9 +73,31 @@ test('T4 샘플 img 가 0개다 — ★명부 구동(길이를 박지 않는다)
   assert.equal(withImg.length, 0,
     `샘플 img 가 남았다 — ${entries.length}개 중 ${withImg.length}개: ${JSON.stringify(withImg)}`);
 
-  const emptyLabel = entries.filter(e => e.label.trim() === '');
-  assert.equal(emptyLabel.length, 0,
-    `★label 은 남겨야 한다(지디 판정 ⑶ · 현빈 결정 대기) — ${entries.length}개 중 ${emptyLabel.length}개가 비었다`);
+  const filled = entries.filter(e => e.label !== '');
+  assert.equal(filled.length, 0,
+    `⑷′ label 은 ★전부 '' 여야 한다(t4-03 현빈 원문 — 디폴트 값 0 ＋ 안내문구) — ${entries.length}개 중 ${filled.length}개에 글: ${JSON.stringify(filled)}`);
+});
+
+/* ⑷″ — 비면 안내문구를 그리는 줄이 산다. 주석은 ★걷고 센다(주석 속 옛 줄이 통과시키지 못하게 · 부품 _strip-comments.js 한 벌). */
+const { makeStripper } = createRequire(import.meta.url)('./_strip-comments.js');
+function radialCode() {
+  const src = readFileSync(path.join(ROOT, 'js/blocks/radial-block.js'), 'utf8');
+  const s = makeStripper();
+  return src.split('\n').map(l => s(l));
+}
+test('T4b ⑷″ 비면 안내문구를 그린다 — RADIAL_CENTER_PH 값 · 가운데 줄 · 라벨 span 줄(RADIAL_LABEL_PH = RADIAL_CENTER_PH)', () => {
+  const lines = radialCode();
+  assert.ok(lines.length > 100, `★전제: radial-block.js 를 읽었다 — ${lines.length}줄`);
+  const ph = lines.filter(l => /\bconst RADIAL_CENTER_PH\s*=/.test(l));
+  assert.equal(ph.length, 1, `★전제: RADIAL_CENTER_PH 선언 ★정확히 1 — 실제 ${ph.length}`);
+  assert.match(ph[0], /const RADIAL_CENTER_PH\s*=\s*'내용을 입력하세요'\s*;/, `RADIAL_CENTER_PH 값 = '내용을 입력하세요' — 실제 ${ph[0].trim()}`);
+  const lph = lines.filter(l => /\bconst RADIAL_LABEL_PH\s*=/.test(l));
+  assert.equal(lph.length, 1, `★전제: RADIAL_LABEL_PH 선언 ★정확히 1 — 실제 ${lph.length}`);
+  assert.match(lph[0], /const RADIAL_LABEL_PH\s*=\s*RADIAL_CENTER_PH\s*;/, `RADIAL_LABEL_PH 는 RADIAL_CENTER_PH 에서 온다 — 실제 ${lph[0].trim()}`);
+  const center = lines.filter(l => l.includes('data-is-placeholder="true" data-placeholder="${RADIAL_CENTER_PH}"'));
+  assert.ok(center.length >= 1, `가운데 안내문구 줄(data-is-placeholder · data-placeholder=\${RADIAL_CENTER_PH}) — 실제 ${center.length}줄`);
+  const label = lines.filter(l => l.includes('class="rdl-label-text"') && l.includes('data-is-placeholder="true" data-placeholder="${RADIAL_LABEL_PH}"'));
+  assert.equal(label.length, 1, `라벨 span 줄(.rdl-label-text + data-is-placeholder · data-placeholder=\${RADIAL_LABEL_PH}) ★정확히 1 — 실제 ${label.length}줄`);
 });
 
 /* ⛔항등식 방지 — 아래 고정문은 index.html 에서 읽어온 것이 ★아니라 수정 ★전 원문을 손으로 옮긴 것이다. */

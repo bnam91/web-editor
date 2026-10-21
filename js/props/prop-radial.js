@@ -10,9 +10,9 @@ import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { blockHeaderHTML, escHtml as _esc } from './_helpers.js';
 import {
-  radialStateOf, radialSetCount, radialCountLimits, RADIAL_LIMITS, RADIAL_DEFAULTS, RADIAL_ARC_PRESET, RADIAL_LOOK_KEYS,
+  radialStateOf, radialSetCount, RADIAL_LIMITS, RADIAL_DEFAULTS, RADIAL_ARC_PRESET, RADIAL_LOOK_KEYS,
   radialNormDeg, radialAutoDegs, radialItemIsManual, radialResetPlacement,
-  radialSanitizeSvg, radialCenterKeys, radialCenterSvg, radialCenterLabel, RADIAL_ICON_SVG_MAX,
+  radialSanitizeSvg, radialCenterKeys, radialCenterSvg, radialCenterLabel, RADIAL_ICON_SVG_MAX, radialSetCenterSel, radialNoteOpen,
 } from '../blocks/radial-block.js';
 
 const L = RADIAL_LIMITS;
@@ -108,9 +108,10 @@ function _markCell(block, sel) {
 export function showRadialProperties(block, idx) {
   if (!block || !propPanel) return;
   const G = window.RADIAL_GEOM, S = window.RADIAL_SAMPLES;
+  radialNoteOpen(block, idx);   // R1 — 캔버스 클릭 길이면 그리드 걸쇠를 걸고, 그 밖의 길이면 푼다(radial-block.js 머리 주석)
 
   // 다른 블럭으로 넘어오면 앞 블럭의 칸 선택을 지운다.
-  if (_lastBlock && _lastBlock !== block) { _lastBlock._rdlSel = -1; _markCell(_lastBlock, -1); }
+  if (_lastBlock && _lastBlock !== block) { _lastBlock._rdlSel = -1; _markCell(_lastBlock, -1); radialSetCenterSel(_lastBlock, false); }
   _lastBlock = block;
 
   const st = radialStateOf(block);
@@ -119,9 +120,11 @@ export function showRadialProperties(block, idx) {
   if (sel < 0 || sel >= st.count) sel = -1;
   block._rdlSel = sel;
   _markCell(block, sel);
+  /* t4-04b 가운데 고름 — 캔버스에서 «가운데를 눌러» 열린 길(칸 번호 없이 · mousedown 이 적은 표식)일 때만 선다. 그 밖의 길은 전부 푼다(낡은 선택 막기). */
+  radialSetCenterSel(block, sel < 0 && !Number.isInteger(idx) && block._rdlLastCenterHit === true);
+  block._rdlLastCenterHit = undefined;
 
   const isPoly = st.shape === 'poly', isArc = st.shape === 'arc', isDot = st.marker === 'dot';
-  const cntLim = radialCountLimits(st.shape);
   const lineOpts = isArc ? [['none', '없음'], ['orbit', '호'], ['spoke', '중심선 (바큇살)']] : _LINE_OPTS;
   const lineCur = (isArc && st.line === 'outline') ? 'orbit' : st.line;
   const off = 'opacity:0.4;pointer-events:none';
@@ -163,6 +166,7 @@ ${blockHeaderHTML({
         <button class="prop-count-btn" id="rdl-count-plus"${isPoly ? ` disabled style="${off}"` : ''}>+</button>
       </div>
       ${isPoly ? `<div class="prop-hint" style="padding:2px 8px;line-height:1.5">다각형은 항목 수가 <b>꼭짓점 수</b>로 고정됩니다 — 위에서 각 수를 고르세요.</div>` : ''}
+      <button class="prop-btn-full" id="rdl-reset-all" style="margin-top:6px"${anyManual ? '' : ' disabled'}>전체 자동 배치로 되돌리기</button>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Layout</div>
@@ -213,9 +217,6 @@ ${blockHeaderHTML({
       ${st.centerMode === 'none' ? '' : _pairRow('rdl-center', '크기', st.centerSize, L.centerSize)}
       ${st.centerMode === 'none' ? '' : _pairRow('rdl-centerdx', '가로 밀기', st.centerDx, L.centerDx)}
       ${st.centerMode === 'text' ? `
-      <div class="prop-row">
-        <textarea class="prop-textarea" id="rdl-center-textarea" rows="2" style="flex:1" placeholder="첫 줄은 작게, 다음 줄은 크게">${_esc(st.centerText)}</textarea>
-      </div>
       ${/* 블럭 배경(:192) 꼴 — 가운데 기본값만 'transparent' 라 먼저 '' 로 바꿔 같은 빈 값 표시(#ffffff)에 닿게 한다 */ _colorRow('rdl-center-bg', '배경', (st.centerBg === 'transparent' ? '' : st.centerBg) || '#ffffff', '#ffffff')}
       ${_colorRow('rdl-center-color', '글자 색', st.centerColor, RADIAL_DEFAULTS.centerColor)}` : ''}
       ${st.centerMode === 'image' ? `
@@ -236,20 +237,6 @@ ${blockHeaderHTML({
       ${_typeRow('굵기', 'rdl-labelweight', [['bold', '굵게'], ['normal', '보통']], st.labelWeight)}
       ${st.labelPos === 'inside' ? '' : _numRow('rdl-labelgap-number', '간격', st.labelGap, L.labelGap)}
       ${st.labelPos === 'outside' ? _numRow('rdl-labelwidth-number', '최대 폭', st.labelWidth, L.labelWidth) : ''}`}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Data</div>
-      <div class="grb-data-list" id="rdl-data-list">
-        ${st.items.map((it, i) => `
-          <div class="grb-data-item rdl-data-item${i === sel ? ' active' : ''}" data-index="${i}">
-            <span class="rdl-data-dot" title="이 칸 고르기">${it.img ? S.svg(it.img) : ''}</span>
-            <input type="text" class="grb-data-label-input" value="${_esc(it.label.replace(/\r?\n/g, ' ⏎ '))}" placeholder="라벨"${/\n/.test(it.label) ? ' readonly title="여러 줄 글 — 아래 「항목」 절에서 고칩니다"' : ''}>
-            <button class="grb-data-del-btn" data-index="${i}" title="이 항목 지우기"${st.count <= cntLim.min || isPoly ? ` disabled style="${off}"` : ''}>✕</button>
-          </div>`).join('')}
-      </div>
-      <button class="prop-btn-full" id="rdl-add-item"${st.count >= cntLim.max || isPoly ? ' disabled' : ''}>+ 항목 추가</button>
-      <button class="prop-btn-full" id="rdl-reset-all" style="margin-top:6px"${anyManual ? '' : ' disabled'}>전체 자동 배치로 되돌리기</button>
-      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">캔버스의 칸(또는 왼쪽 동그라미)을 누르면 그 칸의 <b>그림</b>을 고를 수 있습니다.</div>
     </div>
     ${selItem ? `
     <div class="prop-section" id="rdl-item-section">
@@ -420,9 +407,6 @@ ${blockHeaderHTML({
   wireNum('rdl-center', 'centerSize');
   wireNum('rdl-centerdx', 'centerDx');
   wireType('rdl-centerclip', [['circle'], ['none']], 'centerClip');
-  const ta = $("rdl-center-textarea");
-  ta?.addEventListener('input', () => { block.dataset.centerText = ta.value; rerender(); });
-  ta?.addEventListener('change', commit);
   if ($('rdl-center-bg-color')) {
     const cb = block.dataset.centerBg;
     wireColorField('rdl-center-bg', {
@@ -447,48 +431,7 @@ ${blockHeaderHTML({
   wireOnlyNum('rdl-labelwidth-number', 'labelWidth');
   wireType('rdl-labelweight', [['bold'], ['normal']], 'labelWeight');
 
-  // ── Data ──
-  const list = $('rdl-data-list');
-  const rowIdx = (el) => { const r = el?.closest?.('.rdl-data-item'); return r ? Number(r.dataset.index) : -1; };
-  list?.addEventListener('input', (e) => {
-    if (!e.target.matches('.grb-data-label-input') || e.target.readOnly) return;
-    const i = rowIdx(e.target);
-    const items = curItems();
-    if (!items[i]) return;
-    items[i].label = e.target.value;
-    setItems(items); rerender();
-    const one = $('rdl-item-label');
-    if (one && block._rdlSel === i) one.value = e.target.value;
-  });
-  list?.addEventListener('change', (e) => { if (e.target.matches('.grb-data-label-input')) commit(); });
-  list?.addEventListener('focusin', (e) => {
-    if (!e.target.matches('.grb-data-label-input')) return;
-    const i = rowIdx(e.target);
-    if (i < 0 || block._rdlSel === i) return;
-    const at = e.target.selectionStart;
-    reopen(i);
-    const again = document.querySelector(`#rdl-data-list .rdl-data-item[data-index="${i}"] .grb-data-label-input`);
-    again?.focus();
-    try { if (at != null) again?.setSelectionRange(at, at); } catch (_) {}
-  });
-  list?.addEventListener('click', (e) => {
-    const del = e.target.closest('.grb-data-del-btn');
-    if (del) {
-      const st2 = radialStateOf(block);
-      if (st2.shape === 'poly' || st2.count <= radialCountLimits(st2.shape).min) return;
-      const i = Number(del.dataset.index);
-      const items = st2.items;
-      items.splice(i, 1);
-      block.dataset.count = String(items.length);
-      setItems(items);
-      const cur = block._rdlSel ?? -1;
-      block._rdlSel = cur === i ? -1 : (cur > i ? cur - 1 : cur);
-      rerender(); reopen(); commit();
-      return;
-    }
-    if (e.target.closest('.rdl-data-dot')) reopen(rowIdx(e.target));
-  });
-  $('rdl-add-item')?.addEventListener('click', () => stepCount(1));
+  // ── 전체 자동 배치로 되돌리기(Shape 절 · t4-03 에서 Data 절을 걷으며 옮김) ──
   $('rdl-reset-all')?.addEventListener('click', () => {
     if (!radialResetPlacement(block)) return;
     rerender(); reopen(); commit();
@@ -501,8 +444,6 @@ ${blockHeaderHTML({
     if (!items[sel]) return;
     items[sel].label = one.value;
     setItems(items); rerender();
-    const inList = document.querySelector(`#rdl-data-list .rdl-data-item[data-index="${sel}"] .grb-data-label-input`);
-    if (inList) { inList.value = one.value.replace(/\r?\n/g, ' ⏎ '); inList.readOnly = /\n/.test(one.value); }
   });
   one?.addEventListener('change', commit);
   $('rdl-item-samples')?.addEventListener('click', (e) => {

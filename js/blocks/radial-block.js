@@ -21,20 +21,23 @@
  * 항목 아이콘은 샘플 키(items[i].img) 또는 붙여넣은 SVG(items[i].svg) — SVG 는 GRAPH_SHAPE.sanitizeShapeSvg(허용 목록 소독)를 지난 것만 그린다(그릴 때도 다시 지난다).
  * 항목 글은 «표기 원문»을 저장한다 — 줄바꿈 + 별표 둘로 감싼 굵게. 그릴 때 escHtml 을 먼저 하고 그 뒤에 b · br 두 태그만 만든다(주입 길 없음).
  * 유닛 계약: add 함수의 선언 꼴을 주석에 글자로 적지 않는다 · .row 는 한 번만 만들고 genId('row') · dataset.type 은 'radial' 하나 · add 몸통에 타이머 없음. */
-import { insertAfterSelected, genId, showNoSelectionHint } from '../drag-utils.js';
+import { insertAfterSelected, genId, showNoSelectionHint, mdlReadText } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import { escHtml } from '../props/_helpers.js';
 import '../radial-geom.js';
 import '../radial-samples.js';
 import '../radial-arc-geom.js';
 
+/* t4-03(2026-10-21 · 현빈 «Data로 디폴트로 들어가있는거 플레이스 홀더로, 내용을 입력하세요로 해줘»):
+ *   새 블럭 항목 글은 저장값 '' — 비어 있으면 그릴 때 안내문구(RADIAL_LABEL_PH)를 흐리게 그린다(가운데 글 · 인용구 블럭과 같은 표식).
+ *   ⚠️기본값만 바뀐다 — 이미 저장된 블럭의 글은 dataset 이 진실이라 그대로다. */
 const RADIAL_DEFAULT_ITEMS = Object.freeze([
-  { label: '피부 장벽 강화', img: '' },
-  { label: '72시간 보습', img: '' },
-  { label: '진정 케어', img: '' },
-  { label: '탄력 개선', img: '' },
-  { label: '톤 균형', img: '' },
-  { label: '저자극 테스트 완료', img: '' },
+  { label: '', img: '' },
+  { label: '', img: '' },
+  { label: '', img: '' },
+  { label: '', img: '' },
+  { label: '', img: '' },
+  { label: '', img: '' },
 ]);
 
 /* t4-02 · t4-04 앞(2026-10-21 · 현빈 원문 «선 색 … 점색과 통일» · «핵심효능 6가지 텍스트도 바꿔줘 · 6B4DE0 배경색도 없애줘»):
@@ -44,12 +47,13 @@ const RADIAL_DEFAULT_ITEMS = Object.freeze([
 const RADIAL_DOT_COLOR = '#c8cdd6';
 const RADIAL_TEXT_COLOR = '#222222';
 const RADIAL_CENTER_PH = '내용을 입력하세요';   /* 가운데 글 안내문구 — 비면 이것을 흐리게 그린다(저장 안 함 · quote-block QUOTE_DEFAULTS.ph 와 같은 말) */
+const RADIAL_LABEL_PH = RADIAL_CENTER_PH;       /* t4-03 항목 글 안내문구 — 같은 말 한 자리 */
 
 const RADIAL_DEFAULTS = Object.freeze({
   shape: 'circle', count: 6, radius: 250, startDeg: -90,
   line: 'orbit', lineColor: RADIAL_DOT_COLOR, lineStyle: 'dashed', lineWidth: 2, bg: '',
   cellSize: 160, cellShape: 'circle', cellRadius: 24, cellFill: '#e8e8e8',
-  centerMode: 'text', centerSize: 220, centerImg: 'bottle', centerClip: 'circle',
+  centerMode: 'text', centerSize: 220, centerImg: '', centerClip: 'circle',
   centerText: '', centerBg: 'transparent', centerColor: RADIAL_TEXT_COLOR,
   labelPos: 'below', labelSize: 16, labelColor: RADIAL_TEXT_COLOR, labelGap: 10,
   labelWidth: 96, labelWeight: 'bold',
@@ -222,10 +226,10 @@ function radialResetPlacement(block, idx) {
   return changed;
 }
 
-/** items 를 n 개로 맞춘다(모자라면 「항목 n」 빈 칸을 붙이고, 남으면 끝에서 자른다). */
+/** items 를 n 개로 맞춘다(모자라면 빈 글 칸을 붙이고 — 그릴 때 안내문구(t4-03) — 남으면 끝에서 자른다). */
 function _fitItems(items, n) {
   const out = items.slice(0, n);
-  while (out.length < n) out.push({ label: `항목 ${out.length + 1}`, img: '' });
+  while (out.length < n) out.push({ label: '', img: '' });
   return out;
 }
 
@@ -314,7 +318,7 @@ function radialArcLabelRects(st, sizes, maxWs) {
     const hasIcon = st.marker === 'dot' && !!(it.svg || it.img);
     const got = sizes && sizes[i];
     const sz = (got && got.w > 0 && got.h > 0) ? got : A.labelEstimate({
-      text: it.label, fontSize: st.labelSize, lineHeight: side ? 1.45 : 1.3, maxWidth: maxW,
+      text: _labelIsEmpty(it.label) ? RADIAL_LABEL_PH : it.label, fontSize: st.labelSize, lineHeight: side ? 1.45 : 1.3, maxWidth: maxW,
       iconSize: hasIcon ? st.iconSize : 0, iconGap: RADIAL_LABEL_ICON_GAP,
     });
     const dx = it.labelDx || 0, dy = it.labelDy || 0;
@@ -380,6 +384,8 @@ function _linePath(st, g) {
   return st.endDeg >= st.startDeg ? _arcPath(g.cx, g.cy, g.R, lo, hi) : _arcPath(g.cx, g.cy, g.R, hi, lo);
 }
 
+/** 항목 글이 비었나(공백뿐 포함) — 비면 안내문구를 그린다(t4-03). */
+function _labelIsEmpty(src) { return String(src ?? '').trim() === ''; }
 /** 항목 글(표기 원문) → 안전한 HTML. escHtml 뒤에 굵게(b)와 줄바꿈(br)만 만든다. */
 function radialLabelHTML(src) {
   return escHtml(String(src ?? '')).replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>').replace(/\r?\n/g, '<br>');
@@ -393,7 +399,9 @@ function _centerHTML(st, g) {
   const s = g.arc ? st.centerSize : Math.min(st.centerSize, Math.max(40, Math.round(2 * g.R - g.m * 0.5)));
   const box = `left:${_r2(g.cx + st.centerDx - s / 2)}px;top:${_r2(g.cy - s / 2)}px;width:${s}px;height:${s}px;`;
   if (st.centerMode === 'image') {
-    return `<div class="rdl-center rdl-center--image${st.centerClip === 'none' ? ' rdl-center--noclip' : ''}" style="${box}">${radialCenterSvg(st.centerImg)}</div>`;
+    /* t4-05(현빈 «샘플그림 안뜨게 해줘. 그냥 캔버스에서 채크패턴으로 떠두면 내가 넣으면 되잖아»): 그림 키가 없으면(새 기본 '') 그림 0 · 체크 무늬(css [data-rdl-empty]). */
+    const pic = (window.RADIAL_SAMPLES.has(st.centerImg) || _hasCenterPic(st.centerImg)) ? radialCenterSvg(st.centerImg) : '';
+    return `<div class="rdl-center rdl-center--image${st.centerClip === 'none' ? ' rdl-center--noclip' : ''}"${pic ? '' : ' data-rdl-empty="1"'} style="${box}">${pic}</div>`;
   }
   const lines = String(st.centerText).split(/\r?\n/).filter((l) => l.trim() !== '');
   const sub = lines.length > 1 ? lines[0] : '';
@@ -423,7 +431,9 @@ function _labelHTML(st, g, pt, it, i) {
   const pic = st.marker === 'dot' ? _itemPic(it) : '';
   const ico = pic
     ? `<span class="rdl-label-ico${it.svg && pic.includes('data-rdl-custom') ? ' rdl-label-ico--custom' : ''}" style="width:${st.iconSize}px;height:${st.iconSize}px">${pic}</span>` : '';
-  const body = `${ico}<span class="rdl-label-text">${radialLabelHTML(it.label)}</span>`;
+  /* t4-03: 글이 비면 안내문구 — 같은 span 하나에 표식(data-is-placeholder · 흐림은 editor-blocks.css · 캡처에선 capture-safety 가 숨긴다). 자식 span 은 늘 하나다. */
+  const lph = _labelIsEmpty(it.label);
+  const body = `${ico}<span class="rdl-label-text"${lph ? ` data-is-placeholder="true" data-placeholder="${RADIAL_LABEL_PH}"` : ''}>${lph ? RADIAL_LABEL_PH : radialLabelHTML(it.label)}</span>`;
   if (st.labelPos === 'below') {
     return `<div class="rdl-label rdl-label--below" style="${css}top:${m + st.labelGap}px;width:${Math.max(m + 40, 120)}px">${body}</div>`;
   }
@@ -529,6 +539,7 @@ if (typeof window !== 'undefined' && !window._rdlAltLabelBound) {
   window._rdlAltLabelBound = true;
   window.addEventListener('mousedown', (e) => {
     if (!e.altKey || e.button !== 0 || e._altLayerSelect) return;
+    if (e.target?.closest?.('[contenteditable="true"]')) return;   // t4-03 편집 중 글 안 — 캐럿·글자 고르기가 먼저
     const label = e.target?.closest?.('.radial-block.selected .rdl-cell-selected .rdl-label');
     if (!label) return;
     const itemEl = label.closest('[data-rdl-idx]'), block = label.closest('.radial-block');
@@ -541,17 +552,226 @@ if (typeof window !== 'undefined' && !window._rdlAltLabelBound) {
   }, true);
 }
 
+/* t4-04b 가운데 표식(_rdlLastCenterHit)의 수명 — 그 누름에 이어지는 click 한 번에만 쓰인다.
+ *   click 은 mouseup 과 같은 task 에서 나고(공용 클릭 고리가 거기서 showRadialProperties 를 부른다) setTimeout 0 은 그 뒤에 돈다.
+ *   끌기(dragstart) · 다음 누름(어느 곳이든 — 레이어 패널 포함)은 바로 무효. ⇒ 레이어 패널 · 키 · 다른 길로 열린 패널은 표식을 못 본다(plan-b §5 «레이어 패널 길은 false»). */
+let _rdlMarked = null, _rdlMarkSeq = 0;
+function _rdlCenterMark(block) { _rdlMarked = block; _rdlMarkSeq++; }
+function _rdlDropCenterMark(seq) {
+  if (!_rdlMarked || (typeof seq === 'number' && seq !== _rdlMarkSeq)) return;
+  _rdlMarked._rdlLastCenterHit = undefined;
+  _rdlMarked._rdlPressLive = undefined;
+  _rdlMarked = null;
+}
+if (typeof window !== 'undefined' && !window._rdlCenterMarkBound) {
+  window._rdlCenterMarkBound = true;
+  window.addEventListener('mousedown', () => _rdlDropCenterMark(), true);   // 새 누름 — 블럭 capture 보다 먼저 돈다(그 블럭이 다시 적는다)
+  window.addEventListener('dragstart', () => _rdlDropCenterMark(), true);   // 끌기 = click 아님
+  window.addEventListener('mouseup', () => { if (_rdlMarked) { const q = _rdlMarkSeq; setTimeout(() => _rdlDropCenterMark(q), 0); } }, true);
+}
+
+/* t4-04b R1 · R2 (eval-b2 D1 · D2) — 가운데 드릴(첫 클릭 = 블럭 · 다음 클릭 = 가운데)은 그리드 T-058 «드릴다운 걸쇠»를 «부른다»(사본 0).
+ *   걸쇠 정본 = js/props/prop-grid.js:122-135 grdMarkCanvasDrill / grdWasCanvasDrilled / grdResetCanvasDrill(window 로 내놓음 · :168-171).
+ *     그 주석: «캔버스 클릭이 아닌» 선택(Esc · 레이어 패널 · 정본 패널표 · MCP selectBlock)이 걸쇠를 못 풀면 «사용자에겐 첫» 캔버스 클릭이 곧바로 내려간다 → ⌫ 가 엉뚱한 것을 지운다.
+ *   단독 선택 = prop-grid.js:115 grdIsSoleSelected(정본) — block-drag.js:72 _isSoleSelectedBlock 이 감싸 부르는 바로 그 함수다(같은 뜻 · 부재 시 false = 블럭 고름 쪽).
+ *   ⛔block-drag.js:84 `_gridWasCanvasSelected`(= grdWasCanvasDrilled && _isSoleSelectedBlock) 자체는 못 부른다 — 그 모듈 안 지역 함수(export · window 0)이고 block-drag.js 는 이 덩이 무접촉이다.
+ *     그래서 그 «곱»만 여기서 두 정본 함수로 다시 쓴다(걸쇠 상태는 prop-grid 한 곳 · 여기 사본 0).
+ *   거는 자리 = 패널이 «이 블럭의 캔버스 누름에 이어진 click» 으로 열릴 때(그리드는 block-drag.js:2495 가 걸지만 그 줄은 그리드 전용이라 radial 은 여기서 건다).
+ *   푸는 자리 = 패널이 그 밖의 길(레이어 패널 · 삽입 직후 selectBlock · panel-dispatch · MCP)로 열릴 때 · 걸린 블럭의 고름이 풀릴 때(아래 관찰자).
+ *   «이 click 이 캔버스 누름에서 왔나»는 위 표식과 같은 수명(그 누름의 click 한 번)의 _rdlPressLive 로 가린다. */
+function _rdlCanvasDrilled(block) {
+  return !!window.grdWasCanvasDrilled?.(block) && !!window.grdIsSoleSelected?.(block);
+}
+/** 패널(showRadialProperties) 머리에서 부른다 — idx 가 정수(패널 안 다시 열기 · 끌기 끝 · 편집 커밋)면 걸쇠를 안 만진다. */
+function radialNoteOpen(block, idx) {
+  if (!block || Number.isInteger(idx)) return;
+  if (block._rdlPressLive === true) window.grdMarkCanvasDrill?.(block);
+  else window.grdResetCanvasDrill?.();
+}
+
+/* t4-04b «보이는 고리 = ⌫ 가 하는 일» 맞추기(E5 · eval-b).
+ *   ⌘D · 붙여넣기는 DOM 을 통째로 베끼므로 고리 클래스는 따라가고 _rdlCenterSel(밑줄 프로퍼티)은 안 따라간다.
+ *   규율: «고르기 상태는 사본에 안 따라간다» — 줌 블럭 _zoomPicked(사람이 집어 둔 앵커 · tests/dom/duplicate-zoom.dom.spec.js:16 · :103 · :168)와 같다.
+ *   ⇒ 사본에서는 고리를 걷는다. 원본은 블럭 고름이 풀리면(.selected 빠짐) 가운데 고름도 푼다. editor.js · block-drag.js 무접촉 — 캔버스 관찰로 맞춘다. */
+function _rdlSyncCenterSel(block) {
+  if (!block.classList.contains('selected') && window.grdWasCanvasDrilled?.(block)) window.grdResetCanvasDrill?.();   // R1 — 고름이 풀리면 걸쇠도 푼다
+  if (block._rdlCenterSel === true) { if (!block.classList.contains('selected')) radialSetCenterSel(block, false); return; }
+  if (block.querySelector('.rdl-center-cell-selected')) radialSetCenterSel(block, false);
+}
+function _rdlWatchCenterSel() {
+  if (window._rdlCenterSelObs || typeof MutationObserver === 'undefined') return;
+  const root = document.getElementById('canvas');
+  if (!root) return;
+  window._rdlCenterSelObs = new MutationObserver((recs) => {
+    const hit = new Set();
+    for (const r of recs) {
+      if (r.type === 'attributes') { if (r.target.classList?.contains('radial-block')) hit.add(r.target); continue; }
+      for (const n of r.addedNodes) {
+        if (n.nodeType !== 1) continue;
+        if (n.classList.contains('radial-block')) hit.add(n);
+        n.querySelectorAll('.radial-block').forEach((b) => hit.add(b));
+      }
+    }
+    hit.forEach((b) => { if (b.isConnected) _rdlSyncCenterSel(b); });
+  });
+  window._rdlCenterSelObs.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+}
+
 function _bindCellHit(block) {
+  _rdlWatchCenterSel();
   if (block._rdlBound) return;
   block._rdlBound = true;
   // 캔버스에서 어느 칸을 눌렀는지 적어 둔다 — 공용 클릭 루프가 패널을 열 때 패널이 읽는다(block-drag.js 에 전용 분기를 안 넣는 길).
   block.addEventListener('mousedown', (e) => {
+    if (e.target?.closest?.('[contenteditable="true"]')) return;   // t4-03 편집 중 글 안 — 끌기(preventDefault)로 가면 캐럿이 안 선다
     const hit = e.target?.closest?.('[data-rdl-idx]');
     const idx = (hit && block.contains(hit)) ? Number(hit.dataset.rdlIdx) : -1;
+    if (e.button === 0) { block._rdlPressLive = true; _rdlCenterMark(block); }   // R1 — 이 누름의 click 이 패널을 열면 그때 걸쇠를 건다(radialNoteOpen)
+    /* t4-03 편집 중 host «밖»을 누르면(칸 끌기 · 다른 칸) 편집을 먼저 끝낸다 — 친 글은 blur → _radialEndEdit 가 쓴다.
+     * 이 누름으로 끌기는 시작하지 않는다(편집 host 가 다시 그리기로 떨어져 나갈 때 blur 안에서 innerHTML 이 겹치던 E10 · eval-b).
+     * 겹① — E10-G1 이 잰다(⒝-3 실측: 이 겹만 뺀 사본에서 E10-G1 ㉯ 빨강 · 항목 1 에 deg 가 생김 · E10 · Z-E10c 는 초록) · 별건 E10-GUARD1-NO-CONSUMER-01 · ⛔지우지 마라(안 닿는다 ≠ 죽음). */
+    if (block.classList.contains('editing')) {
+      const h = block.querySelector('[contenteditable="true"]');
+      if (h) { e.preventDefault(); h.blur(); return; }
+    }
     block._rdlLastHit = idx;
+    /* t4-04b 가운데 고르기 — 가운데를 눌렀는지 적어 두고(패널이 열 때 읽어 _rdlCenterSel 로 옮긴다), 가운데 밖이면 바로 푼다(낡은 선택 막기).
+     * ★첫 클릭 = 블럭 고르기 · 블럭이 «이미» 골라져 있을 때만 가운데를 고른다 — 항목 끌기(:_startItemDrag 머리 «첫 클릭은 고르기»)와 같은 두 단
+     *   (prop-grid.js 피그마식 드릴다운 «첫 클릭=블럭 · 다음 클릭=줄» · 현빈 1012t1G1 «첫클릭은 블럭 선택» · E2 · eval-b).
+     * 표식의 수명은 «그 누름의 click 한 번» 이다 — 아래 _rdlCenterMark 가 끌기 · 다음 누름 · mouseup 뒤에 무효로 만든다(E15 · 지금은 모든 왼 누름에 건다 — R1 의 _rdlPressLive 도 같은 수명).
+     * ★R1 · R2(eval-b2) — «이미 골라져 있다»만으로는 모자란다: 그 고름을 «캔버스 클릭»이 세웠고(그리드 걸쇠 · 레이어 패널 · 삽입 직후는 아니다) 단독 선택일 때만이다
+     *   (prop-grid.js:122-131 · block-drag.js:84 `_gridWasCanvasDrilled = grdWasCanvasDrilled && _isSoleSelectedBlock` · 항목 끌기의 `_rdlSel === idx` 가 같은 걸쇠 노릇 — 레이어 길은 _rdlSel −1). */
+    const onCenter = !!(e.target?.closest?.('.rdl-center') && idx < 0 && block.classList.contains('selected') && _rdlCanvasDrilled(block));
+    block._rdlLastCenterHit = onCenter;
+    if (!onCenter) radialSetCenterSel(block, false);
     if (e.button !== 0 || idx < 0) return;
     if (!block.classList.contains('selected') || block._rdlSel !== idx) return;
     _startItemDrag(block, hit, idx, e);
+  }, true);
+  block.addEventListener('dblclick', (e) => _onRadialDblclick(block, e));
+}
+
+/* ── t4-03 · t4-04b 캔버스에서 바로 고치기(라벨 · 가운데 글) ────────────────────────────
+ * 인용구 블럭 dblclick(block-drag.js isQuote · _quoteEndEdit)과 같은 규율:
+ *   들어갈 때 — 블럭에 editing(클래스는 classList 로만) · host contenteditable · draggable=false(부모 row 가 draggable) · 원문을 «줄당 div» 로 보인다(** · 줄바꿈 그대로).
+ *     안내문구였으면 글을 통째로 골라 둔다(치면 바로 바뀐다).
+ *   나올 때(blur · Escape) — mdlReadText(drag-utils.js 한 벌)로 읽는다. 안내문구를 손 안 댔거나 같은 글이면 쓰지 않고 다시 그리기만 한다.
+ *     바뀌었으면 편집 전 그림으로 되돌린 뒤 ensureHistoryCheckpoint → dataset 쓰기 → 그리기 → (고른 블럭이면 패널 다시) → pushHistory ⇒ ⌘Z 한 걸음.
+ *   가운데 글은 첫 줄 = 작은 글(sub) · 나머지 = 큰 글(main) — _centerHTML 규칙 그대로(이 파일은 저장값만 쓴다). */
+function _editTarget(block, n) {
+  const lab = n?.closest?.('.rdl-label');
+  if (lab && block.contains(lab)) {
+    const host = lab.querySelector('.rdl-label-text'), item = lab.closest('[data-rdl-idx]');
+    if (host && item) return { host, kind: 'label', idx: Number(item.dataset.rdlIdx) };
+  }
+  const c = n?.closest?.('.rdl-center--text');
+  if (c && block.contains(c)) return { host: c, kind: 'center', idx: -1 };
+  return null;
+}
+function _onRadialDblclick(block, e) {
+  const t = _editTarget(block, document.elementFromPoint(e.clientX, e.clientY)) || _editTarget(block, e.target);
+  if (!t) return;
+  e.stopPropagation();
+  const { host, kind, idx } = t;
+  if (host.getAttribute('contenteditable') === 'true') return;
+  const st = radialStateOf(block);
+  if (kind === 'label' && !st.items[idx]) return;
+  const raw = kind === 'label' ? st.items[idx].label : st.centerText;
+  const wasPh = String(raw).trim() === '';
+  if (kind === 'center') {
+    const main = host.querySelector('.rdl-center-main');
+    if (main) { const cs = getComputedStyle(main); host.style.fontSize = cs.fontSize; host.style.fontWeight = cs.fontWeight; }
+  }
+  host.removeAttribute('data-is-placeholder');
+  host.querySelectorAll('[data-is-placeholder]').forEach((el) => el.removeAttribute('data-is-placeholder'));
+  const lines = wasPh ? [RADIAL_LABEL_PH] : String(raw).split(/\r?\n/);
+  host.innerHTML = lines.length > 1 ? lines.map((l) => `<div>${escHtml(l) || '<br>'}</div>`).join('') : escHtml(lines[0]);
+  block.classList.add('editing');            // 공용 클릭 고리 · 공용 mousedown · 폭 관찰이 이걸 본다
+  host.setAttribute('contenteditable', 'true');
+  host.setAttribute('draggable', 'false');
+  host._rdlEdit = { kind, idx, raw, wasPh };
+  host.addEventListener('blur', () => _radialEndEdit(block, host), { once: true });
+  if (!host._rdlKeyBound) {
+    host._rdlKeyBound = true;
+    host.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); host.blur(); }
+    });
+  }
+  host.focus();
+  const sel = window.getSelection();
+  if (!sel) return;
+  sel.removeAllRanges();
+  const r = document.createRange();
+  if (wasPh) r.selectNodeContents(host);       // 안내문구면 통째로 고름 → 치면 바로 바뀐다
+  else {
+    const cr = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
+    if (cr && host.contains(cr.startContainer)) { sel.addRange(cr); return; }
+    r.selectNodeContents(host); r.collapse(false);
+  }
+  sel.addRange(r);
+}
+function _radialEndEdit(block, host) {
+  const ed = host._rdlEdit;
+  host._rdlEdit = null;
+  host.removeAttribute('draggable');
+  host.setAttribute('contenteditable', 'false');
+  block.classList.remove('editing');
+  if (!ed) return;
+  let text = mdlReadText(host);
+  if (text.trim() === '' || (ed.wasPh && text.trim() === RADIAL_LABEL_PH)) text = '';   // 안내문구를 손 안 댔으면 굳히지 않는다
+  /* 다시 그리는 중이면(_paintRadial 의 innerHTML 이 host 를 떼며 blur 가 났다) 여기서 또 그리지 않는다 — 겹친 innerHTML 은
+   * NotFoundError «moved in a 'blur' event handler» 를 낸다(E10 · eval-b). 글은 지금 읽어 두고 그 그리기가 끝난 뒤 쓴다. */
+  if (block._rdlPainting) { queueMicrotask(() => _radialCommitEdit(block, ed, text)); return; }
+  _radialCommitEdit(block, ed, text);
+}
+function _radialCommitEdit(block, ed, text) {
+  if (!block.isConnected) return;
+  renderRadialBlock(block);                    // 편집 전 그림으로(dataset 은 아직 그대로)
+  if (text === ed.raw) return;
+  window.ensureHistoryCheckpoint?.(ed.kind === 'label' ? '라벨 편집 전' : '가운데 글 편집 전');
+  if (ed.kind === 'label') {
+    const items = radialItemsOf(block);
+    if (!items[ed.idx]) return;
+    items[ed.idx].label = text;
+    block.dataset.items = JSON.stringify(items);
+  } else block.dataset.centerText = text;
+  renderRadialBlock(block);
+  if (block.classList.contains('selected')) { try { window.showRadialProperties?.(block, Number.isInteger(block._rdlSel) ? block._rdlSel : -1); } catch (_) {} }
+  window.pushHistory?.(ed.kind === 'label' ? '라벨 편집' : '가운데 글 편집');
+  window.scheduleAutoSave?.();
+}
+
+/* ── t4-04b 가운데 고르기 · ⌫ = 가운데 «없음» ─────────────────────────────────────
+ * 가운데를 누르면 그 블럭의 가운데가 «골라진» 상태다(_rdlCenterSel · 고리 = 항목 고리와 같은 토큰).
+ *   고리 클래스 rdl-center-cell-selected 는 직렬화의 런타임 표식 규칙(-cell-selected · section-serialize.js)이 벗긴다 ⇒ 저장본 · 히스토리에 안 실린다(항목 rdl-cell-selected 와 같은 꼴).
+ *   풀리는 때: 가운데 밖 mousedown · 패널이 «가운데를 안 누른» 길로 열릴 때(레이어 패널 · 항목 · 다른 블럭).
+ * ⌫/Delete 는 document capture 에서 먼저 받는다(comparison-img-edit.js 의 칸 비우기와 같은 꼴 · editor.js 무접촉).
+ *   먹는 조건이 하나라도 어긋나면 손대지 않는다 → 전역 «블럭 삭제» 그대로. */
+function radialSetCenterSel(block, on) {
+  if (!block) return;
+  block._rdlCenterSel = !!on;
+  block.querySelectorAll('.rdl-center').forEach((c) => c.classList.toggle('rdl-center-cell-selected', !!on));
+}
+if (typeof document !== 'undefined' && !window._rdlCenterKeyBound) {
+  window._rdlCenterKeyBound = true;
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Backspace' && e.key !== 'Delete') return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const typing = (el) => !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName || ''));
+    if (typing(document.activeElement) || typing(e.target)) return;
+    const sel = document.querySelectorAll('#canvas .radial-block.selected');
+    if (sel.length !== 1 || document.querySelector('#canvas .multi-selected')) return;
+    const block = sel[0];
+    if (block._rdlCenterSel !== true || !block.querySelector('.rdl-center') || block.classList.contains('editing')) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    window.ensureHistoryCheckpoint?.('가운데 지우기 전');
+    block.dataset.centerMode = 'none';
+    radialSetCenterSel(block, false);
+    renderRadialBlock(block);
+    try { window.showRadialProperties?.(block, -1); } catch (_) {}
+    window.pushHistory?.('가운데 지우기');
+    window.scheduleAutoSave?.();
   }, true);
 }
 
@@ -589,7 +809,7 @@ function _watchArcWidth(block, on) {
 function _onArcWidth(block) {
   if (!block.isConnected || block.dataset.shape !== 'arc') { _watchArcWidth(block, false); return; }
   const w = block.clientWidth;
-  if (!(w > 0) || w === block._rdlW || block._rdlDragging) return;
+  if (!(w > 0) || w === block._rdlW || block._rdlDragging || block.classList.contains('editing')) return;   // 편집 중 다시 그리면 host 가 떨어져 나간다
   const tip = window.getHistoryTip?.();
   if (tip && tip.pos < tip.len - 1) return;
   renderRadialBlock(block);
@@ -638,13 +858,16 @@ function _paintRadial(block, st, g) {
 
   const box = g.arc ? `width:100%;height:${g.H}px` : `width:${g.W}px;height:${g.H}px`;
   const fitAttr = g.arc ? ` data-rdl-fit="${g.fits ? 1 : 0}" data-rdl-shrunk="${g.shrunk}" data-rdl-shift="${g.shift}"` : '';
-  block.innerHTML = `<div class="rdl-stage${g.arc ? ' rdl-stage--arc' : ''}" data-rdl-r="${g.R}" data-rdl-cx="${g.cx}" data-rdl-cy="${g.cy}"${fitAttr} style="${box}">`
+  const html = `<div class="rdl-stage${g.arc ? ' rdl-stage--arc' : ''}" data-rdl-r="${g.R}" data-rdl-cx="${g.cx}" data-rdl-cy="${g.cy}"${fitAttr} style="${box}">`
     + `<svg class="rdl-lines" viewBox="0 0 ${g.W} ${g.H}" width="${g.W}" height="${g.H}" aria-hidden="true">`
     + `<path class="rdl-line" d="${d}" fill="none" stroke="${st.lineColor}" stroke-width="${st.lineWidth}" stroke-linecap="${g.arc ? RADIAL_ARC_LINECAP : 'round'}"${dash}/>`
     + `</svg>`
     + _centerHTML(st, g)
     + itemsHTML
     + `</div>`;
+  block._rdlPainting = true;   // 이 사이 편집 host 의 blur 가 다시 그리기를 겹치지 않게(_radialEndEdit)
+  try { block.innerHTML = html; } finally { block._rdlPainting = false; }
+  if (block._rdlCenterSel) radialSetCenterSel(block, true);   // 다시 그려도 가운데 고름 고리는 남는다
 }
 
 function makeRadialBlock(opts = {}) {
@@ -742,8 +965,8 @@ window.renderRadialBlock = renderRadialBlock;
 
 export {
   makeRadialBlock, addRadialBlock, renderRadialBlock,
-  radialStateOf, radialItemsOf, radialSetCount, radialLayoutOf, radialArcSpec, radialArcLabelRects, radialArcLabelMaxW, RADIAL_ARC_PAD, RADIAL_ARC_PAD_LEFT, radialCountLimits, radialLabelHTML,
+  radialStateOf, radialItemsOf, radialSetCount, radialSetCenterSel, radialNoteOpen, radialLayoutOf, radialArcSpec, radialArcLabelRects, radialArcLabelMaxW, RADIAL_ARC_PAD, RADIAL_ARC_PAD_LEFT, radialCountLimits, radialLabelHTML,
   radialNormDeg, radialAutoDegs, radialDegsOf, radialItemIsManual, radialResetPlacement,
   radialSanitizeSvg, radialCenterKeys, radialCenterSvg, radialCenterLabel, RADIAL_CENTER_PICS, RADIAL_ICON_SVG_MAX,
-  RADIAL_DEFAULTS, RADIAL_DOT_COLOR, RADIAL_TEXT_COLOR, RADIAL_CENTER_PH, RADIAL_LIMITS, RADIAL_LINES, RADIAL_LABEL_POS, RADIAL_CENTER_MODES, RADIAL_SHAPES, RADIAL_ARC_PRESET, RADIAL_LOOK_KEYS, RADIAL_ARC_DEFAULT_ITEMS,
+  RADIAL_DEFAULTS, RADIAL_DOT_COLOR, RADIAL_TEXT_COLOR, RADIAL_CENTER_PH, RADIAL_LABEL_PH, RADIAL_LIMITS, RADIAL_LINES, RADIAL_LABEL_POS, RADIAL_CENTER_MODES, RADIAL_SHAPES, RADIAL_ARC_PRESET, RADIAL_LOOK_KEYS, RADIAL_ARC_DEFAULT_ITEMS,
 };
