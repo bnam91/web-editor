@@ -8,7 +8,7 @@
  *
  * 칸:
  *   ⒜ 일부러 빨강인 검사 하나 → 래퍼 rc ≠ 0   (변이 대조: `process.exit(r.status ?? 1)` → `process.exit(0)` 사본에서 빨강)
- *   ⒝ GOYA_TEST_CONCURRENCY = abc · 0 · -1 · 1.5 → rc 2   (변이 대조: exit 2 줄 지운 사본에서 빨강)
+ *   ⒝ GOYA_TEST_CONCURRENCY = abc · 0 · 1.5 · -1 · (빈 문자열) → 칸마다 rc 2   (변이 대조: exit 2 줄 지운 사본 · 빈 문자열을 기본으로 받는 사본에서 빨강)
  *   ⒞ 동시도 = «겹침 수» k — 400ms 쉬는 검사 파일 6 개의 [t0,t1] 구간 최대 동시 겹침을 센다(⛔시간으로 판정 안 함 · 시간은 기록만).
  *      변수 없음 → k = 2 · GOYA_TEST_CONCURRENCY=1 → k = 1 · =3 → k = 3 (2 와 3 도 갈린다).
  *      ★전제 먼저: 여섯 파일이 각각 t1−t0 ≥ 300ms — 안 서면 «전제 미성립»으로 따로 실패(k 빨강 아님).
@@ -71,15 +71,18 @@ test('⒜ 일부러 빨강인 검사 → 래퍼 rc ≠ 0 (자식 rc 를 삼키�
   });
 });
 
-test('⒝ GOYA_TEST_CONCURRENCY 가 양의 정수가 아니면 rc 2 ＋ stderr 한 줄 (⛔조용한 무시)', () => {
-  withTmp({ 'green.test.mjs': GREEN }, (dir) => {
-    for (const bad of ['abc', '0', '-1', '1.5']) {
+/* ⒝ 거절 집합(지디) = {abc · 0 · 1.5 · 음수 · 빈 문자열} — 칸마다 이름을 단다. 변수가 «아예 없을 때»만 기본 2 다.
+   -1 은 node 가 스스로 막지만(RangeError) 그 막음은 버전에 달렸다 ⇒ 래퍼가 먼저 막는다.
+   =0 은 node 에선 rc 0 · 기본(코어 수)으로 돈다(지디 srv v24.10.0 실측) ⇒ «0 = 직렬/제한 없음» 으로 읽히면 부하 문제를 그대로 얻는다. */
+for (const [label, bad] of [['abc', 'abc'], ['0', '0'], ['1.5', '1.5'], ['-1', '-1'], ['빈 문자열', '']]) {
+  test(`⒝ GOYA_TEST_CONCURRENCY=${label} → rc 2 ＋ stderr 한 줄 (⛔조용한 무시)`, () => {
+    withTmp({ 'green.test.mjs': GREEN }, (dir) => {
       const r = runWrapper(dir, { conc: bad });
-      assert.equal(r.rc, 2, `GOYA_TEST_CONCURRENCY=${bad} → rc ${r.rc} (2 여야)\n${r.err}`);
-      assert.match(r.err, /\[run-unit\]/, `GOYA_TEST_CONCURRENCY=${bad} → stderr 에 까닭 한 줄이 없다`);
-    }
+      assert.equal(r.rc, 2, `GOYA_TEST_CONCURRENCY=${JSON.stringify(bad)} → rc ${r.rc} (2 여야)\n${r.err}`);
+      assert.match(r.err, /\[run-unit\]/, `GOYA_TEST_CONCURRENCY=${JSON.stringify(bad)} → stderr 에 까닭 한 줄이 없다`);
+    });
   });
-});
+}
 
 test('⒞ 동시도 = 겹침 수 k — 변수 없음 k=2 · c1 k=1 · c3 k=3 (전제: 여섯 파일 각 ≥300ms)', (t) => {
   const files = Object.fromEntries(Array.from({ length: OVL_N }, (_, i) => [`o${i + 1}.test.mjs`, OVL(`o${i + 1}`)]));
