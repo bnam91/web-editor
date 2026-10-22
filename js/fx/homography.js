@@ -79,7 +79,8 @@ export function boxFromCorners(D, W, H, OX, OY) {
   };
 }
 
-/* 변 이름 → 그 변의 «원래» 두 끝(단위 사각형 기준) — n:위 e:오른 s:아래 w:왼, 모서리 순서 nw·ne·se·sw. */
+/* 변 이름 → 그 변의 «원래» 두 끝을 W·H 의 비율로 — n:위 e:오른 s:아래 w:왼, 모서리 순서 nw·ne·se·sw.
+   (시안 draw() 의 `srcPt` 표와 같은 것: n:[[0,0],[W,0]] e:[[W,0],[W,H]] s:[[W,H],[0,H]] w:[[0,H],[0,0]]) */
 const EDGE_ENDS = Object.freeze({
   n: [[0, 0], [1, 0]],
   e: [[1, 0], [1, 1]],
@@ -92,11 +93,22 @@ const EDGE_ENDS = Object.freeze({
  *  @param {number[]} h homography() 가 낸 9값
  *  @param {'n'|'e'|'s'|'w'} side 어느 변
  *  @param {number} t 그 변에서의 비율(0..1 · 핸들은 1/3·2/3)
- *  @param {number} [W=1] h 를 푼 원래 사각형의 폭 · @param {number} [H=1] 그 높이
- *    （기본 1 = h 가 «단위 사각형»에서 풀렸을 때. 글상자는 W·H 를 넘긴다.）
- *  @returns {number[]} [x, y] */
-export function edgePointAt(h, side, t, W = 1, H = 1) {
-  const [a, b] = EDGE_ENDS[side];
+ *  @param {number} W h 를 푼 원래 사각형의 폭 · @param {number} H 그 높이 — ★둘 다 ★필수다
+ *  @returns {number[]} [x, y]
+ *
+ *  ⛔★W·H 에 ★기본값을 ★두지 마라(261022 지디 ㉠ — ★한 판 있었고 ★걷었다).
+ *    ★까닭: 글상자의 W·H 는 ★수백 px 이라 ★`1` 은 ★어떤 실제 판에서도 ★참이 아니다.
+ *    ★기본값이 있으면 ★안 넘긴 호출이 ★던지지 않고 ★★«그럴듯한 틀린 좌표»를 낸다
+ *    ⇒ ★★「조용히 틀린 값」이 ★가장 비싸다. ★그래서 ★없으면 ★던진다.
+ *    ★`side` 도 같이 잠근다 — 오타('N'·'top')가 ★`undefined` 로 터지는 자리가 ★여기서 멀어진다. */
+export function edgePointAt(h, side, t, W, H) {
+  const ends = EDGE_ENDS[side];
+  if (!ends) throw new Error(`edgePointAt: side 는 'n'|'e'|'s'|'w' 다 — 받은 것 ${JSON.stringify(side)}`);
+  if (!Number.isFinite(W) || !Number.isFinite(H)) {
+    throw new Error(`edgePointAt: W·H 가 필요하다(원래 사각형의 폭·높이) — 받은 것 W=${W} H=${H}`);
+  }
+  if (!Number.isFinite(t)) throw new Error(`edgePointAt: t 가 수가 아니다 — 받은 것 ${JSON.stringify(t)}`);
+  const [a, b] = ends;
   const mx = (a[0] + (b[0] - a[0]) * t) * W;
   const my = (a[1] + (b[1] - a[1]) * t) * H;
   const w = h[6] * mx + h[7] * my + 1;

@@ -76,8 +76,13 @@ test('PRE ★★전제 — ★제품 `js/fx/homography.js` 가 ★★있다(★�
   const shim = fileURLToPath(new URL('../../js/fx/package.json', import.meta.url));
   assert.ok(fs.existsSync(shim),
     `⛔ESM shim 이 ★없다 — ★P-1 이 ★SyntaxError 로 ★빨강이 된다(★머리말 참조): ${shim}`);
-  assert.equal(JSON.parse(fs.readFileSync(shim, 'utf8')).type, 'module',
-    '⛔shim 의 `type` 이 `module` 이 ★아니다');
+  const shimJson = JSON.parse(fs.readFileSync(shim, 'utf8'));
+  assert.equal(shimJson.type, 'module', '⛔shim 의 `type` 이 `module` 이 ★아니다');
+  /* ★★까닭 없는 파일은 ★다음 사람이 ★지운다(261022 지디 조건 ⑴) — JSON 이라 주석을 못 쓰니 `_why` 키로.
+     ★이 줄이 ★그 규칙을 ★집행하는 자다. ⛔「필요해서 만들었다」로만 두지 마라. */
+  assert.ok(typeof shimJson._why === 'string' && shimJson._why.length > 80,
+    `⛔shim 에 ★까닭(`+"`_why`"+`)이 ★없다/너무 짧다 — 잰 값 ${JSON.stringify(shimJson._why)}`);
+  assert.match(shimJson._why, /rc=0/, '⛔`_why` 에 ★잰 값이 ★없다');
 });
 
 test('REF-0 ★★★자가 살아 있나 — ★시안에서 ★함수를 ★떼어 ★부를 수 있다', () => {
@@ -274,11 +279,23 @@ test('edge_nonlinear ★★사다리꼴에서 `edgePointAt(h,"n",1/3)` 이 ★�
   const gap = Math.hypot(p[0] - lin[0], p[1] - lin[1]);
   assert.ok(gap > 1,
     `⛔★선형보간과 ★같다 — ★원근이 ★안 걸렸다(잰 값 gap=${gap} · p=${JSON.stringify(p)} lin=${JSON.stringify(lin)})`);
-  /* ★발주 서명 그대로 ★«세 칸»으로도 ★불린다 — ★단위 사각형에서 푼 h 면 ★W·H 가 ★1 이다. */
-  assert.equal(edgePointAt.length, 3, `⛔세 칸 서명이 ★깨졌다 — arity ${edgePointAt.length}`);
-  const pU = edgePointAt(homography([[0,0],[1,0],[1,1],[0,1]], dst), 'n', 1/3);
-  assert.ok(Math.hypot(p[0] - pU[0], p[1] - pU[1]) < 1e-9,
-    `⛔W·H 를 넘긴 자리와 ★단위 사각형 자리가 ★다르다 — ${JSON.stringify(p)} vs ${JSON.stringify(pU)}`);
+  /* ★★위 `p` 는 ★★실제 판의 ★W=200 · H=60 으로 쟀다 — ⛔`1` 로 재면 ★우리 판을 ★안 재는 것이다.
+     ★그 사실을 ★여기서 ★단언한다(★「200×60 에서」라 적었으면 ★그 값이 ★섰음을 ★같이 잠근다). */
+  assert.equal(W, 200, '⛔전제 — W 가 200 이 아니다');
+  assert.equal(H, 60,  '⛔전제 — H 가 60 이 아니다');
+  assert.notEqual(W, 1, '⛔W 가 1 이면 ★우리 판(수백 px)을 ★안 재고 있다');
+
+  /* ★★★음성대조 — ★W·H 를 ★안 넘기면 ★★«던진다»(261022 지디 ㉠).
+     ⛔기본값(W=1·H=1)을 ★되돌리지 마라: ★던지지 않고 ★★«그럴듯한 틀린 좌표»가 나온다
+       — ★한 판 그렇게 있었고 ★걷었다. ★이 줄이 ★그 되돌림을 ★막는 자다. */
+  assert.throws(() => edgePointAt(h, 'n', 1/3), /W·H 가 필요하다/,
+    '⛔W·H 없이 불렀는데 ★안 던졌다 — ★기본값이 ★살아 있다(조용히 틀린 값)');
+  assert.throws(() => edgePointAt(h, 'n', 1/3, W), /W·H 가 필요하다/,
+    '⛔H 를 빼먹었는데 ★안 던졌다');
+  assert.throws(() => edgePointAt(h, 'N', 1/3, W, H), /side 는/,
+    '⛔없는 변 이름인데 ★안 던졌다');
+  assert.equal(edgePointAt.length, 5,
+    `⛔다섯 칸 서명이 ★아니다 — arity ${edgePointAt.length} (★기본값을 ★달면 ★이 수가 ★줄어든다)`);
   /* ★★휘는 것은 ★«사이»다 — ★t=0·1 은 ★여전히 ★그 모서리. ★이 줄이 ★n·e·s·w 의 ★순서도 ★같이 ★잠근다. */
   for (const [side, i0, i1] of [['n',0,1],['e',1,2],['s',2,3],['w',3,0]]) {
     const a = edgePointAt(h, side, 0, W, H), b = edgePointAt(h, side, 1, W, H);
