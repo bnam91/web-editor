@@ -4081,6 +4081,212 @@ function gridCollapseToColumns(block) {
   return { ok: true, converted: { cols: C, rows: R }, notice, hint: notice.message };
 }
 
+/* ═══ ★t3-04 «행·열 순서 바꾸기 ＋ 칸 범위 복붙» — 순수 셈 ＋ 직접 쓰기 (S6 U1 · 2026-10-22 · 현빈 GO msg5376) ═══
+ *
+ * ★확정 다섯(현빈 · ⛔고쳐 읽지 마라 — 발주서 ORDER-grid-reorder-cellclip.md ①):
+ *   ① 행·열 머리띠는 «그리드를 고른 동안만» 보인다        → ★U2(오버레이) 몫. 여기는 셈·쓰기만.
+ *   ② 붙일 범위가 모자라면 «들어가는 만큼만» 붙이고 나머지는 버린다(엑셀) → gridPasteRange 의 written/dropped.
+ *   ③ 칸 안의 블럭도 «같이» 복사된다 → ★칸 안 내용 = `cells[r][c].lines`(데이터 · 태양 실측 to-s6-grid-31).
+ *        ⇒ 칸 객체를 «통째» 옮기면 저절로 따라온다 — 자식 결속을 따로 옮길 것이 없다.
+ *   ④ 행을 옮기면 «그 행의 높이»도 따라간다 → rows[] 를 cells 와 «같은 순열»로 친다.
+ *   ⑤ 열 = 알파벳(A·B·C) · 행 = 숫자(1·2·3) · 칸 이름 = «열＋행»(A1) → gridColLabel / gridRowLabel.
+ *
+ * ★치환은 «두 벌»이다(발주서 ②의 「세 벌」을 태양 실측이 닫았다): `rows`/`cols` 배열 ＋ `cells`.
+ *   ⛔`.grd-children`(G19 · 그리드 «밑» 흐름 그릇)은 칸 좌표가 0 이다 ⇒ 순서·범위와 무관 — ★손대지 않는다.
+ *
+ * ★★행 0 함정 — 이 절에서 가장 비싼 자리다.
+ *   행 0 의 «줄 내용»은 `cols[c].lines` 한 곳에만 산다(이 파일 머리 :14-28 · 단일 진실원).
+ *   쓰는 문 `_gridCellsToDataset` 은 행 0 의 `lines` 를 «소리 없이» delete 한다.
+ *   ⇒ 행 0 이 끼는 치환(행 0 ↔ 행 k · 열 이동 · 행 0 으로 붙이기)에서 줄을 cells[0] 에 두고 쓰면 ★사라진다.
+ *   ⇒ 그래서 셈은 늘 «줄을 포함한 전체 R×C» 판(_gridFullCellsOf)에서 하고, 끝에 행 0 의 줄을
+ *     `cols[c].lines` 로 «다시 나눠» 돌려준다(_gridModelFromFull). getGridModel 이 주는 꼴 그대로다.
+ *
+ * ★해석(발주서·시안에 답 없음 · 조정자 기본값 · 지디가 뒤집으면 따른다):
+ *   해-1 순서 바꾸기는 칸 객체 «통째»(lines ＋ align·valign·bg·padding·radius·bgImg…)를 옮긴다 — 엑셀 행 옮기기.
+ *        열을 옮기면 `cols[c]`(폭 · 열 기본 꾸밈 · 행 0 줄)도 «통째로» 같이 간다.
+ *   해-3 범위 붙여넣기도 칸 객체 «통째»(내용＋꾸밈) — 엑셀 ⌘V. ⚠️열 기본값(cols[c] 의 꾸밈)은 «칸»이 아니라
+ *        복사하지 않는다 — 원본 칸이 열 기본값에 기대 그려졌다면 붙인 자리의 열 기본값으로 그려진다.
+ *   ★GRID-REORDER-RULES-STAY-01 (해-2) — `rowRuleOn`/`colRuleOn`(경계 목록)과 칸 테두리의 `r===0` 특례
+ *        (_gridCellEdgesCss)는 «자리»의 속성이다 ⇒ 순서를 바꿔도 «자리에 남는다». ⛔여기서 안 건드린다.
+ *
+ * ★왜 updateGridBlock 을 «안» 타고 직접 쓰나(gridResizeTo · gridCollapseToColumns 꼴):
+ *   ⑴ 입구 `_gridIntake` 가 줄 imgSrc > GRID_IMG_MAX_CHARS(20만 자)를 거절한다 — 사람이 넣은 사진이 든 행은
+ *      «옮기기만 해도» INVALID 가 된다(발주서 덧 ⑵: 바이트 그대로 가야 한다).
+ *   ⑵ 그 면제(`{trusted:true}`) 수는 tests/unit/grid-callsite-ssot.test.mjs 가 5 로 잠갔다.
+ *   ⑶ 구조 입구는 한 번에 하나(cols «또는» cells) — 열 이동은 둘을 같이 써야 한다.
+ *   ⇒ 순서: pushHistory «한 번»(변경 전) → dataset 직접(cols/rows = JSON · ⛔cells 는 `_gridCellsToDataset` 문으로만)
+ *     → renderGridBlock → scheduleAutoSave. ⛔import 를 늘리지 않는다(:2789 — 유닛 하네스 사본이 import 줄을 글자 그대로 바꾼다).
+ * ⚠️안 쟀다/남은 것(U2): 머리띠·끌기·칸 드래그 범위·⌘C/⌘V 가로채기 · 순서 뒤 거터 hide→show · ⌘Z 한 번(DOM 으로 잴 것).
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ★깊은 사본 «한 자리» — 칸·줄·열을 «값으로» 넘긴다(얕으면 원본과 같은 객체를 둘이 가리킨다 · prop-grid.js 줄 클립보드 :511 와 같은 까닭).
+ *   ★문자열(imgSrc)은 JSON 왕복에서 «바이트 그대로»다 — ⛔자르거나 다시 인코딩하지 않는다(덧 ⑵). */
+const _gridDeep = (v) => JSON.parse(JSON.stringify(v));
+const _gridIsObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const _gridIsIdx = (i, n) => Number.isInteger(i) && i >= 0 && i < n;
+
+/** splice 꼴 이동(시안과 같다: «빼고 넣는다») — 새 배열. to = 옮긴 뒤 그 항목이 앉을 index. */
+function _gridSpliceMove(arr, from, to) {
+  const out = arr.slice();
+  const [x] = out.splice(from, 1);
+  out.splice(to, 0, x);
+  return out;
+}
+
+/** getGridModel 꼴 모델 → «줄 포함» 전체 R×C 칸(깊은 사본).
+ *  ★행 0 의 줄은 `cols[c].lines` 에서 온다(단일 진실원) — cells[0][c].lines 는 그 메아리일 뿐이라 cols 가 이긴다. */
+function _gridFullCellsOf(model) {
+  const cols = Array.isArray(model && model.cols) ? model.cols : [];
+  const rows = Array.isArray(model && model.rows) ? model.rows : [];
+  const src = Array.isArray(model && model.cells) ? model.cells : [];
+  const full = [];
+  for (let r = 0; r < rows.length; r++) {
+    const srow = Array.isArray(src[r]) ? src[r] : [];
+    const row = [];
+    for (let c = 0; c < cols.length; c++) {
+      const cell = _gridIsObj(srow[c]) ? _gridDeep(srow[c]) : {};
+      if (r === 0) {
+        const own = cols[c] && Array.isArray(cols[c].lines) ? cols[c].lines : cell.lines;
+        cell.lines = Array.isArray(own) ? _gridDeep(own) : [];
+      } else if (!Array.isArray(cell.lines)) cell.lines = [];
+      row.push(cell);
+    }
+    full.push(row);
+  }
+  return full;
+}
+
+/** 전체 R×C → getGridModel 꼴로 «다시 나눈다»: 행 0 의 줄 → `cols[c].lines`.
+ *  ★col 에 원래 `lines` 키가 없었고 줄도 비었으면 키를 «안» 만든다 — 왕복이 모델을 부풀리지 않게.
+ *  ⚠️단 «행 0 이 낀» 행 이동을 왕복하면 그 col 에 `"lines":[]` 가 남을 수 있다(렌더 같음 · 내용 손실 0 · 이벨류 탐침 p1). */
+function _gridModelFromFull(cols, rows, full) {
+  const nextCols = cols.map((col, c) => {
+    const out = _gridIsObj(col) ? _gridDeep(col) : {};
+    const lines = full[0] && full[0][c] ? full[0][c].lines : [];
+    if ((Array.isArray(lines) && lines.length) || 'lines' in out) out.lines = _gridDeep(lines || []);
+    return out;
+  });
+  return { cols: nextCols, rows: _gridDeep(rows), cells: full };
+}
+
+/** ★순수 — 행/열 하나를 옮긴 «새 모델». 원본은 안 바뀐다.
+ *  @param model getGridModel(block) 꼴 {cols, rows, cells(행 0 포함 R×C)}
+ *  @param axis  'row' | 'col'
+ *  @param from,to 옮기기 전 index · 옮긴 뒤 index(splice 꼴)
+ *  @returns 새 모델 | null(축·index 가 틀렸다). from===to 면 같은 값의 사본.
+ *  ★row: rows[](높이 — 확정 ④)와 칸 «행»을 같은 순열로 · col: cols[](폭·열 기본값·행 0 줄)와 각 행의 칸을 같은 순열로. */
+function gridPermute(model, axis, from, to) {
+  if (!_gridIsObj(model) || !Array.isArray(model.cols) || !Array.isArray(model.rows)) return null;
+  const R = model.rows.length, C = model.cols.length;
+  const n = axis === 'row' ? R : axis === 'col' ? C : 0;
+  if (!_gridIsIdx(from, n) || !_gridIsIdx(to, n)) return null;
+  const full = _gridFullCellsOf(model);
+  if (axis === 'row') {
+    const rows2 = _gridSpliceMove(model.rows, from, to);   // ★확정 ④ — 높이가 그 행을 따라간다
+    const full2 = _gridSpliceMove(full, from, to);         // ★칸 «행»째(줄·꾸밈 통째 — 해-1)
+    return _gridModelFromFull(model.cols, rows2, full2);
+  }
+  const cols2 = _gridSpliceMove(model.cols, from, to);     // ★폭·열 기본값·행 0 줄이 같이 간다
+  const full2 = full.map(row => _gridSpliceMove(row, from, to));
+  return _gridModelFromFull(cols2, model.rows, full2);
+}
+
+/** ★순수 — 칸 범위 복사. 끝점은 순서 무관(min/max 로 편다) · 그리드 밖은 잘라 낸다.
+ *  @returns {h, w, cells:[[cell…]]}(칸 객체 통째 깊은 사본 · 행 0 칸도 줄을 «포함») | null(범위가 그리드와 안 겹친다) */
+function gridCopyRange(model, r0, c0, r1, c1) {
+  if (!_gridIsObj(model) || !Array.isArray(model.cols) || !Array.isArray(model.rows)) return null;
+  if (![r0, c0, r1, c1].every(Number.isInteger)) return null;
+  const R = model.rows.length, C = model.cols.length;
+  const ra = Math.max(0, Math.min(r0, r1)), rb = Math.min(R - 1, Math.max(r0, r1));
+  const ca = Math.max(0, Math.min(c0, c1)), cb = Math.min(C - 1, Math.max(c0, c1));
+  if (ra > rb || ca > cb) return null;
+  const full = _gridFullCellsOf(model);
+  const cells = [];
+  for (let r = ra; r <= rb; r++) cells.push(full[r].slice(ca, cb + 1));
+  return { h: rb - ra + 1, w: cb - ca + 1, cells };
+}
+
+/** ★순수 — 범위 붙여넣기(확정 ② · 해-3). anchor = 붙일 범위의 왼쪽 위 칸.
+ *  ★그리드 «안»에 드는 칸만 쓰고(written) 밖은 버린 수(dropped)로 센다 — 엑셀과 같다. ⛔그리드를 늘리지 않는다.
+ *  @returns {model, written, dropped} | null(clip·anchor 꼴이 틀렸다) */
+function gridPasteRange(model, clip, anchor) {
+  if (!_gridIsObj(model) || !Array.isArray(model.cols) || !Array.isArray(model.rows)) return null;
+  if (!_gridIsObj(clip) || !Number.isInteger(clip.h) || !Number.isInteger(clip.w) || clip.h < 1 || clip.w < 1) return null;
+  if (!Array.isArray(clip.cells) || clip.cells.length !== clip.h || !clip.cells.every(row => Array.isArray(row) && row.length === clip.w)) return null;
+  if (!_gridIsObj(anchor) || !Number.isInteger(anchor.r) || !Number.isInteger(anchor.c) || anchor.r < 0 || anchor.c < 0) return null;
+  const R = model.rows.length, C = model.cols.length;
+  const full = _gridFullCellsOf(model);
+  let written = 0, dropped = 0;
+  for (let i = 0; i < clip.h; i++) {
+    for (let j = 0; j < clip.w; j++) {
+      const r = anchor.r + i, c = anchor.c + j;
+      if (r >= R || c >= C) { dropped++; continue; }
+      const cell = _gridIsObj(clip.cells[i][j]) ? _gridDeep(clip.cells[i][j]) : {};
+      if (!Array.isArray(cell.lines)) cell.lines = [];
+      full[r][c] = cell;   // ★통째로 «갈아 끼운다» — 옛 칸 꾸밈이 섞여 남지 않는다(엑셀 ⌘V)
+      written++;
+    }
+  }
+  return { model: _gridModelFromFull(model.cols, model.rows, full), written, dropped };
+}
+
+/** ★확정 ⑤ — 열 이름 = 알파벳. 0→'A' … 25→'Z' · 26→'AA'(전단사 26진 · count-sticker-tool.js countStickerLabel 'alpha' 와 같은 셈).
+ *  ★MAX_COLS=8 이라 지금은 A~H 뿐이지만, 상한이 오르면 «Z 다음이 '['» 같은 조용한 깨짐이 나므로 26 이상도 바르게 센다.
+ *  ⛔정수 아님·음수 → ''(지어내지 않는다). */
+function gridColLabel(i) {
+  if (!Number.isInteger(i) || i < 0) return '';
+  let n = i + 1, s = '';
+  while (n > 0) { n--; s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26); }
+  return s;
+}
+/** ★확정 ⑤ — 행 이름 = 숫자(1 부터). ⛔정수 아님·음수 → ''. 칸 이름 = gridColLabel(c) + gridRowLabel(r) (A1). */
+function gridRowLabel(i) {
+  return Number.isInteger(i) && i >= 0 ? String(i + 1) : '';
+}
+
+/** 모델 → dataset «직접 쓰기» 한 벌(옮기기·붙이기 공용). ⛔cells 는 `_gridCellsToDataset` 문으로만.
+ *  @param writeRows rows 를 쓸까(행 이동만 바꾼다 — 열 이동·붙이기는 rows 를 «안» 건드린다)
+ *  ★1행 그리드는 gridResizeTo 의 nRows<=1 가지와 «같은 모양»: 행 0 칸 꾸밈이 있을 때만 dataset.cells 를 둔다. */
+function _gridWriteModelDirect(block, model, writeRows) {
+  block.dataset.cols = JSON.stringify(model.cols);
+  if (writeRows) block.dataset.rows = JSON.stringify(model.rows);
+  if (model.rows.length <= 1) {
+    const keep = model.cells[0] || [];
+    if (keep.some(cell => Object.keys(cell).some(k => k !== 'lines'))) block.dataset.cells = _gridCellsToDataset([keep]);
+    else delete block.dataset.cells;
+  } else block.dataset.cells = _gridCellsToDataset(model.cells);
+}
+
+function _gridMoveDirect(block, axis, from, to) {
+  if (!block || !block.dataset || from === to) return false;
+  const next = gridPermute(getGridModel(block), axis, from, to);
+  if (!next) return false;                     // ⛔범위 밖 = 아무 일 없음(히스토리도 안 쌓는다)
+  window.pushHistory?.();                      // ★변경 «전»에 «한 번»
+  _gridWriteModelDirect(block, next, axis === 'row');
+  renderGridBlock(block);
+  window.scheduleAutoSave?.();
+  return true;
+}
+/** 행 하나를 옮긴다(높이 · 칸 통째). 바뀌었으면 true. */
+function moveGridRow(block, from, to) { return _gridMoveDirect(block, 'row', from, to); }
+/** 열 하나를 옮긴다(폭 · 열 기본값 · 칸 통째). 바뀌었으면 true. */
+function moveGridCol(block, from, to) { return _gridMoveDirect(block, 'col', from, to); }
+
+/** 범위 붙여넣기 — {written, dropped}. ★한 칸도 안 들어가면 쓰지도·히스토리를 쌓지도 않는다.
+ *  ⛔clip·anchor 꼴이 틀리면 {written:0, dropped:0}(조용히 지어내지 않는다 — 호출부가 0 을 보고 말한다). */
+function pasteGridRange(block, clip, anchor) {
+  if (!block || !block.dataset) return { written: 0, dropped: 0 };
+  const res = gridPasteRange(getGridModel(block), clip, anchor);
+  if (!res) return { written: 0, dropped: 0 };
+  if (res.written > 0) {
+    window.pushHistory?.();                    // ★범위 전체가 «한 수» — 칸마다 쌓지 않는다
+    _gridWriteModelDirect(block, res.model, false);
+    renderGridBlock(block);
+    window.scheduleAutoSave?.();
+  }
+  return { written: res.written, dropped: res.dropped };
+}
+
 /* ＋ 한 번 = 끝에 열(axis 'col') 또는 행(axis 'row') 하나. 상한이면 아무것도 안 한다. */
 function gridAddAtEnd(block, axis) {
   const nC = _gridCols(block).length, nR = _gridRows(block).length;
@@ -4183,6 +4389,16 @@ window.gridAddAtEnd = gridAddAtEnd;
 
 window.renderGridBlock = renderGridBlock;
 window.gridCollapseToColumns = gridCollapseToColumns;
+/* ★t3-04(S6 U1) — 행·열 순서 바꾸기 ＋ 칸 범위 복붙. 머리띠·키(U2 · overlay-handles.js / editor.js / prop-grid.js)는
+   이 파일을 import 하지 않으므로 같은 window 다리로 부른다(위 renderGridBlock 과 같은 관례). 순수 셈 넷도 같이 건다(CDP·진단용). */
+window.moveGridRow = moveGridRow;
+window.moveGridCol = moveGridCol;
+window.pasteGridRange = pasteGridRange;
+window.gridCopyRange = gridCopyRange;
+window.gridPermute = gridPermute;
+window.gridPasteRange = gridPasteRange;
+window.gridColLabel = gridColLabel;
+window.gridRowLabel = gridRowLabel;
 window.migrateGridIdentity = migrateGridIdentity;
 // ★getGridModel(T-A, 2026-09-16) — block-drag.js 의 _gridAddrAt 이 「진짜 빈 셀」인지(lines.length===0)
 //   판정하려고 window 경유로 부른다(block-drag.js 는 이 파일을 import 하지 않는다 — 기존 관례
@@ -4237,4 +4453,7 @@ export {
   gridCollapseToColumns,
   GRID_CONVERT_DROPPED_CELL_FIELDS, GRID_CONVERT_NOT_MOVED_FIELDS,
   gridResizeTo, gridAddAtEnd,   /* ★G15 — 피커·캔버스 ＋ 가 «같은 길» */
+  /* ★t3-04(S6 U1) — 순서 바꾸기·범위 복붙: 순수 셈(유닛이 DOM 없이 잰다) ＋ 직접 쓰기 문 */
+  gridPermute, gridCopyRange, gridPasteRange, gridColLabel, gridRowLabel,
+  moveGridRow, moveGridCol, pasteGridRange,
 };
