@@ -276,6 +276,21 @@ const DROP_STRIP_ROSTER = {
     { sel: '.sec-bg-proxy',     kind: 'chrome', why: '섹션 배경 편집 프록시 — 배경 그림이 두 번 찍힌다' },
     { sel: '.img-edit-hint',    kind: 'chrome', why: '이미지 편집 안내' },
     { sel: '.img-boundary',     kind: 'chrome', why: '이미지 편집 경계 선' },
+    /* ★★★R1 몫 ★아홉 — ★2026-10-22 ★지디 ★승인. ★★머지 `4ca3dc58`(아이맥 `45c0ad6b`)이 ★더한 것.
+       ★까닭: ★「★안 막히는 칸」 ★47 중 ★R1 몫 ★16(= ★이 아홉 × capture·html ★두 길)이
+         ★★★«편집 장식인데 ★캡처 겹에서 ★안 지워진다」였다 ⇒ ★내보낸 그림에 ★찍힐 수 ★있다.
+       ⛔★★이 명부에 ★안 적고 ★제품만 고쳤더니 ★★D3 가 ★★36 건으로 ★빨개졌다(★소비자 ★넷 × ★아홉).
+         ⇒ ★★★그 자가 ★제 일을 했다 — ★「★한 줄 늘리면 ★그 이름으로 ★빨강」.
+       ★★⇒ ★그래서 ★★여기에 ★이름·까닭을 ★적는다. ★★이것이 ★★«승인»이다. */
+    { sel: '.annot-selbox',         kind: 'chrome', why: '어노테이션 ★선택 상자 — 고른 동안만 보이는 편집 표시' },
+    { sel: '.drop-indicator',       kind: 'chrome', why: '드래그 ★드롭 자리 표시 — 끄는 동안만' },
+    { sel: '.grad-line-overlay',    kind: 'chrome', why: '그라데이션 ★조절선 오버레이 — 패널을 열었을 때만' },
+    { sel: '.grd-add-btn',          kind: 'chrome', why: '그리드 ★칸/줄 ★추가 단추 — 편집 UI' },
+    { sel: '.mdl-profile-x',        kind: 'chrome', why: '모달 프로필 ★✕ 단추 — 지우기용 편집 UI' },
+    { sel: '.section-block[data-ghost]', kind: 'chrome', why: '드래그 중 ★고스트 섹션 — 끄는 동안의 ★그림자(실물이 아니다)' },
+    { sel: '.section-height-badge', kind: 'chrome', why: '섹션 ★높이 배지 — 편집 화면 치수 표시' },
+    { sel: '.vpen-edit-overlay',    kind: 'chrome', why: '펜 ★편집 오버레이 — 편집 모드에서만' },
+    { sel: '.vpen-preview',         kind: 'design', why: '펜 ★미리보기 — 확정 전 임시 선(`.annot-preview` 와 ★같은 갈래)' },
   ],
   'js/io/export-html.js#exportHTMLFile': [
     { sel: '$HIDDEN_VARIATION_SECTION_SEL', kind: 'design', why: '안 고른 A/B 시안 섹션 — 배송본에 둘 다 보이던 병(2026-09-09) · 저장본은 안 뺀다' },
