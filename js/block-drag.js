@@ -15,6 +15,7 @@ import {
   showToast,
   selectAllEditableContents,
   mdlReadText,
+  placeCaretAtClickPoint,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
 /* ★1020t1d — 화면 Δ → «담은 상자의 로컬» Δ. ★조상 프레임의 flip·rotate 를 ★측정으로 되돌린다.
@@ -394,6 +395,61 @@ function _zoomEndEdit(block, host) {
     window.renderZoomBlock?.(block);
     window.triggerAutoSave?.();
   }
+}
+
+/* ★t5-14 원형 이미지 줄 «안 글자» 캔버스 편집 — 진입·끝 한 쌍.
+   ★저장 자리는 패널 «글자»(prop-grid.js #grd-img-ctext)와 같은 키 하나 — 그 줄의 `text`. 빈 글자 = 키 지움(그 칸과 같은 계약).
+   ★확정 = blur · Enter / 취소 = Esc(무변) — 선례 drag-utils.js _graphLabelBeginEdit 「Esc · 같은 글자 = 무변」.
+     Enter 는 줄바꿈이 아니라 확정이다 — 패널 칸이 한 줄(input)이고, 원 글자 여러 줄은 t5-12 몫이라 여기서 안 연다.
+   ★커밋은 _gridEndEdit 와 같은 꼴 — DOM 을 편집 «전»으로 되돌린 뒤 updateGridBlock(그 안의 pushHistory 가 직렬화를 찍는다 ⇒ ⌘Z 한 걸음).
+   ★편집 테는 따로 안 그린다 — `#canvas .grid-block [contenteditable="true"]`(css/editor-blocks.css) 가 그리드 글자 줄과 같은 테를 준다. */
+function _gridCircleTextEndEdit(block, host, addr, commit, opts = {}) {
+  if (host.getAttribute('contenteditable') !== 'true') return;
+  host.setAttribute('contenteditable', 'false');
+  host.removeAttribute('draggable');
+  block.classList.remove('editing');
+  const before = host._gctBefore;
+  const text = mdlReadText(host).replace(/\n+/g, ' ');
+  if (before == null || !commit || text === before) {
+    host.textContent = before == null ? host.textContent : before;   // 취소·무변 — 편집 흔적 0
+    return;
+  }
+  host.textContent = before;   // 커밋 «전» DOM 을 편집 전으로(_gridEndEdit 와 같은 까닭)
+  const res = window.updateGridBlock?.(block.id, {
+    patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, text: text === '' ? undefined : text },
+  }, opts.keepPanel ? { keepPanel: true } : undefined);
+  if (res && res.ok === false) window.showToast?.(`줄 수정 실패: ${res.message || res.code}`);
+}
+
+function _gridCircleTextBeginEdit(block, host, addr, e) {
+  if (host.getAttribute('contenteditable') === 'true') return;
+  window.showGridProperties?.(block, addr);   // 그 줄이 «고른 줄» — _gridBeginEdit 와 같은 순서(focus 전)
+  block.classList.add('editing');
+  host.setAttribute('contenteditable', 'true');
+  host.setAttribute('draggable', 'false');
+  host._gctBefore = host.textContent;
+  if (!host._gctEditBound) {
+    host._gctEditBound = true;
+    host.addEventListener('blur', (ev) => {
+      if (isBlurIntoPanel(ev)) {
+        parkEditing(host, () => _gridCircleTextEndEdit(block, host, addr, true),
+          { flush: () => _gridCircleTextEndEdit(block, host, addr, true, { keepPanel: true }) });
+        return;
+      }
+      _gridCircleTextEndEdit(block, host, addr, true);
+    });
+    host.addEventListener('keydown', ev => {
+      if (ev.isComposing || ev.keyCode === 229) return;   // 한글 조합 중 Enter 는 조합 확정이다
+      if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); host.blur(); }
+      else if (ev.key === 'Escape') {
+        ev.preventDefault(); ev.stopPropagation();   // 전역 deselectAll 차단
+        _gridCircleTextEndEdit(block, host, addr, false);
+        host.blur();
+      }
+    });
+  }
+  host.focus();
+  placeCaretAtClickPoint(host, e);
 }
 
 function _gridBeginEdit(hit, e) {
@@ -2542,6 +2598,22 @@ function bindBlock(block) {
          텍스트 블록의 dblclick 도 같은 이유로 elementFromPoint 로 대상을 고른다(이 파일 isText 분기). */
       const atPoint = document.elementFromPoint(e.clientX, e.clientY);
       const node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
+      /* ★t5-14 — 원형 이미지 줄 «안 글자»(.grd-img-circle-text) 위 더블클릭 → 그 글자를 캔버스에서 고친다.
+         현빈 원문: 「grd_yb8d4_0z2o2u9에서 텍스트 추가한 뒤에, 원형을 클릭하면 왜 gui가 뜨는지?, 그리고 캔버스에서 텍스트 바로 수정할 수 있게 해줘」
+         ★맨 앞이어야 한다 — 글자칸은 .grd-img-frame[data-line] «안»에 산다 ⇒ 아래 세 가지(인포그래픽·빈 슬롯·크롭)가 먼저 집는다.
+         ⛔2026-10-07 ㉠-a(prop-grid.js G20 머리 「원형 줄의 더블클릭은 이미 둘 다 차 있다」)는 그대로다 —
+           이 가지는 «글자 위»만 집는다. 원(도형) 위 더블클릭은 아래로 흘러 파일창·크롭 그대로(지디 GO 범위 · tests/dom/t5-14 ⒜).
+         ⛔`_gridEditable` 을 넓히지 «않는다» — 위 «중첩 duo 글자» 가지와 같은 꼴(먼저 집고 return 하는 형제 가지). */
+      const cText = node && node.closest ? node.closest('.grd-img-circle-text') : null;
+      const cFrame = cText ? cText.closest('.grd-img-frame[data-line]') : null;
+      if (cText && cFrame && block.contains(cFrame)) {
+        const r = Number(cFrame.dataset.r), c = Number(cFrame.dataset.c), li = Number(cFrame.dataset.line);
+        if (Number.isInteger(r) && Number.isInteger(c) && Number.isInteger(li)) {
+          e.stopPropagation();
+          _gridCircleTextBeginEdit(block, cText, { r, c, li }, e);
+          return;
+        }
+      }
       /* ★★인포그래픽 «아이콘» 더블클릭 → 내장 아이콘 고르개 팝오버 (1017t1i2 · 2026-10-20)
          현빈 원문: 「인포그래픽 블럭의 경우 특수하게 ★아이콘을 더블클릭하면 svg를 바로 교체할수
            패널이 나타났었지 않니?? … 이 방식이 좋은것 같아」 ＋ 「인포그라피 블럭에서는 이미지 넣을 일이 없어」.

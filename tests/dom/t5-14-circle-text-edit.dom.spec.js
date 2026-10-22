@@ -79,3 +79,171 @@ test('A2 ⒜ 그림 든 원(글자 있음) · 글자 밖 더블클릭 → 크롭
   expect(ed.ce === 'true' || ed.active, '글자 편집 0').toBe(false);
   expect(errs).toEqual([]);
 });
+
+/* ══ ⒝ 글자 위 더블클릭 → 캔버스 편집 ═══════════════════════════════════════════════════════
+ *   B1 진입(파일창 0 · 크롭 0 · host 편집) · B2 확정(Enter) → 그 줄 text 저장 · ⌘Z 한 걸음 · B3 Esc 무변
+ *   QA-1 프롭힌트 0 · QA-2 편집 중 글자 모양 = 평소 · outline = 그리드 글자 줄 편집과 같다
+ *   ★바닥(aefbabde)에서 ⒝ 는 빨강이다(글자 위 더블클릭이 GUI 로 빠진다 — 현빈 «원형을 클릭하면 왜 gui가 뜨는지»).
+ *     ⇒ 커밋은 고침과 같이(⛔일부러 빨강으로 두지 않는다). 바닥 빨강 수는 리포트(run-b-base-*.log)에. */
+const lineText = (page) => page.evaluate(() => {
+  const g = document.getElementById('gG');
+  const m = window.getGridModel ? window.getGridModel(g) : null;
+  const ln = m ? m.cols[0].lines[0] : null;
+  return { model: ln ? (ln.text === undefined ? null : ln.text) : '∅', shown: document.querySelector('#gG .grd-img-circle-text')?.textContent ?? null };
+});
+async function textPoint(page) {
+  const p = await page.evaluate(() => {
+    const t = document.querySelector('#gG .grd-img-circle-text'); const r = t.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const e = document.elementFromPoint(x, y);
+    return { x, y, onText: !!(e && e.closest('.grd-img-circle-text')), hit: e ? e.className : null };
+  });
+  expect(p.onText, `[전제] 누른 점 = 원 안 글자 (${p.hit})`).toBe(true);
+  return p;
+}
+async function enterTextEdit(page) {
+  const p = await textPoint(page);
+  let chooser = false; const onCh = () => { chooser = true; };
+  page.on('filechooser', onCh);
+  await page.mouse.dblclick(p.x, p.y);
+  const ok = await poll(page, () => { const t = document.querySelector('#gG .grd-img-circle-text'); return !!t && t.getAttribute('contenteditable') === 'true' && document.activeElement === t; }, null, 3000);
+  page.off('filechooser', onCh);
+  const proxy = await page.evaluate(() => !!document.querySelector('.grd-img-edit-proxy'));
+  return { ok, chooser, proxy };
+}
+
+for (const [tag, extra] of [['빈 원', {}], ['그림 든 원', { imgSrc: PX }]]) {
+  test(`B1 ⒝ ${tag} · 글자 위 더블클릭 → 글자 편집 진입 · 파일창 0 · 크롭 0`, async ({ page }) => {
+    const errs = await setup(page, CIRC(extra));
+    const r = await enterTextEdit(page);
+    log(`B1 ${tag}`, r);
+    expect(r.chooser, '파일 선택기 0').toBe(false);
+    expect(r.proxy, '크롭 프록시 0').toBe(false);
+    expect(r.ok, '글자칸 contenteditable true · 포커스').toBe(true);
+    expect(errs).toEqual([]);
+  });
+}
+
+test('B2 ⒝ 확정(Enter) → 그 줄 글자 저장 · ⌘Z 한 걸음', async ({ page }) => {
+  const errs = await setup(page, CIRC());
+  const t0 = await page.evaluate(() => window.getHistoryTip());
+  const r = await enterTextEdit(page);
+  expect(r.ok, '[전제] 편집 진입').toBe(true);
+  await page.keyboard.press('Meta+ArrowRight');   // 글 끝으로 — macOS 크로미움은 End 가 캐럿을 안 옮긴다(run-fix-1 실측: 「원글추가자」)
+  await page.keyboard.type('추가');
+  await page.keyboard.press('Enter');
+  expect(await poll(page, () => document.querySelector('#gG .grd-img-circle-text')?.getAttribute('contenteditable') !== 'true', null, 3000), '[전제] 편집이 끝났다').toBe(true);
+  const after = await lineText(page);
+  const t1 = await page.evaluate(() => window.getHistoryTip());
+  log('B2', { after, t0, t1 });
+  expect(after, '모델·화면 = 원글자추가').toEqual({ model: '원글자추가', shown: '원글자추가' });
+  // ⌘Z 한 걸음 — 캔버스 빈 데를 눌러 초점을 캔버스로(입력칸 안 ⌘Z 는 글자 되돌리기라서)
+  await page.mouse.click(5, 990);
+  await page.keyboard.press('Meta+z');
+  expect(await poll(page, () => document.querySelector('#gG .grd-img-circle-text')?.textContent === '원글자', null, 3000), '⌘Z 1 → 원글자').toBe(true);
+  const undone = await lineText(page);
+  log('B2-undo', undone);
+  expect(undone, '⌘Z 1 뒤 모델도 원글자').toEqual({ model: '원글자', shown: '원글자' });
+  expect(errs).toEqual([]);
+});
+
+/* B2R (기록 · 단언은 전제만) — 같은 블럭 글자 줄 «B» 를 기존 길로 고쳤을 때의 히스토리 Δlen. B2 의 Δlen 과 나란히 적으려고 잰다. */
+test('B2R 대조 기록 — 그리드 글자 줄 편집 한 번의 히스토리 Δlen', async ({ page }) => {
+  const errs = await setup(page, CIRC());
+  const t0 = await page.evaluate(() => window.getHistoryTip());
+  const bp = await page.evaluate(() => { const r = document.querySelector('#gG .grd-cell[data-c="1"] .grd-line').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.mouse.dblclick(bp[0], bp[1]);
+  expect(await poll(page, () => document.querySelector('#gG .grd-cell[data-c="1"] .grd-line')?.getAttribute('contenteditable') === 'true'), '[전제] 글자 줄 편집').toBe(true);
+  await page.keyboard.press('Meta+ArrowRight');
+  await page.keyboard.type('x');
+  await page.mouse.click(5, 990);
+  expect(await poll(page, () => document.querySelector('#gG .grd-cell[data-c="1"] .grd-line')?.textContent === 'Bx'), '[전제] 글자 줄 커밋(Bx)').toBe(true);
+  const t1 = await page.evaluate(() => window.getHistoryTip());
+  log('B2R', { t0, t1, dLen: t1.len - t0.len });
+  expect(errs).toEqual([]);
+});
+
+test('B3 ⒝ Esc → 무변(모델·화면·히스토리 칸)', async ({ page }) => {
+  const errs = await setup(page, CIRC());
+  const t0 = await page.evaluate(() => window.getHistoryTip());
+  const r = await enterTextEdit(page);
+  expect(r.ok, '[전제] 편집 진입').toBe(true);
+  await page.keyboard.press('Meta+ArrowRight');   // 글 끝으로 — macOS 크로미움은 End 가 캐럿을 안 옮긴다(run-fix-1 실측: 「원글추가자」)
+  await page.keyboard.type('버림');
+  expect(await page.evaluate(() => document.querySelector('#gG .grd-img-circle-text')?.textContent), '[전제] 타이핑이 먹었다').toBe('원글자버림');
+  await page.keyboard.press('Escape');
+  expect(await poll(page, () => document.querySelector('#gG .grd-img-circle-text')?.getAttribute('contenteditable') !== 'true', null, 3000), '[전제] 편집이 끝났다').toBe(true);
+  const after = await lineText(page);
+  const t1 = await page.evaluate(() => window.getHistoryTip());
+  log('B3', { after, t0, t1 });
+  expect(after, '모델·화면 = 원글자 그대로').toEqual({ model: '원글자', shown: '원글자' });
+  expect(t1.len - t0.len, '히스토리 칸 Δ 0').toBe(0);
+  expect(errs).toEqual([]);
+});
+
+/* QA-1 «불필요한 프롭힌트 0» — 자 둘:
+ *   ⑴ 줄을 단클릭으로 고른 상태의 패널 «Image» 절 (줄 수 · id 집합) ＝ 글자 편집 진입 뒤 (새 줄·새 칸 0)
+ *   ⑵ #canvas · #panel-right «밖»의 «살아 보이는» 요소 묶음(첫 class · 개수) — 고른 상태 ＝ 진입 뒤 (툴팁·토스트·팝오버 새것 0)
+ *   ⛔옛 자(MutationObserver addedNodes)는 버렸다 — 클릭이 다시 그린 패널 절·손잡이가 «붙었다 떨어져» 밖으로 세어졌다
+ *     (run-fix-1: .prop-section ×12 · .grd-overlay-handle 등 — 다시 그리기지 새 힌트가 아니다). */
+const outsideLive = (page) => page.evaluate(() => {
+  const bag = {};
+  for (const el of document.body.querySelectorAll('*')) {
+    if (el.closest('#canvas') || el.closest('#panel-right')) continue;
+    if (!el.getClientRects().length) continue;
+    const cs = getComputedStyle(el); if (cs.visibility === 'hidden' || cs.display === 'none' || cs.opacity === '0') continue;
+    const k = (el.id ? '#' + el.id : '') + '.' + (String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className || '').split(' ')[0]);
+    bag[k] = (bag[k] || 0) + 1;
+  }
+  return bag;
+});
+const diffBag = (a, b) => Object.keys(a).filter(k => (a[k] || 0) > (b[k] || 0)).map(k => `${k}×${a[k] - (b[k] || 0)}`).sort();
+const imgSection = (page) => page.evaluate(() => {
+  const body = document.querySelector('#panel-right .panel-body');
+  const secs = [...(body ? body.querySelectorAll('.prop-section') : [])];
+  const img = secs.find(s => (s.querySelector('.prop-section-title')?.textContent || '').trim() === 'Image');
+  return img ? { rows: img.querySelectorAll('.prop-row, .prop-color-row').length, ids: [...img.querySelectorAll('[id]')].map(e => e.id).sort() } : null;
+});
+test('QA-1 ⒝ 편집 진입에 새 프롭힌트·툴팁 0', async ({ page }) => {
+  const errs = await setup(page, CIRC());
+  const p = await textPoint(page);
+  await page.mouse.click(p.x, p.y);
+  expect(await poll(page, () => document.getElementById('gG').classList.contains('selected')), '[전제] 블럭 고름').toBe(true);
+  await page.mouse.click(p.x, p.y);
+  expect(await poll(page, () => !!document.getElementById('grd-img-ctext')), '[전제] 줄 고름 — 패널 원 절').toBe(true);
+  const sel = await imgSection(page);
+  const live0 = await outsideLive(page);
+  const r = await enterTextEdit(page);
+  expect(r.ok, '[전제] 편집 진입').toBe(true);
+  const live1 = await outsideLive(page);
+  const added = diffBag(live1, live0), gone = diffBag(live0, live1);
+  const ed = await imgSection(page);
+  log('QA-1', { sel, ed, added, gone });
+  expect(ed, '패널 Image 절 — 고른 상태와 같다(새 줄·칸 0)').toEqual(sel);
+  expect(added, '#canvas·#panel-right 밖 «보이는» 요소 — 고른 상태 대비 새것 0').toEqual([]);
+  expect(errs).toEqual([]);
+});
+
+/* QA-2 «디자인 일관성» — 편집 중 글자 모양 = 평소 · outline = 같은 블럭 글자 줄(.grd-line) 편집 중 outline */
+const look = (page, sel) => page.evaluate((sel) => {
+  const e = document.querySelector(sel); if (!e) return null; const cs = getComputedStyle(e);
+  return { fs: cs.fontSize, color: cs.color, fw: cs.fontWeight, lh: cs.lineHeight, ta: cs.textAlign, ol: [cs.outlineStyle, cs.outlineWidth, cs.outlineColor, cs.outlineOffset].join(' ') };
+}, sel);
+test('QA-2 ⒝ 편집 중 글자 모양 = 평소 · outline = 그리드 글자 줄 편집과 같다', async ({ page }) => {
+  const errs = await setup(page, CIRC());
+  // 기준: 같은 블럭 둘째 칸 글자 줄 «B» 를 더블클릭 편집(기존 길) → outline 을 읽고 Esc
+  const bp = await page.evaluate(() => { const r = document.querySelector('#gG .grd-cell[data-c="1"] .grd-line').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.mouse.dblclick(bp[0], bp[1]);
+  expect(await poll(page, () => document.querySelector('#gG .grd-cell[data-c="1"] .grd-line')?.getAttribute('contenteditable') === 'true'), '[전제] 글자 줄 편집(기준)').toBe(true);
+  const ref = await look(page, '#gG .grd-cell[data-c="1"] .grd-line');
+  await page.keyboard.press('Escape');
+  expect(await poll(page, () => document.querySelector('#gG .grd-cell[data-c="1"] .grd-line')?.getAttribute('contenteditable') !== 'true'), '[전제] 기준 편집 끝').toBe(true);
+  const before = await look(page, '#gG .grd-img-circle-text');
+  const r = await enterTextEdit(page);
+  expect(r.ok, '[전제] 편집 진입').toBe(true);
+  const during = await look(page, '#gG .grd-img-circle-text');
+  log('QA-2', { ref, before, during });
+  for (const k of ['fs', 'color', 'fw', 'lh', 'ta']) expect(during[k], `편집 중 ${k} = 평소`).toBe(before[k]);
+  expect(during.ol, 'outline = 그리드 글자 줄 편집과 같다').toBe(ref.ol);
+  expect(errs).toEqual([]);
+});
