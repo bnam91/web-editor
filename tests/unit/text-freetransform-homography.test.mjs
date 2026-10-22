@@ -109,11 +109,15 @@ test('PRE-SIAN ★★전제 — ★사본이 ★★원본과 ★«바이트째»
     t.skip(`원본이 ★이 맥에 ★없다(★지디 맥에만 있다) ⇒ ★★사본 대조는 ★범위 밖. 사본은 ★있다: ${SIAN}`);
     return;
   }
-  const a = fs.readFileSync(SIAN, 'utf8'), b = fs.readFileSync(SIAN_LIVE, 'utf8');
+  /* ⛔`'utf8'` 로 ★읽지 ★마라 — ★그러면 ★`.length` 가 ★★«글자 수»다(한글 1자 = 3바이트).
+     ★261023 실측: ★이 파일은 ★50694 ★바이트인데 ★utf8 글자 수는 ★38531 이었다
+     ⇒ ★제목이 ★「바이트째」라 ★말하는데 ★★«글자»를 ★재면 ★★제목째 ★거짓이 된다. ★Buffer 로 ★잰다. */
+  const a = fs.readFileSync(SIAN), b = fs.readFileSync(SIAN_LIVE);
   assert.equal(a.length, b.length,
-    `⛔사본이 ★늙었다 — ★길이가 ★다르다(사본 ${a.length} · 원본 ${b.length}).
+    `⛔사본이 ★늙었다 — ★★바이트 수가 ★다르다(사본 ${a.length}B · 원본 ${b.length}B).
    ⇒ ★원본을 ★다시 떠서 ★★★«새 해시 이름»으로 ★넣고 ★위 ${'`'}SIAN${'`'} 의 ★이름도 ★같이 ★고쳐라.`);
-  assert.equal(a, b, '⛔사본이 ★늙었다 — ★길이는 같은데 ★내용이 ★다르다(위와 같은 처방)');
+  assert.equal(Buffer.compare(a, b), 0,
+    `⛔사본이 ★늙었다 — ★바이트 수는 ★같은데(${a.length}B) ★내용이 ★다르다(위와 같은 처방)`);
   /* ★★음성대조 — ★이 칸이 ★«항등식»이 아님을 ★그 자리에서 ★보인다.
      ⛔없으면 ★「같은 파일을 ★두 번 읽어 ★비교했다」와 ★구분이 ★안 된다(261004 의 그 병). */
   assert.notEqual(SIAN, SIAN_LIVE, '⛔두 경로가 ★같다 — ★대조가 ★자기 자신을 ★재고 있다');
