@@ -83,8 +83,7 @@ test('T4 ★★양성대조 — ★이 파일의 자가 ★«고치기 전» 꼴
  *   ⛔`.grb-pie-rank`(「n위」)는 ★편집 대상이 ★아니다 — `graph-pie-geom.js:129 pieRanks(values)` 가
  *     ★값 내림차순으로 ★계산한다. ★손으로 고치면 ★값과 ★어긋난다. ⇒ ★이 칸은 ★이름만 잰다.
  *   ★★`todo` 로 둔다 — ★t4-17 이 ★닫으면 ★★저절로 초록이 된다. ⛔「일부러 빨강」이면 ★다음 빨강을 가린다. */
-test('T5 ★범례를 꺼도 ★이름을 ★캔버스에서 고칠 길이 ★남는다 (★t4-17 이 닫는다)',
-  { todo: 'LEGEND-OFF-KILLS-NAME-EDIT-01 — t4-17 이 닫는다' }, () => {
+test('T5 ★범례를 꺼도 ★이름을 ★캔버스에서 고칠 길이 ★남는다 (t4-17 이 닫음)', () => {
   const du = stripComments(rd('js/drag-utils.js'));
   const m = du.match(/const GRB_CAT_LABEL_SEL\s*=\s*'([^']+)'/);
   assert.ok(m, '⛔GRB_CAT_LABEL_SEL 을 못 떼었다 — 꼴이 바뀌었으면 이 자를 고쳐라');
@@ -96,8 +95,20 @@ test('T5 ★범례를 꺼도 ★이름을 ★캔버스에서 고칠 길이 ★�
     '⛔범례를 끄면 이름 편집 입구가 사라진다 — 조각 안 이름(.grb-pie-name)이 편집 명부에 없다');
   // ★그리고 ★그 상자가 ★클릭을 받아야 한다(선례 K8⒤ 꼴 · 컨테이너는 none 유지)
   const css = rd('css/editor-graph.css');
+  /* 범위 밖(t4-17 판정 ㉮ · 261022 S3): 「.grb-pie-tag auto」 단언은 아래 T5b(todo)로 옮겼다 — 지우지 않음.
+     왜: 상자를 열면 1013t1C3 계약(graph-pie-1013 J5 «라벨 위를 눌러도 그 조각» · J2 · X1)이 3 빨강(실측 · 바닥 사본 3 초록).
+     그래서 덧층은 none 그대로 두고, 더블클릭은 drag-utils.js _bindGraphLabelEdit 위임 안의 사각형 판정(_grbPieNameAt)으로 받는다.
+     행동 단언(조각 안 이름 더블클릭 → 편집 열림)은 tests/dom/graph-label-edit.dom.spec.js T8 이 잰다.
   assert.match(css, /\.grb-pie-tag\s*\{[^}]*pointer-events:\s*auto/,
-    '⛔조각 안 라벨 상자가 클릭을 안 받는다(.grb-pie-tag 에 pointer-events:auto 없음)');
+    '⛔조각 안 라벨 상자가 클릭을 안 받는다(.grb-pie-tag 에 pointer-events:auto 없음)'); */
   assert.match(css, /\.grb-pie-tags\s*\{[^}]*pointer-events:\s*none/,
     '⛔컨테이너(.grb-pie-tags)는 none 이어야 한다 — 열면 조각 클릭이 죽는다');
+});
+/* T5b — 지디 발주(덧③ ④)의 「상자 auto」 단언 그대로 · todo(⛔지우지 않음). 지디 판정 261022: 처방 ⑵ 는 틀렸다 — HIT-TOP-FLIPPED-BY-POINTER-AUTO-01
+   (면적으로 닫고 겹침 순서를 안 봤다 · auto 면 라벨 자리의 맨 위가 조각에서 라벨로 뒤집혀 J2·J5·X1 빨강 · 바닥 사본 초록). */
+test('T5b 조각 안 라벨 상자가 클릭을 받는다(.grb-pie-tag auto) — 판정 대기',
+  { todo: 'T5-CSS-AUTO-SUPERSEDED-BY-DBLCLICK-HITTEST — 지디 판정 261022 — auto 를 주면 J2·J5·X1 이 빨강이 된다(실측)' }, () => {
+  const css = rd('css/editor-graph.css');
+  assert.match(css, /\.grb-pie-tag\s*\{[^}]*pointer-events:\s*auto/,
+    '⛔조각 안 라벨 상자가 클릭을 안 받는다(.grb-pie-tag 에 pointer-events:auto 없음)');
 });
