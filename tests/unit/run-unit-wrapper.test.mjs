@@ -1,8 +1,9 @@
 /* run-unit-wrapper.test.mjs — tests/run-unit.mjs(`npm test` 래퍼)를 «행위로» 잠근다 (2026-10-22 · 지디 GO ⒝1)
  *   실행: node --test tests/unit/run-unit-wrapper.test.mjs
  *
- * ★임시 cwd(os.tmpdir 아래)에 tests/unit/ 를 짓고 래퍼를 부른다 — ⛔레포 cwd 로 부르면 이 파일 자신을 다시 돈다(재귀).
- *   끝나면 ★그 임시 경로만 지운다.
+ * ★임시 cwd 에 tests/unit/ 를 짓고 래퍼를 부른다 — ⛔레포 cwd 로 부르면 이 파일 자신을 다시 돈다(재귀).
+ *   임시 루트는 ★공용 자 tests/unit/_tmproot.js mkTmpRoot 가 만들고 치운다(pid 우산 · 종료훅 · 죽은 실행 회수) —
+ *   ⛔이 파일은 제 손으로 지우지 않는다(tests/unit/tmproot-sole-owner.test.mjs 가 잰다 · 38325fcb Intel 전수 빨강 3 의 까닭).
  * ★자식 env 에서 NODE_TEST_CONTEXT 를 뺀다 — 이 파일이 node --test 아래서 돌 때 그 값이 손자 node --test 로 새면
  *   손자가 «보고 꼴»을 바꾼다. GOYA_TEST_CONCURRENCY 도 칸마다 새로 정한다(바깥 셸 값이 칸을 오염시키지 않게).
  *
@@ -22,19 +23,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+const { mkTmpRoot } = createRequire(import.meta.url)('./_tmproot.js');
 
 const WRAPPER = fileURLToPath(new URL('../run-unit.mjs', import.meta.url));
 const PATTERNS = ['tests/unit/*.test.mjs'];
 
 const RED = "import test from 'node:test';\nimport assert from 'node:assert';\ntest('일부러 빨강', () => { assert.fail('일부러'); });\n";
 const GREEN = "import test from 'node:test';\ntest('초록', () => {});\n";
-/* 겹침 자 검사 파일 — 시작에 t0 · 400ms 쉼 · 끝에 t1 을 ★제 이름의 파일 하나에 적는다(파일끼리 쓰기 겹침 없음) */
+/* 겹침 자 검사 파일 — 시작에 t0 · 400ms 쉼 · 끝에 t1 을 ★제 이름의 파일 하나에 적는다(파일끼리 쓰기 겹침 없음).
+   적는 폴더는 env RUW_OVL_DIR — 잼마다 새 폴더(앞 잼의 기록을 지우지 않고 갈라 둔다). */
 const OVL = (name) => "import test from 'node:test';\nimport fs from 'node:fs';\n"
   + `test('${name}', async () => { const t0 = Date.now(); await new Promise((r) => setTimeout(r, 400)); `
-  + `fs.writeFileSync(new URL('../../ovl/${name}.json', import.meta.url), JSON.stringify({ pid: process.pid, t0, t1: Date.now() })); });\n`;
+  + `fs.writeFileSync(process.env.RUW_OVL_DIR + '/${name}.json', JSON.stringify({ pid: process.pid, t0, t1: Date.now() })); });\n`;
 const OVL_N = 6;
 /* 구간들의 최대 동시 겹침 수 — 같은 시각이면 «끝»을 먼저 센다(맞닿음은 겹침 아님) */
 function maxOverlap(iv) {
@@ -43,17 +46,13 @@ function maxOverlap(iv) {
 }
 
 function withTmp(files, fn) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'run-unit-wrapper-'));
-  try {
-    fs.mkdirSync(path.join(dir, 'tests', 'unit'), { recursive: true });
-    for (const [name, src] of Object.entries(files)) fs.writeFileSync(path.join(dir, 'tests', 'unit', name), src);
-    return fn(dir);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  const dir = mkTmpRoot('run-unit-wrapper-');   // 치우기는 _tmproot 가 쥔다
+  fs.mkdirSync(path.join(dir, 'tests', 'unit'), { recursive: true });
+  for (const [name, src] of Object.entries(files)) fs.writeFileSync(path.join(dir, 'tests', 'unit', name), src);
+  return fn(dir);
 }
-function runWrapper(cwd, { conc, args = PATTERNS } = {}) {
-  const env = { ...process.env };
+function runWrapper(cwd, { conc, args = PATTERNS, extraEnv = {} } = {}) {
+  const env = { ...process.env, ...extraEnv };
   delete env.NODE_TEST_CONTEXT;
   delete env.GOYA_TEST_CONCURRENCY;
   if (conc !== undefined) env.GOYA_TEST_CONCURRENCY = conc;
@@ -87,10 +86,9 @@ for (const [label, bad] of [['abc', 'abc'], ['0', '0'], ['1.5', '1.5'], ['-1', '
 test('⒞ 동시도 = 겹침 수 k — 변수 없음 k=2 · c1 k=1 · c3 k=3 (전제: 여섯 파일 각 ≥300ms)', (t) => {
   const files = Object.fromEntries(Array.from({ length: OVL_N }, (_, i) => [`o${i + 1}.test.mjs`, OVL(`o${i + 1}`)]));
   withTmp(files, (dir) => {
-    const ovl = path.join(dir, 'ovl');
     const measure = (conc) => {
-      fs.rmSync(ovl, { recursive: true, force: true }); fs.mkdirSync(ovl);
-      const r = runWrapper(dir, { conc });
+      const ovl = path.join(dir, `ovl-${conc ?? 'none'}`); fs.mkdirSync(ovl);   // 잼마다 새 폴더 — 지우지 않고 갈라 둔다
+      const r = runWrapper(dir, { conc, extraEnv: { RUW_OVL_DIR: ovl } });
       const iv = fs.readdirSync(ovl).map((f) => JSON.parse(fs.readFileSync(path.join(ovl, f), 'utf8')));
       return { ...r, iv, k: maxOverlap(iv) };
     };
@@ -114,14 +112,10 @@ test('⒞ 동시도 = 겹침 수 k — 변수 없음 k=2 · c1 k=1 · c3 k=3 (�
 test('⒠ 빨간 임시 검사 경로를 argv 로 → 래퍼 rc ≠ 0 (rc 를 삼키지 않는다)', () => {
   withTmp({}, (dir) => {
     const rel = path.join('tests', 'unit', 'red-e.test.mjs'); const abs = path.join(dir, rel);
-    fs.writeFileSync(abs, RED);
-    try {
-      const r = runWrapper(dir, { args: [rel] });
-      assert.match(r.out, /일부러 빨강/, `빨간 검사가 안 돌았다 — 이 칸은 아무것도 안 쟀다\n${r.out}\n${r.err}`);
-      assert.notEqual(r.rc, 0, `빨간 검사 경로를 넘겼는데 래퍼 rc = ${r.rc} — 빨강이 래퍼에서 삼켜졌다`);
-    } finally {
-      fs.rmSync(abs, { force: true });   // ★그 임시 파일만 거둔다(임시 폴더는 withTmp 가 거둔다)
-    }
+    fs.writeFileSync(abs, RED);   // 거두기는 임시 루트째 _tmproot 가 쥔다(⛔제 손 지움 · tmproot-sole-owner)
+    const r = runWrapper(dir, { args: [rel] });
+    assert.match(r.out, /일부러 빨강/, `빨간 검사가 안 돌았다 — 이 칸은 아무것도 안 쟀다\n${r.out}\n${r.err}`);
+    assert.notEqual(r.rc, 0, `빨간 검사 경로를 넘겼는데 래퍼 rc = ${r.rc} — 빨강이 래퍼에서 삼켜졌다`);
   });
 });
 
