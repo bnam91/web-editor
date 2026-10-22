@@ -39,6 +39,7 @@
  *   ㉣ 재투입 1 판(adjHost 에 has-bg-opacity 예외 없음) ⇒ R4-d 빨강(채도가 proxy 에 걸려 조용히 버려짐 · 평가 N1)
  *   ⚠ 이 파일이 못 재는 것: has-bg-opacity 프레임의 회전·색보정 «화면»(편집 중 안 보임 · 완료 뒤 그림 사라짐 =
  *     HAS-BG-OPACITY-LAYER-ZERO · R4-d 는 레이어·filter 존재만) · 모달 · 그라데이션 색 · 진입 때 이미 회전/색보정.
+ *     2026-10-22 — 회전·색보정 «화면»을 G5c·R4-e 가 잰다(현빈 지시로 픽셀로 옮겼다).
  *   ⚠ 편집 중 반투명 «물들임»은 처방판도 없다(핀과 같음 · R-1) — R4-a 는 diff(D,C) 를 기록만.
  *
  * ⛔전수 금지 — 이 1벌만. 실행: npx playwright test --config=tests/dom/playwright.dom.config.js sec-bg-live.dom
@@ -346,6 +347,68 @@ test('R4-d ★반투명(has-bg-opacity) 프레임 · 채도 -100 → Esc ⇒ 레
     expect(errs, errs.join('\n')).toEqual([]);
   } finally { await o.close(); }
 });
+
+/* ═══ G5c · R4-e 반투명(has-bg-opacity) 프레임 «화면» — HAS-BG-OPACITY-LAYER-ZERO 를 픽셀로 (2026-10-22 · 현빈 지시) ══
+   ★G5b 조리법 그대로(둘째 프레임 · #ss-bgopa-num 50 · 전제 opa/beforeImg/beforeDisplay ＋ vis = --frame-bg-img 잠깐 none 과의 차).
+   세 장 B2(진입 뒤 조작 전) · D(조작 중 · mouse.up 전) · C(Esc 완료 뒤):
+     ⑴ 양성대조 diff(B2,C) ≥ 50%·분모 (자가 사는가) → ① diff(B2,D) > 0 (중에 바뀐다) → ② diff(D,C) ≤ 2%·분모 (완료 뒤 그림 = 중 그림 ·
+        «완료 뒤 그림이 사라짐»을 ① 혼자는 못 막는다). ⚠ G4 의 회전 전용 문턱(2,000)은 «⛔다른 칸으로 넓히지 마라» 라 여기 안 쓴다 — 원값은 log.
+   ★음성대조(-neg) — 편집 진입 «전» `#host{--frame-bg-img:none !important}` 규칙을 문서에 단다(인라인 변수 쓰기를 이긴다 · 제품 코드 무변)
+     ⇒ 그림이 없으면 ① 이 «안» 떠야 한다(BD = 0). 뜨면 ① 은 ::before 그림이 아닌 다른 길(프록시·레이어·UI)을 잰다. */
+/* ★빨강이 참인 칸의 메시지 꼬리 — 이름 · 판 · 판 근거 · 뜻 · 날짜(지디 판정 2026-10-22 · ⛔test.fixme/skip 금지 · dev 머지는 고침과 같이). */
+const LAYER_ZERO_TAIL = ' — HAS-BG-OPACITY-LAYER-ZERO · 판 378db8296845bf71bbe6fbe5344d0ee4c28a44c1'
+  + ' · c5aa02eb ⊂ 378db829 merge-base 로 확인(태양) · 고치면 초록이 된다 — 고치기 전엔 이 빨강이 참이다 · 2026-10-22';
+async function opaCell(browser, cell, { act, neg = false }) {
+  const o = await open(browser);
+  try {
+    const { errs, host, btnId } = await buildScene(o.page, { frame: true, second: true });
+    await o.page.locator('#ss-bgopa-num').fill('50');
+    await raf2(o.page);
+    const pre = await o.page.evaluate((h) => { const el = document.querySelector(h); const b = getComputedStyle(el, '::before');
+      return { opa: el.classList.contains('has-bg-opacity'), beforeImg: b.backgroundImage !== 'none', beforeDisplay: b.display }; }, host);
+    const B = await shot(o.page, host);
+    await o.page.evaluate((h) => { const el = document.querySelector(h); window.__opaImg = el.style.getPropertyValue('--frame-bg-img'); el.style.setProperty('--frame-bg-img', 'none'); }, host);
+    const Bn = await shot(o.page, host);
+    await o.page.evaluate((h) => { document.querySelector(h).style.setProperty('--frame-bg-img', window.__opaImg); }, host);
+    await raf2(o.page);
+    const vis = await diff(o.dp, B, Bn);
+    if (neg) await o.page.evaluate((h) => { const st = document.createElement('style'); st.id = '__opa-neg'; st.textContent = `${h}{--frame-bg-img:none !important}`; document.head.appendChild(st); }, host);
+    await enterEdit(o.page, btnId);
+    const B2 = await shot(o.page, host);
+    if (act === 'rotate') await dragStart(o.page, host, 'rotate');
+    else await saturate(o.page);
+    const mid = await o.page.evaluate((h) => { const el = document.querySelector(h);
+      return { varImg: el.style.getPropertyValue('--frame-bg-img').slice(0, 20), clips: el.querySelectorAll(':scope > .sec-bg-clip').length,
+        proxies: document.querySelectorAll('.sec-bg-proxy').length }; }, host);
+    const D = await shot(o.page, host);
+    if (act === 'rotate') { await o.page.mouse.up(); await raf2(o.page); }
+    await exitEdit(o.page);
+    const C = await shot(o.page, host);
+    const after = await o.page.evaluate((h) => { const el = document.querySelector(h); const b = getComputedStyle(el, '::before');
+      const L = el.querySelector(':scope > .sec-bg-clip');
+      return { opa: el.classList.contains('has-bg-opacity'), clips: el.querySelectorAll(':scope > .sec-bg-clip').length,
+        layerH: L ? Math.round(L.getBoundingClientRect().height) : null, varImg: el.style.getPropertyValue('--frame-bg-img').slice(0, 20),
+        beforeImg: b.backgroundImage !== 'none' }; }, host);
+    const bd = await diff(o.dp, B2, D), dc = await diff(o.dp, D, C), bc = await diff(o.dp, B2, C);
+    log(cell, { act, neg, pre, imgVisible: `${vis.changed}/${vis.total}`, mid, after,
+      BD: `${bd.changed}/${bd.total}`, DC: `${dc.changed}/${dc.total}`, BC: `${bc.changed}/${bc.total}`,
+      BDpct: +(100 * bd.changed / bd.total).toFixed(2), DCpct: +(100 * dc.changed / dc.total).toFixed(2), BCpct: +(100 * bc.changed / bc.total).toFixed(2) });
+    expect(pre, `★${cell} 전제: has-bg-opacity · ::before 그림 · display`).toEqual({ opa: true, beforeImg: true, beforeDisplay: 'block' });
+    expect(vis.changed, `★${cell} 전제: 조작 전 ::before 그림 픽셀이 0 이다(${vis.changed}/${vis.total}) — 장면이 이 길을 못 본다`).toBeGreaterThan(0);
+    if (neg) {
+      expect(bd.changed, `★${cell} 음성대조: 그림을 none 으로 막았는데 조작 중 화면이 바뀐다 ${bd.changed}/${bd.total} — ① 이 그림 아닌 것을 잰다`).toBe(0);
+    } else {
+      expect(bc.changed, `★${cell} ⑴ 자 양성대조: Esc 뒤 대 전 ${bc.changed}/${bc.total} < 50%`).toBeGreaterThanOrEqual(bc.total * 0.5);
+      expect(bd.changed, `★${cell} ① 조작 «중» 화면이 안 바뀐다: diff(B2,D) ${bd.changed}/${bd.total}${LAYER_ZERO_TAIL}`).toBeGreaterThan(0);
+      expect(dc.changed, `★${cell} ② 중 ≠ 완료 뒤(완료 뒤 그림이 사라짐 등): diff(D,C) ${dc.changed}/${dc.total} > 2%${LAYER_ZERO_TAIL}`).toBeLessThanOrEqual(dc.total * 0.02);
+    }
+    expect(errs, errs.join('\n')).toEqual([]);
+  } finally { await o.close(); }
+}
+test('G5c ★반투명(has-bg-opacity) 프레임 · 회전 중 화면이 바뀐다 · 완료 뒤 그림이 사라지지 않는다', async ({ browser }) => { await opaCell(browser, 'G5c', { act: 'rotate' }); });
+test('G5c-neg ★음성대조 — 그림(--frame-bg-img) none 이면 회전 중 화면이 안 바뀐다', async ({ browser }) => { await opaCell(browser, 'G5c-neg', { act: 'rotate', neg: true }); });
+test('R4-e ★반투명(has-bg-opacity) 프레임 · 채도 -100 조작 «중» 화면이 바뀐다 · 완료 뒤 유지', async ({ browser }) => { await opaCell(browser, 'R4-e', { act: 'sat' }); });
+test('R4-e-neg ★음성대조 — 그림(--frame-bg-img) none 이면 채도 조작 중 화면이 안 바뀐다', async ({ browser }) => { await opaCell(browser, 'R4-e-neg', { act: 'sat', neg: true }); });
 
 /* ═══ R4-a 반투명 ═══════════════════════════════════════════════════════════ */
 test('R4-a ★반투명 섹션 · 스케일 중 바뀐다 · 완료 뒤 물들임 복귀(레이어 0)', async ({ browser }) => {
