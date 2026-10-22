@@ -568,6 +568,18 @@ export function stripEditorOnlyForCapture(clone) {
       }
     }
   });
+  /* ★R1(발주 261022 · 지디 판정 ⒝) — ★편집 장식 9 종을 ★캡처 겹에서 지운다.
+   *   ★어디서 왔나 = 편집 노드 ★정본(js/io/save-load.js NON_CONTENT_UI_SELECTOR ∪
+   *     js/io/section-serialize.js serializeCleanRoot) 중 ★「캡처에서도 지워야 함(yes)」인 것에서
+   *     ★S3 몫(회전 핫존 `-rotate-zone` · 손잡이 `-handle` — «그려지나»는 S3 가 잰다)과
+   *     ★예외 5종(EDITOR_NODE_EXCEPTIONS effect:'stays' — .annotation-block 등)을 ★뺀 ★그 9 다.
+   *   ★html 길은 이 겹을 ∪ 하므로(export-html.js exportHTMLFile 이 이 함수를 부른다) ★여기 한 자리로 두 길이 닫힌다.
+   *   ⚠️★리터럴로 적은 까닭 — 자(tests/unit/_clone-removals.js)가 ★리터럴만 펼쳐 센다(식별자는 `$이름` 한 줄로 셈).
+   *     ⛔그래서 상수로 빼지 마라 — 빼면 ★R1 이 「안 막힘」으로 되돌아가 ★이 줄이 한 일이 안 보인다(지디 ⑵).
+   *   ★잠그는 자 = tests/unit/capture-derive-roster.test.mjs R1 — ★정본에 10번째가 늘면 ★다시 빨개진다
+   *     (그래서 이 줄은 ★손 명부가 아니라 ★정본에 매여 있다). ⛔한 줄 더 적어 끄지 말고 그때 ★정본을 봐라. */
+  clone.querySelectorAll('.annot-selbox, .drop-indicator, .grad-line-overlay, .grd-add-btn, .mdl-profile-x, .section-block[data-ghost], .section-height-badge, .vpen-edit-overlay, .vpen-preview')
+    .forEach(el => el.remove());
 }
 
 /* ══ 편집 보조(그리드 가이드·패딩 비주얼)를 «캡처 동안» 끈다 — 한 벌 (L1, 2026-10-04) ══════════════════
