@@ -9,7 +9,7 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
-const { sliceBlock } = require('../unit/_slice-block.js');
+const { sliceBlock, assertDepsProvided } = require('../unit/_slice-block.js');
 
 const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
@@ -52,6 +52,13 @@ try { await import('/js/blocks/gradient-block.js'); } catch (e) { window.__rendE
 try { await import('/js/blocks/sticker-block.js'); } catch (e) { window.__rendErr.push('sticker ' + e); }
 window.__ready = true;
 `;
+
+/* ★파생 가드(tests/unit/slice-harness-deps-roster SHD2) — 조각이 부르는 외부 import 이름을 하네스가 다 주나.
+ *   이 하네스는 «모듈»로 심어 shape-frame.js 넷을 진짜 import 로 준다 ⇒ 그 import 줄에서 이름을 떠 «준 것»으로 센다(⛔이름을 손으로 적지 않는다).
+ *   genId · showToast 는 window.* 로 준다(declaresName 이 그 꼴을 읽는다). */
+const _IMPORTED = [...WRAP_JS.matchAll(/^import\s*\{([^}]*)\}\s*from/gm)].flatMap(m => m[1].split(',').map(x => x.trim()).filter(Boolean));
+assertDepsProvided(WRAP_SRC, BF, WRAP_JS + _IMPORTED.map(n => `\nconst ${n} = /* import */ 0;`).join(''), 'gradient-group-t507 하네스(wrapSelectedBlocksInFrame)');
+assertDepsProvided(NEXT_GROUP_SRC, BF, WRAP_JS, 'gradient-group-t507 하네스(_nextGroupName)');
 
 const CSS = `* { box-sizing: border-box; } body { margin: 0; }
   .section-block { position: relative; width: 860px; min-height: 1400px; }
@@ -227,12 +234,16 @@ test('RG2 ★그라데이션 + 흐름 자유배치 프레임 — 프레임 안�
 });
 test('RG3 ★그룹 «안»에서 다시 ⌘G(중첩 · 자유배치 갈래) — 그라데이션 렌더 뒤 자리 그대로', async ({ page }) => {
   const errs = await bootRendered(page);
-  const r1 = await groupOf(page, ['grad1', 'abOv']);
+  const r1 = await groupOf(page, ['grad1', 'abOv', 'tbOv']);
   expect(r1.groups, '전제 — 첫 묶기').toBe(1);
-  const r2 = await groupOf(page, ['grad1', 'abOv']);   // 같은 둘을 그룹 안에서 다시 — allInSameFreeFrame 갈래
+  /* 그룹 안에서 그라데이션 + 오버레이 글자만 다시 — allInSameFreeFrame 갈래.
+     ★안쪽 상자 원점(min x)이 바깥 그룹 원점과 달라야 한다 — 같으면 밀 양이 0 이라 «정본을 안 민 판»과 못 가른다(261023 mE 가 초록으로 알려 줌). */
+  const r2 = await groupOf(page, ['grad1', 'tbOv']);
   expect(r2.groups, '전제 — 중첩 그룹 둘').toBe(2);
   expect(r2.inGroup.grad1, '★그라데이션이 «새» 안쪽 그룹에 — 바닥은 처음부터 안 묶여 이 칸이 빈 초록이 된다').not.toBe(r1.inGroup.grad1);
-  expect(r2.inGroup.grad1).toBe(r2.inGroup.abOv);
+  expect(r2.inGroup.grad1).toBe(r2.inGroup.tbOv);
+  const shift = await page.evaluate(() => parseInt(document.getElementById('grad1').closest('.frame-block[data-group="true"]').style.left, 10));
+  expect(shift, '장면 미성립 — 안쪽 그룹 원점이 0 이면 밀 양이 0').not.toBe(0);
   const g = await renderedRect(page, 'grad1');
   expect(g.at, '★중첩 묶기 + 렌더 뒤 화면 자리').toEqual(r1.before.grad1);
   expect(errs).toEqual([]);
