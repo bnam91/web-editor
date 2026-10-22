@@ -43,7 +43,19 @@ const EDITOR_ONLY_SEL = new RegExp([
   '\\.section-label', '\\.section-toolbar', '\\.section-hitzone', '\\.variation-badge', '\\.section-height-badge',
   '\\.annotation', '\\.annot-', '\\.qa-block', '\\.todo-pin', '\\.pen-',
   '\\.col-placeholder', '\\.col-add', '\\.row-col-add', '\\.row-drop-indicator', '\\.layer-',
-  'placeholder', '-handle\\b', '\\.cvb-img-empty', '\\.bn2-line-empty', '\\.grd-line-selected', '\\.grd-add-btn',
+  /* ★★t4 검수 261022(지디) — ★`'placeholder'` ★맨 조각을 ★좁혔다.
+     ⛔그 조각은 ★머리말(위 :30~31 「★«너무 넓은» 조각은 쓰지 않는다」)을 ★스스로 어기고 있었다:
+       ★`.chb-profile-placeholder`(★chat-block.js:109~116 — ★프로필 사진이 ★없을 때 그리는
+        ★회색 사람 SVG = ★★콘텐츠)의 `display:flex` 와 `svg{width:100%}` 를 ★먹어,
+        ★★내보낸 HTML 에서 ★그 아이콘이 ★가운데 정렬과 ★크기를 ★잃었다.
+     ★★분모를 쟀다 — 이 조각 ★하나로만 걸리던 선택자 ★23개 중:
+       ★`::placeholder` ★11 = 편집 전용(걸러야 한다) · ★`.icb-placeholder` 1 = display:none(걸러도 무해)
+       ⛔`.chb-profile-placeholder` 2 = ★콘텐츠 ⇒ ★★이걸 ★열었다
+       ⚠️`[data-is-placeholder="true"]` ★4 = ★안내문 ★흐리게 — ★★일부러 ★안 건드렸다(다른 축 ·
+          「안내문 ★요소가 ★내보내기에 ★실리나」 ⇒ 명부 `PLACEHOLDER-TEXT-DIM-CSS-FILTERED-01`)
+     ★`.col-placeholder` 는 ★아래 줄에 ★이미 명시돼 있다 · `.goya-cp-placeholder` 는 ★CHROME_SHEET(color-picker)라 ★안 읽는다.
+     ★재는 자 = tests/unit/export-css-filter-scope.test.mjs (T1a 콘텐츠 실림 · T2 음성대조 · T3 양성대조) */
+  '::placeholder', '\\.icb-placeholder', '-handle\\b', '\\.cvb-img-empty', '\\.bn2-line-empty', '\\.grd-line-selected', '\\.grd-add-btn',
   '\\.st-btn', '#preview-overlay', '#canvas-scaler', '#canvas-wrap', '#canvas-area',
   ':hover', ':focus', ':active', ':focus-visible', ':focus-within', '::selection', '::-webkit-',
 ].join('|'), 'i');

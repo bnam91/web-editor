@@ -41,8 +41,18 @@
   box-shadow: 0 10px 28px rgba(40, 30, 90, 0.18);
 }
 .rdl-center--image > svg { display: block; width: 100%; height: 100%; }
+/* t4-05 — 가운데 = 이미지인데 그림 키가 없으면(새 기본) 그림 대신 체크 무늬(서클이미지블럭 .icb-circle 과 같은 big 토큰 · 값은 editor-base.css :root 한 자리). */
+.rdl-center--image[data-rdl-empty] {
+  background: repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) 0 0 / var(--goya-checker-big-size) var(--goya-checker-big-size);
+  box-shadow: none;
+}
 /* t4-04 앞 — 가운데 글의 배경이 투명이면(새 블럭 기본) 원판이 없으니 원판 그림자도 없다. 옛 저장 블럭(칠한 배경)은 그대로 그림자를 둔다. */
 .rdl-center--text[data-rdl-nobg] { box-shadow: none; }
+/* t4-04b — 캔버스에서 가운데를 고르면 고리(항목 고리 .rdl-cell-selected .rdl-cell 과 같은 토큰 · 오프셋). 클래스는 직렬화가 벗긴다(-cell-selected 규칙). */
+.radial-block.selected .rdl-center.rdl-center-cell-selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: 3px;
+}
 /* 자르기 없음 — 그림을 네모 그대로(투명 배경 그림은 실루엣만) */
 .rdl-center--noclip { border-radius: 0; overflow: visible; box-shadow: none; }
 .rdl-center-sub { font-weight: 500; line-height: 1.3; opacity: 0.85; padding: 0 12%; }
@@ -190,15 +200,3 @@
 .rdl-sample-btn--plain { border-radius: var(--ui-radius-md); background: #ffffff; }
 .rdl-sample-btn:hover { border-color: var(--ui-divider); }
 .rdl-sample-btn.active { border-color: var(--ui-accent-primary); box-shadow: 0 0 0 2px var(--ui-accent-primary); }
-.rdl-data-item.active .grb-data-label-input { border-color: var(--ui-accent-primary); }
-.rdl-data-dot {
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  overflow: hidden;
-  background: var(--ui-bg-input);
-  border: 1px solid var(--ui-border-mid);
-  cursor: pointer;
-}
-.rdl-data-dot > svg { display: block; width: 100%; height: 100%; }

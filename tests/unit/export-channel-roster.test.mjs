@@ -405,9 +405,21 @@ test('U6-g ★drop 축 채널마다 «실제로 재는 검사»가 있다', () =
     const g = path.join(ROOT, c.guard);
     assert.ok(fs.existsSync(g), `★${c.file} 의 guard «${c.guard}» 가 없다 — 축이 허공을 가리킨다`);
 
+    const gsrc = fs.readFileSync(g, 'utf8');
+    /* ★★2026-10-22 — ★클론 채널(dropFns 를 단 PNG·썸네일·단독 HTML·공용 겹)은 ★자가 다르다:
+       분모 = ★«지우는 선택자» ＋ ★블럭 클래스(readdirSync) · 승인 = DROP_STRIP_ROSTER.
+       ⛔add*Block 을 요구하면 ★거짓 빨강이고, ★요구를 ★빼기만 하면 ★거짓 초록이다 ⇒ ★갈래마다 ★제 자를 단언한다. */
+    if (c.dropFns) {
+      assert.ok(Array.isArray(c.dropFns) && typeof c.dropWhy === 'string' && c.dropWhy.length > 15,
+        `★${c.file} 이 클론 drop 채널인데 dropWhy(이 클론에서 사라지면 안 되는 것)가 없다`);
+      assert.match(gsrc, /DROP_STRIP_ROSTER/, `★guard ${c.guard} 가 승인 명부를 안 읽는다`);
+      assert.ok(/readdirSync/.test(gsrc), `★guard ${c.guard} 가 블럭 클래스 분모를 «뽑지» 않는다`);
+      assert.ok(typeof c.dropDenominator === 'string' && c.dropDenominator.length > 10,
+        `★${c.file} 에 dropDenominator(무엇을 분모로 세는가)가 안 적혀 있다`);
+      continue;
+    }
     /* ★그 검사가 «분모를 기계로» 세는지까지 본다. 손 명부로 세는 검사는 이 병을 못 막는다 —
        그게 처음에 15종이 새던 이유다. */
-    const gsrc = fs.readFileSync(g, 'utf8');
     assert.match(gsrc, /add\[A-Za-z0-9\]\*Block|add\*Block/,
       `★guard ${c.guard} 가 분모를 «기계로» 세지 않는 것 같다 — 손 명부로 세면 다음 블록을 못 본다`);
     assert.ok(/execSync|globby|readdirSync|grep/.test(gsrc),

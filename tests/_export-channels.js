@@ -29,6 +29,8 @@
  * ★축(axes) — 그 채널을 «무엇으로» 재는가
  *   'marker' = 편집 전용 마커가 결과물에 새지 않는다        (U6-c 가 잰다)
  *   'drop'   = 캔버스의 블록이 결과물에서 «빠지지» 않는다   (U6-g 가 «진짜 검사»에 연결한다)
+ *              ★2026-10-22 — Figma 둘에 더해 ★클론 채널 넷(PNG·썸네일·단독 HTML·공용 겹)에도 단다.
+ *              ★클론 채널의 자는 ★«지우는 선택자 명부»(DROP_STRIP_ROSTER · tests/unit/capture-drop-axis.test.mjs)다
  *   ⛔축을 안 적으면 U6-b 가 빨강. 「무엇으로 재는지 모르는 채널」을 못 만들게 한다.
  *
  * ⚠️못 잰 것 — 「좌표가 어긋나나」 축은 «아직 부분»이다 (2026-09-09 오후 갱신).
@@ -109,18 +111,30 @@ const CLEAN_SELF_FN = 'serializeCleanSelf';
  *   'compare'   = 비교용 «키 문자열»을 만든다         ⇒ 마커가 남으면 «오탐»을 만든다(백로그 F2)
  *   'transient' = 라이브 캔버스·리스너 교체·드래그 고스트 ⇒ 스트립 불필요
  */
+/* ★클론 채널(PNG·썸네일·단독 HTML)의 drop 분모 — Figma 의 add*Block 과 ★다른 자다(아래 DROP_STRIP_ROSTER 머리말). */
+const DROP_DENOM = '★두 개를 기계로 센다 — ⑴ 그 채널 dropFns 몸통(주석 뗀 코드)의 «querySelectorAll(…).forEach(…remove())» 선택자 전수 ' +
+  '(＋ delegates 로 부르는 공용 겹의 것) ⑵ js/ 전역 «className = / classList.add(» 리터럴 중 «-block» 으로 끝나는 블럭 클래스 전수(readdirSync)';
+
 const CHANNELS = [
   // ── artifact — 마커가 새면 결과물에 박힌다 ─────────────────────────────
   { file: 'js/io/section-serialize.js', kind: 'artifact', axes: ['marker', 'carry'], strips: 'inline',
     why: '저장본 — 캔버스 클론을 세척해 innerHTML 로 굳힌다. ★이 파일이 «세척의 단일 진실원»이다' },
-  { file: 'js/io/export-html.js', kind: 'artifact', axes: ['marker', 'carry'], strips: 'inline',
+  { file: 'js/io/export-html.js', kind: 'artifact', axes: ['marker', 'drop', 'carry'], strips: 'inline',
     delegates: [{ file: 'js/io/capture-safety.js', entry: 'stripEditorOnlyForCapture' }],
+    dropFns: ['exportHTMLFile'], guard: 'tests/unit/capture-drop-axis.test.mjs',
+    dropDenominator: DROP_DENOM,
+    dropWhy: '★단독 HTML 배송본 — 캔버스 «전체» 클론에서 ★사라지면 안 되는 것 = ★모든 섹션의 ★모든 콘텐츠 블럭. ' +
+             '★제 손으로 지우는 것(exportHTMLFile 의 .remove() 다섯 줄)은 ★편집 손잡이·＋단추·안 고른 A/B 시안뿐이어야 한다',
     why: 'HTML 내보내기 — 라이브 클론을 그대로 문서로 만든다(serializeCleanRoot 를 안 거친다). ' +
          '★마커 걷기는 «제 손 명부» ＋ ★공용 겹(capture-safety stripEditorOnlyForCapture)을 «둘 다» 쓴다 — ' +
          '그래서 delegates 를 선언한다. ★U6-c 는 토큰이 ★어느 쪽에 있든 덮였다고 보되, ' +
          '★«그 겹을 정말 부르나»를 코드에서 같이 본다(⛔주석은 떼고)' },
-  { file: 'js/io/export-image.js', kind: 'artifact', axes: ['marker', 'carry'], strips: 'inline',
+  { file: 'js/io/export-image.js', kind: 'artifact', axes: ['marker', 'drop', 'carry'], strips: 'inline',
     delegates: [{ file: 'js/io/capture-safety.js', entry: 'stripEditorOnlyForCapture' }],
+    dropFns: ['prepareCloneForCapture', 'renderComponentsInClone'], guard: 'tests/unit/capture-drop-axis.test.mjs',
+    dropDenominator: DROP_DENOM,
+    dropWhy: '★PNG — 섹션 클론에서 ★사라지면 안 되는 것 = ★그 섹션의 ★모든 콘텐츠 블럭(떠 있는 블럭 포함). ' +
+             '★제 손 지우기는 ★0줄이다(공용 겹에 전부 위임) — ★생기면 이 축이 그 선택자를 명부에서 찾는다',
     why: 'PNG 내보내기 — 라이브 DOM 클론을 캡처한다(재렌더가 마커를 되붙이는 자리도 여기). ' +
          '★제 손 명부는 «재렌더 뒤»(renderComponentsInClone)에만 있다 — 그 순서가 필요한 자리다. ' +
          '★나머지는 공용 겹(capture-safety)에 위임한다. ' +
@@ -156,8 +170,12 @@ const CHANNELS = [
          '— 두 벌 명단이면 한쪽만 고쳐지는 날이 온다(백로그 F2)' },
 
   // ── transient — 라이브/일시. 결과물이 아니다 ───────────────────────────
-  { file: 'js/io/save-load.js', kind: 'artifact', axes: ['marker'], strips: 'inline',
+  { file: 'js/io/save-load.js', kind: 'artifact', axes: ['marker', 'drop'], strips: 'inline',
     delegates: [{ file: 'js/io/capture-safety.js', entry: 'stripEditorOnlyForCapture' }],
+    dropFns: ['captureThumbnail'], guard: 'tests/unit/capture-drop-axis.test.mjs',
+    dropDenominator: DROP_DENOM,
+    dropWhy: '★썸네일(프로젝트 카드) — 첫 섹션 클론에서 ★사라지면 안 되는 것 = ★그 섹션의 ★콘텐츠 블럭. ' +
+             '★제 손 지우기는 ★0줄(공용 겹 위임) · ⛔저장 직렬화(serializeCleanRoot)는 이 축이 ★안 잰다 — 그건 marker 축의 일',
     why: '★2026-10-10 에 transient → artifact 로 고쳤다(advqa 가 잡았다). ' +
          '★옛 why 는 「⑴썸네일 클론은 body 로 나가 #canvas 스코프 밖이라 마커가 안 그려진다 ' +
          '⑵캔버스 직렬화는 serializeCleanRoot 에 위임 ⑶히트존 리스너 교체」였고 ★⑴⑵⑶ 은 ★지금도 참이다. ' +
@@ -170,7 +188,11 @@ const CHANNELS = [
          '★★그리고 내 제 문구가 스스로 어긋나 있었다 — 아래 capture-safety 칸이 ' +
          '「세 산출물(PNG·★썸네일·단독 HTML)」이라 적어 놓고 ★그 썸네일을 만드는 파일을 transient 로 뒀다' },
   /* 10-05 G11 ① 로 옮김 · 옛 자리 = js/props/prop-mockup.js(같은 «왜») — 클론하는 찍기가 공용 captureSectionImage 로 갔다 */
-  { file: 'js/io/capture-safety.js', kind: 'artifact', axes: ['marker'], strips: 'inline',
+  { file: 'js/io/capture-safety.js', kind: 'artifact', axes: ['marker', 'drop'], strips: 'inline',
+    dropFns: ['stripEditorOnlyForCapture'], guard: 'tests/unit/capture-drop-axis.test.mjs',
+    dropDenominator: DROP_DENOM,
+    dropWhy: '★공용 겹 — PNG·썸네일·단독 HTML ★세 소비자가 ★같이 부른다 ⇒ ★여기서 지우는 선택자 한 줄이 ★세 산출물에서 ★같이 빠진다. ' +
+             '★사라지면 안 되는 것 = ★콘텐츠 블럭 전부 · ★지워도 되는 것 = ★DROP_STRIP_ROSTER 의 이 칸(편집 chrome·설계 제외·현빈 칸)뿐',
     why: '★2026-10-10 에 transient → artifact 로 고쳤다. 옛 why 는 「목업 이미지 클론을 body 에 붙여 찍으니 ' +
          '마커 CSS 가 #canvas 스코프라 안 그려진다」였고 ★그 문장은 지금도 참이다 — 그러나 ★이 파일은 ' +
          '★stripEditorOnlyForCapture 로 ★세 산출물(PNG·썸네일·단독 HTML)의 ★마커를 걷는 ★공용 겹이다. ' +
@@ -225,6 +247,58 @@ const CARRY_KEYS = [
   '--frame-bg-pos',
 ];
 
+/* ★★2026-10-22 — ★`drop` 축을 ★클론 채널(PNG·썸네일·단독 HTML)에 ★단다 (imac-지디워커 · 설계 = 지디 PLAN-drop-axis-261022)
+   ★★왜 — `drop` 은 ★2026-09-09 에 ★Figma 용으로 났고 ★18 채널 중 ★2(둘 다 Figma)에만 달렸다.
+     ★PNG 쪽은 ★`stripEditorOnlyForCapture` 가 ★요소를 ★remove() 하는 ★유일한 공용 겹인데, ★그 선택자 명부가
+     ★한 줄 늘어도 ★어느 검사도 ★안 빨개졌다 — ★`.annotation-block` 이 ★그렇게 ★명부에 들어 있는 채
+     ★t3-01 사이즈 스티커(annotKind 'dim' · ★같은 클래스)가 ★출하됐다.
+   ★★무엇을 재나 — ★«클론에서 ★요소를 ★지우는 선택자»가 ★전부 ★이 명부에 ★«이름과 왜»로 ★있나.
+     ⇒ ★★한 쌍: ★지우는 명부를 ★한 줄 늘리면 → ★이 축이 ★빨강(★그 선택자 이름으로). ★늘리려면 ★여기 ★왜를 적어라.
+     ⇒ ★지우는 선택자가 ★블럭 클래스(분모 ⑵)면 ★kind 가 ★'design'·'open' 이어야 한다 — ★'chrome' 으로 ★못 숨긴다.
+   ★kind — 'chrome' = 편집 UI(콘텐츠 아님) · 'design' = 콘텐츠 꼴이지만 ★설계로 뺀다(까닭을 why 에) ·
+            'open' = ★빠지는 것이 ★맞는지 ★안 정해졌다 — ★현빈 칸(⛔이 축이 ★정하지 않는다 · 제품 동작 0 변경)
+   ⛔이 축이 ★안 재는 것 (★셋 — 출력·머리말 양쪽에 적는다):
+     ⒤ ★숨기기(visibility·display)·속성 떼기·중립화 — ★요소 «제거»만 잰다
+        (hidePlaceholderTextForCapture · stripImageMemoForCapture · neutralizeEmptyImageCheckerForCapture · neutralizeRedactForH2C 는 ★DROP_DESIGN_EXCLUSIONS 에 ★이름만)
+     ⅱ) ★«실제로 그려졌나» — ★픽셀은 ★S3 몫(PLAN ③ 의 `'rendered'` 축 · ★아직 안 올렸다)
+     ⅲ) ★지우는 선택자가 ★블럭 «안»의 콘텐츠 조각(예: 블럭 자식 클래스)을 ★잡는지 — ★선택자 이름만 본다 */
+const DROP_STRIP_ROSTER = {
+  'js/io/capture-safety.js#stripEditorOnlyForCapture': [
+    { sel: '.section-label',    kind: 'chrome', why: '섹션 이름 꼬리표 — 편집 화면 표시' },
+    { sel: '.section-toolbar',  kind: 'chrome', why: '섹션 툴바 단추 줄' },
+    { sel: '.variation-badge',  kind: 'chrome', why: 'A/B 시안 배지' },
+    { sel: '.annotation-block', kind: 'open',
+      why: '★펜 주석(C18 · 리뷰 표시)이라 뺐다 — ★그러나 ★t3-01 사이즈 스티커(치수선 · annotKind \'dim\')가 ★같은 클래스를 쓴다 ' +
+           '⇒ ★사이즈 표시가 ★PNG·썸네일·단독 HTML 에서 ★빠진다. ★빼는 게 맞나는 ★현빈 칸(이 축은 ★정하지 않는다 · 0 변경)' },
+    { sel: '.annot-preview',    kind: 'design', why: '펜툴 «그리는 중» 미리보기 — 확정 전 임시 선(PLAN ④㉡ 설계 제외)' },
+    { sel: '.qa-block',         kind: 'design', why: 'admin QA 체크리스트 — 작업 메타데이터(감싼 .row 째 지운다 · 자리도 안 남긴다)' },
+    { sel: '.sec-bg-proxy',     kind: 'chrome', why: '섹션 배경 편집 프록시 — 배경 그림이 두 번 찍힌다' },
+    { sel: '.img-edit-hint',    kind: 'chrome', why: '이미지 편집 안내' },
+    { sel: '.img-boundary',     kind: 'chrome', why: '이미지 편집 경계 선' },
+  ],
+  'js/io/export-html.js#exportHTMLFile': [
+    { sel: '$HIDDEN_VARIATION_SECTION_SEL', kind: 'design', why: '안 고른 A/B 시안 섹션 — 배송본에 둘 다 보이던 병(2026-09-09) · 저장본은 안 뺀다' },
+    ...['.col-placeholder', '.col-add-btn', '.col-add-menu', '.row-col-add-btn', '.row-drop-indicator', '.layer-section-drop-indicator']
+      .map(sel => ({ sel, kind: 'chrome', why: '빈 칸 자리표시·칸/줄 추가 단추·드롭 표시 — 편집 UI' })),
+    ...['.section-hitzone', '.shape-handle', '.asset-overlay-handle', '.icb-overlay-handle', '.zm-overlay-handle',
+        '.mdl-overlay-handle', '.grd-img-overlay-handle', '.tfo-overlay-handle', '.grid-cell-resize-handle']
+      .map(sel => ({ sel, kind: 'chrome', why: '히트존·손잡이 — 앱 CSS 를 실으며 드러난 편집 DOM(2026-09-21)' })),
+    ...['.label-item-delete-btn', '.label-group-add-btn', '.grd-add-btn', '.mdl-profile-x']
+      .map(sel => ({ sel, kind: 'chrome', why: '✕삭제·＋추가 단추 — 직렬 DOM 보존형 블럭의 편집 단추(BL-CD-10)' })),
+    ...['.sec-bg-proxy', '.img-edit-hint', '.img-boundary', '.img-corner-handle', '.img-edge-handle', '.img-rotate-zone', '.mdl-rotate-zone']
+      .map(sel => ({ sel, kind: 'chrome', why: '이미지·배경·모달 편집 임시 DOM — 앱 CSS 없는 배송본에서 겹쳐 찍힌다' })),
+  ],
+};
+
+/* ★설계로 «안 보이게» 하지만 ★요소 제거가 ★아닌 것 — ★이름만 한 자리에(PLAN ④㉢). ⛔위 축이 ★안 잰다(⒤). */
+const DROP_DESIGN_EXCLUSIONS = [
+  { id: 'PLACEHOLDER-EXCLUDED-BY-DESIGN-01', what: '[data-is-placeholder] 미입력 안내문구', how: 'hidePlaceholderTextForCapture — visibility:hidden(글만 · 자리는 남는다)' },
+  { id: 'MEMO-EXCLUDED-BY-DESIGN-01',        what: 'data-memo 이미지 메모 쪽지',          how: 'stripImageMemoForCapture — 속성만 뗀다(가상요소 쪽지가 사라진다)' },
+  { id: 'QA-EXCLUDED-BY-DESIGN-01',          what: '.qa-block admin QA 블럭',              how: 'stripEditorOnlyForCapture — 감싼 .row 째 remove()(위 명부 kind design)' },
+  { id: 'PARTICLE-EXCLUDED-BY-DESIGN-01',    what: '섹션 배경 파티클',                      how: '릴리스 노트 0.9.7 「저장물에는 들어가지 않음」 — 이 축이 안 잰다(restRuntimeForArtifact 는 «쉬는 꼴»로 돌릴 뿐)' },
+];
+
 const AXES = ['marker', 'drop', 'carry'];
 
-module.exports = { CHANNELS, MARKER_TOKENS, MARKER_SCENES, CLEAN_FN, CLEAN_SELF_FN, AXES, NORM_FN, CARRY_KEYS };
+module.exports = { CHANNELS, MARKER_TOKENS, MARKER_SCENES, CLEAN_FN, CLEAN_SELF_FN, AXES, NORM_FN, CARRY_KEYS,
+  DROP_STRIP_ROSTER, DROP_DESIGN_EXCLUSIONS };

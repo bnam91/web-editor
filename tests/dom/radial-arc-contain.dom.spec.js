@@ -532,7 +532,8 @@ test.describe('방사형 에셋 블럭 — 호 모드: 기본 꼴 = 반원 · �
     expect(errs, 'pageerror').toEqual([]);
   });
 
-  test('RC9 새로 만든 호 블럭(addRadialBlock) — 같은 세 수 · 데모와 같은 상태(배경만 다르다)', async ({ page }) => {
+  // 제목 바뀜(t4-03 · S6 ⒝-2): 새 블럭 항목 글이 '' + 안내문구가 되어 «배경만 다르다» 가 거짓이 됐다 — 원래 까닭(데모 = 새 호 블럭의 기본 모습)은 산다: 나머지 키는 전부 견주고 뺀 글은 따로 한 줄이 잰다.
+  test('RC9 새로 만든 호 블럭(addRadialBlock) — 같은 세 수 · 데모와 같은 상태(배경 · 항목 글만 다르다)', async ({ page }) => {
     const errs = await bootWithDemos(page);
     const made = await page.evaluate(async ([sid, bid]) => {
       const mod = await import('/js/blocks/radial-block.js');
@@ -545,7 +546,8 @@ test.describe('방사형 에셋 블럭 — 호 모드: 기본 꼴 = 반원 · �
       const fresh = split(r.block), demo = split(document.getElementById(bid));
       return { ok: true, id: r.block.id, before, after: document.querySelectorAll('#canvas .radial-block').length,
         connected: r.block.isConnected, sec: r.block.closest('.section-block') && r.block.closest('.section-block').id,
-        fresh: fresh.st, demo: demo.st, freshBg: fresh.bg, demoBg: demo.bg, seen: r.block.dataset.arcSeen };
+        fresh: fresh.st, demo: demo.st, freshBg: fresh.bg, demoBg: demo.bg, seen: r.block.dataset.arcSeen,
+        freshPh: [...r.block.querySelectorAll('.rdl-label-text')].map((e) => [e.dataset.isPlaceholder || null, e.textContent]) };
     }, [ARC_SEC, ARC_ID]);
     expect(made.ok, '전제: 블럭이 만들어졌다').toBe(true);
     expect(made.connected, '전제: 문서에 붙었다').toBe(true);
@@ -561,7 +563,10 @@ test.describe('방사형 에셋 블럭 — 호 모드: 기본 꼴 = 반원 · �
     expect(made.fresh.marker, '기본 마커 = 점').toBe('dot');
     expect(made.fresh.centerMode, '기본 가운데 = 없음').toBe('none');
     expect(made.fresh.items.map((it) => [it.img, it.svg === undefined]), '기본 항목에 그림 · 아이콘이 없다').toEqual([['', true], ['', true], ['', true]]);
-    expect(made.demo, '데모 블럭의 상태 = 새 호 블럭의 상태(배경 제외)').toEqual(made.fresh);
+    // t4-03: 새 블럭 항목 글은 '' + 안내문구가 됐다 · 데모는 보여 주기용 글을 박고 있다 ⇒ 항목 글만 비교에서 빼고(나머지 키는 전부 견준다) 뺀 글은 아래 한 줄이 따로 잰다.
+    const noLabel = (st) => ({ ...st, items: st.items.map(({ label, ...r }) => r) });
+    expect(noLabel(made.demo), '데모 블럭의 상태 = 새 호 블럭의 상태(배경 · 항목 글 제외)').toEqual(noLabel(made.fresh));
+    expect([made.demo.items.every((it) => it.label.trim() !== ''), made.fresh.items.map((it) => it.label), made.freshPh], '데모 라벨은 비지 않고 · 새 호 블럭 라벨은 전부 \'\' · 안내문구로 그려진다').toEqual([true, ['', '', ''], Array(3).fill(['true', '내용을 입력하세요'])]);
     expect([made.freshBg, made.demoBg], '배경 — 새 블럭은 투명 · 데모만 칠했다').toEqual(['', '#f3f4f6']);
     expect(made.seen, '호로 태어난 블럭은 «처음 바꾸기» 기본값을 다시 입지 않는다').toBe('1');
     expect(errs, 'pageerror').toEqual([]);

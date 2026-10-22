@@ -814,14 +814,21 @@ function clearAssetImageFromButton(ab) {
 }
 window.clearAssetImageFromButton = clearAssetImageFromButton;
 
+/* ★`_assetClearBatch`(T4-ASSETCLEAR 2026-10-22) — 인스펙터 «이미지» 줄 일괄 비우기(clearAssetImages)만 켠다.
+   켜져 있으면 clearAssetImage 는 «이력 · 속성 패널 · 토스트»만 건너뛴다(일괄 쪽이 한 번씩 한다) — ⛔지우는 몸은 한 글자도 안 갈린다.
+   ★매개변수로 안 받는 까닭 — 서명 `function clearAssetImage(ab)` 을 닻으로 읽는 검사가 있다(tests/unit/image-redact.test.mjs U5).
+     서명을 바꾸면 그 자가 조용히 눈이 먼다(anchor-signature-ratchet 머리말의 병) ⇒ 서명은 그대로, 모듈 안 깃발로 켠다.
+   평소 false ⇒ 기존 부름 6 곳(✕ 단추 · prop-asset · 편집모드 ⌫ · updateAssetBlock · section-serialize …)은 옛 동작 그대로. */
+let _assetClearBatch = false;
 function clearAssetImage(ab) {
+  const batch = _assetClearBatch;
   exitImageEditMode(ab);
   /* ★미확정 영상을 없애면 «한 번만 알린다» 래치를 푼다 (T-032 거짓음성, 2026-09-22 검수 실측).
      래치는 내용 신원으로 걸린다 — ✕로 비우고 «같은 파일»을 다시 넣으면 신원이 같아서
      「이미 알렸다」로 넘어가고, 경고 0회인 채로 저장하면 영상이 사라진다.
      ⛔경고가 «안 뜨는 것»이 「안전하다」로 읽히는 자리다. 없애는 쪽이 알려 줘야 한다. */
   window.resetPendingVideoWarnLatch?.();
-  pushHistory();
+  if (!batch) pushHistory();
   ab.classList.remove('has-image');
   delete ab.dataset.imgSrc;
   delete ab.dataset.fit;
@@ -846,8 +853,32 @@ function clearAssetImage(ab) {
     <div class="asset-overlay" ${prevOverlayStyle2 ? `style="${prevOverlayStyle2}"` : ''}>${prevOverlayHTML2}</div>`;
   restoreAssetCollab(ab, prevCollab2);
   ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
+  if (batch) return;
   showAssetProperties(ab);
   window.showToast?.('🗑 이미지 삭제됨 · ⌘Z로 되돌리기');
+}
+
+/* ★인스펙터 «이미지» 줄 일괄 «비우기»(T4-ASSETCLEAR · 현빈 확정 ⒜ 2026-10-22 «이미지만 비움 · 블록 유지»).
+ *   ★«새로 만든 것이 아니라 있는 걸 부른다» — 블럭마다 위 clearAssetImage(정의 자리 하나)를 부른다.
+ *     ⛔.has-image · data-img-src · .asset-img 를 여기서 손으로 지우지 마라(지우는 목록이 두 벌이 된다).
+ *   ★왜 깃발인가 — clearAssetImage 는 부를 때마다 pushHistory 한다(push-before) ⇒ N 번이면 ⌘Z 가 N 걸음이다
+ *     (tests/dom/inspector-assetclear.dom.spec.js C0 실측: 3 번 → ⌘Z 1 번에 1/3). 여기서 «한 번» 찍고 블럭마다는 _assetClearBatch 로 부른다.
+ *   ★블록은 남는다 — 비운 꼴 = 새 빈 블록(block-factory makeAssetBlock)과 같은 «빈 에셋»(체크무늬 자리표시).
+ *   돌려주는 값 = 비운 수(0 이면 이력도 토스트도 없다). */
+function clearAssetImages(list) {
+  const targets = [...(list || [])].filter(ab => ab?.classList?.contains('asset-block') && ab.classList.contains('has-image'));
+  if (!targets.length) return 0;
+  /* ★편집 모드인 블럭은 «먼저» 닫는다 — exitImageEditMode 는 그 편집 세션을 제 걸음으로 커밋(pushHistory)한다.
+     루프 안에서 닫히면 그 커밋이 «비우기» 걸음 뒤에 끼어 ⌘Z 한 번이 전부를 못 되돌린다. */
+  targets.forEach(ab => exitImageEditMode(ab));
+  pushHistory('이미지 비우기');
+  _assetClearBatch = true;
+  try { targets.forEach(ab => clearAssetImage(ab)); }
+  finally { _assetClearBatch = false; }   // ⛔예외가 나도 깃발이 남으면 다음 ✕ 가 이력 없이 지운다
+  const sel = targets.find(ab => ab.classList.contains('selected'));
+  if (sel) showAssetProperties(sel);
+  window.showToast?.(`🗑 이미지 ${targets.length}개 비움 · 블록은 그대로 · ⌘Z로 되돌리기`);
+  return targets.length;
 }
 
 /* ══════════════════════════════════════
@@ -1696,6 +1727,7 @@ window.teardownGridImageEditMode = (block) => _teardownGridImgEdit(block);
 window.applyImageTransform = applyImageTransform;
 window.triggerAssetUpload = triggerAssetUpload;
 window.clearAssetImage    = clearAssetImage;
+window.clearAssetImages   = clearAssetImages;
 window.loadImageToAsset   = loadImageToAsset;
 window.setAssetImageFromSrc = setAssetImageFromSrc;
 

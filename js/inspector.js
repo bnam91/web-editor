@@ -116,6 +116,16 @@ function jumpToElement(el) {
 if (typeof document !== 'undefined' && !window.__inspJumpWired) {
   window.__inspJumpWired = true;
   document.addEventListener('click', (e) => {
+    /* ★«비우기» 단추는 점프 «줄 안»에 있다 ⇒ 점프보다 «먼저» 갈라 끝낸다(안 그러면 비우면서 그 블럭으로 날아간다).
+       비우기 정의 자리 = js/image-handling.js clearAssetImages(블럭마다 있는 clearAssetImage 를 부른다 · 이력 한 걸음). */
+    const clr = e.target.closest?.('[data-insp-clear]');
+    if (clr) {
+      e.preventDefault();
+      const list = (_jumpTargets[clr.dataset.inspClear] || []).filter(isJumpTarget);
+      window.clearAssetImages(list);
+      renderInspectorPanel();
+      return;
+    }
     const row = e.target.closest?.('.insp-jump');
     if (!row) return;
     const key = row.dataset.jump;
@@ -294,6 +304,23 @@ function renderInspectorPanel() {
          + `<span class="insp-stat-value" data-jump-value="${key}">${list.length}</span></div>`;
   };
 
+  /* ★«비우기» 줄(T4-ASSETCLEAR 2026-10-22 · 현빈 확정 ⒜ «이미지만 비움 · 블록 유지») — «이미지» 줄 «바로 밑»에 붙는 단추 한 줄.
+   *   ★쓰는 자리 = «이미지» 줄 «하나». ⛔«텍스트» 줄엔 안 단다 — 아래 머리 넷 주석의 선례
+   *     «★★「텍스트」는 ★지디가 넓힌 범위다 — ⛔현빈은 ★이미지만 말했다» 와 같은 범위다.
+   *   ★왜 줄 «안»이 아니라 «밑»인가 — 머리 넷은 «같은 꼴»(자식 label+value)이어야 한다(tests/dom/inspector-t17 I5 · 지디 판정 ㉡).
+   *     줄 안에 단추를 넣으면 «이미지» 줄만 자식이 셋이 된다. 그리고 statRow 서명을 닻으로 읽는 검사(inspector-t17 T1)가 있다
+   *     ⇒ statRow 는 한 글자도 안 바꾸고, 그 줄이 «센 것»(_jumpTargets[key])을 이 줄이 읽는다.
+   *   ★단추는 «비울 것이 1 이상»일 때만 — 0 이면 누를 것이 없는데 단추가 뜨면 거짓 약속이다(always 의 점프 규율과 같다).
+   *   ★누르면 «같은 배열»을 넘긴다 ⇒ «센 것 = 비운 것»이 구조로 보장된다.
+   *   ⛔css/editor-panels.css · css/panels/* 는 지디 파일이라 안 만진다 — 꼴은 인라인 최소. */
+  const clearRow = (key) => {
+    const n = (_jumpTargets[key] || []).filter(el => el.classList.contains('has-image')).length;
+    if (!n) return '';
+    return `<div class="insp-stat-action" data-insp-clear-for="${key}" style="display:flex;justify-content:flex-end;margin:-2px 0 4px">`
+         + `<button type="button" class="insp-row-clear" data-insp-clear="${key}" title="블록은 그대로 두고 이미지만 비운다 · ⌘Z로 되돌리기"`
+         + ` style="padding:0 8px;font-size:11px;line-height:18px;cursor:pointer">이미지 ${n}개 비우기</button></div>`;
+  };
+
   // 텍스트 variant 카운트
   const variantCount = { heading: 0, subheading: 0, body: 0, caption: 0, label: 0 };
   textBlocks.forEach(tb => {
@@ -441,6 +468,7 @@ function renderInspectorPanel() {
              ⇒ 「고르기」(selectBlock)까지 ★된다. 점프 자체는 ★요소로 하므로 id 와 무관하다(jumpToElement). -->
       ${statRow('textBlocks', '텍스트', textBlocks, { always: true })}
       ${statRow('assetBlocks', '이미지', assetBlocks, { always: true })}
+      ${clearRow('assetBlocks')}
       ${extraBlockRows}
     </div>
 
