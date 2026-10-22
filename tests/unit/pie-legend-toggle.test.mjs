@@ -104,11 +104,33 @@ test('T5 ★범례를 꺼도 ★이름을 ★캔버스에서 고칠 길이 ★�
   assert.match(css, /\.grb-pie-tags\s*\{[^}]*pointer-events:\s*none/,
     '⛔컨테이너(.grb-pie-tags)는 none 이어야 한다 — 열면 조각 클릭이 죽는다');
 });
-/* T5b — 지디 발주(덧③ ④)의 「상자 auto」 단언 그대로 · todo(⛔지우지 않음). 지디 판정 261022: 처방 ⑵ 는 틀렸다 — HIT-TOP-FLIPPED-BY-POINTER-AUTO-01
-   (면적으로 닫고 겹침 순서를 안 봤다 · auto 면 라벨 자리의 맨 위가 조각에서 라벨로 뒤집혀 J2·J5·X1 빨강 · 바닥 사본 초록). */
-test('T5b 조각 안 라벨 상자가 클릭을 받는다(.grb-pie-tag auto) — 판정 대기',
-  { todo: 'T5-CSS-AUTO-SUPERSEDED-BY-DBLCLICK-HITTEST — 지디 판정 261022 — auto 를 주면 J2·J5·X1 이 빨강이 된다(실측)' }, () => {
+/* T5b — ★★2026-10-23 ★지디 ★뜻을 ★뒤집었다. ⛔지우지 ★않고 ★★«반대»를 ★잠근다.
+   ★옛 꼴 : `assert.match(… pointer-events:auto)` ＋ `todo` — ★「★상자에 ★auto 를 ★주라」를 ★★요구했다
+   ★★왜 ★뒤집었나 — ★요구가 ★★«다른 기능»으로 ★★이미 ★채워졌고, ★★★auto 는 ★★틀린 ★처방으로 ★판정됐다:
+     ⒤ ★틀린 처방 : ★`HIT-TOP-FLIPPED-BY-POINTER-AUTO-01`
+        (★면적으로 닫고 ★겹침 ★순서를 ★안 봤다 · ★auto 면 ★라벨 자리의 ★맨 위가 ★조각 → ★라벨로 ★뒤집혀
+         ★1013t1C3 계약 ★J2·J5·X1 이 ★★3 ★빨강 · ★바닥 사본 ★3 ★초록 — ★실측)
+     ⅱ) ★요구를 ★채우는 자 : ★제품 `js/drag-utils.js:819 _grbPieNameAt`(:836 에서 불린다)
+        ★재는 자 ★셋 = `tests/dom/graph-label-edit.dom.spec.js`
+          ★T8  조각 안 이름 ★더블클릭 → ★편집이 ★열린다 ＋ ★★그 자리 ★맨 위는 ★조각(★J5 계약을 ★한 칸에 ★같이)
+          ★T9  ★숨은 이름 자리를 더블클릭해도 ★안 잡는다 · ★데이터 ★무변(★음성대조)
+          ★T10 ★두 이름이 겹치면 ★«칠 순서 위쪽» — 같은 z = 문서 순서 뒤 · z 큰 쪽이 이긴다
+   ★★⇒ ★그러니 ★옛 단언은 ★★«무효 항목»이었다 — ★★⛔`todo` 로 두면 ★★«고아 칸»이 되어 ★★다음 빨강을 ★가린다
+      (★같은 날 ★R1 도 ★같은 자리였다 — ★둘 다 ★todo 가 ★빨강을 ★덮고 있었다)
+   ★★★뒤집은 뒤 ★이 칸이 ★잠그는 것 : ★★«누가 ★auto 를 ★다시 ★주면 ★빨강» ⇒ ★J2·J5·X1 을 ★지킨다 */
+test('T5b ★★조각 안 라벨 상자에 ★auto 를 ★주지 ★않는다 — ★★HIT-TOP-FLIPPED-BY-POINTER-AUTO-01 (★요구는 ★T8·T9·T10 이 채운다)', () => {
   const css = rd('css/editor-graph.css');
-  assert.match(css, /\.grb-pie-tag\s*\{[^}]*pointer-events:\s*auto/,
-    '⛔조각 안 라벨 상자가 클릭을 안 받는다(.grb-pie-tag 에 pointer-events:auto 없음)');
+  const AUTO = /\.grb-pie-tag\s*\{[^}]*pointer-events:\s*auto/;
+  /* ★★★반례 단언 — ⛔금지단언(`doesNotMatch`)은 ★★«자가 죽어도 ★초록»이다(261009 이스케이프 ★1글자 = ★항등식).
+     ⇒ ★그 자가 ★★«실제로 ★잡는다»를 ★★★같은 자리에서 ★보인다. ⛔이 줄을 ★지우지 ★마라. */
+  assert.match('.grb-pie-tag { pointer-events: auto; }', AUTO,
+    '★★자가 ★죽었다 — ★그 정규식이 ★★진짜 auto 선언도 ★못 잡는다 ⇒ ★아래 ★금지단언은 ★★증거가 ★아니다');
+  assert.doesNotMatch('.grb-pie-tag { pointer-events: none; }', AUTO,
+    '★★음성대조 — ★그 정규식이 ★`none` 까지 ★잡는다(★너무 먹는다)');
+  /* ★★본 단언 — ★제품에 ★그 선언이 ★★없어야 한다 */
+  assert.doesNotMatch(css, AUTO,
+    '⛔`.grb-pie-tag` 에 ★`pointer-events:auto` 가 ★생겼다 — ★★그러면 ★라벨 자리의 ★맨 위가 ★조각에서 ★라벨로 ★뒤집혀\n'
+    + '   ★1013t1C3 계약 ★J2·J5·X1 이 ★빨강이 된다(★HIT-TOP-FLIPPED-BY-POINTER-AUTO-01 · 실측).\n'
+    + '   ★요구(조각 안 이름을 눌러 고친다)는 ★★«dblclick 사각형 판정»이 ★이미 채운다 —\n'
+    + '   ★제품 js/drag-utils.js:819 `_grbPieNameAt` · ★재는 자 tests/dom/graph-label-edit.dom.spec.js T8·T9·T10');
 });
