@@ -133,7 +133,24 @@ const _baseRect = (W, H) => [[0, 0], [W, 0], [W, H], [0, H]];
      ⇒ ★«켜기 전»인데 `matrix(0.952, 0, 0, 0.795)` 가 났다.
    ⇒ ★재기 «전»에 ★우리가 쓴 인라인 치수를 ★걷는다. 그리고 ★«한 번만» 잰다(글이 바뀔 때만 force).
    ⛔소스에 `measured` 가 있나로 재지 마라 — 다른 경로로 되먹임이 생기면 소스 자는 초록이다.
-     잠그는 자 = `PRE-IDENTITY` ＋ `D_zero_same_as_base`(둘 다 ★행위로 잰다). */
+
+   ★★★⚠️이 ★치수 걷기는 ★지금 판에서 ★★«발동 0» 이다 — ⛔「세워 뒀다」를 ★「잠겼다」로 읽지 마라.
+     ★무력화 대조(261023 M3): ★`tb.style.width=''; tb.style.minHeight=''` ★두 줄을 ★죽여도
+       ★U2 의 ★18칸이 ★★전부 초록이었다(★빨강 ★0 건).
+     ★까닭 = ★`boxFromCorners` 의 ★★하한 둘(`W+OX`·`H+OY`)이 ★★이미 막는다 — 우리가 쓰는 폭은
+       ★★«바탕 글자 폭보다 작아지지 않으므로» 그 안에서 다시 재도 ★글이 더 접히지 않는다
+       (★실측: 좁히는 변형 ×4 회 렌더에서 ★W 가 ★658.41 그대로 · 흘러간 양 ★0).
+     ⇒ ★★«진짜 자물쇠»는 ★그 하한 둘이다. ⚠️★그런데 ★★그것도 ★처음엔 ★아무도 안 잠갔다 —
+       ★설계 ④ 변이 ⒁ 는 「하한을 빼면 `D_zero_same_as_base` ＋ `D_box_real` 빨강」이라 적었는데
+       ★★둘 다 ★거짓이었다(★내가 쟀다 261023):
+         · ★U2 M11(하한 없는 식) ⇒ `D_box_real` ★초록
+         · ★U1 `D_zero_same_as_base` 는 ★«변형 0» ★한 꼴만 재고 ★그 꼴에서 두 식은 ★값이 같다
+           (스크래치 실측: 변형 0 × OX·OY 네 짝 ★전부 동일 / ★«안쪽으로 줄임» 꼴에서만 갈린다 —
+            w200 h60 vs ★w100 h30)
+       ⇒ ★★그래서 ★U2 에 ★`D_floor_keeps_base` 를 ★더해 ★그 하한을 ★수로 못박았다
+         (★M11 ⇒ 그 칸 ★빨강 · ⚠️발주 §3 의 15 ★밖이라 ★보고에 적었다).
+     ⇒ ★★이 두 줄은 ★★«중복 방어»로 ★남긴다 — ★박스 식이 뒤에 바뀌어 하한이 사라지면 ★그때 값을 한다.
+       ⛔「이 줄이 `PRE-IDENTITY` 를 잠근다」로 ★적지 않는다(★그것이 ★거짓이었다). */
 /** 글자 상자를 잰다 — `{W,H,OX,OY}`(모델 px). 못 재면 null. */
 export function ftMeasure(tb, force) {
   const ce = _contentOf(tb);
@@ -233,7 +250,12 @@ export function setFxFreeTransform(tb, C, { history = true, touched = true } = {
     const st = ftMeasure(tb, !_tfState.has(tb));
     const next = Array.isArray(C) && C.length === 4 ? C : _baseRect(st ? st.W : 1, st ? st.H : 1);
     tb.dataset.tfCorners = _cornersToStr(next);
-    if (st) { st.touched = !!touched && !_isBaseRect(next); _tfState.set(tb, st); }
+    /* ★★가르는 자는 ★`touched` ★하나다 — ⛔«꼴»로 가르지 마라.
+       ★까닭(261023 ★내 무력화 대조가 잡았다): 여기서 `_isBaseRect(next)` 를 ★같이 보면
+         ★★«축 정렬로 ★줄이기만 한» 네 점(= 사람이 `se` 를 ★똑바로 끈 꼴)이 ★바탕 네모로 읽혀
+         ★다음 렌더가 ★항등으로 ★되돌린다 ⇒ ★★U3 에서 ★손잡이가 ★«튕기는» 것처럼 느껴진다.
+       ⇒ ★꼴 판정(`_isBaseRect`)은 ★`watchAll`(로드)에만 쓴다 — ★거기엔 런타임 깃발이 ★없다. */
+    if (st) { st.touched = !!touched; _tfState.set(tb, st); }
     applyFxFreeTransform(tb);
   }
   window.scheduleAutoSave?.();

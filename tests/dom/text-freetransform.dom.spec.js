@@ -281,6 +281,41 @@ test('NegB_origin ★변형 0 에서 글자 좌상단이 ★제자리다(±1px) 
     `★글자 좌상단 x 가 움직였다 ${before.glyphBox.left} → ${after.glyphBox.left} — origin 이 글자 좌상단을 안 가리킨다`).toBeLessThanOrEqual(1);
   expect(Math.abs(after.glyphBox.top - before.glyphBox.top),
     `★글자 좌상단 y 가 움직였다 ${before.glyphBox.top} → ${after.glyphBox.top}`).toBeLessThanOrEqual(1);
+
+  /* ★★★위의 「변형 0」 칸만으로는 ★★아무것도 안 잠근다 — ★항등 행렬은 ★origin 과 ★무관하다.
+     ★★실측으로 그것을 ★확인했다(261023 무력화 대조 M2): `transform-origin` 한 줄을 ★죽여도
+       ★빨강이 ★0 건이었다 ⇒ ★★그 칸은 ★정정 ⑫ 가 경고한 ★그 ★항등식이다.
+     ⇒ ★★★«무는» 꼴을 ★같이 건다: ★nw 가 ★제자리인 ★★비항등 변형.
+       네 점 `[[0,0],[W,0],[0.6W,H],[0,H]]` ⇒ 정규화 뒤 min 이 (0,0) 이라 ★nw ↦ (0,0)
+       ⇒ ★origin 이 ★글자 좌상단이면 ★잉크 좌상단이 ★제자리 · ★center 면 ★크게 움직인다.
+     ★실측 수(같은 장면): origin 맞음 ⇒ Δ(0, 0) / ★origin=center ⇒ ★Δ(−164.89, −265.14). */
+  const bite = await page.evaluate(() => {
+    const tb = document.getElementById('ftTB');
+    const { W, H } = window.ftStateOf(tb);
+    window.setFxFreeTransform(tb, [[0, 0], [W, 0], [W * 0.6, H], [0, H]]);
+    const g = tb.querySelector('[class^="tb-"]');
+    const inkOf = () => { const r = document.createRange(); r.selectNodeContents(g);
+      const b = r.getBoundingClientRect(); r.detach?.();
+      return { left: Math.round((b.left + window.scrollX) * 100) / 100, top: Math.round((b.top + window.scrollY) * 100) / 100 }; };
+    const good = inkOf();
+    const t = getComputedStyle(g).transform;
+    /* ★★그 자가 ★사나 — ★origin 을 ★center 로 두면 ★움직여야 한다(⛔안 움직이면 자가 죽었다) */
+    const keep = g.style.transformOrigin;
+    g.style.transformOrigin = 'center center';
+    const bad = inkOf();
+    g.style.transformOrigin = keep;
+    return { good, bad, t, origin: getComputedStyle(g).transformOrigin };
+  });
+  const base = { left: before.glyphBox.left + before.scroll[0], top: before.glyphBox.top + before.scroll[1] };
+  console.log('[NegB-bite]', JSON.stringify({ base, ...bite }));
+  /* ★전제 — ★정말 비항등이다(항등이면 아래가 다시 항등식이 된다) */
+  expect(bite.t, '★전제: nw 고정 ★비항등 변형이 걸렸다').toContain('matrix3d');
+  /* ★본 단언 — origin 이 글자 좌상단을 가리키므로 ★잉크 좌상단이 ★제자리다 */
+  expect(Math.abs(bite.good.left - base.left), `★비항등 변형에서 잉크 좌상단 x 가 움직였다 ${base.left} → ${bite.good.left}`).toBeLessThanOrEqual(1);
+  expect(Math.abs(bite.good.top - base.top), `★비항등 변형에서 잉크 좌상단 y 가 움직였다 ${base.top} → ${bite.good.top}`).toBeLessThanOrEqual(1);
+  /* ★★그 자의 ★양성대조 — ★origin 을 center 로 두면 ★움직인다 */
+  const moved = Math.abs(bite.bad.left - base.left) + Math.abs(bite.bad.top - base.top);
+  expect(moved, '★★자가 죽었다 — origin 을 center 로 바꿔도 잉크 좌상단이 안 움직인다(그러면 위 「제자리」는 증거가 아니다)').toBeGreaterThan(10);
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 
@@ -402,6 +437,44 @@ test('D_box_real ★박스가 글자를 감싼다 — ★네 꼴(변형 0 · 왼
   /* ★「왼·위로 나감」이 ★정말 왼·위로 나간 꼴이었나 — ⛔안 나갔으면 그 꼴은 정규화를 ★안 쟀다 */
   expect(r['왼·위로 나감'].D.some(([x, y]) => x > 0.5 && y > 0.5),
     '★전제: 「왼·위로 나감」 꼴에서 정규화가 ★실제로 당겼다(안 당겼으면 그 꼴이 다른 꼴과 같다)').toBe(true);
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   ★★D_floor_keeps_base — ⚠️★발주 ★밖에서 ★더한 칸이다(§3 의 15 에 ★없다). ★까닭을 적는다.
+   ★★설계 ④ 의 ★변이 ⒁ 는 「`boxFromCorners` 의 ★하한 둘을 빼면 ⇒ `D_zero_same_as_base` ＋
+     `D_box_real` ★빨강」이라 ★적었는데, ★★그 사상(mapping)이 ★거짓이다 — ★★내가 쟀다(261023):
+       · ★U2 무력화 대조 M11(하한 없는 식으로 갈아끼움) ⇒ ★★18칸 ★전부 초록(빨강 ★0 건)
+       · ★U1 `D_zero_same_as_base` 는 ★«변형 0» ★한 꼴만 재고, ★그 꼴에서 두 식은 ★★값이 같다
+         (스크래치 실측: 변형 0 에서 OX·OY 네 짝 ★전부 ★동일 / ★«안쪽으로 줄임» 꼴에서만 ★갈린다
+          — w200 h60 vs ★w100 h30)
+     ⇒ ★★하한 둘은 ★★«아무도 안 잠그는» 결정이었다. ⛔`js/fx/homography.js` 는 ★금지선이라
+       ★고치지 않고, ★★«지금 꼴»을 ★수로 못박아 ★그 결정이 ★보이게만 한다.
+   ★★⇒ ★지디 판정 칸: ★하한이 ★뜻한 것인가(박스는 ★바탕보다 작아지지 않는다) 아니면
+     ⒞「계속 감쌈」이 ★줄어든 글자도 ★따라가야 하는가. ★이 칸은 ★«지금 꼴»을 적었을 뿐이다.
+   ══════════════════════════════════════════════════════════════════════ */
+test('D_floor_keeps_base ⚠️발주 밖 — ★안쪽으로 줄이면 박스가 ★바탕보다 작아지지 ★않는다(하한 둘을 수로 못박는다)', async ({ page }) => {
+  const errs = await setup(page);
+  await pick(page, 'ftTB');
+  await addFt(page);
+  const r = await page.evaluate(() => {
+    const tb = document.getElementById('ftTB');
+    const st0 = window.ftStateOf(tb);
+    const base = { w: st0.W + st0.OX, h: st0.H + st0.OY, W: st0.W, H: st0.H, OX: st0.OX, OY: st0.OY };
+    /* ★안쪽으로 ★줄인다 — 네 점이 ★바탕의 절반 ⇒ ★하한이 없으면 박스가 ★절반이 된다 */
+    window.setFxFreeTransform(tb, [[0, 0], [st0.W * 0.5, 0], [st0.W * 0.5, st0.H * 0.5], [0, st0.H * 0.5]]);
+    const rd = (v) => Math.round(v * 100) / 100;
+    return { base: { w: rd(base.w), h: rd(base.h) }, st: base,
+             boxW: rd(parseFloat(tb.style.width)), boxH: rd(parseFloat(tb.style.minHeight)),
+             corners: tb.dataset.tfCorners };
+  });
+  console.log('[D_floor_keeps_base]', JSON.stringify(r));
+  /* ★전제 — ★네 점이 ★정말 줄어 있다(⛔안 줄었으면 아래가 항등식이다) */
+  const C = r.corners.split(',').map(Number);
+  expect(C[2], `★전제: ne.x(${C[2]})가 바탕 W(${r.st.W})의 절반쯤으로 줄었다`).toBeLessThan(r.st.W * 0.75);
+  /* ★본 단언 — ★하한이 살아 박스가 ★바탕 그대로다 */
+  expect(r.boxW, `★박스 폭이 바탕(${r.base.w})보다 작아졌다 ${r.boxW} — 하한 W+OX 가 죽었다`).toBeCloseTo(r.base.w, 0);
+  expect(r.boxH, `★박스 높이가 바탕(${r.base.h})보다 작아졌다 ${r.boxH} — 하한 H+OY 가 죽었다`).toBeCloseTo(r.base.h, 0);
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 
