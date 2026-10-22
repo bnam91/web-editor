@@ -15,9 +15,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { fnBody, removedSelectors } from './_clone-removals.mjs';
 
 const _req = createRequire(import.meta.url);
+const { fnBody, removedSelectors } = _req('./_clone-removals.js');
 const { readSrc } = _req('./_srcread.js');
 const { makeStripper } = _req('./_strip-comments.js');
 const { CHANNELS, DROP_STRIP_ROSTER, DROP_DESIGN_EXCLUSIONS } = _req('../_export-channels.js');
