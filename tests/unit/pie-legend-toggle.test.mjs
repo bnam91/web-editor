@@ -20,10 +20,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'node:module';
 
 const ROOT = process.env.GD1001_ROOT || path.join(import.meta.dirname, '..', '..');
 const rd = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
-const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1 ');
+/* ★주석 걷어내기는 ★★«공용 부품»을 쓴다 — `tests/unit/_strip-comments.js`
+ *   ⛔여기서 ★자기 벌을 ★만들면 ★안 된다 — ★`strip-comments-shared.test.js` 의 ★★`S-6` 가 ★막는다.
+ *   ★★261022: ★★이 파일은 ★처음에 ★자기 벌을 ★만들었고 ★★그래서 ★★dev 가 ★★빨강이었다(★rc 1).
+ *     ★★★내가 ★그 빨강을 ★★하루 종일 ★몰랐다 — ★★관련 검사만 ★돌리고 ★★전수를 ★★안 돌렸다.
+ *     ⇒ ★★★`S-6` 의 ★허용목록에 ★★더하지 ★않았다. ★★그 명부는 ★★«오늘의 ★빚»이라 ★적혀 있다. */
+const _req = createRequire(import.meta.url);
+const { stripComments } = _req('./_strip-comments.js');
 
 test('T1 ★패널에 ★범례 토글이 있다 — ★배선 ★파생 명부에 ★들어 있다(⛔손으로 단 리스너 금지)', () => {
   const prop = stripComments(rd('js/props/prop-graph.js'));
