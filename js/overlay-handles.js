@@ -16,7 +16,8 @@ import { resizeColBoundary, resizeRowHeight, resizeGridImage,
 //   그래프가 이미 링크된 뒤) 쓰인다 — 이 셋(gridCols/gridRows/getGridModel)이 «단일 진실원»
 //   이라 여기서 dataset.cols/rows 를 직접 재파싱하면 클램프/폴백 로직이 두 곳에 흩어진다
 //   (이 레포의 고질 — P1 IMPL 보고서·P0 EVAL 둘 다 지적한 패턴). 재사용이 맞다.
-import { getGridModel, gridCols, gridRows, gridPreviewLine } from './blocks/grid-block.js';
+import { getGridModel, gridCols, gridRows, gridPreviewLine,
+         moveGridRow, moveGridCol, gridColLabel, gridRowLabel } from './blocks/grid-block.js';   /* ★t3-04 U2a — 머리띠(같은 import 간선 · 새 간선 0) */
 /* ★모달 핸들의 클램프는 «패널과 같은 표»를 본다 — 리터럴을 여기 다시 쓰면 갈라진다.
    (순환 임포트는 위 grid-block 과 «같은 모양»이고 같은 이유로 안전하다: 이 상수는
     모듈 최상위가 아니라 사용자가 드래그를 시작한 «뒤»의 핸들러 안에서만 읽힌다.) */
@@ -1836,12 +1837,21 @@ function showGridGutters(block) {
        (바깥 격자 수는 그대로라 조기 return 이 걸린다 — 위 3x3 회귀와 ★같은 꼴이다). */
     const haveNcol = ovl ? ovl.querySelectorAll('.grd-gutter[data-axis="ncol"]').length : 0;
     const needNcol = _gridNestedLines(block).reduce((a, nl) => a + Math.max(0, nl.n - 1), 0);
-    if (haveCol === needCol && haveRow === needRow && haveNcol === needNcol) { _updateGridGutterPositions(); return; }
+    /* ★t3-04 U2a — 머리띠도 «축별로» 센다(거터와 ★다른 클래스라 위 셈에 안 섞인다 · 열 N 개 · 행 M 개).
+       ⚠️이름은 «자리»다(A = 0번째 열) ⇒ 순서를 바꿔도 수·글자가 같다. 옮긴 «뒤»의 다시 세우기는
+         끄는 손(_onGridHeadbandMouseDown)이 hide → show 로 «강제»한다(중첩 거터 옛 주소 — precheck ⑶). */
+    const haveBandCol = ovl ? ovl.querySelectorAll('.grd-headband[data-axis="col"]').length : 0;
+    const haveBandRow = ovl ? ovl.querySelectorAll('.grd-headband[data-axis="row"]').length : 0;
+    if (haveCol === needCol && haveRow === needRow && haveNcol === needNcol
+        && haveBandCol === cols.length && haveBandRow === rows.length) { _updateGridGutterPositions(); return; }
   }
   hideGridGutters();
   /* ★S11 — 중첩 줄이 있으면 바깥이 1×1 이어도 «경계»가 있다. 안 고치면 1열 그리드의
-     나눈 줄에 거터가 영영 안 선다(현빈의 쓰임에 바로 걸린다). */
-  if (cols.length < 2 && rows.length < 2 && !_gridNestedLines(block).length) return; // 경계가 하나도 없다
+     나눈 줄에 거터가 영영 안 선다(현빈의 쓰임에 바로 걸린다).
+     ★t3-04 U2a — 옛 「경계가 하나도 없으면(1×1 · 중첩 없음) return」을 ★걷었다.
+       확정 ①「머리띠는 그리드를 고른 동안만 보인다」 ⇒ 1×1 도 머리띠(A · 1)가 선다(«해석» — 옮길 것은 없지만
+       «고른 동안 보인다»를 판마다 다르게 하지 않는다). 그 return 이 있으면 루프가 안 서서 해제 때 머리띠가 남는다.
+       ★거터 수는 그대로다 — 아래 for 들이 cols.length−1 · rows.length−1 이라 1×1 에서 0 개(옛 동작과 같다). */
   _gridGutterBlock = block;
   const overlay = _getOverlay();
   if (!overlay) return;
@@ -1881,6 +1891,7 @@ function showGridGutters(block) {
     g.addEventListener('mousedown', e => _onGridRowMouseDown(e, block, i));
     _wireGutterContextMenu(g, block);
   }
+  _createGridHeadbands(overlay, block, cols.length, rows.length);   // ★t3-04 U2a — 머리띠(아래 절)
   _updateGridGutterPositions();
   _startGridGutterRaf();
 }
@@ -1901,6 +1912,9 @@ function hideGridGutters() {
   _gridGutterBlock = null;
   const overlay = _getOverlay();
   if (overlay) overlay.querySelectorAll('.grd-gutter').forEach(g => g.remove());
+  /* ★t3-04 U2a — 머리띠·놓을 자리 선도 «같은 생애»에 묶는다(확정 ①: 고른 동안만). ⛔위 줄과 합치지 마라 —
+     tests/unit/overlay-raf-resync U-M66-5 가 위 줄 꼴을 글자로 잰다. */
+  if (overlay) overlay.querySelectorAll('.grd-headband, .grd-headband-drop').forEach(el => el.remove());
 }
 
 function _startGridGutterRaf() {
@@ -2043,6 +2057,7 @@ function _updateGridGutterPositions() {
     g.style.left = blockRect.left + 'px';
     g.style.width = blockRect.width + 'px';
   });
+  _updateGridHeadbandPositions(overlay, block, blockRect);   // ★t3-04 U2a — 같은 틱 · 같은 사각형(새 rAF 0)
 }
 
 // 열 경계 드래그 — 인접 두 열의 «가중치»만 재분배(합 보존, 다른 열 불변).
@@ -2252,6 +2267,221 @@ function _onGridRowMouseDown(e, block, i) {
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
+}
+
+/* ═══ ★t3-04 U2a «행·열 머리띠» ＋ «끌어서 순서 바꾸기» (S6 · 2026-10-22 · 현빈 GO msg5376 · 시안 Version 3) ═══
+ *   확정 ① 머리띠는 «그리드를 고른 동안만» 보인다 → ★거터 생애(showGridGutters · _updateGridGutterPositions ·
+ *          hideGridGutters)에 ★얹었다. ⛔새 rAF 0 · ⛔loop 몸통 손 0(tests/unit/overlay-raf-resync U-M66-4/5 가 꼴을 잠근다).
+ *   확정 ④ 행을 옮기면 그 행의 높이도 따라간다 → ★쓰기는 grid-block.js moveGridRow/moveGridCol(U1) 하나 — 여기는 «손»만.
+ *   확정 ⑤ 열 = 알파벳 · 행 = 숫자 → ★gridColLabel / gridRowLabel(U1) — ⛔여기서 글자를 셈하지 않는다(두 벌 금지).
+ * ★자리(시안): 열 머리띠 = 그 열 «위» · 행 머리띠 = 그 행 «왼쪽» — ★블럭 상자 «밖»(블럭 안 클릭·줄 편집을 안 덮는다).
+ *   ★#ss-handles-overlay(=#canvas-scaler 밖) ⇒ 저장본·내보내기·히스토리 직렬화에 ★안 샌다(거터와 같은 까닭 · 해-4).
+ *   ★두께 = 화면 고정 px(거터 8px 와 같은 관례 — 배율이 낮아도 잡힌다). ★z 97 = 거터와 같다 · 줄 손잡이(⠿ z 98)가 이긴다.
+ * ★꼴(현빈 QA 자 «디자인 일관성»): 캔버스 ＋(.grd-add-btn) 어법 — 점선 · --ui-divider · --ui-text-muted · hover --ui-accent-primary
+ *   · 끄는 동안 --ui-disabled-opacity. ⛔색·두께 리터럴 0 — 전부 css/editor-blocks.css 의 토큰(그리드 ＋ 규칙 바로 아래).
+ * ★끌기 = 거터 끌기(_onGridRowMouseDown)와 같은 꼴: e.button · preventDefault · stopPropagation · suppressAncestorDrag ·
+ *   document mousemove/mouseup. ⛔HTML5 drag 를 안 쓴다(시안은 썼다) — 오버레이 손잡이 전부가 이 꼴이고, 조상 dragstart 와 안 부딪힌다.
+ *   ★축이 고정이다(행 머리띠 = 세로만 · 열 머리띠 = 가로만) ⇒ 행·열이 «섞일» 길이 없다(시안의 거절 문구가 필요 없다).
+ *   ★놓을 자리 = «삽입 자리» 0..N → _grdGripDropTarget(같은 칸 보정 · splice 꼴)로 «옮길 index» — 줄 손잡이와 ★같은 셈 한 벌.
+ *   ★index 는 ★Number(정수)로만 넘긴다 — U1 이벨류: 문자열 '0' 이면 moveGrid* 가 조용히 false.
+ * ★이력: moveGrid* 가 «변경 전»에 1회 쌓는다 → onUp 에서 «끝 표본» 1회(위 거터 둘과 같은 규약 · js/drag-history.js 머리말)
+ *   ⇒ 다음 동작이 push-after 여도 ⌘Z 한 번 = 이 옮김 하나. 안 옮겼으면(임계 미달·제자리) ★아무것도 안 쌓는다.
+ * ★옮긴 뒤: 줄 선택(_grdActiveLine/_grdLineSel)은 «옛 주소»라 비운다(U1 이벨류) → _grdAfterResize(hide → 패널 → show)
+ *   로 거터·머리띠·패널을 «다시 세운다»(중첩 거터 data-r/c 옛 주소 — precheck ⑶). ⛔중첩 칸 머리띠는 없다(바깥 격자만).
+ * ⚠️안 한 것(«해석» · 보고서): 시안의 ⌥/화살표 한 칸 옮기기 — 키 처리기(editor.js)는 U2b 의 파일이라 이번엔 안 건드렸다.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════════ */
+const GRD_BAND_T = 16;     // 머리띠 두께(화면 px) — 열 = 높이 · 행 = 폭
+const GRD_BAND_GAP = 4;    // 블럭 상자와 머리띠 사이(화면 px)
+const GRD_BAND_DROP_T = 2; // 놓을 자리 선 두께(화면 px)
+
+function _createGridHeadbands(overlay, block, nCols, nRows) {
+  const mk = (axis, i) => {
+    const b = document.createElement('div');
+    b.className = 'grd-headband';
+    b.dataset.axis = axis;
+    b.dataset.i = String(i);
+    b.textContent = axis === 'col' ? gridColLabel(i) : gridRowLabel(i);
+    b.title = axis === 'col' ? '끌어서 열 순서 바꾸기' : '끌어서 행 순서 바꾸기';   // ★현빈 «프롭힌트» 자 — title 하나만
+    b.style.cssText = 'position:absolute;z-index:97;pointer-events:auto;';
+    overlay.appendChild(b);
+    b.addEventListener('mousedown', e => _onGridHeadbandMouseDown(e, block, axis, i));
+    b.addEventListener('click', e => _grdBandForwardTap(e, b, block));   // ★U2a-fix D1 — 안 끈 누르기는 아래 이웃에게
+    _wireGutterContextMenu(b, block);
+  };
+  for (let i = 0; i < nCols; i++) mk('col', i);
+  for (let i = 0; i < nRows; i++) mk('row', i);
+}
+
+function _updateGridHeadbandPositions(overlay, block, blockRect) {
+  overlay.querySelectorAll('.grd-headband').forEach(b => {
+    const i = +b.dataset.i;
+    const col = b.dataset.axis === 'col';
+    const el = col ? _getGridCell(block, 0, i) : _getGridCell(block, i, 0);
+    if (!el) { b.style.display = 'none'; return; }
+    b.style.display = '';
+    const r = el.getBoundingClientRect();
+    if (col) {
+      b.style.left = r.left + 'px'; b.style.width = r.width + 'px';
+      b.style.top = (blockRect.top - GRD_BAND_GAP - GRD_BAND_T) + 'px'; b.style.height = GRD_BAND_T + 'px';
+    } else {
+      b.style.top = r.top + 'px'; b.style.height = r.height + 'px';
+      b.style.left = (blockRect.left - GRD_BAND_GAP - GRD_BAND_T) + 'px'; b.style.width = GRD_BAND_T + 'px';
+    }
+  });
+}
+
+/** 포인터 좌표(축 하나) → «삽입 자리» 0..n. 그 칸의 가운데를 지났으면 그 칸 «뒤». */
+function _grdBandInsertAt(block, axis, n, p) {
+  let k = 0;
+  for (let j = 0; j < n; j++) {
+    const el = axis === 'col' ? _getGridCell(block, 0, j) : _getGridCell(block, j, 0);
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
+    if (p > (axis === 'col' ? r.left + r.width / 2 : r.top + r.height / 2)) k = j + 1;
+  }
+  return k;
+}
+
+/** 삽입 자리 k 의 «선» 좌표(화면) — 첫 칸 앞 끝 · 사이 gap 가운데 · 끝 칸 뒤 끝. */
+function _grdBandSlotEdge(block, axis, n, k) {
+  const at = (j) => {
+    const el = axis === 'col' ? _getGridCell(block, 0, j) : _getGridCell(block, j, 0);
+    return el ? el.getBoundingClientRect() : null;
+  };
+  const a = k > 0 ? at(k - 1) : null, b = k < n ? at(k) : null;
+  if (axis === 'col') {
+    if (a && b) return (a.right + b.left) / 2;
+    return b ? b.left : a ? a.right : null;
+  }
+  if (a && b) return (a.bottom + b.top) / 2;
+  return b ? b.top : a ? a.bottom : null;
+}
+
+/* ★U2a-fix D1 (이벨류 E1·E5) — 머리띠는 블럭 상자 «밖»(위·왼)에 떠서, 틈 0 으로 붙은 이웃 블럭(위 블럭 아랫단 ·
+ *   왼쪽 이웃)의 그 띠를 덮는다 ⇒ 고른 동안 이웃을 못 골랐다. 고친 길 = «끌기 임계를 못 넘고 끝난 누르기(탭)»는
+ *   그 점 «아래»(오버레이 제외) 것에 mousedown → mouseup → click 을 «그대로» 넘긴다(머리띠가 없을 때와 같은 결과).
+ *   ★넘기지 않는 것: 아래가 «이 그리드 자신·그 조상»(섹션 바탕·row·프레임 — 빈 바탕)일 때 ⇒ 옛 동작(탭 = 아무 일 0 ·
+ *     그리드 선택 유지)을 지킨다. 머리띠를 툭 건드렸다고 고른 그리드가 풀리면 안 된다(«해석» — 보고서).
+ *   ★끈 누르기(임계 3px 넘음 · GRD_GRIP_DRAG_THRESHOLD_PX)는 종전대로 머리띠의 것 ⇒ 끌기 무변.
+ *   ★탭 표지(band._grdTap)는 onUp 이 «선택이 살아 있고 안 끌었을 때만» 세운다 — Esc 취소·선택 풀림·끈 뒤엔 안 선다.
+ *   ⛔새 rAF·타이머 0 — 넘기기는 진짜 click 처리기 안에서 동기로 끝난다.
+ * ★U2a 재평가 R4 — 해-13 의 «조상»을 둘로 가른다(«해석»):
+ *     · 캔버스 «바깥» 바탕 = editor.js 의 빈 바탕 선택 해제(#canvas-wrap click · `['canvas-wrap','canvas-scaler','canvas']`)가
+ *       보는 그 셋 ⇒ ★넘긴다(진짜 빈 바탕 클릭 = 선택 해제 · 패널 Page 와 같게). 그리드는 늘 이 셋 안에 들므로 «조상»이어도.
+ *     · 섹션 «안» 조상(섹션·section-inner·row·프레임) ⇒ 종전대로 안 넘긴다(해-13 유지 · 툭 건드려 고른 그리드가 안 풀린다).
+ *   ⚠️이 셋은 editor.js :4381 줄의 글자를 ★옮겨 적은 것이다(그 처리기는 export 가 없다) — 그쪽이 바뀌면 여기도.
+ * ★U2a 재평가 R1 — 머리띠 mousedown 이 preventDefault 라 칸 편집 포커스가 그리드에 남는다. 진짜 클릭은 누르는 순간
+ *   포커스가 옮겨 가 편집이 끝난다 ⇒ 넘기기 «전»에, 포커스가 body 가 아니고 넘길 대상 안이 아니면 blur(편집 종료는
+ *   그 칸의 blur 처리기가 한다 — 진짜 클릭과 같은 길). */
+const GRD_BAND_PAGE_BG = ['canvas-wrap', 'canvas-scaler', 'canvas'];   // = editor.js 빈 바탕 deselect 셀렉터
+function _grdBandForwardTap(e, band, block) {
+  const tap = band._grdTap === true;
+  band._grdTap = false;
+  if (!tap) return;
+  const ovl = _getOverlay();
+  const under = document.elementsFromPoint(e.clientX, e.clientY).find(el => !(ovl && ovl.contains(el)));
+  if (!under || under === block || block.contains(under)) return;   // 자기 = 옛 동작
+  const pageBg = GRD_BAND_PAGE_BG.includes(under.id);   // R4 — 캔버스 바깥 바탕이면 조상이어도 넘긴다
+  if (under.contains(block) && !pageBg) return;          // 섹션 안 조상(빈 바탕) = 옛 동작(해-13)
+  const act = document.activeElement;
+  if (act && act !== document.body && !under.contains(act) && typeof act.blur === 'function') act.blur();   // R1
+  e.preventDefault();
+  e.stopPropagation();
+  const init = {
+    bubbles: true, cancelable: true, composed: true, view: window, detail: 1, button: 0,
+    clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY,
+    shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey, altKey: e.altKey,
+  };
+  under.dispatchEvent(new MouseEvent('mousedown', { ...init, buttons: 1 }));
+  under.dispatchEvent(new MouseEvent('mouseup', { ...init, buttons: 0 }));
+  under.dispatchEvent(new MouseEvent('click', { ...init, buttons: 0 }));
+}
+
+function _onGridHeadbandMouseDown(e, block, axis, from) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const band = e.currentTarget;
+  if (band) band._grdTap = false;
+  const n = axis === 'col' ? gridCols(block).length : gridRows(block).length;
+  if (!(from >= 0 && from < n)) return;
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+  const overlay = _getOverlay();
+  const x0 = e.clientX, y0 = e.clientY;
+  let armed = false;
+  let insertAt = null;   // ★놓을 자리는 closure 에 든다 — onUp 에서 DOM 으로 다시 찾지 않는다(줄 손잡이와 같은 까닭)
+  let line = null;
+
+  function onMove(ev) {
+    if (!armed) {
+      if (Math.abs(ev.clientX - x0) < GRD_GRIP_DRAG_THRESHOLD_PX
+          && Math.abs(ev.clientY - y0) < GRD_GRIP_DRAG_THRESHOLD_PX) return;
+      armed = true;
+      band?.classList.add('is-dragging');
+    }
+    const p = axis === 'col' ? ev.clientX : ev.clientY;
+    insertAt = _grdBandInsertAt(block, axis, n, p);
+    const edge = _grdBandSlotEdge(block, axis, n, insertAt);
+    const shell = (block.querySelector(':scope > .grd-inner') || block).getBoundingClientRect();
+    if (!overlay || edge === null) return;
+    if (!line) {
+      line = document.createElement('div');
+      line.className = 'grd-headband-drop';
+      line.dataset.axis = axis;
+      line.style.cssText = 'position:absolute;z-index:97;pointer-events:none;';
+      overlay.appendChild(line);
+    }
+    line.dataset.at = String(insertAt);
+    if (axis === 'col') {
+      line.style.left = (edge - GRD_BAND_DROP_T / 2) + 'px'; line.style.width = GRD_BAND_DROP_T + 'px';
+      line.style.top = shell.top + 'px'; line.style.height = shell.height + 'px';
+    } else {
+      line.style.top = (edge - GRD_BAND_DROP_T / 2) + 'px'; line.style.height = GRD_BAND_DROP_T + 'px';
+      line.style.left = shell.left + 'px'; line.style.width = shell.width + 'px';
+    }
+  }
+  /* ★U2a-fix D2 — 리스너·드롭선·조상 끌기 막음을 «한 곳»에서 걷는다(놓기 · Esc 취소 둘 다 이 길 · 두 번 불러도 한 번). */
+  let done = false;
+  function cleanup() {
+    if (done) return;
+    done = true;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    window.removeEventListener('keydown', onKey, true);
+    restoreDrag();
+    band?.classList.remove('is-dragging');
+    line?.remove();
+  }
+  /* ★U2a-fix D2 — 끄는 동안 Esc = «끌기 취소»(쓰기 0 · 리스너 떼기 · suppressAncestorDrag 복원).
+     ★window capture 에서 먹는다(stopImmediatePropagation) ⇒ 이 Esc 는 editor.js 의 Esc(선택 풀기)까지 안 간다 —
+       T-102 «떠 있는 것이 먼저 Esc 를 먹는다»와 같은 결. ⛔editor.js 의 Esc 처리는 손 0(이 리스너는 끄는 동안만 산다). */
+  function onKey(ev) {
+    if (ev.key !== 'Escape') return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    cleanup();
+  }
+  function onUp() {
+    cleanup();
+    /* ★U2a-fix D2 — 끄는 사이 선택이 풀렸거나(다른 길의 Esc·deselectAll) 블럭이 지워졌으면 «쓰기 0».
+       머리띠는 이미 사라졌다 — 보이지 않는 손으로 rows/cells 를 바꾸면 안 된다(이벨류 E2). */
+    if (!block.isConnected || !block.classList.contains('selected')) return;
+    /* ⛔안 끌었으면(임계 미달) «아무 일도 안 한다» — 머리띠를 그냥 누른 것은 클릭이다(→ 이웃 넘기기는 click 처리기 · D1). */
+    if (!armed || insertAt === null) { if (!armed && band) band._grdTap = true; return; }
+    const to = Number(_grdGripDropTarget(from, insertAt, true));
+    if (!Number.isInteger(to) || to === from) return;   // 제자리 = 쓰기·이력 0
+    const moved = axis === 'col' ? moveGridCol(block, Number(from), to) : moveGridRow(block, Number(from), to);
+    if (!moved) return;
+    window.grdSetActiveLine?.(block, null);   // ★옛 주소 비우기(U1 이벨류) — 자리가 바뀐 줄을 가리키면 안 된다
+    window.grdClearLineSel?.(block);
+    if (window._grdAfterResize) window._grdAfterResize(block);
+    else { hideGridGutters(); showGridGutters(block); }
+    /* ★끝 표본도 찍는다 — 위 거터 둘과 같은 규약(시작 표본은 moveGrid* 가 «변경 전»에 찍었다). */
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+  window.addEventListener('keydown', onKey, true);
 }
 
 window.showGridGutters = showGridGutters;
