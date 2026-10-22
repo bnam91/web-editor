@@ -20,7 +20,7 @@ const { makeStripper } = _req('./_strip-comments.js');
 const ROOT = process.env.GD1001_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TOKEN_HOME = path.join('css', 'editor-base.css');
 const SWATCH_EXEMPT = new Set([path.join('js', 'props', 'prop-simple-card.js'), path.join('js', 'props', 'prop-gradient.js')]);
-const FAMILIES = ['big-a', 'big-b', 'big-size', 'small-a', 'small-b', 'small-size', 'clear-a', 'clear-b', 'svg-a', 'svg-b', 'secbg-a', 'secbg-b'];
+const FAMILIES = ['big-a', 'big-b', 'big-size', 'small-a', 'small-b', 'small-size', 'clear-a', 'clear-b', 'svg-a', 'svg-b', 'secbg-a', 'secbg-b', 'asset-a', 'asset-b'];
 
 const walk = (dir, exts, out = []) => {
   if (!fs.existsSync(dir)) return out;
@@ -103,6 +103,11 @@ test('C2 센서스 — 체커 무늬 안에 raw hex·transparent 가 «0건» (�
  *   ⛔옛 전역 선택자(:root[data-goya-checker-tone])로 되돌리면 C4b 가 빨강이다. */
 export const TONE_SEL = '.section-block[data-checker-tone="dark"]';
 export const TONE_FAMILIES = ['secbg-a', 'secbg-b'];
+/* ★t4-15 (2026-10-22 현빈 ④ · 에셋블럭마다) — 톤 규칙이 ★둘이 됐다. 꼴은 섹션과 같다: 이름 붙은 톤 선택자 하나가
+ *   ★제 전용 쌍만 덮는다. ⇒ «선택자 → 덮어도 되는 쌍» 표로 잰다(한 선택자가 남의 쌍·공용 쌍을 덮으면 빨강). */
+export const ASSET_TONE_SEL = '.asset-block[data-checker-tone="dark"]';
+export const ASSET_TONE_FAMILIES = ['asset-a', 'asset-b'];
+const TONE_RULES = new Map([[TONE_SEL, TONE_FAMILIES], [ASSET_TONE_SEL, ASSET_TONE_FAMILIES]]);
 /** 정본 CSS 를 규칙 단위로 잘라 «선택자 → 그 안의 체커 토큰 정의 목록». 주석은 먼저 걷는다. */
 export function tokenDefsBySelector(cssText) {
   const out = [];
@@ -117,18 +122,20 @@ export function checkTokenDefs(cssText) {
   const errs = [];
   const blocks = tokenDefsBySelector(cssText);
   for (const b of blocks) {
-    if (b.sel === ':root' || b.sel === TONE_SEL) continue;
+    if (b.sel === ':root' || TONE_RULES.has(b.sel)) continue;
     errs.push(`선택자 «${b.sel}» 가 토큰을 재정의한다: ${b.defs.map(d => d.name).join(',')}`);
   }
   const count = (sel, n) => blocks.filter(b => b.sel === sel).flatMap(b => b.defs).filter(d => d.name === n).length;
   for (const n of FAMILIES) {
     const base = count(':root', n);
     if (base !== 1) errs.push(`--goya-checker-${n} 기본 정의 ${base}회(1회여야)`);
-    const tone = count(TONE_SEL, n);
-    if (tone > 1) errs.push(`--goya-checker-${n} 톤 정의 ${tone}회`);
-    if (tone && !TONE_FAMILIES.includes(n)) errs.push(`톤 규칙이 «색 다섯» 밖의 --goya-checker-${n} 을 덮는다`);
+    for (const [sel, fams] of TONE_RULES) {
+      const tone = count(sel, n);
+      if (tone > 1) errs.push(`--goya-checker-${n} 톤 정의 ${tone}회 (${sel})`);
+      if (tone && !fams.includes(n)) errs.push(`톤 규칙 ${sel} 이 제 쌍 밖의 --goya-checker-${n} 을 덮는다`);
+    }
   }
-  for (const b of blocks.filter(b => b.sel === TONE_SEL)) {
+  for (const b of blocks.filter(b => TONE_RULES.has(b.sel))) {
     for (const d of b.defs) if (!/^#[0-9a-f]{6}$/i.test(d.value)) errs.push(`톤 값 --goya-checker-${d.name}: ${d.value} 은 #rrggbb 가 아니다`);
   }
   return errs;
@@ -158,6 +165,14 @@ test('C3+ 양성대조(합성) — 넓힌 C3 이 «못 보는» 게 아니라 «
     assert.ok(checkTokenDefs(real + `\n${TONE_SEL}{--goya-checker-${n}:#000000}`).some(e => new RegExp(n).test(e)),
       `톤 규칙이 공용 --goya-checker-${n} 을 덮는 것을 ★못 잡는다(R1 이 깨진다)`);
   }
+  /* ⑵-c ★t4-15 — 에셋 톤 규칙도 하나 · 제 쌍만 · 공용·남의 쌍을 덮으면 잡는다(DOM 짝 = tests/dom/checker-asset-tone.dom.spec.js T3) */
+  const aTone = tokenDefsBySelector(real).filter(b => b.sel === ASSET_TONE_SEL);
+  assert.equal(aTone.length, 1, `에셋 톤 규칙 ${aTone.length}개`);
+  assert.deepEqual(aTone[0].defs.map(d => d.name).sort(), [...ASSET_TONE_FAMILIES].sort());
+  for (const n of ['big-a', 'big-b', 'secbg-a']) {
+    assert.ok(checkTokenDefs(real + `\n${ASSET_TONE_SEL}{--goya-checker-${n}:#000000}`).some(e => new RegExp(n).test(e)),
+      `에셋 톤 규칙이 --goya-checker-${n} 을 덮는 것을 ★못 잡는다`);
+  }
   // ⑶ 기본 정의가 둘 — 잡는다
   assert.ok(checkTokenDefs(real + '\n:root{--goya-checker-small-a:#000000}').some(e => /small-a 기본 정의 2/.test(e)));
   // ⑷ 주석 속 정의는 정의가 아니다 — 안 잡는다
@@ -175,6 +190,16 @@ test('C4b 톤 속성 이름 — CSS 선택자와 JS 가 거는 dataset 이 «같
   const attr = 'data-' + m[1].replace(/[A-Z]/g, c => '-' + c.toLowerCase());
   assert.equal(`.section-block[${attr}="dark"]`, TONE_SEL);
   assert.ok(stripCss(fs.readFileSync(path.join(ROOT, TOKEN_HOME), 'utf8')).includes(TONE_SEL), '정본 CSS 에 톤 선택자가 없다');
+  /* ★t4-15 — 에셋 쪽도 같은 글자 대조 ＋ 라디오 name 이 섹션과 «다른» 글자(같으면 두 그룹이 섞인다 · DOM 짝 T4) */
+  const ajs = fs.readFileSync(path.join(ROOT, 'js', 'props', 'prop-asset.js'), 'utf8');
+  const am = ajs.match(/ab\.dataset\.([A-Za-z0-9]+)\s*=\s*'dark'/);
+  assert.ok(am, "js/props/prop-asset.js 에 ab.dataset.<이름> = 'dark' 가 없다 — 에셋 켜는 문이 사라졌다");
+  assert.equal(`.asset-block[data-${am[1].replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="dark"]`, ASSET_TONE_SEL);
+  assert.ok(stripCss(fs.readFileSync(path.join(ROOT, TOKEN_HOME), 'utf8')).includes(ASSET_TONE_SEL), '정본 CSS 에 에셋 톤 선택자가 없다');
+  const nameOf = (src, id) => (src.match(new RegExp(`name="([^"]+)"\\s+id="${id}"`)) || [])[1];
+  const secName = nameOf(js, 'sec-checker-tone-on'), assetName = nameOf(ajs, 'asset-checker-tone-on');
+  assert.ok(secName && assetName, `라디오 name 을 못 읽었다(sec=${secName} · asset=${assetName})`);
+  assert.notEqual(assetName, secName, '에셋 라디오 name 이 섹션과 같다 — 두 그룹이 섞인다');
   // ⛔전역 토글이 되살아나면 빨강 — 명부를 둘로 두지 않는다(2026-10-06 지디).
   for (const rel of ['js/checker-tokens.js', 'js/props/prop-page.js']) {
     const src = stripJs(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
