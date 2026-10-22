@@ -813,12 +813,13 @@ const GRB_CAT_LABEL_KINDS = GRB_CAT_LABEL_SEL.split(',').map(s => s.trim());
 /* t4-17 ㉮ — 조각 안 이름(.grb-pie-name)은 덧층(.grb-pie-tags · pointer-events:none) 안이라 이벤트 대상이 못 된다.
    덧층을 열면 1013t1C3 계약(J5 «라벨 위를 눌러도 그 조각» · J2 · X1)이 깨진다(실측 3 빨강) ⇒ 열지 않고, 같은 위임 안에서
    «누른 점이 보이는 이름 사각형 안인가»로 고른다. 홑클릭·조각 고르기는 그대로 조각에 간다.
-   보이는 것만: 숨은 이름(grbPieFitTags 의 --grb-pie-tag-d:none · display:none · visibility · 폭 0)은 사각형이 0 이거나 걸러진다.
+   보이는 것만: getBoundingClientRect 는 visibility:hidden · opacity:0 에서도 크기를 준다 ⇒ 사각형 하나로 닫지 않고 checkVisibility(불투명도·visibility 까지)를 같이 건다
+   (없는 엔진이면 offsetParent 폴백). display:none(grbPieFitTags 의 --grb-pie-tag-d:none · 조각 「라벨」 숨김)은 사각형 0 으로도 걸러진다.
    상자(.grb-pie-tag)가 overflow:hidden 이라 잘린 글자 밖은 안 잡는다(이름 ∩ 상자). 겹치면 칠 순서 위쪽 — z-index 큰 쪽, 같으면 문서 순서 뒤. */
 function _grbPieNameAt(block, x, y) {
   let best = null, bestZ = -Infinity;
   for (const n of block.querySelectorAll('.grb-pie-name')) {
-    if (getComputedStyle(n).visibility !== 'visible') continue;
+    if (!(n.checkVisibility ? n.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) : n.offsetParent !== null)) continue;
     const tag = n.closest('.grb-pie-tag');
     const a = n.getBoundingClientRect(), b = tag ? tag.getBoundingClientRect() : a;
     const l = Math.max(a.left, b.left), r = Math.min(a.right, b.right), t = Math.max(a.top, b.top), bt = Math.min(a.bottom, b.bottom);

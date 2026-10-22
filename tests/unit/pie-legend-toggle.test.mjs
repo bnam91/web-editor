@@ -97,9 +97,10 @@ test('T5 ★범례를 꺼도 ★이름을 ★캔버스에서 고칠 길이 ★�
   assert.match(css, /\.grb-pie-tags\s*\{[^}]*pointer-events:\s*none/,
     '⛔컨테이너(.grb-pie-tags)는 none 이어야 한다 — 열면 조각 클릭이 죽는다');
 });
-/* T5b — 지디 발주(덧③ ④)의 「상자 auto」 단언 그대로. t4-17 판정 ㉮ 로 대체됐는지는 지디 판정 — 그 전까지 todo(⛔지우지 않음). */
+/* T5b — 지디 발주(덧③ ④)의 「상자 auto」 단언 그대로 · todo(⛔지우지 않음). 지디 판정 261022: 처방 ⑵ 는 틀렸다 — HIT-TOP-FLIPPED-BY-POINTER-AUTO-01
+   (면적으로 닫고 겹침 순서를 안 봤다 · auto 면 라벨 자리의 맨 위가 조각에서 라벨로 뒤집혀 J2·J5·X1 빨강 · 바닥 사본 초록). */
 test('T5b 조각 안 라벨 상자가 클릭을 받는다(.grb-pie-tag auto) — 판정 대기',
-  { todo: 'T5-CSS-AUTO-SUPERSEDED-BY-DBLCLICK-HITTEST — 지디 판정' }, () => {
+  { todo: 'T5-CSS-AUTO-SUPERSEDED-BY-DBLCLICK-HITTEST — 지디 판정 261022 — auto 를 주면 J2·J5·X1 이 빨강이 된다(실측)' }, () => {
   const css = rd('css/editor-graph.css');
   assert.match(css, /\.grb-pie-tag\s*\{[^}]*pointer-events:\s*auto/,
     '⛔조각 안 라벨 상자가 클릭을 안 받는다(.grb-pie-tag 에 pointer-events:auto 없음)');
