@@ -94,7 +94,10 @@ const snap = (page, id) => page.evaluate((id) => {
 // 펜 클릭 한 번 — ★섹션 자리를 «누르기 직전»에 다시 재고, 그 점이 «그 섹션»인지 맞힌 뒤 누른다.
 //   까닭(v4 실측 G2 1/3 «둘째 점» 빨강): 새 섹션의 부드러운 굴림(addSection scrollIntoView smooth) 동안 첫 자리로 재 둔 좌표가 옆 섹션을 누르면
 //   펜 도구가 «다른 섹션 → 점 초기화»(js/annotation-tool.js _handlePenClick)로 간다 — 검사가 빠른 것이지 제품이 아니다(추정 · 대조 안 함).
+//   ＋ v5 실측(R1 1/3): 그 전제가 «(770,1140) 이 섹션 밖»으로 잡았다 — 화면 아래 끝(높이 1200)이라 무엇이 덮었다 ⇒ 누르기 전 섹션을 화면 가운데로 굴린다
+//     (펜 도구의 점은 섹션 좌표라 굴림과 무관하다 — js/annotation-tool.js _clientToSectionCoord).
 async function penClickIn(page, sec, dx, fromBottom) {
+  await page.evaluate((s) => document.getElementById(s).scrollIntoView({ block: 'center', behavior: 'instant' }), sec);
   await waitStableRect(page, `#${sec}`);
   const r = await rectOf(page, `#${sec}`);
   const x = r.x + dx, y = r.y + r.h - fromBottom;
