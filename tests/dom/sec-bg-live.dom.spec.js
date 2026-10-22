@@ -355,9 +355,31 @@ test('R4-d ★반투명(has-bg-opacity) 프레임 · 채도 -100 → Esc ⇒ 레
         («완료 뒤 그림이 사라짐»을 ① 혼자는 못 막는다). DC 는 기록만(아래 단언 자리 주석 · 머리말 R-1).
    ★음성대조(-neg) — 편집 진입 «전» `#host{--frame-bg-img:none !important}` 규칙을 문서에 단다(인라인 변수 쓰기를 이긴다 · 제품 코드 무변)
      ⇒ 그림이 없으면 ① 이 «안» 떠야 한다(BD = 0). 뜨면 ① 은 ::before 그림이 아닌 다른 길(프록시·레이어·UI)을 잰다. */
-/* ★빨강이 참인 칸의 메시지 꼬리 — 이름 · 판 · 판 근거 · 뜻 · 날짜(지디 판정 2026-10-22 · ⛔test.fixme/skip 금지 · dev 머지는 고침과 같이). */
+/* ★빨강이 참인 칸의 메시지 꼬리 — 이름 · 판 · 판 근거 · 뜻 · 날짜(지디 판정 2026-10-22 · ⛔test.fixme/skip 금지 · dev 머지는 고침과 같이).
+   ★261022 뒤: 참 빨강 셋(G5c · R4-e · R4-d-after)은 todo 로 돈다(TODO_LAYER_ZERO · 아래) — 꼬리는 todo 아닌 칸(G5d · G5b-after)의 빨강에 남는다. */
 const LAYER_ZERO_TAIL = ' — HAS-BG-OPACITY-LAYER-ZERO · 판 378db8296845bf71bbe6fbe5344d0ee4c28a44c1'
   + ' · c5aa02eb ⊂ 378db829 merge-base 로 확인(태양) · 고치면 초록이 된다 — 고치기 전엔 이 빨강이 참이다 · 2026-10-22';
+/* ★todo — HAS-BG-OPACITY-LAYER-ZERO 참 빨강 셋 (지디 규칙 「일부러 빨강 ⛔ → todo＋이름」 · 태양 261022 · 선례 S6 5f2c0097 · 아이맥 R1 284e4335)
+     꼴: playwright 엔 node:test { todo } 가 없다 ⇒ S6 꼴 그대로 — 그 칸의 «잰 꼴»(0)일 때만 test.info().annotations {type:'todo'} ＋ console «TODO …».
+     ⛔skip/fixme/test.fail 아님 — 장면 전제·⑴ 양성대조는 그대로 hard 단언이라 이 todo 가 다음 빨강을 안 가린다.
+     todo 수 고정: 잰 꼴 = 0/분모. 0 이 아니게 되면(제품이 고쳐짐) soft 빨강 «todo 가 닫혔다» ⇒ 고치는 커밋에서 TODO_LAYER_ZERO 칸을 떼고 보통 단언으로.
+     ⚠️G5c·R4-e 는 ① 뒤의 ② 뒤 그림도 같은 결함으로 0(판정 런 run-a-judge-2110 의 log picAfter_record) ⇒ 그 칸은 ①·② 둘 다 todo. */
+const TODO_LAYER_ZERO_HEAD = 'HAS-BG-OPACITY-LAYER-ZERO — 닫는 이 = 제품 고침(HAS-BG-OPACITY-LAYER-ZERO) · 지디 판정';
+const TODO_LAYER_ZERO = {
+  'G5c': `${TODO_LAYER_ZERO_HEAD} · 잰 수 G5c ① 0/69360 · ② pic 0/69360`,
+  'R4-e': `${TODO_LAYER_ZERO_HEAD} · 잰 수 R4-e ① 0/69360 · ② pic 0/69360`,
+  'R4-d-after': `${TODO_LAYER_ZERO_HEAD} · 잰 수 R4-d-after pic 0/69360`,
+};
+/* 화면 픽셀 > 0 단언 — todo 칸이면 잰 꼴(0)에서 todo, 아니면 보통 hard 단언 */
+function screenOrTodo(cell, slot, d, msg) {
+  const todo = TODO_LAYER_ZERO[cell];
+  if (!todo) { expect(d.changed, msg).toBeGreaterThan(0); return; }
+  if (d.changed === 0) {
+    const t = `${todo} · 이 런 ${slot} ${d.changed}/${d.total}`;
+    test.info().annotations.push({ type: 'todo', description: t });
+    console.log(`TODO ${t}`);
+  } else expect.soft(d.changed, `todo 가 닫혔다 — ${todo} · 이 런 ${slot} ${d.changed}/${d.total} ⇒ TODO_LAYER_ZERO['${cell}'] 를 떼고 보통 단언으로`).toBe(0);
+}
 async function opaCell(browser, cell, { act, neg = false }) {
   const o = await open(browser);
   try {
@@ -432,8 +454,8 @@ async function opaCell(browser, cell, { act, neg = false }) {
       expect(pic.changed, `★${cell} 음성대조 ②: 그림을 막았는데 뒤 그림 픽셀 ${pic.changed}/${pic.total} — 뒤 그림 자가 그림 아닌 것을 잰다`).toBe(0);
     } else {
       expect(bc.changed, `★${cell} ⑴ 자 양성대조: Esc 뒤 대 전 ${bc.changed}/${bc.total} < 50%`).toBeGreaterThanOrEqual(bc.total * 0.5);
-      expect(bd.changed, `★${cell} ① 조작 «중» 화면이 안 바뀐다: diff(B2,D) ${bd.changed}/${bd.total}${LAYER_ZERO_TAIL}`).toBeGreaterThan(0);
-      expect(pic.changed, `★${cell} ② 완료 뒤 화면에 그림이 없다: diff(C, 그림 끈 C) ${pic.changed}/${pic.total}${LAYER_ZERO_TAIL}`).toBeGreaterThan(0);
+      screenOrTodo(cell, '①', bd, `★${cell} ① 조작 «중» 화면이 안 바뀐다: diff(B2,D) ${bd.changed}/${bd.total}${LAYER_ZERO_TAIL}`);
+      screenOrTodo(cell, '② pic', pic, `★${cell} ② 완료 뒤 화면에 그림이 없다: diff(C, 그림 끈 C) ${pic.changed}/${pic.total}${LAYER_ZERO_TAIL}`);
       /* ⛔범위 밖 — IMPL-COUPLED-ASSERTION-01 (지디 ⒜ 2026-10-22): 옛 단언 `expect(after.varImg).not.toBe('none')`.
          이 자는 «누가 그리나»(::before 변수 길)를 재므로 «화면이 맞나» 물음에 못 쓴다 — frame-bg.js syncFrameBgVars 가
          레이어 길이면 설계상 none 을 쓴다 ⇒ 영영 빨강. 값은 log 의 after.varImg 에 남는다. 화면 물음은 바로 위 ② pic. */
@@ -487,7 +509,7 @@ async function afterCell(browser, cell, { act }) {
     expect(vis.changed, `★${cell} 전제: 조작 전 ::before 그림 픽셀이 0 이다(${vis.changed}/${vis.total})`).toBeGreaterThan(0);
     if (act === 'scale') expect(after.bgSize, `★${cell} 전제: 스케일이 상태에 안 들어갔다(bgSize ${before.bgSize} → ${after.bgSize})`).toMatch(/^\d+(\.\d+)?px \d+(\.\d+)?px$/);
     else expect(after.layerFilter || '', `★${cell} 전제: 완료 뒤 레이어 filter 가 채도를 안 든다`).toMatch(/url\(["']?#img-color-adj-/);
-    expect(pic.changed, `★${cell} 완료 뒤 화면에 그림이 없다: diff(C, 그림 끈 C) ${pic.changed}/${pic.total}${LAYER_ZERO_TAIL}`).toBeGreaterThan(0);
+    screenOrTodo(cell, 'pic', pic, `★${cell} 완료 뒤 화면에 그림이 없다: diff(C, 그림 끈 C) ${pic.changed}/${pic.total}${LAYER_ZERO_TAIL}`);
     /* ⛔범위 밖 — IMPL-COUPLED-ASSERTION-01 (지디 ⒜ 2026-10-22): 옛 단언 `expect(after.varImg).not.toBe('none')`.
        이 자는 «누가 그리나»를 재므로 «화면이 맞나» 물음에 못 쓴다(레이어가 그리면 설계상 none · frame-bg.js syncFrameBgVars).
        값은 log 의 after.varImg 에 남는다. */
