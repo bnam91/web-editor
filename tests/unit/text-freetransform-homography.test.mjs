@@ -38,7 +38,22 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
    ★★`fs.existsSync` 와 ★`import()` 는 ★둘 다 ★file: ★URL ★객체를 ★받는다 ⇒ ★★P-1·P-2 를 ★한 줄도 ★안 고치고 ★닫힌다.
    ⛔`.pathname`·맨 경로로 ★되돌리지 마라 — ★그 게이트가 ★다시 ★빨강이 된다. */
 const PROD = pathToFileURL(fileURLToPath(new URL('../../js/fx/homography.js', import.meta.url)));
-const SIAN = path.join(os.homedir(), '.gd-work/team-lead/sian/sian-08-text-freetransform-v8.html');
+/* ★★★261023 지디 — ★★시안을 ★★★«레포 안»으로 옮겼다. ★★까닭이 ★실측이다:
+     ★이 벌은 ★`~/.gd-work/…` 를 ★`readFileSync` 했고 ⇒ ★★★★★«지디 맥에서만» 초록이었다.
+     ★★잰 값(판 `c5551f64` ★한 판 · ★같은 명령 `npm test`):
+       ★srv(지디 홈에 시안 ★있다)   : ★rc 0 · fail ★0
+       ★수지(시안 ★없다)            : ★rc 1 · fail ★★8  ← ★REF-0·REF-1·⒝·⒝-음성대조 둘·막힘·양성·P-2 ★전부 ENOENT
+     ⇒ ★★그 초록은 ★★★«안 재고 있다»와 ★구분이 ★안 됐다. ★★CI 도 ★같은 꼴로 ★빨강이 된다
+       (★`npm test` 는 ★CI 에서 ★`on: push: tags:'v*'` 로만 ★도니 ★★★태그 미는 자리에서 ★처음 ★나타난다).
+
+   ★★★U1 머리말의 ★규율(⛔「손으로 ★다시 타이핑하지 ★않는다 — ★베끼면 ★화석이 된다」)은 ★★그대로 ★산다:
+     ⒜ ★사본은 ★★«바이트째»다(타이핑 ★0) · ★이름에 ★원본 ★해시 앞 8자를 ★박았다(`tests/fixtures/` 선례 = `grid-cell-border-edges-366fd826.json`)
+     ⒝ ★★★그리고 ★★화석화를 ★★«재는 자»를 ★★같이 세웠다 — ★아래 `PRE-SIAN` 이
+        ★★지디 홈에 ★원본이 ★있으면 ★★★바이트가 ★같은지 ★단언한다 ⇒ ★★시안이 ★9판으로 가면 ★★★내 맥에서 ★빨강이 된다.
+        ★남의 맥·CI 에는 ★원본이 ★없으니 ★그 칸만 ★건너뛴다(★나머지 ★15 칸은 ★전부 ★돈다). */
+const SIAN = fileURLToPath(new URL('../fixtures/sian-08-text-freetransform-v8-e1338e08.html', import.meta.url));
+/* ★★원본(지디 맥에만 있다) — ⛔검사의 ★참값이 ★아니다. ★★«사본이 늙었나»를 ★재는 ★데만 쓴다. */
+const SIAN_LIVE = path.join(os.homedir(), '.gd-work/team-lead/sian/sian-08-text-freetransform-v8.html');
 
 /* ★★참조 구현을 ★시안 «그 파일»에서 ★떼어 온다 — ⛔손으로 베껴 두지 ★않는다.
    （베껴 두면 본문이 바뀔 때 같이 안 늙어서 ★「그때의 코드」를 재는 화석이 된다 —
@@ -83,6 +98,25 @@ test('PRE ★★전제 — ★제품 `js/fx/homography.js` 가 ★★있다(★�
   assert.ok(typeof shimJson._why === 'string' && shimJson._why.length > 80,
     `⛔shim 에 ★까닭(`+"`_why`"+`)이 ★없다/너무 짧다 — 잰 값 ${JSON.stringify(shimJson._why)}`);
   assert.match(shimJson._why, /rc=0/, '⛔`_why` 에 ★잰 값이 ★없다');
+});
+
+/* ★★★전제의 ★남은 반 — ★★★«사본이 ★원본과 ★같은가». ★이 칸이 ★★화석화를 ★재는 자다.
+   ★원본이 ★없는 맥(남의 맥·CI)에서는 ★★★건너뛴다 — ★★범위 밖은 ★FAIL 이 아니라 ★SKIP 이다.
+   ⛔이 칸을 ★지우면 ★시안이 ★9판으로 바뀌어도 ★★아무도 ★모른다(★U1 머리말이 ★막으려 한 ★그 화석). */
+test('PRE-SIAN ★★전제 — ★사본이 ★★원본과 ★«바이트째» 같다(원본 없는 맥은 ★건너뛴다)', (t) => {
+  assert.ok(fs.existsSync(SIAN), `⛔레포 안 ★사본이 ★없다 — ★★REF-* 와 ★P-2 가 ★ENOENT 로 ★죽는다: ${SIAN}`);
+  if (!fs.existsSync(SIAN_LIVE)) {
+    t.skip(`원본이 ★이 맥에 ★없다(★지디 맥에만 있다) ⇒ ★★사본 대조는 ★범위 밖. 사본은 ★있다: ${SIAN}`);
+    return;
+  }
+  const a = fs.readFileSync(SIAN, 'utf8'), b = fs.readFileSync(SIAN_LIVE, 'utf8');
+  assert.equal(a.length, b.length,
+    `⛔사본이 ★늙었다 — ★길이가 ★다르다(사본 ${a.length} · 원본 ${b.length}).
+   ⇒ ★원본을 ★다시 떠서 ★★★«새 해시 이름»으로 ★넣고 ★위 ${'`'}SIAN${'`'} 의 ★이름도 ★같이 ★고쳐라.`);
+  assert.equal(a, b, '⛔사본이 ★늙었다 — ★길이는 같은데 ★내용이 ★다르다(위와 같은 처방)');
+  /* ★★음성대조 — ★이 칸이 ★«항등식»이 아님을 ★그 자리에서 ★보인다.
+     ⛔없으면 ★「같은 파일을 ★두 번 읽어 ★비교했다」와 ★구분이 ★안 된다(261004 의 그 병). */
+  assert.notEqual(SIAN, SIAN_LIVE, '⛔두 경로가 ★같다 — ★대조가 ★자기 자신을 ★재고 있다');
 });
 
 test('REF-0 ★★★자가 살아 있나 — ★시안에서 ★함수를 ★떼어 ★부를 수 있다', () => {
