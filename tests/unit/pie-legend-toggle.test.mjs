@@ -88,8 +88,19 @@ test('T5 ★범례를 꺼도 ★이름을 ★캔버스에서 고칠 길이 ★�
     '⛔범례를 끄면 이름 편집 입구가 사라진다 — 조각 안 이름(.grb-pie-name)이 편집 명부에 없다');
   // ★그리고 ★그 상자가 ★클릭을 받아야 한다(선례 K8⒤ 꼴 · 컨테이너는 none 유지)
   const css = rd('css/editor-graph.css');
+  /* 범위 밖(t4-17 판정 ㉮ · 261022 S3): 「.grb-pie-tag auto」 단언은 아래 T5b(todo)로 옮겼다 — 지우지 않음.
+     왜: 상자를 열면 1013t1C3 계약(graph-pie-1013 J5 «라벨 위를 눌러도 그 조각» · J2 · X1)이 3 빨강(실측 · 바닥 사본 3 초록).
+     그래서 덧층은 none 그대로 두고, 더블클릭은 drag-utils.js _bindGraphLabelEdit 위임 안의 사각형 판정(_grbPieNameAt)으로 받는다.
+     행동 단언(조각 안 이름 더블클릭 → 편집 열림)은 tests/dom/graph-label-edit.dom.spec.js T8 이 잰다.
   assert.match(css, /\.grb-pie-tag\s*\{[^}]*pointer-events:\s*auto/,
-    '⛔조각 안 라벨 상자가 클릭을 안 받는다(.grb-pie-tag 에 pointer-events:auto 없음)');
+    '⛔조각 안 라벨 상자가 클릭을 안 받는다(.grb-pie-tag 에 pointer-events:auto 없음)'); */
   assert.match(css, /\.grb-pie-tags\s*\{[^}]*pointer-events:\s*none/,
     '⛔컨테이너(.grb-pie-tags)는 none 이어야 한다 — 열면 조각 클릭이 죽는다');
+});
+/* T5b — 지디 발주(덧③ ④)의 「상자 auto」 단언 그대로. t4-17 판정 ㉮ 로 대체됐는지는 지디 판정 — 그 전까지 todo(⛔지우지 않음). */
+test('T5b 조각 안 라벨 상자가 클릭을 받는다(.grb-pie-tag auto) — 판정 대기',
+  { todo: 'T5-CSS-AUTO-SUPERSEDED-BY-DBLCLICK-HITTEST — 지디 판정' }, () => {
+  const css = rd('css/editor-graph.css');
+  assert.match(css, /\.grb-pie-tag\s*\{[^}]*pointer-events:\s*auto/,
+    '⛔조각 안 라벨 상자가 클릭을 안 받는다(.grb-pie-tag 에 pointer-events:auto 없음)');
 });

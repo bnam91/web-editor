@@ -227,10 +227,17 @@ async function pieNamesShown(page, id) {
   await expect.poll(() => page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.grb-pie-name')].map(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }).join(), id),
     { message: '장면 미성립: 조각 안 이름이 항목마다 보이지 않는다(개수·크기)' }).toBe(PIE_ITEMS.map(() => true).join());
 }
-async function pieEditAt(page, id, sel, i, text) {
+/* 조각 안 이름은 덧층(pointer-events:none) 안이다(t4-17 판정 ㉮) ⇒ 그 자리의 맨 위 요소는 «조각»이어야 하고(1013t1C3 J5 계약 그대로),
+   더블클릭은 위임의 사각형 판정이 이름으로 받는다. 범례 라벨은 제 요소가 맨 위다. */
+const PIE_HIT = { '.grb-pie-name': '.grb-pie-slice', '.grb-pie-label': '.grb-pie-label' };
+async function pieDblAt(page, id, sel, i) {
   await centre(page, id, sel, i);
   const q = await stableCentre(page, id, sel, i);
-  await clickAt(page, q.x, q.y, { sel }, { label: `${sel}[${i}] 더블클릭`, dbl: true });
+  await clickAt(page, q.x, q.y, { sel: PIE_HIT[sel] }, { label: `${sel}[${i}] 더블클릭`, dbl: true });
+  return q;
+}
+async function pieEditAt(page, id, sel, i, text) {
+  await pieDblAt(page, id, sel, i);
   await expect.poll(() => page.evaluate(([id, sel]) => document.activeElement?.matches(sel) && document.activeElement.isContentEditable && document.getElementById(id).contains(document.activeElement), [id, sel]), { message: `${sel}[${i}] 가 편집 상태로 포커스`, timeout: 3000 }).toBe(true);
   await page.keyboard.press('Meta+a'); await page.keyboard.type(text); await page.keyboard.press('Meta+Enter');
 }
@@ -262,5 +269,44 @@ test('T7⒞ ★범례를 끈 판(E5 · LEGEND-OFF-KILLS-NAME-EDIT-01)에서도 �
   const before = await labels(page, id);
   await pieEditAt(page, id, '.grb-pie-name', 1, '끈판둘');
   await expect.poll(() => labels(page, id)).toEqual(before.map((l, i) => i === 1 ? '끈판둘' : l));
+  expect(errs).toEqual([]);
+});
+test('T8 ★조각 안 이름 더블클릭 → 편집이 열린다 · 그 자리의 맨 위 요소는 조각(덧층이 안 가린다 · J5 계약 그대로)', async ({ page }) => {
+  const { errs, id } = await pieSetup(page);
+  await pieToggle(page, 'grb-pie-name-toggle');
+  await pieNamesShown(page, id);
+  await pieDblAt(page, id, '.grb-pie-name', 2);   // clickAt 이 «맨 위 = .grb-pie-slice» 를 단언한다
+  await expect.poll(() => page.evaluate((id) => { const a = document.activeElement; return !!a && a.matches('.grb-pie-name') && a.isContentEditable && [...document.getElementById(id).querySelectorAll('.grb-pie-name')].indexOf(a); }, id), { message: '셋째 이름이 편집 상태로 포커스', timeout: 3000 }).toBe(2);
+  await page.keyboard.press('Escape');
+  expect(errs).toEqual([]);
+});
+test('T9 ★숨은 이름(조각 「라벨」 숨김)은 그 자리를 더블클릭해도 안 잡는다 · 데이터 무변', async ({ page }) => {
+  const { errs, id } = await pieSetup(page);
+  await pieToggle(page, 'grb-pie-name-toggle');
+  await pieNamesShown(page, id);
+  const q = await stableCentre(page, id, '.grb-pie-name', 1);   // 숨기기 전 자리
+  await page.evaluate((id) => { const g = document.getElementById(id); const it = JSON.parse(g.dataset.items); it[1].pieTag = 'off'; g.dataset.items = JSON.stringify(it); window.renderGraph(g); }, id);
+  await expect.poll(() => page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.grb-pie-name')[1]?.getBoundingClientRect(); return !r || (r.width === 0 && r.height === 0); }, id), { message: '장면 미성립: 둘째 이름이 안 숨었다' }).toBe(true);
+  const before = await labels(page, id);
+  await clickAt(page, q.x, q.y, { sel: '.grb-pie-slice' }, { label: '숨은 이름 자리 더블클릭', dbl: true });
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).querySelectorAll('[contenteditable]').length, id), { message: '편집이 안 열린다' }).toBe(0);
+  expect(await labels(page, id)).toEqual(before);
+  expect(errs).toEqual([]);
+});
+/* T10 — 겹침: 두 이름 상자를 같은 자리에 둔다(합성 기하 — 렌더는 겹치지 않게 놓지만 판정 규칙을 잰다).
+   z-index 가 같으면 문서 순서 뒤(= 나중에 칠한 쪽 · 셋째) · 앞 상자에 z-index 1 을 주면 그쪽(둘째). */
+test('T10 ★두 이름이 겹치면 «칠 순서 위쪽»을 고른다 — 같은 z = 문서 순서 뒤 · z 큰 쪽이 이긴다', async ({ page }) => {
+  const { errs, id } = await pieSetup(page);
+  await pieToggle(page, 'grb-pie-name-toggle');
+  await pieNamesShown(page, id);
+  const stack = (z1) => page.evaluate(([id, z1]) => { const t = document.getElementById(id).querySelectorAll('.grb-pie-tag'); t[2].style.left = t[1].style.left; t[2].style.top = t[1].style.top; t[1].style.zIndex = z1; }, [id, z1]);
+  await stack('');
+  let before = await labels(page, id);
+  await pieEditAt(page, id, '.grb-pie-name', 1, '위쪽');
+  await expect.poll(() => labels(page, id), { message: '같은 z — 문서 순서 뒤(셋째)가 위' }).toEqual(before.map((l, i) => i === 2 ? '위쪽' : l));
+  await stack('1');
+  before = await labels(page, id);
+  await pieEditAt(page, id, '.grb-pie-name', 1, 'z위');
+  await expect.poll(() => labels(page, id), { message: 'z-index 1 — 둘째가 위' }).toEqual(before.map((l, i) => i === 1 ? 'z위' : l));
   expect(errs).toEqual([]);
 });

@@ -382,9 +382,6 @@
   line-height: 1.2;
   font-weight: var(--ui-fw-semibold);
   color: var(--grb-seg-fg, inherit);
-  /* t4-17 — 덧층(.grb-pie-tags)은 none 그대로 · 상자만 클릭을 받는다(K8⒤ 꼴) ⇒ 상자 밖 조각 클릭은 그대로 svg 로 간다.
-     이름(.grb-pie-name)은 더블클릭 편집 대상(drag-utils.js GRB_CAT_LABEL_SEL) · 순위 배지(.grb-pie-rank)는 계산값이라 대상 아님. */
-  pointer-events: auto;
 }
 .grb-pie-rank {
   font-size: 0.7em;
