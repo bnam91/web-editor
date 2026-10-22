@@ -105,12 +105,22 @@ async function makeDim(page) {
   const sr = await rectOf(page, `#${sec}`);
   await page.click('#fp-pen-dropdown .fp-dropdown-trigger');
   await page.click('#fp-pen-menu .fp-menu-item[onclick*="toggleDimMode"]');
-  for (const p of [[sr.x + 250, sr.y + sr.h - 60], [sr.x + 550, sr.y + sr.h - 60], [sr.x + 400, sr.y + sr.h - 110]]) { await page.mouse.click(p[0], p[1]); await page.waitForTimeout(350); }
+  // 고정 대기 0줄(tests/unit/dom-fixed-wait-census W3) — 클릭마다 «그 클릭이 먹혔다»를 기다린다: 미리보기 점 1 → 2 → 치수선 블럭
+  const P = [[sr.x + 250, sr.y + sr.h - 60], [sr.x + 550, sr.y + sr.h - 60], [sr.x + 400, sr.y + sr.h - 110]];
+  for (const [k, p] of P.slice(0, 2).entries()) {
+    await page.mouse.click(p[0], p[1]);
+    expect(await poll(page, (n) => document.querySelectorAll('.annot-preview .annot-preview-dot').length >= n, k + 1, 4000), `전제: 클릭 ${k + 1} 이 점으로 먹혔다`).toBe(true);
+  }
+  await page.mouse.click(P[2][0], P[2][1]);
   expect(await poll(page, (s) => !!document.getElementById(s).querySelector('.annotation-block[data-annot-kind="dim"]'), sec, 4000), '전제: 치수선 생김(클릭 3)').toBe(true);
   const id = await page.evaluate((s) => document.getElementById(s).querySelector('.annotation-block[data-annot-kind="dim"]').id, sec);
-  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
-  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
-  expect(await page.evaluate(() => !document.body.classList.contains('pen-mode')), '전제: 펜 모드 꺼짐').toBe(true);
+  // 만든 직후 라벨이 편집에 들어간 «뒤»에 Esc(라벨 keydown) — 들어가기 전에 누르면 안 닿는다(dimension-sticker-t3-01 selectDim 머리 :86~95)
+  //   ★«편집에 들어갔다» = contenteditable 만이 아니라 ★포커스까지 — 포커스는 setTimeout 0 뒤에 온다(js/annotation-select.js annotBeginLabelEdit 끝)
+  expect(await poll(page, (i) => { const l = document.querySelector(`#${i} .annot-label`); return l?.getAttribute('contenteditable') === 'true' && document.activeElement === l; }, id, 4000), '전제: 라벨이 편집에 들어갔다(포커스까지)').toBe(true);
+  await page.keyboard.press('Escape');
+  expect(await poll(page, (i) => document.querySelector(`#${i} .annot-label`)?.getAttribute('contenteditable') !== 'true', id, 4000), '전제: 라벨 편집에서 빠져나왔다').toBe(true);
+  await page.keyboard.press('Escape');
+  expect(await poll(page, () => !document.body.classList.contains('pen-mode'), null, 4000), '전제: 펜 모드 꺼짐').toBe(true);
   const lr = await rectOf(page, `#${id} .annot-label`);
   const hit = await hitAt(page, lr.cx, lr.cy, `#${id} .annot-label`);
   expect(hit.ok, `전제: 라벨 맞힘(${hit.hit})`).toBe(true);
