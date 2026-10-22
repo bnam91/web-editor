@@ -525,10 +525,13 @@ test('G20-9 ★지키는 자 — 색을 칠한 «빈» 원도 더블클릭은 �
   /* ★실제로 더블클릭해서 ★크롭 편집기가 ★안 열리는 것을 본다.
      ★표식은 ★`block._grdImgEdit` ＋ 대역 요소 `[data-grd-img-proxy]` 다(js/image-handling.js 실측 —
      클래스가 아니다. ⛔「img-editing」 같은 이름으로 재면 ★늘 0 이라 아무것도 안 잰다). */
+  /* ★누르는 자리 = 원 «도형» 위 · 글자 밖(가로 가운데 · 위에서 14%) — t5-14 이후 원 한가운데는 ★글자 위라
+     더블클릭이 ★글자 편집으로 간다(js/block-drag.js · tests/dom/t5-14-circle-text-edit.dom.spec.js).
+     ⛔한가운데로 되돌리면 음성 쪽은 ★글자 편집 덕에 늘 통과(공회전)하고 양성 쪽은 깨진다. */
   const dbl = async () => {
     const [x, y] = await page.evaluate(() => {
       const r = document.querySelector('#gG .grd-img-frame').getBoundingClientRect();
-      return [r.left + r.width / 2, r.top + r.height / 2];
+      return [r.left + r.width / 2, r.top + r.height * 0.14];
     });
     await page.mouse.click(x, y); await page.waitForTimeout(180);
     await page.mouse.dblclick(x, y); await page.waitForTimeout(300);
