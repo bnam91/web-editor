@@ -84,6 +84,19 @@ function judge(canon, P, verdict) {
 }
 const table = (rows) => ['선택자 | 캡처에서도 지워야? | capture | html | save', ...rows.map(r => `${r.sel} | ${r.verdict} | ${r.capture} | ${r.html} | ${r.save}`)].join('\n');
 
+/* ★갈래 — 발주 261022(R1 레인): 목표는 ★「16 → 0」이고 ★47 이 아니다. 갈래를 ★수로 찍어 목표가 ★3배로 보이는 것을 멈춘다.
+ *   S3 몫 = 회전 핫존·손잡이 — 이 표에선 빨강 칸이지만 ★«그려지나»는 S3 가 잰다(이 파일 머리말 ⒤ 와 같은 선) ⇒ ★R1 범위 밖.
+ *   R1 몫 = 그 밖(편집 장식). ⛔손 명부로 적지 않는다 — ★이름 꼴로 가린다. 꼴이 안 맞는 새 줄은 ★«그 밖»으로 찍혀 드러난다. */
+const LANE_OF = (sel) => /-rotate-zone$/.test(sel) ? 'S3-rotate' : /-handle$/.test(sel) ? 'S3-handle' : 'R1';
+const laneCounts = (gaps) => {
+  const sel = (g) => g.split(' ∌ ')[0];
+  const n = (lane) => gaps.filter(g => LANE_OF(sel(g)) === lane).length;
+  const r1 = n('R1'), rot = n('S3-rotate'), hdl = n('S3-handle');
+  return { r1, rot, hdl, s3: rot + hdl, etc: gaps.length - r1 - rot - hdl };
+};
+const laneLine = (gaps) => { const c = laneCounts(gaps);
+  return `★R1 몫 ${c.r1} · S3 몫 ${c.s3}(rotate-zone ${c.rot} · handle ${c.hdl}) · 그 밖 ${c.etc}`; };
+
 const CANON = editorNodeCanon(ROOT);
 const P = paths();
 
@@ -106,7 +119,7 @@ test('R0b ★정본의 «모든» 항목에 「캡처에서도 지워야 하나�
 
 /** ★R1 의 todo 메시지에 ★수를 박으려고 판정을 모듈 머리에서 한 번 낸다(같은 judge · 같은 입력). */
 const R1_GAPS = judge(CANON.all, P, CAPTURE_VERDICT).gaps;
-const R1_TODO = `${NAME} — 안 막히는 칸 ${R1_GAPS.length} ` +
+const R1_TODO = `${NAME} — 안 막히는 칸 ${R1_GAPS.length} — ${laneLine(R1_GAPS)} ` +
   `(${PATHS.map(p => `${p} ${R1_GAPS.filter(g => g.endsWith('∌ ' + p)).length}`).join(' · ')}) — ` +
   `닫는 이 = 지디 판정(제품: 캡처 겹·export-html 지우기 명부를 저장 정본에서 파생) · 0 이 되면 todo 를 뗀다`;
 
@@ -116,7 +129,7 @@ test(`R1 ★★${NAME} — 'yes' 판정 정본 선택자가 ★세 길 «모두�
   const byPath = Object.fromEntries(PATHS.map(p => [p, gaps.filter(g => g.endsWith('∌ ' + p)).map(g => g.split(' ∌ ')[0])]));
   assert.deepEqual(gaps, [],
     `★${NAME} — 편집 노드 정본(저장 쪽 두 출처의 합 · ${CANON.all.length}종) 중 「캡처에서도 지워야 함(yes)」인데 ` +
-    `★안 지우는 칸이 ${gaps.length} 개다. ★까닭 = 세 길의 지우기 명부가 ★정본에서 파생되지 않고 ★손으로 따로 있다:\n` +
+    `★안 지우는 칸이 ${gaps.length} 개다. (${laneLine(gaps)} — ★R1 레인의 목표는 R1 몫 0 이다) ★까닭 = 세 길의 지우기 명부가 ★정본에서 파생되지 않고 ★손으로 따로 있다:\n` +
     PATHS.map(p => `  ${p.padEnd(7)} (${SRC_OF[p]}) 안 막힘 ${byPath[p].length}: ${byPath[p].join(' ')}`).join('\n') +
     `\n  (판정 미정 unmeasured ${unmeasured.length}: ${unmeasured.join(' ')} — 이 수는 빨강에 안 든다)` +
     `\n  ⇒ 이 노드들은 «고른 채» 내보내면 그 길의 산출물에 ★남는다(그려지는지는 CSS·display 에 달렸다 — S3 가 잰다).` +
