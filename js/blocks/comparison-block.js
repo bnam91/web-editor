@@ -274,8 +274,11 @@ export function cmpPickRowImage(block, colIdx, rowIdx) {
      (★261022 실측: 변이 사본에서 `actual 20 · expected 0`). ★소비자 셋이 ★이 한 줄을 쓰니 ★셋이 ★같이 깨진다.
    ⛔다만 ★검사는 ★T4 ★한 칸에서만 빨개진다 — ★소비자별 칸은 ★없다(이 모듈은 node 에서 import 가 안 돼
      ★헬퍼 한 줄만 떼어 돌린다). ⇒ ★★「셋이 각각 빨강」은 ★안 쟀다. 재려면 ★DOM 축이 필요하다.
-   ★재는 자 = tests/unit/zero-is-selectable.test.mjs (T1 소스꼴 · T2 양성대조 · T3 뿌리 한자리 · T4 동작) */
-const _num = (v, dflt) => { const n = parseInt(v); return Number.isNaN(n) ? dflt : n; };
+   ★★패널(prop-comparison.js)도 ★같은 한 벌을 쓴다 — 그 파일이 ★이미 이 모듈에서 import 하므로 ★새 간선 0.
+     ⛔패널에 ★제 것을 따로 적지 마라: 패널의 슬라이더 초기값이 `parseInt(d.radius) || 20` 이었고,
+     ★그래서 radius 가 0 일 때 ★패널이 ★20 을 보여줬다(저장값을 ★거짓으로 비춘다). ★자리가 ★둘이었다.
+   ★재는 자 = tests/unit/zero-is-selectable.test.mjs (T1 소스꼴 · T2 양성대조 · T3 뿌리 한자리 · T4 동작 · T5 패널) */
+export const _num = (v, dflt) => { const n = parseInt(v); return Number.isNaN(n) ? dflt : n; };
 
 /* ★1012t1D2 — _lnNeed = 「줄 칸 때문에 늘어야 할 행 높이」(행 인덱스 → 기본 높이 px · featScale 적용 전). 내부 2단계용 —
    바깥에서 부를 때는 안 준다. 줄 칸이 없는 블럭은 2단계를 «안 탄다»(옛 저장본 산출 바이트 그대로). */

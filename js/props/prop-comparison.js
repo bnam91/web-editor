@@ -2,7 +2,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
-import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows, CMP_ROW_HINT, CMP_HD_HINT, cmpGetActiveCell, cmpPickRowImage, cmpRowHeights } from '../blocks/comparison-block.js';
+import { _num, getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows, CMP_ROW_HINT, CMP_HD_HINT, cmpGetActiveCell, cmpPickRowImage, cmpRowHeights } from '../blocks/comparison-block.js';
 /* ★1017t1c4 — 행 높이의 바닥·천장과 «쓰는 한 벌». 캔버스 행 경계 드래그(overlay-handles.js)와 ★같은 함수·같은 수를 쓴다.
    ⛔여기 16·400 을 다시 적지 마라(그 둘이 갈리면 「패널에서는 되는데 끌면 다른 값」이 된다). */
 import { CMP_ROW_H_MIN, CMP_ROW_H_MAX, setCmpRowHeight } from '../grid-cell-resize.js';
@@ -172,11 +172,11 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="cmp-scale" min="1" max="1.5" step="0.05" value="${parseFloat(d.featScale) || 1.2}">
         <input type="number" class="prop-number" id="cmp-scale-num" min="1" max="1.5" step="0.05" value="${parseFloat(d.featScale) || 1.2}"></div>
       <div class="prop-row"><span class="prop-label">겹침</span>
-        <input type="range" class="prop-slider" id="cmp-ovl" min="0" max="80" step="2" value="${parseInt(d.overlap) || 32}">
-        <input type="number" class="prop-number" id="cmp-ovl-num" min="0" max="80" value="${parseInt(d.overlap) || 32}"></div>
+        <input type="range" class="prop-slider" id="cmp-ovl" min="0" max="80" step="2" value="${_num(d.overlap, 32)}">
+        <input type="number" class="prop-number" id="cmp-ovl-num" min="0" max="80" value="${_num(d.overlap, 32)}"></div>
       <div class="prop-row"><span class="prop-label">반경</span>
-        <input type="range" class="prop-slider" id="cmp-rad" min="0" max="40" step="1" value="${parseInt(d.radius) || 20}">
-        <input type="number" class="prop-number" id="cmp-rad-num" min="0" max="40" value="${parseInt(d.radius) || 20}"></div>
+        <input type="range" class="prop-slider" id="cmp-rad" min="0" max="40" step="1" value="${_num(d.radius, 20)}">
+        <input type="number" class="prop-number" id="cmp-rad-num" min="0" max="40" value="${_num(d.radius, 20)}"></div>
       <div class="prop-row"><span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="cmp-padx" min="0" max="160" step="2" value="${parseInt(d.padX) || 0}">
         <input type="number" class="prop-number" id="cmp-padx-num" min="0" max="160" value="${parseInt(d.padX) || 0}"></div>
@@ -193,8 +193,8 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="cmp-rowh" min="24" max="140" step="2" value="${parseInt(d.rowH) || 64}">
         <input type="number" class="prop-number" id="cmp-rowh-num" min="24" max="140" value="${parseInt(d.rowH) || 64}"></div>
       <div class="prop-row"><span class="prop-label">행 간격</span>
-        <input type="range" class="prop-slider" id="cmp-rowgap" min="0" max="40" step="1" value="${parseInt(d.rowGap) || 8}">
-        <input type="number" class="prop-number" id="cmp-rowgap-num" min="0" max="40" value="${parseInt(d.rowGap) || 8}"></div>
+        <input type="range" class="prop-slider" id="cmp-rowgap" min="0" max="40" step="1" value="${_num(d.rowGap, 8)}">
+        <input type="number" class="prop-number" id="cmp-rowgap-num" min="0" max="40" value="${_num(d.rowGap, 8)}"></div>
       ${window.floatPositionRowHTML?.({ prefix: 'cmp', posEl: block }) || ''}
     </div>
     ${cols.map((c, i) => colSection(c, i)).join('')}`;
