@@ -80,7 +80,9 @@ test('T1a ★★`placeholder` 축 — ★채팅 프로필 아이콘 CSS 가 ★�
 /* ★★T1b — ★★S7 의 ⑶(치수선) 일감이 ★닫을 칸이다. ★지디가 고치면 ★그 일감을 ★가로챈다.
    ★이름 = `ANNOT-CSS-FILTERED-01` (지디 명부) · ★닫는 쪽 = ⑶ 집행 레인
    ⛔`todo` 로 둔다 — ★「일부러 빨강」이면 ★다음 빨강을 ★가린다. */
-test('T1b ★`annot` 축 — 어노테이션·치수선 콘텐츠 CSS 가 실린다 (★S7 ⑶ 가 닫는다)', { todo: 'S7 ⑶ 일감 — ANNOT-CSS-FILTERED-01' }, () => {
+/* 261022 S7 ⑶ — todo 를 걷는다: export-css-collect.js EDITOR_ONLY_SEL 의 '\\.annotation'·'\\.annot-' 를
+   편집 전용 annot 이름만으로 좁혔다(지디 판정 3 ①). 바닥(좁히기 전)에선 이 칸이 셋 다 먹힘으로 빨강이었다. */
+test('T1b ★`annot` 축 — 어노테이션·치수선 콘텐츠 CSS 가 실린다 (★S7 ⑶ 가 닫는다)', () => {
   const { re } = productFilter();
   const eaten = MUST_SHIP_ANNOT.filter(([s]) => re.test(s));
   assert.deepEqual(eaten.map(x => x[0]), [],

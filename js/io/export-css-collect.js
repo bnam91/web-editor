@@ -41,7 +41,13 @@ const EDITOR_ONLY_SEL = new RegExp([
        「★숨기는 CSS 한 줄로 ★때우지 마라 · ★있을 이유 없는 것은 ★버린다」이다. */
   '\\.img-editing', '\\.img-edit-hint', '\\.img-boundary', '\\.img-corner-handle', '\\.img-edge-handle', '\\.img-rotate-zone',
   '\\.section-label', '\\.section-toolbar', '\\.section-hitzone', '\\.variation-badge', '\\.section-height-badge',
-  '\\.annotation', '\\.annot-', '\\.qa-block', '\\.todo-pin', '\\.pen-',
+  /* 261022 현빈 결정 — «아노테이션 블록과 치수선 블럭은 보여야지 최종 이미지».
+     ⇒ 옛 '\\.annotation' · '\\.annot-' 두 조각이 그 콘텐츠(.annotation-block · .annot-label · .annot-svg)의 CSS 를 먹었다
+       (ANNOT-CSS-FILTERED-01 · 짝 = capture-safety.js stripEditorOnlyForCapture C18 정정).
+     ⇒ 편집 화면에서만 사는 annot 이름만 남긴다. 재는 자 = tests/unit/export-css-filter-scope.test.mjs T1b·T2 */
+  '\\.annot-handle', '\\.annot-rot-handle', '\\.annot-dim-handle', '\\.annot-selbox', '\\.annot-preview',
+  '\\.annot-anchor-preview', '\\.annot-cell-selected', '\\.annot-point-angle', '\\.annot-label-textarea',
+  '\\.qa-block', '\\.todo-pin', '\\.pen-',
   '\\.col-placeholder', '\\.col-add', '\\.row-col-add', '\\.row-drop-indicator', '\\.layer-',
   /* ★★t4 검수 261022(지디) — ★`'placeholder'` ★맨 조각을 ★좁혔다.
      ⛔그 조각은 ★머리말(위 :30~31 「★«너무 넓은» 조각은 쓰지 않는다」)을 ★스스로 어기고 있었다:

@@ -455,10 +455,13 @@ export function stripEditorOnlyForCapture(clone) {
   clone.querySelectorAll('.variation-badge').forEach(el => el.remove());
   // C18: 펜툴 어노테이션(리뷰용 주석)과 진행중 미리보기는 리뷰 표시일 뿐 — 산출 이미지에 박히면 안 됨.
   // (대조: todo-pin은 #todo-pin-overlay로 섹션 밖이라 애초에 클론에 안 들어감)
-  clone.querySelectorAll('.annotation-block, .annot-preview').forEach(el => el.remove());
+  // ★정정 261022 현빈 결정 «아노테이션 블록과 치수선 블럭은 보여야지 최종 이미지» — 어노테이션·치수선은 최종 이미지에 보인다 · 거름은 .annot-preview(그리는 중 미리보기)만.
+  //   ⛔위 C18 두 줄은 «그때의 판단»이라 지우지 않는다. 이 함수를 부르는 셋(PNG·썸네일·단독 HTML) 모두에 같이 걸린다 — tests/dom/annot-export-show-261022.
+  clone.querySelectorAll('.annot-preview').forEach(el => el.remove());
   // admin QA 체크리스트 블록 — 콘텐츠가 아니라 작업 메타데이터다. 자리도 차지하면 안 되므로
   // 숨기지 않고 완전히 remove() 한다(annotation-block과 같은 원칙). 감싸는 .row 까지 지워야
   // 그 블록이 차지하던 세로 공간도 같이 사라진다.
+  // ★정정 261022 현빈 결정 — 어노테이션·치수선은 콘텐츠다(최종 이미지에 보인다). 이 괄호 «annotation-block과 같은 원칙»은 이제 맞지 않는다 · qa-block 만 작업 메타.
   clone.querySelectorAll('.qa-block').forEach(el => {
     const row = el.closest('.row');
     if (row) row.remove(); else el.remove();

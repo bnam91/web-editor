@@ -100,7 +100,7 @@ const probe = (page, which) => page.evaluate((w) => {
     label: has('.section-label'),
     toolbar: has('.section-toolbar'),
     variation: has('.variation-badge'),
-    annotation: has('.annotation-block'),
+    annotation: has('.annotation-block'),   // ★261022 — 이 줄은 이제 «남아야 할 것»이다(현빈 결정 · T1 기대 true) · 자리는 옮기지 않았다(줄 이동 0)
     annotPreview: has('.annot-preview'),
     qaBlock: has('.qa-block'),
     qaRowGone: clone.querySelectorAll('.row').length,
@@ -144,7 +144,9 @@ test('T1 ★편집 chrome 전수 — 걷힌 뒤 클론에 한 건도 안 남는�
     rowActive: r.rowActive, colActive: r.colActive,
   }).toEqual({
     label: false, toolbar: false, variation: false,
-    annotation: false, annotPreview: false, qaBlock: false,
+    /* ★261022 기대 뒤집음 — 현빈 결정 «아노테이션 블록과 치수선 블럭은 보여야지 최종 이미지»: .annotation-block 은 이제 «콘텐츠»라 썸네일 클론에 남는다(true).
+       그리는 중 미리보기(annotPreview)는 그대로 걷힌다(false) — js/io/capture-safety.js stripEditorOnlyForCapture 정정 줄 · tests/dom/annot-export-show-261022. */
+    annotation: true, annotPreview: false, qaBlock: false,
     bgProxy: false, imgHint: false, imgBoundary: false,
     rootSelected: false, rootBgEditing: false,
     childSelected: false, imgEditing: false,
