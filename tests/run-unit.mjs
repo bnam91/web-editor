@@ -11,6 +11,8 @@
  * ★node 는 `--test-concurrency=abc` 를 rc 0 으로 받는다(261022 실측 · Node v24.11.1 · 0 · 1.5 도 rc 0 · -1 만 RangeError rc 1).
  *   =0 은 기본(코어 수)으로 돈다(지디 srv v24.10.0 실측 · «없음»과 같은 시간) — «0 = 직렬/제한 없음» 이 아니다.
  *   그래서 여기서 정수를 확인하고 rc 2 로 거절한다. ⛔이 거름을 빼지 마라.
+ * ★동시도는 검사 수를 안 바꾼다 — 실측 261022: srv(Node 24.10 · 동시도 2) ↔ Intel(Node 25.8 · 동시도 12)에서
+ *   tests/pass/fail/skipped/rc 다섯 수가 전부 같다(4674/4673/0/1/0 · 판 378db829).
  * ★자식 rc 를 그대로 넘긴다 — 삼키면 빨강이 초록으로 둔갑한다(시그널로 죽어 status null 이어도 1).
  * 잠그는 자리: tests/unit/run-unit-wrapper.test.mjs */
 import { spawnSync } from 'node:child_process';
