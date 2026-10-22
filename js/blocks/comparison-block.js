@@ -265,15 +265,27 @@ export function cmpPickRowImage(block, colIdx, rowIdx) {
   return inp;
 }
 
+/* ★t4-20 — ★0 을 ★지키는 수 읽기. ⛔`parseInt(d.X) || <0 아닌 기본값>` 을 ★쓰지 마라:
+   ★JS 에서 `0` 은 ★falsy 라 ★사용자가 고른 0 이 ★기본값으로 ★되살아난다.
+   현빈 「모서리 라운드 ★완전히 없앨수도 있는지? … 없앨 순 없어보이기도함」(t4-20) = ★그 꼴이었다.
+   ★저장 쪽(`:block.dataset.radius = data.radius ?? 20`)은 `??` 라 0 이 살았다 — ★읽는 쪽만 병이었다.
+   ★★같은 병이 ★셋이었다(radius 0→20 · overlap 0→32 · rowGap 0→8). ★그래서 ★한 자리로 모았다.
+   ⇒ ★★이 한 줄을 `parseInt(v) || dflt` 로 ★되돌리면 ★zero-is-selectable 의 ★T4 가 ★빨강이다
+     (★261022 실측: 변이 사본에서 `actual 20 · expected 0`). ★소비자 셋이 ★이 한 줄을 쓰니 ★셋이 ★같이 깨진다.
+   ⛔다만 ★검사는 ★T4 ★한 칸에서만 빨개진다 — ★소비자별 칸은 ★없다(이 모듈은 node 에서 import 가 안 돼
+     ★헬퍼 한 줄만 떼어 돌린다). ⇒ ★★「셋이 각각 빨강」은 ★안 쟀다. 재려면 ★DOM 축이 필요하다.
+   ★재는 자 = tests/unit/zero-is-selectable.test.mjs (T1 소스꼴 · T2 양성대조 · T3 뿌리 한자리 · T4 동작) */
+const _num = (v, dflt) => { const n = parseInt(v); return Number.isNaN(n) ? dflt : n; };
+
 /* ★1012t1D2 — _lnNeed = 「줄 칸 때문에 늘어야 할 행 높이」(행 인덱스 → 기본 높이 px · featScale 적용 전). 내부 2단계용 —
    바깥에서 부를 때는 안 준다. 줄 칸이 없는 블럭은 2단계를 «안 탄다»(옛 저장본 산출 바이트 그대로). */
 function renderComparison(block, _lnNeed = null) {
   const d = block.dataset;
-  const overlap   = parseInt(d.overlap) || 32;
-  const radius    = parseInt(d.radius) || 20;
+  const overlap   = _num(d.overlap, 32);
+  const radius    = _num(d.radius, 20);
   const headerH   = parseInt(d.headerH) || 72;
   const rowH      = parseInt(d.rowH) || 64;
-  const rowGap    = parseInt(d.rowGap) || 8;
+  const rowGap    = _num(d.rowGap, 8);
   const featScale = cmpFeatScale(d);               // ★1017t1c4 — 한 자리에서(아래 cmpFeatScale) · 기본 1.2배 · 1.0~1.5
   const padX = Math.max(0, parseInt(d.padX) || 0); // 전체 좌우 패딩 (블록 ↔ 카드)
   const padY = Math.max(0, parseInt(d.padY) || 0); // 패널 상하 패딩 (카드 내부)
