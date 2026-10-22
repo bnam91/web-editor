@@ -15,7 +15,7 @@
     "build:mac": "electron-builder --mac --dir",
     "release:mac": "node tools/deploy-gate.js && electron-builder --mac --publish always",
     "release:win": "node tools/deploy-gate.js && electron-builder --win --publish always",
-    "test": "node --test 'tests/unit/*.test.mjs' 'tests/unit/*.test.js'",
+    "test": "node tests/run-unit.mjs 'tests/unit/*.test.mjs' 'tests/unit/*.test.js'",
     "test:dom": "playwright test --config=tests/dom/playwright.dom.config.js",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
