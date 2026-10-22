@@ -85,17 +85,45 @@ function judge(canon, P, verdict) {
 const table = (rows) => ['선택자 | 캡처에서도 지워야? | capture | html | save', ...rows.map(r => `${r.sel} | ${r.verdict} | ${r.capture} | ${r.html} | ${r.save}`)].join('\n');
 
 /* ★갈래 — 발주 261022(R1 레인): 목표는 ★「16 → 0」이고 ★47 이 아니다. 갈래를 ★수로 찍어 목표가 ★3배로 보이는 것을 멈춘다.
- *   S3 몫 = 회전 핫존·손잡이 — 이 표에선 빨강 칸이지만 ★«그려지나»는 S3 가 잰다(이 파일 머리말 ⒤ 와 같은 선) ⇒ ★R1 범위 밖.
- *   R1 몫 = 그 밖(편집 장식). ⛔손 명부로 적지 않는다 — ★이름 꼴로 가린다. 꼴이 안 맞는 새 줄은 ★«그 밖»으로 찍혀 드러난다. */
-const LANE_OF = (sel) => /-rotate-zone$/.test(sel) ? 'S3-rotate' : /-handle$/.test(sel) ? 'S3-handle' : 'R1';
+ *
+ * ★★★⛔261023 — ★이 자리가 ★★두 번 ★틀렸다. ★둘 다 ★★★«수»가 아니라 ★★«자»의 흠이었다.
+ *   ⒤ ★★자가 ★이름 꼴이었다 — `/-rotate-zone$/ → S3 · /-handle$/ → S3 · 나머지 → R1`.
+ *      ⇒ ★★★「R1 몫 ★0 · S3 몫 ★31」을 찍었고 ★★내가 그걸 「R1 은 ★닫혔다」로 읽어 ★올렸다. ★★★거짓이다.
+ *      ⇒ ★까닭 : ★★«누구 몫인가»는 ★★★«이름 꼴»이 아니라 ★★«S3 레인이 ★실제로 ★무엇을 ★맡았나»가 정한다.
+ *        ★이 파일 머리말이 적은 ★까닭도 ★「.selected 매인 display 로 숨는다」지 ★「-handle 로 끝난다」가 아니다.
+ *   ⅱ) ★그 뒤 ★★★★★★★내가 ★손으로 ★뺐다 — `31 − 3 − 1 = ★27` 을 ★「R1 몫」이라 ★올렸다.
+ *      ⇒ ★★★★★단위가 ★섞였다 : ★31 은 ★★«칸»(선택자 × 길) 이고 ★3·1 은 ★★«선택자» 다.
+ *      ⇒ ★참값 : ★칸으로 ★22 · ★선택자로 ★13. ★★27 은 ★★어느 단위로도 ★참이 ★아니다.
+ *      ⇒ ★이름 ★`BORROWED-NUMBER-SUBTRACTED-ACROSS-UNITS-01`.
+ *   ★★⇒ ★그래서 ★아래를 ★둘 다 ★바꾼다 : ⒜ ★자를 ★★«명시 명부»로 · ⒝ ★줄이 ★★«두 단위»를 ★같이 찍게.
+ *
+ * ★★★정의(★출처 = ★태양이 ★S3 레인 ★실물 명부에서 ★읽어 준 것 · `S3-K1IMG.md` :877-879 · 261023):
+ *   S3 몫 = 「★고를 때 js 가 ★블럭 ★«안»에 덧붙이는 손잡이가, ★고른 채 내보내면 ★산출물에 박히나」
+ *           = ★증상 이름 `EXPORT-SELECTED-HANDLE-BAKED-IN-01` — ★선택자 ★셋뿐이다.
+ *   S7 몫 = `.annot-handle` (어노테이션 레인).
+ *   ★미확정 = `.shape-handle` — ★어느 레인도 ★안 집었다. ⛔「R1」로도 「S3」로도 ★넘기지 마라.
+ *   R1 몫 = ★그 밖 ★전부.
+ * ⛔이 명부를 ★손으로 늘리지 마라 — ★늘릴 일이 생기면 ★그 레인에 ★물어서 ★출처를 ★같이 적어라. */
+const LANE_ROSTER = {
+  /* ★출처 = 태양 261023 · S3-K1IMG.md :877-879 (S3 레인이 ★제 명부에서 읽어 줬다) */
+  S3: ['.hlb-handle', '.sticker-corner-handle', '.gradient-corner-handle'],
+  /* ★출처 = 같은 전언 — 「.annot-handle 은 S7 몫」 */
+  S7: ['.annot-handle'],
+  /* ★★어느 레인도 ★안 집었다(태양: 「.shape-handle 하나만 ★미확정」) — ★★«안 쟀다»를 ★수로 ★남긴다 */
+  '미확정': ['.shape-handle'],
+};
+const LANE_OF = (sel) => Object.keys(LANE_ROSTER).find(k => LANE_ROSTER[k].includes(sel)) || 'R1';
+const LANES = ['R1', 'S3', 'S7', '미확정'];
+/** ★★두 단위를 ★같이 센다 — ★칸(선택자 × 길)과 ★선택자. ⛔한쪽만 찍으면 ★또 섞인다. */
 const laneCounts = (gaps) => {
-  const sel = (g) => g.split(' ∌ ')[0];
-  const n = (lane) => gaps.filter(g => LANE_OF(sel(g)) === lane).length;
-  const r1 = n('R1'), rot = n('S3-rotate'), hdl = n('S3-handle');
-  return { r1, rot, hdl, s3: rot + hdl, etc: gaps.length - r1 - rot - hdl };
+  const selOf = (g) => g.split(' ∌ ')[0];
+  const uniq = [...new Set(gaps.map(selOf))];
+  const out = { 칸합: gaps.length, 선택자합: uniq.length };
+  for (const l of LANES) { out[l] = { 칸: gaps.filter(g => LANE_OF(selOf(g)) === l).length, 선택자: uniq.filter(s => LANE_OF(s) === l).length }; }
+  return out;
 };
 const laneLine = (gaps) => { const c = laneCounts(gaps);
-  return `★R1 몫 ${c.r1} · S3 몫 ${c.s3}(rotate-zone ${c.rot} · handle ${c.hdl}) · 그 밖 ${c.etc}`; };
+  return LANES.map(l => `★${l} 칸 ${c[l].칸}/선택자 ${c[l].선택자}`).join(' · ') + ` (합 ${c.칸합}/${c.선택자합})`; };
 
 const CANON = editorNodeCanon(ROOT);
 const P = paths();
@@ -186,4 +214,39 @@ test('R5 ★음성대조 — 세 길이 다 지우는 정본 선택자는 빨강
   const allBlocked = rows.filter(r => PATHS.every(p => r[p] === '막힘')).map(r => r.sel);
   t.diagnostic(`세 길 다 막힘 = ${allBlocked.length}: ${allBlocked.join(' ')}`);
   assert.ok(allBlocked.length > 0, '★세 길 다 막힌 선택자가 0 이다 — 자가 «무조건 빨강»인지 의심하라');
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   R6 — ★★★«레인 자»를 ★재는 자. ★261023 신설.
+   ★까닭 : ★이 파일의 ★레인 줄이 ★★두 번 ★거짓을 찍었다(위 LANE_ROSTER 머리말 ⒤ⅱ).
+     ★둘 다 ★★★«사람이 읽고 ★넘어가는 ★진단 줄»이라 ★아무 검사도 ★안 걸려 있었다.
+     ⇒ ★★★「규칙은 ★재는 자가 ★있어야 ★집행된다」 — ★그 자가 ★이 칸이다.
+   ★★이 칸이 ★막는 것 ★셋:
+     ⒜ ★자가 ★죽는 것   — ★★양성 `.hlb-handle` → S3 · `.annot-handle` → S7 · `.shape-handle` → 미확정
+     ⒝ ★자가 ★전부 먹는 것 — ★★음성 `.img-rotate-zone` → ★R1 (★★옛 이름 꼴 자는 ★이걸 S3 로 ★먹었다)
+     ⒞ ★★단위가 ★섞이는 것 — ★★★칸합·선택자합이 ★레인별 합과 ★같나 (★★`27` 사고의 ★그 자리)
+   ⛔이 칸을 ★「명부가 맞나」로 ★읽지 마라 — ★명부의 ★참값은 ★★S3·S7 레인이 ★가졌고 ★여기선 ★못 잰다.
+     ★여기서 재는 것은 ★★«내가 받아 적은 명부가 ★자에 ★실제로 ★걸렸나»와 ★«수가 ★안 새나»뿐이다.
+   ══════════════════════════════════════════════════════════════════════ */
+test('R6 ★★레인 자가 ★살아 있나 — 양성·음성·★단위 (★261023 두 거짓을 막는 자)', (t) => {
+  /* ⒜ ★양성 — ★명부가 ★실제로 ★걸린다. ⛔이게 없으면 ★빈 명부도 ★초록이다(전부 R1). */
+  assert.equal(LANE_OF('.hlb-handle'), 'S3', '★양성 — 태양이 준 S3 선택자가 S3 로 안 간다(명부가 자에 안 걸렸다)');
+  assert.equal(LANE_OF('.sticker-corner-handle'), 'S3');
+  assert.equal(LANE_OF('.gradient-corner-handle'), 'S3');
+  assert.equal(LANE_OF('.annot-handle'), 'S7', '★양성 — .annot-handle 은 S7 몫이다(태양 261023)');
+  assert.equal(LANE_OF('.shape-handle'), '미확정', '★★.shape-handle 은 ★어느 레인도 ★안 집었다 — ⛔R1·S3 로 넘기지 마라');
+  /* ⒝ ★★음성 — ★★261023 에 ★★죽었던 바로 그 자리다. ★옛 자(`/-rotate-zone$/`·`/-handle$/`)는 ★이 셋을 ★S3 로 먹어
+        「R1 몫 ★0」을 찍었고, ★내가 그것을 ★「닫혔다」로 ★읽어 ★올렸다. */
+  for (const s of ['.img-rotate-zone', '.ab-rotate-zone', '.mdl-rotate-zone', '.img-corner-handle', '.img-edge-handle'])
+    assert.equal(LANE_OF(s), 'R1', `★★음성 — ${s} 가 R1 이 아니다. ★이름 꼴로 가르는 자가 되살아났다(261023 사고)`);
+  /* ⒞ ★★★단위 — ★칸합·선택자합이 ★레인별 합과 ★같나. ★★`31 − 3 − 1 = 27` 이 ★여기서 잡힌다. */
+  const c = laneCounts(R1_GAPS);
+  assert.equal(LANES.reduce((a, l) => a + c[l].칸, 0), c.칸합, '★★칸 수가 샌다 — 레인별 칸 합 ≠ 전체 칸');
+  assert.equal(LANES.reduce((a, l) => a + c[l].선택자, 0), c.선택자합, '★★선택자 수가 샌다 — 레인별 합 ≠ 전체 선택자');
+  assert.notEqual(c.칸합, c.선택자합,
+    '★★칸 수와 선택자 수가 ★같다 — ★그러면 이 칸이 ★단위 섞임을 ★못 잡는다(길이 하나뿐인 판). ★자를 다시 보라');
+  /* ⒟ ★★자가 ★«명부 밖»을 ★R1 로 ★흘려 보낸다 — ★그 성질 자체를 ★못박는다(새 줄이 조용히 S3 로 숨지 않게) */
+  assert.equal(LANE_OF('.zz-never-seen-handle'), 'R1', '★명부에 없는 새 줄은 ★R1 로 찍혀 ★드러나야 한다');
+  t.diagnostic(`레인 = ${laneLine(R1_GAPS)}`);
+  t.diagnostic(`명부 출처 = 태양 261023 · S3-K1IMG.md:877-879 — S3 ${LANE_ROSTER.S3.length} · S7 ${LANE_ROSTER.S7.length} · 미확정 ${LANE_ROSTER['미확정'].length}`);
 });
