@@ -34,6 +34,7 @@ const ANNOT_DEFAULTS = {
   labelBorderStyle: 'solid',     // 'solid' | 'dashed' | 'dotted'
   labelBorderWidth: 1,           // border 두께 (px)
   labelPad:        null,         // ★1017t1h5 — 라벨 여백(px, 0..24, 사방 동일). null = CSS 기본(4px 8px) 유지 — 안 건드리면 키를 안 단다.
+  labelRadius:     null,         // ★택일5(261022 현빈 ⒝) — 라벨 모서리(px, 0..50 · 라벨그룹 «모서리»와 같은 꼴). null = CSS 기본(.annot-label 4px) 유지 — 안 건드리면 키를 안 단다(labelPad 꼴).
 
   /* ★★t3-01 사이즈 스티커(치수선) — ★`annotKind: 'dim'` 일 때만 쓰인다.
      ⛔그 표식이 없으면 ★이 칸들은 ★한 번도 읽히지 않고 ★기존 어노테이션은 ★한 글자도 안 달라진다.
@@ -416,6 +417,7 @@ function makeAnnotationBlock(opts = {}) {
   const labelBorderStyle = opts.labelBorderStyle ?? ANNOT_DEFAULTS.labelBorderStyle;
   const labelBorderWidth = _dimLabelDefault('labelBorderWidth', 0);
   const labelPad         = opts.labelPad         ?? ANNOT_DEFAULTS.labelPad;   // ★1017t1h5
+  const labelRadius      = opts.labelRadius      ?? ANNOT_DEFAULTS.labelRadius;   // ★택일5
   const labelDx          = _annClampOff(opts.labelDx ?? 0, 'labelDx');   // ★1013t1A3
   const labelDy          = _annClampOff(opts.labelDy ?? 0, 'labelDy');
   const anchorRot        = _annWrapRot(opts.anchorRot ?? 0);           // ★1013t2C7
@@ -465,6 +467,7 @@ function makeAnnotationBlock(opts = {}) {
   if (labelDy !== 0) block.dataset.labelDy = String(labelDy);
   if (anchorRot !== 0) block.dataset.anchorRot = String(anchorRot);   // ★1013t2C7 — 0 이면 키 없음(= 자동 방향)
   if (labelPad != null) block.dataset.labelPad = String(labelPad);   // ★1017t1h5 — null 이면 키 없음(= CSS 기본 4px 8px 유지)
+  if (labelRadius != null) block.dataset.labelRadius = String(labelRadius);   // ★택일5 — null 이면 키 없음(= CSS 기본 4px 유지 · 바이트 보존)
   /* ★1017t1h3 — 서식이 ★없으면 키를 ★안 단다(= 옛 저장본과 ★같은 바이트). 이미지 모드엔 ★글이 없다.
      ⛔순서는 ANNOT_DATA_KEYS 의 ★마지막과 ★같아야 한다(위 F2 주석 — 직렬화 문자열이 갈리면 ⌘Z 유령 칸이 난다). */
   /* ★★t3-01 — ★표식이 ★있을 때만 ★다른 그림을 낸다. ⛔없으면 ★아래가 ★예전 그대로다(회귀 0 · 검사가 그 축을 잰다). */
@@ -543,6 +546,8 @@ function makeAnnotationBlock(opts = {}) {
     // ★1017t1h5 — 사용자가 「여백」을 건드렸을 때만 사방 동일 padding 으로 CSS 기본(4px 8px)을 이긴다.
     labelStyle += `padding:${labelPad}px;`;
   }
+  // ★택일5 — 사용자가 「모서리」를 건드렸을 때만 CSS 기본(4px)을 이긴다. 이미지 감싸기(위 갈래)는 제 % 반경이 이긴다.
+  if (!imgWrapping && labelRadius != null) labelStyle += `border-radius:${labelRadius}px;`;
   // ★1013t1A3 — 개별 위치는 «맨 끝»(annotApplyLabelOffset 과 같은 자리)
   if (labelDx !== 0 || labelDy !== 0) labelStyle += `translate:${labelDx}px ${labelDy}px;`;
   const labelInner = _renderAnnotLabelInner(labelMode, { text, labelImageSrc, labelImageSize, labelImageRadius });
@@ -617,6 +622,7 @@ function annotPropsFromDataset(block) {
     labelBorderStyle: ds.labelBorderStyle || D.labelBorderStyle,
     labelBorderWidth: _annNum(ds.labelBorderWidth, D.labelBorderWidth),
     labelPad:         (ds.labelPad != null && ds.labelPad !== '') ? _annNum(ds.labelPad, D.labelPad) : D.labelPad,   // ★1017t1h5 — 키 없으면 null(CSS 기본)
+    labelRadius:      (ds.labelRadius != null && ds.labelRadius !== '') ? _annNum(ds.labelRadius, D.labelRadius) : D.labelRadius,   // ★택일5 — 키 없으면 null(CSS 기본 4px)
     labelDx:          annotLabelOffsetOf(block).dx,   // ★1013t1A3 — 안 읽으면 리로드·⌘Z 복원 때 오프셋이 화면에서 사라진다
     labelDy:          annotLabelOffsetOf(block).dy,
     anchorRot:        annotAnchorRotOf(block),        // ★1013t2C7 — 안 읽으면 리로드·⌘Z 복원 때 회전이 사라진다
@@ -645,7 +651,7 @@ window.annotPropsFromDataset = annotPropsFromDataset;
      ★JSON.parse 로 읽는다(2026-10-21 에 ★그 함정을 밟아 ★두 벌이 SyntaxError 로 빨개졌다). */
 const ANNOT_DATA_KEYS = ['points', 'anchorX', 'anchorY', 'labelX', 'labelY', 'text', 'strokeColor', 'strokeWidth',
   'anchorShape', 'anchorSize', 'labelFontSize', 'labelColor', 'labelBg', 'labelBorderColor', 'labelMode',
-  'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy', 'anchorRot', 'labelPad',
+  'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy', 'anchorRot', 'labelPad', 'labelRadius',
   'annotKind', 'dimAxis', 'dimOffset', 'dimSlide', 'dimGap', 'dimOver', 'dimShowExt', 'dimLabelLift', 'dimUnit', 'dimExtStyle', 'dimA', 'dimB',
   'labelHtml'];   // ★1017t1h3 — 팩토리가 «맨 끝»에 쓴다(순서 = 팩토리 순서)
 window.ANNOT_DATA_KEYS = ANNOT_DATA_KEYS;
