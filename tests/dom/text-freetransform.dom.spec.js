@@ -792,7 +792,11 @@ test('U2-SCOPE ★금지선 — `js/fx/homography.js` 는 불러 쓰기만 · `H
   /* ★★자를 ★먼저 적는다 — ★주석을 ★걷는다.
      ★까닭(실측 261023 · ★내 첫 빨강): 이 파일 머리말이 ★`HALF` 를 ★글자로 품어
        `/HALF/.test(src)` 가 ★true 를 냈다 ⇒ ★★「주석이 소스 파싱 게이트의 ★입력」이 된 그 자리다.
-     ★걷는 부품은 ★이 레포의 ★단 하나(tests/unit/_strip-comments.js — 「베낄 것을 하나로 둔다」)
+     ★걷는 부품은 ★이 벌이 ★쓰는 ★하나 — `tests/unit/_strip-comments.js`
+       ⛔레포에 ★따로 걷는 자가 ★★«≥88 · ≤122» 있다 — `STRIP-COMMENTS-NOT-ONE-COMPONENT-01`
+         (★≥88 = ★사용 자리 자 · ★≤122 = ★정의 자리 자 — ★자가 다르면 수가 갈린다)
+       ★★단 ★★«공백을 ★지워 ★JS 소스를 ★견주는» 자는 ★★0 ⇒ ★위험 ★0 (261023 지디·u2 실측)
+       ⇒ ★★그러니 ★이 수는 ★«고칠 일감»이 ★아니다 — ★그 부품을 고칠 때 ★안 따라온다는 ★사실만이다
        ⇒ ⛔새 정규식으로 주석을 걷지 않는다. */
   const { stripCommentsTA, templateBalanced } = require('../unit/_strip-comments.js');
   const raw = fs.readFileSync(path.join(ROOT, 'js/effects-freetransform.js'), 'utf8');
