@@ -76,8 +76,7 @@ test('T4 ★★양성대조 — ★이 파일의 자가 ★«고치기 전» 꼴
  *   ⛔`.grb-pie-rank`(「n위」)는 ★편집 대상이 ★아니다 — `graph-pie-geom.js:129 pieRanks(values)` 가
  *     ★값 내림차순으로 ★계산한다. ★손으로 고치면 ★값과 ★어긋난다. ⇒ ★이 칸은 ★이름만 잰다.
  *   ★★`todo` 로 둔다 — ★t4-17 이 ★닫으면 ★★저절로 초록이 된다. ⛔「일부러 빨강」이면 ★다음 빨강을 가린다. */
-test('T5 ★범례를 꺼도 ★이름을 ★캔버스에서 고칠 길이 ★남는다 (★t4-17 이 닫는다)',
-  { todo: 'LEGEND-OFF-KILLS-NAME-EDIT-01 — t4-17 이 닫는다' }, () => {
+test('T5 ★범례를 꺼도 ★이름을 ★캔버스에서 고칠 길이 ★남는다 (t4-17 이 닫음)', () => {
   const du = stripComments(rd('js/drag-utils.js'));
   const m = du.match(/const GRB_CAT_LABEL_SEL\s*=\s*'([^']+)'/);
   assert.ok(m, '⛔GRB_CAT_LABEL_SEL 을 못 떼었다 — 꼴이 바뀌었으면 이 자를 고쳐라');

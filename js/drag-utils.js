@@ -805,7 +805,11 @@ function renderGraph(block) {
  *   편집 중엔 block.editing — 공통 mousedown 드래그·삭제키 가드가 본다(그리드 줄 편집과 같은 꼴). */
 /* 카테고리 라벨 «셋»(막대·비교 .grb-bar-label · 가로 .grb-bar-h-desc · 꺾은선 .grb-line-xlabel) — 항목마다 정확히 하나(숨김이어도 display:none 으로 있다)
    ⇒ 블럭 안 순서 = items 순서. 색인을 DOM 속성으로 안 박는다 — 렌더 바이트가 핀(graph-vpair 골든 · GR-W0 기준판)과 같게(회귀 실측: data-grb-idx 가 5 빨강). */
-const GRB_CAT_LABEL_SEL = '.grb-bar-label, .grb-bar-h-desc, .grb-line-xlabel, .grb-pie-label';   // 원형·도넛은 범례 라벨(1012t1G1)
+const GRB_CAT_LABEL_SEL = '.grb-bar-label, .grb-bar-h-desc, .grb-line-xlabel, .grb-pie-label, .grb-pie-name';   // 원형·도넛은 범례 라벨(1012t1G1) + 조각 안 이름(t4-17)
+/* t4-17 — 색인은 «제 종류 안에서» 센다. 원형은 조각 안 이름(.grb-pie-name)과 범례(.grb-pie-label)가 «둘 다» items 순서로 하나씩 있고
+   DOM 순서가 [이름 0..N-1, 범례 0..N-1] 이라, 명부 전체로 세면 범례가 N.. 으로 밀린다(이미 되던 범례 편집이 조용히 틀린다).
+   종류 = 위 명부의 조각 하나 — 판정 자리를 따로 두지 않는다(명부에서 파생). 막대·꺾은선은 종류가 하나뿐이라 옛 색인과 같다. */
+const GRB_CAT_LABEL_KINDS = GRB_CAT_LABEL_SEL.split(',').map(s => s.trim());
 function _bindGraphLabelEdit(block) {
   if (block._grbLabelEditBound) return;
   block._grbLabelEditBound = true;
@@ -813,7 +817,8 @@ function _bindGraphLabelEdit(block) {
     const el = e.target?.closest?.(GRB_CAT_LABEL_SEL);
     if (!el || !block.contains(el) || el.isContentEditable) return;
     e.stopPropagation(); e.preventDefault();
-    _graphLabelBeginEdit(block, el, [...block.querySelectorAll(GRB_CAT_LABEL_SEL)].indexOf(el));
+    const kind = GRB_CAT_LABEL_KINDS.find(s => el.matches(s));
+    _graphLabelBeginEdit(block, el, [...block.querySelectorAll(kind)].indexOf(el));
   });
 }
 function _graphLabelBeginEdit(block, el, idx) {
