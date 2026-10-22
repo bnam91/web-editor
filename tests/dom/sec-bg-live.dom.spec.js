@@ -351,7 +351,7 @@ test('R4-d ★반투명(has-bg-opacity) 프레임 · 채도 -100 → Esc ⇒ 레
 /* ═══ G5c · R4-e 반투명(has-bg-opacity) 프레임 «화면» — HAS-BG-OPACITY-LAYER-ZERO 를 픽셀로 (2026-10-22 · 현빈 지시) ══
    ★G5b 조리법 그대로(둘째 프레임 · #ss-bgopa-num 50 · 전제 opa/beforeImg/beforeDisplay ＋ vis = --frame-bg-img 잠깐 none 과의 차).
    세 장 B2(진입 뒤 조작 전) · D(조작 중 · mouse.up 전) · C(Esc 완료 뒤):
-     ⑴ 양성대조 diff(B2,C) ≥ 50%·분모 (자가 사는가) → ① diff(B2,D) > 0 (중에 바뀐다) → ② 뒤 그림 픽셀 > 0 ∧ 뒤 --frame-bg-img ≠ none
+     ⑴ 양성대조 diff(B2,C) ≥ 50%·분모 (자가 사는가) → ① diff(B2,D) > 0 (중에 바뀐다) → ② 뒤 그림 픽셀 > 0 («화면» 자 · 지디 ⒜ 2026-10-22)
         («완료 뒤 그림이 사라짐»을 ① 혼자는 못 막는다). DC 는 기록만(아래 단언 자리 주석 · 머리말 R-1).
    ★음성대조(-neg) — 편집 진입 «전» `#host{--frame-bg-img:none !important}` 규칙을 문서에 단다(인라인 변수 쓰기를 이긴다 · 제품 코드 무변)
      ⇒ 그림이 없으면 ① 이 «안» 떠야 한다(BD = 0). 뜨면 ① 은 ::before 그림이 아닌 다른 길(프록시·레이어·UI)을 잰다. */
@@ -434,7 +434,9 @@ async function opaCell(browser, cell, { act, neg = false }) {
       expect(bc.changed, `★${cell} ⑴ 자 양성대조: Esc 뒤 대 전 ${bc.changed}/${bc.total} < 50%`).toBeGreaterThanOrEqual(bc.total * 0.5);
       expect(bd.changed, `★${cell} ① 조작 «중» 화면이 안 바뀐다: diff(B2,D) ${bd.changed}/${bd.total}${LAYER_ZERO_TAIL}`).toBeGreaterThan(0);
       expect(pic.changed, `★${cell} ② 완료 뒤 화면에 그림이 없다: diff(C, 그림 끈 C) ${pic.changed}/${pic.total}${LAYER_ZERO_TAIL}`).toBeGreaterThan(0);
-      expect(after.varImg, `★${cell} ② 완료 뒤 --frame-bg-img = none${LAYER_ZERO_TAIL}`).not.toBe('none');
+      /* ⛔범위 밖 — IMPL-COUPLED-ASSERTION-01 (지디 ⒜ 2026-10-22): 옛 단언 `expect(after.varImg).not.toBe('none')`.
+         이 자는 «누가 그리나»(::before 변수 길)를 재므로 «화면이 맞나» 물음에 못 쓴다 — frame-bg.js syncFrameBgVars 가
+         레이어 길이면 설계상 none 을 쓴다 ⇒ 영영 빨강. 값은 log 의 after.varImg 에 남는다. 화면 물음은 바로 위 ② pic. */
     }
     expect(errs, errs.join('\n')).toEqual([]);
   } finally { await o.close(); }
@@ -447,7 +449,8 @@ test('R4-e-neg ★음성대조 — 그림(--frame-bg-img) none 이면 채도 조
 
 /* ═══ G5b-after · R4-d-after — 기존 G5b · R4-d 가 초록인 까닭이 «고쳐져서»인가 «그 축을 안 재서»인가 (지디 판정 ⑷ · 2026-10-22) ══
    ★기존 G5b(스케일 «중»만) · R4-d(레이어·filter «존재»만)는 ⛔그대로 둔다. 여기는 «완료 뒤 그림이 보이나»만 잰다.
-   단언(순서): 전제(opa · ::before 그림 · vis > 0 · 조작이 상태에 들어감) → 화면 그림 있음(픽셀) → --frame-bg-img ≠ none.
+   단언(순서): 전제(opa · ::before 그림 · vis > 0 · 조작이 상태에 들어감) → 화면 그림 있음(픽셀).
+   --frame-bg-img ≠ none = 기록만(구현 단언 · IMPL-COUPLED-ASSERTION-01 · 지디 ⒜ 2026-10-22).
    레이어 수·높이 = 기록만(구현 단언 · IMPL-COUPLED-ASSERTION-01).
    «화면 그림 픽셀» = diff(C, Cn) · Cn = C 에서 ::before 배경과 .sec-bg-clip 을 «둘 다» 끈 것(어느 길이 그리든 그림이 있으면 > 0). */
 async function afterCell(browser, cell, { act }) {
@@ -485,15 +488,17 @@ async function afterCell(browser, cell, { act }) {
     if (act === 'scale') expect(after.bgSize, `★${cell} 전제: 스케일이 상태에 안 들어갔다(bgSize ${before.bgSize} → ${after.bgSize})`).toMatch(/^\d+(\.\d+)?px \d+(\.\d+)?px$/);
     else expect(after.layerFilter || '', `★${cell} 전제: 완료 뒤 레이어 filter 가 채도를 안 든다`).toMatch(/url\(["']?#img-color-adj-/);
     expect(pic.changed, `★${cell} 완료 뒤 화면에 그림이 없다: diff(C, 그림 끈 C) ${pic.changed}/${pic.total}${LAYER_ZERO_TAIL}`).toBeGreaterThan(0);
-    expect(after.varImg, `★${cell} 완료 뒤 --frame-bg-img = none${LAYER_ZERO_TAIL}`).not.toBe('none');
+    /* ⛔범위 밖 — IMPL-COUPLED-ASSERTION-01 (지디 ⒜ 2026-10-22): 옛 단언 `expect(after.varImg).not.toBe('none')`.
+       이 자는 «누가 그리나»를 재므로 «화면이 맞나» 물음에 못 쓴다(레이어가 그리면 설계상 none · frame-bg.js syncFrameBgVars).
+       값은 log 의 after.varImg 에 남는다. */
     /* ★구현 단언 — 기록만(IMPL-COUPLED-ASSERTION-01 · 지디 2026-10-22): «레이어 높이 > 0» 은 그리는 방식을 전제한다.
        스케일 완료 뒤엔 ::before 가 그리고 레이어가 «없다»(×3 런 1·2: 그림 69,320 보임 · clips 0) ⇒ 단언하면 거짓 빨강.
-       사용자가 보는 것은 «그림»이다 — 주 단언은 위 둘(뒤 그림 픽셀 · --frame-bg-img). 레이어 수·높이는 log 의 after 에 남는다. */
+       사용자가 보는 것은 «그림»이다 — 주 단언은 위 뒤 그림 픽셀 하나. 레이어 수·높이는 log 의 after 에 남는다. */
     expect(errs, errs.join('\n')).toEqual([]);
   } finally { await o.close(); }
 }
-test('G5b-after ★반투명 프레임 · 스케일 완료(Esc) 뒤 그림이 보인다 · --frame-bg-img ≠ none · 레이어 높이 > 0', async ({ browser }) => { await afterCell(browser, 'G5b-after', { act: 'scale' }); });
-test('R4-d-after ★반투명 프레임 · 채도 −100 완료(Esc) 뒤 그림이 보인다 · --frame-bg-img ≠ none · 레이어 높이 > 0', async ({ browser }) => { await afterCell(browser, 'R4-d-after', { act: 'sat' }); });
+test('G5b-after ★반투명 프레임 · 스케일 완료(Esc) 뒤 그림이 보인다', async ({ browser }) => { await afterCell(browser, 'G5b-after', { act: 'scale' }); });
+test('R4-d-after ★반투명 프레임 · 채도 −100 완료(Esc) 뒤 그림이 보인다', async ({ browser }) => { await afterCell(browser, 'R4-d-after', { act: 'sat' }); });
 
 /* ═══ R4-a 반투명 ═══════════════════════════════════════════════════════════ */
 test('R4-a ★반투명 섹션 · 스케일 중 바뀐다 · 완료 뒤 물들임 복귀(레이어 0)', async ({ browser }) => {
