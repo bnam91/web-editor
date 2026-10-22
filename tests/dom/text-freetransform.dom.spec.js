@@ -598,6 +598,74 @@ test('W_three_equal ★`.text-block` 폭 = tf 폭 = 글자 경계(±1px) — ★
 });
 
 /* ══════════════════════════════════════════════════════════════════════
+   W_enable_shrinks_to_glyph — ⚠️★발주 ★밖에서 ★더한 칸이다(§3 의 15 에 ★없다 · `D_floor_keeps_base` 와 ★같은 꼴).
+   ★까닭(261023 · ★미카사 ★앱 실측 `S5-T5-FT-U2APP.md` · ★지디 판정):
+     ★★앱(zoom 40)에서 ★★네 점이 ★★항등이어도 ★효과를 ★켜면
+       `.text-block`·tf ★offsetWidth ★★796 → ★★461 (★★41% 줄어든다 · 화면 318.4 → 184.36px)
+       높이 114 → 119 (★모델 +5 · ★DOM spec 의 「켜기만 해도 +4.61」과 ★같은 결)
+       ★Esc 뒤에도 ★그대로다(★원복이 ★아니다 — `W_esc_zero_wrap` 과 같은 꼴)
+     ★★바닥 판(98ef5c5c)은 ★같은 장면에서 ★796/796/796 ⇒ ★★★«효과를 ★켠 것»에서 ★난다
+   ★★★⇒ ★★지디 판정 261023 : ★★★내 발주 ⓒ 「offsetWidth 가 ★켜기 전과 ★같다」를 ★★★거뒀다.
+     ★★설계 ⒞「박스가 ★계속 ★감쌈」·㉣「tb·tf ★같은 폭」이 ★참이다 — ★까닭 ★셋:
+       ⒤ ★자유변형은 ★«네 점을 ★넣는» 기능이다. ★상자가 ★섹션 폭이면 ★네 점이 ★★무엇의 ★네 점인가
+       ⅱ) ★미카사 O3(tb 폭 = tf 폭 · 네 꼴 다) · O4(글자가 tf 좌우 안 · 삐져나감 0·0·0·0.01) 가 ★초록이다
+       ⅲ) ★★내 ⓒ 는 ★★«내가 ★안 재고 ★적은 것»이고 ★★미카사 O2 가 ★그걸 ★반증했다
+     ⇒ ★⛔제품(`js/effects-freetransform.js`)을 ★고치지 ★않았다. ★★«지금 꼴»을 ★수로 ★못박는다.
+   ★★⇒ ★★★U3 에서 ★누가 ★이 꼴을 ★바꾸면 ★이 칸이 ★빨개진다 — ★그때 ★★현빈께 ★물어야 한다:
+     「★자유변형을 ★켜면 ★파란 ★아웃라인이 ★글자에 ★딱 맞게 ★줄어듭니다(★41%) ＋ ★높이 +5px.
+      ★네 점을 ★안 ★움직여도 ★그렇습니다 — ★이대로 ★둘까요?」
+     (★현빈 「글자 7.6px 넘침 — 그대로 둬도 될 듯」과 ★같은 축)
+   ★★⛔미카사가 ★안 잰 것(★그가 적었다 · ★그대로 옮긴다):
+     zoom 100 · ★좁은 글상자 · ★여러 줄 · ★회전 · ★위 틈 −2 픽셀
+     ⇒ ★★이 칸은 ★★DOM spec 의 ★그 장면(zoom 100 · 가득 폭)에서만 ★참이다
+   ══════════════════════════════════════════════════════════════════════ */
+test('W_enable_shrinks_to_glyph ⚠️발주 밖 — ★켜면 ★상자가 ★글자 경계로 ★줄어든다(★항등이어도) · Esc 뒤에도 ★그대로', async ({ page }) => {
+  const errs = await setup(page);
+  await pick(page, 'ftTB');
+  /* ★★전제 — ★켜기 ★«전»에 ★tf 폭이 ★★글자 경계보다 ★★«크다». ⛔이게 없으면 ★아래 「줄어든다」가
+     ★★«원래 작았다»와 ★구분이 ★안 된다.
+     ★★⛔261023 정정 — ★처음엔 ★`tf 폭 = ★부모 폭` 으로 적었다가 ★★빨강이 났다:
+       ★실측 ★tf ★796 ↔ ★`tf.parentElement` ★★860 (★차이 ★64) ⇒ ★★tf 는 ★«부모»가 아니라 ★★«섹션» 폭이다
+       ⇒ ★★★내가 ★`W_three_equal` 의 ★«캡을 재는» 자를 ★★★«가득을 재는» 뜻에 ★그대로 ★베꼈다
+       ⇒ ★★참 전제는 ★★«글자보다 ★크다»다 — ★그래야 ★「줄어든다」가 ★뜻을 갖는다 */
+  const before = await page.evaluate(() => {
+    const tb = document.getElementById('ftTB'), tf = document.getElementById('ftTF');
+    return { tbW: tb.offsetWidth, tfW: tf.offsetWidth, h: tb.offsetHeight, tfInline: tf.style.width || '', tbInline: tb.style.width || '' };
+  });
+  /* ★전제 = ★★«켜기 전엔 ★inline width 가 ★없다» — ★★미카사가 적은 ★직접 증거의 ★앞쪽:
+     「★켜면 ⒞/㉣ 가 `tb.style.width = tf.style.width = 460.906px`(글자 경계)를 ★박는다」
+     ⇒ ★그러니 ★켜기 전엔 ★★비어 있어야 ★「켜면 박는다」가 ★뜻을 갖는다
+     ★★⛔261023 — ★여기서 ★내가 ★두 번 ★헛돌았다(★둘 다 ★전제가 ★거짓이었다):
+       ⒤ `tf 폭 = ★부모 폭`     ⇒ ★실측 ★tf 796 ↔ parentElement ★★860 (tf 는 ★«섹션» 폭이다)
+       ⅱ) `tf 폭 > ★글자 폭`    ⇒ ★실측 ★둘 다 ★★796 (★내 `[contenteditable]` 자가 ★★블럭 전체 폭을 냈다)
+       ⅲ) `tf.style.width === ''`  ⇒ ★실측 ★★`"100%"` (★미카사의 「tf 는 width:100%」가 ★★inline 이었다)
+     ⇒ ★★★세 번 다 ★★«내가 ★안 재고 ★적은 ★전제»였다.
+       ★★★그런데 ★매번 ★★«잰 값»이 ★단언 메시지에 ★찍혀 ★★★다음 ★자를 ★줬다 — ★그게 ★그 규율의 값이다 */
+  expect(before.tfInline, `★전제: 켜기 전 tf.style.width = "100%" 다(가득 폭) — 잰 값 ${JSON.stringify(before.tfInline)}`).toBe('100%');
+  /* ★★본 단언 ⒤ — ★켜면 ★줄어든다(★항등인데도) */
+  await addFt(page);
+  const after = await read(page);
+  console.log('[W_enable_shrinks_to_glyph]', JSON.stringify({ beforeW: before.tbW, afterTbW: after.tbW, afterTfW: after.tfW, glyphW: after.glyphBox.w, beforeH: before.h, state: after.state }));
+  expect(after.state, '★전제: 변형 0(항등)이다').toBeTruthy();
+  /* ★★본 단언 ⒤-a — ★켜면 ★inline width 가 ★★`100%` → ★★`px` 로 ★바뀐다(★미카사의 ★직접 증거) */
+  const afterInline = await page.evaluate(() => ({
+    tf: document.getElementById('ftTF').style.width || '', tb: document.getElementById('ftTB').style.width || '',
+  }));
+  expect(afterInline.tf, `★켠 뒤 tf.style.width 가 ★px 가 아니다 — 잰 값 ${JSON.stringify(afterInline.tf)}`).toMatch(/px$/);
+  expect(afterInline.tb, `★켠 뒤 tb.style.width 가 ★px 가 아니다 — 잰 값 ${JSON.stringify(afterInline.tb)}`).toMatch(/px$/);
+  /* ★★본 단언 ⒤-b — ★그래서 ★폭이 ★★줄어든다 */
+  expect(after.tbW, `★켜도 폭이 ${before.tbW} 그대로다 — ⒞「감쌈」·㉣ 가 ★안 걸렸다`).toBeLessThan(before.tbW - 1);
+  expect(Math.abs(after.tbW - after.glyphBox.w),
+    `★켠 뒤 폭(${after.tbW}) ≠ 글자 경계(${after.glyphBox.w}) — ⒞「계속 감쌈」이 깨졌다`).toBeLessThanOrEqual(1);
+  /* ★★본 단언 ⅱ) — ★Esc 뒤에도 ★그대로(★원복이 ★아니다) */
+  await page.keyboard.press('Escape');
+  const esc = await page.evaluate(() => ({ tbW: document.getElementById('ftTB').offsetWidth, tfW: document.getElementById('ftTF').offsetWidth }));
+  expect(Math.abs(esc.tbW - after.tbW),
+    `★Esc 뒤 폭이 ${esc.tbW} 로 ★바뀌었다(켠 뒤 ${after.tbW}) — ★원복이 ★아니라는 것이 ★지금 꼴이다`).toBeLessThanOrEqual(1);
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
+
+/* ══════════════════════════════════════════════════════════════════════
    W_neighbor_premise / W_neighbor_unmoved — ★J 가로 `width` 의 ★갈림(발주 §1 칸 1)
    ★★전제가 ★없으면 「안 움직였다」가 「★원래 안 움직이는 놈이었다」와 ★구분 안 된다.
    ★★실측(261023 · 조정자가 못 쟀던 칸): ㉣(`tb`＋`tf` 같은 폭) ⇒ ★Δ0.00 ⇒ ㉣ 가 산다.
