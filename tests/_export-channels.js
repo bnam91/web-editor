@@ -269,7 +269,8 @@ const DROP_STRIP_ROSTER = {
     { sel: '.variation-badge',  kind: 'chrome', why: 'A/B 시안 배지' },
     { sel: '.annotation-block', kind: 'open',
       why: '★펜 주석(C18 · 리뷰 표시)이라 뺐다 — ★그러나 ★t3-01 사이즈 스티커(치수선 · annotKind \'dim\')가 ★같은 클래스를 쓴다 ' +
-           '⇒ ★사이즈 표시가 ★PNG·썸네일·단독 HTML 에서 ★빠진다. ★빼는 게 맞나는 ★현빈 칸(이 축은 ★정하지 않는다 · 0 변경)' },
+           '⇒ ★사이즈 표시가 ★PNG·썸네일·단독 HTML 에서 ★빠진다. ★빼는 게 맞나는 ★현빈 칸(이 축은 ★정하지 않는다 · 0 변경) · ' +
+           '★2026-10-22 현빈 결정 ⒝ = 「어노테이션·치수선은 최종 이미지에 보인다」 ⇒ ★지금의 지우기는 결정과 ★어긋난다(제품 고침 = 지디 칸 · EDITOR_NODE_EXCEPTIONS 참조)' },
     { sel: '.annot-preview',    kind: 'design', why: '펜툴 «그리는 중» 미리보기 — 확정 전 임시 선(PLAN ④㉡ 설계 제외)' },
     { sel: '.qa-block',         kind: 'design', why: 'admin QA 체크리스트 — 작업 메타데이터(감싼 .row 째 지운다 · 자리도 안 남긴다)' },
     { sel: '.sec-bg-proxy',     kind: 'chrome', why: '섹션 배경 편집 프록시 — 배경 그림이 두 번 찍힌다' },
@@ -292,13 +293,40 @@ const DROP_STRIP_ROSTER = {
 
 /* ★설계로 «안 보이게» 하지만 ★요소 제거가 ★아닌 것 — ★이름만 한 자리에(PLAN ④㉢). ⛔위 축이 ★안 잰다(⒤). */
 const DROP_DESIGN_EXCLUSIONS = [
-  { id: 'PLACEHOLDER-EXCLUDED-BY-DESIGN-01', what: '[data-is-placeholder] 미입력 안내문구', how: 'hidePlaceholderTextForCapture — visibility:hidden(글만 · 자리는 남는다)' },
-  { id: 'MEMO-EXCLUDED-BY-DESIGN-01',        what: 'data-memo 이미지 메모 쪽지',          how: 'stripImageMemoForCapture — 속성만 뗀다(가상요소 쪽지가 사라진다)' },
-  { id: 'QA-EXCLUDED-BY-DESIGN-01',          what: '.qa-block admin QA 블럭',              how: 'stripEditorOnlyForCapture — 감싼 .row 째 remove()(위 명부 kind design)' },
-  { id: 'PARTICLE-EXCLUDED-BY-DESIGN-01',    what: '섹션 배경 파티클',                      how: '릴리스 노트 0.9.7 「저장물에는 들어가지 않음」 — 이 축이 안 잰다(restRuntimeForArtifact 는 «쉬는 꼴»로 돌릴 뿐)' },
+  /* since = ★이력에서 뜬 날짜(git log --reverse -S 첫 등장 · 파티클은 릴리스 노트 0.9.7 date) — ⛔기억에서 옮기지 않았다 */
+  { id: 'PLACEHOLDER-EXCLUDED-BY-DESIGN-01', sel: '[data-is-placeholder]', what: '[data-is-placeholder] 미입력 안내문구', how: 'hidePlaceholderTextForCapture — visibility:hidden(글만 · 자리는 남는다)', since: '2026-09-21 (0806201e)' },
+  { id: 'MEMO-EXCLUDED-BY-DESIGN-01',        sel: '[data-memo]',           what: 'data-memo 이미지 메모 쪽지',          how: 'stripImageMemoForCapture — 속성만 뗀다(가상요소 쪽지가 사라진다)', since: '2026-09-30 (0063cc5d)' },
+  { id: 'QA-EXCLUDED-BY-DESIGN-01',          sel: '.qa-block',             what: '.qa-block admin QA 블럭',              how: 'stripEditorOnlyForCapture — 감싼 .row 째 remove()(위 명부 kind design)', since: '2026-09-16 (cbc08322)' },
+  { id: 'PARTICLE-EXCLUDED-BY-DESIGN-01',    sel: '.sec-fxpart-wrap',      what: '섹션 배경 파티클',                      how: '릴리스 노트 0.9.7 「저장물에는 들어가지 않음」 — 이 축이 안 잰다(restRuntimeForArtifact 는 «쉬는 꼴»로 돌릴 뿐)', since: '2026-10-12 (release-note 0.9.7)' },
+];
+
+/* ══ ★★편집 전용 «노드» 정본 — CAPTURE-ROSTER-NOT-DERIVED-FROM-SAVE-01 (2026-10-22 · 설계 = 지디 PLAN-capture-derive) ══
+   ★왜 — 편집 노드(손잡이·회전 핫존·배지)의 명부가 ★셋이다: 저장(save-load NON_CONTENT_UI_SELECTOR) · 캡처 공용 겹(9) · 단독 HTML 제 손(27).
+     ★손으로 따로 들어서 ★한쪽만 고쳐졌다 — export-html.js:120 「2026-09-21 실측 … .shape-handle 8개가 그대로」 를 HTML 만 배웠고
+     PNG·썸네일 겹(capture-safety)엔 ★handle 이 ★하나도 없다. ⇒ ★처방 = «토큰 더하기»가 아니라 ★«파생 ＋ 검산».
+   ★정본은 ★손으로 안 적는다 — ★그 상수를 ★소스에서 ★파싱해 끌어온다(머리말 「분모는 기계가 정해야 한다」).
+   ⚠️이 정본(21종 · dc93370e)에는 ★.hlb-handle · .sticker-corner-handle · .gradient-corner-handle 가 ★없다 —
+     그 셋은 section-serialize.js serializeCleanRoot 의 remove 줄에만 있다(MARKER-HLB-261022 ⑶ · 분모 30 의 20 ↔ 이 분모 21 의 18).
+     ⇒ ★이 검사의 초록이 ★그 셋을 덮는다고 읽지 마라 — 검사가 «정본 밖 · 저장 줄에만 있는 것»을 ★따로 찍는다. */
+const EDITOR_NODE_CANON_SRC = { file: 'js/io/save-load.js', name: 'NON_CONTENT_UI_SELECTOR' };
+/** 정본을 ★소스에서 끌어온다 — `export const NAME = '…'`(＋ 문자열 이어붙이기 허용). 못 찾으면 ★던진다(침묵 0). */
+function editorNodeCanon(root) {
+  const fs = require('fs'), path = require('path');
+  const src = fs.readFileSync(path.join(root, EDITOR_NODE_CANON_SRC.file), 'utf8').replace(/\r\n/g, '\n');
+  const m = new RegExp('export const ' + EDITOR_NODE_CANON_SRC.name + "\\s*=\\s*((?:'[^']*'\\s*\\+?\\s*)+);").exec(src);
+  if (!m) throw new Error('★정본 ' + EDITOR_NODE_CANON_SRC.name + ' 을 ' + EDITOR_NODE_CANON_SRC.file + ' 에서 못 찾았다 — 파서가 눈멀었다');
+  const text = [...m[1].matchAll(/'([^']*)'/g)].map(x => x[1]).join('');
+  return text.split(',').map(x => x.trim()).filter(Boolean);
+}
+/* ★예외 — «정본 ∖ 세 길» 의 0 에서 ★이름과 까닭으로만 빠진다. ⛔두 벌 금지: 넷은 위 DROP_DESIGN_EXCLUSIONS 에서 ★파생한다.
+   effect: 'stays' = 캡처에서 ★남아야 한다 · 'design' = 설계로 지우거나 숨긴다(결함 아님). exempts = 그 예외가 ★빼 주는 길. */
+const EDITOR_NODE_EXCEPTIONS = [
+  { id: 'ANNOTATION-STAYS-IN-CAPTURE-01', sel: '.annotation-block', effect: 'stays', exempts: ['capture', 'html'],
+    why: '현빈 261022 결정 ⒝ — 어노테이션·치수선은 최종 이미지에 ★보인다 ⇒ 캡처에서 ★남는다', since: '2026-10-22 (현빈 결정 ⒝ · 지디 경유)' },
+  ...DROP_DESIGN_EXCLUSIONS.map(x => ({ id: x.id, sel: x.sel, effect: 'design', exempts: ['capture', 'html'], why: x.what + ' — ' + x.how, since: x.since })),
 ];
 
 const AXES = ['marker', 'drop', 'carry'];
 
 module.exports = { CHANNELS, MARKER_TOKENS, MARKER_SCENES, CLEAN_FN, CLEAN_SELF_FN, AXES, NORM_FN, CARRY_KEYS,
-  DROP_STRIP_ROSTER, DROP_DESIGN_EXCLUSIONS };
+  DROP_STRIP_ROSTER, DROP_DESIGN_EXCLUSIONS, EDITOR_NODE_CANON_SRC, editorNodeCanon, EDITOR_NODE_EXCEPTIONS };
