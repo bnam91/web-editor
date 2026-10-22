@@ -90,6 +90,18 @@ const snap = (page, id) => page.evaluate((id) => {
     handles: [...b.querySelectorAll('.annot-handle')].map(h => ({ k: h.dataset.dimEnd || ('p' + h.dataset.pointIdx), at: C(h) })) };
 }, id);
 
+
+// 펜 클릭 한 번 — ★섹션 자리를 «누르기 직전»에 다시 재고, 그 점이 «그 섹션»인지 맞힌 뒤 누른다.
+//   까닭(v4 실측 G2 1/3 «둘째 점» 빨강): 새 섹션의 부드러운 굴림(addSection scrollIntoView smooth) 동안 첫 자리로 재 둔 좌표가 옆 섹션을 누르면
+//   펜 도구가 «다른 섹션 → 점 초기화»(js/annotation-tool.js _handlePenClick)로 간다 — 검사가 빠른 것이지 제품이 아니다(추정 · 대조 안 함).
+async function penClickIn(page, sec, dx, fromBottom) {
+  await waitStableRect(page, `#${sec}`);
+  const r = await rectOf(page, `#${sec}`);
+  const x = r.x + dx, y = r.y + r.h - fromBottom;
+  const inSec = await page.evaluate(([x, y, s]) => document.elementFromPoint(x, y)?.closest('.section-block')?.id === s, [x, y, sec]);
+  expect(inSec, `전제: 펜 클릭 자리 (${Math.round(x)},${Math.round(y)}) 가 그 섹션 안`).toBe(true);
+  await page.mouse.click(x, y);
+}
 // 앱 문으로 치수선 하나 만들고 고른다 → id
 async function makeDim(page) {
   await zoom100(page);
@@ -103,12 +115,12 @@ async function makeDim(page) {
   await page.click('#fp-pen-dropdown .fp-dropdown-trigger');
   await page.click('#fp-pen-menu .fp-menu-item[onclick*="toggleDimMode"]');
   // 고정 대기 0줄(tests/unit/dom-fixed-wait-census W3) — 클릭마다 «그 클릭이 먹혔다»를 기다린다: 미리보기 점 1 → 2 → 치수선 블럭
-  const P = [[sr.x + 250, sr.y + sr.h - 60], [sr.x + 550, sr.y + sr.h - 60], [sr.x + 400, sr.y + sr.h - 110]];
+  const P = [[250, 60], [550, 60], [400, 110]];
   for (const [k, p] of P.slice(0, 2).entries()) {
-    await page.mouse.click(p[0], p[1]);
+    await penClickIn(page, sec, p[0], p[1]);
     expect(await poll(page, (n) => document.querySelectorAll('.annot-preview .annot-preview-dot').length >= n, k + 1, 4000), `전제: 클릭 ${k + 1} 이 점으로 먹혔다`).toBe(true);
   }
-  await page.mouse.click(P[2][0], P[2][1]);
+  await penClickIn(page, sec, P[2][0], P[2][1]);
   expect(await poll(page, (s) => !!document.getElementById(s).querySelector('.annotation-block[data-annot-kind="dim"]'), sec, 4000), '전제: 치수선 생김(클릭 3)').toBe(true);
   const id = await page.evaluate((s) => document.getElementById(s).querySelector('.annotation-block[data-annot-kind="dim"]').id, sec);
   // 만든 직후 라벨이 편집에 들어간 «뒤»에 Esc(라벨 keydown) — 들어가기 전에 누르면 안 닿는다(dimension-sticker-t3-01 selectDim 머리 :86~95)
@@ -187,9 +199,9 @@ test('G2 (지킴) 일반 어노테이션 패널엔 «모서리» 칸이 없다(�
   const sr = await rectOf(page, `#${sec}`);
   await page.click('#fp-pen-dropdown .fp-dropdown-trigger');
   await page.click('#fp-pen-menu .fp-menu-item[onclick*="togglePenMode"]');
-  await page.mouse.click(sr.x + 250, sr.y + sr.h - 60);
+  await penClickIn(page, sec, 250, 60);
   expect(await poll(page, () => document.querySelectorAll('.annot-preview .annot-preview-dot').length >= 1, null, 4000), '전제: 첫 점').toBe(true);
-  await page.mouse.click(sr.x + 450, sr.y + sr.h - 90);
+  await penClickIn(page, sec, 450, 90);
   expect(await poll(page, () => document.querySelectorAll('.annot-preview .annot-preview-dot').length >= 2, null, 4000), '전제: 둘째 점').toBe(true);
   await page.keyboard.press('Enter');
   expect(await poll(page, (s) => !!document.getElementById(s).querySelector('.annotation-block:not([data-annot-kind="dim"])'), sec, 4000), '전제: 일반 어노테이션 생김').toBe(true);
