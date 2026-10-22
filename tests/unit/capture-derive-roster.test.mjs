@@ -13,6 +13,8 @@
  *   (자 = tests/unit/_clone-removals.js — drop 축과 같은 파서 한 벌)
  * ★★단언 R1 = 「verdict 'yes' 인 정본 선택자 × 세 길 — ★안 막히는 칸 = 0」.
  *   ⇒ ★★지금은 ★빨강이다(2026-10-22 dc93370e). ★그게 목적이다 — ⛔skip/fixme 로 두지 마라(발주 ⓒ).
+ *   ⇒ ★2026-10-22 지디 판정(머지 조건): R1 은 node:test `todo` 로 단다 — 단언은 그대로 돌고, 지면 «todo» 로 찍히고 rc 를 안 깬다.
+ *     ★안 막히는 칸 수는 todo 메시지와 단언 메시지 둘 다에 찍는다(R1_GAPS). 제품이 고쳐져 0 이 되면 todo 를 떼라(닫는 이 = 지디).
  *   ⇒ ⛔빨강을 끄려고 ★제품을 고치지 마라(제품 고침 = 지디 판정 칸) · ⛔verdict 를 'no'·'unmeasured' 로 바꿔 끄지 마라(까닭이 근거여야 한다).
  * ★«합집합»이 아니라 «길마다»로 잰다 — 정본이 저장 쪽이라 «세 길의 합»으로 재면 저장이 늘 덮어 ★항등식 0 이 된다.
  * ⛔안 재는 것: ⒤ 숨김(display·visibility)으로 «안 그려지는» 것 — 노드 «제거»만 본다(회전 핫존·.shape-handle 은 .selected 매인 display 로
@@ -102,7 +104,13 @@ test('R0b ★정본의 «모든» 항목에 「캡처에서도 지워야 하나�
   assert.deepEqual(bad, [], '★판정 표가 정본과 안 맞는다 — 정본에 줄이 늘었으면 그 줄의 판정(근거 자리 포함)을 CAPTURE_VERDICT 에 적어라:\n  ' + bad.join('\n  '));
 });
 
-test(`R1 ★★${NAME} — 'yes' 판정 정본 선택자가 ★세 길 «모두»에서 막히나 (안 막히는 칸 = 0)`, (t) => {
+/** ★R1 의 todo 메시지에 ★수를 박으려고 판정을 모듈 머리에서 한 번 낸다(같은 judge · 같은 입력). */
+const R1_GAPS = judge(CANON.all, P, CAPTURE_VERDICT).gaps;
+const R1_TODO = `${NAME} — 안 막히는 칸 ${R1_GAPS.length} ` +
+  `(${PATHS.map(p => `${p} ${R1_GAPS.filter(g => g.endsWith('∌ ' + p)).length}`).join(' · ')}) — ` +
+  `닫는 이 = 지디 판정(제품: 캡처 겹·export-html 지우기 명부를 저장 정본에서 파생) · 0 이 되면 todo 를 뗀다`;
+
+test(`R1 ★★${NAME} — 'yes' 판정 정본 선택자가 ★세 길 «모두»에서 막히나 (안 막히는 칸 = 0)`, { todo: R1_TODO }, (t) => {
   const { rows, gaps, unmeasured } = judge(CANON.all, P, CAPTURE_VERDICT);
   t.diagnostic('\n' + table(rows));
   const byPath = Object.fromEntries(PATHS.map(p => [p, gaps.filter(g => g.endsWith('∌ ' + p)).map(g => g.split(' ∌ ')[0])]));
