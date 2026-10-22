@@ -66,3 +66,31 @@ test('T4 ★★양성대조 — ★이 파일의 자가 ★«고치기 전» 꼴
   const after = '      ${d.pieLegendOff === \'1\' ? \'\' : `<div class="grb-pie-legend" style="...">${legend}</div>`}';
   assert.match(after, /pieLegendOff/, '⛔고친 꼴을 거짓으로 거절한다');
 });
+
+/* ★★★T5 — ★t4-18 의 ★부작용을 ★잠근다: `LEGEND-OFF-KILLS-NAME-EDIT-01`
+ *   ★`.grb-pie-label`(범례 안 항목 이름)은 ★`GRB_CAT_LABEL_SEL`(drag-utils.js:808)에 들어 있어
+ *     ★★더블클릭 ★캔버스 편집 ★대상이다. ⇒ ★★범례를 ★끄면 ★그 길이 ★같이 ★없어진다.
+ *   ★그 길을 ★돌려주는 것이 ★★t4-17 이다 — ★조각 안 이름(`.grb-pie-name`)은 ★범례와 ★★같은
+ *     `items[i].label` 이라 ★★편집 대상 명부에 ★그 하나를 ★더하면 된다.
+ *     ★선례 = `css/editor-graph.css:498~502`(K8⒤ — 꺾은선 ★카테고리 라벨만 `pointer-events:auto`).
+ *   ⛔`.grb-pie-rank`(「n위」)는 ★편집 대상이 ★아니다 — `graph-pie-geom.js:129 pieRanks(values)` 가
+ *     ★값 내림차순으로 ★계산한다. ★손으로 고치면 ★값과 ★어긋난다. ⇒ ★이 칸은 ★이름만 잰다.
+ *   ★★`todo` 로 둔다 — ★t4-17 이 ★닫으면 ★★저절로 초록이 된다. ⛔「일부러 빨강」이면 ★다음 빨강을 가린다. */
+test('T5 ★범례를 꺼도 ★이름을 ★캔버스에서 고칠 길이 ★남는다 (★t4-17 이 닫는다)',
+  { todo: 'LEGEND-OFF-KILLS-NAME-EDIT-01 — t4-17 이 닫는다' }, () => {
+  const du = stripComments(rd('js/drag-utils.js'));
+  const m = du.match(/const GRB_CAT_LABEL_SEL\s*=\s*'([^']+)'/);
+  assert.ok(m, '⛔GRB_CAT_LABEL_SEL 을 못 떼었다 — 꼴이 바뀌었으면 이 자를 고쳐라');
+  const sel = m[1];
+  // ★전제 — ★범례 라벨은 ★그 명부에 ★있다(★있어야 ★이 칸의 뜻이 선다)
+  assert.match(sel, /\.grb-pie-label/, '⛔전제가 깨졌다: 범례 라벨이 편집 명부에서 빠졌다');
+  // ★★본 단언 — ★조각 «안» 이름도 ★그 명부에 ★있어야 ★범례를 꺼도 길이 남는다
+  assert.match(sel, /\.grb-pie-name/,
+    '⛔범례를 끄면 이름 편집 입구가 사라진다 — 조각 안 이름(.grb-pie-name)이 편집 명부에 없다');
+  // ★그리고 ★그 상자가 ★클릭을 받아야 한다(선례 K8⒤ 꼴 · 컨테이너는 none 유지)
+  const css = rd('css/editor-graph.css');
+  assert.match(css, /\.grb-pie-tag\s*\{[^}]*pointer-events:\s*auto/,
+    '⛔조각 안 라벨 상자가 클릭을 안 받는다(.grb-pie-tag 에 pointer-events:auto 없음)');
+  assert.match(css, /\.grb-pie-tags\s*\{[^}]*pointer-events:\s*none/,
+    '⛔컨테이너(.grb-pie-tags)는 none 이어야 한다 — 열면 조각 클릭이 죽는다');
+});

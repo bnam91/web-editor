@@ -1279,6 +1279,17 @@ function _renderPie(block, { items, chartH, labelSize }) {
         <svg class="grb-pie-svg" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet"${_shStyle}>${slices}${emptyEl}</svg>${tagsHTML}
       </div>
       ${d.pieLegendOff === '1' ? '' : `<div class="grb-pie-legend" style="font-size:${labelSize}px${_legGapCss}">${legend}</div>`}`;
+  /* ★★★t4-18 의 ★부작용 — ★이름을 붙였다: `LEGEND-OFF-KILLS-NAME-EDIT-01` (261022 · 지디가 ★읽어서 찾음)
+     ★`.grb-pie-label`(범례 안 항목 이름)은 ★★`GRB_CAT_LABEL_SEL`(:808)에 ★들어 있다 ⇒ ★★더블클릭 ★캔버스 편집 대상이다
+       (★:1031 주석도 그렇게 적었다: 「범례 = 카테고리 라벨(.grb-pie-label · ★더블클릭 편집 대상) + 비율 %」).
+     ⇒ ★★★범례를 ★끄면 ★그 요소가 ★사라져 ★★«이름을 캔버스에서 고치는 길»도 ★같이 ★없어진다.
+       ⛔「기능을 껐다」가 아니라 ★★「★다른 기능의 ★입구를 ★같이 껐다」다.
+     ★★그 길을 ★돌려주는 것이 ★★t4-17(「조각 안 ★순위·이름 라벨을 ★캔버스에서 직접 수정」)이다 —
+       ★조각 안 이름(`.grb-pie-name`)은 ★범례와 ★★같은 `items[i].label` 이라 ★★그 하나를 ★편집 대상에 ★더하면 된다.
+       ★선례 = ★`:498~502`(K8⒤ — 꺾은선 ★카테고리 라벨만 `pointer-events:auto`) ＋ ★`_bindGraphLabelEdit`(위임 한 번).
+     ⛔그리고 ★`.grb-pie-rank`(「n위」)는 ★★편집 대상이 ★아니다 — `graph-pie-geom.js:129 pieRanks(values)` 가
+       ★값 내림차순으로 ★계산한다. ★손으로 고치면 ★값과 ★어긋난다.
+     ★재는 자 = tests/unit/pie-legend-toggle.test.mjs ★T5(지금은 `todo` — ★t4-17 이 닫으면 ★초록이 된다) */
   /* ★t4-18 — `pieLegendOff === '1'` 일 때만 ★범례를 ★뺀다. ⛔키가 ★없으면 ★한 글자도 안 바뀐다(옛 저장본·G0 골든 무변).
      ⚠️꺼도 ★「범례 간격」 칸은 ★남는다 — 그 칸을 같이 숨길지는 ★UI 결정(현빈)이라 ★안 건드렸다. */
   if (_selIdx >= 0) grbPieSelect(block, _selIdx);
