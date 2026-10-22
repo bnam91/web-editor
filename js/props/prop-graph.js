@@ -578,6 +578,13 @@ ${blockHeaderHTML({
           <span class="prop-toggle-track"></span>
         </label>
       </div>
+      <div class="prop-row" title="원형 아래의 범례(색 칩 + 이름 + %)를 보일지. 끄면 조각만 남는다 — 조각 안 순위·이름 표시와 따로 산다">
+        <span class="prop-label">범례 표시</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="grb-pie-legend-toggle" ${block.dataset.pieLegendOff !== '1' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
     </div>${pieSliceSectionHTML(items, _sliceSel)}${pieShadowSectionHTML(block.dataset)}` : ''}
     ${chartType === 'radial' ? (window.graphRadialSectionHTML?.(block) || '') : ''}
     ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn }) : ''}
@@ -1057,10 +1064,12 @@ ${blockHeaderHTML({
   _wireSliceInt('grb-pie-pull', 'piePull', PIE_PULL_MAX);   // 1013t1C5
   if (_isPie) _syncPieSliceSolo(items, _sliceSel);   // 1013t1C4 고침 2 — 온 원이면 두 칸을 잠근다
   // 1013t1C3 — 조각 안 라벨: 블럭 수준 토글 둘(순위 · 이름 — 켜면 '1', 끄면 키 삭제) + 고른 조각의 「라벨」(자동 = 키 없음 · 항상 'on' · 숨김 'off').
-  for (const [tid, key] of [['grb-pie-rank-toggle', 'pieRank'], ['grb-pie-name-toggle', 'pieName']]) {
+  /* ★t4-18 — 셋째 칸 `inv` = ★극성. `pieLegendOff` 는 ★키 없음 = ★켜짐이라(옛 저장본 무변) ★거꾸로 쓴다.
+     ⛔범례 토글을 ★이 명부 밖에 ★따로 달지 마라 — ★자리가 둘이 된다(재는 자 = pie-legend-toggle.test.mjs T1). */
+  for (const [tid, key, inv] of [['grb-pie-rank-toggle', 'pieRank'], ['grb-pie-name-toggle', 'pieName'], ['grb-pie-legend-toggle', 'pieLegendOff', true]]) {
     const tg = document.getElementById(tid);
     if (tg) tg.addEventListener('change', () => {
-      if (tg.checked) block.dataset[key] = '1'; else delete block.dataset[key];
+      if (tg.checked !== !!inv) block.dataset[key] = '1'; else delete block.dataset[key];
       window.renderGraph(block);
       _syncPieNameHint(block);   // 덧층이 사라지면(둘 다 끔) 재는 쪽이 안 돈다 ⇒ 여기서 한 번 걷는다
       window.pushHistory();

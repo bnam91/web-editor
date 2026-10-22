@@ -1278,7 +1278,9 @@ function _renderPie(block, { items, chartH, labelSize }) {
       <div class="grb-pie-wrap" style="height:${chartH}px">
         <svg class="grb-pie-svg" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet"${_shStyle}>${slices}${emptyEl}</svg>${tagsHTML}
       </div>
-      <div class="grb-pie-legend" style="font-size:${labelSize}px${_legGapCss}">${legend}</div>`;
+      ${d.pieLegendOff === '1' ? '' : `<div class="grb-pie-legend" style="font-size:${labelSize}px${_legGapCss}">${legend}</div>`}`;
+  /* ★t4-18 — `pieLegendOff === '1'` 일 때만 ★범례를 ★뺀다. ⛔키가 ★없으면 ★한 글자도 안 바뀐다(옛 저장본·G0 골든 무변).
+     ⚠️꺼도 ★「범례 간격」 칸은 ★남는다 — 그 칸을 같이 숨길지는 ★UI 결정(현빈)이라 ★안 건드렸다. */
   if (_selIdx >= 0) grbPieSelect(block, _selIdx);
 }
 /* ── 1012t1G2 · G3 · G4 「SVG 를 그래프 모양으로」 ─────────────────────────
