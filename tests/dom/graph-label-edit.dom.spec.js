@@ -204,3 +204,63 @@ test('P ★편집 중 HTML(굵게+링크) 붙여넣기 → 확정 뒤 items[i].l
   expect(r).toEqual({ label: '굵게링크', kids: 0, text: '굵게링크', html: '굵게링크' });
   expect(errs).toEqual([]);
 });
+
+/* ── t4-17 — 원형 «조각 안 이름»(.grb-pie-name) 캔버스 편집 · 색인은 «제 종류 안에서» (S3 · 261022) ──
+ * 현빈 t4-17: 「원형 그래프블럭 : 순위 및 이름표시 하는거 캔버스에서 직접 수정가능하게」 — 편집 대상 = 이름 하나(순위 배지 = pieRanks 계산값 ⇒ 대상 아님).
+ * ★DOM 순서 = [조각 안 이름 0..N-1, 범례 라벨 0..N-1](drag-utils.js _renderPie) ⇒ 명부 «전체» 색인을 세면 범례가 N.. 로 밀린다.
+ *   T7⒜ 가 그 회귀 칸이다 — 고치기 전에도 초록이어야 하고, 명부에 이름만 더한 판에서 빨강이어야 한다.
+ * 장면: 같은 값 3 항목 · 이름 표시 = 패널 토글 실클릭 · 범례 끄기도 패널 토글 실클릭 · 더블클릭은 clickAt(누르기 직전 elementFromPoint). */
+const PIE_ITEMS = [{ label: '가', value: 1 }, { label: '나', value: 1 }, { label: '다', value: 1 }];
+async function pieSetup(page) {
+  const { errs, id } = await setup(page, 'pie');
+  await page.evaluate(([id, items]) => { const g = document.getElementById(id); g.dataset.items = JSON.stringify(items); window.renderGraph(g); }, [id, PIE_ITEMS]);
+  const p = await centre(page, id, '.grb-pie-label', 0);
+  await clickAt(page, p.x, p.y, { sel: '.graph-block' }, { label: '원형 선택' });
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('selected'), id), { message: '장면 미성립: 원형 블럭이 안 골라졌다' }).toBe(true);
+  return { errs, id };
+}
+async function pieToggle(page, tid) {
+  await page.locator(`label.prop-toggle:has(#${tid})`).click();
+}
+/* 전제 칸 — 이름이 «항목마다 하나» 있고 보인다. 좁아서 grbPieFitTags 가 숨겼으면 결함 판정이 아니라 장면 미성립이다. */
+async function pieNamesShown(page, id) {
+  await expect.poll(() => page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.grb-pie-name')].map(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }).join(), id),
+    { message: '장면 미성립: 조각 안 이름이 항목마다 보이지 않는다(개수·크기)' }).toBe(PIE_ITEMS.map(() => true).join());
+}
+async function pieEditAt(page, id, sel, i, text) {
+  await centre(page, id, sel, i);
+  const q = await stableCentre(page, id, sel, i);
+  await clickAt(page, q.x, q.y, { sel }, { label: `${sel}[${i}] 더블클릭`, dbl: true });
+  await expect.poll(() => page.evaluate(([id, sel]) => document.activeElement?.matches(sel) && document.activeElement.isContentEditable && document.getElementById(id).contains(document.activeElement), [id, sel]), { message: `${sel}[${i}] 가 편집 상태로 포커스`, timeout: 3000 }).toBe(true);
+  await page.keyboard.press('Meta+a'); await page.keyboard.type(text); await page.keyboard.press('Meta+Enter');
+}
+test('T7⒜ ★회귀 — 이름 표시가 켜진 판에서 범례 «둘째» 라벨 → items[1] 만(⛔items[4])', async ({ page }) => {
+  const { errs, id } = await pieSetup(page);
+  await pieToggle(page, 'grb-pie-name-toggle');
+  await pieNamesShown(page, id);
+  const before = await labels(page, id);
+  await pieEditAt(page, id, '.grb-pie-label', 1, '범례둘');
+  await expect.poll(() => labels(page, id)).toEqual(before.map((l, i) => i === 1 ? '범례둘' : l));
+  expect(errs).toEqual([]);
+});
+test('T7⒝ ★조각 안 «둘째» 이름 → items[1] 만 · 조각 안·범례 글자 같이 바뀜(덧③ T6 과 같은 칸)', async ({ page }) => {
+  const { errs, id } = await pieSetup(page);
+  await pieToggle(page, 'grb-pie-name-toggle');
+  await pieNamesShown(page, id);
+  const before = await labels(page, id);
+  await pieEditAt(page, id, '.grb-pie-name', 1, '조각둘');
+  await expect.poll(() => labels(page, id)).toEqual(before.map((l, i) => i === 1 ? '조각둘' : l));
+  expect(await page.evaluate((id) => [document.getElementById(id).querySelectorAll('.grb-pie-name')[1].textContent, document.getElementById(id).querySelectorAll('.grb-pie-label')[1].textContent], id)).toEqual(['조각둘', '조각둘']);
+  expect(errs).toEqual([]);
+});
+test('T7⒞ ★범례를 끈 판(E5 · LEGEND-OFF-KILLS-NAME-EDIT-01)에서도 조각 안 «둘째» 이름 → items[1] 만', async ({ page }) => {
+  const { errs, id } = await pieSetup(page);
+  await pieToggle(page, 'grb-pie-name-toggle');
+  await pieToggle(page, 'grb-pie-legend-toggle');
+  await expect.poll(() => page.evaluate((id) => [document.getElementById(id).dataset.pieLegendOff, document.getElementById(id).querySelectorAll('.grb-pie-label').length], id), { message: '장면 미성립: 범례가 안 꺼졌다' }).toEqual(['1', 0]);
+  await pieNamesShown(page, id);
+  const before = await labels(page, id);
+  await pieEditAt(page, id, '.grb-pie-name', 1, '끈판둘');
+  await expect.poll(() => labels(page, id)).toEqual(before.map((l, i) => i === 1 ? '끈판둘' : l));
+  expect(errs).toEqual([]);
+});
