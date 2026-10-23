@@ -400,6 +400,8 @@ const CAPTURE_VERDICT = {
   '.section-height-badge': _Y('섹션 높이 배지 — export-css-collect.js:43 이 «편집 전용» 배제 명부에 올려 둔 이름'),
   '.annot-handle':        _Y('어노테이션 «선택 중» 손잡이(save-load.js:647 주석) — 결정 ⒝ 로 부모 .annotation-block 이 캡처에 남으면 ★이것은 지워야 한다'),
   '.annot-selbox':        _Y('어노테이션 선택 상자 — js/annotation-select.js:118 (선택 표시)'),
+  '.tfh-handle':          _Y('글상자 자유변형 U3 손잡이 12(모서리 4 ＋ 변 1/3·2/3 8) — .text-block 의 자식 · 2026-10-24 지디'),
+  '.tfh-grid':            _Y('글상자 자유변형 U3 격자 — 변형 중 표시 · .text-block 의 자식 · 2026-10-24 지디'),
   '.section-block[data-ghost]': _Y('빈 «유령» 섹션 — js/block-factory.js:1424 display:none 자리표시 · section-search.js:81 이 콘텐츠에서 거른다'),
   '.shape-handle':        _Y('도형 손잡이 — 블럭의 자식(js/block-drag.js:617 · :1081) · export-html:120 이 2026-09-21 에 «8개 누출» 로 실측해 지운다'),
   '.sticker-corner-handle': _Y('스티커 모서리 손잡이 — 블럭 안 appendChild(js/sticker-select.js:331) · 전역 CSS 흰 바탕(MARKER-HLB-261022 ⑶)'),
