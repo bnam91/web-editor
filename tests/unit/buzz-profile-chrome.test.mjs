@@ -94,8 +94,13 @@ test('C3 모달에 overflow 규칙 0건 ＋ ★양성대조(같은 자로 프레
 });
 
 test('C4 세 자리 쌍 계약 — 저장 · 직렬화 세척 · 내보내기 셋 다에 올라 있다', () => {
+  /* ★★261023 — ★첫 자리가 ★`js/io/save-load.js` → ★★`js/io/editor-ui-roster.js` 로 ★움직였다.
+     ★까닭 = ★R1 처방(캡처 겹도 ★같은 상수를 봐야 하는데 ★거꾸로 import 하면 ★순환) ⇒ ★잎 모듈로 뺐다.
+     ★★이 칸이 ★빨개져서 ★그 이사를 ★알려 줬다 — ⛔「경로가 바뀌었다」로 ★끄지 말고 ★자리를 ★옮긴다.
+     ⚠️★캡처 겹은 ★여기 ★넣지 않는다 — ★이제 ★★그 상수를 ★읽어서 ★«이름이 적혀 있지» 않다.
+        ★그 자리를 재는 자 = ★pan-native-scroll.test.js ★P-A1″ 의 ★마지막 단언. */
   const places = [
-    ['js/io/save-load.js', 'NON_CONTENT_UI_SELECTOR'],
+    ['js/io/editor-ui-roster.js', 'NON_CONTENT_UI_SELECTOR'],
     ['js/io/section-serialize.js', 'serializeCleanRoot 의 remove 줄'],
     ['js/io/export-html.js', '내보내기 클론의 remove 줄'],
   ];

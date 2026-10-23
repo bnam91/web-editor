@@ -20,7 +20,7 @@ const _req = createRequire(import.meta.url);
 const { fnBody, removedSelectors } = _req('./_clone-removals.js');
 const { readSrc } = _req('./_srcread.js');
 const { makeStripper } = _req('./_strip-comments.js');
-const { CHANNELS, DROP_STRIP_ROSTER, DROP_DESIGN_EXCLUSIONS } = _req('../_export-channels.js');
+const { CHANNELS, DROP_STRIP_ROSTER, DROP_DESIGN_EXCLUSIONS, editorNodeCanon } = _req('../_export-channels.js');   /* ★editorNodeCanon = D3b(261023) */
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const JSDIR = path.join(ROOT, 'js');
@@ -141,6 +141,31 @@ test('D3 ★★실판 — 지우는 선택자 ⊆ 승인 명부 (★한 줄 늘�
   assert.deepEqual(fails, [],
     `★클론에서 ★승인 안 된 요소 지우기 ${fails.length} 건 — ★그 블럭이 ★내보내기에서 빠진다:\n  ` + fails.join('\n  ') +
     '\n  ⇒ ★콘텐츠면 지우지 마라 · ★편집 UI 면 tests/_export-channels.js DROP_STRIP_ROSTER 에 ★kind·왜를 적어라');
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   D3b — ★★«출처별 승인»이 ★비운 ★자리를 ★메우는 자. ★261023 신설(R1 처방과 ★한 쌍).
+   ★까닭 : D3 의 승인 명부에 ★`$NON_CONTENT_UI_SELECTOR` ★한 줄이 들어왔다(출처 ★전체 승인).
+     ★★그 꼴은 `judgeDrop` 의 ★`kind` 교차검사를 ★비킨다 —
+       그 검사는 `/^\.([a-z0-9-]+)$/` 로 ★«클래스 하나»만 보고, ★`$…` 는 ★안 걸린다.
+     ⇒ ★★★그러니 ★그 상수에 ★«블럭 클래스»가 ★섞여 들어오면 ★★아무도 ★안 잡는다 —
+       ★그건 ★★«콘텐츠 블럭이 ★내보내기에서 ★통째로 ★빠진다»는 뜻이다(이 축이 ★막으려던 ★그것).
+   ⇒ ★이 칸이 ★그 자리를 ★★직접 ★잰다.
+   ══════════════════════════════════════════════════════════════════════ */
+test('D3b ★★저장 정본 상수에 ★«블럭 클래스»가 ★없다 — ★출처별 승인이 ★비운 kind 검사 자리', (t) => {
+  const NCKEY = 'js/io/editor-ui-roster.js#NON_CONTENT_UI_SELECTOR';
+  const canon = editorNodeCanon(ROOT);
+  const nc = canon.by[NCKEY];
+  assert.ok(Array.isArray(nc) && nc.length >= 20, `★정본 상수를 못 읽었다(${nc ? nc.length : 'null'}종) — 자가 눈멀었다`);
+  /* ★양성대조 — ★이 자가 ★정말 ★블럭 클래스를 ★알아보나. ⛔없으면 ★아래 「0건」이 ★«안 쟀다»다. */
+  assert.ok(BLOCKS.size > 5, `★블럭 클래스 분모가 ${BLOCKS.size} 다 — 분모가 비면 아래가 ★항등으로 초록`);
+  assert.ok(BLOCKS.has('section-block'), '★양성 — 분모에 section-block 이 없다. 분모 자가 죽었다');
+  const bad = nc.filter(s => { const m = /^\.([a-z0-9-]+)$/.exec(s); return m && BLOCKS.has(m[1]); });
+  assert.deepEqual(bad, [],
+    `★★저장 정본 상수에 ★«블럭 클래스» ${bad.length} 종이 들어 있다: ${bad.join(' ')}\n` +
+    `  ⇒ ★캡처 겹이 ★그 상수를 ★읽으므로 ★그 블럭이 ★PNG·썸네일·단독 HTML 에서 ★통째로 ★빠진다.\n` +
+    `  ⇒ ★콘텐츠면 ★그 상수에서 ★빼라 · ★편집 UI 인데 ★-block 으로 끝나는 이름이면 ★DROP_STRIP_ROSTER 에 ★종별로 ★'design'·'open' ＋ 왜를 적어라`);
+  t.diagnostic(`정본 상수 ${nc.length}종 · 블럭 클래스 분모 ${BLOCKS.size}종 · 겹침 ${bad.length}`);
 });
 
 /* ── 변이 — ★같은 판정 함수에 ★지어낸 판을 먹인다 ─────────────────────────────── */

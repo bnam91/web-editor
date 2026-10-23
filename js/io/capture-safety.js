@@ -12,6 +12,7 @@ import { parseGradient } from '../props/gradient-model.js';
 import { stripImageMemoForCapture } from '../image-memo.js';
 import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★svg 의 CSS transform 을 감싸는 쪽으로 — h2c 는 svg 쪽을 안 그린다 */
 import { REDACT_HOST_SEL } from '../effects/image-redact.js';   /* ★이미지 블러(Redact) 호스트 명부 한 자리(1012t1 C1) */
+import { NON_CONTENT_UI_SELECTOR } from './editor-ui-roster.js';   /* ★R1 261023 — ★«편집 전용 UI» 명부 ★한 집. ⛔여기에 줄을 ★베껴 쓰지 마라 */
 
 const REDACT_OPAQUE_FILL = '#4a4a4a';
 
@@ -448,6 +449,15 @@ export function isStillPlaceholderText(el) {
  * 부르는 곳: js/io/export-image.js prepareCloneForCapture · js/io/save-load.js captureThumbnail */
 export function stripEditorOnlyForCapture(clone) {
   if (!clone) return;
+  /* ★★★R1 261023 — ★«편집 전용 UI»는 ★★저장 정본에서 ★파생한다. ⛔아래 제 손 줄들에 ★베껴 쓰지 마라.
+     ★★까닭 : ★이 함수가 ★제 손 명부를 들고 ★자라는 동안, ★저장 쪽 상수(`NON_CONTENT_UI_SELECTOR`)에
+       ★이미 있던 ★★14종을 ★여기서 ★안 지우고 있었다 — ★★고른 채 ★PNG·썸네일·단독 HTML 을 내보내면
+       ★회전 핫존·손잡이가 ★산출물에 ★박혔다(증상 `EXPORT-SELECTED-HANDLE-BAKED-IN-01`).
+     ★그 상수의 ★머리말이 ★이미 적고 있었다 — 「★두 곳이 ★«같은 상수»를 봐야 한다」.
+       ★★★«세 번째 곳»이 ★바로 ★여기였고, ★그 곳만 ★안 보고 있었다.
+     ★★잠그는 자 = `tests/unit/capture-derive-roster.test.mjs` R1 (★★★R1 몫 ★22 → ★0).
+     ⛔이 줄을 ★지우면 ★그 칸이 ★22 로 ★되돌아온다 — ★무력화 대조로 ★재 뒀다(261023). */
+  clone.querySelectorAll?.(NON_CONTENT_UI_SELECTOR).forEach(el => el.remove());
   /* ★querySelector«All» 이다 — 이 명부를 단독 HTML 내보내기(js/io/export-html.js)가 같이 쓰면서
      클론이 «섹션 하나»가 아니라 «캔버스 전체»인 경우가 생겼다. 첫 하나만 지우면 나머지 섹션의
      라벨·툴바가 그대로 배송본에 실린다. 섹션 클론에서는 결과가 전과 같다(하나뿐이므로). */

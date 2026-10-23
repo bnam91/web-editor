@@ -291,6 +291,23 @@ const DROP_STRIP_ROSTER = {
     { sel: '.section-height-badge', kind: 'chrome', why: '섹션 ★높이 배지 — 편집 화면 치수 표시' },
     { sel: '.vpen-edit-overlay',    kind: 'chrome', why: '펜 ★편집 오버레이 — 편집 모드에서만' },
     { sel: '.vpen-preview',         kind: 'design', why: '펜 ★미리보기 — 확정 전 임시 선(`.annot-preview` 와 ★같은 갈래)' },
+    /* ★★★R1 ★닫음 — ★2026-10-23 ★지디. ★★위 「R1 몫 아홉」과 ★다른 꼴로 적는다.
+       ★무엇이 바뀌었나 : ★캡처 겹이 ★제 손 명부 대신 ★★저장 정본 상수를 ★읽는다
+         `js/io/capture-safety.js` → `clone.querySelectorAll?.(NON_CONTENT_UI_SELECTOR)…`
+         ⇒ ★파서(`_clone-removals.js`)가 ★문자열이 아니라 ★★식별자를 본다 ⇒ ★`$NON_CONTENT_UI_SELECTOR`.
+       ★★★왜 ★그 21 종을 ★여기 ★베껴 적지 ★않나 :
+         ⒤ ★베끼면 ★★«셋째 명부»가 된다 — ★저장 정본 · ★캡처 · ★여기. ★한쪽이 ★반드시 ★뒤처진다.
+            (★그 말은 ★그 상수의 ★머리말이 ★이미 적고 있다 — 「두 벌로 만들면 한쪽이 반드시 뒤처진다」)
+         ⅱ) ★★그 상수엔 ★제 ⛔계약이 ★있다 — 「★serializeProject 가 ★실제로 지우는지 ★먼저 확인하라」.
+            ⇒ ★★거기 든 것은 ★★«저장이 지운다» = ★★계약상 ★콘텐츠가 ★아니다 ⇒ ★드롭 승인이 ★따라온다.
+            ⇒ ★그 계약을 ★S3 가 ★자동으로 잠근다(「NON_CONTENT 의 모든 항목이 저장에서 0건」).
+         ⇒ ★★그래서 ★승인은 ★«종 하나하나»가 아니라 ★★«그 출처 ★전체»에 ★한 번 ★준다.
+       ★★⛔잃은 것 ★하나 : judgeDrop 의 ★`kind` 교차검사(「블럭 클래스를 chrome 으로 적었나」)가
+         ★`$…` 꼴엔 ★안 걸린다. ⇒ ★★그 구멍을 ★★D3b 가 ★메운다(capture-drop-axis.test.mjs).
+       ★종 이름을 ★보려면 : `js/io/editor-ui-roster.js` (261023 = ★21 종) */
+    { sel: '$NON_CONTENT_UI_SELECTOR', kind: 'chrome',
+      why: '★저장 정본 상수 ★전체(js/io/editor-ui-roster.js NON_CONTENT_UI_SELECTOR) — ★«저장이 지우는 것» = ★그 상수의 ⛔계약상 ★콘텐츠가 아니다. ' +
+           '★그래서 ★종별이 아니라 ★출처별로 ★한 번 승인한다(⛔여기 베껴 적으면 ★셋째 명부가 된다). ★계약을 잠그는 자 = S3 · ★kind 구멍을 메우는 자 = D3b' },
   ],
   'js/io/export-html.js#exportHTMLFile': [
     { sel: '$HIDDEN_VARIATION_SECTION_SEL', kind: 'design', why: '안 고른 A/B 시안 섹션 — 배송본에 둘 다 보이던 병(2026-09-09) · 저장본은 안 뺀다' },
@@ -327,7 +344,7 @@ const DROP_DESIGN_EXCLUSIONS = [
      ⇒ 합 = 32종(dc93370e). ⛔손으로 안 적는다 — 출처 두 자리를 ★읽는다.
    ⛔★「저장이 지우는 것」≠「캡처가 지워야 할 것」(설계서 ④⒝) ⇒ 항목마다 ★CAPTURE_VERDICT 칸: 'yes' · 'no'(까닭) · 'unmeasured'. */
 const EDITOR_NODE_CANON_SRC = [
-  { file: 'js/io/save-load.js', kind: 'const', name: 'NON_CONTENT_UI_SELECTOR' },
+  { file: 'js/io/editor-ui-roster.js', kind: 'const', name: 'NON_CONTENT_UI_SELECTOR' },   /* ★261023 — save-load.js 에서 ★잎 모듈로 옮겼다(캡처도 같은 상수를 봐야 하는데 거꾸로 import 하면 순환) */
   { file: 'js/io/section-serialize.js', kind: 'fn-removals', name: 'serializeCleanRoot' },
 ];
 /** 정본을 ★소스에서 끌어온다 — { all: [합], by: { 'file#name': [그 출처 몫] } }. 못 찾으면 ★던진다(침묵 0). */

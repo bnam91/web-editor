@@ -31,15 +31,25 @@ const { readSrc } = _req('./_srcread.js');
 const { makeStripper } = _req('./_strip-comments.js');
 const { editorNodeCanon, EDITOR_NODE_CANON_SRC, EDITOR_NODE_EXCEPTIONS, CAPTURE_VERDICT, CAPTURE_VERDICT_VALUES } = _req('../_export-channels.js');
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const CANON0 = editorNodeCanon(ROOT);   /* ★RESOLVE 가 쓰므로 ★paths() 보다 ★먼저 선다 */
 const NAME = 'CAPTURE-ROSTER-NOT-DERIVED-FROM-SAVE-01';
-const NC = 'js/io/save-load.js#NON_CONTENT_UI_SELECTOR';
+const NC = 'js/io/editor-ui-roster.js#NON_CONTENT_UI_SELECTOR';   /* ★261023 — save-load.js 에서 ★잎 모듈로 옮겼다(R1 처방) */
 const SR = 'js/io/section-serialize.js#serializeCleanRoot';
 
 const codeOf = (rel) => { const s = makeStripper(); return readSrc(ROOT, rel).split('\n').map(l => s(l)).join('\n'); };
+/* ★★★261023 R1 처방 — ★길이 ★«공용 명부 상수»를 ★부르면 ★그 종들로 ★푼다.
+   ⛔안 풀면 ★파서가 ★`$NON_CONTENT_UI_SELECTOR` ★한 줄로 찍고, ★정본 선택자와 ★안 맞아
+     ★★«제품이 ★고쳐졌는데도 ★칸이 ★안 닫히는» ★거짓 빨강이 된다.
+   ★출처는 ★★CANON 과 ★같은 자리다(EDITOR_NODE_CANON_SRC) — ⛔둘째 명부를 만들지 않는다.
+   ★이 resolve 가 ★죽으면 ★R7 이 ★잡는다(아래). */
+const RESOLVE = (name) => {
+  const hit = Object.keys(CANON0.by).find(k => k.endsWith('#' + name));
+  return hit ? CANON0.by[hit] : null;
+};
 const sels = (file, fn) => {
   const body = fnBody(codeOf(file), fn);
   assert.ok(body, `★${file} 에 ${fn} 이 없다 — 길이 사라졌다`);
-  const r = removedSelectors(body);
+  const r = removedSelectors(body, RESOLVE);
   assert.equal(r.covered, r.total, `★${file} ${fn} 에 파서가 못 읽는 지우기 꼴이 있다 — 이 표가 거짓이 된다`);
   return r.sels;
 };
@@ -125,8 +135,8 @@ const laneCounts = (gaps) => {
 const laneLine = (gaps) => { const c = laneCounts(gaps);
   return LANES.map(l => `★${l} 칸 ${c[l].칸}/선택자 ${c[l].선택자}`).join(' · ') + ` (합 ${c.칸합}/${c.선택자합})`; };
 
-const CANON = editorNodeCanon(ROOT);
 const P = paths();
+const CANON = CANON0;
 
 test('R0 ★정본을 ★파싱으로 끌어왔다 — 손 명부 0 · 출처마다 몇 종인지 찍는다', (t) => {
   assert.equal(EDITOR_NODE_CANON_SRC.length, 2, '★정본 출처가 둘이 아니다(지디 판정 ⑴ = NON_CONTENT ∪ serializeCleanRoot)');
@@ -151,7 +161,24 @@ const R1_TODO = `${NAME} — 안 막히는 칸 ${R1_GAPS.length} — ${laneLine(
   `(${PATHS.map(p => `${p} ${R1_GAPS.filter(g => g.endsWith('∌ ' + p)).length}`).join(' · ')}) — ` +
   `닫는 이 = 지디 판정(제품: 캡처 겹·export-html 지우기 명부를 저장 정본에서 파생) · 0 이 되면 todo 를 뗀다`;
 
-test(`R1 ★★${NAME} — 'yes' 판정 정본 선택자가 ★세 길 «모두»에서 막히나 (안 막히는 칸 = 0)`, { todo: R1_TODO }, (t) => {
+test(`R1 ★★${NAME} — ★★R1 레인 몫이 ★0 인가 (261023 고침을 ★잠그는 자 · ⛔todo 아니다)`, (t) => {
+  const { rows, gaps, unmeasured } = judge(CANON.all, P, CAPTURE_VERDICT);
+  /* ★★★261023 — ★이 칸은 ★★«초록»이다. ★★그게 ★목적이다.
+     ★전에는 ★이 파일 전체가 ★`todo` 였다(「31 칸이 안 막힌다」). ★★todo 는 ★rc 를 ★안 깬다 —
+     ★그러니 ★제품을 ★고쳐 ★0 이 돼도, ★누가 ★되돌려도, ★★★아무 소리도 ★안 난다.
+     ⇒ ★그래서 ★★«내 레인 몫»만 ★떼어 ★★단언으로 걸었다. ★★나머지(S3·미확정)는 ★아래 S3-GAPS 가 ★todo 로 든다.
+     ★고침 = `js/io/capture-safety.js` stripEditorOnlyForCapture 가 ★`NON_CONTENT_UI_SELECTOR` 를 ★읽는다.
+     ⛔그 줄을 지우면 ★여기가 ★★빨강이다(무력화 대조로 쟀다 · 261023). */
+  const c = laneCounts(gaps);
+  assert.equal(c.R1.칸, 0,
+    `★★${NAME} — ★R1 레인 몫이 ★${c.R1.칸} 칸 남았다(선택자 ${c.R1.선택자}). ` +
+    `★★처방은 ★«캡처 명부에 줄 더하기»가 ★아니라 ★«캡처가 저장 정본을 ★읽게 하기»다 — ` +
+    `js/io/capture-safety.js stripEditorOnlyForCapture 의 NON_CONTENT_UI_SELECTOR 줄을 보라.\n  ` +
+    gaps.filter(g => LANE_OF(g.split(' ∌ ')[0]) === 'R1').join('\n  '));
+  t.diagnostic(laneLine(gaps));
+});
+
+test(`S3-GAPS ★${NAME} — 'yes' 판정 정본 선택자가 ★세 길 «모두»에서 막히나 (안 막히는 칸 = 0)`, { todo: R1_TODO }, (t) => {
   const { rows, gaps, unmeasured } = judge(CANON.all, P, CAPTURE_VERDICT);
   t.diagnostic('\n' + table(rows));
   const byPath = Object.fromEntries(PATHS.map(p => [p, gaps.filter(g => g.endsWith('∌ ' + p)).map(g => g.split(' ∌ ')[0])]));
@@ -249,4 +276,54 @@ test('R6 ★★레인 자가 ★살아 있나 — 양성·음성·★단위 (★
   assert.equal(LANE_OF('.zz-never-seen-handle'), 'R1', '★명부에 없는 새 줄은 ★R1 로 찍혀 ★드러나야 한다');
   t.diagnostic(`레인 = ${laneLine(R1_GAPS)}`);
   t.diagnostic(`명부 출처 = 태양 261023 · S3-K1IMG.md:877-879 — S3 ${LANE_ROSTER.S3.length} · S7 ${LANE_ROSTER.S7.length} · 미확정 ${LANE_ROSTER['미확정'].length}`);
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   R7 — ★★★«식별자 풀기»를 ★재는 자. ★261023 신설(R1 처방과 ★한 쌍).
+   ★까닭 : ★R1 처방은 ★★두 쪽이다 —
+     ⒜ ★제품 : 캡처 겹이 `NON_CONTENT_UI_SELECTOR` 를 ★읽는다
+     ⒝ ★자   : 파서가 ★그 ★식별자를 ★그 종들로 ★푼다(RESOLVE)
+   ★★⛔⒝ 가 ★조용히 ★죽으면 ★어떻게 되나 : 파서가 ★`$NON_CONTENT_UI_SELECTOR` ★한 줄로 찍고
+     ★정본 선택자와 ★안 맞아 ★★«제품은 고쳐졌는데 ★칸은 ★안 닫히는» ★거짓 빨강이 된다.
+     ⇒ ★그러면 ★다음 사람이 ★★제품에 ★줄을 ★베껴 넣어 ★끄려 한다 — ★★바로 ★R1 이 ★막으려던 ★그 길이다.
+   ★★⛔반대로 ⒝ 만 ★살고 ⒜ 가 ★죽으면 : R1 이 ★빨강(22 칸) — ★그건 ★R1 이 ★잡는다.
+   ⇒ ★이 칸은 ★★⒝ 쪽을 ★잡는다.
+   ══════════════════════════════════════════════════════════════════════ */
+test('R7 ★★식별자 풀기(RESOLVE)가 ★살아 있나 — 양성·음성 · ★캡처 길이 ★정말 그 종들을 품나', (t) => {
+  /* ⒜ ★양성 — 이름을 주면 ★그 종들이 온다 */
+  const got = RESOLVE('NON_CONTENT_UI_SELECTOR');
+  assert.ok(Array.isArray(got) && got.length >= 20,
+    `★RESOLVE 가 ★죽었다 — NON_CONTENT_UI_SELECTOR 가 ${got ? got.length : 'null'} 종이다(정본 출처에서 ${CANON.by[NC].length} 종을 읽었는데)`);
+  assert.deepEqual(got, CANON.by[NC], '★RESOLVE 가 ★정본과 ★다른 것을 준다 — ★둘째 명부가 생겼다');
+  /* ⒝ ★음성 — 모르는 이름엔 ★null (⛔아무거나 주면 ★전부 초록이 된다) */
+  assert.equal(RESOLVE('ZZ_NOT_A_ROSTER'), null, '★RESOLVE 가 ★모르는 이름에도 ★무언가를 준다');
+  /* ⒞ ★★그래서 ★캡처 길이 ★정말 ★그 종들을 ★품나 — ★이게 ★R1 고침의 ★실물이다 */
+  const miss = CANON.by[NC].filter(s2 => !P.capture.includes(s2));
+  assert.deepEqual(miss, [],
+    `★캡처 겹이 ★정본 상수의 ${miss.length} 종을 ★안 품는다 — stripEditorOnlyForCapture 의 NON_CONTENT_UI_SELECTOR 줄이 ★사라졌나:\n  ${miss.join(' ')}`);
+  /* ⒟ ★★«안 풀린 꼴»이 ★남아 있지 ★않나 — ⛔`$이름` 이 길 명부에 ★있으면 ★그 종들은 ★이 표에서 ★안 세어진다.
+     ★★⛔261023 — ★이 단언을 ★처음엔 ★「하나도 없어야 한다」로 걸었다가 ★★빨강이 났다.
+       ★잡힌 것 : `$HIDDEN_VARIATION_SECTION_SEL` (js/io/export-html.js:105 · 숨긴 A/B 시안 섹션)
+       ★★그건 ★★정본 상수가 ★아니다 — ★다른 모듈(js/variation-visibility.js:28)의 ★제 상수고,
+         ★드롭 축(D3)이 ★이미 ★`$` 꼴로 ★승인하고 ★있다.
+       ⇒ ★★★그러니 ★틀린 쪽은 ★★내 단언이었다. ★★그런데 ★«느슨하게» 풀지 ★않는다 —
+         ★★예외를 ★★이름으로 ★둔다. ★★그래야 ★★«새로 생긴 둘째 상수»가 ★여기서 ★드러난다.
+       ★★⇒ ★이 명부에 ★없는 ★새 식별자가 나오면 ★이 칸이 ★빨개진다 = ★그게 ★이 칸의 ★일이다. */
+  const RESOLVE_EXEMPT = {
+    '$HIDDEN_VARIATION_SECTION_SEL':
+      '★숨긴 A/B 시안 섹션(js/variation-visibility.js:28 = `.section-block` ＋ 숨김 절) — ★정본 상수가 ★아니고 ' +
+      '★드롭 축 승인 명부(DROP_STRIP_ROSTER html 칸)가 ★`$` 꼴로 ★이미 든다. ★★이 표의 분모(편집 노드)가 ★아니다(★섹션째 숨긴 것).',
+  };
+  for (const pth of PATHS) {
+    const raw = P[pth].filter(s2 => s2.startsWith('$'));
+    const unknown = raw.filter(s2 => !RESOLVE_EXEMPT[s2]);
+    assert.deepEqual(unknown, [],
+      `★${pth} 길에 ★모르는 식별자가 있다: ${unknown.join(' ')} — ★그 종들은 ★이 표에서 ★안 세어진다.\n` +
+      `  ⇒ ★정본 상수면 ★EDITOR_NODE_CANON_SRC 에 ★출처로 올려라(그러면 RESOLVE 가 ★푼다) · ` +
+      `★아니면 ★이 칸의 ★RESOLVE_EXEMPT 에 ★왜를 적어라(⛔이름만 적지 마라)`);
+    /* ★★그리고 ★★정본 상수는 ★★절대 ★안 풀린 꼴로 ★남아선 안 된다 — ★그게 ★R1 처방의 ★핵이다 */
+    assert.ok(!raw.includes('$NON_CONTENT_UI_SELECTOR'),
+      `★${pth} 길에 ★정본 상수가 ★안 풀린 채 ★남았다 — ★RESOLVE 가 ★그 이름을 ★못 찾는다(★출처 경로가 바뀌었나)`);
+  }
+  t.diagnostic(`RESOLVE = ${CANON.by[NC].length}종 · 캡처 길 ${P.capture.length}종 · html ${P.html.length}종 · save ${P.save.length}종`);
 });

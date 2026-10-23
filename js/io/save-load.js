@@ -628,41 +628,12 @@ function getSerializedCanvas() {
   return clone.innerHTML;
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   [P-A1″] «편집이 아닌 것»의 단일 목록
-
-   계약: **이 목록은 「저장에서 지워지는 것」 = 「편집이 아닌 것」이다.**
-     ⇒ `serializeProject()` 가 저장 «전»에 지우므로, 이것들의 생성·제거는 정의상 «콘텐츠 변화»가 아니다.
-     ⇒ 그러므로 `autoSaveObserver` 도 이것들 때문에 저장을 예약해선 안 된다.
-   ⛔여기에 무언가 추가할 때는 **`serializeProject` 가 실제로 그걸 지우는지 먼저 확인**하라.
-     지우지 않는 것을 넣으면 «진짜 편집»이 저장되지 않는다 — 데이터 손실이다.
-   ★두 곳이 «같은 상수»를 봐야 한다. 목록을 두 벌로 만들면 한쪽이 반드시 뒤처진다.
-
-   왜 생겼나(실측 2026-09-05, 진짜 입력): 에셋 블록을 클릭하면 `.ab-rotate-zone` 4개가
-   캔버스 «안»에 붙었다 떨어지고(childList ×12), 그게 `autoSaveObserver` 를 «편집»으로 깨웠다.
-   ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
-   ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
-export const NON_CONTENT_UI_SELECTOR =
-  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .mdl-profile-x, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox';
-/* ★.annot-handle · .annot-selbox (1013t1A3) — 어노테이션 선택 중에만 사는 손잡이. serializeCleanRoot 의 remove 줄에 같이 올렸다(계약 짝). */
-/* ★.mdl-rotate-zone (2026-10-08 지디) — ★모달 블럭의 회전 손잡이. ⛔빠져 있었다.
-   ★증상: modal-frameify U1·U3 가 ★origin/dev 에서 빨강이었다 — 「프레임화 → ⌘Z 한 번 = 앞 직렬화와
-     글자 단위로 같다」가 ★앞 1,245자 vs ★뒤 4,373자로 갈렸고, 갈린 자리가 바로
-     `<div class="mdl-rotate-zone tl" data-corner="tl" style="position: absolute; …`였다.
-   ★전수로 확인했다 — `zoneClass:` ★정의 자리 7개(cvb·icb·icn·★mdl·mkp·tb·vb) 중 ★이 명부에 없는 것이
-     ★★mdl 하나뿐이었다(⛔사용 자리 grep 이 아니라 정의 자리에서 셌다).
-   ★위 ⛔계약대로 section-serialize.js serializeCleanRoot 의 remove 줄에도 ★같이 올렸다 —
-     그쪽에도 0건이었다. ⇒ 두 자리를 한 커밋에.
-   ★그 쌍은 S3(「NON_CONTENT_UI_SELECTOR 의 모든 항목이 저장에서 0건」)가 ★자동으로 잠근다. */
-/* ★.mdl-profile-x (1017t1l2 · 2026-10-19) — 버즈 카드 프로필의 × 단추. ★에디터 크롬이다
-   (호버할 때만 보이고, 그리는 자는 renderModalBlock 이다 — 로드가 모달을 다시 그리므로 저장본에 남길 까닭이 없다).
-   ★위 ⛔계약대로 «serializeProject 가 실제로 지우는지»를 먼저 확인하고 넣었다 —
-     js/io/section-serialize.js serializeCleanRoot 의 remove 줄에 같이 올렸다(mdl-rotate-zone 과 같은 쌍).
-   ★내보내기는 또 다른 자리다 — js/io/export-html.js 에도 같이 올렸다(그쪽은 이 상수를 안 읽는다). */
-/* ★.section-height-badge (2026-10-07 (다)) — 위 ⛔계약대로 «serializeProject 가 실제로 지우는지»를
-   먼저 확인하고 넣었다: js/io/section-serialize.js serializeCleanRoot 의 remove 줄에 같이 올렸다.
-   (그 쌍을 tests/dom/section-height-display.dom.spec.js S1 이 잠근다 — 저장본·히스토리에 배지 0건.) */
-
+/* ★★[P-A1″] «편집이 아닌 것»의 단일 목록 — ★★본체는 ★`js/io/editor-ui-roster.js` 로 ★옮겼다(261023 · R1).
+   ★까닭: ★캡처 공용 겹(capture-safety.js)도 ★같은 상수를 ★봐야 하는데, ★이 파일이 ★그 파일을
+     ★이미 import 하고 있어(:14) ★거꾸로 걸면 ★순환이다. ⇒ ★잎 모듈로 뺐다.
+   ★여기선 ★그대로 ★이어 부른다 — ★이 파일을 import 하던 자리는 ★전과 ★같이 돈다. */
+import { NON_CONTENT_UI_SELECTOR } from './editor-ui-roster.js';
+export { NON_CONTENT_UI_SELECTOR };
 if (typeof window !== 'undefined') window.NON_CONTENT_UI_SELECTOR = NON_CONTENT_UI_SELECTOR;   // ★E148 — ⌘C 글자 뽑기(editor.js)가 «같은 목록»으로 UI 를 걷는다
 
 /** 이 mutation 이 «UI 장식»만 건드렸나 — 그렇다면 편집이 아니다. */

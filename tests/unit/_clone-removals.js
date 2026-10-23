@@ -29,7 +29,7 @@ function fnBody(code, name) {
 /** 몸통에서 «querySelectorAll(X).forEach(cb)» 중 ★cb 가 `.remove()` 를 부르는 것의 선택자 전수.
  *  X 가 문자열 리터럴이면 쉼표로 쪼갠다 · 식별자면 `$이름`.
  *  ★`covered` = 그 cb 들 안의 `.remove()` 수 — ★몸통 전체 수와 견주어 ★«파서가 못 읽는 지우기 꼴»을 잡는다(D2). */
-function removedSelectors(body) {
+function removedSelectors(body, resolve) {
   const sels = [];
   let covered = 0;
   const re = /querySelectorAll\??\.?\(/g;
@@ -48,7 +48,13 @@ function removedSelectors(body) {
     covered += n;
     const lit = /^(['"`])([^'"`]*)\1$/.exec(arg);
     if (lit) lit[2].split(',').map(s => s.trim()).filter(Boolean).forEach(s => sels.push(s));
-    else sels.push('$' + arg);
+    else {
+      /* ★★식별자다 — ★«공용 명부 상수»를 부르는 꼴. ★resolve 를 ★주면 ★그 종들로 ★푼다(2026-10-23 R1).
+         ⛔안 주면 ★전과 ★똑같이 `$이름` 이다 — ★이 파서를 ★같이 쓰는 ★drop 축 검사는 ★안 바뀐다. */
+      const got = typeof resolve === 'function' ? resolve(arg) : null;
+      if (Array.isArray(got) && got.length) got.forEach(s2 => sels.push(s2));
+      else sels.push('$' + arg);
+    }
   }
   return { sels, covered, total: (body.match(/\.remove\(\s*\)/g) || []).length };
 }
