@@ -41,15 +41,26 @@ const EDITOR_ONLY_SEL = new RegExp([
        「★숨기는 CSS 한 줄로 ★때우지 마라 · ★있을 이유 없는 것은 ★버린다」이다. */
   '\\.img-editing', '\\.img-edit-hint', '\\.img-boundary', '\\.img-corner-handle', '\\.img-edge-handle', '\\.img-rotate-zone',
   '\\.section-label', '\\.section-toolbar', '\\.section-hitzone', '\\.variation-badge', '\\.section-height-badge',
-  /* ★★★2026-10-24 (지디 · 현빈 GO) — ★`ANNOT-CSS-FILTERED-01`.
-     ★옛 조각 ★둘(`\\.annotation` · `\\.annot-`)이 ★★★콘텐츠 CSS 를 ★먹고 ★있었다:
-       ★`.annotation-block`(★현빈 261022 ⒝ = ★최종 이미지에 ★보인다) · ★`.annot-label` · ★`.annot-svg`.
-     ⇒ ★요소는 ★남는데(capture-safety 261024 고침) ★★그 ★CSS 가 ★안 실려 ★★«스타일 없이» 나왔다.
-     ★★그 ★셋만 ★비켜 ★간다 — ⛔다른 `annot` 류의 ★판정은 ★안 ★지어낸다(★별건).
-     ★★`-handle\\b` 가 ★따로 ★있어 ★손잡이는 ★여전히 ★걸린다 · ★`.annot-selbox`·`.annot-preview` 도 ★걸린다.
-     ★★`.annot-label-color`(★패널 색 고르개)는 ★★뒤에 `-` 가 ★있어 ★★여전히 ★걸린다.
-     ★재는 자 = `tests/unit/export-css-filter-scope.test.mjs` ★T1b(명부 MUST_SHIP_ANNOT) ＋ ★T2(음성대조). */
-  '\\.annotation(?!-block)', '\\.annot-(?!label(?![-\\w])|svg(?![-\\w]))', '\\.qa-block', '\\.todo-pin', '\\.pen-',
+  /* ★★★2026-10-24 — ★`ANNOT-CSS-FILTERED-01`. ★★★두 사람의 고침을 ★합쳤다.
+     ★병 : ★옛 조각 ★둘(`\\.annotation` · `\\.annot-`)이 ★★콘텐츠 CSS 를 ★먹었다 —
+       ★`.annotation-block`(★현빈 261022 ⒝ = ★최종 이미지에 ★보인다) · `.annot-label` · `.annot-svg`.
+       ⇒ ★요소는 ★남는데(capture-safety 261024) ★★그 ★CSS 가 ★안 실려 ★★«스타일 없이» 나왔다.
+     ★★★S7 이 ★261022 에 ★`0e74c871` 에서 ★먼저 ★고쳤다 — ★★그 커밋이 ★우리 저장소에 ★안 ★넘어와
+       ★지디가 ★★모르고 ★다시 ★고쳤고(261024), ★★그 뒤 ★`mcintel-ts` 로 ★당겨 ★견줬다.
+       (★`capture-safety.js` 의 ★그 한 줄은 ★★★BYTE-EQUAL 이었다 — ★sha `537a8312aa42`.)
+     ★★★설계는 ★★S7 것을 ★따른다 — ★★«편집 전용 ★이름을 ★명시».
+       ★까닭 : ★지디의 ★부정 lookahead 보다 ★★다음 사람이 ★읽기 ★쉽고,
+         ★★`tests/dom/annot-export-show-261022.dom.spec.js` ★H2 가 ★★그 설계를 ★전제로 ★지어졌다.
+     ★★★＋ ★지디가 ★더 ★잰 ★한 칸 : ★`.annot-label-color`(★프로퍼티 패널 ★색 고르개 · ★실측 3건) —
+       ★S7 의 ★아홉에 ★★없어 ★★배송본에 ★실리고 ★있었다. ★★여기 ★더했다.
+     ⚠️★★안 ★쟀다 : ★`.annot-border-style-group`(3) · `.annot-stroke-w-num`(2) ★둘도 ★패널 ★꼴로 ★보이나
+       ★★«편집 전용인가»를 ★★행위로 ★안 ★쟀다 ⇒ ★★★넣지 ★않았다.
+       ★이름 = `ANNOT-PANEL-CLASSES-UNMEASURED-01` (★결함 ★아님 · ★«못 쟀다» ★명부).
+     ★재는 자 = `tests/unit/export-css-filter-scope.test.mjs` ★T1b(실려야 셋)·★T2(걸러져야)
+            ＋ ★`annot-export-show-261022.dom.spec.js` ★H2(★★앱에서 ★`<style>` 을 ★본다). */
+  '\\.annot-handle', '\\.annot-rot-handle', '\\.annot-dim-handle', '\\.annot-selbox', '\\.annot-preview',
+  '\\.annot-anchor-preview', '\\.annot-cell-selected', '\\.annot-point-angle', '\\.annot-label-textarea',
+  '\\.annot-label-color',
   '\\.col-placeholder', '\\.col-add', '\\.row-col-add', '\\.row-drop-indicator', '\\.layer-',
   /* ★★t4 검수 261022(지디) — ★`'placeholder'` ★맨 조각을 ★좁혔다.
      ⛔그 조각은 ★머리말(위 :30~31 「★«너무 넓은» 조각은 쓰지 않는다」)을 ★스스로 어기고 있었다:
