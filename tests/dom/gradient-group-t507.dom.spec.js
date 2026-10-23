@@ -1,6 +1,8 @@
 /* gradient-group-t507.dom.spec.js — t5-07 「그라데이션블럭과 에셋 블럭 현재 그룹설정이 안되는지?」 (S3 · 261022)
  *   ⌘G(wrapSelectedBlocksInFrame) 가 «골라진» 블럭을 정말 묶는가 — 갈래별로 «행위»를 잰다(명부 단언은 block-selector-roster 가 한다).
- *   ★바닥(aefbabde)에서 빨강이어야 하는 칸: B1 B2 B3 M1 M2 M3 — 그라데이션·모달·말풍선·스티커가 ⌘G 수집 명부(block-factory BLOCK_SEL)에 없어 «조용히 빠진다».
+ *   ★바닥(aefbabde)에서 빨강이어야 하는 칸: B1 B2 B3 M1 M3 — 그라데이션·모달·스티커가 ⌘G 수집 명부(block-factory BLOCK_SEL)에 없어 «조용히 빠진다».
+ *   ⚠️M2(말풍선)는 바닥에서도 초록이다 — 말풍선의 진짜 클래스는 'text-block speech-bubble-block'(block-factory.js makeSpeechBubbleBlock)이라
+ *     옛 명부가 .text-block 으로 이미 잡는다(261023 바닥 앱 실측). 첫 판 장면은 클래스를 하나만 적어 바닥 빨강을 «거짓으로» 냈다(S3 흠).
  *   ★바닥에서도 초록이어야 하는 칸: R1 R2(회귀 · 에셋 조합은 원래 된다).
  *   B3 의 기대(흐름 에셋 + 그라데이션 = 묶지 않고 까닭 한 줄)는 t5-07 판정 ③(흐름 블럭+떠 있는 블럭 새 갈래 = t5-08 (a) 현빈 칸)을 따른다.
  *   ⛔앱을 «안» 띄운다 — frame-float-group 하네스와 같이 wrapSelectedBlocksInFrame «하나만» 잘라 싣는다.
@@ -73,7 +75,7 @@ const BODY = `
     <div class="row" id="rowA"><div class="asset-block" id="ab_flow" style="height:120px">에셋</div></div>
     <div class="row" id="rowT"><div class="text-block" id="tb_flow" style="height:40px">흐름 글자</div></div>
     <div class="row" id="rowM"><div class="modal-block" id="mdl1" style="height:80px">모달</div></div>
-    <div class="row" id="rowS"><div class="speech-bubble-block" id="sbb1" style="height:60px">말풍선</div></div>
+    <div class="row" id="rowS"><div class="text-block speech-bubble-block" id="sbb1" style="height:60px">말풍선</div></div>
     <div class="frame-block" id="ssA" data-free-layout="true" style="width:860px;height:400px;margin:0 auto;">
       <div class="mockup-block" id="mkp1" style="position:absolute;left:174px;top:0;width:300px;height:300px;"></div>
     </div>
