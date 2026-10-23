@@ -216,6 +216,9 @@ export function applyFxFreeTransform(tb) {
   tb.style.minHeight = box.h + 'px';
   const tf = _tfOf(tb);
   if (tf) tf.style.width = box.w + 'px';   /* ★㉣ — 「너비 항상 동일」 */
+  /* ★U3 — 그린 뒤 손잡이를 ★그 자리로. ⛔import 하지 않는다(순환) — 이 파일이 이미 쓰는
+     `window.pushHistory?.()`·`window.scheduleAutoSave?.()` 와 ★같은 관용구다. 없으면 아무 일도 안 난다. */
+  window.ftHandlesSync?.(tb);
   return true;
 }
 
@@ -231,6 +234,8 @@ function _strip(tb) {
   if (ce) { ce.style.transform = ''; ce.style.transformOrigin = ''; _dropEmptyStyle(ce); }
   tb.style.width = ''; tb.style.minHeight = '';
   if (tf) { tf.style.width = st && st.tfW0 != null ? st.tfW0 : ''; _dropEmptyStyle(tf); }
+  /* ★U3 — ✕ 면 손잡이·격자도 같이 걷는다(안 걷으면 ★효과를 끈 뒤에도 남는다). */
+  window.ftHandlesClear?.(tb);
   _dropEmptyStyle(tb);
   _tfState.delete(tb);
 }
@@ -313,6 +318,9 @@ function _wireFtCard(tb, P, again) {
   const $ = (id) => document.getElementById(`${P}-${id}`);
   $('fxft-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxFreeTransform(tb, null); again(); });
   $('fxft-reset')?.addEventListener('click', (e) => { e.stopPropagation(); resetFxFreeTransform(tb); again(); });
+  /* ★U3 — ★이 함수가 ★«고른 순간»에 돈다(명부가 패널을 다시 그릴 때 배선한다)
+     ⇒ ★여기서 ★전수 동기화하면 ★고른 블럭엔 붙고 ★놓인 블럭에선 걷힌다(`_shouldShow` 가 가른다). */
+  window.ftHandlesSyncAll?.(document);
   $('fxft-head')?.addEventListener('click', () => {
     const b = $('fxft-body'); if (!b) return;
     const open = b.hidden; b.hidden = !open;

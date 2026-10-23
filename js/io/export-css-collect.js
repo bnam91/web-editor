@@ -61,6 +61,11 @@ const EDITOR_ONLY_SEL = new RegExp([
   '\\.annot-handle', '\\.annot-rot-handle', '\\.annot-dim-handle', '\\.annot-selbox', '\\.annot-preview',
   '\\.annot-anchor-preview', '\\.annot-cell-selected', '\\.annot-point-angle', '\\.annot-label-textarea',
   '\\.annot-label-color',
+  /* ★★U3 자유변형 ★격자(2026-10-24 · 지디) — ★`.tfh-handle` 은 ★위 `-handle\\b` 가 ★이미 잡는다.
+     ★★`.tfh-grid` 는 ★★어느 조각에도 ★안 걸려 ★★샜다(★실측: ★더한 직후 ★`re.test('.tfh-grid') === false`).
+     ⇒ ★요소는 ★명부(`editor-ui-roster`)가 ★걷지만 ★★그 ★CSS 가 ★배송본 `<style>` 에 ★실렸다.
+     ★★교훈 : ★★새 편집 UI 를 ★더할 때 ★★★«요소 명부»와 ★«CSS 거름»은 ★★따로다 — ★둘 다 ★재라. */
+  '\\.tfh-grid',
   '\\.col-placeholder', '\\.col-add', '\\.row-col-add', '\\.row-drop-indicator', '\\.layer-',
   /* ★★t4 검수 261022(지디) — ★`'placeholder'` ★맨 조각을 ★좁혔다.
      ⛔그 조각은 ★머리말(위 :30~31 「★«너무 넓은» 조각은 쓰지 않는다」)을 ★스스로 어기고 있었다:

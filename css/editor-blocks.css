@@ -4578,3 +4578,45 @@ html.tgs-selecting .tgs:focus-within {
   background-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
   color: #fff;
 }
+
+/* ──────────────────────────────────────────────
+   ★★U3 자유변형 ★모서리 손잡이·격자 (JS 에서 `.tfh-handle`·`.tfh-grid` 추가 · js/effects-ft-handles.js)
+   ★`.sticker-corner-handle`(:4490)·`.gradient-corner-handle` 과 ★같은 축 —
+     ★`--inv-zoom` calc() 로 ★캔버스 배율 ★무관하게 ★화면상 ★7px 고정 · ★테두리도 ★같은 축에 태운다.
+   ★★⛔자리(left·top)는 ★CSS 가 ★안 정한다 — ★JS 가 ★★네 점에서 ★계산해 ★인라인으로 ★박는다
+     (★모서리가 ★★찌그러져 있어서 ★`tl/tr/bl/br` 고정 오프셋으로는 ★못 놓는다).
+     ⇒ ★그래서 ★`translate(-50%,-50%)` 로 ★★그 점 «위»에 ★가운데를 ★맞춘다.
+   ★이름 `tfh-` 를 고른 까닭(실측 261024): ⛔`ft-` 는 ★임자가 있다 —
+     `projects-onescreen` 의 폴더 타일(`.ft-tile`·`.ft-add`·`.ft-sub` · ★레포 48건).
+   ★★이 둘은 ★`js/io/editor-ui-roster.js` ★`NON_CONTENT_UI_SELECTOR` ＋ `serializeCleanRoot` 에
+     ★★한 쌍으로 올라 있다(`beea5848`) ⇒ ★저장본·PNG·썸네일·단독 HTML 로 ★★안 샌다.
+     ★그 쌍이 정말 묶였나 : ★직렬에서만 빼면 ★`R1` 이 ★fail 1(★변이로 확인).
+────────────────────────────────────────────── */
+.tfh-handle {
+  position: absolute;
+  width:  calc(7px * var(--inv-zoom, 1));
+  height: calc(7px * var(--inv-zoom, 1));
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border: calc(var(--ui-handle-border-w, 1.5px) * var(--inv-zoom, 1)) solid var(--ui-sel-overlay, #9966ff);
+  border-radius: 1px;
+  pointer-events: auto;
+  z-index: 101;            /* ★격자(100) «위» — 손잡이가 선에 가리면 못 잡는다 */
+  box-sizing: border-box;
+  mix-blend-mode: normal;  /* ★섞임 차단 — 스티커 손잡이와 같은 까닭 */
+  isolation: isolate;
+}
+.tfh-handle:hover { background: #f0e8ff; }
+
+/* ★격자 — ★글자칸과 ★«같은 행렬»을 탄다(JS 가 `ce.style.transform` 을 베껴 박는다).
+   ⛔제 행렬을 만들지 않는다 — 두 벌이 되면 한쪽이 늙는다. */
+.tfh-grid {
+  position: absolute;
+  pointer-events: none;    /* ★선이 클릭을 먹으면 ★글자를 못 고른다 */
+  z-index: 100;
+  box-sizing: border-box;
+  border: calc(var(--ui-handle-border-w, 1.5px) * var(--inv-zoom, 1)) dashed var(--ui-sel-overlay, #9966ff);
+  background: transparent;
+  mix-blend-mode: normal;
+  isolation: isolate;
+}
