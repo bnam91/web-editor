@@ -413,18 +413,27 @@ test('★P-A1″ 계약: 목록이 «한 곳»에 있고 저장·감시가 «같
     'js/asset-rotate.js': '★임자 — 이 클래스를 ★만드는 자(:80) · 제 것만 scope 로 걷는다(:66). ★명부 아님',
     /* ⅱ) ★정본 — ★한 벌이어야 할 ★그 곳. */
     'js/io/editor-ui-roster.js': '★★정본 — `export const NON_CONTENT_UI_SELECTOR`. ★한 벌이어야 한다',
-    /* ⅲ) ★★★둘째 명부 — ★`SERIALIZE-ROSTER-DUPLICATES-THE-CONSTANT-01` (261023 지디, ★이 칸이 찾았다).
+    /* ⅲ) ★★★둘째 명부 — ★`SERIALIZE-ROSTER-IS-A-SUPERSET-NOT-A-COPY-01` (261023 지디, ★이 칸이 찾았다).
+          ⚰️★옛 이름 `SERIALIZE-ROSTER-DUPLICATES-THE-CONSTANT-01` (261024 개명 · ★까닭은 아래 ★⊊ 줄).
           ★실물 : `js/io/section-serialize.js:356` 이 ★★한 줄에 ★30 종을 ★손으로 적는다 —
-            ★그 중 ★★21 종이 ★정본 상수와 ★★글자째 겹치고, ★9 종이 ★더 있다
+            ★그 중 ★★21 종이 ★정본 상수와 ★★글자째 겹치고, ★★«그 한 줄 기준» ★9 종이 ★더 있다
             (.block-resize-handle · .ci-handle · .shape-handle · .sticker-corner-handle ·
              .gradient-corner-handle · .hlb-handle · .grad-line-overlay · .vpen-preview · .vpen-edit-overlay).
+          ★★★«9» 에 ★임자를 붙인다 — ★★`:356` ★한 줄 ★범위다. ★★`serializeCleanRoot` ★함수 ★전체로는 ★★11 이고,
+            ★그 ★11 에는 ★★★결함이 ★아닌 ★둘이 ★섞인다 : `.section-block[data-ghost]`(★ghost 섹션은
+            ★저장에서 ★빼는 것이 ★옳다) · `.drop-indicator`(★끌기 ★표시선). ⇒ ★★★참값 = 「11 중 ★9 가 ★후보」.
+            ⛔「11 = 결함 11」로 ★읽지 ★마라 — ★★차집합엔 ★«옳게 ★다른 것»이 ★섞인다.
+          ★★★그리고 ★★«중복»이 ★아니다(★그래서 ★개명했다) — ★★실측 : ★★★«정본에만» = ★★0 종.
+            ⇒ ★★정본 ★21 ⊊ ★직렬 ★32 (★★★포함이다). ⇒ ★★★합치면 ★★직렬이 ★★잃는다.
+            ⛔「중복이니 ★한쪽 ★지우면 ★된다」로 ★읽으면 ★★거꾸로다 — ★★★이름 ★하나가 ★처방을 ★뒤집고 ★있었다.
+            ★★차집합은 ★★★양방향으로 ★찍어야 ★이 판정이 ★선다(★한쪽만 ★찍으면 ★포함을 ★중복으로 ★읽는다).
           ★★★그 상수의 ★머리말이 ★경고한 ★바로 그 꼴이다 — 「두 벌로 만들면 ★한쪽이 ★반드시 ★뒤처진다」.
           ★★실제로 ★뒤처졌다 : `.mdl-rotate-zone`(2026-10-08)·`.mdl-profile-x`(10-19)·
             `.section-height-badge`(10-07)가 ★★전부 ★«두 자리에 ★같이 올려야 한다»로 ★손으로 ★맞춰졌다.
           ⛔★★그런데 ★지금 ★고치지 ★않는다 — ★★«저장 길»이고, ★정본 파서(`_export-channels.js`
             `editorNodeCanon`)가 ★그 함수를 ★★resolve 없이 읽어서 ★상수로 바꾸면 ★★정본이 ★깨진다.
             ⇒ ★★★별건 발주다(릴리스 후 큐). ★여기선 ★★수로 ★못박아 ★안 잊게 한다. */
-    'js/io/section-serialize.js': '★★둘째 명부 — SERIALIZE-ROSTER-DUPLICATES-THE-CONSTANT-01(261023) · :356 이 30종을 손으로 · 정본과 21종 겹침 · ★고침은 별건(저장 길 · 정본 파서가 같이 바뀐다)',
+    'js/io/section-serialize.js': '★★둘째 명부 — SERIALIZE-ROSTER-IS-A-SUPERSET-NOT-A-COPY-01(261023 · 개명 261024) · :356 이 30종을 손으로 · 정본과 21종 겹침 · ★정본에만=0 ⇒ 정본 21 ⊊ 직렬 32(포함) · ★고침은 별건(저장 길 · 정본 파서가 같이 바뀐다)',
   };
   const files = hits.map(h => h.split('×')[0]);
   const extra = files.filter(f => !KNOWN[f]);
