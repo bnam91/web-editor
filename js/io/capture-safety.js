@@ -463,9 +463,20 @@ export function stripEditorOnlyForCapture(clone) {
      라벨·툴바가 그대로 배송본에 실린다. 섹션 클론에서는 결과가 전과 같다(하나뿐이므로). */
   clone.querySelectorAll?.('.section-label, .section-toolbar').forEach(el => el.remove());
   clone.querySelectorAll('.variation-badge').forEach(el => el.remove());
-  // C18: 펜툴 어노테이션(리뷰용 주석)과 진행중 미리보기는 리뷰 표시일 뿐 — 산출 이미지에 박히면 안 됨.
+  /* ★★★2026-10-24 — `.annotation-block` 을 ★이 줄에서 ★뺐다. ★현빈 ★GO.
+       ★까닭 : ★현빈 ★261022 ★결정 ⒝ = 「★어노테이션(펜 주석·치수선)은 ★★최종 이미지에 ★보인다」.
+         ⇒ ★옛 C18(「★리뷰 표시일 뿐 — ★산출 이미지에 ★박히면 ★안 됨」)은 ★★그 결정으로 ★★뒤집혔다.
+       ★수용 기준(★앱으로 ★잰 값) : `~/.gd-work/applane/msg/S7-T4-DIMLINE.md` (274줄 · sha 4e29366e2342)
+         ★세 출구(PNG·썸네일·HTML) ★전부에서 — ★블럭 2(dim 1)·라벨 2·svg 2·어두운 점 214
+         ∧ ★handle 0 · dim-handle 0 · selbox 0 (★손잡이는 ★`NON_CONTENT_UI_SELECTOR` 가 ★위에서 ★걷는다)
+       ★결함 이름 : `DEV-ANNOT-STRIPPED-WHOLE-IN-CAPTURE-01`
+       ⚰️★S7 이 ★가지 `0e74c871` 에서 ★먼저 ★닫았으나 ★그 트리·커밋이 ★★사라져(★fsck 매달린 169 중 0건)
+         ★★★여기서 ★다시 ★만들었다. ⇒ ★★잃은 것은 ★커밋이고 ★★자(위 수용 기준)는 ★안 ★잃었다.
+       ★★⛔`.annot-preview` 는 ★★그대로 ★걷는다 — ★`tests/_export-channels.js` 가
+         「★저장만 · ★★설계 ★제외」로 ★★판정해 ★뒀다(★그리는 ★중 ★미리보기다).
+       ★★치수선을 ★«어느 출구»에 ★남길지 ★세부는 ★★현빈이 ★9401 에서 ★보고 ★정한다. */
   // (대조: todo-pin은 #todo-pin-overlay로 섹션 밖이라 애초에 클론에 안 들어감)
-  clone.querySelectorAll('.annotation-block, .annot-preview').forEach(el => el.remove());
+  clone.querySelectorAll('.annot-preview').forEach(el => el.remove());
   // admin QA 체크리스트 블록 — 콘텐츠가 아니라 작업 메타데이터다. 자리도 차지하면 안 되므로
   // 숨기지 않고 완전히 remove() 한다(annotation-block과 같은 원칙). 감싸는 .row 까지 지워야
   // 그 블록이 차지하던 세로 공간도 같이 사라진다.
