@@ -203,10 +203,25 @@ test('R2 ★예외 다섯 — 이름 · 까닭 · 날짜가 다 있다 (+ 캡처
   assert.deepEqual(EDITOR_NODE_EXCEPTIONS.map(e => e.sel).sort(),
     ['.annotation-block', '.qa-block', '.sec-fxpart-wrap', '[data-is-placeholder]', '[data-memo]']);
   assert.equal(CAPTURE_VERDICT['.annotation-block'].v, 'no', '★.annotation-block 이 「아니오」의 첫 보기가 아니다(지디 판정 ⑴)');
-  /* 사실만 찍는다(단언 아님 — 제품 고침은 지디 칸 · 지디 판정 ⑵ 「그대로」) */
   const inter = EDITOR_NODE_EXCEPTIONS.filter(e => CANON.all.includes(e.sel)).map(e => e.sel);
   const staysButRemoved = EDITOR_NODE_EXCEPTIONS.filter(e => e.effect === 'stays' && P.capture.includes(e.sel)).map(e => e.sel);
   t.diagnostic(`예외 ∩ 정본 = ${inter.length} [${inter.join(' ')}] · ★캡처가 «남아야 할» 것을 지금 지운다 = ${staysButRemoved.length} [${staysButRemoved.join(' ')}]`);
+  /* ★★★2026-10-24 — ★«사실만 찍는다»를 ★★단언으로 ★바꿨다.
+       ★옛 주석 : 「단언 아님 — ★제품 고침은 ★지디 칸 · ★지디 판정 ⑵ 「그대로」」
+       ⇒ ★★그 까닭이 ★★죽었다 : ★현빈 ★GO 로 ★`capture-safety.js` 의 ★한 줄을 ★고쳐
+         ★`.annotation-block` 을 ★캡처 지우기에서 ★★뺐다(261024 · `DEV-ANNOT-STRIPPED-WHOLE-IN-CAPTURE-01`).
+       ★★★그런데 ★그 고침을 ★★재는 자가 ★★★0 이었다 — ★변이로 ★확인했다:
+         ★고침을 ★되돌려도 ★capture-derive-roster · capture-drop-axis · buzz-profile-chrome ·
+         ★pan-native-scroll ★★넷이 ★전부 ★초록이고, ★★단위 ★전수도 ★★수가 ★한 자도 ★안 ★바뀌었다
+         (★4738/4735/fail 0 — ★고침 ★전과 ★★동일).
+       ⇒ ★★★이름 : `ANNOT-STAYS-IN-CAPTURE-HAD-NO-GATE-01` — ★★이 단언이 ★그 자다.
+       ★★자가 ★사는지 : ★그 한 줄을 ★되돌리면 ★★`.annotation-block` 이 ★`P.capture` 에 ★들어와
+         ★★staysButRemoved = 1 ⇒ ★★★빨강. (★★★변이로 ★확인한다 — ⛔«항상 참»인 단언이 ★아니다)
+       ⛔둘째 명부를 ★만들지 ★않는다 — ★`EDITOR_NODE_EXCEPTIONS`(effect:'stays')에서 ★★파생한다. */
+  assert.deepEqual(staysButRemoved, [],
+    '★★★캡처가 ★«남아야 할» 것을 ★지운다 — ★ANNOT-STAYS-IN-CAPTURE-HAD-NO-GATE-01 ★그 자리다:\n  ' +
+    staysButRemoved.map(s2 => `${s2} (예외 effect:'stays' 인데 stripEditorOnlyForCapture 가 지운다)`).join('\n  ') +
+    `\n  ⇒ ★현빈 ★261022 ★결정 ⒝(「어노테이션·치수선은 ★최종 이미지에 ★보인다」)가 ★깨진다.`);
 });
 
 test('R3 ★넓힌 몫 — serialize ∖ NON_CONTENT 가 정본에 들었고, 위험 3종이 그 안에서 R1 의 빨강 칸이다', (t) => {
