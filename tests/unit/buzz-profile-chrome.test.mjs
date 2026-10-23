@@ -93,16 +93,25 @@ test('C3 모달에 overflow 규칙 0건 ＋ ★양성대조(같은 자로 프레
     `모달에 overflow 규칙이 ${modal}건 생겼다 — 커진 프로필이 카드 배경 밖으로 못 나간다(현빈 l2c 가 깨진다)`);
 });
 
-test('C4 세 자리 쌍 계약 — 저장 · 직렬화 세척 · 내보내기 셋 다에 올라 있다', () => {
+test('C4 세 자리 쌍 계약 — ★저장 명부 · ★직렬화 세척에 ★이름이 있고, ★내보내기는 ★«그 상수에 닿는 길»이 섰다(261023)', () => {
   /* ★★261023 — ★첫 자리가 ★`js/io/save-load.js` → ★★`js/io/editor-ui-roster.js` 로 ★움직였다.
      ★까닭 = ★R1 처방(캡처 겹도 ★같은 상수를 봐야 하는데 ★거꾸로 import 하면 ★순환) ⇒ ★잎 모듈로 뺐다.
      ★★이 칸이 ★빨개져서 ★그 이사를 ★알려 줬다 — ⛔「경로가 바뀌었다」로 ★끄지 말고 ★자리를 ★옮긴다.
      ⚠️★캡처 겹은 ★여기 ★넣지 않는다 — ★이제 ★★그 상수를 ★읽어서 ★«이름이 적혀 있지» 않다.
         ★그 자리를 재는 자 = ★pan-native-scroll.test.js ★P-A1″ 의 ★마지막 단언. */
+  /* ★★★261023 (둘째 고침) — ★셋째 자리가 ★★«이름»에서 ★★«길»로 ★바뀌었다.
+     ★무슨 일 : `js/io/export-html.js:130` 이 ★`.mdl-profile-x` 를 ★손으로 지우고 있었는데,
+       ★★그 줄이 ★★★죽었다 — ★:112 의 `stripEditorOnlyForCapture` 가 ★★`NON_CONTENT_UI_SELECTOR` 를
+       ★읽고(R1 ★8993db73), ★그 상수에 ★`.mdl-profile-x` 가 ★★이미 ★있다.
+       ⇒ ★★죽은 줄을 ★걷었다(★비석은 그 자리에). ⇒ ★★이 칸이 ★빨개져서 ★알려 줬다 — ★★제 일을 했다.
+     ★★★그래서 ★★«이름이 세 곳에 적혀 있나»로는 ★더 못 잰다 —
+       ★내보내기는 ★이제 ★★«상수를 ★경유»하므로 ★그 파일에 ★★이름이 ★없는 게 ★★맞다.
+     ⇒ ★★★셋째 칸을 ★★«길이 ★이어져 ★있나»로 ★바꾼다. ★★그게 ★이름보다 ★★센 단언이다 —
+       ★이름 ★하나가 아니라 ★★그 상수의 ★★전부를 ★잠근다.
+     ⛔「경로가 바뀌었다」로 ★끄지 ★마라 · ⛔다시 ★이름을 ★베껴 넣지 ★마라(★그러면 ★또 ★둘째 명부다). */
   const places = [
     ['js/io/editor-ui-roster.js', 'NON_CONTENT_UI_SELECTOR'],
     ['js/io/section-serialize.js', 'serializeCleanRoot 의 remove 줄'],
-    ['js/io/export-html.js', '내보내기 클론의 remove 줄'],
   ];
   const missing = [];
   for (const [rel, what] of places) {
@@ -112,6 +121,17 @@ test('C4 세 자리 쌍 계약 — 저장 · 직렬화 세척 · 내보내기 �
   }
   assert.deepEqual(missing, [],
     `${X_CLASS} 가 빠진 자리: ${missing.join(' · ')} — 빠진 쪽에서 에디터 단추가 저장본·내보낸 파일에 실린다`);
+  /* ★★셋째 자리 — ★★«내보내기가 ★그 상수에 ★닿나». ★이름이 아니라 ★길을 잰다. */
+  const EH = codeLines('js/io/export-html.js', { templateAware: true }).join('\n');
+  assert.ok(/stripEditorOnlyForCapture\s*\(\s*clone\s*\)/.test(EH),
+    '★내보내기(exportHTMLFile)가 ★캡처 공용 겹을 ★안 부른다 — ★그러면 ' + X_CLASS + ' 가 ★내보낸 파일에 ★실린다');
+  const CS = codeLines('js/io/capture-safety.js', { templateAware: true }).join('\n');
+  assert.ok(/querySelectorAll\?\.\(NON_CONTENT_UI_SELECTOR\)/.test(CS),
+    '★캡처 공용 겹이 ★NON_CONTENT_UI_SELECTOR 를 ★안 읽는다 — ★길이 ★끊겼다(R1 8993db73 이 ★되돌려졌나)');
+  /* ★★★양성대조 — ★이 자가 ★★죽지 않았나. ⛔없으면 ★위 둘이 ★항상 참일 수 있다. */
+  assert.ok(!/querySelectorAll\?\.\(ZZ_NO_SUCH_CONST\)/.test(CS), '★양성대조 — 이 자가 ★아무 글자나 참이라 한다');
+  assert.ok(EH.length > 500 && CS.length > 500,
+    `★양성대조 — 소스를 ★못 읽었다(EH ${EH.length} · CS ${CS.length}) ⇒ ★위 둘이 ★«안 쟀다»다`);
 });
 
 /* ── 패널 쪽(1017t1l2) ─────────────────────────────────
