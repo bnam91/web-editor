@@ -82,7 +82,10 @@ function _contentOf(tb) {
 const _tfOf = (tb) => (tb && tb.closest ? tb.closest('.frame-block[data-text-frame="true"]') : null);
 
 /* ── 블럭마다의 «잰 값» ──────────────────────────────────────────────
-   tb → { W, H, OX, OY, tfW0, measured, touched }
+   tb → { W, H, OX, OY, tfW0, tfMeasW, measured, touched }
+     ★★`tfW0` 와 ★`tfMeasW` 는 ★★다른 일을 한다 — ⛔섞지 마라(261024 에 섞여 있어 사고가 났다) :
+       `tfW0`    = ★✕(`_strip`)이 ★«되돌릴» 폭. ★출처 = `tf.dataset.width`(패널이 정한 값) → 없으면 `'100%'`
+       `tfMeasW` = ★`ftMeasure` 가 ★글자를 ★«어느 폭에서 잴지». ★출처 = ★첫 측정 때의 «지금 폭»(ktf)
    ★`tfW0` = 효과를 ★켜기 «전»의 tf 인라인 폭 — ⛔없으면 사용자가 패널로 정한 폭을
      우리가 ★조용히 먹는다(js/props/prop-text-wireup-position.js applyW 가 `tf.style.width` 를 쓴다). */
 const _tfState = new WeakMap();
@@ -155,14 +158,23 @@ const _baseRect = (W, H) => [[0, 0], [W, 0], [W, H], [0, H]];
 export function ftMeasure(tb, force) {
   const ce = _contentOf(tb);
   if (!ce || !tb.isConnected) return null;
-  const st = _tfState.get(tb) || { tfW0: null, measured: false, touched: false };
+  const st = _tfState.get(tb) || { tfW0: null, tfMeasW: null, measured: false, touched: false };
   if (st.measured && !force) return st;
 
   const tf = _tfOf(tb);
   const kw = tb.style.width, kmh = tb.style.minHeight, kce = ce.style.transform, ktf = tf ? tf.style.width : null;
   tb.style.width = ''; tb.style.minHeight = '';
   ce.style.transform = 'none';
-  if (tf) tf.style.width = st.tfW0 == null ? ktf : st.tfW0;   /* ★켜기 전의 폭으로 — ⛔'' 로 비우면 사용자 폭을 잃는다 */
+  /* ★★★2026-10-24 — ★★«재는 폭»과 ★«✕ 로 되돌릴 폭»을 ★★갈랐다. ★이름 = `FT-TFW0-TWO-USES-01`
+     ★★까닭(★실측) : ★`tfW0` 하나가 ★두 일을 하고 있었다 —
+       ⒜ `ftMeasure` 가 ★글자를 ★«어느 폭에서» 재나      ⒝ `_strip`(✕)이 ★«어느 폭으로» 되돌리나
+     ★★`FT-TFW0-LOST-ON-RESTORE-01` 을 고치려고 ⒝ 의 출처를 `tf.dataset.width` 로 바꿨더니
+       ★★⒜ 까지 끌려가 ★복원 직후 box 폭이 ★338.344px → ★★164.719px 로 ★★더 멀어졌다
+       (★저장 전 box = 400 ⇒ ★오차 62 → ★235). ⇒ ★★★내 고침이 ★다른 축을 ★악화시켰다.
+     ⇒ ★⒜ 는 ★★`tfMeasW`(= 첫 측정 때의 ★«지금 tf 폭» ktf)로 ★따로 둔다 — ★옛 동작 그대로.
+       ★⒝ 만 `tfW0` 다. ★두 칸을 ★섞지 마라.
+     ★재는 자 : `tests/dom/ft-tfw0-restore-loss.dom.spec.js` T1·T2 ＋ ★T5(★복원 직후 폭이 악화되지 않는다) */
+  if (tf) tf.style.width = st.tfMeasW == null ? ktf : st.tfMeasW;   /* ★재는 폭 — ⛔'' 로 비우면 사용자 폭을 잃는다 */
 
   const z = _scaleOf(tb);
   const r = document.createRange();
@@ -177,7 +189,43 @@ export function ftMeasure(tb, force) {
   st.W = b.width / z; st.H = b.height / z;
   st.OX = (b.left - gb.left) / z; st.OY = (b.top - gb.top) / z;
   st.measured = true;
-  if (st.tfW0 == null && tf) st.tfW0 = ktf;
+  if (st.tfMeasW == null && tf) st.tfMeasW = ktf;   /* ★⒜ 재는 폭 — ★첫 측정의 «지금 폭»을 ★그대로 둔다(옛 동작) */
+  /* ★★★2026-10-24 — ★`tfW0` 의 ★출처를 ★고쳤다. ★이름 = `FT-TFW0-LOST-ON-RESTORE-01`
+     ★★증상(★행위 측정 3/3) : ★폭 300px 짜리 글상자에 ★자유변형을 켜고 ★넓혀(box 400) ★저장한 뒤
+       ★★다시 열고 ★효과 ✕ 를 누르면 ★tf 폭이 ★★`400px` 로 ★굳는다 — ★사용자가 정한 ★300 이 ★영영 사라진다.
+       (★저장 ★전에 ✕ 하면 ★`''` 로 ★제대로 돌아온다 ⇒ ★★「저장 전 ✕」≠「다시 연 뒤 ✕」)
+     ★★까닭 : ★옛 줄은 `st.tfW0 = ktf` 였다. ★`ktf` = ★«지금 tf 폭»인데,
+       ★복원 뒤의 ★«지금»은 ★★저장된 ★box 폭(400)이다 — ★켜기 전 폭이 ★아니다.
+       ★`tfW0` 가 ★★WeakMap 에만 살아서 ★다시 열면 ★비어 있는 것이 ★뿌리다.
+     ★★방아쇠 : ★복원 뒤 ★`watchAllFx` → `ftMeasure` 가 ★이 줄을 ★돌린다.
+       ⛔★261024 에 ★내가 `rebindAll` 에 더한 `watchAllFx` 한 줄이 ★그 경로를 ★★늘렸다(★복원·페이지전환·undo/redo).
+       ★단 ★`effects-registry.js:136` 의 ★`load` 리스너가 ★원래도 불렀으므로
+         ★「내 줄이 없었으면 손실이 없었다」는 ★★거짓이다 — ★늘어난 것은 ★★«경로의 수»다.
+     ★★고침 : ★★«사용자가 패널로 정한 폭»의 ★정본을 ★먼저 읽는다 — ★`tf.dataset.width`.
+       ★근거 : `js/props/prop-text-wireup-position.js:9` ★`applyW` 가 ★`style.width` 와 ★`dataset.width` 를
+         ★★같이 쓴다. ★그리고 ★그 dataset 은 ★★저장본에 실려 ★복원 뒤에도 ★살아 있다(★실측 3/3: `"300"`).
+       ⇒ ★★새 저장 키를 ★만들지 ★않았다(★저장 꼴을 ★안 바꾼다 ⇒ 골든·바이트 분모 무접촉).
+     ★★`dataset.width` 가 ★없으면(= ★사용자가 폭을 ★한 번도 안 정했으면) ★★`'100%'` 로 ★둔다.
+       ★근거(★실측 261024 · ★핀 판 5f845727) : ★갓 만든 tf 의 ★`style.width` 는 ★★`'100%'` 이고
+         ★computed 는 ★796 이다. ★그 값의 ★정본 = `js/block-factory.js` `_makeTextFrame` 의
+         `style.cssText = 'background:transparent;width:100%;box-sizing:border-box;'`.
+       ⛔★`ktf` 로 ★두면 ★복원 뒤 ★그것이 ★★box 폭이라 ★★그 갈래도 ★손실이다(★실측: ★400px 로 굳었다).
+       ⛔★`''` 로 ★두면 ★`width:100%` 가 ★사라져 ★★프레임 폭이 ★또 달라진다.
+       ★★★이 `'100%'` 는 ★«손으로 박은 값»이다 ⇒ ★검사가 ★`_makeTextFrame` 의 ★cssText 에서
+         ★그 값을 ★파싱해 ★대조한다(★갈리면 ★빨강). ★「★명부가 둘이면 ★재는 자를 걸어라」.
+     ★★★⛔그런데 ★이 갈래는 ★★«근본 고침»이 ★아니다 :
+       ★`tfW0` = ★«켜기 ★전» 폭인데 ★그것은 ★★어디에도 ★저장되지 ★않는다(★WeakMap 뿐).
+       ⇒ ★사용자가 ★폭을 ★안 정한 판에서 ★「켜기 전 값」을 ★복원 뒤 ★★알 길이 ★없다 —
+         ★`'100%'` 는 ★★«기본값 추정»이다. ★사용자가 ★패널 ★밖의 ★다른 길로 ★폭을 정했다면 ★틀린다.
+       ★★근본 처방 = ★켤 때 ★`tfW0` 를 ★★데이터로 ★남기기(저장 꼴 변경) ⇒ ★★분모가 넓어 ★안 골랐다.
+       ★이름 = `FT-TFW0-NOT-PERSISTED-01` (★★미해결 · ★0.9.9 후보)
+     ★재는 자 : `tests/dom/ft-tfw0-restore-loss.dom.spec.js` (★행위 · 경로 넷 ＋ 변이) */
+  if (st.tfW0 == null && tf) {
+    const dsW = tf.dataset && tf.dataset.width;
+    st.tfW0 = (dsW != null && dsW !== '' && Number.isFinite(parseFloat(dsW)))
+      ? (parseFloat(dsW) + 'px')
+      : '100%';   /* ★`_makeTextFrame` 의 기본 — ⛔`ktf`(복원 뒤 box 폭)도 `''` 도 아니다 */
+  }
 
   tb.style.width = kw; tb.style.minHeight = kmh;
   ce.style.transform = kce;
