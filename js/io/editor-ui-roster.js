@@ -40,7 +40,7 @@
    ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
    ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
 export const NON_CONTENT_UI_SELECTOR =
-  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .mdl-profile-x, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox, .tfh-handle, .tfh-grid, .tfh-fx, .tfh-edge, .tfh-layer';
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .mdl-profile-x, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox, .tfh-handle, .tfh-grid, .tfh-fx, .tfh-edge, .tfh-layer, .sticker-corner-handle, .hlb-handle';
 /* ★★★.tfh-handle · .tfh-grid (2026-10-24 · U3 자유변형 손잡이 · 지디 · 현빈 GO) — ★글상자 ★자유변형의
      ★모서리·변 ★손잡이 ★12 와 ★격자다. ★`.text-block` 의 ★«자식»으로 붙으므로 ★★여기 올리지 않으면
      ★저장본·PNG·썸네일·단독 HTML 로 ★★샌다(★고른 채 내보내면 ★박힌다 = `EXPORT-SELECTED-HANDLE-BAKED-IN-01`).
@@ -48,6 +48,26 @@ export const NON_CONTENT_UI_SELECTOR =
      ★폴더 타일(`.ft-tile`·`.ft-add`·`.ft-sub` · ★레포 ★48건). ★`tfh-`·`tfc-`·`tform-` 는 ★0건이었다.
    ★계약 짝 : `js/io/section-serialize.js` `serializeCleanRoot` 의 remove 줄에도 ★같이 올렸다(★한 커밋).
    ★판정 : `tests/_export-channels.js` ★`CAPTURE_VERDICT` 에 ★`_Y` 로 적었다(★R0b 가 빈 칸을 잡는다). */
+/* ★★★.sticker-corner-handle · .hlb-handle (2026-10-24 · ★적대적 ⒠ C5 · 지디)
+     ★스티커 ★모서리 손잡이 ★4 와 ★선 스티커 ★끝점·두께 손잡이 ★2~3 이다. ★블럭의 ★«자식»으로 붙는다
+     (`js/sticker-select.js:329` · `:204`).
+   ★★★계약을 ★먼저 쟀다(★머리말의 ⛔「serializeProject 가 실제로 지우는지 먼저 확인」) :
+     ★저장은 ★★이미 지운다 — `js/io/section-serialize.js` 에 ★두 이름이 ★있고,
+     ★행위 측정(261024)에서 ★`serializeSectionClone` 산출에 ★★0 건이었다. ⇒ ★데이터 손실 위험 없다.
+   ★★★그런데 ★캡처는 ★안 지웠다 — ★행위로 ★쟀다(⛔소스 독해가 아니다) :
+       스티커(rect)   라이브 ★4 · 저장 ★0 · ★★캡처 클론 ★★4
+       선 스티커(hlb) 라이브 ★3 · 저장 ★0 · ★★캡처 클론 ★★3
+     ⇒ ★고른 채 ★PNG·썸네일·단독 HTML 로 내보내면 ★★보라 손잡이가 ★박힌다.
+   ★★`.shape-handle` 은 ★왜 ★안 새나(★대조) : CSS 가 ★`display:none` 기본이고
+     `.shape-block.selected .shape-handle` 로만 켜는데(editor-blocks.css:2543·:2551),
+     ★★캡처 클론에는 ★`.selected` 가 ★★0 이다(★261024 실측 `capSel: 0`) ⇒ ★꺼진다.
+     ⛔★이 둘(`:4466`·`:4490`)에는 ★그 조건이 ★★없다 ⇒ ★CSS 는 ★늘 그린다.
+   ★★⛔그래서 ★CSS 에 ★조건을 ★붙이는 길을 ★★고르지 ★않았다 :
+     ★`export-css-collect.js` 가 ★에디터 전용 CSS 를 ★거르므로 ★단독 HTML 에는 ★그 규칙이 ★안 실릴 수 있다
+     ⇒ ★★«요소 명부»와 ★«CSS 거름»은 ★따로다. ★요소를 ★지우는 쪽이 ★세 출구를 ★한 번에 닫는다.
+   ★판정은 ★★이미 나 있었다 — `tests/_export-channels.js:410`·`:412` 가 ★`_Y`(「캡처도 지워야 함」).
+     ⇒ ★★판정만 있고 ★제품이 ★안 따라온 칸이었다(★`S3-GAPS` 의 「안 막히는 칸」 그 내용).
+   ★재는 자 : `tests/dom/sticker-handle-capture-leak.dom.spec.js` (★행위 · 양성·음성대조 포함) */
 /* ★.annot-handle · .annot-selbox (1013t1A3) — 어노테이션 선택 중에만 사는 손잡이. serializeCleanRoot 의 remove 줄에 같이 올렸다(계약 짝). */
 /* ★.mdl-rotate-zone (2026-10-08 지디) — ★모달 블럭의 회전 손잡이. ⛔빠져 있었다.
    ★증상: modal-frameify U1·U3 가 ★origin/dev 에서 빨강이었다 — 「프레임화 → ⌘Z 한 번 = 앞 직렬화와

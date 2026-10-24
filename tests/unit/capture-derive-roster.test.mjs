@@ -229,11 +229,37 @@ test('R3 ★넓힌 몫 — serialize ∖ NON_CONTENT 가 정본에 들었고, �
   assert.ok(srOnly.length > 0, '★넓힌 몫이 0 이다 — 판정 ⑴ 이 효과가 없다(판을 먼저 의심하라)');
   assert.ok(srOnly.every(s => CANON.all.includes(s)));
   const { gaps } = judge(CANON.all, P, CAPTURE_VERDICT);
-  for (const s of ['.hlb-handle', '.sticker-corner-handle', '.gradient-corner-handle']) {
-    assert.ok(srOnly.includes(s), `★${s} 가 serialize 몫이 아니다 — 해석을 다시 적어라`);
-    assert.equal(CAPTURE_VERDICT[s].v, 'yes');
-    assert.ok(gaps.includes(`${s} ∌ capture`), `★${s} 가 캡처에서 이제 막힌다 — R1 해석이 바뀌었다`);
+
+  /* ★★★2026-10-24 — ★`.sticker-corner-handle` · `.hlb-handle` ★둘을 ★★고쳤다(★지디 · ★적대적 ⒠ C5).
+     ★옛 단언은 ★셋 모두가 ★「캡처에서 ★안 막힌다」였고, ★그 메시지가 ★이미
+       「★${s} 가 캡처에서 ★이제 막힌다 — R1 해석이 바뀌었다」로 ★★이 날을 ★예상해 뒀다.
+     ⇒ ★★방향을 ★갈라 ★★쌍으로 ★잠근다 : ★고친 둘은 ★«막힌다» · ★안 고친 하나는 ★«아직 안 막힌다».
+     ★행위 측정(261024) : 스티커 라이브 4 → 캡처 ★0 · 선 스티커 3 → 캡처 ★0
+       (`tests/dom/sticker-handle-capture-leak.dom.spec.js` K1·K2 가 ★행위로 잠근다)
+     ★`.gradient-corner-handle` 은 ★★아직이다 — ★적대적 ⒠ : 「고르면 ★탈출층으로 옮겨 가 ★보통은 안전.
+       ★탈출 전 ★한 틱 안에 내보내면 ★남을 수 있다 — ★★못 쟀다」 ⇒ ★★미측정으로 ★남긴다. */
+  const FIXED  = ['.sticker-corner-handle', '.hlb-handle'];
+  const PENDING = ['.gradient-corner-handle'];
+  for (const s of [...FIXED, ...PENDING]) assert.equal(CAPTURE_VERDICT[s].v, 'yes');
+
+  /* ★★고친 둘은 ★이제 ★«넓힌 몫»에 ★★없다 — ★`NON_CONTENT` ★안으로 ★들어갔기 때문이다.
+     ★★그것이 ★바로 ★고침의 ★꼴이다(★`srOnly = SR ∖ NC`) ⇒ ★여기서 ★그렇게 ★단언한다.
+     ⛔★261024 : ★처음엔 ★`srOnly.includes(FIXED)` 를 ★그대로 두어 ★★내 고침이 ★제 단언을 ★깼다. */
+  for (const s of FIXED) {
+    assert.ok(!srOnly.includes(s),
+      `★${s} 가 아직 «넓힌 몫(SR ∖ NC)» 에 있다 — 요소 명부에 안 들어갔다`);
+    assert.ok(CANON.by[NC].includes(s),
+      `★${s} 가 NON_CONTENT_UI_SELECTOR 정본에 없다 — 261024 고침이 되돌려졌다`);
+    assert.ok(!gaps.includes(`${s} ∌ capture`),
+      `★${s} 가 ★또 캡처에서 안 막힌다 — 261024 고침(요소 명부)이 되돌려졌다`);
   }
+  for (const s of PENDING) assert.ok(srOnly.includes(s), `★${s} 가 serialize 몫이 아니다 — 해석을 다시 적어라`);
+  for (const s of PENDING) {
+    assert.ok(gaps.includes(`${s} ∌ capture`),
+      `★${s} 가 캡처에서 ★이제 막힌다 — ★고쳤으면 ★PENDING 에서 ★FIXED 로 옮기고 ★행위 검사를 ★같이 걸어라`);
+  }
+  /* ★★음성대조 — ★`gaps` 가 ★비어 있어 ★위 둘이 ★동시에 참이 되는 길을 ★막는다 */
+  assert.ok(gaps.length > 0, '★gaps 가 0 이다 — 그러면 FIXED 단언이 ★항등식이 된다(판을 먼저 의심하라)');
   t.diagnostic(`넓힌 몫 ${srOnly.length} 중 캡처 안 막힘 ${srOnly.filter(s => gaps.includes(s + ' ∌ capture')).length}`);
 });
 
