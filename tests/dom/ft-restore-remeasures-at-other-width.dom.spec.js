@@ -123,19 +123,22 @@ test('X0 ★전제 — 장면이 선다(행렬이 걸리고, 긴 글과 짧은 �
   expect(errs, `★앱 오류: ${errs.join(' | ')}`).toEqual([]);
 });
 
-test('X1 ★★미해결을 ★수로 박는다 — ★여러 줄은 ★복원 뒤 행렬이 ★갈린다', async ({ page }) => {
+test('X1 ★★★닫혔다 — ★여러 줄도 ★복원 뒤 ★행렬이 ★같다 (★전엔 ★0.2856 갈렸다)', async ({ page }) => {
   await bootApp(page);
   const r = await run(page, LONG);
   expect(r.fail).toBeUndefined();
   console.log('[X1]', JSON.stringify(r));
 
-  /* ★★★이 단언은 ★«결함이 ★아직 산다»를 ★잠근다 — ⛔「고쳐졌다」가 ★아니다.
-     ★고치면 ★이 칸이 ★빨개지고, ★그때 ★`FT-RESTORE-REMEASURES-AT-OTHER-WIDTH-01` 을 ★닫아라.
-     ★261024 측정값 : maxMatrixDiff ★0.285647 · widthDelta ★−58 */
+  /* ★★★2026-10-24 ⅲ) — ★이 칸을 ★뒤집었다. ★고침 = `ftMeasure` 의 ★`tfMeasW` 출처를
+     ★`tf.dataset.width`(★사용자 폭)로 ⇒ ★저장 전과 ★복원 뒤가 ★★같은 폭에서 ★잰다.
+     ★★그 고침은 ★`FT-AXIS-ALIGNED-TRANSFORM-LOST-ON-RESTORE-01`(축정렬 손실)을 ★닫은 ★뒤에야
+       ★제대로 ★판정할 수 ★있었다 — ★그 전에는 ★그것이 ★끼어들어 ★내가 ★「두 자가 반대」라 ★잘못 읽었다.
+     ★고치기 전 실측 : matrix3d 첫 성분 ★1.14273 → ★0.857083 (차 ★0.285647) · 글자칸 폭 ★−115px
+     ★고친 뒤 실측   : ★matDiff ★★0 · ★축정렬 장면도 ★0.35706 → ★★0 */
   expect(r.maxMatrixDiff,
-    `★행렬 차가 사라졌다 (${r.maxMatrixDiff}) — ★고쳐졌다면 이 칸과 X2 를 닫고 명부에서 지워라`
-  ).toBeGreaterThan(NOISE * 100);
-  expect(Math.abs(r.widthDelta), `★글자칸 폭 차가 사라졌다 (${r.widthDelta})`).toBeGreaterThan(20);
+    `★여러 줄에서 ★복원 전후 행렬이 ★또 갈린다 (${r.maxMatrixDiff}) — ⅲ) 고침이 되돌려졌다`
+  ).toBeLessThan(NOISE);
+  expect(r.widthDelta, `★글자칸 폭이 변했다 (${r.widthDelta})`).toBe(0);
 });
 
 test('X2 ★★음성대조 — ★한 줄은 ★복원 뒤에도 ★같다 (★「전부 갈린다」가 아니다)', async ({ page }) => {

@@ -213,7 +213,28 @@ export function ftMeasure(tb, force) {
   st.W = b.width / z; st.H = b.height / z;
   st.OX = (b.left - gb.left) / z; st.OY = (b.top - gb.top) / z;
   st.measured = true;
-  if (st.tfMeasW == null && tf) st.tfMeasW = ktf;   /* ★⒜ 재는 폭 — ★첫 측정의 «지금 폭»을 ★그대로 둔다(옛 동작) */
+  /* ★★★2026-10-24 ⅲ) — ★⒜ ★«재는 폭»의 ★출처를 ★★`tf.dataset.width` 로 ★고른다.
+     ★이름 = `FT-MEASURE-WIDTH-DESIGN-UNDECIDED-01` ★★닫힘(★측정이 ★한 방향을 가리킨다).
+     ★★왜 : ★저장 ★전에는 ★«사용자 폭»에서 ★재고, ★복원 ★뒤에는 ★«저장된 box 폭»에서 ★재고 있었다
+       ⇒ ★긴 글이 ★다른 폭에서 ★꺾여 ★`W` 가 달라지고 ★행렬이 ★갈렸다
+         (★`FT-RESTORE-REMEASURES-AT-OTHER-WIDTH-01` = ★적대적 ⒠ ★C3).
+     ★★측정 — ★★축정렬 손실을 ★닫은 ★뒤에 ★다시 쟀다(★그 전에는 ★그것이 ★끼어들어 ★판정이 ★틀렸다) :
+       | 장면 | `ktf` matDiff | ★`dataset.width` matDiff |
+       | 여러 줄·축정렬 | ★0.35706  | ★★0 |
+       | 여러 줄·사다리꼴 | ★0.285647 | ★★0 |
+       | 한 줄·둘다      | 0        | 0 |
+       ★그리고 ★★모든 장면에서 `cornersKept ★true` · `tf 400px → ★400px` · `✕ 뒤 ★300px`
+       ⇒ ★★box 영향 ★0 · ★C2 영향 ★0 · ★네 점 ★유지.
+     ★★★앞서 적었던 ★「두 자가 ★반대를 가리킨다」는 ★★★철회한다 —
+       ★그 전제는 ★축정렬 손실이 ★`tf.style.width` 에 ★`W` 를 ★싣고 있던 ★탓이었다.
+     ★★⒜ 와 ⒝ 는 ★★여전히 ★다른 칸이다 — ★★폴백이 ★갈린다 :
+       `tfW0`(✕ 가 되돌릴 폭) : `dataset.width` → ★없으면 ★`'100%'`
+       `tfMeasW`(재는 폭)     : `dataset.width` → ★없으면 ★`ktf`
+     ★재는 자 : `ft-restore-remeasures-at-other-width.dom.spec.js` X1 · `ft-tfw0-restore-loss` T5 */
+  if (st.tfMeasW == null && tf) {
+    const dsW = tf.dataset && tf.dataset.width;
+    st.tfMeasW = (dsW != null && dsW !== '' && Number.isFinite(parseFloat(dsW))) ? (parseFloat(dsW) + 'px') : ktf;
+  }
   /* ★★★2026-10-24 — ★`tfW0` 의 ★출처를 ★고쳤다. ★이름 = `FT-TFW0-LOST-ON-RESTORE-01`
      ★★증상(★행위 측정 3/3) : ★폭 300px 짜리 글상자에 ★자유변형을 켜고 ★넓혀(box 400) ★저장한 뒤
        ★★다시 열고 ★효과 ✕ 를 누르면 ★tf 폭이 ★★`400px` 로 ★굳는다 — ★사용자가 정한 ★300 이 ★영영 사라진다.

@@ -142,43 +142,41 @@ test('T4 ★`100%` 는 ★손으로 박은 값이다 — ★`_makeTextFrame` 의
   expect(fb[1], `★두 값이 갈렸다 — _makeTextFrame=${m[1]} · 폴백=${fb && fb[1]}`).toBe(m[1]);
 });
 
-test('T5 ★★«재는 폭»이 ★«되돌릴 폭»에 ★끌려가지 않는다 — ★복원 직후 ★`W` 가 ★setW 와 ★무관하다', async ({ page }) => {
-  await bootApp(page);
-  /* ★★★261024 ★정정 — ★이 칸의 ★자를 ★다시 세웠다.
-     ★옛 자 : 「복원 직후 ★`tf.style.width`(= box 폭)가 setW 와 무관」.
-     ★★그 자가 ★틀렸다 : ★장면이 ★★직사각형 네 점이라
-       ★★`FT-AXIS-ALIGNED-TRANSFORM-LOST-ON-RESTORE-01`(★변형이 통째로 사라진다)이 ★끼어들어
-       ★`tf.style.width` 가 ★box 가 아니라 ★★`W` 를 받고 있었다.
-       ⇒ ★내가 그것을 ★「box 폭 악화(62 → 235)」로 ★읽었고 ★★그 판정을 ★★철회했다.
-     ★★교차 측정으로 ★참값을 ★얻었다 : ★`box.w` 는 ★두 판 ★모두 ★★400(`boxDelta: 0`).
-     ⇒ ★새 자 : ★★«사다리꼴» 장면(★변형 손실이 ★안 끼어든다) ＋ ★★`W` 를 ★직접 ★견준다.
-       ★`tfW0`(되돌릴 폭)만 ★다른 두 판에서 ★`W`(재는 쪽 산출)가 ★★같아야 ★한다. */
-  const TRAP = [[40, 0], [360, 0], [400, 140], [0, 140]];
-  const withW = await run(page, true, true, TRAP);
-  const noW   = await run(page, false, true, TRAP);
-  expect(withW.fail).toBeUndefined(); expect(noW.fail).toBeUndefined();
-  console.log('[T5]', JSON.stringify({ withW: { W: withW.measuredW, c: withW.cornersAfter, x: withW.afterX },
-                                       noW:   { W: noW.measuredW,   c: noW.cornersAfter,   x: noW.afterX } }));
+test('T5 ★★«재는 폭»과 ★«되돌릴 폭»은 ★여전히 ★다른 칸이다 — ★★폴백이 ★갈린다', () => {
+  /* ★★★2026-10-24 ⅲ) — ★이 칸의 ★자를 ★★두 번째로 ★다시 세웠다. ★★역사를 ★적는다 :
+     ⒜ ★첫 자 : 「복원 직후 ★`tf.style.width`(box 폭)가 ★setW 와 무관」
+        ⇒ ★★틀렸다 — 장면이 ★직사각형이라 ★`FT-AXIS-ALIGNED-TRANSFORM-LOST-ON-RESTORE-01` 이
+          ★끼어들어 ★그 값이 ★box 가 아니라 ★`W` 였다. ★내가 그것을 ★「box 악화」로 읽고 ★철회했다.
+     ⒝ ★둘째 자 : 「★사다리꼴 장면에서 ★복원 직후 ★`W` 가 ★setW 와 무관」
+        ⇒ ★★ⅲ) 에서 ★★전제가 ★바뀌었다 — ★`tfMeasW` 의 ★출처를 ★★`tf.dataset.width` 로 ★골랐으므로
+          ★「setW 에 따라 ★`W` 가 ★달라지는 것」이 ★이제 ★★«설계»다(★C3 를 ★그것으로 ★닫았다).
+          ⇒ ★그 자는 ★★더는 ★참이 아니다.
+     ⒞ ★★셋째 자(지금) : ★두 칸이 ★★«다른 칸»임의 ★증거 = ★★폴백이 ★갈린다.
+        `tfW0`(✕ 가 되돌릴 폭) : `dataset.width` → ★없으면 ★★`'100%'`
+        `tfMeasW`(재는 폭)     : `dataset.width` → ★없으면 ★★`ktf`
+     ★★이 칸이 ★막는 사고 — ★261024 에 ★실제로 났다 :
+       ★한 칸이 ★두 일을 하던 때 ★`tfW0` 출처만 고쳤는데 ★`ftMeasure` 가 ★끌려가
+       ★복원 직후 `W` 가 ★338.344 → ★164.719 로 ★바뀌었다.
+     ⛔★행위로는 ★여기서 ★안 잰다 — ★✕ 쪽은 ★`T1`·`T2` 가, ★재는 쪽은
+       `ft-restore-remeasures-at-other-width.dom.spec.js` ★`X1` 이 ★행위로 잠근다.
+       ★이 칸은 ★★«두 칸이 ★합쳐지는 것»만 ★막는다(★구조). */
+  const src = fs.readFileSync(path.join(ROOT, 'js', 'effects-freetransform.js'), 'utf8');
 
-  /* ★★앞끝 전제 ⑴ — ★사다리꼴이라 ★네 점이 ★유지됐나. ⛔덮어써졌으면 ★다른 결함을 재는 것이다. */
-  for (const [n, r] of [['withW', withW], ['noW', noW]])
-    expect(r.cornersAfter, `★${n}: 네 점이 덮어써졌다 — FT-AXIS-ALIGNED-… 가 끼어들었다`)
-      .toBe('40,0,360,0,400,140,0,140');
+  /* ★전제 — ★두 이름이 ★둘 다 ★산다 */
+  for (const name of ['tfW0', 'tfMeasW'])
+    expect(src.includes(name), `★${name} 이 사라졌다 — 두 칸이 합쳐졌으면 ★이 칸을 다시 판정해라`).toBe(true);
 
-  /* ★★앞끝 전제 ⑵ — ★두 판의 ★«되돌릴 폭»이 ★★달라야 ★이 비교가 ★선다(⛔같으면 항등식) */
-  expect(withW.base.computed, '★전제: 두 판의 켜기 전 폭이 같다 — 비교가 무의미하다')
-    .not.toBe(noW.base.computed);
-  expect(withW.measuredW, '★전제: W 를 못 쟀다').not.toBeNull();
+  /* ★★본 단언 — ★폴백이 ★갈린다. ★`tfW0` 쪽은 ★`'100%'`, ★`tfMeasW` 쪽은 ★`ktf`. */
+  const w0Fallback = src.match(/:\s*'(100%|[0-9.]+px)';\s*\/\* ★`_makeTextFrame` 의 기본/);
+  expect(w0Fallback, '★`tfW0` 의 폴백 줄을 못 찾았다 — 이 검사의 자가 낡았다').toBeTruthy();
+  expect(w0Fallback[1], '★`tfW0` 의 폴백이 바뀌었다 — T4 와 같이 다시 판정해라').toBe('100%');
 
-  /* ★★★본 단언 — ★복원 직후 ★`W` 가 ★같다 = ★재는 쪽이 ★되돌릴 쪽에 ★안 끌려간다.
-     ★261024 실측 : 두 칸을 ★섞으면 ★withW `280.03` · ★noW `373.36` 으로 ★갈린다(★변이로 확인).
-     ★이름 = `FT-TFW0-TWO-USES-01` */
-  expect(withW.measuredW,
-    `★복원 직후 W 가 setW 에 따라 갈렸다 — 「재는 폭」이 「되돌릴 폭」에 끌려간다 ` +
-    `(withW ${withW.measuredW} · noW ${noW.measuredW})`
-  ).toBe(noW.measuredW);
+  const measBlock = src.slice(src.indexOf('st.tfMeasW = (dsW'));
+  expect(measBlock.slice(0, 200), '★`tfMeasW` 의 폴백이 `ktf` 가 아니다 — 두 칸이 같아졌으면 다시 판정해라')
+    .toContain(': ktf');
 
-  /* ★★음성대조 — ★✕ 뒤 폭은 ★★갈려야 ★한다(★그게 C2 고침의 ★목적이다) */
-  expect(withW.afterX.computed, '★✕ 뒤 폭이 두 판에서 같다 — C2 고침(사용자 폭 복원)이 죽었다')
-    .not.toBe(noW.afterX.computed);
+  /* ★★음성대조 — ★`tfW0` 쪽 줄에는 ★`ktf` 폴백이 ★없다(★있으면 ★두 칸이 ★같아진 것이다) */
+  const w0Block = src.slice(src.indexOf('st.tfW0 = (dsW'), src.indexOf('st.tfW0 = (dsW') + 220);
+  expect(w0Block, '★`tfW0` 가 `ktf` 로 떨어진다 — 두 칸이 같아졌다(261024 의 그 사고가 돌아온다)')
+    .not.toContain(': ktf');
 });
