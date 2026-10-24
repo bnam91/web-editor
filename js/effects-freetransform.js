@@ -294,7 +294,23 @@ export function watchAllFxFreeTransform(root = document) {
      ★★까닭(실측 261024 · ★현빈 신고) : ★`clearSelectionMarks` 의 ★«한 틱 뒤 동기화»는
        ★★«고르거나 ★놓을 때»만 ★돈다 ⇒ ★★★문서를 ★열자마자는 ★그 함수가 ★안 ★불려
        ★★선택이 ★복원돼 ★있어도 ★손잡이가 ★★안 ★붙었다(★실측: ★selected 1 인데 ★grid 0 · handle 0).
-     ⇒ ★★여기가 ★그 자리다 — ★명부(watchAllFx)가 ★로드 뒤 ★이 함수를 ★부른다. */
+     ⇒ ★★여기가 ★그 자리다 — ★명부(watchAllFx)가 ★로드 뒤 ★이 함수를 ★부른다.
+
+     ★★★2026-10-24 ★후속 측정 — ★★이 줄은 ★★«중복»이다. ★이름 = `FT-SYNCALL-IN-WATCHALL-DUPLICATE-01`
+       (★앞 이름 `FT-SYNCALL-IN-WATCHALL-UNMEASURED-01` 은 ★이 측정으로 ★닫는다)
+     ⒜ ★소스 : ★위 `els` 와 `ftHandlesSyncAll` 이 ★★«같은 선택자»(`.text-block[data-tf-corners]`)·
+        ★★«같은 root»·★★«같은 함수»(`ftHandlesSync`)를 쓴다. ★위 고리가 블록마다
+        `applyFxFreeTransform` → ★그 끝(:221)에서 ★이미 `ftHandlesSync(tb)` 를 ★부른다.
+     ⒝ ★행위 : ★`applyFxFreeTransform` 이 ★:221 ★앞에서 ★빠지는 ★길 넷을 ★판으로 만들어 쟀다 —
+        ★`zeroWH`(측정 W·H 가 0) ★`collinear`(네 점이 한 줄) 둘 다 ★`applied=false` 인데
+        ★그 뒤 ★`ftHandlesSync` 도 ★★`0` 을 돌려주고 ★손잡이를 ★★못 그린다 ⇒ ★★구해주는 길이 ★없다.
+        ★`gain`(ftHandlesSync 가 더 그린 수) = ★★네 판 ★전부 ★0.
+     ⛔★`noCE`(contenteditable 없음) 판은 ★★★미측정이다 — ★내 변조가 ★실패해 `applied=true` 가 나왔다.
+     ⒞ ★★그런데도 ★줄을 ★★둔다 : ★지워도 ★동작은 ★같지만 ★★어떤 검사도 ★이 줄을 ★안 잠그므로
+        ★지웠을 때 ★깨지면 ★아무도 ★모른다. ★두 번째 패스의 ★값은 ★미미하다.
+     ⇒ ★★대신 ★★«두 집합이 ★갈리면 ★빨개지는 자»를 ★세웠다 :
+        `tests/unit/ft-syncall-is-duplicate.test.mjs` — ★누가 ★한쪽 선택자를 ★넓히면 ★거기서 ★빨강이고
+        ★그때 ★「중복인가」를 ★다시 ★판정하게 ★된다. ⛔주석으로는 ★못 막는다(★재는 자가 있어야 집행된다). */
   window.ftHandlesSyncAll?.(root);
   return n;
 }
