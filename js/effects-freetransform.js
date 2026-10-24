@@ -305,7 +305,12 @@ export function watchAllFxFreeTransform(root = document) {
         ★`zeroWH`(측정 W·H 가 0) ★`collinear`(네 점이 한 줄) 둘 다 ★`applied=false` 인데
         ★그 뒤 ★`ftHandlesSync` 도 ★★`0` 을 돌려주고 ★손잡이를 ★★못 그린다 ⇒ ★★구해주는 길이 ★없다.
         ★`gain`(ftHandlesSync 가 더 그린 수) = ★★네 판 ★전부 ★0.
-     ⛔★`noCE`(contenteditable 없음) 판은 ★★★미측정이다 — ★내 변조가 ★실패해 `applied=true` 가 나왔다.
+     ★★`noCE` 판도 ★★261024 에 ★닫았다 — ★처음엔 ★내 변조가 ★실패해 `applied=true` 가 나왔다.
+        ★까닭 : ★`_contentOf`(:75)가 ★`[contenteditable]` 이 ★없으면 ★★`.tb-h1,…,.itb-text` 로 ★★폴백한다
+          ⇒ ★속성만 ★지워서는 ★`ce` 가 ★살아 있었다. ★폴백 명부의 ★class 까지 ★떼어야 ★∅ 가 된다.
+        ★다시 잰 값 : `ceFound=false` · `applied=false` · `syncRet=★0` · ★`gain=★0`
+        ⇒ ★★early return ★넷 ★전부 ★`gain 0` ⇒ ★★중복 판정이 ★네 판에서 ★섰다.
+     ⛔★단 ★「`ce` 가 ∅ 인 ★글상자가 ★★앱 경로에서 ★생기나」는 ★★★안 쟀다 — ★인공 장면이다.
      ⒞ ★★그런데도 ★줄을 ★★둔다 : ★지워도 ★동작은 ★같지만 ★★어떤 검사도 ★이 줄을 ★안 잠그므로
         ★지웠을 때 ★깨지면 ★아무도 ★모른다. ★두 번째 패스의 ★값은 ★미미하다.
      ⇒ ★★대신 ★★«두 집합이 ★갈리면 ★빨개지는 자»를 ★세웠다 :
