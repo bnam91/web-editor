@@ -992,15 +992,48 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
          ⇒ 껍데기 수집은 그릇 «밖»만 본다. 자식이 없으면 _kidsBox 가 null 이라 옛 수집과 «같은 결과»다. */
       const _kidsBox = _kidsBoxOf(el);   /* ★표 한 자리에서 — G19 그리드 · ★1011t1C 인용구 */
       const _notKid = (n) => !_kidsBox || !_kidsBox.contains(n);
-      const w = parseInt(el.dataset.bannerW || el.dataset.compW || el.dataset.width) || parseFloat(el.style.width) || null;
+      /* ★★★2026-10-24 — ★`parseFloat(el.style.width)` 이 ★★«퍼센트»를 ★★px 로 ★둔갑시켰다.
+         ★★실측 : `parseFloat('100%') === 100`. ★단위가 ★조용히 ★사라진다.
+         ★어노테이션은 `block.style.width = '100%'`(annotation-block.js:438 · ★섹션을 덮는 ★오버레이)라
+           ★Figma JSON 에 ★★`width: 100` 이 ★실렸다 — ★★«100px 짜리 상자»다.
+         ⛔내가 ★처음 붙인 이름 `ANNOT-FIGMA-BOX-IS-CSS-DEFAULT-NOT-DRAWING-EXTENT-01` 은
+           ★★까닭을 ★틀렸다(「CSS 기본 100px」이 ★아니다 · CSS 는 `width:100%` 다).
+           ★참 이름 = ★`FIGMA-GENERIC-PARSES-PERCENT-AS-PX-01`
+         ⇒ ★★px(또는 단위 없는 수)만 ★받고, ★아니면 ★★«살아 있는 요소»의 실측 폭으로 ★떨어진다.
+         ★재는 자 = `tests/dom/annot-same-as-other-blocks.dom.spec.js` A1 · A4 */
+      const _pxOnly = (v) => {
+        if (!v) return null;
+        const t = String(v).trim();
+        if (!/^-?[0-9.]+(px)?$/.test(t)) return null;   /* ⛔% · em · rem · calc() · auto 전부 거절 */
+        const n = parseFloat(t);
+        return Number.isFinite(n) ? n : null;
+      };
+      const _liveEl = el.id ? document.getElementById(el.id) : null;
+      const w = parseInt(el.dataset.bannerW || el.dataset.compW || el.dataset.width) || _pxOnly(el.style.width)
+                || Math.round((_liveEl && _liveEl.offsetWidth) || el.offsetWidth || 0) || null;
       /* ★자식이 있는 그리드의 «껍데기 높이» = 격자(.grd-inner) 높이 — 그리드 상자 높이엔 자식이 들어 있어 그대로 쓰면
          Figma 에서 격자 프레임이 자식 높이만큼 길어지고 그 밑에 자식이 «또» 쌓인다. */
       const _liveInner = (_kidsBox && el.id) ? document.getElementById(el.id)?.querySelector(_kidsInnerSel(el)) : null;   /* ★표 한 자리에서 */
+      /* ★높이도 ★같은 병이었다 — `parseFloat(el.style.height)` 이 `'100%'` 를 ★100 으로 읽었다.
+         ★다만 ★여기엔 ★★«살아 있는 높이» 폴백이 ★이미 ★맨 뒤에 ★있었다 ⇒ ★`_pxOnly` 로 거르면 ★그리로 떨어진다. */
       const h = (_liveInner && Math.round(_liveInner.offsetHeight))
-                || parseInt(el.dataset.bannerH || el.dataset.chartHeight) || parseFloat(el.style.height)
-                || Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0);
+                || parseInt(el.dataset.bannerH || el.dataset.chartHeight) || _pxOnly(el.style.height)
+                || Math.round((_liveEl && _liveEl.offsetHeight) || el.offsetHeight || 0);
       const texts = [];
-      el.querySelectorAll('[class^="tb-"], [class*=" tb-"]').forEach(t => {
+      /* ★★★2026-10-24 — ★`.annot-label` 을 ★★더했다. ★★현빈 ★결정의 ★연장(「★다른 블록처럼」).
+         ★★증상 : ★어노테이션·치수선의 ★★그림(svg)은 ★나가는데 ★★라벨 ★글자는 ★안 나갔다
+           — ★수집기가 ★`tb-` ★접두만 ★봤고 ★라벨은 ★`.annot-label` 이다.
+           ★이름 = `ANNOT-LABEL-TEXT-NOT-IN-FIGMA-TEXTS-01`
+         ★★x·y 가 ★맞는 ★근거 : ★라벨은 ★인라인으로 `left:<px>; top:<px>` 를 ★이미 ★가진다
+           (`annotation-block.js:531` labelStyle) ⇒ ★아래 `parseFloat(t.style.left)` 가 ★그대로 ★읽는다.
+           ⛔짐작이 아니다 — ★그 줄을 ★읽고 ★넣었다.
+         ★★★다만 ★모형에 ★★안 ★담기는 ★것이 ★둘 ★있다(★«나간다»로 ★뭉개지 않게 ★적는다) :
+           ⒜ ★라벨의 ★`transform: translate(0,-50%)` ★계열 ★정렬(`_calcLabelTransform`) —
+              ★선의 ★방향에 ★따라 ★라벨을 ★좌/우/위/아래로 ★당기는 ★몫이다. ★여기선 ★안 ★싣는다.
+           ⒝ ★`translate:<dx>px <dy>px`(사용자가 ★끌어 ★옮긴 ★몫 · `:547`).
+           ⇒ ★이름 = `ANNOT-LABEL-ANCHOR-TRANSFORM-NOT-IN-FIGMA-01` (★미측정 · ★수신측 영향 안 쟀다)
+         ★재는 자 = `tests/dom/annot-same-as-other-blocks.dom.spec.js` A1 · A5 */
+      el.querySelectorAll('[class^="tb-"], [class*=" tb-"], .annot-label').forEach(t => {
         if (!_notKid(t)) return;
         const tx = (t.innerText || '').trim();
         if (tx) { const cs = (typeof window.getComputedStyle === 'function') ? window.getComputedStyle(t) : {};

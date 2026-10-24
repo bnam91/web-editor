@@ -53,9 +53,14 @@ async function fixture(page) {
          ★★261024 에 ★처음엔 ★inner 에 ★넣었고, ★그러면 ★«플로팅 경로»(섹션 직속 absolute,
            ★좌표와 함께 나가는 길 — `figma-export-coverage` FX-4)를 ★★안 탄다.
          ⇒ ★★«그 꼴이 앱에서 생기나»를 ★먼저 재고 ★자리를 ★맞췄다. */
-    const pen = window.makeAnnotationBlock({ points: [[20, 20], [160, 90]], labelText: 'PEN-LABEL-ZQ' });
+    /* ★★★글자 인자는 ★★`text` 다 — ⛔`labelText` 는 ★★내가 ★지어낸 ★이름이었다(261024).
+         ★정의 자리 = `annotation-block.js:408` `opts.text ?? ANNOT_DEFAULTS.text`
+         ★앱 쓰임  = `annotation-tool.js:357` `makeAnnotationBlock({ points, text: '텍스트' })`
+       ★★그 흠 때문에 ★라벨에 ★기본값 「텍스트」가 들어갔고, ★내 표식이 ★DOM 에 ★애초에 ★없었다
+         ⇒ ★「JSON 에 없다」가 ★당연해져 ★단언이 ★★항등식이 됐다(★같은 병 ★세 번째). */
+    const pen = window.makeAnnotationBlock({ points: [[20, 20], [160, 90]], text: 'PEN-LABEL-ZQ' });
     const dim = window.makeAnnotationBlock({
-      annotKind: 'dim', points: [[30, 200], [230, 200]], labelText: 'DIM-LABEL-ZQ',
+      annotKind: 'dim', points: [[30, 200], [230, 200]], text: 'DIM-LABEL-ZQ',
     });
     sec.appendChild(pen); sec.appendChild(dim);
     /* ★음성대조용 — ★여전히 제외되어야 하는 종 */
@@ -70,6 +75,9 @@ async function fixture(page) {
       penId: pen.id, dimId: dim.id, secId: sec.id,
       /* ★되돌리기용 ★원본 — ⛔「같은 글자를 다시 쓰면 같아진다」로 ★짐작하지 않는다(261024 실측 빨강) */
       penLabelHtml: pen.querySelector('.annot-label')?.innerHTML ?? null,
+      /* ★★전제 — ★내 표식이 ★★정말 ★라벨에 ★들어갔나. ⛔안 들어가면 ★아래 「JSON 에 있나」가 ★무의미 */
+      penLabelText: pen.querySelector('.annot-label')?.textContent ?? null,
+      dimLabelText: dim.querySelector('.annot-label')?.textContent ?? null,
     };
   });
 }
@@ -132,6 +140,23 @@ test('A1 ★양성대조 — 어노테이션·치수선이 Figma JSON 에 나오
       penHasXY: typeof pen?.x === 'number' && typeof pen?.y === 'number',
       dimHasXY: typeof dim?.x === 'number' && typeof dim?.y === 'number',
       penKeys: pen ? Object.keys(pen).join(',') : '',
+      penLabelText: ids.penLabelText, dimLabelText: ids.dimLabelText,
+      /* ★★«다른 출처»에서 ★섹션 실측 크기를 ★같이 뽑는다 — ⛔JSON 의 값을 ★되받지 ★않는다 */
+      secBox: (() => { const e = document.getElementById(ids.secId); return e ? [e.offsetWidth, e.offsetHeight] : null; })(),
+      /* ★펜 선의 ★그림 범위 — `points` 가 ★정본이다 */
+      penPoints: JSON.parse(document.getElementById(ids.penId).dataset.points || '[]'),
+      /* ★★음성대조용 — ★px 로 적힌 인라인 크기는 ★그대로 실려야 한다 */
+      pxProbe: (() => {
+        const t = document.createElement('div');
+        t.className = 'probe-block'; t.id = 'pxProbe_zq';
+        t.style.width = '123px'; t.style.height = '77px';
+        document.getElementById(ids.secId).appendChild(t);
+        window.flushCurrentPage();
+        const jj = JSON.stringify(window.buildFigmaExportJSON(null));
+        t.remove(); window.flushCurrentPage();
+        const m = jj.match(/\{"type":"generic","id":"pxProbe_zq"[^}]*\}/);
+        return m ? m[0] : null;
+      })(),
       penSvgLen: (pen?.svg || '').length, dimSvgLen: (dim?.svg || '').length,
       /* ★치수선의 «안» — 치수선 전용 선분이 실렸나 */
       dimHasDimLine: /annot-dim-line/.test(dim?.svg || ''),
@@ -166,14 +191,30 @@ test('A1 ★양성대조 — 어노테이션·치수선이 Figma JSON 에 나오
   expect(r.penSvgLen, `★펜 svg 가 비었다 (${r.penSvgLen}바이트)`).toBeGreaterThan(80);
   expect(r.dimSvgLen, `★치수선 svg 가 비었다 (${r.dimSvgLen}바이트)`).toBeGreaterThan(80);
 
-  /* ★★★그리고 ★여기가 ★«아직 ★안 된 ★칸»이다 — ★측정값을 ★박아 둔다.
-     ★GENERIC 폴백의 `texts` 수집은 `[class^="tb-"]` 만 본다(export-figma-json.js:1004).
-     ★어노테이션 ★라벨은 `.annot-label` 이라 ★그 자에 ★안 걸린다.
-     ⇒ ★그림은 나가는데 ★★라벨 ★글자는 ★안 나간다. ★이름 = `ANNOT-LABEL-TEXT-NOT-IN-FIGMA-TEXTS-01`
-     ⛔「나온다」로 ★뭉개지 않는다 — ★지금 ★참인 값을 ★그대로 ★잠근다. ★고치면 ★이 줄이 ★빨개진다. */
+  /* ★★★`ANNOT-LABEL-TEXT-NOT-IN-FIGMA-TEXTS-01` — ★★닫혔다(261024).
+     ★증상 : ★그림(svg)은 나가는데 ★라벨 ★글자는 ★안 나갔다 — ★수집기가 ★`tb-` 접두만 봤다.
+     ★고침 : `export-figma-json.js` GENERIC 폴백의 수집 선택자에 ★`.annot-label` 을 ★더했다.
+     ★★★결함이 ★실재했음을 ★핀 판으로 ★확인했다 — ⛔「고쳤다」만 적지 ★않는다 :
+       ★핀 `74a53cf2` 를 `git archive` 로 전개해 ★같은 장면을 돌렸다(★제품만 옛 판) ⇒
+         labelInDom = 'PEN-LABEL-ZQ' (★DOM 엔 ★있다)
+         penTexts   = '[]' · penLabelAnywhere = false · dimLabelAnywhere = false (★JSON 엔 ★없다)
+       ⇒ ★★결함 ★실재 · ★지금 판에서 ★`inTexts: true`.
+     ★★⛔그런데 ★★내가 ★처음 이 이름을 올릴 때는 ★★«깨진 장면»으로 ★쟀다 —
+       ★장면이 `labelText:`(★내가 ★지어낸 이름)를 써서 ★표식이 ★DOM 에 ★애초에 ★없었다.
+       ⇒ ★결론은 ★맞았지만 ★★«맞는 결론»이 ★«맞는 측정»은 ★아니다. ★그래서 ★핀 대조를 ★따로 ★했다.
+     ★★★남은 ★미측 = `ANNOT-LABEL-ANCHOR-TRANSFORM-NOT-IN-FIGMA-01`
+       ★라벨의 `transform: translate(0,-50%)` 정렬(`_calcLabelTransform`)과
+       ★`translate:<dx>px <dy>px`(사용자가 끌어 옮긴 몫)은 ★모형에 ★안 담긴다.
+       ⛔「자리가 틀린다」로 ★단정하지 ★않는다 — ★수신측(figma-renderer) 영향은 ★안 쟀다.
+       ★x·y 자체는 ★맞다 : 라벨이 인라인 `left:<px>;top:<px>` 를 가진다(annotation-block.js:531). */
   expect({ inTexts: r.penLabelInTexts, anywhere: r.penLabelAnywhere, dimAnywhere: r.dimLabelAnywhere },
-    '★라벨 글자 처리가 바뀌었다 — ANNOT-LABEL-TEXT-NOT-IN-FIGMA-TEXTS-01 을 다시 판정해라'
-  ).toEqual({ inTexts: false, anywhere: false, dimAnywhere: false });
+    '★라벨 글자가 Figma JSON 에 안 나간다 — ANNOT-LABEL-TEXT-NOT-IN-FIGMA-TEXTS-01 이 돌아왔다'
+  ).toEqual({ inTexts: true, anywhere: true, dimAnywhere: true });
+
+  /* ★★전제 — ★내 표식이 ★정말 ★라벨에 ★들어갔나(⛔안 들어가면 위 단언이 ★항등식이 된다 · 261024 실수) */
+  expect({ pen: r.penLabelText, dim: r.dimLabelText },
+    '★전제: 라벨에 내 표식이 안 들어갔다 — 인자 이름이 `text` 인지 다시 봐라(⛔labelText 는 없다)')
+    .toEqual({ pen: 'PEN-LABEL-ZQ', dim: 'DIM-LABEL-ZQ' });
 
   /* ★★★«다른 블록처럼»의 ★본 증거 — ★★좌표와 ★함께 ★나간다.
      ★어노테이션은 `position:absolute` 로 ★`.section-block` ★직속에 산다(annotation-tool.js:168·358)
@@ -184,18 +225,26 @@ test('A1 ★양성대조 — 어노테이션·치수선이 Figma JSON 에 나오
     `★좌표가 안 실렸다 — 플로팅 경로를 안 탔다(제자리를 잃는다). penKeys = ${r.penKeys}`
   ).toEqual({ penF: true, dimF: true, penXY: true, dimXY: true });
 
-  /* ★★★두 번째 ★«안 된 칸» — ★상자 ★크기가 ★«그림 범위»가 ★아니다.
-     ★펜 선은 (20,20)→(160,90) 인데 ★실린 상자는 ★100×100 이다(= `css/editor-blocks.css`
-     `.annotation-block` ★기본 크기). ⇒ ★x=160 이 ★상자 ★밖이다.
-     ★★★⛔「★잘린다」로 ★적지 ★않는다 — ★★«수신측(figma-renderer)이 ★클리핑하나»는 ★★미측정이다.
-       ★여기서 ★참인 ★것은 ★하나다 : ★★상자 ★크기가 ★그림 ★범위를 ★안 ★따라간다.
-     ★이름 = `ANNOT-FIGMA-BOX-IS-CSS-DEFAULT-NOT-DRAWING-EXTENT-01`
-     ⛔「나온다」로 ★닫지 ★않는다 — ★지금 ★참인 값을 ★그대로 ★잠근다(★고치면 ★이 줄이 빨개진다).
-     (⛔한때 「★x·y 가 ★없다」라 ★적었다 — ★★틀렸다. ★장면을 ★`.section-inner` 에 ★뒀던
-        ★내 ★흠이었고, ★앱 자리(섹션 직속)로 ★옮기니 ★좌표가 ★실린다. ★위 칸이 ★그걸 ★잠근다.) */
+  /* ★★★2026-10-24 — ★`ANNOT-FIGMA-BOX-IS-CSS-DEFAULT-NOT-DRAWING-EXTENT-01` ★★닫힘.
+     ★★★내가 붙인 ★그 이름은 ★까닭을 ★틀렸다. ★한때 ★상자가 ★`100×100` 으로 실렸고
+       나는 그것을 「★CSS 기본 크기 100px」로 ★읽었다 — ★★거짓이다.
+     ★참 까닭 : ★`annotation-block.js:438` 이 `style.width = '100%'` 를 쓰고,
+       ★내보내기의 GENERIC 폴백이 ★`parseFloat('100%')` ⇒ ★★`100` 으로 ★읽었다(★단위가 사라진다).
+       ★CSS 도 `width:100%; height:100%` 다(editor-blocks.css:3786) — ★100px 가 ★아니다.
+     ★참 이름 = ★`FIGMA-GENERIC-PARSES-PERCENT-AS-PX-01` (★고쳤다 · ★아래 A4 가 잠근다)
+     ⇒ ★어노테이션은 ★★«섹션을 덮는 ★오버레이»다(`.annot-svg` 는 `overflow:visible`).
+       ★그러니 ★상자 = ★★섹션 ★실측 크기가 ★맞고, ★그림 좌표는 ★그 ★안에 ★있다.
+     ★★★「★그림이 ★상자 밖으로 나간다」던 ★내 ★말은 ★★`100` 이라는 ★거짓 값이 ★만든 ★착시였다. */
   expect({ pen: r.penBox, dim: r.dimBox },
-    '★어노테이션 상자 크기가 바뀌었다 — ANNOT-FIGMA-BOX-IS-CSS-DEFAULT-NOT-DRAWING-EXTENT-01 을 다시 판정해라'
-  ).toEqual({ pen: [100, 100], dim: [100, 100] });
+    `★어노테이션 상자가 ★섹션 실측 크기와 다르다 (섹션=${JSON.stringify(r.secBox)}) — ` +
+    '퍼센트를 px 로 읽는 병이 돌아왔는지 본다'
+  ).toEqual({ pen: r.secBox, dim: r.secBox });
+
+  /* ★★그림이 ★상자 ★«안»에 ★있나 — ★이것이 ★원래 ★재려던 ★성질이다(⛔숫자가 아니라 ★관계) */
+  const maxX = Math.max(...r.penPoints.map(pt => pt[0]));
+  const maxY = Math.max(...r.penPoints.map(pt => pt[1]));
+  expect(maxX <= r.penBox[0] && maxY <= r.penBox[1],
+    `★펜 그림(${maxX},${maxY})이 상자(${r.penBox.join('×')}) 밖이다`).toBe(true);
 
   expect(errs, '앱 부팅 중 오류').toEqual([]);
 });
@@ -276,4 +325,44 @@ test('A3 ★양성대조 — 어노테이션 라벨만 고쳐도 마켓 비교 �
   expect({ ignored: r.previewIgnored, leaked: r.previewInKey },
     '★`.annot-preview`(그리는 중 미리보기)가 비교 키에 들었다 — 그리는 동안 「바뀜」이 뜬다')
     .toEqual({ ignored: true, leaked: false });
+});
+
+/* ══ A4 — ★`FIGMA-GENERIC-PARSES-PERCENT-AS-PX-01` 의 ★잠그는 자 ════════════════
+   ★고침 : GENERIC 폴백이 ★px(또는 단위 없는 수)만 ★받고, ★아니면 ★살아 있는 실측으로 떨어진다.
+   ★★음성대조가 ★본 단언과 ★한 쌍이다 — ★px 는 ★그대로 ★실려야 ★한다.
+     ⛔없으면 「★인라인 크기를 ★통째로 ★무시한다」와 ★구분이 ★안 ★된다. */
+test('A4 ★퍼센트를 px 로 읽지 않는다 — ★음성대조: px 는 그대로 실린다', async ({ page }) => {
+  await bootApp(page);
+  const ids = await fixture(page);
+  const r = await page.evaluate((ids) => {
+    const sec = document.getElementById(ids.secId);
+    const mk = (id, w, h) => {
+      const t = document.createElement('div');
+      t.className = 'probe-block'; t.id = id;
+      t.style.width = w; t.style.height = h;
+      sec.appendChild(t); return t;
+    };
+    const pct = mk('zqPct', '100%', '100%');
+    const px  = mk('zqPx', '123px', '77px');
+    const em  = mk('zqEm', '10em', '5em');
+    window.flushCurrentPage();
+    const j = window.buildFigmaExportJSON(null);
+    const flat = []; (function w(v) { if (Array.isArray(v)) return v.forEach(w);
+      if (v && typeof v === 'object') { flat.push(v); Object.values(v).forEach(w); } })(j);
+    const get = (id) => { const n = flat.find(x => x && x.id === id); return n ? [n.width, n.height] : null; };
+    const live = (el) => [el.offsetWidth, el.offsetHeight];
+    const out = { pct: get('zqPct'), px: get('zqPx'), em: get('zqEm'),
+                  pctLive: live(pct), emLive: live(em) };
+    [pct, px, em].forEach(e => e.remove()); window.flushCurrentPage();
+    return out;
+  }, ids);
+  console.log('[A4]', JSON.stringify(r));
+
+  /* ★★음성대조 — ★px 는 ★그대로 (★고침이 ★인라인 크기를 ★통째로 버린 것이 ★아니다) */
+  expect(r.px, '★px 로 적은 인라인 크기가 안 실렸다 — 고침이 너무 넓다').toEqual([123, 77]);
+  /* ★★본 단언 — ★퍼센트는 ★★«100» 이 아니라 ★살아 있는 실측 */
+  expect(r.pct, `★퍼센트를 아직 px 로 읽는다 (살아있는 실측=${JSON.stringify(r.pctLive)})`).toEqual(r.pctLive);
+  expect(r.pct[0], '★퍼센트가 100 으로 실렸다 — parseFloat 가 단위를 먹었다').not.toBe(100);
+  /* ★em 도 ★같은 갈래 — ★단위 있는 값은 ★전부 ★거절하고 ★실측으로 떨어진다 */
+  expect(r.em, `★em 을 px 로 읽는다 (살아있는 실측=${JSON.stringify(r.emLive)})`).toEqual(r.emLive);
 });
