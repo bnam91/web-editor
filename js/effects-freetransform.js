@@ -290,13 +290,13 @@ export function watchAllFxFreeTransform(root = document) {
     if (st) { st.touched = !_isBaseRect(ftCornersOf(tb)); _tfState.set(tb, st); }
     if (applyFxFreeTransform(tb)) n++;
   });
-  return n;
   /* ★★U3 — ★문서를 ★연 ★직후에도 ★손잡이가 ★떠야 ★한다.
      ★★까닭(실측 261024 · ★현빈 신고) : ★`clearSelectionMarks` 의 ★«한 틱 뒤 동기화»는
        ★★«고르거나 ★놓을 때»만 ★돈다 ⇒ ★★★문서를 ★열자마자는 ★그 함수가 ★안 ★불려
        ★★선택이 ★복원돼 ★있어도 ★손잡이가 ★★안 ★붙었다(★실측: ★selected 1 인데 ★grid 0 · handle 0).
      ⇒ ★★여기가 ★그 자리다 — ★명부(watchAllFx)가 ★로드 뒤 ★이 함수를 ★부른다. */
   window.ftHandlesSyncAll?.(root);
+  return n;
 }
 
 /* ═══ 카드 — 반사·그림자·글로우 카드와 ★같은 꼴(.prop-cell-card · ✕ · 접기) ═══════════════
