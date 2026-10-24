@@ -37,8 +37,8 @@ const path = require('path');
 const { ROOT, bootApp } = require('./_root-harness.js');
 
 /** 경로 하나를 돌린다 — `setW`(패널로 폭을 정했나) × `restore`(저장→다시 열기를 했나). */
-async function run(page, setW, restore) {
-  return await page.evaluate(async ({ setW, restore }) => {
+async function run(page, setW, restore, corners) {
+  return await page.evaluate(async ({ setW, restore, corners }) => {
     for (const k of ['pushHistory', 'markDirty', 'scheduleAutoSave', 'updateLayerPanel', 'buildLayerPanel', 'showToast', 'deselectAll'])
       if (typeof window[k] !== 'function') window[k] = () => {};
     const ft = await import('/js/effects-freetransform.js');
@@ -60,7 +60,7 @@ async function run(page, setW, restore) {
     const base = { inline: tf.style.width, computed: cw(tf) };
 
     /* ★켜고 ★넓힌다 — ⛔켜기 «전»에 `null` 을 부르지 ★않는다(★261024 에 그 줄이 폭을 미리 지웠다) */
-    ft.setFxFreeTransform(tb, [[0, 0], [400, 0], [400, 120], [0, 120]], { history: false });
+    ft.setFxFreeTransform(tb, corners || [[0, 0], [400, 0], [400, 120], [0, 120]], { history: false });
     const on = { inline: tf.style.width, computed: cw(tf) };
 
     let tb2 = tb, tf2 = tf, afterRestore = null;
@@ -74,9 +74,14 @@ async function run(page, setW, restore) {
       if (!tb2 || !tf2) return { fail: '복원 뒤 블럭·프레임을 못 찾았다' };
       afterRestore = { inline: tf2.style.width, computed: cw(tf2) };
     }
+    /* ★★`ftMeasure` 가 ★어느 폭에서 ★잰 결과인가 = ★`W`. ★T5 가 ★이 값으로 ★⒜·⒝ 분리를 ★잰다. */
+    const stAfter = ft.ftMeasure(tb2, true);
+    const measuredW = stAfter ? +stAfter.W.toFixed(2) : null;
+    const cornersAfter = tb2.dataset.tfCorners || null;
     ft.setFxFreeTransform(tb2, null, { history: false });   /* ★✕ */
-    return { base, on, afterRestore, afterX: { inline: tf2.style.width, computed: cw(tf2) } };
-  }, { setW, restore });
+    return { base, on, afterRestore, measuredW, cornersAfter,
+             afterX: { inline: tf2.style.width, computed: cw(tf2) } };
+  }, { setW, restore, corners });
 }
 
 test('T0 ★전제 — 장면이 선다(프레임이 생기고, 켜면 폭이 실제로 넓어진다)', async ({ page }) => {
@@ -137,28 +142,41 @@ test('T4 ★`100%` 는 ★손으로 박은 값이다 — ★`_makeTextFrame` 의
   expect(fb[1], `★두 값이 갈렸다 — _makeTextFrame=${m[1]} · 폴백=${fb && fb[1]}`).toBe(m[1]);
 });
 
-test('T5 ★★«재는 폭»이 ★«되돌릴 폭»에 ★끌려가지 않는다 — 복원 직후 폭이 ★setW 와 ★무관하다', async ({ page }) => {
+test('T5 ★★«재는 폭»이 ★«되돌릴 폭»에 ★끌려가지 않는다 — ★복원 직후 ★`W` 가 ★setW 와 ★무관하다', async ({ page }) => {
   await bootApp(page);
-  const withW = await run(page, true, true);
-  const noW   = await run(page, false, true);
+  /* ★★★261024 ★정정 — ★이 칸의 ★자를 ★다시 세웠다.
+     ★옛 자 : 「복원 직후 ★`tf.style.width`(= box 폭)가 setW 와 무관」.
+     ★★그 자가 ★틀렸다 : ★장면이 ★★직사각형 네 점이라
+       ★★`FT-AXIS-ALIGNED-TRANSFORM-LOST-ON-RESTORE-01`(★변형이 통째로 사라진다)이 ★끼어들어
+       ★`tf.style.width` 가 ★box 가 아니라 ★★`W` 를 받고 있었다.
+       ⇒ ★내가 그것을 ★「box 폭 악화(62 → 235)」로 ★읽었고 ★★그 판정을 ★★철회했다.
+     ★★교차 측정으로 ★참값을 ★얻었다 : ★`box.w` 는 ★두 판 ★모두 ★★400(`boxDelta: 0`).
+     ⇒ ★새 자 : ★★«사다리꼴» 장면(★변형 손실이 ★안 끼어든다) ＋ ★★`W` 를 ★직접 ★견준다.
+       ★`tfW0`(되돌릴 폭)만 ★다른 두 판에서 ★`W`(재는 쪽 산출)가 ★★같아야 ★한다. */
+  const TRAP = [[40, 0], [360, 0], [400, 140], [0, 140]];
+  const withW = await run(page, true, true, TRAP);
+  const noW   = await run(page, false, true, TRAP);
   expect(withW.fail).toBeUndefined(); expect(noW.fail).toBeUndefined();
-  console.log('[T5]', JSON.stringify({ withW: withW.afterRestore, noW: noW.afterRestore }));
+  console.log('[T5]', JSON.stringify({ withW: { W: withW.measuredW, c: withW.cornersAfter, x: withW.afterX },
+                                       noW:   { W: noW.measuredW,   c: noW.cornersAfter,   x: noW.afterX } }));
 
-  /* ★★앞끝 전제 — ★두 판의 ★«켜기 전» 폭이 ★★달라야 ★이 비교가 ★의미를 가진다
-     ⛔같으면 「무관하다」가 ★★항등식이 된다. */
+  /* ★★앞끝 전제 ⑴ — ★사다리꼴이라 ★네 점이 ★유지됐나. ⛔덮어써졌으면 ★다른 결함을 재는 것이다. */
+  for (const [n, r] of [['withW', withW], ['noW', noW]])
+    expect(r.cornersAfter, `★${n}: 네 점이 덮어써졌다 — FT-AXIS-ALIGNED-… 가 끼어들었다`)
+      .toBe('40,0,360,0,400,140,0,140');
+
+  /* ★★앞끝 전제 ⑵ — ★두 판의 ★«되돌릴 폭»이 ★★달라야 ★이 비교가 ★선다(⛔같으면 항등식) */
   expect(withW.base.computed, '★전제: 두 판의 켜기 전 폭이 같다 — 비교가 무의미하다')
     .not.toBe(noW.base.computed);
+  expect(withW.measuredW, '★전제: W 를 못 쟀다').not.toBeNull();
 
-  /* ★★★본 단언 — ★복원 직후 box 폭이 ★★같다.
-     ★★까닭 : `ftMeasure` 는 ★`tfMeasW`(첫 측정의 «지금 폭» = ★저장된 box 폭)에서 ★재야 한다.
-       ★만약 ★`tfW0`(되돌릴 폭 · setW 에 따라 ★300px vs 100%)에 ★끌려가면 ★두 값이 ★★갈린다.
-     ★261024 실측 : 두 칸을 ★섞어 뒀을 때 ★withW = ★164.719px · ★noW = ★338.344px 로 ★갈렸고
-       ★저장 전 box(400) 와의 오차가 ★62 → ★235 로 ★★악화됐다. ⇒ ★그 사고를 ★이 칸이 잡는다.
+  /* ★★★본 단언 — ★복원 직후 ★`W` 가 ★같다 = ★재는 쪽이 ★되돌릴 쪽에 ★안 끌려간다.
+     ★261024 실측 : 두 칸을 ★섞으면 ★withW `280.03` · ★noW `373.36` 으로 ★갈린다(★변이로 확인).
      ★이름 = `FT-TFW0-TWO-USES-01` */
-  expect(withW.afterRestore.computed,
-    `★복원 직후 폭이 setW 에 따라 갈렸다 — 「재는 폭」이 「되돌릴 폭」에 끌려간다 ` +
-    `(withW ${withW.afterRestore.inline} · noW ${noW.afterRestore.inline})`
-  ).toBe(noW.afterRestore.computed);
+  expect(withW.measuredW,
+    `★복원 직후 W 가 setW 에 따라 갈렸다 — 「재는 폭」이 「되돌릴 폭」에 끌려간다 ` +
+    `(withW ${withW.measuredW} · noW ${noW.measuredW})`
+  ).toBe(noW.measuredW);
 
   /* ★★음성대조 — ★✕ 뒤 폭은 ★★갈려야 ★한다(★그게 C2 고침의 ★목적이다) */
   expect(withW.afterX.computed, '★✕ 뒤 폭이 두 판에서 같다 — C2 고침(사용자 폭 복원)이 죽었다')
