@@ -40,7 +40,7 @@
    ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
    ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
 export const NON_CONTENT_UI_SELECTOR =
-  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .mdl-profile-x, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox, .tfh-handle, .tfh-grid, .tfh-fx, .tfh-edge, .tfh-layer, .sticker-corner-handle, .hlb-handle';
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .mdl-profile-x, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox, .tfh-handle, .tfh-grid, .tfh-fx, .tfh-edge, .tfh-layer, .sticker-corner-handle, .hlb-handle, .annot-point-angle';
 /* ★★★.tfh-handle · .tfh-grid (2026-10-24 · U3 자유변형 손잡이 · 지디 · 현빈 GO) — ★글상자 ★자유변형의
      ★모서리·변 ★손잡이 ★12 와 ★격자다. ★`.text-block` 의 ★«자식»으로 붙으므로 ★★여기 올리지 않으면
      ★저장본·PNG·썸네일·단독 HTML 로 ★★샌다(★고른 채 내보내면 ★박힌다 = `EXPORT-SELECTED-HANDLE-BAKED-IN-01`).
@@ -68,6 +68,21 @@ export const NON_CONTENT_UI_SELECTOR =
    ★판정은 ★★이미 나 있었다 — `tests/_export-channels.js:410`·`:412` 가 ★`_Y`(「캡처도 지워야 함」).
      ⇒ ★★판정만 있고 ★제품이 ★안 따라온 칸이었다(★`S3-GAPS` 의 「안 막히는 칸」 그 내용).
    ★재는 자 : `tests/dom/sticker-handle-capture-leak.dom.spec.js` (★행위 · 양성·음성대조 포함) */
+/* ★★★.annot-point-angle (2026-10-24 · ★적대적 ⒠ ★⒟5 · 지디)
+   ★무엇 : ★어노테이션 ★점 손잡이를 ★끌는 ★동안만 뜨는 ★★각도 글자(`37.5°`).
+     ★만드는 곳 = `js/annotation-select.js:264` (`.annot-svg` ★안의 SVG `<text>`)
+     ★지우는 곳 = `:286` `_hidePointAngleLabel` — ★끌기가 ★끝나면 ★없앤다.
+   ★★★그런데 ★«끌기 ★중»에 ★자동저장이 ★끼면 ★★그대로 ★실린다 — ★행위로 ★쟀다(261024) :
+     라이브 ★1 · ★저장(serializeSectionClone) ★★1 · ★캡처 클론 ★★1 · ★프로젝트 저장 ★★1
+     ★그리고 ★글자(`37.5°`)까지 ★저장본에 ★들어간다.
+   ★★왜 ★이제 ★문제인가 : ★261022 결정으로 ★어노테이션이 ★★«저장되는 것»이 됐다
+     ⇒ ★그 안(`.annot-svg`)의 ★이 글자도 ★★같이 ★저장된다. ★전엔 ★어노가 통째로 걷혀 ★안 보였다.
+     ★★「★막아둔 ★까닭이 ★먼저 죽고 ★문만 남는다」의 ★거울상 — ★★덮어 주던 것이 ★사라졌다.
+   ★★⛔계약 순서를 ★지켰다 : ★먼저 ★`js/io/section-serialize.js` 의 ★제거 줄에 넣고,
+     ★그 다음 ★이 명부에 올렸다. ⇒ ★머리말의 ⛔「serializeProject 가 ★실제로 지우는지 먼저 확인」이
+     ★★섰다(★안 지키면 ★진짜 편집이 ★저장되지 않는다 = ★데이터 손실).
+   ★판정 : `tests/_export-channels.js` ★`CAPTURE_VERDICT` 에 ★`_Y`
+   ★재는 자 : `tests/dom/annot-point-angle-leak.dom.spec.js` */
 /* ★.annot-handle · .annot-selbox (1013t1A3) — 어노테이션 선택 중에만 사는 손잡이. serializeCleanRoot 의 remove 줄에 같이 올렸다(계약 짝). */
 /* ★.mdl-rotate-zone (2026-10-08 지디) — ★모달 블럭의 회전 손잡이. ⛔빠져 있었다.
    ★증상: modal-frameify U1·U3 가 ★origin/dev 에서 빨강이었다 — 「프레임화 → ⌘Z 한 번 = 앞 직렬화와

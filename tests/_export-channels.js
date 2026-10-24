@@ -410,6 +410,7 @@ const CAPTURE_VERDICT = {
   '.sticker-corner-handle': _Y('스티커 모서리 손잡이 — 블럭 안 appendChild(js/sticker-select.js:331) · 전역 CSS 흰 바탕(MARKER-HLB-261022 ⑶)'),
   '.gradient-corner-handle': _Y('그라데이션 모서리 손잡이 — 블럭 안 appendChild(js/gradient-select.js:37) · 전역 CSS 흰 바탕(MARKER-HLB ⑶)'),
   '.hlb-handle':          _Y('선 스티커 끝점·두께 손잡이 — 블럭 안 appendChild(js/sticker-select.js:208) · 전역 CSS(MARKER-HLB ⑶)'),
+  '.annot-point-angle':   _Y('어노테이션 점 손잡이 ★끌는 중 각도 글자(37.5°) — `.annot-svg` 안 SVG text(js/annotation-select.js:264) · ★끌기 중 자동저장이 끼면 저장본·캡처에 실린다(261024 실측 1/1/1) · 지디'),
   '.grad-line-overlay':   _Y('그라데이션 선 편집 오버레이 — js/gradient-line-overlay.js:20 「section-serialize 가 저장 시 제거」 · 편집 중 표시'),
   '.vpen-preview':        _Y('펜툴 «그리는 중» 미리보기 — 섹션 안 appendChild(js/pen-tool.js:336) · 캡처가 .annot-preview 를 같은 까닭으로 지운다(설계 제외)'),
   '.vpen-edit-overlay':   _Y('펜툴 편집 오버레이 — js/pen-tool.js:603 `wrap.className = \'vpen-edit-overlay\'` · 편집 중 표시'),
