@@ -1,45 +1,50 @@
-/* effects-ft-handles — 글상자 ★자유변형 ★U3 «모서리 손잡이» (2026-10-24 · 지디 · 현빈 GO 「바로 시작하고」)
- *   발주 : ~/.gd-work/team-lead/ORDER-u3-handles-261023.md (★갈래 A — 「그대로 둬라」)
- *   정본 : js/effects-freetransform.js — ★이 파일은 ★그 모듈의 ★«문 하나»만 부른다.
+/* effects-ft-handles — 글상자 ★자유변형 ★U3 «손잡이 12 ＋ 격자» (2026-10-24 · 지디 · 현빈 GO)
+ *   ★★★정본 = ★시안 8판 ★`~/.gd-work/team-lead/sian/sian-08-text-freetransform-v8.html`
+ *     (sha `e1338e08e1de` · 772줄 · ★★내가 만들어 ★현빈께 드린 ★그 판)
+ *   발주 : `ORDER-u3-handles-261023.md` · 모듈 정본 : `js/effects-freetransform.js`
  *
- * ★★★이 파일이 ★«하지 않는» 것 — ★그게 ★설계의 ★몸통이다:
- *   ⛔제 상태를 ★안 ★들고 있다 — ★네 점은 `tb.dataset.tfCorners` 가 ★정본이고
- *     ★잰 값(`W H OX OY`)은 `ftStateOf(tb)` 가 ★정본이다(★WeakMap).
- *   ⛔`matrix3d` 를 ★안 ★만든다 — ★그리기는 `applyFxFreeTransform` 하나뿐이다.
- *   ⛔`js/fx/homography.js` 를 ★안 ★열었다(★U2-SCOPE 금지선 · text-freetransform.dom.spec.js:859).
- *   ⛔글자 속성(font-size·letter-spacing·transform:scale)으로 ★안 ★굳힌다(★발주 ② — ★1회성 굳힘 금지).
+ * ★★★★★261024 — ★★첫 판을 ★★버리고 ★다시 지었다. ★★까닭(★현빈 신고 ★셋 · ★전부 ★맞았다):
+ *   ⒜ 「★보라 두께가 ★모서리마다 ★다르다」 ⇒ ★★손잡이를 ★★변형 ★«안»에 두어 ★★같이 ★휘었다
+ *   ⒝ 「★파란 아웃라인 ★너비가 ★줄어든다」 ⇒ ★★손잡이를 ★`tb` 자식으로 두어 ★★레이아웃을 ★밀었다
+ *   ⒞ 「★격자가 ★안 ★보인다」          ⇒ ★★3×3 ★분할선을 ★★아예 ★안 ★만들었다
+ *   ★★★나는 ★그 ★시안을 ★★안 ★보고 ★지었다. ★그것이 ★흠이다.
  *
- * ★★왜 ★모서리 ★«넷»뿐인가 — ★★실측으로 ★선 ★한계다(⛔내 ★판단이 ★아니다):
- *   `js/fx/homography.js:22` `homography(src, dst)` 가 ★★`for (let i = 0; i < 4; i++)` 다.
- *   ⇒ ★★4점 ★호모그래피는 ★★«변이 ★휘는 것»을 ★★담지 ★못한다(★평행 아닌 ★사다리꼴까지만).
- *   ⇒ ★★그러므로 ★발주의 「★변의 1/3·2/3 ★여덟」은 ★★두 뜻 중 ★하나여야 ★한다:
- *       ⒜ ★끌면 ★이웃 ★두 모서리를 ★같이 ★민다(= ★변 ★전체를 ★민다)  ⇒ ★4점 모델로 ★된다
- *       ⒝ ★★변이 ★휜다(★Warp)                                    ⇒ ★★★메시가 ★필요하다
- *          ⇒ ★`homography.js`(금지선)를 ★열고 ★U1 의 ★15칸을 ★다시 ★세워야 ★한다(★발주 ④⒤ 가 ★그 비용을 ★적었다)
- *   ★★★⇒ ⛔그 ★갈림은 ★★현빈 ★칸이다. ★★★지어내지 ★않았다 — ★올려 ★물었다(261024).
- *   ⇒ ★그 답이 ★오면 ★여기에 ★여덟을 ★더한다. ★그때까지 ★★넷으로 ★★«끌 수 ★있다»가 ★선다.
+ * ★★시안이 ★정한 ★구조 — ★★★«세 층»이고 ★★각 층이 ★★다른 ★축에 ★선다:
+ *   ⒤ ★`.text-block`(★파란 아웃라인)  ⇒ ★★★`transform` 을 ★★영영 ★안 ★건다. ★직사각형 ★유지.
+ *      ★★크기만 ★글자를 ★따라간다(★현빈 msg5416 ⒞ 「★박스가 ★항상 ★글자를 ★감싼다」).
+ *      ★★시안 주석 : 「★«모양만 ★변형»(msg5406) ＋ ★«아웃라인도 ★같이 ★늘어나야»(msg5413)
+ *        ⇒ ★★둘은 ★«다른 축»이라 ★★양립한다. ⛔`transform` 은 ★영영 ★안 ★건다」
+ *   ⅱ) ★`.tfh-fx`(= ★시안의 `.tfx`) ⇒ ★★글자와 ★★«같은 행렬»을 ★받아 ★★같이 ★휜다.
+ *      ★안에 ★`.tfh-edge`(보라 테두리) ＋ ★`.tfh-grid`(★3×3 ★분할선 ★넷)
+ *   ★★ⅲ) ★`.tfh-layer` ⇒ ★★★변형 ★«밖». ★★손잡이 ★12 가 ★여기 ★산다.
+ *      ⇒ ★★그래서 ★★두께가 ★★균일하다(★⒜ 의 ★처방)
  *
- * ★이름 `tfh-` 를 고른 까닭(실측 261024): ⛔`ft-` 는 ★임자가 있다 —
- *   `projects-onescreen` 의 폴더 타일(`.ft-tile`·`.ft-add`·`.ft-sub` · ★레포 48건).
- *   `tfh-`·`tfc-`·`tform-`·`distort-`·`tfgrid` = ★0건(★양성대조 `ft-tile` 48 ⇒ 자가 산다).
- * ★그 두 이름은 ★`beea5848` 에서 ★★명부 ★쌍(정본 ＋ serializeCleanRoot)에 ★먼저 ★올렸다 —
- *   ⇒ ★저장본·PNG·썸네일·단독 HTML 로 ★★안 ★샌다(`EXPORT-SELECTED-HANDLE-BAKED-IN-01`).
- *   ★그 쌍이 ★정말 ★묶였나 : ★직렬에서만 ★빼면 ★★`R1` 이 ★fail 1(★변이로 ★확인했다).
+ * ★★손잡이 ★12 = ★모서리 ★4(nw·ne·se·sw) ＋ ★변의 ★1/3·2/3 ★8 — ★★시안 `EDGEPTS` 그대로
+ *   ★★변 손잡이의 ★자리는 ★★★호모그래피로 ★구한다(⛔원근에서 ★선형이 ★아니다 — ★시안 주석)
+ *   ★★끌면 : ★모서리 = ★그 점 ★하나 / ★변 = ★★이웃 ★두 모서리를 ★★법선 쪽으로 ★같이 (★시안 `apply`)
+ *   ★★⇧Shift = ★★맞은편을 ★축으로 ★★닮게(비율 지키기) — ★시안 `apply` 의 ★그 식
+ *
+ * ★자리 기준 — ⛔`getBoundingClientRect()` 를 ★변형된 ★상태에서 ★쓰지 ★마라.
+ *   ★시안 주석 : 「★261022 ★스크린샷에서 ★핸들이 ★테두리에서 ★어긋나 ★보였다(★현빈 ⑤ 가 ★또 맞았다)」
+ *   ⇒ ★★`ftMeasure` 가 ★★«변형을 ★끈 ★상태»에서 ★잡은 ★`OX·OY` 를 ★쓴다.
+ *
+ * ★이름 `tfh-` 를 고른 까닭(실측 261024): ⛔`ft-` 는 ★임자가 있다(`.ft-tile` ★48건 · projects-onescreen).
+ *   ★그 이름들은 ★`beea5848` 에서 ★★명부 쌍(editor-ui-roster ＋ serializeCleanRoot)에 ★올렸다
+ *   ⇒ ★저장본·PNG·썸네일·HTML 로 ★★안 ★샌다(★`H5` 가 ★잠근다).
  */
-import { ftCornersOf, ftStateOf, setFxFreeTransform, applyFxFreeTransform } from './effects-freetransform.js';
-import { normalizeCorners } from './fx/homography.js';   /* ★읽기만 — ⛔고치지 않는다 */
+import { ftCornersOf, ftStateOf, setFxFreeTransform } from './effects-freetransform.js';
+import { homography, normalizeCorners } from './fx/homography.js';   /* ★읽기만 — ⛔고치지 않는다 */
 
-/** 모서리 넷의 순서 — `tfCorners` 의 저장 순서 그대로(nw·ne·se·sw · 발주 ②). */
-const CORNERS = [
-  { i: 0, id: 'nw', cursor: 'nwse-resize' },
-  { i: 1, id: 'ne', cursor: 'nesw-resize' },
-  { i: 2, id: 'se', cursor: 'nwse-resize' },
-  { i: 3, id: 'sw', cursor: 'nesw-resize' },
+/* ★시안 `:548~554` 그대로 — ⛔수를 ★새로 짓지 ★않는다 */
+const CORNERS = [['nw', 0], ['ne', 1], ['se', 2], ['sw', 3]];
+const EDGES   = [['n', 0, 1], ['e', 1, 2], ['s', 2, 3], ['w', 3, 0]];
+const EDGEPTS = [
+  ['n1', 'n', 1 / 3], ['n2', 'n', 2 / 3], ['e1', 'e', 1 / 3], ['e2', 'e', 2 / 3],
+  ['s1', 's', 1 / 3], ['s2', 's', 2 / 3], ['w1', 'w', 1 / 3], ['w2', 'w', 2 / 3],
 ];
+const CURSOR = { nw: 'nwse-resize', ne: 'nesw-resize', se: 'nwse-resize', sw: 'nesw-resize' };
 
-/** 캔버스 실제 배율 — ⛔`window.currentZoom` 을 ★가정하지 않고 ★잰다(정본 `_scaleOf` 와 ★같은 자).
- *  ★까닭: 끌기 델타는 ★화면 px 로 오고 ★네 점은 ★모델 px 다 ⇒ ★나눠야 ★한다.
- *  ⛔`--inv-zoom` 은 ★손잡이 ★«크기»만 되돌린다(CSS) — ★델타에는 ★안 쓴다. */
+/** 캔버스 실제 배율 — ⛔`window.currentZoom` 을 ★가정하지 않고 ★잰다(정본 `_scaleOf` 와 ★같은 자). */
 function _scaleOf(el) {
   const ow = el && el.offsetWidth;
   if (!ow) return 1;
@@ -47,92 +52,136 @@ function _scaleOf(el) {
   return Number.isFinite(z) && z > 0.01 ? z : 1;
 }
 
-/** 이 블럭의 손잡이·격자를 ★걷는다 — ★`:scope >` 로 ★제 것만(★관용구: gradient-select.js:26). */
+/** 글자칸 — 정본 `_contentOf` 와 ★같은 순서(이 레포의 관용구 · 여덟 자리가 쓴다). */
+function _glyphOf(tb) {
+  if (!tb || !tb.querySelector) return null;
+  return tb.querySelector('[contenteditable]')
+    || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner,.itb-text');
+}
+
+/** 이 블럭의 ★U3 자취를 ★전부 걷는다 — ★`:scope >` 로 ★제 것만(관용구: gradient-select.js:26). */
 export function ftHandlesClear(tb) {
   if (!tb || !tb.querySelectorAll) return 0;
-  const els = tb.querySelectorAll(':scope > .tfh-handle, :scope > .tfh-grid');
+  const els = tb.querySelectorAll(':scope > .tfh-fx, :scope > .tfh-layer');
   els.forEach((h) => h.remove());
   return els.length;
 }
 
-/** 손잡이가 ★떠야 하나 — ★`tfCorners` 가 ★있고 ★그 블럭이 ★골라져 ★있을 때.
- *  ⛔「카드가 열렸나」로 ★가르지 ★않는다 — ★카드는 ★접힐 수 있고 ★그때도 ★끌 수 ★있어야 ★한다(발주 ①). */
+/** 떠야 하나 — ★`tfCorners` 가 ★있고 ★그 블럭이 ★골라져 ★있을 때.
+ *  ⛔「카드가 ★열렸나」로 ★가르지 ★않는다 — ★카드는 ★접힐 수 있고 ★그때도 ★끌 수 ★있어야 ★한다. */
 function _shouldShow(tb) {
-  return !!(tb && tb.dataset && tb.dataset.tfCorners
-    && tb.classList && tb.classList.contains('selected'));
+  return !!(tb && tb.dataset && tb.dataset.tfCorners && tb.classList && tb.classList.contains('selected'));
 }
 
-/** 손잡이·격자를 ★놓는다(없으면 만들고, 있으면 ★자리만 옮긴다 · ★멱등).
- *  ★돌려주는 것: 놓은 손잡이 수(안 떠야 하면 0).
- *  ★자리 계산 — ★정본이 그리는 식과 ★같은 자를 쓴다:
- *    `applyFxFreeTransform` 이 ★`normalizeCorners(C).D` 로 호모그래피를 풀고
- *    ★`transformOrigin = OX px OY px` 를 ★글자칸에 건다
- *    ⇒ ★모서리 `D[i]` 는 ★블럭 좌표에서 ★`(OX + x, OY + y)` 에 ★보인다. */
+/** 두 층을 ★없으면 만들고 ★있으면 ★그대로 — ★멱등. */
+function _ensureLayers(tb) {
+  let fx = tb.querySelector(':scope > .tfh-fx');
+  if (!fx) {
+    fx = document.createElement('div');
+    fx.className = 'tfh-fx';
+    /* ★격자 = ★3×3 — ★시안 `:193~197` 그대로(★v 둘 · ★h 둘 · ★33.333%·66.666%) */
+    fx.innerHTML = '<div class="tfh-edge"></div><div class="tfh-grid">'
+      + '<i class="v" style="left:33.333%"></i><i class="v" style="left:66.666%"></i>'
+      + '<i class="h" style="top:33.333%"></i><i class="h" style="top:66.666%"></i>'
+      + '</div>';
+    tb.appendChild(fx);
+  }
+  let layer = tb.querySelector(':scope > .tfh-layer');
+  if (!layer) { layer = document.createElement('div'); layer.className = 'tfh-layer'; tb.appendChild(layer); }
+  return { fx, layer };
+}
+
+/** 손잡이·격자를 ★놓는다(멱등). 돌려주는 것 = 놓은 손잡이 수(안 떠야 하면 0). */
 export function ftHandlesSync(tb) {
   if (!_shouldShow(tb)) { ftHandlesClear(tb); return 0; }
   const C = ftCornersOf(tb);
   const st = ftStateOf(tb);
-  if (!C || !st) { ftHandlesClear(tb); return 0; }
+  const glyph = _glyphOf(tb);
+  if (!C || !st || !glyph || !(st.W > 0) || !(st.H > 0)) { ftHandlesClear(tb); return 0; }
+
   const { D } = normalizeCorners(C);
+  const h = homography([[0, 0], [st.W, 0], [st.W, st.H], [0, st.H]], D);
+  if (!h) return 0;                       /* ★한 줄·겹침 ⇒ 못 푼다 — ★정본도 그리지 않는다 */
 
-  /* ★격자 — ★글자칸과 ★같은 행렬을 ★타는 ★네모 하나. ⛔제 행렬을 ★만들지 않고 ★베낀다
-     (★두 벌이 되면 ★한쪽이 ★늙는다 — `editor-ui-roster.js` 머리말이 ★그 까닭을 적었다). */
-  let grid = tb.querySelector(':scope > .tfh-grid');
-  if (!grid) { grid = document.createElement('div'); grid.className = 'tfh-grid'; tb.appendChild(grid); }
-  const ce = tb.querySelector('[contenteditable]')
-    || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner,.itb-text');
-  grid.style.width = st.W + 'px';
-  grid.style.height = st.H + 'px';
-  grid.style.left = st.OX + 'px';
-  grid.style.top = st.OY + 'px';
-  grid.style.transform = ce ? (ce.style.transform || '') : '';
-  grid.style.transformOrigin = '0px 0px';
+  const { fx, layer } = _ensureLayers(tb);
+  /* ★★⒤ 꾸밈 층 — ★글자와 ★«같은 행렬». ★시안 `:570~571` 그대로(origin `0 0`). */
+  fx.style.width = st.W + 'px'; fx.style.height = st.H + 'px';
+  fx.style.left = st.OX + 'px'; fx.style.top = st.OY + 'px';
+  fx.style.transform = glyph.style.transform || '';
+  fx.style.transformOrigin = '0 0';
 
-  let n = 0;
-  CORNERS.forEach(({ i, id, cursor }) => {
-    let h = tb.querySelector(`:scope > .tfh-handle[data-tfh="${id}"]`);
-    if (!h) {
-      h = document.createElement('div');
-      h.className = 'tfh-handle';
-      h.dataset.tfh = id;
-      h.style.cursor = cursor;
-      tb.appendChild(h);
-      _bindDrag(h, tb, i);
+  /* ★★ⅱ) 손잡이 층 — ★★변형 ★«밖». ⇒ ★★두께가 ★균일하다(★현빈 ⒜ 의 ★처방). */
+  const scale = _scaleOf(tb);
+  const toLocal = ([x, y]) => [st.OX + x, st.OY + y];      /* ★모델 px · ★블럭 좌표 */
+  const put = (name, pt, kind) => {
+    let el = layer.querySelector(`:scope > [data-tfh="${name}"]`);
+    if (!el) {
+      el = document.createElement('span');
+      el.className = 'tfh-handle ' + kind;
+      el.dataset.tfh = name;
+      el.tabIndex = 0;
+      el.setAttribute('aria-label', name + ' 핸들');
+      if (CURSOR[name]) el.style.cursor = CURSOR[name];
+      layer.appendChild(el);
+      _bind(el, tb, name, kind);
     }
-    h.style.left = (st.OX + D[i][0]) + 'px';
-    h.style.top = (st.OY + D[i][1]) + 'px';
-    n++;
+    el.style.left = pt[0] + 'px';
+    el.style.top = pt[1] + 'px';
+  };
+  CORNERS.forEach(([n, i]) => put(n, toLocal(D[i]), 'corner'));
+  /* ★변의 ★1/3·2/3 — ★★호모그래피로 ★그 자리를 ★구한다(★★원근에서 ★선형이 ★아니다 · ★시안 주석) */
+  const srcPt = { n: [[0, 0], [st.W, 0]], e: [[st.W, 0], [st.W, st.H]], s: [[st.W, st.H], [0, st.H]], w: [[0, st.H], [0, 0]] };
+  EDGEPTS.forEach(([n, side, t]) => {
+    const [a, b] = srcPt[side];
+    const m = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    const w = h[6] * m[0] + h[7] * m[1] + 1;
+    put(n, toLocal([(h[0] * m[0] + h[1] * m[1] + h[2]) / w, (h[3] * m[0] + h[4] * m[1] + h[5]) / w]), 'edge');
   });
-  return n;
+  void scale;
+  return layer.querySelectorAll(':scope > .tfh-handle').length;
 }
 
-/** 한 모서리를 끈다 — ★★«바꾸는 문 하나»(`setFxFreeTransform`)로만 간다.
- *  ★이력: 한 제스처 한 걸음 ⇒ ★첫 mousemove 에서만 `history: true`(정본 규약 「push-before」).
- *  ★`touched: true` — ⛔정본이 ★그렇게 ★적었다: 「가르는 자는 `touched` 하나다 · ⛔«꼴»로 가르지 마라」
- *    (★안 주면 ★축 정렬로 줄이기만 한 네 점이 ★바탕 네모로 읽혀 ★다음 렌더가 ★항등으로 되돌린다
- *     = ★손잡이가 ★«튕긴다» · 정본이 261023 무력화 대조로 ★그 함정을 먼저 닫아 뒀다). */
-function _bindDrag(handle, tb, idx) {
-  handle.addEventListener('mousedown', (e) => {
+/** 끌기 — ★★«바꾸는 문 하나»(`setFxFreeTransform`)로만. ★시안 `apply`(`:659~690`) 와 ★같은 식.
+ *  ★`touched: true` — ★정본이 적어 둔 ⛔다(안 주면 ★축 정렬 네 점이 ★항등으로 ★되돌려 ★«튕긴다»).
+ *  ★이력 : ★첫 move 에서만 `history: true`(★한 제스처 ★한 걸음 · push-before 규약). */
+function _bind(el, tb, name, kind) {
+  el.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
-    e.stopImmediatePropagation();
-    e.stopPropagation();
-    e.preventDefault();
+    e.stopImmediatePropagation(); e.stopPropagation(); e.preventDefault();
     const C0 = ftCornersOf(tb);
     if (!C0) return;
-    /* ⛔끌기 «중»에 다시 읽지 않는다 — 쓰기 직후 읽기는 ★강제 동기 레이아웃이다
-       (★관용구: gradient-select.js 의 「드래그 시작 시 1회만 읽는다」 주석). */
-    const scale = _scaleOf(tb);
+    const scale = _scaleOf(tb);            /* ⛔끌기 «중»에 다시 읽지 않는다(강제 동기 레이아웃) */
     const sx = e.clientX, sy = e.clientY;
     let first = true;
 
     const onMove = (ev) => {
-      const dx = (ev.clientX - sx) / scale;
-      const dy = (ev.clientY - sy) / scale;
-      const C = C0.map((p) => [p[0], p[1]]);
-      C[idx] = [C0[idx][0] + dx, C0[idx][1] + dy];
+      const mx = (ev.clientX - sx) / scale, my = (ev.clientY - sy) / scale;
+      let C;
+      if (kind === 'corner') {
+        const i = CORNERS.find((c) => c[0] === name)[1];
+        if (ev.shiftKey) {
+          /* ⇧ = ★비율 지키기 — ★맞은편을 ★축으로 ★닮게 (★시안 `:669~673` 그대로) */
+          const o = C0[(i + 2) % 4];
+          const den = (Math.hypot(C0[i][0] - o[0], C0[i][1] - o[1]) ** 2) || 1;
+          const k = Math.max(0.2, 1 + (mx * (C0[i][0] - o[0]) + my * (C0[i][1] - o[1])) / den);
+          C = C0.map((p) => [o[0] + (p[0] - o[0]) * k, o[1] + (p[1] - o[1]) * k]);
+        } else {
+          C = C0.map((p) => p.slice());
+          C[i] = [C0[i][0] + mx, C0[i][1] + my];     /* ★★모서리 ★하나만 — ★이것이 ★Distort 다 */
+        }
+      } else {
+        /* ★변 — ★★이웃 ★두 모서리를 ★★그 변의 ★법선 쪽으로 ★같이 (★시안 `:680~688` 그대로) */
+        const side = EDGEPTS.find((x) => x[0] === name)[1];
+        const [, a, b] = EDGES.find((x) => x[0] === side);
+        const n = [-(C0[b][1] - C0[a][1]), C0[b][0] - C0[a][0]];
+        const L = Math.hypot(n[0], n[1]) || 1;
+        const t = (mx * n[0] + my * n[1]) / L / L;
+        C = C0.map((p) => p.slice());
+        C[a] = [C0[a][0] + n[0] * t, C0[a][1] + n[1] * t];
+        C[b] = [C0[b][0] + n[0] * t, C0[b][1] + n[1] * t];
+      }
       const r = setFxFreeTransform(tb, C, { history: first, touched: true });
       first = false;
-      /* ★못 풀면(네 점이 한 줄·겹침) 정본이 ★그리지 않는다 — ★그때는 손잡이도 ★안 옮긴다. */
       if (r && r.ok) ftHandlesSync(tb);
     };
     const onUp = () => {
@@ -144,8 +193,7 @@ function _bindDrag(handle, tb, idx) {
   });
 }
 
-/** 문서를 연 뒤·고른 것이 바뀐 뒤 — 걸린 블럭의 손잡이를 ★다시 놓는다(멱등).
- *  ⛔제 load 리스너를 ★따로 달지 않는다 — ★부르는 쪽(editor 선택 흐름 · 정본 watchAll)이 ★부른다. */
+/** 문서를 연 뒤·고른 것이 바뀐 뒤 — 걸린 블럭의 손잡이를 ★다시 놓는다(멱등). */
 export function ftHandlesSyncAll(root = document) {
   if (!root || !root.querySelectorAll) return 0;
   let n = 0;

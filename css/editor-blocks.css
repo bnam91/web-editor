@@ -4580,18 +4580,33 @@ html.tgs-selecting .tgs:focus-within {
 }
 
 /* ──────────────────────────────────────────────
-   ★★U3 자유변형 ★모서리 손잡이·격자 (JS 에서 `.tfh-handle`·`.tfh-grid` 추가 · js/effects-ft-handles.js)
-   ★`.sticker-corner-handle`(:4490)·`.gradient-corner-handle` 과 ★같은 축 —
-     ★`--inv-zoom` calc() 로 ★캔버스 배율 ★무관하게 ★화면상 ★7px 고정 · ★테두리도 ★같은 축에 태운다.
-   ★★⛔자리(left·top)는 ★CSS 가 ★안 정한다 — ★JS 가 ★★네 점에서 ★계산해 ★인라인으로 ★박는다
-     (★모서리가 ★★찌그러져 있어서 ★`tl/tr/bl/br` 고정 오프셋으로는 ★못 놓는다).
-     ⇒ ★그래서 ★`translate(-50%,-50%)` 로 ★★그 점 «위»에 ★가운데를 ★맞춘다.
-   ★이름 `tfh-` 를 고른 까닭(실측 261024): ⛔`ft-` 는 ★임자가 있다 —
-     `projects-onescreen` 의 폴더 타일(`.ft-tile`·`.ft-add`·`.ft-sub` · ★레포 48건).
-   ★★이 둘은 ★`js/io/editor-ui-roster.js` ★`NON_CONTENT_UI_SELECTOR` ＋ `serializeCleanRoot` 에
-     ★★한 쌍으로 올라 있다(`beea5848`) ⇒ ★저장본·PNG·썸네일·단독 HTML 로 ★★안 샌다.
-     ★그 쌍이 정말 묶였나 : ★직렬에서만 빼면 ★`R1` 이 ★fail 1(★변이로 확인).
+   ★★U3 자유변형 — ★★손잡이 12 ＋ 격자 3×3 (JS: js/effects-ft-handles.js)
+   ★★★정본 = ★시안 8판 `~/.gd-work/team-lead/sian/sian-08-text-freetransform-v8.html` (sha e1338e08e1de)
+     ★그 시안의 `:81~104` 를 ★★그대로 옮긴다. ⛔치수를 ★새로 짓지 않았다.
+   ★★★세 층 — ★★각 층이 ★다른 축에 선다(★시안 주석 그대로):
+     ⒤ `.text-block`(★파란 아웃라인) ⇒ ⛔`transform` 영영 안 건다 · ★직사각형 유지 · ★크기만 글자 따라감
+     ⅱ) `.tfh-fx`  ⇒ ★글자와 ★«같은 행렬» ⇒ ★테두리·격자가 ★같이 휜다(★포토샵 커맨드T 꼴)
+     ★★ⅲ) `.tfh-layer` ⇒ ★★변형 ★«밖» ⇒ ★★★손잡이 두께가 ★균일하다
+   ★★현빈 신고 셋의 처방이 ★이 구조다:
+     ⒜ 「보라 두께가 모서리마다 다르다」 ⇒ ★손잡이를 ⅲ) 으로 옮겼다
+     ⒝ 「파란 아웃라인 너비가 줄어든다」 ⇒ ★손잡이가 `tb` 레이아웃을 ★안 민다(`.tfh-layer` 는 inset:0)
+     ⒞ 「격자가 안 보인다」            ⇒ ★`.tfh-grid` 에 ★3×3 분할선 넷
 ────────────────────────────────────────────── */
+/* ★꾸밈 층 — ★변형 «안». JS 가 글자의 transform 을 ★베껴 박는다(⛔제 행렬을 만들지 않는다). */
+.tfh-fx { position: absolute; pointer-events: none; z-index: 100; }
+.tfh-edge {
+  position: absolute; inset: 0; pointer-events: none;
+  border: calc(1.5px * var(--inv-zoom, 1)) solid var(--ui-sel-overlay, #9966ff);
+  box-sizing: border-box;
+}
+/* ★격자 3×3 — ★시안 `.tgrid` 그대로(opacity .5 · 1px × --inv-zoom) */
+.tfh-grid { position: absolute; inset: 0; pointer-events: none; }
+.tfh-grid i { position: absolute; background: var(--ui-sel-overlay, #9966ff); opacity: .5; }
+.tfh-grid i.v { top: 0; bottom: 0; width:  calc(1px * var(--inv-zoom, 1)); }
+.tfh-grid i.h { left: 0; right: 0; height: calc(1px * var(--inv-zoom, 1)); }
+
+/* ★★손잡이 층 — ★★변형 «밖». ⛔`inset:0` 이라 `tb` 의 레이아웃을 ★안 민다(★현빈 ⒝ 의 처방). */
+.tfh-layer { position: absolute; inset: 0; pointer-events: none; z-index: 101; }
 .tfh-handle {
   position: absolute;
   width:  calc(7px * var(--inv-zoom, 1));
@@ -4601,22 +4616,11 @@ html.tgs-selecting .tgs:focus-within {
   border: calc(var(--ui-handle-border-w, 1.5px) * var(--inv-zoom, 1)) solid var(--ui-sel-overlay, #9966ff);
   border-radius: 1px;
   pointer-events: auto;
-  z-index: 101;            /* ★격자(100) «위» — 손잡이가 선에 가리면 못 잡는다 */
   box-sizing: border-box;
-  mix-blend-mode: normal;  /* ★섞임 차단 — 스티커 손잡이와 같은 까닭 */
-  isolation: isolate;
+  mix-blend-mode: normal; isolation: isolate;
 }
+/* ★변 손잡이 = ★★속이 보라(★시안 `.tfo-overlay-handle.edge` 그대로) — ★모서리와 ★눈으로 갈린다 */
+.tfh-handle.edge { background: var(--ui-sel-overlay, #9966ff); cursor: crosshair; }
 .tfh-handle:hover { background: #f0e8ff; }
-
-/* ★격자 — ★글자칸과 ★«같은 행렬»을 탄다(JS 가 `ce.style.transform` 을 베껴 박는다).
-   ⛔제 행렬을 만들지 않는다 — 두 벌이 되면 한쪽이 늙는다. */
-.tfh-grid {
-  position: absolute;
-  pointer-events: none;    /* ★선이 클릭을 먹으면 ★글자를 못 고른다 */
-  z-index: 100;
-  box-sizing: border-box;
-  border: calc(var(--ui-handle-border-w, 1.5px) * var(--inv-zoom, 1)) dashed var(--ui-sel-overlay, #9966ff);
-  background: transparent;
-  mix-blend-mode: normal;
-  isolation: isolate;
-}
+.tfh-handle.edge:hover { background: #b48cff; }
+.tfh-handle:focus-visible { outline: 2px solid var(--ui-sel-overlay, #9966ff); outline-offset: 2px; }

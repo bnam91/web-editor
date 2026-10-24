@@ -64,7 +64,14 @@ const read = (page) => page.evaluate(() => {
   return {
     handle: document.querySelectorAll('.tfh-handle').length,
     grid: document.querySelectorAll('.tfh-grid').length,
-    mine: tb ? tb.querySelectorAll(':scope > .tfh-handle').length : -1,
+    /* ★★261024 ★고침 — ★손잡이는 ★`.tfh-layer` ★«안»에 산다(★시안 구조 · ★세 층).
+       ⛔옛 자는 `tb` 의 ★«바로 아래»만 봐서 ★0 이 나왔다 ⇒ ★★제품이 아니라 ★이 자가 ★낡았다. */
+    mine: tb ? tb.querySelectorAll(':scope > .tfh-layer > .tfh-handle').length : -1,
+    layer: tb ? tb.querySelectorAll(':scope > .tfh-layer').length : -1,
+    fx: tb ? tb.querySelectorAll(':scope > .tfh-fx').length : -1,
+    gridLines: document.querySelectorAll('.tfh-grid > i').length,
+    edge: document.querySelectorAll('.tfh-handle.edge').length,
+    corner: document.querySelectorAll('.tfh-handle.corner').length,
     selected: tb ? tb.classList.contains('selected') : null,
     corners: tb ? (tb.dataset.tfCorners || null) : null,
   };
@@ -102,9 +109,19 @@ test('H1 ★자유변형을 켜면 ★모서리 손잡이가 ★뜬다 — ⛔�
      ★변 여덟(1/3·2/3)은 ★현빈 결정 대기다(⒜ 변 전체 밀기 / ⒝ Warp=메시 필요).
      ⇒ ★그래서 ★★«수를 판에서 읽어» 적고, ★★«4 이상»만 단언한다. ★결정이 오면 이 칸을 뒤집어 적는다.
      ★이름 = `U3-EDGE-HANDLES-UNDECIDED-01` */
-  expect(after.handle, '⛔켰는데 손잡이가 0 — U3 가 안 붙는다').toBeGreaterThanOrEqual(4);
-  expect(after.mine, '⛔손잡이가 그 블럭의 «자식»이 아니다 — 명부(editor-ui-roster)가 못 걷는다').toBe(after.handle);
-  expect(after.grid, '⛔격자가 안 붙었다').toBeGreaterThanOrEqual(1);
+  /* ★★★시안 8판(sha e1338e08e1de)의 ★두 명부에서 ★파생된 수 — ★CORNERS 4 ＋ EDGEPTS 8 = ★★12 */
+  expect(after.handle, '⛔손잡이가 12 가 아니다 — 시안은 모서리 4 ＋ 변 8').toBe(12);
+  expect(after.corner, '★모서리 손잡이가 4 가 아니다').toBe(4);
+  expect(after.edge, '★변 손잡이가 8 이 아니다 — 시안 EDGEPTS(1/3·2/3 × 네 변)').toBe(8);
+  expect(after.mine, '⛔손잡이가 `.tfh-layer` 안에 없다 — 두께가 원근에 휜다(현빈 ⒜ 신고)').toBe(after.handle);
+  expect(after.layer, '⛔`.tfh-layer`(변형 «밖») 가 없다').toBe(1);
+  expect(after.fx, '⛔`.tfh-fx`(변형 «안») 가 없다').toBe(1);
+  expect(after.grid, '⛔격자가 안 붙었다').toBe(1);
+  /* ★★★현빈 ⒞ 신고 — ★격자 3×3 ⇒ ★분할선 ★넷(v 둘 ＋ h 둘) */
+  expect(after.gridLines, '⛔격자 분할선이 4 가 아니다 — 시안은 3×3').toBe(4);
+  /* ★★★★★현빈 ⒝ 신고 — ★파란 아웃라인(컨테이너)은 ★`transform` 을 ★영영 안 받는다 */
+  const tbTf = await page.evaluate(() => getComputedStyle(document.getElementById('ftTB')).transform);
+  expect(tbTf, '⛔`.text-block` 에 transform 이 걸렸다 — 파란 아웃라인이 찌그러진다(현빈 ⒝)').toBe('none');
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 
@@ -133,6 +150,7 @@ test('H2 ★놓으면 ★걷히고 ★다시 고르면 ★다시 뜬다 (★★�
   const again = await read(page);
   console.log('[H2-again]', JSON.stringify(again));
   expect(again.handle, '⛔다시 골랐는데 손잡이가 안 뜬다 — 현빈 신고 그 자리').toBe(on.handle);
+  expect(again.gridLines, '★격자 분할선도 같이 돌아와야 한다').toBe(4);
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 
@@ -151,7 +169,10 @@ test('H3 ★모서리를 ★끌면 ★`tfCorners` 가 ★바뀐다 — ★항등
 
   /* ★진짜 마우스로 ★se 모서리를 ★끈다 */
   const box = await page.evaluate(() => {
-    const h = document.querySelector('#ftTB > .tfh-handle[data-tfh="se"]') || document.querySelector('#ftTB > .tfh-handle');
+    /* ★★261024 ★고침 — ★손잡이는 ★`.tfh-layer` ★«안»이다(★시안 세 층) */
+    const h = document.querySelector('#ftTB > .tfh-layer > .tfh-handle[data-tfh="se"]')
+           || document.querySelector('#ftTB > .tfh-layer > .tfh-handle');
+    if (!h) throw new Error('⛔손잡이를 못 찾았다 — 자가 낡았나 손잡이가 안 붙었나');
     const r = h.getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2, which: h.dataset.tfh };
   });
@@ -208,5 +229,56 @@ test('H5 ★★저장본에 `.tfh-*` 가 ★0 — ★명부(editor-ui-roster ＋
   expect(r.textBlock, '★양성대조: 저장본에 text-block 이 0 — 엉뚱한 것을 읽었다').toBeGreaterThan(0);
   expect(r.handle, '⛔저장본에 `.tfh-handle` 이 실렸다 — `EXPORT-SELECTED-HANDLE-BAKED-IN-01` 의 그 병').toBe(0);
   expect(r.grid, '⛔저장본에 `.tfh-grid` 가 실렸다').toBe(0);
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
+
+/* ── H6 ★★문서를 ★«다시 열면» ★다시 뜬다 — ★★★C1 이 ★잡은 ★그 칸 ──────────── */
+test('H6 ★★문서를 ★다시 ★열면 ★손잡이가 ★다시 ★뜬다 — ★`watchAllFxFreeTransform` 이 ★부른다', async ({ page }) => {
+  const errs = await setup(page);
+  await pick(page, 'ftTB');
+  await addFt(page);
+  await page.waitForFunction(() => document.querySelectorAll('.tfh-handle').length > 0, null, { timeout: 5000 });
+  const on = await read(page);
+
+  /* ★★★왜 이 칸이 ★필요한가(실측 261024 · ★적대적 ⒠ 의 ★C1 이 ★잡았다):
+       ★내가 ★`watchAllFxFreeTransform` 에 ★`window.ftHandlesSyncAll?.(root)` 를 ★넣었는데
+       ★★★`return n;` ★«뒤»에 ★넣었다 ⇒ ★★★절대 ★안 ★도는 ★죽은 ★코드였다.
+     ★★★그런데 ★이 벌의 ★H2(「다시 고르면 뜬다」)는 ★★초록이었다 —
+       ★★H2 는 ★`pick()` 으로 ★고르므로 ★`clearSelectionMarks` 경로를 ★탄다.
+       ⇒ ★★★«문서를 ★연 ★직후» 경로는 ★★★아무도 ★안 ★쟀다.
+     ⇒ ★★교훈 「★고쳤다는 ★검사가 ★초록이면 ★★그 검사가 ★그 줄을 ★안 ★잰다」 — ★그 자리다.
+     ★이름 = `U3-WATCHALL-SYNC-WAS-DEAD-CODE-01` (★261024 · ★적대적 ⒠ C1 이 ★찾았다) */
+  const n = await page.evaluate(() => {
+    /* ★앱 제 문으로 ★«다시 그리기»를 ★시킨다 — ★명부가 ★로드 뒤 ★부르는 ★그 함수다.
+       ⛔손으로 ★손잡이를 ★지우고 ★다시 ★부르는 것이 ★아니라, ★★그 함수 ★하나가 ★다 ★하는지를 ★본다. */
+    /* ★★261024 ★고침 — ★★두 층을 ★통째로 지운다(★`.tfh-fx` ＋ `.tfh-layer`).
+       ⛔옛 자는 `.tfh-grid` 만 지워 ★`.tfh-fx` 가 ★남았고 ⇒ ★`_ensureLayers` 가 ★다시 ★안 만들어
+         ★★「격자 0」으로 ★빨개졌다 = ★★★제품이 아니라 ★이 자가 ★낡았다. */
+    document.querySelectorAll('.tfh-fx, .tfh-layer').forEach((e) => e.remove());
+    const before = document.querySelectorAll('.tfh-handle').length;
+    const ret = window.watchAllFxFreeTransform(document);
+    return { before, ret, after: document.querySelectorAll('.tfh-handle').length,
+             grid: document.querySelectorAll('.tfh-grid').length,
+             gridLines: document.querySelectorAll('.tfh-grid > i').length,
+             layer: document.querySelectorAll('.tfh-layer').length };
+  });
+  console.log('[H6]', JSON.stringify({ on, n }));
+  expect(n.before, '★전제: 지운 뒤 0 이어야 이 칸이 무엇을 재는지 분명하다').toBe(0);
+  expect(n.after, '⛔`watchAllFxFreeTransform` 이 ★손잡이를 ★안 ★붙인다 — ★★죽은 코드 자리다').toBe(on.handle);
+  expect(n.grid, '⛔격자도 안 붙었다').toBe(1);
+  expect(n.gridLines, '⛔격자 3×3 분할선이 안 돌아왔다').toBe(4);
+  expect(n.layer, '⛔손잡이 층(변형 밖)이 안 돌아왔다').toBe(1);
+  /* ★★★그 함수의 ★돌려주는 ★값도 ★살아 ★있어야 ★한다 — ★`return n` 을 ★옮겼으니 ★여기서 ★잰다
+     (⛔안 재면 ★다음 사람이 ★`return` 을 ★다시 ★위로 ★올려도 ★안 ★빨개진다) */
+  expect(typeof n.ret, '⛔`watchAllFxFreeTransform` 이 수를 안 돌려준다 — return 이 죽었다').toBe('number');
+  expect(n.ret, '⛔다시 그린 블럭 수가 0 — return 값이 죽었다').toBeGreaterThan(0);
+  /* ★★★261024 ★정정 — ★★이 칸은 ★★«항상 참»이었다.
+     ★`applyFxFreeTransform` 끝(:221)에 ★이미 `window.ftHandlesSync?.(tb)` 가 있고
+     ★`watchAllFxFreeTransform` 이 ★그것을 ★블럭마다 ★부른다 ⇒ ★내가 :298 에 넣은 줄은 ★★중복이었다
+     (★적대적 ⒠ 의 ★C1 이 「`return n;` 뒤 = ★죽은 코드」로 ★잡았다 — ★판정은 ★맞다).
+     ⇒ ★★이 칸이 ★재는 것은 ★★«watchAll → applyFx → ftHandlesSync ★사슬»이고
+       ⛔「그 한 줄이 산다」가 ★아니다. ★그 줄은 ★있으나 없으나 ★같다.
+     ★★그 사슬을 ★정말 재려면 ★제품을 ★무력화해야 ★하는데 ★이 벌에서는 ★못 한다
+       ⇒ ★이름 `U3-SYNC-CHAIN-MUTATION-UNMEASURED-01` (★«못 쟀다» 명부) */
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
