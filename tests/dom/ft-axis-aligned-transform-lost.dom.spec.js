@@ -45,8 +45,8 @@ function matNums(s) {
 }
 
 /** 네 점으로 자유변형을 걸고 ★저장→복원한 뒤 ★전후를 돌려준다. */
-async function run(page, corners) {
-  return await page.evaluate(async (corners) => {
+async function run(page, corners, opts = {}) {
+  return await page.evaluate(async ({ corners, stripKey, growText, touched }) => {
     for (const k of ['pushHistory', 'markDirty', 'scheduleAutoSave', 'updateLayerPanel', 'buildLayerPanel', 'showToast', 'deselectAll'])
       if (typeof window[k] !== 'function') window[k] = () => {};
     const ft = await import('/js/effects-freetransform.js');
@@ -63,21 +63,26 @@ async function run(page, corners) {
     tf.style.width = '300px'; tf.style.maxWidth = '100%'; tf.dataset.width = '300';
 
     const ceOf = (el) => el.querySelector('[contenteditable]') || el.querySelector('.tb-body');
-    ft.setFxFreeTransform(tb, corners, { history: false });
+    /* ★`touched: false` = ★«변형 안 하고 켜기만» (★음성대조용) */
+    ft.setFxFreeTransform(tb, corners || undefined, { history: false, touched: touched !== false });
+    /* ★★저장 ★전에 ★글자만 바꾸는 판 — ⛔다시 그리지 ★않는다(사용자가 ★타이핑만 한 꼴) */
+    if (growText != null) (tb.querySelector('[contenteditable]') || tb.querySelector('.tb-body')).textContent = growText;
     const before = { corners: tb.dataset.tfCorners, m: ceOf(tb).style.transform, tfW: tf.style.width };
 
     window.flushCurrentPage();
     const saved = window.getSerializedCanvas ? window.getSerializedCanvas() : canvas.innerHTML;
     const savedCorners = (saved.match(/data-tf-corners="([^"]+)"/) || [])[1] || null;
-    canvas.innerHTML = saved;
+    const savedTouched = /data-tf-touched="1"/.test(saved);
+    /* ★★★«옛 파일» 흉내 — ★저장본에서 ★키를 ★떼고 ★복원한다(★backward-compat 를 ★재는 자리) */
+    canvas.innerHTML = stripKey ? saved.replace(/ data-tf-touched="1"/g, '') : saved;
     window.rebindAll?.({});
     const tb2 = document.getElementById('axTb');
     if (!tb2) return { fail: '복원 뒤 못 찾음' };
     const tf2 = tb2.closest('.frame-block[data-text-frame="true"]');
     const after = { corners: tb2.dataset.tfCorners, m: ceOf(tb2).style.transform, tfW: tf2.style.width };
-    return { before, savedCorners, after,
+    return { before, savedCorners, savedTouched, after,
              cornersKept: before.corners === after.corners };
-  }, corners);
+  }, { corners, stripKey: !!opts.stripKey, growText: opts.growText ?? null, touched: opts.touched });
 }
 
 /** 항등 행렬과의 최대차 — ★대각 1 · 나머지 0. ★16 개가 아니면 `null`(자가 헛돈 것). */
@@ -101,23 +106,44 @@ test('Y0 ★전제 — 저장본에 네 점이 ★살아 있다(★데이터 손
   expect(errs, `★앱 오류: ${errs.join(' | ')}`).toEqual([]);
 });
 
-test('Y1 ★★미해결을 ★수로 박는다 — ★축정렬 변형은 ★복원 뒤 ★네 점이 ★덮어써진다', async ({ page }) => {
+test('Y1 ★★★닫혔다 — ★축정렬 변형이 ★복원 뒤에도 ★유지된다 (★전엔 ★통째로 사라졌다)', async ({ page }) => {
   await bootApp(page);
   const r = await run(page, AXIS);
   expect(r.fail).toBeUndefined();
   console.log('[Y1]', JSON.stringify(r));
 
-  /* ★★★「★결함이 ★산다」를 ★잠근다 — ⛔「고쳤다」가 ★아니다.
-     ★고치면 ★이 칸이 ★빨개지고, ★그때 ★`FT-AXIS-ALIGNED-TRANSFORM-LOST-ON-RESTORE-01` 을 ★닫아라.
-     ★261024 측정 : corners `0,0,400,0,400,120,0,120` → `0,0,338.34,0,338.34,43,0,43` · tf `400px` → `338.344px` */
+  /* ★★전제 — ★키가 ★저장본에 ★실렸나. ⛔안 실리면 ★아래 「유지된다」는 ★다른 까닭일 수 있다. */
+  expect(r.savedTouched, '★`data-tf-touched="1"` 이 저장본에 안 실렸다 — 키를 쓰는 자리가 죽었다').toBe(true);
+
+  /* ★★★본 단언 — ★261024 ★고침(`tfTouched`)이 ★잠그는 자리.
+     ★고치기 전 실측 : corners `0,0,400,0,400,120,0,120` → ★`0,0,338.34,0,338.34,43,0,43` ·
+       matrix ★항등 · tf `400px` → `338.344px` */
   expect(r.cornersKept,
-    '★축정렬 네 점이 ★복원 뒤에도 ★유지됐다 — ★고쳐졌다면 이 칸과 Y2 를 닫고 명부에서 지워라'
-  ).toBe(false);
-  /* ★행렬이 ★항등으로 ★돌아갔다 = ★변형이 ★사라졌다 */
+    `★축정렬 네 점이 ★복원 뒤 ★덮어써졌다 — ★고침이 되돌려졌다 (${r.before.corners} → ${r.after.corners})`
+  ).toBe(true);
   const d1 = identDiffOf(r.after.m);
-  expect(d1, `★행렬 성분이 16 개가 아니다 — 이 검사의 자가 헛돈다 (${r.after.m})`).not.toBeNull();
-  expect(d1, `★행렬이 항등이 아니다 (최대차 ${d1}) — 증상의 꼴이 바뀌었다`).toBeLessThan(1e-6);
-  expect(r.after.tfW, `★프레임 폭이 안 바뀌었다 (${r.after.tfW})`).not.toBe(r.before.tfW);
+  expect(d1, `★행렬 성분이 16 개가 아니다 — 자가 헛돈다 (${r.after.m})`).not.toBeNull();
+  expect(d1, '★행렬이 ★항등으로 돌아갔다 = ★변형이 사라졌다').toBeGreaterThan(1e-6);
+  expect(r.after.tfW, `★프레임 폭이 변했다 (${r.before.tfW} → ${r.after.tfW})`).toBe(r.before.tfW);
+});
+
+test('Y1b ★★backward-compat — ★«옛 파일»(키 없음)은 ★옛 동작 그대로다 (⛔「전부 고쳤다」가 아니다)', async ({ page }) => {
+  await bootApp(page);
+  const r = await run(page, AXIS, { stripKey: true });
+  expect(r.fail).toBeUndefined();
+  console.log('[Y1b]', JSON.stringify(r));
+
+  /* ★★이 칸은 ★«결함이 ★옛 파일에 ★남는다»를 ★★일부러 ★잠근다 —
+     ⛔「전부 고쳤다」로 ★읽히지 않게 ★★수로 박아 둔다.
+     ★옛 파일을 ★고치려면 ★마이그레이션이 ★필요하고, ★그건 ★★별개 결정이다
+       (★이름 = `FT-TOUCHED-OLD-FILES-NOT-MIGRATED-01` · ★0.9.9 후보).
+     ★이 칸이 ★빨개지면 = ★옛 파일도 ★고쳐졌다는 뜻이다 ⇒ ★그때 ★이 칸을 ★닫고 ★명부에서 지워라. */
+  expect(r.cornersKept,
+    '★키가 없는 판에서도 네 점이 유지됐다 — ★옛 파일까지 고쳐졌다면 이 칸을 닫아라'
+  ).toBe(false);
+  const d = identDiffOf(r.after.m);
+  expect(d, `★행렬 성분이 16 개가 아니다 (${r.after.m})`).not.toBeNull();
+  expect(d, '★옛 파일 판인데 행렬이 항등이 아니다 — 증상의 꼴이 바뀌었다').toBeLessThan(1e-6);
 });
 
 test('Y2 ★★음성대조 — ★사다리꼴은 ★네 점이 ★유지된다 (★「복원하면 ★늘 잃는다」가 아니다)', async ({ page }) => {
@@ -136,4 +162,37 @@ test('Y2 ★★음성대조 — ★사다리꼴은 ★네 점이 ★유지된다
   const d2 = identDiffOf(r.after.m);
   expect(d2, `★행렬 성분이 16 개가 아니다 — 자가 헛돈다 (${r.after.m})`).not.toBeNull();
   expect(d2, '★사다리꼴인데 행렬이 항등이다 — 변형이 통째로 사라졌다').toBeGreaterThan(1e-6);
+});
+
+/* ══ Y3 ★★★음성대조 넷 — ★«변형 안 하고 ★글자만 바꿔 저장한» 글상자는 ★찌그러지지 ★않는다 ══
+   ★★이 칸이 ★★«무접촉 길»을 ★기각한 ★근거다(261024) :
+     `_isBaseRect` 를 ★「바탕 W·H 와 같은가」로 ★좁히면 ★축정렬 변형은 ★지켜지지만
+     ★이 네 판이 ★★찌그러졌다 — ★실측 identDiff ★0.77 ～ ★4.28.
+   ⇒ ★`tfTouched` 길은 ★그 넷을 ★★안 건드린다(★키가 ★없으니 ★옛 꼴 판정 그대로) — ★그것을 ★잠근다.
+   ⛔이 칸이 ★빨개지면 ★★내 고침이 ★그 판을 ★건드린 것이다. */
+const GROW   = '가나다라마바사아자차카타파하 가나다라마바사아자차카타파하 가나다라마바사';
+const SHRINK = '짧';
+
+test('Y3 ★★음성대조 — 변형 ★안 하고 ★글자만 바꿔 저장해도 ★행렬이 ★항등이다 (넷)', async ({ page }) => {
+  await bootApp(page);
+  const cases = [
+    ['grow',   { touched: false, growText: GROW }],
+    ['shrink', { touched: false, growText: SHRINK }],
+    ['grow_oldFile',   { touched: false, growText: GROW,   stripKey: true }],
+    ['shrink_oldFile', { touched: false, growText: SHRINK, stripKey: true }],
+  ];
+  const seen = {};
+  for (const [name, opts] of cases) {
+    const r = await run(page, null, opts);   /* ★C 를 ★안 준다 = ★변형 안 함 */
+    expect(r.fail).toBeUndefined();
+    const d = identDiffOf(r.after.m);
+    seen[name] = { corners: r.after.corners, identDiff: d, savedTouched: r.savedTouched };
+    /* ★★전제 — ★`touched: false` 면 ★키가 ★저장본에 ★없어야 ★한다(★대칭) */
+    expect(r.savedTouched, `★${name}: 변형 안 했는데 키가 저장본에 실렸다 — 대칭이 깨졌다`).toBe(false);
+    expect(d, `★${name}: 행렬 성분이 16 개가 아니다 (${r.after.m})`).not.toBeNull();
+    /* ★★★본 단언 — ★찌그러지지 ★않는다 */
+    expect(d, `★${name}: 변형 안 한 글상자가 ★찌그러졌다 (identDiff ${d} · corners ${r.after.corners})`)
+      .toBeLessThan(1e-6);
+  }
+  console.log('[Y3]', JSON.stringify(seen));
 });

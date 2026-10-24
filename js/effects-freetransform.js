@@ -63,7 +63,22 @@ import { registerFxType, fxIsCardOpen, fxSetCardOpen } from './effects-registry.
 import { homography, cornerMatrix3d, normalizeCorners, boxFromCorners } from './fx/homography.js';
 
 /** ★정본 키 — ★하나다. ✕ = 이 키를 지움 ⇒ 켜기 전 바이트(반사·글로우와 같은 규약). */
-export const FX_FT_KEYS = ['tfCorners'];
+export const FX_FT_KEYS = ['tfCorners', 'tfTouched'];
+/* ★★★`tfTouched` (2026-10-24 · 지디 · ★server-manager GO · ⛔main 머지는 현빈 게이트)
+   ★무엇 : ★★«사람이 ★네 점을 ★끌었다»는 ★사실 ★하나. ★값은 `'1'` 뿐이고 ★없으면 ★「모른다」다.
+   ★★왜 ★필요한가 — ★★꼴로는 ★가를 수 ★없다(★실측으로 ★증명했다) :
+     「★축정렬로 ★400×120 으로 ★키웠다」와 「★글자가 ★400×120 이 ★됐다」는
+     ★★저장본에서 ★★★같은 데이터다 — corners 만 실리고 ★`W·H` 는 ★저장되지 ★않는다.
+     ⇒ ★`_isBaseRect`(꼴)만으로 판정하면 ★★`FT-AXIS-ALIGNED-TRANSFORM-LOST-ON-RESTORE-01` 이 난다
+       (★복원 뒤 ★네 점이 `_baseRect(W,H)` 로 ★덮어써져 ★변형이 ★통째로 ★사라진다).
+     ⇒ ★「바탕 W·H 와 같은가」로 좁히는 ★무접촉 길도 ★★기각했다 — ★그러면 ★«변형 안 하고 ★글자만
+       바꿔 저장한» 글상자가 ★★찌그러진다(★실측 identDiff ★0.77 ~ ★4.28).
+   ★★backward-compat — ⛔옛 파일을 ★깨지 ★않는다 :
+     ★키가 ★없으면 ★`watchAll` 은 ★★지금 그대로 ★꼴 판정(`_isBaseRect`)을 쓴다.
+     ⇒ ★옛 파일 ★로드 ★OK · ★옛 동작 ★그대로. ★★그래서 ★★옛 파일에서는 ★★안 고쳐진다 —
+       ★★★「전부 고쳤다」로 ★적지 ★마라. ★참값 = 「★새로 저장한 파일부터 ★닫힌다」.
+   ★대칭 : ★이 명부에 있으므로 ★✕(`setFxFreeTransform(tb, null)`)가 ★`tfCorners` 와 같이 ★지운다.
+   ★재는 자 = `tests/dom/ft-axis-aligned-transform-lost.dom.spec.js` */
 /** 네 점이 「바탕 네모인가」를 가르는 너그러움(모델 px) — ⛔판정용이 아니라 ★«글꼴이 늦게 와 W·H 가 바뀐 것»을 가린다. */
 const BASE_EPS = 0.5;
 
@@ -318,6 +333,9 @@ export function setFxFreeTransform(tb, C, { history = true, touched = true } = {
          ★다음 렌더가 ★항등으로 ★되돌린다 ⇒ ★★U3 에서 ★손잡이가 ★«튕기는» 것처럼 느껴진다.
        ⇒ ★꼴 판정(`_isBaseRect`)은 ★`watchAll`(로드)에만 쓴다 — ★거기엔 런타임 깃발이 ★없다. */
     if (st) { st.touched = !!touched; _tfState.set(tb, st); }
+    /* ★★`touched` 를 ★★데이터로 남긴다 — ★그 사실이 ★저장본에 실려야 ★복원 뒤에도 ★산다.
+       ⛔`touched: false`(패널이 ★켜기만 한 꼴)면 ★키를 ★지운다 — ★「변형 안 함」이 ★참이다. */
+    if (touched) tb.dataset.tfTouched = '1'; else delete tb.dataset.tfTouched;
     applyFxFreeTransform(tb);
   }
   window.scheduleAutoSave?.();
@@ -344,7 +362,14 @@ export function watchAllFxFreeTransform(root = document) {
   els.forEach((tb) => {
     /* ★로드된 네 점이 ★바탕 네모가 ★아니면 ★사람이 찌그러뜨린 것이다 ⇒ 다시 맞추지 않는다. */
     const st = ftMeasure(tb, true);
-    if (st) { st.touched = !_isBaseRect(ftCornersOf(tb)); _tfState.set(tb, st); }
+    /* ★★★`tfTouched` 가 ★있으면 ★그것을 ★믿는다(★사람이 끈 사실) — ★꼴로 ★다시 ★추측하지 ★않는다.
+       ⛔키가 ★없으면(★옛 파일) ★★옛 꼴 판정을 ★그대로 쓴다 ⇒ ★옛 동작·옛 파일 ★무해.
+       ★그 갈래에서는 `FT-AXIS-ALIGNED-TRANSFORM-LOST-ON-RESTORE-01` 이 ★★여전히 난다 —
+         ★★「옛 파일은 ★안 고쳐진다」가 ★참이고, ★그것을 ★★숨기지 ★않는다. */
+    if (st) {
+      st.touched = (tb.dataset.tfTouched === '1') ? true : !_isBaseRect(ftCornersOf(tb));
+      _tfState.set(tb, st);
+    }
     if (applyFxFreeTransform(tb)) n++;
   });
   /* ★★U3 — ★문서를 ★연 ★직후에도 ★손잡이가 ★떠야 ★한다.
