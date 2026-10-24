@@ -39,11 +39,25 @@ async function setup(page) {
     window.selectSection(sec); window.addTextBlock('h1');
     const tbs = sec.querySelectorAll('.text-block');
     tbs[tbs.length - 1].id = 'fxTB';
+    /* ★★shadow 는 ★★«도형 전용»이다 — `effects-shadow.js` supports =
+       shape-block | asset-block | frame-block (⛔text-block ★아니다).
+       ★261024 에 ★내가 ★text-block 에 ★걸어 ★거짓 빨강을 ★냈다 ⇒ ★제 자리를 ★만든다. */
+    if (typeof window.addShapeBlock === 'function') {
+      window.addShapeBlock('rect');
+      const shs = sec.querySelectorAll('.shape-block');
+      if (shs.length) shs[shs.length - 1].id = 'fxSH';
+    }
   });
   return errs;
 }
 
-/* ── R0 ★전제 — ★명부가 ★★다섯이고 ★★전부 ★`watchAll` 을 ★준다 ───────────── */
+/* ── R0 ★전제 — ★명부를 ★판에서 ★읽는다. ★★⛔「전부 watchAll 을 준다」는 ★★거짓이었다 ──
+   ★★★261024 ★정정 : 옛 머리말은 「★명부가 ★다섯이고 ★★전부 ★`watchAll` 을 ★준다」였다.
+     ★소스 실측 : `registerFxType({...})` ★다섯 중 ★★`shadow` 만 ★`watchAll` 이 ★★없다.
+     ⇒ ★`watchAllFx` 가 ★부를 수 있는 문은 ★★넷이다(freetransform·glow·reflect·particles).
+     ★★그래서 ★shadow 는 ★`ret` 에 ★영영 ★안 ★센다 — ⛔그걸 「안 그려진다」로 ★읽으면 ★틀린다.
+       ★shadow 가 ★저장 뒤 ★살아남는 ★길은 ★★«다른 축»이다(★직렬화에 실린 ★인라인 자취).
+     ★「★머리말이 ★단언보다 ★넓다」 — ★그 병을 ★이 파일이 ★앓고 ★있었다. */
 test('R0 ★전제 — 명부 식구가 ★다섯이고 ★`watchAllFx` 가 ★그 전부를 ★돈다 (⛔수를 박지 않고 판에서 읽는다)', async ({ page }) => {
   const errs = await setup(page);
   const r = await page.evaluate(() => ({
@@ -66,49 +80,96 @@ test('R0 ★전제 — 명부 식구가 ★다섯이고 ★`watchAllFx` 가 ★�
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 
-/* ── R1 ★★★미측 넷을 ★증상으로 ★세운다 — ★효과를 ★걸고 ★★복원을 ★흉내 낸다 ── */
-test('R1 ★★★복원 뒤 ★효과가 ★다시 ★그려진다 — ★`rebindAll` → `watchAllFx` 사슬 (★★미측 넷을 메운다)', async ({ page }) => {
+/* ── R1 ★★복원 뒤 ★효과가 ★다시 ★그려진다 — ★`rebindAll` → `watchAllFx` 사슬 ──────
+   ★★★261024 ★고침 : ★이 칸은 ★★거짓 빨강을 ★냈다. ★★내 자가 ★★세 곳 ★틀렸다 —
+     ⒜ `tb.dataset.fxGlow = '1'`   ★선택자는 `.text-block[data-fx-glow="on"]` (★effects-glow.js:145)
+     ⒝ `tb.dataset.fxReflect = '1'` ★선택자는 `[data-fx-reflect="on"]`        (★effects-reflect.js:136)
+     ⒞ shadow 를 ★★text-block 에 ★걸었다 — ★shadow 는 ★도형 전용이고 ★★watchAll 이 ★없다
+   ★★★그리고 ★★가장 ★나쁜 것 : ★내 ★전제 단언이 `!!tb.dataset.fxGlow` 였다 ⇒ ★`'1'` 에도 ★참.
+     ★★즉 ★「다섯 키가 다 걸렸다」는 ★★★항등식이었고 ★아무것도 ★안 잠갔다.
+   ⇒ ★이제 ★★앱의 ★제 설정 문(`setFx*`)으로 ★걸고, ★전제는 ★★«선택자가 ★그 요소를 ★집나»로 ★잰다.
+   ★잡아 준 이 = qa-eval(독립 QA) · ★까닭은 ★내가 ★소스에서 ★다시 ★쟀다. */
+test('R1 ★★복원 뒤 ★효과가 ★다시 ★그려진다 — ★★앱의 제 문(setFx*)으로 걸고 ★선택자로 전제를 잰다', async ({ page }) => {
   const errs = await setup(page);
   const r = await page.evaluate(() => {
     const tb = document.getElementById('fxTB');
-    /* ★★효과 ★넷을 ★★데이터로 ★건다 — ★★그것이 ★★저장본에 ★사는 ★꼴이다(dataset 키).
-       ⛔UI 로 ★걸지 ★않는 ★까닭 : ★이 칸이 ★재는 것은 ★★«복원 뒤 ★다시 그리나»이고
-         ★★«UI 로 ★걸 수 ★있나»는 ★★다른 칸이다(★섞으면 ★무엇이 ★깨졌는지 ★안 ★갈린다). */
-    tb.dataset.fxGlow = '1'; tb.dataset.fxGlowBlur = '20'; tb.dataset.fxGlowOp = '100'; tb.dataset.fxGlowColor = '#ff00ff';
-    tb.dataset.fxReflect = '1'; tb.dataset.fxReflectGap = '4'; tb.dataset.fxReflectLen = '55'; tb.dataset.fxReflectOp = '35';
-    tb.dataset.fxShadow = '1'; tb.dataset.fxShadowX = '2'; tb.dataset.fxShadowY = '2';
-    tb.dataset.fxShadowBlur = '6'; tb.dataset.fxShadowColor = '#000000'; tb.dataset.fxShadowOp = '50';
-    tb.dataset.tfCorners = '0,0,200,0,240,120,0,120';
+    const sh = document.getElementById('fxSH');
     const sec = document.getElementById('fxS');
+
+    /* ★★앱의 ★제 문으로 ★건다 — ⛔dataset 을 ★손으로 ★쓰지 ★않는다(★값 꼴을 ★짐작하게 된다) */
+    window.setFxGlow?.(tb, { state: 'on', blur: 20, op: 100, color: '#ff00ff' }, { history: false });
+    window.setFxReflect?.(tb, { state: 'on', gap: 4, len: 55, op: 35 }, { history: false });
+    if (sh) window.setFxShadow?.(sh, { state: 'on', x: 2, y: 2, blur: 6, color: '#000000', op: 50 }, { history: false });
+    tb.dataset.tfCorners = '0,0,200,0,240,120,0,120';   /* ★자유변형은 ★좌표가 ★곧 ★데이터다 */
     sec.dataset.fxParticles = JSON.stringify({ kind: 'snow', count: 20 });
 
-    /* ★★★한 자리를 ★부른다 — ★그것이 ★★명부 ★전체를 ★돈다 */
+    /* ★★★전제를 ★★«선택자»로 ★잰다 — ★그 효과의 ★watchAll 이 ★★실제로 ★집는 ★자로.
+       ⛔`!!dataset.x` 로 ★재면 ★어떤 값이든 ★참이 되어 ★★항등식이 ★된다(★261024 그 흠). */
+    const picked = {
+      glow:    [...document.querySelectorAll('.text-block[data-fx-glow="on"]')].includes(tb),
+      reflect: [...document.querySelectorAll('[data-fx-reflect="on"]')].includes(tb),
+      shadow:  sh ? [...document.querySelectorAll('[data-fx-shadow="on"]')].includes(sh) : null,
+      ft:      !!tb.dataset.tfCorners,
+      particles: !!sec.dataset.fxParticles,
+    };
+
+    /* ★★음성대조 ★먼저 — ★★아무것도 ★안 고른 판에서 ★손잡이는 ★0 이어야 ★한다.
+       ★`effects-ft-handles.js:73` 이 ★`.selected` 를 ★요구한다 ⇒ ★0 은 ★★결함이 ★아니다.
+       ⛔261024 에 ★내가 ★이걸 ★모르고 ★「손잡이 0 = 빨강」으로 ★걸어 ★★또 ★거짓 빨강을 ★냈다. */
+    const retNoSel = window.watchAllFx(document.getElementById('canvas') || document);
+    const handlesNoSel = document.querySelectorAll('.tfh-handle').length;
+
+    /* ★★★현빈 ★신고 ★장면 — 「★문서를 ★연 ★직후 ★선택이 ★복원돼 ★있는데 ★손잡이가 ★안 ★붙었다」
+       ⇒ ★★고른 ★뒤에 ★같은 ★한 자리를 ★부른다. */
+    /* ★`selectBlock` 은 ★★«id» 를 ★받는다 — ⛔요소를 ★넘기면 ★조용히 ★아무 일도 ★안 한다.
+       ★쓰임의 ★정본 = `js/insert-select.js:114` `window.selectBlock(target.id)`
+       ★★261024 : ★요소를 ★넘겼다가 ★내 ★전제 단언에 ★걸렸다(★그 칸이 ★제 할 일을 했다). */
+    window.selectBlock?.(tb.id);
     const ret = window.watchAllFx(document.getElementById('canvas') || document);
 
     const g = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body');
+    const cs = g ? getComputedStyle(g) : null;
+    const tbcs = getComputedStyle(tb);
     return {
-      ret,
-      /* ★★★효과마다 ★«그려졌나»를 ★★그 효과의 ★제 자취로 ★잰다 */
-      glow_textShadow: g ? (getComputedStyle(g).textShadow || '').slice(0, 60) : null,
-      shadow_filter: g ? (getComputedStyle(g).textShadow || '').indexOf('rgb') >= 0 : null,
-      ft_transform: g ? (g.style.transform || '').slice(0, 24) : null,
+      ret, picked, retNoSel, handlesNoSel,
+      selected: tb.classList.contains('selected'),
+      keys: window.fxTypeKeys ? window.fxTypeKeys() : [],
+      /* ★효과마다 ★«그려졌나»를 ★그 효과의 ★제 자취로 ★잰다 */
+      glow_textShadow: cs ? (cs.textShadow || 'none') : null,
+      reflect_boxReflect: (tbcs.webkitBoxReflect || tbcs.getPropertyValue('-webkit-box-reflect') || 'none'),
+      shadow_filter: sh ? (getComputedStyle(sh).filter || 'none') : null,
+      ft_transform: g ? (g.style.transform || '') : '',
       ft_handles: document.querySelectorAll('.tfh-handle').length,
-      reflect_el: document.querySelectorAll('[class*="fxrefl"],[class*="fx-refl"],.fx-reflect').length,
       particles_wrap: document.querySelectorAll('.sec-fxpart-wrap').length,
-      /* ★★음성대조 — ★★이 네 키가 ★★정말 ★걸렸나(★안 걸렸으면 ★위 0 은 ★「안 쟀다」다) */
-      keysOn: { glow: !!tb.dataset.fxGlow, reflect: !!tb.dataset.fxReflect,
-                shadow: !!tb.dataset.fxShadow, ft: !!tb.dataset.tfCorners,
-                particles: !!sec.dataset.fxParticles },
     };
   });
   console.log('[R1]', JSON.stringify(r));
-  /* ★★전제 — ★다섯 키가 ★다 ★걸렸다(⛔안 걸렸으면 ★아래가 ★아무것도 ★안 잰다) */
-  expect(r.keysOn, '★전제: 다섯 키가 다 걸려야 이 칸이 무엇을 재는지 분명하다')
-    .toEqual({ glow: true, reflect: true, shadow: true, ft: true, particles: true });
-  /* ★★★`watchAllFx` 한 자리가 ★★하나 이상을 ★올렸다 = ★★★사슬이 ★산다 */
-  expect(r.ret, '⛔`watchAllFx` 가 0 을 돌려준다 — 명부를 안 돌거나 식구가 다 거절했다').toBeGreaterThan(0);
-  /* ★★자유변형 — ★★★손잡이가 ★★복원 뒤 ★떠야 ★한다(★현빈 신고 그 자리) */
-  expect(r.ft_transform, '⛔자유변형이 복원 뒤 안 그려졌다 — matrix3d 가 없다').toContain('matrix');
+
+  /* ★★전제 — ★★선택자가 ★그 요소를 ★집는다(⛔안 집으면 ★아래는 ★「안 재고 있다」다) */
+  expect({ glow: r.picked.glow, reflect: r.picked.reflect, ft: r.picked.ft, particles: r.picked.particles },
+    '★전제: 각 효과의 watchAll 이 쓰는 ★선택자가 내 요소를 집어야 한다 — 안 집으면 아무것도 안 잰다')
+    .toEqual({ glow: true, reflect: true, ft: true, particles: true });
+  expect(r.picked.shadow, '★전제: shadow 를 ★도형에 걸었다(text-block 이 아니다)').toBe(true);
+
+  /* ★★★본 단언 — ★★네 효과가 ★★각각 ★다시 ★그려진다 (★`ret` 하나로 ★뭉개지 않는다) */
+  expect(r.glow_textShadow, `★glow 가 안 그려졌다 (textShadow=${r.glow_textShadow})`).not.toBe('none');
+  expect(r.reflect_boxReflect, `★reflect 가 안 그려졌다 (boxReflect=${r.reflect_boxReflect})`).not.toBe('none');
+  expect(r.ft_transform, '★자유변형이 복원 뒤 안 그려졌다 — matrix3d 가 없다').toContain('matrix');
+  /* ★★음성대조 — ★안 고른 판에서는 ★0 (★`.selected` 가 ★가른다 · effects-ft-handles.js:73) */
+  expect(r.handlesNoSel, '★아무것도 안 골랐는데 손잡이가 떴다 — 선택 조건이 사라졌다').toBe(0);
+  expect(r.selected, '★전제: selectBlock 이 안 먹었다 — 아래 「손잡이가 뜬다」를 못 잰다').toBe(true);
+  /* ★★★본 단언 — ★★고른 ★뒤에 ★★watchAllFx 한 자리가 ★손잡이를 ★올린다(★현빈 신고 그 자리) */
+  expect(r.ft_handles, '★자유변형 손잡이가 복원 뒤 안 떴다 — 현빈 신고 그 자리').toBeGreaterThan(0);
+  expect(r.particles_wrap, '★파티클 감쌈이 안 생겼다').toBeGreaterThan(0);
+
+  /* ★★`ret` — ★★watchAll 을 ★가진 ★넷이 ★올라온다. ⛔「5」를 ★박지 ★않는다(★shadow 는 문이 없다) */
+  expect(r.ret, `⛔watchAllFx 가 넷보다 적게 올렸다 (ret=${r.ret} · 명부=${r.keys.join(',')})`)
+    .toBeGreaterThanOrEqual(4);
+
+  /* ★★★shadow 는 ★`ret` 에 ★안 센다 — ★그건 ★결함이 ★아니라 ★★구조다(watchAll 이 없다).
+     ★그래도 ★★«걸면 ★그려지나»는 ★여기서 ★한 번 ★잰다 — ★`watchAllFx` 밖의 ★축이다. */
+  expect(r.shadow_filter, `★shadow 가 도형에 안 그려졌다 (filter=${r.shadow_filter})`).not.toBe('none');
+
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 
