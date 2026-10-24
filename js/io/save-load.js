@@ -1671,6 +1671,20 @@ function rebindAll(opts = {}) {
     });
   }
 
+  /* ★★★2026-10-24 — ★효과 ★명부를 ★★여기서 ★부른다(★`watchAllFx`).
+     ★★★왜(★실측 · ★★현빈 신고 「★자유변형 ★손잡이가 ★안 ★뜬다」의 ★★참 ★까닭):
+       ★`js/effects-registry.js:136` 이 ★★`window.addEventListener('load', …)` ★한 번만 ★부른다.
+       ★★★그런데 ★프로젝트 ★복원은 ★그 `load` ★★«뒤»에 ★비동기로 ★온다
+       ⇒ ★★그때 ★캔버스는 ★★비어 ★있고 ★★★`watchAllFx` 가 ★★0 건을 ★돌고 ★끝난다.
+       ★★앱에서 ★잰 값(261024 · ★9401) : ★`selected: true` · `data-tf-corners` ★있음 ·
+         ★★그런데 ★`ftStateOf(tb)` = ★★`null` · ★손잡이 ★★0 · `.tfh-fx` ★★0
+         ⇒ ★★손으로 ★`watchAllFxFreeTransform(document)` 를 ★부르니 ★★`ret 1` ·
+           ★상태 ★OK · ★손잡이 ★★12 · fx ★1 ⇒ ★★★코드는 ★맞고 ★★«부르는 자»가 ★없었다.
+     ★★여기가 ★자리인 까닭 : ★`rebindAll` 은 ★★복원의 ★★정본 한 자리다 —
+       ★페이지 ★열기(:553) · ★페이지 ★전환(:605) · ★undo/redo(:751) ★★전부 ★이것을 ★지난다.
+     ⛔import 하지 않는다(★이 파일은 ★io 층) — ★`window.X?.()` 관용구.
+     ★재는 자 = `tests/dom/text-ft-handles-u3.dom.spec.js` ★H7 */
+  window.watchAllFx?.(canvasEl || document);
 }
 
 const LAST_COMMIT_KEY = 'goya-last-commit';

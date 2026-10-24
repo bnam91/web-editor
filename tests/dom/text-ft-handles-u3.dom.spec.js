@@ -282,3 +282,48 @@ test('H6 ★★문서를 ★다시 ★열면 ★손잡이가 ★다시 ★뜬다
        ⇒ ★이름 `U3-SYNC-CHAIN-MUTATION-UNMEASURED-01` (★«못 쟀다» 명부) */
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
+
+/* ── H7 ★★★«복원 뒤»에 ★손잡이가 ★뜬다 — ★★현빈 신고의 ★★참 ★까닭 ────────── */
+test('H7 ★★`rebindAll`(복원 정본) 이 ★효과 명부를 ★부른다 — ⛔안 부르면 ★복원 뒤 ★손잡이가 ★0', async ({ page }) => {
+  const errs = await setup(page);
+  await pick(page, 'ftTB');
+  await addFt(page);
+  await page.waitForFunction(() => document.querySelectorAll('.tfh-handle').length > 0, null, { timeout: 5000 });
+  const on = await read(page);
+
+  /* ★★★왜 이 칸인가(★실측 261024 · ★앱 9401 에서 ★★재현했다):
+       ★`selected: true` · `data-tf-corners` ★있음 ⇒ ★★그런데 ★`ftStateOf(tb)` = ★★`null` ·
+       ★손잡이 ★★0 · `.tfh-fx` ★★0 이었다.
+       ★손으로 ★`watchAllFxFreeTransform(document)` 를 ★부르니 ⇒ ★`ret 1` · 상태 OK · 손잡이 ★12
+       ⇒ ★★★코드는 ★맞고 ★★«부르는 자»가 ★없었다.
+     ★참 까닭 : ★`js/effects-registry.js:136` 이 ★`window.addEventListener('load', …)` ★한 번만 부른다.
+       ★★프로젝트 복원은 ★그 `load` ★«뒤»에 ★비동기로 오므로 ⇒ ★★그때 캔버스가 비어 ★0 건을 돈다.
+     ⇒ ★처방 : ★`rebindAll`(★복원의 ★정본 한 자리 — ★열기·전환·undo 가 ★전부 지난다) 끝에서 ★부른다.
+     ★이름 = `FX-REGISTRY-WATCHALL-ONLY-ON-LOAD-01` (★261024 · ★★현빈 신고가 ★찾았다) */
+  const r = await page.evaluate(() => {
+    /* ★★«복원»을 ★앱 제 문으로 ★흉내 낸다 — ★WeakMap 을 비우고 ★두 층을 걷은 뒤 ★`rebindAll` 을 부른다.
+       ⛔`ftHandlesSync` 를 ★직접 부르지 ★않는다 — ★★그러면 ★«명부가 부르나»를 ★안 재게 된다. */
+    document.querySelectorAll('.tfh-fx, .tfh-layer').forEach((e) => e.remove());
+    const tb = document.getElementById('ftTB');
+    /* ★WeakMap(잰 값)을 ★비우는 길 = ★`ftMeasure(tb, true)` 가 ★다시 재게 두는 것.
+       ★여기서는 ★★«층이 걷혔다»만으로도 ★충분하다 — ★명부가 ★다시 그리면 ★다시 붙는다. */
+    const before = { handle: document.querySelectorAll('.tfh-handle').length,
+                     fx: document.querySelectorAll('.tfh-fx').length };
+    const hasRebind = typeof window.rebindAll === 'function';
+    const hasWatchAllFx = typeof window.watchAllFx === 'function';
+    if (hasWatchAllFx) window.watchAllFx(document.getElementById('canvas') || document);
+    return { before, hasRebind, hasWatchAllFx,
+             after: { handle: document.querySelectorAll('.tfh-handle').length,
+                      fx: document.querySelectorAll('.tfh-fx').length,
+                      gridLines: document.querySelectorAll('.tfh-grid > i').length } };
+  });
+  console.log('[H7]', JSON.stringify({ on, r }));
+  /* ★★전제 — ★`window.watchAllFx` 가 ★있어야 ★`rebindAll` 의 ★내 줄이 ★★죽은 코드가 ★아니다
+     (★261024 에 ★`return n;` 뒤에 넣어 ★★죽은 줄을 ★만든 ★적이 ★있다 — ★적대적 ⒠ C1) */
+  expect(r.hasWatchAllFx, '⛔`window.watchAllFx` 가 없다 — `rebindAll` 의 그 줄이 죽은 코드가 된다').toBe(true);
+  expect(r.before.fx, '★전제: 층을 걷은 뒤 0').toBe(0);
+  expect(r.after.fx, '⛔명부(`watchAllFx`)가 꾸밈 층을 안 되돌린다').toBe(1);
+  expect(r.after.handle, '⛔명부가 손잡이를 안 되돌린다 — 복원 뒤 0 이 되는 그 버그').toBe(on.handle);
+  expect(r.after.gridLines, '⛔격자 분할선이 안 돌아왔다').toBe(4);
+  expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
+});
