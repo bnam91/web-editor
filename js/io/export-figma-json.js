@@ -1168,7 +1168,19 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
        market-merge.js:29 의 normSection 이 .section-label·.section-toolbar·.variation-badge
        와 «같은 줄»에서 .annotation-block 을 지운다. 즉 이 레포는 이미 이걸 «내용이 아님»
        으로 판정하고 있다. 그 판정을 여기서도 따른다. */
-    'annotation-block': '편집 주석 — market-merge normSection 이 이미 «내용 아님»으로 지운다',
+    /* ★★★2026-10-24 — ★`'annotation-block'` 을 ★★★뺐다. ★★현빈 ★결정.
+       ★★현빈 원문 : 「★왜 ★다르게 ★보냐 · ★★★똑같이 ★해 · ★다른 ★블록처럼」
+       ⇒ ★★어노테이션(펜 주석)·치수선을 ★★★다른 블록과 ★★동일 ★취급한다.
+         ★Figma JSON · 마켓 비교 · 저장 · 내보내기 ★★전부 ★같게.
+       ★★★그리고 ★위 ★주석의 ★까닭이 ★★★죽었다 —
+         ★그 까닭은 「★`market-merge.js:29` 가 ★이미 ★«내용 아님»으로 ★판정했다」인데
+         ★★★그 줄도 ★★오늘 ★같이 ★고쳤다(★같은 결정) ⇒ ★★기댈 ★근거가 ★없다.
+         ★★261024 에 ★`capture-safety` 가 ★★이미 ★그 판정을 ★뒤집었고
+         (★현빈 261022 ⒝ 「★최종 이미지에 ★보인다」) ★★적대적 ⒠ 가
+         「★★근거가 ★사라졌는데 ★결과는 ★남아 ★있다」로 ★★잡아 ★줬다.
+       ★★⇒ ★★위 ★긴 주석은 ★★«역사 문장»이라 ★★그대로 ★둔다(★그때의 ★까닭이다).
+         ⛔그 아래 ★한 줄만 ★★걷었다. ★★닫힌 이름 = `ANNOT-STILL-SKIPPED-IN-FIGMA-JSON-01`
+       ★재는 자 = `tests/dom/annot-same-as-other-blocks.dom.spec.js` (★양성대조 — ★★«나온다»가 ★참) */
     'qa-block': 'admin QA 전용 체크리스트 — 콘텐츠가 아니라 작업 메타데이터다(export-image.js 와 같은 원칙)',
   };
 

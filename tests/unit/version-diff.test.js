@@ -340,12 +340,27 @@ test('CD3 런타임 클래스·contenteditable·툴바 차이는 «같음» — 
   assert.equal(r.summary.same, 1);
 });
 
-test('CD4 ★문서화된 교환 — 주석(.annotation-block)만 바뀐 섹션은 «같음»으로 나온다(§6-3, 거짓양성이 더 해롭다)', () => {
+/* ★★★2026-10-24 — ★이 검사를 ★★뒤집었다. ★★현빈 ★결정.
+     ★★현빈 원문 : 「★왜 ★다르게 ★보냐 · ★★똑같이 ★해 · ★다른 ★블록처럼」
+   ★★«역사 문장» — ★옛 제목과 ★옛 단언을 ★남긴다(★그때의 ★의도였고, ★지우면 ★그 판단이 사라진다) :
+     ┊ CD4 ★문서화된 교환 — 주석(.annotation-block)만 바뀐 섹션은 «같음»으로 나온다(§6-3, 거짓양성이 더 해롭다)
+     ┊   assert.deepEqual(r.changed, [], '이 초록은 «의도»다 — 바꾸려면 §6-3 부터 읽어라');
+   ★★그 교환의 ★근거(「거짓양성이 더 해롭다」)는 ★★현빈이 ★★직접 ★뒤집었다 ⇒ ★이제 ★«다름»이 ★참이다.
+   ★고친 자리 = `js/market-merge.js` normSection · `js/version-diff.js` _localNormSection 둘. */
+test('CD4 ★어노테이션만 바뀐 섹션도 ★«다름»으로 나온다 — 다른 블록처럼(현빈 261024, 옛 §6-3 교환 폐기)', () => {
   const snap = { page_1: sec('sec_a', 'A', '<div class="annotation-block">옛 메모</div><p>본문</p>') };
   const cur  = { page_1: sec('sec_a', 'A', '<div class="annotation-block">새 메모</div><p>본문</p>') };
   const r = VD.changeDiff(snap, cur, P);
-  assert.deepEqual(r.changed, [], '이 초록은 «의도»다 — 바꾸려면 §6-3 부터 읽어라');
-  assert.equal(r.summary.same, 1);
+  assert.equal(r.summary.changed, 1, '★어노테이션만 고쳤는데 「같음」이다 — 제외가 아직 산다');
+  assert.equal(r.summary.same, 0);
+  assert.deepEqual(r.changed.map(x => x.k), ['page_1::sec_a']);
+
+  /* ★★음성대조 — ★`.annot-preview`(그리는 중)는 ★여전히 ★벗긴다. ⛔둘 다 「다름」이 되면
+     ★그리는 ★동안 ★섹션이 ★계속 ★«바뀜»으로 ★뜬다(★위 단언이 ★「전부 다름」으로 ★미끄러진 것). */
+  const pv = VD.changeDiff(
+    { page_1: sec('sec_a', 'A', '<p>본문</p>') },
+    { page_1: sec('sec_a', 'A', '<div class="annot-preview">그리는 중</div><p>본문</p>') }, P);
+  assert.equal(pv.summary.changed, 0, '★.annot-preview 가 비교 키에 들었다 — 그리는 동안 오경보가 난다');
 });
 
 test('CD5 섹션 삭제/추가는 lost/gained 로 갈린다 — changed 에 섞이면 「지금은 없다」를 못 짚는다', () => {
@@ -469,9 +484,14 @@ test('SY1 ★로컬 사본이 market-merge.normSection 과 «같은 답»을 낸
     // contenteditable
     ['<div class="section-block" id="s1"><p>본문</p></div>',
      '<div class="section-block" id="s1"><p contenteditable="true">본문</p></div>'],
-    // annotation-block · annot-preview (★문서화된 교환)
-    ['<div class="section-block" id="s1"><div class="annotation-block">옛 메모</div><p>본문</p></div>',
-     '<div class="section-block" id="s1"><div class="annotation-block">새 메모</div><div class="annot-preview">p</div><p>본문</p></div>'],
+    /* ★★★2026-10-24 — ★옛 쌍은 ★한 칸에 ★조건이 ★★«둘»이었다 :
+         ⒜ 어노테이션 ★글이 ★바뀜   ⒝ `.annot-preview` 가 ★더해짐
+       ★★현빈 결정으로 ⒜ 는 ★이제 ★«다름»이고 ⒝ 는 ★그대로 ★«같음»이다
+       ⇒ ★★한 쌍으로는 ★둘을 ★못 가른다. ★★갈라서 ⒝ 만 ★여기 두고, ⒜ 는 ★아래 DIFF_PAIRS 로 ★옮겼다.
+       ★★«역사 문장» : 옛 주석은 「annotation-block · annot-preview (★문서화된 교환)」이었다. */
+    // ⒝ annot-preview — ★그리는 중 미리보기는 ★여전히 벗긴다
+    ['<div class="section-block" id="s1"><div class="annotation-block">같은 메모</div><p>본문</p></div>',
+     '<div class="section-block" id="s1"><div class="annotation-block">같은 메모</div><div class="annot-preview">p</div><p>본문</p></div>'],
     // 공백 정규화 — ★«연속 공백을 한 칸으로 접을» 뿐 «지우지는» 않는다.
     //   그래서 「들여쓰기 있음 vs 없음」은 여전히 «변경»으로 잡힌다(내가 여기서 한 번 틀렸다).
     //   실전에선 양쪽 재료가 같은 직렬화기(canonicalize/getSerializedCanvas) 산출이라 문제 없다.
@@ -480,6 +500,9 @@ test('SY1 ★로컬 사본이 market-merge.normSection 과 «같은 답»을 낸
   ];
   // 「달라야 하는 쌍」 = 진짜 내용 차이. 벗기기가 과하면 여기가 「같음」으로 무너진다(음성대조).
   const DIFF_PAIRS = [
+    /* ★★⒜ 어노테이션 ★글 ★바뀜 = ★★«다름»(★현빈 261024 「다른 블록처럼」) — ★위 SAME_PAIRS 에서 ★옮겨 왔다 */
+    ['<div class="section-block" id="s1"><div class="annotation-block">옛 메모</div><p>본문</p></div>',
+     '<div class="section-block" id="s1"><div class="annotation-block">새 메모</div><p>본문</p></div>'],
     ['<div class="section-block" id="s1"><p>옛 문구</p></div>',
      '<div class="section-block" id="s1"><p>새 문구</p></div>'],
     ['<div class="section-block" id="s1"><img src="goya-asset://p/aa.png"></div>',
