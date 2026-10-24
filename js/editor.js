@@ -4009,6 +4009,18 @@ function clearSelectionMarks(root) {
        ⛔import 하지 않는다(순환) — `window.X?.()` 관용구(이 파일이 `window.hideFrameHandles?.()` 를 쓰는 것과 같다). */
     window.ftHandlesClear?.(t);
   });
+  /* ★★★그리고 ★«한 틱 뒤» ★전수 동기화 — ★★고른 블럭에는 ★★다시 ★붙어야 ★한다.
+     ★★★왜 ★한 틱인가(실측 261024 · ★현빈 「★걷혔는데 ★선택하면 ★다시 ★보여야 되는 거 ★아냐?」):
+       ★이 함수는 ★★«selected 를 ★떼는 중»이라 ★★이 시점엔 ★★전부 ★false 다
+       ⇒ ★여기서 바로 `ftHandlesSyncAll` 을 부르면 ★★아무것도 ★안 붙는다.
+     ★★★왜 ★여기 ★한 자리인가 :
+       ★`classList.add('selected')` 는 ★★★여러 자리다(:1198 · :1229 · :1235 · :1295 …)
+       ⇒ ★★붙이는 자리에 ★걸면 ★★명부가 ★여럿이 ★된다.
+       ★★그런데 ★★★«고르기»는 ★★전부 ★이 함수를 ★먼저 ★지난다(위 :3986 주석 「정본 한 자리」)
+       ⇒ ★★★여기서 ★한 틱 ★미루면 ★★선택이 ★끝난 ★뒤에 ★돈다 — ★★한 자리로 ★둘 다 ★된다.
+     ★`_shouldShow`(선택됐나 ＋ tfCorners 있나)가 ★가른다 ⇒ ★고른 것엔 ★붙고 ★아닌 것엔 ★걷힌다.
+     ⛔rAF 를 ★매 프레임 ★돌리지 ★않는다 — ★★한 번만. */
+  Promise.resolve().then(() => window.ftHandlesSyncAll?.(canvas));
   canvas.querySelectorAll('.asset-block').forEach(a => {
     // ★T-012: video-pending(트림 확정 전) 상태로 이 블록의 패널을 벗어나면 저장 시
     // 원본 영상이 사라진다(section-serialize.js 참고) — 막지는 않되 알려는 준다.
