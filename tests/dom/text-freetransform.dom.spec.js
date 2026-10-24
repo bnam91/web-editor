@@ -885,11 +885,38 @@ test('U2-SCOPE ★금지선 — `js/fx/homography.js` 는 불러 쓰기만 · `H
   const oh = stripCommentsTA(fs.readFileSync(path.join(ROOT, 'js/overlay-handles.js'), 'utf8'));
   expect((oh.match(new RegExp(HALF_DECL.source, 'g')) || []).length,
     '★★잣대가 죽었다 — 같은 자로 js/overlay-handles.js 를 재도 0 이다(그러면 우리 0 은 증거가 아니다)').toBeGreaterThanOrEqual(1);
-  /* ★★U3 자리 ★무접촉 — ⛔「안 고쳤다」는 미확인이다 ⇒ ★우리 이름이 ★그 둘에 ★0건 */
-  for (const f of ['js/overlay-handles.js', 'js/editor.js']) {
-    const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
-    expect(/freetransform|tfCorners/.test(s), `★${f} 에 우리 이름이 생겼다 — ★U3 자리는 이 단계가 아니다`).toBe(false);
-  }
+  /* ★★★2026-10-24 — ★이 칸을 ★파일별로 ★★갈랐다. ★★옛 단언은 ★★거짓 빨강이었다.
+     ★★«역사 문장» — ★옛 줄을 ★남긴다(★U2 ★발주의 ★범위 가드였다) :
+       ┊ ★★U3 자리 ★무접촉 — ⛔「안 고쳤다」는 미확인이다 ⇒ ★우리 이름이 ★그 둘에 ★0건
+       ┊ for (const f of ['js/overlay-handles.js', 'js/editor.js']) {
+       ┊   const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
+       ┊   expect(/freetransform|tfCorners/.test(s), …).toBe(false);
+       ┊ }
+     ★★왜 ★거짓이었나 ★둘 :
+       ⒜ ★★`U3` 가 ★★승인돼 ★진행됐다 ⇒ ★`js/editor.js` 는 ★★의도적으로 ★건드렸다
+          (`79e0a103` 261024 「고른 뒤 손잡이가 다시 떠야 한다」) ⇒ ★「0건」은 ★이제 ★거짓 요구다.
+          ★「★선례가 ★폐기된 것일 수 있다」 — ★U2 단계 가드가 ★U3 에서 ★살아 남았다.
+       ⒝ ★★★그리고 ★더 나쁜 것 : ★옛 단언이 ★★`raw`(주석 ★안 걷은 소스)를 ★읽었다.
+          ★실측 : `js/editor.js` 의 ★`tfCorners` 는 ★★«주석에만» 있다
+            (원문 tfCorners ★1 → ★주석 걷으면 ★★0 · ftHandles ★3 → ★2).
+          ⇒ ★★★「★내 산문이 ★게이트의 ★입력」 — ★★이 파일 ★머리말이 ★`HALF` 사례로
+            ★★바로 그것을 ★경고해 뒀는데 ★이 칸이 ★그 자를 ★안 썼다.
+     ⇒ ★★`stripCommentsTA` 를 ★여기도 쓰고 ★파일별로 ★다르게 ★잰다. */
+  /* ⒜ `js/overlay-handles.js` — ★여전히 ★무접촉이다(★U3 는 ★제 층 `.tfh-layer` 를 ★따로 만들었다) */
+  const ohRaw = fs.readFileSync(path.join(ROOT, 'js/overlay-handles.js'), 'utf8');
+  expect(/freetransform|tfCorners|ftHandles/.test(stripCommentsTA(ohRaw)),
+    '★js/overlay-handles.js 에 우리 이름이 생겼다 — ★U3 는 ★제 층을 쓴다(그 파일은 무접촉)').toBe(false);
+  /* ⒝ `js/editor.js` — ★U3 가 ★★의도적으로 ★쓰는 ★두 줄만. ⛔그 밖의 이름은 ★0건 */
+  const edSrc = stripCommentsTA(fs.readFileSync(path.join(ROOT, 'js/editor.js'), 'utf8'));
+  expect((edSrc.match(/ftHandlesClear/g) || []).length,
+    '★js/editor.js 의 `ftHandlesClear` 호출 수가 바뀌었다 — U3 의 «걷는 자리»가 하나다').toBe(1);
+  expect((edSrc.match(/ftHandlesSyncAll/g) || []).length,
+    '★js/editor.js 의 `ftHandlesSyncAll` 호출 수가 바뀌었다 — U3 의 «다시 붙이는 자리»가 하나다').toBe(1);
+  expect(/freetransform|tfCorners/.test(edSrc),
+    '★js/editor.js 가 ★`freetransform`·`tfCorners` 를 ★직접 쓴다 — ★그 둘은 ★효과 모듈의 몫이다(명부가 둘이 된다)').toBe(false);
+  /* ★★음성대조 — ★`stripCommentsTA` 가 ★살아 있나(★주석 «전»에는 `tfCorners` 가 ★잡힌다) */
+  expect(/tfCorners/.test(fs.readFileSync(path.join(ROOT, 'js/editor.js'), 'utf8')),
+    '★★잣대 — js/editor.js 주석에 tfCorners 가 있어야 이 음성대조가 선다(없어졌으면 이 칸을 고쳐라)').toBe(true);
   /* ★★U1 의 그 파일이 ★안 바뀌었나 — ★이 벌이 ★그것도 잰다(⛔「안 고쳤다」는 미확인이다) */
   const hg = fs.readFileSync(path.join(ROOT, 'js/fx/homography.js'), 'utf8');
   for (const name of ['homography', 'cornerMatrix3d', 'normalizeCorners', 'boxFromCorners', 'edgePointAt']) {
