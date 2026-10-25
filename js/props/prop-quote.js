@@ -198,6 +198,12 @@ ${blockHeaderHTML({
   })}
     </div>
 
+    <div class="prop-section" id="qt-type-section">
+      <div class="prop-section-title">Type</div>
+      <!-- ★1017t1m1ⓑ — 텍스트 블럭 Type 절의 「Quote」(#txt-to-quote)의 «되돌림». 현빈 「👉 되돌리기도 가능하게 해줄래?」 -->
+      <button class="prop-type-btn" id="qt-to-text" title="텍스트 블럭으로 되돌리기 — 인용 부호·꾸밈은 사라집니다">Text</button>
+    </div>
+
     <div class="prop-section">
       <div class="prop-section-title">인용구(쉼표)</div>
       <div class="prop-row" style="align-items:flex-start">
@@ -278,6 +284,29 @@ ${buildTypographySectionHtml({
   /* ★push-after — 쓰고 그린 «뒤»에 한 번. ⛔쓰기 «전»에 부르지 마라. */
   const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
   const reopen = () => showQuoteProperties(block);
+
+  /* ★1017t1m1ⓑ Quote → 텍스트 — prop-text-wireup-type.js 의 텍스트 → Quote 와 «거울».
+     ★이력 = push-before(그쪽과 같은 규약 · 블럭을 갈아끼우는 구조 전환).
+     ★글은 dataset.text 그대로(줄바꿈 유지) · 비었으면(안내문구 중) 새 텍스트 블럭도 안내문구로 둔다.
+     ★잃는 것 — 부호·부호 색·간격·글자 꾸밈(인용구 전용 dataset) ⇒ 토스트로 알린다(⌘Z 로 복구). */
+  document.getElementById('qt-to-text')?.addEventListener('click', () => {
+    const raw = String(block.dataset.text ?? '');
+    const text = raw.trim() === '' ? '' : raw.replace(/\r\n?/g, '\n');   /* 비었으면 = 안내문구 중(quote-block.js 의 같은 판정) */
+    if (typeof window.makeTextBlock !== 'function' || typeof window._makeTextFrame !== 'function') return;
+    window.pushHistory?.();
+    const { block: tb } = window.makeTextBlock('body');
+    const ce = tb.querySelector('[class^="tb-"]');
+    if (ce && text) { ce.style.whiteSpace = 'pre-wrap'; ce.textContent = text; delete ce.dataset.isPlaceholder; }
+    const tf = window._makeTextFrame();
+    tf.appendChild(tb);
+    const wrapper = block.closest('.row') || block;
+    wrapper.replaceWith(tf);
+    try { window.bindBlock?.(tb); } catch (_) {}
+    window.buildLayerPanel?.();
+    try { window.selectBlock?.(tb.id); } catch (_) {}
+    window.triggerAutoSave?.();
+    window.showToast?.('인용 부호·꾸밈이 사라졌습니다 — ⌘Z 로 되돌릴 수 있습니다');
+  });
 
   // ── 슬라이더 + 숫자 «쌍» ──
   const wireNum = (id, key, min, max) => {
