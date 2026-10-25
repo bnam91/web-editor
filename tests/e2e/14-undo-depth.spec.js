@@ -55,7 +55,7 @@ test.beforeAll(async () => {
   test.setTimeout(600000);
   if (ATTACH) ({ app } = await require('./helpers.js').attachIsolated());
   else
-  app = await launchIsolated({ port: PORT, profile: PROFILE, cwd: path.join(__dirname, '..', '..') });
+  app = await launchIsolated({ port: PORT, profile: PROFILE, mcpPort: process.env.E2E_MCP_PORT, cwd: path.join(__dirname, '..', '..') });
   page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   if (page.url().includes('projects.html')) {

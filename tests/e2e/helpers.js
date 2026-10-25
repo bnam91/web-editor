@@ -41,8 +41,21 @@ async function launchApp() {
  * ★로그인 게이트 — 이 맥의 auth.json 을 «격리 프로필에만» 복사한다(원본은 안 건드린다).
  * ⚠️tests/e2e/13-undo-family.spec.js 는 이것이 생기기 «전»에 쓰여 같은 일을 제 안에 갖고 있다.
  *   그 파일은 «재는 양»이 걸린 게이트라 여기서 손대지 않는다 — 다시 쓸 때 이 함수로 들여라. */
-async function launchIsolated({ port, profile, args = [], cwd = process.cwd() }) {
+/* ★[S6-T7 ③ · 2026-10-25] E2E-HARDCODED-FORBIDDEN-PORT-9345-01 — _electron.launch 가 GODITOR_MCP_PORT 를 «넘기게» 한다.
+ *   안 넘기면 앱(main.js)이 MCP 를 스스로 9345 부터 잡는다(금지대역). 값은 «부르는 쪽»이 정한다 · 띠 9610~9629 밖이면 띄우기 전에 던진다.
+ *   재는 자 = tests/unit/e2e-launch-mcp-port.test.js (launchIsolated 가로채기 ＋ tests/e2e 의 launch 자리 전수). */
+const MCP_BAND = [9610, 9629];
+function mcpPortEnv(mcpPort) {
+  const n = Number(mcpPort);
+  if (!Number.isInteger(n) || n < MCP_BAND[0] || n > MCP_BAND[1]) {
+    throw new Error(`GODITOR_MCP_PORT 를 띠 ${MCP_BAND[0]}~${MCP_BAND[1]} 안에서 줘라 (받음: ${mcpPort}) — 안 주면 앱이 9345 를 잡는다`);
+  }
+  return { ...process.env, GODITOR_MCP_PORT: String(n) };
+}
+
+async function launchIsolated({ port, profile, mcpPort, args = [], cwd = process.cwd() }) {
   if (!port || !profile) throw new Error('launchIsolated: port 와 profile 은 필수다');
+  const env = mcpPortEnv(mcpPort);   // ★프로필·자격증명을 만지기 «전»에 거른다
   fs.mkdirSync(profile, { recursive: true });
   const src = path.join(os.homedir(), 'Library', 'Application Support', 'GODITOR', 'auth.json');
   if (fs.existsSync(src)) fs.copyFileSync(src, path.join(profile, 'auth.json'));
@@ -51,6 +64,7 @@ async function launchIsolated({ port, profile, args = [], cwd = process.cwd() })
            '--disable-renderer-backgrounding', '--disable-background-timer-throttling',
            '--disable-backgrounding-occluded-windows', 'admin', ...args],
     cwd,
+    env,
   });
   const root = await app.evaluate(({ app }) => app.getPath('userData'));
   /* ★★macOS 는 /var ↔ /private/var · /tmp ↔ /private/tmp 가 ★심링크다 — ★같은 자리인데 ★문자열이 다르다.
@@ -187,4 +201,4 @@ async function attachIsolated() {
   return { browser, page, app: { firstWindow: async () => page, close: () => browser.close() } };
 }
 
-module.exports = { connectApp, launchApp, launchIsolated, assertIsolatedCdp, attachEditor, attachIsolated };
+module.exports = { connectApp, launchApp, launchIsolated, mcpPortEnv, assertIsolatedCdp, attachEditor, attachIsolated };
