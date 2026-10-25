@@ -8,7 +8,7 @@
  *   LB2 고르면 라벨 상자 좌·우 가운데에 손잡이 둘 — 그 자리에서 맨 위(쥘 수 있다)
  *   LB3 오른 손잡이를 끌면 끈 만큼 넓어지고 왼 모서리는 제자리 · 글은 그 너비에서 접힌다(pre-wrap)
  *   LB4 왼 손잡이를 끌면 끈 만큼 넓어지고 오른 모서리는 제자리 · ⌘Z 한 번 = 끌기 한 번
- *   LB5 패널 「너비」 150 → 150px · 「자동」→ 키가 지워지고 글 길이로 · 「모서리」 10 → 10px
+ *   LB5 패널 「너비」 150 → 150px · 「자동」→ 키가 지워지고 글 길이로 · (합침 261026) 일반 어노테이션엔 「모서리」 칸이 없다 — 택일5 그대로 치수선만
  *   LB6 rebindAll(리로드·⌘Z 복원과 같은 길) 뒤에도 너비·모서리가 같다 — 라벨 style 의 «속성 차례·값»이 라이브와 같고
  *       (CSSOM 이 고쳐 쓴 글꼴 차이는 패널을 한 번이라도 만진 모든 라벨에 이미 있다 · 이 칸 밖), 두 번 다시 그려도 한 글자도 안 바뀐다(F2)
  * ★만드는 길은 «사람 손» 그대로 — 펜 단추 → 메뉴 「Annotation」 → 섹션 두 점 → Enter → Esc (annotation-1017t1h5 와 같은 꼴).
@@ -147,7 +147,7 @@ test('LB4 왼 손잡이를 끌면 넓어지고 오른 모서리는 제자리 · 
   expect(Math.abs(b2.w - b0.w) <= 1 && Math.abs(b2.left - b0.left) <= 1, '너비·자리 모두 끌기 전').toBe(true);
 });
 
-test('LB5 패널 — 너비 150 · 자동으로 되돌리기 · 모서리 10', async ({ page }) => {
+test('LB5 패널 — 너비 150 · 자동으로 되돌리기 · 모서리 칸은 일반 어노테이션에 없다(택일5 · 치수선만)', async ({ page }) => {
   await bootApp(page);
   await setup(page);
   const id = await makeAnnotation(page);
@@ -161,9 +161,7 @@ test('LB5 패널 — 너비 150 · 자동으로 되돌리기 · 모서리 10', a
   await expect.poll(async () => (await labelBox(page, id)).dsW, '자동 = 키 삭제').toBe(null);
   const b = await labelBox(page, id);
   expect({ ws: b.ws, w: b.w }, '글 길이로 돌아간다').toEqual({ ws: 'pre', w: w0 });
-  await setNum(page, '#annot-label-radius-num', 10);
-  await expect.poll(async () => (await labelBox(page, id)).radius).toBe('10px');
-  expect((await labelBox(page, id)).dsR).toBe('10');
+  expect(await page.locator('#panel-right #annot-label-radius-num').count(), '일반 어노테이션 = 모서리 칸 0(택일5 G2 와 같은 뜻)').toBe(0);
 });
 
 test('LB6 rebindAll 뒤에도 너비·모서리가 같고 라벨 style 문자열이 한 글자도 안 바뀐다', async ({ page }) => {
@@ -172,8 +170,7 @@ test('LB6 rebindAll 뒤에도 너비·모서리가 같고 라벨 style 문자열
   const id = await makeAnnotation(page);
   await selectByLabel(page, id);
   await dragX(page, (await handles(page, id)).find((h) => h.edge === 'w'), -30);
-  await setNum(page, '#annot-label-radius-num', 6);
-  await expect.poll(async () => (await labelBox(page, id)).radius).toBe('6px');
+  await expect.poll(async () => (await labelBox(page, id)).dsW, '★전제: 너비가 들었다').not.toBe(null);
   /* 속성 차례·값 — CSSOM 으로 읽어 견준다(글꼴 차이 rgb(…)·띄어쓰기를 걷어낸 «뜻») */
   const decl = (id) => page.evaluate((id) => {
     const l = document.getElementById(id).querySelector('.annot-label');
@@ -186,6 +183,6 @@ test('LB6 rebindAll 뒤에도 너비·모서리가 같고 라벨 style 문자열
   const rebind = () => page.evaluate((id) => { window.rebindAll(); const b = document.getElementById(id); const l = b.querySelector('.annot-label'); return { style: l.getAttribute('style'), w: b.dataset.labelWidth, r: b.dataset.labelRadius, ow: l.offsetWidth, radius: getComputedStyle(l).borderRadius }; }, id);
   const after = await rebind();
   expect(await decl(id), '다시 그린 라벨의 속성 차례·값 = 라이브').toEqual(liveDecl);
-  expect({ w: after.w, r: after.r, ow: String(after.ow), radius: after.radius }).toEqual({ w: live.w, r: '6', ow: live.w, radius: '6px' });
+  expect({ w: after.w, r: after.r, ow: String(after.ow), radius: after.radius }, '펜으로 만든 모서리 0 도 다시 그린 뒤 그대로').toEqual({ w: live.w, r: '0', ow: live.w, radius: '0px' });
   expect((await rebind()).style, '두 번째 다시 그리기는 한 글자도 안 바꾼다(F2 멱등)').toBe(after.style);
 });

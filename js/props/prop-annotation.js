@@ -165,6 +165,31 @@ function _annotApplyToSelection(block, prop, value) {
   return true;
 }
 
+// ── 라벨 «상자 꼴» 한 벌 — 일반 어노테이션 · 치수선 둘 다 부른다(★택일5 261022 에 _rerenderAnnotation 안에서 꺼냈다 · 몸은 그대로) ──
+function _applyAnnotLabelBoxStyle(label, st) {
+  label.style.fontSize     = st.labelFontSize + 'px';
+  label.style.color        = st.labelColor;
+  label.style.background   = st.labelBg;
+  label.style.borderColor  = st.labelBorderColor;
+  label.style.borderStyle  = st.labelBorderStyle;
+  label.style.borderWidth  = st.labelBorderWidth + 'px';
+  label.classList.toggle('annot-label-image', st.labelMode === 'image');
+
+  // 이미지 모드 + radius > 0이면 padding 0 + border-radius 동기화 (이미지와 테두리 같은 모양)
+  const imgWrapping = st.labelMode === 'image' && (parseFloat(st.labelImageRadius) || 0) > 0;
+  if (imgWrapping) {
+    const r = Math.max(0, Math.min(50, parseFloat(st.labelImageRadius) || 0));
+    label.style.padding = '0';
+    label.style.borderRadius = r + '%';
+    label.style.overflow = 'hidden';
+  } else {
+    // ★1017t1h5 — labelPad 가 null 이면 CSS 기본(4px 8px) 유지, 그 외엔 사방 동일로 이긴다.
+    label.style.padding = st.labelPad != null ? st.labelPad + 'px' : '';
+    label.style.borderRadius = st.labelRadius != null ? st.labelRadius + 'px' : '';   // ★택일5 — null 이면 CSS 기본(4px)
+    label.style.overflow = '';
+  }
+}
+
 // ── 블록 재렌더 (innerHTML 보존, 부분 갱신) ────────────────────────────
 function _rerenderAnnotation(block) {
   const st = _readState(block);
@@ -174,7 +199,15 @@ function _rerenderAnnotation(block) {
      ⇒ ★한 자리(annotation-block.js annotRedrawDim)에서 ★다시 그린다. ⛔여기서 ★따로 그리지 않는다.
      ★아래 폴리라인·앵커 갈래는 ★일반 어노테이션의 것이라 ★치수선에는 ★해당이 없다. */
   if (window.annotRedrawDim?.(block, st)) {
-    window.annotApplyLabelOffset?.(block);
+    /* ★택일5(261022) — 치수선도 «라벨 상자 꼴»(글 크기·색·배경·테두리·여백·모서리)은 ★같은 한 벌로 먹인다.
+       ⛔옛 판은 여기서 바로 돌아가 그 갈래를 안 탔다 ⇒ 패널의 라벨 칸이 치수선엔 화면에 안 닿았다
+       (05eefbd5 실측: «여백» 12 → dataset.labelPad '12' · 계산 padding «4px 8px» 그대로 — tests/dom/dim-label-radius-t5 R3).
+       ★자리(transform)·글은 annotRedrawDim 몫이라 여기서 안 건드린다. */
+    const dl = block.querySelector('.annot-label');
+    if (dl) _applyAnnotLabelBoxStyle(dl, st);
+    /* ★합침 261026 — 너비·모서리(1013t2C6)도 같은 한 벌로 — 아래 일반 갈래와 같이 annotApplyLabelBox 가 translate 를 «맨 끝»으로 다시 붙인다 */
+    if (st.labelMode !== 'image' && window.annotApplyLabelBox) window.annotApplyLabelBox(block);
+    else window.annotApplyLabelOffset?.(block);
     return;
   }
 
@@ -191,27 +224,7 @@ function _rerenderAnnotation(block) {
   // 라벨 스타일
   const label = block.querySelector('.annot-label');
   if (label) {
-    label.style.fontSize     = st.labelFontSize + 'px';
-    label.style.color        = st.labelColor;
-    label.style.background   = st.labelBg;
-    label.style.borderColor  = st.labelBorderColor;
-    label.style.borderStyle  = st.labelBorderStyle;
-    label.style.borderWidth  = st.labelBorderWidth + 'px';
-    label.classList.toggle('annot-label-image', st.labelMode === 'image');
-
-    // 이미지 모드 + radius > 0이면 padding 0 + border-radius 동기화 (이미지와 테두리 같은 모양)
-    const imgWrapping = st.labelMode === 'image' && (parseFloat(st.labelImageRadius) || 0) > 0;
-    if (imgWrapping) {
-      const r = Math.max(0, Math.min(50, parseFloat(st.labelImageRadius) || 0));
-      label.style.padding = '0';
-      label.style.borderRadius = r + '%';
-      label.style.overflow = 'hidden';
-    } else {
-      // ★1017t1h5 — labelPad 가 null 이면 CSS 기본(4px 8px) 유지, 그 외엔 사방 동일로 이긴다.
-      label.style.padding = st.labelPad != null ? st.labelPad + 'px' : '';
-      label.style.borderRadius = '';
-      label.style.overflow = '';
-    }
+    _applyAnnotLabelBoxStyle(label, st);
 
     // 이미지 원형(반 이상 라운드)이면 라벨 중앙 부착, 아니면 4방향 모서리
     const isImgCircleish = st.labelMode === 'image' && (parseFloat(st.labelImageRadius) || 0) >= 25;
@@ -481,12 +494,16 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="annot-label-w" min="${LIM.labelWidth.min}" max="${LIM.labelWidth.max}" step="1" value="${st.labelWidth ?? ''}" placeholder="자동" title="라벨 너비(px) — 비우면 글 길이만큼">
         <button class="prop-btn" id="annot-label-w-auto" type="button"${st.labelWidth == null ? ' disabled' : ''} title="글 길이만큼">자동</button>
       </div>
+      ` : ''}
+      ${st.annotKind === 'dim' ? `
+      <!-- ★합침 261026 — 모서리 칸은 택일5 그대로 «치수선만»(그쪽 G2 「일반 어노테이션엔 칸 없음」). 1013t2C6 ⓒ 는 «처음 0» 만 바랐다(칸은 그때 S7 이 덧붙인 것 — 걷었다).
+           ★택일5(msg5223 «라벨 모서리 라운드» · 현빈 ⒝ 조절칸 · «기본값은 지금처럼 유지») — ★치수선만. 꼴 = 라벨그룹 «모서리»(prop-label-group.js lg-item-radius · 0~50 px).
+           처음 값 4 = CSS 기본(.annot-label border-radius:4px) — 안 건드리면 키 0(바이트 보존). -->
       <div class="prop-row">
         <span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="annot-label-radius" min="${LIM.labelRadius.min}" max="${LIM.labelRadius.max}" step="1" value="${st.labelRadius ?? 4}">
-        <input type="number" class="prop-number" id="annot-label-radius-num" min="${LIM.labelRadius.min}" max="${LIM.labelRadius.max}" step="1" value="${st.labelRadius ?? 4}">
-      </div>
-      ` : ''}
+        <input type="range"  class="prop-slider" id="annot-label-radius" min="0" max="50" step="1" value="${st.labelRadius ?? 4}">
+        <input type="number" class="prop-number" id="annot-label-radius-num" min="0" max="50" value="${st.labelRadius ?? 4}">
+      </div>` : ''}
     </div>
 
     <div class="prop-section" id="annot-label-pos-section">
@@ -806,6 +823,7 @@ ${blockHeaderHTML({
     showAnnotationProperties(block);
     window.pushHistory?.('라벨 너비 자동');
   });
+  // ★택일5 — 모서리(치수선만 · 칸이 없으면 무동작). 건드려야만 CSS 기본(4px)을 이긴다 — 여백(labelPad)과 같은 꼴.
   const rad = propPanel.querySelector('#annot-label-radius');
   const radN = propPanel.querySelector('#annot-label-radius-num');
   if (rad && radN) {
@@ -813,7 +831,7 @@ ${blockHeaderHTML({
     rad.addEventListener('change', () => window.pushHistory?.('라벨 모서리'));
     radN.addEventListener('change', () => {
       const v = window.annotClampLabelBox?.(radN.value, 'labelRadius') ?? 0;
-      rad.value = v; _writeProps(block, { labelRadius: v });
+      rad.value = v; radN.value = v; _writeProps(block, { labelRadius: v });
       window.pushHistory?.('라벨 모서리');
     });
   }
