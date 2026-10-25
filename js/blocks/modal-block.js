@@ -1003,7 +1003,26 @@ function commitModalSlot(block, slot, text, html = '') {
   return true;
 }
 
+/* ★1017t1l2 ② (현빈 「캔버스에서 어떻게 추가하는지?」 · 2026-10-25 S3) — 프로필을 «붙이는» 문 하나.
+   ★패널(js/props/prop-modal.js Profile 절)과 캔버스 칩(같은 파일 _syncProfileAddChip)이 ★같이 부른다
+     ⇒ 붙이는 규칙(사진·이모지 둘 중 하나 · 그리기 → 버즈 row 폭 → 이력 push-after)이 한 벌이다.
+   ★지우는 쪽은 위 × 단추가 맡는다(그 자리의 규약 그대로). 돌려주는 값 = 붙였으면 true. */
+function setModalProfile(block, { img, emoji } = {}) {
+  if (!block || !block.dataset) return false;
+  const e = String(emoji ?? '').trim();
+  if (typeof img === 'string' && img) { block.dataset.profileImg = img; delete block.dataset.profileEmoji; }
+  else if (e) { block.dataset.profileEmoji = e; delete block.dataset.profileImg; }
+  else return false;
+  renderModalBlock(block);
+  window.refitBuzzRowWidth?.(block);
+  window.pushHistory?.();
+  window.scheduleAutoSave?.();
+  if (block.classList?.contains('selected')) window.showModalProperties?.(block);
+  return true;
+}
+
 window.makeModalBlock   = makeModalBlock;
+window.setModalProfile  = setModalProfile;
 window.addModalBlock    = addModalBlock;
 window.renderModalBlock = renderModalBlock;
 window.commitModalSlot  = commitModalSlot;
@@ -1073,4 +1092,4 @@ export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, apply
          MODAL_DECO_TAILS, MODAL_DECO_TAPES, MODAL_TAPE_SHAPE, MODAL_TAPE_POS, _glassStyles, _decoHtml, _tapeHtml,
          _bgImageStyles,
          MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT, modalProfileSize, modalProfileSide, modalProfileKind,
-         syncModalIconFirstLineOffset };
+         setModalProfile, syncModalIconFirstLineOffset };
