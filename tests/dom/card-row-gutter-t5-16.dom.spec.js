@@ -23,23 +23,23 @@ async function setup(page, rows) {
     c.insertAdjacentHTML('beforeend', sec);
     const cards = Array.from({ length: 3 * rows }, (_, i) => ({ title: '카드 ' + (i + 1), desc: '', imgSrc: '', cellBg: '' }));
     const made = window.makeCanvasBlock({ cardMode: 'simple', gridCols: 3, gridRows: rows, cards, width: 250, height: 520, cardGap: 16 });
-    made.block.id = 'cvbG';
+    made.block.id = 'cvb_G';
     document.getElementById('slotK').replaceWith(made.row);
     window.applyZoom?.(40);
     window.rebindAll?.(); window.deselectAll?.();
     window.renderCanvas(made.block);
     made.block.scrollIntoView({ block: 'center' });
   }, [SEC, rows]);
-  await page.waitForFunction(() => !!document.querySelector('#cvbG .cvb-card-title'));
+  await page.waitForFunction(() => !!document.querySelector('#cvb_G .cvb-card-title'));
   return errs;
 }
 async function pick(page) {
-  const r = await waitStableRect(page, '#cvbG');
+  const r = await waitStableRect(page, '#cvb_G');
   await page.mouse.click(r.left + r.width * 0.5, r.top + r.height * 0.25);
-  await page.waitForFunction(() => document.getElementById('cvbG').classList.contains('selected') && !!document.getElementById('cvb-h'), null, { timeout: 5000 });
+  await page.waitForFunction(() => document.getElementById('cvb_G').classList.contains('selected') && !!document.getElementById('cvb-h'), null, { timeout: 5000 });
 }
 const geo = (page) => page.evaluate(() => {
-  const b = document.getElementById('cvbG'); const r = b.getBoundingClientRect();
+  const b = document.getElementById('cvb_G'); const r = b.getBoundingClientRect();
   const H = +b.dataset.canvasH, G = +(b.dataset.cardGap ?? 12), rows = +b.dataset.gridRows; const s = r.height / (H * rows + G * (rows - 1));
   const g = document.querySelector('.cvb-gutter'); const gr = g?.getBoundingClientRect();
   return { H, s, boundary: r.top + (H + G / 2) * s, x: r.left + r.width / 2, gutters: document.querySelectorAll('.cvb-gutter').length,
@@ -88,5 +88,31 @@ test('CG3 고르기를 풀면 거터를 거둔다', async ({ page }) => {
   await expect.poll(async () => (await geo(page)).gutters).toBe(1);
   await page.evaluate(() => window.deselectAll());
   await expect.poll(async () => (await geo(page)).gutters).toBe(0);
+  expect(errs).toEqual([]);
+});
+test('CG4 카드 높이 자 = 한 자리(js/blocks/card-limits.js) — 패널 칸 min/max · updateCanvasBlock 의 자 · 끌기 clamp 가 같은 값', async ({ page }) => {
+  /* 지디 되돌림(261026): 끌기 clamp 가 리터럴 2000 이라 grid-callsite-ssot 가 빨갰다. 넷(쓰기 자·끌기·패널 둘)이 한 상수에서 오는지 «동작»으로 잰다. */
+  const errs = await setup(page, 2);
+  const L = await page.evaluate(async () => { const m = await import('./js/blocks/card-limits.js'); return { min: m.CVB_H_MIN, max: m.CVB_H_MAX }; });
+  expect(L.min < L.max, '★전제: 상수를 읽었다 ' + JSON.stringify(L)).toBe(true);
+  const w = await page.evaluate((L) => [window.updateCanvasBlock('cvb_G', { canvasH: L.max + 1 }).ok, window.updateCanvasBlock('cvb_G', { canvasH: L.min - 1 }).ok, window.updateCanvasBlock('cvb_G', { canvasH: L.max - 10 }).ok], L);
+  expect(w, 'updateCanvasBlock: 상한+1·하한−1 거절 · 상한−10 받음').toEqual([false, false, true]);
+  await pick(page);
+  expect(await page.evaluate(() => { const i = document.getElementById('cvb-h'); return [+i.min, +i.max]; }), '패널 「높이」 칸 min/max').toEqual([L.min, L.max]);
+  await expect.poll(async () => (await geo(page)).gutters).toBe(1);
+  /* 2행 같은 높이 = 경계가 카드 한가운데 — 카드를 화면 가운데로 굴리고, 거터가 그 경계에 붙을 때까지 기다린다(거터는 오버레이라 제가 굴리지 못한다) */
+  const toGutter = async () => { await page.evaluate(() => document.getElementById('cvb_G').scrollIntoView({ block: 'center' })); await waitStableRect(page, '#cvb_G');
+    await expect.poll(async () => { const g = await geo(page); return g.gutterCy != null && Math.abs(g.gutterCy - g.boundary) <= 1.5 && g.boundary > 0 && g.boundary < 1200; }, '★전제: 거터가 화면 안 경계에 붙었다').toBe(true); return geo(page); };
+  const g0 = await toGutter();
+  expect(g0.H, '★전제: 상한 바로 아래').toBe(L.max - 10);
+  await page.mouse.move(g0.x, g0.boundary); await page.mouse.down();
+  await page.mouse.move(g0.x, g0.boundary + 60, { steps: 6 }); await page.mouse.up();
+  await expect.poll(async () => (await geo(page)).H, '끌기는 상한에서 멈춘다').toBe(L.max);
+  await page.evaluate((L) => window.updateCanvasBlock('cvb_G', { canvasH: L.min + 10 }), L);
+  await expect.poll(async () => (await geo(page)).H).toBe(L.min + 10);
+  const g1 = await toGutter();
+  await page.mouse.move(g1.x, g1.boundary); await page.mouse.down();
+  await page.mouse.move(g1.x, g1.boundary - 60, { steps: 6 }); await page.mouse.up();
+  await expect.poll(async () => (await geo(page)).H, '끌기는 하한에서 멈춘다').toBe(L.min);
   expect(errs).toEqual([]);
 });
