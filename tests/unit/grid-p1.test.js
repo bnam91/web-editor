@@ -363,7 +363,7 @@ test('updateGridBlock — gap/rowGap/colGap 은 GRID_GAP_MAX 범위 밖이면 �
   assert.equal(updateGridBlock(block.id, { gap: -1 }).ok, false);
   assert.equal(updateGridBlock(block.id, { gap: GRID_GAP_MAX + 1 }).ok, false);
   assert.equal(updateGridBlock(block.id, { rowGap: GRID_GAP_MAX + 1 }).ok, false);
-  assert.equal(updateGridBlock(block.id, { colGap: -1 }).ok, false);
+  assert.equal(updateGridBlock(block.id, { colGap: -51 }).ok, false);   // ★t6-02(261026) — 열도 하한 −50(GRID_COL_GAP_MIN) ⇒ −1 은 이제 받는다 · 하한 밖 −51 을 잰다
   assert.equal(updateGridBlock(block.id, { gap: GRID_GAP_MAX }).ok, true, '상한 값 자체는 통과해야 한다');
   assert.equal(updateGridBlock(block.id, { rowGap: 0 }).ok, true, '0 은 유효값이다');
 });

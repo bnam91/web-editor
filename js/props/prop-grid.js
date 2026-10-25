@@ -8,7 +8,7 @@ import { parseRatio, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHead
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE, GRID_FONT_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
-         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_EMPTY_RADIUS, GRID_BADGE_RADIUS, GRID_IMG_MAX_BYTES, gridCellsToDataset,
+         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_COL_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_EMPTY_RADIUS, GRID_BADGE_RADIUS, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES, gridBlockOutline, GRID_OUTLINE_SIDES,
          GRID_BORDER_EDGES, GRID_IFG_PRESET_KEYS,   /* ★1013t2F — 칸 테두리 «선 자리» · 인포그래픽 프리셋 표식 명부 */
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
@@ -2377,8 +2377,8 @@ function _gapRowHtml(cols, rows, colGap, rowGap) {
     html += `
       <div class="prop-row">
         <span class="prop-label">열 간격</span>
-        <input type="range" class="prop-slider" id="grd-col-gap-slider" min="0" max="${GRID_GAP_MAX}" step="2" value="${colGap}">
-        <input type="number" class="prop-number" id="grd-col-gap-number" min="0" max="${GRID_GAP_MAX}" value="${colGap}">
+        <input type="range" class="prop-slider" id="grd-col-gap-slider" min="${GRID_COL_GAP_MIN}" max="${GRID_GAP_MAX}" step="2" value="${colGap}">
+        <input type="number" class="prop-number" id="grd-col-gap-number" min="${GRID_COL_GAP_MIN}" max="${GRID_GAP_MAX}" value="${colGap}">
       </div>`;
   }
   if (rows.length >= 2) {
@@ -3809,7 +3809,7 @@ ${_flattenRowHtml(rows, cols)}
       block.dataset.colGap = String(v);
       window.renderGridBlock?.(block);
       window._grdSyncLineMark?.(block, grdGetActiveLine(block));
-    }, { min: 0, max: GRID_GAP_MAX });
+    }, { min: GRID_COL_GAP_MIN, max: GRID_GAP_MAX });   // ★t6-02 열도 음수(겹치기) — GRID_COL_GAP_MIN 주석(grid-block.js)
   }
   const rowGapSlider = document.getElementById('grd-row-gap-slider');
   const rowGapNumber = document.getElementById('grd-row-gap-number');
