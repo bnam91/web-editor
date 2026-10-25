@@ -188,6 +188,11 @@ test('B4 ★(t5-08 원 블럭 꼴) 패딩 제외(full-bleed) 에셋 + 그라데�
     const g = document.getElementById('grad1'); g.dataset.y = '30'; g.style.top = '30px';
   });
   const w0 = await page.evaluate(() => document.getElementById('ab_flow').getBoundingClientRect().width);
+  /* ★전제 단언(지디 261026) — ★아래 717 비교는 ★«화면 px»(getBoundingClientRect)를 ★«모델 px 상수»와 견준다.
+     ★배율이 1 이 아니면 ★그 비교가 ★거짓 빨강·초록이 된다. ⛔「이 spec 은 배율을 안 건드린다」로 닫지 마라 —
+     ★★재서 잠근다(센서스 처방 그대로: 두 측정을 서로 견주어라). ★양성대조: 무대에 scale(0.4) 를 걸면 이 칸이 빨개진다. */
+  const lay0 = await page.evaluate(() => document.getElementById('ab_flow').offsetWidth);
+  expect(Math.abs(w0 - lay0), '★전제: 배율 1 — 화면 px(getBoundingClientRect) = 레이아웃 px(offsetWidth)').toBeLessThan(1.5);
   expect(w0, '★전제: 에셋이 내용 폭보다 넓다(패딩 제외)').toBeGreaterThan(860 - 144 + 1);
   const r = await groupOf(page, ['ab_flow', 'grad1']);
   expect(r.groups).toBe(1);
