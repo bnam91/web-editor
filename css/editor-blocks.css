@@ -2196,6 +2196,16 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .frame-block[data-text-frame="true"]:has(> .text-block.selected[data-tf-corners]) {
   z-index: 3;
 }
+/* ★123 FT-OVERLAY-HANDLE-COVERS-FT-CORNER-01(미카사 8608bb13 실측 ×3 · 현빈 GO) — 위 규칙의 «오버레이» 짝.
+   오버레이 글상자에 자유변형을 걸면 네 모서리에 손잡이가 두 벌 앉는다: 자유변형 손잡이(.tfh-handle · 글상자 안)와
+   오버레이 리사이즈 손잡이(.tfo-overlay-handle · #ss-handles-overlay). 뒤엣것은 캔버스 내용 «위» 층이라 z 를 어떻게 줘도
+   앞엣것을 덮는다(권고① 9992→9993 사본 실측 ×3 무변 — 같은 층 안의 순서만 바뀐다) ⇒ 모서리를 끌면 FT 점이 아니라 상자가 줄었다.
+   ⇒ 자유변형이 걸린 글상자를 «고른 동안»만 오버레이 모서리 손잡이를 숨긴다(편집 중 숨김과 같은 뜻 · 자유변형을 빼면 돌아온다).
+   ⛔js/overlay-handles.js 무접촉 — U3 는 제 층을 쓴다(text-freetransform U2-SCOPE 가 잠근다).
+   ★rAF(overlay-handles.js _startTextOverlayResizeRaf)는 인라인 display 를 '' 로만 쓴다 ⇒ 이 규칙이 이긴다 · 편집 중 'none' 과도 안 싸운다. */
+#canvas-area:has(.text-block.selected[data-tf-corners]) #ss-handles-overlay > .tfo-overlay-handle {
+  display: none;
+}
 /* T6: outline 2겹 픽스 — 부모 row/text-frame이 outline을 책임지면
    .text-block.selected의 자체 outline은 transparent로 되돌려 한 겹만 보이게 한다.
    (text-block은 padding/border-box 변화로 부모와 미세 어긋남이 생겨 2겹으로 보였음) */
