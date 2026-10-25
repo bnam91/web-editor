@@ -74,7 +74,12 @@ async function run(page, corners, opts = {}) {
     const savedCorners = (saved.match(/data-tf-corners="([^"]+)"/) || [])[1] || null;
     const savedTouched = /data-tf-touched="1"/.test(saved);
     /* ★★★«옛 파일» 흉내 — ★저장본에서 ★키를 ★떼고 ★복원한다(★backward-compat 를 ★재는 자리) */
-    canvas.innerHTML = stripKey ? saved.replace(/ data-tf-touched="1"/g, '') : saved;
+    /* ★★«옛 파일» 흉내 — ★★★두 키를 ★다 떼야 ★한다(261025 정정).
+       ⛔`data-tf-touched` ★하나만 떼면 ★`data-tf-schema` 가 ★남아 ★★«새 파일»로 ★읽힌다
+         ⇒ ★`Y1b` 가 ★거짓 초록이 ★났다(★내 자의 흠 · ★내가 잡았다). */
+    canvas.innerHTML = stripKey
+      ? saved.replace(/ data-tf-touched="1"/g, '').replace(/ data-tf-schema="1"/g, '')
+      : saved;
     window.rebindAll?.({});
     const tb2 = document.getElementById('axTb');
     if (!tb2) return { fail: '복원 뒤 못 찾음' };
@@ -127,23 +132,24 @@ test('Y1 ★★★닫혔다 — ★축정렬 변형이 ★복원 뒤에도 ★�
   expect(r.after.tfW, `★프레임 폭이 변했다 (${r.before.tfW} → ${r.after.tfW})`).toBe(r.before.tfW);
 });
 
-test('Y1b ★★backward-compat — ★«옛 파일»(키 없음)은 ★옛 동작 그대로다 (⛔「전부 고쳤다」가 아니다)', async ({ page }) => {
+test('Y1b ★★backward-compat — ★«옛 파일»(키 없음)도 ★★안 잃는다 (★261025 고침 뒤 ★뒤집은 칸)', async ({ page }) => {
   await bootApp(page);
   const r = await run(page, AXIS, { stripKey: true });
   expect(r.fail).toBeUndefined();
   console.log('[Y1b]', JSON.stringify(r));
 
-  /* ★★이 칸은 ★«결함이 ★옛 파일에 ★남는다»를 ★★일부러 ★잠근다 —
-     ⛔「전부 고쳤다」로 ★읽히지 않게 ★★수로 박아 둔다.
-     ★옛 파일을 ★고치려면 ★마이그레이션이 ★필요하고, ★그건 ★★별개 결정이다
-       (★이름 = `FT-TOUCHED-OLD-FILES-NOT-MIGRATED-01` · ★0.9.9 후보).
-     ★이 칸이 ★빨개지면 = ★옛 파일도 ★고쳐졌다는 뜻이다 ⇒ ★그때 ★이 칸을 ★닫고 ★명부에서 지워라. */
+  /* ★★★261025 ★뒤집었다 — ★이 칸은 ★전에 ★«옛 파일은 ★잃는다»를 ★일부러 ★잠그고 있었다.
+     ★★미카사 실측(t6 ⒜-5 덧⑷)으로 ★그 손실이 ★★영구가 됨이 밝혀졌다(자동저장이 ★디스크를 덮는다)
+       ⇒ ★`FT-TOUCHED-OLD-FILES-NOT-MIGRATED-01` = ★릴리스 차단급.
+     ★고침 = ★판 표시(`tfSchema`). ★표시가 ★없으면 ★★«옛 파일»이고, ★그때는
+       ★네 점을 ★★안 덮어쓴다(★보수적) ⇒ ★축정렬 변형이 ★산다.
+     ★★이 칸이 ★다시 ★빨개지면 = ★그 보호가 ★죽은 것이다 ⇒ ★★릴리스 차단으로 ★되돌려라. */
   expect(r.cornersKept,
-    '★키가 없는 판에서도 네 점이 유지됐다 — ★옛 파일까지 고쳐졌다면 이 칸을 닫아라'
-  ).toBe(false);
+    `★옛 파일의 네 점이 ★덮어써졌다 — ★★영구 손실이 ★되살아났다 (${r.before.corners} → ${r.after.corners})`
+  ).toBe(true);
   const d = identDiffOf(r.after.m);
   expect(d, `★행렬 성분이 16 개가 아니다 (${r.after.m})`).not.toBeNull();
-  expect(d, '★옛 파일 판인데 행렬이 항등이 아니다 — 증상의 꼴이 바뀌었다').toBeLessThan(1e-6);
+  expect(d, '★옛 파일인데 행렬이 ★항등이다 — ★축정렬 변형이 ★사라졌다').toBeGreaterThan(1e-6);
 });
 
 test('Y2 ★★음성대조 — ★사다리꼴은 ★네 점이 ★유지된다 (★「복원하면 ★늘 잃는다」가 아니다)', async ({ page }) => {
@@ -173,13 +179,11 @@ test('Y2 ★★음성대조 — ★사다리꼴은 ★네 점이 ★유지된다
 const GROW   = '가나다라마바사아자차카타파하 가나다라마바사아자차카타파하 가나다라마바사';
 const SHRINK = '짧';
 
-test('Y3 ★★음성대조 — 변형 ★안 하고 ★글자만 바꿔 저장해도 ★행렬이 ★항등이다 (넷)', async ({ page }) => {
+test('Y3 ★★음성대조 — ★«새 파일»은 변형 ★안 하고 ★글자만 바꿔도 ★행렬이 ★항등이다 (둘)', async ({ page }) => {
   await bootApp(page);
   const cases = [
     ['grow',   { touched: false, growText: GROW }],
     ['shrink', { touched: false, growText: SHRINK }],
-    ['grow_oldFile',   { touched: false, growText: GROW,   stripKey: true }],
-    ['shrink_oldFile', { touched: false, growText: SHRINK, stripKey: true }],
   ];
   const seen = {};
   for (const [name, opts] of cases) {
@@ -195,4 +199,36 @@ test('Y3 ★★음성대조 — 변형 ★안 하고 ★글자만 바꿔 저장�
       .toBeLessThan(1e-6);
   }
   console.log('[Y3]', JSON.stringify(seen));
+});
+
+test('Y3b ★★★교환의 ★대가 — ★«옛 파일»은 글자를 바꾸면 ★폭이 ★갇힌다 (⛔「전부 고쳤다」가 아니다 · 둘)', async ({ page }) => {
+  await bootApp(page);
+  /* ★★★원리적 ★모호성(261025 측정) — ★옛 파일(`tfSchema` 없음)에는
+       ★「축정렬 변형을 ★했다」와 ★「안 했는데 ★글자가 바뀌었다」를 ★★가를 ★정보가 ★없다.
+       ★네 점은 ★둘 다 ★바탕 꼴(0,0,W,0,W,H,0,H)이고, ★`tfW0` 도 ★저장본에 ★없다
+         (★이름 = `FT-TFW0-NOT-PERSISTED-01` — ★그것도 ★새 파일에만 ★쓸 수 있다).
+     ⇒ ★어느 쪽으로 ★기울여도 ★대가가 ★★영구다:
+       ⒜ 덮어쓰면 → ★축정렬 변형이 ★조용히 ★사라진다(★되돌릴 수 ★없다 · ★미카사 실측 · ★릴리스 차단급)
+       ⒝ 안 덮어쓰면 → ★폭이 ★옛 바탕에 ★갇힌다(★눈에 ★보이고 ★다시 끌어 ★고칠 수 있다)
+     ⇒ ★★⒝ 를 ★택했다. ★이 칸은 ★그 ★대가를 ★★수로 박는다
+       (★이름 = `FT-OLDFILE-WIDTH-FROZEN-WHEN-TEXT-CHANGES-01` · ★사람 판단 대기).
+     ★★이 칸이 ★빨개지면 = ★대가가 ★사라졌거나(★제3의 길을 찾았다)
+       ★★보호가 ★죽었다(= ⒜ 로 돌아갔다) ⇒ ★★Y1b 를 ★같이 보고 ★어느 쪽인지 ★가려라. */
+  const cases = [
+    ['grow_oldFile',   { touched: false, growText: GROW,   stripKey: true }],
+    ['shrink_oldFile', { touched: false, growText: SHRINK, stripKey: true }],
+  ];
+  const seen = {};
+  for (const [name, opts] of cases) {
+    const r = await run(page, null, opts);
+    expect(r.fail).toBeUndefined();
+    const d = identDiffOf(r.after.m);
+    seen[name] = { corners: r.after.corners, identDiff: d, savedTouched: r.savedTouched };
+    expect(r.savedTouched, `★${name}: 변형 안 했는데 키가 저장본에 실렸다 — 대칭이 깨졌다`).toBe(false);
+    expect(d, `★${name}: 행렬 성분이 16 개가 아니다 (${r.after.m})`).not.toBeNull();
+    /* ★★★대가를 ★잠근다 — ★갇히므로 ★항등이 ★아니다 */
+    expect(d, `★${name}: 갇힘이 ★사라졌다 — ★제3의 길을 찾았거나 ★★보호가 죽었다(Y1b 를 같이 보라)`)
+      .toBeGreaterThan(1e-6);
+  }
+  console.log('[Y3b]', JSON.stringify(seen));
 });
