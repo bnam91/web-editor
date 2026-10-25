@@ -1578,6 +1578,34 @@ function _grdWireLineBar(block, addr, host = null) {
  *   tests/dom/bt2-safety T6 골든(tests/dom/fixtures/bt2-grid-panel-golden.json)이 증인.
  *   남의 주인(foreign)에서 다른 것: 폭(%)·「이미지 표시/내용 자르기」 절 숨김(크기 = 높이 하나 · 결정 B2-4) · 높이 잠금 없음
  *   (laurel 렌더가 높이를 «읽는다» — grid 의 E157 무시 규칙이 아니다) · 원 줄(채움·글자) 없음(그 손잡이는 grid 렌더 전용). */
+/* ══ ★t5-13ⓐ 원형 이미지 «효과» (2026-10-26 S3 · 현빈 「원형이미지의 그림자 효과는 어떻게 주는지? (원형이미지 뿐아니라, 에셋들에 효과를 주고 싶음)」) ══
+ * ★에셋 Effects 절을 ★그대로 부른다 — js/effects-registry.js fxSectionHtml / wireFxSection(⛔같은 그리개를 두 벌로 만들지 않는다).
+ * ★그런데 그리드 원은 «블럭»이 아니라 그리드 모델의 «줄»이다 ⇒ 다시 그릴 때마다 요소가 새로 난다.
+ *   ⇒ 카드에는 ★패널이 쥐는 «대리»(줄마다 하나 · 블럭·주소로 재사용 — 카드 열림 상태가 산다)를 넘긴다.
+ *   ★대리의 dataset = 그 줄의 그림자 키 여섯(에셋과 같은 이름) — 패널을 그릴 때마다 «줄 → 대리»로 맞추고,
+ *     카드가 대리를 고치면 감시자가 «대리 → 줄»(gridPreviewLine · 원 화면도 다시 그림)로 옮긴다.
+ *   ★그리기는 grid-block.js 원 갈래가 그 키를 읽어 effects-shadow 의 같은 식으로 단다. 이력은 카드 쪽 규약 그대로(setFxShadow 의 push-before). */
+const _GRD_FX_KEYS = ['fxShadow', 'fxShadowX', 'fxShadowY', 'fxShadowBlur', 'fxShadowColor', 'fxShadowOp'];
+const _grdFxProxies = new WeakMap();   // block → Map(주소 → 대리)
+function _grdFxProxyOf(block, r, c, li, np, line) {
+  let m = _grdFxProxies.get(block);
+  if (!m) { m = new Map(); _grdFxProxies.set(block, m); }
+  const key = [r, c, li, np || ''].join(':');
+  let px = m.get(key);
+  if (!px) { px = document.createElement('div'); px.className = 'grd-img-circle'; m.set(key, px); }
+  /* ★카드의 「추가」는 대리를 고친 «바로 그 자리»에서 패널을 다시 그린다(wireFxSection 의 again) — 감시자의 기록이
+     아직 안 돌았다. ⛔그대로 끊으면 기록이 버려져 방금 켠 효과가 줄에 안 옮겨지고 아래 맞추기가 지운다.
+     ⇒ 밀린 기록이 있으면 먼저 옮겨 적고, 그때는 대리가 참값이라 옛 줄 값으로 덮지 않는다. */
+  const pending = px._grdFxObs?.takeRecords?.() || [];
+  px._grdFxObs?.disconnect();
+  if (pending.length && typeof px._grdFxSync === 'function') { px._grdFxSync(); return px; }
+  _GRD_FX_KEYS.forEach((k) => {
+    const v = line ? line[k] : undefined;
+    if (v === undefined || v === null || v === '') delete px.dataset[k]; else px.dataset[k] = String(v);
+  });
+  return px;
+}
+
 function _grdImageSectionHtml(anyHit, block, host = null) {
   if (!anyHit || anyHit.li === null || !anyHit.line || anyHit.line.type !== 'image') return '';
   const foreign = !!host && host.kind !== 'grid';
@@ -1685,7 +1713,7 @@ function _grdImageSectionHtml(anyHit, block, host = null) {
              (바로 위 높이 칸이 GRID_IMG_CIRCLE_D 로 같은 꼴을 이미 쓴다 — 새 관용구 0.) */ ''}
         <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="${line.imgSrc ? 0 : GRID_IMG_EMPTY_RADIUS}" value="${rad}">
       </div>${circleRows}
-    </div>${foreign ? '' : _grdImageClipSectionHtml(anyHit, block)}`;
+    </div>${(circle && !foreign) ? (window.fxSectionHtml?.(_grdFxProxyOf(block, r, c, anyHit.li, anyHit.np, line), 'grdc') || '') : ''}${foreign ? '' : _grdImageClipSectionHtml(anyHit, block)}`;
 }
 
 /* ══ ★1012t1 B1 「내용 자르기」 (현빈 1010t1c2 ㈁ — 그리드 이미지줄) ═══════════════════════
@@ -1848,6 +1876,19 @@ function _grdWireImageSection(block, addr, host = null) {
         onCommit: () => window.pushHistory?.(),
       });
       numWire('grd-img-ctsize', 'fontSize', 6, 200);
+    }
+    /* ★t5-13ⓐ — 원 «효과»(그림자). 카드 배선은 에셋과 같은 함수 · 대리 → 줄 옮겨 적기는 감시자 하나. */
+    if (!foreign) {
+      const px = _grdFxProxyOf(block, r, c, li, addr.np, hit.line);
+      window.wireFxSection?.(px, 'grdc', () => window.showGridProperties?.(block));
+      const attrs = _GRD_FX_KEYS.map((k) => 'data-' + k.replace(/[A-Z]/g, (ch) => '-' + ch.toLowerCase()));
+      px._grdFxSync = () => {
+        const fields = {};
+        _GRD_FX_KEYS.forEach((k) => { fields[k] = px.dataset[k] !== undefined ? px.dataset[k] : undefined; });
+        _cLive(fields);
+      };
+      px._grdFxObs = new MutationObserver(() => px._grdFxSync());
+      px._grdFxObs.observe(px, { attributes: true, attributeFilter: attrs });
     }
   }
 }
