@@ -8,8 +8,10 @@
         tests/e2e 에는 electron 을 이름·경로로 직접 띄우는 글자가 없다.
         ★날글자로 재는 까닭: 따옴표 키·정규식·템플릿·계산 키·별칭 어느 꼴로 써도 `_electron` 글자는 남는다
           (독립 평가 S6-T7 이 주석/문자열 걷기 판에서 거짓 초록 7＋9 를 냈다 — 걷기가 정규식·템플릿에서 깨졌다).
+        electron 을 이름·경로로 부르는 글자는 tests/e2e · tests/dom 에서 0 이어야 한다.
         ⚠️못 재는 길(이름): 글자를 쪼개 붙이기('_elec'+'tron') · tests/unit 의 electron 문자열(스텁용이라 범위 밖) —
           E2E-LAUNCH-CENSUS-SPLIT-TOKEN-01 · E2E-LAUNCH-CENSUS-SCOPE-UNIT-ELECTRON-01
+        ⚠️거짓 빨강 가능: e2e·dom 에 빈칸 없는 'electron' 문자열(예: ua.includes('electron'))만 있어도 걸린다 — 그때는 이 자를 고친다.
      ⑶ ⑵ 의 자가 «속지 않는다» — 독립 평가가 낸 반례들을 그대로 먹여 본다. */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -122,8 +124,10 @@ function audit(files) {
         if (n !== 1) bad.push(`${rel} 「${want}」 가 ${n} 줄 — 정확히 1 이어야 한다`);
       }
     }
-    if (rel.startsWith('tests/e2e/')) {
-      const re = /['"`]([^'"`\n]*\/)?electron(\.cmd|\.exe)?['"`]|require\.resolve\s*\(\s*['"`]electron/g;
+    if (rel.startsWith('tests/e2e/') || rel.startsWith('tests/dom/')) {
+      /* 빈칸 없는 문자열이 «electron» 낱말(대소문자 무관)을 경로 조각·이름으로 품으면 직접 띄우는 길로 친다.
+         'electron' · 'electron/index.js' · '.bin/electron' · '…/MacOS/Electron' 은 걸리고 'electronAPI' · 'isElectron' · 'Electron 에서 …'(글) 은 안 걸린다. */
+      const re = /['"`]([^'"`\s]*[\/\\])?electron([\/\\.][^'"`\s]*)?['"`]/gi;
       for (let m; (m = re.exec(text));) bad.push(`${rel}:${text.slice(0, m.index).split('\n').length} electron 을 이름·경로로 부른다(직접 띄우는 길)`);
     }
   }
@@ -149,6 +153,8 @@ test('⑵ tests 전체 날글자 전수 — `_electron` 은 helpers 두 줄뿐 �
   assert.ok(n > 100 && files[HELPERS_REL], `파일 ${n} 개 · helpers 읽힘 ${!!files[HELPERS_REL]} — 검사가 대상을 놓쳤다`);
   assert.equal(files[HELPERS_REL].split('_electron').length - 1, 2, 'helpers 안 `_electron` 글자 = 2(받기 ＋ launchElectron 몸)');
   assert.deepEqual(audit(files), []);
+  /* 이름 글자 자가 «아무것도 안 거르는» 게 아님 — 글(빈칸 낀 것)·이름 조각은 통과해야 한다 */
+  assert.deepEqual(audit({ 'tests/dom/ok.js': "x('electronAPI'); y('isElectron'); z('Electron 에서 기능이 죽는다');" }), []);
 });
 
 test('⑶ ⑵ 의 자는 반례에 속지 않는다 — 지금 helpers 는 통과 · 독립 평가 반례는 전부 걸린다', () => {
@@ -171,6 +177,11 @@ test('⑶ ⑵ 의 자는 반례에 속지 않는다 — 지금 helpers 는 통�
     computedDestructure: { [E]: "const { ['_electron']: E } = require('@playwright/test'); E.launch({});" },
     spawnByName: { [E]: "spawn('npx', ['electron', '.']);" },
     spawnByPath: { [E]: "spawn('node_modules/.bin/electron', ['.']);" },
+    /* 3차 평가(cebbc107) 반례 */
+    spawnAppBinary: { [E]: "spawn('node_modules/electron/dist/Electron.app/Contents/MacOS/Electron', ['.']);" },
+    requireSubpath: { [E]: "spawn(require('electron/index.js'), ['.']);" },
+    domSpawn: { 'tests/dom/zz.dom.spec.js': "spawn('npx', ['electron', '.']);" },
+    playwrightCore: { [E]: "require('playwright-core')._electron.launch({});" },
     keySpill: { [HELPERS_REL]: H.replace('async function launchElectron', "const relaunchRaw = () => _electron.launch({ args: ['.'] });\nasync function launchElectron") },
     /* launchElectron 몸에서 env 를 opts 앞에 두면 부른 쪽이 덮을 수 있다 — 허락된 줄과 글자가 달라져 걸린다 */
     envFirst: { [HELPERS_REL]: H.replace('return _electron.launch({ ...opts, env });', 'return _electron.launch({ env, ...opts });') },
