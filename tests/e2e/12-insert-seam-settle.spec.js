@@ -60,7 +60,8 @@ test.beforeAll(async () => {
     ({ app } = await require('./helpers.js').attachIsolated());
   } else {
   /* ★GODITOR_MCP_PORT 를 넘긴다(E2E-HARDCODED-FORBIDDEN-PORT-9345-01) — E2E_MCP_PORT 가 없거나 띠 밖이면 여기서 던진다. */
-  const env = require('./helpers.js').mcpPortEnv(process.env.E2E_MCP_PORT);
+  const { mcpPortEnv } = require('./helpers.js');
+  mcpPortEnv(process.env.E2E_MCP_PORT);   // 띄우기 «전»에 거른다(없거나 띠 밖이면 던진다)
   fs.mkdirSync(PROFILE, { recursive: true });
   /* 로그인 게이트 — 이 맥의 자격증명을 «격리 프로필»에만 복사하고 끝나면 프로필째 지운다. */
   const src = path.join(os.homedir(), 'Library', 'Application Support', 'GODITOR', 'auth.json');
@@ -71,7 +72,7 @@ test.beforeAll(async () => {
            '--disable-renderer-backgrounding', '--disable-background-timer-throttling',
            '--disable-backgrounding-occluded-windows', 'admin'],
     cwd: process.cwd(),
-    env,
+    env: mcpPortEnv(process.env.E2E_MCP_PORT),
   });
   }
   page = await app.firstWindow();

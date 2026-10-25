@@ -43,7 +43,10 @@ async function launchApp() {
  *   그 파일은 «재는 양»이 걸린 게이트라 여기서 손대지 않는다 — 다시 쓸 때 이 함수로 들여라. */
 /* ★[S6-T7 ③ · 2026-10-25] E2E-HARDCODED-FORBIDDEN-PORT-9345-01 — _electron.launch 가 GODITOR_MCP_PORT 를 «넘기게» 한다.
  *   안 넘기면 앱(main.js)이 MCP 를 스스로 9345 부터 잡는다(금지대역). 값은 «부르는 쪽»이 정한다 · 띠 9610~9629 밖이면 띄우기 전에 던진다.
- *   재는 자 = tests/unit/e2e-launch-mcp-port.test.js (launchIsolated 가로채기 ＋ tests/e2e 의 launch 자리 전수). */
+ *   재는 자 = tests/unit/e2e-launch-mcp-port.test.js (launchIsolated 가로채기 ＋ tests 의 launch 자리 전수).
+ *   ★전수는 «launch 인자 안에 env: mcpPortEnv(...) 가 바로 있나»로 잰다 — 다른 데서 만든 env 를 넘기지 마라(검사가 못 가린다).
+ *   쓰는 법(ATTACH 아닌 길): E2E_MCP_PORT=<띠 안 포트> npx playwright test tests/e2e/13-undo-family.spec.js
+ *   ⚠️앱은 그 포트가 차 있으면 +20 까지 번진다(main/claude-pm/mcp-server.js) — 띠 밖으로 갈 수 있다 · E2E-MCP-FALLBACK-DRIFT-OUT-OF-BAND-01 */
 const MCP_BAND = [9610, 9629];
 function mcpPortEnv(mcpPort) {
   const n = Number(mcpPort);
@@ -55,7 +58,7 @@ function mcpPortEnv(mcpPort) {
 
 async function launchIsolated({ port, profile, mcpPort, args = [], cwd = process.cwd() }) {
   if (!port || !profile) throw new Error('launchIsolated: port 와 profile 은 필수다');
-  const env = mcpPortEnv(mcpPort);   // ★프로필·자격증명을 만지기 «전»에 거른다
+  mcpPortEnv(mcpPort);   // ★프로필·자격증명을 만지기 «전»에 거른다(던진다)
   fs.mkdirSync(profile, { recursive: true });
   const src = path.join(os.homedir(), 'Library', 'Application Support', 'GODITOR', 'auth.json');
   if (fs.existsSync(src)) fs.copyFileSync(src, path.join(profile, 'auth.json'));
@@ -64,7 +67,7 @@ async function launchIsolated({ port, profile, mcpPort, args = [], cwd = process
            '--disable-renderer-backgrounding', '--disable-background-timer-throttling',
            '--disable-backgrounding-occluded-windows', 'admin', ...args],
     cwd,
-    env,
+    env: mcpPortEnv(mcpPort),
   });
   const root = await app.evaluate(({ app }) => app.getPath('userData'));
   /* ★★macOS 는 /var ↔ /private/var · /tmp ↔ /private/tmp 가 ★심링크다 — ★같은 자리인데 ★문자열이 다르다.
