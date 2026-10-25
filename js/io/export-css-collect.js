@@ -41,12 +41,33 @@ const EDITOR_ONLY_SEL = new RegExp([
        「★숨기는 CSS 한 줄로 ★때우지 마라 · ★있을 이유 없는 것은 ★버린다」이다. */
   '\\.img-editing', '\\.img-edit-hint', '\\.img-boundary', '\\.img-corner-handle', '\\.img-edge-handle', '\\.img-rotate-zone',
   '\\.section-label', '\\.section-toolbar', '\\.section-hitzone', '\\.variation-badge', '\\.section-height-badge',
-  /* 261022 현빈 결정 — «아노테이션 블록과 치수선 블럭은 보여야지 최종 이미지».
-     ⇒ 옛 '\\.annotation' · '\\.annot-' 두 조각이 그 콘텐츠(.annotation-block · .annot-label · .annot-svg)의 CSS 를 먹었다
-       (ANNOT-CSS-FILTERED-01 · 짝 = capture-safety.js stripEditorOnlyForCapture C18 정정).
-     ⇒ 편집 화면에서만 사는 annot 이름만 남긴다. 재는 자 = tests/unit/export-css-filter-scope.test.mjs T1b·T2 */
+  /* ★★★2026-10-24 — ★`ANNOT-CSS-FILTERED-01`. ★★★두 사람의 고침을 ★합쳤다.
+     ★병 : ★옛 조각 ★둘(`\\.annotation` · `\\.annot-`)이 ★★콘텐츠 CSS 를 ★먹었다 —
+       ★`.annotation-block`(★현빈 261022 ⒝ = ★최종 이미지에 ★보인다) · `.annot-label` · `.annot-svg`.
+       ⇒ ★요소는 ★남는데(capture-safety 261024) ★★그 ★CSS 가 ★안 실려 ★★«스타일 없이» 나왔다.
+     ★★★S7 이 ★261022 에 ★`0e74c871` 에서 ★먼저 ★고쳤다 — ★★그 커밋이 ★우리 저장소에 ★안 ★넘어와
+       ★지디가 ★★모르고 ★다시 ★고쳤고(261024), ★★그 뒤 ★`mcintel-ts` 로 ★당겨 ★견줬다.
+       (★`capture-safety.js` 의 ★그 한 줄은 ★★★BYTE-EQUAL 이었다 — ★sha `537a8312aa42`.)
+     ★★★설계는 ★★S7 것을 ★따른다 — ★★«편집 전용 ★이름을 ★명시».
+       ★까닭 : ★지디의 ★부정 lookahead 보다 ★★다음 사람이 ★읽기 ★쉽고,
+         ★★`tests/dom/annot-export-show-261022.dom.spec.js` ★H2 가 ★★그 설계를 ★전제로 ★지어졌다.
+     ★★★＋ ★지디가 ★더 ★잰 ★한 칸 : ★`.annot-label-color`(★프로퍼티 패널 ★색 고르개 · ★실측 3건) —
+       ★S7 의 ★아홉에 ★★없어 ★★배송본에 ★실리고 ★있었다. ★★여기 ★더했다.
+     ⚠️★★안 ★쟀다 : ★`.annot-border-style-group`(3) · `.annot-stroke-w-num`(2) ★둘도 ★패널 ★꼴로 ★보이나
+       ★★«편집 전용인가»를 ★★행위로 ★안 ★쟀다 ⇒ ★★★넣지 ★않았다.
+       ★이름 = `ANNOT-PANEL-CLASSES-UNMEASURED-01` (★결함 ★아님 · ★«못 쟀다» ★명부).
+     ★재는 자 = `tests/unit/export-css-filter-scope.test.mjs` ★T1b(실려야 셋)·★T2(걸러져야)
+            ＋ ★`annot-export-show-261022.dom.spec.js` ★H2(★★앱에서 ★`<style>` 을 ★본다). */
   '\\.annot-handle', '\\.annot-rot-handle', '\\.annot-dim-handle', '\\.annot-selbox', '\\.annot-preview',
   '\\.annot-anchor-preview', '\\.annot-cell-selected', '\\.annot-point-angle', '\\.annot-label-textarea',
+  '\\.annot-label-color',
+  /* ★★U3 자유변형 ★격자(2026-10-24 · 지디) — ★`.tfh-handle` 은 ★위 `-handle\\b` 가 ★이미 잡는다.
+     ★★`.tfh-grid` 는 ★★어느 조각에도 ★안 걸려 ★★샜다(★실측: ★더한 직후 ★`re.test('.tfh-grid') === false`).
+     ⇒ ★요소는 ★명부(`editor-ui-roster`)가 ★걷지만 ★★그 ★CSS 가 ★배송본 `<style>` 에 ★실렸다.
+     ★★교훈 : ★★새 편집 UI 를 ★더할 때 ★★★«요소 명부»와 ★«CSS 거름»은 ★★따로다 — ★둘 다 ★재라. */
+  '\\.tfh-',   /* ★★U3 자유변형 ★전부(grid·fx·edge·layer·handle) — ★261024 에 ★셋이 ★새어 ★접두사로 ★좁혔다 */
+  /* 머지 261025(S6) — 이 줄은 134c7986 에 있었고 가지에도 있다. dev 5eff5c70 이 S7 설계를 합칠 때 빠졌다(그 커밋 글에 뺀다는 말 없음).
+     양쪽 내용을 다 살리는 쪽으로 풀었다 · 판정은 지디 몫 — 이름 MERGE-T4DIM-QA-TODO-PEN-REVIVED-01. */
   '\\.qa-block', '\\.todo-pin', '\\.pen-',
   '\\.col-placeholder', '\\.col-add', '\\.row-col-add', '\\.row-drop-indicator', '\\.layer-',
   /* ★★t4 검수 261022(지디) — ★`'placeholder'` ★맨 조각을 ★좁혔다.

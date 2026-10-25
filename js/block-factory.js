@@ -2094,7 +2094,15 @@ function _nextGroupName() {
 function wrapSelectedBlocksInFrame(opts = {}) {
   const asGroup = opts.asGroup === true;
   // 그룹은 freeLayout 절대블록 전부 대상 (joker/shape/vector/frame-block 서브섹션·중첩그룹 포함)
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .zoom-block, .step-block, .frame-block, .qa-block, .coupon-block, .quote-block, .radial-block';
+  /* ★t5-07(S3 · 261023 지디 판정 ①) — 손 사본을 버리고 정본(editor.js SECTION_BLOCK_TYPE_SEL)에서 파생한다.
+     손 사본엔 gradient·modal·speech-bubble·sticker 가 빠져 있어 ⌘G 가 그 넷을 «골라도 조용히 뺐다»
+     (tests/dom/gradient-group-t507 B1–B3·M1–M3 바닥 빨강). 꼴 = editor.js SECTION_BLOCK_TYPE_SEL_SELECTED 선례 ＋ 프레임·중첩 그룹.
+     ⛔정본이 안 실렸으면 조용히 «프레임만» 고르지 않고 멈춘다(window.* — 이 함수만 잘라 도는 DOM 하네스도 같은 전역을 준다). */
+  if (typeof window.SECTION_BLOCK_TYPE_SEL !== 'string') {
+    console.error('[⌘G] window.SECTION_BLOCK_TYPE_SEL 이 없다 — editor.js 정본이 안 실렸다');
+    return;
+  }
+  const BLOCK_SEL = window.SECTION_BLOCK_TYPE_SEL + ', .frame-block';
   let selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];
@@ -2120,6 +2128,24 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   }
 
   window.pushHistory();
+
+  /* ★t5-07 U2(S3 · 261023) — «제 방식 떠 있는» 블럭 = 위치 정본이 dataset.x/y 인 블럭(줌 · 그라데이션 · 스티커).
+     각 렌더러가 cssText 를 dataset.x/y 로 «통째로 다시 쓴다»(gradient-block.js renderGradientBlock) ⇒ style.left/top 만
+     바꾸면 다음 렌더에 옛 자리로 튄다 ⇒ 옮길 땐 정본을 같은 양만큼 민다.
+     ★이름 명부로 고르지 않는다 — 성질(dataset.x·y 가 있고 오버레이 표식이 없다)로 고른다(ORDER ④ «손 사본 ⛔»).
+     ⛔최상위 도우미 금지(이 함수만 잘라 도는 DOM 하네스) — 바깥 동작은 window.* 로. */
+  const _xyCanon = b => !!b && b.dataset?.overlayBlock !== 'true' && b.dataset?.x != null && b.dataset?.y != null;
+  const _ownFloat = b => _xyCanon(b) && b.parentElement === sec;
+  const _shiftXY = (u, dx, dy) => {
+    if (!dx && !dy) return;
+    // 스티커는 옮기기 한 벌이 따로 있다(선 스티커는 네 끝점이 정본 — sticker-block.js _translateSticker)
+    if (u.classList.contains('sticker-block') && window._translateSticker) { window._translateSticker(u, dx, dy); return; }
+    u.dataset.x = String((parseInt(u.dataset.x, 10) || 0) + dx);
+    u.dataset.y = String((parseInt(u.dataset.y, 10) || 0) + dy);
+    u.style.left = ((parseInt(u.style.left, 10) || 0) + dx) + 'px';
+    u.style.top  = ((parseInt(u.style.top, 10)  || 0) + dy) + 'px';
+    if (u.classList.contains('zoom-block')) window.renderZoomBlock?.(u);
+  };
 
   // ── freeLayout 내부 묶기: X/Y 좌표 유지 ──────────────────────────────────
   // 선택된 블록들이 동일한 freeLayout 프레임 안에 있으면 절대좌표 기반으로 처리
@@ -2174,8 +2200,8 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     wrappers.forEach((w, i) => {
       const relLeft = lefts[i] - minX;
       const relTop  = tops[i]  - minY;
-      w.style.left = relLeft + 'px';
-      w.style.top  = relTop  + 'px';
+      if (_xyCanon(w)) _shiftXY(w, relLeft - lefts[i], relTop - tops[i]);   // ★t5-07 — 정본(dataset.x/y)째 민다
+      else { w.style.left = relLeft + 'px'; w.style.top = relTop + 'px'; }
       w.dataset.offsetX = String(relLeft);
       w.dataset.offsetY = String(relTop);
       w.classList.remove('selected');
@@ -2225,7 +2251,7 @@ function wrapSelectedBlocksInFrame(opts = {}) {
    *   대신 «표식을 다는 일»만 여기서 하고, 동작(드래그)은 window.* 로 물어본다. */
   const _floatWrapperOf = (b) => {
     const w = b.closest('.frame-block[data-text-frame]') || shapeFrameOf(b) || b;
-    return w?.dataset?.overlayBlock === 'true' ? w : null;
+    return (w?.dataset?.overlayBlock === 'true' || _ownFloat(w)) ? w : null;   // ★t5-07 — 제 방식 떠 있는 블럭도 «떠 있음»
   };
   const floatEls = [];
   let allFloatInSec = true;
@@ -2245,8 +2271,9 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       const v = parseInt(el.style?.[styleKey], 10);
       return Number.isFinite(v) ? v : 0;
     };
-    const lefts = floatEls.map(w => _coord(w, 'offsetX', 'left'));
-    const tops  = floatEls.map(w => _coord(w, 'offsetY', 'top'));
+    // ★t5-07 — 제 방식 떠 있는 블럭의 정본은 dataset.x/y(줌 선례 prop-multisel _overlayGeom 과 같은 순서)
+    const lefts = floatEls.map(w => _coord(w, _ownFloat(w) ? 'x' : 'offsetX', 'left'));
+    const tops  = floatEls.map(w => _coord(w, _ownFloat(w) ? 'y' : 'offsetY', 'top'));
     const minX = Math.min(...lefts);
     const minY = Math.min(...tops);
     const maxX = Math.max(...floatEls.map((w, i) => lefts[i] + (w.offsetWidth  || 0)));
@@ -2289,6 +2316,12 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     floatEls.forEach((w, i) => {
       const relLeft = lefts[i] - minX;
       const relTop  = tops[i]  - minY;
+      if (_ownFloat(w)) {   // ★t5-07 — 정본(dataset.x/y)째 민다 · 오버레이 표식은 원래 없다
+        _shiftXY(w, relLeft - lefts[i], relTop - tops[i]);
+        w.classList.remove('selected');
+        ss.appendChild(w);
+        return;
+      }
       w.style.left = relLeft + 'px';
       w.style.top  = relTop  + 'px';
       w.dataset.offsetX = String(relLeft);
@@ -2358,7 +2391,8 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     if (floaters.length && hosts.length) {
       const host = (hosts.length === 1 && hosts[0].matches?.('.frame-block[data-free-layout]')
                     && hosts[0].dataset.textFrame !== 'true') ? hosts[0] : null;
-      const _canNest = u => u.classList.contains('zoom-block') || u.dataset.overlayBlock === 'true';
+      // ★t5-07 — 이름(zoom-block) 대신 성질: 제 방식 떠 있는 블럭(줌 · 그라데이션 · 스티커) 또는 오버레이
+      const _canNest = u => _ownFloat(u) || u.dataset.overlayBlock === 'true';
       if (!host) {
         window.showToast?.('떠 있는 블럭은 «자유배치 프레임 하나»와만 묶을 수 있어요 — 그 프레임 안으로 들어갑니다.');
         return;
@@ -2374,12 +2408,16 @@ function wrapSelectedBlocksInFrame(opts = {}) {
         const r = u.getBoundingClientRect();
         const x = Math.round((r.left - hr.left) / scale - (host.clientLeft || 0));
         const y = Math.round((r.top  - hr.top)  / scale - (host.clientTop  || 0));
+        const own = _ownFloat(u);   // 옮기기 «전»에 잰다 — 옮긴 뒤엔 부모가 섹션이 아니다
         host.appendChild(u);
         if (u.classList.contains('zoom-block')) {
           // 줌블럭 위치는 dataset.x/y 가 정본(zoom-block.js _applyZoomPos) — 같은 두 칸에 쓴다.
           u.dataset.x = String(x); u.dataset.y = String(y);
           u.style.left = x + 'px'; u.style.top = y + 'px';
           window.renderZoomBlock?.(u);
+        } else if (own) {
+          // ★t5-07 — 그라데이션·스티커: 그려진 자리(style)에서 목표까지의 차만큼 정본째 민다(줌 갈래와 같은 뜻)
+          _shiftXY(u, x - (parseInt(u.style.left, 10) || 0), y - (parseInt(u.style.top, 10) || 0));
         } else {
           // 오버레이 블럭 — 위 오버레이 갈래와 «같은» 표식 내려놓기(남기면 섹션 좌표로 클램프해 튄다).
           u.style.position = 'absolute';
@@ -2827,6 +2865,11 @@ window.setSectionBg = function(sectionEl, color) {
      backgroundColor 만 쓰면 ⑴ 새 그라데이션은 안 그려지고 ⑵ 옛 그라데이션은 backgroundImage 에 남아 새 색을 덮는다.
      ⛔단색→단색 길은 한 글자도 안 바꾼다(아래 그대로). */
   const _gradInvolved = window.isSectionGradient?.(sec.dataset.bg) || window.isSectionGradient?.(color);
+  /* ★★prev-06 — ★메시가 켜져 있으면 ★색을 주는 순간 ★걷는다(패널 `_setSecBg` 와 ★같은 규약).
+     ⛔안 걷으면 ★이 API 로 준 색이 ★메시에 ★덮여 ★아무 일도 ★안 한다 — ★위 그라데이션 설명과 ★같은 병이다.
+     ★`_meshWas` 가 참이면 ★아래 `applySectionBg` 를 ★불러야 ★메시 그림이 ★치워진다. */
+  const _meshWas = !!sec.dataset.bgMesh;
+  if (_meshWas) delete sec.dataset.bgMesh;
   if (color) {
     sec.style.backgroundColor = color;
     sec.dataset.bg = color;
@@ -2834,7 +2877,7 @@ window.setSectionBg = function(sectionEl, color) {
     sec.style.backgroundColor = '';
     delete sec.dataset.bg;
   }
-  if (_gradInvolved) window.applySectionBg?.(sec);
+  if (_gradInvolved || _meshWas) window.applySectionBg?.(sec);
   window.triggerAutoSave?.();
   return true;
 };

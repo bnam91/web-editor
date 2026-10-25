@@ -77,12 +77,16 @@ test('T1a ★★`placeholder` 축 — ★채팅 프로필 아이콘 CSS 가 ★�
     '⛔콘텐츠를 먹는다: ' + eaten.map(([s, why]) => `${s} (${why})`).join(' · '));
 });
 
-/* ★★T1b — ★★S7 의 ⑶(치수선) 일감이 ★닫을 칸이다. ★지디가 고치면 ★그 일감을 ★가로챈다.
-   ★이름 = `ANNOT-CSS-FILTERED-01` (지디 명부) · ★닫는 쪽 = ⑶ 집행 레인
-   ⛔`todo` 로 둔다 — ★「일부러 빨강」이면 ★다음 빨강을 ★가린다. */
-/* 261022 S7 ⑶ — todo 를 걷는다: export-css-collect.js EDITOR_ONLY_SEL 의 '\\.annotation'·'\\.annot-' 를
-   편집 전용 annot 이름만으로 좁혔다(지디 판정 3 ①). 바닥(좁히기 전)에선 이 칸이 셋 다 먹힘으로 빨강이었다. */
-test('T1b ★`annot` 축 — 어노테이션·치수선 콘텐츠 CSS 가 실린다 (★S7 ⑶ 가 닫는다)', () => {
+/* ★★T1b — ★★★2026-10-24 ★`todo` 를 ★★떼었다 (★현빈 ★GO · ★지디 ★집행).
+   ★이름 = `ANNOT-CSS-FILTERED-01`
+   ★옛 상태 : ★★S7 의 ⑶ 일감으로 ★`todo` 였다(★「일부러 빨강」이 ★다음 빨강을 ★가리지 ★않게).
+   ★★★S7 의 ★트리·커밋이 ★사라져(★fsck ★매달린 ★169 중 ★0건) ★★그 레인이 ★없어졌고,
+     ★★현빈이 ★★「데브머지 하고 ★내가 ★볼 수 ★있게 ★해줘」로 ★GO 했다 ⇒ ★★★지디가 ★닫았다.
+   ★고친 것 : ★`js/io/export-css-collect.js` 의 ★조각 ★둘을 ★좁혔다 —
+     ★`\.annotation` → `\.annotation(?!-block)` · ★`\.annot-` → `\.annot-(?!label(?![-\w])|svg(?![-\w]))`
+   ★★★이제 ★이 단언이 ★★«재는 자»다 — ★조각이 ★다시 ★넓어지면 ★★여기서 ★빨개진다.
+   ⛔`todo` 를 ★다시 ★붙이지 ★마라. ★★T2(음성대조)가 ★반대쪽을 ★지킨다. */
+test('T1b ★`annot` 축 — 어노테이션·치수선 콘텐츠 CSS 가 실린다 (★261024 지디가 닫았다)', () => {
   const { re } = productFilter();
   const eaten = MUST_SHIP_ANNOT.filter(([s]) => re.test(s));
   assert.deepEqual(eaten.map(x => x[0]), [],

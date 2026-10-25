@@ -230,9 +230,18 @@ test('⛔D7 음성대조 — 없는 객체 이름으로는 전제가 서지 않�
  *   ★R0 는 ★머지 전 dev 의 ★오른쪽 토큰 둘(`'#c9bdf5'` · `'#c8cdd6'`)을 ★못 박아 두었고,
  *   ★머지가 들어온 ★순간 ★★스스로 빨개져(실측: rc 1 · fail 1 · R0 하나) ★이 변환을 ★강제했다.
  *   ⇒ ★★주석이 아니라 ★검사가 ★다음 사람에게 ★할 일을 ★알렸다. ★그 꼴을 ★여기 남긴다. */
-test('★R1 실파일 — 선 색이 점 색에서 파생된다(㉠ 같은 식별자 · ㉡ ⛔리터럴 아님 · ㉢ 정의 = #c8cdd6)', () => {
+/* ★★★261025 ★정정 — ★현빈 결정이 ★왔다.
+     ★위 머리말(:5~6)은 ★★「적어 주신 c9cdd6 는 코드에 0건이고 참 점색이 c8cdd6 라
+       지디가 ‘점색과 통일’을 따라 c8cdd6 로 확정했다 — ★현빈 확인 ★대기」였다.
+     ⇒ ★★그 ★대기가 ★닫혔다 : ★server-manager 가 전한 바에 따르면 현빈 답이
+       ★「너가 봐서 맞춰놔」 ⇒ ★★요청값으로 맞췄다(js/blocks/radial-block.js:47 · 커밋 ac502952).
+     ⛔머리말 ★역사 문장은 ★지우지 ★않는다 — ★그때 센 수를 ★거짓으로 만들지 않기 위해.
+   ★★그리고 ★`expectHex` 를 ★★«이 칸에서만» 넘긴다 — ★기본값(:81)은 ★★흉내 코드 표본 ★아홉이
+     ★묶여 있어 ★바꾸면 ★그 표본 검사들이 ★같이 깨진다(★261025 실측으로 가렸다). */
+test('★R1 실파일 — 선 색이 점 색에서 파생된다(㉠ 같은 식별자 · ㉡ ⛔리터럴 아님 · ㉢ 정의 = ★현빈 요청값)', () => {
+  const WANT_HEX = '#c9cdd6';   /* ★t4-02 · 현빈 요청값 */
   const code = strip(fs.readFileSync(path.join(REPO, SRC_REL), 'utf8'));
-  const m = measure(code);
+  const m = measure(code, { expectHex: WANT_HEX });
   assert.equal(m.premise, true, `전제: ${SRC_REL} 의 RADIAL_DEFAULTS 를 찾아야 한다`);
   assert.deepEqual(m.broken, [], `실파일에서 깨진 칸이 없어야 한다 — 잡힌 것: ${JSON.stringify(m.broken)}`);
   /* ★잰 값을 ★단언에 ★찍어 둔다 — 빨개질 때 «무엇이었나»가 로그에 남게. */
@@ -246,7 +255,7 @@ test('★R2 양성대조 — 실파일 사본에서 선 색을 리터럴로 되�
   /* ★값은 ★그대로 두고 ★파생만 끊는다 — ⛔값을 재는 자는 ★이 꼴을 ★못 잡는다. */
   const broken = raw.replace(
     new RegExp(`(lineColor\\s*:\\s*)${ident}`),
-    "$1'#c8cdd6'",
+    "$1'#c9cdd6'",   /* ★261025 — ★현빈 요청값으로. ★「값은 ★그대로 두고 ★파생만 끊는다」가 ★참이어야 한다 */
   );
   assert.notEqual(broken, raw, '전제: 사본이 실제로 바뀌어야 한다');
   const m = measure(strip(broken));

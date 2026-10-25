@@ -269,12 +269,45 @@ const DROP_STRIP_ROSTER = {
     { sel: '.variation-badge',  kind: 'chrome', why: 'A/B 시안 배지' },
     { sel: '.annotation-block', kind: 'open',
       why: '★펜 주석(C18 · 리뷰 표시)이라 뺐다 — ★그러나 ★t3-01 사이즈 스티커(치수선 · annotKind \'dim\')가 ★같은 클래스를 쓴다 ' +
-           '⇒ ★사이즈 표시가 ★PNG·썸네일·단독 HTML 에서 ★빠진다. ★빼는 게 맞나는 ★현빈 칸(이 축은 ★정하지 않는다 · 0 변경)' },
+           '⇒ ★사이즈 표시가 ★PNG·썸네일·단독 HTML 에서 ★빠진다. ★빼는 게 맞나는 ★현빈 칸(이 축은 ★정하지 않는다 · 0 변경) · ' +
+           '★2026-10-22 현빈 결정 ⒝ = 「어노테이션·치수선은 최종 이미지에 보인다」 ⇒ ★지금의 지우기는 결정과 ★어긋난다(제품 고침 = 지디 칸 · EDITOR_NODE_EXCEPTIONS 참조)' },
     { sel: '.annot-preview',    kind: 'design', why: '펜툴 «그리는 중» 미리보기 — 확정 전 임시 선(PLAN ④㉡ 설계 제외)' },
     { sel: '.qa-block',         kind: 'design', why: 'admin QA 체크리스트 — 작업 메타데이터(감싼 .row 째 지운다 · 자리도 안 남긴다)' },
     { sel: '.sec-bg-proxy',     kind: 'chrome', why: '섹션 배경 편집 프록시 — 배경 그림이 두 번 찍힌다' },
     { sel: '.img-edit-hint',    kind: 'chrome', why: '이미지 편집 안내' },
     { sel: '.img-boundary',     kind: 'chrome', why: '이미지 편집 경계 선' },
+    /* ★★★R1 몫 ★아홉 — ★2026-10-22 ★지디 ★승인. ★★머지 `4ca3dc58`(아이맥 `45c0ad6b`)이 ★더한 것.
+       ★까닭: ★「★안 막히는 칸」 ★47 중 ★R1 몫 ★16(= ★이 아홉 × capture·html ★두 길)이
+         ★★★«편집 장식인데 ★캡처 겹에서 ★안 지워진다」였다 ⇒ ★내보낸 그림에 ★찍힐 수 ★있다.
+       ⛔★★이 명부에 ★안 적고 ★제품만 고쳤더니 ★★D3 가 ★★36 건으로 ★빨개졌다(★소비자 ★넷 × ★아홉).
+         ⇒ ★★★그 자가 ★제 일을 했다 — ★「★한 줄 늘리면 ★그 이름으로 ★빨강」.
+       ★★⇒ ★그래서 ★★여기에 ★이름·까닭을 ★적는다. ★★이것이 ★★«승인»이다. */
+    { sel: '.annot-selbox',         kind: 'chrome', why: '어노테이션 ★선택 상자 — 고른 동안만 보이는 편집 표시' },
+    { sel: '.drop-indicator',       kind: 'chrome', why: '드래그 ★드롭 자리 표시 — 끄는 동안만' },
+    { sel: '.grad-line-overlay',    kind: 'chrome', why: '그라데이션 ★조절선 오버레이 — 패널을 열었을 때만' },
+    { sel: '.grd-add-btn',          kind: 'chrome', why: '그리드 ★칸/줄 ★추가 단추 — 편집 UI' },
+    { sel: '.mdl-profile-x',        kind: 'chrome', why: '모달 프로필 ★✕ 단추 — 지우기용 편집 UI' },
+    { sel: '.section-block[data-ghost]', kind: 'chrome', why: '드래그 중 ★고스트 섹션 — 끄는 동안의 ★그림자(실물이 아니다)' },
+    { sel: '.section-height-badge', kind: 'chrome', why: '섹션 ★높이 배지 — 편집 화면 치수 표시' },
+    { sel: '.vpen-edit-overlay',    kind: 'chrome', why: '펜 ★편집 오버레이 — 편집 모드에서만' },
+    { sel: '.vpen-preview',         kind: 'design', why: '펜 ★미리보기 — 확정 전 임시 선(`.annot-preview` 와 ★같은 갈래)' },
+    /* ★★★R1 ★닫음 — ★2026-10-23 ★지디. ★★위 「R1 몫 아홉」과 ★다른 꼴로 적는다.
+       ★무엇이 바뀌었나 : ★캡처 겹이 ★제 손 명부 대신 ★★저장 정본 상수를 ★읽는다
+         `js/io/capture-safety.js` → `clone.querySelectorAll?.(NON_CONTENT_UI_SELECTOR)…`
+         ⇒ ★파서(`_clone-removals.js`)가 ★문자열이 아니라 ★★식별자를 본다 ⇒ ★`$NON_CONTENT_UI_SELECTOR`.
+       ★★★왜 ★그 21 종을 ★여기 ★베껴 적지 ★않나 :
+         ⒤ ★베끼면 ★★«셋째 명부»가 된다 — ★저장 정본 · ★캡처 · ★여기. ★한쪽이 ★반드시 ★뒤처진다.
+            (★그 말은 ★그 상수의 ★머리말이 ★이미 적고 있다 — 「두 벌로 만들면 한쪽이 반드시 뒤처진다」)
+         ⅱ) ★★그 상수엔 ★제 ⛔계약이 ★있다 — 「★serializeProject 가 ★실제로 지우는지 ★먼저 확인하라」.
+            ⇒ ★★거기 든 것은 ★★«저장이 지운다» = ★★계약상 ★콘텐츠가 ★아니다 ⇒ ★드롭 승인이 ★따라온다.
+            ⇒ ★그 계약을 ★S3 가 ★자동으로 잠근다(「NON_CONTENT 의 모든 항목이 저장에서 0건」).
+         ⇒ ★★그래서 ★승인은 ★«종 하나하나»가 아니라 ★★«그 출처 ★전체»에 ★한 번 ★준다.
+       ★★⛔잃은 것 ★하나 : judgeDrop 의 ★`kind` 교차검사(「블럭 클래스를 chrome 으로 적었나」)가
+         ★`$…` 꼴엔 ★안 걸린다. ⇒ ★★그 구멍을 ★★D3b 가 ★메운다(capture-drop-axis.test.mjs).
+       ★종 이름을 ★보려면 : `js/io/editor-ui-roster.js` (261023 = ★21 종) */
+    { sel: '$NON_CONTENT_UI_SELECTOR', kind: 'chrome',
+      why: '★저장 정본 상수 ★전체(js/io/editor-ui-roster.js NON_CONTENT_UI_SELECTOR) — ★«저장이 지우는 것» = ★그 상수의 ⛔계약상 ★콘텐츠가 아니다. ' +
+           '★그래서 ★종별이 아니라 ★출처별로 ★한 번 승인한다(⛔여기 베껴 적으면 ★셋째 명부가 된다). ★계약을 잠그는 자 = S3 · ★kind 구멍을 메우는 자 = D3b' },
   ],
   'js/io/export-html.js#exportHTMLFile': [
     { sel: '$HIDDEN_VARIATION_SECTION_SEL', kind: 'design', why: '안 고른 A/B 시안 섹션 — 배송본에 둘 다 보이던 병(2026-09-09) · 저장본은 안 뺀다' },
@@ -292,13 +325,113 @@ const DROP_STRIP_ROSTER = {
 
 /* ★설계로 «안 보이게» 하지만 ★요소 제거가 ★아닌 것 — ★이름만 한 자리에(PLAN ④㉢). ⛔위 축이 ★안 잰다(⒤). */
 const DROP_DESIGN_EXCLUSIONS = [
-  { id: 'PLACEHOLDER-EXCLUDED-BY-DESIGN-01', what: '[data-is-placeholder] 미입력 안내문구', how: 'hidePlaceholderTextForCapture — visibility:hidden(글만 · 자리는 남는다)' },
-  { id: 'MEMO-EXCLUDED-BY-DESIGN-01',        what: 'data-memo 이미지 메모 쪽지',          how: 'stripImageMemoForCapture — 속성만 뗀다(가상요소 쪽지가 사라진다)' },
-  { id: 'QA-EXCLUDED-BY-DESIGN-01',          what: '.qa-block admin QA 블럭',              how: 'stripEditorOnlyForCapture — 감싼 .row 째 remove()(위 명부 kind design)' },
-  { id: 'PARTICLE-EXCLUDED-BY-DESIGN-01',    what: '섹션 배경 파티클',                      how: '릴리스 노트 0.9.7 「저장물에는 들어가지 않음」 — 이 축이 안 잰다(restRuntimeForArtifact 는 «쉬는 꼴»로 돌릴 뿐)' },
+  /* since = ★이력에서 뜬 날짜(git log --reverse -S 첫 등장 · 파티클은 릴리스 노트 0.9.7 date) — ⛔기억에서 옮기지 않았다 */
+  { id: 'PLACEHOLDER-EXCLUDED-BY-DESIGN-01', sel: '[data-is-placeholder]', what: '[data-is-placeholder] 미입력 안내문구', how: 'hidePlaceholderTextForCapture — visibility:hidden(글만 · 자리는 남는다)', since: '2026-09-21 (0806201e)' },
+  { id: 'MEMO-EXCLUDED-BY-DESIGN-01',        sel: '[data-memo]',           what: 'data-memo 이미지 메모 쪽지',          how: 'stripImageMemoForCapture — 속성만 뗀다(가상요소 쪽지가 사라진다)', since: '2026-09-30 (0063cc5d)' },
+  { id: 'QA-EXCLUDED-BY-DESIGN-01',          sel: '.qa-block',             what: '.qa-block admin QA 블럭',              how: 'stripEditorOnlyForCapture — 감싼 .row 째 remove()(위 명부 kind design)', since: '2026-09-16 (cbc08322)' },
+  { id: 'PARTICLE-EXCLUDED-BY-DESIGN-01',    sel: '.sec-fxpart-wrap',      what: '섹션 배경 파티클',                      how: '릴리스 노트 0.9.7 「저장물에는 들어가지 않음」 — 이 축이 안 잰다(restRuntimeForArtifact 는 «쉬는 꼴»로 돌릴 뿐)', since: '2026-10-12 (release-note 0.9.7)' },
+];
+
+/* ══ ★★편집 전용 «노드» 정본 — CAPTURE-ROSTER-NOT-DERIVED-FROM-SAVE-01 (2026-10-22 · 설계 = 지디 PLAN-capture-derive) ══
+   ★왜 — 편집 노드(손잡이·회전 핫존·배지)의 명부가 ★여럿이다: 저장(save-load NON_CONTENT_UI_SELECTOR · section-serialize serializeCleanRoot)
+     · 캡처 공용 겹(9) · 단독 HTML 제 손(27). ★손으로 따로 들어서 ★한쪽만 고쳐졌다 — export-html.js:120 「2026-09-21 실측 … .shape-handle 8개가
+     그대로」 를 HTML 만 배웠고 PNG·썸네일 겹(capture-safety)엔 ★handle 이 ★하나도 없다. ⇒ ★처방 = «토큰 더하기»가 아니라 ★«파생 ＋ 검산».
+   ★★정본 = ★두 출처의 합 (2026-10-22 지디 판정 ⑴ 「정본을 넓혀라 · serialize 줄까지」)
+     ⒜ js/io/save-load.js `export const NON_CONTENT_UI_SELECTOR = '…'` — 문자열 리터럴 파싱 (dc93370e = 21종)
+     ⒝ js/io/section-serialize.js `function serializeCleanRoot(root)`(:304) 몸통의 `querySelectorAll('…').forEach(… .remove())` 전부
+        — tests/unit/_clone-removals.js 파서(주석 떼고 · forEach 콜백에 .remove() 가 든 것만 · 리터럴은 쉼표로 쪼갬)
+        (dc93370e = :355 1종 ＋ :356 30종 ＋ :392 1종 = 32종 · ⒜ 21종을 ★다 품는다 ⇒ ⒝ ∖ ⒜ = 11)
+     ⇒ 합 = 32종(dc93370e). ⛔손으로 안 적는다 — 출처 두 자리를 ★읽는다.
+   ⛔★「저장이 지우는 것」≠「캡처가 지워야 할 것」(설계서 ④⒝) ⇒ 항목마다 ★CAPTURE_VERDICT 칸: 'yes' · 'no'(까닭) · 'unmeasured'. */
+const EDITOR_NODE_CANON_SRC = [
+  { file: 'js/io/editor-ui-roster.js', kind: 'const', name: 'NON_CONTENT_UI_SELECTOR' },   /* ★261023 — save-load.js 에서 ★잎 모듈로 옮겼다(캡처도 같은 상수를 봐야 하는데 거꾸로 import 하면 순환) */
+  { file: 'js/io/section-serialize.js', kind: 'fn-removals', name: 'serializeCleanRoot' },
+];
+/** 정본을 ★소스에서 끌어온다 — { all: [합], by: { 'file#name': [그 출처 몫] } }. 못 찾으면 ★던진다(침묵 0). */
+function editorNodeCanon(root) {
+  const fs = require('fs'), path = require('path');
+  const { fnBody, removedSelectors } = require('./unit/_clone-removals.js');
+  const { makeStripper } = require('./unit/_strip-comments.js');
+  const by = {};
+  for (const s of EDITOR_NODE_CANON_SRC) {
+    const src = fs.readFileSync(path.join(root, s.file), 'utf8').replace(/\r\n/g, '\n');
+    let list;
+    if (s.kind === 'const') {
+      const m = new RegExp('export const ' + s.name + "\\s*=\\s*((?:'[^']*'\\s*\\+?\\s*)+);").exec(src);
+      if (!m) throw new Error('★정본 ' + s.name + ' 을 ' + s.file + ' 에서 못 찾았다 — 파서가 눈멀었다');
+      list = [...m[1].matchAll(/'([^']*)'/g)].map(x => x[1]).join('').split(',').map(x => x.trim()).filter(Boolean);
+    } else {
+      const strip = makeStripper();
+      const body = fnBody(src.split('\n').map(l => strip(l)).join('\n'), s.name);
+      if (!body) throw new Error('★정본 ' + s.name + ' 함수를 ' + s.file + ' 에서 못 찾았다');
+      const r = removedSelectors(body);
+      if (r.covered !== r.total) throw new Error('★' + s.name + ' 에 파서가 못 읽는 지우기 꼴이 ' + (r.total - r.covered) + ' 곳');
+      list = r.sels;
+    }
+    if (!list.length) throw new Error('★정본 출처 ' + s.file + '#' + s.name + ' 에서 0종 — 자가 눈멀었다(판을 먼저 의심하라)');
+    by[s.file + '#' + s.name] = list;
+  }
+  return { all: [...new Set(Object.values(by).flat())], by };
+}
+
+/* ★★「캡처에서도 지워야 하나」 — 정본 항목마다 하나 (지디 판정 ⑴ 의 조건 · 값 셋: yes / no(까닭) / unmeasured)
+   ⛔'yes' 는 ★근거(자리)를 단다 — 이름이 «handle» 이라서가 아니다. 근거를 못 대면 'unmeasured'.
+   ★정본 «밖»이라도 'no' 의 보기는 여기 둔다(.annotation-block — 저장은 안 지우고 캡처는 지금 지운다 · 결정은 «남는다»). */
+const _Y = (why) => ({ v: 'yes', why });
+const CAPTURE_VERDICT = {
+  '.img-corner-handle':   _Y('이미지 편집 손잡이 — export-html 제 손 명부가 이미 지운다(js/io/export-html.js:130)'),
+  '.img-edge-handle':     _Y('이미지 편집 손잡이 — export-html:130 이 이미 지운다'),
+  '.img-edit-hint':       _Y('이미지 편집 안내 — 캡처 공용 겹이 이미 지운다'),
+  '.img-boundary':        _Y('이미지 편집 경계 — 캡처 공용 겹이 이미 지운다'),
+  '.img-rotate-zone':     _Y('이미지 회전 핫존 — export-html:130 이 이미 지운다'),
+  '.ab-rotate-zone':      _Y('에셋 회전 핫존 — 선택 때 모서리에 붙는 편집 핫존(js/asset-rotate.js:2) · 그림은 .selected 매인 display 로 숨지만 노드는 산출물 쓰레기'),
+  '.shape-rotate-zone':   _Y('도형 회전 핫존 — js/asset-rotate.js:47 「«선택 중»에만 히트영역」'),
+  '.sticker-rotate-zone': _Y('스티커 회전 핫존 — js/sticker-select.js:347 블럭 안 appendChild'),
+  '.tb-rotate-zone':      _Y('글자 회전 핫존 — save-load.js:652 「zoneClass: 정의 자리 7개」 의 하나(편집 핫존)'),
+  '.icn-rotate-zone':     _Y('아이콘 회전 핫존 — 같은 zoneClass 정의 7 의 하나'),
+  '.mkp-rotate-zone':     _Y('목업 회전 핫존 — 같은 zoneClass 정의 7 의 하나'),
+  '.cvb-rotate-zone':     _Y('카드 회전 핫존 — 같은 zoneClass 정의 7 의 하나'),
+  '.icb-rotate-zone':     _Y('아이콘카드 회전 핫존 — 같은 zoneClass 정의 7 의 하나'),
+  '.vb-rotate-zone':      _Y('벡터 회전 핫존 — 같은 zoneClass 정의 7 의 하나'),
+  '.mdl-rotate-zone':     _Y('모달 회전 핫존 — export-html:130 이 이미 지운다'),
+  '.mdl-profile-x':       _Y('버즈 프로필 × 단추(에디터 크롬) — export-html:125 이 이미 지운다'),
+  '.sec-bg-proxy':        _Y('섹션 배경 편집 프록시 — 캡처 공용 겹이 이미 지운다'),
+  '.grd-add-btn':         _Y('그리드 ＋ 단추 — export-html:125 이 이미 지운다'),
+  '.section-height-badge': _Y('섹션 높이 배지 — export-css-collect.js:43 이 «편집 전용» 배제 명부에 올려 둔 이름'),
+  '.annot-handle':        _Y('어노테이션 «선택 중» 손잡이(save-load.js:647 주석) — 결정 ⒝ 로 부모 .annotation-block 이 캡처에 남으면 ★이것은 지워야 한다'),
+  '.annot-selbox':        _Y('어노테이션 선택 상자 — js/annotation-select.js:118 (선택 표시)'),
+  '.tfh-handle':          _Y('글상자 자유변형 U3 손잡이 12(모서리 4 ＋ 변 1/3·2/3 8) — .text-block 의 자식 · 2026-10-24 지디'),
+  '.tfh-grid':            _Y('글상자 자유변형 U3 격자 — 변형 중 표시 · .text-block 의 자식 · 2026-10-24 지디'),
+  '.tfh-fx':              _Y('글상자 자유변형 U3 꾸밈 층(테두리＋격자를 담는다) — 변형 «안» · 2026-10-24 지디'),
+  '.tfh-edge':            _Y('글상자 자유변형 U3 보라 테두리 — 변형 «안» · 2026-10-24 지디'),
+  '.tfh-layer':           _Y('글상자 자유변형 U3 손잡이 층 — 변형 «밖»(두께 균일) · 2026-10-24 지디'),
+  '.section-block[data-ghost]': _Y('빈 «유령» 섹션 — js/block-factory.js:1424 display:none 자리표시 · section-search.js:81 이 콘텐츠에서 거른다'),
+  '.shape-handle':        _Y('도형 손잡이 — 블럭의 자식(js/block-drag.js:617 · :1081) · export-html:120 이 2026-09-21 에 «8개 누출» 로 실측해 지운다'),
+  '.sticker-corner-handle': _Y('스티커 모서리 손잡이 — 블럭 안 appendChild(js/sticker-select.js:331) · 전역 CSS 흰 바탕(MARKER-HLB-261022 ⑶)'),
+  '.gradient-corner-handle': _Y('그라데이션 모서리 손잡이 — 블럭 안 appendChild(js/gradient-select.js:37) · 전역 CSS 흰 바탕(MARKER-HLB ⑶)'),
+  '.hlb-handle':          _Y('선 스티커 끝점·두께 손잡이 — 블럭 안 appendChild(js/sticker-select.js:208) · 전역 CSS(MARKER-HLB ⑶)'),
+  '.annot-point-angle':   _Y('어노테이션 점 손잡이 ★끌는 중 각도 글자(37.5°) — `.annot-svg` 안 SVG text(js/annotation-select.js:264) · ★끌기 중 자동저장이 끼면 저장본·캡처에 실린다(261024 실측 1/1/1) · 지디'),
+  '.grad-line-overlay':   _Y('그라데이션 선 편집 오버레이 — js/gradient-line-overlay.js:20 「section-serialize 가 저장 시 제거」 · 편집 중 표시'),
+  '.vpen-preview':        _Y('펜툴 «그리는 중» 미리보기 — 섹션 안 appendChild(js/pen-tool.js:336) · 캡처가 .annot-preview 를 같은 까닭으로 지운다(설계 제외)'),
+  '.vpen-edit-overlay':   _Y('펜툴 편집 오버레이 — js/pen-tool.js:603 `wrap.className = \'vpen-edit-overlay\'` · 편집 중 표시'),
+  '.drop-indicator':      _Y('드래그가 잠깐 심는 껍데기 — js/overlay-float.js:383 주석'),
+  '.block-resize-handle': { v: 'unmeasured', why: '만드는 자리를 js/ 에서 못 찾았다(grep 0 — 옛 이름일 수 있다)' },
+  '.ci-handle':           { v: 'unmeasured', why: '만드는 자리를 js/ 에서 못 찾았다(grep 0 — 옛 이름일 수 있다)' },
+  /* ── 정본 «밖» — 'no' 의 보기 ── */
+  '.annotation-block':    { v: 'no', why: '현빈 261022 결정 ⒝ — 어노테이션·치수선은 최종 이미지에 보인다 ⇒ 캡처에서 남는다', exception: 'ANNOTATION-STAYS-IN-CAPTURE-01' },
+};
+const CAPTURE_VERDICT_VALUES = ['yes', 'no', 'unmeasured'];
+
+/* ★예외 — «정본 ∖ 세 길» 의 0 에서 ★이름과 까닭으로만 빠진다. ⛔두 벌 금지: 넷은 위 DROP_DESIGN_EXCLUSIONS 에서 ★파생한다.
+   effect: 'stays' = 캡처에서 ★남아야 한다 · 'design' = 설계로 지우거나 숨긴다(결함 아님). exempts = 그 예외가 ★빼 주는 길. */
+const EDITOR_NODE_EXCEPTIONS = [
+  { id: 'ANNOTATION-STAYS-IN-CAPTURE-01', sel: '.annotation-block', effect: 'stays', exempts: ['capture', 'html'],
+    why: '현빈 261022 결정 ⒝ — 어노테이션·치수선은 최종 이미지에 ★보인다 ⇒ 캡처에서 ★남는다', since: '2026-10-22 (현빈 결정 ⒝ · 지디 경유)' },
+  ...DROP_DESIGN_EXCLUSIONS.map(x => ({ id: x.id, sel: x.sel, effect: 'design', exempts: ['capture', 'html'], why: x.what + ' — ' + x.how, since: x.since })),
 ];
 
 const AXES = ['marker', 'drop', 'carry'];
 
 module.exports = { CHANNELS, MARKER_TOKENS, MARKER_SCENES, CLEAN_FN, CLEAN_SELF_FN, AXES, NORM_FN, CARRY_KEYS,
-  DROP_STRIP_ROSTER, DROP_DESIGN_EXCLUSIONS };
+  DROP_STRIP_ROSTER, DROP_DESIGN_EXCLUSIONS, EDITOR_NODE_CANON_SRC, editorNodeCanon, EDITOR_NODE_EXCEPTIONS,
+  CAPTURE_VERDICT, CAPTURE_VERDICT_VALUES };

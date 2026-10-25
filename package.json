@@ -17,6 +17,7 @@
     "release:win": "node tools/deploy-gate.js && electron-builder --win --publish always",
     "test": "node tests/run-unit.mjs 'tests/unit/*.test.mjs' 'tests/unit/*.test.js'",
     "test:dom": "playwright test --config=tests/dom/playwright.dom.config.js",
+    "test:all": "npm test && npm run test:dom",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:undo": "playwright test tests/e2e/13-undo-family.spec.js",

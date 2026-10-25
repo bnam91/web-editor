@@ -504,6 +504,162 @@ if (typeof window !== 'undefined') {
   window.grdPasteLines = grdPasteLines;
 }
 
+/* ══ ★t3-04 U2b 칸 «범위» 클립보드 — ⌘C/⌘V (S6 · 2026-10-23 · 현빈 GO msg5376 · 설계 reports/S6-GRID/plan-u2b.md §4) ══
+ * ★위 줄 클립보드와 같은 «거짓 반환 계약»: false = 손 0(호출부 editor.js 가 원래 길 — 줄 복사·블럭 복사 — 를 그대로 간다).
+ *   ⛔가로채는 조건을 넓히지 마라(음성대조②): ⌘C 는 «살아 있는 범위»가 있을 때만(overlay-handles.js grdGetRange) ·
+ *     ⌘V 는 «범위 클립이 고디터 안 최신 복사»일 때만. 범위가 없으면 둘 다 첫 줄에서 false.
+ * ★«최신» 판정의 자 = 하나 — window._internalClipboardTime(블럭 copySelected · 줄/범위 claimInternalClipboard 가 덮는다).
+ *   범위 ⌘C 순간의 값을 _grdRangeClipAt 에 적어 두고, ⌘V 때 같을 때만 범위가 붙는다 ⇒ 뒤에 줄·블럭을 복사했으면 그쪽이 이긴다.
+ *   ⛔서로의 클립을 null 로 지우는 둘째 장치를 만들지 마라(두 자가 갈리면 «무엇이 붙나»가 두 벌이 된다).
+ * ★쓰기 = U1 pasteGridRange(window 다리 · U1 주석 관례) 하나 — 칸 통째 깊은 사본 · 변경 «전» 이력 1회 · dataset 직접(이미지 20만 자 입구 거절 없음).
+ * ★확정② «모자라면 들어가는 만큼만 · 나머지 버림 · 버린 수 보고» — 해-23(S6): 붙일 자리에 1×1 넘는 범위가 골라져 있으면
+ *   클립을 «그 범위 크기로» 잘라 넘기고(잘린 칸도 dropped), 아니면(1×1 · 활성 줄) 앵커에서 그리드 가장자리까지.
+ *   ★자르기는 «여기서» 한다 — U1 pasteGridRange 는 «그리드 가장자리»만 알고 «대상 범위»를 모른다. grid-block.js 를 넓히면
+ *     U1 단위시험·쓰기 문이 같이 흔들리므로(수정 최소) 순수 slice 로 클립만 줄여 넘긴다. dropped = 클립 칸 수 − 쓴 칸 수.
+ * ★보고 = showToast 하나(해-26 · 새 힌트/title DOM 0). 칸 이름 = U1 gridColLabel + gridRowLabel(A1 · 확정 ⑤). */
+/* ★범위 상태는 overlay-handles.js 의 것 — ⛔import 로 안 받는다(window 다리). tests/unit 여럿(grid-line-add 등)이 overlay-handles.js 를
+ *   «showGridGutters·hideGridGutters 두 개만 내보내는 가짜»로 갈아 끼워 prop-grid.js 를 싣는다 ⇒ import 를 넓히면 그 단위시험이 통째로
+ *   «export 없음»으로 죽는다(실측 u2b-unit-1: 30 실패). 설계 §1 의 «기존 import 간선에 추가»를 window 다리로 바꾼 «해석». */
+const grdGetRange = (block) => window.grdGetRange?.(block) ?? null;
+const grdSetRange = (block, rng) => window.grdSetRange?.(block, rng) ?? false;
+let _grdRangeClip = null;   // gridCopyRange 결과 {h, w, cells}(깊은 사본 — 여러 번 붙여도 별칭 0)
+let _grdRangeClipAt = 0;    // 복사 순간의 window._internalClipboardTime — «최신» 판정의 유일한 자
+
+const _grdA1 = (r, c) => `${window.gridColLabel?.(c) ?? ''}${window.gridRowLabel?.(r) ?? ''}`;
+/** OS 글자 = TSV(칸 안 글 줄을 공백으로 잇고 · 그림·빈칸 = 빈 글) — 모두 비면 이름표(해-27). */
+function _grdRangeClipText(clip) {
+  const cellText = (cell) => (Array.isArray(cell?.lines) ? cell.lines : [])
+    .map(l => (l && typeof l.text === 'string' ? l.text : '')).filter(Boolean).join(' ').replace(/[\t\r\n]+/g, ' ');
+  const tsv = clip.cells.map(row => row.map(cellText).join('\t')).join('\n');
+  return tsv.replace(/[\t\n]/g, '') ? tsv : `고디터 그리드 칸 ${clip.w}×${clip.h}`;
+}
+
+export function grdCopyRange() {
+  const block = document.querySelector('.grid-block.selected');
+  if (!block || !grdIsSoleSelected(block)) return false;
+  const rng = grdGetRange(block);
+  if (!rng) return false;                       // ★범위 없으면 손 0(음성대조②)
+  let clip;
+  try { clip = window.gridCopyRange?.(getGridModel(block), rng.r0, rng.c0, rng.r1, rng.c1); } catch (_) { return false; }
+  if (!clip) return false;
+  _grdRangeClip = clip;
+  /* ★G10 — «내 복사가 최신»을 OS 에도 알린다(안 하면 바깥에서 복사해 둔 이미지가 ⌘V 에 같이 붙는다 · 줄 클립과 같은 까닭). */
+  try { window.claimInternalClipboard?.(_grdRangeClipText(clip)); } catch (_) {}
+  _grdRangeClipAt = window._internalClipboardTime || 0;
+  const n0 = _grdA1(rng.r0, rng.c0), n1 = _grdA1(rng.r1, rng.c1);
+  window.showToast?.(`칸 ${n0 === n1 ? n0 : `${n0}:${n1}`} (${clip.w}×${clip.h}) 복사됨 — 붙일 칸을 고르고 ⌘V`);
+  return true;
+}
+
+/* ★U2b-fix D2(GRID-CLIP-OS-NEWER-01) — «OS 가 더 새로우면 물러난다». keydown 은 OS 클립보드 «내용»을 못 본다
+ *   (렌더러 동기 읽기 다리 없음 — preload 는 clipboardWriteText/WriteImage 뿐 · navigator.clipboard 는 main.js 가 거절).
+ *   ⇒ keydown(grdPasteRange)은 «범위 클립이 고디터 안 최신»일 때 true 로 가로채 무장만 하고, 실제 쓰기는 «뒤따르는 paste 이벤트»
+ *     (_grdOnRangePaste) 에서 clipboardPrefersInternal(e) 이 참일 때만 한다 — scratch-pad 의 이미지 paste 와 «같은 자·같은 이벤트»로
+ *     가르므로 둘이 동시에 붙을 수 없다(거짓 = 손 0 → 이미지면 스크래치가 받고 · 글자면 아무것도 안 붙는다).
+ *   ⛔타이머 0 — paste 이벤트가 안 오면 쓰지 않는다(늦게 오는 paste 와 경주하는 «다음 틱 쓰기»를 두지 않는다 · 해석).
+ *   ⛔keydown 에서 false 로 떨어지지 않는다 — 떨어지면 editor.js 의 setTimeout→pasteClipboard 가 «더 오래된» 블럭 클립을 붙인다(D1).
+ * ★U2b 재평가 결함1 — 무장은 «이번 키 누름 한 번»에만 산다. 옛 판은 paste 가 올 때까지 남아, 나중의 keydown 없는 paste(메뉴
+ *   «붙여넣기»)나 선택을 바꾼 뒤의 paste 에 범위가 붙었다(eval2 P1·P2·P8). 맞는 동작 = keydown 을 안 거친 paste 는 범위 손 0
+ *   (블럭·줄 클립과 같다 — 둘 다 keydown 길에서만 붙는다).
+ *   ⇒ 풂 = document capture keydown·mousedown(_grdDisarmRangePaste) — 다음 키·다음 누르기가 오면 무장이 죽는다. 이번 ⌘V keydown 은
+ *     건너뛴다(무장을 건 그 이벤트 객체 _grdRangeArmEvt 와 같으면 · 리스너 등록 순서에 안 기댄다). ⛔타이머로 풀지 않는다(경주).
+ *   ⇒ stamp 반쪽 = paste 때 «_grdRangeClipAt === 지금의 _internalClipboardTime» 재확인(_grdOnRangePaste). 무장 순간엔 둘이 같았으므로
+ *     (grdPasteRange 둘째 줄) 이것이 곧 «무장 때 적은 stamp 와 같을 때만»이다 — 둘째 변수를 두지 않는다(두 자가 갈리면 두 벌).
+ *     키 누름 «안»에서 고디터 복사가 끼면(다른 keydown 처리기·자동화가 copySelected) 여기서 막힌다(시험 G-F①).
+ *   ⇒ 대상 블럭은 따로 안 적는다 — 사람이 선택을 바꾸는 길(누르기·키)은 위 풂이 먼저 막고, 쓰기 자리는 paste 순간의 선택을 본다.
+ *   ⇒ 맥 Control+v = 무장 0 · 그래도 true(가로챔). 맥에선 Control+v 가 paste 를 안 낳는다(실측 eval2 P2: paste 0) ⇒ 무장하면
+ *     «살아 남는 무장»이 다시 생긴다. false 로 떨어뜨리면 옛 블럭 클립이 붙는다(D1 최신 규칙 위반) ⇒ 삼키고 아무것도 안 붙인다. */
+let _grdRangePasteArmed = false;
+let _grdRangeArmEvt = null;   // 무장을 건 그 keydown — 풂 리스너가 «이번 누름»은 건너뛴다
+const _grdIsMac = () => {   // settings-store.js _isMac 과 같은 자(그쪽은 밖으로 안 낸다 · 모르면 맥)
+  try {
+    const p = navigator.userAgentData && navigator.userAgentData.platform;
+    return p ? /mac/i.test(p) : /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || '');
+  } catch (_) { return true; }
+};
+
+export function grdPasteRange(e) {
+  if (!_grdRangeClip) return false;
+  if (_grdRangeClipAt !== (window._internalClipboardTime || 0)) return false;   // 뒤에 다른 고디터 복사(줄·블럭)가 이긴다
+  if (e && e.ctrlKey && !e.metaKey && _grdIsMac()) return true;   // ★결함1 — 맥 Control+v: paste 가 안 온다 ⇒ 무장 0(위 주석)
+  _grdRangePasteArmed = true;   // ★여기부터 «가로챘다» — 쓰기·보고는 paste 이벤트에서(D2)
+  _grdRangeArmEvt = e || null;
+  return true;
+}
+
+/** ★결함1 — 다음 keydown·mousedown(capture)이 오면 무장을 푼다. 무장을 건 그 keydown 은 제외. 막는 것 0(preventDefault·stop 0). */
+function _grdDisarmRangePaste(ev) {
+  if (!_grdRangePasteArmed || ev === _grdRangeArmEvt) return;
+  _grdRangePasteArmed = false;
+  _grdRangeArmEvt = null;
+}
+
+function _grdOnRangePaste(e) {
+  if (!_grdRangePasteArmed) return;
+  _grdRangePasteArmed = false;
+  _grdRangeArmEvt = null;
+  const act = document.activeElement;
+  if (act && (act.isContentEditable || act.tagName === 'INPUT' || act.tagName === 'TEXTAREA')) return;   // 글 칸에 붙이는 paste = 손 0(G-F②)
+  if (!_grdRangeClip || _grdRangeClipAt !== (window._internalClipboardTime || 0)) return;   // stamp 반쪽 — 키 누름 안에서 낀 고디터 복사가 이긴다(G-F①)
+  const prefersInternal = window.clipboardPrefersInternal
+    ? window.clipboardPrefersInternal(e)
+    : (window._internalClipboardTime || 0) > (window._scratchClipboardTime || 0);   // scratch-pad 와 같은 폴백
+  if (!prefersInternal) return;   // ★OS 가 더 새롭다 — 물러난다(이미지 = 스크래치 · 글자 = 손 0)
+  _grdPasteRangeWrite();
+}
+
+function _grdPasteRangeWrite() {
+  const block = document.querySelector('.grid-block.selected');
+  /* ★D1 — 범위 클립이 최신인데 붙일 그리드가 없으면 «알리고 끝»(옛 블럭 클립이 떨어지면 안 된다). */
+  if (!block || !grdIsSoleSelected(block)) { window.showToast?.('붙일 칸을 먼저 고르세요'); return; }
+  const rng = grdGetRange(block), a = grdGetActiveLine(block);
+  const anchor = rng ? { r: rng.r0, c: rng.c0 } : (a ? { r: Number(a.r), c: Number(a.c) } : null);   // 중첩 줄이면 바깥 칸 통째(해-24)
+  if (!anchor || !Number.isInteger(anchor.r) || !Number.isInteger(anchor.c)) { window.showToast?.('붙일 칸을 먼저 고르세요'); return; }
+  const full = _grdRangeClip;
+  let clip = full;
+  if (rng && (rng.r1 > rng.r0 || rng.c1 > rng.c0)) {   // ★해-23 — 1×1 넘는 대상 범위 = 그 크기로 자른다
+    const h = Math.min(full.h, rng.r1 - rng.r0 + 1), w = Math.min(full.w, rng.c1 - rng.c0 + 1);
+    clip = { h, w, cells: full.cells.slice(0, h).map(row => row.slice(0, w)) };
+  }
+  const res = window.pasteGridRange?.(block, clip, anchor) || { written: 0, dropped: 0 };
+  if (!res.written) { window.showToast?.('⚠️ 붙일 칸이 그리드 밖이에요'); return; }
+  const dropped = full.h * full.w - res.written;
+  const { rows, cols } = getGridModel(block);
+  const hIn = Math.min(clip.h, rows.length - anchor.r), wIn = Math.min(clip.w, cols.length - anchor.c);
+  grdSetActiveLine(block, null);
+  grdClearLineSel(block);
+  showGridProperties(block, null);
+  grdSetRange(block, { r0: anchor.r, c0: anchor.c, r1: anchor.r + hIn - 1, c1: anchor.c + wIn - 1 });   // ★해-25 — 들어간 영역
+  const at = _grdA1(anchor.r, anchor.c);
+  window.showToast?.(dropped ? `⚠️ ${at} 에 칸 ${res.written}개 붙임 · ${dropped}개는 들어갈 자리가 없어 버림` : `${at} 에 칸 ${res.written}개 붙임`);
+  window.pushHistory?.('칸 범위 붙여넣기');   // ★끝 표본 — 마지막 문장(PA-1 · 시작 표본은 pasteGridRange 가 «변경 전»에 찍었다)
+}
+
+/* ★U2b-fix D4(GRID-RANGE-DELETE-CUT-NOT-IMPL-01) — 범위 지우기·잘라내기는 아직 없다. 범위가 «살아 있는» 동안 ⌫/Delete/⌘X 가
+ *   옛 길(활성 줄 지우기 · 블럭 복사+삭제)로 새지 않게 삼키고 알린다. 범위 없으면 첫 줄에서 false(손 0 · 음성대조).
+ *   호출부 = editor.js 그 키 자리(가드 뒤) 한 줄씩. */
+export function grdRangeBlocksKey(e) {
+  if (!e) return false;
+  const isDel = e.key === 'Backspace' || e.key === 'Delete';
+  const isCut = (e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'x' || e.key === 'X');
+  if (!isDel && !isCut) return false;
+  const block = document.querySelector('.grid-block.selected');
+  if (!block || !grdIsSoleSelected(block) || !grdGetRange(block)) return false;
+  e.preventDefault();
+  window.showToast?.('칸 범위 지우기·잘라내기는 아직 안 돼요');
+  return true;
+}
+if (typeof window !== 'undefined') {
+  window.grdCopyRange = grdCopyRange;
+  window.grdPasteRange = grdPasteRange;
+  window.grdRangeBlocksKey = grdRangeBlocksKey;
+  if (typeof document !== 'undefined') {
+    document.addEventListener?.('paste', _grdOnRangePaste, true);   // ★D2 — 무장된 ⌘V 의 쓰기 자리(capture · 한 번 듣고 무장 해제)
+    document.addEventListener?.('keydown', _grdDisarmRangePaste, true);     // ★결함1 — 무장 = 이번 키 누름 한 번
+    document.addEventListener?.('mousedown', _grdDisarmRangePaste, true);
+  }
+}
+
 /* ══ 줄 «복사» — 공용 함수 (그리드 티켓 ④ · 2026-09-28) ════════════════════
  * ★넣는 길을 새로 파지 않는다 — grdAddLine 에 «그 줄의 사본»을 넘긴다. 상한(MAX_CELL_LINES)
  *   확인·활성줄 이동·거절 시 원복이 전부 거기 한 벌로 있고, 복사도 «줄이 하나 느는» 일이라

@@ -1,3 +1,4 @@
+import { isGifFormat } from './export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 (⛔'gif' 를 여기 다시 적지 마라) */
 /* export-gate core — 내보내기 픽셀검사의 «순수» 계층.
  *
  * 여기엔 DOM 이 없다. 이유 둘:
@@ -264,7 +265,7 @@ export function judgeExportDiff(m, ctx) {
   // ⑴ «못 쟀다» 가 먼저다 — 못 잰 것을 「정상」으로도 「문제」로도 말하지 않는다.
   if (c.native === false)          return { tier: 'unmeasured', reasons: ['notNative'] };
   // ⛔GIF 는 팔레트 256색 양자화가 «정상»이다 — 캔버스와 다른 게 당연해서 이 판정기의 축이 아니다.
-  if (c.format === 'gif' || c.format === 'gif-anim') return { tier: 'unmeasured', reasons: ['gif'] };
+  if (isGifFormat(c.format)) return { tier: 'unmeasured', reasons: ['gif'] };
   if (c.captureError)              return { tier: 'unmeasured', reasons: ['captureError'] };
   if (c.imgTimedOut)               return { tier: 'unmeasured', reasons: ['imgTimeout'] };
   if (c.repro === 'unstable')      return { tier: 'unmeasured', reasons: ['unstable'] };

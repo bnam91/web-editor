@@ -1,0 +1,4 @@
+{
+  "type": "module",
+  "_why": "homography.js 가 ESM(export) 이다. 루트 package.json 이 \"type\":\"commonjs\" 라 Node 가 .js 안의 ESM 을 찾지 않아, 이 파일이 없으면 tests/unit/text-freetransform-homography.test.mjs 의 P-1·P-2 가 SyntaxError: Unexpected token 'export' 로 rc=1 ✖2 가 된다(2026-10-22 실측) — 그래서 이 폴더만 module 로 연다. js/fx/ 의 기존 일곱(arrow-render·coin-draw·doodle-line-render·glow-render·particles-animate·particles-render·seeded-random)은 export/import 가 0 줄인 전역 스크립트라 Node 로 require 되지 않으므로 영향 0 — 쟀다: `node tests/run-unit.mjs 'tests/unit/fx-*.test.mjs'` 가 이 파일 유무로 rc=0 ✔69 ✖0 로 같다(두 번 다 직접 돌림. 까닭은 그 벌이 vm.runInContext 로 소스를 글자째 읽어 돌리기 때문이다). 브라우저 <script src> 와도 무관하다. ⛔이 폴더 밖에 package.json 을 만들거나 기존 일곱을 ESM 으로 고치지 마라 — 지우면 위 P-1 이 빨강으로 알려준다(PRE 가 이 파일의 존재와 type 을 단언한다)."
+}

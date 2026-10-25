@@ -1,0 +1,772 @@
+<title>글상자 자유변형·동적 텍스트</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  /* ══════════════════════════════════════════════════════════════════════════
+     ★「고디터 정본」 블록 — ★제품 CSS 에서 ★그대로 ★떠 왔다(★규칙 82 · ★변수 21 · ★기계 추출).
+       출처 = css/design-tokens.css · css/editor-base.css · css/editor-blocks.css
+     ⛔손으로 베껴 적지 않았다.
+     ══════════════════════════════════════════════════════════════════════════ */
+  :root {
+    --p-blue-600:#2d6fe8; --p-blue-alpha-08:rgba(45,111,232,0.08); --p-blue-alpha-40:rgba(45,111,232,0.40);
+    --ui-sel-overlay:#9966ff;        /* ★텍스트 오버레이 리사이즈 핸들 = ★보라 */
+    --ui-handle-border-w:1.5px; --ui-divider:#555; --ui-text-muted:#9e9e9e; --ui-accent-primary:#2d6fe8;
+    --sel-color:var(--p-blue-600); --sel-color-fill:var(--p-blue-alpha-08); --sel-color-hover:var(--p-blue-alpha-40);
+    --zoom:0.4; --inv-zoom:2.5; --sel-outline-w:calc(1px * var(--inv-zoom, 1));
+    --preset-h1-color:#111; --preset-h1-family:'Noto Sans KR', sans-serif;
+    --preset-body-color:#555; --preset-body-family:'Noto Sans KR', sans-serif;
+
+    --ink:#1a1c20; --ink-soft:#595f6a; --ink-faint:#8d94a0;
+    --paper:#f3f4f7; --card:#fff; --line:#d9dce4; --line-soft:#e8eaf0;
+    --accent:#6b3fd4; --accent-weak:#ece5fb;
+    --amber:#9a5b05; --amber-weak:#fdf1dc;
+    --ok:#16734a; --ok-weak:#e3f2ea; --no:#a3272b; --no-weak:#fae8e8;
+    --mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --kr:'Noto Sans KR', -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --ink:#e9ebf0; --ink-soft:#a7aeba; --ink-faint:#767d8a;
+    --paper:#14161a; --card:#1c1f25; --line:#343941; --line-soft:#272b32;
+    --accent:#b196f5; --accent-weak:#2c2448; --amber:#e0a650; --amber-weak:#35290f;
+    --ok:#5fc08c; --ok-weak:#16291f; --no:#e58a8d; --no-weak:#301a1b;
+    --preset-h1-color:#f2f2f2;
+  } }
+  :root[data-theme="dark"] {
+    --ink:#e9ebf0; --ink-soft:#a7aeba; --ink-faint:#767d8a;
+    --paper:#14161a; --card:#1c1f25; --line:#343941; --line-soft:#272b32;
+    --accent:#b196f5; --accent-weak:#2c2448; --amber:#e0a650; --amber-weak:#35290f;
+    --ok:#5fc08c; --ok-weak:#16291f; --no:#e58a8d; --no-weak:#301a1b;
+    --preset-h1-color:#f2f2f2;
+  }
+
+  body { background:var(--paper); color:var(--ink); font-family:var(--kr); font-size:15px; line-height:1.65; }
+  .wrap { max-width:1120px; margin:0 auto; padding-inline:16px; padding-block:28px 64px; }
+
+  .sian-bar { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
+    background:var(--amber-weak); color:var(--amber);
+    border:1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+    border-radius:6px; padding:10px 14px; margin-bottom:26px; }
+  .sian-bar b { font-size:13px; letter-spacing:.04em; }
+  .sian-bar span { color:var(--ink-soft); font-size:13px; }
+
+  h1 { font-size:27px; line-height:1.25; margin:0 0 6px; font-weight:700; text-wrap:balance; letter-spacing:-.01em; }
+  .sub { color:var(--ink-soft); margin:0 0 30px; max-width:66ch; }
+  h2 { font-size:19px; margin:0 0 4px; font-weight:700; }
+  .eyebrow { font-family:var(--mono); font-size:11px; letter-spacing:.12em; color:var(--ink-faint);
+             text-transform:uppercase; margin:0 0 2px; }
+  .pane { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px; margin-bottom:20px; }
+
+  /* ══ 무대 ══ */
+  .stage { position:relative; height:260px; border:1px solid var(--line-soft);
+    border-radius:6px; background:var(--card); overflow:hidden; margin-top:12px; }
+  .frame-label { position:absolute; left:20px; top:14px; font-family:var(--mono);
+    font-size:10px; letter-spacing:.06em; color:var(--ink-faint); }
+  .canvas-zoom { position:absolute; left:20px; top:40px; width:calc((100% - 40px) / 0.4);
+    transform:scale(var(--zoom)); transform-origin:left top; }
+  .frame-block { position:relative; width:100%; height:450px; overflow:hidden;
+    border:calc(1px * var(--inv-zoom)) dashed var(--line); }
+  /* ★★★6판 — ★행렬이 ★걸리는 자리는 ★★★`.tb-h1`(★글자)와 ★`.tfx`(★그 꾸밈) ★둘뿐이다.
+     ⛔★`.text-block`(★파란 아웃라인)에는 ★★걸지 ★않는다 — ★현빈 msg5406.
+     ⛔height 를 ★쓰지 ★않는다. */
+  #glyph, .tfx { transform-origin:0 0; will-change:transform; }
+  .tfx { position:absolute; left:0; top:0; pointer-events:none; }
+  .tfx[hidden] { display:none !important; }
+
+  /* ══ 고디터 정본 규칙 ══ */
+  .text-block { position:relative; z-index:2; cursor:text; outline:2px solid transparent;
+    padding:0; width:100%; word-break:keep-all; overflow-wrap:break-word; }
+  .text-block.selected { outline:var(--sel-outline-w) solid var(--sel-color);
+    outline-offset:calc(-1 * var(--sel-outline-w)); }
+  .text-block .tb-h1 { font-size:104px; font-weight:700; color:var(--preset-h1-color);
+    font-family:var(--preset-h1-family); line-height:1.1; letter-spacing:-0.02em; }
+  .tfo-overlay-handle { position:absolute; width:7px; height:7px; background:#fff;
+    border:var(--ui-handle-border-w, 1.5px) solid var(--sel-color);
+    border-radius:1px; z-index:9992; pointer-events:auto; box-sizing:border-box; }
+  .tfo-overlay-handle[data-tf-resize-dir] { border-color:var(--ui-sel-overlay, #9966ff); }
+  /* ══ 정본 끝 ══ */
+
+  /* ★격자 — ★★변형 ★«안»에 둔다 ⇒ ★★원근이 걸리면 ★★★같이 휜다(★포토샵 꼴) */
+  .tgrid { position:absolute; inset:0; pointer-events:none; }
+  .tgrid i { position:absolute; background:var(--ui-sel-overlay); opacity:.5; }
+  .tgrid i.v { top:0; bottom:0; width:calc(1px * var(--inv-zoom)); }
+  .tgrid i.h { left:0; right:0; height:calc(1px * var(--inv-zoom)); }
+  .tedge { position:absolute; inset:0; border:calc(1.5px * var(--inv-zoom)) solid var(--ui-sel-overlay);
+           pointer-events:none; }
+  /* ★★★파란 아웃라인 — ★★«모양»은 ★변형 ★«밖»이고(★직사각형 ★유지) ★★«크기»만 ★글자를 ★따라간다.
+     ★현빈 msg5406 「★모양만 ★변형」 ＋ ★msg5413 「★아웃라인도 ★같이 ★늘어나야」
+     ⇒ ★★둘은 ★★«다른 축»이라 ★★양립한다. ⛔`transform` 은 ★영영 ★안 건다. */
+  .text-block { transform:none !important; }
+  .text-block[data-tf-on="1"] { box-sizing:border-box; }
+  .hlayer { position:absolute; inset:0; pointer-events:none; z-index:9993; }
+  .hlayer[hidden] { display:none !important; }
+  .tf-move { position:absolute; inset:0; pointer-events:auto; cursor:move; background:transparent; }
+  .tfo-overlay-handle.corner { cursor:crosshair; }
+  .tfo-overlay-handle.edge { cursor:crosshair; background:var(--ui-sel-overlay); }
+  .tfo-overlay-handle:focus-visible { outline:2px solid var(--ui-sel-overlay); outline-offset:2px; }
+
+  .readout { font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);
+             margin-top:12px; min-height:4.2em; line-height:1.75; }
+  .readout b { color:var(--accent); }
+  .readout .warn { color:var(--amber); }
+
+  .dyn-stage { border:1px solid var(--line-soft); border-radius:6px; background:var(--paper); padding:14px; margin-top:12px; }
+  .dyn-box { border:1.5px dashed var(--accent); border-radius:3px; padding:8px 10px;
+    display:grid; place-items:center; overflow:hidden; }
+  .dyn-text { font-weight:700; white-space:nowrap; color:var(--ink); line-height:1.1; font-family:var(--preset-body-family); }
+  .slider { display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center;
+            margin-top:12px; font-size:13px; color:var(--ink-soft); }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  input[type=text] { font:inherit; font-size:14px; padding:6px 9px; border-radius:6px;
+    border:1px solid var(--line); background:var(--card); color:var(--ink); width:100%; }
+  input:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+
+  button { font:inherit; font-size:13px; padding:7px 13px; border-radius:6px;
+    border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
+  button:hover { border-color:var(--accent); color:var(--accent); }
+  button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  button[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btnrow { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; align-items:center; }
+
+  kbd { font-family:var(--mono); font-size:11px; background:var(--line-soft);
+        border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:1px 5px; color:var(--ink); }
+
+  .ask { border-left:3px solid var(--accent); padding:2px 0 2px 13px; margin:16px 0; }
+  .ask .q { font-weight:700; margin:0 0 4px; }
+  .ask .opt { font-size:13.5px; color:var(--ink-soft); margin:0; }
+
+  table.m { width:100%; border-collapse:collapse; font-size:13.5px; margin-top:10px; }
+  table.m th, table.m td { text-align:left; padding:7px 9px; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  table.m th { font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; color:var(--ink-faint);
+               font-weight:400; text-transform:uppercase; }
+  .pill { display:inline-block; font-size:11.5px; font-weight:700; border-radius:99px; padding:1px 9px; white-space:nowrap; }
+  .pill.ok { background:var(--ok-weak); color:var(--ok); }
+  .pill.no { background:var(--no-weak); color:var(--no); }
+  .pill.wait { background:var(--amber-weak); color:var(--amber); }
+  .anchor { font-family:var(--mono); font-size:11.5px; color:var(--ink-faint); }
+  ul.tight { margin:6px 0 0; padding-left:19px; }
+  ul.tight li { margin-bottom:5px; color:var(--ink-soft); font-size:13.5px; }
+  ul.tight li b { color:var(--ink); font-weight:700; }
+  .foot { margin-top:34px; padding-top:16px; border-top:1px solid var(--line); color:var(--ink-faint); font-size:12.5px; }
+</style>
+
+<div class="wrap">
+
+  <div class="sian-bar">
+    <b>⛔ 시안입니다 — 8판</b>
+    <span>형이 실물을 보고 정해 주신 것으로 고쳤습니다:
+      <b>파란 아웃라인이 글자를 계속 감쌉니다</b> — 글자가 밖으로 삐져나가지 않습니다.
+      아웃라인은 <b>찌그러지지 않고</b>(직사각형 그대로) <b>크기만</b> 따라갑니다.
+      앞 판에서 제가 “Esc 뒤 원래 너비 고정”으로 지은 것은 <b>이것과 반대였습니다</b> — 고쳤습니다.
+      그리고 이번엔 <b>제가 화면으로 직접 조작해 픽셀로 재서</b> 세 군데를 더 고쳤습니다 —
+      켜기 전에 이미 글자가 눌려 있던 것, 핸들이 테두리에서 어긋나던 것, 아웃라인 폭이 어긋나던 것.
+      아직 앱에 들어간 것은 아닙니다.</span>
+  </div>
+
+  <p class="eyebrow">현빈 신기능 · 텍스트 블럭 · 이펙트 → 자유변형</p>
+  <h1>모서리를 따로 끌어 글자를 비틉니다</h1>
+  <p class="sub">
+    <b>모서리 네 개</b>(보라 사각)를 각각 끌면 사다리꼴·마름모·임의 사각형이 됩니다 —
+    포토샵 포토샵의 <b>Distort</b> 와 같습니다.
+    <b>변 가운데 네 개</b>(채운 보라)는 그 변을 밀어 크기만 바꿉니다.
+    <kbd>⇧</kbd> 를 누르고 모서리를 끌면 비율을 지킵니다.
+  </p>
+
+  <div class="pane">
+    <h2>만져 보세요</h2>
+    <p style="margin:2px 0 0;color:var(--ink-soft);font-size:13.5px;">
+      <b>이펙트</b>에서 <b>자유변형</b>을 누르면 켜집니다. <kbd>Esc</kbd> 로 끕니다 —
+      <b>글자가 아웃라인 밖으로 나가는지</b> 봐 주세요(나가지 않아야 맞습니다). 격자는 글자와 <b>같이 휩니다</b> —
+      그게 모서리가 정말 따로 움직인다는 표시입니다.
+    </p>
+    <div class="stage" id="stage">
+      <span class="frame-label">frame-block[data-text-frame="true"] · overflow:hidden · 배율 40%</span>
+      <div class="canvas-zoom">
+        <div class="frame-block" id="frame">
+          <!-- ★★★6판 구조 — ★현빈 msg5406: 「★Esc 누르니 ★파란 아웃라인은 ★원래 너비 ★그대로 유지돼야 ·
+               ★★프레임 안에 ★텍스트 ★모양만 ★변형시킨 거여야」
+               ⇒ ★★★`.text-block`(★파란 아웃라인)은 ★★변형 ★«밖»에 있고 ★★width:100% 그대로다.
+                  ★★행렬은 ★★★`.tb-h1`(★글자)에만 ★걸린다. ★제품 구조(`js/CLAUDE.md`)를 ★안 바꾼다. -->
+          <div class="text-block selected" id="tb">
+            <div class="tb-h1" id="glyph">온풍기 맥스</div>
+            <!-- ★테두리·격자 = ★글자 상자에 맞춘 레이어 · ★★«같은» 행렬을 받아 ★같이 휜다 -->
+            <div class="tfx" id="tfx" hidden>
+              <div class="tedge"></div>
+              <div class="tgrid">
+                <i class="v" style="left:33.333%"></i><i class="v" style="left:66.666%"></i>
+                <i class="h" style="top:33.333%"></i><i class="h" style="top:66.666%"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hlayer" id="hlayer" hidden></div>
+    </div>
+    <div class="btnrow">
+      <button id="btn-t" aria-pressed="false">이펙트 → 자유변형</button>
+      <button id="btn-reset">원래대로</button>
+      <button id="btn-demo">사다리꼴 보기</button>
+      <button id="btn-mode" aria-pressed="false">아웃라인: 글자 폭</button>
+    </div>
+    <p class="readout" id="ro"></p>
+  </div>
+
+  <div class="pane">
+    <h2>아웃라인은 어떻게 움직이나 — 형이 정해 주신 것</h2>
+    <table class="m">
+      <thead><tr><th>축</th><th>어떻게 되나</th></tr></thead>
+      <tbody>
+        <tr><td><b>크기</b></td>
+            <td><b>글자를 계속 감쌉니다.</b> 글자를 아무리 비틀어도
+                아웃라인 밖으로 나가지 않습니다. <span class="anchor">(형: “박스가 아예 글자를 계속 감쌈”)</span></td></tr>
+        <tr><td><b>모양</b></td>
+            <td><b>찌그러지지 않습니다</b> — 직사각형 그대로입니다.
+                비틀리는 것은 <b>글자</b>뿐입니다. <span class="anchor">(형: “프레임 안에 텍스트 모양만 변형”)</span></td></tr>
+        <tr><td><b>왼쪽·위로 끌면</b></td>
+            <td>글자는 <b>제자리</b>에 있고 아웃라인의 <b>오른쪽·아래</b>가 늘어납니다.
+                포토샵은 왼쪽 변도 따라 움직이는데, 여기서는 글상자가
+                <b>문서 흐름 안</b>에 있어 왼쪽으로는 못 나갑니다.
+                <b>삐져나감은 0</b>으로 지켰습니다. <span class="anchor">(차이를 그대로 적습니다)</span></td></tr>
+      </tbody>
+    </table>
+    <p style="margin:12px 0 0;color:var(--ink-soft);font-size:13.5px;">
+      <b>앞 판에서 제가 틀린 것:</b> “Esc 를 누르면 아웃라인이 원래 너비로 돌아간다”로 지었습니다.
+      형이 실물을 보고 <b>“계속 감싸야 한다”</b>로 정해 주셔서 그 반대로 고쳤습니다.
+    </p>
+  </div>
+
+  <div class="pane">
+    <h2>형이 이번에 잡아 주신 둘 — 무엇이 틀렸었나</h2>
+    <table class="m">
+      <thead><tr><th>형 말씀</th><th>무엇이 틀렸었나 · 어떻게 고쳤나</th></tr></thead>
+      <tbody>
+        <tr><td><b>“Esc 누르니 파란 아웃라인은 원래 너비 그대로 유지돼야.
+                프레임 안에 텍스트 모양만 변형시킨 거여야”</b></td>
+            <td><b>이것이 가장 큰 지적이었습니다.</b> 3·4·5판은 변형을
+                <b>프레임 래퍼</b>에 걸었고, 파란 아웃라인이 그 안에 있어서
+                <b>같이 찌그러졌습니다.</b><br>
+                6판은 변형을 <b>글자(<code>.tb-h1</code>)에만</b> 겁니다.
+                파란 아웃라인(<code>.text-block</code>)은 <b>건드리지 않습니다</b> —
+                제품 구조도 그대로입니다(<code>text-block &gt; tb-h1</code>).
+                <b>⚠️다만 “Esc 뒤 원래 너비”는 거뒀습니다</b> — 형이 실물을 보고
+                <b>“계속 감싸야 한다”</b>로 정해 주셨습니다(위 칸).</td></tr>
+        <tr><td><b>“점 12개 위치가 안 맞지 않니?”</b></td>
+            <td>맞습니다 — <b>같은 뿌리였습니다.</b> 핸들을 <b>프레임 폭</b>에 붙였는데
+                프레임은 <code>width:100%</code> 라 글자보다 넓습니다.
+                6판은 <b>글자가 그려진 상자</b>를 재서(브라우저에게 직접 물어서)
+                그 네 모서리와 각 변의 1/3·2/3 에 붙입니다.</td></tr>
+        <tr><td><b>“실제 고디터에 들어간 모습으로 시안을 볼 순 없니?”</b></td>
+            <td><b>할 수 있습니다.</b> 다만 <b>순서를 여쭙습니다</b> — 아래 「아직 열린 것」의
+                물음 하나(여덟 점을 따로 움직일지)가 정해지면 <b>구조가 또 바뀝니다</b>.
+                그 전에 제품에 넣으면 <b>두 번 짓게</b> 됩니다.<br>
+                <b>그 하나만 정해 주시면</b> 바로 제품(dev)에 넣어 실제 화면으로 보여 드립니다.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pane">
+    <h2>⚠️ 여덟은 서로 묶여 있습니다 — 숨기지 않겠습니다</h2>
+    <p style="margin:2px 0 10px;color:var(--ink-soft);font-size:13.5px;">
+      말씀하신 <b>열두 개</b>를 그 자리에 그대로 놓았습니다. 다만
+      <b>한 변의 두 점(1/3·2/3)은 같은 일을 합니다</b> — 둘 중 어느 쪽을 끌어도
+      그 변 전체가 움직입니다. 위에서 <code>n1</code> 과 <code>n2</code> 를
+      번갈아 끌어 보시면 보입니다.
+    </p>
+    <table class="m">
+      <thead><tr><th>핸들</th><th>하는 일</th><th>따로 움직이나</th></tr></thead>
+      <tbody>
+        <tr><td>모서리 넷 <code>nw ne se sw</code></td>
+            <td>그 모서리만 움직인다 — <b>사다리꼴이 여기서 난다</b></td>
+            <td><span class="pill ok">따로 움직인다</span></td></tr>
+        <tr><td>변의 점 여덟 <code>n1 n2 e1 e2 …</code></td>
+            <td>그 변을 민다 (한 변의 두 점이 같은 일)</td>
+            <td><span class="pill no">묶여 있다</span></td></tr>
+        <tr><td>상자 안</td><td>옮긴다</td><td><span class="pill ok">—</span></td></tr>
+      </tbody>
+    </table>
+    <div class="ask" style="margin-top:16px;">
+      <p class="q">여쭙습니다 — 그 여덟이 <b>따로</b> 움직여야 합니까?</p>
+      <p class="opt">
+        따로 움직이면 변이 <b>휘어집니다</b>(포토샵의 <b>Warp</b>). 그런데 그렇게 하려면
+        <b>글자를 그림으로 굳혀야</b> 합니다 — 그러면 <b>다시 조절할 수 없게</b> 되고
+        키우면 흐려집니다. 지금 꼴(모서리 넷만 따로)은 글자가 <b>끝까지 글자로</b> 남아
+        언제든 다시 조절됩니다.<br>
+        <b>⒜ 지금처럼</b> — 모서리 넷만 따로, 글자는 글자로 남는다 ·
+        <b>⒝ 여덟도 따로</b> — 휘어지지만 그림으로 굳는다
+      </p>
+    </div>
+  </div>
+
+  <div class="pane">
+    <h2>3판이 왜 틀렸나 — 수로 보여 드립니다</h2>
+    <p style="margin:2px 0 10px;color:var(--ink-soft);font-size:13.5px;">
+      형이 “안 되네”라 하신 것이 맞았습니다. <b>왜</b> 안 되는지가 수에 있습니다.
+    </p>
+    <table class="m">
+      <thead><tr><th>꼴</th><th>3판(2D 행렬)</th><th>4판(모서리 네 개)</th></tr></thead>
+      <tbody>
+        <tr><td>늘이기 · 줄이기</td><td><span class="pill ok">된다</span></td><td><span class="pill ok">된다</span></td></tr>
+        <tr><td>기울이기(평행사변형)</td><td><span class="pill ok">된다</span></td><td><span class="pill ok">된다</span></td></tr>
+        <tr><td><b>사다리꼴</b></td><td><span class="pill no">수학적으로 불가</span></td><td><span class="pill ok">된다</span></td></tr>
+        <tr><td>임의 사각형 · 원근</td><td><span class="pill no">불가</span></td><td><span class="pill ok">된다</span></td></tr>
+      </tbody>
+    </table>
+    <p style="margin:12px 0 0;color:var(--ink-soft);font-size:13.5px;">
+      까닭: 2D 행렬은 <b>평행을 보존합니다</b> — 마주 보는 두 변이 평행이던 것은
+      끝까지 평행입니다. 사다리꼴은 그 평행이 깨진 모양이라 그 방식의 <b>밖</b>입니다.
+      <span class="anchor">(검산: 평행사변형으로 풀면 원근 항이 정확히 0 · 사다리꼴로 풀면 0이 아님)</span>
+    </p>
+  </div>
+
+  <div class="pane">
+    <h2>형이 잡아 주신 것 — 어떻게 고쳤나</h2>
+    <table class="m">
+      <thead><tr><th>형 말씀</th><th>고친 것</th></tr></thead>
+      <tbody>
+        <tr><td>“실제 고디터 css가 아닌데?”</td>
+            <td>선택자에 <code>text-block</code>·<code>tfo-overlay-handle</code> 등이 든 규칙
+                <b>82 개</b>와 그것이 쓰는 변수 <b>21 개</b>를 기계로 뽑아 왔습니다.
+                글자는 <code>.tb-h1</code> 그대로(104px·700·−0.02em), 핸들은
+                <code>.tfo-overlay-handle</code> 그대로(7px·#fff·1.5px), 텍스트 리사이즈라
+                테두리가 <b>보라</b>(<code>#9966ff</code>)입니다.</td></tr>
+        <tr><td>“아웃라인 안쪽에 텍스트 실제 너비에 생겨야지?”</td>
+            <td><b>글자가 그려진 폭에 붙입니다.</b> 까닭도 찾았습니다 — 제품의
+                <code>.text-block</code> 이 <code>width:100%</code> 라 아웃라인이
+                <b>프레임 폭</b>을 덮습니다. 위 단추로 두 꼴을 바꿔 보실 수 있습니다.</td></tr>
+        <tr><td>“격자 3등분이면 … 총 12개”</td>
+            <td>3판에서 12개로 했는데, <b>그 열둘 중 여덟이 서로 묶여 있었습니다</b> —
+                그래서 아래 “안 되네”가 나왔습니다. 4판은 <b>모서리 네 개를 진짜로 따로</b> 끕니다.</td></tr>
+        <tr><td><b>“사다리꼴도 되어야 하는데 안 되네?”</b></td>
+            <td><b>형이 맞으셨습니다.</b> 3판 방식(2D 행렬)으로는 사다리꼴이
+                <b>수학적으로 불가능</b>합니다 — 그 방식은 평행을 보존합니다.
+                4판은 모서리 네 개를 독립 좌표로 두고 매번 계산합니다.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pane">
+    <h2>무엇이 되나 — 앱에서 찍어 본 것</h2>
+    <p style="margin:2px 0 0;color:var(--ink-soft);font-size:13.5px;">
+      ⚠️ <b>“찌그러짐” 행을 정정했습니다</b> — 3판에서 찍은 것은 평행사변형(기울이기)이고,
+      사다리꼴이 아니었습니다.
+    </p>
+    <table class="m">
+      <thead><tr><th>축</th><th>지금</th><th>근거 / 잰 값</th></tr></thead>
+      <tbody>
+        <tr><td>회전</td><td><span class="pill ok">이미 된다</span></td>
+            <td>공용 회전 모듈이 텍스트 프레임에 핫존 4개를 붙인다.</td></tr>
+        <tr><td>폭 늘리기</td><td><span class="pill ok">이미 된다</span></td>
+            <td>형이 2026-09-20 에 발주하신 그 핸들. 뜻 = 폭 + 폰트 비례확대.</td></tr>
+        <tr><td>높이 늘리기</td><td><span class="pill no">쓰면 글자가 잘린다</span></td>
+            <td>글상자에 높이를 쓰면 줄이는 순간 글자가 조용히 잘린다 —
+                그래서 제품은 높이를 <b>쓰지 않고 잰다</b>.</td></tr>
+        <tr><td>기울이기(평행사변형)</td><td><span class="pill ok">된다 — 찍었다</span></td>
+            <td><code class="anchor">scale(1.6,0.7) skewX(-20deg)</code> 실측: 높이 ×0.669 · 너비 ×2.49.
+                <b>3판에서 “찌그러짐”이라 적은 것이 이것입니다.</b></td></tr>
+        <tr><td><b>사다리꼴 · 원근</b></td><td><span class="pill ok">4판에서 된다</span></td>
+            <td>3판 방식으로는 <b>불가</b>(평행 보존). 4판은 모서리 네 개로 매번 계산합니다 —
+                네 모서리가 정확히 그 자리로 가는 것과, 평행사변형에서는 원근 항이
+                <b>정확히 0</b>이 되는 것을 둘 다 확인했습니다.</td></tr>
+        <tr><td>글자 고치기</td><td><span class="pill wait">다시 재야 한다</span></td>
+            <td>3판(2D 행렬)에서는 3·7·12번째 글자 커서가 제자리였습니다.
+                <b>원근에서는 셈이 달라 다시 재야 합니다.</b></td></tr>
+        <tr><td>블럭으로 유지</td><td><span class="pill ok">된다</span></td>
+            <td>변형이 <b>모서리 여덟 숫자</b>로 저장돼 다시 조절됩니다.</td></tr>
+        <tr><td>저장 · PNG · HTML</td><td><span class="pill wait">다시 재야 한다</span></td>
+            <td>3판은 세 산출물 모두 통과했습니다. 쓰는 CSS가 바뀌었으니
+                <b>같은 자로 다시 잽니다.</b></td></tr>
+        <tr><td>Figma 로 보내기</td><td><span class="pill no">안 나간다</span></td>
+            <td>글자가 똑바로 나갑니다. <b>회전도 원래 안 나갔습니다</b> — 새 구멍이 아닙니다.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pane">
+    <h2>저장은 어떻게 되나 — <b>모서리 여덟 숫자</b>입니다</h2>
+    <ul class="tight">
+      <li><b>블럭 값으로 저장됩니다</b> — 그림으로 굳지 않습니다. 다시 열어 또 조절하실 수 있습니다.</li>
+      <li>저장하는 것은 <b>모서리 네 개의 좌표(숫자 여덟 개)</b>입니다.
+          화면에 쓰는 긴 행렬(열여섯 개)은 <b>그 여덟에서 매번 계산</b>합니다.
+          <span class="anchor">(여덟이 “사람이 정한 것”이고 열여섯은 “그 결과”라, 여덟만 저장합니다)</span></li>
+      <li><b>⛔글자 크기·자간으로 굳히지 않습니다</b> — 그렇게 하면 Figma 로는 나가지만
+          <b>다시 조절할 수 없게</b> 됩니다.</li>
+    </ul>
+  </div>
+
+  <div class="pane">
+    <h2>동적 텍스트 — 상자에 글자를 맞춘다</h2>
+    <p style="margin:2px 0 14px;color:var(--ink-soft);font-size:13.5px;">
+      상자 너비를 줄이면 글자가 스스로 작아집니다.
+      <span class="anchor">(원형 그래프의 이름표가 이미 이 방식입니다)</span>
+    </p>
+    <div class="dyn-stage">
+      <div class="dyn-box" id="dyn-box" style="width:70%;">
+        <div class="dyn-text" id="dyn-text">클릭 한 번 텍스트 포스터</div>
+      </div>
+      <div class="slider">
+        <span>상자 너비</span>
+        <input type="range" id="dyn-w" min="22" max="100" value="70" aria-label="상자 너비">
+        <span class="anchor" id="dyn-ro" style="min-width:9ch;"></span>
+      </div>
+      <div class="slider" style="grid-template-columns:auto 1fr;">
+        <span>글</span>
+        <input type="text" id="dyn-in" value="클릭 한 번 텍스트 포스터" aria-label="동적 텍스트 내용">
+      </div>
+    </div>
+    <div class="btnrow">
+      <button id="dyn-grow" aria-pressed="true">키우는 단계도 쓴다</button>
+      <button id="dyn-reset">처음으로</button>
+    </div>
+    <p class="readout" id="dyn-note" style="min-height:1.4em;"></p>
+  </div>
+
+  <div class="pane">
+    <h2>고르실 것 — 하나 <span class="pill ok" style="font-size:11px;">자유변형은 정해졌습니다</span></h2>
+    <div class="ask">
+      <p class="q">동적 텍스트가 글자를 <b>키우기도</b> 할까요?</p>
+      <p class="opt">
+        <b>⒜ 줄이기만</b> — 지금 원형 그래프가 그렇습니다(넘치면 작아지고, 남아도 안 커진다) ·
+        ⒝ 줄이고 키우기 — 상자를 채웁니다. 위 단추로 둘을 바꿔 보실 수 있습니다
+      </p>
+    </div>
+  </div>
+
+  <div class="pane">
+    <h2>⛔ 아직 재지 않은 것 — 먼저 잴 것</h2>
+    <ul class="tight">
+      <li><b>글자가 흐려질 수 있습니다</b> — 원근을 세게 걸면 글자를 그림처럼 늘려 그리게 되어
+          멀어지는 쪽 글자가 뭉개질 수 있습니다. <b>아직 안 쟀습니다.</b>
+          위에서 세게 비틀어 보시면 눈에 보일 수도 있습니다 —
+          보이면 한 줄만 알려 주세요.</li>
+      <li><b>회전과 같이 걸 때</b> — 회전은 기준점을 가운데로 고정합니다.
+          모서리 방식은 <b>기준점이 아예 없습니다</b>(네 점이 전부). 둘을 같이 걸면
+          어느 쪽이 이기는지 먼저 재야 합니다.</li>
+      <li><b>상자 밖으로 나가면 잘립니다</b> — 원근은 상자를 더 많이 넘습니다.
+          위에서 크게 비틀면 잘리는 것이 보입니다.</li>
+      <li><b>⚠️글자가 아웃라인 위로 약 8px 넘칩니다</b> — 제가 <b>화면으로 직접 재서</b> 찾았습니다.
+          자유변형을 켜든 끄든 <b>늘 같은 값</b>이라, 비트는 것과는 무관하고
+          <b>글꼴의 윗부분이 줄 높이를 넘는</b> 데서 옵니다(지금 제품도 그렇습니다).
+          이것까지 감싸려면 글상자의 줄 간격을 건드려야 해서 <b>손대지 않았습니다</b> —
+          <b>고칠지 여쭙습니다.</b></li>
+      <li><b>글자 고치기</b> — 3판에서는 비틀어도 커서가 제자리였습니다(3·7·12번째 모두).
+          <b>원근에서는 다시 재야 합니다</b> — 2D 행렬과 셈이 다릅니다.</li>
+      <li><b>Figma</b> — 비틀기는 나가지 않습니다. 회전도 원래 안 나갔습니다(새 구멍이 아닙니다).</li>
+    </ul>
+  </div>
+
+  <p class="foot">
+    지디 · 2026-10-22 · 시안 ③/③ <b>8판</b>(글자만 변형 · 아웃라인이 글자를 계속 감쌈 · 핸들 열두 개 · <b>화면으로 직접 재서</b> 세 군데를 고쳤습니다).
+    함께: <b>그리드 칸 옮기기·복붙</b>(시안 ① · 구현 들어갔습니다).
+  </p>
+</div>
+
+<script>
+(() => {
+  const glyph = document.getElementById('glyph'), tfx = document.getElementById('tfx'),
+        hlayer = document.getElementById('hlayer'), frame = document.getElementById('frame'),
+        stage = document.getElementById('stage'), ro = document.getElementById('ro'),
+        btnT = document.getElementById('btn-t');
+
+  /* ★모델 상자 — ★`tf` 의 ★원래 크기(★캔버스 px). ★글꼴이 늦게 오면 ★다시 잰다. */
+  let W = 0, H = 0, OX = 0, OY = 0, GX = 0, GY = 0;
+  /* ★★저장되는 값 = ★★이 ★여덟 숫자(네 모서리). ⛔행렬 16값은 ★★여기서 ★계산한다. */
+  let C = null;     // [[x,y]×4]  순서: nw · ne · se · sw
+  let on = false, drag = null, glyphMode = true;
+
+  /* ★★★«글자가 ★그려진» 사각형을 ★잰다 — ★★★현빈 ⑤ 「★점 12개 위치가 ★안 맞지 않니?」의 답.
+     ⛔프레임 폭(100%)이 ★아니라 ★★Range 로 ★잰 ★글자 상자가 ★핸들의 ★바탕이다. */
+  /* ★★★⛔되먹임을 ★끊는다 (★261022 ★픽셀 실측이 ★잡았다):
+       ★`draw()` 가 ★`tb.style.width` 를 ★쓰고, ★`measure()` 가 ★★«그 좁아진 폭»에서 ★다시 재면
+       ★★W 가 ★줄고 ⇒ ★다음 draw 가 ★더 찌그러진다 ⇒ ★★★«변형 0 인데도» `matrix(1.66,0,0,0.452)` 가 됐다.
+     ⇒ ★★재기 ★전에 ★박스 ★인라인 ★치수를 ★★걷는다. ★그리고 ★★★«한 번만» 잰다(★글이 바뀔 때만 ★다시). */
+  let measured = false;
+  function measure(force) {
+    if (measured && !force) return;
+    const tb0 = document.getElementById('tb');
+    const kw = tb0.style.width, kmh = tb0.style.minHeight;
+    const kg = glyph.style.transform, kx = tfx.style.transform;
+    tb0.style.width = ''; tb0.style.minHeight = '';      /* ★★★되먹임 차단 */
+    glyph.style.transform = 'none'; tfx.style.transform = 'none';
+    const r = document.createRange(); r.selectNodeContents(glyph);
+    const b = r.getBoundingClientRect(); r.detach?.();
+    const gb = glyph.getBoundingClientRect();
+    const z = 0.4;                                   /* ★캔버스 배율 — ★모델 px 로 되돌린다 */
+    W = b.width / z; H = b.height / z;
+    /* ★★★OX·OY 는 ★★음수일 수 ★있다 — ★글꼴의 ascender 가 ★`line-height` box 를 ★넘는다
+       (★실측: ★글자 48.0 vs ★box 41.4 ⇒ ★OY = ★-19). ⛔음수를 ★그대로 ★더하면 ★박스가 ★모자란다. */
+    OX = (b.left - gb.left) / z; OY = (b.top - gb.top) / z;
+    GX = gb.left; GY = gb.top;                       /* ★★★변형 ★«끈» 상태의 ★기준 — ★핸들이 이것을 쓴다 */
+    tfx.style.width = W + 'px'; tfx.style.height = H + 'px';
+    tfx.style.left = OX + 'px';  tfx.style.top = OY + 'px';
+    glyph.style.transform = kg; tfx.style.transform = kx;
+    tb0.style.width = kw; tb0.style.minHeight = kmh;
+    measured = true;
+    /* ★★★⛔`if (!C) reset()` 만 두면 ★글꼴이 ★늦게 와 ★W·H 가 ★바뀔 때 ★★C 가 ★옛 값으로 ★남아
+       ★★★«변형 0 인데도» ★항등이 ★아닌 행렬이 ★나온다(★261022 ★픽셀 실측: `matrix(0.952,0,0,0.795)`).
+       ⇒ ★★★「★아직 ★손대지 ★않았으면(★기본 네모면) ★다시 ★맞춘다」. ⛔사람이 끈 뒤에는 ★안 건드린다. */
+    if (!C) { reset(); return; }
+    if (!touched) reset();
+  }
+  let touched = false;
+  function reset() { C = [[0,0],[W,0],[W,H],[0,H]]; }
+
+  /* ★★네 점 대응 → ★3×3 호모그래피(8 미지수) — ★가우스 소거.
+     ★★★이 수식은 ★시안에 ★박기 «전»에 ★★따로 ★검산했다(261022):
+       ★양성 = ★네 모서리가 ★«정확히» 그 자리로 간다
+       ★★음성대조 = ★★평행사변형이면 ★★h31·h32 가 ★★정확히 ★0(=★2D 행렬로도 된다)
+                     ★★사다리꼴이면 ★★0 이 ★아니다(=★★원근이 ★필요하다)
+     ⇒ ★★★그 음성대조가 ★★「3판으로는 ★사다리꼴이 ★불가」의 ★증명이다. */
+  function homography(src, dst) {
+    const A = [], b = [];
+    for (let i = 0; i < 4; i++) {
+      const [x,y] = src[i], [u,v] = dst[i];
+      A.push([x,y,1,0,0,0,-u*x,-u*y]); b.push(u);
+      A.push([0,0,0,x,y,1,-v*x,-v*y]); b.push(v);
+    }
+    const n = 8, M = A.map((row,i) => row.concat(b[i]));
+    for (let c = 0; c < n; c++) {
+      let p = c;
+      for (let r = c+1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+      if (Math.abs(M[p][c]) < 1e-12) return null;     /* ★네 점이 한 줄·겹침 ⇒ ★못 푼다 */
+      [M[c], M[p]] = [M[p], M[c]];
+      for (let r = 0; r < n; r++) {
+        if (r === c) continue;
+        const f = M[r][c] / M[c][c];
+        for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k];
+      }
+    }
+    const h = []; for (let i = 0; i < n; i++) h.push(M[i][n] / M[i][i]);
+    h.push(1);
+    return h;                                          /* [h11,h12,h13, h21,h22,h23, h31,h32, 1] */
+  }
+  const cssMatrix = (h) =>
+    `matrix3d(${h[0]},${h[3]},0,${h[6]}, ${h[1]},${h[4]},0,${h[7]}, 0,0,1,0, ${h[2]},${h[5]},0,1)`;
+
+  /* ★★핸들 ★★12 — ★현빈 msg5378 「★3등분이면 ★양끝 핸들 ★안에도 ★2개 ★있어야. ★총 ★12개」
+     ★모서리 ★4 = ★★Distort(★★독립 — ★사다리꼴이 ★여기서 난다)
+     ★변의 ★1/3·2/3 ★8 = ★★그 변을 ★민다 ⇒ ★★★`n1`·`n2` 는 ★★«같은 일»을 한다(★묶여 있다)
+     ⛔★그 묶임을 ★숨기지 ★않는다 — ★아래 「★여덟은 ★묶여 있습니다」 절에 ★적었다.
+     ★★★자리는 ★★선형 보간이 ★★아니라 ★★호모그래피로 ★구한다 — ★원근이 걸리면 ★1/3 이 ★1/3 이 아니다. */
+  const CORNERS = [['nw',0],['ne',1],['se',2],['sw',3]];
+  const EDGES   = [['n',0,1],['e',1,2],['s',2,3],['w',3,0]];
+  /* [이름, 어느 변, 그 변에서의 비율] */
+  const EDGEPTS = [
+    ['n1','n',1/3], ['n2','n',2/3], ['e1','e',1/3], ['e2','e',2/3],
+    ['s1','s',1/3], ['s2','s',2/3], ['w1','w',1/3], ['w2','w',2/3],
+  ];
+
+  function draw() {
+    /* ★★★⒞ (★현빈 msg5416 「★박스가 ★아예 ★글자를 ★계속 ★감쌈」)
+       ★★네 점을 ★★«0,0 으로 ★당긴 뒤» 호모그래피를 푼다 ⇒ ★★왼·위로 ★나간 것도 ★감싼다.
+       ★★그리고 ★박스(파란 아웃라인)의 ★폭·높이를 ★★그 경계에 ★맞춘다 — ★★`on` 과 ★무관하게 ★항상.
+       ⛔박스는 ★★찌그러지지 ★않는다(★직사각형) — ★현빈 msg5406 「★모양만 ★변형」과 ★양립한다.
+       ★★★이 식은 ★★시안에 ★박기 ★«전»에 ★돌렸다: ★양성 4 · ★★음성대조 2 · ★★삐져나감 ★0 건. */
+    const nxs = C.map(q => q[0]), nys = C.map(q => q[1]);
+    const mnx = Math.min(...nxs), mny = Math.min(...nys);
+    const D = C.map(([x,y]) => [x - mnx, y - mny]);       /* ★정규화 */
+    const h = homography([[0,0],[W,0],[W,H],[0,H]], D);
+    if (!h) { ro.innerHTML = '⛔네 점이 한 줄에 놓여 풀 수 없습니다 — <b>원래대로</b>를 누르세요.'; return; }
+    const m = cssMatrix(h);
+    glyph.style.transform = m;                       /* ★★글자만 */
+    glyph.style.transformOrigin = OX + 'px ' + OY + 'px';   /* ★글자의 ★좌상단이 ★원점 */
+    tfx.style.transform   = m;                       /* ★★그 꾸밈도 ★같이 — ★격자가 ★휜다 */
+    tfx.style.transformOrigin = '0 0';
+    tfx.hidden = !on;
+    hlayer.hidden = !on;
+    /* ★★★`.text-block`(★파란 아웃라인)은 ★★언제나 ★`selected` 로 둔다 —
+       ★★★현빈 ⑥: ★Esc 뒤에도 ★★원래 너비 ★그대로. ⛔`classList.toggle` 로 ★끄지 ★않는다. */
+    const tb = document.getElementById('tb');
+    tb.classList.add('selected');
+    /* ★★★⒞ — ★박스는 ★★«항상» 글자를 ★감싼다. ⛔`on` 분기가 ★없다.
+       ★현빈 msg5416 ★확정. ★★이로써 ★msg5406 의 ★「★Esc 뒤 ★원래 너비」는 ★★거둬졌다
+       (★★현빈이 ★실물을 보고 ★★⒞ 로 ★정했다 — ★★내 ⑥ 구현이 ★★그 반대였다). */
+    tb.dataset.tfOn = '1';
+    /* ★★★글자의 ★오른쪽 끝 = ★원점(OX) ＋ ★max(Dx). ★★OX 가 ★음수면 ★그만큼 ★왼쪽에서 ★시작한다
+       ⇒ ★★필요한 폭 = ★max(Dx) ＋ OX, ★단 ★음수가 되지 않게 ★0 으로 ★자른다. */
+    tb.style.width     = Math.max(Math.max(...nxs) - mnx + OX, W + OX, 1) + 'px';
+    /* ⛔`height` 가 ★아니라 ★★`min-height` — ★`height` 를 쓰면 ★줄이는 순간 ★글자가 ★잘린다 */
+    tb.style.minHeight = Math.max(Math.max(...nys) - mny + OY, H + OY, 1) + 'px';
+    if (!on) { ro.innerHTML = '<b>이펙트 → 자유변형</b>을 누르면 격자와 핸들 열두 개가 나옵니다.'; return; }
+
+    /* ★핸들은 ★★변형 ★«밖»에 그린다 — ★★7px 그대로(★제품도 `#ss-handles-overlay` 가 그 꼴) */
+    const sr = stage.getBoundingClientRect();
+    const fr = frame.getBoundingClientRect();
+    const z = fr.width / frame.offsetWidth;            /* ★실제 배율 — ★★가정하지 않고 잰다 */
+    /* ★★★⛔`glyph.getBoundingClientRect()` 를 ★쓰면 ★★«변형된» box 라 ★★기준이 ★같이 ★움직인다
+       — ★261022 ★스크린샷에서 ★핸들이 ★테두리에서 ★어긋나 ★보였다(★현빈 ⑤ 가 ★또 맞았다).
+       ⇒ ★★★`measure()` 가 ★★«변형을 ★끈 ★상태»에서 ★잡아 둔 ★자리(GX·GY)를 ★쓴다. */
+    const gx = GX - sr.left + OX*z, gy = GY - sr.top + OY*z;
+    const toScreen = ([x,y]) => [gx + x*z, gy + y*z];
+    hlayer.innerHTML = '';
+    const put = (name, pt, kind) => {
+      const el = document.createElement('span');
+      el.className = 'tfo-overlay-handle ' + kind;
+      el.dataset.tfResizeDir = name;                   /* ★이 속성이 ★제품 규칙의 ★보라를 켠다 */
+      el.tabIndex = 0; el.setAttribute('aria-label', name + ' 핸들');
+      el.style.left = (pt[0] - 3.5) + 'px'; el.style.top = (pt[1] - 3.5) + 'px';
+      el.style.pointerEvents = 'auto';
+      el.addEventListener('mousedown', e => {
+        drag = { name, kind, sx:e.clientX, sy:e.clientY, C0:C.map(p => p.slice()) };
+        e.preventDefault(); e.stopPropagation();
+      });
+      el.addEventListener('keydown', e => {
+        const s = e.shiftKey ? 16 : 6;
+        const map = { ArrowRight:[s,0], ArrowLeft:[-s,0], ArrowDown:[0,s], ArrowUp:[0,-s] };
+        if (!map[e.key]) return;
+        drag = { name, kind, sx:0, sy:0, C0:C.map(p => p.slice()) };
+        apply(map[e.key][0], map[e.key][1], false); drag = null; e.preventDefault();
+      });
+      hlayer.appendChild(el);
+    };
+    /* ★★상자 ★안 = ★★이동 (★현빈 ③ 「★아웃라인 너비 안에서 ★드래그 이동이 안 되나?」)
+       ★네 모서리를 ★꼭 맞게 ★덮는다 — `clip-path` 라 ★상자 ★밖은 ★안 잡는다 */
+    const sc = D.map(toScreen);
+    const mv = document.createElement('div');
+    mv.className = 'tf-move';
+    mv.style.clipPath = 'polygon(' + sc.map(([x,y]) => `${x}px ${y}px`).join(',') + ')';
+    mv.title = '끌면 옮겨집니다';
+    mv.addEventListener('mousedown', e => {
+      drag = { name:'move', kind:'move', sx:e.clientX, sy:e.clientY, C0:C.map(q => q.slice()) };
+      e.preventDefault();
+    });
+    hlayer.appendChild(mv);
+
+    CORNERS.forEach(([n,i]) => put(n, sc[i], 'corner'));   /* ★정규화된 자리 */
+    /* ★변의 ★1/3·2/3 — ★★호모그래피로 ★그 자리를 ★구한다(★원근에서 ★선형이 ★아니다) */
+    const srcPt = { n:[[0,0],[W,0]], e:[[W,0],[W,H]], s:[[W,H],[0,H]], w:[[0,H],[0,0]] };
+    EDGEPTS.forEach(([n, side, t]) => {
+      const [a, b2] = srcPt[side];
+      const m = [a[0] + (b2[0]-a[0])*t, a[1] + (b2[1]-a[1])*t];
+      const w = h[6]*m[0] + h[7]*m[1] + 1;
+      put(n, toScreen([(h[0]*m[0] + h[1]*m[1] + h[2])/w,
+                       (h[3]*m[0] + h[4]*m[1] + h[5])/w]), 'edge');
+    });
+
+    /* ★읽기 줄 — ★★저장되는 값과 ★계산되는 값을 ★★갈라 ★보인다 */
+    const persp = Math.abs(h[6]) > 1e-9 || Math.abs(h[7]) > 1e-9;
+    const cut = D.some(([x,y]) => x > frame.offsetWidth + 1 || y > frame.offsetHeight + 1);
+    ro.innerHTML =
+      `저장되는 값 = <b>모서리 여덟 숫자</b> ` +
+      C.map(([x,y]) => `(${Math.round(x)},${Math.round(y)})`).join(' ') +
+      `<br>화면에 쓰는 것 = <b>그 여덟에서 계산한 행렬</b> · 원근 항 ` +
+      `<b>${h[6].toExponential(2)} , ${h[7].toExponential(2)}</b>` +
+      (persp ? ` ⇒ <b>사다리꼴·원근입니다</b>(2D 행렬로는 불가능한 모양)` : ` ⇒ 아직 평행이 살아 있습니다`) +
+      (persp ? `<br><span class="warn">⚠️원근이 걸렸습니다 — 글자가 흐려질 수 있습니다(아직 안 쟀습니다). 보이면 알려 주세요.</span>` : '') +
+      `<br>파란 아웃라인 = <b>${Math.round(Math.max(...nxs)-mnx+OX)} × ${Math.round(Math.max(...nys)-mny+OY)}</b>` +
+      ` — <b>글자를 감쌉니다</b>(삐져나감 0)` +
+      ((mnx < -0.5 || mny < -0.5) ? ` · 왼/위로 <b>${Math.round(-Math.min(mnx,0))},${Math.round(-Math.min(mny,0))}</b> 나간 만큼 당겼습니다` : '') +
+      (cut ? `<br><span class="warn">⛔프레임 밖으로 나가 잘리고 있습니다.</span>` : '');
+  }
+
+  function apply(dx, dy, shift) {
+    if (!drag) return;
+    touched = true;                                  /* ★사람이 ★손댔다 ⇒ ⛔이제 reset 하지 않는다 */
+    const fr = frame.getBoundingClientRect();
+    const z = fr.width / frame.offsetWidth;
+    const mx = dx / z, my = dy / z;                    /* ★화면 px → ★모델 px */
+    const C0 = drag.C0;
+    if (drag.kind === 'corner') {
+      const i = CORNERS.find(c => c[0] === drag.name)[1];
+      C = C0.map(p => p.slice());
+      if (shift) {                                     /* ⇧ = ★비율 지키기 — ★맞은편을 축으로 ★닮게 */
+        const o = C0[(i + 2) % 4];
+        const k = Math.max(0.2, 1 + (mx * (C0[i][0] - o[0]) + my * (C0[i][1] - o[1])) /
+                                   (Math.hypot(C0[i][0]-o[0], C0[i][1]-o[1]) ** 2 || 1));
+        C = C0.map(p => [o[0] + (p[0]-o[0])*k, o[1] + (p[1]-o[1])*k]);
+      } else {
+        C[i] = [C0[i][0] + mx, C0[i][1] + my];         /* ★★모서리 ★하나만 — ★★이것이 ★Distort 다 */
+      }
+    } else if (drag.kind === 'move') {
+      C = C0.map(q => [q[0] + mx, q[1] + my]);       /* ★★네 점을 ★다 같이 — ★이동이다 */
+    } else {
+      const side = EDGEPTS.find(e => e[0] === drag.name)[1];
+      const [, a, b] = EDGES.find(e => e[0] === side);
+      const n = [-(C0[b][1]-C0[a][1]), C0[b][0]-C0[a][0]];
+      const L = Math.hypot(n[0], n[1]) || 1;
+      const t = (mx * n[0] + my * n[1]) / L / L;       /* ★그 변의 ★법선 쪽으로만 ★민다 */
+      C = C0.map(p => p.slice());
+      C[a] = [C0[a][0] + n[0]*t, C0[a][1] + n[1]*t];
+      C[b] = [C0[b][0] + n[0]*t, C0[b][1] + n[1]*t];
+    }
+    draw();
+  }
+
+  function setOn(v) {
+    on = v;
+    btnT.setAttribute('aria-pressed', String(v));
+    btnT.textContent = v ? '자유변형 끄기' : '이펙트 → 자유변형';
+    draw();
+  }
+  btnT.addEventListener('click', () => setOn(!on));
+  /* ★아웃라인을 ★어디에 붙이나 — ★현빈 피드백 ③ 의 답. ⛔3판에서 ★떼지 않는다.
+     ★`tf` 의 폭을 ★글자 폭에 맞추면 ★상자(격자·테두리)가 ★글자에 ★붙는다. */
+  const btnMode = document.getElementById('btn-mode');
+  btnMode.addEventListener('click', () => {
+    glyphMode = !glyphMode;
+    btnMode.setAttribute('aria-pressed', String(!glyphMode));
+    btnMode.textContent = glyphMode ? '아웃라인: 글자 폭' : '아웃라인: 컨테이너(지금 제품)';
+    tfx.style.width = glyphMode ? W + 'px' : (frame.offsetWidth + 'px');
+    draw();
+  });
+  document.getElementById('btn-reset').addEventListener('click', () => { touched = false; reset(); draw(); });
+  document.getElementById('btn-demo').addEventListener('click', () => {
+    /* ★★사다리꼴 — ★위변을 ★좁힌다. ★★2D 행렬로는 ★★만들 수 ★없는 모양이다 */
+    touched = true; C = [[W*0.2,0],[W*0.8,0],[W,H],[0,H]];
+    if (!on) setOn(true); else draw();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!drag) return; apply(e.clientX - drag.sx, e.clientY - drag.sy, e.shiftKey);
+  });
+  window.addEventListener('mouseup', () => { drag = null; });
+  window.addEventListener('keydown', e => {
+    if (e.target.matches('input, textarea')) return;
+    /* ⛔★단축키를 ★지정하지 ★않는다 — ★현빈 msg5399: 「cmd+T 는 ★포토샵 ★단축키일 뿐 ·
+       ★고디터는 ★단축키 ★지정 ★안 한다」. ★진입은 ★★«이펙트 버튼»이다.
+       ★`Escape`(닫기)만 ★남긴다 — ★그것은 ★단축키 지정이 ★아니라 ★★보편 관용구다. */
+    if (e.key === 'Escape' && on) setOn(false);
+  });
+  window.addEventListener('resize', () => { measure(true); draw(); });
+
+  measure(); setOn(false);
+  document.fonts?.ready?.then(() => { measure(true); draw(); });
+
+  /* ── 동적 텍스트 ── */
+  const dBox = document.getElementById('dyn-box'), dText = document.getElementById('dyn-text'),
+        dW = document.getElementById('dyn-w'), dIn = document.getElementById('dyn-in'),
+        dRo = document.getElementById('dyn-ro'), dNote = document.getElementById('dyn-note'),
+        dGrow = document.getElementById('dyn-grow');
+  const STEPS = [13, 15, 17, 19, 22, 25, 29, 34, 40, 47];
+  let allowGrow = true;
+  function fit() {
+    const inner = dBox.clientWidth - 22;
+    const top = allowGrow ? STEPS.length - 1 : 4;
+    let chosen = STEPS[0], tried = 0;
+    for (let i = top; i >= 0; i--) {
+      tried++; dText.style.fontSize = STEPS[i] + 'px';
+      if (dText.scrollWidth <= inner) { chosen = STEPS[i]; break; }
+    }
+    dText.style.fontSize = chosen + 'px';
+    const over = dText.scrollWidth > inner;
+    dRo.textContent = dBox.clientWidth + 'px';
+    dNote.innerHTML = `글자 <b>${chosen}px</b> (단계 ${STEPS.indexOf(chosen) + 1}/${STEPS.length})`
+      + ` · 재기 <b>${tried}</b> 번`
+      + (over ? ` · ⛔가장 작은 단계로도 넘칩니다 — 이때 무엇을 할지가 제품의 숙제입니다`
+              : ` · 상자 안에 들어갔습니다`);
+  }
+  dW.addEventListener('input', () => { dBox.style.width = dW.value + '%'; fit(); });
+  dIn.addEventListener('input', () => { dText.textContent = dIn.value || ' '; fit(); });
+  dGrow.addEventListener('click', () => {
+    allowGrow = !allowGrow;
+    dGrow.setAttribute('aria-pressed', String(allowGrow));
+    dGrow.textContent = allowGrow ? '키우는 단계도 쓴다' : '줄이기만 (지금 제품)';
+    fit();
+  });
+  document.getElementById('dyn-reset').addEventListener('click', () => {
+    dW.value = 70; dBox.style.width = '70%';
+    dIn.value = '클릭 한 번 텍스트 포스터'; dText.textContent = dIn.value;
+    allowGrow = true; dGrow.setAttribute('aria-pressed', 'true');
+    dGrow.textContent = '키우는 단계도 쓴다';
+    reset(); draw(); fit();
+  });
+  fit();
+  document.fonts?.ready?.then(fit);
+})();
+</script>

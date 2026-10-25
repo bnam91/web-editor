@@ -359,16 +359,32 @@ test('FX-3 ★순회가 «성질»로 잡는다 — 손 명부로 되돌리는 �
     '★_TRAVERSE_SKIP(제외 목록)이 바뀌었다.',
     '  ⛔제외에 콘텐츠 블록을 넣으면 그 종은 내보내기에서 «조용히» 사라진다.',
     '  늘리려면: 왜 _block() 에 넘기면 «안 되는지» 한 줄로 적고, 이 기대도 같이 고쳐라.',
-  ].join('\n')).toEqual(['annotation-block', 'frame-block', 'group-block', 'qa-block', 'section-block']);
-  /* annotation-block 은 «뿌리를 섹션 직속까지 넓히면서» 새로 필요해진 제외다.
-     ⛔짐작이 아니다 — market-merge.js 의 normSection 이 .section-label·.variation-badge 와
-       «같은 줄»에서 .annotation-block 을 지운다. 이 레포가 이미 「내용 아님」으로 판정한 것이다.
-     그 근거가 사라지면 제외의 정당성도 사라지므로 여기서 같이 지킨다.
-     ★qa-block(2026-09-16)은 admin QA 체크리스트 — annotation-block과 같은 이유(콘텐츠가 아니라
-       작업 메타데이터)로 제외한다. export-image.js/export-html.js도 같은 원칙으로 clone에서 제거한다. */
+  ].join('\n')).toEqual(['frame-block', 'group-block', 'qa-block', 'section-block']);
+  /* ★★★2026-10-24 — ★`annotation-block` 을 ★이 명부에서 ★★★뺐다. ★★현빈 ★결정.
+       ★★현빈 원문 : 「★왜 ★다르게 ★보냐 · ★★똑같이 ★해 · ★다른 ★블록처럼」
+     ★★«역사 문장»으로 ★아래를 ★남긴다 — ★그때의 ★까닭이고, ★지우면 ★★그날 ★센 수가 ★거짓이 된다 :
+       ┊ annotation-block 은 «뿌리를 섹션 직속까지 넓히면서» 새로 필요해진 제외다.
+       ┊ ⛔짐작이 아니다 — market-merge.js 의 normSection 이 .section-label·.variation-badge 와
+       ┊   «같은 줄»에서 .annotation-block 을 지운다. 이 레포가 이미 「내용 아님」으로 판정한 것이다.
+       ┊ 그 근거가 사라지면 제외의 정당성도 사라지므로 여기서 같이 지킨다.
+     ★★★그리고 ★그 ★근거가 ★★진짜로 ★사라졌다 — ★`market-merge.js:29` 도 ★★같은 커밋에서 ★고쳤다.
+       ★적대적 ⒠ 가 ★먼저 ★잡아 ★줬다 : 「★★근거가 ★사라졌는데 ★결과는 ★남아 ★있다」
+       (★`capture-safety` 가 ★261022 에 ★이미 ★그 판정을 ★뒤집었는데 ★이 둘만 ★안 따라왔다)
+     ★qa-block(2026-09-16)은 admin QA 체크리스트 — ★작업 메타데이터라 ★★그건 ★그대로 ★제외다
+       (⛔「annotation-block과 같은 이유」라 ★적혀 ★있었지만 ★★이제 ★그 짝이 ★없다 ⇒ ★자기 까닭으로 ★선다). */
   const mm = fs.readFileSync(path.join(REPO, 'js', 'market-merge.js'), 'utf8');
-  expect(mm, '★market-merge normSection 이 annotation-block 을 더는 «내용 아님»으로 안 지운다 — ' +
-    '그러면 순회에서 제외할 근거가 사라진다. 제외를 다시 판단해라').toContain('.annotation-block');
+  /* ★★방향을 ★뒤집어 ★그대로 ★★쌍으로 ★잠근다 — ★누가 ★한쪽만 ★되돌리면 ★빨강이다.
+     ★★⛔파일 ★전체로 ★재면 ★★안 된다 — ★261024 에 ★실제로 ★밟았다 :
+       ★내가 ★`market-merge.js` 에 ★적은 ★«설명 주석»에 `.annotation-block` 이라 ★썼더니
+       ★이 게이트가 ★그 ★산문을 ★★측정값으로 ★읽고 ★빨개졌다(★제품은 ★맞게 고쳐져 있었다).
+     ⇒ ★자를 ★★«제거 줄» ★하나로 ★좁힌다. ★★그 줄은 `.section-height-badge` 로 ★집는다
+       (★그 이름은 ★`section-height-display.dom.spec.js` 가 ★따로 ★지키는 ★닻이다). */
+  const mmLines = mm.split('\n').filter(l => /querySelectorAll\(.*section-height-badge/.test(l));
+  expect(mmLines.length, '★market-merge 의 normSection 제거 줄을 못 찾았다 — 이 게이트의 자가 낡았다').toBe(1);
+  expect(mmLines[0], '★market-merge normSection 이 annotation-block 을 ★또 «내용 아님»으로 지운다 — ' +
+    '현빈 결정(★다른 블록처럼)에 어긋난다. 한쪽만 되돌리지 마라').not.toContain('.annotation-block');
+  /* ★음성대조 — ★그 줄이 ★여전히 ★무언가는 지운다(★목록을 통째로 비운 변이를 ★가른다) */
+  expect(mmLines[0], '★제거 목록이 통째로 비었다 — 위 단언이 「항상 참」이 된다').toContain('.annot-preview');
 
   // 각 제외에 «이유»가 실제로 붙어 있나 (빈 문자열로 형식만 맞추는 것을 막는다)
   for (const [cls, why] of entries)

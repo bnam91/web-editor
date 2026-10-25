@@ -26,7 +26,16 @@
   // 섹션 1개의 정규화 outerHTML (비교용 안정 문자열)
   function normSection(secEl) {
     const el = secEl.cloneNode(true);
-    el.querySelectorAll('.section-label, .section-toolbar, .variation-badge, .section-height-badge, .annotation-block, .annot-preview').forEach(n => n.remove());
+    /* ★★★2026-10-24 — ★`.annotation-block` 을 ★★★뺐다(★`.annot-preview` 는 ★남긴다). ★★현빈 ★결정.
+       ★★현빈 원문 : 「★왜 ★다르게 ★보냐 · ★★똑같이 ★해 · ★다른 ★블록처럼」
+       ⇒ ★★어노테이션·치수선이 ★바뀌면 ★★★«바뀜»으로 ★읽혀야 ★한다 — ★다른 블록과 ★같게.
+         ⛔전에는 ★★비교 키에서 ★빠져 ★★«어노테이션만 ★고친 ★섹션»이 ★★★«안 ★바뀜»으로 ★읽혔다
+           (★적대적 ⒠ 가 ★`ANNOT-DROPPED-FROM-MARKET-DIFF-KEY-01` 로 ★잡았다)
+       ★★★`.annot-preview` 는 ★★왜 ★남기나 : ★★«그리는 ★중» ★미리보기다(★확정 ★전).
+         ★`tests/_export-channels.js` 가 ★「★저장만 · ★설계 ★제외」로 ★★판정해 ★뒀고
+         ★`capture-safety` 도 ★그것만 ★걷는다 ⇒ ★★비교 키에 ★넣으면 ★★그리는 ★중에 ★«바뀜»이 ★뜬다.
+       ★재는 자 = `tests/dom/annot-same-as-other-blocks.dom.spec.js` */
+    el.querySelectorAll('.section-label, .section-toolbar, .variation-badge, .section-height-badge, .annot-preview').forEach(n => n.remove());
     _stripRuntime(el);
     el.querySelectorAll('[contenteditable]').forEach(n => n.removeAttribute('contenteditable'));
     // 공백 정규화(직렬화 비결정성 완화)

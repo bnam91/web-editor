@@ -12,6 +12,7 @@ import { parseGradient } from '../props/gradient-model.js';
 import { stripImageMemoForCapture } from '../image-memo.js';
 import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★svg 의 CSS transform 을 감싸는 쪽으로 — h2c 는 svg 쪽을 안 그린다 */
 import { REDACT_HOST_SEL } from '../effects/image-redact.js';   /* ★이미지 블러(Redact) 호스트 명부 한 자리(1012t1 C1) */
+import { NON_CONTENT_UI_SELECTOR } from './editor-ui-roster.js';   /* ★R1 261023 — ★«편집 전용 UI» 명부 ★한 집. ⛔여기에 줄을 ★베껴 쓰지 마라 */
 
 const REDACT_OPAQUE_FILL = '#4a4a4a';
 
@@ -448,15 +449,33 @@ export function isStillPlaceholderText(el) {
  * 부르는 곳: js/io/export-image.js prepareCloneForCapture · js/io/save-load.js captureThumbnail */
 export function stripEditorOnlyForCapture(clone) {
   if (!clone) return;
+  /* ★★★R1 261023 — ★«편집 전용 UI»는 ★★저장 정본에서 ★파생한다. ⛔아래 제 손 줄들에 ★베껴 쓰지 마라.
+     ★★까닭 : ★이 함수가 ★제 손 명부를 들고 ★자라는 동안, ★저장 쪽 상수(`NON_CONTENT_UI_SELECTOR`)에
+       ★이미 있던 ★★14종을 ★여기서 ★안 지우고 있었다 — ★★고른 채 ★PNG·썸네일·단독 HTML 을 내보내면
+       ★회전 핫존·손잡이가 ★산출물에 ★박혔다(증상 `EXPORT-SELECTED-HANDLE-BAKED-IN-01`).
+     ★그 상수의 ★머리말이 ★이미 적고 있었다 — 「★두 곳이 ★«같은 상수»를 봐야 한다」.
+       ★★★«세 번째 곳»이 ★바로 ★여기였고, ★그 곳만 ★안 보고 있었다.
+     ★★잠그는 자 = `tests/unit/capture-derive-roster.test.mjs` R1 (★★★R1 몫 ★22 → ★0).
+     ⛔이 줄을 ★지우면 ★그 칸이 ★22 로 ★되돌아온다 — ★무력화 대조로 ★재 뒀다(261023). */
+  clone.querySelectorAll?.(NON_CONTENT_UI_SELECTOR).forEach(el => el.remove());
   /* ★querySelector«All» 이다 — 이 명부를 단독 HTML 내보내기(js/io/export-html.js)가 같이 쓰면서
      클론이 «섹션 하나»가 아니라 «캔버스 전체»인 경우가 생겼다. 첫 하나만 지우면 나머지 섹션의
      라벨·툴바가 그대로 배송본에 실린다. 섹션 클론에서는 결과가 전과 같다(하나뿐이므로). */
   clone.querySelectorAll?.('.section-label, .section-toolbar').forEach(el => el.remove());
   clone.querySelectorAll('.variation-badge').forEach(el => el.remove());
-  // C18: 펜툴 어노테이션(리뷰용 주석)과 진행중 미리보기는 리뷰 표시일 뿐 — 산출 이미지에 박히면 안 됨.
+  /* ★★★2026-10-24 — `.annotation-block` 을 ★이 줄에서 ★뺐다. ★현빈 ★GO.
+       ★까닭 : ★현빈 ★261022 ★결정 ⒝ = 「★어노테이션(펜 주석·치수선)은 ★★최종 이미지에 ★보인다」.
+         ⇒ ★옛 C18(「★리뷰 표시일 뿐 — ★산출 이미지에 ★박히면 ★안 됨」)은 ★★그 결정으로 ★★뒤집혔다.
+       ★수용 기준(★앱으로 ★잰 값) : `~/.gd-work/applane/msg/S7-T4-DIMLINE.md` (274줄 · sha 4e29366e2342)
+         ★세 출구(PNG·썸네일·HTML) ★전부에서 — ★블럭 2(dim 1)·라벨 2·svg 2·어두운 점 214
+         ∧ ★handle 0 · dim-handle 0 · selbox 0 (★손잡이는 ★`NON_CONTENT_UI_SELECTOR` 가 ★위에서 ★걷는다)
+       ★결함 이름 : `DEV-ANNOT-STRIPPED-WHOLE-IN-CAPTURE-01`
+       ⚰️★S7 이 ★가지 `0e74c871` 에서 ★먼저 ★닫았으나 ★그 트리·커밋이 ★★사라져(★fsck 매달린 169 중 0건)
+         ★★★여기서 ★다시 ★만들었다. ⇒ ★★잃은 것은 ★커밋이고 ★★자(위 수용 기준)는 ★안 ★잃었다.
+       ★★⛔`.annot-preview` 는 ★★그대로 ★걷는다 — ★`tests/_export-channels.js` 가
+         「★저장만 · ★★설계 ★제외」로 ★★판정해 ★뒀다(★그리는 ★중 ★미리보기다).
+       ★★치수선을 ★«어느 출구»에 ★남길지 ★세부는 ★★현빈이 ★9401 에서 ★보고 ★정한다. */
   // (대조: todo-pin은 #todo-pin-overlay로 섹션 밖이라 애초에 클론에 안 들어감)
-  // ★정정 261022 현빈 결정 «아노테이션 블록과 치수선 블럭은 보여야지 최종 이미지» — 어노테이션·치수선은 최종 이미지에 보인다 · 거름은 .annot-preview(그리는 중 미리보기)만.
-  //   ⛔위 C18 두 줄은 «그때의 판단»이라 지우지 않는다. 이 함수를 부르는 셋(PNG·썸네일·단독 HTML) 모두에 같이 걸린다 — tests/dom/annot-export-show-261022.
   clone.querySelectorAll('.annot-preview').forEach(el => el.remove());
   // admin QA 체크리스트 블록 — 콘텐츠가 아니라 작업 메타데이터다. 자리도 차지하면 안 되므로
   // 숨기지 않고 완전히 remove() 한다(annotation-block과 같은 원칙). 감싸는 .row 까지 지워야
@@ -571,6 +590,18 @@ export function stripEditorOnlyForCapture(clone) {
       }
     }
   });
+  /* ★R1(발주 261022 · 지디 판정 ⒝) — ★편집 장식 9 종을 ★캡처 겹에서 지운다.
+   *   ★어디서 왔나 = 편집 노드 ★정본(js/io/save-load.js NON_CONTENT_UI_SELECTOR ∪
+   *     js/io/section-serialize.js serializeCleanRoot) 중 ★「캡처에서도 지워야 함(yes)」인 것에서
+   *     ★S3 몫(회전 핫존 `-rotate-zone` · 손잡이 `-handle` — «그려지나»는 S3 가 잰다)과
+   *     ★예외 5종(EDITOR_NODE_EXCEPTIONS effect:'stays' — .annotation-block 등)을 ★뺀 ★그 9 다.
+   *   ★html 길은 이 겹을 ∪ 하므로(export-html.js exportHTMLFile 이 이 함수를 부른다) ★여기 한 자리로 두 길이 닫힌다.
+   *   ⚠️★리터럴로 적은 까닭 — 자(tests/unit/_clone-removals.js)가 ★리터럴만 펼쳐 센다(식별자는 `$이름` 한 줄로 셈).
+   *     ⛔그래서 상수로 빼지 마라 — 빼면 ★R1 이 「안 막힘」으로 되돌아가 ★이 줄이 한 일이 안 보인다(지디 ⑵).
+   *   ★잠그는 자 = tests/unit/capture-derive-roster.test.mjs R1 — ★정본에 10번째가 늘면 ★다시 빨개진다
+   *     (그래서 이 줄은 ★손 명부가 아니라 ★정본에 매여 있다). ⛔한 줄 더 적어 끄지 말고 그때 ★정본을 봐라. */
+  clone.querySelectorAll('.annot-selbox, .drop-indicator, .grad-line-overlay, .grd-add-btn, .mdl-profile-x, .section-block[data-ghost], .section-height-badge, .vpen-edit-overlay, .vpen-preview')
+    .forEach(el => el.remove());
 }
 
 /* ══ 편집 보조(그리드 가이드·패딩 비주얼)를 «캡처 동안» 끈다 — 한 벌 (L1, 2026-10-04) ══════════════════

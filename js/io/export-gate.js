@@ -15,6 +15,7 @@
      «검출»로 둔갑한다(하네스에서 실제로 그랬다).
    ══════════════════════════════════════════════════════════════════════════ */
 import { prepareCloneForCapture, renderComponentsInClone, captureCloneToCanvas, sectionBgColor } from './export-image.js';
+import { isGifFormat } from './export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
 import { compareRGBA, judgeExportDiff } from './export-gate-core.js';
 
 /** 이 빌드에서 검사가 «가능한가». 웹 빌드엔 CDP 캡처가 없다 → 검사 자체를 안 건다. */
@@ -69,8 +70,7 @@ export async function runExportGate(sec, w, io) {
 
   // «못 잴 조건»이면 truth 를 뜨지도 않는다 — 비용을 안 쓴다.
   const pre = judgeExportDiff(null, ctx);
-  if (pre.tier === 'unmeasured' && (ctx.native === false || ctx.format === 'gif' ||
-      ctx.format === 'gif-anim' || ctx.imgTimedOut)) {
+  if (pre.tier === 'unmeasured' && (ctx.native === false || isGifFormat(ctx.format) || ctx.imgTimedOut)) {
     return _log(sec, { tier: pre.tier, reasons: pre.reasons, metrics: null, ms: performance.now() - t0, timing });
   }
   if (!io.exportCanvas) {
