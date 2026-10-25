@@ -454,3 +454,32 @@ test('G4-9 사각 쌓기 라벨 — 기본 두께(24px) 막대 오른쪽 바깥 
   expect(Math.abs((t.labels[0].l + t.labels[0].r) / 2 - (t.l + t.r) / 2), '약통 라벨은 상자 가로 가운데').toBeLessThanOrEqual(1);
   expect(errs).toEqual([]);
 });
+
+test('G4-10 (1020t2g1ⓐ) 마디 간격 칸 — 세로 막대 패널에 «마디 간격» · 10 → 마디 틈 10px · 키 10 · 기본(2)으로 돌리면 키를 지운다 · (음성) 가로 막대엔 줄 없음', async ({ page }) => {
+  /* 현빈 원문: 「마디 추가 시 흰색 간격 조절」 — 바닥 68ba1f1b 실앱 ×3: 마디 2 · 틈 2px 고정 · dataset.segGap 없음 · 간격 칸 0(「항목 간격」만 — 막대 사이 간격이지 마디 틈이 아니다).
+     그리개(graph-shape.js shapeColsHTML)는 이미 dataset.segGap 을 읽었다 — 칸 한 줄만 없었다. 한도 = graph-limits.js SEG_GAP_MIN·MAX(한 표). */
+  const { errs, id } = await setup(page, { items: [{ label: 'A', value: 0, segments: SEG4 }] });
+  await openPanel(page, id);
+  await expect.poll(() => page.evaluate(() => !!document.querySelector('#panel-right #grb-seg-gap-number'))).toBe(true);
+  const lim = await page.evaluate(() => { const n = document.getElementById('grb-seg-gap-number'); return { min: n.min, max: n.max, v: n.value, L: [window.GRAPH_LIMITS.SEG_GAP_MIN, window.GRAPH_LIMITS.SEG_GAP_MAX, window.GRAPH_LIMITS.SEG_GAP_DEFAULT] }; });
+  expect(lim, '칸의 한도·처음 값 = 한 표(graph-limits.js)').toEqual({ min: String(lim.L[0]), max: String(lim.L[1]), v: String(lim.L[2]), L: lim.L });
+  expect((await segGeom(page, id))[0].gap, '★전제: 옛 틈 = 기본 2').toBe(2);
+  await page.fill('#grb-seg-gap-number', '10');
+  await page.press('#grb-seg-gap-number', 'Enter');
+  await expect.poll(async () => (await segGeom(page, id))[0].gap).toBe(10);
+  expect(await ds(page, id, 'segGap')).toBe('10');
+  const g = (await segGeom(page, id))[0].segs.filter(s => s.shown).sort((a, b) => a.top - b.top);
+  const gaps = g.slice(1).map((s, i) => s.top - (g[i].top + g[i].h));   // offsetTop·offsetHeight 는 정수라 ±1 반올림
+  expect(gaps.length && gaps.every(d => Math.abs(d - 10) <= 1), `이웃 마디 사이 실제 틈 ≈ 10 (${gaps})`).toBe(true);
+  await page.fill('#grb-seg-gap-number', '2');
+  await page.press('#grb-seg-gap-number', 'Enter');
+  await expect.poll(() => ds(page, id, 'segGap'), '기본과 같으면 키 없음(옛 저장본과 같은 바이트)').toBe(null);
+  expect((await segGeom(page, id))[0].gap).toBe(2);
+  await page.fill('#grb-seg-gap-number', '999');
+  await page.press('#grb-seg-gap-number', 'Enter');
+  await expect.poll(() => ds(page, id, 'segGap'), '상한으로 죈다').toBe(String(lim.L[1]));
+  await setDs(page, id, { chartType: 'bar-h' });
+  await openPanel(page, id);
+  expect(await page.evaluate(() => !!document.querySelector('#panel-right #grb-seg-gap-number')), '(음성) 가로 막대 = 마디 없음 = 줄 없음').toBe(false);
+  expect(errs).toEqual([]);
+});

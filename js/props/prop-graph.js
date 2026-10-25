@@ -7,7 +7,7 @@ import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 �
 import '../graph-radial.js';   // 프로토 Z6-B — 「방사형」 유형의 렌더 · 패널 절(window.renderGraphRadial · graphRadialSectionHTML · wireGraphRadialSection)
 import { FX_SHADOW_DEFAULTS, FX_SHADOW_RANGES } from '../effects-shadow.js';   // 1017t1f4 — 그림자 x/y/blur 값·범위의 임자(⛔새 수 0 — 그 쪽을 그대로 읽는다)
 
-const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LABEL_SIZE_MIN, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, PIE_PULL_MAX, PIE_LEG_GAP_MIN, PIE_LEG_GAP_MAX, PIE_LEG_GAP_DEFAULT, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LABEL_SIZE_MIN, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, PIE_PULL_MAX, PIE_LEG_GAP_MIN, PIE_LEG_GAP_MAX, PIE_LEG_GAP_DEFAULT, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY, SEG_GAP_DEFAULT, SEG_GAP_MIN, SEG_GAP_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
@@ -45,7 +45,7 @@ function gridColorRowHTML(block) {
 }
 
 /* 1012t1G2 — hideThickness: 모양(실루엣)이 켜지면 «두께» 줄을 뺀다(폭은 실루엣의 비가 정한다 — 두께 키는 안 지운다). */
-function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS_MAX, padX, itemGap, pctSize, pctMin, barColor, barAlpha, overlayToggles = '', hideThickness = false }) {
+function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS_MAX, padX, itemGap, pctSize, pctMin, barColor, barAlpha, overlayToggles = '', hideThickness = false, segGap = null }) {
   return `
     <div class="prop-section">
       <div class="prop-section-title">Bar Settings</div>${hideThickness ? '' : `
@@ -63,7 +63,12 @@ function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS
         <span class="prop-label">항목 간격</span>
         <input type="range" class="prop-slider" id="grb-item-gap-slider" min="8" max="80" step="4" value="${itemGap}">
         <input type="number" class="prop-number" id="grb-item-gap-number" min="8" max="80" value="${itemGap}">
-      </div>
+      </div>${segGap == null ? '' : `
+      <div class="prop-row" title="마디(비율별 조각) 사이 흰 틈(px)">
+        <span class="prop-label">마디 간격</span>
+        <input type="range" class="prop-slider" id="grb-seg-gap-slider" min="${SEG_GAP_MIN}" max="${SEG_GAP_MAX}" step="1" value="${segGap}">
+        <input type="number" class="prop-number" id="grb-seg-gap-number" min="${SEG_GAP_MIN}" max="${SEG_GAP_MAX}" value="${segGap}">
+      </div>`}
       <div class="prop-row">
         <span class="prop-label">숫자 크기</span>
         <input type="range" class="prop-slider" id="grb-pct-size-slider" min="${pctMin}" max="120" step="2" value="${pctSize}">
@@ -587,7 +592,9 @@ ${blockHeaderHTML({
       </div>
     </div>${pieSliceSectionHTML(items, _sliceSel)}${pieShadowSectionHTML(block.dataset)}` : ''}
     ${chartType === 'radial' ? (window.graphRadialSectionHTML?.(block) || '') : ''}
-    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn }) : ''}
+    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn,
+      /* 1020t2g1ⓐ — 마디는 세로 막대에서만 산다(_segOn) ⇒ 그때만 «마디 간격» 줄 */
+      segGap: _segOn ? (g => Number.isFinite(g) ? Math.min(SEG_GAP_MAX, Math.max(SEG_GAP_MIN, g)) : SEG_GAP_DEFAULT)(parseInt(block.dataset.segGap)) : null }) : ''}
     <div class="prop-section">
       <div class="prop-section-title">Data</div>
       <div class="grb-data-list" id="grb-data-list">
@@ -907,6 +914,22 @@ ${blockHeaderHTML({
     igSlider.addEventListener('input',  () => applyItemGap(parseInt(igSlider.value)));
     igNumber.addEventListener('change', () => { applyItemGap(parseInt(igNumber.value)); window.pushHistory(); });
     igSlider.addEventListener('change', () => window.pushHistory());
+  }
+
+  // 1020t2g1ⓐ — 마디 간격(세로 막대). 기본값(SEG_GAP_DEFAULT)과 같으면 키를 지운다(범례 간격 1017t1f1 과 같은 «없음 = 키 없음» — 옛 저장본 바이트 그대로).
+  {
+    const sl = document.getElementById('grb-seg-gap-slider'), nu = document.getElementById('grb-seg-gap-number');
+    if (sl && nu) {
+      const apply = v => {
+        v = Math.min(SEG_GAP_MAX, Math.max(SEG_GAP_MIN, Number.isFinite(v) ? v : SEG_GAP_DEFAULT));
+        if (v === SEG_GAP_DEFAULT) delete block.dataset.segGap; else block.dataset.segGap = v;
+        window.renderGraph(block);
+        sl.value = v; nu.value = v;
+      };
+      sl.addEventListener('input',  () => apply(parseInt(sl.value)));
+      nu.addEventListener('change', () => { apply(parseInt(nu.value)); window.pushHistory(); });
+      sl.addEventListener('change', () => window.pushHistory());
+    }
   }
 
   // 숫자 크기 (bar-h·bar-v·bar-pair)
