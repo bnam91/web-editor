@@ -1632,8 +1632,8 @@ function _grdImageSectionHtml(anyHit, block, host = null) {
         ${window.colorFieldHTML({ idPrefix: 'grd-img-cbg', hex: swatchHex(cBgRaw, '#e8e8e8'), alpha: parseAlphaFromColor(cBgRaw) })}
       </div>
       <div class="prop-row">
-        <span class="prop-label" title="원 «안» 가운데에 들어갑니다. 넘치면 원 모양으로 잘립니다">글자</span>
-        <input type="text" class="prop-input" id="grd-img-ctext" placeholder="원 안에 넣을 글자" style="flex:1 1 0;min-width:0;font-size:11px;height:24px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:0 8px;">
+        <span class="prop-label" title="원 «안» 가운데에 들어갑니다. 넘치면 원 모양으로 잘립니다 · 여러 줄 가능(t5-12)">글자</span>
+        <textarea class="prop-input" id="grd-img-ctext" rows="2" placeholder="원 안에 넣을 글자" style="flex:1 1 0;min-width:0;font-size:11px;min-height:36px;resize:vertical;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:4px 8px;"></textarea>
       </div>${cTxtRaw === '' ? '' : `
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
