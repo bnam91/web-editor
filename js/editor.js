@@ -3013,6 +3013,12 @@ document.addEventListener('keydown', e => {
       return;
     }
 
+    /* ★1020t2a2 — 맨 [ / ] 로 스크래치 레이어 순서(현빈 「[ 와 ] 만으로 스크래치패드 간 레이어 순서 변경」).
+       몸은 ⌘[ / ⌘] 와 같은 window.scratchLayerOrder(같은 가드 · 같은 이력) — 스크래치가 안 골라졌으면 false 라 아무 일도 안 한다
+       (맨 [ ] 에는 원래 캔버스 동작이 없다 ⇒ 캔버스 쪽으로 흘려도 바뀌는 것 0). */
+    if (!e.altKey && !e.isComposing && (e.code === 'BracketLeft' || e.code === 'BracketRight')) {
+      if (window.scratchLayerOrder?.(e.code === 'BracketLeft' ? 'up' : 'down')) { e.preventDefault(); return; }
+    }
     const _ms = window._matchShortcut;
     const _isAddGap   = _ms ? _ms(e, 'addGap')   : (e.code === 'KeyG');
     const _isAddText  = _ms ? _ms(e, 'addText')  : (e.code === 'KeyT');
