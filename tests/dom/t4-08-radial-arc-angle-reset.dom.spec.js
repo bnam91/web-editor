@@ -127,14 +127,29 @@ test('A2 ★★누르면 ★`HALF` 값으로 ★돌아간다 (★행위로)', as
   expect(again, '★이미 처음 값인데 또 누르니 ★값이 움직였다').toEqual(after);
 });
 
-test('A3 ★★⛔그 값이 ★패널에 ★리터럴로 ★박혀 있지 ★않다 — ★한 자리에서 ★파생', () => {
-  /* ★`prop-radial.js` 머리말 규율 : 「★한도·기본값은 ★한 표에서 온다 — ★여기 리터럴로 ★다시 적지 않는다」 */
+test('A3 ★★⛔그 값이 ★패널에 ★리터럴로 ★박혀 있지 ★않다 — ★한 자리에서 ★파생 (★칸 둘)', () => {
+  /* ★`prop-radial.js` 머리말 규율 : 「★한도·기본값은 ★한 표에서 온다 — ★여기 리터럴로 ★다시 적지 않는다」
+     ★★★261025 ★자를 ★고쳤다 — ★첫 판은 ★★무력화를 ★못 잡았다 :
+       ★변이 `const want = k === 'startDeg' ? '-90' : '90';` 를 심었는데 ★`A3` 가 ★★초록이었다.
+       ★까닭 = ★옛 regex `(?:startDeg|endDeg)\s*[:=]\s*(-?\d+)` 는 ★★`===` ＋ 따옴표 꼴을 ★못 본다.
+     ⇒ ★★자를 ★둘로 갈랐다 : ⑴ ★그 수의 ★리터럴이 ★없나 ⑵ ★★핸들러가 ★정말 ★PRESET 을 ★읽나
+       ⇒ ★★⑵ 가 ★그 변이를 ★잡는다. */
   const raw = fs.readFileSync(path.join(ROOT, 'js/props/prop-radial.js'), 'utf8');
   const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-  /* ★★전제 — ★그 파일이 ★`RADIAL_ARC_PRESET` 을 ★★쓴다(⛔안 쓰면 아래가 뜻을 잃는다) */
+  /* ★★전제 — ★그 파일이 ★`RADIAL_ARC_PRESET` 을 ★쓴다 */
   expect(/RADIAL_ARC_PRESET/.test(src), '★prop-radial.js 가 RADIAL_ARC_PRESET 을 안 쓴다').toBe(true);
-  /* ★★★본 단언 — ★`-90` · `90` 을 ★★손으로 적은 자리가 ★없다 */
-  const bad = [...src.matchAll(/(?:startDeg|endDeg)\s*[:=]\s*(-?\d+)/g)].map(m => m[0]);
-  console.log('[A3]', JSON.stringify({ bad }));
-  expect(bad, `★패널에 각도 기본값이 ★리터럴로 박혀 있다 (${JSON.stringify(bad)}) — ★한 자리에서 파생하라`).toEqual([]);
+
+  /* ⑴ ★★`-90` · `90` 이 ★★«각도 되돌리기 쪽»에 ★리터럴로 있나 —
+       ★핸들러 블록만 잘라 본다(⛔파일 전체는 한도 -180/180/360 등이 섞여 자가 헛돈다) */
+  const h = src.slice(src.indexOf("$('rdl-angle-reset')"));
+  const body = h.slice(0, h.indexOf('});') + 3);
+  expect(body.length, '★`rdl-angle-reset` 핸들러를 못 찾았다 — 자가 헛돈다').toBeGreaterThan(40);
+  const lits = [...body.matchAll(/'-?90'|\b-?90\b/g)].map(m => m[0]);
+  console.log('[A3-lits]', JSON.stringify({ body: body.length, lits }));
+  expect(lits, `★핸들러에 각도 값이 ★리터럴로 박혀 있다 (${JSON.stringify(lits)}) — ★한 자리에서 파생하라`).toEqual([]);
+
+  /* ⑵ ★★★핸들러가 ★정말 ★`RADIAL_ARC_PRESET` 을 ★읽나 — ★★이 칸이 ★변이를 ★잡는다 */
+  expect(/RADIAL_ARC_PRESET\s*\[/.test(body),
+    `★핸들러가 ★PRESET 을 ★안 읽는다 — ★값을 ★손으로 적었나\n  본문: ${body.slice(0, 300)}`
+  ).toBe(true);
 });
