@@ -177,6 +177,8 @@
       });
     }
 
+    _addLabelBoxHandles(block);   // ★1013t2C6 — 라벨 상자 좌·우 손잡이(너비)
+
     const shape = block.dataset.anchorShape;
     if (shape === 'triangle' || shape === 'arrowhead') {
       const rh = document.createElementNS(SVG_NS, 'circle');
@@ -189,6 +191,95 @@
       svg.appendChild(rh);
     }
   }
+  /* ★1013t2C6 「라벨 너비도 조절이 되면 좋겠다 · 라벨박스에도 핸들이 있으면 좋겠고」 — 라벨 상자 좌·우 가운데에 손잡이 둘.
+     끌면 라벨 너비(dataset.labelWidth)가 바뀐다. 점 손잡이(SVG)와 달리 HTML 이다 — 라벨(div)이 SVG «위»에 그려져
+     SVG 손잡이는 라벨에 반쯤 덮인다. 클래스에 annot-handle 을 같이 단다 = 철거·저장 제외 목록(save-load ·
+     section-serialize · editor-ui-roster)이 그 이름으로 덮는다(회전 손잡이 선례). 이미지 모드는 상자 = 그림 크기라 안 단다. */
+  function _addLabelBoxHandles(block) {
+    const label = block.querySelector('.annot-label');
+    if (!label || block.dataset.labelMode === 'image') return;
+    ['w', 'e'].forEach((edge) => {
+      const h = document.createElement('div');
+      h.className = 'annot-handle annot-lw-handle';
+      h.dataset.edge = edge;
+      h.title = '끌어서 라벨 너비 조절';
+      h.addEventListener('mousedown', (e) => {
+        if (document.body.classList.contains('pen-mode') || e.button !== 0) return;
+        _startLabelWidthDrag(block, h, e);
+      }, true);
+      block.appendChild(h);
+    });
+    _placeLabelBoxHandles(block);
+  }
+  /* 손잡이 자리 = 라벨의 «보이는» 상자(transform·translate 다 먹은 뒤) 좌·우 가운데 — 블럭(= 섹션) 좌표 */
+  function _placeLabelBoxHandles(block) {
+    const hs = block.querySelectorAll('.annot-lw-handle');
+    if (!hs.length) return;
+    const label = block.querySelector('.annot-label');
+    const br = block.getBoundingClientRect();
+    const k = block.offsetWidth ? br.width / block.offsetWidth : _zoom();
+    if (!label || !k) return;
+    const lr = label.getBoundingClientRect();
+    const y = (lr.top + lr.height / 2 - br.top) / k;
+    hs.forEach((h) => {
+      const x = ((h.dataset.edge === 'w' ? lr.left : lr.right) - br.left) / k;
+      h.style.left = x + 'px';
+      h.style.top = y + 'px';
+    });
+  }
+  window.annotPlaceLabelBoxHandles = _placeLabelBoxHandles;
+  /* 라벨이 «어느 쪽»에 붙었나(transform 의 가로 몫) — 0 = 왼쪽 끝이 점 · 0.5 = 가운데 · 1 = 오른쪽 끝이 점.
+     너비가 바뀌면 붙은 쪽이 제자리이고 반대쪽이 움직인다 ⇒ 끄는 쪽 모서리가 손을 따라가게 개별 위치(labelDx)로 맞춘다. */
+  function _labelAnchorFrac(label) {
+    const m = /translate\(\s*(-?[\d.]+)%/.exec(label.style.transform || '');
+    return m ? Math.min(1, Math.max(0, -parseFloat(m[1]) / 100)) : 0;
+  }
+  function _startLabelWidthDrag(block, handle, e) {
+    e.stopImmediatePropagation();
+    e.stopPropagation();
+    e.preventDefault();
+    const label = block.querySelector('.annot-label');
+    const L = window.ANNOT_LIMITS?.labelWidth;
+    if (!label || !L) return;
+    const br = block.getBoundingClientRect();
+    const k = block.offsetWidth ? br.width / block.offsetWidth : _zoom();
+    const edge = handle.dataset.edge;
+    const startX = e.clientX;
+    const w0 = label.offsetWidth;
+    const off0 = window.annotLabelOffsetOf?.(block) || { dx: 0, dy: 0 };
+    const ax = _labelAnchorFrac(label);
+    let moved = false;
+    const _hist = window.beginDragHistory?.('라벨 너비');
+    const onMove = (ev) => {
+      const d = (ev.clientX - startX) / k;
+      if (!moved) {
+        if (Math.abs(ev.clientX - startX) < 2) return;
+        moved = true;
+        _hist?.arm(d, 0);
+      }
+      const w = Math.min(L.max, Math.max(L.min, Math.round(w0 + (edge === 'e' ? d : -d))));
+      const dw = w - w0;
+      block.dataset.labelWidth = String(w);
+      window.annotSetLabelOffset?.(block, off0.dx + (edge === 'e' ? ax * dw : -(1 - ax) * dw), off0.dy);
+      window.annotApplyLabelBox?.(block);
+      _placeLabelBoxHandles(block);
+      ev.preventDefault();
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove, true);
+      document.removeEventListener('mouseup',   onUp,   true);
+      if (!moved) return;
+      const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+      window.addEventListener('click', eat, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener('click', eat, true), 0);
+      window.showAnnotationProperties?.(block);
+      if (typeof window.pushHistory === 'function') window.pushHistory('라벨 너비');
+      window.scheduleAutoSave?.();
+    };
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('mouseup',   onUp,   true);
+  }
+
   /* 모양을 바꾼 뒤(패널) 손잡이를 다시 세운다 — 고른 블럭만. */
   window.annotRefreshHandles = (block) => { if (block?.classList.contains('selected')) _ensureHandles(block); };
   function _removeHandles(block) {
@@ -250,6 +341,7 @@
         h.setAttribute('cy', points[idx][1]);
       }
     });
+    _placeLabelBoxHandles(block);   // ★1013t2C6 — 라벨이 움직이면 상자 손잡이도
   }
   window._updateAnnotBlockGeometry = _updateBlockGeometry;
 
@@ -350,6 +442,7 @@
       }
       cur = { dx: clamp(off0.dx + ddx, 'labelDx'), dy: clamp(off0.dy + ddy, 'labelDy') };
       label.style.translate = `${cur.dx}px ${cur.dy}px`;
+      _placeLabelBoxHandles(block);   // ★1013t2C6
       ev.preventDefault();
     };
     const onUp = () => {
@@ -727,6 +820,7 @@
       if (nextHtml) block.dataset.labelHtml = nextHtml;
       else delete block.dataset.labelHtml;
       if (val !== before || nextHtml !== beforeHtml) window.pushHistory?.('어노테이션 글');
+      _placeLabelBoxHandles(block);   // ★1013t2C6 — 글이 바뀌면 상자 크기도 바뀐다
       window.scheduleAutoSave?.();
     };
     label.addEventListener('keydown', onKey);
