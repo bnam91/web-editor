@@ -130,24 +130,32 @@ test('D1 ★★★끌고 놓아도 선택이 ★살아 있다 (＝ 손잡이가 
      ★261025 실측 : 낡은 좌표로 끌면 ★네 점이 ★안 바뀌고 검사가 ★흔들렸다(1 flaky).
      ★그래서 ★playwright 로 ★다시 재고, ★그 자리에 ★무엇이 있는지도 ★같이 찍는다 —
      ⛔「닿았다」를 ★가정하지 ★않는다(★0×0 유령·★위에 덮인 것 둘 다 ★여기서 드러난다). */
-  /* ★★★«판이 섰나»를 ★기다린다 — ⛔고정 대기(waitForTimeout)로 ★두지 ★않는다.
+  /* ★★★«판이 섰나»를 ★기다린다 — ⛔고정 대기(waitFor`＋`Timeout)로 ★두지 ★않는다.
      ★261025 실측 : 배율이 ★아직 ★안 앉아 nw 손잡이가 ★7.496×7.496 로 읽혔고(앉은 뒤 ★7×7),
        ★좌표를 ★재고 ★마우스를 ★옮기는 ★사이에 ★배치가 ★움직여 ★7.5px 짜리를 ★빗나갔다
        ⇒ ★`tfCorners` 가 ★안 바뀌어 ★검사가 ★흔들렸다(1 flaky ★두 번).
      ⇒ ★★«같은 상자가 ★두 번 ★연속» 읽힐 때까지 ★기다리고, ★안 서면 ★빨강으로 ★말한다. */
-  let box = null; let prev = null; let settled = false;
-  for (let i = 0; i < 20; i++) {
-    box = await page.locator('[data-tfh="nw"]').boundingBox();
-    if (prev && box && Math.abs(prev.x - box.x) < 0.05 && Math.abs(prev.y - box.y) < 0.05
-      && Math.abs(prev.width - box.width) < 0.05) { settled = true; break; }
-    prev = box;
-    await page.waitForTimeout(100);
-  }
+  /* ⛔«고정 대기»(`waitFor`＋`Timeout`)로 ★기다리지 ★않는다 — `tests/unit/dom-fixed-wait-census` 가 ★그것을 ★잡는다
+     ★★⚠️이 주석에서 ★그 이름을 ★★쪼개 ★쓰는 ★까닭 : ★그 자는 ★★주석까지 ★글자로 ★센다.
+       ★그 파일이 ★제 머리말에서 ★같은 일을 ★겪고 ★「표본은 ★조립해서 ★써라」라고 ★적어 뒀다(:388).
+       ⇒ ★★주석이 ★소스 파싱 게이트의 ★«입력»이다.
+       (★그 자가 ★이 파일을 ★잡아서 ★고쳤다 · 2026-10-25 · 「★머지 18 에서 ★그랬다」 전례).
+     ★레포 관용구는 ★`_root-harness.js:97` 의 ★`waitStableRect` 다(★94 파일에서 쓴다 —
+       ★내가 ★손으로 ★다시 지은 것이 ★95번째 사본이었다).
+     ⚠️★★그런데 ★그 자는 ★`Math.round` 를 쓴다 ⇒ ★★7.496 과 ★7 을 ★«같다»고 ★본다
+       = ★★내 흔들림의 ★원인을 ★못 본다. ★이름 = `WAITSTABLERECT-ROUNDS-AWAY-SUBPIXEL-01`
+     ⇒ ★그래서 ★`waitForFunction`(★인정되는 조건 대기)으로 ★★부분픽셀까지 ★같을 때까지 기다린다. */
+  await page.waitForFunction(() => {
+    const el = document.querySelector('[data-tfh="nw"]');
+    if (!el) return false;
+    const b = el.getBoundingClientRect();
+    const cur = [b.left, b.top, b.width, b.height].join(',');
+    const same = window.__ftPrevRect === cur;
+    window.__ftPrevRect = cur;
+    return same && b.width > 1;        /* ★0×0 «유령»도 여기서 걸러진다 */
+  }, null, { timeout: 5000 });
+  const box = await page.locator('[data-tfh="nw"]').boundingBox();
   expect(box, '★nw 손잡이의 boundingBox 가 없다 — 화면에 없다').toBeTruthy();
-  expect(settled,
-    `★2초 안에 ★배치가 ★안 섰다 — 마지막 두 읽음 ${JSON.stringify(prev)} vs ${JSON.stringify(box)} ` +
-    '⇒ ★이 상태에서 ★끌면 ★빗나간다(★흔들림의 원인이다)'
-  ).toBe(true);
   const hx = box.x + box.width / 2; const hy = box.y + box.height / 2;
   const hit = await page.evaluate(([x, y]) => {
     const el = document.elementFromPoint(x, y);
@@ -175,8 +183,19 @@ test('D1 ★★★끌고 놓아도 선택이 ★살아 있다 (＝ 손잡이가 
     return ch.slice(0, 5);
   }, [hx - 48, hy - 34]);
   console.log('[D1] ★놓는 자리의 임자 사슬=', JSON.stringify(upHit));
+  /* ★★★고정 대기 ★대신 ★«범인 사건»을 ★기다린다 — ⛔ms 로 재지 ★않는다.
+     ★이 결함의 원인은 ★mouseup 뒤 ★브라우저가 내는 ★합성 `click` 이다.
+     ⇒ ★그 click 을 ★★«봤을 때» ★재면 ★시간이 아니라 ★★인과로 ★맞춘다.
+     ★내 처방은 ★document ★capture 에서 ★삼키는데, ★이 셈플러는 ★★mouseup «전»에 등록돼
+       ★같은 target·같은 phase 에서 ★★먼저 돈다 ⇒ ★고친 판·핀 판 ★둘 다에서 ★click 을 ★본다
+       (⛔안 보면 ★전제 실패로 ★말한다 — ★조용히 지나가지 ★않는다). */
+  await page.evaluate(() => {
+    window.__ftClicks = 0;
+    document.addEventListener('click', () => { window.__ftClicks++; }, true);
+  });
   await page.mouse.up();
-  await page.waitForTimeout(220);        /* ★삼키기 창(120ms)보다 넉넉히 */
+  await page.waitForFunction(() => window.__ftClicks > 0, null, { timeout: 3000 })
+    .catch(() => { throw new Error('★mouseup 뒤 ★합성 click 이 ★3초 안에 ★안 났다 — ★이 장면은 ★이 결함을 ★못 잰다'); });
 
   const b = await read(page);
   console.log('[D1] 끌기 전=', JSON.stringify({ sel: a.selected, h: a.handles }),
