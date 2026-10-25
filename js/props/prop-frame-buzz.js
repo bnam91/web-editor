@@ -68,7 +68,16 @@ function _profileRows(frame) {
   const emoji = getBuzzProfile(frame, 'profileEmoji') || '';
   const overlay = getBuzzProfile(frame, 'profileOverlay') === '1';
   const L = MODAL_PROFILE_SIZE_LIMIT;
+  /* ★t5-01 — 켬/끔이 맨 위. 켜면 사진·이모지 «전에» 체크무늬 원 자리가 카드마다 먼저 보인다(현빈 원문).
+     켜짐 = 지금 프로필이 무엇이든 있다(kind) — 끄면 「프로필 제거」와 같은 끝(사진·이모지·켬 표식 모두). */
   return `<span class="prop-field-label" title="${escHtml(PROFILE_HINT)}">프로필</span>
+      <div class="prop-row" title="켜면 카드마다 체크무늬 원 자리가 먼저 보입니다 — 이미지·이모지를 넣으면 그 원이 채워집니다">
+        <span class="prop-label">프로필 켜기</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="bzf-pf-on"${kind ? ' checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
       <div class="prop-row">
         <button class="prop-action-btn secondary" id="bzf-pf-img" style="flex:1">이미지 선택</button>
         <input type="file" id="bzf-pf-file" accept="image/*" style="display:none">
@@ -323,11 +332,22 @@ export function wireBuzzSection(frame) {
     again(f);
   }, MODAL_PROFILE_SIZE_LIMIT);
   $('bzf-pf-overlay')?.addEventListener('change', (e) => pfSet('profileOverlay', e.target.checked ? '1' : '', '버즈 프로필 오버레이', false));
+  /* ★t5-01 켬/끔 — 켬 = 켬 표식만(사진·이모지는 그대로 · 없으면 체크 원) · 끔 = 「프로필 제거」와 같은 끝 */
+  $('bzf-pf-on')?.addEventListener('change', (e) => {
+    const f = F();
+    if (!f) return;
+    if (e.target.checked) setBuzzProfile(f, 'profileOn', '1');
+    else { setBuzzProfile(f, 'profileImg', ''); setBuzzProfile(f, 'profileEmoji', ''); setBuzzProfile(f, 'profileOn', ''); }
+    again(f);
+    save(e.target.checked ? '버즈 프로필 켜기' : '버즈 프로필 끄기');
+    redraw(f);
+  });
   $('bzf-pf-clear')?.addEventListener('click', () => {
     const f = F();
     if (!f) return;
     setBuzzProfile(f, 'profileImg', '');
     setBuzzProfile(f, 'profileEmoji', '');
+    setBuzzProfile(f, 'profileOn', '');   // ★t5-01 — 빈 원 자리도 같이
     again(f);
     save('버즈 프로필 제거');
     redraw(f);

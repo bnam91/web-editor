@@ -723,6 +723,7 @@ ${blockHeaderHTML({
   document.getElementById('mdl-pf-clear')?.addEventListener('click', () => {
     delete block.dataset.profileImg;
     delete block.dataset.profileEmoji;
+    delete block.dataset.profileOn;   // ★t5-01 — 빈 원 자리도 같이
     pfAfter(true);
   });
   propPanel.querySelectorAll('[data-al]').forEach(btn => btn.addEventListener('click', () => {

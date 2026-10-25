@@ -2840,6 +2840,9 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
    ⚠️PNG 내보내기는 이 이동만으론 안 걷힌다 — 캡처 클론은 body 에 붙어 앱 CSS 를 그대로 받는다.
      그 몫은 js/io/capture-safety.js neutralizeEmptyImageCheckerForCapture 가 진다
      (.bn2-img-empty 주석과 같은 분업). 단독 HTML 은 js/io/export-css-collect.js 가 진다. */
+/* ★t5-01 버즈 카드 프로필 «빈 원 자리» — 새 식 없이 이 규칙에 셀렉터만 더했다(작은 원이라 16px 쪽).
+   ⚠셀렉터를 «앞»에 둔다 — tests/unit/card-empty-export.test.mjs 가 `.grid-block .grd-img-empty {` 글자로 이 규칙을 찾는다. */
+.modal-block .mdl-profile-empty,
 .grid-block .grd-img-empty {
   background: repeating-conic-gradient(var(--goya-checker-small-a) 0% 25%, var(--goya-checker-small-b) 0% 50%) 0 0 / var(--goya-checker-small-size) var(--goya-checker-small-size);
 }
