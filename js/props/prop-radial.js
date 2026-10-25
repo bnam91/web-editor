@@ -56,6 +56,21 @@ function _swatchHex(v, dflt) {
 }
 
 /** 슬라이더＋숫자 한 쌍. */
+/* ★t4-08 (2026-10-25) — ★호 모드 ★각도가 ★«처음» 값인가.
+   ★★「처음」의 ★한 자리 = `RADIAL_ARC_PRESET`(radial-block.js:65) → `RADIAL_ARC_GEOM.HALF`
+     (js/radial-arc-geom.js:39 · `{ startDeg: -90, endDeg: 90, … }`)
+   ⛔이 파일 머리말 규율 그대로 — ★여기에 그 수를 ★리터럴로 ★다시 적지 ★않는다.
+   ★잠그는 자 = tests/dom/t4-08-radial-arc-angle-reset (★A3 가 ★리터럴 0 을 ★단언한다)
+   ★★⛔`disabled` 를 ★쓰지 ★않는다(261025 실측) — ★`rdl-reset-all` 은 ★항목을 ★끌면 ★`reopen()` 이
+     ★돌아 ★다시 그려지지만, ★★각도는 ★숫자칸이라 ★그 길을 ★안 지난다 ⇒ ★`disabled` 가 ★★굳는다
+     (★실측 : `endDeg` 는 ★30 으로 바뀌었는데 ★버튼이 ★꺼진 채 남아 ★클릭이 ★타임아웃).
+   ⇒ ★★언제나 ★누를 수 있게 두고, ★이미 ★처음 값이면 ★핸들러가 ★★아무 일도 ★안 한다
+     (★「★조용히 ★아무 일 없음」 = ★먹통이 아니라 ★해당 없음) — ★원문 「★초기화 버튼을 ★옆에
+     넣어주면 좋을 듯해」에도 ★그 편이 ★맞다. */
+const _ARC_ANGLE_KEYS = ['startDeg', 'endDeg'];
+function _arcAnglesAtStart(st) {
+  return _ARC_ANGLE_KEYS.every((k) => Number(st[k]) === Number(RADIAL_ARC_PRESET[k]));
+}
 function _pairRow(id, label, val, lim, step = 1) {
   return `
       <div class="prop-row">
@@ -175,6 +190,7 @@ ${blockHeaderHTML({
       ${isArc ? `
       ${_pairRow('rdl-end', '끝 각도', st.endDeg, L.endDeg)}
       ${_pairRow('rdl-cx', '원 중심 X', st.centerX, L.centerX)}
+      <button class="prop-btn-full" id="rdl-angle-reset" style="margin-top:4px">각도 처음으로 되돌리기</button>
 ` : ''}
       <div class="prop-row">
         <span class="prop-label">연결선</span>
@@ -434,6 +450,20 @@ ${blockHeaderHTML({
   // ── 전체 자동 배치로 되돌리기(Shape 절 · t4-03 에서 Data 절을 걷으며 옮김) ──
   $('rdl-reset-all')?.addEventListener('click', () => {
     if (!radialResetPlacement(block)) return;
+    rerender(); reopen(); commit();
+  });
+
+  /* ★t4-08 — ★각도만 ★처음으로. ★원문 : 「★어디가 처음인지 ★-90, 90이란 숫자를 모르면
+     되돌리는데 시간이 좀 걸려. ★초기화 버튼을 ★옆에 넣어주면 좋을 듯해」
+     ⇒ ★★`RADIAL_ARC_PRESET` 에서 ★파생한다(⛔리터럴 금지) · ★`rdl-reset-all`(항목 배치)과 ★별 칸이다. */
+  $('rdl-angle-reset')?.addEventListener('click', () => {
+    const d = block.dataset;
+    let changed = false;
+    for (const k of _ARC_ANGLE_KEYS) {
+      const want = String(RADIAL_ARC_PRESET[k]);
+      if (d[k] !== want) { d[k] = want; changed = true; }
+    }
+    if (!changed) return;
     rerender(); reopen(); commit();
   });
 
