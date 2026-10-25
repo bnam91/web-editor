@@ -814,14 +814,24 @@
          (실측 ca702d40: 끌어 고른 mouseup 순간 selected false · 크기·색 칸 사라짐 / 줄 넣을 자리를 눌러도 같은 일).
        ★끌기가 라벨 밖에서 끝나면 click 표적이 라벨의 «조상»(섹션·캔버스)이 된다 ⇒ 라벨 click 만 막아서는 모자란다.
        ⇒ mouseup 뒤 click 한 번을 window 캡처에서 삼킨다(라벨 손잡이·핸들 끌기 onUp 의 eat 와 같은 꼴). 편집 밖에선 이 리스너가 없다. */
+    /* ★검수 F1 — 걸어 둔 mouseup 은 ★들고 있다가 finish 에서 같이 뗀다.
+       ⛔안 떼면 mouseup 을 잃은 누름(창 밖에서 놓음 · 합성 mousedown)이 편집이 끝난 «뒤»의 ★첫 진짜 클릭을 삼킨다
+         (검수 탐침 C4b: 라벨 mousedown 만 → Esc → 펜 단추 첫 클릭이 안 먹었다). */
+    let pendingUp = null;
+    const dropPendingUp = () => {
+      if (pendingUp) document.removeEventListener('mouseup', pendingUp, true);
+      pendingUp = null;
+    };
     const onDown = (ev) => {
       if (ev.button !== 0) return;
+      dropPendingUp();
       const eat = (ce) => { ce.stopPropagation(); };
       const onUp = () => {
-        document.removeEventListener('mouseup', onUp, true);
+        dropPendingUp();
         window.addEventListener('click', eat, { capture: true, once: true });
         setTimeout(() => window.removeEventListener('click', eat, true), 0);
       };
+      pendingUp = onUp;
       document.addEventListener('mouseup', onUp, true);
     };
     const finish = () => {
@@ -831,6 +841,7 @@
       label.removeEventListener('paste',   onPaste);
       label.removeEventListener('blur',    finish);
       label.removeEventListener('mousedown', onDown);
+      dropPendingUp();   // ★검수 F1
       const raw = label.innerText ?? label.textContent ?? '';
       /* ★1017t1h3 — 부분 서식을 ★같이 싣는다(line-host lnBeginEdit finish 와 ★같은 규약).
          ★읽기는 contenteditable 을 ★끄기 «전»에 — 끄고 나면 브라우저가 편집 잔재를 ★정리할 수 있다.

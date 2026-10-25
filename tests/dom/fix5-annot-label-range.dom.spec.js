@@ -241,3 +241,52 @@ test('RG4 다른 곳 클릭 회귀 — 끌어 고른 뒤에도 섹션 빈 곳 �
   await expect.poll(async () => { const s = await state(page, id); return [s.selected, s.panelFs]; }, '빈 곳 클릭 = 해제').toEqual([false, false]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ══ 검수 F2 · F1 (c844b040 적대 검수 조건부 PASS 뒤) ══════════════════════════════════════════
+ * RG5 ★같은 글자에 색→색→크기→색 을 다시 칠해도 span 은 «하나»(겹 span 0 · 빈 span 0) — 범위 조이기(_annotTightenRange)를 따로 잡는다.
+ *     ★변이 M2(조이기 뺌)에서 빨강이어야 한다. (빈 span 걷기 안전망은 입증 못 해 뺐다 — ANNOT-EMPTY-SPAN-SWEEP-UNPROVEN-01)
+ * RG6 ★mouseup 을 잃은 누름(라벨 mousedown 만) → Esc → 펜 단추 «첫» 클릭이 먹는다(메뉴가 뜬다) — 검수 탐침 C4b 꼴.
+ *     ★c844b040 판(걸어 둔 mouseup 을 finish 가 안 뗌)에서 빨강 · 바닥 8608bb13 에선 초록(그 리스너가 아예 없다). */
+const spanShape = (page, id) => page.evaluate((id) => {
+  const l = document.querySelector(`[id="${id}"] .annot-label`);
+  const sp = [...l.querySelectorAll('span')];
+  return { spans: sp.length, nested: sp.filter(s => s.querySelector('span')).length, empty: sp.filter(s => !s.textContent).length,
+    texts: sp.map(s => s.textContent) };
+}, id);
+
+test('RG5 같은 「마바」에 색→색→크기→색 — span 하나 · 겹 span 0 · 빈 span 0 · 그 글자만', async ({ page }) => {
+  const errs = await bootApp(page);
+  const id = await scene(page);
+  await page.keyboard.press('Shift+ArrowLeft');
+  await page.keyboard.press('Shift+ArrowLeft');
+  await expect.poll(async () => (await state(page, id)).sel, '★전제: 「마바」를 골랐다').toBe('마바');
+  await setHex(page, 'ff0000');
+  await expectOnly(page, id, [4, 5], { fs: null, color: 'rgb(255, 0, 0)' }, '색 1 이 「마바」에만');
+  await setHex(page, '0000ff');
+  await expectOnly(page, id, [4, 5], { fs: null, color: 'rgb(0, 0, 255)' }, '색 2 가 「마바」에만');
+  await setSize(page, 40);
+  await expect.poll(async () => (await perChar(page, id)).map(([ch, f], i) => [ch, [4, 5].includes(i) ? f === '40px' : f !== '40px']), '크기 40 이 「마바」에만')
+    .toEqual([...TEXT].map(ch => [ch, true]));
+  await setHex(page, '00ff00');
+  await expectOnly(page, id, [4, 5], { fs: '40px', color: 'rgb(0, 255, 0)' }, '색 3 이 「마바」에만');
+  expect(await spanShape(page, id), '다시 칠해도 span 하나 — 겹 0 · 빈 0').toEqual({ spans: 1, nested: 0, empty: 0, texts: ['마바'] });
+  const st = await stored(page, id);
+  expect((st.html.match(/<span/g) || []).length, `저장값도 span 하나 — ${st.html}`).toBe(1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('RG6 mouseup 잃은 라벨 누름 → Esc → 펜 단추 첫 클릭이 먹는다(메뉴가 뜬다)', async ({ page }) => {
+  const errs = await bootApp(page);
+  const id = await scene(page);
+  // 사람 손으로는 «창 밖에서 놓기»에 해당한다 — mouseup 이 문서에 안 온다
+  await page.evaluate((id) => {
+    document.querySelector(`[id="${id}"] .annot-label`).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+  }, id);
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await state(page, id)).editing, '★전제: Esc 로 편집을 마쳤다').toBe(false);
+  const item = page.locator('#fp-pen-menu .fp-menu-item:text-is("Annotation")');
+  await expect(item, '★전제: 메뉴는 닫혀 있다').toBeHidden();
+  await page.click('#fp-pen-btn');
+  await expect(item, '펜 단추 «첫» 클릭에 메뉴가 뜬다(삼켜지지 않는다)').toBeVisible();
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

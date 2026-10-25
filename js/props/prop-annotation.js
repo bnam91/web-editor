@@ -181,11 +181,6 @@ function _annotApplyToSelection(block, prop, value) {
     { within: label },
   );
   if (!span) return false;
-  /* ★FIX5 1017t1h3 ⒝ 안전망 — 그래도 남은 빈 span(글자도 요소도 없음)을 이 라벨 안에서만 걷는다.
-     ★방금 칠한 span·<br> 을 품은 span 은 남는다. ⛔공용 applyStyleToRange(텍스트블럭과 한 벌)는 건드리지 않는다. */
-  label.querySelectorAll('span').forEach(sp => {
-    if (sp !== span && sp.isConnected && !sp.textContent && !sp.querySelector(':not(span)')) sp.remove();
-  });
   const next = window.annotLabelHtmlToStore?.(window.annotReadLabelHtml?.(label) || '') || '';
   if (next) block.dataset.labelHtml = next;
   else delete block.dataset.labelHtml;
