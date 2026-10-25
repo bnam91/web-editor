@@ -10,6 +10,7 @@
 import { genId, showNoSelectionHint, insertAfterSelected, colorLuminance } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import { checkerBg } from '../checker-tokens.js';
+import { CVB_H_MIN, CVB_H_MAX } from './card-limits.js';   // 카드 높이 자 = 한 자리(끌기·패널과 같은 값)
 import { effSectionPadX as _effSectionPadX } from './outer-pad.js';   // ⛔사본을 되만들지 마라 — 챗과 «한 글자도 안 다른» 두 벌이었다(그 파일 머리말)
 /* ★1017t1d1 — 심플카드가 line-host 의 «다섯 번째 주인». comparison-block.js·laurel-block.js·chat-block.js 가
  *   이미 쓰는 같은 ESM import(사본 아님) — 순환 없음(line-host.js 는 grid-block.js 만 import 한다). */
@@ -1613,7 +1614,7 @@ function updateCanvasBlock(blockId, partial = {}) {
 
   try {
     _try(_setIntField('canvasW',   'canvasW',   100, 1200));
-    _try(_setIntField('canvasH',   'canvasH',   40,  2000));
+    _try(_setIntField('canvasH',   'canvasH',   CVB_H_MIN, CVB_H_MAX));
     _try(_setColorField('bg',      'bg'));
     _try(_setIntField('radius',    'radius',    0,   60));
     _try(_setStrField('layerName', 'layerName', 100));

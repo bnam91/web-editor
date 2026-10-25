@@ -32,6 +32,7 @@ import { _applyOverlayPos, posElOf as _posElOf, _elasticAxis, OVERLAY_RESIST_ZON
    핸들은 100 에서 막아, 60px 블럭을 1px 만 끌어도 다시 100 으로 올라앉는다(T-075 ㉠).
    asset-width-limits.js 는 import 가 없는 «잎» 모듈이라 순환 걱정도 없다. */
 import { ASSET_W_MIN } from './blocks/asset-width-limits.js';
+import { CVB_H_MIN, CVB_H_MAX } from './blocks/card-limits.js';   // t5-16 카드 행 끌기 clamp = updateCanvasBlock 의 자(⛔그리드 행 높이와 다른 물건)
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -2873,7 +2874,7 @@ window.hideCmpGutters = hideCmpGutters;
  * 현빈 원문: 「카드블럭이 결국 그리드블럭과 구조가 같은거 아닌가? 그렇다면 카드블럭도 로우 경계에 마우스로 칸 높이 조절 가능하게 해줘.」
  * ★꼴 = 비교 블록 행 경계 거터(showCmpGutters · _onCmpRowMouseDown) 그대로: 고른 동안만 사는 .cvb-gutter(#ss-handles-overlay · 8px ·
  *   cursor row-resize · z 97) · rAF 로 자리 따라감 · 해제는 editor.js deselectAll · 이력 = 시작 직전 1회 + 끝 1회.
- * ★무엇을 바꾸나 = 카드 높이 «하나»(dataset.canvasH · 패널 「높이」 칸 #cvb-h 와 같은 값 · 40~2000 = updateCanvasBlock 의 자).
+ * ★무엇을 바꾸나 = 카드 높이 «하나»(dataset.canvasH · 패널 「높이」 칸 #cvb-h 와 같은 값 · CVB_H_MIN~CVB_H_MAX(js/blocks/card-limits.js) = updateCanvasBlock 의 자).
  *   ⛔그리드처럼 «위 행만»을 하지 않았다 — 카드 블럭은 모든 카드가 한 크기(canvasH)인 모델이라(renderCanvas: cellY = r × (designH + GAP))
  *   행마다 다른 높이는 «새 자료 꼴»이다(rowHeights 류) ⇒ 그 길은 현빈 결정으로 남긴다(보고서 · CARD-PER-ROW-HEIGHT-NOT-MODELED-01).
  *   ⇒ 경계 r|r+1 을 끌면 모든 행이 같이 자라고, «끄는 그 경계»가 손을 따라가게 Δ높이 = Δ화면 ÷ ((r+1) × 배율).
@@ -2956,7 +2957,7 @@ function _onCvbRowMouseDown(e, block, r) {
   function onMove(ev) {
     const { s } = _cvbGeom(block);   // 배율은 폭이 정한다(높이와 무관) — 줌이 바뀌는 경우까지 매 move 재조회
     if (!(s > 0)) return;
-    const h = Math.round(Math.max(40, Math.min(2000, H0 + (ev.clientY - startY) / ((r + 1) * s))));
+    const h = Math.round(Math.max(CVB_H_MIN, Math.min(CVB_H_MAX, H0 + (ev.clientY - startY) / ((r + 1) * s))));
     if (String(h) === block.dataset.canvasH) return;
     block.dataset.canvasH = String(h);
     window.renderCanvas?.(block);
