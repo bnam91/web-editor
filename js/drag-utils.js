@@ -944,7 +944,7 @@ function _graphVLabelBeginEdit(block, el, idx) {
  *   ★어디 사나 = document.body 의 fixed 층(#canvas «밖») ⇒ 저장·내보내기·직렬화 대상이 아니다(배경 고스트·모달 프로필 칩과 같은 까닭).
  *   ★언제 = 「블럭 선택 ∧ 그 블럭의 값 라벨 하나가 골라짐(grb-vlabel-cell-selected) ∧ 편집 중 아님」. 고르기 쓰기(grbVLabelPick)가 RAF 를 깨우고,
  *     조건이 깨지면 숨고 멈춘다(고르기 표식을 지우는 자리가 여럿이라 — deselectAll · 렌더 — 그 자리마다 숨기기를 달지 않는다).
- *   ★크기 = 모서리를 끌면 «라벨 중심에서 누른 점까지 거리»의 비로 글자 크기를 곱한다(어느 모서리든 같은 식 · 바깥 = 커짐).
+ *   ★크기 = 모서리를 끌면 «맞은편 모서리에서 누른 점까지 거리»의 비로 글자 크기를 곱한다(어느 모서리든 같은 식 · 바깥 = 커짐).
  *     끄는 동안은 el.style.fontSize 만, 놓을 때 items[idx].vFs 에 쓰고 다시 그린다(오프셋 끌기 _startVLabelOffsetDrag 와 같은 길 · ⌘Z 한 걸음). */
 let _vlHandleLayer = null, _vlHandleRaf = 0;
 function _vlPicked() {
@@ -993,7 +993,10 @@ function _vlOnHandleDown(e) {
   const { block, el } = p;
   const idx = [...block.querySelectorAll('.grb-line-vlabel')].indexOf(el);
   const r0 = el.getBoundingClientRect();
-  const cx = r0.left + r0.width / 2, cy = r0.top + r0.height / 2;
+  /* 축 = 누른 모서리의 «맞은편» 모서리(보통 상자 크기 조절과 같은 손) — 라벨 중심을 축으로 두면 거리가 반이라
+     같은 끌기에 두 배로 튄다(실앱 261026 배율 40%: (+40,+40) 에 21→200 천장). */
+  const corner = e.currentTarget?.dataset?.corner || 'se';
+  const cx = corner.includes('w') ? r0.right : r0.left, cy = corner.includes('n') ? r0.bottom : r0.top;
   const d0 = Math.max(4, Math.hypot(e.clientX - cx, e.clientY - cy));
   const fs0 = parseFloat(getComputedStyle(el).fontSize) || 16;
   const Lm = window.GRAPH_LIMITS;
