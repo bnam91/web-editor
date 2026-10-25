@@ -1486,7 +1486,7 @@ function _renderGraphShape(block, { items, chartH, labelSize, valSize }) {
       <div class="grb-bars-v" style="height:${chartH}px${_barsStyle}">${GS.shapeColsHTML(vItems, {
         esc: _escGraphHtml, color: _safeGraphColor, blockShape: !!blockSvg, blockSvg,
         boxFrac: plan.boxFrac, ratioOf: (v) => GS.fillRatio(v, plan.denom),
-        blockBar: _safeGraphColor(d.vBarColor), trackColor: d.trackColor, segGap: Number.isFinite(_sg) ? _sg : NaN,
+        blockBar: _safeGraphColor(d.vBarColor), trackColor: d.trackColor, segGap: Number.isFinite(_sg) ? _sg : NaN, segWave: d.segWave === '1',
         labelSize, vSize: _vSize, vCss: _vCss, xCss: _xCss, xInk: _xInk, lhCss: _g.lhCss, colMin: _bs.colMin, fillW: _bs.fillW,
       })}${_g.gridLayerHTML()}${_g.overlayHTML()}
       </div>`;

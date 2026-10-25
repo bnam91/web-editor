@@ -483,3 +483,42 @@ test('G4-10 (1020t2g1ⓐ) 마디 간격 칸 — 세로 막대 패널에 «마디
   expect(await page.evaluate(() => !!document.querySelector('#panel-right #grb-seg-gap-number')), '(음성) 가로 막대 = 마디 없음 = 줄 없음').toBe(false);
   expect(errs).toEqual([]);
 });
+
+/* 마디 둘 사이 경계를 찍어 열마다 «흰 틈의 첫 줄·두께»를 잰다(화면 그림 — mask 는 레이아웃에 안 잡히니 픽셀로 본다) */
+const seamPix = async (page, id) => {
+  const r = await page.evaluate((id) => { const st = document.getElementById(id).querySelector('.grb-seg-stack'); const s = [...st.querySelectorAll('.grb-seg')].filter(x => getComputedStyle(x).display !== 'none').map(x => x.getBoundingClientRect()).sort((a, b) => a.top - b.top); const sr = st.getBoundingClientRect(); return { x: sr.left + 2, y: s[0].bottom - 14, width: sr.width - 4, height: 28 + (s[1].top - s[0].bottom) }; }, id);
+  const buf = await page.screenshot({ clip: r });
+  return page.evaluate(async (b64) => {
+    const im = new Image(); await new Promise(z => { im.onload = z; im.src = 'data:image/png;base64,' + b64; });
+    const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const g = c.getContext('2d'); g.drawImage(im, 0, 0); const d = g.getImageData(0, 0, c.width, c.height).data;
+    const white = (x, y) => { const i = (y * c.width + x) * 4; return d[i] > 235 && d[i + 1] > 235 && d[i + 2] > 235; };
+    const first = [], thick = [];
+    for (let x = 0; x < c.width; x++) { let f = -1, n = 0; for (let y = 0; y < c.height; y++) if (white(x, y)) { if (f < 0) f = y; n++; } first.push(f); thick.push(n); }
+    return { first, thick };
+  }, buf.toString('base64'));
+};
+
+test('G4-11 (1020t2g1ⓑ) 경계 물결 — 켜면 마디 경계가 물결(흰 틈 윗줄이 열마다 오르내림) · 틈 두께는 어디나 같다 · 끄면 키를 지우고 곧은 경계 · (음성) 옛 저장본(키 없음)엔 마스크 없음', async ({ page }) => {
+  /* 현빈 원문: 「마디 경계 물결 모양」 — 바닥 68ba1f1b 실앱 ×3: 물결 칸 없음 · 마디 마스크 none. 곡선 = liner-transform.js buildLinerPathD('wave') 한 자리 · 진폭 = graph-limits.js SEG_WAVE_AMP. */
+  const { errs, id } = await setup(page, { items: [{ label: 'A', value: 0, segments: [{ label: '아래', value: 50, color: '#2255cc' }, { label: '위', value: 50, color: '#cc3322' }] }] });
+  const masks = () => page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.grb-seg-stack .grb-seg-ink')].map(e => { const c = getComputedStyle(e); const m = (c.maskImage && c.maskImage !== 'none') ? c.maskImage : (c.webkitMaskImage || 'none'); return m === 'none' ? 0 : m.split('url(').length - 1; }), id);
+  expect(await masks(), '★전제: 옛 저장본(키 없음) = 마스크 없음').toEqual([0, 0]);
+  const off = await seamPix(page, id);
+  const vOff = off.first.filter(f => f >= 0);
+  expect(vOff.length >= 10 && Math.max(...vOff) - Math.min(...vOff) <= 1, `★전제: 곧은 경계(윗줄 고름 ${Math.min(...vOff)}~${Math.max(...vOff)})`).toBe(true);
+  await openPanel(page, id);
+  await expect.poll(() => page.evaluate(() => !!document.querySelector('#panel-right #grb-seg-wave-toggle'))).toBe(true);
+  await page.click('#panel-right label:has(#grb-seg-wave-toggle)');
+  await expect.poll(() => ds(page, id, 'segWave')).toBe('1');
+  await raf2(page);
+  expect(await masks(), '보이는 마디마다 띠 하나(맞닿은 쪽만)').toEqual([1, 1]);
+  const on = await seamPix(page, id);
+  const vOn = on.first.filter(f => f >= 0), tOn = on.thick.filter(t => t > 0);
+  const A = await page.evaluate(() => window.GRAPH_LIMITS.SEG_WAVE_AMP), dpr = await page.evaluate(() => devicePixelRatio);
+  expect(Math.max(...vOn) - Math.min(...vOn), `물결: 흰 틈 윗줄이 오르내린다(≈ 진폭 ${A}px × ${dpr})`).toBeGreaterThanOrEqual(Math.floor(A * dpr * 0.6));
+  expect(Math.max(...tOn) - Math.min(...tOn), `틈 두께는 어디나 같다(${Math.min(...tOn)}~${Math.max(...tOn)})`).toBeLessThanOrEqual(Math.ceil(2 * dpr));
+  await page.click('#panel-right label:has(#grb-seg-wave-toggle)');
+  await expect.poll(() => ds(page, id, 'segWave'), '끄면 키 없음(옛 저장본과 같은 바이트)').toBe(null);
+  expect(await masks()).toEqual([0, 0]);
+  expect(errs).toEqual([]);
+});

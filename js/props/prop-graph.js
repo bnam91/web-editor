@@ -45,7 +45,7 @@ function gridColorRowHTML(block) {
 }
 
 /* 1012t1G2 — hideThickness: 모양(실루엣)이 켜지면 «두께» 줄을 뺀다(폭은 실루엣의 비가 정한다 — 두께 키는 안 지운다). */
-function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS_MAX, padX, itemGap, pctSize, pctMin, barColor, barAlpha, overlayToggles = '', hideThickness = false, segGap = null }) {
+function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS_MAX, padX, itemGap, pctSize, pctMin, barColor, barAlpha, overlayToggles = '', hideThickness = false, segGap = null, segWave = false }) {
   return `
     <div class="prop-section">
       <div class="prop-section-title">Bar Settings</div>${hideThickness ? '' : `
@@ -68,6 +68,13 @@ function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS
         <span class="prop-label">마디 간격</span>
         <input type="range" class="prop-slider" id="grb-seg-gap-slider" min="${SEG_GAP_MIN}" max="${SEG_GAP_MAX}" step="1" value="${segGap}">
         <input type="number" class="prop-number" id="grb-seg-gap-number" min="${SEG_GAP_MIN}" max="${SEG_GAP_MAX}" value="${segGap}">
+      </div>
+      <div class="prop-row" title="마디 경계를 물결 모양으로(흰 틈이 같은 두께로 물결친다)">
+        <span class="prop-label">경계 물결</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="grb-seg-wave-toggle" ${segWave ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
       </div>`}
       <div class="prop-row">
         <span class="prop-label">숫자 크기</span>
@@ -594,7 +601,8 @@ ${blockHeaderHTML({
     ${chartType === 'radial' ? (window.graphRadialSectionHTML?.(block) || '') : ''}
     ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn,
       /* 1020t2g1ⓐ — 마디는 세로 막대에서만 산다(_segOn) ⇒ 그때만 «마디 간격» 줄 */
-      segGap: _segOn ? (g => Number.isFinite(g) ? Math.min(SEG_GAP_MAX, Math.max(SEG_GAP_MIN, g)) : SEG_GAP_DEFAULT)(parseInt(block.dataset.segGap)) : null }) : ''}
+      segGap: _segOn ? (g => Number.isFinite(g) ? Math.min(SEG_GAP_MAX, Math.max(SEG_GAP_MIN, g)) : SEG_GAP_DEFAULT)(parseInt(block.dataset.segGap)) : null,
+      segWave: block.dataset.segWave === '1' }) : ''}
     <div class="prop-section">
       <div class="prop-section-title">Data</div>
       <div class="grb-data-list" id="grb-data-list">
@@ -931,6 +939,13 @@ ${blockHeaderHTML({
       sl.addEventListener('change', () => window.pushHistory());
     }
   }
+
+  // 1020t2g1ⓑ — 마디 경계 물결(세로 막대). 끄면 키를 지운다(옛 저장본과 같은 바이트 · 직선 경계).
+  document.getElementById('grb-seg-wave-toggle')?.addEventListener('change', e => {
+    if (e.target.checked) block.dataset.segWave = '1'; else delete block.dataset.segWave;
+    window.renderGraph(block);
+    window.pushHistory();
+  });
 
   // 숫자 크기 (bar-h·bar-v·bar-pair)
   const psSlider = document.getElementById('grb-pct-size-slider');
