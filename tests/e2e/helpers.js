@@ -24,10 +24,11 @@ async function connectApp() {
 }
 
 async function launchApp() {
-  const app = await _electron.launch({
+  /* ⚠️9334(CDP) 하드코딩은 그대로 둔다 — 고칠지 지디 판정(E2E-LAUNCHAPP-9334-HARDCODED-01). MCP 는 아래 한 자리로 넘긴다. */
+  const app = await launchElectron({
     args: ['.', '--enable-logging', '--remote-debugging-port=9334', 'admin'],
     cwd: process.cwd(),
-  });
+  }, process.env.E2E_MCP_PORT);
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   return { app, page };
@@ -41,10 +42,11 @@ async function launchApp() {
  * ★로그인 게이트 — 이 맥의 auth.json 을 «격리 프로필에만» 복사한다(원본은 안 건드린다).
  * ⚠️tests/e2e/13-undo-family.spec.js 는 이것이 생기기 «전»에 쓰여 같은 일을 제 안에 갖고 있다.
  *   그 파일은 «재는 양»이 걸린 게이트라 여기서 손대지 않는다 — 다시 쓸 때 이 함수로 들여라. */
-/* ★[S6-T7 ③ · 2026-10-25] E2E-HARDCODED-FORBIDDEN-PORT-9345-01 — _electron.launch 가 GODITOR_MCP_PORT 를 «넘기게» 한다.
+/* ★[S6-T7 ③ · 2026-10-25] E2E-HARDCODED-FORBIDDEN-PORT-9345-01 — 앱을 띄우는 길이 GODITOR_MCP_PORT 를 «넘기게» 한다.
  *   안 넘기면 앱(main.js)이 MCP 를 스스로 9345 부터 잡는다(금지대역). 값은 «부르는 쪽»이 정한다 · 띠 9610~9629 밖이면 띄우기 전에 던진다.
- *   재는 자 = tests/unit/e2e-launch-mcp-port.test.js (launchIsolated 가로채기 ＋ tests 의 launch 자리 전수).
- *   ★전수는 «launch 인자 안에 env: mcpPortEnv(...) 가 바로 있나»로 잰다 — 다른 데서 만든 env 를 넘기지 마라(검사가 못 가린다).
+ *   ★띄우는 자리는 tests 전체에 «launchElectron 하나»뿐이다 — 다른 파일은 playwright 의 electron 띄우개를 직접 쓰지 않는다.
+ *     env 는 맨 뒤에 덮어 쓰므로 부르는 쪽이 opts.env 로 바꿀 수 없다.
+ *   재는 자 = tests/unit/e2e-launch-mcp-port.test.js (띄우개 가로채기 ＋ tests 전체 날글자 전수).
  *   쓰는 법(ATTACH 아닌 길): E2E_MCP_PORT=<띠 안 포트> npx playwright test tests/e2e/13-undo-family.spec.js
  *   ⚠️앱은 그 포트가 차 있으면 +20 까지 번진다(main/claude-pm/mcp-server.js) — 띠 밖으로 갈 수 있다 · E2E-MCP-FALLBACK-DRIFT-OUT-OF-BAND-01 */
 const MCP_BAND = [9610, 9629];
@@ -56,19 +58,24 @@ function mcpPortEnv(mcpPort) {
   return { ...process.env, GODITOR_MCP_PORT: String(n) };
 }
 
+/** tests 안 유일한 띄움 자리 — opts 는 playwright electron 띄우개 인자 그대로 · env 는 여기서 정한다. */
+async function launchElectron(opts, mcpPort) {
+  const env = mcpPortEnv(mcpPort);
+  return _electron.launch({ ...opts, env });
+}
+
 async function launchIsolated({ port, profile, mcpPort, args = [], cwd = process.cwd() }) {
   if (!port || !profile) throw new Error('launchIsolated: port 와 profile 은 필수다');
   mcpPortEnv(mcpPort);   // ★프로필·자격증명을 만지기 «전»에 거른다(던진다)
   fs.mkdirSync(profile, { recursive: true });
   const src = path.join(os.homedir(), 'Library', 'Application Support', 'GODITOR', 'auth.json');
   if (fs.existsSync(src)) fs.copyFileSync(src, path.join(profile, 'auth.json'));
-  const app = await _electron.launch({
+  const app = await launchElectron({
     args: ['.', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
            '--disable-renderer-backgrounding', '--disable-background-timer-throttling',
            '--disable-backgrounding-occluded-windows', 'admin', ...args],
     cwd,
-    env: mcpPortEnv(mcpPort),
-  });
+  }, mcpPort);
   const root = await app.evaluate(({ app }) => app.getPath('userData'));
   /* ★★macOS 는 /var ↔ /private/var · /tmp ↔ /private/tmp 가 ★심링크다 — ★같은 자리인데 ★문자열이 다르다.
    *   ⛔path.resolve 는 ★심링크를 ★안 푼다 ⇒ ★격리가 맞는데도 ★여기서 던졌다
@@ -188,7 +195,7 @@ async function attachEditor() {
   return { browser, context, page };
 }
 
-/* 12/13/14 용 — _electron app 자리를 «흉내»만 낸다(firstWindow · close). #btn-new 는 spec 이 누른다.
+/* 12/13/14 용 — electron app 자리를 «흉내»만 낸다(firstWindow · close). #btn-new 는 spec 이 누른다.
  *   ★index.html 에 붙었으면(워커 재시작 재접속) projects.html 로 돌려 spec 갈래가 «새 프로젝트»를 만들게 한다.
  *   ★배경 억제 — launch 길의 --disable-*-backgrounding 을 applane 은 안 준다 ⇒ 여기서 CDP 로 메운다
  *     (12 는 원래 이 둘을 안 보냈다 — 배관 차이 · 13/14 는 제 안에서 또 보낸다 · 무해). */
@@ -204,4 +211,4 @@ async function attachIsolated() {
   return { browser, page, app: { firstWindow: async () => page, close: () => browser.close() } };
 }
 
-module.exports = { connectApp, launchApp, launchIsolated, mcpPortEnv, assertIsolatedCdp, attachEditor, attachIsolated };
+module.exports = { connectApp, launchApp, launchIsolated, launchElectron, mcpPortEnv, assertIsolatedCdp, attachEditor, attachIsolated };
