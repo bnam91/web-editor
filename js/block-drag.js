@@ -399,8 +399,9 @@ function _zoomEndEdit(block, host) {
 
 /* ★t5-14 원형 이미지 줄 «안 글자» 캔버스 편집 — 진입·끝 한 쌍.
    ★저장 자리는 패널 «글자»(prop-grid.js #grd-img-ctext)와 같은 키 하나 — 그 줄의 `text`. 빈 글자 = 키 지움(그 칸과 같은 계약).
-   ★확정 = blur · Enter / 취소 = Esc(무변) — 선례 drag-utils.js _graphLabelBeginEdit 「Esc · 같은 글자 = 무변」.
-     Enter 는 줄바꿈이 아니라 확정이다 — 패널 칸이 한 줄(input)이고, 원 글자 여러 줄은 t5-12 몫이라 여기서 안 연다.
+   ★확정 = blur · ⌘/Ctrl+Enter / 취소 = Esc(무변) — 선례 drag-utils.js _graphLabelBeginEdit 「Esc · 같은 글자 = 무변」.
+   ★t5-12(현빈 「원형이미지에 글자는 … 현재는 우측패널에서만 한줄만 가능」) — Enter·⇧Enter = 줄바꿈(어노 라벨 annotation-select.js 와 같은 꼴).
+     줄은 그 줄 `text` 안의 \n 으로 산다(렌더러는 이미 white-space:pre-wrap) · 패널 「글자」 칸도 여러 줄(textarea).
    ★커밋은 _gridEndEdit 와 같은 꼴 — DOM 을 편집 «전»으로 되돌린 뒤 updateGridBlock(그 안의 pushHistory 가 직렬화를 찍는다 ⇒ ⌘Z 한 걸음).
    ★편집 테는 따로 안 그린다 — `#canvas .grid-block [contenteditable="true"]`(css/editor-blocks.css) 가 그리드 글자 줄과 같은 테를 준다. */
 function _gridCircleTextEndEdit(block, host, addr, commit, opts = {}) {
@@ -409,7 +410,7 @@ function _gridCircleTextEndEdit(block, host, addr, commit, opts = {}) {
   host.removeAttribute('draggable');
   block.classList.remove('editing');
   const before = host._gctBefore;
-  const text = mdlReadText(host).replace(/\n+/g, ' ');
+  const text = mdlReadText(host).replace(/\r\n?/g, '\n').replace(/\n+$/, '');   /* ★t5-12 — 줄바꿈을 살린다(꼬리 줄바꿈만 턴다) */
   if (before == null || !commit || text === before) {
     host.textContent = before == null ? host.textContent : before;   // 취소·무변 — 편집 흔적 0
     return;
@@ -440,7 +441,11 @@ function _gridCircleTextBeginEdit(block, host, addr, e) {
     });
     host.addEventListener('keydown', ev => {
       if (ev.isComposing || ev.keyCode === 229) return;   // 한글 조합 중 Enter 는 조합 확정이다
-      if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); host.blur(); }
+      if (ev.key === 'Enter') {
+        ev.preventDefault(); ev.stopPropagation();
+        if (ev.metaKey || ev.ctrlKey) { host.blur(); return; }       // ⌘Enter = 확정
+        document.execCommand('insertText', false, '\n');               // ★t5-12 Enter·⇧Enter = 줄바꿈
+      }
       else if (ev.key === 'Escape') {
         ev.preventDefault(); ev.stopPropagation();   // 전역 deselectAll 차단
         _gridCircleTextEndEdit(block, host, addr, false);
