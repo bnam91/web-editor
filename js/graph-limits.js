@@ -52,11 +52,14 @@
        꺾은선 항목별 값 라벨(.grb-line-vlabel)의 «개별 위치» 오프셋(items[i].vDx/vDy, px, 블럭 자체 좌표 — 줌과 무관) 한계.
        어노테이션 라벨 오프셋(js/blocks/annotation-block.js ANNOT_LIMITS.labelDx/labelDy)과 같은 범위를 그대로 썼다(같은 원리 = 같은 한계).
        0 이면 키를 안 단다(= 자동 위치). 드래그 쓰기(js/drag-utils.js _startVLabelOffsetDrag)와 패널·MCP 캐리오버(js/graph-shape.js carryItemExtras)가 읽는다. */
+  /* ★VLABEL_FS_MIN · MAX · VLABEL_TEXT_MAX(1017t1f5 👉 뒤 · 2026-10-26 S3 · 현빈 「해당 값 선택시 아웃라인에 모서리핸들 넣어서 크기 조절 및 텍스트 수정」) —
+       값 라벨 «하나»의 글자 크기(items[i].vFs, px)와 덮어쓴 글(items[i].vText) 한계. 없으면(키 없음) 옛 자동값(valSize · 항목 값) 그대로.
+       8 = LABEL_SIZE_MIN 과 같은 바닥 · 200 = 모서리 핸들 끌기의 천장(블럭 높이를 넘는 글자를 막는다) · 80 = 카테고리 라벨 글 한계와 같은 수(graph-shape.js label slice 80). */
   var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LABEL_SIZE_MIN: 8, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3,
     PIE_HOLE_MIN: 20, PIE_HOLE_MAX: 80, PIE_HOLE_DEFAULT: 55, PIE_GAP: 10, PIE_GAP_MIN: 0, PIE_GAP_MAX: 40, PIE_START_MIN: 0, PIE_START_MAX: 359, PIE_GROW_MAX: 30, PIE_PULL_MAX: 30, PIE_TAG_AT: 62, PIE_TAG_MIN_CHORD: 150, PIE_TAG_MIN_RADIAL: 150, PIE_TAG_PAD: 8, PIE_TAG_FONT_STEPS: Object.freeze([0.85, 0.7, 0.55, 0.4]), PIE_TAG_NAME_LINES: 2,
     PIE_LEG_GAP_MIN: 0, PIE_LEG_GAP_MAX: 60, PIE_LEG_GAP_DEFAULT: 16,
     SHAPE_SVG_MAX: 60000, SHAPE_FILL_MAX_DEFAULT: 100, SHAPE_TRACK_OPACITY: 0.25, SEG_GAP_DEFAULT: 2,
-    VLABEL_OFFSET_MIN: -600, VLABEL_OFFSET_MAX: 600 });
+    VLABEL_OFFSET_MIN: -600, VLABEL_OFFSET_MAX: 600, VLABEL_FS_MIN: 8, VLABEL_FS_MAX: 200, VLABEL_TEXT_MAX: 80 });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_LIMITS;
   if (root) root.GRAPH_LIMITS = GRAPH_LIMITS;
 })(typeof window !== 'undefined' ? window : null);

@@ -761,6 +761,12 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   inset: 0;
   background-repeat: no-repeat;
 }
+/* ★모달 숙주(10171a5 · 2026-10-25) — 모달의 글·아이콘은 ★위치 없는 흐름 자식이라, z-index:0 인 절대배치 레이어가
+   ★그 «위»에 칠해진다(섹션은 .section-inner 가 제 층을 가져 이 일이 없다). ⇒ 모달 안에서만 레이어를 ★자기 층의
+   바닥(-1)으로 내리고, 모달이 층을 «가두게»(isolation) 해 모달 배경색 «위» · 글 «아래»에 놓는다.
+   ⛔.sec-bg-clip 자체의 z-index 를 바꾸지 마라 — 섹션·프레임 숙주의 순서가 같이 바뀐다. */
+.modal-block:has(> .sec-bg-clip) { isolation: isolate; }
+.modal-block > .sec-bg-clip { z-index: -1; }
 /* ── 섹션 «배경이미지 편집» (★2026-10-10 이름 변경 · image-handling.js: enterSectionBgEditMode) ──
    프록시 = 섹션 padding-box 를 덮는 «에셋 블록 대역». 편집 중에만 존재하고
    직렬화·내보내기에서 제거된다(section-serialize / save-load / export-image).
