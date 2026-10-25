@@ -4622,6 +4622,14 @@ html.tgs-selecting .tgs:focus-within {
      ⒝ 「파란 아웃라인 너비가 줄어든다」 ⇒ ★손잡이가 `tb` 레이아웃을 ★안 민다(`.tfh-layer` 는 inset:0)
      ⒞ 「격자가 안 보인다」            ⇒ ★`.tfh-grid` 에 ★3×3 분할선 넷
 ────────────────────────────────────────────── */
+/* ★t7-06 — 자유변형 글자칸의 «맞는 자리»가 그림보다 훨씬 크다. 원근 행렬(matrix3d)은 글자 상자(W×H) 밖의 점을
+   멀리 던져서, 글자칸 요소의 히트 영역이 화면 2340×960 까지 커졌다(미카사 261026 실측 · 저장본 proj_1792823705838
+   tb_ts0he_qg5wypv) ⇒ 옆 에셋(ab_ts0he_cvtvnr1)을 눌러도 이 글자가 받아 ⌘클릭이 글자를 «껐다» ⇒ ⌘G 「먼저 선택하세요」.
+   ⇒ 편집 중이 아닐 때 그 글자칸은 마우스를 안 받는다 — 누름은 .text-block 상자(= 변형된 네 점의 바깥 상자)가 받는다.
+     고르기·더블클릭(편집 진입) 손은 .text-block 에 걸려 있다(block-drag.js) ⇒ 동작 무변 · 편집 중엔 캐럿 때문에 되살린다. */
+.text-block[data-tf-corners]:not(.editing) > :is([contenteditable], .tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label, .tb-bullet) {
+  pointer-events: none;
+}
 /* ★꾸밈 층 — ★변형 «안». JS 가 글자의 transform 을 ★베껴 박는다(⛔제 행렬을 만들지 않는다). */
 .tfh-fx { position: absolute; pointer-events: none; z-index: 100; }
 /* ★★보라 테두리 — ★★261025 ★현빈 ★재신고로 ★층을 ★옮겼다 (`FT-EDGE-THICKNESS-VARIES-UNDER-MATRIX-01`).
