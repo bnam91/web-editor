@@ -1,4 +1,5 @@
 import { propPanel, state } from '../globals.js';
+import { wireStyleCodeFold } from './text-style-code-fold.js';
 import { rgbToHex } from './prop-text-utils.js';
 import { parseAlphaFromColor, colorFieldHTML } from './color-picker.js';   /* ★형광펜 색 칸 — 스티커 형광펜이 쓰는 그 부품 그대로(새로 만들지 않는다) */
 import { panelRenderedPx, labelShapeFromRendered, panelRenderedWeight } from './_panel-rendered.js';
@@ -282,7 +283,8 @@ export function showTextProperties(tb) {
   wireSpacingSection({ ctx, isLiner }); // M6b: 라이너는 자간 바인딩 스킵(우리 슬라이더 단일소스)
   wireShadowSection({ ctx, initial: shadow });
   wireStrokeSection({ ctx, initial: stroke });   // ★1012t1E1 — 절이 없으면(라벨·말풍선·아이콘텍스트·liner) 아무것도 안 한다
-  window.wireFxSection?.(tb, 'txt', () => showTextProperties(tb));   // ★E1 Effects — 절이 없으면 아무것도 안 한다
+  window.wireFxSection?.(tb, 'txt', () => showTextProperties(tb));
+  wireStyleCodeFold(propPanel, 'txt');   // 1020t2d1 — 형광펜·점·밑줄 «번호» 줄을 한 머리로 접기(줄이 없으면 아무것도 안 한다)   // ★E1 Effects — 절이 없으면 아무것도 안 한다
   if (!isOverlayTb) wirePositionSection({ tb });
   if (!isOverlayTb) wirePaddingSection({ tb, phLinked });
   if (!isOverlayTb) wireOverlaySection({ tb });
