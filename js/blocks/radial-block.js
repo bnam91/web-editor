@@ -84,7 +84,10 @@ const RADIAL_LIMITS = Object.freeze({
   labelGap: { min: 0, max: 60 },
   labelWidth: { min: 60, max: 480 },
   endDeg: { min: -180, max: 360 },
-  centerX: { min: -100, max: 150 },
+  /* ★t4-09 「원중심 x 슬라이드 바가 쾌적하게 움직이지 않는 문제」(2026-10-26 S3) — 한 걸음 = step(패널 슬라이더·숫자 칸이 같이 읽는다).
+     ★거칠기의 뿌리는 «범위 250 ÷ 슬라이더 99px» ≈ 2.5 단위/px 다(실측: 1px 마다 44→47→49→52 · 50 은 어느 정수 px 로도 못 닿음).
+     ⇒ 패널은 이 줄만 «긴 슬라이더»(prop-radial.js _pairRowWide)로 둔다. step 값(1·0.5·0.25)은 현빈 선택 — 앱 겨냥 표는 보고서에. */
+  centerX: { min: -100, max: 150, step: 1 },
   lineExtend: { min: 0, max: 90 },
   centerDx: { min: -600, max: 600 },
   dotSize: { min: 4, max: 60 },
