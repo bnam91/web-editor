@@ -49,6 +49,26 @@ export function clearBubbleSenderAlign(tb) {
 }
 if (typeof window !== 'undefined') window.clearBubbleSenderAlign = clearBubbleSenderAlign;
 
+/** 일반·말풍선 글자 블럭의 «글자 정렬» 쓰기 — 정렬 단추의 일반 갈래 본체(1020t2d2 에서 함수로 꺼냈다 · 스타일 붙여넣기도 이 길).
+ *  ⛔라벨(tb.textAlign)·아이콘텍스트(justifyContent)는 이 길이 아니다 — 아래 단추 핸들러의 앞 갈래들. 이력은 부르는 쪽이 찍는다. */
+export function applyTextAlignToBlock(tb, contentEl, align) {
+  contentEl.style.textAlign = align;
+  /* ★말풍선 — ★이름표는 ★형제라 ★못 물려받는다 ⇒ ★★한 자리(위 함수)로 ★같이 ★건다 */
+  applyBubbleSenderAlign(tb, align);
+  // U10: 커스텀 폭(width≠100%) 블록은 contentEl text-align만으론 박스가 좌측 고정
+  //  → section-inner{flex-direction:column}이라 자식 가로위치는 align-self가 지배.
+  //    박스 자체(폭을 보유한 flex 자식 = text-frame 래퍼 또는 tb)를 정렬한다.
+  //    규약은 #13 alignSelectedToParent(editor.js)와 동일: left→flex-start / center→center / right→flex-end.
+  //    기본폭(100%) 블록은 alignSelf 미설정 유지 → 기존 저장본(align-self 없이 text-align만) 회귀 방어.
+  const layoutEl = tb.closest('.frame-block[data-text-frame="true"]') || tb;
+  const w = layoutEl.style.width;
+  const isCustomWidth = !!w && w !== '100%' && w !== 'auto';
+  if (isCustomWidth) {
+    layoutEl.style.alignSelf = ALIGN_SELF_OF[align] || 'flex-start';   // 사상표 = 이 파일 위 ALIGN_SELF_OF 한 자리(t7-03)
+    window.scheduleAutoSave?.();
+  }
+}
+
 export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
   /* 정렬 */
   propPanel.querySelectorAll('.prop-align-btn').forEach(btn => {
@@ -67,21 +87,7 @@ export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
         const itbText = tb.querySelector('.itb-text');
         if (itbText) itbText.style.flex = btn.dataset.align === 'left' ? '1' : '0 1 auto';
       } else {
-        ctx.contentEl.style.textAlign = btn.dataset.align;
-        /* ★말풍선 — ★이름표는 ★형제라 ★못 물려받는다 ⇒ ★★한 자리(위 함수)로 ★같이 ★건다 */
-        applyBubbleSenderAlign(tb, btn.dataset.align);
-        // U10: 커스텀 폭(width≠100%) 블록은 contentEl text-align만으론 박스가 좌측 고정
-        //  → section-inner{flex-direction:column}이라 자식 가로위치는 align-self가 지배.
-        //    박스 자체(폭을 보유한 flex 자식 = text-frame 래퍼 또는 tb)를 정렬한다.
-        //    규약은 #13 alignSelectedToParent(editor.js)와 동일: left→flex-start / center→center / right→flex-end.
-        //    기본폭(100%) 블록은 alignSelf 미설정 유지 → 기존 저장본(align-self 없이 text-align만) 회귀 방어.
-        const layoutEl = tb.closest('.frame-block[data-text-frame="true"]') || tb;
-        const w = layoutEl.style.width;
-        const isCustomWidth = !!w && w !== '100%' && w !== 'auto';
-        if (isCustomWidth) {
-          layoutEl.style.alignSelf = ALIGN_SELF_OF[btn.dataset.align] || 'flex-start';
-          window.scheduleAutoSave?.();
-        }
+        applyTextAlignToBlock(tb, ctx.contentEl, btn.dataset.align);
       }
       /* ★[2026-09-22 · T-135 의 빠진 넷째] 순서를 뒤집었다 — 2026-09-21 에 형제 셋
          (js/props/prop-asset.js · prop-mockup.js · prop-iconify.js)을 뒤집은 그 결정의 남은 하나다.

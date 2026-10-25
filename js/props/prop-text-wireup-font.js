@@ -17,6 +17,8 @@ if (typeof window !== 'undefined') window.goditorFontChain = fontChain;
 //   ① <font face> — face 를 떼고, 남은 속성(color·size)이 없으면 벗긴다(색은 남긴다).
 //   ② span 인라인 font-family — _stripInlineResidue 규칙(그 속성만 지우고 style 이 비면 벗긴다).
 //   ③ 그 밖의 자식(div 등) 인라인 font-family — 속성만 지운다(옛 판의 div 걷기를 포함한다).
+// 1020t2d2 — 스타일 붙여넣기(text-style-copy.js)도 글꼴 «전체» 쓰기라 같은 걷기를 쓴다(사본 금지 · 이름만 밖으로 꺼냄).
+export function clearInnerFontFamily(el) { _clearInnerFontFamily(el); }
 function _clearInnerFontFamily(el) {
   if (!el) return;
   el.querySelectorAll('font[face]').forEach(f => {

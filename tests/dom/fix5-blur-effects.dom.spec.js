@@ -13,6 +13,8 @@
  *   B5 ✕ ⇒ 카드 0 · 드롭다운에 「블러」 복귀 · outerHTML 에 redact 0건 · filter none
  *   B6 옛 저장(기존 키 data-redact=60 — applyImageRedact 로 쓴 것) 불러오기 ⇒ 효과 카드 · 강도 60 · filter 같은 값
  *   B7 픽셀 — 요소 스크린샷: 블러 전 줄무늬 sd · 가장자리 대비(이웃 px 최대차) 큼 ⇒ 고른 뒤 둘 다 작아짐(비 < 0.1)
+ *   B9 끈 상태에서 ✕ ⇒ 카드 0 · data-redact·data-redact-off 둘 다 없음 (C1 검수 MINOR-1 · 변이 M2 «✕ 가 redactOff 를 안 지움» 을 잡는다)
+ *   B10 끈 채 슬라이더 끌기 ⇒ 켜지지 않는다 — data-redact 없음 · off=끈 값 · filter none (변이 M5 «keep() 이 늘 'on'» 을 잡는다)
  *   B8 내보내기 PNG — 앱 PNG 는 클론을 CDP 로 «스크린샷»한다(js/io/export-image.js captureCloneToCanvas native 갈래 ·
  *      neutralize 안 함). 그 클론(prepareCloneForCapture)을 같은 하네스 화면에 꺼내 찍어 흐린지 잰다(양성대조: 끈 클론).
  *      html2canvas 폴백 갈래는 블러를 못 그려 «불투명 회색 덮개»가 된다(capture-safety.js — 옛 동작 그대로) ⇒ 그 사실도 단언.
@@ -311,5 +313,42 @@ test('B8 내보내기 PNG — 네이티브 클론(스크린샷 갈래)이 흐리
   expect(ratio, '내보내기 클론이 안 흐리다').toBeLessThan(RATIO_MAX);
   expect(h2c.imgSrc, 'h2c 폴백 클론에 원본 src 가 남았다').toBe(null);
   expect(h2c.boxBg, 'h2c 폴백 덮개가 불투명 회색(REDACT_OPAQUE_FILL)이 아니다').toBe('rgb(74, 74, 74)');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── C1 적대 검수 MINOR-1 — 살아남은 변이 둘을 잡는 칸 ─────────────────────────────── */
+test('B9 끈 상태에서 ✕ ⇒ 카드 0 · data-redact·data-redact-off 둘 다 없음', async ({ page }) => {
+  const errs = await setupAsset(page);
+  await openPanel(page);
+  await pickBlur(page);
+  await setNumber(page, 60);
+  await expect.poll(async () => (await state(page)).attr).toBe('60');
+  await page.locator('#asset-fxbl-eye').click();
+  await expect.poll(async () => (await state(page)).off, { message: '전제: 눈을 껐는데 값이 data-redact-off 로 안 갔다' }).toBe('60');
+  expect((await state(page)).attr, '전제: 끈 뒤에도 data-redact 가 남았다').toBe(null);
+  await page.locator('#asset-fxbl-del').click();
+  await expect.poll(async () => (await state(page)).cards, { message: '끈 상태 ✕ 뒤에도 카드가 남았다' }).toEqual([]);
+  const s = await state(page);
+  expect([s.attr, s.off], '끈 상태 ✕ 뒤 키가 남았다(다시 열면 «끈 블러 카드»가 살아난다)').toEqual([null, null]);
+  expect(s.outerHasRedact, '끈 상태 ✕ 뒤 바이트에 redact 가 남았다').toBe(false);
+  expect((await fxOpts(page)).map((o) => o[0]), '✕ 뒤 「블러」 가 목록으로 안 돌아왔다').toContain('blur');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('B10 끈 채 슬라이더 끌기 ⇒ 켜지지 않는다 — data-redact 없음 · off=끈 값 · filter none', async ({ page }) => {
+  const errs = await setupAsset(page);
+  await openPanel(page);
+  await pickBlur(page);
+  await setNumber(page, 60);
+  await expect.poll(async () => (await state(page)).attr).toBe('60');
+  await page.locator('#asset-fxbl-eye').click();
+  await expect.poll(async () => (await state(page)).off, { message: '전제: 눈을 껐는데 값이 data-redact-off 로 안 갔다' }).toBe('60');
+  await setSlider(page, 30);
+  await expect.poll(async () => (await state(page)).off, { message: '끈 채 끈 값이 data-redact-off 에 안 실렸다' }).toBe('30');
+  const s = await state(page);
+  expect(s.attr, '끈 채 슬라이더를 끌었더니 블러가 켜졌다(눈이 꺼져 있는데)').toBe(null);
+  expect([s.filter, s.inline], '끈 채 끌었는데 그림이 흐리다').toEqual(['none', '']);
+  expect(s.cards, '카드가 사라졌다(끔 ≠ 지움)').toEqual(['blur']);
+  expect(s.num, '숫자칸이 슬라이더를 안 따라왔다').toBe('30');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
