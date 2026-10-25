@@ -1258,6 +1258,23 @@ const BG_EDIT_HOSTS = {
       return () => { el.style.position = had; };
     },
   },
+  /* ★★2026-10-25 신설 (현빈 10171a5 「섹션의 배경이미지 편집기능이 있듯이 같은 기능으로」 · S3) —
+     ★모달도 ★같은 본문을 탄다(이식 · ⛔사본 아님). 모달만 다른 것 ★셋뿐이다:
+       ⑴ 그리는 자 = `renderModalBlock` ★한 자리(cssText 가 정본 · js/blocks/modal-block.js _bgImageStyles)
+          ⇒ commit 은 ★다시 그리기 하나다(회전·색보정이 있으면 그 렌더가 레이어를 세운다 — 같은 파일).
+       ⑵ 색·그림이 «두 배경 레이어»가 ★아니다(`background:${bg}` 뒤에 longhand 셋) ⇒ twoLayer ★false.
+       ⑶ 모달 cssText 는 ★늘 `position:relative` 다(실측 · renderModalBlock 머리) ⇒ prepare ★없음. */
+  modal: {
+    historyLabel: '모달 배경 위치/크기',
+    boxClass: 'prop-modal',
+    doneId: 'mdl-bg-pos-done',
+    twoLayer: () => false,
+    writeLive: (el, which, v) => {
+      if (which === 'size') el.style.backgroundSize = v; else el.style.backgroundPosition = v;
+    },
+    commit: (el) => window.renderModalBlock?.(el),
+    panel:  (el) => window.showModalProperties?.(el),
+  },
 };
 
 function _enterBgEditMode(host, ad) {
@@ -1488,7 +1505,13 @@ function exitSectionBgEditMode(sec)  { return _exitBgEditMode(sec, BG_EDIT_HOSTS
 function enterFrameBgEditMode(fr) { return _enterBgEditMode(fr, BG_EDIT_HOSTS.frame); }
 function exitFrameBgEditMode(fr)  { return _exitBgEditMode(fr, BG_EDIT_HOSTS.frame, null); }
 
+/* ★★2026-10-25 (10171a5) — ★모달도 ★같은 본문. */
+function enterModalBgEditMode(m) { return _enterBgEditMode(m, BG_EDIT_HOSTS.modal); }
+function exitModalBgEditMode(m)  { return _exitBgEditMode(m, BG_EDIT_HOSTS.modal, null); }
+
 window.enterSectionBgEditMode = enterSectionBgEditMode;
+window.enterModalBgEditMode   = enterModalBgEditMode;
+window.exitModalBgEditMode    = exitModalBgEditMode;
 window.exitSectionBgEditMode  = exitSectionBgEditMode;
 window.enterFrameBgEditMode   = enterFrameBgEditMode;
 window.exitFrameBgEditMode    = exitFrameBgEditMode;

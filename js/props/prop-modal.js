@@ -251,6 +251,7 @@ ${blockHeaderHTML({
             ${_bgSizeCustom ? `<option value="${_bgSizeNow}" selected>직접 조절</option>` : ''}
           </select>
         </div>
+        <button class="prop-action-btn secondary" id="mdl-bg-pos-btn" style="margin-top:6px;">${block._secBgEditing ? '배경이미지 편집 완료' : '배경이미지 편집'}</button>
         <button class="prop-action-btn danger" id="mdl-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
       ` : ''}
     </div>
@@ -411,6 +412,12 @@ ${blockHeaderHTML({
       showModalProperties(block);   /* ★사이즈 칸·제거 버튼이 새로 뜬다(prop-frame 과 같은 결) */
     };
     reader.readAsDataURL(file);
+  });
+  /* ★10171a5 — 「배경이미지 편집」(섹션 패널 #sec-bg-pos-btn 과 ★같은 이름·같은 토글). 본문은 섹션·프레임과 ★한 벌
+     (js/image-handling.js _enterBgEditMode · 모달 숙주 칸). */
+  document.getElementById('mdl-bg-pos-btn')?.addEventListener('click', () => {
+    if (block._secBgEditing) window.exitModalBgEditMode?.(block);
+    else                     window.enterModalBgEditMode?.(block);
   });
   bgImgClear?.addEventListener('click', () => {
     delete block.dataset.bgImg;
