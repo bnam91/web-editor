@@ -494,7 +494,8 @@
    ⛔2026-10-06 에 «죽은 코드»를 걷어냈다: .text-block[data-highlight="highlight"|"underline"]::after
      (+ @keyframes tb-highlight-in · --tb-highlight-color). data-highlight 를 ★쓰는 코드가 레포 전수에
      0건이었다(읽는 자리만 prop-text.js 에 둘). 되살리지 마라 — ::after 는 «글자 길이»를 모른다. */
-.text-block {
+.text-block,
+.quote-block {   /* ★1012t1H5 인용구도 같은 단추(H·글로우·점)를 쓴다 — 값 사본 대신 셀렉터만 더한다 */
   --tb-hl-color: var(--ui-highlight);
   --tb-hl-h: 100%;
   --tb-hl-y: 0px;
@@ -526,7 +527,8 @@
    ★기본색 #ff00ff = 이스트에그 TEXT_EFFECT_DEFAULTS.glowColor · Effects FX_GLOW_DEFAULTS.color 와 같은 값
      (효과 기본값 — design-tokens.css 에 맞는 토큰 0건 · grep ff00ff/neon/glow). ⛔다른 값으로 갈지 마라 — 셋이 갈린다.
    ⚠️그라데이션 글자(투명 채움)에선 빛이 글자 «위»로 비쳐 그라데이션이 지워진다 ⇒ 단추가 막는다(_syncGradUi). */
-.text-block {
+.text-block,
+.quote-block {   /* ★1012t1H5 인용구도 같은 단추(H·글로우·점)를 쓴다 — 값 사본 대신 셀렉터만 더한다 */
   --tb-glow-color: #ff00ff;
   --tb-glow-k: 0.7;
 }
@@ -565,7 +567,8 @@
      ★섹션 ★맨 윗줄에서는 점이 ★섹션 상자 위로 나가 ★잘릴 수 있다(실측: 여백 없는 섹션에서
        20px 점이 ★18×6 으로 잘려 그려졌다. 기본 4px 는 안 잘린다).
      ⇒ tests/dom/text-dot-over.dom.spec.js D12 가 그 둘을 ★재서 적는다. ⛔「안 잘린다」로 넓히지 마라. */
-.text-block {
+.text-block,
+.quote-block {   /* ★1012t1H5 인용구도 같은 단추(H·글로우·점)를 쓴다 — 값 사본 대신 셀렉터만 더한다 */
   --tb-dot-color: currentColor;
   --tb-dot-size: 4px;
   --tb-dot-x: 0px;
