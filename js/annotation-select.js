@@ -604,7 +604,17 @@
           const raw = { x: startPoint[0] + dx, y: startPoint[1] + dy };
           const snapped = refArr ? window._snapVecToStep(raw, { x: refArr[0], y: refArr[1] }, { tolDeg: ev.shiftKey ? null : window.ANNOT_SNAP_TOL_DEG }) : raw;
           points[idx] = [snapped.x, snapped.y];
-          _updateBlockGeometry(block, points);
+          /* ★t4-21 — 치수선의 흰 점(d·c)은 «일반 어노테이션 꼴»(_updateBlockGeometry: 라벨 = points[last])로 그리면 안 된다 —
+             라벨이 치수선을 떠나 점 c 로 옮겨졌다(05eefbd5 실측: 라벨−중점 (0,−11) → (212.2, 55)).
+             ⇒ a·b 끌기(_startDimEndDrag)와 «같은 한 자리»(annotRedrawDim)로 그린다 — 라벨은 labelAt(치수선 중점 + lift). */
+          if (block.dataset.annotKind === 'dim' && typeof window.annotRedrawDim === 'function') {
+            _writePoints(block, points);
+            const st = window.annotPropsFromDataset?.(block);
+            if (st) window.annotRedrawDim(block, st);
+            window.annotRefreshHandles?.(block);
+          } else {
+            _updateBlockGeometry(block, points);
+          }
           if (refArr) _showPointAngleLabel(block, refArr, points[idx]);
         };
         const onUp = () => {
