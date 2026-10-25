@@ -4193,6 +4193,7 @@ function deselectAll() {
   /* ★1017t1c4 — 비교 블록 «행 경계 드래그» 거터. 빠지면 모듈 변수 _cmpGutterBlock 이 «해제된 블럭»을
      계속 가리켜 같은 블럭 재클릭이 동일블럭 빗장(수가 같으면 위치만 갱신)에 걸린다(위 아이콘원형이 밟은 그 사고). */
   window.hideCmpGutters?.();
+  window.hideCvbGutters?.();   // ★t5-16 — 카드블럭 행 경계 거터(빠지면 _cvbGutterBlock 이 해제된 블럭을 계속 가리킨다 — 위 비교 거터와 같은 사고)
   window.hideGridImageResizeHandle?.(); // 그리드 이미지/아이콘 줄 코너 리사이즈 핸들 (T-C)
   window.hideGridLineGrip?.(); // 그리드 «줄» 끄는 손잡이 (T-228) — 줄 선택이 풀리면 같이 사라진다
   /* ★오버레이(플로팅) 텍스트의 모서리 핸들 (0920b). 빠지면 모듈 변수 _tfoResizeEl 이
