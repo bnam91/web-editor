@@ -21,6 +21,7 @@ const os = require('os');
 const path = require('path');
 
 const PORT = process.env.E2E_SEAM_PORT || '9584';
+const MCP_PORT = process.env.E2E_SEAM_MCP_PORT || String(Number(PORT) + 1);   /* ★아래 launch 의 env — 금지대역 밖 */
 const PROFILE = path.join(os.tmpdir(), 'goditor_e2e_seam_' + PORT);
 
 /* 인자가 필요한 입구만 적는다. 나머지는 인자 없이 부른다.
@@ -64,6 +65,14 @@ test.beforeAll(async () => {
            '--disable-renderer-backgrounding', '--disable-background-timer-throttling',
            '--disable-backgrounding-occluded-windows', 'admin'],
     cwd: process.cwd(),
+    /* ★★`GODITOR_MCP_PORT` 를 ★반드시 넘긴다 (261025 · `E2E-HARDCODED-FORBIDDEN-PORT-9345-01`).
+             ★안 넘기면 ★앱이 ★★스스로 ★9345 부터 잡는다 — ★그 대역(9345~9365)은 ★남의 실사용
+             goditor·클로드앱 커넥터가 ★쓰는 자리라 ★검사가 ★그걸 ★먹는다.
+       ★값은 ★CDP 포트 ★바로 뒤를 쓴다(★둘이 ★겹치면 ★안 된다).
+       ★★재는 자 = `tests/unit/e2e-launch-passes-mcp-port.test.mjs` ★G1 —
+             ⛔그 자는 ★「포트가 ★9345 가 ★아니다」로 ★재지 ★않는다(★그건 ★우연히 통과한다).
+             ★★재는 것은 ★★«넘겼는가» ★하나다. */
+    env: { ...process.env, GODITOR_MCP_PORT: MCP_PORT },
   });
   page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');

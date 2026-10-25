@@ -62,6 +62,7 @@ const path = require('path');
 const { TINY_MP4_B64 } = require('../fixtures/tiny-video.js');
 
 const PORT    = process.env.E2E_UNDO_PORT || '9527';
+const MCP_PORT = process.env.E2E_UNDO_MCP_PORT || String(Number(PORT) + 1);   /* ★아래 launch 의 env — 금지대역 밖 */
 const PROFILE = process.env.E2E_UNDO_PROFILE || path.join(os.tmpdir(), 'goditor_e2e_undo_' + PORT);
 const HARNESS = fs.readFileSync(path.join(__dirname, '_undo-family-harness.js'), 'utf8');
 
@@ -85,6 +86,14 @@ test.beforeAll(async () => {
            '--disable-renderer-backgrounding', '--disable-background-timer-throttling',
            '--disable-backgrounding-occluded-windows', 'admin'],
     cwd: path.join(__dirname, '..', '..'),
+    /* ★★`GODITOR_MCP_PORT` 를 ★반드시 넘긴다 (261025 · `E2E-HARDCODED-FORBIDDEN-PORT-9345-01`).
+             ★안 넘기면 ★앱이 ★★스스로 ★9345 부터 잡는다 — ★그 대역(9345~9365)은 ★남의 실사용
+             goditor·클로드앱 커넥터가 ★쓰는 자리라 ★검사가 ★그걸 ★먹는다.
+       ★값은 ★CDP 포트 ★바로 뒤를 쓴다(★둘이 ★겹치면 ★안 된다).
+       ★★재는 자 = `tests/unit/e2e-launch-passes-mcp-port.test.mjs` ★G1 —
+             ⛔그 자는 ★「포트가 ★9345 가 ★아니다」로 ★재지 ★않는다(★그건 ★우연히 통과한다).
+             ★★재는 것은 ★★«넘겼는가» ★하나다. */
+    env: { ...process.env, GODITOR_MCP_PORT: MCP_PORT },
   });
   /* ★★띄운 «직후» 뿌리 경로 확인 — 현빈 실계정(~/Library/Application Support/GODITOR)이면 즉시 끈다. */
   const root = await app.evaluate(({ app }) => app.getPath('userData'));

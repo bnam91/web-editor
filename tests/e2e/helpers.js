@@ -40,8 +40,19 @@ async function launchApp() {
  * ★로그인 게이트 — 이 맥의 auth.json 을 «격리 프로필에만» 복사한다(원본은 안 건드린다).
  * ⚠️tests/e2e/13-undo-family.spec.js 는 이것이 생기기 «전»에 쓰여 같은 일을 제 안에 갖고 있다.
  *   그 파일은 «재는 양»이 걸린 게이트라 여기서 손대지 않는다 — 다시 쓸 때 이 함수로 들여라. */
-async function launchIsolated({ port, profile, args = [], cwd = process.cwd() }) {
+async function launchIsolated({ port, profile, args = [], cwd = process.cwd(), mcpPort } = {}) {
   if (!port || !profile) throw new Error('launchIsolated: port 와 profile 은 필수다');
+  /* ★★`GODITOR_MCP_PORT` 를 ★반드시 넘긴다 (261025 · `E2E-HARDCODED-FORBIDDEN-PORT-9345-01`).
+         ★안 넘기면 ★앱이 ★★스스로 ★9345 부터 잡는다 — ★그 대역(9345~9365)은 ★남의 실사용
+         goditor·클로드앱 커넥터가 ★쓰는 자리라 ★검사가 ★그걸 ★먹는다.
+     ★값은 ★CDP 포트 ★바로 뒤를 쓴다(★둘이 ★겹치면 ★안 된다).
+     ★★재는 자 = `tests/unit/e2e-launch-passes-mcp-port.test.mjs` ★G1 —
+         ⛔그 자는 ★「포트가 ★9345 가 ★아니다」로 ★재지 ★않는다(★그건 ★우연히 통과한다).
+         ★★재는 것은 ★★«넘겼는가» ★하나다. */
+  const _mcp = String(mcpPort || (Number(port) + 1));
+  if (Number(_mcp) >= 9345 && Number(_mcp) <= 9365) {
+    throw new Error(`launchIsolated: mcpPort ${_mcp} 가 금지대역 9345~9365 안이다`);
+  }
   fs.mkdirSync(profile, { recursive: true });
   const src = path.join(os.homedir(), 'Library', 'Application Support', 'GODITOR', 'auth.json');
   if (fs.existsSync(src)) fs.copyFileSync(src, path.join(profile, 'auth.json'));
@@ -50,6 +61,7 @@ async function launchIsolated({ port, profile, args = [], cwd = process.cwd() })
            '--disable-renderer-backgrounding', '--disable-background-timer-throttling',
            '--disable-backgrounding-occluded-windows', 'admin', ...args],
     cwd,
+    env: { ...process.env, GODITOR_MCP_PORT: _mcp },
   });
   const root = await app.evaluate(({ app }) => app.getPath('userData'));
   /* ★★macOS 는 /var ↔ /private/var · /tmp ↔ /private/tmp 가 ★심링크다 — ★같은 자리인데 ★문자열이 다르다.
