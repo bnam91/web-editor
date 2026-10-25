@@ -1524,6 +1524,34 @@ window.exitSectionBgEditMode  = exitSectionBgEditMode;
 window.enterFrameBgEditMode   = enterFrameBgEditMode;
 window.exitFrameBgEditMode    = exitFrameBgEditMode;
 
+/* ★t5-06 현빈 「섹션에서 패딩영역을 더블클릭하면 배경이미지 편집모드로 들어가게 해줘.」 — 입구 하나를 더한다(모드는 그대로).
+   바닥(ca702d40·d772f49e) 실측: 진입 호출자 = 섹션 패널 「배경이미지 편집」 단추 하나뿐 · 패딩 더블클릭 → _secBgEditing false.
+   ★«패딩 영역» = 섹션(또는 그 section-inner) «자신»을 누른 점이 section-inner 의 내용 상자 «밖»(=패딩 띠)일 때.
+     블럭·빈 칸(gap) 위 더블클릭은 그 블럭 것이다(⛔가로채지 않는다) — 그래서 target 이 섹션/inner 자신일 때만 본다.
+   ★배경 그림이 없으면 아무것도 안 한다(편집할 그림이 없다 · 패널 단추도 그때는 안 뜬다).
+   ★한 곳에 위임(document · capture 아님) — 섹션 바인딩 자리가 여럿(editor.js 시작 루프 · block-factory 새 섹션)이라 거기마다 달지 않는다. */
+document.addEventListener('dblclick', (e) => {
+  const t = e.target;
+  if (!t || !t.classList) return;
+  const sec = t.classList.contains('section-block') ? t
+    : (t.classList.contains('section-inner') ? t.closest('.section-block') : null);
+  if (!sec || !sec.dataset.bgImg || sec._secBgEditing) return;
+  if (document.body.classList.contains('pen-mode') || document.body.classList.contains('preview-mode')) return;
+  const inner = sec.querySelector(':scope > .section-inner');
+  if (inner) {
+    const r = inner.getBoundingClientRect();
+    const cs = getComputedStyle(inner);
+    const k = inner.offsetWidth ? r.width / inner.offsetWidth : 1;   // 캔버스 줌
+    const L = r.left + (parseFloat(cs.paddingLeft) || 0) * k, R = r.right - (parseFloat(cs.paddingRight) || 0) * k;
+    const T = r.top + (parseFloat(cs.paddingTop) || 0) * k, B = r.bottom - (parseFloat(cs.paddingBottom) || 0) * k;
+    const inContent = e.clientX >= L && e.clientX <= R && e.clientY >= T && e.clientY <= B;
+    if (t === inner && inContent) return;   // inner 의 내용 상자 안(블럭 사이 빈 자리)은 패딩이 아니다
+  }
+  e.preventDefault();
+  e.stopPropagation();
+  enterSectionBgEditMode(sec);
+});
+
 /* ══════════════════════════════════════════════════════════════════════════
    그리드 칸 이미지 «프레임 안 크롭» — 에셋 더블클릭 편집기를 그대로 빌려 쓴다.
    ───────────────────────────────────────────────────────────────────────────
