@@ -295,10 +295,13 @@ function _profileSize(ds, fontSize) {
 function _profileSrcOk(v) {
   return typeof v === 'string' && v.length > 0 && v.length <= MODAL_PROFILE_SRC_MAX && !/[\n\r]/.test(v);
 }
-/** 사진·이모지 중 ★무엇을 그리나. 둘 다 없으면 null(= 칸 자체가 안 난다 ⇒ 글이 당겨진다). */
+/** 사진·이모지 중 ★무엇을 그리나. 둘 다 없으면 null(= 칸 자체가 안 난다 ⇒ 글이 당겨진다).
+ *  ★t5-01(현빈 「일괄넣기 하면 원형 이미지(체크패턴) 먼저 온오프로 보이게」) — 켬 표식(profileOn='1')만 있고
+ *    사진·이모지가 없으면 'blank' = ★체크무늬 원 자리. 사진·이모지가 들어오면 그것이 이긴다(채워진다). */
 function _profileKind(ds) {
   if (_profileSrcOk(ds.profileImg)) return 'img';
   if (String(ds.profileEmoji ?? '').trim() !== '') return 'emoji';
+  if (ds.profileOn === '1') return 'blank';
   return null;
 }
 
@@ -317,7 +320,11 @@ function _profileHtml(block, fontSize) {
   if (!kind) return '';
   const size = _profileSize(ds, fontSize);
   const box = `width:${size}px;height:${size}px;`;
-  const face = kind === 'img'
+  /* ★t5-01 'blank' = 빈 원 자리 — 무늬는 CSS 한 자리(css/editor-blocks.css 빈 이미지 칸 규칙 · ⛔인라인으로 박지 않는다:
+       인라인이면 저장본·단독 HTML 에 편집용 무늬가 실린다 — 그 파일 .grd-img-empty 머리말). 상자·둥글기만 여기서 준다. */
+  const face = kind === 'blank'
+    ? `<span class="mdl-profile-empty" style="display:block;${box}border-radius:${MODAL_PROFILE_RADIUS};"></span>`
+    : kind === 'img'
     ? `<img class="mdl-profile-img" src="${_esc(ds.profileImg)}" alt="" draggable="false" style="display:block;${box}object-fit:cover;border-radius:${MODAL_PROFILE_RADIUS};">`
     : `<span class="mdl-profile-emoji" style="display:flex;align-items:center;justify-content:center;${box}font-size:${Math.round(size * MODAL_PROFILE_EMOJI_RATIO)}px;line-height:1;">${_esc(String(ds.profileEmoji).trim())}</span>`;
   const outerH = ds.profileOverlay === '1' ? 0 : size;
@@ -872,6 +879,7 @@ function renderModalBlock(block) {
       if (block.classList?.contains('editing')) return;   // 글자 편집 중이면 비켜준다(아이콘 슬롯과 같은 규약)
       delete block.dataset.profileImg;
       delete block.dataset.profileEmoji;
+      delete block.dataset.profileOn;   // ★t5-01 — 빈 원 자리도 같이 걷는다(× = 프로필 통째 제거)
       renderModalBlock(block);
       window.refitBuzzRowWidth?.(block);
       window.pushHistory?.();
