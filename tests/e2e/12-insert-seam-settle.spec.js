@@ -15,14 +15,15 @@
 
    ⛔부재를 통과로 읽지 않는다 — 입구가 블럭을 «안 만들면» 건너뛰지 말고 실패시킨다.
 ═══════════════════════════════════════════════════════════════════════════ */
-const { test, expect, _electron } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
 const PORT = process.env.E2E_SEAM_PORT || '9584';
-const MCP_PORT = process.env.E2E_SEAM_MCP_PORT || String(Number(PORT) + 1);   /* ★아래 launch 의 env — 금지대역 밖 */
 const PROFILE = path.join(os.tmpdir(), 'goditor_e2e_seam_' + PORT);
+/* ★opt-in(run-app.sh) — applane 격리 앱에 붙는다. 안 주면 아래 launch 길 그대로. */
+const ATTACH = !!process.env.GD_E2E_ATTACH_CDP;
 
 /* 인자가 필요한 입구만 적는다. 나머지는 인자 없이 부른다.
    ⚠️여기 빠져서 «안 만들어지는» 입구가 생기면 테스트가 실패한다 — 조용히 건너뛰지 않는다. */
@@ -55,25 +56,24 @@ const GEOMETRIES = [
 let app, page;
 
 test.beforeAll(async () => {
+  if (ATTACH) {
+    ({ app } = await require('./helpers.js').attachIsolated());
+  } else {
+  /* ★GODITOR_MCP_PORT 를 넘긴다(E2E-HARDCODED-FORBIDDEN-PORT-9345-01) — E2E_MCP_PORT 가 없거나 띠 밖이면 여기서 던진다. */
+  const { mcpPortEnv, launchElectron } = require('./helpers.js');
+  mcpPortEnv(process.env.E2E_MCP_PORT);   // 띄우기 «전»에 거른다(없거나 띠 밖이면 던진다)
   fs.mkdirSync(PROFILE, { recursive: true });
   /* 로그인 게이트 — 이 맥의 자격증명을 «격리 프로필»에만 복사하고 끝나면 프로필째 지운다. */
   const src = path.join(os.homedir(), 'Library', 'Application Support', 'GODITOR', 'auth.json');
   if (fs.existsSync(src)) fs.copyFileSync(src, path.join(PROFILE, 'auth.json'));
 
-  app = await _electron.launch({
+  app = await launchElectron({
     args: ['.', `--remote-debugging-port=${PORT}`, `--user-data-dir=${PROFILE}`,
            '--disable-renderer-backgrounding', '--disable-background-timer-throttling',
            '--disable-backgrounding-occluded-windows', 'admin'],
     cwd: process.cwd(),
-    /* ★★`GODITOR_MCP_PORT` 를 ★반드시 넘긴다 (261025 · `E2E-HARDCODED-FORBIDDEN-PORT-9345-01`).
-             ★안 넘기면 ★앱이 ★★스스로 ★9345 부터 잡는다 — ★그 대역(9345~9365)은 ★남의 실사용
-             goditor·클로드앱 커넥터가 ★쓰는 자리라 ★검사가 ★그걸 ★먹는다.
-       ★값은 ★CDP 포트 ★바로 뒤를 쓴다(★둘이 ★겹치면 ★안 된다).
-       ★★재는 자 = `tests/unit/e2e-launch-passes-mcp-port.test.mjs` ★G1 —
-             ⛔그 자는 ★「포트가 ★9345 가 ★아니다」로 ★재지 ★않는다(★그건 ★우연히 통과한다).
-             ★★재는 것은 ★★«넘겼는가» ★하나다. */
-    env: { ...process.env, GODITOR_MCP_PORT: MCP_PORT },
-  });
+  }, process.env.E2E_MCP_PORT);
+  }
   page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
 
@@ -86,7 +86,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   if (app) await app.close().catch(() => {});
-  try { fs.rmSync(PROFILE, { recursive: true, force: true }); } catch (_) {}
+  if (!ATTACH) try { fs.rmSync(PROFILE, { recursive: true, force: true }); } catch (_) {}
 });
 
 test('C0 ★런타임 로스터가 있고, 그 전부가 «감싸져» 있다', async () => {

@@ -55,16 +55,17 @@
 
    실행: npx playwright test tests/e2e/13-undo-family.spec.js --config=playwright.config.js
 ════════════════════════════════════════════════════════════════════════════ */
-const { test, expect, _electron } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { TINY_MP4_B64 } = require('../fixtures/tiny-video.js');
 
 const PORT    = process.env.E2E_UNDO_PORT || '9527';
-const MCP_PORT = process.env.E2E_UNDO_MCP_PORT || String(Number(PORT) + 1);   /* ★아래 launch 의 env — 금지대역 밖 */
 const PROFILE = process.env.E2E_UNDO_PROFILE || path.join(os.tmpdir(), 'goditor_e2e_undo_' + PORT);
 const HARNESS = fs.readFileSync(path.join(__dirname, '_undo-family-harness.js'), 'utf8');
+/* ★opt-in(run-app.sh) — applane 격리 앱에 붙는다(가드는 helpers.assertIsolatedCdp). 안 주면 아래 launch 길 그대로. */
+const ATTACH = !!process.env.GD_E2E_ATTACH_CDP;
 
 /* ⛔serial 로 두지 않는다 — 한 검사가 빨강이면 나머지가 «안 돈 채» 초록도 빨강도 아니게 된다.
    세 고장을 따로 보려면 셋이 다 돌아야 한다. */
@@ -76,30 +77,29 @@ const R = { plain: null, shape: null, instrument: null };
 
 test.beforeAll(async () => {
   test.setTimeout(600000);
+  if (ATTACH) {
+    ({ app } = await require('./helpers.js').attachIsolated());
+  } else {
+  /* ★GODITOR_MCP_PORT 를 넘긴다(E2E-HARDCODED-FORBIDDEN-PORT-9345-01) — E2E_MCP_PORT 가 없거나 띠 밖이면 여기서 던진다. */
+  const { mcpPortEnv, launchElectron } = require('./helpers.js');
+  mcpPortEnv(process.env.E2E_MCP_PORT);   // 띄우기 «전»에 거른다(없거나 띠 밖이면 던진다)
   fs.mkdirSync(PROFILE, { recursive: true });
   /* 로그인 게이트 — 이 맥의 자격증명을 «격리 프로필»에만 복사한다. */
   const src = path.join(os.homedir(), 'Library', 'Application Support', 'GODITOR', 'auth.json');
   if (fs.existsSync(src)) fs.copyFileSync(src, path.join(PROFILE, 'auth.json'));
 
-  app = await _electron.launch({
+  app = await launchElectron({
     args: ['.', `--remote-debugging-port=${PORT}`, `--user-data-dir=${PROFILE}`,
            '--disable-renderer-backgrounding', '--disable-background-timer-throttling',
            '--disable-backgrounding-occluded-windows', 'admin'],
     cwd: path.join(__dirname, '..', '..'),
-    /* ★★`GODITOR_MCP_PORT` 를 ★반드시 넘긴다 (261025 · `E2E-HARDCODED-FORBIDDEN-PORT-9345-01`).
-             ★안 넘기면 ★앱이 ★★스스로 ★9345 부터 잡는다 — ★그 대역(9345~9365)은 ★남의 실사용
-             goditor·클로드앱 커넥터가 ★쓰는 자리라 ★검사가 ★그걸 ★먹는다.
-       ★값은 ★CDP 포트 ★바로 뒤를 쓴다(★둘이 ★겹치면 ★안 된다).
-       ★★재는 자 = `tests/unit/e2e-launch-passes-mcp-port.test.mjs` ★G1 —
-             ⛔그 자는 ★「포트가 ★9345 가 ★아니다」로 ★재지 ★않는다(★그건 ★우연히 통과한다).
-             ★★재는 것은 ★★«넘겼는가» ★하나다. */
-    env: { ...process.env, GODITOR_MCP_PORT: MCP_PORT },
-  });
+  }, process.env.E2E_MCP_PORT);
   /* ★★띄운 «직후» 뿌리 경로 확인 — 현빈 실계정(~/Library/Application Support/GODITOR)이면 즉시 끈다. */
   const root = await app.evaluate(({ app }) => app.getPath('userData'));
   if (path.resolve(root) !== path.resolve(PROFILE)) {
     await app.close().catch(() => {});
     throw new Error(`★프로필 격리 실패 — userData=${root} (기대: ${PROFILE}). 현빈 실계정일 수 있어 즉시 껐다.`);
+  }
   }
 
   page = await app.firstWindow();
@@ -148,7 +148,7 @@ async function run(fn, arg) {
 
 test.afterAll(async () => {
   if (app) await app.close().catch(() => {});
-  try { fs.rmSync(PROFILE, { recursive: true, force: true }); } catch (_) {}
+  if (!ATTACH) try { fs.rmSync(PROFILE, { recursive: true, force: true }); } catch (_) {}
 });
 
 /* ── 브라우저에서 돌 코드 ─────────────────────────────────────────────────── */
