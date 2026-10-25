@@ -425,6 +425,49 @@ export function warnIfCaptureTextVanished(clone, ctx) {
   } catch (_) { return null; }   // 진단이 내보내기를 깨뜨리면 안 된다
 }
 
+/* ★125 ㉯(FALSE-PASS-CHECKER-SAID-OK-WHILE-ANNOT-MISSING-01 · 2026-10-26) — 진단 한 줄을 «글자 밖»으로.
+ * ★왜 — 위 warnIfCaptureTextVanished 는 textContent↔innerText 만 본다. 어노테이션의 선(SVG)·라벨은 그 시야 밖이고,
+ *   «다른 글이 있는 섹션»에서 어노만 빠지면 한 글자라도 그려지므로 침묵한다(8d10b079 실측: S1 3/3 침묵).
+ *   픽셀 게이트도 export·truth 가 «같이» 빠지면 'same' 이다(같은 실측). ⇒ 둘 다 못 보는 꼴을 여기서 본다.
+ * ★무엇으로 가르나 — 라이브 섹션에서 «그려지는» 어노 부품 수 ↔ 클론에서 «그려지는» 수.
+ *   그려짐 = 붙어 있고 · display/visibility/opacity 로 안 숨고 · 상자가 0 이 아님. 클론에서 줄면 = DOM 에 있는데 안 그려진다(또는 걷혔다).
+ *   라이브에서부터 안 그려지는 것(사용자가 숨긴 것)은 분모에 안 든다 — 그건 결손이 아니다.
+ * ★원인을 안 고른다 — 증상(부품별 라이브/클론 수) ＋ 표본(어노마다 클론에 있나·어떻게 숨었나)만 싣는다.
+ * ⛔console.error 가 «아니다»(위 함수와 같은 까닭 — 링버퍼를 밀어낸다) · ⛔판정을 바꾸지 않는다 · 던지지 않는다. */
+const _ANNOT_PARTS = ['.annotation-block', '.annot-label', '.annot-svg'];
+export function warnIfCaptureAnnotVanished(clone, live, ctx) {
+  try {
+    if (!clone || !live) return null;
+    const drawn = (el) => {
+      if (!el || !el.isConnected) return false;
+      const cs = window.getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) return false;
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    };
+    const parts = {};
+    let short = false;
+    for (const sel of _ANNOT_PARTS) {
+      const want = [...live.querySelectorAll(sel)].filter(drawn).length;
+      const got = [...clone.querySelectorAll(sel)].filter(drawn).length;
+      parts[sel] = { live: want, clone: got };
+      if (got < want) short = true;
+    }
+    if (!short) return null;
+    const sample = [...live.querySelectorAll('.annotation-block')].filter(drawn).slice(0, 5).map((a) => {
+      const c = a.id ? clone.querySelector(`[id="${a.id}"]`) : null;
+      const cs = c && c.isConnected ? window.getComputedStyle(c) : null;
+      return { id: a.id || null, kind: a.dataset?.annotKind || 'pen', inClone: !!c,
+               display: cs ? cs.display : null, visibility: cs ? cs.visibility : null, opacity: cs ? cs.opacity : null };
+    });
+    const info = { section: ctx?.sectionId || live.id || '?', parts, sample };
+    /* 수는 글자로도 싣는다 — 콘솔·신고 로그는 객체를 펼치지 않는다(«Object» 한 낱말만 남는다). */
+    const sum = _ANNOT_PARTS.map((sel) => `${sel} ${parts[sel].live}→${parts[sel].clone}`).join(' · ');
+    console.warn(`[export-annot-missing] 어노테이션이 DOM 에는 있는데 캡처 클론에서 «안 그려진다» — 산출물에서 빠진다 (${sum}):`, info);
+    return info;
+  } catch (_) { return null; }   // 진단이 내보내기를 깨뜨리면 안 된다
+}
+
 /** 이 요소가 «아직 안내문구»인가 — 표식 + 글자를 «둘 다» 본다.
  *  true  = 안내문구 그대로(또는 비었음, 또는 비교할 원문이 없음) ⇒ 산출물에서 숨긴다
  *  false = 안내문구와 다른 글자가 들어 있다 ⇒ 본문이다. 숨기면 내용이 사라진다. */

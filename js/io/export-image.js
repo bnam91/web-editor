@@ -2,7 +2,7 @@ import { canvasEl, state } from '../globals.js';
 import { exportMimeOf, exportExtOf, isGifFormat, isAnimFormat } from './export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
 import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
-import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture, warnIfCaptureTextVanished, withGuideOff } from './capture-safety.js';
+import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture, warnIfCaptureTextVanished, warnIfCaptureAnnotVanished, withGuideOff } from './capture-safety.js';
 import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★h2c 폴백 가지에서만 쓴다 — CDP 주 경로는 브라우저가 그려 준다 */
 
 const CANVAS_W = 860;
@@ -585,6 +585,8 @@ async function _exportSectionInner(sec, format, width, opts) {
      ⑵재렌더·안내문구 숨김이 «끝난 뒤»라야 실제로 그려질 글자를 잰다 — ①에 두면 아직 이르다.
      ⛔truth 클론(js/io/export-gate.js)에는 안 건다 — 같은 섹션에 두 줄이 찍힌다. */
   warnIfCaptureTextVanished(clone, { sectionId: sec.id });
+  /* ★125 ㉯ — 같은 자리 · 같은 규약(말만 · truth 클론엔 안 건다). 글자 진단이 못 보는 어노 선·라벨을 본다. */
+  warnIfCaptureAnnotVanished(clone, sec, { sectionId: sec.id });
 
   // cvb(canvas-block): renderCanvas로 scale 재계산 후 transform 평탄화
   // html2canvas가 transform:scale() 내부 background-image를 잘못 렌더링하므로
