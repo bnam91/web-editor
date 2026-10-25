@@ -239,6 +239,24 @@ function _bind(el, tb, name, kind) {
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      /* ★★★끈 뒤 ★click 한 번을 ★삼킨다 — `FT-DRAG-RELEASE-DESELECTS-01`(★현빈 261025 자유변형).
+         ⛔안 삼키면 : ★`mouseup` 뒤 ★브라우저가 ★합성 `click` 을 ★공통 조상에서 ★내고,
+           ★`block-drag` 의 ★click 핸들러가 ★`deselectAll()` 을 ★불러 ★방금 끌던 블럭이 ★풀린다
+           ⇒ ★`_shouldShow` 가 ★`.selected` 를 ★요구하므로(:81) ★★손잡이가 ★통째로 ★사라진다.
+         ★꼴은 ★★레포 선례 ★그대로 — ★capture ＋ 120ms :
+           `js/block-drag.js:684` · `js/blocks/mockup-block.js:221` · `js/overlay-float.js:712`
+           (＋함수 꼴 둘 : `js/table-cell-select.js:85` `armClickSwallow` ·
+             `js/overlay-handles.js:2578` `_grdRangeArmClickSwallow`)
+         ★★⇒ ★이것이 ★★«여섯째 사본»이다. ★`block-drag.js:681` 이 ★「선례 그대로」라 ★적어 뒀다.
+           ★경고 주석으로는 ★못 막는다 — ★공용 하나로 ★파생시킬 자리다.
+           ⇒ ★이름 : ★`CLICK-SWALLOW-IDIOM-COPIED-SIX-TIMES-01` (★범위 밖 ⇒ ★★따로)
+         ★`!first` = ★끌림이 ★실제로 ★있었다 — ⛔안 움직인 ★제자리 클릭은 ★삼키지 ★않는다
+           (★삼키면 ★손잡이를 ★그냥 ★누른 것도 ★먹혀 ★다른 것이 ★깨진다). */
+      if (!first) {
+        const killClick = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+        document.addEventListener('click', killClick, true);
+        setTimeout(() => document.removeEventListener('click', killClick, true), 120);
+      }
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
