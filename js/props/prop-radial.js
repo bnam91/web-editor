@@ -196,6 +196,7 @@ ${blockHeaderHTML({
           <span class="prop-toggle-track"></span>
         </label>
       </div>` : ''}
+      ${_pairRow('rdl-padx', '좌우 패딩', st.padX, L.padX, L.padX.step)}
       ${_pairRow('rdl-radius', '반지름', st.radius, L.radius)}
       ${_pairRow('rdl-start', '시작 각도', st.startDeg, L.startDeg)}
       ${isArc ? `
@@ -403,6 +404,7 @@ ${blockHeaderHTML({
 
   // ── Layout ──
   wireNum('rdl-radius', 'radius');
+  wireNum('rdl-padx', 'padX');   /* ★t4-07 좌우 패딩 — 다른 슬라이더와 같은 쌍 · push-after */
   wireNum('rdl-start', 'startDeg');
   wireNum('rdl-end', 'endDeg');
   wireNum('rdl-cx', 'centerX');

@@ -59,6 +59,7 @@ const RADIAL_DEFAULTS = Object.freeze({
   labelWidth: 96, labelWeight: 'bold',
   endDeg: 60, centerX: 50, lineExtend: 0, centerDx: 0,
   marker: 'cell', dotSize: 18, dotColor: RADIAL_DOT_COLOR, iconSize: 36,
+  padX: 0,   /* ★t4-07 좌우 패딩 — 0 = 옛 블럭 그대로(새 블럭에도 키를 안 쓴다 · makeRadialBlock 무접촉) */
 });
 /* 호 모드의 기본 꼴(V4) = 반원 · 점 + 글. 새 호 블럭의 기본값이고, 패널에서 호로 처음 바꿀 때 쓰는 값이다.
  *   꼴(각도 · 원 중심 · 선 연장)의 수는 RADIAL_ARC_GEOM.HALF 한 자리에서 온다. */
@@ -90,6 +91,7 @@ const RADIAL_LIMITS = Object.freeze({
   iconSize: { min: 16, max: 96 },
   labelDx: { min: -600, max: 600 },
   labelDy: { min: -600, max: 600 },
+  padX: { min: 0, max: 120, step: 4 },   /* ★t4-07 — 그래프 「좌우 패딩」(prop-graph.js #grb-padx 0~80 step 4)과 같은 말 · 넓은 섹션 몫으로 120 */
 });
 const RADIAL_ICON_SVG_MAX = 20000;   // 붙여넣는 항목 아이콘 SVG 의 글자 수 상한(소독 뒤)
 const RADIAL_SHAPES = Object.freeze(['circle', 'poly', 'arc']);
@@ -246,7 +248,7 @@ function radialStateOf(block) {
     dotSize: num('dotSize'), dotColor: _color(d.dotColor, D.dotColor), iconSize: num('iconSize'),
     labelWidth: num('labelWidth'), labelWeight: d.labelWeight === 'normal' ? 'normal' : 'bold',
     shape, count,
-    radius: num('radius'), startDeg: num('startDeg'),
+    radius: num('radius'), startDeg: num('startDeg'), padX: num('padX'),
     line: _oneOf(d.line, RADIAL_LINES, D.line),
     lineColor: _color(d.lineColor, D.lineColor),
     lineStyle: d.lineStyle === 'solid' ? 'solid' : 'dashed',
@@ -344,7 +346,8 @@ function radialArcSpec(st, sizes, maxWs) {
  *  호는 내용 상자가 스테이지 안에 들게 높이 · 원 중심 · 반지름을 맞춘다(자르지 않는다). labelSizes = 화면에서 잰 라벨 크기(없으면 어림). */
 function radialLayoutOf(block, st, labelSizes) {
   const G = window.RADIAL_GEOM;
-  const avail = block.clientWidth > 0 ? block.clientWidth : _FALLBACK_W;
+  /* ★t4-07 — «쓸 수 있는 폭» = 블럭 안쪽(clientWidth 는 좌우 padding 을 품는다 ⇒ 그만큼 뺀다). padX 0 이면 옛 식 그대로. */
+  const avail = block.clientWidth > 0 ? Math.max(1, block.clientWidth - 2 * (st.padX || 0)) : _FALLBACK_W;
   const m = _markerSize(st), half = m / 2;
   const out = st.labelPos === 'outside', below = st.labelPos === 'below';
   if (st.shape === 'arc') {
@@ -822,6 +825,10 @@ function renderRadialBlock(block) {
      ★자리가 «맨 앞»인 까닭: 호(arc)는 배치가 블럭 폭(clientWidth)을 잰다 ⇒ 넓힌 «뒤»에 재야 넓어진 폭에 맞춰 그린다.
      이 렌더는 블럭 폭을 따로 안 박는다 ⇒ «제 폭을 먼저 정하고 마지막에 덮는다» 규약과 어긋나지 않는다. 키 없으면 no-op(옛 블럭 무변화). */
   window.applyBlockFullBleed?.(block);
+  /* ★t4-07 「좌우패딩기능 추가해줄 것」(2026-10-26 S3) — 블럭 안쪽 좌우 여백. 키(dataset.padX)가 없으면 인라인을 안 남긴다(옛 바이트).
+     ★배치 «앞»에 건다 — radialLayoutOf 가 clientWidth − 2×padX 로 쓸 수 있는 폭을 잰다(호는 그 폭에 맞춘다). */
+  const _px = radialStateOf(block).padX;
+  block.style.paddingLeft = block.style.paddingRight = _px ? _px + 'px' : '';
   const st = radialStateOf(block);
   let g = radialLayoutOf(block, st);
   _paintRadial(block, st, g);
