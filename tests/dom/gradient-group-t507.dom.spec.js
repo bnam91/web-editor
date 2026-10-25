@@ -27,6 +27,7 @@ const SSOT = (ED.match(/const SECTION_BLOCK_TYPE_SEL = \[[\s\S]*?\]\.join\(', '\
 
 const WRAP_JS = `
 import { isShapeFrame, shapeFrameOf, topLevelBlocksOf, isEmptyShell } from '/js/shape-frame.js';
+import { growFrameToFitChildren } from '/js/frame-geometry.js';   /* ★t5-08 — 흐름+떠 있음 갈래가 새 그룹을 떠 있는 것까지 키운다 */
 ${SSOT}
 window.SECTION_BLOCK_TYPE_SEL = typeof SECTION_BLOCK_TYPE_SEL === 'string' ? SECTION_BLOCK_TYPE_SEL : undefined;
 let __n = 0;
@@ -144,14 +145,35 @@ test('B2 ★그라데이션 + 흐름 자유배치 프레임 하나 → 그라데
   expect(r.toasts.length, 'QA ⑴ 토스트 한 줄').toBe(1);
   expect(errs).toEqual([]);
 });
-test('B3 ★흐름 에셋 + 그라데이션 → 묶지 않고 까닭 한 줄(흐름+떠 있음 새 갈래 = t5-08 (a) 현빈 칸) · 에셋을 홀로 묶지 않는다', async ({ page }) => {
+test('B3 ★흐름 에셋 + 그라데이션 → 한 그룹(흐름 안 · 일반 블럭처럼) · 그라데이션은 그 안에 화면 자리 그대로 · 성공 한 줄 (t5-08)', async ({ page }) => {
+  /* ★t5-08 현빈 「일반블럭과 오버레이된 블럭을 그룹설정하면 일반블럭처럼 움직여져야됨 , 그룹더블클릭해서 그룹안으로 진입하면
+     그안에서 오버레이 블럭은 여전히 오버레이되어야함」 — 옛 기대(묶지 않고 까닭 한 줄)는 t5-07 판정 ③ 이 이 칸(현빈 칸)으로 미뤄 둔 것이었다.
+     ★바닥(46d444b1)에선 빨강: 그룹 0 · 토스트 「자유배치 프레임 하나」. */
   const errs = await bootWrap(page);
   const r = await groupOf(page, ['ab_flow', 'grad1']);
-  expect(r.groups, '★그룹 0 — 바닥은 에셋 «하나만» 묶고 그라데이션을 조용히 뺀다').toBe(0);
-  expect(r.parents.grad1).toBe('sec1');
-  expect(r.parents.ab_flow).toBe('rowA');
+  expect(r.groups, '그룹 하나').toBe(1);
+  expect(r.inGroup.ab_flow, '에셋이 그룹 안').not.toBeNull();
+  expect(r.inGroup.grad1, '그라데이션도 같은 그룹 안').toBe(r.inGroup.ab_flow);
+  const g = await page.evaluate((id) => { const e = document.getElementById(id); return { parent: e.parentElement.id, gradOverlay: document.getElementById('grad1').dataset.overlayBlock || null }; }, r.inGroup.ab_flow);
+  expect(g.parent, '그룹은 흐름(section-inner) 안 = 일반 블럭처럼').toBe('inner1');
+  expect(r.after.grad1, '그라데이션 화면 자리 그대로').toEqual(r.before.grad1);
+  expect(r.after.ab_flow, '에셋 화면 자리 그대로').toEqual(r.before.ab_flow);
+  expect(r.toasts.length, 'QA ⑴ 토스트는 성공 한 줄뿐').toBe(1);
+  expect(r.toasts[0]).toMatch(OK_TOAST);
+  expect(errs).toEqual([]);
+});
+test('B3b ★(t5-08) 떠 있는 쪽이 그룹 «위»로 나가 있어도 잘리지 않는다 — 그룹 상자가 덮고, 둘 다 화면 자리 그대로', async ({ page }) => {
+  const errs = await bootWrap(page);
+  /* 그라데이션을 흐름 글자(rowT)보다 위로 올려 둔다 — 새 그룹의 윗변보다 위 */
+  await page.evaluate(() => { const g = document.getElementById('grad1'); g.dataset.y = '60'; g.style.top = '60px'; });
+  const r = await groupOf(page, ['tb_flow', 'grad1']);
+  expect(r.groups).toBe(1);
+  expect(r.inGroup.grad1).toBe(r.inGroup.tb_flow);
+  expect(r.after.grad1, '그라데이션 화면 자리 그대로').toEqual(r.before.grad1);
+  expect(r.after.tb_flow, '흐름 글자 화면 자리 그대로').toEqual(r.before.tb_flow);
+  const box = await page.evaluate(([gid]) => { const f = document.getElementById(gid).getBoundingClientRect(); const g = document.getElementById('grad1').getBoundingClientRect(); return { covers: f.top <= g.top + 0.5 && f.bottom >= g.bottom - 0.5, above: g.top < f.top + 0.5 }; }, [r.inGroup.grad1]);
+  expect(box.covers, '그룹 상자가 그라데이션을 덮는다(프레임은 overflow:hidden)').toBe(true);
   expect(r.toasts.length).toBe(1);
-  expect(r.toasts[0]).toContain('자유배치 프레임 하나');
   expect(errs).toEqual([]);
 });
 test('R1 (회귀) 오버레이 에셋 + 오버레이 글자 → 한 그룹 · 성공 한 줄', async ({ page }) => {

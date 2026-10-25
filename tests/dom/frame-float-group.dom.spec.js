@@ -28,6 +28,7 @@ const NEXT_GROUP_SRC = sliceBlock(BF, 'function _nextGroupName(');
 
 const WRAP_JS = `
 import { isShapeFrame, shapeFrameOf, topLevelBlocksOf, isEmptyShell } from '/js/shape-frame.js';
+import { growFrameToFitChildren } from '/js/frame-geometry.js';   /* ★t5-08 — 흐름+떠 있음 갈래가 새 그룹을 떠 있는 것까지 키운다 */
 ${ssotSelJs(JS_DIR)}   // ★t5-07 — ⌘G 명부가 이 정본에서 파생된다(tests/dom/_ssot-sel.js)
 let __n = 0;
 function makeFrameBlock() {
@@ -144,17 +145,26 @@ test('G2 줌 + 오버레이 글자 둘 다 — 오버레이 표식은 내려놓�
   expect(after.zmb1).toEqual(before.zmb1);
 });
 
-test('G3 흐름 쪽이 «자유배치 프레임 하나»가 아니면 — 쌓지 않고 까닭을 말하고 멈춘다', async ({ page }) => {
+test('G3 흐름 쪽이 «자유배치 프레임 하나»가 아니면 — (t5-08) 흐름 쪽을 새 그룹으로 묶고 떠 있는 것은 그 «안»에 자리 그대로', async ({ page }) => {
+  /* ★옛 기대(쌓지 않고 까닭을 말하고 멈춘다)는 t5-08 현빈 원문으로 바뀌었다 — 「일반블럭과 오버레이된 블럭을 그룹설정하면
+     일반블럭처럼 움직여져야됨 , 그룹더블클릭해서 그룹안으로 진입하면 그안에서 오버레이 블럭은 여전히 오버레이되어야함」.
+     ⛔그래도 «세로로 쌓지» 않는다(옛 흠 — 줌이 자리를 잃는다): 줌은 화면 자리 그대로 새 그룹의 자식이다. */
   await bootWrap(page);
   const r = await page.evaluate(() => {
+    const s = document.getElementById('sec1').getBoundingClientRect();
+    const at = (id) => { const b = document.getElementById(id).getBoundingClientRect(); return [Math.round(b.left - s.left), Math.round(b.top - s.top)]; };
+    const before = at('zmb1');
     ['tb_flow', 'ssA', 'zmb1'].forEach(id => document.getElementById(id).classList.add('selected'));
     window.__wrap({ asGroup: true });
-    return { toasts: window.__toasts, zp: document.getElementById('zmb1').parentElement.id,
-             frames: document.querySelectorAll('.frame-block').length };
+    const grp = document.getElementById('zmb1').closest('.frame-block[data-group="true"]');
+    return { toasts: window.__toasts, grp: grp ? grp.id : null, tbIn: !!document.getElementById('tb_flow').closest('[data-group="true"]'),
+             ssIn: !!document.getElementById('ssA').closest('[data-group="true"]'), before, after: at('zmb1') };
   });
-  expect(r.zp, '★옛 갈래는 줌을 새 프레임에 «세로로» 쌓았다').toBe('sec1');
-  expect(r.frames).toBe(2);
-  expect(r.toasts.join('|')).toContain('자유배치 프레임 하나');
+  expect(r.grp, '줌이 새 그룹 안').not.toBeNull();
+  expect([r.tbIn, r.ssIn], '흐름 쪽 둘도 그 그룹 안').toEqual([true, true]);
+  expect(r.after, '줌 화면 자리 그대로(세로로 안 쌓였다)').toEqual(r.before);
+  expect(r.toasts.length).toBe(1);
+  expect(r.toasts[0]).toContain('그룹으로 묶었어요');
 });
 
 test('G4 프레임 안에서 못 끌리는 떠 있는 종류(벡터)는 넣지 않고 멈춘다', async ({ page }) => {

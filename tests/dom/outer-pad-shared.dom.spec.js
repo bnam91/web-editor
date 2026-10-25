@@ -134,3 +134,27 @@ test('F3 ★설계를 잠근다 — 자유배치 프레임 안에서는 되먹�
     .toBe('인라인 width=(없음) marginLeft=(없음)');
   expect(s.errs, s.errs.join(' | ')).toEqual([]);
 });
+
+test('F4 ★(t5-08) 자유배치 프레임(그룹) 안 그라데이션은 «패딩 제외» 여백을 안 받는다 · (음성) row 안 그라데이션은 그대로 받는다', async ({ page }) => {
+  /* ★왜 — 그룹 안 그라데이션은 좌표(dataset.x · left)로 산다. applyPadXToSection 이 margin −padX 와 calc(100% + 2·padX) 를
+     «한 번 더» 얹으면 복원(⌘Z·리로드)마다 padX 만큼 왼쪽으로 튄다(t5-08 실앱 실측: left −72 → 화면 −29 @40%). */
+  await page.setViewportSize({ width: 1700, height: 1100 });
+  const errs = await bootApp(page);
+  const r = await page.evaluate(() => {
+    const c = document.getElementById('canvas');
+    c.querySelectorAll('.section-block').forEach(s => s.remove());
+    c.insertAdjacentHTML('beforeend',
+      '<div class="section-block" data-section="1" id="sG"><div class="section-hitzone"></div><div class="section-inner" id="siG">'
+      + '<div class="frame-block" id="frG" data-free-layout="true" data-group="true" style="position:relative;width:100%;height:400px;">'
+      + '<div class="gradient-block" id="gIn" data-x="-72" data-y="40" style="position:absolute;left:-72px;top:40px;width:860px;height:300px;"></div></div>'
+      + '<div class="row" id="rG"><div class="gradient-block" id="gRow" style="width:100%;height:100px;"></div></div>'
+      + '</div></div>');
+    window.applyPadXToSection(document.getElementById('siG'), 72);
+    const pick = (id) => { const e = document.getElementById(id); return { ml: e.style.marginLeft, mr: e.style.marginRight, w: e.style.width }; };
+    return { inFrame: pick('gIn'), inRow: pick('gRow'), fn: typeof window.applyPadXToSection };
+  });
+  expect(r.fn, '★전제: 그 함수가 실렸다').toBe('function');
+  expect(r.inRow, '★음성대조: row 안 그라데이션은 여전히 패딩 제외').toEqual({ ml: '-72px', mr: '-72px', w: 'calc(100% + 144px)' });
+  expect(r.inFrame, '그룹 안 그라데이션은 제 너비·여백 그대로').toEqual({ ml: '', mr: '', w: '860px' });
+  expect(errs).toEqual([]);
+});
