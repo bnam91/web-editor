@@ -638,3 +638,626 @@ test.describe('U2a-fix D1·D2 @grid-reorder', () => {
     expect(errs, errs.join('\n')).toEqual([]);
   });
 });
+
+/* ══ U2b 범위 복붙 — 칸을 «끌어» 범위(A2:C3) → ⌘C → 붙일 칸 → ⌘V (확정 ② ③ ⑤ · 설계 reports/S6-GRID/plan-u2b.md §6) ══
+ * ★드릴 = selectGrid(첫 클릭 = 블럭) 뒤 줄 «진짜 클릭» · 범위 끌기 = page.mouse down → move(steps 8) → up(누르기 직전 맞힌 칸을 찍는다).
+ * ★⌘C = 진짜 키(page.keyboard) · ⌘V = keydown ＋ 이어지는 paste 이벤트(grid-line-paste-single 의 가짜 OS 클립보드 __os 꼴 —
+ *   그 순간의 OS 내용이 paste 이벤트에 실린다). ⛔waitForTimeout 0 — 기다림은 waitForFunction · expect.poll 로만.
+ * ★음성대조② = 범위가 없으면 블럭 복사·줄 복사 길은 손 0(T1 T2 T10 T12). 확정② = 모자라면 들어가는 만큼만 · 버린 수 보고(T3 T3b T5).
+ * ★변이(레인 밖 사본 · GD1001_ROOT): M1 copyalways · M2 nodrop · M3 nohide · M4 noesc · M5 nostamp · M6 order · M7 intake ·
+ *   M8 noswallow · M-notrim — 각자 «노린 칸만» 빨강(보고서). */
+const PNG1B64 = PNG1.toString('base64');
+async function installOS(page, { image = false } = {}) {
+  await page.evaluate((image) => {
+    window.__os = { text: null, image };
+    window.electronAPI = new Proxy({}, { get: (_t, k) => k === 'clipboardWriteText'
+      ? (txt) => { window.__os = { text: String(txt), image: false }; return Promise.resolve({ ok: true }); } : () => Promise.resolve(null) });
+  }, image);
+}
+const G_ = (page) => page.evaluate(() => {
+  const g = document.getElementById('gG');
+  const rects = [...document.querySelectorAll('.grd-range-rect')];
+  return {
+    rng: g ? (window.grdGetRange?.(g) ?? null) : null,
+    n: rects.length,
+    name: rects[0]?.dataset.name ?? null,
+    inOverlay: rects.every(r => r.parentElement?.id === 'ss-handles-overlay'),
+    sel: !!g?.classList.contains('selected'),
+    al: g ? (window.grdGetActiveLine?.(g) ?? null) : null,
+  };
+});
+const toast = (page) => page.evaluate(() => document.getElementById('editor-toast')?.textContent || '');
+const grids = (page) => page.evaluate(() => document.querySelectorAll('#canvas .grid-block').length);
+const os = (page) => page.evaluate(() => window.__os);
+const cellSel = (r, c) => `#gG > .grd-inner > .grd-cell[data-r="${r}"][data-c="${c}"]`;
+const lineSel = (r, c, li = 0) => `#gG [data-r="${r}"][data-c="${c}"][data-line="${li}"]`;
+
+/** 이미 고른 그리드에서 줄 하나를 «진짜 클릭» — 활성 줄이 그 칸이 될 때까지. */
+async function clickLine(page, r, c) {
+  const l = await waitStableRect(page, lineSel(r, c));
+  await clickAt(page, l.cx, l.cy, { sel: lineSel(r, c) }, { label: `줄 ${r}${c}` });
+  await page.waitForFunction(([r, c]) => {
+    const a = window.grdGetActiveLine(document.getElementById('gG'));
+    return !!a && Number(a.r) === r && Number(a.c) === c;
+  }, [r, c]);
+  await page.evaluate(() => document.activeElement?.blur?.());
+}
+/** 드릴 = 블럭 고르기 → 줄 클릭. */
+async function drill(page, r, c) { await selectGrid(page); await clickLine(page, r, c); }
+/** 칸 a 가운데에서 칸 b 가운데(＋off)까지 «진짜 마우스»로 끈다 — 누르기 직전 맞힌 칸을 찍는다. */
+async function dragRange(page, a, b, { off = 0, from = null } = {}) {
+  const ca = from || await waitStableRect(page, cellSel(a.r, a.c));
+  const cb = await waitStableRect(page, cellSel(b.r, b.c));
+  if (!from) {
+    const hit = await page.evaluate(([x, y]) => {
+      const e = document.elementFromPoint(x, y); const cell = e && e.closest('.grd-cell');
+      return cell ? `${cell.dataset.r}${cell.dataset.c}` : (e ? (e.id || String(e.className)) : null);
+    }, [ca.cx, ca.cy]);
+    expect(hit, `누르기 직전 (${ca.cx},${ca.cy}) 맞힌 칸`).toBe(`${a.r}${a.c}`);
+  }
+  await page.mouse.move(ca.cx, ca.cy);
+  await page.mouse.down();
+  await page.mouse.move(cb.cx + off, cb.cy + off, { steps: 8 });
+  await page.mouse.up();
+}
+async function pressCopy(page) {
+  await page.evaluate(() => {
+    document.activeElement?.blur?.();
+    const t = document.getElementById('editor-toast'); if (t) t.textContent = '';
+    window.__t0 = window._internalClipboardTime || 0;
+  });
+  await page.keyboard.press('Meta+c');
+  await page.waitForFunction(() => (window._internalClipboardTime || 0) !== window.__t0);
+}
+async function pressPaste(page) {
+  await page.evaluate((png) => {
+    document.activeElement?.blur?.();
+    const t = document.getElementById('editor-toast'); if (t) t.textContent = '';
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', code: 'KeyV', metaKey: true, bubbles: true, cancelable: true }));
+    const dt = new DataTransfer();
+    if (window.__os.text !== null) dt.setData('text/plain', window.__os.text);
+    if (window.__os.image) { const b = Uint8Array.from(atob(png), ch => ch.charCodeAt(0)); dt.items.add(new File([b], 'clip.png', { type: 'image/png' })); }
+    document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, PNG1B64);
+}
+const linesOf = (m, r, c) => (m.cells[r][c].lines || []).map(l => l.type === 'image' ? 'IMG' : l.text);
+
+test.describe('U2b 범위 복붙 @grid-reorder', () => {
+  test('T1 음성대조② 블럭만 골라 ⌘C → 블럭 복사 그대로(범위 0 · OS 글자 ≠ 칸 TSV · ⌘V = 그리드 1→2 · gG 무변) @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    const b = await model(page);
+    await selectGrid(page);
+    expect(await G_(page), '[전제] 블럭 단계 = 범위 0 · 활성 줄 0').toMatchObject({ rng: null, n: 0, sel: true, al: null });
+    await pressCopy(page);
+    expect(await toast(page), '블럭 복사엔 «칸» 토스트 0').not.toMatch(/칸/);
+    const t = (await os(page)).text || '';
+    expect(t.includes('\t') || /고디터 그리드 칸/.test(t), `OS 글자가 칸 클립이다: ${JSON.stringify(t.slice(0, 80))}`).toBe(false);
+    await pressPaste(page);
+    await expect.poll(() => grids(page), '⌘V = 블럭 붙여넣기').toBe(2);
+    expect((await model(page)).raw, 'gG dataset 무변').toEqual(b.raw);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('T2 드릴했지만 범위 없음 ⌘C → 줄 복사(줄 토스트 · OS = 줄 글자) · ⌘V = 줄 삽입(칸 통째 0) @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    await drill(page, 2, 0);
+    expect((await G_(page)).rng, '[전제] 범위 0').toBe(null);
+    await pressCopy(page);
+    expect(await toast(page), '줄 복사 토스트').toMatch(/^줄 1개 복사됨/);
+    expect((await os(page)).text, 'OS = 줄 글자').toBe('A3');
+    await pressPaste(page);
+    await expect.poll(async () => linesOf((await model(page)).m, 2, 0), '⌘V = 줄 «삽입»').toEqual(['A3', 'A3']);
+    expect(await grids(page)).toBe(1);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('T3 양성④ UI — 드릴 A2 → A2:C3 진짜 끌기 → ⌘C(3×2) → 줄 A3 → ⌘V ⇒ 행 3 = 옛 행 2 깊이 같음 · 행 1·2 무변 · 버린 3 보고 · 붙은 뒤 A3:C3 @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    const b = await model(page);
+    await drill(page, 1, 0);
+    await dragRange(page, { r: 1, c: 0 }, { r: 2, c: 2 });
+    await expect.poll(() => G_(page), '끈 뒤 범위(click 삼킴 — 안 삼키면 deselectAll 이 푼다)')
+      .toMatchObject({ rng: { r0: 1, c0: 0, r1: 2, c1: 2 }, n: 1, name: 'A2:C3', inOverlay: true, sel: true });
+    // 디자인 일관성 — 선택색 실선 · 토큰 두께 · 새 title/힌트 0
+    const look = await page.evaluate(() => {
+      const r = document.querySelector('.grd-range-rect'); const cs = getComputedStyle(r);
+      const p = document.createElement('div'); p.style.color = 'var(--sel-color)'; p.style.borderTop = 'var(--ui-handle-border-w) solid'; document.body.appendChild(p);
+      const want = { color: getComputedStyle(p).color, w: getComputedStyle(p).borderTopWidth }; p.remove();
+      return { style: cs.borderTopStyle, color: cs.borderTopColor, w: cs.borderTopWidth, pe: cs.pointerEvents, want, title: r.hasAttribute('title'), kids: r.childNodes.length, inCanvas: !!document.querySelector('#canvas .grd-range-rect') };
+    });
+    expect(look, '범위 사각형 꼴').toEqual({ style: 'solid', color: look.want.color, w: look.want.w, pe: 'none', want: look.want, title: false, kids: 0, inCanvas: false });
+    await pressCopy(page);
+    expect(await toast(page), '복사 보고').toMatch(/^칸 A2:C3 \(3×2\) 복사됨/);
+    expect((await os(page)).text, 'OS = TSV(그림 칸 = 빈 글)').toBe('A2\tB2\t\nA3\tB3\tC3');
+    await clickLine(page, 2, 0);
+    expect((await G_(page)).rng, '줄 클릭 = 범위 풀림').toBe(null);
+    await pressPaste(page);
+    await expect.poll(() => toast(page), '붙임 보고(쓴 수 · 버린 수)').toMatch(/^⚠️ A3 에 칸 3개 붙임 · 3개는/);
+    const a = await model(page);
+    expect(a.m.cells[2], '행 3 = 옛 행 2(칸 통째 깊이 같음)').toEqual(b.m.cells[1]);
+    expect([a.m.cells[0], a.m.cells[1], a.m.cols, a.m.rows], '행 1·2 · cols · rows 무변').toEqual([b.m.cells[0], b.m.cells[1], b.m.cols, b.m.rows]);
+    expect(await G_(page), '붙은 뒤 = 들어간 영역 범위 · 활성 줄 0').toMatchObject({ rng: { r0: 2, c0: 0, r1: 2, c1: 2 }, n: 1, name: 'A3:C3', al: null });
+    expect(await grids(page)).toBe(1);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('T3b 해-23 대상 범위로 자름 — 3×2 복사 → 대상 B2:B3(1×2) 골라 ⌘V ⇒ 2칸만 · 나머지 무변 · 버린 4 @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    const b = await model(page);
+    await drill(page, 1, 0);
+    await dragRange(page, { r: 1, c: 0 }, { r: 2, c: 2 });
+    await expect.poll(async () => (await G_(page)).name).toBe('A2:C3');
+    await pressCopy(page);
+    await dragRange(page, { r: 1, c: 1 }, { r: 2, c: 1 });
+    await expect.poll(async () => (await G_(page)).name, '[전제] 대상 범위').toBe('B2:B3');
+    await pressPaste(page);
+    await expect.poll(() => toast(page)).toMatch(/^⚠️ B2 에 칸 2개 붙임 · 4개는/);
+    const a = await model(page);
+    expect([a.m.cells[1][1], a.m.cells[2][1]], '대상 = 클립 왼쪽 열').toEqual([b.m.cells[1][0], b.m.cells[2][0]]);
+    expect([a.m.cells[1][0], a.m.cells[2][0], a.m.cells[1][2], a.m.cells[2][2], a.m.cells[0], a.m.cols],
+      '범위 밖 칸 무변').toEqual([b.m.cells[1][0], b.m.cells[2][0], b.m.cells[1][2], b.m.cells[2][2], b.m.cells[0], b.m.cols]);
+    expect((await G_(page)).name, '붙은 영역').toBe('B2:B3');
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('T4 이미지 바이트 — C2(20만 자 넘는 그림) 1×1 끌기 → ⌘C → B3 ⌘V ⇒ 붙은 imgSrc 길이·sha256 = 원본 · 원본도 그대로 @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    await drill(page, 1, 0);
+    await dragRange(page, IMG_AT, IMG_AT, { off: 12 });   // ★같은 칸 안 끌기 = 1×1(해-22)
+    await expect.poll(async () => (await G_(page)).name).toBe('C2');
+    await pressCopy(page);
+    expect((await os(page)).text, '그림만 = 이름표').toBe('고디터 그리드 칸 1×1');
+    await clickLine(page, 2, 1);
+    await pressPaste(page);
+    await expect.poll(() => toast(page)).toBe('B3 에 칸 1개 붙임');
+    const m = (await model(page)).m;
+    const s = imgOf(m, 2, 1), o = imgOf(m, IMG_AT.r, IMG_AT.c);
+    expect([s && s.length, s && sha(s)], '붙은 그림 바이트').toEqual([BIG.length, BIG_SHA]);
+    expect([o && o.length, o && sha(o)], '원본 그림 바이트').toEqual([BIG.length, BIG_SHA]);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('T5 행 0 가장자리 — A2:B3 → C1 ⌘V ⇒ 행 0 칸 줄은 cols[2].lines 로 · 행 1 칸은 cells · 열 밖 2칸 버림 @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    const b = await model(page);
+    await drill(page, 1, 0);
+    await dragRange(page, { r: 1, c: 0 }, { r: 2, c: 1 });
+    await expect.poll(async () => (await G_(page)).name).toBe('A2:B3');
+    await pressCopy(page);
+    await clickLine(page, 0, 2);
+    await pressPaste(page);
+    await expect.poll(() => toast(page)).toMatch(/^⚠️ C1 에 칸 2개 붙임 · 2개는/);
+    const a = await model(page);
+    expect(JSON.parse(a.raw.cols)[2].lines, '행 0 줄 = dataset cols[2].lines').toEqual(b.m.cells[1][0].lines);
+    expect(a.m.cells[0][2], '행 0 칸 통째(모델)').toEqual(b.m.cells[1][0]);
+    expect(a.m.cells[1][2], '행 1 칸').toEqual(b.m.cells[2][0]);
+    expect([a.m.cells[0][0], a.m.cells[0][1], a.m.cells[1][0], a.m.cells[1][1], a.m.cells[2]], '나머지 무변')
+      .toEqual([b.m.cells[0][0], b.m.cells[0][1], b.m.cells[1][0], b.m.cells[1][1], b.m.cells[2]]);
+    expect((await G_(page)).name).toBe('C1:C2');
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('T6 ⌘Z 한 번 — 범위 붙여넣기 한 번이 ⌘Z 한 번에 dataset 글자 그대로 · ⌘⇧Z 로 붙인 판 @grid-reorder', async ({ page }) => {
+    await setup(page);
+    await installOS(page);
+    const b = await model(page);
+    await drill(page, 1, 0);
+    await dragRange(page, { r: 1, c: 0 }, { r: 1, c: 1 });
+    await expect.poll(async () => (await G_(page)).name).toBe('A2:B2');
+    await pressCopy(page);
+    await clickLine(page, 2, 1);
+    await pressPaste(page);
+    await expect.poll(() => toast(page)).toMatch(/B3 에 칸 2개 붙임/);
+    const pasted = await model(page);
+    expect(pasted.raw, '[전제] 붙었다').not.toEqual(b.raw);
+    await page.keyboard.press('Meta+z');
+    await expect.poll(async () => (await model(page)).raw, '⌘Z «한 번»에 붙이기 전').toEqual(b.raw);
+    expect((await G_(page)).n, '되돌린 뒤 사각형 0').toBe(0);
+    await page.keyboard.press('Meta+Shift+z');
+    await expect.poll(async () => (await model(page)).raw, '⌘⇧Z = 붙인 판').toEqual(pasted.raw);
+  });
+
+  test('T7 저장 왕복 — 붙인 뒤 serializeProject → 다시 띄움 → applyProjectData ⇒ 모델·그림 sha 같음 · 저장본에 grd-range 0 @grid-reorder', async ({ page }) => {
+    await setup(page);
+    await installOS(page);
+    await drill(page, 1, 0);
+    await dragRange(page, { r: 1, c: 2 }, { r: 2, c: 2 });
+    await expect.poll(async () => (await G_(page)).name).toBe('C2:C3');
+    await pressCopy(page);
+    await clickLine(page, 1, 0);
+    await pressPaste(page);
+    await expect.poll(() => toast(page)).toBe('A2 에 칸 2개 붙임');
+    const pasted = await model(page);
+    expect((await G_(page)).n, '[전제] 사각형 있음').toBe(1);
+    const snap = await page.evaluate(() => window.serializeProject());
+    expect(/grd-range/.test(snap), '저장본에 grd-range 0').toBe(false);
+    await bootApp(page);
+    await page.evaluate((d) => window.applyProjectData(JSON.parse(d)), snap);
+    await page.waitForFunction(() => !!document.getElementById('gG') && document.querySelectorAll('#gG .grd-cell').length === 9);
+    const after = await model(page);
+    expect(after.m, '다시 연 모델 = 붙인 모델').toEqual(pasted.m);
+    const s = imgOf(after.m, 1, 0);
+    expect([s && s.length, s && sha(s)], '왕복 뒤 붙은 그림 바이트').toEqual([BIG.length, BIG_SHA]);
+  });
+
+  test('T8 최신 A — 범위 ⌘C 뒤 줄 ⌘C ⇒ ⌘V = 줄이 붙는다(범위 클립은 묵음) @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    const b = await model(page);
+    await drill(page, 1, 0);
+    await dragRange(page, { r: 1, c: 0 }, { r: 1, c: 1 });
+    await expect.poll(async () => (await G_(page)).name).toBe('A2:B2');
+    await pressCopy(page);
+    await clickLine(page, 2, 0);
+    await pressCopy(page);
+    expect(await toast(page), '[전제] 줄 복사').toMatch(/^줄 1개 복사됨/);
+    await pressPaste(page);
+    await expect.poll(async () => linesOf((await model(page)).m, 2, 0), '줄 삽입').toEqual(['A3', 'A3']);
+    const a = await model(page);
+    expect([a.m.cells[2][1], a.m.cells[1]], '범위 붙이기 흔적 0').toEqual([b.m.cells[2][1], b.m.cells[1]]);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('T9 최신 B — 줄 ⌘C 뒤 범위 ⌘C ⇒ ⌘V = 칸 통째(줄 삽입 0) @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    const b = await model(page);
+    await drill(page, 2, 0);
+    await pressCopy(page);
+    expect(await toast(page), '[전제] 줄 복사').toMatch(/^줄 1개 복사됨/);
+    await dragRange(page, { r: 1, c: 0 }, { r: 1, c: 1 });
+    await expect.poll(async () => (await G_(page)).name).toBe('A2:B2');
+    await pressCopy(page);
+    await clickLine(page, 2, 2);
+    await pressPaste(page);
+    await expect.poll(() => toast(page)).toMatch(/^⚠️ C3 에 칸 1개 붙임 · 1개는/);
+    const a = await model(page);
+    expect(a.m.cells[2][2], 'C3 = 옛 A2 칸 통째').toEqual(b.m.cells[1][0]);
+    expect(linesOf(a.m, 2, 0), '줄 삽입 0').toEqual(['A3']);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('T10 최신 C — 범위 ⌘C 뒤 블럭 ⌘C ⇒ ⌘V = 그리드 2 · gG 칸 무변 @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    const b = await model(page);
+    await drill(page, 1, 0);
+    await dragRange(page, { r: 1, c: 0 }, { r: 1, c: 1 });
+    await expect.poll(async () => (await G_(page)).name).toBe('A2:B2');
+    await pressCopy(page);
+    // 풀고(빈 캔버스) 다시 블럭 단계로 고른다 — 범위 클립은 남는다(최신 판정만 본다)
+    const pt = await page.evaluate(() => {
+      const s = document.getElementById('sG').getBoundingClientRect();
+      return { x: Math.min(window.innerWidth - 20, s.right + 60), y: s.top + 40 };
+    });
+    await clickAt(page, pt.x, pt.y, { sel: '#canvas-area, #canvas-wrap', not: '.section-block' }, { label: '빈 캔버스' });
+    await expect.poll(() => G_(page)).toMatchObject({ rng: null, n: 0, sel: false });
+    await selectGrid(page);
+    await expect.poll(() => G_(page)).toMatchObject({ rng: null, sel: true, al: null });
+    await pressCopy(page);
+    expect(await toast(page), '[전제] 블럭 복사 = 칸/줄 토스트 0').not.toMatch(/칸|줄/);
+    await pressPaste(page);
+    await expect.poll(() => grids(page), '블럭 붙여넣기').toBe(2);
+    expect((await model(page)).raw, 'gG 무변').toEqual(b.raw);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('T11 Esc 풀기 — 첫 Esc = 범위만(사각형 0 · 선택·활성 줄 유지) · 그 뒤 ⌘C = 줄 복사 @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    await drill(page, 1, 0);
+    await dragRange(page, { r: 1, c: 0 }, { r: 2, c: 1 });
+    await expect.poll(async () => (await G_(page)).name).toBe('A2:B3');
+    await page.keyboard.press('Escape');
+    await expect.poll(() => G_(page), '첫 Esc').toMatchObject({ rng: null, n: 0, sel: true, al: { r: 1, c: 0 } });
+    await pressCopy(page);
+    expect(await toast(page), '범위 푼 뒤 ⌘C = 줄 복사').toMatch(/^줄 1개 복사됨/);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('T12 선택 풀기(빈 캔버스 클릭 = deselectAll) — 범위·사각형 0 · 다시 고르면 블럭 단계 ⌘C⌘V = 그리드 2 @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    await drill(page, 1, 0);
+    await dragRange(page, { r: 1, c: 0 }, { r: 2, c: 1 });
+    await expect.poll(async () => (await G_(page)).name).toBe('A2:B3');
+    const pt = await page.evaluate(() => {
+      const s = document.getElementById('sG').getBoundingClientRect();
+      return { x: Math.min(window.innerWidth - 20, s.right + 60), y: s.top + 40 };
+    });
+    await clickAt(page, pt.x, pt.y, { sel: '#canvas-area, #canvas-wrap', not: '.section-block' }, { label: '빈 캔버스' });
+    await expect.poll(() => G_(page), '풀린 뒤').toMatchObject({ rng: null, n: 0, sel: false });
+    await selectGrid(page);
+    expect(await G_(page), '다시 고름 = 블럭 단계 · 옛 범위 안 살아남').toMatchObject({ rng: null, n: 0, sel: true, al: null });
+    await pressCopy(page);
+    await pressPaste(page);
+    await expect.poll(() => grids(page)).toBe(2);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('T13 머리띠 옮기기 — 범위가 있어도 행 머리띠 끌기는 옮기고 범위·사각형은 풀린다 @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    const b = await model(page);
+    await drill(page, 1, 0);
+    await dragRange(page, { r: 1, c: 0 }, { r: 1, c: 2 });
+    await expect.poll(async () => (await G_(page)).name).toBe('A2:C2');
+    const r2 = await waitStableRect(page, '#gG .grd-cell[data-r="2"][data-c="0"]');
+    await dragBand(page, 'row', 1, undefined, r2.top + r2.height * 0.8);
+    await expect.poll(async () => (await model(page)).m.rows, '옮김').toEqual(spliceMove(b.m.rows, 1, 2));
+    expect(await G_(page), '옮긴 뒤 범위 0').toMatchObject({ rng: null, n: 0 });
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('T14 블럭 단계(드릴 전) 칸 끌기 = 범위 0 @grid-reorder', async ({ page }) => {
+    await setup(page);
+    await selectGrid(page);
+    await dragRange(page, { r: 1, c: 0 }, { r: 1, c: 1 });
+    expect(await G_(page), '블럭만 고른 끌기').toMatchObject({ rng: null, n: 0 });
+  });
+
+  test('T15 중첩 — 중첩 줄(duo) 안에서 시작한 끌기 = 범위 0 · 바깥 칸에서 시작해 duo 위에 놓기 = 바깥 칸 주소 @grid-reorder', async ({ page }) => {
+    const NEST = JSON.parse(JSON.stringify({ ...SCENE, cells: SCENE.cells.map(r => r.map(c => ({ ...c }))) }));
+    NEST.cells[1][2] = { lines: [{ type: 'body', text: 'C2' }] };
+    NEST.cells[2][1] = { lines: [{ type: 'body', text: 'B3' }, { type: 'duo', cols: [
+      { width: 1, lines: [{ type: 'body', text: '안1' }] }, { width: 1, lines: [{ type: 'body', text: '안2' }] }] }] };
+    const errs = await setup(page, NEST);
+    await drill(page, 1, 0);
+    const n = await waitStableRect(page, '#gG .grd-cell[data-r="2"][data-c="1"] .grd-nested > .grd-nested-col');   // ★가운데 틈 = 중첩 비율 거터(오버레이)라 칸 하나를 겨눈다
+    const hitN = await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.grd-nested'), [n.cx, n.cy]);
+    expect(hitN, '[전제] 누르는 점 = duo').toBe(true);
+    await dragRange(page, null, { r: 1, c: 0 }, { from: n });
+    expect(await G_(page), 'duo 안 시작 = 범위 0').toMatchObject({ rng: null, n: 0 });
+    // 바깥 칸에서 시작 → duo 위에 놓기
+    await setup(page, NEST);
+    await drill(page, 1, 0);
+    const n2 = await waitStableRect(page, '#gG .grd-cell[data-r="2"][data-c="1"] .grd-nested > .grd-nested-col');
+    const c0 = await waitStableRect(page, cellSel(1, 0));
+    await page.mouse.move(c0.cx, c0.cy); await page.mouse.down();
+    await page.mouse.move(n2.cx, n2.cy, { steps: 8 }); await page.mouse.up();
+    await expect.poll(() => G_(page), 'duo 위 = 바깥 (2,1)').toMatchObject({ rng: { r0: 1, c0: 0, r1: 2, c1: 1 }, name: 'A2:B3' });
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('T16 3px 미만 누르기 = 클릭 — 활성 줄이 그 칸으로 · 범위 0 @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await drill(page, 1, 0);
+    const l = await waitStableRect(page, lineSel(2, 1));
+    await page.mouse.move(l.cx, l.cy); await page.mouse.down();
+    await page.mouse.move(l.cx + 2, l.cy, { steps: 2 }); await page.mouse.up();
+    await expect.poll(async () => { const s = await G_(page); return s.al && [Number(s.al.r), Number(s.al.c)]; }, '활성 줄 = B3').toEqual([2, 1]);
+    expect(await G_(page)).toMatchObject({ rng: null, n: 0 });
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+});
+
+/* ══ U2b 이벨류에이터 D1~D4 고침 — 장면은 탐침 eval-u2b-probe(P5 · P1 · P12 · P8) 그대로 ══
+ * ★D1 범위 클립이 최신인데 고른 그리드가 없으면 «알리고 끝»(옛 블럭 클립 떨어짐 0).
+ * ★D2 GRID-CLIP-OS-NEWER-01 — 쓰기는 paste 이벤트에서 clipboardPrefersInternal 이 참일 때만 ⇒ OS 가 더 새로우면 칸 무변
+ *   (이미지 = 스크래치 그림 1 · 글자 = 손 0). pressPaste 는 keydown 뒤 paste 를 «같은 evaluate 안에서» 보내므로
+ *   범위 쓰기(동기)는 pressPaste 가 돌아올 때 이미 끝나 있다 — 무변 단언이 기다림 없이 결정적이다.
+ * ★D3 selectBlock(gG)(MCP·삽입 길) = clearSelectionMarks ⇒ 범위·사각형 0.
+ * ★D4 GRID-RANGE-DELETE-CUT-NOT-IMPL-01 — 범위 산 채 ⌫/⌘X = 삼키고 토스트 · 범위 없으면 옛 길(음성대조). */
+const RANGE_KEY_TOAST = '칸 범위 지우기·잘라내기는 아직 안 돼요';
+async function clickEmptyCanvas(page) {
+  const pt = await page.evaluate(() => {
+    const s = document.getElementById('sG').getBoundingClientRect();
+    return { x: Math.min(window.innerWidth - 20, s.right + 60), y: s.top + 40 };
+  });
+  await clickAt(page, pt.x, pt.y, { sel: '#canvas-area, #canvas-wrap', not: '.section-block' }, { label: '빈 캔버스' });
+  await page.waitForFunction(() => !document.querySelector('.grid-block.selected'));
+}
+
+test.describe('U2b 고침 D1~D4 @grid-reorder', () => {
+  test('F1(D1) 블럭 ⌘C → 범위 ⌘C → 빈 캔버스 → ⌘V ⇒ 옛 블럭 클립 안 떨어짐(그리드 1) · «붙일 칸을 먼저 고르세요» @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    const b = await model(page);
+    await selectGrid(page);
+    await pressCopy(page);                                           // 옛 블럭 클립을 채운다
+    expect(await toast(page), '[전제] 블럭 복사').not.toMatch(/칸|줄/);
+    await clickEmptyCanvas(page);
+    await drill(page, 1, 0);
+    await dragRange(page, { r: 1, c: 0 }, { r: 1, c: 1 });
+    await expect.poll(async () => (await G_(page)).name).toBe('A2:B2');
+    await pressCopy(page);
+    expect(await toast(page), '[전제] 범위 복사').toMatch(/^칸 A2:B2/);
+    await clickEmptyCanvas(page);
+    await pressPaste(page);
+    await expect.poll(() => toast(page), '알림').toBe('붙일 칸을 먼저 고르세요');
+    expect(await grids(page), '옛 블럭 클립 떨어짐 0').toBe(1);
+    expect((await model(page)).raw, 'gG 무변').toEqual(b.raw);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  for (const kind of ['image', 'text']) {
+    test(`F2(D2) 범위 ⌘C → OS ${kind === 'image' ? '이미지' : '글자'} 복사(더 새로움) → 줄 A3 → ⌘V ⇒ 칸 무변 · ${kind === 'image' ? '스크래치 그림 1' : '스크래치 0 · 그리드 1'} @grid-reorder`, async ({ page }) => {
+      const errs = await setup(page);
+      await installOS(page);
+      await drill(page, 1, 0);
+      await dragRange(page, { r: 1, c: 0 }, { r: 1, c: 1 });
+      await expect.poll(async () => (await G_(page)).name).toBe('A2:B2');
+      await pressCopy(page);
+      await clickLine(page, 2, 0);
+      const b = await model(page);
+      const s0 = await page.evaluate(() => document.querySelectorAll('.scratch-item').length);
+      await page.evaluate((k) => { window.__os = k === 'image' ? { text: null, image: true } : { text: '바깥에서 복사한 글', image: false }; }, kind);
+      await pressPaste(page);
+      expect((await model(page)).raw, '칸 무변(범위 쓰기는 paste 안에서 동기 — 여기서 이미 끝)').toEqual(b.raw);
+      if (kind === 'image') {
+        await expect.poll(() => page.evaluate(() => document.querySelectorAll('.scratch-item').length), 'OS 이미지 = 스크래치가 받는다').toBe(s0 + 1);
+        expect((await model(page)).raw, '스크래치 뒤에도 칸 무변').toEqual(b.raw);
+      } else {
+        expect(await page.evaluate(() => document.querySelectorAll('.scratch-item').length), '스크래치 0').toBe(s0);
+      }
+      expect(await toast(page), '붙임 보고 0').not.toMatch(/붙임/);
+      expect(await grids(page)).toBe(1);
+      expect(errs, errs.join('\n')).toEqual([]);
+    });
+  }
+
+  test('F3(D3) 범위 산 채 window.selectBlock(gG) ⇒ 범위·사각형 0 · 그 뒤 ⌘C = 블럭 복사(칸 토스트 0) @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    await drill(page, 1, 0);
+    await dragRange(page, { r: 1, c: 0 }, { r: 1, c: 1 });
+    await expect.poll(async () => (await G_(page)).name).toBe('A2:B2');
+    await page.evaluate(() => window.selectBlock('gG'));
+    expect(await G_(page), 'selectBlock 뒤').toMatchObject({ rng: null, n: 0, sel: true });
+    await pressCopy(page);
+    expect(await toast(page), '블럭 복사(칸·줄 토스트 0)').not.toMatch(/칸|줄/);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('F4(D4) 범위 산 채 ⌫ · Delete · ⌘X = 삼키고 알림(칸·블럭 무변 · 복사 0) · Esc 로 범위 풀면 ⌫ = 옛 길(음성대조) @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await installOS(page);
+    const b = await model(page);
+    await drill(page, 1, 0);
+    await dragRange(page, { r: 1, c: 0 }, { r: 1, c: 1 });
+    await expect.poll(async () => (await G_(page)).name).toBe('A2:B2');
+    const t0 = await page.evaluate(() => window._internalClipboardTime || 0);
+    for (const key of ['Backspace', 'Delete', 'Meta+x']) {
+      await page.evaluate(() => { document.activeElement?.blur?.(); const t = document.getElementById('editor-toast'); if (t) t.textContent = ''; });
+      await page.keyboard.press(key);
+      await expect.poll(() => toast(page), `${key} 알림`).toBe(RANGE_KEY_TOAST);
+      expect((await model(page)).raw, `${key} 칸 무변`).toEqual(b.raw);
+      expect(await grids(page), `${key} 블럭 무변`).toBe(1);
+      expect(await G_(page), `${key} 뒤 범위 그대로`).toMatchObject({ name: 'A2:B2', sel: true });
+    }
+    expect(await page.evaluate(() => window._internalClipboardTime || 0), '⌘X 블럭 복사 0').toBe(t0);
+    // 음성대조 — 범위를 풀면 ⌫ 는 옛 길(활성 줄 지우기)
+    await page.keyboard.press('Escape');
+    await expect.poll(() => G_(page)).toMatchObject({ rng: null, n: 0, sel: true });
+    await page.evaluate(() => { const t = document.getElementById('editor-toast'); if (t) t.textContent = ''; });
+    await page.keyboard.press('Backspace');
+    await expect.poll(async () => JSON.stringify((await model(page)).raw) !== JSON.stringify(b.raw), '범위 없음 = 옛 ⌫ 가 돈다').toBe(true);
+    expect(await toast(page), '범위 알림 0').not.toBe(RANGE_KEY_TOAST);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+});
+
+/* ══ U2b 재평가 고침 — 결함1(무장 잔존) · 결함2(:574 편집 칸 가드 · :575 stamp 재확인 시험 공백) ══
+ *   장면 = 재평가 탐침 eval2-u2b-probe(P1 · P2 · P4) 그대로 + 키 누름 «안»의 장면 둘.
+ * ★결함1 — 무장은 «이번 키 누름 한 번»: keydown 을 안 거친 paste(메뉴 «붙여넣기» = paste 만) = 범위 손 0(블럭·줄 클립과 같다).
+ *   풂 = 다음 keydown·mousedown(capture) · 맥 Control+v = 무장 0(paste 를 안 낳는다 — 실측 P2 · [전제]로 다시 잰다).
+ * ★결함2 — ⌘V keydown 과 paste «사이»(같은 키 누름 흐름)에 끼는 일: ① 고디터 복사(copySelected) ⇒ stamp 재확인이 막는다 ·
+ *   ② 포커스가 입력칸으로 ⇒ 편집 칸 가드가 막는다. 사람 손의 «다음 누르기·키»는 결함1 풂이 먼저 막으므로 이 둘은 «한 evaluate 안»
+ *   (keydown → 끼는 일 → paste)으로만 선다 — 다른 keydown 처리기·자동화(MCP)가 키 누름 안에서 하는 일의 대역(해석).
+ * ★변이(형제 사본 · GD1001_ROOT): nofix1(풂 리스너·맥 Control+v 규칙 뺌) ⇒ G1 셋 빨강 · noguard(:574/:575 뺌) ⇒ G2 둘 빨강. */
+const gKeyOnly = (page) => page.evaluate(() => {
+  document.activeElement?.blur?.();
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', code: 'KeyV', metaKey: true, bubbles: true, cancelable: true }));
+});
+/** 메뉴 «붙여넣기» 대역 — keydown 없이 paste 만(OS 글자 = window.__os). */
+const gPasteOnly = (page) => page.evaluate(() => {
+  const t = document.getElementById('editor-toast'); if (t) t.textContent = '';
+  const dt = new DataTransfer();
+  if (window.__os.text !== null) dt.setData('text/plain', window.__os.text);
+  (document.activeElement || document).dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+});
+async function gRangeCopiedAtA3(page) {
+  await installOS(page);
+  await drill(page, 1, 0);
+  await dragRange(page, { r: 1, c: 0 }, { r: 1, c: 1 });
+  await expect.poll(async () => (await G_(page)).name).toBe('A2:B2');
+  await pressCopy(page);
+  expect(await toast(page), '[전제] 범위 복사').toMatch(/^칸 A2:B2/);
+  await clickLine(page, 2, 0);
+}
+
+test.describe('U2b 재평가 고침 결함1·결함2 @grid-reorder', () => {
+  for (const via of ['mousedown', 'keydown']) {
+    test(`G1-${via} ⌘V keydown 만 → ${via === 'mousedown' ? '줄 B3 진짜 클릭(선택 바꿈)' : '다른 키(Shift 진짜)'} → paste 만(메뉴) ⇒ 칸 무변 · 붙임 0 @grid-reorder`, async ({ page }) => {
+      const errs = await setup(page);
+      await gRangeCopiedAtA3(page);
+      await gKeyOnly(page);
+      if (via === 'mousedown') await clickLine(page, 2, 1);
+      else await page.keyboard.press('Shift');
+      const b = await model(page);
+      await gPasteOnly(page);
+      expect((await model(page)).raw, '칸 무변(쓰기는 paste 안에서 동기 — 여기서 이미 끝)').toEqual(b.raw);
+      expect(await toast(page), '붙임 보고 0').not.toMatch(/붙임/);
+      expect(await grids(page)).toBe(1);
+      expect(errs, errs.join('\n')).toEqual([]);
+    });
+  }
+
+  test('G1-ctrl Control+v(맥 · 진짜 키) → paste 만(메뉴) ⇒ 칸 무변 · 그리드 1 @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await gRangeCopiedAtA3(page);
+    await page.evaluate(() => { window.__pc = 0; document.addEventListener('paste', () => { window.__pc++; }, true); document.activeElement?.blur?.(); });
+    const b = await model(page);
+    await page.keyboard.press('Control+v');
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+    expect(await page.evaluate(() => window.__pc), '[전제] 맥 Control+v 는 paste 를 안 낳는다(eval2 P2)').toBe(0);
+    expect((await model(page)).raw, '키만으로 칸 무변').toEqual(b.raw);
+    await gPasteOnly(page);
+    expect((await model(page)).raw, '뒤의 메뉴 paste 도 칸 무변').toEqual(b.raw);
+    expect(await toast(page), '붙임 보고 0').not.toMatch(/붙임/);
+    expect(await grids(page), '옛 블럭 클립 떨어짐 0').toBe(1);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('G1-pos ⌘V keydown + paste(한 키 누름) ⇒ 붙는다(A3:B3 = 옛 A2:B2 · 양성 유지) @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await gRangeCopiedAtA3(page);
+    const b = await model(page);
+    await pressPaste(page);
+    await expect.poll(() => toast(page)).toBe('A3 에 칸 2개 붙임');
+    const a = await model(page);
+    expect([a.m.cells[2][0], a.m.cells[2][1]], 'A3:B3 = 옛 A2:B2(칸 통째)').toEqual([b.m.cells[1][0], b.m.cells[1][1]]);
+    expect([a.m.cells[2][2], a.m.cells[0], a.m.cells[1]], 'C3 · 행 1·2 무변').toEqual([b.m.cells[2][2], b.m.cells[0], b.m.cells[1]]);
+    expect(await grids(page)).toBe(1);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('G2-F① ⌘V keydown → (같은 키 누름 안) 블럭 복사 copySelected → paste ⇒ 범위 0(칸 무변) · stamp 재확인 @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await gRangeCopiedAtA3(page);
+    const b = await model(page);
+    const t0 = await page.evaluate(() => window._internalClipboardTime || 0);
+    const t1 = await page.evaluate(() => {
+      document.activeElement?.blur?.();
+      const t = document.getElementById('editor-toast'); if (t) t.textContent = '';
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', code: 'KeyV', metaKey: true, bubbles: true, cancelable: true }));
+      window.copySelected();   // 키 누름 «안»에서 낀 고디터 복사(다른 처리기·자동화 대역)
+      const dt = new DataTransfer();
+      if (window.__os.text !== null) dt.setData('text/plain', window.__os.text);
+      document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+      return window._internalClipboardTime || 0;
+    });
+    expect(t1, '[전제] 블럭 복사가 끼었다(stamp 바뀜)').not.toBe(t0);
+    expect((await model(page)).raw, '칸 무변').toEqual(b.raw);
+    expect(await toast(page), '붙임 보고 0').not.toMatch(/붙임/);
+    expect(await grids(page)).toBe(1);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+
+  test('G2-F② ⌘V keydown → (같은 키 누름 안) 입력칸 포커스 → 그 칸에 paste ⇒ 칸 무변 · 무장도 끝(뒤 paste 만 = 무변) @grid-reorder', async ({ page }) => {
+    const errs = await setup(page);
+    await gRangeCopiedAtA3(page);
+    const b = await model(page);
+    const r = await page.evaluate(() => {
+      document.activeElement?.blur?.();
+      const i = document.createElement('input'); i.id = '__g2in'; document.body.appendChild(i);
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', code: 'KeyV', metaKey: true, bubbles: true, cancelable: true }));
+      i.focus();
+      const dt = new DataTransfer();
+      if (window.__os.text !== null) dt.setData('text/plain', window.__os.text);
+      i.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+      return { focused: document.activeElement === i };
+    });
+    expect(r.focused, '[전제] paste 순간 포커스 = 입력칸').toBe(true);
+    expect((await model(page)).raw, '칸 무변').toEqual(b.raw);
+    await page.evaluate(() => { document.getElementById('__g2in')?.remove(); });
+    await gPasteOnly(page);
+    expect((await model(page)).raw, '뒤 paste 만 = 칸 무변').toEqual(b.raw);
+    expect(errs, errs.join('\n')).toEqual([]);
+  });
+});

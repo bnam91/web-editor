@@ -1915,6 +1915,7 @@ function hideGridGutters() {
   /* ★t3-04 U2a — 머리띠·놓을 자리 선도 «같은 생애»에 묶는다(확정 ①: 고른 동안만). ⛔위 줄과 합치지 마라 —
      tests/unit/overlay-raf-resync U-M66-5 가 위 줄 꼴을 글자로 잰다. */
   if (overlay) overlay.querySelectorAll('.grd-headband, .grd-headband-drop').forEach(el => el.remove());
+  _grdRangeReset(overlay);   /* ★t3-04 U2b — 칸 범위도 «같은 생애»(고른 동안만) · ⛔위 두 줄과 합치지 마라(U-M66-5) */
 }
 
 function _startGridGutterRaf() {
@@ -2058,6 +2059,7 @@ function _updateGridGutterPositions() {
     g.style.width = blockRect.width + 'px';
   });
   _updateGridHeadbandPositions(overlay, block, blockRect);   // ★t3-04 U2a — 같은 틱 · 같은 사각형(새 rAF 0)
+  _updateGridRangeRect(overlay, block);   // ★t3-04 U2b — 범위 사각형도 같은 틱(새 rAF 0)
 }
 
 // 열 경계 드래그 — 인접 두 열의 «가중치»만 재분배(합 보존, 다른 열 불변).
@@ -2483,6 +2485,165 @@ function _onGridHeadbandMouseDown(e, block, axis, from) {
   document.addEventListener('mouseup', onUp);
   window.addEventListener('keydown', onKey, true);
 }
+
+/* ═══ ★t3-04 U2b «칸 범위 선택» — 끌어서 A2:C3 (S6 · 2026-10-23 · 현빈 GO msg5376 · 설계 reports/S6-GRID/plan-u2b.md) ═══
+ * ★상태 = 모듈 하나(_grdRange) — 그리드 «하나»만 범위를 가진다(고른 그리드는 늘 하나 · grdIsSoleSelected).
+ *   ⛔DOM 노드로 칸을 들지 않는다 — renderGridBlock 이 innerHTML 을 갈아끼운다(줄 선택 _grdActiveLine 과 같은 까닭) ⇒ «주소»(r,c)만.
+ * ★생애 = 거터와 한 몸: hideGridGutters 가 _grdRangeReset 을 부른다(deselectAll · 루프의 선택 풀림 · _grdAfterResize(머리띠 옮김) 다 덮음).
+ *   첫 Esc = grdClearRange(editor.js) · ⌘Z 재렌더 = 블럭이 갈려 isConnected false ⇒ getter null(루프가 거터와 같이 걷는다).
+ * ★사각형 = #ss-handles-overlay 의 .grd-range-rect 하나(z 96 · 거터 97 아래 · pointer-events none) — 저장본·히스토리에 안 샌다.
+ *   자리는 _updateGridGutterPositions 꼬리(같은 틱) ＋ set 직후 동기 1회. ⛔새 rAF·타이머 0(click 삼키기 setTimeout 0 은 table 선례).
+ * ★무장(_onGridRangeMouseDown · document «버블» — 탐침 u2b-probe-1: 흐름 그리드 칸 mousedown 이 버블까지 온다 · defaultPrevented false):
+ *   ① 왼쪽 단추 · detail 1 · ⇧⌘⌃⌥ 없음(⇧/⌘ = 줄 복수선택 · ⌥ = 레이어 고르기) ② 바깥 격자 칸(:scope > .grd-inner > .grd-cell — 자식 그리드 배제)
+ *   ③ 중첩 줄(.grd-nested) 안에서 시작 ⛔ ④ 이 그리드만 고름 ＋ «드릴 상태»(활성 줄 있음 또는 범위 있음 · 해-20)
+ *   ⑤ 편집 중 아님(.editing · contentEditable 포커스 · 이미지 편집 · 팬 모드).
+ *   ⛔mousedown 에서 preventDefault/stopPropagation 안 한다 — click·dblclick(줄 고르기·편집 진입)이 그대로 산다.
+ *   stopPropagation 하는 쪽(자유배치 블럭 이동 · 오버레이 손잡이 · 팬)이 먼저 이긴다 ⇒ 자유배치 absolute 그리드는 범위 선택 없음(해-29).
+ * ★끌기: 임계(GRD_GRIP_DRAG_THRESHOLD_PX) 넘은 뒤부터 범위 — 같은 칸 안 끌기도 1×1(해-22) · 칸 밖/오버레이 위면 마지막 칸 유지.
+ *   끈 뒤 click 한 번을 삼킨다(block-drag click → deselectAll 이 방금 범위를 풀기 때문 · table-cell-select armClickSwallow 와 같은 꼴).
+ *   끄는 중 범위가 풀리면(Esc · 선택 해제 · 블럭 지워짐) 끌기도 끝(해-30) — 놓을 때의 click 은 그래도 삼킨다(엉뚱한 칸 고르기 0).
+ * ★보고·힌트: 새 title·힌트 DOM 0(현빈 «프롭힌트» 자) — 복사/붙이기 보고는 prop-grid.js 의 showToast 하나. */
+let _grdRange = null;        // {block, ar, ac, fr, fc} — 앵커(누른 칸) · 끝(지금 칸)
+let _grdRangeDragEnd = null; // 끄는 중이면 그 끌기를 끝내는 함수(범위가 풀리면 같이 끝낸다)
+
+function _grdRangeReset(overlay) {
+  _grdRange = null;
+  if (_grdRangeDragEnd) _grdRangeDragEnd();
+  if (overlay) overlay.querySelectorAll('.grd-range-rect').forEach(el => el.remove());
+}
+
+/** 지금 살아 있는 범위 {r0,c0,r1,c1}(정렬됨) | null. ★유효 = 같은 블럭 · 붙어 있음 · 선택됨 · 단독 선택 · 지금 R×C 안.
+ *  ⛔드릴 상태(활성 줄)로 판정하지 않는다 — 붙인 뒤 활성 줄을 비워도 범위는 산다(해-25). */
+function grdGetRange(block) {
+  const st = _grdRange;
+  if (!st || !block || st.block !== block) return null;
+  if (!block.isConnected || !block.classList.contains('selected')) return null;
+  if (window.grdIsSoleSelected && !window.grdIsSoleSelected(block)) return null;
+  let R, C;
+  try { const m = getGridModel(block); R = m.rows.length; C = m.cols.length; } catch (_) { return null; }
+  const r0 = Math.min(st.ar, st.fr), r1 = Math.max(st.ar, st.fr);
+  const c0 = Math.min(st.ac, st.fc), c1 = Math.max(st.ac, st.fc);
+  if (r0 < 0 || c0 < 0 || r1 >= R || c1 >= C) return null;
+  return { r0, c0, r1, c1 };
+}
+
+/** 범위를 세운다(붙인 뒤 «들어간 영역» 표시 · 해-25). 꼴이 틀리면 false(지어내지 않는다). */
+function grdSetRange(block, rng) {
+  if (!block || !rng || ![rng.r0, rng.c0, rng.r1, rng.c1].every(Number.isInteger)) return false;
+  _grdRange = { block, ar: rng.r0, ac: rng.c0, fr: rng.r1, fc: rng.c1 };
+  _updateGridRangeRect(_getOverlay(), block);
+  return grdGetRange(block) !== null;
+}
+
+/** 범위를 푼다. ★«살아 있던» 범위가 있었으면 true — editor.js 첫 Esc 가 이것만 소진한다. */
+function grdClearRange() {
+  const had = !!(_grdRange && grdGetRange(_grdRange.block));
+  _grdRangeReset(_getOverlay());
+  return had;
+}
+
+function _updateGridRangeRect(overlay, block) {
+  if (!overlay) return;
+  const rng = _grdRange && _grdRange.block === block ? grdGetRange(block) : null;
+  const a = rng ? _getGridCell(block, rng.r0, rng.c0) : null;
+  const b = rng ? _getGridCell(block, rng.r1, rng.c1) : null;
+  let el = overlay.querySelector(':scope > .grd-range-rect');
+  if (!a || !b) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'grd-range-rect';
+    el.style.cssText = 'position:absolute;z-index:96;pointer-events:none;';
+    overlay.appendChild(el);
+  }
+  const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+  const left = Math.min(ar.left, br.left), top = Math.min(ar.top, br.top);
+  el.style.left = left + 'px'; el.style.top = top + 'px';
+  el.style.width = (Math.max(ar.right, br.right) - left) + 'px';
+  el.style.height = (Math.max(ar.bottom, br.bottom) - top) + 'px';
+  el.dataset.r0 = String(rng.r0); el.dataset.c0 = String(rng.c0);
+  el.dataset.r1 = String(rng.r1); el.dataset.c1 = String(rng.c1);
+  const n0 = `${gridColLabel(rng.c0)}${gridRowLabel(rng.r0)}`, n1 = `${gridColLabel(rng.c1)}${gridRowLabel(rng.r1)}`;
+  el.dataset.name = n0 === n1 ? n0 : `${n0}:${n1}`;   // 한 칸 = «C2»(엑셀 이름 칸과 같게) · 여럿 = «A2:C3»
+}
+
+/** 점 아래 «이 그리드의 바깥 칸» 주소 | null(칸 밖 · 오버레이 · 자식 그리드 · 다른 블럭). 중첩 줄 위면 그 바깥 칸(해-24). */
+function _grdRangeCellAt(block, x, y) {
+  const hit = document.elementFromPoint(x, y);
+  const cell = hit && hit.closest ? hit.closest('.grd-cell[data-r][data-c]') : null;
+  if (!cell || cell.parentElement?.parentElement !== block || !cell.parentElement.classList.contains('grd-inner')) return null;
+  const r = Number(cell.dataset.r), c = Number(cell.dataset.c);
+  return Number.isInteger(r) && Number.isInteger(c) ? { r, c } : null;
+}
+
+function _grdRangeArmClickSwallow() {
+  const swallow = (ev) => {
+    ev.stopPropagation();
+    ev.preventDefault();
+    document.removeEventListener('click', swallow, true);
+  };
+  document.addEventListener('click', swallow, true);
+  setTimeout(() => document.removeEventListener('click', swallow, true), 0);   // click 이 안 오면 다음 틱에 걷는다(table 선례)
+}
+
+function _onGridRangeMouseDown(e) {
+  if (e.button !== 0 || e.detail !== 1) return;
+  if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target;
+  const cell = t && t.closest ? t.closest('.grd-cell[data-r][data-c]') : null;
+  const inner = cell ? cell.parentElement : null;
+  const block = inner ? inner.parentElement : null;
+  if (!block || !inner.classList.contains('grd-inner') || !block.classList.contains('grid-block')) return;
+  const nested = t.closest('.grd-nested');
+  if (nested && block.contains(nested)) return;                                  // ③ 중첩 줄 안에서 시작 ⛔
+  if (!window.grdIsSoleSelected || !window.grdIsSoleSelected(block)) return;
+  if (!(window.grdGetActiveLine?.(block) || grdGetRange(block))) return;         // ④ 드릴 상태만(해-20)
+  if (block.classList.contains('editing') || block._grdImgEdit) return;
+  if (document.activeElement && document.activeElement.isContentEditable) return;
+  if (document.getElementById('canvas-wrap')?.classList.contains('pan-mode')) return;
+  const ar = Number(cell.dataset.r), ac = Number(cell.dataset.c);
+  if (!Number.isInteger(ar) || !Number.isInteger(ac)) return;
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};   // 조상 .row draggable
+  const overlay = _getOverlay();
+  const x0 = e.clientX, y0 = e.clientY;
+  let started = false;
+  let ended = false;
+  function endDrag() {
+    if (ended) return;
+    ended = true;
+    document.removeEventListener('mousemove', onMove, true);
+    if (_grdRangeDragEnd === endDrag) _grdRangeDragEnd = null;
+    restoreDrag();
+  }
+  function onMove(ev) {
+    if (ended) return;
+    if (!block.isConnected || !block.classList.contains('selected')) { endDrag(); return; }   // U2a D2 결
+    if (!started) {
+      if (Math.abs(ev.clientX - x0) < GRD_GRIP_DRAG_THRESHOLD_PX
+          && Math.abs(ev.clientY - y0) < GRD_GRIP_DRAG_THRESHOLD_PX) return;
+      started = true;
+      if (_grdRangeDragEnd) _grdRangeDragEnd();   // 앞 끌기가 남아 있으면 끝낸다(한 번에 하나)
+      _grdRangeDragEnd = endDrag;
+      _grdRange = { block, ar, ac, fr: ar, fc: ac };   // ★새 범위 = 교체(같은 칸 끌기도 1×1)
+    }
+    ev.preventDefault();
+    window.getSelection?.()?.removeAllRanges?.();
+    const at = _grdRangeCellAt(block, ev.clientX, ev.clientY);
+    if (at && _grdRange && _grdRange.block === block) { _grdRange.fr = at.r; _grdRange.fc = at.c; }
+    _updateGridRangeRect(overlay, block);
+  }
+  function onUp() {
+    document.removeEventListener('mouseup', onUp, true);
+    endDrag();
+    if (started) _grdRangeArmClickSwallow();   // 끈 뒤 click → block-drag 의 deselectAll 이 범위를 풀지 않게
+  }
+  document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('mouseup', onUp, true);
+}
+document.addEventListener('mousedown', _onGridRangeMouseDown);   // ★버블(위 머리말 — stopPropagation 하는 쪽이 먼저 이긴다)
+
+window.grdGetRange = grdGetRange;
+window.grdSetRange = grdSetRange;
+window.grdClearRange = grdClearRange;
 
 window.showGridGutters = showGridGutters;
 window.hideGridGutters = hideGridGutters;
@@ -4332,6 +4493,9 @@ export {
   hideVectorResizeHandles,
   showGridGutters,
   hideGridGutters,
+  grdGetRange,
+  grdSetRange,
+  grdClearRange,
   showCmpGutters,
   hideCmpGutters,
   showGridImageResizeHandle,
