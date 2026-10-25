@@ -57,6 +57,10 @@ export function showTextProperties(tb) {
   const bubbleBg = isSpeechBubble ? (_blockBubbleVar || contentEl.style.backgroundColor || '#e5e5ea') : '#e5e5ea';
   const bubbleBgHex = isSpeechBubble ? (_blockBubbleVar || rgbToHex(window.getComputedStyle(contentEl).backgroundColor) || '#e5e5ea') : '#e5e5ea';
   const showSender = isSpeechBubble && tb.dataset.showSender === 'true';
+  /* ★1017t1m3 — 말풍선 크기 «고정» 모드(모달 「너비 고정 · 높이 최소」 이식) — 값은 tb.dataset 한 자리(prop-text-wireup-bubble.js) */
+  const bubbleSizeFixed = isSpeechBubble && tb.dataset.bubbleSize === 'fixed';
+  const bubbleW = parseInt(tb.dataset.bubbleW, 10) || 0;
+  const bubbleH = parseInt(tb.dataset.bubbleH, 10) || 0;
   /* ★#9(E121 · 2026-10-05): 옛 `parseInt(contentEl.style.paddingTop) || 4` 는 인라인이 비면 4+4=8 을 그렸다 — 실제는 CSS .tb-label 11+11=22.
      «그려진 값»을 읽는다(_panel-rendered.js). U22① 로 남긴 「높이」 손잡이가 이 값을 쓴다 — U22① 의 전제 조건(지디). */
   const labelPillPadT = Math.round(panelRenderedPx(contentEl, 'paddingTop'));
@@ -231,7 +235,7 @@ export function showTextProperties(tb) {
     currentPadT, currentPadL, currentPadR, phLinked,
     isLabel, currentBgColor, currentRadius, labelPillH, labelPadX, labelIsCircle: _isCircleLabel, labelShape,
     isSpeechBubble, currentBubbleStyle, currentTail,
-    bubbleBgHex, showSender,
+    bubbleBgHex, showSender, bubbleSizeFixed, bubbleW, bubbleH,
     isIconText, currentItbGap, itbVertical,
     mix,
     shadow,
