@@ -1269,9 +1269,15 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *     ⒝ ＋30(469): 현빈 정정(「35종은 ★샘플 · 원래는 ★iconify 플러그인 연결」)으로 ★명부를 걷었다.
  *     ⒞ ＋38(477): 현빈 승인(「응 너의 제안대로 가자」)으로 ★둘 다 세웠다 — 35종은 ★«빠른 손잡이»(오프라인),
  *        참값은 ★iconify. 그래서 ★돌아온 칸(내장 검색·오프라인)과 ★새 칸(룩 기억·더 찾기 가드)이 같이 들어왔다.
- *   ⛔다른 grid 검사 파일은 ★한 칸도 안 건드렸다 ⇒ 델타는 ★전부 ★새 파일 하나다(38 = 477 − 439). */
-const GRID_BASELINE_TOTAL = 477;
-const GRID_BASELINE_PASS = 476;   // ★477 − skip 1(E8c 폐기, DOM 쪽 쌍 N4 도 같은 까닭으로 skip)
+ *   ⛔다른 grid 검사 파일은 ★한 칸도 안 건드렸다 ⇒ 델타는 ★전부 ★새 파일 하나다(38 = 477 − 439).
+ * ★2026-10-22 t3-04 U1(S6 · 행·열 순서 바꾸기 ＋ 셀 범위 복붙) — ★477 ＋ 16 = 493 (pass 476 ＋ 16 = 492)
+ *   · grid-reorder.test.mjs ★＋16(새 파일 하나): 전제 · 양성①②③ · 직접 쓰기 · 행 0 왕복 · 열 왕복 · 1행 판 · 양성④ · 라벨⑤ ·
+ *     ★이미지 바이트(20만 자 넘는 imgSrc 길이·sha256) · window 다리 · ★변이 넷(M-cells · M-height · M-img · M-1row — 주입 단언 있음).
+ *   ★더한 14 는 독립으로 셌다: `grep -cE '^\s*test\(' tests/unit/grid-reorder.test.mjs` = 16 (skip·todo 0) = 래칫 증가분.
+ *   ⛔등호 그대로(>= 금지 — 줄어드는 쪽이 조용히 통과한다). 양성대조: 그 파일 test 하나 지운 사본에서 이 래칫이 빨개졌다(S6-GRID.md ㉣).
+ *   ⛔다른 grid 검사 파일은 ★한 칸도 안 건드렸다. */
+const GRID_BASELINE_TOTAL = 493;
+const GRID_BASELINE_PASS = 492;   // ★493 − skip 1(E8c 폐기, DOM 쪽 쌍 N4 도 같은 까닭으로 skip)
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
