@@ -2749,8 +2749,11 @@ document.addEventListener('keydown', e => {
     if (document.querySelector('.text-block.editing')) return;
     const textTargets  = Array.from(document.querySelectorAll('.text-block.selected'));
     const shapeTargets = textTargets.length ? [] : Array.from(document.querySelectorAll('.shape-block.selected'));
-    const sectionTargets = (textTargets.length || shapeTargets.length) ? [] : Array.from(document.querySelectorAll('.section-block.selected'));
-    if (textTargets.length || shapeTargets.length || sectionTargets.length) {
+    /* ★t7-07 — 프레임을 고른 채 i 를 누르면 «섹션» 배경이 바뀌었다(프레임 갈래가 없어 섹션 갈래로 떨어졌다).
+       ⇒ 쉐이프 다음 · 섹션 앞에 프레임 갈래. 글자 프레임(data-text-frame)은 글자 갈래의 그릇이라 뺀다. */
+    const frameTargets = (textTargets.length || shapeTargets.length) ? [] : Array.from(document.querySelectorAll('.frame-block.selected:not([data-text-frame="true"])'));
+    const sectionTargets = (textTargets.length || shapeTargets.length || frameTargets.length) ? [] : Array.from(document.querySelectorAll('.section-block.selected'));
+    if (textTargets.length || shapeTargets.length || frameTargets.length || sectionTargets.length) {
       e.preventDefault();
       if (!window.EyeDropper) { window.showToast?.('이 브라우저는 스포이드 미지원'); return; }
       (async () => {
@@ -2778,6 +2781,18 @@ document.addEventListener('keydown', e => {
               changed++;
             });
             if (changed) { window.pushHistory?.('쉐이프 색 추출'); window.scheduleAutoSave?.(); }
+          } else if (frameTargets.length) {
+            /* prop-frame.js 배경색(솔리드) 규약과 동일: 그라데이션·이미지 층 해제 + backgroundColor + dataset.bg + ::before 변수 동기 */
+            let changed = 0;
+            frameTargets.forEach(fr => {
+              if (fr.dataset.bg === hex && !fr.style.backgroundImage) return;
+              fr.style.backgroundImage = '';
+              fr.style.backgroundColor = hex;
+              fr.dataset.bg = hex;
+              window.syncFrameBgVars?.(fr);
+              changed++;
+            });
+            if (changed) { window.pushHistory?.('프레임 배경 추출'); window.scheduleAutoSave?.(); }
           } else {
             // prop-section.js 색 규약과 동일: dataset.bg + 인라인 배경(이미지 해제)
             // ★동일색 가드 + changed 조건화(고디터QA LOW — 섹션 분기는 가드 자체가 없어 빈 undo가 쌓였다).
