@@ -21,7 +21,7 @@ import { BUZZ_STYLES, BUZZ_STYLE_KEYS, BUZZ_COUNT, BUZZ_LIMITS, getBuzz, setBuzz
          rescaleBuzzCards, setBuzzProfile, getBuzzProfile } from '../blocks/buzz-frame.js';
 /* ★프로필(1017t1l2) — 경계·착지점은 모달 한 표에서 온다(⛔패널이 제 수를 갖지 않는다).
    그리는 자도 모달이다 — 버즈는 «값»만 알고 묶음 전체에 건다(js/blocks/buzz-frame.js setBuzzProfile). */
-import { MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT, modalProfileSize, modalProfileSide,
+import { MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT, modalProfileSize, modalProfileSide, MODAL_PROFILE_GAP_LIMIT, modalProfileGap,
          modalProfileKind } from '../blocks/modal-block.js';
 
 /* ── 조각 — 이웃 패널과 같은 마크업 ───────────────────────────── */
@@ -68,6 +68,8 @@ function _profileRows(frame) {
   const emoji = getBuzzProfile(frame, 'profileEmoji') || '';
   const overlay = getBuzzProfile(frame, 'profileOverlay') === '1';
   const L = MODAL_PROFILE_SIZE_LIMIT;
+  const G = MODAL_PROFILE_GAP_LIMIT;
+  const gap = head ? modalProfileGap(head) : G.min;
   /* ★t5-01 — 켬/끔이 맨 위. 켜면 사진·이모지 «전에» 체크무늬 원 자리가 카드마다 먼저 보인다(현빈 원문).
      켜짐 = 지금 프로필이 무엇이든 있다(kind) — 끄면 「프로필 제거」와 같은 끝(사진·이모지·켬 표식 모두). */
   return `<span class="prop-field-label" title="${escHtml(PROFILE_HINT)}">프로필</span>
@@ -92,6 +94,11 @@ function _profileRows(frame) {
         <span class="prop-label">프로필 크기</span>
         <input type="range" class="prop-slider" id="bzf-pfsize-slider" min="${L.min}" max="${L.max}" step="${L.step}" value="${size}">
         <input type="number" class="prop-number" id="bzf-pfsize-number" min="${L.min}" max="${L.max}" value="${size}">
+      </div>
+      <div class="prop-row" title="프로필과 글 사이(현빈 t5-03) — 0 까지 붙일 수 있다">
+        <span class="prop-label">프로필 간격</span>
+        <input type="range" class="prop-slider" id="bzf-pfgap-slider" min="${G.min}" max="${G.max}" step="${G.step}" value="${gap}">
+        <input type="number" class="prop-number" id="bzf-pfgap-number" min="${G.min}" max="${G.max}" value="${gap}">
       </div>
       <div class="prop-row" title="켜면 카드 높이를 안 늘린다 — 커지면 배경 위아래로 넘쳐 걸친다(현빈 l2c)">
         <span class="prop-label">오버레이</span>
@@ -331,6 +338,13 @@ export function wireBuzzSection(frame) {
     setBuzzProfile(f, 'profileSize', v);
     again(f);
   }, MODAL_PROFILE_SIZE_LIMIT);
+  /* ★t5-03ⓐ — 프로필 크기 줄과 같은 꼴(bindSlider 가 이력·자동저장을 쥔다) */
+  bindSlider($('bzf-pfgap-slider'), $('bzf-pfgap-number'), (v) => {
+    const f = F();
+    if (!f) return;
+    setBuzzProfile(f, 'profileGap', v);
+    again(f);
+  }, MODAL_PROFILE_GAP_LIMIT);
   $('bzf-pf-overlay')?.addEventListener('change', (e) => pfSet('profileOverlay', e.target.checked ? '1' : '', '버즈 프로필 오버레이', false));
   /* ★t5-01 켬/끔 — 켬 = 켬 표식만(사진·이모지는 그대로 · 없으면 체크 원) · 끔 = 「프로필 제거」와 같은 끝 */
   $('bzf-pf-on')?.addEventListener('change', (e) => {

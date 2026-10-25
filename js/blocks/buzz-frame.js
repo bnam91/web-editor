@@ -186,7 +186,7 @@ function _fitWidths(frame, rows) {
      ★앞 카드의 얼굴을 물려받는다 — _COPY_SKIP 을 ★안 건드렸기 때문이다(= 예전 규칙 그대로).
      ★★「같은 얼굴이 여럿 카드에 가도 되나」는 ★현빈께 안 여쭤 칸이다 — ⛔지어내서 따로 규칙을 만들지 말고 물어라. */
 /* ★t5-01 profileOn — 켬 표식('1'). 사진·이모지 없이 켜면 카드마다 체크무늬 원 자리(modal-block.js _profileKind 'blank'). */
-export const BUZZ_PROFILE_KEYS = ['profileImg', 'profileEmoji', 'profileSide', 'profileSize', 'profileOverlay', 'profileOn'];
+export const BUZZ_PROFILE_KEYS = ['profileImg', 'profileEmoji', 'profileSide', 'profileSize', 'profileOverlay', 'profileOn', 'profileGap'];   /* ★t5-03ⓐ profileGap — 프로필 ↔ 글 간격(modal-block.js _profileGap) */
 
 /** 묶음 안 모든 낱개에 프로필 칸 하나를 건다. 빈 값('' · null · undefined)은 칸을 «지운다».
  *  @returns {number} 고친 낱개 수 */

@@ -280,6 +280,15 @@ const MODAL_PROFILE_SIZE_LIMIT = { min: 24, max: 400, step: 2 };
 const MODAL_PROFILE_SRC_MAX = 200000;
 /* 프로필·아이콘이 글자와 나란히 설 때의 사이. ★한 자리다 — 가로 래퍼 둘이 같이 읽는다. */
 const MODAL_ROW_GAP = 11;
+/* ★t5-03ⓐ(현빈 · 수지 재측 ◑ 「간격 11 고정 · 칸 0개」) — ★프로필 행만 사용자 값(dataset.profileGap)을 받는다.
+   기본 = 위 상수 그대로(안 적은 모달은 한 글자도 안 바뀐다). ⛔아이콘 행(.mdl-iconrow)은 상수 그대로 — 바꾸면 아이콘이 같이 움직인다.
+   범위 = 0~400(선례 js/blocks/chat-bounds.js profileGap). ★음수(오버레이를 더 붙이기)는 현빈 답 뒤 — 지금은 0 에서 멈춘다. */
+const MODAL_PROFILE_GAP_LIMIT = { min: 0, max: 400, step: 1 };
+function _profileGap(ds) {
+  const raw = parseFloat(ds.profileGap);
+  if (!Number.isFinite(raw)) return MODAL_ROW_GAP;
+  return Math.round(Math.max(MODAL_PROFILE_GAP_LIMIT.min, Math.min(MODAL_PROFILE_GAP_LIMIT.max, raw)));
+}
 
 function _profileSide(ds) {
   return MODAL_PROFILE_SIDES.includes(ds.profileSide) ? ds.profileSide : MODAL_PROFILE_SIDES[0];
@@ -832,7 +841,7 @@ function renderModalBlock(block) {
       _highlightCss(block.dataset) + (_pf ? 'flex:1 1 auto;min-width:0;' : ''), block.dataset.textHtml);
     html = _pf
       ? `<div class="mdl-profilerow" style="display:flex;flex-direction:row;align-items:center;`
-        + `justify-content:${_MDL_JUSTIFY_H[align] || _MDL_JUSTIFY_H.left};gap:${MODAL_ROW_GAP}px;">`
+        + `justify-content:${_MDL_JUSTIFY_H[align] || _MDL_JUSTIFY_H.left};gap:${_profileGap(block.dataset)}px;">`   // ★t5-03ⓐ 프로필 행만
         + (_profileSide(block.dataset) === 'right' ? `${_ptxt}${_pf}` : `${_pf}${_ptxt}`)
         + `</div>`
       : _ptxt;
@@ -1079,6 +1088,8 @@ window.iconBlockNewColor      = iconBlockNewColor;
 /* ── 프로필 «지금 값» 창구 — 패널·버즈가 읽는다. ⛔패널이 제 식·제 표를 갖지 않게
    (그리는 자와 보여 주는 자가 갈라지면 «화면이 거짓말하는» 자리가 된다 — 이 파일 그림자·장식 주석의 그 까닭). */
 /** 그 모달의 «지금 프로필 한 변»(px) — dataset 에 없으면 글자에서 파생된 값. */
+/** 그 모달의 «지금 프로필 ↔ 글 간격»(px) — 표 밖·없음은 그리는 쪽과 같은 착지점(기본 MODAL_ROW_GAP). ★t5-03ⓐ */
+function modalProfileGap(block) { return _profileGap(block?.dataset || {}); }
 function modalProfileSize(block) {
   return _profileSize(block?.dataset || {}, _num(block, 'fontSize', MODAL_DEFAULTS.fontSize));
 }
@@ -1118,4 +1129,5 @@ export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, apply
          MODAL_DECO_TAILS, MODAL_DECO_TAPES, MODAL_TAPE_SHAPE, MODAL_TAPE_POS, _glassStyles, _decoHtml, _tapeHtml,
          _bgImageStyles,
          MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT, modalProfileSize, modalProfileSide, modalProfileKind,
+         MODAL_PROFILE_GAP_LIMIT, modalProfileGap,
          setModalProfile, syncModalIconFirstLineOffset };
