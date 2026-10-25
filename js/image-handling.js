@@ -845,6 +845,7 @@ function clearAssetImage(ab) {
   /* ★블러(Redact)도 그림과 같이 걷는다(그레인이 innerHTML 재작성으로 사라지는 것과 같은 동작, 1012t1 C1).
      안 걷으면 빈 칸에 속성이 남아 «다음에 넣는 그림이 말없이 흐려진다». */
   applyRedact(ab, 0);
+  delete ab.dataset.redactOff;   /* ★눈 끈 블러(js/effects-blur.js)도 같이 — 남기면 다음 그림에 «끈 블러 카드»가 말없이 붙는다 */
   const prevOverlayEl2 = ab.querySelector('.asset-overlay');
   const prevOverlayHTML2 = prevOverlayEl2 ? prevOverlayEl2.innerHTML : '';
   const prevOverlayStyle2 = prevOverlayEl2 ? prevOverlayEl2.getAttribute('style') || '' : '';
@@ -1739,7 +1740,7 @@ window.setAssetImageFromSrc = setAssetImageFromSrc;
  * ★되얹는 순서가 중요하다 — setAssetImageFromSrc 는 ⓐ오버레이·그레인은 «앞서 있던 것»을 보존하고 ⓑ크롭 키(imgW/X/Y/
  *   imgPosition)는 «지우고» ⓒ그림 요소를 새로 만든다. ⇒ ④⑤는 «넣기 전»에, ①②③은 «넣은 뒤»에 얹는다.
  *   (HTML 을 통째로 갈아 끼우면 이 함수가 단 지우기·GIF 단추 리스너가 사라져서 그 길은 안 쓴다.) */
-const ASSET_FX_DS_KEYS = ['fit', 'imgX', 'imgY', 'imgW', 'imgPosition', 'imgRotate', 'rotation', 'overlay', 'motion', 'gifSrc', 'redact'];   /* ★redact = 1012t1 C1 블러 */
+const ASSET_FX_DS_KEYS = ['fit', 'imgX', 'imgY', 'imgW', 'imgPosition', 'imgRotate', 'rotation', 'overlay', 'motion', 'gifSrc', 'redact', 'redactOff'];   /* ★redact = 1012t1 C1 블러 · redactOff = 블러 카드 «눈 끔»에 맡겨 둔 강도(js/effects-blur.js) */
 function captureAssetFx(ab) {
   if (!ab?.classList?.contains('asset-block')) return null;
   const ds = {};
