@@ -12,7 +12,7 @@ export function buildTextPropsHtml(state) {
     currentPadT, currentPadL, currentPadR, phLinked,
     isLabel, currentBgColor, currentRadius, labelPillH, labelPadX = 0, labelIsCircle = false, labelShape = null,
     isSpeechBubble, currentBubbleStyle, currentTail,
-    bubbleBgHex, showSender,
+    bubbleBgHex, showSender, bubbleSizeFixed, bubbleW, bubbleH,
     isIconText, currentItbGap, itbVertical,
     mix,
     shadow,
@@ -364,6 +364,20 @@ ${blockHeaderHTML({
             <input type="color" id="bubble-bg-color" value="${bubbleBgHex}">
           </div>
           <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="${bubbleBgHex.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
+        </div>
+        <!-- ★1017t1m3 크기 — 「자동」= 글 길이 따라(지금까지) · 「고정」= 너비 고정 + 높이 최소(모달 패널의 너비 고정·높이 최소와 같은 뜻) -->
+        <div class="prop-row">
+          <span class="prop-label">크기</span>
+          <div class="prop-type-group" id="bubble-size-group">
+            <button class="prop-type-btn ${bubbleSizeFixed?'':'active'}" data-bsz="auto">자동</button>
+            <button class="prop-type-btn ${bubbleSizeFixed?'active':''}" data-bsz="fixed">고정</button>
+          </div>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">너비</span>
+          <input type="number" class="prop-number" id="bubble-w-number" min="60" max="860" value="${bubbleW||''}"${bubbleSizeFixed?'':' disabled'}>
+          <span class="prop-label" style="margin-left:6px">높이</span>
+          <input type="number" class="prop-number" id="bubble-h-number" min="40" max="2000" value="${bubbleH||''}"${bubbleSizeFixed?'':' disabled'}>
         </div>
         <div class="prop-row">
           <span class="prop-label">발신자 이름</span>

@@ -2404,9 +2404,24 @@ function bindBlock(block) {
     block.addEventListener('focusout', onItbBlur);
     block.querySelectorAll('[contenteditable], .itb-text, .itb-icon').forEach(el => el.setAttribute('draggable', 'false'));
 
-    // itb-icon 클릭 → 이미지 업로드
+    /* ★1017t1m2 — itb-icon 클릭 → 인포그래픽 칸과 «같은» 아이콘 팝오버(#grd-ifg-iconpop).
+       현빈 「👉 해결안된듯? grd-ifg-iconpop 해당 패널이 뜨게 하란거였는데」 — 전엔 바로 파일 선택창이 떴다.
+       ★여는 자·커밋 꼴은 인포그래픽 것을 그대로 쓴다(window 다리 · 이 파일의 기존 관례):
+         openIfgIconPopover(앵커, 고른 것 받는 자) · ifgSvgToIconSrc(svg → data URI) · updateIconTextBlock({imgSrc}).
+       ★팝오버를 못 띄우면(모듈 미적재) ★옛 길(파일 선택창)로 그대로 간다 — 「눌렀는데 아무 일도 없다」가 제일 나쁘다.
+       ★이력 = push-before 한 칸(옛 업로드 길과 같은 자리에서). */
     block.querySelector('.itb-icon')?.addEventListener('click', e => {
       e.stopPropagation();
+      const iconEl = block.querySelector('.itb-icon');
+      const pop = window.openIfgIconPopover && iconEl
+        ? window.openIfgIconPopover(iconEl, (picked) => {
+            const src = window.ifgSvgToIconSrc?.(picked && picked.svg, '');
+            if (!src) { window.showToast?.('아이콘을 못 받았습니다 — 잠시 뒤 다시 시도해 주세요'); return; }
+            window.pushHistory?.();
+            window.updateIconTextBlock?.(block.id, { imgSrc: src });   /* 팝오버는 고른 순간 제가 닫는다(grid-ifg-icon-pick.js) */
+          })
+        : null;
+      if (pop) return;
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
