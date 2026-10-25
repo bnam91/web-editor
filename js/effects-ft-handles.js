@@ -263,6 +263,43 @@ function _bind(el, tb, name, kind) {
   });
 }
 
+/** ★FT-3a 「되찾기」 — 섹션 밖으로 나가 잘린 모서리 손잡이를 «섹션 안 가장자리»로 데려온다. 데려온 수를 돌려준다.
+ *  ★왜 필요한가(미카사 261025 실측 · ca702d40): ne 를 섹션 오른 경계 밖 60px 로 끌면 그 점의 임자가 `canvas-wrap`
+ *    (`.section-inner` overflow clip 이 자른다) ⇒ 그 손잡이를 다시 못 잡는다. ⌘Z 는 «바로 다음»에만 되고,
+ *    「원래대로」는 네 모서리를 «전부» 버린다.
+ *  ★손잡이의 «화면 자리»로 판정한다 — 손잡이 층은 변형 «밖»이라 그 중심이 곧 화면 꼭짓점이다(ftHandlesSync).
+ *    밖이면 섹션 상자 안쪽 EDGE_IN px 지점으로 그 모서리만 옮긴다(화면 차 ÷ 배율 = 모델 차) · 나머지 셋은 그대로.
+ *  ⛔끌기 자체는 막지 않는다(손잡이를 경계에 묶으면 «밖으로 늘리기» 의도가 막힌다 — 발주 ㉣ 부작용).
+ *  ★이력 = 한 걸음(바꾸는 문 하나 · history:true). */
+const EDGE_IN = 8;   /* 화면 px — 손잡이(7px)가 통째로 보이고 잡히는 여유 */
+export function ftPullCornersIntoSection(tb) {
+  const C0 = ftCornersOf(tb);
+  const sec = tb && tb.closest ? tb.closest('.section-block') : null;
+  const layer = tb && tb.querySelector ? tb.querySelector(':scope > .tfh-layer') : null;
+  if (!C0 || !sec || !layer) return 0;
+  const box = (sec.querySelector(':scope > .section-inner') || sec).getBoundingClientRect();
+  const scale = _scaleOf(tb);
+  if (!(scale > 0)) return 0;
+  const C = C0.map((p) => p.slice());
+  let n = 0;
+  CORNERS.forEach(([name, i]) => {
+    const h = layer.querySelector(`:scope > [data-tfh="${name}"]`);
+    if (!h) return;
+    const r = h.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const tx = Math.min(Math.max(x, box.left + EDGE_IN), box.right - EDGE_IN);
+    const ty = Math.min(Math.max(y, box.top + EDGE_IN), box.bottom - EDGE_IN);
+    if (tx === x && ty === y) return;
+    C[i] = [C0[i][0] + (tx - x) / scale, C0[i][1] + (ty - y) / scale];
+    n++;
+  });
+  if (!n) return 0;
+  const res = setFxFreeTransform(tb, C, { history: true, touched: true });
+  if (res && res.ok) ftHandlesSync(tb);
+  return res && res.ok ? n : 0;
+}
+if (typeof window !== 'undefined') window.ftPullCornersIntoSection = ftPullCornersIntoSection;
+
 /** 문서를 연 뒤·고른 것이 바뀐 뒤 — 걸린 블럭의 손잡이를 ★다시 놓는다(멱등). */
 export function ftHandlesSyncAll(root = document) {
   if (!root || !root.querySelectorAll) return 0;
