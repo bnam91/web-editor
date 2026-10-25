@@ -44,7 +44,7 @@ const RADIAL_DEFAULT_ITEMS = Object.freeze([
  *   선 색은 점 색과 «한 자리»에서 온다(RADIAL_DOT_COLOR) — 둘이 다시 갈리지 않게 파생한다.
  *   가운데 글은 저장값 '' + 안내문구(인용구 블럭 규약 · data-is-placeholder) · 가운데 배경 투명 · 글자 색 = 라벨 색(RADIAL_TEXT_COLOR).
  *   ⚠️기본값만 바뀐다 — 이미 저장된 블럭은 dataset 이 진실이라 그대로다(옮기기 0). */
-const RADIAL_DOT_COLOR = '#c8cdd6';
+const RADIAL_DOT_COLOR = '#c9cdd6';   /* ★t4-02 (261025) — ★현빈 ★요청값. ★전엔 ★끝에서 둘째 자리가 ★8 이었다(1자 차이) · ★잠그는 자 = tests/dom/t4-02-radial-dot-color */
 const RADIAL_TEXT_COLOR = '#222222';
 const RADIAL_CENTER_PH = '내용을 입력하세요';   /* 가운데 글 안내문구 — 비면 이것을 흐리게 그린다(저장 안 함 · quote-block QUOTE_DEFAULTS.ph 와 같은 말) */
 const RADIAL_LABEL_PH = RADIAL_CENTER_PH;       /* t4-03 항목 글 안내문구 — 같은 말 한 자리 */

@@ -40,7 +40,23 @@
    ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
    ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
 export const NON_CONTENT_UI_SELECTOR =
-  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .mdl-profile-x, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox, .tfh-handle, .tfh-grid, .tfh-fx, .tfh-edge, .tfh-layer, .sticker-corner-handle, .hlb-handle, .annot-point-angle';
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .mdl-profile-x, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox, .tfh-handle, .tfh-grid, .tfh-fx, .tfh-edge, .tfh-layer, .sticker-corner-handle, .hlb-handle, .annot-point-angle, .shape-handle, .gradient-corner-handle';
+/* ★★★`.shape-handle` · `.gradient-corner-handle` (2026-10-25 · 지디 · ★`CAPTURE-ROSTER-NOT-DERIVED-FROM-SAVE-01` 의 ★남은 몫)
+     ★도형 ★4모서리 손잡이(block-drag.js:1137)와 ★그라데 ★4모서리 손잡이(gradient-select.js:35)다.
+     ★둘 다 ★블럭의 ★«자식»으로 붙는다.
+   ★★★계약을 ★먼저 쟀다(★머리말의 ⛔「serializeProject 가 ★실제로 지우는지 ★먼저 확인」) —
+     ★`tests/dom/save-strip-plus7-window.dom.spec.js` ★`W1`·`W2`(261025 · ★한 동기 블록에서) :
+       `.shape-handle`           라이브 4 · ★섹션 저장본 ★0 · ★프로젝트 저장본 ★0 · ★★캡처 클론 ★★4
+       `.gradient-corner-handle` 라이브 4 · ★섹션 저장본 ★0 · ★프로젝트 저장본 ★0 · ★★캡처 클론 ★★4
+     ⇒ ★저장은 ★이미 지운다 ⇒ ★★데이터 손실 위험 ★없다. ★★그런데 ★캡처는 ★안 지웠다.
+   ★★⛔같이 쟀으나 ★★넣지 ★않은 것 ★다섯 (★그 까닭이 ★여기 있다) :
+     `.grad-line-overlay`  — ★`portal` → `host`(`#canvas-scaler`)에 붙는다 ⇒ ★★저장 창(`#canvas`) ★밖
+     `.vpen-edit-overlay`  — ★`#ss-handles-overlay` ⇒ ★★같은 이유로 ★창 밖
+       ⇒ ★★창 밖인 것은 ★★「저장이 지운다」를 ★★증명할 길이 ★없다 ⇒ ★★이 계약을 ★충족할 수 ★없다
+     `.block-resize-handle` · `.ci-handle` — ★★만드는 자가 ★0(★죽은 이름 · `W5` 실측) ⇒ ★★못 잰다
+     `.vpen-preview`       — ★`sec` 자식(창 ★안)이지만 ★★행위로 ★안 쟀다
+       = `PLUS7-OVERLAYS-NOT-MADE-BY-BEHAVIOR-01`
+   ⇒ ★★그래서 ★파생이 ★「저장 줄 ★그대로」가 ★아니라 ★★「★저장 창 ★안의 것만」이다. */
 /* ★★★.tfh-handle · .tfh-grid (2026-10-24 · U3 자유변형 손잡이 · 지디 · 현빈 GO) — ★글상자 ★자유변형의
      ★모서리·변 ★손잡이 ★12 와 ★격자다. ★`.text-block` 의 ★«자식»으로 붙으므로 ★★여기 올리지 않으면
      ★저장본·PNG·썸네일·단독 HTML 로 ★★샌다(★고른 채 내보내면 ★박힌다 = `EXPORT-SELECTED-HANDLE-BAKED-IN-01`).

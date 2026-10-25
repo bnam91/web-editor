@@ -427,3 +427,97 @@ test('C3-22 ★상세 박스를 «문서 전역»에서 찾지 않는다(코드 
     '★전역 id 로 상세 박스를 찾고 있다 — 두 표면이 같은 id 를 갖는다');
   assert.match(src, /closest\('\.vhist-row'\)/, '★행 안에서 찾아야 한다');
 });
+
+/* ═══ ★★VHIST-SETTINGS-DETAIL-CACHE-STALE-01 (261025 · ★S3 신고 · 지디 수 박기) ═══
+   ★★«수만 박는다» — ⛔고치지 않는다. 고치는 것은 ★별개 판정이다.
+   ★신고(S3 · t6 ⒜5): 환경설정 「버전 기록」 탭에서 ★한 번 펼친 행은 ★편집·저장 뒤
+     ★설정을 닫고 ★다시 열어도 ★옛 답(「같습니다」)을 준다.
+   ★소스 자리(261025 실측): `_detailCache.clear()` 는 ★`close()`(:70) ★한 곳뿐이고
+     그 `close()` 는 ★★«모달»의 닫기 버튼·오버레이·ESC 에만 걸린다.
+     ★`mountVersionHistory`(:459)에는 ★★unmount 경로가 ★아예 ★없다 ⇒ ★비울 자리가 없다.
+   ★★⛔소스 읽기로 닫지 않는다 — ★아래는 ★행위로 잰다.
+   ★장면이 ★앱에서 생기나(확인함): `settings-modal.js:339` 가 ★`pane.innerHTML = …` 로
+     ★탭을 열 때마다 ★페인을 ★새로 만들고 ★다시 `mountVersionHistory` 를 부른다. */
+
+/** ★설정 페인을 «앱처럼» 새로 만들어 붙이고 «펼치기»를 실제로 누른다.
+    ⚠️★★이 가짜 DOM 의 한계 둘(261025 실측 · ★숨기지 않는다):
+      ⑴ `querySelector` 는 `[data-vh-detail]` 을 ★처리하지 않는다(`querySelectorAll` 만 한다)
+         ⇒ ★`C3-21` 과 같은 길(`byClass.get('.vhist-list').querySelectorAll`)로 집는다.
+      ⑵ `byClass` 가 ★★전역이라 「★마지막 렌더가 이긴다」 ⇒ ★페인을 ★지우는 것이 ★뜻이 없다.
+         ⇒ ★★「설정을 닫았다」 자체는 ★이 하네스로 ★못 잰다. ★대신 ★★«같은 ts 를 ★새 표면에서
+            ★다시 펼치면 ★IPC 를 ★또 부르나» 를 잰다 — ★그것이 ★캐시 ★수명의 ★본체다.
+         ⇒ ★앱에서의 ★그 축은 ★★안 쟀다 = `VHIST-SETTINGS-CLOSE-REOPEN-IN-APP-UNMEASURED-01`. */
+async function mountPaneAndExpand(env) {
+  const pane = env.doc.createElement('div');
+  /* ★뼈대는 settings-modal.js:339 의 그 꼴이다(⛔내 흉내가 아니다) */
+  pane.innerHTML = '<div class="settings-help vhist-intro-text"></div>'
+    + '<div class="vhist-list vhist-in-settings"></div>'
+    + '<div class="settings-help vhist-status-text"></div>';
+  env.doc.body.appendChild(pane);
+  await env.win.mountVersionHistory(pane, { projectId: 'proj_1', projectName: 'T' });
+  const list = env.byClass.get('.vhist-list');
+  assert.ok(list, '★전제: 설정 페인의 .vhist-list 가 등록되지 않았다');
+  const btn = list.querySelectorAll('[data-vh-detail]')[0];
+  assert.ok(btn, '★전제: 설정 페인에 「펼치기」 버튼이 그려지지 않았다');
+  const box = btn.closest('.vhist-row').querySelector('[data-vh-detail-box]');
+  assert.ok(box, '★전제: 상세 박스가 마크업에 없다');
+  await btn.click();
+  await new Promise(r => setTimeout(r, 20));
+  return { pane, btn, box };
+}
+
+test('C3-23 ★★VHIST-SETTINGS-DETAIL-CACHE-STALE-01 — ★설정 탭은 다시 열어도 «옛 비교»를 준다 (★수만 박는다)', async () => {
+  const env = loadUI({ diffReply: { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 } });
+
+  const a = await mountPaneAndExpand(env);
+  /* ★★전제 — ★첫 펼치기가 ★정말 ★IPC 를 ★한 번 불렀나(안 불렀으면 아래 수가 뜻이 없다) */
+  assert.equal(env.calls.diffArgs.length, 1, '★전제: 첫 펼치기가 diff 를 부르지 않았다');
+  assert.ok(a.box.innerHTML.length > 0, '★전제: 첫 펼치기에 내용이 없다');
+
+  /* ★사람이 하는 일 — ★설정을 ★닫는다(= 페인이 사라진다 · settings-modal 은 매번 새로 만든다) */
+  /* ⚠️★페인 제거는 이 하네스에서 뜻이 없다(byClass 전역) — ★위 ⑵ 참고 */
+
+  const b = await mountPaneAndExpand(env);
+  /* ★★★결함을 ★수로 박는다 — ★다시 부르지 ★않는다(= ★옛 답을 ★그대로 준다).
+     ★이 칸이 ★빨개지면 = ★고쳐진 것이다 ⇒ ★그때 ★이 칸을 ★뒤집고 ★명부에서 지워라. */
+  assert.equal(env.calls.diffArgs.length, 1,
+    '★설정 페인을 다시 만들었는데 diff 를 ★또 불렀다 — ★고쳐졌다면 이 칸을 뒤집어라'
+    + ' (실측 호출 수 ' + env.calls.diffArgs.length + ')');
+  assert.ok(b.box.innerHTML.length > 0, '★다시 펼쳤는데 내용이 비었다 — 증상의 꼴이 바뀌었다');
+});
+
+test('C3-24 ★★음성대조 — ★같은 조작을 «모달»로 하면 ★다시 부른다 (★병이 «설정 쪽»에만 있다)', async () => {
+  const env = loadUI({ diffReply: { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 } });
+  await openAndExpand(env);
+  assert.equal(env.calls.diffArgs.length, 1, '★전제: 첫 펼치기가 diff 를 부르지 않았다');
+  env.win.closeVersionHistory();              /* ★모달엔 ★비우는 자리가 ★있다 */
+  await openAndExpand(env);
+  assert.equal(env.calls.diffArgs.length, 2,
+    '★모달 쪽도 캐시가 안 비워진다 — ★그러면 병이 ★설정 전용이 아니다(C3-23 의 이름이 좁다)');
+});
+
+test('C3-25 ★★«설정→모달»이 ★서로의 캐시를 쓰나 — ★병의 ★넓이를 잰다 (★안 쟀던 축)', async () => {
+  const env = loadUI({ diffReply: { ok: true, snapCanvas: {}, curCanvas: {}, bytes: 1 } });
+  /* ⒜ ★설정 페인에서 ★먼저 펼친다 */
+  const a = await mountPaneAndExpand(env);
+  assert.equal(env.calls.diffArgs.length, 1, '★전제: 설정 쪽 첫 펼치기');
+  /* ⚠️★페인 제거는 이 하네스에서 뜻이 없다(byClass 전역) — ★위 ⑵ 참고 */
+  /* ⒝ ★이제 ★모달로 ★같은 ts 를 펼친다 — ★캐시가 ★한 통이면 ★안 부른다 */
+  await openAndExpand(env);
+  const n = env.calls.diffArgs.length;
+  /* ★★실측(261025) : ★1 이다 = ★★모달이 ★설정의 캐시를 ★★«그대로 쓴다».
+     ★까닭 = `_detailCache` 는 ★모듈 전역 ★★한 통이다(version-history-ui.js:160).
+     ⇒ ★병은 ★「설정 전용 캐시」가 아니라 ★★«비우는 ★자리가 ★한 표면에만 있다»다.
+     ★이 칸이 ★2 로 바뀌면 = ★표면마다 ★따로 갖게 된 것이다 ⇒ ★C3-23 의 ★이름을 ★좁혀라. */
+  assert.equal(n, 1,
+    '★모달이 ★설정의 캐시를 ★안 쓴다 — ★캐시가 ★표면마다 따로가 됐다(C3-23 이름을 좁혀라)'
+    + ' (실측 ' + n + ')');
+  /* ★★★그리고 ★모달을 ★닫으면 ★그 ★한 통이 ★비워진다 ⇒ ★★설정 쪽도 ★살아난다.
+     ⇒ ★★«우회로»가 ★있다 — 「★버전 ★모달을 ★한 번 ★열고 ★닫으면 ★새 답을 준다」.
+     ★이것이 ★이 결함의 ★급함을 ★낮춘다(★데이터 손실 아님 · ★우회로 있음 · ★눈에 보이는 값은 틀림). */
+  env.win.closeVersionHistory();
+  const c = await mountPaneAndExpand(env);
+  assert.equal(env.calls.diffArgs.length, 2,
+    '★모달을 닫았는데도 설정 쪽이 옛 답을 준다 — ★우회로가 없다(그러면 더 급하다)');
+  assert.ok(c.box.innerHTML.length > 0, '★우회 뒤 내용이 비었다');
+});

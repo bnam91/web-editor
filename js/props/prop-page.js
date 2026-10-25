@@ -2,6 +2,7 @@
    PROPERTIES PANEL
 ═══════════════════════════════════ */
 import { propPanel, canvasEl, state } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기(applyCanvasBackground)만 쓰므로 «바인딩 자체»를 없앤다(직접 대입 재유입 방지) */
+import { exportFormatOptionsHTML } from '../io/export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
 import { applyBubbleSenderAlign } from './prop-text-wireup-align.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
@@ -440,10 +441,9 @@ export function showPageProperties() {
       <div class="prop-row">
         <span class="prop-label">형식</span>
         <select class="prop-select" id="page-export-format">
-          <option value="png">PNG</option>
-          <option value="jpg">JPG</option>
-          <option value="gif">GIF (정적)</option>
-          <option value="gif-anim">GIF (애니메이션)</option>
+          ${/* ★t6-01 — ★꼴 명부 정본 한 자리에서 파생. ⛔selected 를 여기서 주지 않는다 —
+               ★아래 _saveExportPref 둘레가 `expFmtSel.value = p.fmt` 로 ★복원한다(옛 규약 그대로). */''}
+          ${exportFormatOptionsHTML()}
         </select>
       </div>
       <div class="prop-row">

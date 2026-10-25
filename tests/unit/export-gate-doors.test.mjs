@@ -15,7 +15,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { mkTmpRoot } from './_tmproot.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const SRC = fs.readFileSync(path.join(ROOT, 'js/io/export-gate-core.js'), 'utf8').replace(/\r\n/g, '\n');
@@ -34,13 +35,32 @@ function fnText(src) {
   throw new Error('몸통이 안 닫힌다');
 }
 /** 그 함수를 ★BLOB_MIN 을 주입해 «돌린다». ⛔import 하지 않는 까닭 = D6 이 «문을 뺀 판»을 같은 길로 돌려야 해서. */
+/* ★★261025 (t6-01) — ★`judgeExportDiff` 가 ★곁 모듈의 ★`isGifFormat` 을 ★쓰게 됐다.
+     ★이 자는 ★함수 ★본문만 떠내 `new Function` 으로 ★다시 짓는다 ⇒ ★그 이름이 ★범위에 ★없으면
+     ★문 2 부터 ★전부 ★죽는다(실측: 문2~문12 열셋이 한꺼번에 틀렸다).
+   ⇒ ★★«진짜 정본»을 ★끌어와 ★인자로 ★넣는다. ⛔손으로 ★가짜를 ★짓지 마라 —
+     ★가짜를 지으면 ★이 자는 ★「내가 만든 모형」을 ★재게 되고 ★제품과 ★갈려도 ★안 보인다.
+   ★package.json 이 commonjs 라 ★tmp .mjs 사본으로 싣는다(이 집의 관례).
+   ★★치우기는 ★공용 `mkTmpRoot` 가 ★쥔다 — ⛔손으로 `rmSync` 하지 마라
+     (`tests/unit/tmproot-sole-owner.test.mjs` ★T2 가 막는다 · 261025 에 ★실제로 잡혔다). */
+const _fmtTmp = path.join(mkTmpRoot('exgate-doors-'), 'export-formats.mjs');
+fs.writeFileSync(_fmtTmp, fs.readFileSync(path.join(ROOT, 'js/io/export-formats.js'), 'utf8'));
+const { isGifFormat } = await import(pathToFileURL(_fmtTmp).href);
+
 const build = (text, blobMin = Infinity) =>
-  new Function('BLOB_MIN', text.replace(/^export /, '') + '\nreturn judgeExportDiff;')(blobMin);
+  new Function('BLOB_MIN', 'isGifFormat', text.replace(/^export /, '') + '\nreturn judgeExportDiff;')(blobMin, isGifFormat);
 
 /* ★문 명부 — ★순서가 곧 우선순위다. key = 소스 줄 «코드 조각»(공백 하나로 접어 견준다). */
 const DOORS = [
   { n: 1,  key: "if (c.native === false) return { tier: 'unmeasured', reasons: ['notNative'] };", tier: 'unmeasured', reasons: ['notNative'] },
-  { n: 2,  key: "if (c.format === 'gif' || c.format === 'gif-anim') return { tier: 'unmeasured', reasons: ['gif'] };", tier: 'unmeasured', reasons: ['gif'] },
+  /* ★★261025 (t6-01) — ★문 2 의 ★문장이 바뀌었다. ★행위는 ★한 글자도 ★안 바뀐다 :
+       옛 : if (c.format === 'gif' || c.format === 'gif-anim') …
+       새 : if (isGifFormat(c.format)) …
+     ★왜 — ★'gif'·'gif-anim' 명부가 ★`export-gate.js` 와 ★여기 ★둘이었다. ★webp 를 더하면서
+       ★정본 `js/io/export-formats.js` ★한 자리로 모았다(★「명부가 둘이면 파생시켜 하나로」).
+     ★★행위가 그대로임은 ★아래 ROWS 의 ★두 줄(door 2 · format 'gif' 와 'gif-anim')이 ★그대로 잰다.
+     ⛔이 key 를 ★느슨한 정규식으로 ★바꾸지 마라 — ★이 자의 값은 ★「문장이 ★정확히 ★이것」이다. */
+  { n: 2,  key: "if (isGifFormat(c.format)) return { tier: 'unmeasured', reasons: ['gif'] };", tier: 'unmeasured', reasons: ['gif'] },
   { n: 3,  key: "if (c.captureError) return { tier: 'unmeasured', reasons: ['captureError'] };", tier: 'unmeasured', reasons: ['captureError'] },
   { n: 4,  key: "if (c.imgTimedOut) return { tier: 'unmeasured', reasons: ['imgTimeout'] };", tier: 'unmeasured', reasons: ['imgTimeout'] },
   { n: 5,  key: "if (c.repro === 'unstable') return { tier: 'unmeasured', reasons: ['unstable'] };", tier: 'unmeasured', reasons: ['unstable'] },

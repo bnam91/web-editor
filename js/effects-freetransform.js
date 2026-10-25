@@ -63,7 +63,28 @@ import { registerFxType, fxIsCardOpen, fxSetCardOpen } from './effects-registry.
 import { homography, cornerMatrix3d, normalizeCorners, boxFromCorners } from './fx/homography.js';
 
 /** ★정본 키 — ★하나다. ✕ = 이 키를 지움 ⇒ 켜기 전 바이트(반사·글로우와 같은 규약). */
-export const FX_FT_KEYS = ['tfCorners', 'tfTouched'];
+export const FX_FT_KEYS = ['tfCorners', 'tfTouched', 'tfSchema'];
+/* ★★★`tfSchema` (2026-10-25 · 지디 · ★server-manager GO · ⛔main 머지는 현빈 게이트)
+   ★무엇 : ★★«이 블록은 ★새 꼴로 ★저장됐다»는 ★사실 ★하나. ★값은 `'1'` 뿐.
+     ★`tfTouched` 와 ★다르다 — ★그것은 ★«사람이 끌었나», ★이것은 ★«어느 판이 저장했나»다.
+   ★★왜 ★필요한가 — ★★★`tfTouched` ★하나로는 ★★옛 파일을 ★구할 수 ★없었다 :
+     ★옛 파일은 ★`tfTouched` 가 ★없다. ★그런데 ★«변형 안 하고 켜기만 한 ★새 블록»도 ★없다.
+     ⇒ ★★둘이 ★구분이 ★안 된다 ⇒ ★한쪽을 살리면 ★다른 쪽이 ★죽는다.
+   ★★★실측으로 ★증명했다 — ★처방 ★둘을 걸어 ★★둘 다 ★`Y3` 를 ★깼다(261025) :
+     ⒜ 「키 없으면 ★보수적 `touched=true`」      → ★`Y1b`(목적) ＋ ★★`Y3` ★빨강
+     ⒝ 「★`watchAll` 경로에서만 ★덮어쓰기 끄기」   → ★`Y1b`(목적) ＋ ★★`Y3` ★빨강
+     ⛔⒝ 를 걸 때 ★내 추론이 ★틀렸다 : ★`Y3` 는 ★★`rebindAll → watchAllFx` 경로다.
+   ★★무엇을 ★막나 (★미카사 실측 261025 · ★★영구 손실)
+     조건 = 「★새 앱 ＋ ★`tfTouched` 없는 ★옛 파일 ＋ ★그 뒤 ★아무 저장」
+     ⇒ ★★디스크의 네 점이 `0,0,400,0,400,120,0,120` → ★`0,0,164.6,0,164.6,43,0,43` 로 ★굳었다
+     ★사용자 눈 = 「★업그레이드 뒤 ★옛 작업을 열어 ★★다른 곳 하나만 고쳐도 ★조용히 사라진다」
+   ★★가름
+     `tfSchema` ★있음 → ★`tfTouched` 를 ★믿는다(없으면 ★false) ⇒ ★덮어쓴다(★`Y3` 가 ★산다)
+     `tfSchema` ★없음 → ★★«옛 파일»이다 ⇒ ★★보수적 `true` ⇒ ★★안 덮어쓴다(★손실 ★0)
+   ★★★⛔그래도 ★「전부 고쳤다」가 ★아니다 : ★★이미 ★잃은 파일은 ★★안 돌아온다.
+     ★이름 = `FT-ALREADY-LOST-FILES-NOT-RECOVERED-01`(★미측 · `proj_history` 축은 ★미카사 몫)
+   ★대칭 : ★이 명부에 있으므로 ★✕ 가 ★`tfCorners`·`tfTouched` 와 ★같이 ★지운다.
+   ★재는 자 = `tests/dom/ft-axis-aligned-transform-lost.dom.spec.js` */
 /* ★★★`tfTouched` (2026-10-24 · 지디 · ★server-manager GO · ⛔main 머지는 현빈 게이트)
    ★무엇 : ★★«사람이 ★네 점을 ★끌었다»는 ★사실 ★하나. ★값은 `'1'` 뿐이고 ★없으면 ★「모른다」다.
    ★★왜 ★필요한가 — ★★꼴로는 ★가를 수 ★없다(★실측으로 ★증명했다) :
@@ -145,6 +166,22 @@ function _isBaseRect(C) {
 
 /** 바탕 네모(항등 네 점) — 글자 상자 그대로. */
 const _baseRect = (W, H) => [[0, 0], [W, 0], [W, H], [0, H]];
+
+/* ★★«옛 파일 전용» 추정자 — ★네 점이 ★«바탕 W·H 의 네모»와 ★같은가(★비율 허용).
+   ★★★`tfSchema` 가 ★있는 판에는 ★쓰지 ★마라 — ★거기는 ★`tfTouched` 로 ★정확히 안다.
+     ⛔261024 에 ★이것을 ★«모든 판»에 ★쓰려다 ★기각했다 : ★새 파일에서 ★«변형 안 하고
+       ★글자만 바꿔 저장한» 블록이 ★찌그러졌다(★실측 identDiff ★0.77 ～ ★4.28).
+     ★★그 흠은 ★«새 파일에 ★썼기» 때문이다. ★옛 파일에는 ★이것이 ★★최선의 추정이다 —
+       ★거기엔 ★다른 열쇠가 ★아예 ★없다.
+   ★허용값의 ★근거 : ★W·H 는 ★측정값이라 ★기계마다 ★1~2px 다르다(★이 파일 머리말 `:20`)
+     ⇒ ★절대 px 가 아니라 ★★비율로 둔다. */
+const _OLDFILE_NEAR = 0.02;
+function _isBaseRectOfLegacy(C, W, H) {
+  if (!_isBaseRect(C)) return false;
+  if (!(W > 0) || !(H > 0)) return false;
+  const w = C[1][0], h = C[3][1];
+  return Math.abs(w - W) / W <= _OLDFILE_NEAR && Math.abs(h - H) / H <= _OLDFILE_NEAR;
+}
 
 /* ★★★되먹임을 끊는다 (261022 픽셀 실측이 잡았다 · 설계 ⑦-⑵ ⒜):
      렌더가 쓴 `tb.style.width` ★안에서 다시 재면 W 가 줄고 ⇒ 다음 렌더가 더 찌그러진다
@@ -357,6 +394,9 @@ export function setFxFreeTransform(tb, C, { history = true, touched = true } = {
     /* ★★`touched` 를 ★★데이터로 남긴다 — ★그 사실이 ★저장본에 실려야 ★복원 뒤에도 ★산다.
        ⛔`touched: false`(패널이 ★켜기만 한 꼴)면 ★키를 ★지운다 — ★「변형 안 함」이 ★참이다. */
     if (touched) tb.dataset.tfTouched = '1'; else delete tb.dataset.tfTouched;
+    /* ★★`tfSchema` 는 ★`touched` 와 ★무관하게 ★★항상 쓴다 — ★그것이 ★«어느 판이 저장했나»다.
+       ⛔`touched` 와 ★묶지 마라 : ★「변형 안 하고 켜기만 한」 새 블록도 ★★새 판이 저장한 것이다. */
+    tb.dataset.tfSchema = '1';
     applyFxFreeTransform(tb);
   }
   window.scheduleAutoSave?.();
@@ -388,7 +428,18 @@ export function watchAllFxFreeTransform(root = document) {
        ★그 갈래에서는 `FT-AXIS-ALIGNED-TRANSFORM-LOST-ON-RESTORE-01` 이 ★★여전히 난다 —
          ★★「옛 파일은 ★안 고쳐진다」가 ★참이고, ★그것을 ★★숨기지 ★않는다. */
     if (st) {
-      st.touched = (tb.dataset.tfTouched === '1') ? true : !_isBaseRect(ftCornersOf(tb));
+      /* ★★★판을 ★먼저 ★가른다(261025) — ★`tfSchema` 가 ★없으면 ★★«옛 파일»이다.
+         ⇒ ★보수적 `true` ⇒ ★네 점을 ★★안 덮어쓴다 ⇒ ★축정렬 변형이 ★산다.
+         ⛔옛 꼴 판정(`_isBaseRect`)으로 ★떨어뜨리면 ★★★영구 손실이 난다(★미카사 실측).
+         ★★`tfSchema` 가 ★있으면 ★`tfTouched` 를 ★믿는다 — ★없으면 ★진짜 ★「안 끌었다」다. */
+      if (tb.dataset.tfSchema === '1') {
+        st.touched = (tb.dataset.tfTouched === '1');
+      } else if (st.legacyTouched === undefined) {
+        st.legacyTouched = !_isBaseRectOfLegacy(ftCornersOf(tb), st.W, st.H);
+        st.touched = st.legacyTouched;
+      } else {
+        st.touched = st.legacyTouched;
+      }
       _tfState.set(tb, st);
     }
     if (applyFxFreeTransform(tb)) n++;

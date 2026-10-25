@@ -2614,6 +2614,7 @@ document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       /* ★그리드 «줄» 복사 (티켓 ⑤) — 그리드 블럭 하나만 골라져 있고 그 안에 줄 선택이 있을
          때만 참을 돌려준다. 그 밖엔 거짓이라 아래 블록 복사가 종전대로 돈다(판정은 prop-grid.js). */
+      if (window.grdCopyRange?.()) return;   // ★t3-04 U2b — 칸 범위가 있을 때만 참(prop-grid.js)
       if (window.grdCopySelectedLines?.()) return;
       copySelected();
       return;
@@ -2623,6 +2624,7 @@ document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       /* ★그리드 «줄» 붙여넣기 (티켓 ⑤) — 줄 클립보드가 비어 있거나 대상이 아니면 거짓이라
          아래 섹션/스크래치 붙여넣기가 종전대로 돈다. */
+      if (window.grdPasteRange?.(e)) return;   // ★t3-04 U2b — 범위 클립이 최신일 때만 참(prop-grid.js · e = 맥 Control+v 무장 0 판정)
       if (window.grdPasteLines?.()) return;
       /* ★누가 최신인지는 여기(keydown)서 못 정한다 — OS 클립보드 «내용»은 뒤따르는 paste 이벤트에만 실려 온다.
          그래서 언제나 paste 이벤트에 양보하고(scratch-pad 가 clipboardPrefersInternal 로 가른다),
@@ -2644,6 +2646,7 @@ document.addEventListener('keydown', e => {
            따로 들어도 네이티브 cut 이벤트가 안 온다(실측 cutEvt 0). «양보»만이 길이다.
          ★선례 = 바로 위 그리드 줄(`if (window.grdPasteLines?.()) return;`) — 같은 꼴로 맞췄다. */
       if (window.scratchCutSelected?.()) { e.preventDefault(); return; }
+      if (window.grdRangeBlocksKey?.(e)) return;   // ★t3-04 U2b D4 — 칸 범위가 살아 있으면 삼키고 알림(prop-grid.js)
       e.preventDefault();
       copySelected();
       deleteSelectedFromCanvas({ isCut: true });   // [#16-DEL] ⌘X=이동 ⇒ ⛔스크래치를 안 건드린다
@@ -2900,6 +2903,7 @@ document.addEventListener('keydown', e => {
       editingGroup.classList.remove('group-editing');
       return;
     }
+    if (window.grdClearRange?.()) return;   // ★t3-04 U2b — 첫 Esc 는 칸 범위만 푼다(다음 Esc 는 아래 규칙 그대로)
     /* ★0918 grid «상위 선택»(피그마식): 그리드의 줄/칸이 선택돼 있으면 첫 Esc 는 줄 선택만 풀고
        블럭 선택은 유지한다(이 상태의 Backspace = 블럭 삭제). 한 번 더 Esc 면 전체 해제. */
     const _gridSelEsc = document.querySelector('.grid-block.selected');
@@ -3268,6 +3272,7 @@ document.addEventListener('keydown', e => {
     // 텍스트 편집 중이거나 input에 포커스가 있으면 기본 동작 유지
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    if (window.grdRangeBlocksKey?.(e)) return;   // ★t3-04 U2b D4 — 칸 범위가 살아 있으면 삼키고 알림(prop-grid.js)
     // 캔버스 선택 삭제 — ⌘X(잘라내기)와 공유. consumed=true면 기본동작 차단.
     if (deleteSelectedFromCanvas()) e.preventDefault();
     return;
@@ -4066,6 +4071,7 @@ function clearSelectionMarks(root) {
   // ★0918 grid: 마커만 지우고 «모델»(활성줄 WeakMap)을 두면, 블럭으로 다시 골랐을 때 옛 줄이 살아나
   //   Backspace 가 줄 삭제 분기로 새서 블럭이 안 지워졌다. 블럭을 떠나면 줄 선택도 해제한다.
   window.grdClearAllActiveLines?.(canvas);
+  window.grdClearRange?.();   // ★t3-04 U2b D3 — 칸 범위도(selectBlock 길은 hideGridGutters 를 안 지난다 · 붙인 뒤 표시는 showGridProperties «뒤» grdSetRange 라 무관)
   window.lnClearAllActive?.(canvas);   // ★BT2 — 말풍선·챗 «줄 선택»도 같은 자리에서(마커 + 활성줄)
   window.cmpClearAllActiveCells?.(canvas);   // ★1012t1D3 — 비교 «이미지 칸 선택»도 같은 자리에서(.cmp-cell-selected + 활성 칸)
   // 스텝 «지금 보는 스텝» 마커도 같은 자리에서 (prop-step.js 의 _stbSyncMark 와 짝 · 옛 이름 포함)
