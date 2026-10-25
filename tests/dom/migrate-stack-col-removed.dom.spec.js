@@ -41,7 +41,9 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js migrate-stack-col-removed
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const fs = require('fs');
+const path = require('path');
+const { bootApp, ROOT } = require('./_root-harness.js');
 
 const makeImg1 = async (page) => page.evaluate(async () => {
   const canvas = document.getElementById('canvas');
@@ -127,4 +129,56 @@ test('M2 ★★음성대조 — ★`migrateColsFromDOM` 을 ★안 부르면 ★
     '★.col 이 ★마이그레이션 ★없이도 ★사라졌다 — ★M1 의 수가 ★뜻을 잃는다 ('
       + before.cols + ' → ' + r.cols + ')'
   ).toBe(before.cols);
+});
+
+test('M3 ★★★`migrateColsFromDOM` 의 ★★«크기»를 수로 박는다 — ★호출 ★29 · 줄 ★151 (★`…SWEEP-01`)', () => {
+  /* ★★왜 — ★`MIGRATE-MISREADS-NEW-STRUCTURE-SWEEP-01`(261025) 의 ★★진짜 ★크기를 ★적는다.
+     ★이 함수는 ★`rebindAll`(save-load.js:1457 이 아니라 ★그 위 :941 정의) 안에서 ★★로드·⌘Z·
+       페이지 전환마다 ★돌고, ★★그 안에서 ★«구조»를 ★여러 번 ★바꾼다.
+     ⇒ ★★하나하나가 ★★「★새 구조를 ★옛 것으로 ★오인」할 ★자리다
+       (★그 꼴로 ★오늘 ★둘을 고쳤다 — `FT-TOUCHED-OLD-FILES` · `GRAD-GROUP-LOST-ON-RELOAD`).
+     ⇒ ★★그래서 ★★«수»를 박아, ★★하나가 ★늘면 ★이 칸이 ★빨개져 ★다음 사람이 ★보게 한다.
+
+     ★★★261025 ★조사로 ★가린 것 ★둘 :
+       ⒜ ★★`MIGRATE-STACK-COL-FLEX-PATH-UNMEASURED-01` 은 ★★**존재하지 않는 축**이었다 —
+          ★`makeCol(flex)` 를 쓰는 셋(`img2`·`img3`·`text-img`)은 ★★모두 `layout='flex'` 이고,
+          ★`stack > .col` 갈래는 ★★`layout="stack"` ★뿐이다. ⇒ ★★그 이름을 ★닫는다.
+       ⒝ ★★그런데 ★★«다른 축»이 ★있었다 — ★`flex|grid` row 에 ★`.col` 이 ★★하나면
+          ★`.col` 을 지우고 ★★`layout` 을 ★`stack` 으로 ★바꾼다(★`style.flex` 가 ★사라진다)
+          = ★★`MIGRATE-FLEX-COL-COLLAPSES-TO-STACK-WHEN-ONE-01` (★★행위로 ★안 쟀다)
+       ⒞ ＋ ★`.col` 배경색 → row ★승계가 ★★두 자리에 있다(★stack 갈래 ＋ ★flex 갈래)
+          = ★`MIGRATE-COL-BGCOLOR-INHERIT-UNMEASURED-01` (★★행위로 ★안 쟀다) */
+  const src = fs.readFileSync(path.join(ROOT, 'js/io/save-load.js'), 'utf8');
+  const i = src.indexOf('function migrateColsFromDOM');
+  expect(i, '★`migrateColsFromDOM` 이 사라졌다 — 이 칸의 대상이 없다').toBeGreaterThan(0);
+  const j = src.indexOf('\nfunction ', i + 10);
+  const body = src.slice(i, j);
+  /* ★★★261025 ★자가정정 — ★내가 ★「구조 변경 ★8」이라 ★적었는데 ★★실측은 ★★29 였다.
+       ★까닭 : ★내 ★앞 조사는 ★regex 에 ★`^\s*`(★줄 ★머리)를 걸어 ★★줄 머리의 ★호출만 ★셌고,
+         ★아래 자는 ★★줄 ★어디든 ★잡는다. ⇒ ★★내 ★산문이 ★측정값을 ★이기려 했다.
+     ⇒ ★★그래서 ★이 칸의 ★뜻을 ★★«정확히» 적는다 :
+       ★이것은 ★★「★구조를 ★바꾸는 자리 수」가 ★★아니다. ★★「★`canvasEl.querySelectorAll(…)` ＋
+         `window.*?.(…)` ★호출 수」다 — ★★그 중 ★몇이 ★«구조»를 ★바꾸고 ★몇이 ★읽기만 하는지는
+         ★★**안 쟀다** = `MIGRATE-WHICH-CALLS-MUTATE-UNMEASURED-01`.
+     ⇒ ★★그래도 ★★쓸모가 있다 : ★★이 수가 ★움직이면 ★그 함수가 ★★자랐거나 ★줄었다는 ★신호다
+       (★★로드마다 ★도는 함수가 ★자라는 것이 ★★이 꼴의 ★병이 ★나는 ★자리였다). */
+  const touches = [...body.matchAll(/(?:canvasEl\.querySelectorAll|window\.\w+\?\.)\(([^)]*)\)/g)]
+    .map(m => m[0].slice(0, 90));
+  console.log('[M3]', JSON.stringify({ lines: body.split('\n').length, n: touches.length, touches }, null, 1));
+  /* ★★전제 — ★0 이면 ★자가 헛돌았다 */
+  expect(touches.length, '★건드리는 자리를 하나도 못 읽었다 — 자가 헛돈다').toBeGreaterThan(3);
+  /* ★★★수 — ★★여덟. ★이 칸이 ★빨개지면 = ★하나가 ★늘거나 ★줄었다
+     ⇒ ★★늘었으면 ★★「★그것도 ★새 구조를 ★오인하나」를 ★★재고 ★이 수를 ★고쳐라.
+     ⇒ ★줄었으면 ★어느 갈래가 ★죽었나 보라(★죽은 갈래는 ★무해하지만 ★주석이 ★거짓이 된다). */
+  expect(touches.length,
+    `★호출 수가 ★29 가 아니다 (${touches.length}) — ★늘었으면 ★★「그것도 ★새 구조를 ★오인하나」를 재고 ★이 수를 고쳐라` +
+    `\n  ★줄 수 ${body.split('\n').length} (★261025 실측 151)\n  ` + touches.slice(0, 12).join('\n  ')
+  ).toBe(29);
+  /* ★★줄 수도 ★같이 — ★호출 수는 ★같은데 ★몸통만 자라는 꼴을 ★잡는다 */
+  expect(body.split('\n').length,
+    `★줄 수가 ★151 이 아니다 (${body.split('\n').length}) — ★그 함수가 ★자랐다(또는 줄었다)`
+  ).toBe(151);
+  /* ★★그리고 ★★«오늘 고친 둘»이 ★이 함수 ★안에 있나 — ★★한 자리에 ★모여 있음을 ★못박는다 */
+  expect(/migrateLegacyGradientBlocks/.test(src),
+    '★`migrateLegacyGradientBlocks` 호출이 사라졌다 — GRAD-GROUP 고침의 자리가 바뀌었나').toBe(true);
 });
