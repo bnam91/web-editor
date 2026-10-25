@@ -112,7 +112,15 @@ function _writeProps(block, partial) {
     if (partial.labelPad == null) delete block.dataset.labelPad;
     else block.dataset.labelPad = String(partial.labelPad);
   }
+  /* ★1013t2C6 — 라벨 너비·모서리. labelPad 와 같은 규약(null = 키 삭제 = 옛 동작). 값은 팩토리와 같은 자로 자른다. */
+  for (const k of ['labelWidth', 'labelRadius']) {
+    if (!(k in partial)) continue;
+    const v = window.annotClampLabelBox?.(partial[k], k) ?? null;
+    if (v == null) delete block.dataset[k];
+    else block.dataset[k] = String(v);
+  }
   _rerenderAnnotation(block);
+  window.annotRefreshHandles?.(block);   // ★1013t2C6 — 라벨 상자 손잡이가 새 크기를 따라간다
   window.scheduleAutoSave?.();
 }
 
@@ -233,8 +241,10 @@ function _rerenderAnnotation(block) {
         if ((label.textContent || '').trim() !== st.text) label.textContent = st.text;
       }
     }
-    // ★1013t1A3 — 개별 위치(translate)를 style «맨 끝»으로 다시 붙인다(위에서 padding 등이 새로 붙었을 수 있다)
-    window.annotApplyLabelOffset?.(block);
+    // ★1013t2C6 — 너비·모서리(텍스트 모드) — 위 갈래가 border-radius 를 비웠으니 그 뒤에 칠한다.
+    //   그 함수가 translate 를 «맨 끝»으로 다시 붙인다(★1013t1A3 — 위에서 padding 등이 새로 붙었을 수 있다).
+    if (st.labelMode !== 'image' && window.annotApplyLabelBox) window.annotApplyLabelBox(block);
+    else window.annotApplyLabelOffset?.(block);
   }
 }
 
@@ -465,6 +475,18 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="annot-label-pad" min="0" max="24" step="1" value="${st.labelPad ?? 8}">
         <input type="number" class="prop-number" id="annot-label-pad-num" min="0" max="24" step="1" value="${st.labelPad ?? 8}">
       </div>
+      ${st.labelMode !== 'image' ? `
+      <div class="prop-row">
+        <span class="prop-label">너비</span>
+        <input type="number" class="prop-number" id="annot-label-w" min="${LIM.labelWidth.min}" max="${LIM.labelWidth.max}" step="1" value="${st.labelWidth ?? ''}" placeholder="자동" title="라벨 너비(px) — 비우면 글 길이만큼">
+        <button class="prop-btn" id="annot-label-w-auto" type="button"${st.labelWidth == null ? ' disabled' : ''} title="글 길이만큼">자동</button>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">모서리</span>
+        <input type="range" class="prop-slider" id="annot-label-radius" min="${LIM.labelRadius.min}" max="${LIM.labelRadius.max}" step="1" value="${st.labelRadius ?? 4}">
+        <input type="number" class="prop-number" id="annot-label-radius-num" min="${LIM.labelRadius.min}" max="${LIM.labelRadius.max}" step="1" value="${st.labelRadius ?? 4}">
+      </div>
+      ` : ''}
     </div>
 
     <div class="prop-section" id="annot-label-pos-section">
@@ -765,6 +787,34 @@ ${blockHeaderHTML({
       const v = Math.min(24, Math.max(0, parseFloat(padN.value) || 0));
       pad.value = v; _writeProps(block, { labelPad: v });
       window.pushHistory?.('라벨 여백');
+    });
+  }
+
+  /* ★1013t2C6 — 라벨 너비(비우면 자동 = 글 길이) · 모서리. 여백과 같은 길(쓰고 → 다시 그리고 → 찍는다). */
+  const lw = propPanel.querySelector('#annot-label-w');
+  if (lw) {
+    lw.addEventListener('change', () => {
+      const v = lw.value.trim() === '' ? null : window.annotClampLabelBox?.(lw.value, 'labelWidth');
+      _writeProps(block, { labelWidth: v ?? null });
+      showAnnotationProperties(block);
+      window.pushHistory?.('라벨 너비');
+    });
+  }
+  propPanel.querySelector('#annot-label-w-auto')?.addEventListener('click', () => {
+    if (block.dataset.labelWidth == null) return;
+    _writeProps(block, { labelWidth: null });
+    showAnnotationProperties(block);
+    window.pushHistory?.('라벨 너비 자동');
+  });
+  const rad = propPanel.querySelector('#annot-label-radius');
+  const radN = propPanel.querySelector('#annot-label-radius-num');
+  if (rad && radN) {
+    rad.addEventListener('input',  () => { radN.value = rad.value; _writeProps(block, { labelRadius: parseFloat(rad.value) }); });
+    rad.addEventListener('change', () => window.pushHistory?.('라벨 모서리'));
+    radN.addEventListener('change', () => {
+      const v = window.annotClampLabelBox?.(radN.value, 'labelRadius') ?? 0;
+      rad.value = v; _writeProps(block, { labelRadius: v });
+      window.pushHistory?.('라벨 모서리');
     });
   }
 

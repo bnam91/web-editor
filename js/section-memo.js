@@ -118,14 +118,33 @@
     const F = window.SectionMemoFormat;
     return !!(F && typeof F.isMemoImgSrc === 'function' && F.isMemoImgSrc(src));
   }
-  function _makeImgNode(src) {
+  function _makeImgNode(src, w) {
     const el = document.createElement('img');
     el.className = 'smp-img';
     el.setAttribute('contenteditable', 'false');
     el.setAttribute('draggable', 'false');
     el.setAttribute('alt', '');
     el.setAttribute('src', src);
+    _setImgW(el, w);
     return el;
+  }
+  /* 참고 이미지 너비(1017t1b2) — 정본은 data-w(저장 글자 `![w=…]` 와 같은 값). 인라인 width 는 그 값을 «보이는» 것뿐이다
+     (원자 노드의 style 은 insertAtom 뒷정리가 걷는다 ⇒ 걷은 뒤 이 함수로 다시 보인다). 범위 밖·없음 = 종전 크기. */
+  function _memoImgW(el) {
+    const F = window.SectionMemoFormat;
+    const w = el && el.dataset ? parseInt(el.dataset.w, 10) : NaN;
+    return F && typeof F.isMemoImgW === 'function' && F.isMemoImgW(w) ? w : null;
+  }
+  function _setImgW(el, w) {
+    const F = window.SectionMemoFormat;
+    if (F && typeof F.isMemoImgW === 'function' && F.isMemoImgW(w)) {
+      el.dataset.w = String(w);
+      el.style.width = w + 'px';
+    } else {
+      delete el.dataset.w;
+      el.style.removeProperty('width');
+      if (!el.getAttribute('style')) el.removeAttribute('style');
+    }
   }
   function _toast(msg) { if (typeof window.showToast === 'function') window.showToast(msg); }
 
@@ -166,7 +185,7 @@
     if (t.type === 'text') return document.createTextNode(t.text);
     if (t.type === 'br') return document.createElement('br');
     if (t.type === 'check') return _makeCheckNode(t.checked, t.raw);
-    if (t.type === 'img') return _isMemoImgSrc(t.src) ? _makeImgNode(t.src) : null;
+    if (t.type === 'img') return _isMemoImgSrc(t.src) ? _makeImgNode(t.src, t.w) : null;
     return null;
   }
 
@@ -227,7 +246,12 @@
       }
       if (n.tagName === 'IMG') {
         /* 우리가 넣은 그림만 읽는다 — 그 밖의 img 는 메모의 글이 아니다(직렬화도 주소를 한 번 더 가른다) */
-        if (n.classList.contains('smp-img')) out.push({ type: 'img', src: n.getAttribute('src') || '' });
+        if (n.classList.contains('smp-img')) {
+          const t = { type: 'img', src: n.getAttribute('src') || '' };
+          const w = _memoImgW(n);
+          if (w) t.w = w;
+          out.push(t);
+        }
         continue;
       }
       if (n.tagName === 'BR') { out.push({ type: 'br' }); continue; }
@@ -454,6 +478,7 @@
         ta.querySelectorAll(ATOM_SEL).forEach((c) => {
           if (c.getAttribute('contenteditable') !== 'false') c.setAttribute('contenteditable', 'false');
           if (c.hasAttribute('style')) c.removeAttribute('style');
+          if (c.classList.contains('smp-img')) _setImgW(c, _memoImgW(c));
           if (c.classList.contains('smp-check')) {
             if (c.getAttribute('role') !== 'checkbox') c.setAttribute('role', 'checkbox');
             if (!c.hasAttribute('aria-checked')) c.setAttribute('aria-checked', 'false');
@@ -644,7 +669,7 @@
         if (t.type === 'text') { if (t.text) document.execCommand('insertText', false, t.text); }
         else if (t.type === 'br') insertBreak();
         else if (t.type === 'check') insertAtom(_makeCheckNode(t.checked, t.raw));
-        else if (t.type === 'img') { if (_isMemoImgSrc(t.src)) insertAtom(_makeImgNode(t.src)); }
+        else if (t.type === 'img') { if (_isMemoImgSrc(t.src)) insertAtom(_makeImgNode(t.src, t.w)); }
       }
       scrubForeign();
     };
@@ -811,6 +836,82 @@
       const sel = window.getSelection();
       if (sel) { sel.removeAllRanges(); sel.addRange(r); }
     });
+    /* 참고 이미지 크기 조절(1017t1b2 «크기 조절이 가능했으면 좋겠다») — 그림을 누르면 오른쪽 아래 모서리에
+       손잡이 하나가 뜬다. 끌면 너비가 바뀌고(높이는 비율 그대로 · 고정 상한 320px 은 너비를 정한 그림엔 안 건다),
+       놓으면 저장 글자 `![w=…](…)` 로 남는다(js/section-memo-format.js). 손잡이는 편집 칸 «밖»(팝오버)에 둔다 —
+       편집 칸 안에 두면 글자·캐럿·직렬화에 섞인다. */
+    const grip = document.createElement('span');
+    grip.className = 'smp-img-grip';
+    grip.title = '끌어서 크기 조절';
+    let gripImg = null;
+    const hideGrip = () => {
+      if (gripImg) gripImg.classList.remove('smp-img-on');
+      gripImg = null;
+      grip.remove();
+    };
+    const placeGrip = () => {
+      if (!gripImg || !gripImg.isConnected || !ta.contains(gripImg)) { hideGrip(); return; }
+      const pr = pop.getBoundingClientRect();
+      const ir = gripImg.getBoundingClientRect();
+      const tr = ta.getBoundingClientRect();
+      /* 그림 모서리가 편집 칸 밖으로 스크롤돼 나가면 손잡이도 감춘다(쥘 수 없는 자리에 뜨지 않게) */
+      const off = ir.bottom < tr.top || ir.bottom > tr.bottom || ir.right < tr.left || ir.right > tr.right;
+      grip.style.display = off ? 'none' : '';
+      grip.style.left = (ir.right - pr.left) + 'px';
+      grip.style.top = (ir.bottom - pr.top) + 'px';
+    };
+    const showGrip = (im) => {
+      if (gripImg && gripImg !== im) gripImg.classList.remove('smp-img-on');
+      gripImg = im;
+      im.classList.add('smp-img-on');
+      if (!grip.isConnected) pop.appendChild(grip);
+      placeGrip();
+    };
+    /* 그림 밖을 누르거나 글을 고치면 손잡이를 거둔다(그림 하나를 고른 동안만 뜬다) */
+    ta.addEventListener('mousedown', (e) => {
+      const im = e.target.closest && e.target.closest('.smp-img');
+      if (!im || im !== gripImg) hideGrip();
+    });
+    ta.addEventListener('input', hideGrip);
+    ta.addEventListener('keydown', hideGrip);
+    ta.addEventListener('scroll', placeGrip);
+    grip.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
+    grip.addEventListener('pointerdown', (e) => {
+      if (!gripImg || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const im = gripImg;
+      const F = window.SectionMemoFormat;
+      const wMin = F && F.IMG_W_MIN ? F.IMG_W_MIN : 40;
+      const cs = getComputedStyle(ta);
+      /* 상한 = 편집 칸의 글 너비 — 그 이상은 max-width:100% 가 어차피 막는다(저장 값과 보이는 값이 갈리지 않게 여기서 자른다) */
+      const wMax = Math.max(wMin, Math.floor(ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)));
+      const x0 = e.clientX;
+      const w0 = im.getBoundingClientRect().width;
+      const w00 = _memoImgW(im);
+      try { grip.setPointerCapture(e.pointerId); } catch (_) { /* 잡기 실패해도 move 는 온다 */ }
+      const onMove = (ev) => {
+        const w = Math.round(Math.min(wMax, Math.max(wMin, w0 + (ev.clientX - x0))));
+        _setImgW(im, w);
+        placeGrip();
+      };
+      const onUp = () => {
+        grip.removeEventListener('pointermove', onMove);
+        grip.removeEventListener('pointerup', onUp);
+        grip.removeEventListener('pointercancel', onUp);
+        if (_memoImgW(im) !== w00) scheduleCommit();
+      };
+      grip.addEventListener('pointermove', onMove);
+      grip.addEventListener('pointerup', onUp);
+      grip.addEventListener('pointercancel', onUp);
+    });
+    ta.addEventListener('click', (e) => {
+      const im = e.target.closest && e.target.closest('.smp-img');
+      if (!im || !ta.contains(im)) return;
+      showGrip(im);
+    });
+    /* 그림이 다 실리면 높이가 바뀐다 — 손잡이 자리를 다시 잡는다 */
+    ta.addEventListener('load', (e) => { if (e.target === gripImg) placeGrip(); }, true);
     /* 참고 이미지 확대(1017t1b2) — 더블클릭으로 임시 확대. 홑클릭은 위 선택을 그대로 둔다(P6 무회귀). */
     ta.addEventListener('dblclick', (e) => {
       const im = e.target.closest && e.target.closest('.smp-img');
@@ -903,6 +1004,7 @@
 
     const closeModal = () => {
       closeZoom();
+      hideGrip();
       clearTimeout(saveTimer); commit();
       document.removeEventListener('keydown', onKey, true);
       backdrop.classList.remove('open');

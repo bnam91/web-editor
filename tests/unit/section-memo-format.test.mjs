@@ -6,6 +6,7 @@
  *   ⑶ 치는 순간의 방아쇠(checkTrigger) — `[]` `[ ]` `[x]`
  *   ⑷ 배선: index.html 이 이 파일을 js/section-memo.js «앞»에 싣는다
  *   ⑸ (1012t1A2) 참고 이미지 표식 `![](goya-asset://…)` — 앱 자산 주소만 그림이고, 그 밖은 글자다
+ *   ⑹ (1017t1b2) 크기 표식 `![w=N](goya-asset://…)` — 범위 안 정수만 크기이고, 옛 `![]()` 는 크기 없이 그대로다
  * 안 재는 것: 에디터 DOM(렌더·토글·IME·되돌리기) → tests/dom/section-memo-rich.dom.spec.js
  *
  * 실행: node --test tests/unit/section-memo-format.test.mjs
@@ -178,4 +179,43 @@ test('U-MEMOFMT-12 앱 자산이 아닌 그림 표식은 글자다 — 토큰도
   }
   /* 손으로 만든 나쁜 토큰은 직렬화가 버린다(표식으로 되살아날 글자를 만들지 않는다) */
   assert.equal(serializeTokens([{ type: 'text', text: '가' }, { type: 'img', src: 'http://evil/x.png' }, { type: 'img' }, { type: 'text', text: '나' }]), '가나');
+});
+
+test('U-MEMOFMT-13 (1017t1b2) 크기 표식 — w 를 읽고, 직렬화하면 같은 글자다 · 옛 표식은 w 없이 그대로', () => {
+  const src = 'goya-asset://proj_1/abcd.jpg';
+  const sized = tokenizeMemo(`앞![w=240](${src})뒤`);
+  assert.deepEqual(sized.map((t) => t.type), ['text', 'img', 'text']);
+  assert.equal(sized[1].src, src);
+  assert.equal(sized[1].w, 240);
+  assert.equal(serializeTokens(sized), `앞![w=240](${src})뒤`);
+  /* 옛 저장본(크기 칸 없음) — 그림 하나 · w 없음 · 글자 그대로 */
+  const old = tokenizeMemo(`![](${src})`);
+  assert.equal(old.length, 1);
+  assert.equal(old[0].type, 'img');
+  assert.equal('w' in old[0], false);
+  assert.equal(serializeTokens(old), `![](${src})`);
+  /* 에디터가 만든 토큰(raw 없음)에서 w 를 지우면 크기 없는 표식으로 쓴다 */
+  assert.equal(serializeTokens([{ type: 'img', src, w: 96 }]), `![w=96](${src})`);
+  assert.equal(serializeTokens([{ type: 'img', src }]), `![](${src})`);
+  assert.equal(imgToken(src, 300), `![w=300](${src})`);
+  assert.equal(imgToken(src), `![](${src})`);
+});
+
+test('U-MEMOFMT-14 (1017t1b2) 범위 밖·꼴 밖 크기는 그림이 아니다 — 글자로 남고 왕복 불변', () => {
+  const src = 'goya-asset://proj_1/abcd.jpg';
+  assert.equal(F.IMG_W_MIN, 40);
+  assert.equal(F.IMG_W_MAX, 2000);
+  for (const w of ['39', '2001', '7', '0240', '24.5', '-80', 'abc', '']) {
+    const s = `![w=${w}](${src})`;
+    const toks = tokenizeMemo(s);
+    assert.equal(toks.some((t) => t.type === 'img'), false, `그림이 됐다: ${s}`);
+    assert.equal(serializeTokens(toks), s, `왕복이 글자를 바꿨다: ${s}`);
+  }
+  for (const w of [40, 2000]) {
+    const toks = tokenizeMemo(`![w=${w}](${src})`);
+    assert.equal(toks.length, 1);
+    assert.equal(toks[0].w, w, `경계 ${w} 가 크기로 안 읽혔다`);
+  }
+  /* 범위 밖 w 를 가진 토큰을 직렬화하면 크기를 버린다(글자로 되살아날 표식을 만들지 않는다) */
+  assert.equal(serializeTokens([{ type: 'img', src, w: 9999 }]), `![](${src})`);
 });

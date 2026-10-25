@@ -3883,6 +3883,19 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   transition: r 0.1s ease;
 }
 .annot-handle:hover { r: 6; }
+/* ★1013t2C6 라벨 상자 너비 손잡이(좌·우 가운데 · HTML) — 점 손잡이와 같은 흰 속·선택색 테두리 · 줌과 무관하게 화면 8px */
+.annot-lw-handle {
+  position: absolute;
+  width: calc(8px * var(--inv-zoom, 1));
+  height: calc(8px * var(--inv-zoom, 1));
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  background: #ffffff;
+  border: calc(1.5px * var(--inv-zoom, 1)) solid var(--color-handle);
+  border-radius: 1px;
+  cursor: ew-resize;
+  z-index: 1;
+}
 /* ★1013t2C7 시작점 회전 손잡이 — 점 손잡이(흰 원)와 갈리게 선택색으로 채운다 · 줌과 무관하게 화면 5px */
 .annot-rot-handle {
   fill: var(--sel-color);
