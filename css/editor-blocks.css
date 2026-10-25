@@ -2026,8 +2026,19 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 #canvas .canvas-block .ln-row.ln-line-selected {   /* ★1013t1B2 laurel(네 번째 주인) · ★1017t1d1 심플카드(다섯 번째 주인) */
   box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
 }
-/* 빈 글자 줄이 «손에 닿게» — 그리드 빈 줄 안내문(아래 .grd-line:empty)과 같은 관용구. #canvas 스코프라 내보내기엔 안 샌다. */
+/* 빈 글자 줄이 «손에 닿게» — 그리드 빈 줄 안내문(아래 .grd-line:empty)과 같은 관용구.
+ * ⚠️~~#canvas 스코프라 내보내기엔 안 샌다~~ — 사실이 아니다(1012t1G1 검수 ⒡): HTML 내보내기(js/io/export-html.js 의 문서 틀)가
+ *   본문을 `<div id="canvas">` 로 감싸므로 #canvas 셀렉터가 내보낸 파일에서도 맞는다. 빈 줄이면 이 안내문(아래 말풍선 덮기 포함)이
+ *   내보낸 HTML 에 보일 수 있다. ⛔이번 카드에서는 안 고친다 — 이름: EXPORT-HTML-PLACEHOLDER-CSS-SHIPS-01. */
 #canvas .ln-row > .grd-line:empty::before { color: #ccc; pointer-events: none; content: '글자를 입력하세요'; }
+/* ★1012t1G1 줄 없는 말풍선의 «본문 줄» 선택(line-host.js lnIsBubbleBodyLine — 둘째 클릭) — 위 줄 선택과 같은 그림·같은 토큰. */
+#canvas .speech-bubble-block .tb-bubble.ln-line-selected {
+  box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
+}
+/* ★1012t1G1 말풍선 «안»의 빈 줄 안내 = 줄 없는 말풍선 안내문(block-factory.js makeSpeechBubbleBlock phText)과 같은 문구.
+ * 현빈 「줄추가하면 플레이스 홀더가 '말풍선 텍스트를 입력하세요'에서 '글자를 입력하세요'로 바뀐다. 통일」.
+ * ⛔공용 규칙은 그대로(챗·카드·laurel 무접촉) — 비교 블럭(아래 :2943 근처)과 같은 «주인 안에서만 덮기» 꼴. */
+#canvas .speech-bubble-block .ln-row > .grd-line:empty::before { content: '말풍선 텍스트를 입력하세요'; }
 
 /* ★원형 이미지 줄(.grd-img-circle)의 선택 표시 = «서클 에셋과 같은 두 줄» (현빈 2026-10-03
  *   「그리드 칸의 원형 이미지 아웃라인이 이상하다 — 서클 에셋블럭의 그것과 달라」, G24).
@@ -2175,6 +2186,15 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
    .text-block.selected { z-index:2 }(아래)로 위에 뜨는데 아웃라인만 뒤에 있던 불일치 — 맞춘다. */
 .frame-block[data-text-frame="true"]:has(.text-block.selected) {
   z-index: 2;
+}
+/* ★FT-BOTTOM-CORNER-HANDLE-UNDER-GLYPH-01(미카사 261026 · d772f49e 실측 ×3) — 자유변형 손잡이(.tfh-layer)는 «글상자 안»에 산다.
+   흐름에서 «바로 아래 글상자»는 같은 쌓임맥락(섹션)에 z 2 · DOM 뒤라, 상자 밑변 밖으로 3.5px 나온 아래 손잡이 se·sw·s1·s2 를
+   덮었다(그 점의 스택 = 아래 글상자의 글자칸 0 · 그 .text-block z2 1 · FT 손잡이 2) ⇒ 아래 손잡이를 못 잡았다.
+   ⇒ 자유변형이 걸린 글상자를 «고른 동안»만 그 글자 프레임을 한 칸 올린다(2 → 3). 안 고르면 그대로(쌓임 무변).
+   ⛔오버레이(z 80 !important)는 이 규칙이 안 건드린다 — 오버레이 모서리를 덮는 것은 다른 층(#ss-handles-overlay
+     .tfo-overlay-handle z 9992 · FT-OVERLAY-HANDLE-COVERS-FT-CORNER-01)이고 이 처방 밖이다. */
+.frame-block[data-text-frame="true"]:has(> .text-block.selected[data-tf-corners]) {
+  z-index: 3;
 }
 /* T6: outline 2겹 픽스 — 부모 row/text-frame이 outline을 책임지면
    .text-block.selected의 자체 outline은 transparent로 되돌려 한 겹만 보이게 한다.
@@ -4641,6 +4661,14 @@ html.tgs-selecting .tgs:focus-within {
      ⒝ 「파란 아웃라인 너비가 줄어든다」 ⇒ ★손잡이가 `tb` 레이아웃을 ★안 민다(`.tfh-layer` 는 inset:0)
      ⒞ 「격자가 안 보인다」            ⇒ ★`.tfh-grid` 에 ★3×3 분할선 넷
 ────────────────────────────────────────────── */
+/* ★t7-06 — 자유변형 글자칸의 «맞는 자리»가 그림보다 훨씬 크다. 원근 행렬(matrix3d)은 글자 상자(W×H) 밖의 점을
+   멀리 던져서, 글자칸 요소의 히트 영역이 화면 2340×960 까지 커졌다(미카사 261026 실측 · 저장본 proj_1792823705838
+   tb_ts0he_qg5wypv) ⇒ 옆 에셋(ab_ts0he_cvtvnr1)을 눌러도 이 글자가 받아 ⌘클릭이 글자를 «껐다» ⇒ ⌘G 「먼저 선택하세요」.
+   ⇒ 편집 중이 아닐 때 그 글자칸은 마우스를 안 받는다 — 누름은 .text-block 상자(= 변형된 네 점의 바깥 상자)가 받는다.
+     고르기·더블클릭(편집 진입) 손은 .text-block 에 걸려 있다(block-drag.js) ⇒ 동작 무변 · 편집 중엔 캐럿 때문에 되살린다. */
+.text-block[data-tf-corners]:not(.editing) > :is([contenteditable], .tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label, .tb-bullet) {
+  pointer-events: none;
+}
 /* ★꾸밈 층 — ★변형 «안». JS 가 글자의 transform 을 ★베껴 박는다(⛔제 행렬을 만들지 않는다). */
 .tfh-fx { position: absolute; pointer-events: none; z-index: 100; }
 /* ★★보라 테두리 — ★★261025 ★현빈 ★재신고로 ★층을 ★옮겼다 (`FT-EDGE-THICKNESS-VARIES-UNDER-MATRIX-01`).

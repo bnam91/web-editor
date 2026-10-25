@@ -124,3 +124,31 @@ test('Y7 [새 것] 패널 「위아래 여백」 숫자칸 — 키 값 표시 ·
   expect((await meas(page)).key).toBe('25');
   expect(errs).toEqual([]);
 });
+
+test('Y8 [새 것] t4-13 — 칸 위아래 여백이 있는 그리드의 «행 경계»를 3px 씩 끌면 첫 움직임에 튀지 않는다(여백 ×2 만큼 덧붙지 않는다)', async ({ page }) => {
+  /* ★t4-13 현빈 「캔버스에서 그리드 블럭의 로우를 조절하려는데 쾌적하지 않음」 · 수지 실측(원 블럭 grd_84a7j_4czihql): 3px 끎 ⇒ 첫 3px 에서
+     441→584(+143) · 이후 1:1. 까닭 — 끌기 시작값이 «렌더된 칸 높이»(여백 포함)인데 행 높이 값은 여백을 뺀 몫이다(트랙 최소 = H + 2×cellPadY ·
+     grid-block.js gridTrackMin). 바닥 d772f49e 같은 꼴 실앱(cellPadY 70 · 줌 40%): 175 → 323 (+148) · 고친 판: 175 → 183. */
+  const errs = await setup(page, 2);
+  await page.evaluate(() => { window.updateGridBlock('cG', { cellPadY: 70 }); });
+  await expect.poll(() => meas(page).then(m => m.key), { message: '[전제] 칸 위아래 여백 70' }).toBe('70');
+  const p = await page.evaluate(() => { const g = document.getElementById('cG'); const t = g.querySelector('.grd-cell [data-line]'); const r = t.getBoundingClientRect(); return [r.left + 10, r.top + r.height / 2]; });
+  await clickAt(page, p[0], p[1], { sel: '[id="cG"]' }, { label: '그리드 고르기' });
+  const gut = await page.evaluate(() => { const g = [...document.querySelectorAll('#ss-handles-overlay .grd-gutter')].find(e => getComputedStyle(e).cursor === 'row-resize' && e.offsetParent); if (!g) return null; const r = g.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  expect(gut, '[전제] 행 경계 거터가 섰다').not.toBe(null);
+  const cellH = () => page.evaluate(() => { const g = document.getElementById('cG'); const c = g.querySelector('.grd-cell[data-r="0"]'); const z = g.getBoundingClientRect().width / g.offsetWidth; return c.getBoundingClientRect().height / z; });
+  const h0 = await cellH();
+  const z = await page.evaluate(() => { const g = document.getElementById('cG'); return g.getBoundingClientRect().width / g.offsetWidth; });
+  await page.mouse.move(gut.x, gut.y);
+  await page.mouse.down();
+  await page.mouse.move(gut.x, gut.y + 3);
+  await expect.poll(() => page.evaluate(() => JSON.parse(document.getElementById('cG').dataset.rows || '[]')[0]?.height), { message: '[전제] 끌기가 먹었다(행 높이 키가 섰다)' }).not.toBe('auto');
+  const h1 = await cellH();
+  await page.mouse.move(gut.x, gut.y + 9);
+  await expect.poll(cellH).toBeGreaterThan(h1);
+  const h2 = await cellH();
+  await page.mouse.up();
+  expect(Math.abs((h1 - h0) - 3 / z) <= 1.5, `첫 3px = 칸 +${(h1 - h0).toFixed(1)} (기대 ${(3 / z).toFixed(1)} · 바닥은 여백 ×2 만큼 더 — +140)`).toBe(true);
+  expect(Math.abs((h2 - h1) - 6 / z) <= 1.5, `이후 1:1 (+${(h2 - h1).toFixed(1)})`).toBe(true);
+  expect(errs).toEqual([]);
+});

@@ -61,6 +61,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import { registerFxType, fxIsCardOpen, fxSetCardOpen } from './effects-registry.js';
 import { homography, cornerMatrix3d, normalizeCorners, boxFromCorners } from './fx/homography.js';
+import { ALIGN_SELF_OF } from './props/prop-text-wireup-align.js';   /* t7-03 — 가로 정렬 → align-self 사상표 한 자리 */
 
 /** ★정본 키 — ★하나다. ✕ = 이 키를 지움 ⇒ 켜기 전 바이트(반사·글로우와 같은 규약). */
 export const FX_FT_KEYS = ['tfCorners', 'tfTouched', 'tfSchema'];
@@ -345,7 +346,22 @@ export function applyFxFreeTransform(tb) {
   tb.style.width = box.w + 'px';
   tb.style.minHeight = box.h + 'px';
   const tf = _tfOf(tb);
-  if (tf) tf.style.width = box.w + 'px';   /* ★㉣ — 「너비 항상 동일」 */
+  if (tf) {
+    /* ★t7-03(2026-10-26 S3 · 지디 처방 ⒝) — 폭이 «100% → px» 로 갈아타는 ★그 전이에서만 정렬을 같이 옮긴다.
+       ★잰 값(실앱 ca702d40 · 배율 40%·100% 같음): 가운데 정렬 글상자에 켜기만 해도 글자중심 0.00 → −107.68(왼쪽) ·
+         패널 정렬 단추 셋 다 꺼짐 — 세로 flex 안 «폭 박힌» 자식이 alignSelf 없이 왼쪽에 서기 때문이다.
+       ⛔상태가 아니라 «전이»에 건다: 직전 인라인 폭이 '100%'·'' 일 때만. 복원 경로는 저장본 폭이 이미 px 라 전이가 없다
+         ⇒ 옛 저장본을 안 건드린다(자가치유 금지와 양립 · tests/dom/t7-03-ft-align A4).
+       ⛔tf.style.alignSelf 가 이미 있으면 손대지 않는다 — 패널·사용자가 임자다(A3).
+       값 = 글자칸 textAlign 의 사상(ALIGN_SELF_OF 한 자리) · 왼쪽(빈 값)이면 안 쓴다(옛 바이트).
+       ⛔box 식(boxFromCorners · 왼쪽 여백을 품는 폭)은 건드리지 않는다 — FT-BOX-RESERVES-ALIGN-GUTTER-01(현빈 결정 대기). */
+    const prevW = tf.style.width;
+    if ((prevW === '' || prevW === '100%') && !tf.style.alignSelf) {
+      const as = ALIGN_SELF_OF[ce.style.textAlign];
+      if (as && as !== 'flex-start') { tf.style.alignSelf = as; st.alignSetByFt = as; }
+    }
+    tf.style.width = box.w + 'px';   /* ★㉣ — 「너비 항상 동일」 */
+  }
   /* ★FT-3b `FT-LEFT-DRAG-ANCHORS-AT-TB-LEFT-01` — 위 정규화가 왼쪽으로 나간 몫(mnx<0)을 0 으로 당겨,
      흐름 글상자에서 nw 를 왼쪽으로 끌면 손잡이는 제자리고 그림이 «오른쪽»으로 자랐다(미카사 261025 실측: 데이터 x −1998 · 손잡이 cx 573.8 고정).
      ⇒ 당긴 몫만큼 상자째 왼쪽으로 «그려서» 되돌린다 — CSS `translate`(레이아웃 무영향 · 손잡이 층도 같이 간다).
@@ -370,7 +386,12 @@ function _strip(tb) {
   const tf = _tfOf(tb);
   if (ce) { ce.style.transform = ''; ce.style.transformOrigin = ''; _dropEmptyStyle(ce); }
   tb.style.width = ''; tb.style.minHeight = ''; tb.style.translate = '';
-  if (tf) { tf.style.width = st && st.tfW0 != null ? st.tfW0 : ''; _dropEmptyStyle(tf); }
+  if (tf) {
+    tf.style.width = st && st.tfW0 != null ? st.tfW0 : '';
+    /* ★t7-03 — 켤 때 «내가» 쓴 alignSelf 만 걷는다(그 뒤 패널·사용자가 바꿨으면 그대로) ⇒ ✕ 뒤 켜기 전 바이트. */
+    if (st && st.alignSetByFt && tf.style.alignSelf === st.alignSetByFt) tf.style.alignSelf = '';
+    _dropEmptyStyle(tf);
+  }
   /* ★U3 — ✕ 면 손잡이·격자도 같이 걷는다(안 걷으면 ★효과를 끈 뒤에도 남는다). */
   window.ftHandlesClear?.(tb);
   _dropEmptyStyle(tb);

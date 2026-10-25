@@ -101,6 +101,17 @@ export function lnBubbleLines(block) {
   if (raw === undefined || raw === '') return null;
   try { const a = JSON.parse(raw); return lnHasLines(a) ? a : null; } catch (_) { return null; }
 }
+/* ★1012t1G1 — 줄 없는 말풍선의 «본문 줄»(가상 줄 0). 현빈 「그리드 블럭은 … 그안에 텍스트를 선택하면 텍스트줄이 선택이 되고
+ *   좌측에 핸들이 생긴다. 이상태에 우클릭으로 줄을 추가할 수 있다 … 버블텍스트 블럭도 같은 동작이여야」.
+ * ★왜 가상인가 — 줄 없는 말풍선은 줄 배열이 없다(본문 = .tb-bubble 통째). 둘째 클릭에서 줄 모드로 «굽지» 않는다:
+ *   굽기는 dataset.lines 를 쓰는 모델 변경이라 «고르기만 했는데» 저장본·⌘Z·안내문구가 바뀐다(_bakeFrom · lnRenderBubble).
+ *   ⇒ 주소 {r:0,c:0,li:0} 을 «본문 한 줄»로 읽는다: 표시·손잡이는 .tb-bubble 에, 줄 추가는 «끝에»(li:null) — 그때 D2 가 본문을 첫 줄로 굽는다.
+ * ⛔li:null 을 쓰지 않는다 — 그건 패널이 세우는 기본 주소다(_lnPickedLine 머리말 · bubble-shortcut-not-in-text B1). li:0 은 사람 클릭만 세운다(lnClickAddr).
+ * ⛔줄이 «있는» 말풍선에는 해당 없다(li:0 = 진짜 첫 줄). */
+export function lnIsBubbleBodyLine(block, addr) {
+  return !!(block && block.classList && block.classList.contains('speech-bubble-block')
+    && addr && !addr.np && addr.li === 0 && !lnBubbleLines(block));
+}
 
 /** 버블 줄 그리기 — ★줄이 없으면 «아무것도 안 한다»(옛 버블 무접촉, T1b). */
 export function lnRenderBubble(block) {
@@ -304,7 +315,7 @@ function _baseHost(block, o) {
 }
 
 export function lnBubbleHost(block) {
-  return _baseHost(block, {
+  const host = _baseHost(block, {
     kind: 'bubble', limitLabel: '말풍선 한 개에',
     noHitHint: '줄을 한 번 더 누르면 줄 편집 · 두 번 누르면 글자 편집',
     head: (r, c, li) => (li === null ? '줄 없음 — 줄을 더하면 지금 글이 첫 줄이 된다' : `${li + 1}번째 줄`),
@@ -326,6 +337,11 @@ export function lnBubbleHost(block) {
       return box ? { r: 0, c: 0, box } : null;
     },
   });
+  /* ★1012t1G1 — 가상 본문 줄의 «줄 DOM» = .tb-bubble. 끄는 손잡이(overlay-handles.js showGridLineGrip)가 이 칸으로 자리를 잡는다.
+     ⛔옮기기는 그대로 거절된다(moveLine 이 줄 배열이 없으면 INVALID) — 한 줄은 옮길 데가 없다. */
+  const baseRowEl = host.rowEl;
+  host.rowEl = (addr) => (lnIsBubbleBodyLine(block, addr) ? block.querySelector('.tb-bubble') : baseRowEl(addr));
+  return host;
 }
 
 export function lnChatHost(block) {
@@ -567,6 +583,7 @@ export function lnMark(block, addr) {
     if (host && host.cellMark) host.linesBox(addr.r, addr.c)?.classList.add(LN_CELL_MARK_CLASS);
     return;
   }
+  if (lnIsBubbleBodyLine(block, addr)) { block.querySelector('.tb-bubble')?.classList.add(LN_MARK_CLASS); return; }   // ★1012t1G1 가상 본문 줄
   block.querySelector(_lnRowSel(block, addr.r, addr.c, addr.li))?.classList.add(LN_MARK_CLASS);
 }
 /** 다시 그린 뒤 표시를 되붙인다(렌더가 innerHTML 을 갈아 표시를 지운다). 선택된 블럭만. */
@@ -577,7 +594,12 @@ export function lnRemark(block) {
 /** 블럭을 떠나면 줄 선택도 해제(editor.js clearSelectionMarks — 그리드 grdClearAllActiveLines 의 짝). */
 export function lnClearAllActive(root) {
   const scope = root || document;
-  scope.querySelectorAll(HOST_SEL).forEach(b => { if (grdGetActiveLine(b)) grdSetActiveLine(b, null); });
+  scope.querySelectorAll(HOST_SEL).forEach(b => {
+    if (grdGetActiveLine(b)) grdSetActiveLine(b, null);
+    /* ★1012t1G1 — 말풍선이 쥔 드릴다운 걸쇠는 블럭을 떠나면 푼다(캔버스 클릭은 deselectAll «뒤»에 다시 건다 · block-drag.js).
+       ⛔그리드·방사형이 쥔 걸쇠는 안 건드린다(b 가 말풍선일 때만 · 그쪽 푸는 자리는 각자 그대로). */
+    if (b.classList.contains('speech-bubble-block') && window.grdWasCanvasDrilled?.(b)) window.grdResetCanvasDrill?.();
+  });
   _LN_SEL_CLASSES.forEach(cls => scope.querySelectorAll('.' + cls).forEach(el => el.classList.remove(cls)));
 }
 
@@ -590,6 +612,10 @@ export function lnClickAddr(block, target, wasSole) {
     const r = row.dataset.lnM !== undefined ? Number(row.dataset.lnM) : 0;
     const c = row.dataset.lnC !== undefined ? Number(row.dataset.lnC) : 0;   // ★D2 비교만 data-ln-c 를 찍는다(버블·챗 = 0 그대로)
     return Number.isInteger(li) && Number.isInteger(r) && Number.isInteger(c) ? { r, c, li } : null;
+  }
+  if (block.classList.contains('speech-bubble-block') && !lnBubbleLines(block)) {   // ★1012t1G1 줄 없는 말풍선: 본문 = 가상 줄 0
+    const tb = target.closest('.tb-bubble');
+    return tb && block.contains(tb) ? { r: 0, c: 0, li: 0 } : null;
   }
   if (block.classList.contains('chat-block')) {               // 챗: 줄 없는 메시지 = 메시지 선택(li:null)
     const msg = target.closest('.chb-msg');
@@ -649,7 +675,9 @@ function _mountLineUi(block, host, addr, { synthetic = false } = {}) {
   /* ★⑵-B② — 줄을 고르면 ★끄는 손잡이도 같이 뜬다(그리드는 prop-grid.js 가 같은 자리에서 부른다).
      ⛔synthetic(패널이 세운 기본 주소)에는 ★안 띄운다 — 사람이 고른 줄이 아니다(⑵-A 의 그 가름).
      ★걷는 자리는 ★이미 범용이다 — editor.js deselectAll 의 hideGridLineGrip. */
-  if (!synthetic && cur && cur.li !== null) window.showGridLineGrip?.(block);
+  /* ★1012t1G1 — li:null(줄 선택 풀림 · Esc)에도 부른다: showGridLineGrip 은 활성 줄이 없으면 «스스로 걷는다»(그리드 showGridProperties 와 같은 부름).
+     옛 판은 li:null 에서 안 불러, Esc 로 줄 선택을 풀어도 손잡이가 옛 줄에 남았다(RAF 가 옛 주소로 줄을 계속 찾는다). */
+  if (!synthetic) window.showGridLineGrip?.(block);
 }
 
 /** D6 — 줄 모드 버블은 블럭 단위 글자 절(Type·Typography·Fill·정렬)을 숨긴다: 줄마다 인라인 값을 찍어 «안 먹는다».
@@ -670,7 +698,18 @@ function _hideBlockTypo() {
 
 export function lnAugmentBubblePanel(tb) {
   const host = lnBubbleHost(tb);
-  if (!lnBubbleLines(tb)) { _mountLineUi(tb, host, { r: 0, c: 0, li: null }); return; }
+  if (!lnBubbleLines(tb)) {
+    const picked = grdGetActiveLine(tb);
+    _mountLineUi(tb, host, { r: 0, c: 0, li: null });
+    /* ★1012t1G1 — 사람이 본문을 «줄로» 골랐으면(둘째 클릭 · lnClickAddr) 패널은 위 «줄 없음» 그대로 두고
+       활성 주소·표시·손잡이만 되세운다. ⛔패널 기본 주소(li:null)는 바꾸지 않는다(B4 계약). */
+    if (lnIsBubbleBodyLine(tb, picked)) {
+      grdSetActiveLine(tb, { r: 0, c: 0, li: 0 });
+      lnMark(tb, { r: 0, c: 0, li: 0 });
+      window.showGridLineGrip?.(tb);
+    }
+    return;
+  }
   _hideBlockTypo();
   _mountLineUi(tb, host, grdGetActiveLine(tb));
 }
@@ -1002,7 +1041,7 @@ function _lnPlusShown(block) {
 function _lnPlusAdd(block) {
   const host = lnBubbleHost(block);
   const act = _lnPickedLine(block);
-  const after = act && Number.isInteger(act.li) ? act.li : null;   // 고른 줄 다음, 없으면 끝
+  const after = act && Number.isInteger(act.li) && !lnIsBubbleBodyLine(block, act) ? act.li : null;   // 고른 줄 다음, 없으면 끝(★G1 가상 본문 줄 = 끝)
   const spec = window.grdNewLineSpec?.('body');
   if (!spec) return false;
   const res = window.grdAddLine?.(block, { r: 0, c: 0 }, after, spec, {}, host);
@@ -1116,12 +1155,16 @@ function _lnPickedLine(block) {
 }
 
 /** ⌫ — 고른 줄 하나를 지운다. 먹었으면 true. */
-export function lnDeleteActiveLine() {
+export function lnDeleteActiveLine({ isCut = false } = {}) {
   const block = _soleSelectedHost();
   if (!block) return false;
   const addr = _lnPickedLine(block);
   if (!addr || addr.li === null || addr.li === undefined) return false;
   const host = lnHostFor(block);
+  /* ★1012t1G1 — 가상 본문 줄은 «지울 줄»이 없다(본문 = 말풍선 그 자체). ⌫ 는 줄 선택만 푼다(먹는다 — 블럭 삭제로 새지 않는다).
+     ⇒ 다음 ⌫ 가 블럭을 지운다(그리드 「칸을 비운 뒤 한 번 더 ⌫」와 같은 두 걸음).
+     ★⌘X(isCut)는 «안 먹는다» — 복사는 이미 블럭으로 했으니(editor.js copySelected) 지우기도 블럭이어야 한다(검수 ⒜). */
+  if (lnIsBubbleBodyLine(block, addr)) { if (isCut) return false; host.show(null); return true; }
   const lines = host.getLines(addr.r, host.cAxis ? addr.c : 0);
   const li = Number(addr.li);
   if (!Number.isInteger(li) || li < 0 || li >= lines.length) return true;   // 주소가 낡았다 — 블럭 삭제로 새지 않는다
@@ -1146,6 +1189,8 @@ export function lnAddLineToSelected(type) {
  *  addr = {r, c, li|null} — li 가 숫자면 그 줄 «다음», null 이면 그 칸 끝(줄 0 카드면 D2 첫 전환이 제목·설명을 첫 줄로 굽는다).
  *  ⛔새 줄 넣기를 다시 짜지 않는다 — prop-grid.js grdAddLine(host 인자)이 상한·활성줄 원복·commitLines 를 한 자리에서 한다. */
 export function lnAddLineAt(block, addr, type) {
+  /* ★1012t1G1 — 그리드 주소(lnCtxAddAddr 의 그리드 갈래)는 그리드 T 와 «한 길»(prop-grid.js grdAddLineAt)로 보낸다. */
+  if (block && block.classList && block.classList.contains('grid-block')) return !!window.grdAddLineAt?.(block, addr, type);
   const host = lnHostFor(block);
   if (!host || !addr) return false;
   /* ★★spec 을 ★손으로 짓지 않는다 — ★`prop-grid.js grdNewLineSpec` ★한 곳에서 뜬다(2026-10-07).
@@ -1156,28 +1201,36 @@ export function lnAddLineAt(block, addr, type) {
      ⛔리터럴 폴백을 ★두지 않는다 — 두면 ★그게 다시 ★둘째 명부다. 못 읽으면 ★grdAddLine 과 ★같이 false. */
   const spec = window.grdNewLineSpec?.(type === 'gap' ? 'gap' : 'body');
   if (!spec) return false;
-  const res = window.grdAddLine?.(block, { r: addr.r, c: host.cAxis ? addr.c : 0 }, addr.li === null ? null : addr.li, spec, {}, host);
+  /* ★1012t1G1 — 가상 본문 줄 다음 = 끝(li:null) ⇒ D2 가 본문을 첫 줄로 굽고 새 줄이 그 뒤(활성 줄 = 새 줄). ⛔li:0 을 넘기면 빈 배열에 «1 다음»이 돼 활성 줄이 없는 줄을 가리킨다. */
+  const after = (addr.li === null || lnIsBubbleBodyLine(block, addr)) ? null : addr.li;
+  const res = window.grdAddLine?.(block, { r: addr.r, c: host.cAxis ? addr.c : 0 }, after, spec, {}, host);
   if (res && res.ok) host.show(grdGetActiveLine(block));
   return !!(res && res.ok);
 }
 /* ══ ★1020t2i1 우클릭 «아래에 줄 추가» — 카드블럭 (현빈 「카드블럭에 우클릭에 줄추가 가능하게」 · 기준 = 그리드 우클릭) ══
- * ★주인 명부 — 지금은 ★카드만. 버블·챗·비교·laurel 메뉴 산출은 그대로(넓히는 건 별 카드 — ⛔조용히 넓히지 않는다). */
-const LN_CTX_ADD_OWNERS = ['canvas-block'];
+ * ★주인 명부 — 카드 ＋ ★1012t1G1 말풍선(현빈 「버블텍스트 블럭도 같은 동작이여야」 — 그 «별 카드»다).
+ *   챗·비교·laurel 메뉴 산출은 그대로(⛔조용히 넓히지 않는다). 그리드 짝은 prop-grid.js grdCtxAddAddr. */
+const LN_CTX_ADD_OWNERS = ['canvas-block', 'speech-bubble-block'];
 /** 우클릭한 점 → 줄 주소 {r, c, li|null} · 메뉴 항목을 띄울 수 없으면 null.
  *  ★판정은 2단 선택이 쓰는 ★그 술어(lnClickAddr) — 우클릭은 «그 자리를 가리킨 것»이라 wasSole=true 로 묻는다.
  *  ★누른 노드 = elementsFromPoint 중 블럭 안 첫 것(block-factory.js _gridCellAddrAt 과 같은 까닭 — 좌측 핸들(.grd-line-grip)은
  *    #ss-handles-overlay 소속이라 e.target 이 블럭 밖이다) · 거기서 못 찾으면 «지금 고른 줄»(핸들 위 우클릭 = 그 줄).
  *  ★마지막에 host.resolveAny — both 라벨(rowOk 거짓)·낡은 li 는 null(항목 숨김). */
 export function lnCtxAddAddr(block, e) {
-  if (!block || !block.classList || !LN_CTX_ADD_OWNERS.some(c => block.classList.contains(c))) return null;
-  const host = lnHostFor(block);   // 레이어 모드 카드(cardMode 없음)는 null — 줄 숙주가 아니다
-  if (!host || !e) return null;
+  /* ★1012t1G1 — 그리드도 이 문으로 온다(현빈 원문이 «기준 동작»으로 그린 그리드 우클릭 줄 추가 — 그 판엔 없었다).
+     ⛔그리드 주소는 여기서 안 푼다 — prop-grid.js grdCtxAddAddr 한 곳(그리드 주소 술어는 그 파일이 정본). 누른 노드만 같은 식으로 뜬다. */
+  const isGrid = !!(block && block.classList && block.classList.contains('grid-block'));
+  if (!block || !block.classList || (!isGrid && !LN_CTX_ADD_OWNERS.some(c => block.classList.contains(c)))) return null;
+  const host = isGrid ? null : lnHostFor(block);   // 레이어 모드 카드(cardMode 없음)는 null — 줄 숙주가 아니다
+  if ((!isGrid && !host) || !e) return null;
   let node = null;
   if (typeof document !== 'undefined' && typeof document.elementsFromPoint === 'function') {
     for (const el of document.elementsFromPoint(e.clientX, e.clientY) || []) { if (block.contains(el)) { node = el; break; } }
   }
   if (!node) node = e.target;
+  if (isGrid) return window.grdCtxAddAddr?.(block, node) || null;
   const addr = lnClickAddr(block, node, true) || (grdIsSoleSelected(block) ? _lnPickedLine(block) : null);
+  if (lnIsBubbleBodyLine(block, addr)) return { r: 0, c: 0, li: 0 };   // ★1012t1G1 가상 본문 줄(추가는 lnAddLineAt 이 «끝»으로 푼다)
   const hit = addr ? host.resolveAny(addr) : null;
   return hit ? { r: hit.r, c: hit.c, li: hit.li } : null;
 }
@@ -1213,6 +1266,6 @@ if (typeof window !== 'undefined') {
     lnHasLines, lnLinesHtml, lnValidateLines, lnPlainText, lnTextMirrorHtml,
     lnRenderBubble, lnBubbleLines, lnHostFor, lnMark, lnRemark, lnClearAllActive, lnClickAddr,
     lnAugmentBubblePanel, lnAugmentChatPanel, lnAugmentCmpPanel, lnAugmentLaurelPanel, lnAugmentCardPanel, lnCmpLines, lnLaurelLines, lnCardLines, LAUREL_LN_KINDS, lnBindLineEdit, lnBeginEdit, lnEnterEdit,
-    lnDeleteActiveLine, lnAddLineToSelected, lnEscLine, lnSyncPlus, lnAddIconToSelected, lnAddLineAt, lnCtxAddAddr,
+    lnDeleteActiveLine, lnAddLineToSelected, lnEscLine, lnSyncPlus, lnAddIconToSelected, lnAddLineAt, lnCtxAddAddr, lnIsBubbleBodyLine,
   });
 }

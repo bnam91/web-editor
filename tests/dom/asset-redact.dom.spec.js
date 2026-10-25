@@ -6,7 +6,8 @@
  *   ⛔backdrop(뒤 막)은 버렸다 — 캔버스 배율 >100% 에서 아래·오른쪽 띠가 원본을 보였다(이벨류에이터 2026-10-13 · R11 이 잠근다).
  *
  * 칸
- *   R1 패널 자리·꼴 — 「그레인」 다음 형제 = 「블러 (Redact)」, 그 다음 = Effects · 그림 없는 에셋엔 절 없음
+ *   R1 패널 자리·꼴 — ★2026-10-26 1012t1C1 이동: 입구 = Effects 드롭다운(#asset-fx-add)의 「블러」 · 고르면 Effects 카드 안에
+ *      「강도」 줄(그레인 줄과 같은 꼴) · 옛 따로 절 0 · 그림 없는 에셋엔 「블러」 항목 없음
  *   R2 슬라이더 60 → 속성·변수·그림 계산 filter blur(12px)
  *   R3 0 = 지움(바이트 — outerHTML 에 redact 0건)
  *   R4 픽셀 — 흐림(가운데 줄 sd) · 상자 밖 번짐 0 · 안 가장자리 바탕색 기미 없음 (양성대조: 켜기 전 sd 큼)
@@ -27,7 +28,7 @@
  *   · css/editor-layout.css 에셋 블러를 옛 뒤 막(::after backdrop)으로 되돌리기               ⇒ R11 빨강(누출 띠)
  *   · image-redact.js applyRedact 의 '--redact-blur' → '--redact-blux'(setProperty 줄)     ⇒ R2(변수) 빨강 · R4 는 폴백 8px 로 초록일 수 있다(정상)
  *   · applyRedact v<=0 갈래 `delete host.dataset.redact;` 주석                              ⇒ R3 · R6 빨강
- *   · image-redact.js redactSectionHTML 의 `-redact-slider` → `-redact-slidex`                ⇒ R1 빨강
+ *   · effects-blur.js 카드의 `-redact-slider` → `-redact-slidex`                               ⇒ R1 빨강
  *   · image-handling.js ASSET_FX_DS_KEYS 에서 'redact' 빼기                                   ⇒ R7 빨강
  *   · capture-safety.js 새 루프의 removeAttribute('src') + visibility 줄 끄기 + box 배경 3줄 끄기 ⇒ R8 빨강
  *   · export-figma-json.js `return redact ? { src: null, redact } : {};` → `return {};`        ⇒ R10 빨강
@@ -64,8 +65,13 @@ async function setupAsset(page) {
   }, null, { timeout: 15000 });
   return errs;
 }
+/* ★2026-10-26 1012t1C1 이동 — 블러 입구가 «Effects 드롭다운의 「블러」»가 됐다. 사람 길 그대로: 패널을 열고 「블러」를 고른다.
+   고르면 기본 강도(FX_BLUR_DEFAULT = 40 ⇒ 8px)로 켜지고 카드 안에 옛 id 그대로의 슬라이더가 선다.
+   ⇒ 이 헬퍼 «뒤»의 상태는 «끔»이 아니라 «기본값 켬»이다 — 끔 전제를 재던 R2·R5 는 전제를 헬퍼 «앞»에서 잰다. */
 const openPanel = async (page) => {
   await page.evaluate(() => window.showAssetProperties(document.getElementById(window.__AB)));
+  await page.waitForFunction(() => !!document.getElementById('asset-fx-add'), null, { timeout: 5000 });
+  await page.selectOption('#asset-fx-add', 'blur');
   await page.waitForFunction(() => !!document.getElementById('asset-redact-slider'), null, { timeout: 5000 });
 };
 /** 슬라이더를 사람 손처럼: input(라이브) → change(커밋) */
@@ -90,59 +96,76 @@ const state = (page) => page.evaluate(() => {
   };
 });
 
-test('R1 패널 — 「그레인」 바로 아래 「블러 (Redact)」, 그 다음 Effects · 그레인과 같은 꼴 · 그림 없으면 없다', async ({ page }) => {
+test('R1 패널 — Effects 드롭다운에 「블러」 · 고르면 Effects 카드 안 「강도」 줄(그레인과 같은 꼴) · 옛 따로 절 0 · 그림 없으면 항목 없다', async ({ page }) => {
   const errs = await setupAsset(page);
+  await page.evaluate(() => window.showAssetProperties(document.getElementById(window.__AB)));
+  const pre = await page.evaluate(() => {
+    const sel = document.getElementById('asset-fx-add');
+    return { opts: sel ? [...sel.options].map(o => [o.value, o.textContent.trim()]) : null,
+             oldSec: !!document.getElementById('asset-redact-section'), slider: !!document.getElementById('asset-redact-slider'),
+             titles: [...document.querySelectorAll('#prop-panel .prop-section-title, .prop-section-title')].map(t => t.textContent.trim()) };
+  });
+  console.log('R1 pre', JSON.stringify(pre.opts));
+  expect(pre.opts, '전제: 그림 든 에셋 패널에 Effects 드롭다운이 없다').not.toBe(null);
+  expect(pre.opts, 'Effects 드롭다운에 「블러」 가 없다').toContainEqual(['blur', '블러']);
+  expect(pre.oldSec, '옛 따로 절 «블러 (Redact)» 가 남았다(두 곳)').toBe(false);
+  expect(pre.titles, '옛 절 제목이 패널에 남았다').not.toContain('블러 (Redact)');
+  expect(pre.slider, '고르기 전부터 블러 슬라이더가 있다(옛 절)').toBe(false);
   await openPanel(page);
   const out = await page.evaluate(() => {
     const grainSec = document.getElementById('asset-grain-slider')?.closest('.prop-section');
-    const redSec = document.getElementById('asset-redact-slider')?.closest('.prop-section');
     const gs = document.getElementById('asset-grain-slider'), gn = document.getElementById('asset-grain-number');
     const rs = document.getElementById('asset-redact-slider'), rn = document.getElementById('asset-redact-number');
+    const card = rs?.closest('.prop-cell-card');
     return {
-      grain: !!grainSec,
-      nextIsRedact: !!grainSec && grainSec.nextElementSibling === redSec,
-      title: redSec?.querySelector('.prop-section-title')?.textContent || null,
-      afterRedactId: redSec?.nextElementSibling?.id || null,
-      fxExists: !!document.getElementById('asset-fx-section'),
+      grainNextIsFx: !!grainSec && grainSec.nextElementSibling?.id === 'asset-fx-section',
+      inFx: !!rs?.closest('#asset-fx-section'), cardType: card?.dataset.fxType || null,
+      cardTitle: card?.querySelector('.prop-cell-card-title')?.textContent.trim() || null,
+      optsAfter: [...(document.getElementById('asset-fx-add')?.options || [])].map(o => o.value),
       rsType: rs?.type, rsMin: rs?.min, rsMax: rs?.max, rnType: rn?.type, rnMin: rn?.min, rnMax: rn?.max,
       sameSliderCls: rs?.className === gs?.className, sameNumberCls: rn?.className === gn?.className,
       sameRowCls: rs?.parentElement?.className === gs?.parentElement?.className,
       label: rs?.parentElement?.querySelector('.prop-label')?.textContent || null,
-      inlineStyles: redSec ? redSec.querySelectorAll('[style]').length : -1,
+      rowInline: rs ? rs.parentElement.querySelectorAll('[style]').length + (rs.parentElement.hasAttribute('style') ? 1 : 0) : -1,
     };
   });
   console.log('R1', JSON.stringify(out));
-  expect(out.grain, '전제: 그레인 절이 없다(그림 든 에셋인데)').toBe(true);
-  expect(out.nextIsRedact, '블러 절이 그레인 «바로 다음»이 아니다').toBe(true);
-  expect(out.title).toBe('블러 (Redact)');
-  if (out.fxExists) expect(out.afterRedactId, '블러 절 다음이 Effects 가 아니다').toBe('asset-fx-section');
+  expect(out.grainNextIsFx, '그레인 바로 다음이 Effects 절이 아니다(옛 절이 끼어 있다)').toBe(true);
+  expect(out.inFx, '블러 슬라이더가 Effects 절 안에 없다').toBe(true);
+  expect(out.cardType).toBe('blur');
+  expect(out.cardTitle).toBe('블러');
+  expect(out.optsAfter, '건 뒤에도 드롭다운에 「블러」 가 남았다(종류당 하나)').not.toContain('blur');
   expect([out.rsType, out.rsMin, out.rsMax]).toEqual(['range', '0', '100']);
   expect([out.rnType, out.rnMin, out.rnMax]).toEqual(['number', '0', '100']);
   expect(out.sameSliderCls && out.sameNumberCls && out.sameRowCls, '그레인 줄과 클래스가 다르다').toBe(true);
   expect(out.label).toBe('강도');
-  expect(out.inlineStyles, '인라인 style 이 생겼다(디자인시스템)').toBe(0);
+  expect(out.rowInline, '강도 줄에 인라인 style 이 생겼다(디자인시스템)').toBe(0);
 
-  /* 그림 없는 에셋 — 절이 없다(전제: 패널은 열렸다) */
+  /* 그림 없는 에셋 — 「블러」 항목이 없다(전제: 패널은 열렸다) */
   const none = await page.evaluate(() => {
     const { row, block } = window.makeAssetBlock();
     document.querySelector('.section-block .section-inner').appendChild(row);
     window.bindBlock?.(block);
     window.showAssetProperties(block);
+    const sel = document.getElementById('asset-fx-add');
     return { panelOpen: !!document.getElementById('asset-bg-clear'), redact: !!document.getElementById('asset-redact-slider'),
-             hasImage: block.classList.contains('has-image') };
+             blurOpt: !!sel?.querySelector('option[value="blur"]'), hasImage: block.classList.contains('has-image') };
   });
   expect(none.hasImage, '전제: 빈 에셋인데 has-image').toBe(false);
   expect(none.panelOpen, '전제: 빈 에셋 패널이 안 열렸다').toBe(true);
-  expect(none.redact, '그림 없는 에셋에 블러 절이 있다').toBe(false);
+  expect(none.redact, '그림 없는 에셋에 블러 줄이 있다').toBe(false);
+  expect(none.blurOpt, '그림 없는 에셋 드롭다운에 「블러」 가 있다').toBe(false);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
 test('R2 슬라이더 60 → data-redact 60 · --redact-blur 12px · 그림 filter blur(12px)', async ({ page }) => {
   const errs = await setupAsset(page);
-  await openPanel(page);
-  const s0 = await state(page);
+  const s0 = await state(page);   /* ★전제는 «고르기 전»에 잰다 — openPanel 이 「블러」를 골라 기본값으로 켠다(1012t1C1 이동) */
   expect(s0.attr, '전제: 처음부터 켜져 있다').toBe(null);
   expect(s0.imgFilter, '전제: 켜기 전엔 그림 filter 가 없어야 한다').toBe('none');
+  await openPanel(page);
+  const sDef = await state(page);
+  expect([sDef.attr, sDef.blurVar.trim()], '「블러」를 고르면 기본 강도 40 ⇒ 8px 로 켜진다').toEqual(['40', '8px']);
   await slide(page, 60);
   await expect.poll(async () => (await state(page)).imgFilter).toContain('blur(12px)');
   const s1 = await state(page);
@@ -285,8 +308,11 @@ test('R8 html2canvas 안전실패 — 양성대조(누출) → neutralize 뒤 �
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('R5 저장 왕복 · undo 1번이면 꺼짐', async ({ page }) => {
+/* ★2026-10-26 1012t1C1 이동 — 켜는 길이 «「블러」 고름(한 걸음) → 강도 끌기(한 걸음)» 두 제스처가 됐다.
+   ⇒ 옛 「undo 1번이면 꺼짐」은 「undo 1번 = 끌기 전(기본 40) · 2번 = 꺼짐」으로 바뀐다(⛔약하게 한 것이 아니다 — 두 칸을 다 잰다). */
+test('R5 저장 왕복 · undo 1번 = 끌기 전(기본값) · 2번 = 꺼짐', async ({ page }) => {
   const errs = await setupAsset(page);
+  await page.evaluate(() => window.pushHistory?.('R5 끔 기준'));
   await openPanel(page);
   await page.evaluate(() => window.pushHistory?.('R5 기준'));
   await slide(page, 60);
@@ -304,9 +330,12 @@ test('R5 저장 왕복 · undo 1번이면 꺼짐', async ({ page }) => {
   await expect.poll(async () => (await state(page)).imgFilter).toContain('blur(12px)');
   const rt = await state(page);
   expect([rt.attr, rt.blurVar.trim()]).toEqual(['60', '12px']);
-  /* undo 1번 — 켜기 «전»으로 */
+  /* undo 1번 — 끌기 «전»(고른 직후 기본값 40)으로 */
   await page.evaluate(() => window.undo());
-  await expect.poll(async () => (await state(page)).attr, { message: 'undo 1번에 블러가 안 꺼졌다' }).toBe(null);
+  await expect.poll(async () => (await state(page)).attr, { message: 'undo 1번이 끌기 전(기본 40)으로 안 갔다' }).toBe('40');
+  /* undo 2번 — 고르기 «전»(꺼짐)으로 */
+  await page.evaluate(() => window.undo());
+  await expect.poll(async () => (await state(page)).attr, { message: 'undo 2번에 블러가 안 꺼졌다' }).toBe(null);
   const u = await state(page);
   expect(u.hasImage, 'undo 가 그림까지 먹었다(두 걸음)').toBe(true);
   expect(u.blurVar).toBe('');

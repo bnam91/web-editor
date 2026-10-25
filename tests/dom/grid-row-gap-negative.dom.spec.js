@@ -57,7 +57,9 @@ test('N3 ★MCP/코드 길(updateGridBlock) — rowGap -50 은 받고 -51 은 �
   expect(r).toEqual([true, false]);
   expect(await seam(page)).toBe(-50);
 });
-test('N4 지키는 시험 — 열 간격은 여전히 0 아래를 거절', async ({ page }) => {
+/* ★N4 뒤집음(261026 · 미카사 · t6-02 「그리드 블럭의 열간격 역시 -50까지 되게 해줄 것 (현재는 로우 간격만 됨)」).
+   옛 N4 는 「열 간격은 0 아래 거절」을 지켰다 — 그때 원문이 «행만» 요구했기 때문이다. 이제 열도 행과 같은 −50 이 하한이다. */
+test('N4 ★열 간격도 −50 까지 받고 −51 은 거절(t6-02)', async ({ page }) => {
   await setup(page);
-  expect(await page.evaluate(() => window.updateGridBlock('gG', { colGap: -10 })?.ok)).toBe(false);
+  expect(await page.evaluate(() => [window.updateGridBlock('gG', { colGap: -50 })?.ok, window.updateGridBlock('gG', { colGap: -51 })?.ok])).toEqual([true, false]);
 });

@@ -224,14 +224,47 @@ test('0922 (l) 소스 가드: block-drag 는 걸쇠 «사본»을 들지 않고 
   assert.match(was, /^[\s\S]*!!window\.grdWasCanvasDrilled\?\./, '헬퍼 부재 시 false = «블럭 선택» 쪽으로 떨어져야 한다');
 });
 
+/* ★★★261026 — 이 가드가 ★거짓 빨강을 냈다. ★고친 기록을 여기 둔다(⛔지우지 마라).
+ *   사고 : 1012t1G1(S6)이 ★말풍선 갈래에 ★두 번째 `grdMarkCanvasDrill` 호출을 ★정당하게 더했다.
+ *          그 호출이 ★파일에서 ★더 앞(1420행)이라, `src.indexOf(...)` 가 ★그쪽을 집었고
+ *          가드는 ★«말풍선의 mark» 와 ★«그리드의 show» 를 ★섞어 견줘 ★빨개졌다.
+ *   실측 : 그리드 갈래 show 2598 → mark 2602 (옛 판 2592/2596) · 말풍선 갈래도 1418 → 1420
+ *          ⇒ ★두 갈래 ★모두 ★순서가 ★맞았다. ★제품은 ★멀쩡했다.
+ *   ★★교훈 : ★`indexOf` 로 ★«첫 출현»을 집는 가드는 ★「호출이 한 벌뿐」을 ★말 없이 전제한다.
+ *            ⇒ ★그 전제를 ★단언하고, ★비교할 짝을 ★갈래로 ★못박는다. (★검사는 자기 전제를 단언해야 한다)
+ *   ★그리고 ★자 자신에 ★양성대조를 붙였다 — ⛔제품 파일을 ★건드려 대조하지 ★않기 위해 ★합성 표본으로 센다. */
+const GRD_SHOW = 'window[showFn]?.(block, _grdAddr);';
+const GRD_MARK = "if (showFn === 'showGridProperties') window.grdMarkCanvasDrill?.(block)";
+/** 그리드 갈래의 «패널 열기 → 걸쇠 걸기» 순서를 본다. 반환 = {show, mark, nShow, nMark} (-1 = 못 찾음) */
+function grdMarkOrder(src) {
+  const count = (hay, needle) => { let n = 0, i = 0; for (;;) { i = hay.indexOf(needle, i); if (i < 0) return n; n++; i += needle.length; } };
+  return { show: src.indexOf(GRD_SHOW), mark: src.indexOf(GRD_MARK), nShow: count(src, GRD_SHOW), nMark: count(src, GRD_MARK) };
+}
+
+test('0922 (m0) ★이 가드가 ★살아있다 — ★합성 표본으로 ★양성·음성 (⛔없으면 아래 초록은 «안 쟀다»다)', () => {
+  const OK  = `a(); ${GRD_SHOW} b(); ${GRD_MARK}; c();`;
+  const BAD = `a(); ${GRD_MARK}; b(); ${GRD_SHOW} c();`;
+  const o = grdMarkOrder(OK),  d = grdMarkOrder(BAD);
+  assert.ok(o.mark > o.show, '★음성대조 — 바른 순서를 ★빨갛다고 하면 자가 고장이다');
+  assert.ok(d.mark < d.show, '★★양성대조 — ★뒤집힌 순서를 ★못 잡으면 이 가드는 ★장식이다');
+  /* ★그리고 ★「두 번째 호출이 더 앞에 있어도」 ★안 속는가 — ★261026 사고 그 꼴을 ★그대로 만든다 */
+  const TRAP = `x(); if (_isBubble) window.grdMarkCanvasDrill?.(block); y(); ${GRD_SHOW} z(); ${GRD_MARK}; w();`;
+  const t = grdMarkOrder(TRAP);
+  assert.ok(t.mark > t.show, '★★★사고 재현 표본 — ★다른 갈래의 호출이 ★앞에 있어도 ★그리드 짝으로 견뎌야 한다');
+});
+
 test('0922 (m) 소스 가드: 걸쇠는 showGridProperties «뒤»에 건다(앞이면 칸 밖 클릭이 드릴다운을 죽인다)', () => {
   const src = read('js/block-drag.js');
-  const iShow = src.indexOf('window[showFn]?.(block, _grdAddr);');
-  const iMark = src.indexOf('window.grdMarkCanvasDrill?.(block)');
-  assert.ok(iShow > 0, '패널 호출부를 못 찾았다');
+  const { show: iShow, mark: iMark, nShow, nMark } = grdMarkOrder(src);
+  /* ★전제 — ★비교할 짝이 ★각각 ★한 벌이어야 ★「앞·뒤」가 뜻을 갖는다. ⛔0 이면 자가 ★눈이 멀었다 */
+  assert.ok(iShow > 0, '★패널 호출부를 못 찾았다 — ★앵커 글자가 바뀌었다(자를 고쳐라, 통과로 두지 마라)');
+  assert.ok(iMark > 0, '★그리드 걸쇠 호출부를 못 찾았다 — ★앵커 글자가 바뀌었다(통과로 두지 마라)');
+  assert.equal(nShow, 1, `★전제 깨짐 — 패널 호출부가 ${nShow}곳이다. ★둘 이상이면 ★어느 짝을 견주는지 모른다`);
+  assert.equal(nMark, 1, `★전제 깨짐 — 그리드 걸쇠가 ${nMark}곳이다. ★둘 이상이면 ★어느 짝을 견주는지 모른다`);
   assert.ok(iMark > iShow, '★순서: showGridProperties → grdMarkCanvasDrill 이어야 한다 — 앞으로 옮기면 '
     + 'null 호출이 건 걸쇠를 곧바로 풀어, 칸 밖(gap/테두리)을 누른 뒤 줄을 눌러도 안 내려간다');
   const iDes = src.indexOf('window.deselectAll();', src.indexOf('const _grdWasSelected'));
+  assert.ok(iDes > 0, '★_grdWasSelected 뒤의 deselectAll 을 못 찾았다 — ★앵커가 바뀌었다');
   assert.ok(iDes < iMark, '걸쇠를 deselectAll 앞에서 걸면 판정 순서가 다시 엉킨다');
 });
 

@@ -200,6 +200,10 @@ export const GRID_GAP_MAX = 200;
  *   CSS row-gap 은 음수를 «무효»로 버리므로 그리기에선 row-gap:0 + 둘째 줄부터 칸마다 margin-top:<음수> 로 당긴다.
  *   ⛔열 간격·옛 통합 gap 은 그대로 0~ — 열이 겹치는 요청은 없었다. */
 export const GRID_ROW_GAP_MIN = -50;
+/* ★t6-02 — 열 간격도 «음수»(현빈 「그리드 블럭의 열간격 역시 -50까지 되게 해줄 것 (현재는 로우 간격만 됨)」).
+ *   행과 같은 수법: CSS column-gap 은 음수가 무효라 column-gap:0 + 둘째 칸부터 margin-left:<음수> 로 왼쪽 칸에 당긴다.
+ *   값도 행과 같은 −50(사람이 고르는 두 칸의 하한이 같아야 헷갈리지 않는다). */
+export const GRID_COL_GAP_MIN = -50;
 /* 원형 이미지 줄의 기본 지름(px) — height 가 없을 때. 우클릭 「원형 이미지 추가」도 이 값으로 넣는다. */
 export const GRID_IMG_CIRCLE_D = 120;
 /* ★T4④-⒝ (현빈 2026-10-07 「설정 안 했는데 모서리 코너가 들어가 있다 — 왜?」 · 지디 판정 ⒝)
@@ -955,7 +959,7 @@ function fitKeylessFreeFrameGridsOnOpen(root) {
   return n;
 }
 
-/** gap/rowGap/colGap 공용 검증 — min~GRID_GAP_MAX(min 기본 0, rowGap 만 GRID_ROW_GAP_MIN). 통과면 정수, 아니면 null. */
+/** gap/rowGap/colGap 공용 검증 — min~GRID_GAP_MAX(min 기본 0, rowGap 은 GRID_ROW_GAP_MIN · colGap 은 GRID_COL_GAP_MIN). 통과면 정수, 아니면 null. */
 function _gridValidateGap(v, min = 0) {
   const n = Number(v);
   if (!Number.isFinite(n) || n < min || n > GRID_GAP_MAX) return null;
@@ -2921,9 +2925,10 @@ function renderGridBlock(block) {
          `position:relative` 도 줄이 있을 때만 붙는다(있으면 절대배치 자식의 기준이 된다).
          ⛔줄 div 는 «줄(line)들보다 앞»에 둔다 — 흐름에 안 끼는 absolute 라 자리는 안 먹고,
            먼저 그려져 내용 뒤에 깔린다(내용이 줄 위로 온다). */
-      const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), colGapPx);
+      const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), Math.max(0, colGapPx));
       const pullUp = rowGapPx < 0 && r > 0 ? `margin-top:${rowGapPx}px;` : '';   // 음수 행 간격 = 위 줄로 당긴다(GRID_ROW_GAP_MIN 주석)
-      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${cellPadY > 0 ? `padding:${pad + cellPadY}px ${pad}px;` : (pad > 0 ? `padding:${pad}px;` : '')}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}">
+      const pullLeft = colGapPx < 0 && c > 0 ? `margin-left:${colGapPx}px;` : '';   // ★t6-02 음수 열 간격 = 왼 칸으로 당긴다(GRID_COL_GAP_MIN 주석)
+      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${cellPadY > 0 ? `padding:${pad + cellPadY}px ${pad}px;` : (pad > 0 ? `padding:${pad}px;` : '')}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}${pullLeft}">
         ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, cellImg ? 'hex' : _cellTone(bg))).join('')}
       </div>`);
     }
@@ -2934,7 +2939,7 @@ function renderGridBlock(block) {
      ⛔html 문자열은 «옛 줄 그대로»다 — 자식이 없으면 replaceShellKeepChildren 이 옛 줄과 «같은 대입»을 한다
        ⇒ 기존 그리드 렌더 바이트 동일(지키는 시험: grid-block-width-model W0 · grid-children-shell-bytes). */
   /* ★G12 — 배경 층은 셸 «맨 앞»(꺼지면 '' ⇒ 옛 줄과 바이트 동일). 셸이라 매 렌더 «데이터에서» 다시 선다. */
-  replaceShellKeepChildren(block, `${_gridBlockBgHtml(block)}<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${Math.max(0, rowGapPx)}px;column-gap:${colGapPx}px;width:100%;">
+  replaceShellKeepChildren(block, `${_gridBlockBgHtml(block)}<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${Math.max(0, rowGapPx)}px;column-gap:${Math.max(0, colGapPx)}px;width:100%;">
     ${cellsHtml.join('')}
   </div>`, GRID_CHILDREN_CLASS);
   _syncGridAddBtns(block);   // ★G15 — ＋ 흐림·자리 맞추기(＋ 는 블럭 밖 층 — 블럭 DOM 은 안 건드린다 ⇒ 렌더 바이트 불변)
@@ -3051,7 +3056,7 @@ function makeGridBlock(opts = {}, drops = []) {
   // ★rowGap/colGap 은 «주어졌을 때만» dataset 에 쓴다 — 안 주면 옛 파일과 완전히 같은 모양(legacy gap 폴백).
   for (const k of ['rowGap', 'colGap']) {
     if (opts[k] === undefined) continue;
-    const lo = k === 'rowGap' ? GRID_ROW_GAP_MIN : 0;
+    const lo = k === 'rowGap' ? GRID_ROW_GAP_MIN : GRID_COL_GAP_MIN;
     const v = _gridValidateGap(opts[k], lo);
     if (v !== null) block.dataset[k] = String(v);
     else drops.push({ path: k, why: `${JSON.stringify(opts[k])} is outside ${lo}~${GRID_GAP_MAX} — it was not written, so this axis falls back to gap` });
@@ -3431,8 +3436,8 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     applied.rowGap = v;
   }
   if (partial.colGap !== undefined) {
-    const v = _gridValidateGap(partial.colGap);
-    if (v === null) return { ok: false, code: 'INVALID', message: `colGap must be 0~${GRID_GAP_MAX}` };
+    const v = _gridValidateGap(partial.colGap, GRID_COL_GAP_MIN);
+    if (v === null) return { ok: false, code: 'INVALID', message: `colGap must be ${GRID_COL_GAP_MIN}~${GRID_GAP_MAX}` };
     next.colGap = String(v);
     applied.colGap = v;
   }

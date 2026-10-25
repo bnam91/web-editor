@@ -2374,6 +2374,9 @@ function wrapSelectedBlocksInFrame(opts = {}) {
    *   · 떠 있는 쪽이 프레임 안에서 제대로 끌리는 종류가 아니면 → 넣으면 끌 때 튄다.
    *     지금 되는 종류 = 오버레이 블럭(표식 내려놓으면 일반 자유배치 자식) · 줌블럭(끌기가 부모 프레임 기준).
    * ⛔최상위 도우미 금지(이 함수만 잘라 도는 DOM 하네스) — 전부 이 안에서, 바깥은 window.* 로. */
+  /* ★t5-08 — 흐름 쪽이 «자유배치 프레임 하나»가 아닐 때(예: row 안 에셋 + 떠 있는 그라데이션) 떠 있는 것을
+     아래 흐름 갈래가 «새로 만든 그룹» 안으로 넣는다(그 명부). ∅ = 해당 없음. */
+  let _floatIntoNew = null;
   {
     const _sticky = b => b.closest('.frame-block[data-text-frame]') || shapeFrameOf(b) || b;
     const units = [...new Set(selected.map(_sticky))];
@@ -2393,15 +2396,42 @@ function wrapSelectedBlocksInFrame(opts = {}) {
                     && hosts[0].dataset.textFrame !== 'true') ? hosts[0] : null;
       // ★t5-07 — 이름(zoom-block) 대신 성질: 제 방식 떠 있는 블럭(줌 · 그라데이션 · 스티커) 또는 오버레이
       const _canNest = u => _ownFloat(u) || u.dataset.overlayBlock === 'true';
-      if (!host) {
-        window.showToast?.('떠 있는 블럭은 «자유배치 프레임 하나»와만 묶을 수 있어요 — 그 프레임 안으로 들어갑니다.');
-        return;
-      }
       const bad = floaters.filter(u => !_canNest(u));
       if (bad.length) {
         window.showToast?.('이 떠 있는 블럭은 아직 프레임 안에 넣을 수 없어요 (넣으면 끌 때 자리가 튑니다).');
         return;
       }
+      /* ★t5-08 (현빈 「일반블럭과 오버레이된 블럭을 그룹설정하면 일반블럭처럼 움직여져야됨 , 그룹더블클릭해서
+         그룹안으로 진입하면 그안에서 오버레이 블럭은 여전히 오버레이되어야함」) — 예전엔 여기서 거절 토스트로 멈췄다
+         (흐름 쪽이 자유배치 프레임이 아니면 «넣을 곳이 없다»). ⇒ 넣을 곳을 «만든다»: 흐름 블럭들은 아래 흐름 갈래가
+         평소처럼 새 그룹(흐름 안 자유배치 프레임 = 일반 블럭처럼 움직인다)으로 묶고, 떠 있는 것은 그 그룹 «안»에
+         지금 자리 그대로 넣는다(아래 _nestFloat 과 «같은» 옮기기 — 그룹 안에선 좌표로 사는 자유 자리 = 오버레이처럼). */
+      if (!host) {
+        _floatIntoNew = floaters;
+        selected = selected.filter(b => !floaters.includes(_sticky(b)));
+      }
+    }
+    if (_floatIntoNew === null && floaters.length && hosts.length) {
+      const host = hosts[0];
+      _nestFloat(host, floaters);
+      window.bindFrameDropZone?.(host);
+      window.deselectAll?.();
+      sec.classList.add('selected');
+      window.syncLayerActive?.(sec);
+      host.classList.add('selected');
+      window._activeFrame = host;
+      window.showFrameProperties?.(host);
+      window.showFrameHandles?.(host);
+      window.buildLayerPanel();
+      window.scheduleAutoSave?.();
+      window.showToast?.(`${floaters.length}개를 프레임 안으로 묶었어요 (자리 그대로)`);
+      return;
+    }
+  }
+
+  /* 떠 있는 블럭을 자유배치 프레임 host «안»으로 — 화면 자리 그대로(좌표를 host 기준으로 바꾼다).
+     ⛔최상위 도우미 금지(이 함수만 잘라 도는 DOM 하네스) — 이 함수 안의 지역 함수다. */
+  function _nestFloat(host, floaters) {
       const hr = host.getBoundingClientRect();
       const scale = host.offsetWidth ? (hr.width / host.offsetWidth) || 1 : 1;   // 캔버스 줌
       floaters.forEach(u => {
@@ -2431,19 +2461,6 @@ function wrapSelectedBlocksInFrame(opts = {}) {
         }
         u.classList.remove('selected');
       });
-      window.bindFrameDropZone?.(host);
-      window.deselectAll?.();
-      sec.classList.add('selected');
-      window.syncLayerActive?.(sec);
-      host.classList.add('selected');
-      window._activeFrame = host;
-      window.showFrameProperties?.(host);
-      window.showFrameHandles?.(host);
-      window.buildLayerPanel();
-      window.scheduleAutoSave?.();
-      window.showToast?.(`${floaters.length}개를 프레임 안으로 묶었어요 (자리 그대로)`);
-      return;
-    }
   }
 
   const rows = [];
@@ -2489,9 +2506,31 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   // ★기준 = 새 프레임 ss 의 «패딩 상자»(absolute 자식의 원점). ss 를 넣은 «뒤», 블록을 옮기기 «전»에 잰다.
   //   section-inner 테두리 상자 기준으로 재면 섹션 좌우여백(인라인 padding, 예: 72px)·합쳐진 파트 패딩만큼
   //   한 번 더 밀린다(T-057 2라운드). ss 삽입으로 스크롤바가 생겨 가로 위치가 바뀌는 경우도 이 순서로 흡수.
+  /* ★t5-08(원 블럭 실측) — «패딩 제외»(full-bleed) 에셋은 margin −padX 로 섹션 가장자리까지 나가 있다. 아래가 그 블럭을
+     width:100% 로 프레임에 넣으면 margin 은 남고 폭만 프레임(=내용 폭)이 돼 «그림이 줄었다»(ab_yb8d4_m57ju7d 860→716 ·
+     에셋 하나만 ⌘G 해도 같았다 — GROUP-FLOW-ASSET-WIDTH-SHRINK-01). 프레임은 overflow:hidden 이라 margin 째 넣어도 잘린다.
+     ⇒ 묶을 블럭이 내용 폭 밖으로 나가 있으면 ⑴ 새 프레임을 패딩 제외로(프레임의 정본 스위치 dataset.fullBleed —
+       prop-frame.js · drag-utils applyBlockFullBleed 한 벌) ⑵ 그 블럭은 «보이는 상자»(left·width px · margin 0)로 넣는다
+       (아래 도형 래퍼가 보이는 가로 위치를 지키는 것과 같은 뜻). ⇒ 묶기 전후 화면 자리·폭이 같다. */
+  /* 블럭 단위로 본다 — row 는 내용 폭 그대로이고, 그 안의 에셋이 margin 으로 나간다 */
+  const _bleedRects = new Map();
+  rows.forEach(row => {
+    const units = shells.has(row) ? topLevelBlocksOf(row).filter(x => !_insideShapeFrame(x, row)) : [row];
+    units.forEach(b => {
+      if (isShapeFrame(b)) return;
+      const cs = getComputedStyle(b);
+      if ((parseFloat(cs.marginLeft) || 0) < 0 || (parseFloat(cs.marginRight) || 0) < 0) _bleedRects.set(b, b.getBoundingClientRect());
+    });
+  });
+  if (_bleedRects.size && window.applyBlockFullBleed) {
+    ss.dataset.fullBleed = 'true';
+    window.applyBlockFullBleed(ss);
+  }
   const _ssRect = ss.getBoundingClientRect();
   const _scale = ss.offsetWidth ? (_ssRect.width / ss.offsetWidth) || 1 : 1;
   const _originX = _ssRect.left + ss.clientLeft * _scale;
+  const _bleedBox = new Map();   // 내용 폭 밖으로 나간 블럭 → 프레임 기준 { left, width } (캔버스 px)
+  _bleedRects.forEach((r, b) => _bleedBox.set(b, { left: Math.round((r.left - _originX) / _scale), width: Math.round(r.width / _scale) }));
   const _shapeLeft = new Map();
   rows.forEach(row => {
     const sfs = isShapeFrame(row) ? [row] : [...row.querySelectorAll('.frame-block')].filter(isShapeFrame);
@@ -2529,8 +2568,17 @@ function wrapSelectedBlocksInFrame(opts = {}) {
         ss.appendChild(block);
         return;
       }
-      block.style.left = '0px';
-      block.style.width = '100%';
+      const _bb = _bleedBox.get(block);
+      if (_bb) {
+        // ★t5-08 — 패딩 제외 블럭: 보이는 상자 그대로(위 머리말)
+        block.style.marginLeft = '0px';
+        block.style.marginRight = '0px';
+        block.style.left = _bb.left + 'px';
+        block.style.width = _bb.width + 'px';
+      } else {
+        block.style.left = '0px';
+        block.style.width = '100%';
+      }
       block.style.transform = '';
       block.classList.remove('selected');
       block.setAttribute('draggable', 'false');
@@ -2546,11 +2594,42 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   });
   if (leftBehind && window.showToast) {
     window.showToast('그룹에 못 넣은 블록이 있어 원래 자리에 남겼어요.');
-  } else if (window.showToast && rows.length > 0) {
+  } else if (window.showToast && rows.length > 0 && !_floatIntoNew) {   // ★t5-08 — 떠 있던 것까지 넣는 경우엔 아래 한 줄이 말한다(성공 한 줄)
     /* 성공했다고 말해 준다 — 근거는 위 자유배치 갈래의 머리말.
        ⚠️못 넣고 남긴 블록이 있는 갈래는 그쪽 말이 더 중요하다 ⇒ «덮지 않는다».
          #editor-toast 는 재사용 노드라 나중 말이 앞말을 지운다(js/drag-utils.js showToast). */
     window.showToast(`${rows.length}개를 ${asGroup ? '그룹으로' : '프레임으로'} 묶었어요`);
+  }
+
+  /* ★t5-08 — 떠 있던 블럭을 방금 만든 그룹 안으로(자리 그대로). 프레임은 overflow:hidden 이라(위 :2050 머리말)
+     그룹 상자가 그 블럭까지 덮어야 «값은 있는데 안 보이는» 쪽이 안 된다:
+       아래로 나가면 = growFrameToFitChildren(자유배치 드롭과 같은 것) · 위로 나가면 = 자식 전부를 그만큼 내리고
+       프레임을 margin-top 음수로 같은 만큼 올린다 ⇒ 화면 자리도, 그룹 아래 흐름도 안 변한다. */
+  if (_floatIntoNew && _floatIntoNew.length) {
+    _nestFloat(ss, _floatIntoNew);
+    const kids = [...ss.children].filter(c => c.style && getComputedStyle(c).position === 'absolute');   // 인라인이 없어도(CSS 가 주는 absolute) 센다
+    const minTop = Math.min(0, ...kids.map(c => parseInt(c.style.top, 10) || 0));
+    if (minTop < 0) {
+      const dy = -minTop;
+      kids.forEach(c => {
+        if (_xyCanon(c)) { _shiftXY(c, 0, dy); return; }
+        const t = (parseInt(c.style.top, 10) || 0) + dy;
+        c.style.top = t + 'px';
+        if (c.dataset.offsetY != null) c.dataset.offsetY = String(t);
+      });
+      ss.style.marginTop = (-dy) + 'px';
+      const h = (parseInt(ss.dataset.height, 10) || frameH) + dy;
+      ss.style.height = h + 'px'; ss.style.minHeight = h + 'px';
+      ss.dataset.height = String(h);
+    }
+    growFrameToFitChildren(ss);
+    /* growFrameToFitChildren 은 «인라인» absolute 자식만 센다(frame-geometry.js) — 같은 자식 명부(kids)로 밑변을 한 번 더 본다 */
+    const maxBottom = Math.max(0, ...kids.map(c => (parseInt(c.style.top, 10) || 0) + (c.offsetHeight || 0)));
+    if (maxBottom > ss.offsetHeight) {
+      ss.style.height = maxBottom + 'px'; ss.style.minHeight = maxBottom + 'px';
+      ss.dataset.height = String(maxBottom);
+    }
+    window.showToast?.(`${rows.length + _floatIntoNew.length}개를 ${asGroup ? '그룹으로' : '프레임으로'} 묶었어요 (떠 있던 ${_floatIntoNew.length}개는 그 안에 자리 그대로)`);
   }
 
   window.bindFrameDropZone?.(ss);
@@ -5808,7 +5887,8 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     }
 
     /* ★1020t2i1 카드 «아래에 줄 추가 (T)» — 판정은 line-host.js lnCtxAddAddr ★하나(2단 선택의 lnClickAddr 를 그대로 쓴다).
-       ⛔기존 항목은 안 건드린다(표시 조건 하나를 더할 뿐). 그룹 프레임이 대상이면 lnCtxAddAddr 가 null 이라 숨는다. */
+       ⛔기존 항목은 안 건드린다(표시 조건 하나를 더할 뿐). 그룹 프레임이 대상이면 lnCtxAddAddr 가 null 이라 숨는다.
+       ★1012t1G1 — 말풍선·그리드도 같은 항목·같은 판정 문(lnCtxAddAddr 가 그리드는 prop-grid.js grdCtxAddAddr 로 넘긴다). */
     _targetLnAddr = window.lnCtxAddAddr?.(block, e) || null;
     { const lnAddItem = document.getElementById('bcm-ln-add'); if (lnAddItem) lnAddItem.style.display = _targetLnAddr ? 'flex' : 'none'; }
 

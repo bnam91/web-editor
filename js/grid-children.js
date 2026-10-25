@@ -69,6 +69,61 @@ export function ensureGridKidsBox(grid) {
   applyGridChildGap(grid);
   return box;
 }
+/* ═══ t6-03 — 그리드 밑 자식 블럭의 «순서»와 «그리드 위로» ═══════════════════════════════════════
+ * 현빈: 「‘+ 블럭 넣기(그리드 밑)’ 드랍다운에서 블럭을 추가하면 그리드 블럭아래에 추가가 되는데 말야. 추가된 그리드 블럭의
+ *   신규 블럭이 그리드 블럭 위로 옮기거나 순서를 바꾸고 싶은 경우도 있을건데 그렇게 되게 해줄래?」
+ * 지혜(아이맥 · ca702d40): 그릇(.grd-children) 안에 들어가고 ⌥↑·⌘↑·⇧⌘↑ 안 됨 — ⌘↑ 의 이동 단위가 closest('.row') 라
+ *   «그리드가 든 줄»을 집는다(editor.js 블럭 이동 · 그리드 통째).
+ * ⇒ 블럭 이동 키(⌘↑ / ⌘↓ · 같은 뜻의 ⌘[ / ⌘])를 «그릇 안 자식이 골라졌을 때만» 여기서 먼저 받는다(capture):
+ *   그릇 안 이웃과 자리를 바꾸고, ★맨 위에서 ⌘↑ 이면 그릇 «밖» = 그리드(가 든 흐름 단위) «바로 위»로 꺼낸다.
+ *   맨 아래에서 ⌘↓ 이면 그리드 «바로 아래»로 꺼낸다(짝). 그릇이 비면 걷는다(pruneGridKidsBox).
+ *   ⛔editor.js 블럭 이동 몸은 안 건드린다(moveSelectedBlocks 바이트 래칫) — 이 키가 그릇 자식이 아니면 그대로 흘려보낸다.
+ * 반환: 옮겼으면(또는 키를 가져갔으면) true. */
+function _kidUnitOf(el) {
+  const box = el && el.closest ? el.closest('.' + KIDS) : null;
+  if (!box) return null;
+  let u = el;
+  while (u && u.parentElement !== box) u = u.parentElement;
+  return u ? { box, unit: u, grid: box.parentElement } : null;
+}
+export function moveGridKid(dir) {
+  const sel = [...document.querySelectorAll('.' + KIDS + ' .selected')];
+  if (!sel.length) return false;
+  const inner = sel.find(el => !sel.some(o => o !== el && el.contains(o))) || sel[0];
+  const k = _kidUnitOf(inner);
+  if (!k || !k.grid || !k.grid.classList.contains('grid-block')) return false;
+  const { box, unit, grid } = k;
+  const sibs = [...box.children].filter(c => !c.classList.contains('drop-indicator'));
+  const i = sibs.indexOf(unit);
+  const outer = (() => { const r = grid.closest('.row'); return r && r.contains(grid) && !box.contains(r) ? r : grid; })();
+  window.ensureHistoryCheckpoint?.('이동 전');
+  if (dir === 'up') {
+    if (i > 0) sibs[i - 1].before(unit);
+    else outer.before(unit);                     // ★맨 위 → 그리드 위로 꺼낸다
+  } else {
+    if (i < sibs.length - 1) sibs[i + 1].after(unit);
+    else outer.after(unit);                      // 맨 아래 → 그리드 아래로 꺼낸다
+  }
+  pruneGridKidsBox(box);
+  window.buildLayerPanel?.();
+  window.pushHistory?.('블록 이동');
+  inner.classList.add('selected');
+  window.scheduleAutoSave?.();
+  return true;
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+    const dir = (e.key === 'ArrowUp' || e.code === 'BracketLeft') ? 'up' : (e.key === 'ArrowDown' || e.code === 'BracketRight') ? 'down' : null;
+    if (!dir) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (!moveGridKid(dir)) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+  }, true);
+  window.moveGridKid = moveGridKid;
+}
+
 /** 빈 그릇을 걷는다(요소 자식 0개일 때만). 걷었으면 true. */
 export function pruneGridKidsBox(box) {
   if (!box || !box.classList?.contains(KIDS) || box.childElementCount > 0) return false;

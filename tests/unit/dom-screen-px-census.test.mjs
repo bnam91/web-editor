@@ -117,6 +117,13 @@ const ROSTER = {
   'free-frame-fullwidth-drag.dom.spec.js:185': 'safe',
   'free-frame-grid-width-roundtrip.dom.spec.js:58': 'safe',
   'gradient-canvas-bar.dom.spec.js:534': 'safe',
+  /* ★t5-08(S7 · 261026) — ★자가 ★새로 잡았고 ★지디가 ★triage 했다. B4 는 ★화면 폭(getBoundingClientRect)을
+     ★모델 px 상수 717(=860−144+1)과 견준다 ⇒ ★배율이 1 이 아니면 거짓 판정이 난다. ⇒ ★그 spec 에
+     ★«전제 단언»을 박았다: |rect.width − offsetWidth| < 1.5 (화면 px = 레이아웃 px).
+     ★★양성대조(261026 실측): 그 spec 사본의 #sec1 에 scale(0.4) ⇒ 그 칸이 ★빨강(516 vs <1.5).
+     ★★음성대조: 진짜 spec 15/15 초록. ⇒ ★배율이 흔들리면 ★이제 ★먼저 빨개진다 ⇒ 'safe'.
+     ⛔「이 spec 은 배율을 안 건드린다」가 까닭이 ★아니다 — ★재는 자가 섰다는 것이 까닭이다. */
+  'gradient-group-t507.dom.spec.js:195': 'safe',
   'grid-plus-g15.dom.spec.js:300': 'safe',
   'modal-resize.dom.spec.js:282': 'safe',
   'overlay-drag-rotation.dom.spec.js:224': 'safe',

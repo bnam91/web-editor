@@ -4,6 +4,7 @@ import { isShapeFrame, shapeFrameOf, resolveInsertFrame, anchorUnitOf } from './
 import { fitScale } from './fit-scale.js';
 import { clampChildIntoFrame } from './frame-geometry.js';   /* F2 — 붙여넣기 자리를 프레임 안으로(드래그 클램프와 «같은 함수») */
 import { setTextTypeClass, afterTextTypeChange } from './props/text-type-class.js';
+import { ALIGN_SELF_OF } from './props/prop-text-wireup-align.js';   /* t7-03 — 가로 정렬 → align-self 사상표 한 자리 */
 import { warnPendingVideoLossIf } from './io/pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원(「한 번만」 래치 포함) */
 
 /* ═══════════════════════════════════
@@ -2324,8 +2325,7 @@ document.addEventListener('keyup', e => {
    asset/frame/shape 등 커스텀 폭(<100%) 블록에서만 실제 좌우 이동이 보인다.
    섹션 자신을 선택한 경우는 부모가 캔버스라 여기 대상 셀렉터에 안 잡힘 → no-op. 대상 0개도 no-op. */
 function alignSelectedToParent(dir) {
-  const map = { left: 'flex-start', center: 'center', right: 'flex-end' };
-  const val = map[dir];
+  const val = ALIGN_SELF_OF[dir];   /* ★사상표 한 자리(js/props/prop-text-wireup-align.js) — ⛔여기 다시 적지 않는다 */
   if (!val) return;
   // 선택 집합 규약: FLOW_BLOCK_SEL_SELECTED(SSOT — 프레임 포함) + shape. 각 블록은 부모 섹션이 있어야 대상.
   // ★.frame-block.selected 는 2026-09-21(T-091)부터 SSOT 안에 있다 — 여기서 또 적으면 사본이다.
@@ -3374,6 +3374,8 @@ function _gridActiveOuterLine() {
     gridAddr = null;
   }
   if (!gridSel || !gridAddr) return null;
+  /* ★1012t1G1 — 말풍선 «가상 본문 줄»(line-host.js lnIsBubbleBodyLine)은 옮길 줄이 없다(본문 = 블럭) ⇒ null 로 흘려 «블럭 이동». */
+  if (window.lnIsBubbleBodyLine?.(gridSel, gridAddr)) return null;
   if (gridAddr.np) return { block: gridSel, addr: gridAddr, nested: true };
   /* ⚠️addr.li === null 은 «빈 칸»(셀 모드, T-A)이다 — 옮길 줄이 없다. ⌫ 가 그때 블럭을 지우는
      것과 같이, null 로 흘려 «블럭 이동»이 되게 둔다(두 키의 뜻이 갈리지 않게). */
@@ -3504,7 +3506,8 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
          현빈 지시로 없앴다. 줄바의 「줄 삭제」가 «한 글자도 안 다른» 같은 코드였다. */
     /* ★BT2 D10 — 말풍선·챗의 «줄»이 골라져 있으면 ⌫/⌘X 는 그 줄 하나만 지운다(아래 그리드 갈래와 같은 뜻).
        게이트(단독 선택·주소 유효)는 js/blocks/line-host.js lnDeleteActiveLine 한 곳. */
-    if (window.lnDeleteActiveLine?.()) { consumed = true; return consumed; }
+    /* ★1012t1G1 — isCut 를 넘긴다: 말풍선 «가상 본문 줄»(줄 없는 말풍선을 둘째 클릭)에서 ⌘X 는 «블럭 잘라내기»다(⌫ 만 두 걸음). */
+    if (window.lnDeleteActiveLine?.({ isCut })) { consumed = true; return consumed; }
     const gridSel = document.querySelector('.grid-block.selected');
     let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
     /* ★0918r2 T-058 — 줄 삭제는 «그 그리드 하나만» 선택됐을 때만. ⌘클릭 다중선택·붙여넣기 뒤

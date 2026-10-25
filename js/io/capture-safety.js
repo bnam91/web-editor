@@ -480,7 +480,6 @@ export function stripEditorOnlyForCapture(clone) {
   // admin QA 체크리스트 블록 — 콘텐츠가 아니라 작업 메타데이터다. 자리도 차지하면 안 되므로
   // 숨기지 않고 완전히 remove() 한다(annotation-block과 같은 원칙). 감싸는 .row 까지 지워야
   // 그 블록이 차지하던 세로 공간도 같이 사라진다.
-  // ★정정 261022 현빈 결정 — 어노테이션·치수선은 콘텐츠다(최종 이미지에 보인다). 이 괄호 «annotation-block과 같은 원칙»은 이제 맞지 않는다 · qa-block 만 작업 메타.
   clone.querySelectorAll('.qa-block').forEach(el => {
     const row = el.closest('.row');
     if (row) row.remove(); else el.remove();

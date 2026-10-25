@@ -52,13 +52,14 @@ const RADIAL_LABEL_PH = RADIAL_CENTER_PH;       /* t4-03 항목 글 안내문구
 const RADIAL_DEFAULTS = Object.freeze({
   shape: 'circle', count: 6, radius: 250, startDeg: -90,
   line: 'orbit', lineColor: RADIAL_DOT_COLOR, lineStyle: 'dashed', lineWidth: 2, bg: '',
-  cellSize: 160, cellShape: 'circle', cellRadius: 24, cellFill: '#e8e8e8',
+  cellSize: 120, cellShape: 'circle', cellRadius: 24, cellFill: '#e8e8e8',   /* ★t4-06(현빈 「에셋의 크기는 기본 추가될 때 120으로」) — 160 → 120 · 저장된 블럭은 제 dataset 값 그대로 */
   centerMode: 'text', centerSize: 220, centerImg: '', centerClip: 'circle',
   centerText: '', centerBg: 'transparent', centerColor: RADIAL_TEXT_COLOR,
   labelPos: 'below', labelSize: 16, labelColor: RADIAL_TEXT_COLOR, labelGap: 10,
   labelWidth: 96, labelWeight: 'bold',
   endDeg: 60, centerX: 50, lineExtend: 0, centerDx: 0,
   marker: 'cell', dotSize: 18, dotColor: RADIAL_DOT_COLOR, iconSize: 36,
+  padX: 0,   /* ★t4-07 좌우 패딩 — 0 = 옛 블럭 그대로(새 블럭에도 키를 안 쓴다 · makeRadialBlock 무접촉) */
 });
 /* 호 모드의 기본 꼴(V4) = 반원 · 점 + 글. 새 호 블럭의 기본값이고, 패널에서 호로 처음 바꿀 때 쓰는 값이다.
  *   꼴(각도 · 원 중심 · 선 연장)의 수는 RADIAL_ARC_GEOM.HALF 한 자리에서 온다. */
@@ -90,6 +91,7 @@ const RADIAL_LIMITS = Object.freeze({
   iconSize: { min: 16, max: 96 },
   labelDx: { min: -600, max: 600 },
   labelDy: { min: -600, max: 600 },
+  padX: { min: 0, max: 120, step: 4 },   /* ★t4-07 — 그래프 「좌우 패딩」(prop-graph.js #grb-padx 0~80 step 4)과 같은 말 · 넓은 섹션 몫으로 120 */
 });
 const RADIAL_ICON_SVG_MAX = 20000;   // 붙여넣는 항목 아이콘 SVG 의 글자 수 상한(소독 뒤)
 const RADIAL_SHAPES = Object.freeze(['circle', 'poly', 'arc']);
@@ -246,7 +248,7 @@ function radialStateOf(block) {
     dotSize: num('dotSize'), dotColor: _color(d.dotColor, D.dotColor), iconSize: num('iconSize'),
     labelWidth: num('labelWidth'), labelWeight: d.labelWeight === 'normal' ? 'normal' : 'bold',
     shape, count,
-    radius: num('radius'), startDeg: num('startDeg'),
+    radius: num('radius'), startDeg: num('startDeg'), padX: num('padX'),
     line: _oneOf(d.line, RADIAL_LINES, D.line),
     lineColor: _color(d.lineColor, D.lineColor),
     lineStyle: d.lineStyle === 'solid' ? 'solid' : 'dashed',
@@ -344,7 +346,8 @@ function radialArcSpec(st, sizes, maxWs) {
  *  호는 내용 상자가 스테이지 안에 들게 높이 · 원 중심 · 반지름을 맞춘다(자르지 않는다). labelSizes = 화면에서 잰 라벨 크기(없으면 어림). */
 function radialLayoutOf(block, st, labelSizes) {
   const G = window.RADIAL_GEOM;
-  const avail = block.clientWidth > 0 ? block.clientWidth : _FALLBACK_W;
+  /* ★t4-07 — «쓸 수 있는 폭» = 블럭 안쪽(clientWidth 는 좌우 padding 을 품는다 ⇒ 그만큼 뺀다). padX 0 이면 옛 식 그대로. */
+  const avail = block.clientWidth > 0 ? Math.max(1, block.clientWidth - 2 * (st.padX || 0)) : _FALLBACK_W;
   const m = _markerSize(st), half = m / 2;
   const out = st.labelPos === 'outside', below = st.labelPos === 'below';
   if (st.shape === 'arc') {
@@ -391,7 +394,7 @@ function radialLabelHTML(src) {
   return escHtml(String(src ?? '')).replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>').replace(/\r?\n/g, '<br>');
 }
 
-const _PH = '<span class="rdl-ph" aria-hidden="true"><svg viewBox="0 0 24 24" width="38%" height="38%" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 17 L10 12.5 L13.5 15.5 L16.5 13 L19.5 16"/></svg></span>';
+/* ★t4-06 — 빈 칸 그림 아이콘(.rdl-ph)은 걷었다(체크 무늬로 갈음 · 위 칸 그리기 주석). */
 const _multiline = (s) => escHtml(s).replace(/\r?\n/g, '<br>');
 
 function _centerHTML(st, g) {
@@ -817,6 +820,15 @@ function _onArcWidth(block) {
 
 function renderRadialBlock(block) {
   if (!block) return;
+  /* ★t7-01 「Radial Block 패딩 제외 옵션 추가」(2026-10-26 S3) — 레포 고유명사 「패딩 제외」(dataset.fullBleed)의 이식.
+     ★본 = 배너2(js/blocks/banner02-block.js renderBanner02 의 같은 한 줄) · 부품 = js/drag-utils.js applyBlockFullBleed.
+     ★자리가 «맨 앞»인 까닭: 호(arc)는 배치가 블럭 폭(clientWidth)을 잰다 ⇒ 넓힌 «뒤»에 재야 넓어진 폭에 맞춰 그린다.
+     이 렌더는 블럭 폭을 따로 안 박는다 ⇒ «제 폭을 먼저 정하고 마지막에 덮는다» 규약과 어긋나지 않는다. 키 없으면 no-op(옛 블럭 무변화). */
+  window.applyBlockFullBleed?.(block);
+  /* ★t4-07 「좌우패딩기능 추가해줄 것」(2026-10-26 S3) — 블럭 안쪽 좌우 여백. 키(dataset.padX)가 없으면 인라인을 안 남긴다(옛 바이트).
+     ★배치 «앞»에 건다 — radialLayoutOf 가 clientWidth − 2×padX 로 쓸 수 있는 폭을 잰다(호는 그 폭에 맞춘다). */
+  const _px = radialStateOf(block).padX;
+  block.style.paddingLeft = block.style.paddingRight = _px ? _px + 'px' : '';
   const st = radialStateOf(block);
   let g = radialLayoutOf(block, st);
   _paintRadial(block, st, g);
@@ -849,7 +861,10 @@ function _paintRadial(block, st, g) {
     const pic = isDot ? '' : _itemPic(it);
     const cell = isDot
       ? `<div class="rdl-cell rdl-cell--dot" style="background:${st.dotColor}"></div>`
-      : `<div class="rdl-cell${pic ? '' : ' rdl-cell--empty'}" style="border-radius:${cellRadius};background:${st.cellFill}">${pic ? `<span class="rdl-cell-img">${pic}</span>` : _PH}</div>`;
+      /* ★t4-06(현빈 「안쪽은 서클이미지블럭처럼 단순히 체크패턴들어간 에셋블럭이면 된다」) — 빈 칸은 회색 바탕+그림 아이콘이 아니라
+         체크 무늬(css/editor-radial.css .rdl-cell--empty · 서클이미지블럭 .icb-circle 과 같은 big 토큰 · 가운데 t4-05 와 같은 꼴).
+         ★사람이 칸 색을 따로 골랐으면(기본값이 아니면) 그 색이 이긴다 — 서클이미지블럭 「배경색을 고르면 빈 원의 체커도 걷는다」와 같은 뜻. */
+      : `<div class="rdl-cell${pic ? '' : ' rdl-cell--empty'}" style="border-radius:${cellRadius};${(pic || st.cellFill !== RADIAL_DEFAULTS.cellFill) ? `background:${st.cellFill}` : ''}">${pic ? `<span class="rdl-cell-img">${pic}</span>` : ''}</div>`;
     return `<div class="rdl-item rdl-item--${st.labelPos}${isDot ? ' rdl-item--dot' : ''}${radialItemIsManual(it) ? ' rdl-item--manual' : ''}${i === sel ? ' rdl-cell-selected' : ''}" data-rdl-idx="${i}" style="left:${(p.x - half).toFixed(2)}px;top:${(p.y - half).toFixed(2)}px;width:${g.m}px;height:${g.m}px">`
       + cell
       + _labelHTML(st, g, p, it, i)

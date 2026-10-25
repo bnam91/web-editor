@@ -67,7 +67,7 @@ const EDITOR_ONLY_SEL = new RegExp([
      ★★교훈 : ★★새 편집 UI 를 ★더할 때 ★★★«요소 명부»와 ★«CSS 거름»은 ★★따로다 — ★둘 다 ★재라. */
   '\\.tfh-',   /* ★★U3 자유변형 ★전부(grid·fx·edge·layer·handle) — ★261024 에 ★셋이 ★새어 ★접두사로 ★좁혔다 */
   /* 5eff5c70 서 말 없이 빠진 것 되살림 · MERGE-T4DIM-QA-TODO-PEN-REVIVED-01
-     (머지 261025 S6 — 134c7986 에 있었고 가지에도 있다 · 지디 판정 261026 «회귀 아님 · 복구» · 재는 자 = export-css-filter-scope MUST_FILTER 세 줄) */
+     (134c7986 에 있었고 taeyang/t4-dimline 에도 있다 · 지디 판정 261026 «회귀 아님 · 복구» · 재는 자 = export-css-filter-scope MUST_FILTER 세 줄) */
   '\\.qa-block', '\\.todo-pin', '\\.pen-',
   '\\.col-placeholder', '\\.col-add', '\\.row-col-add', '\\.row-drop-indicator', '\\.layer-',
   /* ★★t4 검수 261022(지디) — ★`'placeholder'` ★맨 조각을 ★좁혔다.
