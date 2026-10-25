@@ -147,6 +147,9 @@ export function showRadialProperties(block, idx) {
   const anyManual = st.items.some(radialItemIsManual);
   const autoDeg = sel >= 0 ? Math.round(radialAutoDegs(st)[sel] * 10) / 10 : 0;
 
+  /* ★t7-01 「패딩 제외」 — 배너2 패널(js/props/prop-banner02.js _bn2CanFullBleed)과 같은 판정:
+     ⛔뚫을 수 없는 자리(자르는 프레임 안 등)에선 토글을 안 보인다(켜도 아무 일 없는 스위치는 「고장」으로 읽힌다). 이미 켜져 있으면 보인다. */
+  const _rdlCanFB = block.dataset.fullBleed === 'true' || (window.effectiveSectionPadX?.(block) || 0) > 0;
   propPanel.innerHTML = `
     <div class="prop-section">
 ${blockHeaderHTML({
@@ -185,6 +188,14 @@ ${blockHeaderHTML({
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Layout</div>
+      ${_rdlCanFB ? `
+      <div class="prop-row">
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="rdl-fullbleed-toggle" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>` : ''}
       ${_pairRow('rdl-radius', '반지름', st.radius, L.radius)}
       ${_pairRow('rdl-start', '시작 각도', st.startDeg, L.startDeg)}
       ${isArc ? `
@@ -289,6 +300,13 @@ ${blockHeaderHTML({
   /* push-after — 쓰고 그린 «뒤»에 한 번. */
   const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
   const reopen = (i) => showRadialProperties(block, Number.isInteger(i) ? i : (block._rdlSel ?? -1));
+  /* ★t7-01 패딩 제외 — 켜기는 renderRadialBlock 맨 앞의 applyBlockFullBleed 가 «매 렌더» 씌운다 ⇒ 여기선 표식만 세우고 다시 그린다.
+     ★끄기는 «흔적 지우기»가 먼저(배너2·프레임과 같은 규약 — 안 지우면 calc 폭·음수 마진이 남은 채 굳는다). 이력 = 이 패널의 push-after. */
+  $('rdl-fullbleed-toggle')?.addEventListener('change', (e) => {
+    if (e.target.checked) block.dataset.fullBleed = 'true';
+    else { delete block.dataset.fullBleed; window.clearBlockFullBleed?.(block); }
+    rerender(); commit();
+  });
   const setItems = (items) => { block.dataset.items = JSON.stringify(items); };
   const curItems = () => radialStateOf(block).items;
 

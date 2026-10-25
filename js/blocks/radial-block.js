@@ -817,6 +817,11 @@ function _onArcWidth(block) {
 
 function renderRadialBlock(block) {
   if (!block) return;
+  /* ★t7-01 「Radial Block 패딩 제외 옵션 추가」(2026-10-26 S3) — 레포 고유명사 「패딩 제외」(dataset.fullBleed)의 이식.
+     ★본 = 배너2(js/blocks/banner02-block.js renderBanner02 의 같은 한 줄) · 부품 = js/drag-utils.js applyBlockFullBleed.
+     ★자리가 «맨 앞»인 까닭: 호(arc)는 배치가 블럭 폭(clientWidth)을 잰다 ⇒ 넓힌 «뒤»에 재야 넓어진 폭에 맞춰 그린다.
+     이 렌더는 블럭 폭을 따로 안 박는다 ⇒ «제 폭을 먼저 정하고 마지막에 덮는다» 규약과 어긋나지 않는다. 키 없으면 no-op(옛 블럭 무변화). */
+  window.applyBlockFullBleed?.(block);
   const st = radialStateOf(block);
   let g = radialLayoutOf(block, st);
   _paintRadial(block, st, g);
