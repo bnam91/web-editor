@@ -3,6 +3,10 @@
  * 현빈 원문(T4-ORIGINAL.txt):
  *   t4-02 「선 색이 왜 이걸로 되어있는지? C9BDF5이걸로 되어있는데 점색과 통일시켜줘 c9cdd6」
  *     ⇒ 점 색의 참값은 #c8cdd6 이다(radial-block.js 의 dotColor · 지디 확정). 선 색 기본 = 점 색.
+ *     ★★2026-10-25 정정 — ★바로 윗줄의 ★「지디 확정 #c8cdd6」은 ★★뒤집혔다. ⛔윗줄을 ★지우지 마라(역사 문장) :
+ *       ★현빈 원문이 ★`c9cdd6` 이고(한 자리 차이), ★그 요청값으로 ★제품을 고쳤다 — `ac502952` · `radial-block.js` RADIAL_DOT_COLOR.
+ *       ⇒ ★이 스펙의 ★DOT_HEX·DOT_RGB·★칸 제목을 ★그때 ★같이 안 고쳐 ★dev 에 ★빨강 셋이 ★서 있었다.
+ *         ★놓친 까닭 = ★고친 뒤 ★「그 값을 쓰는 자」 ★전수를 ★안 했다(단위검사 한 벌만 보고 ★이 DOM 스펙을 못 봤다).
  *   t4-04 「최초에 핵심효능 6가지라는 텍스트도 바꿔줘. 6B4DE0 배경색도 없애줘」
  *     ⇒ (해석) 가운데 글 저장값 '' + 안내문구 «내용을 입력하세요»(인용구 블럭 규약) · 가운데 배경 투명 · 그림자 없음 · 글자 색 #222222.
  *
@@ -13,13 +17,13 @@
  *      ⒜-2: 이 덩어리가 건드린 파일 «전부»(ID_FILES 다섯 · spec 자신 제외)를 env EXPECT_FILES_SHA1(JSON {경로: sha1}) 로 받는다 —
  *      열쇠 목록이 정확히 ID_FILES 와 같아야 하고 값은 모두 40 hex · 페이지가 받은 바이트 sha1 = ROOT 디스크 sha1 = env 값.
  *      (proto 데모 둘은 앱이 싣지 않는다 — 하네스 라우트가 ROOT 디스크에서 내주는 바이트를 fetch 로 잰다.)
- *   A1 새 원 블럭 선 색 = 점 기본색 — .rdl-line stroke · dataset.lineColor · 패널 「선 색」 hex = c8cdd6 = RADIAL_DEFAULTS.dotColor
- *   A2 패널 「호」 뒤 — .rdl-line 계산 stroke = .rdl-cell--dot 계산 backgroundColor = rgb(200, 205, 214)
+ *   A1 새 원 블럭 선 색 = 점 기본색 — .rdl-line stroke · dataset.lineColor · 패널 「선 색」 hex = c9cdd6 = RADIAL_DEFAULTS.dotColor
+ *   A2 패널 「호」 뒤 — .rdl-line 계산 stroke = .rdl-cell--dot 계산 backgroundColor = rgb(201, 205, 214)
  *   A3 가운데 배경 없음 — .rdl-center 계산 backgroundColor rgba(0, 0, 0, 0) · boxShadow none · dataset.centerBg '' 또는 transparent
  *   A4 가운데 기본 글 = 안내문구 — dataset.centerText '' · [data-is-placeholder="true"] 1개 · 글 «내용을 입력하세요» · 흐림 0.45 · «핵심 효능» 0
  *   A5 글자 색이 흰색이 아니다 — 계산 color ≠ rgb(255, 255, 255) · = 라벨 색 rgb(34, 34, 34)
  *   ⒜-2 (이벨류에이터 변이 M1 · M5 · M6 이 지나간 구멍 + QA⑵ 결함):
- *   A1/A2 원 모드 .rdl-line 의 «계산» stroke = rgb(200, 205, 214) (속성 글자만 보던 구멍 · M1)
+ *   A1/A2 원 모드 .rdl-line 의 «계산» stroke = DOT_RGB (★수는 그 상수 한 자리 · 속성 글자만 보던 구멍 · M1)
  *   A3 .rdl-center 아래 자식 모두 계산 배경 투명 (M5)
  *   A6 캡처 클론(capture-safety stripEditorOnlyForCapture)에서 안내문구가 보이지 않는다 · 저장 직렬화 data-center-text = '' (M6)
  *   A7 패널 가운데 「배경」 칸 = 빈 「블럭 배경」 칸과 hex · 알파 · 스와치가 같다(FFFFFF · 검은 000000 아님 · 지디: prop-radial 「블럭 배경」 관용구)
@@ -39,8 +43,10 @@ const { clickAt } = require('./_click-at.js');
 const ID_FILE = 'js/blocks/radial-block.js';
 /* ⒜-2: 정체 파일 — 이 덩어리(⒜ + ⒜-2)가 건드린 파일 전부(spec 자신 제외). */
 const ID_FILES = ['css/editor-radial.css', 'js/blocks/radial-block.js', 'js/props/prop-radial.js', 'proto/demo-z6-a-arc.html', 'proto/demo-z6-a.html'];
-const DOT_HEX = '#c8cdd6';
-const DOT_RGB = 'rgb(200, 205, 214)';
+/* ★261025 — ★현빈 요청값(`c9cdd6`)으로 맞췄다. ★정본은 `js/blocks/radial-block.js` 의 RADIAL_DOT_COLOR 한 자리고,
+   ★여기 두 상수는 ★그 값을 ★손으로 ★베낀 ★둘째 명부다 ⇒ ★갈리면 ★이 머리말을 ★같이 고쳐라. */
+const DOT_HEX = '#c9cdd6';
+const DOT_RGB = 'rgb(201, 205, 214)';
 const PH = '내용을 입력하세요';
 const sha1 = (buf) => crypto.createHash('sha1').update(buf).digest('hex');
 
@@ -97,6 +103,13 @@ test.describe('S6 t4 ⒜ radial 기본 색 · 가운데', () => {
   test('P0 판 정체 — HEAD = EXPECT_SHA · 페이지가 받은 radial-block.js sha1 = 디스크 = EXPECT_FILE_SHA1', async ({ page }) => {
     const want = process.env.EXPECT_SHA || '';
     const wantFile = process.env.EXPECT_FILE_SHA1 || '';
+    /* ★★261025 — ★이 칸은 ★«레인 전용»이다. ★기준값 셋이 ★환경변수로만 오고(버전관리 ★밖) ⇒
+       ★그 변수 ★없이 돌면 ★★언제나 ★빨강이었다. ★dev 에 들어온 뒤로 ★줄곧 그랬다.
+       ⇒ ★★「범위 밖 검사는 ★FAIL 이 아니라 ★SKIP」. ★이름 = `RADIAL-P0-IDENTITY-NEEDS-LANE-ENV-01`
+       ⛔지우지 ★마라 — ★레인이 ★`EXPECT_SHA=… EXPECT_FILE_SHA1=… EXPECT_FILES_SHA1=…` 를 넘기면
+         ★이 칸이 ★스스로 ★깨어나 ★전과 똑같이 ★잰다(아래 단언 ★한 줄도 ★안 고쳤다). */
+    test.skip(!want && !wantFile && !process.env.EXPECT_FILES_SHA1,
+      'RADIAL-P0-IDENTITY-NEEDS-LANE-ENV-01 — 레인 환경변수(EXPECT_SHA·EXPECT_FILE_SHA1·EXPECT_FILES_SHA1)가 없다');
     expect(/^[0-9a-f]{40}$/.test(want), `EXPECT_SHA 는 40 hex — 받은 값 «${want}»`).toBe(true);
     expect(/^[0-9a-f]{40}$/.test(wantFile), `EXPECT_FILE_SHA1 은 40 hex — 받은 값 «${wantFile}»`).toBe(true);
     let wantMap = null;
@@ -138,7 +151,7 @@ test.describe('S6 t4 ⒜ radial 기본 색 · 가운데', () => {
     expect(errs, 'pageerror').toEqual([]);
   });
 
-  test('A1 새 원 블럭 선 색 = 점 기본색 #c8cdd6 (stroke · dataset · 패널 hex)', async ({ page }) => {
+  test('A1 새 원 블럭 선 색 = 점 기본색 #c9cdd6 (stroke · dataset · 패널 hex)', async ({ page }) => {
     const { errs, id } = await makeRadial(page);
     await expect(page.locator('#rdl-line-hex'), '전제: 패널 「선 색」 칸이 열렸다').toHaveCount(1);
     const m = await page.evaluate(async (bid) => {
@@ -159,7 +172,7 @@ test.describe('S6 t4 ⒜ radial 기본 색 · 가운데', () => {
     expect(errs, 'pageerror').toEqual([]);
   });
 
-  test('A2 패널 「호」 뒤 — 선의 화면 색 = 점의 화면 색 rgb(200, 205, 214)', async ({ page }) => {
+  test('A2 패널 「호」 뒤 — 선의 화면 색 = 점의 화면 색 rgb(201, 205, 214)', async ({ page }) => {
     const { errs, id } = await makeRadial(page);
     const c0 = await page.evaluate((bid) => {
       const b = document.getElementById(bid);
@@ -168,7 +181,7 @@ test.describe('S6 t4 ⒜ radial 기본 색 · 가운데', () => {
     }, id);
     expect(c0.shape, '전제: 「호」 누르기 전 = 원').toBe('circle');
     expect(c0.n, '전제: 원 모드 선이 있다').toBeGreaterThan(0);
-    expect(c0.strokes, '원 모드 선의 계산 stroke = rgb(200, 205, 214)').toEqual([DOT_RGB]);
+    expect(c0.strokes, `원 모드 선의 계산 stroke = ${DOT_RGB}`).toEqual([DOT_RGB]);
     const r = await stableTwice(page, '#rdl-shape-arc');
     await clickAt(page, r.cx, r.cy, { sel: '#rdl-shape-arc' }, { label: '패널 「호」' });
     await page.waitForFunction((bid) => !!document.querySelector(`[id="${bid}"] > .rdl-stage--arc .rdl-cell--dot`), id, { timeout: 15000 });
@@ -180,7 +193,7 @@ test.describe('S6 t4 ⒜ radial 기본 색 · 가운데', () => {
     }, id);
     expect(m.shape, '전제: 호로 바뀌었다').toBe('arc');
     expect(m.dots, '전제: 점이 있다').toBeGreaterThan(0);
-    expect(m.dotBgs, '점 색 한 가지 = rgb(200, 205, 214)').toEqual([DOT_RGB]);
+    expect(m.dotBgs, `점 색 한 가지 = ${DOT_RGB}`).toEqual([DOT_RGB]);
     expect(m.line, '선의 계산 stroke = 점의 계산 색').toBe(m.dotBgs[0]);
     expect(errs, 'pageerror').toEqual([]);
   });
