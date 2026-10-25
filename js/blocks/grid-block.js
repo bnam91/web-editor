@@ -3908,12 +3908,30 @@ function gridResizeTo(block, nCols, nRows) {
    * ⛔import 금지 — grid-infographic.js 가 이 파일을 import 하므로 반대 방향은 순환이고,
    *   loadGrid({withIfg:false}) 가 grid-block.js «한 파일»만 얹는 유닛 하네스 10곳을 깨뜨린다. */
   const ifg = block.dataset.ifgPreset ? window.ifgNewShape?.(block, nCols, nRows) : null;
+  /* ★t5-15(현빈 2026-10-26) — 「'+'를 눌러서 열추가시에, 직전 로우와 칼럼이 복사되도록」.
+   *   새 열 = ★직전(마지막) 열 통째(폭·열 값·줄 + 행마다 그 칸) · 새 행 = ★직전(마지막) 행 통째(높이 + 칸마다 꾸밈·줄).
+   *   ＋ 와 피커가 «같은 길»(G15)이라 피커로 늘려도 같다. 인포그래픽(ifg)은 1017t1i1 「이웃 칸의 꼴」이 먼저다.
+   *   ⇒ 기본 줄(GRID_CELL_DEFAULT_TEXT)은 ★베낄 것이 없을 때만 쓴다. ⛔얕은 복사 금지 — 새 칸을 고치면 직전 칸이 같이 바뀐다. */
+  const dup = (v) => JSON.parse(JSON.stringify(v));
+  const lastC = curCols.length - 1, lastR = curRows.length - 1;
+  let curCells = [];
+  try { curCells = JSON.parse(block.dataset.cells || '[]'); } catch (_) { curCells = []; }
+  const cellAt = (r, c) => { const cell = Array.isArray(curCells[r]) ? curCells[r][c] : null; return (cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell : null; };
+  /* 직전 칸(sr, sc)을 새 칸 꼴로 — 행 0 의 줄은 cols[sc].lines 에 산다(T-178). 새 칸이 행 0 이면 꾸밈만. */
+  const copyCell = (sr, sc, toRow0) => {
+    const src = cellAt(sr, sc) || {};
+    const { lines, ...deco } = dup(src);
+    if (toRow0) return deco;
+    const srcLines = sr === 0 ? curCols[sc]?.lines : lines;
+    return { ...deco, lines: Array.isArray(srcLines) && srcLines.length ? dup(srcLines) : [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] };
+  };
 
   const nextCols = [];
   for (let i = 0; i < nCols; i++) {
     /* ★[M41] 열을 늘릴 때의 기본값도 «정본 한 줄»을 쓴다 — 여긴 h2:'제목' 을 얹고 있어서
      * 블록 생성(grid-block.js)·열 추가(여기)·행 추가(아래)가 서로 «다른» 기본값이었다. */
-    nextCols.push(curCols[i] || (ifg ? { ...ifg.col, lines: ifg.col.lines.map(l => ({ ...l })) } : { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] }));
+    nextCols.push(curCols[i] || (ifg ? { ...ifg.col, lines: ifg.col.lines.map(l => ({ ...l })) }
+      : lastC >= 0 ? dup(curCols[lastC]) : { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] }));
   }
   // ⛔줄일 때 잘린 칸의 내용은 «버려진다» — undo 로 되돌아온다(pushHistory 를 먼저 부른 이유).
   block.dataset.cols = JSON.stringify(nextCols);
@@ -3928,26 +3946,29 @@ function gridResizeTo(block, nCols, nRows) {
     const keep = [];
     for (let c = 0; c < nCols; c++) {
       const cell = row0[c];
-      keep.push((cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell : (ifg ? { ...ifg.cellDecoOnly } : {}));
+      keep.push((cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell
+        : (ifg ? { ...ifg.cellDecoOnly } : (c > lastC && lastC >= 0 ? copyCell(0, lastC, true) : {})));
     }
     if (keep.some(cell => Object.keys(cell).length)) block.dataset.cells = _gridCellsToDataset([keep]);
     else delete block.dataset.cells;
   } else {
     const nextRows = [];
-    for (let i = 0; i < nRows; i++) nextRows.push(curRows[i] || (ifg ? { height: ifg.rowHeight } : { height: 'auto' }));
+    for (let i = 0; i < nRows; i++) nextRows.push(curRows[i] || (ifg ? { height: ifg.rowHeight } : lastR >= 0 && curRows[lastR] ? dup(curRows[lastR]) : { height: 'auto' }));
     block.dataset.rows = JSON.stringify(nextRows);
     /* ★새로 생긴 행에 «기본 내용»을 넣는다(안 넣으면 높이 0 — 무슨 일이 났는지 안 보인다).
      * ⚠️옛 내용을 보존하지 않는다 — 잘린 행/열의 내용은 사라지고 undo 로만 돌아온다.
      * ★T-178 — 행 0 에는 기본 줄을 «안» 넣는다: 행 0 의 줄은 cols[].lines 가 갖는다. */
-    let curCells = [];
-    try { curCells = JSON.parse(block.dataset.cells || '[]'); } catch (_) { curCells = []; }
     const nextCells = [];
     for (let r = 0; r < nRows; r++) {
       const row = Array.isArray(curCells[r]) ? curCells[r] : [];
       const outRow = [];
       for (let c = 0; c < nCols; c++) {
-        outRow.push(row[c] || (r === 0 ? (ifg ? { ...ifg.cellDecoOnly } : {})
-          : (ifg ? { ...ifg.cellDecoOnly, lines: ifg.cell.lines.map(l => ({ ...l })) } : { lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] })));
+        /* ★t5-15 — 베낄 자리: 새 행이면 직전 행 · 새 열이면 직전 열(둘 다 새 칸이면 직전 행의 직전 열) */
+        const isNew = r > lastR || c > lastC;
+        const src = isNew && lastR >= 0 && lastC >= 0 ? [Math.min(r, lastR), Math.min(c, lastC)] : null;
+        outRow.push(row[c] || (r === 0 ? (ifg ? { ...ifg.cellDecoOnly } : src ? copyCell(src[0], src[1], true) : {})
+          : (ifg ? { ...ifg.cellDecoOnly, lines: ifg.cell.lines.map(l => ({ ...l })) }
+            : src ? copyCell(src[0], src[1], false) : { lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] })));
       }
       nextCells.push(outRow);
     }
