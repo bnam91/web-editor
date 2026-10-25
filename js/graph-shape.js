@@ -157,6 +157,10 @@
     PIE_ITEM_INT_KEYS.forEach(function (k) { var v = _piePct(incoming[k]); if (v === null) v = _piePct(prev[k]); if (v > 0) out[k] = v; else delete out[k]; });
     // ★1017t1f5 — 값 라벨 오프셋도 같은 자리에서 옮긴다(MCP partial update 가 items 를 통째로 다시 지어도 드래그로 옮긴 자리를 잃지 않게). 한도(±600)는 여기서 안 자른다(「꼴만 본다」 — 위와 같은 규약).
     VLABEL_OFFSET_KEYS.forEach(function (k) { var v = _vOffsetNum(incoming[k]); if (v === null) v = _vOffsetNum(prev[k]); if (v) out[k] = v; else delete out[k]; });
+    /* ★1017t1f5 👉 뒤(2026-10-26) — 값 라벨 «하나»의 글자 크기(vFs · 양의 정수)와 덮어쓴 글(vText · 비어 있지 않은 글자)도 같은 자리에서 옮긴다. 한도는 렌더가 자른다(위와 같은 규약). */
+    var _fs = _vOffsetNum(incoming.vFs); if (!(_fs > 0)) _fs = _vOffsetNum(prev.vFs); if (_fs > 0) out.vFs = _fs; else delete out.vFs;
+    var _vt = (typeof incoming.vText === 'string' && incoming.vText.trim()) ? incoming.vText : ((typeof prev.vText === 'string' && prev.vText.trim()) ? prev.vText : '');
+    if (_vt) out.vText = _vt; else delete out.vText;
     var _tag = _pieTagOk(incoming.pieTag) ? incoming.pieTag : (_pieTagOk(prev.pieTag) ? prev.pieTag : '');
     if (_tag) out.pieTag = _tag; else delete out.pieTag;
     if (Array.isArray(incoming.segments)) {

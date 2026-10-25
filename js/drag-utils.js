@@ -833,6 +833,13 @@ function _bindGraphLabelEdit(block) {
   if (block._grbLabelEditBound) return;
   block._grbLabelEditBound = true;
   block.addEventListener('dblclick', e => {
+    /* ★1017t1f5 👉 뒤 ⓒ(2026-10-26) — 꺾은선 값 라벨도 더블클릭 = 그 라벨 글 고치기(items[i].vText · 값은 안 바뀐다). */
+    const vl = e.target?.closest?.('.grb-line-vlabel');
+    if (vl && block.contains(vl) && !vl.isContentEditable) {
+      e.stopPropagation(); e.preventDefault();
+      _graphVLabelBeginEdit(block, vl, [...block.querySelectorAll('.grb-line-vlabel')].indexOf(vl));
+      return;
+    }
     const el = e.target?.closest?.(GRB_CAT_LABEL_SEL) || _grbPieNameAt(block, e.clientX, e.clientY);
     if (!el || !block.contains(el) || el.isContentEditable) return;
     e.stopPropagation(); e.preventDefault();
@@ -890,6 +897,138 @@ function _graphLabelBeginEdit(block, el, idx) {
   el.addEventListener('keydown', onKey);
   el.addEventListener('blur', onBlur);
 }
+/* ★1017t1f5 👉 뒤 ⓒ — 값 라벨 글 고치기. 카테고리 라벨(_graphLabelBeginEdit 위)과 «같은 꼴»(더블클릭 → contenteditable → 확정 · Esc 취소 · ⌘Z 한 걸음)이되
+ *   ★Enter = 확정이다 — 값 라벨은 숫자 한 줄이 본래 꼴이라 축 눈금(_graphAxisTickBeginEdit 아래)의 키 배정을 따른다.
+ *   저장 자리 = items[idx].vText(덮어쓴 글). 비우거나 «항목 값과 같은 글»로 되돌리면 키를 지운다(= 자동 값 표시 · 옛 바이트). ⛔items[idx].value 는 안 건드린다. */
+function _graphVLabelBeginEdit(block, el, idx) {
+  if (idx < 0) return;
+  window.ensureHistoryCheckpoint?.('그래프 값 라벨 편집 전');
+  block.classList.add('editing');
+  el.setAttribute('contenteditable', 'true');
+  el.focus();
+  const rg = document.createRange(); rg.selectNodeContents(el);
+  const sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg);
+  let done = false;
+  const finish = (commit) => {
+    if (done) return; done = true;
+    el.removeEventListener('keydown', onKey); el.removeEventListener('blur', onBlur);
+    block.classList.remove('editing');
+    const val = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    const items = JSON.parse(block.dataset.items || '[]');
+    const it = items[idx];
+    let changed = false;
+    if (commit && it) {
+      const auto = val === '' || val === String(it.value);
+      const prev = typeof it.vText === 'string' ? it.vText : '';
+      const next = auto ? '' : Array.from(val).slice(0, window.GRAPH_LIMITS.VLABEL_TEXT_MAX).join('');
+      if (next !== prev) { if (next) it.vText = next; else delete it.vText; changed = true; block.dataset.items = JSON.stringify(items); }
+    }
+    renderGraph(block);
+    grbVLabelPick(block, idx);
+    if (changed) {
+      window.pushHistory?.('그래프 값 라벨'); window.scheduleAutoSave?.();
+      if (block.classList.contains('selected')) window.showGraphProperties?.(block);
+    }
+  };
+  const onKey = (ev) => {
+    if (ev.isComposing || ev.keyCode === 229) return;
+    if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); finish(true); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(false); }
+  };
+  const onBlur = () => finish(true);
+  el.addEventListener('keydown', onKey);
+  el.addEventListener('blur', onBlur);
+}
+
+/* ★1017t1f5 👉 뒤 ⓐⓑ(2026-10-26 S3 · 현빈 「해당 값 선택시 아웃라인에 모서리핸들 넣어서 크기 조절」) — 고른 값 라벨의 모서리 핸들 넷.
+ *   ★어디 사나 = document.body 의 fixed 층(#canvas «밖») ⇒ 저장·내보내기·직렬화 대상이 아니다(배경 고스트·모달 프로필 칩과 같은 까닭).
+ *   ★언제 = 「블럭 선택 ∧ 그 블럭의 값 라벨 하나가 골라짐(grb-vlabel-cell-selected) ∧ 편집 중 아님」. 고르기 쓰기(grbVLabelPick)가 RAF 를 깨우고,
+ *     조건이 깨지면 숨고 멈춘다(고르기 표식을 지우는 자리가 여럿이라 — deselectAll · 렌더 — 그 자리마다 숨기기를 달지 않는다).
+ *   ★크기 = 모서리를 끌면 «라벨 중심에서 누른 점까지 거리»의 비로 글자 크기를 곱한다(어느 모서리든 같은 식 · 바깥 = 커짐).
+ *     끄는 동안은 el.style.fontSize 만, 놓을 때 items[idx].vFs 에 쓰고 다시 그린다(오프셋 끌기 _startVLabelOffsetDrag 와 같은 길 · ⌘Z 한 걸음). */
+let _vlHandleLayer = null, _vlHandleRaf = 0;
+function _vlPicked() {
+  for (const el of document.querySelectorAll('#canvas .grb-line-vlabel.grb-vlabel-cell-selected')) {
+    const block = el.closest('.graph-block, [data-type="graph"]') || el.closest('.grb-line-wrap')?.parentElement;
+    if (block && block.classList.contains('selected') && !block.classList.contains('editing') && !el.isContentEditable) return { block, el };
+  }
+  return null;
+}
+function _vlEnsureLayer() {
+  if (_vlHandleLayer && _vlHandleLayer.isConnected) return _vlHandleLayer;
+  const layer = document.createElement('div');
+  layer.id = 'grb-vlabel-handles';
+  layer.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;z-index:9990;display:none;';
+  ['nw', 'ne', 'se', 'sw'].forEach((c) => {
+    const h = document.createElement('div');
+    h.className = 'grb-vlabel-handle ' + c;
+    h.dataset.corner = c;
+    h.style.cssText = 'position:fixed;width:8px;height:8px;margin:-4px 0 0 -4px;box-sizing:border-box;background:#fff;border:1px solid var(--sel-color,#0d99ff);'
+      + `cursor:${c === 'nw' || c === 'se' ? 'nwse' : 'nesw'}-resize;`;
+    h.addEventListener('mousedown', _vlOnHandleDown);
+    layer.appendChild(h);
+  });
+  document.body.appendChild(layer);
+  _vlHandleLayer = layer;
+  return layer;
+}
+function _vlSyncHandles() {
+  _vlHandleRaf = 0;
+  const p = _vlPicked();
+  const layer = _vlHandleLayer;
+  if (!p) { if (layer) layer.style.display = 'none'; return; }
+  const L = _vlEnsureLayer();
+  const r = p.el.getBoundingClientRect();
+  const at = { nw: [r.left, r.top], ne: [r.right, r.top], se: [r.right, r.bottom], sw: [r.left, r.bottom] };
+  L.style.display = 'block';
+  for (const h of L.children) { const [x, y] = at[h.dataset.corner]; h.style.left = x + 'px'; h.style.top = y + 'px'; }
+  _vlHandleRaf = requestAnimationFrame(_vlSyncHandles);
+}
+function _vlWakeHandles() { if (!_vlHandleRaf) _vlHandleRaf = requestAnimationFrame(_vlSyncHandles); }
+function _vlOnHandleDown(e) {
+  if (e.button !== 0) return;
+  const p = _vlPicked();
+  if (!p) return;
+  e.stopPropagation(); e.preventDefault();
+  const { block, el } = p;
+  const idx = [...block.querySelectorAll('.grb-line-vlabel')].indexOf(el);
+  const r0 = el.getBoundingClientRect();
+  const cx = r0.left + r0.width / 2, cy = r0.top + r0.height / 2;
+  const d0 = Math.max(4, Math.hypot(e.clientX - cx, e.clientY - cy));
+  const fs0 = parseFloat(getComputedStyle(el).fontSize) || 16;
+  const Lm = window.GRAPH_LIMITS;
+  const clamp = (v) => Math.min(Lm.VLABEL_FS_MAX, Math.max(Lm.VLABEL_FS_MIN, Math.round(v)));
+  const sx = e.clientX, sy = e.clientY;
+  const _hist = window.beginDragHistory?.('그래프 값 라벨 크기');
+  let cur = null;
+  const onMove = (ev) => {
+    if (cur === null && Math.abs(ev.clientX - sx) < 3 && Math.abs(ev.clientY - sy) < 3) return;
+    _hist?.arm(ev.clientX - sx, ev.clientY - sy);
+    cur = clamp(fs0 * Math.hypot(ev.clientX - cx, ev.clientY - cy) / d0);
+    el.style.fontSize = cur + 'px';
+    ev.preventDefault();
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove, true);
+    document.removeEventListener('mouseup', onUp, true);
+    if (cur === null) return;
+    const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+    window.addEventListener('click', eat, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', eat, true), 0);
+    const its = JSON.parse(block.dataset.items || '[]');
+    if (!its[idx]) return;
+    its[idx].vFs = cur;
+    block.dataset.items = JSON.stringify(its);
+    renderGraph(block);
+    grbVLabelPick(block, idx);
+    window.pushHistory?.('그래프 값 라벨 크기');
+    window.scheduleAutoSave?.();
+    if (block.classList.contains('selected')) window.showGraphProperties?.(block);
+  };
+  document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('mouseup', onUp, true);
+}
+
 /* ★1017t1f6㉠ — 「축 보이기」가 켜졌을 때 왼쪽에 뜨는 눈금 숫자(.grb-ov-tick)를 캔버스에서 더블클릭해 바로 고친다.
  *   ★카테고리 라벨(_graphLabelBeginEdit 위)과 «같은 꼴»(더블클릭 → contenteditable → Enter/blur 확정 · Esc 취소)이되,
  *     저장 자리가 다르다 — 라벨은 items[idx].label(색인), 눈금은 dataset.axisTickText(JSON · 키 = 「계산된 숫자」의 글자).
@@ -973,6 +1112,7 @@ function _grbVLabelMarkIndex(block) {
 function grbVLabelPick(block, idx) {
   if (!block) return;
   block.querySelectorAll('.grb-line-vlabel').forEach((l, i) => l.classList.toggle('grb-vlabel-cell-selected', i === idx));
+  _vlWakeHandles();   // ★1017t1f5 👉 뒤 ⓐ — 고르면 모서리 핸들이 따라붙는다(조건이 깨지면 스스로 숨는다)
 }
 /** 클릭 지점(target)이 어느 값 라벨 위인가(없으면 −1) — grbPieSliceIndexAt 과 같은 꼴·같은 부르는 자리(block-drag.js 클릭 핸들러). */
 function grbVLabelIndexAt(target, block) {
@@ -1505,8 +1645,11 @@ function _renderGraphBody(block) {
       const dx = Number(it && it.vDx) || 0, dy = Number(it && it.vDy) || 0;
       return (dx || dy) ? `translate:${clamp(dx)}px ${clamp(dy)}px;` : '';
     };
+    /* ★1017t1f5 👉 뒤(2026-10-26 S3) — 값 라벨 «하나»의 크기(items[i].vFs)·글(items[i].vText). 키가 없으면 옛 자동값 그대로(옛 바이트). */
+    const _vFsOf = (it, d) => { const L = window.GRAPH_LIMITS; const n = Math.round(Number(it && it.vFs)); return n > 0 ? Math.min(L.VLABEL_FS_MAX, Math.max(L.VLABEL_FS_MIN, n)) : d; };
+    const _vTextOf = (it, d) => { const t = it && typeof it.vText === 'string' ? it.vText.trim() : ''; return t ? Array.from(t).slice(0, window.GRAPH_LIMITS.VLABEL_TEXT_MAX).join('') : d; };
     const labelsHTML = overlayItems.map(o =>
-      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${vlabelColorCss}${vlabelDisp}${_vOffCss(items[o.i])}">${_escGraphHtml(o.p.v)}</div>
+      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${_vFsOf(items[o.i], valSize)}px;${vlabelColorCss}${vlabelDisp}${_vOffCss(items[o.i])}">${_escGraphHtml(_vTextOf(items[o.i], o.p.v))}</div>
        <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${xlabelColorCss}${xlabelDisp}">${_escGraphHtml(o.p.label)}</div>`   /* E150 — 사용자 글자는 이스케이프(막대 셋과 같은 _escGraphHtml). 옛: `<b>` 가 태그로 읽혔다 */
     ).join('');
 
