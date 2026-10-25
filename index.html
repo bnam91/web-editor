@@ -1653,6 +1653,12 @@
 <script src="js/badge-transform.js"></script>
 <script src="js/text-effect-transform.js"></script>
 <script src="js/liner-transform.js"></script>
+<!-- ★★시안 : 섹션 아래 여백 손잡이 (2026-10-25 · 가지 `proto/section-bottom-space-handle`)
+     ⛔제품이 아니다 — dev 로 가져갈 때는 ★이 두 줄과 파일 둘을 ★같이 가져가고
+       ★`js/io/editor-ui-roster.js` 의 NON_CONTENT_UI_SELECTOR 에 ★`.proto-secbot-handle` 을 ★등록해야 한다
+       (★안 하면 ★내보내기에 ★손잡이가 실린다 · `PROTO-SECBOT-HANDLE-NOT-IN-UI-ROSTER-01`). -->
+<link rel="stylesheet" href="css/proto-section-bottom-space.css">
+<script src="js/proto-section-bottom-space.js"></script>
 <script type="module" src="js/props/prop-annotation.js"></script>
 <div id="block-context-menu" style="display:none;position:fixed;z-index:9999;min-width:180px;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:4px 0;box-shadow:0 4px 16px rgba(0,0,0,0.4);">
   <div class="bcm-item" id="bcm-save-template">
