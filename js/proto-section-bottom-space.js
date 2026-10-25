@@ -30,12 +30,38 @@
  *   · ★스냅(8px 격자 등) · ★수치 뱃지
  *   · ★`NON_CONTENT_UI_SELECTOR` 등록 — ★제품으로 갈 때 ★반드시 한다(★안 하면 ★내보내기에 ★실린다)
  *     ★이름 `PROTO-SECBOT-HANDLE-NOT-IN-UI-ROSTER-01`
+ *
+ * ═══ ★★★안 ★된 칸 (★★시안이 ★★못 한 것 — ★감추지 ★않는다) ═══════════════════
+ *   ★★끌고 나면 ★★섹션 ★선택이 ★풀린다 ⇒ ★★우측 패널이 ★사라진다.
+ *     ★실측(261025 · 헤드리스) : 끌기 뒤 `sec.classList.contains('selected')` = ★★false ·
+ *       `#sec-padb-slider` = ★없음. ★`stopPropagation` 을 해도, ★`selectSection(sec)` 을
+ *       ★다시 불러도 ★★그대로다.
+ *     ⇒ ★★그래서 ★「패널 숫자와 ★손잡이가 ★같은 값을 가리킨다」는 ★★이 시안의 주장은
+ *       ★★아직 ★증명되지 ★않았다. ★★«값은 맞는데 ★보여 줄 패널이 ★없다».
+ *     ★이름 `PROTO-SECBOT-DESELECT-ON-DRAG-01` (★★제품으로 갈 때 ★반드시 닫을 칸)
+ *     ★다음에 볼 곳 — ★누가 ★선택을 ★푸는가. `js/editor.js` 의 전역 `deselectAll` 둘레와
+ *       `pointerup`·`click` 을 ★듣는 자를 ★세라. ⛔「stopPropagation 했으니 됐다」로 ★닫지 마라 —
+ *       ★이미 ★그렇게 ★닫았다가 ★틀렸다.
+ *
+ *   ★★증명된 것은 ★이것뿐이다(그래도 ★핵심이다) :
+ *     ★끌면 ★`paddingBottom` 이 ★늘고 ★섹션 ★높이가 ★그만큼 ★는다(113 → 193 · 화면 ＋80) ·
+ *     ★배율을 ★먹는다(40% 에서 ★화면 120px = ★모델 300px) ·
+ *     ★상한이 ★★패널 슬라이더(`max=200`)에서 ★파생된다(★손으로 박은 400 이 ★한 값을 ★둘로 갈랐던 자리).
  */
 (function () {
   'use strict';
 
   const CLS = 'proto-secbot-handle';
-  const MAX = 400;          /* 시안 상한 — 패널 슬라이더와 맞춰야 한다(제품화 때 그 값에서 파생) */
+  /* ★★상한은 ★«패널 슬라이더»에서 ★파생한다 — ⛔손으로 적지 마라.
+     ★261025 ★실측: ★내가 ★400 을 ★손으로 박았더니 ★손잡이가 ★300 을 썼는데
+       ★슬라이더(max 200)가 ★★200 에 멈춰 ★★한 값이 ★두 곳에서 ★갈렸다.
+     ⇒ ★★이 시안의 ★주장(「패널 숫자와 손잡이가 ★같은 값을 가리킨다」)이 ★★깨졌던 자리다. */
+  const PAD_MAX_FALLBACK = 200;
+  function maxOf() {
+    const sl = document.getElementById('sec-padb-slider');
+    const m = sl && Number(sl.max);
+    return Number.isFinite(m) && m > 0 ? m : PAD_MAX_FALLBACK;
+  }
 
   function ensureHandle(sec) {
     if (!sec || sec.querySelector(':scope > .' + CLS)) return;
@@ -65,7 +91,7 @@
 
     const onMove = (e) => {
       const dy = (e.clientY - y0) / scale;
-      const v = Math.max(0, Math.min(MAX, Math.round(p0 + dy)));
+      const v = Math.max(0, Math.min(maxOf(), Math.round(p0 + dy)));
       sec.style.paddingBottom = v ? v + 'px' : '';
       window._showPadBHint?.(sec, v);      /* ★현빈이 시킨 그 띠를 그대로 쓴다 */
     };
@@ -76,8 +102,13 @@
       if (padOf(sec) !== p0) {
         window.pushHistory?.();
         window.triggerAutoSave?.();
-        /* 패널이 열려 있으면 숫자도 따라오게 — 한 값을 두 곳이 보이면 갈리면 안 된다 */
-        if (sec.classList.contains('selected')) window.showSectionProperties?.(sec);
+        /* ★★261025 ★실측 — 끌고 나면 ★섹션 선택이 ★풀린다(`sel:false` · 패널이 사라진다).
+           ★`stopPropagation` 을 ★해도 그렇다 — ★캔버스의 ★비우기가 ★다른 길로 돈다.
+           ⇒ ★끈 섹션을 ★다시 고른다. ★그러면 ★패널 숫자가 ★손잡이를 ★따라온다.
+           ⚠️이것은 ★증상 처리다 — ★«누가 선택을 푸는가»는 ★안 쟀다.
+             ★이름 `PROTO-SECBOT-DESELECT-SOURCE-UNMEASURED-01`. ★제품으로 갈 때 ★그 자리를 찾아라. */
+        window.selectSection?.(sec);
+        window.showSectionProperties?.(sec);
       }
     };
     document.addEventListener('pointermove', onMove);
