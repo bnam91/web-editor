@@ -10,6 +10,10 @@
  *   ⇒ ★그 단언은 ★★아무것도 ★잠그지 ★못한다(★초록이 ★양성이 ★아니다).
  *   ⇒ ★★그래서 ★★«두께를 ★갈라놓는 ★원인»을 ★잰다 : ★★테두리가 ★변형 ★«안»에 ★있는가.
  *
+ * ★★118 FT-GRID-THICKNESS-VARIES-UNDER-MATRIX-01(현빈 GO 261026 ㉠) — ★격자(3×3 분할선)도 ★같은 처방(변형 밖 svg)
+ *   G1 ★격자의 조상 사슬에 non-identity transform 0개 (핀 8608bb13 = `.tfh-fx` matrix3d 로 빨강)
+ *   G2 ★격자 휨 유지 — 사다리꼴에서 세로 분할선 둘의 «위 간격 ≠ 아래 간격»(평평하게 만들지 않았다) · 옛 꼴(div)은 SKIP
+ *
  * ★단언 둘
  *   F1 ★★주 단언 — ★`.tfh-edge` 의 ★조상 사슬(★`tb` 까지)에 ★★non-identity `transform` 이 ★★0개다.
  *      ★★핀 `b6c5f87d` 에서는 ★`.tfh-fx` 가 ★`matrix3d(원근)` 를 들고 있어 ★★빨강이다(양성대조).
@@ -83,7 +87,23 @@ async function scene(page, corners) {
         quad = [0, 1, 2, 3].map((i) => [parseFloat(nums[i * 2]), parseFloat(nums[i * 2 + 1])]);
       }
     }
+    /* ★118 FT-GRID-THICKNESS — ★격자(.tfh-grid)도 ★같은 자로: 조상 사슬의 non-identity transform 수 ＋ 선 네 개의 끝점 */
+    const grid = tb.querySelector('.tfh-grid');
+    const gchain = [];
+    if (grid) {
+      for (let el = grid; el && el !== tb.parentElement; el = el.parentElement) {
+        const t = getComputedStyle(el).transform;
+        gchain.push({ cls: (el.getAttribute && el.getAttribute('class')) || el.tagName, transform: t,
+          moving: !(t === 'none' || /^matrix\(1,\s*0,\s*0,\s*1,\s*0,\s*0\)$/.test(t)
+            || /^matrix3d\(1,\s*0,\s*0,\s*0,\s*0,\s*1,\s*0,\s*0,\s*0,\s*0,\s*1,\s*0,\s*0,\s*0,\s*0,\s*1\)$/.test(t)) });
+        if (el === tb) break;
+      }
+    }
+    const glines = grid && grid.tagName.toLowerCase() === 'svg'
+      ? [...grid.querySelectorAll('line')].map((l) => ['x1', 'y1', 'x2', 'y2'].map((k) => parseFloat(l.getAttribute(k)))) : null;
     return {
+      gridFound: !!grid, gridTag: grid ? grid.tagName.toLowerCase() : null,
+      gridMoving: gchain.filter((c) => c.moving), glines,
       found: !!edge,
       tag: edge ? edge.tagName.toLowerCase() : null,
       handles: tb.querySelectorAll('.tfh-handle').length,
@@ -132,4 +152,27 @@ test('F2 ★★휨은 ★남아 있다 — 사다리꼴에서 윗변 ≠ 아랫�
     `★윗변 ${top.toFixed(2)} 과 아랫변 ${bot.toFixed(2)} 이 ★같다 — ★★휨이 사라졌다. ` +
     '★현빈은 「휨 자체는 설계대로」라 하셨다 ⇒ ★두께만 고쳐야 한다'
   ).toBeGreaterThan(5);
+});
+
+test('G1 ★★118 격자도 ★변형 «밖»에 있다 (= 분할선 두께를 갈라놓는 원인이 없다)', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  const r = await scene(page, TRAP);
+  expect(r.gridFound, '★`.tfh-grid` 를 못 찾았다 — 자가 죽었다').toBe(true);
+  console.log('[G1] 꼴=', r.gridTag, '· 움직이는 조상=', JSON.stringify(r.gridMoving));
+  expect(r.gridMoving.length,
+    `★격자가 ★변형된 조상 ${r.gridMoving.length}개 ★«안»에 있다 — ${JSON.stringify(r.gridMoving)} ⇒ ★분할선 두께가 자리마다 갈린다`).toBe(0);
+});
+
+test('G2 ★★118 격자 휨은 남아 있다 — 사다리꼴에서 세로 분할선 둘의 위 간격 ≠ 아래 간격', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  const r = await scene(page, TRAP);
+  test.skip(!r.glines, `★격자가 ★svg 꼴이 아니다(tag=${r.gridTag}) — ★이 자의 범위 밖이다`);
+  expect(r.glines.length, '★분할선 넷').toBe(4);
+  /* 앞의 둘 = 세로(v) — 위 끝점 간격 vs 아래 끝점 간격 */
+  const [v1, v2] = r.glines;
+  const topGap = Math.abs(v2[0] - v1[0]), botGap = Math.abs(v2[2] - v1[2]);
+  console.log('[G2] 위 간격=', topGap.toFixed(2), '아래 간격=', botGap.toFixed(2));
+  expect(Math.abs(topGap - botGap), '★휨이 사라졌다(세로 분할선이 평행)').toBeGreaterThan(5);
 });

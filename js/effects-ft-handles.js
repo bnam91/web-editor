@@ -100,13 +100,11 @@ function _ensureLayers(tb) {
   if (!fx) {
     fx = document.createElement('div');
     fx.className = 'tfh-fx';
-    /* ★격자 = ★3×3 — ★시안 `:193~197` 그대로(★v 둘 · ★h 둘 · ★33.333%·66.666%) */
     /* ★★`.tfh-edge` 는 ★261025 에 ★`.tfh-layer`(변형 «밖») 로 ★옮겼다 — ★아래 `_ensureEdge` 참고.
-       ★여기 ★남는 것은 ★격자뿐이다(★격자의 ★휨은 ★그 자체가 ★맞는 표현이다). */
-    fx.innerHTML = '<div class="tfh-grid">'
-      + '<i class="v" style="left:33.333%"></i><i class="v" style="left:66.666%"></i>'
-      + '<i class="h" style="top:33.333%"></i><i class="h" style="top:66.666%"></i>'
-      + '</div>';
+       ~~★여기 ★남는 것은 ★격자뿐이다(★격자의 ★휨은 ★그 자체가 ★맞는 표현이다).~~
+       ★★261026(118 FT-GRID-THICKNESS · 현빈 GO ㉠) — ★격자도 ★같은 병(원근 행렬 안 ⇒ 분할선 두께가 자리마다 갈림)이라
+         ★★같은 처방으로 ★변형 «밖» svg 로 옮겼다(아래 `.tfh-grid`). ★이 층은 ★글자와 같은 행렬만 들고 ★비어 있다
+         (⛔지우지 않는다 — 층 수·청소(ftHandlesClear)·검사들이 이 층을 센다). */
     tb.appendChild(fx);
   }
   let layer = tb.querySelector(':scope > .tfh-layer');
@@ -120,7 +118,17 @@ function _ensureLayers(tb) {
     edge.appendChild(document.createElementNS(SVGNS, 'path'));
     layer.insertBefore(edge, layer.firstChild);
   }
-  return { fx, layer, edge };
+  /* ★★118 — ★격자 3×3 도 ★변형 «밖»의 svg — ★테두리(`.tfh-edge`) 바로 뒤 · 손잡이 앞(손잡이가 위에 그려져야 잡힌다).
+     ★선 넷 = ★시안 `:193~197` 그대로(v 둘 · h 둘 · 1/3·2/3) · 끝점은 ★손잡이·테두리와 ★같은 호모그래피(ftHandlesSync).
+     ★사영변환은 직선을 직선으로 보낸다 ⇒ 옛 판(행렬 안 div)의 중심선과 ★같은 선 ⇒ ★휨 그대로 · 두께만 균일. */
+  let grid = layer.querySelector(':scope > .tfh-grid');
+  if (!grid) {
+    grid = document.createElementNS(SVGNS, 'svg');
+    grid.setAttribute('class', 'tfh-grid');
+    for (const k of ['v', 'v', 'h', 'h']) { const l = document.createElementNS(SVGNS, 'line'); l.setAttribute('class', k); grid.appendChild(l); }
+    edge.after(grid);
+  }
+  return { fx, layer, edge, grid };
 }
 
 /** 손잡이·격자를 ★놓는다(멱등). 돌려주는 것 = 놓은 손잡이 수(안 떠야 하면 0). */
@@ -135,7 +143,7 @@ export function ftHandlesSync(tb) {
   const h = homography([[0, 0], [st.W, 0], [st.W, st.H], [0, st.H]], D);
   if (!h) return 0;                       /* ★한 줄·겹침 ⇒ 못 푼다 — ★정본도 그리지 않는다 */
 
-  const { fx, layer, edge } = _ensureLayers(tb);
+  const { fx, layer, edge, grid } = _ensureLayers(tb);
   /* ★★⒤ 꾸밈 층 — ★글자와 ★«같은 행렬». ★시안 `:570~571` 그대로(origin `0 0`). */
   fx.style.width = st.W + 'px'; fx.style.height = st.H + 'px';
   fx.style.left = st.OX + 'px'; fx.style.top = st.OY + 'px';
@@ -164,6 +172,18 @@ export function ftHandlesSync(tb) {
     edge.setAttribute('viewBox', `0 0 ${bw} ${bh}`);
     edge.firstChild.setAttribute('d',
       'M' + P.map((p) => `${(p[0] - bx).toFixed(3)},${(p[1] - by).toFixed(3)}`).join('L') + 'Z');
+    /* ★★118 격자 — ★테두리와 ★같은 상자·같은 viewBox(분할선은 네 점 안에 있다) · 끝점 = 원 W×H 의 1/3·2/3 를 ★같은 h 로 */
+    const mapPt = ([x, y]) => { const w = h[6] * x + h[7] * y + 1; return toLocal([(h[0] * x + h[1] * y + h[2]) / w, (h[3] * x + h[4] * y + h[5]) / w]); };
+    const segs = [[[st.W / 3, 0], [st.W / 3, st.H]], [[st.W * 2 / 3, 0], [st.W * 2 / 3, st.H]],
+                  [[0, st.H / 3], [st.W, st.H / 3]], [[0, st.H * 2 / 3], [st.W, st.H * 2 / 3]]];
+    grid.style.left = bx + 'px'; grid.style.top = by + 'px';
+    grid.style.width = bw + 'px'; grid.style.height = bh + 'px';
+    grid.setAttribute('viewBox', `0 0 ${bw} ${bh}`);
+    [...grid.children].forEach((l, i) => {
+      const a = mapPt(segs[i][0]), b = mapPt(segs[i][1]);
+      l.setAttribute('x1', (a[0] - bx).toFixed(3)); l.setAttribute('y1', (a[1] - by).toFixed(3));
+      l.setAttribute('x2', (b[0] - bx).toFixed(3)); l.setAttribute('y2', (b[1] - by).toFixed(3));
+    });
   }
   const put = (name, pt, kind) => {
     let el = layer.querySelector(`:scope > [data-tfh="${name}"]`);
