@@ -22,11 +22,28 @@
  *     ⑶ ★네 출구는 ★★이미 ★`style.backgroundImage` 를 ★읽는 길이 ★있다(★기존 그라데이션과 ★같은 자리)
  *
  * ★★안 재는 축 (★이름)
- *   · ★PNG 네이티브(CDP) 실물 픽셀 — `MESH-PNG-NATIVE-PIXEL-UNMEASURED-01` (★앱 축)
- *   · ★html2canvas 폴백(웹빌드)이 ★4겹을 ★그리나 — `MESH-H2C-FALLBACK-UNMEASURED-01`
+ *   · ★★`MESH-PNG-NATIVE-PIXEL-UNMEASURED-01` ⇒ ★★261025 ★닫혔다(미카사 · 실앱 네이티브 캡처).
+ *     ★실측 — 1x 860×283 PNG 의 모서리 2px 안쪽 네 점 `#fe6ec6`/`#7b5cfe`/`#4dd6d1`/`#fdd067`
+ *       ⇒ ★여기 ★M7 이 잰 헤드리스 값과 ★채널차 ★≤2. ★가운데 `#b19ebf`(예측 평균 `#b19dbf`).
+ *       ★대조군도 돌았다 — ★민 섹션 다섯 점 `#ffffff` · ★linear 섹션 위 분홍/아래 청록.
+ *   · ★html2canvas 폴백(웹빌드)이 ★4겹을 ★그리나 — `MESH-H2C-FALLBACK-UNMEASURED-01` (★아직 안 잼)
  *     (★그 길은 ★게이트 ★비적용이다 — `export-image.js:488` 「검사는 여기서 «안» 돈다」)
- *   · ★Figma 는 ★`isGradient` 를 ★이미 ★단색(`#eeeeee`)으로 ★떨어뜨린다(`export-figma-json.js:1449`)
- *     ⇒ ★기존 그라데이션과 ★★같은 방식으로 ★degrade 한다. ★그 «모양»은 ★안 잰다 — `MESH-FIGMA-FLATTEN-UNMEASURED-01`
+ *   · ★★★Figma — ★★261025 ★★내 독해가 ★틀렸고 ★미카사가 ★실앱으로 ★잡았다. ★정정해 적는다 :
+ *     ⛔내가 처음에 쓴 말 = 「`isGradient` 를 ★단색 `#eeeeee` 로 떨어뜨린다(`:1449`)」
+ *       ★★틀렸다 — ★나는 ★`:1449`(★마지막 줄)만 보고 ★박았고, ★그 ★앞에
+ *       ★★`if (_liveOpaque) background = _liveBg;`(:1447)가 ★★먼저 있다.
+ *       ★메시 섹션은 ★`backgroundColor = 네 색 평균`(★불투명)을 깔므로 ★★거기서 끝난다.
+ *     ★★실측(미카사 · 실앱 Figma JSON) : ★메시 섹션 fill = `rgb(177,157,191)` = ★네 모서리 ★평균 ·
+ *       ★`linear` 섹션 fill = `rgb(255,255,255)` ⇒ ★★`#eeeeee` 는 ★★한 번도 ★안 나왔다.
+ *       ★그 값은 ★★«진짜 투명한» 섹션에서만 나온다(그 줄의 주석이 ★그렇게 적어 뒀다).
+ *     ★★「기존 그라데이션과 ★같은 방식으로 degrade」라는 ★★취지는 ★맞았다 —
+ *       ★`linear` 도 ★한 색(흰색)으로 간다. ⇒ ★그라데이션이 ★Figma 에서 ★한 색이 되는 것은
+ *       ★★메시만의 일이 ★아니다(★기존 결함). ★★틀린 것은 ★«값»이다.
+ *     ★쓸 만한가 = ★★✗(미카사 판정) — ★고른 네 색이 ★하나도 ★안 간다.
+ *       ⇒ ★별건 카드 `MESH-FIGMA-FOUR-RADIAL-PAINTS-01`(메시를 radial 4겹 paint 로)
+ *       ＋ ★덤 `SECTION-GRADIENT-FIGMA-WHITE-NOT-EEEEEE-01`(★기존 linear 도 같은 손실)
+ *     ★안 잰 축 — ★실 Figma ★업로드 · ★투명 바탕 갈래 · ★내보내기 단추 ★실클릭(MCP 로 같은 함수 호출).
+ *     ⇒ `MESH-FIGMA-FLATTEN-UNMEASURED-01` 은 ★닫는다(★위 둘이 ★그 자리를 ★이어받는다).
  *
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js section-mesh-gradient-v1
  */

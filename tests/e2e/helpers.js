@@ -58,10 +58,11 @@ function mcpPortEnv(mcpPort) {
   return { ...process.env, GODITOR_MCP_PORT: String(n) };
 }
 
-/** tests 안 유일한 띄움 자리 — opts 는 playwright electron 띄우개 인자 그대로 · env 는 여기서 정한다. */
+/** tests 안 유일한 띄움 자리 — opts 는 playwright electron 띄우개 인자 그대로 · env 는 여기서 정한다.
+ *  GODITOR_MCP_PORT 를 호출 글자에 드러내 둔다 — tests/unit/e2e-launch-passes-mcp-port.test.mjs G1 이 호출 글자를 읽는다. */
 async function launchElectron(opts, mcpPort) {
-  const env = mcpPortEnv(mcpPort);
-  return _electron.launch({ ...opts, env });
+  const { GODITOR_MCP_PORT, ...env } = mcpPortEnv(mcpPort);
+  return _electron.launch({ ...opts, env: { ...env, GODITOR_MCP_PORT } });
 }
 
 async function launchIsolated({ port, profile, mcpPort, args = [], cwd = process.cwd() }) {

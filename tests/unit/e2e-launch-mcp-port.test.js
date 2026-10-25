@@ -24,9 +24,11 @@ const HELPERS_REL = 'tests/e2e/helpers.js';
 /* helpers.js 에서 `_electron` 이 있어도 되는 두 줄 — 글자째 */
 const ALLOWED_LINES = [
   "const { chromium, _electron } = require('@playwright/test');",
-  'return _electron.launch({ ...opts, env });',
+  'return _electron.launch({ ...opts, env: { ...env, GODITOR_MCP_PORT } });',
 ];
 const PROFILE = '/nonexistent/s6-t7-probe';
+/* 날글자 전수에서 빼는 파일 — «같은 일을 재는 다른 자»라 글자 `_electron` 을 품는다(정규식·맛보기 표본). 이름째 하나만. */
+const CENSUS_SKIP = ['tests/unit/e2e-launch-passes-mcp-port.test.mjs'];   // 지디 285770cb · G0~G4
 
 /** helpers.js 를 «가짜 playwright» 위에서 새로 읽어 fn(h) 를 부른다. fs 쓰기·자격증명 복사는 막는다. */
 async function withFakeHelpers(fn, { envOverride = {} } = {}) {
@@ -140,7 +142,10 @@ function treeFiles() {
     if (e.name === 'node_modules') continue;
     const f = path.join(d, e.name);
     if (e.isDirectory()) walk(f);
-    else if (/\.(c?js|mjs|ts|sh)$/.test(e.name) && f !== __filename) out[path.relative(ROOT, f).split(path.sep).join('/')] = fs.readFileSync(f, 'utf8');
+    else if (/\.(c?js|mjs|ts|sh)$/.test(e.name) && f !== __filename) {
+      const rel = path.relative(ROOT, f).split(path.sep).join('/');
+      if (!CENSUS_SKIP.includes(rel)) out[rel] = fs.readFileSync(f, 'utf8');
+    }
   } };
   walk(path.join(ROOT, 'tests'));
   return out;
@@ -184,7 +189,7 @@ test('⑶ ⑵ 의 자는 반례에 속지 않는다 — 지금 helpers 는 통�
     playwrightCore: { [E]: "require('playwright-core')._electron.launch({});" },
     keySpill: { [HELPERS_REL]: H.replace('async function launchElectron', "const relaunchRaw = () => _electron.launch({ args: ['.'] });\nasync function launchElectron") },
     /* launchElectron 몸에서 env 를 opts 앞에 두면 부른 쪽이 덮을 수 있다 — 허락된 줄과 글자가 달라져 걸린다 */
-    envFirst: { [HELPERS_REL]: H.replace('return _electron.launch({ ...opts, env });', 'return _electron.launch({ env, ...opts });') },
+    envFirst: { [HELPERS_REL]: H.replace('return _electron.launch({ ...opts, env: { ...env, GODITOR_MCP_PORT } });', 'return _electron.launch({ env: { ...env, GODITOR_MCP_PORT }, ...opts });') },
     secondImport: { [HELPERS_REL]: H + "\nconst { chromium, _electron } = require('@playwright/test');" },
   };
   for (const [k, files] of Object.entries(BAD)) {

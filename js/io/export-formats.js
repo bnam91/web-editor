@@ -40,7 +40,18 @@ export function isAnimFormat(id) { return !!exportFormatOf(id).anim; }
 export function exportMimeOf(id) { return exportFormatOf(id).mime || 'image/png'; }
 /** 내려받는 파일의 확장자. */
 export function exportExtOf(id) { return exportFormatOf(id).ext || 'png'; }
-/** 결과 모달 뱃지에 쓰는 ★짧은 이름. ★모르는 id 면 ★그 id 를 ★대문자로(옛 폴백 그대로). */
+/** 결과 모달 뱃지에 쓰는 ★짧은 이름. ★모르는 id 면 ★그 id 를 ★대문자로(옛 폴백 그대로).
+ *
+ * ★★⛔«이 값»으로 ★파생이 맞는지 ★재지 ★마라 — ★★자를 ★무디게 한다. (261025 · S3 이 찾았다)
+ *   ★까닭 : ★폴백이 ★`String(id).toUpperCase()` 라 ★★파생이 ★깨져도 ★`'jpg'` → ★`'JPG'` 로
+ *     ★★맞게 ★보인다. ⇒ ★★거짓 통과가 된다.
+ *   ★폴백 자체는 ★두는 게 맞다 — ★사용자에게 ★빈 뱃지를 ★보이느니 ★id 라도 ★보이는 편이 낫다.
+ *     ★★무뎌지는 것은 ★«자»이지 ★«제품»이 ★아니다.
+ *   ⇒ ★★파생을 재려면 ★★«파일 이름»과 ★«매직 바이트»를 ★봐라
+ *     (실측 261025 · S3 : `.jpg`/`ff d8 ff` · `.png`/`89 50 4e 47` · `.webp`/`RIFF` — ★셋이 ★서로 다르다).
+ *   ★덤 : ★섹션 ★«단건» 길은 ★검사가 ★「캔버스와 같음」이면 ★모달 없이 ★토스트만 뜬다
+ *     (`js/export-result-modal.js:149~151`) ⇒ ★뱃지를 ★아예 ★못 보는 길도 ★있다.
+ */
 export function exportShortOf(id) {
   const f = EXPORT_FORMATS.find(x => x.id === id);
   return f ? f.short : String(id || '').toUpperCase();
