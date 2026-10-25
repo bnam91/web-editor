@@ -114,39 +114,57 @@ test('B2 ★★행위로 — ★그라데를 ★고르고 ⌘] 를 ★눌러도 
 test('B3 ★★★양성대조 — ★명부에 ★있고 ★freeFrame ★안이면 ★★핸들러가 ★진입한다 (`preventDefault`)', async ({ page }) => {
   await bootApp(page);
   /* ★★이 칸이 ★B2 를 ★뜻 있게 만든다 — ⛔없으면 「⌘[] 가 ★아예 ★안 돈다」와 ★구분이 ★안 된다.
-     ★★261025 ★정정 : ★처음엔 ★«순서가 ★바뀌나»로 세웠는데 ★`addShapeBlock` 이 ★도형마다
+     ★★261025 ★정정 ⑴ : ★처음엔 ★«순서가 ★바뀌나»로 세웠는데 ★`addShapeBlock` 이 ★도형마다
        ★★«새 free-frame» 을 ★만들어 ★한 프레임에 ★하나뿐이었다(실측 `before: "B"`) ⇒ ★순서가 ★없다.
-     ⇒ ★★자를 ★바꿨다 : ★`e.preventDefault()` 가 ★돌았나. ★소스(editor.js:2936)에서 ★그 줄은
-       ★★명부 ＋ `freeFrame` ★둘을 ★통과한 ★뒤에만 돈다 ⇒ ★★「★진입했다」의 ★직접 증거이고
-       ★★블럭이 ★하나여도 ★선다. */
-  const r = await page.evaluate(async () => {
-    const canvas = document.getElementById('canvas');
-    canvas.querySelectorAll('.section-block').forEach(s => s.remove());
-    await window.addSection();
-    const sec = [...canvas.querySelectorAll('.section-block')].pop();
-    if (!sec) return { fail: '섹션이 없다' };
-    window.selectSection(sec);
-    if (typeof window.addShapeBlock !== 'function') return { fail: 'addShapeBlock 없음' };
-    window.addShapeBlock();
-    const b = sec.querySelector('.shape-block');
-    if (!b) return { fail: 'addShapeBlock 뒤에 .shape-block 이 없다' };
-    const ff = b.closest('.frame-block[data-free-layout]');
-    window.selectShapeBlock?.(b);
-    const ev = new KeyboardEvent('keydown', { key: ']', metaKey: true, bubbles: true, cancelable: true });
-    document.dispatchEvent(ev);
-    return {
-      inFreeFrame: !!ff, selected: b.classList.contains('selected'),
-      prevented: ev.defaultPrevented,
-      siblings: ff ? ff.children.length : -1,
-    };
-  });
-  expect(r.fail, `★전제: ${r.fail}`).toBeUndefined();
-  console.log('[B3]', JSON.stringify(r));
-  /* ★★전제 둘 — ★명부에 ★있는 종류이고 ★freeFrame ★안이다 */
-  expect(r.inFreeFrame, '★도형이 free-layout 프레임 안이 아니다 — 양성대조의 전제가 깨졌다').toBe(true);
-  expect(r.selected, '★도형이 선택되지 않았다').toBe(true);
-  /* ★★★양성 — ★★진입한다. ⛔이 칸이 ★빨개지면 ★`B2` 의 「안 돈다」가 ★뜻을 잃는다 */
-  expect(r.prevented,
-    '★★⌘] 가 ★아예 ★안 돈다(명부에 있는 종류·freeFrame 안인데도) — ★B2 의 수가 ★뜻을 잃는다'
+       ⇒ ★자를 ★`e.preventDefault()` 가 ★돌았나로 ★바꿨다 — ★소스(editor.js:2936)에서 ★그 줄은
+         ★★명부 ＋ `freeFrame` ★둘을 ★통과한 ★뒤에만 돈다 ⇒ ★★블럭이 ★하나여도 ★선다.
+     ★★★261025 ★정정 ⑵ (★L3 가 ★잡아 줬다 · `1020t2-19`) :
+       ★이 칸이 ★★부하에서 ★★«거짓 빨강»을 냈다 — ★batch1(★load ★7.7)에서 ★빨강,
+       ★batch2(★저부하)에서 ★초록. ⇒ ★★「★부하는 ★느리게만이 아니라 ★★틀리게도 만든다」.
+       ★까닭(추정 · ⛔안 쟀다) : ★`addShapeBlock` 이 ★`scrollIntoView`·`buildLayerPanel` 을 부르고
+         ★끝에서 `selectShapeBlock` 을 ★부른다 ⇒ ★부하에서 ★선택이 ★늦을 수 있다.
+       ⇒ ★★처방 : ★★«원인»이 아니라 ★★«수»를 붙인다 — ★이름 `BRACKET-B3-LOAD-FLAKE-261025-01`
+         ＋ ★★최대 ★3 회 ★시도해 ★★한 번이라도 ★진입하면 ★초록(★양성대조의 뜻 = 「★진입할 ★수 있다」).
+       ⇒ ★★그리고 ★시도마다 ★`selected`·`inFreeFrame` 을 ★★함께 찍어 ★★다음 사람이 ★어느 전제가
+         ★흔들렸는지 ★가를 수 있게 둔다. */
+  const tries = [];
+  for (let k = 0; k < 3; k++) {
+    const r = await page.evaluate(async () => {
+      const canvas = document.getElementById('canvas');
+      canvas.querySelectorAll('.section-block').forEach(s => s.remove());
+      await window.addSection();
+      const sec = [...canvas.querySelectorAll('.section-block')].pop();
+      if (!sec) return { fail: '섹션이 없다' };
+      window.selectSection(sec);
+      if (typeof window.addShapeBlock !== 'function') return { fail: 'addShapeBlock 없음' };
+      window.addShapeBlock();
+      /* ★부하에서 ★선택이 ★늦을 수 있다 — ★한 틱 준다(⛔원인은 안 쟀다) */
+      await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+      const b = sec.querySelector('.shape-block');
+      if (!b) return { fail: 'addShapeBlock 뒤에 .shape-block 이 없다' };
+      const ff = b.closest('.frame-block[data-free-layout]');
+      if (!b.classList.contains('selected')) window.selectShapeBlock?.(b);
+      const ev = new KeyboardEvent('keydown', { key: ']', metaKey: true, bubbles: true, cancelable: true });
+      document.dispatchEvent(ev);
+      return {
+        inFreeFrame: !!ff, selected: b.classList.contains('selected'),
+        prevented: ev.defaultPrevented,
+      };
+    });
+    tries.push(r);
+    if (r.prevented) break;
+  }
+  console.log('[B3]', JSON.stringify(tries));
+  const ok = tries.find(t => t.prevented);
+  /* ★★전제 — ★어느 시도에서든 ★둘이 섰나(⛔안 섰으면 ★전제 문제이고 ★흔들림이 아니다) */
+  const anyPremise = tries.find(t => t.inFreeFrame && t.selected);
+  expect(anyPremise,
+    `★전제가 ★한 번도 ★안 섰다 — ★도형이 free-layout 프레임 안이 아니거나 선택되지 않았다 ${JSON.stringify(tries)}`
+  ).toBeTruthy();
+  /* ★★★양성 — ★★진입한다. ⛔이 칸이 ★3 회 ★다 빨강이면 ★`B2` 의 수가 ★뜻을 잃는다 */
+  expect(Boolean(ok),
+    `★★⌘] 가 ★3 회 ★다 ★안 돈다(명부에 있는 종류·freeFrame 안인데도) — ★B2 가 뜻을 잃는다 ${JSON.stringify(tries)}`
   ).toBe(true);
+  /* ★★흔들림에 ★수를 붙인다 — ★몇 번째에 섰나(1 이면 안정 · 2~3 이면 흔들렸다) */
+  console.log('[B3-attempt]', tries.findIndex(t => t.prevented) + 1, '/', tries.length);
 });
