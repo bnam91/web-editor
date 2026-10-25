@@ -341,6 +341,19 @@ function migrateLegacyGradientBlocks(canvasEl) {
     if (!sec) return;
     // 이미 섹션 직속 자식이면 skip
     if (block.parentElement === sec) return;
+    /* ★★★`GRAD-GROUP-LOST-ON-RELOAD-01` (2026-10-25 · 지디 · 태양 t5-07 가 「지디 판정」으로 넘김)
+       ★★그룹·프레임 안이면 ★★«legacy 가 아니다» — ★건드리지 않는다.
+       ★병 : 아래 두 갈래가 ★`.frame-block` 안의 그라데이션까지 ★섹션 직속으로 ★꺼냈다
+         ⇒ ★★`rebindAll`(⌘Z·로드·페이지 전환) ★한 번에 ★그룹이 ★풀리고,
+           ★저장본에는 ★★빈 껍데기만 남아 ★사용자가 ★「그룹인 줄 알고」 ★계속 쓴다(★더 나쁘다).
+       ★이 함수의 ★원래 몫은 ★「legacy ★`.row` / ★`.section-inner` 안」을 끌어올리는 것이다 —
+         ★`.frame-block` 은 ★★legacy 가 ★아니라 ★★«지금 쓰는 구조»다.
+       ★★선택자를 ★행위로 쟀다(`G4` · 261025) : ★그룹(`dataset.group='true'`)과 ★프레임 ★둘 다
+         ★래퍼가 ★`.frame-block` 이고(block-factory.js:2170 등) ★`.section-inner` ★밖이다
+         ⇒ ★★`.frame-block` ★하나로 ★둘을 ★같이 지키고 ★legacy 길은 ★안 막는다.
+       ★잠그는 자 = `tests/dom/grad-group-lost-on-reload.dom.spec.js` ★`G1`·`G2`
+         (⛔이 줄을 지우면 그 둘이 ★빨강으로 돌아온다 — ★무력화 대조로 재 뒀다) */
+    if (block.closest('.frame-block')) return;
     // row 안에 있다면 섹션 직속으로 끌어올리고 row 삭제 (다른 자식 없을 경우)
     if (parentRow) {
       sec.appendChild(block);

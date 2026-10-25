@@ -128,7 +128,7 @@ test('G0 ★전제 — ★앱 길로 ★그라데 둘을 ★⌘G 로 ★묶을 �
   expect(p.A, '★A 가 그룹(frame) 안이 아니다').toBe('frame');
 });
 
-test('G1 ★★★등급 ⑴ — ★저장을 ★안 해도 ★`rebindAll()` ★한 번으로 ★그룹이 ★깨진다', async ({ page }) => {
+test('G1 ★★★고침 — ★`rebindAll()` 뒤에도 ★그룹이 ★★산다 (★261025 ★뒤집었다)', async ({ page }) => {
   await bootApp(page);
   if (!(await _canGroupGradients(page))) {
     test.skip(true, '★★⌘G 가 그라데를 안 묶는다 — `t5-07`(43749cd6) 머지 전이다'
@@ -145,13 +145,17 @@ test('G1 ★★★등급 ⑴ — ★저장을 ★안 해도 ★`rebindAll()` ★
   expect(before.frames, '★parentsOf 가 #ggSec 를 못 찾았다 — 아래 판정이 거짓이다').toBeGreaterThanOrEqual(0);
   expect(before.A, '★전제: 전에 frame 안이 아니다').toBe('frame');
   /* ★★★수를 박는다 — ★깨진다. ★이 칸이 ★빨개지면 = ★★고쳐진 것이다 ⇒ ★뒤집어라 */
+  /* ★★★261025 ★뒤집었다 — ★고침 `gradient-select.js` 의 `if (block.closest('.frame-block')) return;`
+     ★고침 ★전 실측 : `{A: frame, B: frame}` → ★★`{A: sec, B: sec}` (★깨졌다)
+     ★고침 ★후 실측 : `{A: frame, B: frame}` → ★★`{A: frame, B: frame}` (★★산다)
+     ⇒ ★★이 칸이 ★다시 ★빨개지면 = ★★그 한 줄이 ★죽은 것이다(★무력화 대조로 재 뒀다). */
   expect(after.A,
-    `★그룹이 ★살았다 — ★고쳐졌다면 ★이 칸을 ★뒤집어라 (A: ${before.A} → ${after.A} · frames ${before.frames} → ${after.frames})`
-  ).toBe('sec');
-  expect(after.B, '★B 도 같이 봐야 한다').toBe('sec');
+    `★★그룹이 ★깨졌다 — ★그 한 줄(frame-block return)이 ★죽었나 (A: ${before.A} → ${after.A})`
+  ).toBe('frame');
+  expect(after.B, `★B 도 깨졌다 (${before.B} → ${after.B})`).toBe('frame');
 });
 
-test('G2 ★★★등급 ⑵ — ★그 뒤 ★저장본에서 ★★그룹 ★안의 그라데가 ★0 이 된다 (★굳는다)', async ({ page }) => {
+test('G2 ★★★고침 — ★저장본에서도 ★그룹 ★안의 그라데가 ★★산다 (★261025 ★뒤집었다)', async ({ page }) => {
   await bootApp(page);
   if (!(await _canGroupGradients(page))) {
     test.skip(true, '★★⌘G 가 그라데를 안 묶는다 — `t5-07`(43749cd6) 머지 전이다'
@@ -190,11 +194,12 @@ test('G2 ★★★등급 ⑵ — ★그 뒤 ★저장본에서 ★★그룹 ★�
   expect(r.after.secs, '★섹션이 저장본에서 사라졌다').toBeGreaterThan(0);
   expect(r.after.gradTotal, '★그라데가 저장본에서 사라졌다 — 병이 더 넓다').toBe(r.before.gradTotal);
   /* ★★★수 — ★그룹 ★안이 ★비고, ★껍데기는 ★남는다 */
+  /* ★★★261025 ★뒤집었다 — ★고침 ★전엔 ★`gradInFrame 2 → ★0`(★굳었다) · ★후엔 ★`2 → ★2` */
   expect(r.after.gradInFrame,
-    `★그룹 안 그라데가 ★살았다 — ★고쳐졌다면 ★뒤집어라 (${r.before.gradInFrame} → ${r.after.gradInFrame})`
-  ).toBe(0);
+    `★★저장본의 ★그룹 안이 ★비었다 — ★그 한 줄이 ★죽었나 (${r.before.gradInFrame} → ${r.after.gradInFrame})`
+  ).toBe(r.before.gradInFrame);
   expect(r.after.frames,
-    `★★빈 ★껍데기도 ★사라졌다 — ★증상의 ★꼴이 ★바뀌었다 (frames ${r.before.frames} → ${r.after.frames})`
+    `★frame 수가 변했다 — 증상의 꼴이 바뀌었다 (${r.before.frames} → ${r.after.frames})`
   ).toBe(r.before.frames);
 });
 
@@ -221,4 +226,65 @@ test('G3 ★★음성대조 — ★★섹션 ★직속 그라데는 ★`rebindAl
   console.log('[G3]', JSON.stringify(r));
   expect(r.before, '★전제: 그룹 없이 만든 그라데가 섹션 직속이 아니다').toBe('sec');
   expect(r.after, '★★섹션 직속 그라데까지 움직였다 — 병이 ★훨씬 넓다').toBe('sec');
+});
+
+test('G4 ★★★처방의 ★자 — ★`.frame-block` 이 ★맞는 ★자인가 (★행위로 · ★그룹 ＋ ★프레임 ★둘)', async ({ page }) => {
+  await bootApp(page);
+  if (!(await _canGroupGradients(page))) {
+    test.skip(true, '★★⌘G 가 그라데를 안 묶는다 — `t5-07`(43749cd6) 머지 전이다'
+      + ' = GRAD-GROUP-GRADE-BLOCKED-BY-T5-07-NOT-MERGED-01 (⛔FAIL 아니라 SKIP)');
+  }
+  /* ★★처방 후보는 ★`if (block.closest('.frame-block')) return;` ★한 줄이다.
+     ⛔그 ★선택자가 ★맞는 ★자인지 ★★«행위로» 먼저 잰다 — ★내가 ★소스로 읽은 것 :
+       `wrapSelectedBlocksInFrame` 은 ★`asGroup` 이면 ★`ss.dataset.group='true'` 만 ★더하고
+       ★래퍼 ★자체는 ★그룹·프레임 ★둘 다 ★`.frame-block` 이다(block-factory.js:2170 등).
+     ⇒ ★★그러면 ★`.frame-block` 으로 막으면 ★★프레임 안 그라데도 ★같이 ★지켜진다
+       — ★그게 ★★맞다 : ★원래 목적은 ★「legacy ★`.row` 안」을 ★끌어올리는 것이고
+         ★`.frame-block` 은 ★legacy 가 ★아니다(★`.section-inner` 는 legacy 라 ★꺼내야 한다).
+     ★★이 칸은 ★그 ★전제를 ★★수로 박는다 — ★래퍼의 ★정체를 ★찍는다. */
+  const r = await page.evaluate(async () => {
+    const out = {};
+    const mk = async (asGroup) => {
+      const canvas = document.getElementById('canvas');
+      canvas.querySelectorAll('.section-block').forEach(s => s.remove());
+      await window.addSection();
+      const sec = [...canvas.querySelectorAll('.section-block')].pop();
+      sec.id = 'ggSec';
+      window.selectSection(sec);
+      const a = window.addGradientBlock?.();
+      const b = window.addGradientBlock?.();
+      if (!a || !b) return { fail: 'addGradientBlock' };
+      for (const el of [a, b]) if (!el.classList.contains('selected')) window.toggleBlockSelect?.(el);
+      if (asGroup) window.groupSelectedBlocks?.();
+      else window.wrapSelectedBlocksInFrame?.({ asGroup: false });
+      const w = a.closest('.frame-block');
+      return {
+        wrapped: !!w,
+        cls: w ? [...w.classList].join(' ') : '(없다)',
+        isGroup: w ? w.dataset.group === 'true' : null,
+        isFree: w ? w.dataset.freeLayout !== undefined : null,
+        /* ★★`.section-inner` 는 ★legacy 라 ★꺼내야 한다 — ★그 안이 ★아님을 ★같이 본다 */
+        inSectionInner: !!a.closest('.section-inner'),
+      };
+    };
+    out.group = await mk(true);
+    out.frame = await mk(false);
+    return out;
+  });
+  console.log('[G4]', JSON.stringify(r));
+  /* ★★전제 — ★★둘 다 ★묶였다(⛔하나라도 안 묶이면 ★이 수가 ★뜻을 잃는다) */
+  expect(r.group.wrapped, '★그룹이 안 묶였다').toBe(true);
+  /* ★★★수 ⑴ — ★그룹 래퍼는 ★`.frame-block` 이고 ★`[data-group]` 로 ★구분된다 */
+  expect(r.group.cls, `★그룹 래퍼 클래스가 다르다 (${r.group.cls})`).toContain('frame-block');
+  expect(r.group.isGroup, '★그룹인데 dataset.group 이 안 붙었다').toBe(true);
+  /* ★★★수 ⑵ — ★프레임(asGroup false)도 ★같은 ★`.frame-block` 이다
+     ⇒ ★★처방 선택자 `.frame-block` 은 ★★그룹 ★＋ 프레임 ★둘을 ★같이 지킨다(★의도한 바다) */
+  if (r.frame.wrapped) {
+    expect(r.frame.cls, `★프레임 래퍼 클래스가 다르다 (${r.frame.cls})`).toContain('frame-block');
+    expect(r.frame.isGroup, '★프레임인데 dataset.group 이 붙었다 — 둘을 못 가른다').not.toBe(true);
+  } else {
+    console.log('[G4] ⚠️프레임(asGroup false) 길은 ★안 묶였다 — `FRAME-WRAP-PATH-UNMEASURED-01`');
+  }
+  /* ★★⑶ ★legacy 자리와 ★겹치지 ★않는다 — ★`.section-inner` 안이 ★아니다 */
+  expect(r.group.inSectionInner, '★그룹 안 그라데가 .section-inner 안이다 — 처방이 legacy 길을 막는다').toBe(false);
 });
