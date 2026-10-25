@@ -91,6 +91,23 @@ function _appendCardTexts(container, card, titleSize, descSize, textAlign, title
      둘이라 이 모델 밖이다 — slot 이 있으면 항상 옛 길(아래)로 간다(line-host lnCardHost.rowOk 의
      _cvbSingleSlot 가름과 같은 뜻을 렌더 쪽에서도 지킨다). */
   if (!slot && cardIdx != null && lnHasLines(card.lines)) {
+    /* ★★★`CVB-LINEHOST-DROPS-TEXT-COLOR-01` (2026-10-25 · 현빈 `1020t1c` 「👉 ★해결 안 됐다」)
+       ★무엇이었나 — ★줄추가로 ★이 길을 타면 ★★글자색이 ★«사라졌다».
+         현빈 증거: 전 `<div class="cvb-card-title" style="… ★color: rgb(26,26,26) …">`
+                   후 `<div class="ln-row"><div class="grd-line grd-body" style="…">` ← ★color 가 ★없다
+       ★까닭 — `lnLinesHtml(lines, m, c, align)` 은 ★색 인자가 ★없고 `gridLineHtml(l, align)` 을
+         ★2-인자로 부른다 ⇒ `grid-block.js` 의 `effColor = color || (useRoleColor ? … : '')` 가 `''`
+         ⇒ 줄에 `color:` 가 ★한 글자도 ★안 실린다.
+       ★★★처방은 ★«서명을 고치는 것»이 ★아니다 — ★선례 ★셋이 ★이미 ★다른 수법을 쓴다(실측 261025):
+           비교   `comparison-block.js:462`  그릇에 color:${textColor} ⇒ 줄이 ★상속
+           챗     `chat-block.js:142`        그릇에 color:${color}
+           월계수 `laurel-block.js:274`      <div class="laurel-cell" style="color:${leafColor};">
+         ⇒ ★★카드만 ★그릇에 ★아무것도 ★안 걸었다. ★그래서 ★여기만 ★깨졌다.
+       ⇒ ★★같은 수법으로 맞춘다 — ★받아 놓고 ★안 쓰던 `titleColor`/`descColor` 를 ★그릇에 건다.
+       ★역할색이 ★있는 줄은 `gridLineHtml` 이 ★제 색으로 ★덮어쓴다(그 조건부는 ★안 건드렸다 · C4 가 잠근다).
+       ⛔이 줄을 지우지 마라 — 지우면 ★현빈이 겪은 ★그 증상이 ★그대로 돌아온다.
+       ★★내가 10-20 에 고친 `54114954` 는 ★「색을 ★어떻게 고르나」였다 — ★★이 자리가 ★아니었다. */
+    container.style.color = titleColor || descColor || '';
     container.innerHTML = lnLinesHtml(card.lines, cardIdx, null, textAlign);
     return;
   }
