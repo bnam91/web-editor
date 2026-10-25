@@ -1082,13 +1082,45 @@ export function grdAddLineToSelectedCell(type) {
   const blocks = document.querySelectorAll('.grid-block.selected');
   if (blocks.length !== 1) return false;
   const block = blocks[0];
-  const hit = _grdResolveAnyAddr(block, grdGetActiveLine(block));
+  return grdAddLineAt(block, grdGetActiveLine(block), type);
+}
+if (typeof window !== 'undefined') window.grdAddLineToSelectedCell = grdAddLineToSelectedCell;
+
+/* ★1012t1G1 — 주소를 «받는» 그리드 줄 추가: T(위)와 우클릭 「아래에 줄 추가 (T)」(line-host.js lnAddLineAt 의 그리드 갈래)가 같이 쓴다.
+ *  addr = {r,c,li|null} — li 가 숫자면 그 줄 다음, null 이면 칸 끝. ⛔중첩(np)은 _grdResolveAnyAddr 가 null(T 와 같은 바일아웃). */
+export function grdAddLineAt(block, addr, type) {
+  const hit = _grdResolveAnyAddr(block, addr);
   if (!hit) return false;
   const lineSpec = grdNewLineSpec(type === 'gap' ? 'gap' : 'body');   // ★spec 은 «한 곳»에서 뜬다(grdNewLineSpec)
   const res = grdAddLine(block, { r: hit.r, c: hit.c }, hit.li, lineSpec);
   return !!(res && res.ok);
 }
-if (typeof window !== 'undefined') window.grdAddLineToSelectedCell = grdAddLineToSelectedCell;
+/* ★1012t1G1 — 우클릭한 점(누른 노드) → 그리드 줄 주소. 메뉴 「아래에 줄 추가 (T)」를 띄울지의 판정(카드 lnCtxAddAddr 의 그리드 짝).
+ *  · 줄 위 = 그 줄(이미지·여백·구분선 줄도 — [data-line] 범용)
+ *  · 칸 여백 = 그 칸의 고른 줄(같은 칸일 때) 아니면 칸 끝(li:null)
+ *  · 칸 밖(왼쪽 손잡이 .grd-line-grip 위 등 — #ss-handles-overlay 소속이라 블럭 밖) = 이 그리드 하나만 골라졌을 때의 고른 줄
+ *  · 거터(.grd-gutter — 역시 오버레이 소속) 위 = elementsFromPoint 가 그 «밑»의 칸/줄을 주므로 그 칸 기준이다(설계대로 · 검수 ⒟).
+ *  ⛔중첩(duo) «안»은 null(항목 숨김) — T(grdAddLineToSelectedCell → _grdResolveAnyAddr np 바일아웃)가 거기서 무동작이므로
+ *    메뉴도 같은 판정으로 숨긴다(검수 ⒞). 누른 점이 중첩 안이거나, 칸 여백·블럭 밖인데 고른 줄이 중첩 안이면 둘 다 null.
+ *  ⛔안쪽 그리드(.grd-children 의 다른 그리드)의 줄·칸은 안 집는다(closest('.grid-block') === block). */
+export function grdCtxAddAddr(block, node) {
+  if (!block || !block.classList || !block.classList.contains('grid-block')) return null;
+  const own = (el) => !!el && block.contains(el) && el.closest('.grid-block') === block;
+  const nestEl = node && node.closest ? node.closest('[data-r][data-c][data-nroot][data-npath]') : null;
+  if (own(nestEl)) return null;
+  const lineEl = node && node.closest ? node.closest('[data-r][data-c][data-line]') : null;
+  const cellEl = node && node.closest ? node.closest('.grd-cell[data-r][data-c]') : null;
+  const act = grdIsSoleSelected(block) ? grdGetActiveLine(block) : null;
+  let addr;
+  if (own(lineEl)) addr = { r: Number(lineEl.dataset.r), c: Number(lineEl.dataset.c), li: Number(lineEl.dataset.line) };
+  else if (own(cellEl)) {
+    const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
+    addr = (act && act.r === r && act.c === c) ? act : { r, c, li: null };
+  } else addr = act;
+  const hit = _grdResolveAnyAddr(block, addr);   // ★np 가 실린 주소(고른 중첩 줄)는 여기서 null — T 와 같은 문
+  return hit ? { r: hit.r, c: hit.c, li: hit.li } : null;
+}
+if (typeof window !== 'undefined') { window.grdAddLineAt = grdAddLineAt; window.grdCtxAddAddr = grdCtxAddAddr; }
 
 /* K 단축키(아이콘) — 위와 같은 게이트이지만 피커가 비동기다. 반환은 「게이트를 통과해
  * 피커를 열었나」다(삽입 성공 여부가 아니다) — 호출부는 이 값으로 전역 흐름 여부만 정한다. */
