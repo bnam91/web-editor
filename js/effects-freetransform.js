@@ -332,7 +332,7 @@ export function applyFxFreeTransform(tb) {
     tb.dataset.tfCorners = _cornersToStr(C);
   }
 
-  const { D } = normalizeCorners(C);       /* ★⒞ — 왼·위로 나간 것도 감싸게 0,0 으로 당긴다 */
+  const { D, mnx } = normalizeCorners(C);  /* ★⒞ — 왼·위로 나간 것도 감싸게 0,0 으로 당긴다 */
   const h = homography(_baseRect(st.W, st.H), D);
   if (!h) return false;                    /* ★네 점이 한 줄·겹침 ⇒ 못 푼다 — ★그리지 않는다(가드가 산다) */
 
@@ -346,6 +346,13 @@ export function applyFxFreeTransform(tb) {
   tb.style.minHeight = box.h + 'px';
   const tf = _tfOf(tb);
   if (tf) tf.style.width = box.w + 'px';   /* ★㉣ — 「너비 항상 동일」 */
+  /* ★FT-3b `FT-LEFT-DRAG-ANCHORS-AT-TB-LEFT-01` — 위 정규화가 왼쪽으로 나간 몫(mnx<0)을 0 으로 당겨,
+     흐름 글상자에서 nw 를 왼쪽으로 끌면 손잡이는 제자리고 그림이 «오른쪽»으로 자랐다(미카사 261025 실측: 데이터 x −1998 · 손잡이 cx 573.8 고정).
+     ⇒ 당긴 몫만큼 상자째 왼쪽으로 «그려서» 되돌린다 — CSS `translate`(레이아웃 무영향 · 손잡이 층도 같이 간다).
+     ⛔정규화는 그대로 둔다(박스 하한·ft-maxwidth-cap·D_floor_keeps_base 가 그 자리를 잠근다).
+     ⛔`margin-left` 로 하지 마라 — 글자 프레임의 margin-left 는 프레임 안 X 자리(prop-frame.js)라 겹친다.
+     ★세로(mny)는 이 처방 밖이다 — 위로 나간 몫은 섹션이 아래로 자라 손잡이가 안 나간다(FT3-VERTICAL 실측) · 별건. */
+  tb.style.translate = mnx < 0 ? `${mnx}px 0px` : '';
   /* ★U3 — 그린 뒤 손잡이를 ★그 자리로. ⛔import 하지 않는다(순환) — 이 파일이 이미 쓰는
      `window.pushHistory?.()`·`window.scheduleAutoSave?.()` 와 ★같은 관용구다. 없으면 아무 일도 안 난다. */
   window.ftHandlesSync?.(tb);
@@ -362,7 +369,7 @@ function _strip(tb) {
   const st = _tfState.get(tb);
   const tf = _tfOf(tb);
   if (ce) { ce.style.transform = ''; ce.style.transformOrigin = ''; _dropEmptyStyle(ce); }
-  tb.style.width = ''; tb.style.minHeight = '';
+  tb.style.width = ''; tb.style.minHeight = ''; tb.style.translate = '';
   if (tf) { tf.style.width = st && st.tfW0 != null ? st.tfW0 : ''; _dropEmptyStyle(tf); }
   /* ★U3 — ✕ 면 손잡이·격자도 같이 걷는다(안 걷으면 ★효과를 끈 뒤에도 남는다). */
   window.ftHandlesClear?.(tb);
@@ -491,6 +498,7 @@ function _ftCardHtml(tb, P) {
         </div>
         <div class="prop-cell-card-body" id="${P}-fxft-body"${open ? '' : ' hidden'}>
           <button class="prop-btn-full" id="${P}-fxft-reset" title="네 모서리를 처음(변형 없음)으로">원래대로</button>
+          <button class="prop-btn-full" id="${P}-fxft-pullin" title="섹션 밖으로 나가 안 보이는 모서리만 섹션 안 가장자리로 데려온다(나머지는 그대로)" style="margin-top:4px;">밖 모서리 데려오기</button>
         </div>
       </div>`;
 }
@@ -499,6 +507,12 @@ function _wireFtCard(tb, P, again) {
   const $ = (id) => document.getElementById(`${P}-${id}`);
   $('fxft-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxFreeTransform(tb, null); again(); });
   $('fxft-reset')?.addEventListener('click', (e) => { e.stopPropagation(); resetFxFreeTransform(tb); again(); });
+  /* ★FT-3a — 섹션 밖으로 나가 잘린 손잡이 «되찾기». 몸통은 effects-ft-handles.js(손잡이 자리를 아는 쪽) · window 다리(순환 import 회피 · 이 파일의 관용구). */
+  $('fxft-pullin')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const n = window.ftPullCornersIntoSection?.(tb) || 0;
+    window.showToast?.(n ? `모서리 ${n}개를 섹션 안으로 데려왔습니다 — ⌘Z 로 되돌릴 수 있습니다` : '섹션 밖으로 나간 모서리가 없습니다');
+  });
   /* ★U3 — ★이 함수가 ★«고른 순간»에 돈다(명부가 패널을 다시 그릴 때 배선한다)
      ⇒ ★여기서 ★전수 동기화하면 ★고른 블럭엔 붙고 ★놓인 블럭에선 걷힌다(`_shouldShow` 가 가른다). */
   window.ftHandlesSyncAll?.(document);
