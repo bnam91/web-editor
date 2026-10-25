@@ -98,7 +98,10 @@ const ROSTER = {
   'graph-gr1-gradient.dom.spec.js:93': 'risky',
   'graph-u26-u27.dom.spec.js:80': 'risky',
   'graph-u26-u27.dom.spec.js:85': 'risky',
-  'grid-plus-g15.dom.spec.js:301': 'risky',
+  /* ★261026 — ★줄이 ★움직였다(:301 → :304 · :300 → :303). ★미카사 0c929f2f(t5-15 가 ★남의 검사 기대값을 고침)이
+     ★그 파일을 ★＋6 −3 했다 ⇒ ★순 ＋3. ★★두 줄의 ★글자는 ★★바이트까지 ★같다(내가 c278bc39 와 ★견줬다)
+     ⇒ ★★태그는 ★그대로 ★옮긴다. ⛔판정을 ★다시 지어내지 ★않는다 — ★같은 자리다. */
+  'grid-plus-g15.dom.spec.js:304': 'risky',
   'k2-grid-sel-box.dom.spec.js:47': 'risky',
   'k2-grid-sel-box.dom.spec.js:48': 'risky',
   'k5-grid-8x8.dom.spec.js:41': 'risky',
@@ -124,7 +127,7 @@ const ROSTER = {
      ★★음성대조: 진짜 spec 15/15 초록. ⇒ ★배율이 흔들리면 ★이제 ★먼저 빨개진다 ⇒ 'safe'.
      ⛔「이 spec 은 배율을 안 건드린다」가 까닭이 ★아니다 — ★재는 자가 섰다는 것이 까닭이다. */
   'gradient-group-t507.dom.spec.js:195': 'safe',
-  'grid-plus-g15.dom.spec.js:300': 'safe',
+  'grid-plus-g15.dom.spec.js:303': 'safe',
   'modal-resize.dom.spec.js:282': 'safe',
   'overlay-drag-rotation.dom.spec.js:224': 'safe',
   'scratch-drop-grid-image.dom.spec.js:57': 'safe',
