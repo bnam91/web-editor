@@ -86,7 +86,11 @@ export function wireBubbleSection({ tb, ctx }) {
     window.pushHistory?.();
     if (mode === 'fixed') {
       const body = tb.querySelector('.tb-bubble');
-      if (!(parseInt(tb.dataset.bubbleW, 10) > 0)) tb.dataset.bubbleW = String(Math.round(body ? body.offsetWidth : 300));
+      /* ★시작 너비는 «올림» — offsetWidth 는 정수로 깎는다(실폭 348.445 → 348) ⇒ 그만큼 좁아져 줄이 꺾이고 높이가 튄다
+         (앱 실측 261026: 70→112). ★테두리 상자 실폭 = computed width(border-box 면 그대로 · content-box 면 좌우 패딩·테두리를 더한다). */
+      const _exactW = (el) => { const cs = getComputedStyle(el); const w = parseFloat(cs.width) || 0;
+        return cs.boxSizing === 'border-box' ? w : ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth'].reduce((a, k) => a + (parseFloat(cs[k]) || 0), w); };
+      if (!(parseInt(tb.dataset.bubbleW, 10) > 0)) tb.dataset.bubbleW = String(Math.ceil(body ? _exactW(body) : 300));
       if (!(parseInt(tb.dataset.bubbleH, 10) > 0)) tb.dataset.bubbleH = String(Math.round(body ? body.offsetHeight : 80));
       tb.dataset.bubbleSize = 'fixed';
     } else {

@@ -40,6 +40,7 @@ const setText = (page, t) => page.evaluate((t) => {
   host.textContent = t; delete host.dataset.isPlaceholder;
 }, t);
 const bodyW = (page) => page.evaluate(() => window.__sb.querySelector('.tb-bubble').offsetWidth);
+const bodyH = (page) => page.evaluate(() => window.__sb.querySelector('.tb-bubble').offsetHeight);
 const openPanel = async (page) => {
   await page.evaluate(() => window.selectBlock(window.__sb.id));
   await page.waitForFunction(() => !!document.getElementById('bubble-style-section'));
@@ -55,13 +56,19 @@ test('P0 전제 — 자동이면 몸통 너비가 글 길이를 따른다', asyn
 
 test('F 「고정」 → 지금 너비로 굳고 긴 글에도 그대로 · 너비 칸 400 → 몸통 400', async ({ page }) => {
   const errs = await setup(page);
-  await setText(page, SHORT);
+  /* ★앱 실측 장면 그대로 — 기본 안내문구 · 앱 기본 배율 40 (그 장면에서 실폭이 348.445 로 소수였다) */
+  await page.evaluate(() => window.applyZoom?.(40));
+  const frac = await page.evaluate(() => { const b = window.__sb.querySelector('.tb-bubble'); const cs = getComputedStyle(b); return parseFloat(cs.width) % 1; });
+  expect(frac, '전제: 실폭이 정수가 아닌 장면이어야 이 칸이 «깎기» 를 잡는다').toBeGreaterThan(0.01);
   await openPanel(page);
   const w0 = await bodyW(page);
+  const h0 = await bodyH(page);
   expect(await page.locator('#bubble-size-group [data-bsz="fixed"]').count()).toBe(1);
   await page.click('#bubble-size-group [data-bsz="fixed"]');
   await page.waitForFunction(() => window.__sb.dataset.bubbleSize === 'fixed');
   expect(Math.abs((await bodyW(page)) - w0)).toBeLessThanOrEqual(1);
+  /* ★누르는 순간 모양이 안 튄다 — 높이도 그대로(앱 실측 261026: 정수로 깎은 너비 348 < 실폭 348.445 ⇒ 줄이 꺾여 70→112 로 튀었다) */
+  expect(Math.abs((await bodyH(page)) - h0)).toBeLessThanOrEqual(1);
   await setText(page, LONG);
   expect(Math.abs((await bodyW(page)) - w0)).toBeLessThanOrEqual(1);
   await page.fill('#bubble-w-number', '400');
