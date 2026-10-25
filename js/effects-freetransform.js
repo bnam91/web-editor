@@ -377,8 +377,10 @@ export function ftScaleTo(tb, base, k) {
   if (!tb || !base || !(k > 0) || !tb.dataset) return false;
   tb.dataset.tfCorners = _cornersToStr(base.C.map(([x, y]) => [x * k, y * k]));
   const st = _tfState.get(tb);
-  /* 재는 폭이 px 이면 같이 곱한다 — 안 그러면 큰 글자를 옛 폭에서 재어 줄이 꺾이고 W·H 가 갈린다. '100%' 등은 그대로. */
-  if (st && typeof base.measW === 'string' && /px$/.test(base.measW)) st.tfMeasW = (parseFloat(base.measW) * k) + 'px';
+  /* 재는 폭이 px 이면 같이 곱한다 — 안 그러면 큰 글자를 옛 폭에서 재어 줄이 꺾이고 W·H 가 갈린다. '100%' 등은 그대로.
+     ★«정수 px» 로 올린다 — 이 파일의 배율 자 `_scaleOf` 는 정수 offsetWidth 로 나눈다 ⇒ 소수 폭(실측 1492.29px)에서 재면
+       배율이 0.4001 로 어긋나 W 가 0.115px 작게 잡히고, 그 폭에 박힌 상자 안에서 줄이 꺾였다(실앱 261026 · 216.8px 「짧은 글」 2줄). */
+  if (st && typeof base.measW === 'string' && /px$/.test(base.measW)) st.tfMeasW = Math.ceil(parseFloat(base.measW) * k) + 'px';
   return applyFxFreeTransform(tb);
 }
 

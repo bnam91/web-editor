@@ -14,6 +14,7 @@
  *   R2 ★그 뒤 보라 테두리(.tfh-edge) 사각형 = 글자 사각형(1.5px 안) — 크기가 글자를 따라왔다
  *   R3 ★격자(.tfh-fx) 사각형 = 글자 사각형(1.5px 안)
  *   R4 ⌘Z 한 번 ⇒ 글자 크기·테두리가 끌기 전으로(테두리 = 글자)
+ *   R5 리사이즈 뒤에도 줄 수가 그대로다(상자가 글자보다 좁게 박혀 꺾이지 않는다)
  * ⛔고정 대기 0 — 조건 대기만.
  */
 const { test, expect } = require('@playwright/test');
@@ -24,7 +25,7 @@ const R = (page, id) => page.evaluate((id) => {
   const ce = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1');
   const rg = document.createRange(); rg.selectNodeContents(ce); const g = rg.getBoundingClientRect();
   const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { l: r.left, t: r.top, w: r.width, h: r.height }; };
-  return { fs: parseFloat(getComputedStyle(ce).fontSize), glyph: box({ getBoundingClientRect: () => g }), edge: box(tb.querySelector(':scope > .tfh-layer > .tfh-edge')), grid: box(tb.querySelector(':scope > .tfh-fx')) };
+  return { lines: rg.getClientRects().length, fs: parseFloat(getComputedStyle(ce).fontSize), glyph: box({ getBoundingClientRect: () => g }), edge: box(tb.querySelector(':scope > .tfh-layer > .tfh-edge')), grid: box(tb.querySelector(':scope > .tfh-fx')) };
 }, id);
 const near = (a, b) => Math.max(Math.abs(a.l - b.l), Math.abs(a.t - b.t), Math.abs(a.w - b.w), Math.abs(a.h - b.h));
 
@@ -62,6 +63,8 @@ test('P·R1~R4 ★오버레이 리사이즈 — 보라 테두리·격자가 글�
   expect(m1.fs, `R1 글자 ${m0.fs} → ${m1.fs}`).toBeGreaterThan(m0.fs + 4);
   expect(near(m1.edge, m1.glyph), `R2 테두리 ${JSON.stringify(m1.edge)} = 글자 ${JSON.stringify(m1.glyph)}`).toBeLessThan(1.5);
   expect(near(m1.grid, m1.glyph), `R3 격자 ${JSON.stringify(m1.grid)} = 글자 ${JSON.stringify(m1.glyph)}`).toBeLessThan(1.5);
+  /* R5 — 실앱(261026 · 104→216.8px)에서 상자가 글자 폭보다 0.115px 좁게 박혀 «짧은 글» 이 두 줄로 꺾였다(재는 폭이 소수 px 라 배율 자가 어긋남). */
+  expect(m1.lines, `R5 리사이즈 뒤에도 줄 수 그대로 (${m0.lines} → ${m1.lines})`).toBe(m0.lines);
   await page.keyboard.press('Meta+z');
   await page.waitForFunction(([id, f]) => Math.abs(parseFloat(getComputedStyle(document.getElementById(id).querySelector('[contenteditable], .tb-h1')).fontSize) - f) < 0.2, [id, m0.fs], { timeout: 3000 });
   await page.evaluate((id) => { const tb = document.getElementById(id); tb.classList.add('selected'); window.ftHandlesSync?.(tb); }, id);
