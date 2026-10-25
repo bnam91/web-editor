@@ -66,8 +66,8 @@ const EDITOR_ONLY_SEL = new RegExp([
      ⇒ ★요소는 ★명부(`editor-ui-roster`)가 ★걷지만 ★★그 ★CSS 가 ★배송본 `<style>` 에 ★실렸다.
      ★★교훈 : ★★새 편집 UI 를 ★더할 때 ★★★«요소 명부»와 ★«CSS 거름»은 ★★따로다 — ★둘 다 ★재라. */
   '\\.tfh-',   /* ★★U3 자유변형 ★전부(grid·fx·edge·layer·handle) — ★261024 에 ★셋이 ★새어 ★접두사로 ★좁혔다 */
-  /* 머지 261025(S6) — 이 줄은 134c7986 에 있었고 가지에도 있다. dev 5eff5c70 이 S7 설계를 합칠 때 빠졌다(그 커밋 글에 뺀다는 말 없음).
-     양쪽 내용을 다 살리는 쪽으로 풀었다 · 판정은 지디 몫 — 이름 MERGE-T4DIM-QA-TODO-PEN-REVIVED-01. */
+  /* 5eff5c70 서 말 없이 빠진 것 되살림 · MERGE-T4DIM-QA-TODO-PEN-REVIVED-01
+     (머지 261025 S6 — 134c7986 에 있었고 가지에도 있다 · 지디 판정 261026 «회귀 아님 · 복구» · 재는 자 = export-css-filter-scope MUST_FILTER 세 줄) */
   '\\.qa-block', '\\.todo-pin', '\\.pen-',
   '\\.col-placeholder', '\\.col-add', '\\.row-col-add', '\\.row-drop-indicator', '\\.layer-',
   /* ★★t4 검수 261022(지디) — ★`'placeholder'` ★맨 조각을 ★좁혔다.
