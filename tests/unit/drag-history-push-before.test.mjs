@@ -70,6 +70,8 @@ const ROSTER = {
   /* ★t3-01 261021 — ★'치수선 끝 이동'(a·b 손잡이)을 더했다. ★d·c 는 ★'어노테이션 핸들 이동'을 ★그대로 쓴다. */
   /* ★1013t2C6 — 라벨 상자 너비 손잡이(_startLabelWidthDrag · 손잡이 만드는 _addLabelBoxHandles 옆이라 소스 등장 순서로 맨 앞). 처음부터 양쪽 끝 규약. */
   'js/annotation-select.js': ['라벨 너비', '어노테이션 라벨 위치', '어노테이션 시작점 회전', '어노테이션 이동', '어노테이션 핸들 이동', '치수선 끝 이동'],
+  /* ★1013t2E2ⓑ2 — 섹션 메시 모서리 스톱 손잡이 끌기(컬러피커 막대 썸 꼴 · 처음부터 양쪽 끝 규약). */
+  'js/props/prop-section.js': ['메시 스톱 위치'],
   'js/blocks/canvas-block.js': ['카드 이미지 위치'],
   /* 2026-10-12 1012t1D3 — 비교 이미지 칸 편집기(카드 편집기 꼴). 처음부터 양쪽 끝 규약(onMove arm ＋ onUp pushHistory). */
   'js/blocks/comparison-img-edit.js': ['비교 이미지 위치'],

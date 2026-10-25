@@ -504,6 +504,33 @@ registerGradientTarget({
   },
 });
 
+// section-block: ★1013t2E1 👉 「적용된거 확인했음, 하지만 캔버스에서는 그라데이션 바가 나타나진 않는지?」
+// 저장소는 dataset.bg(그라데이션 CSS 그대로 · prop-section.js isSectionGradient 가 받는 «함수 하나» 꼴),
+// 그리기는 prop-section.js _applySectionBg 한 자리(window.applySectionBg) — 패널 피커(onGradient)와 «같은» 쓰기 길.
+// ★space:'css' — 섹션 배경은 CSS linear/radial-gradient 다(banner02 와 같은 부류). 섹션은 안 돈다(rotation 없음).
+// ★get() 이 ''(= 바 없음)인 셋 — ⑴ 배경 그림이 있다: 그때 색 칸은 그림 위 «물들임» 층이라(그 파일 _applySectionBg)
+//   끝점을 끌어도 그림 합성이 주인이다 ⑵ 메시(dataset.bgMesh)가 켜졌다: 그리는 것은 4겹 메시이고 dataset.bg 는 안 보인다
+//   ⑶ 단색이다. ⇒ 바가 «끌 수는 있는데 그림은 안 바뀌는 거짓 컨트롤»이 되지 않게 한다(text-block 의 게이트와 같은 이유).
+registerGradientTarget({
+  match: (el) => el.classList.contains('section-block'),
+  make: (sec) => ({
+    space: 'css',
+    rect: () => sec.getBoundingClientRect(),
+    get: () => {
+      if (sec.dataset.bgImg || sec.dataset.bgMesh) return '';
+      const v = sec.dataset.bg || '';
+      return window.isSectionGradient?.(v) ? v : '';
+    },
+    set: (css, commit) => {
+      delete sec.dataset.bgMesh;
+      sec.dataset.bg = css;
+      window.applySectionBg?.(sec);
+      window.scheduleAutoSave?.();
+      if (commit) window.pushHistory?.();
+    },
+  }),
+});
+
 // getGradientTarget(blockEl) -> { rect(), get(), set(css, commit) } | null
 // null for excluded blocks (.gradient-block has its own system) or non-gradient backgrounds.
 function getGradientTarget(blockEl) {
