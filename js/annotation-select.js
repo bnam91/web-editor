@@ -808,12 +808,29 @@
       const t = ev.clipboardData?.getData('text/plain') || '';
       if (t) document.execCommand('insertText', false, t);
     };
+    /* ★FIX5 1017t1h2 · 1017t1h3 — 편집 중 라벨 «안»에서 누른 누름의 click 은 ★라벨 것이다(캐럿 놓기 · 글자 끌어 고르기).
+       ⛔옛 판: 위 라벨 click 캡처가 편집 중이면 그냥 return ⇒ click 이 섹션 click(editor.js selectSectionWithModifier)으로
+         거품 올라가 deselectAll 이 어노테이션 선택·손잡이·패널을 걷었다
+         (실측 ca702d40: 끌어 고른 mouseup 순간 selected false · 크기·색 칸 사라짐 / 줄 넣을 자리를 눌러도 같은 일).
+       ★끌기가 라벨 밖에서 끝나면 click 표적이 라벨의 «조상»(섹션·캔버스)이 된다 ⇒ 라벨 click 만 막아서는 모자란다.
+       ⇒ mouseup 뒤 click 한 번을 window 캡처에서 삼킨다(라벨 손잡이·핸들 끌기 onUp 의 eat 와 같은 꼴). 편집 밖에선 이 리스너가 없다. */
+    const onDown = (ev) => {
+      if (ev.button !== 0) return;
+      const eat = (ce) => { ce.stopPropagation(); };
+      const onUp = () => {
+        document.removeEventListener('mouseup', onUp, true);
+        window.addEventListener('click', eat, { capture: true, once: true });
+        setTimeout(() => window.removeEventListener('click', eat, true), 0);
+      };
+      document.addEventListener('mouseup', onUp, true);
+    };
     const finish = () => {
       if (done) return;
       done = true;
       label.removeEventListener('keydown', onKey);
       label.removeEventListener('paste',   onPaste);
       label.removeEventListener('blur',    finish);
+      label.removeEventListener('mousedown', onDown);
       const raw = label.innerText ?? label.textContent ?? '';
       /* ★1017t1h3 — 부분 서식을 ★같이 싣는다(line-host lnBeginEdit finish 와 ★같은 규약).
          ★읽기는 contenteditable 을 ★끄기 «전»에 — 끄고 나면 브라우저가 편집 잔재를 ★정리할 수 있다.
@@ -836,6 +853,7 @@
     label.addEventListener('keydown', onKey);
     label.addEventListener('paste',   onPaste);
     label.addEventListener('blur',    finish);
+    label.addEventListener('mousedown', onDown);
     setTimeout(() => {
       label.focus();
       try {

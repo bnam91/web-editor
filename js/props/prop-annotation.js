@@ -144,15 +144,48 @@ function _writeProps(block, partial) {
  *   ⇒ ★그래서 line-host 처럼 ★«먼저 커밋»할 ★필요가 없다 — ⑴ 이 ★더 적게 건드린다.
  * ⛔`_writeProps` 를 부르지 않는다 — 그건 ★라벨 ★전체(labelFontSize·labelColor)를 바꾼다.
  */
+/* ★FIX5 1017t1h3 ⒝ — 칠하기 «전»에 범위를 글자에 맞춰 조인다(복사본을 돌려준다 · 저장 선택은 안 건드린다).
+ * 까닭: 패널 칸을 누르면 blur 커밋(finish)이 라벨을 다시 쓰고, 저장 선택은 `_alive()` 가 오프셋으로 되찾는다.
+ *   그 경계가 «앞 글자 노드의 끝 ~ 서식 span 안 글자의 끝»에 잡히면 applyStyleToRange 의 extractContents 가
+ *   그 span 의 «사본»만 옮기고 원본 span 을 ★빈 채로 남긴다
+ *   (실측 ca702d40 저장 HTML: `…마바</span></span><span style="color:…"></span>` · 색을 넣을 때마다 하나씩).
+ * ① 시작이 글자 노드의 끝이면 → 다음 글자 노드의 0. 끝이 글자 노드의 0 이면 → 앞 글자 노드의 끝.
+ * ② 그 범위가 라벨 안 span 하나의 글자 «전부»면 → 그 span 의 내용으로(spanExactlyCovering 이 알아본다)
+ *    ⇒ 같은 글자에 두 번째 색을 넣으면 span 을 겹치지 않고 그 span 의 값만 바꾼다(텍스트블럭 연달아 적용과 같은 꼴). */
+function _annotTightenRange(range, label) {
+  const r = range.cloneRange();
+  const walk = (from) => { const w = document.createTreeWalker(label, NodeFilter.SHOW_TEXT); w.currentNode = from; return w; };
+  if (r.startContainer.nodeType === 3 && r.startOffset === r.startContainer.nodeValue.length && label.contains(r.startContainer)) {
+    const w = walk(r.startContainer);
+    for (let n = w.nextNode(); n; n = w.nextNode()) if (n.nodeValue.length) { r.setStart(n, 0); break; }
+  }
+  if (r.endContainer.nodeType === 3 && r.endOffset === 0 && label.contains(r.endContainer)) {
+    const w = walk(r.endContainer);
+    for (let n = w.previousNode(); n; n = w.previousNode()) if (n.nodeValue.length) { r.setEnd(n, n.nodeValue.length); break; }
+  }
+  if (r.collapsed || r.toString() !== range.toString()) return range;   // 조이다 글자가 달라지면(있을 수 없다) 옛 범위 그대로
+  const c = r.commonAncestorContainer;
+  for (let sp = (c.nodeType === 1 ? c : c.parentElement)?.closest('span'); sp && sp !== label && label.contains(sp);
+    sp = sp.parentElement?.closest('span')) {
+    if (sp.textContent === r.toString()) { r.selectNodeContents(sp); break; }
+  }
+  return r;
+}
+
 function _annotApplyToSelection(block, prop, value) {
   const label = block.querySelector('.annot-label');
   if (!label || block.dataset.labelMode === 'image') return false;
   if (!getSavedTextSelection(label)) return false;
   const span = withTextSelection(
-    (range, host) => (range ? applyStyleToRange(range, host, prop, value) : null),
+    (range, host) => (range ? applyStyleToRange(_annotTightenRange(range, label), host, prop, value) : null),
     { within: label },
   );
   if (!span) return false;
+  /* ★FIX5 1017t1h3 ⒝ 안전망 — 그래도 남은 빈 span(글자도 요소도 없음)을 이 라벨 안에서만 걷는다.
+     ★방금 칠한 span·<br> 을 품은 span 은 남는다. ⛔공용 applyStyleToRange(텍스트블럭과 한 벌)는 건드리지 않는다. */
+  label.querySelectorAll('span').forEach(sp => {
+    if (sp !== span && sp.isConnected && !sp.textContent && !sp.querySelector(':not(span)')) sp.remove();
+  });
   const next = window.annotLabelHtmlToStore?.(window.annotReadLabelHtml?.(label) || '') || '';
   if (next) block.dataset.labelHtml = next;
   else delete block.dataset.labelHtml;
