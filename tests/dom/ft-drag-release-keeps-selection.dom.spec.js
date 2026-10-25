@@ -44,8 +44,19 @@
  *
  * ⚠️★재현된 경로는 ★내가 추적한 것과 ★«다를 수 있다»
  *   ★소스 추적 : `sec` click → `selectSectionWithModifier` → `deselectAll`
- *   ★실제 재현 : 놓은 자리가 ★`canvas-wrap` 이었다(섹션 ★밖) ⇒ ★그 click 을 ★누가 받아
- *     ★deselect 했는지는 ★★안 쟀다. ★이름 = `FT-DESELECT-HANDLER-ON-CANVASWRAP-UNIDENTIFIED-01`
+ *   ★실제 재현 : 놓은 자리가 ★`canvas-wrap` 이었다(섹션 ★밖)
+ *   ★★★`FT-DESELECT-HANDLER-ON-CANVASWRAP-UNIDENTIFIED-01` = ★★닫혔다 (261025 · 소스로 확인)
+ *     ★그 click 을 받는 자 = ★`js/editor.js:4411` :
+ *       `document.getElementById('canvas-wrap').addEventListener('click', e => {`
+ *       `  if (['canvas-wrap','canvas-scaler','canvas'].includes(e.target.id)) deselectAll(); });`
+ *     ⇒ ★내 대조가 ★놓은 자리의 ★`e.target.id` 가 ★`canvas-wrap` 이었으므로 ★★이 갈래가 ★맞다.
+ *   ★다른 갈래(섹션 ★안에 놓을 때)도 ★같은 끝에 닿는다 :
+ *     `js/editor.js:4392` 섹션 click → `:1382` → `selectSection`
+ *     → ★`js/editor.js:3803` ★첫 줄이 ★`deselectAll()`
+ *   ★그리고 ★손잡이가 ★0 이 되는 자리 = `js/editor.js:4015` ★`clearSelectionMarks` 안의
+ *     ★`window.ftHandlesClear?.(t)` ⇒ ★손잡이 ＋ 테두리 ＋ 격자가 ★한꺼번에 걷힌다
+ *     (★그래서 핀 대조의 값이 ★`h:0` 이었다 — ★수가 ★이 사슬로 ★설명된다)
+ *   ⇒ ★★처방(document capture 에서 삼키기)은 ★두 갈래를 ★다 덮는다.
  *   ★처방은 ★양쪽을 ★다 덮는다(★document capture 에서 ★삼키므로) — ⛔그러나 ★「경로를 ★알았다」로
  *     ★적지 ★않는다.
  *
