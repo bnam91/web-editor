@@ -3999,6 +3999,9 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
   const sec = posEl.closest('.section-block');
   const snap = _tfoFontSnapshot(posEl);
   const iconSnap = _tfoIconSnapshot(posEl);
+  /* ★t7-05 — 자유변형이 걸린 글상자면 네 점·재는 폭을 «시작 값»으로 떠 둔다(아래 onMove 가 같은 k 로 곱한다 · js/effects-freetransform.js ftScaleBase). */
+  const _ftTb = posEl.matches?.('.text-block[data-tf-corners]') ? posEl : posEl.querySelector?.('.text-block[data-tf-corners]');
+  const _ftBase = _ftTb ? window.ftScaleBase?.(_ftTb) : null;
   /* ★맞은편 코너 고정 — 확대블럭 _onZoomResizeMouseDown ④ 의 식을 그대로 옮겨 적는다.
      ⛔공통 헬퍼로 «추출» 금지 — tests/unit/zoom-block.test.js 가 그 함수 «안에서»
        `const dHW …` / `dataset.x = ` 를 정규식으로 꺼내 실행한다. 빼내면 그 검사가 약해진다.
@@ -4083,6 +4086,8 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
     posEl.style.maxWidth = 'none';
     posEl.dataset.overlayFreeWidth = 'true';
     snap.forEach(s => { s.el.style.fontSize = (s.fs * k).toFixed(1) + 'px'; });
+    /* ★t7-05 — 글자와 «같은 k» 로 자유변형(네 점·상자·보라 테두리·격자)을 다시 맞춘다. 높이를 «재기 전»에 둔다(상자가 글자를 감싼 뒤 잰다). */
+    if (_ftBase) window.ftScaleTo?.(_ftTb, _ftBase, k);
     /* ★아이콘 칸도 «같은 k» — 현빈 2026-09-21 결정. 글자와 한 줄 차이로 붙여 두는 이유는
        배율이 갈라지지 않게 하기 위해서다(회귀: 글자·아이콘 배율 오차 <1%).
        ⚠️하한 — k 가 아주 작아도 0px 이나 음수가 되면 칸이 사라진다(줄이기 드래그).

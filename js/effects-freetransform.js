@@ -375,6 +375,31 @@ export function applyFxFreeTransform(tb) {
   return true;
 }
 
+/* ★★t7-05 「오버레이 모드 리사이즈 시 텍스트만 확대되고 아웃라인·격자는 변경되지 않는 오류」(2026-10-26 S3)
+   ★잰 값(시트): 글꼴 36→118.7px · tf 124→409 인데 .tfh-edge 49.8×17.2 불변. ★S3 실측(d772f49e 하네스): 테두리 114×49.6 그대로 ·
+     글자는 tb 폭(옛 box 폭)에 묶여 «글자마다 줄바꿈»(73×294) — 같은 뿌리다.
+   ★뿌리: 오버레이 리사이즈(js/overlay-handles.js _onTextOverlayResizeMouseDown)는 폭·글자 크기만 k 배로 바꾸고,
+     네 점(옛 글자 크기 단위)·재는 폭(tfMeasW)·그린 상자·손잡이는 아무도 다시 맞추지 않는다.
+   ★처방: 시작 때 네 점과 재는 폭을 떠 두고(ftScaleBase) · 매 이동 «같은 k» 로 곱해 그리기 문 하나(applyFxFreeTransform —
+     다시 재고 · 상자 · 손잡이·테두리·격자까지)를 부른다(ftScaleTo). ⛔매 프레임 «누적 곱» 금지 — 시작 값에 k 를 곱한다
+     (overlay-handles.js 의 글자·아이콘 스냅샷과 같은 규약). ⛔box 식은 무접촉(FT-BOX-RESERVES-ALIGN-GUTTER-01). */
+export function ftScaleBase(tb) {
+  const C = ftCornersOf(tb);
+  if (!C) return null;
+  const st = _tfState.get(tb) || ftMeasure(tb);
+  return { C, measW: st ? st.tfMeasW : null };
+}
+export function ftScaleTo(tb, base, k) {
+  if (!tb || !base || !(k > 0) || !tb.dataset) return false;
+  tb.dataset.tfCorners = _cornersToStr(base.C.map(([x, y]) => [x * k, y * k]));
+  const st = _tfState.get(tb);
+  /* 재는 폭이 px 이면 같이 곱한다 — 안 그러면 큰 글자를 옛 폭에서 재어 줄이 꺾이고 W·H 가 갈린다. '100%' 등은 그대로.
+     ★«정수 px» 로 올린다 — 이 파일의 배율 자 `_scaleOf` 는 정수 offsetWidth 로 나눈다 ⇒ 소수 폭(실측 1492.29px)에서 재면
+       배율이 0.4001 로 어긋나 W 가 0.115px 작게 잡히고, 그 폭에 박힌 상자 안에서 줄이 꺾였다(실앱 261026 · 216.8px 「짧은 글」 2줄). */
+  if (st && typeof base.measW === 'string' && /px$/.test(base.measW)) st.tfMeasW = Math.ceil(parseFloat(base.measW) * k) + 'px';
+  return applyFxFreeTransform(tb);
+}
+
 /** 우리가 걷어서 style 이 «빈 속성»만 남으면 속성째 지운다 — ✕ 뒤 outerHTML 이 켜기 전과 바이트 같게. */
 function _dropEmptyStyle(el) { if (el && el.getAttribute && el.getAttribute('style') === '') el.removeAttribute('style'); }
 
@@ -568,6 +593,7 @@ if (typeof window !== 'undefined') {
   Object.assign(window, {
     ftCornersOf, ftStateOf, ftMeasure,
     applyFxFreeTransform, setFxFreeTransform, resetFxFreeTransform, watchAllFxFreeTransform,
+    ftScaleBase, ftScaleTo,
     FX_FT_KEYS,
   });
 }
