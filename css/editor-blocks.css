@@ -4624,10 +4624,25 @@ html.tgs-selecting .tgs:focus-within {
 ────────────────────────────────────────────── */
 /* ★꾸밈 층 — ★변형 «안». JS 가 글자의 transform 을 ★베껴 박는다(⛔제 행렬을 만들지 않는다). */
 .tfh-fx { position: absolute; pointer-events: none; z-index: 100; }
-.tfh-edge {
-  position: absolute; inset: 0; pointer-events: none;
-  border: calc(1.5px * var(--inv-zoom, 1)) solid var(--ui-sel-overlay, #9966ff);
-  box-sizing: border-box;
+/* ★★보라 테두리 — ★★261025 ★현빈 ★재신고로 ★층을 ★옮겼다 (`FT-EDGE-THICKNESS-VARIES-UNDER-MATRIX-01`).
+   ★★현빈 261025 : 「★보라색 아웃라인의 ★두께가 ★왜 ★모서리 핸들가지고 ★움직일때마다 ★두께가 ★달라지는지?」
+   ★★이것은 ★261024 의 ⒜ 와 ★★같은 신고인데, ★그때 ★처방이 ★★«손잡이»로 ★갔다(아래 ⅲ 층).
+     ⇒ ★★테두리는 ★여전히 ★`.tfh-fx`(★원근 matrix3d) ★«안»에 ★남아 있었다.
+   ★옛 판 : ★div ＋ `border` 가 ★행렬 ★안 ⇒ ★행렬이 ★테두리 ★안·밖 점을 ★다르게 ★사상
+            ⇒ ★★한 변 ★안에서도 ★두께가 ★갈렸다 (★미카사 261025 실측 : ★끌기 전 ★1.401px ★균일
+               → ne 끈 뒤 ★0.53~2.29 → sw 더 끈 뒤 ★★0.28~3.20px)
+   ★새 판 : ★`.tfh-layer`(★변형 ★«밖») 의 ★svg ＋ ★★네 꼭짓점을 ★잇는 ★quad path.
+            ★★사영변환은 ★직선을 ★직선으로 ★보내므로 ★★휨은 ★한 치도 ★안 바뀌고 ★★두께만 ★균일해진다.
+            ★★현빈이 ★「휨 자체는 ★설계대로」라 ★하셨으므로 ★이 처방이 ★요구에 ★맞는다.
+   ⛔`--inv-zoom` 보정을 ★빼지 ★마라 — ★`.ss-sel-path`(★파란 선)를 ★베끼면 ★틀린다.
+     ★그쪽은 ★`#ss-handles-overlay` 가 ★`#canvas-scaler` ★«밖»이라 ★보정이 ★없다. ★이 층은 ★블럭 ★«안»이다.
+   ★`overflow: visible` — ★선의 ★절반이 ★상자 ★밖에 ★그려지는데 ★상자(= ★rect)는 ★그대로여야 ★한다
+     (★`tests/dom/u3-purple-outline-geometry.dom.spec.js` 의 ★U1·U2 가 ★그 rect 를 ★잠근다). */
+.tfh-edge { position: absolute; pointer-events: none; overflow: visible; }
+.tfh-edge path {
+  fill: none;
+  stroke: var(--ui-sel-overlay, #9966ff);
+  stroke-width: calc(1.5px * var(--inv-zoom, 1));
 }
 /* ★격자 3×3 — ★시안 `.tgrid` 그대로(opacity .5 · 1px × --inv-zoom) */
 .tfh-grid { position: absolute; inset: 0; pointer-events: none; }
