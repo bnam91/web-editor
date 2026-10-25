@@ -105,7 +105,13 @@ async function makeDim(page) {
   const sr = await rectOf(page, `#${sec}`);
   await page.click('#fp-pen-dropdown .fp-dropdown-trigger');
   await page.click('#fp-pen-menu .fp-menu-item[onclick*="toggleDimMode"]');
-  for (const p of [[sr.x + 250, sr.y + sr.h - 60], [sr.x + 550, sr.y + sr.h - 60], [sr.x + 400, sr.y + sr.h - 110]]) { await page.mouse.click(p[0], p[1]); await page.waitForTimeout(350); }
+  // 고정 대기 0줄(tests/unit/dom-fixed-wait-census W3) — 클릭마다 «그 클릭이 먹혔다»를 기다린다: 미리보기 점 1 → 2 → 치수선 블럭
+  const P = [[sr.x + 250, sr.y + sr.h - 60], [sr.x + 550, sr.y + sr.h - 60], [sr.x + 400, sr.y + sr.h - 110]];
+  for (const [k, p] of P.slice(0, 2).entries()) {
+    await page.mouse.click(p[0], p[1]);
+    expect(await poll(page, (n) => document.querySelectorAll('.annot-preview .annot-preview-dot').length >= n, k + 1, 4000), `전제: 클릭 ${k + 1} 이 점으로 먹혔다`).toBe(true);
+  }
+  await page.mouse.click(P[2][0], P[2][1]);
   expect(await poll(page, (s) => !!document.getElementById(s).querySelector('.annotation-block[data-annot-kind="dim"]'), sec, 4000), '전제: 치수선 생김(클릭 3)').toBe(true);
   const id = await page.evaluate((s) => document.getElementById(s).querySelector('.annotation-block[data-annot-kind="dim"]').id, sec);
   /* ★★261026 지디 — ⛔고정 대기 둘을 ★조건 대기로 바꿨다.

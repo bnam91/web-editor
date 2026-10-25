@@ -85,9 +85,13 @@ async function selectDim(page) {
      ★까닭: `Escape` 는 ★라벨에 ★걸린 keydown 이다(annotation-select.js:697 → label.blur() → finish).
        ⇒ ★★라벨에 ★포커스가 ★가기 ★전에 누르면 ★안 닿는다. ★사람은 ★포커스가 간 ★뒤에 누른다.
      ⇒ ★★「편집이 ★시작됐다」를 ★먼저 기다린다. ⛔그 전에 Escape 를 쏘면 ★제품이 아니라 ★검사가 ★빠른 것이다. */
-  await expect.poll(() => page.evaluate(() =>
-    document.querySelector('#secA .annot-label')?.getAttribute('contenteditable') ?? 'none'),
-    '★전제: 라벨이 ★편집에 ★들어갔다(만든 직후 enterLabelEdit)', { timeout: 15000 }).toBe('true');
+  /* ★합침 261026(S7) — «편집에 들어갔다» = contenteditable 만이 아니라 ★포커스까지. 포커스는 setTimeout 0 뒤에 온다
+     (annotation-select.js annotBeginLabelEdit 끝 · t4-21 검사(taeyang/t4-dimline)가 같은 것을 찾아 같은 꼴로 기다린다).
+     바닥 ca702d40 에서도 이 칸 전제가 흔들렸다(T3 «편집에서 빠져나왔다» 빨강 · 261026 실측) = 검사가 빨랐다. */
+  await expect.poll(() => page.evaluate(() => {
+    const l = document.querySelector('#secA .annot-label');
+    return l?.getAttribute('contenteditable') === 'true' && document.activeElement === l ? 'true' : (l?.getAttribute('contenteditable') ?? 'none');
+  }), '★전제: 라벨이 ★편집에 ★들어갔다(만든 직후 enterLabelEdit · 포커스까지)', { timeout: 15000 }).toBe('true');
   /* ★★261021 ★대조 실측 — ★「라벨 밖(섹션 빈 모서리) 클릭」으로 ★바꿔 봤더니 ★★6/6 이 ★빨강이었다
      (T3·T4 ★둘 다 · unexpected). ⇒ ★★되돌렸다. ★Escape 쪽이 ★낫다(T4 ★2/6).
      ⚠️`Escape` 는 ★두 곳이 듣는다(라벨 편집 :697 · 고르기 해제 :32) — ★그 경쟁이 ★남은 2/6 로 보이나
@@ -107,7 +111,9 @@ async function selectDim(page) {
   await expect.poll(() => page.evaluate(() =>
     !!document.querySelector('#secA .annotation-block.selected')),
     '★전제: 블럭이 ★골라졌다(클릭이 ★먹었다)', { timeout: 15000 }).toBe(true);
-  await expect.poll(() => cnt(page, '#secA .annot-handle'),
+  /* ★1013t2C6(S7) 의 라벨 상자 너비 손잡이 둘(.annot-lw-handle)도 annot-handle 클래스를 단다(철거 명부를 같이 타려고) —
+     이 칸이 세려는 것은 d·c·a·b 넷이다 ⇒ 그 둘을 빼고 센다(annotation-1013 AN2 · 1017t1h1 SN2 와 같은 좁힘). */
+  await expect.poll(() => cnt(page, '#secA .annot-handle:not(.annot-lw-handle)'),
     '★골랐는데 ★손잡이가 ★넷이 아니다', { timeout: 15000 }).toBe(4);
 }
 

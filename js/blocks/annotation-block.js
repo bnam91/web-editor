@@ -37,7 +37,10 @@ const ANNOT_DEFAULTS = {
   /* ★1013t2C6 「라벨 너비도 조절이 되면 좋겠다 · 라벨박스에도 핸들 · 첨에는 모서리 라운드를 주지말 것」 — labelPad 와 같은 꼴.
      labelWidth  = 라벨 상자 너비(px · 테두리 포함 · ANNOT_LIMITS.labelWidth). null = 글 길이만큼(옛 동작 · 키 없음).
                    정하면 그 너비에서 글이 접힌다(white-space: pre-wrap — 명시한 줄바꿈은 그대로).
-     labelRadius = 라벨 모서리(px · 0..24). null = CSS 기본(4px) — 키가 없는 «옛 저장본»은 그대로 4px 다.
+     labelRadius = 라벨 모서리(px · 0..50). null = CSS 기본(4px) — 키가 없는 «옛 저장본»은 그대로 4px 다.
+                   ★택일5(f2ab25cc · 261022 현빈 msg5223 ⒝ 「기본값은 지금처럼 유지(0 으로 안 돌림)」)의 «치수선 라벨 모서리» 칸과
+                   ★같은 키 하나다(합침 261026) — 폭은 그쪽 0..50(라벨그룹 «모서리»와 같은 꼴), 기본 null(4px) 도 그쪽 그대로.
+                   치수선은 만들 때 이 키를 안 넘긴다 ⇒ 치수선 라벨은 4px 로 태어난다(택일5) · 펜 어노테이션만 0(1013t2C6 ⓒ).
                    ⛔여기 기본값을 0 으로 두지 마라 — rebindAll 이 키 없는 옛 저장본을 이 기본으로 다시 그린다.
                    «새로 만든» 라벨의 0 은 펜툴(js/annotation-tool.js)이 만들 때 넘긴다. */
   labelWidth:      null,
@@ -118,7 +121,7 @@ window.annotLabelHtmlToStore = annotLabelHtmlToStore;
 const ANNOT_LIMITS = { labelDx: { min: -600, max: 600 }, labelDy: { min: -600, max: 600 },
   anchorRot: { min: -180, max: 180 },   // ★1013t2C7 — 시작점 회전(°) · −180..180 으로 감는다
   labelWidth: { min: 24, max: 1200 },   // ★1013t2C6 — 라벨 너비(px)
-  labelRadius: { min: 0, max: 24 } };   // ★1013t2C6 — 라벨 모서리(px · 여백 슬라이더와 같은 폭)
+  labelRadius: { min: 0, max: 50 } };   // ★1013t2C6 · 택일5 — 라벨 모서리(px · 택일5 «모서리» 칸 0~50 과 같은 폭)
 window.ANNOT_LIMITS = ANNOT_LIMITS;
 function _annClampOff(v, key) {
   const n = Math.round(Number(v));

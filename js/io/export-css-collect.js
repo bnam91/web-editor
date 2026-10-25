@@ -66,6 +66,9 @@ const EDITOR_ONLY_SEL = new RegExp([
      ⇒ ★요소는 ★명부(`editor-ui-roster`)가 ★걷지만 ★★그 ★CSS 가 ★배송본 `<style>` 에 ★실렸다.
      ★★교훈 : ★★새 편집 UI 를 ★더할 때 ★★★«요소 명부»와 ★«CSS 거름»은 ★★따로다 — ★둘 다 ★재라. */
   '\\.tfh-',   /* ★★U3 자유변형 ★전부(grid·fx·edge·layer·handle) — ★261024 에 ★셋이 ★새어 ★접두사로 ★좁혔다 */
+  /* 머지 261025(S6) — 이 줄은 134c7986 에 있었고 가지에도 있다. dev 5eff5c70 이 S7 설계를 합칠 때 빠졌다(그 커밋 글에 뺀다는 말 없음).
+     양쪽 내용을 다 살리는 쪽으로 풀었다 · 판정은 지디 몫 — 이름 MERGE-T4DIM-QA-TODO-PEN-REVIVED-01. */
+  '\\.qa-block', '\\.todo-pin', '\\.pen-',
   '\\.col-placeholder', '\\.col-add', '\\.row-col-add', '\\.row-drop-indicator', '\\.layer-',
   /* ★★t4 검수 261022(지디) — ★`'placeholder'` ★맨 조각을 ★좁혔다.
      ⛔그 조각은 ★머리말(위 :30~31 「★«너무 넓은» 조각은 쓰지 않는다」)을 ★스스로 어기고 있었다:
