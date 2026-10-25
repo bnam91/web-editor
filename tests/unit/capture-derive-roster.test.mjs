@@ -178,7 +178,12 @@ test(`R1 ★★${NAME} — ★★R1 레인 몫이 ★0 인가 (261023 고침을 
   t.diagnostic(laneLine(gaps));
 });
 
-test(`S3-GAPS ★${NAME} — 'yes' 판정 정본 선택자가 ★세 길 «모두»에서 막히나 (안 막히는 칸 = 0)`, { todo: R1_TODO }, (t) => {
+/* ★★★2026-10-25 — ★★`todo` 를 ★떼었다. ★`R1_TODO` 가 ★이미 적고 있었다 : 「★0 이 되면 ★todo 를 뗀다」.
+     ★실측 : ★제품 고침(★`.shape-handle`·`.gradient-corner-handle` 을 ★정본에) 뒤 ★★안 막히는 칸 ★★0.
+   ⇒ ★★이제 ★★단언이다 — ⛔누가 되돌리면 ★★rc 가 ★깨진다(★todo 는 ★rc 를 ★안 깼다).
+     ★그것이 ★`R1`(261023)이 ★제 레인 몫을 ★떼어 ★단언으로 걸었던 ★그 까닭이고,
+     ★이제 ★★나머지 레인(S3·미확정)도 ★같은 자리에 ★선다. */
+test(`S3-GAPS ★${NAME} — 'yes' 판정 정본 선택자가 ★세 길 «모두»에서 막히나 (안 막히는 칸 = 0)`, (t) => {
   const { rows, gaps, unmeasured } = judge(CANON.all, P, CAPTURE_VERDICT);
   t.diagnostic('\n' + table(rows));
   const byPath = Object.fromEntries(PATHS.map(p => [p, gaps.filter(g => g.endsWith('∌ ' + p)).map(g => g.split(' ∌ ')[0])]));
@@ -238,8 +243,18 @@ test('R3 ★넓힌 몫 — serialize ∖ NON_CONTENT 가 정본에 들었고, �
        (`tests/dom/sticker-handle-capture-leak.dom.spec.js` K1·K2 가 ★행위로 잠근다)
      ★`.gradient-corner-handle` 은 ★★아직이다 — ★적대적 ⒠ : 「고르면 ★탈출층으로 옮겨 가 ★보통은 안전.
        ★탈출 전 ★한 틱 안에 내보내면 ★남을 수 있다 — ★★못 쟀다」 ⇒ ★★미측정으로 ★남긴다. */
-  const FIXED  = ['.sticker-corner-handle', '.hlb-handle'];
-  const PENDING = ['.gradient-corner-handle'];
+  /* ★★★2026-10-25 — ★`.gradient-corner-handle` ＋ ★`.shape-handle` 도 ★★고쳤다(★지디 · ★②S3-GAPS).
+     ★위(261024) 주석이 ★★이 날을 ★예상해 뒀다 : 「고쳤으면 ★PENDING 에서 ★FIXED 로 옮기고
+       ★★행위 검사를 ★같이 걸어라」 ⇒ ★그대로 했다.
+     ★계약 측정(★행위 · `save-strip-plus7-window.dom.spec.js` `W1`·`W2`) :
+       둘 다 ★라이브 4 · ★섹션 저장본 ★0 · ★프로젝트 저장본 ★0 · ★★캡처 클론 ★★4
+       ⇒ ★저장은 ★이미 지운다(데이터 손실 위험 0) · ★캡처만 ★안 지웠다
+     ★행위 검사(★같이 걸었다) : `d7-gradient-handle-escape-window.dom.spec.js` ★`D7-1` 을 ★뒤집었다
+       (★고침 전 ★캡처 clone ★4 → ★고침 후 ★★0)
+     ★★`.shape-handle` 은 ★레인 명부에서 ★★「미확정」이었다 — ★그 분류는 ★`R6` 가 ★그대로 지킨다
+       (★★고쳤다 ≠ ★레인이 잰다 · ⛔분류를 ★바꾸지 ★않았다) */
+  const FIXED  = ['.sticker-corner-handle', '.hlb-handle', '.gradient-corner-handle', '.shape-handle'];
+  const PENDING = [];
   for (const s of [...FIXED, ...PENDING]) assert.equal(CAPTURE_VERDICT[s].v, 'yes');
 
   /* ★★고친 둘은 ★이제 ★«넓힌 몫»에 ★★없다 — ★`NON_CONTENT` ★안으로 ★들어갔기 때문이다.
@@ -258,8 +273,20 @@ test('R3 ★넓힌 몫 — serialize ∖ NON_CONTENT 가 정본에 들었고, �
     assert.ok(gaps.includes(`${s} ∌ capture`),
       `★${s} 가 캡처에서 ★이제 막힌다 — ★고쳤으면 ★PENDING 에서 ★FIXED 로 옮기고 ★행위 검사를 ★같이 걸어라`);
   }
-  /* ★★음성대조 — ★`gaps` 가 ★비어 있어 ★위 둘이 ★동시에 참이 되는 길을 ★막는다 */
-  assert.ok(gaps.length > 0, '★gaps 가 0 이다 — 그러면 FIXED 단언이 ★항등식이 된다(판을 먼저 의심하라)');
+  /* ★★★음성대조 — ★★2026-10-25 ★자를 ★바꿨다.
+     ★옛 자는 ★`gaps.length > 0`(★지금 판의 ★실제 gaps)이었다. ★★그런데 ★★다 고치고 나니
+       ★`gaps` 가 ★0 이 되어 ★그 자가 ★★스스로 ★빨개졌다 — ★★「★성공이 ★자기 검사를 ★지운다」.
+     ⇒ ★★처방 : ★★«합성 무력화»로 ★★항등식을 ★깬다. ★`judge` 는 ★순수 함수이므로
+       ★★캡처 길에서 ★`FIXED` 를 ★★떼어 ★먹이면 ★★그것들이 ★gaps 에 ★나타나야 한다.
+     ⇒ ★★이 칸이 ★빨개지면 = ★`judge` 나 ★`CAPTURE_VERDICT` 가 ★★FIXED 를 ★더 이상 ★'yes' 로 안 본다
+       ⇒ ★★그러면 ★위 ★FIXED 단언들이 ★★항등식이다(★판을 ★먼저 의심하라). */
+  const P_MUT = { ...P, capture: P.capture.filter(s2 => !FIXED.includes(s2)) };
+  const mutGaps = judge(CANON.all, P_MUT, CAPTURE_VERDICT).gaps;
+  for (const s2 of FIXED) {
+    assert.ok(mutGaps.includes(`${s2} ∌ capture`),
+      `★★합성 무력화 — 캡처 길에서 ${s2} 를 떼었는데 ★gaps 에 안 나타난다 ⇒ ★위 FIXED 단언이 ★항등식이다. ` +
+      `잡힌 것: ${JSON.stringify(mutGaps)}`);
+  }
   t.diagnostic(`넓힌 몫 ${srOnly.length} 중 캡처 안 막힘 ${srOnly.filter(s => gaps.includes(s + ' ∌ capture')).length}`);
 });
 
@@ -307,8 +334,26 @@ test('R6 ★★레인 자가 ★살아 있나 — 양성·음성·★단위 (★
         「R1 몫 ★0」을 찍었고, ★내가 그것을 ★「닫혔다」로 ★읽어 ★올렸다. */
   for (const s of ['.img-rotate-zone', '.ab-rotate-zone', '.mdl-rotate-zone', '.img-corner-handle', '.img-edge-handle'])
     assert.equal(LANE_OF(s), 'R1', `★★음성 — ${s} 가 R1 이 아니다. ★이름 꼴로 가르는 자가 되살아났다(261023 사고)`);
-  /* ⒞ ★★★단위 — ★칸합·선택자합이 ★레인별 합과 ★같나. ★★`31 − 3 − 1 = 27` 이 ★여기서 잡힌다. */
-  const c = laneCounts(R1_GAPS);
+  /* ⒞ ★★★단위 — ★칸합·선택자합이 ★레인별 합과 ★같나. ★★`31 − 3 − 1 = 27` 이 ★여기서 잡힌다.
+     ★★★2026-10-25 ★자를 ★바꿨다 : ★옛 자는 ★`laneCounts(R1_GAPS)`(★지금 판의 ★실제 gaps)였다.
+       ★★그런데 ★다 고치고 나니 ★`R1_GAPS` 가 ★0 이 되어 ★`칸합 == 선택자합 == 0` ⇒
+       ★아래 `notEqual` 이 ★★스스로 ★빨개졌다 — ★★「★성공이 ★자기 검사를 ★지운다」.
+     ⇒ ★★처방 : ★★«합성 표본»으로 ★자를 ★잰다. ★`laneCounts` 는 ★순수 함수다.
+       ★표본은 ★★한 선택자가 ★★두 길에서 ★막히지 않는 꼴을 ★★일부러 넣어 ★★칸 ≠ 선택자가 되게 한다
+       ＋ ★레인이 ★★셋(S3·미확정·R1)으로 ★갈리게 해 ★★레인별 합도 ★잰다.
+     ⇒ ★그리고 ★★지금 판의 ★실제 수는 ★아래 `t.diagnostic` 으로 ★그대로 ★찍는다(★보는 눈은 ★안 잃는다). */
+  const FIX = [
+    '.gradient-corner-handle ∌ capture',   /* S3 · 한 선택자 두 칸 */
+    '.gradient-corner-handle ∌ html',
+    '.shape-handle ∌ capture',             /* 미확정 */
+    '.zz-never-seen-handle ∌ capture',     /* R1 (명부 밖) */
+  ];
+  const c = laneCounts(FIX);
+  assert.equal(c.칸합, 4, '★합성 표본의 칸합이 4 가 아니다 — 자가 헛돈다');
+  assert.equal(c.선택자합, 3, '★합성 표본의 선택자합이 3 이 아니다 — 자가 헛돈다');
+  assert.equal(c.S3.칸, 2, '★합성 — S3 칸 2'); assert.equal(c.S3.선택자, 1, '★합성 — S3 선택자 1');
+  assert.equal(c['미확정'].칸, 1, '★합성 — 미확정 칸 1');
+  assert.equal(c.R1.칸, 1, '★합성 — R1 칸 1(명부 밖)');
   assert.equal(LANES.reduce((a, l) => a + c[l].칸, 0), c.칸합, '★★칸 수가 샌다 — 레인별 칸 합 ≠ 전체 칸');
   assert.equal(LANES.reduce((a, l) => a + c[l].선택자, 0), c.선택자합, '★★선택자 수가 샌다 — 레인별 합 ≠ 전체 선택자');
   assert.notEqual(c.칸합, c.선택자합,

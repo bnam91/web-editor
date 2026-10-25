@@ -79,7 +79,7 @@ test('D7-0 ★전제 — ★앱 길로 그라데 블럭을 만들고 고르면 �
   expect(r.childHandles, '★손잡이가 블럭 자식으로 안 생겼다 — 아래 칸들이 뜻을 잃는다').toBe(4);
 });
 
-test('D7-1 ★★탈출 «전» — ★고른 ★직후 ★동기로 내보내면 ★손잡이가 ★캡처에 ★남는다 (★수를 박는다)', async ({ page }) => {
+test('D7-1 ★★★고침 — ★탈출 «전»에 내보내도 ★캡처가 ★손잡이를 ★★지운다 (★261025 ★뒤집었다)', async ({ page }) => {
   await bootApp(page);
   const s = await makeAndSelect(page);
   expect(s.fail).toBeUndefined();
@@ -102,10 +102,15 @@ test('D7-1 ★★탈출 «전» — ★고른 ★직후 ★동기로 내보내�
   console.log('[D7-1]', JSON.stringify(r));
   expect(r.liveChild, '★전제: 선택 직후 손잡이가 블럭 자식이 아니다 — 창이 애초에 없다').toBe(4);
   expect(r.before, '★전제: clone 에 손잡이가 안 담겼다').toBe(4);
-  /* ★★★본 단언 — ★캡처 명부가 ★그것을 ★안 지운다. ★이 칸이 ★빨개지면 = ★뿌리가 메워진 것이다. */
+  /* ★★★261025 ★뒤집었다 — ★뿌리를 ★메웠다(`②S3-GAPS`).
+     ★고침 = `js/io/editor-ui-roster.js` ★정본에 ★`.gradient-corner-handle`·`.shape-handle` 을 ★더했다
+       (★계약을 ★먼저 쟀다 — `save-strip-plus7-window` `W1`·`W2` : ★저장 두 창 ★0 · ★캡처 ★4)
+     ★고침 ★전 실측 : `before 4` → ★`after ★4`(★안 지웠다)
+     ★고침 ★후 실측 : `before 4` → ★★`after ★0`(★지운다)
+     ⇒ ★★이 칸이 ★다시 ★빨개지면 = ★그 두 줄이 ★정본에서 ★빠진 것이다. */
   expect(r.after,
-    `★캡처가 손잡이를 지웠다 — ★뿌리(NON_CONTENT_UI_SELECTOR)가 메워졌다면 이 칸을 뒤집어라 (실측 ${r.after})`
-  ).toBe(4);
+    `★★캡처가 손잡이를 ★안 지운다 — ★정본(NON_CONTENT_UI_SELECTOR)에서 ★그 줄이 ★빠졌나 (실측 ${r.after})`
+  ).toBe(0);
 });
 
 test('D7-2 ★★탈출 «후» — ★한 틱 뒤에는 ★손잡이가 ★overlay 로 ★옮겨 ★캡처에 ★안 담긴다 (★원문의 「보통은 안전」)', async ({ page }) => {
@@ -173,7 +178,11 @@ test('D7-3 ★★★한 뿌리인가 — ★뿌리(정본 명부)에 ★그 둘�
   /* ★★전제 — ★같은 꼴의 ★손잡이가 ★하나는 ★명부에 ★있다 ⇒ ★「명부가 빈 것」이 아니다 */
   expect(r.hasSticker, '★전제: .sticker-corner-handle 도 명부에 없다 — 명부 자체가 비었나').toBe(true);
   expect(r.n, '★전제: 정본 종수가 0 이다 — 파서가 헛돌았다').toBeGreaterThan(20);
-  /* ★★★뿌리를 ★수로 박는다 — ★`CAPTURE-ROSTER-NOT-DERIVED-FROM-SAVE-01` 과 ★한 뿌리 */
-  expect(r.hasGrad, '★.gradient-corner-handle 이 정본에 들어왔다 — D7-1 도 같이 닫혔나 보라').toBe(false);
-  expect(r.hasShape, '★.shape-handle 이 정본에 들어왔다 — D7-1 도 같이 닫혔나 보라').toBe(false);
+  /* ★★★261025 ★뒤집었다 — ★뿌리를 ★메웠다.
+     ★고침 전 : `n 29` · hasGrad ★false · hasShape ★false
+     ★고침 후 : ★`n 31` · hasGrad ★★true · hasShape ★★true
+     ⇒ ★★`CAPTURE-ROSTER-NOT-DERIVED-FROM-SAVE-01` 의 ★남은 몫이 ★닫혔다
+       (★`tests/unit/capture-derive-roster.test.mjs` ★`S3-GAPS` 가 ★★todo 를 떼고 ★단언이 됐다) */
+  expect(r.hasGrad, '★.gradient-corner-handle 이 ★정본에서 ★빠졌다 — D7-1 도 같이 빨개졌나 보라').toBe(true);
+  expect(r.hasShape, '★.shape-handle 이 ★정본에서 ★빠졌다 — D7-1 도 같이 빨개졌나 보라').toBe(true);
 });
