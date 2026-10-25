@@ -103,7 +103,9 @@ const menuState = (page) => page.evaluate(() => {
     items: m ? [...m.querySelectorAll(':scope > .bcm-item')].filter(vis).map(x => x.textContent.trim().replace(/\s+/g, ' ')) : [] };
 });
 
-async function clickAt(page, sel, opts) { const r = await waitStableRect(page, sel); await page.mouse.click(r.cx, r.cy, opts); await page.waitForTimeout(120); return r; }
+/* 누른 뒤 «두 프레임» — 클릭 처리기가 동기로 끝낸 선택·패널·손잡이 그리기(rAF)가 화면에 앉을 때까지(고정 ms 대신 · W3 dom-fixed-wait-census) */
+const frames2 = (page) => waitFor(page, () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))), null, '두 프레임');
+async function clickAt(page, sel, opts) { const r = await waitStableRect(page, sel); await page.mouse.click(r.cx, r.cy, opts); await frames2(page); return r; }
 async function pressById(page, domId) {
   const r = await waitStableRect(page, '#' + domId);
   await page.mouse.click(r.cx, r.cy);
@@ -218,12 +220,14 @@ test('N4 말풍선 본문 줄 — Esc 는 줄 선택만 풀고 · ⌫ 두 걸음
   const tb = `#${id} .tb-bubble`;
   await clickAt(page, tb); await clickAt(page, tb);
   expect((await state(page, id)).bodyMark, '전제 — 본문 줄 골라짐').toBe(true);
-  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  await page.keyboard.press('Escape');
+  await waitFor(page, (id) => !document.getElementById(id)?.querySelector('.tb-bubble.ln-line-selected'), id, 'Esc 뒤 줄 선택 표시가 걷힘');
   const sE = await state(page, id);
   expect({ sel: sE.sel, bodyMark: sE.bodyMark, grips: sE.grips }, 'Esc = 줄 선택만 풀림').toEqual({ sel: true, bodyMark: false, grips: 0 });
   await clickAt(page, tb);
   expect((await state(page, id)).bodyMark, '전제 — 다시 본문 줄 골라짐').toBe(true);
-  await page.keyboard.press('Backspace'); await page.waitForTimeout(150);
+  await page.keyboard.press('Backspace');
+  await waitFor(page, (id) => !document.getElementById(id)?.querySelector('.tb-bubble.ln-line-selected'), id, '첫 ⌫ 뒤 줄 선택 표시가 걷힘(블럭이 지워졌으면 아래 단언이 잡는다)');
   const sB = await state(page, id);
   expect({ exists: await page.evaluate((id) => !!document.getElementById(id), id), sel: sB.sel, bodyMark: sB.bodyMark, lines: sB.lines },
     '첫 ⌫ = 블럭 그대로 · 줄 선택만 풀림').toEqual({ exists: true, sel: true, bodyMark: false, lines: null });
@@ -362,8 +366,7 @@ test('R4 텍스트 블럭 우클릭 — 「줄 추가」 없음', async ({ page 
     window.deselectAll?.(); window.selectSection?.(document.getElementById('bG')); window.addTextBlock?.('body');
     const t = [...document.querySelectorAll('#canvas .text-block:not(.speech-bubble-block)')].pop(); t.scrollIntoView({ block: 'center' }); return t.id;
   });
-  await page.waitForTimeout(200);
-  await clickAt(page, `#${tid}`, { button: 'right' });
+  await clickAt(page, `#${tid}`, { button: 'right' });   // scrollIntoView 뒤 자리 멈춤 = clickAt 의 waitStableRect
   const mt = await menuState(page);
   expect(mt.open, '전제 — 메뉴가 열렸다').toBe(true);
   expect(mt.lnAdd, `텍스트 블럭엔 「줄 추가」 없음 ${JSON.stringify(mt.items)}`).toBe(false);
@@ -399,7 +402,7 @@ test('R7 ⒜ 지킴 — 말풍선을 두 번 클릭한 상태의 ⌘↑/⌘↓ =
     window.deselectAll?.(); document.getElementById(id).scrollIntoView({ block: 'center' });
     return t.id;
   }, id);
-  await page.waitForTimeout(200);
+  await waitStableRect(page, `#${id}`);   // scrollIntoView 뒤 자리 멈춤
   const order = () => page.evaluate(({ id, tid }) => (document.getElementById(tid).compareDocumentPosition(document.getElementById(id)) & Node.DOCUMENT_POSITION_FOLLOWING) ? 'text>bubble' : 'bubble>text', { id, tid });
   expect(await order(), '전제 — 글 블럭이 먼저').toBe('text>bubble');
   const tb = `#${id} .tb-bubble`;
@@ -428,7 +431,7 @@ test('R8 ⒞ 지킴 — 그리드 중첩(duo) «안» 줄 우클릭엔 「줄 �
   await closeMenu(page);
   await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); });
   await clickAt(page, inner); await clickAt(page, inner);
-  await page.keyboard.press('t'); await page.waitForTimeout(200);
+  await page.keyboard.press('t'); await frames2(page);   // T 처리기는 keydown 에서 동기 — 무동작을 재므로 «바뀔 때까지» 는 못 기다린다
   expect(await page.evaluate((id) => window.getGridModel(document.getElementById(id)).cells[0][0].lines.length, id), '중첩 줄을 고른 T = 무동작').toBe(n0);
   expect(errs).toEqual([]);
 });
