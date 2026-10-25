@@ -1385,13 +1385,9 @@ function bindBlock(block) {
       if (block.classList.contains('editing')) return;
       /* ★BT2 — 말풍선 «줄» 2단 선택(그리드와 같은 규칙): 이미 «이것 하나»가 선택돼 있을 때 줄을 누르면 그 줄.
          ⛔deselectAll «전»에 잰다 — deselectAll 이 선택·활성줄을 지운다. */
-      /* ★1012t1G1 — 줄 «없는» 말풍선은 그리드와 같은 «드릴다운 걸쇠»(prop-grid.js grdMarkCanvasDrill · T-058)도 본다:
-         삽입·레이어 패널로 골라진 직후의 «사람에겐 첫» 캔버스 클릭 = 블럭(현빈 「첫클릭은 … 블럭이 선택」), 그 다음 = 본문 줄.
-         ⛔줄 «있는» 말풍선은 옛 규칙 그대로(이미 하나만 골라져 있으면 줄) — 바꾸면 bt2·ln-* 의 2단 선택 계약이 갈린다. */
-      const _isBubble = block.classList.contains('speech-bubble-block');
-      const _lnSole = block.classList.contains('selected') && !!window.grdIsSoleSelected?.(block)
-        && (!_isBubble || !!window.lnBubbleLines?.(block) || !!window.grdWasCanvasDrilled?.(block));
-      const _lnAt = _isBubble ? window.lnClickAddr?.(block, e.target, _lnSole) : null;
+      const _lnAt = block.classList.contains('speech-bubble-block')
+        ? window.lnClickAddr?.(block, e.target, block.classList.contains('selected') && !!window.grdIsSoleSelected?.(block))
+        : null;
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
@@ -1416,8 +1412,6 @@ function bindBlock(block) {
       window.setBlockAnchor?.(block);
       if (_lnAt) window.grdSetActiveLine?.(block, _lnAt);   // ★BT2 — 줄 선택(없으면 deselectAll 이 이미 풀었다)
       window.showTextProperties(block);
-      /* ★1012t1G1 — 걸쇠는 «패널을 연 뒤» 건다(그리드 :2581 과 같은 순서). 푸는 자리 = deselectAll → line-host.js lnClearAllActive(말풍선을 가리킬 때만). */
-      if (_isBubble) window.grdMarkCanvasDrill?.(block);
       /* ★모서리 리사이즈 핸들 — 이 경로엔 호출이 «아예 없었다»(zoom 은 1551행, modal 은
          1912행에 같은 입구가 있다). 그래서 오버레이를 켜도 테두리만 보이고 «모서리 점»이
          안 나왔다. showHandlesFor 가 오버레이 여부를 스스로 가른다 ⇒ 흐름 텍스트는 no-op. */

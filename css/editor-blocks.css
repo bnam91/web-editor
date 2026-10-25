@@ -2026,19 +2026,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 #canvas .canvas-block .ln-row.ln-line-selected {   /* ★1013t1B2 laurel(네 번째 주인) · ★1017t1d1 심플카드(다섯 번째 주인) */
   box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
 }
-/* 빈 글자 줄이 «손에 닿게» — 그리드 빈 줄 안내문(아래 .grd-line:empty)과 같은 관용구.
- * ⚠️~~#canvas 스코프라 내보내기엔 안 샌다~~ — 사실이 아니다(1012t1G1 검수 ⒡): HTML 내보내기(js/io/export-html.js 의 문서 틀)가
- *   본문을 `<div id="canvas">` 로 감싸므로 #canvas 셀렉터가 내보낸 파일에서도 맞는다. 빈 줄이면 이 안내문(아래 말풍선 덮기 포함)이
- *   내보낸 HTML 에 보일 수 있다. ⛔이번 카드에서는 안 고친다 — 이름: EXPORT-HTML-PLACEHOLDER-CSS-SHIPS-01. */
+/* 빈 글자 줄이 «손에 닿게» — 그리드 빈 줄 안내문(아래 .grd-line:empty)과 같은 관용구. #canvas 스코프라 내보내기엔 안 샌다. */
 #canvas .ln-row > .grd-line:empty::before { color: #ccc; pointer-events: none; content: '글자를 입력하세요'; }
-/* ★1012t1G1 줄 없는 말풍선의 «본문 줄» 선택(line-host.js lnIsBubbleBodyLine — 둘째 클릭) — 위 줄 선택과 같은 그림·같은 토큰. */
-#canvas .speech-bubble-block .tb-bubble.ln-line-selected {
-  box-shadow: inset calc(2px * var(--inv-zoom, 1)) 0 0 var(--sel-color);
-}
-/* ★1012t1G1 말풍선 «안»의 빈 줄 안내 = 줄 없는 말풍선 안내문(block-factory.js makeSpeechBubbleBlock phText)과 같은 문구.
- * 현빈 「줄추가하면 플레이스 홀더가 '말풍선 텍스트를 입력하세요'에서 '글자를 입력하세요'로 바뀐다. 통일」.
- * ⛔공용 규칙은 그대로(챗·카드·laurel 무접촉) — 비교 블럭(아래 :2943 근처)과 같은 «주인 안에서만 덮기» 꼴. */
-#canvas .speech-bubble-block .ln-row > .grd-line:empty::before { content: '말풍선 텍스트를 입력하세요'; }
 
 /* ★원형 이미지 줄(.grd-img-circle)의 선택 표시 = «서클 에셋과 같은 두 줄» (현빈 2026-10-03
  *   「그리드 칸의 원형 이미지 아웃라인이 이상하다 — 서클 에셋블럭의 그것과 달라」, G24).
