@@ -35,7 +35,7 @@ import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS, clampModa
      그 검사는 「MODAL_DROP_SHADOWS 와 from '../blocks/modal-block.js' 가 ★200자 이내」로
      «한 표에서 벌려 연다»를 재는다(실제로 발개졌다 · 2026-10-19). ⛔다시 붙이지 마라. */
 import { MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT,
-         modalProfileSize, modalProfileSide, modalProfileKind } from '../blocks/modal-block.js';
+         modalProfileSize, modalProfileSide, modalProfileKind, setModalProfile } from '../blocks/modal-block.js';
 const L = MODAL_LIMITS;
 
 /* 스와치·hex 칸에 «보여 줄» 색.
@@ -251,6 +251,7 @@ ${blockHeaderHTML({
             ${_bgSizeCustom ? `<option value="${_bgSizeNow}" selected>직접 조절</option>` : ''}
           </select>
         </div>
+        <button class="prop-action-btn secondary" id="mdl-bg-pos-btn" style="margin-top:6px;">${block._secBgEditing ? '배경이미지 편집 완료' : '배경이미지 편집'}</button>
         <button class="prop-action-btn danger" id="mdl-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
       ` : ''}
     </div>
@@ -412,10 +413,17 @@ ${blockHeaderHTML({
     };
     reader.readAsDataURL(file);
   });
+  /* ★10171a5 — 「배경이미지 편집」(섹션 패널 #sec-bg-pos-btn 과 ★같은 이름·같은 토글). 본문은 섹션·프레임과 ★한 벌
+     (js/image-handling.js _enterBgEditMode · 모달 숙주 칸). */
+  document.getElementById('mdl-bg-pos-btn')?.addEventListener('click', () => {
+    if (block._secBgEditing) window.exitModalBgEditMode?.(block);
+    else                     window.enterModalBgEditMode?.(block);
+  });
   bgImgClear?.addEventListener('click', () => {
     delete block.dataset.bgImg;
     delete block.dataset.bgSize;
     delete block.dataset.bgPos;
+    delete block.dataset.bgRotate;   /* ★10171a5 — 회전도 그림의 일부다(남기면 그림 없는 레이어가 선다 · needsBgLayer 가 회전만 본다) */
     rerender();
     commit();
     showModalProperties(block);
@@ -683,11 +691,8 @@ ${blockHeaderHTML({
     const file = pfImgInput.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      block.dataset.profileImg = e.target.result;
-      delete block.dataset.profileEmoji;   /* 둘 중 하나 — 그리는 쪽의 우선순위와 같은 규칙을 쓰는 자리에서 맞춘다 */
-      pfAfter(true);                       /* 자리·크기 칸이 새로 뜨고 «제거» 단추가 생긴다 */
-    };
+    /* ★캔버스 칩(아래 _syncProfileAddChip)과 ★같은 문 — 붙이고 · 그리고 · row 폭 · 이력 · 패널 되읽기(자리·크기 칸과 «제거»가 뜬다). */
+    reader.onload = (e) => { setModalProfile(block, { img: e.target.result }); };
     reader.readAsDataURL(file);
   });
   const pfEmoji = document.getElementById('mdl-pf-emoji');
@@ -770,6 +775,98 @@ ${blockHeaderHTML({
   }
   /* 떠 있을 때만 나오는 X/Y 두 칸 — 텍스트·도형 Position 절과 «같은 규약»(overlay-float.js). */
   wireFloatPosition({ block, xId: 'mdl-x-number', yId: 'mdl-y-number' });
+  _syncProfileAddChip(block, isPlainish);
+}
+
+/* ══ ★1017t1l2 ② 캔버스 «프로필 추가» 칩 (2026-10-25 S3 · 현빈 「캔버스에서 어떻게 추가하는지?」) ══
+   ★잰 것(t8 · 판 f62653ce): 패널로는 6/6 붙는데 캔버스엔 «지우는» × 만 있고 «붙이는» 입구가 0 이었다.
+   ★이식 — 패널 Profile 절의 두 입구(이미지 선택 · 이모지)를 ★그대로 캔버스 곁으로 옮긴다. 쓰는 문은
+     modal-block.js setModalProfile ★하나(패널 이미지 길도 그 문을 부른다).
+   ★언제 뜨나 — 그 모달이 «골라졌고» · 패널 Profile 절이 뜨는 변형(isPlainish)이고 · 프로필이 «없을» 때.
+     프로필이 생기면 숨는다(그때부터는 × 가 그 자리의 단추다).
+   ★어디 사나 — document.body 의 fixed 요소(#canvas «밖») ⇒ 저장·내보내기·직렬화 대상이 아니다
+     (고스트 .sec-bg-ghost 가 #canvas 밖이라 소독기 명부에 안 올라간 것과 같은 까닭).
+   ★자리 — 프로필이 붙을 쪽(modalProfileSide) 모서리의 세로 가운데. RAF 로 따라가다 조건이 깨지면 숨고 멈춘다. */
+let _pfChip = null, _pfChipBlock = null, _pfChipRaf = 0;
+
+function _ensureProfileAddChip() {
+  if (_pfChip && _pfChip.isConnected) return _pfChip;
+  const el = document.createElement('div');
+  el.id = 'mdl-pf-add-chip';
+  el.style.cssText = 'position:fixed;z-index:9000;display:none;left:0;top:0;';
+  el.innerHTML = `
+    <button type="button" class="mdl-pf-add-btn" aria-label="프로필 추가" title="프로필 추가 (이미지 · 이모지)"
+      style="width:24px;height:24px;border-radius:50%;border:1px solid #fff;background:var(--sel-color,#0d99ff);color:#fff;font-size:15px;line-height:1;padding:0;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.35);transform:translate(-50%,-50%);">+</button>
+    <div class="mdl-pf-add-pop"
+      style="position:absolute;left:-12px;top:16px;width:180px;padding:8px;border-radius:8px;background:var(--ui-bg-card,#2c2c2c);box-shadow:0 4px 16px rgba(0,0,0,.4);display:none;flex-direction:column;gap:6px;">
+      <button type="button" class="prop-action-btn secondary" aria-label="프로필 이미지 선택">이미지 선택</button>
+      <input type="file" accept="image/*" style="display:none">
+      <input type="text" class="prop-input" aria-label="프로필 이모지" placeholder="이모지 입력 후 Enter" maxlength="8">
+    </div>`;
+  /* 칩 안 누름이 캔버스·문서 쪽 «바깥 누름»(선택 해제)으로 새지 않게 — × 단추가 mousedown 을 세운 것과 같은 까닭. */
+  el.addEventListener('mousedown', (e) => e.stopPropagation());
+  const [btn, pop] = [el.querySelector('.mdl-pf-add-btn'), el.querySelector('.mdl-pf-add-pop')];
+  const [pick, file, emoji] = [pop.querySelector('button'), pop.querySelector('input[type=file]'), pop.querySelector('input[type=text]')];
+  /* ⛔`hidden` 속성으로 여닫지 마라 — 이 상자는 인라인 display:flex 가 필요하고, 인라인 display 는 [hidden] 을 이긴다
+     (실측 261026: 늘 떠 있어 좁은 모달의 se 폭 손잡이를 덮었다 · tests/dom/modal-overlay-float M-OVL4 빨강). */
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = pop.style.display === 'none';
+    pop.style.display = open ? 'flex' : 'none';
+    if (open) { emoji.value = ''; emoji.focus(); }
+  });
+  pick.addEventListener('click', (e) => { e.stopPropagation(); file.click(); });
+  file.addEventListener('change', () => {
+    const f = file.files[0];
+    const b = _pfChipBlock;
+    file.value = '';
+    if (!f || !b) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { pop.style.display = 'none'; setModalProfile(b, { img: ev.target.result }); };
+    reader.readAsDataURL(f);
+  });
+  emoji.addEventListener('keydown', (e) => {
+    e.stopPropagation();   /* 글자칸 안의 키가 편집기 단축키로 새지 않게 */
+    if (e.key === 'Escape') { pop.style.display = 'none'; return; }
+    if (e.key !== 'Enter' || e.isComposing) return;
+    e.preventDefault();
+    const b = _pfChipBlock;
+    if (b && setModalProfile(b, { emoji: emoji.value })) { pop.style.display = 'none'; emoji.blur(); }
+  });
+  document.body.appendChild(el);
+  _pfChip = el;
+  return el;
+}
+
+function _hideProfileAddChip() {
+  if (_pfChipRaf) { cancelAnimationFrame(_pfChipRaf); _pfChipRaf = 0; }
+  _pfChipBlock = null;
+  if (_pfChip) { _pfChip.style.display = 'none'; _pfChip.querySelector('.mdl-pf-add-pop').style.display = 'none'; }
+}
+
+function _syncProfileAddChip(block, plainish) {
+  if (!plainish || modalProfileKind(block)) { _hideProfileAddChip(); return; }
+  const chip = _ensureProfileAddChip();
+  if (_pfChipBlock !== block) chip.querySelector('.mdl-pf-add-pop').style.display = 'none';
+  _pfChipBlock = block;
+  if (_pfChipRaf) return;
+  const tick = () => {
+    _pfChipRaf = 0;
+    const b = _pfChipBlock;
+    if (!b || !b.isConnected || !b.classList.contains('selected') || b.classList.contains('editing') || modalProfileKind(b)) {
+      _hideProfileAddChip();
+      return;
+    }
+    const r = b.getBoundingClientRect();
+    if (!(r.width > 0)) { chip.style.display = 'none'; }
+    else {
+      chip.style.display = 'block';
+      chip.style.left = (modalProfileSide(b) === 'right' ? r.right : r.left) + 'px';
+      chip.style.top  = (r.top + r.height / 2) + 'px';
+    }
+    _pfChipRaf = requestAnimationFrame(tick);
+  };
+  tick();
 }
 
 /* ═══ ⑶⑷ 모달 아이콘 = «아이콘블럭과 같은 것»으로 다루기 ═══════════════════════════

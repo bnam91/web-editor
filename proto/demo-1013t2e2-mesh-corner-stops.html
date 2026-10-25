@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>메시 모서리 스톱 시안</title>
+<!--
+  1013t2E2ⓐ 시안 — 현빈 원문(👉 뒤): 「이부분 시안 만들었니? 그라데이션 종류가 radial, liner가 있지만,
+  각 모서리 별로 스톱을 추가할 수 있도록 해줄래? 멀티 그라데이션처럼 말야. 피그마에 있는기능인데 뭔지 알겠지?」
+
+  ⛔제품이 아니다 — 혼자 도는 그림 한 장(앱 코드를 안 싣는다 · 레포 밖 의존 0).
+  ★보이는 것 = 이 가지(taeyang/fix-t0-s7)에서 실제로 넣은 UI 그대로: 섹션 패널 «메시 그라데이션» 절의
+    네 모서리 색 칸 밑에 스톱 막대 하나씩. 막대·손잡이·× 는 컬러피커 그라데이션 탭의 꼴(선례)이다.
+  ★그리는 식도 제품과 같다(js/props/prop-section.js sectionMeshCss) — 모서리마다 radial-gradient(ellipse farthest-side at 모서리, 스톱들).
+  ★저장 꼴(제품): data-bg-mesh = 네 칸을 «|» 로. 한 칸 = 그 모서리의 CSS 정지점 «색 위치%, …».
+    옛 칸 `#rrggbb` = «그 색 0% → 같은 색 알파 0 72%» 로 읽고, 그 꼴 그대로면 다시 `#rrggbb` 로 쓴다(옛 저장본 바이트 불변).
+  ★뒤로 미룬 것(현빈 보류): 이 막대를 피커 «드롭다운»(linear/radial 옆 «mesh») 안으로 옮기는 것 — 지금은 패널 자리 그대로.
+-->
+<style>
+:root {
+  --bg: #f4f4f6; --panel: #1f1f1f; --panel-2: #2a2a2a; --line: #3a3a3a; --text: #eeeeee; --muted: #8a8a8a;
+  --accent: #2d6fe8; --page: #ffffff; --ink: #1a1a1a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #141414; --page: #222222; --ink: #eeeeee; }
+}
+:root[data-theme="dark"] { --bg: #141414; --page: #222222; --ink: #eeeeee; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.5 Pretendard, -apple-system, system-ui, sans-serif; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 18px; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+@media (max-width: 760px) { .stage { grid-template-columns: 1fr; } }
+.canvas { background: var(--page); border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.sec { height: 340px; border-radius: 4px; position: relative; overflow: hidden; }
+.sec-label { position: absolute; left: 8px; top: 6px; font-size: 11px; color: rgba(0,0,0,.55); background: rgba(255,255,255,.7); padding: 1px 6px; border-radius: 3px; }
+.panel { background: var(--panel); color: var(--text); border-radius: 8px; padding: 14px 14px 16px; }
+.panel h2 { font-size: 12px; font-weight: 600; margin: 0 0 10px; color: var(--muted); letter-spacing: .02em; }
+.btn { width: 100%; border: 0; border-radius: 6px; padding: 7px 10px; background: var(--accent); color: #fff; font: inherit; margin-bottom: 8px; }
+.row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.row .lbl { width: 52px; color: var(--muted); font-size: 12px; flex: none; }
+.row input[type=color] { width: 26px; height: 22px; border: 1px solid var(--line); border-radius: 4px; padding: 0; background: none; }
+.row .hex { flex: 1 1 auto; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); border-radius: 4px; padding: 3px 6px; font: 12px ui-monospace, monospace; }
+.row .alpha { width: 44px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); border-radius: 4px; padding: 3px 4px; font: 12px ui-monospace, monospace; text-align: right; }
+.stops { display: flex; align-items: center; gap: 4px; margin: 4px 0 6px; }
+/* 막대·손잡이·× = 컬러피커 그라데이션 탭(css/color-picker.css)과 같은 꼴 */
+.bar { position: relative; flex: 1 1 auto; height: 18px; border-radius: 4px; border: 1px solid var(--line); cursor: copy;
+  background-color: #fff; background-image: linear-gradient(45deg,#666 25%,transparent 25%,transparent 75%,#666 75%), linear-gradient(45deg,#666 25%,transparent 25%,transparent 75%,#666 75%);
+  background-size: 8px 8px; background-position: 0 0, 4px 4px; }
+.fill { position: absolute; inset: 0; border-radius: 3px; pointer-events: none; }
+.thumb { position: absolute; top: 50%; width: 12px; height: 12px; margin-left: -6px; border: 2px solid #fff; border-radius: 50%;
+  transform: translateY(-50%); cursor: grab; box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 1px 4px rgba(0,0,0,.5); z-index: 2; }
+.thumb.on { border-color: var(--accent); transform: translateY(-50%) scale(1.2); z-index: 3; }
+.del { flex: none; width: 20px; height: 20px; border: 0; background: transparent; color: var(--muted); font-size: 14px; border-radius: 3px; cursor: pointer; }
+.del:disabled { opacity: .3; cursor: default; }
+.hint { color: var(--muted); font-size: 11px; margin-top: 6px; }
+.spec { margin-top: 20px; background: var(--page); border-radius: 8px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.spec h3 { margin: 0 0 6px; font-size: 13px; }
+.spec code { display: block; white-space: pre-wrap; word-break: break-all; font: 12px/1.5 ui-monospace, monospace; background: rgba(127,127,127,.12); padding: 8px; border-radius: 4px; }
+.later { margin-top: 12px; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>섹션 메시 그라데이션 — 모서리별 스톱</h1>
+  <p class="sub">모서리마다 막대 하나. 막대 빈 데를 더블클릭하면 스톱 추가, 손잡이를 끌면 위치, 누르면 위 색 칸이 그 스톱을 고친다, × = 고른 스톱 삭제(최소 2).</p>
+  <div class="stage">
+    <div class="canvas"><div class="sec" id="sec"><span class="sec-label">Section 01</span></div></div>
+    <div class="panel">
+      <h2>BACKGROUND</h2>
+      <button class="btn" type="button">메시 그라데이션 끄기</button>
+      <div id="corners"></div>
+      <div class="hint">모서리마다 · 더블클릭으로 스톱 추가 · 드래그로 위치 이동 · 위 색 칸 = 고른 스톱</div>
+    </div>
+  </div>
+  <div class="spec">
+    <h3>저장 글자 (data-bg-mesh)</h3>
+    <code id="spec"></code>
+    <h3 style="margin-top:10px">그리는 CSS (background-image)</h3>
+    <code id="css"></code>
+    <p class="later">뒤로 미룬 것: 이 막대를 컬러피커 드롭다운(Linear · Radial 옆)으로 옮기기 — 현빈 보류. 지금은 섹션 패널 자리 그대로.</p>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var KEYS = ['tl', 'tr', 'br', 'bl'];
+  var LABEL = { tl: '왼위', tr: '오른위', br: '오른아래', bl: '왼아래' };
+  var AT = { tl: '0% 0%', tr: '100% 0%', br: '100% 100%', bl: '0% 100%' };
+  var STOP = 72;
+  var corners = [
+    [{ c: '#ff6ec7', p: 0, a: 1 }, { c: '#ffffff', p: 30, a: 0.8 }, { c: '#ff6ec7', p: 72, a: 0 }],
+    [{ c: '#7b5cff', p: 0, a: 1 }, { c: '#7b5cff', p: STOP, a: 0 }],
+    [{ c: '#4ad7d1', p: 0, a: 1 }, { c: '#1a8f8a', p: 40, a: 0.6 }, { c: '#4ad7d1', p: 72, a: 0 }],
+    [{ c: '#ffd166', p: 0, a: 1 }, { c: '#ffd166', p: STOP, a: 0 }],
+  ];
+  var sel = [0, 0, 0, 0];
+  function rgb(h) { return [1, 3, 5].map(function (o) { return parseInt(h.slice(o, o + 2), 16); }); }
+  function stopCss(s) {
+    var a = Math.round(s.a * 1000) / 1000;
+    var col = a >= 1 ? s.c : 'rgba(' + rgb(s.c).join(', ') + ', ' + a + ')';
+    return col + ' ' + Math.round(s.p * 100) / 100 + '%';
+  }
+  function sorted(st) { return st.slice().sort(function (x, y) { return x.p - y.p; }); }
+  function token(st) {
+    var s = sorted(st);
+    if (s.length === 2 && s[0].c === s[1].c && s[0].p === 0 && s[0].a === 1 && s[1].p === STOP && s[1].a === 0) return s[0].c;
+    return s.map(stopCss).join(', ');
+  }
+  function base() {
+    var sum = [0, 0, 0];
+    corners.forEach(function (st) { var v = rgb(sorted(st)[0].c); sum[0] += v[0]; sum[1] += v[1]; sum[2] += v[2]; });
+    return 'rgb(' + sum.map(function (x) { return Math.round(x / 4); }).join(', ') + ')';
+  }
+  function paint() {
+    var img = KEYS.map(function (k, i) { return 'radial-gradient(ellipse farthest-side at ' + AT[k] + ', ' + sorted(corners[i]).map(stopCss).join(', ') + ')'; }).join(', ');
+    var sec = document.getElementById('sec');
+    sec.style.backgroundImage = img;
+    sec.style.backgroundColor = base();
+    document.getElementById('spec').textContent = corners.map(token).join('|');
+    document.getElementById('css').textContent = img;
+  }
+  function lerp(h1, h2, t) {
+    var a = rgb(h1), b = rgb(h2);
+    return '#' + [0, 1, 2].map(function (i) { return Math.round(a[i] + (b[i] - a[i]) * t).toString(16).padStart(2, '0'); }).join('');
+  }
+  var root = document.getElementById('corners');
+  KEYS.forEach(function (k, i) {
+    var row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = '<span class="lbl"></span><input type="color" aria-label="색"><input class="hex" maxlength="7" aria-label="hex"><input class="alpha" aria-label="투명도">';
+    row.querySelector('.lbl').textContent = LABEL[k];
+    var stops = document.createElement('div');
+    stops.className = 'stops';
+    stops.innerHTML = '<div class="bar" title="더블클릭으로 스톱 추가"><div class="fill"></div></div><button class="del" type="button" title="스톱 삭제(최소 2개)">×</button>';
+    root.appendChild(row);
+    root.appendChild(stops);
+    var bar = stops.querySelector('.bar'), fill = stops.querySelector('.fill'), del = stops.querySelector('.del');
+    var color = row.querySelector('input[type=color]'), hex = row.querySelector('.hex'), alpha = row.querySelector('.alpha');
+    function field() {
+      var s = corners[i][sel[i]];
+      color.value = s.c; hex.value = s.c.slice(1).toUpperCase(); alpha.value = String(Math.round(s.a * 100));
+    }
+    function render() {
+      corners[i] = sorted(corners[i]);
+      fill.style.background = 'linear-gradient(90deg, ' + corners[i].map(stopCss).join(', ') + ')';
+      bar.querySelectorAll('.thumb').forEach(function (t) { t.remove(); });
+      corners[i].forEach(function (s, j) {
+        var t = document.createElement('div');
+        t.className = 'thumb' + (j === sel[i] ? ' on' : '');
+        t.style.left = s.p + '%';
+        t.style.background = s.c;
+        t.title = Math.round(s.p) + '%';
+        t.addEventListener('mousedown', function (e) {
+          e.preventDefault(); e.stopPropagation();
+          var me = corners[i][j];
+          sel[i] = j; render(); field();
+          function mv(ev) {
+            var r = bar.getBoundingClientRect();
+            me.p = Math.max(0, Math.min(100, Math.round((ev.clientX - r.left) / r.width * 10000) / 100));
+            render(); sel[i] = corners[i].indexOf(me); render(); paint();
+          }
+          function up() { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); }
+          window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up);
+        });
+        bar.appendChild(t);
+      });
+      del.disabled = corners[i].length <= 2;
+    }
+    bar.addEventListener('dblclick', function (e) {
+      if (e.target.classList.contains('thumb')) return;
+      var r = bar.getBoundingClientRect();
+      var p = Math.max(0, Math.min(100, Math.round((e.clientX - r.left) / r.width * 10000) / 100));
+      var st = corners[i], c = st[0].c, a = st[0].a;
+      for (var q = 0; q < st.length - 1; q++) {
+        if (p >= st[q].p && p <= st[q + 1].p) {
+          var t = (p - st[q].p) / ((st[q + 1].p - st[q].p) || 1);
+          c = lerp(st[q].c, st[q + 1].c, t); a = st[q].a + (st[q + 1].a - st[q].a) * t; break;
+        }
+      }
+      var added = { c: c, p: p, a: Math.round(a * 1000) / 1000 };
+      st.push(added); corners[i] = sorted(st); sel[i] = corners[i].indexOf(added);
+      render(); field(); paint();
+    });
+    del.addEventListener('click', function () {
+      if (corners[i].length <= 2) return;
+      corners[i].splice(sel[i], 1); sel[i] = Math.min(sel[i], corners[i].length - 1);
+      render(); field(); paint();
+    });
+    function setColor(v) {
+      if (!/^#[0-9a-f]{6}$/i.test(v)) return;
+      corners[i][sel[i]].c = v.toLowerCase(); render(); field(); paint();
+    }
+    color.addEventListener('input', function () { setColor(color.value); });
+    hex.addEventListener('change', function () { setColor('#' + hex.value.replace('#', '')); });
+    alpha.addEventListener('change', function () {
+      var n = Math.max(0, Math.min(100, parseFloat(alpha.value) || 0));
+      corners[i][sel[i]].a = n / 100; render(); field(); paint();
+    });
+    render(); field();
+  });
+  paint();
+})();
+</script>
+</body>
+</html>

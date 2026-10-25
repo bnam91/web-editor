@@ -813,51 +813,59 @@ test('D9 ★★속도 칸을 ★만지는 동안에도 ★멈춤 단추가 ★�
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 
-/* ═══ D10 ★래칫 — 지운 ★프롭힌트 둘이 ★되돌아오면 빨강 (1020t2c3) ══════════════════════
-   ★현빈 2026-10-20 「프롭힌트 없애주기」 ⇒ 파티클 패널에서 ★둘을 지웠다:
-     ① 「불투명도는 파티클 층 통째(0 이면 안 보임) · 흔들림은 …」
-     ② 「글로우(세기)와 퍼짐(반경)은 따로입니다 — …」
-   ⛔★지우지 ★않은 둘 — ★이 칸이 ★그 둘도 ★같이 지켠다(★넓혀서 지우면 ★빨강):
-     ★`:347` 「이 번호가 같으면 같은 그림이 나옵니다」 = ★진짜 힌트 · 현빈이 ★안 지목했다
-     ★`:350` 「섹션 크기를 아직 못 재서 그림을 미뤘습니다」 = ★힌트가 아니라 ★★상태 알림
-       (`${drew ? '' : …}` 분기 안) ⇒ ★지우면 ★「왜 안 그려지나」가 ★조용해진다.
-   ★전제/반례 — ⛔금지단언(「없다」)만 두면 ★패널이 안 떠도 ★초록이다
-     ⇒ ★★「다른 힌트는 ★있다」를 ★한 쌍으로 걸었다(★:347 이 받친다).
-   ★항등식이 아님 — ★핀 a42d76d59f45a70eb3ee0e1f68a8ed37650f7565 에서 ★①② 는 ★각 1건이었다. */
+/* ═══ D10 ★래칫 — 파티클 절의 ★프롭힌트가 ★되돌아오면 빨강 (1020t2c3) ══════════════════════
+   ★현빈 2026-10-20 「프롭힌트 없애주기 : 파티클 추가시」 ⇒ 둘을 지웠다(불투명도·흔들림 / 글로우·퍼짐).
+   ★현빈 2026-10-26 「프롭힌트는 없애」 ⇒ ★무늬번호 아래 「이 번호가 같으면 같은 그림이 나옵니다」도 뺐다.
+   ⇒ ★그림이 난 파티클 절(#sec-fxpart-card) 안의 `.prop-hint` = ★0.
+   ⛔남긴 하나 — 「섹션 크기를 아직 못 재서 그림을 미뤘습니다」 = 힌트가 아니라 ★상태 알림(그림이 안 났을 때만 뜬다).
+     ★이 장면은 그림이 ★난다(아래 전제로 잰다) ⇒ 절 안 0 이 그것과 섞이지 않는다. 소스엔 ★살아있어야 한다.
+   ★세는 자리를 ★절로 좁혔다 — ⛔`#panel-right` 전체로 세면 ★섹션 패널의 다른 힌트(「섹션 밖 보이기」)가
+     세어져 ★절 안 힌트가 0 이어도 「≥1」이 참이 된다(옛 ⑴ 전제가 그 꼴이었다).
+   ★거짓 초록 막기 — 절이 ★없으면 0 은 공짜다 ⇒ ★켜졌다·★그림이 났다·★불투명도/흔들림 칸이 ★있고 ★먹는다를 같이 단언.
+   ★양성대조 — 핀 ca702d40(무늬번호 힌트가 있던 판)에서 ★빨강이어야 한다. */
 const fs_c3 = require('fs');
 const path_c3 = require('path');
 const { ROOT: ROOT_c3 } = require('./_root-harness.js');
 
-test('D10 ★래칫(1020t2c3) — 지운 프롭힌트 둘이 ★없고, ★안 지운 둘(진짜 힌트 · ★상태 알림)은 ★살아있다', async ({ page }) => {
+test('D10 ★래칫(1020t2c3) — 그림이 난 파티클 절 안 프롭힌트 0 · 상태 알림은 소스에 · 불투명도/흔들림 칸은 산다', async ({ page }) => {
   const errs = await setup(page);
   await growViewport(page);
-  await page.click('#sec-fxpart-toggle');                      /* ★사람이 하는 그 동작 — 켜야 세부 줄이 뜬다 */
+  await page.click('#sec-fxpart-toggle');                      /* ★사람이 하는 그 동작 — 「파티클 켜기」 */
+
+  /* ⑴ 전제 — 켜졌다 · 절이 섰다 · ★그림이 났다(상태 알림 분기가 아니다) */
   await expect.poll(() => page.evaluate(() => !!window.hasParticles(document.getElementById('pS').dataset)),
-    '★전제: 파티클이 켜졌다(안 켜지면 아래 힌트 0건은 ★「안 재고 있다」다)').toBe(true);
+    '★전제: 파티클이 켜졌다(안 켜지면 절이 없어 힌트 0 은 ★「안 재고 있다」다)').toBe(true);
+  await expect(page.locator('#sec-fxpart-card #sec-fxpart-body'), '★전제: 파티클 절 본문이 섰다').toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const w = document.querySelector('#pS > .' + (window.FX_PARTICLES_WRAP || 'sec-fxpart-wrap'));
+    return !!(w && /<svg/.test(w.innerHTML || ''));
+  }), '★전제: 그림이 났다').toBe(true);
 
-  const h = await page.evaluate(() => {
-    const hints = [...document.querySelectorAll('#panel-right .prop-hint')].map((e) => e.textContent.trim());
-    return { n: hints.length, hints };
-  });
-  console.log(`[D10] 파티클 패널 .prop-hint ${h.n}개: ${JSON.stringify(h.hints)}`);
+  /* ⑵ 본 단언 — 절 안 `.prop-hint` 0 (★문구로 고르지 않는다 — 꼴로 센다) */
+  const hints = await page.evaluate(() =>
+    [...document.querySelectorAll('#sec-fxpart-card .prop-hint')].map((e) => e.textContent.trim()));
+  console.log(`[D10] 파티클 절 .prop-hint ${hints.length}개: ${JSON.stringify(hints)}`);
+  expect(hints, '★파티클 절에 프롭힌트가 있다 — 현빈 「프롭힌트는 없애」').toEqual([]);
 
-  /* ⑴ ★전제/반례 — ★다른 힌트는 ★있다. ⛔0건을 「없다」로 닫지 않는다. */
-  expect(h.n, '★전제: 파티클 패널에 .prop-hint 가 1개 이상 있다').toBeGreaterThanOrEqual(1);
-  expect(h.hints.some((t) => t.includes('이 번호가 같으면')),
-    '★안 지운 ★진짜 힌트(:347 무늬번호)가 ★사라졌다 — ⛔「파티클 힌트 전부」로 범위를 넓히지 마라(현빈은 둘만 지목했다)').toBe(true);
+  /* ⑶ 절의 다른 것은 ★안 깨졌다 — 불투명도·흔들림 칸이 ★있고, 사람이 고친 수가 ★저장값에 들어간다 */
+  for (const [key, label] of [['fxOpacity', '불투명도'], ['jit', '흔들림']]) {
+    const num = page.locator(`#sec-fxpart-card [data-fxpart-axis="${key}"]`);
+    await expect(num, `★${label} 수 칸이 있다`).toHaveCount(1);
+    await expect(page.locator(`#sec-fxpart-card [data-fxpart-range="${key}"]`), `★${label} 슬라이더가 있다`).toHaveCount(1);
+    const { lo, hi, was } = await num.evaluate((e) => ({ lo: +e.min, hi: +e.max, was: +e.value }));
+    const want = was === hi ? lo : hi;                         /* ★지금 값과 ★다른 끝 — 안 바뀌어도 같은 수가 나오는 항등을 피한다 */
+    await num.fill(String(want));
+    await num.press('Enter');
+    await expect.poll(() => page.evaluate((k) => window.readParticles(document.getElementById('pS').dataset)[k], key),
+      `★${label} ${was}→${want} 이 저장값에 들어갔다`).toBe(want);
+  }
 
-  /* ⑵ ★본 단언 — 지운 둘이 ★되돌아오지 않았다 */
-  expect(h.hints.some((t) => t.includes('불투명도는 파티클 층 통째')), '★지운 힌트 ①이 되돌아왔다').toBe(false);
-  expect(h.hints.some((t) => t.includes('글로우(세기)와 퍼짐(반경)')), '★지운 힌트 ②가 되돌아왔다').toBe(false);
-
-  /* ⑶ ★상태 알림(:350)은 ★소스에 ★살아있다 — ★그 분기(`drew === false`)는 ★이 장면에서 안 타므로
-       ★DOM 으로는 못 본다. ⇒ ★소스 단언으로 ★같이 잠근다(⛔「화면에 없다」≠「코드에 없다」). */
+  /* ⑷ 소스 — 지운 셋은 ★없고, 상태 알림은 ★있다(그 분기는 이 장면에서 안 타므로 DOM 으로 못 본다) */
   const src = fs_c3.readFileSync(path_c3.join(ROOT_c3, 'js/props/prop-section-particles.js'), 'utf8');
+  expect((src.match(/이 번호가 같으면 같은 그림이 나옵니다|불투명도는 파티클 층 통째|글로우\(세기\)와 퍼짐\(반경\)/g) || []).length,
+    '★지운 힌트 문구가 소스에 되돌아왔다').toBe(0);
   expect(src.includes('섹션 크기를 아직 못 재서'),
-    '★★상태 알림(:350 「섹션 크기를 아직 못 재서 그림을 미뤘습니다」)이 지워졌다 — ★이것은 힌트가 아니다. 지우면 「왜 안 그려지나」가 ★조용해진다').toBe(true);
-  expect(src.includes('이 번호가 같으면'), '★:347 진짜 힌트가 소스에서도 사라졌다').toBe(true);
-  expect((src.match(/불투명도는 파티클 층 통째|글로우\(세기\)와 퍼짐\(반경\)/g) || []).length,
-    '★지운 두 문구가 소스에 되돌아왔다(핀에서는 각 1건이었다)').toBe(0);
+    '★상태 알림(그림이 미뤄졌다)이 지워졌다 — 힌트가 아니다. 지우면 「왜 안 그려지나」가 조용해진다').toBe(true);
 
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });

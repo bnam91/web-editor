@@ -174,8 +174,10 @@ test('QC3 ★★★인용구 ★안의 ★텍스트를 고르면 ★★밑줄(U)
     h: document.querySelectorAll('#qt-typo-highlight-btn').length,
     d: document.querySelectorAll('#qt-typo-dot-btn').length,
   }));
-  expect(qPanel, `★★전제 — ★인용구 ★제 패널엔 ★U·H·점이 ★★0 이다(★그래서 ★ㄷ 가 ★필요했다). 잰 값 ${JSON.stringify(qPanel)}`)
-    .toEqual({ u: 0, h: 0, d: 0 });
+  /* ⚰️1012t1H5 현빈 「[B I S] 이것도 왜이리 적니?」 — 이제 인용구 제 패널에도 U·H·점이 «블럭 전체»용으로 선다(Q18 이 14칸으로 잠근다).
+     ⇒ 옛 전제 «0 이다»는 뒤집혔다. 이 시험의 주 단언(안의 텍스트가 «부분 서식»용 U·H·점을 들고 온다)은 그대로 남는다. */
+  expect(qPanel, `★인용구 제 패널의 U·H·점(1012t1H5 뒤 = 1씩). 잰 값 ${JSON.stringify(qPanel)}`)
+    .toEqual({ u: 1, h: 1, d: 1 });
 
   await page.evaluate(() => window.addQuoteChild(window.__q, 'body'));   /* 1012t1H6: select 입구 걷힘 → 같은 window 판 함수 */
   await page.waitForFunction(() => (window.quoteKids?.(window.__q) || []).length === 1, null, { timeout: 5000 });

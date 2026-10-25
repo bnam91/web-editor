@@ -541,6 +541,7 @@ if (typeof window !== 'undefined') {
   window.ifgIconDblclick = ifgIconDblclick;          // ★block-drag.js 가 «부를 때» 읽는다(import 안 한다 — 기존 관례)
   window.ifgIconPickTarget = ifgIconPickTarget;
   window.ifgCommitIcon = ifgCommitIcon;
+  window.ifgSvgToIconSrc = ifgSvgToIconSrc;        // ★1017t1m2 — 아이콘 텍스트 블럭(block-drag.js)이 같은 변환을 쓴다
   window.ifgPaintSvgRoot = ifgPaintSvgRoot;
   window.openIfgIconPopover = openIfgIconPopover;
   window.closeIfgIconPopover = closeIfgIconPopover;

@@ -13,6 +13,7 @@ import { sanitizeRichTextHtml, richTextHasFormatting } from '../util/sanitize-ri
 /* ★1017a5 — 배경이미지 값·이름의 정본은 js/frame-bg.js «하나»다(⛔사본 금지 · 그 머리말 :22).
    ★읽는 자만 빌린다(frameBgSize/frameBgPos/FRAME_BG_SIZE_DEFAULT) — 그리는 자는 이 파일(cssText)이다. */
 import { frameBgSize, frameBgPos, FRAME_BG_SIZE_DEFAULT } from '../frame-bg.js';
+import { needsBgLayer, ensureBgLayer, removeBgLayer } from '../bg-layer.js';
 
 // ★텍스트 요소 클래스가 `tb-mdl-*` 인 이유 = «내보내기 보험».
 //   export-figma-json 의 generic 폴백이 [class^="tb-"] 만 텍스트로 수집한다.
@@ -204,9 +205,12 @@ function _glassStyles(block) {
  *   ⛔★이 함수는 ★★«background:${bg} 뒤»에만 끼워야 한다 — background 단축 속성이 뒤에 오면
  *     background-image 를 ★되돌린다(renderModalBlock cssText 조립 쪽 주석 참조 · 순서가 계약이다).
  *   ★값은 js/frame-bg.js 가 정본(frameBgSize/frameBgPos) — ⛔문자열 'cover' 를 여기 다시 적지 않는다. */
-function _bgImageStyles(block) {
+function _bgImageStyles(block, { layer = false } = {}) {
   const img = block.dataset && block.dataset.bgImg;
   if (!img) return '';
+  /* ★10171a5 — 회전·색보정이 있으면 그림은 ★레이어(js/bg-layer.js)가 그린다 ⇒ 모달 자신은 ★안 그린다(이중 그림 0).
+     ★섹션·프레임과 ★같은 규약(js/image-handling.js syncBg 「레이어가 그리는 동안 host 자신의 그림은 비운다」). */
+  if (layer) return '';
   return `background-image:url("${img}");background-size:${frameBgSize(block)};background-position:${frameBgPos(block)};`;
 }
 
@@ -684,11 +688,18 @@ function renderModalBlock(block) {
      ★렌더는 그 키를 «읽기만» 한다 — ⛔없는 표식을 새로 심지 않는다(grid-block.js:781 · 해제 때 치울 주인은 overlay-float.js).
      ⚠️재면(2026-10-21 · w2c-frzW3): 이 값이 없으면 ⌘Z·패널 변경 뒤 width:796px → 100% (섹션 폭으로 늘어난다). */
   const _frozenW = (block.dataset.overlayBlock === 'true' && block.dataset.overlayFrozenWidth) || '';
+  /* ★10171a5 — 배경 레이어(회전·색보정 · js/bg-layer.js)는 ★innerHTML 갈아끼우기에 ★같이 지워진다.
+     ⇒ 판정(needsBgLayer — 그 판정의 ★한 자리)은 ★지우기 «전»에 하고, 옛 레이어(색보정 filter 의 ★유일한 소지자)를
+       ★들고 있다가 ★다시 꽂는다. 키가 없으면 레이어도 없다 ⇒ 기존 모달의 cssText·innerHTML 은 한 글자도 안 달라진다. */
+  const _bgLayerOld = block.querySelector?.(':scope > .sec-bg-clip') || null;
+  /* ★판정은 needsBgLayer «한 자리»(js/bg-layer.js) — ⛔제 벌 조건(bgImg·회전)을 따로 붙이지 마라.
+     ★이 자리는 «영구 자리»다(tests/unit/bg-layer-guard.test.mjs 부류 표 · needs ? ensure : remove 짝). */
+  const _bgLayerOn = needsBgLayer(block);
   block.style.cssText = 'box-sizing:border-box;position:relative;'
     + (wMode === 'fixed' ? `width:${_frozenW || _num(block, 'width', MODAL_DEFAULTS.width) + 'px'};max-width:100%;margin-left:auto;margin-right:auto;` : `width:${_frozenW || '100%'};`)
     + (hMode === 'fixed' ? `min-height:${_num(block, 'height', MODAL_DEFAULTS.height)}px;` : '')
     + `background:${bg};color:${textColor};font-size:${fontSize}px;text-align:${align};`
-    + _bgImageStyles(block)   /* ★★background 단축 «바로 뒤» — 안 그러면 단축이 이미지를 되돌린다 */
+    + _bgImageStyles(block, { layer: _bgLayerOn })   /* ★★background 단축 «바로 뒤» — 안 그러면 단축이 이미지를 되돌린다 */
     + _typoStyles(block)
     + (radius > 0 ? `border-radius:${radius}px;` : '')
     + `padding:${rootPad};`
@@ -823,6 +834,13 @@ function renderModalBlock(block) {
   /* 장식(꼬리 · 테이프)은 슬롯 «뒤»에 붙인다 — 첫 [class^="tb-"] 를 글 슬롯으로 찾는 자리들이 그대로다. */
   const _deco = _decoHtml(block, bg);
   if (_deco) block.insertAdjacentHTML('beforeend', _deco);
+  /* ★10171a5 — 레이어를 첫 자식으로 되꽂고(있던 것 · filter 보존) 다시 칠한다. ensureBgLayer 가 멱등이다. */
+  if (_bgLayerOn) {
+    if (_bgLayerOld) block.insertBefore(_bgLayerOld, block.firstChild);
+    ensureBgLayer(block);
+  } else {
+    removeBgLayer(block);   /* innerHTML 이 이미 지웠다 — 짝(불변식 「레이어 있음 ⇔ needsBgLayer」)을 글자로 남긴다 · 멱등 */
+  }
 
   /* ⑵ 아이콘 슬롯의 클릭 위임 — ★재렌더가 innerHTML 을 통째 갈아끼우므로 «여기서» 다시 건다
      (슬롯 인라인 편집이 block-drag 에서 위임으로 사는 것과 같은 이유).
@@ -1003,7 +1021,26 @@ function commitModalSlot(block, slot, text, html = '') {
   return true;
 }
 
+/* ★1017t1l2 ② (현빈 「캔버스에서 어떻게 추가하는지?」 · 2026-10-25 S3) — 프로필을 «붙이는» 문 하나.
+   ★패널(js/props/prop-modal.js Profile 절)과 캔버스 칩(같은 파일 _syncProfileAddChip)이 ★같이 부른다
+     ⇒ 붙이는 규칙(사진·이모지 둘 중 하나 · 그리기 → 버즈 row 폭 → 이력 push-after)이 한 벌이다.
+   ★지우는 쪽은 위 × 단추가 맡는다(그 자리의 규약 그대로). 돌려주는 값 = 붙였으면 true. */
+function setModalProfile(block, { img, emoji } = {}) {
+  if (!block || !block.dataset) return false;
+  const e = String(emoji ?? '').trim();
+  if (typeof img === 'string' && img) { block.dataset.profileImg = img; delete block.dataset.profileEmoji; }
+  else if (e) { block.dataset.profileEmoji = e; delete block.dataset.profileImg; }
+  else return false;
+  renderModalBlock(block);
+  window.refitBuzzRowWidth?.(block);
+  window.pushHistory?.();
+  window.scheduleAutoSave?.();
+  if (block.classList?.contains('selected')) window.showModalProperties?.(block);
+  return true;
+}
+
 window.makeModalBlock   = makeModalBlock;
+window.setModalProfile  = setModalProfile;
 window.addModalBlock    = addModalBlock;
 window.renderModalBlock = renderModalBlock;
 window.commitModalSlot  = commitModalSlot;
@@ -1073,4 +1110,4 @@ export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, apply
          MODAL_DECO_TAILS, MODAL_DECO_TAPES, MODAL_TAPE_SHAPE, MODAL_TAPE_POS, _glassStyles, _decoHtml, _tapeHtml,
          _bgImageStyles,
          MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT, modalProfileSize, modalProfileSide, modalProfileKind,
-         syncModalIconFirstLineOffset };
+         setModalProfile, syncModalIconFirstLineOffset };

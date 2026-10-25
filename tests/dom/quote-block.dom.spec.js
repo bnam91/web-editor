@@ -1396,10 +1396,10 @@ test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클�
          ㉢ ★그때의 ★인용구 — Typography/Fill 절이 ★★0(절 제목 전수 = ["인용구(쉼표)","글"]) · «글» 절 ★5칸
    ★★기준판 = ★㉡ 모달이다 — ㉠의 ★숨은 23칸은 ★부분 서식(선택한 글자만)을 ★전제하고, ★이 블럭의 글은
      ★`textContent` ★평문으로 dataset 에 살아 ★원리적으로 ★부분 서식이 ★안 된다(모달과 ★같은 한계).
-   ★★모달 11 중 ★★하나(★형광펜 H)를 ★★일부러 ★안 켰다 — ★까닭을 ★이름으로:
-     ★형광펜 ★색의 명부가 ★이미 ★둘(`modal-block.js:326` ＋ `modal-frameify.js:42`)이고
-     `tests/unit/modal-frameify-gates.test.mjs` ★G1 이 ★그 둘만 대조한다 ⇒ ★세 번째 사본은 ★그 게이트 ★밖이다.
-     ⇒ ★그래서 ★★«10 ＋ 안 켠 1»을 ★이 칸이 ★그대로 ★잠근다(⛔「전부」라 적지 않는다). */
+   ⚰️(1012t1H5 로 뒤집힘) 옛 판은 모달 11 중 형광펜 H 를 일부러 안 켜 «10 ＋ 안 켠 1»을 잠갔다
+     (까닭: 모달 형광펜 색 명부의 셋째 사본). 현빈 「[B I S] 이것도 왜이리 적니?」 ⇒ 이제 단추는 텍스트블럭과 같은 7
+     (B I U S H 점 글로우 · 블럭 전체) · 형광펜은 텍스트블럭 .tb-hl 을 그대로 써 명부 사본이 없다.
+     ⇒ 이 칸은 ★«10 ＋ U·H·점·글로우 4 = 14»를 잠근다. 「누르면 먹는다」는 fix5-quote-panel.dom.spec.js F4. */
 test('Q18 ★★타이포그래피 절 — ★정본에서 나오고(명부) ★닿고 ★눌러서 ★모델과 ★그림을 움직인다 (현빈 1010t2c1-②)', async ({ page }) => {
   const errs = await setup(page, { text: '안녕' });
   await openPanel(page);
@@ -1431,11 +1431,13 @@ test('Q18 ★★타이포그래피 절 — ★정본에서 나오고(명부) ★
     'qt-typo-strike-btn', 'qt-typo-lh-number', 'qt-typo-ls-number']) {
     expect(cen.ids.includes(id), `★조종칸 ★${id} 가 ★있어야 한다. 잰 전수 ${JSON.stringify(cen.ids)}`).toBe(true);
   }
-  expect(cen.ids.length, `★조종칸 ★10개(모달 11 − ★안 켠 형광펜 1). 잰 값 ${cen.ids.length} · ${JSON.stringify(cen.ids)}`).toBe(10);
-  /* ★★안 켠 것도 ★이름으로 잠근다 — ⛔「눌러도 조용히 아무 일 없음」을 ★만들지 않는다 */
-  expect(cen.hlBtn, '★형광펜(H)은 ★안 켠다 — 색 명부가 이미 둘이다(G1 이 그 둘만 대조)').toBe(0);
-  expect(cen.ulBtn, '★밑줄(U)도 ★안 켠다 — 부분 서식 전제').toBe(0);
-  expect(cen.dotBtn, '★점도 ★안 켠다 — 부분 서식 전제').toBe(0);
+  /* ⚰️1012t1H5 현빈 「[B I S] 이것도 왜이리 적니?」 — 옛 단언 «10개 · U·H·점 0개»를 뒤집었다.
+     이제 단추는 텍스트블럭과 같은 7(B I U S H 점 글로우) ⇒ 조종칸 10 ＋ 4(U·H·점·글로우) = 14.
+     «누르면 인용구 글자에 먹는다»는 tests/dom/fix5-quote-panel.dom.spec.js F4 가 잰다. */
+  expect(cen.ids.length, `★조종칸 ★14개(옛 10 ＋ U·H·점·글로우). 잰 값 ${cen.ids.length} · ${JSON.stringify(cen.ids)}`).toBe(14);
+  expect(cen.hlBtn, '★형광펜(H) 단추 1 (1012t1H5)').toBe(1);
+  expect(cen.ulBtn, '★밑줄(U) 단추 1 (1012t1H5)').toBe(1);
+  expect(cen.dotBtn, '★점 단추 1 (1012t1H5)').toBe(1);
   expect(cen.oldFsSlider, `★옛 «글자 크기» 쌍은 ★치웠다(한 값에 칸 둘 금지). 잰 값 ${cen.oldFsSlider}`).toBe(0);
   /* ★범위가 ★QUOTE_LIMITS ★한 표에서 왔나 — ⛔리터럴이면 여기서 갈린다 */
   const lim = await page.evaluate(() => window.QUOTE_LIMITS.fontSize);

@@ -1798,6 +1798,9 @@ function _bindPastedEl(el) {
   if (typeof window.rerenderTree !== 'function') throw new Error('[CLONE-RERENDER-01] window.rerenderTree 가 없다 — js/io/save-load.js 가 안 실렸다');
   window.rerenderTree(el);
   [...(el.matches?.('.sticker-block') ? [el] : []), ...el.querySelectorAll('.sticker-block')].forEach(b => window.bindStickerSelect?.(b));
+  /* ★1020t1b — 그라데이션도 «제 바인더»(클릭 선택·끌기)를 건다. rebindAll·A/B 사본·템플릿 넣기는 이미 부르는데 이 문만 빠져
+     ⌘C⌘V·⌘D·섹션 복제 사본이 «끌어도 안 움직였다». _gradientBound 가드라 두 번 안 묶인다. 회귀: tests/dom/fix5-grad-paste.dom.spec.js P3. */
+  [...(el.matches?.('.gradient-block') ? [el] : []), ...el.querySelectorAll('.gradient-block')].forEach(b => window.bindGradientSelect?.(b));
   window.syncAutoGridWidth?.(el);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — 붙여넣기·복제가 이 문을 지난다(넣은 «뒤»에 불린다)
 }
 
@@ -1913,6 +1916,36 @@ function _placePastedOverlay(box, el, nx, ny, posOf) {
     }
   }
   return { x, y };
+}
+
+/* ★1020t1b — 붙여넣는 «그라데이션»을 섹션 직속 absolute 오버레이로 세운다 (현빈 「그라데이션 복사→붙여넣기가 제대로 안 된다」).
+   옛 판은 그라데이션이 스티커·오버레이 갈래에 안 걸려 «흐름» 갈래로 떨어졌다 — insertAfterSelectedAsSibling 이 .section-inner 안에 넣고
+   _normalizePastedAbsolute 가 position/left/top 을 벗겼다(실측: 섹션 283→583 · 레이어 줄 없음 · 끌어도 안 움직임).
+   ⇒ 스티커 갈래(W2D-06)와 «같은 관례»: 섹션 직속 → (화면에 보이면 뷰포트 중앙 − 크기/2, 아니면 원본 +20) → _placePastedOverlay(섹션 안 · 같은 자리면 20 계단).
+   ★기본 그라데이션(860 = 섹션 폭 · 높이 ≥ 섹션)은 그 클램프가 자리를 원본과 «같은» 0,0 으로 누른다 — 그래도 겹치면 y 만 20 씩 내린다
+     (클램프 없이 · 섹션 밖은 --sec-clip 이 자른다 · x 는 안 민다 — 왼쪽 빈 띠가 생긴다, gradient-block.js addGradientBlock G1 주석).
+   사본 .selected 는 남겨 둔다 — 꼬리의 _panelFollowsPasted 가 _selectGradient(사본)로 원본 선택·손잡이를 걷고
+   사본에 딸려 온 «죽은» 손잡이 사본도 _addGradientCornerHandles 가 먼저 지우고 새로 단다(여기서 따로 지우지 않는다). */
+function _pasteGradientIntoSection(el, sec) {
+  const curX = parseInt(el.dataset.x) || 0;
+  const curY = parseInt(el.dataset.y) || 0;
+  const vp = _viewportCenterInContainerLocal(sec);
+  sec.appendChild(el);
+  _bindPastedEl(el);   // id 재발급 · 다시 그리기(rerenderTree → renderGradientBlock) · bindGradientSelect
+  const w = el.offsetWidth || 0, h = el.offsetHeight || 0;
+  const gradPos = (c) => (c.classList && c.classList.contains('gradient-block'))
+    ? { x: parseInt(c.dataset.x) || 0, y: parseInt(c.dataset.y) || 0 } : null;
+  let { x, y } = _placePastedOverlay(sec, el, vp ? vp.x - w / 2 : curX + 20, vp ? vp.y - h / 2 : curY + 20, gradPos);
+  const taken = (cx, cy) => [...sec.children].some(c => {
+    if (c === el) return false;
+    const p = gradPos(c);
+    return !!p && Math.abs(p.x - cx) < 2 && Math.abs(p.y - cy) < 2;
+  });
+  for (let i = 0; i < 20 && taken(x, y); i++) y += 20;
+  el.dataset.x = String(x);
+  el.dataset.y = String(y);
+  el.classList.add('selected');
+  window.renderGradientBlock?.(el);
 }
 
 // banner-preset 안에서 복사한 자식이라면 같은 banner 안에 복제 —
@@ -2065,6 +2098,9 @@ function pasteClipboard() {
         return;
       }
       _pastedRoots.push(el);
+      /* ★1020t1b — 그라데이션은 섹션 직속 오버레이로(아래 단건 갈래와 같은 도우미). lastEl 사슬엔 안 끼운다 —
+         끼우면 다음 «흐름» 항목이 lastEl.after 로 섹션 직속에 샌다. */
+      if (el.classList.contains('gradient-block')) { _pasteGradientIntoSection(el, sec); return; }
       if (lastEl) {
         lastEl.after(el);
       } else {
@@ -2204,6 +2240,11 @@ function pasteClipboard() {
       el.dataset.y = String(ny);
       window.renderStickerBlock?.(el);
       window.bindStickerSelect?.(el);
+    } else if (el.classList.contains('gradient-block')) {
+      // ★1020t1b — 그라데이션: 섹션 직속 absolute 오버레이(⌘D 도 copySelected+pasteClipboard 로 여기를 지난다)
+      const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
+      if (!sec) { window.showNoSelectionHint?.(); return; }
+      _pasteGradientIntoSection(el, sec);
     } else if (el.dataset.overlayBlock === 'true') {
       /* ★오버레이(플로팅) — 스티커와 같은 취급: section 밑에 absolute로 직접 붙인다.
        * 아래 일반 경로(_normalizePastedAbsolute)를 태우면 absolute가 통째로 벗겨진다
@@ -2749,8 +2790,11 @@ document.addEventListener('keydown', e => {
     if (document.querySelector('.text-block.editing')) return;
     const textTargets  = Array.from(document.querySelectorAll('.text-block.selected'));
     const shapeTargets = textTargets.length ? [] : Array.from(document.querySelectorAll('.shape-block.selected'));
-    const sectionTargets = (textTargets.length || shapeTargets.length) ? [] : Array.from(document.querySelectorAll('.section-block.selected'));
-    if (textTargets.length || shapeTargets.length || sectionTargets.length) {
+    /* ★t7-07 — 프레임을 고른 채 i 를 누르면 «섹션» 배경이 바뀌었다(프레임 갈래가 없어 섹션 갈래로 떨어졌다).
+       ⇒ 쉐이프 다음 · 섹션 앞에 프레임 갈래. 글자 프레임(data-text-frame)은 글자 갈래의 그릇이라 뺀다. */
+    const frameTargets = (textTargets.length || shapeTargets.length) ? [] : Array.from(document.querySelectorAll('.frame-block.selected:not([data-text-frame="true"])'));
+    const sectionTargets = (textTargets.length || shapeTargets.length || frameTargets.length) ? [] : Array.from(document.querySelectorAll('.section-block.selected'));
+    if (textTargets.length || shapeTargets.length || frameTargets.length || sectionTargets.length) {
       e.preventDefault();
       if (!window.EyeDropper) { window.showToast?.('이 브라우저는 스포이드 미지원'); return; }
       (async () => {
@@ -2778,6 +2822,18 @@ document.addEventListener('keydown', e => {
               changed++;
             });
             if (changed) { window.pushHistory?.('쉐이프 색 추출'); window.scheduleAutoSave?.(); }
+          } else if (frameTargets.length) {
+            /* prop-frame.js 배경색(솔리드) 규약과 동일: 그라데이션·이미지 층 해제 + backgroundColor + dataset.bg + ::before 변수 동기 */
+            let changed = 0;
+            frameTargets.forEach(fr => {
+              if (fr.dataset.bg === hex && !fr.style.backgroundImage) return;
+              fr.style.backgroundImage = '';
+              fr.style.backgroundColor = hex;
+              fr.dataset.bg = hex;
+              window.syncFrameBgVars?.(fr);
+              changed++;
+            });
+            if (changed) { window.pushHistory?.('프레임 배경 추출'); window.scheduleAutoSave?.(); }
           } else {
             // prop-section.js 색 규약과 동일: dataset.bg + 인라인 배경(이미지 해제)
             // ★동일색 가드 + changed 조건화(고디터QA LOW — 섹션 분기는 가드 자체가 없어 빈 undo가 쌓였다).
@@ -3013,6 +3069,12 @@ document.addEventListener('keydown', e => {
       return;
     }
 
+    /* ★1020t2a2 — 맨 [ / ] 로 스크래치 레이어 순서(현빈 「[ 와 ] 만으로 스크래치패드 간 레이어 순서 변경」).
+       몸은 ⌘[ / ⌘] 와 같은 window.scratchLayerOrder(같은 가드 · 같은 이력) — 스크래치가 안 골라졌으면 false 라 아무 일도 안 한다
+       (맨 [ ] 에는 원래 캔버스 동작이 없다 ⇒ 캔버스 쪽으로 흘려도 바뀌는 것 0). */
+    if (!e.altKey && !e.isComposing && (e.code === 'BracketLeft' || e.code === 'BracketRight')) {
+      if (window.scratchLayerOrder?.(e.code === 'BracketLeft' ? 'up' : 'down')) { e.preventDefault(); return; }
+    }
     const _ms = window._matchShortcut;
     const _isAddGap   = _ms ? _ms(e, 'addGap')   : (e.code === 'KeyG');
     const _isAddText  = _ms ? _ms(e, 'addText')  : (e.code === 'KeyT');

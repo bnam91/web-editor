@@ -12,7 +12,7 @@ export function buildTextPropsHtml(state) {
     currentPadT, currentPadL, currentPadR, phLinked,
     isLabel, currentBgColor, currentRadius, labelPillH, labelPadX = 0, labelIsCircle = false, labelShape = null,
     isSpeechBubble, currentBubbleStyle, currentTail,
-    bubbleBgHex, showSender,
+    bubbleBgHex, showSender, bubbleSizeFixed, bubbleW, bubbleH,
     isIconText, currentItbGap, itbVertical,
     mix,
     shadow,
@@ -49,40 +49,11 @@ export function buildTextPropsHtml(state) {
    *   ⛔템플릿 «안»에 조건식을 줄로 넣지 마라(위 _bulletSec 머리말과 같은 까닭).
    * 대상 밖 = 말풍선·라벨(Tag)·아이콘텍스트·곡선(liner) — Effects 절과 같은 조건 ＋ liner.
    * 꼴 = 이웃 Shadow 절(제목 줄 + 토글) · 두께 = 스티커 Stroke 절(0.5 단계) · 위치 = prop-select(이웃 굵기·스타일 select 와 같은 꼴). */
-  const _strokeSec = (!stroke || isSpeechBubble || isLabel || isIconText || isLiner) ? '' : (() => {
-    const _al = stroke.align || 'outside';
-    const _opt = (v, t) => `<option value="${v}"${_al === v ? ' selected' : ''}>${t}</option>`;
-    return `
+  /* ★1012t1H5 — 절 마크업은 이 파일 끝 buildStrokeSectionHtml 한 벌(인용구 패널도 같은 것을 부른다).
+   *   앞 개행 둘 + 그 함수 산출 = 옛 산출과 바이트 동일(그 함수가 옛 들여쓰기 4칸을 그대로 낸다). */
+  const _strokeSec = (!stroke || isSpeechBubble || isLabel || isIconText || isLiner) ? '' : `
 
-    <div class="prop-section" id="txt-stroke-section">
-      <div class="prop-section-title-row">
-        <div class="prop-section-title">Stroke</div>
-        <label class="prop-toggle" title="외곽선 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
-          <input type="checkbox" id="txt-stroke-on" ${stroke.on ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      <div id="txt-stroke-controls" style="display:${stroke.on ? 'block' : 'none'}">
-        <div class="prop-row">
-          <span class="prop-label">두께</span>
-          <input type="range" class="prop-slider" id="txt-stroke-w-slider" min="0.5" max="20" step="0.5" value="${stroke.width}">
-          <input type="number" class="prop-number" id="txt-stroke-w-number" min="0.5" max="20" step="0.5" value="${stroke.width}">
-        </div>
-        <div class="prop-color-row">
-          <span class="prop-label">색상</span>
-          ${strokeColorHtml || ''}
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">위치</span>
-          <select class="prop-select" id="txt-stroke-align">
-            ${_opt('inside', '내부')}
-            ${_opt('center', '가운데')}
-            ${_opt('outside', '외부')}
-          </select>
-        </div>
-      </div>
-    </div>`;
-  })();
+${buildStrokeSectionHtml({ p: 'txt', stroke, colorHtml: strokeColorHtml })}`;
 
   // Figma "Mix" 정책: 자식들의 스타일이 섞여있으면 input 을 빈 값 + placeholder="Mix" 로 표시
   const _mix = mix || { color:{mixed:false}, fontSize:{mixed:false}, fontWeight:{mixed:false} };
@@ -365,6 +336,20 @@ ${blockHeaderHTML({
           </div>
           <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="${bubbleBgHex.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
         </div>
+        <!-- ★1017t1m3 크기 — 「자동」= 글 길이 따라(지금까지) · 「고정」= 너비 고정 + 높이 최소(모달 패널의 너비 고정·높이 최소와 같은 뜻) -->
+        <div class="prop-row">
+          <span class="prop-label">크기</span>
+          <div class="prop-type-group" id="bubble-size-group">
+            <button class="prop-type-btn ${bubbleSizeFixed?'':'active'}" data-bsz="auto">자동</button>
+            <button class="prop-type-btn ${bubbleSizeFixed?'active':''}" data-bsz="fixed">고정</button>
+          </div>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">너비</span>
+          <input type="number" class="prop-number" id="bubble-w-number" min="60" max="860" value="${bubbleW||''}"${bubbleSizeFixed?'':' disabled'}>
+          <span class="prop-label" style="margin-left:6px">높이</span>
+          <input type="number" class="prop-number" id="bubble-h-number" min="40" max="2000" value="${bubbleH||''}"${bubbleSizeFixed?'':' disabled'}>
+        </div>
         <div class="prop-row">
           <span class="prop-label">발신자 이름</span>
           <label class="prop-toggle" title="발신자 이름 표시 — 이름은 캔버스에서 더블클릭해 고친다">
@@ -408,5 +393,50 @@ ${blockHeaderHTML({
         </svg>
         애니메이션 GIF 만들기
       </button>
+    </div>`;
+}
+
+/**
+ * Stroke(외곽선) 절 — 켜기 토글 · 두께 · 색상 · 위치(내부/가운데/외부). (1012t1E1 텍스트 패널에서 뽑음 · 1012t1H5)
+ * ★배선은 prop-text-wireup-stroke.js wireStrokeSection({ p }) 한 벌이다.
+ * ★자리가 _typo-section.js 가 아니라 여기인 까닭: tests/unit/prop-title-row-align.test.mjs T4 가 이 파일의
+ *   `prop-section-title-row` 자리(텍스트 «Stroke»)를 센다 — 옮기면 그 명부에서 한 자리가 사라진다.
+ * ★산출의 첫 글자는 들여쓰기 4칸 — 텍스트 패널이 앞에 개행 둘을 붙여 옛 산출과 «바이트 동일»하게 둔다.
+ *
+ * @param {object} o
+ * @param {string} o.p          id 접두사 ('txt' | 'qt')
+ * @param {{on:boolean,width:number,align:string}} o.stroke  지금 상태
+ * @param {string} o.colorHtml  색 칸 마크업(부르는 쪽이 colorFieldHTML 로 만든다 — 단위 하네스가 color-picker 를 안 올린다)
+ */
+export function buildStrokeSectionHtml({ p, stroke, colorHtml } = {}) {
+  const _al = stroke.align || 'outside';
+  const _opt = (v, t) => `<option value="${v}"${_al === v ? ' selected' : ''}>${t}</option>`;
+  return `    <div class="prop-section" id="${p}-stroke-section">
+      <div class="prop-section-title-row">
+        <div class="prop-section-title">Stroke</div>
+        <label class="prop-toggle" title="외곽선 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
+          <input type="checkbox" id="${p}-stroke-on" ${stroke.on ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div id="${p}-stroke-controls" style="display:${stroke.on ? 'block' : 'none'}">
+        <div class="prop-row">
+          <span class="prop-label">두께</span>
+          <input type="range" class="prop-slider" id="${p}-stroke-w-slider" min="0.5" max="20" step="0.5" value="${stroke.width}">
+          <input type="number" class="prop-number" id="${p}-stroke-w-number" min="0.5" max="20" step="0.5" value="${stroke.width}">
+        </div>
+        <div class="prop-color-row">
+          <span class="prop-label">색상</span>
+          ${colorHtml || ''}
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">위치</span>
+          <select class="prop-select" id="${p}-stroke-align">
+            ${_opt('inside', '내부')}
+            ${_opt('center', '가운데')}
+            ${_opt('outside', '외부')}
+          </select>
+        </div>
+      </div>
     </div>`;
 }

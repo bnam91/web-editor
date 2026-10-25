@@ -1,4 +1,5 @@
 import { propPanel, state } from '../globals.js';
+import { wireStyleCodeFold } from './text-style-code-fold.js';
 import { rgbToHex } from './prop-text-utils.js';
 import { parseAlphaFromColor, colorFieldHTML } from './color-picker.js';   /* ★형광펜 색 칸 — 스티커 형광펜이 쓰는 그 부품 그대로(새로 만들지 않는다) */
 import { panelRenderedPx, labelShapeFromRendered, panelRenderedWeight } from './_panel-rendered.js';
@@ -57,6 +58,10 @@ export function showTextProperties(tb) {
   const bubbleBg = isSpeechBubble ? (_blockBubbleVar || contentEl.style.backgroundColor || '#e5e5ea') : '#e5e5ea';
   const bubbleBgHex = isSpeechBubble ? (_blockBubbleVar || rgbToHex(window.getComputedStyle(contentEl).backgroundColor) || '#e5e5ea') : '#e5e5ea';
   const showSender = isSpeechBubble && tb.dataset.showSender === 'true';
+  /* ★1017t1m3 — 말풍선 크기 «고정» 모드(모달 「너비 고정 · 높이 최소」 이식) — 값은 tb.dataset 한 자리(prop-text-wireup-bubble.js) */
+  const bubbleSizeFixed = isSpeechBubble && tb.dataset.bubbleSize === 'fixed';
+  const bubbleW = parseInt(tb.dataset.bubbleW, 10) || 0;
+  const bubbleH = parseInt(tb.dataset.bubbleH, 10) || 0;
   /* ★#9(E121 · 2026-10-05): 옛 `parseInt(contentEl.style.paddingTop) || 4` 는 인라인이 비면 4+4=8 을 그렸다 — 실제는 CSS .tb-label 11+11=22.
      «그려진 값»을 읽는다(_panel-rendered.js). U22① 로 남긴 「높이」 손잡이가 이 값을 쓴다 — U22① 의 전제 조건(지디). */
   const labelPillPadT = Math.round(panelRenderedPx(contentEl, 'paddingTop'));
@@ -231,7 +236,7 @@ export function showTextProperties(tb) {
     currentPadT, currentPadL, currentPadR, phLinked,
     isLabel, currentBgColor, currentRadius, labelPillH, labelPadX, labelIsCircle: _isCircleLabel, labelShape,
     isSpeechBubble, currentBubbleStyle, currentTail,
-    bubbleBgHex, showSender,
+    bubbleBgHex, showSender, bubbleSizeFixed, bubbleW, bubbleH,
     isIconText, currentItbGap, itbVertical,
     mix,
     shadow,
@@ -282,7 +287,8 @@ export function showTextProperties(tb) {
   wireSpacingSection({ ctx, isLiner }); // M6b: 라이너는 자간 바인딩 스킵(우리 슬라이더 단일소스)
   wireShadowSection({ ctx, initial: shadow });
   wireStrokeSection({ ctx, initial: stroke });   // ★1012t1E1 — 절이 없으면(라벨·말풍선·아이콘텍스트·liner) 아무것도 안 한다
-  window.wireFxSection?.(tb, 'txt', () => showTextProperties(tb));   // ★E1 Effects — 절이 없으면 아무것도 안 한다
+  window.wireFxSection?.(tb, 'txt', () => showTextProperties(tb));
+  wireStyleCodeFold(propPanel, 'txt');   // 1020t2d1 — 형광펜·점·밑줄 «번호» 줄을 한 머리로 접기(줄이 없으면 아무것도 안 한다)   // ★E1 Effects — 절이 없으면 아무것도 안 한다
   if (!isOverlayTb) wirePositionSection({ tb });
   if (!isOverlayTb) wirePaddingSection({ tb, phLinked });
   if (!isOverlayTb) wireOverlaySection({ tb });
