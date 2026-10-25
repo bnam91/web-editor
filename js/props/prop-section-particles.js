@@ -310,7 +310,10 @@ export function secParticlesHTML(sec) {
     return '';
   }).join('');
 
-  /* ★안내 글 — ★★시안 `:291`·`:320` ★그대로다. ⛔내가 지어내지 않았다. */
+  /* ★안내 글 — ★★시안 `:291`·`:320` ★그대로다. ⛔내가 지어내지 않았다.
+     ★1020t2c3 재(현빈 2026-10-26 「프롭힌트는 없애」) — 무늬번호 아래 힌트 줄을 ★뺐다.
+       ⛔남긴 하나 = 아래 「섹션 크기를 아직 못 재서…」 — 힌트가 아니라 ★그림이 미뤄졌다는 ★상태 알림이다
+       (그림이 났으면 안 뜬다). 이것까지 빼라면 ★그 줄 하나만 지우면 된다. */
   return `
       <span class="prop-field-label" style="margin-top:8px">Particles</span>
       <div class="prop-cell-card${open ? ' expanded' : ''}" id="sec-fxpart-card" data-fx-type="particles">
@@ -344,7 +347,6 @@ export function secParticlesHTML(sec) {
             <button class="prop-icon-btn" id="sec-fxpart-redraw"
                     title="같은 번호로 다시 그리기" aria-label="다시 그리기">↻</button>
           </div>
-          <div class="prop-hint" style="font-size:11px;color:#888;">이 번호가 같으면 같은 그림이 나옵니다 — 번호만 저장하면 됩니다.</div>
           ${body}
           ${drew ? '' : `
           <div class="prop-hint" style="font-size:11px;color:#888;">섹션 크기를 아직 못 재서 그림을 미뤘습니다 — 이 섹션이 화면에 들어오면 그려집니다.</div>`}
