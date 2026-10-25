@@ -16,6 +16,14 @@
  *   ⑵ ★★«한 자리»에서 ★파생된다 — ★점 색과 ★선 색이 ★★같다
  *      ⇒ ★★⑵ 가 ★★⑴ 을 ★지킨다 : ★한쪽만 고치면 ★⑵ 가 ★빨개진다
  *
+ * ★★★이미 있던 자와의 ★관계 (★261025 · ⛔둘째 명부를 ★만들지 ★않는다)
+ *   ★`tests/unit/radial-line-color-derives-from-dot.test.mjs` ★`R1` 이 ★★더 강하게 잰다 :
+ *     ㉠ 둘의 오른쪽이 ★같은 ★식별자인가 · ㉡ ⛔둘 다 ★`#` 리터럴이 ★아닌가 · ㉢ 그 식별자의 ★정의값
+ *   ⇒ ★★`C0` 는 ★그와 ★★«다른 축»이다 — ★★파일 ★전체에 ★그 리터럴이 ★★몇 개인가
+ *     (★`R1` 은 ★`RADIAL_DEFAULTS` ★안만 본다 ⇒ ★다른 자리에 ★또 적혀도 ★안 잡는다)
+ *   ⇒ ★★그래서 ★둘을 ★같이 둔다. ⛔값을 ★고칠 때는 ★★둘 다 봐야 한다
+ *     (★261025 에 ★내가 ★제품만 고쳐 ★`R1` 을 ★★깼다 — ★「고치면 ★그 값을 박은 ★검사도 같이」)
+ *
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js t4-02-radial-dot-color
  */
 const { test, expect } = require('@playwright/test');
