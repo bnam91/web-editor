@@ -2609,6 +2609,20 @@ document.addEventListener('keydown', e => {
       }
       return;
     }
+    /* ★1020t2d2 스타일 복사 ⌥⌘C / 스타일 붙여넣기 ⌥⌘V (현빈 「애플과 같은 단축키」) — 본체 = js/props/text-style-copy.js.
+       ★아래 ⌘C/⌘V 갈래 «앞»이어야 한다: 맥 실키는 e.key 가 'ç'/'√' 라 그 갈래에 안 닿지만, 합성 키·다른 배열은 'c'/'v' 로
+         와서 «블럭 복사/붙여넣기»로 샌다. 그래서 e.code 로 잡고, ⌥ 판정은 ⌘⌥G 와 같은 셋(altKey · _optionKeyHeld · 맥 글자).
+       ⛔보통 ⌘C/⌘V(t4-12·t5-17 — 붙여넣기는 글만)는 이 갈래를 안 탄다 — ⌥ 가 없으면 지나간다.
+       편집 중(글자 선택 영역에 붙이기)은 ⬜ — 지금은 손대지 않고 브라우저에 양보한다(plan-d2.md ⓑ). */
+    if ((e.code === 'KeyC' || e.code === 'KeyV') && !e.shiftKey
+        && (e.altKey || window._optionKeyHeld || e.key === 'ç' || e.key === '√')) {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      if (e.code === 'KeyC') window.copyTextBlockStyle?.();
+      else window.pasteTextBlockStyle?.();
+      return;
+    }
     if (e.key === 'c') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;

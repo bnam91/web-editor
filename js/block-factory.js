@@ -5546,6 +5546,24 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
   const menu = document.getElementById('block-context-menu');
   if (!menu) return;
 
+  /* ★1020t2d2 「스타일 복사 / 스타일 붙여넣기」 — 텍스트 블럭에서만 보인다(보임 판정 = openMenu · 동작 = js/props/text-style-copy.js).
+     ⛔index.html 정적 마크업이 아니라 여기서 만든다(그 파일은 같은 레인 다른 단위가 고치는 중) — 꼴은 이웃 .bcm-item 그대로.
+     자리 = 「바로 아래에 여백 넣기」 다음(블럭 하나를 향한 일끼리). */
+  (function _ensureStyleCopyItems() {
+    if (document.getElementById('bcm-style-copy')) return;
+    const mk = (id, svgInner, label) => {
+      const it = document.createElement('div');
+      it.className = 'bcm-item'; it.id = id; it.style.display = 'none';
+      it.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">${svgInner}</svg>${label}`;
+      return it;
+    };
+    const copyIt  = mk('bcm-style-copy',  '<path d="M3 2.5h6M6 2.5v7"/><path d="M8.5 9.5h2.5M8.5 7.5h2.5"/>', '스타일 복사 (⌥⌘C)');
+    const pasteIt = mk('bcm-style-paste', '<path d="M3 2.5h6M6 2.5v7"/><path d="M8 8.5l1.5 1.5 2-2.5"/>', '스타일 붙여넣기 (⌥⌘V)');
+    const anchor = document.getElementById('bcm-insert-gap');
+    if (anchor && anchor.parentElement === menu) { anchor.after(copyIt); copyIt.after(pasteIt); }
+    else { menu.prepend(pasteIt); menu.prepend(copyIt); }
+  })();
+
   let _targetBlock = null;
   let _targetCell = null; // #5-b: 우클릭한 테이블 바디셀 (병합/해제 대상)
   let _targetGridAddr = null; // 그리드 블록: 우클릭한 셀 {r,c,li} — li는 «기존 이미지 줄»이 있을 때만 숫자
@@ -5699,6 +5717,22 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       gapItem.style.display = (unit && unit.parentElement?.dataset?.freeLayout !== 'true') ? 'flex' : 'none';
     }
 
+    /* ★1020t2d2 스타일 복사/붙여넣기 — 텍스트 블럭(곡선 제외 · 판정 = isStyleCopyTextBlock 한 자리)에서만.
+       붙여넣기는 담아 둔 스타일이 없으면 «흐리게» 보인다(맥 메뉴 관례 — 있는데 못 누름). */
+    {
+      const isTs = !!window.isStyleCopyTextBlock?.(block);
+      const cp = document.getElementById('bcm-style-copy');
+      const ps = document.getElementById('bcm-style-paste');
+      if (cp) cp.style.display = isTs ? 'flex' : 'none';
+      if (ps) {
+        ps.style.display = isTs ? 'flex' : 'none';
+        const has = !!window.hasTextStyleClipboard?.();
+        ps.setAttribute('aria-disabled', has ? 'false' : 'true');
+        ps.style.opacity = has ? '' : '0.4';
+        ps.style.cursor = has ? '' : 'default';
+      }
+    }
+
     // 에셋 블록일 때만 "스크래치로 보내기" 노출
     const sendItem = document.getElementById('bcm-send-to-scratch');
     if (sendItem) {
@@ -5844,6 +5878,23 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
        ⌘Z 한 번이 «갭 + 그 앞 동작»을 같이 되돌린다 → 넣기 «전» 라이브를 먼저 찍는다(삭제 길 「삭제 전」과 같은 관용구). */
     window.ensureHistoryCheckpoint?.('여백 넣기 전');
     window.insertGapAfterBlock?.(unit);
+  });
+
+  /* ★1020t2d2 — 복사 = «누른 그 블럭»에서. 붙여넣기 = 누른 블럭이 골라진 다중선택의 하나면 «골라 둔 텍스트 블럭 전부»,
+     아니면 누른 그 블럭 하나(⌥⌘V 와 같은 함수 · 이력도 그쪽이 한 번 찍는다). */
+  document.getElementById('bcm-style-copy')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    closeMenu();
+    if (block && block.isConnected) window.copyTextBlockStyle?.(block);
+  });
+  document.getElementById('bcm-style-paste')?.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!window.hasTextStyleClipboard?.()) return;   // 흐린 항목 — 메뉴를 닫지도 않는다
+    const block = _targetBlock;
+    closeMenu();
+    if (!block || !block.isConnected) return;
+    window.pasteTextBlockStyle?.(block.classList.contains('selected') ? undefined : [block]);
   });
 
   // 저장 버튼 → 인라인 이름 입력 표시
