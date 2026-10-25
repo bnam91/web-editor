@@ -1390,10 +1390,16 @@ function _enterBgEditMode(host, ad) {
       ghost.style.top    = gy + 'px';
       ghost.style.width  = gw + 'px';
       ghost.style.height = gh + 'px';
-      // 고스트 로컬좌표에서 «프레임 사각형»을 뚫는다 → 안쪽은 진짜 배경(선명)이 그대로 보인다
-      const fx = (aR.left - oR.left - wx) - gx, fy = (aR.top - oR.top - wy) - gy;
-      const clip = _punchOutPolygon(gw, gh, fx, fy, aR.width, aR.height);
-      if (clip !== _lastClip) { ghost.style.clipPath = clip; _lastClip = clip; }  // 긴 문자열 재파싱 회피
+      /* ★1017t1k1 👉「로테이트는 됐는데 크롭되서? 프레임안에서만 보임」(2026-10-25 S3) — 고스트도 ★같은 각으로 돈다.
+         축 = 그림 중심(고스트 상자 = 그림 상자 ⇒ 'center') — 손잡이·경계선(syncHandles)과 레이어(js/bg-layer.js paintBgLayer)와 ★같은 점.
+         ★구멍(프레임 사각형)은 그래서 고스트가 아니라 ★래퍼에 뚫는다 — 고스트에 뚫으면 구멍까지 같이 돈다.
+           래퍼 좌표 = 캔버스 뷰포트 · 구멍 = 프레임 사각형(돌지 않는다). clip-path 는 자식의 히트테스트도 도려내므로
+           프레임 «안»은 그대로 프록시가 받는다(옛 꼴과 같은 역할 나눔). */
+      ghost.style.transformOrigin = 'center center';
+      ghost.style.transform = deg ? `rotate(${deg}deg)` : '';
+      const hx = aR.left - oR.left - wx, hy = aR.top - oR.top - wy;
+      const clip = _punchOutPolygon(cR.width, cR.height, hx, hy, aR.width, aR.height);
+      if (clip !== _lastClip) { ghostWrap.style.clipPath = clip; _lastClip = clip; }  // 긴 문자열 재파싱 회피
     }
     let _bgRaf = requestAnimationFrame(function loop() { syncBg(); _bgRaf = requestAnimationFrame(loop); });
     host._secBgSyncStop = () => { if (_bgRaf) { cancelAnimationFrame(_bgRaf); _bgRaf = null; } };
@@ -1434,7 +1440,10 @@ function _enterBgEditMode(host, ad) {
         const h  = w * ratio;
         // 안 움직였으면 원래 표기(cover/center 등)를 그대로 되돌린다 — 열었다 닫은 것만으로
         // 사이즈 표기가 px 로 바뀌면 우측 패널이 «직접 조절» 로 보이는 부작용이 생긴다.
-        const changed = Math.abs(w - dw) > 0.25 || Math.abs(x - x0) > 0.25 || Math.abs(y - y0) > 0.25;
+        // ★1017t1k1 — 회전이 남으면 px 꼴을 ★지킨다: 레이어는 그 px 로 «그림 상자»를 세워 그 중심을 축으로 돈다
+        //   (js/bg-layer.js paintBgLayer). 키워드(cover/center)로 되돌리면 축이 프레임 중심으로 돌아가 손잡이와 갈린다.
+        const rot = parseFloat(proxy.dataset.imgRotate || 0);
+        const changed = Math.abs(w - dw) > 0.25 || Math.abs(x - x0) > 0.25 || Math.abs(y - y0) > 0.25 || Math.abs(rot) > 0.01;
         if (changed) {
           host.dataset.bgSize = `${_r1(w)}px ${_r1(h)}px`;
           host.dataset.bgPos  = `${_r1(x)}px ${_r1(y)}px`;
@@ -1442,8 +1451,7 @@ function _enterBgEditMode(host, ad) {
           if (origSize) host.dataset.bgSize = origSize; else delete host.dataset.bgSize;
           if (origPos)  host.dataset.bgPos  = origPos;  else delete host.dataset.bgPos;
         }
-        // ★1017t1k1 — 회전값을 되옮긴다. 0(또는 거의 0)이면 키를 지운다(옛 저장본 바이트 보존).
-        const rot = parseFloat(proxy.dataset.imgRotate || 0);
+        // ★1017t1k1 — 회전값을 되옮긴다. 0(또는 거의 0)이면 키를 지운다(옛 저장본 바이트 보존). (rot 은 위에서 읽었다)
         if (Math.abs(rot) > 0.01) host.dataset.bgRotate = String(_r1(rot));
         else delete host.dataset.bgRotate;
         _teardownBgEdit(host, _restore);         // ★pushHistory 전에 임시 DOM 을 0 으로
