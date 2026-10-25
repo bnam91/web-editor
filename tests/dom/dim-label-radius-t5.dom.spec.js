@@ -220,7 +220,10 @@ test('G2 (지킴) 일반 어노테이션 패널엔 «모서리» 칸이 없다(�
   const row = await panelRow(page);
   log('G2', row);
   expect(row.num || row.slider, '일반 어노테이션엔 «모서리» 칸 없음').toBe(false);
-  expect(await labelState(page, id).then(s => s.cs), '일반 어노테이션 라벨도 4px 그대로').toBe('4px');
+  /* ★합침 261026(S7) — 택일5 는 「기본값은 지금처럼 유지(0 으로 안 돌림)」(msg5223 ⒝), 1013t2C6 👉 는 「첨에는 모서리 라운드를 주지말 것」.
+     이 칸(일반 어노테이션)에서 두 원문이 갈린다 ⇒ 태양 발주 ① «나중·직접 지시 = 1013t2C6» 로 펜 어노테이션은 0 · 치수선은 4(위 G1 그대로).
+     ⬜ 현빈 확인 대기 — 보고서에 양쪽 원문을 적었다. */
+  expect(await labelState(page, id).then(s => s.cs), '일반(펜) 어노테이션 라벨은 처음 0px(1013t2C6 ⓒ) — 치수선 4px 은 G1').toBe('0px');
   expect(errs).toEqual([]);
 });
 

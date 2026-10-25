@@ -114,18 +114,17 @@ async function makeDim(page) {
   await page.mouse.click(P[2][0], P[2][1]);
   expect(await poll(page, (s) => !!document.getElementById(s).querySelector('.annotation-block[data-annot-kind="dim"]'), sec, 4000), '전제: 치수선 생김(클릭 3)').toBe(true);
   const id = await page.evaluate((s) => document.getElementById(s).querySelector('.annotation-block[data-annot-kind="dim"]').id, sec);
-  /* ★★261026 지디 — ⛔고정 대기 둘을 ★조건 대기로 바꿨다.
-     ★까닭 : `tests/unit/dom-fixed-wait-census` W3 가 ★「곳 수가 늘면 빨강」인 ★래칫이고,
-       이 파일이 들어오며 ★1318 → 1319 로 ★늘어 ★빨개졌다.
-     ⛔기준선 숫자를 올리는 쪽을 ★고르지 않았다 — ★「조용히 낮아진 기준선이 빨간 검사보다 나쁘다」.
-     ★이 자리는 ★바로 아래가 ★`evaluate`(단발)라 ★그 150ms 가 ★실제로 일을 하고 있었다
-       ⇒ ★그래서 ★지우지 말고 ★`poll` 로 ★갈아탔다(같은 파일이 이미 쓰는 관용구다).
-     ★남은 고정 대기 1곳(클릭 사이 350ms)은 ★그대로 뒀다 — ★점 셋을 ★따로 찍히게 하는 자리라
-       ★무엇을 기다리는지 ★내가 못 쟀다. ⛔모르고 지우지 않는다. */
+  /* ★합침 261026(S7) — 이 자리는 처음엔 dev 쪽(지디 46d444b1 «고정 대기 둘 → 조건 대기»)을 남겼다(발주 ④ 기본).
+     그 판으로 이 파일 G0·R1·R2 가 ★3/3 빨강(「전제: 고름 · 손잡이 넷」) — 만든 직후 라벨에 포커스가 가기 «전» Esc 를 쏴
+     라벨이 편집 중으로 남았다(dimension-sticker-t3-01 selectDim 이 같은 꼴을 바닥 ca702d40 에서도 흔들렸다).
+     ⇒ 같은 일(고정 대기 걷기)을 한 dimline 5c0a2f62 쪽을 남긴다 — 편집 들어감(포커스까지)·빠져나옴을 조건으로 기다린다(고정 대기 0). */
+  // 만든 직후 라벨이 편집에 들어간 «뒤»에 Esc(라벨 keydown) — 들어가기 전에 누르면 안 닿는다(dimension-sticker-t3-01 selectDim 머리 :86~95)
+  //   ★«편집에 들어갔다» = contenteditable 만이 아니라 ★포커스까지 — 포커스는 setTimeout 0 뒤에 온다(js/annotation-select.js annotBeginLabelEdit 끝)
+  expect(await poll(page, (i) => { const l = document.querySelector(`#${i} .annot-label`); return l?.getAttribute('contenteditable') === 'true' && document.activeElement === l; }, id, 4000), '전제: 라벨이 편집에 들어갔다(포커스까지)').toBe(true);
   await page.keyboard.press('Escape');
+  expect(await poll(page, (i) => document.querySelector(`#${i} .annot-label`)?.getAttribute('contenteditable') !== 'true', id, 4000), '전제: 라벨 편집에서 빠져나왔다').toBe(true);
   await page.keyboard.press('Escape');
-  expect(await poll(page, () => !document.body.classList.contains('pen-mode'), null, 3000),
-    '전제: 펜 모드 꺼짐').toBe(true);
+  expect(await poll(page, () => !document.body.classList.contains('pen-mode'), null, 4000), '전제: 펜 모드 꺼짐').toBe(true);
   const lr = await rectOf(page, `#${id} .annot-label`);
   const hit = await hitAt(page, lr.cx, lr.cy, `#${id} .annot-label`);
   expect(hit.ok, `전제: 라벨 맞힘(${hit.hit})`).toBe(true);
