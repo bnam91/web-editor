@@ -72,6 +72,11 @@
   border: 5px solid #ffffff;
   box-shadow: 0 6px 18px rgba(40, 30, 90, 0.16);
 }
+/* ★t4-06 — 빈 칸(그림 없음 · 칸 색 기본값)은 체크 무늬(서클이미지블럭 .icb-circle · 가운데 t4-05 와 같은 big 토큰).
+   칸 색을 고르면 인라인 background 가 이 규칙을 이긴다(그 색이 보인다). */
+.rdl-cell--empty {
+  background: repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) 0 0 / var(--goya-checker-big-size) var(--goya-checker-big-size);
+}
 .rdl-cell-img {
   position: absolute;
   inset: 0;
