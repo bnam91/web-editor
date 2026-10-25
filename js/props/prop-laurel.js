@@ -110,6 +110,8 @@ export function showLaurelProperties(block) {
       </div>`;
   }).join('');
 
+  /* ★t5-10 「패딩 제외」 — 배너2 패널(js/props/prop-banner02.js _bn2CanFullBleed)과 같은 판정(뚫을 수 없는 자리면 안 보인다 · 켜져 있으면 보인다). */
+  const _lrlCanFB = block.dataset.fullBleed === 'true' || (window.effectiveSectionPadX?.(block) || 0) > 0;
   propPanel.innerHTML = `
     <div class="prop-section">
 ${blockHeaderHTML({
@@ -127,6 +129,14 @@ ${blockHeaderHTML({
       <div class="prop-section-title">Grid (${cols}×${rows})</div>
       <div class="grid-picker" id="lrl-grid-picker"></div>
       <div class="grid-picker-label" id="lrl-grid-picker-label">—</div>
+      ${_lrlCanFB ? `
+      <div class="prop-row">
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="lrl-fullbleed-toggle" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>` : ''}
     </div>
 
     <div class="prop-section">
@@ -195,6 +205,15 @@ ${blockHeaderHTML({
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   const rerender = () => window.renderLaurelBlock?.(block);
+  /* ★t5-10 패딩 제외 — 켜기는 renderLaurelBlock 의 applyBlockFullBleed 가 매 렌더 씌운다 · 끄기는 흔적 지우기 먼저(배너2·프레임 규약).
+     이력 = 이 패널의 «쓰기 뒤» push(아래 Laurel 그리드와 같은 순서). */
+  document.getElementById('lrl-fullbleed-toggle')?.addEventListener('change', (e) => {
+    if (e.target.checked) block.dataset.fullBleed = 'true';
+    else { delete block.dataset.fullBleed; window.clearBlockFullBleed?.(block); }
+    rerender();
+    window.pushHistory?.('Laurel 패딩 제외');
+    window.scheduleAutoSave?.();
+  });
 
   // ── Grid picker (canvas-block 패턴) ───────────────────────────────
   const picker      = document.getElementById('lrl-grid-picker');

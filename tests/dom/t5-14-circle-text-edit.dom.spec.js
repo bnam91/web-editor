@@ -124,14 +124,16 @@ for (const [tag, extra] of [['빈 원', {}], ['그림 든 원', { imgSrc: PX }]]
   });
 }
 
-test('B2 ⒝ 확정(Enter) → 그 줄 글자 저장 · ⌘Z 한 걸음', async ({ page }) => {
+/* ★B2 확정 키 바뀜(261026 · 미카사 · t5-12 「원형이미지에 글자 … 한줄만 가능」) — Enter 는 이제 줄바꿈 · 확정은 ⌘Enter(어노 라벨 꼴).
+   이 파일 머리가 적어 둔 「원 글자 여러 줄은 t5-12 몫」 그 자리다. 재는 것(저장·⌘Z 한 걸음)은 그대로. */
+test('B2 ⒝ 확정(⌘Enter) → 그 줄 글자 저장 · ⌘Z 한 걸음', async ({ page }) => {
   const errs = await setup(page, CIRC());
   const t0 = await page.evaluate(() => window.getHistoryTip());
   const r = await enterTextEdit(page);
   expect(r.ok, '[전제] 편집 진입').toBe(true);
   await page.keyboard.press('Meta+ArrowRight');   // 글 끝으로 — macOS 크로미움은 End 가 캐럿을 안 옮긴다(run-fix-1 실측: 「원글추가자」)
   await page.keyboard.type('추가');
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('Meta+Enter');
   expect(await poll(page, () => document.querySelector('#gG .grd-img-circle-text')?.getAttribute('contenteditable') !== 'true', null, 3000), '[전제] 편집이 끝났다').toBe(true);
   const after = await lineText(page);
   const t1 = await page.evaluate(() => window.getHistoryTip());

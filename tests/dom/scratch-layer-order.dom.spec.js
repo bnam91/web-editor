@@ -294,14 +294,21 @@ test('L7 ★저장 → 재열기(IndexedDB · 새 탭) ×3 — 바꾼 순서가 
   expect(seen.map(x => [x.idb, x.dom, x.arr, x.top, x.errs])).toEqual([1, 2, 3].map(() => ['ACB', 'ACB', 'ACB', 'B', 0]));
 });
 
-test('L8 지키는 자 — 맨 [ / ] (⌘ 없이)는 아무 일도 안 한다', async ({ page }) => {
+/* ★L8 뒤집음(261026 · 미카사 · 태양 발주 「1020t2a2 맨 [ / ] 키로 스크래치패드 순서 변경(⌘[ ] 는 이미 됨)」).
+   옛 L8 은 「맨 [ / ] 는 아무 일도 안 한다」를 지켰다 — 원문 「커맨드 '[',']' 이것만으로도」를 ⌘ 로 읽은 판이다.
+   아이맥 채점(ca702d40 · 시트 34행)이 그 읽기를 ❌ 로 돌렸다(「맨 [ ] 은 안 됨」) ⇒ 맨 키도 ⌘ 와 «같은 몸»(scratchLayerOrder)이다. */
+test('L8 ★맨 [ / ] (⌘ 없이)도 ⌘ 와 같다 — C 고르고 [ → ACB(「뒤로 보내기」) → ] → ABC', async ({ page }) => {
   const { errs, P } = await scratchScene(page, uid('L8'));
   await page.mouse.click(P[0], P[1]); await frames(page);
   const s0 = await state(page, P);
+  expect([s0.dom, s0.sel]).toEqual(['ABC', 'C']);
   await press(page, 'BracketLeft');
-  await press(page, 'BracketRight');
   const s1 = await state(page, P);
-  expect([s1.dom, s1.arr, s1.pos]).toEqual(['ABC', 'ABC', s0.pos]);
+  expect({ dom: s1.dom, arr: s1.arr, top: s1.top, sel: s1.sel }).toEqual({ dom: 'ACB', arr: 'ACB', top: 'B', sel: 'C' });
+  expect([s1.pos - s0.pos, s1.action]).toEqual([1, '뒤로 보내기']);
+  await press(page, 'BracketRight');
+  const s2 = await state(page, P);
+  expect({ dom: s2.dom, arr: s2.arr, top: s2.top }).toEqual({ dom: 'ABC', arr: 'ABC', top: 'C' });
   expect(errs).toEqual([]);
 });
 

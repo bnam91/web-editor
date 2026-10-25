@@ -68,6 +68,10 @@ const MUST_FILTER = [
   ['.annot-selbox',             '어노테이션 선택 상자'],
   ['.hlb-handle',               '선 형광펜 손잡이'],
   ['.selected',                 '고름 표시'],
+  /* ★261026 지디 판정 — 5eff5c70 서 말 없이 빠졌다가 되살린 세 조각(MERGE-T4DIM-QA-TODO-PEN-REVIVED-01)을 «이름으로» 잠근다 */
+  ['.qa-block',                 'QA 블럭'],
+  ['.todo-pin',                 '할일 핀'],
+  ['.pen-',                     '펜 도구 편집 UI'],
 ];
 
 test('T1a ★★`placeholder` 축 — ★채팅 프로필 아이콘 CSS 가 ★실린다', () => {

@@ -275,6 +275,16 @@ function bindGradientSelect(block) {
     const blockH = block.offsetHeight || 0;
     let secRect = sec.getBoundingClientRect();
     let secW = sec.offsetWidth, secH = sec.offsetHeight;
+    /* ★t5-08(b) · GRAD-DRAG-IN-GROUP-OVERSHOOT-01 — 그룹(자유배치 프레임) «안»의 그라데이션은 CSS 가 «그 프레임» 기준으로
+       놓는다(left/top = dataset.x/y). 아래 식을 섹션 기준으로 세면 프레임이 섹션 안에서 떨어진 만큼 «한 번 더» 더해져
+       첫 움직임에 그만큼 튄다(원 블럭 grad_pd5d6g 실측: +5px 끌기 → y 576→1064 · 이후 1:1). ⇒ 기준을 그 프레임 안쪽 상자로.
+       그 안에서는 섹션 갈아타기·섹션 클램프·섹션 기준 변 스냅을 안 한다(셋 다 섹션 좌표다 — 그룹 밖으로 끌어내는 길이 아니다). */
+    const _host = (block.parentElement && block.parentElement !== sec
+      && block.parentElement.matches?.('.frame-block[data-free-layout]')) ? block.parentElement : null;
+    if (_host) {
+      const hr = _host.getBoundingClientRect();
+      secRect = { left: hr.left + _host.clientLeft * zoom, top: hr.top + _host.clientTop * zoom };
+    }
     const _hist = window.beginDragHistory?.('그라데이션 이동');
 
     const onMove = (ev) => {
@@ -283,7 +293,7 @@ function bindGradientSelect(block) {
          다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
       _hist?.arm((ev.clientX - startX) / zoom, (ev.clientY - startY) / zoom);
       // 섹션 이동 (커서가 다른 섹션 위로 가면 부모 교체)
-      const hoverSec = window._findSectionAt ? window._findSectionAt(ev.clientX, ev.clientY) : null;
+      const hoverSec = (!_host && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;
       if (hoverSec && hoverSec !== sec) {
         hoverSec.appendChild(block);
         sec = hoverSec;
@@ -303,16 +313,18 @@ function bindGradientSelect(block) {
       }
       const newXraw = (ev.clientX - secRect.left) / zoom - grabOffX;
       const newYraw = (ev.clientY - secRect.top)  / zoom - grabOffY;
-      const [cx, cy] = window._clampToSection
+      const [cx, cy] = (!_host && window._clampToSection)
         ? window._clampToSection(newXraw, newYraw, sec, blockW, blockH)
         : [newXraw, newYraw];
       let newX = Math.round(cx);
       let newY = Math.round(cy);
-      // 엣지 맞닿기 스냅 (약한 끌림) + 붙은 변 하이라이트
-      const snapped = _gradEdgeSnap(block, sec, newX, newY);
-      newX = snapped.x; newY = snapped.y;
-      if (snapped.edgeX) _showGradSnapEdge(snapped.edgeX.el, snapped.edgeX.side);
-      if (snapped.edgeY) _showGradSnapEdge(snapped.edgeY.el, snapped.edgeY.side);
+      // 엣지 맞닿기 스냅 (약한 끌림) + 붙은 변 하이라이트 — 섹션 좌표 자라 그룹 안에선 안 건다(위 머리말)
+      if (!_host) {
+        const snapped = _gradEdgeSnap(block, sec, newX, newY);
+        newX = snapped.x; newY = snapped.y;
+        if (snapped.edgeX) _showGradSnapEdge(snapped.edgeX.el, snapped.edgeX.side);
+        if (snapped.edgeY) _showGradSnapEdge(snapped.edgeY.el, snapped.edgeY.side);
+      }
       block.dataset.x = String(newX);
       block.dataset.y = String(newY);
       // fill 클리핑을 새 위치에 맞게 갱신 (outline + 핸들은 블록 요소에 있어 영향 없음)
@@ -394,5 +406,49 @@ function migrateLegacyGradientBlocks(canvasEl) {
   });
 }
 window.migrateLegacyGradientBlocks = migrateLegacyGradientBlocks;
+
+/* ═══ t3-05 — ⌘[ / ⌘] 레이어 순서 (현빈 「그라데이션 블럭 > 커맨드 '[' , ']' 이걸로 다른 블럳 간에 레이어 순서 조절이 안되는듯?」)
+ * ★층: 본문(.section-inner 안 · z 2)과 그라데이션(섹션 직속 · 인라인 z 2)은 «동점» ⇒ DOM 뒤가 위(gradient-block.js 머리 G-N0).
+ *   editor.js moveSelectedBlocks 는 그라데이션을 «해당 없음»으로 지나갔다(수지맥 ca702d40: z 2 · 순서 index 4 그대로).
+ * ★그 층의 형제 = 섹션 직속 .section-inner(본문 덩어리)와 그라데이션들 — 그 사이에서만 앞뒤를 바꾼다.
+ *   방향 규약은 캔버스와 같다: ⌘[ = 뒤로 보내기(형제 중 앞으로) · ⌘] = 앞으로 가져오기 · ⇧ 는 무시(한 칸).
+ *   ⛔오버레이(z 80 · [data-overlay-block]) 위로는 못 간다 — 층이 다르다(이 처방 밖).
+ * ★editor.js 를 안 건드린 까닭 — moveSelectedBlocks 는 바이트 무변 래칫(tests/unit/scratch-layer-order U0)이 잠그고,
+ *   editor.js 의 .remove() 수도 래칫(D14)이 잠근다 ⇒ 이 파일이 제 키를 «먼저»(capture) 받아 가져간다.
+ *   스크래치가 골라져 있으면 그쪽 몫이다(⌘[ 의 스크래치 우선 판정과 같은 자리) ⇒ 손대지 않는다. */
+function gradientLayerOrder(direction) {
+  const sel = [...document.querySelectorAll('.section-block > .gradient-block.selected')];
+  if (!sel.length) return false;
+  const sec = sel[0].parentElement;
+  if (!sel.every(g => g.parentElement === sec)) return true;          // 섹션이 섞였으면 키만 먹고 아무것도 안 한다
+  const sibs = [...sec.children].filter(c => c.classList.contains('section-inner') || c.classList.contains('gradient-block'));
+  sel.sort((a, b) => sibs.indexOf(a) - sibs.indexOf(b));
+  if (direction === 'up') {
+    const i0 = sibs.indexOf(sel[0]);
+    if (i0 <= 0) return true;                                          // 이미 맨 뒤 — 키는 가져간다
+    window.ensureHistoryCheckpoint?.('이동 전');
+    sibs[i0 - 1].before(...sel);
+  } else {
+    const i1 = sibs.indexOf(sel[sel.length - 1]);
+    if (i1 >= sibs.length - 1) return true;                            // 이미 맨 앞
+    window.ensureHistoryCheckpoint?.('이동 전');
+    sibs[i1 + 1].after(...sel);
+  }
+  window.pushHistory?.(direction === 'up' ? '뒤로 보내기' : '앞으로 가져오기');
+  window.buildLayerPanel?.();
+  sel.forEach(g => g.classList.add('selected'));
+  window.scheduleAutoSave?.();
+  return true;
+}
+window.gradientLayerOrder = gradientLayerOrder;
+document.addEventListener('keydown', (e) => {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || (e.code !== 'BracketLeft' && e.code !== 'BracketRight')) return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+  /* 글자 편집 중이면 포커스가 contentEditable 이라 위 줄이 이미 돌려보낸다(편집 차단 명부를 늘리지 않는다 — editing-guard-roster) */
+  if (typeof window._scratchHasSelection === 'function' && window._scratchHasSelection()) return;
+  if (!gradientLayerOrder(e.code === 'BracketLeft' ? 'up' : 'down')) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+}, true);
 
 export { bindGradientSelect, migrateLegacyGradientBlocks };

@@ -88,18 +88,22 @@ export function applyStroke(el, s) {
   if (typeof window !== 'undefined') window.syncTextGradShadow?.(el);
 }
 
-/** 우측 패널 Stroke 절 배선 (prop-text-wireup-shadow.js 를 본떴다 · 히스토리는 전부 push-after) */
-export function wireStrokeSection({ ctx, initial }) {
-  const section = document.getElementById('txt-stroke-section');
+/** 우측 패널 Stroke 절 배선 (prop-text-wireup-shadow.js 를 본떴다 · 히스토리는 전부 push-after)
+ *  ★1012t1H5 — 인용구 패널이 «같은 배선»을 쓴다: `p` = id 접두(기본 'txt' ⇒ 텍스트 패널 id 한 글자도 안 바뀜),
+ *    `apply(s)` = 상태를 어디에 쓰나(기본 = 글자칸에 applyStroke). 인용구는 dataset 에 쓰고 다시 그린다(진실이 dataset 이라). */
+export function wireStrokeSection({ ctx, initial, p = 'txt', apply } = {}) {
+  const section = document.getElementById(`${p}-stroke-section`);
   if (!section) return;
-  const onChk = document.getElementById('txt-stroke-on');
-  const wSli  = document.getElementById('txt-stroke-w-slider');
-  const wNum  = document.getElementById('txt-stroke-w-number');
-  const alSel = document.getElementById('txt-stroke-align');
-  const ctrls = document.getElementById('txt-stroke-controls');
+  const onChk = document.getElementById(`${p}-stroke-on`);
+  const wSli  = document.getElementById(`${p}-stroke-w-slider`);
+  const wNum  = document.getElementById(`${p}-stroke-w-number`);
+  const alSel = document.getElementById(`${p}-stroke-align`);
+  const ctrls = document.getElementById(`${p}-stroke-controls`);
 
   const s = { ...STROKE_DEFAULTS, ...(initial || {}) };
-  const _apply = () => { if (ctx.contentEl) applyStroke(ctx.contentEl, s); };
+  const _apply = apply
+    ? () => apply({ ...s })
+    : () => { if (ctx?.contentEl) applyStroke(ctx.contentEl, s); };
 
   onChk?.addEventListener('change', () => {
     s.on = !!onChk.checked;
@@ -126,7 +130,7 @@ export function wireStrokeSection({ ctx, initial }) {
     window.pushHistory?.();
   });
 
-  wireColorField('txt-stroke-color', {
+  wireColorField(`${p}-stroke-color`, {
     initialAlpha: Math.round(strokeColorParts(s.color).a * 100),
     onApply: (c) => { s.color = c; _apply(); },
     onCommit: () => window.pushHistory?.(),

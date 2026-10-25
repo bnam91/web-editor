@@ -75,5 +75,60 @@ export function wireBubbleSection({ tb, ctx }) {
     if (senderEl) senderEl.style.display = show ? '' : 'none';
     window.triggerAutoSave?.();
   });
+  /* ★1017t1m3 크기 «고정» — 현빈 「해당 기능을 끄면 모달처럼 배경사이즈를 고정해두고 조절가능하게 해줘 👉 이거 반영이 됐는지?」
+     ★모달(prop-modal.js 너비 풀폭/고정 · 높이 자동/최소)의 뜻을 그대로 옮긴다: 고정 = 너비 고정 + 높이 «최소»(글이 넘치면 자란다 — 잘리지 않게).
+     ★고정으로 바꿀 때 지금 그려진 크기(모델 px)를 시작값으로 ⇒ 누르는 순간 모양이 안 튄다.
+     ★이력 = push-before(이 파일의 말꼬리·발신자와 같은 규약). */
+  const _sizeBtns = [...document.querySelectorAll('#bubble-size-group [data-bsz]')];
+  const _wIn = document.getElementById('bubble-w-number');
+  const _hIn = document.getElementById('bubble-h-number');
+  const _setSize = (mode) => {
+    window.pushHistory?.();
+    if (mode === 'fixed') {
+      const body = tb.querySelector('.tb-bubble');
+      /* ★시작 너비는 «올림» — offsetWidth 는 정수로 깎는다(실폭 348.445 → 348) ⇒ 그만큼 좁아져 줄이 꺾이고 높이가 튄다
+         (앱 실측 261026: 70→112). ★테두리 상자 실폭 = computed width(border-box 면 그대로 · content-box 면 좌우 패딩·테두리를 더한다). */
+      const _exactW = (el) => { const cs = getComputedStyle(el); const w = parseFloat(cs.width) || 0;
+        return cs.boxSizing === 'border-box' ? w : ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth'].reduce((a, k) => a + (parseFloat(cs[k]) || 0), w); };
+      if (!(parseInt(tb.dataset.bubbleW, 10) > 0)) tb.dataset.bubbleW = String(Math.ceil(body ? _exactW(body) : 300));
+      if (!(parseInt(tb.dataset.bubbleH, 10) > 0)) tb.dataset.bubbleH = String(Math.round(body ? body.offsetHeight : 80));
+      tb.dataset.bubbleSize = 'fixed';
+    } else {
+      delete tb.dataset.bubbleSize;
+    }
+    applyBubbleSize(tb);
+    _sizeBtns.forEach((b) => b.classList.toggle('active', b.dataset.bsz === mode));
+    if (_wIn) { _wIn.disabled = mode !== 'fixed'; _wIn.value = tb.dataset.bubbleW || ''; }
+    if (_hIn) { _hIn.disabled = mode !== 'fixed'; _hIn.value = tb.dataset.bubbleH || ''; }
+    window.triggerAutoSave?.();
+  };
+  _sizeBtns.forEach((b) => b.addEventListener('click', () => _setSize(b.dataset.bsz)));
+  const _wireDim = (input, key, min, max) => input?.addEventListener('change', () => {
+    const n = Math.min(max, Math.max(min, parseInt(input.value, 10) || min));
+    window.pushHistory?.();
+    tb.dataset[key] = String(n); input.value = n;
+    applyBubbleSize(tb);
+    window.triggerAutoSave?.();
+  });
+  _wireDim(_wIn, 'bubbleW', 60, 860);
+  _wireDim(_hIn, 'bubbleH', 40, 2000);
+
   /* BT1 — 발신자 «이름 입력칸»은 패널에서 뺐다. 이름은 캔버스 이름표를 더블클릭해 고친다(js/block-drag.js bindBlock 말풍선 갈래). */
 }
+
+/** ★1017t1m3 — 말풍선 몸통(.tb-bubble) 크기를 dataset 에서 «한 자리»로 칠한다.
+ *  고정 = width:W px · max-width:none · min-height:H px · 자동 = 그 세 칸을 비운다(CSS 의 fit-content·80% 로 돌아간다).
+ *  ★인라인이라 저장본(canvas HTML)에 그대로 실린다 — 다시 열 때 따로 칠할 일이 없다. */
+export function applyBubbleSize(tb) {
+  const body = tb && tb.querySelector('.tb-bubble');
+  if (!body) return;
+  if (tb.dataset.bubbleSize === 'fixed') {
+    body.style.boxSizing = 'border-box';
+    body.style.width = (parseInt(tb.dataset.bubbleW, 10) || 300) + 'px';
+    body.style.maxWidth = 'none';
+    body.style.minHeight = (parseInt(tb.dataset.bubbleH, 10) || 80) + 'px';
+  } else {
+    body.style.width = ''; body.style.maxWidth = ''; body.style.minHeight = ''; body.style.boxSizing = '';
+  }
+}
+if (typeof window !== 'undefined') window.applyBubbleSize = applyBubbleSize;

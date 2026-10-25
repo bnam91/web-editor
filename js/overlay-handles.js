@@ -17,7 +17,7 @@ import { resizeColBoundary, resizeRowHeight, resizeGridImage,
 //   이라 여기서 dataset.cols/rows 를 직접 재파싱하면 클램프/폴백 로직이 두 곳에 흩어진다
 //   (이 레포의 고질 — P1 IMPL 보고서·P0 EVAL 둘 다 지적한 패턴). 재사용이 맞다.
 import { getGridModel, gridCols, gridRows, gridPreviewLine,
-         moveGridRow, moveGridCol, gridColLabel, gridRowLabel } from './blocks/grid-block.js';   /* ★t3-04 U2a — 머리띠(같은 import 간선 · 새 간선 0) */
+         moveGridRow, moveGridCol, gridColLabel, gridRowLabel, getGridCellPadY } from './blocks/grid-block.js';   /* ★t3-04 U2a — 머리띠(같은 import 간선 · 새 간선 0) */
 /* ★모달 핸들의 클램프는 «패널과 같은 표»를 본다 — 리터럴을 여기 다시 쓰면 갈라진다.
    (순환 임포트는 위 grid-block 과 «같은 모양»이고 같은 이유로 안전하다: 이 상수는
     모듈 최상위가 아니라 사용자가 드래그를 시작한 «뒤»의 핸들러 안에서만 읽힌다.) */
@@ -2241,7 +2241,10 @@ function _onGridRowMouseDown(e, block, i) {
   const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
 
   const scale0 = _canvasScaleNow();
-  const startH0 = elA.getBoundingClientRect().height / scale0; // 'auto' 행도 «지금 렌더된» 높이에서 시작
+  /* 'auto' 행도 «지금 렌더된» 높이에서 시작 — ★t4-13 「쾌적하지 않음」: 렌더된 칸 높이엔 칸 위아래 여백(cellPadY ×2)이 들어 있는데
+     행 높이 값은 그 여백을 «뺀» 몫이다(트랙 최소 = H + 2×cellPadY · grid-block.js gridTrackMin 한 식). 빼지 않으면 첫 움직임에
+     여백 ×2 만큼 튀었다(같은 꼴 실측: cellPadY 40 · 3px 끌기 → 칸 115→203 · 수지 원 블럭 441→584). ⇒ 같은 식의 거꾸로로 시작값을 잡는다. */
+  const startH0 = Math.max(0, elA.getBoundingClientRect().height / scale0 - 2 * (getGridCellPadY(block) || 0));
   const startY = e.clientY;
   window.pushHistory?.(); // ★드래그 «시작 직전» 1회만
 
@@ -3996,6 +3999,9 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
   const sec = posEl.closest('.section-block');
   const snap = _tfoFontSnapshot(posEl);
   const iconSnap = _tfoIconSnapshot(posEl);
+  /* ★t7-05 — 자유변형이 걸린 글상자면 네 점·재는 폭을 «시작 값»으로 떠 둔다(아래 onMove 가 같은 k 로 곱한다 · js/effects-freetransform.js ftScaleBase). */
+  const _ftTb = posEl.matches?.('.text-block[data-tf-corners]') ? posEl : posEl.querySelector?.('.text-block[data-tf-corners]');
+  const _ftBase = _ftTb ? window.ftScaleBase?.(_ftTb) : null;
   /* ★맞은편 코너 고정 — 확대블럭 _onZoomResizeMouseDown ④ 의 식을 그대로 옮겨 적는다.
      ⛔공통 헬퍼로 «추출» 금지 — tests/unit/zoom-block.test.js 가 그 함수 «안에서»
        `const dHW …` / `dataset.x = ` 를 정규식으로 꺼내 실행한다. 빼내면 그 검사가 약해진다.
@@ -4080,6 +4086,8 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
     posEl.style.maxWidth = 'none';
     posEl.dataset.overlayFreeWidth = 'true';
     snap.forEach(s => { s.el.style.fontSize = (s.fs * k).toFixed(1) + 'px'; });
+    /* ★t7-05 — 글자와 «같은 k» 로 자유변형(네 점·상자·보라 테두리·격자)을 다시 맞춘다. 높이를 «재기 전»에 둔다(상자가 글자를 감싼 뒤 잰다). */
+    if (_ftBase) window.ftScaleTo?.(_ftTb, _ftBase, k);
     /* ★아이콘 칸도 «같은 k» — 현빈 2026-09-21 결정. 글자와 한 줄 차이로 붙여 두는 이유는
        배율이 갈라지지 않게 하기 위해서다(회귀: 글자·아이콘 배율 오차 <1%).
        ⚠️하한 — k 가 아주 작아도 0px 이나 음수가 되면 칸이 사라진다(줄이기 드래그).

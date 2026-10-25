@@ -71,7 +71,14 @@ test('G5 ★변이대조 — onGradient 를 빼면 G1 의 판정이 빨개진다
 });
 
 test('G6 손 배선 사본이 돌아오지 않았다 — sec-bg-color 에 input 리스너를 직접 거는 자 0', () => {
-  assert.doesNotMatch(SRC, /getElementById\('sec-bg-color'\)/, '손 배선이 다시 생기면 wireColorField 와 이중 적용된다');
+  /* ★1013t2E1 정정 — 옛 꼴은 «그 칸을 찾는 것» 자체를 0 으로 잠갔다. 캔버스 그라데이션 바(_syncSecGradLine)는 그 칸을
+     «읽기만» 한다(bindGradientLinePicker 의 재오픈 시드 · 칩 고르기 · 스와치 미리보기 — 값을 칠하지 않는다)
+     ⇒ 이 칸이 잠그려던 것 = «그 칸에 직접 input/change 리스너를 거는 손 배선» 으로 좁혀 잰다. */
+  const HAND = /getElementById\('sec-bg-color'\)\s*(?:\?\.|\.)\s*addEventListener\s*\(\s*['"](?:input|change)['"]/;
+  assert.doesNotMatch(SRC, HAND, '손 배선이 다시 생기면 wireColorField 와 이중 적용된다');
+  /* 자 양성대조 — 옛 손 배선 꼴을 넣으면 잡는다(자가 죽은 정규식이 아니다) */
+  assert.match("const c = document.getElementById('sec-bg-color'); document.getElementById('sec-bg-color').addEventListener('input', f);", HAND);
+  assert.match("document.getElementById('sec-bg-color')?.addEventListener('change', f)", HAND);
 });
 
 /* ── 1013t2E1 중-1(보안) — isSectionGradient 를 «그라데이션 함수 하나»로 좁혔다. 판정 표 ──

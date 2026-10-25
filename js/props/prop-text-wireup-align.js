@@ -3,6 +3,12 @@
  * + icon-text 블록 전용 gap
  */
 
+/** ★가로 정렬 낱말 → 세로 flex 자식의 align-self — ★★이 사상표의 ★유일한 자리 (t7-03 · 2026-10-26 S3 · 지디 처방 ⒝).
+ *  ★읽는 자 셋: 이 파일 정렬 단추(U10 · 커스텀 폭 박스) · js/editor.js alignSelectedToParent(⌥A/S/D) ·
+ *    js/effects-freetransform.js applyFxFreeTransform(폭 100% → px 전이). ⛔다른 자리에 같은 표를 또 적지 마라
+ *    (셋이 같은 답인지는 tests/unit/align-self-map-ssot.test.mjs 가 잰다). */
+export const ALIGN_SELF_OF = Object.freeze({ left: 'flex-start', center: 'center', right: 'flex-end' });
+
 /** ★★말풍선의 ★★발신자 이름표에 ★가로 정렬을 ★★같이 ★건다 — ★★★이 규칙의 ★유일한 자리.
  *
  * ★★왜 ★따로 ★걸어야 ★하나 (★실측 2026-10-10 · `tests/dom/bubble-sender-align.dom.spec.js`):
@@ -58,8 +64,7 @@ export function applyTextAlignToBlock(tb, contentEl, align) {
   const w = layoutEl.style.width;
   const isCustomWidth = !!w && w !== '100%' && w !== 'auto';
   if (isCustomWidth) {
-    const asMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
-    layoutEl.style.alignSelf = asMap[align] || 'flex-start';
+    layoutEl.style.alignSelf = ALIGN_SELF_OF[align] || 'flex-start';   // 사상표 = 이 파일 위 ALIGN_SELF_OF 한 자리(t7-03)
     window.scheduleAutoSave?.();
   }
 }

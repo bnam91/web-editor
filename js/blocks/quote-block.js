@@ -91,6 +91,9 @@
 import { insertAfterSelected, genId, showNoSelectionHint } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import { fontChain } from '../props/prop-text-utils.js';
+/* ★1012t1H5 외곽선 — 텍스트블럭 Stroke 절과 «같은 함수»로 그린다(⛔CSS 처방을 여기 다시 적지 않는다).
+   applyStroke 는 글자칸(여기선 .tb-qt-line)에 data-stroke-* 와 인라인 -webkit-text-stroke / --gd-stroke-filter 를 쓴다. */
+import { applyStroke, STROKE_DEFAULTS, STROKE_ALIGNS } from '../props/prop-text-wireup-stroke.js';
 
 /* ★부호 8종 — ★시안 goditor-quote-block.html 의 그 여덟이다(모양 줄 :qm-1~qm-8).
    ⛔순서를 바꾸지 마라 — 패널 단추 순서다.
@@ -189,6 +192,13 @@ const QUOTE_DEFAULTS = Object.freeze({
        ★굵기 명부가 ★둘이 되면 ★저장본이 ★조용히 ★한쪽만 산다. ★그 갈림을 ★여기 적어 둔다. */
   fontFamily: '', lineHeight: 1.5, letterSpacing: 0,
   bold: false, italic: false, strike: false,
+  /* ★1012t1H5 현빈 「[B I S] 이것도 왜이리 적니?」 — 텍스트블럭과 같은 단추 7 의 나머지 넷(U·H·점·글로우).
+     ★블럭 «전체»에 걸린다(B/I/S 와 같은 한계 — 글이 평문 dataset 이라 부분 서식이 없다).
+     ★그리는 CSS 는 텍스트블럭 것 그대로(.tb-hl · .tb-dot · .tb-glow — css/editor-layout.css 변수 기본값 블록에 .quote-block 을 더했다). */
+  underline: false, highlight: false, dot: false, glow: false,
+  /* ⚰️(1012t1H5 로 뒤집힘) 아래 «형광펜은 v1 에 없다»는 «모달 형광펜 색 명부»를 베끼지 않으려던 판정이다.
+     이제 형광펜은 ★텍스트블럭의 .tb-hl(색 = --tb-hl-color 기본 var(--ui-highlight))을 그대로 쓴다 ⇒ 명부 사본 0.
+     원래 글: */
   /* ⛔★형광펜(H)은 ★v1 에 ★없다 — ★「나중에」가 아니라 ★까닭으로 적는다:
        ★형광펜 ★색의 명부가 ★이 레포에 ★★이미 ★둘이다(`modal-block.js:326` ＋ `modal-frameify.js:42`)
        ★그리고 `tests/unit/modal-frameify-gates.test.mjs` ★G1 이 ★그 둘만 대조한다
@@ -216,7 +226,9 @@ const QUOTE_LIMITS = Object.freeze({
 const QUOTE_NEW_FONT_SIZE = 36;
 const clampQuote = (v, lim) => Math.min(lim.max, Math.max(lim.min, Math.round(Number(v) || 0)));
 
-const _QT_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+/* ★1012t1H5 — var(--color-…) 를 «받는다»(모달 _MDL_COLOR_RE 와 같은 꼴). 컬러변수 칩이 넣는 값이
+   `var(--color-primary, #hex)` 라, 안 받으면 칩이 「눌리는데 안 먹는」 칸이 된다(prop-quote.js 1012t1H5 ⚰️ 주석의 그 까닭). */
+const _QT_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$|^var\(\s*--[\w-]+\s*(?:,\s*[^;{}()]*)?\)$/;
 /* ⛔HTML 이스케이프 사본을 ★여기 두지 않는다 — 정본은 js/props/_helpers.js 의 escHtml 이고
    tests/unit/name-axes-to-markup X9 가 «사본이 늘었나»를 센다.
    ★이 파일은 글자를 ★textContent 로만 넣는다 ⇒ 이스케이프가 ★필요하지 않다. */
@@ -262,6 +274,23 @@ function _lh(block, def) {
 function _ls(block, def) {
   const v = parseFloat(block?.dataset?.letterSpacing);
   return Number.isFinite(v) ? Math.min(40, Math.max(-10, v)) : def;
+}
+
+/* ★1012t1H5 외곽선 상태 — 블럭 dataset `textStroke*` 에서만 읽는다.
+   ⛔키를 `strokeOn/strokeAlign` 으로 두지 않는다: text-stroke-filter.js 관찰자가 [data-stroke-align="inside"] 를
+     잡아 ★블럭 전체(부호 포함)에 필터를 건다. 줄(.tb-qt-line)에 쓰는 data-stroke-* 는 applyStroke 가 렌더 때 만든다. */
+/* ⚠️이름 = QT-STROKE-VAR-COLOR-DROPPED-01 (미수정 · 1012t1H5 검수) — `textStrokeColor` 에 var(--color-…) 가 들어오면
+   _QT_COLOR_RE 는 받지만 그리는 applyStroke → strokeColorParts 가 var() 를 못 읽어 #000000 으로 바꾼다.
+   지금 패널(Stroke 색 칸 = colorFieldHTML, VAR 칩 없음)로는 만들 수 없는 값이라 이번엔 이름만 남긴다. */
+function quoteStrokeOf(block) {
+  const ds = block?.dataset || {};
+  const w = parseFloat(ds.textStrokeW);
+  return {
+    on: ds.textStrokeOn === 'true',
+    width: w > 0 ? Math.round(w * 2) / 2 : STROKE_DEFAULTS.width,
+    color: (typeof ds.textStrokeColor === 'string' && _QT_COLOR_RE.test(ds.textStrokeColor.trim())) ? ds.textStrokeColor.trim() : STROKE_DEFAULTS.color,
+    align: STROKE_ALIGNS.includes(ds.textStrokeAlign) ? ds.textStrokeAlign : STROKE_DEFAULTS.align,
+  };
 }
 
 /** 지금 고른 부호 한 벌. 모르는 key 는 기본으로 떨어진다(저장본이 손상돼도 안 죽는다). */
@@ -316,6 +345,11 @@ function _qtState(block) {
     bold: _bool(block, 'bold', D.bold),
     italic: _bool(block, 'italic', D.italic),
     strike: _bool(block, 'strike', D.strike),
+    underline: _bool(block, 'underline', D.underline),
+    highlight: _bool(block, 'highlight', D.highlight),
+    dot: _bool(block, 'dot', D.dot),
+    glow: _bool(block, 'glow', D.glow),
+    stroke: quoteStrokeOf(block),
   };
 }
 
@@ -329,7 +363,9 @@ function _qtTypoCss(st) {
        + `line-height:${st.lineHeight};`
        + (st.letterSpacing !== 0 ? `letter-spacing:${st.letterSpacing}px;` : '')
        + (st.italic ? 'font-style:italic;' : '')
-       + (st.strike ? 'text-decoration:line-through;' : '');
+       /* ★밑줄·취소선은 한 속성에 같이 산다 — 둘 다 켜면 둘 다(텍스트블럭에서 U·S 를 같이 켠 것과 같은 그림) */
+       + ((st.underline || st.strike)
+         ? `text-decoration:${[st.underline ? 'underline' : '', st.strike ? 'line-through' : ''].filter(Boolean).join(' ')};` : '');
 }
 
 /** ★유효 굵기 — ★B 단추가 켜져 있으면 ★그게 이긴다(모달 `_effWeight` 와 ★같은 관례). */
@@ -362,7 +398,7 @@ function _lineEl(block, st, text) {
   const e = document.createElement('div');
   e.className = 'tb-qt-line';
   if (quoteIsPlaceholder(block)) e.dataset.isPlaceholder = 'true';
-  e.textContent = text;
+  e.appendChild(_lineFx(st, text));
   e.style.fontSize = st.fontSize + 'px';
   e.style.color = st.textColor;
   e.style.textAlign = st.align;
@@ -370,7 +406,39 @@ function _lineEl(block, st, text) {
   /* ★★타이포 — ★`_qtTypoCss` ★한 자리에서 온다(굵기·줄간격·자간·기울임·취소선).
      ⛔`fontWeight`·`lineHeight` 를 ★여기 ★다시 적지 마라 — ★그 둘이 ★거기로 ★옮겨갔다. */
   e.style.cssText += _qtTypoCss(st);
+  /* ★외곽선 — 켰을 때만 부른다(⛔끈 블럭에 data-stroke-* 를 안 남긴다 ⇒ 옛 블럭 DOM 바이트 그대로) */
+  if (st.stroke.on) applyStroke(e, st.stroke);
   return e;
+}
+
+/* ★1012t1H5 줄 안 효과 — 텍스트블럭과 «같은 클래스»의 span 으로 두른다(그리는 CSS 한 벌).
+   점 = 글자마다 span.tb-dot(공백 빼고 · 코드포인트 단위 · --tb-dot-i 가운데 0 — prop-text-wireup-text-edit.js _dotSplitTextNode·_dotReindex 와 같은 규약)
+   형광펜 = span.tb-hl · 글로우 = span.tb-glow (한 span 이 줄 글 전체). 아무것도 안 켰으면 ★텍스트 노드 하나(옛 DOM 그대로).
+   ⚠️이 span 들은 tb- 접두라 figma generic 수집이 줍는다 ⇒ export-figma-json.js 가 .tb-qt-line «안»의 tb- 는 건너뛴다. */
+function _lineFx(st, text) {
+  let node;
+  if (st.dot) {
+    node = document.createDocumentFragment();
+    const spans = [];
+    for (const ch of text) {
+      if (!ch.trim()) { node.appendChild(document.createTextNode(ch)); continue; }
+      const sp = document.createElement('span');
+      sp.className = 'tb-dot';
+      sp.textContent = ch;
+      node.appendChild(sp);
+      spans.push(sp);
+    }
+    const n = spans.length;
+    spans.forEach((sp, i) => sp.style.setProperty('--tb-dot-i', String(i - (n - 1) / 2)));
+  } else node = document.createTextNode(text);
+  for (const [on, cls] of [[st.glow, 'tb-glow'], [st.highlight, 'tb-hl']]) {
+    if (!on) continue;
+    const w = document.createElement('span');
+    w.className = cls;
+    w.appendChild(node);
+    node = w;
+  }
+  return node;
 }
 
 /* ★가로 자리 ★한 벌 — ⛔`flex-start`/`start` 두 어휘를 ★두 자리에 적지 않는다.
@@ -543,7 +611,7 @@ function makeQuoteBlock(opts = {}) {
   if (typeof opts.fontFamily === 'string' && opts.fontFamily.trim()) block.dataset.fontFamily = opts.fontFamily.trim();
   else { const _nf = quoteNewFontFamily(); if (_nf) block.dataset.fontFamily = _nf; }
   if (Number.isFinite(Number(opts.letterSpacing))) block.dataset.letterSpacing = String(Number(opts.letterSpacing));
-  for (const k of ['bold', 'italic', 'strike']) if (opts[k]) block.dataset[k] = '1';
+  for (const k of ['bold', 'italic', 'strike', 'underline', 'highlight', 'dot', 'glow']) if (opts[k]) block.dataset[k] = '1';
   if (typeof opts.text === 'string') block.dataset.text = opts.text;
 
   renderQuoteBlock(block);
@@ -624,7 +692,7 @@ window.clampQuote = clampQuote;
 
 export {
   makeQuoteBlock, addQuoteBlock, renderQuoteBlock, commitQuoteText,
-  quoteLines, quoteShapeOf, quoteIsPlaceholder, _qtState,
+  quoteLines, quoteShapeOf, quoteIsPlaceholder, _qtState, quoteStrokeOf,
   /* ★quoteShapesAll·quoteUserShapes 는 ★선언 자리에서 `export function` 으로 나간다 — ⛔여기 또 적으면 중복 export 다 */
   QUOTE_SHAPES, QUOTE_SHAPE_KEYS, QUOTE_DEFAULTS, QUOTE_LIMITS, clampQuote,
   /* ★quoteKidsBox·quoteKids·ensureQuoteKidsBox 는 ★선언 자리에서 `export function` 으로 나간다 */

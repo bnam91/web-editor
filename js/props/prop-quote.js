@@ -48,10 +48,14 @@ import { blockHeaderHTML, escHtml as _esc, alignBtn } from './_helpers.js';
    (`js/props/_typo-section.js` 머리말 · `tests/unit/typo-section-ssot.test.mjs` 가 그 정본을 잠근다).
    ★폰트 ★위젯도 ★같은 벌이다(`_font-picker.js` `wireFontPicker`) — 우리는 ★«적용»만 준다. */
 import { buildTypographySectionHtml } from './_typo-section.js';
+import { buildStrokeSectionHtml } from './prop-text-template.js';   /* ★1012t1H5 Stroke 절 마크업 — 텍스트 패널과 한 벌 */
 import { wireFontPicker } from './_font-picker.js';
+/* ★1012t1H5 — Fill VAR·최근 줄 / Stroke 절은 텍스트·모달 패널과 «같은 벌»을 부른다(⛔제 사본 0). */
+import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
+import { wireStrokeSection } from './prop-text-wireup-stroke.js';
 import {
   QUOTE_SHAPES, QUOTE_SHAPE_KEYS, QUOTE_DEFAULTS, QUOTE_LIMITS, clampQuote,
-  quoteShapeOf, quoteShapesAll,
+  quoteShapeOf, quoteShapesAll, quoteStrokeOf,
 } from '../blocks/quote-block.js';
 
 const L = QUOTE_LIMITS;
@@ -131,6 +135,12 @@ export function showQuoteProperties(block) {
   const bold = block.dataset.bold === '1';
   const italic = block.dataset.italic === '1';
   const strike = block.dataset.strike === '1';
+  /* ★1012t1H5 — 텍스트블럭과 같은 단추 7 의 나머지 넷. 키 이름 = 단추 이름(dataset 이 진실 · quote-block.js _qtState 가 읽는다) */
+  const underline = block.dataset.underline === '1';
+  const highlight = block.dataset.highlight === '1';
+  const dot = block.dataset.dot === '1';
+  const glow = block.dataset.glow === '1';
+  const stroke = quoteStrokeOf(block);
   /* ★★⚰️2026-10-11 현빈 1011t1a-2 — ★«글 › 내용» ★입력칸(textarea)을 ★걷었다.
        ★원문: 「그리고 ★캔버스에서 ★바로 수정가능하니 ★★없어도 ★우측패널에서는 될듯함」
      ★무엇이 ★있었나 ★둘(★한 쌍이다 — ⛔한쪽만 되살리면 ★칸은 서는데 ★아무 일도 ★안 난다):
@@ -170,6 +180,7 @@ export function showQuoteProperties(block) {
      ★옮긴 곳: Typography 절 «뒤» `Fill` 절 안 `.prop-color-row` — id `qt-textcol` ＋ 배선 `wireColor('qt-textcol','textColor')` 은 ★그대로(배선 변경 0).
      ⛔`buildFillSectionHtml` 을 안 쓴 까닭: 그 절은 `<p>-color-hex` id 를 내서 `wireColorField` 와 안 맞고(prop-modal.js:376 이 손배선 60줄로 갚았다),
        VAR 칩은 `var()` 를 내는데 인용구 `_QT_COLOR_RE` 가 `var()` 를 거부한다 ⇒ «눌리는데 안 먹는» 칸이 된다(계획 D3).
+       ⇒ ⚰️(1012t1H5 후속 · 현빈 「var, 최근이 있어야되는거 아니겠니?」) `_QT_COLOR_RE` 를 넓히고 `#qt-textcol-chips` ＋ wireColorVarChips 를 붙였다.
      ★되살리는 법: Fill 절을 걷고 Typography 앞에 `<div class="prop-section-title">글</div>` + `.prop-row` + 「글자 색」 라벨로 되돌려라. */
 
   /* ★모양 — ★`.prop-align-group`(wrap · 여러 줄). ⛔`.prop-type-group` 으로 바꾸지 마라
@@ -196,6 +207,12 @@ ${blockHeaderHTML({
     crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
     id: block.id,
   })}
+    </div>
+
+    <div class="prop-section" id="qt-type-section">
+      <div class="prop-section-title">Type</div>
+      <!-- ★1017t1m1ⓑ — 텍스트 블럭 Type 절의 「Quote」(#txt-to-quote)의 «되돌림». 현빈 「👉 되돌리기도 가능하게 해줄래?」 -->
+      <button class="prop-type-btn" id="qt-to-text" title="텍스트 블럭으로 되돌리기 — 인용 부호·꾸밈은 사라집니다">Text</button>
     </div>
 
     <div class="prop-section">
@@ -253,15 +270,18 @@ ${buildTypographySectionHtml({
     p: 'qt-typo',
     font: fontFamily, weight: String(weight), size: fontSize,
     isBold: bold, isItalic: italic, isStrike: strike,
+    /* ★1012t1H5 현빈 「[B I S] 이것도 왜이리 적니?」 ⇒ 텍스트블럭과 같은 7개(B I U S H 점 글로우).
+       ★단추만 켠다 — 색·높이·크기·세기 «옵션 칸»(show*Opts)은 안 켠다: 그 칸의 배선은 텍스트 글자칸(부분 span) 전제라
+         인용구 dataset 모델로 옮기는 일은 따로다(⛔칸만 떠서 「눌리는데 안 먹는」 것을 만들지 않는다). 그리는 값 = CSS 기본값. */
+    isUnderline: underline, showUnderline: true,
+    isHighlight: highlight, showHighlight: true,
+    isDot: dot, showDots: true,
+    isGlow: glow, showGlow: true,
     lh: lineHeight, ls: letterSpacing,
     /* ★범위는 ★리터럴이 ★아니다 — `QUOTE_LIMITS` ★한 표에서 온다(이 파일 머리말의 그 규약) */
     sizeMin: L.fontSize.min, sizeMax: L.fontSize.max,
-    /* ⛔★형광펜(H)을 ★끈 까닭 — ★«끄는 쪽은 왜 끄는지를 호출부에 적어야 한다»(_typo-section.js 머리말):
-       ★형광펜 ★색의 명부가 ★이미 ★둘이고(`modal-block.js:326` ＋ `modal-frameify.js:42`)
-       `tests/unit/modal-frameify-gates.test.mjs` ★G1 이 ★그 둘만 대조한다 ⇒ ★세 번째 사본은
-       ★그 게이트 ★밖에서 조용히 갈라진다. ★합치는 일은 ★모달 파일을 건드리는 일이라 ★이 레인 밖이다.
-       ⇒ ★칸을 ★내지 않는다 — ⛔「눌러도 조용히 아무 일 없음」을 ★만들지 않는다(이 파일의 그 규율). */
-    showHighlight: false,
+    /* ⚰️1012t1H5 — 옛 판은 여기서 `showHighlight: false` 로 형광펜을 껐다(까닭: 모달 형광펜 «색 명부»의 셋째 사본이 될까 봐).
+       이제 형광펜은 ★텍스트블럭의 .tb-hl(기본색 var(--ui-highlight))을 그대로 쓴다 ⇒ 명부 사본이 안 생긴다. */
   })}
 
     <div class="prop-section">
@@ -270,7 +290,14 @@ ${buildTypographySectionHtml({
         <span class="prop-label">글자색</span>
         ${colorFieldHTML({ idPrefix: 'qt-textcol', hex: _swatchHex(textColor, QUOTE_DEFAULTS.textColor), alpha: parseAlphaFromColor(textColor) })}
       </div>
-    </div>`;
+      <!-- 1012t1H5 VAR 줄 — 최근 줄(.cv-recent-row)은 wireColorVarChips 가 바로 밑에 붙인다(텍스트·모달 패널과 같은 벌) -->
+      <div class="cv-chips" id="qt-textcol-chips" hidden></div>
+    </div>
+
+${buildStrokeSectionHtml({
+    p: 'qt', stroke,
+    colorHtml: colorFieldHTML({ idPrefix: 'qt-stroke-color', hex: _swatchHex(stroke.color, '#000000'), alpha: parseAlphaFromColor(stroke.color) || 100 }),
+  })}`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
@@ -278,6 +305,29 @@ ${buildTypographySectionHtml({
   /* ★push-after — 쓰고 그린 «뒤»에 한 번. ⛔쓰기 «전»에 부르지 마라. */
   const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
   const reopen = () => showQuoteProperties(block);
+
+  /* ★1017t1m1ⓑ Quote → 텍스트 — prop-text-wireup-type.js 의 텍스트 → Quote 와 «거울».
+     ★이력 = push-before(그쪽과 같은 규약 · 블럭을 갈아끼우는 구조 전환).
+     ★글은 dataset.text 그대로(줄바꿈 유지) · 비었으면(안내문구 중) 새 텍스트 블럭도 안내문구로 둔다.
+     ★잃는 것 — 부호·부호 색·간격·글자 꾸밈(인용구 전용 dataset) ⇒ 토스트로 알린다(⌘Z 로 복구). */
+  document.getElementById('qt-to-text')?.addEventListener('click', () => {
+    const raw = String(block.dataset.text ?? '');
+    const text = raw.trim() === '' ? '' : raw.replace(/\r\n?/g, '\n');   /* 비었으면 = 안내문구 중(quote-block.js 의 같은 판정) */
+    if (typeof window.makeTextBlock !== 'function' || typeof window._makeTextFrame !== 'function') return;
+    window.pushHistory?.();
+    const { block: tb } = window.makeTextBlock('body');
+    const ce = tb.querySelector('[class^="tb-"]');
+    if (ce && text) { ce.style.whiteSpace = 'pre-wrap'; ce.textContent = text; delete ce.dataset.isPlaceholder; }
+    const tf = window._makeTextFrame();
+    tf.appendChild(tb);
+    const wrapper = block.closest('.row') || block;
+    wrapper.replaceWith(tf);
+    try { window.bindBlock?.(tb); } catch (_) {}
+    window.buildLayerPanel?.();
+    try { window.selectBlock?.(tb.id); } catch (_) {}
+    window.triggerAutoSave?.();
+    window.showToast?.('인용 부호·꾸밈이 사라졌습니다 — ⌘Z 로 되돌릴 수 있습니다');
+  });
 
   // ── 슬라이더 + 숫자 «쌍» ──
   const wireNum = (id, key, min, max) => {
@@ -336,8 +386,12 @@ ${buildTypographySectionHtml({
   /* B / I / S — ⚠️★블럭 ★«전체»에만 걸린다. ★글은 `textContent` 평문으로 dataset 에 사니
      ★«부분 선택 서식»은 ★원리적으로 불가하다(모달 슬롯과 ★같은 한계 · 텍스트블럭과 ★다른 점).
      ⇒ ★그래서 ★U(밑줄)·점·형광펜 ★손잡이도 ★안 켰다 — ★그 셋은 ★부분 서식을 전제한다. */
+  /* ★1012t1H5 — U·H·점·글로우를 더했다. 위 «부분 서식 전제라 안 켰다»는 말은 ⚰️: 넷 다 «블럭 전체»로 건다
+     (B/I/S 와 같은 한계 그대로 — 글 전체에 걸린다). 그리는 자 = quote-block.js _qtTypoCss(밑줄) · _lineFx(H·점·글로우). */
   for (const [id, key] of [['qt-typo-bold-btn', 'bold'], ['qt-typo-italic-btn', 'italic'],
-                           ['qt-typo-strike-btn', 'strike']]) {
+                           ['qt-typo-underline-btn', 'underline'], ['qt-typo-strike-btn', 'strike'],
+                           ['qt-typo-highlight-btn', 'highlight'], ['qt-typo-dot-btn', 'dot'],
+                           ['qt-typo-glow-btn', 'glow']]) {
     const btn = document.getElementById(id);
     btn?.addEventListener('click', () => {
       const next = block.dataset[key] !== '1';
@@ -370,6 +424,44 @@ ${buildTypographySectionHtml({
   };
   wireColor('qt-markcol', 'markColor');
   wireColor('qt-textcol', 'textColor');
+
+  /* ── ★1012t1H5 Fill VAR·최근 — 모달 패널(prop-modal.js mdl-typo-color-chips)과 같은 꼴 ──
+     VAR = var(--color-<name>, #hex) «바인딩»(quote-block.js _QT_COLOR_RE 가 var() 를 받게 넓혔다) · 최근 = 고정 hex.
+     push-after(이 파일의 규약) — 쓰고 그린 뒤 commit 한 번. */
+  const chipBox = document.getElementById('qt-textcol-chips');
+  if (chipBox) {
+    const cPick = document.getElementById('qt-textcol-color');
+    const cHex = document.getElementById('qt-textcol-hex');
+    const cAlpha = document.getElementById('qt-textcol-alpha');
+    const cSwatch = cPick?.closest('.prop-color-swatch');
+    wireColorVarChips({
+      container: chipBox,
+      getActiveName: () => parseColorVarName(block.dataset.textColor || ''),
+      getFallbackHex: (name, hex) => hex,
+      onPick: (cssRef) => {
+        block.dataset.textColor = cssRef;
+        rerender(); commit();
+        const fb = (String(cssRef).match(/#[0-9a-fA-F]{6}/) || [])[0];
+        if (fb && cPick) { cPick.value = fb; if (cHex) cHex.value = fb.replace('#', '').toUpperCase(); }
+        // var 바인딩·최근 색이면 불투명도는 100(텍스트·모달 패널과 같은 관례)
+        if (cAlpha) cAlpha.value = '100';
+        if (cSwatch) cSwatch.style.background = cssRef;
+      },
+    });
+  }
+
+  /* ── ★1012t1H5 Stroke — 텍스트블럭과 같은 배선(wireStrokeSection) · 쓰는 곳만 다르다: 블럭 dataset `textStroke*` → 다시 그림.
+     켜기 끄면 textStrokeOn 만 지운다(두께·색·위치는 남긴다 — 다시 켤 때 그 값, 텍스트블럭과 같은 규약). 히스토리는 그 함수가 push-after. */
+  wireStrokeSection({
+    p: 'qt', initial: stroke,
+    apply: (s) => {
+      if (s.on) block.dataset.textStrokeOn = 'true'; else delete block.dataset.textStrokeOn;
+      block.dataset.textStrokeW = String(s.width);
+      block.dataset.textStrokeColor = String(s.color);
+      block.dataset.textStrokeAlign = s.align;
+      rerender();
+    },
+  });
 
   /* ── ★가로 정렬 (현빈 2026-10-09 ④ 「수평 정렬」 · 티켓 1009t2-④ ⒜) ──────────────
      ★모델(`dataset.align`)은 ★이미 돌고 있었다 — ★없던 것은 ★이 ★칸 하나다.

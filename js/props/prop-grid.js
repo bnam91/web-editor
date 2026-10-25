@@ -8,7 +8,7 @@ import { parseRatio, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHead
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE, GRID_FONT_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
-         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_EMPTY_RADIUS, GRID_BADGE_RADIUS, GRID_IMG_MAX_BYTES, gridCellsToDataset,
+         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_COL_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_EMPTY_RADIUS, GRID_BADGE_RADIUS, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES, gridBlockOutline, GRID_OUTLINE_SIDES,
          GRID_BORDER_EDGES, GRID_IFG_PRESET_KEYS,   /* ★1013t2F — 칸 테두리 «선 자리» · 인포그래픽 프리셋 표식 명부 */
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
@@ -1082,13 +1082,45 @@ export function grdAddLineToSelectedCell(type) {
   const blocks = document.querySelectorAll('.grid-block.selected');
   if (blocks.length !== 1) return false;
   const block = blocks[0];
-  const hit = _grdResolveAnyAddr(block, grdGetActiveLine(block));
+  return grdAddLineAt(block, grdGetActiveLine(block), type);
+}
+if (typeof window !== 'undefined') window.grdAddLineToSelectedCell = grdAddLineToSelectedCell;
+
+/* ★1012t1G1 — 주소를 «받는» 그리드 줄 추가: T(위)와 우클릭 「아래에 줄 추가 (T)」(line-host.js lnAddLineAt 의 그리드 갈래)가 같이 쓴다.
+ *  addr = {r,c,li|null} — li 가 숫자면 그 줄 다음, null 이면 칸 끝. ⛔중첩(np)은 _grdResolveAnyAddr 가 null(T 와 같은 바일아웃). */
+export function grdAddLineAt(block, addr, type) {
+  const hit = _grdResolveAnyAddr(block, addr);
   if (!hit) return false;
   const lineSpec = grdNewLineSpec(type === 'gap' ? 'gap' : 'body');   // ★spec 은 «한 곳»에서 뜬다(grdNewLineSpec)
   const res = grdAddLine(block, { r: hit.r, c: hit.c }, hit.li, lineSpec);
   return !!(res && res.ok);
 }
-if (typeof window !== 'undefined') window.grdAddLineToSelectedCell = grdAddLineToSelectedCell;
+/* ★1012t1G1 — 우클릭한 점(누른 노드) → 그리드 줄 주소. 메뉴 「아래에 줄 추가 (T)」를 띄울지의 판정(카드 lnCtxAddAddr 의 그리드 짝).
+ *  · 줄 위 = 그 줄(이미지·여백·구분선 줄도 — [data-line] 범용)
+ *  · 칸 여백 = 그 칸의 고른 줄(같은 칸일 때) 아니면 칸 끝(li:null)
+ *  · 칸 밖(왼쪽 손잡이 .grd-line-grip 위 등 — #ss-handles-overlay 소속이라 블럭 밖) = 이 그리드 하나만 골라졌을 때의 고른 줄
+ *  · 거터(.grd-gutter — 역시 오버레이 소속) 위 = elementsFromPoint 가 그 «밑»의 칸/줄을 주므로 그 칸 기준이다(설계대로 · 검수 ⒟).
+ *  ⛔중첩(duo) «안»은 null(항목 숨김) — T(grdAddLineToSelectedCell → _grdResolveAnyAddr np 바일아웃)가 거기서 무동작이므로
+ *    메뉴도 같은 판정으로 숨긴다(검수 ⒞). 누른 점이 중첩 안이거나, 칸 여백·블럭 밖인데 고른 줄이 중첩 안이면 둘 다 null.
+ *  ⛔안쪽 그리드(.grd-children 의 다른 그리드)의 줄·칸은 안 집는다(closest('.grid-block') === block). */
+export function grdCtxAddAddr(block, node) {
+  if (!block || !block.classList || !block.classList.contains('grid-block')) return null;
+  const own = (el) => !!el && block.contains(el) && el.closest('.grid-block') === block;
+  const nestEl = node && node.closest ? node.closest('[data-r][data-c][data-nroot][data-npath]') : null;
+  if (own(nestEl)) return null;
+  const lineEl = node && node.closest ? node.closest('[data-r][data-c][data-line]') : null;
+  const cellEl = node && node.closest ? node.closest('.grd-cell[data-r][data-c]') : null;
+  const act = grdIsSoleSelected(block) ? grdGetActiveLine(block) : null;
+  let addr;
+  if (own(lineEl)) addr = { r: Number(lineEl.dataset.r), c: Number(lineEl.dataset.c), li: Number(lineEl.dataset.line) };
+  else if (own(cellEl)) {
+    const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
+    addr = (act && act.r === r && act.c === c) ? act : { r, c, li: null };
+  } else addr = act;
+  const hit = _grdResolveAnyAddr(block, addr);   // ★np 가 실린 주소(고른 중첩 줄)는 여기서 null — T 와 같은 문
+  return hit ? { r: hit.r, c: hit.c, li: hit.li } : null;
+}
+if (typeof window !== 'undefined') { window.grdAddLineAt = grdAddLineAt; window.grdCtxAddAddr = grdCtxAddAddr; }
 
 /* K 단축키(아이콘) — 위와 같은 게이트이지만 피커가 비동기다. 반환은 「게이트를 통과해
  * 피커를 열었나」다(삽입 성공 여부가 아니다) — 호출부는 이 값으로 전역 흐름 여부만 정한다. */
@@ -1600,8 +1632,8 @@ function _grdImageSectionHtml(anyHit, block, host = null) {
         ${window.colorFieldHTML({ idPrefix: 'grd-img-cbg', hex: swatchHex(cBgRaw, '#e8e8e8'), alpha: parseAlphaFromColor(cBgRaw) })}
       </div>
       <div class="prop-row">
-        <span class="prop-label" title="원 «안» 가운데에 들어갑니다. 넘치면 원 모양으로 잘립니다">글자</span>
-        <input type="text" class="prop-input" id="grd-img-ctext" placeholder="원 안에 넣을 글자" style="flex:1 1 0;min-width:0;font-size:11px;height:24px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:0 8px;">
+        <span class="prop-label" title="원 «안» 가운데에 들어갑니다. 넘치면 원 모양으로 잘립니다 · 여러 줄 가능(t5-12)">글자</span>
+        <textarea class="prop-input" id="grd-img-ctext" rows="2" placeholder="원 안에 넣을 글자" style="flex:1 1 0;min-width:0;font-size:11px;min-height:36px;resize:vertical;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:4px 8px;"></textarea>
       </div>${cTxtRaw === '' ? '' : `
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
@@ -2377,8 +2409,8 @@ function _gapRowHtml(cols, rows, colGap, rowGap) {
     html += `
       <div class="prop-row">
         <span class="prop-label">열 간격</span>
-        <input type="range" class="prop-slider" id="grd-col-gap-slider" min="0" max="${GRID_GAP_MAX}" step="2" value="${colGap}">
-        <input type="number" class="prop-number" id="grd-col-gap-number" min="0" max="${GRID_GAP_MAX}" value="${colGap}">
+        <input type="range" class="prop-slider" id="grd-col-gap-slider" min="${GRID_COL_GAP_MIN}" max="${GRID_GAP_MAX}" step="2" value="${colGap}">
+        <input type="number" class="prop-number" id="grd-col-gap-number" min="${GRID_COL_GAP_MIN}" max="${GRID_GAP_MAX}" value="${colGap}">
       </div>`;
   }
   if (rows.length >= 2) {
@@ -3809,7 +3841,7 @@ ${_flattenRowHtml(rows, cols)}
       block.dataset.colGap = String(v);
       window.renderGridBlock?.(block);
       window._grdSyncLineMark?.(block, grdGetActiveLine(block));
-    }, { min: 0, max: GRID_GAP_MAX });
+    }, { min: GRID_COL_GAP_MIN, max: GRID_GAP_MAX });   // ★t6-02 열도 음수(겹치기) — GRID_COL_GAP_MIN 주석(grid-block.js)
   }
   const rowGapSlider = document.getElementById('grd-row-gap-slider');
   const rowGapNumber = document.getElementById('grd-row-gap-number');
