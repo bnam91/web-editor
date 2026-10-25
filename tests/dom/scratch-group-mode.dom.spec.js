@@ -287,7 +287,8 @@ async function sceneLoose(page) {
   await scene(page);
   await page.evaluate(async (px) => { await window._scratchAddAndSave(px, 1150, 420, 140, undefined, 'sp_z'); }, PX);
   await page.waitForFunction(() => document.querySelectorAll('.scratch-item').length === 4, null, { timeout: 15000 });
-  await page.mouse.click(300, 900); await page.waitForTimeout(150);
+  await page.mouse.click(300, 900);
+  await page.waitForFunction(() => !document.querySelector('.scratch-item.scratch-selected'), null, { timeout: 15000 });   // 빈 곳 클릭 = 선택 0 (고정 대기 대신)
 }
 const domOrder = (page) => page.evaluate(() => [...document.querySelectorAll('.scratch-item')].map((e) => e.dataset.scratchId));
 const selIds = (page) => page.evaluate(() => [...document.querySelectorAll('.scratch-item.scratch-selected')].map((e) => e.dataset.scratchId));
@@ -297,7 +298,7 @@ async function enterThenPickOther(page) {
   expect(await domOrder(page), '★전제 — DOM 순서').toEqual(['sp_a', 'sp_b', 'sp_c', 'sp_z']);
   await clickItem(page, 'sp_c', { dbl: true });
   expect((await st(page)).mode, '★전제 — 진입했다').toBeTruthy();
-  await page.waitForTimeout(400);                       // 더블클릭과 ★다음 클릭이 겹쳐 세지지 않게
+  await page.waitForFunction(() => document.querySelectorAll('.scratch-item.scratch-selected').length === 1, null, { timeout: 15000 });   // 진입 = 단독 선택이 선 뒤에 다음 클릭(CDP 클릭은 clickCount 를 따로 실어 겹쳐 세지지 않는다)
   await clickItem(page, 'sp_a');
 }
 
@@ -312,7 +313,8 @@ test('G11 ★★진입 중 ★다른 장 클릭 → ★그 장만 선택(⚰️�
 
 test('G12 ★★그 뒤 ⌘] 는 ★그 한 장에만 — 그룹 안 순서(t4-19 ⓑ)', async ({ page }) => {
   await enterThenPickOther(page);
-  await page.keyboard.press('Meta+]'); await page.waitForTimeout(250);
+  await page.keyboard.press('Meta+]');
+  await page.waitForFunction(() => [...document.querySelectorAll('.scratch-item')].map((e) => e.dataset.scratchId).join() !== 'sp_a,sp_b,sp_c,sp_z', null, { timeout: 15000 });   // 순서가 움직일 때까지(어느 쪽으로든 — 판정은 아래 단언)
   const order = await domOrder(page);
   const s = await st(page);
   console.log('[G12] order=' + JSON.stringify(order));
@@ -324,7 +326,8 @@ test('G12 ★★그 뒤 ⌘] 는 ★그 한 장에만 — 그룹 안 순서(t4-1
 test('G13 ★★그 뒤 Delete 는 ★그 한 장에만 — G3 설계대로 ★빼기(t4-19 ⓒ)', async ({ page }) => {
   await enterThenPickOther(page);
   await page.evaluate(() => document.activeElement?.blur?.());
-  await page.keyboard.press('Delete'); await page.waitForTimeout(300);
+  await page.keyboard.press('Delete');
+  await page.waitForFunction(() => { const a = document.querySelector('.scratch-item[data-scratch-id="sp_a"]'); return !a || a.dataset.scratchGroup == null; }, null, { timeout: 15000 });   // sp_a 가 빠지거나 사라질 때까지(판정은 아래 단언)
   const s = await st(page);
   const byId = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.scratch-item')]
     .map((e) => [e.dataset.scratchId, e.dataset.scratchGroup ?? null])));
