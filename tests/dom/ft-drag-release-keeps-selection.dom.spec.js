@@ -29,6 +29,26 @@
  *   ★지금 처방은 `!first` 로 ★끌림이 있을 때만 ★삼킨다. ★제자리는 ★옛 동작 그대로다.
  *   ★이름 = `FT-HANDLE-PLAIN-CLICK-BEHAVIOR-UNJUDGED-01`
  *
+ * ★★★양성대조 — ★돌려 ★쟀다 (2026-10-25 · ★3회씩)
+ *   ★핀 `b382ef53`(고치기 ★직전) : ★D1 ★★빨강 — `{sel:false, h:0}` ★선택이 풀리고 ★손잡이 ★전멸
+ *   ★고친 판 `652a0c52`          : ★D1 ★초록 — `{sel:true, h:12}` ★★3/3 · flaky 0
+ *
+ * ★★★⛔내 ★첫 자는 ★«거짓음성»이었다 — ★이 글을 ★지우지 ★마라
+ *   ★처음엔 ★nw 를 ★`+34,+23`(블럭 ★«안»쪽)으로 끌었다. ⇒ ★놓는 자리의 임자 사슬이
+ *     `["tfh-handle corner","tfh-layer","text-block selected","frame-block","section-inner"]`
+ *     = ★★«다른 ★손잡이 위»에 놓고 있었다 ⇒ ★click 이 ★블럭에 가서 ★deselect 가 ★안 났다
+ *   ⇒ ★★핀에서도 ★3/3 ★초록이었다. ★그 초록은 ★「고쳐졌다」가 ★아니라 ★★«안 재고 있다»였다.
+ *   ★무엇이 ★구해 줬나 : ★양성대조를 ★했다는 것 ★하나다. ⛔안 했으면 ★거짓 초록으로 ★닫았다.
+ *   ★고침 : ★`-48,-34`(블럭 ★«밖») 로 끈다 ⇒ 임자 사슬 `["canvas-wrap","canvas-area",…]`
+ *   ⇒ ★★그래서 ★«놓는 자리의 임자»를 ★로그에 ★박아 둔다 — ★이 자가 ★또 멀어지면 ★그 줄이 ★말한다.
+ *
+ * ⚠️★재현된 경로는 ★내가 추적한 것과 ★«다를 수 있다»
+ *   ★소스 추적 : `sec` click → `selectSectionWithModifier` → `deselectAll`
+ *   ★실제 재현 : 놓은 자리가 ★`canvas-wrap` 이었다(섹션 ★밖) ⇒ ★그 click 을 ★누가 받아
+ *     ★deselect 했는지는 ★★안 쟀다. ★이름 = `FT-DESELECT-HANDLER-ON-CANVASWRAP-UNIDENTIFIED-01`
+ *   ★처방은 ★양쪽을 ★다 덮는다(★document capture 에서 ★삼키므로) — ⛔그러나 ★「경로를 ★알았다」로
+ *     ★적지 ★않는다.
+ *
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js ft-drag-release
  */
 const { test, expect } = require('@playwright/test');
@@ -129,14 +149,21 @@ test('D1 ★★★끌고 놓아도 선택이 ★살아 있다 (＝ 손잡이가 
   /* ★★진짜 입력 — ⛔dispatchEvent 로는 합성 click 이 안 나서 이 결함을 못 잡는다 */
   await page.mouse.move(hx, hy);
   await page.mouse.down();
-  await page.mouse.move(hx + 18, hy + 12, { steps: 6 });
+  await page.mouse.move(hx - 24, hy - 18, { steps: 6 });
   /* ★★끌기 «중»에 ★정말 ★잡혔나 — ⛔「조용한 빗나감」을 ★또렷한 전제 실패로 바꾼다 */
   const mid = await page.evaluate(() => document.getElementById('dtb').dataset.tfCorners || '');
   expect(mid !== a.corners,
     `★끌기 «중»에 ★네 점이 ★안 바뀌었다 (${a.corners}) — ★손잡이를 ★못 잡았다(빗나감). ` +
     '★닿음 단언은 통과했으니 ★누른 «뒤»에 ★배치가 움직였다는 뜻이다'
   ).toBe(true);
-  await page.mouse.move(hx + 34, hy + 23, { steps: 6 });
+  await page.mouse.move(hx - 48, hy - 34, { steps: 6 });
+  /* ★★놓는 ★자리의 ★임자를 ★찍는다 — ★합성 click 이 ★누구에게 가나가 ★이 결함의 ★전부다 */
+  const upHit = await page.evaluate(([x, y]) => {
+    const el = document.elementFromPoint(x, y);
+    const ch = []; for (let e = el; e; e = e.parentElement) ch.push((e.getAttribute && e.getAttribute('class')) || e.id || e.tagName);
+    return ch.slice(0, 5);
+  }, [hx - 48, hy - 34]);
+  console.log('[D1] ★놓는 자리의 임자 사슬=', JSON.stringify(upHit));
   await page.mouse.up();
   await page.waitForTimeout(220);        /* ★삼키기 창(120ms)보다 넉넉히 */
 
