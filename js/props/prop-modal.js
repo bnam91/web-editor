@@ -423,6 +423,7 @@ ${blockHeaderHTML({
     delete block.dataset.bgImg;
     delete block.dataset.bgSize;
     delete block.dataset.bgPos;
+    delete block.dataset.bgRotate;   /* ★10171a5 — 회전도 그림의 일부다(남기면 그림 없는 레이어가 선다 · needsBgLayer 가 회전만 본다) */
     rerender();
     commit();
     showModalProperties(block);

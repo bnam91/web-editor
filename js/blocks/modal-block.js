@@ -13,6 +13,7 @@ import { sanitizeRichTextHtml, richTextHasFormatting } from '../util/sanitize-ri
 /* ★1017a5 — 배경이미지 값·이름의 정본은 js/frame-bg.js «하나»다(⛔사본 금지 · 그 머리말 :22).
    ★읽는 자만 빌린다(frameBgSize/frameBgPos/FRAME_BG_SIZE_DEFAULT) — 그리는 자는 이 파일(cssText)이다. */
 import { frameBgSize, frameBgPos, FRAME_BG_SIZE_DEFAULT } from '../frame-bg.js';
+import { needsBgLayer, ensureBgLayer, removeBgLayer } from '../bg-layer.js';
 
 // ★텍스트 요소 클래스가 `tb-mdl-*` 인 이유 = «내보내기 보험».
 //   export-figma-json 의 generic 폴백이 [class^="tb-"] 만 텍스트로 수집한다.
@@ -691,9 +692,9 @@ function renderModalBlock(block) {
      ⇒ 판정(needsBgLayer — 그 판정의 ★한 자리)은 ★지우기 «전»에 하고, 옛 레이어(색보정 filter 의 ★유일한 소지자)를
        ★들고 있다가 ★다시 꽂는다. 키가 없으면 레이어도 없다 ⇒ 기존 모달의 cssText·innerHTML 은 한 글자도 안 달라진다. */
   const _bgLayerOld = block.querySelector?.(':scope > .sec-bg-clip') || null;
-  /* ⛔import 하지 않고 ★window 창구로 부른다 — 모달은 버즈·배경 레이어를 «모른다»(× 단추의 refitBuzzRowWidth 와 같은 관례).
-     창구가 없는 자리(유닛 하네스 등)에선 거짓 ⇒ 옛 그림 그대로. */
-  const _bgLayerOn = !!block.dataset.bgImg && !!window.needsBgLayer?.(block);
+  /* ★판정은 needsBgLayer «한 자리»(js/bg-layer.js) — ⛔제 벌 조건(bgImg·회전)을 따로 붙이지 마라.
+     ★이 자리는 «영구 자리»다(tests/unit/bg-layer-guard.test.mjs 부류 표 · needs ? ensure : remove 짝). */
+  const _bgLayerOn = needsBgLayer(block);
   block.style.cssText = 'box-sizing:border-box;position:relative;'
     + (wMode === 'fixed' ? `width:${_frozenW || _num(block, 'width', MODAL_DEFAULTS.width) + 'px'};max-width:100%;margin-left:auto;margin-right:auto;` : `width:${_frozenW || '100%'};`)
     + (hMode === 'fixed' ? `min-height:${_num(block, 'height', MODAL_DEFAULTS.height)}px;` : '')
@@ -836,7 +837,9 @@ function renderModalBlock(block) {
   /* ★10171a5 — 레이어를 첫 자식으로 되꽂고(있던 것 · filter 보존) 다시 칠한다. ensureBgLayer 가 멱등이다. */
   if (_bgLayerOn) {
     if (_bgLayerOld) block.insertBefore(_bgLayerOld, block.firstChild);
-    window.ensureBgLayer?.(block);
+    ensureBgLayer(block);
+  } else {
+    removeBgLayer(block);   /* innerHTML 이 이미 지웠다 — 짝(불변식 「레이어 있음 ⇔ needsBgLayer」)을 글자로 남긴다 · 멱등 */
   }
 
   /* ⑵ 아이콘 슬롯의 클릭 위임 — ★재렌더가 innerHTML 을 통째 갈아끼우므로 «여기서» 다시 건다
