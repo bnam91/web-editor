@@ -1074,6 +1074,7 @@ const GRID_NESTED_LINE_TYPE = 'duo';
 /** `_gridLineHtml` 이 읽는 `line.*` — patchCell{lineIndex} 로 줄 수 있는 필드. */
 const GRID_LINE_FIELDS = new Set([
   'align', 'barColor', 'bg', 'clipContent', 'color', 'cols', 'content', 'fontFamily', 'fontSize',
+  'fxShadow', 'fxShadowBlur', 'fxShadowColor', 'fxShadowOp', 'fxShadowX', 'fxShadowY',
   'gap', 'height', 'imgPosX', 'imgPosY', 'imgShape', 'imgSizePct', 'imgSrc', 'italic', 'items',
   'labelColor', 'labelSize', 'letterSpacing', 'lineHeight', 'marginTop', 'padH', 'padV',
   'radius', 'strike', 'text', 'textHtml', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize',
@@ -2354,7 +2355,16 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
            GRID_IMG_CIRCLE_D 를 명시로 넣는다) ⇒ ★이 가지는 «그 키를 지운 원»에서만 보인다.
            ⇒ ★「원도 100% 가 디폴트」를 ★눈에 보이게 하려면 ★그 두 자리가 ★안 박아야 한다 — ★별건·현빈 자리. */
       const dCss = h > 0 ? `width:${d}px;` : `height:100%;min-height:${GRID_IMG_CIRCLE_D}px;`;
-      const box = `${dCss}max-width:100%;aspect-ratio:1/1;border-radius:50%;${cAlignCss}${cBgCss}${posCss}${mtCss}`;
+      /* ★t5-13ⓐ(2026-10-26 S3 · 현빈 「원형이미지의 그림자 효과는 어떻게 주는지? … 에셋들에 효과를 주고 싶음」) —
+         원 줄의 그림자 키 여섯(에셋 Effects 「그림자」와 같은 이름)을 읽어 ★에셋과 같은 식(js/effects-shadow.js fxShadowFilterOf)으로 filter 를 단다.
+         ⛔식은 여기 다시 적지 않는다 — window 창구로 빌린다(이 파일은 효과 모듈을 import 하지 않는다 · 단위 하네스가 import 를 하나씩 바꿔 끼운다).
+         키가 없거나 꺼져 있으면 '' ⇒ 바이트 동일. */
+      const _fxF = (typeof window !== 'undefined' && typeof window.fxShadowFilterOf === 'function')
+        ? window.fxShadowFilterOf({ fxShadow: line.fxShadow, fxShadowX: line.fxShadowX, fxShadowY: line.fxShadowY,
+            fxShadowBlur: line.fxShadowBlur, fxShadowColor: line.fxShadowColor, fxShadowOp: line.fxShadowOp })
+        : '';
+      const fxCss = _fxF ? `filter:${_fxF};` : '';
+      const box = `${dCss}max-width:100%;aspect-ratio:1/1;border-radius:50%;${cAlignCss}${cBgCss}${posCss}${mtCss}${fxCss}`;
       if (!line.imgSrc) return `<div${addrAttr} class="grd-img-frame grd-img-empty grd-img-circle" style="${box}">${cTextHtml}</div>`;
       return `<div${addrAttr} class="grd-img-frame grd-img-circle" style="${box}overflow:hidden;">`
         + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;height:100%;object-fit:cover;">`
