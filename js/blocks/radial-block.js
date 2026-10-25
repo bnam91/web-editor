@@ -52,7 +52,7 @@ const RADIAL_LABEL_PH = RADIAL_CENTER_PH;       /* t4-03 항목 글 안내문구
 const RADIAL_DEFAULTS = Object.freeze({
   shape: 'circle', count: 6, radius: 250, startDeg: -90,
   line: 'orbit', lineColor: RADIAL_DOT_COLOR, lineStyle: 'dashed', lineWidth: 2, bg: '',
-  cellSize: 160, cellShape: 'circle', cellRadius: 24, cellFill: '#e8e8e8',
+  cellSize: 120, cellShape: 'circle', cellRadius: 24, cellFill: '#e8e8e8',   /* ★t4-06(현빈 「에셋의 크기는 기본 추가될 때 120으로」) — 160 → 120 · 저장된 블럭은 제 dataset 값 그대로 */
   centerMode: 'text', centerSize: 220, centerImg: '', centerClip: 'circle',
   centerText: '', centerBg: 'transparent', centerColor: RADIAL_TEXT_COLOR,
   labelPos: 'below', labelSize: 16, labelColor: RADIAL_TEXT_COLOR, labelGap: 10,
@@ -394,7 +394,7 @@ function radialLabelHTML(src) {
   return escHtml(String(src ?? '')).replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>').replace(/\r?\n/g, '<br>');
 }
 
-const _PH = '<span class="rdl-ph" aria-hidden="true"><svg viewBox="0 0 24 24" width="38%" height="38%" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 17 L10 12.5 L13.5 15.5 L16.5 13 L19.5 16"/></svg></span>';
+/* ★t4-06 — 빈 칸 그림 아이콘(.rdl-ph)은 걷었다(체크 무늬로 갈음 · 위 칸 그리기 주석). */
 const _multiline = (s) => escHtml(s).replace(/\r?\n/g, '<br>');
 
 function _centerHTML(st, g) {
@@ -861,7 +861,10 @@ function _paintRadial(block, st, g) {
     const pic = isDot ? '' : _itemPic(it);
     const cell = isDot
       ? `<div class="rdl-cell rdl-cell--dot" style="background:${st.dotColor}"></div>`
-      : `<div class="rdl-cell${pic ? '' : ' rdl-cell--empty'}" style="border-radius:${cellRadius};background:${st.cellFill}">${pic ? `<span class="rdl-cell-img">${pic}</span>` : _PH}</div>`;
+      /* ★t4-06(현빈 「안쪽은 서클이미지블럭처럼 단순히 체크패턴들어간 에셋블럭이면 된다」) — 빈 칸은 회색 바탕+그림 아이콘이 아니라
+         체크 무늬(css/editor-radial.css .rdl-cell--empty · 서클이미지블럭 .icb-circle 과 같은 big 토큰 · 가운데 t4-05 와 같은 꼴).
+         ★사람이 칸 색을 따로 골랐으면(기본값이 아니면) 그 색이 이긴다 — 서클이미지블럭 「배경색을 고르면 빈 원의 체커도 걷는다」와 같은 뜻. */
+      : `<div class="rdl-cell${pic ? '' : ' rdl-cell--empty'}" style="border-radius:${cellRadius};${(pic || st.cellFill !== RADIAL_DEFAULTS.cellFill) ? `background:${st.cellFill}` : ''}">${pic ? `<span class="rdl-cell-img">${pic}</span>` : ''}</div>`;
     return `<div class="rdl-item rdl-item--${st.labelPos}${isDot ? ' rdl-item--dot' : ''}${radialItemIsManual(it) ? ' rdl-item--manual' : ''}${i === sel ? ' rdl-cell-selected' : ''}" data-rdl-idx="${i}" style="left:${(p.x - half).toFixed(2)}px;top:${(p.y - half).toFixed(2)}px;width:${g.m}px;height:${g.m}px">`
       + cell
       + _labelHTML(st, g, p, it, i)
