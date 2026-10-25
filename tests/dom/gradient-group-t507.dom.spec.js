@@ -176,6 +176,30 @@ test('B3b ★(t5-08) 떠 있는 쪽이 그룹 «위»로 나가 있어도 잘리
   expect(r.toasts.length).toBe(1);
   expect(errs).toEqual([]);
 });
+test('B4 ★(t5-08 원 블럭 꼴) 패딩 제외(full-bleed) 에셋 + 그라데이션 → 에셋 폭·자리 그대로 · 새 그룹이 패딩 제외로 선다', async ({ page }) => {
+  /* 원 블럭 ab_yb8d4_m57ju7d 는 margin −72 · width calc(100% + 144px) 로 섹션 가장자리까지 나간다. 바닥 흐름 갈래는 width:100% 로
+     넣어 폭이 줄었다(860→716 · GROUP-FLOW-ASSET-WIDTH-SHRINK-01). 프레임 «패딩 제외» 스위치는 앱의 한 벌(drag-utils applyBlockFullBleed)
+     — 이 하네스엔 drag-utils 가 없어 «같은 세 칸 세트»를 쓰는 대역을 건다(그 함수 머리말: width + marginLeft + marginRight 를 «항상 세트로»). */
+  const errs = await bootWrap(page);
+  await page.evaluate(() => {
+    window.applyBlockFullBleed = (el) => { if (el.dataset.fullBleed !== 'true') return 0; el.style.marginLeft = '-72px'; el.style.marginRight = '-72px'; el.style.width = 'calc(100% + 144px)'; el.style.maxWidth = 'none'; return 72; };
+    const inner = document.getElementById('inner1'); inner.style.padding = '0 72px';
+    const a = document.getElementById('ab_flow'); a.style.marginLeft = '-72px'; a.style.marginRight = '-72px'; a.style.width = 'calc(100% + 144px)';
+    const g = document.getElementById('grad1'); g.dataset.y = '30'; g.style.top = '30px';
+  });
+  const w0 = await page.evaluate(() => document.getElementById('ab_flow').getBoundingClientRect().width);
+  expect(w0, '★전제: 에셋이 내용 폭보다 넓다(패딩 제외)').toBeGreaterThan(860 - 144 + 1);
+  const r = await groupOf(page, ['ab_flow', 'grad1']);
+  expect(r.groups).toBe(1);
+  expect(r.inGroup.grad1).toBe(r.inGroup.ab_flow);
+  expect(r.after.ab_flow, '에셋 화면 자리 그대로').toEqual(r.before.ab_flow);
+  expect(r.after.grad1, '그라데이션 화면 자리 그대로').toEqual(r.before.grad1);
+  const g = await page.evaluate((gid) => { const f = document.getElementById(gid); const a = document.getElementById('ab_flow'); const fr = f.getBoundingClientRect(), ar = a.getBoundingClientRect(); return { fb: f.dataset.fullBleed, w: ar.width, inside: ar.left >= fr.left - 0.5 && ar.right <= fr.right + 0.5 }; }, r.inGroup.ab_flow);
+  expect(g.fb, '새 그룹 = 패딩 제외').toBe('true');
+  expect(Math.round(g.w), '에셋 폭 그대로(안 줄었다)').toBe(Math.round(w0));
+  expect(g.inside, '에셋이 그룹 상자 안 = 안 잘린다(프레임 overflow:hidden)').toBe(true);
+  expect(errs).toEqual([]);
+});
 test('R1 (회귀) 오버레이 에셋 + 오버레이 글자 → 한 그룹 · 성공 한 줄', async ({ page }) => {
   const errs = await bootWrap(page);
   const r = await groupOf(page, ['abOv', 'tbOv']);

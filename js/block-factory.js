@@ -2506,9 +2506,31 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   // ★기준 = 새 프레임 ss 의 «패딩 상자»(absolute 자식의 원점). ss 를 넣은 «뒤», 블록을 옮기기 «전»에 잰다.
   //   section-inner 테두리 상자 기준으로 재면 섹션 좌우여백(인라인 padding, 예: 72px)·합쳐진 파트 패딩만큼
   //   한 번 더 밀린다(T-057 2라운드). ss 삽입으로 스크롤바가 생겨 가로 위치가 바뀌는 경우도 이 순서로 흡수.
+  /* ★t5-08(원 블럭 실측) — «패딩 제외»(full-bleed) 에셋은 margin −padX 로 섹션 가장자리까지 나가 있다. 아래가 그 블럭을
+     width:100% 로 프레임에 넣으면 margin 은 남고 폭만 프레임(=내용 폭)이 돼 «그림이 줄었다»(ab_yb8d4_m57ju7d 860→716 ·
+     에셋 하나만 ⌘G 해도 같았다 — GROUP-FLOW-ASSET-WIDTH-SHRINK-01). 프레임은 overflow:hidden 이라 margin 째 넣어도 잘린다.
+     ⇒ 묶을 블럭이 내용 폭 밖으로 나가 있으면 ⑴ 새 프레임을 패딩 제외로(프레임의 정본 스위치 dataset.fullBleed —
+       prop-frame.js · drag-utils applyBlockFullBleed 한 벌) ⑵ 그 블럭은 «보이는 상자»(left·width px · margin 0)로 넣는다
+       (아래 도형 래퍼가 보이는 가로 위치를 지키는 것과 같은 뜻). ⇒ 묶기 전후 화면 자리·폭이 같다. */
+  /* 블럭 단위로 본다 — row 는 내용 폭 그대로이고, 그 안의 에셋이 margin 으로 나간다 */
+  const _bleedRects = new Map();
+  rows.forEach(row => {
+    const units = shells.has(row) ? topLevelBlocksOf(row).filter(x => !_insideShapeFrame(x, row)) : [row];
+    units.forEach(b => {
+      if (isShapeFrame(b)) return;
+      const cs = getComputedStyle(b);
+      if ((parseFloat(cs.marginLeft) || 0) < 0 || (parseFloat(cs.marginRight) || 0) < 0) _bleedRects.set(b, b.getBoundingClientRect());
+    });
+  });
+  if (_bleedRects.size && window.applyBlockFullBleed) {
+    ss.dataset.fullBleed = 'true';
+    window.applyBlockFullBleed(ss);
+  }
   const _ssRect = ss.getBoundingClientRect();
   const _scale = ss.offsetWidth ? (_ssRect.width / ss.offsetWidth) || 1 : 1;
   const _originX = _ssRect.left + ss.clientLeft * _scale;
+  const _bleedBox = new Map();   // 내용 폭 밖으로 나간 블럭 → 프레임 기준 { left, width } (캔버스 px)
+  _bleedRects.forEach((r, b) => _bleedBox.set(b, { left: Math.round((r.left - _originX) / _scale), width: Math.round(r.width / _scale) }));
   const _shapeLeft = new Map();
   rows.forEach(row => {
     const sfs = isShapeFrame(row) ? [row] : [...row.querySelectorAll('.frame-block')].filter(isShapeFrame);
@@ -2546,8 +2568,17 @@ function wrapSelectedBlocksInFrame(opts = {}) {
         ss.appendChild(block);
         return;
       }
-      block.style.left = '0px';
-      block.style.width = '100%';
+      const _bb = _bleedBox.get(block);
+      if (_bb) {
+        // ★t5-08 — 패딩 제외 블럭: 보이는 상자 그대로(위 머리말)
+        block.style.marginLeft = '0px';
+        block.style.marginRight = '0px';
+        block.style.left = _bb.left + 'px';
+        block.style.width = _bb.width + 'px';
+      } else {
+        block.style.left = '0px';
+        block.style.width = '100%';
+      }
       block.style.transform = '';
       block.classList.remove('selected');
       block.setAttribute('draggable', 'false');
