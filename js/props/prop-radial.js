@@ -175,7 +175,7 @@ ${blockHeaderHTML({
       ${isArc ? `
       ${_pairRow('rdl-end', '끝 각도', st.endDeg, L.endDeg)}
       ${_pairRow('rdl-cx', '원 중심 X', st.centerX, L.centerX)}
-      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">기본은 <b>반원</b>입니다 — 시작 −90° · 끝 90° · 원 중심 X 0%(블럭 왼쪽 변)라서 호의 양 끝이 왼쪽 변에 붙습니다. 원 중심 X 는 블럭 폭 대비 <b>%</b> 입니다. 항목은 시작~끝 각도 사이에 같은 간격으로 서되 <b>끝점에는 서지 않습니다</b>. 값을 바꿔 호 · 항목이 블럭 밖으로 나가면 들어올 만큼만 밀어 그리고, 옆 라벨이 오른쪽 변을 넘으면 라벨 폭을 먼저 줄입니다.</div>` : ''}
+` : ''}
       <div class="prop-row">
         <span class="prop-label">연결선</span>
         <select class="prop-select" id="rdl-line-select">
