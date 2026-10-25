@@ -1110,8 +1110,14 @@ ${pieTagTypoRowsHTML(block.dataset, labelSize)}
       window.scheduleAutoSave?.();
     };
     const fs = document.getElementById(`grb-pie-${part}-fs`), fw = document.getElementById(`grb-pie-${part}-fw`), it = document.getElementById(`grb-pie-${part}-it`);
-    fs?.addEventListener('change', () => { const n = parseInt(fs.value); put(key + 'Fs', Number.isFinite(n) ? String(window.grbPieTagTypo({ [key + 'Fs']: n }, part).fs) : ''); });
-    fw?.addEventListener('change', () => put(key + 'Fw', fw.value));
+    /* 크기 — Number 로 읽는다(parseInt 는 '1e3' 을 1 로 읽는다) · 한계는 grbPieTagTypo 가 거는 그 한 자리 · 칸엔 «저장된 값»을 되쓴다(표시 = 실제). */
+    fs?.addEventListener('change', () => {
+      const raw = fs.value.trim(), n = Number(raw);
+      const v = (raw !== '' && Number.isFinite(n)) ? String(window.grbPieTagTypo({ [key + 'Fs']: String(Math.round(n)) }, part).fs) : '';
+      put(key + 'Fs', v);
+      fs.value = block.dataset[key + 'Fs'] ?? '';
+    });
+    fw?.addEventListener('change', () => put(key + 'Fw', /^[1-9]00$/.test(fw.value) ? fw.value : ''));   // 렌더와 같은 화이트리스트 — 그 밖은 「기본」(키 삭제)
     it?.addEventListener('click', () => { it.classList.toggle('active'); put(key + 'It', it.classList.contains('active') ? '1' : ''); });
   }
   // 1013t1C7 — 그림자. 값이 같으면 아무 것도 안 한다(히스토리에 빈 칸을 안 쌓는다 — 모달·확대블럭과 같다).

@@ -13,6 +13,9 @@
  *   B1 ⓑ 패널 「이름 글자」 크기·굵기·기울임 → 이름 계산 스타일 · dataset · ⌘Z 한 번
  *   B2 ⓑ 패널 「순위 글자」 크기·굵기 → 순위 배지 계산 스타일 · dataset · ⌘Z 한 번
  *   B3 ⓑ 키가 없으면 인라인 0(옛 바이트) · 표시 토글이 꺼지면 그 글자 줄이 숨는다
+ *   C1 ⓑ 크기 한계 — 패널에 0·999·1e3 → 8·200·200(칸에도 그 값) · 저장본 dataset 이 999·0 이어도 그려지는 크기는 한계 안(변이 m6 = clamp 뺌)
+ *   C2 ⓑ 좁은 조각(덧층 글자를 줄인 판 · tagFs < labelSize)에서도 이름 크기 = v × tagFs / labelSize(변이 m7 = em → px 고정)
+ *   ⛔큰 크기에서 이름이 숨는 것(grbPieFitTags ③단계)은 이 단위가 안 고친다 — 이름만 남김: PIE-TAG-BIG-FONT-HIDES-NAME-01
  * ⛔고정 대기 0 — 조건 대기만.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/fix5-pie-label-edit.dom.spec.js --workers=1 --retries=0
  */
@@ -41,12 +44,16 @@ async function setupSaved(page, { chartType, items, extra = {} }) {
     row.remove();
     document.querySelector('#pS .section-inner').insertAdjacentHTML('beforeend', savedRow);   // ★새 노드 — _grb*Bound 0
     const g = document.getElementById('pG');
-    const before = g.innerHTML;
+    /* «다시 안 그렸다» 비교 — 걷는 것은 «재서 쓰는 파생 변수»(저장에서도 걷히는 DERIVED_AUTO_VARS · canvas-contrast.js) 선언 «하나하나»뿐.
+       style 속성을 통째로 지우지 않는다(자리 % · 상자 한계 · 인라인 글자 스타일은 비교에 남는다). */
+    const V = window.__gdTextTone?.DERIVED_AUTO_VARS || [];
+    const strip = (h) => V.reduce((a, v) => a.split(new RegExp(v.replace(/[-]/g, '\\-') + ':[^;"]*;?\\s*', 'g')).join(''), h).replace(/ style="\s*"/g, '');
+    const before = strip(g.innerHTML);
     window.rebindAll?.();
     window.applyZoom?.(100);
     window.deselectAll?.();
     window.pushHistory?.('시험 기준');
-    return { before, after: document.getElementById('pG').innerHTML, fresh: g === document.getElementById('pG') };
+    return { before, after: strip(document.getElementById('pG').innerHTML), fresh: g === document.getElementById('pG'), nVars: V.length };
   }, { chartType, items, extra });
   await raf2(page);
   return { errs, ...r };
@@ -57,7 +64,9 @@ const itemsOf = (page) => page.evaluate(() => JSON.parse(document.getElementById
 test('A0 불러온 원형 — 다시 안 그렸고 위임 가드 셋이 섰다', async ({ page }) => {
   const s = await setupSaved(page, { chartType: 'pie', items: PIE_ITEMS, extra: { pieRank: '1', pieName: '1' } });
   expect(s.fresh, '전제: 같은 노드').toBe(true);
-  expect(s.after.replace(/ style="[^"]*--grb-[^"]*"/g, ''), '다시 그리지 않았다(저장본 바이트 무변 규약)').toBe(s.before.replace(/ style="[^"]*--grb-[^"]*"/g, ''));
+  expect(s.nVars, '전제: 파생 변수 명부를 읽었다').toBeGreaterThan(0);
+  expect(s.after, '다시 그리지 않았다(저장본 바이트 무변 규약 · 파생 변수 선언만 걷음)').toBe(s.before);
+  expect(s.after, '전제: 비교에 상자 한계(마크업 변수)가 남아 있다').toContain('--grb-pie-box-w');
   expect(await bound(page), '라벨 · 축 눈금 · 값 라벨 끌기 위임').toEqual([true, true, true]);
   expect(s.errs).toEqual([]);
 });
@@ -163,5 +172,44 @@ test('B3 ⓑ 키가 없으면 인라인 0(옛 바이트) · 표시 토글이 꺼
   await page.locator('#grb-pie-name-toggle').evaluate((el) => { el.checked = false; el.dispatchEvent(new Event('change', { bubbles: true })); });
   await expect(page.locator('#grb-pie-name-typo-row')).toBeHidden();
   await expect(page.locator('#grb-pie-rank-typo-row')).toBeVisible();
+  expect(s.errs).toEqual([]);
+});
+
+/* ═══ C — 크기 한계(m6) · 좁은 조각 비례(m7) ═══ */
+const nameFs = (page) => page.evaluate(() => [...document.querySelectorAll('#pG .grb-pie-name')].map((e) => ({
+  fs: parseFloat(getComputedStyle(e).fontSize), tagFs: parseFloat(getComputedStyle(e.closest('.grb-pie-tag')).fontSize) })));
+const LS = (page) => page.evaluate(() => parseInt(document.getElementById('pG').dataset.labelSize) || window.GRAPH_LIMITS.LABEL_SIZE_DEFAULT);
+
+test('C1 ⓑ 크기 한계 — 패널 0·999·1e3 → 8·200·200 · 저장본 dataset 999·0 도 그려지는 크기는 한계 안', async ({ page }) => {
+  const s = await setupSaved(page, { chartType: 'pie', items: PIE_ITEMS, extra: { pieRank: '1', pieName: '1' } });
+  const { lo, hi } = await page.evaluate(() => ({ lo: window.GRAPH_LIMITS.VLABEL_FS_MIN, hi: window.GRAPH_LIMITS.VLABEL_FS_MAX }));
+  expect([lo, hi], '전제: 한계 = 선례 vFs 의 그 수').toEqual([8, 200]);
+  await openPanel(page);
+  for (const [typed, want] of [['0', lo], ['999', hi], ['1e3', hi]]) {
+    await setNum(page, 'grb-pie-name-fs', typed);
+    await page.waitForFunction((w) => document.getElementById('pG').dataset.pieNameFs === String(w), want, { timeout: 3000 });
+    expect(await page.inputValue('#grb-pie-name-fs'), `칸 = 저장된 값(${typed})`).toBe(String(want));
+  }
+  const labelSize = await LS(page);
+  /* 저장본이 손으로 바뀐 판 — 패널 칸(numfield 클램프)을 안 지난다 ⇒ 그리는 쪽 한계만 남는다 */
+  for (const [raw, want] of [['999', hi], ['0', lo]]) {
+    await page.evaluate((raw) => { const g = document.getElementById('pG'); g.dataset.pieNameFs = raw; window.renderGraph(g); }, raw);
+    await raf2(page);
+    const n = (await nameFs(page)).find((x) => x.fs > 0);
+    expect(Math.abs(n.fs - want * n.tagFs / labelSize), `dataset ${raw} → 그려지는 크기 ${n.fs} ≈ ${want} × ${n.tagFs}/${labelSize}`).toBeLessThan(0.6);
+  }
+  expect(s.errs).toEqual([]);
+});
+
+test('C2 ⓑ 좁은 조각(덧층 글자를 줄인 판)에서도 이름 크기 = v × tagFs / labelSize', async ({ page }) => {
+  const items = [{ label: '가', value: 80 }, { label: '나', value: 14 }, { label: '아주아주긴이름입니다', value: 6, pieTag: 'on' }];
+  const s = await setupSaved(page, { chartType: 'pie', items, extra: { pieName: '1', pieNameFs: '24' } });
+  await page.evaluate(() => window.renderGraph(document.getElementById('pG')));
+  await raf2(page);
+  const labelSize = await LS(page);
+  const n = (await nameFs(page))[2];
+  expect(n.tagFs, `전제: 좁은 조각이라 덧층 글자를 줄였다(tagFs ${n.tagFs} < labelSize ${labelSize})`).toBeLessThan(labelSize);
+  expect(Math.abs(n.fs - 24 * n.tagFs / labelSize), `이름 크기 ${n.fs} ≈ 24 × ${n.tagFs}/${labelSize}(px 고정이면 24)`).toBeLessThan(0.6);
+  expect(n.fs, '줄인 비가 실제로 먹었다').toBeLessThan(23.5);
   expect(s.errs).toEqual([]);
 });
