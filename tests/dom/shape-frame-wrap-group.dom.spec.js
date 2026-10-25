@@ -15,6 +15,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 const { sliceBlock } = require('../unit/_slice-block.js');
+const { ssotSelJs } = require('./_ssot-sel.js');
 
 const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
@@ -25,6 +26,7 @@ const NEXT_GROUP_SRC = sliceBlock(BF, 'function _nextGroupName(');
 
 const HARNESS_JS = `
 import { isShapeFrame, shapeFrameOf, topLevelBlocksOf, isEmptyShell } from '/js/shape-frame.js';
+${ssotSelJs(path.join(REPO, 'js'))}   // ★t5-07 — ⌘G 명부가 이 정본에서 파생된다(tests/dom/_ssot-sel.js)
 let __n = 0;
 function makeFrameBlock() {
   const ss = document.createElement('div');
