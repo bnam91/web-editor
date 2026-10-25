@@ -795,12 +795,19 @@ function _barVPlotGeom(block, items, { maxVal, labelSize, vSize, bs }) {
 function renderGraph(block) {
   _renderGraphBody(block);
   window.__gdTextTone?.syncGraphTone?.(block);
+  bindGraphEdits(block);
+}
+/* ★t4-17 ⓐ — 캔버스 편집 위임 셋의 «한 자리». 그리기(renderGraph)와 묶기(js/block-drag.js bindBlock · isGraph) 둘 다 이것만 부른다.
+ *   왜: rebindAll 은 그래프를 «방사형일 때만» 다시 그린다(js/io/save-load.js RERENDER_KINDS · 바이트 무변 규약) ⇒ 불러온 저장본·붙여넣기·
+ *   템플릿·A/B 사본의 막대·꺾은선·원형은 renderGraph 를 안 지나 위임이 0 이었다(실앱 c278bc39 · 원 저장본 grb_84a7j_oruta47 _grbLabelEditBound=false).
+ *   위임은 블럭에 걸고 대상은 매번 closest 로 찾으므로 «저장된 DOM 그대로»에도 먹는다. 셋 다 자기 가드(_grb*Bound)가 이중 바인딩을 막는다. */
+function bindGraphEdits(block) {
   _bindGraphLabelEdit(block);
   _bindGraphAxisTickEdit(block);   // ★1017t1f6㉠
   _bindGraphVLabelDrag(block);   // ★1017t1f5 — 꺾은선 값 라벨 개별 드래그(아래)
 }
 /* K8⒤ — 카테고리 라벨 캔버스 직접 편집(더블클릭). 저장 자리 = dataset.items[i].label 한 곳(패널 .grb-data-label-input 과 같은 키).
- *   라벨은 렌더마다 새로 만들어진다 ⇒ 블럭에 «위임» 한 번만 건다(요소 속성이라 복제·로드된 블럭은 첫 렌더에서 새로 건다).
+ *   라벨은 렌더마다 새로 만들어진다 ⇒ 블럭에 «위임» 한 번만 건다(요소 속성이라 복제·로드된 블럭은 bindBlock 이 bindGraphEdits 로 새로 건다 · t4-17).
  *   ⌘Z 한 번: 들어갈 때 ensureHistoryCheckpoint · 확정 뒤 pushHistory. Esc · 빈 글자 · 같은 글자 = 무변(다시 그려 원래 글자로).
  *   편집 중엔 block.editing — 공통 mousedown 드래그·삭제키 가드가 본다(그리드 줄 편집과 같은 꼴). */
 /* 카테고리 라벨 «셋»(막대·비교 .grb-bar-label · 가로 .grb-bar-h-desc · 꺾은선 .grb-line-xlabel) — 항목마다 정확히 하나(숨김이어도 display:none 으로 있다)
@@ -1395,6 +1402,25 @@ function _pieShadowFilterStyle(d) {
   const col = _pieShColor(d.pieShadowColor) || `rgba(0,0,0,${preset === 'strong' ? 0.55 : 0.25})`;   // css/editor-graph.css:310-311 과 같은 틴트(기본값)
   return ` style="filter:drop-shadow(${x}px ${y}px ${blur}px ${col})"`;
 }
+/* ★t4-17 ⓑ — 조각 안 순위 배지(.grb-pie-rank)·이름(.grb-pie-name)의 글자 크기·굵기·기울임. 읽기의 «한 자리» — 렌더(아래 _renderPie)와 패널(prop-graph.js)이 이것만 읽는다.
+ *   키 = dataset.pie{Rank,Name}{Fs,Fw,It} — 머리가 그 표시 토글(pieRank · pieName)과 같다. 키가 없으면 인라인 0 = 옛 바이트(G0 골든 무변).
+ *   크기 한계는 선례 1017t1f5 값 라벨 크기(items[i].vFs)의 GRAPH_LIMITS.VLABEL_FS_MIN/MAX 를 그대로 쓴다(새 수 0).
+ *   굵기는 100~900 의 백 단위만(저장본이 손으로 바뀌어도 CSS 에 다른 글자가 안 들어간다 — E152 와 같은 뜻). 기울임 = '1'. */
+const GRB_PIE_TAG_PARTS = ['rank', 'name'];
+function grbPieTagTypo(d, part) {
+  const key = 'pie' + part[0].toUpperCase() + part.slice(1);
+  const L = window.GRAPH_LIMITS;
+  const n = parseInt(d[key + 'Fs']);
+  const fw = String(d[key + 'Fw'] || '');
+  return { key, fs: Number.isFinite(n) ? Math.min(L.VLABEL_FS_MAX, Math.max(L.VLABEL_FS_MIN, n)) : null, fw: /^[1-9]00$/.test(fw) ? fw : '', it: d[key + 'It'] === '1' };
+}
+/* 크기는 «라벨 크기 대비 em» 으로 싣는다 — 덧층 글자 = 라벨 크기라 안 줄인 판에선 정확히 그 px 이고,
+   grbPieFitTags 가 제 조각에 안 들어 덧층 글자를 단계로 줄이면(--grb-pie-tag-fs) 같은 비로 같이 준다(배지 0.7em 과 같은 길). */
+function _pieTagTypoAttr(d, part, labelSize) {
+  const t = grbPieTagTypo(d, part);
+  const css = (t.fs != null ? `font-size:${(t.fs / labelSize).toFixed(4)}em;` : '') + (t.fw ? `font-weight:${t.fw};` : '') + (t.it ? 'font-style:italic;' : '');
+  return css ? ` style="${css}"` : '';
+}
 function _renderPie(block, { items, chartH, labelSize }) {
   const d = block.dataset;
   const L = window.GRAPH_LIMITS;
@@ -1425,10 +1451,11 @@ function _renderPie(block, { items, chartH, labelSize }) {
          기하에서만 나온 값이라 «두 번 그려 같다»·저장본에 실려도 된다(JS 없는 내보내기에서도 라벨이 제 조각을 안 넘는다). 실제 글자를 잰 결과(grbPieFitTags)는 다른 변수(저장에서 걷힘)에 산다. */
     const room = window.GRAPH_PIE_GEOM.pieTagRoom(geo);
     const _pc = (v) => (Math.floor(v / _side * 10000) / 100).toFixed(2);
+    const _rankAttr = _pieTagTypoAttr(d, 'rank', labelSize), _nameAttr = _pieTagTypoAttr(d, 'name', labelSize);   // ★t4-17 ⓑ
     tagsHTML = `<div class="grb-pie-tags" style="width:${chartH}px;font-size:${labelSize}px">` + items.map((it, i) =>
       `<div class="grb-pie-tag" style="left:${_at(plan[i].x)}%;top:${_at(plan[i].y)}%;--grb-pie-box-w:${_pc(room[i].boxes[room[i].best].w)}%;--grb-pie-box-h:${_pc(room[i].boxes[room[i].best].h)}%${plan[i].show ? '' : ';display:none'}">`
-      + (_tagRank ? `<span class="grb-pie-rank">${ranks[i] > 0 ? ranks[i] + '위' : ''}</span>` : '')
-      + (_tagName ? `<span class="grb-pie-name">${_escGraphHtml(it && it.label)}</span>` : '') + `</div>`).join('') + `</div>`;
+      + (_tagRank ? `<span class="grb-pie-rank"${_rankAttr}>${ranks[i] > 0 ? ranks[i] + '위' : ''}</span>` : '')
+      + (_tagName ? `<span class="grb-pie-name"${_nameAttr}>${_escGraphHtml(it && it.label)}</span>` : '') + `</div>`).join('') + `</div>`;
   }
   const slices = geo.paths.map((p, i) => `<path class="grb-pie-slice" d="${p}"${_tf(geo.offsets[i])}${colors[i] ? ` style="fill:${colors[i]};fill-opacity:1"` : ''}/>`).join('');
   const emptyEl = geo.empty ? `<circle class="grb-pie-empty" cx="500" cy="500" r="498" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="6 6" vector-effect="non-scaling-stroke"/>` : '';
@@ -1989,6 +2016,7 @@ export {
   getSectionAlign,
   GRAPH_DEFAULT_ITEMS,
   renderGraph,
+  bindGraphEdits,
   applyDividerStyle,
   ASSET_PRESETS,
   colorLuminance,
@@ -2024,6 +2052,8 @@ window.showToast                  = showToast;
 window.getSectionAlign            = getSectionAlign;
 window.GRAPH_DEFAULT_ITEMS        = GRAPH_DEFAULT_ITEMS;
 window.renderGraph                = renderGraph;
+window.grbPieTagTypo              = grbPieTagTypo;          // ★t4-17 ⓑ — 조각 안 순위·이름 글자 키 읽기(prop-graph.js 패널 줄)
+window.GRB_PIE_TAG_PARTS          = GRB_PIE_TAG_PARTS;
 window.grbPieSliceIndexAt         = grbPieSliceIndexAt;   // 1013t1C4 — 조각 고르기 셋(block-drag 클릭 · prop-graph 패널이 부른다)
 window.grbPieSelected             = grbPieSelected;
 window.grbPieSelect               = grbPieSelect;
