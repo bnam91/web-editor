@@ -2176,6 +2176,15 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .frame-block[data-text-frame="true"]:has(.text-block.selected) {
   z-index: 2;
 }
+/* ★FT-BOTTOM-CORNER-HANDLE-UNDER-GLYPH-01(미카사 261026 · d772f49e 실측 ×3) — 자유변형 손잡이(.tfh-layer)는 «글상자 안»에 산다.
+   흐름에서 «바로 아래 글상자»는 같은 쌓임맥락(섹션)에 z 2 · DOM 뒤라, 상자 밑변 밖으로 3.5px 나온 아래 손잡이 se·sw·s1·s2 를
+   덮었다(그 점의 스택 = 아래 글상자의 글자칸 0 · 그 .text-block z2 1 · FT 손잡이 2) ⇒ 아래 손잡이를 못 잡았다.
+   ⇒ 자유변형이 걸린 글상자를 «고른 동안»만 그 글자 프레임을 한 칸 올린다(2 → 3). 안 고르면 그대로(쌓임 무변).
+   ⛔오버레이(z 80 !important)는 이 규칙이 안 건드린다 — 오버레이 모서리를 덮는 것은 다른 층(#ss-handles-overlay
+     .tfo-overlay-handle z 9992 · FT-OVERLAY-HANDLE-COVERS-FT-CORNER-01)이고 이 처방 밖이다. */
+.frame-block[data-text-frame="true"]:has(> .text-block.selected[data-tf-corners]) {
+  z-index: 3;
+}
 /* T6: outline 2겹 픽스 — 부모 row/text-frame이 outline을 책임지면
    .text-block.selected의 자체 outline은 transparent로 되돌려 한 겹만 보이게 한다.
    (text-block은 padding/border-box 변화로 부모와 미세 어긋남이 생겨 2겹으로 보였음) */
