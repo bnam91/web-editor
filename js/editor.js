@@ -4,6 +4,7 @@ import { isShapeFrame, shapeFrameOf, resolveInsertFrame, anchorUnitOf } from './
 import { fitScale } from './fit-scale.js';
 import { clampChildIntoFrame } from './frame-geometry.js';   /* F2 — 붙여넣기 자리를 프레임 안으로(드래그 클램프와 «같은 함수») */
 import { setTextTypeClass, afterTextTypeChange } from './props/text-type-class.js';
+import { ALIGN_SELF_OF } from './props/prop-text-wireup-align.js';   /* t7-03 — 가로 정렬 → align-self 사상표 한 자리 */
 import { warnPendingVideoLossIf } from './io/pending-video-warn.js';   /* T-032: 미확정 영상 알림 단일 진실원(「한 번만」 래치 포함) */
 
 /* ═══════════════════════════════════
@@ -2324,8 +2325,7 @@ document.addEventListener('keyup', e => {
    asset/frame/shape 등 커스텀 폭(<100%) 블록에서만 실제 좌우 이동이 보인다.
    섹션 자신을 선택한 경우는 부모가 캔버스라 여기 대상 셀렉터에 안 잡힘 → no-op. 대상 0개도 no-op. */
 function alignSelectedToParent(dir) {
-  const map = { left: 'flex-start', center: 'center', right: 'flex-end' };
-  const val = map[dir];
+  const val = ALIGN_SELF_OF[dir];   /* ★사상표 한 자리(js/props/prop-text-wireup-align.js) — ⛔여기 다시 적지 않는다 */
   if (!val) return;
   // 선택 집합 규약: FLOW_BLOCK_SEL_SELECTED(SSOT — 프레임 포함) + shape. 각 블록은 부모 섹션이 있어야 대상.
   // ★.frame-block.selected 는 2026-09-21(T-091)부터 SSOT 안에 있다 — 여기서 또 적으면 사본이다.
