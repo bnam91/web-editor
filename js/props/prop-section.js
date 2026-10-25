@@ -363,7 +363,17 @@ async function showSectionProperties(sec) {
   if (!sec || !sec.isConnected) return;
   if (_wasSelected && !sec.classList.contains('selected')) return;   // 더 최신 선택이 패널 주인이다
   // dataset.bg(헬퍼가 기록한 색)를 우선, 없으면 인라인 스타일에서 추출
-  const rawBg = sec.dataset.bg || sec.style.backgroundColor || sec.style.background || '';
+  const meshCols = meshColorsOf(sec.dataset.bgMesh);
+  const meshOn   = !!meshCols;
+  /* ★★prev-06 — ★메시가 켜져 있으면 ★인라인 `backgroundColor` 를 ★읽지 ★않는다.
+     ★왜 — 그 값은 ★제품이 ★메시의 ★바닥으로 ★깐 ★«네 색 평균»이지 ★★사용자가 ★고른 값이 ★아니다.
+       ★예전(=이 줄 넣기 전)엔 ★「배경색 B19DBF」처럼 ★고른 적 없는 ★hex 가 ★칸에 떴다(261025 ★캡처로 잡았다).
+     ⇒ ★메시일 땐 ★`dataset.bg` 만 본다 — ★사용자가 ★정말 고른 적이 ★있으면 ★그 값이 ★그대로 뜬다.
+     ★칸을 ★숨기지는 ★않는다 — 숨기면 ★「색을 고르면 메시가 걷힌다」(M9) 길이 ★패널에서 ★사라진다.
+     ★대신 ★그 칸이 ★무엇을 하는지 ★한 줄로 ★알린다(아래 meshHintHTML · ★M10 이 잰다). */
+  const rawBg = meshOn
+    ? (sec.dataset.bg || '')
+    : (sec.dataset.bg || sec.style.backgroundColor || sec.style.background || '');
   /* ★1013t2E1 — 그라데이션이면 rawBg 는 색이 아니다(rgbToHex 가 쓰레기 hex 를 낸다 — 프레임 T-059 와 같은 병).
      그라데이션 CSS 를 따로 잡아 wireColorField(gradientValue)로 넘긴다: 스와치 = 그라데이션 · 피커 = 그라데이션 탭 · Solid 복귀 = 첫 정지점.
      ⛔그림이 있을 땐 인라인 backgroundImage 를 보지 않는다(거긴 그림/물들임 합성이 산다) — dataset.bg 만 본다. */
@@ -377,8 +387,6 @@ async function showSectionProperties(sec) {
     : 100;
   /* ★★prev-06 — ★메시 그라데이션 칸. ★그림이 ★있으면 ★안 보인다(그때는 그림 합성이 주인이라 켜도 안 그려진다
      ⇒ ★켤 수 있는데 안 그려지는 ★거짓 단추를 ★만들지 않는다). */
-  const meshCols = meshColorsOf(sec.dataset.bgMesh);
-  const meshOn   = !!meshCols;
   const hasBgImg  = !!sec.dataset.bgImg;
   const bgSize    = sec.dataset.bgSize || 'cover';
   const secPadB   = parseInt(sec.style.paddingBottom) || 0;
@@ -396,6 +404,10 @@ async function showSectionProperties(sec) {
      ★키가 없으면 라이트 = 지금까지 저장된 모든 프로젝트가 «픽셀 동일»이다(마이그레이션 코드 0). */
   const _bgTone  = sec.dataset.checkerTone === 'dark' ? 'dark' : 'light';
   const _bgSizeCustom = /px/.test(bgSize);
+  /* ★★prev-06 — ★메시가 켜진 동안만 뜬다. ★M10 의 ★음성대조가 ★「끄면 사라진다」를 잰다. */
+  const meshHintHTML = meshOn
+    ? '<div id="sec-bg-mesh-hint" class="prop-hint" style="margin:-2px 0 2px;">메시 그라데이션 사용 중 — 위 배경색을 고르면 메시가 꺼집니다</div>'
+    : '';
   const meshHTML = sec.dataset.bgImg ? '' : `
     <button class="prop-action-btn ${meshOn ? 'primary' : 'secondary'}" id="sec-bg-mesh" style="margin-top:6px;"
       title="네 모서리 색을 번지게 섞어 메시 그라데이션처럼 보이게 합니다. 피그마의 메시와 똑같지는 않습니다(v1)">
@@ -519,6 +531,7 @@ ${blockHeaderHTML({
         <span class="prop-label">배경색</span>
         ${colorFieldHTML({ idPrefix: 'sec-bg', hex: hexBg, alpha: secBgAlpha, gradientCss: bgGradCss })}
       </div>
+      ${meshHintHTML}
       ${meshHTML}
       <span class="prop-field-label" style="margin-top:8px">Background Image</span>
       ${bgImgHTML}

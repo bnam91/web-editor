@@ -324,3 +324,39 @@ test('M9 ★★메시가 켜진 섹션에 ★배경색을 고르면 ★메시가
   expect(api.mesh, `setSectionBg 뒤 data-bg-mesh = ${api.mesh} (★걷혔어야 한다)`).toBe(null);
   expect(api.layers, `setSectionBg 뒤 겹 수 = ${api.layers} · img=${api.img}`).toBe(0);
 });
+
+/* ───────── M10 ★★「배경색」 칸이 ★내가 안 고른 값을 ★보이지 않는다 (★캡처로 잡았다) ───────── */
+/* ★261025 — ★구현 모습을 ★찍어 ★보다가 잡았다: 패널 「배경색」이 ★`B19DBF` 를 보였는데
+     ★그건 ★제품이 ★메시의 ★바닥으로 깐 ★«네 색 평균»이지 ★★사용자가 ★고른 값이 ★아니다.
+   ★까닭 — `rawBg = sec.dataset.bg || sec.style.backgroundColor || …` 라, `dataset.bg` 가 비면
+     ★인라인 `backgroundColor`(= 내가 깐 파생값)를 ★읽는다.
+   ⇒ ★메시가 켜져 있으면 ★그 파생값을 ★안 읽는다. ★그리고 ★그 칸이 ★무엇을 하는지(색을 고르면
+     ★메시가 꺼진다)를 ★한 줄로 ★알린다 — ⛔칸을 ★숨기지는 ★않는다(숨기면 M9 의 패널 길이 ★사라진다). */
+test('M10 ★★메시가 켜져도 「배경색」 칸은 ★파생 바닥색을 ★안 보인다 (＋안내 한 줄 · ＋끄면 안내도 간다)', async ({ page }) => {
+  const { A } = await setup(page);
+  await pickSection(page, A);
+  await page.locator('#sec-bg-mesh').click();
+  await raf2(page);
+  const r = await page.evaluate((i) => {
+    const el = document.getElementById(i);
+    return {
+      hex: document.getElementById('sec-bg-hex')?.value ?? null,
+      bg: el.dataset.bg ?? null,
+      liveColor: getComputedStyle(el).backgroundColor,
+      hint: !!document.getElementById('sec-bg-mesh-hint'),
+    };
+  }, A);
+  /* ★전제 — 제품이 ★정말 파생 바닥색을 ★깔았다(안 깔았으면 이 칸은 아무것도 안 잰다) */
+  expect(r.liveColor, `전제: 메시 바닥색이 깔렸다 — ${r.liveColor}`).toMatch(/^rgb\(/);
+  const live = '#' + (r.liveColor.match(/\d+/g) || []).slice(0, 3)
+    .map(v => Number(v).toString(16).padStart(2, '0')).join('').toUpperCase();
+  expect(String(r.hex || '').toUpperCase(), `「배경색」 hex = ${r.hex} · 파생 바닥색 = ${live} — 사용자가 고른 적 없는 값이다`)
+    .not.toBe(live.replace('#', ''));
+  expect(r.hint, '메시가 켜졌는데 「색을 고르면 메시가 꺼진다」 안내가 없다').toBe(true);
+
+  /* ★★음성대조 — 끄면 ★안내도 ★사라진다(⛔늘 떠 있는 줄이면 아무것도 안 잰다) */
+  await page.locator('#sec-bg-mesh').click();
+  await raf2(page);
+  const off = await page.evaluate(() => !!document.getElementById('sec-bg-mesh-hint'));
+  expect(off, '메시를 껐는데 안내가 남아 있다').toBe(false);
+});
