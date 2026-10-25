@@ -210,8 +210,29 @@
     });
   }
 
+  /* ★1020t2g1ⓑ 마디 경계 물결 — 마디 하나(.grb-seg-ink)의 mask 글자. 곡선 = 라이너 물결 식(root.buildLinerPathD 'wave' · 한 주기 · ⛔여기 사본 없음).
+   *   띠 높이 a(px) · viewBox 0 0 100 a(preserveAspectRatio none = 가로는 마디 폭에 늘고 세로는 a px 그대로).
+   *   hasTop = 위에 보이는 마디가 있다(그 경계의 «아래» 쪽 = 곡선 아래만 남긴다) · hasBottom = 아래에 있다(곡선 위만 남긴다).
+   *   식이 없으면(라이너 스크립트가 안 실린 하네스·유닛) '' — 직선 경계(옛 그림) 그대로다. */
+  function segWaveMaskCss(hasTop, hasBottom, a) {
+    var build = root && root.buildLinerPathD;
+    if (typeof build !== 'function' || !(a > 0) || (!hasTop && !hasBottom)) return '';
+    var d = build('wave', 100, 100, a, 0, a / 2, a);
+    var svg = function (closeY) {
+      var x = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 " + a + "' preserveAspectRatio='none'><path d='" + d + ' L 100,' + closeY + ' L 0,' + closeY + " Z' fill='%23000'/></svg>";
+      return 'url(data:image/svg+xml,' + x.replace(/ /g, '%20').replace(/'/g, '%27').replace(/</g, '%3C').replace(/>/g, '%3E').replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/,/g, '%2C') + ')';
+    };
+    var imgs = [], pos = [], size = [];
+    if (hasTop) { imgs.push(svg(a)); pos.push('0 0'); size.push('100% ' + a + 'px'); }          // 위 띠: 곡선 «아래»만
+    if (hasBottom) { imgs.push(svg(0)); pos.push('0 100%'); size.push('100% ' + a + 'px'); }   // 아래 띠: 곡선 «위»만
+    var t = hasTop ? a : 0, b = hasBottom ? a : 0;
+    imgs.push('linear-gradient(%23000,%23000)'.replace(/%23/g, '#')); pos.push('0 ' + t + 'px'); size.push('100% calc(100% - ' + (t + b) + 'px)');
+    var v = 'mask-image:' + imgs.join(',') + ';mask-position:' + pos.join(',') + ';mask-size:' + size.join(',') + ';mask-repeat:no-repeat;';
+    return v + v.replace(/mask-/g, '-webkit-mask-');
+  }
+
   /* ── 그리기(HTML 글자만 만든다 — DOM 을 안 만진다) ─────────────────────────
-   * o = { esc, color, blockShape, blockSvg, boxFrac, ratioOf, blockBar, trackColor, segGap, labelSize, vSize, vCss, xCss, xInk, lhCss, colMin, fillW }
+   * o = { esc, color, blockShape, blockSvg, boxFrac, ratioOf, blockBar, trackColor, segGap, segWave, labelSize, vSize, vCss, xCss, xInk, lhCss, colMin, fillW }
    *   esc·color 는 drag-utils 의 _escGraphHtml · _safeGraphColor(사용자 글자·색은 반드시 그 둘을 지난다 · E152).
    *   ratioOf(value) 는 «상자 안» 채움 비율(0~1) · boxFrac 는 상자 높이 / 플롯 높이(눈금 상한이 분모보다 클 때 < 1). */
   function shapeColsHTML(items, o) {
@@ -235,10 +256,14 @@
       if (segs) {
         var rs = segRatios(segs).ratios;
         if (asp && pct < 100) layers += '<div class="grb-bar-fill grb-shape-track" style="bottom:auto;height:' + +(100 - pct).toFixed(2) + '%;' + (trackSolid ? 'background:' + trackSolid + ';' : bg + 'opacity:' + L.SHAPE_TRACK_OPACITY + ';') + '"></div>';
+        /* 1020t2g1ⓑ — 물결이면 «보이는» 마디끼리의 경계만 물결친다(display:none 마디는 건너뛴다 · 0번이 맨 아래 = column-reverse) */
+        var waveA = o.segWave ? L.SEG_WAVE_AMP : 0;
+        var vis = rs.map(function (r) { return r > 0; });
         layers += '<div class="grb-seg-stack grb-shape-fill"' + fillAttr + ' style="height:' + pct + '%;gap:' + gap + 'px">'
           + segs.map(function (s, j) {
             var sc = o.color(s && s.color);
             var ink = sc ? 'background:' + sc + ';' : bg + 'opacity:' + segAlpha(j) + ';';
+            if (waveA && vis[j]) ink += segWaveMaskCss(vis.slice(j + 1).some(Boolean), vis.slice(0, j).some(Boolean), waveA);
             return '<div class="grb-seg" style="' + (rs[j] > 0 ? 'flex-grow:' + +(rs[j] * 100).toFixed(4) : 'display:none') + '"><div class="grb-bar-fill grb-seg-ink" style="' + ink + '"></div></div>';
           }).join('') + '</div>';
         /* 사각 쌓기(모양 없음)의 라벨은 막대 바깥 글자 — 카테고리 라벨과 같은 색 길(o.xInk = 소독을 지난 xlabelColor || labelColor)을 탄다 · 글자는 말줄임 칸(.grb-seg-text)에 싼다.

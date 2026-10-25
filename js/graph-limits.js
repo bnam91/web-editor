@@ -58,10 +58,13 @@
   /* ★SEG_GAP_MIN · MAX(1020t2g1ⓐ · 2026-10-26 S7 · 현빈 「마디 추가 시 흰색 간격 조절」) — 마디 사이 틈 칸(dataset.segGap · px)의 한계.
        키가 없으면 SEG_GAP_DEFAULT(2)로 그린다(옛 저장본 그대로) · 기본과 같은 값을 넣으면 키를 지운다(pieLegendGap 과 같은 «없음 = 키 없음»).
        40 = 범례 간격 칸(PIE_LEG_GAP_MAX 60)보다 좁게 — 마디는 막대 «안»의 틈이라 막대 높이를 크게 잡아먹지 않게(기획 값 — 현빈 확인 전). */
+  /* ★SEG_WAVE_AMP(1020t2g1ⓑ · 2026-10-26 S7 · 현빈 「경계를 물결 모양으로」) — 마디 경계 물결의 높이(px · 마루~골). 물결 «식»은 여기 없다 —
+       라이너 글자의 물결(js/liner-transform.js buildLinerPathD 'wave')을 그대로 빌린다(⛔두 벌 금지). 경계마다 위 마디는 그 곡선 위만, 아래 마디는
+       같은 곡선 아래만 남겨 «흰 틈»이 같은 두께(segGap + 이 값)로 물결친다. 6 = 기본 막대 두께(24)의 1/4(기획 값 — 현빈 확인 전). */
   var GRAPH_LIMITS = Object.freeze({ BAR_THICKNESS_MIN: 8, BAR_THICKNESS_MAX: 60, BAR_THICKNESS_DEFAULT: 24, BAR_THICKNESS_V_MAX: 'column', LABEL_SIZE_DEFAULT: 20, LABEL_SIZE_MIN: 8, LINE_PADX_DEFAULT: 16, PCT_SIZE_FACTOR: 3,
     PIE_HOLE_MIN: 20, PIE_HOLE_MAX: 80, PIE_HOLE_DEFAULT: 55, PIE_GAP: 10, PIE_GAP_MIN: 0, PIE_GAP_MAX: 40, PIE_START_MIN: 0, PIE_START_MAX: 359, PIE_GROW_MAX: 30, PIE_PULL_MAX: 30, PIE_TAG_AT: 62, PIE_TAG_MIN_CHORD: 150, PIE_TAG_MIN_RADIAL: 150, PIE_TAG_PAD: 8, PIE_TAG_FONT_STEPS: Object.freeze([0.85, 0.7, 0.55, 0.4]), PIE_TAG_NAME_LINES: 2,
     PIE_LEG_GAP_MIN: 0, PIE_LEG_GAP_MAX: 60, PIE_LEG_GAP_DEFAULT: 16,
-    SHAPE_SVG_MAX: 60000, SHAPE_FILL_MAX_DEFAULT: 100, SHAPE_TRACK_OPACITY: 0.25, SEG_GAP_DEFAULT: 2, SEG_GAP_MIN: 0, SEG_GAP_MAX: 40,
+    SHAPE_SVG_MAX: 60000, SHAPE_FILL_MAX_DEFAULT: 100, SHAPE_TRACK_OPACITY: 0.25, SEG_GAP_DEFAULT: 2, SEG_GAP_MIN: 0, SEG_GAP_MAX: 40, SEG_WAVE_AMP: 6,
     VLABEL_OFFSET_MIN: -600, VLABEL_OFFSET_MAX: 600, VLABEL_FS_MIN: 8, VLABEL_FS_MAX: 200, VLABEL_TEXT_MAX: 80 });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_LIMITS;
   if (root) root.GRAPH_LIMITS = GRAPH_LIMITS;
