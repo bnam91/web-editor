@@ -3353,6 +3353,8 @@ function _gridActiveOuterLine() {
     gridAddr = null;
   }
   if (!gridSel || !gridAddr) return null;
+  /* ★1012t1G1 — 말풍선 «가상 본문 줄»(line-host.js lnIsBubbleBodyLine)은 옮길 줄이 없다(본문 = 블럭) ⇒ null 로 흘려 «블럭 이동». */
+  if (window.lnIsBubbleBodyLine?.(gridSel, gridAddr)) return null;
   if (gridAddr.np) return { block: gridSel, addr: gridAddr, nested: true };
   /* ⚠️addr.li === null 은 «빈 칸»(셀 모드, T-A)이다 — 옮길 줄이 없다. ⌫ 가 그때 블럭을 지우는
      것과 같이, null 로 흘려 «블럭 이동»이 되게 둔다(두 키의 뜻이 갈리지 않게). */
@@ -3483,7 +3485,8 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
          현빈 지시로 없앴다. 줄바의 「줄 삭제」가 «한 글자도 안 다른» 같은 코드였다. */
     /* ★BT2 D10 — 말풍선·챗의 «줄»이 골라져 있으면 ⌫/⌘X 는 그 줄 하나만 지운다(아래 그리드 갈래와 같은 뜻).
        게이트(단독 선택·주소 유효)는 js/blocks/line-host.js lnDeleteActiveLine 한 곳. */
-    if (window.lnDeleteActiveLine?.()) { consumed = true; return consumed; }
+    /* ★1012t1G1 — isCut 를 넘긴다: 말풍선 «가상 본문 줄»(줄 없는 말풍선을 둘째 클릭)에서 ⌘X 는 «블럭 잘라내기»다(⌫ 만 두 걸음). */
+    if (window.lnDeleteActiveLine?.({ isCut })) { consumed = true; return consumed; }
     const gridSel = document.querySelector('.grid-block.selected');
     let gridAddr = gridSel ? window.grdGetActiveLine?.(gridSel) : null;
     /* ★0918r2 T-058 — 줄 삭제는 «그 그리드 하나만» 선택됐을 때만. ⌘클릭 다중선택·붙여넣기 뒤

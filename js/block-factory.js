@@ -5808,7 +5808,8 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     }
 
     /* ★1020t2i1 카드 «아래에 줄 추가 (T)» — 판정은 line-host.js lnCtxAddAddr ★하나(2단 선택의 lnClickAddr 를 그대로 쓴다).
-       ⛔기존 항목은 안 건드린다(표시 조건 하나를 더할 뿐). 그룹 프레임이 대상이면 lnCtxAddAddr 가 null 이라 숨는다. */
+       ⛔기존 항목은 안 건드린다(표시 조건 하나를 더할 뿐). 그룹 프레임이 대상이면 lnCtxAddAddr 가 null 이라 숨는다.
+       ★1012t1G1 — 말풍선·그리드도 같은 항목·같은 판정 문(lnCtxAddAddr 가 그리드는 prop-grid.js grdCtxAddAddr 로 넘긴다). */
     _targetLnAddr = window.lnCtxAddAddr?.(block, e) || null;
     { const lnAddItem = document.getElementById('bcm-ln-add'); if (lnAddItem) lnAddItem.style.display = _targetLnAddr ? 'flex' : 'none'; }
 
