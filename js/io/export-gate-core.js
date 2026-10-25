@@ -104,6 +104,15 @@ function xspan(ink, W, y0, y1) {
   return lo < 0 ? [null, null] : [lo, hi];
 }
 
+/** ★125 ㉮ — «백지»: 최빈 밝기에서 INK 넘게 벗어난 점이 ★하나도 없다(inkProfile 과 같은 잉크 정의 · 같은 최빈 규칙). */
+export function isBlankRGBA(img) {
+  if (!img || !img.width || !img.height) return true;
+  const lum = toLumaPlane(img);
+  const { rows } = inkProfile(lum, img.width, img.height);
+  for (let y = 0; y < rows.length; y++) if (rows[y] > 0) return false;
+  return true;
+}
+
 /* ── 구조 층(pixdiff.py:91-125 `structural`) ── */
 function structural(expLum, truLum, W, H, out) {
   // ★TOTAL 이 0 이면 구조 위반은 «성립할 수 없다» — 잉크 마스크가 임계 근처에서 갈려
@@ -158,6 +167,12 @@ export function compareRGBA(exp, tru) {
     total: 0, maxCell: 0, maxCellAt: null, blobPx: 0, bands: [],
     struct: 'PASS', bandCount: 0, truthBandCount: 0, bandMismatch: false, maxDy: 0, maxDx: 0,
     measured: true,
+    /* ★125 ㉮(FALSE-PASS-CHECKER-SAID-OK-WHILE-ANNOT-MISSING-01 · 2026-10-26) — 비교 «전»의 전제.
+       export ↔ truth 는 «상호» 비교라 ★둘 다 같은 결손이면 total 0 ⇒ 'same' 이다(어노가 빠진 판 8d10b079 실측 3/3).
+       그중 «둘 다 백지»는 잴 것이 없는 판이다 ⇒ 아래에서 struct 'N/A' 로 내려 ★기존 문 7(noInk · «못 쟀다»)로 보낸다.
+       ⛔새 문을 만들지 않는다(문 명부 export-gate-doors 무변) · E4 대조 키(total·maxCell·bandCount·blobPx·sizeMismatch·maxDx·maxDy)도 무변.
+       ⚠️«다른 글은 있고 어노만 빠진» 섹션은 이것으로 못 잡는다 — 그건 capture-safety.js warnIfCaptureAnnotVanished(㉯) 몫. */
+    blank: { exp: isBlankRGBA(exp), truth: isBlankRGBA(tru) },
   };
   if (out.sizeMismatch) {
     // ⚠️python 은 여기서 LANCZOS 리사이즈 후 밴드 국소화를 «계속» 한다(어디가 밀렸는지 보려고).
@@ -248,6 +263,7 @@ export function compareRGBA(exp, tru) {
   }
 
   structural(toLumaPlane(exp), toLumaPlane(tru), W, H, out);
+  if (out.blank.exp && out.blank.truth) out.struct = 'N/A';   // ★125 ㉮ — 위 blank 머리말
   return out;
 }
 
