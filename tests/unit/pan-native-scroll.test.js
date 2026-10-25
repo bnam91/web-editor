@@ -379,17 +379,85 @@ test('★P-A2 계약: 유예를 «스페이스»와 «mousedown» «둘 다»에
 
 /* ══ J. P-A1″ — «편집이 아닌 것»의 단일 목록 ════════════════════════════ */
 
+/* ★★★261023 — ★이 칸이 ★빨개져서 ★알았다. ★★그게 ★이 칸의 ★값이다.
+   ★무엇이 바뀌었나 : ★목록(`NON_CONTENT_UI_SELECTOR`)을 ★`js/io/save-load.js` 에서
+     ★★`js/io/editor-ui-roster.js` 로 ★옮겼다(R1 처방 — ★캡처 겹도 ★같은 상수를 ★봐야 하는데
+     save-load.js:14 가 ★이미 capture-safety.js 를 ★import 해서 ★거꾸로 걸면 ★순환이다).
+   ★★★그런데 ★이 칸의 ★제목(「목록이 ★«한 곳»에 있고」)은 ★그대로 ★참이어야 한다 —
+     ⇒ ★그래서 ★자를 ★옮기면서 ★★★«한 곳»을 ★★레포 ★전체로 ★넓혔다.
+       ★전 : save-load.js ★한 파일 안에서 ★1벌      ← ★★다른 파일에 ★둘째 벌이 생겨도 ★못 봤다
+       ★후 : ★js/ ★전부에서 ★★1벌                   ← ★그게 ★제목이 ★말하던 ★것이다
+     ⇒ ★★이 넓힘이 ★없으면 ★이 칸은 ★«옮기면 통과»가 된다 — ★그건 ★아무것도 ★안 잠근다. */
 test('★P-A1″ 계약: 목록이 «한 곳»에 있고 저장·감시가 «같은 상수»를 본다', () => {
-  assert.ok(/export const NON_CONTENT_UI_SELECTOR/.test(SL), '목록은 하나의 상수여야 한다');
-  // 목록 리터럴이 «두 번» 나오면 두 벌이 된 것이다 — 한쪽이 반드시 뒤처진다.
-  // ★주석에도 클래스명이 적혀 있으니 «코드»만 세야 한다(이 단언이 그렇게 한 번 헛돌았다).
-  const occurrences = (stripComments(SL).match(/\.ab-rotate-zone/g) || []).length;
-  assert.equal(occurrences, 1,
-    `save-load.js 안에 목록이 ${occurrences}벌 있다 — 상수 하나만 남겨야 둘이 안 갈린다`);
+  const ROSTER_REL = 'js/io/editor-ui-roster.js';
+  const ROSTER = fs.readFileSync(path.join(__dirname, '../..', ROSTER_REL), 'utf8');
+  assert.ok(/export const NON_CONTENT_UI_SELECTOR/.test(ROSTER),
+    `목록은 하나의 상수여야 한다 — ${ROSTER_REL} 에 그 export 가 없다`);
+  /* ★★★«한 곳» 을 ★레포 전체로 — ★목록 리터럴이 ★js/ 안에서 ★★두 번 나오면 ★두 벌이다. */
+  const hits = [];
+  (function walk(dir) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(full); continue; }
+      if (!e.name.endsWith('.js')) continue;
+      const n = (stripComments(fs.readFileSync(full, 'utf8')).match(/\.ab-rotate-zone/g) || []).length;
+      if (n) hits.push(`${path.relative(path.join(__dirname, '../..'), full)}×${n}`);
+    }
+  })(path.join(__dirname, '../../js'));
+  /* ★★★261023 — ★이 넓힌 자가 ★첫 판에 ★★셋을 ★찾았다. ★★역할을 ★★잰 뒤 ★★이름으로 ★둔다.
+     ⛔「셋이니 느슨하게」가 ★아니다 — ★★★«아는 셋»을 ★박아, ★★«넷째»가 ★빨개지게 한다.
+     ★★그리고 ★그 셋 중 ★★하나는 ★★★진짜 ★둘째 명부다(아래 ⅲ) — ★이름을 ★붙였다. */
+  const KNOWN = {
+    /* ⒤ ★임자 — ★이 클래스를 ★만드는 자(`z.className = 'ab-rotate-zone'` :80) ＋ ★제 것만 걷는다(`:scope >` :66).
+          ★명부가 ★아니다. ★★여기 ★이름이 있는 것은 ★당연하다. */
+    'js/asset-rotate.js': '★임자 — 이 클래스를 ★만드는 자(:80) · 제 것만 scope 로 걷는다(:66). ★명부 아님',
+    /* ⅱ) ★정본 — ★한 벌이어야 할 ★그 곳. */
+    'js/io/editor-ui-roster.js': '★★정본 — `export const NON_CONTENT_UI_SELECTOR`. ★한 벌이어야 한다',
+    /* ⅲ) ★★★둘째 명부 — ★`SERIALIZE-ROSTER-IS-A-SUPERSET-NOT-A-COPY-01` (261023 지디, ★이 칸이 찾았다).
+          ⚰️★옛 이름 `SERIALIZE-ROSTER-DUPLICATES-THE-CONSTANT-01` (261024 개명 · ★까닭은 아래 ★⊊ 줄).
+          ★실물 : `js/io/section-serialize.js:356` 이 ★★한 줄에 ★30 종을 ★손으로 적는다 —
+            ★그 중 ★★21 종이 ★정본 상수와 ★★글자째 겹치고, ★★«그 한 줄 기준» ★9 종이 ★더 있다
+            (.block-resize-handle · .ci-handle · .shape-handle · .sticker-corner-handle ·
+             .gradient-corner-handle · .hlb-handle · .grad-line-overlay · .vpen-preview · .vpen-edit-overlay).
+          ★★★«9» 에 ★임자를 붙인다 — ★★`:356` ★한 줄 ★범위다. ★★`serializeCleanRoot` ★함수 ★전체로는 ★★11 이고,
+            ★그 ★11 에는 ★★★결함이 ★아닌 ★둘이 ★섞인다 : `.section-block[data-ghost]`(★ghost 섹션은
+            ★저장에서 ★빼는 것이 ★옳다) · `.drop-indicator`(★끌기 ★표시선). ⇒ ★★★참값 = 「11 중 ★9 가 ★후보」.
+            ⛔「11 = 결함 11」로 ★읽지 ★마라 — ★★차집합엔 ★«옳게 ★다른 것»이 ★섞인다.
+          ★★★그리고 ★★«중복»이 ★아니다(★그래서 ★개명했다) — ★★실측 : ★★★«정본에만» = ★★0 종.
+            ⇒ ★★정본 ★21 ⊊ ★직렬 ★32 (★★★포함이다). ⇒ ★★★합치면 ★★직렬이 ★★잃는다.
+            ⛔「중복이니 ★한쪽 ★지우면 ★된다」로 ★읽으면 ★★거꾸로다 — ★★★이름 ★하나가 ★처방을 ★뒤집고 ★있었다.
+            ★★차집합은 ★★★양방향으로 ★찍어야 ★이 판정이 ★선다(★한쪽만 ★찍으면 ★포함을 ★중복으로 ★읽는다).
+          ★★★그 상수의 ★머리말이 ★경고한 ★바로 그 꼴이다 — 「두 벌로 만들면 ★한쪽이 ★반드시 ★뒤처진다」.
+          ★★실제로 ★뒤처졌다 : `.mdl-rotate-zone`(2026-10-08)·`.mdl-profile-x`(10-19)·
+            `.section-height-badge`(10-07)가 ★★전부 ★«두 자리에 ★같이 올려야 한다»로 ★손으로 ★맞춰졌다.
+          ⛔★★그런데 ★지금 ★고치지 ★않는다 — ★★«저장 길»이고, ★정본 파서(`_export-channels.js`
+            `editorNodeCanon`)가 ★그 함수를 ★★resolve 없이 읽어서 ★상수로 바꾸면 ★★정본이 ★깨진다.
+            ⇒ ★★★별건 발주다(릴리스 후 큐). ★여기선 ★★수로 ★못박아 ★안 잊게 한다. */
+    'js/io/section-serialize.js': '★★둘째 명부 — SERIALIZE-ROSTER-IS-A-SUPERSET-NOT-A-COPY-01(261023 · 개명 261024) · :356 이 30종을 손으로 · 정본과 21종 겹침 · ★정본에만=0 ⇒ 정본 21 ⊊ 직렬 32(포함) · ★고침은 별건(저장 길 · 정본 파서가 같이 바뀐다)',
+  };
+  const files = hits.map(h => h.split('×')[0]);
+  const extra = files.filter(f => !KNOWN[f]);
+  assert.deepEqual(extra, [],
+    `★★목록 리터럴이 ★«아는 셋» 밖에 ★${extra.length} 자리 더 있다: ${extra.join(' ')}\n` +
+    `  ★지금 잰 것: ${hits.join(' ')}\n` +
+    `  ⇒ ★새 자리가 ★명부면 ★★넷째 벌이다 — ★`+ROSTER_REL+`\n` +
+    `  ⇒ ★임자(만드는 자)면 ★이 칸의 ★KNOWN 에 ★역할을 적어라(⛔이름만 적지 마라)`);
+  assert.deepEqual(files.sort(), Object.keys(KNOWN).sort(),
+    `★★★아는 셋 중 ★사라진 자리가 있다 — 잰 것 ${files.join(' ')} · 아는 것 ${Object.keys(KNOWN).join(' ')}\n` +
+    `  ⇒ ★★«사라진 봄»이 곧 ★멀어진 눈이다. ★정본이 옮겨졌나 · ★둘째 명부가 ★파생으로 바뀌었나(★그러면 ★여기도 고쳐라)`);
+  assert.equal(hits.find(h => h.startsWith(ROSTER_REL)), `${ROSTER_REL}×1`,
+    `★★정본 자리에 목록이 ★한 벌이 아니다: ${hits.find(h => h.startsWith(ROSTER_REL))}`);
+  /* ★★저장이 ★그 상수를 ★본다 — ★★이어 부르는 꼴(import ＋ re-export)이어도 ★쓰는 자리는 ★그대로다 */
+  assert.ok(/import \{ NON_CONTENT_UI_SELECTOR \} from '\.\/editor-ui-roster\.js'/.test(SL),
+    'save-load.js 가 그 상수를 ★이어 불러야 한다');
   assert.ok(/querySelectorAll\(NON_CONTENT_UI_SELECTOR\)/.test(SL),
     'serializeProject 가 상수를 써야 한다');
   const f = stripComments(extractFn(SL, '_isNonContentUiMutation'));
   assert.ok(/NON_CONTENT_UI_SELECTOR/.test(f), '감시 필터도 «같은» 상수를 봐야 한다');
+  /* ★★★그리고 ★★캡처 겹도 ★★같은 상수를 ★본다 — ★★261023 R1 처방. ★이 줄이 ★그 처방을 ★여기서도 잠근다. */
+  const CS = fs.readFileSync(path.join(__dirname, '../../js/io/capture-safety.js'), 'utf8');
+  assert.ok(/querySelectorAll\?\.\(NON_CONTENT_UI_SELECTOR\)/.test(stripComments(CS)),
+    '★캡처 겹(stripEditorOnlyForCapture)도 ★같은 상수를 봐야 한다 — ⛔제 손 명부로 돌아가면 R1 이 되살아난다');
 });
 
 test('★P-A1″ 계약: 필터는 «childList» 이고 «전부» UI 장식일 때만 무시한다', () => {

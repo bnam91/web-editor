@@ -39,6 +39,7 @@
  *   ㉣ 재투입 1 판(adjHost 에 has-bg-opacity 예외 없음) ⇒ R4-d 빨강(채도가 proxy 에 걸려 조용히 버려짐 · 평가 N1)
  *   ⚠ 이 파일이 못 재는 것: has-bg-opacity 프레임의 회전·색보정 «화면»(편집 중 안 보임 · 완료 뒤 그림 사라짐 =
  *     HAS-BG-OPACITY-LAYER-ZERO · R4-d 는 레이어·filter 존재만) · 모달 · 그라데이션 색 · 진입 때 이미 회전/색보정.
+ *     2026-10-22 — 회전·색보정 «화면»을 G5c·R4-e 가 잰다(현빈 지시로 픽셀로 옮겼다).
  *   ⚠ 편집 중 반투명 «물들임»은 처방판도 없다(핀과 같음 · R-1) — R4-a 는 diff(D,C) 를 기록만.
  *
  * ⛔전수 금지 — 이 1벌만. 실행: npx playwright test --config=tests/dom/playwright.dom.config.js sec-bg-live.dom
@@ -346,6 +347,180 @@ test('R4-d ★반투명(has-bg-opacity) 프레임 · 채도 -100 → Esc ⇒ 레
     expect(errs, errs.join('\n')).toEqual([]);
   } finally { await o.close(); }
 });
+
+/* ═══ G5c · R4-e 반투명(has-bg-opacity) 프레임 «화면» — HAS-BG-OPACITY-LAYER-ZERO 를 픽셀로 (2026-10-22 · 현빈 지시) ══
+   ★G5b 조리법 그대로(둘째 프레임 · #ss-bgopa-num 50 · 전제 opa/beforeImg/beforeDisplay ＋ vis = --frame-bg-img 잠깐 none 과의 차).
+   세 장 B2(진입 뒤 조작 전) · D(조작 중 · mouse.up 전) · C(Esc 완료 뒤):
+     ⑴ 양성대조 diff(B2,C) ≥ 50%·분모 (자가 사는가) → ① diff(B2,D) > 0 (중에 바뀐다) → ② 뒤 그림 픽셀 > 0 («화면» 자 · 지디 ⒜ 2026-10-22)
+        («완료 뒤 그림이 사라짐»을 ① 혼자는 못 막는다). DC 는 기록만(아래 단언 자리 주석 · 머리말 R-1).
+   ★음성대조(-neg) — 편집 진입 «전» `#host{--frame-bg-img:none !important}` 규칙을 문서에 단다(인라인 변수 쓰기를 이긴다 · 제품 코드 무변)
+     ⇒ 그림이 없으면 ① 이 «안» 떠야 한다(BD = 0). 뜨면 ① 은 ::before 그림이 아닌 다른 길(프록시·레이어·UI)을 잰다. */
+/* ★빨강이 참인 칸의 메시지 꼬리 — 이름 · 판 · 판 근거 · 뜻 · 날짜(지디 판정 2026-10-22 · ⛔test.fixme/skip 금지 · dev 머지는 고침과 같이).
+   ★261022 뒤: 참 빨강 셋(G5c · R4-e · R4-d-after)은 todo 로 돈다(TODO_LAYER_ZERO · 아래) — 꼬리는 todo 아닌 칸(G5d · G5b-after)의 빨강에 남는다. */
+const LAYER_ZERO_TAIL = ' — HAS-BG-OPACITY-LAYER-ZERO · 판 378db8296845bf71bbe6fbe5344d0ee4c28a44c1'
+  + ' · c5aa02eb ⊂ 378db829 merge-base 로 확인(태양) · 고치면 초록이 된다 — 고치기 전엔 이 빨강이 참이다 · 2026-10-22';
+/* ★todo — HAS-BG-OPACITY-LAYER-ZERO 참 빨강 셋 (지디 규칙 「일부러 빨강 ⛔ → todo＋이름」 · 태양 261022 · 선례 S6 5f2c0097 · 아이맥 R1 284e4335)
+     꼴: playwright 엔 node:test { todo } 가 없다 ⇒ S6 꼴 그대로 — 그 칸의 «잰 꼴»(0)일 때만 test.info().annotations {type:'todo'} ＋ console «TODO …».
+     ⛔skip/fixme/test.fail 아님 — 장면 전제·⑴ 양성대조는 그대로 hard 단언이라 이 todo 가 다음 빨강을 안 가린다.
+     todo 수 고정: 잰 꼴 = 0/분모. 0 이 아니게 되면(제품이 고쳐짐) soft 빨강 «todo 가 닫혔다» ⇒ 고치는 커밋에서 TODO_LAYER_ZERO 칸을 떼고 보통 단언으로.
+     ⚠️G5c·R4-e 는 ① 뒤의 ② 뒤 그림도 같은 결함으로 0(판정 런 run-a-judge-2110 의 log picAfter_record) ⇒ 그 칸은 ①·② 둘 다 todo. */
+const TODO_LAYER_ZERO_HEAD = 'HAS-BG-OPACITY-LAYER-ZERO — 닫는 이 = 제품 고침(HAS-BG-OPACITY-LAYER-ZERO) · 지디 판정';
+const TODO_LAYER_ZERO = {
+  'G5c': `${TODO_LAYER_ZERO_HEAD} · 잰 수 G5c ① 0/69360 · ② pic 0/69360`,
+  'R4-e': `${TODO_LAYER_ZERO_HEAD} · 잰 수 R4-e ① 0/69360 · ② pic 0/69360`,
+  'R4-d-after': `${TODO_LAYER_ZERO_HEAD} · 잰 수 R4-d-after pic 0/69360`,
+};
+/* 화면 픽셀 > 0 단언 — todo 칸이면 잰 꼴(0)에서 todo, 아니면 보통 hard 단언 */
+function screenOrTodo(cell, slot, d, msg) {
+  const todo = TODO_LAYER_ZERO[cell];
+  if (!todo) { expect(d.changed, msg).toBeGreaterThan(0); return; }
+  if (d.changed === 0) {
+    const t = `${todo} · 이 런 ${slot} ${d.changed}/${d.total}`;
+    test.info().annotations.push({ type: 'todo', description: t });
+    console.log(`TODO ${t}`);
+  } else expect.soft(d.changed, `todo 가 닫혔다 — ${todo} · 이 런 ${slot} ${d.changed}/${d.total} ⇒ TODO_LAYER_ZERO['${cell}'] 를 떼고 보통 단언으로`).toBe(0);
+}
+async function opaCell(browser, cell, { act, neg = false }) {
+  const o = await open(browser);
+  try {
+    const { errs, host, btnId } = await buildScene(o.page, { frame: true, second: true });
+    await o.page.locator('#ss-bgopa-num').fill('50');
+    await raf2(o.page);
+    const pre = await o.page.evaluate((h) => { const el = document.querySelector(h); const b = getComputedStyle(el, '::before');
+      return { opa: el.classList.contains('has-bg-opacity'), beforeImg: b.backgroundImage !== 'none', beforeDisplay: b.display }; }, host);
+    const B = await shot(o.page, host);
+    await o.page.evaluate((h) => { const el = document.querySelector(h); window.__opaImg = el.style.getPropertyValue('--frame-bg-img'); el.style.setProperty('--frame-bg-img', 'none'); }, host);
+    const Bn = await shot(o.page, host);
+    await o.page.evaluate((h) => { document.querySelector(h).style.setProperty('--frame-bg-img', window.__opaImg); }, host);
+    await raf2(o.page);
+    const vis = await diff(o.dp, B, Bn);
+    if (neg) await o.page.evaluate((h) => { const st = document.createElement('style'); st.id = '__opa-neg'; st.textContent = `${h}{--frame-bg-img:none !important}`; document.head.appendChild(st); }, host);
+    await enterEdit(o.page, btnId);
+    const B2 = await shot(o.page, host);
+    const pos0 = await o.page.evaluate((h) => document.querySelector(h).dataset.bgPos || null, host);
+    if (act === 'rotate' || act === 'move') await dragStart(o.page, host, act);
+    else await saturate(o.page);
+    const mid = await o.page.evaluate((h) => { const el = document.querySelector(h); const px = document.querySelector('.sec-bg-proxy');
+      const L = el.querySelector(':scope > .sec-bg-clip > .sec-bg-img');
+      return { varImg: el.style.getPropertyValue('--frame-bg-img').slice(0, 20), clips: el.querySelectorAll(':scope > .sec-bg-clip').length,
+        proxies: document.querySelectorAll('.sec-bg-proxy').length,
+        /* ★조작이 «걸렸나» — BD = 0 의 두 까닭(정말 안 따라감 / 장면이 조작을 못 보냄)을 가른다(지디 판정 ⑵) */
+        rot: px ? parseFloat(px.dataset.imgRotate || 0) : null,
+        pxX: px ? parseFloat(px.dataset.imgX || 0) : null, pxY: px ? parseFloat(px.dataset.imgY || 0) : null,
+        imgLeft: (() => { const i = document.querySelector('.sec-bg-proxy .asset-img'); return i ? i.style.left : null; })(),
+        sat: [...document.querySelectorAll('[data-adj-saturation]')].map(e => e.dataset.adjSaturation).slice(0, 3),
+        layerFilter: L ? (L.style.filter || '').slice(0, 40) : null }; }, host);
+    const D = await shot(o.page, host);
+    if (act === 'rotate' || act === 'move') { await o.page.mouse.up(); await raf2(o.page); }
+    await exitEdit(o.page);
+    const C = await shot(o.page, host);
+    /* 뒤 그림 픽셀(기록만) — afterCell 과 같은 자: ::before 배경 + .sec-bg-clip 둘 다 끈 Cn 과의 차. ② DC 의 큰 값이
+       «그림이 사라짐»인지 «편집 중/뒤 투명도 차»인지 가른다(×3 런 1 G5d). */
+    await o.page.evaluate((h) => { const st = document.createElement('style'); st.id = '__opa-off';
+      st.textContent = `${h}::before{background-image:none !important} ${h} > .sec-bg-clip{visibility:hidden !important}`; document.head.appendChild(st); }, host);
+    const Cn = await shot(o.page, host);
+    await o.page.evaluate(() => document.getElementById('__opa-off')?.remove());
+    const pic = await diff(o.dp, C, Cn);
+    const after = await o.page.evaluate((h) => { const el = document.querySelector(h); const b = getComputedStyle(el, '::before');
+      const L = el.querySelector(':scope > .sec-bg-clip'); const LI = el.querySelector(':scope > .sec-bg-clip > .sec-bg-img');
+      return { opa: el.classList.contains('has-bg-opacity'), clips: el.querySelectorAll(':scope > .sec-bg-clip').length,
+        bgRotate: el.dataset.bgRotate || null, bgPos: el.dataset.bgPos || null, layerFilter: LI ? (LI.style.filter || '').slice(0, 40) : null,
+        layerH: L ? Math.round(L.getBoundingClientRect().height) : null, varImg: el.style.getPropertyValue('--frame-bg-img').slice(0, 20),
+        beforeImg: b.backgroundImage !== 'none' }; }, host);
+    const bd = await diff(o.dp, B2, D), dc = await diff(o.dp, D, C), bc = await diff(o.dp, B2, C);
+    log(cell, { act, neg, pos0, pre, imgVisible: `${vis.changed}/${vis.total}`, mid, after,
+      BD: `${bd.changed}/${bd.total}`, DC: `${dc.changed}/${dc.total}`, BC: `${bc.changed}/${bc.total}`, picAfter_record: `${pic.changed}/${pic.total}`,
+      BDpct: +(100 * bd.changed / bd.total).toFixed(2), DCpct: +(100 * dc.changed / dc.total).toFixed(2), BCpct: +(100 * bc.changed / bc.total).toFixed(2) });
+    expect(pre, `★${cell} 전제: has-bg-opacity · ::before 그림 · display`).toEqual({ opa: true, beforeImg: true, beforeDisplay: 'block' });
+    expect(vis.changed, `★${cell} 전제: 조작 전 ::before 그림 픽셀이 0 이다(${vis.changed}/${vis.total}) — 장면이 이 길을 못 본다`).toBeGreaterThan(0);
+    if (act === 'rotate') {
+      expect(Math.abs(mid.rot), `★${cell} 전제: 회전이 상태에 안 들어갔다(조작 중 proxy imgRotate = ${mid.rot}) — 장면이 조작을 못 보냈다`).toBeGreaterThan(1);
+      expect(Math.abs(parseFloat(after.bgRotate || 0)), `★${cell} 전제: 완료 뒤 bgRotate = ${after.bgRotate}`).toBeGreaterThan(1);
+    } else if (act === 'move') {
+      expect(mid.imgLeft, `★${cell} 전제: 위치가 조작 중 상태에 안 들어갔다(프록시 그림 left = ${mid.imgLeft})`).toMatch(/px$/);
+      expect(after.bgPos, `★${cell} 전제: 완료 뒤 bgPos 가 안 바뀌었다(${pos0} → ${after.bgPos})`).not.toBe(pos0);
+    } else {
+      /* 앱은 채도를 −1.000(−100 % 의 정규화)으로 든다 — 레이어 filter 의 …_m1p000 과 같은 값. ⛔'-100' 글자만 찾지 마라(×3 런 1 에서 밟음). */
+      expect(mid.sat.some(v => [-1, -100].includes(parseFloat(v))), `★${cell} 전제: 채도가 상태에 안 들어갔다(조작 중 data-adj-saturation = ${JSON.stringify(mid.sat)})`).toBe(true);
+      expect(after.layerFilter || '', `★${cell} 전제: 완료 뒤 레이어 filter 가 채도를 안 든다`).toMatch(/url\(["']?#img-color-adj-/);
+    }
+    /* ★② 는 «뒤 그림»으로 잰다 — DC 는 기록만(태양·지디 2026-10-22). 까닭 = 머리말 원문
+       «⚠ 편집 중 반투명 «물들임»은 처방판도 없다(핀과 같음 · R-1) — R4-a 는 diff(D,C) 를 기록만.»
+       ⇒ 반투명은 중↔뒤 화면 차가 노이즈로 크다(×3 런 2: G5d DC 69,360/69,360 인데 뒤 그림 68,968 남음).
+       ⛔불투명 칸(liveCell)의 ② 는 그대로 DC ≤ 2%. */
+    if (neg) {
+      expect(bd.changed, `★${cell} 음성대조: 그림을 none 으로 막았는데 조작 중 화면이 바뀐다 ${bd.changed}/${bd.total} — ① 이 그림 아닌 것을 잰다`).toBe(0);
+      /* ② 반대 꼴(지디): 그림이 없으면 «뒤 그림 픽셀 = 0» — 본 칸 «있으면 > 0» 과 두 방향이 서서 자가 그 자리를 본다. */
+      expect(pic.changed, `★${cell} 음성대조 ②: 그림을 막았는데 뒤 그림 픽셀 ${pic.changed}/${pic.total} — 뒤 그림 자가 그림 아닌 것을 잰다`).toBe(0);
+    } else {
+      expect(bc.changed, `★${cell} ⑴ 자 양성대조: Esc 뒤 대 전 ${bc.changed}/${bc.total} < 50%`).toBeGreaterThanOrEqual(bc.total * 0.5);
+      screenOrTodo(cell, '①', bd, `★${cell} ① 조작 «중» 화면이 안 바뀐다: diff(B2,D) ${bd.changed}/${bd.total}${LAYER_ZERO_TAIL}`);
+      screenOrTodo(cell, '② pic', pic, `★${cell} ② 완료 뒤 화면에 그림이 없다: diff(C, 그림 끈 C) ${pic.changed}/${pic.total}${LAYER_ZERO_TAIL}`);
+      /* ⛔범위 밖 — IMPL-COUPLED-ASSERTION-01 (지디 ⒜ 2026-10-22): 옛 단언 `expect(after.varImg).not.toBe('none')`.
+         이 자는 «누가 그리나»(::before 변수 길)를 재므로 «화면이 맞나» 물음에 못 쓴다 — frame-bg.js syncFrameBgVars 가
+         레이어 길이면 설계상 none 을 쓴다 ⇒ 영영 빨강. 값은 log 의 after.varImg 에 남는다. 화면 물음은 바로 위 ② pic. */
+    }
+    expect(errs, errs.join('\n')).toEqual([]);
+  } finally { await o.close(); }
+}
+test('G5c ★반투명(has-bg-opacity) 프레임 · 회전 중 화면이 바뀐다 · 완료 뒤 그림이 사라지지 않는다', async ({ browser }) => { await opaCell(browser, 'G5c', { act: 'rotate' }); });
+test('G5d ★반투명(has-bg-opacity) 프레임 · 배경 위치 이동(끌기) 중 화면이 바뀐다 · 완료 뒤 유지 (현빈 [9] · G3 의 반투명판)', async ({ browser }) => { await opaCell(browser, 'G5d', { act: 'move' }); });
+test('G5c-neg ★음성대조 — 그림(--frame-bg-img) none 이면 회전 중 화면이 안 바뀐다', async ({ browser }) => { await opaCell(browser, 'G5c-neg', { act: 'rotate', neg: true }); });
+test('R4-e ★반투명(has-bg-opacity) 프레임 · 채도 -100 조작 «중» 화면이 바뀐다 · 완료 뒤 유지', async ({ browser }) => { await opaCell(browser, 'R4-e', { act: 'sat' }); });
+test('R4-e-neg ★음성대조 — 그림(--frame-bg-img) none 이면 채도 조작 중 화면이 안 바뀐다', async ({ browser }) => { await opaCell(browser, 'R4-e-neg', { act: 'sat', neg: true }); });
+
+/* ═══ G5b-after · R4-d-after — 기존 G5b · R4-d 가 초록인 까닭이 «고쳐져서»인가 «그 축을 안 재서»인가 (지디 판정 ⑷ · 2026-10-22) ══
+   ★기존 G5b(스케일 «중»만) · R4-d(레이어·filter «존재»만)는 ⛔그대로 둔다. 여기는 «완료 뒤 그림이 보이나»만 잰다.
+   단언(순서): 전제(opa · ::before 그림 · vis > 0 · 조작이 상태에 들어감) → 화면 그림 있음(픽셀).
+   --frame-bg-img ≠ none = 기록만(구현 단언 · IMPL-COUPLED-ASSERTION-01 · 지디 ⒜ 2026-10-22).
+   레이어 수·높이 = 기록만(구현 단언 · IMPL-COUPLED-ASSERTION-01).
+   «화면 그림 픽셀» = diff(C, Cn) · Cn = C 에서 ::before 배경과 .sec-bg-clip 을 «둘 다» 끈 것(어느 길이 그리든 그림이 있으면 > 0). */
+async function afterCell(browser, cell, { act }) {
+  const o = await open(browser);
+  try {
+    const { errs, host, btnId } = await buildScene(o.page, { frame: true, second: true });
+    await o.page.locator('#ss-bgopa-num').fill('50');
+    await raf2(o.page);
+    const pre = await o.page.evaluate((h) => { const el = document.querySelector(h); const b = getComputedStyle(el, '::before');
+      return { opa: el.classList.contains('has-bg-opacity'), beforeImg: b.backgroundImage !== 'none', beforeDisplay: b.display }; }, host);
+    const B = await shot(o.page, host);
+    await o.page.evaluate((h) => { const el = document.querySelector(h); window.__aImg = el.style.getPropertyValue('--frame-bg-img'); el.style.setProperty('--frame-bg-img', 'none'); }, host);
+    const Bn = await shot(o.page, host);
+    await o.page.evaluate((h) => { document.querySelector(h).style.setProperty('--frame-bg-img', window.__aImg); }, host);
+    await raf2(o.page);
+    const vis = await diff(o.dp, B, Bn);
+    const before = await o.page.evaluate((h) => ({ bgSize: document.querySelector(h).dataset.bgSize || null }), host);
+    await enterEdit(o.page, btnId);
+    if (act === 'scale') { await dragStart(o.page, host, 'scale'); await o.page.mouse.up(); await raf2(o.page); }
+    else await saturate(o.page);
+    await exitEdit(o.page);
+    const C = await shot(o.page, host);
+    const after = await o.page.evaluate((h) => { const el = document.querySelector(h); const b = getComputedStyle(el, '::before');
+      const L = el.querySelector(':scope > .sec-bg-clip'); const LI = el.querySelector(':scope > .sec-bg-clip > .sec-bg-img');
+      return { opa: el.classList.contains('has-bg-opacity'), clips: el.querySelectorAll(':scope > .sec-bg-clip').length,
+        layerH: L ? Math.round(L.getBoundingClientRect().height) : null, varImg: el.style.getPropertyValue('--frame-bg-img').slice(0, 20),
+        beforeImg: b.backgroundImage !== 'none', bgSize: el.dataset.bgSize || null, layerFilter: LI ? (LI.style.filter || '').slice(0, 40) : null }; }, host);
+    await o.page.evaluate((h) => { const st = document.createElement('style'); st.id = '__after-off';
+      st.textContent = `${h}::before{background-image:none !important} ${h} > .sec-bg-clip{visibility:hidden !important}`; document.head.appendChild(st); }, host);
+    const Cn = await shot(o.page, host);
+    const pic = await diff(o.dp, C, Cn), bc = await diff(o.dp, B, C);
+    log(cell, { act, pre, imgVisible: `${vis.changed}/${vis.total}`, before, after, picAfter: `${pic.changed}/${pic.total}`, BC: `${bc.changed}/${bc.total}` });
+    expect(pre, `★${cell} 전제: has-bg-opacity · ::before 그림 · display`).toEqual({ opa: true, beforeImg: true, beforeDisplay: 'block' });
+    expect(vis.changed, `★${cell} 전제: 조작 전 ::before 그림 픽셀이 0 이다(${vis.changed}/${vis.total})`).toBeGreaterThan(0);
+    if (act === 'scale') expect(after.bgSize, `★${cell} 전제: 스케일이 상태에 안 들어갔다(bgSize ${before.bgSize} → ${after.bgSize})`).toMatch(/^\d+(\.\d+)?px \d+(\.\d+)?px$/);
+    else expect(after.layerFilter || '', `★${cell} 전제: 완료 뒤 레이어 filter 가 채도를 안 든다`).toMatch(/url\(["']?#img-color-adj-/);
+    screenOrTodo(cell, 'pic', pic, `★${cell} 완료 뒤 화면에 그림이 없다: diff(C, 그림 끈 C) ${pic.changed}/${pic.total}${LAYER_ZERO_TAIL}`);
+    /* ⛔범위 밖 — IMPL-COUPLED-ASSERTION-01 (지디 ⒜ 2026-10-22): 옛 단언 `expect(after.varImg).not.toBe('none')`.
+       이 자는 «누가 그리나»를 재므로 «화면이 맞나» 물음에 못 쓴다(레이어가 그리면 설계상 none · frame-bg.js syncFrameBgVars).
+       값은 log 의 after.varImg 에 남는다. */
+    /* ★구현 단언 — 기록만(IMPL-COUPLED-ASSERTION-01 · 지디 2026-10-22): «레이어 높이 > 0» 은 그리는 방식을 전제한다.
+       스케일 완료 뒤엔 ::before 가 그리고 레이어가 «없다»(×3 런 1·2: 그림 69,320 보임 · clips 0) ⇒ 단언하면 거짓 빨강.
+       사용자가 보는 것은 «그림»이다 — 주 단언은 위 뒤 그림 픽셀 하나. 레이어 수·높이는 log 의 after 에 남는다. */
+    expect(errs, errs.join('\n')).toEqual([]);
+  } finally { await o.close(); }
+}
+test('G5b-after ★반투명 프레임 · 스케일 완료(Esc) 뒤 그림이 보인다', async ({ browser }) => { await afterCell(browser, 'G5b-after', { act: 'scale' }); });
+test('R4-d-after ★반투명 프레임 · 채도 −100 완료(Esc) 뒤 그림이 보인다', async ({ browser }) => { await afterCell(browser, 'R4-d-after', { act: 'sat' }); });
 
 /* ═══ R4-a 반투명 ═══════════════════════════════════════════════════════════ */
 test('R4-a ★반투명 섹션 · 스케일 중 바뀐다 · 완료 뒤 물들임 복귀(레이어 0)', async ({ browser }) => {

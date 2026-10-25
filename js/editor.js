@@ -4001,7 +4001,31 @@ function clearSelectionMarks(root) {
   canvas.querySelectorAll('.text-block').forEach(t => {
     t.classList.remove('selected', 'editing');
     t.querySelectorAll('[contenteditable]').forEach(el => _setAttrIfChanged(el, 'contenteditable', 'false'));
+    /* ★★U3 자유변형 손잡이·격자도 ★여기서 걷는다 — ★★«선택 표시»이기 때문이다.
+       ★★★왜 여기인가(실측 261024 · ★현빈 신고 「tb_2dfpnqm 편집 끝났는데 ★보라색 아웃라인이 아직 보인다」):
+         ★처음엔 `_wireFtCard`(프롭 카드 배선)에서만 전수 동기화했다 ⇒ ★★그 카드는
+         ★★«자유변형이 걸린 블럭을 고를 때»만 그려진다 ⇒ ★★★놓거나 ★다른 블럭을 고르면
+         ★★아무도 안 걷어 ★★손잡이 4 ＋ 격자 1 이 ★화면에 ★남았다(★실측: `.tfh-grid` 1 · `.tfh-handle` 4 ·
+         ★그 블럭 자신의 outline 은 ★투명이었다 ⇒ ★보라색은 ★전부 ★우리 것이었다).
+       ⇒ ★★`CLAUDE.md` 의 ★신규 블록 체크리스트가 ★★바로 이 증상을 적어 뒀다:
+         「`deselectAll()` 에 ★안 넣으면 ⇒ ★★블록 선택 아웃라인이 ★해제되지 않음」. ★★그 줄을 ★못 읽었다.
+       ★여기가 ★정본인 까닭 : ★위 :3986 주석 「선택 표시 비우기는 «정본 한 자리» — `selectBlock` 도 같은 함수」
+         ⇒ ★고를 때도 ★걷히고, ★그 뒤 `_wireFtCard` 가 ★고른 블럭에만 ★다시 붙인다.
+       ⛔import 하지 않는다(순환) — `window.X?.()` 관용구(이 파일이 `window.hideFrameHandles?.()` 를 쓰는 것과 같다). */
+    window.ftHandlesClear?.(t);
   });
+  /* ★★★그리고 ★«한 틱 뒤» ★전수 동기화 — ★★고른 블럭에는 ★★다시 ★붙어야 ★한다.
+     ★★★왜 ★한 틱인가(실측 261024 · ★현빈 「★걷혔는데 ★선택하면 ★다시 ★보여야 되는 거 ★아냐?」):
+       ★이 함수는 ★★«selected 를 ★떼는 중»이라 ★★이 시점엔 ★★전부 ★false 다
+       ⇒ ★여기서 바로 `ftHandlesSyncAll` 을 부르면 ★★아무것도 ★안 붙는다.
+     ★★★왜 ★여기 ★한 자리인가 :
+       ★`classList.add('selected')` 는 ★★★여러 자리다(:1198 · :1229 · :1235 · :1295 …)
+       ⇒ ★★붙이는 자리에 ★걸면 ★★명부가 ★여럿이 ★된다.
+       ★★그런데 ★★★«고르기»는 ★★전부 ★이 함수를 ★먼저 ★지난다(위 :3986 주석 「정본 한 자리」)
+       ⇒ ★★★여기서 ★한 틱 ★미루면 ★★선택이 ★끝난 ★뒤에 ★돈다 — ★★한 자리로 ★둘 다 ★된다.
+     ★`_shouldShow`(선택됐나 ＋ tfCorners 있나)가 ★가른다 ⇒ ★고른 것엔 ★붙고 ★아닌 것엔 ★걷힌다.
+     ⛔rAF 를 ★매 프레임 ★돌리지 ★않는다 — ★★한 번만. */
+  Promise.resolve().then(() => window.ftHandlesSyncAll?.(canvas));
   canvas.querySelectorAll('.asset-block').forEach(a => {
     // ★T-012: video-pending(트림 확정 전) 상태로 이 블록의 패널을 벗어나면 저장 시
     // 원본 영상이 사라진다(section-serialize.js 참고) — 막지는 않되 알려는 준다.

@@ -122,12 +122,24 @@ async function exportHTMLFile() {
   clone.querySelectorAll('.section-hitzone, .shape-handle, .asset-overlay-handle, .icb-overlay-handle, .zm-overlay-handle, .mdl-overlay-handle, .grd-img-overlay-handle, .tfo-overlay-handle, .grid-cell-resize-handle').forEach(el => el.remove());
   // BL-CD-10: label-group은 render-재생성형이 아니라 직렬 DOM 보존형 — 에디터 전용 ✕삭제/＋추가
   // 버튼 노드가 저장 HTML에 남아 export에서 그대로 노출됐음. 노드 자체를 제거한다.
-  clone.querySelectorAll('.label-item-delete-btn, .label-group-add-btn, .grd-add-btn, .mdl-profile-x').forEach(el => el.remove());   /* .mdl-profile-x = 버즈 카드 프로필의 × — ★에디터 크롬(1017t1l2). 그 생김새를 주는 CSS 가 내보낸 쪽에 같이 안 실릴 수 있어 «요소 자체»를 걷는다 (저장 쪽 쌍은 js/io/save-load.js NON_CONTENT_UI_SELECTOR). */
+  clone.querySelectorAll('.label-item-delete-btn, .label-group-add-btn').forEach(el => el.remove());   /* ⛔★261023 — ★`.grd-add-btn`·`.mdl-profile-x` ★둘을 ★여기서 ★뺐다(★★죽은 중복). ★까닭 = ★:112 `stripEditorOnlyForCapture` 가 ★★이제 ★`NON_CONTENT_UI_SELECTOR` 를 읽고, ★그 상수에 ★둘 다 ★있다(R1 8993db73). ★남은 둘은 ★★그 상수에 ★없다 — ★살려야 한다. ★잰 자 = tests/unit/capture-derive-roster.test.mjs R1 의 ★html 칸 */
   /* ★편집 전용 임시 DOM — 이 클론은 «라이브 캔버스»에서 뜨고(=serializeCleanRoot 를 안 거친다),
      내보낸 HTML 은 이 파일이 직접 쓰는 <style> 만 갖는다. 앱 CSS(.sec-bg-proxy .asset-img{opacity:0},
      .asset-img-clip{overflow:hidden})가 «없으므로» 편집 중 내보내면 배경 이미지가 불투명하게
      한 번 더, 그것도 클리핑 없이 겹쳐 찍힌다. 클래스가 아니라 «노드»를 지워야 한다. */
-  clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary, .img-corner-handle, .img-edge-handle, .img-rotate-zone, .mdl-rotate-zone').forEach(el => el.remove());   /* .mdl-rotate-zone = 고른 모달의 회전 핫존 4개(1012t1Z5 M-1 · 불러오기 쪽 js/io/save-load.js 는 이미 걷는다) */
+  /* ⛔★261023 ★비석 — ★여기 있던 ★한 줄을 ★지웠다(★★죽은 중복 ★7 종):
+       `.sec-bg-proxy, .img-edit-hint, .img-boundary, .img-corner-handle, .img-edge-handle, .img-rotate-zone, .mdl-rotate-zone`
+     ★★까닭 : ★:112 의 ★`stripEditorOnlyForCapture` 가 ★★이제 ★`NON_CONTENT_UI_SELECTOR` 를 ★읽는다(R1 ★8993db73)
+       ⇒ ★그 ★7 종이 ★★7/7 ★그 상수 안에 ★있다(★261023 ★기계로 쟀다) ⇒ ★★이 줄은 ★★한 번도 ★안 걸린다
+     ★★★왜 ★지우나(★주석으로 안 두고) : ★★«죽은 명부»가 ★가장 ★위험하다 —
+       ★다음 사람이 ★그걸 보고 ★「여기 ★더하면 되는구나」 한다. ★그게 ★★R1 이 ★앓던 ★병이다.
+     ★★무엇이 ★이 자리를 ★대신 ★지키나 ★둘:
+       ⒤ `tests/unit/capture-derive-roster.test.mjs` ★R1 — 'yes' 정본이 ★★세 길 «모두»에서 막히나
+          ⇒ ★:112 를 ★누가 지우면 ★★html 칸도 ★같이 ★빨개진다
+       ⅱ) `tests/dom/capture-strips-editor-ui.dom.spec.js` ★C1·C3 — ★★«돌려 보는» 자(6a3f00e9)
+     ★지운 줄의 ★원래 까닭(위 주석이 적고 있다) : ★이 클론은 ★«라이브 캔버스»에서 뜨고
+       serializeCleanRoot 를 ★안 거치므로 ★★노드를 ★직접 걷어야 했다 — ★그 요구는 ★그대로이고,
+       ★★이제 ★:112 가 ★그 일을 ★한다. */
   clone.querySelectorAll('.sec-bg-editing').forEach(el => el.classList.remove('sec-bg-editing'));
   clone.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   clone.querySelectorAll('.item-selected').forEach(el => el.classList.remove('item-selected'));

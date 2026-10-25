@@ -805,15 +805,39 @@ function renderGraph(block) {
  *   편집 중엔 block.editing — 공통 mousedown 드래그·삭제키 가드가 본다(그리드 줄 편집과 같은 꼴). */
 /* 카테고리 라벨 «셋»(막대·비교 .grb-bar-label · 가로 .grb-bar-h-desc · 꺾은선 .grb-line-xlabel) — 항목마다 정확히 하나(숨김이어도 display:none 으로 있다)
    ⇒ 블럭 안 순서 = items 순서. 색인을 DOM 속성으로 안 박는다 — 렌더 바이트가 핀(graph-vpair 골든 · GR-W0 기준판)과 같게(회귀 실측: data-grb-idx 가 5 빨강). */
-const GRB_CAT_LABEL_SEL = '.grb-bar-label, .grb-bar-h-desc, .grb-line-xlabel, .grb-pie-label';   // 원형·도넛은 범례 라벨(1012t1G1)
+const GRB_CAT_LABEL_SEL = '.grb-bar-label, .grb-bar-h-desc, .grb-line-xlabel, .grb-pie-label, .grb-pie-name';   // 원형·도넛은 범례 라벨(1012t1G1) + 조각 안 이름(t4-17)
+/* t4-17 — 색인은 «제 종류 안에서» 센다. 원형은 조각 안 이름(.grb-pie-name)과 범례(.grb-pie-label)가 «둘 다» items 순서로 하나씩 있고
+   DOM 순서가 [이름 0..N-1, 범례 0..N-1] 이라, 명부 전체로 세면 범례가 N.. 으로 밀린다(이미 되던 범례 편집이 조용히 틀린다).
+   종류 = 위 명부의 조각 하나 — 판정 자리를 따로 두지 않는다(명부에서 파생). 막대·꺾은선은 종류가 하나뿐이라 옛 색인과 같다. */
+const GRB_CAT_LABEL_KINDS = GRB_CAT_LABEL_SEL.split(',').map(s => s.trim());
+/* t4-17 ㉮ — 조각 안 이름(.grb-pie-name)은 덧층(.grb-pie-tags · pointer-events:none) 안이라 이벤트 대상이 못 된다.
+   덧층을 열면 1013t1C3 계약(J5 «라벨 위를 눌러도 그 조각» · J2 · X1)이 깨진다(실측 3 빨강) ⇒ 열지 않고, 같은 위임 안에서
+   «누른 점이 보이는 이름 사각형 안인가»로 고른다. 홑클릭·조각 고르기는 그대로 조각에 간다.
+   보이는 것만: getBoundingClientRect 는 visibility:hidden · opacity:0 에서도 크기를 준다 ⇒ 사각형 하나로 닫지 않고 checkVisibility(불투명도·visibility 까지)를 같이 건다
+   (없는 엔진이면 offsetParent 폴백). display:none(grbPieFitTags 의 --grb-pie-tag-d:none · 조각 「라벨」 숨김)은 사각형 0 으로도 걸러진다.
+   상자(.grb-pie-tag)가 overflow:hidden 이라 잘린 글자 밖은 안 잡는다(이름 ∩ 상자). 겹치면 칠 순서 위쪽 — z-index 큰 쪽, 같으면 문서 순서 뒤. */
+function _grbPieNameAt(block, x, y) {
+  let best = null, bestZ = -Infinity;
+  for (const n of block.querySelectorAll('.grb-pie-name')) {
+    if (!(n.checkVisibility ? n.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) : n.offsetParent !== null)) continue;
+    const tag = n.closest('.grb-pie-tag');
+    const a = n.getBoundingClientRect(), b = tag ? tag.getBoundingClientRect() : a;
+    const l = Math.max(a.left, b.left), r = Math.min(a.right, b.right), t = Math.max(a.top, b.top), bt = Math.min(a.bottom, b.bottom);
+    if (!(r > l && bt > t) || x < l || x > r || y < t || y > bt) continue;
+    const z = (tag && parseInt(getComputedStyle(tag).zIndex, 10)) || 0;
+    if (z >= bestZ) { best = n; bestZ = z; }
+  }
+  return best;
+}
 function _bindGraphLabelEdit(block) {
   if (block._grbLabelEditBound) return;
   block._grbLabelEditBound = true;
   block.addEventListener('dblclick', e => {
-    const el = e.target?.closest?.(GRB_CAT_LABEL_SEL);
+    const el = e.target?.closest?.(GRB_CAT_LABEL_SEL) || _grbPieNameAt(block, e.clientX, e.clientY);
     if (!el || !block.contains(el) || el.isContentEditable) return;
     e.stopPropagation(); e.preventDefault();
-    _graphLabelBeginEdit(block, el, [...block.querySelectorAll(GRB_CAT_LABEL_SEL)].indexOf(el));
+    const kind = GRB_CAT_LABEL_KINDS.find(s => el.matches(s));
+    _graphLabelBeginEdit(block, el, [...block.querySelectorAll(kind)].indexOf(el));
   });
 }
 function _graphLabelBeginEdit(block, el, idx) {

@@ -47,7 +47,13 @@
 
   function _localNormSection(secEl) {
     const el = secEl.cloneNode(true);
-    el.querySelectorAll('.section-label, .section-toolbar, .variation-badge, .section-height-badge, .annotation-block, .annot-preview').forEach(n => n.remove());
+    /* ★★★2026-10-24 — ★`.annotation-block` 을 ★★★뺐다(★`.annot-preview` 는 ★남긴다). ★★현빈 ★결정.
+       ★`market-merge.js:29` 와 ★★한 쌍이다 — ★같은 식이 ★두 자리에 ★산다.
+       ★★★내가 ★처음 ★센 ★분모는 ★«둘»이었고(★figma skip · ★market-merge) ★★이 자리를 ★놓쳤다.
+         ⇒ ★`.annotation-block` 을 ★지우는 ★제품 ★줄을 ★★전수(`querySelectorAll(.*annotation-block`)해서 ★찾았다.
+       ★★⇒ ★버전 비교에서도 ★어노테이션·치수선이 ★바뀌면 ★★«바뀜»으로 ★읽힌다 — ★다른 블록과 ★같게.
+       ★재는 자 = `tests/dom/annot-same-as-other-blocks.dom.spec.js` (★이 자리와 ★market-merge ★둘 다 잰다) */
+    el.querySelectorAll('.section-label, .section-toolbar, .variation-badge, .section-height-badge, .annot-preview').forEach(n => n.remove());
     _stripRuntime(el);
     el.querySelectorAll('[contenteditable]').forEach(n => n.removeAttribute('contenteditable'));
     return el.outerHTML.replace(/\s+/g, ' ').trim();
@@ -161,12 +167,20 @@
   }
 
   /* ── L2: 변경 diff — 사용자가 그 줄을 «펼칠 때만» 돈다 ───────────────────
-   * ⚠️ 문서화된 교환(§6-3): 변경 판정에 쓰는 normSection 은 `.annotation-block` 도 벗긴다.
-   *    ⇒ **주석만 바뀐 섹션은 「같음」으로 나온다.** 이건 버그가 아니라 «선택»이다.
-   *    버전 목록을 사고 직후에 «훑는» 상황에서는 거짓양성(전부 「변경」으로 보임)이
-   *    거짓음성(주석 하나 놓침)보다 훨씬 해롭다 — 전자는 목록 전체를 못 믿게 만들고,
-   *    후자는 그 섹션을 열어보면 보인다. UI 는 상세 패널에 「주석·라벨 변경은 비교에서
-   *    제외됩니다」라고 표시한다(P-1 정직). 이 교환을 되돌리려면 §6-3 부터 읽어라.
+   * ★★★2026-10-24 — ★이 교환은 ★★★끝났다. ★★현빈 ★결정(「★다른 ★블록처럼」).
+   *    ⇒ ★`normSection` 은 ★더는 `.annotation-block` 을 ★안 벗긴다 ⇒ ★★주석만 ★바뀐 ★섹션도
+   *      ★★★「변경」으로 ★나온다. ★다른 블록과 ★같다.
+   *    ★★«역사 문장»으로 ★옛 교환을 ★남긴다 — ★지우면 ★그때의 ★판단이 ★사라진다 :
+   *      ┊ ⚠️ 문서화된 교환(§6-3): 변경 판정에 쓰는 normSection 은 `.annotation-block` 도 벗긴다.
+   *      ┊    ⇒ **주석만 바뀐 섹션은 「같음」으로 나온다.** 이건 버그가 아니라 «선택»이다.
+   *      ┊    버전 목록을 사고 직후에 «훑는» 상황에서는 거짓양성(전부 「변경」으로 보임)이
+   *      ┊    거짓음성(주석 하나 놓침)보다 훨씬 해롭다 …
+   *    ★★★그리고 ★그 문장에 ★★거짓이 ★하나 ★있었다 — 「★UI 는 ★상세 패널에 『주석·라벨 변경은
+   *      비교에서 제외됩니다』라고 ★표시한다」. ★★그 문구는 ★★★레포 ★전체에 ★0 건이다
+   *      (★261024 측정 : `grep -rn '비교에서 제외' js css index.html` → ★이 주석 ★자신뿐).
+   *      ⇒ ★★사용자는 ★그 제외를 ★★한 번도 ★안 들었다. ★교환은 ★«말 없이» ★돌고 ★있었다.
+   *      ★이름 = `VERSIONDIFF-EXCLUSION-NEVER-SHOWN-IN-UI-01` (★이제 제외 자체가 없어 ★닫힌다)
+   *    ★재는 자 = `tests/dom/annot-same-as-other-blocks.dom.spec.js`
    *
    * ★전제: snapCanvasMap / curCanvasMap 은 **둘 다 이미 goya-asset:// 정규형**이다(파일 상단).
    *    이 함수는 정규화를 시도하지 않는다. 대신 어긋난 낌새(한쪽만 data:image)를 싸게 재서

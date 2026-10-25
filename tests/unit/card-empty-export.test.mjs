@@ -28,6 +28,29 @@ const CVB    = strip(read('js/blocks/canvas-block.js'));
 const CSS    = read('css/editor-blocks.css');
 const EXPORT = strip(read('js/io/export-html.js'));
 
+/* ★★2026-10-23 지디 — ★CSS 변수를 ★«고정점까지» 푸는 공용 부품. ★두 칸(주 단언 · ⒤ 음성대조)이 ★이것 하나를 쓴다.
+   ⛔두 자리에 따로 적지 마라 — 한쪽만 고치면 ★음성대조가 ★주 단언과 ★다른 자를 쓰게 된다(명부 둘).
+   ★왜 «한 겹»이 모자라나: `--goya-checker-asset-a: var(--goya-checker-big-a)` 라 ★한 겹 풀면 ★또 var 다.
+     ⇒ ★더 안 바뀔 때까지 돈다(상한 5 — 순환 정의면 ★안 멈추므로 상한이 ★필요하다). */
+const resolveVars = (css, baseCss) => {
+  let out = css;
+  for (let i = 0; i < 5; i++) {
+    const next = out.replace(/var\(--goya-checker-([a-z-]+)\)/g, (whole, k) => {
+      const m = baseCss.match(new RegExp('--goya-checker-' + k + '\\s*:\\s*([^;]+);'));
+      return m ? m[1].trim() : whole;
+    });
+    if (next === out) return out;
+    out = next;
+  }
+  return out;
+};
+const grabChecker = (src, needle) => {
+  const i = src.indexOf(needle);
+  if (i === -1) return null;
+  const m = src.slice(i, i + 400).match(/repeating-conic-gradient\([^)]*\)[^;]*/);
+  return m && m[0].replace(/\s+/g, ' ').trim();
+};
+
 /* ★2026-09-21 사용자관점훑기 exportvisual — 이 검사는 «손으로 적은 목록»이었다.
  *   canvas-block.js «하나»만 훑었고, js/blocks/banner02-block.js 가 그 목록 «밖»에서
  *   정확히 같은 규약을 어기고 있었다(`img.style.background = 'repeating-conic-gradient(...)'`).
@@ -144,9 +167,37 @@ test('★정본과 «같은 값» — 빈 에셋 블록의 체커와 문자열�
     const m = src.slice(i, i + 400).match(/repeating-conic-gradient\([^)]*\)[^;]*/);
     return m && m[0].replace(/\s+/g, ' ').trim();
   };
-  const asset = grab(read('css/editor-layout.css'), '.asset-block {');
-  const card  = grab(CSS, '.canvas-block .cvb-img-empty {');
-  assert.equal(card, asset, '카드 체커가 에셋 블록과 다른 값이다 — 「같은 배경처럼」이 깨진다');
+  /* ★★2026-10-23 지디 — ★«글자 일치»를 ★«해석된 값 일치»로 바꿨다.
+     ★까닭: t4-15(현빈 ④)가 에셋에 ★전용 톤 쌍(--goya-checker-asset-*)을 줬다.
+       `css/editor-layout.css:774` 가 그 까닭을 적는다 — 「색은 ★에셋 전용 쌍(★기본값 = 큰 쌍) ·
+       ⛔크기 토큰은 큰 쌍 그대로(톤과 무관)」 · `css/editor-base.css:202` 는 「★--goya-checker-big-*
+       를 ★안 덮는 까닭 = 덮으면 CSS 변수가 ★자식에게 상속돼…」 ⇒ ★전용 쌍은 ★의도다.
+     ★그래서 ★글자로 재면 ★영원히 빨강이고(asset-a ≠ big-a), ★현빈 요구(「에셋 블럭 배경처럼」)는
+       ★★깨지지 않았다 — `--goya-checker-asset-a: var(--goya-checker-big-a)` 라 ★보이는 색이 ★같다.
+     ⇒ ★토큰 이름을 ★한 겹 풀어 ★«같은 색으로 해석되나»를 잰다. ★그게 요구를 ★진짜로 잠근다.
+     ⛔이 자가 느슨해지지 않게 ★아래 ⒤ 음성대조를 ★한 쌍으로 뒀다 — 기본값이 큰 쌍을 안 가리키면 ★빨강. */
+  const BASE = read('css/editor-base.css');
+  const asset = resolveVars(grab(read('css/editor-layout.css'), '.asset-block {'), BASE);
+  const card  = resolveVars(grab(CSS, '.canvas-block .cvb-img-empty {'), BASE);
+  assert.equal(card, asset,
+    '카드 체커가 에셋 블록과 ★같은 색으로 해석되지 않는다 — 「같은 배경처럼」이 깨진다');
+});
+
+test('★⒤ 음성대조 — 에셋 전용 쌍의 ★기본값이 큰 쌍을 ★안 가리키면 위 칸이 ★빨강이다', () => {
+  /* ★왜 이 칸이 있나: 위 칸을 「해석해서 비교」로 바꿨으니 ★해석이 느슨해지면 ★조용히 통과할 수 있다.
+     ⇒ 기본값을 ★다른 색으로 바꾼 ★가짜 CSS 를 먹여 ★그 자가 ★실제로 잡는지 잰다(⛔돌연변이는 ★메모리에서만). */
+  const BASE = read('css/editor-base.css');
+  for (const k of ['asset-a', 'asset-b']) {
+    const re = new RegExp('(--goya-checker-' + k + '\\s*:\\s*)var\\(--goya-checker-[a-z-]+\\)');
+    assert.match(BASE, re,
+      `--goya-checker-${k} 의 ★기본값이 ★큰 쌍을 가리키지 않는다 — 「같은 배경처럼」의 근거가 사라졌다`);
+    const broken = BASE.replace(re, '$1#ff00ff');
+    assert.notEqual(broken, BASE, `돌연변이가 ★안 먹었다(${k}) — 이 음성대조가 ★항등식이다`);
+    const a = resolveVars(grabChecker(read('css/editor-layout.css'), '.asset-block {'), broken);
+    const c = resolveVars(grabChecker(read('css/editor-blocks.css'), '.canvas-block .cvb-img-empty {'), broken);
+    assert.notEqual(c, a,
+      `${k} 의 기본값을 ★#ff00ff 로 바꿨는데도 ★두 값이 같다 — 위 칸이 ★아무것도 안 잠근다`);
+  }
 });
 
 test('★export 는 이 표시를 «편집 전용»으로 다룬다(.bn2-line-empty 와 같은 목록)', () => {
@@ -273,9 +324,13 @@ test('★export 는 그리드 빈 셀도 «편집 전용»으로 다룬다', () 
    ⚠️예외는 «파일+건수»로 적는다 — 파일만 적으면 허용된 파일에 한 줄 더 들어와도 조용히 통과한다.
    ══════════════════════════════════════════════════════════════════════════ */
 const TEMPLATE_CHECKER_ALLOW = {
-  /* 주석 블럭은 캡처·배송 클론에서 «통째로 remove» 된다(export-html.js·capture-safety.js) —
-     결과물에 나갈 길이 없다. 위 45줄의 한계 주석이 이미 이 자리를 지목해 뒀다. */
-  'js/blocks/annotation-block.js': { n: 1, why: '주석 블럭 — 캡처·배송 클론에서 통째로 제거된다' },
+  /* ~~주석 블럭은 캡처·배송 클론에서 «통째로 remove» 된다(export-html.js·capture-safety.js) —
+     결과물에 나갈 길이 없다.~~ 위 45줄의 한계 주석이 이미 이 자리를 지목해 뒀다.
+     261022 S7 ⑶ 정정 — 현빈 결정 «아노테이션 블록과 치수선 블럭은 보여야지 최종 이미지» 로
+       capture-safety 가 .annotation-block 을 더는 안 지운다 ⇒ 위 «나갈 길이 없다»는 이제 거짓이다.
+       고치기 전 실측 수 = n 1 (annotation-block.js:667 .annot-label-img-placeholder 인라인 체커 한 줄) — 그대로 둔다(판정 바닥).
+       그 체커가 산출물로 나가는가는 안 쟀다 ⇒ 미측정. */
+  'js/blocks/annotation-block.js': { n: 1, why: '~~주석 블럭 — 캡처·배송 클론에서 통째로 제거된다~~ → 261022 정정: 이제 안 지운다(현빈 결정) · 이미지 모드 빈 라벨 체커가 산출물로 나가는지 미측정' },
 };
 
 /** 마크업 문자열(`style="…"`) «안»에 박힌 체커를 찾는다 — 대입문이 아닌 꼴. */

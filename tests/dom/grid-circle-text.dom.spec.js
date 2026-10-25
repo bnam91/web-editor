@@ -525,11 +525,33 @@ test('G20-9 ★지키는 자 — 색을 칠한 «빈» 원도 더블클릭은 �
   /* ★실제로 더블클릭해서 ★크롭 편집기가 ★안 열리는 것을 본다.
      ★표식은 ★`block._grdImgEdit` ＋ 대역 요소 `[data-grd-img-proxy]` 다(js/image-handling.js 실측 —
      클래스가 아니다. ⛔「img-editing」 같은 이름으로 재면 ★늘 0 이라 아무것도 안 잰다). */
+  /* ★누르는 자리 = 원 «도형» 위 · 글자 밖(가로 가운데 · 위에서 14%) — t5-14 이후 원 한가운데는 ★글자 위라
+     더블클릭이 ★글자 편집으로 간다(js/block-drag.js · tests/dom/t5-14-circle-text-edit.dom.spec.js).
+     ⛔한가운데로 되돌리면 음성 쪽은 ★글자 편집 덕에 늘 통과(공회전)하고 양성 쪽은 깨진다. */
+  /* ★★★2026-10-23 지디 — ★«14%»의 ★전제를 ★★여기 세운다. ★★★그 수는 ★★«미확정»이다.
+     ★까닭(태양 S7 실측 · `G20-9-14PCT-NO-SOURCE-01`):
+       · ★그 ★0.14 는 ★★★출처가 ★없다 — ★`offTextPoint` 의 ★손어림이고 ★★★잰 것이 ★★0 이다
+       · ★박힌 자리 ★4 = ★수 ★2(t5-14-circle-text-edit.dom.spec.js:45 · ★아래 :534) ＋ ★주석 ★2(:41 · 위 :528)
+       · ★★제품 js 에는 ★★0 건 ⇒ ★★«검사만의 수»다
+       · ★소비자 ★4 중 ★t5-14 A1·A2 는 ★전제가 ★있고(`offTextPoint` 가 ★elementFromPoint 로 잰다)
+         ★★★여기 ★음성·양성 ★둘은 ★★★전제가 ★★없었다 — ★★그것이 ★이 칸의 ★흠이었다
+     ★★⇒ ★위 주석(:528~530)이 ★★위험을 ★★이미 적었다(「⛔한가운데로 되돌리면 ★음성 쪽은 ★늘 통과(공회전)」)
+       ⇒ ★★그런데 ★★«재는 자»가 ★없었다. ★★★이 전제가 ★그 자다.
+     ★★★⇒ `dbl()` 은 ★★두 번 불린다(★음성 · ★양성) ⇒ ★★전제가 ★★두 번 ★선다.
+     ★자 꼴 = ★`offTextPoint`(t5-14:42~50)를 ★★그대로 — ⛔새 자를 ★만들지 않았다(★명부 하나). */
   const dbl = async () => {
     const [x, y] = await page.evaluate(() => {
       const r = document.querySelector('#gG .grd-img-frame').getBoundingClientRect();
-      return [r.left + r.width / 2, r.top + r.height / 2];
+      return [r.left + r.width / 2, r.top + r.height * 0.14];
     });
+    /* ★★전제 — ★그 점이 ★«원 프레임 위 · ★글자칸 아님»인가. ⛔이게 없으면 ★아래 수는 ★안 재고 있다 */
+    const pre = await page.evaluate(([px, py]) => {
+      const f = document.querySelector('#gG .grd-img-frame');
+      const e = document.elementFromPoint(px, py);
+      return { onFrame: !!(e && (e === f || f.contains(e))), onText: !!(e && e.closest && e.closest('.grd-img-circle-text')), hit: e ? String(e.className) : null };
+    }, [x, y]);
+    expect(pre.onFrame && !pre.onText,
+      `[★전제] 누른 점(위에서 ★14% · ★출처 없음 = ★★미확정) = ★원 프레임 · ★글자칸 아님 — ★잰 것 ${pre.hit}`).toBe(true);
     await page.mouse.click(x, y); await page.waitForTimeout(180);
     await page.mouse.dblclick(x, y); await page.waitForTimeout(300);
     return page.evaluate(() => ({
@@ -548,3 +570,33 @@ test('G20-9 ★지키는 자 — 색을 칠한 «빈» 원도 더블클릭은 �
   expect(opened.editing, '★★양성대조 실패 — 그림 든 원에서도 크롭 편집기가 안 열렸다. ⇒ 위 음성 결과는 ' +
     '「색 칠한 빈 원은 안 연다」를 ★안 재고 있었다(더블클릭 자체가 안 먹는 것일 수 있다)').toBe(true);
 });
+
+/* ★G20-9b 짝 — G20-9 의 ★옛 점(원 정 가운데 = 글자 위)을 ★지우지 않고 ★반대 계약으로 남긴다 (t5-14 · 태양 261022).
+ *   G20-9 = «글자 밖 더블클릭 → GUI(파일창/크롭)» · G20-9b = «글자 위 더블클릭 → 글자 편집» ⇒ ★두 계약을 ★한 쌍으로 잠근다.
+ *   ⛔ 고정 대기 0 — 상태는 expect.poll 로 기다린다. */
+for (const [tag, extra] of [['색 칠한 빈 원', {}], ['그림 든 원', { imgSrc: PX }]]) {
+  test(`G20-9b ★짝 — ${tag} · 원 정 가운데(= 글자 위) 더블클릭 → 글자 편집 · 파일창 0 · 크롭 0`, async ({ page }) => {
+    await setup(page, { lines: CIRC(Object.assign({ bg: '#ff0000', text: '글자' }, extra)) });
+    const p = await page.evaluate(() => {
+      const r = document.querySelector('#gG .grd-img-frame').getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const hit = document.elementFromPoint(x, y);
+      return { x, y, onText: !!hit?.closest('.grd-img-circle-text') };
+    });
+    expect(p.onText, '[전제] 원 정 가운데 = 글자 위 (G20-9 의 옛 점)').toBe(true);
+    let chooser = false; const onCh = () => { chooser = true; };
+    page.on('filechooser', onCh);
+    await page.mouse.click(p.x, p.y);
+    await page.mouse.dblclick(p.x, p.y);
+    await expect.poll(() => page.evaluate(() => {
+      const t = document.querySelector('#gG .grd-img-circle-text');
+      return !!t && t.getAttribute('contenteditable') === 'true' && document.activeElement === t;
+    }), { message: '★옛 점 더블클릭이 ★글자 편집으로 안 갔다', timeout: 3000 }).toBe(true);
+    page.off('filechooser', onCh);
+    expect(await page.evaluate(() => ({
+      editing: !!document.getElementById('gG')?._grdImgEdit,
+      proxies: document.querySelectorAll('[data-grd-img-proxy]').length,
+    })), '★글자 위 더블클릭에 크롭 편집이 열렸다').toEqual({ editing: false, proxies: 0 });
+    expect(chooser, '★글자 위 더블클릭에 파일 선택기가 떴다').toBe(false);
+  });
+}

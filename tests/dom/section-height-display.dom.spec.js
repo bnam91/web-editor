@@ -387,7 +387,10 @@ test('S2 ★비교 키에 안 샌다 — 협업 가드(serializeSectionClone) ·
     /* version-diff·market-merge 의 normSection 과 ★같은 식으로 정규화해 본다(그쪽은 모듈 내부 함수라
        직접 못 부른다 — 식을 그대로 재현하고, 그 식에 내 배지 이름이 들어 있는지를 소스로 함께 본다). */
     const el = sec.cloneNode(true);
-    el.querySelectorAll('.section-label, .section-toolbar, .variation-badge, .section-height-badge, .annotation-block, .annot-preview').forEach(n => n.remove());
+    /* ★261024 — ★`.annotation-block` 을 ★뺐다. ★★이 식은 ★저쪽 `normSection` 의 ★«재현»이라
+       ★저쪽이 ★바뀌면 ★★여기도 ★같이 ★바뀌어야 ★한다(★안 바꾸면 ★자가 ★낡는다).
+       ★이 검사의 ★단언은 ★`section-height-badge` 라 ★판정은 ★안 바뀐다 — ★자만 ★맞췄다. */
+    el.querySelectorAll('.section-label, .section-toolbar, .variation-badge, .section-height-badge, .annot-preview').forEach(n => n.remove());
     return { collabHas: /section-height-badge/.test(collab), normHas: /section-height-badge/.test(el.outerHTML) };
   });
   expect(r.collabHas, '협업 라이브 가드 키에 배지가 샜다 — 오경보가 난다').toBe(false);

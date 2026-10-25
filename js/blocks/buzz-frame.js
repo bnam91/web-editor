@@ -139,6 +139,9 @@ export function rescaleBuzzCards(frame, prevPct, nextPct) {
     });
     window.renderModalBlock?.(modal);
   });
+  // BUZZ_SCALE_KEYS 에 width 가 없는 까닭이 :123 — "_fitWidths 가 따라간다"가 전제다. 그 전제를 여기서 세운다.
+  // ⛔again/relayoutBuzzFrame 은 부르지 않는다 — 흩어짐이 다시 뿌려진다(prop-frame-buzz.js:260~261). 폭만 따라가게.
+  if (rows.length) _fitWidths(frame, rows);
   return rows.length > 0;
 }
 

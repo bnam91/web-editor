@@ -99,6 +99,9 @@ export function showAssetProperties(ab) {
   const grainIntensity = grainEl ? Math.round(parseInt(grainEl.dataset.grainIntensity ?? '0', 10)) : 0;
 
   const currentBgColor = ab.dataset.bgColor || '#a0a0a0';
+  /* ★t4-15 에셋 체커 톤 — 정본은 이 dataset 하나(섹션 sec.dataset.checkerTone 과 같은 이름 · 다른 요소).
+     키가 없으면 라이트 = 지금까지 저장된 프로젝트는 픽셀 동일(마이그레이션 0). ⛔전역 보기설정을 되살리지 마라. */
+  const _ckTone = ab.dataset.checkerTone === 'dark' ? 'dark' : 'light';
   // T-059 2라운드: 그라데이션이면 _hex6 가 #000000 으로 떨어져 Solid 복귀 = 검정이었다 → wireColorField(gradientValue)가 첫 스탑으로 채운다
   const assetBgGrad = /gradient\s*\(/i.test(currentBgColor) ? currentBgColor : '';
   const currentBgAlpha = assetBgGrad ? 100 : parseAlphaFromColor(currentBgColor);
@@ -125,6 +128,17 @@ export function showAssetProperties(ab) {
       <div class="prop-color-row--aux">
         <button class="prop-align-btn prop-align-btn--aux" id="asset-bg-clear">초기화</button>
       </div>
+      ${hasImage ? '' : `<!-- ★t4-15 체커 톤(현빈 ④) — 꼴·어휘는 섹션 라디오 그대로(새 클래스 0).
+           ★입구 조건 없음 — 현빈 「에셋블럭은 최초 추가시에 체크배경으로 두기를 켤 필요가 없지 않아?」(빈 에셋은 늘 체커다).
+           ★이미지가 있으면 숨긴다 — 체커가 안 보이니 정할 것이 없다(현빈 QA 자 「불필요한 프롭힌트는 없는지」).
+           ⛔name 을 sec-checker-tone 과 같게 두지 마라 — 두 라디오가 한 문서에 뜨면 한 그룹이 돼 서로를 끈다. -->
+      <div class="prop-row" style="margin-top:4px;" title="이 에셋블럭의 체크무늬만 어둡게 합니다 — 흰 그림이 체커 위에서 보이게. 내보내기에는 체커가 나가지 않습니다.">
+        <span class="prop-label prop-label--auto">체커 어둡게</span>
+        <div class="prop-radio-group">
+          <label class="prop-radio"><input type="radio" name="asset-checker-tone" id="asset-checker-tone-on" value="dark" ${_ckTone === 'dark' ? 'checked' : ''}> 켬</label>
+          <label class="prop-radio"><input type="radio" name="asset-checker-tone" id="asset-checker-tone-off" value="light" ${_ckTone === 'dark' ? '' : 'checked'}> 끔</label>
+        </div>
+      </div>`}
       ${hasImage && currentFit === 'cover' ? '<div class="prop-hint" style="margin-top:6px;">꽉 채우기에서는 배경이 이미지 뒤에 가려집니다 — 원본 비율에서 보입니다.</div>' : ''}
     </div>`;
   const imageSection = hasImage ? `
@@ -734,6 +748,19 @@ ${blockHeaderHTML({
     ab.style.background = '';
     window.pushHistory?.();
   });
+  /* ★t4-15 체커 톤 라디오 — 쓰는 문은 여기 하나(ab.dataset.checkerTone). CSS 가 속성을 보고 전용 쌍만 바꾼다.
+     ★패널을 다시 안 그린다(섹션 선례 · js/props/prop-section.js) — 바뀐 것은 화면 색뿐이다. */
+  const ckOn  = document.getElementById('asset-checker-tone-on');
+  const ckOff = document.getElementById('asset-checker-tone-off');
+  if (ckOn && ckOff) {
+    const applyTone = (dark) => {
+      window.pushHistory?.(dark ? '에셋 체커 어둡게' : '에셋 체커 밝게');
+      if (dark) ab.dataset.checkerTone = 'dark'; else delete ab.dataset.checkerTone;
+      window.scheduleAutoSave?.();
+    };
+    ckOn.addEventListener('change',  () => { if (ckOn.checked)  applyTone(true);  });
+    ckOff.addEventListener('change', () => { if (ckOff.checked) applyTone(false); });
+  }
 
   // ── 오버레이 이벤트 바인딩 ──
   const applyOverlayBg = opacity => {

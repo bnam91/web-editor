@@ -222,6 +222,21 @@
   --goya-checker-secbg-a: #7c7c7c;
   --goya-checker-secbg-b: #949494;
 }
+/* ── t4-15 «체커 어둡게» — ★에셋블럭마다 (2026-10-22 현빈 ④ 「배경이미지 체크패턴 어둡게 옵션이 있던데, 일반 에셋블럭도 넣어줘」) ──
+   「있던데」 = 바로 위 섹션 쌍이다 ⇒ 같은 꼴을 «에셋블럭»에 하나 더 둔다(⛔새 관용구 0).
+   ★전용 쌍인 까닭도 섹션과 같다 — 큰 쌍을 덮으면 그 에셋 «안»의 다른 체커(빈 카드 등)까지 상속으로 어두워진다.
+   ★라이트 기본값은 큰 쌍을 «가리킨다»(⛔hex 를 박지 마라 — 정본이 둘이 된다) ⇒ 키가 없는 옛 프로젝트는 픽셀 동일.
+   어두운 값은 위 섹션과 같은 두 hex(그 WCAG 표를 물려받는다 · ⛔#828282 — 위 머리말의 누출 센서스 실측).
+   켜는 문 = js/props/prop-asset.js 의 라디오 하나 → ab.dataset.checkerTone. 내보내기 0 은 위 ⑴⑵ 두 겹이 그대로 진다.
+   ⚠️안 잰 것: 어둡게 켠 에셋 «안»에 또 .asset-block 이 들면 그 안쪽도 상속으로 어두워진다(섹션은 중첩이 없다). */
+:root {
+  --goya-checker-asset-a: var(--goya-checker-big-a);
+  --goya-checker-asset-b: var(--goya-checker-big-b);
+}
+.asset-block[data-checker-tone="dark"] {
+  --goya-checker-asset-a: #7c7c7c;
+  --goya-checker-asset-b: #949494;
+}
 
 /* 프리셋 스타일은 JS에서 inline CSS variables로 적용 (presets/*.json 기반)
    → applyPreset() 참고 */
