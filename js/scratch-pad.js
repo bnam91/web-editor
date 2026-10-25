@@ -969,7 +969,13 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
     }
 
     // 그룹 공동 선택 — 비shift 클릭 시 같은 그룹(g) 멤버 전체를 선택에 포함 → 함께 드래그
-    if (!e.shiftKey && item.g) {
+    /* ★128(2026-10-26 · 현빈 t4-19 「그룹안에서의 스크래치패드 순서나 특정 스크래치 패드 삭제」) — `!_groupMode` 를 더했다.
+       ★진입 중 ★같은 그룹 «다른 장» 클릭 → capture onOutsideMousedown 은 ★같은 그룹이라 모드를 ★안 내린다
+         ⇒ 여기서 `_groupMode` 가 ★살아 있다 ⇒ ★이 자리는 ★«닿는다». (실앱 68ba1f1b: 선택 1 → ★7 · ⌘] 통째 · Delete 전원 삭제)
+       ⛔아래 마퀴 게이트(wrap mousedown · ⚰️2026-10-10 비석)의 `!_groupMode` 를 «닿지 않아 지웠다»는 선례와 ★다른 자리다 — 거기는 빈 영역이라 capture 가 ★먼저 내렸다.
+         가름 자(:655 「그 조건이 참이 되는 판이 있나」) ⇒ 이 줄은 ★있다. ⛔0건 변이로 지우지 마라(tests/dom/scratch-group-mode G11~G13).
+       ★모드 «밖» 클릭 · 다른 그룹 장 클릭(capture 가 먼저 모드를 내림)은 ★그대로 통째 선택(G1). */
+    if (!e.shiftKey && item.g && !_groupMode) {
       for (const s of _scratchItems) {
         if (s !== item && s.g === item.g && !_selectedItems.has(s)) {
           _selectedItems.add(s);
