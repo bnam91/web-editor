@@ -275,6 +275,16 @@ function bindGradientSelect(block) {
     const blockH = block.offsetHeight || 0;
     let secRect = sec.getBoundingClientRect();
     let secW = sec.offsetWidth, secH = sec.offsetHeight;
+    /* ★t5-08(b) · GRAD-DRAG-IN-GROUP-OVERSHOOT-01 — 그룹(자유배치 프레임) «안»의 그라데이션은 CSS 가 «그 프레임» 기준으로
+       놓는다(left/top = dataset.x/y). 아래 식을 섹션 기준으로 세면 프레임이 섹션 안에서 떨어진 만큼 «한 번 더» 더해져
+       첫 움직임에 그만큼 튄다(원 블럭 grad_pd5d6g 실측: +5px 끌기 → y 576→1064 · 이후 1:1). ⇒ 기준을 그 프레임 안쪽 상자로.
+       그 안에서는 섹션 갈아타기·섹션 클램프·섹션 기준 변 스냅을 안 한다(셋 다 섹션 좌표다 — 그룹 밖으로 끌어내는 길이 아니다). */
+    const _host = (block.parentElement && block.parentElement !== sec
+      && block.parentElement.matches?.('.frame-block[data-free-layout]')) ? block.parentElement : null;
+    if (_host) {
+      const hr = _host.getBoundingClientRect();
+      secRect = { left: hr.left + _host.clientLeft * zoom, top: hr.top + _host.clientTop * zoom };
+    }
     const _hist = window.beginDragHistory?.('그라데이션 이동');
 
     const onMove = (ev) => {
@@ -283,7 +293,7 @@ function bindGradientSelect(block) {
          다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
       _hist?.arm((ev.clientX - startX) / zoom, (ev.clientY - startY) / zoom);
       // 섹션 이동 (커서가 다른 섹션 위로 가면 부모 교체)
-      const hoverSec = window._findSectionAt ? window._findSectionAt(ev.clientX, ev.clientY) : null;
+      const hoverSec = (!_host && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;
       if (hoverSec && hoverSec !== sec) {
         hoverSec.appendChild(block);
         sec = hoverSec;
@@ -303,16 +313,18 @@ function bindGradientSelect(block) {
       }
       const newXraw = (ev.clientX - secRect.left) / zoom - grabOffX;
       const newYraw = (ev.clientY - secRect.top)  / zoom - grabOffY;
-      const [cx, cy] = window._clampToSection
+      const [cx, cy] = (!_host && window._clampToSection)
         ? window._clampToSection(newXraw, newYraw, sec, blockW, blockH)
         : [newXraw, newYraw];
       let newX = Math.round(cx);
       let newY = Math.round(cy);
-      // 엣지 맞닿기 스냅 (약한 끌림) + 붙은 변 하이라이트
-      const snapped = _gradEdgeSnap(block, sec, newX, newY);
-      newX = snapped.x; newY = snapped.y;
-      if (snapped.edgeX) _showGradSnapEdge(snapped.edgeX.el, snapped.edgeX.side);
-      if (snapped.edgeY) _showGradSnapEdge(snapped.edgeY.el, snapped.edgeY.side);
+      // 엣지 맞닿기 스냅 (약한 끌림) + 붙은 변 하이라이트 — 섹션 좌표 자라 그룹 안에선 안 건다(위 머리말)
+      if (!_host) {
+        const snapped = _gradEdgeSnap(block, sec, newX, newY);
+        newX = snapped.x; newY = snapped.y;
+        if (snapped.edgeX) _showGradSnapEdge(snapped.edgeX.el, snapped.edgeX.side);
+        if (snapped.edgeY) _showGradSnapEdge(snapped.edgeY.el, snapped.edgeY.side);
+      }
       block.dataset.x = String(newX);
       block.dataset.y = String(newY);
       // fill 클리핑을 새 위치에 맞게 갱신 (outline + 핸들은 블록 요소에 있어 영향 없음)
