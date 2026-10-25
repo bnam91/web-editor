@@ -2869,6 +2869,114 @@ function _onCmpRowMouseDown(e, block, ci, ri) {
 window.showCmpGutters = showCmpGutters;
 window.hideCmpGutters = hideCmpGutters;
 
+/* ═══ ★t5-16 카드블럭 «행 경계 드래그» (2026-10-26 · S7) ═══════════════════════════════════════════════
+ * 현빈 원문: 「카드블럭이 결국 그리드블럭과 구조가 같은거 아닌가? 그렇다면 카드블럭도 로우 경계에 마우스로 칸 높이 조절 가능하게 해줘.」
+ * ★꼴 = 비교 블록 행 경계 거터(showCmpGutters · _onCmpRowMouseDown) 그대로: 고른 동안만 사는 .cvb-gutter(#ss-handles-overlay · 8px ·
+ *   cursor row-resize · z 97) · rAF 로 자리 따라감 · 해제는 editor.js deselectAll · 이력 = 시작 직전 1회 + 끝 1회.
+ * ★무엇을 바꾸나 = 카드 높이 «하나»(dataset.canvasH · 패널 「높이」 칸 #cvb-h 와 같은 값 · 40~2000 = updateCanvasBlock 의 자).
+ *   ⛔그리드처럼 «위 행만»을 하지 않았다 — 카드 블럭은 모든 카드가 한 크기(canvasH)인 모델이라(renderCanvas: cellY = r × (designH + GAP))
+ *   행마다 다른 높이는 «새 자료 꼴»이다(rowHeights 류) ⇒ 그 길은 현빈 결정으로 남긴다(보고서 · CARD-PER-ROW-HEIGHT-NOT-MODELED-01).
+ *   ⇒ 경계 r|r+1 을 끌면 모든 행이 같이 자라고, «끄는 그 경계»가 손을 따라가게 Δ높이 = Δ화면 ÷ ((r+1) × 배율).
+ * ★단순 카드(cardMode=simple)만 — 레이어 모드(Figma 들여온 자유배치)는 행이 없다. 행이 하나면 경계가 없다(거터 0). */
+let _cvbGutterBlock = null;
+let _cvbGutterRafId = null;
+const _cvbGeom = (block) => {
+  const rows = parseInt(block.dataset.gridRows) || 1;
+  const H = parseInt(block.dataset.canvasH) || 400;
+  const GAP = parseInt(block.dataset.cardGap ?? '12');
+  const totalH = H * rows + GAP * (rows - 1);
+  const br = block.getBoundingClientRect();
+  return { rows, H, GAP, br, s: totalH > 0 ? br.height / totalH : 0 };   // s = 디자인 px → 화면 px
+};
+function showCvbGutters(block) {
+  if (!block || block.dataset.cardMode !== 'simple') { hideCvbGutters(); return; }
+  const { rows } = _cvbGeom(block);
+  const need = Math.max(0, rows - 1);
+  if (_cvbGutterBlock === block) {
+    const ovl = _getOverlay();
+    if ((ovl ? ovl.querySelectorAll('.cvb-gutter').length : 0) === need) { _updateCvbGutterPositions(); return; }
+  }
+  hideCvbGutters();
+  if (!need) return;
+  _cvbGutterBlock = block;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  for (let r = 0; r < need; r++) {
+    const g = document.createElement('div');
+    g.className = 'cvb-gutter';
+    g.dataset.axis = 'row';
+    g.dataset.i = String(r);
+    g.style.cssText = 'position:absolute;height:8px;cursor:row-resize;z-index:97;pointer-events:auto;';
+    overlay.appendChild(g);
+    g.addEventListener('mousedown', e => _onCvbRowMouseDown(e, block, r));
+    _wireGutterContextMenu(g, block);
+  }
+  _updateCvbGutterPositions();
+  _startCvbGutterRaf();
+}
+function hideCvbGutters() {
+  if (_cvbGutterRafId) { cancelAnimationFrame(_cvbGutterRafId); _cvbGutterRafId = null; }
+  _cvbGutterBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.cvb-gutter').forEach(g => g.remove());
+}
+function _startCvbGutterRaf() {
+  function loop() {
+    if (!_cvbGutterBlock) return;
+    if (!_cvbGutterBlock.isConnected || !_cvbGutterBlock.classList.contains('selected')) { hideCvbGutters(); return; }
+    _updateCvbGutterPositions();
+    _cvbGutterRafId = requestAnimationFrame(loop);
+  }
+  _cvbGutterRafId = requestAnimationFrame(loop);
+}
+function _updateCvbGutterPositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_cvbGutterBlock) return;
+  const { H, GAP, br, s } = _cvbGeom(_cvbGutterBlock);
+  overlay.querySelectorAll('.cvb-gutter').forEach(g => {
+    const r = Number(g.dataset.i);
+    const cy = br.top + ((r + 1) * H + r * GAP + GAP / 2) * s;   // 두 행 사이 gap 의 중앙
+    const t = Math.max(GUT_MIN_TOTAL, Math.min(8, GAP * s));
+    g.style.top = (cy - t / 2) + 'px';
+    g.style.height = t + 'px';
+    g.style.left = br.left + 'px';
+    g.style.width = br.width + 'px';
+  });
+}
+function _onCvbRowMouseDown(e, block, r) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const g0 = _cvbGeom(block);
+  if (!(g0.s > 0)) return;
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+  const startY = e.clientY;
+  const H0 = g0.H;
+  window.pushHistory?.();   // ★드래그 «시작 직전» 1회만(비교 거터와 같은 규약)
+  function onMove(ev) {
+    const { s } = _cvbGeom(block);   // 배율은 폭이 정한다(높이와 무관) — 줌이 바뀌는 경우까지 매 move 재조회
+    if (!(s > 0)) return;
+    const h = Math.round(Math.max(40, Math.min(2000, H0 + (ev.clientY - startY) / ((r + 1) * s))));
+    if (String(h) === block.dataset.canvasH) return;
+    block.dataset.canvasH = String(h);
+    window.renderCanvas?.(block);
+    _updateCvbGutterPositions();
+    const inp = document.getElementById('cvb-h');   // 패널이 열려 있으면 그 칸만 되쓴다(⛔패널 재렌더 금지)
+    if (inp) inp.value = String(h);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    restoreDrag();
+    window.pushHistory?.();   // ★끝 상태 — 안 움직였으면 무변화 차단이 버린다
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+window.showCvbGutters = showCvbGutters;
+window.hideCvbGutters = hideCvbGutters;
+
 /* ═══════════════════════════════════════════════════════════════════════════
    GRID 이미지/아이콘 줄 — 코너 리사이즈 핸들 (T-C, 2026-09-16)
    ───────────────────────────────────────────────────────────────────────────

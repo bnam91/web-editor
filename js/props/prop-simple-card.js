@@ -1425,6 +1425,9 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})
   /* ★1017t1d1 — 고른 카드/줄이 있으면 헤더 바로 아래에 공용 줄 절(줄바 「+ 줄 추가▾」·줄 꾸미기·Typography)을
      얹는다(laurel·비교와 같은 자리 — prop-laurel.js:414). */
   window.lnAugmentCardPanel?.(block);
+  /* ★t5-16 — 캔버스 «행 경계 드래그» 거터(js/overlay-handles.js showCvbGutters). 비교 블록 패널 꼬리의 showCmpGutters 와
+     같은 자리·같은 까닭(패널이 뜨는 자리마다 같이 띄운다 · 해제는 editor.js deselectAll 의 hideCvbGutters). */
+  window.showCvbGutters?.(block);
 }
 
 // HTML 특수문자 이스케이프 (textarea/input value 안전 삽입)
