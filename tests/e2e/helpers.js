@@ -13,6 +13,7 @@ const path = require('path');
  * CI: Electron 직접 실행
  */
 async function connectApp() {
+  if (process.env.GD_E2E_ATTACH_CDP) return attachEditor();   // ★opt-in 갈래(run-app.sh) · 안 주면 아래 옛 길 그대로
   const port = process.env.ELECTRON_DEBUG_PORT || '9334';
   const browser = await chromium.connectOverCDP(`http://localhost:${port}`);
   const context = browser.contexts()[0];
@@ -65,4 +66,125 @@ async function launchIsolated({ port, profile, args = [], cwd = process.cwd() })
   return app;
 }
 
-module.exports = { connectApp, launchApp, launchIsolated };
+/* ★[S6-T6 · 2026-10-25] «applane 이 띄운 격리 앱»에 붙는 opt-in 갈래 — tests/e2e/run-app.sh 가 env 셋을 준다.
+ *   GD_E2E_ATTACH_CDP=<포트> · GD_E2E_ATTACH_UDATA=<절대 udata> · GD_E2E_ATTACH_TREE=<절대 레인>
+ *   ⛔안 주면 아무것도 안 바뀐다(connectApp 옛 길 · 12/13/14 의 launch 길 그대로).
+ * ⛔붙기 «전에» 그 포트의 주인이 «이 레인 · 이 udata 의 applane 앱»인지 잰다 — 아니면 소켓 하나 안 열고 던진다.
+ *   (CDP Browser.getBrowserCommandLine 은 --enable-automation 이 있어야 돼서 안 쓴다 → lsof/ps 로 잰다.)
+ * ⚠️connectOverCDP 의 browser.close() 는 «끊기만» 한다 — 앱은 applane down 까지 산다. */
+const { execFileSync } = require('child_process');
+const { pathToFileURL } = require('url');
+
+function _run(cmd, args) {
+  try { return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); }
+  catch (e) { return String((e && e.stdout) || ''); }   // lsof 는 «없음»을 rc 1 로 준다 ⇒ 빈 출력으로 읽는다
+}
+
+function assertIsolatedCdp(port, udata, tree) {
+  const fail = (m) => { throw new Error(`★격리 CDP 가드 거절 — ${m} (port=${port} udata=${udata} tree=${tree})`); };
+  const home = os.homedir();
+  // (a) 띠 — 9614..9617 정수만
+  const p = Number(port);
+  if (!/^\d+$/.test(String(port)) || p < 9614 || p > 9617) fail('포트가 9614..9617 정수가 아니다');
+  // (b) udata — 절대 · ~/.gd-work/udata- 접두 · 현빈 실계정 아님
+  if (!udata || !path.isAbsolute(udata)) fail('udata 가 절대경로가 아니다');
+  if (!udata.startsWith(path.join(home, '.gd-work') + '/udata-')) fail('udata 가 ~/.gd-work/udata- 로 시작하지 않는다');
+  let realUd; try { realUd = fs.realpathSync(udata); } catch { fail('udata 가 없다'); }
+  const realDefault = (() => { const d = path.join(home, 'Library', 'Application Support', 'GODITOR');
+    try { return fs.realpathSync(d); } catch { return d; } })();
+  if (realUd === realDefault) fail('udata 가 현빈 실계정(GODITOR)이다');
+  if (!tree || !path.isAbsolute(tree)) fail('tree 가 절대경로가 아니다');
+  let realTree; try { realTree = fs.realpathSync(tree); } catch { fail('tree 가 없다'); }
+  // (c) LISTEN 주인 — 정확히 pid 1개
+  const pids = _run('lsof', ['-nP', '-t', `-iTCP:${p}`, '-sTCP:LISTEN']).split('\n').map(s => s.trim()).filter(Boolean);
+  const uniq = [...new Set(pids)];
+  if (uniq.length !== 1) fail(`LISTEN pid 가 1개가 아니다: [${uniq.join(',')}]`);
+  const pid = uniq[0];
+  // (d) 그 pid 의 인자 — --user-data-dir= 토큰 정확히 1개 = 이 udata · --remote-debugging-port=<port>
+  const toks = _run('ps', ['-ww', '-o', 'args=', '-p', pid]).trim().split(/\s+/).filter(Boolean);
+  const udToks = toks.filter(t => t.startsWith('--user-data-dir='));
+  if (udToks.length !== 1) fail(`pid ${pid} 의 --user-data-dir= 토큰이 ${udToks.length}개다`);
+  if (udToks[0] !== `--user-data-dir=${udata}`) fail(`pid ${pid} 의 udata 불일치: ${udToks[0]}`);
+  if (!toks.includes(`--remote-debugging-port=${p}`)) fail(`pid ${pid} 에 --remote-debugging-port=${p} 가 없다`);
+  // (e) cwd — 이 레인
+  const cwdLine = _run('lsof', ['-a', '-p', pid, '-d', 'cwd', '-Fn']).split('\n').find(l => l.startsWith('n'));
+  const cwd = cwdLine ? cwdLine.slice(1) : '';
+  let realCwd = cwd; try { realCwd = fs.realpathSync(cwd); } catch {}
+  if (!cwd || realCwd !== realTree) fail(`pid ${pid} 의 cwd 불일치: ${cwd || '(못 읽음)'}`);
+  // (f) applane 장부 — tree|port|*|udata 줄 + 살아 있는 .pid
+  const st = path.join(home, '.gd-work', 'applane');
+  let metas = []; try { metas = fs.readdirSync(st).filter(f => f.endsWith('.meta')); } catch {}
+  const _rp = (q) => { try { return fs.realpathSync(q); } catch { return q; } };
+  const owned = metas.some(f => {
+    let line = ''; try { line = fs.readFileSync(path.join(st, f), 'utf8').split('\n')[0]; } catch { return false; }
+    const [mt, mc, , mu] = line.split('|');
+    if (_rp(mt || '') !== realTree || mc !== String(p) || mu !== udata) return false;
+    let lp; try { lp = Number(fs.readFileSync(path.join(st, f.replace(/\.meta$/, '.pid')), 'utf8').trim()); } catch { return false; }
+    try { process.kill(lp, 0); return true; } catch { return false; }
+  });
+  if (!owned) fail('applane 장부(~/.gd-work/applane/*.meta + 살아 있는 .pid)에 이 레인·포트·udata 가 없다');
+  console.log(`[attach] guard ok port=${p} pid=${pid} udata=${udata} cwd=${cwd}`);
+  return { pid: Number(pid), udata, cwd };
+}
+
+function _attachEnv() {
+  const port = process.env.GD_E2E_ATTACH_CDP;
+  const udata = process.env.GD_E2E_ATTACH_UDATA;
+  const tree = process.env.GD_E2E_ATTACH_TREE;
+  if (!udata || !tree) throw new Error('★GD_E2E_ATTACH_CDP 를 줬으면 GD_E2E_ATTACH_UDATA · GD_E2E_ATTACH_TREE 도 필수다');
+  return { port, udata, tree };
+}
+
+/* 앱 페이지 고르기 — index.html 우선 · 그다음 projects.html · 아직 없으면 «뜨기를» 기다린다. URL 은 전부 로그. */
+async function pickAppPage(context) {
+  const RE = /(index|projects)\.html/;
+  console.log(`[attach] pages=${JSON.stringify(context.pages().map(p => p.url()))}`);
+  const pick = () => { const ps = context.pages();
+    return ps.find(p => p.url().includes('index.html')) || ps.find(p => p.url().includes('projects.html')); };
+  let page = pick();
+  if (!page) {
+    if (!context.pages().length) await context.waitForEvent('page', { timeout: 20000 });
+    page = await Promise.any(context.pages().map(p => p.waitForURL(RE, { timeout: 20000 }).then(() => p)));
+  }
+  console.log(`[attach] picked=${page.url()}`);
+  return page;
+}
+
+async function _attach() {
+  const { port, udata, tree } = _attachEnv();
+  const g = assertIsolatedCdp(port, udata, tree);   // ⛔가드 «먼저» — 통과 전엔 소켓 0
+  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+  const context = browser.contexts()[0];
+  const page = await pickAppPage(context);
+  return { browser, context, page, g };
+}
+
+/* 01–05·99 용 — connectApp 가 이리 온다. 에디터(addSection)까지 세워서 돌려준다. */
+async function attachEditor() {
+  const { browser, context, page } = await _attach();
+  await page.waitForLoadState('domcontentloaded');
+  if (page.url().includes('projects.html')) {
+    await page.click('#btn-new');
+    await page.waitForURL(/index\.html\?project=/, { timeout: 20000 });
+  }
+  await page.waitForFunction(() => typeof window.addSection === 'function', null, { timeout: 20000 });
+  return { browser, context, page };
+}
+
+/* 12/13/14 용 — _electron app 자리를 «흉내»만 낸다(firstWindow · close). #btn-new 는 spec 이 누른다.
+ *   ★index.html 에 붙었으면(워커 재시작 재접속) projects.html 로 돌려 spec 갈래가 «새 프로젝트»를 만들게 한다.
+ *   ★배경 억제 — launch 길의 --disable-*-backgrounding 을 applane 은 안 준다 ⇒ 여기서 CDP 로 메운다
+ *     (12 는 원래 이 둘을 안 보냈다 — 배관 차이 · 13/14 는 제 안에서 또 보낸다 · 무해). */
+async function attachIsolated() {
+  const { browser, page, g } = await _attach();
+  await page.waitForLoadState('domcontentloaded');
+  if (page.url().includes('index.html')) {
+    await page.goto(pathToFileURL(path.join(g.cwd, 'pages', 'projects.html')).href);
+  }
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {});
+  await cdp.send('Page.setWebLifecycleState', { state: 'active' }).catch(() => {});
+  return { browser, page, app: { firstWindow: async () => page, close: () => browser.close() } };
+}
+
+module.exports = { connectApp, launchApp, launchIsolated, assertIsolatedCdp, attachEditor, attachIsolated };

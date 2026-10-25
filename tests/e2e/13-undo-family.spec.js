@@ -64,6 +64,8 @@ const { TINY_MP4_B64 } = require('../fixtures/tiny-video.js');
 const PORT    = process.env.E2E_UNDO_PORT || '9527';
 const PROFILE = process.env.E2E_UNDO_PROFILE || path.join(os.tmpdir(), 'goditor_e2e_undo_' + PORT);
 const HARNESS = fs.readFileSync(path.join(__dirname, '_undo-family-harness.js'), 'utf8');
+/* ★opt-in(run-app.sh) — applane 격리 앱에 붙는다(가드는 helpers.assertIsolatedCdp). 안 주면 아래 launch 길 그대로. */
+const ATTACH = !!process.env.GD_E2E_ATTACH_CDP;
 
 /* ⛔serial 로 두지 않는다 — 한 검사가 빨강이면 나머지가 «안 돈 채» 초록도 빨강도 아니게 된다.
    세 고장을 따로 보려면 셋이 다 돌아야 한다. */
@@ -75,6 +77,9 @@ const R = { plain: null, shape: null, instrument: null };
 
 test.beforeAll(async () => {
   test.setTimeout(600000);
+  if (ATTACH) {
+    ({ app } = await require('./helpers.js').attachIsolated());
+  } else {
   fs.mkdirSync(PROFILE, { recursive: true });
   /* 로그인 게이트 — 이 맥의 자격증명을 «격리 프로필»에만 복사한다. */
   const src = path.join(os.homedir(), 'Library', 'Application Support', 'GODITOR', 'auth.json');
@@ -91,6 +96,7 @@ test.beforeAll(async () => {
   if (path.resolve(root) !== path.resolve(PROFILE)) {
     await app.close().catch(() => {});
     throw new Error(`★프로필 격리 실패 — userData=${root} (기대: ${PROFILE}). 현빈 실계정일 수 있어 즉시 껐다.`);
+  }
   }
 
   page = await app.firstWindow();
@@ -139,7 +145,7 @@ async function run(fn, arg) {
 
 test.afterAll(async () => {
   if (app) await app.close().catch(() => {});
-  try { fs.rmSync(PROFILE, { recursive: true, force: true }); } catch (_) {}
+  if (!ATTACH) try { fs.rmSync(PROFILE, { recursive: true, force: true }); } catch (_) {}
 });
 
 /* ── 브라우저에서 돌 코드 ─────────────────────────────────────────────────── */

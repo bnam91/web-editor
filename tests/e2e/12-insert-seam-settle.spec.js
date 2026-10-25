@@ -22,6 +22,8 @@ const path = require('path');
 
 const PORT = process.env.E2E_SEAM_PORT || '9584';
 const PROFILE = path.join(os.tmpdir(), 'goditor_e2e_seam_' + PORT);
+/* ★opt-in(run-app.sh) — applane 격리 앱에 붙는다. 안 주면 아래 launch 길 그대로. */
+const ATTACH = !!process.env.GD_E2E_ATTACH_CDP;
 
 /* 인자가 필요한 입구만 적는다. 나머지는 인자 없이 부른다.
    ⚠️여기 빠져서 «안 만들어지는» 입구가 생기면 테스트가 실패한다 — 조용히 건너뛰지 않는다. */
@@ -54,6 +56,9 @@ const GEOMETRIES = [
 let app, page;
 
 test.beforeAll(async () => {
+  if (ATTACH) {
+    ({ app } = await require('./helpers.js').attachIsolated());
+  } else {
   fs.mkdirSync(PROFILE, { recursive: true });
   /* 로그인 게이트 — 이 맥의 자격증명을 «격리 프로필»에만 복사하고 끝나면 프로필째 지운다. */
   const src = path.join(os.homedir(), 'Library', 'Application Support', 'GODITOR', 'auth.json');
@@ -65,6 +70,7 @@ test.beforeAll(async () => {
            '--disable-backgrounding-occluded-windows', 'admin'],
     cwd: process.cwd(),
   });
+  }
   page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
 
@@ -77,7 +83,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   if (app) await app.close().catch(() => {});
-  try { fs.rmSync(PROFILE, { recursive: true, force: true }); } catch (_) {}
+  if (!ATTACH) try { fs.rmSync(PROFILE, { recursive: true, force: true }); } catch (_) {}
 });
 
 test('C0 ★런타임 로스터가 있고, 그 전부가 «감싸져» 있다', async () => {

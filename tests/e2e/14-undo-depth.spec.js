@@ -45,12 +45,16 @@ const { launchIsolated } = require('./helpers.js');
 const PORT    = process.env.E2E_DEPTH_PORT || '9529';
 const PROFILE = process.env.E2E_DEPTH_PROFILE || path.join(os.tmpdir(), 'goditor_e2e_depth_' + PORT);
 const HAND    = fs.readFileSync(path.join(__dirname, '_undo-family-harness.js'), 'utf8');
+/* ★opt-in(run-app.sh) — applane 격리 앱에 붙는다. 안 주면 아래 launchIsolated 길 그대로. */
+const ATTACH = !!process.env.GD_E2E_ATTACH_CDP;
 
 let app, page;
 const R = { hand: null, norm: null, ladders: null, redo: null };
 
 test.beforeAll(async () => {
   test.setTimeout(600000);
+  if (ATTACH) ({ app } = await require('./helpers.js').attachIsolated());
+  else
   app = await launchIsolated({ port: PORT, profile: PROFILE, cwd: path.join(__dirname, '..', '..') });
   page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
@@ -75,7 +79,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   if (app) await app.close().catch(() => {});
-  try { fs.rmSync(PROFILE, { recursive: true, force: true }); } catch (_) {}
+  if (!ATTACH) try { fs.rmSync(PROFILE, { recursive: true, force: true }); } catch (_) {}
 });
 
 /* ── 브라우저 안에 얹는 얇은 층 ───────────────────────────────────────────── */
