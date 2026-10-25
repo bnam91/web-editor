@@ -25,7 +25,15 @@
     noMetrics:    '검사에 필요한 화면을 얻지 못했습니다.',
     noInk:        '비교할 내용이 없어 판단하지 않았습니다.',
   };
-  const FMT = { png: 'PNG', jpg: 'JPG', gif: 'GIF', 'gif-anim': 'GIF' };
+  /* ★t6-01 — ★꼴 짧은 이름은 ★`js/io/export-formats.js` ★한 자리에서 온다.
+     ★★이 파일은 ★ESM 이 ★아니라(import 줄 0) ★import 를 ★못 한다 ⇒ ★전역을 쓴다.
+     ★★⛔최상위에서 ★읽지 마라 — ★로드 순서에 따라 ★`undefined` 다. ★그래서 ★함수로 둔다.
+     ⛔여기에 ★꼴 이름을 ★다시 적지 마라(★그게 ★이번에 걷어낸 ★여섯째 명부였다). */
+  const fmtShort = (id) => {
+    const L = (typeof window !== 'undefined' && window.EXPORT_FORMATS) || [];
+    const f = L.find(x => x.id === id);
+    return f ? f.short : String(id || '').toUpperCase();
+  };
 
   function reasonText(reasons) {
     for (const r of (reasons || [])) if (REASON[r]) return REASON[r];
@@ -76,7 +84,7 @@
       </div>`;
 
     const badge = overlay.querySelector('.exres-badge');
-    badge.textContent = `${FMT[M.format] || String(M.format || '').toUpperCase()} · ${M.width || 860}px`;
+    badge.textContent = `${fmtShort(M.format)} · ${M.width || 860}px`;
     badge.classList.add(bad.length || fail.length ? 'tb-badge--warn'
                       : unk.length ? 'tb-badge--muted' : 'tb-badge--accent');
 

@@ -1,4 +1,5 @@
 import { canvasEl, state } from '../globals.js';
+import { exportMimeOf, exportExtOf, isGifFormat, isAnimFormat } from './export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
 import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
 import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture, warnIfCaptureTextVanished, withGuideOff } from './capture-safety.js';
@@ -571,8 +572,9 @@ async function _exportSectionInner(sec, format, width, opts) {
 
   const fmt = format || 'png';
   const w   = width  || CANVAS_W;
-  const isGif     = fmt === 'gif' || fmt === 'gif-anim';
-  const isGifAnim = fmt === 'gif-anim';
+  /* ★t6-01 — ★꼴 명부 정본에서 ★파생. ⛔'gif' 문자열을 ★여기에 다시 적지 마라. */
+  const isGif     = isGifFormat(fmt);
+  const isGifAnim = isAnimFormat(fmt);
 
   // 클론을 transform 밖(body)에 배치해서 html2canvas가 부모 scale 영향 안 받게 함
   const useNative = isNativeCapture(opts);
@@ -846,8 +848,9 @@ async function _exportSectionInner(sec, format, width, opts) {
         if (window.__EXPORT_GATE_TRACE) console.log('[export-gate] skipped: returnDataUrl');
         return outCanvas.toDataURL('image/png'); // clone 정리는 함수 끝 finally가 수행
       }
-      const mime = fmt === 'jpg' ? 'image/jpeg' : 'image/png';
-      const ext  = fmt === 'jpg' ? 'jpg' : 'png';
+      /* ★t6-01 — ★꼴 명부 정본에서 ★파생한다. ⛔여기에 ★삼항을 ★다시 짓지 마라(명부가 둘이 된다). */
+      const mime = exportMimeOf(fmt);
+      const ext  = exportExtOf(fmt);
       await new Promise((res, rej) => {
         outCanvas.toBlob(blob => {
           if (!blob) { rej(new Error('toBlob failed')); return; }

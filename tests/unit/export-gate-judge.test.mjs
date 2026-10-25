@@ -12,13 +12,31 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { mkTmpRoot } from './_tmproot.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const srcPath = path.join(__dirname, '../../js/io/export-gate-core.js');
-const aliasPath = path.join(os.tmpdir(), `exgate-core-${process.pid}.mjs`);
-fs.copyFileSync(srcPath, aliasPath);
+/* ★★261025 (t6-01) — ★사본을 ★«제 폴더»에 둔다. ★까닭 :
+     ★`export-gate-core.js` 가 ★곁 모듈을 ★수입하게 됐다(`./export-formats.js` — ★꼴 명부 정본).
+     ★예전처럼 ★`os.tmpdir()` 바닥에 ★한 파일만 ★베끼면 ★그 ★상대경로 수입이 ★깨진다
+     (실측: `ERR_MODULE_NOT_FOUND … /T/export-formats.js`).
+   ⇒ ★폴더를 ★하나 만들어 ★«수입하는 곁 파일까지» ★같이 베낀다.
+     ⛔곁 파일을 ★손으로 ★열거하지 ★마라 — ★소스의 ★`from './…'` 를 ★읽어 ★따라간다(한 겹). */
+const aliasDir = mkTmpRoot('exgate-core-');   /* ★치우기는 공용 자가 쥔다 — ⛔손으로 rmSync 금지(T2) */
+const aliasPath = path.join(aliasDir, 'export-gate-core.mjs');
+{
+  const _src = fs.readFileSync(srcPath, 'utf8');
+  const _sibs = [..._src.matchAll(/from\s+'\.\/([A-Za-z0-9._-]+)\.js'/g)].map(m => m[1]);
+  for (const name of new Set(_sibs)) {
+    fs.copyFileSync(path.join(path.dirname(srcPath), name + '.js'), path.join(aliasDir, name + '.js'));
+  }
+  /* ★사본은 ★.mjs 라 ★곁 수입도 ★.js 그대로 두면 ★CJS 로 읽힌다 ⇒ ★곁도 .mjs 로 베끼고 경로를 갈아끼운다 */
+  for (const name of new Set(_sibs)) {
+    fs.renameSync(path.join(aliasDir, name + '.js'), path.join(aliasDir, name + '.mjs'));
+  }
+  fs.writeFileSync(aliasPath, _src.replace(/from\s+'\.\/([A-Za-z0-9._-]+)\.js'/g, "from './$1.mjs'"));
+}
 const core = await import(pathToFileURL(aliasPath).href);
-fs.unlinkSync(aliasPath);
 const { judgeExportDiff, compareRGBA, pilLuma, _setBlobMin } = core;
 
 const img = (w, h, fill) => {

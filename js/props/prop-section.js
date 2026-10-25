@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { exportFormatOptionsHTML, isAnimFormat } from '../io/export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
 import { syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* T6 — 섹션 안 글자 밝기 자동(판정은 그 파일 한 자리) */
 import { blockHeaderHTML, escHtml, sliderRowHTML } from './_helpers.js';
 import { forgetLabelAutoColor } from './label-auto-color.js';
@@ -586,10 +587,8 @@ ${blockHeaderHTML({
       <div class="prop-section-title">Export</div>
       <div class="prop-row" style="margin-bottom:4px;">
         <select class="prop-select" id="sec-export-format" style="flex:1;min-width:0;">
-          <option value="png">PNG</option>
-          <option value="jpg">JPG</option>
-          <option value="gif">GIF (정적)</option>
-          <option value="gif-anim">GIF (애니메이션)</option>
+          ${/* ★t6-01 — ★꼴 명부 정본 한 자리에서 파생. ★섹션 쪽은 ★기억값이 ★없다(언제나 첫 꼴). */''}
+          ${exportFormatOptionsHTML()}
         </select>
         <select class="prop-select" id="sec-export-width" style="flex:2;min-width:0;">
           <option value="860">860px (기본)</option>
@@ -925,7 +924,7 @@ function _bindSectionExport(sec) {
     const w   = parseInt(document.getElementById('sec-export-width').value) || 860;
     secExportBtn.disabled = true;
     // GIF 애니메이션은 frame 캡처 + 인코딩으로 시간이 오래 걸림 → 안내문 분리
-    secExportBtn.textContent = fmt === 'gif-anim' ? 'GIF 생성 중...' : '내보내는 중...';
+    secExportBtn.textContent = isAnimFormat(fmt) ? 'GIF 생성 중...' : '내보내는 중...';
     /* ★한 섹션이어도 «스피너»를 띄운다 — 버튼 글자만 바뀌면 어디까지 왔는지도, 멈춘 건지도 모른다.
      * 전체 내보내기와 «같은 창»을 쓴다(현빈: 스피너가 돌다가 끝나면 결과). 검사까지 하므로 체감이 2배다. */
     window.showExportProgress?.(1, { format: fmt, width: w });
