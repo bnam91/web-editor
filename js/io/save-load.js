@@ -1179,6 +1179,10 @@ function rebindAll(opts = {}) {
     if (!sec.dataset.bgImg && !sec.style.backgroundImage && window.isSectionGradient?.(sec.dataset.bg)) {
       sec.style.backgroundImage = sec.dataset.bg;
     }
+    /* ★★prev-06 메시 — ★인라인이 ★빠진 길(템플릿·붙여넣기·이 아래 마이그레이션)에서도 ★다시 세운다.
+       ★정본은 ★`dataset.bgMesh` 한 칸이고 ★그리기는 `prop-section.js _applySectionBg` ★한 자리다.
+       ⛔여기서 CSS 를 ★조립하지 ★마라 — ★명부가 둘이 된다. */
+    if (sec.dataset.bgMesh) window.applySectionBg?.(sec);
     // section-inner paddingX 복원
     const secInner = sec.querySelector('.section-inner');
     if (secInner && secInner.dataset.paddingX !== undefined && secInner.dataset.paddingX !== '') {

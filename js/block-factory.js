@@ -2865,6 +2865,11 @@ window.setSectionBg = function(sectionEl, color) {
      backgroundColor 만 쓰면 ⑴ 새 그라데이션은 안 그려지고 ⑵ 옛 그라데이션은 backgroundImage 에 남아 새 색을 덮는다.
      ⛔단색→단색 길은 한 글자도 안 바꾼다(아래 그대로). */
   const _gradInvolved = window.isSectionGradient?.(sec.dataset.bg) || window.isSectionGradient?.(color);
+  /* ★★prev-06 — ★메시가 켜져 있으면 ★색을 주는 순간 ★걷는다(패널 `_setSecBg` 와 ★같은 규약).
+     ⛔안 걷으면 ★이 API 로 준 색이 ★메시에 ★덮여 ★아무 일도 ★안 한다 — ★위 그라데이션 설명과 ★같은 병이다.
+     ★`_meshWas` 가 참이면 ★아래 `applySectionBg` 를 ★불러야 ★메시 그림이 ★치워진다. */
+  const _meshWas = !!sec.dataset.bgMesh;
+  if (_meshWas) delete sec.dataset.bgMesh;
   if (color) {
     sec.style.backgroundColor = color;
     sec.dataset.bg = color;
@@ -2872,7 +2877,7 @@ window.setSectionBg = function(sectionEl, color) {
     sec.style.backgroundColor = '';
     delete sec.dataset.bg;
   }
-  if (_gradInvolved) window.applySectionBg?.(sec);
+  if (_gradInvolved || _meshWas) window.applySectionBg?.(sec);
   window.triggerAutoSave?.();
   return true;
 };

@@ -38,7 +38,20 @@ test('G3 onGradient 는 값을 dataset.bg 에 싣고 그리개 한 자리(_apply
   const body = sliceCall(c, 'onGradient: (css, commit) =>', 'onGradient 본문');
   assert.match(body, /_setSecBg\(css\)/);
   assert.match(body, /if\s*\(commit\)\s*pushHistory\(\)/, '확정이 기록에 안 남으면 ⌘Z 로 못 되돌린다');
-  assert.match(SRC, /const _setSecBg = \(v\) => \{\s*sec\.dataset\.bg = v;\s*_applySectionBg\(sec\);\s*\}/);
+  /* ★★261025 (prev-06) — ★본문을 ★«통째로» 박던 자를 ★«성질»로 갈랐다.
+     ★왜 — ★옛 정규식은 `{` 뒤에 ★곧장 `sec.dataset.bg` 가 ★와야 참이라, ★줄 하나만 보태도 ★빨개졌다
+       (★메시를 걷는 `delete` 한 줄에 ★실제로 빨개졌다). ★그런데 ★이 자가 ★지키려는 성질
+       (「값을 dataset.bg 에 싣는다」＋「그리기는 _applySectionBg 한 자리」)은 ★그대로 참이었다.
+     ⇒ ★성질마다 ★한 줄씩 건다. ⛔「아무 문장이나 와도 된다」로 ★느슨해진 것이 ★아니다 —
+       ★세 성질이 ★전부 ★그 한 줄 안에 ★있어야 한다. */
+  const setLine = (SRC.match(/const _setSecBg = \(v\) =>.*/) || [''])[0];
+  assert.ok(setLine, '_setSecBg 한 줄을 못 떠냈다 — 판정 무효');
+  assert.match(setLine, /sec\.dataset\.bg = v/, '값을 dataset.bg 에 안 싣는다');
+  assert.match(setLine, /_applySectionBg\(sec\)/, '그리기를 그리개 한 자리에 안 맡긴다');
+  /* ★★prev-06 — ★메시와 배경«색»은 ★같은 자리를 다툰다. ★안 걷으면 ★고른 색이 ★메시에 덮여
+     ★아무 일도 ★안 한다(피커가 먹통). ★행위로 재는 자 = tests/dom/section-mesh-gradient-v1 ★M9.
+     ★이 줄은 ★그 M9 가 ★「되돌린 판에서 빨강」임을 ★확인한 뒤에 ★걸었다. */
+  assert.match(setLine, /delete sec\.dataset\.bgMesh/, '배경색을 고를 때 메시를 안 걷는다 — 고른 색이 묻힌다');
 });
 
 test('G4 그리개 — 그라데이션은 backgroundImage 에 실린다(backgroundColor 는 그라데이션을 못 받는다)', () => {

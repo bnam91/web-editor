@@ -142,6 +142,93 @@ export function isOpaqueSectionColor(color) {
 }
 window.isOpaqueSectionColor = isOpaqueSectionColor;
 
+/* ★★`prev-06` — ★메시 그라데이션 ★v1 (2026-10-25 · server-manager 가 전한 현빈 ⒜ GO
+     「메시 그라데이션 ★v1 으로 ★비슷하게 ★흉내낼 것」 · `radial-gradient` 4겹 ＋ blend · CSS 만).
+   ★현빈이 「피그마와 똑같진 않다」를 ★수용했다 — ⒝(저장꼴 재설계) 길은 ★안 간다.
+
+   ★★★값이 ★«이 칸»에 사는 ★까닭 — ⛔4겹 CSS 를 ★`dataset.bg` 에 ★넣을 ★수가 ★없다.
+     바로 위 `isSectionGradient` 의 마지막 칸이 ★«맨 바깥 괄호가 문자열 끝에서 닫혀야 참»이라
+     ★`radial-gradient(…), radial-gradient(…)` 를 ★거짓으로 ★돌려준다. 그 좁힘은 ★일부러 한 것이다
+     (★1013t2E1 중-1 보안 — 패널 innerHTML 주입). ⇒ ★★그 검사를 ★넓히지 ★않는다.
+     ★`dataset.bg` 를 보는 자가 ★넷이라(이 파일 그리기·패널 · io/save-load.js 복원 · block-factory.js
+     setSectionBg) ★거기 4겹을 싣는 순간 ★넷이 ★동시에 ★틀린다.
+   ⇒ ★★«네 모서리 색»만 ★`dataset.bgMesh` 에 두고 ★CSS 는 ★`_applySectionBg` ★한 자리가 ★조립한다.
+     ★저장 꼴은 ★덧붙임이다 — ★메시를 ★안 쓴 섹션은 ★바이트가 ★한 글자도 ★안 바뀐다(모든 새 코드가 이 칸 뒤에 있다).
+
+   ★★겹을 ★`transparent` 로 ★끝내지 ★마라 — 그 키워드는 `rgba(0,0,0,0)` 이라 ★엔진에 따라 ★검은 테가 돈다.
+     ★같은 색의 ★알파 0 으로 끝낸다(`_meshFade`).
+   ★★`MESH_SHAPE`·`MESH_STOP`·`MESH_BLEND` 는 ★261025 ★픽셀 실측으로 ★확정했다 — 각 상수 머리말에 ★잰 값이 있다.
+
+   ★검사 = tests/dom/section-mesh-gradient-v1 (★M4 가 ★「보안 검사 무변」을 ★잰다 —
+     ★4겹=거짓 ★과 ★한 겹=참 ★한 쌍으로 걸어 ★항등식이 안 되게 했다). */
+export const MESH_CORNERS = Object.freeze(['tl', 'tr', 'br', 'bl']);
+const MESH_AT = Object.freeze({ tl: '0% 0%', tr: '100% 0%', br: '100% 100%', bl: '0% 100%' });
+const MESH_LABEL = Object.freeze({ tl: '왼위', tr: '오른위', br: '오른아래', bl: '왼아래' });
+/* ★처음 켤 때의 네 색 — ★모서리끼리 ★색상환에서 ★떨어져 있어야 ★「메시」로 보인다(한 계열이면 단색처럼 보인다). */
+export const MESH_DEFAULT = Object.freeze(['#ff6ec7', '#7b5cff', '#4ad7d1', '#ffd166']);
+const MESH_HEX_RE = /^#[0-9a-f]{6}$/i;
+/* ★★★겹의 ★«꼴» — ★★`circle` 을 ★쓰지 ★마라. (261025 ★픽셀 실측 · tests/dom/section-mesh-gradient-v1 ★M7 이 잠근다)
+     ★`circle` 의 기본 반지름은 ★`farthest-corner` = ★★대각선이라, ★가로로 긴 섹션(실측 344×168)에서
+     ★왼위 겹이 ★왼아래까지 ★닿아 ★★사용자가 ★왼아래에 고른 ★노랑을 ★덮는다.
+     ★★실측(같은 네 색 · `getImageData`) :
+         circle                → BL `#feaa8e` (★고른 값 `#ffd166`) · BR `#5ea5e3` (★고른 값 `#4ad7d1`)
+         ellipse farthest-side → BL `#fdd068`  ✅            · BR `#4cd5d0`  ✅
+     ★★까닭 — `ellipse farthest-side at 0% 0%` 는 ★x반지름=폭·y반지름=높이라 ★이웃 두 모서리에서
+       ★정확히 ★1.0 이 된다 ⇒ ★상자 ★비율이 ★어떻든 ★다른 모서리를 ★안 침범한다. */
+const MESH_SHAPE = 'ellipse farthest-side';
+/* ★겹이 ★사라지는 자리(%) — ★★72. (261025 ★실측 · 위 꼴과 ★한 쌍이다)
+   ★`ellipse farthest-side` 에서 ★이웃 모서리가 ★1.0, ★가운데가 ★0.707 이다 ⇒
+     ★72 면 ★가운데가 ★거의 바닥색(네 색 평균)이라 ★네 색이 ★부드럽게 ★만난다.
+     ★100 은 ★가운데가 ★더 섞이지만 ★실측 그림에서 ★노랑이 ★약해졌다(shots/mesh4-ell-fs-100.png). */
+const MESH_STOP = 72;
+/* ★★`background-blend-mode` = ★★`normal`. (261025 ★픽셀 실측으로 ★골랐다 — ⛔발주서 낱말만 보고 안 박았다)
+   ★★잰 법 — ★같은 네 색·★같은 꼴(ellipse farthest-side 72%)에서 ★여섯 모드의 ★네 모서리 ★픽셀을 읽었다.
+     ★★고른 값 = TL `#ff6ec7` · TR `#7b5cff` · BR `#4ad7d1` · BL `#ffd166`
+         normal      TL `#fd6fc6` TR `#7d5efe` BR `#4cd5d0` BL `#fdd068`   ← ★★고른 색 ★그대로
+         screen      TL `#fdc6f0` TR `#d6c0fe` BR `#c7eef2` BL `#fdecd8`   ← ★희게 날아간다
+         overlay     TL `#fd90e2` TR `#af83fe` BR `#91dfe7` BL `#fddab3`   ← ★밝아진다
+         soft-light  TL `#d495cf` TR `#af8ddc` BR `#9bbad1` BL `#d4b8b6`   ← ★탁해진다
+         multiply    TL `#b14696` TR `#583bbf` BR `#36859d` BL `#b1814f`   ← ★어두워진다
+         lighten     TL `#fd9dc6` TR `#b19dfe` BR `#b1d5d0` BL `#fdd0bf`   ← ★밝아진다
+   ⇒ ★★★「사용자가 ★모서리에 ★고른 색이 ★그 모서리에 ★그대로 나온다」가 ★가장 센 성질이고,
+     ★`normal` ★말고는 ★전부 그걸 ★깬다. ⇒ ★`normal`.
+   ★발주서의 「＋blend」는 ★`background-blend-mode` 를 ★쓴다는 뜻이지 ★모드를 ★지정한 것이 ★아니다 —
+     ★`normal` 도 ★그 속성의 ★값이다(겹이 ★넷이라 ★값도 ★넷으로 센다).
+   ★★★⛔앞선 판정(「overlay 가 낫다」)은 ★★무효였다 — ★그때는 ★꼴이 ★`circle` 이라 ★모서리가
+     ★이미 ★틀어져 있었고, ★나는 ★틀어진 그림끼리 ★견줬다. ★꼴을 고친 뒤 ★다시 쟀다. */
+const MESH_BLEND = 'normal';
+
+function _meshFade(hex) {
+  const h = hex.slice(1);
+  return 'rgba(' + parseInt(h.slice(0, 2), 16) + ', ' + parseInt(h.slice(2, 4), 16)
+    + ', ' + parseInt(h.slice(4, 6), 16) + ', 0)';
+}
+/** 네 색의 ★평균 — ★가운데를 ★받치는 바닥색. ⛔한 모서리 색을 쓰면 ★그 색이 ★가운데를 ★지배한다. */
+function _meshBase(cols) {
+  const avg = (i) => Math.round(cols.reduce((a, c) => a + parseInt(c.slice(1 + i * 2, 3 + i * 2), 16), 0) / cols.length);
+  return 'rgb(' + avg(0) + ', ' + avg(1) + ', ' + avg(2) + ')';
+}
+/** 네 색 명부 → 저장 꼴 한 줄. */
+export function meshSpecOf(cols) { return cols.join('|'); }
+/** 저장 꼴 한 줄 → 네 색 명부. 꼴이 ★안 맞으면 `null`(= 메시 아님 · ⛔부분 수용 금지). */
+export function meshColorsOf(spec) {
+  const parts = String(spec || '').split('|').map(x => x.trim());
+  if (parts.length !== MESH_CORNERS.length) return null;
+  if (!parts.every(x => MESH_HEX_RE.test(x))) return null;
+  return parts.map(x => x.toLowerCase());
+}
+/** 저장 꼴 → 그릴 CSS. 꼴이 안 맞으면 `null`. */
+export function sectionMeshCss(spec) {
+  const cols = meshColorsOf(spec);
+  if (!cols) return null;
+  const image = MESH_CORNERS
+    .map((k, i) => 'radial-gradient(' + MESH_SHAPE + ' at ' + MESH_AT[k] + ', ' + cols[i]
+      + ' 0%, ' + _meshFade(cols[i]) + ' ' + MESH_STOP + '%)')
+    .join(', ');
+  return { image, blend: MESH_CORNERS.map(() => MESH_BLEND).join(', '), base: _meshBase(cols), colors: cols };
+}
+window.sectionMeshCss = sectionMeshCss;
+
 function _applySectionBg(sec) {
   /* ★체크 배경(빈 이미지 자리) — 무늬는 CSS 한 자리(.sec-bg-empty)가 준다.
      ⛔인라인으로 박지 마라: 저장본(.gdt)·배송 HTML 에 무늬가 그대로 실린다
@@ -159,6 +246,9 @@ function _applySectionBg(sec) {
 
   // 항상 shorthand는 초기화 후 개별 속성으로 재설정 (이전 multi-layer 잔재 제거)
   sec.style.background = '';
+  /* ★`background-blend-mode` 는 ★`background` shorthand 에 ★안 든다 — ★따로 비워야
+     ★메시를 끈 뒤에도 ★남아 ★배경이미지·그라데이션에 ★섞인다(prev-06). */
+  sec.style.backgroundBlendMode = '';
 
   /* ★1017t1k1·k2 — rotate·색보정이 ★필요하면 그림은 ★레이어(js/bg-layer.js)가 그린다.
      섹션 본체는 ★색만(그림은 'none') — ⛔반투명 색의 «물들임» 합성(아래 분기)은 ★레이어가
@@ -185,7 +275,16 @@ function _applySectionBg(sec) {
        ⇒ ★그림을 ★지우면 ★아래 `else if (color)` 가 ★그 색을 ★★다시 그린다 = ★사용자가 ★안 잃는다.
      ★그리고 ★그림만 그릴 때 ★`backgroundColor` 를 ★★`transparent` 가 아니라 ★★그 색으로 둔다 —
        ★배경색은 ★언제나 ★그림 ★«아래»라 ★가릴 일이 없고, ★그림이 ★못 뜨면 ★그 색이 ★받쳐 준다. */
-  if (img && color && !isOpaqueSectionColor(color)) {
+  /* ★★prev-06 메시 — ★그림이 ★없을 때만. ★그림이 있으면 ★그 합성이 ★주인이다(아래 분기 그대로). */
+  const mesh = img ? null : sectionMeshCss(sec.dataset.bgMesh);
+  if (mesh) {
+    sec.style.backgroundImage = mesh.image;
+    sec.style.backgroundBlendMode = mesh.blend;
+    sec.style.backgroundColor = mesh.base;   /* ★가운데를 받치는 네 색의 평균 */
+    sec.style.backgroundSize = 'cover';
+    sec.style.backgroundPosition = 'center';
+    sec.style.backgroundRepeat = 'no-repeat';
+  } else if (img && color && !isOpaqueSectionColor(color)) {
     // multi-background: gradient(색) 위, url(이미지) 아래 — ★반투명 색의 ★물들임
     sec.style.background = `${grad ? color : `linear-gradient(${color}, ${color})`}, url(${img})`;
     // 색 layer 는 gradient — 고유 크기가 없어 어떤 키워드든 박스 전체다. 'cover' 로 고정해야
@@ -276,6 +375,10 @@ async function showSectionProperties(sec) {
   const secBgAlpha = !bgGradCss && _secBgM && _secBgM[1].split(',').length === 4
     ? Math.round(parseFloat(_secBgM[1].split(',')[3]) * 100)
     : 100;
+  /* ★★prev-06 — ★메시 그라데이션 칸. ★그림이 ★있으면 ★안 보인다(그때는 그림 합성이 주인이라 켜도 안 그려진다
+     ⇒ ★켤 수 있는데 안 그려지는 ★거짓 단추를 ★만들지 않는다). */
+  const meshCols = meshColorsOf(sec.dataset.bgMesh);
+  const meshOn   = !!meshCols;
   const hasBgImg  = !!sec.dataset.bgImg;
   const bgSize    = sec.dataset.bgSize || 'cover';
   const secPadB   = parseInt(sec.style.paddingBottom) || 0;
@@ -293,6 +396,16 @@ async function showSectionProperties(sec) {
      ★키가 없으면 라이트 = 지금까지 저장된 모든 프로젝트가 «픽셀 동일»이다(마이그레이션 코드 0). */
   const _bgTone  = sec.dataset.checkerTone === 'dark' ? 'dark' : 'light';
   const _bgSizeCustom = /px/.test(bgSize);
+  const meshHTML = sec.dataset.bgImg ? '' : `
+    <button class="prop-action-btn ${meshOn ? 'primary' : 'secondary'}" id="sec-bg-mesh" style="margin-top:6px;"
+      title="네 모서리 색을 번지게 섞어 메시 그라데이션처럼 보이게 합니다. 피그마의 메시와 똑같지는 않습니다(v1)">
+      ${meshOn ? '메시 그라데이션 끄기' : '메시 그라데이션'}</button>
+    ${meshOn ? MESH_CORNERS.map((k, i) => `
+    <div class="prop-color-row" style="margin-top:4px;">
+      <span class="prop-label">${MESH_LABEL[k]}</span>
+      ${colorFieldHTML({ idPrefix: `sec-mesh-${k}`, hex: meshCols[i], alpha: 100 })}
+    </div>`).join('') : ''}
+  `;
   const bgImgHTML = hasBgImg ? `
     <div class="prop-row">
       <span class="prop-label">사이즈</span>
@@ -406,6 +519,7 @@ ${blockHeaderHTML({
         <span class="prop-label">배경색</span>
         ${colorFieldHTML({ idPrefix: 'sec-bg', hex: hexBg, alpha: secBgAlpha, gradientCss: bgGradCss })}
       </div>
+      ${meshHTML}
       <span class="prop-field-label" style="margin-top:8px">Background Image</span>
       ${bgImgHTML}
       <!-- ★파티클 — 섹션 «배경»이라 이 절에 산다(지디 2026-10-07 Q1 판정 ⒞ · js/effects-particles.js:8~15).
@@ -564,7 +678,12 @@ ${blockHeaderHTML({
        프레임·에셋·배너02·비교는 wireColorField(onGradient) 한 자리로 받는다 — 에셋도 같은 병을 앓았다(T-011).
      ⇒ 손 배선을 걷고 그 한 자리를 쓴다. 값은 dataset.bg 에 그라데이션 CSS 그대로(프레임과 같은 규약) · 그리기는 _applySectionBg 한 곳.
      ⛔onGradient 를 빼면 탭이 다시 잠긴다(tests/unit/section-bg-gradient-wiring.test.mjs · tests/dom/section-bg-gradient.dom.spec.js). */
-  const _setSecBg = (v) => { sec.dataset.bg = v; _applySectionBg(sec); };
+  /* ★★prev-06 — ★배경«색»을 고르면 ★메시는 ★걷힌다. ★둘은 ★같은 자리(섹션 배경)를 ★다투기 때문이다.
+     ⛔안 걷으면 ★`_applySectionBg` 가 ★메시를 ★먼저 그려 ★사용자가 ★고른 색이 ★아무 일도 ★안 한다
+       (★「피커가 먹통」으로 보인다 · tests/dom/section-mesh-gradient-v1 ★M9 가 잰다).
+     ★이것은 ★새 규약이 ★아니다 — ★그라데이션도 ★「단색을 주면 걷는다」가 ★이미 규약이다
+       (tests/dom/section-bg-gradient ★G10 · `block-factory.js setSectionBg` 머리말). */
+  const _setSecBg = (v) => { delete sec.dataset.bgMesh; sec.dataset.bg = v; _applySectionBg(sec); };
   wireColorField('sec-bg', {
     initialAlpha: secBgAlpha,
     gradientValue: bgGradCss,   // 재선택 뒤에도 그라데이션 탭·정지점으로 열린다(T-059 2라운드 규약)
@@ -574,6 +693,31 @@ ${blockHeaderHTML({
       if (commit) pushHistory();
     },
     onCommit: () => pushHistory(),
+  });
+
+  /* ★★prev-06 메시 — ★단추는 ★켜기/끄기, 색 칸 넷은 ★제자리에서 고친다.
+     ★켜고 끌 때만 ★패널을 다시 그린다(칸이 생기고 사라지니까) — ⛔색을 ★고칠 때마다 다시 그리면
+       ★피커 팝오버가 ★닫혀 ★한 번에 한 색만 고를 수 있게 된다. */
+  document.getElementById('sec-bg-mesh')?.addEventListener('click', () => {
+    if (meshColorsOf(sec.dataset.bgMesh)) delete sec.dataset.bgMesh;
+    else sec.dataset.bgMesh = meshSpecOf(MESH_DEFAULT);
+    _applySectionBg(sec);
+    pushHistory();
+    showSectionProperties(sec);
+  });
+  MESH_CORNERS.forEach((k, i) => {
+    wireColorField(`sec-mesh-${k}`, {
+      onApply: (c) => {
+        /* ★지금 값에서 ★다시 읽는다 — ⛔패널 그릴 때의 `meshCols` 를 ★닫아 쓰면 ★다른 모서리의
+           ★먼저 고친 값을 ★되돌린다(★네 칸이 ★같은 한 줄을 공유한다). */
+        const cur = meshColorsOf(sec.dataset.bgMesh);
+        if (!cur) return;
+        cur[i] = c;
+        sec.dataset.bgMesh = meshSpecOf(cur);
+        _applySectionBg(sec);
+      },
+      onCommit: () => pushHistory(),
+    });
   });
 
   // 배경 이미지 이벤트
