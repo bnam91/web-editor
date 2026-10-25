@@ -332,7 +332,7 @@ export function applyFxFreeTransform(tb) {
     tb.dataset.tfCorners = _cornersToStr(C);
   }
 
-  const { D } = normalizeCorners(C);       /* ★⒞ — 왼·위로 나간 것도 감싸게 0,0 으로 당긴다 */
+  const { D, mnx } = normalizeCorners(C);  /* ★⒞ — 왼·위로 나간 것도 감싸게 0,0 으로 당긴다 */
   const h = homography(_baseRect(st.W, st.H), D);
   if (!h) return false;                    /* ★네 점이 한 줄·겹침 ⇒ 못 푼다 — ★그리지 않는다(가드가 산다) */
 
@@ -346,6 +346,13 @@ export function applyFxFreeTransform(tb) {
   tb.style.minHeight = box.h + 'px';
   const tf = _tfOf(tb);
   if (tf) tf.style.width = box.w + 'px';   /* ★㉣ — 「너비 항상 동일」 */
+  /* ★FT-3b `FT-LEFT-DRAG-ANCHORS-AT-TB-LEFT-01` — 위 정규화가 왼쪽으로 나간 몫(mnx<0)을 0 으로 당겨,
+     흐름 글상자에서 nw 를 왼쪽으로 끌면 손잡이는 제자리고 그림이 «오른쪽»으로 자랐다(미카사 261025 실측: 데이터 x −1998 · 손잡이 cx 573.8 고정).
+     ⇒ 당긴 몫만큼 상자째 왼쪽으로 «그려서» 되돌린다 — CSS `translate`(레이아웃 무영향 · 손잡이 층도 같이 간다).
+     ⛔정규화는 그대로 둔다(박스 하한·ft-maxwidth-cap·D_floor_keeps_base 가 그 자리를 잠근다).
+     ⛔`margin-left` 로 하지 마라 — 글자 프레임의 margin-left 는 프레임 안 X 자리(prop-frame.js)라 겹친다.
+     ★세로(mny)는 이 처방 밖이다 — 위로 나간 몫은 섹션이 아래로 자라 손잡이가 안 나간다(FT3-VERTICAL 실측) · 별건. */
+  tb.style.translate = mnx < 0 ? `${mnx}px 0px` : '';
   /* ★U3 — 그린 뒤 손잡이를 ★그 자리로. ⛔import 하지 않는다(순환) — 이 파일이 이미 쓰는
      `window.pushHistory?.()`·`window.scheduleAutoSave?.()` 와 ★같은 관용구다. 없으면 아무 일도 안 난다. */
   window.ftHandlesSync?.(tb);
@@ -362,7 +369,7 @@ function _strip(tb) {
   const st = _tfState.get(tb);
   const tf = _tfOf(tb);
   if (ce) { ce.style.transform = ''; ce.style.transformOrigin = ''; _dropEmptyStyle(ce); }
-  tb.style.width = ''; tb.style.minHeight = '';
+  tb.style.width = ''; tb.style.minHeight = ''; tb.style.translate = '';
   if (tf) { tf.style.width = st && st.tfW0 != null ? st.tfW0 : ''; _dropEmptyStyle(tf); }
   /* ★U3 — ✕ 면 손잡이·격자도 같이 걷는다(안 걷으면 ★효과를 끈 뒤에도 남는다). */
   window.ftHandlesClear?.(tb);
