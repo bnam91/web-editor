@@ -2136,7 +2136,32 @@ function _isParticleMotionMutation(m) {
       && m.target.hasAttribute('data-fxp');
 }
 
-const autoSaveObserver = new MutationObserver(mutations => {
+/* ★130 싼 게이트 — 캔버스 «세대»(js/history.js pushHistory 가 직렬화 «앞»에서 읽는다). ⛔새 감시자 없음 — 이 감시자 «하나»에 한 칸.
+ *   세대가 오르는 변이 = 직렬화를 바꿀 «수 있는» 변이 전부 — 아래 자동저장 판정과 같은 제외(UI 장식·파티클 움직임·lazy 패스·툴바·#canvas 자기 속성)만 뺀다.
+ *   ⚠️class 는 자동저장 판정과 «다르게» 본다: 바뀐 토큰이 «전부» 세척이 벗기는 런타임 마커(section-serialize.js isRuntimeMarker)일 때만 뺀다
+ *     — 그 밖 class(has-image 등 콘텐츠)는 센다. ⛔모르면 센다(거짓으로 «안 바뀜»이면 이력이 사라진다 · 거짓으로 «바뀜»이면 그냥 느리다). */
+let _canvasGen = 0;
+let _canvasGenLive = false;
+function _classDiffIsRuntimeOnly(m) {
+  const rm = window.runtimeMarkers?.isRuntimeMarker; if (typeof rm !== 'function') return false;
+  const a = new Set(String(m.oldValue || '').split(/\s+/).filter(Boolean));
+  const b = new Set(String(m.target?.getAttribute?.('class') || '').split(/\s+/).filter(Boolean));
+  for (const t of a) if (!b.has(t) && !rm(t)) return false;
+  for (const t of b) if (!a.has(t) && !rm(t)) return false;
+  return true;
+}
+function _isGenNeutral(m) {
+  if (m.type === 'attributes' && m.attributeName === 'class') return _classDiffIsRuntimeOnly(m);
+  if (_isNonContentUiMutation(m)) return true;
+  if (_isParticleMotionMutation(m)) return true;
+  if (state._lazyRenderPass && m.type === 'attributes' && (m.attributeName === 'style' || m.attributeName === 'data-lazy-bg')) return true;
+  const el = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+  if (el && el.closest('.section-toolbar')) return true;
+  if (m.type === 'attributes' && el && el.id === 'canvas') return true;
+  return false;
+}
+function _autoSaveObserverHandle(mutations) {
+  for (const m of mutations) if (!_isGenNeutral(m)) { _canvasGen++; break; }   // 같은 꼭대기냐만 본다 — 수가 아니라 «올랐나»
   const meaningful = mutations.some(m => {
     if (m.type === 'attributes' && m.attributeName === 'class') return false;
     // [P-A1″] 저장에서 지워지는 «UI 장식»의 생성/제거는 편집이 아니다 — 같은 목록을 본다.
@@ -2160,7 +2185,10 @@ const autoSaveObserver = new MutationObserver(mutations => {
   });
   if (!meaningful) return;
   scheduleAutoSave();
-});
+}
+const autoSaveObserver = new MutationObserver(_autoSaveObserverHandle);
+/** ★130 — 세대를 «지금» 값으로(대기 중인 변이 기록을 먼저 같은 처리기로 흘린다 — 자동저장 판정도 그대로 받는다). 감시 전이면 null(= 게이트 안 씀). */
+window.__canvasGen = () => { if (!_canvasGenLive) return null; const recs = autoSaveObserver.takeRecords(); if (recs.length) _autoSaveObserverHandle(recs); return _canvasGen; };
 
 /* ── Init (called from editor.js after all scripts loaded) ── */
 function initApp() {
@@ -2424,7 +2452,8 @@ function initApp() {
   });
 
   // class 변경은 콜백에서 필터링, data-* 등 실제 속성 변경은 감지 (DBG-11 해소)
-  autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true, attributes: true });
+  autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true, attributes: true, attributeOldValue: true });   // ★130 attributeOldValue — class 토큰 차이(런타임 마커만인가)를 보려고
+  _canvasGenLive = true;
 
   // 스크래치패드 초기화
   window.initScratchPad?.(activeProjectId, state.currentPageId);
