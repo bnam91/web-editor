@@ -79,3 +79,44 @@ test('R2 R1 뒤 ⌘Z 한 번 → 줄 없음', async ({ page }) => {
   await page.waitForFunction((id) => { const b = document.getElementById(id) || document.querySelector('#canvas .speech-bubble-block'); return b && !b.dataset.lines; }, id, { timeout: 4000 });
   expect(errs).toEqual([]);
 });
+
+/* ★★지디 판정(261026) — bubble-line-plus 의 SKIP 둘을 «뜻이 살아 있는» 칸으로 되살린다.
+ *   LP1 = 이 고침의 «범위 단언»(말풍선만 없앴다) — ⛔「그리드 ＋ 가 그대로」만이면 항등식이라 ★두 방향을 같이 건다:
+ *     ⑴ 말풍선 ＋ 0 · ⑵ 같은 장면 그리드 ＋ 2 · 로렐 ＋ 2
+ *     무력화 대조(사본 · 커밋 메시지에 값): BUBBLE_CANVAS_PLUS=true ⇒ ⑴ 빨강 · ⑵ 초록 / 그리드·로렐 ＋ 를 같은 끔 스위치로 묶은 사본 ⇒ ⑵ 빨강
+ *   LP2 = ＋ 는 없지만 우클릭 «아래에 줄 추가 (T)» 는 산다 ⇒ 줄 셋 중 0번을 고르고 우클릭 → 새 줄이 1번
+ *     무력화 대조: 새 줄을 늘 끝에 넣는 사본 ⇒ 빨강 */
+test('LP1 ★범위 — 말풍선 ＋ 0 · 같은 장면 그리드 ＋ 2 · 로렐 ＋ 2 (말풍선만 껐다)', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const bubble = await plusCount(page, id);
+  const gid = await page.evaluate(() => { window.deselectAll?.(); window.selectSection?.(document.getElementById('bM')); window.addGridBlock?.(); const g = document.querySelector('#canvas .grid-block.selected'); g?.scrollIntoView({ block: 'center' }); return g?.id || null; });
+  expect(gid, '전제: 그리드 골라짐').toBeTruthy();
+  await page.waitForFunction((gid) => document.querySelectorAll(`#grd-plus-layer > .grd-add-btn[data-grd-for="${gid}"]`).length > 0, gid, { timeout: 4000 }).catch(() => {});
+  const grid = await page.evaluate((gid) => document.querySelectorAll(`#grd-plus-layer > .grd-add-btn[data-grd-for="${gid}"]`).length, gid);
+  const lid = await page.evaluate(() => { window.deselectAll?.(); window.selectSection?.(document.getElementById('bM')); window.addLaurelBlock?.(); const l = document.querySelector('#canvas .laurel-block.selected'); l?.scrollIntoView({ block: 'center' }); return l?.id || null; });
+  expect(lid, '전제: 로렐 골라짐').toBeTruthy();
+  await page.waitForFunction((lid) => document.querySelectorAll(`#grd-plus-layer > .ln-add-btn[data-ln-for="${lid}"]`).length > 0, lid, { timeout: 4000 }).catch(() => {});
+  const laurel = await page.evaluate((lid) => document.querySelectorAll(`#grd-plus-layer > .ln-add-btn[data-ln-for="${lid}"]`).length, lid);
+  console.log('    LP1 ' + JSON.stringify({ bubble, grid, laurel }));
+  expect({ bubble, grid, laurel }, '★말풍선만 꺼졌어야 한다').toEqual({ bubble: 0, grid: 2, laurel: 2 });
+  expect(errs).toEqual([]);
+});
+
+test('LP2 ★줄 셋 중 0번 고르고 우클릭 «아래에 줄 추가» → 새 줄이 1번 자리', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  await page.evaluate((id) => window.updateSpeechBubbleBlock(id, { lines: [{ type: 'body', text: 'A' }, { type: 'body', text: 'B' }, { type: 'body', text: 'C' }] }), id);
+  await page.waitForFunction((id) => document.querySelectorAll(`[id="${id}"] .ln-row`).length === 3, id, { timeout: 4000 });
+  const r0 = await page.evaluate((id) => { const r = document.querySelector(`[id="${id}"] .ln-row[data-ln="0"]`).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);
+  await page.mouse.click(r0[0], r0[1]);
+  await page.waitForFunction((id) => window.grdGetActiveLine?.(document.getElementById(id))?.li === 0, id, { timeout: 4000 });
+  await page.mouse.click(r0[0], r0[1], { button: 'right' });
+  await page.waitForFunction(() => { const e = document.getElementById('bcm-ln-add'); return e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0; }, null, { timeout: 4000 });
+  const m = await page.evaluate(() => { const r = document.getElementById('bcm-ln-add').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.mouse.click(m[0], m[1]);
+  await page.waitForFunction((id) => JSON.parse(document.getElementById(id).dataset.lines || '[]').length === 4, id, { timeout: 4000 });
+  const texts = await page.evaluate((id) => JSON.parse(document.getElementById(id).dataset.lines).map((l) => l.text), id);
+  console.log('    LP2 ' + JSON.stringify(texts));
+  expect(texts, '★새 줄이 고른 줄(0) 다음(1번)에').toEqual(['A', '', 'B', 'C']);
+  expect(errs).toEqual([]);
+});
