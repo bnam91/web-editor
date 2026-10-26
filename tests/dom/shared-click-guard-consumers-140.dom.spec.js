@@ -31,7 +31,7 @@ for (const [name, add, cls] of FIVE) {
     await page.mouse.click(corner[0], corner[1]);
     await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('selected'), id), { message: '[전제] 블럭이 골라졌다' }).toBe(true);
     const t = await page.evaluate(([id, name]) => { const b = document.getElementById(id); let el = name === 'table' ? b.querySelector('th') : null;
-      if (!el) el = [...b.querySelectorAll('*')].find(e => e.children.length === 0 && e.textContent.trim().length >= 2 && e.getBoundingClientRect().width > 10 && getComputedStyle(e).visibility !== 'hidden');
+      if (!el) el = [...b.querySelectorAll('*')].find(e => e.children.length === 0 && e.textContent.trim().length >= 2 && e.offsetWidth > 10 && getComputedStyle(e).visibility !== 'hidden');
       const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, [id, name]);
     await page.mouse.dblclick(t[0], t[1]);
     await expect.poll(() => page.evaluate((id) => !!document.getElementById(id).querySelector('[contenteditable="true"]'), id), { message: '[전제] 편집 칸이 섰다' }).toBe(true);
