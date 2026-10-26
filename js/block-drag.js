@@ -1847,31 +1847,10 @@ function bindBlock(block) {
     };
     // hydrate: 기존 :img row(저장된 HTML에서 복원된)에 더블클릭/x 버튼 핸들러 재바인딩
     block.querySelectorAll('tr[data-row-img="true"]').forEach(tr => window.__bindTableRowImg?.(tr));
-    block.addEventListener('click', e => {
-      e.stopPropagation();
-      const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
-      if (_isInsideUnselectedFrame(block)) {
-        e.stopPropagation();
-        const ss = _getParentFrame(block);
-        window.deselectAll?.();
-        const parentSec = ss.closest('.section-block');
-        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
-        ss.classList.add('selected');
-        window._activeFrame = ss;
-        window.highlightBlock?.(ss, ss._layerItem);
-        window.showFrameProperties?.(ss);
-        return;
-      }
-      window.deselectAll();
-      _restoreParentFrameSelected(block);
-      block.classList.add('selected');
-      window.syncSection(sec);
-      window.highlightBlock(block, block._layerItem);
-      window.setBlockAnchor?.(block);
-      window.showTableProperties(block);
-    });
+    /* ★140(2026-10-26 · 지디 GO ㉢) — 표의 «클릭 → 선택» 은 제 핸들러를 두지 않고 아래 공용 루프(grid·infocard·… 줄)에 얹었다.
+       옛 제 핸들러에는 공용 루프의 「인라인 편집 중이면 선택/패널 재생성 안 함」 가드가 없어 — 칸 편집 중 칸 안 클릭이
+       deselectAll·showTableProperties 를 다시 돌려 편집을 끝냈다(TH·TD 둘 다 · 앱 실측 ×3). 그 주석이 경고한 «조용히 갈라진» 실례.
+       ⇒ 편집 표식은 공용 규약 그대로: 칸 편집 진입에 block.editing · blur 에 걷기(아래 dblclick). */
     // 셀 더블클릭 → contenteditable 활성화
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
@@ -1883,6 +1862,7 @@ function bindBlock(block) {
         // 편집 시작 전 원본 텍스트 스냅샷 (dirty 비교용)
         cell._editBefore = cell.textContent;
         cell.setAttribute('contenteditable','true');
+        block.classList.add('editing');   // ★140 — 공용 클릭 루프의 「편집 중이면 재선택 안 함」 가드가 이걸 본다(그리드 :502 와 같은 규약)
         cell.focus();
         _tblBindCellPh(cell);
         // placeholder 면 전체선택, 실데이터면 커서를 끝으로 (focus 직후 «동기» 실행 필수)
@@ -1892,6 +1872,7 @@ function bindBlock(block) {
           cell._editBound = true;
           cell.addEventListener('blur', () => {
             cell.setAttribute('contenteditable', 'false');
+            if (!block.querySelector('[contenteditable="true"]')) block.classList.remove('editing');   // ★140 — 다른 칸으로 옮겨 가는 중(Tab)이면 남긴다
             const _dirty = cell.textContent !== (cell._editBefore ?? cell.textContent);
             if (_dirty) window.pushHistory('셀 텍스트 변경');
             // :img 이스터에그 — row 전체를 이미지 placeholder row로 변환
@@ -2539,7 +2520,7 @@ function bindBlock(block) {
   /* grid/infocard: bridge와 동일한 클릭-선택 (dataset 모델 정적 블록)
      ★쿠폰도 ★여기에 얹는다(2026-10-07) — ⛔제 핸들러를 새로 만들지 않는다. 그러면 프레임 안 선택·
        ⌘/⇧ 다중선택·레이어 하이라이트·showHandlesFor 가 ★한 벌 더 생겨 조용히 갈라진다. */
-  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties'], [isCoupon, 'showCouponProperties'], [isQuote, 'showQuoteProperties'], [isRadial, 'showRadialProperties']]) {
+  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties'], [isCoupon, 'showCouponProperties'], [isQuote, 'showQuoteProperties'], [isRadial, 'showRadialProperties'], [isTableB, 'showTableProperties']]) {
     if (!flag) continue;
     block.addEventListener('click', e => {
       e.stopPropagation();
