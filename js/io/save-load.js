@@ -633,6 +633,7 @@ function getSerializedCanvas() {
      ★이미 import 하고 있어(:14) ★거꾸로 걸면 ★순환이다. ⇒ ★잎 모듈로 뺐다.
    ★여기선 ★그대로 ★이어 부른다 — ★이 파일을 import 하던 자리는 ★전과 ★같이 돈다. */
 import { NON_CONTENT_UI_SELECTOR } from './editor-ui-roster.js';
+import { NON_EDIT_ATTRS, NON_EDIT_CSSVARS, CHROME_SEL } from '../non-edit-roster.js';   // ★167 — 비교(history.js)와 «같은 이름»으로 세대를 본다
 export { NON_CONTENT_UI_SELECTOR };
 if (typeof window !== 'undefined') window.NON_CONTENT_UI_SELECTOR = NON_CONTENT_UI_SELECTOR;   // ★E148 — ⌘C 글자 뽑기(editor.js)가 «같은 목록»으로 UI 를 걷는다
 
@@ -2150,13 +2151,30 @@ function _classDiffIsRuntimeOnly(m) {
   for (const t of b) if (!a.has(t) && !rm(t)) return false;
   return true;
 }
+/* ★167(2026-10-26 · 지디 처방 · F4-GATE-NEVER-FIRES-IN-APP-01) — «비교»(history.js _NON_EDIT_ATTR_RE · _CHROME_RE)가 이미 벗기는 차이는
+ *   세대도 안 올린다. ★이름은 js/non-edit-roster.js 한 집 — 정규식 글자와는 tests/unit/non-edit-roster-167.test.mjs 가 바이트째 묶는다.
+ *   ⛔문자열(직렬본) 작업 0 — MutationRecord 의 값 둘(oldValue · 지금 값)만 본다. ⛔모르면 센다(정규식보다 넓게 빼지 않는다).
+ *   실측 근거: 오버레이 켜기 push 뒤 늦게 오는 style 한 묶음(--sec-clip 45px→111px)이 세대를 +1 → 끌기 시작 표본 게이트 0/7(fa57bed6 ×4). */
+const _NON_EDIT_BOOL = new Set([null, 'true', 'false']);   // history.js `draggable="(?:true|false)"` — 값 둘 다 이 안일 때만
+function _attrDiffIsNonEdit(m) {
+  return NON_EDIT_ATTRS.includes(m.attributeName)
+      && _NON_EDIT_BOOL.has(m.oldValue) && _NON_EDIT_BOOL.has(m.target.getAttribute(m.attributeName));
+}
+/* style 선언 중 NON_EDIT_CSSVARS 를 뺀 나머지가 같으면 «그 변수만» 바뀐 것 */
+function _styleDiffIsNonEditOnly(m) {
+  /* 선언을 «이름:값»으로 접어 비교 — CSSOM 이 다시 쓴 꼴(`height:120px` → `height: 120px;`)의 공백 차이는 차이가 아니다 */
+  const rest = (s) => String(s || '').split(';').map(d => { const i = d.indexOf(':'); return i < 0 ? d.trim() : d.slice(0, i).trim() + ':' + d.slice(i + 1).trim(); })
+    .filter(d => d && !NON_EDIT_CSSVARS.some(v => d.startsWith(v + ':'))).join(';');
+  return rest(m.oldValue) === rest(m.target.getAttribute('style'));
+}
 function _isGenNeutral(m) {
   if (m.type === 'attributes' && m.attributeName === 'class') return _classDiffIsRuntimeOnly(m);
   if (_isNonContentUiMutation(m)) return true;
   if (_isParticleMotionMutation(m)) return true;
   if (state._lazyRenderPass && m.type === 'attributes' && (m.attributeName === 'style' || m.attributeName === 'data-lazy-bg')) return true;
+  if (m.type === 'attributes' && m.target.nodeType === 1 && (_attrDiffIsNonEdit(m) || (m.attributeName === 'style' && _styleDiffIsNonEditOnly(m)))) return true;
   const el = m.target.nodeType === 1 ? m.target : m.target.parentElement;
-  if (el && el.closest('.section-toolbar')) return true;
+  if (el && el.closest(CHROME_SEL)) return true;
   if (m.type === 'attributes' && el && el.id === 'canvas') return true;
   return false;
 }

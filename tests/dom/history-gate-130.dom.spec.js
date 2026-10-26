@@ -85,3 +85,38 @@ test('N5 [음성대조] 진짜 편집(높이)은 쌓인다', async ({ page }) =>
   expect(await gate(page) - b.g).toBe(0);
   expect(errs).toEqual([]);
 });
+
+/* ══ ★167(2026-10-26 · 지디 처방 · F4-GATE-NEVER-FIRES-IN-APP-01) — «앱 장면»을 재는 칸 ══════════════════════════════
+ *   G1·G2 는 «꼭대기 직후 변이 없는 push»만 잰다 ⇒ 앱의 막힘(오버레이 켜기 push 뒤 늦게 오는 --sec-clip style 한 묶음 → 끌기 시작 표본)을 못 봤다.
+ *   이름 명부 = js/non-edit-roster.js(비교 정규식과는 tests/unit/non-edit-roster-167 이 바이트째 묶음). ⛔undo 쪽엔 안 쓴다. */
+test('S1 [167 새 것] 진짜 편집 push → 뒤늦은 --sec-clip 만의 style 묶음 → 시작 표본 push = 게이트로 버림 · 직렬화 0', async ({ page }) => {
+  const errs = await setup(page); const b = await base(page, '오버레이로 전환');
+  await page.evaluate(() => { document.getElementById('hA').style.setProperty('--sec-clip', 'inset(0px 0px 111px 0px)'); window.pushHistory('끌기 시작 표본'); });
+  expect(await gate(page) - b.g, '★게이트가 버렸다(뒤늦은 --sec-clip 은 세대를 안 올린다)').toBe(1);
+  expect(await ser(page) - b.s, '직렬화 0').toBe(0);
+  expect((await tip(page)).seq, '칸 그대로').toBe(b.t.seq);
+  expect(errs).toEqual([]);
+});
+
+test('S2 [167 · 안 닫힘을 잠금] 휠 한 번(lazy 셋: data-lazy-bg · ±lazy-unloaded) 뒤 push = 게이트 «안» 걸림(이번 처방 밖 — 따로 잰다)', async ({ page }) => {
+  const errs = await setup(page); const b = await base(page, 'e1');
+  await page.evaluate(() => { const s = document.getElementById('hS'); s.classList.add('lazy-unloaded'); s.setAttribute('data-lazy-bg', 'initial'); window.pushHistory('휠 뒤'); });
+  expect(await gate(page) - b.g, '⛔lazy 셋은 중립 아님(안 잰 것을 넣지 않았다) — 이 칸이 초록으로 바뀌면 처방 범위가 바뀐 것').toBe(0);
+  expect(await ser(page) - b.s, '옛 길 = 직렬화 1').toBe(1);
+  expect(errs).toEqual([]);
+});
+
+test('S3 [167 음성대조] --sec-clip 과 진짜 속성(높이)이 같이 바뀐 style = 게이트 안 버림 · 쌓인다', async ({ page }) => {
+  const errs = await setup(page); const b = await base(page, 'e1');
+  await page.evaluate(() => { const a = document.getElementById('hA'); a.style.setProperty('--sec-clip', 'inset(0px 0px 7px 0px)'); a.style.height = '150px'; window.pushHistory('높이'); });
+  expect(await gate(page) - b.g).toBe(0);
+  expect((await tip(page)).seq, '진짜 편집 = 새 칸').not.toBe(b.t.seq);
+  expect(errs).toEqual([]);
+});
+
+test('S4 [167 새 것] draggable true↔false 만 = 게이트로 버림(비교 정규식과 같은 값 범위)', async ({ page }) => {
+  const errs = await setup(page); const b = await base(page, 'e1');
+  await page.evaluate(() => { document.getElementById('hA').setAttribute('draggable', 'true'); window.pushHistory('dr'); });
+  expect(await gate(page) - b.g).toBe(1);
+  expect(errs).toEqual([]);
+});
