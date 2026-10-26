@@ -44,9 +44,11 @@
     const c = document.getElementById('canvas');
     return c ? [...c.querySelectorAll('.section-block:not([data-ghost])')] : [];
   }
-  /* 숨긴 섹션 = 눈 끔(data-hidden="1") 또는 비활성 변형(data-variation-active="0" · display:none) */
+  /* 숨긴 섹션 = 눈 끔(data-hidden="1") 또는 비활성 변형(숨은 시안).
+     ★«변형» 반쪽은 술어를 «부른다» — js/variation-visibility.js 가 window.VariationVisibility 로 내건다(이 파일은 classic IIFE 라 import 못 함).
+     ⛔조건을 베껴 적지 마라(⑰ · V4 빨강이 그것이었다). 눈 끔은 변형 술어가 아니라 그대로 둔다. */
   function _isHiddenSec(sec) {
-    return sec.dataset.hidden === '1' || sec.dataset.variationActive === '0';
+    return sec.dataset.hidden === '1' || !!window.VariationVisibility?.isHiddenVariationSection(sec);
   }
   function _num(i) { return String(i + 1).padStart(2, '0'); }
   function _name(sec) { return sec._name || sec.dataset.name || sec.id || 'Section'; }
@@ -393,7 +395,7 @@
     if (!canvas) return;
     new MutationObserver(schedule).observe(canvas, {
       subtree: true, attributes: true,
-      attributeFilter: ['data-memo', 'data-hidden', 'data-name', 'data-variation-active', 'data-ghost'],
+      attributeFilter: ['data-memo', 'data-hidden', 'data-name', 'data-ghost'].concat(window.VariationVisibility ? [window.VariationVisibility.ATTR] : []),   // 시안 속성 이름도 다리에서(베껴 적지 않음)
     });
     new MutationObserver(() => { _reobserveSections(); schedule(); }).observe(canvas, { childList: true });
     if (typeof ResizeObserver === 'function') { _ro = new ResizeObserver(schedule); _reobserveSections(); }

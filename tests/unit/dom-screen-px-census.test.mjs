@@ -131,6 +131,15 @@ const ROSTER = {
   'modal-resize.dom.spec.js:282': 'safe',
   'overlay-drag-rotation.dom.spec.js:224': 'safe',
   'scratch-drop-grid-image.dom.spec.js:57': 'safe',
+  /* ★t3-06(S6 · 261026) — ★자가 ★새로 잡았고 ★S6 가 ★triage 했다. C2 는 «섹션 위 − 캔버스 창 위»(두 rect 의 ★차 · 화면 px)를
+     ★40 과 견준다. ★그 40 은 ★제품이 ★화면 px 로 ★정의한 값이다: js/editor.js selectSection(sec, true) 가
+     ★delta = 섹션 rect.top − 창 rect.top(화면 px) 을 재고 ★target = scrollTop + delta − CANVAS_TAIL_GAP(40) 로 스크롤한다
+     (scrollTop 은 #canvas-wrap 의 스크롤 = 화면 px · 배율을 ★곱하지 않는다 · CANVAS_TAIL_GAP = editor.js:4921).
+     ⇒ ★배율이 바뀌어도 «차 = 40 화면 px» 가 ★제품의 약속이다 ⇒ 'safe'.
+     ★★실측(98f30b11 앱 · 스크롤이 20프레임 멈춘 뒤 · ×3 같은 값): 배율 40% = 40.12 · 100% = 39.80.
+     ⚠️멈추기 전(클릭 1.5초 뒤)엔 100% 에서 61.3 이 찍혔다 — 부드러운 스크롤 도중 값 ⇒ spec 은 expect.poll(조건 대기)로 잰다.
+     ⚠️마지막 섹션은 캔버스 꼬리(setCanvasTail)로 맞춘다 — 그 길도 같은 화면 px 산수다. */
+  'fix5-section-memo-t306.dom.spec.js:325': 'safe',
   'e130-float-cross-section-row.dom.spec.js:80': 'offset',
 };
 
