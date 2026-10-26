@@ -1098,6 +1098,38 @@ function _graphAxisTickBeginEdit(block, el) {
   el.addEventListener('blur', onBlur);
 }
 
+/* ★150 ㉡ GRAPH-SAVED-TICK-OLD-MARKUP-UNCLICKABLE-01(지디 판정 ㉡ «블럭보다 위 위임» · ㉠ 옛 저장본 고쳐 쓰기는 안 고름)
+ *   옛 저장본의 눈금은 옛 꼴(.grb-ov-tick · data-grb-tick 없음 · pointer-events 안 밝힘 → 부모 .grb-ov 의 none)이라
+ *   더블클릭이 그 눈금에 «안 닿는다»(점 밑 임자 = 그 자리의 프레임 · S3 실측 5e4256d1 ×3) ⇒ 위 블럭 위임(_bindGraphAxisTickEdit)이 못 받는다.
+ *   ★술어 한 자리 = OLD_AXIS_TICK_SEL(옛 꼴만) · 점이 그 상자 «안»일 때만 손댄다 — 그 밖의 더블클릭은 한 바이트도 안 건드린다
+ *     (펜·주석·그리드 줄 편집·다른 블럭 = 그대로 흐름).
+ *   ★손대면: 그 그래프 하나만 renderGraph 로 새 꼴로 다시 그리고(= 저장 바이트는 «사람이 고치러 들어올 때»만 움직인다)
+ *     같은 순번의 새 눈금으로 위 편집 문(_graphAxisTickBeginEdit)을 연다 — 편집 «한 벌».
+ *   ★capture 로 건다 — 점 밑 임자(프레임 등)의 처리기보다 먼저 받아야 해서. 위 «프레임 들어가기» capture(:451)보다 «뒤에» 걸려
+ *     그쪽이 이 제스처를 먼저 먹으면(아직 안 들어간 프레임) 새 꼴 눈금과 똑같이 «한 겹 내려가기»가 된다. */
+const OLD_AXIS_TICK_SEL = '.graph-block .grb-ov-tick:not([data-grb-tick])';
+function _oldAxisTickAt(x, y) {
+  for (const t of document.querySelectorAll(OLD_AXIS_TICK_SEL)) {
+    const r = t.getBoundingClientRect();
+    if (r.width > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return t;
+  }
+  return null;
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('dblclick', (e) => {
+    const old = _oldAxisTickAt(e.clientX, e.clientY);
+    if (!old) return;
+    const block = old.closest('.graph-block');
+    if (!block || block.classList.contains('editing')) return;
+    const idx = [...block.querySelectorAll('.grb-ov-tick')].indexOf(old);
+    e.stopPropagation(); e.preventDefault();
+    renderGraph(block);
+    _bindGraphAxisTickEdit(block);
+    const fresh = block.querySelectorAll('.grb-ov-tick')[idx];
+    if (fresh && fresh.dataset.grbTick != null) _graphAxisTickBeginEdit(block, fresh);
+  }, true);
+}
+
 /* ── ★1017t1f5 꺾은선 값 라벨(.grb-line-vlabel) «개별 드래그» ──────────────────────────
  * 현빈 티켓(1017t1f5) 「값표시 값들 개별 드래그로 위치이동, 어노테이션의 라벨과 같은 원리로」.
  * 선례 = js/annotation-select.js _startLabelOffsetDrag(1013t1A3) — 「이미 골라진 라벨을 «안 움직이고»
