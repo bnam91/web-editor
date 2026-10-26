@@ -340,6 +340,26 @@ if (typeof document !== 'undefined') document.addEventListener('grb-pie-fit', (e
   const b = _pieHintBlock, t = e.target;
   if (b && t && (t === b || (b.id && t.id === b.id))) _syncPieNameHint(t);
 });
+/* ★t4-17 ⓑ — 조각 안 순위·이름의 «글자» 줄(크기 · 굵기 · 기울임). 키·한계 읽기는 drag-utils.js grbPieTagTypo «한 자리»(렌더와 같은 함수).
+ *   크기 칸이 비면 기본(배지 = 라벨 크기의 0.7 · 이름 = 라벨 크기 — css/editor-graph.css)이고 그 값을 placeholder 로 보인다(빈 값 = 키 삭제 · numfield 규약).
+ *   굵기 「기본」 = 키 없음(덧층의 semibold 그대로). 그 표시 토글이 꺼져 있으면 줄을 숨긴다(정할 것이 없다 — 토글 배선이 같이 켜고 끈다). */
+const PIE_TAG_TYPO_LABEL = { rank: '순위', name: '이름' };
+const PIE_TAG_FW = [['', '기본'], ['400', 'Regular'], ['500', 'Medium'], ['600', 'Semibold'], ['700', 'Bold'], ['800', 'Extrabold'], ['900', 'Black']];
+function pieTagTypoRowsHTML(d, labelSize) {
+  if (!window.grbPieTagTypo) return '';   // 렌더러(drag-utils.js)가 안 실린 판(패널만 싣는 하네스) — 줄이 없다
+  const { VLABEL_FS_MIN, VLABEL_FS_MAX } = window.GRAPH_LIMITS;
+  return window.GRB_PIE_TAG_PARTS.map((part) => {
+    const t = window.grbPieTagTypo(d, part);
+    const ph = part === 'rank' ? Math.round(labelSize * 0.7) : labelSize;
+    return `      <div class="prop-row" id="grb-pie-${part}-typo-row" title="조각 안 ${PIE_TAG_TYPO_LABEL[part]} 글자 — 크기(px · 비우면 기본) · 굵기 · 기울임. 좁은 조각은 같은 비로 줄어든다"${d[t.key] === '1' ? '' : ' style="display:none"'}>
+        <span class="prop-label">${PIE_TAG_TYPO_LABEL[part]} 글자</span>
+        <input type="number" class="prop-number" id="grb-pie-${part}-fs" min="${VLABEL_FS_MIN}" max="${VLABEL_FS_MAX}" value="${t.fs ?? ''}" placeholder="${ph}" style="flex:1;min-width:0" aria-label="${PIE_TAG_TYPO_LABEL[part]} 글자 크기">
+        <select class="prop-select" id="grb-pie-${part}-fw" style="flex:1;min-width:0" aria-label="${PIE_TAG_TYPO_LABEL[part]} 굵기">${PIE_TAG_FW.map(([v, n]) => `<option value="${v}"${t.fw === v ? ' selected' : ''}>${n}</option>`).join('')}</select>
+        <div class="prop-style-group"><button type="button" class="prop-style-btn${t.it ? ' active' : ''}" id="grb-pie-${part}-it" title="기울임"><i>I</i></button></div>
+      </div>
+`;
+  }).join('');
+}
 export function showGraphProperties(block) {
   const _vKey = (hKey, vKey) => (block.dataset.chartType === 'bar-v' || block.dataset.chartType === 'bar-pair') ? vKey : hKey;
   const chartType    = block.dataset.chartType    || 'bar-v';
@@ -590,6 +610,7 @@ ${blockHeaderHTML({
           <span class="prop-toggle-track"></span>
         </label>
       </div>
+${pieTagTypoRowsHTML(block.dataset, labelSize)}
       <div class="prop-row" title="원형 아래의 범례(색 칩 + 이름 + %)를 보일지. 끄면 조각만 남는다 — 조각 안 순위·이름 표시와 따로 산다">
         <span class="prop-label">범례 표시</span>
         <label class="prop-toggle">
@@ -1108,10 +1129,34 @@ ${blockHeaderHTML({
     const tg = document.getElementById(tid);
     if (tg) tg.addEventListener('change', () => {
       if (tg.checked !== !!inv) block.dataset[key] = '1'; else delete block.dataset[key];
+      const _typoRow = document.getElementById(tid.replace('-toggle', '-typo-row'));   // ★t4-17 ⓑ — 그 표시의 «글자» 줄(범례엔 없다)
+      if (_typoRow) _typoRow.style.display = block.dataset[key] === '1' ? '' : 'none';
       window.renderGraph(block);
       _syncPieNameHint(block);   // 덧층이 사라지면(둘 다 끔) 재는 쪽이 안 돈다 ⇒ 여기서 한 번 걷는다
       window.pushHistory();
     });
+  }
+  /* ★t4-17 ⓑ — 조각 안 순위·이름 글자. 값 = 블럭 dataset(저장) · 바꾸면 다시 그리고 pushHistory 한 번(패널 push-after 규약 ⇒ ⌘Z 한 번).
+     같은 값이면 아무 것도 안 한다(히스토리에 빈 칸을 안 쌓는다 — 그림자 줄과 같다). */
+  for (const part of ((_isPie && window.grbPieTagTypo) ? window.GRB_PIE_TAG_PARTS : [])) {
+    const { key } = window.grbPieTagTypo(block.dataset, part);
+    const put = (k, v) => {
+      if ((block.dataset[k] ?? '') === v) return;
+      if (v) block.dataset[k] = v; else delete block.dataset[k];
+      window.renderGraph(block);
+      window.pushHistory('그래프 원형 라벨 글자');
+      window.scheduleAutoSave?.();
+    };
+    const fs = document.getElementById(`grb-pie-${part}-fs`), fw = document.getElementById(`grb-pie-${part}-fw`), it = document.getElementById(`grb-pie-${part}-it`);
+    /* 크기 — Number 로 읽는다(parseInt 는 '1e3' 을 1 로 읽는다) · 한계는 grbPieTagTypo 가 거는 그 한 자리 · 칸엔 «저장된 값»을 되쓴다(표시 = 실제). */
+    fs?.addEventListener('change', () => {
+      const raw = fs.value.trim(), n = Number(raw);
+      const v = (raw !== '' && Number.isFinite(n)) ? String(window.grbPieTagTypo({ [key + 'Fs']: String(Math.round(n)) }, part).fs) : '';
+      put(key + 'Fs', v);
+      fs.value = block.dataset[key + 'Fs'] ?? '';
+    });
+    fw?.addEventListener('change', () => put(key + 'Fw', /^[1-9]00$/.test(fw.value) ? fw.value : ''));   // 렌더와 같은 화이트리스트 — 그 밖은 「기본」(키 삭제)
+    it?.addEventListener('click', () => { it.classList.toggle('active'); put(key + 'It', it.classList.contains('active') ? '1' : ''); });
   }
   // 1013t1C7 — 그림자. 값이 같으면 아무 것도 안 한다(히스토리에 빈 칸을 안 쌓는다 — 모달·확대블럭과 같다).
   propPanel.querySelectorAll('#grb-drop-group .prop-align-btn').forEach(btn => btn.addEventListener('click', () => {

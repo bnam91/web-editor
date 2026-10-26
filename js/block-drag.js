@@ -16,6 +16,7 @@ import {
   selectAllEditableContents,
   mdlReadText,
   placeCaretAtClickPoint,
+  bindGraphEdits,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
 /* ★1020t1d — 화면 Δ → «담은 상자의 로컬» Δ. ★조상 프레임의 flip·rotate 를 ★측정으로 되돌린다.
@@ -2044,6 +2045,9 @@ function bindBlock(block) {
 
 
   if (isGraph) {
+    /* ★t4-17 ⓐ — 캔버스 편집 위임(라벨·축 눈금 더블클릭 · 값 라벨 끌기)을 «다시 안 그린» 블럭에도 건다.
+       불러오기·붙여넣기·템플릿·A/B 사본은 그래프를 안 그리고 여기만 지난다(그리기는 방사형만 — save-load.js RERENDER_KINDS). 한 자리 = drag-utils.js bindGraphEdits. */
+    bindGraphEdits(block);
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
