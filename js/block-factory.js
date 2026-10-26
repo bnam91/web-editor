@@ -26,7 +26,7 @@ import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame, framePadding, innerFullWidth,
          growFrameToFitChildren, applyFrameHAlignToChild, fitContentWidthPx } from './frame-geometry.js';
 import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
-import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
+import { grdAddLine, grdToastImgFail, grdImageFileOk, grdOpenNestGapPopover } from './props/prop-grid.js';
 import { GRID_CIRCLE_ICON_INNER, GRID_CIRCLE_ICON_STROKE_WIDTH } from './blocks/grid-circle-icon.js';
 import { isImageMemoHost, getImageMemo, setImageMemo, openImageMemoEditor } from './image-memo.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, topLevelBlocksOf, isEmptyShell } from './shape-frame.js';
@@ -5648,6 +5648,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
   let _targetGridAddr = null; // 그리드 블록: 우클릭한 셀 {r,c,li} — li는 «기존 이미지 줄»이 있을 때만 숫자
   let _targetCmpAddr = null;  // 비교 블록: 우클릭한 «행 셀» {colIdx,rowIdx} — 헤더·여백이면 null
   let _targetLnAddr = null;   // ★1020t2i1 line-host 주인(카드): 우클릭한 줄 {r,c,li|null} — 판정 = window.lnCtxAddAddr
+  let _targetGridNest = null; // ★t6-04㉡ 그리드: 우클릭한 자리를 품은 «나란히 두 칸» 줄 {r,c,li} — 칸의 바깥 줄만(중첩 안 중첩은 null)
 
   // 메뉴 닫기
   function closeMenu() {
@@ -5657,6 +5658,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     _targetGridAddr = null;
     _targetCmpAddr = null;
     _targetLnAddr = null;
+    _targetGridNest = null;
   }
 
   /* 비교 블록 우클릭 → 「어느 ★행 셀인가」. 헤더(.cmp-hd)·카드 여백·캡션이면 null.
@@ -5890,6 +5892,18 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     if (gridNestedItem) {
       gridNestedItem.style.display = _targetGridAddr ? 'flex' : 'none';
     }
+    /* ★t6-04㉡ 「칸 사이 간격…」 — 우클릭한 점이 «나란히 두 칸» 줄(.grd-nested[data-line] · 그 칸의 바깥 줄) 안일 때만.
+       ★DOM 이 주소를 들고 있다(렌더러가 data-r/c/line 을 찍는다 · overlay-handles.js _gridNestedLines 와 같은 판정). */
+    _targetGridNest = null;
+    if (_targetGridAddr) {
+      const nest = e.target?.closest?.('.grd-nested[data-line]');
+      const cell = nest?.closest('.grd-cell');
+      if (nest && cell && block.contains(nest) && nest.dataset.r === cell.dataset.r && nest.dataset.c === cell.dataset.c) {
+        _targetGridNest = { r: Number(nest.dataset.r), c: Number(nest.dataset.c), li: Number(nest.dataset.line) };
+      }
+    }
+    const gridNestGapItem = document.getElementById('bcm-grid-nested-gap');
+    if (gridNestGapItem) gridNestGapItem.style.display = _targetGridNest ? 'flex' : 'none';
     /* 원형 이미지 — 같은 판정. 누른 자리가 «이미지 줄»이면 그 줄의 모양을 바꾸는 손잡이가 된다(패널엔 두지 않는다 —
        prop-grid.js _grdImageSectionHtml 의 ⛔주석: 2026-09-25 현빈 결정으로 그 절의 단추는 하나뿐). */
     const gridImgCircleItem = document.getElementById('bcm-grid-img-circle');
@@ -6142,6 +6156,21 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
              { width: 1, lines: [{ type: 'body', text: '' }] }],
     });
     window.grdToastImgFail?.(res);
+  });
+
+  /* ★t6-04㉡ 「칸 사이 간격…」 — 현빈 원문 「📍그리드 블럭 나란히 두칸으로 나누기 줄을 추가할 수 있는데 해당 추가한 줄의 경우,
+   *   캔버스에서 추가한 두칸(칼럼)의 간격 조절 가능하게 해줄래?」 · 지디 GO ㈐(우클릭 입력).
+   * ★값 = 그 줄의 `line.gap`(모델·그리기 이미 있음 — grid-block.js `gap = Number(line.gap) || 24`) · 쓰는 문 = `patchCell{r,c,lineIndex,gap}`
+   *   (updateGridBlock — 한 번 고침 = 이력 한 칸 · 패널 다시 그림 · 입구 검증을 건너뛰지 않는다).
+   * ★입력 = ⛔prompt() 금지(Electron) ⇒ ★섹션 메모 팝오버 «꼴»을 빌린다(section-memo.js · css/editor-layout.css 의
+   *   .section-memo-backdrop / .section-memo-popover / .smp-head·.smp-close·.smp-foot 그대로 · 숫자칸은 패널의 .prop-number).
+   *   닫기 = ✕ · 바깥 누름 · Esc · Enter — 메모처럼 «닫을 때 바뀌었으면 저장». 범위 0~GRID_GAP_MAX(음수 없음).
+   * ⛔잠긴 결정 둘 무접촉 — T-200 «문 둘»(중첩 주소면 패널이 빠짐) · 현빈 S11 비율 거터(overlay-handles.js). */
+  document.getElementById('bcm-grid-nested-gap')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock, nest = _targetGridNest;
+    closeMenu();
+    grdOpenNestGapPopover(block, nest);   // 입력 팝오버는 prop-grid.js(그리드 숫자칸이 사는 자리 · 숫자칸 규약 센서스의 선언 파일)
   });
 
   /* ★1020t2i1 「아래에 줄 추가 (T)」 — T 단축키와 ★한 길(line-host.js lnAddLineAt → prop-grid.js grdAddLine(host)).
