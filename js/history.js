@@ -104,8 +104,11 @@ function _takeStripped(v) {
   const slot = _lastB; _lastB = null;
   return (slot && slot.src === v) ? slot.out : null;   // ★짝 단언 — 어긋나면 null(넘기지 않음)
 }
-function _setSnapCanvas(entry, v, stripped) {
+function _setSnapCanvas(entry, v, stripped, live) {
   entry.canvas = v;
+  /* ★130 싼 게이트 — 이 canvas 가 «방금 라이브를 직렬화한 값»일 때만 그 순간의 캔버스 세대를 단다(save-load.js window.__canvasGen).
+     ⛔옛 항목을 다시 싣는 자리(adoptHistoryFor)는 live 없이 부른다 → null = 게이트가 그 항목으로는 «안 바뀜»을 단정 못 한다. */
+  entry._gen = (live && typeof window.__canvasGen === 'function') ? window.__canvasGen() : null;
   entry._stripped = null;   // ★memo 비우기 — 없애면 tests/dom/history-strip-memo.dom.spec.js M1(:706)·M2(:536) 가 빨개진다
   if (typeof stripped === 'string') {   // ★넘기기 — memo 세우기도 이 한 자리
     if (_memoEntry && _memoEntry !== entry) _memoEntry._stripped = null;
@@ -263,8 +266,26 @@ function _restoreSelection(snapSel) {
   } catch (e) { console.warn('[history] 선택 복원 실패:', e); }
 }
 
+let _gateSkips = 0;
 function pushHistory(action = '작업', sideEffects = null) {
   if (_historyPaused) return;
+  /* ★130 싼 게이트(2026-10-26 · 지디 처방) — 아래 «무변화 차단»(_sameEdit · _videoPendingKey · settings)이 버릴 게 «확실»하면 직렬화 «앞»에서 돌아간다.
+     까닭(실측 · 21943f57 · 수지 저장본): 끌기 «시작 표본»은 꼭대기와 같은 상태라 늘 버려지는데, 버리려고 프로젝트 통째 직렬화(첫 틱 2.3~2.5s).
+     ★셋 다 잰다(하나라도 빠지면 거짓 통과 = 이력 사라짐): ㉠ 캔버스 세대(save-load.js 기존 감시자 한 칸 — 꼭대기를 찍은 뒤 직렬화를 바꿀 변이 0)
+       ㉡ pageSettings ㉢ 미확정 영상 사이드카 열쇠(라이브에서 같은 함수로 — section-serialize.js liveVideoPendingSidecar).
+     ⛔보수적: 세대를 모르면(감시 전 · 옛 항목 다시 실음 = _gen null) 옛 길. sideEffects 있으면 옛 길(캔버스 밖 되돌림).
+     ⛔아래 차단·T-130 사이드카 읽기 자리는 그대로다(지우지도 옮기지도 않았다) — 이 게이트는 «더 일찍 같은 답»만 낸다. */
+  if (!sideEffects) {
+    const _t = historyStack[historyPos];
+    const _g = typeof window.__canvasGen === 'function' ? window.__canvasGen() : null;
+    if (_g != null && _t && _t._gen === _g && _t.pageId === state.currentPageId
+        && JSON.stringify(_t.settings) === JSON.stringify(state.pageSettings)
+        && typeof window.liveVideoPendingSidecar === 'function'
+        && _videoPendingKey(_t.videoPendingSidecar) === _videoPendingKey(window.liveVideoPendingSidecar())) {
+      _gateSkips++;
+      return;
+    }
+  }
   // sideEffects: { onUndo?: fn, onRedo?: fn } — DOM 외 상태(예: 스크래치패드 IDB) 복원용
   // remoteKeys: 직전 체크포인트 이후 적용된 원격 섹션 키 셋(스코프 undo 가 제외에 사용)
   const _canvas = window.getSerializedCanvas();
@@ -299,7 +320,7 @@ function pushHistory(action = '작업', sideEffects = null) {
   }
   historyStack = historyStack.slice(0, historyPos + 1);
   historyStack.push({ canvas: _canvas, videoPendingSidecar: _videoPendingSidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
-  _setSnapCanvas(historyStack[historyStack.length - 1], _canvas, _takeStripped(_canvas));   // ★130㉡ 명부 — canvas 쓰기 한 자리 · 방금 벗긴 b 넘기기(짝 단언)
+  _setSnapCanvas(historyStack[historyStack.length - 1], _canvas, _takeStripped(_canvas), true);   // ★130㉡ 명부 — canvas 쓰기 한 자리 · 방금 벗긴 b 넘기기(짝 단언)
   if (historyStack.length > MAX_HISTORY) {
     historyStack.shift(); // 가장 오래된 항목 제거
     historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -577,7 +598,7 @@ function _restampRestored() {
   const e = historyStack[historyPos];
   if (!e || _historyPaused) return;
   const cur = window.getSerializedCanvas?.();
-  if (cur && cur !== e.canvas) _setSnapCanvas(e, cur);   // ★130㉡ 명부 — 제자리 갈아끼우기(memo 썩는 길 ①)
+  if (cur && cur !== e.canvas) _setSnapCanvas(e, cur, undefined, true);   // ★130㉡ 명부 — 제자리 갈아끼우기(memo 썩는 길 ①)
 }
 
 function redo() {
@@ -607,7 +628,7 @@ function clearHistory() {
   _remoteSinceCheckpoint = new Set();
   const _initCanvas = window.getSerializedCanvas();
   const init = { canvas: _initCanvas, videoPendingSidecar: window.getLastVideoPendingSidecar?.(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set(), selection: _captureSelection(), seq: ++_seq };
-  _setSnapCanvas(init, _initCanvas);   // ★130㉡ 명부 — :historyStack = [init] 도 이 항목
+  _setSnapCanvas(init, _initCanvas, undefined, true);   // ★130㉡ 명부 — :historyStack = [init] 도 이 항목
   historyStack = [init];
   historyPos   = 0;
   state._canvasDirty = false;
@@ -682,7 +703,7 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
     // ★R3: remoteKeys 드레인은 pushHistory 와 «양쪽» 다 — undo 첫 스텝은 ensure 경유로
     //   현재상태를 선적재(DEF-01)하므로 여기서 안 비우면 원격분이 그 항목 diff 에 섞여 C8 재발.
     historyStack.push({ canvas: current, videoPendingSidecar: _sidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
-    _setSnapCanvas(historyStack[historyStack.length - 1], current, _takeStripped(current));   // ★130㉡ 명부 · 넘기기(짝 단언)
+    _setSnapCanvas(historyStack[historyStack.length - 1], current, _takeStripped(current), true);   // ★130㉡ 명부 · 넘기기(짝 단언)
     if (historyStack.length > MAX_HISTORY) {
       historyStack.shift(); // 가장 오래된 항목 제거
       historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -750,7 +771,7 @@ function restampHistoryTop(seq) {
   if (!top || seq == null || top.seq !== seq) return false;   // 그 사이 다른 일이 끼었다
   const cur = window.getSerializedCanvas?.();
   if (!cur || cur === top.canvas) return false;
-  _setSnapCanvas(top, cur);   // ★130㉡ 명부 — 제자리 갈아끼우기(memo 썩는 길 ②)
+  _setSnapCanvas(top, cur, undefined, true);   // ★130㉡ 명부 — 제자리 갈아끼우기(memo 썩는 길 ②)
   return true;
 }
 
@@ -763,7 +784,7 @@ window.undo         = undo;
 window.redo         = redo;
 window.clearHistory = clearHistory;
 window.getHistoryTip = getHistoryTip;
-window.getHistoryStripStats = () => ({ calls: _stripCalls });   // ★130㉡ 자 — 시험이 «넘기기가 도는가»를 잰다(읽기만)
+window.getHistoryStripStats = () => ({ calls: _stripCalls, gateSkips: _gateSkips });   // ★130㉡ 자 — 시험이 «넘기기가 도는가»를 잰다(읽기만)
 window.restampHistoryTop = restampHistoryTop;
 window.historyHasSeq = historyHasSeq;
 window.restoreSnapshot = restoreSnapshot;
