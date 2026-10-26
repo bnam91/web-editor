@@ -11,11 +11,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const HISTORY = fs.readFileSync(path.join(ROOT, 'js/history.js'), 'utf8');
-/* 이 레포 package.json 에 type:module 이 없어 .js 는 CJS 로 읽힌다 ⇒ 명부 «그 파일 글»을 읽어 export 만 벗겨 돌린다(사본 0)
-   ⛔data: URL import 는 쓰지 않는다 — win-portability ②-4(«import() 에 file:// 아닌 것 0건»)가 막는다 */
-const { NON_EDIT_ATTRS, NON_EDIT_CSSVARS, CHROME_SEL } = new Function(
-  fs.readFileSync(path.join(ROOT, 'js/non-edit-roster.js'), 'utf8').replace(/^export const /gm, 'const ')
-  + '\nreturn { NON_EDIT_ATTRS, NON_EDIT_CSSVARS, CHROME_SEL };')();
+/* ★명부를 «글로» 읽는다(선례: pan-native-scroll.test.js ROSTER_REL · buzz-profile-chrome.test.mjs [파일, 상수이름] 표) — 실행 0.
+   ⛔import() 로 싣지 마라 — 이 레포 .js 는 CJS 로 읽히고, data: URL import 는 win-portability ②-4 가 막는다(윈도우 ERR_UNSUPPORTED_ESM_URL_SCHEME).
+   ⚠️주석이 파싱 입력이 된다(지디 261007) — 명부 머리말에 history.js 글자(draggable="(?:true|false)")가 그대로 있다 ⇒ codeOnly 로 걷고 «선언 한 줄»만 앵커로. */
+const ROSTER_REL = 'js/non-edit-roster.js';
+const codeOnly = (t) => t.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+const ROSTER = codeOnly(fs.readFileSync(path.join(ROOT, ROSTER_REL), 'utf8'));
+const list = (name) => {
+  const m = ROSTER.match(new RegExp(`export const ${name} = Object\\.freeze\\(\\[([^\\]]*)\\]\\);`));
+  assert.ok(m, `${ROSTER_REL} 에서 ${name} 선언을 못 찾았다 — 이 검사가 «안 돈» 것이지 통과가 아니다`);
+  return [...m[1].matchAll(/'([^']*)'/g)].map(x => x[1]);
+};
+const NON_EDIT_ATTRS = list('NON_EDIT_ATTRS');
+const NON_EDIT_CSSVARS = list('NON_EDIT_CSSVARS');
+const CHROME_SEL = (ROSTER.match(/export const CHROME_SEL = '([^']*)';/) || [])[1];
 
 test('R0 [전제] 명부가 비지 않았다 · 두 정규식 선언을 찾았다(못 찾으면 «안 돈» 것)', () => {
   assert.ok(NON_EDIT_ATTRS.length >= 1 && NON_EDIT_CSSVARS.length >= 1 && CHROME_SEL, '명부가 비었다');
