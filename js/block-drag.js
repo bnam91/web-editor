@@ -93,6 +93,34 @@ function _isInsideUnselectedFrame(block) {
   return !(ss.classList.contains('selected') && window._activeFrame === ss);
 }
 
+/* ★113 ITB-PHOTO-UPLOAD-DOOR-01 — 아이콘 텍스트 블럭 «사진 올리기» 한 문(회귀 복구 · 현빈 GO ㉡).
+   본문은 옛 `.itb-icon` 클릭 업로드 블록을 «그대로» 뗀 것이다(3c676f79 가 `if (pop) return;` 으로 막아 폴백으로만 살았다).
+   ⛔새 문을 만들지 마라 — 부르는 곳 둘: ⑴ 아이콘 팝오버의 「사진 올리기」(openIfgIconPopover 넷째 인자) ⑵ 팝오버를 못 띄운 폴백.
+   ★이력 = push-before 한 칸(옛 길 그대로) · ⚠️파일창은 사용자 클릭 «안에서» 동기로 열어야 뜬다(input.click). */
+function _itbPickPhoto(block) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      window.pushHistory?.();
+      const iconEl = block.querySelector('.itb-icon');
+      let img = iconEl.querySelector('img');
+      if (!img) { img = document.createElement('img'); iconEl.appendChild(img); }
+      img.src = ev.target.result;
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;';
+      block.dataset.imgSrc = ev.target.result;
+      iconEl.style.border = 'none';
+      window.triggerAutoSave?.();
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
 /* D3 — 폭 100% 글자 프레임을 «내용 폭 px» 로 바꾸고 left 를 정렬만큼 옮긴다(보이는 글자 자리 불변). 옮긴 px 를 돌려준다.
    측정은 _clampTextFrameWidth(block-factory.js) 와 같은 길(fit-content 로 잠깐 풀어 offsetWidth) · 저장 꼴도 같다(dataset.width = 'NNN').
    못 재거나(≤1px) 줄일 게 없으면(내용이 이미 꽉 참) 아무것도 안 바꾸고 0. */
@@ -2420,7 +2448,10 @@ function bindBlock(block) {
        ★여는 자·커밋 꼴은 인포그래픽 것을 그대로 쓴다(window 다리 · 이 파일의 기존 관례):
          openIfgIconPopover(앵커, 고른 것 받는 자) · ifgSvgToIconSrc(svg → data URI) · updateIconTextBlock({imgSrc}).
        ★팝오버를 못 띄우면(모듈 미적재) ★옛 길(파일 선택창)로 그대로 간다 — 「눌렀는데 아무 일도 없다」가 제일 나쁘다.
-       ★이력 = push-before 한 칸(옛 업로드 길과 같은 자리에서). */
+       ★이력 = push-before 한 칸(옛 업로드 길과 같은 자리에서).
+       ★113 — 막혔던 사진 문을 팝오버 «안» 「사진 올리기」로 다시 연다: 넷째 인자 { onUpload } 는 «이 부르는 쪽만» 켠다
+         (인포그래픽 칸 팝오버는 안 넘기므로 그 항목 0 — 현빈 「인포그라피 블럭에서는 이미지 넣을 일이 없어」).
+         셋째 인자 look 은 인포그래픽 룩({set, variant})이라 여긴 undefined(기본 룩). */
     block.querySelector('.itb-icon')?.addEventListener('click', e => {
       e.stopPropagation();
       const iconEl = block.querySelector('.itb-icon');
@@ -2430,30 +2461,10 @@ function bindBlock(block) {
             if (!src) { window.showToast?.('아이콘을 못 받았습니다 — 잠시 뒤 다시 시도해 주세요'); return; }
             window.pushHistory?.();
             window.updateIconTextBlock?.(block.id, { imgSrc: src });   /* 팝오버는 고른 순간 제가 닫는다(grid-ifg-icon-pick.js) */
-          })
+          }, undefined, { onUpload: () => _itbPickPhoto(block) })
         : null;
       if (pop) return;
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.onchange = async () => {
-        const file = input.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = ev => {
-          window.pushHistory?.();
-          const iconEl = block.querySelector('.itb-icon');
-          let img = iconEl.querySelector('img');
-          if (!img) { img = document.createElement('img'); iconEl.appendChild(img); }
-          img.src = ev.target.result;
-          img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;';
-          block.dataset.imgSrc = ev.target.result;
-          iconEl.style.border = 'none';
-          window.triggerAutoSave?.();
-        };
-        reader.readAsDataURL(file);
-      };
-      input.click();
+      _itbPickPhoto(block);   // 폴백 — 팝오버 모듈 미적재 때 옛 길 그대로
     });
   }
 
