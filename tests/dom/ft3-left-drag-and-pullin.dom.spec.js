@@ -38,8 +38,19 @@ async function setup(page) {
   await page.waitForFunction(() => !!document.getElementById('txt-fx-add'));
   await page.selectOption('#txt-fx-add', 'freetransform');
   await page.waitForFunction(() => window.__tb.querySelectorAll('.tfh-handle').length === 12);
+  /* ★141 ㉮(지디 07:1x) — setup 끝에서 손잡이 자리가 «연속 두 rAF 같음»으로 멈출 때까지 기다린다(Hs 재사용 · H() 무접촉).
+     까닭: applyZoom(40) 이 #canvas-scaler transition 0.15s 로 보간되는 동안 시험 첫 H()(예: R 의 nw0)가 낡은 기준을 잡았다
+     (7e98dd1e 240칸 실측 R «nw 제자리» ✘ 4 · nw 움직임 7.3·238.8·61.8·17.9px). nw → ne → nw 다시(첫 nw 와 같은 자리)까지 · 상한 넘으면 FAIL. */
+  for (let k = 0; ; k++) {
+    const t0 = Date.now();
+    const a = await Hs(page, 'nw'), b = await Hs(page, 'ne'), a2 = await Hs(page, 'nw');
+    const ok = a?.stable && b?.stable && a2?.stable && Math.abs(a2.x - a.x) < 0.01 && Math.abs(a2.y - a.y) < 0.01;
+    if (ok) { if (k || a.frames > 2 || b.frames > 2) console.log(`SETUP-SETTLE rounds=${k + 1} nwFrames=${a.frames} neFrames=${b.frames} ms=${Date.now() - t0}`); break; }
+    if (k >= SETTLE_ROUNDS_MAX) throw new Error(`SETUP-NOT-SETTLED — ${SETTLE_ROUNDS_MAX + 1}번 재도 손잡이 자리가 안 멈춤 · nw ${a ? `(${a.x.toFixed(1)},${a.y.toFixed(1)}) stable=${a.stable}` : 'null'} · ne ${b ? `(${b.x.toFixed(1)},${b.y.toFixed(1)}) stable=${b.stable}` : 'null'} · nw 다시 ${a2 ? `(${a2.x.toFixed(1)},${a2.y.toFixed(1)})` : 'null'}`);
+  }
   return errs;
 }
+const SETTLE_ROUNDS_MAX = 4;
 const H = (page, name) => page.evaluate((n) => {
   const h = window.__tb.querySelector(`.tfh-handle[data-tfh="${n}"]`);
   if (!h) return null;
