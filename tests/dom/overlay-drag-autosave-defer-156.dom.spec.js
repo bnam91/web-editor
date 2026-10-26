@@ -27,6 +27,7 @@ async function boot(page) {
   });
   await page.goto(`${ORIGIN}/index.html?project=${PID}`);
   await page.waitForFunction(() => typeof window.rebindAll === 'function' && typeof window.hasUnsavedChanges === 'function', null, { timeout: 20000 });
+  // ⛔이 고정 대기는 부재를 재는 창이다 — 조건 대기로 바꾸지 마라(dom-fixed-wait-census 장부 · 2026-10-26 33cf6ff59e08)
   await page.waitForTimeout(2500);   // 열기 뒤 늦게 오는 저장(있으면)이 끝나게
   return errs;
 }
@@ -51,6 +52,7 @@ const posOf = (page, id) => page.evaluate((id) => { const b = document.getElemen
 test('D1 [새 것] 오버레이 모달 끌기 — 끄는 동안 미룸(저장 쓰기 0) · 놓으면 풀려 «한 번» 저장 · 저장본에 새 자리', async ({ page }) => {
   const errs = await boot(page); const id = await scene(page);
   const c = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + Math.min(20, r.height / 2)]; }, id);
+  // ⛔이 고정 대기는 이웃 spec 실측 선례다(drag-move-autosave nativeDrag — 클릭 바로 뒤 mouse.down = 더블클릭) — 조건 대기로 바꾸지 마라(dom-fixed-wait-census 장부)
   await page.mouse.click(c[0], c[1]); await page.waitForTimeout(800);   // 클릭 바로 뒤 누르면 더블클릭으로 간다(drag-move-autosave 실측)
   await expect.poll(() => st(page), { message: '[전제] 끌기 전 미룸 없음' }).toEqual({ deferred: false, pending: false });
   const p0 = await posOf(page, id);
@@ -60,12 +62,14 @@ test('D1 [새 것] 오버레이 모달 끌기 — 끄는 동안 미룸(저장 �
   expect((await st(page)).deferred, '끄는 동안 = 미룸').toBe(true);
   const w0 = await writes(page);
   await page.mouse.move(c[0] + 60, c[1] + 30, { steps: 6 });
+  // ⛔이 고정 대기는 부재를 재는 창이다 — 조건 대기로 바꾸지 마라(dom-fixed-wait-census 장부 · 2026-10-26 33cf6ff59e08)
   await page.waitForTimeout(2200);   // ★디바운스(1.5s)를 «넘겨» 쥔다 — 미룸이 없으면 이 사이 저장이 터진다(고치기 전 판)
   expect(await writes(page) - w0, '끄는 동안 자동저장 쓰기 0(미룸)').toBe(0);
   expect(await st(page), '끄는 동안 예약은 기억된다').toEqual({ deferred: true, pending: true });
   await page.mouse.up();
   await expect.poll(() => st(page).then(s => s.deferred), { message: '놓으면 미룸 풀림' }).toBe(false);
   await expect.poll(() => writes(page), { timeout: 5000, message: '놓은 뒤 저장이 걸린다' }).toBeGreaterThan(w0);
+  // ⛔이 고정 대기는 부재를 재는 창이다 — 조건 대기로 바꾸지 마라(dom-fixed-wait-census 장부 · 2026-10-26 33cf6ff59e08)
   await page.waitForTimeout(2000);
   expect(await writes(page) - w0, '놓은 뒤 저장 «한 번»').toBe(1);
   const left = await page.evaluate((id) => document.getElementById(id).closest('[data-overlay-block="true"]')?.style.left || document.getElementById(id).style.left, id);
