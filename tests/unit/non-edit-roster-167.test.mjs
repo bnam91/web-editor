@@ -11,8 +11,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const HISTORY = fs.readFileSync(path.join(ROOT, 'js/history.js'), 'utf8');
-/* 이 레포 package.json 에 type:module 이 없어 .js 는 CJS 로 읽힌다 ⇒ 명부 «그 파일 글»을 ESM 으로 싣는다(사본 0) */
-const { NON_EDIT_ATTRS, NON_EDIT_CSSVARS, CHROME_SEL } = await import('data:text/javascript,' + encodeURIComponent(fs.readFileSync(path.join(ROOT, 'js/non-edit-roster.js'), 'utf8')));
+/* 이 레포 package.json 에 type:module 이 없어 .js 는 CJS 로 읽힌다 ⇒ 명부 «그 파일 글»을 읽어 export 만 벗겨 돌린다(사본 0)
+   ⛔data: URL import 는 쓰지 않는다 — win-portability ②-4(«import() 에 file:// 아닌 것 0건»)가 막는다 */
+const { NON_EDIT_ATTRS, NON_EDIT_CSSVARS, CHROME_SEL } = new Function(
+  fs.readFileSync(path.join(ROOT, 'js/non-edit-roster.js'), 'utf8').replace(/^export const /gm, 'const ')
+  + '\nreturn { NON_EDIT_ATTRS, NON_EDIT_CSSVARS, CHROME_SEL };')();
 
 test('R0 [전제] 명부가 비지 않았다 · 두 정규식 선언을 찾았다(못 찾으면 «안 돈» 것)', () => {
   assert.ok(NON_EDIT_ATTRS.length >= 1 && NON_EDIT_CSSVARS.length >= 1 && CHROME_SEL, '명부가 비었다');
