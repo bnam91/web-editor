@@ -89,6 +89,8 @@ function makeRoomEnv({
       return (h && h !== '') ? parseFloat(h) : naturalH;   // height 를 비우면 «자연높이»
     },
   };
+  /* ★132 ⓨ(261027) — _syncScalerHeight 가 _scalerFlowHeight(실물)를 거친다. 이 가짜 DOM 엔 #canvas 가 없어(null) 전제 판정이 «아니다» →
+     옛 길(비우고 잰다) = 이 파일이 재던 산술 그대로. 새 길(#canvas.offsetTop+offsetHeight)은 tests/dom/scaler-natural-height-132y 가 진짜 레이아웃으로 잰다. */
   const document = { getElementById: id => (id === 'canvas-wrap' ? wrap : id === 'canvas-scaler' ? scaler : null) };
 
   const factory = new Function(
@@ -104,6 +106,8 @@ function makeRoomEnv({
     ${extractFn('setPanScrollBaseline')}
     ${extractFn('shrinkPanRoom')}
     ${extractFn('absorbWheelResidual')}
+    ${extractFn('_scalerFlowIsCanvasOnly')}
+    ${extractFn('_scalerFlowHeight')}
     ${extractFn('_syncScalerHeight')}
     const setPanRoom = ${extractArrow('window.setPanRoom')};
     if (initTailY) setCanvasTail(initTailY);            // ← 꼬리도 «소스 함수»로 세운다
