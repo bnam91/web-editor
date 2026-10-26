@@ -92,15 +92,32 @@ function _stripNonEdit(s) {
  *   ★memo 가 썩는 길 = 항목 canvas 를 나중에 갈아끼우는 자리 — 그래서 canvas 쓰기는 «전부» _setSnapCanvas 를 지난다(명부 아래).
  *   ★들고 있는 것은 «한 항목»뿐(_memoEntry) — 항목마다 37MB 사본을 쌓지 않는다. */
 let _memoEntry = null;
-function _setSnapCanvas(entry, v) {
+/* ★130㉡ 넘기기(지디 GO 2차) — 비교에서 «이미 벗긴 b» 를 그 b 가 새 꼭대기가 될 때 그 항목 memo 로 넘긴다.
+ *   왜: 누름·놓음이 «각각 새 칸»을 쌓아(seq/len [3,1]→[4,2]→[5,3] ×3) 꼭대기는 늘 «막 생긴» 항목 = a 쪽 memo 가 비어 있었다.
+ *   ⛔표(캐시 키)가 아니다 — 칸 «하나»: 바로 앞 비교의 b 와 그 벗긴 꼴. 쓰면 비운다.
+ *   ★짝 단언: 넘길 때 «그 b 가 바로 그 v 인가»를 본다(_takeStripped) — 다르면 버린다(그 항목은 처음 비교 때 다시 벗긴다).
+ *     _stripNonEdit 는 순수함수라 «같은 글 → 같은 벗긴 꼴»이 성립한다. 어긋난 짝을 넘기면 «다른데 같다»(편집이 안 쌓임 · T-130 병). */
+let _lastB = null;
+let _stripCalls = 0;   // ★자(시험용 셈) — memo 길에서 벗긴 횟수. ⛔_stripNonEdit 몸통은 손대지 않는다(감싸서 센다)
+function _strip(s) { _stripCalls++; return _stripNonEdit(s); }
+function _takeStripped(v) {
+  const slot = _lastB; _lastB = null;
+  return (slot && slot.src === v) ? slot.out : null;   // ★짝 단언 — 어긋나면 null(넘기지 않음)
+}
+function _setSnapCanvas(entry, v, stripped) {
   entry.canvas = v;
   entry._stripped = null;   // ★memo 비우기 — 없애면 tests/dom/history-strip-memo.dom.spec.js M1(:706)·M2(:536) 가 빨개진다
+  if (typeof stripped === 'string') {   // ★넘기기 — memo 세우기도 이 한 자리
+    if (_memoEntry && _memoEntry !== entry) _memoEntry._stripped = null;
+    entry._stripped = stripped;
+    _memoEntry = entry;
+  }
   return entry;
 }
 function _strippedOf(entry) {
   if (entry._stripped == null) {
     if (_memoEntry && _memoEntry !== entry) _memoEntry._stripped = null;
-    entry._stripped = _stripNonEdit(entry.canvas);
+    entry._stripped = _strip(entry.canvas);
     _memoEntry = entry;
   }
   return entry._stripped;
@@ -109,7 +126,11 @@ function _sameEdit(a, b) {
   if (a === b) return true;
   if (typeof a !== 'string' || typeof b !== 'string') return false;
   const _e = historyStack[historyPos];
-  if (_e && _e.canvas === a) return _strippedOf(_e) === _stripNonEdit(b);   // ★a 쪽만 memo(두 부르는 자리 다 꼭대기 canvas 를 넘긴다)
+  if (_e && _e.canvas === a) {   // ★a 쪽 memo(두 부르는 자리 다 꼭대기 canvas 를 넘긴다) ＋ b 는 칸 하나에 맡겨 둔다(넘기기)
+    const sb = _strip(b);
+    _lastB = { src: b, out: sb };
+    return _strippedOf(_e) === sb;
+  }
   return _stripNonEdit(a) === _stripNonEdit(b);
 }
 
@@ -278,7 +299,7 @@ function pushHistory(action = '작업', sideEffects = null) {
   }
   historyStack = historyStack.slice(0, historyPos + 1);
   historyStack.push({ canvas: _canvas, videoPendingSidecar: _videoPendingSidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
-  _setSnapCanvas(historyStack[historyStack.length - 1], _canvas);   // ★130㉡ 명부 — canvas 쓰기 한 자리
+  _setSnapCanvas(historyStack[historyStack.length - 1], _canvas, _takeStripped(_canvas));   // ★130㉡ 명부 — canvas 쓰기 한 자리 · 방금 벗긴 b 넘기기(짝 단언)
   if (historyStack.length > MAX_HISTORY) {
     historyStack.shift(); // 가장 오래된 항목 제거
     historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -661,7 +682,7 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
     // ★R3: remoteKeys 드레인은 pushHistory 와 «양쪽» 다 — undo 첫 스텝은 ensure 경유로
     //   현재상태를 선적재(DEF-01)하므로 여기서 안 비우면 원격분이 그 항목 diff 에 섞여 C8 재발.
     historyStack.push({ canvas: current, videoPendingSidecar: _sidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
-    _setSnapCanvas(historyStack[historyStack.length - 1], current);   // ★130㉡ 명부
+    _setSnapCanvas(historyStack[historyStack.length - 1], current, _takeStripped(current));   // ★130㉡ 명부 · 넘기기(짝 단언)
     if (historyStack.length > MAX_HISTORY) {
       historyStack.shift(); // 가장 오래된 항목 제거
       historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -742,6 +763,7 @@ window.undo         = undo;
 window.redo         = redo;
 window.clearHistory = clearHistory;
 window.getHistoryTip = getHistoryTip;
+window.getHistoryStripStats = () => ({ calls: _stripCalls });   // ★130㉡ 자 — 시험이 «넘기기가 도는가»를 잰다(읽기만)
 window.restampHistoryTop = restampHistoryTop;
 window.historyHasSeq = historyHasSeq;
 window.restoreSnapshot = restoreSnapshot;

@@ -63,3 +63,31 @@ test('M2 :536 _restampRestored(⌘Z 복원이 비멱등) 뒤 — memo 가 새 ca
   expect([t.seq, t.len], '다시 찍힌 E1 과 --sec-clip 만 다르다 — 새 칸(⌘⇧Z 죽음)이 생기면 memo 가 썩은 것').toEqual([e1.seq, e2.len]);
   expect(errs).toEqual([]);
 });
+
+test('M3 넘기기 — 편집이 연달아 새 칸을 쌓을 때 두 번째부터는 «b 하나만» 벗긴다(꼭대기는 넘겨받은 memo)', async ({ page }) => {
+  /* 원 블럭 누름·놓음 꼴: 비교마다 꼭대기가 «막 생긴» 항목(seq/len [3,1]→[4,2]→[5,3]). 넘기기가 없으면 호출마다 둘(a·b)을 벗긴다. */
+  const errs = await setup(page);
+  await page.evaluate(() => { document.getElementById('sM').style.height = '301px'; window.pushHistory('k1'); });   // 첫 비교: 꼭대기(초기) memo 없음 → 둘
+  const c0 = (await page.evaluate(() => window.getHistoryStripStats())).calls;
+  const t0 = await tip(page);
+  await page.evaluate(() => { document.getElementById('sM').style.height = '302px'; window.pushHistory('k2'); });
+  const t1 = await tip(page);
+  expect(t1.seq, '★전제: 새 칸이 쌓였다').not.toBe(t0.seq);
+  const d = (await page.evaluate(() => window.getHistoryStripStats())).calls - c0;
+  expect(d, `두 번째 새 칸의 비교에서 벗긴 수 = 1(b) — 2 면 넘기기가 안 돈 것(꼭대기를 다시 벗김)`).toBe(1);
+  expect(errs).toEqual([]);
+});
+
+test('M4 짝 — 넘겨받은 memo 가 «그 항목의» 벗긴 꼴이다: Y 로 바꾼 뒤 X 로 되돌리는 편집이 «같다»로 먹히지 않는다', async ({ page }) => {
+  /* 짝이 어긋나 꼭대기(Y) memo 에 X 의 벗긴 꼴이 들어가면 X 로 되돌린 편집을 «무변화»로 읽어 안 쌓는다(T-130 병 — 가장 위험). */
+  const errs = await setup(page);
+  await page.evaluate(() => { document.getElementById('sM').style.height = '300px'; window.pushHistory('x'); });
+  await page.evaluate(() => { document.getElementById('sM').style.height = '360px'; window.pushHistory('y'); });   // 꼭대기 = Y (넘겨받은 memo)
+  const ty = await tip(page);
+  await page.evaluate(() => { document.getElementById('sM').style.height = '300px'; window.pushHistory('back-x'); });
+  const tx = await tip(page);
+  expect(tx.seq, 'X 로 되돌린 편집이 새 칸으로 쌓였다 — 안 쌓이면 memo 짝이 어긋난 것').not.toBe(ty.seq);
+  await clip(page, 'inset(4px)'); await page.evaluate(() => window.pushHistory());
+  expect((await tip(page)).seq, '그리고 X 위 --sec-clip 만 다르면 무변화(memo = X 의 것)').toBe(tx.seq);
+  expect(errs).toEqual([]);
+});
