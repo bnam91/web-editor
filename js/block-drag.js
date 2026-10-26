@@ -96,7 +96,14 @@ function _isInsideUnselectedFrame(block) {
 /* ★113 ITB-PHOTO-UPLOAD-DOOR-01 — 아이콘 텍스트 블럭 «사진 올리기» 한 문(회귀 복구 · 현빈 GO ㉡).
    본문은 옛 `.itb-icon` 클릭 업로드 블록을 «그대로» 뗀 것이다(3c676f79 가 `if (pop) return;` 으로 막아 폴백으로만 살았다).
    ⛔새 문을 만들지 마라 — 부르는 곳 둘: ⑴ 아이콘 팝오버의 「사진 올리기」(openIfgIconPopover 넷째 인자) ⑵ 팝오버를 못 띄운 폴백.
-   ★이력 = push-before 한 칸(옛 길 그대로) · ⚠️파일창은 사용자 클릭 «안에서» 동기로 열어야 뜬다(input.click). */
+   ★이력 = «양쪽 끝»(시작·끝 표본 · js/CLAUDE.md 히스토리 규약). 113 B-3 실측: 삽입 직후처럼 꼭대기 == 라이브면
+     시작 표본은 무변화 중복 차단에 버려져 «올리기 뒤 상태»가 스택에 0칸이었다(⌘Z 는 undo 첫머리 구제로만 섰다)
+     ⇒ 끝 표본을 더해 올리기 한 번 = 이력 +1. · ⚠️파일창은 사용자 클릭 «안에서» 동기로 열어야 뜬다(input.click).
+   ★113 B-1 — 그림만 받는다: accept="image/*" 는 «권고»일 뿐(창에서 「모든 파일」로 바꿀 수 있다) ⇒ 읽은 뒤 data:image/ 가 아니면
+     ★버린다(토스트 · 이력 0 · imgSrc 무변). 전엔 text/plain 이 dataset.imgSrc 에 박혀 깨진 그림이 남았다.
+   ⬜ ITB-PHOTO-SIZE-UNCAPPED-01(지디/현빈) — 크기 상한은 «안» 건다. MCP 길(updateIconTextBlock 200000자)과 같은 상한이면
+     보통 사진이 막힌다. 그래서 6MB 도 그대로 들어간다 — 상한을 얼마로 둘지는 정해지지 않았다.
+   ★B-2 — 박는 꼴(img draggable=false · .has-image · 테두리 끔 · dataset.imgSrc)은 block-factory.js `itbApplyImgSrc` 한 곳(아이콘 길과 같은 함수). */
 function _itbPickPhoto(block) {
   const input = document.createElement('input');
   input.type = 'file';
@@ -106,14 +113,13 @@ function _itbPickPhoto(block) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
-      window.pushHistory?.();
+      const src = typeof ev.target.result === 'string' ? ev.target.result : '';
       const iconEl = block.querySelector('.itb-icon');
-      let img = iconEl.querySelector('img');
-      if (!img) { img = document.createElement('img'); iconEl.appendChild(img); }
-      img.src = ev.target.result;
-      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;';
-      block.dataset.imgSrc = ev.target.result;
-      iconEl.style.border = 'none';
+      if (!/^data:image\//i.test(src)) { window.showToast?.('그림 파일만 올릴 수 있습니다'); return; }
+      if (!iconEl || !window.itbApplyImgSrc) { window.showToast?.('사진을 넣지 못했습니다 — 잠시 뒤 다시 시도해 주세요'); return; }
+      window.pushHistory?.();                       // 시작 표본(옛 길 그대로)
+      window.itbApplyImgSrc(block, iconEl, src);
+      window.pushHistory?.();                       // ★끝 표본(B-3) — 양쪽 끝(js/CLAUDE.md 히스토리 규약)
       window.triggerAutoSave?.();
     };
     reader.readAsDataURL(file);
