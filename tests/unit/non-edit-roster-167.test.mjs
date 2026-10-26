@@ -13,7 +13,8 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const HISTORY = fs.readFileSync(path.join(ROOT, 'js/history.js'), 'utf8');
 /* ★명부를 «글로» 읽는다(선례: pan-native-scroll.test.js ROSTER_REL · buzz-profile-chrome.test.mjs [파일, 상수이름] 표) — 실행 0.
    ⛔import() 로 싣지 마라 — 이 레포 .js 는 CJS 로 읽히고, data: URL import 는 win-portability ②-4 가 막는다(윈도우 ERR_UNSUPPORTED_ESM_URL_SCHEME).
-   ⚠️주석이 파싱 입력이 된다(지디 261007) — 명부 머리말에 history.js 글자(draggable="(?:true|false)")가 그대로 있다 ⇒ codeOnly 로 걷고 «선언 한 줄»만 앵커로. */
+   ★«선언 한 줄» 앵커가 이름을 뽑는다(주석엔 export const … Object.freeze([…]) 꼴이 없다 ⇒ 주석이 지금 답을 바꾸지 않는다 · 지디 탐침 261026).
+   codeOnly 는 ★보험(필수 아님) — 머리말에 history.js 글자(draggable="(?:true|false)")가 그대로 있어, 앵커가 느슨해지는 날을 막는다. */
 const ROSTER_REL = 'js/non-edit-roster.js';
 const codeOnly = (t) => t.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 const ROSTER = codeOnly(fs.readFileSync(path.join(ROOT, ROSTER_REL), 'utf8'));
@@ -32,14 +33,14 @@ test('R0 [전제] 파싱이 찾았다 — 세 선언 줄 · 뽑힌 이름 ≥1 �
   assert.ok(/const _CHROME_RE = \/(.*)\/g;/.test(HISTORY), '_CHROME_RE 선언을 못 찾았다');
 });
 
-test('R1 ★이름으로 조립한 정규식 .source === history.js _NON_EDIT_ATTR_RE 글자(바이트째) — «한 글자도 안 바꿈»을 수로', () => {
+test('R1 ★이름으로 조립한 글자 === history.js _NON_EDIT_ATTR_RE 글자(바이트째) — «한 글자도 안 바꿈»을 수로', () => {
   const lit = HISTORY.match(/const _NON_EDIT_ATTR_RE = \/(.*)\/g;/)[1];
-  const built = new RegExp([
+  const built = [
     ...NON_EDIT_ATTRS.map(a => ` ${a}="(?:true|false)"`),
     ...NON_EDIT_CSSVARS.map(v => `\\s*${v}:\\s*[^;"]*;?`),
-  ].join('|'), 'g');
+  ].join('|');   // ⛔new RegExp 로 감싸지 않는다 — 글자 비교로 충분(지디)
   assert.equal(lit, ' draggable="(?:true|false)"|\\s*--sec-clip:\\s*[^;"]*;?', '[양성대조] 글자가 오늘(614e5f22) 값이다');
-  assert.equal(built.source, new RegExp(lit, 'g').source, '명부와 비교 정규식이 갈렸다 — 한쪽만 바꿨다');
+  assert.equal(built, lit, '명부와 비교 정규식이 갈렸다 — 한쪽만 바꿨다');
 });
 
 test('R2 ★CHROME_SEL 이 history.js _CHROME_RE 의 그 자리다', () => {

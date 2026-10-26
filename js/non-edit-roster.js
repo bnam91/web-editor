@@ -12,6 +12,8 @@
  *     js/history.js       _NON_EDIT_ATTR_RE · _CHROME_RE — ★글자 그대로 둔다(⛔무접촉 · 게이트 history-chrome-noise 등 셋이 그 선언을 글로 읽는다).
  *                         대신 tests/unit/non-edit-roster-167.test.mjs 가 «이 이름으로 조립한 정규식의 .source === 그 글자»를
  *                         바이트째 잠근다 ⇒ 두 벌이 아니라 «한 이름 · 한 단언»이다(한쪽만 바꾸면 빨강).
+ *     tests/unit/non-edit-roster-167.test.mjs  ★이 파일 «글»을 읽는다(실행 0) — 「export const … = Object.freeze([…])」 선언 줄 앵커로 따옴표 안 낱말만.
+ *                         ⛔선언 꼴(한 줄 · Object.freeze([...]) · 작은따옴표)을 바꾸면 그 검사 R0 「파싱이 못 찾았다」 — 바꿀 때 거기도 같이.
  *
  * ⛔undo 쪽에는 안 쓴다(159 ㉮ 거절 — undo 쪽 중립 오판 = ⌘Z 가 캔버스를 안 되돌림 = 데이터 사고).
  * ⛔lazy 셋(data-lazy-bg · lazy 배경 style · ±lazy-unloaded)은 ★안 넣는다 — 안 잰 것을 중립에 넣으면 그게 중립 오판.
