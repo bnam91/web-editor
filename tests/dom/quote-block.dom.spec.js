@@ -1864,7 +1864,10 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
   expect(pn.fill, `★H5 — Fill 절 안 라벨은 「글자색」 하나, 글자색 칸과 .prop-color-row 가 있다. 잰 값 ${JSON.stringify(pn.fill)}`)
     .toEqual({ labels: ['글자색'], hasColor: true, colorRow: true });
   expect(pn.titles.includes('글'), `★H5 — 「글」 절은 0 이다. 잰 제목 ${JSON.stringify(pn.titles)}`).toBe(false);
-  /* 기준이 살아 있다 — 텍스트블럭 패널도 같은 술어(Fill 이 Typography 바로 다음, 라벨 글자색)를 만족한다 */
+  /* 기준이 살아 있다 — 텍스트블럭 패널도 같은 술어(Fill 절 안 라벨 = 인용구와 같은 「글자색」 하나 · .prop-color-row)를 만족한다.
+     ★173(261027 · 지디) — 텍스트블럭 쪽 «위치» 단언(Fill 이 Typography 바로 다음)을 «내용»으로 좁혔다.
+       떼기 전: 텍스트블럭 패널에 전용 절이 하나 늘어도(1020t2d1 d2ea9ebd 「스타일 번호」 접기 절) 빨강 — 요구(1012t1H5 「텍스트 블럭처럼」 = 글자색이 Fill 절 안)와 무관한 «그때 순서»를 잡았다.
+       뗀 뒤: 텍스트블럭 Fill 절이 없거나 · 그 안 라벨이 인용구와 다르거나(더하거나 빠지거나) · 색 줄이 없으면 빨강 — 인용구 쪽 위치 단언(:1863)은 그대로 둔다. */
   await page.evaluate(() => {
     window.deselectAll && window.deselectAll();
     window.selectSection(document.getElementById('sQ'));
@@ -1880,11 +1883,11 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
     const p = document.getElementById('panel-right');
     const titles = [...p.querySelectorAll('.prop-section-title')].map(e => e.textContent.trim());
     const f = [...p.querySelectorAll('.prop-section')].find(x => (x.querySelector('.prop-section-title')?.textContent || '').trim() === 'Fill');
-    return { titles, fillLabels: f ? [...f.querySelectorAll('.prop-label')].map(e => e.textContent.trim()) : null };
+    return { titles, fillLabels: f ? [...f.querySelectorAll('.prop-label')].map(e => e.textContent.trim()) : null, colorRow: !!(f && f.querySelector('.prop-color-row')) };
   });
-  const it = tx.titles.indexOf('Typography');
-  expect(tx.titles[it + 1], `★H5 기준 — 텍스트블럭도 Fill 이 Typography 바로 다음이다. 잰 제목 ${JSON.stringify(tx.titles)}`).toBe('Fill');
-  expect(tx.fillLabels, `★H5 기준 — 텍스트블럭 Fill 절에 「글자색」 라벨이 있다. 잰 값 ${JSON.stringify(tx.fillLabels)}`).toContain('글자색');
+  expect(tx.fillLabels, `★H5 기준 — 텍스트블럭에 Fill 절이 있다. 잰 제목 ${JSON.stringify(tx.titles)}`).not.toBeNull();
+  expect({ labels: tx.fillLabels, colorRow: tx.colorRow }, `★H5 기준 — 텍스트블럭 Fill 절 안 = 인용구와 같은 라벨(「글자색」 하나) · 색 줄. 잰 값 ${JSON.stringify(tx)}`)
+    .toEqual({ labels: pn.fill.labels, colorRow: true });
   /* ⑶ H4 — 「정렬」 아이콘 셋이 「세로 정렬」 아이콘 셋과 같은 꼴(viewBox·크기·칠 그림 · 선 0) */
   expect({ nh: pn.al.h.length, nv: pn.al.v.length }, `★전제 — 정렬 3 · 세로 정렬 3 아이콘이 있다(inline). 잰 값 ${JSON.stringify(pn.al)}`).toEqual({ nh: 3, nv: 3 });
   const ref = pn.al.v[0];
