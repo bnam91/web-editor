@@ -2193,6 +2193,10 @@ function _onGridColMouseDown(e, block, i) {
   const startX = e.clientX;
   // ★드래그 «시작 직전» 1회만(mousedown) — mousemove 마다 쌓이면 undo 가 픽셀 단위로 끊긴다.
   window.pushHistory?.();
+  /* ★165 ㉮(지디 22:43 · 156 꼴 overlay-float.js deferAutoSave) — 끄는 동안 자동저장·유휴 썸네일을 «미룬다».
+     실측(fa57bed6 · 수지 사본 · 행 거터 30s 끌기 ×6): 썸네일 html2canvas 가 마우스 눌린 채 시작 · 그때 _autoSaveDeferred·_suppressAutoSave 둘 다 false
+     ⇒ save-load.js scheduleIdleThumbnail 의 «바쁨» 칸이 이 제스처를 몰랐다. 재개 길 셋: 아래 onUp · 창 blur · 30s 안전망(save-load.js — 그 뒤엔 찍힐 수 있다 = 설계). */
+  window.deferAutoSave?.();
   let moved = false;   // ★132 — 미리보기로만 바꾼 틱이 있었나(있으면 onUp 에서 정본 렌더 한 번)
 
   function onMove(ev) {
@@ -2228,6 +2232,7 @@ function _onGridColMouseDown(e, block, i) {
        표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 안 움직였으면 캔버스가
        그대로라 history.js 의 무변화 차단이 버린다 = 맨클릭 중복 항목도 같이 사라진다. */
     window.pushHistory?.();
+    window.resumeAutoSave?.();   // ★165 ㉮ — 미룬 동안 들어온 예약을 «한 번» 다시 건다(끝 표본 뒤)
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -2253,6 +2258,10 @@ function _onGridRowMouseDown(e, block, i) {
   const startH0 = Math.max(0, elA.getBoundingClientRect().height / scale0 - 2 * (getGridCellPadY(block) || 0));
   const startY = e.clientY;
   window.pushHistory?.(); // ★드래그 «시작 직전» 1회만
+  /* ★165 ㉮(지디 22:43 · 156 꼴 overlay-float.js deferAutoSave) — 끄는 동안 자동저장·유휴 썸네일을 «미룬다».
+     실측(fa57bed6 · 수지 사본 · 행 거터 30s 끌기 ×6): 썸네일 html2canvas 가 마우스 눌린 채 시작 · 그때 _autoSaveDeferred·_suppressAutoSave 둘 다 false
+     ⇒ save-load.js scheduleIdleThumbnail 의 «바쁨» 칸이 이 제스처를 몰랐다. 재개 길 셋: 아래 onUp · 창 blur · 30s 안전망(save-load.js — 그 뒤엔 찍힐 수 있다 = 설계). */
+  window.deferAutoSave?.();
   let moved = false;   // ★132 — 미리보기로만 바꾼 틱이 있었나(있으면 onUp 에서 정본 렌더 한 번)
 
   function onMove(ev) {
@@ -2280,6 +2289,7 @@ function _onGridRowMouseDown(e, block, i) {
        표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 안 움직였으면 캔버스가
        그대로라 history.js 의 무변화 차단이 버린다 = 맨클릭 중복 항목도 같이 사라진다. */
     window.pushHistory?.();
+    window.resumeAutoSave?.();   // ★165 ㉮ — 미룬 동안 들어온 예약을 «한 번» 다시 건다(끝 표본 뒤)
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
