@@ -625,6 +625,11 @@ export function bindFloatMoveDrag(posEl) {
       if (!moved) {
         if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return;
         moved = true;
+        /* ★156(2026-10-26 · 지디 처방 ⓑ) — 끄는 동안 자동저장을 «미룬다»(save-load.js deferAutoSave · 팬 제스처 editor.js 와 같은 기전).
+           까닭(실측 · 21943f57 · 수지 저장본): 끌기 중 1.5s 디바운스가 터져 프로젝트 통째 직렬화가 끌기 «도중» 1.6~2.4s 정지(serializeProject · getSerializedCanvas).
+           ⛔AutoSaveSuppress.begin(«버림»)이 아니다 — 미룬 동안 들어온 예약은 _autoSavePending 에 기억돼 놓을 때 한 번 다시 걸린다.
+           재개 길 셋: 아래 onUp · 창 blur · 30s 안전망(save-load.js). */
+        window.deferAutoSave?.();
       }
       /* ★«시작 표본» — 첫 실제 이동 직전 1회. 인자는 «캔버스 좌표» 델타다(규약 ⑴).
          ⛔반환값으로 아래 쓰기를 막지 마라(규약 ⑵). */
@@ -713,6 +718,9 @@ export function bindFloatMoveDrag(posEl) {
         document.addEventListener('click', killClick, true);
         setTimeout(() => document.removeEventListener('click', killClick, true), 120);
       }
+      /* ★156 — 미룬 저장을 놓을 때 «한 번» 다시 건다(위 triggerAutoSave 가 미룸 중엔 pending 으로만 남는다 → 여기서 예약 1회).
+         안 끌었으면(moved=false) 미룬 적이 없어 아무 일도 안 한다. */
+      window.resumeAutoSave?.();
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
