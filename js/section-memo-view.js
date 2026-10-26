@@ -144,44 +144,69 @@
     _moveTip(ev);
   }
 
-  /* 같은 판이면 다시 짓지 않는다 — 크기 감시가 자주 깨워도 마우스 아래 탭·미리보기가 안 깜빡이게 */
-  let _tabSig = '';
+  /* ★탭·줄은 섹션 «노드»를 쥐지 않고 «id» 만 쥔다 — 누르는 순간 산 노드를 다시 찾는다.
+     까닭(적대 검수 F2 · 2026-10-26): ⌘Z/⌘⇧Z(js/history.js restoreSnapshot)는 #canvas.innerHTML 을 통째로 간다.
+     id·자리·메모가 같으면 아래 비교가 «바뀐 것 없음»이라 탭을 안 다시 짓는데, 그때 클로저가 옛 노드를 쥐고 있으면
+     줄 클릭이 떨어져 나간 섹션을 고르려다 무동작이 되고 탭 클릭이 산 섹션을 안 고른다. */
+  function _live(id) {
+    const sec = id ? document.getElementById(id) : null;
+    return sec && sec.classList.contains('section-block') && sec.isConnected ? sec : null;
+  }
+
+  /* ★다시 짓지 않고 «고친다» (적대 검수 F3) — 높이만 바뀌면 left/top 만 고친다.
+     섹션 100 · 메모 50 에서 매 프레임 통째로 다시 짓던 것(노드 추가 2950/60프레임)을 «기존 탭 재사용»으로 바꿨다.
+     바뀐 것 없는 refresh 는 읽기만 하고 아무것도 안 쓴다. */
+  function _makeTab(id) {
+    const tab = document.createElement('div');
+    tab.className = 'smemo-tab';
+    tab.dataset.secId = id;
+    tab.innerHTML = SVG_MEMO;
+    tab.addEventListener('mouseenter', e => {
+      const sec = _live(tab.dataset.secId);
+      if (sec) _showTip(sec, _sections().indexOf(sec), e);
+    });
+    tab.addEventListener('mousemove', _moveTip);
+    tab.addEventListener('mouseleave', _hideTip);
+    /* 캔버스 끌기 선택·빈 곳 해제로 새지 않게 (선례: js/checklist-panel.js renderPins 의 핀 mousedown) */
+    tab.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
+    tab.addEventListener('click', e => {
+      e.stopPropagation();
+      _hideTip();
+      const sec = _live(tab.dataset.secId);
+      if (!sec) return;
+      if (typeof window.selectSection === 'function') window.selectSection(sec, false);
+      _syncSelected();
+      _openMemo(sec);
+    });
+    return tab;
+  }
   function _renderTabs(all) {
     const ov = _overlay();
     if (!ov) return;
     const scaler = ov.parentElement;
-    const want = [];
-    all.forEach((sec, idx) => {
-      if (!sectionHasMemo(sec)) return;
+    const have = new Map();
+    ov.querySelectorAll(':scope > .smemo-tab').forEach(t => {
+      if (have.has(t.dataset.secId)) t.remove(); else have.set(t.dataset.secId, t);
+    });
+    let prev = null;
+    all.forEach((sec) => {
+      if (!sectionHasMemo(sec) || !sec.id) return;
       const p = _offsetIn(sec, scaler);
-      if (p) want.push({ sec, idx, p });   // p 없음 = display:none(비활성 변형) — 자리가 없다
+      if (!p) return;   // display:none(비활성 변형) — 자리가 없다
+      let tab = have.get(sec.id);
+      if (tab) have.delete(sec.id);
+      else { tab = _makeTab(sec.id); _hideTip(); }
+      const left = p.x + 'px', top = p.y + 'px';
+      if (tab.style.left !== left) tab.style.left = left;
+      if (tab.style.top !== top) tab.style.top = top;
+      const dim = _isHiddenSec(sec);
+      if (tab.classList.contains('is-hidden-sec') !== dim) tab.classList.toggle('is-hidden-sec', dim);
+      /* 캔버스 차례 유지 — 이미 제자리면 안 옮긴다 */
+      const want = prev ? prev.nextElementSibling : ov.querySelector(':scope > .smemo-tab');
+      if (want !== tab || !tab.parentElement) ov.insertBefore(tab, prev ? prev.nextSibling : ov.querySelector(':scope > .smemo-tab'));
+      prev = tab;
     });
-    const sig = want.map(w => [w.sec.id, w.idx, w.p.x, w.p.y, _isHiddenSec(w.sec) ? 1 : 0, w.sec.getAttribute('data-memo'), _name(w.sec)].join('\u0001')).join('\u0002');
-    if (sig === _tabSig && ov.querySelectorAll('.smemo-tab').length === want.length) return;
-    _tabSig = sig;
-    _hideTip();
-    ov.querySelectorAll('.smemo-tab').forEach(el => el.remove());
-    want.forEach(({ sec, idx, p }) => {
-      const tab = document.createElement('div');
-      tab.className = 'smemo-tab' + (_isHiddenSec(sec) ? ' is-hidden-sec' : '');
-      tab.dataset.secId = sec.id || '';
-      tab.style.left = p.x + 'px';
-      tab.style.top = p.y + 'px';
-      tab.innerHTML = SVG_MEMO;
-      tab.addEventListener('mouseenter', e => _showTip(sec, idx, e));
-      tab.addEventListener('mousemove', _moveTip);
-      tab.addEventListener('mouseleave', _hideTip);
-      /* 캔버스 끌기 선택·빈 곳 해제로 새지 않게 (선례: js/checklist-panel.js renderPins 의 핀 mousedown) */
-      tab.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
-      tab.addEventListener('click', e => {
-        e.stopPropagation();
-        _hideTip();
-        if (typeof window.selectSection === 'function') window.selectSection(sec, false);
-        _syncSelected();
-        _openMemo(sec);
-      });
-      ov.appendChild(tab);
-    });
+    if (have.size) { _hideTip(); have.forEach(t => t.remove()); }
   }
 
   // ── ㉰ 체크리스트 탭 맨 위 묶음 ────────────────────────────────────────────
@@ -239,9 +264,13 @@
     ob.type = 'button';
     ob.title = '메모 열기';
     ob.innerHTML = SVG_MEMO;
-    ob.addEventListener('click', e => { e.stopPropagation(); _goTo(sec); _openMemo(sec); });
+    ob.addEventListener('click', e => {
+      e.stopPropagation();
+      const live = _live(row.dataset.secId);
+      if (live) { _goTo(live); _openMemo(live); }
+    });
     row.appendChild(ob);
-    row.addEventListener('click', () => _goTo(sec));
+    row.addEventListener('click', () => { const live = _live(row.dataset.secId); if (live) _goTo(live); });
     return row;
   }
 
@@ -305,7 +334,7 @@
   function _syncSelected() {
     document.querySelectorAll('#smemo-group .smemo-item').forEach(row => {
       const sec = row.dataset.secId ? document.getElementById(row.dataset.secId) : null;
-      row.classList.toggle('smemo-item--selected', !!(sec && sec.classList.contains('selected')));
+      row.classList.toggle('smemo-item--on', !!(sec && sec.classList.contains('selected')));
     });
   }
 

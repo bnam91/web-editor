@@ -82,10 +82,17 @@ async function clickLayerSection(page, id) {
   await page.waitForFunction((i) => document.getElementById(i)?.classList.contains('selected'), id);
   /* 레이어 클릭 = selectSection(sec, true) — 부드러운 스크롤이 «늦게» 시작할 수 있다(T1 둘째 런 실측: 두 번 잰 자리가
      같다가 그 뒤에 2612→2462 로 움직였다) ⇒ 그 함수의 약속(섹션 위 = 창 위 40px)이 설 때까지 기다린다 */
+  /* ⚠️«정확히 40px» 만 기다리면 마지막 섹션(sM5)에서 30초를 넘긴 적이 있다(적대 검수 뒤 런 · 꼬리 여백이 그 사이 다시 걷힘).
+     ⇒ «40px 에 섰다» 또는 «스크롤이 20 프레임 내리 안 움직이고 섹션 위가 창 안에 있다» 중 먼저 오는 것. */
+  await page.evaluate(() => { window.__lsScroll = { st: -1, n: 0 }; });
   await page.waitForFunction((i) => {
     const s = document.getElementById(i), w = document.getElementById('canvas-wrap');
-    return Math.abs(s.getBoundingClientRect().top - w.getBoundingClientRect().top - 40) <= 1;
-  }, id);
+    const d = s.getBoundingClientRect().top - w.getBoundingClientRect().top;
+    if (Math.abs(d - 40) <= 1) return true;
+    const t = window.__lsScroll;
+    if (w.scrollTop === t.st) t.n++; else { t.st = w.scrollTop; t.n = 0; }
+    return t.n >= 20 && d >= 30 && d < w.clientHeight - 60;
+  }, id, { polling: 'raf' });
 }
 
 /* 고른 섹션의 툴바 📝 를 진짜로 눌러 모달을 연다 */
@@ -318,7 +325,7 @@ test('C2 ㉰ 줄 클릭 = 선택 + 섹션 위가 캔버스 창 위 40px + 번쩍
   await expect.poll(() => page.evaluate(() => Math.round(document.getElementById('sM3').getBoundingClientRect().top - document.getElementById('canvas-wrap').getBoundingClientRect().top)), '섹션 위 = 창 위 40px').toBe(40);
   expect(await page.evaluate(() => ({
     sel: [...document.querySelectorAll('#canvas .section-block.selected')].map(s => s.id),
-    rowSel: [...document.querySelectorAll('#smemo-group .smemo-item--selected')].map(r => r.dataset.secId),
+    rowSel: [...document.querySelectorAll('#smemo-group .smemo-item--on')].map(r => r.dataset.secId),
     flashInCanvas: document.querySelectorAll('#canvas .smemo-flash').length,
     secFlashCls: /flash/.test(document.getElementById('sM3').className),
   }))).toEqual({ sel: ['sM3'], rowSel: ['sM3'], flashInCanvas: 0, secFlashCls: false });
@@ -428,5 +435,125 @@ test('T1 ★투두 무접촉 — 묶음 열고 닫기·이름만·메모 추가/
   const after = await snap();
   expect(after, '투두 무접촉 — 항목·묶음·프로젝트 JSON·localStorage·화면 줄·핀 모두 같다').toEqual(before);
   expect(after.sameRefs, '_ckItems/_ckSections 배열을 갈아 끼우지도 않았다').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+/* ── 적대 검수(2026-10-26) 뒤 더한 칸 ─────────────────────────────────────────
+ *   F2 ⌘Z/⌘⇧Z(restoreSnapshot = #canvas.innerHTML 통째 갈이) 뒤에도 줄·탭 클릭이 «산» 섹션을 고른다
+ *   F3 높이만 30번 바꿔도 탭 노드를 새로 안 만든다(기존 탭 재사용) · 바뀐 것 없는 refresh 는 덧층에 쓰기 0
+ *   F4 묶음이 있어도 투두 조작(체크박스 클릭 · 묶음 접기 · 항목 추가)이 그대로 되고 진척 % 가 따라간다
+ * 양성대조: F2·F3 = 2faf4441(고치기 전 판) 사본에서 빨강 · F4 = 변이 M3b(묶음이 #ck-list 클릭을 삼킴)에서 빨강. */
+
+test('F2 ⌘Z·⌘⇧Z 로 캔버스가 통째로 갈린 뒤에도 줄 클릭·탭 클릭이 산 섹션을 고른다', async ({ page }) => {
+  const errs = await setup(page);
+  await openChecklistTab(page);
+  await expect.poll(() => rowIds(page)).toEqual(['sM1', 'sM3', 'sM4']);
+  await page.evaluate(() => {
+    window.pushHistory('t306-F2 앞');
+    window.setSectionBg(document.getElementById('sM3'), '#ffeeaa');
+    window.pushHistory('t306-F2 배경');
+  });
+  for (const step of ['undo', 'redo']) {
+    await page.evaluate((st) => { window.__old = [...document.querySelectorAll('#canvas .section-block')]; window[st](); }, step);
+    await page.waitForFunction(() => { const s = document.getElementById('sM3'); return !!s && !window.__old.includes(s); });
+    const bg = await page.evaluate(() => document.getElementById('sM3').style.backgroundColor);
+    expect(bg, `전제: ${step} 가 먹었다`).toBe(step === 'undo' ? '' : 'rgb(255, 238, 170)');
+    await page.evaluate(() => window.deselectAll());
+
+    // 줄 클릭 → 산 sM3 선택
+    const row = await waitStableRect(page, '#smemo-group .smemo-item[data-sec-id="sM3"] .smemo-name');
+    await clickAt(page, row.cx, row.cy, { sel: '.smemo-item' }, { label: `${step} 뒤 sM3 줄` });
+    await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#canvas .section-block.selected')].map(s => s.id)), `${step} 뒤 줄 클릭 = 산 sM3 선택`).toEqual(['sM3']);
+
+    // 탭 클릭 → 산 sM1 선택 + 메모 창
+    await page.evaluate(() => { window.deselectAll(); document.getElementById('sM1').scrollIntoView({ block: 'center' }); });
+    const tab = await waitStableRect(page, '#section-memo-overlay .smemo-tab[data-sec-id="sM1"]');
+    await clickAt(page, tab.cx, tab.cy, { sel: '.smemo-tab' }, { label: `${step} 뒤 sM1 탭` });
+    await page.waitForSelector('.section-memo-backdrop.open');
+    expect(await page.evaluate(() => ({
+      sel: [...document.querySelectorAll('#canvas .section-block.selected')].map(s => s.id),
+      live: document.getElementById('sM1').classList.contains('selected'),
+      title: document.querySelector('.smp-title-name').textContent,
+    })), `${step} 뒤 탭 클릭 = 산 sM1 선택 + 메모 창`).toEqual({ sel: ['sM1'], live: true, title: '섹션1' });
+    await closeMemo(page);
+  }
+  expect(errs).toEqual([]);
+});
+
+test('F3 높이만 30번 바뀌어도 탭 노드를 새로 안 만든다 · 바뀐 것 없는 refresh 는 덧층 쓰기 0', async ({ page }) => {
+  const errs = await setup(page);
+  await expect.poll(() => tabIds(page)).toEqual(['sM1', 'sM3', 'sM4']);
+  await expect.poll(() => tabPlacementErrors(page)).toEqual([]);
+  await page.evaluate(() => {
+    window.__tabs0 = [...document.querySelectorAll('#section-memo-overlay .smemo-tab')];
+    window.__ovRec = { added: 0, removed: 0, attrs: 0 };
+    window.__ovMo = new MutationObserver(rs => rs.forEach(r => {
+      if (r.type === 'childList') {
+        r.addedNodes.forEach(n => { if (n.classList && n.classList.contains('smemo-tab')) window.__ovRec.added++; });
+        r.removedNodes.forEach(n => { if (n.classList && n.classList.contains('smemo-tab')) window.__ovRec.removed++; });
+      } else window.__ovRec.attrs++;
+    }));
+    window.__ovMo.observe(document.getElementById('section-memo-overlay'), { childList: true, subtree: true, attributes: true });
+  });
+  for (let k = 1; k <= 30; k++) {
+    await page.evaluate((h) => { document.querySelector('#sM1 .gap-block').style.height = h + 'px'; }, 100 + k * 7);
+    await expect.poll(() => tabPlacementErrors(page), `높이 ${k}번째 뒤 자리`).toEqual([]);
+  }
+  const r1 = await page.evaluate(() => ({
+    ...window.__ovRec,
+    same: [...document.querySelectorAll('#section-memo-overlay .smemo-tab')].every((t, i) => t === window.__tabs0[i]),
+  }));
+  expect(r1.added, '탭 노드 추가 0(기존 탭 재사용)').toBe(0);
+  expect(r1.removed, '탭 노드 제거 0').toBe(0);
+  expect(r1.same, '같은 탭 노드 셋').toBe(true);
+  expect(r1.attrs, '자리 고치기는 일어났다(전제)').toBeGreaterThan(0);
+
+  await page.evaluate(() => { window.__ovMo.takeRecords(); window.__ovRec = { added: 0, removed: 0, attrs: 0 }; window.SectionMemoView.refresh(); window.SectionMemoView.refresh(); });
+  await page.evaluate(() => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res))));
+  const r2 = await page.evaluate(() => { window.__ovMo.takeRecords().forEach(() => window.__ovRec.attrs++); return window.__ovRec; });
+  expect(r2, '바뀐 것 없는 refresh = 덧층 쓰기 0').toEqual({ added: 0, removed: 0, attrs: 0 });
+  expect(errs).toEqual([]);
+});
+
+test('F4 묶음이 있어도 투두 조작이 그대로 — 체크박스 클릭 · 묶음 접기 · 항목 추가 · 진척 %', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => {
+    window._ckItems = [
+      { id: 'ck_a', text: '상세 1차 시안 공유', done: false, sectionId: null },
+      { id: 'ck_b', text: '가격표 숫자 확인', done: false, sectionId: 'cs_1' },
+      { id: 'ck_c', text: '폰트 교체', done: true, sectionId: 'cs_1' },
+    ];
+    window._ckSections = [{ id: 'cs_1', name: '현빈 메모', collapsed: false }];
+  });
+  await openChecklistTab(page);
+  const prog = () => page.evaluate(() => [...document.querySelectorAll('#checklist-panel-body .ck-progress-label span')].map(e => e.textContent).join(' · '));
+  expect(await prog(), '전제').toBe('1 / 3 · 33%');
+
+  // ① 체크박스 진짜 클릭
+  const cb = await waitStableRect(page, '#ck-list .ck-item[data-id="ck_a"] .ck-check');
+  await clickAt(page, cb.cx, cb.cy, { sel: '.ck-check' }, { label: 'ck_a 체크' });
+  await expect.poll(prog, '체크하면 진척이 오른다').toBe('2 / 3 · 67%');
+  expect(await page.evaluate(() => window._ckItems.find(i => i.id === 'ck_a').done)).toBe(true);
+
+  // ② 투두 묶음(cs_1) 접기
+  const sh = await waitStableRect(page, '#ck-list .ck-section-header[data-section-id="cs_1"] .ck-section-name');
+  await clickAt(page, sh.cx, sh.cy, { sel: '.ck-section-header' }, { label: 'cs_1 접기' });
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('#ck-list .ck-item[data-section-id="cs_1"]').length), '접으면 그 묶음 항목 0').toBe(0);
+  expect(await page.evaluate(() => window._ckSections[0].collapsed)).toBe(true);
+
+  // ③ 항목 추가 — 자리표시 줄 더블클릭 → 치고 Enter
+  const ph = await waitStableRect(page, '#ck-list .ck-item--placeholder');
+  await clickAt(page, ph.cx, ph.cy, { sel: '.ck-item--placeholder' }, { label: '자리표시 더블클릭', dbl: true });
+  await page.waitForFunction(() => document.activeElement && document.activeElement.classList.contains('ck-inline-input'));
+  await page.keyboard.type('새 할 일');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window._ckItems.map(i => i.text)), '항목이 저장됐다').toContain('새 할 일');
+  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#ck-list .ck-item-text')].map(e => e.textContent)), '목록에 보인다').toContain('새 할 일');
+  /* ★진척 줄은 «패널 통째 그리기»(renderChecklistPanel)에서만 다시 센다 — 항목 추가 commit 은 _renderList 만 부른다
+     (js/checklist-panel.js 의 기존 동작 · 바닥 8608bb13 도 같다 · 이 기능은 안 건드렸다). 탭을 다시 열어 센다. */
+  await openChecklistTab(page);
+  await expect.poll(prog, '항목이 늘면 진척 분모가 는다').toBe('2 / 4 · 50%');
+  // 묶음은 그 사이 내내 제자리
+  expect(await page.evaluate(() => document.getElementById('smemo-group')?.nextElementSibling?.id)).toBe('ck-list');
   expect(errs).toEqual([]);
 });

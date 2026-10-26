@@ -646,8 +646,8 @@
   position: relative; cursor: pointer; transition: background 0.1s;
 }
 .smemo-item:hover { background: var(--ui-bg-hover); }
-.smemo-item--selected { background: rgba(153, 102, 255, 0.12); }
-.smemo-item--selected::before {
+.smemo-item--on { background: rgba(153, 102, 255, 0.12); }
+.smemo-item--on::before {
   content: ''; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px;
   background: var(--ui-sel-overlay); border-radius: 2px;
 }
@@ -676,7 +676,7 @@
   background: none; border: none; border-radius: 3px; cursor: pointer;
   color: var(--ui-text-dim); opacity: 0;
 }
-.smemo-item:hover .smemo-open, .smemo-item--selected .smemo-open { opacity: 1; }
+.smemo-item:hover .smemo-open, .smemo-item--on .smemo-open { opacity: 1; }
 .smemo-open:hover { color: #f59e0b; background: var(--ui-bg-input); }
 .smemo-empty { font-size: var(--ui-fs-base); color: var(--ui-text-dim); padding: 8px 4px; line-height: 1.6; }
 .smemo-divider { height: 1px; background: var(--ui-bg-hover); margin: 6px 0 2px; flex-shrink: 0; }
