@@ -2777,6 +2777,31 @@ export async function whenGridRatiosSettled({ capMs = GRID_RATIO_WAIT_CAP_MS } =
   return { status: 'cap', pending: left, ms: Date.now() - t0 };
 }
 
+/* ★트랙 글자 — 렌더(grid-template-rows/columns)와 끌기 미리보기(previewGridTracks)가 «같은 식»을 쓴다(두 벌 금지). */
+function _gridRowTemplate(rows, cellPadY) {
+  return rows.map(r => _gridTrack(r.height === 'auto' ? null : r.height, null, cellPadY)).join(' ');
+}
+function _gridColTemplate(cols) {
+  return cols.map(c => `${Number(c.width) > 0 ? Number(c.width) : 1}fr`).join(' ');
+}
+
+/* ★132 GRID-ROW-DRAG-MOVE(2026-10-26 · 현빈 GO (48)) — 행·열 경계를 «끄는 동안»은 칸을 다시 짓지 않고 트랙 글자(CSS)만 바꾼다 = «싸게 그린다».
+ *   왜: renderGridBlock 은 껍데기(.grd-inner)를 통째로 갈아끼운다(:「⛔DOM 노드로 칸을 들지 않는다 — renderGridBlock 이 innerHTML 을 갈아끼운다」) —
+ *     끄는 동안 바뀌는 것은 dataset.rows 의 높이 / dataset.cols 의 폭 = grid-template-rows / -columns 뿐이다.
+ *     같은 드래그가 이미 지키는 규약(pushHistory = mousedown 한 번 · 패널 = 재렌더 없이 입력값만)을 «본문»에도 잇는다.
+ *   ⇒ 끝(onUp)에서 renderGridBlock 을 «한 번» 불러 정본으로 맞춘다(overlay-handles.js _onGridRowMouseDown · _onGridColMouseDown).
+ *   ⛔배경 그림 칸이 있으면(행 트랙이 칸 폭 × 그림 비율로 정착 — _gridSettleBgTracks · 열 폭이 바뀌면 행 높이도 바뀐다) false = 부르는 쪽이 옛 길(매 틱 렌더) 그대로.
+ *   ⛔껍데기가 없으면(아직 안 그려짐) false. 반환 true = 트랙만 바꿨다. */
+function previewGridTracks(block) {
+  const inner = block && block.querySelector(':scope > .grd-inner');
+  if (!inner) return false;
+  if (inner.querySelector(':scope > .grd-cell[style*="background-image"]')) return false;
+  const { cols, rows } = getGridModel(block);
+  inner.style.gridTemplateColumns = _gridColTemplate(cols);
+  inner.style.gridTemplateRows = _gridRowTemplate(rows, getGridCellPadY(block));
+  return true;
+}
+
 function renderGridBlock(block) {
   const { cols, rows, cells } = getGridModel(block);
   const { row: rowGapPx, col: colGapPx } = _gridGaps(block);
@@ -2816,11 +2841,11 @@ function renderGridBlock(block) {
      꺼져 있으면 이 함수는 아무것도 안 만진다(drag-utils 규약). */
   if (!floating && ownW === null) window.applyBlockFullBleed?.(block);
 
-  const colTemplate = cols.map(c => `${Number(c.width) > 0 ? Number(c.width) : 1}fr`).join(' ');
+  const colTemplate = _gridColTemplate(cols);   // ★한 식 — 끌기 미리보기(previewGridTracks)와 한 자리
   /* 칸 사이 괘선 — 루프 «밖»에서 한 번 읽는다(칸마다 dataset 을 다시 파싱하지 않는다). */
   const rules = _gridRules(block, cols.length, rows.length);
   // ★행 높이는 «가중치»가 아니라 px 최소높이(minmax) — 3-A U5a 의미론. 'auto' 행은 내용 높이 그대로.
-  const rowTemplate = rows.map(r => _gridTrack(r.height === 'auto' ? null : r.height, null, cellPadY)).join(' ');   // ★한 식(gridTrackMin) — 키 없으면 옛 산출 그대로
+  const rowTemplate = _gridRowTemplate(rows, cellPadY);   // ★한 식(gridTrackMin) — 키 없으면 옛 산출 그대로 · 끌기 미리보기(previewGridRowTracks)와 한 자리
   const bgRows = {};   // ★E157 — 높이 키 있는 행의 배경 칸 { r: [{c, src}] } · 렌더 뒤 _gridSettleBgTracks 가 쓴다
 
   /* ★G5 글자 톤 — 블럭 자리의 실제 배경(섹션/프레임, computed)을 한 번 재고, 칸 배경이 있으면 그 위에 합성해 칸마다 가른다.
@@ -4424,6 +4449,7 @@ function _makeGridAddBtn(block, axis) {
 window.gridAddAtEnd = gridAddAtEnd;
 
 window.renderGridBlock = renderGridBlock;
+window.previewGridTracks = previewGridTracks;   // ★132 — 행·열 끌기 미리보기(overlay-handles.js 가 window 로 부른다 · import 안 늘림)
 window.gridCollapseToColumns = gridCollapseToColumns;
 /* ★t3-04(S6 U1) — 행·열 순서 바꾸기 ＋ 칸 범위 복붙. 머리띠·키(U2 · overlay-handles.js / editor.js / prop-grid.js)는
    이 파일을 import 하지 않으므로 같은 window 다리로 부른다(위 renderGridBlock 과 같은 관례). 순수 셈 넷도 같이 건다(CDP·진단용). */

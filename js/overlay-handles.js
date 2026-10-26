@@ -2193,6 +2193,7 @@ function _onGridColMouseDown(e, block, i) {
   const startX = e.clientX;
   // ★드래그 «시작 직전» 1회만(mousedown) — mousemove 마다 쌓이면 undo 가 픽셀 단위로 끊긴다.
   window.pushHistory?.();
+  let moved = false;   // ★132 — 미리보기로만 바꾼 틱이 있었나(있으면 onUp 에서 정본 렌더 한 번)
 
   function onMove(ev) {
     const scale = _canvasScaleNow(); // 드래그 중 줌이 바뀌는 경우까지 방어(매 move 재조회)
@@ -2202,7 +2203,9 @@ function _onGridColMouseDown(e, block, i) {
     cols[i].width = r.leftWeight;
     cols[i + 1].width = r.rightWeight;
     block.dataset.cols = JSON.stringify(cols);
-    window.renderGridBlock?.(block);
+    /* ★132 — 행 끌기와 같은 길(같은 previewGridTracks): 끄는 동안 트랙 글자만 · 칸 다시 짓기는 onUp 에서 한 번 */
+    if (window.previewGridTracks?.(block)) moved = true;
+    else window.renderGridBlock?.(block);
     _updateGridGutterPositions();
     // 패널이 열려 있으면 비율 입력값만 갱신 — 패널 재렌더 금지(포커스/드래그 중단 방지,
     // prop-grid.js 의 «드래그 중 패널 재렌더 금지» 규약과 동일, PLAN §4 끝줄).
@@ -2219,6 +2222,8 @@ function _onGridColMouseDown(e, block, i) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     restoreDrag();
+    /* ★132 — 끄는 동안 미리보기만 했으면 정본 렌더 «한 번»(끝 표본보다 앞 — 표본이 정본 DOM 을 찍는다). */
+    if (moved) { window.renderGridBlock?.(block); _updateGridGutterPositions(); }
     /* ★끝 상태도 찍는다 — 시작(mousedown)만 찍으면 «다음»이 push-after 동작일 때 그 사이의
        표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 안 움직였으면 캔버스가
        그대로라 history.js 의 무변화 차단이 버린다 = 맨클릭 중복 항목도 같이 사라진다. */
@@ -2248,6 +2253,7 @@ function _onGridRowMouseDown(e, block, i) {
   const startH0 = Math.max(0, elA.getBoundingClientRect().height / scale0 - 2 * (getGridCellPadY(block) || 0));
   const startY = e.clientY;
   window.pushHistory?.(); // ★드래그 «시작 직전» 1회만
+  let moved = false;   // ★132 — 미리보기로만 바꾼 틱이 있었나(있으면 onUp 에서 정본 렌더 한 번)
 
   function onMove(ev) {
     const scale = _canvasScaleNow();
@@ -2255,7 +2261,9 @@ function _onGridRowMouseDown(e, block, i) {
     const h = resizeRowHeight(startH0, delta);   // ★min/max 는 모듈 기본값(ROW_H_MIN/ROW_H_MAX) — 여기 리터럴 2000 이 상한을 «혼자» 절반으로 깎고 있었다
     rows[i] = { height: h };
     block.dataset.rows = JSON.stringify(rows);
-    window.renderGridBlock?.(block);
+    /* ★132 — 끄는 동안은 트랙 글자만(previewGridTracks) · 칸 다시 짓기는 onUp 에서 한 번. 미리보기가 못 하는 판(배경 그림 칸)은 옛 길 그대로. */
+    if (window.previewGridTracks?.(block)) moved = true;
+    else window.renderGridBlock?.(block);
     _updateGridGutterPositions();
     // 패널이 열려 있으면 그 행의 입력값만 갱신 — 패널 재렌더 금지(열 경계와 동일 원칙).
     const rowInput = document.querySelector(`.grd-row-h-item[data-ri="${i}"]`);
@@ -2266,6 +2274,8 @@ function _onGridRowMouseDown(e, block, i) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     restoreDrag();
+    /* ★132 — 끄는 동안 미리보기만 했으면 정본 렌더 «한 번»(끝 표본보다 앞 — 표본이 정본 DOM 을 찍는다). */
+    if (moved) { window.renderGridBlock?.(block); _updateGridGutterPositions(); }
     /* ★끝 상태도 찍는다 — 시작(mousedown)만 찍으면 «다음»이 push-after 동작일 때 그 사이의
        표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 안 움직였으면 캔버스가
        그대로라 history.js 의 무변화 차단이 버린다 = 맨클릭 중복 항목도 같이 사라진다. */
