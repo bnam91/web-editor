@@ -877,4 +877,49 @@
     }, 0);
   }
   window.annotBeginLabelEdit = annotBeginLabelEdit;
+
+  /* ── ★f5(1020t2f5 · 현빈 261026 답) 어노테이션 ⌘] / ⌘[ 레이어 순서 ─────────────────────────────
+   *   현빈 원문: 「ant_ts0he_qqnwl1p ⌘] 했는데 레이어 순서가 안 바뀌고 zmb_wuy8kv 아래」 · 261026 답: ⑴ 주석이 확대블럭 위로 갈 수 있게
+   *     (z 조절 허용) ⑵ ⌘[ / ⌘] 로 순서 조절. ⇒ 지디 갈래 ㉡(그 주석 하나만 · ⌘] 로).
+   *   ★잰 층(S3 · 현빈 사본 ×3): 주석·확대블럭은 같은 섹션의 형제 · 주석 z 50(css .annotation-block) · 확대 z 60(.zoom-block) ⇒ 그림 위는
+   *     z 가 정한다(DOM 순서 무관) — 선례(스티커·그라데이션 «같은 z 끼리만 DOM 앞뒤»)로는 층을 못 넘는다.
+   *   ★꼴: 섹션 직계 «블럭»(id 가 있는 positioned 형제 — 섹션 UI 인 hitzone·toolbar 는 id 없음)을 (z, 문서 순서)로 늘어놓고
+   *     ⌘] = 바로 위 블럭의 z 를 받고 그 «뒤»에 놓는다(같은 z · 문서 뒤 = 위) / ⌘[ = 바로 아래 블럭의 z 를 받고 그 «앞»에.
+   *     블럭별 z 는 인라인 style.zIndex — 선례 js/blocks/buzz-frame.js:268·:390(카드마다 row.style.zIndex · 저장본에 실림).
+   *     클래스 기본(50)과 같아지면 인라인을 걷는다(옛 바이트로).
+   *   ★키 받기 = 스티커(sticker-select.js:1024)·그라데이션(gradient-select.js:448)의 capture 꼴 그대로 · 이력 이름도 그 글자 그대로.
+   *   ⛔editor.js ⌘[/⌘] 갈래에 한 줄을 넣지 않았다 — W1(갈래 머리→moveSelectedBlocks 400자 창)이 351/354 → 425/430 으로 넘는다(S3 실측).
+   *   ⛔SECTION_BLOCK_TYPE_SEL 에 .annotation-block 을 더하지 않는다(정본 · 파생 명부 여럿 — 단위 검사가 값 문자열로 잠근다). */
+  const _ANNOT_DEFAULT_Z = () => { const t = document.createElement('div'); t.className = 'annotation-block'; t.style.display = 'none'; document.body.appendChild(t);   /* ⛔#canvas 에 붙이지 않는다 — 캔버스 변화 관찰(자동저장)이 깨어난다 · 규칙은 전역 .annotation-block */ const z = parseInt(getComputedStyle(t).zIndex, 10); t.remove(); return Number.isFinite(z) ? z : 50; };
+  function annotLayerOrder(direction) {
+    const sel = [...document.querySelectorAll('.section-block > .annotation-block.selected')];
+    if (!sel.length) return false;
+    const sec = sel[0].parentElement;
+    if (sel.length > 1 || !sel.every((a) => a.parentElement === sec)) return true;   // 여럿·섞임은 키만 먹고 아무것도 안 한다(스티커 선례와 같은 꼴)
+    const a = sel[0];
+    const zOf = (el) => { const z = parseInt(getComputedStyle(el).zIndex, 10); return Number.isFinite(z) ? z : 0; };
+    const stack = [...sec.children].filter((c) => c.id && getComputedStyle(c).position !== 'static')
+      .map((el, i) => ({ el, z: zOf(el), i })).sort((p, q) => p.z - q.z || p.i - q.i).map((x) => x.el);
+    const k = stack.indexOf(a);
+    const nb = direction === 'down' ? stack[k + 1] : stack[k - 1];
+    if (!nb) return true;                                                // 이미 맨 위/맨 아래 — 키는 가져간다
+    window.ensureHistoryCheckpoint?.('이동 전');
+    const z = zOf(nb);
+    if (z === _ANNOT_DEFAULT_Z()) a.style.removeProperty('z-index'); else a.style.zIndex = String(z);
+    if (direction === 'down') nb.after(a); else nb.before(a);
+    window.pushHistory?.(direction === 'up' ? '뒤로 보내기' : '앞으로 가져오기');
+    window.buildLayerPanel?.();
+    a.classList.add('selected');
+    window.scheduleAutoSave?.();
+    return true;
+  }
+  window.annotLayerOrder = annotLayerOrder;
+  document.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || (e.code !== 'BracketLeft' && e.code !== 'BracketRight')) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (typeof window._scratchHasSelection === 'function' && window._scratchHasSelection()) return;
+    if (!annotLayerOrder(e.code === 'BracketLeft' ? 'up' : 'down')) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+  }, true);
 })();
