@@ -146,6 +146,91 @@ if (typeof document !== 'undefined' && !window.__inspJumpWired) {
   });
 }
 
+/* ★«이미지» 줄 «우클릭» 입구(1020t2j1 ㉡ · 현빈 원문 「insp-stat-row … 여기서 우클릭하면 가능하게 해줘」).
+ *   ★일은 «새로 만든 것이 아니라 있는 걸 부른다» — 줄 밑 단추(clearRow)와 «같은» js/image-handling.js clearAssetImages
+ *     (이미지만 비움 · 블록 유지 · pushHistory 한 번 = ⌘Z 한 걸음 · 현빈 확정 ⒜). 입구만 하나 더 낸다.
+ *   ★넘기는 목록도 단추와 같다 — 그 줄이 «센 것»(_jumpTargets.assetBlocks)을 같은 술어(isJumpTarget)로 한 번 더 거른 것.
+ *   ★쓰는 자리 = «이미지» 줄 하나(단추와 같은 범위 · ⛔«텍스트» 줄엔 안 단다 — renderInspectorPanel 머리 넷 주석의 선례).
+ *   ★0 이어도 메뉴는 «뜬다» — 항목만 흐리게(aria-disabled · index.html Figma 킬스위치 선례). 우클릭했는데 아무것도 안 뜨면
+ *     「우클릭이 안 먹는다」로 읽힌다. 누르면 아무 일도 없다.
+ *   ★왼쪽 클릭 점프(.insp-jump)는 안 건드린다 — 우클릭은 click 을 안 낸다(contextmenu 만). 메뉴는 body 에 붙어 패널 밖이다.
+ *   ★«이미지» 줄 찾기: 1 이상이면 data-jump="assetBlocks" · 0 이면 statRow 가 표식 없는 줄을 그린다(always 갈래)
+ *     ⇒ 그때는 «개요» 절(패널 첫 절) 안 라벨 「이미지」로 고른다. ⛔statRow 를 고쳐 표식을 달지 않는다
+ *     (서명·꼴을 닻으로 읽는 검사 inspector-t17 T1·I5).
+ *   ⛔css 파일은 안 만진다(clearRow 와 같은 까닭) — 꼴은 #block-context-menu(index.html) 인라인 그대로 · 항목은 .bcm-item. */
+const INSP_CTX_MENU_ID = 'insp-row-ctx-menu';
+function _inspImageRowOf(target) {
+  const row = target?.closest?.('#inspector-stats-body .insp-stat-row');
+  if (!row) return null;
+  if (row.dataset.jump === 'assetBlocks') return row;
+  if (row.dataset.jump) return null;
+  const first = document.querySelector('#inspector-stats-body > .insp-section');
+  if (!first || !first.contains(row)) return null;
+  return row.querySelector('.insp-stat-label')?.textContent.trim() === '이미지' ? row : null;
+}
+/** 비울 것 — 단추(clearRow)와 같은 출처 · 같은 술어. */
+function _inspClearTargets() {
+  return (_jumpTargets.assetBlocks || []).filter(isJumpTarget).filter(el => el.classList.contains('has-image'));
+}
+function _closeInspCtxMenu() {
+  const m = document.getElementById(INSP_CTX_MENU_ID);
+  if (m) m.style.display = 'none';
+}
+function _openInspCtxMenu(x, y) {
+  let m = document.getElementById(INSP_CTX_MENU_ID);
+  if (!m) {
+    m = document.createElement('div');
+    m.id = INSP_CTX_MENU_ID;
+    m.setAttribute('role', 'menu');
+    m.style.cssText = 'display:none;position:fixed;z-index:9999;min-width:180px;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:4px 0;box-shadow:0 4px 16px rgba(0,0,0,0.4);';
+    m.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const it = e.target.closest?.('[data-insp-ctx]');
+      if (!it || it.getAttribute('aria-disabled') === 'true') return;   // 흐린 항목 = 아무 일 없음
+      _closeInspCtxMenu();
+      if (it.dataset.inspCtx === 'clear') {
+        window.clearAssetImages(_inspClearTargets());
+        renderInspectorPanel();
+      }
+    });
+    m.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.body.appendChild(m);
+  }
+  const n = _inspClearTargets().length;
+  const off = !n;
+  m.innerHTML = `<div class="bcm-item" role="menuitem" data-insp-ctx="clear" aria-disabled="${off}"`
+    + ` title="${off ? '비울 이미지가 없습니다' : '블록은 그대로 두고 이미지만 비운다 · ⌘Z로 되돌리기'}"`
+    + `${off ? ' style="opacity:0.4;cursor:default"' : ''}>`
+    + `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">`
+    + `<rect x="1" y="1" width="10" height="10" rx="1.5"/><path d="M3.5 3.5l5 5M8.5 3.5l-5 5"/></svg>`
+    + `${off ? '이미지 비우기 (비울 이미지 없음)' : `이미지 ${n}개 비우기 (블록은 그대로)`}</div>`;
+  m.style.display = 'block';
+  // 화면 밖으로 안 나가게 — 재는 건 띄운 «뒤»(크기는 그려져야 안다).
+  const w = m.offsetWidth, h = m.offsetHeight;
+  m.style.left = Math.max(0, Math.min(x, window.innerWidth - w - 4)) + 'px';
+  m.style.top  = Math.max(0, Math.min(y, window.innerHeight - h - 4)) + 'px';
+}
+if (typeof document !== 'undefined' && !window.__inspCtxWired) {
+  window.__inspCtxWired = true;
+  document.addEventListener('contextmenu', (e) => {
+    const row = _inspImageRowOf(e.target);
+    if (!row) { _closeInspCtxMenu(); return; }
+    e.preventDefault();
+    e.stopPropagation();
+    // 블럭 메뉴가 떠 있으면 거둔다 — 메뉴 둘이 같이 떠 있지 않게.
+    const bcm = document.getElementById('block-context-menu');
+    if (bcm) bcm.style.display = 'none';
+    _openInspCtxMenu(e.clientX, e.clientY);
+  });
+  // 바깥 누름 · Esc · 창 이탈이면 닫는다. ★pointerdown(capture) — 메뉴 안 누름은 메뉴의 click 이 처리한다.
+  document.addEventListener('pointerdown', (e) => {
+    if (e.button === 2) return;   // 우클릭은 위 contextmenu 가 연다/닫는다
+    if (!e.target.closest?.('#' + INSP_CTX_MENU_ID)) _closeInspCtxMenu();
+  }, true);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') _closeInspCtxMenu(); }, true);
+  window.addEventListener('blur', _closeInspCtxMenu);
+}
+
 /* ── 「준비할 이미지」 — 지금 고른 섹션의 «비어 있는» 이미지 칸 (2026-09-30, 현빈) ──────────
  * 무엇을 세나 = 아래 prepImageSlotsOf. 선택자는 js/image-memo.js 한 곳(⛔여기 베껴 적지 마라).
  * ★숫자 = 줄 수 — 메모 없는 칸도 줄을 남긴다. 그래야 「빠진 것」이 눈에 띈다.
