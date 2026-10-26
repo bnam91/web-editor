@@ -85,9 +85,52 @@ const _CHROME_RE = /<div class="section-toolbar">[\s\S]*?<\/div>/g;
 function _stripNonEdit(s) {
   return s.replace(_NON_EDIT_ATTR_RE, '').replace(_CHROME_RE, '');
 }
+/* ★130㉡(2026-10-26 · 현빈 GO · 지디 처방 ③) — 비교의 «a 쪽»(= 스택 꼭대기 canvas)만 벗긴 꼴을 그 항목에 들고 있는다.
+ *   왜: a 는 호출마다 «같은» 꼭대기 문자열인데 매번 다시 벗겼다 — 원 블럭(수지 저장본 36.7MB) 누름·놓음 한 번에 replace 4번·사본 4개.
+ *   ⛔b(이번 직렬화)는 memo 하지 않는다 — 매번 새 문자열이다.
+ *   ⛔무엇을 벗기나(_stripNonEdit · 두 정규식)는 한 글자도 안 바꿨다 — 벗기는 «횟수»만 준다.
+ *   ★memo 가 썩는 길 = 항목 canvas 를 나중에 갈아끼우는 자리 — 그래서 canvas 쓰기는 «전부» _setSnapCanvas 를 지난다(명부 아래).
+ *   ★들고 있는 것은 «한 항목»뿐(_memoEntry) — 항목마다 37MB 사본을 쌓지 않는다. */
+let _memoEntry = null;
+/* ★130㉡ 넘기기(지디 GO 2차) — 비교에서 «이미 벗긴 b» 를 그 b 가 새 꼭대기가 될 때 그 항목 memo 로 넘긴다.
+ *   왜: 누름·놓음이 «각각 새 칸»을 쌓아(seq/len [3,1]→[4,2]→[5,3] ×3) 꼭대기는 늘 «막 생긴» 항목 = a 쪽 memo 가 비어 있었다.
+ *   ⛔표(캐시 키)가 아니다 — 칸 «하나»: 바로 앞 비교의 b 와 그 벗긴 꼴. 쓰면 비운다.
+ *   ★짝 단언: 넘길 때 «그 b 가 바로 그 v 인가»를 본다(_takeStripped) — 다르면 버린다(그 항목은 처음 비교 때 다시 벗긴다).
+ *     _stripNonEdit 는 순수함수라 «같은 글 → 같은 벗긴 꼴»이 성립한다. 어긋난 짝을 넘기면 «다른데 같다»(편집이 안 쌓임 · T-130 병). */
+let _lastB = null;
+let _stripCalls = 0;   // ★자(시험용 셈) — memo 길에서 벗긴 횟수. ⛔_stripNonEdit 몸통은 손대지 않는다(감싸서 센다)
+function _strip(s) { _stripCalls++; return _stripNonEdit(s); }
+function _takeStripped(v) {
+  const slot = _lastB; _lastB = null;
+  return (slot && slot.src === v) ? slot.out : null;   // ★짝 단언 — 어긋나면 null(넘기지 않음)
+}
+function _setSnapCanvas(entry, v, stripped) {
+  entry.canvas = v;
+  entry._stripped = null;   // ★memo 비우기 — 없애면 tests/dom/history-strip-memo.dom.spec.js M1(:706)·M2(:536) 가 빨개진다
+  if (typeof stripped === 'string') {   // ★넘기기 — memo 세우기도 이 한 자리
+    if (_memoEntry && _memoEntry !== entry) _memoEntry._stripped = null;
+    entry._stripped = stripped;
+    _memoEntry = entry;
+  }
+  return entry;
+}
+function _strippedOf(entry) {
+  if (entry._stripped == null) {
+    if (_memoEntry && _memoEntry !== entry) _memoEntry._stripped = null;
+    entry._stripped = _strip(entry.canvas);
+    _memoEntry = entry;
+  }
+  return entry._stripped;
+}
 function _sameEdit(a, b) {
   if (a === b) return true;
   if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const _e = historyStack[historyPos];
+  if (_e && _e.canvas === a) {   // ★a 쪽 memo(두 부르는 자리 다 꼭대기 canvas 를 넘긴다) ＋ b 는 칸 하나에 맡겨 둔다(넘기기)
+    const sb = _strip(b);
+    _lastB = { src: b, out: sb };
+    return _strippedOf(_e) === sb;
+  }
   return _stripNonEdit(a) === _stripNonEdit(b);
 }
 
@@ -256,6 +299,7 @@ function pushHistory(action = '작업', sideEffects = null) {
   }
   historyStack = historyStack.slice(0, historyPos + 1);
   historyStack.push({ canvas: _canvas, videoPendingSidecar: _videoPendingSidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
+  _setSnapCanvas(historyStack[historyStack.length - 1], _canvas, _takeStripped(_canvas));   // ★130㉡ 명부 — canvas 쓰기 한 자리 · 방금 벗긴 b 넘기기(짝 단언)
   if (historyStack.length > MAX_HISTORY) {
     historyStack.shift(); // 가장 오래된 항목 제거
     historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -533,7 +577,7 @@ function _restampRestored() {
   const e = historyStack[historyPos];
   if (!e || _historyPaused) return;
   const cur = window.getSerializedCanvas?.();
-  if (cur && cur !== e.canvas) e.canvas = cur;
+  if (cur && cur !== e.canvas) _setSnapCanvas(e, cur);   // ★130㉡ 명부 — 제자리 갈아끼우기(memo 썩는 길 ①)
 }
 
 function redo() {
@@ -563,6 +607,7 @@ function clearHistory() {
   _remoteSinceCheckpoint = new Set();
   const _initCanvas = window.getSerializedCanvas();
   const init = { canvas: _initCanvas, videoPendingSidecar: window.getLastVideoPendingSidecar?.(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set(), selection: _captureSelection(), seq: ++_seq };
+  _setSnapCanvas(init, _initCanvas);   // ★130㉡ 명부 — :historyStack = [init] 도 이 항목
   historyStack = [init];
   historyPos   = 0;
   state._canvasDirty = false;
@@ -584,6 +629,7 @@ function adoptHistoryFor(pageId) {
   const saved = pageId ? pageHistories.get(pageId) : null;
   if (saved) {
     historyStack = saved.stack.slice(); // 맵 내부 배열 오염 방지
+    historyStack.forEach(e => _setSnapCanvas(e, e.canvas));   // ★130㉡ 명부 — 돌아온 항목은 memo 없이 시작(값은 그대로)
     historyPos   = saved.pos;
     _updateUndoRedoBtns();
   } else {
@@ -636,6 +682,7 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
     // ★R3: remoteKeys 드레인은 pushHistory 와 «양쪽» 다 — undo 첫 스텝은 ensure 경유로
     //   현재상태를 선적재(DEF-01)하므로 여기서 안 비우면 원격분이 그 항목 diff 에 섞여 C8 재발.
     historyStack.push({ canvas: current, videoPendingSidecar: _sidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
+    _setSnapCanvas(historyStack[historyStack.length - 1], current, _takeStripped(current));   // ★130㉡ 명부 · 넘기기(짝 단언)
     if (historyStack.length > MAX_HISTORY) {
       historyStack.shift(); // 가장 오래된 항목 제거
       historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -703,7 +750,7 @@ function restampHistoryTop(seq) {
   if (!top || seq == null || top.seq !== seq) return false;   // 그 사이 다른 일이 끼었다
   const cur = window.getSerializedCanvas?.();
   if (!cur || cur === top.canvas) return false;
-  top.canvas = cur;
+  _setSnapCanvas(top, cur);   // ★130㉡ 명부 — 제자리 갈아끼우기(memo 썩는 길 ②)
   return true;
 }
 
@@ -716,6 +763,7 @@ window.undo         = undo;
 window.redo         = redo;
 window.clearHistory = clearHistory;
 window.getHistoryTip = getHistoryTip;
+window.getHistoryStripStats = () => ({ calls: _stripCalls });   // ★130㉡ 자 — 시험이 «넘기기가 도는가»를 잰다(읽기만)
 window.restampHistoryTop = restampHistoryTop;
 window.historyHasSeq = historyHasSeq;
 window.restoreSnapshot = restoreSnapshot;
