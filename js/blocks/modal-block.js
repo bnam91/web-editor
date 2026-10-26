@@ -323,6 +323,47 @@ function _profileKind(ds) {
  * ★× 단추는 ★에디터 크롬이다 — 생김새·호버 규칙은 css/editor-blocks.css 에 있고 여기선 자리만 낸다
  *   (⛔인라인으로 못 그린다: 호버는 인라인 style 로 표현할 수 없다. 장식과 달리 ★내보내는 그림이 아니다).
  */
+/* ★t5-02㉡ — 오버레이 프로필의 «옮긴 자리» 한계(모델 px). 꺾은선 값 라벨·어노테이션 라벨 오프셋과 같은 범위. */
+const MODAL_PROFILE_OFFSET_LIMIT = 600;
+function _profileOffsetOf(ds) {
+  const f = (v) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.max(-MODAL_PROFILE_OFFSET_LIMIT, Math.min(MODAL_PROFILE_OFFSET_LIMIT, n)) : 0; };
+  return { dx: f(ds.profileDx), dy: f(ds.profileDy) };
+}
+/* ★t5-02㉡ — 얼굴 끌기. 끄는 동안은 style.translate 만, 놓을 때 dataset 에 쓰고 다시 그린다(⌘Z 한 걸음 — 양 끝 표본). */
+function _startProfileDrag(block, face, e) {
+  const sx = e.clientX, sy = e.clientY;
+  const z = (block.getBoundingClientRect().width / (block.offsetWidth || 1)) || 1;
+  const o0 = _profileOffsetOf(block.dataset);
+  const L = MODAL_PROFILE_OFFSET_LIMIT;
+  const clamp = (v) => Math.max(-L, Math.min(L, Math.round(v)));
+  const hist = window.beginDragHistory?.('버즈 프로필 위치');
+  let cur = null;
+  const onMove = (ev) => {
+    const ddx = (ev.clientX - sx) / z, ddy = (ev.clientY - sy) / z;
+    if (cur === null && Math.abs(ev.clientX - sx) < 3 && Math.abs(ev.clientY - sy) < 3) return;
+    hist?.arm(ddx, ddy);
+    cur = { dx: clamp(o0.dx + ddx), dy: clamp(o0.dy + ddy) };
+    face.style.translate = `${cur.dx}px ${cur.dy}px`;
+    ev.preventDefault();
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove, true);
+    document.removeEventListener('mouseup', onUp, true);
+    if (!cur) return;
+    const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+    window.addEventListener('click', eat, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', eat, true), 0);
+    if (cur.dx) block.dataset.profileDx = String(cur.dx); else delete block.dataset.profileDx;
+    if (cur.dy) block.dataset.profileDy = String(cur.dy); else delete block.dataset.profileDy;
+    renderModalBlock(block);
+    window.pushHistory?.('버즈 프로필 위치');
+    window.scheduleAutoSave?.();
+    if (block.classList?.contains('selected')) window.showModalProperties?.(block);
+  };
+  document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('mouseup', onUp, true);
+}
+
 function _profileHtml(block, fontSize) {
   const ds = block.dataset;
   const kind = _profileKind(ds);
@@ -337,9 +378,14 @@ function _profileHtml(block, fontSize) {
     ? `<img class="mdl-profile-img" src="${_esc(ds.profileImg)}" alt="" draggable="false" style="display:block;${box}object-fit:cover;border-radius:${MODAL_PROFILE_RADIUS};">`
     : `<span class="mdl-profile-emoji" style="display:flex;align-items:center;justify-content:center;${box}font-size:${Math.round(size * MODAL_PROFILE_EMOJI_RATIO)}px;line-height:1;">${_esc(String(ds.profileEmoji).trim())}</span>`;
   const outerH = ds.profileOverlay === '1' ? 0 : size;
+  /* ★t5-02㉡(2026-10-26 S3 · 현빈 「오버레이 되면 캔버스에서 선택 후 드래그로 위치 이동도 되게 해줄것」) —
+     오버레이일 때만 얼굴을 끌어 옮긴 자리(profileDx/Dy · 모델 px)를 «translate» 로 건다(transform 의 가운데 맞춤과 따로 논다 —
+     꺾은선 값 라벨 vDx/vDy 와 같은 길). 키가 없거나 오버레이가 아니면 한 글자도 안 바뀐다. */
+  const _pOff = ds.profileOverlay === '1' ? _profileOffsetOf(ds) : { dx: 0, dy: 0 };
+  const _pOffCss = (_pOff.dx || _pOff.dy) ? `translate:${_pOff.dx}px ${_pOff.dy}px;` : '';
   return `<span class="mdl-profile" data-side="${_profileSide(ds)}"`
        + ` style="position:relative;flex:0 0 auto;width:${size}px;height:${outerH}px;">`
-       + `<span class="mdl-profile-face" style="position:absolute;left:0;top:50%;transform:translateY(-50%);${box}">`
+       + `<span class="mdl-profile-face" style="position:absolute;left:0;top:50%;transform:translateY(-50%);${box}${_pOffCss}">`
        + face
        + `<button type="button" class="mdl-profile-x" title="프로필 제거" aria-label="프로필 제거">✕</button>`
        + `</span></span>`;
@@ -879,6 +925,19 @@ function renderModalBlock(block) {
      ★히스토리는 push-after — 우측 패널 다수·버즈 패널의 그 관례다(js/CLAUDE.md · js/props/prop-frame-buzz.js:13).
      ⚠mousedown 까지 세운 까닭 = 버즈 낱개는 «끌 수 있는 .row» 안에 산다 — 단추에서 누른 채 미끄러지면
        끌기가 시작되고 click 이 안 온다(에셋의 지우기 단추는 .row 안이 아니라 그 칸이 없었다). */
+  /* ⑷ t5-02㉡ — 오버레이 프로필 얼굴 끌기. ★× 단추와 같은 자리·같은 까닭(재렌더가 innerHTML 을 갈아끼운다 · 버즈 낱개는 끌 수 있는 .row 안 —
+       mousedown 을 세우지 않으면 row 끌기가 시작된다). 카드가 골라져 있을 때만 · × 위 누름은 × 에게 · 편집 중엔 비켜준다. */
+  const _pFace = block.querySelector?.('.mdl-profile-face');
+  if (_pFace?.addEventListener && block.dataset.profileOverlay === '1') {
+    _pFace.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+      if (!block.classList?.contains('selected') || block.classList?.contains('editing')) return;
+      if (e.target?.closest?.('.mdl-profile-x')) return;
+      e.stopPropagation(); e.preventDefault();
+      _startProfileDrag(block, _pFace, e);
+    });
+  }
+
   const _pxBtn = block.querySelector?.('.mdl-profile-x');
   if (_pxBtn?.addEventListener) {
     _pxBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); });
