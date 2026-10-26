@@ -4,7 +4,7 @@ import { rgbToHex } from './prop-text-utils.js';
 import { parseAlphaFromColor, colorFieldHTML } from './color-picker.js';   /* ★형광펜 색 칸 — 스티커 형광펜이 쓰는 그 부품 그대로(새로 만들지 않는다) */
 import { panelRenderedPx, labelShapeFromRendered, panelRenderedWeight } from './_panel-rendered.js';
 import { buildTextPropsHtml } from './prop-text-template.js';
-import { detectMix } from './prop-text-mix-detect.js';
+import { detectMix, mixKeyOf, paintMixFields } from './prop-text-mix-detect.js';
 import { wireBubbleSection }   from './prop-text-wireup-bubble.js';
 import { wireFontSection }     from './prop-text-wireup-font.js';
 import { wireTypeSection, wireBulletStyleSection, wireTextToQuote } from './prop-text-wireup-type.js';
@@ -29,9 +29,10 @@ function _mixRangeIn(contentEl) {
     return contentEl.contains(r.commonAncestorContainer) ? r : null;
   } catch (_) { return null; }
 }
-const _mixKeyOf = (m) => [m.color.mixed ? '~' : m.color.value, m.fontSize.mixed ? '~' : m.fontSize.value, m.fontWeight.mixed ? '~' : m.fontWeight.value].join('|');
-/* ★1020t2d3 — 편집 중 커서·선택이 옮겨 «판정 값»이 바뀌면 그 블럭 패널을 다시 그린다(그리는 자리 셋 = _typo-section.js 그대로).
-   ⛔값이 같으면 안 다시 그린다(입력 중 패널 깜빡임·포커스 손실 0) · 한 프레임에 한 번(rAF). */
+const _mixKeyOf = mixKeyOf;   /* 한 벌은 prop-text-mix-detect.js */
+/* ★1020t2d3 — 편집 중 커서·선택이 옮겨 «판정 값»이 바뀌면 그 세 칸(크기·굵기·색)을 «제자리에서» 고친다(paintMixFields 한 벌).
+   ⛔패널을 통째로 다시 그리지 않는다 — 그 사이 사람이 누른 칸이 갈려 나갔다(text-selection-panel T8 1/6 · (47) 실측).
+   ⛔값이 같으면 안 건드린다 · 한 프레임에 한 번(rAF). */
 if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window.__mixScopeBound) {
   window.__mixScopeBound = true;
   let _raf = 0;
@@ -47,9 +48,11 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window.
       if (!tb) return;
       const ce = tb.querySelector('[contenteditable="true"]');
       if (!ce || !ce.contains(el)) return;
-      const key = _mixKeyOf(detectMix(ce, { range: _mixRangeIn(ce) }));
+      const mix = detectMix(ce, { range: _mixRangeIn(ce) });
+      const key = _mixKeyOf(mix);
       if (key === tb._mixKey) return;
-      window.showTextProperties?.(tb);
+      tb._mixKey = key;
+      paintMixFields(ce, mix);
     });
   });
 }

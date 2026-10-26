@@ -75,3 +75,72 @@ test('P·⒜·⒞ ★편집 중 BBB 선택 ⇒ 그 영역의 실제 값', async 
   expect({ size: c.size, weight: c.weight, hex: c.hex }, '⒞ BBB 선택').toEqual({ size: '60', weight: 'Bold 700', hex: bbb.hex });
   expect(errs).toEqual([]);
 });
+
+/* ── (47) ㉡ 편집 복귀(prop-text-wireup-text-edit.js focusin) 도 셋 다 다시 판정 ─────────────────────────
+ *   E1 섞인 글 전체를 고른 채 패널 칸으로 갔다가(굵기·색 칸에 옛 값이 남은 꼴) 글자칸으로 돌아오면 ⇒ 크기·굵기·색 셋 다 Mix
+ *      (★이 순간 tb._mixKey 는 그대로라 selectionchange 다시 그리기는 안 돈다 — 편집 복귀 판정 «하나»만 잰다)
+ * ── ⒟ 음성대조 — 균일한 글에서는 Mix 가 안 뜬다(셋 칸 × 블럭만·커서·선택) ── */
+test('E1 ★편집 복귀 — 크기·굵기·색 셋 다 Mix 로 다시 판정', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  const bbb = await page.evaluate((id) => { const sp = [...document.getElementById(id).querySelectorAll('span')].find((s) => s.textContent === 'BBB'); const r = sp.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, id);
+  await page.mouse.click(bbb.x, bbb.y);
+  /* 글 전체 선택 → 패널이 Mix 로 다시 그려질 때까지(㉠ 길) */
+  await page.evaluate((id) => { const ce = document.getElementById(id).querySelector('[contenteditable="true"]'); const r = document.createRange(); r.selectNodeContents(ce); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }, id);
+  await page.waitForFunction(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => res(true)))));
+  await page.waitForFunction(() => document.getElementById('txt-color-hex')?.placeholder === 'Mix', null, { timeout: 3000 });
+  /* 패널 칸으로 갔다가 — 굵기·색 칸에 옛 값(비-Mix)이 남은 꼴을 만든다 */
+  await page.evaluate(() => {
+    const w = document.getElementById('txt-font-weight'); [...w.options].filter((o) => o.value === '' && o.disabled).forEach((o) => o.remove()); w.value = '400';
+    const hx = document.getElementById('txt-color-hex'); hx.placeholder = ''; hx.value = '111111';
+    document.getElementById('txt-size-number').focus();
+  });
+  /* 글자칸으로 돌아온다(선택은 그대로 전체) */
+  await page.evaluate((id) => { const ce = document.getElementById(id).querySelector('[contenteditable="true"]'); const r = document.createRange(); r.selectNodeContents(ce); const s = getSelection(); s.removeAllRanges(); s.addRange(r); ce.focus(); }, id);
+  /* 편집 복귀 판정은 한 프레임 뒤에 돈다 — 크기 칸은 이미 Mix 라 그걸로 기다리면 안 된다(색 칸으로 기다린다) */
+  await page.waitForFunction(() => document.getElementById('txt-color-hex')?.placeholder === 'Mix', null, { timeout: 3000 }).catch(() => {});
+  const e = await page.evaluate(PANEL);
+  expect([e.sizePh, e.weight, e.hexPh, e.hex], 'E1 셋 다 Mix').toEqual(['Mix', 'Mix', 'Mix', '']);
+  expect(errs).toEqual([]);
+});
+
+async function setupUniform(page) {
+  await page.setViewportSize({ width: 1400, height: 1000 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(async () => {
+    await window.addSection();
+    window.addTextBlock('body');
+    const tb = [...document.querySelectorAll('#canvas .text-block')].pop();
+    const ce = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-body');
+    ce.innerHTML = '<span style="font-size:40px;color:#333333;font-weight:700">CCC</span> <span style="font-size:40px;color:#333333;font-weight:700">DDD</span>';
+    window.deselectAll?.();
+    return tb.id;
+  });
+  const r = await waitStableRect(page, '#' + id);
+  await page.mouse.click(r.left + 10, r.cy);
+  await page.waitForFunction(() => !!document.getElementById('txt-size-number'), null, { timeout: 3000 });
+  return { errs, id };
+}
+const noMix = (p) => [p.sizePh, p.weight, p.hexPh].map((v) => v === 'Mix');
+
+test('N1 ⒟ 균일한 글 — 블럭만: Mix 0', async ({ page }) => {
+  const { errs } = await setupUniform(page);
+  const p = await page.evaluate(PANEL);
+  expect(noMix(p), `N1 ${JSON.stringify(p)}`).toEqual([false, false, false]);
+  expect(errs).toEqual([]);
+});
+
+test('N2·N3 ⒟ 균일한 글 — 커서·선택: Mix 0', async ({ page }) => {
+  const { errs, id } = await setupUniform(page);
+  const d = await page.evaluate((id) => { const sp = [...document.getElementById(id).querySelectorAll('span')].find((s) => s.textContent === 'DDD'); const r = sp.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, l: r.left + 2, r: r.right - 2 }; }, id);
+  await page.mouse.dblclick(d.x, d.y);
+  await page.waitForFunction((id) => document.getElementById(id).querySelector('[contenteditable="true"]') !== null, id, { timeout: 3000 });
+  await page.mouse.click(d.x, d.y);
+  await page.waitForFunction(() => !!document.getElementById('txt-size-number'), null, { timeout: 3000 });
+  const p2 = await page.evaluate(PANEL);
+  expect(noMix(p2), `N2 커서 ${JSON.stringify(p2)}`).toEqual([false, false, false]);
+  await page.evaluate((id) => { const ce = document.getElementById(id).querySelector('[contenteditable="true"]'); const r = document.createRange(); r.selectNodeContents(ce); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }, id);
+  await page.waitForFunction(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => res(true)))));
+  const p3 = await page.evaluate(PANEL);
+  expect(noMix(p3), `N3 전체 선택 ${JSON.stringify(p3)}`).toEqual([false, false, false]);
+  expect(errs).toEqual([]);
+});
