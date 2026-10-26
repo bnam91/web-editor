@@ -11,7 +11,7 @@
  *
  * ★★1017t1m3 ㉡(현빈 · 261026 GO) — 「그리고 해당버튼은 없어도 돼. 줄추가하는건데 왜 이게 있는거야.?」 ⇒ 말풍선 캔버스 ＋ 를 ★없앴다
  *   (js/blocks/line-host.js BUBBLE_CANVAS_PLUS = false · 말풍선만 — 로렐·그리드 ＋ 무접촉).
- *   ⇒ LP0 은 «＋ 0» 으로 뒤집었다(뒤집은 것이 고친 증거) · LP1~LP5 는 ＋ 가 있어야 성립하는 칸이라 SKIP(까닭 아래 SKIP_WHY).
+ *   ⇒ LP0 은 «＋ 0» 으로 뒤집었다(뒤집은 것이 고친 증거) · LP1~LP6 은 ＋ 가 있어야 성립하는 칸이라 SKIP(까닭 아래 SKIP_WHY · 칸마다 옮겨 간 자리는 커밋 메시지 표).
  *   ★줄 추가 입구 = 우클릭 «아래에 줄 추가 (T)» — 그 손짓·⌘Z 는 tests/dom/t1017m3-bubble-no-plus R1·R2 가 잰다.
  */
 const { test, expect } = require('@playwright/test');
