@@ -85,9 +85,31 @@ const _CHROME_RE = /<div class="section-toolbar">[\s\S]*?<\/div>/g;
 function _stripNonEdit(s) {
   return s.replace(_NON_EDIT_ATTR_RE, '').replace(_CHROME_RE, '');
 }
+/* ★130㉡(2026-10-26 · 현빈 GO · 지디 처방 ③) — 비교의 «a 쪽»(= 스택 꼭대기 canvas)만 벗긴 꼴을 그 항목에 들고 있는다.
+ *   왜: a 는 호출마다 «같은» 꼭대기 문자열인데 매번 다시 벗겼다 — 원 블럭(수지 저장본 36.7MB) 누름·놓음 한 번에 replace 4번·사본 4개.
+ *   ⛔b(이번 직렬화)는 memo 하지 않는다 — 매번 새 문자열이다.
+ *   ⛔무엇을 벗기나(_stripNonEdit · 두 정규식)는 한 글자도 안 바꿨다 — 벗기는 «횟수»만 준다.
+ *   ★memo 가 썩는 길 = 항목 canvas 를 나중에 갈아끼우는 자리 — 그래서 canvas 쓰기는 «전부» _setSnapCanvas 를 지난다(명부 아래).
+ *   ★들고 있는 것은 «한 항목»뿐(_memoEntry) — 항목마다 37MB 사본을 쌓지 않는다. */
+let _memoEntry = null;
+function _setSnapCanvas(entry, v) {
+  entry.canvas = v;
+  entry._stripped = null;   // ★memo 비우기 — 없애면 tests/dom/history-strip-memo.dom.spec.js M1(:706)·M2(:536) 가 빨개진다
+  return entry;
+}
+function _strippedOf(entry) {
+  if (entry._stripped == null) {
+    if (_memoEntry && _memoEntry !== entry) _memoEntry._stripped = null;
+    entry._stripped = _stripNonEdit(entry.canvas);
+    _memoEntry = entry;
+  }
+  return entry._stripped;
+}
 function _sameEdit(a, b) {
   if (a === b) return true;
   if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const _e = historyStack[historyPos];
+  if (_e && _e.canvas === a) return _strippedOf(_e) === _stripNonEdit(b);   // ★a 쪽만 memo(두 부르는 자리 다 꼭대기 canvas 를 넘긴다)
   return _stripNonEdit(a) === _stripNonEdit(b);
 }
 
@@ -256,6 +278,7 @@ function pushHistory(action = '작업', sideEffects = null) {
   }
   historyStack = historyStack.slice(0, historyPos + 1);
   historyStack.push({ canvas: _canvas, videoPendingSidecar: _videoPendingSidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
+  _setSnapCanvas(historyStack[historyStack.length - 1], _canvas);   // ★130㉡ 명부 — canvas 쓰기 한 자리
   if (historyStack.length > MAX_HISTORY) {
     historyStack.shift(); // 가장 오래된 항목 제거
     historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -533,7 +556,7 @@ function _restampRestored() {
   const e = historyStack[historyPos];
   if (!e || _historyPaused) return;
   const cur = window.getSerializedCanvas?.();
-  if (cur && cur !== e.canvas) e.canvas = cur;
+  if (cur && cur !== e.canvas) _setSnapCanvas(e, cur);   // ★130㉡ 명부 — 제자리 갈아끼우기(memo 썩는 길 ①)
 }
 
 function redo() {
@@ -563,6 +586,7 @@ function clearHistory() {
   _remoteSinceCheckpoint = new Set();
   const _initCanvas = window.getSerializedCanvas();
   const init = { canvas: _initCanvas, videoPendingSidecar: window.getLastVideoPendingSidecar?.(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set(), selection: _captureSelection(), seq: ++_seq };
+  _setSnapCanvas(init, _initCanvas);   // ★130㉡ 명부 — :historyStack = [init] 도 이 항목
   historyStack = [init];
   historyPos   = 0;
   state._canvasDirty = false;
@@ -584,6 +608,7 @@ function adoptHistoryFor(pageId) {
   const saved = pageId ? pageHistories.get(pageId) : null;
   if (saved) {
     historyStack = saved.stack.slice(); // 맵 내부 배열 오염 방지
+    historyStack.forEach(e => _setSnapCanvas(e, e.canvas));   // ★130㉡ 명부 — 돌아온 항목은 memo 없이 시작(값은 그대로)
     historyPos   = saved.pos;
     _updateUndoRedoBtns();
   } else {
@@ -636,6 +661,7 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
     // ★R3: remoteKeys 드레인은 pushHistory 와 «양쪽» 다 — undo 첫 스텝은 ensure 경유로
     //   현재상태를 선적재(DEF-01)하므로 여기서 안 비우면 원격분이 그 항목 diff 에 섞여 C8 재발.
     historyStack.push({ canvas: current, videoPendingSidecar: _sidecar, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys(), selection: _captureSelection(), seq: ++_seq });
+    _setSnapCanvas(historyStack[historyStack.length - 1], current);   // ★130㉡ 명부
     if (historyStack.length > MAX_HISTORY) {
       historyStack.shift(); // 가장 오래된 항목 제거
       historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -703,7 +729,7 @@ function restampHistoryTop(seq) {
   if (!top || seq == null || top.seq !== seq) return false;   // 그 사이 다른 일이 끼었다
   const cur = window.getSerializedCanvas?.();
   if (!cur || cur === top.canvas) return false;
-  top.canvas = cur;
+  _setSnapCanvas(top, cur);   // ★130㉡ 명부 — 제자리 갈아끼우기(memo 썩는 길 ②)
   return true;
 }
 

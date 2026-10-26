@@ -44,7 +44,10 @@ const grab = (re, name) => {
   assert.ok(m, `★앵커 실패: ${name} — history.js 가 바뀌었으면 이 파일부터 고쳐라`);
   return m[0];
 };
+/* ★130㉡(2026-10-26) — _sameEdit 이 꼭대기 memo 를 보려고 historyStack·historyPos 를 읽는다. 이 하네스는 함수만 떠 돌리므로
+   «빈 스택»을 넣어 준다 ⇒ memo 갈래는 안 타고(꼭대기 없음) 옛 비교 그대로 = 이 파일이 재는 «실물 비교자»의 뜻은 같다. */
 const _sameEdit = new Function([
+  'const historyStack = []; const historyPos = -1;',
   grab(/const _NON_EDIT_ATTR_RE = [^\n]+/, '_NON_EDIT_ATTR_RE'),
   grab(/const _CHROME_RE = [^\n]+/, '_CHROME_RE'),
   grab(/function _stripNonEdit\([^)]*\) \{[\s\S]*?\n\}/, '_stripNonEdit'),
