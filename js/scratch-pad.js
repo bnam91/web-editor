@@ -28,7 +28,10 @@ let _scratchItems = [];   // { el, src, x, y, w, id, g? } — g = 그룹 id (선
 let _selectedItems = new Set();  // 다중 선택 집합
 let _sliceMode = null;    // 슬라이스 모드 활성 item (또는 null)
 /* ★⑦ 그룹 진입 모드 — 활성 «그룹 id»(또는 null). 현빈 2026-10-10:
-     「더블클릭 → 그룹 진입 → 멤버 단독 선택 · 그 상태에서 Delete/Backspace/삭제버튼 = 그 한 장만 ★빼기」
+     ~~「더블클릭 → 그룹 진입 → 멤버 단독 선택 · 그 상태에서 Delete/Backspace/삭제버튼 = 그 한 장만 ★빼기」~~
+   ★261026 현빈 답으로 바꿈(현빈 3 · 지디 배정) — 진입 중 ★Delete/Backspace = 그 한 장 ★진짜 삭제.
+     «빼기»는 ★⊘(진입 중 ✕ 단추 · 아래 closeBtn) 와 우클릭 「그룹에서 빼기」(S6 abbc769f · t4-19 ㉯)로 남는다 — ⛔기능을 없애지 않았다.
+     ★Delete 는 우클릭 「삭제」와 «같은 부름»(_deleteScratchItemsWithHistory([그 장], { inGroupMode: true }))이다 — 두 손이 갈리지 않게.
    ★꼴은 `_sliceMode` 를 ★그대로 본떴다(진입 배타·단독 선택 강제·밖 클릭 나가기·마퀴 억제).
    ⛔둘을 따로 고치지 마라 — 같은 관용구다. */
 let _groupMode = null;
@@ -1676,11 +1679,20 @@ async function initScratchPad(projectId, pageId) {
   document.addEventListener('keydown', e => {
     if (e.key !== 'Delete' && e.key !== 'Backspace') return;
     if (_sliceMode) { _exitSliceMode(); return; }
-    /* ★⑦ 그룹 진입 중 — ★고른 한 장을 ★뺀다(⛔지우지 않는다). 현빈 2026-10-10.
+    /* ★⑦ 그룹 진입 중 — ★고른 한 장을 ★지운다. ★261026 현빈 답으로 바꿈(~~2026-10-10 「뺀다(⛔지우지 않는다)」~~ · 머리말 ⑦ 참고).
+       ★우클릭 「삭제」(S6 abbc769f)와 같은 부름 — inGroupMode 는 그 커밋의 keepLone(1장 남아도 그룹·모드 유지)을 켠다
+         (그 커밋이 없는 판에선 이 인자를 안 읽고 ⑧ «1장 남으면 풀기»를 탄다).
+       ★입력칸 가드를 «먼저» 지난다 — 지우는 손이 됐으므로 글 쓰는 중 Backspace 가 장을 지우면 안 된다(빼기 땐 모드 갈래가 가드 앞에 있었다).
        ★진입 배타 덕에 위 slice 가드와 ★동시에 참일 수 없다 — 순서는 뜻이 없다. */
     if (_groupMode) {
       const picked = [..._selectedItems].filter((s) => s.g === _groupMode);
-      if (picked.length === 1) { _detachFromGroup(picked[0]); return; }
+      if (picked.length === 1) {
+        const active = document.activeElement;
+        if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+        _clearSelection();
+        _deleteScratchItemsWithHistory([picked[0]], { inGroupMode: true });
+        return;
+      }
     }
     if (_selectedItems.size === 0) return;
     const active = document.activeElement;
