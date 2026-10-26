@@ -33,20 +33,23 @@
 
 ## 남은 자리
 
+
+> ★자리 정본 = `tests/unit/autosave-overlap.test.js` 의 `UNNETTED_BACKLOG`(파일 → 둘러싼 함수 이름). 이 표는 «무엇·왜»만 — ⛔`파일.js:숫자` 를 적지 않는다(코드가 밀릴 때마다 썩었다 · 138 · N7d 가 빨개진다).
+
 ### ⓐ 처음부터 알고 미룬 셋 (지디 조건 ④)
 
-| 파일:줄 | 무엇을 하는 자리 | 왜 미뤘나 |
+| 파일 · 둘러싼 함수 | 무엇을 하는 자리 | 왜 미뤘나 |
 |---|---|---|
-| `js/history.js:368` | `restoreSnapshot` — 되돌리기 | 되돌리기는 «사람이 보고 있는 창»에서만 난다. 가려진 창에서 ⌘Z 가 오는 경로가 없다 ⇒ 급하지 않다 |
-| `js/history.js:497` | `restoreSnapshotScoped` — 범위 되돌리기 | 위와 같다. 게다가 `window.scheduleAutoSave?.()` 를 같이 불러 재무장까지 한다 |
-| `js/collab/sync.js:457`(옛 418→428→457 — 2026-10-06 주석·SIX 코드로 밀림) | 원격 패치 적용 | ★여기가 진짜 위험하다 — 원격 패치는 **가려진 창에도 온다**. 다만 collab 은 배포 경로에서 꺼져 있어 이번 판의 사고 원인이 아니었다 |
+| `js/history.js` · `restoreSnapshot` | 되돌리기 | 되돌리기는 «사람이 보고 있는 창»에서만 난다. 가려진 창에서 ⌘Z 가 오는 경로가 없다 ⇒ 급하지 않다 |
+| `js/history.js` · `restoreSnapshotScoped` | 범위 되돌리기 | 위와 같다. 게다가 `window.scheduleAutoSave?.()` 를 같이 불러 재무장까지 한다 |
+| `js/collab/sync.js` · `applyPatch` | 원격 패치 적용 | ★여기가 진짜 위험하다 — 원격 패치는 **가려진 창에도 온다**. 다만 collab 은 배포 경로에서 꺼져 있어 이번 판의 사고 원인이 아니었다 |
 
 ### ⓑ ★검사를 넓히다 «새로» 찾은 둘 — 이번에 고친 것과 갈라 적는다
 
-| 파일:줄 | 어느 축이 보여 줬나 | 무엇이 위험한가 |
+| 파일 · 둘러싼 함수 | 어느 축이 보여 줬나 | 무엇이 위험한가 |
 |---|---|---|
-| `js/io/lazy-sections.js:59` | ②(플래그) | `_lazyRenderPass` 를 rAF 단독으로 되돌린다. IO 가 «보이는» 동안 패스를 시작하고 사용자가 탭을 옮기면 rAF 가 멈춰 플래그가 고착 → `autoSaveObserver` 가 style·`data-lazy-bg`·class 변경을 **영영** 거른다. ⚠️`_suppressAutoSave` 만큼 넓진 않다(속성 변경만 삼킨다) |
-| `js/version-history-ui.js:407` | ③(else 폴백) | `if (rAF) rAF(restore); else setTimeout(restore, 0);` — 이 파일이 이 패턴의 «정본»으로 불리는데, 정작 **폴백과 안전망을 헷갈린 그 모양**이다. 가려진 창에서 버전 되돌리기를 하면 억제가 `prevSuppress` 로 안 돌아온다 |
+| `js/io/lazy-sections.js` · `_withSuppressAutoSave` | ②(플래그) | `_lazyRenderPass` 를 rAF 단독으로 되돌린다. IO 가 «보이는» 동안 패스를 시작하고 사용자가 탭을 옮기면 rAF 가 멈춰 플래그가 고착 → `autoSaveObserver` 가 style·`data-lazy-bg`·class 변경을 **영영** 거른다. ⚠️`_suppressAutoSave` 만큼 넓진 않다(속성 변경만 삼킨다) |
+| `js/version-history-ui.js` · `_restore` | ③(else 폴백) | `if (rAF) rAF(restore); else setTimeout(restore, 0);` — 이 파일이 이 패턴의 «정본»으로 불리는데, 정작 **폴백과 안전망을 헷갈린 그 모양**이다. 가려진 창에서 버전 되돌리기를 하면 억제가 `prevSuppress` 로 안 돌아온다 |
 
 ⛔둘 다 **이 브랜치에서 고치지 않는다**(지디 지시 — 범위를 넓히지 않는다).
 ⚠️`version-history-ui.js` 는 전용 검사(`vhist-ui-restore.test.js`)가 지키는 파일이라,

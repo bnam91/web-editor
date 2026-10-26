@@ -200,6 +200,18 @@ function scanTargets() {
     .filter(f => f.rel !== 'js/autosave-suppress.js');
 }
 
+/** ★138(2026-10-26) 그 자리를 «둘러싼 가장 바깥 이름 함수» — 줄번호 대신 이 이름을 앵커로 쓴다(줄은 코드가 밀릴 때마다 썩는다).
+ *  안쪽 콜백(`() => {…}`)·제어문(if/for/…)은 건너뛰고 «이름 있는» 함수 머리만 본다. 바깥으로 오를수록 덮어쓴다 = 가장 바깥. */
+const _FN_HEAD = /(?:function\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)|(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\s*[\w$]*\s*\([^)]*\)|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>))\s*$/;
+function outerFnName(src, at) {
+  let name = null;
+  for (let b = enclosingBrace(src, at); b >= 0; b = enclosingBrace(src, b - 1)) {
+    const m = src.slice(Math.max(0, b - 240), b).match(_FN_HEAD);
+    if (m) name = m[1] || m[2];
+  }
+  return name;
+}
+
 /** 「안전망 없는 해제」 전수. flags 는 도출해서 넘긴다. */
 function unnettedReleases(files, flags) {
   const alt = `(?:${flags.join('|')})`;
@@ -209,7 +221,7 @@ function unnettedReleases(files, flags) {
     let m;
     while ((m = re.exec(src))) {
       const kind = unnettedRelease(src, m.index);
-      if (kind) hits.push({ rel, line: src.slice(0, m.index).split('\n').length, kind });
+      if (kind) hits.push({ rel, line: src.slice(0, m.index).split('\n').length, fn: outerFnName(src, m.index), kind });
     }
   }
   return hits;
@@ -218,11 +230,15 @@ function unnettedReleases(files, flags) {
 /* ★백로그 명부 = 티켓 정본 `_context/BACKLOG-autosave-raf-only.md`.
    ⛔「고칠 수 있는데 안 고쳤다」가 아니라 「이 브랜치 «범위 밖»이다」인 자리만 여기 있다(지디 조건 ④).
    ★아래 둘은 검사를 넓히다 «새로 찾은» 것이다 — 이번에 고친 것과 갈라 적는다. */
+/* ★138(2026-10-26) 명부를 «줄번호»에서 «둘러싼 바깥 함수 이름»으로 — 줄은 코드가 밀릴 때마다 썩었다
+   (115·243 → … → 324·453 → 368·497 · sync 418 → 428 → 457 — 그때마다 이 시험이 빨개졌고, 주석 사본은 «안» 빨개져 한 칸 어긋난 채 남았다).
+   ★정본은 이 명부 «하나» — js/autosave-suppress.js 주석·_context/BACKLOG-autosave-raf-only.md 는 수·줄번호 없이 함수 이름만 적고 «정본 = 이 명부»를 가리킨다
+   (그 둘에 `파일.js:숫자` 가 되살아나면 아래 N7d 가 빨개진다). */
 const UNNETTED_BACKLOG = {
-  'js/collab/sync.js':          [457],  // 418 → 428(⒝ 까닭 주석) → 457(SIX: 섹션별 마지막 push seq·충돌 기록 줄로 밀림) — 같은 자리(본문 4줄 동일), 새 해제 자리 아님
-  'js/history.js':              [368, 497],  // 같은 두 자리(restoreSnapshot·restoreSnapshotScoped 의 rAF 해제). 줄만 계속 밀린다 — 115·243 → 161·290 → (resize-undo)151·279 / (grad-alpha)211·340 → 통합 int/0920b 에서 둘 다 들어가 247·376 → (T-079 패널표 이사로 _PANEL_BY_CLASS 가 js/panel-dispatch.js 로 빠져 24줄 당겨짐)223·352 → (T-131 이음매 주석 14줄 추가로 밀림)237·366 → (섹션 툴바 벗기기 주석 24줄 추가로 밀림)261·390 → (T-130 미확정영상 사이드카 비교 주석 63줄 추가로 밀림)324·453 → (130㉡ 무변화 비교 memo·넘기기 44줄 추가로 밀림)368·497. ★자리는 그대로고 «줄만» 밀렸다 — 새 해제 자리가 는 것이 아니다.
-  'js/io/lazy-sections.js':     [59],    // ★신규 — `_lazyRenderPass` (플래그 축을 넓혀서 보였다)
-  'js/version-history-ui.js':   [407],   // ★신규 — `else setTimeout` 이 안전망이 아님을 알고 보였다
+  'js/collab/sync.js':          ['applyPatch'],                                // 원격 패치 적용(rAF 단독 해제)
+  'js/history.js':              ['restoreSnapshot', 'restoreSnapshotScoped'],  // 되돌리기 · 범위 되돌리기
+  'js/io/lazy-sections.js':     ['_withSuppressAutoSave'],                     // ★신규(플래그 축) — `_lazyRenderPass` 를 rAF 단독으로 되돌린다
+  'js/version-history-ui.js':   ['_restore'],                                  // ★신규(else 폴백 축) — `else setTimeout` 은 안전망이 아니다
 };
 
 test('N6 ★도출 — 억제류 플래그를 «손으로 적지 않고» 뽑는다', () => {
@@ -243,15 +259,62 @@ test('N6b ★양성대조 — 새 억제 플래그가 «생기면» 도출이 �
 test('N7 ★전수 — 안전망 없는 해제가 백로그 «그대로»인가', () => {
   const flags = deriveSuppressFlags(readSrc(ROOT, 'js', 'io', 'save-load.js'));
   const hits = unnettedReleases(scanTargets(), flags);
-  const byFile = {};
-  for (const h of hits) (byFile[h.rel] ||= []).push(h.line);
-  for (const k of Object.keys(byFile)) byFile[k].sort((a, b) => a - b);
-
+  const byFile = _byFileFn(hits);
   assert.deepEqual(byFile, UNNETTED_BACKLOG,
-    '★안전망 없는 해제 명부가 어긋났다.\n  잰 것 : ' + JSON.stringify(byFile) +
+    '★안전망 없는 해제 명부가 어긋났다(앵커 = 둘러싼 바깥 함수 이름).\n  잰 것 : ' + JSON.stringify(byFile) +
+    '\n  자리 : ' + hits.map(h => `${h.rel}:${h.line}(${h.fn})`).join(' · ') +
     '\n  적힌 것: ' + JSON.stringify(UNNETTED_BACKLOG) +
-    '\n  ⇒ 늘었으면 새 사고 자리다. 줄었으면 «이 명부 + _context/BACKLOG-autosave-raf-only.md +' +
-    ' autosave-suppress.js 주석»을 같이 고쳐라(셋이 따로 낡는 게 이 계열의 다음 사고다).');
+    '\n  ⇒ 늘었으면 새 사고 자리다. 줄었으면 이 명부(정본)를 고치고 _context/BACKLOG-autosave-raf-only.md · autosave-suppress.js 주석의 «함수 이름»도 같이.');
+});
+
+function _byFileFn(hits) {
+  const byFile = {};
+  for (const h of hits) (byFile[h.rel] ||= []).push(h.fn);
+  for (const k of Object.keys(byFile)) byFile[k].sort();
+  return byFile;
+}
+
+/* ═══ ★138 ⒟ — 앵커가 «참으로» 앵커인가: 줄이 밀려도 초록 · 자리가 늘면 빨강 ═══════════════ */
+test('N7b ★참 판정 — 대상 파일 맨 위에 빈 줄 40 을 넣어도(줄만 밀림) 명부가 그대로다', () => {
+  const flags = deriveSuppressFlags(readSrc(ROOT, 'js', 'io', 'save-load.js'));
+  const files = scanTargets().map(f => UNNETTED_BACKLOG[f.rel] ? { ...f, src: '\n'.repeat(40) + f.src } : f);
+  const hits = unnettedReleases(files, flags);
+  assert.ok(hits.some(h => h.rel === 'js/history.js' && h.line > 400), '★전제: 줄이 실제로 밀렸다(history.js 첫 자리 > 400)');
+  assert.deepEqual(_byFileFn(hits), UNNETTED_BACKLOG, '★줄만 밀렸는데 명부가 어긋난다 — 앵커가 아직 줄에 묶여 있다');
+});
+
+test('N7c ★음성대조 — 해제 자리를 «하나 더» 만들면 빨갛다(앵커로 바꾸다 전수를 잃지 않았나)', () => {
+  const flags = deriveSuppressFlags(readSrc(ROOT, 'js', 'io', 'save-load.js'));
+  const extra = '\nfunction __s7NewSite() { requestAnimationFrame(() => { state._suppressAutoSave = false; }); }\n';
+  const files = scanTargets().map(f => f.rel === 'js/history.js' ? { ...f, src: f.src + extra } : f);
+  const got = _byFileFn(unnettedReleases(files, flags));
+  assert.notDeepEqual(got, UNNETTED_BACKLOG, '★새 해제 자리가 생겼는데 명부와 같다 — 전수가 그 자리를 못 본다');
+  assert.ok((got['js/history.js'] || []).includes('__s7NewSite'), '★새 자리가 «그 이름»으로 잡혀야 한다');
+});
+
+/* ═══ ★138 ⒞' — 사본 둘(②③)에 «줄번호 꼴»이 되살아나지 않는다(한 방향 금지만 · 내용은 안 판다) ═══════════════ */
+const _LINE_REF = /\.js:\d+/g;
+function _copyRegions() {
+  const sup = readSrc(ROOT, 'js', 'autosave-suppress.js');
+  const a = sup.indexOf('★이 계열의 «뿌리»'), b = a < 0 ? -1 : sup.indexOf('N7', a);
+  const md = readSrc(ROOT, '_context', 'BACKLOG-autosave-raf-only.md');
+  const c = md.indexOf('## 남은 자리'), d = c < 0 ? -1 : md.indexOf('\n## ', c + 3);
+  return {
+    '② js/autosave-suppress.js 「이 계열의 뿌리」 단락': a < 0 || b < 0 ? null : sup.slice(a, b),
+    '③ _context/BACKLOG-autosave-raf-only.md 「남은 자리」 절': c < 0 ? null : md.slice(c, d < 0 ? md.length : d),
+  };
+}
+const _lineRefsIn = (txt) => (txt.match(_LINE_REF) || []);
+test('N7d ★사본 둘(②③)에 `파일.js:숫자` 가 0건 — 수·줄번호는 정본(N7 명부)에만', () => {
+  for (const [name, txt] of Object.entries(_copyRegions())) {
+    assert.ok(txt && txt.length > 40, `★앵커 실패: ${name} 를 못 찾았다 — 글이 바뀌었으면 _copyRegions 앵커부터 고쳐라`);
+    assert.deepEqual(_lineRefsIn(txt), [], `${name} 에 줄번호 꼴이 있다 — 코드가 밀리면 썩는다(정본 = tests/unit/autosave-overlap.test.js UNNETTED_BACKLOG)`);
+  }
+});
+test('N7e ★양성대조 — 그 둘에 줄번호 하나를 되넣으면 잡는다(N7d 가 항등식이 아니다)', () => {
+  for (const [name, txt] of Object.entries(_copyRegions())) {
+    assert.equal(_lineRefsIn(txt + ' js/history.js:368').length, _lineRefsIn(txt).length + 1, `${name}: 되넣은 줄번호를 못 잡는다`);
+  }
 });
 
 /* ═══ 술어의 양성·음성대조 — 「5건」이 「못 재고 있다」와 구분되게 ═══════════════ */
