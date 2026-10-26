@@ -966,6 +966,15 @@ function _gridValidateGap(v, min = 0) {
   return Math.round(n);
 }
 
+/* ★t6-04b — 줄의 px 값을 «0 을 살려» 읽는 문 하나(그리는 쪽 · 패널이 같이 쓴다 · 인자 = 값, 기본값).
+ *  쓰는 자리: 중첩 줄 gap(t6-04 요구) · 여백 줄 height · 그림 줄 height 패널 표시(이웃 둘 · 지디 16:21).
+ *  ⛔`Number(line.gap) || 24` 금지 — 0 이 유효값인데 `||` 가 0 을 삼켜 24 로 그렸고, 팝오버가 24 를 «지금 값»으로
+ *    띄워 0 → 24 로 «조용히 되써» 저장본을 바꿨다(아이맥 ⓐ). :717 블럭 gap 과 같은 함정 · 같은 판정(Number.isFinite).
+ *  ★없음(null·undefined·'')·무효 = 부른 쪽이 준 기본값(그 기본값의 정본 자리는 따로 하나씩 — GRID_NESTED_GAP · GRID_GAP_LINE_H). 범위 밖 저장본은 «그대로» 그린다 — 거르는 자리는 들어오는 문(_gridValueViolations). */
+function _gridNumOr(g, dflt) {   // ★값을 받는다(줄이 아니라) — `line.gap` 글자가 부르는 자리에 남아야 P6(명부 도출 · 소스 파싱)이 읽는다
+  return g !== null && g !== undefined && g !== '' && Number.isFinite(Number(g)) ? Number(g) : dflt;
+}
+
 // 컬럼 스케일 텍스트 롤 기본값 (풀폭 h1 104px는 다단에선 과대 — 컬럼용 축소 기준)
 /* ★role.color — 「역할 기본색」(§7-ⓐ). 새 색을 «하나도» 만들지 않았다: 전부 editor-base.css 의
  *   --preset-*-color 와 «같은 값»이다(h1 #111 :10 · h2 #1a1a1a :12 · h3 #333 :14 · body #555 :16 ·
@@ -1058,6 +1067,15 @@ const GRID_NESTED_MAX_DEPTH = 2;
  *   같은 판정을 한 번 더 해야 해서, 리터럴을 둘로 늘리는 대신 «이름»으로 옮겼다.
  *   ⇒ 리터럴 수는 그대로 하나다. S1 의 허용 목록 ⑷ 도 이 줄을 가리키게 같이 옮겼다. */
 const GRID_NESTED_LINE_TYPE = 'duo';
+/* ★t6-04b ⑴ — 중첩 줄 «칸 사이 간격» 기본값의 정본 자리 «하나». 수가 둘인 것은 뜻이 둘이라서다:
+ *   create  = 「나란히 두 칸으로 나누기」가 «새 줄»에 넣는 값(block-factory.js · 현빈 0927 「깨져 보인다」로 24→8)
+ *   missing = 저장본에 `gap` 키가 «없을 때» 그리는 값(T-221 이전 옛 줄 · innercard 경로 — 옛 그림 그대로)
+ *   ⛔두 소비자가 수를 «각자» 적지 않는다(전엔 8 과 `|| 24` 가 따로 있어 착지점이 갈렸다 · 지디 16:09 ⑴).
+ *   ⚠️둘을 «한 수»로 합치면 키 없는 옛 저장본의 그림이 바뀐다 — 그 결정은 현빈 몫이라 안 했다. */
+const GRID_NESTED_GAP = Object.freeze({ create: 8, missing: 24 });
+/* ★t6-04b 이웃 — 여백 줄(type 'gap') 높이 기본값의 정본 자리. 그리는 쪽(_gridLineHtml)과 패널 placeholder 가 같이 읽는다
+ *   (전엔 렌더러 `|| 16` · 패널 placeholder="16" · 안내문 「비우면 기본 16」 세 군데에 손으로 적혀 있었다). */
+const GRID_GAP_LINE_H = 16;
 /* ═══ patchCell 이 «실제로 그려지는 필드»만 받게 하는 명부 ═══════════════════
    ★왜 있나 — 2026-09-09. `update_block{patchCell}` 은 `rest` 의 «아무 키나» 받아
      `applied.patchCell` 에 그대로 되돌려줬다. 렌더러가 안 읽는 이름을 줘도 `ok:true` 다.
@@ -1591,6 +1609,12 @@ function _gridValueViolations(node, where) {
           ? ' (it would have fallen back to the block default without a word)'
           : ' (it would have gone straight into the style attribute and the browser would have ignored it)'),
     });
+  }
+  /* ★t6-04b ⓑ — 줄의 `gap`(중첩 줄 칸 사이 간격) 범위. 전엔 이 문에 «한 줄도» 없어 -5 · 900 이 ok:true 로 앉았다.
+   *  ⛔새 자를 안 짓는다 — 블럭 gap 과 «같은» _gridValidateGap(0~GRID_GAP_MAX). null·undefined = 「그 키를 지움」(→ 24) 이라 안 잰다. */
+  if ('gap' in node && node.gap !== null && node.gap !== undefined && _gridValidateGap(node.gap) === null) {
+    out.push({ path: `${where}.gap`,
+      why: `${JSON.stringify(node.gap)} is not a gap the grid accepts — use a number 0~${GRID_GAP_MAX} (px)` });
   }
   return out;
 }
@@ -2256,7 +2280,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
     ? ` data-r="${addr.r}" data-c="${addr.c}" data-line="${addr.li}"`
     : (naddr ? ` data-r="${naddr.r}" data-c="${naddr.c}" data-nroot="${naddr.root}" data-npath="${naddr.path}"` : '');
   if (line.type === 'gap') {
-    const h = Number(line.height) || 16;
+    const h = _gridNumOr(line.height, GRID_GAP_LINE_H);   // ★t6-04b 이웃 — ⛔`|| 16` 은 0 을 삼킨다
     return `<div${addrAttr} class="grd-gap" style="height:${h}px;${mtCss}"></div>`;
   }
   /* ★구분선 줄 (그리드 티켓 ② · 2026-09-28) — 칸 «안»에 가로선을 긋는다.
@@ -2548,7 +2572,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
     //   중첩까지 넓히면 innercard 렌더 회귀 범위가 커진다(PLAN §P1 회귀위험).
     const cols = Array.isArray(line.cols) ? line.cols.slice(0, GRID_NESTED_MAX_COLS) : [];
     if (!cols.length) return '';
-    const gap = Number(line.gap) || 24;
+    const gap = _gridNumOr(line.gap, GRID_NESTED_GAP.missing);
     const valign = _gridEnum(_GRID_VALIGN, line.valign) || 'flex-start';
     const colsHtml = cols.map((c, ci) => {
       const w = Number(c.width) || 1;
@@ -4527,7 +4551,10 @@ export {
      ★실제로 grid-rename-residue.test.mjs S1 이 「코드에 옛 이름을 손으로 적었나」를 재는데,
        이 주석의 첫 판이 «그 이름을 예시로 적는» 바람에 그 그물에 걸렸다. 적지 않는다. */
   GRID_NESTED_LINE_TYPE,
+  GRID_NESTED_GAP,   /* ★t6-04b ⑴ — 새 줄(block-factory)·키 없음(_gridNumOr) 기본값 «한 자리» */
   gridCollapseToColumns,
+  _gridNumOr as gridNumOr,   /* ★t6-04b — 패널이 «같은 읽는 문»을 쓴다(두 벌 금지) */
+  GRID_GAP_LINE_H,
   GRID_CONVERT_DROPPED_CELL_FIELDS, GRID_CONVERT_NOT_MOVED_FIELDS,
   gridResizeTo, gridAddAtEnd,   /* ★G15 — 피커·캔버스 ＋ 가 «같은 길» */
   /* ★t3-04(S6 U1) — 순서 바꾸기·범위 복붙: 순수 셈(유닛이 DOM 없이 잰다) ＋ 직접 쓰기 문 */

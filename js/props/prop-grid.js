@@ -15,6 +15,7 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
          GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE, GRID_WIDTH_MIN, GRID_WIDTH_MAX, gridResizeTo,
          gridCollapseToColumns,   /* ★T12 — 2×2 → 독립 칼럼 */
+         gridNumOr, GRID_NESTED_GAP, GRID_GAP_LINE_H,   /* ★t6-04b — 0 을 살려 읽는 문 · 기본값 정본 */
          gridBlockBg, GRID_BLOCK_BG_PAD_Y_MAX, GRID_BLOCK_BG_PAD_X_MAX, GRID_BG_FIT_VALUES } from '../blocks/grid-block.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
@@ -1610,7 +1611,7 @@ function _grdImageSectionHtml(anyHit, block, host = null) {
   if (!anyHit || anyHit.li === null || !anyHit.line || anyHit.line.type !== 'image') return '';
   const foreign = !!host && host.kind !== 'grid';
   const { r, c, line } = anyHit;
-  const h = Number(line.height) || '';
+  const h = gridNumOr(line.height, '');   // ★t6-04b 이웃 — ⛔`|| ''` 는 저장된 0 을 빈 칸(auto)으로 보였다
   const rad = Number(line.radius) || '';
   /* ★panel-height-disable — «크롭 없음» = 렌더러(grid-block.js _gridLineHtml 의 `cropped`)와 같은 판정: 세 값 중 하나라도 수면 크롭. 원은 따로(지름). */
   const hLocked = !foreign && line.imgShape !== 'circle' && ![line.imgSizePct, line.imgPosX, line.imgPosY].some(v => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v)));
@@ -3433,8 +3434,8 @@ ${_grdDisclosureHtml('grd-line-toggle', `줄 꾸미기 · ${li + 1}번째 줄`, 
 ${_grdKindSelectHtml(line, H.kinds)}
         </div>
         ${(line.type || 'body') === 'gap' ? `<div class="prop-row">
-          <span class="prop-label" title="이 여백 줄의 높이(px). 비우면 기본 16">높이(px)</span>
-          <input type="number" class="prop-number" id="grd-line-gap-h" min="${GAP_MIN}" max="${GAP_MAX}" placeholder="16" value="${Number(line.height) || ''}">
+          <span class="prop-label" title="이 여백 줄의 높이(px). 비우면 기본 ${GRID_GAP_LINE_H}">높이(px)</span>
+          <input type="number" class="prop-number" id="grd-line-gap-h" min="${GAP_MIN}" max="${GAP_MAX}" placeholder="${GRID_GAP_LINE_H}" value="${gridNumOr(line.height, '')}">
         </div>` : ''}
         ${isDivider ? `<div class="prop-row">
           <span class="prop-label" title="구분선의 굵기(px). 비우면 기본 ${GRID_DIVIDER_H_MIN}">굵기(px)</span>
@@ -4131,7 +4132,7 @@ export function grdOpenNestGapPopover(block, nest) {
   let model; try { model = getGridModel(block); } catch (_) { return; }
   const line = model.cells?.[nest.r]?.[nest.c]?.lines?.[nest.li];
   if (!line || line.type !== GRID_NESTED_LINE_TYPE) return;
-  const cur = Number(line.gap) || 24;   // ← 그리는 쪽과 같은 착지점
+  const cur = gridNumOr(line.gap, GRID_NESTED_GAP.missing);   // ← 그리는 쪽과 «같은 함수»(⛔`|| 24` 는 0 을 삼킨다 · t6-04b)
   const pop = document.createElement('div');
   pop.className = 'section-memo-popover';
   pop.innerHTML = `
@@ -4153,9 +4154,12 @@ export function grdOpenNestGapPopover(block, nest) {
   const close = () => {
     if (closed) return; closed = true;
     document.removeEventListener('keydown', onKey, true);
-    /* 빈 칸 = «안 바꿈»(지금 값 그대로) — 숫자칸 규약(prop-number-commit-guard.js)의 기본 뜻과 같다 · data-empty="restore" 로 칸에 선언 */
+    /* ★범위·빈 칸은 «숫자칸 규약» 한 자리(prop-number-commit-guard.js)가 한다 — 칸의 min/max · data-empty="restore".
+     *  ⛔여기서 Math.min/max 로 또 자르지 않는다(t6-04b ⑶ · 사본 금지). 바깥 클릭으로 닫을 때도 규약을 지나가게 blur 먼저.
+     *  남는 범위 밖(규약을 안 지난 길)은 모델 문(_gridValueViolations)이 거절한다. */
+    if (document.activeElement === input) input.blur();
     const raw = String(input.value).trim();
-    const v = !raw ? cur : Math.max(0, Math.min(GRID_GAP_MAX, Math.round(Number(raw))));
+    const v = !raw ? cur : Math.round(Number(raw));
     if (Number.isFinite(v) && v !== cur) {
       const res = window.updateGridBlock?.(block.id, { patchCell: { r: nest.r, c: nest.c, lineIndex: nest.li, gap: v } });
       grdToastImgFail(res);
