@@ -46,17 +46,23 @@ test('M1 :706 restampHistoryTop 이 꼭대기 canvas 를 갈아끼운 뒤 — me
 });
 
 test('M2 :536 _restampRestored(⌘Z 복원이 비멱등) 뒤 — memo 가 새 canvas 를 따른다(새 칸 0 · ⌘⇧Z 산다)', async ({ page }) => {
+  /* ★E1 이 «memo 를 든 채로» 복원돼야 이 길(:536)의 비우기를 잰다 — 넘기기 뒤엔 memo 가 새 꼭대기(E2)로 옮겨 가므로
+     ⌘Z 로 E1 에 가서 편집 아닌 비교 한 번(= E1 memo) → ⌘⇧Z → 비멱등 ⌘Z(= E1 canvas 갈아끼움) 순서로 세운다. */
   const errs = await setup(page);
   await clip(page, 'inset(0px)'); await page.evaluate(() => window.pushHistory('e1'));
   const e1 = await tip(page);
-  await clip(page, 'inset(3px)'); await page.evaluate(() => window.pushHistory());   // ← E1 memo
   await page.evaluate(() => { document.getElementById('sM').style.height = '330px'; window.pushHistory('e2'); });
   const e2 = await tip(page);
   expect(e2.seq, '★전제: E2 가 쌓였다').not.toBe(e1.seq);
+  await page.evaluate(() => window.undo());
+  expect((await tip(page)).seq, '★전제: ⌘Z = E1').toBe(e1.seq);
+  await clip(page, 'inset(3px)'); await page.evaluate(() => window.pushHistory());   // ← E1 memo(편집 아닌 차이만 · 새 칸 0 · redo 산다)
+  expect([(await tip(page)).seq, (await tip(page)).len], '★전제: 무변화 · ⌘⇧Z 꼬리 그대로').toEqual([e1.seq, e2.len]);
+  await page.evaluate(() => window.redo());
+  expect((await tip(page)).seq, '★전제: ⌘⇧Z = E2').toBe(e2.seq);
   /* 복원을 비멱등으로 — 복원 직후 rebindAll 이 «편집»을 하나 더 한다 ⇒ _restampRestored 가 E1 canvas 를 갈아끼운다(:536) */
   await page.evaluate(() => { const orig = window.rebindAll; window.rebindAll = function (...a) { const r = orig.apply(this, a); window.rebindAll = orig; document.getElementById('sM').style.minHeight = '12px'; return r; }; window.undo(); });
-  const u = await tip(page);
-  expect([u.seq, u.pos], '★전제: ⌘Z 한 번 = E1').toEqual([e1.seq, e2.pos - 1]);
+  expect((await tip(page)).seq, '★전제: ⌘Z = E1').toBe(e1.seq);
   expect(await page.evaluate(() => document.getElementById('sM').style.minHeight), '★전제: 복원이 비멱등이었다').toBe('12px');
   await clip(page, 'inset(5px)'); await page.evaluate(() => window.pushHistory());
   const t = await tip(page);
