@@ -113,7 +113,8 @@ async function selectDim(page) {
     '★전제: 블럭이 ★골라졌다(클릭이 ★먹었다)', { timeout: 15000 }).toBe(true);
   /* ★1013t2C6(S7) 의 라벨 상자 너비 손잡이 둘(.annot-lw-handle)도 annot-handle 클래스를 단다(철거 명부를 같이 타려고) —
      이 칸이 세려는 것은 d·c·a·b 넷이다 ⇒ 그 둘을 빼고 센다(annotation-1013 AN2 · 1017t1h1 SN2 와 같은 좁힘). */
-  await expect.poll(() => cnt(page, '#secA .annot-handle:not(.annot-lw-handle)'),
+  /* ★t3-01 ⑸(S3 · 261026) — 가운데 조절점(.annot-dim-mid)도 annot-handle 을 단다(철거·저장 제외 명부) ⇒ 같은 좁힘으로 뺀다 · 뜻(d·c·a·b 넷)은 그대로 */
+  await expect.poll(() => cnt(page, '#secA .annot-handle:not(.annot-lw-handle):not(.annot-dim-mid)'),
     '★골랐는데 ★손잡이가 ★넷이 아니다', { timeout: 15000 }).toBe(4);
 }
 
