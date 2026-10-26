@@ -20,6 +20,9 @@
  *   X7  이름 = 30 · 「1e」 Enter → 키 30 · 칸 30(되돌림) · 크기 그대로
  *   X4a 패널을 연 채 라벨 크기 28 → placeholder 28 / round(28 × 배지 비)
  *   X4b 배지 비를 css 변수로 바꾸면 placeholder 가 따른다(JS 에 0.7 이 다시 박히면 빨강) · 다시 그린 패널도 같은 값
+ *   X1e 패널 연 채 renderGraph 만(넓은 → 좁은) → grb-pie-fit 듣개 sync 로 「20(좁아서 n)」(검수 2)
+ *   X1f 배지 0개(placeholder '') · 순위 30 비우고 Enter → 키 삭제(칸의 data-empty="auto" · 검수 3)
+ *   X4c 라벨 슬라이더 ArrowRight ×3 → 포커스·칸 노드·패널 그대로 · placeholder 앞 수 23(검수 1)
  *   P1 양성대조 — 칸에 25 Enter → 키 25 · 그려진 크기 바뀜(규약이 정상 입력을 막지 않는다)
  * 양성대조: GD1001_ROOT=<543f5de6 사본> ⇒ X1d·X7·X4a·X4b 빨강 · X1a~c·P1 초록(빈 칸 = 키 삭제는 옛 판도 같다).
  * ⛔고정 대기 0 — 조건 대기만.
@@ -60,6 +63,8 @@ const read = (page, part) => page.evaluate(([k, sel, id]) => {
   const g = document.getElementById('pG'); const f = document.getElementById(id);
   return { key: g.dataset[k] ?? null, field: f.value, px: parseFloat(getComputedStyle(g.querySelector(sel)).fontSize) };
 }, [KEY[part], SEL[part], `grb-pie-${part}-fs`]);
+/** placeholder 의 «앞 수»(기본) — sync 는 rAF 로 한 프레임 한 번이라 expect.poll 로 읽는다(고정 대기 0). */
+const phLead = async (page) => { const p = await phOf(page); return { name: parseInt(p.name), rank: parseInt(p.rank) }; };
 const phOf = (page) => page.evaluate(() => ({ name: document.getElementById('grb-pie-name-fs').placeholder, rank: document.getElementById('grb-pie-rank-fs').placeholder }));
 /** 진짜 키보드 — 칸을 고르고 전부 지운 뒤(Backspace) 글자를 치고 확정 키. */
 async function typeIn(page, part, text, commitKey = 'Enter') {
@@ -102,7 +107,66 @@ test('X1d 좁은 조각 — placeholder 가 줄인 크기를 알린다(「20(좁
   });
   const nMin = Math.round(Math.min(...drawn.name)), rMin = Math.round(Math.min(...drawn.rank));
   expect(nMin, `전제: 좁은 조각의 이름이 줄어 그려졌다(${drawn.name})`).toBeLessThan(20);
-  expect(await phOf(page), `그려진 가장 작은 크기 이름 ${drawn.name} · 순위 ${drawn.rank}`).toEqual({ name: `20(좁아서 ${nMin})`, rank: rMin < 14 ? `14(좁아서 ${rMin})` : '14' });
+  await expect.poll(() => phOf(page), { message: `그려진 가장 작은 크기 이름 ${drawn.name} · 순위 ${drawn.rank}`, timeout: 3000 }).toEqual({ name: `20(좁아서 ${nMin})`, rank: rMin < 14 ? `14(좁아서 ${rMin})` : '14' });
+  expect(errs).toEqual([]);
+});
+
+/** 보이는 라벨 중 그려진 가장 작은 크기(재는 자 — 패널 함수와 따로 computedStyle 로) */
+const drawnMin = (page) => page.evaluate(() => {
+  const g = document.getElementById('pG'); const vis = (e) => e && getComputedStyle(e).display !== 'none' && getComputedStyle(e.closest('.grb-pie-tag')).display !== 'none';
+  const px = (sel) => [...g.querySelectorAll(sel)].filter(vis).map(e => parseFloat(getComputedStyle(e).fontSize));
+  return { name: Math.round(Math.min(...px('.grb-pie-name'))), rank: Math.round(Math.min(...px('.grb-pie-rank'))) };
+});
+
+/* X1e — 검수 2: 패널을 «다시 안 그리고» renderGraph 만 불러 넓은 조각 → 좁은 조각. placeholder 는 grb-pie-fit 듣개 쪽 sync 로만 바뀐다. */
+test('X1e 패널 연 채 renderGraph 만(넓은 → 좁은 조각) → 듣개 sync 로 「20(좁아서 n)」', async ({ page }) => {
+  const errs = await setup(page);
+  expect(await phOf(page), '전제: 넓은 원 = 「20」/「14」').toEqual({ name: '20', rank: '14' });
+  await page.evaluate(() => { document.getElementById('grb-pie-name-fs').__x1e = 1; });
+  await page.evaluate(() => { const g = document.getElementById('pG');
+    g.dataset.items = JSON.stringify([{ label: '가', value: 80 }, { label: '나', value: 14 }, { label: '아주아주긴이름입니다', value: 6, pieTag: 'on' }]);
+    window.renderGraph(g); });
+  await raf2(page);
+  const m = await drawnMin(page);
+  expect(m.name, '전제: 좁은 조각의 이름이 줄어 그려졌다').toBeLessThan(20);
+  await expect.poll(() => phOf(page), { message: `그려진 최소 이름 ${m.name} · 순위 ${m.rank}`, timeout: 3000 })
+    .toEqual({ name: `20(좁아서 ${m.name})`, rank: m.rank < 14 ? `14(좁아서 ${m.rank})` : '14' });
+  expect(await page.evaluate(() => document.getElementById('grb-pie-name-fs').__x1e), '전제: 패널은 다시 그려지지 않았다(같은 칸 노드)').toBe(1);
+  expect(errs).toEqual([]);
+});
+
+/* X1f — 검수 3: 순위 켬 · rankFs 30 · items [] (배지 0 ⇒ placeholder '') — 칸을 비우면 «빈 값 = 기본»이 그대로(키 삭제). 칸의 data-empty="auto" 가 지킨다. */
+test('X1f 배지 0개(placeholder \'\') · 순위 30 비우고 Enter → 키 삭제(빈 값의 뜻이 「되돌림」으로 안 바뀐다)', async ({ page }) => {
+  const errs = await setup(page, { pieRankFs: '30', items: '[]' });
+  const ph = await page.evaluate(() => document.getElementById('grb-pie-rank-fs')?.placeholder ?? null);
+  expect(ph, '전제: 배지 0개 ⇒ placeholder 가 비었다').toBe('');
+  expect((await read2(page)).key, '전제: 키 30').toBe('30');
+  await typeIn(page, 'rank', '');
+  expect((await read2(page)).key, '빈 칸 = 키 삭제').toBe(null);
+  expect(errs).toEqual([]);
+});
+const read2 = (page) => page.evaluate(() => ({ key: document.getElementById('pG').dataset.pieRankFs ?? null, field: document.getElementById('grb-pie-rank-fs').value }));
+
+/* X4c — 검수 1: 슬라이더 input 경로(포커스 둔 채 ArrowRight ×3 = 20 → 23). 패널을 다시 그리면 포커스·칸 노드가 날아간다 ⇒ 그 둘과 패널 표식을 본다. */
+test('X4c 라벨 슬라이더 ArrowRight ×3 → 포커스 그대로 · 칸 노드 그대로 · placeholder 앞 수 23 · 패널 다시 안 그림', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => {
+    document.getElementById('grb-pie-name-fs').__x4c = 1;
+    document.getElementById('grb-label-slider').__x4c = 1;
+    const pp = document.getElementById('grb-label-slider').closest('#prop-panel, .panel-body') || document.getElementById('grb-label-slider').parentElement;
+    pp.__x4c = 1; window.__x4cPanel = pp;
+  });
+  await page.focus('#grb-label-slider');
+  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
+  await raf2(page);
+  const s = await page.evaluate(() => ({
+    active: document.activeElement?.id, activeSame: document.activeElement?.__x4c === 1,
+    fsSame: document.getElementById('grb-pie-name-fs')?.__x4c === 1,
+    panelSame: window.__x4cPanel.isConnected && window.__x4cPanel.__x4c === 1 && !!window.__x4cPanel.querySelector('#grb-label-slider')?.__x4c,
+  }));
+  expect(s, '슬라이더 input 경로는 패널을 다시 그리지 않는다(다시 그리면 포커스가 날아가 다음 화살표가 안 먹는다)').toEqual({ active: 'grb-label-slider', activeSame: true, fsSame: true, panelSame: true });
+  expect(await page.evaluate(() => document.getElementById('pG').dataset.labelSize), '화살표 셋 = 20 → 23').toBe('23');
+  await expect.poll(() => phLead(page), { message: '라벨 23 → 이름 23', timeout: 3000 }).toMatchObject({ name: 23 });
   expect(errs).toEqual([]);
 });
 
@@ -131,9 +195,8 @@ test('X4a 패널을 연 채 라벨 크기 28 → placeholder 가 따른다(이�
   await page.keyboard.type('28');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => document.getElementById('pG').dataset.labelSize === '28');
-  /* 앞 수 = 기본(라벨 크기 기준) · 큰 라벨이면 좁은 조각이 줄어 「(좁아서 n)」 이 붙을 수 있다(X1d 가 따로 잰다) ⇒ 앞 수만 본다 */
-  const ph = await phOf(page);
-  expect({ name: parseInt(ph.name), rank: parseInt(ph.rank) }, `라벨 28 → 이름 28 · 순위 round(28 × 비) (${JSON.stringify(ph)})`).toEqual({ name: 28, rank: Math.round(28 * em) });
+  /* 앞 수 = 기본(라벨 크기 기준) · 큰 라벨이면 좁은 조각이 줄어 「(좁아서 n)」 이 붙을 수 있다(X1d 가 따로 잰다) ⇒ 앞 수만 본다 · rAF 뒤라 poll */
+  await expect.poll(() => phLead(page), { message: '라벨 28 → 이름 28 · 순위 round(28 × 비)', timeout: 3000 }).toEqual({ name: 28, rank: Math.round(28 * em) });
   /* 키가 없으면 placeholder = 그려진 크기(덧층을 안 줄인 판에서) — 이름은 그대로 맞는다 */
   const namePx = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#pG .grb-pie-name')).fontSize));
   const tagPx = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#pG .grb-pie-tag')).fontSize));
@@ -155,8 +218,7 @@ test('X4b 배지 비를 css 변수로 바꾸면 placeholder 가 따른다 · 다
   await page.keyboard.type('24');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => document.getElementById('pG').dataset.labelSize === '24');
-  const ph = await phOf(page);
-  expect({ name: parseInt(ph.name), rank: parseInt(ph.rank) }, `라벨 24 · 비 0.5 → 24 / 12 (${JSON.stringify(ph)})`).toEqual({ name: 24, rank: 12 });
+  await expect.poll(() => phLead(page), { message: '라벨 24 · 비 0.5 → 24 / 12', timeout: 3000 }).toEqual({ name: 24, rank: 12 });
   expect(errs).toEqual([]);
 });
 
