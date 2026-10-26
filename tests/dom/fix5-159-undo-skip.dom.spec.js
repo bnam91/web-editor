@@ -1,9 +1,11 @@
 /* fix5-159-undo-skip.dom.spec.js — ★159 SCRATCH-UNDO-RESTORE-APPEARS-LATE-01 (지디 ㉯ · 2026-10-26)
- * ⌘Z 의 갈 칸이 «지금 라이브와 같으면»(undo 첫머리 체크포인트의 «라이브 ≡ 꼭대기» + 떠나는 칸 ≡ 갈 칸 — 둘 다 기존 _sameEdit) 캔버스를 통째로 갈지 않는다.
+ * ⌘Z 의 갈 칸이 «지금 라이브와 같으면»(undo 첫머리 체크포인트의 «라이브 ≡ 꼭대기»(_sameEdit) + 떠나는 칸 ↔ 갈 칸 «원문 일치»(===)) 캔버스를 통째로 갈지 않는다.
  * 자 = 섹션 노드에 단 표식(통째로 갈면 새 노드라 표식이 사라진다) + getHistoryStripStats().undoRestoreSkips.
- * U1 [새 것] 그룹 진입 중 「삭제」 → ⌘Z = 건너뜀 · 섹션 노드 그대로 · 되살린 장 그룹·순서·모드 제자리(⑱ 값)
+ * U1 [새 것] 그룹 진입 중 「삭제」 → ⌘Z = 건너뜀 · 섹션 노드 그대로 · 되살린 장 그룹·순서·모드 제자리(⑱ 값) · ⌘⇧Z = 장 다시 사라짐(onRedo · redo 꼬리 삶)
  * ★음성대조: N1 캔버스가 바뀐 편집의 ⌘Z 는 여전히 통째 복원 · N3 페이지를 다녀온 뒤 캔버스 편집의 ⌘Z 도 통째 복원(높이 되돌아감)
  *   · N4 사다리(높이 편집 → 스크래치 삭제): 첫 ⌘Z = 건너뜀(장만) · 둘째 ⌘Z = 통째 복원(높이 되돌아감)
+ *   · N5 설정(pageSettings)만 다른 두 칸(캔버스 원문 같음): ⌘Z = 통째 복원 · 설정 되돌아감 — 설정 게이트를 잠근다
+ * ⚠️안 잠근 게이트: 페이지(페이지별 이력이라 장면을 못 만든다) · 영상 열쇠(이 spec 밖 — history-gate-130 N2 가 같은 열쇠 함수를 잰다)
  * 기다림은 전부 조건 — 고정 대기 0. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -58,6 +60,10 @@ test('U1 그룹 진입 중 「삭제」 → ⌘Z = 캔버스 복원 건너뜀(�
   expect(s1.same, '★섹션 노드가 그대로(통째 교체 아님)').toBe(true);
   expect(s1.g, '그룹 제자리').toEqual({ sp_a: 'g_u', sp_b: 'g_u', sp_c: 'g_u' });
   expect(s1.mode, '모드 제자리').toBe('g_u');
+  /* 건너뛴 뒤 ⌘⇧Z — onRedo 가 장을 다시 지운다(redo 꼬리가 살아 있다) */
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+Shift+z');
+  await page.waitForFunction(() => !document.querySelector('.scratch-item[data-scratch-id="sp_b"]'), null, T);
+  expect((await st(page)).order, '⌘⇧Z = sp_b 다시 사라짐').toEqual(['sp_a', 'sp_c']);
   expect(errs).toEqual([]);
 });
 
@@ -98,6 +104,7 @@ test('N3 [음성대조] 페이지를 다녀온 뒤 ⌘Z = 옛 길(통째 복원 
   const s1 = await st(page);
   const gate = await page.evaluate(() => window.getHistoryStripStats().lastUndoGate ?? null);
   console.log('[N3] ' + JSON.stringify({ s0, s1, gate }));
+  if (gate) expect(gate.canvas, '판정 칸 = 옛 길(캔버스 «다름»)').toBe(false);
   expect(s1.skips, '건너뜀 안 늘어남').toBe(s0.skips);
   expect(s1.same, '통째 복원 = 새 노드').toBe(false);
   expect(errs).toEqual([]);
@@ -122,5 +129,21 @@ test('N4 [음성대조] 사다리 — 높이 편집 → 스크래치 삭제: 첫
   console.log('[N4] ' + JSON.stringify({ s0, s1, s2 }));
   expect(s2.skips, '둘째 ⌘Z 는 건너뛰지 않는다').toBe(s1.skips);
   expect(s2.same, '통째 복원 = 새 노드').toBe(false);
+  expect(errs).toEqual([]);
+});
+
+test('N5 [음성대조] 설정(pageSettings)만 다른 두 칸 — ⌘Z = 통째 복원 · 설정 되돌아감(설정 게이트)', async ({ page }) => {
+  const errs = await setup(page);
+  const g0 = await page.evaluate(() => { const s = window.state; const g = s.pageSettings.gap; s.pageSettings = { ...s.pageSettings, gap: (g || 0) + 7 }; window.pushHistory('설정'); return g; });
+  await mark(page);
+  const s0 = await st(page);
+  await undo(page);
+  await page.waitForFunction((g) => window.state.pageSettings.gap === g, g0, T);
+  const s1 = await st(page);
+  const gate = await page.evaluate(() => window.getHistoryStripStats().lastUndoGate ?? null);
+  console.log('[N5] ' + JSON.stringify({ g0, s0, s1, gate }));
+  if (gate) expect({ settings: gate.settings, canvas: gate.canvas }, '★설정 칸이 «다름» → 옛 길').toEqual({ settings: false, canvas: false });
+  expect(s1.skips, '건너뜀 안 늘어남').toBe(s0.skips);
+  expect(s1.same, '통째 복원 = 새 노드').toBe(false);
   expect(errs).toEqual([]);
 });

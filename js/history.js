@@ -574,8 +574,10 @@ function undo() {
        _sameEdit·영상 열쇠로 견줘 «같음»(새 칸 안 만듦) ② 떠나는 칸과 갈 칸의 «원문 일치»(=== · _restampRestored 와 같은 비교) · + 페이지·설정·영상 열쇠.
        ⛔②에 _sameEdit 를 쓰지 않는다 — 앱 실측(원 저장본 캔버스 37.5MB): 다를 때 갈 칸 벗기기가 1.4~2.1s 를 «더» 먹고(⌘Z 가 오히려 느려짐)
          로드 뒤 다시 그린 그리드 줄 style 꼴(#e0e0e0 ↔ rgb(224, 224, 224))은 _sameEdit 도 «다름»이라 얻는 것이 없었다(S6-FIX5 ㉑).
-       까닭(앱 실측 · 원 저장본 블럭 412 · d0a6b6fa ×3): ⌘Z 첫 동기 작업 3.2~5.2s 중 restoreSnapshot 2.2~3.5s(rebindAll 1.5~2.4s) · 재도장 직렬화 0.3~0.5s
-         · 체크포인트 직렬화 0.6~1.1s — 스크래치 지우기 칸은 캔버스가 «같은 상태»라 onUndo 만 할 일이다.
+       까닭(앱 실측 · 원 저장본 블럭 412 · d0a6b6fa · ✕ 지우기 → ⌘Z 단계 프로파일 ×3): ⌘Z 첫 동기 작업 3.2~5.2s 중 restoreSnapshot 2.2~3.5s(rebindAll 1.5~2.4s)
+         · 재도장 직렬화 0.3~0.5s · 체크포인트 직렬화 0.6~1.1s — 스크래치만 바뀐 칸은 캔버스가 «같은 상태»라 onUndo 만 할 일이다.
+       ⚠️이 갈래가 서는 장면은 «연결선 안 걸린 장 · 로드 뒤 편집이 하나라도 쌓인 뒤»다(앱: 4.9~6.0s → 1.0~1.5s) — 연결선 걸린 장(섹션 data-ref-links 가 바뀜)이나
+         로드 직후 「초기 상태」 칸(다시 그린 직렬화가 원문과 다름)은 원문이 달라 옛 길이 맞다(앱: 전·후 5.1~5.6s 같음) — 159 는 그 장면에선 안 닫힌다.
        ⛔세대(130 _gen)는 안 쓴다 — 스크롤·장으로 가는 손에도 올라 앱에서 0/6 이었다(S6-FIX5 ㉑) · 중립 목록 더하기는 거절(지디: undo 오판 = 데이터 사고).
        건너뛰어도 남기는 것: 선택 복원(restoreSnapshot 끝과 같은 순서) · 단추 갱신. 캔버스가 안 바뀌었으니 R1 재도장은 할 일이 없다.
        ⛔옛 길(restoreSnapshot)은 그대로 — 하나라도 다르면 그 길. */
@@ -586,9 +588,16 @@ function undo() {
     _lastUndoGate = { leaving: leavingSnap.action ?? null, target: targetSnap.action ?? null, ..._gate };
     if (_gate.canvas) {
       _undoRestoreSkips++;
-      window.deselectAll?.();
-      _restoreSelection(targetSnap.selection);
-      _updateUndoRedoBtns();
+      /* restoreSnapshot 과 «같은 울타리» — 그 안에서 deselectAll 이 부를 수 있는 pushHistory(텍스트 편집 끝내기 등)를 막는다(옛 길과 대칭 · 적대 검수 2)
+         · 던져도 울타리는 풀고 단추는 갱신한다(검수 4). ⚠️_collabScopedUndoStats.fullCalls 는 위에서 이미 셌다 — «스코프 아닌 길» 수(건너뜀 포함 · 검수 5 · 이름만) */
+      _historyPaused = true;
+      try {
+        window.deselectAll?.();
+        _restoreSelection(targetSnap.selection);
+      } finally {
+        _historyPaused = false;
+        _updateUndoRedoBtns();
+      }
     } else {
       restoreSnapshot(targetSnap);
       _restampRestored();   // ★R1(2026-10-03) — 위 _restampRestored 주석
