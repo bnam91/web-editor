@@ -15,6 +15,15 @@
  *   R3 지키기(점프 회귀 0) — 우클릭 → Esc 로 닫은 뒤 왼쪽 클릭이 예전대로 점프한다(값 «1/4» · 첫 asset 선택).
  *   R4 음성대조 — «텍스트» 줄 우클릭 ⇒ 메뉴 안 뜸 · 바깥 누름이면 열린 메뉴가 닫힌다.
  *
+ *   ── 적대 검수 FAIL(83e3dd46) 뒤 더한 칸 ──
+ *   R5⒜ 겹침 — 인스펙터 메뉴를 연 채 캔버스 블럭 우클릭 ⇒ 인스펙터 메뉴 닫힘 · 블럭 메뉴만 보임(A-1)
+ *   R5⒝ 겹침 거꾸로 — 블럭 메뉴를 연 채 «이미지» 줄 우클릭 ⇒ 블럭 메뉴 감춤 · 인스펙터 메뉴만 보임
+ *   R6 blur 닫기 — 창 blur ⇒ 닫힘
+ *   R7 다시 그리기 — 연 채 renderInspectorPanel ⇒ 닫힘(A-2)
+ *   R7b 낡은 수 — 연 뒤 이미지 하나 더 넣기 ⇒ 누를 때마다 «비운 수 = 그 순간 라벨 수»(다르면 안 비우고 라벨만 고침)
+ *   R8 비운 뒤 다시 그리기 — 메뉴로 비움 → 다시 그림 ⇒ 줄 값 그대로 · 단추 0 · 다시 우클릭 ⇒ 항목 흐림
+ *   검수 변이(사본 3벌, 바이트 한 곳씩): M1 blur 닫기 제거 ⇒ R6 빨강 · M2 블럭 메뉴 감추기 제거 ⇒ R5⒝ 빨강 ·
+ *     M3 다시 그리기 닫기 제거 ⇒ R7 빨강.
  * 빨강→초록 기대(바닥 8608bb13 · GD1001_ROOT): P0 초록(그 판 env) · R1·R2 빨강(메뉴 없음) · R3 초록(지키는 칸) ·
  *   R4 초록(바닥엔 메뉴가 원래 없다 — 이 칸은 «고친 판에서 범위가 안 번졌나»를 잰다).
  * 장면은 하네스로 만든다(⛔현빈 실데이터). 공용부 = ./_root-harness.js (앱 통째 · 가짜 electronAPI).
@@ -233,6 +242,95 @@ test.describe('1020t2j1 ㉡ 인스펙터 «이미지» 줄 우클릭 입구', ()
     expect(log[0].flash, '왼쪽 클릭 그 순간 점프 표시 1').toBe(1);
     await expect(page.locator('#aA0'), '왼쪽 클릭 뒤에도 첫 asset 선택이 남는다').toHaveClass(/\bselected\b/);
     expect(await snapAssets(page).then(s => s.filter(a => a.hasImage).length), '점프는 아무것도 안 비운다').toBe(3);
+    expect(errs, 'pageerror').toEqual([]);
+  });
+
+  test('R5⒜ 겹침 — 인스펙터 메뉴를 연 채 캔버스 블럭 우클릭 ⇒ 인스펙터 메뉴 닫힘 · 블럭 메뉴만', async ({ page }) => {
+    const errs = await setup(page);
+    await openInspector(page);
+    await mouseOn(page, rowLoc(page, '이미지'), 'right');
+    await expect(page.locator(MENU), '전제: 인스펙터 메뉴가 떴다').toBeVisible();
+    await mouseOn(page, page.locator('#aA0'), 'right');
+    await expect(page.locator('#block-context-menu'), '전제(양성): 블럭 우클릭 ⇒ 블럭 메뉴가 뜬다').toBeVisible();
+    await expect(page.locator(MENU), 'A-1: 블럭 메뉴가 뜨면 인스펙터 메뉴는 닫힌다(둘이 같이 안 뜬다)').toBeHidden();
+    expect(errs, 'pageerror').toEqual([]);
+  });
+
+  test('R5⒝ 겹침 거꾸로 — 블럭 메뉴를 연 채 «이미지» 줄 우클릭 ⇒ 블럭 메뉴 감춤 · 인스펙터 메뉴만', async ({ page }) => {
+    const errs = await setup(page);
+    await openInspector(page);
+    await mouseOn(page, page.locator('#aA0'), 'right');
+    await expect(page.locator('#block-context-menu'), '전제: 블럭 메뉴가 떴다').toBeVisible();
+    await mouseOn(page, rowLoc(page, '이미지'), 'right');
+    await expect(page.locator(MENU), '«이미지» 줄 우클릭 ⇒ 인스펙터 메뉴').toBeVisible();
+    await expect(page.locator('#block-context-menu'), '블럭 메뉴는 감춰진다(둘이 같이 안 뜬다)').toBeHidden();
+    expect(errs, 'pageerror').toEqual([]);
+  });
+
+  test('R6 blur 닫기 — 메뉴를 연 채 창이 blur 되면 닫힌다', async ({ page }) => {
+    const errs = await setup(page);
+    await openInspector(page);
+    await mouseOn(page, rowLoc(page, '이미지'), 'right');
+    await expect(page.locator(MENU), '전제: 메뉴가 떴다').toBeVisible();
+    // 헤드리스엔 «다른 앱으로 가기»가 없다 — 창이 받는 그 사건(window blur)을 그대로 쏜다.
+    await page.evaluate(() => window.dispatchEvent(new FocusEvent('blur')));
+    await expect(page.locator(MENU), 'blur ⇒ 닫힘').toBeHidden();
+    expect(errs, 'pageerror').toEqual([]);
+  });
+
+  test('R7 다시 그리기 — 메뉴를 연 채 인스펙터가 다시 그려지면 닫힌다', async ({ page }) => {
+    const errs = await setup(page);
+    await openInspector(page);
+    await mouseOn(page, rowLoc(page, '이미지'), 'right');
+    await expect(page.locator(MENU), '전제: 메뉴가 떴다').toBeVisible();
+    await page.evaluate(() => window.renderInspectorPanel());
+    await expect(page.locator(MENU), 'A-2: 다시 그림 ⇒ 메뉴 닫힘(옛 수가 남지 않는다)').toBeHidden();
+    expect(errs, 'pageerror').toEqual([]);
+  });
+
+  test('R7b 낡은 수 — 연 뒤 이미지가 늘어도 «비운 수 = 누른 순간 라벨 수»', async ({ page }) => {
+    const errs = await setup(page);
+    await openInspector(page);
+    await mouseOn(page, rowLoc(page, '이미지'), 'right');
+    await expect(page.locator(ITEM), '전제: 라벨 3').toContainText('이미지 3개 비우기');
+    // 메뉴가 열린 «뒤» 빈 aA3 에 이미지를 넣는다(넣기·협업·⌘Z 와 같은 꼴 — 캔버스만 바뀐다).
+    await page.evaluate(() => {
+      const cv = document.createElement('canvas'); cv.width = 40; cv.height = 40;
+      cv.getContext('2d').fillRect(0, 0, 40, 40);
+      window.updateAssetBlock('aA3', { imgSrc: cv.toDataURL('image/png') });
+    });
+    const imgN = () => page.evaluate(() => document.querySelectorAll('#aI .asset-block.has-image').length);
+    expect(await imgN(), '전제: 이미지 4').toBe(4);
+    const labelN = async () => Number(((await page.locator(ITEM).textContent()) || '').match(/이미지 (\d+)개/)?.[1] ?? NaN);
+    const clicks = [];
+    for (let k = 0; k < 3 && (await imgN()) > 0; k++) {
+      if (!(await page.locator(MENU).isVisible())) await mouseOn(page, rowLoc(page, '이미지'), 'right');
+      await expect(page.locator(ITEM), '전제: 항목이 켜져 있다').toHaveAttribute('aria-disabled', 'false');
+      const L = await labelN();
+      const n0 = await imgN();
+      await mouseOn(page, page.locator(ITEM), 'left');
+      const cleared = n0 - (await imgN());
+      clicks.push({ L, cleared });
+      expect(cleared === 0 || cleared === L, `누른 순간 라벨 ${L} · 실제로 비운 수 ${cleared} — 0(안 비움) 아니면 라벨과 같아야`).toBe(true);
+      if (cleared === 0) await expect(page.locator(ITEM), '안 비웠으면 라벨이 지금 수(4)로 고쳐진다').toContainText(`이미지 ${n0}개 비우기`);
+    }
+    test.info().annotations.push({ type: 'R7b 누름', description: JSON.stringify(clicks) });
+    expect(await imgN(), '끝: 4 장 모두 비움(세 번 안에)').toBe(0);
+    expect(errs, 'pageerror').toEqual([]);
+  });
+
+  test('R8 비운 뒤 다시 그리기 — 줄 값 그대로 · 단추 0 · 다시 우클릭 ⇒ 항목 흐림', async ({ page }) => {
+    const errs = await setup(page);
+    await openInspector(page);
+    await mouseOn(page, rowLoc(page, '이미지'), 'right');
+    await mouseOn(page, page.locator(ITEM), 'left');
+    await expect(page.locator(MENU), '비운 뒤 메뉴 닫힘').toBeHidden();
+    await page.evaluate(() => window.renderInspectorPanel());
+    expect(await rowValue(page, '이미지'), '다시 그림: «이미지» 줄 값 = 4 (블록 유지)').toBe('4');
+    expect(await page.locator('#inspector-stats-body [data-insp-clear]').count(), '다시 그림: 줄 밑 단추 0(비울 것 0)').toBe(0);
+    await mouseOn(page, rowLoc(page, '이미지'), 'right');
+    await expect(page.locator(MENU), '다시 우클릭 ⇒ 메뉴').toBeVisible();
+    await expect(page.locator(ITEM), '항목 흐림').toHaveAttribute('aria-disabled', 'true');
     expect(errs, 'pageerror').toEqual([]);
   });
 

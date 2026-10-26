@@ -157,7 +157,9 @@ if (typeof document !== 'undefined' && !window.__inspJumpWired) {
  *   ★«이미지» 줄 찾기: 1 이상이면 data-jump="assetBlocks" · 0 이면 statRow 가 표식 없는 줄을 그린다(always 갈래)
  *     ⇒ 그때는 «개요» 절(패널 첫 절) 안 라벨 「이미지」로 고른다. ⛔statRow 를 고쳐 표식을 달지 않는다
  *     (서명·꼴을 닻으로 읽는 검사 inspector-t17 T1·I5).
- *   ⛔css 파일은 안 만진다(clearRow 와 같은 까닭) — 꼴은 #block-context-menu(index.html) 인라인 그대로 · 항목은 .bcm-item. */
+ *   ⛔css 파일은 안 만진다(clearRow 와 같은 까닭) — 꼴은 #block-context-menu(index.html) 인라인 그대로 · 항목은 .bcm-item.
+ *   ⬜ INSP-CLEAR-HIDDEN-SECTION-AND-VIDEO-SCOPE-01(현빈) — 비우는 범위(숨긴 섹션 안 블럭 · 영상/GIF 도 비움)는
+ *     210f0405 에서 물려받은 그대로다(단추와 같은 목록). 여기서 안 좁힌다. */
 const INSP_CTX_MENU_ID = 'insp-row-ctx-menu';
 function _inspImageRowOf(target) {
   const row = target?.closest?.('#inspector-stats-body .insp-stat-row');
@@ -187,34 +189,48 @@ function _openInspCtxMenu(x, y) {
       e.stopPropagation();
       const it = e.target.closest?.('[data-insp-ctx]');
       if (!it || it.getAttribute('aria-disabled') === 'true') return;   // 흐린 항목 = 아무 일 없음
-      _closeInspCtxMenu();
       if (it.dataset.inspCtx === 'clear') {
-        window.clearAssetImages(_inspClearTargets());
+        /* ★«라벨 수 = 비우는 수»(1020t2j1 적대 검수 A-2) — 메뉴가 열린 «뒤» 이미지 수가 바뀌면(넣기·협업·⌘Z)
+             라벨은 3 인데 4 를 비우는 일이 났다. ⇒ 누르는 순간 다시 세어, 라벨과 다르면 «안 비우고» 라벨만 고쳐 다시 보인다. */
+        const list = _inspClearTargets();
+        if (list.length !== Number(m.dataset.n)) { _paintInspCtxItem(m, list.length); return; }
+        _closeInspCtxMenu();
+        window.clearAssetImages(list);
         renderInspectorPanel();
       }
     });
     m.addEventListener('contextmenu', (e) => e.preventDefault());
     document.body.appendChild(m);
   }
-  const n = _inspClearTargets().length;
-  const off = !n;
-  m.innerHTML = `<div class="bcm-item" role="menuitem" data-insp-ctx="clear" aria-disabled="${off}"`
-    + ` title="${off ? '비울 이미지가 없습니다' : '블록은 그대로 두고 이미지만 비운다 · ⌘Z로 되돌리기'}"`
-    + `${off ? ' style="opacity:0.4;cursor:default"' : ''}>`
-    + `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">`
-    + `<rect x="1" y="1" width="10" height="10" rx="1.5"/><path d="M3.5 3.5l5 5M8.5 3.5l-5 5"/></svg>`
-    + `${off ? '이미지 비우기 (비울 이미지 없음)' : `이미지 ${n}개 비우기 (블록은 그대로)`}</div>`;
+  _paintInspCtxItem(m, _inspClearTargets().length);
   m.style.display = 'block';
   // 화면 밖으로 안 나가게 — 재는 건 띄운 «뒤»(크기는 그려져야 안다).
   const w = m.offsetWidth, h = m.offsetHeight;
   m.style.left = Math.max(0, Math.min(x, window.innerWidth - w - 4)) + 'px';
   m.style.top  = Math.max(0, Math.min(y, window.innerHeight - h - 4)) + 'px';
 }
+/** 항목 한 줄을 그린다 — n = 지금 비울 수(라벨에 박는 수 · 누를 때 대조용으로 m.dataset.n 에도 둔다). */
+function _paintInspCtxItem(m, n) {
+  const off = !n;
+  m.dataset.n = String(n);
+  m.innerHTML = `<div class="bcm-item" role="menuitem" data-insp-ctx="clear" aria-disabled="${off}"`
+    + ` title="${off ? '비울 이미지가 없습니다' : '블록은 그대로 두고 이미지만 비운다 · ⌘Z로 되돌리기'}"`
+    + `${off ? ' style="opacity:0.4;cursor:default"' : ''}>`
+    + `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">`
+    + `<rect x="1" y="1" width="10" height="10" rx="1.5"/><path d="M3.5 3.5l5 5M8.5 3.5l-5 5"/></svg>`
+    + `${off ? '이미지 비우기 (비울 이미지 없음)' : `이미지 ${n}개 비우기 (블록은 그대로)`}</div>`;
+}
 if (typeof document !== 'undefined' && !window.__inspCtxWired) {
   window.__inspCtxWired = true;
+  /* ★닫기는 window «capture» 에 건다(1020t2j1 적대 검수 A-1) — 다른 우클릭 메뉴(블럭 #block-context-menu ·
+       template-browser · scratch-pad · color-var-chips …)는 저마다 stopPropagation 해서 document 까지 안 올라온다
+       ⇒ 버블에서 닫으면 메뉴 둘이 같이 떴다. capture 는 그들보다 «먼저» 받는다. ⛔남의 메뉴 코드는 안 고친다. */
+  window.addEventListener('contextmenu', (e) => {
+    if (!_inspImageRowOf(e.target) && !e.target.closest?.('#' + INSP_CTX_MENU_ID)) _closeInspCtxMenu();
+  }, true);
   document.addEventListener('contextmenu', (e) => {
     const row = _inspImageRowOf(e.target);
-    if (!row) { _closeInspCtxMenu(); return; }
+    if (!row) return;
     e.preventDefault();
     e.stopPropagation();
     // 블럭 메뉴가 떠 있으면 거둔다 — 메뉴 둘이 같이 떠 있지 않게.
@@ -222,9 +238,9 @@ if (typeof document !== 'undefined' && !window.__inspCtxWired) {
     if (bcm) bcm.style.display = 'none';
     _openInspCtxMenu(e.clientX, e.clientY);
   });
-  // 바깥 누름 · Esc · 창 이탈이면 닫는다. ★pointerdown(capture) — 메뉴 안 누름은 메뉴의 click 이 처리한다.
-  document.addEventListener('pointerdown', (e) => {
-    if (e.button === 2) return;   // 우클릭은 위 contextmenu 가 연다/닫는다
+  // 바깥 누름(버튼 무관) · Esc · 창 이탈이면 닫는다. ★window capture — 남이 stopPropagation 해도 받는다.
+  //   메뉴 안 누름은 메뉴의 click 이 처리한다. «이미지» 줄을 다시 우클릭하면 여기서 닫히고 contextmenu 가 다시 연다.
+  window.addEventListener('pointerdown', (e) => {
     if (!e.target.closest?.('#' + INSP_CTX_MENU_ID)) _closeInspCtxMenu();
   }, true);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') _closeInspCtxMenu(); }, true);
@@ -332,6 +348,9 @@ export function logoBlocksOf(assetBlocks) {
 function renderInspectorPanel() {
   const panel = document.getElementById('inspector-stats-body');
   if (!panel) return;
+  /* ★다시 그리면 «이미지» 줄 우클릭 메뉴를 닫는다(1020t2j1 적대 검수 A-2) — 메뉴의 라벨 수는 «연 순간»의 수다.
+     패널이 새 수로 바뀌었는데 메뉴가 옛 수로 남으면 둘이 갈린다. */
+  _closeInspCtxMenu();
   _prepSig = _prepSignature();
 
   // ── 데이터 수집 ──
