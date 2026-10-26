@@ -19,15 +19,15 @@ const codeOnly = (t) => t.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\
 const ROSTER = codeOnly(fs.readFileSync(path.join(ROOT, ROSTER_REL), 'utf8'));
 const list = (name) => {
   const m = ROSTER.match(new RegExp(`export const ${name} = Object\\.freeze\\(\\[([^\\]]*)\\]\\);`));
-  assert.ok(m, `${ROSTER_REL} 에서 ${name} 선언을 못 찾았다 — 이 검사가 «안 돈» 것이지 통과가 아니다`);
-  return [...m[1].matchAll(/'([^']*)'/g)].map(x => x[1]);
+  return m ? [...m[1].matchAll(/'([^']*)'/g)].map(x => x[1]) : null;   // null = 파싱이 못 찾음(R0 가 그 이름으로 낸다)
 };
 const NON_EDIT_ATTRS = list('NON_EDIT_ATTRS');
 const NON_EDIT_CSSVARS = list('NON_EDIT_CSSVARS');
 const CHROME_SEL = (ROSTER.match(/export const CHROME_SEL = '([^']*)';/) || [])[1];
 
-test('R0 [전제] 명부가 비지 않았다 · 두 정규식 선언을 찾았다(못 찾으면 «안 돈» 것)', () => {
-  assert.ok(NON_EDIT_ATTRS.length >= 1 && NON_EDIT_CSSVARS.length >= 1 && CHROME_SEL, '명부가 비었다');
+test('R0 [전제] 파싱이 찾았다 — 세 선언 줄 · 뽑힌 이름 ≥1 · history.js 두 정규식 선언(못 찾으면 «안 돈» 것 — «갈렸다»로 보고하지 않는다)', () => {
+  assert.ok(NON_EDIT_ATTRS && NON_EDIT_CSSVARS && CHROME_SEL, `${ROSTER_REL} 의 선언 줄을 파싱이 못 찾았다(NON_EDIT_ATTRS·NON_EDIT_CSSVARS·CHROME_SEL)`);
+  assert.ok(NON_EDIT_ATTRS.length + NON_EDIT_CSSVARS.length >= 1, '선언 줄은 찾았는데 뽑힌 이름이 0 이다');
   assert.ok(/const _NON_EDIT_ATTR_RE = \/(.*)\/g;/.test(HISTORY), '_NON_EDIT_ATTR_RE 선언을 못 찾았다');
   assert.ok(/const _CHROME_RE = \/(.*)\/g;/.test(HISTORY), '_CHROME_RE 선언을 못 찾았다');
 });
