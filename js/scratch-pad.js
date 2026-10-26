@@ -302,8 +302,7 @@ function _deleteScratchItemsWithHistory(items) {
     _selectedItems.delete(s);
   });
 
-  /* ★★⑧ — ★1장만 남은 그룹은 ★푼다 (현빈 2026-10-10 동의 · 지디 ⒞)
-   *   ★까닭: 「그룹」은 ★둘 이상을 묶는 말이고, ★1장 그룹은 ★공동 선택·공동 이동이 ★무의미하다.
+  /* ★★⑧ — ★1장만 남은 그룹은 ★푼다 — 규칙·결정 출처는 `_dissolveLoneGroup` 머리 «한 곳»(128 F1 ㉠ ⒜)
    *   ★★왜 ★여기도 ★필요한가 — ★★«두 길»이 있다(지디 ⒞ 「두 길이 ★같이 서야 한다」):
    *     ⒜ ⊘ 길 = `_detachFromGroup` — ★거기선 ★이미 푼다(G9·C6 가 ★잰다)
    *     ⒝ ★★이 길 = ★지우기(✕ · Delete · ★★⌘X 잘라내기) — ★★여기엔 ★★없었다
@@ -315,14 +314,7 @@ function _deleteScratchItemsWithHistory(items) {
    *     ⛔«지우는 순간»에 세면 ★자기 자신이 ★아직 들어 있어 ★한 장 더 센다.
    *   ★음성대조 = ★C7(3장에서 하나 빼면 ★2장 그룹이 ★남는다 — ⛔풀리지 않는다). */
   const touchedGroups = [...new Set(items.map(s => s.g).filter(Boolean))];
-  for (const gid of touchedGroups) {
-    const rest = _scratchItems.filter(s => s.g === gid);
-    if (rest.length === 1) {
-      delete rest[0].g;
-      if (rest[0].el) delete rest[0].el.dataset.scratchGroup;
-      if (_groupMode === gid) _exitGroupMode();
-    }
-  }
+  for (const gid of touchedGroups) _dissolveLoneGroup(gid, { exitMode: true });
   _saveScratch();
 
   // 글로벌 history에 sideEffects entry 추가 — 캔버스 스냅샷은 동일 상태로 push되어
@@ -622,12 +614,29 @@ function _exitSliceMode() {
  *     ⒧ ★진입 ★배타 — 두 모드가 ★동시에 못 선다(:475·:613 ★두 방향)
  *     ⒨ ★✕ → ★⊘ ＋ title 교체(★위 _markGroupMode 의 그 줄)
  *     ⒩ ★✂(슬라이스)는 ★ⅰ안 = ★그대로 둔다 — ⛔모드 중 ✂ 를 막지 ★않는다
- *     ⒪ ★★1장 그룹 ★자동 해제 = ★지디 ★기본값 (★★현빈 ★미정 — ★노트에 적어 ★뒤집을 수 있게 둔다)
+ *     ⒪ ★★1장 그룹 ★자동 해제 = ★지디 ★기본값 — ★결정 출처·뒤집는 자리는 `_dissolveLoneGroup` 머리 «한 곳»
  *   ─ ★★⚰️ ★사라진 안 ─
  *     ⚰️ ★지디 ⒜ 「★모드 ★안에서는 ★Delete 를 ★막는다」 = ★★폐기됐다.
  *        ★까닭 = ★⒧ 진입 배타가 ★그 물음을 ★없앴다(두 모드가 ★동시에 못 서니 ★Delete 가 ★어느 쪽인지 ★헷갈릴 ★판이 ★없다).
  *        ⛔★이 ⚰️ 를 ★선례로 ★되살리지 마라 — ★폐기된 안이다. ★단 ★⒧ 이 ★뒤집히면 ★이 물음이 ★같이 ★되살아난다. */
 function _groupMembers(gid) { return _scratchItems.filter((s) => s.g === gid); }
+
+/* ★★1장 남은 그룹 풀기 — ★규칙 «한 벌»(128 F1 ㉠ ⒜ 지디 「⛔베껴 적지 말고 부르게」).
+ *   부르는 자리: 지우기 길(`_deleteScratchItemsWithHistory` · ✕·Delete·⌘X) · 빼기 길(`_detachFromGroup` · ⊘).
+ *   ★결정 출처: 1장 그룹 자동 해제 = 지디 기본값(⑦ 690bfd4c · 그때 현빈 미정) → 지우기 길로 넓힘 = 현빈 2026-10-10 동의(⑧ 9b7cfbba) · 뒤집는 자리는 ★여기 하나.
+ *   까닭: 「그룹」은 ★둘 이상을 묶는 말이고, 1장 그룹은 공동 선택·공동 이동이 ★무의미하다.
+ *   ★«언제 세나» = 그 장이 그룹에서 «빠진 뒤»(배열에서 뺐거나 g 를 지운 뒤) — 부르는 쪽 몫.
+ *     ⛔«빠지는 순간»에 세면 ★자기 자신이 ★아직 들어 있어 ★한 장 더 센다.
+ *   exitMode: 풀린 그룹이 지금 모드면 ★여기서 나간다(지우기 길). 빼기 길은 false — 저긴 선택 정리 «뒤»에 스스로 나간다(옛 순서 그대로).
+ *   돌려줌: 풀린 그 한 장(없으면 null). */
+function _dissolveLoneGroup(gid, { exitMode = false } = {}) {
+  const rest = _groupMembers(gid);
+  if (rest.length !== 1) return null;
+  delete rest[0].g;
+  if (rest[0].el) delete rest[0].el.dataset.scratchGroup;
+  if (exitMode && _groupMode === gid) _exitGroupMode();
+  return rest[0];
+}
 
 function _markGroupMode(on) {
   for (const s of _scratchItems) {
@@ -688,8 +697,7 @@ function _exitGroupMode() {
 }
 
 /* ★그 한 장만 ★그룹에서 ★뺀다 — ⛔지우지 않는다(이미지는 남는다).
-   ★1장만 남으면 ★그룹을 ★푼다 — ★지디 기본값(현빈 미정 · 노트에 적어 뒤집을 수 있게 둔다).
-     까닭: 「그룹」은 ★둘 이상을 묶는 말이고, 1장 그룹은 공동 선택·공동 이동이 ★무의미하다. */
+   ★1장만 남으면 ★그룹을 ★푼다 — `_dissolveLoneGroup`(규칙·결정 출처 한 곳). */
 function _detachFromGroup(item) {
   if (!item || !item.g) return { ok: false, reason: 'NO_GROUP' };
   const gid = item.g;
@@ -698,12 +706,7 @@ function _detachFromGroup(item) {
   const before = _scratchGeomSnapshot(touched);
   delete item.g;
   if (item.el) delete item.el.dataset.scratchGroup;
-  let dissolved = false;
-  if (rest.length === 1) {
-    delete rest[0].g;
-    if (rest[0].el) delete rest[0].el.dataset.scratchGroup;
-    dissolved = true;
-  }
+  const dissolved = !!_dissolveLoneGroup(gid);
   _saveScratch();
   const after = _scratchGeomSnapshot(touched);
   try {
