@@ -4,7 +4,7 @@ import { rgbToHex } from './prop-text-utils.js';
 import { parseAlphaFromColor, colorFieldHTML } from './color-picker.js';   /* ★형광펜 색 칸 — 스티커 형광펜이 쓰는 그 부품 그대로(새로 만들지 않는다) */
 import { panelRenderedPx, labelShapeFromRendered, panelRenderedWeight } from './_panel-rendered.js';
 import { buildTextPropsHtml } from './prop-text-template.js';
-import { detectMix } from './prop-text-mix-detect.js';
+import { detectMix, mixKeyOf, paintMixFields } from './prop-text-mix-detect.js';
 import { wireBubbleSection }   from './prop-text-wireup-bubble.js';
 import { wireFontSection }     from './prop-text-wireup-font.js';
 import { wireTypeSection, wireBulletStyleSection, wireTextToQuote } from './prop-text-wireup-type.js';
@@ -18,6 +18,44 @@ import { wireShadowSection, readShadowState } from './prop-text-wireup-shadow.js
 import { wireStrokeSection, readStrokeState } from './prop-text-wireup-stroke.js';   /* ★1012t1E1 Stroke(외곽선 · 내부/가운데/외부) */
 import { wireOverlaySection }  from './prop-text-wireup-overlay.js';
 import './text-style-copy.js';   /* ★1020t2d2 스타일 복사/붙여넣기(⌥⌘C/⌥⌘V) — window 다리만 건다(editor.js 단축키 · block-factory.js 우클릭이 부른다) */
+
+/* ★1020t2d3 — mix «범위»의 입력 = 이 글자칸 안에서 편집 중일 때의 선택(아니면 null = 블럭 전체). */
+function _mixRangeIn(contentEl) {
+  try {
+    if (!contentEl || !contentEl.isContentEditable) return null;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    const r = sel.getRangeAt(0);
+    return contentEl.contains(r.commonAncestorContainer) ? r : null;
+  } catch (_) { return null; }
+}
+const _mixKeyOf = mixKeyOf;   /* 한 벌은 prop-text-mix-detect.js */
+/* ★1020t2d3 — 편집 중 커서·선택이 옮겨 «판정 값»이 바뀌면 그 세 칸(크기·굵기·색)을 «제자리에서» 고친다(paintMixFields 한 벌).
+   ⛔패널을 통째로 다시 그리지 않는다 — 그 사이 사람이 누른 칸이 갈려 나갔다(text-selection-panel T8 1/6 · (47) 실측).
+   ⛔값이 같으면 안 건드린다 · 한 프레임에 한 번(rAF). */
+if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window.__mixScopeBound) {
+  window.__mixScopeBound = true;
+  let _raf = 0;
+  document.addEventListener('selectionchange', () => {
+    if (_raf) return;
+    _raf = requestAnimationFrame(() => {
+      _raf = 0;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const n = sel.anchorNode;
+      const el = n && (n.nodeType === 1 ? n : n.parentElement);
+      const tb = el && el.closest && el.closest('.text-block.selected');
+      if (!tb) return;
+      const ce = tb.querySelector('[contenteditable="true"]');
+      if (!ce || !ce.contains(el)) return;
+      const mix = detectMix(ce, { range: _mixRangeIn(ce) });
+      const key = _mixKeyOf(mix);
+      if (key === tb._mixKey) return;
+      tb._mixKey = key;
+      paintMixFields(ce, mix);
+    });
+  });
+}
 
 export function showTextProperties(tb) {
   const isOverlayTb = tb.classList.contains('overlay-tb');
@@ -223,7 +261,15 @@ export function showTextProperties(tb) {
   const currentW    = parseInt(_tf?.dataset.width || _tbRow?.dataset.width) || Math.round(_tf?.offsetWidth || _tbRow?.offsetWidth || tb.offsetWidth);
 
   // Mix 감지 (Figma 패턴): contentEl 내부 자식들이 서로 다른 color/fontSize/fontWeight 를 가지면 "Mix" 표시
-  const mix = detectMix(contentEl);
+  /* ★1020t2d3 — 편집 중 «이 글자칸 안»의 선택이 있으면 그 범위로 잰다(커서 = 그 노드 · 선택 = 그 영역). 없으면 옛 «블럭 전체». */
+  const mix = detectMix(contentEl, { range: _mixRangeIn(contentEl) });
+  tb._mixKey = _mixKeyOf(mix);
+  /* ★1020t2d3 — 범위로 쟀고 «안 섞였으면» 그 범위의 실제 값을 칸에 싣는다(크기·굵기·색 — 그리는 자리 셋에 넘기는 값만).
+     ⛔범위가 없으면(블럭만 고름) 옛 값 그대로 — 첫 크기 자식·글자칸 computed. */
+  const _mixScoped = !!_mixRangeIn(contentEl);
+  const _panelSize   = (_mixScoped && !mix.fontSize.mixed && mix.fontSize.value) ? mix.fontSize.value : currentSize;
+  const _panelWeight = (_mixScoped && !mix.fontWeight.mixed && mix.fontWeight.value) ? mix.fontWeight.value : currentWeight;
+  const _panelColor  = (_mixScoped && !mix.color.mixed && mix.color.value) ? (rgbToHex(mix.color.value) || currentColor) : currentColor;
 
   // Shadow 상태 — dataset에서 읽음 (저장본 복원 호환)
   const shadow = readShadowState(contentEl);
@@ -232,8 +278,8 @@ export function showTextProperties(tb) {
 
   propPanel.innerHTML = buildTextPropsHtml({
     tb, isOverlayTb, currentClass, currentAlign,
-    currentX, currentY, currentRotation, currentW, currentFont, currentWeight, currentSize,
-    currentLH, currentLS, currentColor, currentColorAlpha,
+    currentX, currentY, currentRotation, currentW, currentFont, currentWeight: _panelWeight, currentSize: _panelSize,
+    currentLH, currentLS, currentColor: _panelColor, currentColorAlpha,
     currentPadT, currentPadL, currentPadR, phLinked,
     isLabel, currentBgColor, currentRadius, labelPillH, labelPadX, labelIsCircle: _isCircleLabel, labelShape,
     isSpeechBubble, currentBubbleStyle, currentTail,

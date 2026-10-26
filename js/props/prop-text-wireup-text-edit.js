@@ -9,7 +9,7 @@
  *    적용 «뒤에 null 로 버렸다» ⇒ 연달아 두 번째 조작이 블럭 전체로 갔다(현빈 2026-10-03 증상).
  *    이제는 withTextSelection 이 적용한 span 으로 저장 범위를 «바꾼다»(버리지 않는다).
  *
- * Mix 표기는 prop-text.js prelude 에서 _detectMix 로 계산 → template input 에 placeholder="Mix" 로 반영.
+ * Mix 표기는 prop-text.js prelude 에서 detectMix(prop-text-mix-detect.js) 로 계산 → template input 에 placeholder="Mix" 로 반영.
  */
 
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
@@ -19,7 +19,7 @@ import { wireTextStyleCodeFields } from './text-style-code-field.js';           
 import { wireHexText, parseHex6, formatHex6, wireColorField } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { _stripInlineResidue } from './prop-text-utils.js';   // 부분서식 잔재 걷기 한 벌(t4-16 에서 이 파일 클로저를 옮김)
-import { detectMix } from './prop-text-mix-detect.js';
+import { detectMix, mixKeyOf, paintMixFields } from './prop-text-mix-detect.js';
 import {
   withTextSelection, getSavedTextSelection, clearTextSelection, spanExactlyCovering, applyStyleToRange,
 } from './_text-selection.js';
@@ -439,13 +439,21 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
   if (!ctx.contentEl._mixRefreshBound) {
     ctx.contentEl._mixRefreshBound = true;
     const el = ctx.contentEl;
-    el.addEventListener('focusin', () => {
-      const f = document.getElementById('txt-size-number');
-      if (!f || document.activeElement === f) return;
-      const m = detectMix(el).fontSize;
-      if (m.mixed) { f.value = ''; f.placeholder = 'Mix'; f.dataset.empty = 'invalid'; }
-      else if (f.placeholder === 'Mix') { f.placeholder = ''; delete f.dataset.empty; if (m.value) f.value = String(m.value); }
-    });
+    /* ★1020t2d3 ㉡(지디 (47)) — 「폰트크기 외 색상 등 mix 나는 칸 전부」: 크기 하나만 다시 재던 것을 셋(크기·굵기·색)으로.
+       칠하기는 prop-text-mix-detect.js paintMixFields «한 벌»(편집 중 선택 따라가기와 같은 것). */
+    el.addEventListener('focusin', () => requestAnimationFrame(() => {
+      /* 범위 = 지금 선택이 이 글자칸 안이면 그것(prop-text.js 패널과 같은 ㉠ 규약) · 아니면 블럭 전체 —
+         ⛔블럭 전체로만 재면 커서가 BBB 안인데 ㉠ 이 보인 60·700 을 여기서 Mix 로 덮는다.
+         ★한 프레임 뒤에 잰다 — focusin 순간엔 선택이 잠깐 맨 앞에 접혀 있다(패널 다시 그리기 중 포커스 복귀 · 실측:
+           전체 선택인데 이 자리가 AAA 만 보고 Mix 를 «빨강 FF0000» 으로 덮었다). prop-text.js selectionchange 도 rAF 로 잰다. */
+      if (!el.isConnected) return;
+      const s = window.getSelection();
+      const r0 = s && s.rangeCount ? s.getRangeAt(0) : null;
+      const mix = detectMix(el, { range: r0 && el.contains(r0.commonAncestorContainer) ? r0 : null });
+      const tb = el.closest('.text-block');
+      if (tb) tb._mixKey = mixKeyOf(mix);
+      paintMixFields(el, mix);
+    }));
   }
 
   /* ── 색상 ── (Figma b: selection 없으면 효과 X) */
