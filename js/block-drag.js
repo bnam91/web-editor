@@ -2527,6 +2527,9 @@ function bindBlock(block) {
       if (showFn === 'showGridProperties') {
         const _kb = e.target && e.target.closest ? e.target.closest('.grd-children') : null;
         if (_kb && _kb.parentElement === block && e.target !== _kb) return;
+        /* ★t5-12ⓑ — 원 줄 «위» 블럭(.grd-circle-kids 안)도 같다 — 그 블럭의 클릭이다(그릇은 셸 «안» 원에 산다). */
+        const _ck = e.target && e.target.closest ? e.target.closest('.grd-circle-kids') : null;
+        if (_ck && block.contains(_ck) && e.target !== _ck) return;
       }
       /* 인라인 편집 중이면 선택/패널 재생성을 하지 않는다 — 캐럿 이동·글자 선택이 우선
          (텍스트/아이콘텍스트 블록과 같은 규약. .editing 은 grid 만 붙으므로 infocard/innercard 무영향)
@@ -2624,6 +2627,9 @@ function bindBlock(block) {
          텍스트 블록의 dblclick 도 같은 이유로 elementFromPoint 로 대상을 고른다(이 파일 isText 분기). */
       const atPoint = document.elementFromPoint(e.clientX, e.clientY);
       const node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
+      /* ★t5-12ⓑ — 원 줄 «위» 블럭(.grd-circle-kids 안) 더블클릭은 그 블럭의 것(제 처리기가 편집을 연다) — 그리드는 손 뗀다. */
+      { const _ck = node && node.closest ? node.closest('.grd-circle-kids') : null;
+        if (_ck && block.contains(_ck) && node !== _ck) return; }
       /* ★t5-14 — 원형 이미지 줄 «안 글자»(.grd-img-circle-text) 위 더블클릭 → 그 글자를 캔버스에서 고친다.
          현빈 원문: 「grd_yb8d4_0z2o2u9에서 텍스트 추가한 뒤에, 원형을 클릭하면 왜 gui가 뜨는지?, 그리고 캔버스에서 텍스트 바로 수정할 수 있게 해줘」
          ★맨 앞이어야 한다 — 글자칸은 .grd-img-frame[data-line] «안»에 산다 ⇒ 아래 세 가지(인포그래픽·빈 슬롯·크롭)가 먼저 집는다.

@@ -92,8 +92,9 @@
   /** 패턴 밖인데 «삽입»인 것 — 손으로 더한다.
    *  addGridChild(G19 그리드 «밑» 블럭 넣기) — 이름이 …Block 이 «아니라» 여기 적는다: tests/dom/figma-export-coverage 가
    *  window.add*Block 전수를 «인자 없이» 불러 블럭이 생기는지 재는데, 이 입구는 그리드(인자)가 있어야만 넣는다. */
-  var EXTRA = ['addSection', 'addPresetRow', 'addGridChild', 'addCircleChild', 'addQuoteChild'];
+  var EXTRA = ['addSection', 'addPresetRow', 'addGridChild', 'addCircleChild', 'addQuoteChild', 'addGridCircleChild'];
   //   addCircleChild = G14 서클 «원 안» 넣기(같은 까닭) · addQuoteChild = ★1011t1C 인용구 «밑» 넣기(★같은 까닭 — 이름이 …Block 이 아니다)
+  //   addGridCircleChild = ★t5-12ⓑ 그리드 «원 줄» 위 넣기(같은 까닭 — 그리드·줄 주소 인자가 있어야만 넣는다)
   /** 패턴에 걸리지만 «삽입이 아닌» 것 — 이유를 «반드시» 같이 적는다(게이트가 이유를 검사한다). */
   var DENY = {
     /* (지금은 비어 있다 — Block$ 패턴이 비삽입을 한 건도 안 잡는다.

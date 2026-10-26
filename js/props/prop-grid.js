@@ -1662,6 +1662,13 @@ function _grdImageSectionHtml(anyHit, block, host = null) {
       <div class="prop-row">
         <span class="prop-label" title="원 «안» 가운데에 들어갑니다. 넘치면 원 모양으로 잘립니다 · 여러 줄 가능(t5-12)">글자</span>
         <textarea class="prop-input" id="grd-img-ctext" rows="2" placeholder="원 안에 넣을 글자" style="flex:1 1 0;min-width:0;font-size:11px;min-height:36px;resize:vertical;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:4px 8px;"></textarea>
+      </div>
+      <div class="prop-row" style="align-items:center;gap:6px;">
+        <select class="prop-select" id="grd-circle-kid-add" style="flex:1 1 0;min-width:0;width:auto;"
+                title="원 «위»에 블럭을 얹는다(여러 개 · 여러 줄) — 글자는 캔버스에서 고친다 · t5-12ⓑ">
+          <option value="">＋ 블럭 넣기 (원 위)…</option>
+          ${(window.ICB_CHILD_KIND_LABELS || []).map(([k, ko]) => `<option value="${k}">+ ${ko}</option>`).join('')}   <!-- ⛔import 안 함: 단위 하네스가 이 파일을 tmp 로 옮겨 import 를 글자로 바꾼다 -->
+        </select>
       </div>${cTxtRaw === '' ? '' : `
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
@@ -1843,6 +1850,14 @@ function _grdWireImageSection(block, addr, host = null) {
       initialAlpha: parseAlphaFromColor(typeof hit.line.bg === 'string' ? hit.line.bg : ''),
       onApply: (col) => _cLive({ bg: col }),
       onCommit: () => window.pushHistory?.(),
+    });
+    /* ★t5-12ⓑ 「＋ 블럭 넣기 ▾」 — 고르면 바로 넣고 머리로 되돌린다(G14 서클 패널과 같은 꼴 · 넣는 길은 addGridCircleChild 한 벌). */
+    const _kidAdd = document.getElementById('grd-circle-kid-add');
+    _kidAdd?.addEventListener('change', () => {
+      const kind = _kidAdd.value;
+      _kidAdd.value = '';
+      if (!kind) return;
+      window.addGridCircleChild?.(block, { r, c, li }, kind);
     });
     const tIn = document.getElementById('grd-img-ctext');
     if (tIn) {

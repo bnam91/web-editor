@@ -3,8 +3,8 @@ import { blockHeaderHTML } from './_helpers.js';
 import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
-/* G14 「＋ 블럭 넣기 ▾」 종류 — 정본 목록은 js/icb-children.js ICB_CHILD_KINDS(이름표만 여기). */
-const _ICB_KID_KINDS = [['body', '텍스트'], ['h2', '제목'], ['icon', '아이콘']];
+/* G14 「＋ 블럭 넣기 ▾」 종류·이름표 — 정본은 js/icb-children.js(ICB_CHILD_KIND_LABELS · t5-12ⓑ 그리드 원 줄 패널과 한 벌). */
+import { ICB_CHILD_KIND_LABELS as _ICB_KID_KINDS } from '../icb-children.js';
 
 export function showIconCircleProperties(block) {
   const circle   = block.querySelector('.icb-circle');

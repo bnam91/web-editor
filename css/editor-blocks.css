@@ -1218,6 +1218,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
    넘친 것은 원(overflow:hidden · radius 50%)이 원 모양으로 자른다 — 원이 자식 따라 커지지 않는다.
    ⛔`inset` 단축 속성 금지 — html2canvas(PNG 내보내기)가 못 읽는다(export-image.js 주석).
    새 토큰 0. */
+/* ★t5-12ⓑ 그리드 원 줄 위 그릇(.grd-circle-kids) — G14 와 같은 기하·같은 규칙(한 줄) · ⛔`.icb-children {` 글자는 그대로(grid-circle-text-inset 이 그 글자로 뜬다) */
+.grd-circle-kids,
 .icb-children {
   position: absolute;
   left: 50%; top: 50%;
@@ -1228,7 +1230,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   gap: 8px;
   z-index: 1;
 }
-.icb-children:empty { display: none; }
+.icb-children:empty,
+.grd-circle-kids:empty { display: none; }
 /* 그림 위치 조절 중엔 원이 overflow:visible 이 된다 — 그동안 자식은 숨겨 그림만 보이게 */
 .icon-circle-block.img-editing .icb-children { visibility: hidden; }
 /* 자식이 있으면 빈 원 자리표시는 숨긴다 */

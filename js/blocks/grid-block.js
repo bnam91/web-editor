@@ -1075,7 +1075,7 @@ const GRID_NESTED_LINE_TYPE = 'duo';
 const GRID_LINE_FIELDS = new Set([
   'align', 'barColor', 'bg', 'clipContent', 'color', 'cols', 'content', 'fontFamily', 'fontSize',
   'fxShadow', 'fxShadowBlur', 'fxShadowColor', 'fxShadowOp', 'fxShadowX', 'fxShadowY',
-  'gap', 'height', 'imgPosX', 'imgPosY', 'imgShape', 'imgSizePct', 'imgSrc', 'italic', 'items',
+  'gap', 'height', 'id', 'imgPosX', 'imgPosY', 'imgShape', 'imgSizePct', 'imgSrc', 'italic', 'items',
   'labelColor', 'labelSize', 'letterSpacing', 'lineHeight', 'marginTop', 'padH', 'padV',
   'radius', 'strike', 'text', 'textHtml', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize',
   'weight', 'widthPct',
@@ -2349,7 +2349,11 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
           + `font-size:${tSize}px;font-weight:${tRole.weight};line-height:${tRole.lh};color:${tColor};`
           + `white-space:pre-wrap;word-break:keep-all;">${_esc(cText)}</div>`;
       }
-      const posCss = cTextHtml ? 'position:relative;' : '';   // ⛔글자가 있을 때만 — 없으면 바이트 동일
+      /* ★t5-12ⓑ ㉮(현빈 「원형이미지에 … 블럭추가가 필요함」) — 원 줄의 «변하지 않는 이름» line.id(블럭을 처음 얹을 때 매김 · 그 전엔 없음 ⇒ 바이트 동일).
+         원 위에 얹힌 블럭 그릇(.grd-circle-kids)이 이 이름으로 다시 그리기 뒤 제 원을 찾아 붙는다(renderGridBlock). */
+      const lid = (typeof line.id === 'string' && line.id) ? line.id : '';
+      const lidAttr = lid ? ` data-line-id="${_esc(lid)}"` : '';
+      const posCss = (cTextHtml || lid) ? 'position:relative;' : '';   // ⛔글자·이름이 없을 때 — 바이트 동일
       /* ★T4② — 원도 같은 규칙: 지름 ★미설정이면 칸을 채운다(높이 100% ＋ 바닥 · aspect-ratio 가 정원을 지킨다).
          ⚠️다만 ★새로 만드는 원은 ★언제나 height 를 ★박고 태어난다(js/block-factory.js:5797·:5808 이
            GRID_IMG_CIRCLE_D 를 명시로 넣는다) ⇒ ★이 가지는 «그 키를 지운 원»에서만 보인다.
@@ -2365,8 +2369,8 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
         : '';
       const fxCss = _fxF ? `filter:${_fxF};` : '';
       const box = `${dCss}max-width:100%;aspect-ratio:1/1;border-radius:50%;${cAlignCss}${cBgCss}${posCss}${mtCss}${fxCss}`;
-      if (!line.imgSrc) return `<div${addrAttr} class="grd-img-frame grd-img-empty grd-img-circle" style="${box}">${cTextHtml}</div>`;
-      return `<div${addrAttr} class="grd-img-frame grd-img-circle" style="${box}overflow:hidden;">`
+      if (!line.imgSrc) return `<div${addrAttr}${lidAttr} class="grd-img-frame grd-img-empty grd-img-circle" style="${box}${lid ? 'overflow:hidden;' : ''}">${cTextHtml}</div>`;
+      return `<div${addrAttr}${lidAttr} class="grd-img-frame grd-img-circle" style="${box}overflow:hidden;">`
         + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;height:100%;object-fit:cover;">`
         + cTextHtml
         + `</div>`;
@@ -2949,9 +2953,20 @@ function renderGridBlock(block) {
      ⛔html 문자열은 «옛 줄 그대로»다 — 자식이 없으면 replaceShellKeepChildren 이 옛 줄과 «같은 대입»을 한다
        ⇒ 기존 그리드 렌더 바이트 동일(지키는 시험: grid-block-width-model W0 · grid-children-shell-bytes). */
   /* ★G12 — 배경 층은 셸 «맨 앞»(꺼지면 '' ⇒ 옛 줄과 바이트 동일). 셸이라 매 렌더 «데이터에서» 다시 선다. */
+  /* ★t5-12ⓑ ㉮ — 원 위 블럭 그릇(.grd-circle-kids)은 셸 «안»(원 안)에 산다 ⇒ 셸을 갈기 전에 떼어 두고, 다시 그린 뒤 같은 이름(data-line-id)의
+     원에 다시 붙인다. 줄을 옮기면(행·열 옮기기·줄 이동) 이름이 따라가 그릇도 따라간다 · 줄이 사라지면 그릇도 사라진다(자식째).
+     ⛔그릇이 없으면 아무것도 안 한다(바이트 동일). 같은 이름이 둘이면(줄 복제) 첫 원만 받는다. */
+  const _circleKids = typeof block.querySelectorAll === 'function'   // ⛔단위 하네스의 가짜 블럭엔 없다 — 그릇 0 = 옛 길
+    ? [...block.querySelectorAll(':scope > .grd-inner .grd-circle-kids[data-line-id]')] : [];
+  _circleKids.forEach((k) => k.remove());
   replaceShellKeepChildren(block, `${_gridBlockBgHtml(block)}<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${Math.max(0, rowGapPx)}px;column-gap:${Math.max(0, colGapPx)}px;width:100%;">
     ${cellsHtml.join('')}
   </div>`, GRID_CHILDREN_CLASS);
+  for (const k of _circleKids) {
+    if (!k.childElementCount) continue;
+    const host = [...block.querySelectorAll(':scope > .grd-inner .grd-img-circle[data-line-id]')].find((e) => e.dataset.lineId === k.dataset.lineId);
+    if (host && !host.querySelector(':scope > .grd-circle-kids')) host.appendChild(k);
+  }
   _syncGridAddBtns(block);   // ★G15 — ＋ 흐림·자리 맞추기(＋ 는 블럭 밖 층 — 블럭 DOM 은 안 건드린다 ⇒ 렌더 바이트 불변)
   _gridSettleBgTracks(block, bgRows, rows, cellPadY);   // ★E157 — 배경 행 트랙 = 칸 폭 × 원 비율 + 2Y(배경 행 없으면 아무것도 안 함)
 }

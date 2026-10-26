@@ -18,6 +18,8 @@
 
 /** 「＋ 블럭 넣기 ▾」 종류 — 이미지는 원 자체가 그림 자리라 «안» 넣는다 · 여백은 고정 간격이 맡는다. */
 export const ICB_CHILD_KINDS = ['body', 'h2', 'icon'];
+/** 「＋ 블럭 넣기 ▾」 이름표 — G14 서클 패널 · t5-12ⓑ 그리드 원 줄 패널이 같이 쓴다(한 벌). */
+export const ICB_CHILD_KIND_LABELS = [['body', '텍스트'], ['h2', '제목'], ['icon', '아이콘']];
 const KIDS = 'icb-children';
 
 function _circleOf(el) {
@@ -64,5 +66,5 @@ export function circleOfKid(el) {
 }
 
 if (typeof window !== 'undefined') {
-  Object.assign(window, { icbKidsBox, icbKids, ensureIcbKidsBox, pruneIcbKidsBox, circleOfKid, ICB_CHILD_KINDS });
+  Object.assign(window, { icbKidsBox, icbKids, ensureIcbKidsBox, pruneIcbKidsBox, circleOfKid, ICB_CHILD_KINDS, ICB_CHILD_KIND_LABELS });
 }

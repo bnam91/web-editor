@@ -1961,7 +1961,15 @@ window.addGridChild = addGridChild;
  * @param {'body'|'h2'|'icon'} kind */
 function addCircleChild(circle, kind = 'body') {
   const c = typeof circle === 'string' ? document.getElementById(circle) : circle;
-  if (!c || !c.classList?.contains('icon-circle-block') || !(window.ICB_CHILD_KINDS || []).includes(kind)) return null;
+  if (!c || !c.classList?.contains('icon-circle-block')) return null;
+  return _addCircleKid(() => window.ensureIcbKidsBox(c), kind);
+}
+
+/* ★원 위에 블럭 하나를 «담는 몫» 한 벌 — G14 서클 에셋(addCircleChild)·t5-12ⓑ 그리드 원(addGridCircleChild) 공용.
+ * ★종류 = ICB_CHILD_KINDS(body·h2·icon) · 글자는 가운데 정렬 · 아이콘은 row 없이 맨몸(그릇이 가운데 flex) — G14 그대로.
+ * ★넣는 길 = _insertToFlowFrame(opts.into) 하나(⛔새 길 금지) · 그릇은 into 가 «넣기 직전»에 만든다. */
+function _addCircleKid(ensureBox, kind = 'body') {
+  if (!(window.ICB_CHILD_KINDS || []).includes(kind)) return null;
   let made = null;
   _insertToFlowFrame(() => {
     if (kind === 'icon') {
@@ -1975,9 +1983,40 @@ function addCircleChild(circle, kind = 'body') {
     tf.appendChild(block);
     made = block;
     return { row: tf, block };
-  }, { into: () => window.ensureIcbKidsBox(c) });
+  }, { into: ensureBox });
   return made ? { block: made } : null;
 }
+
+/* ═══ ★t5-12ⓑ ㉮ 「＋ 블럭 넣기 ▾」 — 그리드 «원 줄» 위(.grd-img-circle > .grd-circle-kids)에 블럭 하나 ═══════════════
+ * ★현빈 원문: 「원형이미지에 글자는 어떻게 추가 삽입하는지? 현재는 우측패널에서만 한줄만 가능한데 블럭추가가 필요함」.
+ * ★원은 DOM 블럭이 아니라 «모델 줄»이고 renderGridBlock 이 칸을 다시 그린다 ⇒ 그릇은 줄의 «변하지 않는 이름» line.id 로 제 원을 찾는다.
+ *   이름은 «처음 얹을 때» 매긴다(그 전 줄·옛 저장본은 키 0 ⇒ 바이트 동일). 이미 있고 하나뿐이면 그대로 · 겹치면(줄 복제) 새로.
+ * ★담는 몫은 _addCircleKid 한 벌(G14 와 같은 것).
+ * @param {string|Element} grid  그리드 블럭(또는 id) · @param {{r:number,c:number,li:number}} addr  원 줄 주소
+ * @param {'body'|'h2'|'icon'} kind */
+function addGridCircleChild(grid, addr, kind = 'body') {
+  const g = typeof grid === 'string' ? document.getElementById(grid) : grid;
+  if (!g || !g.classList?.contains('grid-block') || !addr) return null;
+  const R = Number(addr.r), C = Number(addr.c), LI = Number(addr.li);
+  const m = getGridModel(g);
+  const line = m?.cells?.[R]?.[C]?.lines?.[LI];
+  if (!line || line.type !== 'image' || line.imgShape !== 'circle') return null;
+  let id = typeof line.id === 'string' ? line.id : '';
+  const dup = id && g.querySelectorAll(`.grd-img-circle[data-line-id="${CSS.escape(id)}"]`).length > 1;
+  if (!id || dup) {
+    id = 'gl_' + Math.random().toString(36).slice(2, 10);
+    if (!gridPreviewLine(g, R, C, LI, { id })) return null;
+  }
+  const hostOf = () => [...g.querySelectorAll('.grd-img-circle[data-line-id]')].find((e) => e.dataset.lineId === id) || null;
+  if (!hostOf()) return null;
+  return _addCircleKid(() => {
+    const host = hostOf();
+    let box = host.querySelector(':scope > .grd-circle-kids');
+    if (!box) { box = document.createElement('div'); box.className = 'grd-circle-kids'; box.dataset.lineId = id; host.appendChild(box); }
+    return box;
+  }, kind);
+}
+window.addGridCircleChild = addGridCircleChild;
 window.addCircleChild = addCircleChild;
 
 /* ═══ ★`1011t1C` 「＋ 블럭 넣기 ▾」 — ★인용구 «밑»(.qt-children)에 ★블럭 하나를 넣는다 ═══════════════
