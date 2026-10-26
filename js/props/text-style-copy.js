@@ -9,8 +9,8 @@
  *   ⇒ 스타일은 이 모듈 안 «한 칸»(_styleClip)에만 산다. 저장·undo 스냅샷에 안 실린다(앱을 다시 켜면 빈다).
  *
  * ★옮기는 것 = 우측 패널 Typography · Fill · Stroke · Shadow 절의 «블럭 전체» 값(읽는 잣대는 prop-text.js 패널과 같다):
- *   Typography  글꼴(rawFont) · 굵기 · 크기 · 기울임 · 줄간격 · 자간 · 정렬
- *   Fill        단색(인라인이면 그 글자 그대로 — var(--…) 색 변수 유지) · 글자 그라데이션
+ *   Typography  글꼴(rawFont) · 굵기 · 크기 · 기울임 · 줄간격 · 자간 · 정렬(인라인으로 «명시»된 것만 — F2)
+ *   Fill        단색(인라인이면 그 글자 그대로 — var(--…) 색 변수 유지 · 자리표시 상태면 인라인 색만 — F3) · 글자 그라데이션
  *   Stroke      외곽선(on·두께·색·위치) — 그 절이 있는 블럭끼리만(말풍선·라벨·아이콘텍스트는 절 자체가 없다)
  *   Shadow      그림자(dataset 다섯 값) — Effects 글로우와의 합성은 fxComposeTextShadow «합성 문»으로 쓴다
  * ★안 옮기는 것(해석 — plan-d2.md):
@@ -67,6 +67,13 @@ export function captureTextBlockStyle(tb) {
   const lsInline = parseFloat(ce.style.letterSpacing);
   const ls = Number.isFinite(lsInline) ? lsInline : (parseFloat(cs.letterSpacing) || 0);
   const g = getTextGradient(ce);
+  /* 정렬 — «명시 정렬»(글자칸 인라인 text-align = 정렬 단추가 쓰는 저장값)이 있을 때만 담는다(d2 검수 F2).
+     ⛔계산값을 담지 않는다: 정렬을 준 적 없는 블럭의 계산값 'start' 가 'left' 로 굳어 대상(말풍선 발신자 정렬까지)에 박힌다. */
+  const alignExplicit = ALIGN_OF[(ce.style.textAlign || '').trim()] || null;
+  /* 색 — 자리표시 상태(빈 글 · CSS 가 흐린 색을 칠함, 예: 말풍선 rgba(…,0.4))면 인라인 색이 있을 때만 담는다(d2 검수 F3).
+     그 밖엔 패널과 같은 잣대(인라인 우선, 없으면 그려진 색). */
+  const isPh = ce.dataset.isPlaceholder === 'true' || ce.dataset.blank === 'true';
+  const color = ce.style.color || (isPh ? '' : (cs.color || ''));
   return {
     fromId: tb.id || null,
     font: ce.dataset.rawFont || ce.style.fontFamily || '',
@@ -75,8 +82,8 @@ export function captureTextBlockStyle(tb) {
     size,
     lh,
     ls,
-    align: _alignApplies(tb, ce) ? (ALIGN_OF[cs.textAlign] || null) : null,
-    color: ce.style.color || cs.color || '',
+    align: _alignApplies(tb, ce) ? alignExplicit : null,
+    color,
     grad: g ? g.css : null,
     stroke: _strokeApplies(tb, ce) ? (({ on, width, color, align }) => ({ on, width, color, align }))(readStrokeState(ce)) : null,
     shadow: readShadowState(ce),

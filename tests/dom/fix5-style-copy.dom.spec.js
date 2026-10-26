@@ -1,15 +1,20 @@
 // fix5-style-copy — 1020t2d2 텍스트 블럭 «스타일 복사 ⌥⌘C / 스타일 붙여넣기 ⌥⌘V» (현빈 시트 L20 「애플과 같은 단축키」)
 // 아이맥 실측(ca702d40 ❌): 블럭0(52px/600/#333) ⌥⌘C → 블럭2 ⌥⌘V ⇒ 블럭2 24px/400/#555 그대로 · 우클릭 메뉴에 스타일 항목 0.
 // 고침: js/props/text-style-copy.js(본체) · js/editor.js(⌥⌘C/⌥⌘V 갈래 — ⌘C/⌘V 갈래 «앞») · js/block-factory.js(우클릭 두 항목).
-// 칸(--grep @d2 → Running 7):
+// 칸(--grep @d2 → Running 12):
 //   D1  ⓐ 한 대상 — 글꼴·크기·굵기·색·줄간격·자간·정렬·그림자가 A 와 같아지고 글은 그대로 · A 불변 · 블럭 수 불변 · 패널이 새 값
 //   D2  ⓐ 여러 대상 — B·C 를 골라(⇧ 범위) ⌥⌘V 한 번 ⇒ 둘 다
-//   D3  ⌘Z 한 번 — B 가 붙이기 전 모양으로(글 불변)
+//   D3  붙여넣기 한 번 = 이력 +1 · ⌘Z 한 번 — B 가 붙이기 전 모양으로(글 불변) · ⌘⇧Z — 다시 A 꼴
 //   D4  우클릭 메뉴 — 텍스트 블럭에 두 항목(담기 전 붙여넣기는 흐림) · 복사/붙여넣기가 단축키와 같은 일 · 텍스트 아닌 블럭(여백)엔 두 항목 숨김
 //   D5  텍스트 아닌 블럭(여백)을 골라 ⌥⌘V ⇒ 무시(블럭 수·글자 모양·이력 칸 불변 — 블럭 붙여넣기로 새지 않는다)
 //   R1  회귀(t5-17 꼴) — ⌥⌘C 로 스타일을 담아 둔 «뒤»에도, 편집 중 보통 ⌘C/⌘V 로 붙인 글자는 목적지 모양(짐 모양 0)
 //   R2  회귀(t4-12 꼴) — 블럭을 골라 보통 ⌘C/⌘V ⇒ 사본 블럭이 하나 생기고 붙일 자리 B 의 모양은 그대로
-// 양성대조(고치기 전 빨강): GD1001_ROOT=<바닥 46d444b1 사본> 로 같은 시험 — D1·D2·D3·D4·D5 빨강 / R1·R2 초록 기대.
+//   D6  이력에 안 찍힌 앞 변경(evaluate 로 주입) 뒤 붙여넣기 ⇒ ⌘Z 한 번은 붙여넣기만 되돌린다(앞 변경은 남는다 — ensureHistoryCheckpoint)
+//   D7  편집 중 ⌥⌘V ⇒ 아무 일 없음(크기 불변 · 편집 유지 — ⓑ ⬜)
+//   F1  ⌥ 깃발(_optionKeyHeld)이 굳은 상태의 보통 ⌘C/⌘V ⇒ 블럭 복사/붙여넣기(스타일 갈래로 안 샌다) — 굳은 깃발은 evaluate 로 «심는다»(결함 주입 · 사람 손으로는 keyup 유실)
+//   F2  정렬을 준 적 없는 원천(C) ⇒ 대상의 명시 정렬(A 오른쪽)·말풍선 발신자 정렬이 안 바뀐다
+//   F3  자리표시 상태 원천(손 안 댄 말풍선 · 흐린 색) ⇒ 대상 색이 흐린 색으로 굳지 않는다
+// 양성대조(고치기 전 빨강): GD1001_ROOT=<바닥 46d444b1 사본> 로 같은 시험 — D1·D2·D3·D4·D5·D6 빨강 / R1·R2 초록 기대(D7·F1·F2·F3 은 바닥에 기능이 없어 뜻이 다르다 — 검수 사본 F1/F2/F3 로 잰다).
 //   바닥에선 합성 키 ⌥⌘C/⌥⌘V 의 e.key 가 'c'/'v' 라 ⌘C/⌘V 갈래(블럭 복사/붙여넣기)로 샌다 ⇒ D5 는 블럭 수 +1 로 빨강.
 // 규칙: 장면은 앱 제 문(새 섹션 단추 · 텍스트 메뉴 · 캔버스 클릭 · 패널 칸 · 실제 키보드)으로만 짓는다. evaluate 는 읽기 · 캐럿 놓기 · 배율만.
 //   ⛔고정 대기 0줄 — waitForFunction / expect.poll / waitStableRect. 좌표 클릭은 clickAt(맞힌 요소 단언). 전제 hard · 성공 soft.
@@ -102,9 +107,26 @@ async function insBody(page) {
   pre(fresh.length === 1, `텍스트 메뉴 ▸ Body 로 블럭 하나 ${JSON.stringify(fresh)}`);
   return fresh[0];
 }
+async function insBubble(page) {
+  const ids = () => page.evaluate(() => [...document.querySelectorAll('#canvas .speech-bubble-block')].map((e) => e.id));
+  const before = await ids();
+  await page.click('#fp-text-dropdown .fp-dropdown-trigger');
+  await page.locator('#fp-text-menu .fp-menu-item').filter({ hasText: reExact('Bubble') }).first().click();
+  await pollTrue(page, (n) => document.querySelectorAll('#canvas .speech-bubble-block').length > n, before.length, 6000);
+  await settle(page);
+  const fresh = (await ids()).filter((i) => !before.includes(i));
+  pre(fresh.length === 1, `텍스트 메뉴 ▸ Bubble 로 말풍선 하나 ${JSON.stringify(fresh)}`);
+  return fresh[0];
+}
+const BUB = '.tb-bubble';
+// 말풍선 정렬 «저장값» 세 곳 — 발신자 이름표 인라인 · data-sender-align · 글자칸 인라인
+const bubbleAlign = (page, id) => page.evaluate((id) => {
+  const tb = document.getElementById(id); if (!tb) return null;
+  return { sender: tb.querySelector('.tb-sender-name')?.style.textAlign ?? null, senderData: tb.dataset.senderAlign ?? null, bubble: tb.querySelector('.tb-bubble')?.style.textAlign ?? null };
+}, id);
 // 글 블럭 고르기(편집 아님) — modifier 'Shift' 면 그 키를 누른 채(범위 다중선택 문)
-async function clickBlock(page, id, { modifier = null, button = 'left' } = {}) {
-  const sel = tbCe(id);
+async function clickBlock(page, id, { modifier = null, button = 'left', ce = null } = {}) {
+  const sel = ce ? `[id="${id}"] ${ce}` : tbCe(id);
   await scrollTo(page, sel);
   const r = await stableTwice(page, sel);
   if (modifier) await page.keyboard.down(modifier);
@@ -138,14 +160,14 @@ const panelOn = (page, id) => pollTrue(page, (id) => document.querySelector('#pa
 async function fillEnter(page, sel, v) { const l = page.locator(sel); await l.fill(v); await l.press('Enter'); }
 
 // ── 재기 ──
-const readLook = (page, id) => page.evaluate(([sel, KEYS]) => {
+const readLook = (page, id, ce = null) => page.evaluate(([sel, KEYS]) => {
   const ce = document.querySelector(sel); if (!ce) return null;
   const cs = getComputedStyle(ce); const o = {};
   for (const k of KEYS) o[k] = cs[k];
   o.text = ce.textContent;
   o.shadowOn = ce.dataset.shadowEnabled || null;
   return o;
-}, [tbCe(id), KEYS]);
+}, [ce ? `[id="${id}"] ${ce}` : tbCe(id), KEYS]);
 const lookOnly = (L) => { if (!L) return null; const o = {}; for (const k of KEYS) o[k] = L[k]; return o; };
 const diffKeys = (a, b) => KEYS.filter((k) => !a || !b || a[k] !== b[k]);
 
@@ -265,6 +287,7 @@ test.describe('1020t2d2 스타일 복사/붙여넣기 @d2', () => {
       await settle(page);
       o.h1 = await histTip(page);
       expect.soft(o.pasted, '성공 D3: 붙여넣기가 먼저 됐다(크기 52)').toBe(true);
+      expect.soft(o.h1 && o.h0 && [o.h1.len - o.h0.len, o.h1.pos - o.h0.pos], `성공 D3: 붙여넣기 한 번 = 이력 +1 ${JSON.stringify({ h0: o.h0, h1: o.h1 })}`).toEqual([1, 1]);
       await page.keyboard.press('ControlOrMeta+z');
       await pollTrue(page, ([s, v]) => getComputedStyle(document.querySelector(s) || document.body).fontSize === v, [tbCe(o.ids.B), o.B0.fontSize], 4000);
       await settle(page);
@@ -273,6 +296,11 @@ test.describe('1020t2d2 스타일 복사/붙여넣기 @d2', () => {
       expect.soft(diffKeys(o.B2, o.B0), `성공 D3: ⌘Z 한 번에 B 가 붙이기 전 모양 ${JSON.stringify({ got: lookOnly(o.B2), want: lookOnly(o.B0) })}`).toEqual([]);
       expect.soft(o.B2 && o.B2.text, '성공 D3: B 글 그대로').toBe(WORDS.B);
       expect.soft(diffKeys(o.A2, o.A0), '성공 D3: A 는 그대로(⌘Z 가 A 꾸밈까지 먹지 않음)').toEqual([]);
+      await page.keyboard.press('ControlOrMeta+Shift+z');
+      await pollTrue(page, ([s, v]) => getComputedStyle(document.querySelector(s) || document.body).fontSize === v, [tbCe(o.ids.B), o.A0.fontSize], 4000);
+      await settle(page);
+      o.B3 = await readLook(page, o.ids.B);
+      expect.soft(diffKeys(o.B3, o.A0), `성공 D3: ⌘⇧Z 로 B 가 다시 A 꼴 ${JSON.stringify({ got: lookOnly(o.B3), want: lookOnly(o.A0) })}`).toEqual([]);
       tail(o, B);
     } finally { await attach(ti, 'd3.json', o); }
   });
@@ -421,5 +449,138 @@ test.describe('1020t2d2 스타일 복사/붙여넣기 @d2', () => {
       expect.soft(o.B1 && o.B1.text, '성공 R2: B 글 그대로').toBe(WORDS.B);
       tail(o, B);
     } finally { await attach(ti, 'r2.json', o); }
+  });
+
+  test('D6 기록 안 된 앞 변경 뒤 붙여넣기 — ⌘Z 한 번은 붙여넣기만 되돌린다(앞 변경은 남는다) @d2', async ({ page }, ti) => {
+    test.setTimeout(90000);
+    const B = await boot(page); const o = {};
+    try {
+      await scene(page, o);
+      await copyStyleFromA(page, o);
+      pre(await clickBlock(page, o.ids.B), 'B 골라짐');
+      // 결함 주입 — «이력에 아직 안 찍힌» 앞 변경(C 자간 5px). 블럭 넣기는 insert-history 가 끝 표본을 찍어 이 이음매가 안 생긴다(첫 런 실측 m5 생존).
+      await page.evaluate((s) => { document.querySelector(s).style.letterSpacing = '5px'; }, tbCe(o.ids.C));
+      await settle(page);
+      o.C0x = await readLook(page, o.ids.C);
+      pre(o.C0x && o.C0x.letterSpacing === '5px', 'C 자간 5px(기록 안 된 앞 변경)');
+      await page.keyboard.press(STYLE_PASTE);
+      o.pasted = await pollTrue(page, ([s, v]) => getComputedStyle(document.querySelector(s)).fontSize === v, [tbCe(o.ids.B), o.A0.fontSize], 4000);
+      await settle(page);
+      pre(o.pasted, 'B 에 붙여넣기가 됐다(크기 52)');
+      await page.keyboard.press('ControlOrMeta+z');
+      await pollTrue(page, ([s, v]) => getComputedStyle(document.querySelector(s) || document.body).fontSize === v, [tbCe(o.ids.B), o.B0.fontSize], 4000);
+      await settle(page);
+      o.B1 = await readLook(page, o.ids.B); o.C1 = await readLook(page, o.ids.C);
+      expect.soft(diffKeys(o.B1, o.B0), `성공 D6: ⌘Z 한 번에 B 가 붙이기 전 모양 ${JSON.stringify({ got: lookOnly(o.B1), want: lookOnly(o.B0) })}`).toEqual([]);
+      expect.soft(o.C1 && o.C1.letterSpacing, '성공 D6: 앞 변경(C 자간 5px)은 ⌘Z 한 번에 같이 사라지지 않는다').toBe('5px');
+      tail(o, B);
+    } finally { await attach(ti, 'd6.json', o); }
+  });
+
+  test('D7 편집 중 ⌥⌘V — 아무 일 없음(ⓑ ⬜) @d2', async ({ page }, ti) => {
+    test.setTimeout(90000);
+    const B = await boot(page); const o = {};
+    try {
+      await scene(page, o);
+      await copyStyleFromA(page, o);
+      pre(await dblBlock(page, o.ids.B), 'B 편집 들어감');
+      o.h0 = await histTip(page);
+      await page.keyboard.press(STYLE_PASTE);
+      await settle(page);
+      o.B1 = await readLook(page, o.ids.B);
+      o.editing = await page.evaluate((id) => !!document.getElementById(id)?.classList.contains('editing'), o.ids.B);
+      o.h1 = await histTip(page);
+      expect.soft(o.B1 && o.B1.fontSize, '성공 D7: 편집 중 ⌥⌘V 뒤 B 크기 불변').toBe(o.B0.fontSize);
+      expect.soft(o.B1 && o.B1.color, '성공 D7: 편집 중 ⌥⌘V 뒤 B 색 불변').toBe(o.B0.color);
+      expect.soft(o.editing, '성공 D7: 편집이 그대로 이어진다').toBe(true);
+      expect.soft(o.h1 && o.h1.len, `성공 D7: 이력 칸 불변 ${JSON.stringify({ h0: o.h0, h1: o.h1 })}`).toBe(o.h0 && o.h0.len);
+      await page.keyboard.press('Escape');
+      tail(o, B);
+    } finally { await attach(ti, 'd7.json', o); }
+  });
+
+  test('F1 ⌥ 깃발이 굳어도 보통 ⌘C/⌘V 는 블럭 복사/붙여넣기 @d2', async ({ page }, ti) => {
+    test.setTimeout(90000);
+    const B = await boot(page); const o = {};
+    try {
+      await scene(page, o);
+      // 결함 주입 — ⌥ keyup 을 놓친 상태(editor.js _optionKeyHeld 굳음). 사람 손으로는 창 밖에서 ⌥ 를 뗄 때 난다.
+      await page.evaluate(() => { window._optionKeyHeld = true; });
+      pre(await clickBlock(page, o.ids.A), 'A 골라짐');
+      o.t0 = await textIds(page);
+      o.clipBefore = await page.evaluate(() => !!window.hasTextStyleClipboard?.());
+      await page.keyboard.press('ControlOrMeta+c');
+      pre(await clickBlock(page, o.ids.B), 'B 골라짐(붙일 자리)');
+      await page.keyboard.press('ControlOrMeta+v');
+      await pollTrue(page, (n) => document.querySelectorAll('#canvas .text-block').length > n, o.t0.length, 4000);
+      await settle(page);
+      o.flag = await page.evaluate(() => window._optionKeyHeld === true);
+      pre(o.flag, '깃발이 런 내내 굳어 있었다');
+      o.t1 = await textIds(page);
+      o.fresh = o.t1.filter((i) => !o.t0.includes(i));
+      o.B1 = await readLook(page, o.ids.B);
+      o.clipAfter = await page.evaluate(() => !!window.hasTextStyleClipboard?.());
+      expect.soft(o.fresh.length, `성공 F1: ⌘C/⌘V 가 블럭 사본 하나를 만든다 ${JSON.stringify(o.fresh)}`).toBe(1);
+      expect.soft(diffKeys(o.B1, o.B0), `성공 F1: B 모양 불변(스타일 붙여넣기로 안 샘) ${JSON.stringify({ got: lookOnly(o.B1), want: lookOnly(o.B0) })}`).toEqual([]);
+      expect.soft([o.clipBefore, o.clipAfter], '성공 F1: ⌘C 가 스타일 칸을 채우지 않는다').toEqual([false, false]);
+      tail(o, B);
+    } finally { await attach(ti, 'f1.json', o); }
+  });
+
+  test('F2 정렬을 준 적 없는 원천 — 대상의 명시 정렬·말풍선 발신자 정렬 불변 @d2', async ({ page }, ti) => {
+    test.setTimeout(90000);
+    const B = await boot(page); const o = {};
+    try {
+      await scene(page, o);
+      o.cInline = await page.evaluate((s) => document.querySelector(s)?.style.textAlign ?? null, tbCe(o.ids.C));
+      pre(o.cInline === '', `C 는 정렬을 준 적 없다(인라인 text-align 없음) «${o.cInline}»`);
+      pre(await clickBlock(page, o.ids.C), '말풍선 넣기 전 C 고름(그 뒤에 들어간다)');
+      o.BB = await insBubble(page);
+      o.bb0 = await bubbleAlign(page, o.BB);
+      // ① C → A(오른쪽) ⇒ A 오른쪽 그대로
+      pre(await clickBlock(page, o.ids.C), 'C 골라짐(스타일 복사)');
+      await page.keyboard.press(STYLE_COPY);
+      await settle(page);
+      pre(await clickBlock(page, o.ids.A), 'A 골라짐');
+      await page.keyboard.press(STYLE_PASTE);
+      o.pastedA = await pollTrue(page, ([s, v]) => getComputedStyle(document.querySelector(s)).fontSize === v, [tbCe(o.ids.A), o.C0.fontSize], 4000);
+      await settle(page);
+      pre(o.pastedA, 'A 에 C 스타일이 붙었다(크기)');
+      o.A1 = await readLook(page, o.ids.A);
+      expect.soft(o.A1 && o.A1.textAlign, '성공 F2①: A 의 명시 정렬(오른쪽)이 그대로').toBe('right');
+      // ② C → 말풍선 ⇒ 발신자 정렬·글자칸 정렬 저장값 그대로
+      pre(await clickBlock(page, o.BB, { ce: BUB }), '말풍선 골라짐');
+      await page.keyboard.press(STYLE_PASTE);
+      o.pastedBB = await pollTrue(page, ([s, v]) => getComputedStyle(document.querySelector(s)).fontSize === v, [`[id="${o.BB}"] .tb-bubble`, o.C0.fontSize], 4000);
+      await settle(page);
+      pre(o.pastedBB, '말풍선에 C 스타일이 붙었다(크기)');
+      o.bb1 = await bubbleAlign(page, o.BB);
+      expect.soft(o.bb1, `성공 F2②: 말풍선 발신자·글자칸 정렬 저장값 불변 ${JSON.stringify({ before: o.bb0, after: o.bb1 })}`).toEqual(o.bb0);
+      tail(o, B);
+    } finally { await attach(ti, 'f2.json', o); }
+  });
+
+  test('F3 자리표시 상태 원천(손 안 댄 말풍선) — 대상 색이 흐린 색으로 굳지 않는다 @d2', async ({ page }, ti) => {
+    test.setTimeout(90000);
+    const B = await boot(page); const o = {};
+    try {
+      await scene(page, o);
+      pre(await clickBlock(page, o.ids.C), '말풍선 넣기 전 C 고름(그 뒤에 들어간다)');
+      o.BB = await insBubble(page);
+      o.src = await page.evaluate((id) => { const ce = document.querySelector(`[id="${id}"] .tb-bubble`); return ce ? { ph: ce.dataset.isPlaceholder || null, inlineColor: ce.style.color, color: getComputedStyle(ce).color, fontSize: getComputedStyle(ce).fontSize } : null; }, o.BB);
+      pre(o.src && o.src.ph === 'true' && !o.src.inlineColor, `말풍선이 자리표시 상태 · 인라인 색 없음 ${JSON.stringify(o.src)}`);
+      pre(o.src.color !== o.B0.color && o.src.fontSize !== o.B0.fontSize, `원천 색·크기가 B 와 다르다 ${JSON.stringify({ src: o.src, B: lookOnly(o.B0) })}`);
+      pre(await clickBlock(page, o.BB, { ce: BUB }), '말풍선 골라짐(스타일 복사)');
+      await page.keyboard.press(STYLE_COPY);
+      await settle(page);
+      pre(await clickBlock(page, o.ids.B), 'B 골라짐');
+      await page.keyboard.press(STYLE_PASTE);
+      o.pasted = await pollTrue(page, ([s, v]) => getComputedStyle(document.querySelector(s)).fontSize === v, [tbCe(o.ids.B), o.src.fontSize], 4000);
+      await settle(page);
+      pre(o.pasted, 'B 에 말풍선 스타일이 붙었다(크기)');
+      o.B1 = await readLook(page, o.ids.B);
+      expect.soft(o.B1 && o.B1.color, `성공 F3: B 색은 그대로(흐린 자리표시 색 ${o.src.color} 이 안 굳는다)`).toBe(o.B0.color);
+      tail(o, B);
+    } finally { await attach(ti, 'f3.json', o); }
   });
 });
