@@ -430,6 +430,9 @@ async function _sliceItem(item, ratio, vert) {
   const GAP = 6; // 분리 간격 (px, 캔버스 좌표계)
 
   const restoreInfo = _pickScratch(item, ['g', 'linkDy']);   // 옛 동작대로 g·linkDy 는 빼고, fx 는 담는다(되살리면 효과도)
+  /* ⚠️128 F1 ⒞ 범위 메모(적어만 · 안 고침): ✂ 슬라이스 길도 «같은 병»의 다른 길이다 — 원본을 `_scratchRemoveById` 없이 직접 빼고
+       조각엔 g 가 없어, 2장 그룹 한 장을 자르면 1장 그룹이 남고 ⌘Z 로 되살린 원본도 소속을 잃는다.
+       고치려면 «조각이 그룹을 물려받나»라는 정책 물음이 먼저라 따로 묻는다(지디 몫). */
 
   // 조각 배치 계산 — 가로컷: 같은 폭으로 위/아래, 세로컷: 폭을 비율대로 나눠 좌/우
   let pieces;
@@ -1254,7 +1257,12 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
       // (pointer-events:none을 commit 전까지 유지해야 elementFromPoint가 underneath 캔버스를 잡음)
       let committed = false;
       // Undo 복원용 — 변환 전에 캡쳐 (id 포함 — 복원 시 원본 id 유지해야 이동 undo 체인 안 끊김)
-      const restoreInfo = _pickScratch(item, ['g', 'linkDy']);   // 옛 동작대로 g·linkDy 는 빼고, fx 는 담는다(되살리면 효과도)
+      /* ★128 F1 ㉠ ⒞ — g 를 담는다(linkDy 만 뺀다 · fx 는 담는다). 옛 판은 g 를 빼 와 ⌘Z 로 되살린 장이 그룹 소속을 잃었다
+         (128 적대 검수 실측: ⌘Z 뒤 sp_p:null). 변환이 `_scratchRemoveById` → `_dissolveLoneGroup` 으로 «풀어 버린 짝»도
+         ⌘Z 한 번에 다시 묶어야 하므로 짝들의 소속(groupMatesBefore)과 장 순서(orderBefore)도 끌기 전에 떠 둔다. */
+      const restoreInfo = _pickScratch(item, ['linkDy']);
+      const groupMatesBefore = item.g ? _scratchGeomSnapshot(_groupMembers(item.g).filter(s => s !== item)) : [];
+      const orderBefore = _scratchLayerOrderNow().map(s => s.id);
       /* ★E95(U11) — 되살릴 «자리»는 끌기 «시작» 자리다. 위 item.x/y 는 onMove 가 이미 «끌린 자리»로 바꿔 놓아
          (`t.x = t._dragOrigX + finalDx`), 그대로 쓰면 ⌘Z 가 카드를 «놓은 자리»(페이지 위)로 되살려 다음 드롭 대상을 덮었다
          (2026-10-05 실측 · 772ccadc). 평소 이동 갈래와 같은 원본 geomBefore(onMove 가 바꾸기 «전» 캡처)에서 뜬다.
@@ -1301,9 +1309,13 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
         try {
           window.pushHistory?.('스크래치→섹션 변환', {
             onUndo: async () => {
-              try { await window._scratchAddAndSaveFx?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, undefined, restoreInfo.id, restoreInfo.fx); } catch (_) {}
+              try { await window._scratchAddAndSaveFx?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, restoreInfo.g, restoreInfo.id, restoreInfo.fx); } catch (_) {}
+              /* ★128 F1 ⒞ — 풀렸던 짝의 소속을 되돌리고, 맨 뒤에 붙은 되살린 장을 원래 순서 자리로 앉힌다. */
+              if (groupMatesBefore.length) { try { _applyScratchGeomSnapshot(groupMatesBefore); } catch (_) {} }
+              try { _applyScratchOrder(orderBefore); } catch (_) {}
             },
             onRedo: async () => {
+              // 다시 지우면 `_scratchRemoveById` 가 1장 남은 그룹을 또 푼다(같은 규칙 한 벌)
               try { await window._scratchRemoveById?.(restoreInfo.id); } catch (_) {}
             },
           });
@@ -2702,12 +2714,15 @@ window._getScratchItemByIdForMCP = function(id, opts) {
 };
 
 // canvas-scratch-drop.js → 드롭 성공 후 스크래치 DOM·IndexedDB 정리
+/* ★128 F1 ㉠ — 그룹 장이 빠지면 1장 남은 그룹을 푼다(모드도 나간다) — 지우기·빼기 길과 «같은 함수»를 부른다(⛔베껴 적지 않는다).
+     까닭: 그룹 모드 안 한 장을 섹션에 끌어 놓으면(변환) 이 길로만 빠져 «1장 그룹»이 남았다(128 적대 검수 F1). */
 window._scratchRemoveById = async (id) => {
   const it = _scratchItems.find(s => s.id === id);
   if (!it) return false;
   _selectedItems.delete(it);
   it.el.remove();
   _scratchItems = _scratchItems.filter(s => s !== it);
+  if (it.g) _dissolveLoneGroup(it.g, { exitMode: true });
   await _saveScratch();
   return true;
 };
