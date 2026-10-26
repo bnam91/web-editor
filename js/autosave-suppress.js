@@ -92,10 +92,11 @@
    *   ⇒ 이 파일 머리가 경고하는 그 일이 그대로 났다:
    *     「자동저장이 조용히 멈춘다 … 대가를 사용자가 «작업물»로 치른다」
    * ⇒ 폴백이 아니라 «둘 다» 건다. 먼저 오는 쪽이 닫고, 토큰은 released 로 한 번만 닫힌다.
-   *   ★이 계열의 «뿌리»라 여기서 막는다 — js/history.js:368·497 · js/collab/sync.js:418 에도
+   *   ★이 계열의 «뿌리»라 여기서 막는다 — js/history.js 의 restoreSnapshot·restoreSnapshotScoped · js/collab/sync.js 의 applyPatch 에도
    *     같은 모양(rAF 단독 해제)이 남아 있다. 그쪽은 이 함수를 쓰게 바꾸는 게 정답이다.
    *     ⇒ 티켓 = `_context/BACKLOG-autosave-raf-only.md` (「다 고쳤을 때 무엇을 지우나」까지 적혀 있다)
-   *     ⇒ 집행 = `tests/unit/autosave-overlap.test.js` N7 — 이 명부가 늘어도 줄어도 빨개진다.
+   *     ⇒ 집행 = `tests/unit/autosave-overlap.test.js` N7 — 자리 정본(UNNETTED_BACKLOG · 함수 이름)이 늘어도 줄어도 빨개진다.
+   *       ⛔여기 `파일.js:숫자` 를 적지 않는다 — 코드가 밀릴 때마다 썩었다(138 · 같은 시험 N7d 가 잰다).
    *   ⚠️★같은 병은 rAF 만의 것이 아니다 — ResizeObserver·IntersectionObserver·requestIdleCallback 도
    *     «렌더링 갱신 단계»에 얹혀 있어 가려진 창에서 안 돈다. 그리고 `else setTimeout(...)` 은
    *     «폴백»이지 «안전망»이 아니다(rAF 가 «없을 때»만 탄다). N7 이 그 성질로 센다. */
