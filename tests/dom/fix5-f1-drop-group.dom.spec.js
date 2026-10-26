@@ -25,10 +25,20 @@ const { bootApp } = require('./_root-harness.js');
 
 /* 잡는 점 = 장의 «왼쪽 아래» 쪽(가로 30% · 세로 70%) — ⛔가운데가 아니다: 줌 40% 에선 위쪽 손잡이(✂·AI·✕ · 역배율로 커진다)가
    가운데 가까이 내려온다. 첫 런 D2 실측: 가운데를 잡았더니 sp_r 이 두 조각(자르기)이 됐다 — 손잡이를 누른 탓으로 «추정». */
-const rect = (page, id) => page.evaluate((id) => {
-  const q = document.querySelector(`.scratch-item[data-scratch-id="${id}"]`).getBoundingClientRect();
-  return { cx: q.left + q.width * 0.3, cy: q.top + q.height * 0.7 };
-}, id);
+/* ★자리가 멎고(연속 두 번 같은 값) 그 점을 그 장이 받을 때만 돌려준다 — 한 번 재고 바로 누르면 뒤늦은 줌·스크롤에 빗맞는다
+   (단계 3 회귀 런 실측: D2 더블클릭이 sp_r 을 못 맞혀 모드 진입 5s 시간초과 ×1 · 선례 fix5-t419-group-rclick center()). */
+const rect = async (page, id) => {
+  await page.evaluate(() => { window.__f1Prev = null; });
+  const h = await page.waitForFunction((id) => {
+    const el = document.querySelector(`.scratch-item[data-scratch-id="${id}"]`);
+    const q = el.getBoundingClientRect();
+    const c = { cx: q.left + q.width * 0.3, cy: q.top + q.height * 0.7 };
+    const key = Math.round(c.cx) + ',' + Math.round(c.cy);
+    const same = window.__f1Prev === key; window.__f1Prev = key;
+    return same && el.contains(document.elementFromPoint(c.cx, c.cy)) ? c : false;
+  }, id, { timeout: 5000 });
+  return h.jsonValue();
+};
 const st = (page) => page.evaluate(() => ({
   ids: [...document.querySelectorAll('.scratch-item')].map((e) => e.dataset.scratchId),
   grp: Object.fromEntries([...document.querySelectorAll('.scratch-item')].map((e) => [e.dataset.scratchId, e.dataset.scratchGroup ?? null])),

@@ -277,8 +277,16 @@ function _removeItem(item) {
 
 // 스크래치 아이템 일괄 삭제 + 글로벌 history 스택에 sideEffects로 push
 // Cmd+Z 시 캔버스 작업이 아닌 스크래치 삭제가 먼저 되돌려지도록 별도 entry로 등록
-function _deleteScratchItemsWithHistory(items) {
+/* ★opts.inGroupMode — 그룹 진입 중 멤버 우클릭 「삭제」(t4-19 ㉯ · 현빈 261026 「뺄수도 있고, 삭제를 하면 바로」)만 켠다.
+ *   ⛔기본(꺼짐) = 옛 동작 그대로 — ✕ · ⌘X · 모드 밖 Delete 는 아래 ⑧(1장 남으면 풀기)을 그대로 탄다.
+ *   켜면 두 가지가 달라진다 — ★«레퍼런스에 근거 없음(지디 결정)»(research-t419/REFERENCE-group-ops.md 3장 ⑹⑺:
+ *   Figma·Illustrator·Canva 공식 문서에 «그룹 안 하나 삭제 뒤 남은 수에 따른 처분»·«되돌리기 범위» 문구 없음):
+ *     ㉱ 남은 1장 ⇒ 그룹 ★유지 · 0장 ⇒ 그룹 없음 + 모드 나감 — `_dissolveLoneGroup` 의 keepLone 인자(규칙 한 벌 안에서 갈린다)
+ *     ㉱-z ⌘Z 한 번 ⇒ 그룹 소속·전체 수·★순서 셋이 전과 같다 — 되살린 장은 맨 뒤에 붙으므로 순서를 다시 앉힌다 */
+function _deleteScratchItemsWithHistory(items, opts = {}) {
   if (!items || items.length === 0) return;
+  const inGroupMode = !!opts.inGroupMode;
+  const orderBefore = inGroupMode ? _scratchLayerOrderNow().map(s => s.id) : null;   // ㉱-z
   // 삭제 전 정보 캡쳐 (복원용) — src/x/y/w/id/g 보존
   // ⚠️linkDy 는 빼 왔다(옛 동작 그대로). fx 는 담는다 — 지운 항목을 ⌘Z 로 되살릴 때 효과도 돌아와야 한다.
   const snapshots = items.map(s => _pickScratch(s, ['linkDy']));
@@ -314,7 +322,7 @@ function _deleteScratchItemsWithHistory(items) {
    *     ⛔«지우는 순간»에 세면 ★자기 자신이 ★아직 들어 있어 ★한 장 더 센다.
    *   ★음성대조 = ★C7(3장에서 하나 빼면 ★2장 그룹이 ★남는다 — ⛔풀리지 않는다). */
   const touchedGroups = [...new Set(items.map(s => s.g).filter(Boolean))];
-  for (const gid of touchedGroups) _dissolveLoneGroup(gid, { exitMode: true });
+  for (const gid of touchedGroups) _dissolveLoneGroup(gid, { exitMode: true, keepLone: inGroupMode });
   _saveScratch();
 
   // 글로벌 history에 sideEffects entry 추가 — 캔버스 스냅샷은 동일 상태로 push되어
@@ -329,6 +337,10 @@ function _deleteScratchItemsWithHistory(items) {
         }
         // ★이미지를 되살렸으면 «연결»도 되살린다 — 안 하면 ⌘Z 가 그림만 돌려주고 선은 영영 안 돌아온다
         try { _restoreLinks(severed); } catch (_) {}
+        if (orderBefore) {                               // ㉱-z — 되살린 장을 원래 자리(순서)로 · 모드 중이면 표시도 맞춘다
+          _applyScratchOrder(orderBefore);
+          if (_groupMode) _markGroupMode(true);
+        }
       },
       onRedo: async () => {
         // 복원했던 item들을 다시 제거 (id 보존이므로 원본 id로 직접 제거)
@@ -631,9 +643,16 @@ function _groupMembers(gid) { return _scratchItems.filter((s) => s.g === gid); }
  *   ★«언제 세나» = 그 장이 그룹에서 «빠진 뒤»(배열에서 뺐거나 g 를 지운 뒤) — 부르는 쪽 몫.
  *     ⛔«빠지는 순간»에 세면 ★자기 자신이 ★아직 들어 있어 ★한 장 더 센다.
  *   exitMode: 풀린 그룹이 지금 모드면 ★여기서 나간다(지우기 길). 빼기 길은 false — 저긴 선택 정리 «뒤»에 스스로 나간다(옛 순서 그대로).
+ *   keepLone: ★유일한 예외 = 그룹 진입 중 우클릭 「삭제」(t4-19 ㉯ ㉱ · 지디 결정 · 레퍼런스 근거 없음) —
+ *     1장 남아도 ★안 푼다(모드 유지) · 0장이면 그룹은 저절로 없고(g 쥔 장 0) 모드만 나간다.
+ *     ⚠️⊘·✕·⌘X·변환 길(1장이면 푼다)과 ★다르다 — 뒤집을 땐 이 인자 하나를 본다.
  *   돌려줌: 풀린 그 한 장(없으면 null). */
-function _dissolveLoneGroup(gid, { exitMode = false } = {}) {
+function _dissolveLoneGroup(gid, { exitMode = false, keepLone = false } = {}) {
   const rest = _groupMembers(gid);
+  if (keepLone) {
+    if (exitMode && _groupMode === gid) { if (rest.length === 0) _exitGroupMode(); else _markGroupMode(true); }
+    return null;
+  }
   if (rest.length !== 1) return null;
   delete rest[0].g;
   if (rest[0].el) delete rest[0].el.dataset.scratchGroup;
@@ -678,6 +697,9 @@ function _enterGroupMode(item) {
   /* ★밖 클릭 = 나가기. ★capture 로 건다 — ★선택이 바뀌기 «전»에 모드가 풀려야
      ★모드 중 선택이 ★그룹 밖으로 샐 길이 없다(선례 :543·:554 와 같은 꼴). */
   const onOutsideMousedown = (e) => {
+    /* ★t4-19 ㉯ — 멤버 우클릭 메뉴(「그룹에서 빼기」·「삭제」) 안을 누르는 것은 «밖»이 아니다.
+       ⛔안 거르면 항목을 누르는 mousedown 이 모드를 먼저 내려, 고른 뒤에 진입이 풀린다(한 장씩 이어서 못 지운다). */
+    if (e.target.closest && e.target.closest('.scratch-send-menu')) return;
     const el = e.target.closest && e.target.closest('.scratch-item');
     if (!el || el.dataset.scratchGroup !== _groupMode) _exitGroupMode();
   };
@@ -2808,6 +2830,29 @@ function _scratchShowSendMenu(item, x, y) {
   const header = document.createElement('div');
   header.textContent = '자산 폴더로 보내기';
   header.style.cssText = 'padding:6px 10px; color:#888; font-size:10px; border-bottom:1px solid #333; margin-bottom:4px;';
+  /* ★t4-19 ㉯ — 그룹 진입 중 «그 그룹 멤버»를 우클릭했을 때만 두 항목을 머리에 더한다(새 메뉴 ⛔ · 이 메뉴에 더한다).
+       「그룹에서 빼기」 = Delete 키(진입 중)와 같은 길 _detachFromGroup · 「삭제」 = 확인 묻기 없이 그 한 장 지우기(현빈 261026 · 지디 ㉱ ⑷).
+     ⛔그룹 아닌 장 · 모드 밖 그룹 장 · 다른 그룹 장 = 두 항목 없음(다른 그룹 장은 우클릭 mousedown 에서 모드가 먼저 내려간다).
+     ⛔⌘Delete 별칭 없음 · 레이어 패널 무접촉(지디 처방) · ㉮ Delete 키(빼기)는 안 바꾼다. */
+  if (_groupMode && item.g === _groupMode) {
+    const acts = [
+      ['detach', '그룹에서 빼기', () => _detachFromGroup(item)],
+      ['delete', '삭제', () => _deleteScratchItemsWithHistory([item], { inGroupMode: true })],
+    ];
+    for (const [act, label, run] of acts) {
+      const b = document.createElement('div');
+      b.dataset.scratchGroupAct = act;
+      b.textContent = label;
+      b.style.cssText = 'padding:6px 10px; cursor:pointer;' + (act === 'delete' ? ' color:#ff6b6b;' : '');
+      b.addEventListener('mouseenter', () => b.style.background = 'rgba(45,111,232,0.18)');
+      b.addEventListener('mouseleave', () => b.style.background = '');
+      b.addEventListener('click', () => { menu.remove(); run(); });
+      menu.appendChild(b);
+    }
+    const sep = document.createElement('div');
+    sep.style.cssText = 'height:1px; background:#333; margin:4px 0;';
+    menu.appendChild(sep);
+  }
   menu.appendChild(header);
   if (folders.length === 0) {
     const empty = document.createElement('div');
