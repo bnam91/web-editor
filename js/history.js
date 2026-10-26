@@ -267,6 +267,8 @@ function _restoreSelection(snapSel) {
 }
 
 let _gateSkips = 0;
+let _undoRestoreSkips = 0;   // ★159 자(읽기만) — undo 가 캔버스 복원을 건너뛴 횟수
+let _lastUndoGate = null;    // ★159 자(읽기만) — 마지막 ⌘Z 의 판정 칸들(어느 것이 옛 길로 보냈나)
 function pushHistory(action = '작업', sideEffects = null) {
   if (_historyPaused) return;
   /* ★130 싼 게이트(2026-10-26 · 지디 처방) — 아래 «무변화 차단»(_sameEdit · _videoPendingKey · settings)이 버릴 게 «확실»하면 직렬화 «앞»에서 돌아간다.
@@ -547,7 +549,7 @@ function undo() {
        도형 페이지에서 «항상 거짓»이 돼 ⌘Z 를 누를 때마다 ⌘⇧Z 가 죽는다.
        그래서 이 변경 «앞»에 F2(복원 멱등, block-factory/annotation-block)가 먼저 들어갔다.
        ⛔F2 를 되돌리면 여기가 T-035 ① · T-059 ⑤ · T-073 ⌘⇧Z 축을 한꺼번에 깬다. */
-  ensureHistoryCheckpoint('현재 상태');
+  const _liveIsTop = ensureHistoryCheckpoint('현재 상태') === 'same';   // ★159 — 아래 «캔버스 복원 건너뛰기»가 쓴다
   if (historyPos <= 0) return;
   // ★0919 QA: 열린 색 피커는 «떨어져 나갈» 블럭 DOM 을 붙잡고 있다 — 복원 전에 닫는다.
   //   (안 닫으면 undo 뒤 탭 클릭이 떨어진 노드에 적용되고 기록만 하나 쌓여 redo 스택이 잘렸다)
@@ -567,8 +569,30 @@ function undo() {
        편집 밖의 크기 변경이 부분에만 들어갔다(핀·피그마 = 블럭 전체). ⚠️이 파일의 _captureSelection/_restoreSelection(블럭 선택)과는 별개.
        (이 자리 — restoreSnapshot «안»이 아니라 여기 — 인 까닭: tests/unit/autosave-overlap N7 이 그 함수의 줄 번호를 명부로 잰다.) */
     try { window.__textSelection?.discardTextSelection?.(); } catch (_) {}
-    restoreSnapshot(targetSnap);
-    _restampRestored();   // ★R1(2026-10-03) — 위 _restampRestored 주석
+    /* ★159(지디 ㉯ · 2026-10-26) — 갈 칸이 «지금 라이브와 같으면» 캔버스를 통째로 갈지 않는다.
+       «같다» = 이미 있는 비교 둘을 잇는다(새 직렬화·새 비교기 0): ① 위 ensureHistoryCheckpoint 가 라이브를 꼭대기(=떠나는 칸)와
+       _sameEdit·영상 열쇠로 견줘 «같음»(새 칸 안 만듦) ② 떠나는 칸과 갈 칸의 «원문 일치»(=== · _restampRestored 와 같은 비교) · + 페이지·설정·영상 열쇠.
+       ⛔②에 _sameEdit 를 쓰지 않는다 — 앱 실측(원 저장본 캔버스 37.5MB): 다를 때 갈 칸 벗기기가 1.4~2.1s 를 «더» 먹고(⌘Z 가 오히려 느려짐)
+         로드 뒤 다시 그린 그리드 줄 style 꼴(#e0e0e0 ↔ rgb(224, 224, 224))은 _sameEdit 도 «다름»이라 얻는 것이 없었다(S6-FIX5 ㉑).
+       까닭(앱 실측 · 원 저장본 블럭 412 · d0a6b6fa ×3): ⌘Z 첫 동기 작업 3.2~5.2s 중 restoreSnapshot 2.2~3.5s(rebindAll 1.5~2.4s) · 재도장 직렬화 0.3~0.5s
+         · 체크포인트 직렬화 0.6~1.1s — 스크래치 지우기 칸은 캔버스가 «같은 상태»라 onUndo 만 할 일이다.
+       ⛔세대(130 _gen)는 안 쓴다 — 스크롤·장으로 가는 손에도 올라 앱에서 0/6 이었다(S6-FIX5 ㉑) · 중립 목록 더하기는 거절(지디: undo 오판 = 데이터 사고).
+       건너뛰어도 남기는 것: 선택 복원(restoreSnapshot 끝과 같은 순서) · 단추 갱신. 캔버스가 안 바뀌었으니 R1 재도장은 할 일이 없다.
+       ⛔옛 길(restoreSnapshot)은 그대로 — 하나라도 다르면 그 길. */
+    const _gate = { liveIsTop: _liveIsTop, page: targetSnap.pageId === state.currentPageId && leavingSnap.pageId === targetSnap.pageId,
+      settings: JSON.stringify(targetSnap.settings) === JSON.stringify(state.pageSettings),
+      video: _videoPendingKey(targetSnap.videoPendingSidecar) === _videoPendingKey(leavingSnap.videoPendingSidecar) };
+    _gate.canvas = _gate.liveIsTop && _gate.page && _gate.settings && _gate.video && leavingSnap.canvas === targetSnap.canvas;
+    _lastUndoGate = { leaving: leavingSnap.action ?? null, target: targetSnap.action ?? null, ..._gate };
+    if (_gate.canvas) {
+      _undoRestoreSkips++;
+      window.deselectAll?.();
+      _restoreSelection(targetSnap.selection);
+      _updateUndoRedoBtns();
+    } else {
+      restoreSnapshot(targetSnap);
+      _restampRestored();   // ★R1(2026-10-03) — 위 _restampRestored 주석
+    }
   }
   try { leavingSnap?.sideEffects?.onUndo?.(); } catch (e) { console.warn('[history] onUndo err:', e); }
 }
@@ -721,6 +745,7 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
        그 항목의 선택만 최신으로 갱신한다. (null 이면 덮지 않는다 — 지우는 쪽으로는 안 움직인다) */
     const _sel = _captureSelection();
     if (_sel) historyStack[historyPos].selection = _sel;
+    return 'same';   // ★159 — «라이브 ≡ 꼭대기»(위 _sameEdit·영상 열쇠)를 undo 가 그대로 쓴다(새 직렬화·새 비교 0) · 다른 부르는 자리는 돌려줌을 안 본다
   }
 }
 
@@ -784,7 +809,7 @@ window.undo         = undo;
 window.redo         = redo;
 window.clearHistory = clearHistory;
 window.getHistoryTip = getHistoryTip;
-window.getHistoryStripStats = () => ({ calls: _stripCalls, gateSkips: _gateSkips });   // ★130㉡ 자 — 시험이 «넘기기가 도는가»를 잰다(읽기만)
+window.getHistoryStripStats = () => ({ calls: _stripCalls, gateSkips: _gateSkips, undoRestoreSkips: _undoRestoreSkips, lastUndoGate: _lastUndoGate });   // ★130㉡ 자 — 시험이 «넘기기가 도는가»를 잰다(읽기만)
 window.restampHistoryTop = restampHistoryTop;
 window.historyHasSeq = historyHasSeq;
 window.restoreSnapshot = restoreSnapshot;
