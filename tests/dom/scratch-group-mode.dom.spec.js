@@ -347,7 +347,11 @@ test('G14 ★지우는 손이 됐으므로 — 진입 중 «입력칸에 글 쓰
   await clickItem(page, 'sp_c', { dbl: true });
   expect((await st(page)).mode, '전제 — 진입했다').toBeTruthy();
   await page.evaluate(() => { const i = document.createElement('input'); i.id = '__g14'; i.value = 'ab'; document.body.appendChild(i); i.focus(); });
-  await page.keyboard.press('Backspace'); await page.waitForTimeout(300);
+  await page.keyboard.press('Backspace');
+  /* ★조건 대기(⛔고정 300ms) — «글자가 지워졌다»(있음)를 기다린다. 스크래치 Delete 갈래는 같은 keydown 안에서 동기로 지우므로
+     글자가 바뀐 뒤면 장이 지워졌을지 여부도 이미 정해져 있다(⛔장 수 3 을 폴링하면 키보다 먼저 참이 돼 아무것도 안 잰다).
+     ★왜 이 한 줄만인가 — 고정 대기 census W3 가 이 줄(G14 · 261026 새로 더함)만 잡았다 · 이 파일의 나머지 300ms 대기들은 기준선 안에 이미 있다 · 그쪽은 별건(지디가 이름 세움 · 다음 릴리스) ⛔여기서 손대지 않는다. */
+  await expect.poll(() => page.evaluate(() => document.getElementById('__g14').value), { timeout: 5000 }).toBe('a');
   const s = await st(page);
   expect({ pads: s.pads, val: await page.evaluate(() => document.getElementById('__g14').value) }, '★장 3 그대로 · 글자만 지워짐').toEqual({ pads: 3, val: 'a' });
 });
