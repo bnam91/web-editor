@@ -25,7 +25,7 @@ import {
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame, framePadding, innerFullWidth,
          growFrameToFitChildren, applyFrameHAlignToChild, fitContentWidthPx } from './frame-geometry.js';
-import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
+import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_NESTED_GAP, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk, grdOpenNestGapPopover } from './props/prop-grid.js';
 import { GRID_CIRCLE_ICON_INNER, GRID_CIRCLE_ICON_STROKE_WIDTH } from './blocks/grid-circle-icon.js';
 import { isImageMemoHost, getImageMemo, setImageMemo, openImageMemoEditor } from './image-memo.js';
@@ -6198,8 +6198,9 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
          박은 수인데, 중첩은 칸을 «반»으로 나누므로 같은 24 가 훨씬 크게 먹는다.
          ★실측: 칸 149px 에서 gap 24 ⇒ 각 열 67px · gap 8 ⇒ 각 열 70.5px.
          ⚠️정직하게 — 이 고침만으로는 «거의 안 낫는다»(3.5px). 진짜 고침은 css/editor-blocks.css 의
-           «중첩 안 짧은 안내문»이다. 여기서는 공간을 돌려줄 뿐이다. */
-      gap: 8,
+           «중첩 안 짧은 안내문»이다. 여기서는 공간을 돌려줄 뿐이다.
+         ★t6-04b ⑴ — 수는 grid-block.js GRID_NESTED_GAP.create «한 자리»에서 온다(⛔여기 다시 적지 않는다). */
+      gap: GRID_NESTED_GAP.create,
       cols: [{ width: 1, lines: [{ type: 'body', text: '' }] },
              { width: 1, lines: [{ type: 'body', text: '' }] }],
     });
@@ -6208,7 +6209,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
 
   /* ★t6-04㉡ 「칸 사이 간격…」 — 현빈 원문 「📍그리드 블럭 나란히 두칸으로 나누기 줄을 추가할 수 있는데 해당 추가한 줄의 경우,
    *   캔버스에서 추가한 두칸(칼럼)의 간격 조절 가능하게 해줄래?」 · 지디 GO ㈐(우클릭 입력).
-   * ★값 = 그 줄의 `line.gap`(모델·그리기 이미 있음 — grid-block.js `gap = Number(line.gap) || 24`) · 쓰는 문 = `patchCell{r,c,lineIndex,gap}`
+   * ★값 = 그 줄의 `line.gap`(모델·그리기 이미 있음 — grid-block.js `_gridNumOr(line.gap, GRID_NESTED_GAP.missing)` · 키 없음 = GRID_NESTED_GAP.missing · t6-04b) · 쓰는 문 = `patchCell{r,c,lineIndex,gap}`
    *   (updateGridBlock — 한 번 고침 = 이력 한 칸 · 패널 다시 그림 · 입구 검증을 건너뛰지 않는다).
    * ★입력 = ⛔prompt() 금지(Electron) ⇒ ★섹션 메모 팝오버 «꼴»을 빌린다(section-memo.js · css/editor-layout.css 의
    *   .section-memo-backdrop / .section-memo-popover / .smp-head·.smp-close·.smp-foot 그대로 · 숫자칸은 패널의 .prop-number).

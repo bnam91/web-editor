@@ -9,6 +9,14 @@
  *   S  ★저장 꼴 왕복 — 섹션 HTML 을 다시 들여도 20
  *   N  그 줄 밖(다른 칸) 우클릭이면 「칸 사이 간격…」 안 보인다
  * 양성대조: GD1001_ROOT=<핀 8608bb13 사본> ⇒ M·G·U·S 빨강(입구 0) · P0·N 초록.
+ * ★t6-04b(아이맥 ◑ 결함 둘 + 지디 16:09 칸 둘) — 판 5e4256d1 위
+ *   Z  ★gap 0 이 «0 으로» 그려지고 팝오버가 «0» 을 보인다 · 손대지 않은 Enter 뒤에도 모델 0(⛔`|| 24` 가 0 을 삼킴)
+ *   H  ★0 을 두 번 넣으면 이력이 «한 칸»만 는다 · ⌘Z 한 번 → 8(⛔같은 0 을 다시 써 이력이 쌓이면 되돌리기가 0 에 머문다)
+ *   B  ★모델 문 범위 — patchCell gap −5 · 900 은 ok:false · 모델 그대로 · 0 · 200 은 통과
+ *   K  ★칸 규약(prop-number-commit-guard) — 팝오버에 900 → 200 · −5 → 0(⛔팝오버가 따로 자르지 않는다)
+ *   D  ★0 넣고 저장 → 새로 띄워 불러와도 0 · 0px — serializeProject() → bootApp → applyProjectData
+ *      (⚠️디스크 쓰기는 하네스 밖 = electronAPI 가짜 · 디스크 proj.json 값은 앱값으로 잰다)
+ *   양성대조: GD1001_ROOT=<5e4256d1 사본> ⇒ Z·H·B·D 빨강 · K 는 두 판 같은 값(지키는 칸).
  * ⛔고정 대기 없음. 하네스 = _root-harness.bootApp · 우클릭·메뉴·키는 진짜 입력.
  */
 const { test, expect } = require('@playwright/test');
@@ -107,5 +115,76 @@ test('N 그 줄 밖(다른 칸) 우클릭이면 안 보인다', async ({ page })
   await page.mouse.click(p[0], p[1], { button: 'right' });
   await page.waitForFunction(shown('#bcm-grid-nested'), null, { timeout: 4000 });
   expect(await page.evaluate(shown('#bcm-grid-nested-gap'))).toBe(false);
+  expect(errs).toEqual([]);
+});
+
+/* ═══ t6-04b ═══ */
+const patchGap = (page, gap) => page.evaluate(([gap]) => { const li = Number(window.__g.querySelector('.grd-nested[data-line]').dataset.line);
+  const r = window.updateGridBlock(window.__g.id, { patchCell: { r: 0, c: 0, lineIndex: li, gap } }); return { ok: !!(r && r.ok !== false), code: r && r.code || null }; }, [gap]);
+const popClosed = (page) => page.waitForFunction(() => !document.querySelector('.section-memo-backdrop'), null, { timeout: 4000 });
+async function typeGap(page, v) {
+  await openGap(page);
+  await page.keyboard.press('Meta+a'); await page.keyboard.type(String(v)); await page.keyboard.press('Enter');
+  await popClosed(page); await frames(page, 2);
+}
+
+test('Z ★gap 0 → 그림 0 · 팝오버 «0» · 손대지 않은 Enter 뒤에도 0', async ({ page }) => {
+  const errs = await setup(page);
+  expect(await patchGap(page, 0), '전제 — 0 은 유효값(칸 min 0)').toMatchObject({ ok: true });
+  await frames(page, 2);
+  expect(await read(page), '★0 이 0 으로 그려져야(⛔24)').toMatchObject({ gap: 0, css: '0px', seam: 0 });
+  await openGap(page);
+  expect(await page.evaluate(() => document.getElementById('grd-nest-gap-input').value), '★팝오버 «지금 값» = 0').toBe('0');
+  await page.keyboard.press('Enter'); await popClosed(page); await frames(page, 2);
+  expect(await read(page), '★손대지 않은 Enter — 저장본 그대로 0').toMatchObject({ gap: 0, css: '0px' });
+  expect(errs).toEqual([]);
+});
+
+test('H ★0 을 두 번 넣으면 이력이 한 칸만 는다 · ⌘Z 한 번 → 8', async ({ page }) => {
+  const errs = await setup(page);
+  /* 이력 «칸» = history.js getHistoryTip().pos(⛔pushHistory «부른 수»로 세지 않는다 — 꼭대기와 같은 스냅샷은 안 쌓여 부른 수 ≠ 칸 수) */
+  const pos = () => page.evaluate(() => window.getHistoryTip().pos);
+  const p0 = await pos();
+  await typeGap(page, 0);
+  const p1 = await pos();
+  await typeGap(page, 0);
+  const p2 = await pos();
+  expect({ first: p1 - p0, again: p2 - p1 }, '★첫 0 = 한 칸 · 같은 0 다시 = 0 칸').toEqual({ first: 1, again: 0 });
+  expect((await read(page)).gap).toBe(0);
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  await page.waitForFunction(() => { const g = document.querySelector('#canvas .grid-block'); window.__g = g; const n = g?.querySelector('.grd-nested[data-line]'); return n && getComputedStyle(n).columnGap === '8px'; }, null, { timeout: 4000 })
+    .catch(() => {});
+  expect(await read(page), '★⌘Z 한 번 = 0 넣기 전(8)').toMatchObject({ gap: 8, css: '8px' });
+  expect(errs).toEqual([]);
+});
+
+test('B ★모델 문 범위 — −5 · 900 거절(모델 그대로) · 0 · 200 통과', async ({ page }) => {
+  const errs = await setup(page);
+  const got = {};
+  for (const v of [-5, 900]) { got[v] = { ...(await patchGap(page, v)), gap: (await read(page)).gap }; }
+  expect(got, '★범위 밖은 ok:false · 모델 8 그대로').toEqual({ '-5': { ok: false, code: 'INVALID', gap: 8 }, '900': { ok: false, code: 'INVALID', gap: 8 } });
+  expect(await patchGap(page, 200)).toMatchObject({ ok: true }); expect((await read(page)).gap).toBe(200);
+  expect(await patchGap(page, 0)).toMatchObject({ ok: true }); expect((await read(page)).gap).toBe(0);
+  expect(errs).toEqual([]);
+});
+
+test('K ★칸 규약 — 팝오버 900 → 200 · −5 → 0', async ({ page }) => {
+  const errs = await setup(page);
+  await typeGap(page, 900);
+  expect(await read(page)).toMatchObject({ gap: 200, css: '200px' });
+  await typeGap(page, -5);
+  expect(await read(page)).toMatchObject({ gap: 0, css: '0px' });
+  expect(errs).toEqual([]);
+});
+
+test('D ★0 넣고 저장 → 새로 띄워 불러와도 0 · 0px', async ({ page }) => {
+  const errs = await setup(page);
+  await typeGap(page, 0);
+  const snap = await page.evaluate(() => window.serializeProject());
+  await bootApp(page);
+  await page.evaluate((d) => window.applyProjectData(d), JSON.parse(snap));
+  await page.waitForFunction(() => { const g = document.querySelector('#canvas .grid-block'); if (!g || !g.querySelector('.grd-nested[data-line]')) return false; window.__g = g; return true; }, null, { timeout: 8000 });
+  await frames(page, 3);
+  expect(await read(page), '★불러온 뒤 모델 0 · 그림 0px').toMatchObject({ gap: 0, css: '0px' });
   expect(errs).toEqual([]);
 });
