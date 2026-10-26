@@ -119,7 +119,6 @@ const ROSTER = {
   /* ★150(S3 · 261026) — ★지디 사람 triage(17:51): ★loop. tickPt 의 `n > 120` 은 rAF «횟수 상한»(문턱 아님) · rect 는 «누를 좌표»만 · 단언은
      p.stable(불린) 하나 ⇒ 배율 무관. :41 = rect 를 재는 줄 · :43 = 그 상한·되돌림 줄. */
   'graph-old-axis-tick-edit-150.dom.spec.js:41': 'loop',
-  'graph-old-axis-tick-edit-150.dom.spec.js:43': 'loop',
   'asset-to-scratch-move.dom.spec.js:50': 'safe',
   'asset-to-scratch-move.dom.spec.js:102': 'safe',
   /* ★1017t1c5(태양) — r0·r1 둘 다 같은 줌에서 getBoundingClientRect, 비교는 ★차(r1.left-r0.left) —
