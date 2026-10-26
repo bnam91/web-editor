@@ -5435,6 +5435,21 @@ window.applyIconTextAlign = applyIconTextAlign;
 window.setIconTextDirection = setIconTextDirection;
 
 // ── 수정: icon-text 블록 partial update ──────────────────────────────────
+/* ★아이콘 텍스트 블럭 «그림 박기» 한 곳 — img(draggable=false) · .has-image · 테두리 끔 · dataset.imgSrc.
+   부르는 곳 둘: ⑴ updateIconTextBlock(아이콘 고르기·MCP) ⑵ block-drag.js `_itbPickPhoto`(사진 올리기 · window 다리).
+   ⛔두 벌로 만들지 마라(113 B-2 — 사진 길이 has-image·draggable 을 빠뜨려 꼴이 갈렸다).
+   ⚠️검사·이력·자동저장은 부르는 쪽 몫이다 — 여긴 DOM 만 쓴다. */
+function _itbApplyImgSrc(block, iconEl, newSrc) {
+  let img = iconEl.querySelector('img');
+  if (!img) { img = document.createElement('img'); iconEl.appendChild(img); }
+  img.src = newSrc;
+  img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;';
+  img.setAttribute('draggable', 'false');
+  iconEl.classList.add('has-image');
+  iconEl.style.border = 'none';
+  block.dataset.imgSrc = newSrc;
+}
+
 function updateIconTextBlock(blockId, partial = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
   const block = document.getElementById(String(blockId));
@@ -5515,14 +5530,7 @@ function updateIconTextBlock(blockId, partial = {}) {
         iconEl.style.border = '';
         delete block.dataset.imgSrc;
       } else {
-        let img = iconEl.querySelector('img');
-        if (!img) { img = document.createElement('img'); iconEl.appendChild(img); }
-        img.src = newSrc;
-        img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;';
-        img.setAttribute('draggable', 'false');
-        iconEl.classList.add('has-image');
-        iconEl.style.border = 'none';
-        block.dataset.imgSrc = newSrc;
+        _itbApplyImgSrc(block, iconEl, newSrc);
       }
     }
     applied.imgSrc = newSrc;
@@ -5617,6 +5625,7 @@ window.updateSpeechBubbleBlockRaw = updateSpeechBubbleBlock;
 window.updateLabelGroupBlock  = updateLabelGroupBlock;
 window.updateShapeBlock       = updateShapeBlock;
 window.updateIconTextBlock    = updateIconTextBlock;
+window.itbApplyImgSrc         = _itbApplyImgSrc;   // ★113 B-2 — block-drag.js 사진 올리기 길이 «부를 때» 읽는다
 window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType swap 시 참조
 
 

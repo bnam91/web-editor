@@ -402,6 +402,12 @@ if (typeof document !== 'undefined' && document.head && !document.getElementById
   }
   .${POP_ID}-more:hover { background: var(--ui-bg-hover); color: var(--ui-text); border-color: var(--ui-border-mid); }
   .${POP_ID}-more:disabled { opacity: .45; cursor: default; }
+  .${POP_ID}-upload {
+    width: 100%; margin-top: 6px; padding: 6px 8px; font-size: 11px; cursor: pointer;
+    background: var(--ui-bg-input); color: var(--ui-text-sub);
+    border: 1px solid var(--ui-border); border-radius: 4px;
+  }
+  .${POP_ID}-upload:hover { background: var(--ui-bg-hover); color: var(--ui-text); border-color: var(--ui-border-mid); }
 `;
   document.head.appendChild(st);
 }
@@ -437,12 +443,16 @@ export function closeIfgIconPopover() {
 
 /** 칸의 아이콘 프레임 옆에 팝오버를 띄운다.
  *  onPick({ svg, name }) — ★내장은 `{svg, name:'leaf'}`(prefix 없음) · 「더 찾기」는 iconify 의 `{svg, name:'ph:leaf-bold'}`.
- *  ⇒ ★커밋 경로는 ★하나다(ifgCommitIcon) — ⛔둘로 만들지 마라. */
-export function openIfgIconPopover(anchorEl, onPick, look) {
+ *  ⇒ ★커밋 경로는 ★하나다(ifgCommitIcon) — ⛔둘로 만들지 마라.
+ *  ★opts(넷째 · 113 ITB-PHOTO-UPLOAD-DOOR-01) — `{ onUpload }` 가 함수일 때만 「사진 올리기」 단추를 그린다. 기본 꺼짐.
+ *    켜는 쪽은 아이콘 텍스트 블럭(block-drag.js) 하나 — ⛔인포그래픽 칸(ifgIconDblclick)은 안 켠다(「이미지 넣을 일이 없어」).
+ *    ★«사진»은 아이콘 커밋이 아니다 — 이 파일은 단추만 그리고, 올리기·이력·저장은 부르는 쪽 몫이다(onUpload). */
+export function openIfgIconPopover(anchorEl, onPick, look, opts) {
   if (typeof document === 'undefined' || !document.body) return null;
   closeIfgIconPopover();
   const pickCb = typeof onPick === 'function' ? onPick : null;
   const lk = look || { set: LOOK_DEFAULT_SET, variant: '' };
+  const onUpload = opts && typeof opts.onUpload === 'function' ? opts.onUpload : null;
 
   const el = document.createElement('div');
   el.id = POP_ID;
@@ -457,7 +467,8 @@ export function openIfgIconPopover(anchorEl, onPick, look) {
     + ' style="width:100%;box-sizing:border-box;font-size:11px;height:26px;">'
     + '<div class="' + POP_ID + '-grid" style="margin-top:8px;display:grid;'
     + 'grid-template-columns:repeat(7,1fr);gap:4px;max-height:208px;overflow-y:auto;"></div>'
-    + '<button type="button" class="' + POP_ID + '-more"></button>';
+    + '<button type="button" class="' + POP_ID + '-more"></button>'
+    + (onUpload ? '<button type="button" class="' + POP_ID + '-upload" data-ifg-upload>사진 올리기</button>' : '');
   _fillGrid(el.querySelector('.' + POP_ID + '-grid'), IFG_ICONS);
   document.body.appendChild(el);
   _pop = el;                               // ★닫는 자가 이 칸을 읽는다 — ⛔비워 두면 팝오버가 안 사라진다
@@ -518,6 +529,13 @@ export function openIfgIconPopover(anchorEl, onPick, look) {
     const open = window.openIconifyModal;
     closeIfgIconPopover();
     open((picked) => take(picked), { hideSize: true, prefix: lk.set });
+  });
+  const upload = el.querySelector('.' + POP_ID + '-upload');
+  if (upload) upload.addEventListener('click', e => {
+    e.stopPropagation();
+    /* ★먼저 닫고 «같은 클릭 안에서» 부른다 — 파일 선택창은 사용자 클릭 안에서만 뜬다(⛔await·setTimeout 끼우지 마라). */
+    closeIfgIconPopover();
+    onUpload();
   });
   /* ⛔클릭·키를 캔버스로 흘리지 않는다 — 블럭 선택·단축키가 같이 돈다. */
   el.addEventListener('mousedown', e => e.stopPropagation());
