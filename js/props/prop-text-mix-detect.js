@@ -37,7 +37,36 @@ function _normalizeWeight(w) {
   return String(w);
 }
 
-export function detectMix(contentEl) {
+/* ★1020t2d3(2026-10-26 S3 · 지디 처방 (25)) — «범위» — 현빈 「커서 자리·선택 영역이면 그 영역의 실제 값」.
+ *   opts.range 를 주면 그 범위만 본다: 접힘(커서) = 커서가 선 그 글자 노드의 부모 하나 · 펼침(선택) = 범위와 «겹치는» 글자 노드들.
+ *   ★범위가 이 글자칸 밖이면(또는 안 주면) ★옛 «블럭 전체» 그대로 — 부르는 자리 셋 중 둘(prop-multisel · text-edit 편집 복귀)은
+ *     인자를 안 주므로 한 글자도 안 바뀐다. */
+function _scopeTargets(contentEl, range) {
+  if (!range || !contentEl.contains(range.commonAncestorContainer)) return null;
+  if (range.collapsed) {
+    /* 커서 = «그 글자»의 노드. 공백뿐인 노드는 위 _textNodes 가 원래 빼는 규칙 그대로 뺀다.
+       글자 «사이»면 그 노드 · 노드 경계면 바로 «뒤» 글자의 노드(없으면 바로 앞) — 이웃 판정은 문서 순서(compareBoundaryPoints)로. */
+    const ts = _textNodes(contentEl);
+    if (!ts.length) return [contentEl];
+    const c = range.startContainer, o = range.startOffset;
+    if (c.nodeType === 3 && ts.includes(c) && o > 0 && o < c.nodeValue.length) return [c.parentElement || contentEl];
+    const at = (t, off) => { const q = document.createRange(); q.setStart(t, off); q.collapse(true); return q; };
+    const after = ts.find((t) => range.compareBoundaryPoints(Range.START_TO_START, at(t, 0)) <= 0);
+    const before = [...ts].reverse().find((t) => range.compareBoundaryPoints(Range.START_TO_START, at(t, t.nodeValue.length)) >= 0);
+    const pick = after || before || ts[0];
+    return [pick.parentElement || contentEl];
+  }
+  const hit = _textNodes(contentEl).filter((t) => {
+    if (!range.intersectsNode(t)) return false;
+    /* 경계에 «닿기만» 한 노드는 뺀다 — 선택이 그 노드의 끝에서 시작하거나 처음에서 끝나면 그 글자는 하나도 안 골라졌다 */
+    if (t === range.startContainer && range.startOffset >= t.nodeValue.length) return false;
+    if (t === range.endContainer && range.endOffset <= 0) return false;
+    return true;
+  });
+  return hit.length ? hit.map((t) => t.parentElement || contentEl) : null;
+}
+
+export function detectMix(contentEl, opts = {}) {
   const result = {
     color:      { mixed: false, value: null },
     fontSize:   { mixed: false, value: null },
@@ -46,9 +75,10 @@ export function detectMix(contentEl) {
   if (!contentEl) return result;
 
   const nodes = _textNodes(contentEl);
-  const targets = nodes.length > 0
+  const scoped = _scopeTargets(contentEl, opts && opts.range);
+  const targets = scoped || (nodes.length > 0
     ? nodes.map(n => (n.parentElement || contentEl))
-    : [contentEl];
+    : [contentEl]);
 
   const colorSet  = new Set();
   const sizeSet   = new Set();
