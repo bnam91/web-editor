@@ -3768,7 +3768,7 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
              ⛔그릇 밖 블럭은 _kidsBox 가 null 이라 한 바이트도 안 바뀐다. 그리드 «자체»를 고른 삭제는 그리드가 그릇 안에 없어 그대로 줄째. */
           /* 그릇 셀렉터는 «이 함수 안»에 둔다 — 시험 몇(grid-first-click-block 등)이 이 함수 «소스만» 떼어 돌린다(모듈 상수는 거기서 undefined).
              새 그릇이 생기면 여기 한 줄. (.icb-children = G14 설계 — 아직 없는 클래스면 아무것도 안 잡는다.) */
-          const _kidsBox = row && block.parentElement?.closest('.grd-children, .icb-children');
+          const _kidsBox = row && block.parentElement?.closest('.grd-children, .icb-children, .grd-circle-kids');   // ★t5-12ⓑ 그리드 원 줄 위 그릇도 경계
           if (_kidsBox && row.contains(_kidsBox)) {
             const _fb = block.parentElement.closest('.frame-block:not([data-text-frame])');
             let _unit = block;
