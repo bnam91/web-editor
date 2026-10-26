@@ -4123,3 +4123,53 @@ export const grdLineUi = {
   imageSectionHtml: _grdImageSectionHtml, wireImageSection: _grdWireImageSection, svgToDataUri: _grdSvgToDataUri,
 };
 if (typeof window !== 'undefined') window.grdLineUi = grdLineUi;
+
+/* ═══ ★t6-04㉡ 「칸 사이 간격…」 입력 팝오버 — block-factory.js 우클릭 항목(#bcm-grid-nested-gap)이 부른다 ═══
+ * 까닭·꼴·문은 그 항목 머리말. 여기 사는 까닭 = 그리드 숫자칸이 사는 파일(숫자칸 규약 센서스 N9 의 선언 파일). */
+export function grdOpenNestGapPopover(block, nest) {
+  if (!block || !nest) return;
+  let model; try { model = getGridModel(block); } catch (_) { return; }
+  const line = model.cells?.[nest.r]?.[nest.c]?.lines?.[nest.li];
+  if (!line || line.type !== GRID_NESTED_LINE_TYPE) return;
+  const cur = Number(line.gap) || 24;   // ← 그리는 쪽과 같은 착지점
+  const pop = document.createElement('div');
+  pop.className = 'section-memo-popover';
+  pop.innerHTML = `
+    <div class="smp-head">
+      <span class="smp-title">칸 사이 간격</span>
+      <button class="smp-close" type="button" title="닫기 (Esc)">✕</button>
+    </div>
+    <div class="prop-row" style="margin:0;">
+      <span class="prop-label">간격(px)</span>
+      <input type="number" class="prop-number" id="grd-nest-gap-input" min="0" max="${GRID_GAP_MAX}" step="1" value="${cur}" data-empty="restore">
+    </div>
+    <div class="smp-foot"><span class="smp-status">Enter 로 적용 · 0 ~ ${GRID_GAP_MAX}</span></div>`;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'section-memo-backdrop';
+  backdrop.appendChild(pop);
+  document.body.appendChild(backdrop);
+  const input = pop.querySelector('#grd-nest-gap-input');
+  let closed = false;
+  const close = () => {
+    if (closed) return; closed = true;
+    document.removeEventListener('keydown', onKey, true);
+    /* 빈 칸 = «안 바꿈»(지금 값 그대로) — 숫자칸 규약(prop-number-commit-guard.js)의 기본 뜻과 같다 · data-empty="restore" 로 칸에 선언 */
+    const raw = String(input.value).trim();
+    const v = !raw ? cur : Math.max(0, Math.min(GRID_GAP_MAX, Math.round(Number(raw))));
+    if (Number.isFinite(v) && v !== cur) {
+      const res = window.updateGridBlock?.(block.id, { patchCell: { r: nest.r, c: nest.c, lineIndex: nest.li, gap: v } });
+      grdToastImgFail(res);
+      window.scheduleAutoSave?.();
+    }
+    backdrop.classList.remove('open');
+    setTimeout(() => backdrop.remove(), 220);   // ← 메모와 같은 꼴(CSS 200ms 전환 뒤 걷기)
+  };
+  const onKey = (ev) => {
+    if (ev.key === 'Escape' || ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); close(); }
+  };
+  pop.querySelector('.smp-close').addEventListener('click', (ev) => { ev.stopPropagation(); close(); });
+  pop.addEventListener('mousedown', (ev) => ev.stopPropagation());
+  backdrop.addEventListener('mousedown', (ev) => { if (ev.target === backdrop) close(); });
+  document.addEventListener('keydown', onKey, true);
+  requestAnimationFrame(() => { backdrop.classList.add('open'); input.focus(); input.select(); });
+}
