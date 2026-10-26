@@ -338,19 +338,58 @@ function _syncPieNameHint(block) {
 }
 if (typeof document !== 'undefined') document.addEventListener('grb-pie-fit', (e) => {
   const b = _pieHintBlock, t = e.target;
-  if (b && t && (t === b || (b.id && t.id === b.id))) _syncPieNameHint(t);
+  if (b && t && (t === b || (b.id && t.id === b.id))) { _syncPieNameHint(t); _syncPieTagPh(t); }   // ★t4-17 X1 — 다시 잰 뒤 «좁아서 n» 도 고친다
 });
 /* ★t4-17 ⓑ — 조각 안 순위·이름의 «글자» 줄(크기 · 굵기 · 기울임). 키·한계 읽기는 drag-utils.js grbPieTagTypo «한 자리»(렌더와 같은 함수).
- *   크기 칸이 비면 기본(배지 = 라벨 크기의 0.7 · 이름 = 라벨 크기 — css/editor-graph.css)이고 그 값을 placeholder 로 보인다(빈 값 = 키 삭제 · numfield 규약).
+ *   키가 없으면 기본(배지 = 라벨 크기 × --grb-pie-rank-em · 이름 = 라벨 크기 — css/editor-graph.css)이고 그 값을 placeholder 로 보인다(아래 _pieTagFsShown).
+ *   빈 칸 = 키 삭제 = 기본 복귀(placeholder 가 그 뜻을 선언한다 — numfield 규약). 좁은 조각은 그 기본이 줄어 그려진다(설계) ⇒ placeholder 가 「20(좁아서 8)」로 알린다.
+ *   ★t4-17 X7 — 오타(「1e」 = type=number 가 '' 로 준다)는 거절하고 이전 값으로: 공용 가드의 badInput 갈래(prop-number-commit-guard.js isBadInput)가 한다.
+ *     옛: placeholder 가 «빈 값 = 뜻»으로 읽혀 오타도 커밋 → 키 삭제(30 → 20 조용히).
+ *     ⛔이 핸들러에 빈 값·무효 처리를 따로 적지 마라(규약 사본).
  *   굵기 「기본」 = 키 없음(덧층의 semibold 그대로). 그 표시 토글이 꺼져 있으면 줄을 숨긴다(정할 것이 없다 — 토글 배선이 같이 켜고 끈다). */
 const PIE_TAG_TYPO_LABEL = { rank: '순위', name: '이름' };
 const PIE_TAG_FW = [['', '기본'], ['400', 'Regular'], ['500', 'Medium'], ['600', 'Semibold'], ['700', 'Bold'], ['800', 'Extrabold'], ['900', 'Black']];
-function pieTagTypoRowsHTML(d, labelSize) {
+/* ★t4-17 X1·X4 — 크기 칸 placeholder 의 «한 자리»(HTML 을 그릴 때 · 라벨 크기를 바꿀 때 · 다시 잰 뒤(grb-pie-fit) 모두 이 함수).
+ *   X4 옛: 라벨 크기 배선(applyLabelSize)이 이 줄을 다시 안 달아 28 로 바꿔도 20/14 로 남았다(다시 그린 패널은 맞았다) ⇒ 배선에서 부른다.
+ *   기본 = 키가 없을 때의 크기: 이름 = 라벨 크기(덧층 글자 1em) · 배지 = 그 × css 의 --grb-pie-rank-em(배지 font-size 가 읽는 그 변수 — ⛔0.7 을 여기 다시 적지 마라).
+ *   X1 — 좁은 조각은 grbPieFitTags(drag-utils.js)가 덧층 글자를 단계로 줄인다(--grb-pie-tag-fs · 끝 단계 8 = 라벨 20 × 0.4) — 설계다.
+ *     그런데 placeholder 가 «20» 만 보이면 칸을 비운 뒤 좁은 조각이 8 로 그려질 때 칸이 거짓말을 한다 ⇒ 보이는 조각 중 가장 작게 적용된 값(min)을 같이 낸다.
+ *   배지가 안 그려진 판(순위 표시 끔)은 비를 못 잰다 ⇒ '' (그 줄은 숨어 있고, 켜면 토글 배선이 다시 부른다). */
+function _pieTagFsShown(block, part) {
+  const ls = parseInt(block.dataset.labelSize) || LABEL_SIZE_DEFAULT;   // 렌더러·패널(showGraphProperties labelSize)과 같은 식
+  let em = 1;
+  if (part === 'rank') {
+    const r = block.querySelector('.grb-pie-rank');
+    em = r ? parseFloat(getComputedStyle(r).getPropertyValue('--grb-pie-rank-em')) : NaN;
+    if (!Number.isFinite(em)) return null;
+  }
+  const base = Math.round(ls * em);
+  let min = base;
+  for (const tag of block.querySelectorAll('.grb-pie-tag')) {   // 보이는 조각 라벨만(숨긴 라벨 · 좁아서 숨긴 이름 · 빈 배지는 안 센다)
+    const el = tag.querySelector(part === 'rank' ? '.grb-pie-rank' : '.grb-pie-name');
+    if (!el || getComputedStyle(tag).display === 'none' || getComputedStyle(el).display === 'none') continue;
+    const tfs = parseFloat(getComputedStyle(tag).fontSize);
+    if (tfs > 0) min = Math.min(min, Math.round(tfs * em));
+  }
+  return { base, min };
+}
+/* 보이는 글자 — 지디 갈래 ㉡ «줄었음을 알린다»(권고). ㉠ «지금 적용될 값»으로 바꾸려면 이 한 줄을 `String(v.min)` 으로. */
+const _pieTagPhText = (v) => !v ? '' : (v.min < v.base ? `${v.base}(좁아서 ${v.min})` : String(v.base));
+function _pieTagFsPh(block, part) { return _pieTagPhText(_pieTagFsShown(block, part)); }
+/** 패널이 열린 채 라벨 크기·순위 표시가 바뀌거나 다시 재면 placeholder 를 다시 단다(다시 그리기 없이) — 같은 함수 하나. */
+function _syncPieTagPh(block) {
+  for (const part of (window.GRB_PIE_TAG_PARTS || [])) {
+    const el = document.getElementById(`grb-pie-${part}-fs`);
+    if (el) { const t = _pieTagFsPh(block, part); if (el.placeholder !== t) el.placeholder = t; }
+  }
+}
+function pieTagTypoRowsHTML(block) {
   if (!window.grbPieTagTypo) return '';   // 렌더러(drag-utils.js)가 안 실린 판(패널만 싣는 하네스) — 줄이 없다
   const { VLABEL_FS_MIN, VLABEL_FS_MAX } = window.GRAPH_LIMITS;
+  const d = block.dataset;
   return window.GRB_PIE_TAG_PARTS.map((part) => {
     const t = window.grbPieTagTypo(d, part);
-    const ph = part === 'rank' ? Math.round(labelSize * 0.7) : labelSize;
+    const ph = _pieTagFsPh(block, part);
     return `      <div class="prop-row" id="grb-pie-${part}-typo-row" title="조각 안 ${PIE_TAG_TYPO_LABEL[part]} 글자 — 크기(px · 비우면 기본) · 굵기 · 기울임. 좁은 조각은 같은 비로 줄어든다"${d[t.key] === '1' ? '' : ' style="display:none"'}>
         <span class="prop-label">${PIE_TAG_TYPO_LABEL[part]} 글자</span>
         <input type="number" class="prop-number" id="grb-pie-${part}-fs" min="${VLABEL_FS_MIN}" max="${VLABEL_FS_MAX}" value="${t.fs ?? ''}" placeholder="${ph}" style="flex:1;min-width:0" aria-label="${PIE_TAG_TYPO_LABEL[part]} 글자 크기">
@@ -610,7 +649,7 @@ ${blockHeaderHTML({
           <span class="prop-toggle-track"></span>
         </label>
       </div>
-${pieTagTypoRowsHTML(block.dataset, labelSize)}
+${pieTagTypoRowsHTML(block)}
       <div class="prop-row" title="원형 아래의 범례(색 칩 + 이름 + %)를 보일지. 끄면 조각만 남는다 — 조각 안 순위·이름 표시와 따로 산다">
         <span class="prop-label">범례 표시</span>
         <label class="prop-toggle">
@@ -1132,6 +1171,7 @@ ${pieTagTypoRowsHTML(block.dataset, labelSize)}
       const _typoRow = document.getElementById(tid.replace('-toggle', '-typo-row'));   // ★t4-17 ⓑ — 그 표시의 «글자» 줄(범례엔 없다)
       if (_typoRow) _typoRow.style.display = block.dataset[key] === '1' ? '' : 'none';
       window.renderGraph(block);
+      _syncPieTagPh(block);      // ★t4-17 X4 — 순위를 켜면 그제야 배지가 그려져 배지 기본값을 잰다
       _syncPieNameHint(block);   // 덧층이 사라지면(둘 다 끔) 재는 쪽이 안 돈다 ⇒ 여기서 한 번 걷는다
       window.pushHistory();
     });
@@ -1148,7 +1188,8 @@ ${pieTagTypoRowsHTML(block.dataset, labelSize)}
       window.scheduleAutoSave?.();
     };
     const fs = document.getElementById(`grb-pie-${part}-fs`), fw = document.getElementById(`grb-pie-${part}-fw`), it = document.getElementById(`grb-pie-${part}-it`);
-    /* 크기 — Number 로 읽는다(parseInt 는 '1e3' 을 1 로 읽는다) · 한계는 grbPieTagTypo 가 거는 그 한 자리 · 칸엔 «저장된 값»을 되쓴다(표시 = 실제). */
+    /* 크기 — Number 로 읽는다(parseInt 는 '1e3' 을 1 로 읽는다) · 한계는 grbPieTagTypo 가 거는 그 한 자리 · 칸엔 «저장된 값»을 되쓴다(표시 = 실제).
+       빈 값 = '' → 키 삭제(기본 복귀) · 오타는 여기 안 온다(공용 가드 badInput 갈래가 되돌린다 · X7). */
     fs?.addEventListener('change', () => {
       const raw = fs.value.trim(), n = Number(raw);
       const v = (raw !== '' && Number.isFinite(n)) ? String(window.grbPieTagTypo({ [key + 'Fs']: String(Math.round(n)) }, part).fs) : '';
@@ -1282,6 +1323,7 @@ ${pieTagTypoRowsHTML(block.dataset, labelSize)}
     block.dataset.labelSize = v;
     window.renderGraph(block);
     lSlider.value = v; lNumber.value = v;
+    _syncPieTagPh(block);   // ★t4-17 X4 — 원형 순위·이름 크기 칸의 기본값(placeholder)이 라벨 크기를 따른다
   };
   lSlider.addEventListener('input',  () => applyLabelSize(parseInt(lSlider.value)));
   lNumber.addEventListener('change', () => { applyLabelSize(parseInt(lNumber.value)); window.pushHistory(); });

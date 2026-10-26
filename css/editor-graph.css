@@ -383,8 +383,11 @@
   font-weight: var(--ui-fw-semibold);
   color: var(--grb-seg-fg, inherit);
 }
+/* ★t4-17 X4 — 배지 크기의 비(라벨 크기 대비)는 이 변수 «한 자리». 패널 순위 크기 칸의 placeholder(js/props/prop-graph.js _pieTagFsShown)가 이 변수를 읽는다 —
+   ⛔JS 에 0.7 을 다시 적지 마라(두 벌이면 한쪽만 바뀐다). 선언과 읽기를 한 규칙에 둬 내보내기(export-css-collect)가 같이 싣는다. */
 .grb-pie-rank {
-  font-size: 0.7em;
+  --grb-pie-rank-em: 0.7;
+  font-size: calc(var(--grb-pie-rank-em) * 1em);
   padding: 0 0.6em;
   border-radius: 1em;
   border: 1px solid var(--grb-seg-fg, currentColor);

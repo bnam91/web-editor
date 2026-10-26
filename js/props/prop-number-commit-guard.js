@@ -19,6 +19,9 @@
  *   - 빈 칸·무효값 + blur/Enter → «커밋 없음» + 이전 표시값 복원 (pushHistory/autosave 도 없음)
  *     ★단, 칸이 «빈 값의 뜻»을 선언했으면(비지 않은 placeholder, 또는 data-empty) 그대로 커밋한다
  *       — 그 칸에서 빈 값은 「지우는 중」이 아니라 «명시적 값»(auto·역할 기본)이다
+ *   ★2026-10-26 t4-17 갈래 C(지디) 로 더해진 줄:
+ *   - 오타(validity.badInput — 「1e」·「12e」·「-」 …) + blur/Enter/스피너·휠 선커밋 → «커밋 없음» + 이전 표시값 복원
+ *     ★칸이 무엇을 선언했든 같다(빈 값의 뜻과 «따로» 본다 — 아래 세 번째 축 끝 문단)
  *   - min/max 밖 + blur/Enter → 클램프한 값을 «칸에 되쓴 뒤» 커밋 (표시 = 실제)
  *   - 「0」 은 유한수라 빈 칸과 갈린다 — min≤0 이면 0 이 그대로 적용된다
  *   - Enter 커밋 뒤 포커스를 칸에 되돌린다 (BODY 로 두면 다음 Backspace 가 «블럭»을 지운다)
@@ -84,6 +87,18 @@ const isPn = (el) => el instanceof HTMLInputElement
  * (2026-09-21 실측: js/ 의 input[type=number] 233칸 중 placeholder 를 단 칸은 13개. 그중 12개가
  *  위 「빈 값=auto/역할 기본」 칸이고, 나머지 하나 prop-multisel.js:475 msp-font-size 는
  *  placeholder="px" 장식이지만 제 핸들러가 `if (fsInput.value)` 로 빈 값을 이미 걸러 무해하다.) */
+/* ★★세 번째 축의 «구멍» — 오타는 빈 값이 «아니다» (2026-10-26 t4-17 X7 · 지디 갈래 C)
+ *
+ * type=number 는 무효 글자(「1e」·「12e」·「-」·「+」)를 value '' 로 준다 — 아래 normalizeBeforeCommit 은
+ * 그것을 빈 칸과 «같은» 'empty' 로 본다. 그래서 «빈 값 = 뜻»을 선언한 칸(placeholder)에서는 오타도
+ * 「비웠다 = 기본으로」로 커밋됐다(실측 red: 원형 「이름 글자」 30 에 「1e」 Enter → 키가 조용히 지워져 기본 20).
+ * 거꾸로 data-empty="restore" 를 달면 오타는 막히지만 «비우면 기본»이 같이 죽는다 — 칸이 둘을 «함께»
+ * 선언할 말이 없었다. 둘을 가르는 것은 브라우저가 이미 준다: validity.badInput(글자는 있는데 수가 아님).
+ * ⇒ 오타 = 칸의 선언과 무관하게 «커밋 없음 + 이전 표시값»(isBadInput). 빈 칸은 그대로 칸의 뜻을 따른다.
+ *   ▸ 회원 중 .grad-stop-alpha(type=text)는 badInput 이 «안 생긴다»(text 칸엔 그 개념이 없다 — 늘 false) ⇒
+ *     그 칸의 거동은 한 글자도 안 바뀐다. 그 칸의 무효 글자는 prop-gradient.js _pct/_resync 가 제 방식으로 막는다(G3/G4).
+ * ⛔패널 핸들러에서 badInput 을 따로 보지 마라 — 여기 한 자리다(재는 자 = tests/dom/fix5-t417-x-badinput.dom.spec.js). */
+const isBadInput = (el) => el.type === 'number' && !!el.validity?.badInput;
 const _EMPTY_MEANINGFUL = { auto: 1, meaningful: 1 };
 const _EMPTY_INVALID    = { invalid: 1, restore: 1 };
 function emptyIsMeaningful(el) {
@@ -93,9 +108,10 @@ function emptyIsMeaningful(el) {
   return String(el.placeholder ?? '').trim() !== '';
 }
 
-/** 「이 빈 값은 커밋하지 않고 되돌릴 것인가」 — 정규화 판정과 뜻 판정을 한 줄로 묶는다. */
+/** 「이 값은 커밋하지 않고 되돌릴 것인가」 — ★오타(badInput)는 늘 · 빈 값은 «뜻을 선언하지 않은 칸»에서만.
+ *  ★isBadInput 을 «먼저» 본다(짧은 회로 — 오타면 정규화의 칸 되쓰기·안내를 안 탄다). */
 const shouldRestoreEmpty = (el) =>
-  normalizeBeforeCommit(el) === 'empty' && !emptyIsMeaningful(el);
+  isBadInput(el) || (normalizeBeforeCommit(el) === 'empty' && !emptyIsMeaningful(el));
 
 /** 커밋 뒤 포커스를 되돌릴 «위험»이 실제로 있나 — 캔버스에 지워질 것이 골라져 있을 때만.
  *  ⚠️아무것도 안 골라져 있으면 기준선 그대로 BODY 로 둔다(Enter 뒤 화살표로 캔버스를
