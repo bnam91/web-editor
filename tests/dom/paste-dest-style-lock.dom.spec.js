@@ -446,7 +446,8 @@ test.describe('S6 [10] ⑴ 붙여넣기 = 목적지 서식 잠금', () => {
       const Bt = await boot(page); const o = { cell: 'S3-' + way };
       try {
         await bubbleScene(page, o, way === 'KEY');
-        // 줄 모드는 기본이 아니다(전제로 잰다) — 본문에 '말풍선' 을 치고 캔버스 ＋(앱 문)로 줄 모드에 들어간다
+        // 줄 모드는 기본이 아니다(전제로 잰다) — 본문에 '말풍선' 을 치고 우클릭 «아래에 줄 추가»(앱 문)로 줄 모드에 들어간다
+        // ★1017t1m3 ㉡(현빈 · 261026) — 말풍선 캔버스 ＋ 를 없앴다 ⇒ ~~캔버스 ＋~~ → 우클릭 «아래에 줄 추가 (T)»(#bcm-ln-add · 같은 lnAddLineAt 길)
         o.linesAtBirth = await page.evaluate((id) => document.getElementById(id).dataset.lines ?? null, o.B);
         pre(o.linesAtBirth === null, `새 말풍선은 줄 모드가 아니다(기본) ${o.linesAtBirth}`);
         await dblAt(page, `[id="${o.B}"] .tb-bubble`, `[id="${o.B}"]`, '말풍선 본문 편집');
@@ -454,10 +455,11 @@ test.describe('S6 [10] ⑴ 붙여넣기 = 목적지 서식 잠금', () => {
         await page.keyboard.type('말풍선');
         await page.keyboard.press('Escape');
         pre(await pollTrue(page, (id) => { const b = document.getElementById(id); return b.classList.contains('selected') && !b.classList.contains('editing'); }, o.B, 3000), '말풍선 골라진 채 편집 끝');
-        const plus = `#grd-plus-layer > .ln-add-btn[data-ln-for="${o.B}"]`;
-        pre(await pollTrue(page, (s) => !!document.querySelector(s), plus, 4000), '캔버스 ＋ 가 떴다');
-        const pr = await stableTwice(page, plus);
-        await clickAt(page, pr.cx, pr.cy, { sel: '.ln-add-btn' }, { label: '줄 ＋' });
+        const bb = await stableTwice(page, `[id="${o.B}"] .tb-bubble`);
+        await page.mouse.click(bb.cx, bb.cy, { button: 'right' });
+        pre(await pollTrue(page, () => { const e = document.getElementById('bcm-ln-add'); return !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0; }, null, 4000), '우클릭 메뉴에 «아래에 줄 추가» 가 떴다');
+        const pr = await stableTwice(page, '#bcm-ln-add');
+        await clickAt(page, pr.cx, pr.cy, { sel: '#bcm-ln-add' }, { label: '아래에 줄 추가' });
         pre(await pollTrue(page, (id) => { try { return JSON.parse(document.getElementById(id).dataset.lines || '[]').length >= 1 && !!document.querySelector(`[id="${id}"] .ln-row[data-ln="0"] > .grd-line`); } catch { return false; } }, o.B, 4000), '줄 모드가 됐다(dataset.lines · .ln-row)');
         await settle(page);
         o.line0 = await page.evaluate((id) => JSON.parse(document.getElementById(id).dataset.lines)[0], o.B);

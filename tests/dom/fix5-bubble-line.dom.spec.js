@@ -284,14 +284,17 @@ test('N6 ⒝ 삽입 직후(이미 골라진) 말풍선 — 클릭 1회 = 블럭(
   expect(errs).toEqual([]);
 });
 
-test('N7 본문 줄을 고른 채 캔버스 ＋ → 줄 2개 · 새 줄(li 1)이 골라진 채 표시·손잡이', async ({ page }) => {
+/* ★1017t1m3 ㉡(현빈 · 261026) — 말풍선 캔버스 ＋ 를 없앴다(line-host.js BUBBLE_CANVAS_PLUS) ⇒ 이 칸의 입구를
+     ~~캔버스 ＋ 클릭~~ → ★우클릭 «아래에 줄 추가 (T)»(#bcm-ln-add · 1020t2i1)로 바꿨다. 둘 다 lnAddLineAt 한 길이라 기대값은 그대로다. */
+test('N7 본문 줄을 고른 채 우클릭 «아래에 줄 추가» → 줄 2개 · 새 줄(li 1)이 골라진 채 표시·손잡이', async ({ page }) => {
   const { errs, id } = await setup(page);
   const tb = `#${id} .tb-bubble`;
   await clickAt(page, tb); await clickAt(page, tb);
   expect((await state(page, id)).bodyMark, '전제 — 본문 줄 골라짐').toBe(true);
-  await waitFor(page, (id) => !!document.querySelector(`#grd-plus-layer > .ln-add-btn[data-ln-for="${id}"]`), id, '＋ 가 안 떴다');
-  await clickAt(page, `#grd-plus-layer > .ln-add-btn[data-ln-for="${id}"]`);
-  await waitFor(page, (id) => !!document.getElementById(id)?.dataset.lines, id, '＋ 가 줄을 안 더했다');
+  await clickAt(page, tb, { button: 'right' });
+  await waitFor(page, () => { const e = document.getElementById('bcm-ln-add'); return !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0; }, undefined, '우클릭 메뉴에 «아래에 줄 추가» 가 안 떴다');
+  await clickAt(page, '#bcm-ln-add');
+  await waitFor(page, (id) => !!document.getElementById(id)?.dataset.lines, id, '«아래에 줄 추가» 가 줄을 안 더했다');
   const s = await state(page, id);
   console.log('    N7 ' + JSON.stringify(s));
   expect({ lines: s.lines, act: s.act, rowMarks: s.rowMarks, grips: s.grips })

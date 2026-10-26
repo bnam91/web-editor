@@ -1033,6 +1033,8 @@ export function lnBindLineEdit(block) {
  * ★자리 = (몸통 가로 가운데, 블럭 아래 끝) — 그리드 아래 ＋ 처럼 «블럭 바로 아래 바깥»이라 블럭 고르는 클릭을 안 먹는다.
  * ★뜨는 조건은 _lnPlusShown «하나». 계기 = 블럭 class 관측(골라짐·풀림·편집) + 떠 있는 동안 rAF(자리·다중선택·삭제). */
 const LN_ADD_BTN_CLS = 'ln-add-btn';
+/* ★1017t1m3 ㉡ — 말풍선 캔버스 ＋ 켬/끔(지금 끔 · 아래 lnSyncPlus 머리말) */
+const BUBBLE_CANVAS_PLUS = false;
 const _lnPlusBtns = new Map();   // block → button (떠 있는 것만)
 function _lnPlusShown(block) {
   return !!(block && block.isConnected && block.classList.contains('selected')
@@ -1094,7 +1096,13 @@ function _lnStartPlusRaf() {
 }
 export function lnSyncPlus(block) {
   if (!block || !block.classList?.contains('speech-bubble-block')) return;
-  if (!_lnPlusShown(block)) { _lnDropPlus(block); return; }
+  /* ★1017t1m3 ㉡(현빈 답 · 261026 GO) — 「그리고 해당버튼은 없어도 돼. 줄추가하는건데 왜 이게 있는거야.?」
+       (실물 = .ln-add-btn[data-grd-add="row"][data-ln-for="sb_…"] — 바로 이 함수가 붙이는 말풍선 ＋) ⇒ ★말풍선만 뺀다.
+     ★줄 추가 입구는 남는다 — 우클릭 «아래에 줄 추가 (T)»(1020t2i1 · LN_CTX_ADD_OWNERS 에 speech-bubble-block) · 고른 줄에서 T.
+     ⛔같은 .ln-add-btn 을 쓰는 로렐(laurel-block.js 제 ＋)·그리드 ＋ 는 이 길이 아니다 — 안 건드린다.
+     ⛔아래 ＋ 만드는 부품(_lnMakePlusBtn·_lnPlacePlus·rAF)은 지우지 않았다 — 현빈이 다시 켜라 하시면 BUBBLE_CANVAS_PLUS 하나만 true.
+       (1012t1M1 「그리드만큼 쾌적하게」 ↔ 1017t1m3 「없어도 돼」 맞섬 — 나중 말씀(1017t1m3)이 «말풍선 ＋»에 대해 이긴다 · 지디 판정 261026) */
+  if (!BUBBLE_CANVAS_PLUS || !_lnPlusShown(block)) { _lnDropPlus(block); return; }
   const L = gridPlusLayer();
   if (!L) return;
   let btn = _lnPlusBtns.get(block);
