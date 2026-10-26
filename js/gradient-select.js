@@ -319,7 +319,10 @@ function bindGradientSelect(block) {
       let newX = Math.round(cx);
       let newY = Math.round(cy);
       // 엣지 맞닿기 스냅 (약한 끌림) + 붙은 변 하이라이트 — 섹션 좌표 자라 그룹 안에선 안 건다(위 머리말)
-      if (!_host) {
+      /* ★120 H9-SNAP ⑵(현빈 GO 261026) — ⌥(Alt) 누른 «동안»은 스냅을 건너뛴다(선례 js/scratch-pad.js:1120 「Alt 누르면 bypass」).
+         매 mousemove 의 ev.altKey 로 본다 ⇒ 끄는 도중 눌렀다 떼면 바로 따라온다. ⛔세기(GRAD_SNAP_SCREEN)·clamp 무접촉 ·
+         ⛔리사이즈(위 onMove)의 ⌥ = 가운데 기준은 다른 처리기라 무관. */
+      if (!_host && !ev.altKey) {
         const snapped = _gradEdgeSnap(block, sec, newX, newY);
         newX = snapped.x; newY = snapped.y;
         if (snapped.edgeX) _showGradSnapEdge(snapped.edgeX.el, snapped.edgeX.side);
