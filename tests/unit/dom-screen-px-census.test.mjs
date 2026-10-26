@@ -95,6 +95,12 @@ const ROSTER_HOW = [
 
 const ROSTER = {
   'coupon-presets.dom.spec.js:157': 'risky',
+  /* ★t3-06(S6 · 261026) — ★자가 ★새로 잡았고 ★지디가 ★triage 했다(사람 판정 · 261026 14:15): ★risky.
+     C2 는 «섹션 위 − 캔버스 창 위»(두 rect 의 차 · 화면 px)를 ★절대 숫자 40 과 견준다 ⇒ 줌 40% 에서 같은 거리는 화면 16px — risky 정의 그대로.
+     (S6 는 처음 'safe' 로 적었다: 제품 selectSection 이 CANVAS_TAIL_GAP 40 을 화면 px 로 빼고 실측 40%=40.12 · 100%=39.80 이라서.
+      ⇒ 지디 판정으로 바꿨다 — «제품이 화면 px 로 정의했다»가 «자를 배율 무관하게 만든다»는 아니다.)
+     ⚠️명부 열쇠가 «파일:줄» 이라 spec 이 위에서 밀리면 또 빨개진다(138 과 같은 병 · 다음 릴리스 몫 · 지금 안 고침). */
+  'fix5-section-memo-t306.dom.spec.js:325': 'risky',
   'graph-gr1-gradient.dom.spec.js:93': 'risky',
   'graph-u26-u27.dom.spec.js:80': 'risky',
   'graph-u26-u27.dom.spec.js:85': 'risky',

@@ -557,3 +557,18 @@ test('F4 묶음이 있어도 투두 조작이 그대로 — 체크박스 클릭 
   expect(await page.evaluate(() => document.getElementById('smemo-group')?.nextElementSibling?.id)).toBe('ck-list');
   expect(errs).toEqual([]);
 });
+
+test('C1b ㉰ 숨은 섹션 줄 흐림 — 눈 끔 · 숨은 시안(술어는 js/variation-visibility.js 다리로 부른다 · ⑰ V4)', async ({ page }) => {
+  const errs = await setup(page);
+  await openChecklistTab(page);
+  const rowCls = (id) => page.evaluate((id) => { const r = document.querySelector(`#smemo-group .smemo-item[data-sec-id="${id}"]`); return r ? r.classList.contains('is-hidden-sec') : null; }, id);
+  expect(await page.evaluate(() => typeof window.VariationVisibility?.isHiddenVariationSection), '전제: 술어 다리가 섰다').toBe('function');
+  // 장면: sM4 = 눈 끔(setup) · sM3 = 보이는 메모 섹션 → 숨은 시안으로 바꿔 본다
+  await expect.poll(() => rowCls('sM4'), '눈 끔 줄 = 흐림(setup 의 sM4)').toBe(true);
+  await expect.poll(() => rowCls('sM3'), '전제: sM3 줄 보통').toBe(false);
+  await page.evaluate(() => { document.getElementById('sM3').dataset.variationActive = '0'; });
+  await expect.poll(() => rowCls('sM3'), '숨은 시안 줄 = 흐림').toBe(true);
+  await page.evaluate(() => { document.getElementById('sM3').dataset.variationActive = '1'; });
+  await expect.poll(() => rowCls('sM3'), '활성으로 돌리면 보통').toBe(false);
+  expect(errs).toEqual([]);
+});
