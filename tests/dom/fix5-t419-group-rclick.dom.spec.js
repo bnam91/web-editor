@@ -3,6 +3,7 @@
  * 현빈 원문(t4-19): 「스크래치패드 그룹의 경우 더블 클릭하면 스크래치패드 그룹안에 진입이 가능해져서
  *   해당 그룹안에서의 스크래치패드 순서나 특정 스크래치 패드 삭제가능하게해줘.」
  * 현빈 261026: 「뺄수도 있고, 삭제를 하면 바로」 ⇒ 빼기(Delete·⊘) 유지 + 삭제 입구(우클릭) 둘 다.
+ * ★R3·R6 고쳐 적음(미카사 · 태양 19:01 안전기본 · 지디 판정 전) — 현빈 3 답(261026)으로 «진입 중 Delete = 지우기»가 되어(scratch-pad.js 머리말 ⑦) 빼기 짝은 ⊘(✕ 단추)로 옮김 · 아래 «Delete 키(빼기)» 문구는 그 전 규칙.
  *
  * 지디 처방: 입구 = 기존 스크래치 우클릭 메뉴(「자산 폴더로 보내기」)에 «진입 중 그 그룹 멤버일 때만» 두 항목.
  *   「그룹에서 빼기」 = 진입 중 Delete 와 같은 길 · 「삭제」 = 확인 묻기 없이 그 한 장 · ⌘Z 한 번에 복구.
@@ -169,7 +170,7 @@ test('R2 ★「삭제」 = 확인 없이 그 한 장 바로 지움 · ⌘Z 한 �
   sameThree(await st(page), before, '★⌘Z 1');
 });
 
-test('R3 ★「그룹에서 빼기」 = 진입 중 Delete 와 같은 결과 · ⌘Z 한 번 복구', async ({ page }) => {
+test('R3 ★「그룹에서 빼기」 = 진입 중 ⊘ 와 같은 결과 · ⌘Z 한 번 복구(261026 · ⚰️전엔 Delete 와 짝)', async ({ page }) => {
   const before = await scene(page);
   await enter(page, 'sp_c');
   await rclick(page, 'sp_b');
@@ -178,17 +179,13 @@ test('R3 ★「그룹에서 빼기」 = 진입 중 Delete 와 같은 결과 · �
   const viaMenu = await st(page);
   await undo(page, { fn: (g) => document.querySelector('.scratch-item[data-scratch-id="sp_b"]').dataset.scratchGroup === g, arg: before.g.sp_b });
   sameThree(await st(page), before, '★빼기 ⌘Z 1');
-  /* 같은 일을 Delete 로 — 진입 → sp_b 클릭(단독 선택) → Delete */
+  /* 같은 일을 ⊘(진입 중 ✕ 단추)로 — 진입 → sp_b 의 ⊘ 실클릭 (★261026: Delete 는 «지우기»가 되어 빼기 짝이 ⊘ 로 옮겨 옴) */
   await enter(page, 'sp_c');
-  const c = await center(page, 'sp_b');
-  await page.mouse.click(c.x, c.y);
-  await page.waitForFunction(() => [...document.querySelectorAll('.scratch-item.scratch-selected')].map((e) => e.dataset.scratchId).join() === 'sp_b', null, T);
-  await page.evaluate(() => document.activeElement?.blur?.());
-  await page.keyboard.press('Delete');
+  await page.locator('.scratch-item[data-scratch-id="sp_b"] .scratch-close').click({ force: true });
   await page.waitForFunction(() => document.querySelector('.scratch-item[data-scratch-id="sp_b"]').dataset.scratchGroup == null, null, T);
   const viaKey = await st(page);
-  console.log('[R3] 메뉴 ' + JSON.stringify(viaMenu) + ' / 키 ' + JSON.stringify(viaKey));
-  sameThree(viaMenu, viaKey, '★메뉴 빼기 = Delete 빼기');
+  console.log('[R3] 메뉴 ' + JSON.stringify(viaMenu) + ' / ⊘ ' + JSON.stringify(viaKey));
+  sameThree(viaMenu, viaKey, '★메뉴 빼기 = ⊘ 빼기');
   expect(viaMenu.order.length, '★지우지 않는다 — 6장').toBe(6);
 });
 
@@ -230,16 +227,19 @@ test('R5 ㉱ 「삭제」 뒤 자식 0개 ⇒ 그룹 없앰 + 모드 나감 · �
   sameThree(await st(page), before, '★⌘Z 2 — 처음 그대로');
 });
 
-test('R6 ㉮ 진입 중 Delete 는 그대로 «빼기» — 전체 수 불변 · 그룹 수 −1(무접촉 잠금)', async ({ page }) => {
+test('R6 ㉮ 진입 중 Delete = 그 한 장 «지우기»(261026 현빈 답 · ⚰️전엔 «빼기» 무접촉 잠금) — 전체 수 −1 · 그룹 수 −1 · ⌘Z 한 번 복구', async ({ page }) => {
   const before = await scene(page);
   await enter(page, 'sp_c');
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('Delete');
-  await page.waitForFunction(() => document.querySelector('.scratch-item[data-scratch-id="sp_c"]').dataset.scratchGroup == null, null, T);
+  await page.waitForFunction(() => !document.querySelector('.scratch-item[data-scratch-id="sp_c"]'), null, T);
   const a = await st(page);
   const n = (s) => Object.values(s.g).filter((g) => g === before.g.sp_a).length;
-  expect(a.order.length, '★전체 수 불변 6').toBe(6);
+  expect(a.order.length, '★전체 수 6 → 5').toBe(before.order.length - 1);
+  expect(a.order.includes('sp_c'), '★지운 장 = sp_c').toBe(false);
   expect(n(a), '★그룹1 수 3 → 2').toBe(n(before) - 1);
+  await undo(page, { ...hasN, arg: before.order.length });
+  sameThree(await st(page), before, '★Delete ⌘Z 1');
 });
 
 test('R7 음성대조 — 그룹 아닌 장 · 모드 밖 그룹 장 · 다른 그룹 장에는 두 항목이 안 뜬다', async ({ page }) => {
