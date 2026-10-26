@@ -2652,11 +2652,14 @@ document.addEventListener('keydown', e => {
     }
     /* ★1020t2d2 스타일 복사 ⌥⌘C / 스타일 붙여넣기 ⌥⌘V (현빈 「애플과 같은 단축키」) — 본체 = js/props/text-style-copy.js.
        ★아래 ⌘C/⌘V 갈래 «앞»이어야 한다: 맥 실키는 e.key 가 'ç'/'√' 라 그 갈래에 안 닿지만, 합성 키·다른 배열은 'c'/'v' 로
-         와서 «블럭 복사/붙여넣기»로 샌다. 그래서 e.code 로 잡고, ⌥ 판정은 ⌘⌥G 와 같은 셋(altKey · _optionKeyHeld · 맥 글자).
+         와서 «블럭 복사/붙여넣기»로 샌다. 그래서 e.code 로 잡는다.
+       ★⌥ 판정 = «이 이벤트»의 증거만: e.altKey 또는 맥 글자 'ç'/'√' (한글 입력기 'Process' 키도 ⌥ 를 누르면 altKey 로 온다).
+         ⛔window._optionKeyHeld «단독»은 안 쓴다(d2 검수 F1) — ⌥ keyup 을 놓쳐 그 깃발이 굳으면 «보통 ⌘C/⌘V»가
+           스타일 복사/붙여넣기로 바뀐다. ⌘C/⌘V 는 하루에 수백 번이라 ⌘G 보다 값이 크다(⌘G 갈래의 깃발 판정은 그대로 둔다).
        ⛔보통 ⌘C/⌘V(t4-12·t5-17 — 붙여넣기는 글만)는 이 갈래를 안 탄다 — ⌥ 가 없으면 지나간다.
        편집 중(글자 선택 영역에 붙이기)은 ⬜ — 지금은 손대지 않고 브라우저에 양보한다(plan-d2.md ⓑ). */
     if ((e.code === 'KeyC' || e.code === 'KeyV') && !e.shiftKey
-        && (e.altKey || window._optionKeyHeld || e.key === 'ç' || e.key === '√')) {
+        && (e.altKey || e.key === 'ç' || e.key === '√')) {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
