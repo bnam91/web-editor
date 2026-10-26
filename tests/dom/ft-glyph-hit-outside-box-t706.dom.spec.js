@@ -47,7 +47,9 @@ const boxes = (page) => page.evaluate(() => {
 test('P0 전제 — 글자칸 화면 상자가 .text-block 상자보다 크다', async ({ page }) => {
   const errs = await setup(page);
   const { tb, ce } = await boxes(page);
-  expect((ce[2] - ce[0]) * (ce[3] - ce[1])).toBeGreaterThan(2 * (tb[2] - tb[0]) * (tb[3] - tb[1]));
+  /* ★119 ㉡(S3 · 글자칸 폭을 글자에 박음) 뒤 원근이 키운 몫이 줄었다 — 넓이비 >2 → 1.60(실측 45441 / 28308).
+     그래도 글자칸 상자가 .text-block 보다 «크다» ⇒ t7-06 막이(pointer-events:none)는 여전히 필요하다 · 전제는 «크다»로 잰다. */
+  expect((ce[2] - ce[0]) * (ce[3] - ce[1])).toBeGreaterThan(1 * (tb[2] - tb[0]) * (tb[3] - tb[1]));
   expect(errs).toEqual([]);
 });
 
@@ -89,7 +91,7 @@ test('A0 전제(원 장면) — 두 블럭이 섰고 tb 는 자유변형 중 · 
   const errs = await setupOrig(page);
   const r = await page.evaluate(() => { const tb = document.getElementById('tb_ts0he_qg5wypv'); const ce = tb.querySelector('[class^="tb-"]'); const a = tb.getBoundingClientRect(), b = ce.getBoundingClientRect(); return { ab: !!document.getElementById('ab_ts0he_cvtvnr1'), ratio: (b.width * b.height) / (a.width * a.height) }; });
   expect(r.ab).toBe(true);
-  expect(r.ratio).toBeGreaterThan(2);
+  expect(r.ratio).toBeGreaterThan(1);   /* ★119 ㉡ 뒤 2.x → 1.60(실측) — 위 P0 주석과 같은 까닭 */
   expect(errs).toEqual([]);
 });
 

@@ -218,6 +218,7 @@ export function ftMeasure(tb, force) {
   const kw = tb.style.width, kmh = tb.style.minHeight, kce = ce.style.transform, ktf = tf ? tf.style.width : null;
   tb.style.width = ''; tb.style.minHeight = '';
   ce.style.transform = 'none';
+  ce.style.width = '';   /* ★119 ㉡ — 아래에서 글자 폭으로 다시 박는다 · 재는 동안은 비운다(줄바꿈은 «재는 폭»에서) */
   /* ★★★2026-10-24 — ★★«재는 폭»과 ★«✕ 로 되돌릴 폭»을 ★★갈랐다. ★이름 = `FT-TFW0-TWO-USES-01`
      ★★까닭(★실측) : ★`tfW0` 하나가 ★두 일을 하고 있었다 —
        ⒜ `ftMeasure` 가 ★글자를 ★«어느 폭에서» 재나      ⒝ `_strip`(✕)이 ★«어느 폭으로» 되돌리나
@@ -250,6 +251,30 @@ export function ftMeasure(tb, force) {
      ⛔음수를 그대로 더하면 박스가 모자란다 ⇒ `boxFromCorners` 의 ★하한 둘이 그것을 막는다. */
   st.W = b.width / z; st.H = b.height / z;
   st.OX = (b.left - gb.left) / z; st.OY = (b.top - gb.top) / z;
+  /* ★119 ㉡ FT-BOX-RESERVES-ALIGN-GUTTER-01(현빈 확정 · 저장본 영향 감수) — 상자가 글자를 «딱» 감싼다.
+     ★잰 값(실앱 8608bb13 ×3 · h1 「짧은 글」 가운데): 글자 285.51 · 상자 501 · 글자 좌우 빈 띠 107.75 / 107.75.
+     ★뿌리: 위 OX 는 «재는 폭»(섹션 100%)에서 가운데 정렬이 만든 들여쓰기다 — 그것이 상자 폭(boxFromCorners W+OX)·
+       원점·손잡이 자리(effects-ft-handles OX)에 그대로 들어갔다. 다시 열면 재는 폭이 저장된 px 라 OX 가 달라져
+       상자 폭도 바뀌었다((27) 134 실측 527.17 → 432.62).
+     ★처방: 줄바꿈은 «재는 폭»에서 정한 채로, 글자칸 폭을 글자 폭으로 박고(올림 1px 안) 그 자리에서 OX 를 다시 잰다
+       ⇒ OX ≈ 글자칸 제 여백뿐 · 상자 = 글자. 줄바꿈이 바뀌면(W 가 달라지면) 박지 않는다(옛 동작).
+     ★저장 필드: 글자칸 style.width 하나가 는다(✕ 는 _strip 이 걷는다). */
+  {
+    const cs = getComputedStyle(ce);
+    const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0)
+               + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
+    ce.style.width = (Math.ceil(st.W) + (cs.boxSizing === 'border-box' ? padX : 0)) + 'px';
+    const r2 = document.createRange();
+    r2.selectNodeContents(ce);
+    const b2 = r2.getBoundingClientRect();
+    r2.detach?.();
+    const gb2 = ce.getBoundingClientRect();
+    if (Math.abs(b2.width / z - st.W) < 0.5 && Math.abs(b2.height / z - st.H) < 0.5) {
+      st.OX = (b2.left - gb2.left) / z; st.OY = (b2.top - gb2.top) / z;
+    } else {
+      ce.style.width = '';
+    }
+  }
   st.measured = true;
   /* ★★★2026-10-24 ⅲ) — ★⒜ ★«재는 폭»의 ★출처를 ★★`tf.dataset.width` 로 ★고른다.
      ★이름 = `FT-MEASURE-WIDTH-DESIGN-UNDECIDED-01` ★★닫힘(★측정이 ★한 방향을 가리킨다).
@@ -354,7 +379,7 @@ export function applyFxFreeTransform(tb) {
          ⇒ 옛 저장본을 안 건드린다(자가치유 금지와 양립 · tests/dom/t7-03-ft-align A4).
        ⛔tf.style.alignSelf 가 이미 있으면 손대지 않는다 — 패널·사용자가 임자다(A3).
        값 = 글자칸 textAlign 의 사상(ALIGN_SELF_OF 한 자리) · 왼쪽(빈 값)이면 안 쓴다(옛 바이트).
-       ⛔box 식(boxFromCorners · 왼쪽 여백을 품는 폭)은 건드리지 않는다 — FT-BOX-RESERVES-ALIGN-GUTTER-01(현빈 결정 대기). */
+       box 식(boxFromCorners)은 그대로다 — 119 ㉡(FT-BOX-RESERVES-ALIGN-GUTTER-01)은 ftMeasure 의 OX 쪽에서 풀었다(글자칸 폭을 글자에 박음). */
     const prevW = tf.style.width;
     if ((prevW === '' || prevW === '100%') && !tf.style.alignSelf) {
       const as = ALIGN_SELF_OF[ce.style.textAlign];
@@ -382,7 +407,7 @@ export function applyFxFreeTransform(tb) {
      네 점(옛 글자 크기 단위)·재는 폭(tfMeasW)·그린 상자·손잡이는 아무도 다시 맞추지 않는다.
    ★처방: 시작 때 네 점과 재는 폭을 떠 두고(ftScaleBase) · 매 이동 «같은 k» 로 곱해 그리기 문 하나(applyFxFreeTransform —
      다시 재고 · 상자 · 손잡이·테두리·격자까지)를 부른다(ftScaleTo). ⛔매 프레임 «누적 곱» 금지 — 시작 값에 k 를 곱한다
-     (overlay-handles.js 의 글자·아이콘 스냅샷과 같은 규약). ⛔box 식은 무접촉(FT-BOX-RESERVES-ALIGN-GUTTER-01). */
+     (overlay-handles.js 의 글자·아이콘 스냅샷과 같은 규약). box 식은 그대로(119 ㉡ 은 ftMeasure 의 OX 쪽). */
 export function ftScaleBase(tb) {
   const C = ftCornersOf(tb);
   if (!C) return null;
@@ -409,7 +434,7 @@ function _strip(tb) {
   const ce = _contentOf(tb);
   const st = _tfState.get(tb);
   const tf = _tfOf(tb);
-  if (ce) { ce.style.transform = ''; ce.style.transformOrigin = ''; _dropEmptyStyle(ce); }
+  if (ce) { ce.style.transform = ''; ce.style.transformOrigin = ''; ce.style.width = ''; _dropEmptyStyle(ce); }
   tb.style.width = ''; tb.style.minHeight = ''; tb.style.translate = '';
   if (tf) {
     tf.style.width = st && st.tfW0 != null ? st.tfW0 : '';
