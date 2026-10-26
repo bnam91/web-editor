@@ -175,6 +175,26 @@
         dh.dataset.dimEnd = end;
         svg.appendChild(dh);
       });
+      /* ★★t3-01 ⑸(현빈 ㉠ GO · 261026) 「치수선 가운데 조절점」 — ★셋째 갈래. 자리 = 치수선 가운데 c(= a·b 의 중점 ·
+           annot-dim-geometry.js annotDimPlaceAt 의 c 와 같은 뜻 — dimA = c − u·len/2 · dimB = c + u·len/2).
+         ★끌면 a·b 를 ★같은 만큼 평행이동(길이·각도 그대로 · 설계 ⓐ) — 아래 _startDimMidDrag.
+         ⛔`annot-handle` 클래스를 ★같이 단다(철거·저장 제외 목록이 그 이름으로 덮는다 — 위 a·b 와 같은 까닭).
+         ⛔`dataset.pointIdx` 를 ★주지 않는다 — _updateBlockGeometry 가 pointIdx 있는 손잡이를 «점 자리»로 옮긴다(주면 끄는 동안 튄다). */
+      if (g) {
+        const mh = document.createElementNS(SVG_NS, 'circle');
+        mh.setAttribute('class', 'annot-handle annot-dim-mid');   /* ⛔annot-dim-handle 는 안 단다 — 그 이름은 «a·b 끝 둘»의 명부다(t3-01 T3 «끝 손잡이 둘») */
+        /* ★㉯′(지디 261026) 자리 = 중점에서 라벨 «맞은편» 같은 거리: mid − n·lift·lsgn(라벨은 mid + n·lift·lsgn · annot-dim-geometry.js 가 넷 다 돌려줌)
+           — 라벨 상자(모델 65×25 · 반높이 12.5 > lift 11)가 중점을 덮어 «가운데 그 점»은 못 누른다(S3 실측: 한가운데 임자 = annot-label).
+           길이 방향은 정확히 중점 · 조건 갈래 0. 크기는 CSS(.annot-dim-mid r = 5px × --inv-zoom · 회전 손잡이 선례). */
+        const lift = Number(g.lift) || 0, ls = Number(g.lsgn) || 1;
+        mh.setAttribute('cx', String(g.mid[0] - g.n[0] * lift * ls));
+        mh.setAttribute('cy', String(g.mid[1] - g.n[1] * lift * ls));
+        mh.setAttribute('fill', '#ffffff');       /* ★a·b(파랑 속)와 d·c(흰 속 · r 5)와 눈으로 갈린다 — 작고 흰 속 · 굵은 파랑 테 */
+        mh.setAttribute('stroke', '#1592fe');
+        mh.setAttribute('stroke-width', '2');
+        mh.dataset.dimEnd = 'M';
+        svg.appendChild(mh);
+      }
     }
 
     _addLabelBoxHandles(block);   // ★1013t2C6 — 라벨 상자 좌·우 손잡이(너비)
@@ -665,6 +685,7 @@
         // ★1013t2C7 — 회전 손잡이는 점 번호가 없다 → 점 끌기 판정보다 «먼저» 가른다
         if (h.classList.contains('annot-rot-handle')) { _startAnchorRotateDrag(block, e); return; }
         /* ★t3-01 — 치수선 양끝 손잡이도 ★점 번호가 ★없다 ⇒ ★점 끌기 판정보다 ★먼저 가른다 */
+        if (h.classList.contains('annot-dim-mid')) { _startDimMidDrag(block, e); return; }   // ★t3-01 ⑸ 가운데
         if (h.classList.contains('annot-dim-handle')) { _startDimEndDrag(block, h, e); return; }
         e.stopPropagation();
         e.preventDefault();
@@ -764,6 +785,50 @@
       document.removeEventListener('mouseup',   onUp,   true);
       if (dragging) {
         window.pushHistory?.('치수선 끝 이동');
+        window.scheduleAutoSave?.();
+      }
+    };
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('mouseup',   onUp,   true);
+  }
+
+  /* ★★t3-01 ⑸ — 치수선 ★가운데 끌기 = a·b ★둘 다 같은 만큼(설계 ⓐ · 길이·각도 유지).
+     ★시작값은 mousedown 때 «숫자로» 뜬다 — 손잡이는 매 프레임 _ensureHandles 가 철거·재생성(DOM 노드가 죽는다) ⇒ ⛔onMove 안에서 손잡이를 다시 읽지 않는다.
+     ⛔각도 자석을 ★안 탄다(위 a·b 와 같은 까닭 · 현빈 2차 설계).
+     ★저장 자리 = 이미 있는 dimA·dimB 두 키(새 키 0) · 이력 = a·b 끌기와 같은 beginDragHistory 한 걸음. */
+  function _startDimMidDrag(block, e) {
+    e.stopPropagation(); e.preventDefault();
+    const st0 = window.annotPropsFromDataset?.(block);
+    const g0 = st0 && window.annotDimGeometry?.(st0.points, {
+      dimAxis: st0.dimAxis, dimOffset: st0.dimOffset, dimSlide: st0.dimSlide,
+      dimGap: st0.dimGap, dimOver: st0.dimOver, dimLabelLift: st0.dimLabelLift,
+      dimA: st0.dimA, dimB: st0.dimB,
+    });
+    if (!g0) return;
+    const fromA = [Number(g0.line[0][0]), Number(g0.line[0][1])], fromB = [Number(g0.line[1][0]), Number(g0.line[1][1])];
+    if (![...fromA, ...fromB].every(Number.isFinite)) return;
+    const startX = e.clientX, startY = e.clientY;
+    let dragging = false;
+    const _hist = window.beginDragHistory?.('치수선 이동');
+    const r1 = (v) => Math.round(v * 10) / 10;
+    const onMove = (ev) => {
+      const dx = (ev.clientX - startX) / _zoom();
+      const dy = (ev.clientY - startY) / _zoom();
+      if (!dragging) {
+        if (Math.abs(ev.clientX - startX) < 2 && Math.abs(ev.clientY - startY) < 2) return;
+        dragging = true; _hist?.arm(dx, dy);
+      }
+      block.dataset.dimA = JSON.stringify([r1(fromA[0] + dx), r1(fromA[1] + dy)]);
+      block.dataset.dimB = JSON.stringify([r1(fromB[0] + dx), r1(fromB[1] + dy)]);
+      const st = window.annotPropsFromDataset?.(block);
+      if (st) window.annotRedrawDim?.(block, st);
+      window.annotRefreshHandles?.(block);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove, true);
+      document.removeEventListener('mouseup',   onUp,   true);
+      if (dragging) {
+        window.pushHistory?.('치수선 이동');
         window.scheduleAutoSave?.();
       }
     };

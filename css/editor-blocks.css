@@ -3948,6 +3948,9 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   r: calc(5px * var(--inv-zoom, 1));
 }
 .annot-rot-handle:hover { r: calc(6px * var(--inv-zoom, 1)); }
+/* ★t3-01 ⑸ 치수선 가운데 조절점 — 회전 손잡이와 같은 꼴로 줌과 무관하게 화면 5px(⛔모델 단위 r 은 40% 에서 화면 3px 였다 · S3 실측) */
+.annot-handle.annot-dim-mid { r: calc(5px * var(--inv-zoom, 1)); }
+.annot-handle.annot-dim-mid:hover { r: calc(6px * var(--inv-zoom, 1)); }   /* 아래 .annot-handle:hover{r:6} 보다 세게(같은 꼴이면 뒤가 이긴다) */
 
 .annot-anchor-preview {
   position: absolute;
