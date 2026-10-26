@@ -66,9 +66,14 @@ async function scene(page, ids) {
   }, ids);
   await page.waitForFunction((n) => [...document.querySelectorAll('.scratch-item img')].filter(i => i.complete && i.naturalWidth > 0).length === n, ids.length, { timeout: 10000 });
   await page.evaluate(() => window.clearHistory?.());
-  const last = await rect(page, ids[ids.length - 1]);
-  await page.mouse.dblclick(last.cx, last.cy);
-  await page.waitForFunction(() => window._scratchGroupMode?.() === 'g_pq', null, { timeout: 5000 });
+  /* ★장면 세우기(모드 진입)만 세 번까지 다시 — 부하 11~14 에서 더블클릭이 빗맞아 진입 5s 시간초과(fixD2 D2 · fixD3 D4 실측).
+     진입은 이 spec 이 재는 것이 아니다(scratch-group-mode spec 이 잰다) · 시험 단언은 다시 안 돈다(retries=0 그대로). */
+  for (let k = 0; ; k++) {
+    const last = await rect(page, ids[ids.length - 1]);
+    await page.mouse.dblclick(last.cx, last.cy);
+    try { await page.waitForFunction(() => window._scratchGroupMode?.() === 'g_pq', null, { timeout: 5000 }); break; }
+    catch (e) { if (k >= 2) throw e; await page.keyboard.press('Escape'); }
+  }
   return gid;
 }
 
@@ -165,4 +170,18 @@ test('D4 배경 길 — 2장 그룹 · 섹션 좌패딩 띠에 놓아 «섹션 �
   const pick = async () => { const s = await st(page); return { ids: s.ids, grp: s.grp, assets: s.assets, bg: await bg() }; };
   await expect.poll(pick, { message: '★⌘Z 1 = 둘 다 g_pq · 순서 · 배경 원래', timeout: 5000 })
     .toEqual({ ids: s0.ids, grp: { sp_p: 'g_pq', sp_q: 'g_pq' }, assets: s0.assets, bg: bg0 });
+});
+
+/* ★적대 검수(abbc769f) 3 — 3장 그룹 모드에서 변환 뒤 ⌘Z: 되살린 장도 모드 표시(⊘ · .scratch-group-mode)를 단다(지우기 undo 와 같게).
+   옛: 모드는 그대로인데 되살린 장만 ✕「제거」로 보였다(누르면 빼기 — 모양과 하는 일이 갈렸다). */
+test('D5 ⒞ — 3장 그룹 변환 ⌘Z 뒤 되살린 장도 모드 표시(⊘)', async ({ page }) => {
+  const gid = await scene(page, ['sp_p', 'sp_q', 'sp_r']);
+  await dragToCell(page, gid);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  const look = () => page.evaluate(() => [...document.querySelectorAll('.scratch-item')].map((e) => e.dataset.scratchId + ':'
+    + (e.dataset.scratchGroup ?? '-') + ':' + (e.classList.contains('scratch-group-mode') ? 'M' : '_') + ':' + (e.querySelector('.scratch-close')?.textContent ?? '')));
+  await expect.poll(look, { message: '★⌘Z 1 = 셋 다 g_pq · 모드 표시 M · ⊘', timeout: 5000 })
+    .toEqual(['sp_p:g_pq:M:⊘', 'sp_q:g_pq:M:⊘', 'sp_r:g_pq:M:⊘']);
+  expect((await st(page)).mode, '모드 그대로').toBe('g_pq');
 });

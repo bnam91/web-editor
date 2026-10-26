@@ -344,8 +344,9 @@ function _deleteScratchItemsWithHistory(items, opts = {}) {
       },
       onRedo: async () => {
         // 복원했던 item들을 다시 제거 (id 보존이므로 원본 id로 직접 제거)
+        /* ★redo 는 처음 지우기와 «같은 처분»이어야 한다 — 우클릭 「삭제」면 keepLone 도 넘긴다(적대 검수 1 · 옛: redo 만 1장 그룹을 풀었다) */
         for (const s of snapshots) {
-          try { await window._scratchRemoveById?.(s.id); } catch (_) {}
+          try { await window._scratchRemoveById?.(s.id, { keepLone: inGroupMode }); } catch (_) {}
         }
         try { _severLinks(severed.map(r => r.link.scratchId)); } catch (_) {}
       },
@@ -1335,6 +1336,7 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
               /* ★128 F1 ⒞ — 풀렸던 짝의 소속을 되돌리고, 맨 뒤에 붙은 되살린 장을 원래 순서 자리로 앉힌다. */
               if (groupMatesBefore.length) { try { _applyScratchGeomSnapshot(groupMatesBefore); } catch (_) {} }
               try { _applyScratchOrder(orderBefore); } catch (_) {}
+              if (_groupMode) _markGroupMode(true);      // 모드 중이면 되살린 장에도 표시(⊘) — 지우기 undo 와 같게(적대 검수 3)
             },
             onRedo: async () => {
               // 다시 지우면 `_scratchRemoveById` 가 1장 남은 그룹을 또 푼다(같은 규칙 한 벌)
@@ -2738,13 +2740,13 @@ window._getScratchItemByIdForMCP = function(id, opts) {
 // canvas-scratch-drop.js → 드롭 성공 후 스크래치 DOM·IndexedDB 정리
 /* ★128 F1 ㉠ — 그룹 장이 빠지면 1장 남은 그룹을 푼다(모드도 나간다) — 지우기·빼기 길과 «같은 함수»를 부른다(⛔베껴 적지 않는다).
      까닭: 그룹 모드 안 한 장을 섹션에 끌어 놓으면(변환) 이 길로만 빠져 «1장 그룹»이 남았다(128 적대 검수 F1). */
-window._scratchRemoveById = async (id) => {
+window._scratchRemoveById = async (id, { keepLone = false } = {}) => {   // keepLone = 우클릭 「삭제」의 redo 만(_deleteScratchItemsWithHistory)
   const it = _scratchItems.find(s => s.id === id);
   if (!it) return false;
   _selectedItems.delete(it);
   it.el.remove();
   _scratchItems = _scratchItems.filter(s => s !== it);
-  if (it.g) _dissolveLoneGroup(it.g, { exitMode: true });
+  if (it.g) _dissolveLoneGroup(it.g, { exitMode: true, keepLone });
   await _saveScratch();
   return true;
 };
@@ -2846,7 +2848,13 @@ function _scratchShowSendMenu(item, x, y) {
       b.style.cssText = 'padding:6px 10px; cursor:pointer;' + (act === 'delete' ? ' color:#ff6b6b;' : '');
       b.addEventListener('mouseenter', () => b.style.background = 'rgba(45,111,232,0.18)');
       b.addEventListener('mouseleave', () => b.style.background = '');
-      b.addEventListener('click', () => { menu.remove(); run(); });
+      /* ★누르는 «그때» 다시 본다 — 메뉴는 Esc·⌘X 로 모드가 나가거나 장이 사라져도 남는다(적대 검수 2):
+           모드 밖 「삭제」가 keepLone 으로 돌거나 · 없는 장에 이력이 한 칸 더 쌓이는 것을 막는다 */
+      b.addEventListener('click', () => {
+        menu.remove();
+        if (!(_groupMode && item.g === _groupMode && _scratchItems.includes(item))) return;
+        run();
+      });
       menu.appendChild(b);
     }
     const sep = document.createElement('div');

@@ -47,12 +47,12 @@ async function center(page, id) {
 /* ★장면 세우기 깜빡임 손질 — 옛 판은 «그 장이 골라졌나» 하나만 보고 넘어갔다.
    ⇒ 클릭 하나가 빗맞아(⇧ 가 풀린 채 눌림 등) 선택이 «바뀌어도» 다음 줄로 가서, 묶기가 엉뚱한 묶음을 만들 수 있었다.
    ⇒ 지금은 클릭마다 «고른 집합 == 지금까지의 ids» 를 통째로 기다리고, 태스크 한 바퀴 양보한 뒤 다음 손(⇧ 상태가 섞이지 않게). */
-async function selectIds(page, ids) {
+async function selectIds(page, ids, ms = T.timeout) {
   await page.mouse.click(300, 900);
   await page.waitForFunction(() => !document.querySelector('.scratch-item.scratch-selected'), null, T);
   await yieldTask(page);
   const selIs = (want) => page.waitForFunction((w) => [...document.querySelectorAll('.scratch-item.scratch-selected')]
-    .map((e) => e.dataset.scratchId).sort().join() === w, [...want].sort().join(), T);
+    .map((e) => e.dataset.scratchId).sort().join() === w, [...want].sort().join(), { timeout: ms });
   for (let i = 0; i < ids.length; i++) {
     const c = await center(page, ids[i]);
     if (i > 0) await page.keyboard.down('Shift');
@@ -75,7 +75,11 @@ async function scene(page) {
   await page.waitForFunction(() => [...document.querySelectorAll('.scratch-item')].every((e) => {
     const im = e.querySelector('img'); return im && im.complete && im.naturalWidth > 0 && e.offsetHeight >= 100; }), null, T);
   for (const ids of [['sp_a', 'sp_b', 'sp_c'], ['sp_p', 'sp_q']]) {
-    await selectIds(page, ids);
+    /* ★장면 세우기만 세 번까지 다시 고른다(⇧클릭이 부하 14~21 에서 빗맞음 · fixC1 R4 실측) — 시험 단언은 다시 안 돈다(retries=0 그대로).
+       고르기가 끝내 안 맞으면 마지막 시도의 시간초과가 그대로 빨강이 된다. */
+    for (let k = 0; ; k++) {
+      try { await selectIds(page, ids, k < 2 ? 5000 : T.timeout); break; } catch (e) { if (k >= 2) throw e; }
+    }
     const r = await page.evaluate(() => window._scratchGroupAndAlign?.());
     expect(r && r.ok, '★진짜 묶는 길(⌘G 본체)로 묶였다').toBe(true);
   }
@@ -257,3 +261,42 @@ test('R7 음성대조 — 그룹 아닌 장 · 모드 밖 그룹 장 · 다른 �
  *   변이 M-ORD  (⌘Z 의 _applyScratchOrder 줄 제거)          : 실측 ×1 R2 빨강(가운데 장 sp_b 가 맨 뒤로)
  *     R4·R5 는 초록이 맞다 — 지우는 장(sp_q·sp_p)이 이미 맨 뒤 쪽이라 맨 뒤에 되살려도 순서가 같다(순서를 잡는 칸은 R2 하나).
  */
+
+/* ★적대 검수(abbc769f) 1 — redo 도 처음 「삭제」와 같은 처분: 2장 그룹에서 「삭제」 → ⌘Z → ⌘⇧Z 뒤에도 남은 1장이 그룹·모드를 쥔다.
+   옛(abbc769f): redo 가 `_scratchRemoveById` 를 keepLone 없이 불러 1장 그룹을 풀고 모드도 나갔다. */
+test('R8 ㉱ redo — 「삭제」 ⌘Z ⌘⇧Z 뒤 상태 = 처음 「삭제」 직후와 같다(남은 1장 그룹·모드 유지)', async ({ page }) => {
+  const before = await scene(page);
+  await enter(page, 'sp_p');
+  await rclick(page, 'sp_q');
+  await pick(page, 'delete');
+  await page.waitForFunction(() => !document.querySelector('.scratch-item[data-scratch-id="sp_q"]'), null, T);
+  const a = await st(page);
+  await undo(page, { ...hasN, arg: 6 });
+  await page.waitForFunction(orderIs.fn, before.order.join(), T);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+Shift+z');
+  await page.waitForFunction(() => !document.querySelector('.scratch-item[data-scratch-id="sp_q"]'), null, T);
+  const r = await st(page);
+  console.log('[R8] 삭제 ' + JSON.stringify(a) + ' / redo ' + JSON.stringify(r));
+  sameThree(r, a, '★redo = 처음 「삭제」');
+  expect(r.mode, '★redo 뒤에도 모드 그대로').toBe(a.mode);
+});
+
+/* ★적대 검수 2 — 메뉴가 열린 채 모드가 나가면(Esc) 그 메뉴의 「삭제」는 아무 일도 안 한다(누르는 그때 다시 본다).
+   옛(abbc769f): 모드 밖인데 keepLone 으로 지워 1장 그룹이 남았다. */
+test('R9 열린 채 남은 메뉴 — Esc 로 모드가 나간 뒤 「삭제」 = 무변(장·소속·순서·이력 칸 그대로)', async ({ page }) => {
+  const before = await scene(page);
+  await enter(page, 'sp_p');
+  const items = await rclick(page, 'sp_q');
+  expect(items.length, '전제: 진입 중 두 항목').toBe(2);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window._scratchGroupMode?.() == null, null, T);
+  const hist0 = await page.evaluate(() => JSON.stringify(window.getHistoryTip?.() ?? null));
+  expect(await page.locator('.scratch-send-menu [data-scratch-group-act="delete"]').count(), '전제: 메뉴는 아직 열려 있다').toBe(1);
+  await pick(page, 'delete');
+  await yieldTask(page);
+  const a = await st(page);
+  console.log('[R9] ' + JSON.stringify(a));
+  sameThree(a, before, '★모드 밖 낡은 메뉴 「삭제」 = 무변');
+  expect(await page.evaluate(() => JSON.stringify(window.getHistoryTip?.() ?? null)), '★이력 칸 0').toBe(hist0);
+});
