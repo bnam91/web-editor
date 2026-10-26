@@ -4704,11 +4704,15 @@ html.tgs-selecting .tgs:focus-within {
   stroke: var(--ui-sel-overlay, #9966ff);
   stroke-width: calc(1.5px * var(--inv-zoom, 1));
 }
-/* ★격자 3×3 — ★시안 `.tgrid` 그대로(opacity .5 · 1px × --inv-zoom) */
-.tfh-grid { position: absolute; inset: 0; pointer-events: none; }
-.tfh-grid i { position: absolute; background: var(--ui-sel-overlay, #9966ff); opacity: .5; }
-.tfh-grid i.v { top: 0; bottom: 0; width:  calc(1px * var(--inv-zoom, 1)); }
-.tfh-grid i.h { left: 0; right: 0; height: calc(1px * var(--inv-zoom, 1)); }
+/* ★격자 3×3 — ★시안 `.tgrid` 그대로(opacity .5 · 1px × --inv-zoom)
+   ★★261026 118 — ★변형 «밖» svg 로(위 `.tfh-edge` 와 같은 꼴 · 같은 까닭). 값(색·.5·1px×--inv-zoom)은 ★그대로 옮겼다.
+   ~~.tfh-grid { inset: 0 } · .tfh-grid i { background … } · i.v { width } · i.h { height }~~ (행렬 안 div — 두께가 자리마다 갈렸다) */
+.tfh-grid { position: absolute; pointer-events: none; overflow: visible; }
+.tfh-grid line {
+  stroke: var(--ui-sel-overlay, #9966ff);
+  stroke-opacity: .5;
+  stroke-width: calc(1px * var(--inv-zoom, 1));
+}
 
 /* ★★손잡이 층 — ★★변형 «밖». ⛔`inset:0` 이라 `tb` 의 레이아웃을 ★안 민다(★현빈 ⒝ 의 처방). */
 .tfh-layer { position: absolute; inset: 0; pointer-events: none; z-index: 101; }

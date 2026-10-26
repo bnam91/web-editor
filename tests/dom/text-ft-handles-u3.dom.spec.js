@@ -69,7 +69,8 @@ const read = (page) => page.evaluate(() => {
     mine: tb ? tb.querySelectorAll(':scope > .tfh-layer > .tfh-handle').length : -1,
     layer: tb ? tb.querySelectorAll(':scope > .tfh-layer').length : -1,
     fx: tb ? tb.querySelectorAll(':scope > .tfh-fx').length : -1,
-    gridLines: document.querySelectorAll('.tfh-grid > i').length,
+    /* ★118(261026) — 격자가 변형 밖 svg 가 되어 분할선이 `<i>` 넷 → `<line>` 넷(이 파일 세 자리 같이 · 수 4 는 그대로) */
+    gridLines: document.querySelectorAll('.tfh-grid > line').length,
     edge: document.querySelectorAll('.tfh-handle.edge').length,
     corner: document.querySelectorAll('.tfh-handle.corner').length,
     selected: tb ? tb.classList.contains('selected') : null,
@@ -259,7 +260,7 @@ test('H6 ★★문서를 ★다시 ★열면 ★손잡이가 ★다시 ★뜬다
     const ret = window.watchAllFxFreeTransform(document);
     return { before, ret, after: document.querySelectorAll('.tfh-handle').length,
              grid: document.querySelectorAll('.tfh-grid').length,
-             gridLines: document.querySelectorAll('.tfh-grid > i').length,
+             gridLines: document.querySelectorAll('.tfh-grid > line').length,
              layer: document.querySelectorAll('.tfh-layer').length };
   });
   console.log('[H6]', JSON.stringify({ on, n }));
@@ -315,7 +316,7 @@ test('H7 ★★`rebindAll`(복원 정본) 이 ★효과 명부를 ★부른다 �
     return { before, hasRebind, hasWatchAllFx,
              after: { handle: document.querySelectorAll('.tfh-handle').length,
                       fx: document.querySelectorAll('.tfh-fx').length,
-                      gridLines: document.querySelectorAll('.tfh-grid > i').length } };
+                      gridLines: document.querySelectorAll('.tfh-grid > line').length } };
   });
   console.log('[H7]', JSON.stringify({ on, r }));
   /* ★★전제 — ★`window.watchAllFx` 가 ★있어야 ★`rebindAll` 의 ★내 줄이 ★★죽은 코드가 ★아니다
