@@ -35,7 +35,7 @@ const arm = (page) => page.evaluate(() => { window.__rep = 0; const g = document
 const rep = (page) => page.evaluate(() => window.__rep);
 const cell = (page) => page.evaluate(() => { const r = document.querySelector('#dG .grd-cell[data-r="0"][data-c="0"]').getBoundingClientRect(); return { h: +r.height.toFixed(1), w: +r.width.toFixed(1) }; });
 
-async function drag(page, axis, steps = 5, upRenders = 1) {
+async function drag(page, axis, steps = 5) {
   const g = await gutter(page, axis === 'row' ? 'row-resize' : 'col-resize');
   expect(g, `[전제] ${axis} 거터가 섰다`).not.toBe(null);
   await arm(page);
@@ -49,9 +49,8 @@ async function drag(page, axis, steps = 5, upRenders = 1) {
   }
   const beforeUp = await rep(page);
   await page.mouse.up();
-  if (upRenders) await expect.poll(() => rep(page), { message: '놓으면 정본 렌더 «한 번»' }).toBe(beforeUp + upRenders);
-  else expect(await rep(page), '옛 길 — 놓을 때 덧 렌더 없음(틱마다 이미 그렸다)').toBe(beforeUp);
-  return { seq, reps, beforeUp };
+  await page.waitForFunction(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
+  return { seq, reps, upDelta: (await rep(page)) - beforeUp };
 }
 
 for (const axis of ['row', 'col']) {
@@ -61,6 +60,7 @@ for (const axis of ['row', 'col']) {
     const ds0 = await page.evaluate((ax) => document.getElementById('dG').dataset[ax === 'row' ? 'rows' : 'cols'], axis);
     const r = await drag(page, axis);
     expect(r.reps, '⒞ 끄는 동안 .grd-inner 교체 수(틱마다 누적) — 고치기 전 판은 1,2,3,4,5').toEqual([0, 0, 0, 0, 0]);
+    expect(r.upDelta, '⒝ 놓으면 정본 렌더 «한 번»').toBe(1);
     const key = axis === 'row' ? 'h' : 'w';
     const vals = r.seq.map(s => s[key]);
     expect(vals.slice(1).every((v, i) => v !== vals[i]), `⒟ 화면 칸 ${key} 가 매 틱 바뀐다 ${vals}`).toBe(true);
@@ -76,8 +76,9 @@ test('G3 (옛 길 지킴) 배경 그림 칸이 있으면 끄는 동안에도 틱
   const errs = await setup(page, { bg: true });
   expect(await page.evaluate(() => !!document.querySelector('#dG .grd-cell[style*="background-image"]')), '[전제] 배경 그림 칸').toBe(true);
   await pick(page);
-  const r = await drag(page, 'col', 3, 0);
+  const r = await drag(page, 'col', 3);
   expect(r.reps, '배경 그림 칸 = 미리보기 안 탐 = 틱마다 교체').toEqual([1, 2, 3]);
+  expect(r.upDelta, '옛 길 — 놓을 때 덧 렌더 없음(틱마다 이미 그렸다)').toBe(0);
   expect(errs).toEqual([]);
 });
 
