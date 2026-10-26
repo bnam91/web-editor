@@ -6,7 +6,8 @@
  *   onUp 끝에 resumeAutoSave (156 꼴 · overlay-float.js).
  *
  * ★칸
- *   P  전제(②) — 끄는 중 «재기 전» __autoSaveDeferState().deferred === true. 안 하면 «㉮ 안 먹음»과 «장면 안 섬»을 못 가른다.
+ *   P-row · P-col  전제(②) — 끄는 중 «재기 전» __autoSaveDeferState().deferred === true. 안 하면 «㉮ 안 먹음»과 «장면 안 섬»을 못 가른다.
+ *      ★별개 시험으로 뗐다(지디 00:33) — D1·D2 안에서는 같은 값을 «재기 전»에 잡고 단언은 본 단언 «뒤» ⇒ 양성대조 판에서 D1·D2 본 단언도 돈다.
  *      거터를 쥐었다는 장면은 따로 — 칸 높이/폭이 첫 이동에 따라온다.
  *   D1-row · D1-col  20초꼴 끌기(fire 가 두 번 미뤄질 때까지 쥠) — 끄는 중 캡처 0 · 놓은 뒤 찍힘
  *   D2  ★설계다 — 30초 안전망(save-load.js _AUTOSAVE_DEFER_MAX_MS)이 «끄는 중에» 미룸을 푼다(고착 = 데이터 손실). 그 뒤엔 찍힐 수 있다.
@@ -70,12 +71,22 @@ async function grab(page, axis) {
 }
 
 for (const axis of ['row', 'col']) {
+  test(`P-${axis} ②전제 — 거터를 쥐면 미룸이 걸린다(창 포커스 그대로)`, async ({ page }) => {
+    const errs = await setup(page);
+    await grab(page, axis);
+    const s0 = await S(page);
+    await page.mouse.up();
+    expect({ deferred: s0.deferred, focus: s0.focus }, `P-${axis} 재기 전 미룸이 걸렸다`).toEqual({ deferred: true, focus: true });
+    expect(errs).toEqual([]);
+  });
+}
+
+for (const axis of ['row', 'col']) {
   test(`D1-${axis} 20초꼴 끌기 — 끄는 중 썸네일 캡처 0 · 놓은 뒤 찍힌다`, async ({ page }) => {
     test.setTimeout(90000);
     const errs = await setup(page);
     await grab(page, axis);
-    const s0 = await S(page);
-    expect({ deferred: s0.deferred, focus: s0.focus }, 'P ②전제 — 재기 전 미룸이 걸렸다(창 포커스 그대로)').toEqual({ deferred: true, focus: true });
+    const s0 = await S(page);   // ②전제 값은 «재기 전»에 잡되 단언은 본 단언 «뒤»(지디 00:33 — 앞에 두면 양성대조 판에서 본 단언이 안 돈다)
     /* fire 가 «두 번» 미뤄질 때까지 쥔다(8s·16s) — 그 사이 캡처가 시작되면 바로 끝난다 */
     await page.waitForFunction(() => window.__t165.postpones >= 2 || window.__t165.caps.length > 0, null, { timeout: 40000, polling: 200 });
     const s1 = await S(page);
@@ -86,6 +97,7 @@ for (const axis of ['row', 'col']) {
     await page.waitForFunction(() => window.__t165.caps.length > 0, null, { timeout: 30000, polling: 200 });
     const s2 = await S(page);
     expect({ afterUp: s2.first.start > tUp, mouseDown: s2.first.mouseDown, deferred: s2.first.deferred }, `D1-${axis} 놓은 뒤 찍힘`).toEqual({ afterUp: true, mouseDown: 0, deferred: false });
+    expect({ deferred: s0.deferred, focus: s0.focus }, `D1-${axis} ②전제(재기 전 값) — 미룸이 걸렸고 포커스 그대로였다`).toEqual({ deferred: true, focus: true });
     expect(errs).toEqual([]);
   });
 }
@@ -94,8 +106,7 @@ test('D2 ★설계다 — 30초 안전망이 «끄는 중에» 미룸을 푼다(
   test.setTimeout(120000);
   const errs = await setup(page);
   const { tDown } = await grab(page, 'row');
-  const s0 = await S(page);
-  expect({ deferred: s0.deferred, focus: s0.focus }, 'P ②전제 — 재기 전 미룸이 걸렸다').toEqual({ deferred: true, focus: true });
+  const s0 = await S(page);   // ②전제 값 — 단언은 본 단언 «뒤»
   /* 미룸이 풀릴 때까지 쥔다(놓지 않는다) */
   await page.waitForFunction(() => window.__autoSaveDeferState().deferred === false, null, { timeout: 45000, polling: 200 });
   const r = await page.evaluate((t) => ({ held: window.__t165.ptr, sinceDown: Math.round(performance.now() - t), focus: document.hasFocus() }), tDown);
@@ -106,5 +117,6 @@ test('D2 ★설계다 — 30초 안전망이 «끄는 중에» 미룸을 푼다(
   const s2 = await S(page);
   expect({ mouseDown: s2.first.mouseDown, deferred: s2.first.deferred }, 'D2 설계 — 풀린 뒤엔 쥔 채로도 찍힌다(안전망이 우선)').toEqual({ mouseDown: 1, deferred: false });
   await page.mouse.up();
+  expect({ deferred: s0.deferred, focus: s0.focus }, 'D2 ②전제(재기 전 값) — 미룸이 걸렸고 포커스 그대로였다').toEqual({ deferred: true, focus: true });
   expect(errs).toEqual([]);
 });
