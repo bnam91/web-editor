@@ -263,6 +263,30 @@
   color: #ffd966;
   background: rgba(232, 197, 71, 0.24);
 }
+/* ── t3-06 ㉮ 📝 단추 «채움 / 빈» — 메모가 있으면 주황 바탕 · 점 · 채운 종이 ─────────────
+   선례 = 바로 위 .st-protected-btn.is-on (같은 툴바의 켜짐 꼴). 색은 할 일 핀 주황(_panel-misc.css .todo-pin-num).
+   ★class 를 달지 않고 «속성 선택자»로만 칠한다 — #canvas 안에 쓰는 것이 0 이라 저장본·autoSave 와 무관하다.
+   판정은 js/section-memo-view.js sectionHasMemo 와 같은 뜻: data-memo 가 있고 빈 글이 아니면 «있음». */
+.section-block[data-memo]:not([data-memo=""]) > .section-toolbar .st-memo-btn {
+  position: relative;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.14);
+}
+.section-block[data-memo]:not([data-memo=""]) > .section-toolbar .st-memo-btn:hover {
+  color: #ffc14d;
+  background: rgba(245, 158, 11, 0.24);
+}
+.section-block[data-memo]:not([data-memo=""]) > .section-toolbar .st-memo-btn::after {
+  content: '';
+  position: absolute; top: 1px; right: 2px;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 0 1px var(--ui-bg-elevated);
+}
+.section-block[data-memo]:not([data-memo=""]) > .section-toolbar .st-memo-btn svg path:first-child {
+  fill: currentColor;
+  fill-opacity: 0.28;
+}
 /* 보호된 섹션 시각 힌트 — 약한 골드 dashed outline */
 .section-block[data-protected="true"] {
   outline: 1px dashed rgba(232, 197, 71, 0.42);

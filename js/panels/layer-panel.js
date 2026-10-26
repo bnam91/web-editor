@@ -66,6 +66,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
     header.appendChild(chevron);
     header.appendChild(nameEl);
     header.appendChild(eyeBtn);
+    window.SectionMemoView?.syncLayerHeader(header, sec);   // t3-06 ㉱ 메모 있으면 📝 (눈 단추 앞) — js/section-memo-view.js
 
     eyeBtn.addEventListener('click', e => {
       e.stopPropagation();
