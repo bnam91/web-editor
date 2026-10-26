@@ -332,15 +332,16 @@ function _deleteScratchItemsWithHistory(items, opts = {}) {
   try {
     window.pushHistory?.('스크래치 삭제', {
       onUndo: async () => {
-        for (const s of snapshots) {
-          try { await window._scratchAddAndSaveFx?.(s.src, s.x, s.y, s.w, s.g, s.id, s.fx); } catch (_) {}
-        }
+        /* ★만들기(동기 · _createItem)는 바로 · 저장은 «표시·순서를 맞춘 뒤» 기다린다 — 옛: 장마다 저장을 기다린 뒤에 맞춰
+           148장 판에서 되살린 장이 ✕「제거」로 0.85s 보였다(앱 실측 r8diag · ⑱). */
+        const saving = snapshots.map(s => { try { return window._scratchAddAndSaveFx?.(s.src, s.x, s.y, s.w, s.g, s.id, s.fx); } catch (_) { return null; } });
         // ★이미지를 되살렸으면 «연결»도 되살린다 — 안 하면 ⌘Z 가 그림만 돌려주고 선은 영영 안 돌아온다
         try { _restoreLinks(severed); } catch (_) {}
         if (orderBefore) {                               // ㉱-z — 되살린 장을 원래 자리(순서)로 · 모드 중이면 표시도 맞춘다
           _applyScratchOrder(orderBefore);
           if (_groupMode) _markGroupMode(true);
         }
+        await Promise.allSettled(saving);
       },
       onRedo: async () => {
         // 복원했던 item들을 다시 제거 (id 보존이므로 원본 id로 직접 제거)
@@ -1332,11 +1333,13 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
         try {
           window.pushHistory?.('스크래치→섹션 변환', {
             onUndo: async () => {
-              try { await window._scratchAddAndSaveFx?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, restoreInfo.g, restoreInfo.id, restoreInfo.fx); } catch (_) {}
+              let saving = null;   // 만들기는 동기 · 저장은 표시·순서를 맞춘 뒤 기다린다(지우기 undo 와 같은 까닭)
+              try { saving = window._scratchAddAndSaveFx?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, restoreInfo.g, restoreInfo.id, restoreInfo.fx); } catch (_) {}
               /* ★128 F1 ⒞ — 풀렸던 짝의 소속을 되돌리고, 맨 뒤에 붙은 되살린 장을 원래 순서 자리로 앉힌다. */
               if (groupMatesBefore.length) { try { _applyScratchGeomSnapshot(groupMatesBefore); } catch (_) {} }
               try { _applyScratchOrder(orderBefore); } catch (_) {}
               if (_groupMode) _markGroupMode(true);      // 모드 중이면 되살린 장에도 표시(⊘) — 지우기 undo 와 같게(적대 검수 3)
+              try { await saving; } catch (_) {}
             },
             onRedo: async () => {
               // 다시 지우면 `_scratchRemoveById` 가 1장 남은 그룹을 또 푼다(같은 규칙 한 벌)
