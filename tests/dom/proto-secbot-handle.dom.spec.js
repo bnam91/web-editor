@@ -1,9 +1,10 @@
-/* ★시안 확인용 — ⛔게이트 아님. 「만들었다」를 ★행위로 닫는다. 재고 나면 지운다. */
+/* ★시안 확인용 — ⛔게이트 아님. 「만들었다」를 ★행위로 닫는다. 재고 나면 지운다.
+   (261027 srv-t803 · 뜻 바뀜 : 아래 여백 → 바닥 높이 min-height) */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 const raf2 = (p) => p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 
-test('PROTO 끌면 아래 여백이 늘고, 패널 숫자와 같은 값이다', async ({ page }) => {
+test('PROTO 끌면 섹션 바닥 높이(min-height)가 생기고, 섹션 밖에서 놓아도 선택이 남는다', async ({ page }) => {
   test.setTimeout(120000);
   await page.setViewportSize({ width: 1500, height: 950 });
   const errs = await bootApp(page);
@@ -30,7 +31,7 @@ test('PROTO 끌면 아래 여백이 늘고, 패널 숫자와 같은 값이다', 
   const pre = await page.evaluate((i) => {
     const s = document.getElementById(i);
     return { handle: !!s.querySelector(':scope > .proto-secbot-handle'), pad: s.style.paddingBottom || '(없음)',
-             h: Math.round(s.getBoundingClientRect().height) };
+             h: s.offsetHeight };   // ★모델 px(post.h 와 같은 자)
   }, id);
   expect(pre.handle, '손잡이가 안 붙었다').toBe(true);
   console.log('★끌기 전 =', JSON.stringify(pre));
@@ -40,7 +41,8 @@ test('PROTO 끌면 아래 여백이 늘고, 패널 숫자와 같은 값이다', 
   const x = b.left + b.width / 2, y = b.top + b.height - 4;
   await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(x, y + 120, { steps: 10 });
+  /* ★섹션 «밖»(오른쪽)에서 놓는다 — click 이 #canvas-wrap 으로 가는 자리(PROTO-SECBOT-DESELECT-ON-DRAG-01) */
+  await page.mouse.move(b.left + b.width + 60, y + 120, { steps: 10 });
   await page.mouse.up();
   await raf2(page);
   /* ★패널은 ★비동기로 다시 그려진다(`await _presetsReady`) ⇒ ★떠 있기를 ★기다린다.
@@ -51,26 +53,30 @@ test('PROTO 끌면 아래 여백이 늘고, 패널 숫자와 같은 값이다', 
 
   const post = await page.evaluate((i) => {
     const s = document.getElementById(i);
-    return { sel: s.classList.contains('selected'),
-             panelFn: typeof window.showSectionProperties,
-             anyPanel: !!document.getElementById('sec-height-value'),
-             pad: parseInt(s.style.paddingBottom) || 0, h: Math.round(s.getBoundingClientRect().height),
-             panel: document.getElementById('sec-padb-number')?.value ?? null,
-             slider: document.getElementById('sec-padb-slider')?.value ?? null };
+    const mh = s.style.minHeight; s.style.minHeight = ''; const nat = s.offsetHeight; s.style.minHeight = mh;
+    const scale = s.getBoundingClientRect().width / s.offsetWidth;
+    return { scale, sel: s.classList.contains('selected'), panel: !!document.getElementById('sec-padb-slider'),
+             mh, pb: s.style.paddingBottom, h: s.offsetHeight, nat };
   }, id);
   console.log('★끌기 후 =', JSON.stringify(post));
-  expect(post.pad, `아래 여백 = ${post.pad} (안 늘었다)`).toBeGreaterThan(0);
-  expect(post.h, `섹션 높이 ${pre.h} → ${post.h} (안 늘었다)`).toBeGreaterThan(pre.h);
-  /* ★★`PROTO-SECBOT-DESELECT-ON-DRAG-01` — ★끌고 나면 ★선택이 풀려 ★패널이 ★없다.
-     ⇒ ★「패널 숫자와 같다」를 ★★아직 못 잰다. ★잰 값을 ★그대로 찍고 ★todo 로 둔다
-       (⛔초록으로 ★가장하지 ★않는다 · ⛔빨강으로 ★다음 빨강을 ★가리지도 ★않는다). */
-  if (post.panel == null) {
-    const d = `PROTO-SECBOT-DESELECT-ON-DRAG-01 — 끌기 뒤 selected=${post.sel} · 패널 없음(anyPanel=${post.anyPanel}) · 손잡이가 쓴 값=${post.pad}`;
-    test.info().annotations.push({ type: 'todo', description: d });
-    console.log('TODO ' + d);
-  } else {
-    expect(Number(post.panel), `패널 숫자 = ${post.panel} · 손잡이가 쓴 값 = ${post.pad}`).toBe(post.pad);
-    expect(Number(post.slider), `슬라이더 = ${post.slider} · 손잡이가 쓴 값 = ${post.pad}`).toBe(post.pad);
-  }
+  /* ★배율을 먹는다 — 화면 120px = 모델 120/scale px (40% 면 300) */
+  const want = pre.h + 120 / post.scale;
+  expect(Math.abs(post.h - want), `섹션 높이 ${pre.h} → ${post.h} (≈${Math.round(want)} 이어야)`).toBeLessThanOrEqual(3);
+  expect(post.mh, '바닥(min-height)이 안 생겼다').toBe(post.h + 'px');
+  expect(post.pb, '⛔아래 여백은 손잡이가 안 건드린다').toBe('');
+  expect(post.sel && post.panel, `선택/패널이 풀렸다 sel=${post.sel} panel=${post.panel}`).toBe(true);
+
+  /* ★블럭이 바닥 안에 들면 높이 유지 · 지우면 바닥으로 */
+  const r = await page.evaluate(async (i) => {
+    const s = document.getElementById(i), H = s.offsetHeight;
+    const before = new Set(s.querySelectorAll('.gap-block'));
+    window.addGapBlock(100); await new Promise(r => setTimeout(r, 200));
+    const nw = [...s.querySelectorAll('.gap-block')].filter(g => !before.has(g));
+    const hIn = s.offsetHeight; nw.forEach(g => g.remove());
+    return { H, hIn, added: nw.length, hBack: s.offsetHeight };
+  }, id);
+  expect(r.added, 'gap 이 이 섹션에 안 들어갔다').toBeGreaterThan(0);
+  expect(r.hIn, '바닥 안에서 높이가 변했다').toBe(r.H);
+  expect(r.hBack, '지운 뒤 바닥으로 안 돌아왔다').toBe(r.H);
   expect(errs, `콘솔 오류 = ${JSON.stringify(errs)}`).toEqual([]);
 });

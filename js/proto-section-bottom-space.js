@@ -1,80 +1,76 @@
-/* proto-section-bottom-space.js — ★★시안 : 섹션 ★아래 여백을 ★끌어서 늘린다
- *   (2026-10-25 · 현빈 「기본 섹션에도 아웃라인 핸들을 추가해서 높이를 늘릴 수 있게」
- *    → 확인 「★아래로만 늘리는 거고 ★스페이스 늘리는 거 맞다」 → 「★일단 브랜치 만들어 ★시안만」)
+/* proto-section-bottom-space.js — ★★시안 : 섹션 ★바닥 높이(최소 높이)를 ★끌어서 맞춘다
+ *   (2026-10-25 지디 · 현빈 「기본 섹션에도 아웃라인 핸들을 추가해서 높이를 늘릴 수 있게」
+ *    → 「★일단 브랜치 만들어 ★시안만」)
+ *   (2026-10-27 srv-t803 · 현빈 피드백으로 ★뜻을 바꿨다 — 아래 «여백»이 아니라 ★«바닥 높이»)
  *
- * ★★⛔제품이 ★아니다. ★`proto/section-bottom-space-handle` 가지에만 산다.
- *   ★이번 릴리스에 ★넣을지는 ★현빈이 ★보고 정한다. ⇒ ★dev 에 ★안 들어간다.
+ * ★★⛔제품이 ★아니다. ★`proto/section-bottom-space-handle` 가지에만 산다. 머지는 지디가 한다.
  *
- * ═══ ★왜 ★「높이」가 ★아니라 ★「아래 여백」인가 (★실측 셋) ═══════════════════════
- *   ⑴ ★섹션 패널의 높이 칸은 ★★«읽기 전용»이다 — `prop-section.js:518` 머리말 :
- *      「★이 섹션의 «지금» 높이 — 현빈 2026-10-07. ★읽기 전용(여기서 높이를 «정하지» 않는다)」
- *   ⑵ ★`sec.style.height` · `sec.style.minHeight` 를 ★쓰는 코드가 ★★0 건이다(레포 전수).
- *      ⇒ ★섹션 높이는 ★★«내용이 정하고 ★우리는 잰다».
- *   ⑶ ★`height` 를 박으면 ★★내용이 늘 때 ★조용히 ★잘린다. ★그 사고가 ★이미 적혀 있다 —
- *      `js/overlay-handles.js:3441~3443` 「높이는 «쓰지 않고 잰다». ★height 를 쓰면 ★줄이는 순간
- *       글자가 ★조용히 잘린다」
- *   ⇒ ★★미는 것은 ★`paddingBottom` ★하나다. ★그것은 ★★이미 ★패널에 있다(`applyPadB`).
- *     ⇒ ★★새 개념 ★0 · ★저장 꼴 ★무변 · ★패널 숫자와 ★손잡이가 ★★«같은 값»을 가리킨다.
+ * ═══ ★무엇을 하나 (현빈 261027 · 원문 요지) ═══════════════════════════════════════
+ *   「처음 섹션이 280 인데 ★1000 쯤 만들 거라고 ★어림짐작해서 ★핸들로 1080 에 맞춰 두면
+ *    ★빈 공간이 800 이다. 100 짜리 블럭을 넣으면 ★높이는 1080 유지 · 빈 공간만 700.
+ *    ★블럭이 1080 을 넘어야 ★그제서야 늘어난다」
+ *   ⇒ ★섹션 높이 = max(블럭 높이, 손잡이로 맞춘 바닥). ★값 = `sec.style.minHeight` 하나.
+ *   · ★빈 공간은 ★늘 맨 아래(섹션은 display:block · 블럭은 .section-inner 에 위부터 쌓인다)
+ *   · ★블럭을 지우면 ★바닥으로 돌아간다(min-height 의 성질 그대로)
+ *   · ★손잡이로 ★줄이기도 된다 — ★블럭 높이까지(빈 공간 0). ★끝까지 줄이면 ★바닥을 ★없앤다
+ *     (현빈 「없앤다」 — 그 뒤 블럭을 지우면 섹션도 같이 준다)
+ *   · ★상한 없음(현빈 「상한 없이」)
+ *   · ★손잡이 ★더블클릭 = 빈 공간 0(바닥을 없앤다) — 현빈 261027
+ *   · ★기존 «아래 여백»(`paddingBottom` · 패널 슬라이더)은 ★따로 남는다 — ⛔손잡이는 안 건드린다
  *
- * ═══ ★이 시안이 ★쓰는 ★선례 (★하나도 ★새로 안 지었다) ═══════════════════════════
- *   · ★값      = `sec.style.paddingBottom` — `prop-section.js` `applyPadB` 와 ★같은 자리
- *   · ★비춤    = `window._showPadBHint(sec, v)` — ★현빈이 2026-10-07 에 ★시킨 ★그 띠
- *                (「아래 패딩 조절 시 ★안 보이는 문제가 있음」 → 그때 만든 것)
- *   · ★기록    = `window.pushHistory?.()` — ⌘Z 로 되돌아간다
- *   · ★저장    = `window.triggerAutoSave?.()`
- *   · ★손잡이 꼴 = `.section-hitzone` 과 ★같은 자리(섹션 안 · 편집 전용)
+ * ═══ ★왜 `height` 가 아니라 `min-height` 인가 ═════════════════════════════════════
+ *   `height` 를 박으면 ★내용이 늘 때 ★조용히 잘린다(`js/overlay-handles.js:3441~3443`).
+ *   `min-height` 는 ★바닥만 정하고 ★내용이 넘으면 ★섹션이 는다 ⇒ ★잘림이 ★없다.
+ *   ⚠️섹션 `minHeight` 를 ★쓰는 코드는 ★이것이 처음이다(261027 기준 레포 0 건) — ★새 값이다.
+ *     ★저장 = 캔버스 클론 innerHTML(`save-load.js` getSerializedCanvas) 이라 ★인라인 style 째 실린다.
  *
- * ═══ ★★안 한 것 (★시안이라 ★일부러) ═══════════════════════════════════════════
- *   · ★위로 줄이기 — ★아래로만(현빈 「아래로만 늘리는 거」). ★0 아래로는 ★안 간다.
- *   · ★여러 섹션 ★한꺼번에
- *   · ★스냅(8px 격자 등) · ★수치 뱃지
- *   · ★`NON_CONTENT_UI_SELECTOR` 등록 — ★제품으로 갈 때 ★반드시 한다(★안 하면 ★내보내기에 ★실린다)
- *     ★이름 `PROTO-SECBOT-HANDLE-NOT-IN-UI-ROSTER-01`
+ * ═══ ★끌기 끝 click 을 ★삼킨다 (`PROTO-SECBOT-DESELECT-ON-DRAG-01` 처방 ⓐ) ═══════════
+ *   ★뿌리 : 누른 곳 = 손잡이(섹션 안) · 놓은 곳 = 섹션 밖이면 click 은 ★공통 조상 #canvas-wrap 에 뜬다
+ *     ⇒ `js/editor.js` 캔버스 click 리스너(`['canvas-wrap','canvas-scaler','canvas'].includes(e.target.id)`)
+ *       가 ★빈 클릭으로 읽고 deselectAll ⇒ ★우측 패널이 사라졌다.
+ *   ★처방 꼴 = 레포 선례 `armClickSwallow`(table-cell-select.js · overlay-handles.js · drag-utils.js 와 같은 꼴).
+ *   ⇒ 옛 «끝나고 다시 고르기»(증상 처리)는 ★뺐다.
  *
- * ═══ ★★★안 ★된 칸 (★★시안이 ★★못 한 것 — ★감추지 ★않는다) ═══════════════════
- *   ★★끌고 나면 ★★섹션 ★선택이 ★풀린다 ⇒ ★★우측 패널이 ★사라진다.
- *     ★실측(261025 · 헤드리스) : 끌기 뒤 `sec.classList.contains('selected')` = ★★false ·
- *       `#sec-padb-slider` = ★없음. ★`stopPropagation` 을 해도, ★`selectSection(sec)` 을
- *       ★다시 불러도 ★★그대로다.
- *     ⇒ ★★그래서 ★「패널 숫자와 ★손잡이가 ★같은 값을 가리킨다」는 ★★이 시안의 주장은
- *       ★★아직 ★증명되지 ★않았다. ★★«값은 맞는데 ★보여 줄 패널이 ★없다».
- *     ★이름 `PROTO-SECBOT-DESELECT-ON-DRAG-01` (★★제품으로 갈 때 ★반드시 닫을 칸)
- *     ★다음에 볼 곳 — ★누가 ★선택을 ★푸는가. `js/editor.js` 의 전역 `deselectAll` 둘레와
- *       `pointerup`·`click` 을 ★듣는 자를 ★세라. ⛔「stopPropagation 했으니 됐다」로 ★닫지 마라 —
- *       ★이미 ★그렇게 ★닫았다가 ★틀렸다.
- *
- *   ★★증명된 것은 ★이것뿐이다(그래도 ★핵심이다) :
- *     ★끌면 ★`paddingBottom` 이 ★늘고 ★섹션 ★높이가 ★그만큼 ★는다(113 → 193 · 화면 ＋80) ·
- *     ★배율을 ★먹는다(40% 에서 ★화면 120px = ★모델 300px) ·
- *     ★상한이 ★★패널 슬라이더(`max=200`)에서 ★파생된다(★손으로 박은 400 이 ★한 값을 ★둘로 갈랐던 자리).
+ * ═══ ★안 한 것 (★시안이라 ★일부러) ═══════════════════════════════════════════════
+ *   · ★우측 패널 «바닥 높이» 칸 — 현빈 「일단 대기」
+ *   · ★여러 섹션 한꺼번에 · ★스냅 · ★수치 뱃지
+ *   · ★`NON_CONTENT_UI_SELECTOR` 등록 — ★제품으로 갈 때 ★반드시 한다(`PROTO-SECBOT-HANDLE-NOT-IN-UI-ROSTER-01`)
  */
 (function () {
   'use strict';
 
   const CLS = 'proto-secbot-handle';
-  /* ★★상한은 ★«패널 슬라이더»에서 ★파생한다 — ⛔손으로 적지 마라.
-     ★261025 ★실측: ★내가 ★400 을 ★손으로 박았더니 ★손잡이가 ★300 을 썼는데
-       ★슬라이더(max 200)가 ★★200 에 멈춰 ★★한 값이 ★두 곳에서 ★갈렸다.
-     ⇒ ★★이 시안의 ★주장(「패널 숫자와 손잡이가 ★같은 값을 가리킨다」)이 ★★깨졌던 자리다. */
-  const PAD_MAX_FALLBACK = 200;
-  function maxOf() {
-    const sl = document.getElementById('sec-padb-slider');
-    const m = sl && Number(sl.max);
-    return Number.isFinite(m) && m > 0 ? m : PAD_MAX_FALLBACK;
-  }
 
   function ensureHandle(sec) {
     if (!sec || sec.querySelector(':scope > .' + CLS)) return;
     const h = document.createElement('div');
     h.className = CLS;
-    h.title = '끌어서 아래 여백을 늘립니다 (시안)';
+    h.title = '끌어서 섹션 높이를 맞춥니다 — 블럭이 넘으면 늘어납니다 · 더블클릭 = 빈 공간 0 (시안)';
     sec.appendChild(h);
   }
 
-  /** 지금 아래 여백(px). 패널과 같은 자를 쓴다. */
-  const padOf = (sec) => parseInt(sec.style.paddingBottom) || 0;
+  /** 바닥 없이 잰 높이(모델 px) — ★블럭이 정하는 높이. 줄이기의 하한이다. */
+  function naturalOf(sec) {
+    const mh = sec.style.minHeight;
+    sec.style.minHeight = '';
+    const n = sec.offsetHeight;
+    sec.style.minHeight = mh;
+    return n;
+  }
+
+  /** 끌기 뒤 따라오는 click 하나를 삼킨다 — 레포 선례 armClickSwallow 와 같은 꼴. */
+  function armClickSwallow() {
+    const swallow = (ev) => {
+      ev.stopPropagation();
+      ev.preventDefault();
+      document.removeEventListener('click', swallow, true);
+    };
+    document.addEventListener('click', swallow, true);
+    setTimeout(() => document.removeEventListener('click', swallow, true), 0);   // click 이 안 오면 다음 틱에 걷는다(table 선례)
+  }
 
   function onDown(ev) {
+    if (ev.button !== 0) return;    /* ⛔오른쪽·가운데 버튼으로는 안 끈다(261027 괴롭히기 : 오른쪽 끌기로 바닥이 생겼다) */
     const h = ev.target.closest('.' + CLS);
     if (!h) return;
     const sec = h.closest('.section-block');
@@ -83,36 +79,54 @@
     ev.stopPropagation();           /* ⛔섹션 선택·블록 드래그로 새지 않게 */
 
     const y0 = ev.clientY;
-    const p0 = padOf(sec);
+    const mh0 = sec.style.minHeight;
+    const h0 = sec.offsetHeight;    /* 지금 높이 = max(블럭, 바닥) — 넘친 섹션도 «지금»에서 잡는다 */
+    const nat = naturalOf(sec);
     /* ★배율을 먹는다 — 캔버스가 40% 면 화면 1px 이 모델 2.5px 다.
        ⛔`window.zoom` 류를 손으로 읽지 마라 — 요소의 실제 배율에서 뽑는다. */
     const scale = sec.getBoundingClientRect().width / (sec.offsetWidth || 1) || 1;
     sec.classList.add('proto-secbot-dragging');
 
     const onMove = (e) => {
-      const dy = (e.clientY - y0) / scale;
-      const v = Math.max(0, Math.min(maxOf(), Math.round(p0 + dy)));
-      sec.style.paddingBottom = v ? v + 'px' : '';
-      window._showPadBHint?.(sec, v);      /* ★현빈이 시킨 그 띠를 그대로 쓴다 */
+      const v = Math.round(h0 + (e.clientY - y0) / scale);
+      /* ★블럭 높이까지만 줄인다 · 끝까지 줄이면 바닥을 없앤다(현빈 「없앤다」) · 상한 없음 */
+      sec.style.minHeight = v > nat ? v + 'px' : '';
     };
-    const onUp = () => {
+    const end = () => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onCancel);
       sec.classList.remove('proto-secbot-dragging');
-      if (padOf(sec) !== p0) {
+    };
+    const onUp = () => {
+      end();
+      armClickSwallow();
+      if (sec.style.minHeight !== mh0) {
         window.pushHistory?.();
         window.triggerAutoSave?.();
-        /* ★★261025 ★실측 — 끌고 나면 ★섹션 선택이 ★풀린다(`sel:false` · 패널이 사라진다).
-           ★`stopPropagation` 을 ★해도 그렇다 — ★캔버스의 ★비우기가 ★다른 길로 돈다.
-           ⇒ ★끈 섹션을 ★다시 고른다. ★그러면 ★패널 숫자가 ★손잡이를 ★따라온다.
-           ⚠️이것은 ★증상 처리다 — ★«누가 선택을 푸는가»는 ★안 쟀다.
-             ★이름 `PROTO-SECBOT-DESELECT-SOURCE-UNMEASURED-01`. ★제품으로 갈 때 ★그 자리를 찾아라. */
-        window.selectSection?.(sec);
-        window.showSectionProperties?.(sec);
       }
     };
+    /* ★취소(창 전환·터치 취소 등) = 끌기 전으로 되돌린다 · 기록 없음.
+       ⛔안 걷으면 버튼을 뗀 뒤에도 마우스를 따라 값이 바뀐다(261027 괴롭히기 ×3 재현). */
+    const onCancel = () => { end(); sec.style.minHeight = mh0; };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onCancel);
+  }
+
+  /* ★더블클릭 = 빈 공간 0(바닥을 없앤다) — 현빈 261027 「손잡이를 더블클릭하면 빈공간을 0으로」.
+     «끝까지 줄이기»와 같은 끝이다. 바닥이 없으면 아무것도 안 한다(기록도 안 쌓는다). */
+  function onDblClick(ev) {
+    const h = ev.target.closest && ev.target.closest('.' + CLS);
+    if (!h) return;
+    const sec = h.closest('.section-block');
+    if (!sec) return;
+    ev.preventDefault();
+    ev.stopPropagation();           /* ⛔섹션·블록의 더블클릭(편집 진입 등)으로 새지 않게 */
+    if (!sec.style.minHeight) return;
+    sec.style.minHeight = '';
+    window.pushHistory?.();
+    window.triggerAutoSave?.();
   }
 
   function sweep() {
@@ -120,6 +134,7 @@
   }
 
   document.addEventListener('pointerdown', onDown, true);
+  document.addEventListener('dblclick', onDblClick, true);
   document.addEventListener('DOMContentLoaded', sweep);
   /* 섹션이 늘거나 줄 때 따라붙는다 — 시안이라 느슨하게 훑는다(제품화 때는 생성 자리에 건다) */
   setInterval(sweep, 1200);
