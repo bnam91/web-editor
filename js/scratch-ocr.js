@@ -5,9 +5,6 @@
      ⇒ 이미지를 바꿔 고르면 그 이미지의 기록만 · 이미지를 지우면 기록도 같이 사라진다(현빈 Q9 261027)
    - 기록 한 건: { id, n, text, at, model, mode } — 그 자리에서 고칠 수 있다
    - 아직 안 정한 것(현빈 Q2·Q4·Q6·Q8)은 시안 기본값: 새 기록만 펴기 · 새것이 위 · 접힘은 저장 안 함 · 지우기는 ⌘Z 없음
-   - ★어드민에게만 공개(현빈 261027 「admin권한인 경우에만 살려볼래?」) — 판정은 js/feature-flags.js adminOnlyVisible 한 자리.
-     body.scratch-ocr-on 일 때만 ✨ 가 보인다(css/editor-canvas.css). 상태는 늦게 온다 ⇒ 'goditor:admin-state' 를 듣는다.
-     모르면(로그인 전·조회 실패) «아님». ⛔접근통제가 아니다 — 거부할 서버가 없는 «공개 범위»다.
    - 공개: window._scratchOcrOpen(id) · _scratchOcrRetarget(id?) · _scratchOcrReset()
 ══════════════════════════════════════ */
 (function () {
@@ -143,15 +140,7 @@
     }
   }
 
-  const _visible = () => !!window.adminOnlyVisible?.(window.__admin?.state?.() ?? null);
-  function _syncGate() {
-    const on = _visible();
-    document.body.classList.toggle('scratch-ocr-on', on);
-    if (!on && _targetId && _isShown()) window.closeAiPrompt?.();   // 어드민이 풀리면 열린 OCR 패널도 닫는다
-  }
-
   window._scratchOcrOpen = (id) => {
-    if (!_visible()) return;
     if (!id || !window._scratchItemById?.(id)) return;
     _targetId = id;
     _open.clear();
@@ -167,10 +156,7 @@
   };
   window._scratchOcrReset = () => { _targetId = null; _open.clear(); _lockTabs(false); };
 
-  window.addEventListener('goditor:admin-state', _syncGate);
   document.addEventListener('DOMContentLoaded', () => {
-    _syncGate();
-    if (!window.__admin?.state?.()) Promise.resolve(window.__admin?.refresh?.()).catch(() => {});   // 캐시가 비었을 때만 한 번 당긴다
     $('ocr-run-btn')?.addEventListener('click', _run);
     $('ocr-collapse-all')?.addEventListener('click', () => { _open.clear(); render(); });
   });

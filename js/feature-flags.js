@@ -228,13 +228,8 @@
  * ★깃발을 ★인자로 받는 까닭 = ⑴순수해서 단위에서 재진다 ⑵깃발의 ★정본이 둘이 되지 않는다.
  * ★쓰는 자리 = `js/props/prop-text.js` 의 `_applyAnimGate` 한 자리. */
 (function (w) {
-  /* ★「어드민에게만 보인다」 한 줄의 정본 — GIF(위)와 스크래치 OCR ✨(js/scratch-ocr.js · 현빈 261027 「admin권한인 경우에만 살려볼래」)가 같이 쓴다.
-   *   ⛔쓰는 자리에서 isAdmin 을 다시 판정하지 마라 — 둘째 명부가 된다. «공개 범위»이지 접근통제가 아니다(위 머리말). */
-  w.adminOnlyVisible = function (adminState) {
-    return !!(adminState && adminState.isAdmin === true);
-  };
   w.animGifVisible = function (enabled, adminState) {
     if (enabled !== true) return false;
-    return w.adminOnlyVisible(adminState);
+    return !!(adminState && adminState.isAdmin === true);
   };
 })(window);

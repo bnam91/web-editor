@@ -72,7 +72,6 @@
         }[why] || why);
       }
       _inflight = null;
-      w.dispatchEvent(new CustomEvent('goditor:admin-state'));   // ★늦게 온 상태를 기다리는 자리(스크래치 OCR ✨)가 듣는다
       return _state;
     })();
     return _inflight;
@@ -602,6 +601,6 @@
     state: () => _state,
     refresh: () => fetchState(true),
     /** 판정식이 헛도는지 재는 용도 — 실제 권한과 무관하다(서버가 거부한다). null 이면 해제. */
-    _forceState: (s) => { _override = s; _state = s; _inflight = null; w.dispatchEvent(new CustomEvent('goditor:admin-state')); },
+    _forceState: (s) => { _override = s; _state = s; _inflight = null; },
   };
 })(window, document);
