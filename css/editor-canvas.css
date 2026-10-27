@@ -186,6 +186,8 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
   padding: 0;
 }
 .scratch-item:hover .scratch-ai-btn { opacity: 1; }
+/* ✨(글자 뽑기 OCR)는 어드민에게만 — body.scratch-ocr-on 은 js/scratch-ocr.js _syncGate 가 붙인다 */
+body:not(.scratch-ocr-on) .scratch-ai-btn { display: none; }
 .scratch-ai-btn:hover { background: #a855f7; border-color: #a855f7; }
 
 /* 「글 N」 — 이 이미지에 붙은 OCR 기록 수(시트 33 · 시안 v3). 0 이면 JS 가 숨긴다. 내보내기·캔버스 밖 UI 다. */
