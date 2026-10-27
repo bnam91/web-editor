@@ -64,6 +64,19 @@ function _readState(block) {
   return window.annotPropsFromDataset(block);
 }
 
+/* ★잰 길이를 ★참고로 보여준다 — ⛔값을 ★자동으로 채우지 않는다(현빈이 ★실제 크기를 적는 칸이다)
+   ★185 ANNOT-PANEL-MEASURED-LENGTH-STALE-01 — 글을 쓰는 자리가 패널 그릴 때 한 번뿐이라, 패널을 다시 안 그리는
+   방향 단추(136 뒤로 선 길이를 바꾼다) 뒤에 옛 값이 남았다(앱 실측 ×3: 가로 뒤 선 300 · 글 316). ⇒ 쓰는 자리를 이 하나로 두고
+   «패널 그리기»·«방향 바꿈» 이 같이 부른다. 끌기 끝·⌘Z·다시 고름은 패널을 다시 그리므로 따로 안 부른다.
+   재는 자 = tests/dom/annot-measured-refresh-185.dom.spec.js */
+function _refreshDimMeasured(block) {
+  const meas = propPanel.querySelector('#annot-dim-measured');
+  if (!meas || typeof window.annotDimGeometry !== 'function') return;
+  const st = _readState(block);
+  const g = window.annotDimGeometry(st.points, { dimAxis: st.dimAxis });
+  if (g) meas.textContent = `잰 길이 ${Math.round(g.len)}px (참고)`;
+}
+
 // ── dataset 갱신 + 재렌더 + autoSave ──────────────────────────────────
 function _writeProps(block, partial) {
   if ('strokeColor'      in partial) block.dataset.strokeColor      = String(partial.strokeColor);
@@ -583,6 +596,7 @@ ${blockHeaderHTML({
           block.dataset.dimB = JSON.stringify([r1(place.dimB[0]), r1(place.dimB[1])]);
         }
         _writeProps(block, { dimAxis: axis });
+        _refreshDimMeasured(block);
         window.pushHistory?.('치수선 방향');
       });
     });
@@ -614,12 +628,7 @@ ${blockHeaderHTML({
     }
     if (du) du.addEventListener('change', () => { applyDimText(); window.pushHistory?.('치수 단위'); });
 
-    /* ★잰 길이를 ★참고로 보여준다 — ⛔값을 ★자동으로 채우지 않는다(현빈이 ★실제 크기를 적는 칸이다) */
-    const meas = propPanel.querySelector('#annot-dim-measured');
-    if (meas && typeof window.annotDimGeometry === 'function') {
-      const g = window.annotDimGeometry(st.points, { dimAxis: st.dimAxis });
-      if (g) meas.textContent = `잰 길이 ${Math.round(g.len)}px (참고)`;
-    }
+    _refreshDimMeasured(block);
 
     const exs = propPanel.querySelector('#annot-dim-extstyle');
     if (exs) exs.addEventListener('change', () => {
