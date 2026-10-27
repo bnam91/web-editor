@@ -42,7 +42,7 @@ test('M0 ★전제 — 명부가 소스에서 뽑힌다(바인더 ≥ 3 · min�
 });
 
 test('M1 ★0 을 넣을 수 있는 키는 0 을 살리는 문(gridNumOr)으로 읽힌다 — 키마다 ≥ 1 자리', () => {
-  const missing = zeroKeys.filter((k) => finder(new RegExp(`gridNumOr\\((?:[^()]|\\([^()]*\\))*?\\b${k}\\b`, 'g')).length === 0);
+  const missing = zeroKeys.filter((k) => finder(new RegExp(`gridNumOr\\([^()]*(?:\\([^()]*)?\\b${k}\\b`, 'g')).length === 0);
   assert.deepEqual(missing, [], `gridNumOr 로 안 읽는 키: ${missing}`);
 });
 
@@ -52,7 +52,7 @@ test('M2 ★0 을 넣을 수 있는 키를 `|| 기본값` 으로 읽는 자리 0
 });
 
 test('M3 ★0 을 못 넣는 키(height · 계약 [20,600])는 «0 = 기본» — 0 을 살리는 문으로 읽지 않는다', () => {
-  const savers = posKeys.flatMap((k) => finder(new RegExp(`(?:Number\\.isFinite|gridNumOr)\\((?:[^()]|\\([^()]*\\))*?\\b${k}\\b`, 'g')).map((at) => `${k} @ ${at}`));
+  const savers = posKeys.flatMap((k) => finder(new RegExp(`(?:Number\\.isFinite|gridNumOr)\\([^()]*(?:\\([^()]*)?\\b${k}\\b`, 'g')).map((at) => `${k} @ ${at}`));
   assert.deepEqual(savers, [], 'height 를 0 을 살리는 문으로 읽는다 — 계약(0 = 기본)을 뒤집는다');
   const contract = posKeys.flatMap((k) => finder(new RegExp(`parseInt\\([^()]*\\b${k}\\)\\s*>\\s*0\\s*\\?`, 'g')));
   assert.ok(contract.length >= 3, `«h > 0 ? 지정 : 기본» 판정이 ${contract.length} 자리 — 렌더러 둘(:71 이주 · 칸) + 패널 하나여야`);
