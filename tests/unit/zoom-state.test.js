@@ -370,11 +370,15 @@ t2('S-12 [⑪] 공유 클립 함수 — 섹션 «직속» 자식(스티커)에�
   const stk = {
     offsetWidth: 60, offsetHeight: 60, offsetLeft: -20, offsetTop: -30,
     offsetParent: sec, closest: () => sec,
-    style: { setProperty: (k, v) => { props[k] = v; }, removeProperty: (k) => { delete props[k]; } },
+    style: { setProperty: (k, v) => { props[k] = v; sets++; }, removeProperty: (k) => { delete props[k]; }, getPropertyValue: (k) => props[k] ?? '' },
   };
+  let sets = 0;
   fn(stk);
   // 예전 식: t=max(0,30)=30 · l=max(0,20)=20 · r=max(0,-20+60-800)=0 · b=max(0,-30+60-400)=0
   assert.equal(props['--sec-clip'], 'inset(30px 0px 0px 20px)', '직속 자식 값이 달라졌다 — 스티커가 바뀐다');
+  // 1020t2h2 — 섹션 감시자가 크기 변화마다 부른다 ⇒ 같은 값이면 안 쓴다(자동저장 헛깨움 방지)
+  fn(stk); fn(stk);
+  assert.equal(sets, 1, '같은 값을 다시 썼다 — 섹션 감시자가 자동저장을 헛깨운다');
 
   // 섹션 «안»에 있으면 변수를 지운다(예전과 같다)
   const inside = { ...stk, offsetLeft: 10, offsetTop: 10 };
@@ -387,7 +391,7 @@ t2('S-12 [⑪] 공유 클립 함수 — 섹션 «직속» 자식(스티커)에�
   const layer = {
     offsetWidth: 188, offsetHeight: 248, offsetLeft: -14, offsetTop: -134,
     offsetParent: blk, closest: () => sec,
-    style: { setProperty: (k, v) => { props[k] = v; }, removeProperty: (k) => { delete props[k]; } },
+    style: { setProperty: (k, v) => { props[k] = v; }, removeProperty: (k) => { delete props[k]; }, getPropertyValue: (k) => props[k] ?? '' },
   };
   fn(layer);
   // 층의 섹션 내 좌표 = (40-14, 40-134) = (26, -94) ⇒ t=94 · l=0

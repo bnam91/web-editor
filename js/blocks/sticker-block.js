@@ -523,6 +523,9 @@ function _renderStickerBlockInner(block) {
 //   ⇒ 섹션 사각형의 네 귀를 요소의 회전 전 좌표로 옮겨 그 꼴로 자른다(요소 중심 둘레로 -회전). 섹션 안에 통째로 있으면 변수를 지운다.
 //   예전엔 「회전 스티커 사용례 0」이라 한계로 남겨 두었는데, 코인은 회전 손잡이가 있고 섹션 밖으로 나가는 길이 정식으로 열렸다.
 function _updateStickerSecClip(block) {
+  /* 같은 값이면 안 쓴다 — 섹션 감시자(js/section-height.js)가 크기 변화마다 부르므로, 헛쓰기가 자동저장 감시자를 깨우지 않게.
+     ⛔밖으로 빼지 마라 — tests/unit/zoom-state.test.js 가 이 함수 본문만 잘라 돌린다. */
+  const _setSecClip = (b, v) => { if (b.style.getPropertyValue('--sec-clip') !== v) b.style.setProperty('--sec-clip', v); };
   const sec = block.closest('.section-block');
   if (!sec) return;
   const w = block.offsetWidth, h = block.offsetHeight;
@@ -537,7 +540,7 @@ function _updateStickerSecClip(block) {
     const r1 = (v) => Math.round(v * 10) / 10;
     /* 섹션 좌표의 점 → 요소의 회전 전 좌표: 중심 둘레로 -회전 */
     const pt = (X, Y) => { const dx = X - cx, dy = Y - cy; return `${r1(dx * c + dy * s + w / 2)}px ${r1(-dx * s + dy * c + h / 2)}px`; };
-    block.style.setProperty('--sec-clip', `polygon(${pt(0, 0)}, ${pt(SW, 0)}, ${pt(SW, SH)}, ${pt(0, SH)})`);
+    _setSecClip(block, `polygon(${pt(0, 0)}, ${pt(SW, 0)}, ${pt(SW, SH)}, ${pt(0, SH)})`);
     return;
   }
   /* ★섹션까지 «누적» 오프셋.
@@ -568,7 +571,7 @@ function _updateStickerSecClip(block) {
       const cl = Math.round(Math.max(0, x + uL) - x);
       const cr = Math.round((x + w) - Math.min(secW, x + uR));
       const cb = Math.round((y + h) - Math.min(secH, y + uB));
-      block.style.setProperty('--sec-clip', `inset(${ct}px ${cr}px ${cb}px ${cl}px)`);
+      _setSecClip(block, `inset(${ct}px ${cr}px ${cb}px ${cl}px)`);
     } else {
       block.style.removeProperty('--sec-clip');
     }
@@ -578,7 +581,7 @@ function _updateStickerSecClip(block) {
   const l = Math.max(0, -x);
   const r = Math.max(0, x + w - sec.clientWidth);
   const b = Math.max(0, y + h - sec.clientHeight);
-  if (t || l || r || b) block.style.setProperty('--sec-clip', `inset(${t}px ${r}px ${b}px ${l}px)`);
+  if (t || l || r || b) _setSecClip(block, `inset(${t}px ${r}px ${b}px ${l}px)`);
   else block.style.removeProperty('--sec-clip');
 }
 window._updateStickerSecClip = _updateStickerSecClip;
