@@ -246,6 +246,35 @@ test('M3 드롭 직후 해제가 «켠 쪽»(section-drag)을 통해 간다', ()
   assert.match(code, /import \{ _resumeDragSave \} from '\.\.\/section-drag\.js'/);
 });
 
+/* ★184 ㉰(UNDO-DISK-NOT-FOLLOWING-12S-01 · S5 A-2 앱 실측 16/16 · 2026-10-28) — 억제를 «풀고 나서» 저장을 다시 거나.
+   억제가 제대로 풀려도(위 M2·S9) 복원 함수가 scheduleAutoSave 를 안 부르면 ⌘Z 뒤 디스크는 «다음 편집»까지 안 따라온다
+   (앱: ⌘Z 뒤 60s 안 writes 0 · 같은 판에 ⌘Z 5s 뒤 손으로 scheduleAutoSave 를 걸면 writes 1 = 억제는 풀려 있었다).
+   ★명부 = «풀고도 안 거는» 복원 함수 — 지금 하나. ⛔결함 «허용»이 아니라 «아직 안 고친 자리»의 고정이다(autosave-overlap UNNETTED_BACKLOG 와 같은 꼴):
+   고치면 이 시험이 빨개지고 명부에서 지운다. 까닭 쪽 글: js/io/save-load.js _noteEditDuringDrag 머리(되돌리기 복원 = «불러오기» · DEF-03). */
+const RESTORE_NO_SAVE_REQUEST = ['restoreSnapshot'];
+const RESTORE_FNS = ['restoreSnapshot', 'restoreSnapshotScoped'];
+function fnBody(code, name) {
+  const at = code.search(new RegExp(`function ${name}\\s*\\(`));
+  if (at < 0) return null;
+  const open = code.indexOf('{', at);
+  for (let i = open, d = 0; i < code.length; i++) {
+    if (code[i] === '{') d++;
+    else if (code[i] === '}' && --d === 0) return code.slice(open, i + 1);
+  }
+  return null;
+}
+const restoreNoSave = (code) => RESTORE_FNS.filter((n) => { const b = fnBody(code, n); assert.ok(b, `★${n} 를 못 찾았다 — 이름이 바뀌었으면 RESTORE_FNS 도`); return !/scheduleAutoSave\s*\?*\.?\s*\(/.test(b); });
+
+test('M4 ★184 ㉰ — 복원 함수 중 «억제를 풀고도 저장을 안 거는» 것이 명부 그대로', () => {
+  assert.deepEqual(restoreNoSave(codeOnly(read('js/history.js'))), RESTORE_NO_SAVE_REQUEST,
+    '★⌘Z 복원 뒤 저장을 거는 자리가 바뀌었다 — 고쳤다면 RESTORE_NO_SAVE_REQUEST 에서 지워라(앱 ⌘Z 뒤 디스크도 다시 재라)');
+});
+
+test('M4b 양성대조 — restoreSnapshot 이 저장을 «걸게» 바꾸면 M4 의 자가 그걸 본다', () => {
+  const code = codeOnly(read('js/history.js')).replace(/function restoreSnapshot\s*\([^)]*\)\s*\{/, (m) => m + ' window.scheduleAutoSave?.();');
+  assert.deepEqual(restoreNoSave(code), [], '★저장을 걸게 바꿨는데도 명부에 남는다 — M4 는 눈이 멀었다');
+});
+
 /* ═══ ⑶ 허용목록 — 남은 «직접 대입»을 기계로 고정한다 ═══════════════════ */
 
 /* 아직 raw 로 두는 자리와 «왜». 새 대입이 늘면 이 검사가 빨개진다.
@@ -260,7 +289,7 @@ const RAW_ALLOWED = {
        + '그러면 복원 직후 MutationObserver 가 억제 안에서 발화해 «복원 결과가 자동저장되지 않는다». '
        + '고착이 아니라 «반대 방향» 회귀다 ⇒ 배포 직전엔 건드리지 않는다.',
   },
-  'js/history.js': { count: 4, why: 'restoreSnapshot·restoreSnapshotScoped — 이미 try/finally + rAF 해제(C2-A9). 고칠 결함이 없다' },
+  'js/history.js': { count: 4, why: 'restoreSnapshot·restoreSnapshotScoped — 이미 try/finally + rAF 해제(C2-A9). ⚠️«직접 대입» 자체엔 고칠 결함이 없다 — 단 rAF «단독» 해제는 autosave-overlap UNNETTED_BACKLOG(가려진 창 고착 · 184 ㉱), 풀고도 저장 안 거는 것은 위 M4(184 ㉰)' },
   'js/collab/sync.js': { count: 2, why: '원격 패치 적용 — 이미 try/finally + rAF 해제. ★고전 스크립트라 import 불가' },
   'js/version-history-ui.js': { count: 2, why: '이 패턴의 «정본»(prevSuppress + rAF). 전용 검사(vhist-ui-restore)가 이 파일을 로드해 지킨다' },
 };

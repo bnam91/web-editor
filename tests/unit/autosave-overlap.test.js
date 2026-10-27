@@ -236,7 +236,7 @@ function unnettedReleases(files, flags) {
    (그 둘에 `파일.js:숫자` 가 되살아나면 아래 N7d 가 빨개진다). */
 const UNNETTED_BACKLOG = {
   'js/collab/sync.js':          ['applyPatch'],                                // 원격 패치 적용(rAF 단독 해제)
-  'js/history.js':              ['restoreSnapshot', 'restoreSnapshotScoped'],  // 되돌리기 · 범위 되돌리기
+  'js/history.js':              ['restoreSnapshot', 'restoreSnapshotScoped'],  // 되돌리기 · 범위 되돌리기 · 시트 184 ㉱(가려진 창 억제 고착 — ㉰ «풀고도 저장 안 검»은 autosave-suppress M4)
   'js/io/lazy-sections.js':     ['_withSuppressAutoSave'],                     // ★신규(플래그 축) — `_lazyRenderPass` 를 rAF 단독으로 되돌린다
   'js/version-history-ui.js':   ['_restore'],                                  // ★신규(else 폴백 축) — `else setTimeout` 은 안전망이 아니다
 };
