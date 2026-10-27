@@ -29,6 +29,34 @@
   color: var(--ui-text-base, #f0f0f0);
 }
 .aig-mode-tab:hover:not(.active) { color: var(--ui-text-base, #ddd); }
+/* ✨(스크래치)로 열면 「글자 뽑기」만 켜고 나머지는 기능 대기 — js/scratch-ocr.js _lockTabs */
+.aig-mode-tab:disabled { opacity: 0.45; cursor: not-allowed; }
+.aig-mode-tabs.ocr-only .aig-mode-tab:disabled::after { content: '기능 대기'; display: block; font-size: 10px; margin-top: 1px; }
+
+/* ── 글자 뽑기(OCR) 패널 · 시안 v3 sian-14 ── */
+.aig-ocr-panel { display: flex; flex-direction: column; gap: 10px; }
+.ocr-explain { font-size: var(--ui-fs-12); color: var(--ui-text-sub, #aaa); line-height: 1.5; padding: 8px 10px; border: 1px solid var(--ui-border-mid, #333); border-radius: 6px; }
+.ocr-explain b { color: #a78bfa; }
+.ocr-target { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--ui-border-mid, #333); border-radius: 6px; font-size: var(--ui-fs-12); color: var(--ui-text-base, #f0f0f0); }
+.ocr-target img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; background: var(--ui-bg-card, #252525); flex-shrink: 0; }
+.ocr-target-sub { color: var(--ui-text-sub, #aaa); }
+.ocr-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.ocr-log-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--ui-fs-12); color: var(--ui-text-sub, #aaa); border-top: 1px solid var(--ui-border-mid, #333); padding-top: 10px; }
+.ocr-log-head b { color: var(--ui-text-base, #f0f0f0); }
+.ocr-mini-btn { background: var(--ui-bg-card, #252525); color: var(--ui-text-base, #f0f0f0); border: 1px solid var(--ui-border-mid, #333); border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
+.ocr-mini-btn:hover { border-color: #a78bfa; }
+.ocr-log { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; font-size: var(--ui-fs-12); color: var(--ui-text-sub, #aaa); }
+.ocr-rec { border: 1px solid var(--ui-border-mid, #333); border-left: 3px solid #7c3aed; border-radius: 6px; }
+.ocr-rec-head { width: 100%; display: flex; align-items: center; gap: 8px; background: none; border: 0; color: var(--ui-text-base, #f0f0f0); padding: 8px 10px; font-size: var(--ui-fs-12); font-weight: 600; cursor: pointer; text-align: left; }
+.ocr-rec-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ocr-rec-time, .ocr-caret { color: var(--ui-text-sub, #aaa); font-weight: 400; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+.ocr-rec-body { display: none; padding: 0 10px 10px; flex-direction: column; gap: 6px; }
+.ocr-rec.open .ocr-rec-body { display: flex; }
+.ocr-rec-text { white-space: pre-wrap; max-height: 188px; overflow-y: auto; background: var(--ui-bg-card, #252525); border: 1px solid var(--ui-border-mid, #333); border-radius: 4px; padding: 8px; color: var(--ui-text-base, #f0f0f0); outline: none; }
+.ocr-rec-text:focus { border-color: #a78bfa; }
+.ocr-rec-btns { display: flex; gap: 4px; }
+.ocr-rec-meta { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--ui-text-sub, #aaa); }
+.ocr-foot { font-size: 11px; color: var(--ui-text-sub, #aaa); line-height: 1.5; }
 
 /* ── 이미지 모드 패널 ── */
 .aig-image-panel { display: flex; flex-direction: column; gap: 10px; }

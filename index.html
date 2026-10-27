@@ -1322,6 +1322,7 @@
     <div class="aig-mode-tabs" id="aig-mode-tabs">
       <button class="aig-mode-tab active" data-mode-tab="text" type="button">텍스트 생성</button>
       <button class="aig-mode-tab" data-mode-tab="image" type="button">이미지 생성</button>
+      <button class="aig-mode-tab" data-mode-tab="ocr" type="button" style="display:none;">글자 뽑기 (OCR)</button>
     </div>
     <!-- 텍스트 모드 패널 (기존 유지) -->
     <div id="aig-text-panel">
@@ -1398,6 +1399,37 @@
       <div class="aig-cost" id="aig-cost">예상 비용: ~₩54 × 1장 = ₩54</div>
       <div class="aig-preview" id="aig-preview" style="display:none;"></div>
     </div>
+    <!-- 글자 뽑기(OCR) 패널 — 스크래치 ✨ 에서만 열린다 (시트 33 1020t2a1 · 시안 v3 · js/scratch-ocr.js) -->
+    <div id="aig-ocr-panel" class="aig-ocr-panel" style="display:none;">
+      <div class="ocr-explain"><b>글자 뽑기(OCR)</b> = 이미지 속에 이미 있는 글을 읽어 옵니다. (텍스트 생성 = 없던 글을 AI 가 짓는 것 — 다른 기능입니다)</div>
+      <div class="ocr-target">
+        <img id="ocr-target-thumb" alt="">
+        <div><div class="ocr-target-sub">이 이미지에서 글자를 읽습니다</div><b id="ocr-target-id"></b></div>
+      </div>
+      <div class="aig-row">
+        <label class="aig-row-label" for="ocr-model-select">Model</label>
+        <select class="aig-select" id="ocr-model-select">
+          <option value="gemini-2.5-flash">Gemini 2.5 Flash · 무료티어</option>
+        </select>
+      </div>
+      <div class="aig-row">
+        <span class="aig-row-label">Mode</span>
+        <div class="aig-mode-radios">
+          <label><input type="radio" name="ocr-mode" value="text" checked> 글자만</label>
+          <label><input type="radio" name="ocr-mode" value="layout"> 줄·표까지</label>
+        </div>
+      </div>
+      <div class="ocr-actions">
+        <button type="button" class="ai-cancel-btn" onclick="closeAiPrompt()">닫기</button>
+        <button type="button" class="ai-submit-btn" id="ocr-run-btn">글자 뽑기</button>
+      </div>
+      <div class="ocr-log-head">
+        <span><b id="ocr-log-id"></b> 의 전사 기록 <b id="ocr-log-count">0</b>건</span>
+        <button type="button" class="ocr-mini-btn" id="ocr-collapse-all">전부 접기</button>
+      </div>
+      <div id="ocr-log" class="ocr-log"></div>
+      <div class="ocr-foot">기록은 이 이미지에 붙습니다 — 다른 이미지를 고르면 그 이미지의 기록이 보입니다. 이미지를 지우면 그 기록도 같이 사라집니다.</div>
+    </div>
     <div class="ai-panel-footer">
       <button class="ai-cancel-btn" onclick="closeAiPrompt()">취소</button>
       <button class="ai-outpaint-export-btn" id="aig-outpaint-export-btn" style="display:none;" onclick="window._aigExportOutpaintPng?.()">⬇ 확장 PNG 내보내기</button>
@@ -1409,6 +1441,7 @@
 <script type="module" src="js/ai-prompt.js"></script>
 <script src="js/outpaint-overlay.js"></script>
 <script type="module" src="js/ai-image-gen.js"></script>
+<script src="js/scratch-ocr.js"></script>
 <!-- ⛔⛔★이 줄을 ★지우지 ★마라 — ★★`_tpl-sort.js` 가 ★`byCreatedAtDesc` 를 ★받는다.
      ★★★그런데 ★★기본 열쇠(`default`)는 ★`cmp:null` 이라 ★★이 자를 ★안 부른다 ⇒ ★★★기본 화면만 보면 ★«안 쓰는 줄»로 보인다.
      ★★난다면 ★«사람이 ★최근추가순·이름순을 ★고를 때»뿐. ★잠그는 자 = ★tests/unit/tpl-two-windows-scripts.test.mjs ★S3 -->

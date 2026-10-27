@@ -182,7 +182,7 @@ function _notifyGoditorUse(sessionToken) {
 const entitlement = require('./services/entitlement');
 /* 배포판 운영자(admin) 판정 — 서명 operator.allow. ⛔entitlement 키(k1)와 «다른» 키(op1)다. */
 const _operatorAllow = require('./services/operator-allow');
-const { fillSectionTexts: geminiFill } = require('./services/geminiService');
+const { fillSectionTexts: geminiFill, ocrImage: geminiOcr } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
@@ -477,6 +477,7 @@ function createWindow() {
 
   // AI 섹션 텍스트 채우기 (Gemini)
   ipcMain.handle('ai:fillSectionTexts', (_e, payload) => aiFillSectionTexts(payload));
+  ipcMain.handle('ai:ocrImage', (_e, payload) => geminiOcr({ ...payload, apiKey: getApiKey('gemini') }));
 
   // 사용자별 Preferences (settings.json: API 키 + 단축키)
   ipcMain.handle('settings:get',      () => readSettings());

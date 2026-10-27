@@ -188,6 +188,24 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
 .scratch-item:hover .scratch-ai-btn { opacity: 1; }
 .scratch-ai-btn:hover { background: #a855f7; border-color: #a855f7; }
 
+/* 「글 N」 — 이 이미지에 붙은 OCR 기록 수(시트 33 · 시안 v3). 0 이면 JS 가 숨긴다. 내보내기·캔버스 밖 UI 다. */
+.scratch-ocr-badge {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  transform: scale(var(--scratch-inv-zoom, 1));
+  transform-origin: bottom left;
+  background: #7c3aed;
+  color: #fff;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  pointer-events: none;
+  z-index: 10;
+}
+
 .scratch-item.scratch-slice-mode { cursor: crosshair; }
 /* ★⑦ 그룹 진입 모드(현빈 2026-10-10) — 그 그룹의 멤버를 «한 겹» 두른다.
    ★왜 보여야 하나: 진입 중에는 Delete·✕ 가 ★«빼기»다. 겉이 같으면 ★지우려다 ★뺀다.

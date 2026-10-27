@@ -162,6 +162,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // AI section text fill (Gemini)
   aiFillSectionTexts: (payload) => ipcRenderer.invoke('ai:fillSectionTexts', payload),
+  aiOcrImage: (payload) => ipcRenderer.invoke('ai:ocrImage', payload),
 
   // AI 이미지 생성 (Nano Banana · gpt-image-1) + 디스크 저장/조회/삭제
   aiGenerateImage: (payload)                  => ipcRenderer.invoke('ai:generateImage', payload),

@@ -173,7 +173,13 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
     els.modeTabs.forEach(t => t.classList.toggle('active', t.dataset.modeTab === mode));
     if (els.textPanel)  els.textPanel.style.display  = mode === 'text'  ? '' : 'none';
     if (els.imagePanel) els.imagePanel.style.display = mode === 'image' ? '' : 'none';
-    try { localStorage.setItem('aiModalLastMode', mode); } catch (_) {}
+    // 'ocr' = 스크래치 ✨ 에서만 여는 「글자 뽑기」(js/scratch-ocr.js) — 자기 닫기·실행 단추가 있어 공용 발판을 숨긴다.
+    //   ⛔마지막 모드로 기억하지 않는다 — 툴바에서 열면 대상 이미지가 없다.
+    const ocrPanel = document.getElementById('aig-ocr-panel');
+    if (ocrPanel) ocrPanel.style.display = mode === 'ocr' ? '' : 'none';
+    const footer = document.querySelector('#ai-prompt-panel .ai-panel-footer');
+    if (footer) footer.style.display = mode === 'ocr' ? 'none' : '';
+    if (mode !== 'ocr') { try { localStorage.setItem('aiModalLastMode', mode); } catch (_) {} }
     _updateCost();
   }
 
@@ -481,7 +487,9 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
     let mode = opts.mode || null;
     if (!mode) {
       try { mode = localStorage.getItem('aiModalLastMode') || 'text'; } catch (_) { mode = 'text'; }
+      if (mode === 'ocr') mode = 'text';
     }
+    if (mode !== 'ocr') window._scratchOcrReset?.();   // ✨ 가 잠가 둔 탭을 푼다
     _setMode(mode);
     if (opts.prefillPrompt) {
       if (mode === 'image' && els.imgPrompt) els.imgPrompt.value = opts.prefillPrompt;
@@ -504,6 +512,7 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
     if (els.outpaintTgl) els.outpaintTgl.checked = false;
     const cutTgl = document.getElementById('aig-cutout-toggle');
     if (cutTgl) cutTgl.checked = false;
+    window._scratchOcrReset?.();
     // 텍스트 모드 textarea 클리어는 closeAiPrompt가 처리
   }
 
