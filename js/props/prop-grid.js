@@ -1611,7 +1611,15 @@ function _grdImageSectionHtml(anyHit, block, host = null) {
   if (!anyHit || anyHit.li === null || !anyHit.line || anyHit.line.type !== 'image') return '';
   const foreign = !!host && host.kind !== 'grid';
   const { r, c, line } = anyHit;
-  const h = gridNumOr(line.height, '');   // ★t6-04b 이웃 — ⛔`|| ''` 는 저장된 0 을 빈 칸(auto)으로 보였다
+  /* ★158(현빈 직접 GO 2026-10-27 · GRID-IMG-HEIGHT-ZERO-IS-AUTO-BY-CONTRACT-01) — 「0 = auto」는 «계약»이다.
+   *   그리는 쪽 셋이 다 `h > 0 ? 지정 : 기본`이다: 사각(grid-block.js _gridLineHtml `cropped = h > 0 && …` · 빈 틀 `hCss`)
+   *   · 원(`d = h > 0 ? h : GRID_IMG_CIRCLE_D`) · 남의 주인 laurel(laurel-block.js `Number(ln.height) > 0 ? … : LAUREL_IMG_DEFAULT_H`).
+   *   ⇒ 저장값 0 은 «기본으로 그려진다» — 칸은 비우고 placeholder(= 그 기본: auto · 지름 · imgDefaultH)가 말한다.
+   *   이웃 칸과 같은 관용구다: 구분선 높이(grd-divider-h `|| ''` · placeholder = 렌더러 하한) · 반경(grd-img-radius).
+   *   ⛔t6-04b 의 `gridNumOr(line.height, '')`(0 을 «0» 으로)를 되돌린 것 — 여백 줄 높이(0 이 진짜 0px)와 달리 여기 0 은 0px 로 안 그려진다.
+   *   ⛔값은 안 바꾼다 — 패널을 열고 닫아도 모델 0 그대로(빈 칸은 사람이 «바꿀 때만» change → numWire 가 undefined = 같은 뜻).
+   *   ⛔칸에 «auto» 글자를 넣지 않는다 — type=number 라 value 가 '' 로 바뀌고 되읽는 자(numWire · 커밋 가드)는 '' 만 안다. */
+  const h = Number(line.height) > 0 ? Number(line.height) : '';
   const rad = Number(line.radius) || '';
   /* ★panel-height-disable — «크롭 없음» = 렌더러(grid-block.js _gridLineHtml 의 `cropped`)와 같은 판정: 세 값 중 하나라도 수면 크롭. 원은 따로(지름). */
   const hLocked = !foreign && line.imgShape !== 'circle' && ![line.imgSizePct, line.imgPosX, line.imgPosY].some(v => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v)));
