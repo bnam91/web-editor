@@ -191,7 +191,9 @@ const POS = () => sliceBlock(SRC.overlay, 'function _updateCmpGutterPositions()'
 
 test('㉢1 ★이력은 «양쪽 끝» — mousedown 1회 + mouseup 1회(그리드 거터와 같은 규약)', () => {
   const fn = stripComments(DOWN());
-  const pushes = [...fn.matchAll(/pushHistory\?\.\(/g)].length;
+  /* ★202(2026-10-28) — 이력 양쪽 끝은 ★공용 몸통 _rowGutterDrag 가 든다(그리드·카드 행 거터와 한 벌) ⇒ 부르면 그 몸통까지 센다 */
+  assert.match(fn, /_rowGutterDrag\(block, onMove/, '행 경계 드래그가 공용 몸통(_rowGutterDrag)을 안 부른다');
+  const pushes = [...(fn + stripComments(sliceBlock(SRC.overlay, 'function _rowGutterDrag('))).matchAll(/pushHistory\?\.\(/g)].length;
   assert.equal(pushes, 2,
     `행 경계 드래그의 pushHistory 가 ${pushes}회다 — 시작(mousedown)·끝(onUp) 둘이어야 한다 ` +
     '(하나면 ⌘Z 가 이웃 동작을 같이 먹거나 먹통이 된다 · js/CLAUDE.md 히스토리 규약).');

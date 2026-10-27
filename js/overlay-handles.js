@@ -2238,6 +2238,26 @@ function _onGridColMouseDown(e, block, i) {
   document.addEventListener('mouseup', onUp);
 }
 
+/* ★202 행 거터 끌기 «공용 몸통» — 그리드 행 · 비교 행 · 카드 행 셋이 손으로 베껴 들던 것(2026-10-28 · 지디 · S7).
+   ★히스토리 «양쪽 끝»(js/CLAUDE.md 규약)이 ★여기 한 자리에 산다: 시작 직전 1회 + onUp 1회(안 움직였으면 무변화 차단이 버린다).
+   onMove = 각자의 쓰기 · onEnd = 끝 표본 «앞»(정본 렌더 — 표본이 정본 DOM 을 찍게) · afterEnd = 끝 표본 «뒤»(미룬 자동저장 재개). */
+function _rowGutterDrag(block, onMove, { onEnd, afterEnd } = {}) {
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+  window.pushHistory?.();   // ★드래그 «시작 직전» 1회만 — mousemove 마다 쌓이면 undo 가 픽셀 단위로 끊긴다
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    restoreDrag();
+    onEnd?.();
+    /* ★끝 상태도 찍는다 — 시작만 찍으면 «다음»이 push-after 일 때 그 사이 표본이 없어 ⌘Z 한 번이 둘을
+       같이 먹는다(js/drag-history.js). 안 움직였으면 캔버스가 그대로라 history.js 의 무변화 차단이 버린다. */
+    window.pushHistory?.();
+    afterEnd?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 // 행 경계 드래그 (P1 병합 후 신설) — «가중치 재분배 없음»(PLAN §3-A/§5-B-3). 경계 i|i+1 을
 // 끌면 «위» 행(rows[i])의 px 최소높이만 바뀐다 — 아래 행은 그대로. resizeRowHeight(순수함수).
 function _onGridRowMouseDown(e, block, i) {
@@ -2249,19 +2269,15 @@ function _onGridRowMouseDown(e, block, i) {
   const elA = _getGridCell(block, i, 0);
   if (!elA) return;
 
-  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
-
   const scale0 = _canvasScaleNow();
   /* 'auto' 행도 «지금 렌더된» 높이에서 시작 — ★t4-13 「쾌적하지 않음」: 렌더된 칸 높이엔 칸 위아래 여백(cellPadY ×2)이 들어 있는데
      행 높이 값은 그 여백을 «뺀» 몫이다(트랙 최소 = H + 2×cellPadY · grid-block.js gridTrackMin 한 식). 빼지 않으면 첫 움직임에
      여백 ×2 만큼 튀었다(같은 꼴 실측: cellPadY 40 · 3px 끌기 → 칸 115→203 · 수지 원 블럭 441→584). ⇒ 같은 식의 거꾸로로 시작값을 잡는다. */
   const startH0 = Math.max(0, elA.getBoundingClientRect().height / scale0 - 2 * (getGridCellPadY(block) || 0));
   const startY = e.clientY;
-  window.pushHistory?.(); // ★드래그 «시작 직전» 1회만
   /* ★165 ㉮(지디 22:43 · 156 꼴 overlay-float.js deferAutoSave) — 끄는 동안 자동저장·유휴 썸네일을 «미룬다».
      실측(fa57bed6 · 수지 사본 · 행 거터 30s 끌기 ×6): 썸네일 html2canvas 가 마우스 눌린 채 시작 · 그때 _autoSaveDeferred·_suppressAutoSave 둘 다 false
      ⇒ save-load.js scheduleIdleThumbnail 의 «바쁨» 칸이 이 제스처를 몰랐다. 재개 길 셋: 아래 onUp · 창 blur · 30s 안전망(save-load.js — 그 뒤엔 찍힐 수 있다 = 설계). */
-  window.deferAutoSave?.();
   let moved = false;   // ★132 — 미리보기로만 바꾼 틱이 있었나(있으면 onUp 에서 정본 렌더 한 번)
 
   function onMove(ev) {
@@ -2279,20 +2295,12 @@ function _onGridRowMouseDown(e, block, i) {
     if (rowInput) rowInput.value = String(h);
     window.scheduleAutoSave?.();
   }
-  function onUp() {
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
-    restoreDrag();
+  _rowGutterDrag(block, onMove, {   // ★202 — 이력 양쪽 끝·리스너·조상 드래그 끄기는 공용 몸통
     /* ★132 — 끄는 동안 미리보기만 했으면 정본 렌더 «한 번»(끝 표본보다 앞 — 표본이 정본 DOM 을 찍는다). */
-    if (moved) { window.renderGridBlock?.(block); _updateGridGutterPositions(); }
-    /* ★끝 상태도 찍는다 — 시작(mousedown)만 찍으면 «다음»이 push-after 동작일 때 그 사이의
-       표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 안 움직였으면 캔버스가
-       그대로라 history.js 의 무변화 차단이 버린다 = 맨클릭 중복 항목도 같이 사라진다. */
-    window.pushHistory?.();
-    window.resumeAutoSave?.();   // ★165 ㉮ — 미룬 동안 들어온 예약을 «한 번» 다시 건다(끝 표본 뒤)
-  }
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onUp);
+    onEnd: () => { if (moved) { window.renderGridBlock?.(block); _updateGridGutterPositions(); } },
+    afterEnd: () => window.resumeAutoSave?.(),   // ★165 ㉮ — 미룬 동안 들어온 예약을 «한 번» 다시 건다(끝 표본 뒤)
+  });
+  window.deferAutoSave?.();   // ★165 ㉮ — 시작 표본 «뒤»에 미룬다(전과 같은 순서)
 }
 
 /* ═══ ★t3-04 U2a «행·열 머리띠» ＋ «끌어서 순서 바꾸기» (S6 · 2026-10-22 · 현빈 GO msg5376 · 시안 Version 3) ═══
@@ -2853,12 +2861,10 @@ function _onCmpRowMouseDown(e, block, ci, ri) {
   const arr0 = window.cmpRowHeights ? window.cmpRowHeights(block.dataset) : null;
   if (!Array.isArray(arr0)) return;
 
-  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
   /* ★offsetHeight = «설계 px»(transform 영향 없음). 강조 칼럼은 round(기본높이 × featScale) 가 박혀 있어
      되돌려 나눈다 ⇒ 그 반올림만큼(≤0.5/featScale px) 시작값이 어긋날 수 있고, 결과는 다시 정수로 반올림된다. */
   const startH0 = el.offsetHeight / featFactor;
   const startY = e.clientY;
-  window.pushHistory?.();   // ★드래그 «시작 직전» 1회만 — mousemove 마다 쌓이면 undo 가 픽셀 단위로 끊긴다
 
   function onMove(ev) {
     const f = _cmpPxFactor(block, featFactor);   // 드래그 중 줌이 바뀌는 경우까지 방어(매 move 재조회)
@@ -2875,16 +2881,7 @@ function _onCmpRowMouseDown(e, block, ci, ri) {
     if (inp) inp.value = String(h);
     window.scheduleAutoSave?.();
   }
-  function onUp() {
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
-    restoreDrag();
-    /* ★끝 상태도 찍는다 — 시작만 찍으면 «다음»이 push-after 일 때 그 사이 표본이 없어 ⌘Z 한 번이 둘을
-       같이 먹는다(js/drag-history.js · js/CLAUDE.md 히스토리 규약). 안 움직였으면 무변화 차단이 버린다. */
-    window.pushHistory?.();
-  }
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onUp);
+  _rowGutterDrag(block, onMove);   // ★202 — 이력 양쪽 끝·리스너·조상 드래그 끄기는 공용 몸통
 }
 
 window.showCmpGutters = showCmpGutters;
@@ -2970,10 +2967,8 @@ function _onCvbRowMouseDown(e, block, r) {
   e.stopPropagation();
   const g0 = _cvbGeom(block);
   if (!(g0.s > 0)) return;
-  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
   const startY = e.clientY;
   const H0 = g0.H;
-  window.pushHistory?.();   // ★드래그 «시작 직전» 1회만(비교 거터와 같은 규약)
   function onMove(ev) {
     const { s } = _cvbGeom(block);   // 배율은 폭이 정한다(높이와 무관) — 줌이 바뀌는 경우까지 매 move 재조회
     if (!(s > 0)) return;
@@ -2986,14 +2981,7 @@ function _onCvbRowMouseDown(e, block, r) {
     if (inp) inp.value = String(h);
     window.scheduleAutoSave?.();
   }
-  function onUp() {
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
-    restoreDrag();
-    window.pushHistory?.();   // ★끝 상태 — 안 움직였으면 무변화 차단이 버린다
-  }
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onUp);
+  _rowGutterDrag(block, onMove);   // ★202 — 이력 양쪽 끝·리스너·조상 드래그 끄기는 공용 몸통(비교 거터와 같은 규약)
 }
 window.showCvbGutters = showCvbGutters;
 window.hideCvbGutters = hideCvbGutters;
