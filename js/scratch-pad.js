@@ -14,8 +14,10 @@ const SCRATCH_STORE   = 'scratch';
  *   손으로 따로 적혀 있었다. 칸 하나(효과 fx)를 더하려면 일곱 곳을 다 고쳐야 했고, 하나라도 빠지면
  *   «그 길로만» 효과가 조용히 사라진다(명부가 둘이면 한쪽이 조용히 늙는다 — 경고 주석으로는 못 막는다).
  *   ⇒ 칸을 늘릴 땐 여기만 고친다. 일부러 «빼는» 자리는 _pickScratch 의 omit 으로 «그 자리에서» 까닭과 함께 적는다.
- *   fx = 에셋에서 빼 온 이미지 효과(image-handling.js captureAssetFx). 없으면 undefined. */
-const SCRATCH_ITEM_KEYS = ['src', 'x', 'y', 'w', 'id', 'g', 'linkDy', 'fx'];
+ *   fx = 에셋에서 빼 온 이미지 효과(image-handling.js captureAssetFx). 없으면 undefined.
+ *   ocr = AI OCR 기록(시트 33 1020t2a1 · v3 «항목 밑에 딸린 칸»). 없으면 undefined. ⚠️로드 길(_loadScratch 의 _createItem)은 명부 밖
+ *     «위치 인자»라 칸을 더하면 거기도 실어 나른다 — 빠지면 저장은 되나 다음 로드가 버린다(33 실측 · tests/dom/scratch-ocr-key-33). */
+const SCRATCH_ITEM_KEYS = ['src', 'x', 'y', 'w', 'id', 'g', 'linkDy', 'fx', 'ocr'];
 function _pickScratch(o, omit = []) {
   const out = {};
   for (const k of SCRATCH_ITEM_KEYS) if (!omit.includes(k)) out[k] = o ? o[k] : undefined;
@@ -799,7 +801,7 @@ async function _srcToPngDataUrl(src) {
   });
 }
 
-function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
+function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) {
   const scaler = document.getElementById('canvas-scaler');
   if (!scaler) return null;
 
@@ -1387,7 +1389,8 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
   //   (refLinks dataset 포맷은 «건드리지 않는다» — 오프셋은 스크래치 아이템 레코드에만 둔다.)
   const item = { el, src, x, y, w, id, g: gArg || undefined,
                  linkDy: (typeof linkDyArg === 'number' && isFinite(linkDyArg)) ? linkDyArg : undefined,
-                 fx: (fxArg && typeof fxArg === 'object') ? fxArg : undefined };
+                 fx: (fxArg && typeof fxArg === 'object') ? fxArg : undefined,
+                 ocr: ocrArg };
   _scratchItems.push(item);
 
   // native HTML5 DnD 사용 안 함 — mousedown/move/up 흐름 안에서 모두 처리 (canvas-scratch-drop.js의 export API 호출)
@@ -1430,9 +1433,9 @@ async function _loadScratch(projectId, pageId) {
       }
     }
     let migrated = false;
-    items.forEach(({ src, x, y, w, id, g, linkDy, fx }) => {
+    items.forEach(({ src, x, y, w, id, g, linkDy, fx, ocr }) => {
       if (!id) migrated = true; // 구 데이터엔 id 없음 — 자동 생성 후 재저장 트리거
-      _createItem(src, x, y, w, id, g, linkDy, fx);
+      _createItem(src, x, y, w, id, g, linkDy, fx, ocr);
     });
     _scratchLoaded = true; // migrated 재저장 전에 완료 마킹 (_saveScratch가 가드하므로)
     if (migrated || hydrated) _saveScratch(); // 하이드레이션분을 로컬 IndexedDB에 영속
