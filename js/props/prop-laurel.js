@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { gridNumOr } from '../blocks/grid-block.js';   /* ★C 181 — 0 을 살려 읽는 문 하나(렌더러 laurel-block.js 와 같은 함수 · 두 벌 금지) */
 
 function _readCells(block) {
   if (typeof window._readLaurelCells === 'function') return window._readLaurelCells(block);
@@ -24,8 +25,8 @@ function _writeCells(block, cells) {
 function _cellInnerHtml(cell, cellIdx) {
   const leafColor = cell.leafColor || '#1a1a1a';
   const leafAlpha = parseAlphaFromColor(leafColor);
-  const gap       = parseInt(cell.gap)    || 24;
-  const height    = parseInt(cell.height) || 140;
+  const gap       = gridNumOr(parseInt(cell.gap), 24);   // ★C 181 — ⛔`|| 24` 는 렌더러가 0 으로 그린 칸을 24 로 보였다
+  const height    = parseInt(cell.height) > 0 ? parseInt(cell.height) : 140;   // ★C — height 0 = 뜻 없음(계약 [20,600] — 패널 clamp · MCP _isInt(n,20,600)) ⇒ 먹는 게 맞다 · ⛔Number.isFinite 로 0 을 살리지 마라(C 152·181 · 158 «h>0 ? 지정 : 기본» 과 같은 판정)
 
   /* ★1013t1B2 C2 — 칸 카드의 Lines 묶음(줄 카드·↑·×·「+ 줄 추가」)을 걷었다. 줄은 캔버스에서 칸/줄을 고르면 헤더 아래에 뜨는
      공용 줄 절(line-host lnAugmentLaurelPanel — 그리드·버블·챗·비교와 같은 함수·같은 id)로 더하고 고친다. 잎 설정은 여기 남는다(결정 B2-7). */
@@ -154,15 +155,15 @@ ${blockHeaderHTML({
       ${cols > 1 ? `
       <div class="prop-row">
         <span class="prop-label">셀 가로 간격</span>
-        <input type="range" class="prop-slider" id="lrl-grid-col-gap" min="0" max="200" step="2" value="${parseInt(block.dataset.gridColGap) || 32}">
-        <input type="number" class="prop-number" id="lrl-grid-col-gap-num" min="0" max="400" value="${parseInt(block.dataset.gridColGap) || 32}">
+        <input type="range" class="prop-slider" id="lrl-grid-col-gap" min="0" max="200" step="2" value="${gridNumOr(parseInt(block.dataset.gridColGap), 32)}">
+        <input type="number" class="prop-number" id="lrl-grid-col-gap-num" min="0" max="400" value="${gridNumOr(parseInt(block.dataset.gridColGap), 32)}">
       </div>
       ` : ''}
       ${rows > 1 ? `
       <div class="prop-row">
         <span class="prop-label">셀 세로 간격</span>
-        <input type="range" class="prop-slider" id="lrl-grid-row-gap" min="0" max="200" step="2" value="${parseInt(block.dataset.gridRowGap) || 24}">
-        <input type="number" class="prop-number" id="lrl-grid-row-gap-num" min="0" max="400" value="${parseInt(block.dataset.gridRowGap) || 24}">
+        <input type="range" class="prop-slider" id="lrl-grid-row-gap" min="0" max="200" step="2" value="${gridNumOr(parseInt(block.dataset.gridRowGap), 24)}">
+        <input type="number" class="prop-number" id="lrl-grid-row-gap-num" min="0" max="400" value="${gridNumOr(parseInt(block.dataset.gridRowGap), 24)}">
       </div>
       ` : ''}
       <div class="prop-row">
