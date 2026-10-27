@@ -38,6 +38,29 @@ function extractFn(src, name) {
   assert.fail(`${name} 의 끝 중괄호를 못 찾음`);
 }
 
+/* ★163 — 리스너 콜백을 «구조로» 뜬다(febeb65c P-A1″ J 와 같은 꼴 · SOURCE-GATE-ASSUMES-INLINE-CALLBACK-01).
+   ⚰️옛 꼴은 `SRC.slice(i, i + N)` 고정 창 — «콜백이 등록에 인라인이고 N 글자 안에 끝난다»를 가정했다
+   (실측 7f3c6de2: mouseup 콜백 907 글자 ↔ 창 900 — 이미 끝 7 글자를 잘라 먹고 있었다).
+   ⇒ 등록 호출을 짝 괄호까지(sliceCall · 공용 부품) · 둘째 인자가 이름이면 그 function 본문(extractFn).
+   ⛔창 넓히기 금지(같은 가정이 남는다 · febeb65c 기각). */
+const { sliceCall } = require('./_slice-block.js');
+function listenerCb(src, head) {
+  const call = sliceCall(src, head);
+  const named = /^\s*,\s*([A-Za-z_$][\w$]*)\s*[,)]/.exec(call.slice(head.length));
+  return named ? extractFn(src, named[1]) : call;
+}
+/* ★217 — 닻이 «코드 조각»(콜백 안의 한 문장)인 창 — 그 조각을 «품은» 리스너 콜백을 구조로 뜬다(같은 등록이 여럿이면 품은 것 하나).
+   ⚰️옛 꼴은 조각부터 N 글자 고정 창(+900 · +400) — 조각 뒤 문장이 늘면 단언 대상이 창 밖으로 밀린다. ⛔창 넓히기(지디). */
+function listenerCbHolding(src, head, frag) {
+  for (let k = src.indexOf(head); k >= 0; k = src.indexOf(head, k + 1)) {
+    const call = sliceCall(src.slice(k), head);
+    const named = /^\s*,\s*([A-Za-z_$][\w$]*)\s*[,)]/.exec(call.slice(head.length));
+    const body = named ? extractFn(src, named[1]) : call;   // 이름 콜백은 «전체» src 에서 뜬다(정의가 k 앞일 수 있다)
+    if (body.includes(frag)) return body;
+  }
+  assert.fail(`${head} 중 «${frag}» 를 품은 콜백이 없다 — 배선이 바뀌었나?`);
+}
+
 /** 가짜 DOM 으로 getRestingScroll/getPanPosition 을 «실제 소스 그대로» 돌린다. */
 function makeEnv({ scalerH, clientH, clientW, scrollH, scrollW, zoom, panX, panY, scrollTop, scrollLeft, canvasTailY = 0 }) {
   const wrap = { clientHeight: clientH, clientWidth: clientW, scrollHeight: scrollH, scrollWidth: scrollW, scrollTop, scrollLeft };
@@ -150,7 +173,7 @@ test('★S2 계약: 팬 mousemove 는 scaler.style.transform 을 «쓰지 않는
   // 통째로 다시 기록된다(실측 Paint 27ms → 165ms, 축·거리 무관).
   const i = SRC.indexOf("window.addEventListener('mousemove'");
   assert.notEqual(i, -1, '팬 mousemove 핸들러를 못 찾음');
-  const body = stripComments(SRC.slice(i, SRC.indexOf("window.addEventListener('mouseup'", i)));
+  const body = stripComments(listenerCb(SRC, "window.addEventListener('mousemove'"));
   assert.ok(!/_applyScalerTransform\s*\(/.test(body),
     '팬 중 transform 을 쓰면 개선이 통째로 사라진다');
   assert.ok(!/scaler\.style\.transform/.test(body), '직접 쓰기도 금지');
@@ -159,8 +182,7 @@ test('★S2 계약: 팬 mousemove 는 scaler.style.transform 을 «쓰지 않는
 });
 
 test('★S2 계약: 팬은 «절대 델타»로 매 프레임 재계산한다 (증분 += 금지)', () => {
-  const i = SRC.indexOf("window.addEventListener('mousemove'");
-  const body = stripComments(SRC.slice(i, SRC.indexOf("window.addEventListener('mouseup'", i)));
+  const body = stripComments(listenerCb(SRC, "window.addEventListener('mousemove'"));
   assert.ok(/e\.clientX\s*-\s*panStart\.x/.test(body), '절대 델타여야 누적 오차가 안 생긴다');
   assert.ok(!/scrollLeft\s*\+=/.test(body) && !/scrollTop\s*\+=/.test(body),
     '증분이면 끝에 닿았다 되돌아올 때 손이 미끄러진 것처럼 느껴진다');
@@ -199,7 +221,7 @@ test('★S2 계약: 가로 여지가 성립하려면 flex-shrink:0 이 있어야
 test('★P-R2 계약: 팬 mouseup 이 «다음 click 한 번»을 삼키도록 표시한다', () => {
   const i = SRC.indexOf("window.addEventListener('mouseup'");
   assert.notEqual(i, -1);
-  const body = stripComments(SRC.slice(i, i + 900));
+  const body = stripComments(listenerCb(SRC, "window.addEventListener('mouseup'"));
   assert.ok(/_swallowPanClick\s*=\s*true/.test(body),
     '팬으로 끝난 제스처는 뒤따르는 click 을 삼켜야 한다(현빈: 「선택은 의도 아님」)');
   assert.ok(/setTimeout\(/.test(body),
@@ -209,19 +231,19 @@ test('★P-R2 계약: 팬 mouseup 이 «다음 click 한 번»을 삼키도록 �
 test('★P-R2 계약: click 삼키기는 «한 번»만이고 캔버스 안에서만', () => {
   const i = SRC.indexOf("window.addEventListener('click'");
   assert.notEqual(i, -1, '팬용 click 캡처 리스너를 못 찾음');
-  const body = stripComments(SRC.slice(i, i + 700));
+  const body = stripComments(listenerCb(SRC, "window.addEventListener('click'"));
   assert.ok(/_swallowPanClick\s*=\s*false/.test(body), '한 번 쓰면 즉시 내려야 한다');
   assert.ok(/canvasWrap\.contains\(/.test(body), '캔버스 밖 클릭까지 삼키면 안 된다');
   assert.ok(/stopPropagation\(\)/.test(body) && /preventDefault\(\)/.test(body));
-  assert.ok(/,\s*true\s*\)\s*;?\s*$/m.test(SRC.slice(i, i + 800)) || /}, true\)/.test(SRC.slice(i, i + 800)),
+  const reg = sliceCall(SRC, "window.addEventListener('click'");   // ★163 — 캡처 인자는 «등록 호출»의 꼬리(콜백이 이름이어도 같다)
+  assert.ok(/,\s*true\s*\)\s*;?\s*$/m.test(reg) || /}, true\)/.test(reg),
     '캡처 단계여야 앱의 다른 click 핸들러보다 «먼저» 본다');
 });
 
 /* ══ E. 이득비(gain) — 커서 1px = 캔버스 1px ═══════════════════════════ */
 
 test('★이득비 계약: 여지를 늘린 뒤 기준점을 «되맞추지» 않는다 (그러면 잔여를 잃는다)', () => {
-  const i = SRC.indexOf("window.addEventListener('mousemove'");
-  const body = stripComments(SRC.slice(i, SRC.indexOf("window.addEventListener('mouseup'", i)));
+  const body = stripComments(listenerCb(SRC, "window.addEventListener('mousemove'"));
   // 되맞추기(= scrollStart.left 를 «현재 스크롤 + wantDX» 로 덮어쓰기)가 있으면 이득비가 1 미만이 된다.
   assert.ok(!/scrollStart\.left\s*=\s*canvasWrap\.scrollLeft\s*\+/.test(body),
     '기준점을 되맞추면 그 프레임 잔여를 잃는다 — 실측 300px 끌면 290px(이득비 0.967)');
@@ -241,9 +263,7 @@ test('★이득비 계약: growPanRoom 은 «더한 보정량»을 돌려준다'
 /* ══ F. P-W1 — 휠/트랙패드 «잔여» ═══════════════════════════════════════ */
 
 test('★P-W1 계약: 휠 잔여 경로가 transform 을 «안» 쓴다', () => {
-  const i = SRC.indexOf("const resX = e.deltaX");
-  assert.notEqual(i, -1, '휠 잔여 계산부를 못 찾음');
-  const body = stripComments(SRC.slice(i, i + 900));
+  const body = stripComments(listenerCbHolding(SRC, "wrap.addEventListener('wheel'", 'const resX = e.deltaX'));   // ★217 — 휠 잔여 계산부를 품은 콜백
   assert.ok(!/_applyScalerTransform\s*\(/.test(body),
     '잔여를 transform 으로 쓰면 ⑴그 프레임 전면 재기록 ⑵`.panning` 이 없어 0.15s 보간이 켜진 채 돈다');
   assert.ok(!/panOffsetX\s*-=|panOffsetY\s*-=/.test(body), '잔여를 panOffset 에 넣지 않는다');
@@ -263,7 +283,7 @@ test('★P-W1 계약: 휠은 mouseup 이 없으므로 «정착 시» 여지를 �
   assert.ok(/clearTimeout/.test(body) && /setTimeout/.test(body), '제스처가 이어지면 미뤄야 한다');
   assert.ok(/shrinkPanRoom\s*\(/.test(body),
     '안 되돌리면 여지가 상한까지 쌓인 채 남아 «다음 제스처가 아예 안 움직인다»(실측 이동 0)');
-  const wheel = stripComments(SRC.slice(SRC.indexOf("const resX = e.deltaX"), SRC.indexOf("const resX = e.deltaX") + 900));
+  const wheel = stripComments(listenerCbHolding(SRC, "wrap.addEventListener('wheel'", 'const resX = e.deltaX'));   // ★217 — 같은 닻(resX)의 둘째 창(+900 · K1 대조가 찾음)
   assert.ok(/scheduleWheelSettle\s*\(/.test(wheel), '휠 경로가 실제로 예약해야 한다');
 });
 
@@ -353,27 +373,21 @@ test('★P-A2 계약: 고착 방지 — 재개 경로가 «여럿»이다 (고�
     '창 포커스를 잃는 경로에서도 재개돼야 한다');
   const ed = stripComments(SRC);
   assert.ok(/resumeAutoSave\?\.\(\)/.test(ed), '팬 종료 경로가 재개를 불러야 한다');
-  const upIdx = ed.indexOf("window.addEventListener('mouseup'");
-  assert.ok(/resumeAutoSave/.test(ed.slice(upIdx, upIdx + 900)), 'mouseup 에서 재개해야 한다');
+  assert.ok(/resumeAutoSave/.test(listenerCb(ed, "window.addEventListener('mouseup'")), 'mouseup 에서 재개해야 한다');
   // ★keyup 리스너가 여럿이라 «스페이스를 보는» 블록을 찾아야 한다(첫 번째를 집으면 오탐).
   // ★앵커는 «그 블록에만» 있는 문장이어야 한다 — `panMode = false;` 는 선언부에도 있어
   //   첫 일치가 엉뚱한 데를 가리켰다(이 테스트가 그렇게 한 번 헛돌았다).
-  const kuIdx = ed.indexOf("classList.remove('pan-mode', 'panning')");
-  assert.ok(kuIdx > 0, '팬 모드 해제 블록을 못 찾음');
-  assert.ok(/resumeAutoSave/.test(ed.slice(kuIdx, kuIdx + 400)),
+  assert.ok(/resumeAutoSave/.test(listenerCbHolding(ed, "document.addEventListener('keyup'", "classList.remove('pan-mode', 'panning')")),   // ★217
     '스페이스를 떼는 경로에서도 재개해야 한다(마우스를 창 밖에서 떼는 경우)');
 });
 
 test('★P-A2 계약: 유예를 «스페이스»와 «mousedown» «둘 다»에서 건다', () => {
   const ed = stripComments(SRC);
-  const dnIdx = ed.indexOf("canvasWrap.addEventListener('mousedown'");
-  assert.ok(/deferAutoSave\?\.\(\)/.test(ed.slice(dnIdx, dnIdx + 700)),
+  assert.ok(/deferAutoSave\?\.\(\)/.test(listenerCb(ed, "canvasWrap.addEventListener('mousedown'")),
     '팬 mousedown 이 유예를 걸어야 90MB 직렬화가 팬 도중에 안 터진다');
   // ★mousedown «만» 걸면, 스페이스와 클릭이 거의 동시일 때 mousedown 이 panMode=false 로
   //   early return 해 유예가 안 걸린다(실측: 유효 회차인데 defer 0회 → 1983ms 정지).
-  const spIdx = ed.indexOf("canvasWrap.classList.add('pan-mode')");
-  assert.ok(spIdx > 0, '팬 모드 진입 지점을 못 찾음');
-  assert.ok(/deferAutoSave\?\.\(\)/.test(ed.slice(spIdx, spIdx + 400)),
+  assert.ok(/deferAutoSave\?\.\(\)/.test(listenerCbHolding(ed, "document.addEventListener('keydown'", "canvasWrap.classList.add('pan-mode')")),   // ★217
     '스페이스(팬 시작 신호) 시점에도 걸어야 순서 경합에 안 진다');
 });
 
@@ -551,11 +565,9 @@ test('★FIX-⑵ 계약: 여지를 깎으면 «진행 중인 팬의 기준점»�
     '기준점 보정이 없으면 다음 mousemove 가 옛 좌표계를 다시 써서 cut 만큼 튄다(실측 1,510px)');
   assert.ok(/_panScrollBaseline\.left\s*-=\s*cutX/.test(body) && /_panScrollBaseline\.top\s*-=\s*cutY/.test(body),
     '스크롤을 내린 만큼 «똑같이» 내려야 이득비 1.000 이 유지된다');
-  const i = SRC.indexOf("canvasWrap.addEventListener('mousedown'");
-  const md = stripComments(SRC.slice(i, SRC.indexOf("window.addEventListener('mousemove'", i)));
+  const md = stripComments(listenerCb(SRC, "canvasWrap.addEventListener('mousedown'"));
   assert.ok(/setPanScrollBaseline\s*\(\s*scrollStart\s*\)/.test(md), '복사본이 아니라 참조를 걸어야 한다');
-  const j = SRC.indexOf("window.addEventListener('mouseup'");
-  const mu = stripComments(SRC.slice(j, SRC.indexOf("window.addEventListener('click'", j)));
+  const mu = stripComments(listenerCb(SRC, "window.addEventListener('mouseup'"));
   assert.ok(mu.indexOf('setPanScrollBaseline(null)') !== -1 &&
             mu.indexOf('setPanScrollBaseline(null)') < mu.indexOf('shrinkPanRoom('),
     '팬이 끝난 뒤의 회수는 기준점을 건드리면 안 된다 — 풀고 나서 회수한다');
@@ -568,8 +580,7 @@ test('★FIX-⑵ 계약: «여지 회수»는 살아 있어야 한다 (미봉 �
   assert.ok(/shrinkPanRoom\s*\(/.test(settle), '휠엔 mouseup 이 없다 — 정착 타이머가 유일한 회수 계기다');
   assert.ok(/,\s*200\s*\)/.test(settle), '정착 지연은 200ms 그대로 — 값을 키우는 것은 미봉이다');
   assert.ok(!/panning/.test(settle), '「팬 중이면 미룬다」로 때우지 않는다(호출자 하나만 막는 처방)');
-  const j = SRC.indexOf("window.addEventListener('mouseup'");
-  const mu = stripComments(SRC.slice(j, SRC.indexOf("window.addEventListener('click'", j)));
+  const mu = stripComments(listenerCb(SRC, "window.addEventListener('mouseup'"));
   assert.ok(/shrinkPanRoom\s*\(/.test(mu), '팬을 놓으면 늘어난 여지를 되돌려야 한다');
 });
 

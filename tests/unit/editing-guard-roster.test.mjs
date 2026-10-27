@@ -151,7 +151,7 @@ const BACKED_BY = [
     pred: (s) => {
       const i = s.indexOf("document.addEventListener('keydown', e => {\n  // contenteditable");
       if (i < 0) return false;
-      const head = s.slice(i, i + 420);
+      const head = s.slice(i, i + 420);   // ★163⑴(지디 판정 261028) — 고정 창은 «위치 단언»(가드가 콜백 «첫 문장» 근처에 있다) · 의도 · ⛔구조로 바꾸면 재는 것이 바뀐다
       return /if \(document\.activeElement\?\.isContentEditable && !e\.metaKey && !e\.ctrlKey\) return;/.test(head);
     },
     kill: (s) => s.replace(
