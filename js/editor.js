@@ -1779,13 +1779,17 @@ function _bindPastedEl(el) {
   const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block, .coupon-block, .quote-block, .radial-block'; /* bind-list:PASTE */
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
+  // ★215(BINDPASTED-ISSUES-IDS-WITHOUT-ACTORID-01) — 붙여넣기·복제도 «새 블록»이다 ⇒ 전역 genId(prefix_<actorId>_<rand> · drag-utils.js)로
+  //   actorId 조각을 붙인다. 옛 꼴 `${prefix}_${rand()}` 는 actorId 를 뺐다 — 아래 자유배치 갈래 주석(«전역 genId 를 써야 actorId 조각이 붙는다»)이
+  //   이 문에서는 거짓이었다(소비자 10 자리 전부). gradient-block-genid 규약과 같다. genId 가 없을 때만 옛 꼴.
+  const _newId = (p) => (typeof window.genId === 'function' ? window.genId(p) : `${p}_${rand()}`);
   el.querySelectorAll('[id]').forEach(child => {
     const prefix = child.id.split('_')[0] || 'el';
-    child.id = `${prefix}_${rand()}`;
+    child.id = _newId(prefix);
   });
   if (el.id) {
     const prefix = el.id.split('_')[0] || 'el';
-    el.id = `${prefix}_${rand()}`;
+    el.id = _newId(prefix);
   }
 
   /* 스티커는 그림 안의 id 를 «제 블럭 id»에서 짓는다(코인 gradient·clipPath 'coin-<id>…' · 글로우 필터 'fxg-<id>' · 마커 필터).
