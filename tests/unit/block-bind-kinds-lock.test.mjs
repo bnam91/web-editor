@@ -5,7 +5,7 @@
  *   (2026-10-21 S3 t4 ⒡ 다시 셈: 손 명부는 7 곳이다 — ⌘D 절대 위치 갈래 editor.js _ALL_BLOCK_SEL 이 처음부터 이 표에 없었다 ⇒ FROZEN 에 넣어 7 칸.
  *    명부 8 곳(정본 1 + 손 7)의 기준표 = tests/unit/_block-bind-lists-def.mjs · 양방향 차집합 자 = tests/unit/block-bind-lists-ruler.test.mjs(R4 가 FROZEN 이 손 7 곳을 다 덮는지 잰다).)
  *   - 손 명부가 종류를 «더» 빠뜨리면(줄 하나 지움) → 빨강.
- *   - 정본에 «새 종류»를 더하면 → 손 명부 7 곳이 전부 한 칸씩 더 벌어져 빨강(= 이 시험이 정본을 읽는다는 증거).
+ *   - 정본에 «새 종류»를 더하면 → 손 명부 6 곳(191 뒤 · 그 전 7)이 전부 한 칸씩 더 벌어져 빨강(= 이 시험이 정본을 읽는다는 증거).
  *     그때 할 일: 손 명부에 그 종류를 넣거나, 아래 표에 «까닭»과 함께 얼린 칸을 늘린다.
  * 까닭 표기(지디 ㉠ — «의도» 를 짐작으로 적지 않는다):
  *   covered = 다른 클래스로 이미 걸림(잰 것: speech-bubble-block 은 text-block 을 같이 단다 — block-factory.js makeSpeechBubbleBlock)
@@ -41,7 +41,7 @@ const C = 'covered', D = 'debt', U = 'unconfirmed';
 const FROZEN = {
   'editor.js _bindPastedEl BLOCK_SEL': { file: 'js/editor.js', anchor: "const BLOCK_SEL = '.text-block", gaps: {} },
   'editor.js 붙여넣기 _ALL': { file: 'js/editor.js', anchor: "const _ALL = '.text-block", gaps: { 'joker-block': U } },
-  'editor.js ⌘D 절대 _ALL_BLOCK_SEL': { file: 'js/editor.js', anchor: "const _ALL_BLOCK_SEL = '.text-block", gaps: { 'joker-block': U } },
+  /* 비석 — 'editor.js ⌘D 절대 _ALL_BLOCK_SEL' 칸 걷음(★191 · 261028 S3): 그 갈래가 공용 _bindPastedEl 을 지나 손 명부가 사라졌다 · joker 빠짐 닫힘 · FROZEN 7 → 6. */
   'save-load.js rebindAll': { file: 'js/io/save-load.js', anchor: "canvasEl.querySelectorAll('.text-block, .asset-block", gaps: { 'speech-bubble-block': C } },
   'editor.js 초기 바인딩': { file: 'js/editor.js', anchor: "document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block", gaps: { 'joker-block': U, 'shape-block': U, 'speech-bubble-block': C } },
   'block-factory.js 섹션 바인딩': { file: 'js/block-factory.js', anchor: "sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block", gaps: { 'banner02-block': U, 'canvas-block': U, 'comparison-block': U, 'icon-block': U, 'joker-block': U, 'mockup-block': U, 'modal-block': U, 'speech-bubble-block': C } },

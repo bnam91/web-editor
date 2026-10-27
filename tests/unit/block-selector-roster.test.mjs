@@ -90,7 +90,7 @@ const KNOWN_GAPS = {
   'js/editor.js CANVAS_SEL_BLOCKS#1': ['frame-block', 'shape-block'],
   /* 비석 — 'js/editor.js BLOCK_MULTI_SEL#1' 칸을 지웠다(명부 10 → 9): BLOCK_MULTI_SEL 죽은 상수(261027) · 두 자로 섰다: ⑴ 정적(지디) git grep -w 선언 걷고 읽는 자 0 ⑵ 행위(S7) 선언 지워도 새 빨강 0(41 파일 475 검사 · o1 98 · c1 95 · o2 99 · c2 95 번갈아) ⑶ 동적 참조(S7 ①⒜) 문자열 조립 · window[…] · eval 0건. ⛔살아있는 9칸(59 종-자리)은 그대로 · 그 표엔 ㉠영구/㉡조건부 구분 0건(별건 175 본체) */
   'js/editor.js FLOW_BLOCK_SEL_SELECTED#1': ['joker-block', 'shape-block'],
-  'js/editor.js _ALL_BLOCK_SEL#1': ['frame-block', 'joker-block', 'sticker-block'],
+  /* 비석 — 'js/editor.js _ALL_BLOCK_SEL#1' 칸 걷음(명부 9 → 8): ★191(261028 S3) ⌘D 절대 갈래 손 명부가 _bindPastedEl 로 옮겨 사라졌다. */
   'js/editor.js MULTI_SEL#1': ['frame-block'],
   'js/editor.js BLOCK_SEL#1': ['frame-block', 'sticker-block'],
   'js/editor.js _ALL#1': ['frame-block', 'joker-block', 'sticker-block'],
@@ -98,7 +98,7 @@ const KNOWN_GAPS = {
   'js/block-drag.js CHILD_BLOCK_SEL#1': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'joker-block', 'laurel-block', 'qa-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
   'js/block-drag.js BLOCK_SEL#1': ['chat-block', 'coupon-block', 'frame-block', 'gradient-block', 'laurel-block', 'qa-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'sticker-block', 'zoom-block'],
 };
-const EXPECT_ROSTERS = 9;   // 11 → 10 (t5-07 · block-factory BLOCK_SEL#1 파생) → 9 (175① · editor.js BLOCK_MULTI_SEL#1 죽은 상수 걷음)
+const EXPECT_ROSTERS = 8;   // 11 → 10 (t5-07 · block-factory BLOCK_SEL#1 파생) → 9 (175① · editor.js BLOCK_MULTI_SEL#1 죽은 상수 걷음) → 8 (191 · editor.js _ALL_BLOCK_SEL#1 ⌘D 절대 갈래 → _bindPastedEl)
 
 test('A1 ★전제 — ★명부를 ★꼴로 ★9곳 찾고, ★합집합이 ★손으로 박은 명부와 ★같다', () => {
   const R = rosters();
@@ -140,11 +140,12 @@ test('A3 ★★KNOWN_GAPS 가 ★장식이 아니다 — ★표 자체가 ★비
   assert.ok(n > 0,
     '★KNOWN_GAPS 가 ★통째로 비었다 — ★구멍이 ★정말 0 이면 ★⒉ 파생이 끝난 것이니 ★이 단언을 ★지우고 그 사실을 ★적어라');
   /* ★가장 심한 둘을 ★이름으로 박는다 — ★이 검사가 ★무엇을 보고 생겼는지 ★남긴다 */
-  const worst = ALL_SEEN.filter((b) => Object.values(KNOWN_GAPS).filter((v) => v.includes(b)).length >= 8);
+  const worst = ALL_SEEN.filter((b) => Object.values(KNOWN_GAPS).filter((v) => v.includes(b)).length >= 7);
   /* ★t5-07(S3 · 261023) — ⌘G 명부 파생으로 sticker 구멍이 8 → 7곳(block-factory BLOCK_SEL#1 칸이 빠짐) ⇒ 8곳 이상 = frame 하나.
-     261018 실측(frame·sticker 둘)은 이 머리말이 기록으로 남긴다 — 이 자는 «지금 이러하다»를 잠근다. */
+     261018 실측(frame·sticker 둘)은 이 머리말이 기록으로 남긴다 — 이 자는 «지금 이러하다»를 잠근다.
+     ★191(261028 S3) — _ALL_BLOCK_SEL#1 칸이 걷혀 명부 9 → 8 · frame 구멍 8 → 7(다음 sticker 5) ⇒ 문턱 8 → 7 · 뜻 그대로(가장 심한 = frame 하나). */
   assert.deepEqual(worst.sort(), ['frame-block'],
-    `★8곳 이상에서 빠진 블럭이 달라졌다: ${worst.join(',')} — ★261018 실측은 frame·sticker 둘 · t5-07 파생 뒤 frame 하나`);
+    `★7곳 이상에서 빠진 블럭이 달라졌다: ${worst.join(',')} — ★261018 실측은 frame·sticker 둘 · t5-07 파생 뒤 frame 하나`);
 });
 
 test('A4 ★★키가 «줄 번호»에 ★안 묶였다 — ★줄이 밀려도 ★같은 키가 나온다 (261018 S1 이 잡은 흠)', () => {

@@ -1483,19 +1483,7 @@ function duplicateSelected() {
     if (absWrapper && parentFrame) {
       window.pushHistory('복제');
       const clone = absWrapper.cloneNode(true);
-      // 새 id 생성
-      // fix(frame-p0#4): absWrapper는 text/shape 프레임뿐 아니라 «맨몸 절대배치 블록»
-      // (예: asset-block)일 수도 있다 — 항상 'ss_'로 찍으면 id 접두사가 실제 타입과
-      // 어긋난다(bindFrameDropZone 이식·MCP 게이트 불일치). 원래 prefix를 보존하고
-      // genId(actorId 포함)를 쓴다(붙여넣기 경로와 동일 관례).
-      const _gid = (p) => (typeof window.genId === 'function'
-        ? window.genId(p)
-        : p + '_' + Math.random().toString(36).slice(2, 9));
-      clone.id = _gid(absWrapper.id.split('_')[0] || 'ss');
-      clone.querySelectorAll('[id]').forEach(el => {
-        const prefix = el.id.split('_')[0] || 'el';
-        el.id = _gid(prefix);
-      });
+      /* ★191 — id 재발급·다시 묶기·다시 그리기는 아래 appendChild 뒤 _bindPastedEl(clone) 한 문이 한다(손 절반 걷음 · genId·actorId 는 그 문 안 — 215). */
       // 오프셋 +20px
       const origLeft = parseInt(absWrapper.style.left || '0');
       const origTop  = parseInt(absWrapper.style.top  || '0');
@@ -1504,27 +1492,11 @@ function duplicateSelected() {
       clone.dataset.offsetX = String(origLeft + 20);
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
-      // 이벤트 재바인딩
-      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block, .coupon-block, .quote-block, .radial-block'; /* bind-list:DUP_ABS */
-      clone.querySelectorAll(_ALL_BLOCK_SEL).forEach(b => {
-        delete b._blockBound;
-        window.bindBlock?.(b);
-        // chat-block: 편집 위임은 renderChatBlock에서 바인딩되는데 bindBlock은 드래그만 처리.
-        // 복사본은 renderChatBlock가 재호출되지 않아 더블클릭 편집이 안 됨 → 명시적 재렌더.
-        if (b.classList.contains('chat-block')) { delete b._chatEditBound; window.renderChatBlock?.(b); }
-      });
-      // 복제본 자신이 블록인 경우(absWrapper=selBlock, 즉 position:absolute 블록을 직접 복제):
-      // 위 querySelectorAll은 루트(clone)를 포함하지 않아 본인 드래그 바인딩이 누락된다.
-      // text-block은 프레임 위임 드래그가 편집(contenteditable)에 양보하므로 자체 bindBlock이 없으면 못 움직임.
-      if (clone.matches?.(_ALL_BLOCK_SEL)) {
-        delete clone._blockBound;
-        window.bindBlock?.(clone);
-        if (clone.matches('.chat-block')) { delete clone._chatEditBound; window.renderChatBlock?.(clone); }
-      }
+      /* ★191(CLONE-RERENDER-01 · bind-list:DUP_ABS 걷음) — 공용 붙여넣기 문을 지난다: id 재발급(genId) · migrateGridIdentity · 프레임·블록 bindBlock ·
+         rerenderTree(다시 그리기 · chat 포함) · bindStickerSelect · bindGradientSelect · syncAutoGridWidth.
+         ⚰️옛 꼴은 그 절반(id + _ALL_BLOCK_SEL bindBlock 손 명부 + chat 특례 + 자기 bindBlock + 프레임)만 베껴 다시 그리기·스티커·그라데가 빠졌다. */
+      _bindPastedEl(clone);
       clone._dragBound = false;
-      clone._subSecBound = false;
-      // fix(frame-p0#4): clone이 실제로는 프레임이 아닌 맨몸 블록일 수 있다 — 호출부도 명시 가드.
-      if (clone.classList.contains('frame-block')) window.bindFrameDropZone?.(clone);
       // 기존 선택 해제 후 복제본 선택
       deselectAll();
       const cloneBlock = clone.querySelector('.text-block, .shape-block, .asset-block') || clone;
