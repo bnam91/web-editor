@@ -59,6 +59,14 @@ const { clickAt } = require('./_click-at.js');
 async function setup(page, opts = {}) {
   await page.setViewportSize({ width: 1700, height: 1200 });
   const errs = await bootApp(page);
+  await scene(page, opts);
+  return errs;
+}
+
+/* ★143(QUOTE-Q10-TIMEOUT-AFTER-SEVEN-MERGE-01) — 장면만 갈아끼운다(부팅 없이). 장면 몸이 이미 섹션을 통째로 지우고 새로 넣으므로
+   같은 page 에서 되풀이해도 앞 장면이 안 남는다. Q10 이 «정렬 셋 × 두 꼴 = 부팅 6 번»(≈1.1~1.8s 씩 · 203 실측) 대신 부팅 1 번으로 쓴다.
+   ⛔다른 시험의 setup(부팅 + 장면)은 그대로. */
+async function scene(page, opts = {}) {
   await page.evaluate((o) => {
     const c = document.getElementById('canvas');
     c.querySelectorAll('.section-block').forEach(s => s.remove());
@@ -74,7 +82,6 @@ async function setup(page, opts = {}) {
     window.__qt && window.__qt.scrollIntoView({ block: 'center' });
   }, opts);
   await page.waitForFunction(() => !!window.__qt && window.__qt.isConnected, null, { timeout: 5000 });
-  return errs;
 }
 
 /** 진짜 클릭으로 블럭을 골라 패널을 연다(사람이 하는 순서 · 공용 루프를 지난다). */
@@ -525,10 +532,11 @@ test('Q10 ★⒜ 중앙정렬 — ★`align` 칸이 ★이미 한다(새 칸 ★
      ★«가로» 중앙이 뜻을 갖는다. ★지금 블럭의 `align`(left/center/right)이 ★그 일을 한다 ⇒ ⛔`valign` 을 ★안 들였다.
      ★세 값으로 ★몰아 본다 — ⛔`justify-items` 라는 ★글자를 읽어 「된다」고 적지 않는다. */
   const got = {};
+  const errs = await setup(page, { layout: 'stack', text: '안녕', align: 'left' });   // ★143 — 부팅은 여기 한 번
   for (const align of ['left', 'center', 'right']) {
-    const errs = await setup(page, { layout: 'stack', text: '안녕', align });
+    await scene(page, { layout: 'stack', text: '안녕', align });
     got[align] = await axisOf(page);
-    expect(errs).toEqual([]);
+    expect(errs).toEqual([]);   // 한 부팅의 페이지 오류 누적 — 어느 정렬에서든 오류가 나면 빨강
   }
   /* ★★비율로 잰다 — ⛔절대좌표 금지(위 axisOf 머리말: ★배율이 setup 마다 다르다).
      left → 세 조각의 ★왼쪽 모서리가 ★0 쪽에 모인다 · center → ★중심이 ★0.5 · right → ★오른쪽이 ★1. */
@@ -587,7 +595,7 @@ test('Q10 ★⒜ 중앙정렬 — ★`align` 칸이 ★이미 한다(새 칸 ★
   */
   const inl = {};
   for (const align of ['left', 'center', 'right']) {
-    await setup(page, { layout: 'inline', text: '안녕', align });
+    await scene(page, { layout: 'inline', text: '안녕', align });   // ★143 — 같은 부팅에서 장면만
     inl[align] = await axisOf(page);
   }
   const preRat = ['left', 'center', 'right'].map(a => rat(inl[a], inl[a].pieces[0], 'l'));
