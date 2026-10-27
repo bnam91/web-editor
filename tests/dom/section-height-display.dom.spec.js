@@ -400,10 +400,11 @@ test('S2 ★비교 키에 안 샌다 — 협업 가드(serializeSectionClone) ·
      그것만으로는 저쪽 파일을 안 잰다(검사가 자기 전제를 단언해야 한다). */
   const fs = require('fs'), path = require('path');
   const ROOT = path.join(__dirname, '..', '..');
-  for (const f of ['js/version-diff.js', 'js/market-merge.js']) {
-    const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
-    expect(/\.section-height-badge/.test(src), `${f} 의 normSection 제거 목록에 배지 이름이 없다`).toBe(true);
-  }
+  /* ★194(261028) — version-diff 는 제 사본을 걷고 market-merge.normSection 에 ★위임한다 ⇒ 배지 이름은 market-merge 한 자리 */
+  const mm = fs.readFileSync(path.join(ROOT, 'js/market-merge.js'), 'utf8');
+  expect(/\.section-height-badge/.test(mm), 'js/market-merge.js 의 normSection 제거 목록에 배지 이름이 없다').toBe(true);
+  const vd = fs.readFileSync(path.join(ROOT, 'js/version-diff.js'), 'utf8');
+  expect(/\.normSection\(/.test(vd), 'js/version-diff.js 가 market-merge.normSection 을 안 부른다 — 배지를 걷는 길이 끊겼다').toBe(true);
 });
 
 /* ══════════════════════════════════════════════════════════════════════════

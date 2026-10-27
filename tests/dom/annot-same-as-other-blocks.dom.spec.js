@@ -103,7 +103,13 @@ test('A0 ★전제 — 제 함수가 있고, 제외 명부에서 annotation-bloc
     .toEqual(['frame-block', 'group-block', 'qa-block', 'section-block']);
 
   /* ★★제거 목록 ★셋 — ★한 자리만 고치고 둘을 잊는 것을 막는다(명부가 셋이었다) */
-  for (const f of ['js/market-merge.js', 'js/version-diff.js']) {
+  /* ★194(261028) — version-diff 의 사본을 걷었다 ⇒ 제거 목록은 market-merge ★한 자리 · version-diff 는 그걸 부른다(아래 두 줄) */
+  {
+    const vd = fs.readFileSync(path.join(ROOT, 'js/version-diff.js'), 'utf8');
+    expect(vd.split('\n').filter(l => /querySelectorAll\(.*section-height-badge/.test(l)).length, 'js/version-diff.js 에 제 제거 줄이 되살아났다 — 명부가 둘이 된다').toBe(0);
+    expect(/\.normSection\(/.test(vd), 'js/version-diff.js 가 market-merge.normSection 을 안 부른다').toBe(true);
+  }
+  for (const f of ['js/market-merge.js']) {
     const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
     const lines = src.split('\n').filter(l => /querySelectorAll\(.*section-height-badge/.test(l));
     expect(lines.length, `${f} 에 normSection 제거 줄이 없다 — 자가 낡았다`).toBe(1);

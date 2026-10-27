@@ -165,9 +165,9 @@ const CHANNELS = [
     why: '협업 머지의 섹션 정규화 키. 2026-09-09 까지 자기 _RUNTIME_CLS 명단으로 걷었고 그 명단에 ' +
          '두 줄 마커가 «없어» 줄을 고른 것만으로 「변경됨」 오탐이 났다(백로그 F2). ' +
          '이제 window.runtimeMarkers(section-serialize) 를 읽는다' },
-  { file: 'js/version-diff.js', kind: 'compare', axes: ['marker'], strips: 'runtimeMarkers',
-    why: '버전 비교의 섹션 정규화 키. market-merge 와 «같은» window.runtimeMarkers 를 읽는다 ' +
-         '— 두 벌 명단이면 한쪽만 고쳐지는 날이 온다(백로그 F2)' },
+  { file: 'js/version-diff.js', kind: 'compare', axes: ['marker'], strips: NORM_FN,
+    why: '버전 비교의 섹션 정규화 키. ★194(261028) 뒤 market-merge.normSection·hash 에 ★위임한다(로컬 사본 걷음 · 없으면 던짐) ' +
+         '— 두 벌 정규화면 「바뀌었다」 판정이 갈린다(백로그 F2 와 같은 병)' },
 
   // ── transient — 라이브/일시. 결과물이 아니다 ───────────────────────────
   { file: 'js/io/save-load.js', kind: 'artifact', axes: ['marker', 'drop'], strips: 'inline',
@@ -364,7 +364,12 @@ function editorNodeCanon(root) {
       const strip = makeStripper();
       const body = fnBody(src.split('\n').map(l => strip(l)).join('\n'), s.name);
       if (!body) throw new Error('★정본 ' + s.name + ' 함수를 ' + s.file + ' 에서 못 찾았다');
-      const r = removedSelectors(body);
+      /* ★154 ⑴(261028 · 지디 «두 커밋» 첫째) — 지우기 줄이 ★정본 상수를 부르면(`X` · `window.X`) ★이미 읽은 const 출처로 푼다.
+         ⛔안 풀면 `$X` 한 줄이 되어 ★정본이 깨진다(pan-native-scroll :434 경고) · 모르는 이름은 그대로 `$이름`(capture-derive-roster RESOLVE 와 같은 꼴). */
+      const r = removedSelectors(body, (arg) => {
+        const hit = Object.keys(by).find(k => k.endsWith('#' + arg.replace(/^window\./, '')));
+        return hit ? by[hit] : null;
+      });
       if (r.covered !== r.total) throw new Error('★' + s.name + ' 에 파서가 못 읽는 지우기 꼴이 ' + (r.total - r.covered) + ' 곳');
       list = r.sels;
     }

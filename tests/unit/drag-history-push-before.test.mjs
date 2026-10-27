@@ -170,8 +170,25 @@ test('허용② js/block-drag.js 드래그아웃 — 한 제스처에 끝 표본
     'pushHistory 가 추출 «앞»에 있다 — 시작 표본은 이미 onMove 가 찍었으므로 여기 또 찍으면 한 제스처가 두 항목이 된다');
 });
 
-test('허용③ js/overlay-handles.js 그리드 거터 둘 — 시작은 mousedown, 끝은 onUp', () => {
-  for (const fn of ['_onGridColMouseDown', '_onGridRowMouseDown']) {
+/* ★202(2026-10-28) — 행 거터 셋(그리드 행 · 비교 행 · 카드 행)은 «공용 몸통» _rowGutterDrag 를 부른다
+   ⇒ 양쪽 끝 규약은 ★그 몸통에서 잰다. 소비자마다 한 칸 — 몸통을 무력화하면 ★셋 다 빨강(한 쌍의 «소비자 수만큼»). */
+for (const fn of ['_onGridRowMouseDown', '_onCmpRowMouseDown', '_onCvbRowMouseDown']) {
+  test(`허용③ js/overlay-handles.js 행 거터 ${fn} — 공용 몸통이 시작은 mousedown, 끝은 onUp`, () => {
+    const src = code('js/overlay-handles.js');
+    const h = sliceBlock(src, `function ${fn}(`);
+    assert.match(h, /_rowGutterDrag\(block, onMove/, `${fn}: 공용 몸통(_rowGutterDrag)을 안 부른다 — 제 손 이력이 생겼나`);
+    assert.equal((h.match(/pushHistory/g) || []).length, 0, `${fn}: 제 손 pushHistory 가 남았다 — 한 제스처가 항목 넷이 된다`);
+    const body = sliceBlock(src, 'function _rowGutterDrag(');
+    const iPush = body.indexOf('pushHistory');
+    const iUp = body.indexOf('function onUp(');
+    assert.ok(iPush !== -1 && iPush < iUp, `${fn}: 시작 표본(mousedown 1회)이 사라졌다`);
+    assert.match(sliceBlock(body, 'function onUp('), /pushHistory/,
+      `${fn}: 끝 표본이 없다 — 다음 동작이 push-after 면 ⌘Z 한 번이 둘을 같이 먹는다`);
+  });
+}
+
+test('허용③ js/overlay-handles.js 그리드 열 거터 — 시작은 mousedown, 끝은 onUp', () => {
+  for (const fn of ['_onGridColMouseDown']) {
     const h = sliceBlock(code('js/overlay-handles.js'), `function ${fn}(`);
     const iPush = h.indexOf('pushHistory');
     const iMove = h.indexOf('function onMove(');
