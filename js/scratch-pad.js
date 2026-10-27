@@ -293,6 +293,9 @@ function _deleteScratchItemsWithHistory(items, opts = {}) {
   // 삭제 전 정보 캡쳐 (복원용) — src/x/y/w/id/g 보존
   // ⚠️linkDy 는 빼 왔다(옛 동작 그대로). fx 는 담는다 — 지운 항목을 ⌘Z 로 되살릴 때 효과도 돌아와야 한다.
   const snapshots = items.map(s => _pickScratch(s, ['linkDy']));
+  /* ★155 — 아래 ⑧ 이 «풀어 버릴 짝»의 소속도 떠 둔다. 옛 판은 ⌘Z 가 지운 장만 되살려 2장 그룹의 남은 짝이 g 를 잃었다
+     (tests/dom/scratch-del-mate-undo-155 K1). 변환 길(128 F1 ⒞ groupMatesBefore)과 같은 꼴. */
+  const groupMatesBefore = _scratchGeomSnapshot(_scratchItems.filter(s => s.g && !items.includes(s) && items.some(d => d.g === s.g)));
 
   /* ★지우는 이미지가 섹션에 «연결»돼 있으면 그 토큰도 같이 치운다 (2026-10-09 실측 결함).
    *   무엇이 문제였나: `refLinks` 는 섹션 data-* 인데 이 길이 그걸 ★한 번도 안 건드렸다.
@@ -338,6 +341,7 @@ function _deleteScratchItemsWithHistory(items, opts = {}) {
         /* ★만들기(동기 · _createItem)는 바로 · 저장은 «표시·순서를 맞춘 뒤» 기다린다 — 옛: 장마다 저장을 기다린 뒤에 맞춰
            148장 판에서 되살린 장이 ✕「제거」로 0.85s 보였다(앱 실측 r8diag · ⑱). */
         const saving = snapshots.map(s => { try { return window._scratchAddAndSaveFx?.(s.src, s.x, s.y, s.w, s.g, s.id, s.fx); } catch (_) { return null; } });
+        if (groupMatesBefore.length) { try { _applyScratchGeomSnapshot(groupMatesBefore); } catch (_) {} }
         // ★이미지를 되살렸으면 «연결»도 되살린다 — 안 하면 ⌘Z 가 그림만 돌려주고 선은 영영 안 돌아온다
         try { _restoreLinks(severed); } catch (_) {}
         if (orderBefore) {                               // ㉱-z — 되살린 장을 원래 자리(순서)로 · 모드 중이면 표시도 맞춘다
