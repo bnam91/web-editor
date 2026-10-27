@@ -38,7 +38,8 @@ async function freshCanvas(page) {
  *   «지워진 토막»이 하나라도 있으면 쓰기를 «거절»하고 실패한다. 더해진 토막의 id 를 메시지에 찍는다.
  *   까닭: 이 골든은 «변경 감지기»라 갱신이 정상 절차인데, 사람 눈으로 「지워진 줄 0 · 더해진 id 가 그 묶음 것뿐」을
  *   확인하다 두 번 놓쳤다(integ8 G2-b · integ11 G4). ⇒ 손이 아니라 단언으로.
- *   ⚠️속성 하나만 바뀐 토막도 «지움+더함»으로 센다 — 그것도 사람이 봐야 하는 변화라 거절이 맞다. */
+ *   ⚰️(옛) 속성 하나만 바뀐 토막도 «지움+더함»으로 셌다 → ★224(지디 09:0x) 부터 «같은 태그 ∧ 같은 id» 짝은 «바뀜» — 거절 아님 ·
+ *     사람이 볼 몫은 [GOLDEN-GUARD] «바뀐 id(속성)» 줄 + annotation golden-changed-ids 로 남긴다(tests/dom/_golden-guard.js). */
 /* ★★[2026-10-07 지디] 비교용 «공백 정규화» — ⛔골든에 «쓰는» 값은 손대지 않는다, 이 가드의 «견주기»만 그렇다.
  *   ★까닭: 「알약 둥글기」(현빈 요청 · 2500b7da)가 템플릿에 ${...} 가지를 끼우면서 8개 상태 전부의
  *          `</div>` 앞에 «빈 줄 하나»가 늘었다. 그러면 토막 diff 가 그걸 «지움＋더함»으로 세서
@@ -46,55 +47,17 @@ async function freshCanvas(page) {
  *   ★그래서 «무엇을 보려던 가드였나»를 지킨다: ★태그·속성·글자의 변화는 그대로 잡고, ★토막 사이 공백만 무시한다.
  *   ⛔통제를 «거두는» 수는 «설치하는» 수와 같은 검증을 받는다 ⇒ BT2_T6_MUT=del(prop-row 하나 뺌)이
  *      ★여전히 «갱신 거절 빨강»인지 매번 확인하라. 2026-10-07 실측: del=거절(rc 1) · 평소=통과(rc 0). */
-const _tokRaw = (s) => String(s).split(/(?<=>)/);
-const _tok = (s) => _tokRaw(s).map(t => t.replace(/\s+/g, ' ').trim()).filter(t => t !== '');
-function _diffTokens(a, b) {           // Myers O(ND) — 같은 토막이 대부분이라 싸다
-  const N = a.length, M = b.length, max = N + M, v = new Map([[1, 0]]), trace = [];
-  for (let d = 0; d <= max; d++) {
-    trace.push(new Map(v));
-    for (let k = -d; k <= d; k += 2) {
-      let x = (k === -d || (k !== d && (v.get(k - 1) ?? -1) < (v.get(k + 1) ?? -1))) ? (v.get(k + 1) ?? 0) : (v.get(k - 1) ?? 0) + 1;
-      let y = x - k;
-      while (x < N && y < M && a[x] === b[y]) { x++; y++; }
-      v.set(k, x);
-      if (x >= N && y >= M) {
-        const del = [], add = [];
-        let cx = N, cy = M;
-        for (let dd = d; dd > 0; dd--) {
-          const pv = trace[dd]; const kk = cx - cy;
-          const prevK = (kk === -dd || (kk !== dd && (pv.get(kk - 1) ?? -1) < (pv.get(kk + 1) ?? -1))) ? kk + 1 : kk - 1;
-          const px = pv.get(prevK) ?? 0, py = px - prevK;
-          while (cx > px && cy > py) { cx--; cy--; }
-          if (cx === px) add.push(b[py]); else del.push(a[px]);
-          cx = px; cy = py;
-        }
-        return { del, add };
-      }
-    }
-  }
-  return { del: a.slice(), add: b.slice() };
-}
-function _guardNoDeletes(name, oldObj, got) {
-  const report = [];
-  for (const k of new Set([...Object.keys(oldObj || {}), ...Object.keys(got)])) {
-    if (!(k in got)) { report.push({ state: k, del: ['(상태 통째로 사라짐)'], add: [] }); continue; }
-    if (!(k in (oldObj || {}))) continue;
-    const { del, add } = _diffTokens(_tok(oldObj[k]), _tok(got[k]));
-    if (del.length || add.length) report.push({ state: k, del, add });
-  }
-  const dels = report.filter(r => r.del.length);
-  const addedIds = [...new Set(report.flatMap(r => r.add.join('').match(/id="[^"]+"/g) || []))];
-  return { dels, addedIds, report };
-}
+const { _guardNoDeletes } = require('./_golden-guard.js');   // ★224 — 순수 함수는 그 파일(유닛이 잰다)
 
 function golden(name, got, { guardDeletes = false } = {}) {
   const f = GOLD(name);
   if (UPDATE && guardDeletes && fs.existsSync(f)) {
-    const { dels, addedIds } = _guardNoDeletes(name, JSON.parse(fs.readFileSync(f, 'utf8')), got);
+    const { dels, addedIds, changedIds } = _guardNoDeletes(name, JSON.parse(fs.readFileSync(f, 'utf8')), got);
     expect(dels.map(r => `${r.state}: −${r.del.length} (${r.del.slice(0, 3).join(' | ').slice(0, 300)})`),
       `★갱신 거절 — 옛 골든에서 «지워지는» 토막이 있다(지워진 줄 0 이어야 한다). 더해진 id: ${addedIds.join(', ') || '없음'}`).toEqual([]);
     test.info().annotations.push({ type: 'golden-added-ids', description: addedIds.join(', ') || '(없음)' });
-    console.log(`[GOLDEN-GUARD] ${name}: 지워진 토막 0 · 더해진 id = ${addedIds.join(', ') || '없음'}`);
+    test.info().annotations.push({ type: 'golden-changed-ids', description: changedIds.join(', ') || '(없음)' });   // ★224 — 사람이 볼 «바뀐 id»
+    console.log(`[GOLDEN-GUARD] ${name}: 지워진 토막 0 · 더해진 id = ${addedIds.join(', ') || '없음'} · 바뀐 id(속성) = ${changedIds.join(', ') || '없음'}`);
   }
   if (UPDATE) {
     fs.mkdirSync(path.dirname(f), { recursive: true });
