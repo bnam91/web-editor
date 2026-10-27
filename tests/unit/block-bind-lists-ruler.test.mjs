@@ -283,7 +283,7 @@ test('R0 정의표 무결 — 이름 하나씩 · 칸 다 있음 · K_BIND 와 O
   assert.deepEqual(K_BIND.filter((k) => OWN_BINDER.includes(k)), [], 'K_BIND ∩ OWN_BINDER ≠ ∅');
   const names = LISTS.map((l) => l.name);
   assert.equal(new Set(names).size, names.length, `명부 이름 겹침 ${JSON.stringify(names)}`);
-  assert.equal(LISTS.length, 7, `명부 ${LISTS.length} 곳(7 이어야 — 191 이 DUP_ABS 를 걷어 8 → 7)`);
+  assert.equal(LISTS.length, 6, `명부 ${LISTS.length} 곳(6 이어야 — 191 DUP_ABS · 216 PASTE_FREE_FRAME 걷어 8 → 6)`);
   const FIELDS = ['name', 'file', 'anchor', 'event', 'meaning', 'mustContain', 'mustNot', 'knownGaps', 'allowedExtra'];
   for (const l of LISTS) {
     for (const f of FIELDS) assert.ok(l[f] !== undefined && l[f] !== null && l[f] !== '', `${l.name}: 칸 ${f} 비었음`);
@@ -356,8 +356,8 @@ test('R6 음성대조 4 — 글자를 일부러 깨면 자 함수가 그 자리�
   assert.deepEqual(minus(canonDiff(canonMut).missing, canonDiff(canonSrc).missing), ['text-block'], '⒜ R1 함수가 text-block 빠짐을 못 짚었다');
 
   // ⒝ 정의표 사본에서 표본 명부를 뺀다 → R3 함수가 그 자리(js/editor.js:<그 줄>)를 «표에 없는 후보»로 짚는다.
-  //   ★191 — 표본을 DUP_ABS 에서 PASTE_FREE_FRAME 으로(DUP_ABS 는 _bindPastedEl 로 옮겨 명부째 사라짐 · 같은 파일·같은 꼴 손 명부).
-  const SAMPLE = 'PASTE_FREE_FRAME';
+  //   ★191 — 표본을 DUP_ABS 에서 PASTE_FREE_FRAME 으로 · ★216 — 다시 PASTE(_bindPastedEl BLOCK_SEL)로(둘 다 _bindPastedEl 로 옮겨 명부째 사라짐 · 같은 파일 · 줄이 .text-block, 로 시작).
+  const SAMPLE = 'PASTE';
   const dup = HANDS.find((l) => l.name === SAMPLE);
   const dupAt = locate(SOURCES.get(dup.file), dup.anchor);
   assert.ok(dupAt, `⒝ ${SAMPLE} 닻을 못 찾았다`);
@@ -367,12 +367,13 @@ test('R6 음성대조 4 — 글자를 일부러 깨면 자 함수가 그 자리�
   assert.deepEqual(minus(reconcile(candidates, entriesMut, SOURCES).unaccounted, reconcile(candidates, ENTRIES, SOURCES).unaccounted),
     [`${dup.file}:${dupAt.line}`], `⒝ R3 함수가 ${dup.file}:${dupAt.line} 을 못 짚었다\n${fmtCands(candidates)}`);
 
-  // ⒞ 표본 명부 줄에서 .text-block, 을 뺀다 → R2 함수가 text-block «새로 빠짐»을 짚는다.
+  // ⒞ 표본 명부 줄에서 .gap-block, 을 뺀다 → R2 함수가 gap-block «새로 빠짐»을 짚는다.
+  //   ★216 — 남은 손 명부는 닻이 다 '.text-block, .asset-block' 를 품어 .text-block 을 빼면 닻이 깨진다 ⇒ 닻 «뒤» 토막(.gap-block)으로.
   const edSrc = SOURCES.get(dup.file);
   const lineEnd = edSrc.indexOf('\n', dupAt.idx);
-  const edMut = edSrc.slice(0, dupAt.idx) + edSrc.slice(dupAt.idx, lineEnd).replace('.text-block, ', '') + edSrc.slice(lineEnd);
+  const edMut = edSrc.slice(0, dupAt.idx) + edSrc.slice(dupAt.idx, lineEnd).replace('.gap-block, ', '') + edSrc.slice(lineEnd);
   assert.notEqual(edMut, edSrc, '⒞ 변이가 안 꽂혔다');
-  assert.deepEqual(minus(handDiff(edMut, dup).newMissing, handDiff(edSrc, dup).newMissing), ['text-block'], '⒞ R2 함수가 text-block 새로 빠짐을 못 짚었다');
+  assert.deepEqual(minus(handDiff(edMut, dup).newMissing, handDiff(edSrc, dup).newMissing), ['gap-block'], '⒞ R2 함수가 gap-block 새로 빠짐을 못 짚었다');
 
   // ⒟ 잠금 시험 글자에서 표본 닻을 뺀다 → R4 함수가 표본을 짚는다.
   //   합성 칸을 하나 꽂아 «덮임»을 만든 뒤(양성 확인), 그 자리로 풀리는 칸(진짜 FROZEN 칸 포함)을 전부 걷는다.
