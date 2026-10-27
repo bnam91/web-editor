@@ -162,6 +162,7 @@ async function judgeUndo(page, o, label, wantText) {
 }
 
 test('B0 판 정체 — HEAD 와 서빙 파일이 EXPECT_SHA', async ({ page }, ti) => {
+  test.skip(!process.env.EXPECT_SHA && !process.env.CR_REQUIRE_BOARD, 'ENV-IDENTITY-NEEDS-LANE-ENV-169 — 판 정체 «전용 칸» · 레인 env(EXPECT_SHA)가 없는 일반 런은 건너뜀(radial-t4-a P0 꼴 · 제품 칸은 그대로 돈다)');
   test.setTimeout(T_MS);
   expect(EXPECT_SHA, '장면 미성립: EXPECT_SHA 없음').toMatch(/^[0-9a-f]{40}$/);
   const B = await boot(page);

@@ -27,6 +27,10 @@ const sha1 = (b) => crypto.createHash('sha1').update(b).digest('hex');
 const log = (tag, o) => console.log(`AEX ${tag} ${JSON.stringify(o)}`);
 
 async function assertBoard(page) {
+  /* ★169(DOM-SWEEP-UNREADABLE-ENV-PRECONDITION-SPECS-01) — 판 정체는 «재기 런»(EXPECT_SHA env)에서만 · 일반 회귀 런(env 없음)은 이 전제만 건너뛰고
+     주 단언은 그대로 돈다(tests/dom/_cr-harness.js assertBoard 와 같은 꼴). ⛔test.skip 아님 — 제품 재는 칸이 조용히 SKIP 되면 안 된다.
+     CR_REQUIRE_BOARD=1 이면 env 없어도 단언(빨강) — 판 정체를 «꼭» 재는 런용. */
+  if (!process.env.EXPECT_SHA && !process.env.CR_REQUIRE_BOARD) return;
   const want = process.env.EXPECT_SHA || '';
   expect(want, '판 정체: EXPECT_SHA 40 hex').toMatch(/^[0-9a-f]{40}$/);
   let wantMap = null; try { wantMap = JSON.parse(process.env.EXPECT_FILES_SHA1 || ''); } catch (_) {}

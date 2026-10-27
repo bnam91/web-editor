@@ -232,6 +232,7 @@ async function canvasCenterNone(page, id) {
 
 test.describe('S6 t4 ⒝ radial 캔버스 편집 · 가운데 지우기 · 체크 무늬', () => {
   test('P0 판 정체 — HEAD = EXPECT_SHA · 앱 파일: 페이지가 받은 바이트 = 디스크 = env · 디스크만 파일: 디스크 = env', async ({ page }) => {
+    test.skip(!process.env.EXPECT_SHA && !process.env.CR_REQUIRE_BOARD, 'ENV-IDENTITY-NEEDS-LANE-ENV-169 — 판 정체 «전용 칸» · 레인 env(EXPECT_SHA)가 없는 일반 런은 건너뜀(radial-t4-a P0 꼴 · 제품 칸은 그대로 돈다)');
     const want = process.env.EXPECT_SHA || '';
     expect(/^[0-9a-f]{40}$/.test(want), `EXPECT_SHA 는 40 hex — 받은 값 «${want}»`).toBe(true);
     let wantMap = null;
