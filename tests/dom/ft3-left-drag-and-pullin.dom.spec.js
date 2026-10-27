@@ -32,6 +32,8 @@ async function setup(page) {
     window.applyZoom?.(40);
     window.__tb = sec.querySelector('.text-block');
     window.__sec = sec;
+    /* ★179 ㉠ — 끌기 끝(mouseup) 시각을 페이지가 적는다. clickPullIn 이 이 시각으로 기다린다(아래 FT_CLICK_SWALLOW_CLEAR_MS). */
+    document.addEventListener('mouseup', () => { window.__ftUpT = performance.now(); }, true);
     window.__tb.scrollIntoView({ block: 'center' });
     window.selectBlock(window.__tb.id);
   });
@@ -131,7 +133,13 @@ test('L nw 를 왼쪽으로(섹션 안 여유의 절반) → nw 가 따라가고
 
 /* 끌기를 놓은 뒤 패널이 한 번 다시 그려진다 — 그 전에 누르면 곧 바뀔 단추를 누른다(실측: 3번 중 1~2번 핸들러 0회).
    ⇒ «같은 단추 요소가 두 프레임 넘게 산다»를 조건으로 기다린다(⛔고정 대기 아님). */
+/* ★179 ㉠(FT3-PULLIN-NE-NOT-BACK-01 · 지디 확정) — 손잡이 끌기 onUp 이 문서 capture 에 killClick 을 120ms 건다
+   (js/effects-ft-handles.js · FT-DRAG-RELEASE-DESELECTS-01). 그 창 안의 click 은 «대상이 무엇이든» 삼켜진다 —
+   실측(S5 probe179f/g/h): 데려오기가 안 먹은 8/8 이 mouseup→click 89~122ms · 먹은 104/104 는 ≥124.8ms.
+   제품이 그 창 상태를 안 드러내 «mouseup 뒤 150ms»(120 + setTimeout 늦음 여유 30)를 조건으로 기다린다 — ⛔고정 대기 아님(이미 지났으면 바로 간다). */
+const FT_CLICK_SWALLOW_CLEAR_MS = 150;
 async function clickPullIn(page) {
+  await page.waitForFunction((ms) => window.__ftUpT == null || performance.now() - window.__ftUpT >= ms, FT_CLICK_SWALLOW_CLEAR_MS);
   await page.evaluate(() => document.getElementById('txt-fxft-body')?.removeAttribute('hidden'));
   await page.waitForFunction(() => new Promise((res) => {
     const b = document.getElementById('txt-fxft-pullin');
