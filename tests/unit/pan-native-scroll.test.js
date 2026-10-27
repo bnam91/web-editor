@@ -49,6 +49,17 @@ function listenerCb(src, head) {
   const named = /^\s*,\s*([A-Za-z_$][\w$]*)\s*[,)]/.exec(call.slice(head.length));
   return named ? extractFn(src, named[1]) : call;
 }
+/* ★217 — 닻이 «코드 조각»(콜백 안의 한 문장)인 창 — 그 조각을 «품은» 리스너 콜백을 구조로 뜬다(같은 등록이 여럿이면 품은 것 하나).
+   ⚰️옛 꼴은 조각부터 N 글자 고정 창(+900 · +400) — 조각 뒤 문장이 늘면 단언 대상이 창 밖으로 밀린다. ⛔창 넓히기(지디). */
+function listenerCbHolding(src, head, frag) {
+  for (let k = src.indexOf(head); k >= 0; k = src.indexOf(head, k + 1)) {
+    const call = sliceCall(src.slice(k), head);
+    const named = /^\s*,\s*([A-Za-z_$][\w$]*)\s*[,)]/.exec(call.slice(head.length));
+    const body = named ? extractFn(src, named[1]) : call;   // 이름 콜백은 «전체» src 에서 뜬다(정의가 k 앞일 수 있다)
+    if (body.includes(frag)) return body;
+  }
+  assert.fail(`${head} 중 «${frag}» 를 품은 콜백이 없다 — 배선이 바뀌었나?`);
+}
 
 /** 가짜 DOM 으로 getRestingScroll/getPanPosition 을 «실제 소스 그대로» 돌린다. */
 function makeEnv({ scalerH, clientH, clientW, scrollH, scrollW, zoom, panX, panY, scrollTop, scrollLeft, canvasTailY = 0 }) {
@@ -252,9 +263,7 @@ test('★이득비 계약: growPanRoom 은 «더한 보정량»을 돌려준다'
 /* ══ F. P-W1 — 휠/트랙패드 «잔여» ═══════════════════════════════════════ */
 
 test('★P-W1 계약: 휠 잔여 경로가 transform 을 «안» 쓴다', () => {
-  const i = SRC.indexOf("const resX = e.deltaX");
-  assert.notEqual(i, -1, '휠 잔여 계산부를 못 찾음');
-  const body = stripComments(SRC.slice(i, i + 900));
+  const body = stripComments(listenerCbHolding(SRC, "wrap.addEventListener('wheel'", 'const resX = e.deltaX'));   // ★217 — 휠 잔여 계산부를 품은 콜백
   assert.ok(!/_applyScalerTransform\s*\(/.test(body),
     '잔여를 transform 으로 쓰면 ⑴그 프레임 전면 재기록 ⑵`.panning` 이 없어 0.15s 보간이 켜진 채 돈다');
   assert.ok(!/panOffsetX\s*-=|panOffsetY\s*-=/.test(body), '잔여를 panOffset 에 넣지 않는다');
@@ -274,7 +283,7 @@ test('★P-W1 계약: 휠은 mouseup 이 없으므로 «정착 시» 여지를 �
   assert.ok(/clearTimeout/.test(body) && /setTimeout/.test(body), '제스처가 이어지면 미뤄야 한다');
   assert.ok(/shrinkPanRoom\s*\(/.test(body),
     '안 되돌리면 여지가 상한까지 쌓인 채 남아 «다음 제스처가 아예 안 움직인다»(실측 이동 0)');
-  const wheel = stripComments(SRC.slice(SRC.indexOf("const resX = e.deltaX"), SRC.indexOf("const resX = e.deltaX") + 900));
+  const wheel = stripComments(listenerCbHolding(SRC, "wrap.addEventListener('wheel'", 'const resX = e.deltaX'));   // ★217 — 같은 닻(resX)의 둘째 창(+900 · K1 대조가 찾음)
   assert.ok(/scheduleWheelSettle\s*\(/.test(wheel), '휠 경로가 실제로 예약해야 한다');
 });
 
@@ -368,9 +377,7 @@ test('★P-A2 계약: 고착 방지 — 재개 경로가 «여럿»이다 (고�
   // ★keyup 리스너가 여럿이라 «스페이스를 보는» 블록을 찾아야 한다(첫 번째를 집으면 오탐).
   // ★앵커는 «그 블록에만» 있는 문장이어야 한다 — `panMode = false;` 는 선언부에도 있어
   //   첫 일치가 엉뚱한 데를 가리켰다(이 테스트가 그렇게 한 번 헛돌았다).
-  const kuIdx = ed.indexOf("classList.remove('pan-mode', 'panning')");
-  assert.ok(kuIdx > 0, '팬 모드 해제 블록을 못 찾음');
-  assert.ok(/resumeAutoSave/.test(ed.slice(kuIdx, kuIdx + 400)),
+  assert.ok(/resumeAutoSave/.test(listenerCbHolding(ed, "document.addEventListener('keyup'", "classList.remove('pan-mode', 'panning')")),   // ★217
     '스페이스를 떼는 경로에서도 재개해야 한다(마우스를 창 밖에서 떼는 경우)');
 });
 
@@ -380,9 +387,7 @@ test('★P-A2 계약: 유예를 «스페이스»와 «mousedown» «둘 다»에
     '팬 mousedown 이 유예를 걸어야 90MB 직렬화가 팬 도중에 안 터진다');
   // ★mousedown «만» 걸면, 스페이스와 클릭이 거의 동시일 때 mousedown 이 panMode=false 로
   //   early return 해 유예가 안 걸린다(실측: 유효 회차인데 defer 0회 → 1983ms 정지).
-  const spIdx = ed.indexOf("canvasWrap.classList.add('pan-mode')");
-  assert.ok(spIdx > 0, '팬 모드 진입 지점을 못 찾음');
-  assert.ok(/deferAutoSave\?\.\(\)/.test(ed.slice(spIdx, spIdx + 400)),
+  assert.ok(/deferAutoSave\?\.\(\)/.test(listenerCbHolding(ed, "document.addEventListener('keydown'", "canvasWrap.classList.add('pan-mode')")),   // ★217
     '스페이스(팬 시작 신호) 시점에도 걸어야 순서 경합에 안 진다');
 });
 
