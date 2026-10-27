@@ -40,7 +40,9 @@
    ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
    ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
 export const NON_CONTENT_UI_SELECTOR =
-  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .mdl-profile-x, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox, .tfh-handle, .tfh-grid, .tfh-fx, .tfh-edge, .tfh-layer, .sticker-corner-handle, .hlb-handle, .annot-point-angle, .shape-handle, .gradient-corner-handle';
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .mdl-profile-x, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox, .tfh-handle, .tfh-grid, .tfh-fx, .tfh-edge, .tfh-layer, .sticker-corner-handle, .hlb-handle, .annot-point-angle, .shape-handle, .gradient-corner-handle, .section-bottom-handle';
+/* `.section-bottom-handle` (2026-10-27 · t8-03 · srv-t803) — 섹션 바닥 높이 손잡이(js/section-bottom-handle.js) · 섹션의 자식.
+   등록 전 실측: 캔버스·프로젝트·섹션 저장본에 각 1건씩 실렸다 ⇒ section-serialize.js serializeCleanRoot 에도 같이 올렸다. */
 /* ★★★`.shape-handle` · `.gradient-corner-handle` (2026-10-25 · 지디 · ★`CAPTURE-ROSTER-NOT-DERIVED-FROM-SAVE-01` 의 ★남은 몫)
      ★도형 ★4모서리 손잡이(block-drag.js:1137)와 ★그라데 ★4모서리 손잡이(gradient-select.js:35)다.
      ★둘 다 ★블럭의 ★«자식»으로 붙는다.

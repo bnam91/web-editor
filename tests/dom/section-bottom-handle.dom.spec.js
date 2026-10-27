@@ -1,10 +1,10 @@
-/* ★시안 확인용 — ⛔게이트 아님. 「만들었다」를 ★행위로 닫는다. 재고 나면 지운다.
+/* 섹션 바닥 높이 손잡이 — 「만들었다」를 ★행위로 닫는다.
    (261027 srv-t803 · 뜻 바뀜 : 아래 여백 → 바닥 높이 min-height) */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 const raf2 = (p) => p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 
-test('PROTO 끌면 섹션 바닥 높이(min-height)가 생기고, 섹션 밖에서 놓아도 선택이 남는다', async ({ page }) => {
+test('섹션 바닥 손잡이: 끌면 섹션 바닥 높이(min-height)가 생기고, 섹션 밖에서 놓아도 선택이 남는다', async ({ page }) => {
   test.setTimeout(120000);
   await page.setViewportSize({ width: 1500, height: 950 });
   const errs = await bootApp(page);
@@ -14,7 +14,7 @@ test('PROTO 끌면 섹션 바닥 높이(min-height)가 생기고, 섹션 밖에�
     await window.addSection();
     const el = [...c.querySelectorAll('.section-block')].pop();
     window.selectSection?.(el);
-    window.protoSecBotSweep?.();
+    window.sectionBottomHandleSweep?.();
     return el.id;
   });
   await raf2(page);
@@ -25,12 +25,12 @@ test('PROTO 끌면 섹션 바닥 높이(min-height)가 생기고, 섹션 밖에�
     await page.waitForFunction((i) => document.getElementById(i)?.classList.contains('selected')
       && !!document.getElementById('sec-padb-slider'), id, { timeout: 8000 });
     await raf2(page);
-    await page.evaluate(() => window.protoSecBotSweep?.());
+    await page.evaluate(() => window.sectionBottomHandleSweep?.());
   }
 
   const pre = await page.evaluate((i) => {
     const s = document.getElementById(i);
-    return { handle: !!s.querySelector(':scope > .proto-secbot-handle'), pad: s.style.paddingBottom || '(없음)',
+    return { handle: !!s.querySelector(':scope > .section-bottom-handle'), pad: s.style.paddingBottom || '(없음)',
              h: s.offsetHeight };   // ★모델 px(post.h 와 같은 자)
   }, id);
   expect(pre.handle, '손잡이가 안 붙었다').toBe(true);

@@ -1,0 +1,17 @@
+/* section-bottom-handle.css — 섹션 바닥 높이 손잡이(js/section-bottom-handle.js) */
+.section-bottom-handle{
+  position:absolute; left:0; right:0; bottom:0; height:10px;
+  cursor:ns-resize; z-index:5;
+  display:none;                     /* ★평소엔 안 보인다 — 선택했을 때만 */
+}
+.section-block.selected > .section-bottom-handle,
+.section-block:hover   > .section-bottom-handle{ display:block; }
+/* ★잡는 자리를 ★보이게 — 가운데 짧은 막대 하나(새 색을 안 만든다) */
+.section-bottom-handle::after{
+  content:''; position:absolute; left:50%; bottom:3px; width:44px; height:4px;
+  transform:translateX(-50%); border-radius:2px;
+  background:var(--ui-accent-primary); opacity:.35;
+}
+.section-block.selected > .section-bottom-handle::after{ opacity:.6; }
+.section-bottom-handle:hover::after{ opacity:.9; }
+.section-block.section-bottom-dragging{ user-select:none; }

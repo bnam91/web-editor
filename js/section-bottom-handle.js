@@ -1,9 +1,9 @@
-/* proto-section-bottom-space.js — ★★시안 : 섹션 ★바닥 높이(최소 높이)를 ★끌어서 맞춘다
+/* section-bottom-handle.js — 섹션 ★바닥 높이(최소 높이)를 ★끌어서 맞추는 손잡이
  *   (2026-10-25 지디 · 현빈 「기본 섹션에도 아웃라인 핸들을 추가해서 높이를 늘릴 수 있게」
- *    → 「★일단 브랜치 만들어 ★시안만」)
+ *    → 「★일단 브랜치 만들어 ★시안만」 · 시안 가지 proto/section-bottom-space-handle)
  *   (2026-10-27 srv-t803 · 현빈 피드백으로 ★뜻을 바꿨다 — 아래 «여백»이 아니라 ★«바닥 높이»)
  *
- * ★★⛔제품이 ★아니다. ★`proto/section-bottom-space-handle` 가지에만 산다. 머지는 지디가 한다.
+ *   (2026-10-27 · 현빈 괴롭히기 뒤 dev 로 — 이름에서 proto- 를 뺐다)
  *
  * ═══ ★무엇을 하나 (현빈 261027 · 원문 요지) ═══════════════════════════════════════
  *   「처음 섹션이 280 인데 ★1000 쯤 만들 거라고 ★어림짐작해서 ★핸들로 1080 에 맞춰 두면
@@ -31,21 +31,20 @@
  *   ★처방 꼴 = 레포 선례 `armClickSwallow`(table-cell-select.js · overlay-handles.js · drag-utils.js 와 같은 꼴).
  *   ⇒ 옛 «끝나고 다시 고르기»(증상 처리)는 ★뺐다.
  *
- * ═══ ★안 한 것 (★시안이라 ★일부러) ═══════════════════════════════════════════════
+ * ═══ ★안 한 것 (★일부러) ═══════════════════════════════════════════════
  *   · ★우측 패널 «바닥 높이» 칸 — 현빈 「일단 대기」
  *   · ★여러 섹션 한꺼번에 · ★스냅 · ★수치 뱃지
- *   · ★`NON_CONTENT_UI_SELECTOR` 등록 — ★제품으로 갈 때 ★반드시 한다(`PROTO-SECBOT-HANDLE-NOT-IN-UI-ROSTER-01`)
  */
 (function () {
   'use strict';
 
-  const CLS = 'proto-secbot-handle';
+  const CLS = 'section-bottom-handle';
 
   function ensureHandle(sec) {
     if (!sec || sec.querySelector(':scope > .' + CLS)) return;
     const h = document.createElement('div');
     h.className = CLS;
-    h.title = '끌어서 섹션 높이를 맞춥니다 — 블럭이 넘으면 늘어납니다 · 더블클릭 = 빈 공간 0 (시안)';
+    h.title = '끌어서 섹션 높이를 맞춥니다 — 블럭이 넘으면 늘어납니다 · 더블클릭 = 빈 공간 0';
     sec.appendChild(h);
   }
 
@@ -85,7 +84,7 @@
     /* ★배율을 먹는다 — 캔버스가 40% 면 화면 1px 이 모델 2.5px 다.
        ⛔`window.zoom` 류를 손으로 읽지 마라 — 요소의 실제 배율에서 뽑는다. */
     const scale = sec.getBoundingClientRect().width / (sec.offsetWidth || 1) || 1;
-    sec.classList.add('proto-secbot-dragging');
+    sec.classList.add('section-bottom-dragging');
 
     const onMove = (e) => {
       const v = Math.round(h0 + (e.clientY - y0) / scale);
@@ -96,7 +95,7 @@
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
       document.removeEventListener('pointercancel', onCancel);
-      sec.classList.remove('proto-secbot-dragging');
+      sec.classList.remove('section-bottom-dragging');
     };
     const onUp = () => {
       end();
@@ -136,7 +135,7 @@
   document.addEventListener('pointerdown', onDown, true);
   document.addEventListener('dblclick', onDblClick, true);
   document.addEventListener('DOMContentLoaded', sweep);
-  /* 섹션이 늘거나 줄 때 따라붙는다 — 시안이라 느슨하게 훑는다(제품화 때는 생성 자리에 건다) */
+  /* shortcut: 섹션 생성 자리 대신 1.2s 마다 훑는다 — 새 섹션에 손잡이가 늦게(≤1.2s) 붙는다, 거슬리면 addSection 에 건다 */
   setInterval(sweep, 1200);
-  window.protoSecBotSweep = sweep;
+  window.sectionBottomHandleSweep = sweep;
 })();
