@@ -3,9 +3,11 @@
  * 칸
  *   GH  여백 줄 높이(grd-line-gap-h) — 0 넣으면 ★모델 0 · ★그림 0px · ★패널 다시 그려도 «0» · ★저장 → 새로 띄워 불러와도 0 · 0px
  *       (⛔옛: 렌더러 `Number(line.height) || 16` → 16px · 패널 `|| ''` → 빈 칸(placeholder 16))
- *   IH  그림 줄 높이(grd-img-height · 크롭 줄 = 칸 켜짐) — 0 넣으면 ★모델 0 · ★패널 다시 그려도 «0» · ★저장 → 불러와도 0
- *       (⛔옛: 패널 `Number(line.height) || ''` → 빈 칸(placeholder auto) — 저장값 0 이 «auto» 로 보였다)
- *   ⚠️IH 는 그림을 안 잰다 — 크롭 줄의 그림 높이는 이번 판도 옛 판도 `height:${h}px`(0 → 0px) 로 같다(렌더러 손 안 댐).
+ *   IH  그림 줄 높이(grd-img-height · 크롭 줄 = 칸 켜짐) — 0 넣으면 ★모델 0 · ★패널은 빈 칸(placeholder auto) · ★저장 → 불러와도 0
+ *       ★158(현빈 직접 GO 2026-10-27) — 「0 = auto」는 렌더러 계약(h > 0 ? 지정 : 기본)이라 패널도 «auto» 로 말한다.
+ *       (t6-04b 가 잠갔던 «0» 표시를 158 이 되돌렸다 · 모델 0 · 저장 왕복 0 은 그대로 잠근다 · 자 = fix5-158-img-h-auto.dom.spec.js)
+ *   ⚠️IH 는 그림을 안 잰다 — 렌더러(손 안 댐)는 h 0 이면 «크롭 아님»(grid-block.js `cropped = h > 0 && …`)이라 그림 비율(height:auto)로 그린다.
+ *     (158 이 바로잡음: 옛 줄은 「0 → 0px」라 적었지만 E157 뒤로는 틀린 말이었다 — 그래서 0 = auto 가 계약이다.)
  *   ⚠️디스크 쓰기는 하네스 밖(electronAPI 가짜) — 저장 = serializeProject() → bootApp → applyProjectData · 디스크 proj.json 은 앱값으로 잰다.
  * 양성대조: GD1001_ROOT=<5e4256d1 사본> ⇒ GH·IH 빨강.
  * 줄 고르기·입력은 진짜 마우스·키(grid-gap-line-height.dom.spec.js 와 같은 손). */
@@ -63,13 +65,14 @@ test('GH ★여백 줄 높이 0 → 모델 0 · 그림 0px · 패널 «0» · �
   expect(errs).toEqual([]);
 });
 
-test('IH ★그림 줄 높이 0(크롭 줄) → 모델 0 · 패널 «0» · 저장 왕복 0', async ({ page }) => {
+test('IH ★그림 줄 높이 0(크롭 줄) → 모델 0 · 패널 빈 칸(auto · 158) · 저장 왕복 0', async ({ page }) => {
   const errs = await setup(page, [{ type: 'image', imgSrc: PX, height: 120, imgSizePct: 100, imgPosX: 0, imgPosY: 0 }, { type: 'body', text: 'C' }]);
   await selectLine(page, '#gG .grd-img-frame');
   expect(await page.evaluate(() => document.getElementById('grd-img-height')?.value), '전제 — 칸 켜짐 · 120').toBe('120');
   await typeInto(page, 'grd-img-height', 0);
   const got = { model: (await lineOf(page, 0)).height, panel: await reshow(page, 'grd-img-height') };
-  expect(got, '★0 이 «0» 으로 보인다(⛔빈 칸 = auto)').toEqual({ model: 0, panel: '0' });
+  expect(got, '★모델은 0 · 패널은 «auto»(158 — 0 = auto 계약)').toEqual({ model: 0, panel: '' });
+  expect(await page.evaluate(() => document.getElementById('grd-img-height')?.placeholder), '빈 칸이 말하는 것 = auto').toBe('auto');
   await reopen(page);
   expect((await lineOf(page, 0)).height, '★저장 → 불러와도 0').toBe(0);
   expect(errs).toEqual([]);

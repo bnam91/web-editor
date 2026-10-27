@@ -967,7 +967,7 @@ function _gridValidateGap(v, min = 0) {
 }
 
 /* ★t6-04b — 줄의 px 값을 «0 을 살려» 읽는 문 하나(그리는 쪽 · 패널이 같이 쓴다 · 인자 = 값, 기본값).
- *  쓰는 자리: 중첩 줄 gap(t6-04 요구) · 여백 줄 height · 그림 줄 height 패널 표시(이웃 둘 · 지디 16:21).
+ *  쓰는 자리: 중첩 줄 gap(t6-04 요구) · 여백 줄 height(이웃 · 지디 16:21). ⛔그림 줄 height 패널 표시는 158 에서 빠졌다 — 그 0 은 «auto»(prop-grid.js _grdImageSectionHtml).
  *  ⛔`Number(line.gap) || 24` 금지 — 0 이 유효값인데 `||` 가 0 을 삼켜 24 로 그렸고, 팝오버가 24 를 «지금 값»으로
  *    띄워 0 → 24 로 «조용히 되써» 저장본을 바꿨다(아이맥 ⓐ). :717 블럭 gap 과 같은 함정 · 같은 판정(Number.isFinite).
  *  ★없음(null·undefined·'')·무효 = 부른 쪽이 준 기본값(그 기본값의 정본 자리는 따로 하나씩 — GRID_NESTED_GAP · GRID_GAP_LINE_H). 범위 밖 저장본은 «그대로» 그린다 — 거르는 자리는 들어오는 문(_gridValueViolations). */
